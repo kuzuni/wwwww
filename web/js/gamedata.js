@@ -243,6 +243,24 @@ const PET_MOTION = {
     'Spectral Tiger': { freq: 2.6, amp: 0.07, yaw: 0.1 },
 };
 
+// 마운트 이름 한글화 + 아이콘(이모지 프리뷰)
+const MOUNT_KR = {
+    'Brown Leaf': '갈색 나뭇잎', 'Lily Leaf': '수련잎', 'Lily Pad': '연잎',
+    'Turtle': '거북이', 'Crab': '게', 'Brown Horse': '갈색 말', 'Dino': '공룡',
+    'Pig': '돼지', 'Goat': '염소',
+    'Bike': '자전거', 'Giant Bee': '거대 벌',
+    'Mini Dragon': '미니 드래곤', 'One-Wheel Droid': '외바퀴 드로이드',
+    'Hover Board': '호버보드', 'Hover Disk': '호버 디스크',
+};
+const MOUNT_ICONS = {
+    'Brown Leaf': '🍂', 'Lily Leaf': '🍃', 'Lily Pad': '🪷',
+    'Turtle': '🐢', 'Crab': '🦀', 'Brown Horse': '🐴', 'Dino': '🦕',
+    'Pig': '🐷', 'Goat': '🐐',
+    'Bike': '🚲', 'Giant Bee': '🐝',
+    'Mini Dragon': '🐉', 'One-Wheel Droid': '🤖',
+    'Hover Board': '🛹', 'Hover Disk': '🛸',
+};
+
 // 기능 해금 (원본 스테이지 해금 테이블)
 const UNLOCKS = [
     { stage: '2-10', key: 'autoForge', name: '오토 포지' },

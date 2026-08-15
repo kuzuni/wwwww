@@ -18,6 +18,7 @@
         loadGame();
         Dungeons.ensure();
         TechTree.ensure();
+        Mounts.ensure();
         const offline = applyOffline();
 
         UI.init();
@@ -69,6 +70,11 @@
             // 기술트리 검증: ?debug=tech → 블러드 지급 후 모달
             S.blood += 999999;
             UI.openTechTree();
+        }
+        if (params.get('debug') === 'mount') {
+            // 마운트 검증: ?debug=mount → 와인더 지급 후 모달
+            S.winders += 999999;
+            UI.openMounts();
         }
 
         // 로직: 고정 100ms 틱 (탭 복귀 시 밀린 틱 따라잡기, 최대 5초분)

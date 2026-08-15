@@ -18,7 +18,7 @@ function defaultState() {
         kills: 0, totalCrafts: 0,
         clearedBosses: {},              // "1-5": true → 첫 클리어 보상용
         // 재화
-        hammers: 80, coins: 500, gems: 300, tickets: 40,
+        hammers: 80, coins: 500, gems: 300, tickets: 40, winders: 0,
         // 대장간
         forgeLevel: 1,
         forgeUpgradeEndsAt: null,       // 절대시각(ms). null이면 미진행
@@ -35,6 +35,10 @@ function defaultState() {
         equippedSkills: ['powerStrike'],
         autoCast: true,
         summonCount: 0,                 // 소환 누적 → 소환 레벨 상승
+        // 마운트
+        mountOpens: 0,                  // 누적 소환 수 → 마운트 레벨 상승
+        mounts: {},                     // name → {rarity, count}
+        activeMount: null,              // 장착 중인 마운트 이름
     };
 }
 

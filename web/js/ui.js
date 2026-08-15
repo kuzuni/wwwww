@@ -15,7 +15,7 @@ const UI = {
             panels: { forge: $('panel-forge'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu') },
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
             dungeonModal: $('dungeon-modal'), dungeonBtn: $('dungeon-btn'),
-            techModal: $('tech-modal'),
+            techModal: $('tech-modal'), mountModal: $('mount-modal'),
         };
         this.els.dungeonBtn.addEventListener('click', () => this.openDungeons());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -420,9 +420,11 @@ const UI = {
                 <div>🔨 총 제작</div><div>${U.fmt(S.totalCrafts)}</div>
                 <div>📈 최고 스테이지</div><div>${S.bestChapter}-${S.bestStage}</div>
                 <div>🩸 블러드</div><div>${U.fmt(S.blood || 0)} <small class="muted">(기술 트리 재화)</small></div>
+                <div>⚙️ 와인더</div><div>${U.fmt(S.winders || 0)} <small class="muted">(마운트 재화)</small></div>
             </div>
             <div class="row">
                 <button class="btn primary" onclick="UI.openTechTree()">🔬 기술 트리</button>
+                <button class="btn primary" onclick="UI.openMounts()">🐴 마운트</button>
             </div>
             <div class="row">
                 <button class="btn" onclick="saveGame(); UI.toast('💾 저장 완료')">수동 저장</button>
@@ -506,6 +508,60 @@ const UI = {
         if (TechTree.upgrade(id)) { this.openTechTree(); this.renderTopBar(); Combat.recalcHero(); }
         else this.toast('🩸 블러드가 부족합니다 (좀비 러시 던전에서 획득)');
     },
+
+    // ---- 마운트 ----
+    openMounts() {
+        Mounts.ensure();
+        const lvl = Mounts.level();
+        const need = Mounts.nextNeeded();
+        const progress = need ? U.clamp(S.mountOpens / need, 0, 1) : 1;
+        const rates = Mounts.rates();
+        const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
+            `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${(rates[r] * 100).toFixed(2)}%</span>`).join('');
+
+        const owned = Object.entries(S.mounts);
+        const listHtml = owned.length ? owned.map(([name, m]) => {
+            const active = S.activeMount === name;
+            return `<div class="pet-card with-icon ${active ? 'active' : ''}" style="--rc:${RARITY_CSS[m.rarity]}">
+                <span class="icon-circle">${MOUNT_ICONS[name] || '🐴'}</span>
+                <span class="item-name">${MOUNT_KR[name] || name}</span>
+                <span class="item-stat">⚔️❤️ +${mountBoosts[m.rarity]}% · ${RARITY_KR[m.rarity]}</span>
+                <span class="muted">보유 ${m.count}</span>
+                <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onEquipMount('${name}')">${active ? '장착 중' : '장착'}</button>
+            </div>`;
+        }).join('') : '<span class="muted">보유 마운트 없음 — 소환해보세요!</span>';
+
+        this.els.mountModal.innerHTML = `
+            <div class="modal-card wide">
+                <h3>🐴 마운트 <small class="muted">⚙️ ${U.fmt(S.winders || 0)}</small></h3>
+                <div class="row">
+                    <div class="tech-node" style="flex:1">
+                        <div class="tech-node-head">
+                            <span class="item-name">마운트 레벨</span>
+                            <span class="muted">Lv.${lvl} / ${Mounts.MAX_LEVEL}${need ? ` (${S.mountOpens}/${need})` : ' MAX'}</span>
+                        </div>
+                        <div class="tech-node-bar"><div style="width:${(progress * 100).toFixed(1)}%"></div></div>
+                    </div>
+                </div>
+                <div class="prob-box">${ratesHtml}</div>
+                <div class="row">
+                    <button class="btn primary ${Mounts.canSummon() ? '' : 'disabled'}" onclick="UI.onSummonMount()">소환 <small>⚙️ ${WINDERS_PER_SUMMON}</small></button>
+                </div>
+                <h3>보유 마운트</h3>
+                <div class="pet-list">${listHtml}</div>
+                <button class="btn" onclick="UI.closeMounts()">닫기</button>
+            </div>`;
+        this.els.mountModal.classList.remove('hidden');
+    },
+    closeMounts() { this.els.mountModal.classList.add('hidden'); },
+    onSummonMount() {
+        const r = Mounts.summon();
+        if (!r) { this.toast('⚙️ 와인더가 부족합니다 (스테이지 클리어로 획득)'); return; }
+        if (r.isNew) this.toast(`🎉 새 마운트: ${MOUNT_KR[r.name] || r.name} (${RARITY_KR[r.rarity]})`);
+        else this.toast(`${MOUNT_KR[r.name] || r.name} 중복 획득 (보유 ${r.count})`);
+        this.openMounts(); this.renderTopBar();
+    },
+    onEquipMount(name) { if (Mounts.equip(name)) this.openMounts(); },
 
     showOffline(o) {
         this.els.offlineModal.innerHTML = `
