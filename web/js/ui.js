@@ -13,10 +13,11 @@ const UI = {
             dmgFlash: $('dmg-flash'), lootFeed: $('loot-feed'), skillBar: $('skill-bar'),
             toasts: $('toasts'), farmToggle: $('farm-toggle'), offlineBtn: $('offline-btn'),
             equipSheet: $('equip-sheet'),
-            panels: { summon: $('panel-summon'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu'), debug: $('panel-debug') },
+            panels: { summon: $('panel-summon'), menu: $('panel-menu'), debug: $('panel-debug') },
+            petsPanel: $('panel-pets'), skillsPanel: $('panel-skills'), techPanel: $('panel-tech'),
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
             dungeonModal: $('dungeon-modal'), dungeonDetailModal: $('dungeon-detail-modal'),
-            techModal: $('tech-modal'), mountModal: $('mount-modal'), ascendModal: $('ascend-modal'),
+            mountModal: $('mount-modal'), ascendModal: $('ascend-modal'),
             stubModal: $('stub-modal'),
             forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'),
@@ -43,9 +44,7 @@ const UI = {
         this.activeTab = tab;
         document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         for (const [k, p] of Object.entries(this.els.panels)) p.classList.toggle('open', k === tab);
-        if (tab === 'summon') this.renderSummonHub();
-        if (tab === 'pets') this.renderPets();
-        if (tab === 'skills') this.renderSkills();
+        if (tab === 'summon') this.switchSummonSub(this._summonSub || 'pets');
         if (tab === 'menu') this.renderMenu();
         if (tab === 'debug') this.renderDebug();
     },
@@ -62,19 +61,18 @@ const UI = {
     },
     closeStub() { this.els.stubModal.classList.add('hidden'); },
 
-    // ---- 소환 허브 (스킬/펫/마운트/기술트리 진입점 — '소환 탭 통합' 전 임시 구성) ----
-    renderSummonHub() {
-        if (this.activeTab !== 'summon') return;
-        const p = this.els.panels.summon;
-        p.innerHTML = `
-            <h2>🧪 소환</h2>
-            <p class="muted">스킬·펫·탈것을 소환하고 기술 트리로 성장시킵니다.</p>
-            <div class="row wrap">
-                <button class="btn primary" onclick="UI.switchTab('skills')">✨ 스킬</button>
-                <button class="btn primary" onclick="UI.switchTab('pets')">🐾 펫</button>
-                <button class="btn primary" onclick="UI.openMounts()">🐴 마운트</button>
-                <button class="btn primary" onclick="UI.openTechTree()">🔬 기술 트리</button>
-            </div>`;
+    // ---- 소환 탭: 스킬/펫/기술 트리 서브탭 (UI-SPEC 8~16번) ----
+    _summonSub: 'pets',
+    switchSummonSub(sub) {
+        this._summonSub = sub;
+        if (this.activeTab !== 'summon') { this.switchTab('summon'); return; } // switchTab이 다시 호출
+        document.querySelectorAll('#summon-subtabs button').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
+        this.els.petsPanel.classList.toggle('summon-visible', sub === 'pets');
+        this.els.skillsPanel.classList.toggle('summon-visible', sub === 'skills');
+        this.els.techPanel.classList.toggle('summon-visible', sub === 'tech');
+        if (sub === 'pets') this.renderPets();
+        if (sub === 'skills') this.renderSkills();
+        if (sub === 'tech') this.renderTechTree();
     },
 
     // ---- 상단바: 좌측 프로필 카드(아바타+닉네임+전투력), 우측 코인·젬 (UI-SPEC 1번) ----
@@ -562,9 +560,10 @@ const UI = {
 
     // ---- 펫 패널 ----
     renderPets() {
-        if (this.activeTab !== 'pets') return;
-        const p = this.els.panels.pets;
-        const hatchHtml = [0, 1].map(i => {
+        if (this.activeTab !== 'summon' || this._summonSub !== 'pets') return;
+        const p = this.els.petsPanel;
+        const slots = Pets.maxHatchSlots();
+        const hatchHtml = Array.from({ length: slots }, (_, i) => {
             const h = S.hatching[i];
             if (!h) return `<div class="hatch-slot empty">빈 부화 슬롯</div>`;
             return `<div class="hatch-slot" style="--rc:${RARITY_CSS[h.rarity]}">
@@ -572,7 +571,7 @@ const UI = {
                 <span id="hatch-t-${i}">${U.fmtTime((h.endsAt - U.now()) / 1000)}</span>
                 <button class="btn gem sm" onclick="UI.onHatchSkip(${i})">💎 ${Pets.gemSkipCost(h)}</button>
             </div>`;
-        }).join('');
+        }).join('') + (Pets.canBuySlot() ? `<button class="hatch-slot buy" onclick="UI.onBuyHatchSlot()">슬롯+1<br><small>💎 ${Pets.slotCost()}</small></button>` : '');
 
         const eggsHtml = S.eggs.length ? S.eggs.map((egg, i) =>
             `<button class="egg-chip" style="--rc:${RARITY_CSS[egg.rarity]}" onclick="UI.onStartHatch(${i})">
@@ -601,22 +600,42 @@ const UI = {
         const mergeHtml = RARITIES.slice(0, -1).map(r => Pets.canMerge(r) ?
             `<button class="btn sm" onclick="UI.onMerge('${r}')" style="--rc:${RARITY_CSS[r]}">${RARITY_KR[r]} 3마리 → ${RARITY_KR[RARITIES[RARITIES.indexOf(r) + 1]]} 알</button>` : '').join('');
 
+        const rates = Pets.rates();
+        const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
+            `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${rates[r].toFixed(2)}%</span>`).join('');
+
         p.innerHTML = `
-            <h2>🐾 펫 <span class="muted">출전 ${S.activePets.length}/${Pets.MAX_ACTIVE}</span></h2>
+            <h2>🐾 펫 <span class="muted">🥚 ${U.fmt(S.eggCurrency || 0)} · 출전 ${S.activePets.length}/${Pets.MAX_ACTIVE}</span></h2>
             <p class="muted">펫은 직접 공격하지 않고, 출전 시 고정 공격력·체력과 옵션을 제공합니다. 레벨업은 [업그레이드]에서 다른 펫·알을 재료로 흡수해 진행합니다.</p>
+            <div class="row">
+                <button class="btn primary ${Pets.canSummon() ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">소환 x1 <small>🥚 ${Pets.SUMMON_EGG_COST}</small></button>
+                <span class="muted">소환 Lv.${Pets.summonLevel()}</span>
+            </div>
+            <div class="prob-box">${ratesHtml}</div>
             <h3>부화장</h3><div class="row">${hatchHtml}</div>
             <h3>알 보관함 (${S.eggs.length}/20)</h3><div class="egg-row">${eggsHtml}</div>
             ${mergeHtml ? `<h3>합성</h3><div class="row wrap">${mergeHtml}</div>` : ''}
             <h3>보유 펫</h3><div class="pet-list">${petsHtml}</div>`;
     },
+    onSummonPetEgg() {
+        const r = Pets.summon();
+        if (!r) { this.toast(S.eggs.length >= 20 ? '🥚 알 보관함이 가득 찼습니다 (20/20)' : '🥚 알이 부족합니다 (스테이지 클리어로 획득)'); return; }
+        this.toast(`🥚 ${RARITY_KR[r.rarity]} 알 획득!`);
+        this.renderPets();
+    },
 
     onStartHatch(i) {
-        if (!Pets.startHatch(i)) this.toast('부화 슬롯이 가득 찼습니다 (2칸)');
+        if (!Pets.startHatch(i)) this.toast(`부화 슬롯이 가득 찼습니다 (${Pets.maxHatchSlots()}칸)`);
         this.renderPets(); this.renderEquipSheet();
     },
     onHatchSkip(i) {
         if (!Pets.gemSkip(i)) this.toast('💎 젬이 부족합니다');
         this.renderPets(); this.renderTopBar(); this.renderEquipSheet();
+    },
+    onBuyHatchSlot() {
+        if (!Pets.buySlot()) { this.toast('💎 젬이 부족합니다'); return; }
+        this.toast(`🥚 부화 슬롯 확장! (${Pets.maxHatchSlots()}칸)`);
+        this.renderPets(); this.renderTopBar();
     },
     onTogglePet(i) {
         if (!Pets.toggleActive(i)) this.toast(`출전은 최대 ${Pets.MAX_ACTIVE}마리입니다`);
@@ -698,8 +717,8 @@ const UI = {
 
     // ---- 스킬 패널 ----
     renderSkills() {
-        if (this.activeTab !== 'skills') return;
-        const p = this.els.panels.skills;
+        if (this.activeTab !== 'summon' || this._summonSub !== 'skills') return;
+        const p = this.els.skillsPanel;
         const lvl = Skills.summonLevel();
         const rates = Skills.rates();
         const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
@@ -889,8 +908,10 @@ const UI = {
         if (Dungeons.sweep(id)) { this.renderDungeonDetail(); this.renderTopBar(); }
     },
 
-    // ---- 기술 트리 ----
-    openTechTree() {
+    // ---- 기술 트리 (소환 탭 서브탭) ----
+    openTechTree() { this.switchSummonSub('tech'); }, // 다른 화면에서 진입하는 진입점 (메뉴 버튼 등)
+    renderTechTree() {
+        if (this.activeTab !== 'summon' || this._summonSub !== 'tech') return;
         TechTree.ensure();
         const branchHtml = TechTree.BRANCHES.map(b => {
             const nodesHtml = b.nodes.map(id => {
@@ -913,17 +934,12 @@ const UI = {
             }).join('');
             return `<div class="tech-branch"><h3>${b.icon} ${b.name}</h3><div class="tech-node-grid">${nodesHtml}</div></div>`;
         }).join('');
-        this.els.techModal.innerHTML = `
-            <div class="modal-card wide">
-                <h3>🔬 기술 트리 <small class="muted">🧪 ${U.fmt(S.potions || 0)}</small></h3>
-                <div class="tech-scroll">${branchHtml}</div>
-                <button class="btn" onclick="UI.closeTechTree()">닫기</button>
-            </div>`;
-        this.els.techModal.classList.remove('hidden');
+        this.els.techPanel.innerHTML = `
+            <h2>🔬 기술 트리 <span class="muted">🧪 ${U.fmt(S.potions || 0)}</span></h2>
+            <div class="tech-scroll">${branchHtml}</div>`;
     },
-    closeTechTree() { this.els.techModal.classList.add('hidden'); },
     onUpgradeTech(id) {
-        if (TechTree.upgrade(id)) { this.openTechTree(); this.renderTopBar(); Combat.recalcHero(); }
+        if (TechTree.upgrade(id)) { this.renderTechTree(); this.renderTopBar(); Combat.recalcHero(); }
         else this.toast('🧪 물약이 부족합니다 (좀비 러시 던전에서 획득)');
     },
 
@@ -1053,6 +1069,7 @@ const UI = {
         { key: 'tickets', label: '🎫 티켓' },
         { key: 'winders', label: '⚙️ 태엽' },
         { key: 'potions', label: '🧪 물약' },
+        { key: 'eggCurrency', label: '🥚 알' },
     ],
     renderDebug() {
         if (this.activeTab !== 'debug') return;
@@ -1092,7 +1109,7 @@ const UI = {
     onDebugEggs() {
         for (let i = 0; i < 5; i++) Pets.addEgg('mythic');
         this.toast('🥚 신화 알 +5');
-        if (this.activeTab === 'pets') this.renderPets();
+        this.renderPets();
         saveGame();
     },
     onDebugGoStage() {

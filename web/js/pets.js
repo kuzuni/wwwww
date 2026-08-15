@@ -1,8 +1,24 @@
 // ===== 펫: 알 드랍(원본 확률) → 부화(원본 시간) → 전투 참여/합성 =====
 const Pets = {
-    MAX_HATCH_SLOTS: 2,
+    BASE_HATCH_SLOTS: 2,
+    MAX_HATCH_SLOTS_CAP: 5, // 젬 구매로 늘릴 수 있는 상한 (원본 상한 미확보 → 자체 설계)
+    SLOT_GEM_COST: 400, // 원본 확인된 단가(◆400) — 이후 구매는 회당 누적 증가(자체 설계)
     MAX_ACTIVE: 3,
     MAX_LEVEL: 30, // 만렙 후 중복은 승천(별)으로 전환 (원본 레벨 상한 미확보 → 자체 설계)
+
+    // 현재 부화장 슬롯 수 (기본 2 + 젬 구매분, UI-SPEC 9번 "슬롯+1 ◆400")
+    maxHatchSlots() { return Math.min(this.MAX_HATCH_SLOTS_CAP, this.BASE_HATCH_SLOTS + (S.hatchSlotBonus || 0)); },
+    slotCost() { return this.SLOT_GEM_COST * (1 + (S.hatchSlotBonus || 0)); },
+    canBuySlot() { return this.maxHatchSlots() < this.MAX_HATCH_SLOTS_CAP; },
+    buySlot() {
+        if (!this.canBuySlot()) return false;
+        const cost = this.slotCost();
+        if (S.gems < cost) return false;
+        S.gems -= cost;
+        S.hatchSlotBonus = (S.hatchSlotBonus || 0) + 1;
+        saveGame();
+        return true;
+    },
 
     // 스테이지 키에 해당하는 알 등급 롤 (원본 eggDropRates)
     rollEggRarity(key) {
@@ -16,10 +32,30 @@ const Pets = {
         return true;
     },
 
+    // 알 소환 (UI-SPEC 9번 "[소환 x1 🥚100]") — 소환 레벨에 따른 등급 확률로 알 1개 획득
+    // 원본 펫 전용 소환 확률표 미확보 → 스킬 소환 확률 곡선(skillRatesData)을 재사용해 자체 설계
+    SUMMON_EGG_COST: 100,
+    summonLevel() { return Math.min(100, Math.floor((S.petSummonCount || 0) / 5) + 1); },
+    rates() {
+        const r = skillRatesData[this.summonLevel()];
+        return { common: r[0], rare: r[1], epic: r[2], legendary: r[3], ultimate: r[4], mythic: r[5] };
+    },
+    canSummon() { return (S.eggCurrency || 0) >= this.SUMMON_EGG_COST && S.eggs.length < 20; },
+    summon() {
+        if (!this.canSummon()) return null;
+        S.eggCurrency -= this.SUMMON_EGG_COST;
+        S.petSummonCount = (S.petSummonCount || 0) + 1;
+        const rarity = U.weightedPick(this.rates());
+        this.addEgg(rarity);
+        SFX.gacha(rarity);
+        saveGame();
+        return { rarity };
+    },
+
     hatchTimeSec(rarity) { return baseHatchingTimes[rarity] * 60; },
 
     startHatch(eggIdx) {
-        if (S.hatching.length >= this.MAX_HATCH_SLOTS) return false;
+        if (S.hatching.length >= this.maxHatchSlots()) return false;
         const egg = S.eggs.splice(eggIdx, 1)[0];
         if (!egg) return false;
         S.hatching.push({ rarity: egg.rarity, endsAt: U.now() + this.hatchTimeSec(egg.rarity) * 1000 });

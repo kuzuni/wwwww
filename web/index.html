@@ -44,9 +44,16 @@
     <div id="equip-sheet"></div>
 
     <!-- 패널 (하단 시트, 탭으로 토글) -->
-    <div id="panel-summon" class="panel"></div>
-    <div id="panel-pets" class="panel"></div>
-    <div id="panel-skills" class="panel"></div>
+    <div id="panel-summon" class="panel">
+        <div id="summon-subtabs" class="subtab-strip">
+            <button data-sub="pets" onclick="UI.switchSummonSub('pets')">🐾 펫</button>
+            <button data-sub="skills" onclick="UI.switchSummonSub('skills')">✨ 스킬</button>
+            <button data-sub="tech" onclick="UI.switchSummonSub('tech')">🔬 기술 트리</button>
+        </div>
+        <div id="panel-pets" class="summon-sub"></div>
+        <div id="panel-skills" class="summon-sub"></div>
+        <div id="panel-tech" class="summon-sub"></div>
+    </div>
     <div id="panel-menu" class="panel"></div>
     <div id="panel-debug" class="panel"></div>
 
@@ -66,7 +73,6 @@
     <div id="dungeon-modal" class="modal hidden"></div>
     <div id="dungeon-detail-modal" class="modal hidden"></div>
     <div id="pet-upgrade-modal" class="modal hidden"></div>
-    <div id="tech-modal" class="modal hidden"></div>
     <div id="mount-modal" class="modal hidden"></div>
     <div id="ascend-modal" class="modal hidden"></div>
     <div id="stub-modal" class="modal hidden"></div>
