@@ -19,6 +19,7 @@ const UI = {
             techModal: $('tech-modal'), mountModal: $('mount-modal'), ascendModal: $('ascend-modal'),
             stubModal: $('stub-modal'),
             forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
+            petUpgradeModal: $('pet-upgrade-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -573,13 +574,15 @@ const UI = {
             const pw = Pets.petPower(pet);
             const subsText = (pet.subs || []).map(s => U.subText(s)).join(' · ');
             const maxed = pet.level >= Pets.MAX_LEVEL;
+            const need = Pets.xpNeeded(pet.level);
             return `<div class="pet-card with-icon ${active ? 'active' : ''}" style="--rc:${RARITY_CSS[pet.rarity]}">
                 <span class="icon-circle">${PET_ICONS[pet.name] || '🐾'}</span>
                 <span class="item-name">${PET_KR[pet.name] || pet.name} <small>Lv.${pet.level}${pet.stars ? ` ⭐${pet.stars}` : ''}</small></span>
                 <span class="item-stat">⚔️ ${U.fmt(pw.atk)} · ❤️ ${U.fmt(pw.hp)} · ${RARITY_KR[pet.rarity]}</span>
-                <span class="muted">중복 ${pet.dupes}/${pet.level}${subsText ? ' · ' + subsText : ''}</span>
+                <span class="muted">${maxed ? '만렙' : `경험치 ${U.fmt(pet.xp || 0)}/${U.fmt(need)}`} · 재료 ${pet.dupes}${subsText ? ' · ' + subsText : ''}</span>
                 <div class="btn-col">
                     <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onTogglePet(${i})">${active ? '출전 중' : '출전'}</button>
+                    <button class="btn sm" onclick="UI.openPetUpgrade(${i})">업그레이드</button>
                     ${maxed ? `<button class="btn sm ${Pets.canAscend(i) ? '' : 'disabled'}" onclick="UI.onAscendPet(${i})">⭐ 승천</button>` : ''}
                 </div>
             </div>`;
@@ -590,7 +593,7 @@ const UI = {
 
         p.innerHTML = `
             <h2>🐾 펫 <span class="muted">출전 ${S.activePets.length}/${Pets.MAX_ACTIVE}</span></h2>
-            <p class="muted">펫은 직접 공격하지 않고, 출전 시 고정 공격력·체력과 옵션을 제공합니다. 레벨업은 같은 펫 중복 합성으로만 가능합니다.</p>
+            <p class="muted">펫은 직접 공격하지 않고, 출전 시 고정 공격력·체력과 옵션을 제공합니다. 레벨업은 [업그레이드]에서 다른 펫·알을 재료로 흡수해 진행합니다.</p>
             <h3>부화장</h3><div class="row">${hatchHtml}</div>
             <h3>알 보관함 (${S.eggs.length}/20)</h3><div class="egg-row">${eggsHtml}</div>
             ${mergeHtml ? `<h3>합성</h3><div class="row wrap">${mergeHtml}</div>` : ''}
@@ -615,6 +618,72 @@ const UI = {
         const pet = S.pets[i];
         this.toast(`⭐ ${PET_KR[pet.name] || pet.name} 승천! (⭐${pet.stars})`);
         this.renderPets();
+    },
+
+    // ---- 펫 업그레이드 팝업 (경험치 흡수형, UI-SPEC 9·12·13번) ----
+    _petUpgradeTarget: null, _petUpgradeMats: null,
+    openPetUpgrade(idx) {
+        this._petUpgradeTarget = idx;
+        this._petUpgradeMats = { pets: [], eggs: [] };
+        this.renderPetUpgrade();
+        this.els.petUpgradeModal.classList.remove('hidden');
+    },
+    closePetUpgrade() { this.els.petUpgradeModal.classList.add('hidden'); },
+    renderPetUpgrade() {
+        const target = S.pets[this._petUpgradeTarget];
+        if (!target) { this.closePetUpgrade(); return; }
+        const sel = this._petUpgradeMats;
+        const need = Pets.xpNeeded(target.level);
+        const maxed = target.level >= Pets.MAX_LEVEL;
+
+        const petChips = S.pets.map((p, i) => i === this._petUpgradeTarget ? '' : `
+            <button class="mat-chip ${sel.pets.includes(i) ? 'on' : ''}" style="--rc:${RARITY_CSS[p.rarity]}" onclick="UI.onToggleUpgradeMat('pet', ${i})">
+                <span>${PET_ICONS[p.name] || '🐾'}</span><small>Lv.${p.level}</small>
+            </button>`).join('');
+        const eggChips = S.eggs.map((e, i) => `
+            <button class="mat-chip ${sel.eggs.includes(i) ? 'on' : ''}" style="--rc:${RARITY_CSS[e.rarity]}" onclick="UI.onToggleUpgradeMat('egg', ${i})">
+                <span>🥚</span><small>${RARITY_KR[e.rarity]}</small>
+            </button>`).join('');
+
+        const previewXp = sel.pets.reduce((s, i) => s + Pets.xpValue(S.pets[i].rarity) * Pets.levelMult(S.pets[i]), 0)
+            + sel.eggs.reduce((s, i) => s + Pets.xpValue(S.eggs[i].rarity), 0);
+
+        this.els.petUpgradeModal.innerHTML = `
+            <div class="modal-card wide">
+                <h3>${PET_KR[target.name] || target.name} 업그레이드</h3>
+                <div class="row">
+                    <span class="cell-img emoji" style="width:2.4rem;height:2.4rem;font-size:1.25rem;border-radius:50%;border-color:${RARITY_CSS[target.rarity]}">${PET_ICONS[target.name] || '🐾'}</span>
+                    <div>
+                        <div class="item-name">Lv.${target.level}${target.stars ? ` ⭐${target.stars}` : ''}</div>
+                        <div class="muted">${maxed ? '만렙' : `경험치 ${U.fmt(target.xp || 0)}/${U.fmt(need)}${previewXp ? ` (+${U.fmt(previewXp)} 예정)` : ''}`}</div>
+                    </div>
+                </div>
+                <p class="muted">합칠 펫/알 선택 (최대 5개, 재료는 흡수되어 사라집니다)</p>
+                <div class="mat-grid">${petChips}${eggChips || (petChips ? '' : '<span class="muted">재료로 쓸 펫/알이 없습니다</span>')}</div>
+                <button class="btn primary ${(sel.pets.length + sel.eggs.length) && !maxed ? '' : 'disabled'}" onclick="UI.onConfirmPetUpgrade()">업그레이드</button>
+                <button class="btn" onclick="UI.closePetUpgrade()">닫기</button>
+            </div>`;
+    },
+    onToggleUpgradeMat(type, idx) {
+        const sel = this._petUpgradeMats;
+        const arr = type === 'pet' ? sel.pets : sel.eggs;
+        const pos = arr.indexOf(idx);
+        if (pos >= 0) arr.splice(pos, 1);
+        else if (sel.pets.length + sel.eggs.length < 5) arr.push(idx);
+        this.renderPetUpgrade();
+    },
+    onConfirmPetUpgrade() {
+        const target = S.pets[this._petUpgradeTarget];
+        const sel = this._petUpgradeMats;
+        const materialPets = sel.pets.map(i => S.pets[i]);
+        const materialEggs = sel.eggs.map(i => S.eggs[i]);
+        if (!materialPets.length && !materialEggs.length) return;
+        if (!Pets.absorbMaterials(target, materialPets, materialEggs)) return;
+        this.toast(`✨ ${PET_KR[target.name] || target.name} Lv.${target.level}!`);
+        this._petUpgradeTarget = S.pets.indexOf(target);
+        this._petUpgradeMats = { pets: [], eggs: [] };
+        this.renderPets();
+        if (this._petUpgradeTarget >= 0) this.renderPetUpgrade(); else this.closePetUpgrade();
     },
 
     // ---- 스킬 패널 ----

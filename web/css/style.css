@@ -224,6 +224,16 @@ body {
 .check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem .6rem; margin: .4rem 0; }
 .check-row { display: flex; align-items: center; gap: .4rem; font-size: .76rem; }
 
+/* ---- 펫 업그레이드 (경험치 흡수 재료 선택) ---- */
+.mat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .3rem; max-height: 40vh; overflow-y: auto; margin: .4rem 0; }
+.mat-chip {
+    background: #22272e; border: 2px solid var(--rc, #444c56); border-radius: .5rem; padding: .3rem .1rem;
+    display: flex; flex-direction: column; align-items: center; gap: .1rem; cursor: pointer; color: #eceff1;
+}
+.mat-chip.on { background: #253326; box-shadow: 0 0 0 2px #69f0ae inset; }
+.mat-chip span { font-size: 1.1rem; }
+.mat-chip small { font-size: .58rem; color: #90a4ae; }
+
 /* ---- 장비 시트 (상시 노출, 대장간 탭 대체 — UI-SPEC 1번) ---- */
 #equip-sheet {
     display: flex; flex-direction: column; gap: .5rem;

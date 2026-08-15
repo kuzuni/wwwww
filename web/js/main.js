@@ -49,7 +49,7 @@
             const names = (params.get('names') || 'Scorpion,Turtle,Baby Dragon').split(',');
             S.pets = names.map(n => {
                 const rarity = findRarity(n.trim());
-                return { name: n.trim(), rarity, level: 1, dupes: 0, subs: Pets.rollSubs(rarity) };
+                return { name: n.trim(), rarity, level: 1, dupes: 0, xp: 0, stars: 0, subs: Pets.rollSubs(rarity) };
             });
             S.activePets = [0, 1, 2].slice(0, S.pets.length);
             Scene3D.refreshPets();

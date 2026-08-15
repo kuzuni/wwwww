@@ -52,15 +52,11 @@ const Pets = {
                 const def = U.choice(petStats[h.rarity]);
                 const existing = S.pets.find(p => p.name === def.name);
                 if (existing) {
+                    // 중복 → 합성/승천 재료(dupes)로만 적립. 레벨업은 '업그레이드' 팝업에서 경험치 흡수로만 진행
                     existing.dupes++;
-                    // 중복 → 자동 레벨업 (레벨 N→N+1에 중복 N개), 만렙 도달 후에는 중복만 쌓여 승천 재료가 됨
-                    while (existing.dupes >= existing.level && existing.level < this.MAX_LEVEL) {
-                        existing.dupes -= existing.level;
-                        existing.level++;
-                    }
-                    UI.toast(`🥚 ${PET_KR[def.name] || def.name} 중복! → Lv.${existing.level}`);
+                    UI.toast(`🥚 ${PET_KR[def.name] || def.name} 중복 획득 (재료 ${existing.dupes})`);
                 } else {
-                    S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, stars: 0, subs: this.rollSubs(h.rarity) });
+                    S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, xp: 0, stars: 0, subs: this.rollSubs(h.rarity) });
                     if (S.activePets.length < this.MAX_ACTIVE) {
                         S.activePets.push(S.pets.length - 1);
                         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
@@ -90,6 +86,46 @@ const Pets = {
         const def = this.petDef(p);
         const mult = this.levelMult(p) * Ascension.starMult(p.stars);
         return { atk: def.damage * mult, hp: def.health * mult };
+    },
+
+    // 경험치 흡수형 업그레이드 (UI-SPEC '펫 업그레이드 팝업') — 원본 수치 미확보로 자체 설계 커브
+    xpNeeded(level) { return Math.floor(80 * Math.pow(level, 1.6)); },
+    // 재료로 흡수될 때 주는 경험치: 등급이 오를수록 크게 증가
+    xpValue(rarity) { return 30 * Math.pow(3, RARITIES.indexOf(rarity)); },
+    addXp(idx, amount) {
+        const p = S.pets[idx];
+        if (!p) return;
+        p.xp = (p.xp || 0) + amount;
+        while (p.level < this.MAX_LEVEL && p.xp >= this.xpNeeded(p.level)) {
+            p.xp -= this.xpNeeded(p.level);
+            p.level++;
+        }
+        if (p.level >= this.MAX_LEVEL) p.xp = 0; // 만렙 도달분 잉여 경험치는 버림 (승천은 별도 시스템)
+    },
+    // 선택한 펫/알을 흡수해 대상 펫에 경험치로 환산 (재료는 소모되어 사라짐, 최대 5개)
+    absorbMaterials(target, materialPets, materialEggs) {
+        if (!target) return false;
+        let totalXp = 0;
+        for (const p of materialPets) {
+            if (p === target) continue;
+            totalXp += this.xpValue(p.rarity) * this.levelMult(p);
+            const idx = S.pets.indexOf(p);
+            if (idx < 0) continue;
+            S.activePets = S.activePets.filter(a => a !== idx).map(a => a > idx ? a - 1 : a);
+            S.pets.splice(idx, 1);
+        }
+        for (const e of materialEggs) {
+            totalXp += this.xpValue(e.rarity);
+            const idx = S.eggs.indexOf(e);
+            if (idx >= 0) S.eggs.splice(idx, 1);
+        }
+        const targetIdx = S.pets.indexOf(target);
+        if (targetIdx < 0) return false;
+        this.addXp(targetIdx, totalXp);
+        if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
+        Combat.recalcHero();
+        saveGame();
+        return true;
     },
 
     // 승천(별): 만렙 도달 후 중복(레벨 수만큼)을 소모해 별 1개 획득
