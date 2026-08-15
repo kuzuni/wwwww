@@ -114,7 +114,7 @@
         setInterval(() => {
             Forge.tickUpgrade();
             Pets.tick();
-            Dungeons.ensure(); // 자정 열쇠 리셋 감지
+            Dungeons.ensure(); // 매일 09:00 열쇠 리셋 감지
             UI.tickSecond();
             UI.updateHeroHp();
         }, 1000);

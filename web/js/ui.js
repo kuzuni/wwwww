@@ -15,7 +15,7 @@ const UI = {
             equipSheet: $('equip-sheet'),
             panels: { summon: $('panel-summon'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu'), debug: $('panel-debug') },
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
-            dungeonModal: $('dungeon-modal'),
+            dungeonModal: $('dungeon-modal'), dungeonDetailModal: $('dungeon-detail-modal'),
             techModal: $('tech-modal'), mountModal: $('mount-modal'), ascendModal: $('ascend-modal'),
             stubModal: $('stub-modal'),
             forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
@@ -736,42 +736,79 @@ const UI = {
             대장간 업그레이드·부화는 게임을 꺼도 진행됩니다.</p>`;
     },
 
-    // ---- 던전 ----
+    // ---- 던전: 가로 배너 목록 + 상세(난이도 선택) 팝업 (UI-SPEC 6~7번) ----
     openDungeons() {
         Dungeons.ensure();
-        const listHtml = Dungeons.DEFS.map(d => {
+        const bannerHtml = Dungeons.DEFS.map(d => {
             const ok = Dungeons.unlocked(d.id);
             const keys = S.dungeons.keys[d.id];
-            const best = S.dungeons.best[d.id];
-            const next = best + 1;
-            return `<div class="dungeon-card ${ok ? '' : 'locked'}">
-                <span class="icon-circle">${d.icon}</span>
+            const hex = '#' + d.theme.sky.toString(16).padStart(6, '0');
+            return `<div class="dg-banner ${ok ? '' : 'locked'}" style="--bg:${hex}">
+                <span class="dg-icon">${d.icon}</span>
                 <div class="dg-info">
-                    <div class="item-name">${d.kr} <small class="muted">${d.name}</small></div>
-                    <div class="item-stat">${ok ? `보상: ${d.reward} · 최고 ${best}단계` : `🔒 ${d.unlock} 도달 시 해금`}</div>
-                    ${ok ? `<div class="muted">다음 도전 ${next}단계 — ${Dungeons.rewardText(d.id, next)}</div>` : ''}
+                    <div class="item-name">${d.kr}</div>
+                    ${ok ? `<span class="dg-keys">🗝 ${keys}/${Dungeons.MAX_KEYS}</span>` : `<span class="muted">🔒 ${d.unlock} 도달 시 해금</span>`}
                 </div>
-                <div class="dg-btns">
-                    <span class="dg-keys">🗝 ${ok ? keys : '-'}/${Dungeons.MAX_KEYS}</span>
-                    <button class="btn sm primary ${ok && keys > 0 ? '' : 'disabled'}" onclick="UI.onEnterDungeon('${d.id}')">입장</button>
-                    <button class="btn sm ${ok && keys > 0 && best >= 1 ? '' : 'disabled'}" onclick="UI.onSweepDungeon('${d.id}')">소탕</button>
-                </div>
+                <button class="btn sm primary ${ok ? '' : 'disabled'}" onclick="UI.openDungeonDetail('${d.id}')">열기</button>
             </div>`;
         }).join('');
         this.els.dungeonModal.innerHTML = `
             <div class="modal-card wide">
-                <h3>🏰 던전 <small class="muted">열쇠는 자정에 2개로 리셋</small></h3>
-                <div class="dungeon-list">${listHtml}</div>
+                <h3>던전</h3>
+                <p class="muted" style="text-align:center">던전 열쇠는 매일 09:00에 보충됩니다. 열쇠는 던전을 완료할 때만 소모됩니다</p>
+                <div class="dungeon-list">${bannerHtml}</div>
                 <button class="btn" onclick="UI.closeDungeons()">닫기</button>
             </div>`;
         this.els.dungeonModal.classList.remove('hidden');
     },
     closeDungeons() { this.els.dungeonModal.classList.add('hidden'); },
-    onEnterDungeon(id) {
-        if (Dungeons.enter(id)) { this.closeDungeons(); this.updateStageLabel(); this.renderTopBar(); }
-        else this.openDungeons(); // 실패 사유 토스트 후 갱신
+
+    _dgDetailId: null, _dgDetailStage: 1,
+    openDungeonDetail(id) {
+        if (!Dungeons.unlocked(id)) { this.toast(`🔒 ${Dungeons.def(id).unlock} 도달 시 해금`); return; }
+        this._dgDetailId = id;
+        this._dgDetailStage = S.dungeons.best[id] + 1;
+        this.renderDungeonDetail();
+        this.els.dungeonDetailModal.classList.remove('hidden');
     },
-    onSweepDungeon(id) { if (Dungeons.sweep(id)) this.openDungeons(); },
+    closeDungeonDetail() { this.els.dungeonDetailModal.classList.add('hidden'); },
+    onDungeonStageStep(delta) {
+        const best = S.dungeons.best[this._dgDetailId];
+        this._dgDetailStage = U.clamp(this._dgDetailStage + delta, 1, best + 1);
+        this.renderDungeonDetail();
+    },
+    renderDungeonDetail() {
+        const id = this._dgDetailId;
+        const d = Dungeons.def(id);
+        const stage = this._dgDetailStage;
+        const best = S.dungeons.best[id];
+        const keys = S.dungeons.keys[id];
+        const hex = '#' + d.theme.sky.toString(16).padStart(6, '0');
+        this.els.dungeonDetailModal.innerHTML = `
+            <div class="modal-card">
+                <div class="dg-detail-hero" style="--bg:${hex}"><span class="dg-icon">${d.icon}</span></div>
+                <h3 style="text-align:center">${d.kr}</h3>
+                <div class="row" style="justify-content:center;align-items:center;gap:.8rem">
+                    <button class="btn sm" onclick="UI.onDungeonStageStep(-1)" ${stage <= 1 ? 'disabled' : ''}>◀</button>
+                    <span class="big-stat">난이도 ${stage}단계</span>
+                    <button class="btn sm" onclick="UI.onDungeonStageStep(1)" ${stage >= best + 1 ? 'disabled' : ''}>▶</button>
+                </div>
+                <p class="muted" style="text-align:center">보상: ${Dungeons.rewardText(id, stage)}</p>
+                <p class="muted" style="text-align:center">🗝 ${keys}/${Dungeons.MAX_KEYS}</p>
+                <div class="row">
+                    <button class="btn sm ${keys > 0 && best >= 1 ? '' : 'disabled'}" onclick="UI.onSweepDungeon('${id}')">이전 스테이지 소탕</button>
+                    <button class="btn sm primary ${keys > 0 ? '' : 'disabled'}" onclick="UI.onEnterDungeon('${id}', ${stage})">입장</button>
+                </div>
+                <button class="btn" onclick="UI.closeDungeonDetail()">닫기</button>
+            </div>`;
+    },
+    onEnterDungeon(id, stage) {
+        if (Dungeons.enter(id, stage)) { this.closeDungeonDetail(); this.closeDungeons(); this.updateStageLabel(); this.renderTopBar(); }
+        else this.renderDungeonDetail(); // 실패 사유 토스트 후 갱신
+    },
+    onSweepDungeon(id) {
+        if (Dungeons.sweep(id)) { this.renderDungeonDetail(); this.renderTopBar(); }
+    },
 
     // ---- 기술 트리 ----
     openTechTree() {

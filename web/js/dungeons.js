@@ -1,4 +1,4 @@
-// ===== 던전 4종: 열쇠 2/2 자정 리셋, 최고 클리어 단계 소탕 (원본: BALANCE.md) =====
+// ===== 던전 4종: 열쇠 2/2 매일 09:00 리셋, 완료 시 소모, 최고 클리어 단계 소탕 (원본: BALANCE.md) =====
 const Dungeons = {
     MAX_KEYS: 2,
     run: null, // 진행 중이면 {id, stage}
@@ -16,11 +16,14 @@ const Dungeons = {
 
     def(id) { return this.DEFS.find(d => d.id === id); },
 
-    // 저장 슬롯 보정 + 자정(로컬 날짜 변경) 열쇠 리셋
+    // 매일 09:00 리셋 기준 "날짜 키" — 09:00 이전이면 전날로 취급 (시계를 9시간 앞으로 당겨서 날짜만 비교)
+    resetDateKey() { return new Date(Date.now() - 9 * 3600 * 1000).toDateString(); },
+
+    // 저장 슬롯 보정 + 매일 09:00 열쇠 리셋
     ensure() {
         if (!S.dungeons) S.dungeons = { keys: {}, best: {}, lastReset: '' };
         if (S.potions === undefined) S.potions = 0;
-        const today = new Date().toDateString();
+        const today = this.resetDateKey();
         if (S.dungeons.lastReset !== today) {
             S.dungeons.lastReset = today;
             for (const d of this.DEFS) S.dungeons.keys[d.id] = this.MAX_KEYS;
@@ -72,13 +75,14 @@ const Dungeons = {
         return r;
     },
 
-    enter(id) {
+    // 열쇠는 입장 시점이 아니라 완료(클리어) 시점에 소모 — 실패해도 같은 열쇠로 재도전 가능
+    enter(id, stage) {
         this.ensure();
         if (this.run) return false;
         if (!this.unlocked(id)) { UI.toast(`🔒 스테이지 ${this.def(id).unlock} 도달 시 해금`); return false; }
-        if (S.dungeons.keys[id] <= 0) { UI.toast('🗝 열쇠가 없습니다 (자정 리셋)'); return false; }
-        S.dungeons.keys[id]--;
-        this.run = { id, stage: S.dungeons.best[id] + 1 };
+        if (S.dungeons.keys[id] <= 0) { UI.toast('🗝 열쇠가 없습니다 (매일 09:00 리셋)'); return false; }
+        const best = S.dungeons.best[id];
+        this.run = { id, stage: U.clamp(stage || best + 1, 1, best + 1) };
         UI.toast(`${this.def(id).icon} ${this.def(id).kr} ${this.run.stage}단계 입장!`);
         saveGame();
         Combat.hero.hp = Combat.hero.maxHp;
@@ -86,12 +90,12 @@ const Dungeons = {
         return true;
     },
 
-    // 소탕: 최고 클리어 단계 보상 즉시 수령
+    // 소탕: 최고 클리어 단계 보상 즉시 수령 (열쇠 1개 소모)
     sweep(id) {
         this.ensure();
         if (this.run) return false;
         if (S.dungeons.best[id] < 1) { UI.toast('먼저 1단계를 클리어해야 소탕할 수 있습니다'); return false; }
-        if (S.dungeons.keys[id] <= 0) { UI.toast('🗝 열쇠가 없습니다 (자정 리셋)'); return false; }
+        if (S.dungeons.keys[id] <= 0) { UI.toast('🗝 열쇠가 없습니다 (매일 09:00 리셋)'); return false; }
         S.dungeons.keys[id]--;
         const st = S.dungeons.best[id];
         this.grantRewards(id, st);
@@ -104,6 +108,7 @@ const Dungeons = {
     onClear() {
         const { id, stage } = this.run;
         this.run = null;
+        S.dungeons.keys[id] = Math.max(0, S.dungeons.keys[id] - 1); // 완료 시점 열쇠 소모
         S.dungeons.best[id] = Math.max(S.dungeons.best[id], stage);
         this.grantRewards(id, stage);
         UI.toast(`🏆 ${this.def(id).kr} ${stage}단계 클리어! ${this.rewardText(id, stage)}`);

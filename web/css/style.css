@@ -417,21 +417,23 @@ body {
 .panel::-webkit-scrollbar { width: 4px; }
 .panel::-webkit-scrollbar-thumb { background: #444c56; border-radius: 2px; }
 
-/* ---- 던전 ---- */
-.dungeon-list { display: flex; flex-direction: column; gap: .45rem; max-height: 60vh; overflow-y: auto; }
-.dungeon-card {
-    background: #22272e; border: 1px solid #444c56; border-radius: .6rem;
-    padding: .5rem .55rem; display: flex; gap: .55rem; align-items: center; text-align: left;
+/* ---- 던전: 가로 배너 목록 + 상세 팝업 (UI-SPEC 6~7번) ---- */
+.dungeon-list { display: flex; flex-direction: column; gap: .5rem; max-height: 60vh; overflow-y: auto; }
+.dg-banner {
+    position: relative; border-radius: .7rem; overflow: hidden; padding: .6rem .7rem;
+    display: flex; gap: .6rem; align-items: center; text-align: left;
+    background: linear-gradient(120deg, var(--bg, #444c56), #161b22);
+    border: 1px solid #30363d;
 }
-.dungeon-card.locked { opacity: .55; }
-.dungeon-card .icon-circle {
-    width: 2.4rem; height: 2.4rem; border-radius: 50%; flex: none;
-    background: #161b22; border: 2px solid #444c56;
-    display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
+.dg-banner.locked { opacity: .55; }
+.dg-banner .dg-icon { font-size: 1.8rem; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+.dg-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; font-size: .8rem; }
+.dg-keys { font-size: .75rem; font-weight: 800; color: #ffd54f; }
+.dg-detail-hero {
+    height: 5rem; border-radius: .6rem; margin-bottom: .4rem;
+    background: linear-gradient(120deg, var(--bg, #444c56), #161b22);
+    display: flex; align-items: center; justify-content: center; font-size: 2.4rem;
 }
-.dg-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .1rem; font-size: .8rem; }
-.dg-btns { display: flex; flex-direction: column; gap: .25rem; align-items: stretch; }
-.dg-keys { font-size: .75rem; font-weight: 800; color: #ffd54f; text-align: center; }
 
 /* ---- 기술 트리 ---- */
 .tech-scroll { max-height: 62vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; gap: .6rem; }
