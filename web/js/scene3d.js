@@ -63,6 +63,10 @@ const Scene3D = {
         this.heroModel = model;
         this.heroMixer = new THREE.AnimationMixer(model);
         this._heroState = '';
+        // 모델에 기본 부착된 무기/방패 숨김 (우리 장비 시스템이 무기를 관리)
+        model.traverse(o => {
+            if (o.name && /sword|shield|axe|crossbow|staff|dagger|arrow|quiver|knife|bow/i.test(o.name)) o.visible = false;
+        });
         // 무기를 오른손 본에 부착 (장비 교체 시스템 유지)
         const hand = model.getObjectByName('handslot.r') || model.getObjectByName('hand.r');
         if (hand) {
@@ -639,10 +643,61 @@ const Scene3D = {
         return g;
     },
 
+    // 장신구 프리뷰 3D 모델 (부위당 3종 변형)
+    makeAccessoryPreview(slot, variant, age, rarity) {
+        const g = new THREE.Group();
+        const c = AGE_COLORS[age];
+        const rc = RARITY_HEX[rarity] || 0xffd54f;
+        const mat = new THREE.MeshLambertMaterial({ color: c });
+        const gemMat = new THREE.MeshLambertMaterial({ color: rc, emissive: rc, emissiveIntensity: 0.7 });
+        const dark = new THREE.MeshLambertMaterial({ color: 0x3e2723 });
+        const add = (mesh, x, y, z) => { mesh.position.set(x || 0, y || 0, z || 0); g.add(mesh); return mesh; };
+        if (slot === 'gloves') {
+            if (variant === 0) { // 장갑: 손바닥 + 엄지
+                add(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.42, 0.14), mat), 0, 0.4);
+                add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.18, 0.13), mat), -0.22, 0.32);
+            } else if (variant === 1) { // 건틀릿: 판금 + 커프
+                add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, 0.16), mat), 0, 0.45);
+                add(new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.25, 0.18, 10), mat), 0, 0.18);
+                add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), gemMat), 0, 0.5, 0.1);
+            } else { // 핸드랩: 붕대 감기
+                add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat), 0, 0.42).scale.set(0.85, 1.1, 0.7);
+                for (let i = 0; i < 3; i++) add(new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.16), dark), 0, 0.28 + i * 0.14);
+            }
+        } else if (slot === 'necklace') {
+            const chain = add(new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.03, 8, 20), mat), 0, 0.5);
+            chain.rotation.x = 0.35;
+            if (variant === 0) add(new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), gemMat), 0, 0.26);
+            else if (variant === 1) { const d = add(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.04, 12), gemMat), 0, 0.26); d.rotation.x = Math.PI / 2; }
+            else { const p = add(new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.18, 6), gemMat), 0, 0.24); p.rotation.x = Math.PI; }
+        } else if (slot === 'ring') {
+            const band = add(new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.05, 10, 22), mat), 0, 0.42);
+            if (variant === 0) add(new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), gemMat), 0, 0.66);
+            else if (variant === 1) add(new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.06), gemMat), 0, 0.65);
+            else { // 보석 반지: 세공 보석
+                const gem = add(new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0), gemMat), 0, 0.68);
+                gem.rotation.z = 0.4;
+            }
+        } else if (slot === 'shoes') {
+            const mk = (dx) => {
+                add(new THREE.Mesh(new THREE.BoxGeometry(0.14, variant === 2 ? 0.4 : variant === 1 ? 0.3 : 0.18, 0.16), mat), dx, variant === 2 ? 0.42 : 0.32);
+                add(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.3), variant === 0 ? mat : dark), dx, 0.18, 0.06);
+            };
+            mk(-0.13); mk(0.13);
+            if (variant === 2) add(new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), gemMat), 0.13, 0.55, 0.08);
+        } else { // belt
+            add(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.12, 14), mat), 0, 0.4);
+            if (variant === 0) add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.05), gemMat), 0, 0.4, 0.25);
+            else if (variant === 1) { const b = add(new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.02, 8, 14), gemMat), 0, 0.4, 0.26); b.rotation.y = 0; }
+            else { add(new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 0), gemMat), 0, 0.4, 0.27); }
+        }
+        return g;
+    },
+
     // ---- 장비 썸네일: 미니 렌더러로 실제 3D 모델을 찍어 이미지 생성 (캐시) ----
     _thumbCache: {},
     itemThumb(item) {
-        if (!item || !['weapon', 'helmet', 'armor'].includes(item.slot)) return null;
+        if (!item) return null;
         const key = item.slot + ':' + (item.wtype || '') + ':' + item.age + ':' + item.rarity + ':' + (item.nameIdx !== undefined ? item.nameIdx : '');
         if (this._thumbCache[key]) return this._thumbCache[key];
         try {
@@ -668,10 +723,15 @@ const Scene3D = {
                 model = this.makeHelmet(item.age, item.rarity, itemStyleOf(item));
                 model.scale.setScalar(1.5);
                 model.position.y = 0.1;
-            } else {
+            } else if (item.slot === 'armor') {
                 model = this.makeArmorPreview(item.age, item.rarity, itemStyleOf(item));
                 model.scale.setScalar(1.3);
                 model.position.y = 0.35;
+            } else {
+                // 장신구류: 부위당 3종 변형 프리뷰
+                model = this.makeAccessoryPreview(item.slot, Math.max(0, item.nameIdx || 0) % 3, item.age, item.rarity);
+                model.scale.setScalar(1.4);
+                model.position.y = 0.1;
             }
             sc.add(model);
             this._thumbR.render(sc, this._thumbCam);
@@ -990,7 +1050,34 @@ const Scene3D = {
         const anim = { kind, wings: [], legs: [] };
         let body = null, armR = null, armL = null, topY = 1.1;
 
-        if (kind === 'slime') {
+        // 골렘/고블린 자리는 GLB 스켈레톤 몬스터로 (리깅 애니메이션)
+        let usedGLB = false;
+        if (Models.ready && (kind === 'golem' || kind === 'goblin') && typeof THREE.SkeletonUtils !== 'undefined') {
+            const src = kind === 'golem' ? Models.data.skelWarrior : Models.data.skelMinion;
+            if (src) {
+                const model = THREE.SkeletonUtils.clone(src.scene);
+                const bbox = new THREE.Box3().setFromObject(model);
+                const s2 = 1.3 / Math.max(0.001, bbox.max.y - bbox.min.y);
+                model.scale.setScalar(s2);
+                model.traverse(o => {
+                    if (o.isMesh) { o.material = o.material.clone(); flashMats.push(o.material); o.castShadow = true; }
+                });
+                g.add(model);
+                const mixer = new THREE.AnimationMixer(model);
+                const walk = Models.pickClip(src, ['Walking_A', 'Running_A']);
+                if (walk) mixer.clipAction(walk).play();
+                anim.kind = 'skel';
+                anim.mixer = mixer;
+                anim.src = src;
+                body = model;
+                topY = 1.35;
+                usedGLB = true;
+            }
+        }
+
+        if (usedGLB) {
+            // GLB 몬스터 — 프로시저럴 생성 생략
+        } else if (kind === 'slime') {
             body = sp(0.45, 0, 0.34, 0, mat, 1, 0.72, 1);
             sp(0.15, 0.14, 0.66, 0, light);
             bx(0.18, 0.05, 0.03, 0, 0.26, 0.42, new THREE.MeshBasicMaterial({ color: 0x37474f }));
@@ -1327,6 +1414,21 @@ const Scene3D = {
     enemyAttack(id) {
         const m = this.enemyMap.get(id);
         if (!m) return;
+        // GLB 스켈레톤: 공격 클립 재생 후 걷기 복귀
+        if (m.anim && m.anim.mixer && m.anim.src) {
+            const atk = Models.pickClip(m.anim.src, ['1H_Melee_Attack_Slice_Diagonal', '1H_Melee_Attack_Chop', '2H_Melee_Attack_Chop']);
+            if (atk) {
+                m.anim.mixer.stopAllAction();
+                const a = m.anim.mixer.clipAction(atk);
+                a.reset(); a.setLoop(THREE.LoopOnce); a.timeScale = 1.5; a.play();
+                setTimeout(() => {
+                    if (!this.enemyMap.has(id)) return;
+                    m.anim.mixer.stopAllAction();
+                    const w = Models.pickClip(m.anim.src, ['Walking_A', 'Running_A']);
+                    if (w) m.anim.mixer.clipAction(w).play();
+                }, 700);
+            }
+        }
         const ox = m.g.position.x;
         this.addAnim(0.3, k => {
             m.g.position.x = ox - Math.sin(k * Math.PI) * 0.55;
@@ -1374,8 +1476,13 @@ const Scene3D = {
     },
 
     heroDown() {
-        this.addAnim(0.5, k => { this.heroG.rotation.z = k * Math.PI / 2.2; });
-        setTimeout(() => { this.heroG.rotation.z = 0; }, 1400);
+        if (this.heroMixer) {
+            this.heroPlay(['Death_A', 'Death_B'], true);
+            setTimeout(() => this.heroPlay(['Idle']), 1600);
+        } else {
+            this.addAnim(0.5, k => { this.heroG.rotation.z = k * Math.PI / 2.2; });
+            setTimeout(() => { this.heroG.rotation.z = 0; }, 1400);
+        }
         this.shake(0.4);
     },
 
@@ -1578,9 +1685,12 @@ const Scene3D = {
             if (!m || !e.alive) continue;
             m.g.position.x += ((e.x + this.worldX) - m.g.position.x) * Math.min(1, dt * 12);
             const walking = e.x > Combat.MELEE_X + 0.05;
+            if (m.anim && m.anim.mixer) m.anim.mixer.update(dt); // GLB 스켈레톤 애니메이션
             if (m.g.userData.landed) {
                 const clk = this._clock, id = e.id;
-                if (m.anim && m.anim.fly) {
+                if (m.anim && m.anim.kind === 'skel') {
+                    // 리깅 걷기 클립이 알아서 움직임 — 절차 모션 불필요
+                } else if (m.anim && m.anim.fly) {
                     // 박쥐류: 공중 부양 + 날개 퍼덕임
                     m.g.position.y = 0.12 + Math.sin(clk * 5 + id) * 0.1;
                     m.anim.wings.forEach(w => w.rotation.z = w.userData.s * (0.3 + Math.sin(clk * 16 + id) * 0.55));
@@ -1619,7 +1729,7 @@ const Scene3D = {
             m.hpFg.position.x = -0.4 * (1 - ratio);
             m.hpFg.material.color.setHex(ratio > 0.5 ? 0x69f0ae : ratio > 0.2 ? 0xffd740 : 0xff5252);
         }
-        // 영웅: 걷기(무한맵 스크롤) / 아이들 모션
+        // 영웅: 걷기(월드 전진) / 아이들 — GLB 모드는 스켈레탈 클립, 아니면 프로시저럴 관절
         if (this.heroG && this.legs) {
             const walkCycle = Math.sin(this._clock * 11);
             const rest = this.armRest !== undefined ? this.armRest : -0.25;
@@ -1627,11 +1737,13 @@ const Scene3D = {
                 // 행군: 플레이어가 실제로 오른쪽(+x)으로 전진 — 카메라가 따라가고 소품은 제자리
                 this.worldX += 1.7 * dt;
                 this.heroG.position.x = Combat.HERO_X + this.worldX;
-                this.legs[0].rotation.x = walkCycle * 0.65;
-                this.legs[1].rotation.x = -walkCycle * 0.65;
-                this.armR.rotation.x = rest > -1 ? rest - walkCycle * 0.45 : rest;
-                this.armL.rotation.x = -0.15 + walkCycle * 0.45;
-                this.heroG.position.y = Math.abs(walkCycle) * 0.06;
+                if (!this.heroMixer) {
+                    this.legs[0].rotation.x = walkCycle * 0.65;
+                    this.legs[1].rotation.x = -walkCycle * 0.65;
+                    this.armR.rotation.x = rest > -1 ? rest - walkCycle * 0.45 : rest;
+                    this.armL.rotation.x = -0.15 + walkCycle * 0.45;
+                    this.heroG.position.y = Math.abs(walkCycle) * 0.06;
+                } else this.heroG.position.y = 0;
                 // 지나간 소품은 전방에 재배치 (무한 월드)
                 for (const o of this.scrollables) {
                     if (o.position.x < this.worldX - 13) {
@@ -1643,13 +1755,20 @@ const Scene3D = {
                 if (this.worldX - this.ground.position.x > 15) this.ground.position.x += 30;
             } else {
                 if (!this._attacking) this.heroG.position.x = Combat.HERO_X + this.worldX;
-                this.legs[0].rotation.x *= 0.85;
-                this.legs[1].rotation.x *= 0.85;
-                if (!this._attacking) {
-                    this.armR.rotation.x += (rest - this.armR.rotation.x) * 0.15;
-                    this.armL.rotation.x += (-0.15 - this.armL.rotation.x) * 0.15;
-                    this.heroG.position.y = Math.sin(this._clock * 3) * 0.03;
+                if (!this.heroMixer) {
+                    this.legs[0].rotation.x *= 0.85;
+                    this.legs[1].rotation.x *= 0.85;
+                    if (!this._attacking) {
+                        this.armR.rotation.x += (rest - this.armR.rotation.x) * 0.15;
+                        this.armL.rotation.x += (-0.15 - this.armL.rotation.x) * 0.15;
+                        this.heroG.position.y = Math.sin(this._clock * 3) * 0.03;
+                    }
                 }
+            }
+            // GLB: 믹서 갱신 + 상태 전환 (걷기/대기)
+            if (this.heroMixer) {
+                this.heroMixer.update(dt);
+                if (!this._attacking) this.heroPlay(this.walking ? ['Walking_A', 'Walking_B', 'Running_A'] : ['Idle']);
             }
         }
         // 펫: 종별 고유 모션 — 몸짓은 종 특성 위주, 상하 바운스는 보조
