@@ -53,4 +53,17 @@ const U = {
         }
         return subs;
     },
+
+    // 서브스탯 1개를 표시용 문자열로 (스킬 쿨감만 감소값이라 '-' 부호)
+    subText(s) { return `${s.key === 'skillCd' ? '-' : '+'}${s.value}% ${s.label}`; },
+
+    // subs 배열들을 키별로 합산 (장비·펫·탈것 공용 서브스탯 집계)
+    sumSubs(...subsLists) {
+        const bag = {};
+        for (const [key] of SUBSTATS) bag[key] = 0;
+        for (const subs of subsLists) {
+            for (const s of (subs || [])) bag[s.key] = (bag[s.key] || 0) + s.value;
+        }
+        return bag;
+    },
 };

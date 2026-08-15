@@ -106,6 +106,7 @@ body {
 .float-dmg.dmg-skill { color: #82b1ff; font-size: 1.25rem; }
 .float-dmg.dmg-pet { color: #b0bec5; font-size: .85rem; }
 .float-dmg.heal { color: #69f0ae; font-size: 1.1rem; }
+.float-dmg.block { color: #90caf9; font-size: 1rem; }
 @keyframes dmgrise { 0% { opacity: 0; margin-top: 0; transform: translate(-50%,-50%) scale(.6); }
     15% { opacity: 1; transform: translate(-50%,-50%) scale(1.1); }
     100% { opacity: 0; margin-top: -3rem; transform: translate(-50%,-50%) scale(1); } }

@@ -157,45 +157,46 @@ const Forge = {
         }
     },
 
-    // 영웅 종합 스탯 (장비 + 서브스탯 + 버프)
+    // 영웅 종합 스탯 (장비 + 서브스탯 + 버프) — 서브스탯 13종은 U.sumSubs로 공용 집계
     heroStats() {
         let atk = 15, hp = 150; // 맨몸 기본치
         let gearAtk = 0, gearHp = 0; // 기술트리 '장비 숙련' 보너스가 적용되는 부분
-        let atkPct = 0, hpPct = 0, critCh = 5, critDmg = 100, atkSpd = 0, dblAtk = 0;
+        const gearSubs = [];
         for (const slot of SLOTS) {
             const it = S.equipment[slot];
             if (!it) continue;
             if (it.main === 'atk') gearAtk += it.value; else gearHp += it.value;
-            for (const s of it.subs) {
-                if (s.key === 'atkPct') atkPct += s.value;
-                else if (s.key === 'hpPct') hpPct += s.value;
-                else if (s.key === 'critCh') critCh += s.value;
-                else if (s.key === 'critDmg') critDmg += s.value;
-                else if (s.key === 'atkSpd') atkSpd += s.value;
-                else if (s.key === 'dblAtk') dblAtk += s.value;
-            }
-        }
-        // 전투 중 버프 반영
-        for (const b of Combat.buffs) {
-            if (b.buff.atkPct) atkPct += b.buff.atkPct;
-            if (b.buff.atkSpd) atkSpd += b.buff.atkSpd;
+            gearSubs.push(...it.subs);
         }
         // 출전 펫 + 장착 탈것: 고정 데미지·체력 + 서브스탯 (전투에 직접 참여하지 않고 스탯만 기여)
         const pb = Pets.activeBonus();
         const mb = Mounts.activeBonus();
         const sb = Skills.activeBonus(); // 장착 스킬 패시브: 고정 데미지·체력만 기여 (서브스탯 없음)
-        atkPct += pb.atkPct + mb.atkPct; hpPct += pb.hpPct + mb.hpPct;
-        critCh += pb.critCh + mb.critCh; critDmg += pb.critDmg + mb.critDmg;
-        atkSpd += pb.atkSpd + mb.atkSpd; dblAtk += pb.dblAtk + mb.dblAtk;
+        const bag = U.sumSubs(gearSubs, pb.subs, mb.subs);
+
+        // 전투 중 버프 반영 (스킬 버프는 서브스탯 풀과 별개의 임시 효과)
+        let buffAtkPct = 0, buffAtkSpd = 0;
+        for (const b of Combat.buffs) {
+            if (b.buff.atkPct) buffAtkPct += b.buff.atkPct;
+            if (b.buff.atkSpd) buffAtkSpd += b.buff.atkSpd;
+        }
+
         atk += gearAtk * TechTree.gearPowerMult() + pb.atk + mb.atk + sb.atk;
         hp += gearHp * TechTree.gearPowerMult() + pb.hp + mb.hp + sb.hp;
         return {
-            atk: atk * (1 + atkPct / 100) * Ascension.powerMult(),
-            hp: hp * (1 + hpPct / 100) * Ascension.powerMult(),
-            critCh: Math.min(80, critCh),
-            critDmg,
-            attacksPerSec: 1.1 * (1 + atkSpd / 100),
-            dblAtk: Math.min(50, dblAtk),
+            atk: atk * (1 + (bag.dmgPct + buffAtkPct) / 100) * Ascension.powerMult(),
+            hp: hp * (1 + bag.hpPct / 100) * Ascension.powerMult(),
+            critCh: Math.min(80, 5 + bag.critCh),
+            critDmg: 100 + bag.critDmg,
+            attacksPerSec: 1.1 * (1 + (bag.atkSpd + buffAtkSpd) / 100),
+            dblAtk: Math.min(50, bag.dblAtk),
+            block: Math.min(80, bag.block),
+            hpRegen: bag.hpRegen,
+            lifesteal: bag.lifesteal,
+            meleeDmg: bag.meleeDmg,
+            rangedDmg: bag.rangedDmg,
+            skillDmg: bag.skillDmg,
+            skillCd: Math.min(80, bag.skillCd),
         };
     },
 };

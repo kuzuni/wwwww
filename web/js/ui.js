@@ -238,7 +238,7 @@ const UI = {
             ? `${WEAPON_TYPES[item.wtype].kind === 'ranged' ? '🏹 원거리' : '🗡 근거리'}`
             : SLOT_KR[item.slot];
         const subsHtml = item.subs.length
-            ? `<div class="sub">${item.subs.map(s => `+${s.value}% ${s.label}`).join(' · ')}</div>` : '';
+            ? `<div class="sub">${item.subs.map(s => U.subText(s)).join(' · ')}</div>` : '';
         return `<div class="cmp-card ${highlight ? 'best' : ''} ${isNew ? 'new' : ''}" style="--rc:${RARITY_CSS[item.rarity]}">
             ${this.itemImgHTML(item, 'cmp-img')}
             <div class="cmp-info">
@@ -325,7 +325,7 @@ const UI = {
         const petsHtml = S.pets.length ? S.pets.map((pet, i) => {
             const active = S.activePets.includes(i);
             const pw = Pets.petPower(pet);
-            const subsText = (pet.subs || []).map(s => `+${s.value}% ${s.label}`).join(' · ');
+            const subsText = (pet.subs || []).map(s => U.subText(s)).join(' · ');
             return `<div class="pet-card with-icon ${active ? 'active' : ''}" style="--rc:${RARITY_CSS[pet.rarity]}">
                 <span class="icon-circle">${PET_ICONS[pet.name] || '🐾'}</span>
                 <span class="item-name">${PET_KR[pet.name] || pet.name} <small>Lv.${pet.level}</small></span>
@@ -561,7 +561,7 @@ const UI = {
         const listHtml = owned.length ? owned.map(([name, m]) => {
             const active = S.activeMount === name;
             const pw = Mounts.mountPower(m);
-            const subsText = (m.subs || []).map(s => `+${s.value}% ${s.label}`).join(' · ');
+            const subsText = (m.subs || []).map(s => U.subText(s)).join(' · ');
             return `<div class="pet-card with-icon ${active ? 'active' : ''}" style="--rc:${RARITY_CSS[m.rarity]}">
                 <span class="icon-circle">${MOUNT_ICONS[name] || '🐴'}</span>
                 <span class="item-name">${MOUNT_KR[name] || name} <small>Lv.${m.level}</small></span>

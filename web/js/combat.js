@@ -103,8 +103,9 @@ const Combat = {
         this.hammerTick += dt;
         if (this.hammerTick >= 60) { this.hammerTick -= 60; S.hammers += 1; }
 
-        // 체력 자연 회복 1%/s
-        this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + this.hero.maxHp * 0.01 * dt);
+        // 체력 자연 회복: 기본 1%/s + 서브스탯 '체력 재생' 추가분
+        const regenPct = 0.01 + (this.hero.stats ? this.hero.stats.hpRegen / 100 : 0);
+        this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + this.hero.maxHp * regenPct * dt);
 
         if (this.phase === 'waveDelay' || this.phase === 'stageDelay') {
             this.phaseTimer -= dt;
@@ -140,12 +141,13 @@ const Combat = {
         if (target && target.x < atkRange && this.hero.atkTimer <= 0) {
             this.hero.atkTimer = 1 / st.attacksPerSec;
             const hits = U.chance(st.dblAtk / 100) ? 2 : 1;
+            const weaponDmgBonus = 1 + (wt.kind === 'ranged' ? st.rangedDmg : st.meleeDmg) / 100;
             Scene3D.heroAttack(target.id);
             for (let h = 0; h < hits; h++) {
                 this.pending.push({ t: wt.impact + h * 0.12, fn: () => {
                     if (!target.alive) return;
                     const crit = U.chance(st.critCh / 100);
-                    const dmg = st.atk * U.rand(0.9, 1.1) * (crit ? st.critDmg / 100 + 1 : 1);
+                    const dmg = st.atk * U.rand(0.9, 1.1) * (crit ? st.critDmg / 100 + 1 : 1) * weaponDmgBonus;
                     this.damageEnemy(target, dmg, crit, null);
                     if (crit) Scene3D.shake(0.12);
                 }});
@@ -164,6 +166,7 @@ const Combat = {
     tryCast(id) {
         if ((this.cooldowns[id] || 0) > 0) return false;
         const d = Skills.def(id);
+        const st = this.hero.stats;
         if (d.type === 'heal') {
             if (this.hero.hp / this.hero.maxHp > 0.75) return false; // 낭비 방지
             this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + this.hero.maxHp * Skills.effHeal(id));
@@ -178,7 +181,7 @@ const Combat = {
         } else {
             const alive = this.aliveEnemies().filter(e => e.x < 3.2);
             if (!alive.length) return false;
-            const dmg = Skills.dmg(id);
+            const dmg = Skills.dmg(id) * (1 + st.skillDmg / 100);
             UI.skillCutin(d);
             UI.skillFlash(d.color);
             if (d.type === 'aoe') {
@@ -193,7 +196,7 @@ const Combat = {
                 this.pending.push({ t: 0.2, fn: () => { if (t.alive) this.damageEnemy(t, dmg, true, 'skill'); } });
             }
         }
-        this.cooldowns[id] = d.cd;
+        this.cooldowns[id] = d.cd * (1 - st.skillCd / 100); // 서브스탯 '스킬 재사용 대기시간' 감소 반영
         return true;
     },
 
@@ -202,6 +205,9 @@ const Combat = {
         e.hp -= dmg;
         SFX.hit(crit);
         Scene3D.hitEnemy(e.id, dmg, crit, kind);
+        // 서브스탯 '생명력 흡수': 영웅이 입힌 피해의 일부를 회복
+        const st = this.hero.stats;
+        if (st && st.lifesteal) this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + dmg * st.lifesteal / 100);
         if (e.isBoss) UI.updateBossBar(e);
         if (e.hp <= 0) {
             e.alive = false;
@@ -217,6 +223,11 @@ const Combat = {
 
     damageHero(dmg) {
         if (this.phase !== 'fight') return;
+        const st = this.hero.stats;
+        if (st && U.chance(st.block / 100)) { // 서브스탯 '블록 확률': 피해 완전 무효화
+            UI.floatTextAtHero('BLOCK', 'block');
+            return;
+        }
         this.hero.hp -= dmg;
         SFX.hit(false);
         Scene3D.heroHit();

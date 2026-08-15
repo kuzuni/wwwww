@@ -91,23 +91,16 @@ const Pets = {
         return { atk: def.damage * mult, hp: def.health * mult };
     },
 
-    // 출전 중인 모든 펫의 합산 보너스 (고정 공격력·체력 + 서브스탯 %)
+    // 출전 중인 모든 펫의 합산 보너스 (고정 공격력·체력 + 서브스탯 원본 배열)
     activeBonus() {
-        const b = { atk: 0, hp: 0, atkPct: 0, hpPct: 0, critCh: 0, critDmg: 0, atkSpd: 0, dblAtk: 0 };
+        const b = { atk: 0, hp: 0, subs: [] };
         for (const idx of S.activePets) {
             const p = S.pets[idx];
             if (!p) continue;
             const pw = this.petPower(p);
             b.atk += pw.atk;
             b.hp += pw.hp;
-            for (const s of (p.subs || [])) {
-                if (s.key === 'atkPct') b.atkPct += s.value;
-                else if (s.key === 'hpPct') b.hpPct += s.value;
-                else if (s.key === 'critCh') b.critCh += s.value;
-                else if (s.key === 'critDmg') b.critDmg += s.value;
-                else if (s.key === 'atkSpd') b.atkSpd += s.value;
-                else if (s.key === 'dblAtk') b.dblAtk += s.value;
-            }
+            b.subs.push(...(p.subs || []));
         }
         return b;
     },

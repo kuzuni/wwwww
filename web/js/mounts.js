@@ -100,20 +100,13 @@ const Mounts = {
 
     // 장착 중인 탈것의 고정 공격력·체력 + 서브스탯 보너스 (없으면 전부 0)
     activeBonus() {
-        const b = { atk: 0, hp: 0, atkPct: 0, hpPct: 0, critCh: 0, critDmg: 0, atkSpd: 0, dblAtk: 0 };
+        const b = { atk: 0, hp: 0, subs: [] };
         const m = S.activeMount ? S.mounts[S.activeMount] : null;
         if (!m) return b;
         const pw = this.mountPower(m);
         b.atk = pw.atk;
         b.hp = pw.hp;
-        for (const s of (m.subs || [])) {
-            if (s.key === 'atkPct') b.atkPct += s.value;
-            else if (s.key === 'hpPct') b.hpPct += s.value;
-            else if (s.key === 'critCh') b.critCh += s.value;
-            else if (s.key === 'critDmg') b.critDmg += s.value;
-            else if (s.key === 'atkSpd') b.atkSpd += s.value;
-            else if (s.key === 'dblAtk') b.dblAtk += s.value;
-        }
+        b.subs = m.subs || [];
         return b;
     },
 };
