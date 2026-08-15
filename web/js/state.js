@@ -11,6 +11,7 @@ function defaultState() {
         version: 1,
         createdAt: U.now(),
         lastSeen: U.now(),
+        nickname: '용사', // 프로필 카드 표시명 (프로필 팝업에서 편집 예정 — UI-SPEC 19번)
         lastOfflineClaim: U.now(), // 오프라인 보상 마지막 수령 시각 (자동 모달 + 수동 버튼 공용)
         // 진행
         chapter: 1, stage: 1,           // 현재 도전 스테이지

@@ -19,9 +19,7 @@
         <div id="stage-label"></div>
         <div id="wave-pips"></div>
         <button id="farm-toggle"></button>
-        <button id="dungeon-btn">🏰<span>던전</span></button>
         <button id="offline-btn">💤<span>오프라인</span></button>
-        <div id="hero-cp"></div>
 
         <div id="boss-bar" class="hidden">
             <span class="boss-name">👑 BOSS</span>
@@ -42,8 +40,11 @@
     <!-- 스킬 바 -->
     <div id="skill-bar"></div>
 
-    <!-- 패널 (하단 시트) -->
-    <div id="panel-forge" class="panel"></div>
+    <!-- 장비 시트 (상시 노출 — 대장간 탭 대체) -->
+    <div id="equip-sheet"></div>
+
+    <!-- 패널 (하단 시트, 탭으로 토글) -->
+    <div id="panel-summon" class="panel"></div>
     <div id="panel-pets" class="panel"></div>
     <div id="panel-skills" class="panel"></div>
     <div id="panel-menu" class="panel"></div>
@@ -51,11 +52,11 @@
 
     <!-- 하단 탭 -->
     <div id="tabbar">
-        <button data-tab="battle" class="active">⚔️<span>전투</span></button>
-        <button data-tab="forge">⚒️<span>대장간</span></button>
-        <button data-tab="pets">🐾<span>펫</span></button>
-        <button data-tab="skills">✨<span>스킬</span></button>
-        <button data-tab="menu">📋<span>메뉴</span></button>
+        <button data-tab="dungeon">💀<span>던전</span></button>
+        <button data-tab="menu">🚪<span>방</span></button>
+        <button data-tab="summon">🧪<span>소환</span></button>
+        <button data-tab="battle">🚩<span>전투</span></button>
+        <button data-tab="shop">🏪<span>상점</span></button>
         <button data-tab="debug">🐞<span>디버그</span></button>
     </div>
 
@@ -66,6 +67,7 @@
     <div id="tech-modal" class="modal hidden"></div>
     <div id="mount-modal" class="modal hidden"></div>
     <div id="ascend-modal" class="modal hidden"></div>
+    <div id="stub-modal" class="modal hidden"></div>
     <div id="toasts"></div>
 </div>
 

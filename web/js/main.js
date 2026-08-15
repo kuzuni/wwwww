@@ -38,7 +38,7 @@
 
         if (offline) UI.showOffline(offline);
 
-        // 디버그: ?tab=forge 등으로 패널 바로 열기, ?debug=craft로 제작 모달 확인
+        // 디버그: ?tab=summon|pets|skills|menu|debug 등으로 패널 바로 열기, ?debug=craft로 제작 모달 확인
         const params = new URLSearchParams(location.search);
         const dbgTab = params.get('tab');
         if (dbgTab) UI.switchTab(dbgTab);

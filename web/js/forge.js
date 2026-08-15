@@ -170,7 +170,7 @@ const Forge = {
             S.forgeUpgradeEndsAt = null;
             SFX.levelUp();
             UI.toast(`⚒️ 대장간 레벨 ${S.forgeLevel} 달성!`);
-            UI.renderForge();
+            UI.renderEquipSheet();
             saveGame();
         }
     },

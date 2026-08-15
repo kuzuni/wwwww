@@ -1,51 +1,104 @@
 // ===== UI: 탭/패널/HUD/모달/토스트 =====
 const UI = {
     els: {},
-    activeTab: 'battle',
+    activeTab: null,
     _pendingItem: null,
 
     init() {
         const $ = id => document.getElementById(id);
         this.els = {
             topbar: $('topbar'), stageLabel: $('stage-label'), wavePips: $('wave-pips'),
-            heroHp: $('hero-hp-fill'), heroHpText: $('hero-hp-text'), heroCp: $('hero-cp'),
+            heroHp: $('hero-hp-fill'), heroHpText: $('hero-hp-text'),
             bossBar: $('boss-bar'), bossFill: $('boss-bar-fill'), bossWarn: $('boss-warning'),
             dmgFlash: $('dmg-flash'), lootFeed: $('loot-feed'), skillBar: $('skill-bar'),
             toasts: $('toasts'), farmToggle: $('farm-toggle'), offlineBtn: $('offline-btn'),
-            panels: { forge: $('panel-forge'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu'), debug: $('panel-debug') },
+            equipSheet: $('equip-sheet'),
+            panels: { summon: $('panel-summon'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu'), debug: $('panel-debug') },
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
-            dungeonModal: $('dungeon-modal'), dungeonBtn: $('dungeon-btn'),
+            dungeonModal: $('dungeon-modal'),
             techModal: $('tech-modal'), mountModal: $('mount-modal'), ascendModal: $('ascend-modal'),
+            stubModal: $('stub-modal'),
         };
-        this.els.dungeonBtn.addEventListener('click', () => this.openDungeons());
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
-            btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
+            btn.addEventListener('click', () => this.onTabClick(btn.dataset.tab));
         });
         this.els.farmToggle.style.display = 'none'; // 반복파밍 제거 — 무조건 전진
         this.renderTopBar();
         this.renderSkillBar();
+        this.renderEquipSheet();
+    },
+
+    // 하단 탭 클릭: 던전/상점/전투(PvP)는 팝업, 나머지는 시트 토글(다시 누르면 닫힘)
+    onTabClick(tab) {
+        if (tab === 'dungeon') { this.openDungeons(); return; }
+        if (tab === 'shop') { this.openStub('🏪 상점', '오늘의 특가·보석 패키지 등 상점 기능은 준비 중입니다.'); return; }
+        if (tab === 'battle') { this.openStub('🚩 PvP 리그', '플래티넘 리그 랭킹·도전 시스템은 준비 중입니다.'); return; }
+        this.switchTab(this.activeTab === tab ? null : tab);
     },
 
     switchTab(tab) {
         this.activeTab = tab;
         document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         for (const [k, p] of Object.entries(this.els.panels)) p.classList.toggle('open', k === tab);
-        if (tab === 'forge') this.renderForge();
+        if (tab === 'summon') this.renderSummonHub();
         if (tab === 'pets') this.renderPets();
         if (tab === 'skills') this.renderSkills();
         if (tab === 'menu') this.renderMenu();
         if (tab === 'debug') this.renderDebug();
     },
 
-    // ---- 상단바 ----
+    openStub(title, desc) {
+        this.els.stubModal.innerHTML = `
+            <div class="modal-card">
+                <h3>${title}</h3>
+                <p class="muted">${desc}</p>
+                <p class="muted">🚧 다음 업데이트에서 추가될 예정입니다.</p>
+                <button class="btn" onclick="UI.closeStub()">닫기</button>
+            </div>`;
+        this.els.stubModal.classList.remove('hidden');
+    },
+    closeStub() { this.els.stubModal.classList.add('hidden'); },
+
+    // ---- 소환 허브 (스킬/펫/마운트/기술트리 진입점 — '소환 탭 통합' 전 임시 구성) ----
+    renderSummonHub() {
+        if (this.activeTab !== 'summon') return;
+        const p = this.els.panels.summon;
+        p.innerHTML = `
+            <h2>🧪 소환</h2>
+            <p class="muted">스킬·펫·탈것을 소환하고 기술 트리로 성장시킵니다.</p>
+            <div class="row wrap">
+                <button class="btn primary" onclick="UI.switchTab('skills')">✨ 스킬</button>
+                <button class="btn primary" onclick="UI.switchTab('pets')">🐾 펫</button>
+                <button class="btn primary" onclick="UI.openMounts()">🐴 마운트</button>
+                <button class="btn primary" onclick="UI.openTechTree()">🔬 기술 트리</button>
+            </div>`;
+    },
+
+    // ---- 상단바: 좌측 프로필 카드(아바타+닉네임+전투력), 우측 코인·젬 (UI-SPEC 1번) ----
     renderTopBar() {
+        const st = Combat.hero.stats;
+        const cp = st ? st.atk * st.attacksPerSec * (1 + st.critCh / 100 * st.critDmg / 100) + st.hp / 8 : 0;
         this.els.topbar.innerHTML = `
-            <span class="cur">🔨 ${U.fmt(S.hammers)}</span>
-            <span class="cur">🪙 ${U.fmt(S.coins)}</span>
-            <span class="cur">💎 ${U.fmt(S.gems)}</span>
-            <span class="cur">🎫 ${U.fmt(S.tickets)}</span>
-            <span class="cur forge-badge">⚒️ Lv.${S.forgeLevel}</span>`;
+            <div class="profile-card">
+                <span class="avatar">🛡️</span>
+                <div class="profile-info">
+                    <span class="nickname">${S.nickname || '용사'}</span>
+                    <span class="cp">⚔️ ${U.fmt(cp)}</span>
+                </div>
+            </div>
+            <div class="currency-pills">
+                <span class="pill coin">👑 ${U.fmt(S.coins)}</span>
+                <span class="pill gem">◆ ${U.fmt(S.gems)}</span>
+            </div>`;
+    },
+
+    // 챕터 기준 난이도 표기 (원본 임계값 미확보 → 자체 설계 4단계 근사)
+    difficultyLabel(chapter) {
+        if (chapter <= 2) return '쉬움';
+        if (chapter <= 5) return '보통';
+        if (chapter <= 8) return '어려움';
+        return '매우 어려움';
     },
 
     // ---- 전투 HUD ----
@@ -53,7 +106,7 @@ const UI = {
         if (Dungeons.run) {
             const d = Dungeons.def(Dungeons.run.id);
             this.els.stageLabel.textContent = `${d.icon} ${d.kr} ${Dungeons.run.stage}단계`;
-        } else this.els.stageLabel.textContent = `${S.chapter}-${S.stage}`;
+        } else this.els.stageLabel.textContent = `${this.difficultyLabel(S.chapter)} ${S.chapter}-${S.stage}`;
     },
     updateWavePips(wave) {
         this.els.wavePips.innerHTML = [1, 2, 3, 4, 5].map(w =>
@@ -64,12 +117,6 @@ const UI = {
         const r = U.clamp(h.hp / h.maxHp, 0, 1);
         this.els.heroHp.style.width = (r * 100) + '%';
         this.els.heroHpText.textContent = `${U.fmt(h.hp)} / ${U.fmt(h.maxHp)}`;
-    },
-    updateCp() {
-        const st = Combat.hero.stats;
-        if (!st) return;
-        const cp = st.atk * st.attacksPerSec * (1 + st.critCh / 100 * st.critDmg / 100) + st.hp / 8;
-        this.els.heroCp.textContent = `⚔️ ${U.fmt(cp)}`;
     },
     showBossBar(e) {
         this.els.bossBar.classList.remove('hidden');
@@ -140,64 +187,48 @@ const UI = {
     },
 
     // ---- 대장간 패널 ----
-    renderForge() {
-        const p = this.els.panels.forge;
+    // 장비 시트: 상시 노출 (대장간 탭 대체, UI-SPEC 1번 하단 시트). 확률/업그레이드 상세는 '대장간 팝업 3종'에서 별도 팝업으로 예정
+    renderEquipSheet() {
         const info = Forge.upgradeInfo();
         const upgrading = !!S.forgeUpgradeEndsAt;
-        let upgHtml;
-        if (!info) upgHtml = `<div class="row muted">대장간 최고 레벨 (35)</div>`;
+        let forgeBtnHtml;
+        if (!info) forgeBtnHtml = `<button class="btn sm disabled">대장간 최고 레벨</button>`;
         else if (upgrading) {
-            upgHtml = `<div class="row">
-                <div class="upg-progress"><div id="upg-fill"></div><span id="upg-time"></span></div>
-                <button class="btn gem" onclick="UI.onGemSkipForge()">💎 <span id="upg-skip-cost">${Forge.gemSkipCost()}</span> 스킵</button>
-            </div>`;
+            forgeBtnHtml = `<button class="btn sm primary" disabled>⏱ <span id="equip-upg-time">${U.fmtTime((S.forgeUpgradeEndsAt - U.now()) / 1000)}</span></button>`;
         } else {
-            const cost = Forge.upgradeCost(info), time = Forge.upgradeTime(info);
-            upgHtml = `<div class="row">
-                <button class="btn primary ${S.coins < cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
-                    ⚒️ Lv.${S.forgeLevel + 1} 업그레이드<br><small>🪙 ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</small>
-                </button>
-            </div>`;
+            const cost = Forge.upgradeCost(info);
+            forgeBtnHtml = `<button class="btn sm primary ${S.coins < cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
+                대장간 레벨 ${S.forgeLevel}<br><small>🪙 ${U.fmt(cost)}</small></button>`;
         }
 
-        const probs = forgeProbabilities[S.forgeLevel];
-        const probHtml = Object.entries(probs).map(([age, pc]) =>
-            `<span class="prob-chip" style="--c:#${AGE_COLORS[age].toString(16).padStart(6, '0')}">${AGE_KR[age]} ${pc}%</span>`).join('');
-
+        // 카드 = 아이콘 + Lv + 별만 표시 (컴팩트, UI-SPEC 1번). 상세 정보는 '장비 세부정보 팝업'(추후 항목)에서
         const autoUnlocked = isUnlocked('autoForge');
         const equipHtml = SLOTS.map(slot => {
             const it = S.equipment[slot];
-            if (!it) return `<div class="equip-cell empty"><span class="slot-name">${SLOT_KR[slot]}</span><span class="muted">없음</span></div>`;
-            const typeTag = it.wtype ? (WEAPON_TYPES[it.wtype].kind === 'ranged' ? ' 🏹' : ' 🗡') : '';
-            return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}">
+            if (!it) return `<div class="equip-cell empty"><span class="slot-name">${SLOT_KR[slot]}</span></div>`;
+            return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}" title="${it.name}">
                 ${this.itemImgHTML(it, 'cell-img')}
-                <span class="slot-name">${SLOT_KR[slot]}${typeTag}</span>
-                <span class="item-name">${it.name}</span>
-                <span class="item-stat">${it.main === 'atk' ? '⚔️' : '❤️'} ${U.fmt(it.value)} · Lv.${it.level}${it.stars ? ` · ⭐${it.stars}` : ''}</span>
-                <span class="item-age">${AGE_KR[it.age]} · ${RARITY_KR[it.rarity]}</span>
+                <span class="cell-lv">Lv.${it.level}${it.stars ? ` ⭐${it.stars}` : ''}</span>
             </div>`;
         }).join('');
 
-        p.innerHTML = `
-            <h2>⚒️ 대장간 <span class="muted">Lv.${S.forgeLevel} / 35</span></h2>
-            ${upgHtml}
-            <div class="prob-box">${probHtml}</div>
-            <div class="row">
-                <button class="btn primary" onclick="UI.onCraft(1)">제작 ×1 <small>🔨 1</small></button>
-                <button class="btn ${autoUnlocked ? '' : 'disabled'}" onclick="UI.onCraft(10)">제작 ×10 <small>${autoUnlocked ? '🔨 10' : '🔒 2-10 해금'}</small></button>
-                <button class="btn ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.onToggleAutoForge()">
-                    오토 포지 ${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : '🔒'}</button>
-            </div>
-            <h3>장착 장비</h3>
-            <div class="equip-grid">${equipHtml}</div>`;
+        this.els.equipSheet.innerHTML = `
+            <div class="equip-grid">${equipHtml}</div>
+            <div class="anvil-row">
+                <button class="anvil-btn" onclick="UI.onCraft(1)">⚒️<small>🔨 ${U.fmt(S.hammers)}</small></button>
+                <div class="forge-actions">
+                    ${forgeBtnHtml}
+                    <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.onToggleAutoForge()">
+                        자동🔄 ${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : '🔒'}</button>
+                </div>
+            </div>`;
     },
 
-    onStartUpgrade() { if (Forge.startUpgrade()) { this.renderForge(); this.renderTopBar(); } },
-    onGemSkipForge() { if (Forge.gemSkip()) { this.renderTopBar(); } },
+    onStartUpgrade() { if (Forge.startUpgrade()) { this.renderEquipSheet(); this.renderTopBar(); } },
     onToggleAutoForge() {
         if (!isUnlocked('autoForge')) { this.toast('🔒 스테이지 2-10 도달 시 해금됩니다'); return; }
         S.autoForgeOn = !S.autoForgeOn;
-        this.renderForge();
+        this.renderEquipSheet();
         saveGame();
     },
 
@@ -218,7 +249,7 @@ const UI = {
                 gained += r.gained;
             }
             this.toast(`제작 ${items.length}회 — 장착 ${equipped}개${ascended ? `, ⭐승천 ${ascended}개` : ''}, 판매 +🪙${U.fmt(gained)}`);
-            this.renderForge();
+            this.renderEquipSheet();
         }
         this.renderTopBar();
     },
@@ -305,7 +336,7 @@ const UI = {
             if (prev) Forge.sell(prev);
         } else Forge.sell(item);
         this.renderTopBar();
-        if (this.activeTab === 'forge') this.renderForge();
+        this.renderEquipSheet();
         saveGame();
     },
 
@@ -767,7 +798,7 @@ const UI = {
         S.forgeLevel = Math.min(35, S.forgeLevel + 1);
         Combat.recalcHero();
         this.renderTopBar(); this.renderDebug();
-        if (this.activeTab === 'forge') this.renderForge();
+        this.renderEquipSheet();
         saveGame();
         this.toast(`⚒️ 대장간 Lv.${S.forgeLevel}`);
     },
@@ -781,20 +812,11 @@ const UI = {
     // 매초 갱신 (타이머류)
     tickSecond() {
         this.renderTopBar();
-        this.updateCp();
         this.els.offlineBtn.classList.toggle('ready', (U.now() - S.lastOfflineClaim) / 1000 >= 60);
-        // 대장간 진행바
+        // 대장간 업그레이드 카운트다운 (장비 시트의 대장간 레벨 버튼)
         if (S.forgeUpgradeEndsAt) {
-            const info = Forge.upgradeInfo();
-            const fill = document.getElementById('upg-fill');
-            const time = document.getElementById('upg-time');
-            const skipCost = document.getElementById('upg-skip-cost');
-            if (fill && info) {
-                const remain = (S.forgeUpgradeEndsAt - U.now()) / 1000;
-                fill.style.width = U.clamp(1 - remain / Forge.upgradeTime(info), 0, 1) * 100 + '%';
-                if (time) time.textContent = U.fmtTime(remain);
-                if (skipCost) skipCost.textContent = Forge.gemSkipCost();
-            }
+            const time = document.getElementById('equip-upg-time');
+            if (time) time.textContent = U.fmtTime((S.forgeUpgradeEndsAt - U.now()) / 1000);
         }
         // 부화 타이머
         S.hatching.forEach((h, i) => {
