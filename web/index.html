@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>포지 클론 — 방치형 대장간 RPG</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+    <!-- 상단 재화 바 -->
+    <div id="topbar"></div>
+
+    <!-- 3D 전투 영역 -->
+    <div id="game-area">
+        <canvas id="game3d"></canvas>
+        <div id="fx-layer"></div>
+
+        <div id="stage-label"></div>
+        <div id="wave-pips"></div>
+        <button id="farm-toggle"></button>
+        <div id="hero-cp"></div>
+
+        <div id="boss-bar" class="hidden">
+            <span class="boss-name">👑 BOSS</span>
+            <div class="boss-track"><div id="boss-bar-fill"></div></div>
+        </div>
+        <div id="boss-warning" class="hidden">⚠️ BOSS ⚠️</div>
+        <div id="skill-cutin"></div>
+        <div id="skill-flash"></div>
+        <div id="dmg-flash"></div>
+        <div id="loot-feed"></div>
+
+        <div id="hero-hp-wrap">
+            <div id="hero-hp-track"><div id="hero-hp-fill"></div></div>
+            <span id="hero-hp-text"></span>
+        </div>
+    </div>
+
+    <!-- 스킬 바 -->
+    <div id="skill-bar"></div>
+
+    <!-- 패널 (하단 시트) -->
+    <div id="panel-forge" class="panel"></div>
+    <div id="panel-pets" class="panel"></div>
+    <div id="panel-skills" class="panel"></div>
+    <div id="panel-menu" class="panel"></div>
+
+    <!-- 하단 탭 -->
+    <div id="tabbar">
+        <button data-tab="battle" class="active">⚔️<span>전투</span></button>
+        <button data-tab="forge">⚒️<span>대장간</span></button>
+        <button data-tab="pets">🐾<span>펫</span></button>
+        <button data-tab="skills">✨<span>스킬</span></button>
+        <button data-tab="menu">📋<span>메뉴</span></button>
+    </div>
+
+    <!-- 모달/토스트 -->
+    <div id="craft-modal" class="modal hidden"></div>
+    <div id="offline-modal" class="modal hidden"></div>
+    <div id="toasts"></div>
+</div>
+
+<script src="lib/three.min.js"></script>
+<script src="js/util.js"></script>
+<script src="js/balance-data.js"></script>
+<script src="js/gamedata.js"></script>
+<script src="js/state.js"></script>
+<script src="js/forge.js"></script>
+<script src="js/pets.js"></script>
+<script src="js/skills.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/scene3d.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

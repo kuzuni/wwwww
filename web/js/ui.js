@@ -1,0 +1,467 @@
+// ===== UI: 탭/패널/HUD/모달/토스트 =====
+const UI = {
+    els: {},
+    activeTab: 'battle',
+    _pendingItem: null,
+
+    init() {
+        const $ = id => document.getElementById(id);
+        this.els = {
+            topbar: $('topbar'), stageLabel: $('stage-label'), wavePips: $('wave-pips'),
+            heroHp: $('hero-hp-fill'), heroHpText: $('hero-hp-text'), heroCp: $('hero-cp'),
+            bossBar: $('boss-bar'), bossFill: $('boss-bar-fill'), bossWarn: $('boss-warning'),
+            dmgFlash: $('dmg-flash'), lootFeed: $('loot-feed'), skillBar: $('skill-bar'),
+            toasts: $('toasts'), farmToggle: $('farm-toggle'),
+            panels: { forge: $('panel-forge'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu') },
+            craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
+        };
+        document.querySelectorAll('#tabbar button').forEach(btn => {
+            btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
+        });
+        this.els.farmToggle.addEventListener('click', () => {
+            S.farming = !S.farming;
+            if (!S.farming) { S.chapter = S.bestChapter; S.stage = S.bestStage; }
+            this.updateFarmToggle();
+            this.updateStageLabel();
+            saveGame();
+        });
+        this.renderTopBar();
+        this.renderSkillBar();
+        this.updateFarmToggle();
+    },
+
+    switchTab(tab) {
+        this.activeTab = tab;
+        document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+        for (const [k, p] of Object.entries(this.els.panels)) p.classList.toggle('open', k === tab);
+        if (tab === 'forge') this.renderForge();
+        if (tab === 'pets') this.renderPets();
+        if (tab === 'skills') this.renderSkills();
+        if (tab === 'menu') this.renderMenu();
+    },
+
+    // ---- 상단바 ----
+    renderTopBar() {
+        this.els.topbar.innerHTML = `
+            <span class="cur">🔨 ${U.fmt(S.hammers)}</span>
+            <span class="cur">🪙 ${U.fmt(S.coins)}</span>
+            <span class="cur">💎 ${U.fmt(S.gems)}</span>
+            <span class="cur">🎫 ${U.fmt(S.tickets)}</span>
+            <span class="cur forge-badge">⚒️ Lv.${S.forgeLevel}</span>`;
+    },
+
+    // ---- 전투 HUD ----
+    updateStageLabel() {
+        this.els.stageLabel.textContent = `${S.chapter}-${S.stage}` + (S.farming ? ' (파밍)' : '');
+    },
+    updateWavePips(wave) {
+        this.els.wavePips.innerHTML = [1, 2, 3, 4, 5].map(w =>
+            `<span class="pip ${w < wave ? 'done' : w === wave ? 'now' : ''} ${w === 5 ? 'boss' : ''}"></span>`).join('');
+    },
+    updateHeroHp() {
+        const h = Combat.hero;
+        const r = U.clamp(h.hp / h.maxHp, 0, 1);
+        this.els.heroHp.style.width = (r * 100) + '%';
+        this.els.heroHpText.textContent = `${U.fmt(h.hp)} / ${U.fmt(h.maxHp)}`;
+    },
+    updateCp() {
+        const st = Combat.hero.stats;
+        if (!st) return;
+        const cp = st.atk * st.attacksPerSec * (1 + st.critCh / 100 * st.critDmg / 100) + st.hp / 8;
+        this.els.heroCp.textContent = `⚔️ ${U.fmt(cp)}`;
+    },
+    showBossBar(e) {
+        this.els.bossBar.classList.remove('hidden');
+        this.updateBossBar(e);
+    },
+    updateBossBar(e) {
+        this.els.bossFill.style.width = (U.clamp(e.hp / e.maxHp, 0, 1) * 100) + '%';
+    },
+    hideBossBar() { this.els.bossBar.classList.add('hidden'); },
+    bossWarning() {
+        this.els.bossWarn.classList.remove('hidden');
+        setTimeout(() => this.els.bossWarn.classList.add('hidden'), 1400);
+    },
+    flashDamage() {
+        this.els.dmgFlash.classList.add('on');
+        setTimeout(() => this.els.dmgFlash.classList.remove('on'), 120);
+    },
+    updateFarmToggle() {
+        this.els.farmToggle.textContent = S.farming ? '▶️ 진행 재개' : '🔁 반복 파밍';
+        this.els.farmToggle.classList.toggle('farming', S.farming);
+    },
+
+    floatLoot(text) {
+        if (this.els.lootFeed.children.length > 6) this.els.lootFeed.firstChild.remove();
+        const el = document.createElement('div');
+        el.textContent = text;
+        this.els.lootFeed.appendChild(el);
+        setTimeout(() => el.remove(), 1600);
+    },
+    floatTextAtHero(text, cls) {
+        Scene3D.damageNumber(new THREE.Vector3(Combat.HERO_X, 1.8, 0), text, cls);
+    },
+    toastSkill(def) { this.floatLoot(`✨ ${def.name}!`); },
+
+    toast(msg) {
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.textContent = msg;
+        this.els.toasts.appendChild(el);
+        setTimeout(() => el.classList.add('show'), 10);
+        setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2600);
+    },
+
+    // ---- 스킬 바 ----
+    renderSkillBar() {
+        this.els.skillBar.innerHTML = S.equippedSkills.map(id => {
+            const d = Skills.def(id);
+            return `<button class="skill-btn" id="sb-${id}" style="--sc:${d.color}" onclick="Combat.tryCast('${id}')">
+                <span class="sk-icon">${SKILL_ICONS[id] || '✨'}</span>
+                <span class="sk-name">${d.name}</span>
+                <span class="sk-cd" id="sbcd-${id}"></span>
+            </button>`;
+        }).join('') + `<button class="skill-btn auto ${S.autoCast ? 'on' : ''}" onclick="UI.toggleAuto()">AUTO</button>`;
+    },
+    toggleAuto() {
+        S.autoCast = !S.autoCast;
+        this.renderSkillBar();
+        saveGame();
+    },
+    updateSkillBar() {
+        for (const id of S.equippedSkills) {
+            const el = document.getElementById('sbcd-' + id);
+            if (!el) continue;
+            const cd = Combat.cooldowns[id] || 0;
+            const d = Skills.def(id);
+            el.style.height = (U.clamp(cd / d.cd, 0, 1) * 100) + '%';
+            const btn = document.getElementById('sb-' + id);
+            if (btn) btn.classList.toggle('ready', cd <= 0);
+        }
+    },
+
+    // ---- 대장간 패널 ----
+    renderForge() {
+        const p = this.els.panels.forge;
+        const info = Forge.upgradeInfo();
+        const upgrading = !!S.forgeUpgradeEndsAt;
+        let upgHtml;
+        if (!info) upgHtml = `<div class="row muted">대장간 최고 레벨 (35)</div>`;
+        else if (upgrading) {
+            upgHtml = `<div class="row">
+                <div class="upg-progress"><div id="upg-fill"></div><span id="upg-time"></span></div>
+                <button class="btn gem" onclick="UI.onGemSkipForge()">💎 <span id="upg-skip-cost">${Forge.gemSkipCost()}</span> 스킵</button>
+            </div>`;
+        } else {
+            upgHtml = `<div class="row">
+                <button class="btn primary ${S.hammers < info.cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
+                    ⚒️ Lv.${S.forgeLevel + 1} 업그레이드<br><small>🔨 ${U.fmt(info.cost)} · ⏱ ${U.fmtTime(info.time)}</small>
+                </button>
+            </div>`;
+        }
+
+        const probs = forgeProbabilities[S.forgeLevel];
+        const probHtml = Object.entries(probs).map(([age, pc]) =>
+            `<span class="prob-chip" style="--c:#${AGE_COLORS[age].toString(16).padStart(6, '0')}">${AGE_KR[age]} ${pc}%</span>`).join('');
+
+        const autoUnlocked = isUnlocked('autoForge');
+        const equipHtml = SLOTS.map(slot => {
+            const it = S.equipment[slot];
+            if (!it) return `<div class="equip-cell empty"><span class="slot-name">${SLOT_KR[slot]}</span><span class="muted">없음</span></div>`;
+            const typeTag = it.wtype ? (WEAPON_TYPES[it.wtype].kind === 'ranged' ? ' 🏹' : ' 🗡') : '';
+            return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}">
+                ${this.itemImgHTML(it, 'cell-img')}
+                <span class="slot-name">${SLOT_KR[slot]}${typeTag}</span>
+                <span class="item-name">${it.name}</span>
+                <span class="item-stat">${it.main === 'atk' ? '⚔️' : '❤️'} ${U.fmt(it.value)} · Lv.${it.level}</span>
+                <span class="item-age">${AGE_KR[it.age]} · ${RARITY_KR[it.rarity]}</span>
+            </div>`;
+        }).join('');
+
+        p.innerHTML = `
+            <h2>⚒️ 대장간 <span class="muted">Lv.${S.forgeLevel} / 35</span></h2>
+            ${upgHtml}
+            <div class="prob-box">${probHtml}</div>
+            <div class="row">
+                <button class="btn primary" onclick="UI.onCraft(1)">제작 ×1 <small>🔨 1</small></button>
+                <button class="btn ${autoUnlocked ? '' : 'disabled'}" onclick="UI.onCraft(10)">제작 ×10 <small>${autoUnlocked ? '🔨 10' : '🔒 2-10 해금'}</small></button>
+                <button class="btn ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.onToggleAutoForge()">
+                    오토 포지 ${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : '🔒'}</button>
+            </div>
+            <h3>장착 장비</h3>
+            <div class="equip-grid">${equipHtml}</div>`;
+    },
+
+    onStartUpgrade() { if (Forge.startUpgrade()) { this.renderForge(); this.renderTopBar(); } },
+    onGemSkipForge() { if (Forge.gemSkip()) { this.renderTopBar(); } },
+    onToggleAutoForge() {
+        if (!isUnlocked('autoForge')) { this.toast('🔒 스테이지 2-10 도달 시 해금됩니다'); return; }
+        S.autoForgeOn = !S.autoForgeOn;
+        this.renderForge();
+        saveGame();
+    },
+
+    onCraft(n) {
+        if (n > 1 && !isUnlocked('autoForge')) { this.toast('🔒 스테이지 2-10 도달 시 해금됩니다'); return; }
+        if (S.hammers < 1) { this.toast('🔨 해머가 부족합니다 (분당 1개 수급)'); return; }
+        if (n === 1) {
+            const item = Forge.craft(1)[0];
+            this._pendingItem = item;
+            this.showCraftModal(item);
+        } else {
+            const items = Forge.craft(n);
+            let equipped = 0, gained = 0;
+            for (const it of items) {
+                const r = Forge.autoResolve(it);
+                if (r.equipped) equipped++;
+                gained += r.gained;
+            }
+            this.toast(`제작 ${items.length}회 — 장착 ${equipped}개, 판매 +🪙${U.fmt(gained)}`);
+            this.renderForge();
+        }
+        this.renderTopBar();
+    },
+
+    SLOT_EMOJI: { gloves: '🧤', necklace: '📿', ring: '💍', shoes: '👢', belt: '🎽' },
+
+    // 장비 이미지: 무기/투구/갑옷은 실제 3D 모델 스냅샷, 나머지는 아이콘
+    itemImgHTML(item, cls) {
+        const thumb = (typeof Scene3D !== 'undefined') ? Scene3D.itemThumb(item) : null;
+        if (thumb) return `<img class="${cls}" src="${thumb}" alt="">`;
+        return `<div class="${cls} emoji">${this.SLOT_EMOJI[item.slot] || '🎁'}</div>`;
+    },
+
+    // 아이템 카드 HTML (비교 프리뷰용 — 가로형: 이미지 왼쪽 + 정보 오른쪽)
+    itemCardHTML(item, tag, highlight, isNew) {
+        if (!item) return `<div class="cmp-card empty"><div class="cmp-tag">${tag}</div><div class="muted" style="margin:auto">빈 슬롯 — 장착 중인 장비 없음</div></div>`;
+        const typeLabel = item.wtype
+            ? `${WEAPON_TYPES[item.wtype].kind === 'ranged' ? '🏹 원거리' : '🗡 근거리'}`
+            : SLOT_KR[item.slot];
+        const subsHtml = item.subs.length
+            ? `<div class="sub">${item.subs.map(s => `+${s.value}% ${s.label}`).join(' · ')}</div>` : '';
+        return `<div class="cmp-card ${highlight ? 'best' : ''} ${isNew ? 'new' : ''}" style="--rc:${RARITY_CSS[item.rarity]}">
+            ${this.itemImgHTML(item, 'cmp-img')}
+            <div class="cmp-info">
+                <div><span class="cmp-tag ${isNew ? 'newtag' : ''}">${tag}</span> <span class="rarity-tag">${AGE_KR[item.age]} · ${RARITY_KR[item.rarity]}</span></div>
+                <div class="cmp-name">${item.name} <small class="muted">${typeLabel} · Lv.${item.level}</small></div>
+                <div class="big-stat">${item.main === 'atk' ? '⚔️' : '❤️'} ${U.fmt(item.value)} <span class="cmp-power">전투력 ${U.fmt(Forge.itemPower(item))}</span></div>
+                ${subsHtml}
+            </div>
+        </div>`;
+    },
+
+    showCraftModal(item) {
+        const cur = S.equipment[item.slot];
+        const pNew = Forge.itemPower(item), pCur = Forge.itemPower(cur);
+        const better = pNew >= pCur;
+        const diff = pCur > 0 ? ((pNew / pCur - 1) * 100) : 100;
+        // 새 장비가 위, 장착 중인 장비가 아래
+        this.els.craftModal.innerHTML = `
+            <div class="modal-card wide" style="--rc:${RARITY_CSS[item.rarity]}">
+                <h3>${SLOT_KR[item.slot]} 획득!</h3>
+                <div class="cmp-wrap">
+                    ${this.itemCardHTML(item, 'NEW! 새 장비', better, true)}
+                    <div class="cmp-arrow ${better ? 'up' : 'down'}">${cur ? (better ? '▲ ' : '▼ ') + Math.abs(diff).toFixed(0) + '%' : 'NEW!'}</div>
+                    ${this.itemCardHTML(cur, '장착 중', !better && cur)}
+                </div>
+                <div class="row">
+                    <button class="btn equip" onclick="UI.resolveCraft(true)">✅ 장착${cur ? ' (기존 판매)' : ''}</button>
+                    <button class="btn sell" onclick="UI.resolveCraft(false)">🪙 판매 +${U.fmt(Forge.sellPrice(item))}</button>
+                </div>
+            </div>`;
+        this.els.craftModal.classList.remove('hidden');
+    },
+
+    // 스킬 컷인 + 화면 색 플래시
+    skillCutin(def) {
+        const el = document.getElementById('skill-cutin');
+        el.textContent = `${SKILL_ICONS[def.id] || '✦'} ${def.name}`;
+        el.style.color = def.color;
+        el.classList.remove('play');
+        void el.offsetWidth; // 애니메이션 재시작
+        el.classList.add('play');
+    },
+    skillFlash(color) {
+        const el = document.getElementById('skill-flash');
+        el.style.background = `radial-gradient(ellipse at center, ${color}33 0%, transparent 65%)`;
+        el.classList.remove('play');
+        void el.offsetWidth;
+        el.classList.add('play');
+    },
+
+    resolveCraft(equip) {
+        const item = this._pendingItem;
+        this._pendingItem = null;
+        this.els.craftModal.classList.add('hidden');
+        if (!item) return;
+        if (equip) {
+            const prev = Forge.equip(item);
+            if (prev) Forge.sell(prev);
+        } else Forge.sell(item);
+        this.renderTopBar();
+        if (this.activeTab === 'forge') this.renderForge();
+        saveGame();
+    },
+
+    // ---- 펫 패널 ----
+    renderPets() {
+        if (this.activeTab !== 'pets') return;
+        const p = this.els.panels.pets;
+        const hatchHtml = [0, 1].map(i => {
+            const h = S.hatching[i];
+            if (!h) return `<div class="hatch-slot empty">빈 부화 슬롯</div>`;
+            return `<div class="hatch-slot" style="--rc:${RARITY_CSS[h.rarity]}">
+                <span>${RARITY_KR[h.rarity]} 알</span>
+                <span id="hatch-t-${i}">${U.fmtTime((h.endsAt - U.now()) / 1000)}</span>
+                <button class="btn gem sm" onclick="UI.onHatchSkip(${i})">💎 ${Pets.gemSkipCost(h)}</button>
+            </div>`;
+        }).join('');
+
+        const eggsHtml = S.eggs.length ? S.eggs.map((egg, i) =>
+            `<button class="egg-chip" style="--rc:${RARITY_CSS[egg.rarity]}" onclick="UI.onStartHatch(${i})">
+                🥚 ${RARITY_KR[egg.rarity]}<br><small>${U.fmtTime(Pets.hatchTimeSec(egg.rarity))}</small>
+            </button>`).join('') : '<span class="muted">알 없음 — 전투에서 드랍됩니다</span>';
+
+        const petsHtml = S.pets.length ? S.pets.map((pet, i) => {
+            const active = S.activePets.includes(i);
+            return `<div class="pet-card with-icon ${active ? 'active' : ''}" style="--rc:${RARITY_CSS[pet.rarity]}">
+                <span class="icon-circle">${PET_ICONS[pet.name] || '🐾'}</span>
+                <span class="item-name">${PET_KR[pet.name] || pet.name} <small>Lv.${pet.level}</small></span>
+                <span class="item-stat">⚔️ ${U.fmt(Pets.petHitDamage(pet) / 2)}/s · ${RARITY_KR[pet.rarity]}</span>
+                <span class="muted">중복 ${pet.dupes}/${pet.level}</span>
+                <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onTogglePet(${i})">${active ? '출전 중' : '출전'}</button>
+            </div>`;
+        }).join('') : '<span class="muted">보유 펫 없음</span>';
+
+        const mergeHtml = RARITIES.slice(0, -1).map(r => Pets.canMerge(r) ?
+            `<button class="btn sm" onclick="UI.onMerge('${r}')" style="--rc:${RARITY_CSS[r]}">${RARITY_KR[r]} 3마리 → ${RARITY_KR[RARITIES[RARITIES.indexOf(r) + 1]]} 알</button>` : '').join('');
+
+        p.innerHTML = `
+            <h2>🐾 펫 <span class="muted">출전 ${S.activePets.length}/${Pets.MAX_ACTIVE}</span></h2>
+            <h3>부화장</h3><div class="row">${hatchHtml}</div>
+            <h3>알 보관함 (${S.eggs.length}/20)</h3><div class="egg-row">${eggsHtml}</div>
+            ${mergeHtml ? `<h3>합성</h3><div class="row wrap">${mergeHtml}</div>` : ''}
+            <h3>보유 펫</h3><div class="pet-list">${petsHtml}</div>`;
+    },
+
+    onStartHatch(i) {
+        if (!Pets.startHatch(i)) this.toast('부화 슬롯이 가득 찼습니다 (2칸)');
+        this.renderPets();
+    },
+    onHatchSkip(i) {
+        if (!Pets.gemSkip(i)) this.toast('💎 젬이 부족합니다');
+        this.renderPets(); this.renderTopBar();
+    },
+    onTogglePet(i) {
+        if (!Pets.toggleActive(i)) this.toast(`출전은 최대 ${Pets.MAX_ACTIVE}마리입니다`);
+        this.renderPets();
+    },
+    onMerge(r) { Pets.merge(r); this.renderPets(); },
+
+    // ---- 스킬 패널 ----
+    renderSkills() {
+        if (this.activeTab !== 'skills') return;
+        const p = this.els.panels.skills;
+        const lvl = Skills.summonLevel();
+        const rates = Skills.rates();
+        const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
+            `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${rates[r].toFixed(2)}%</span>`).join('');
+
+        const listHtml = SKILL_DEFS.filter(d => S.skills[d.id]).map(d => {
+            const sk = S.skills[d.id];
+            const equipped = S.equippedSkills.includes(d.id);
+            const typeKr = { aoe: '광역', single: '단일', heal: '회복', buff: '버프' }[d.type];
+            const power = d.type === 'heal' ? `${Math.round(Skills.effHeal(d.id) * 100)}% 회복`
+                : d.type === 'buff' ? `${Object.entries(d.buff).map(([k, v]) => (k === 'atkPct' ? '공격력' : '공속') + ` +${v}%`).join(' ')}`
+                : `${Math.round(Skills.effMult(d.id) * 100)}% 피해`;
+            return `<div class="pet-card with-icon ${equipped ? 'active' : ''}" style="--rc:${RARITY_CSS[d.rarity]}">
+                <span class="icon-circle">${SKILL_ICONS[d.id] || '✨'}</span>
+                <span class="item-name">${d.name} <small>Lv.${sk.level}</small></span>
+                <span class="item-stat">${typeKr} · ${power} · 쿨 ${d.cd}초</span>
+                <span class="muted">중복 ${sk.dupes}/${sk.level} · ${RARITY_KR[d.rarity]}</span>
+                <button class="btn sm ${equipped ? 'on' : ''}" onclick="UI.onToggleSkill('${d.id}')">${equipped ? '장착 중' : '장착'}</button>
+            </div>`;
+        }).join('') || '<span class="muted">보유 스킬 없음 — 소환해보세요!</span>';
+
+        p.innerHTML = `
+            <h2>✨ 스킬 <span class="muted">소환 Lv.${lvl}</span></h2>
+            <div class="row">
+                <button class="btn primary" onclick="UI.onSummon(false)">소환 <small>🎫 ${Skills.SUMMON_TICKET_COST}</small></button>
+                <button class="btn gem" onclick="UI.onSummon(true)">소환 <small>💎 ${Skills.SUMMON_GEM_COST}</small></button>
+            </div>
+            <div class="prob-box">${ratesHtml}</div>
+            <h3>보유 스킬 <span class="muted">(장착 ${S.equippedSkills.length}/4)</span></h3>
+            <div class="pet-list">${listHtml}</div>`;
+    },
+
+    onSummon(useGems) {
+        const r = Skills.summon(useGems);
+        if (!r) { this.toast(useGems ? '💎 젬이 부족합니다' : '🎫 티켓이 부족합니다 (스테이지 클리어로 획득)'); return; }
+        if (r.isNew) this.toast(`🎉 새 스킬: ${r.def.name} (${RARITY_KR[r.def.rarity]})`);
+        else if (r.leveled) this.toast(`⬆️ ${r.def.name} Lv.${r.level}!`);
+        else this.toast(`${r.def.name} 중복 획득`);
+        this.renderSkills(); this.renderSkillBar(); this.renderTopBar();
+    },
+    onToggleSkill(id) {
+        if (!Skills.toggleEquip(id)) this.toast('스킬은 최대 4개 장착 가능합니다');
+        this.renderSkills();
+    },
+
+    // ---- 메뉴 ----
+    renderMenu() {
+        const p = this.els.panels.menu;
+        const st = Combat.hero.stats || {};
+        p.innerHTML = `
+            <h2>📋 정보</h2>
+            <div class="stat-grid">
+                <div>⚔️ 공격력</div><div>${U.fmt(st.atk || 0)}</div>
+                <div>❤️ 체력</div><div>${U.fmt(st.hp || 0)}</div>
+                <div>💥 치명타</div><div>${(st.critCh || 0).toFixed(1)}% / +${(st.critDmg || 0).toFixed(0)}%</div>
+                <div>⚡ 공격 속도</div><div>${(st.attacksPerSec || 0).toFixed(2)}/s</div>
+                <div>🗡 처치 수</div><div>${U.fmt(S.kills)}</div>
+                <div>🔨 총 제작</div><div>${U.fmt(S.totalCrafts)}</div>
+                <div>📈 최고 스테이지</div><div>${S.bestChapter}-${S.bestStage}</div>
+            </div>
+            <div class="row">
+                <button class="btn" onclick="saveGame(); UI.toast('💾 저장 완료')">수동 저장</button>
+                <button class="btn danger" onclick="if(confirm('정말 처음부터 시작할까요?')) resetGame()">초기화</button>
+            </div>
+            <p class="muted">오프라인 보상: 🪙 1/초 · 🔨 1/분 (최대 4시간)<br>
+            대장간 업그레이드·부화는 게임을 꺼도 진행됩니다.</p>`;
+    },
+
+    showOffline(o) {
+        this.els.offlineModal.innerHTML = `
+            <div class="modal-card">
+                <h3>💤 오프라인 보상</h3>
+                <p>${U.fmtTime(o.counted)} 동안의 수확${o.elapsed > o.counted ? ' (최대 4시간)' : ''}</p>
+                <div class="big-stat">🪙 +${U.fmt(o.coins)} &nbsp; 🔨 +${U.fmt(o.hammers)}</div>
+                <button class="btn primary" onclick="document.getElementById('offline-modal').classList.add('hidden')">받기</button>
+            </div>`;
+        this.els.offlineModal.classList.remove('hidden');
+    },
+
+    // 매초 갱신 (타이머류)
+    tickSecond() {
+        this.renderTopBar();
+        this.updateCp();
+        // 대장간 진행바
+        if (S.forgeUpgradeEndsAt) {
+            const info = Forge.upgradeInfo();
+            const fill = document.getElementById('upg-fill');
+            const time = document.getElementById('upg-time');
+            const skipCost = document.getElementById('upg-skip-cost');
+            if (fill && info) {
+                const remain = (S.forgeUpgradeEndsAt - U.now()) / 1000;
+                fill.style.width = U.clamp(1 - remain / info.time, 0, 1) * 100 + '%';
+                if (time) time.textContent = U.fmtTime(remain);
+                if (skipCost) skipCost.textContent = Forge.gemSkipCost();
+            }
+        }
+        // 부화 타이머
+        S.hatching.forEach((h, i) => {
+            const el = document.getElementById('hatch-t-' + i);
+            if (el) el.textContent = U.fmtTime((h.endsAt - U.now()) / 1000);
+        });
+    },
+};
