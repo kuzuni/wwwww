@@ -70,8 +70,8 @@
             if (d) Dungeons.enter(d); else UI.openDungeons();
         }
         if (params.get('debug') === 'tech') {
-            // 기술트리 검증: ?debug=tech → 블러드 지급 후 모달
-            S.blood += 999999;
+            // 기술트리 검증: ?debug=tech → 물약 지급 후 모달
+            S.potions += 999999;
             UI.openTechTree();
         }
         if (params.get('debug') === 'mount') {

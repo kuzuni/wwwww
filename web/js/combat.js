@@ -276,10 +276,9 @@ const Combat = {
         const firstClear = !S.clearedBosses[key];
         if (firstClear) {
             S.clearedBosses[key] = true;
-            S.gems += 15;
             S.tickets += 15;
             S.winders += 10;
-            UI.toast(`🏆 ${key} 첫 클리어! 💎+15 🎫+15 ⚙️+10`);
+            UI.toast(`🏆 ${key} 첫 클리어! 🎫+15 ⚙️+10`);
         }
         S.tickets += 5;
         S.winders += 3;

@@ -421,8 +421,8 @@ const UI = {
                 <div>🗡 처치 수</div><div>${U.fmt(S.kills)}</div>
                 <div>🔨 총 제작</div><div>${U.fmt(S.totalCrafts)}</div>
                 <div>📈 최고 스테이지</div><div>${S.bestChapter}-${S.bestStage}</div>
-                <div>🩸 블러드</div><div>${U.fmt(S.blood || 0)} <small class="muted">(기술 트리 재화)</small></div>
-                <div>⚙️ 와인더</div><div>${U.fmt(S.winders || 0)} <small class="muted">(마운트 재화)</small></div>
+                <div>🧪 물약</div><div>${U.fmt(S.potions || 0)} <small class="muted">(기술 트리 재화)</small></div>
+                <div>⚙️ 태엽</div><div>${U.fmt(S.winders || 0)} <small class="muted">(마운트 재화)</small></div>
                 <div>🌟 승천</div><div>${Ascension.count()}회 <small class="muted">(파워 ×${Ascension.powerMult().toFixed(2)})</small></div>
             </div>
             <div class="row">
@@ -497,8 +497,8 @@ const UI = {
                     </div>
                     <div class="muted" style="font-size:.75rem">${def.desc} · 현재 +${U.fmt(TechTree.pct(id))}%</div>
                     <div class="tech-node-bar"><div style="width:${(lv / TechTree.MAX_LEVEL * 100).toFixed(1)}%"></div></div>
-                    <button class="btn sm primary ${!max && S.blood >= cost ? '' : 'disabled'}" onclick="UI.onUpgradeTech('${id}')">
-                        ${max ? 'MAX' : `🩸 ${U.fmt(cost)} (+${def.per}%)`}
+                    <button class="btn sm primary ${!max && S.potions >= cost ? '' : 'disabled'}" onclick="UI.onUpgradeTech('${id}')">
+                        ${max ? 'MAX' : `🧪 ${U.fmt(cost)} (+${def.per}%)`}
                     </button>
                 </div>`;
             }).join('');
@@ -506,7 +506,7 @@ const UI = {
         }).join('');
         this.els.techModal.innerHTML = `
             <div class="modal-card wide">
-                <h3>🔬 기술 트리 <small class="muted">🩸 ${U.fmt(S.blood || 0)}</small></h3>
+                <h3>🔬 기술 트리 <small class="muted">🧪 ${U.fmt(S.potions || 0)}</small></h3>
                 <div class="tech-scroll">${branchHtml}</div>
                 <button class="btn" onclick="UI.closeTechTree()">닫기</button>
             </div>`;
@@ -515,7 +515,7 @@ const UI = {
     closeTechTree() { this.els.techModal.classList.add('hidden'); },
     onUpgradeTech(id) {
         if (TechTree.upgrade(id)) { this.openTechTree(); this.renderTopBar(); Combat.recalcHero(); }
-        else this.toast('🩸 블러드가 부족합니다 (좀비 러시 던전에서 획득)');
+        else this.toast('🧪 물약이 부족합니다 (좀비 러시 던전에서 획득)');
     },
 
     // ---- 마운트 ----
@@ -565,7 +565,7 @@ const UI = {
     closeMounts() { this.els.mountModal.classList.add('hidden'); },
     onSummonMount() {
         const r = Mounts.summon();
-        if (!r) { this.toast('⚙️ 와인더가 부족합니다 (스테이지 클리어로 획득)'); return; }
+        if (!r) { this.toast('⚙️ 태엽이 부족합니다 (스테이지 클리어로 획득)'); return; }
         if (r.isNew) this.toast(`🎉 새 마운트: ${MOUNT_KR[r.name] || r.name} (${RARITY_KR[r.rarity]})`);
         else this.toast(`${MOUNT_KR[r.name] || r.name} 중복 획득 (보유 ${r.count})`);
         this.openMounts(); this.renderTopBar();
@@ -590,7 +590,7 @@ const UI = {
                 <h3>🌟 승천 <small class="muted">${cnt}회 진행 · 파워 ×${Ascension.powerMult().toFixed(2)}</small></h3>
                 <p class="muted">대장간 레벨, 장비, 펫, 스킬, 마운트, 알을 초기화하는 대신
                     영구적으로 공격력·체력이 증가합니다 (승천 시 파워 ×${nextMult.toFixed(2)}).</p>
-                <p class="muted">유지: 골드·해머·젬·블러드·티켓·와인더·기술 트리<br>
+                <p class="muted">유지: 골드·해머·젬·물약·티켓·태엽·기술 트리<br>
                     권장 시점: 포지 Lv.${Ascension.RECOMMENDED_FORGE_LEVEL} 이상 (최소 요구: Lv.${Ascension.MIN_FORGE_LEVEL})</p>
                 <div class="row">
                     <button class="btn primary ${ok ? '' : 'disabled'}"
@@ -634,14 +634,13 @@ const UI = {
     },
 
     // ---- 디버그 탭 (출시용 아님, 테스트 전용 — 항상 노출) ----
-    // 재화 개편(물약 신설 등) 반영 시 이 목록에 항목 추가할 것
     DEBUG_CURRENCIES: [
         { key: 'hammers', label: '🔨 해머' },
         { key: 'coins', label: '🪙 코인' },
         { key: 'gems', label: '💎 젬' },
         { key: 'tickets', label: '🎫 티켓' },
-        { key: 'winders', label: '⚙️ 와인더' },
-        { key: 'blood', label: '🩸 블러드' },
+        { key: 'winders', label: '⚙️ 태엽' },
+        { key: 'potions', label: '🧪 물약' },
     ],
     renderDebug() {
         if (this.activeTab !== 'debug') return;

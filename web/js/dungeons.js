@@ -10,7 +10,7 @@ const Dungeons = {
           theme: { sky: 0x37474f, fog: 0x546e7a, ground: 0x455a64 } },
         { id: 'invasion', name: 'Invasion',     kr: '침공',       icon: '🥚', unlock: '4-1',  reward: '펫 알 (상급 확률↑)',
           theme: { sky: 0x4a148c, fog: 0x6a1b9a, ground: 0x38006b } },
-        { id: 'zombie',   name: 'Zombie Rush',  kr: '좀비 러시',  icon: '🧟', unlock: '4-5',  reward: '블러드 (기술 재화)',
+        { id: 'zombie',   name: 'Zombie Rush',  kr: '좀비 러시',  icon: '🧟', unlock: '4-5',  reward: '물약 (기술 재화)',
           theme: { sky: 0x1b5e20, fog: 0x2e7d32, ground: 0x1b3a1e } },
     ],
 
@@ -19,7 +19,7 @@ const Dungeons = {
     // 저장 슬롯 보정 + 자정(로컬 날짜 변경) 열쇠 리셋
     ensure() {
         if (!S.dungeons) S.dungeons = { keys: {}, best: {}, lastReset: '' };
-        if (S.blood === undefined) S.blood = 0;
+        if (S.potions === undefined) S.potions = 0;
         const today = new Date().toDateString();
         if (S.dungeons.lastReset !== today) {
             S.dungeons.lastReset = today;
@@ -48,20 +48,20 @@ const Dungeons = {
         if (id === 'hammer')   return { hammers: Math.ceil(25 * g), coins: Math.ceil(600 * Math.pow(1.5, stage - 1)) };
         if (id === 'ghost')    return { tickets: Math.ceil(20 * g) };
         if (id === 'invasion') return { egg: true }; // 등급은 지급 시 상급 테이블로 굴림
-        return { blood: 10 * stage };
+        return { potions: 10 * stage };
     },
     rewardText(id, stage) {
         const r = this.rewards(id, stage);
         if (r.hammers) return `🔨 ${U.fmt(r.hammers)} · 🪙 ${U.fmt(r.coins)}`;
         if (r.tickets) return `🎫 ${U.fmt(r.tickets)}`;
         if (r.egg) return '🥚 알 1개 (상급 확률↑)';
-        return `🩸 ${U.fmt(r.blood)}`;
+        return `🧪 ${U.fmt(r.potions)}`;
     },
     grantRewards(id, stage) {
         const r = this.rewards(id, stage);
         if (r.hammers) { S.hammers += r.hammers; S.coins += r.coins; }
         if (r.tickets) S.tickets += r.tickets;
-        if (r.blood) S.blood += r.blood;
+        if (r.potions) S.potions += r.potions;
         if (r.egg) {
             // 침공 보상: 던전 단계에 비례한 상급 스테이지 확률표로 굴림
             const ch = Math.min(10, 3 + Math.ceil(stage / 2));

@@ -1,5 +1,5 @@
 // ===== 기술 트리 (대장간 연구) — BALANCE.md 스펙 =====
-// 3분기(대장간/힘/스킬&펫) × 노드당 5업×5티어(총 25업). 재화: 블러드(좀비 러시 던전).
+// 3분기(대장간/힘/스킬&펫) × 노드당 5업×5티어(총 25업). 재화: 물약(좀비 러시 던전).
 // 노드별 비용 커브는 원본 미확보 → 자체 설계(티어당 급증 + 티어 내 완만한 증가).
 const TechTree = {
     MAX_LEVEL: 25,   // 노드당 총 업그레이드 수 (5업 × 5티어)
@@ -31,7 +31,7 @@ const TechTree = {
     isMax(id) { return this.level(id) >= this.MAX_LEVEL; },
     tierOf(level) { return Math.min(5, Math.ceil(level / this.PER_TIER) || 1); },
 
-    // 레벨 하나(1-based)를 구매하는 데 드는 블러드 비용
+    // 레벨 하나(1-based)를 구매하는 데 드는 물약 비용
     cost(id, level) {
         const def = this.NODES[id];
         const tier = Math.ceil(level / this.PER_TIER);
@@ -47,12 +47,12 @@ const TechTree = {
 
     canUpgrade(id) {
         const c = this.nextCost(id);
-        return c !== null && S.blood >= c;
+        return c !== null && S.potions >= c;
     },
 
     upgrade(id) {
         if (!this.canUpgrade(id)) return false;
-        S.blood -= this.nextCost(id);
+        S.potions -= this.nextCost(id);
         S.tech[id] = this.level(id) + 1;
         saveGame();
         return true;
