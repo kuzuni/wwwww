@@ -67,6 +67,15 @@ const Scene3D = {
         model.traverse(o => {
             if (o.name && /sword|shield|axe|crossbow|staff|dagger|arrow|quiver|knife|bow/i.test(o.name)) o.visible = false;
         });
+        // GLB는 지오메트리 고정(Knight 고정 갑옷) → 장비 부위별 색 오버레이로 대체 표현
+        // Knight_Head(맨얼굴)는 제외, 투구/갑옷 파츠만 매테리얼 분리 후 장비 시대색으로 틴트
+        const GLB_ARMOR_PARTS = ['Knight_Body', 'Knight_ArmLeft', 'Knight_ArmRight', 'Knight_LegLeft', 'Knight_LegRight', 'Knight_Cape'];
+        this.glbArmorMeshes = GLB_ARMOR_PARTS.map(n => model.getObjectByName(n)).filter(Boolean);
+        this.glbHelmetMesh = model.getObjectByName('Knight_Helmet');
+        for (const m of [...this.glbArmorMeshes, this.glbHelmetMesh]) {
+            if (m && m.material) m.material = m.material.clone(); // 파츠별 독립 틴트를 위해 공유 매테리얼 분리
+        }
+        this.tintHeroGlb();
         // 무기를 오른손 본에 부착 (장비 교체 시스템 유지)
         const hand = model.getObjectByName('handslot.r') || model.getObjectByName('hand.r');
         if (hand) {
@@ -77,6 +86,30 @@ const Scene3D = {
             this.weaponG.scale.setScalar(1 / s);
         }
         this.heroPlay(['Idle']);
+    },
+
+    // GLB 기사 고정 지오메트리에 장비 시대색 + 궁극+ 등급 발광을 오버레이 (색상만 변경, 형태는 고정)
+    tintHeroGlb() {
+        if (!this.glbArmorMeshes) return;
+        const a = S.equipment.armor;
+        const aIdx = a ? RARITIES.indexOf(a.rarity) : 0;
+        const armorColor = a ? AGE_COLORS[a.age] : 0xb0bec5;
+        const armorGlow = aIdx >= 4 ? RARITY_HEX[a.rarity] : 0x000000;
+        for (const m of this.glbArmorMeshes) {
+            m.material.color.setHex(armorColor);
+            m.material.emissive.setHex(armorGlow);
+            m.material.emissiveIntensity = aIdx >= 4 ? 0.18 : 0;
+        }
+        if (this.glbHelmetMesh) {
+            const h = S.equipment.helmet;
+            this.glbHelmetMesh.visible = !!h;
+            if (h) {
+                const hIdx = RARITIES.indexOf(h.rarity);
+                this.glbHelmetMesh.material.color.setHex(AGE_COLORS[h.age]);
+                this.glbHelmetMesh.material.emissive.setHex(hIdx >= 4 ? RARITY_HEX[h.rarity] : 0x000000);
+                this.glbHelmetMesh.material.emissiveIntensity = hIdx >= 4 ? 0.18 : 0;
+            }
+        }
     },
 
     heroPlay(cands, once, timeScale) {
@@ -471,9 +504,13 @@ const Scene3D = {
         this.chestPlate.visible = style !== 'hide' && style !== 'robe';
         while (this.armorExtraG.children.length) this.armorExtraG.remove(this.armorExtraG.children[0]);
         this.armorExtraG.add(this.makeArmorExtras(style, c, ec));
+        this.tintHeroGlb(); // GLB 기사 모드: 파츠별 색 오버레이 동기화
         // 장비 교체 연출: 반짝 + 상승 파티클
         if (withFlash) {
             for (const m of this.armorMats) { m.emissive = new THREE.Color(0xffffff); m.emissiveIntensity = 0.8; }
+            if (this.glbArmorMeshes) for (const m of [...this.glbArmorMeshes, this.glbHelmetMesh]) {
+                if (m) { m.material.emissive.setHex(0xffffff); m.material.emissiveIntensity = 0.8; }
+            }
             setTimeout(() => this.refreshHeroEquip(false), 150); // 발광 상태 원복
 
             for (let i = 0; i < 12; i++) {
