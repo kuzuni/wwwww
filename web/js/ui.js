@@ -369,6 +369,7 @@ const UI = {
         const rates = Skills.rates();
         const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
             `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${rates[r].toFixed(2)}%</span>`).join('');
+        const pb = Skills.activeBonus();
 
         const listHtml = SKILL_DEFS.filter(d => S.skills[d.id]).map(d => {
             const sk = S.skills[d.id];
@@ -376,24 +377,34 @@ const UI = {
             const typeKr = { aoe: '광역', single: '단일', heal: '회복', buff: '버프' }[d.type];
             const power = d.type === 'heal' ? `${Math.round(Skills.effHeal(d.id) * 100)}% 회복`
                 : d.type === 'buff' ? `${Object.entries(d.buff).map(([k, v]) => (k === 'atkPct' ? '공격력' : '공속') + ` +${v}%`).join(' ')}`
-                : `${Math.round(Skills.effMult(d.id) * 100)}% 피해`;
+                : `각각 ${U.fmt(Skills.dmg(d.id))}의 피해`;
+            const need = Skills.shardsRequired(sk.level);
+            const canUp = Skills.canUpgrade(d.id);
             return `<div class="pet-card with-icon ${equipped ? 'active' : ''}" style="--rc:${RARITY_CSS[d.rarity]}">
                 <span class="icon-circle">${SKILL_ICONS[d.id] || '✨'}</span>
                 <span class="item-name">${d.name} <small>Lv.${sk.level}</small></span>
                 <span class="item-stat">${typeKr} · ${power} · 쿨 ${d.cd}초</span>
-                <span class="muted">중복 ${sk.dupes}/${sk.level} · ${RARITY_KR[d.rarity]}</span>
-                <button class="btn sm ${equipped ? 'on' : ''}" onclick="UI.onToggleSkill('${d.id}')">${equipped ? '장착 중' : '장착'}</button>
+                <span class="muted">조각 ${sk.dupes}/${need} · ${RARITY_KR[d.rarity]}</span>
+                <div class="btn-col">
+                    <button class="btn sm ${equipped ? 'on' : ''}" onclick="UI.onToggleSkill('${d.id}')">${equipped ? '장착 중' : '장착'}</button>
+                    <button class="btn sm ${canUp ? '' : 'disabled'}" onclick="UI.onUpgradeSkill('${d.id}')">업그레이드</button>
+                </div>
             </div>`;
         }).join('') || '<span class="muted">보유 스킬 없음 — 소환해보세요!</span>';
 
         p.innerHTML = `
             <h2>✨ 스킬 <span class="muted">소환 Lv.${lvl}</span></h2>
+            <p class="muted">장착 시 고정 패시브: +${U.fmt(pb.atk)} 기본 피해 · +${U.fmt(pb.hp)} 기본 체력</p>
             <div class="row">
                 <button class="btn primary" onclick="UI.onSummon(false)">소환 <small>🎫 ${Skills.SUMMON_TICKET_COST}</small></button>
                 <button class="btn gem" onclick="UI.onSummon(true)">소환 <small>💎 ${Skills.SUMMON_GEM_COST}</small></button>
             </div>
             <div class="prob-box">${ratesHtml}</div>
             <h3>보유 스킬 <span class="muted">(장착 ${S.equippedSkills.length}/4)</span></h3>
+            <div class="row">
+                <button class="btn sm" onclick="UI.onUpgradeAllSkills()">모두 업그레이드</button>
+                <button class="btn sm" onclick="UI.onQuickEquipSkills()">빠른 장착</button>
+            </div>
             <div class="pet-list">${listHtml}</div>`;
     },
 
@@ -401,9 +412,24 @@ const UI = {
         const r = Skills.summon(useGems);
         if (!r) { this.toast(useGems ? '💎 젬이 부족합니다' : '🎫 티켓이 부족합니다 (스테이지 클리어로 획득)'); return; }
         if (r.isNew) this.toast(`🎉 새 스킬: ${r.def.name} (${RARITY_KR[r.def.rarity]})`);
-        else if (r.leveled) this.toast(`⬆️ ${r.def.name} Lv.${r.level}!`);
-        else this.toast(`${r.def.name} 중복 획득`);
+        else this.toast(`🧩 ${r.def.name} 조각 획득 (Lv.${r.level})`);
         this.renderSkills(); this.renderSkillBar(); this.renderTopBar();
+    },
+    onUpgradeSkill(id) {
+        if (!Skills.upgrade(id)) { this.toast('🧩 조각이 부족합니다'); return; }
+        const d = Skills.def(id);
+        this.toast(`⬆️ ${d.name} Lv.${S.skills[id].level}!`);
+        this.renderSkills(); this.renderTopBar();
+    },
+    onUpgradeAllSkills() {
+        const n = Skills.upgradeAll();
+        this.toast(n ? `⬆️ ${n}회 업그레이드 완료` : '🧩 업그레이드 가능한 스킬이 없습니다');
+        this.renderSkills(); this.renderTopBar();
+    },
+    onQuickEquipSkills() {
+        Skills.quickEquip();
+        this.toast('⚡ 최고 등급·레벨 스킬로 장착했습니다');
+        this.renderSkills(); this.renderSkillBar();
     },
     onToggleSkill(id) {
         if (!Skills.toggleEquip(id)) this.toast('스킬은 최대 4개 장착 가능합니다');

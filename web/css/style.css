@@ -213,6 +213,7 @@ body {
 }
 .pet-card.active { background: #253326; }
 .pet-card .btn { grid-row: 1 / span 3; grid-column: 3; }
+.pet-card .btn-col { grid-row: 1 / span 3; grid-column: 3; display: flex; flex-direction: column; gap: .3rem; }
 .pet-card.with-icon { grid-template-columns: auto 1fr auto; }
 .pet-card .icon-circle {
     grid-row: 1 / span 3; grid-column: 1;

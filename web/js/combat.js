@@ -164,7 +164,6 @@ const Combat = {
     tryCast(id) {
         if ((this.cooldowns[id] || 0) > 0) return false;
         const d = Skills.def(id);
-        const st = this.hero.stats;
         if (d.type === 'heal') {
             if (this.hero.hp / this.hero.maxHp > 0.75) return false; // 낭비 방지
             this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + this.hero.maxHp * Skills.effHeal(id));
@@ -179,7 +178,7 @@ const Combat = {
         } else {
             const alive = this.aliveEnemies().filter(e => e.x < 3.2);
             if (!alive.length) return false;
-            const dmg = st.atk * Skills.effMult(id);
+            const dmg = Skills.dmg(id);
             UI.skillCutin(d);
             UI.skillFlash(d.color);
             if (d.type === 'aoe') {

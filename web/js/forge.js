@@ -183,11 +183,12 @@ const Forge = {
         // 출전 펫 + 장착 탈것: 고정 데미지·체력 + 서브스탯 (전투에 직접 참여하지 않고 스탯만 기여)
         const pb = Pets.activeBonus();
         const mb = Mounts.activeBonus();
+        const sb = Skills.activeBonus(); // 장착 스킬 패시브: 고정 데미지·체력만 기여 (서브스탯 없음)
         atkPct += pb.atkPct + mb.atkPct; hpPct += pb.hpPct + mb.hpPct;
         critCh += pb.critCh + mb.critCh; critDmg += pb.critDmg + mb.critDmg;
         atkSpd += pb.atkSpd + mb.atkSpd; dblAtk += pb.dblAtk + mb.dblAtk;
-        atk += gearAtk * TechTree.gearPowerMult() + pb.atk + mb.atk;
-        hp += gearHp * TechTree.gearPowerMult() + pb.hp + mb.hp;
+        atk += gearAtk * TechTree.gearPowerMult() + pb.atk + mb.atk + sb.atk;
+        hp += gearHp * TechTree.gearPowerMult() + pb.hp + mb.hp + sb.hp;
         return {
             atk: atk * (1 + atkPct / 100) * Ascension.powerMult(),
             hp: hp * (1 + hpPct / 100) * Ascension.powerMult(),

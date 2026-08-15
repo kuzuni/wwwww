@@ -176,6 +176,18 @@ const SKILL_DEFS = [
     { id: 'divineShield', name: '신성한 가호',    rarity: 'mythic',    type: 'heal',   healPct: 0.7, cd: 22, fx: 'heal',   color: '#fff59d' },
 ];
 
+// 스킬 고정 데미지·패시브 등급별 기준치 (원본 개별 계수 미확보 → 자체 설계, BALANCE.md 참고)
+// 데미지 = 기준치 × 스킬의 mult(등급 내 상대 위력) × 레벨 배율. 패시브는 장착만 해도 상시 적용.
+const SKILL_BASE_DMG = { common: 40, rare: 200, epic: 1000, legendary: 5000, ultimate: 25000, mythic: 125000 };
+const SKILL_BASE_PASSIVE = {
+    common:    { atk: 5,    hp: 30 },
+    rare:      { atk: 20,   hp: 150 },
+    epic:      { atk: 80,   hp: 700 },
+    legendary: { atk: 350,  hp: 3000 },
+    ultimate:  { atk: 1500, hp: 15000 },
+    mythic:    { atk: 7000, hp: 70000 },
+};
+
 // 스킬/펫 아이콘 (이모지 프리뷰)
 const SKILL_ICONS = {
     powerStrike: '⚔️', whirlwind: '🌀', firstAid: '💊',
