@@ -19,7 +19,7 @@ function defaultState() {
         kills: 0, totalCrafts: 0,
         clearedBosses: {},              // "1-5": true → 첫 클리어 보상용
         // 재화
-        hammers: 80, coins: 500, gems: 300, tickets: 40, winders: 0,
+        hammers: 80, coins: 500, gems: 0, tickets: 40, winders: 0, potions: 0,
         // 대장간
         forgeLevel: 1,
         forgeUpgradeEndsAt: null,       // 절대시각(ms). null이면 미진행

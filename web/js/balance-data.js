@@ -359,4 +359,4 @@ const mountNames = {
     mythic: ['Hover Board', 'Hover Disk']
 };
 
-const WINDERS_PER_SUMMON = 50; // 소환 1회당 와인더 비용
+const WINDERS_PER_SUMMON = 50; // 소환 1회당 태엽(클록와인더) 비용

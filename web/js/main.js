@@ -75,7 +75,7 @@
             UI.openTechTree();
         }
         if (params.get('debug') === 'mount') {
-            // 마운트 검증: ?debug=mount → 와인더 지급 후 모달
+            // 마운트 검증: ?debug=mount → 태엽 지급 후 모달
             S.winders += 999999;
             UI.openMounts();
         }
