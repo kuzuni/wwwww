@@ -188,8 +188,8 @@ const Forge = {
         atk += gearAtk * TechTree.gearPowerMult();
         hp += gearHp * TechTree.gearPowerMult();
         return {
-            atk: atk * (1 + atkPct / 100) * Mounts.boostMult(),
-            hp: hp * (1 + hpPct / 100) * Mounts.boostMult(),
+            atk: atk * (1 + atkPct / 100) * Mounts.boostMult() * Ascension.powerMult(),
+            hp: hp * (1 + hpPct / 100) * Mounts.boostMult() * Ascension.powerMult(),
             critCh: Math.min(80, critCh),
             critDmg,
             attacksPerSec: 1.1 * (1 + atkSpd / 100),

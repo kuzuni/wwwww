@@ -19,6 +19,7 @@
         Dungeons.ensure();
         TechTree.ensure();
         Mounts.ensure();
+        Ascension.ensure();
         const offline = applyOffline();
 
         UI.init();
@@ -75,6 +76,11 @@
             // 마운트 검증: ?debug=mount → 와인더 지급 후 모달
             S.winders += 999999;
             UI.openMounts();
+        }
+        if (params.get('debug') === 'ascend') {
+            // 승천 검증: ?debug=ascend → 요구 레벨 충족 후 모달
+            S.forgeLevel = Math.max(S.forgeLevel, Ascension.MIN_FORGE_LEVEL);
+            UI.openAscension();
         }
 
         // 로직: 고정 100ms 틱 (탭 복귀 시 밀린 틱 따라잡기, 최대 5초분)

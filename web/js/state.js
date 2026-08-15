@@ -39,6 +39,8 @@ function defaultState() {
         mountOpens: 0,                  // 누적 소환 수 → 마운트 레벨 상승
         mounts: {},                     // name → {rarity, count}
         activeMount: null,              // 장착 중인 마운트 이름
+        // 승천
+        ascension: { count: 0 },        // 승천 횟수 → 영구 파워 배율
     };
 }
 

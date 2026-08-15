@@ -15,7 +15,7 @@ const UI = {
             panels: { forge: $('panel-forge'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu') },
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
             dungeonModal: $('dungeon-modal'), dungeonBtn: $('dungeon-btn'),
-            techModal: $('tech-modal'), mountModal: $('mount-modal'),
+            techModal: $('tech-modal'), mountModal: $('mount-modal'), ascendModal: $('ascend-modal'),
         };
         this.els.dungeonBtn.addEventListener('click', () => this.openDungeons());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -421,10 +421,14 @@ const UI = {
                 <div>📈 최고 스테이지</div><div>${S.bestChapter}-${S.bestStage}</div>
                 <div>🩸 블러드</div><div>${U.fmt(S.blood || 0)} <small class="muted">(기술 트리 재화)</small></div>
                 <div>⚙️ 와인더</div><div>${U.fmt(S.winders || 0)} <small class="muted">(마운트 재화)</small></div>
+                <div>🌟 승천</div><div>${Ascension.count()}회 <small class="muted">(파워 ×${Ascension.powerMult().toFixed(2)})</small></div>
             </div>
             <div class="row">
                 <button class="btn primary" onclick="UI.openTechTree()">🔬 기술 트리</button>
                 <button class="btn primary" onclick="UI.openMounts()">🐴 마운트</button>
+            </div>
+            <div class="row">
+                <button class="btn primary" onclick="UI.openAscension()">🌟 승천</button>
             </div>
             <div class="row">
                 <button class="btn" onclick="saveGame(); UI.toast('💾 저장 완료')">수동 저장</button>
@@ -562,6 +566,40 @@ const UI = {
         this.openMounts(); this.renderTopBar();
     },
     onEquipMount(name) { if (Mounts.equip(name)) this.openMounts(); },
+
+    // ---- 승천 ----
+    openAscension() {
+        Ascension.ensure();
+        const ok = Ascension.canAscend();
+        const cnt = Ascension.count();
+        const nextMult = 1 + (cnt + 1) * Ascension.POWER_PER_ASCEND;
+        this.els.ascendModal.innerHTML = `
+            <div class="modal-card wide">
+                <h3>🌟 승천 <small class="muted">${cnt}회 진행 · 파워 ×${Ascension.powerMult().toFixed(2)}</small></h3>
+                <p class="muted">대장간 레벨, 장비, 펫, 스킬, 마운트, 알을 초기화하는 대신
+                    영구적으로 공격력·체력이 증가합니다 (승천 시 파워 ×${nextMult.toFixed(2)}).</p>
+                <p class="muted">유지: 골드·해머·젬·블러드·티켓·와인더·기술 트리<br>
+                    권장 시점: 포지 Lv.${Ascension.RECOMMENDED_FORGE_LEVEL} 이상 (최소 요구: Lv.${Ascension.MIN_FORGE_LEVEL})</p>
+                <div class="row">
+                    <button class="btn primary ${ok ? '' : 'disabled'}"
+                        onclick="if(confirm('정말 승천하시겠습니까? 대장간·장비·펫·스킬·마운트·알이 모두 초기화됩니다.')) UI.onAscend()">
+                        ${ok ? `🌟 승천하기 (파워 ×${nextMult.toFixed(2)})` : `🔒 포지 Lv.${Ascension.MIN_FORGE_LEVEL} 필요`}
+                    </button>
+                </div>
+                <button class="btn" onclick="UI.closeAscension()">닫기</button>
+            </div>`;
+        this.els.ascendModal.classList.remove('hidden');
+    },
+    closeAscension() { this.els.ascendModal.classList.add('hidden'); },
+    onAscend() {
+        if (!Ascension.ascend()) { this.toast(`🔒 포지 Lv.${Ascension.MIN_FORGE_LEVEL} 도달 시 승천 가능`); return; }
+        this.toast(`🌟 승천 ${Ascension.count()}회! 파워 ×${Ascension.powerMult().toFixed(2)}`);
+        this.renderTopBar(); this.updateCp(); this.updateHeroHp(); this.updateStageLabel(); this.renderSkillBar();
+        if (this.activeTab === 'forge') this.renderForge();
+        if (this.activeTab === 'pets') this.renderPets();
+        if (this.activeTab === 'skills') this.renderSkills();
+        this.openAscension();
+    },
 
     showOffline(o) {
         this.els.offlineModal.innerHTML = `
