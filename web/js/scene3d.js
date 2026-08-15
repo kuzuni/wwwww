@@ -1046,14 +1046,17 @@ const Scene3D = {
         const redEyes = (y, z, gap, r) => { for (const s of [-1, 1]) sp(r || 0.045, s * gap, y, z, new THREE.MeshBasicMaterial({ color: 0xff1744 })); };
 
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
-        const kind = kinds[(e.id + S.chapter * 2) % kinds.length];
+        // 디버그: ?enemy=imp 로 특정 몬스터 강제
+        const forced = new URLSearchParams(location.search).get('enemy');
+        const kind = (forced && kinds.includes(forced)) ? forced : kinds[(e.id + S.chapter * 2) % kinds.length];
         const anim = { kind, wings: [], legs: [] };
         let body = null, armR = null, armL = null, topY = 1.1;
 
-        // 골렘/고블린 자리는 GLB 스켈레톤 몬스터로 (리깅 애니메이션)
+        // 골렘/고블린/머쉬룸/임프 자리는 GLB 스켈레톤 몬스터로 (리깅 애니메이션)
+        const GLB_ENEMY = { golem: 'skelWarrior', goblin: 'skelMinion', mushroom: 'skelMage', imp: 'skelRogue' };
         let usedGLB = false;
-        if (Models.ready && (kind === 'golem' || kind === 'goblin') && typeof THREE.SkeletonUtils !== 'undefined') {
-            const src = kind === 'golem' ? Models.data.skelWarrior : Models.data.skelMinion;
+        if (Models.ready && GLB_ENEMY[kind] && typeof THREE.SkeletonUtils !== 'undefined') {
+            const src = Models.data[GLB_ENEMY[kind]];
             if (src) {
                 const model = THREE.SkeletonUtils.clone(src.scene);
                 const bbox = new THREE.Box3().setFromObject(model);
