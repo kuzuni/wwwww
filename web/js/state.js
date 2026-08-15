@@ -32,7 +32,7 @@ function defaultState() {
         pets: [],                       // {name, rarity, level, dupes}
         activePets: [],                 // pets 배열 인덱스, 최대 3
         // 스킬 (시작 스킬: 강타)
-        skills: { powerStrike: { level: 1, dupes: 0 } },
+        skills: { powerStrike: { level: 1, dupes: 0, stars: 0 } },
         equippedSkills: ['powerStrike'],
         autoCast: true,
         sfxOn: true,
@@ -41,8 +41,6 @@ function defaultState() {
         mountOpens: 0,                  // 누적 소환 수 → 마운트 레벨 상승
         mounts: {},                     // name → {rarity, count}
         activeMount: null,              // 장착 중인 마운트 이름
-        // 승천
-        ascension: { count: 0 },        // 승천 횟수 → 영구 파워 배율
     };
 }
 

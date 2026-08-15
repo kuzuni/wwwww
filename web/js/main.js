@@ -19,7 +19,6 @@
         Dungeons.ensure();
         TechTree.ensure();
         Mounts.ensure();
-        Ascension.ensure();
         const offline = applyOffline();
 
         UI.init();
@@ -84,8 +83,7 @@
             UI.openMounts();
         }
         if (params.get('debug') === 'ascend') {
-            // 승천 검증: ?debug=ascend → 요구 레벨 충족 후 모달
-            S.forgeLevel = Math.max(S.forgeLevel, Ascension.MIN_FORGE_LEVEL);
+            // 승천(별) 검증: ?debug=ascend → 승천 팝업(카테고리별 별 합계) 표시
             UI.openAscension();
         }
 

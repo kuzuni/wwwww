@@ -1,6 +1,7 @@
 // ===== 마운트: 태엽(클록와인더) 소환(원본 확률표) → 수집/장착 → 고정 데미지·체력+옵션 부스트 =====
 const Mounts = {
-    MAX_LEVEL: 50,
+    MAX_LEVEL: 50, // 소환 레벨(등급 확률표) 상한
+    INDIV_MAX_LEVEL: 30, // 개체 만렙 — 이후 중복은 승천(별)으로 전환 (원본 상한 미확보 → 자체 설계)
     // 원본 스탯부스트 곡선(+10%~+400%, mountBoosts)을 고정치로 환산하는 기준값.
     // 원본은 상대적 %였을 뿐 고정 데미지/체력 원본 수치가 없어(BALANCE.md 미확보) 자체 설계 —
     // 영웅 맨몸 기본치(forge.js: atk 15 / hp 150)에 등급별 %를 곱해 절대 수치로 환산한다.
@@ -53,11 +54,26 @@ const Mounts = {
         return { atk: this.BASE_ATK * pct / 100, hp: this.BASE_HP * pct / 100 };
     },
 
-    // 장착 시 이 탈것 1마리가 기여하는 고정 데미지·체력
+    // 장착 시 이 탈것 1마리가 기여하는 고정 데미지·체력 (레벨 배율 × 승천 배율)
     mountPower(m) {
         const base = this.baseStat(m.rarity);
-        const mult = this.levelMult(m);
+        const mult = this.levelMult(m) * Ascension.starMult(m.stars);
         return { atk: base.atk * mult, hp: base.hp * mult };
+    },
+
+    // 승천(별): 개체 만렙 도달 후 중복(레벨 수만큼)을 소모해 별 1개 획득
+    canAscend(name) {
+        const m = S.mounts[name];
+        return !!m && m.level >= this.INDIV_MAX_LEVEL && m.dupes >= this.INDIV_MAX_LEVEL;
+    },
+    ascend(name) {
+        const m = S.mounts[name];
+        if (!this.canAscend(name)) return false;
+        m.dupes -= this.INDIV_MAX_LEVEL;
+        m.stars = (m.stars || 0) + 1;
+        Combat.recalcHero();
+        saveGame();
+        return true;
     },
 
     summon() {
@@ -73,14 +89,14 @@ const Mounts = {
         let leveled = false;
         if (owned) {
             owned.dupes++;
-            // 중복 → 자동 합성 레벨업 (레벨 N→N+1에 중복 N개, 펫과 동일 방식)
-            while (owned.dupes >= owned.level) {
+            // 중복 → 자동 합성 레벨업 (레벨 N→N+1에 중복 N개, 펫과 동일 방식). 만렙 후엔 중복만 쌓여 승천 재료가 됨
+            while (owned.dupes >= owned.level && owned.level < this.INDIV_MAX_LEVEL) {
                 owned.dupes -= owned.level;
                 owned.level++;
                 leveled = true;
             }
         } else {
-            S.mounts[name] = { rarity, level: 1, dupes: 0, subs: this.rollSubs(rarity) };
+            S.mounts[name] = { rarity, level: 1, dupes: 0, stars: 0, subs: this.rollSubs(rarity) };
             // 장착 중인 탈것이 없으면 자동 장착
             if (!S.activeMount) this.equip(name);
         }

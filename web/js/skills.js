@@ -2,6 +2,7 @@
 const Skills = {
     SUMMON_TICKET_COST: 20,
     SUMMON_GEM_COST: 200, // 원본 젬 소환가
+    MAX_LEVEL: 60, // 만렙 후 조각은 승천(별)으로 전환 (원본 상한 미확보 → 자체 설계)
 
     // 소환 레벨: 누적 소환 수로 성장 (원본 고스트타운 레벨 대응)
     summonLevel() { return Math.min(100, Math.floor(S.summonCount / 5) + 1); },
@@ -28,7 +29,7 @@ const Skills = {
         if (cur) {
             cur.dupes++; // 조각 적립 (레벨업은 UI.onUpgradeSkill 등 수동 업그레이드로만)
         } else {
-            S.skills[def.id] = { level: 1, dupes: 0 };
+            S.skills[def.id] = { level: 1, dupes: 0, stars: 0 };
             if (S.equippedSkills.length < 4) { S.equippedSkills.push(def.id); Combat.recalcHero(); }
         }
         SFX.gacha(rarity);
@@ -41,10 +42,11 @@ const Skills = {
     // 레벨당 위력 +15%
     levelMult(id) { return 1 + 0.15 * (this.level(id) - 1); },
 
-    // 고정 데미지 = 등급 기준치 × 스킬 상대 위력(mult) × 레벨 배율 (더 이상 영웅 공격력에 비례하지 않음)
+    // 고정 데미지 = 등급 기준치 × 스킬 상대 위력(mult) × 레벨 배율 × 승천 배율 (더 이상 영웅 공격력에 비례하지 않음)
     dmg(id) {
         const d = this.def(id);
-        return SKILL_BASE_DMG[d.rarity] * (d.mult || 0) * this.levelMult(id);
+        const sk = S.skills[id];
+        return SKILL_BASE_DMG[d.rarity] * (d.mult || 0) * this.levelMult(id) * Ascension.starMult(sk && sk.stars);
     },
     effHeal(id) {
         const d = this.def(id);
@@ -60,13 +62,27 @@ const Skills = {
     },
     canUpgrade(id) {
         const sk = S.skills[id];
-        return !!sk && sk.dupes >= this.shardsRequired(sk.level);
+        return !!sk && sk.level < this.MAX_LEVEL && sk.dupes >= this.shardsRequired(sk.level);
     },
     upgrade(id) {
         const sk = S.skills[id];
         if (!sk || !this.canUpgrade(id)) return false;
         sk.dupes -= this.shardsRequired(sk.level);
         sk.level++;
+        if (S.equippedSkills.includes(id)) Combat.recalcHero();
+        saveGame();
+        return true;
+    },
+    // 승천(별): 만렙 도달 후 조각(만렙 요구치만큼)을 소모해 별 1개 획득
+    canAscend(id) {
+        const sk = S.skills[id];
+        return !!sk && sk.level >= this.MAX_LEVEL && sk.dupes >= this.shardsRequired(this.MAX_LEVEL);
+    },
+    ascend(id) {
+        const sk = S.skills[id];
+        if (!this.canAscend(id)) return false;
+        sk.dupes -= this.shardsRequired(this.MAX_LEVEL);
+        sk.stars = (sk.stars || 0) + 1;
         if (S.equippedSkills.includes(id)) Combat.recalcHero();
         saveGame();
         return true;
@@ -98,9 +114,10 @@ const Skills = {
         const b = { atk: 0, hp: 0 };
         for (const id of S.equippedSkills) {
             const d = this.def(id);
+            const sk = S.skills[id];
             if (!d) continue;
             const base = SKILL_BASE_PASSIVE[d.rarity];
-            const mult = this.levelMult(id);
+            const mult = this.levelMult(id) * Ascension.starMult(sk && sk.stars);
             b.atk += base.atk * mult;
             b.hp += base.hp * mult;
         }

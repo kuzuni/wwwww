@@ -55,14 +55,28 @@ const Forge = {
             }
         }
 
-        return { name, slot, age, ageIdx, rarity, level, main, value, subs, wtype, nameIdx };
+        return { name, slot, age, ageIdx, rarity, level, main, value, subs, wtype, nameIdx, stars: 0 };
     },
 
     itemPower(item) {
         if (!item) return 0;
         let p = item.value;
         for (const s of item.subs) p *= (1 + s.value / 200); // 서브스탯 대략 환산
-        return p;
+        return p * Ascension.starMult(item.stars);
+    },
+
+    // 승천(별) 대상 판별: 이미 장착 중인 장비와 슬롯·등급·이름이 같은 장비를 다시 획득 (원본 조건 미확보 → 자체 설계)
+    isMatchingGear(a, b) {
+        return !!a && !!b && a.slot === b.slot && a.rarity === b.rarity && a.name === b.name;
+    },
+    // 장착 중인 장비에 별 1개 추가 (중복 장비를 흡수)
+    ascendGear(slot) {
+        const it = S.equipment[slot];
+        if (!it) return false;
+        it.stars = (it.stars || 0) + 1;
+        Combat.recalcHero();
+        saveGame();
+        return true;
     },
 
     sellPrice(item) {
@@ -96,9 +110,13 @@ const Forge = {
         return price;
     },
 
-    // 더 좋으면 장착하고 이전 장비 판매, 아니면 그대로 판매. 반환: {equipped, gained}
+    // 동일 장비면 승천(별 흡수), 더 좋으면 장착하고 이전 장비 판매, 아니면 그대로 판매. 반환: {equipped, ascended, gained}
     autoResolve(item) {
         const cur = S.equipment[item.slot];
+        if (this.isMatchingGear(item, cur)) {
+            this.ascendGear(item.slot);
+            return { equipped: false, ascended: true, gained: 0 };
+        }
         if (this.itemPower(item) > this.itemPower(cur)) {
             const prev = this.equip(item);
             const gained = prev ? this.sell(prev) : 0;
@@ -165,7 +183,8 @@ const Forge = {
         for (const slot of SLOTS) {
             const it = S.equipment[slot];
             if (!it) continue;
-            if (it.main === 'atk') gearAtk += it.value; else gearHp += it.value;
+            const starM = Ascension.starMult(it.stars); // 승천(별): 장비 1개당 별 개수만큼 능력치 배율 상승
+            if (it.main === 'atk') gearAtk += it.value * starM; else gearHp += it.value * starM;
             gearSubs.push(...it.subs);
         }
         // 출전 펫 + 장착 탈것: 고정 데미지·체력 + 서브스탯 (전투에 직접 참여하지 않고 스탯만 기여)
@@ -184,8 +203,8 @@ const Forge = {
         atk += gearAtk * TechTree.gearPowerMult() + pb.atk + mb.atk + sb.atk;
         hp += gearHp * TechTree.gearPowerMult() + pb.hp + mb.hp + sb.hp;
         return {
-            atk: atk * (1 + (bag.dmgPct + buffAtkPct) / 100) * Ascension.powerMult(),
-            hp: hp * (1 + bag.hpPct / 100) * Ascension.powerMult(),
+            atk: atk * (1 + (bag.dmgPct + buffAtkPct) / 100),
+            hp: hp * (1 + bag.hpPct / 100),
             critCh: Math.min(80, 5 + bag.critCh),
             critDmg: 100 + bag.critDmg,
             attacksPerSec: 1.1 * (1 + (bag.atkSpd + buffAtkSpd) / 100),

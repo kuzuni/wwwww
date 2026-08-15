@@ -173,7 +173,7 @@ const UI = {
                 ${this.itemImgHTML(it, 'cell-img')}
                 <span class="slot-name">${SLOT_KR[slot]}${typeTag}</span>
                 <span class="item-name">${it.name}</span>
-                <span class="item-stat">${it.main === 'atk' ? '⚔️' : '❤️'} ${U.fmt(it.value)} · Lv.${it.level}</span>
+                <span class="item-stat">${it.main === 'atk' ? '⚔️' : '❤️'} ${U.fmt(it.value)} · Lv.${it.level}${it.stars ? ` · ⭐${it.stars}` : ''}</span>
                 <span class="item-age">${AGE_KR[it.age]} · ${RARITY_KR[it.rarity]}</span>
             </div>`;
         }).join('');
@@ -210,13 +210,14 @@ const UI = {
             this.showCraftModal(item);
         } else {
             const items = Forge.craft(n);
-            let equipped = 0, gained = 0;
+            let equipped = 0, ascended = 0, gained = 0;
             for (const it of items) {
                 const r = Forge.autoResolve(it);
                 if (r.equipped) equipped++;
+                if (r.ascended) ascended++;
                 gained += r.gained;
             }
-            this.toast(`제작 ${items.length}회 — 장착 ${equipped}개, 판매 +🪙${U.fmt(gained)}`);
+            this.toast(`제작 ${items.length}회 — 장착 ${equipped}개${ascended ? `, ⭐승천 ${ascended}개` : ''}, 판매 +🪙${U.fmt(gained)}`);
             this.renderForge();
         }
         this.renderTopBar();
@@ -252,6 +253,7 @@ const UI = {
 
     showCraftModal(item) {
         const cur = S.equipment[item.slot];
+        const isMatch = Forge.isMatchingGear(item, cur);
         const pNew = Forge.itemPower(item), pCur = Forge.itemPower(cur);
         const better = pNew >= pCur;
         const diff = pCur > 0 ? ((pNew / pCur - 1) * 100) : 100;
@@ -265,8 +267,9 @@ const UI = {
                     ${this.itemCardHTML(cur, '장착 중', !better && cur)}
                 </div>
                 <div class="row">
-                    <button class="btn equip" onclick="UI.resolveCraft(true)">✅ 장착${cur ? ' (기존 판매)' : ''}</button>
-                    <button class="btn sell" onclick="UI.resolveCraft(false)">🪙 판매 +${U.fmt(Forge.sellPrice(item))}</button>
+                    ${isMatch ? `<button class="btn gem" onclick="UI.resolveCraft('ascend')">⭐ 승천 (⭐${(cur.stars || 0) + 1})</button>` : ''}
+                    <button class="btn equip" onclick="UI.resolveCraft('equip')">✅ 장착${cur ? ' (기존 판매)' : ''}</button>
+                    <button class="btn sell" onclick="UI.resolveCraft('sell')">🪙 판매 +${U.fmt(Forge.sellPrice(item))}</button>
                 </div>
             </div>`;
         this.els.craftModal.classList.remove('hidden');
@@ -289,12 +292,15 @@ const UI = {
         el.classList.add('play');
     },
 
-    resolveCraft(equip) {
+    resolveCraft(mode) {
         const item = this._pendingItem;
         this._pendingItem = null;
         this.els.craftModal.classList.add('hidden');
         if (!item) return;
-        if (equip) {
+        if (mode === 'ascend') {
+            Forge.ascendGear(item.slot);
+            this.toast(`⭐ ${item.name} 승천! (⭐${S.equipment[item.slot].stars})`);
+        } else if (mode === 'equip') {
             const prev = Forge.equip(item);
             if (prev) Forge.sell(prev);
         } else Forge.sell(item);
@@ -326,12 +332,16 @@ const UI = {
             const active = S.activePets.includes(i);
             const pw = Pets.petPower(pet);
             const subsText = (pet.subs || []).map(s => U.subText(s)).join(' · ');
+            const maxed = pet.level >= Pets.MAX_LEVEL;
             return `<div class="pet-card with-icon ${active ? 'active' : ''}" style="--rc:${RARITY_CSS[pet.rarity]}">
                 <span class="icon-circle">${PET_ICONS[pet.name] || '🐾'}</span>
-                <span class="item-name">${PET_KR[pet.name] || pet.name} <small>Lv.${pet.level}</small></span>
+                <span class="item-name">${PET_KR[pet.name] || pet.name} <small>Lv.${pet.level}${pet.stars ? ` ⭐${pet.stars}` : ''}</small></span>
                 <span class="item-stat">⚔️ ${U.fmt(pw.atk)} · ❤️ ${U.fmt(pw.hp)} · ${RARITY_KR[pet.rarity]}</span>
                 <span class="muted">중복 ${pet.dupes}/${pet.level}${subsText ? ' · ' + subsText : ''}</span>
-                <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onTogglePet(${i})">${active ? '출전 중' : '출전'}</button>
+                <div class="btn-col">
+                    <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onTogglePet(${i})">${active ? '출전 중' : '출전'}</button>
+                    ${maxed ? `<button class="btn sm ${Pets.canAscend(i) ? '' : 'disabled'}" onclick="UI.onAscendPet(${i})">⭐ 승천</button>` : ''}
+                </div>
             </div>`;
         }).join('') : '<span class="muted">보유 펫 없음</span>';
 
@@ -360,6 +370,12 @@ const UI = {
         this.renderPets();
     },
     onMerge(r) { Pets.merge(r); this.renderPets(); },
+    onAscendPet(i) {
+        if (!Pets.ascend(i)) { this.toast('🥚 승천에 필요한 중복이 부족합니다'); return; }
+        const pet = S.pets[i];
+        this.toast(`⭐ ${PET_KR[pet.name] || pet.name} 승천! (⭐${pet.stars})`);
+        this.renderPets();
+    },
 
     // ---- 스킬 패널 ----
     renderSkills() {
@@ -378,16 +394,18 @@ const UI = {
             const power = d.type === 'heal' ? `${Math.round(Skills.effHeal(d.id) * 100)}% 회복`
                 : d.type === 'buff' ? `${Object.entries(d.buff).map(([k, v]) => (k === 'atkPct' ? '공격력' : '공속') + ` +${v}%`).join(' ')}`
                 : `각각 ${U.fmt(Skills.dmg(d.id))}의 피해`;
-            const need = Skills.shardsRequired(sk.level);
-            const canUp = Skills.canUpgrade(d.id);
+            const maxed = sk.level >= Skills.MAX_LEVEL;
+            const need = Skills.shardsRequired(maxed ? Skills.MAX_LEVEL : sk.level);
             return `<div class="pet-card with-icon ${equipped ? 'active' : ''}" style="--rc:${RARITY_CSS[d.rarity]}">
                 <span class="icon-circle">${SKILL_ICONS[d.id] || '✨'}</span>
-                <span class="item-name">${d.name} <small>Lv.${sk.level}</small></span>
+                <span class="item-name">${d.name} <small>Lv.${sk.level}${sk.stars ? ` ⭐${sk.stars}` : ''}</small></span>
                 <span class="item-stat">${typeKr} · ${power} · 쿨 ${d.cd}초</span>
                 <span class="muted">조각 ${sk.dupes}/${need} · ${RARITY_KR[d.rarity]}</span>
                 <div class="btn-col">
                     <button class="btn sm ${equipped ? 'on' : ''}" onclick="UI.onToggleSkill('${d.id}')">${equipped ? '장착 중' : '장착'}</button>
-                    <button class="btn sm ${canUp ? '' : 'disabled'}" onclick="UI.onUpgradeSkill('${d.id}')">업그레이드</button>
+                    ${maxed
+                        ? `<button class="btn sm ${Skills.canAscend(d.id) ? '' : 'disabled'}" onclick="UI.onAscendSkill('${d.id}')">⭐ 승천</button>`
+                        : `<button class="btn sm ${Skills.canUpgrade(d.id) ? '' : 'disabled'}" onclick="UI.onUpgradeSkill('${d.id}')">업그레이드</button>`}
                 </div>
             </div>`;
         }).join('') || '<span class="muted">보유 스킬 없음 — 소환해보세요!</span>';
@@ -426,6 +444,12 @@ const UI = {
         this.toast(n ? `⬆️ ${n}회 업그레이드 완료` : '🧩 업그레이드 가능한 스킬이 없습니다');
         this.renderSkills(); this.renderTopBar();
     },
+    onAscendSkill(id) {
+        if (!Skills.ascend(id)) { this.toast('🧩 승천에 필요한 조각이 부족합니다'); return; }
+        const d = Skills.def(id);
+        this.toast(`⭐ ${d.name} 승천! (⭐${S.skills[id].stars})`);
+        this.renderSkills(); this.renderTopBar();
+    },
     onQuickEquipSkills() {
         Skills.quickEquip();
         this.toast('⚡ 최고 등급·레벨 스킬로 장착했습니다');
@@ -452,7 +476,7 @@ const UI = {
                 <div>📈 최고 스테이지</div><div>${S.bestChapter}-${S.bestStage}</div>
                 <div>🧪 물약</div><div>${U.fmt(S.potions || 0)} <small class="muted">(기술 트리 재화)</small></div>
                 <div>⚙️ 태엽</div><div>${U.fmt(S.winders || 0)} <small class="muted">(마운트 재화)</small></div>
-                <div>🌟 승천</div><div>${Ascension.count()}회 <small class="muted">(파워 ×${Ascension.powerMult().toFixed(2)})</small></div>
+                <div>🌟 승천 별</div><div>⭐ ${Ascension.totalStars()}</div>
             </div>
             <div class="row">
                 <button class="btn primary" onclick="UI.openTechTree()">🔬 기술 트리</button>
@@ -562,12 +586,16 @@ const UI = {
             const active = S.activeMount === name;
             const pw = Mounts.mountPower(m);
             const subsText = (m.subs || []).map(s => U.subText(s)).join(' · ');
+            const maxed = m.level >= Mounts.INDIV_MAX_LEVEL;
             return `<div class="pet-card with-icon ${active ? 'active' : ''}" style="--rc:${RARITY_CSS[m.rarity]}">
                 <span class="icon-circle">${MOUNT_ICONS[name] || '🐴'}</span>
-                <span class="item-name">${MOUNT_KR[name] || name} <small>Lv.${m.level}</small></span>
+                <span class="item-name">${MOUNT_KR[name] || name} <small>Lv.${m.level}${m.stars ? ` ⭐${m.stars}` : ''}</small></span>
                 <span class="item-stat">⚔️ ${U.fmt(pw.atk)} · ❤️ ${U.fmt(pw.hp)} · ${RARITY_KR[m.rarity]}</span>
                 <span class="muted">중복 ${m.dupes}/${m.level}${subsText ? ' · ' + subsText : ''}</span>
-                <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onEquipMount('${name}')">${active ? '장착 중' : '장착'}</button>
+                <div class="btn-col">
+                    <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onEquipMount('${name}')">${active ? '장착 중' : '장착'}</button>
+                    ${maxed ? `<button class="btn sm ${Mounts.canAscend(name) ? '' : 'disabled'}" onclick="UI.onAscendMount('${name}')">⭐ 승천</button>` : ''}
+                </div>
             </div>`;
         }).join('') : '<span class="muted">보유 마운트 없음 — 소환해보세요!</span>';
 
@@ -604,6 +632,11 @@ const UI = {
         this.openMounts(); this.renderTopBar();
     },
     onEquipMount(name) { if (Mounts.equip(name)) this.openMounts(); },
+    onAscendMount(name) {
+        if (!Mounts.ascend(name)) { this.toast('⚙️ 승천에 필요한 중복이 부족합니다'); return; }
+        this.toast(`⭐ ${MOUNT_KR[name] || name} 승천! (⭐${S.mounts[name].stars})`);
+        this.openMounts();
+    },
 
     onToggleSfx() {
         S.sfxOn = !S.sfxOn;
@@ -612,39 +645,28 @@ const UI = {
         saveGame();
     },
 
-    // ---- 승천 ----
+    // ---- 승천(별) ----
     openAscension() {
-        Ascension.ensure();
-        const ok = Ascension.canAscend();
-        const cnt = Ascension.count();
-        const nextMult = 1 + (cnt + 1) * Ascension.POWER_PER_ASCEND;
+        const b = Ascension.starBreakdown();
         this.els.ascendModal.innerHTML = `
             <div class="modal-card wide">
-                <h3>🌟 승천 <small class="muted">${cnt}회 진행 · 파워 ×${Ascension.powerMult().toFixed(2)}</small></h3>
-                <p class="muted">대장간 레벨, 장비, 펫, 스킬, 마운트, 알을 초기화하는 대신
-                    영구적으로 공격력·체력이 증가합니다 (승천 시 파워 ×${nextMult.toFixed(2)}).</p>
-                <p class="muted">유지: 골드·해머·젬·물약·티켓·태엽·기술 트리<br>
-                    권장 시점: 포지 Lv.${Ascension.RECOMMENDED_FORGE_LEVEL} 이상 (최소 요구: Lv.${Ascension.MIN_FORGE_LEVEL})</p>
-                <div class="row">
-                    <button class="btn primary ${ok ? '' : 'disabled'}"
-                        onclick="if(confirm('정말 승천하시겠습니까? 대장간·장비·펫·스킬·마운트·알이 모두 초기화됩니다.')) UI.onAscend()">
-                        ${ok ? `🌟 승천하기 (파워 ×${nextMult.toFixed(2)})` : `🔒 포지 Lv.${Ascension.MIN_FORGE_LEVEL} 필요`}
-                    </button>
+                <h3>🌟 승천(별) <small class="muted">합계 ⭐ ${b.gear + b.skill + b.pet + b.mount}</small></h3>
+                <p class="muted">장비·스킬·펫·탈것은 각각 따로 승천합니다. 별 1개당 해당 대상의 능력치가 크게 상승합니다.</p>
+                <p class="muted">
+                    · 장비: 장착 중인 것과 같은 종류(부위·등급·이름)를 다시 획득하면 제작 결과 팝업에서 [⭐ 승천]<br>
+                    · 스킬·펫·탈것: 각 화면에서 만렙 도달 후 중복(조각/알)을 모아 [⭐ 승천] 버튼으로 진행
+                </p>
+                <div class="stat-grid">
+                    <div>⚒️ 장비 별</div><div>⭐ ${b.gear}</div>
+                    <div>✨ 스킬 별</div><div>⭐ ${b.skill}</div>
+                    <div>🐾 펫 별</div><div>⭐ ${b.pet}</div>
+                    <div>🐴 탈것 별</div><div>⭐ ${b.mount}</div>
                 </div>
                 <button class="btn" onclick="UI.closeAscension()">닫기</button>
             </div>`;
         this.els.ascendModal.classList.remove('hidden');
     },
     closeAscension() { this.els.ascendModal.classList.add('hidden'); },
-    onAscend() {
-        if (!Ascension.ascend()) { this.toast(`🔒 포지 Lv.${Ascension.MIN_FORGE_LEVEL} 도달 시 승천 가능`); return; }
-        this.toast(`🌟 승천 ${Ascension.count()}회! 파워 ×${Ascension.powerMult().toFixed(2)}`);
-        this.renderTopBar(); this.updateCp(); this.updateHeroHp(); this.updateStageLabel(); this.renderSkillBar();
-        if (this.activeTab === 'forge') this.renderForge();
-        if (this.activeTab === 'pets') this.renderPets();
-        if (this.activeTab === 'skills') this.renderSkills();
-        this.openAscension();
-    },
 
     showOffline(o) {
         this.els.offlineModal.innerHTML = `

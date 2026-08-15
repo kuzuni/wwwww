@@ -1,49 +1,22 @@
-// ===== 승천(Ascension): 진행 리셋 → 영구 파워 배율 (BALANCE.md 스펙) =====
-// 원본: 리셋(레벨/장비/펫/스킬/마운트/알) / 유지(골드·해머·물약·티켓·태엽·기술트리)
-// 원본 권장 시점 포지 Lv35 → 최소 요구치는 테스트 편의상 낮춰서 설계(자체 설계, 미확보 수치)
+// ===== 승천(별) 시스템: 장비/스킬/펫/탈것이 각각 개별로 승천 (UI-SPEC '승천(별) 시스템' 섹션) =====
+// 원본 승천 배율·조건 미확보 → 자체 설계: 별 1개당 해당 대상 능력치 ×(1+STAR_POWER), 만렙 후 중복분으로 승천.
+// (기존에 있던 "전체 리셋형" 승천은 이 스펙으로 완전히 대체됨 — S.ascension 등 리셋 상태는 더 이상 없음)
 const Ascension = {
-    MIN_FORGE_LEVEL: 10,
-    RECOMMENDED_FORGE_LEVEL: 35,
-    POWER_PER_ASCEND: 0.5, // 승천 1회당 공격력·체력 +50% (원본: A1 Multiverse ≈ 승천 전 Divine 근사)
+    STAR_POWER: 1.0, // 별 1개당 +100%
 
-    ensure() {
-        if (!S.ascension) S.ascension = { count: 0 };
+    starMult(stars) { return 1 + (stars || 0) * this.STAR_POWER; },
+
+    // 카테고리별 별 합계 (장비/스킬/펫/탈것) — 메뉴·승천 팝업 공용
+    starBreakdown() {
+        return {
+            gear: SLOTS.reduce((s, slot) => s + ((S.equipment[slot] && S.equipment[slot].stars) || 0), 0),
+            skill: Object.values(S.skills).reduce((s, sk) => s + (sk.stars || 0), 0),
+            pet: S.pets.reduce((s, p) => s + (p.stars || 0), 0),
+            mount: Object.values(S.mounts).reduce((s, m) => s + (m.stars || 0), 0),
+        };
     },
-
-    count() { this.ensure(); return S.ascension.count; },
-    powerMult() { return 1 + this.count() * this.POWER_PER_ASCEND; },
-
-    canAscend() { return S.forgeLevel >= this.MIN_FORGE_LEVEL; },
-
-    ascend() {
-        if (!this.canAscend()) return false;
-        this.ensure();
-        S.ascension.count++;
-
-        // 리셋 대상 (BALANCE.md: 캐릭터 레벨, 장비, 펫, 스킬, 마운트, 알)
-        S.forgeLevel = 1;
-        S.forgeUpgradeEndsAt = null;
-        S.autoForgeOn = false;
-        S.equipment = { weapon: null, helmet: null, armor: null, gloves: null, necklace: null, ring: null, shoes: null, belt: null };
-        S.eggs = [{ rarity: 'common' }];
-        S.hatching = [];
-        S.pets = [];
-        S.activePets = [];
-        S.skills = { powerStrike: { level: 1, dupes: 0 } };
-        S.equippedSkills = ['powerStrike'];
-        S.summonCount = 0;
-        S.mountOpens = 0;
-        S.mounts = {};
-        S.activeMount = null;
-        S.chapter = 1;
-        S.stage = 1;
-        S.farming = false;
-
-        Scene3D.refreshHeroEquip(false);
-        Scene3D.refreshPets();
-        Combat.recalcHero();
-        Combat.setupStage();
-        saveGame();
-        return true;
+    totalStars() {
+        const b = this.starBreakdown();
+        return b.gear + b.skill + b.pet + b.mount;
     },
 };

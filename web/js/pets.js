@@ -2,6 +2,7 @@
 const Pets = {
     MAX_HATCH_SLOTS: 2,
     MAX_ACTIVE: 3,
+    MAX_LEVEL: 30, // 만렙 후 중복은 승천(별)으로 전환 (원본 레벨 상한 미확보 → 자체 설계)
 
     // 스테이지 키에 해당하는 알 등급 롤 (원본 eggDropRates)
     rollEggRarity(key) {
@@ -52,14 +53,14 @@ const Pets = {
                 const existing = S.pets.find(p => p.name === def.name);
                 if (existing) {
                     existing.dupes++;
-                    // 중복 → 자동 레벨업 (레벨 N→N+1에 중복 N개)
-                    while (existing.dupes >= existing.level) {
+                    // 중복 → 자동 레벨업 (레벨 N→N+1에 중복 N개), 만렙 도달 후에는 중복만 쌓여 승천 재료가 됨
+                    while (existing.dupes >= existing.level && existing.level < this.MAX_LEVEL) {
                         existing.dupes -= existing.level;
                         existing.level++;
                     }
                     UI.toast(`🥚 ${PET_KR[def.name] || def.name} 중복! → Lv.${existing.level}`);
                 } else {
-                    S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, subs: this.rollSubs(h.rarity) });
+                    S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, stars: 0, subs: this.rollSubs(h.rarity) });
                     if (S.activePets.length < this.MAX_ACTIVE) {
                         S.activePets.push(S.pets.length - 1);
                         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
@@ -84,11 +85,26 @@ const Pets = {
     // 옵션 2개: 장비와 동일한 서브스탯 풀에서 등급 상한치 기준으로 굴림
     rollSubs(rarity) { return U.rollSubs(rarity, 2); },
 
-    // 장착(출전) 시 펫 1마리가 기여하는 고정 데미지·체력 (petStats 원본 수치 × 레벨 배율)
+    // 장착(출전) 시 펫 1마리가 기여하는 고정 데미지·체력 (petStats 원본 수치 × 레벨 배율 × 승천 배율)
     petPower(p) {
         const def = this.petDef(p);
-        const mult = this.levelMult(p);
+        const mult = this.levelMult(p) * Ascension.starMult(p.stars);
         return { atk: def.damage * mult, hp: def.health * mult };
+    },
+
+    // 승천(별): 만렙 도달 후 중복(레벨 수만큼)을 소모해 별 1개 획득
+    canAscend(idx) {
+        const p = S.pets[idx];
+        return !!p && p.level >= this.MAX_LEVEL && p.dupes >= this.MAX_LEVEL;
+    },
+    ascend(idx) {
+        const p = S.pets[idx];
+        if (!this.canAscend(idx)) return false;
+        p.dupes -= this.MAX_LEVEL;
+        p.stars = (p.stars || 0) + 1;
+        Combat.recalcHero();
+        saveGame();
+        return true;
     },
 
     // 출전 중인 모든 펫의 합산 보너스 (고정 공격력·체력 + 서브스탯 원본 배열)
