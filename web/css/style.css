@@ -153,6 +153,11 @@ body {
 .btn.disabled { opacity: .45; }
 .btn.sm { flex: 0 0 auto; padding: .3rem .6rem; font-size: .72rem; }
 
+#panel-debug input[type=number] {
+    background: #22272e; color: #eceff1; border: 1px solid #444c56; border-radius: .55rem;
+    padding: .4rem .5rem; font-size: .82rem; text-align: center;
+}
+
 .upg-progress {
     position: relative; flex: 1; height: 2.4rem; background: #22272e;
     border: 1px solid #444c56; border-radius: .55rem; overflow: hidden;

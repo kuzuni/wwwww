@@ -12,7 +12,7 @@ const UI = {
             bossBar: $('boss-bar'), bossFill: $('boss-bar-fill'), bossWarn: $('boss-warning'),
             dmgFlash: $('dmg-flash'), lootFeed: $('loot-feed'), skillBar: $('skill-bar'),
             toasts: $('toasts'), farmToggle: $('farm-toggle'),
-            panels: { forge: $('panel-forge'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu') },
+            panels: { forge: $('panel-forge'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu'), debug: $('panel-debug') },
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
             dungeonModal: $('dungeon-modal'), dungeonBtn: $('dungeon-btn'),
             techModal: $('tech-modal'), mountModal: $('mount-modal'), ascendModal: $('ascend-modal'),
@@ -34,6 +34,7 @@ const UI = {
         if (tab === 'pets') this.renderPets();
         if (tab === 'skills') this.renderSkills();
         if (tab === 'menu') this.renderMenu();
+        if (tab === 'debug') this.renderDebug();
     },
 
     // ---- 상단바 ----
@@ -620,6 +621,87 @@ const UI = {
                 <button class="btn primary" onclick="document.getElementById('offline-modal').classList.add('hidden')">받기</button>
             </div>`;
         this.els.offlineModal.classList.remove('hidden');
+    },
+
+    // ---- 디버그 탭 (출시용 아님, 테스트 전용 — 항상 노출) ----
+    // 재화 개편(물약 신설 등) 반영 시 이 목록에 항목 추가할 것
+    DEBUG_CURRENCIES: [
+        { key: 'hammers', label: '🔨 해머' },
+        { key: 'coins', label: '🪙 코인' },
+        { key: 'gems', label: '💎 젬' },
+        { key: 'tickets', label: '🎫 티켓' },
+        { key: 'winders', label: '⚙️ 와인더' },
+        { key: 'blood', label: '🩸 블러드' },
+    ],
+    renderDebug() {
+        if (this.activeTab !== 'debug') return;
+        const p = this.els.panels.debug;
+        const curHtml = this.DEBUG_CURRENCIES.map(c =>
+            `<button class="btn sm" onclick="UI.onDebugAddCurrency('${c.key}')">${c.label} +100000</button>`).join('');
+        const keysHtml = Dungeons.DEFS.map(d =>
+            `<span class="prob-chip">${d.icon} ${S.dungeons ? (S.dungeons.keys[d.id] ?? '-') : '-'}/${Dungeons.MAX_KEYS}</span>`).join('');
+        p.innerHTML = `
+            <h2>🐞 디버그 <span class="muted">테스트 전용</span></h2>
+            <h3>스테이지 이동</h3>
+            <div class="row">
+                <input type="number" id="dbg-chapter" value="${S.chapter}" min="1" max="10" style="width:4rem">
+                <span class="muted">-</span>
+                <input type="number" id="dbg-stage" value="${S.stage}" min="1" max="10" style="width:4rem">
+                <button class="btn primary sm" onclick="UI.onDebugGoStage()">이동</button>
+            </div>
+            <div class="row">
+                <button class="btn sm" onclick="UI.onDebugStageStep(-1)">◀ 이전 스테이지</button>
+                <button class="btn sm" onclick="UI.onDebugStageStep(1)">다음 스테이지 ▶</button>
+            </div>
+            <h3>재화 지급</h3>
+            <div class="row wrap">${curHtml}</div>
+            <h3>대장간</h3>
+            <div class="row">
+                <span class="muted">현재 Lv.${S.forgeLevel} / 35</span>
+                <button class="btn sm primary" onclick="UI.onDebugForgeLevelUp()">Lv +1</button>
+            </div>
+            <h3>던전 열쇠 <span class="muted">${keysHtml}</span></h3>
+            <div class="row">
+                <button class="btn sm primary" onclick="UI.onDebugRefillKeys()">모든 열쇠 리필</button>
+            </div>`;
+    },
+    onDebugGoStage() {
+        const c = U.clamp(parseInt(document.getElementById('dbg-chapter').value) || 1, 1, 10);
+        const s = U.clamp(parseInt(document.getElementById('dbg-stage').value) || 1, 1, 10);
+        S.chapter = c; S.stage = s;
+        if (c * 100 + s > S.bestChapter * 100 + S.bestStage) { S.bestChapter = c; S.bestStage = s; }
+        Dungeons.run = null;
+        Combat.setupStage();
+        this.updateStageLabel(); this.renderDebug(); saveGame();
+        this.toast(`📍 ${c}-${s}로 이동`);
+    },
+    onDebugStageStep(dir) {
+        let c = S.chapter, s = S.stage + dir;
+        if (s < 1) { c = Math.max(1, c - 1); s = 10; }
+        if (s > 10) { c = Math.min(10, c + 1); s = 1; }
+        S.chapter = c; S.stage = s;
+        if (c * 100 + s > S.bestChapter * 100 + S.bestStage) { S.bestChapter = c; S.bestStage = s; }
+        Dungeons.run = null;
+        Combat.setupStage();
+        this.updateStageLabel(); this.renderDebug(); saveGame();
+    },
+    onDebugAddCurrency(key) {
+        S[key] = (S[key] || 0) + 100000;
+        this.renderTopBar(); this.renderDebug(); saveGame();
+        this.toast(`+100000 ${key}`);
+    },
+    onDebugForgeLevelUp() {
+        S.forgeLevel = Math.min(35, S.forgeLevel + 1);
+        this.renderTopBar(); this.renderDebug();
+        if (this.activeTab === 'forge') this.renderForge();
+        saveGame();
+        this.toast(`⚒️ 대장간 Lv.${S.forgeLevel}`);
+    },
+    onDebugRefillKeys() {
+        Dungeons.ensure();
+        for (const d of Dungeons.DEFS) S.dungeons.keys[d.id] = Dungeons.MAX_KEYS;
+        this.renderDebug(); saveGame();
+        this.toast('🗝 던전 열쇠 리필 완료');
     },
 
     // 매초 갱신 (타이머류)
