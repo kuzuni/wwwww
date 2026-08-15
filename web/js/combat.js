@@ -271,14 +271,12 @@ const Combat = {
         }
         S.tickets += 5;
 
-        // 진행: 파밍 모드가 아니면 다음 스테이지로
-        if (!S.farming) {
-            if (S.stage >= 10) {
-                if (S.chapter < 10) { S.chapter++; S.stage = 1; }
-            } else S.stage++;
-            if (S.chapter * 100 + S.stage > S.bestChapter * 100 + S.bestStage) {
-                S.bestChapter = S.chapter; S.bestStage = S.stage;
-            }
+        // 무조건 전진
+        if (S.stage >= 10) {
+            if (S.chapter < 10) { S.chapter++; S.stage = 1; }
+        } else S.stage++;
+        if (S.chapter * 100 + S.stage > S.bestChapter * 100 + S.bestStage) {
+            S.bestChapter = S.chapter; S.bestStage = S.stage;
         }
         saveGame();
         UI.renderTopBar();
@@ -288,15 +286,11 @@ const Combat = {
 
     onDefeat() {
         Scene3D.heroDown();
-        UI.toast('💀 패배... 이전 스테이지에서 재정비합니다');
-        // 한 단계 후퇴 (최소 1-1), 파밍 모드 전환
-        if (S.stage > 1) S.stage--;
-        else if (S.chapter > 1) { S.chapter--; S.stage = 10; }
-        S.farming = true;
-        UI.updateFarmToggle();
+        UI.toast('💀 쓰러졌다... 회복 후 다시 도전!');
+        // 후퇴 없음 — 같은 스테이지 재도전 (무조건 전진)
         saveGame();
         this.hero.hp = this.hero.maxHp;
         this.phase = 'stageDelay';
-        this.phaseTimer = 1.5;
+        this.phaseTimer = 2.0;
     },
 };

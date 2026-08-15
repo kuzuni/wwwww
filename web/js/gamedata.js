@@ -110,6 +110,15 @@ const ARMOR_STYLES = {
     divine:       ['robe', 'plate', 'cape', 'vest', 'robe'],
 };
 
+// 장신구류(외형 미반영 5부위): 부위당 3종 변형 — 이름/프리뷰 모델이 다름
+const ACC_NAMES = {
+    gloves:   ['장갑', '건틀릿', '핸드랩'],
+    necklace: ['목걸이', '아뮬렛', '펜던트'],
+    ring:     ['반지', '인장 반지', '보석 반지'],
+    shoes:    ['신발', '부츠', '그리브'],
+    belt:     ['벨트', '전투 벨트', '장식 벨트'],
+};
+
 function itemStyleOf(item) {
     if (!item) return null;
     const table = item.slot === 'helmet' ? HELMET_STYLES : item.slot === 'armor' ? ARMOR_STYLES : null;
@@ -203,6 +212,35 @@ const PET_COLORS = {
     'Cerberus': 0x8e24aa, 'Kitsune': 0xff8a65, 'Serpent': 0x4db6ac,
     'Treant': 0x66bb6a, 'Enchanted Elk': 0x90caf9, 'Electry': 0xfff59d,
     'Genie': 0x7e57c2, 'Baby Dragon': 0xef5350, 'Spectral Tiger': 0x80deea
+};
+
+// 펫 종별 모션 파라미터: freq(속도) amp(진폭) hop(총총) sway(좌우 기울기) yaw(몸 좌우 회전) pitch(앞뒤 끄덕)
+const PET_MOTION = {
+    'Snail': { freq: 1.2, amp: 0.015, sway: 0.04 },
+    'Turtle': { freq: 2, amp: 0.03, sway: 0.05 },
+    'Mouse': { freq: 10, amp: 0.06, hop: 1 },
+    'Chicken': { freq: 8, amp: 0.05, hop: 1, pitch: 0.15 },
+    'Cat': { freq: 3, amp: 0.05, sway: 0.03 },
+    'Dog': { freq: 6, amp: 0.07, hop: 1 },
+    'Hedgehog': { freq: 7, amp: 0.04, hop: 1, sway: 0.12 },
+    'Bear': { freq: 2, amp: 0.04, sway: 0.08 },
+    'Ostrich': { freq: 5, amp: 0.09, hop: 1, pitch: 0.1 },
+    'Scorpion': { freq: 2.5, amp: 0.02, sway: 0.03 },
+    'Spider': { freq: 14, amp: 0.03, hop: 1 },
+    'Panda': { freq: 1.8, amp: 0.04, sway: 0.1 },
+    'Griffin': { freq: 3, amp: 0.12 },
+    'Unicorn': { freq: 4.5, amp: 0.09, hop: 1, pitch: 0.08 },
+    'Saber Tooth': { freq: 3.4, amp: 0.06, pitch: 0.04 },
+    'Tiger': { freq: 3.2, amp: 0.06, pitch: 0.05 },
+    'Cerberus': { freq: 4, amp: 0.05, sway: 0.04 },
+    'Kitsune': { freq: 3, amp: 0.07 },
+    'Serpent': { freq: 2.2, amp: 0.03, yaw: 0.35 },
+    'Treant': { freq: 1.2, amp: 0.02, sway: 0.06 },
+    'Enchanted Elk': { freq: 4, amp: 0.08, hop: 1 },
+    'Electry': { freq: 18, amp: 0.05, sway: 0.15 },
+    'Genie': { freq: 1.6, amp: 0.12, yaw: 0.15 },
+    'Baby Dragon': { freq: 3.5, amp: 0.13 },
+    'Spectral Tiger': { freq: 2.6, amp: 0.07, yaw: 0.1 },
 };
 
 // 기능 해금 (원본 스테이지 해금 테이블)

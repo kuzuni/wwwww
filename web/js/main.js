@@ -39,9 +39,10 @@
         if (dbgTab) UI.switchTab(dbgTab);
         if (params.get('debug') === 'craft') { S.hammers += 10; UI.onCraft(1); }
         if (params.get('debug') === 'pets') {
-            // 펫 모델 검증: 지정 3마리 출전
+            // 펫 모델 검증: 지정 3마리 출전 (등급은 실제 데이터에서 역조회)
+            const findRarity = n => RARITIES.find(r => petStats[r].some(d => d.name === n)) || 'common';
             const names = (params.get('names') || 'Scorpion,Turtle,Baby Dragon').split(',');
-            S.pets = names.map(n => ({ name: n.trim(), rarity: 'epic', level: 1, dupes: 0 }));
+            S.pets = names.map(n => ({ name: n.trim(), rarity: findRarity(n.trim()), level: 1, dupes: 0 }));
             S.activePets = [0, 1, 2].slice(0, S.pets.length);
             Scene3D.refreshPets();
         }

@@ -72,7 +72,11 @@ const Pets = {
         }
     },
 
-    petDef(p) { return petStats[p.rarity].find(d => d.name === p.name); },
+    petDef(p) {
+        let d = (petStats[p.rarity] || []).find(x => x.name === p.name);
+        if (!d) for (const r of RARITIES) { d = (petStats[r] || []).find(x => x.name === p.name); if (d) break; }
+        return d || { name: p.name, damage: 50, health: 500 };
+    },
     levelMult(p) { return 1 + 0.12 * (p.level - 1); },
 
     // 활성 펫 1마리의 타격당 데미지 (2초당 1회 공격)

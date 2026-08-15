@@ -54,7 +54,12 @@ const Forge = {
             if (cat && cat[slot]) {
                 nameIdx = U.randInt(0, cat[slot].length - 1);
                 name = cat[slot][nameIdx];
-            } else name = `${AGE_KR[age]} ${SLOT_KR[slot]}`;
+            } else {
+                // 장신구류: 부위당 3종 변형 (이름+프리뷰 모델 상이)
+                const accs = ACC_NAMES[slot] || [SLOT_KR[slot]];
+                nameIdx = U.randInt(0, accs.length - 1);
+                name = `${AGE_KR[age]} ${accs[nameIdx]}`;
+            }
         }
 
         return { name, slot, age, ageIdx, rarity, level, main, value, subs, wtype, nameIdx };

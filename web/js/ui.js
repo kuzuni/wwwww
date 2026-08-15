@@ -18,16 +18,9 @@ const UI = {
         document.querySelectorAll('#tabbar button').forEach(btn => {
             btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
         });
-        this.els.farmToggle.addEventListener('click', () => {
-            S.farming = !S.farming;
-            if (!S.farming) { S.chapter = S.bestChapter; S.stage = S.bestStage; }
-            this.updateFarmToggle();
-            this.updateStageLabel();
-            saveGame();
-        });
+        this.els.farmToggle.style.display = 'none'; // 반복파밍 제거 — 무조건 전진
         this.renderTopBar();
         this.renderSkillBar();
-        this.updateFarmToggle();
     },
 
     switchTab(tab) {
@@ -52,7 +45,7 @@ const UI = {
 
     // ---- 전투 HUD ----
     updateStageLabel() {
-        this.els.stageLabel.textContent = `${S.chapter}-${S.stage}` + (S.farming ? ' (파밍)' : '');
+        this.els.stageLabel.textContent = `${S.chapter}-${S.stage}`;
     },
     updateWavePips(wave) {
         this.els.wavePips.innerHTML = [1, 2, 3, 4, 5].map(w =>
@@ -86,10 +79,7 @@ const UI = {
         this.els.dmgFlash.classList.add('on');
         setTimeout(() => this.els.dmgFlash.classList.remove('on'), 120);
     },
-    updateFarmToggle() {
-        this.els.farmToggle.textContent = S.farming ? '▶️ 진행 재개' : '🔁 반복 파밍';
-        this.els.farmToggle.classList.toggle('farming', S.farming);
-    },
+    updateFarmToggle() {}, // (제거됨)
 
     floatLoot(text) {
         if (this.els.lootFeed.children.length > 6) this.els.lootFeed.firstChild.remove();
@@ -99,7 +89,8 @@ const UI = {
         setTimeout(() => el.remove(), 1600);
     },
     floatTextAtHero(text, cls) {
-        Scene3D.damageNumber(new THREE.Vector3(Combat.HERO_X, 1.8, 0), text, cls);
+        const p = Scene3D.heroG ? Scene3D.heroG.position : { x: Combat.HERO_X, z: 0 };
+        Scene3D.damageNumber(new THREE.Vector3(p.x, 1.8, p.z), text, cls);
     },
     toastSkill(def) { this.floatLoot(`✨ ${def.name}!`); },
 
