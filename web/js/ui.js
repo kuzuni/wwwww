@@ -612,6 +612,87 @@ const UI = {
         this.openAscension();
     },
 
+    // ---- 디버그 (출시용 아님 — 사용자 테스트 전용, 항상 노출) ----
+    renderDebug() {
+        const p = this.els.panels.debug;
+        p.innerHTML = `
+            <h2>🐞 디버그</h2>
+            <p class="muted">테스트 전용 패널 — 출시 시 제거 대상 아님, 항상 노출</p>
+            <h3>스테이지 이동 <span class="muted">현재 ${S.chapter}-${S.stage}</span></h3>
+            <div class="row">
+                <input type="number" id="dbg-chapter" min="1" max="50" value="${S.chapter}" style="width:4rem">
+                <span class="muted">-</span>
+                <input type="number" id="dbg-stage" min="1" max="10" value="${S.stage}" style="width:4rem">
+                <button class="btn primary sm" onclick="UI.onDebugGoStage()">이동</button>
+            </div>
+            <div class="row">
+                <button class="btn sm" onclick="UI.onDebugStage(-1)">◀ 스테이지 -1</button>
+                <button class="btn sm" onclick="UI.onDebugStage(1)">스테이지 +1 ▶</button>
+            </div>
+            <h3>재화 지급 (+100000)</h3>
+            <div class="row wrap">
+                <button class="btn sm" onclick="UI.onDebugGrant('hammers')">🔨 해머</button>
+                <button class="btn sm" onclick="UI.onDebugGrant('coins')">🪙 코인</button>
+                <button class="btn sm" onclick="UI.onDebugGrant('gems')">💎 젬</button>
+                <button class="btn sm" onclick="UI.onDebugGrant('tickets')">🎫 티켓</button>
+                <button class="btn sm" onclick="UI.onDebugGrant('winders')">⚙️ 와인더</button>
+                <button class="btn sm" onclick="UI.onDebugGrant('blood')">🩸 블러드</button>
+            </div>
+            <div class="row">
+                <button class="btn sm" onclick="UI.onDebugEggs()">🥚 신화 알 +5</button>
+            </div>
+            <h3>대장간 / 던전</h3>
+            <div class="row">
+                <button class="btn sm" onclick="UI.onDebugForgeLv()">⚒️ 대장간 Lv +1</button>
+                <button class="btn sm" onclick="UI.onDebugDungeonKeys()">🗝 던전 열쇠 리필</button>
+            </div>`;
+    },
+    onDebugGoStage() {
+        const c = U.clamp(parseInt(document.getElementById('dbg-chapter').value, 10) || 1, 1, 50);
+        const s = U.clamp(parseInt(document.getElementById('dbg-stage').value, 10) || 1, 1, 10);
+        S.chapter = c; S.stage = s;
+        S.bestChapter = Math.max(S.bestChapter, c);
+        if (S.bestChapter === c) S.bestStage = Math.max(S.bestStage, s);
+        Combat.setupStage();
+        this.updateStageLabel(); this.renderDebug();
+        saveGame();
+    },
+    onDebugStage(delta) {
+        let s = S.stage + delta, c = S.chapter;
+        if (s < 1) { c = Math.max(1, c - 1); s = 10; }
+        else if (s > 10) { c++; s = 1; }
+        S.chapter = c; S.stage = s;
+        S.bestChapter = Math.max(S.bestChapter, c);
+        if (S.bestChapter === c) S.bestStage = Math.max(S.bestStage, s);
+        Combat.setupStage();
+        this.updateStageLabel(); this.renderDebug();
+        saveGame();
+    },
+    onDebugGrant(key) {
+        S[key] = (S[key] || 0) + 100000;
+        this.renderTopBar(); this.renderDebug();
+        saveGame();
+    },
+    onDebugEggs() {
+        for (let i = 0; i < 5; i++) Pets.addEgg('mythic');
+        this.toast('🥚 신화 알 +5');
+        if (this.activeTab === 'pets') this.renderPets();
+        saveGame();
+    },
+    onDebugForgeLv() {
+        S.forgeLevel = Math.min(35, S.forgeLevel + 1);
+        Combat.recalcHero();
+        this.renderTopBar(); this.renderDebug();
+        if (this.activeTab === 'forge') this.renderForge();
+        saveGame();
+    },
+    onDebugDungeonKeys() {
+        Dungeons.ensure();
+        for (const d of Dungeons.DEFS) S.dungeons.keys[d.id] = Dungeons.MAX_KEYS;
+        this.toast('🗝 던전 열쇠 리필 완료');
+        saveGame();
+    },
+
     showOffline(o) {
         this.els.offlineModal.innerHTML = `
             <div class="modal-card">
