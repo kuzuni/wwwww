@@ -368,3 +368,16 @@ body {
 .dg-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .1rem; font-size: .8rem; }
 .dg-btns { display: flex; flex-direction: column; gap: .25rem; align-items: stretch; }
 .dg-keys { font-size: .75rem; font-weight: 800; color: #ffd54f; text-align: center; }
+
+/* ---- 기술 트리 ---- */
+.tech-scroll { max-height: 62vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; gap: .6rem; }
+.tech-branch h3 { margin: .2rem 0 .35rem; font-size: .95rem; }
+.tech-node-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+.tech-node {
+    background: #22272e; border: 1px solid #444c56; border-radius: .6rem;
+    padding: .45rem .5rem; display: flex; flex-direction: column; gap: .25rem;
+}
+.tech-node-head { display: flex; justify-content: space-between; align-items: baseline; font-size: .82rem; }
+.tech-node-bar { height: .3rem; background: #161b22; border-radius: .2rem; overflow: hidden; }
+.tech-node-bar div { height: 100%; background: #ffd54f; }
+.tech-node .btn { width: 100%; }

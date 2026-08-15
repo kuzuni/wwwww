@@ -66,9 +66,11 @@ function resetGame() {
 function applyOffline() {
     const elapsed = Math.floor((U.now() - S.lastSeen) / 1000);
     if (elapsed < 60) return null; // 1분 미만은 무시
-    const t = Math.min(elapsed, OFFLINE_CAP_SEC);
-    const coins = Math.floor(t * OFFLINE_COIN_PER_SEC);
-    const hammers = Math.floor(t / 60 * OFFLINE_HAMMER_PER_MIN);
+    const cap = OFFLINE_CAP_SEC * TechTree.offlineCapMult();
+    const gainMult = TechTree.offlineGainMult();
+    const t = Math.min(elapsed, cap);
+    const coins = Math.floor(t * OFFLINE_COIN_PER_SEC * gainMult);
+    const hammers = Math.floor(t / 60 * OFFLINE_HAMMER_PER_MIN * gainMult);
     S.coins += coins;
     S.hammers += hammers;
     return { elapsed, counted: t, coins, hammers };

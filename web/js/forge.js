@@ -73,8 +73,8 @@ const Forge = {
     },
 
     sellPrice(item) {
-        // 원본 공식: 20 × 1.01^(레벨-1), 등급 배수 반영
-        return Math.floor(20 * Math.pow(1.01, item.level - 1) * RARITY_MULT[item.rarity]);
+        // 원본 공식: 20 × 1.01^(레벨-1), 등급 배수 반영 + 기술트리 판매가 보너스
+        return Math.floor(20 * Math.pow(1.01, item.level - 1) * RARITY_MULT[item.rarity] * TechTree.sellPriceMult());
     },
 
     craft(count) {
@@ -120,16 +120,19 @@ const Forge = {
         return forgeUpgrades[next];
     },
 
+    upgradeCost(info) { return Math.max(1, Math.floor(info.cost * TechTree.forgeCostMult())); },
+    upgradeTime(info) { return info.time * TechTree.forgeTimeMult(); },
+
     canStartUpgrade() {
         const info = this.upgradeInfo();
-        return info && !S.forgeUpgradeEndsAt && S.coins >= info.cost;
+        return info && !S.forgeUpgradeEndsAt && S.coins >= this.upgradeCost(info);
     },
 
     startUpgrade() {
         const info = this.upgradeInfo();
         if (!this.canStartUpgrade()) return false;
-        S.coins -= info.cost; // 업그레이드는 골드로 (해머는 제작 전용)
-        S.forgeUpgradeEndsAt = U.now() + info.time * 1000;
+        S.coins -= this.upgradeCost(info); // 업그레이드는 골드로 (해머는 제작 전용)
+        S.forgeUpgradeEndsAt = U.now() + this.upgradeTime(info) * 1000;
         saveGame();
         return true;
     },
@@ -162,11 +165,12 @@ const Forge = {
     // 영웅 종합 스탯 (장비 + 서브스탯 + 버프)
     heroStats() {
         let atk = 15, hp = 150; // 맨몸 기본치
+        let gearAtk = 0, gearHp = 0; // 기술트리 '장비 숙련' 보너스가 적용되는 부분
         let atkPct = 0, hpPct = 0, critCh = 5, critDmg = 100, atkSpd = 0, dblAtk = 0;
         for (const slot of SLOTS) {
             const it = S.equipment[slot];
             if (!it) continue;
-            if (it.main === 'atk') atk += it.value; else hp += it.value;
+            if (it.main === 'atk') gearAtk += it.value; else gearHp += it.value;
             for (const s of it.subs) {
                 if (s.key === 'atkPct') atkPct += s.value;
                 else if (s.key === 'hpPct') hpPct += s.value;
@@ -181,6 +185,8 @@ const Forge = {
             if (b.buff.atkPct) atkPct += b.buff.atkPct;
             if (b.buff.atkSpd) atkSpd += b.buff.atkSpd;
         }
+        atk += gearAtk * TechTree.gearPowerMult();
+        hp += gearHp * TechTree.gearPowerMult();
         return {
             atk: atk * (1 + atkPct / 100),
             hp: hp * (1 + hpPct / 100),

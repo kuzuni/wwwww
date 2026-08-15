@@ -17,6 +17,7 @@
     function boot() {
         loadGame();
         Dungeons.ensure();
+        TechTree.ensure();
         const offline = applyOffline();
 
         UI.init();
@@ -63,6 +64,11 @@
             Dungeons.ensure();
             const d = params.get('d');
             if (d) Dungeons.enter(d); else UI.openDungeons();
+        }
+        if (params.get('debug') === 'tech') {
+            // 기술트리 검증: ?debug=tech → 블러드 지급 후 모달
+            S.blood += 999999;
+            UI.openTechTree();
         }
 
         // 로직: 고정 100ms 틱 (탭 복귀 시 밀린 틱 따라잡기, 최대 5초분)

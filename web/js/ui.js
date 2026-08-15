@@ -15,6 +15,7 @@ const UI = {
             panels: { forge: $('panel-forge'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu') },
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
             dungeonModal: $('dungeon-modal'), dungeonBtn: $('dungeon-btn'),
+            techModal: $('tech-modal'),
         };
         this.els.dungeonBtn.addEventListener('click', () => this.openDungeons());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -149,9 +150,10 @@ const UI = {
                 <button class="btn gem" onclick="UI.onGemSkipForge()">💎 <span id="upg-skip-cost">${Forge.gemSkipCost()}</span> 스킵</button>
             </div>`;
         } else {
+            const cost = Forge.upgradeCost(info), time = Forge.upgradeTime(info);
             upgHtml = `<div class="row">
-                <button class="btn primary ${S.coins < info.cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
-                    ⚒️ Lv.${S.forgeLevel + 1} 업그레이드<br><small>🪙 ${U.fmt(info.cost)} · ⏱ ${U.fmtTime(info.time)}</small>
+                <button class="btn primary ${S.coins < cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
+                    ⚒️ Lv.${S.forgeLevel + 1} 업그레이드<br><small>🪙 ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</small>
                 </button>
             </div>`;
         }
@@ -420,6 +422,9 @@ const UI = {
                 <div>🩸 블러드</div><div>${U.fmt(S.blood || 0)} <small class="muted">(기술 트리 재화)</small></div>
             </div>
             <div class="row">
+                <button class="btn primary" onclick="UI.openTechTree()">🔬 기술 트리</button>
+            </div>
+            <div class="row">
                 <button class="btn" onclick="saveGame(); UI.toast('💾 저장 완료')">수동 저장</button>
                 <button class="btn danger" onclick="if(confirm('정말 처음부터 시작할까요?')) resetGame()">초기화</button>
             </div>
@@ -464,6 +469,44 @@ const UI = {
     },
     onSweepDungeon(id) { if (Dungeons.sweep(id)) this.openDungeons(); },
 
+    // ---- 기술 트리 ----
+    openTechTree() {
+        TechTree.ensure();
+        const branchHtml = TechTree.BRANCHES.map(b => {
+            const nodesHtml = b.nodes.map(id => {
+                const def = TechTree.NODES[id];
+                const lv = TechTree.level(id);
+                const max = TechTree.isMax(id);
+                const cost = TechTree.nextCost(id);
+                const tier = TechTree.tierOf(lv || 1);
+                return `<div class="tech-node">
+                    <div class="tech-node-head">
+                        <span class="item-name">${def.name} <small class="muted">T${tier}</small></span>
+                        <span class="muted">${lv}/${TechTree.MAX_LEVEL}</span>
+                    </div>
+                    <div class="muted" style="font-size:.75rem">${def.desc} · 현재 +${U.fmt(TechTree.pct(id))}%</div>
+                    <div class="tech-node-bar"><div style="width:${(lv / TechTree.MAX_LEVEL * 100).toFixed(1)}%"></div></div>
+                    <button class="btn sm primary ${!max && S.blood >= cost ? '' : 'disabled'}" onclick="UI.onUpgradeTech('${id}')">
+                        ${max ? 'MAX' : `🩸 ${U.fmt(cost)} (+${def.per}%)`}
+                    </button>
+                </div>`;
+            }).join('');
+            return `<div class="tech-branch"><h3>${b.icon} ${b.name}</h3><div class="tech-node-grid">${nodesHtml}</div></div>`;
+        }).join('');
+        this.els.techModal.innerHTML = `
+            <div class="modal-card wide">
+                <h3>🔬 기술 트리 <small class="muted">🩸 ${U.fmt(S.blood || 0)}</small></h3>
+                <div class="tech-scroll">${branchHtml}</div>
+                <button class="btn" onclick="UI.closeTechTree()">닫기</button>
+            </div>`;
+        this.els.techModal.classList.remove('hidden');
+    },
+    closeTechTree() { this.els.techModal.classList.add('hidden'); },
+    onUpgradeTech(id) {
+        if (TechTree.upgrade(id)) { this.openTechTree(); this.renderTopBar(); Combat.recalcHero(); }
+        else this.toast('🩸 블러드가 부족합니다 (좀비 러시 던전에서 획득)');
+    },
+
     showOffline(o) {
         this.els.offlineModal.innerHTML = `
             <div class="modal-card">
@@ -487,7 +530,7 @@ const UI = {
             const skipCost = document.getElementById('upg-skip-cost');
             if (fill && info) {
                 const remain = (S.forgeUpgradeEndsAt - U.now()) / 1000;
-                fill.style.width = U.clamp(1 - remain / info.time, 0, 1) * 100 + '%';
+                fill.style.width = U.clamp(1 - remain / Forge.upgradeTime(info), 0, 1) * 100 + '%';
                 if (time) time.textContent = U.fmtTime(remain);
                 if (skipCost) skipCost.textContent = Forge.gemSkipCost();
             }
