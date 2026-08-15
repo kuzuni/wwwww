@@ -34,14 +34,7 @@ const Forge = {
 
         // 서브스탯: 등급 순번+1개까지 랜덤
         const numSubs = U.randInt(1, Math.min(4, RARITIES.indexOf(rarity) + 1));
-        const pool = [...SUBSTATS];
-        const subs = [];
-        for (let i = 0; i < numSubs; i++) {
-            const idx = U.randInt(0, pool.length - 1);
-            const [key, label, caps] = pool.splice(idx, 1)[0];
-            const cap = caps[RARITIES.indexOf(rarity)];
-            subs.push({ key, label, value: +(U.rand(cap * 0.4, cap).toFixed(1)) });
-        }
+        const subs = U.rollSubs(rarity, numSubs);
 
         // 무기: 타입 10종(근거리 5/원거리 5) 중 랜덤 — 모델·모션 결정
         // 투구/갑옷: 카탈로그 이름 인덱스 저장 — 이름별 3D 디자인 결정
@@ -187,15 +180,17 @@ const Forge = {
             if (b.buff.atkPct) atkPct += b.buff.atkPct;
             if (b.buff.atkSpd) atkSpd += b.buff.atkSpd;
         }
-        // 출전 펫: 고정 데미지·체력 + 서브스탯 (펫은 전투에 직접 참여하지 않고 스탯만 기여)
+        // 출전 펫 + 장착 탈것: 고정 데미지·체력 + 서브스탯 (전투에 직접 참여하지 않고 스탯만 기여)
         const pb = Pets.activeBonus();
-        atkPct += pb.atkPct; hpPct += pb.hpPct; critCh += pb.critCh; critDmg += pb.critDmg;
-        atkSpd += pb.atkSpd; dblAtk += pb.dblAtk;
-        atk += gearAtk * TechTree.gearPowerMult() + pb.atk;
-        hp += gearHp * TechTree.gearPowerMult() + pb.hp;
+        const mb = Mounts.activeBonus();
+        atkPct += pb.atkPct + mb.atkPct; hpPct += pb.hpPct + mb.hpPct;
+        critCh += pb.critCh + mb.critCh; critDmg += pb.critDmg + mb.critDmg;
+        atkSpd += pb.atkSpd + mb.atkSpd; dblAtk += pb.dblAtk + mb.dblAtk;
+        atk += gearAtk * TechTree.gearPowerMult() + pb.atk + mb.atk;
+        hp += gearHp * TechTree.gearPowerMult() + pb.hp + mb.hp;
         return {
-            atk: atk * (1 + atkPct / 100) * Mounts.boostMult() * Ascension.powerMult(),
-            hp: hp * (1 + hpPct / 100) * Mounts.boostMult() * Ascension.powerMult(),
+            atk: atk * (1 + atkPct / 100) * Ascension.powerMult(),
+            hp: hp * (1 + hpPct / 100) * Ascension.powerMult(),
             critCh: Math.min(80, critCh),
             critDmg,
             attacksPerSec: 1.1 * (1 + atkSpd / 100),

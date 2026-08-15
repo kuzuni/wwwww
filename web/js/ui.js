@@ -534,11 +534,13 @@ const UI = {
         const owned = Object.entries(S.mounts);
         const listHtml = owned.length ? owned.map(([name, m]) => {
             const active = S.activeMount === name;
+            const pw = Mounts.mountPower(m);
+            const subsText = (m.subs || []).map(s => `+${s.value}% ${s.label}`).join(' · ');
             return `<div class="pet-card with-icon ${active ? 'active' : ''}" style="--rc:${RARITY_CSS[m.rarity]}">
                 <span class="icon-circle">${MOUNT_ICONS[name] || '🐴'}</span>
-                <span class="item-name">${MOUNT_KR[name] || name}</span>
-                <span class="item-stat">⚔️❤️ +${mountBoosts[m.rarity]}% · ${RARITY_KR[m.rarity]}</span>
-                <span class="muted">보유 ${m.count}</span>
+                <span class="item-name">${MOUNT_KR[name] || name} <small>Lv.${m.level}</small></span>
+                <span class="item-stat">⚔️ ${U.fmt(pw.atk)} · ❤️ ${U.fmt(pw.hp)} · ${RARITY_KR[m.rarity]}</span>
+                <span class="muted">중복 ${m.dupes}/${m.level}${subsText ? ' · ' + subsText : ''}</span>
                 <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onEquipMount('${name}')">${active ? '장착 중' : '장착'}</button>
             </div>`;
         }).join('') : '<span class="muted">보유 마운트 없음 — 소환해보세요!</span>';
@@ -546,10 +548,11 @@ const UI = {
         this.els.mountModal.innerHTML = `
             <div class="modal-card wide">
                 <h3>🐴 마운트 <small class="muted">⚙️ ${U.fmt(S.winders || 0)}</small></h3>
+                <p class="muted">탈것은 직접 공격하지 않고, 장착 시 고정 공격력·체력과 옵션을 제공합니다. 레벨업은 같은 탈것 중복 합성으로만 가능합니다.</p>
                 <div class="row">
                     <div class="tech-node" style="flex:1">
                         <div class="tech-node-head">
-                            <span class="item-name">마운트 레벨</span>
+                            <span class="item-name">소환 레벨</span>
                             <span class="muted">Lv.${lvl} / ${Mounts.MAX_LEVEL}${need ? ` (${S.mountOpens}/${need})` : ' MAX'}</span>
                         </div>
                         <div class="tech-node-bar"><div style="width:${(progress * 100).toFixed(1)}%"></div></div>
@@ -570,7 +573,8 @@ const UI = {
         const r = Mounts.summon();
         if (!r) { this.toast('⚙️ 태엽이 부족합니다 (스테이지 클리어로 획득)'); return; }
         if (r.isNew) this.toast(`🎉 새 마운트: ${MOUNT_KR[r.name] || r.name} (${RARITY_KR[r.rarity]})`);
-        else this.toast(`${MOUNT_KR[r.name] || r.name} 중복 획득 (보유 ${r.count})`);
+        else if (r.leveled) this.toast(`⬆️ ${MOUNT_KR[r.name] || r.name} Lv.${r.level}!`);
+        else this.toast(`${MOUNT_KR[r.name] || r.name} 중복 획득`);
         this.openMounts(); this.renderTopBar();
     },
     onEquipMount(name) { if (Mounts.equip(name)) this.openMounts(); },

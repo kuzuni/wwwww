@@ -40,4 +40,17 @@ const U = {
 
     clamp: (v, a, b) => Math.min(b, Math.max(a, v)),
     lerp: (a, b, t) => a + (b - a) * t,
+
+    // 서브스탯 count개를 SUBSTATS 풀에서 중복 없이 굴림 (장비·펫·마운트 공용 옵션 체계)
+    rollSubs(rarity, count) {
+        const pool = [...SUBSTATS];
+        const subs = [];
+        for (let i = 0; i < count && pool.length; i++) {
+            const idx = this.randInt(0, pool.length - 1);
+            const [key, label, caps] = pool.splice(idx, 1)[0];
+            const cap = caps[RARITIES.indexOf(rarity)];
+            subs.push({ key, label, value: +(this.rand(cap * 0.4, cap).toFixed(1)) });
+        }
+        return subs;
+    },
 };

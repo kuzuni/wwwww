@@ -82,17 +82,7 @@ const Pets = {
     levelMult(p) { return 1 + 0.12 * (p.level - 1); },
 
     // 옵션 2개: 장비와 동일한 서브스탯 풀에서 등급 상한치 기준으로 굴림
-    rollSubs(rarity) {
-        const pool = [...SUBSTATS];
-        const subs = [];
-        for (let i = 0; i < 2; i++) {
-            const idx = U.randInt(0, pool.length - 1);
-            const [key, label, caps] = pool.splice(idx, 1)[0];
-            const cap = caps[RARITIES.indexOf(rarity)];
-            subs.push({ key, label, value: +(U.rand(cap * 0.4, cap).toFixed(1)) });
-        }
-        return subs;
-    },
+    rollSubs(rarity) { return U.rollSubs(rarity, 2); },
 
     // 장착(출전) 시 펫 1마리가 기여하는 고정 데미지·체력 (petStats 원본 수치 × 레벨 배율)
     petPower(p) {
