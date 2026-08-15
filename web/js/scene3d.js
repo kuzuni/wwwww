@@ -1526,19 +1526,6 @@ const Scene3D = {
         this.shake(0.4);
     },
 
-    petAttack(i, targetId) {
-        const pg = this.petGroups[i];
-        const m = this.enemyMap.get(targetId);
-        if (!pg || !m) return;
-        const home = pg.userData.home;
-        const tx = m.g.position.clone().add(new THREE.Vector3(-0.5, 0.5, 0));
-        tx.x = Math.min(tx.x, this.worldX + 1.8); // 화면 밖 추격 방지
-        this.addAnim(0.4, k => {
-            const t = k < 0.5 ? k * 2 : (1 - k) * 2;
-            pg.position.lerpVectors(home, tx, t);
-        }, () => pg.position.copy(home));
-    },
-
     bossEntrance() {
         this.shake(0.5);
         UI.bossWarning();

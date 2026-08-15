@@ -187,8 +187,12 @@ const Forge = {
             if (b.buff.atkPct) atkPct += b.buff.atkPct;
             if (b.buff.atkSpd) atkSpd += b.buff.atkSpd;
         }
-        atk += gearAtk * TechTree.gearPowerMult();
-        hp += gearHp * TechTree.gearPowerMult();
+        // 출전 펫: 고정 데미지·체력 + 서브스탯 (펫은 전투에 직접 참여하지 않고 스탯만 기여)
+        const pb = Pets.activeBonus();
+        atkPct += pb.atkPct; hpPct += pb.hpPct; critCh += pb.critCh; critDmg += pb.critDmg;
+        atkSpd += pb.atkSpd; dblAtk += pb.dblAtk;
+        atk += gearAtk * TechTree.gearPowerMult() + pb.atk;
+        hp += gearHp * TechTree.gearPowerMult() + pb.hp;
         return {
             atk: atk * (1 + atkPct / 100) * Mounts.boostMult() * Ascension.powerMult(),
             hp: hp * (1 + hpPct / 100) * Mounts.boostMult() * Ascension.powerMult(),

@@ -59,13 +59,14 @@ const Pets = {
                     }
                     UI.toast(`🥚 ${PET_KR[def.name] || def.name} 중복! → Lv.${existing.level}`);
                 } else {
-                    S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0 });
+                    S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, subs: this.rollSubs(h.rarity) });
                     if (S.activePets.length < this.MAX_ACTIVE) {
                         S.activePets.push(S.pets.length - 1);
                         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
                     }
                     UI.toast(`🎉 새 펫: ${PET_KR[def.name] || def.name} (${RARITY_KR[h.rarity]})`);
                 }
+                Combat.recalcHero();
                 UI.renderPets();
                 saveGame();
             }
@@ -77,12 +78,48 @@ const Pets = {
         if (!d) for (const r of RARITIES) { d = (petStats[r] || []).find(x => x.name === p.name); if (d) break; }
         return d || { name: p.name, damage: 50, health: 500 };
     },
+    // 레벨(합성으로만 상승)에 따른 고정 스탯 배율 — 원본 레벨 커브 미확보, 자체 설계
     levelMult(p) { return 1 + 0.12 * (p.level - 1); },
 
-    // 활성 펫 1마리의 타격당 데미지 (2초당 1회 공격)
-    petHitDamage(p) {
+    // 옵션 2개: 장비와 동일한 서브스탯 풀에서 등급 상한치 기준으로 굴림
+    rollSubs(rarity) {
+        const pool = [...SUBSTATS];
+        const subs = [];
+        for (let i = 0; i < 2; i++) {
+            const idx = U.randInt(0, pool.length - 1);
+            const [key, label, caps] = pool.splice(idx, 1)[0];
+            const cap = caps[RARITIES.indexOf(rarity)];
+            subs.push({ key, label, value: +(U.rand(cap * 0.4, cap).toFixed(1)) });
+        }
+        return subs;
+    },
+
+    // 장착(출전) 시 펫 1마리가 기여하는 고정 데미지·체력 (petStats 원본 수치 × 레벨 배율)
+    petPower(p) {
         const def = this.petDef(p);
-        return def.damage * 2 * this.levelMult(p);
+        const mult = this.levelMult(p);
+        return { atk: def.damage * mult, hp: def.health * mult };
+    },
+
+    // 출전 중인 모든 펫의 합산 보너스 (고정 공격력·체력 + 서브스탯 %)
+    activeBonus() {
+        const b = { atk: 0, hp: 0, atkPct: 0, hpPct: 0, critCh: 0, critDmg: 0, atkSpd: 0, dblAtk: 0 };
+        for (const idx of S.activePets) {
+            const p = S.pets[idx];
+            if (!p) continue;
+            const pw = this.petPower(p);
+            b.atk += pw.atk;
+            b.hp += pw.hp;
+            for (const s of (p.subs || [])) {
+                if (s.key === 'atkPct') b.atkPct += s.value;
+                else if (s.key === 'hpPct') b.hpPct += s.value;
+                else if (s.key === 'critCh') b.critCh += s.value;
+                else if (s.key === 'critDmg') b.critDmg += s.value;
+                else if (s.key === 'atkSpd') b.atkSpd += s.value;
+                else if (s.key === 'dblAtk') b.dblAtk += s.value;
+            }
+        }
+        return b;
     },
 
     toggleActive(petIdx) {
@@ -91,6 +128,7 @@ const Pets = {
         else if (S.activePets.length < this.MAX_ACTIVE) S.activePets.push(petIdx);
         else return false;
         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
+        Combat.recalcHero();
         saveGame();
         return true;
     },
@@ -124,6 +162,7 @@ const Pets = {
         const next = RARITIES[RARITIES.indexOf(rarity) + 1];
         this.addEgg(next);
         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
+        Combat.recalcHero();
         UI.toast(`✨ 합성 성공! ${RARITY_KR[next]} 알 획득`);
         saveGame();
         return true;

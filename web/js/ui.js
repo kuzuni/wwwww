@@ -324,11 +324,13 @@ const UI = {
 
         const petsHtml = S.pets.length ? S.pets.map((pet, i) => {
             const active = S.activePets.includes(i);
+            const pw = Pets.petPower(pet);
+            const subsText = (pet.subs || []).map(s => `+${s.value}% ${s.label}`).join(' · ');
             return `<div class="pet-card with-icon ${active ? 'active' : ''}" style="--rc:${RARITY_CSS[pet.rarity]}">
                 <span class="icon-circle">${PET_ICONS[pet.name] || '🐾'}</span>
                 <span class="item-name">${PET_KR[pet.name] || pet.name} <small>Lv.${pet.level}</small></span>
-                <span class="item-stat">⚔️ ${U.fmt(Pets.petHitDamage(pet) / 2)}/s · ${RARITY_KR[pet.rarity]}</span>
-                <span class="muted">중복 ${pet.dupes}/${pet.level}</span>
+                <span class="item-stat">⚔️ ${U.fmt(pw.atk)} · ❤️ ${U.fmt(pw.hp)} · ${RARITY_KR[pet.rarity]}</span>
+                <span class="muted">중복 ${pet.dupes}/${pet.level}${subsText ? ' · ' + subsText : ''}</span>
                 <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onTogglePet(${i})">${active ? '출전 중' : '출전'}</button>
             </div>`;
         }).join('') : '<span class="muted">보유 펫 없음</span>';
@@ -338,6 +340,7 @@ const UI = {
 
         p.innerHTML = `
             <h2>🐾 펫 <span class="muted">출전 ${S.activePets.length}/${Pets.MAX_ACTIVE}</span></h2>
+            <p class="muted">펫은 직접 공격하지 않고, 출전 시 고정 공격력·체력과 옵션을 제공합니다. 레벨업은 같은 펫 중복 합성으로만 가능합니다.</p>
             <h3>부화장</h3><div class="row">${hatchHtml}</div>
             <h3>알 보관함 (${S.eggs.length}/20)</h3><div class="egg-row">${eggsHtml}</div>
             ${mergeHtml ? `<h3>합성</h3><div class="row wrap">${mergeHtml}</div>` : ''}

@@ -8,7 +8,6 @@ const Combat = {
     hero: { hp: 1, maxHp: 1, atkTimer: 0, stats: null },
     buffs: [],               // {buff:{atkPct|atkSpd}, until}
     cooldowns: {},           // skillId → 남은 초
-    petTimers: [],
     pending: [],             // 지연 실행 큐 [{t, fn}]
     wave: 0,
     phase: 'idle',           // fight | waveDelay | stageDelay
@@ -150,20 +149,6 @@ const Combat = {
                     this.damageEnemy(target, dmg, crit, null);
                     if (crit) Scene3D.shake(0.12);
                 }});
-            }
-        }
-
-        // 펫 공격 (2초 간격, 개체별 시차)
-        for (let i = 0; i < S.activePets.length; i++) {
-            if (this.petTimers[i] === undefined) this.petTimers[i] = 0.6 * i;
-            this.petTimers[i] -= dt;
-            const p = S.pets[S.activePets[i]];
-            const t2 = this.priorityTarget();
-            if (p && t2 && t2.x < 2.6 && this.petTimers[i] <= 0) {
-                this.petTimers[i] = 2;
-                Scene3D.petAttack(i, t2.id);
-                const dmg = Pets.petHitDamage(p);
-                this.pending.push({ t: 0.2, fn: () => { if (t2.alive) this.damageEnemy(t2, dmg, false, 'pet'); } });
             }
         }
 
