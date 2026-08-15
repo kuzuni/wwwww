@@ -78,13 +78,17 @@ function resetGame() {
 }
 
 // 오프라인 보상 수급률 계산 (수급률 기반, 원본 방식)
+// 기본 수급률(골드 1/초·해머 1/분)에 기술트리 배율을 곱해 소수점 단위로 계산·누적한다.
+// 정수로 내림하는 건 실제 소비 시점(해머 차감 등)뿐 — 여기선 실수를 그대로 반환한다.
 function offlineRewardFor(elapsedSec) {
     const cap = OFFLINE_CAP_SEC * TechTree.offlineCapMult();
     const gainMult = TechTree.offlineGainMult();
     const t = Math.min(elapsedSec, cap);
-    const coins = Math.floor(t * OFFLINE_COIN_PER_SEC * gainMult);
-    const hammers = Math.floor(t / 60 * OFFLINE_HAMMER_PER_MIN * gainMult);
-    return { counted: t, coins, hammers };
+    const coinRate = OFFLINE_COIN_PER_SEC * gainMult;   // /초
+    const hammerRate = OFFLINE_HAMMER_PER_MIN * gainMult; // /분
+    const coins = t * coinRate;
+    const hammers = (t / 60) * hammerRate;
+    return { counted: t, coins, hammers, coinRate, hammerRate };
 }
 
 // 부팅 시 자동 지급 (마지막 수령 시각 기준). 1분 미만 경과는 무시하고 누적 유지. 반환값: 보상 요약 or null

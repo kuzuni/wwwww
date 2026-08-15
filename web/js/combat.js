@@ -12,7 +12,6 @@ const Combat = {
     wave: 0,
     phase: 'idle',           // fight | waveDelay | stageDelay
     phaseTimer: 0,
-    hammerTick: 0,
     _enemySeq: 0,
 
     start() {
@@ -99,9 +98,8 @@ const Combat = {
         this.buffs = this.buffs.filter(b => b.until > nowMs);
         if (this.buffs.length !== beforeBuffs) this.recalcHero();
 
-        // 액티브 해머 수급 (원본 오프라인과 동일: 분당 1)
-        this.hammerTick += dt;
-        if (this.hammerTick >= 60) { this.hammerTick -= 60; S.hammers += 1; }
+        // 액티브 해머 수급 (오프라인과 동일 배율: 분당 1 × 기술트리 배율, 소수점 연속 누적)
+        S.hammers += (OFFLINE_HAMMER_PER_MIN / 60) * TechTree.offlineGainMult() * dt;
 
         // 체력 자연 회복: 기본 1%/s + 서브스탯 '체력 재생' 추가분
         const regenPct = 0.01 + (this.hero.stats ? this.hero.stats.hpRegen / 100 : 0);

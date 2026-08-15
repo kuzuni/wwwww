@@ -14,6 +14,17 @@ const U = {
         return (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)) + units[u];
     },
 
+    // 소수점 보존 표기 (오프라인 보상 수급률·누적량 등 실수 표시용): 1.13, 8.87k, 149.05
+    fmtDec(n) {
+        if (n === null || n === undefined || isNaN(n)) return '0';
+        const abs = Math.abs(n);
+        if (abs < 1000) return n.toFixed(2);
+        const units = ['K', 'M', 'B', 'T', 'Qa', 'Qi'];
+        let u = -1, v = n;
+        while (Math.abs(v) >= 1000 && u < units.length - 1) { v /= 1000; u++; }
+        return v.toFixed(2) + units[u];
+    },
+
     fmtTime(sec) {
         sec = Math.max(0, Math.ceil(sec));
         const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600),

@@ -1028,9 +1028,10 @@ const UI = {
         this.els.offlineModal.innerHTML = `
             <div class="modal-card">
                 <h3>💤 오프라인 보상</h3>
-                <p>${U.fmtTime(o.counted)} 동안의 수확${o.elapsed > o.counted ? ' (최대 4시간)' : ''}</p>
-                <div class="big-stat">🪙 +${U.fmt(o.coins)} &nbsp; 🔨 +${U.fmt(o.hammers)}</div>
-                <button class="btn primary" onclick="document.getElementById('offline-modal').classList.add('hidden')">받기</button>
+                <p>수집 시간: ${U.fmtTime(o.counted)}${o.elapsed > o.counted ? ' (최대)' : ''}</p>
+                <p class="muted">👑 ${U.fmtDec(o.coinRate)}/초 &nbsp; 🔨 ${U.fmtDec(o.hammerRate)}/분</p>
+                <div class="big-stat">👑 ${U.fmtDec(o.coins)} &nbsp; 🔨 ${U.fmtDec(o.hammers)}</div>
+                <button class="btn primary" onclick="document.getElementById('offline-modal').classList.add('hidden')">수집</button>
             </div>`;
         this.els.offlineModal.classList.remove('hidden');
     },
