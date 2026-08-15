@@ -11,13 +11,14 @@ const UI = {
             heroHp: $('hero-hp-fill'), heroHpText: $('hero-hp-text'), heroCp: $('hero-cp'),
             bossBar: $('boss-bar'), bossFill: $('boss-bar-fill'), bossWarn: $('boss-warning'),
             dmgFlash: $('dmg-flash'), lootFeed: $('loot-feed'), skillBar: $('skill-bar'),
-            toasts: $('toasts'), farmToggle: $('farm-toggle'),
+            toasts: $('toasts'), farmToggle: $('farm-toggle'), offlineBtn: $('offline-btn'),
             panels: { forge: $('panel-forge'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu'), debug: $('panel-debug') },
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
             dungeonModal: $('dungeon-modal'), dungeonBtn: $('dungeon-btn'),
             techModal: $('tech-modal'), mountModal: $('mount-modal'), ascendModal: $('ascend-modal'),
         };
         this.els.dungeonBtn.addEventListener('click', () => this.openDungeons());
+        this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
             btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
         });
@@ -704,6 +705,15 @@ const UI = {
         this.els.offlineModal.classList.remove('hidden');
     },
 
+    onClaimOffline() {
+        const r = claimOfflineNow();
+        if (!r) { this.toast('💤 아직 누적된 오프라인 보상이 없습니다'); return; }
+        this.showOffline(r);
+        this.els.offlineBtn.classList.remove('ready');
+        this.renderTopBar();
+        saveGame();
+    },
+
     // ---- 디버그 탭 (출시용 아님, 테스트 전용 — 항상 노출) ----
     // 재화 개편(물약 신설 등) 반영 시 이 목록에 항목 추가할 것
     DEBUG_CURRENCIES: [
@@ -789,6 +799,7 @@ const UI = {
     tickSecond() {
         this.renderTopBar();
         this.updateCp();
+        this.els.offlineBtn.classList.toggle('ready', (U.now() - S.lastOfflineClaim) / 1000 >= 60);
         // 대장간 진행바
         if (S.forgeUpgradeEndsAt) {
             const info = Forge.upgradeInfo();

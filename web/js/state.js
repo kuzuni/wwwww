@@ -11,6 +11,7 @@ function defaultState() {
         version: 1,
         createdAt: U.now(),
         lastSeen: U.now(),
+        lastOfflineClaim: U.now(), // 오프라인 보상 마지막 수령 시각 (자동 모달 + 수동 버튼 공용)
         // 진행
         chapter: 1, stage: 1,           // 현재 도전 스테이지
         bestChapter: 1, bestStage: 1,
@@ -57,6 +58,7 @@ function loadGame() {
         if (raw) {
             S = JSON.parse(raw);
             if (!S.version) S = defaultState();
+            if (!S.lastOfflineClaim) S.lastOfflineClaim = S.lastSeen || U.now();
             return true;
         }
     } catch (e) { /* 파싱 실패 → 새 게임 */ }
@@ -69,18 +71,36 @@ function resetGame() {
     location.reload();
 }
 
-// 오프라인 보상 계산 (수급률 기반, 원본 방식). 반환값: 보상 요약 or null
-function applyOffline() {
-    const elapsed = Math.floor((U.now() - S.lastSeen) / 1000);
-    if (elapsed < 60) return null; // 1분 미만은 무시
+// 오프라인 보상 수급률 계산 (수급률 기반, 원본 방식)
+function offlineRewardFor(elapsedSec) {
     const cap = OFFLINE_CAP_SEC * TechTree.offlineCapMult();
     const gainMult = TechTree.offlineGainMult();
-    const t = Math.min(elapsed, cap);
+    const t = Math.min(elapsedSec, cap);
     const coins = Math.floor(t * OFFLINE_COIN_PER_SEC * gainMult);
     const hammers = Math.floor(t / 60 * OFFLINE_HAMMER_PER_MIN * gainMult);
-    S.coins += coins;
-    S.hammers += hammers;
-    return { elapsed, counted: t, coins, hammers };
+    return { counted: t, coins, hammers };
+}
+
+// 부팅 시 자동 지급 (마지막 수령 시각 기준). 1분 미만 경과는 무시하고 누적 유지. 반환값: 보상 요약 or null
+function applyOffline() {
+    const elapsed = Math.floor((U.now() - S.lastOfflineClaim) / 1000);
+    if (elapsed < 60) return null;
+    const r = offlineRewardFor(elapsed);
+    S.coins += r.coins;
+    S.hammers += r.hammers;
+    S.lastOfflineClaim = U.now();
+    return { elapsed, ...r };
+}
+
+// 전투 화면 오프라인 보상 버튼: 접속 중에도 마지막 수령 시각부터의 누적분을 즉시 수령
+function claimOfflineNow() {
+    const elapsed = Math.floor((U.now() - S.lastOfflineClaim) / 1000);
+    if (elapsed < 1) return null;
+    const r = offlineRewardFor(elapsed);
+    S.coins += r.coins;
+    S.hammers += r.hammers;
+    S.lastOfflineClaim = U.now();
+    return { elapsed, ...r };
 }
 
 // 현재 스테이지 키 "1-3"

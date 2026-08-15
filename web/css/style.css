@@ -45,8 +45,17 @@ body {
 }
 #farm-toggle.farming { background: #4a3a10; color: #ffd54f; border-color: #ffd54f; }
 
+#offline-btn {
+    position: absolute; top: .6rem; left: .6rem; z-index: 4;
+    background: rgba(28,33,40,.85); color: #eceff1; border: 1px solid #30363d;
+    border-radius: 1rem; padding: .35rem .7rem; font-size: .78rem; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; gap: .25rem;
+}
+#offline-btn:active { background: #30363d; }
+#offline-btn.ready { border-color: #ffd54f; color: #ffd54f; }
+
 #hero-cp {
-    position: absolute; top: .6rem; left: .6rem;
+    position: absolute; top: 2.35rem; left: .6rem;
     font-size: .85rem; font-weight: 800; color: #ffd54f; text-shadow: 0 2px 4px rgba(0,0,0,.7);
 }
 
