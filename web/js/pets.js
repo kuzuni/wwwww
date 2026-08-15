@@ -65,6 +65,7 @@ const Pets = {
                 }
                 Combat.recalcHero();
                 UI.renderPets();
+                UI.renderEquipSheet();
                 saveGame();
             }
         }

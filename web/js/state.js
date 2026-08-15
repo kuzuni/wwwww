@@ -30,7 +30,7 @@ function defaultState() {
             filterOn: false,             // 옵션 필터 켜짐 여부
             filterSubs: [],              // 필터 통과 조건 서브스탯 키 목록
             hammersPerBatch: 10,         // 1회 제련 사이클당 소모 망치 수 (1~22)
-            stopOnTarget: false,         // 체크 시 장착 성공해도 계속, 미체크면 장착 성공 시 정지
+            continueOnTarget: false,     // 체크 시 장착 성공해도 계속, 미체크면 장착 성공 시 정지
         },
         // 장비: slot → item | null
         equipment: { weapon: null, helmet: null, armor: null, gloves: null, necklace: null, ring: null, shoes: null, belt: null },

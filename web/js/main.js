@@ -124,14 +124,14 @@
             if (S.autoForgeOn && isUnlocked('autoForge') && S.hammers >= 1) {
                 const cfg = Forge.autoForgeConfig();
                 const items = Forge.craft(Math.min(cfg.hammersPerBatch, S.hammers));
+                let foundTarget = false;
                 for (const item of items) {
                     if (!Forge.passesAutoFilter(item)) { Forge.sell(item); continue; }
                     const r = Forge.autoResolve(item);
-                    if (r.equipped) {
-                        UI.floatLoot(`🛠 ${item.name} 자동 장착!`);
-                        if (!cfg.stopOnTarget) { S.autoForgeOn = false; break; } // 목표 발견 시 계속 미체크 → 정지
-                    }
+                    if (r.equipped) { UI.floatLoot(`🛠 ${item.name} 자동 장착!`); foundTarget = true; }
                 }
+                // 목표 발견 시 계속하기 미체크면 이번 배치를 전부 처리한 뒤에 정지 (남은 아이템 유실 방지)
+                if (foundTarget && !cfg.continueOnTarget) S.autoForgeOn = false;
                 UI.renderEquipSheet();
             }
         }, 3000);

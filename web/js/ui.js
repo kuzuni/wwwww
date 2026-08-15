@@ -211,9 +211,17 @@ const UI = {
                 <span class="cell-lv">Lv.${it.level}${it.stars ? ` ⭐${it.stars}` : ''}</span>
             </div>`;
         }).join('');
+        // 마지막 칸: 부화 중인 알 (파란 배경, UI-SPEC 1번 — 원본은 부화 중 펫도 섞여 표시되나 수치 미확보라 부화 카운트다운으로 근사)
+        const h0 = S.hatching[0];
+        const eggCellHtml = h0
+            ? `<div class="equip-cell egg-cell" title="${RARITY_KR[h0.rarity]} 알 부화 중">
+                <span class="cell-img emoji">🥚</span>
+                <span class="cell-lv" id="equip-egg-t">${U.fmtTime((h0.endsAt - U.now()) / 1000)}</span>
+            </div>`
+            : `<div class="equip-cell egg-cell empty"><span class="slot-name">부화 없음</span></div>`;
 
         this.els.equipSheet.innerHTML = `
-            <div class="equip-grid">${equipHtml}</div>
+            <div class="equip-grid">${equipHtml}${eggCellHtml}</div>
             <div class="anvil-row">
                 <button class="anvil-btn" onclick="UI.onCraft(1)">⚒️<small>🔨 ${U.fmt(S.hammers)}</small></button>
                 <div class="forge-actions">
@@ -259,7 +267,7 @@ const UI = {
         const curP = Forge.ageProbsAt(S.forgeLevel);
         const nextP = info ? Forge.ageProbsAt(S.forgeLevel + 1) : {};
         const rows = AGES.filter(age => curP[age] || nextP[age]).map(age => {
-            const hex = '#' + AGE_COLORS[age].toString(16).padStart(6, '0');
+            const hex = this.ageHex(age);
             const c = curP[age] || 0, n = nextP[age] || 0;
             return `<div class="age-row">
                 <span class="age-tag" style="--ac:${hex}">${AGE_ICON[age]} ${AGE_KR[age]}</span>
@@ -296,7 +304,7 @@ const UI = {
     },
     renderForgeListView() {
         const sections = AGES.filter(age => Forge.ageProbsAt(S.forgeLevel)[age]).map(age => {
-            const hex = '#' + AGE_COLORS[age].toString(16).padStart(6, '0');
+            const hex = this.ageHex(age);
             const ageP = Forge.ageProbsAt(S.forgeLevel)[age];
             const p = Forge.itemDropChance(age, 'weapon'); // 무기 변형은 모두 동일 확률
             const weaponCells = Object.keys(WEAPON_TYPES).map(wtype => `
@@ -382,7 +390,7 @@ const UI = {
         const ageChecks = AGES.map(age => `
             <label class="check-row">
                 <input type="checkbox" ${cfg.keepAges.includes(age) ? 'checked' : ''} onchange="UI.onToggleKeepAge('${age}')">
-                <span style="color:#${AGE_COLORS[age].toString(16).padStart(6, '0')}">${AGE_ICON[age]} ${AGE_KR[age]}</span>
+                <span style="color:${this.ageHex(age)}">${AGE_ICON[age]} ${AGE_KR[age]}</span>
             </label>`).join('');
         const subChecks = SUBSTATS.map(([key, label]) => `
             <label class="check-row">
@@ -406,7 +414,7 @@ const UI = {
                         onchange="UI.onSetHammersPerBatch(this.value)">
                 </div>
                 <label class="check-row">
-                    <input type="checkbox" ${cfg.stopOnTarget ? 'checked' : ''} onchange="UI.onToggleStopOnTarget()">
+                    <input type="checkbox" ${cfg.continueOnTarget ? 'checked' : ''} onchange="UI.onToggleContinueOnTarget()">
                     <span>목표 장비를 찾으면 제련 계속하기</span>
                 </label>
                 <button class="btn primary ${S.autoForgeOn ? 'on' : ''}" onclick="UI.onToggleAutoForge()">
@@ -436,9 +444,9 @@ const UI = {
         cfg.hammersPerBatch = U.clamp(parseInt(v) || 1, 1, 22);
         saveGame(); this.renderAutoForge();
     },
-    onToggleStopOnTarget() {
+    onToggleContinueOnTarget() {
         const cfg = Forge.autoForgeConfig();
-        cfg.stopOnTarget = !cfg.stopOnTarget;
+        cfg.continueOnTarget = !cfg.continueOnTarget;
         saveGame(); this.renderAutoForge();
     },
 
@@ -465,6 +473,8 @@ const UI = {
     },
 
     SLOT_EMOJI: { gloves: '🧤', necklace: '📿', ring: '💍', shoes: '👢', belt: '🎽' },
+
+    ageHex(age) { return '#' + AGE_COLORS[age].toString(16).padStart(6, '0'); },
 
     // 장비 이미지: 무기/투구/갑옷은 실제 3D 모델 스냅샷, 나머지는 아이콘
     itemImgHTML(item, cls) {
@@ -602,11 +612,11 @@ const UI = {
 
     onStartHatch(i) {
         if (!Pets.startHatch(i)) this.toast('부화 슬롯이 가득 찼습니다 (2칸)');
-        this.renderPets();
+        this.renderPets(); this.renderEquipSheet();
     },
     onHatchSkip(i) {
         if (!Pets.gemSkip(i)) this.toast('💎 젬이 부족합니다');
-        this.renderPets(); this.renderTopBar();
+        this.renderPets(); this.renderTopBar(); this.renderEquipSheet();
     },
     onTogglePet(i) {
         if (!Pets.toggleActive(i)) this.toast(`출전은 최대 ${Pets.MAX_ACTIVE}마리입니다`);
@@ -1145,5 +1155,7 @@ const UI = {
             const el = document.getElementById('hatch-t-' + i);
             if (el) el.textContent = U.fmtTime((h.endsAt - U.now()) / 1000);
         });
+        const eggT = document.getElementById('equip-egg-t');
+        if (eggT && S.hatching[0]) eggT.textContent = U.fmtTime((S.hatching[0].endsAt - U.now()) / 1000);
     },
 };

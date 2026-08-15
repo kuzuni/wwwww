@@ -239,7 +239,9 @@ body {
     display: flex; flex-direction: column; gap: .5rem;
     padding: .55rem .6rem; background: #1c2128; border-top: 1px solid #30363d; z-index: 5;
 }
-.equip-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .35rem; }
+.equip-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .35rem; }
+.equip-cell.egg-cell { background: #1e88e5; border-color: #1565c0; }
+.equip-cell.egg-cell.empty { background: transparent; }
 .equip-cell {
     background: #22272e; border: 1px solid var(--rc, #444c56); border-radius: .5rem;
     padding: .3rem; display: flex; flex-direction: column; align-items: center; gap: .15rem;

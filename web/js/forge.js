@@ -153,7 +153,7 @@ const Forge = {
 
     // ===== 자동 제련 설정 (UI-SPEC 21~24번 '자동 제련' 팝업) =====
     autoForgeConfig() {
-        if (!S.autoForge) S.autoForge = { keepAges: [], filterOn: false, filterSubs: [], hammersPerBatch: 10, stopOnTarget: false };
+        if (!S.autoForge) S.autoForge = { keepAges: [], filterOn: false, filterSubs: [], hammersPerBatch: 10, continueOnTarget: false };
         return S.autoForge;
     },
     // 유지 시대·옵션 필터를 통과하는 아이템만 자동 장착 후보로 인정 (탈락 시 즉시 판매)
