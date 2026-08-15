@@ -38,6 +38,13 @@
         const dbgTab = params.get('tab');
         if (dbgTab) UI.switchTab(dbgTab);
         if (params.get('debug') === 'craft') { S.hammers += 10; UI.onCraft(1); }
+        if (params.get('debug') === 'pets') {
+            // 펫 모델 검증: 지정 3마리 출전
+            const names = (params.get('names') || 'Scorpion,Turtle,Baby Dragon').split(',');
+            S.pets = names.map(n => ({ name: n.trim(), rarity: 'epic', level: 1, dupes: 0 }));
+            S.activePets = [0, 1, 2].slice(0, S.pets.length);
+            Scene3D.refreshPets();
+        }
         if (params.get('debug') === 'gear') {
             // 외형 검증: ?debug=gear&h=2&a=2 (이름 인덱스 지정 가능)
             const hi = parseInt(params.get('h') || '0'), ai = parseInt(params.get('a') || '0');

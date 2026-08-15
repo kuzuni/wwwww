@@ -30,53 +30,53 @@ const SLOT_MAIN = { weapon: 'atk', gloves: 'atk', necklace: 'atk', ring: 'atk', 
 const ITEM_NAMES = {
     primitive: {
         weapon: ['돌멩이', '나뭇가지', '뼈다귀', '몽둥이', '돌도끼', '슬링', '블로우건'],
-        helmet: ['수염', '가면', '전투 페인트', '해골 투구'],
-        armor: ['가죽옷', '곰가죽']
+        helmet: ['수염', '가면', '전투 페인트', '해골 투구', '깃털 장식'],
+        armor: ['가죽옷', '곰가죽', '뼈 갑옷', '풀잎 망토', '사냥꾼 조끼']
     },
     medieval: {
         weapon: ['검과 방패', '창과 방패', '활', '카타나', '낫', '토마호크', '워해머'],
         helmet: ['기사 투구', '그리스 투구', '로마 투구', '사무라이 투구', '사신의 모자'],
-        armor: ['철판 갑옷', '퀴레스']
+        armor: ['철판 갑옷', '퀴레스', '사슬 조끼', '기사단 망토', '성직자 로브']
     },
     earlyModern: {
         weapon: ['레이피어', '석궁', '머스킷', '쌍권총', '해적검', '처형자의 도끼'],
         helmet: ['전투 투구', '선장 모자', '깃털 모자', '슬라브 모자', '톱햇'],
-        armor: ['아머 스커트', '기병 카디건']
+        armor: ['아머 스커트', '기병 카디건', '총사 코트', '항해사 조끼', '귀족 망토']
     },
     modern: {
         weapon: ['AK', 'M4', '우지', '스나이퍼', '진압봉', '진압 방패', '렌치', '너클'],
         helmet: ['케블라 헬멧', '진압 헬멧', '철모', '페도라', '장교 모자', '병장 모자', '겨울 모자'],
-        armor: ['케블라', '위장복']
+        armor: ['케블라', '위장복', '전술 조끼', '방탄 코트', '특수부대 슈트']
     },
     space: {
         weapon: ['블래스터', '세이버', '로봇검', '우주총', '우주 권총'],
-        helmet: ['우주 헬멧', '바이오 헬멧', '방독면', '아이언 메크'],
-        armor: ['우주복', '엑소스켈레톤']
+        helmet: ['우주 헬멧', '바이오 헬멧', '방독면', '아이언 메크', '위성 안테나 헬름'],
+        armor: ['우주복', '엑소스켈레톤', '진공 슈트', '추진 슈트', '궤도 망토']
     },
     interstellar: {
         weapon: ['플라즈마 라이플', '레이건', '이온 블래스터', '동압 커터', '광선검과 방패', '이도류'],
         helmet: ['로보 헬름', '에일리언 헤드', '디스트로이어 마스크', '어드밴스드 메크', '헤비듀티', '스텔라리움 헬름'],
-        armor: ['플라즈마 슈트', '아다만티움 슈트']
+        armor: ['플라즈마 슈트', '아다만티움 슈트', '성간 코트', '중력자 로브', '항성 망토']
     },
     multiverse: {
         weapon: ['버추얼 소드', '버추얼 건', '시뮬레이티드 보우', '홀로그램 트라이던트', '멘탈 스피어', '프로젝티드 커틀러스'],
-        helmet: ['버추얼 헬멧', '방화벽 마스크', '스토커 헬름', '스피드러너 캡'],
-        armor: ['홀로 아머', '스펙트럴 플레이트']
+        helmet: ['버추얼 헬멧', '방화벽 마스크', '스토커 헬름', '스피드러너 캡', '픽셀 크라운'],
+        armor: ['홀로 아머', '스펙트럴 플레이트', '코드 로브', '가상 슈트', '차원 망토']
     },
     quantum: {
         weapon: ['블랙 소드와 방패', '블랙 보우', '블랙 건', '블랙 해머', '블랙 스피어', '퀀텀 스태프'],
         helmet: ['에너지 헬멧', '얽힘의 헬름', '주파수 마스크', '헤어 반다나', '묶은 머리'],
-        armor: ['델타 아머', '오비터 슈트']
+        armor: ['델타 아머', '오비터 슈트', '파동 로브', '입자 조끼', '양자 망토']
     },
     underworld: {
         weapon: ['섀도우 시미터', '둠 메이스', '지옥의 삼지창', '심연의 포크', '소울피어서'],
-        helmet: ['헬포지드 헬름', '원한의 왕관', '독니 문장', '로트팽 바이저'],
-        armor: ['둠 플레이트', '용암 갑주', '어둠의 망토']
+        helmet: ['헬포지드 헬름', '원한의 왕관', '독니 문장', '로트팽 바이저', '망자의 두건'],
+        armor: ['둠 플레이트', '용암 갑주', '어둠의 망토', '지옥 로브', '재의 조끼']
     },
     divine: {
         weapon: ['서펀트 소드', '드래곤 대거', '천사의 삼지창', '세이렌의 노래', '신성한 지팡이', '지혜의 지팡이'],
         helmet: ['수호의 후광', '마법사의 모자', '뱀의 화관', '켈틱 오버헤드', '성스러운 백발'],
-        armor: ['홀리 가운', '팔라딘 아머']
+        armor: ['홀리 가운', '팔라딘 아머', '대천사 망토', '성광 조끼', '신탁의 로브']
     }
 };
 
@@ -84,29 +84,30 @@ const ITEM_NAMES = {
 // 투구: plume(돔+깃) cone(고깔) tophat(실크햇) visor(풀헬름) fin(볏 투구) mask(가면/방독면)
 //       halo(후광) hair(머리카락/수염) crown(왕관) tech(메카) bubble(우주 헬멧)
 const HELMET_STYLES = {
-    primitive:    ['hair', 'mask', 'mask', 'visor'],
+    primitive:    ['hair', 'mask', 'mask', 'visor', 'plume'],
     medieval:     ['visor', 'fin', 'fin', 'fin', 'cone'],
     earlyModern:  ['visor', 'tophat', 'plume', 'cone', 'tophat'],
     modern:       ['visor', 'visor', 'visor', 'tophat', 'tophat', 'tophat', 'hair'],
-    space:        ['bubble', 'bubble', 'mask', 'tech'],
+    space:        ['bubble', 'bubble', 'mask', 'tech', 'tech'],
     interstellar: ['tech', 'bubble', 'mask', 'tech', 'visor', 'bubble'],
-    multiverse:   ['tech', 'mask', 'visor', 'tophat'],
+    multiverse:   ['tech', 'mask', 'visor', 'tophat', 'crown'],
     quantum:      ['tech', 'visor', 'mask', 'hair', 'hair'],
-    underworld:   ['fin', 'crown', 'crown', 'visor'],
+    underworld:   ['fin', 'crown', 'crown', 'visor', 'cone'],
     divine:       ['halo', 'cone', 'crown', 'crown', 'hair'],
 };
 // 갑옷: hide(가죽) plate(판금+견갑) vest(전술조끼) suit(슈트+백팩) robe(로브) cape(망토)
+// 시대당 5종 (원본 카탈로그 2~3종 + 자체 확충)
 const ARMOR_STYLES = {
-    primitive:    ['hide', 'hide'],
-    medieval:     ['plate', 'plate'],
-    earlyModern:  ['robe', 'vest'],
-    modern:       ['vest', 'vest'],
-    space:        ['suit', 'plate'],
-    interstellar: ['suit', 'plate'],
-    multiverse:   ['suit', 'plate'],
-    quantum:      ['plate', 'suit'],
-    underworld:   ['plate', 'plate', 'cape'],
-    divine:       ['robe', 'plate'],
+    primitive:    ['hide', 'hide', 'plate', 'cape', 'vest'],
+    medieval:     ['plate', 'plate', 'vest', 'cape', 'robe'],
+    earlyModern:  ['robe', 'vest', 'robe', 'vest', 'cape'],
+    modern:       ['vest', 'vest', 'vest', 'cape', 'suit'],
+    space:        ['suit', 'plate', 'suit', 'suit', 'cape'],
+    interstellar: ['suit', 'plate', 'vest', 'robe', 'cape'],
+    multiverse:   ['suit', 'plate', 'robe', 'suit', 'cape'],
+    quantum:      ['plate', 'suit', 'robe', 'vest', 'cape'],
+    underworld:   ['plate', 'plate', 'cape', 'robe', 'vest'],
+    divine:       ['robe', 'plate', 'cape', 'vest', 'robe'],
 };
 
 function itemStyleOf(item) {

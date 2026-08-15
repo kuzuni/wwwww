@@ -327,14 +327,43 @@ const Scene3D = {
             default: // 무기 없음 → 나무 몽둥이
                 cyl(0.045, 0.06, 0.5, wood, 0, 0.22);
         }
-        // 등급 보석 (레어 이상): 손잡이에 등급색 젬 발광
-        if (rarity && rarity !== 'common') {
+        // 시대 구간별 디테일 (같은 무기도 시대에 따라 다르게)
+        if (ageIdx >= 3 && ageIdx <= 6) { // 근현대~우주: 테크 액센트 스트립
+            const strip = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.34, 0.012),
+                new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 0.9 }));
+            strip.position.set(0.03, 0.38, 0.02);
+            g.add(strip);
+        } else if (ageIdx >= 7) { // 멀티버스 이후: 에너지 링
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.015, 6, 14),
+                new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 1 }));
+            ring.position.y = 0.72;
+            g.add(ring);
+            mat.emissiveIntensity = 0.7;
+        }
+        // 등급 연출: 높을수록 화려하게
+        const rIdx = RARITIES.indexOf(rarity);
+        if (rIdx >= 1) { // 희귀+: 등급색 젬
             const gem = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6),
                 new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 0.9 }));
             gem.position.set(0, 0.02, 0.05);
             g.add(gem);
         }
-        g.scale.setScalar(1 + ageIdx * 0.05);
+        if (rIdx >= 2) { // 영웅+: 등급색 트림 링
+            const trim = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10),
+                new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 0.7 }));
+            trim.position.y = 0.12;
+            g.add(trim);
+        }
+        if (rIdx >= 3) { // 전설+: 떠다니는 오브
+            const orbCount = rIdx - 2; // 전설1, 궁극2, 신화3
+            for (let i = 0; i < orbCount; i++) {
+                const orb = new THREE.Mesh(new THREE.SphereGeometry(0.035, 7, 6),
+                    new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 1 }));
+                orb.position.set(Math.cos(i * 2.1) * 0.16, 0.45 + i * 0.14, Math.sin(i * 2.1) * 0.12);
+                g.add(orb);
+            }
+        }
+        g.scale.setScalar((1 + ageIdx * 0.05) * (1 + Math.max(0, rIdx - 2) * 0.05));
         return g;
     },
 
@@ -355,7 +384,13 @@ const Scene3D = {
         // 갑옷 → 색 + 이름별 스타일 (견갑/흉갑 유무, 부속 장착)
         const a = S.equipment.armor;
         const c = a ? AGE_COLORS[a.age] : 0xb0bec5;
-        for (const m of this.armorMats) m.color.setHex(c);
+        const aIdx = a ? RARITIES.indexOf(a.rarity) : 0;
+        for (const m of this.armorMats) {
+            m.color.setHex(c);
+            // 궁극+ 갑옷은 은은한 등급색 발광
+            m.emissive = new THREE.Color(aIdx >= 4 ? RARITY_HEX[a.rarity] : 0x000000);
+            m.emissiveIntensity = aIdx >= 4 ? 0.18 : 0;
+        }
         const ec = a ? RARITY_HEX[a.rarity] : 0x78909c;
         this.emblemMat.color.setHex(ec);
         this.emblemMat.emissive = new THREE.Color(a ? ec : 0x000000);
@@ -368,7 +403,8 @@ const Scene3D = {
         // 장비 교체 연출: 반짝 + 상승 파티클
         if (withFlash) {
             for (const m of this.armorMats) { m.emissive = new THREE.Color(0xffffff); m.emissiveIntensity = 0.8; }
-            setTimeout(() => { for (const m of this.armorMats) m.emissiveIntensity = 0; }, 150);
+            setTimeout(() => this.refreshHeroEquip(false), 150); // 발광 상태 원복
+
             for (let i = 0; i < 12; i++) {
                 this.riseParticle(this.heroG.position.clone().add(new THREE.Vector3(U.rand(-0.4, 0.4), U.rand(0.2, 1.3), U.rand(-0.3, 0.3))), new THREE.Color(0xfff59d));
             }
@@ -578,7 +614,254 @@ const Scene3D = {
         } catch (e) { return null; }
     },
 
-    // ---- 펫 ----
+    // ---- 펫: 종별 실물 모델 25종 ----
+    makePetMesh(name) {
+        const g = new THREE.Group();
+        const c = PET_COLORS[name] || 0xbdbdbd;
+        const M = (col, opt) => new THREE.MeshLambertMaterial(Object.assign({ color: col }, opt || {}));
+        const mat = M(c);
+        const dark = M(new THREE.Color(c).offsetHSL(0, 0, -0.15));
+        const light = M(new THREE.Color(c).offsetHSL(0, 0, 0.14));
+        const blk = new THREE.MeshBasicMaterial({ color: 0x263238 });
+        // 헬퍼: 정면 +z, 바닥 y0 기준
+        const sp = (r, x, y, z, m, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 9, 7), m || mat); o.position.set(x, y, z); if (sx) o.scale.set(sx, sy, sz); g.add(o); return o; };
+        const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); g.add(o); return o; };
+        const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), m || mat); o.position.set(x, y, z); g.add(o); return o; };
+        const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 7), m || mat); o.position.set(x, y, z); g.add(o); return o; };
+        const eyes = (y, z, gap, r) => { for (const s of [-1, 1]) sp(r || 0.028, s * (gap || 0.06), y, z, blk); };
+
+        switch (name) {
+            case 'Snail': { // 몸통 + 나선 껍데기 + 더듬이눈
+                sp(0.13, 0, 0.09, 0.04, mat, 1.1, 0.7, 1.5);
+                sp(0.15, 0, 0.26, -0.08, light);
+                sp(0.09, 0, 0.26, -0.08, dark, 1.05, 1.05, 0.5);
+                for (const s of [-1, 1]) {
+                    cy(0.012, 0.012, 0.14, s * 0.05, 0.24, 0.2, dark);
+                    sp(0.028, s * 0.05, 0.32, 0.21, blk);
+                }
+                break;
+            }
+            case 'Turtle': { // 등딱지 + 머리 + 다리
+                sp(0.19, 0, 0.15, 0, dark, 1, 0.62, 1.2);
+                sp(0.14, 0, 0.19, 0, M(new THREE.Color(c).offsetHSL(0, 0, -0.25)), 1, 0.5, 1);
+                sp(0.08, 0, 0.13, 0.26, light);
+                for (const s of [-1, 1]) { sp(0.05, s * 0.14, 0.05, 0.14, light); sp(0.05, s * 0.14, 0.05, -0.14, light); }
+                eyes(0.17, 0.32, 0.045, 0.02);
+                break;
+            }
+            case 'Mouse': { // 큰 귀 + 꼬리
+                sp(0.14, 0, 0.13, 0, mat, 1, 0.95, 1.2);
+                for (const s of [-1, 1]) sp(0.075, s * 0.09, 0.3, -0.02, light, 1, 1, 0.4);
+                sp(0.025, 0, 0.1, 0.17, M(0xf48fb1));
+                const tail = cy(0.012, 0.012, 0.26, 0, 0.1, -0.2, dark); tail.rotation.x = 1.3;
+                eyes(0.17, 0.13);
+                break;
+            }
+            case 'Chicken': { // 볏 + 부리 + 날개
+                sp(0.13, 0, 0.16, 0);
+                for (let i = 0; i < 3; i++) sp(0.03, 0, 0.32 - i * 0.01, 0.04 - i * 0.05, M(0xef5350));
+                const beak = cn(0.035, 0.09, 0, 0.17, 0.16, M(0xffa726)); beak.rotation.x = Math.PI / 2;
+                for (const s of [-1, 1]) sp(0.07, s * 0.12, 0.15, -0.02, light, 0.5, 0.8, 1);
+                for (const s of [-1, 1]) cy(0.012, 0.012, 0.1, s * 0.05, 0.03, 0, M(0xffa726));
+                eyes(0.2, 0.11);
+                break;
+            }
+            case 'Cat': case 'Tiger': case 'Saber Tooth': case 'Spectral Tiger': { // 고양잇과 공통 + 변형
+                const ghost = name === 'Spectral Tiger';
+                const bmat = ghost ? M(c, { transparent: true, opacity: 0.6, emissive: c, emissiveIntensity: 0.4 }) : mat;
+                sp(0.12, 0, 0.12, -0.02, bmat, 1, 0.95, 1.3);
+                sp(0.11, 0, 0.28, 0.1, bmat);
+                for (const s of [-1, 1]) cn(0.04, 0.08, s * 0.07, 0.4, 0.08, bmat);
+                const tail = cy(0.018, 0.012, 0.2, 0, 0.2, -0.2, bmat); tail.rotation.x = -0.9;
+                if (name === 'Tiger' || name === 'Spectral Tiger') for (let i = 0; i < 3; i++) bx(0.02, 0.09, 0.16, -0.06 + i * 0.06, 0.15, -0.02, blk);
+                if (name === 'Saber Tooth') for (const s of [-1, 1]) cn(0.015, 0.07, s * 0.05, 0.2, 0.18, M(0xffffff));
+                eyes(0.3, 0.19);
+                break;
+            }
+            case 'Dog': { // 늘어진 귀 + 주둥이
+                sp(0.13, 0, 0.13, -0.02, mat, 1, 0.95, 1.25);
+                sp(0.11, 0, 0.29, 0.1);
+                for (const s of [-1, 1]) sp(0.05, s * 0.11, 0.26, 0.06, dark, 0.6, 1.3, 0.7);
+                sp(0.055, 0, 0.25, 0.2, light);
+                sp(0.022, 0, 0.27, 0.25, blk);
+                const tail = cy(0.015, 0.01, 0.16, 0, 0.2, -0.19); tail.rotation.x = -0.7;
+                eyes(0.33, 0.18);
+                break;
+            }
+            case 'Hedgehog': { // 등 가시
+                sp(0.14, 0, 0.12, 0.02, light, 1.1, 0.85, 1.25);
+                for (let i = 0; i < 7; i++) {
+                    const a = (i / 7) * Math.PI - Math.PI / 2;
+                    const s2 = cn(0.03, 0.11, Math.sin(a) * 0.1, 0.2 + Math.cos(a) * 0.06, -0.05 - Math.abs(Math.sin(a)) * 0.04, dark);
+                    s2.rotation.z = -a * 0.8;
+                }
+                sp(0.03, 0, 0.1, 0.2, blk);
+                eyes(0.15, 0.17, 0.05);
+                break;
+            }
+            case 'Bear': { // 둥근 귀 + 주둥이
+                sp(0.16, 0, 0.16, 0);
+                sp(0.12, 0, 0.34, 0.05);
+                for (const s of [-1, 1]) sp(0.045, s * 0.09, 0.44, 0.01, dark);
+                sp(0.055, 0, 0.31, 0.15, light);
+                sp(0.025, 0, 0.33, 0.2, blk);
+                eyes(0.38, 0.14);
+                break;
+            }
+            case 'Ostrich': { // 긴 목
+                sp(0.13, 0, 0.24, 0, mat, 1.1, 1, 1.1);
+                cy(0.022, 0.028, 0.26, 0.02, 0.45, 0.06, light);
+                sp(0.055, 0.02, 0.6, 0.09);
+                const beak = cn(0.025, 0.07, 0.02, 0.6, 0.16, M(0xffa726)); beak.rotation.x = Math.PI / 2;
+                for (const s of [-1, 1]) cy(0.013, 0.013, 0.2, s * 0.05, 0.08, 0, M(0xbcaaa4));
+                eyes(0.63, 0.12, 0.04, 0.02);
+                break;
+            }
+            case 'Scorpion': { // 집게 + 꼬리침
+                sp(0.12, 0, 0.08, -0.02, mat, 1.35, 0.6, 1.5);
+                sp(0.045, 0, 0.17, -0.16, dark);
+                sp(0.04, 0, 0.27, -0.2, dark);
+                sp(0.035, 0, 0.36, -0.16, dark);
+                const sting = cn(0.028, 0.09, 0, 0.42, -0.1, blk); sting.rotation.x = 2.5;
+                for (const s of [-1, 1]) {
+                    sp(0.055, s * 0.13, 0.07, 0.15, dark);
+                    sp(0.04, s * 0.16, 0.07, 0.22, dark, 1, 0.7, 1.2);
+                    for (let i = 0; i < 3; i++) {
+                        const leg = cy(0.01, 0.01, 0.12, s * 0.15, 0.05, -0.04 + i * 0.07, dark);
+                        leg.rotation.z = s * 1.1;
+                    }
+                }
+                eyes(0.12, 0.2, 0.05, 0.02);
+                break;
+            }
+            case 'Spider': { // 다리 8개
+                sp(0.12, 0, 0.14, -0.05);
+                sp(0.08, 0, 0.12, 0.11, light);
+                for (const s of [-1, 1]) for (let i = 0; i < 4; i++) {
+                    const leg = cy(0.01, 0.008, 0.18, s * 0.14, 0.1, -0.1 + i * 0.07, dark);
+                    leg.rotation.z = s * (1.15 - i * 0.08);
+                }
+                for (const s of [-1, 1]) { sp(0.022, s * 0.035, 0.15, 0.18, new THREE.MeshBasicMaterial({ color: 0xff1744 })); sp(0.014, s * 0.075, 0.13, 0.17, new THREE.MeshBasicMaterial({ color: 0xff1744 })); }
+                break;
+            }
+            case 'Panda': { // 흑백
+                const wht = M(0xf5f5f5), b = M(0x37474f);
+                sp(0.15, 0, 0.15, 0, wht);
+                sp(0.12, 0, 0.32, 0.04, wht);
+                for (const s of [-1, 1]) { sp(0.045, s * 0.1, 0.42, 0, b); sp(0.035, s * 0.055, 0.33, 0.13, b, 1, 1.3, 0.5); sp(0.05, s * 0.14, 0.14, 0.06, b); }
+                sp(0.022, 0, 0.29, 0.16, blk);
+                eyes(0.34, 0.15, 0.055, 0.018);
+                break;
+            }
+            case 'Griffin': { // 날개 + 부리
+                sp(0.13, 0, 0.15, -0.02, mat, 1, 1, 1.25);
+                sp(0.1, 0, 0.3, 0.1, light);
+                const beak = cn(0.03, 0.08, 0, 0.3, 0.2, M(0xffa726)); beak.rotation.x = Math.PI / 2;
+                for (const s of [-1, 1]) {
+                    const wing = sp(0.11, s * 0.14, 0.26, -0.06, light, 0.25, 1, 0.8);
+                    wing.rotation.z = s * 0.5;
+                }
+                eyes(0.34, 0.18);
+                break;
+            }
+            case 'Unicorn': { // 뿔 + 갈기
+                sp(0.14, 0, 0.18, 0, mat, 1.05, 0.9, 1.3);
+                sp(0.09, 0, 0.37, 0.15);
+                cn(0.022, 0.13, 0, 0.5, 0.17, M(0xffd54f, { emissive: 0xffd54f, emissiveIntensity: 0.6 }));
+                for (let i = 0; i < 3; i++) sp(0.035, -0.01, 0.42 - i * 0.06, 0.04 - i * 0.03, M(0xba68c8));
+                for (const s of [-1, 1]) { cy(0.02, 0.02, 0.14, s * 0.08, 0.06, 0.08); cy(0.02, 0.02, 0.14, s * 0.08, 0.06, -0.1); }
+                eyes(0.4, 0.22, 0.045);
+                break;
+            }
+            case 'Cerberus': { // 머리 셋
+                sp(0.15, 0, 0.15, -0.02, mat, 1.25, 0.95, 1.2);
+                for (const dx of [-0.13, 0, 0.13]) {
+                    sp(0.08, dx, 0.32, 0.08 + (dx === 0 ? 0.04 : 0));
+                    for (const s of [-1, 1]) cn(0.025, 0.05, dx + s * 0.05, 0.41, 0.05);
+                    for (const s of [-1, 1]) sp(0.018, dx + s * 0.035, 0.34, 0.15, new THREE.MeshBasicMaterial({ color: 0xff1744 }));
+                }
+                break;
+            }
+            case 'Kitsune': { // 꼬리 셋 여우
+                sp(0.12, 0, 0.13, 0, mat, 1, 0.95, 1.25);
+                sp(0.1, 0, 0.28, 0.1);
+                cn(0.03, 0.07, 0, 0.26, 0.2, M(0xffffff));
+                for (const s of [-1, 1]) cn(0.045, 0.1, s * 0.07, 0.4, 0.06);
+                for (const dx of [-0.09, 0, 0.09]) {
+                    const tail = cn(0.045, 0.2, dx, 0.24, -0.18, light);
+                    tail.rotation.x = -0.9 - Math.abs(dx);
+                }
+                eyes(0.3, 0.18);
+                break;
+            }
+            case 'Serpent': { // 또아리 + 든 머리
+                sp(0.11, 0, 0.07, 0, mat, 1.5, 0.6, 1.5);
+                sp(0.09, 0, 0.16, -0.02, mat, 1.25, 0.55, 1.25);
+                cy(0.045, 0.055, 0.16, 0.02, 0.28, 0.06);
+                sp(0.07, 0.02, 0.4, 0.1);
+                bx(0.015, 0.008, 0.06, 0.02, 0.38, 0.19, new THREE.MeshBasicMaterial({ color: 0xff5252 }));
+                eyes(0.43, 0.15, 0.04, 0.02);
+                break;
+            }
+            case 'Treant': { // 나무 정령
+                const wood = M(0x6d4c41);
+                cy(0.07, 0.1, 0.3, 0, 0.15, 0, wood);
+                sp(0.14, 0, 0.38, 0, mat);
+                sp(0.08, 0.12, 0.32, 0.03, mat);
+                for (const s of [-1, 1]) { const arm = cy(0.02, 0.025, 0.16, s * 0.11, 0.2, 0.02, wood); arm.rotation.z = s * 0.9; }
+                eyes(0.18, 0.09, 0.045);
+                break;
+            }
+            case 'Enchanted Elk': { // 가지뿔
+                sp(0.13, 0, 0.2, 0, mat, 1, 0.85, 1.3);
+                sp(0.08, 0, 0.37, 0.14);
+                for (const s of [-1, 1]) {
+                    const a1 = cy(0.012, 0.012, 0.16, s * 0.06, 0.5, 0.1, M(0xfff59d, { emissive: 0xfff59d, emissiveIntensity: 0.5 })); a1.rotation.z = s * 0.5;
+                    const a2 = cy(0.01, 0.01, 0.09, s * 0.11, 0.55, 0.1, M(0xfff59d, { emissive: 0xfff59d, emissiveIntensity: 0.5 })); a2.rotation.z = s * 1.2;
+                }
+                for (const s of [-1, 1]) { cy(0.018, 0.018, 0.16, s * 0.07, 0.07, 0.08); cy(0.018, 0.018, 0.16, s * 0.07, 0.07, -0.09); }
+                eyes(0.4, 0.2, 0.04);
+                break;
+            }
+            case 'Electry': { // 전기 구체
+                sp(0.13, 0, 0.2, 0, M(c, { emissive: c, emissiveIntensity: 0.8 }));
+                for (let i = 0; i < 4; i++) {
+                    const bolt = bx(0.02, 0.12, 0.02, Math.cos(i * 1.57) * 0.17, 0.2 + Math.sin(i * 1.57) * 0.17, 0, M(0xffff00, { emissive: 0xffff00, emissiveIntensity: 1 }));
+                    bolt.rotation.z = i * 0.8;
+                }
+                eyes(0.22, 0.12);
+                break;
+            }
+            case 'Genie': { // 연기 하체 + 터번
+                cn(0.02, 0.18, 0, 0.09, 0, M(new THREE.Color(c).offsetHSL(0, 0, -0.1), { transparent: true, opacity: 0.7 }));
+                cy(0.09, 0.03, 0.14, 0, 0.22, 0, M(c, { transparent: true, opacity: 0.85 }));
+                sp(0.11, 0, 0.36, 0, mat);
+                sp(0.09, 0, 0.5, 0, light);
+                sp(0.03, 0, 0.56, 0.07, M(0xffd54f, { emissive: 0xffd54f, emissiveIntensity: 0.6 }));
+                for (const s of [-1, 1]) sp(0.04, s * 0.12, 0.36, 0.04);
+                eyes(0.5, 0.08);
+                break;
+            }
+            case 'Baby Dragon': { // 날개 + 뿔 + 꼬리
+                sp(0.13, 0, 0.15, 0, mat, 1, 0.95, 1.2);
+                sp(0.1, 0, 0.32, 0.09);
+                sp(0.05, 0, 0.29, 0.18, light);
+                for (const s of [-1, 1]) cn(0.02, 0.06, s * 0.05, 0.42, 0.04, M(0xffffff));
+                for (const s of [-1, 1]) {
+                    const wing = sp(0.1, s * 0.15, 0.24, -0.05, dark, 0.2, 1, 0.7);
+                    wing.rotation.z = s * 0.6;
+                }
+                const tail = cn(0.035, 0.16, 0, 0.12, -0.2, mat); tail.rotation.x = -2.1;
+                eyes(0.35, 0.17);
+                break;
+            }
+            default:
+                sp(0.14, 0, 0.15, 0);
+                eyes(0.2, 0.12);
+        }
+        return g;
+    },
+
     refreshPets() {
         for (const pg of this.petGroups) this.scene.remove(pg);
         this.petGroups = [];
@@ -586,17 +869,13 @@ const Scene3D = {
             const p = S.pets[pi];
             if (!p) return;
             const g = new THREE.Group();
-            const color = PET_COLORS[p.name] || 0xbdbdbd;
-            const size = 0.16 + RARITIES.indexOf(p.rarity) * 0.035;
-            const body = new THREE.Mesh(new THREE.SphereGeometry(size, 10, 8), new THREE.MeshLambertMaterial({ color }));
-            const ear1 = new THREE.Mesh(new THREE.ConeGeometry(size * 0.35, size * 0.7, 6), new THREE.MeshLambertMaterial({ color }));
-            ear1.position.set(-size * 0.5, size * 0.9, 0);
-            const ear2 = ear1.clone(); ear2.position.x = size * 0.5;
-            const eye = new THREE.Mesh(new THREE.SphereGeometry(size * 0.15, 6, 6), new THREE.MeshBasicMaterial({ color: 0x263238 }));
-            eye.position.set(size * 0.4, size * 0.15, size * 0.7);
-            g.add(body, ear1, ear2, eye);
-            const spots = [[-0.4, 0.9], [-0.75, -0.7], [-0.55, 1.4]]; // 영웅 주변 대형
-            g.position.set(Combat.HERO_X + spots[i][0], 0.55 + i * 0.2, spots[i][1]);
+            const mesh = this.makePetMesh(p.name);
+            // 등급이 높을수록 큼직하게
+            mesh.scale.setScalar(0.85 + RARITIES.indexOf(p.rarity) * 0.14);
+            g.add(mesh);
+            g.rotation.y = 0.55; // 적 방향 3/4
+            const spots = [[-0.1, 0.95], [-0.45, -0.65], [-0.3, 1.45]]; // 영웅 주변 대형 (화면 안)
+            g.position.set(Combat.HERO_X + spots[i][0], 0.45 + i * 0.18, spots[i][1]);
             g.userData.home = g.position.clone();
             this.scene.add(g);
             this.petGroups.push(g);

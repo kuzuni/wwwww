@@ -154,8 +154,8 @@ const UI = {
             </div>`;
         } else {
             upgHtml = `<div class="row">
-                <button class="btn primary ${S.hammers < info.cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
-                    ⚒️ Lv.${S.forgeLevel + 1} 업그레이드<br><small>🔨 ${U.fmt(info.cost)} · ⏱ ${U.fmtTime(info.time)}</small>
+                <button class="btn primary ${S.coins < info.cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
+                    ⚒️ Lv.${S.forgeLevel + 1} 업그레이드<br><small>🪙 ${U.fmt(info.cost)} · ⏱ ${U.fmtTime(info.time)}</small>
                 </button>
             </div>`;
         }

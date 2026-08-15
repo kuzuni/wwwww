@@ -117,13 +117,13 @@ const Forge = {
 
     canStartUpgrade() {
         const info = this.upgradeInfo();
-        return info && !S.forgeUpgradeEndsAt && S.hammers >= info.cost;
+        return info && !S.forgeUpgradeEndsAt && S.coins >= info.cost;
     },
 
     startUpgrade() {
         const info = this.upgradeInfo();
         if (!this.canStartUpgrade()) return false;
-        S.hammers -= info.cost;
+        S.coins -= info.cost; // 업그레이드는 골드로 (해머는 제작 전용)
         S.forgeUpgradeEndsAt = U.now() + info.time * 1000;
         saveGame();
         return true;
