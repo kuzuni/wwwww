@@ -14,6 +14,11 @@ const AGE_COLORS = {
     underworld: 0xef5350, divine: 0xffd54f
 };
 
+const AGE_ICON = {
+    primitive: '🪨', medieval: '⚔️', earlyModern: '🏴‍☠️', modern: '🔫', space: '🚀',
+    interstellar: '🛸', multiverse: '🌀', quantum: '⚛️', underworld: '🔥', divine: '✨'
+};
+
 const RARITIES = ['common', 'rare', 'epic', 'legendary', 'ultimate', 'mythic'];
 const RARITY_KR = { common: '일반', rare: '희귀', epic: '영웅', legendary: '전설', ultimate: '궁극', mythic: '신화' };
 const RARITY_CSS = { common: '#b0bec5', rare: '#66bb6a', epic: '#42a5f5', legendary: '#ab47bc', ultimate: '#ffa726', mythic: '#ef5350' };

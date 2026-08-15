@@ -119,12 +119,20 @@
             UI.updateHeroHp();
         }, 1000);
 
-        // 오토 포지: 3초마다 1회 제작 후 자동 처리
+        // 오토 포지: 3초마다 1회 사이클(설정된 망치 수만큼 제작) 후 자동 처리
         setInterval(() => {
             if (S.autoForgeOn && isUnlocked('autoForge') && S.hammers >= 1) {
-                const item = Forge.craft(1)[0];
-                const r = Forge.autoResolve(item);
-                if (r.equipped) UI.floatLoot(`🛠 ${item.name} 자동 장착!`);
+                const cfg = Forge.autoForgeConfig();
+                const items = Forge.craft(Math.min(cfg.hammersPerBatch, S.hammers));
+                for (const item of items) {
+                    if (!Forge.passesAutoFilter(item)) { Forge.sell(item); continue; }
+                    const r = Forge.autoResolve(item);
+                    if (r.equipped) {
+                        UI.floatLoot(`🛠 ${item.name} 자동 장착!`);
+                        if (!cfg.stopOnTarget) { S.autoForgeOn = false; break; } // 목표 발견 시 계속 미체크 → 정지
+                    }
+                }
+                UI.renderEquipSheet();
             }
         }, 3000);
 

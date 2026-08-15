@@ -6,19 +6,45 @@ const Forge = {
 
     maxItemLevel() { return Math.min(100, S.forgeLevel * 3); },
 
+    // 등급 가중치: 대장간 레벨에 따라 고등급 확률 상승 (자체 설계 — 원본 미공개)
+    rarityWeights(fl) {
+        return {
+            common: 60, rare: 22 + fl * 0.3, epic: 9 + fl * 0.35,
+            legendary: 3 + fl * 0.22, ultimate: 0.6 + fl * 0.1, mythic: 0.08 + fl * 0.04,
+        };
+    },
+    // 등급 가중치를 %로 정규화 (확률 정보 팝업용)
+    rarityProbsAt(fl) {
+        const w = this.rarityWeights(fl);
+        const total = Object.values(w).reduce((a, b) => a + b, 0);
+        const out = {};
+        for (const k in w) out[k] = w[k] / total * 100;
+        return out;
+    },
+    // 시대별 확률표 (지정 레벨, 없으면 1레벨)
+    ageProbsAt(level) { return forgeProbabilities[level] || forgeProbabilities[1]; },
+
+    // 부위별 외형 변형 개수 (무기=10종 고정, 투구/갑옷=시대별 이름 수, 장신구=3종 고정)
+    variantCount(age, slot) {
+        if (slot === 'weapon') return Object.keys(WEAPON_TYPES).length;
+        if (slot === 'helmet' || slot === 'armor') return (ITEM_NAMES[age] && ITEM_NAMES[age][slot] && ITEM_NAMES[age][slot].length) || 1;
+        return (ACC_NAMES[slot] || []).length || 1;
+    },
+    // 특정 시대·부위의 개별 아이템(등급 무관) 1개가 나올 확률(%) — rollItem 추첨 로직을 그대로 역산
+    itemDropChance(age, slot) {
+        const ageP = (this.ageProbsAt(S.forgeLevel)[age] || 0) / 100;
+        const slotP = 1 / SLOTS.length;
+        const variantP = 1 / this.variantCount(age, slot);
+        return ageP * slotP * variantP * 100;
+    },
+
     // 아이템 롤: 시대(원본 확률표) + 등급 + 레벨 + 서브스탯
     rollItem() {
         const probs = forgeProbabilities[S.forgeLevel] || forgeProbabilities[1];
         const age = U.weightedPick(probs);
         const ageIdx = AGES.indexOf(age);
 
-        // 등급: 대장간 레벨에 따라 고등급 확률 상승 (자체 설계 — 원본 미공개)
-        const fl = S.forgeLevel;
-        const rarityW = {
-            common: 60, rare: 22 + fl * 0.3, epic: 9 + fl * 0.35,
-            legendary: 3 + fl * 0.22, ultimate: 0.6 + fl * 0.1, mythic: 0.08 + fl * 0.04
-        };
-        const rarity = U.weightedPick(rarityW);
+        const rarity = U.weightedPick(this.rarityWeights(S.forgeLevel));
 
         // 레벨: 원본 방식 — 일반 티어는 max-5~max, 최저확률 티어는 1부터
         const maxLv = this.maxItemLevel();
@@ -123,6 +149,19 @@ const Forge = {
             return { equipped: true, gained };
         }
         return { equipped: false, gained: this.sell(item) };
+    },
+
+    // ===== 자동 제련 설정 (UI-SPEC 21~24번 '자동 제련' 팝업) =====
+    autoForgeConfig() {
+        if (!S.autoForge) S.autoForge = { keepAges: [], filterOn: false, filterSubs: [], hammersPerBatch: 10, stopOnTarget: false };
+        return S.autoForge;
+    },
+    // 유지 시대·옵션 필터를 통과하는 아이템만 자동 장착 후보로 인정 (탈락 시 즉시 판매)
+    passesAutoFilter(item) {
+        const cfg = this.autoForgeConfig();
+        if (cfg.keepAges.length && !cfg.keepAges.includes(item.age)) return false;
+        if (cfg.filterOn && cfg.filterSubs.length && !item.subs.some(s => cfg.filterSubs.includes(s.key))) return false;
+        return true;
     },
 
     // ===== 대장간 업그레이드 (원본 비용/시간 테이블, 실시간 타이머) =====

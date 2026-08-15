@@ -25,6 +25,13 @@ function defaultState() {
         forgeLevel: 1,
         forgeUpgradeEndsAt: null,       // 절대시각(ms). null이면 미진행
         autoForgeOn: false,
+        autoForge: {                    // 자동 제련 설정 (UI-SPEC 21~24번 자동 제련 팝업)
+            keepAges: [],                // 유지 시대 체크 목록 (빈 배열 = 전체 허용)
+            filterOn: false,             // 옵션 필터 켜짐 여부
+            filterSubs: [],              // 필터 통과 조건 서브스탯 키 목록
+            hammersPerBatch: 10,         // 1회 제련 사이클당 소모 망치 수 (1~22)
+            stopOnTarget: false,         // 체크 시 장착 성공해도 계속, 미체크면 장착 성공 시 정지
+        },
         // 장비: slot → item | null
         equipment: { weapon: null, helmet: null, armor: null, gloves: null, necklace: null, ring: null, shoes: null, belt: null },
         // 펫 (시작 알 1개 지급)

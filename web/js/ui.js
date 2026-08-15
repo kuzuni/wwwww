@@ -18,6 +18,7 @@ const UI = {
             dungeonModal: $('dungeon-modal'),
             techModal: $('tech-modal'), mountModal: $('mount-modal'), ascendModal: $('ascend-modal'),
             stubModal: $('stub-modal'),
+            forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -194,11 +195,9 @@ const UI = {
         let forgeBtnHtml;
         if (!info) forgeBtnHtml = `<button class="btn sm disabled">대장간 최고 레벨</button>`;
         else if (upgrading) {
-            forgeBtnHtml = `<button class="btn sm primary" disabled>⏱ <span id="equip-upg-time">${U.fmtTime((S.forgeUpgradeEndsAt - U.now()) / 1000)}</span></button>`;
+            forgeBtnHtml = `<button class="btn sm primary" onclick="UI.openForgeInfo()">⏱ <span id="equip-upg-time">${U.fmtTime((S.forgeUpgradeEndsAt - U.now()) / 1000)}</span></button>`;
         } else {
-            const cost = Forge.upgradeCost(info);
-            forgeBtnHtml = `<button class="btn sm primary ${S.coins < cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
-                대장간 레벨 ${S.forgeLevel}<br><small>🪙 ${U.fmt(cost)}</small></button>`;
+            forgeBtnHtml = `<button class="btn sm primary" onclick="UI.openForgeInfo()">대장간 레벨 ${S.forgeLevel}</button>`;
         }
 
         // 카드 = 아이콘 + Lv + 별만 표시 (컴팩트, UI-SPEC 1번). 상세 정보는 '장비 세부정보 팝업'(추후 항목)에서
@@ -218,18 +217,228 @@ const UI = {
                 <button class="anvil-btn" onclick="UI.onCraft(1)">⚒️<small>🔨 ${U.fmt(S.hammers)}</small></button>
                 <div class="forge-actions">
                     ${forgeBtnHtml}
-                    <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.onToggleAutoForge()">
+                    <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.openAutoForge()">
                         자동🔄 ${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : '🔒'}</button>
                 </div>
             </div>`;
     },
 
-    onStartUpgrade() { if (Forge.startUpgrade()) { this.renderEquipSheet(); this.renderTopBar(); } },
+    onStartUpgrade() { if (Forge.startUpgrade()) { this.renderEquipSheet(); this.renderTopBar(); this.openForgeInfo(); } },
+    onGemSkipForge() { if (Forge.gemSkip()) { this.renderTopBar(); this.openForgeInfo(); } },
     onToggleAutoForge() {
         if (!isUnlocked('autoForge')) { this.toast('🔒 스테이지 2-10 도달 시 해금됩니다'); return; }
         S.autoForgeOn = !S.autoForgeOn;
         this.renderEquipSheet();
+        if (!this.els.autoForgeModal.classList.contains('hidden')) this.renderAutoForge();
         saveGame();
+    },
+
+    // ---- 대장간 팝업 3종 (UI-SPEC 21~24번): ① 확률 정보 ② 전체 장비 목록 ③ 장비 상세 ----
+    _forgeView: 'level', _forgeItem: null,
+    openForgeInfo() {
+        this._forgeView = 'level';
+        this.renderForgeInfo();
+        this.els.forgeInfoModal.classList.remove('hidden');
+    },
+    openForgeList() { this._forgeView = 'list'; this.renderForgeInfo(); },
+    openForgeDetail(age, slot, variant) {
+        this._forgeView = 'detail';
+        this._forgeItem = { age, slot, variant };
+        this.renderForgeInfo();
+    },
+    closeForgeInfo() { this.els.forgeInfoModal.classList.add('hidden'); },
+    renderForgeInfo() {
+        if (this._forgeView === 'list') this.renderForgeListView();
+        else if (this._forgeView === 'detail') this.renderForgeDetailView();
+        else this.renderForgeLevelView();
+    },
+    renderForgeLevelView() {
+        const info = Forge.upgradeInfo();
+        const upgrading = !!S.forgeUpgradeEndsAt;
+        const curP = Forge.ageProbsAt(S.forgeLevel);
+        const nextP = info ? Forge.ageProbsAt(S.forgeLevel + 1) : {};
+        const rows = AGES.filter(age => curP[age] || nextP[age]).map(age => {
+            const hex = '#' + AGE_COLORS[age].toString(16).padStart(6, '0');
+            const c = curP[age] || 0, n = nextP[age] || 0;
+            return `<div class="age-row">
+                <span class="age-tag" style="--ac:${hex}">${AGE_ICON[age]} ${AGE_KR[age]}</span>
+                <div class="age-bar-wrap"><div class="age-bar" style="width:${c}%;background:${hex}"></div></div><span class="age-pct">${c.toFixed(2)}%</span>
+                <div class="age-bar-wrap"><div class="age-bar" style="width:${n}%;background:${hex}"></div></div><span class="age-pct">${n.toFixed(2)}%</span>
+            </div>`;
+        }).join('');
+
+        let actionHtml;
+        if (!info) actionHtml = `<div class="muted" style="text-align:center">대장간 최고 레벨 (35)</div>`;
+        else if (upgrading) {
+            const remain = (S.forgeUpgradeEndsAt - U.now()) / 1000;
+            actionHtml = `<div class="row">
+                <div class="upg-progress"><div id="upg-fill" style="width:${U.clamp(1 - remain / Forge.upgradeTime(info), 0, 1) * 100}%"></div><span id="upg-time">${U.fmtTime(remain)}</span></div>
+                <button class="btn gem" onclick="UI.onGemSkipForge()">💎 ${Forge.gemSkipCost()} 스킵</button>
+            </div>`;
+        } else {
+            const cost = Forge.upgradeCost(info), time = Forge.upgradeTime(info);
+            actionHtml = `<button class="btn primary ${S.coins < cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
+                ⚒️ 레벨 ${S.forgeLevel + 1} 업그레이드<br><small>🪙 ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</small></button>`;
+        }
+
+        this.els.forgeInfoModal.innerHTML = `
+            <div class="modal-card wide">
+                <div class="row" style="justify-content:space-between">
+                    <h3>확률 정보</h3>
+                    <button class="btn sm" onclick="UI.openForgeList()">ⓘ 전체 장비</button>
+                </div>
+                <p class="muted">레벨 ${S.forgeLevel}${info ? ` ▶ 레벨 ${S.forgeLevel + 1}` : ' (최고 레벨)'} — 시대별 제작 확률</p>
+                <div class="age-rows">${rows}</div>
+                ${actionHtml}
+                <button class="btn" onclick="UI.closeForgeInfo()">닫기</button>
+            </div>`;
+    },
+    renderForgeListView() {
+        const sections = AGES.filter(age => Forge.ageProbsAt(S.forgeLevel)[age]).map(age => {
+            const hex = '#' + AGE_COLORS[age].toString(16).padStart(6, '0');
+            const ageP = Forge.ageProbsAt(S.forgeLevel)[age];
+            const p = Forge.itemDropChance(age, 'weapon'); // 무기 변형은 모두 동일 확률
+            const weaponCells = Object.keys(WEAPON_TYPES).map(wtype => `
+                <button class="forge-item-cell" onclick="UI.openForgeDetail('${age}','weapon','${wtype}')">
+                    <span class="icon">${WEAPON_TYPES[wtype].kind === 'ranged' ? '🏹' : '🗡'}</span>
+                    <small>${p.toFixed(4)}%</small>
+                </button>`).join('');
+            const otherCells = ['helmet', 'armor', 'gloves', 'necklace', 'ring', 'shoes', 'belt'].map(slot => {
+                const names = (slot === 'helmet' || slot === 'armor') ? ((ITEM_NAMES[age] && ITEM_NAMES[age][slot]) || []) : (ACC_NAMES[slot] || []);
+                const sp = Forge.itemDropChance(age, slot);
+                const icon = slot === 'helmet' ? '🪖' : slot === 'armor' ? '👕' : (this.SLOT_EMOJI[slot] || '🎁');
+                return names.map((name, i) => `
+                    <button class="forge-item-cell" onclick="UI.openForgeDetail('${age}','${slot}',${i})">
+                        <span class="icon">${icon}</span>
+                        <small>${sp.toFixed(4)}%</small>
+                    </button>`).join('');
+            }).join('');
+            return `<div class="forge-age-section">
+                <div class="age-tag" style="--ac:${hex}">${AGE_ICON[age]} ${AGE_KR[age]} <small>${ageP.toFixed(2)}%</small></div>
+                <div class="forge-item-grid">${weaponCells}${otherCells}</div>
+            </div>`;
+        }).join('');
+
+        this.els.forgeInfoModal.innerHTML = `
+            <div class="modal-card wide">
+                <div class="row" style="justify-content:space-between">
+                    <h3>모든 장비</h3>
+                    <button class="btn sm" onclick="UI.openForgeInfo()">◀ 뒤로</button>
+                </div>
+                <div class="forge-age-list">${sections}</div>
+                <button class="btn" onclick="UI.closeForgeInfo()">닫기</button>
+            </div>`;
+    },
+    renderForgeDetailView() {
+        const { age, slot, variant } = this._forgeItem;
+        const ageIdx = AGES.indexOf(age);
+        let name, icon;
+        if (slot === 'weapon') {
+            name = `${WEAPON_TYPES[variant].kr}`;
+            icon = WEAPON_TYPES[variant].kind === 'ranged' ? '🏹' : '🗡';
+        } else if (slot === 'helmet' || slot === 'armor') {
+            name = (ITEM_NAMES[age] && ITEM_NAMES[age][slot] && ITEM_NAMES[age][slot][variant]) || SLOT_KR[slot];
+            icon = slot === 'helmet' ? '🪖' : '👕';
+        } else {
+            const accs = ACC_NAMES[slot] || [SLOT_KR[slot]];
+            name = accs[variant];
+            icon = this.SLOT_EMOJI[slot] || '🎁';
+        }
+        const main = SLOT_MAIN[slot];
+        const baseVal = Math.floor(main === 'atk' ? Forge.tierBaseAtk(ageIdx) : Forge.tierBaseHp(ageIdx));
+        const p = Forge.itemDropChance(age, slot);
+        const subsListHtml = SUBSTATS.map(([key, label, caps]) =>
+            `<div class="substat-row"><span>${label}</span><span class="muted">${key === 'skillCd' ? '-' : '+'}${caps[0]}%~${key === 'skillCd' ? '-' : '+'}${caps[5]}%</span></div>`).join('');
+
+        this.els.forgeInfoModal.innerHTML = `
+            <div class="modal-card wide">
+                <div class="row" style="justify-content:space-between">
+                    <h3>[${AGE_KR[age]}] ${name}</h3>
+                    <button class="btn sm" onclick="UI.openForgeList()">◀ 뒤로</button>
+                </div>
+                <div class="row">
+                    <div class="cell-img emoji" style="width:3.4rem;height:3.4rem;font-size:1.9rem">${icon}</div>
+                    <div>
+                        <div class="item-stat">${main === 'atk' ? '⚔️' : '❤️'} 기준 ${U.fmt(baseVal)} <small class="muted">(레벨·등급 배율 적용 전)</small></div>
+                        <div class="muted">획득 확률 ${p.toFixed(4)}% (등급 무관)</div>
+                    </div>
+                </div>
+                <p class="muted">이 장비는 등급 순번+1개까지 고유한 하위 스탯을 굴립니다 (전체 풀 13종):</p>
+                <div class="substat-list">${subsListHtml}</div>
+                <button class="btn" onclick="UI.closeForgeInfo()">닫기</button>
+            </div>`;
+    },
+
+    // ---- 자동 제련 팝업 (UI-SPEC 21~24번 ④) ----
+    openAutoForge() {
+        if (!isUnlocked('autoForge')) { this.toast('🔒 스테이지 2-10 도달 시 해금됩니다'); return; }
+        this.renderAutoForge();
+        this.els.autoForgeModal.classList.remove('hidden');
+    },
+    closeAutoForge() { this.els.autoForgeModal.classList.add('hidden'); },
+    renderAutoForge() {
+        const cfg = Forge.autoForgeConfig();
+        const ageChecks = AGES.map(age => `
+            <label class="check-row">
+                <input type="checkbox" ${cfg.keepAges.includes(age) ? 'checked' : ''} onchange="UI.onToggleKeepAge('${age}')">
+                <span style="color:#${AGE_COLORS[age].toString(16).padStart(6, '0')}">${AGE_ICON[age]} ${AGE_KR[age]}</span>
+            </label>`).join('');
+        const subChecks = SUBSTATS.map(([key, label]) => `
+            <label class="check-row">
+                <input type="checkbox" ${cfg.filterSubs.includes(key) ? 'checked' : ''} onchange="UI.onToggleFilterSub('${key}')">
+                <span>${label}</span>
+            </label>`).join('');
+
+        this.els.autoForgeModal.innerHTML = `
+            <div class="modal-card wide">
+                <h3>🔄 자동 제련</h3>
+                <p class="muted">유지 — 체크한 시대의 장비만 장착 후보로 남깁니다 (모두 해제 시 전체 허용)</p>
+                <div class="check-grid">${ageChecks}</div>
+                <label class="check-row">
+                    <input type="checkbox" ${cfg.filterOn ? 'checked' : ''} onchange="UI.onToggleAutoFilterOn()">
+                    <span>옵션 필터</span>
+                </label>
+                ${cfg.filterOn ? `<div class="check-grid">${subChecks}</div>` : ''}
+                <div class="row" style="align-items:center">
+                    <span class="muted">한 번에 사용할 망치 수</span>
+                    <input type="number" min="1" max="22" value="${cfg.hammersPerBatch}" style="width:4rem"
+                        onchange="UI.onSetHammersPerBatch(this.value)">
+                </div>
+                <label class="check-row">
+                    <input type="checkbox" ${cfg.stopOnTarget ? 'checked' : ''} onchange="UI.onToggleStopOnTarget()">
+                    <span>목표 장비를 찾으면 제련 계속하기</span>
+                </label>
+                <button class="btn primary ${S.autoForgeOn ? 'on' : ''}" onclick="UI.onToggleAutoForge()">
+                    ${S.autoForgeOn ? '■ 자동 제련 중지' : '▶ 시작'}</button>
+                <button class="btn" onclick="UI.closeAutoForge()">닫기</button>
+            </div>`;
+    },
+    onToggleKeepAge(age) {
+        const cfg = Forge.autoForgeConfig();
+        const pos = cfg.keepAges.indexOf(age);
+        if (pos >= 0) cfg.keepAges.splice(pos, 1); else cfg.keepAges.push(age);
+        saveGame(); this.renderAutoForge();
+    },
+    onToggleFilterSub(key) {
+        const cfg = Forge.autoForgeConfig();
+        const pos = cfg.filterSubs.indexOf(key);
+        if (pos >= 0) cfg.filterSubs.splice(pos, 1); else cfg.filterSubs.push(key);
+        saveGame(); this.renderAutoForge();
+    },
+    onToggleAutoFilterOn() {
+        const cfg = Forge.autoForgeConfig();
+        cfg.filterOn = !cfg.filterOn;
+        saveGame(); this.renderAutoForge();
+    },
+    onSetHammersPerBatch(v) {
+        const cfg = Forge.autoForgeConfig();
+        cfg.hammersPerBatch = U.clamp(parseInt(v) || 1, 1, 22);
+        saveGame(); this.renderAutoForge();
+    },
+    onToggleStopOnTarget() {
+        const cfg = Forge.autoForgeConfig();
+        cfg.stopOnTarget = !cfg.stopOnTarget;
+        saveGame(); this.renderAutoForge();
     },
 
     onCraft(n) {
@@ -813,10 +1022,17 @@ const UI = {
     tickSecond() {
         this.renderTopBar();
         this.els.offlineBtn.classList.toggle('ready', (U.now() - S.lastOfflineClaim) / 1000 >= 60);
-        // 대장간 업그레이드 카운트다운 (장비 시트의 대장간 레벨 버튼)
+        // 대장간 업그레이드 카운트다운 (장비 시트 버튼 + 확률 정보 팝업 진행바)
         if (S.forgeUpgradeEndsAt) {
-            const time = document.getElementById('equip-upg-time');
-            if (time) time.textContent = U.fmtTime((S.forgeUpgradeEndsAt - U.now()) / 1000);
+            const remain = (S.forgeUpgradeEndsAt - U.now()) / 1000;
+            const sheetTime = document.getElementById('equip-upg-time');
+            if (sheetTime) sheetTime.textContent = U.fmtTime(remain);
+            const fill = document.getElementById('upg-fill'), popupTime = document.getElementById('upg-time');
+            if (fill) {
+                const info = Forge.upgradeInfo();
+                if (info) fill.style.width = U.clamp(1 - remain / Forge.upgradeTime(info), 0, 1) * 100 + '%';
+            }
+            if (popupTime) popupTime.textContent = U.fmtTime(remain);
         }
         // 부화 타이머
         S.hatching.forEach((h, i) => {
