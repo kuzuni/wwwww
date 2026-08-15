@@ -175,12 +175,6 @@ body {
 #upg-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0; background: #1f4a2c; }
 #upg-time { position: relative; font-size: .8rem; font-weight: 700; }
 
-/* ---- 디버그 패널 입력 ---- */
-#panel-debug input[type="number"] {
-    background: #22272e; color: #eceff1; border: 1px solid #444c56; border-radius: .55rem;
-    padding: .5rem .4rem; font-size: .82rem; text-align: center;
-}
-
 .prob-box { display: flex; flex-wrap: wrap; gap: .3rem; margin: .4rem 0; }
 .prob-chip {
     font-size: .68rem; font-weight: 700; padding: .15rem .45rem; border-radius: 1rem;
