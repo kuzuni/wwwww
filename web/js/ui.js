@@ -14,7 +14,9 @@ const UI = {
             toasts: $('toasts'), farmToggle: $('farm-toggle'),
             panels: { forge: $('panel-forge'), pets: $('panel-pets'), skills: $('panel-skills'), menu: $('panel-menu') },
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
+            dungeonModal: $('dungeon-modal'), dungeonBtn: $('dungeon-btn'),
         };
+        this.els.dungeonBtn.addEventListener('click', () => this.openDungeons());
         document.querySelectorAll('#tabbar button').forEach(btn => {
             btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
         });
@@ -45,7 +47,10 @@ const UI = {
 
     // ---- 전투 HUD ----
     updateStageLabel() {
-        this.els.stageLabel.textContent = `${S.chapter}-${S.stage}`;
+        if (Dungeons.run) {
+            const d = Dungeons.def(Dungeons.run.id);
+            this.els.stageLabel.textContent = `${d.icon} ${d.kr} ${Dungeons.run.stage}단계`;
+        } else this.els.stageLabel.textContent = `${S.chapter}-${S.stage}`;
     },
     updateWavePips(wave) {
         this.els.wavePips.innerHTML = [1, 2, 3, 4, 5].map(w =>
@@ -412,6 +417,7 @@ const UI = {
                 <div>🗡 처치 수</div><div>${U.fmt(S.kills)}</div>
                 <div>🔨 총 제작</div><div>${U.fmt(S.totalCrafts)}</div>
                 <div>📈 최고 스테이지</div><div>${S.bestChapter}-${S.bestStage}</div>
+                <div>🩸 블러드</div><div>${U.fmt(S.blood || 0)} <small class="muted">(기술 트리 재화)</small></div>
             </div>
             <div class="row">
                 <button class="btn" onclick="saveGame(); UI.toast('💾 저장 완료')">수동 저장</button>
@@ -420,6 +426,43 @@ const UI = {
             <p class="muted">오프라인 보상: 🪙 1/초 · 🔨 1/분 (최대 4시간)<br>
             대장간 업그레이드·부화는 게임을 꺼도 진행됩니다.</p>`;
     },
+
+    // ---- 던전 ----
+    openDungeons() {
+        Dungeons.ensure();
+        const listHtml = Dungeons.DEFS.map(d => {
+            const ok = Dungeons.unlocked(d.id);
+            const keys = S.dungeons.keys[d.id];
+            const best = S.dungeons.best[d.id];
+            const next = best + 1;
+            return `<div class="dungeon-card ${ok ? '' : 'locked'}">
+                <span class="icon-circle">${d.icon}</span>
+                <div class="dg-info">
+                    <div class="item-name">${d.kr} <small class="muted">${d.name}</small></div>
+                    <div class="item-stat">${ok ? `보상: ${d.reward} · 최고 ${best}단계` : `🔒 ${d.unlock} 도달 시 해금`}</div>
+                    ${ok ? `<div class="muted">다음 도전 ${next}단계 — ${Dungeons.rewardText(d.id, next)}</div>` : ''}
+                </div>
+                <div class="dg-btns">
+                    <span class="dg-keys">🗝 ${ok ? keys : '-'}/${Dungeons.MAX_KEYS}</span>
+                    <button class="btn sm primary ${ok && keys > 0 ? '' : 'disabled'}" onclick="UI.onEnterDungeon('${d.id}')">입장</button>
+                    <button class="btn sm ${ok && keys > 0 && best >= 1 ? '' : 'disabled'}" onclick="UI.onSweepDungeon('${d.id}')">소탕</button>
+                </div>
+            </div>`;
+        }).join('');
+        this.els.dungeonModal.innerHTML = `
+            <div class="modal-card wide">
+                <h3>🏰 던전 <small class="muted">열쇠는 자정에 2개로 리셋</small></h3>
+                <div class="dungeon-list">${listHtml}</div>
+                <button class="btn" onclick="UI.closeDungeons()">닫기</button>
+            </div>`;
+        this.els.dungeonModal.classList.remove('hidden');
+    },
+    closeDungeons() { this.els.dungeonModal.classList.add('hidden'); },
+    onEnterDungeon(id) {
+        if (Dungeons.enter(id)) { this.closeDungeons(); this.updateStageLabel(); this.renderTopBar(); }
+        else this.openDungeons(); // 실패 사유 토스트 후 갱신
+    },
+    onSweepDungeon(id) { if (Dungeons.sweep(id)) this.openDungeons(); },
 
     showOffline(o) {
         this.els.offlineModal.innerHTML = `

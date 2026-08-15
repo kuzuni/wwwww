@@ -31,6 +31,7 @@ const Combat = {
 
     // ---- 스테이지/웨이브 ----
     monsterBaseHp() {
+        if (Dungeons.run) return Dungeons.monsterHp(Dungeons.run.id, Dungeons.run.stage);
         return 55 * Math.pow(5.6, S.chapter - 1) * Math.pow(1.19, S.stage - 1);
     },
 
@@ -41,7 +42,8 @@ const Combat = {
         this.hero.hp = this.hero.maxHp; // 스테이지 시작 시 완전 회복
         UI.hideBossBar();
         Scene3D.clearEnemies();
-        Scene3D.setChapterTheme(S.chapter);
+        if (Dungeons.run) Scene3D.setTheme(Dungeons.def(Dungeons.run.id).theme);
+        else Scene3D.setChapterTheme(S.chapter);
         UI.updateStageLabel();
         this.nextWave();
     },
@@ -239,6 +241,7 @@ const Combat = {
     // ---- 보상 ----
     onKill(e) {
         S.kills++;
+        if (Dungeons.run) return; // 던전은 클리어 시 일괄 보상
         const coins = Math.ceil(3 * Math.pow(1.6, S.chapter - 1) * Math.pow(1.06, S.stage - 1)) * (e.isBoss ? 8 : 1);
         S.coins += coins;
         UI.floatLoot(`🪙 +${U.fmt(coins)}`);
@@ -261,6 +264,12 @@ const Combat = {
     },
 
     stageClear() {
+        if (Dungeons.run) {
+            Dungeons.onClear();
+            this.phase = 'stageDelay';
+            this.phaseTimer = 2.2;
+            return;
+        }
         const key = stageKey();
         const firstClear = !S.clearedBosses[key];
         if (firstClear) {
@@ -286,7 +295,8 @@ const Combat = {
 
     onDefeat() {
         Scene3D.heroDown();
-        UI.toast('💀 쓰러졌다... 회복 후 다시 도전!');
+        if (Dungeons.run) Dungeons.onFail();
+        else UI.toast('💀 쓰러졌다... 회복 후 다시 도전!');
         // 후퇴 없음 — 같은 스테이지 재도전 (무조건 전진)
         saveGame();
         this.hero.hp = this.hero.maxHp;

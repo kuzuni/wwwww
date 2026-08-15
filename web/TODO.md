@@ -8,15 +8,12 @@
 - `file://` 더블클릭 실행이 항상 동작해야 함 — 외부 CDN·fetch 금지, 에셋은 base64 임베드
 - 밸런스 수치는 `web/BALANCE.md`와 `web/data/raw/` 실측치 기준
 - 변경한 js는 `node --check`로 문법 검증, GLB 추가 시 `node web/tools/gen-models-data.js`로 재생성
-- 디버그 훅: `?tab=`, `?debug=craft|gear|pets`, `?enemy=slime|golem|goblin|bat|mushroom|wolf|imp`
+- 디버그 훅: `?tab=`, `?debug=craft|gear|pets|dungeon`, `?enemy=slime|golem|goblin|bat|mushroom|wolf|imp`
 
 ## 작업 목록 (위에서부터 순서대로)
 - [x] 장신구 5부위 3D 프리뷰/썸네일 (부위당 3종 변형)
 - [x] Skeleton Mage/Rogue GLB 임베드 — mushroom→Mage, imp→Rogue
-- [ ] 던전 4종 구현 1/4: 골드 던전 (스펙: BALANCE.md 참고, 입장권·난이도·보상 테이블)
-- [ ] 던전 4종 구현 2/4: 강화석 던전
-- [ ] 던전 4종 구현 3/4: 펫 던전
-- [ ] 던전 4종 구현 4/4: 스킬 던전
+- [x] 던전 4종 구현 (Hammer Thief 해머/코인 · Ghost Town 스킬티켓 · Invasion 펫알 · Zombie Rush 블러드) — 열쇠 2/2 자정 리셋, 소탕, `?debug=dungeon[&d=id]`
 - [ ] 기술 트리(대장장이 연구) 시스템 — BALANCE.md 스펙 기반
 - [ ] 마운트(탈것) 시스템 기초
 - [ ] 승천(프레스티지) 시스템 — BALANCE.md 스펙 기반

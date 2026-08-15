@@ -16,6 +16,7 @@
 
     function boot() {
         loadGame();
+        Dungeons.ensure();
         const offline = applyOffline();
 
         UI.init();
@@ -56,6 +57,14 @@
             Forge.equip(mk('armor', aAge, null, ai));
         }
 
+        if (params.get('debug') === 'dungeon') {
+            // 던전 검증: ?debug=dungeon → 모달, &d=hammer 즉시 입장
+            S.bestChapter = 5; S.bestStage = 1;
+            Dungeons.ensure();
+            const d = params.get('d');
+            if (d) Dungeons.enter(d); else UI.openDungeons();
+        }
+
         // 로직: 고정 100ms 틱 (탭 복귀 시 밀린 틱 따라잡기, 최대 5초분)
         let logicLast = performance.now();
         setInterval(() => {
@@ -83,6 +92,7 @@
         setInterval(() => {
             Forge.tickUpgrade();
             Pets.tick();
+            Dungeons.ensure(); // 자정 열쇠 리셋 감지
             UI.tickSecond();
             UI.updateHeroHp();
         }, 1000);

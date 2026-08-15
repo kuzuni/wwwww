@@ -1664,7 +1664,9 @@ const Scene3D = {
 
     // ---- 테마/셰이크/애니메이션 ----
     setChapterTheme(chapter) {
-        const t = CHAPTER_THEMES[(chapter - 1) % CHAPTER_THEMES.length];
+        this.setTheme(CHAPTER_THEMES[(chapter - 1) % CHAPTER_THEMES.length]);
+    },
+    setTheme(t) {
         this.renderer.setClearColor(t.sky);
         this.scene.fog.color.setHex(t.fog);
         this.terrainMat.color.setHex(t.ground);
