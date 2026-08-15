@@ -431,6 +431,9 @@ const UI = {
                 <button class="btn primary" onclick="UI.openAscension()">🌟 승천</button>
             </div>
             <div class="row">
+                <button class="btn ${S.sfxOn ? 'on' : ''}" onclick="UI.onToggleSfx()">🔊 효과음 ${S.sfxOn ? 'ON' : 'OFF'}</button>
+            </div>
+            <div class="row">
                 <button class="btn" onclick="saveGame(); UI.toast('💾 저장 완료')">수동 저장</button>
                 <button class="btn danger" onclick="if(confirm('정말 처음부터 시작할까요?')) resetGame()">초기화</button>
             </div>
@@ -566,6 +569,13 @@ const UI = {
         this.openMounts(); this.renderTopBar();
     },
     onEquipMount(name) { if (Mounts.equip(name)) this.openMounts(); },
+
+    onToggleSfx() {
+        S.sfxOn = !S.sfxOn;
+        if (S.sfxOn) { SFX.resume(); SFX.craft(); }
+        this.renderMenu();
+        saveGame();
+    },
 
     // ---- 승천 ----
     openAscension() {

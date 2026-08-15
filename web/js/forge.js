@@ -85,6 +85,7 @@ const Forge = {
             S.totalCrafts++;
             results.push(this.rollItem());
         }
+        if (results.length) SFX.craft();
         return results;
     },
 
@@ -156,6 +157,7 @@ const Forge = {
         if (S.forgeUpgradeEndsAt && U.now() >= S.forgeUpgradeEndsAt) {
             S.forgeLevel = Math.min(35, S.forgeLevel + 1);
             S.forgeUpgradeEndsAt = null;
+            SFX.levelUp();
             UI.toast(`⚒️ 대장간 레벨 ${S.forgeLevel} 달성!`);
             UI.renderForge();
             saveGame();

@@ -34,6 +34,7 @@ function defaultState() {
         skills: { powerStrike: { level: 1, dupes: 0 } },
         equippedSkills: ['powerStrike'],
         autoCast: true,
+        sfxOn: true,
         summonCount: 0,                 // 소환 누적 → 소환 레벨 상승
         // 마운트
         mountOpens: 0,                  // 누적 소환 수 → 마운트 레벨 상승

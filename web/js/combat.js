@@ -216,6 +216,7 @@ const Combat = {
     damageEnemy(e, dmg, crit, kind) {
         if (!e.alive) return;
         e.hp -= dmg;
+        SFX.hit(crit);
         Scene3D.hitEnemy(e.id, dmg, crit, kind);
         if (e.isBoss) UI.updateBossBar(e);
         if (e.hp <= 0) {
@@ -233,6 +234,7 @@ const Combat = {
     damageHero(dmg) {
         if (this.phase !== 'fight') return;
         this.hero.hp -= dmg;
+        SFX.hit(false);
         Scene3D.heroHit();
         UI.updateHeroHp();
         if (this.hero.hp <= 0) this.onDefeat();

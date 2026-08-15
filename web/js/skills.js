@@ -33,6 +33,7 @@ const Skills = {
             S.skills[def.id] = { level: 1, dupes: 0 };
             if (S.equippedSkills.length < 4) S.equippedSkills.push(def.id);
         }
+        SFX.gacha(rarity);
         saveGame();
         return { def, isNew: !cur, leveled, level: S.skills[def.id].level };
     },

@@ -23,6 +23,8 @@
         const offline = applyOffline();
 
         UI.init();
+        // 브라우저 자동재생 정책: 최초 사용자 입력 시 AudioContext 활성화
+        document.addEventListener('pointerdown', () => SFX.resume(), { once: true });
         Scene3D.init(
             document.getElementById('game3d'),
             document.getElementById('fx-layer'),

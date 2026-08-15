@@ -53,6 +53,7 @@ const Mounts = {
         const cur = S.activeMount ? S.mounts[S.activeMount] : null;
         if (!cur || mountBoosts[rarity] > mountBoosts[cur.rarity]) this.equip(name);
 
+        SFX.gacha(rarity);
         saveGame();
         return { name, rarity, isNew, count: S.mounts[name].count };
     },
