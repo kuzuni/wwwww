@@ -606,14 +606,19 @@ const UI = {
         const rates = Pets.rates();
         const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
             `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${rates[r].toFixed(2)}%</span>`).join('');
+        const petLvl = Pets.summonLevel(), petCapped = petLvl >= 100;
+        const petSummonProgHtml = `<div class="tech-node">
+            <div class="tech-node-head"><span class="muted">소환 레벨 Lv.${petLvl}</span><span class="muted">${petCapped ? 'MAX' : `${(S.petSummonCount || 0) % 5}/5`}</span></div>
+            <div class="tech-node-bar"><div style="width:${(petCapped ? 1 : ((S.petSummonCount || 0) % 5) / 5) * 100}%"></div></div>
+        </div>`;
 
         p.innerHTML = `
             <h2>🐾 펫 <span class="muted">🥚 ${U.fmt(S.eggCurrency || 0)} · 출전 ${S.activePets.length}/${Pets.MAX_ACTIVE}</span></h2>
             <p class="muted">펫은 직접 공격하지 않고, 출전 시 고정 공격력·체력과 옵션을 제공합니다. 레벨업은 [업그레이드]에서 다른 펫·알을 재료로 흡수해 진행합니다.</p>
             <div class="row">
                 <button class="btn primary ${Pets.canSummon() ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">소환 x1 <small>🥚 ${Pets.SUMMON_EGG_COST}</small></button>
-                <span class="muted">소환 Lv.${Pets.summonLevel()}</span>
             </div>
+            ${petSummonProgHtml}
             <div class="prob-box">${ratesHtml}</div>
             <h3>부화장</h3><div class="row">${hatchHtml}</div>
             <h3>알 보관함 (${S.eggs.length}/20)</h3><div class="egg-row">${eggsHtml}</div>
@@ -728,6 +733,11 @@ const UI = {
             `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${rates[r].toFixed(2)}%</span>`).join('');
         const pb = Skills.activeBonus();
         const skillSummonN = this._skillSummonX5 ? 5 : 1;
+        const capped = lvl >= 100;
+        const summonProgHtml = `<div class="tech-node">
+            <div class="tech-node-head"><span class="muted">소환 레벨 Lv.${lvl}</span><span class="muted">${capped ? 'MAX' : `${S.summonCount % 5}/5`}</span></div>
+            <div class="tech-node-bar"><div style="width:${(capped ? 1 : (S.summonCount % 5) / 5) * 100}%"></div></div>
+        </div>`;
 
         const listHtml = SKILL_DEFS.filter(d => S.skills[d.id]).map(d => {
             const sk = S.skills[d.id];
@@ -753,13 +763,14 @@ const UI = {
         }).join('') || '<span class="muted">보유 스킬 없음 — 소환해보세요!</span>';
 
         p.innerHTML = `
-            <h2>✨ 스킬 <span class="muted">소환 Lv.${lvl}</span></h2>
+            <h2>✨ 스킬</h2>
             <p class="muted">장착 시 고정 패시브: +${U.fmt(pb.atk)} 기본 피해 · +${U.fmt(pb.hp)} 기본 체력</p>
             <div class="row">
                 <button class="btn sm ${this._skillSummonX5 ? 'on' : ''}" onclick="UI.toggleSkillSummonX5()">x5</button>
                 <button class="btn primary" onclick="UI.onSummon(false)">소환 x${skillSummonN} <small>🎫 ${Skills.SUMMON_TICKET_COST * skillSummonN}</small></button>
                 <button class="btn gem" onclick="UI.onSummon(true)">소환 x${skillSummonN} <small>💎 ${Skills.SUMMON_GEM_COST * skillSummonN}</small></button>
             </div>
+            ${summonProgHtml}
             <div class="prob-box">${ratesHtml}</div>
             <h3>보유 스킬 <span class="muted">(장착 ${S.equippedSkills.length}/${Skills.MAX_ACTIVE})</span></h3>
             <div class="row">
