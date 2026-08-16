@@ -224,7 +224,7 @@ const UI = {
         this.els.equipSheet.innerHTML = `
             <div class="equip-grid">${equipHtml}${eggCellHtml}</div>
             <div class="anvil-row">
-                <button class="anvil-btn" onclick="UI.onCraft(1)">⚒️<small>🔨 ${U.fmt(S.hammers)}</small></button>
+                <button class="anvil-btn" onclick="UI.onCraft()">⚒️<small>🔨 ${U.fmt(S.hammers)}</small></button>
                 <div class="forge-actions">
                     ${forgeBtnHtml}
                     <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.openAutoForge()">
@@ -451,25 +451,11 @@ const UI = {
         saveGame(); this.renderAutoForge();
     },
 
-    onCraft(n) {
-        if (n > 1 && !isUnlocked('autoForge')) { this.toast('🔒 스테이지 2-10 도달 시 해금됩니다'); return; }
+    onCraft() {
         if (S.hammers < 1) { this.toast('🔨 해머가 부족합니다 (분당 1개 수급)'); return; }
-        if (n === 1) {
-            const item = Forge.craft(1)[0];
-            this._pendingItem = item;
-            this.showCraftModal(item);
-        } else {
-            const items = Forge.craft(n);
-            let equipped = 0, ascended = 0, gained = 0;
-            for (const it of items) {
-                const r = Forge.autoResolve(it);
-                if (r.equipped) equipped++;
-                if (r.ascended) ascended++;
-                gained += r.gained;
-            }
-            this.toast(`제작 ${items.length}회 — 장착 ${equipped}개${ascended ? `, ⭐승천 ${ascended}개` : ''}, 판매 +🪙${U.fmt(gained)}`);
-            this.renderEquipSheet();
-        }
+        const item = Forge.craft(1)[0];
+        this._pendingItem = item;
+        this.showCraftModal(item);
         this.renderTopBar();
     },
 

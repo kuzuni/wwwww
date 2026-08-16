@@ -46,7 +46,7 @@
         const params = new URLSearchParams(location.search);
         const dbgTab = params.get('tab');
         if (dbgTab) UI.switchTab(dbgTab);
-        if (params.get('debug') === 'craft') { S.hammers += 10; UI.onCraft(1); }
+        if (params.get('debug') === 'craft') { S.hammers += 10; UI.onCraft(); }
         if (params.get('debug') === 'pets') {
             // 펫 모델 검증: 지정 3마리 출전 (등급은 실제 데이터에서 역조회)
             const findRarity = n => RARITIES.find(r => petStats[r].some(d => d.name === n)) || 'common';
