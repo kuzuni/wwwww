@@ -23,7 +23,7 @@ const TechTree = {
         offlineGain: { name: '숙련된 부관',  desc: '오프라인 보상량 증가', per: 2,  base: 60, tierMult: 7 },
         petPower:    { name: '야생의 감각',  desc: '펫 전투 능력치(고정 피해·체력) 증가', per: 2, base: 55, tierMult: 7 },
         mountPower:  { name: '조련술',       desc: '탈것 전투 능력치(고정 피해·체력) 증가', per: 2, base: 55, tierMult: 7 },
-        eggGain:     { name: '알 채집꾼',    desc: '스테이지 클리어 알 획득량 증가', per: 8, base: 40, tierMult: 7 },
+        eggGain:     { name: '알 채집꾼',    desc: '펫 던전(침공) 알 화폐 획득량 증가', per: 8, base: 40, tierMult: 7 },
         hatchSpeed:  { name: '부화 가속',    desc: '알 부화 시간 단축',    per: 4,  base: 40, tierMult: 7 },
     },
 
@@ -142,6 +142,6 @@ const TechTree = {
     offlineGainMult() { return 1 + this.pct('offlineGain') / 100; },
     petPowerMult() { return 1 + this.pct('petPower') / 100; },
     mountPowerMult() { return 1 + this.pct('mountPower') / 100; },
-    eggGainMult() { return 1 + this.pct('eggGain') / 100; },        // ANIMALS: 스테이지 클리어 알 획득량
+    eggGainMult() { return 1 + this.pct('eggGain') / 100; },        // ANIMALS: 펫 던전(침공) 알 화폐 획득량
     hatchSpeedMult() { return 1 / (1 + this.pct('hatchSpeed') / 100); }, // ANIMALS: 부화 시간 단축
 };

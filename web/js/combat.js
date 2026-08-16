@@ -259,15 +259,7 @@ const Combat = {
         } else if (U.chance(0.35)) {
             S.hammers += hammerAmt;
         }
-        // 알 드랍 (원본 확률표로 등급 결정)
-        const eggChance = e.isBoss ? 0.35 : 0.03;
-        if (U.chance(eggChance)) {
-            const rarity = Pets.rollEggRarity(stageKey());
-            if (Pets.addEgg(rarity)) {
-                UI.floatLoot(`🥚 ${RARITY_KR[rarity]} 알!`);
-                UI.renderPets();
-            }
-        }
+        // 일반 사냥 알 드랍 없음 — 알 수급은 펫 던전(침공) 보상 화폐 → 펫 화면 [소환] 경로가 유일 (사용자 확정)
     },
 
     stageClear() {
@@ -278,21 +270,16 @@ const Combat = {
             return;
         }
         const key = stageKey();
-        const eggMult = TechTree.eggGainMult(); // ANIMALS 분기 '알 채집꾼'
+        // 알 화폐는 스테이지 클리어에서 지급하지 않음 — 펫 던전(침공) 보상이 유일 수급처 (사용자 확정)
         const firstClear = !S.clearedBosses[key];
-        const clearEggs = Math.ceil(2 * eggMult); // 펫 소환(UI-SPEC 9번) 재화 — 원본 수급처 불명, 스테이지 클리어로 근사 지급
         if (firstClear) {
-            const firstEggs = Math.ceil(5 * eggMult);
             S.clearedBosses[key] = true;
             S.tickets += 15;
             S.winders += 10;
-            S.eggCurrency = (S.eggCurrency || 0) + firstEggs;
-            // 첫 클리어 보너스는 매 클리어 지급분(아래)과 함께 적용되므로 토스트는 이번에 실제로 받는 총합을 표시
-            UI.toast(`🏆 ${key} 첫 클리어! 🎫+${15 + 5} ⚙️+${10 + 3} 🥚+${firstEggs + clearEggs}`);
+            UI.toast(`🏆 ${key} 첫 클리어! 🎫+${15 + 5} ⚙️+${10 + 3}`);
         }
         S.tickets += 5;
         S.winders += 3;
-        S.eggCurrency = (S.eggCurrency || 0) + clearEggs;
 
         // 무조건 전진
         if (S.stage >= 10) {

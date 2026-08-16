@@ -53,14 +53,16 @@ const Dungeons = {
         const g = Math.pow(1.25, stage - 1);
         if (id === 'hammer')   return { hammers: Math.ceil(25 * g), coins: Math.ceil(600 * Math.pow(1.5, stage - 1)) };
         if (id === 'ghost')    return { tickets: Math.ceil(20 * g) };
-        if (id === 'invasion') return { egg: true }; // 등급은 지급 시 상급 테이블로 굴림
+        // 알 화폐(🥚)의 유일한 수급처 (사용자 확정 — 사냥 지급 전면 삭제): 소환 1회=100🥚 기준 1단계≈2.5회분, 단계당 +1회분.
+        // ANIMALS '알 채집꾼' 테크는 이 보상에 적용 (기존 스테이지 클리어 지급이 사라져 여기로 이관)
+        if (id === 'invasion') return { eggCurrency: Math.ceil((150 + 100 * stage) * TechTree.eggGainMult()) };
         return { potions: 10 * stage };
     },
     rewardText(id, stage) {
         const r = this.rewards(id, stage);
         if (r.hammers) return `🔨 ${U.fmt(r.hammers)} · 🪙 ${U.fmt(r.coins)}`;
         if (r.tickets) return `🎫 ${U.fmt(r.tickets)}`;
-        if (r.egg) return '🥚 알 1개 (상급 확률↑)';
+        if (r.eggCurrency) return `🥚 ${U.fmt(r.eggCurrency)}`;
         return `🧪 ${U.fmt(r.potions)}`;
     },
     grantRewards(id, stage) {
@@ -68,12 +70,10 @@ const Dungeons = {
         if (r.hammers) { S.hammers += r.hammers; S.coins += r.coins; }
         if (r.tickets) S.tickets += r.tickets;
         if (r.potions) S.potions += r.potions;
-        if (r.egg) {
-            // 침공 보상: 던전 단계에 비례한 상급 스테이지 확률표로 굴림
-            const ch = Math.min(10, 3 + Math.ceil(stage / 2));
-            const rarity = Pets.rollEggRarity(`${ch}-1`);
-            if (Pets.addEgg(rarity)) UI.toast(`🥚 ${RARITY_KR[rarity]} 알 획득!`);
-            else UI.toast('🥚 알 보관함이 가득 차 알을 놓쳤습니다');
+        if (r.eggCurrency) {
+            // 침공(펫 던전) 보상 = 알 화폐 — 알은 펫 화면 [소환]으로만 획득 (사용자 확정)
+            S.eggCurrency = (S.eggCurrency || 0) + r.eggCurrency;
+            UI.toast(`🥚 알 화폐 +${U.fmt(r.eggCurrency)} — 펫 화면에서 소환하세요`);
         }
         return r;
     },
