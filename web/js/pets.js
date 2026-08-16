@@ -52,7 +52,7 @@ const Pets = {
         return { rarity };
     },
 
-    hatchTimeSec(rarity) { return baseHatchingTimes[rarity] * 60; },
+    hatchTimeSec(rarity) { return baseHatchingTimes[rarity] * 60 * TechTree.hatchSpeedMult(); }, // ANIMALS 분기 '부화 가속'
 
     startHatch(eggIdx) {
         if (S.hatching.length >= this.maxHatchSlots()) return false;

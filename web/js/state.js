@@ -27,6 +27,7 @@ function defaultState() {
         hammers: 80, coins: 500, gems: 0, tickets: 40, winders: 0, potions: 0, eggCurrency: 0,
         petSummonCount: 0,              // 누적 펫 소환 수 → 소환 레벨 상승
         hatchSlotBonus: 0,               // 부화장 슬롯 젬 구매 수 (기본 2칸 + 이 값)
+        techResearch: null,             // 기술 트리 연구 중: {id, endsAt} | null (전역 1건)
         // 대장간
         forgeLevel: 1,
         forgeUpgradeEndsAt: null,       // 절대시각(ms). null이면 미진행

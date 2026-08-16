@@ -1285,7 +1285,6 @@ const UI = {
         this.renderTopBar();
         this.toast('🧪 연구를 취소하고 물약을 환불했습니다');
     },
-
     // ---- 마운트 ----
     openMounts() {
         Mounts.ensure();

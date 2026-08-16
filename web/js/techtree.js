@@ -1,17 +1,17 @@
 // ===== 기술 트리 (대장간 연구) — BALANCE.md 스펙 + UI-SPEC 10·15~16번 =====
-// 4분기(대장간/힘/스킬·펫&기술/동물) × 노드당 5업×5티어(총 25업). 재화: 물약(포션, 좀비 러시 던전).
+// 4분기(대장간/힘/스킬·펫&기술/ANIMALS) × 노드당 5업×5티어(총 25업). 재화: 물약(포션, 좀비 러시 던전).
 // 노드별 비용·시간 커브는 원본 미확보 → 자체 설계(티어당 급증 + 티어 내 완만한 증가).
 // 연구는 대장간 업그레이드와 동일하게 물약 선결제 + 실시간 타이머(전체 트리 통틀어 동시 1건) 방식.
 const TechTree = {
     MAX_LEVEL: 25,   // 노드당 총 업그레이드 수 (5업 × 5티어)
     PER_TIER: 5,
 
-    // UI-SPEC: 카드 4개 [대장간][힘][스킬,펫&기술][ANIMALS] — 원본 그대로 'ANIMALS'는 동물로 번역
+    // UI-SPEC: 카드 4개 [대장간][힘][스킬,펫&기술][ANIMALS] — 스펙 스크린샷에 영문 그대로 표기됨
     BRANCHES: [
-        { id: 'forge',    name: '대장간',       icon: '⚒️', nodes: ['forgeSpeed', 'forgeCost'] },
+        { id: 'forge',    name: '대장간',        icon: '⚒️', nodes: ['forgeSpeed', 'forgeCost'] },
         { id: 'power',    name: '힘',           icon: '💪', nodes: ['gearPower', 'sellBonus'] },
         { id: 'skillpet', name: '스킬, 펫 & 기술', icon: '✨', nodes: ['offlineCap', 'offlineGain'] },
-        { id: 'animals',  name: '동물',          icon: '🐾', nodes: ['petPower', 'mountPower'] },
+        { id: 'animals',  name: 'ANIMALS',      icon: '🐾', nodes: ['petPower', 'mountPower', 'eggGain', 'hatchSpeed'] },
     ],
 
     NODES: {
@@ -23,6 +23,8 @@ const TechTree = {
         offlineGain: { name: '숙련된 부관',  desc: '오프라인 보상량 증가', per: 2,  base: 60, tierMult: 7 },
         petPower:    { name: '야생의 감각',  desc: '펫 전투 능력치(고정 피해·체력) 증가', per: 2, base: 55, tierMult: 7 },
         mountPower:  { name: '조련술',       desc: '탈것 전투 능력치(고정 피해·체력) 증가', per: 2, base: 55, tierMult: 7 },
+        eggGain:     { name: '알 채집꾼',    desc: '스테이지 클리어 알 획득량 증가', per: 8, base: 40, tierMult: 7 },
+        hatchSpeed:  { name: '부화 가속',    desc: '알 부화 시간 단축',    per: 4,  base: 40, tierMult: 7 },
     },
 
     LV_MULT: 1.28, // 같은 티어 내 레벨당 비용 증가율
@@ -139,4 +141,6 @@ const TechTree = {
     offlineGainMult() { return 1 + this.pct('offlineGain') / 100; },
     petPowerMult() { return 1 + this.pct('petPower') / 100; },
     mountPowerMult() { return 1 + this.pct('mountPower') / 100; },
+    eggGainMult() { return 1 + this.pct('eggGain') / 100; },        // ANIMALS: 스테이지 클리어 알 획득량
+    hatchSpeedMult() { return 1 / (1 + this.pct('hatchSpeed') / 100); }, // ANIMALS: 부화 시간 단축
 };

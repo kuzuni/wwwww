@@ -273,17 +273,18 @@ const Combat = {
             return;
         }
         const key = stageKey();
+        const eggMult = TechTree.eggGainMult(); // ANIMALS 분기 '알 채집꾼'
         const firstClear = !S.clearedBosses[key];
         if (firstClear) {
             S.clearedBosses[key] = true;
             S.tickets += 15;
             S.winders += 10;
-            S.eggCurrency = (S.eggCurrency || 0) + 5;
-            UI.toast(`🏆 ${key} 첫 클리어! 🎫+15 ⚙️+10 🥚+5`);
+            S.eggCurrency = (S.eggCurrency || 0) + Math.ceil(5 * eggMult);
+            UI.toast(`🏆 ${key} 첫 클리어! 🎫+15 ⚙️+10 🥚+${Math.ceil(5 * eggMult)}`);
         }
         S.tickets += 5;
         S.winders += 3;
-        S.eggCurrency = (S.eggCurrency || 0) + 2; // 펫 소환(UI-SPEC 9번) 재화 — 원본 수급처 불명, 스테이지 클리어로 근사 지급
+        S.eggCurrency = (S.eggCurrency || 0) + Math.ceil(2 * eggMult); // 펫 소환(UI-SPEC 9번) 재화 — 원본 수급처 불명, 스테이지 클리어로 근사 지급
 
         // 무조건 전진
         if (S.stage >= 10) {
