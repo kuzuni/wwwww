@@ -11,6 +11,10 @@
 - 디버그 훅: `?tab=`, `?debug=craft|gear|pets|dungeon|tech|mount|ascend`, `?enemy=slime|golem|goblin|bat|mushroom|wolf|imp`
 
 ## 작업 목록 (위에서부터 순서대로)
+
+### 🐛 QA 발견 버그
+- [ ] **던전/상점/전투(리그) 진입 시 이전에 열어둔 하단 패널이 닫히지 않고 화면을 계속 가림**: 재현 절차 — ① 하단 탭에서 🧪소환(또는 🚪방·🐞디버그) 을 눌러 패널을 연다 ② 패널을 닫지 않은 채 💀던전 탭을 눌러 던전 하나를 선택하고 [입장]을 누른다. 기대 동작: 던전 전투 3D 씬이 화면 전체에 표시돼야 한다. 실제 동작: `UI.onEnterDungeon`(web/js/ui.js)이 `closeDungeonDetail()`/`closeDungeons()`로 던전 모달만 닫고, 이전에 열려 있던 `panel-summon` 등 하단 패널은 그대로 `open` 상태로 남아 화면 하단 약 60%를 계속 덮는다 (전투 화면은 최상단 보스 이름·체력바 정도만 보임). `onTabClick`(web/js/ui.js:41-46)에서 dungeon/shop/battle 탭은 모달만 열고 `switchTab(null)`을 호출하지 않는 것이 원인으로 보임 — 4종 던전(Hammer Thief/Ghost Town/Invasion/Zombie Rush) 모두 동일하게 재현됨.
+
 - [x] 장신구 5부위 3D 프리뷰/썸네일 (부위당 3종 변형)
 - [x] Skeleton Mage/Rogue GLB 임베드 — mushroom→Mage, imp→Rogue
 - [x] 던전 4종 구현 (Hammer Thief 해머/코인 · Ghost Town 스킬티켓 · Invasion 펫알 · Zombie Rush 블러드) — 열쇠 2/2 자정 리셋, 소탕, `?debug=dungeon[&d=id]`
