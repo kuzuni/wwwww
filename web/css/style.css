@@ -362,9 +362,9 @@ body {
     display: flex; align-items: center; justify-content: center; padding: 0;
 }
 /* 원본(shot-042120): 모루는 박스 없는 큰 일러스트 + 아래 해머 수량 */
-.anvil-btn {
-    flex: none; width: 5.6rem; cursor: pointer; background: none; border: none; padding: 0;
-    font-size: 3rem; line-height: 1.05; display: flex; flex-direction: column; align-items: center; gap: .05rem;
+.anvil-btn { /* 원본(042120) 모루 ≈12% H (185 재채점) */
+    flex: none; width: 7rem; cursor: pointer; background: none; border: none; padding: 0;
+    font-size: 4.4rem; line-height: 1.05; display: flex; flex-direction: column; align-items: center; gap: .05rem;
     filter: drop-shadow(0 .18rem .12rem rgba(0,0,0,.35));
 }
 .anvil-btn:active { transform: translateY(.1rem); }
@@ -463,6 +463,10 @@ body {
     clip-path: polygon(0 0, 100% 0, 82% 100%, 0% 100%);
 }
 .cmp-ribbon.new { color: var(--pp-red); }
+/* 원본(043224): 장착 장비는 박스 없이, 새 장비만 연회색 박스 + 아이콘 아래 빨간 '새로운!' (185 재채점) */
+.cmp-card-wrap.cur .cmp-card, .modal-card .cmp-card-wrap.cur .cmp-card { border: none; padding: .9rem .4rem .4rem; }
+.cmp-card-wrap.new .cmp-card, .modal-card .cmp-card-wrap.new .cmp-card { background: #ececec; border: none; }
+.cmp-newtag { display: block; margin-top: .2rem; color: var(--pp-red); font-weight: 900; font-size: .68rem; text-align: center; }
 .cmp-card {
     min-width: 0; border: 3px solid var(--pp-line);
     border-radius: .8rem; padding: .9rem .7rem .7rem; display: flex; flex-direction: row;
@@ -986,7 +990,8 @@ body {
 .pinfo-loadout-row { display: flex; gap: .5rem; flex-wrap: wrap; }
 /* 옵션 합계: 카드가 화면을 넘지 않게 플렉스 제약 + 목록만 내부 스크롤(터치·얇은 스크롤바) — 항목 잘림 방지 (사용자 지시).
    %max-height는 높이 auto인 .idet-wrap 기준으론 무효라 래퍼에 먼저 제약을 건다 */
-#player-info-modal .idet-wrap { max-height: 88%; display: flex; flex-direction: column; }
+#player-info-modal .idet-wrap { max-height: 76%; display: flex; flex-direction: column; } /* 원본(043313) ≈73% H (185 재채점) */
+.pinfo-mount-wide { grid-column: span 2; }
 #player-info-modal .modal-card.wide { max-height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .pinfo-subs-list {
     flex: 1; min-height: 3.2rem; overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -1335,13 +1340,13 @@ body {
     clip-path: polygon(0 0, 100% 0, calc(100% - .7rem) 50%, 100% 100%, 0 100%);
 }
 .equipped-icons { display: flex; gap: .35rem; margin-left: auto; }
-.sk-mini {
-    width: 2rem; height: 2rem; border-radius: 50%; background: var(--rc, #ccc);
+.sk-mini { /* 원본(042340) 장착 아이콘 ≈8.7% 화면폭 + Lv 라벨 (185 재채점) */
+    width: 2.7rem; height: 2.7rem; border-radius: 50%; background: var(--rc, #ccc);
     border: 2px solid var(--pp-line); display: flex; flex-direction: column;
-    align-items: center; justify-content: center; font-size: .9rem; position: relative;
+    align-items: center; justify-content: center; font-size: 1.2rem; position: relative;
     padding: 0; cursor: pointer; /* 장착됨 행 슬롯 클릭 → 상세 팝업(해제 버튼 포함) — button 요소 공용 */
 }
-.sk-mini small { position: absolute; bottom: -.35rem; font-size: .5rem; font-weight: 800; color: var(--pp-ink); }
+.sk-mini small { position: absolute; bottom: -.3rem; font-size: .52rem; font-weight: 900; color: #17181a; background: #fff; border: 1px solid #000; border-radius: .5rem; padding: 0 .22rem; line-height: 1.25; white-space: nowrap; }
 .row.center { justify-content: center; }
 .summon-bar { display: flex; align-items: center; justify-content: center; gap: .5rem; position: relative; }
 .summon-bar .back-btn { position: absolute; left: .3rem; } /* 원본: 좌측 끝 (185 재채점) */
@@ -1434,6 +1439,8 @@ body {
     min-height: 10.5rem;
 }
 .hatch-row { flex: 1; display: flex; gap: .45rem; }
+.hatchery { position: relative; }
+.hatch-back { position: absolute; left: .55rem; bottom: .55rem; z-index: 2; flex: 0 0 auto; width: 2.5rem; height: 2.5rem; } /* 원본(042356): 부화장 좌하단 ◀ */
 /* 원본(shot-042356): 램프 아래 노란 빛 원뿔 + 알 — 박스 없는 스포트라이트 연출 */
 .hatch-cell {
     flex: 1; min-width: 0; position: relative; background: none; border: none;

@@ -614,13 +614,14 @@ const UI = {
         if (!item) return `<div class="cmp-card-wrap"><span class="cmp-ribbon">${tag}</span><div class="cmp-card empty"><div class="muted" style="margin:auto">빈 슬롯 — 장착 중인 장비 없음</div></div></div>`;
         const subsHtml = item.subs.length ? item.subs.map(s => `<div class="cmp-sub">${U.subText(s)}</div>`).join('') : '';
         const arrowHtml = arrowDir ? `<span class="arrow ${arrowDir}">${arrowDir === 'up' ? '▲' : '▼'}</span>` : '';
-        return `<div class="cmp-card-wrap">
-            <span class="cmp-ribbon ${isNew ? 'new' : ''}">${tag}</span>
+        return `<div class="cmp-card-wrap ${isNew ? 'new' : 'cur'}">
+            ${isNew ? '' : `<span class="cmp-ribbon">${tag}</span>`}
             <div class="cmp-card" style="--rc:${this.ageHex(item.age)}">
                 <div class="cmp-icon-wrap">
                     ${this.itemImgHTML(item, 'cmp-img')}
                     <span class="sk-lv">Lv.${item.level}</span>
                     ${item.stars ? `<span class="cmp-star">⭐${item.stars}</span>` : ''}
+                    ${isNew ? `<span class="cmp-newtag">${tag}</span>` : ''}
                 </div>
                 <div class="cmp-info">
                     <div class="cmp-name">[${AGE_KR[item.age]}] ${item.name}</div>
@@ -764,7 +765,6 @@ const UI = {
                 <div class="equipped-icons">${equippedRowHtml}</div>
             </div>
             <div class="summon-bar">
-                <button class="btn danger round back-btn" onclick="UI.switchTab(null)">◀</button>
                 <button class="btn xs x5-toggle ${petSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('pet')">x${petSummonN}</button>
                 <button class="btn big summon-btn ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">
                     소환 x${petSummonN}<small class="summon-cost">🥚 <b>${Pets.SUMMON_EGG_COST * petSummonN}</b></small></button>
@@ -775,6 +775,7 @@ const UI = {
                 </div>
             </div>
             <div class="hatchery">
+                <button class="btn danger round back-btn hatch-back" onclick="UI.switchTab(null)">◀</button>
                 <div class="hatch-row">${hatchHtml}</div>
                 ${Pets.canBuySlot() ? `<button class="btn xs slot-buy" onclick="UI.onBuyHatchSlot()">슬롯 +1<br>💎 ${Pets.slotCost()}</button>` : ''}
             </div>`;
@@ -1661,7 +1662,14 @@ const UI = {
             previewHtml = `<div class="pinfo-preview"><span>🛡️</span><span>${this.els.stageLabel.textContent}</span>${waveHtml}</div>`;
         }
 
-        const gearHtml = SLOTS.map(slot => this.equipCellHTML(slot)).join('');
+        let gearHtml = SLOTS.map(slot => this.equipCellHTML(slot)).join('');
+        // 원본(043313): 장비 2행 우측 와이드 파란 탈것 카드 (185 재채점)
+        const am = S.activeMount ? S.mounts[S.activeMount] : null;
+        gearHtml += am
+            ? `<div class="equip-cell egg-cell pinfo-mount-wide" onclick="UI.openMounts()">
+                <span class="cell-img emoji">${MOUNT_ICONS[S.activeMount] || '🐴'}</span>
+                <span class="cell-lv">Lv.${am.level}</span></div>`
+            : `<div class="equip-cell egg-cell empty pinfo-mount-wide" onclick="UI.openMounts()"><span class="slot-name">탈것</span></div>`;
 
         // 슬롯 클릭 → 각 세부정보 팝업이 플레이어 정보 위에 겹쳐 뜸 (사용자 지시 — 닫으면 플레이어 정보로 복귀)
         const skillIconsHtml = S.equippedSkills.map(id => `<button class="sk-cell" onclick="UI.openSkillDetail('${id}')">
