@@ -146,7 +146,7 @@ const Pets = {
         }
         if (p.level >= this.MAX_LEVEL) p.xp = 0; // 만렙 도달분 잉여 경험치는 버림 (승천은 별도 시스템)
     },
-    // 선택한 펫/알을 흡수해 대상 펫에 경험치로 환산 (재료는 소모되어 사라짐, 최대 5개)
+    // 선택한 펫/알을 흡수해 대상 펫에 경험치로 환산 (재료는 소모되어 사라짐, 개수 무제한 — 다중 레벨업은 addXp가 처리)
     absorbMaterials(target, materialPets, materialEggs) {
         if (!target) return false;
         let totalXp = 0;

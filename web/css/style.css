@@ -1257,14 +1257,26 @@ body {
 .petup-selrow { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .petup-selrow .btn.silver { font-size: .85rem; padding: .35rem 1rem; border-radius: .55rem; }
 .petup-sellabel { font-size: .82rem; font-weight: 800; color: var(--pp-ink); }
-.petup-slots { display: flex; justify-content: space-between; gap: .4rem; margin: 0 .6rem .6rem; }
-.petup-slotcol { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .3rem; }
-.petup-slot {
-    width: 2.3rem; height: 2.3rem; border-radius: .5rem; display: flex; align-items: center; justify-content: center;
-    font-size: 1.15rem; background: var(--rc, var(--pp-red)); border: 3px solid var(--pp-line);
+/* 등급별 일괄 선택 버튼 행 — 5칸 선택 슬롯 대체 (사용자 지시: 개수 제한 철폐) */
+.petup-bulkrow { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0 .6rem .6rem; min-height: 2rem; align-items: center; }
+.petup-bulk {
+    display: inline-flex; align-items: center; gap: .18rem; cursor: pointer;
+    border: 2px solid var(--rc); background: #fff; border-radius: .6rem; padding: .14rem .45rem;
+    box-shadow: inset 0 -.15rem 0 rgba(0,0,0,.12);
 }
-.petup-slot.blank { background: none; border: none; }
-.petup-dash { width: 2.1rem; height: .18rem; background: #17181a; border-radius: .1rem; }
+.petup-bulk .bulk-sil { font-size: 1.05rem; line-height: 1; color: transparent; text-shadow: 0 0 0 var(--rc); } /* 이모지 → 등급색 실루엣 */
+.petup-bulk .bulk-n { font-size: .72rem; font-weight: 800; color: var(--pp-ink); }
+.petup-bulk.on { background: var(--rc); }
+.petup-bulk.on .bulk-sil { text-shadow: 0 0 0 #fff; }
+.petup-bulk.on .bulk-n { color: #fff; }
+/* 재료 타일 상태: ✓ 선택 오버레이 / 장착 중 잠금 */
+.pet-tile .tile-check {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; font-weight: 900; color: #fff; background: rgba(33,150,243,.45);
+    border-radius: .3rem; text-shadow: 0 1px 2px rgba(0,0,0,.5);
+}
+.pet-tile.egg .tile-check { background: rgba(33,150,243,.28); border-radius: .5rem; }
+.pet-tile.mat-locked .tile-face { opacity: .5; }
 .petup-divider { height: 2px; background: #dcdcdc; margin: 0 0 .55rem; }
 .mat-grid.pet-grid { gap: .75rem .4rem; }
 .hatchery {

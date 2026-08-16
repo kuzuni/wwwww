@@ -826,7 +826,7 @@ const UI = {
     },
     closePetUpgrade() { this.els.petUpgradeModal.classList.add('hidden'); },
     // UI-SPEC 55번(원본 shot-042503) 레이아웃: 대상 카드(장착됨+Lv+⭐+피해/체력) → 경험치 바 →
-    // "합칠 펫 선택"+[업그레이드] → 선택 슬롯 → 구분선 → 보유 펫·알 타일 그리드(.pet-tile 재사용)
+    // "합칠 펫 선택"+[업그레이드] → 등급별 일괄 선택 버튼 행 → 구분선 → 보유 펫·알 타일 그리드(.pet-tile 재사용, ✓ 체크 선택·무제한)
     renderPetUpgrade() {
         const target = S.pets[this._petUpgradeTarget];
         if (!target) { this.closePetUpgrade(); return; }
@@ -836,29 +836,40 @@ const UI = {
         const active = S.activePets.includes(this._petUpgradeTarget);
         const pw = Pets.petPower(target);
 
-        const petTiles = S.pets.map((p, i) => i === this._petUpgradeTarget ? '' : `
-            <button class="pet-tile ${sel.pets.includes(i) ? 'selected' : ''}" style="--rc:${RARITY_CSS[p.rarity]}" onclick="UI.onToggleUpgradeMat('pet', ${i})">
+        // 선택 표시 = 타일 위 ✓ 오버레이 (별도 선택 슬롯 없음, 개수 무제한 — 사용자 지시). 장착 중 펫은 재료 선택 불가 가드.
+        const petTiles = S.pets.map((p, i) => {
+            if (i === this._petUpgradeTarget) return '';
+            const locked = S.activePets.includes(i), on = sel.pets.includes(i);
+            return `
+            <button class="pet-tile ${on ? 'selected' : ''} ${locked ? 'mat-locked' : ''}" style="--rc:${RARITY_CSS[p.rarity]}" onclick="UI.onToggleUpgradeMat('pet', ${i})">
                 <span class="tile-face">
                     ${PET_ICONS[p.name] || '🐾'}
-                    ${S.activePets.includes(i) ? '<span class="sk-ribbon">장착됨</span>' : ''}
+                    ${locked ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${p.level}</span>
+                    ${on ? '<span class="tile-check">✓</span>' : ''}
                 </span>
-            </button>`).join('');
+            </button>`;
+        }).join('');
         const eggTiles = S.eggs.map((e, i) => `
             <button class="pet-tile egg ${sel.eggs.includes(i) ? 'selected' : ''}" style="--rc:${RARITY_CSS[e.rarity]}" onclick="UI.onToggleUpgradeMat('egg', ${i})">
-                <span class="tile-face">🥚</span>
+                <span class="tile-face">🥚${sel.eggs.includes(i) ? '<span class="tile-check">✓</span>' : ''}</span>
                 <span class="tile-label">알</span>
             </button>`).join('');
         const tilesHtml = petTiles + eggTiles || '<span class="muted">재료로 쓸 펫/알이 없습니다</span>';
 
-        const selected = [
-            ...sel.pets.map(i => ({ icon: PET_ICONS[S.pets[i].name] || '🐾', rc: RARITY_CSS[S.pets[i].rarity] })),
-            ...sel.eggs.map(i => ({ icon: '🥚', rc: RARITY_CSS[S.eggs[i].rarity] })),
-        ];
-        // 원본(shot-042503): 슬롯 5칸 고정 — 빈 칸은 밑줄 대시, 선택된 재료는 밑줄 위 등급색 타일
-        const slotsHtml = Array.from({ length: 5 }, (_, i) => {
-            const m = selected[i];
-            return `<span class="petup-slotcol">${m ? `<span class="petup-slot" style="--rc:${m.rc}">${m.icon}</span>` : '<span class="petup-slot blank"></span>'}<span class="petup-dash"></span></span>`;
+        // 슬롯 5칸 행 폐지 → 보유 등급별 일괄 선택 버튼 (알=🥚 실루엣, 펫=🐾 실루엣, 등급색 — 사용자 지시)
+        const bulkBtns = RARITIES.map(r => {
+            const eggPool = this._matPool('egg', r), petPool = this._matPool('pet', r);
+            let h = '';
+            if (eggPool.length) {
+                const all = eggPool.every(i => sel.eggs.includes(i));
+                h += `<button class="petup-bulk ${all ? 'on' : ''}" style="--rc:${RARITY_CSS[r]}" title="${RARITY_KR[r]} 알 전체 ${all ? '해제' : '선택'}" onclick="UI.onBulkSelectMat('egg','${r}')"><span class="bulk-sil">🥚</span><span class="bulk-n">${eggPool.length}</span></button>`;
+            }
+            if (petPool.length) {
+                const all = petPool.every(i => sel.pets.includes(i));
+                h += `<button class="petup-bulk ${all ? 'on' : ''}" style="--rc:${RARITY_CSS[r]}" title="${RARITY_KR[r]} 펫 전체 ${all ? '해제' : '선택'}" onclick="UI.onBulkSelectMat('pet','${r}')"><span class="bulk-sil">🐾</span><span class="bulk-n">${petPool.length}</span></button>`;
+            }
+            return h;
         }).join('');
 
         const previewXp = sel.pets.reduce((s, i) => s + Pets.xpValue(S.pets[i].rarity) * Pets.levelMult(S.pets[i]), 0)
@@ -887,19 +898,36 @@ const UI = {
                         <button class="btn silver ${(sel.pets.length + sel.eggs.length) && !maxed ? '' : 'disabled'}" onclick="UI.onConfirmPetUpgrade()">업그레이드</button>
                     </div>
                     </div>
-                    <div class="petup-slots">${slotsHtml}</div>
+                    <div class="petup-bulkrow">${bulkBtns}</div>
                     <div class="petup-divider"></div>
                     <div class="mat-grid pet-grid">${tilesHtml}</div>
                 </div>
                 <button class="x-btn" onclick="UI.closePetUpgrade()">✕</button>
             </div>`;
     },
+    // 등급 r에서 재료로 쓸 수 있는 인덱스 풀 — 펫은 대상·장착 중 제외
+    _matPool(type, r) {
+        return type === 'egg'
+            ? S.eggs.map((e, i) => e.rarity === r ? i : -1).filter(i => i >= 0)
+            : S.pets.map((p, i) => (i !== this._petUpgradeTarget && !S.activePets.includes(i) && p.rarity === r) ? i : -1).filter(i => i >= 0);
+    },
     onToggleUpgradeMat(type, idx) {
+        if (type === 'pet' && S.activePets.includes(idx)) { this.toast('장착 중인 펫은 재료로 쓸 수 없습니다'); return; }
         const sel = this._petUpgradeMats;
         const arr = type === 'pet' ? sel.pets : sel.eggs;
         const pos = arr.indexOf(idx);
         if (pos >= 0) arr.splice(pos, 1);
-        else if (sel.pets.length + sel.eggs.length < 5) arr.push(idx);
+        else arr.push(idx); // 개수 제한 없음 — 100개든 전부 선택 가능 (사용자 지시)
+        this.renderPetUpgrade();
+    },
+    // 등급별 일괄 선택/해제 — 전부 선택돼 있으면 해제, 아니면 전부 선택
+    onBulkSelectMat(type, rarity) {
+        const sel = this._petUpgradeMats;
+        const arr = type === 'pet' ? sel.pets : sel.eggs;
+        const pool = this._matPool(type, rarity);
+        if (!pool.length) return;
+        if (pool.every(i => arr.includes(i))) pool.forEach(i => arr.splice(arr.indexOf(i), 1));
+        else pool.forEach(i => { if (!arr.includes(i)) arr.push(i); });
         this.renderPetUpgrade();
     },
     onConfirmPetUpgrade() {
