@@ -22,6 +22,7 @@ const UI = {
             forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
             leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
+            profileModal: $('profile-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -80,8 +81,8 @@ const UI = {
     renderTopBar() {
         const cp = Combat.combatPower();
         this.els.topbar.innerHTML = `
-            <div class="profile-card">
-                <span class="avatar">🛡️</span>
+            <div class="profile-card" onclick="UI.openProfile()">
+                <span class="avatar">${S.avatarEmoji || '🛡️'}</span>
                 <div class="profile-info">
                     <span class="nickname">${S.nickname || '용사'}</span>
                     <span class="cp">⚔️ ${U.fmt(cp)}</span>
@@ -1085,6 +1086,100 @@ const UI = {
         else this.toast('오늘은 이미 수령했습니다');
     },
     onBuyGems() { this.toast('💎 데모 버전에서는 결제를 지원하지 않습니다'); },
+
+    // ---- 프로필/설정 팝업 (UI-SPEC 19~20번): 프로필(이름·아바타 편집) / 설정(음악·사운드 실동작 토글) ----
+    AVATAR_POOL: ['🛡️', '🧙', '🥷', '🦸', '🧝', '🧛', '🐲', '🦖', '🐺', '🦊', '🐯', '👑'],
+    _profileView: 'profile', _avatarPicking: false,
+    openProfile() { this._profileView = 'profile'; this._avatarPicking = false; this.renderProfile(); this.els.profileModal.classList.remove('hidden'); },
+    closeProfile() { this.els.profileModal.classList.add('hidden'); },
+    switchProfileView(v) { this._profileView = v; this._avatarPicking = false; this.renderProfile(); },
+    renderProfile() {
+        if (this._profileView === 'settings') this.renderSettingsView();
+        else this.renderProfileView();
+    },
+    renderProfileView() {
+        const avatarPicker = this._avatarPicking
+            ? `<div class="avatar-pick-grid">${this.AVATAR_POOL.map(e =>
+                `<button class="avatar-pick-btn ${e === (S.avatarEmoji || '🛡️') ? 'on' : ''}" onclick="UI.onPickAvatar('${e}')">${e}</button>`).join('')}</div>` : '';
+        this.els.profileModal.innerHTML = `
+            <div class="modal-card">
+                <h3>프로필</h3>
+                <div class="row" style="align-items:flex-start">
+                    <div class="profile-avatar-box">
+                        <span class="profile-avatar-big">${S.avatarEmoji || '🛡️'}</span>
+                        <button class="btn sm" onclick="UI.onToggleAvatarPick()">✏️</button>
+                    </div>
+                    <div style="flex:1">
+                        <label class="muted" style="font-size:.72rem">이름:</label>
+                        <div class="row" style="align-items:center">
+                            <span class="profile-field">${S.nickname || '용사'}</span>
+                            <button class="btn sm" onclick="UI.onEditNickname()">✏️</button>
+                        </div>
+                        <label class="muted" style="font-size:.72rem">성별:</label>
+                        <div class="row" style="align-items:center">
+                            <span class="profile-field">${S.gender || '♂'}</span>
+                            <button class="btn sm" onclick="UI.onToggleGender()">✏️</button>
+                        </div>
+                    </div>
+                </div>
+                ${avatarPicker}
+                <p class="muted" style="text-align:center;margin-top:.6rem">서버 랭킹</p>
+                <div class="row">
+                    <button class="btn primary" onclick="UI.openStub('🏆 파워 랭킹', '서버 내 전투력 랭킹은 준비 중입니다.')">파워 랭킹</button>
+                    <button class="btn primary" onclick="UI.openStub('🛡 클랜 랭킹', '클랜 시스템은 준비 중입니다.')">클랜 랭킹</button>
+                </div>
+                <div class="profile-tabs">
+                    <button class="btn ${this._profileView === 'profile' ? 'on' : ''}" onclick="UI.switchProfileView('profile')">프로필</button>
+                    <button class="btn ${this._profileView === 'settings' ? 'on' : ''}" onclick="UI.switchProfileView('settings')">설정</button>
+                </div>
+                <button class="btn" onclick="UI.closeProfile()">닫기</button>
+            </div>`;
+    },
+    onToggleAvatarPick() { this._avatarPicking = !this._avatarPicking; this.renderProfileView(); },
+    onPickAvatar(e) { S.avatarEmoji = e; this._avatarPicking = false; saveGame(); this.renderProfileView(); this.renderTopBar(); },
+    onEditNickname() {
+        const name = prompt('새 이름을 입력하세요 (최대 12자)', S.nickname || '용사');
+        if (name && name.trim()) { S.nickname = name.trim().slice(0, 12); saveGame(); this.renderProfileView(); this.renderTopBar(); }
+    },
+    onToggleGender() { S.gender = S.gender === '♂' ? '♀' : '♂'; saveGame(); this.renderProfileView(); },
+
+    renderSettingsView() {
+        const d = S.settingsDummy;
+        const toggle = (label, on, onclick) => `
+            <div class="settings-row">
+                <span>${label}</span>
+                <button class="settings-toggle ${on ? 'on' : ''}" onclick="${onclick}"></button>
+            </div>`;
+        const staticRow = (label) => `<div class="settings-row static" onclick="UI.toast('데모 버전에서는 지원하지 않습니다')"><span>${label}</span></div>`;
+        this.els.profileModal.innerHTML = `
+            <div class="modal-card">
+                <h3>설정</h3>
+                <p class="muted" style="text-align:center">서버 시간: ${new Date().toLocaleString('ko-KR')}</p>
+                ${toggle('진동', d.vibration, "UI.onToggleSettingsDummy('vibration')")}
+                ${toggle('음악', S.musicOn, "UI.onToggleMusic()")}
+                ${toggle('사운드 효과', S.sfxOn, "UI.onToggleSfxSetting()")}
+                ${toggle('채팅 표시', d.chatShow, "UI.onToggleSettingsDummy('chatShow')")}
+                ${toggle('채팅 다크 모드', d.chatDark, "UI.onToggleSettingsDummy('chatDark')")}
+                ${toggle('클랜 채팅 미리보기', d.clanChatPreview, "UI.onToggleSettingsDummy('clanChatPreview')")}
+                ${staticRow('언어')}
+                ${staticRow('계정')}
+                ${staticRow('차단 목록')}
+                ${staticRow('개인정보 보호')}
+                <div class="profile-tabs">
+                    <button class="btn ${this._profileView === 'profile' ? 'on' : ''}" onclick="UI.switchProfileView('profile')">프로필</button>
+                    <button class="btn ${this._profileView === 'settings' ? 'on' : ''}" onclick="UI.switchProfileView('settings')">설정</button>
+                </div>
+                <button class="btn" onclick="UI.closeProfile()">닫기</button>
+            </div>`;
+    },
+    onToggleSettingsDummy(key) { S.settingsDummy[key] = !S.settingsDummy[key]; saveGame(); this.renderSettingsView(); },
+    onToggleMusic() { SFX.toggleMusic(); this.renderSettingsView(); },
+    onToggleSfxSetting() {
+        S.sfxOn = !S.sfxOn;
+        if (S.sfxOn) { SFX.resume(); SFX.craft(); }
+        saveGame();
+        this.renderSettingsView();
+    },
 
     // ---- 기술 트리 (소환 탭 서브탭, UI-SPEC 10·15~16번): 분기 4개 카드 → 분기 상세(세로 노드 트리) → 노드 팝업 ----
     _techView: 'overview', _techBranch: null, _techNode: null,

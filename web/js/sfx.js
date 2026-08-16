@@ -85,4 +85,50 @@ const SFX = {
         this.tone(440, 0.18, { type: 'sine', gain: 0.25, slideTo: hi ? 1320 : 880 });
         this.noiseBurst(0.15, { gain: 0.1, filterFreq: 4000, delay: 0.02 });
     },
+
+    // ===== 배경 음악 (설정 팝업 "음악" 토글, UI-SPEC 20번 실동작) =====
+    // 외부 파일 없이 프로시저럴 코드 패드를 반복 재생 — sfxOn과 별개 버스(effOn 꺼도 음악은 계속)
+    musicTimer: null,
+    musicGain: null,
+    get musicEnabled() { return !!(S && S.musicOn); },
+
+    startMusic() {
+        if (this.musicTimer || !this.musicEnabled) return;
+        const ctx = this.ensure();
+        if (!ctx) return;
+        if (!this.musicGain) {
+            this.musicGain = ctx.createGain();
+            this.musicGain.gain.value = 0.05;
+            this.musicGain.connect(ctx.destination);
+        }
+        const chord = [130.81, 164.81, 196.00, 246.94]; // C3-E3-G3-B3 소프트 패드
+        const playPad = () => {
+            if (!this.musicEnabled) return;
+            const t0 = ctx.currentTime;
+            chord.forEach(f => {
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = f;
+                g.gain.setValueAtTime(0.0001, t0);
+                g.gain.linearRampToValueAtTime(0.6, t0 + 2);
+                g.gain.linearRampToValueAtTime(0.0001, t0 + 7.5);
+                osc.connect(g); g.connect(this.musicGain);
+                osc.start(t0); osc.stop(t0 + 8);
+            });
+        };
+        playPad();
+        this.musicTimer = setInterval(playPad, 8000);
+    },
+
+    stopMusic() {
+        if (this.musicTimer) { clearInterval(this.musicTimer); this.musicTimer = null; }
+    },
+
+    toggleMusic() {
+        S.musicOn = !S.musicOn;
+        if (S.musicOn) this.startMusic(); else this.stopMusic();
+        saveGame();
+        return S.musicOn;
+    },
 };

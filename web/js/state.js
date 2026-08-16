@@ -11,7 +11,11 @@ function defaultState() {
         version: 1,
         createdAt: U.now(),
         lastSeen: U.now(),
-        nickname: '용사', // 프로필 카드 표시명 (프로필 팝업에서 편집 예정 — UI-SPEC 19번)
+        nickname: '용사', // 프로필 카드 표시명 (프로필 팝업에서 편집 가능 — UI-SPEC 19번)
+        avatarEmoji: '🛡️', // 프로필 아바타 (프로필 팝업에서 이모지 선택 가능)
+        gender: '♂', // 프로필 성별 표시 (더미 토글, UI-SPEC 19번)
+        musicOn: true, // 설정 팝업 음악 토글 (실동작 — SFX 프로시저럴 앰비언트)
+        settingsDummy: { vibration: true, chatShow: true, chatDark: false, clanChatPreview: true }, // 설정 팝업 더미 토글 4종
         lastOfflineClaim: U.now(), // 오프라인 보상 마지막 수령 시각 (자동 모달 + 수동 버튼 공용)
         // 진행
         chapter: 1, stage: 1,           // 현재 도전 스테이지
