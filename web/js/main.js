@@ -137,7 +137,9 @@
         }, 1000);
 
         // 오토 포지: 3초마다 1회 사이클(설정된 망치 수만큼 제작) 후 자동 처리
+        // 탭이 백그라운드일 때도 건너뜀 — 로직 틱과 동일하게 해머 소비·장비 교체가 오프라인 보상과 별도로 시뮬레이션되는 것을 막음
         setInterval(() => {
+            if (document.hidden) return;
             if (S.autoForgeOn && isUnlocked('autoForge') && S.hammers >= 1) {
                 const cfg = Forge.autoForgeConfig();
                 const items = Forge.craft(Math.min(cfg.hammersPerBatch, S.hammers));
