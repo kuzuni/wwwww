@@ -1503,3 +1503,27 @@ body {
 .dgd-btns { display: flex; gap: .8rem; margin: 0 1.1rem; }
 .dgd-btn { flex: 1; font-size: .92rem; padding: .6rem .2rem; border-radius: .6rem; line-height: 1.25; }
 #panel-summon > .summon-sub { position: relative; } /* 분기 상세 ⓘ 절대배치 기준 */
+
+/* ===== 펫 상세 팝업 (shot-042449 원본 대조 재작업) ===== */
+.petd-card { width: 86%; padding: 1.1rem .9rem 1.2rem; text-align: left; position: relative; gap: 0; }
+.petd-share {
+    position: absolute; top: .55rem; right: .55rem; cursor: pointer;
+    width: 1.7rem; height: 1.7rem; border: 2px solid var(--pp-line); border-radius: .4rem;
+    background: var(--pp-blue); font-size: .85rem; line-height: 1; padding: 0;
+}
+.petd-head { display: flex; gap: .9rem; align-items: flex-start; margin: .3rem 0 1rem; }
+.petd-tilecol { width: 24%; flex: none; display: flex; flex-direction: column; align-items: center; gap: .25rem; }
+.petd-tile {
+    position: relative; width: 100%; aspect-ratio: 1; border-radius: .55rem;
+    border: 3px solid var(--pp-line); background: var(--rc, #ccc);
+    display: flex; align-items: center; justify-content: center; font-size: 1.9rem;
+    box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25);
+}
+.petd-tile .sk-ribbon { font-size: .58rem; padding: .05rem .35rem; }
+.petd-tile .sk-lv { font-size: .66rem; }
+.petd-body { min-width: 0; padding-top: .1rem; }
+.petd-name { font-weight: 900; font-size: .95rem; margin-bottom: .3rem; }
+.petd-stats { font-weight: 900; font-size: .95rem; color: var(--pp-ink); line-height: 1.35; margin-bottom: .45rem; }
+.petd-subs { font-weight: 800; font-size: .85rem; color: var(--pp-ink); line-height: 1.45; }
+.petd-btns { display: flex; gap: .8rem; }
+.petd-btn { flex: 1; font-size: 1.02rem; font-weight: 900; padding: .68rem 0; border-radius: .7rem; }

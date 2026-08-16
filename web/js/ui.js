@@ -739,27 +739,33 @@ const UI = {
         const active = S.activePets.includes(i);
         const pw = Pets.petPower(pet);
         const maxed = pet.level >= Pets.MAX_LEVEL;
-        const subsHtml = (pet.subs || []).map(s => `<div class="substat-row">${U.subText(s)}</div>`).join('');
+        const subsHtml = (pet.subs || []).map(s => U.subText(s)).join('<br>');
+        // 원본(shot-042449): 좌측 등급색 타일(장착됨 리본+Lv뱃지+별) + 우측 등급색 이름·굵은 스탯 2줄·옵션 플레인 텍스트,
+        // 우상단 파란 클립보드(공유 더미), 하단 대형 [업그레이드(파랑)][제거(빨강)/장착(파랑)] 2분할, 닫기=빨간 X
         this.els.detailModal.innerHTML = `
             <div class="idet-wrap">
-                <div class="modal-card paper item-detail">
-                    <div class="idet-head">
-                        <div class="idet-icon" style="--rc:${RARITY_CSS[pet.rarity]}">${PET_ICONS[pet.name] || '🐾'}${pet.stars ? `<span class="idet-star">⭐${pet.stars}</span>` : ''}</div>
-                        <div class="idet-title">
-                            <div class="idet-name">[${RARITY_KR[pet.rarity]}] ${PET_KR[pet.name] || pet.name}</div>
-                            <div class="idet-main">${U.fmt(pw.atk)} 피해 / ${U.fmt(pw.hp)} 체력</div>
-                            <div class="idet-chance">${active ? '장착됨 · ' : ''}Lv.${pet.level}${maxed ? ' (만렙)' : ` · 경험치 ${U.fmt(pet.xp || 0)}/${U.fmt(Pets.xpNeeded(pet.level))}`}</div>
+                <div class="modal-card paper petd-card">
+                    <button class="petd-share" onclick="UI.toast('📋 공유는 데모 버전에서 지원하지 않습니다')">📋</button>
+                    <div class="petd-head">
+                        <div class="petd-tilecol">
+                            <div class="petd-tile" style="--rc:${RARITY_CSS[pet.rarity]}">
+                                ${PET_ICONS[pet.name] || '🐾'}
+                                ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
+                                <span class="sk-lv">Lv.${pet.level}</span>
+                            </div>
+                            <span class="sk-star">${pet.stars ? `⭐${pet.stars}` : '⭐'}</span>
+                        </div>
+                        <div class="petd-body">
+                            <div class="petd-name" style="color:${RARITY_CSS[pet.rarity]}">[${RARITY_KR[pet.rarity]}] ${PET_KR[pet.name] || pet.name}</div>
+                            <div class="petd-stats">${U.fmt(pw.atk)} 피해<br>${U.fmt(pw.hp)} 체력</div>
+                            <div class="petd-subs">${subsHtml || '옵션 없음'}</div>
                         </div>
                     </div>
-                    <div class="idet-subs">
-                        <div class="idet-lead">옵션</div>
-                        ${subsHtml || '<div class="substat-row">없음</div>'}
-                    </div>
-                    <div class="idet-btns">
+                    <div class="petd-btns">
                         ${maxed
-                            ? `<button class="btn sm ${Pets.canAscend(i) ? 'primary' : 'disabled'}" onclick="UI.onAscendPet(${i}); UI.openPetDetail(${i})">⭐ 승천</button>`
-                            : `<button class="btn sm primary" onclick="UI.closeDetail(); UI.openPetUpgrade(${i})">업그레이드</button>`}
-                        <button class="btn sm ${active ? '' : 'primary'}" onclick="UI.onTogglePet(${i}); UI.openPetDetail(${i})">${active ? '제거' : '장착'}</button>
+                            ? `<button class="btn primary petd-btn ${Pets.canAscend(i) ? '' : 'disabled'}" onclick="UI.onAscendPet(${i}); UI.openPetDetail(${i})">⭐ 승천</button>`
+                            : `<button class="btn primary petd-btn" onclick="UI.closeDetail(); UI.openPetUpgrade(${i})">업그레이드</button>`}
+                        <button class="btn petd-btn ${active ? 'danger' : 'primary'}" onclick="UI.onTogglePet(${i}); UI.openPetDetail(${i})">${active ? '제거' : '장착'}</button>
                     </div>
                 </div>
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>
