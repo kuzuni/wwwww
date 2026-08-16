@@ -731,7 +731,7 @@ const Scene3D = {
         this.foliageMats = [this.foliageMat, this.foliageMatDark, this.foliageMatLight];
         this.trunkMat = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
         this.bushMat = new THREE.MeshPhongMaterial({ color: 0x4a7c2f, flatShading: true, shininess: 0 });
-        this.stoneMat = new THREE.MeshPhongMaterial({ color: 0x90a4ae, flatShading: true, shininess: 0 });
+        this.stoneMat = new THREE.MeshPhongMaterial({ color: 0x90a4ae, flatShading: true, shininess: 0, map: ProChar.rockTex() }); // 노이즈 결 — 순백 '주사위' 인상 제거
         this.mossMat = new THREE.MeshPhongMaterial({ color: 0x4f8578, flatShading: true, shininess: 0 }); // 바위산 청록 이끼(보색 악센트)
         this.snowMat = new THREE.MeshPhongMaterial({ color: 0xf4faff, flatShading: true, shininess: 35, specular: 0x9db8d4 });
         this.cactusMat = new THREE.MeshPhongMaterial({ color: 0x6da24f, flatShading: true, shininess: 0 }); // 웜 그린 — 웜 샌드 지면과 온도 통일
@@ -764,6 +764,21 @@ const Scene3D = {
 
     // 바이옴별 지면 텍스처 캐시 — 챕터 전환 때마다 캔버스를 다시 그리지 않게 1회 생성 후 재사용.
     // 모든 맵의 repeat를 12,6으로 통일(r128은 emissiveMap 등이 map의 uv변환을 공유하므로 어긋나면 안 됨).
+    // 불규칙 바위 지오메트리 — 정십이면체 정점을 랜덤 변위 (기하학 '주사위' 실루엣 제거, 비평가 지적)
+    rockGeo(rad) {
+        const geo = new THREE.DodecahedronGeometry(rad, 0);
+        const p = geo.attributes.position;
+        const seedX = Math.random() * 10, seedY = Math.random() * 10;
+        for (let i = 0; i < p.count; i++) {
+            // 면이 공유하는 정점은 같은 변위를 받아야 면이 안 찢어짐 — 좌표 기반 의사난수
+            const kx = Math.sin(p.getX(i) * 51.7 + seedX) * 0.5 + Math.sin(p.getY(i) * 37.3 + seedY) * 0.5;
+            const s2 = 1 + kx * 0.22;
+            p.setXYZ(i, p.getX(i) * s2, p.getY(i) * (1 + Math.sin(p.getZ(i) * 43.1 + seedX) * 0.18), p.getZ(i) * s2);
+        }
+        geo.computeVertexNormals();
+        return geo;
+    },
+
     groundTexFor(biome) {
         this._gtex = this._gtex || {};
         if (!this._gtex[biome]) {
@@ -946,7 +961,7 @@ const Scene3D = {
         for (let i = 0; i < stoneCount; i++) {
             const rad = U.rand(0.1, 0.3);
             const r = new THREE.Mesh(
-                new THREE.DodecahedronGeometry(rad, 0),
+                this.rockGeo(rad),
                 biome === 'lava' ? this.charRockMat : this.stoneMat
             );
             if (Math.random() < 0.4) { r.scale.set(1.2, 0.35, 0.8); r.position.y = rad * 0.28; } // 판석형
@@ -1184,7 +1199,7 @@ const Scene3D = {
         const g = new THREE.Group();
         const n = 2 + (Math.random() * 2 | 0);
         for (let i = 0; i < n; i++) {
-            const r = new THREE.Mesh(new THREE.DodecahedronGeometry(U.rand(0.24, 0.38) * s, 0), this.stoneMat);
+            const r = new THREE.Mesh(this.rockGeo(U.rand(0.24, 0.38) * s), this.stoneMat);
             r.position.set(U.rand(-0.12, 0.12) * s, (0.28 + i * 0.42) * s, U.rand(-0.08, 0.08) * s);
             r.scale.set(1 - i * 0.16, U.rand(1.4, 1.9), 1 - i * 0.16);
             r.rotation.set(U.rand(0, 3), U.rand(0, 3), U.rand(-0.2, 0.2));
@@ -1196,7 +1211,7 @@ const Scene3D = {
     // 둥근 바위(바위산/설원 부 소품) — snow=true면 위에 눈 뚜껑, moss=true면 청록 이끼 뚜껑(바위산 보색 악센트)
     makeBoulder(s, snow, moss) {
         const g = new THREE.Group();
-        const b = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45 * s, 0), this.stoneMat);
+        const b = new THREE.Mesh(this.rockGeo(0.45 * s), this.stoneMat);
         b.position.y = 0.27 * s;
         b.scale.y = 0.75;
         b.rotation.set(U.rand(0, 3), U.rand(0, 3), 0);
@@ -1216,7 +1231,7 @@ const Scene3D = {
         const g = new THREE.Group();
         const n = 2 + (Math.random() * 2 | 0);
         for (let i = 0; i < n; i++) {
-            const p = new THREE.Mesh(new THREE.DodecahedronGeometry(U.rand(0.3, 0.42) * s, 0), this.stoneMat);
+            const p = new THREE.Mesh(this.rockGeo(U.rand(0.3, 0.42) * s), this.stoneMat);
             p.scale.set(U.rand(0.9, 1.25), 0.28, U.rand(0.55, 0.8));         // 납작한 판
             p.position.set(U.rand(-0.14, 0.14) * s, (0.1 + i * 0.14) * s, U.rand(-0.1, 0.1) * s);
             p.rotation.set(U.rand(-0.16, 0.16), U.rand(0, 3), U.rand(0.12, 0.42) * (i % 2 ? 1 : -1)); // 비스듬한 적층
@@ -1232,7 +1247,7 @@ const Scene3D = {
         let y = 0.07 * s;
         for (let i = 0; i < n; i++) {
             const w = (1 - i * 0.16) * s;
-            const p = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), this.stoneMat);
+            const p = new THREE.Mesh(this.rockGeo(0.5), this.stoneMat);
             p.scale.set(w * U.rand(0.95, 1.2), 0.16 * s, w * U.rand(0.55, 0.75));
             p.position.set(U.rand(-0.06, 0.06) * s, y, U.rand(-0.05, 0.05) * s);
             p.rotation.y = U.rand(-0.25, 0.25);
@@ -1287,7 +1302,7 @@ const Scene3D = {
         slab.rotation.y = U.rand(0, Math.PI * 2);
         g.add(slab);
         for (let i = 0; i < 2; i++) {
-            const peb = new THREE.Mesh(new THREE.DodecahedronGeometry(U.rand(0.08, 0.14) * s, 0), this.stoneMat);
+            const peb = new THREE.Mesh(this.rockGeo(U.rand(0.08, 0.14) * s), this.stoneMat);
             const a = U.rand(0, Math.PI * 2);
             peb.position.set(Math.cos(a) * 0.5 * s, 0.06 * s, Math.sin(a) * 0.4 * s);
             peb.rotation.set(U.rand(0, 3), U.rand(0, 3), 0);
@@ -1304,7 +1319,7 @@ const Scene3D = {
         g.add(core);
         for (let i = 0; i < 3; i++) { // 코어를 덮는 균열 난 암석 조각들
             const a = (i / 3) * Math.PI * 2 + U.rand(0, 0.8);
-            const r = new THREE.Mesh(new THREE.DodecahedronGeometry(U.rand(0.24, 0.34) * s, 0), this.charRockMat);
+            const r = new THREE.Mesh(this.rockGeo(U.rand(0.24, 0.34) * s), this.charRockMat);
             r.position.set(Math.cos(a) * 0.16 * s, 0.24 * s + U.rand(0, 0.1) * s, Math.sin(a) * 0.16 * s);
             r.rotation.set(U.rand(0, 3), U.rand(0, 3), U.rand(0, 3));
             g.add(r);
