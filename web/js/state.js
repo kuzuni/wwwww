@@ -79,7 +79,7 @@ function loadGame() {
 }
 
 function resetGame() {
-    localStorage.removeItem(SAVE_KEY);
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 저장소 접근 실패 무시 */ }
     location.reload();
 }
 
