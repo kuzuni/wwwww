@@ -1189,15 +1189,19 @@ const UI = {
         if (Dungeons.sweep(id)) { this.renderDungeonDetail(); this.openDungeons(); this.renderTopBar(); }
     },
 
-    // ---- PvP 리그 (UI-SPEC 3~5번): 랭킹 → 리그 보상 팝업 / 상대 선택 팝업 (봇 기반 오프라인 구현) ----
+    // ---- PvP 리그 (UI-SPEC 3~5번, 원본 shot-042149/042208/042228): 랭킹 → 리그 보상 팝업 / 상대 선택 팝업 (봇 기반 오프라인 구현) ----
     leagueRow(e, rank) {
         return `<div class="league-row ${e.isMe ? 'me' : ''}">
             <span class="league-rank">${rank}</span>
-            <span class="icon-circle sm">${e.avatar}</span>
-            <span class="league-name">${U.escapeHtml(e.name)}<br><small class="muted">⚔️ ${U.fmt(e.cp)}</small></span>
+            <span class="league-avatar">${e.avatar}</span>
+            <span class="league-name">${U.escapeHtml(e.name)}<br><small>⚔️ ${U.fmt(e.cp)}</small></span>
             <span class="league-score">⭐ ${U.fmt(e.score)}</span>
-            <span class="muted league-server">${e.server === '나' ? '나' : '서버 ' + e.server}</span>
+            <span class="league-server">${e.server === '나' ? '나' : '서버 ' + e.server}</span>
         </div>`;
+    },
+    leagueRewardGrid(r) {
+        return ['hammers', 'coins', 'tickets', 'eggCurrency', 'potions', 'winders']
+            .map(k => `<span>${this.CURRENCY_ICON[k]}${U.fmt(r[k])}</span>`).join('');
     },
     openLeague() {
         League.ensure();
@@ -1213,64 +1217,65 @@ const UI = {
         const me = board.find(e => e.isMe);
         const remain = (S.league.seasonEndsAt - U.now()) / 1000;
         this.els.leagueModal.innerHTML = `
-            <div class="modal-card wide">
-                <div class="row" style="justify-content:space-between">
-                    <h3>🚩 플래티넘 리그</h3>
-                    <button class="btn sm" onclick="UI.openLeagueRewards()">🎁 보상</button>
-                </div>
-                <p class="muted" style="text-align:center">시즌 종료: ${U.fmtTime(remain)}</p>
+            <div class="modal-card sheet league-sheet">
+                <div class="league-emblem">🛡️</div>
+                <div class="league-title">플래티넘 리그</div>
+                <div class="league-season-bar" onclick="UI.openLeagueRewards()">🎁 <span>시즌 종료: <b>${U.fmtTime(remain)}</b></span></div>
                 <div class="league-list">${windowRows}</div>
                 <div class="league-pinned">${this.leagueRow(me, myRank)}</div>
-                <button class="btn primary" onclick="UI.openLeagueChallenge()">도전</button>
-                <button class="btn" onclick="UI.closeLeague()">닫기</button>
+                <div class="league-actions">
+                    <button class="league-back-btn" onclick="UI.closeLeague()">◀</button>
+                    <button class="btn primary" onclick="UI.openLeagueChallenge()">도전</button>
+                </div>
             </div>`;
     },
     openLeagueRewards() { this.renderLeagueRewards(); },
     renderLeagueRewards() {
         const myRank = League.myRank();
         const cur = League.rewardForRank(myRank);
-        const curHtml = `👑 ${U.fmt(cur.coins)} · 🔨 ${U.fmt(cur.hammers)} · 🎫 ${U.fmt(cur.tickets)} · 🥚 ${U.fmt(cur.eggCurrency)} · 🧪 ${U.fmt(cur.potions)} · ⚙️ ${U.fmt(cur.winders)}`;
         const rowsHtml = League.REWARD_TIERS.map(t => {
             const r = League.rewardForRank(t.rank);
-            return `<div class="league-reward-row">
-                <span class="league-reward-label">${t.label}</span>
-                <span class="muted">👑${U.fmt(r.coins)} 🔨${U.fmt(r.hammers)} 🎫${U.fmt(r.tickets)} 🥚${U.fmt(r.eggCurrency)} 🧪${U.fmt(r.potions)} ⚙️${U.fmt(r.winders)}</span>
+            const isTop3 = t.rank <= 3;
+            const icon = t.rank === 1 ? '👑' : t.rank === 2 ? '🥈' : t.rank === 3 ? '🥉' : t.label;
+            return `<div class="league-reward-tier">
+                <div class="league-tier-rank ${isTop3 ? '' : 'text'}">${icon}</div>
+                <div class="league-tier-grid">${this.leagueRewardGrid(r)}</div>
             </div>`;
         }).join('');
         const remain = (S.league.seasonEndsAt - U.now()) / 1000;
         this.els.leagueModal.innerHTML = `
-            <div class="modal-card wide">
-                <div class="row" style="justify-content:space-between">
-                    <button class="btn sm" onclick="UI.openLeague()">◀ 뒤로</button>
-                    <h3>🎁 리그 보상</h3>
+            <div class="idet-wrap">
+                <div class="modal-card wide">
+                    <div class="league-reward-banner">플래티넘 리그 보상</div>
+                    <p class="league-reward-desc">현재 순위(${myRank})를 유지하면 시즌 종료 시<br>다음 보상을 받을 수 있습니다:</p>
+                    <div class="league-reward-grid">${this.leagueRewardGrid(cur)}</div>
+                    <div class="league-collect-pill">수집까지: <b>${U.fmtTime(remain)}</b></div>
+                    <div class="league-reward-table">${rowsHtml}</div>
                 </div>
-                <p class="muted">현재 순위(${myRank})를 유지하면 시즌 종료 시 다음 보상을 받을 수 있습니다:</p>
-                <p class="big-stat" style="font-size:.95rem">${curHtml}</p>
-                <p class="muted" style="text-align:center">수집까지: ${U.fmtTime(remain)}</p>
-                <div class="league-reward-table">${rowsHtml}</div>
-                <button class="btn" onclick="UI.closeLeague()">닫기</button>
+                <button class="x-btn" onclick="UI.openLeague()">✕</button>
             </div>`;
     },
     openLeagueChallenge() { this.renderLeagueChallenge(); },
     renderLeagueChallenge() {
         const list = League.challengeList();
         const rowsHtml = list.map((b, i) => `
-            <div class="league-row">
-                <span class="icon-circle sm">${b.avatar}</span>
-                <span class="league-name">${b.name}<br><small class="muted">⚔️ ${U.fmt(b.cp)}</small></span>
-                <span class="league-score">⭐+${b.starReward}</span>
-                <button class="btn sm primary ${S.league.tickets > 0 ? '' : 'disabled'}" onclick="UI.onChallenge(${i})">도전 <small>🎟1</small></button>
+            <div class="league-challenge-row">
+                <span class="league-challenge-avatar">${b.avatar}</span>
+                <span class="league-challenge-name">${U.escapeHtml(b.name)}<br><small>⚔️ ${U.fmt(b.cp)}</small></span>
+                <span class="league-challenge-side">
+                    <span class="star">⭐+${b.starReward}</span>
+                    <button class="btn sm ${S.league.tickets > 0 ? '' : 'disabled'}" onclick="UI.onChallenge(${i})">도전<br><small>🎫1</small></button>
+                </span>
             </div>`).join('');
         this.els.leagueModal.innerHTML = `
-            <div class="modal-card wide">
-                <div class="row" style="justify-content:space-between">
-                    <button class="btn sm" onclick="UI.openLeague()">◀ 뒤로</button>
-                    <h3>상대 선택</h3>
+            <div class="idet-wrap">
+                <div class="modal-card wide">
+                    <div class="profile-title">상대 선택</div>
+                    <p class="league-challenge-desc">도전 티켓은 매일 09:00에 보충됩니다!</p>
+                    <div class="league-ticket-pill">🎫 ${S.league.tickets}/${League.TICKET_MAX}</div>
+                    <div>${rowsHtml}</div>
                 </div>
-                <p class="muted" style="text-align:center">도전 티켓은 매일 09:00에 보충됩니다!</p>
-                <p class="big-stat" style="text-align:center">🎟 ${S.league.tickets}/${League.TICKET_MAX}</p>
-                <div class="league-list">${rowsHtml}</div>
-                <button class="btn" onclick="UI.closeLeague()">닫기</button>
+                <button class="x-btn" onclick="UI.openLeague()">✕</button>
             </div>`;
     },
     onChallenge(idx) {

@@ -515,28 +515,93 @@ body {
 }
 .tech-tree-back { align-self: flex-start; margin-left: .3rem; }
 
-/* ---- PvP 리그 (UI-SPEC 3~5번) ---- */
-.league-list { display: flex; flex-direction: column; gap: .3rem; max-height: 46vh; overflow-y: auto; margin: .5rem 0; }
-.league-row {
-    display: grid; grid-template-columns: 1.4rem auto 1fr auto auto; gap: .5rem; align-items: center;
-    background: #22272e; border: 1px solid #444c56; border-radius: .5rem; padding: .4rem .55rem; font-size: .78rem;
-}
-.league-row.me { background: #16324a; border-color: #1e88e5; }
+/* ---- PvP 리그 (UI-SPEC 3~5번, 원본 shot-042149/042208/042228) ---- */
+/* ① 랭킹 화면 — 다른 완료 화면(흰 시트)과 달리 원본은 어두운 화면이라 sheet에 다크 변형 추가 */
+.modal-card.sheet.league-sheet { background: #05070f; color: #fff; }
+.league-sheet h2, .league-sheet h3 { color: #fff; }
 .icon-circle.sm {
     width: 2rem; height: 2rem; border-radius: 50%; background: #161b22; border: 2px solid var(--rc, #444c56);
     display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
 }
-.league-rank { font-weight: 800; text-align: center; }
-.league-name { text-align: left; line-height: 1.25; }
-.league-score { color: #ffd54f; font-weight: 800; white-space: nowrap; }
-.league-server { font-size: .68rem; white-space: nowrap; }
-.league-pinned { margin: .3rem 0; }
-.league-reward-table { display: flex; flex-direction: column; gap: .3rem; max-height: 40vh; overflow-y: auto; margin: .5rem 0; }
-.league-reward-row {
-    display: flex; justify-content: space-between; gap: .5rem; align-items: center;
-    background: #22272e; border: 1px solid #444c56; border-radius: .5rem; padding: .4rem .55rem; font-size: .72rem;
+.league-emblem { text-align: center; font-size: 2.6rem; margin-top: -.1rem; }
+.league-title { text-align: center; font-weight: 900; font-size: 1.15rem; color: #fff; margin: -.2rem 0 .3rem; }
+.league-season-bar {
+    display: flex; align-items: center; justify-content: center; gap: .4rem;
+    background: #12172a; border: 2px solid #000; border-radius: 1rem; padding: .35rem .9rem;
+    font-size: .8rem; font-weight: 700; color: #fff; margin: 0 auto .5rem; width: fit-content; cursor: pointer;
 }
-.league-reward-label { font-weight: 800; white-space: nowrap; }
+.league-season-bar b { color: var(--pp-green); }
+.league-list { display: flex; flex-direction: column; gap: .35rem; max-height: 46vh; overflow-y: auto; margin: .3rem 0; }
+.league-row {
+    display: grid; grid-template-columns: 1.6rem 2.5rem 1fr auto; gap: .5rem; align-items: center; position: relative;
+    background: #12172a; border: 2px solid #000; border-radius: .6rem; padding: .4rem .5rem .95rem; font-size: .78rem;
+}
+.league-row.me { background: var(--pp-blue); }
+.league-avatar {
+    width: 2.5rem; height: 2.5rem; border-radius: .4rem; background: #1c2338; border: 2px solid #000;
+    display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+}
+.league-rank { font-weight: 900; text-align: center; color: #fff; }
+.league-name { text-align: left; line-height: 1.3; color: #fff; font-weight: 700; }
+.league-name small { color: var(--pp-green); font-weight: 800; }
+.league-score {
+    background: #0c0f1c; border: 2px solid #000; border-radius: .5rem; padding: .2rem .5rem;
+    color: #ffd54f; font-weight: 900; white-space: nowrap; font-size: .78rem;
+}
+.league-server { position: absolute; right: .55rem; bottom: .2rem; font-size: .6rem; color: #8b93ad; }
+.league-pinned { margin: .3rem 0 0; }
+.league-actions { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; }
+.league-back-btn {
+    width: 2.6rem; height: 2.6rem; border-radius: 50%; flex: none; cursor: pointer;
+    background: var(--pp-red); color: #fff; border: 3px solid #000; font-size: 1.1rem; font-weight: 900;
+    box-shadow: inset 0 -.22rem 0 var(--pp-red-dk);
+}
+.league-actions .btn.primary { flex: 1; }
+
+/* ② 리그 보상 팝업 — 흰 카드 + 빨간 리본 배너 */
+.league-reward-banner {
+    position: relative; background: var(--pp-red); color: #fff; text-align: center; font-weight: 900; font-size: 1rem;
+    padding: .55rem 1.2rem; border-radius: .3rem; margin: .2rem 1rem .6rem;
+}
+.league-reward-banner::before, .league-reward-banner::after {
+    content: ''; position: absolute; top: 0; width: 0; height: 0; border-style: solid;
+}
+.league-reward-banner::before { left: -.9rem; border-width: 1.05rem .9rem 1.05rem 0; border-color: transparent var(--pp-red-dk) transparent transparent; }
+.league-reward-banner::after { right: -.9rem; border-width: 1.05rem 0 1.05rem .9rem; border-color: transparent transparent transparent var(--pp-red-dk); }
+.league-reward-desc { text-align: center; font-size: .82rem; font-weight: 700; color: var(--pp-ink); margin: 0 0 .5rem; line-height: 1.4; }
+.league-reward-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .3rem .5rem; margin-bottom: .5rem; }
+.league-reward-grid span { font-weight: 800; font-size: .82rem; color: var(--pp-ink); }
+.league-collect-pill {
+    display: block; margin: 0 auto .6rem; width: fit-content; background: var(--pp-panel); border: 2px solid var(--pp-line);
+    border-radius: .5rem; padding: .3rem .8rem; font-size: .78rem; font-weight: 800; text-align: center; color: var(--pp-ink);
+}
+.league-collect-pill b { color: var(--pp-green); }
+.league-reward-table { display: flex; flex-direction: column; gap: 0; max-height: 40vh; overflow-y: auto; margin: 0 -1.1rem; }
+.league-reward-tier { display: flex; align-items: center; gap: .6rem; padding: .55rem 1.1rem; border-top: 1px dashed #ccc; }
+.league-reward-tier:first-child { border-top: none; }
+.league-tier-rank { font-size: 1.3rem; font-weight: 900; width: 2.4rem; text-align: center; flex: none; color: var(--pp-ink); white-space: nowrap; }
+.league-tier-rank.text { font-size: .74rem; width: 3rem; }
+.league-tier-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .15rem .5rem; flex: 1; font-size: .74rem; font-weight: 800; color: var(--pp-ink); }
+
+/* ③ 상대 선택 팝업 — 흰 카드 */
+.league-challenge-desc { text-align: center; font-size: .82rem; font-weight: 700; color: var(--pp-ink); margin: 0 0 .4rem; }
+.league-ticket-pill {
+    display: block; margin: 0 auto .7rem; width: fit-content; background: var(--pp-ink); color: #fff;
+    border-radius: .5rem; padding: .35rem 1rem; font-size: .9rem; font-weight: 900; text-align: center;
+}
+.league-challenge-row {
+    display: flex; align-items: center; gap: .6rem; background: var(--pp-panel); border: 2px solid var(--pp-line);
+    border-radius: .6rem; padding: .5rem .6rem; margin-bottom: .5rem;
+}
+.league-challenge-avatar {
+    width: 2.6rem; height: 2.6rem; border-radius: .4rem; background: #fff; border: 2px solid var(--pp-line);
+    display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex: none;
+}
+.league-challenge-name { flex: 1; font-weight: 800; font-size: .85rem; color: var(--pp-ink); line-height: 1.3; }
+.league-challenge-name small { color: var(--pp-muted); font-weight: 700; }
+.league-challenge-side { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+.league-challenge-side .star { font-weight: 900; color: var(--pp-ink); font-size: .8rem; }
+.league-challenge-side .btn { padding: .3rem .65rem; font-size: .72rem; line-height: 1.25; }
 
 /* ---- 진행 패스 (UI-SPEC 18번, 원본 shot-042705) — 어두운 남색 카드(다른 화면의 흰 시트와 다름, 스크린샷 우선) ---- */
 .modal-card.pass-card {
