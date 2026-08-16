@@ -336,45 +336,52 @@ const UI = {
         if (this._forgeView === 'list') this.renderForgeListView();
         else this.renderForgeLevelView();
     },
+    // 원본(shot-042831) 대조: 풀폭 시대색 막대(좌 이름, 중 현재%, 우측 어두운 변주 세그먼트에 다음%),
+    // 상단 재화 pill 2개+우상단 ⓘ, 하단 검정 진행바+[건너뛰기], 닫기=빨간 X
     renderForgeLevelView() {
         const info = Forge.upgradeInfo();
         const upgrading = !!S.forgeUpgradeEndsAt;
         const curP = Forge.ageProbsAt(S.forgeLevel);
         const nextP = info ? Forge.ageProbsAt(S.forgeLevel + 1) : {};
+        const pct = p => (parseFloat(p.toFixed(2)) || 0) + '%';
         const rows = AGES.map(age => {   // 0%인 시대도 원본처럼 전부 표시
             const hex = this.ageHex(age);
-            const c = curP[age] || 0, n = nextP[age] || 0;
-            return `<div class="age-row">
-                <span class="age-tag" style="--ac:${hex}">${AGE_ICON[age]} ${AGE_KR[age]}</span>
-                <div class="age-bar-wrap"><div class="age-bar" style="width:${c}%;background:${hex}"></div></div><span class="age-pct">${c.toFixed(2)}%</span>
-                <div class="age-bar-wrap"><div class="age-bar" style="width:${n}%;background:${hex}"></div></div><span class="age-pct">${n.toFixed(2)}%</span>
+            return `<div class="fi-age-bar" style="--ac:${hex}">
+                <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]} ⭐</span>
+                <span class="fi-age-cur">${pct(curP[age] || 0)}</span>
+                <span class="fi-age-next">${info ? pct(nextP[age] || 0) : '—'}</span>
             </div>`;
         }).join('');
 
         let actionHtml;
-        if (!info) actionHtml = `<div class="muted" style="text-align:center">대장간 최고 레벨 (35)</div>`;
+        if (!info) actionHtml = `<div class="fi-upg-label">대장간 최고 레벨</div>`;
         else if (upgrading) {
             const remain = (S.forgeUpgradeEndsAt - U.now()) / 1000;
-            actionHtml = `<div class="row">
-                <div class="upg-progress"><div id="upg-fill" style="width:${U.clamp(1 - remain / Forge.upgradeTime(info), 0, 1) * 100}%"></div><span id="upg-time">${U.fmtTime(remain)}</span></div>
-                <button class="btn gem" onclick="UI.onGemSkipForge()">💎 ${Forge.gemSkipCost()} 스킵</button>
-            </div>`;
+            actionHtml = `
+                <div class="fi-upg-label">업그레이드 진행 중....</div>
+                <div class="rates-prog fi-prog"><div id="upg-fill" style="width:${U.clamp(1 - remain / Forge.upgradeTime(info), 0, 1) * 100}%"></div><span id="upg-time">${U.fmtTime(remain)}</span></div>
+                <button class="btn fi-skip" onclick="UI.onGemSkipForge()">건너뛰기<br><span class="fi-skip-gem">◆ ${Forge.gemSkipCost()}</span></button>`;
         } else {
             const cost = Forge.upgradeCost(info), time = Forge.upgradeTime(info);
-            actionHtml = `<button class="btn primary ${S.coins < cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
-                ⚒️ 레벨 ${S.forgeLevel + 1} 업그레이드<br><small>🪙 ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</small></button>`;
+            actionHtml = `<button class="btn primary fi-upgrade ${S.coins < cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
+                레벨 ${S.forgeLevel + 1} 업그레이드<br><small>🪙 ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</small></button>`;
         }
 
         this.els.forgeInfoModal.innerHTML = `
-            <div class="modal-card wide">
-                <div class="row" style="justify-content:space-between">
-                    <h3>확률 정보</h3>
-                    <button class="btn sm" onclick="UI.openForgeList()">ⓘ 전체 장비</button>
+            <div class="idet-wrap">
+                <div class="modal-card paper fi-card">
+                    <button class="fi-info-btn" onclick="UI.openForgeList()">i</button>
+                    <h3 class="fi-title">확률 정보</h3>
+                    <div class="fi-sub">제련 확률</div>
+                    <div class="fi-pills">
+                        <span class="fi-pill"><span class="fi-pill-ico coin">👑</span>${U.fmt(S.coins)}</span>
+                        <span class="fi-pill"><span class="fi-pill-ico gem">◆</span>${U.fmt(S.gems)}</span>
+                    </div>
+                    <div class="fi-level-row"><span>레벨 ${S.forgeLevel}</span><span class="fi-arrow">▶</span><span>${info ? `레벨 ${S.forgeLevel + 1}` : '최고'}</span></div>
+                    <div class="fi-rows">${rows}</div>
+                    ${actionHtml}
                 </div>
-                <p class="muted">레벨 ${S.forgeLevel}${info ? ` ▶ 레벨 ${S.forgeLevel + 1}` : ' (최고 레벨)'} — 시대별 제작 확률</p>
-                <div class="age-rows">${rows}</div>
-                ${actionHtml}
-                <button class="btn" onclick="UI.closeForgeInfo()">닫기</button>
+                <button class="x-btn" onclick="UI.closeForgeInfo()">✕</button>
             </div>`;
     },
     renderForgeListView() {
