@@ -474,7 +474,7 @@ const Scene3D = {
     refreshHeroEquip(withFlash) {
         if (!this.heroG) return;
         // 무기 (타입별 모델 + 모션 + 등급 젬 + 거치 자세)
-        while (this.weaponG.children.length) this.weaponG.remove(this.weaponG.children[0]);
+        this.clearGroup(this.weaponG);
         const w = S.equipment.weapon;
         this.wtypeId = w ? (w.wtype || 'sword') : 'club';
         this.weaponG.add(this.makeWeapon(this.wtypeId, w ? w.ageIdx : 0, w && w.rarity));
@@ -482,7 +482,7 @@ const Scene3D = {
         this.armRest = wtDef ? wtDef.restX : -0.25;
         this.armR.rotation.x = this.armRest;
         // 투구: 이름별 스타일 모델
-        while (this.helmetG.children.length) this.helmetG.remove(this.helmetG.children[0]);
+        this.clearGroup(this.helmetG);
         const h = S.equipment.helmet;
         if (h) this.helmetG.add(this.makeHelmet(h.age, h.rarity, itemStyleOf(h)));
         // 갑옷 → 색 + 이름별 스타일 (견갑/흉갑 유무, 부속 장착)
@@ -502,7 +502,7 @@ const Scene3D = {
         const style = a ? itemStyleOf(a) : 'plate';
         this.shoulderPads.forEach(p => p.visible = style === 'plate');
         this.chestPlate.visible = style !== 'hide' && style !== 'robe';
-        while (this.armorExtraG.children.length) this.armorExtraG.remove(this.armorExtraG.children[0]);
+        this.clearGroup(this.armorExtraG);
         this.armorExtraG.add(this.makeArmorExtras(style, c, ec));
         this.tintHeroGlb(); // GLB 기사 모드: 파츠별 색 오버레이 동기화
         // 장비 교체 연출: 반짝 + 상승 파티클
@@ -750,7 +750,7 @@ const Scene3D = {
                 this._thumbDir.position.set(2, 3, 2);
             }
             const sc = this._thumbScene;
-            while (sc.children.length) sc.remove(sc.children[0]);
+            this.clearGroup(sc);
             sc.add(this._thumbAmb, this._thumbDir);
             let model;
             if (item.slot === 'weapon') {
@@ -1042,7 +1042,7 @@ const Scene3D = {
     },
 
     refreshPets() {
-        for (const pg of this.petGroups) this.scene.remove(pg);
+        for (const pg of this.petGroups) { this.disposeTree(pg); this.scene.remove(pg); }
         this.petGroups = [];
         S.activePets.forEach((pi, i) => {
             const p = S.pets[pi];
@@ -1100,7 +1100,7 @@ const Scene3D = {
                 const s2 = 1.3 / Math.max(0.001, bbox.max.y - bbox.min.y);
                 model.scale.setScalar(s2);
                 model.traverse(o => {
-                    if (o.isMesh) { o.material = o.material.clone(); flashMats.push(o.material); o.castShadow = true; }
+                    if (o.isMesh) { o.material = o.material.clone(); flashMats.push(o.material); o.castShadow = true; o.userData.sharedGeometry = true; }
                 });
                 g.add(model);
                 const mixer = new THREE.AnimationMixer(model);
@@ -1254,8 +1254,30 @@ const Scene3D = {
     },
 
     clearEnemies() {
-        for (const [, m] of this.enemyMap) this.scene.remove(m.g);
+        for (const [, m] of this.enemyMap) { this.disposeTree(m.g); this.scene.remove(m.g); }
         this.enemyMap.clear();
+    },
+
+    // 오브젝트 서브트리의 geometry/material을 해제 (제거 시 GPU 메모리 누적 방지).
+    // GLB 스켈레톤 몬스터 clone은 geometry를 원본 템플릿과 공유하므로
+    // monsterMesh()에서 userData.sharedGeometry=true로 표시된 메시는 geometry를 건드리지 않음(material은 인스턴스별 clone이라 해제).
+    disposeTree(root) {
+        root.traverse(o => {
+            if (!o.isMesh) return;
+            if (o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
+            if (o.material) {
+                if (Array.isArray(o.material)) o.material.forEach(mm => mm && mm.dispose());
+                else o.material.dispose();
+            }
+        });
+    },
+    // 그룹의 모든 자식을 해제 후 제거 (무기/투구/갑옷 부속 등 매 장비 교체마다 다시 만들어지는 그룹 정리용)
+    clearGroup(group) {
+        while (group.children.length) {
+            const child = group.children[0];
+            this.disposeTree(child);
+            group.remove(child);
+        }
     },
 
     // ---- 액션 연출 ----
@@ -1505,7 +1527,7 @@ const Scene3D = {
             m.g.rotation.z = k * Math.PI / 2;
             m.g.position.y = -k * 0.6;
             m.g.scale.multiplyScalar(0.985);
-        }, () => { this.scene.remove(m.g); this.enemyMap.delete(id); });
+        }, () => { this.disposeTree(m.g); this.scene.remove(m.g); this.enemyMap.delete(id); });
     },
 
     heroHit() {
