@@ -104,6 +104,7 @@ const Dungeons = {
         UI.toast(`⚡ ${this.def(id).kr} ${st}단계 소탕${suffix}`);
         saveGame();
         UI.renderTopBar();
+        if (r.egg) UI.renderPets(); // 침공 알 보상이 열려 있는 펫 패널(알 보관함)에도 즉시 반영되도록
         return true;
     },
 
@@ -118,6 +119,7 @@ const Dungeons = {
         UI.toast(`🏆 ${this.def(id).kr} ${stage}단계 클리어!${suffix}`);
         saveGame();
         UI.renderTopBar();
+        if (r.egg) UI.renderPets(); // 침공 알 보상이 열려 있는 펫 패널(알 보관함)에도 즉시 반영되도록
     },
 
     onFail() {
