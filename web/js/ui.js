@@ -1102,7 +1102,7 @@ const UI = {
         } else rates = mod.rates(lvl);
         const barsHtml = RARITIES.filter(r => (rates[r] || 0) > 0).map(r => `
             <div class="rate-bar" style="--rc:${RARITY_CSS[r]}">
-                <span class="rate-name">${RARITY_KR[r]}</span>
+                <span class="rate-name">${RARITY_KR[r]} <i class="rate-star">⭐</i></span>
                 <span class="rate-pct">${(rates[r] || 0).toFixed(2)}%</span>
             </div>`).join('');
         const cnt = (isMount ? S.mountOpens : isPet ? S.petSummonCount : S.summonCount) || 0;
@@ -1119,6 +1119,7 @@ const UI = {
                         <div><h3>레벨 ${lvl}</h3><div class="rates-sub">소환 확률</div></div>
                         <button class="tri-btn" onclick="UI.stepSummonRates(1)">▶</button>
                     </div>
+                    <button class="rates-i" onclick="UI.toast('소환 레벨이 오르면 높은 등급 확률이 올라갑니다')">i</button>
                     <div class="rate-list">${barsHtml}</div>
                     <p class="rates-tip">${isMount ? '태엽으로' : isPet ? '알을' : '티켓을'} 소환하여 레벨 업하고 소환 확률을 높이세요!</p>
                     ${gaugeHtml}
