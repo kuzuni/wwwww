@@ -2381,23 +2381,53 @@ const Scene3D = {
         const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         // 몬스터 눈: 흰자+홍채+동공+하이라이트+성난 눈썹 (빨간 점 → 캐릭터 표정)
-        const redEyes = (y, z, gap, r) => {
+        // 종별 파라미터 눈 — 전 종 공용 '성난 스티커' 복붙 금지 (비평가 2위 결함)
+        // style: round(순둥 왕눈)/angry(성난 흰자눈)/fierce(가늘게 뜬 맹수 흰자눈)/sleepy(반쯤 감김)/slit(발광 슬릿, 흰자 없음)
+        // opts: { iris: 홍채색, tilt: 눈꼬리 기울기(+=안쪽 내려감 분노, -=바깥 올라감 예리), narrow: 슬릿 더 납작, browColor }
+        const eyes = (y, z, gap, r, style, opts) => {
+            const o = opts || {};
             const er = (r || 0.045) * 1.5;
             for (const s of [-1, 1]) {
                 const eg = new THREE.Group();
                 eg.position.set(s * gap, y, z);
-                const sc = new THREE.Mesh(new THREE.SphereGeometry(er, 9, 7), new THREE.MeshBasicMaterial({ color: 0xfff6e8 }));
-                sc.scale.set(1, 1.12, 0.55);
-                const ir = new THREE.Mesh(new THREE.SphereGeometry(er * 0.58, 8, 6), new THREE.MeshBasicMaterial({ color: 0xd8352a }));
-                ir.position.z = er * 0.4;
-                const pu = new THREE.Mesh(new THREE.SphereGeometry(er * 0.28, 6, 5), new THREE.MeshBasicMaterial({ color: 0x1a1210 }));
-                pu.position.z = er * 0.58;
-                const hl = new THREE.Mesh(new THREE.SphereGeometry(er * 0.15, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-                hl.position.set(er * 0.2, er * 0.24, er * 0.62);
-                const brow = new THREE.Mesh(new THREE.BoxGeometry(er * 1.6, er * 0.34, er * 0.3), new THREE.MeshLambertMaterial({ color: 0x2b2b33 }));
-                brow.position.set(0, er * 1.0, er * 0.28);
-                brow.rotation.z = s * 0.42; // 안쪽이 내려간 성난 눈썹
-                eg.add(sc, ir, pu, hl, brow);
+                eg.rotation.z = s * (o.tilt || 0);
+                if (style === 'slit') {
+                    // 어둠 속 이글거리는 발광 슬릿 (골렘 마그마/늑대 냉광/임프 유황) — 흰자 없음
+                    const slit = new THREE.Mesh(new THREE.SphereGeometry(er * 0.72, 8, 6),
+                        new THREE.MeshLambertMaterial({ color: o.iris, emissive: o.iris, emissiveIntensity: 1 }));
+                    slit.scale.set(1.4, o.narrow ? 0.36 : 0.55, 0.4);
+                    const rim = new THREE.Mesh(new THREE.SphereGeometry(er * 0.8, 8, 6),
+                        new THREE.MeshBasicMaterial({ color: 0x14100e }));
+                    rim.position.z = -er * 0.12;
+                    rim.scale.set(1.5, o.narrow ? 0.5 : 0.7, 0.32);
+                    eg.add(rim, slit);
+                } else {
+                    const tall = style === 'round' ? 1.3 : style === 'sleepy' ? 0.62 : 0.92;
+                    const sc = new THREE.Mesh(new THREE.SphereGeometry(er, 9, 7), new THREE.MeshBasicMaterial({ color: 0xfff6e8 }));
+                    sc.scale.set(1, tall, 0.55);
+                    const irisR = style === 'round' ? er * 0.7 : er * 0.55;
+                    const ir = new THREE.Mesh(new THREE.SphereGeometry(irisR, 8, 6), new THREE.MeshBasicMaterial({ color: o.iris || 0xd8352a }));
+                    ir.position.z = er * 0.4;
+                    if (style === 'sleepy') ir.scale.y = 0.75;
+                    const pu = new THREE.Mesh(new THREE.SphereGeometry(irisR * 0.48, 6, 5), new THREE.MeshBasicMaterial({ color: 0x1a1210 }));
+                    pu.position.z = er * 0.58;
+                    const hl = new THREE.Mesh(new THREE.SphereGeometry(er * 0.16, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                    hl.position.set(er * 0.22, er * 0.26, er * 0.62);
+                    eg.add(sc, ir, pu, hl);
+                    if (style === 'sleepy') { // 위 눈꺼풀 — 살색보다 어두운 덮개
+                        const lid = new THREE.Mesh(new THREE.SphereGeometry(er * 1.02, 8, 6), new THREE.MeshLambertMaterial({ color: o.lid || 0x8d6a56 }));
+                        lid.position.y = er * 0.5;
+                        lid.scale.set(1.05, 0.5, 0.58);
+                        eg.add(lid);
+                    }
+                    if (style === 'angry' || style === 'fierce') { // 눈썹은 성난 계열만
+                        const brow = new THREE.Mesh(new THREE.BoxGeometry(er * 1.6, er * (style === 'fierce' ? 0.26 : 0.34), er * 0.3),
+                            new THREE.MeshLambertMaterial({ color: o.browColor || 0x2b2b33 }));
+                        brow.position.set(0, er * (style === 'fierce' ? 0.78 : 1.0), er * 0.28);
+                        brow.rotation.z = s * (style === 'fierce' ? 0.55 : 0.42); // 안쪽이 내려간 분노 각
+                        eg.add(brow);
+                    }
+                }
                 g.add(eg);
             }
         };
@@ -2409,8 +2439,10 @@ const Scene3D = {
             mat.transparent = true; mat.opacity = 0.85; // 젤리 반투명
             body = sp(0.45, 0, 0.34, 0, mat, 1, 0.72, 1);
             sp(0.15, 0.14, 0.66, 0, light);
-            bx(0.18, 0.05, 0.03, 0, 0.26, 0.42, new THREE.MeshBasicMaterial({ color: 0x37474f }));
-            redEyes(0.42, 0.4, 0.13);
+            const smMouth = mk(new THREE.TorusGeometry(0.05, 0.014, 6, 10, Math.PI * 0.85), new THREE.MeshBasicMaterial({ color: 0x274048 }));
+            smMouth.position.set(0, 0.3, 0.43); smMouth.rotation.z = Math.PI + Math.PI * 0.075; // 아래로 벌린 입 아크 (스티커 박스 입 제거)
+            g.add(smMouth);
+            eyes(0.42, 0.4, 0.13, 0.045, 'round', { iris: 0x1d4e63 });
             anim.body = body; topY = 0.85;
         } else if (kind === 'golem') {
             // 바위 구축물: 역삼각 몸통 라테 + 마그마 코어 + 거대 주먹 분절 팔 (눈사람 금지)
@@ -2468,7 +2500,7 @@ const Scene3D = {
             const browSlab = mk(new THREE.BoxGeometry(0.3, 0.07, 0.14), rockD);
             browSlab.position.set(0, 1.14, 0.1); browSlab.rotation.x = 0.15;
             g.add(head, browSlab);
-            redEyes(1.05, 0.21, 0.08);
+            eyes(1.05, 0.21, 0.08, 0.045, 'slit', { iris: 0xff7d33, narrow: true });
             topY = 1.35;
         } else if (kind === 'goblin') {
             // 굽은 등 이족보행: 서양배 몸통 전경 + 분절 사지 + 대형 귀 + 가시 몽둥이
@@ -2526,7 +2558,7 @@ const Scene3D = {
             const nose = mk(new THREE.ConeGeometry(0.045, 0.14, 6), skinD);
             nose.position.set(0, 0.93, 0.3); nose.rotation.x = Math.PI / 2 - 0.35;
             g.add(nose);
-            redEyes(0.99, 0.28, 0.1);
+            eyes(0.99, 0.28, 0.1, 0.045, 'fierce', { iris: 0xd9c422, tilt: 0.12, browColor: 0x3a4a2e });
             // 분절 팔 + 가시 몽둥이
             for (const s of [-1, 1]) {
                 const sh = new THREE.Group();
@@ -2575,7 +2607,7 @@ const Scene3D = {
                 anim.wings.push(wing);
                 g.add(wing);
             }
-            redEyes(0.66, 0.17, 0.08);
+            eyes(0.66, 0.17, 0.08, 0.04, 'slit', { iris: 0xffb547 });
             anim.fly = true; topY = 1.0;
         } else if (kind === 'mushroom') {
             // 통통한 줄기 라테 + 갓 그룹(돔+테두리 립+반점+주름 프릴) + 밑동 발
@@ -2608,7 +2640,7 @@ const Scene3D = {
                 capG.add(spot);
             }
             g.add(capG);
-            redEyes(0.24, 0.14, 0.075, 0.035);
+            eyes(0.24, 0.14, 0.075, 0.035, 'sleepy', { iris: 0x6b4a36, lid: 0xb0503e });
             anim.cap = capG; anim.hop = true;
             body = capG; topY = 0.9;
         } else if (kind === 'wolf') {
@@ -2628,7 +2660,7 @@ const Scene3D = {
             }
             const tail = cn(0.045, 0.22, 0, 0.38, -0.32, dark);
             tail.rotation.x = -2.3;
-            redEyes(0.48, 0.38, 0.055, 0.03);
+            eyes(0.48, 0.38, 0.055, 0.03, 'slit', { iris: 0x9adcff, narrow: true, tilt: -0.35 });
             topY = 0.9;
         } else { // imp: 작은 악마 — 분절 사지 + 박쥐 막날개 + 화살촉 꼬리 + 곡선 뿔
             const skinM = lam(base, ProChar.hideTex());
@@ -2670,7 +2702,7 @@ const Scene3D = {
                 ear.scale.z = 0.5;
                 g.add(horn1, horn2, ear);
             }
-            redEyes(0.65, 0.1, 0.055, 0.028);
+            eyes(0.65, 0.1, 0.055, 0.028, 'slit', { iris: 0xffe14a, tilt: 0.3 });
             // 박쥐 막날개: 본 콘 2개 + 삼각 멤브레인
             for (const s of [-1, 1]) {
                 const wing = new THREE.Group();
