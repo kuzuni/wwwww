@@ -100,6 +100,16 @@ const UI = {
         this.switchTab(null);
     },
 
+    // 팝업 표시 공통 경로 — 열림 애니메이션(cardpop)은 '처음 열릴 때 1회만'.
+    // 이미 열린 팝업의 내용 갱신(재렌더 후 재호출)은 opening을 다시 붙이지 않아 깜빡임이 없다 (사용자 지시).
+    showModal(el) {
+        if (!el.classList.contains('hidden')) return; // 이미 열려 있음 — 재렌더 경로, 애니메이션 금지
+        el.classList.remove('hidden');
+        el.classList.add('opening');
+        clearTimeout(el._openingT);
+        el._openingT = setTimeout(() => el.classList.remove('opening'), 300);
+    },
+
     openStub(title, desc) {
         this.els.stubModal.innerHTML = `
             <div class="modal-card">
@@ -108,7 +118,7 @@ const UI = {
                 <p class="muted">🚧 다음 업데이트에서 추가될 예정입니다.</p>
                 <button class="btn" onclick="UI.closeStub()">닫기</button>
             </div>`;
-        this.els.stubModal.classList.remove('hidden');
+        this.showModal(this.els.stubModal);
     },
     closeStub() { this.els.stubModal.classList.add('hidden'); },
 
@@ -312,14 +322,14 @@ const UI = {
     openForgeInfo() {
         this._forgeView = 'level';
         this.renderForgeInfo();
-        this.els.forgeInfoModal.classList.remove('hidden');
+        this.showModal(this.els.forgeInfoModal);
     },
     openForgeList() { this._forgeView = 'list'; this.renderForgeInfo(); },
     // 장비 상세는 원본처럼 목록 팝업 '위에' 겹쳐 뜬다 (뒤 목록이 그대로 보임)
     openForgeDetail(age, slot, variant) {
         this._forgeItem = { age, slot, variant };
         this.renderForgeDetailView();
-        this.els.forgeItemModal.classList.remove('hidden');
+        this.showModal(this.els.forgeItemModal);
     },
     closeForgeItemDetail() { this.els.forgeItemModal.classList.add('hidden'); },
     closeForgeInfo() {
@@ -465,7 +475,7 @@ const UI = {
     openAutoForge() {
         if (!isUnlocked('autoForge')) { this.toast('🔒 스테이지 2-10 도달 시 해금됩니다'); return; }
         this.renderAutoForge();
-        this.els.autoForgeModal.classList.remove('hidden');
+        this.showModal(this.els.autoForgeModal);
     },
     closeAutoForge() { this.els.autoForgeModal.classList.add('hidden'); },
     // 원본(shot-042950/043117) 대조: 유지=풀폭 시대색 막대+체크, 필터=우측 토글+회색 pill 행,
@@ -598,7 +608,7 @@ const UI = {
                     <button class="btn equip" onclick="UI.resolveCraft('equip')">✅ 장착${cur ? ' (기존 판매)' : ''}</button>
                 </div>
             </div>`;
-        this.els.craftModal.classList.remove('hidden');
+        this.showModal(this.els.craftModal);
     },
 
     // 장비 세부정보 팝업 (UI-SPEC 26번): 메인 화면 장비 카드 클릭 시 — 비교 팝업과 달리 버튼 없음, 바깥 탭하면 닫힘
@@ -610,7 +620,7 @@ const UI = {
             <div class="modal-card wide">
                 <div class="cmp-wrap">${this.itemCardHTML(item, '장착됨', null, false)}</div>
             </div>`;
-        this.els.gearDetailModal.classList.remove('hidden');
+        this.showModal(this.els.gearDetailModal);
     },
     closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); this._gearDetailSlot = null; },
 
@@ -765,7 +775,7 @@ const UI = {
                 </div>
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>
             </div>`;
-        this.els.detailModal.classList.remove('hidden');
+        this.showModal(this.els.detailModal);
     },
 
     togglePetSummonX5() {
@@ -812,7 +822,7 @@ const UI = {
         this._petUpgradeTarget = idx;
         this._petUpgradeMats = { pets: [], eggs: [] };
         this.renderPetUpgrade();
-        this.els.petUpgradeModal.classList.remove('hidden');
+        this.showModal(this.els.petUpgradeModal);
     },
     closePetUpgrade() { this.els.petUpgradeModal.classList.add('hidden'); },
     // UI-SPEC 55번(원본 shot-042503) 레이아웃: 대상 카드(장착됨+Lv+⭐+피해/체력) → 경험치 바 →
@@ -976,7 +986,7 @@ const UI = {
         this._ratesKind = kind || this._ratesKind;
         this._ratesLevel = null; // 현재 레벨부터
         this.renderSummonRates();
-        this.els.detailModal.classList.remove('hidden');
+        this.showModal(this.els.detailModal);
     },
     stepSummonRates(d) {
         const mod = this._ratesKind === 'pet' ? Pets : Skills;
@@ -1051,7 +1061,7 @@ const UI = {
                 </div>
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>
             </div>`;
-        this.els.detailModal.classList.remove('hidden');
+        this.showModal(this.els.detailModal);
     },
     closeDetail() { this.els.detailModal.classList.add('hidden'); },
 
@@ -1165,7 +1175,7 @@ const UI = {
                 <p class="sheet-sub">던전 열쇠는 매일 09:00에 보충됩니다. 열쇠는 던전을 완료할 때만 소모됩니다</p>
                 <div class="dungeon-list">${bannerHtml}</div>
             </div>`;
-        this.els.dungeonModal.classList.remove('hidden');
+        this.showModal(this.els.dungeonModal);
     },
     closeDungeons() { this.els.dungeonModal.classList.add('hidden'); },
 
@@ -1175,7 +1185,7 @@ const UI = {
         this._dgDetailId = id;
         this._dgDetailStage = S.dungeons.best[id] + 1;
         this.renderDungeonDetail();
-        this.els.dungeonDetailModal.classList.remove('hidden');
+        this.showModal(this.els.dungeonDetailModal);
     },
     closeDungeonDetail() { this.els.dungeonDetailModal.classList.add('hidden'); },
     onDungeonStageStep(delta) {
@@ -1237,7 +1247,7 @@ const UI = {
     openLeague() {
         League.ensure();
         this.renderLeagueBoard();
-        this.els.leagueModal.classList.remove('hidden');
+        this.showModal(this.els.leagueModal);
     },
     closeLeague() { this.els.leagueModal.classList.add('hidden'); },
     renderLeagueBoard() {
@@ -1327,7 +1337,7 @@ const UI = {
     openPass() {
         Pass.ensure();
         this.renderPass();
-        this.els.passModal.classList.remove('hidden');
+        this.showModal(this.els.passModal);
     },
     closePass() { this.els.passModal.classList.add('hidden'); },
     renderPass() {
@@ -1369,7 +1379,7 @@ const UI = {
     openShop() {
         Shop.ensure();
         this.renderShop();
-        this.els.shopModal.classList.remove('hidden');
+        this.showModal(this.els.shopModal);
     },
     closeShop() { this.els.shopModal.classList.add('hidden'); },
     // 원본(shot-042632): 다크 마룬 풀스크린 + 금색 리본 배너 + 특가 카드(좌상단 빨간 깃발 태그,
@@ -1421,7 +1431,7 @@ const UI = {
     // ---- 프로필/설정 팝업 (UI-SPEC 19~20번): 프로필(이름·아바타 편집) / 설정(음악·사운드 실동작 토글) ----
     AVATAR_POOL: ['🛡️', '🧙', '🥷', '🦸', '🧝', '🧛', '🐲', '🦖', '🐺', '🦊', '🐯', '👑'],
     _profileView: 'profile', _avatarPicking: false,
-    openProfile() { this._profileView = 'profile'; this._avatarPicking = false; this.renderProfile(); this.els.profileModal.classList.remove('hidden'); },
+    openProfile() { this._profileView = 'profile'; this._avatarPicking = false; this.renderProfile(); this.showModal(this.els.profileModal); },
     closeProfile() { this.els.profileModal.classList.add('hidden'); },
     switchProfileView(v) { this._profileView = v; this._avatarPicking = false; this.renderProfile(); },
     renderProfile() {
@@ -1524,7 +1534,7 @@ const UI = {
     },
 
     // ---- 플레이어 정보 팝업 (메인 화면 왼쪽 하단 "!" 버튼, UI-SPEC 27번) ----
-    openPlayerInfo() { this.renderPlayerInfo(); this.els.playerInfoModal.classList.remove('hidden'); },
+    openPlayerInfo() { this.renderPlayerInfo(); this.showModal(this.els.playerInfoModal); },
     closePlayerInfo() { this.els.playerInfoModal.classList.add('hidden'); },
     renderPlayerInfo() {
         const stats = Forge.heroStats();
@@ -1662,7 +1672,7 @@ const UI = {
     openChat() {
         Chat.ensure();
         this.renderChatFull();
-        this.els.chatModal.classList.remove('hidden');
+        this.showModal(this.els.chatModal);
     },
     closeChat() { this.els.chatModal.classList.add('hidden'); },
     renderChatFull() {
@@ -1766,7 +1776,7 @@ const UI = {
             <button class="btn danger tech-tree-back" onclick="UI.openTechOverview()">◀</button>`;
     },
     // 노드 팝업 (UI-SPEC 15~16번). 공용 상세 팝업 #detail-modal 재사용(공통 규칙) — 전용 모달 폐기.
-    openTechNode(id) { this._techNode = id; this.renderTechNodeModal(); this.els.detailModal.classList.remove('hidden'); },
+    openTechNode(id) { this._techNode = id; this.renderTechNodeModal(); this.showModal(this.els.detailModal); },
     // 백그라운드 틱이 연구 완료로 이 노드 팝업을 다시 그려도 되는지 확인(다른 상세 팝업이 열려 있을 수 있음)
     isTechNodeOpen(id) {
         if (this.els.detailModal.classList.contains('hidden')) return false;
@@ -1889,7 +1899,7 @@ const UI = {
                 <div class="pet-list">${listHtml}</div>
                 <button class="btn" onclick="UI.closeMounts()">닫기</button>
             </div>`;
-        this.els.mountModal.classList.remove('hidden');
+        this.showModal(this.els.mountModal);
     },
     closeMounts() { this.els.mountModal.classList.add('hidden'); },
     toggleMountSummonX5() {
@@ -1923,7 +1933,7 @@ const UI = {
         this._mountUpgradeTarget = name;
         this._mountUpgradeMats = [];
         this.renderMountUpgrade();
-        this.els.mountUpgradeModal.classList.remove('hidden');
+        this.showModal(this.els.mountUpgradeModal);
     },
     closeMountUpgrade() { this.els.mountUpgradeModal.classList.add('hidden'); },
     renderMountUpgrade() {
@@ -2004,7 +2014,7 @@ const UI = {
                 </div>
                 <button class="btn" onclick="UI.closeAscension()">닫기</button>
             </div>`;
-        this.els.ascendModal.classList.remove('hidden');
+        this.showModal(this.els.ascendModal);
     },
     closeAscension() { this.els.ascendModal.classList.add('hidden'); },
 
@@ -2027,7 +2037,7 @@ const UI = {
                 </div>
                 <button class="x-btn" onclick="UI.closeOfflineModal()">✕</button>
             </div>`;
-        this.els.offlineModal.classList.remove('hidden');
+        this.showModal(this.els.offlineModal);
     },
     closeOfflineModal() { this.els.offlineModal.classList.add('hidden'); },
 
@@ -2185,7 +2195,7 @@ const UI = {
     onWaypointLeague() {
         League.ensure();
         this.renderLeagueRewards();
-        this.els.leagueModal.classList.remove('hidden');
+        this.showModal(this.els.leagueModal);
     },
     onWaypointMystery() { this.openStub('❓ 미스터리 상자', '특별 이벤트 상자는 준비 중입니다.'); },
 };

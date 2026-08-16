@@ -401,8 +401,9 @@ body {
     width: 82%; background: #1c2128; border: 2px solid var(--rc, #444c56);
     border-radius: 1rem; padding: 1.1rem; text-align: center;
     display: flex; flex-direction: column; gap: .45rem;
-    animation: cardpop .25s ease-out;
 }
+/* 열림 애니메이션은 최초 오픈 시(.opening)에만 — 열린 채 innerHTML 재렌더 시 카드가 재생성돼도 깜빡이지 않게 */
+.modal.opening .modal-card { animation: cardpop .25s ease-out; }
 @keyframes cardpop { from { transform: scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
 .rarity-tag { font-size: .74rem; font-weight: 800; color: var(--rc, #90a4ae); }
 .modal-card h3 { font-size: 1.15rem; }
