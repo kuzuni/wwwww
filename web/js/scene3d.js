@@ -51,7 +51,10 @@ const Scene3D = {
             pl.position.set(0, 0.9, 0); // 씬에는 넣지 않음 — buildProps가 발광 바이옴에서만 소품에 부착
             this.accents.push(pl);
         }
-        this.scene.add(this.hemi, this.sun, this.rim);
+        // ❗sun.target을 씬에 추가해야 target.position 이동이 matrixWorld에 반영됨 —
+        // 월드가 +x로 무한 스크롤하므로 update()가 sun/target을 worldX만큼 따라 옮긴다.
+        // (안 옮기면 전진 몇 초 만에 소품 전체가 그림자 카메라 프러스텀 밖으로 벗어나 그림자가 소실됨)
+        this.scene.add(this.hemi, this.sun, this.sun.target, this.rim);
 
         this.buildEmbers();
         this.buildSky();
@@ -671,7 +674,8 @@ const Scene3D = {
                 const [px, py] = pts[pts.length - 1];
                 pts.push([px + Math.cos(a) * 10, py + Math.sin(a) * 10]);
             }
-            for (const [wd, col] of [[6, 'rgba(255,61,0,0.28)'], [2.2, 'rgba(255,167,38,0.9)']]) {
+            // 3겹: 넓은 열기 폴오프 → 중간 광 → 좁은 백열 코어 (크랙이 지면을 달구는 인상)
+            for (const [wd, col] of [[14, 'rgba(255,61,0,0.13)'], [6, 'rgba(255,61,0,0.3)'], [2.2, 'rgba(255,167,38,0.9)']]) {
                 ctx.strokeStyle = col;
                 ctx.lineWidth = wd;
                 ctx.beginPath();
@@ -1082,7 +1086,9 @@ const Scene3D = {
                 col.copy(mat2.color).offsetHSL(U.rand(-0.015, 0.015), U.rand(-0.04, 0.04), U.rand(-tint2, tint2));
                 im.setColorAt(i, col);
             }
-            im.receiveShadow = true;
+            // ❗receiveShadow 금지 — r128에서 instanceColor를 쓰는 InstancedMesh가 그림자 수신 프로그램에 끼면
+            // 부모 지형을 포함한 씬 전체의 그림자 수신이 조용히 깨진다(실측: 이 한 줄이 true면 지형 그림자 전멸).
+            im.receiveShadow = false;
             this.ground.add(im);
             return im;
         };
@@ -1104,7 +1110,7 @@ const Scene3D = {
                 col.copy(mat.color).offsetHSL(U.rand(-0.015, 0.015), U.rand(-0.04, 0.04), U.rand(-tint, tint));
                 im.setColorAt(i, col);
             }
-            im.receiveShadow = true;
+            im.receiveShadow = false; // 상동 — instanceColor InstancedMesh는 그림자 수신 금지
             this.ground.add(im);
             return im;
         })();
@@ -2995,8 +3001,10 @@ const Scene3D = {
             this.rim.intensity = 0.45;
             this.sun.color.copy(new THREE.Color(0xc6d4ff).lerp(new THREE.Color(t.sky), 0.25)); // 달빛
             this.sun.position.set(5, 6.5, -7); // 달 디스크(우측 후방)와 같은 방향에서 내려오는 역광 — 그림자가 카메라 쪽으로
+            this.sun.userData.baseX = 5;
         } else {
             this.sun.position.set(7, 5.2, 3.2); // 낮: 측면 45도 저고도 — 캐스트 섀도를 길게, 요철 스컬핑 최대로
+            this.sun.userData.baseX = 7;
             this.sun.intensity = biome === 'lava' ? 0.85 : 1.85; // 태양 비중 상향 — "앰비언트로 뜬 파스텔" 인상 제거
             this.hemi.intensity = biome === 'lava' ? 0.42 : 0.3; // 채움광은 낮춰 명암비 확보
             this.rim.intensity = 0.3;
@@ -3232,6 +3240,9 @@ const Scene3D = {
             if (mist.position.x < this.worldX - 10) mist.position.x = this.worldX + 10;
             mist.position.y = mist.userData.baseY + Math.sin(this._clock * 0.6 + mist.userData.baseY * 5) * 0.12;
         }
+        // 태양(+그림자 카메라 프러스텀)도 월드 스크롤을 따라감 — 라이트 방향은 불변, 프러스텀만 동행
+        if (this.sun.userData.baseX !== undefined) this.sun.position.x = this.sun.userData.baseX + this.worldX;
+        this.sun.target.position.x = this.worldX;
         for (const mt of this.mountains) mt.position.x = mt.userData.baseX + this.worldX;
         for (const h of this.hills) h.position.x = h.userData.baseX + this.worldX;
         if (this.skyDome) this.skyDome.position.x = this.worldX;
