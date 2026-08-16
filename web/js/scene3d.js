@@ -2291,10 +2291,12 @@ const Scene3D = {
         const base = new THREE.Color(theme.ground).offsetHSL(U.rand(-0.08, 0.08), 0.2, -0.08);
         const g = new THREE.Group();
         const flashMats = [];
-        const lam = c2 => { const m = new THREE.MeshLambertMaterial({ color: c2 }); flashMats.push(m); return m; };
+        const lam = (c2, map) => { const m = new THREE.MeshLambertMaterial({ color: c2, map: map || null }); flashMats.push(m); return m; };
         const mat = lam(base);
         const dark = lam(base.clone().offsetHSL(0, 0, -0.13));
         const light = lam(base.clone().offsetHSL(0, 0, 0.1));
+        const mk = (geo, m) => new THREE.Mesh(geo, m); // 그룹 조립용 (g에 자동 추가 안 함)
+        const limb = (rTop, rBot, len, m) => ProChar.capsule(rTop, rBot, len, m, 9); // 분절 사지 — 피벗=위쪽 끝
         const sp = (r, x, y, z, m, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 11, 9), m || mat); o.position.set(x, y, z); if (sx) o.scale.set(sx, sy, sz); g.add(o); return o; };
         const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
@@ -2335,35 +2337,152 @@ const Scene3D = {
             redEyes(0.42, 0.4, 0.13);
             anim.body = body; topY = 0.85;
         } else if (kind === 'golem') {
-            body = bx(0.55, 0.55, 0.4, 0, 0.6, 0, dark);
-            bx(0.3, 0.24, 0.28, 0, 1.0, 0, mat);
-            for (const dx of [-0.16, 0.16]) bx(0.18, 0.34, 0.2, dx, 0.17, 0, dark);
-            armR = new THREE.Group(); armR.position.set(0.37, 0.82, 0);
-            const am = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.5, 0.19), dark);
-            am.position.y = -0.22; armR.add(am);
-            armL = new THREE.Group(); armL.position.set(-0.37, 0.82, 0);
-            armL.add(am.clone());
-            g.add(armR, armL);
-            redEyes(1.02, 0.15, 0.08);
-            topY = 1.25;
-        } else if (kind === 'goblin') {
-            body = sp(0.27, 0, 0.4, 0, mat, 1, 1.15, 1);
-            sp(0.24, 0, 0.86, 0, light);
-            for (const s of [-1, 1]) {
-                const ear = cn(0.07, 0.24, s * 0.24, 0.98, 0);
-                ear.rotation.z = s * -1.1;
-                bx(0.11, 0.2, 0.13, s * 0.1, 0.1, 0, dark);
+            // 바위 구축물: 역삼각 몸통 라테 + 마그마 코어 + 거대 주먹 분절 팔 (눈사람 금지)
+            const rockM = lam(base.clone().offsetHSL(0, -0.12, -0.02), ProChar.rockTex());
+            const rockD = lam(base.clone().offsetHSL(0, -0.12, -0.16), ProChar.rockTex());
+            const magma = new THREE.MeshBasicMaterial({ color: 0xff7d33 });
+            const prof = [[0.17, 0], [0.3, 0.1], [0.36, 0.3], [0.33, 0.46], [0.2, 0.56]];
+            body = mk(new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 12), rockM);
+            body.position.y = 0.42; body.scale.z = 0.85;
+            g.add(body);
+            // 마그마 코어 + 가슴 균열 스트립
+            const core = mk(new THREE.SphereGeometry(0.062, 10, 8), magma);
+            core.position.set(0, 0.73, 0.325); core.scale.z = 0.35; // 몸통 표면(z≈0.31) 밖으로
+            g.add(core);
+            // 코어에서 방사하는 가는 균열 (한 덩어리로 뭉치지 않게 짧고 얇게)
+            for (const [cx2, cy2, ang] of [[0.1, 0.79, 0.9], [-0.1, 0.78, -0.8], [0.09, 0.66, -1.0], [-0.08, 0.65, 1.1]]) {
+                const crack = mk(new THREE.BoxGeometry(0.013, 0.09, 0.012), magma);
+                crack.position.set(cx2, cy2, 0.305); crack.rotation.z = ang;
+                g.add(crack);
             }
-            armR = new THREE.Group(); armR.position.set(0.25, 0.55, 0);
-            const am2 = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.3, 0.09), mat);
-            am2.position.y = -0.12;
-            const club = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 0.42, 6), new THREE.MeshLambertMaterial({ color: 0x6d4c41 }));
-            club.position.y = -0.34; club.rotation.z = 0.5;
-            armR.add(am2, club);
-            armL = new THREE.Group(); armL.position.set(-0.25, 0.55, 0);
-            armL.add(am2.clone());
-            g.add(armR, armL);
-            redEyes(0.9, 0.19, 0.09);
+            // 어깨 볼더 + 분절 팔(상완 캡슐 → 팔꿈치 → 하완 → 거대 주먹, 지면까지 늘어짐)
+            for (const s of [-1, 1]) {
+                const sh = new THREE.Group();
+                sh.position.set(s * 0.42, 0.9, 0);
+                const boulder = mk(new THREE.SphereGeometry(0.155, 10, 8), rockD);
+                boulder.scale.set(1, 0.9, 0.9);
+                const upper = limb(0.085, 0.075, 0.3, rockM);
+                upper.rotation.z = s * 0.12;
+                const elbow = new THREE.Group();
+                elbow.position.y = -0.32;
+                const fore = limb(0.07, 0.09, 0.24, rockD);
+                const fist = mk(new THREE.SphereGeometry(0.15, 10, 8), rockM);
+                fist.position.y = -0.3; fist.scale.set(1, 1.1, 1);
+                for (let k2 = 0; k2 < 3; k2++) { // 주먹 관절 돌기
+                    const knuckle = mk(new THREE.SphereGeometry(0.045, 7, 6), rockD);
+                    knuckle.position.set((k2 - 1) * 0.075, -0.38, s * 0.06);
+                    elbow.add(knuckle);
+                }
+                elbow.add(fore, fist);
+                sh.add(boulder, upper, elbow);
+                g.add(sh);
+                if (s > 0) armR = sh; else armL = sh;
+            }
+            // 짧은 기둥 다리 + 발 바위
+            for (const s of [-1, 1]) {
+                const leg = limb(0.095, 0.085, 0.2, rockD);
+                leg.position.set(s * 0.17, 0.26, 0);
+                const foot = mk(new THREE.SphereGeometry(0.115, 9, 7), rockM);
+                foot.position.set(s * 0.18, 0.06, 0.03); foot.scale.set(1, 0.55, 1.3);
+                g.add(leg, foot);
+            }
+            // 머리: 어깨 사이에 파묻힌 낮은 바위 돔 + 무거운 눈두덩 슬랩
+            const head = mk(new THREE.SphereGeometry(0.17, 10, 8), rockM);
+            head.position.set(0, 1.06, 0.05); head.scale.set(1, 0.78, 0.9);
+            const browSlab = mk(new THREE.BoxGeometry(0.3, 0.07, 0.14), rockD);
+            browSlab.position.set(0, 1.14, 0.1); browSlab.rotation.x = 0.15;
+            g.add(head, browSlab);
+            redEyes(1.05, 0.21, 0.08);
+            topY = 1.35;
+        } else if (kind === 'goblin') {
+            // 굽은 등 이족보행: 서양배 몸통 전경 + 분절 사지 + 대형 귀 + 가시 몽둥이
+            const skinM = lam(base, ProChar.hideTex());
+            const skinD = lam(base.clone().offsetHSL(0, 0, -0.12), ProChar.hideTex());
+            const clothM = lam(new THREE.Color(0x8a6a3c), ProChar.leatherTex());
+            // 분절 다리: 대퇴 → 무릎 → 정강이 → 발
+            for (const s of [-1, 1]) {
+                const hip = new THREE.Group();
+                hip.position.set(s * 0.12, 0.42, 0);
+                const thigh = limb(0.062, 0.05, 0.18, skinM);
+                thigh.rotation.x = -0.3; // 웅크린 자세
+                const knee = new THREE.Group();
+                knee.position.set(0, -0.16, 0.06);
+                const shin = limb(0.045, 0.04, 0.17, skinD);
+                shin.rotation.x = 0.35;
+                const foot = mk(new THREE.SphereGeometry(0.055, 8, 6), skinM);
+                foot.position.set(0, -0.17, 0.07); foot.scale.set(0.8, 0.5, 1.7);
+                knee.add(shin, foot);
+                hip.add(thigh, knee);
+                g.add(hip);
+            }
+            // 서양배 몸통 (앞으로 굽음) + 로인클로스 + 로프 벨트
+            body = mk(new THREE.SphereGeometry(0.24, 12, 10), skinM);
+            body.position.set(0, 0.62, 0.02); body.scale.set(1, 1.12, 0.92); body.rotation.x = 0.22;
+            const belly = mk(new THREE.SphereGeometry(0.17, 10, 8), light);
+            belly.position.set(0, 0.55, 0.14); belly.scale.set(1, 1.1, 0.55);
+            const cloth = mk(new THREE.CylinderGeometry(0.2, 0.26, 0.14, 10, 1, true), clothM);
+            cloth.material.side = THREE.DoubleSide;
+            cloth.position.y = 0.42;
+            const rope = mk(new THREE.TorusGeometry(0.205, 0.022, 6, 12), clothM);
+            rope.rotation.x = Math.PI / 2; rope.position.y = 0.5;
+            g.add(body, belly, cloth, rope);
+            // 머리: 큰 두상 + 대형 뾰족귀(안쪽 어두운 이중판) + 매부리코 + 언더바이트 송곳니
+            const head = mk(new THREE.SphereGeometry(0.21, 12, 10), skinM);
+            head.position.set(0, 0.95, 0.08); head.scale.set(1, 0.95, 0.95);
+            const jaw = mk(new THREE.SphereGeometry(0.13, 10, 8), skinD);
+            jaw.position.set(0, 0.83, 0.15); jaw.scale.set(1.15, 0.55, 0.9);
+            g.add(head, jaw);
+            for (const s of [-1, 1]) {
+                const tusk = mk(new THREE.ConeGeometry(0.022, 0.07, 6), new THREE.MeshLambertMaterial({ color: 0xf5efdd }));
+                tusk.position.set(s * 0.07, 0.88, 0.22);
+                g.add(tusk);
+                const ear = new THREE.Group();
+                ear.position.set(s * 0.19, 1.0, 0.02);
+                const earOut = mk(new THREE.ConeGeometry(0.075, 0.32, 6), skinM);
+                earOut.rotation.z = s * -1.85; earOut.position.x = s * 0.14;
+                earOut.scale.z = 0.45;
+                const earIn = mk(new THREE.ConeGeometry(0.045, 0.2, 6), skinD);
+                earIn.rotation.z = s * -1.85; earIn.position.set(s * 0.12, 0.012, 0);
+                earIn.scale.z = 0.3;
+                ear.add(earOut, earIn);
+                g.add(ear);
+            }
+            const nose = mk(new THREE.ConeGeometry(0.045, 0.14, 6), skinD);
+            nose.position.set(0, 0.93, 0.3); nose.rotation.x = Math.PI / 2 - 0.35;
+            g.add(nose);
+            redEyes(0.99, 0.28, 0.1);
+            // 분절 팔 + 가시 몽둥이
+            for (const s of [-1, 1]) {
+                const sh = new THREE.Group();
+                sh.position.set(s * 0.25, 0.78, 0.02);
+                const upper = limb(0.05, 0.042, 0.17, skinM);
+                upper.rotation.z = s * 0.25;
+                const elbow = new THREE.Group();
+                elbow.position.set(s * 0.05, -0.17, 0);
+                const fore = limb(0.04, 0.036, 0.15, skinD);
+                const hand = mk(new THREE.SphereGeometry(0.05, 8, 6), skinM);
+                hand.position.y = -0.16;
+                elbow.add(fore, hand);
+                if (s > 0) { // 가시 몽둥이
+                    const club = new THREE.Group();
+                    club.position.y = -0.18;
+                    const shaft = mk(new THREE.CylinderGeometry(0.032, 0.06, 0.4, 7), new THREE.MeshLambertMaterial({ color: 0x6d4c41, map: ProChar.leatherTex() }));
+                    shaft.position.y = -0.1;
+                    club.add(shaft);
+                    for (let k2 = 0; k2 < 5; k2++) {
+                        const spike = mk(new THREE.ConeGeometry(0.018, 0.06, 5), new THREE.MeshLambertMaterial({ color: 0xcfd2d6 }));
+                        const a2 = k2 * 2.4;
+                        spike.position.set(Math.cos(a2) * 0.06, -0.2 - (k2 % 3) * 0.05, Math.sin(a2) * 0.06);
+                        spike.rotation.z = -Math.cos(a2) * 1.2; spike.rotation.x = Math.sin(a2) * 1.2;
+                        club.add(spike);
+                    }
+                    club.rotation.z = 0.5;
+                    elbow.add(club);
+                }
+                sh.add(upper, elbow);
+                g.add(sh);
+                if (s > 0) armR = sh; else armL = sh;
+            }
             topY = 1.25;
         } else if (kind === 'bat') {
             body = sp(0.2, 0, 0.6, 0, mat, 1, 1.1, 0.9);
@@ -2383,12 +2502,39 @@ const Scene3D = {
             redEyes(0.66, 0.17, 0.08);
             anim.fly = true; topY = 1.0;
         } else if (kind === 'mushroom') {
-            cy(0.12, 0.16, 0.32, 0, 0.16, 0, light);
-            const cap = sp(0.3, 0, 0.4, 0, mat, 1, 0.62, 1);
-            for (let i = 0; i < 4; i++) sp(0.045, Math.cos(i * 1.7) * 0.18, 0.46, Math.sin(i * 1.7) * 0.18, new THREE.MeshLambertMaterial({ color: 0xffffff }));
-            redEyes(0.2, 0.13, 0.07, 0.035);
-            anim.cap = cap; anim.hop = true;
-            body = cap; topY = 0.85;
+            // 통통한 줄기 라테 + 갓 그룹(돔+테두리 립+반점+주름 프릴) + 밑동 발
+            const stemM = lam(base.clone().offsetHSL(0, -0.28, 0.22), ProChar.hideTex());
+            const stemProf = [[0.15, 0], [0.12, 0.1], [0.1, 0.22], [0.13, 0.32], [0.16, 0.38]];
+            const stem = mk(new THREE.LatheGeometry(stemProf.map(p => new THREE.Vector2(p[0], p[1])), 10), stemM);
+            g.add(stem);
+            for (const s of [-1, 1]) { // 밑동 스터비 발
+                const foot = mk(new THREE.SphereGeometry(0.06, 8, 6), stemM);
+                foot.position.set(s * 0.09, 0.03, 0.1); foot.scale.set(0.9, 0.5, 1.4);
+                g.add(foot);
+            }
+            const capG = new THREE.Group(); // 갓 전체가 한 그룹으로 출렁임
+            capG.position.y = 0.42;
+            const dome = mk(new THREE.SphereGeometry(0.32, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), mat);
+            dome.scale.set(1, 0.82, 1);
+            const lip = mk(new THREE.TorusGeometry(0.29, 0.05, 8, 16), dark);
+            lip.rotation.x = Math.PI / 2; lip.position.y = 0.015;
+            const frill = mk(new THREE.CylinderGeometry(0.28, 0.2, 0.06, 12, 1, true), light); // 갓 아래 주름살
+            frill.material.side = THREE.DoubleSide;
+            frill.position.y = -0.02;
+            capG.add(dome, lip, frill);
+            const spotM = new THREE.MeshLambertMaterial({ color: 0xfff8ec });
+            for (const [sx2, sy2, sr] of [[-0.14, 0.16, 0.062], [0.12, 0.2, 0.05], [0.02, 0.26, 0.04], [0.2, 0.08, 0.045], [-0.22, 0.06, 0.038]]) {
+                const spot = mk(new THREE.SphereGeometry(sr, 8, 6), spotM);
+                const sz2 = Math.sqrt(Math.max(0.01, 0.09 - sx2 * sx2 - (sy2 - 0.0) * (sy2 - 0.0) * 0.6));
+                spot.position.set(sx2, sy2, sz2 * 0.75);
+                spot.scale.z = 0.35;
+                spot.lookAt(spot.position.clone().multiplyScalar(2).add(capG.position));
+                capG.add(spot);
+            }
+            g.add(capG);
+            redEyes(0.24, 0.14, 0.075, 0.035);
+            anim.cap = capG; anim.hop = true;
+            body = capG; topY = 0.9;
         } else if (kind === 'wolf') {
             body = sp(0.17, 0, 0.32, 0, mat, 0.95, 0.85, 1.6);
             sp(0.11, 0, 0.44, 0.3, light);
@@ -2408,26 +2554,100 @@ const Scene3D = {
             tail.rotation.x = -2.3;
             redEyes(0.48, 0.38, 0.055, 0.03);
             topY = 0.9;
-        } else { // imp: 작은 악마
-            body = sp(0.14, 0, 0.28, 0, mat);
-            sp(0.11, 0, 0.5, 0.02, light);
+        } else { // imp: 작은 악마 — 분절 사지 + 박쥐 막날개 + 화살촉 꼬리 + 곡선 뿔
+            const skinM = lam(base, ProChar.hideTex());
+            const skinD = lam(base.clone().offsetHSL(0, 0, -0.12), ProChar.hideTex());
+            const boneM = new THREE.MeshLambertMaterial({ color: 0xf3ead6 });
+            // 디지타이그레이드 다리: 대퇴 → 역관절 정강이 → 발굽
             for (const s of [-1, 1]) {
-                const horn = cn(0.025, 0.1, s * 0.06, 0.63, 0, new THREE.MeshLambertMaterial({ color: 0xffffff }));
-                horn.rotation.z = s * -0.35;
-                bx(0.07, 0.16, 0.08, s * 0.07, 0.08, 0, dark);
+                const hip = new THREE.Group();
+                hip.position.set(s * 0.075, 0.3, 0);
+                const thigh = limb(0.042, 0.035, 0.12, skinM);
+                thigh.rotation.x = -0.35;
+                const knee = new THREE.Group();
+                knee.position.set(0, -0.11, 0.04);
+                const shin = limb(0.03, 0.026, 0.13, skinD);
+                shin.rotation.x = 0.5;
+                const hoof = mk(new THREE.ConeGeometry(0.035, 0.07, 6), skinD);
+                hoof.position.set(0, -0.13, 0.05); hoof.rotation.x = Math.PI;
+                knee.add(shin, hoof);
+                hip.add(thigh, knee);
+                g.add(hip);
+            }
+            // 몸통 캡슐 + 밝은 배 패치
+            body = mk(new THREE.SphereGeometry(0.15, 10, 8), skinM);
+            body.position.y = 0.4; body.scale.set(1, 1.25, 0.9);
+            const belly = mk(new THREE.SphereGeometry(0.1, 8, 6), light);
+            belly.position.set(0, 0.36, 0.09); belly.scale.set(1, 1.25, 0.5);
+            g.add(body, belly);
+            // 머리 + 곡선 2단 뿔 + 뾰족귀
+            const head = mk(new THREE.SphereGeometry(0.125, 10, 8), skinM);
+            head.position.y = 0.63;
+            g.add(head);
+            for (const s of [-1, 1]) {
+                const horn1 = mk(new THREE.ConeGeometry(0.03, 0.1, 6), boneM);
+                horn1.position.set(s * 0.07, 0.75, 0); horn1.rotation.z = s * -0.4;
+                const horn2 = mk(new THREE.ConeGeometry(0.02, 0.08, 6), boneM);
+                horn2.position.set(s * 0.115, 0.82, 0); horn2.rotation.z = s * -0.85;
+                const ear = mk(new THREE.ConeGeometry(0.03, 0.09, 5), skinD);
+                ear.position.set(s * 0.125, 0.66, -0.01); ear.rotation.z = s * -1.75;
+                ear.scale.z = 0.5;
+                g.add(horn1, horn2, ear);
+            }
+            redEyes(0.65, 0.1, 0.055, 0.028);
+            // 박쥐 막날개: 본 콘 2개 + 삼각 멤브레인
+            for (const s of [-1, 1]) {
                 const wing = new THREE.Group();
-                wing.position.set(s * 0.13, 0.36, -0.08);
-                const wm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.13), dark);
-                wm.position.x = s * 0.11;
-                wing.add(wm);
+                wing.position.set(s * 0.11, 0.5, -0.09);
+                const bone1 = mk(new THREE.CylinderGeometry(0.012, 0.009, 0.2, 5), skinD);
+                bone1.position.set(s * 0.09, 0.05, 0); bone1.rotation.z = s * 1.1;
+                const bone2 = mk(new THREE.CylinderGeometry(0.009, 0.006, 0.16, 5), skinD);
+                bone2.position.set(s * 0.2, 0.02, 0); bone2.rotation.z = s * 1.9;
+                const memGeo = new THREE.BufferGeometry();
+                const mv = s > 0
+                    ? [0, 0.1, 0, 0.17, 0.1, 0, 0.27, -0.02, 0, 0, 0.1, 0, 0.27, -0.02, 0, 0.13, -0.09, 0]
+                    : [0, 0.1, 0, -0.17, 0.1, 0, -0.27, -0.02, 0, 0, 0.1, 0, -0.27, -0.02, 0, -0.13, -0.09, 0];
+                memGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(mv), 3));
+                memGeo.computeVertexNormals();
+                const mem = mk(memGeo, new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0, -0.05, -0.2), side: THREE.DoubleSide }));
+                wing.add(bone1, bone2, mem);
                 wing.userData.s = s;
                 anim.wings.push(wing);
                 g.add(wing);
             }
-            const tail2 = cn(0.02, 0.2, 0, 0.16, -0.18, dark);
-            tail2.rotation.x = -2.4;
-            redEyes(0.53, 0.09, 0.05, 0.028);
-            topY = 0.95;
+            // 분절 팔
+            for (const s of [-1, 1]) {
+                const sh = new THREE.Group();
+                sh.position.set(s * 0.14, 0.5, 0.01);
+                const upper = limb(0.03, 0.026, 0.1, skinM);
+                upper.rotation.z = s * 0.4;
+                const elbow = new THREE.Group();
+                elbow.position.set(s * 0.04, -0.1, 0);
+                const fore = limb(0.024, 0.02, 0.09, skinD);
+                const hand = mk(new THREE.SphereGeometry(0.032, 7, 5), skinM);
+                hand.position.y = -0.1;
+                elbow.add(fore, hand);
+                sh.add(upper, elbow);
+                g.add(sh);
+                if (s > 0) armR = sh; else armL = sh;
+            }
+            // 화살촉 꼬리: 커브 세그먼트 3개 + 화살촉
+            const tailG = new THREE.Group();
+            tailG.position.set(0, 0.3, -0.12);
+            let px2 = 0, py2 = 0, pz2 = 0, ang2 = -0.6;
+            for (let k2 = 0; k2 < 3; k2++) {
+                const seg = mk(new THREE.CylinderGeometry(0.016 - k2 * 0.003, 0.013 - k2 * 0.003, 0.12, 5), skinD);
+                seg.position.set(px2, py2 - Math.cos(ang2) * 0.05, pz2 - Math.sin(-ang2) * 0.05);
+                seg.rotation.x = ang2;
+                tailG.add(seg);
+                py2 -= Math.cos(ang2) * 0.1; pz2 -= Math.sin(-ang2) * 0.1; ang2 -= 0.55;
+            }
+            const tip2 = mk(new THREE.ConeGeometry(0.035, 0.08, 4), skinD);
+            tip2.position.set(px2, py2 + 0.02, pz2 - 0.06);
+            tip2.rotation.x = ang2 + 0.4; tip2.scale.z = 0.4;
+            tailG.add(tip2);
+            g.add(tailG);
+            topY = 0.98;
         }
         if (e.isBoss) {
             g.scale.setScalar(1.9);

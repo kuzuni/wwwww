@@ -73,6 +73,54 @@ const ProChar = {
             ctx.fillStyle = sheen; ctx.fillRect(0, 0, w, h);
         }, 64, 128);
     },
+    // 바위: 화강암 얼룩 + 균열 라인 (골렘 몸통 — 그레이스케일, 틴트 대상)
+    rockTex() {
+        return this.canvasTex('rock', (ctx, w, h) => {
+            ctx.fillStyle = '#b9bcc0'; ctx.fillRect(0, 0, w, h);
+            for (let i = 0; i < 420; i++) { // 화강암 입자 얼룩
+                const v = 130 + Math.floor(Math.random() * 110);
+                ctx.fillStyle = `rgba(${v},${v},${v - 6},${0.18 + Math.random() * 0.2})`;
+                const r = 1 + Math.random() * 3.2;
+                ctx.beginPath();
+                ctx.arc(Math.random() * w, Math.random() * h, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            for (let i = 0; i < 8; i++) { // 균열 — 꺾이는 다크 라인
+                ctx.strokeStyle = `rgba(38,40,46,${0.35 + Math.random() * 0.25})`;
+                ctx.lineWidth = 1 + Math.random();
+                let x = Math.random() * w, y = Math.random() * h;
+                ctx.beginPath(); ctx.moveTo(x, y);
+                for (let j = 0; j < 4; j++) {
+                    x += (Math.random() - 0.5) * 34; y += (Math.random() - 0.3) * 26;
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+            const vg = ctx.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, h * 0.75);
+            vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(20,24,30,0.28)');
+            ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
+        });
+    },
+    // 생물 가죽: 부드러운 얼룩 반점 (고블린/임프 피부 — 그레이스케일, 틴트 대상)
+    hideTex() {
+        return this.canvasTex('hide', (ctx, w, h) => {
+            ctx.fillStyle = '#c8cbc4'; ctx.fillRect(0, 0, w, h);
+            for (let i = 0; i < 90; i++) {
+                const v = 150 + Math.floor(Math.random() * 70);
+                const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 4 + Math.random() * 9);
+                g.addColorStop(0, `rgba(${v},${v + 4},${v - 4},0.3)`);
+                g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.save();
+                ctx.translate(Math.random() * w, Math.random() * h);
+                ctx.fillStyle = g;
+                ctx.fillRect(-14, -14, 28, 28);
+                ctx.restore();
+            }
+            const bg = ctx.createLinearGradient(0, 0, 0, h); // 아래로 살짝 어두워지는 배음영
+            bg.addColorStop(0, 'rgba(255,255,255,0.08)'); bg.addColorStop(1, 'rgba(24,26,24,0.2)');
+            ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+        });
+    },
     // 가죽: 잔금 크랙 + 스티치
     leatherTex() {
         return this.canvasTex('leather', (ctx, w, h) => {
