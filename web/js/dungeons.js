@@ -78,7 +78,7 @@ const Dungeons = {
     // 열쇠는 입장 시점이 아니라 완료(클리어) 시점에 소모 — 실패해도 같은 열쇠로 재도전 가능
     enter(id, stage) {
         this.ensure();
-        if (this.run) return false;
+        if (this.run) { UI.toast('⚔️ 이미 던전에 진행 중입니다'); return false; }
         if (!this.unlocked(id)) { UI.toast(`🔒 스테이지 ${this.def(id).unlock} 도달 시 해금`); return false; }
         if (S.dungeons.keys[id] <= 0) { UI.toast('🗝 열쇠가 없습니다 (매일 09:00 리셋)'); return false; }
         const best = S.dungeons.best[id];
