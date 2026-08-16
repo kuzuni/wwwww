@@ -726,8 +726,11 @@ const ProChar = {
         for (const m of R.armorMats) {
             const isDark = m.userData && m.userData.dark;
             if (a) {
-                // 시대색을 명도 단차 유지한 채 입힘 — 다크 파츠는 확실히 어둡고 채도 낮게 (전신 형광 단색 방지)
-                m.color.setHex(color).offsetHSL(0, isDark ? -0.12 : -0.05, isDark ? -0.17 : -0.04);
+                // 시대색을 스틸 베이스에 '섞음' — setHex 직치환은 전신이 시대색 풍선이 되던 문제(비평가: 플라스틱 단색).
+                // 베이스 금속 명도 단차를 살린 채 lerp로 색 정체성만 부여, 다크 파츠는 혼합비 낮춰 음영 대비 유지.
+                m.color.setHex(m.userData.baseColor)
+                    .lerp(new THREE.Color(color), isDark ? 0.34 : 0.48)
+                    .offsetHSL(0, isDark ? -0.08 : -0.02, isDark ? -0.05 : 0);
             } else {
                 m.color.setHex(m.userData.baseColor); // 무장비: 기본 스틸 톤 복원
             }
