@@ -233,8 +233,14 @@ const UI = {
             </div>`;
     },
 
-    onStartUpgrade() { if (Forge.startUpgrade()) { this.renderEquipSheet(); this.renderTopBar(); this.openForgeInfo(); } },
-    onGemSkipForge() { if (Forge.gemSkip()) { this.renderTopBar(); this.openForgeInfo(); } },
+    onStartUpgrade() {
+        if (Forge.startUpgrade()) { this.renderEquipSheet(); this.renderTopBar(); this.openForgeInfo(); }
+        else this.toast('🪙 코인이 부족합니다');
+    },
+    onGemSkipForge() {
+        if (Forge.gemSkip()) { this.renderTopBar(); this.openForgeInfo(); }
+        else this.toast('💎 젬이 부족합니다');
+    },
     onToggleAutoForge() {
         if (!isUnlocked('autoForge')) { this.toast('🔒 스테이지 2-10 도달 시 해금됩니다'); return; }
         S.autoForgeOn = !S.autoForgeOn;
