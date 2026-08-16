@@ -1306,11 +1306,12 @@ const UI = {
             const reached = Pass.reached(m.stage);
             const claimed = Pass.claimed(m.stage);
             const freeCell = claimed
-                ? `<div class="pass-cell free done">${this.passRewardLines(m.free)}<span class="pass-badge check">✓</span></div>`
+                ? `<div class="pass-cell free lit done">${this.passRewardLines(m.free)}<span class="pass-badge check">✓</span></div>`
                 : reached
-                    ? `<button class="pass-cell free claimable" onclick="UI.onClaimPass('${m.stage}')">${this.passRewardLines(m.free)}</button>`
-                    : `<div class="pass-cell free locked">${this.passRewardLines(m.free)}</div>`;
-            const premiumCell = `<div class="pass-cell premium locked" onclick="UI.onPremiumPass()">${this.passRewardLines(m.premium)}<span class="pass-badge lock">🔒</span></div>`;
+                    ? `<button class="pass-cell free lit claimable" onclick="UI.onClaimPass('${m.stage}')">${this.passRewardLines(m.free)}</button>`
+                    : `<div class="pass-cell free">${this.passRewardLines(m.free)}</div>`;
+            // 프리미엄 칸도 무료 칸과 같은 도달 기준으로 밝기가 바뀐다(항상 잠김이지만 도달 전이면 카드 배경에 녹아듦, 원본 shot-042705)
+            const premiumCell = `<div class="pass-cell premium ${reached ? 'lit' : ''}" onclick="UI.onPremiumPass()">${this.passRewardLines(m.premium)}<span class="pass-badge lock">🔒</span></div>`;
             return `<div class="pass-milestone-label">${this.difficultyLabel(c)} ${m.stage}</div>
                 <div class="pass-row">${freeCell}${premiumCell}</div>`;
         }).join('');

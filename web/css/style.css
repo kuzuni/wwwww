@@ -680,21 +680,22 @@ body {
     display: table; margin: .55rem auto .3rem; padding: .2rem .8rem;
 }
 .pass-row { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; padding: 0 .1rem .2rem; }
+/* 기본(=아직 도달 못한 미래 마일스톤)은 카드 배경에 녹아드는 어두운 톤 — 원본은 도달한 칸만 밝게 뜬다(무료/프리미엄 공통) */
 .pass-cell {
-    position: relative; background: var(--pp-panel); border: 3px solid var(--pp-line); border-radius: .6rem;
+    position: relative; background: rgba(8,11,30,.55); border: 2px solid rgba(0,0,0,.4); border-radius: .6rem;
     padding: .4rem .5rem; display: flex; flex-direction: column; gap: .15rem; font-size: .8rem; font-weight: 800;
-    color: var(--pp-ink); cursor: default; text-align: left;
+    color: rgba(255,255,255,.82); cursor: default; text-align: left;
 }
+.pass-cell.lit { background: var(--pp-panel); border: 3px solid var(--pp-line); color: var(--pp-ink); }
 .pass-cell.free.claimable { background: #fff; cursor: pointer; }
 .pass-cell.free.done { background: #dcdcdc; }
-.pass-cell.locked { opacity: .8; }
-.pass-cell.premium { cursor: pointer; }
+.pass-cell.premium.lit { cursor: pointer; }
 .pass-badge {
-    position: absolute; top: -.5rem; right: -.5rem; width: 1.3rem; height: 1.3rem; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-size: .78rem; border: 2px solid var(--pp-line);
+    position: absolute; top: -.4rem; right: -.4rem; width: 1.3rem; height: 1.3rem; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: .78rem;
 }
-.pass-badge.check { background: var(--pp-green); color: #fff; }
-.pass-badge.lock { background: var(--pp-red); color: #fff; font-size: .68rem; }
+.pass-badge.check { background: var(--pp-green); color: #fff; border: 2px solid var(--pp-line); }
+.pass-badge.lock { background: none; color: #ffb300; font-size: 1rem; }
 
 /* ---- 상점 탭 (UI-SPEC 17번, 원본 shot-042632) ---- */
 .shop-banner {
@@ -772,7 +773,6 @@ body {
 }
 .settings-row:nth-child(odd) { background: var(--pp-panel); }
 .settings-row.static { cursor: pointer; }
-.settings-row.static::after { content: '›'; font-weight: 900; color: var(--pp-muted); font-size: 1.1rem; }
 .settings-toggle {
     width: 2.5rem; height: 1.35rem; border-radius: 1rem; border: 2px solid var(--pp-line); cursor: pointer;
     background: var(--pp-gray); position: relative; padding: 0;
