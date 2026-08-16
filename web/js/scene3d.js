@@ -1515,7 +1515,7 @@ const Scene3D = {
         this.addAnim(0.18, k => { m.g.position.x = ox + Math.sin(k * Math.PI) * 0.18; });
         this.spawnSparks(m.g.position.clone().add(new THREE.Vector3(0, 0.6, 0)), crit ? 14 : 6, crit ? 0xffab40 : 0xffee58);
         // 데미지 숫자
-        const cls = kind === 'skill' ? 'dmg-skill' : kind === 'pet' ? 'dmg-pet' : crit ? 'dmg-crit' : 'dmg';
+        const cls = kind === 'skill' ? 'dmg-skill' : crit ? 'dmg-crit' : 'dmg';
         this.damageNumber(m.g.position.clone().add(new THREE.Vector3(U.rand(-0.3, 0.3), U.rand(1.1, 1.5), 0)), U.fmt(dmg), cls);
     },
 
