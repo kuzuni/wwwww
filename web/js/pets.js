@@ -1,6 +1,6 @@
 // ===== 펫: 알 드랍(원본 확률) → 부화(원본 시간) → 전투 참여/합성 =====
 const Pets = {
-    BASE_HATCH_SLOTS: 2,
+    BASE_HATCH_SLOTS: 3, // 원본 스크린샷 기준 부화장 기본 슬롯 3개 (UI-SPEC.md 53번 줄)
     MAX_HATCH_SLOTS_CAP: 5, // 젬 구매로 늘릴 수 있는 상한 (원본 상한 미확보 → 자체 설계)
     SLOT_GEM_COST: 400, // 원본 확인된 단가(◆400) — 이후 구매는 회당 누적 증가(자체 설계)
     MAX_ACTIVE: 3,
