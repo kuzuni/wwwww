@@ -15,7 +15,12 @@ const Shop = {
     ensure() {
         if (!S.shop) S.shop = { lastReset: Dungeons.resetDateKey(), claimed: {} };
         const today = Dungeons.resetDateKey();
-        if (S.shop.lastReset !== today) { S.shop.lastReset = today; S.shop.claimed = {}; }
+        if (S.shop.lastReset !== today) {
+            S.shop.lastReset = today;
+            S.shop.claimed = {};
+            // 매일 09:00 리셋이 열려 있는 상점 팝업에도 즉시 반영되도록 (던전/리그와 동일 패턴)
+            if (UI.els.shopModal && !UI.els.shopModal.classList.contains('hidden')) UI.renderShop();
+        }
     },
 
     claimed(key) { return !!S.shop.claimed[key]; },
