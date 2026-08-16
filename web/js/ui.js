@@ -777,7 +777,7 @@ const UI = {
         }).join('') || '<span class="muted">보유 스킬 없음 — 소환해보세요!</span>';
 
         p.innerHTML = `
-            <h2>✨ 스킬</h2>
+            <h2>✨ 스킬 <span class="muted">🎫 ${U.fmt(S.tickets)} · ${Object.keys(S.skills).length}/${SKILL_DEFS.length}</span></h2>
             <p class="muted">장착 시 고정 패시브: +${U.fmt(pb.atk)} 기본 피해 · +${U.fmt(pb.hp)} 기본 체력</p>
             <div class="row">
                 <button class="btn sm ${this._skillSummonX5 ? 'on' : ''}" onclick="UI.toggleSkillSummonX5()">x5</button>
