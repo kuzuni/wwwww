@@ -13,14 +13,6 @@ const Forge = {
             legendary: 3 + fl * 0.22, ultimate: 0.6 + fl * 0.1, mythic: 0.08 + fl * 0.04,
         };
     },
-    // 등급 가중치를 %로 정규화 (확률 정보 팝업용)
-    rarityProbsAt(fl) {
-        const w = this.rarityWeights(fl);
-        const total = Object.values(w).reduce((a, b) => a + b, 0);
-        const out = {};
-        for (const k in w) out[k] = w[k] / total * 100;
-        return out;
-    },
     // 시대별 확률표 (지정 레벨, 없으면 1레벨)
     ageProbsAt(level) { return forgeProbabilities[level] || forgeProbabilities[1]; },
 
