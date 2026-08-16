@@ -110,8 +110,8 @@ const OUT = __dirname;
         const dist = Math.max(size.x, size.y, size.z) * 1.7 + 0.3;
         const fwd = new THREE.Vector3();
         Scene3D.heroG.getWorldDirection(fwd);
-        fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.7);
-        Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * 0.25, 0)), look: c.clone() };
+        fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.65); // 적 반대편 궤도 — 근접 적이 카메라와 영웅 사이에 끼어 하반신을 가리던 문제 (비평가 1번)
+        Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * 0.3, 0)), look: c.clone() };
     });
     await page.waitForTimeout(150);
     await shot('hero-attack-mid.png');

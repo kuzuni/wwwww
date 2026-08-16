@@ -305,7 +305,7 @@ const ProChar = {
                 if (k > 0.88) p.setY(i, y + Math.sin(x * 46) * 0.022 * ((k - 0.88) / 0.12));
                 p.setZ(i, -Math.abs(x) * (0.45 + k * 0.9)       // 좌우가 뒤로 말리는 원통 곡률
                     - Math.sin(k * Math.PI) * 0.035
-                    + Math.sin(x * 33 + k * 2.2) * 0.012 * k);  // 세로 드레이프 잔물결
+                    + Math.sin(x * 33 + k * 2.2) * 0.034 * k);  // 세로 드레이프 주름 — 정지샷에서도 '천'으로 읽히는 깊이 (비평가 4번)
             }
             geo.computeVertexNormals();
             geo.userData.kArr = kArr;
@@ -759,7 +759,7 @@ const ProChar = {
             for (let i = 0; i < p.count; i++) {
                 const k = kA[i], bx = base[i * 3];
                 p.array[i * 3 + 2] = base[i * 3 + 2] +
-                    (Math.sin(ph * 1.15 + k * 3.1) * 0.03 + Math.sin(ph * 1.9 + bx * 9 + k * 1.4) * 0.013) * k * walkAmp;
+                    (Math.sin(ph * 1.15 + k * 3.1) * 0.045 + Math.sin(ph * 1.9 + bx * 9 + k * 1.4) * 0.02) * k * walkAmp;
                 p.array[i * 3 + 1] = base[i * 3 + 1] + Math.sin(ph * 1.5 + bx * 11 + k * 2) * 0.009 * k; // 밑단 플러터
             }
             p.needsUpdate = true;

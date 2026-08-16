@@ -1526,6 +1526,12 @@ const Scene3D = {
         const c = AGE_COLORS[AGES[ageIdx]];
         const glow = ageIdx >= 4;
         const mat = new THREE.MeshLambertMaterial({ color: c, emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.5 : 0 });
+        // 날 전용 금속: 스틸 베이스에 시대색 18%만 — 시대색 직치환 날은 '노란 막대사탕'으로 읽힘 (비평가 2번)
+        const bladeMat = new THREE.MeshPhongMaterial({
+            color: new THREE.Color(0xc9d2da).lerp(new THREE.Color(c), 0.18),
+            shininess: 80, specular: 0x8a949c, envMap: ProChar.envMap(), reflectivity: 0.25,
+            emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.16 : 0
+        });
         const wood = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
         const dark = new THREE.MeshLambertMaterial({ color: 0x37474f });
         const box = (w, h, d, m, x, y, z, rz) => {
@@ -1551,11 +1557,11 @@ const Scene3D = {
         switch (wtypeId) {
             case 'sword': {
                 // 테이퍼 날(끝으로 얇고 좁게) + 풀러 홈 + 포인트 + 크로스가드 + 그립 + 폼멜
-                const blade = box(0.1, 0.62, 0.036, mat, 0, 0.38);
+                const blade = box(0.1, 0.62, 0.036, bladeMat, 0, 0.38);
                 { const p = blade.geometry.attributes.position;
                   for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) { p.setX(i, p.getX(i) * 0.55); p.setZ(i, p.getZ(i) * 0.6); } // 위쪽 정점 수렴 = 테이퍼
                   blade.geometry.computeVertexNormals(); }
-                { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.043, 0.14, 4), mat); tip.position.y = 0.75; tip.rotation.y = Math.PI / 4; tip.scale.z = 0.42; g.add(tip); }
+                { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.043, 0.14, 4), bladeMat); tip.position.y = 0.75; tip.rotation.y = Math.PI / 4; tip.scale.z = 0.42; g.add(tip); }
                 box(0.018, 0.56, 0.04, dark, 0, 0.36);     // 풀러(혈조) 다크 라인
                 edge(0.014, 0.58, 0.04, 0.047, 0.36);      // 앞날 하이라이트
                 cyl(0.045, 0.032, 0.05, mat, 0, 0.085);    // 가드 위 리카소 링
@@ -1794,7 +1800,7 @@ const Scene3D = {
         // 시대색 직치환 Lambert는 '고무 풍선'으로 읽힘(비평가) — 스틸 톤에 섞은 뒤 금속 스펙큘러 부여 (갑옷 tint와 동일 원칙)
         const mat = new THREE.MeshPhongMaterial({
             color: new THREE.Color(c).lerp(new THREE.Color(0xb8c4cf), 0.32).offsetHSL(0, -0.06, -0.02),
-            shininess: 40, specular: 0x4d565e
+            shininess: 55, specular: 0x6b747c, envMap: ProChar.envMap(), reflectivity: 0.22 // 환경 반사 — '무광 비닐' 오독 해소 (비평가 3번)
         });
         const darkMat = new THREE.MeshLambertMaterial({ color: 0x263238 });
         const rareMat = new THREE.MeshLambertMaterial({ color: pc, emissive: pc, emissiveIntensity: 0.45 });
@@ -1841,7 +1847,8 @@ const Scene3D = {
                 glowEye.scale.set(1.3, 0.75, 0.5);
                 g.add(glowEye);
             }
-            const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.16, 0.05), mat); // 코 가드 세로 바
+            const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.15, 0.045),
+                new THREE.MeshLambertMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.14) })); // 코 가드 — 슬림+다크 (밝은 굵은 바가 '반투명 띠 아티팩트'로 오독, 비평가 7번)
             noseBar.position.set(0, -0.02, 0.262);
             const crest = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.03, 6, 14, Math.PI * 0.8), rareMat); // 정수리 볏 아크
             crest.position.y = 0.13;
