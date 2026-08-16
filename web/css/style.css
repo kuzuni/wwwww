@@ -879,7 +879,17 @@ body {
 .pinfo-preview .pip.now { background: #fff; box-shadow: 0 0 6px #fff; }
 .pinfo-section-title { font-size: .74rem; color: var(--pp-muted); font-weight: 800; margin: .5rem 0 .3rem; }
 .pinfo-loadout-row { display: flex; gap: .5rem; flex-wrap: wrap; }
-.pinfo-subs-list { max-height: 30vh; overflow-y: auto; font-size: .8rem; font-weight: 700; color: var(--pp-ink); line-height: 1.9; }
+/* 옵션 합계: 카드가 화면을 넘지 않게 플렉스 제약 + 목록만 내부 스크롤(터치·얇은 스크롤바) — 항목 잘림 방지 (사용자 지시).
+   %max-height는 높이 auto인 .idet-wrap 기준으론 무효라 래퍼에 먼저 제약을 건다 */
+#player-info-modal .idet-wrap { max-height: 88%; display: flex; flex-direction: column; }
+#player-info-modal .modal-card.wide { max-height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.pinfo-subs-list {
+    flex: 1; min-height: 3.2rem; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    font-size: .8rem; font-weight: 700; color: var(--pp-ink); line-height: 1.9;
+    scrollbar-width: thin; scrollbar-color: rgba(0,0,0,.35) transparent;
+}
+.pinfo-subs-list::-webkit-scrollbar { width: 4px; }
+.pinfo-subs-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,.35); border-radius: 2px; }
 .pinfo-subs-list .muted { font-size: .8rem; }
 
 /* ---- 채팅 미리보기 1줄 (UI-SPEC 1·28번) ---- */
