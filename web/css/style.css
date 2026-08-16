@@ -641,7 +641,12 @@ body {
 }
 .league-server { position: absolute; right: .55rem; bottom: .2rem; font-size: .6rem; color: #8a8a8a; }
 .league-row.me .league-server { color: #dce6ff; }
-.league-pinned { margin: .3rem auto 0; width: 82%; position: relative; z-index: 1; background: #05070f; } /* 스크롤 행 겹침 가림 (185) */
+/* 원본(042149): 핀 행+도전 버튼은 밝은 회색 풀블리드 밴드 위 — 스크롤 행 클리핑을 밴드가 가림 (185) */
+.league-foot {
+    margin: .3rem -.9rem -1.2rem; padding: .5rem .9rem 1.1rem; position: relative; z-index: 1;
+    background: #d6d6d6; border-top: 3px solid var(--pp-line);
+}
+.league-pinned { margin: 0 auto; width: 82%; }
 .league-actions { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; position: relative; justify-content: center; } /* 원본: 도전 중앙, ◀ 좌하단 분리 (185) */
 .league-back-btn {
     width: 2.5rem; height: 2.5rem; border-radius: .6rem; flex: none; cursor: pointer;

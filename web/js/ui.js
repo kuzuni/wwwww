@@ -1367,10 +1367,12 @@ const UI = {
                 <div class="league-title">플래티넘 리그</div>
                 <div class="league-season-bar" onclick="UI.openLeagueRewards()">🎁 <span>시즌 종료: <b>${U.fmtTime(remain)}</b></span></div>
                 <div class="league-list">${windowRows}</div>
-                <div class="league-pinned">${this.leagueRow(me, myRank)}</div>
-                <div class="league-actions">
-                    <button class="league-back-btn" onclick="UI.closeLeague()">◀</button>
-                    <button class="btn primary" onclick="UI.openLeagueChallenge()">도전</button>
+                <div class="league-foot">
+                    <div class="league-pinned">${this.leagueRow(me, myRank)}</div>
+                    <div class="league-actions">
+                        <button class="league-back-btn" onclick="UI.closeLeague()">◀</button>
+                        <button class="btn primary" onclick="UI.openLeagueChallenge()">도전</button>
+                    </div>
                 </div>
             </div>`;
     },
