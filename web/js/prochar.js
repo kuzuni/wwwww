@@ -408,9 +408,13 @@ const ProChar = {
         R.bones.neck = neck;
         const headG = new THREE.Group();
         headG.position.y = 0.1;
-        headG.scale.setScalar(0.82); // 보블헤드 완화 — 머리·견갑·어깨가 '같은 크기 공 3개'로 뭉개지던 문제 (비평가 지적)
+        headG.scale.setScalar(0.78); // 보블헤드 완화 — 머리·견갑·어깨가 '같은 크기 공 3개'로 뭉개지던 문제 (비평가 지적, 0.82→0.78 재축소)
         neck.add(headG);
         R.bones.head = headG;
+        // 목 기둥 — 머리가 몸통 위에 떠 보이던 문제 (비평가: 목 연결부 부재)
+        const neckMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.078, 0.14, 10), skin);
+        neckMesh.position.y = 0.03;
+        neck.add(neckMesh);
         // 얼굴 — 둥근 두상 + 턱 라운딩 (헬멧 미착용 시 노출)
         const skull = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 12), skin);
         skull.position.y = 0.08;

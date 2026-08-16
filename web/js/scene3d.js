@@ -1791,7 +1791,11 @@ const Scene3D = {
         const g = new THREE.Group();
         const c = AGE_COLORS[age];
         const pc = RARITY_HEX[rarity] || 0xef5350; // 장식 = 등급색
-        const mat = new THREE.MeshLambertMaterial({ color: c });
+        // 시대색 직치환 Lambert는 '고무 풍선'으로 읽힘(비평가) — 스틸 톤에 섞은 뒤 금속 스펙큘러 부여 (갑옷 tint와 동일 원칙)
+        const mat = new THREE.MeshPhongMaterial({
+            color: new THREE.Color(c).lerp(new THREE.Color(0xb8c4cf), 0.32).offsetHSL(0, -0.06, -0.02),
+            shininess: 40, specular: 0x4d565e
+        });
         const darkMat = new THREE.MeshLambertMaterial({ color: 0x263238 });
         const rareMat = new THREE.MeshLambertMaterial({ color: pc, emissive: pc, emissiveIntensity: 0.45 });
         style = style || 'plume';
@@ -1823,22 +1827,22 @@ const Scene3D = {
             helm.scale.set(0.97, 1.02, 1);
             // 슬릿 = 함몰 캐비티: 칠흑 내부 + 림 테두리 + 언릿 발광 눈 (표면 데칼 'T 스티커' 오독 제거, 비평가 지적)
             const cavity = new THREE.MeshBasicMaterial({ color: 0x0c0f12 });
-            const slit = new THREE.Mesh(new THREE.BoxGeometry(0.185, 0.042, 0.07), cavity);
-            slit.position.set(0, 0.06, 0.222); // 림 타원 안쪽에 맞춤 — 모서리가 림 밖으로 새면 '검은 사각 스티커'
-            const rimGeo = new THREE.TorusGeometry(0.105, 0.011, 5, 14); // 슬릿 개구부 금속 림 — 재질 경계로 '뚫린 구멍' 판독
+            const slit = new THREE.Mesh(new THREE.BoxGeometry(0.23, 0.052, 0.07), cavity);
+            slit.position.set(0, 0.06, 0.234); // 림 타원 안쪽에 맞춤 — 모서리가 림 밖으로 새면 '검은 사각 스티커'
+            const rimGeo = new THREE.TorusGeometry(0.128, 0.012, 5, 14); // 슬릿 개구부 금속 림 — 재질 경계로 '뚫린 구멍' 판독
             rimGeo.scale(1, 0.32, 1);
-            const slitRim = new THREE.Mesh(rimGeo, mat);
-            slitRim.position.set(0, 0.06, 0.268);
+            const slitRim = new THREE.Mesh(rimGeo, new THREE.MeshLambertMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.08) })); // 무광 — Phong 하이라이트가 '유리 브로치'로 오독되던 문제
+            slitRim.position.set(0, 0.06, 0.28);
             g.add(slitRim);
             for (const dx of [-0.055, 0.055]) { // 캐비티 속 언릿 발광 눈 — 어둠 대비 최대
-                const glowEye = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 5),
-                    new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.1, 0.18) }));
-                glowEye.position.set(dx, 0.06, 0.276); // 캐비티 전면보다 앞 — 가려지면 무광 슬릿만 남음
+                const glowEye = new THREE.Mesh(new THREE.SphereGeometry(0.027, 6, 5),
+                    new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.18, 0.24) }));
+                glowEye.position.set(dx * 1.2, 0.06, 0.288); // 캐비티 전면보다 앞 — 가려지면 무광 슬릿만 남음
                 glowEye.scale.set(1.3, 0.75, 0.5);
                 g.add(glowEye);
             }
             const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.16, 0.05), mat); // 코 가드 세로 바
-            noseBar.position.set(0, -0.02, 0.25);
+            noseBar.position.set(0, -0.02, 0.262);
             const crest = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.03, 6, 14, Math.PI * 0.8), rareMat); // 정수리 볏 아크
             crest.position.y = 0.13;
             crest.rotation.y = Math.PI / 2;
@@ -1896,7 +1900,7 @@ const Scene3D = {
             }
         } else if (style === 'tech') {      // 메카 헬름 — 곡면 셸 + 랩어라운드 발광 바이저 (박스 금지, 비평가 1위 결함 재작업)
             const shell = new THREE.Mesh(new THREE.SphereGeometry(0.29, 10, 8), mat);
-            shell.material = new THREE.MeshLambertMaterial({ color: c });
+            shell.material = new THREE.MeshLambertMaterial({ color: new THREE.Color(c).lerp(new THREE.Color(0xb8c4cf), 0.28) }); // 스틸 혼합 — 원색 풍선 방지
             shell.material.flatShading = true;                 // 저폴리 패싯 — 메카 판넬 인상
             shell.position.y = 0.06;
             shell.scale.set(0.98, 0.92, 1.05);
@@ -1925,12 +1929,15 @@ const Scene3D = {
             rGeo.rotateY(Math.PI / 2);
             const ridge = new THREE.Mesh(rGeo, darkMat);
             ridge.position.y = 0.075;
+            const antSock = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.046, 0.07, 8), darkMat); // 안테나 소켓 — 셸을 그냥 뚫고 나오던 클리핑(비평가) 마감
+            antSock.position.set(0.195, 0.285, -0.06);
+            antSock.rotation.z = -0.18;
             const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.2, 6), darkMat);
-            ant.position.set(0.19, 0.34, -0.06);
+            ant.position.set(0.213, 0.4, -0.06);
             ant.rotation.z = -0.18;
             const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.026, 6, 6), rareMat);
-            antTip.position.set(0.21, 0.44, -0.06);
-            g.add(shell, jawGuard, visorArc, ridge, ant, antTip);
+            antTip.position.set(0.232, 0.5, -0.06);
+            g.add(shell, jawGuard, visorArc, ridge, antSock, ant, antTip);
         } else if (style === 'bubble') {    // 우주 헬멧 (투명 돔)
             const bub = new THREE.Mesh(new THREE.SphereGeometry(0.31, 14, 10),
                 new THREE.MeshLambertMaterial({ color: c, transparent: true, opacity: 0.32 }));
@@ -1939,6 +1946,7 @@ const Scene3D = {
             rim.position.y = -0.16;
             g.add(bub, rim);
         }
+        g.scale.setScalar(0.85); // 두상 밀착 피팅 — 헬멧이 머리보다 한 치수 커서 '풍선'으로 읽히던 문제 (비평가 3번 결함)
         return g;
     },
 
