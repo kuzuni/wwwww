@@ -37,11 +37,4 @@ const Pass = {
         saveGame();
         return true;
     },
-
-    // 도달했지만 아직 못 받은 무료 보상을 한 번에 수령
-    claimAll() {
-        let n = 0;
-        for (const m of this.MILESTONES) if (this.claim(m.stage)) n++;
-        return n;
-    },
 };

@@ -40,7 +40,6 @@ const TechTree = {
 
     level(id) { return S.tech[id] || 0; },
     isMax(id) { return this.level(id) >= this.MAX_LEVEL; },
-    tierOf(level) { return Math.min(5, Math.ceil(level / this.PER_TIER) || 1); },
     branchOf(id) { return this.BRANCHES.find(b => b.nodes.includes(id)); },
 
     // 분기 진행률(%): 분기 내 모든 노드 레벨 합 ÷ (노드 수 × MAX_LEVEL)

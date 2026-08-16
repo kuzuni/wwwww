@@ -122,7 +122,6 @@ function claimOfflineNow() {
 
 // 현재 스테이지 키 "1-3"
 function stageKey() { return `${S.chapter}-${S.stage}`; }
-function globalStage() { return (S.chapter - 1) * 10 + S.stage; }
 
 // 기능 해금 여부 (스테이지 도달 기준)
 function isUnlocked(key) {
