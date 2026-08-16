@@ -1339,8 +1339,10 @@ const UI = {
                 <div class="modal-card wide pass-card">
                     <div class="pass-sword">🗡️</div>
                     <div class="pass-banner">진행 패스</div>
-                    <p class="pass-desc">전투를 진행하여 보상을 받으세요!</p>
-                    <div class="pass-price" onclick="UI.onPremiumPass()">${Pass.PREMIUM_PRICE_KR}</div>
+                    <div class="pass-desc-row">
+                        <p class="pass-desc">전투를 진행하여 보상을<br>받으세요!</p>
+                        <div class="pass-price" onclick="UI.onPremiumPass()">${Pass.PREMIUM_PRICE_KR}</div>
+                    </div>
                     <div class="pass-header-row"><span>무료</span><span>프리미엄</span></div>
                     <div class="pass-track">${rowsHtml}</div>
                 </div>

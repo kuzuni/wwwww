@@ -653,17 +653,21 @@ body {
 }
 .pass-card h2, .pass-card h3, .pass-card h4 { color: #fff; }
 .pass-sword {
-    position: absolute; top: -2.5rem; left: 50%; transform: translateX(-50%);
-    font-size: 2.4rem; filter: drop-shadow(0 .2rem .15rem rgba(0,0,0,.55));
+    position: absolute; top: -3.4rem; left: 50%; transform: translateX(-50%);
+    font-size: 3.6rem; filter: drop-shadow(0 .25rem .18rem rgba(0,0,0,.55));
 }
 .pass-banner {
-    background: linear-gradient(180deg, #6d6df5, #3c3cbe); border: 3px solid var(--pp-line);
+    position: relative; background: linear-gradient(180deg, #6d6df5, #3c3cbe); border: 3px solid var(--pp-line);
     color: #fff; font-weight: 900; font-size: 1.05rem; text-align: center;
-    border-radius: .5rem; padding: .5rem; margin-bottom: .5rem;
+    border-radius: .3rem; padding: .5rem; margin: 0 .6rem .55rem;
 }
-.pass-desc { text-align: center; font-size: .78rem; color: #d3d6f7; margin: 0 0 .55rem; }
+.pass-banner::before, .pass-banner::after { content: ''; position: absolute; top: .5rem; border-style: solid; }
+.pass-banner::before { left: -.8rem; border-width: .9rem .8rem .9rem 0; border-color: transparent #26268f transparent transparent; }
+.pass-banner::after { right: -.8rem; border-width: .9rem 0 .9rem .8rem; border-color: transparent transparent transparent #26268f; }
+.pass-desc-row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin: 0 .2rem .6rem; }
+.pass-desc { text-align: left; font-size: .8rem; font-weight: 800; color: #fff; margin: 0; line-height: 1.4; }
 .pass-price {
-    display: block; margin: 0 auto .6rem; width: fit-content;
+    display: block; flex: none; width: fit-content;
     background: linear-gradient(180deg, #ffb300, #dd8a00); color: #fff; border: 3px solid var(--pp-line);
     border-radius: .5rem; padding: .35rem 1.2rem; font-size: .85rem; font-weight: 900; cursor: pointer; white-space: nowrap;
 }
@@ -673,7 +677,10 @@ body {
 }
 .pass-header-row span:first-child { background: var(--pp-blue); padding: .45rem 0; border-right: 3px solid var(--pp-line); }
 .pass-header-row span:last-child { background: #f2a93c; padding: .45rem 0; }
-.pass-track { max-height: 50vh; overflow-y: auto; margin: 0; position: relative; }
+.pass-track {
+    max-height: 50vh; overflow-y: auto; position: relative;
+    background: #fff; margin: 0 -.9rem -.9rem; padding: 0 .9rem .6rem;
+}
 .pass-track::before {
     content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: .2rem;
     background: var(--pp-blue); transform: translateX(-50%); z-index: 0;
@@ -684,22 +691,28 @@ body {
     display: table; margin: .55rem auto .3rem; padding: .2rem .8rem;
 }
 .pass-row { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; padding: 0 .1rem .2rem; }
-/* 기본(=아직 도달 못한 미래 마일스톤)은 카드 배경에 녹아드는 어두운 톤 — 원본은 도달한 칸만 밝게 뜬다(무료/프리미엄 공통) */
+/* 원본(shot-042705): 트랙은 흰 배경, 미도달·프리미엄 칸=다크 남색, 도달한 무료 칸=흰 카드+회색 pill 보상 */
 .pass-cell {
-    position: relative; background: rgba(8,11,30,.55); border: 2px solid rgba(0,0,0,.4); border-radius: .6rem;
-    padding: .4rem .5rem; display: flex; flex-direction: column; gap: .15rem; font-size: .8rem; font-weight: 800;
-    color: rgba(255,255,255,.82); cursor: default; text-align: left;
+    position: relative; background: #171b2e; border: 3px solid var(--pp-line); border-radius: .6rem;
+    padding: .4rem .5rem; display: flex; flex-direction: column; gap: .18rem; font-size: .8rem; font-weight: 800;
+    color: #fff; cursor: default; text-align: left;
 }
-.pass-cell.lit { background: var(--pp-panel); border: 3px solid var(--pp-line); color: var(--pp-ink); }
-.pass-cell.free.claimable { background: #fff; cursor: pointer; }
+.pass-cell.free.lit { background: #fff; color: var(--pp-ink); }
+.pass-cell.free.lit span:not(.pass-badge) {
+    background: #b9b9b9; border-radius: 1rem; padding: .1rem .6rem; font-weight: 900; width: 85%;
+}
+.pass-cell.free.claimable { cursor: pointer; }
 .pass-cell.free.done { background: #dcdcdc; }
+.pass-cell.free.done span:not(.pass-badge) { background: #a8a8a8; }
 .pass-cell.premium.lit { cursor: pointer; }
 .pass-badge {
-    position: absolute; top: -.4rem; right: -.4rem; width: 1.3rem; height: 1.3rem; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-size: .78rem;
+    position: absolute; display: flex; align-items: center; justify-content: center;
 }
-.pass-badge.check { background: var(--pp-green); color: #fff; border: 2px solid var(--pp-line); }
-.pass-badge.lock { background: none; color: #ffb300; font-size: 1rem; }
+.pass-badge.check {
+    top: 50%; right: .4rem; transform: translateY(-50%); width: 1.45rem; height: 1.45rem; border-radius: 50%;
+    background: var(--pp-green); color: #fff; border: 2px solid var(--pp-line); font-size: .85rem; font-weight: 900;
+}
+.pass-badge.lock { top: .3rem; right: .35rem; font-size: 1rem; filter: drop-shadow(0 1px 0 #000); }
 
 /* ---- 상점 탭 (shot-042632 원본 대조 재작업: 다크 마룬 배경 + 금색 리본 + 깃발 태그 카드) ---- */
 .modal-card.sheet.shop-sheet { background: #3b1030; }
