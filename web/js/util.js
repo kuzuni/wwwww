@@ -2,6 +2,13 @@
 const U = {
     now: () => Date.now(),
 
+    // 플레이어 자유 입력(닉네임·채팅)을 innerHTML에 꽂기 전 이스케이프
+    escapeHtml(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    },
+
     // 큰 수 표기: 1.2K, 3.4M, 5.6B, 7.8T, 이후 e표기
     fmt(n) {
         if (n === null || n === undefined || isNaN(n)) return '0';

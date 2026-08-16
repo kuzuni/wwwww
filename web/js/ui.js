@@ -87,7 +87,7 @@ const UI = {
             <div class="profile-card" onclick="UI.openProfile()">
                 <span class="avatar">${S.avatarEmoji || '🛡️'}</span>
                 <div class="profile-info">
-                    <span class="nickname">${S.nickname || '용사'}</span>
+                    <span class="nickname">${U.escapeHtml(S.nickname || '용사')}</span>
                     <span class="cp">⚔️ ${U.fmt(cp)}</span>
                 </div>
             </div>
@@ -917,7 +917,7 @@ const UI = {
         return `<div class="league-row ${e.isMe ? 'me' : ''}">
             <span class="league-rank">${rank}</span>
             <span class="icon-circle sm">${e.avatar}</span>
-            <span class="league-name">${e.name}<br><small class="muted">⚔️ ${U.fmt(e.cp)}</small></span>
+            <span class="league-name">${U.escapeHtml(e.name)}<br><small class="muted">⚔️ ${U.fmt(e.cp)}</small></span>
             <span class="league-score">⭐ ${U.fmt(e.score)}</span>
             <span class="muted league-server">${e.server === '나' ? '나' : '서버 ' + e.server}</span>
         </div>`;
@@ -1116,7 +1116,7 @@ const UI = {
                     <div style="flex:1">
                         <label class="muted" style="font-size:.72rem">이름:</label>
                         <div class="row" style="align-items:center">
-                            <span class="profile-field">${S.nickname || '용사'}</span>
+                            <span class="profile-field">${U.escapeHtml(S.nickname || '용사')}</span>
                             <button class="btn sm" onclick="UI.onEditNickname()">✏️</button>
                         </div>
                         <label class="muted" style="font-size:.72rem">성별:</label>
@@ -1148,6 +1148,7 @@ const UI = {
     onToggleGender() { S.gender = S.gender === '♂' ? '♀' : '♂'; saveGame(); this.renderProfileView(); },
 
     renderSettingsView() {
+        S.settingsDummy = S.settingsDummy || { vibration: true, chatShow: true, chatDark: false, clanChatPreview: true };
         const d = S.settingsDummy;
         const toggle = (label, on, onclick) => `
             <div class="settings-row">
@@ -1235,7 +1236,7 @@ const UI = {
                     <div class="pinfo-id">
                         <span class="avatar">${S.avatarEmoji || '🛡️'}</span>
                         <div class="pinfo-id-text">
-                            <span class="name">${S.nickname || '용사'} <span class="muted">[무소속]</span></span>
+                            <span class="name">${U.escapeHtml(S.nickname || '용사')} <span class="muted">[무소속]</span></span>
                             <span class="clan">${S.gender || '♂'} · 서버 1</span>
                             <span class="cp">⚔️ ${U.fmt(cp)}</span>
                         </div>
@@ -1266,16 +1267,16 @@ const UI = {
             return `<div class="chat-row">
                 <span class="chat-avatar">${m.myAvatar}</span>
                 <div class="chat-bubble-wrap">
-                    <div class="chat-name-line"><span class="chat-name" style="color:#ffab40">${m.myName}</span><span class="chat-time">${new Date(m.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                    <div class="chat-name-line"><span class="chat-name" style="color:#ffab40">${U.escapeHtml(m.myName)}</span><span class="chat-time">${new Date(m.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span></div>
                     <div class="chat-share-card">
                         <div class="chat-share-side win">
                             <span class="icon-circle sm">${winner.avatar}</span>
-                            <small>${winner.name}</small>
+                            <small>${U.escapeHtml(winner.name)}</small>
                             <small class="muted">⚔️ ${U.fmt(winner.cp)}</small>
                         </div>
                         <div class="chat-share-side lose">
                             <span class="icon-circle sm">${loser.avatar}</span>
-                            <small>${loser.name}</small>
+                            <small>${U.escapeHtml(loser.name)}</small>
                             <small class="muted">⚔️ ${U.fmt(loser.cp)}</small>
                         </div>
                         <span class="chat-share-badge">${m.win ? '🏆 승리' : '💀 패배'}</span>
@@ -1283,22 +1284,22 @@ const UI = {
                 </div>
             </div>`;
         }
-        const tagHtml = m.tag ? `<span class="chat-tag">[${m.tag}]</span> ` : '';
+        const tagHtml = m.tag ? `<span class="chat-tag">[${U.escapeHtml(m.tag)}]</span> ` : '';
         return `<div class="chat-row ${m.mine ? 'mine' : ''}">
             <span class="chat-avatar">${m.avatar}</span>
             <div class="chat-bubble-wrap">
                 <div class="chat-name-line">
-                    <span class="chat-name">${tagHtml}${m.name}</span><span class="muted">${m.gender}</span>
+                    <span class="chat-name">${tagHtml}${U.escapeHtml(m.name)}</span><span class="muted">${m.gender}</span>
                     <span class="chat-time">${new Date(m.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
-                <div class="chat-bubble">${m.text}</div>
+                <div class="chat-bubble">${U.escapeHtml(m.text)}</div>
             </div>
         </div>`;
     },
     renderChatPreview() {
         const last = Chat.lastMessage();
         if (!last || !this.els.chatPreview) return;
-        const preview = last.type === 'share' ? `${last.myName}이(가) 전투를 공유했습니다` : `${last.name}: ${last.text}`;
+        const preview = last.type === 'share' ? `${U.escapeHtml(last.myName)}이(가) 전투를 공유했습니다` : `${U.escapeHtml(last.name)}: ${U.escapeHtml(last.text)}`;
         this.els.chatPreview.innerHTML = `<span class="chat-preview-text">${preview}</span><span class="chat-preview-badge">💬</span>`;
     },
     openChat() {
