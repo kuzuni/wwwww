@@ -3,6 +3,7 @@ const Skills = {
     SUMMON_TICKET_COST: 20,
     SUMMON_GEM_COST: 200, // 원본 젬 소환가
     MAX_LEVEL: 60, // 만렙 후 조각은 승천(별)으로 전환 (원본 상한 미확보 → 자체 설계)
+    MAX_ACTIVE: 3, // 장착 스킬 슬롯 수 (UI-SPEC: 스킬 버튼 3개, Pets.MAX_ACTIVE와 동일 패턴)
 
     // 소환 레벨: 누적 소환 수로 성장 (원본 고스트타운 레벨 대응)
     summonLevel() { return Math.min(100, Math.floor(S.summonCount / 5) + 1); },
@@ -30,7 +31,7 @@ const Skills = {
             cur.dupes++; // 조각 적립 (레벨업은 UI.onUpgradeSkill 등 수동 업그레이드로만)
         } else {
             S.skills[def.id] = { level: 1, dupes: 0, stars: 0 };
-            if (S.equippedSkills.length < 4) { S.equippedSkills.push(def.id); Combat.recalcHero(); }
+            if (S.equippedSkills.length < this.MAX_ACTIVE) { S.equippedSkills.push(def.id); Combat.recalcHero(); }
         }
         SFX.gacha(rarity);
         saveGame();
@@ -95,7 +96,7 @@ const Skills = {
         }
         return count;
     },
-    // 보유 스킬 중 등급·레벨이 높은 순으로 4개 장착
+    // 보유 스킬 중 등급·레벨이 높은 순으로 MAX_ACTIVE개 장착
     quickEquip() {
         const owned = Object.keys(S.skills).sort((a, b) => {
             const da = this.def(a), db = this.def(b);
@@ -103,7 +104,7 @@ const Skills = {
             if (ra !== rb) return rb - ra;
             return S.skills[b].level - S.skills[a].level;
         });
-        S.equippedSkills = owned.slice(0, 4);
+        S.equippedSkills = owned.slice(0, this.MAX_ACTIVE);
         UI.renderSkillBar();
         Combat.recalcHero();
         saveGame();
@@ -127,7 +128,7 @@ const Skills = {
     toggleEquip(id) {
         const pos = S.equippedSkills.indexOf(id);
         if (pos >= 0) S.equippedSkills.splice(pos, 1);
-        else if (S.equippedSkills.length < 4) S.equippedSkills.push(id);
+        else if (S.equippedSkills.length < this.MAX_ACTIVE) S.equippedSkills.push(id);
         else return false;
         UI.renderSkillBar();
         Combat.recalcHero();
