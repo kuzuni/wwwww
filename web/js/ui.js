@@ -1179,22 +1179,25 @@ const UI = {
         const best = S.dungeons.best[id];
         const keys = S.dungeons.keys[id];
         const hex = '#' + d.theme.sky.toString(16).padStart(6, '0');
+        // 원본(shot-042304): 카드 상단 풀폭 배너(제목 오버레이) + 파란 삼각형 ◀▶ + "난이도/N" 2줄 +
+        // 회색 보상 pill + 열쇠 + 실버 대형 버튼 2개, 닫기=빨간 X
         this.els.dungeonDetailModal.innerHTML = `
-            <div class="modal-card">
-                <div class="dg-detail-hero" style="--bg:${hex}"><span class="dg-icon">${d.icon}</span></div>
-                <h3 style="text-align:center">${d.kr}</h3>
-                <div class="row" style="justify-content:center;align-items:center;gap:.8rem">
-                    <button class="btn sm" onclick="UI.onDungeonStageStep(-1)" ${stage <= 1 ? 'disabled' : ''}>◀</button>
-                    <span class="big-stat">난이도 ${stage}단계</span>
-                    <button class="btn sm" onclick="UI.onDungeonStageStep(1)" ${stage >= best + 1 ? 'disabled' : ''}>▶</button>
+            <div class="idet-wrap">
+                <div class="modal-card paper dgd-card">
+                    <div class="dg-detail-hero" style="--bg:${hex}"><span class="dg-icon">${d.icon}</span><span class="dgd-title">${d.kr}</span></div>
+                    <div class="dgd-stage-row">
+                        <button class="tri-btn" onclick="UI.onDungeonStageStep(-1)" style="visibility:${stage <= 1 ? 'hidden' : 'visible'}">◀</button>
+                        <div class="dgd-stage"><span>난이도</span><b>${stage}단계</b></div>
+                        <button class="tri-btn" onclick="UI.onDungeonStageStep(1)" style="visibility:${stage >= best + 1 ? 'hidden' : 'visible'}">▶</button>
+                    </div>
+                    <div class="dgd-reward-pill"><span class="dgd-reward-label">보상:</span>${Dungeons.rewardText(id, stage)}</div>
+                    <div class="dgd-keys">🗝 ${keys}/${Dungeons.MAX_KEYS}</div>
+                    <div class="dgd-btns">
+                        <button class="btn silver dgd-btn ${keys > 0 && best >= 1 ? '' : 'disabled'}" onclick="UI.onSweepDungeon('${id}')">이전 스테이지<br>소탕</button>
+                        <button class="btn silver dgd-btn ${keys > 0 ? '' : 'disabled'}" onclick="UI.onEnterDungeon('${id}', ${stage})">입장</button>
+                    </div>
                 </div>
-                <p class="muted" style="text-align:center">보상: ${Dungeons.rewardText(id, stage)}</p>
-                <p class="muted" style="text-align:center">🗝 ${keys}/${Dungeons.MAX_KEYS}</p>
-                <div class="row">
-                    <button class="btn sm ${keys > 0 && best >= 1 ? '' : 'disabled'}" onclick="UI.onSweepDungeon('${id}')">이전 스테이지 소탕</button>
-                    <button class="btn sm primary ${keys > 0 ? '' : 'disabled'}" onclick="UI.onEnterDungeon('${id}', ${stage})">입장</button>
-                </div>
-                <button class="btn" onclick="UI.closeDungeonDetail()">닫기</button>
+                <button class="x-btn" onclick="UI.closeDungeonDetail()">✕</button>
             </div>`;
     },
     onEnterDungeon(id, stage) {

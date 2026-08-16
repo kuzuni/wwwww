@@ -1240,12 +1240,12 @@ body {
 .rates-head h3 { font-size: 1.3rem; font-weight: 900; }
 .rates-sub { font-size: .82rem; font-weight: 800; color: var(--pp-ink); }
 .tri-btn {
-    width: 2.6rem; height: 2.2rem; border-radius: .5rem; cursor: pointer;
-    background: var(--pp-blue); color: #fff; border: 3px solid var(--pp-line);
-    font-size: 1rem; font-weight: 900; line-height: 1; padding: 0;
-    box-shadow: inset 0 -.2rem 0 var(--pp-blue-dk);
+    width: 2.6rem; height: 2.2rem; cursor: pointer;
+    background: none; border: none; padding: 0;
+    color: var(--pp-blue); font-size: 1.7rem; font-weight: 900; line-height: 1;
+    text-shadow: -2px -2px 0 #17181a, 2px -2px 0 #17181a, -2px 2px 0 #17181a, 2px 2px 0 #17181a;
 }
-.tri-btn:active { transform: translateY(.1rem); box-shadow: none; }
+.tri-btn:active { transform: translateY(.1rem); }
 .rate-list { display: flex; flex-direction: column; gap: .32rem; }
 .rate-bar {
     display: flex; align-items: center; justify-content: space-between;
@@ -1428,3 +1428,31 @@ body {
     border: 3px solid var(--pp-line); box-shadow: inset 0 -.28rem 0 #9c9c9c;
 }
 .skd-btn.silver:active { transform: translateY(.1rem); box-shadow: none; }
+
+/* ===== 던전 상세 팝업 (shot-042304 원본 대조 재작업) ===== */
+.btn.silver {
+    background: linear-gradient(180deg, #e3e3e3, #c2c2c2); color: #17181a;
+    border: 3px solid var(--pp-line); box-shadow: inset 0 -.28rem 0 #9c9c9c; font-weight: 900;
+}
+.btn.silver:active { transform: translateY(.1rem); box-shadow: none; }
+.dgd-card { width: 88%; padding: 0 0 1rem; overflow: hidden; gap: 0; }
+.dgd-card .dg-detail-hero {
+    position: relative; width: 100%; border-radius: 0; margin: 0 0 .6rem;
+}
+.dgd-title {
+    position: absolute; top: .4rem; left: 0; right: 0; text-align: center;
+    font-size: 1.05rem; font-weight: 900; color: #fff;
+    text-shadow: -2px -2px 0 #17181a, 2px -2px 0 #17181a, -2px 2px 0 #17181a, 2px 2px 0 #17181a;
+}
+.dgd-stage-row { display: flex; align-items: center; justify-content: center; gap: 1rem; margin: .3rem 0 .5rem; }
+.dgd-stage { text-align: center; line-height: 1.15; }
+.dgd-stage span { display: block; font-size: .88rem; font-weight: 900; color: var(--pp-ink); }
+.dgd-stage b { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); }
+.dgd-reward-pill {
+    background: #b9b9b9; border-radius: .6rem; margin: 0 1.2rem .55rem; padding: .3rem .6rem;
+    text-align: center; font-size: .88rem; font-weight: 900; color: var(--pp-ink);
+}
+.dgd-reward-label { color: #fff; text-shadow: -1px -1px 0 #6d6d6d, 1px -1px 0 #6d6d6d, -1px 1px 0 #6d6d6d, 1px 1px 0 #6d6d6d; margin-right: .3rem; }
+.dgd-keys { text-align: center; font-size: .95rem; font-weight: 900; color: var(--pp-ink); margin-bottom: .7rem; }
+.dgd-btns { display: flex; gap: .8rem; margin: 0 1.1rem; }
+.dgd-btn { flex: 1; font-size: .92rem; padding: .6rem .2rem; border-radius: .6rem; line-height: 1.25; }
