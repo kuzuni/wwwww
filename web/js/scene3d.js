@@ -2287,7 +2287,27 @@ const Scene3D = {
         const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
-        const redEyes = (y, z, gap, r) => { for (const s of [-1, 1]) sp(r || 0.045, s * gap, y, z, new THREE.MeshBasicMaterial({ color: 0xff1744 })); };
+        // 몬스터 눈: 흰자+홍채+동공+하이라이트+성난 눈썹 (빨간 점 → 캐릭터 표정)
+        const redEyes = (y, z, gap, r) => {
+            const er = (r || 0.045) * 1.5;
+            for (const s of [-1, 1]) {
+                const eg = new THREE.Group();
+                eg.position.set(s * gap, y, z);
+                const sc = new THREE.Mesh(new THREE.SphereGeometry(er, 9, 7), new THREE.MeshBasicMaterial({ color: 0xfff6e8 }));
+                sc.scale.set(1, 1.12, 0.55);
+                const ir = new THREE.Mesh(new THREE.SphereGeometry(er * 0.58, 8, 6), new THREE.MeshBasicMaterial({ color: 0xd8352a }));
+                ir.position.z = er * 0.4;
+                const pu = new THREE.Mesh(new THREE.SphereGeometry(er * 0.28, 6, 5), new THREE.MeshBasicMaterial({ color: 0x1a1210 }));
+                pu.position.z = er * 0.58;
+                const hl = new THREE.Mesh(new THREE.SphereGeometry(er * 0.15, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                hl.position.set(er * 0.2, er * 0.24, er * 0.62);
+                const brow = new THREE.Mesh(new THREE.BoxGeometry(er * 1.6, er * 0.34, er * 0.3), new THREE.MeshLambertMaterial({ color: 0x2b2b33 }));
+                brow.position.set(0, er * 1.0, er * 0.28);
+                brow.rotation.z = s * 0.42; // 안쪽이 내려간 성난 눈썹
+                eg.add(sc, ir, pu, hl, brow);
+                g.add(eg);
+            }
+        };
 
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
         // 디버그: ?enemy=imp 로 특정 몬스터 강제
