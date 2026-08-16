@@ -336,6 +336,8 @@ body {
 .equip-cell.empty .cell-img.dim { filter: grayscale(1) opacity(.35); font-size: 1.35rem; }
 .equip-cell.egg-cell.empty { cursor: pointer; } /* 탈것 창 진입점이라 빈 상태에도 클릭 가능 */
 .equip-cell .slot-name { position: absolute; bottom: .3rem; left: 0; right: 0; text-align: center; font-size: .58rem; font-weight: 800; color: #b9a8a8; }
+/* 밝은 하늘색 egg-cell 위에서 회색 라벨이 대비 1.5:1로 안 읽히던 QA 버그 — 흰 글자+검정 그림자 (185) */
+.equip-cell.egg-cell .slot-name { color: #fff; text-shadow: 0 1px 0 #000, 0 0 3px rgba(0,0,0,.55); font-size: .72rem; }
 .equip-cell .cell-lv {
     position: absolute; bottom: .28rem; left: 0; right: 0; text-align: center;
     font-size: .72rem; font-weight: 900; color: #fff; text-shadow: 0 1px 0 #000; white-space: nowrap;
