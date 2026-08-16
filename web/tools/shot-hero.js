@@ -1,64 +1,73 @@
-// 영웅 검증 스크린샷 — idle/걷기/공격 중간 프레임, Box3 피팅 (5차 인계 ⑴)
-const { chromium } = require('playwright');
-const path = require('path');
-const OUT = path.join(__dirname, 'shots');
-require('fs').mkdirSync(OUT, { recursive: true });
+// 영웅 근접 샷 — camLock + Box3 피팅, Idle/걷기/공격 중간 프레임
+// 사용: node shot-hero.js
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html') + '';
+const OUT = __dirname;
 
 (async () => {
-    const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-    const page = await browser.newPage({ viewport: { width: 700, height: 700 } });
+    const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
+    const page = await browser.newPage({ viewport: { width: 480, height: 854 } });
     const errors = [];
-    page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
     page.on('pageerror', e => errors.push(String(e)));
-    await page.goto('file:///home/user/wwwww/web/index.html?debug=gear&w=sword&hage=medieval&aage=medieval');
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, { timeout: 20000 });
-    await page.waitForTimeout(800);
-    await page.evaluate(() => {
+    page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    await page.goto(INDEX + '?debug=gear', { waitUntil: 'load' });
+    await page.waitForFunction(() => typeof Scene3D !== "undefined" && Scene3D.heroG && typeof Combat !== "undefined", null, { timeout: 15000 });
+
+    const fit = async (mult, yaw) => page.evaluate(([mult, yaw]) => {
         Combat.tick = () => {};
         Scene3D.walking = false;
-        // 캐릭터 품질 채점용: 디바인 대검 대신 중세 검 (캐릭터가 가려지지 않게)
-        Forge.equip({ name: 'test', slot: 'weapon', age: 'medieval', ageIdx: AGES.indexOf('medieval'), rarity: 'rare', level: 10, main: SLOT_MAIN.weapon, value: 100, subs: [], wtype: 'sword' });
-    });
-
-    // 촬영 직전 항상 재피팅 — 걷기 스크롤/모션 드리프트 대응
-    const fit = async () => page.evaluate(() => {
+        Scene3D.clearEnemies(); Combat.enemies = [];
+        Scene3D.heroG.updateMatrixWorld(true);
+        const hpG = Scene3D.heroHpG; if (hpG) hpG.visible = false;
         const box = new THREE.Box3().setFromObject(Scene3D.heroG);
         const c = box.getCenter(new THREE.Vector3());
-        const sz = box.getSize(new THREE.Vector3());
-        const r = Math.max(sz.x, sz.y, sz.z);
-        Scene3D.camLock = { pos: c.clone().add(new THREE.Vector3(r * 0.8, r * 0.45, r * 1.1)), look: c };
+        const size = box.getSize(new THREE.Vector3());
+        const r = Math.max(size.x, size.y, size.z);
+        const dist = r * mult + 0.3;
+        Scene3D.camLock = {
+            pos: new THREE.Vector3(c.x + Math.sin(yaw) * dist, c.y + dist * 0.3, c.z + Math.cos(yaw) * dist),
+            look: c.clone()
+        };
+    }, [mult, yaw]);
+
+    const hideUI = () => page.evaluate(() => {
+        for (const sel of ['#topbar', '#equip-sheet', '#skill-bar', '#stage-label', '#wave-pips', '#chat-preview', '#hero-hp-wrap', '.waypoint', '#offline-btn'])
+            document.querySelectorAll(sel).forEach(el => el.style.visibility = 'hidden');
     });
-    const shot = async (name) => {
-        await fit();
-        await page.waitForTimeout(60);
-        const clip = await page.evaluate(() => {
-            const b = document.getElementById('game3d').getBoundingClientRect();
-            return { x: b.x, y: b.y, width: b.width, height: b.height };
-        });
-        await page.screenshot({ path: path.join(OUT, name), clip });
-    };
 
-    // 포즈 프리즈: update(0)으로 모든 모션 정지 (렌더는 계속)
-    const freeze = async (on) => page.evaluate((on) => {
-        if (on && !Scene3D._origUpdate) { Scene3D._origUpdate = Scene3D.update; Scene3D.update = () => Scene3D._origUpdate(0); }
-        if (!on && Scene3D._origUpdate) { Scene3D.update = Scene3D._origUpdate; Scene3D._origUpdate = null; }
-    }, on);
+    // 1) Idle 정면/측면 근접
+    await fit(1.15, 0.45); await page.waitForTimeout(600); await hideUI();
+    await page.screenshot({ path: OUT + '/hero-idle-front.png' });
+    await fit(1.15, 1.4); await page.waitForTimeout(300);
+    await page.screenshot({ path: OUT + '/hero-idle-side.png' });
 
-    await page.waitForTimeout(400);
-    await freeze(true); await shot('hero-idle.png'); await freeze(false);
+    // 2) 걷기 중간 프레임
+    await page.evaluate(() => { Scene3D.walking = true; });
+    await page.waitForTimeout(450);
+    await fit(1.3, 0.45);
+    await page.evaluate(() => { Scene3D.walking = true; });
+    await page.waitForTimeout(180);
+    await page.screenshot({ path: OUT + '/hero-walk.png' });
+    await page.evaluate(() => { Scene3D.walking = false; });
 
-    // 걷기 중간 프레임
-    await page.evaluate(() => { Scene3D.walking = true; Scene3D.heroPlay(['Walking']); });
-    await page.waitForTimeout(430);
-    await freeze(true); await shot('hero-walk.png'); await freeze(false);
-    await page.evaluate(() => { Scene3D.walking = false; Scene3D.heroPlay(['Idle']); });
+    // 3) 공격 스윙 중간 프레임 (트레일 포함)
+    await page.evaluate(() => {
+        const e = { id: 999, x: Combat.MELEE_X, alive: true, hp: 100, maxHp: 100 };
+        Combat.enemies = [e]; Scene3D.spawnEnemy(e);
+        const m = Scene3D.enemyMap.get(999);
+        for (const a of Scene3D.anims) { try { a.fn && a.fn(1); a.onDone && a.onDone(); } catch (err) {} }
+        Scene3D.anims = []; m.g.position.y = 0; m.g.userData.landed = true;
+    });
+    await fit(1.6, 0.45);
+    await page.evaluate(() => Scene3D.heroAttack(999));
+    await page.waitForTimeout(220);
+    await page.screenshot({ path: OUT + '/hero-attack-mid.png' });
+    await page.waitForTimeout(900);
 
-    // 베기 공격 중간 프레임 (스냅 구간)
-    await page.evaluate(() => { Scene3D.heroPlay(['1H_Melee_Attack_Slice_Diagonal', 'slash'], true, 1); });
-    await page.waitForTimeout(200);
-    await freeze(true); await shot('hero-attack.png'); await freeze(false);
+    // 4) 전신 룩 (조금 멀리)
+    await fit(1.5, 0.6); await page.waitForTimeout(400);
+    await page.screenshot({ path: OUT + '/hero-full.png' });
 
-    if (errors.length) console.log('CONSOLE ERRORS:', errors.slice(0, 5));
-    else console.log('hero ok');
+    console.log('hero shots done' + (errors.length ? '  CONSOLE ERRORS: ' + errors.join(' | ') : '  (no console errors)'));
     await browser.close();
 })();
