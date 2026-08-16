@@ -497,7 +497,7 @@ const Scene3D = {
             }
             default: { // forest: 얼룩 + 풀결 스트로크(짧고 촘촘한 결이 "잔디 재질"을 말해줌)
                 patches(30, 0.18);
-                strokes(700, 9, 1.6, -Math.PI / 2, 0.9, 214, 96);
+                strokes(300, 11, 1.7, -Math.PI / 2, 0.9, 196, 122); // 700개/고대비는 '카펫 노이즈'로 읽힘 — 성기고 옅게
                 for (let i = 0; i < 160; i++) { // 풀포기 뭉침 얼룩
                     const x = Math.random() * size, y = Math.random() * size, r = 6 + Math.random() * 22;
                     const shade = 115 + Math.random() * 115;
@@ -669,7 +669,7 @@ const Scene3D = {
         this.terrainMat = new THREE.MeshPhongMaterial({
             color: 0x7cb342, flatShading: true, shininess: 0, vertexColors: true,
             map: gt.map, normalMap: gt.normal,
-            normalScale: new THREE.Vector2(1.45, 1.45), // 헤드리스/실기기 모두에서 요철이 확실히 읽히게 상향
+            normalScale: new THREE.Vector2(0.7, 0.7), // 1.45는 고주파 스펙클('카펫')로 읽힘 — 저폴리 소품과 톤 맞춤
         });
         const geo = new THREE.PlaneGeometry(60, 30, 64, 28);
         geo.rotateX(-Math.PI / 2);
@@ -977,6 +977,33 @@ const Scene3D = {
     // 바이옴별 지면 스캐터(풀 포기/자갈/발광 이끼 등) — InstancedMesh 1드로우콜.
     // 지면 타일(this.ground)의 자식이라 타일 순환(x±30 점프)과 함께 자동으로 흘러가고,
     // heightAt이 x 주기 30이라 로컬 좌표 높이가 어느 타일 위치에서도 유효함.
+    // 풀 포기: 원뿔 1개는 '압정'으로 읽힘(비평가 지적) — 기울기·크기가 다른 잎날 4개를 병합한 클러스터 지오메트리
+    tuftGeo() {
+        const parts = [];
+        const defs = [[0, 0, 0, 1], [0.05, 0.025, 0.4, 0.68], [-0.045, -0.02, -0.34, 0.74], [0.012, -0.05, 0.18, 0.55]];
+        for (const [dx, dz, tilt, k] of defs) {
+            const h = 0.1 + 0.12 * k;
+            const g2 = new THREE.ConeGeometry(0.02 + 0.028 * k, h, 4).toNonIndexed();
+            g2.rotateZ(tilt);
+            g2.rotateY(dx * 40);
+            g2.translate(dx, h * 0.3, dz);
+            parts.push(g2);
+        }
+        let total = 0;
+        parts.forEach(g2 => { total += g2.attributes.position.count; });
+        const pos = new Float32Array(total * 3), norm = new Float32Array(total * 3);
+        let off = 0;
+        for (const g2 of parts) {
+            pos.set(g2.attributes.position.array, off * 3);
+            norm.set(g2.attributes.normal.array, off * 3);
+            off += g2.attributes.position.count;
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+        return geo;
+    },
+
     buildScatter(biome) {
         if (this.scatter) {
             this.ground.remove(this.scatter);
@@ -1023,8 +1050,8 @@ const Scene3D = {
                 n = 120;
                 tint = 0.2;
                 break;
-            default: // forest: 풀 포기
-                geo = new THREE.ConeGeometry(0.05, 0.16, 5);
+            default: // forest: 풀 포기 (잎날 클러스터)
+                geo = this.tuftGeo();
                 mat = new THREE.MeshLambertMaterial({ color: 0x558b2f });
                 n = 240;
                 flat = false;
