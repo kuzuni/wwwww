@@ -693,7 +693,7 @@ const UI = {
             </button>`;
         }).join('');
         const eggCells = S.eggs.map((egg, i) =>
-            `<button class="pet-tile egg" style="--rc:${RARITY_CSS[egg.rarity]}" onclick="UI.onStartHatch(${i})" title="${RARITY_KR[egg.rarity]} 알 — 부화 시작">
+            `<button class="pet-tile egg" style="--rc:${RARITY_CSS[egg.rarity]}" onclick="UI.openEggDetail(${i})" title="${RARITY_KR[egg.rarity]} 알">
                 <span class="tile-face">🥚</span>
                 <span class="tile-label">알</span>
             </button>`).join('');
@@ -795,8 +795,36 @@ const UI = {
         this.renderPets();
     },
 
+    // 알 상세 팝업 — 클릭 즉시 부화 금지(사용자 지시): 펫 상세와 같은 패턴, [부화] 버튼으로만 부화 시작
+    openEggDetail(i) {
+        const egg = S.eggs[i];
+        if (!egg) return;
+        const slotsFull = S.hatching.length >= Pets.maxHatchSlots();
+        const hatchSec = Pets.hatchTimeSec(egg.rarity);
+        this.els.detailModal.innerHTML = `
+            <div class="idet-wrap">
+                <div class="modal-card paper petd-card">
+                    <div class="petd-head">
+                        <div class="petd-tilecol">
+                            <div class="petd-tile egg" style="--rc:${RARITY_CSS[egg.rarity]}">🥚</div>
+                        </div>
+                        <div class="petd-body">
+                            <div class="petd-name" style="color:${RARITY_CSS[egg.rarity]}">[${RARITY_KR[egg.rarity]}] 알</div>
+                            <div class="petd-stats">부화 소요 ${U.fmtTime(hatchSec)}</div>
+                            <div class="petd-subs">${slotsFull ? `부화 슬롯이 가득 찼습니다 (${Pets.maxHatchSlots()}칸)` : `부화장 ${S.hatching.length}/${Pets.maxHatchSlots()} 사용 중`}</div>
+                        </div>
+                    </div>
+                    <div class="petd-btns">
+                        <button class="btn primary petd-btn ${slotsFull ? 'disabled' : ''}" onclick="UI.onStartHatch(${i})">부화</button>
+                    </div>
+                </div>
+                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+            </div>`;
+        this.showModal(this.els.detailModal);
+    },
     onStartHatch(i) {
-        if (!Pets.startHatch(i)) this.toast(`부화 슬롯이 가득 찼습니다 (${Pets.maxHatchSlots()}칸)`);
+        if (!Pets.startHatch(i)) { this.toast(`부화 슬롯이 가득 찼습니다 (${Pets.maxHatchSlots()}칸)`); return; }
+        this.closeDetail();
         this.renderPets(); this.renderEquipSheet();
     },
     onHatchSkip(i) {
