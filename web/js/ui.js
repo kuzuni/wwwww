@@ -23,7 +23,7 @@ const UI = {
             mountModal: $('mount-modal'), mountUpgradeModal: $('mount-upgrade-modal'), ascendModal: $('ascend-modal'),
             stubModal: $('stub-modal'),
             forgeInfoModal: $('forge-info-modal'), forgeItemModal: $('forge-item-modal'),
-            skillDetailModal: $('skill-detail-modal'),
+            detailModal: $('detail-modal'),
             autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
             leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
@@ -644,67 +644,126 @@ const UI = {
         if (this.activeTab !== 'summon' || this._summonSub !== 'pets') return;
         const p = this.els.petsPanel;
         const slots = Pets.maxHatchSlots();
+
+        // 부화장(원본 최하단 어두운 패널): 슬롯 3개 + [슬롯+1 💎N]
         const hatchHtml = Array.from({ length: slots }, (_, i) => {
             const h = S.hatching[i];
-            if (!h) return `<div class="hatch-slot empty">빈 부화 슬롯</div>`;
-            return `<div class="hatch-slot" style="--rc:${RARITY_CSS[h.rarity]}">
-                <span>${RARITY_KR[h.rarity]} 알</span>
-                <span id="hatch-t-${i}">${U.fmtTime((h.endsAt - U.now()) / 1000)}</span>
-                <button class="btn gem sm" onclick="UI.onHatchSkip(${i})">💎 ${Pets.gemSkipCost(h)}</button>
+            if (!h) return `<div class="hatch-cell empty">빈 슬롯</div>`;
+            return `<div class="hatch-cell" style="--rc:${RARITY_CSS[h.rarity]}">
+                <span class="hatch-egg">🥚</span>
+                <span class="hatch-time" id="hatch-t-${i}">${U.fmtTime((h.endsAt - U.now()) / 1000)}</span>
+                <button class="btn xs" onclick="UI.onHatchSkip(${i})">💎 ${Pets.gemSkipCost(h)}</button>
             </div>`;
-        }).join('') + (Pets.canBuySlot() ? `<button class="hatch-slot buy" onclick="UI.onBuyHatchSlot()">슬롯+1<br><small>💎 ${Pets.slotCost()}</small></button>` : '');
+        }).join('');
 
-        const eggsHtml = S.eggs.length ? S.eggs.map((egg, i) =>
-            `<button class="egg-chip" style="--rc:${RARITY_CSS[egg.rarity]}" onclick="UI.onStartHatch(${i})">
-                🥚 ${RARITY_KR[egg.rarity]}<br><small>${U.fmtTime(Pets.hatchTimeSec(egg.rarity))}</small>
-            </button>`).join('') : '<span class="muted">알 없음 — 전투에서 드랍됩니다</span>';
-
-        const petsHtml = S.pets.length ? S.pets.map((pet, i) => {
+        // 그리드: 보유 펫(장착됨 리본·Lv·별) 뒤에 미부화 알 — 원본은 한 그리드에 섞여 표시
+        const petCells = S.pets.map((pet, i) => {
             const active = S.activePets.includes(i);
-            const pw = Pets.petPower(pet);
-            const subsText = (pet.subs || []).map(s => U.subText(s)).join(' · ');
-            const maxed = pet.level >= Pets.MAX_LEVEL;
-            const need = Pets.xpNeeded(pet.level);
-            return `<div class="pet-card with-icon ${active ? 'active' : ''}" style="--rc:${RARITY_CSS[pet.rarity]}">
-                <span class="icon-circle">${PET_ICONS[pet.name] || '🐾'}</span>
-                <span class="item-name">${PET_KR[pet.name] || pet.name} <small>Lv.${pet.level}${pet.stars ? ` ⭐${pet.stars}` : ''}</small></span>
-                <span class="item-stat">⚔️ ${U.fmt(pw.atk)} · ❤️ ${U.fmt(pw.hp)} · ${RARITY_KR[pet.rarity]}</span>
-                <span class="muted">${maxed ? '만렙' : `경험치 ${U.fmt(pet.xp || 0)}/${U.fmt(need)}`} · 재료 ${pet.dupes}${subsText ? ' · ' + subsText : ''}</span>
-                <div class="btn-col">
-                    <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onTogglePet(${i})">${active ? '출전 중' : '출전'}</button>
-                    <button class="btn sm" onclick="UI.openPetUpgrade(${i})">업그레이드</button>
-                    ${maxed ? `<button class="btn sm ${Pets.canAscend(i) ? '' : 'disabled'}" onclick="UI.onAscendPet(${i})">⭐ 승천</button>` : ''}
-                </div>
-            </div>`;
-        }).join('') : '<span class="muted">보유 펫 없음</span>';
+            return `<button class="pet-tile" style="--rc:${RARITY_CSS[pet.rarity]}" onclick="UI.openPetDetail(${i})">
+                <span class="tile-face">
+                    ${PET_ICONS[pet.name] || '🐾'}
+                    ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
+                    <span class="sk-lv">Lv.${pet.level}</span>
+                </span>
+                <span class="sk-star">${pet.stars ? `⭐${pet.stars}` : '⭐'}</span>
+            </button>`;
+        }).join('');
+        const eggCells = S.eggs.map((egg, i) =>
+            `<button class="pet-tile egg" style="--rc:${RARITY_CSS[egg.rarity]}" onclick="UI.onStartHatch(${i})" title="${RARITY_KR[egg.rarity]} 알 — 부화 시작">
+                <span class="tile-face">🥚</span>
+                <span class="tile-label">알</span>
+            </button>`).join('');
+        const gridHtml = (petCells + eggCells) || '<span class="muted">보유 펫·알 없음 — 소환해보세요!</span>';
+
+        const equippedRowHtml = S.activePets.map(i => {
+            const pet = S.pets[i];
+            if (!pet) return '';
+            return `<span class="sk-mini square" style="--rc:${RARITY_CSS[pet.rarity]}">${PET_ICONS[pet.name] || '🐾'}<small>Lv.${pet.level}</small></span>`;
+        }).join('') || '<span class="muted">없음</span>';
 
         const mergeHtml = RARITIES.slice(0, -1).map(r => Pets.canMerge(r) ?
-            `<button class="btn sm" onclick="UI.onMerge('${r}')" style="--rc:${RARITY_CSS[r]}">${RARITY_KR[r]} 3마리 → ${RARITY_KR[RARITIES[RARITIES.indexOf(r) + 1]]} 알</button>` : '').join('');
+            `<button class="btn xs" onclick="UI.onMerge('${r}')">${RARITY_KR[r]} 3 → ${RARITY_KR[RARITIES[RARITIES.indexOf(r) + 1]]} 알</button>` : '').join('');
 
         const rates = Pets.rates();
-        const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
+        this._petRatesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
             `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${rates[r].toFixed(2)}%</span>`).join('');
         const petLvl = Pets.summonLevel(), petCapped = petLvl >= 100;
-        const petSummonProgHtml = `<div class="tech-node">
-            <div class="tech-node-head"><span class="muted">소환 레벨 Lv.${petLvl}</span><span class="muted">${petCapped ? 'MAX' : `${(S.petSummonCount || 0) % 5}/5`}</span></div>
-            <div class="tech-node-bar"><div style="width:${(petCapped ? 1 : ((S.petSummonCount || 0) % 5) / 5) * 100}%"></div></div>
-        </div>`;
-
         const petSummonN = this._petSummonX5 ? 5 : 1;
+
         p.innerHTML = `
-            <h2>🐾 펫 <span class="muted">🥚 ${U.fmt(S.eggCurrency || 0)} · 출전 ${S.activePets.length}/${Pets.MAX_ACTIVE}</span></h2>
-            <p class="muted">펫은 직접 공격하지 않고, 출전 시 고정 공격력·체력과 옵션을 제공합니다. 레벨업은 [업그레이드]에서 다른 펫·알을 재료로 흡수해 진행합니다.</p>
-            <div class="row">
-                <button class="btn sm ${this._petSummonX5 ? 'on' : ''}" onclick="UI.togglePetSummonX5()">x5</button>
-                <button class="btn primary ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">소환 x${petSummonN} <small>🥚 ${Pets.SUMMON_EGG_COST * petSummonN}</small></button>
+            <div class="sheet-head">
+                <span class="cur-pill egg">🥚 ${U.fmt(S.eggCurrency || 0)}</span>
+                <h2 class="sheet-title">펫</h2>
+                <span class="cur-pill gem">💎 ${U.fmt(S.gems)}</span>
             </div>
-            ${petSummonProgHtml}
-            <div class="prob-box">${ratesHtml}</div>
-            <h3>부화장</h3><div class="row">${hatchHtml}</div>
-            <h3>알 보관함 (${S.eggs.length}/20)</h3><div class="egg-row">${eggsHtml}</div>
-            ${mergeHtml ? `<h3>합성</h3><div class="row wrap">${mergeHtml}</div>` : ''}
-            <h3>보유 펫</h3><div class="pet-list">${petsHtml}</div>`;
+            <div class="sk-grid">${gridHtml}</div>
+            ${mergeHtml ? `<div class="row center wrap">${mergeHtml}</div>` : ''}
+            <div class="equipped-row">
+                <span class="equipped-label">장착됨</span>
+                <div class="equipped-icons">${equippedRowHtml}</div>
+            </div>
+            <div class="summon-bar">
+                <button class="btn xs ${this._petSummonX5 ? 'primary' : ''}" onclick="UI.togglePetSummonX5()">x${petSummonN}</button>
+                <button class="btn big ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">
+                    소환 x${petSummonN}<small>🥚 ${Pets.SUMMON_EGG_COST * petSummonN}</small></button>
+                <button class="btn xs info" onclick="UI.openPetRates()">ⓘ<small>Lv.${petLvl}</small></button>
+            </div>
+            <div class="summon-prog"><div style="width:${(petCapped ? 1 : ((S.petSummonCount || 0) % 5) / 5) * 100}%"></div>
+                <span>${petCapped ? 'MAX' : `${(S.petSummonCount || 0) % 5}/5`}</span></div>
+            <div class="hatchery">
+                <div class="hatch-row">${hatchHtml}</div>
+                ${Pets.canBuySlot() ? `<button class="btn xs slot-buy" onclick="UI.onBuyHatchSlot()">슬롯 +1<br>💎 ${Pets.slotCost()}</button>` : ''}
+            </div>`;
     },
+
+    // 펫 소환 확률 팝업 (UI-SPEC 48번 — 스킬과 같은 형식)
+    openPetRates() {
+        this.els.detailModal.innerHTML = `
+            <div class="idet-wrap">
+                <div class="modal-card paper">
+                    <h3>소환 확률 <small class="muted">Lv.${Pets.summonLevel()}</small></h3>
+                    <div class="prob-box">${this._petRatesHtml || ''}</div>
+                </div>
+                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+            </div>`;
+        this.els.detailModal.classList.remove('hidden');
+    },
+
+    // 펫 상세 팝업 (UI-SPEC 54번): 고정 피해/체력 + 옵션 2줄 + [업그레이드][장착·해제]
+    openPetDetail(i) {
+        const pet = S.pets[i];
+        if (!pet) return;
+        const active = S.activePets.includes(i);
+        const pw = Pets.petPower(pet);
+        const maxed = pet.level >= Pets.MAX_LEVEL;
+        const subsHtml = (pet.subs || []).map(s => `<div class="substat-row">${U.subText(s)}</div>`).join('');
+        this.els.detailModal.innerHTML = `
+            <div class="idet-wrap">
+                <div class="modal-card paper item-detail">
+                    <div class="idet-head">
+                        <div class="idet-icon" style="--rc:${RARITY_CSS[pet.rarity]}">${PET_ICONS[pet.name] || '🐾'}${pet.stars ? `<span class="idet-star">⭐${pet.stars}</span>` : ''}</div>
+                        <div class="idet-title">
+                            <div class="idet-name">[${RARITY_KR[pet.rarity]}] ${PET_KR[pet.name] || pet.name}</div>
+                            <div class="idet-main">${U.fmt(pw.atk)} 피해 / ${U.fmt(pw.hp)} 체력</div>
+                            <div class="idet-chance">${active ? '장착됨 · ' : ''}Lv.${pet.level}${maxed ? ' (만렙)' : ` · 경험치 ${U.fmt(pet.xp || 0)}/${U.fmt(Pets.xpNeeded(pet.level))}`}</div>
+                        </div>
+                    </div>
+                    <div class="idet-subs">
+                        <div class="idet-lead">옵션</div>
+                        ${subsHtml || '<div class="substat-row">없음</div>'}
+                    </div>
+                    <div class="idet-btns">
+                        ${maxed
+                            ? `<button class="btn sm ${Pets.canAscend(i) ? 'primary' : 'disabled'}" onclick="UI.onAscendPet(${i}); UI.openPetDetail(${i})">⭐ 승천</button>`
+                            : `<button class="btn sm primary" onclick="UI.closeDetail(); UI.openPetUpgrade(${i})">업그레이드</button>`}
+                        <button class="btn sm ${active ? '' : 'primary'}" onclick="UI.onTogglePet(${i}); UI.openPetDetail(${i})">${active ? '제거' : '장착'}</button>
+                    </div>
+                </div>
+                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+            </div>`;
+        this.els.detailModal.classList.remove('hidden');
+    },
+
     togglePetSummonX5() {
         this._petSummonX5 = !this._petSummonX5;
         this.renderPets();
@@ -879,15 +938,15 @@ const UI = {
 
     // 소환 확률 팝업 (UI-SPEC 48번 — 스킬·펫 공용)
     openSummonRates() {
-        this.els.skillDetailModal.innerHTML = `
+        this.els.detailModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper">
                     <h3>소환 확률 <small class="muted">Lv.${Skills.summonLevel()}</small></h3>
                     <div class="prob-box">${this._summonRatesHtml || ''}</div>
                 </div>
-                <button class="x-btn" onclick="UI.closeSkillDetail()">✕</button>
+                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
             </div>`;
-        this.els.skillDetailModal.classList.remove('hidden');
+        this.els.detailModal.classList.remove('hidden');
     },
 
     // 스킬 상세 팝업 (UI-SPEC 46번)
@@ -901,7 +960,7 @@ const UI = {
         const desc = d.type === 'heal' ? `체력을 ${Math.round(Skills.effHeal(id) * 100)}% 회복합니다.`
             : d.type === 'buff' ? Object.entries(d.buff).map(([k, v]) => (k === 'atkPct' ? '공격력' : '공격 속도') + ` +${v}%`).join(', ') + ' 버프를 겁니다.'
             : `${d.type === 'aoe' ? '범위 안의 적 전체에게' : '적 하나에게'} 각각 <b>${U.fmt(Skills.dmg(id))}의 피해</b>를 줍니다.`;
-        this.els.skillDetailModal.innerHTML = `
+        this.els.detailModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper item-detail">
                     <div class="idet-head">
@@ -923,11 +982,11 @@ const UI = {
                         <button class="btn sm ${equipped ? '' : 'primary'}" onclick="UI.onToggleSkill('${id}'); UI.openSkillDetail('${id}')">${equipped ? '해제' : '장착'}</button>
                     </div>
                 </div>
-                <button class="x-btn" onclick="UI.closeSkillDetail()">✕</button>
+                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
             </div>`;
-        this.els.skillDetailModal.classList.remove('hidden');
+        this.els.detailModal.classList.remove('hidden');
     },
-    closeSkillDetail() { this.els.skillDetailModal.classList.add('hidden'); },
+    closeDetail() { this.els.detailModal.classList.add('hidden'); },
 
     toggleSkillSummonX5() {
         this._skillSummonX5 = !this._skillSummonX5;
