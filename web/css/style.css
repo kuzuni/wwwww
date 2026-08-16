@@ -722,18 +722,18 @@ body {
     width: 72%; /* 원본 ≈70% W (185) */
 }
 .pass-card h2, .pass-card h3, .pass-card h4 { color: #fff; }
-.pass-sword {
-    position: absolute; top: -3.4rem; left: 50%; transform: translateX(-50%);
-    font-size: 3.6rem; filter: drop-shadow(0 .25rem .18rem rgba(0,0,0,.55));
+.pass-sword { /* 원본(042705): 검 ≈13% H, 절반이 카드 위로 돌출 — 칼끝 아래 수직 */
+    position: absolute; top: -6.4rem; left: 50%; transform: translateX(-50%) rotate(-45deg);
+    font-size: 6.6rem; line-height: 1; filter: drop-shadow(.18rem .25rem .18rem rgba(0,0,0,.55)); z-index: 1;
 }
-.pass-banner {
-    position: relative; background: linear-gradient(180deg, #6d6df5, #3c3cbe); border: 3px solid var(--pp-line);
+.pass-banner { /* 원본: 카드 좌우를 넘는 풀블리드 리본 */
+    position: relative; background: linear-gradient(180deg, #5252f0, #3c3cbe); border: 3px solid var(--pp-line);
     color: #fff; font-weight: 900; font-size: 1.05rem; text-align: center;
-    border-radius: .3rem; padding: .5rem; margin: 0 .6rem .55rem;
+    border-radius: .2rem; padding: .55rem; margin: 0 -1.7rem .55rem;
 }
-.pass-banner::before, .pass-banner::after { content: ''; position: absolute; top: .5rem; border-style: solid; }
-.pass-banner::before { left: -.8rem; border-width: .9rem .8rem .9rem 0; border-color: transparent #26268f transparent transparent; }
-.pass-banner::after { right: -.8rem; border-width: .9rem 0 .9rem .8rem; border-color: transparent transparent transparent #26268f; }
+.pass-banner::before, .pass-banner::after { content: ''; position: absolute; top: .6rem; border-style: solid; z-index: -1; }
+.pass-banner::before { left: -.95rem; border-width: 1rem .95rem 1rem 0; border-color: transparent #26268f transparent transparent; }
+.pass-banner::after { right: -.95rem; border-width: 1rem 0 1rem .95rem; border-color: transparent transparent transparent #26268f; }
 .pass-desc-row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin: 0 .2rem .6rem; }
 .pass-desc { text-align: left; font-size: .8rem; font-weight: 800; color: #fff; margin: 0; line-height: 1.4; }
 .pass-price {
