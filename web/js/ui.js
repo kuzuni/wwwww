@@ -23,6 +23,7 @@ const UI = {
             mountModal: $('mount-modal'), mountUpgradeModal: $('mount-upgrade-modal'), ascendModal: $('ascend-modal'),
             stubModal: $('stub-modal'),
             forgeInfoModal: $('forge-info-modal'), forgeItemModal: $('forge-item-modal'),
+            skillDetailModal: $('skill-detail-modal'),
             autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
             leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
@@ -825,46 +826,108 @@ const UI = {
             <div class="tech-node-bar"><div style="width:${(capped ? 1 : ((S.summonCount || 0) % 5) / 5) * 100}%"></div></div>
         </div>`;
 
-        const listHtml = SKILL_DEFS.filter(d => S.skills[d.id]).map(d => {
+        // 5열 원형 아이콘 그리드 — 셀 = 원형 아이콘 + Lv 배지 + 별 + 조각 게이지, 장착 시 리본
+        const gridHtml = SKILL_DEFS.filter(d => S.skills[d.id]).map(d => {
             const sk = S.skills[d.id];
             const equipped = S.equippedSkills.includes(d.id);
-            const typeKr = { aoe: '광역', single: '단일', heal: '회복', buff: '버프' }[d.type];
-            const power = d.type === 'heal' ? `${Math.round(Skills.effHeal(d.id) * 100)}% 회복`
-                : d.type === 'buff' ? `${Object.entries(d.buff).map(([k, v]) => (k === 'atkPct' ? '공격력' : '공속') + ` +${v}%`).join(' ')}`
-                : `각각 ${U.fmt(Skills.dmg(d.id))}의 피해`;
             const maxed = sk.level >= Skills.MAX_LEVEL;
             const need = Skills.shardsRequired(maxed ? Skills.MAX_LEVEL : sk.level);
-            return `<div class="pet-card with-icon ${equipped ? 'active' : ''}" style="--rc:${RARITY_CSS[d.rarity]}">
-                <span class="icon-circle">${SKILL_ICONS[d.id] || '✨'}</span>
-                <span class="item-name">${d.name} <small>Lv.${sk.level}${sk.stars ? ` ⭐${sk.stars}` : ''}</small></span>
-                <span class="item-stat">${typeKr} · ${power} · 쿨 ${d.cd}초</span>
-                <span class="muted">조각 ${sk.dupes}/${need} · ${RARITY_KR[d.rarity]}</span>
-                <div class="btn-col">
-                    <button class="btn sm ${equipped ? 'on' : ''}" onclick="UI.onToggleSkill('${d.id}')">${equipped ? '장착 중' : '장착'}</button>
-                    ${maxed
-                        ? `<button class="btn sm ${Skills.canAscend(d.id) ? '' : 'disabled'}" onclick="UI.onAscendSkill('${d.id}')">⭐ 승천</button>`
-                        : `<button class="btn sm ${Skills.canUpgrade(d.id) ? '' : 'disabled'}" onclick="UI.onUpgradeSkill('${d.id}')">업그레이드</button>`}
-                </div>
-            </div>`;
+            const ratio = U.clamp(sk.dupes / need, 0, 1) * 100;
+            return `<button class="sk-cell" onclick="UI.openSkillDetail('${d.id}')">
+                <span class="sk-orb" style="--rc:${RARITY_CSS[d.rarity]}">
+                    ${SKILL_ICONS[d.id] || '✨'}
+                    ${equipped ? '<span class="sk-ribbon">장착됨</span>' : ''}
+                    <span class="sk-lv">Lv.${sk.level}</span>
+                </span>
+                <span class="sk-star">${sk.stars ? `⭐${sk.stars}` : '⭐'}</span>
+                <span class="sk-shard"><i style="width:${ratio}%"></i><em>${sk.dupes}/${need}</em></span>
+            </button>`;
         }).join('') || '<span class="muted">보유 스킬 없음 — 소환해보세요!</span>';
 
+        // 원본(UI-SPEC 8·11·14번) 배치: 좌상단 티켓 · 중앙 제목 · 패시브 배너 ·
+        // 5열 원형 아이콘 그리드(조각 게이지) · 장착됨 행 · 버튼 2개 · 최하단 소환 버튼
+        const equippedRowHtml = S.equippedSkills.map(id => {
+            const sk = S.skills[id]; const d = Skills.def(id);
+            return `<span class="sk-mini" style="--rc:${RARITY_CSS[d.rarity]}">${SKILL_ICONS[id] || '✨'}<small>Lv.${sk.level}</small></span>`;
+        }).join('') || '<span class="muted">없음</span>';
+
         p.innerHTML = `
-            <h2>✨ 스킬 <span class="muted">🎫 ${U.fmt(S.tickets)} · ${Object.keys(S.skills).length}/${SKILL_DEFS.length}</span></h2>
-            <p class="muted">장착 시 고정 패시브: +${U.fmt(pb.atk)} 기본 피해 · +${U.fmt(pb.hp)} 기본 체력</p>
-            <div class="row">
-                <button class="btn sm ${this._skillSummonX5 ? 'on' : ''}" onclick="UI.toggleSkillSummonX5()">x5</button>
-                <button class="btn primary ${Skills.canSummon(false, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(false)">소환 x${skillSummonN} <small>🎫 ${Skills.SUMMON_TICKET_COST * skillSummonN}</small></button>
-                <button class="btn gem ${Skills.canSummon(true, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(true)">소환 x${skillSummonN} <small>💎 ${Skills.SUMMON_GEM_COST * skillSummonN}</small></button>
+            <div class="sheet-head">
+                <span class="cur-pill ticket">🎫 ${U.fmt(S.tickets)}</span>
+                <h2 class="sheet-title">스킬 ${Object.keys(S.skills).length}/${SKILL_DEFS.length}</h2>
             </div>
-            ${summonProgHtml}
-            <div class="prob-box">${ratesHtml}</div>
-            <h3>보유 스킬 <span class="muted">(장착 ${S.equippedSkills.length}/${Skills.MAX_ACTIVE})</span></h3>
-            <div class="row">
-                <button class="btn sm" onclick="UI.onUpgradeAllSkills()">모두 업그레이드</button>
-                <button class="btn sm" onclick="UI.onQuickEquipSkills()">빠른 장착</button>
+            <div class="passive-banner">+${U.fmt(pb.atk)} 기본 피해 &nbsp; +${U.fmt(pb.hp)} 기본 체력</div>
+            <div class="sk-grid">${gridHtml}</div>
+            <div class="equipped-row">
+                <span class="equipped-label">장착됨</span>
+                <div class="equipped-icons">${equippedRowHtml}</div>
             </div>
-            <div class="pet-list">${listHtml}</div>`;
+            <div class="row center">
+                <button class="btn sm primary" onclick="UI.onUpgradeAllSkills()">모두 업그레이드</button>
+                <button class="btn sm primary" onclick="UI.onQuickEquipSkills()">빠른 장착</button>
+            </div>
+            <div class="summon-bar">
+                <button class="btn xs ${this._skillSummonX5 ? 'primary' : ''}" onclick="UI.toggleSkillSummonX5()">x${skillSummonN}</button>
+                <button class="btn big ${Skills.canSummon(false, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(false)">
+                    소환 x${skillSummonN}<small>🎫 ${Skills.SUMMON_TICKET_COST * skillSummonN}</small></button>
+                <button class="btn xs info" onclick="UI.openSummonRates()">ⓘ<small>Lv.${lvl}</small></button>
+            </div>
+            <div class="summon-prog"><div style="width:${(capped ? 1 : ((S.summonCount || 0) % 5) / 5) * 100}%"></div>
+                <span>${capped ? 'MAX' : `${(S.summonCount || 0) % 5}/5`}</span></div>`;
+        this._summonRatesHtml = ratesHtml;
     },
+
+    // 소환 확률 팝업 (UI-SPEC 48번 — 스킬·펫 공용)
+    openSummonRates() {
+        this.els.skillDetailModal.innerHTML = `
+            <div class="idet-wrap">
+                <div class="modal-card paper">
+                    <h3>소환 확률 <small class="muted">Lv.${Skills.summonLevel()}</small></h3>
+                    <div class="prob-box">${this._summonRatesHtml || ''}</div>
+                </div>
+                <button class="x-btn" onclick="UI.closeSkillDetail()">✕</button>
+            </div>`;
+        this.els.skillDetailModal.classList.remove('hidden');
+    },
+
+    // 스킬 상세 팝업 (UI-SPEC 46번)
+    openSkillDetail(id) {
+        const d = Skills.def(id), sk = S.skills[id];
+        if (!sk) return;
+        const equipped = S.equippedSkills.includes(id);
+        const maxed = sk.level >= Skills.MAX_LEVEL;
+        const need = Skills.shardsRequired(maxed ? Skills.MAX_LEVEL : sk.level);
+        const pb = Skills.passiveOf ? Skills.passiveOf(id) : null;
+        const desc = d.type === 'heal' ? `체력을 ${Math.round(Skills.effHeal(id) * 100)}% 회복합니다.`
+            : d.type === 'buff' ? Object.entries(d.buff).map(([k, v]) => (k === 'atkPct' ? '공격력' : '공격 속도') + ` +${v}%`).join(', ') + ' 버프를 겁니다.'
+            : `${d.type === 'aoe' ? '범위 안의 적 전체에게' : '적 하나에게'} 각각 <b>${U.fmt(Skills.dmg(id))}의 피해</b>를 줍니다.`;
+        this.els.skillDetailModal.innerHTML = `
+            <div class="idet-wrap">
+                <div class="modal-card paper item-detail">
+                    <div class="idet-head">
+                        <div class="idet-icon" style="--rc:${RARITY_CSS[d.rarity]}">${SKILL_ICONS[id] || '✨'}${sk.stars ? `<span class="idet-star">⭐${sk.stars}</span>` : ''}</div>
+                        <div class="idet-title">
+                            <div class="idet-name">[${RARITY_KR[d.rarity]}] ${d.name}</div>
+                            <div class="idet-main">Lv.${sk.level} <small class="muted">조각 ${sk.dupes}/${need}</small></div>
+                        </div>
+                    </div>
+                    <div class="idet-subs">
+                        <div class="idet-lead">${desc}</div>
+                        ${pb ? `<div class="substat-row">패시브: +${U.fmt(pb.atk)} 기본 피해 · +${U.fmt(pb.hp)} 기본 체력</div>` : ''}
+                        <div class="substat-row">쿨타임 ${d.cd}초</div>
+                    </div>
+                    <div class="idet-btns">
+                        ${maxed
+                            ? `<button class="btn sm ${Skills.canAscend(id) ? 'primary' : 'disabled'}" onclick="UI.onAscendSkill('${id}'); UI.openSkillDetail('${id}')">⭐ 승천</button>`
+                            : `<button class="btn sm ${Skills.canUpgrade(id) ? 'primary' : 'disabled'}" onclick="UI.onUpgradeSkill('${id}'); UI.openSkillDetail('${id}')">업그레이드</button>`}
+                        <button class="btn sm ${equipped ? '' : 'primary'}" onclick="UI.onToggleSkill('${id}'); UI.openSkillDetail('${id}')">${equipped ? '해제' : '장착'}</button>
+                    </div>
+                </div>
+                <button class="x-btn" onclick="UI.closeSkillDetail()">✕</button>
+            </div>`;
+        this.els.skillDetailModal.classList.remove('hidden');
+    },
+    closeSkillDetail() { this.els.skillDetailModal.classList.add('hidden'); },
 
     toggleSkillSummonX5() {
         this._skillSummonX5 = !this._skillSummonX5;

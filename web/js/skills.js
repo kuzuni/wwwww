@@ -124,6 +124,15 @@ const Skills = {
         saveGame();
     },
 
+    // 스킬 1개의 고정 패시브 (기본 피해·기본 체력) — 상세 팝업 표시용
+    passiveOf(id) {
+        const d = this.def(id), sk = S.skills[id];
+        if (!d || !sk) return { atk: 0, hp: 0 };
+        const base = SKILL_BASE_PASSIVE[d.rarity];
+        const mult = this.levelMult(id) * Ascension.starMult(sk.stars);
+        return { atk: base.atk * mult, hp: base.hp * mult };
+    },
+
     // 장착 중인 모든 스킬의 고정 패시브 합계 (기본 피해·기본 체력)
     activeBonus() {
         const b = { atk: 0, hp: 0 };
