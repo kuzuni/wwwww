@@ -56,14 +56,24 @@ const OUT = __dirname;
     await shot('hero-idle-side.png');
 
     // 2) 걷기 중간 프레임 — 전진 동결 + 클립 위상 고정(스트라이드 극점)
+    // ❗fit()은 walking=false로 되돌리므로 여기선 쓰지 않는다 — 걷기 진입·회전 완료 후 동결하고 인라인 피팅
     await page.evaluate(() => { window.__wx = Scene3D.worldX; Scene3D.walking = true; });
-    await page.waitForTimeout(250); // Walking 클립 전환 대기
+    await page.waitForTimeout(350); // Walking 클립 전환+진행방향 회전 대기
     await page.evaluate(() => {
         Object.defineProperty(Scene3D, 'worldX', { get() { return window.__wx; }, set() {}, configurable: true });
         if (Scene3D.heroRig) { Scene3D.heroRig._speed = 0; Scene3D.heroRig._t = 0; } // t=0 = 발 교차 최대 극점
+        // 동결 포즈 기준 측면 3/4 저앵글 — 정면은 흉갑·스커트가 보폭을 가림 (비평가 7번)
+        Scene3D.heroG.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(Scene3D.heroG);
+        const c = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const dist = Math.max(size.x, size.y, size.z) * 1.3 + 0.3;
+        const fwd = new THREE.Vector3();
+        Scene3D.heroG.getWorldDirection(fwd);
+        fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), 1.15);
+        Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * 0.2, 0)), look: c.clone() };
     });
-    await fit(1.3, 0.75); // 정면 3/4 — 팔꿈치·무릎 위상 판독용
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(120);
     await shot('hero-walk.png');
     await page.evaluate(() => {
         delete Scene3D.worldX; Scene3D.worldX = window.__wx;

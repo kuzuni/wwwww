@@ -31,7 +31,7 @@ const Scene3D = {
 
         // 라이팅: 반구광(하늘/땅 색 반사)은 낮추고 태양광 비중을 높여 방향성 음영을 강조
         // (균일하게 밝은 "판대기" 인상 제거 — 나무/바위 한쪽 면에 그늘이 지게)
-        this.hemi = new THREE.HemisphereLight(0xbddcff, 0x5a7d46, 0.5);
+        this.hemi = new THREE.HemisphereLight(0xbddcff, 0x6e7a60, 0.48); // 지면 반사색 채도 완화 — 캐릭터가 초록 앰비언트에 잠기던 문제 (비평가 14번)
         this.sun = new THREE.DirectionalLight(0xfff3d6, 1.2);
         this.sun.position.set(5, 7, 4.5); // 고도를 45도 부근으로 낮춰 소품 그림자가 길게 드리우게
         this.sun.castShadow = true;
@@ -40,7 +40,7 @@ const Scene3D = {
         this.sun.shadow.camera.top = 12; this.sun.shadow.camera.bottom = -12;   // (±8은 가장자리 나무 그림자가 잘렸음)
         this.sun.shadow.camera.near = 1; this.sun.shadow.camera.far = 30;
         // 태양 반대편 서늘한 역광(그림자 없음) — 그늘진 면 실루엣이 배경에서 분리되게
-        this.rim = new THREE.DirectionalLight(0xcfe4ff, 0.3);
+        this.rim = new THREE.DirectionalLight(0xcfe4ff, 0.5); // 쿨톤 역광 강화 — 그늘 면 실루엣 분리(림 라이트) (비평가 14번)
         this.rim.position.set(-5, 6, -6);
         // 발광체 라이트 블리드용 악센트 포인트라이트 풀(3기) — 마법=크리스탈 시안, 용암=크랙 주황이
         // 주변 지면·소품을 실제로 물들여 "unlit 스티커" 인상을 없앰. 발광 소품(크리스탈/용암 데칼)의
