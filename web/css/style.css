@@ -1134,6 +1134,15 @@ body {
     padding: .8rem .8rem 0; display: flex; flex-direction: column; gap: .5rem; overflow: hidden;
 }
 #panel-summon > .summon-sub { flex: 1; min-height: 0; overflow-y: auto; order: 1; padding-bottom: .6rem; }
+/* 펫·스킬 화면: 시트 전체 스크롤 금지 — 상단(제목/재화)·하단(장착됨/소환 바/부화장)은 고정, 가운데 그리드만 내부 스크롤 (사용자 지시) */
+#panel-pets.summon-visible, #panel-skills.summon-visible { overflow: hidden; }
+.grid-scroll {
+    flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    display: flex; flex-direction: column; gap: .45rem;
+    scrollbar-width: thin; scrollbar-color: rgba(0,0,0,.35) transparent;
+}
+.grid-scroll::-webkit-scrollbar { width: 4px; }
+.grid-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,.35); border-radius: 2px; }
 #summon-subtabs { order: 2; margin: 0 -.8rem; padding: .5rem .8rem calc(.5rem + env(safe-area-inset-bottom, 0px)); flex: none; border-top: 3px solid var(--pp-line); background: var(--pp-paper); }
 #panel-menu, #panel-debug { overflow-y: auto; padding-bottom: 1rem; }
 

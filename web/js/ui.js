@@ -717,8 +717,8 @@ const UI = {
                 <h2 class="sheet-title">펫</h2>
                 <span class="cur-pill gem">💎 ${U.fmt(S.gems)}</span>
             </div>
-            <div class="sk-grid">${gridHtml}</div>
-            ${mergeHtml ? `<div class="row center wrap">${mergeHtml}</div>` : ''}
+            <div class="grid-scroll"><div class="sk-grid">${gridHtml}</div>
+            ${mergeHtml ? `<div class="row center wrap">${mergeHtml}</div>` : ''}</div>
             <div class="equipped-row">
                 <span class="equipped-label">장착됨</span>
                 <div class="equipped-icons">${equippedRowHtml}</div>
@@ -989,7 +989,7 @@ const UI = {
                 <h2 class="sheet-title">스킬 ${Object.keys(S.skills).length}/${SKILL_DEFS.length}</h2>
             </div>
             <div class="passive-banner">+${U.fmt(pb.atk)} 기본 피해 &nbsp; +${U.fmt(pb.hp)} 기본 체력</div>
-            <div class="sk-grid">${gridHtml}</div>
+            <div class="grid-scroll"><div class="sk-grid">${gridHtml}</div></div>
             <div class="equipped-row">
                 <span class="equipped-label">장착됨</span>
                 <div class="equipped-icons">${equippedRowHtml}</div>
