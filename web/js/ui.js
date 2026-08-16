@@ -1634,7 +1634,8 @@ const UI = {
     onDebugAddCurrency(key) {
         S[key] = (S[key] || 0) + 100000;
         this.renderTopBar(); this.renderDebug(); saveGame();
-        this.toast(`+100000 ${key}`);
+        const label = this.DEBUG_CURRENCIES.find(c => c.key === key)?.label || key;
+        this.toast(`${label} +100000`);
     },
     onDebugForgeLevelUp() {
         S.forgeLevel = Math.min(35, S.forgeLevel + 1);
