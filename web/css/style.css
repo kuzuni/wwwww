@@ -56,13 +56,6 @@ body {
 .pip.boss { border-radius: 2px; transform: rotate(45deg); }
 .pip.boss.now { background: #ff5252; box-shadow: 0 0 8px #ff5252; }
 
-#farm-toggle {
-    position: absolute; top: .6rem; right: .6rem; z-index: 4;
-    background: rgba(28,33,40,.85); color: #eceff1; border: 1px solid #30363d;
-    border-radius: 1rem; padding: .35rem .7rem; font-size: .78rem; font-weight: 700; cursor: pointer;
-}
-#farm-toggle.farming { background: #4a3a10; color: #ffd54f; border-color: #ffd54f; }
-
 #offline-btn {
     position: absolute; top: .6rem; left: .6rem; z-index: 4;
     background: rgba(28,33,40,.85); color: #eceff1; border: 1px solid #30363d;

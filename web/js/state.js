@@ -20,7 +20,6 @@ function defaultState() {
         // 진행
         chapter: 1, stage: 1,           // 현재 도전 스테이지
         bestChapter: 1, bestStage: 1,
-        farming: false,                 // true면 현재 스테이지 반복
         kills: 0, totalCrafts: 0,
         clearedBosses: {},              // "1-5": true → 첫 클리어 보상용
         // 재화

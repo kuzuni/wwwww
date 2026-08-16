@@ -13,7 +13,7 @@ const UI = {
             heroHp: $('hero-hp-fill'), heroHpText: $('hero-hp-text'),
             bossBar: $('boss-bar'), bossFill: $('boss-bar-fill'), bossWarn: $('boss-warning'),
             dmgFlash: $('dmg-flash'), lootFeed: $('loot-feed'), skillBar: $('skill-bar'),
-            toasts: $('toasts'), farmToggle: $('farm-toggle'), offlineBtn: $('offline-btn'),
+            toasts: $('toasts'), offlineBtn: $('offline-btn'),
             equipSheet: $('equip-sheet'),
             panels: { summon: $('panel-summon'), menu: $('panel-menu'), debug: $('panel-debug') },
             petsPanel: $('panel-pets'), skillsPanel: $('panel-skills'), techPanel: $('panel-tech'),
@@ -33,7 +33,6 @@ const UI = {
         document.querySelectorAll('#tabbar button').forEach(btn => {
             btn.addEventListener('click', () => this.onTabClick(btn.dataset.tab));
         });
-        this.els.farmToggle.style.display = 'none'; // 반복파밍 제거 — 무조건 전진
         this.renderTopBar();
         this.renderSkillBar();
         this.renderEquipSheet();
@@ -141,8 +140,6 @@ const UI = {
         this.els.dmgFlash.classList.add('on');
         setTimeout(() => this.els.dmgFlash.classList.remove('on'), 120);
     },
-    updateFarmToggle() {}, // (제거됨)
-
     floatLoot(text) {
         if (this.els.lootFeed.children.length > 6) this.els.lootFeed.firstChild.remove();
         const el = document.createElement('div');
