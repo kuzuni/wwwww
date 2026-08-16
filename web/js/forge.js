@@ -263,6 +263,7 @@ const Forge = {
             rangedDmg: bag.rangedDmg,
             skillDmg: bag.skillDmg,
             skillCd: Math.min(80, bag.skillCd),
+            subs: bag, // 장비+펫+탈것 서브스탯 합계 원본 (플레이어 정보 팝업 '옵션 합계 리스트'용)
         };
     },
 };

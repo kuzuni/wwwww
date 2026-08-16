@@ -22,10 +22,11 @@ const UI = {
             forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
             leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
-            profileModal: $('profile-modal'), playerInfoModal: $('player-info-modal'),
+            profileModal: $('profile-modal'), playerInfoBtn: $('player-info-btn'), playerInfoModal: $('player-info-modal'),
             chatPreview: $('chat-preview'), chatModal: $('chat-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
+        this.els.playerInfoBtn.addEventListener('click', () => this.openPlayerInfo());
         document.querySelectorAll('#tabbar button').forEach(btn => {
             btn.addEventListener('click', () => this.onTabClick(btn.dataset.tab));
         });
@@ -1184,16 +1185,28 @@ const UI = {
         this.renderSettingsView();
     },
 
-    // ---- 플레이어 정보 팝업 (UI-SPEC 27번): 메인 화면 왼쪽 하단 "!" 버튼 ----
-    openPlayerInfo() {
-        this.renderPlayerInfo();
-        this.els.playerInfoModal.classList.remove('hidden');
-    },
+    // ---- 플레이어 정보 팝업 (메인 화면 왼쪽 하단 "!" 버튼, UI-SPEC 27번) ----
+    openPlayerInfo() { this.renderPlayerInfo(); this.els.playerInfoModal.classList.remove('hidden'); },
     closePlayerInfo() { this.els.playerInfoModal.classList.add('hidden'); },
     renderPlayerInfo() {
-        const st = Combat.hero.stats || {};
+        const stats = Forge.heroStats();
         const cp = Combat.combatPower();
-        const equipHtml = SLOTS.map(slot => {
+        const stars = Ascension.totalStars();
+
+        // 현재 전투 장면 미니 프리뷰: 3D 캔버스를 별도로 복제 렌더링하는 대신
+        // 스테이지 라벨 + 진행 웨이브 점 + 출전 펫/탈것 아이콘으로 근사(원본은 실제 3D 축소 화면이나 클론 범위상 자체 설계)
+        const waveHtml = Dungeons.run ? '' : [1, 2, 3, 4, 5].map(w =>
+            `<span class="pip ${w < Combat.wave ? 'done' : w === Combat.wave ? 'now' : ''}"></span>`).join('');
+        const petIcons = S.activePets.map(i => PET_ICONS[S.pets[i].name] || '🐾').join(' ');
+        const previewHtml = `
+            <div class="pinfo-preview">
+                <span>🛡️</span>
+                <span>${this.els.stageLabel.textContent}</span>
+                ${waveHtml}
+                ${petIcons ? `<span>${petIcons}</span>` : ''}
+            </div>`;
+
+        const gearHtml = SLOTS.map(slot => {
             const it = S.equipment[slot];
             if (!it) return `<div class="equip-cell empty"><span class="slot-name">${SLOT_KR[slot]}</span></div>`;
             return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}" title="${it.name}">
@@ -1201,44 +1214,45 @@ const UI = {
                 <span class="cell-lv">Lv.${it.level}${it.stars ? ` ⭐${it.stars}` : ''}</span>
             </div>`;
         }).join('');
-        const skillsHtml = S.equippedSkills.map(id => {
-            const d = Skills.def(id);
-            const lv = S.skills[id] ? S.skills[id].level : 1;
-            return `<div class="pi-chip" style="--rc:${RARITY_CSS[d.rarity]}"><span class="icon-circle sm">${SKILL_ICONS[id] || '✨'}</span><small>Lv.${lv}</small></div>`;
-        }).join('');
-        const petsHtml = S.activePets.map(i => {
+
+        const skillIconsHtml = S.equippedSkills.map(id =>
+            `<span class="icon-circle sm">${SKILL_ICONS[id] || '✨'}<span class="lv-badge">Lv.${Skills.level(id)}</span></span>`).join('');
+        const petIconsHtml = S.activePets.map(i => {
             const p = S.pets[i];
-            if (!p) return '';
-            return `<div class="pi-chip" style="--rc:${RARITY_CSS[p.rarity]}"><span class="icon-circle sm">${PET_ICONS[p.name] || '🐾'}</span><small>Lv.${p.level}</small></div>`;
+            return `<span class="icon-circle sm">${PET_ICONS[p.name] || '🐾'}<span class="lv-badge">Lv.${p.level}</span></span>`;
         }).join('');
-        const bag = Forge.allSubsBag();
-        const subsHtml = SUBSTATS.filter(([key]) => Math.abs(bag[key]) > 0.001)
-            .map(([key, label]) => `<div class="pi-sub-row">${key === 'skillCd' ? '-' : '+'}${bag[key].toFixed(1)}% ${label}</div>`).join('')
-            || '<p class="muted" style="text-align:center">보유한 옵션이 없습니다</p>';
+
+        const subsHtml = SUBSTATS
+            .map(([key, label]) => ({ key, label, value: +stats.subs[key].toFixed(1) }))
+            .filter(s => s.value > 0)
+            .map(s => `<div>${U.subText(s)}</div>`)
+            .join('') || '<div class="muted">보유한 옵션 없음</div>';
 
         this.els.playerInfoModal.innerHTML = `
-            <div class="modal-card wide">
-                <div class="row" style="justify-content:space-between;align-items:flex-start">
-                    <div class="row" style="align-items:center">
+            <div class="modal-card">
+                <h3>플레이어 정보</h3>
+                <div class="pinfo-header">
+                    <div class="pinfo-id">
                         <span class="avatar">${S.avatarEmoji || '🛡️'}</span>
-                        <div>
-                            <div style="font-weight:800">${S.nickname || '용사'}</div>
-                            <div class="muted" style="font-size:.72rem">${S.gender || '♂'} · 서버 5</div>
-                            <div class="cp">⚔️ ${U.fmt(cp)}</div>
+                        <div class="pinfo-id-text">
+                            <span class="name">${S.nickname || '용사'} <span class="muted">[무소속]</span></span>
+                            <span class="clan">${S.gender || '♂'} · 서버 1</span>
+                            <span class="cp">⚔️ ${U.fmt(cp)}</span>
                         </div>
                     </div>
-                    <div style="text-align:right;font-size:.74rem" class="muted">
-                        <div>⚒️ 대장간 Lv.${S.forgeLevel}</div>
-                        <div>💥 총 피해 ${U.fmt(st.atk || 0)}</div>
-                        <div>❤️ 총 체력 ${U.fmt(st.hp || 0)}</div>
+                    <div class="pinfo-right">
+                        <div>Lv. ${S.forgeLevel} 대장간${stars ? ` ⭐${stars}` : ''}</div>
+                        <div>${U.fmt(stats.atk)} 총 피해</div>
+                        <div>${U.fmt(stats.hp)} 총 체력</div>
                     </div>
                 </div>
-                <h3 style="margin-top:.6rem">장착 장비</h3>
-                <div class="equip-grid">${equipHtml}</div>
-                <h3>장착 스킬 · 펫</h3>
-                <div class="pi-chip-row">${skillsHtml}${petsHtml}</div>
-                <h3>옵션 합계</h3>
-                <div class="pi-sub-list">${subsHtml}</div>
+                ${previewHtml}
+                <div class="pinfo-section-title">장착 장비</div>
+                <div class="equip-grid">${gearHtml}</div>
+                <div class="pinfo-section-title">장착 스킬 · 펫</div>
+                <div class="pinfo-loadout-row">${skillIconsHtml}${petIconsHtml || '<span class="muted">출전 중인 펫 없음</span>'}</div>
+                <div class="pinfo-section-title">옵션 합계</div>
+                <div class="pinfo-subs-list">${subsHtml}</div>
                 <button class="btn" onclick="UI.closePlayerInfo()">닫기</button>
             </div>`;
     },

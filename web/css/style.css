@@ -69,6 +69,16 @@ body {
 #offline-btn:active { background: #30363d; }
 #offline-btn.ready { border-color: #ffd54f; color: #ffd54f; }
 
+/* ---- 플레이어 정보 팝업 진입 버튼 (메인 화면 왼쪽 하단, UI-SPEC 27번) ---- */
+/* hero-hp-wrap(좌하단 42% 폭)과 겹치지 않도록 그 위쪽에 배치 */
+#player-info-btn {
+    position: absolute; left: .6rem; bottom: 1.7rem; z-index: 4;
+    width: 1.7rem; height: 1.7rem; border-radius: 50%;
+    background: rgba(28,33,40,.85); color: #90caf9; border: 1px solid #1e88e5;
+    font-size: 1rem; font-weight: 900; cursor: pointer;
+}
+#player-info-btn:active { background: #30363d; }
+
 #boss-bar {
     position: absolute; top: 3.2rem; left: 50%; transform: translateX(-50%);
     width: 70%; z-index: 4; text-align: center;
@@ -105,14 +115,6 @@ body {
 #hero-hp-track { height: .6rem; background: rgba(0,0,0,.55); border-radius: .3rem; overflow: hidden; border: 1px solid #30363d; }
 #hero-hp-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #00e676, #b9f6ca); transition: width .15s; }
 #hero-hp-text { font-size: .68rem; font-weight: 700; text-shadow: 0 1px 3px #000; }
-
-/* 플레이어 정보 팝업 진입 버튼 (UI-SPEC 27번 — 메인 화면 왼쪽 하단 "!" 버튼) */
-#player-info-btn {
-    position: absolute; left: .6rem; bottom: 2.15rem; z-index: 4;
-    width: 1.7rem; height: 1.7rem; border-radius: 50%;
-    background: rgba(28,33,40,.85); color: #ffd54f; border: 1px solid #ffd54f;
-    font-weight: 900; font-size: .9rem; cursor: pointer;
-}
 
 /* 데미지 숫자 */
 .float-dmg {
@@ -596,15 +598,38 @@ body {
 .tech-node-bar div { height: 100%; background: #ffd54f; }
 
 /* ---- 플레이어 정보 팝업 (UI-SPEC 27번) ---- */
-.pi-chip-row { display: flex; gap: .4rem; flex-wrap: wrap; margin: .3rem 0 .6rem; }
-.pi-chip {
-    display: flex; flex-direction: column; align-items: center; gap: .2rem;
-    background: #22272e; border: 1px solid #444c56; border-radius: .5rem; padding: .3rem .4rem; font-size: .68rem;
+.pinfo-header { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
+.pinfo-id { display: flex; align-items: center; gap: .4rem; }
+.pinfo-id .avatar {
+    width: 2.6rem; height: 2.6rem; border-radius: 50%; background: #161b22;
+    border: 1px solid #444c56; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
 }
-.pi-sub-list { max-height: 26vh; overflow-y: auto; margin-bottom: .5rem; }
-.pi-sub-row {
-    font-size: .74rem; padding: .25rem .1rem; border-bottom: 1px solid #30363d; color: #7ee2a8;
+.pinfo-id-text { display: flex; flex-direction: column; line-height: 1.3; }
+.pinfo-id-text .name { font-weight: 800; font-size: .88rem; }
+.pinfo-id-text .clan { font-size: .68rem; color: #90a4ae; }
+.pinfo-id-text .cp { font-size: .8rem; font-weight: 800; color: #ff8a65; }
+.pinfo-right { text-align: right; font-size: .74rem; color: #cfd8dc; line-height: 1.5; }
+.pinfo-preview {
+    display: flex; align-items: center; gap: .4rem; overflow-x: auto;
+    background: #0d1117; border: 1px solid #30363d; border-radius: .5rem;
+    padding: .4rem .5rem; margin: .5rem 0; font-size: .78rem; white-space: nowrap;
 }
+.pinfo-preview .pip { width: .5rem; height: .5rem; border-radius: 50%; background: rgba(255,255,255,.25); flex: none; }
+.pinfo-preview .pip.done { background: #69f0ae; }
+.pinfo-preview .pip.now { background: #fff; box-shadow: 0 0 6px #fff; }
+.pinfo-section-title { font-size: .72rem; color: #90a4ae; margin: .5rem 0 .3rem; }
+.pinfo-loadout-row { display: flex; gap: .4rem; flex-wrap: wrap; }
+.pinfo-loadout-row .icon-circle.sm {
+    position: relative; width: 2.2rem; height: 2.2rem; border-radius: 50%; background: #22272e;
+    border: 1px solid #444c56; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+}
+.pinfo-loadout-row .icon-circle.sm .lv-badge {
+    position: absolute; bottom: -.35rem; left: 50%; transform: translateX(-50%);
+    font-size: .58rem; font-weight: 800; color: #ffd54f; background: #161b22;
+    border-radius: .5rem; padding: 0 .25rem; white-space: nowrap;
+}
+.pinfo-subs-list { max-height: 30vh; overflow-y: auto; font-size: .78rem; line-height: 1.9; }
+.pinfo-subs-list .muted { font-size: .78rem; }
 
 /* ---- 채팅 미리보기 1줄 (UI-SPEC 1·28번) ---- */
 #chat-preview {
