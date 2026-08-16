@@ -209,8 +209,10 @@ const UI = {
     // ---- 스킬 바 ----
     // 자동 토글이 좌측, 원형 스킬 버튼이 우측 (UI-SPEC 1번 우중단 배치)
     renderSkillBar() {
-        this.els.skillBar.innerHTML = `<button class="skill-btn auto ${S.autoCast ? 'on' : ''}" onclick="UI.toggleAuto()">자동</button>`
-            + S.equippedSkills.map(id => {
+        // 원본(shot-042120): 검은 원 3슬롯 고정 — 장착 안 된 슬롯도 어두운 빈 원으로 표시
+        const slots = Array.from({ length: Skills.MAX_ACTIVE }, (_, i) => {
+            const id = S.equippedSkills[i];
+            if (!id) return `<span class="skill-btn empty"></span>`;
             const d = Skills.def(id);
             return `<button class="skill-btn" id="sb-${id}" style="--sc:${d.color}" title="${d.name}" onclick="Combat.tryCast('${id}', true)">
                 <span class="sk-icon">${SKILL_ICONS[id] || '✨'}</span>
@@ -218,6 +220,7 @@ const UI = {
                 <span class="sk-cd" id="sbcd-${id}"></span>
             </button>`;
         }).join('');
+        this.els.skillBar.innerHTML = `<button class="skill-btn auto ${S.autoCast ? 'on' : ''}" onclick="UI.toggleAuto()">자동</button>` + slots;
     },
     toggleAuto() {
         S.autoCast = !S.autoCast;

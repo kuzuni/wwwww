@@ -337,13 +337,14 @@ body {
     background: #22272e; border: 1px solid #444c56; color: #90a4ae; font-size: .8rem;
     display: flex; align-items: center; justify-content: center; padding: 0;
 }
+/* 원본(shot-042120): 모루는 박스 없는 큰 일러스트 + 아래 해머 수량 */
 .anvil-btn {
-    flex: none; width: 5.2rem; height: 4.4rem; border-radius: .7rem; cursor: pointer;
-    background: linear-gradient(160deg, #a1887f, #5d4037); border: 2px solid #3e2723; color: #fff;
-    font-size: 2.1rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .05rem;
+    flex: none; width: 5.6rem; cursor: pointer; background: none; border: none; padding: 0;
+    font-size: 3rem; line-height: 1.05; display: flex; flex-direction: column; align-items: center; gap: .05rem;
+    filter: drop-shadow(0 .18rem .12rem rgba(0,0,0,.35));
 }
-.anvil-btn:active { filter: brightness(1.15); }
-.anvil-btn small { font-size: .68rem; font-weight: 800; color: #ffe0b2; }
+.anvil-btn:active { transform: translateY(.1rem); }
+.anvil-btn small { font-size: .8rem; font-weight: 900; color: var(--pp-ink); }
 .forge-actions { display: flex; gap: .3rem; }
 .forge-actions .btn { flex: 1; line-height: 1.15; padding: .25rem .2rem; font-size: .68rem; }
 .forge-time { font-size: .62rem; font-weight: 700; color: #90a4ae; text-align: center; }
@@ -1047,7 +1048,7 @@ body {
 #equip-sheet .equip-cell .cell-lv { color: #fff; text-shadow: 0 1px 0 #000; }
 #equip-sheet .equip-cell.egg-cell { background: #2f8ef4; }
 #equip-sheet .info-btn { background: var(--pp-paper); border: 2px solid var(--pp-line); color: var(--pp-ink); }
-#equip-sheet .anvil-btn { border: 3px solid var(--pp-line); }
+#equip-sheet .anvil-btn { border: none; }
 #equip-sheet .forge-time { color: #6d6a63; }
 #chat-preview { background: var(--pp-sheet); color: #3c3a35; border-top: 2px solid var(--pp-line); }
 
@@ -1563,3 +1564,4 @@ body {
 .fl-card { width: 90%; padding: .85rem .8rem .9rem; }
 .fl-head { margin-bottom: .4rem; }
 .fl-head .fi-age-cur { padding-right: .5rem; }
+.skill-btn.empty { background: rgba(10,10,14,.75); border: 2px solid rgba(255,255,255,.18); pointer-events: none; }
