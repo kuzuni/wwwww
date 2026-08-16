@@ -290,7 +290,6 @@ const MOUNT_ICONS = {
 // 기능 해금 (원본 스테이지 해금 테이블)
 const UNLOCKS = [
     { stage: '2-10', key: 'autoForge', name: '오토 포지' },
-    { stage: '3-1',  key: 'invasion',  name: '펫 알 상급 확률' },
 ];
 
 // 챕터별 배경 테마 (하늘색, 안개색, 바닥색)
