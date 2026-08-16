@@ -1102,6 +1102,12 @@ body {
     border: 2px solid #d5d5d5; border-radius: .55rem; background: #e9e9e9;
     display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
 }
+/* 기술 노드 팝업: 브론즈 원형 아이콘 + 증가분 초록 (shot-042605 노트) */
+.idet-icon.tn-bronze {
+    border-radius: 50%; background: linear-gradient(160deg, #d9a066, #a5642f);
+    border-color: #7a4a22;
+}
+.tn-gain { color: #1fa64a; font-weight: 800; }
 .idet-icon img { width: 88%; height: 88%; object-fit: contain; }
 .idet-star { position: absolute; left: 6%; bottom: -14%; font-size: .8rem; }
 .idet-title { min-width: 0; display: flex; flex-direction: column; gap: .2rem; padding-top: .1rem; }

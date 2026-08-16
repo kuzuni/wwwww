@@ -1915,10 +1915,10 @@ const UI = {
             <div class="idet-wrap">
                 <div class="modal-card paper item-detail" data-tech-node="${id}">
                     <div class="idet-head">
-                        <div class="idet-icon">${max ? '✅' : '🔬'}<span class="idet-star">${tierPos}/${TechTree.PER_TIER}</span></div>
+                        <div class="idet-icon tn-bronze">${max ? '✅' : '🔬'}<span class="idet-star">${tierPos}/${TechTree.PER_TIER}</span></div>
                         <div class="idet-title">
                             <div class="idet-name">${def.name} ${roman}</div>
-                            <div class="idet-main">+${U.fmt(TechTree.pct(id))}% <small class="muted">(+${U.fmt(def.per)}%)</small></div>
+                            <div class="idet-main">+${U.fmt(TechTree.pct(id))}% <small class="tn-gain">(+${U.fmt(def.per)}%)</small></div>
                         </div>
                     </div>
                     <div class="idet-subs">
