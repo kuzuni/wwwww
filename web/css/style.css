@@ -903,10 +903,13 @@ body {
 .chat-preview-msg { font-size: .68rem; color: #6d6a63; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- 채팅 전체화면 (UI-SPEC 28번, 원본 shot-043500) ---- */
-.chat-card {
-    width: 96%; height: 88%; background: #000; border-color: #000;
-    padding: .6rem; text-align: left; gap: .4rem;
+/* 원본 shot-043500: 순검정 풀스크린 — 카드형 여백 0, 나가기는 좌하단 빨간 ◀ (사용자 지시).
+   뒤쪽 paper 테마 .modal-card 재정의(966행대)보다 우선하도록 id 셀렉터로 특이도 확보 */
+#chat-modal .modal-card.chat-card {
+    width: 100%; height: 100%; max-height: 100%; background: #000; border: none; border-radius: 0;
+    padding: .6rem .6rem calc(.6rem + env(safe-area-inset-bottom, 0px)); text-align: left; gap: .4rem;
 }
+.chat-input-bar .btn.round { width: 2.7rem; height: 2.7rem; font-size: 1.15rem; flex: none; }
 .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; padding: .2rem; }
 .chat-row { display: flex; gap: .4rem; align-items: flex-start; }
 .chat-avatar {
