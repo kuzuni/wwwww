@@ -1437,7 +1437,7 @@ const Scene3D = {
             arc.scale.setScalar(1 + k * 0.8);
             arc.rotation.z = -0.9 - k * 1.6; // 호가 휘둘러지는 느낌
             arc.material.opacity = 0.85 * (1 - k);
-        }, () => this.scene.remove(arc));
+        }, () => { this.disposeTree(arc); this.scene.remove(arc); });
     },
 
     // ---- 투사체 ----
@@ -1470,7 +1470,7 @@ const Scene3D = {
             new THREE.MeshBasicMaterial({ color: 0xfff176, transparent: true }));
         p.position.set(this.heroG.position.x + 0.55, 1.15, 0.1);
         this.scene.add(p);
-        this.addAnim(0.09, k => { p.scale.setScalar(1 + k); p.material.opacity = 1 - k; }, () => this.scene.remove(p));
+        this.addAnim(0.09, k => { p.scale.setScalar(1 + k); p.material.opacity = 1 - k; }, () => { this.disposeTree(p); this.scene.remove(p); });
     },
 
     enemyAttack(id) {
@@ -1572,7 +1572,7 @@ const Scene3D = {
                         const trail = rock.position.clone();
                         this.riseParticle(trail, new THREE.Color(0xff7043));
                     }
-                }, () => { this.scene.remove(rock); this.explosion(tp, color); this.shake(0.2); });
+                }, () => { this.disposeTree(rock); this.scene.remove(rock); this.explosion(tp, color); this.shake(0.2); });
             }, i * 90));
         } else if (fx === 'explode' || fx === 'breath') {
             targets.forEach((m, i) => setTimeout(() => this.explosion(m.g.position.clone(), color), i * 60));
@@ -1602,7 +1602,7 @@ const Scene3D = {
                     bolt.material.opacity = 1 - k;
                     core.material.opacity = 1 - k;
                     bolt.scale.x = bolt.scale.z = 1 + k * 1.5;
-                }, () => { this.scene.remove(bolt); this.scene.remove(core); });
+                }, () => { this.disposeTree(bolt); this.disposeTree(core); this.scene.remove(bolt); this.scene.remove(core); });
                 this.explosion(p, color);
             });
         } else if (fx === 'slash') {
@@ -1649,7 +1649,7 @@ const Scene3D = {
         this.addAnim(0.45, k => {
             ring.scale.setScalar(1 + k * maxR * 2);
             ring.material.opacity = 0.9 * (1 - k);
-        }, () => this.scene.remove(ring));
+        }, () => { this.disposeTree(ring); this.scene.remove(ring); });
     },
 
     beam(from, to, color) {
@@ -1660,7 +1660,7 @@ const Scene3D = {
         beam.rotation.z = Math.PI / 2 - Math.atan2(to.y - from.y, to.x - from.x);
         this.scene.add(beam);
         this.addAnim(0.25, k => { beam.material.opacity = 0.95 * (1 - k); beam.scale.x = beam.scale.z = 1 + k * 2; },
-            () => this.scene.remove(beam));
+            () => { this.disposeTree(beam); this.scene.remove(beam); });
     },
 
     // ---- 파티클 ----
@@ -1867,6 +1867,7 @@ const Scene3D = {
             const p = this.particles[i];
             p.userData.age += dt;
             if (p.userData.age >= p.userData.life) {
+                this.disposeTree(p);
                 this.scene.remove(p);
                 this.particles.splice(i, 1);
                 continue;
@@ -1901,6 +1902,7 @@ const Scene3D = {
             if (k >= 1) {
                 this.spawnSparks(pr.to, pr.kind === 'magic' ? 14 : 6, pr.color);
                 if (pr.kind === 'magic') this.flashLight(pr.to, pr.color, 0.25);
+                this.disposeTree(pr.mesh);
                 this.scene.remove(pr.mesh);
                 this.projectiles.splice(i, 1);
             }
