@@ -2454,7 +2454,7 @@ const Scene3D = {
 
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
     // 종별 고유 팔레트 — 지형색 파생 금지 (전 종이 배경 보호색 연두 덩어리로 보이던 문제, 비평가 지적)
-    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x7fb069, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x9aa3ad, imp: 0xb0486b },
+    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x63a04a, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x848fa3, imp: 0xb0486b },
     monsterMesh(e) {
         const theme = CHAPTER_THEMES[(S.chapter - 1) % CHAPTER_THEMES.length];
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
@@ -2544,9 +2544,28 @@ const Scene3D = {
         let body = null, armR = null, armL = null, topY = 1.1;
 
         if (kind === 'slime') {
-            mat.transparent = true; mat.opacity = 0.85; // 젤리 반투명
-            body = sp(0.45, 0, 0.34, 0, mat, 1, 0.72, 1);
-            sp(0.15, 0.14, 0.66, 0, light);
+            // 광택 젤리: 고분할 스무스 돔 + Phong 스펙큘러 + 반투명 너머 비치는 내부 핵 (저분할 '바위 덩어리' 오독 제거, 비평가 지적)
+            const jelly = new THREE.MeshPhongMaterial({ color: base, transparent: true, opacity: 0.82, shininess: 90, specular: 0xdff4ff });
+            flashMats.push(jelly);
+            body = mk(new THREE.SphereGeometry(0.45, 24, 18), jelly);
+            body.position.y = 0.34; body.scale.set(1, 0.72, 1);
+            g.add(body);
+            const skirt = mk(new THREE.TorusGeometry(0.4, 0.07, 8, 20), jelly); // 바닥 퍼짐 스커트 — 접지감
+            skirt.rotation.x = Math.PI / 2; skirt.position.y = 0.06; skirt.scale.set(1, 1, 0.5);
+            g.add(skirt);
+            const core = mk(new THREE.SphereGeometry(0.15, 14, 10), lam(base.clone().offsetHSL(0.02, 0.18, -0.2))); // 몸속 핵
+            core.position.set(0, 0.3, -0.04);
+            g.add(core);
+            for (const [bx2, by2, br] of [[0.22, 0.24, 0.05], [-0.18, 0.38, 0.04]]) { // 내부 기포
+                const bub = mk(new THREE.SphereGeometry(br, 8, 6), lam(base.clone().offsetHSL(0, -0.05, 0.16)));
+                bub.position.set(bx2, by2, 0.1);
+                g.add(bub);
+            }
+            const gloss = mk(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshBasicMaterial({ color: 0xf2fcff, transparent: true, opacity: 0.65 })); // 정수리 광택 하이라이트
+            gloss.position.set(-0.16, 0.55, 0.18); gloss.scale.set(1.6, 0.55, 1);
+            gloss.lookAt(-0.6, 1.6, 0.9);
+            g.add(gloss);
+            sp(0.14, 0.14, 0.63, 0, jelly);
             const smMouth = mk(new THREE.TorusGeometry(0.05, 0.014, 6, 10, Math.PI * 0.85), new THREE.MeshBasicMaterial({ color: 0x274048 }));
             smMouth.position.set(0, 0.3, 0.43); smMouth.rotation.z = Math.PI + Math.PI * 0.075; // 아래로 벌린 입 아크 (스티커 박스 입 제거)
             g.add(smMouth);
@@ -2581,6 +2600,8 @@ const Scene3D = {
                 upper.rotation.z = s * 0.12;
                 const elbow = new THREE.Group();
                 elbow.position.y = -0.32;
+                const eJoint = mk(new THREE.SphereGeometry(0.082, 8, 6), rockM); // 팔꿈치 관절 바위 — 굽힘 시 이음새 은폐
+                elbow.add(eJoint);
                 const fore = limb(0.07, 0.09, 0.24, rockD);
                 const fist = mk(new THREE.SphereGeometry(0.15, 10, 8), rockM);
                 fist.position.y = -0.3; fist.scale.set(1, 1.1, 1);
@@ -2595,6 +2616,10 @@ const Scene3D = {
                 (anim.barm = anim.barm || []).push({ sh, elbow });
                 if (s > 0) { armR = sh; anim.armRJ = { sh, elbow }; } else armL = sh;
             }
+            // 골반 바위 — 몸통 하단과 다리 사이 공중 부양 갭 메움
+            const pelvisG = mk(new THREE.SphereGeometry(0.21, 10, 8), rockD);
+            pelvisG.position.set(0, 0.37, 0); pelvisG.scale.set(1.15, 0.62, 0.9);
+            g.add(pelvisG);
             // 짧은 기둥 다리 + 발 바위
             for (const s of [-1, 1]) {
                 const leg = limb(0.095, 0.085, 0.2, rockD);
@@ -2615,7 +2640,7 @@ const Scene3D = {
             // 굽은 등 이족보행: 서양배 몸통 전경 + 분절 사지 + 대형 귀 + 가시 몽둥이
             const skinM = lam(base, ProChar.hideTex());
             const skinD = lam(base.clone().offsetHSL(0, 0, -0.12), ProChar.hideTex());
-            const clothM = lam(new THREE.Color(0x8a6a3c), ProChar.leatherTex());
+            const clothM = lam(new THREE.Color(0x99442e), ProChar.leatherTex()); // 러스트 레드 — 초원 배경 보호색 탈피 악센트 (비평가 지적)
             // 분절 다리: 대퇴 → 무릎 → 정강이 → 발
             for (const s of [-1, 1]) {
                 const hip = new THREE.Group();
@@ -2677,10 +2702,14 @@ const Scene3D = {
                 upper.rotation.z = s * 0.25;
                 const elbow = new THREE.Group();
                 elbow.position.set(s * 0.05, -0.17, 0);
+                const eJ = mk(new THREE.SphereGeometry(0.042, 7, 5), skinM); // 팔꿈치 관절 구 — 굽힘 이음새 은폐
+                elbow.add(eJ);
                 const fore = limb(0.04, 0.036, 0.15, skinD);
+                const wristBand = mk(new THREE.CylinderGeometry(0.041, 0.041, 0.05, 8), clothM); // 손목 랩 악센트
+                wristBand.position.y = -0.12;
                 const hand = mk(new THREE.SphereGeometry(0.05, 8, 6), skinM);
                 hand.position.y = -0.16;
-                elbow.add(fore, hand);
+                elbow.add(fore, wristBand, hand);
                 if (s > 0) { // 가시 몽둥이
                     const club = new THREE.Group();
                     club.position.y = -0.18;
@@ -2705,9 +2734,20 @@ const Scene3D = {
             topY = 1.25;
         } else if (kind === 'bat') {
             body = sp(0.2, 0, 0.6, 0, mat, 1, 1.1, 0.9);
+            // 몸통·다리 — '날개 달린 머리' 금지(비평가 지적): 털복숭이 몸통 + 밝은 가슴털 + 매달림 발톱 발
+            sp(0.125, 0, 0.38, -0.02, dark, 1, 1.3, 0.8);
+            sp(0.08, 0, 0.42, 0.07, light, 1, 1.15, 0.5); // 가슴털 패치
+            for (const s of [-1, 1]) {
+                const legB = cy(0.016, 0.012, 0.09, s * 0.05, 0.25, 0, dark);
+                legB.rotation.z = s * 0.22;
+                const claw = cn(0.018, 0.05, s * 0.068, 0.19, 0.012, new THREE.MeshLambertMaterial({ color: 0x2c2733 }));
+                claw.rotation.x = Math.PI;
+            }
             for (const s of [-1, 1]) {
                 const ear = cn(0.05, 0.14, s * 0.11, 0.82, 0);
                 ear.rotation.z = s * -0.3;
+                const earIn = cn(0.028, 0.09, s * 0.105, 0.8, 0.02, new THREE.MeshLambertMaterial({ color: 0x35283e })); // 귀 안쪽 어두운 면
+                earIn.rotation.z = s * -0.3; earIn.scale.z = 0.5;
                 cn(0.018, 0.06, s * 0.05, 0.5, 0.14, new THREE.MeshLambertMaterial({ color: 0xffffff })); // 송곳니
                 const wing = new THREE.Group();
                 wing.position.set(s * 0.17, 0.65, 0);
@@ -2787,6 +2827,11 @@ const Scene3D = {
             const jawW = mk(new THREE.BoxGeometry(0.07, 0.03, 0.11), furD);
             jawW.position.set(0, -0.07, 0.1);
             headW.add(skullW, snout, noseW, jawW);
+            for (const s of [-1, 1]) { // 드러난 송곳니 — 맹수 인상
+                const fang = mk(new THREE.ConeGeometry(0.012, 0.035, 5), new THREE.MeshLambertMaterial({ color: 0xf5efdd }));
+                fang.position.set(s * 0.032, -0.055, 0.185); fang.rotation.x = Math.PI;
+                headW.add(fang);
+            }
             for (const s of [-1, 1]) {                                         // 쫑긋 삼각 귀 (안쪽 어두운 면)
                 const ear = mk(new THREE.ConeGeometry(0.045, 0.11, 5), furM);
                 ear.position.set(s * 0.065, 0.12, -0.02); ear.rotation.set(-0.25, 0, s * -0.3);
@@ -2799,8 +2844,15 @@ const Scene3D = {
             eyes(0.635, 0.485, 0.052, 0.036, 'slit', { iris: 0x9adcff, narrow: true, tilt: -0.35 });
             const backStripe = mk(new THREE.SphereGeometry(0.16, 10, 8), furD); // 등 다크 스트라이프 — 단색 덩어리 완화 투톤
             backStripe.position.set(0, 0.5, -0.04); backStripe.scale.set(0.72, 0.45, 1.9);
+            const bellyW = mk(new THREE.SphereGeometry(0.13, 10, 8), furL); // 밝은 아랫배 — 투톤 코트
+            bellyW.position.set(0, 0.33, -0.02); bellyW.scale.set(0.8, 0.6, 1.6);
+            g.add(bellyW);
             // 2관절 다리 4개: 어깨/고관절 피벗 → 상퇴 → 하퇴 → 발 (달리기 사이클은 기존 anim.legs 인터페이스)
             for (const [lx, lz, front] of [[-0.11, 0.22, 1], [0.11, 0.22, 1], [-0.1, -0.24, 0], [0.1, -0.24, 0]]) {
+                const haunch = mk(new THREE.SphereGeometry(front ? 0.072 : 0.088, 9, 7), furM); // 어깨/뒷다리 근육 덩어리 — 몸통-다리 이음새 은폐 ('로봇 다리' 오독 제거)
+                haunch.position.set(lx * 0.95, front ? 0.41 : 0.4, lz + (front ? 0.015 : -0.02));
+                haunch.scale.set(0.75, 1.15, 1.2);
+                g.add(haunch);
                 const leg = new THREE.Group();
                 leg.position.set(lx, 0.36, lz);
                 const upper = limb(0.05, 0.038, 0.18, furM);
@@ -2826,9 +2878,9 @@ const Scene3D = {
                 const holder = new THREE.Group();
                 holder.position.set(0, 0, -0.085);
                 holder.rotation.x = -0.26;
-                const seg = mk(new THREE.SphereGeometry(0.058 - ti * 0.011, 8, 6), ti === 2 ? furL : furD);
-                seg.position.z = -0.045;
-                seg.scale.set(0.85, 0.85, 1.5);
+                const seg = mk(new THREE.SphereGeometry(0.072 - ti * 0.012, 8, 6), ti === 2 ? furL : furD); // 두툼한 브러시 꼬리
+                seg.position.z = -0.05;
+                seg.scale.set(0.85, 0.85, 1.55);
                 holder.add(seg);
                 tPrev.add(holder);
                 tPrev = holder;
@@ -2903,6 +2955,8 @@ const Scene3D = {
                 upper.rotation.z = s * 0.4;
                 const elbow = new THREE.Group();
                 elbow.position.set(s * 0.04, -0.1, 0);
+                const eJ = mk(new THREE.SphereGeometry(0.026, 7, 5), skinM); // 팔꿈치 관절 구 — 굽힘 이음새 은폐
+                elbow.add(eJ);
                 const fore = limb(0.024, 0.02, 0.09, skinD);
                 const hand = mk(new THREE.SphereGeometry(0.032, 7, 5), skinM);
                 hand.position.y = -0.1;
