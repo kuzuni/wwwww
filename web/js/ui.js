@@ -350,7 +350,7 @@ const UI = {
         const curP = Forge.ageProbsAt(S.forgeLevel);
         const nextP = info ? Forge.ageProbsAt(S.forgeLevel + 1) : {};
         const pct = p => (parseFloat(p.toFixed(2)) || 0) + '%';
-        const rows = AGES.map(age => {   // 0%인 시대도 원본처럼 전부 표시
+        const rows = AGES.filter(age => (curP[age] || 0) > 0).map(age => {   // 0% 시대 미표시 (사용자 지시)
             const hex = this.ageHex(age);
             return `<div class="fi-age-bar" style="--ac:${hex}">
                 <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]}</span>
@@ -392,7 +392,7 @@ const UI = {
     },
     // 원본(shot-042905): 시대색 헤더 막대 + 회색 패널 안 흰 아이템 셀(별 배지, % 아래 표기), 닫기=빨간 X(확률 정보로 복귀)
     renderForgeListView() {
-        const sections = AGES.map(age => {   // 0%인 시대도 전부 표시
+        const sections = AGES.filter(age => (Forge.ageProbsAt(S.forgeLevel)[age] || 0) > 0).map(age => {   // 0% 시대 미표시 (사용자 지시)
             const hex = this.ageHex(age);
             const ageP = Forge.ageProbsAt(S.forgeLevel)[age] || 0;
             const p = Forge.itemDropChance(age, 'weapon'); // 무기 변형은 모두 동일 확률
@@ -486,7 +486,7 @@ const UI = {
         const cfg = Forge.autoForgeConfig();
         const probs = Forge.ageProbsAt(S.forgeLevel);
         const pct = p => (parseFloat(p.toFixed(2)) || 0) + '%';
-        const ageRows = AGES.slice(-5).map(age => `
+        const ageRows = AGES.filter(age => (probs[age] || 0) > 0).map(age => `
             <div class="af-age-bar" style="--ac:${this.ageHex(age)}" onclick="UI.onToggleKeepAge('${age}')">
                 <span class="af-check ${cfg.keepAges.includes(age) ? 'on' : ''}">${cfg.keepAges.includes(age) ? '✓' : ''}</span>
                 <span class="af-age-name">${AGE_ICON[age]} ${AGE_KR[age]}</span>
@@ -1058,7 +1058,7 @@ const UI = {
         const mod = isPet ? Pets : Skills;
         const lvl = this._ratesLevel === null ? mod.summonLevel() : this._ratesLevel;
         const rates = mod.rates(lvl);
-        const barsHtml = RARITIES.map(r => `
+        const barsHtml = RARITIES.filter(r => (rates[r] || 0) > 0).map(r => `
             <div class="rate-bar" style="--rc:${RARITY_CSS[r]}">
                 <span class="rate-name">${RARITY_KR[r]}</span>
                 <span class="rate-pct">${(rates[r] || 0).toFixed(2)}%</span>
@@ -1914,7 +1914,7 @@ const UI = {
         const prevNeed = Mounts.prevNeeded();
         const progress = need ? U.clamp((S.mountOpens - prevNeed) / (need - prevNeed), 0, 1) : 1;
         const rates = Mounts.rates();
-        const ratesHtml = RARITIES.map(r =>   // 0%인 등급도 전부 표시
+        const ratesHtml = RARITIES.filter(r => (rates[r] || 0) > 0).map(r =>   // 0% 등급 미표시 (사용자 지시)
             `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${((rates[r] || 0) * 100).toFixed(2)}%</span>`).join('');
         const mountSummonN = this._mountSummonX5 ? 5 : 1;
 
