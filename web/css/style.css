@@ -571,27 +571,31 @@ body {
 }
 .league-season-bar b { color: var(--pp-green); }
 .league-list { display: flex; flex-direction: column; gap: .35rem; max-height: 46vh; overflow-y: auto; margin: .3rem 0; }
+/* 원본: 랭킹 행은 흰 카드(검정 순위/이름, 주황 전투력), 내 행만 파란 하이라이트 */
 .league-row {
-    display: grid; grid-template-columns: 1.6rem 2.5rem 1fr auto; gap: .5rem; align-items: center; position: relative;
-    background: #12172a; border: 2px solid #000; border-radius: .6rem; padding: .4rem .5rem .95rem; font-size: .78rem;
+    display: grid; grid-template-columns: 1.8rem 2.5rem 1fr auto; gap: .5rem; align-items: center; position: relative;
+    background: #fff; border: 2px solid #000; border-radius: .6rem; padding: .45rem .5rem .95rem; font-size: .78rem;
 }
 .league-row.me { background: var(--pp-blue); }
 .league-avatar {
-    width: 2.5rem; height: 2.5rem; border-radius: .4rem; background: #1c2338; border: 2px solid #000;
+    width: 2.5rem; height: 2.5rem; border-radius: .4rem; background: #fff; border: 2px solid #000;
     display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
 }
-.league-rank { font-weight: 900; text-align: center; color: #fff; }
-.league-name { text-align: left; line-height: 1.3; color: #fff; font-weight: 700; }
-.league-name small { color: var(--pp-green); font-weight: 800; }
+.league-rank { font-weight: 900; font-size: 1.05rem; text-align: center; color: #17181a; }
+.league-row.me .league-rank { color: #fff; }
+.league-name { text-align: left; line-height: 1.3; color: #17181a; font-weight: 800; }
+.league-row.me .league-name { color: #fff; }
+.league-name small { color: #f59e0b; font-weight: 900; }
 .league-score {
     background: #0c0f1c; border: 2px solid #000; border-radius: .5rem; padding: .2rem .5rem;
     color: #ffd54f; font-weight: 900; white-space: nowrap; font-size: .78rem;
 }
-.league-server { position: absolute; right: .55rem; bottom: .2rem; font-size: .6rem; color: #8b93ad; }
+.league-server { position: absolute; right: .55rem; bottom: .2rem; font-size: .6rem; color: #8a8a8a; }
+.league-row.me .league-server { color: #dce6ff; }
 .league-pinned { margin: .3rem 0 0; }
 .league-actions { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; }
 .league-back-btn {
-    width: 2.6rem; height: 2.6rem; border-radius: 50%; flex: none; cursor: pointer;
+    width: 2.5rem; height: 2.5rem; border-radius: .6rem; flex: none; cursor: pointer;
     background: var(--pp-red); color: #fff; border: 3px solid #000; font-size: 1.1rem; font-weight: 900;
     box-shadow: inset 0 -.22rem 0 var(--pp-red-dk);
 }
