@@ -100,5 +100,8 @@
 - [x] **설정 팝업이 `settingsDummy` 필드가 없는 구버전 세이브에서 크래시함**: `loadGame()`(web/js/state.js:67-77)은 `S.version`이 있으면 저장된 객체를 그대로 쓰고 `defaultState()`와 병합하지 않는다. `renderSettingsView()`(ui.js:1150-1151)는 `const d = S.settingsDummy;` 후 `d.vibration` 등을 바로 읽는데, 다른 신규 필드들과 달리 `S.settingsDummy`에 대한 lazy 초기화(`ensure()`류 가드)가 없어 이 필드가 없는(더 오래된) 세이브에서 설정 탭을 열면 `Cannot read properties of undefined` 크래시가 남. 수정: `renderSettingsView()` 시작부에 `S.settingsDummy = S.settingsDummy || { vibration: true, chatShow: true, chatDark: false, clanChatPreview: true };` 가드 추가 (다른 모듈들의 `ensure()` 패턴과 동일).
   - 진행 메모: Playwright로 `S.settingsDummy` 필드를 지운 뒤 재저장·리로드해 구버전 세이브를 재현하고 설정 탭을 열어 검증 — 가드가 기본값으로 정상 초기화돼 설정 탭이 콘솔 에러 없이 정상 렌더링됨을 확인.
 
+### 🔍 전체 코드리뷰 폴리싱 6차 (2026-08-16, 펫 GLB 항목이 환경 제약으로 영구 차단돼 종료 조건에 준해 추가 — 최대 3개)
+- [ ] **탭이 백그라운드에 있어도 로직 틱이 계속 돌아 몬스터 처치·스테이지 클리어 보상이 오프라인 보상과 별개로 추가 지급됨**: `web/js/main.js:94-105`의 100ms 로직 틱(`setInterval`)이 `document.hidden` 체크 없이 항상 실행된다. 브라우저(특히 Chrome)는 탭이 백그라운드로 5분 이상 지나면 타이머를 대략 1분에 1회로 강하게 스로틀링하지만 완전히 멈추지는 않으며, 틱 콜백은 매 실행마다 "밀린 시간"을 최대 5초분까지 `Combat.tick`으로 시뮬레이션한다(`elapsed = Math.min(5000, now - logicLast)`). 이 시뮬레이션 경로로 실행되는 `Combat.tick`은 몬스터 처치 보상(`onKill`, combat.js:247-269 — 코인/해머 드랍/알)과 스테이지 클리어 보상(`stageClear`, combat.js:271-303 — 첫클리어/매클리어 티켓·태엽·알)을 정상적으로 지급하는데, 이 경로들은 2차 리뷰에서 고쳤던 `S.lastOfflineClaim` 동기화 대상이 아니다(그건 해머 트리클 한 곳만 보호). 결과: 탭을 백그라운드에 오래 켜두면(종료·새로고침 없이) 스로틀링된 틱마다 최대 5초씩 "실제 전투"가 반복 시뮬레이션되어 코인/해머/티켓/태엽/알을 추가로 얻고, 이후 오프라인 보상까지 그 시간 전체에 대해 또 지급되어 의도한 "미접속=저효율 오프라인 보상"이라는 설계를 일부 우회함. 수정: 로직 틱을 `document.hidden`일 때 건너뛰고(`if (document.hidden) return;`), `visibilitychange`로 탭이 다시 보일 때 `logicLast`를 현재 시각으로 리셋해 백그라운드 구간이 아예 시뮬레이션되지 않고 전부 오프라인 보상 계산으로 넘어가도록 함.
+
 ## 보류 (로컬 실기기 확인 필요 — 클라우드에서 하지 말 것)
 - 무기 본 부착 방향/크기 실기기 확인
