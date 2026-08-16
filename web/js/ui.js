@@ -340,7 +340,7 @@ const UI = {
         const upgrading = !!S.forgeUpgradeEndsAt;
         const curP = Forge.ageProbsAt(S.forgeLevel);
         const nextP = info ? Forge.ageProbsAt(S.forgeLevel + 1) : {};
-        const rows = AGES.filter(age => curP[age] || nextP[age]).map(age => {
+        const rows = AGES.map(age => {   // 0%인 시대도 원본처럼 전부 표시
             const hex = this.ageHex(age);
             const c = curP[age] || 0, n = nextP[age] || 0;
             return `<div class="age-row">
@@ -377,9 +377,9 @@ const UI = {
             </div>`;
     },
     renderForgeListView() {
-        const sections = AGES.filter(age => Forge.ageProbsAt(S.forgeLevel)[age]).map(age => {
+        const sections = AGES.map(age => {   // 0%인 시대도 전부 표시
             const hex = this.ageHex(age);
-            const ageP = Forge.ageProbsAt(S.forgeLevel)[age];
+            const ageP = Forge.ageProbsAt(S.forgeLevel)[age] || 0;
             const p = Forge.itemDropChance(age, 'weapon'); // 무기 변형은 모두 동일 확률
             const weaponCells = Object.keys(WEAPON_TYPES).map(wtype => `
                 <button class="forge-item-cell" onclick="UI.openForgeDetail('${age}','weapon','${wtype}')">
@@ -684,9 +684,6 @@ const UI = {
         const mergeHtml = RARITIES.slice(0, -1).map(r => Pets.canMerge(r) ?
             `<button class="btn xs" onclick="UI.onMerge('${r}')">${RARITY_KR[r]} 3 → ${RARITY_KR[RARITIES[RARITIES.indexOf(r) + 1]]} 알</button>` : '').join('');
 
-        const rates = Pets.rates();
-        this._petRatesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
-            `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${rates[r].toFixed(2)}%</span>`).join('');
         const petLvl = Pets.summonLevel(), petCapped = petLvl >= 100;
         const petSummonN = this._petSummonX5 ? 5 : 1;
 
@@ -861,9 +858,6 @@ const UI = {
         if (this.activeTab !== 'summon' || this._summonSub !== 'skills') return;
         const p = this.els.skillsPanel;
         const lvl = Skills.summonLevel();
-        const rates = Skills.rates();
-        const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
-            `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${rates[r].toFixed(2)}%</span>`).join('');
         const pb = Skills.activeBonus();
         const skillSummonN = this._skillSummonX5 ? 5 : 1;
         const capped = lvl >= 100;
@@ -920,7 +914,6 @@ const UI = {
             </div>
             <div class="summon-prog"><div style="width:${(capped ? 1 : ((S.summonCount || 0) % 5) / 5) * 100}%"></div>
                 <span>${capped ? 'MAX' : `${(S.summonCount || 0) % 5}/5`}</span></div>`;
-        this._summonRatesHtml = ratesHtml;
     },
 
     // 소환 확률 팝업 (UI-SPEC 48번 — 스킬·펫 공용). 원본: ◀▶ 레벨 이동 + 등급별 색 막대 + 진행 게이지
@@ -1705,8 +1698,8 @@ const UI = {
         const prevNeed = Mounts.prevNeeded();
         const progress = need ? U.clamp((S.mountOpens - prevNeed) / (need - prevNeed), 0, 1) : 1;
         const rates = Mounts.rates();
-        const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
-            `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${(rates[r] * 100).toFixed(2)}%</span>`).join('');
+        const ratesHtml = RARITIES.map(r =>   // 0%인 등급도 전부 표시
+            `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${((rates[r] || 0) * 100).toFixed(2)}%</span>`).join('');
         const mountSummonN = this._mountSummonX5 ? 5 : 1;
 
         const owned = Object.entries(S.mounts);
