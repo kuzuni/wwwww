@@ -281,14 +281,7 @@ const UI = {
 
         // 카드 = 아이콘 + Lv + 별만 표시 (컴팩트, UI-SPEC 1번). 상세 정보는 클릭 시 '장비 세부정보 팝업'(UI-SPEC 26번)
         const autoUnlocked = isUnlocked('autoForge');
-        const equipHtml = SLOTS.map(slot => {
-            const it = S.equipment[slot];
-            if (!it) return `<div class="equip-cell empty"><span class="slot-name">${SLOT_KR[slot]}</span></div>`;
-            return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
-                ${this.itemImgHTML(it, 'cell-img')}
-                <span class="cell-lv">Lv.${it.level}${it.stars ? ` ⭐${it.stars}` : ''}</span>
-            </div>`;
-        }).join('');
+        const equipHtml = SLOTS.map(slot => this.equipCellHTML(slot)).join('');
         // 마지막 칸 = 항상 탈것 슬롯 (사용자 확정 — 알 부화 표시 금지, 부화 진행은 펫 화면 부화장에서만).
         // 장착 탈것 있으면 아이콘+Lv, 없으면 "탈것" 빈 슬롯. 클릭 시 항상 탈것 창.
         const activeMount = S.activeMount ? S.mounts[S.activeMount] : null;
@@ -591,6 +584,21 @@ const UI = {
     },
 
     SLOT_EMOJI: { gloves: '🧤', necklace: '📿', ring: '💍', shoes: '👢', belt: '🎽' },
+    // 장비 그리드 공용 셀 (원본 shot-042120 정합): 정사각 고정 프레임 + 아이콘 상부 채움 + Lv 내부 하단 + ⭐는 하단 테두리 걸침.
+    // 빈 슬롯도 동일 프레임 유지(찌그러짐 금지, 사용자 지시) — 흐린 부위 아이콘 실루엣 + 부위명.
+    EMPTY_SLOT_EMOJI: { weapon: '🗡', helmet: '🪖', armor: '👕' },
+    equipCellHTML(slot) {
+        const it = S.equipment[slot];
+        if (!it) return `<div class="equip-cell empty">
+            <span class="cell-img emoji dim">${this.EMPTY_SLOT_EMOJI[slot] || this.SLOT_EMOJI[slot] || '🎁'}</span>
+            <span class="slot-name">${SLOT_KR[slot]}</span>
+        </div>`;
+        return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
+            ${this.itemImgHTML(it, 'cell-img')}
+            <span class="cell-lv">Lv. ${it.level}</span>
+            ${it.stars ? `<span class="cell-star">⭐${it.stars > 1 ? it.stars : ''}</span>` : ''}
+        </div>`;
+    },
 
     ageHex(age) { return '#' + AGE_COLORS[age].toString(16).padStart(6, '0'); },
 
@@ -1639,14 +1647,7 @@ const UI = {
             previewHtml = `<div class="pinfo-preview"><span>🛡️</span><span>${this.els.stageLabel.textContent}</span>${waveHtml}</div>`;
         }
 
-        const gearHtml = SLOTS.map(slot => {
-            const it = S.equipment[slot];
-            if (!it) return `<div class="equip-cell empty"><span class="slot-name">${SLOT_KR[slot]}</span></div>`;
-            return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
-                ${this.itemImgHTML(it, 'cell-img')}
-                <span class="cell-lv">Lv.${it.level}${it.stars ? ` ⭐${it.stars}` : ''}</span>
-            </div>`;
-        }).join('');
+        const gearHtml = SLOTS.map(slot => this.equipCellHTML(slot)).join('');
 
         // 슬롯 클릭 → 각 세부정보 팝업이 플레이어 정보 위에 겹쳐 뜸 (사용자 지시 — 닫으면 플레이어 정보로 복귀)
         const skillIconsHtml = S.equippedSkills.map(id => `<button class="sk-cell" onclick="UI.openSkillDetail('${id}')">
