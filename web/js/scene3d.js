@@ -2558,7 +2558,8 @@ const Scene3D = {
                 elbow.add(fore, fist);
                 sh.add(boulder, upper, elbow);
                 g.add(sh);
-                if (s > 0) armR = sh; else armL = sh;
+                (anim.barm = anim.barm || []).push({ sh, elbow });
+                if (s > 0) { armR = sh; anim.armRJ = { sh, elbow }; } else armL = sh;
             }
             // 짧은 기둥 다리 + 발 바위
             for (const s of [-1, 1]) {
@@ -2595,6 +2596,7 @@ const Scene3D = {
                 foot.position.set(0, -0.17, 0.07); foot.scale.set(0.8, 0.5, 1.7);
                 knee.add(shin, foot);
                 hip.add(thigh, knee);
+                (anim.bleg = anim.bleg || []).push({ hip, knee }); // 걷기 관절 굽힘용 피벗 노출
                 g.add(hip);
             }
             // 서양배 몸통 (앞으로 굽음) + 로인클로스 + 로프 벨트
@@ -2663,7 +2665,8 @@ const Scene3D = {
                 }
                 sh.add(upper, elbow);
                 g.add(sh);
-                if (s > 0) armR = sh; else armL = sh;
+                (anim.barm = anim.barm || []).push({ sh, elbow });
+                if (s > 0) { armR = sh; anim.armRJ = { sh, elbow }; } else armL = sh;
             }
             topY = 1.25;
         } else if (kind === 'bat') {
@@ -2775,6 +2778,8 @@ const Scene3D = {
                 lower.add(paw);
                 upper.add(lower);
                 leg.add(upper);
+                lower.userData.rx0 = lower.rotation.x; lower.userData.front = front; // 질주 무릎 굽힘 기준 포즈
+                (anim.knees = anim.knees || []).push(lower);
                 anim.legs.push(leg);
                 g.add(leg);
             }
@@ -2815,6 +2820,7 @@ const Scene3D = {
                 hoof.position.set(0, -0.13, 0.05); hoof.rotation.x = Math.PI;
                 knee.add(shin, hoof);
                 hip.add(thigh, knee);
+                (anim.bleg = anim.bleg || []).push({ hip, knee }); // 걷기 관절 굽힘용 피벗 노출
                 g.add(hip);
             }
             // 몸통 캡슐 + 밝은 배 패치
@@ -2869,7 +2875,8 @@ const Scene3D = {
                 elbow.add(fore, hand);
                 sh.add(upper, elbow);
                 g.add(sh);
-                if (s > 0) armR = sh; else armL = sh;
+                (anim.barm = anim.barm || []).push({ sh, elbow });
+                if (s > 0) { armR = sh; anim.armRJ = { sh, elbow }; } else armL = sh;
             }
             // 화살촉 꼬리: 커브 세그먼트 3개 + 화살촉
             const tailG = new THREE.Group();
@@ -3171,11 +3178,19 @@ const Scene3D = {
         const ox = m.g.position.x;
         this.addAnim(0.3, k => {
             m.g.position.x = ox - Math.sin(k * Math.PI) * 0.55;
-            if (m.armR) m.armR.rotation.x = -Math.sin(k * Math.PI) * 1.6; // 팔 휘두르기
+            const J = m.anim && m.anim.armRJ;
+            if (J) {
+                // 2관절 연쇄: 어깨를 후상방으로 당기며 팔꿈치 깊게 굽힘(와인드업) → 전방 스냅하며 폄(타격) → 복귀 (비평가: 통짜 전방 돌출 금지)
+                const w = Math.min(1, k / 0.42), st = k < 0.42 ? 0 : Math.min(1, (k - 0.42) / 0.22), rec = k > 0.82 ? (k - 0.82) / 0.18 : 0;
+                J.sh.rotation.x = (0.9 * w) * (1 - st) - 1.45 * st * (1 - rec);
+                J.elbow.rotation.x = -(0.35 + 0.75 * w) * (1 - st) - 0.15 * st;
+                m.g.rotation.z = (0.14 * w) * (1 - st) - 0.1 * st * (1 - rec); // 몸통 비틀림 동참 — 예비동작 판독성
+            } else if (m.armR) m.armR.rotation.x = -Math.sin(k * Math.PI) * 1.6; // 관절 없는 리그 폴백: 팔 휘두르기
         }, () => {
             const e = Combat.enemies.find(x => x.id === id);
             m.g.position.x = e ? e.x + this.worldX : ox;
             if (m.armR) m.armR.rotation.x = 0;
+            if (m.anim && m.anim.armRJ) { m.anim.armRJ.elbow.rotation.x = -0.22; m.g.rotation.z = 0; } // 아이들 자연 굽힘 자세로 복귀
         });
     },
 
@@ -3584,7 +3599,14 @@ const Scene3D = {
                     if (m.anim && m.anim.kind === 'wolf') {
                         // 늑대: 네 다리 질주
                         m.g.position.y = Math.abs(Math.sin(clk * 11 + id)) * 0.05;
-                        m.anim.legs.forEach((lg, j) => lg.rotation.x = Math.sin(clk * 13 + id + j * Math.PI) * 0.6);
+                        m.anim.legs.forEach((lg, j) => {
+                            // 로터리 갤럽 위상: 앞발 쌍·뒷발 쌍이 살짝 어긋나 어느 프레임에도 4지 동시 접지가 없음 (비평가: 죽은 프레임 금지)
+                            const lp = clk * 13 + id + [0, 1.1, 3.25, 4.35][j];
+                            lg.rotation.x = Math.sin(lp) * 0.75;
+                            const kn = m.anim.knees && m.anim.knees[j];
+                            // 스윙 복귀 구간 무릎 접힘 — 앞다리는 뒤로, 뒷다리는 앞으로 (사족 관절 방향)
+                            if (kn) kn.rotation.x = kn.userData.rx0 + (kn.userData.front ? -1 : 1) * Math.max(0, Math.sin(lp + 1.3)) * 0.6;
+                        });
                         m.g.rotation.x = Math.sin(clk * 11 + id) * 0.03;
                         if (m.anim.tail) m.anim.tail.rotation.z = Math.sin(clk * 9 + id) * 0.25; // 질주 중 꼬리 좌우 휘날림
                     } else if (m.anim && m.anim.hop) {
@@ -3597,18 +3619,36 @@ const Scene3D = {
                         m.g.position.y = s2 * 0.12;
                         if (m.body) m.body.scale.y = 0.72 - (1 - s2) * 0.1;
                     } else {
-                        // 이족보행: 뒤뚱 + 팔 흔들기
-                        m.g.position.y = Math.abs(Math.sin(clk * 9 + id)) * 0.07;
-                        m.g.rotation.z = Math.sin(clk * 9 + id) * 0.08;
-                        if (m.armR) {
-                            m.armR.rotation.x = Math.sin(clk * 9 + id) * 0.55;
-                            if (m.armL) m.armL.rotation.x = -Math.sin(clk * 9 + id) * 0.55;
+                        // 이족보행: 관절 걷기 — 고관절 스윙+무릎 굽힘, 어깨 스윙+팔꿈치 굽힘 (통짜 막대기 금지)
+                        const ph = clk * 9 + id;
+                        m.g.position.y = Math.abs(Math.sin(ph)) * (m.anim.bleg ? 0.045 : 0.07);
+                        m.g.rotation.z = Math.sin(ph) * (m.anim.bleg ? 0.05 : 0.08);
+                        if (m.anim.bleg) m.anim.bleg.forEach((L, j) => {
+                            const lp = ph + j * Math.PI;
+                            L.hip.rotation.x = Math.sin(lp) * 0.65;
+                            L.knee.rotation.x = -0.12 - Math.max(0, -Math.sin(lp + 0.7)) * 0.85; // 상시 미세 굽힘 + 스윙 다리 접힘 (비평가: 기둥 다리 금지)
+                        });
+                        if (m.anim.barm) m.anim.barm.forEach((A, j) => {
+                            const ap = ph + j * Math.PI + Math.PI; // 같은 쪽 다리와 역위상
+                            A.sh.rotation.x = Math.sin(ap) * 0.6;
+                            A.elbow.rotation.x = -0.45 - Math.max(0, Math.sin(ap)) * 0.5; // 상시 굽힘 25°+ 앞 스윙 가산 (비평가: 강체 튜브 팔 금지)
+                        });
+                        else if (m.armR) {
+                            m.armR.rotation.x = Math.sin(ph) * 0.55;
+                            if (m.armL) m.armL.rotation.x = -Math.sin(ph) * 0.55;
                         }
                     }
                 } else {
                     m.g.position.y = Math.max(0, Math.sin(clk * 6 + id) * 0.04);
                     m.g.rotation.z *= 0.9;
                     if (m.armL) m.armL.rotation.x *= 0.9;
+                    if (m.anim.bleg) m.anim.bleg.forEach(L => { L.hip.rotation.x *= 0.85; L.knee.rotation.x *= 0.85; });
+                    if (m.anim.barm) m.anim.barm.forEach(A => {
+                        A.sh.rotation.x *= 0.85;
+                        A.elbow.rotation.x += (-0.22 - A.elbow.rotation.x) * 0.12; // 살짝 굽힌 자연 자세로 정착 — 차렷 막대기 방지
+                    });
+                    if (m.anim.knees) m.anim.knees.forEach(kn => kn.rotation.x += (kn.userData.rx0 - kn.rotation.x) * 0.15);
+                    if (m.anim.kind === 'wolf') m.anim.legs.forEach(lg => lg.rotation.x *= 0.85);
                 }
             }
             if (m.blob) { // 블롭 섀도우 추적 — 홉/비행 높이에 따라 축소 (지면에 남는 그림자)

@@ -41,14 +41,21 @@ const OUT = __dirname;
     await fit(1.15, 1.4); await page.waitForTimeout(300);
     await page.screenshot({ path: OUT + '/hero-idle-side.png' });
 
-    // 2) 걷기 중간 프레임
-    await page.evaluate(() => { Scene3D.walking = true; });
-    await page.waitForTimeout(450);
-    await fit(1.3, 0.45);
-    await page.evaluate(() => { Scene3D.walking = true; });
-    await page.waitForTimeout(180);
+    // 2) 걷기 중간 프레임 — 전진 동결 + 클립 위상 고정(스트라이드 극점) — 걷는 동안 영웅이 락 카메라 밖으로 나가던 문제
+    await page.evaluate(() => { window.__wx = Scene3D.worldX; Scene3D.walking = true; });
+    await page.waitForTimeout(250); // Walking 클립 전환 대기
+    await page.evaluate(() => {
+        Object.defineProperty(Scene3D, 'worldX', { get() { return window.__wx; }, set() {}, configurable: true });
+        if (Scene3D.heroRig) { Scene3D.heroRig._speed = 0; Scene3D.heroRig._t = 0; } // t=0 = 발 교차 최대 극점
+    });
+    await fit(1.3, 2.1); // 3/4 측면 — 걷기 중 영웅이 +x(진행 방향)를 보므로 yaw를 크게 (팔꿈치·무릎 위상 판독용)
+    await page.waitForTimeout(150);
     await page.screenshot({ path: OUT + '/hero-walk.png' });
-    await page.evaluate(() => { Scene3D.walking = false; });
+    await page.evaluate(() => {
+        delete Scene3D.worldX; Scene3D.worldX = window.__wx;
+        if (Scene3D.heroRig) Scene3D.heroRig._speed = 1;
+        Scene3D.walking = false;
+    });
 
     // 3) 공격 스윙 중간 프레임 (트레일 포함)
     await page.evaluate(() => {
