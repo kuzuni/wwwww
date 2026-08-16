@@ -1350,7 +1350,7 @@ body {
 .row.center { justify-content: center; }
 .summon-bar { display: flex; align-items: center; justify-content: center; gap: .5rem; position: relative; }
 .summon-bar .back-btn { position: absolute; left: .3rem; } /* 원본: 좌측 끝 (185 재채점) */
-.panel .btn.big { font-size: 1.05rem; padding: .3rem .6rem; min-height: 3.8rem; flex: 0 1 30%; } /* 소환 바 원본(shot-042356): 높이≈7% H, 폭≈28~35% W — 풀폭 금지 */
+.summon-bar .btn.big { font-size: 1.05rem; padding: .3rem .6rem; min-height: 3.8rem; flex: 0 1 30%; } /* 소환 바 원본(shot-042356): 높이≈7% H, 폭≈28~35% W — 풀폭 금지. 스코프는 소환 바 기준 — 패널 스코프면 모달 소환 바(탈것)에 미적용 (QA 버그) */
 .panel .btn.xs { font-size: .72rem; padding: .3rem .5rem; line-height: 1.1; }
 .panel .btn.xs.info { background: #fff; }
 .summon-prog {
@@ -1637,11 +1637,11 @@ body {
 
 /* ===== 스킬/펫 소환 바 (shot-042340 원본 대조 재작업) ===== */
 .back-btn { width: 2.4rem; height: 2.4rem; border-radius: .6rem; padding: 0; flex: none; font-size: 1rem; }
-.panel .btn.x5-toggle {
+.summon-bar .btn.x5-toggle { /* 소환 바 공통 — 스킬(패널)·펫(패널)·탈것(모달) 세 곳 통일 (QA: 탈것 x1 늘어남·◀ 겹침) */
     background: #fff; border: 3px solid var(--pp-blue); color: var(--pp-blue);
     border-radius: 1rem; font-weight: 900; padding: .3rem .8rem; flex: none; min-width: 0; box-shadow: none;
 }
-.panel .btn.x5-toggle.on { background: var(--pp-blue); color: #fff; border-color: var(--pp-line); }
+.summon-bar .btn.x5-toggle.on { background: var(--pp-blue); color: #fff; border-color: var(--pp-line); }
 .summon-btn {
     background: linear-gradient(180deg, #e3e3e3, #c2c2c2); color: #17181a; font-weight: 900;
     border: 3px solid var(--pp-line); border-radius: .7rem;
