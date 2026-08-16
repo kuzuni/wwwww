@@ -182,7 +182,9 @@ const Combat = {
             UI.skillCutin(d);
             UI.floatTextAtHero(`+${U.fmt(this.hero.maxHp * Skills.effHeal(id))}`, 'heal');
         } else if (d.type === 'buff') {
-            this.buffs.push({ buff: d.buff, until: U.now() + d.dur * 1000 });
+            // 같은 스킬의 이전 버프를 먼저 제거 — 재사용 대기시간이 지속시간보다 짧아지면(스킬재사용대기시간 서브스탯) 무한 중첩 방지
+            this.buffs = this.buffs.filter(b => b.id !== id);
+            this.buffs.push({ id, buff: d.buff, until: U.now() + d.dur * 1000 });
             this.recalcHero();
             Scene3D.skillEffect('aura', d.color, []);
             UI.skillCutin(d);
