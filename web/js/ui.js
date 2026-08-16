@@ -384,40 +384,41 @@ const UI = {
                 <button class="x-btn" onclick="UI.closeForgeInfo()">✕</button>
             </div>`;
     },
+    // 원본(shot-042905): 시대색 헤더 막대 + 회색 패널 안 흰 아이템 셀(별 배지, % 아래 표기), 닫기=빨간 X(확률 정보로 복귀)
     renderForgeListView() {
         const sections = AGES.map(age => {   // 0%인 시대도 전부 표시
             const hex = this.ageHex(age);
             const ageP = Forge.ageProbsAt(S.forgeLevel)[age] || 0;
             const p = Forge.itemDropChance(age, 'weapon'); // 무기 변형은 모두 동일 확률
-            const weaponCells = Object.keys(WEAPON_TYPES).map(wtype => `
-                <button class="forge-item-cell" onclick="UI.openForgeDetail('${age}','weapon','${wtype}')">
-                    <span class="icon">${WEAPON_TYPES[wtype].kind === 'ranged' ? '🏹' : '🗡'}</span>
-                    <small>${p.toFixed(4)}%</small>
-                </button>`).join('');
+            const cell = (onclick, icon, pct) => `
+                <button class="forge-item-cell" onclick="${onclick}">
+                    <span class="fl-face">${icon}<span class="fl-star">⭐</span></span>
+                    <small>${pct.toFixed(4)}%</small>
+                </button>`;
+            const weaponCells = Object.keys(WEAPON_TYPES).map(wtype =>
+                cell(`UI.openForgeDetail('${age}','weapon','${wtype}')`, WEAPON_TYPES[wtype].kind === 'ranged' ? '🏹' : '🗡', p)).join('');
             const otherCells = ['helmet', 'armor', 'gloves', 'necklace', 'ring', 'shoes', 'belt'].map(slot => {
                 const names = (slot === 'helmet' || slot === 'armor') ? ((ITEM_NAMES[age] && ITEM_NAMES[age][slot]) || []) : (ACC_NAMES[slot] || []);
                 const sp = Forge.itemDropChance(age, slot);
                 const icon = slot === 'helmet' ? '🪖' : slot === 'armor' ? '👕' : (this.SLOT_EMOJI[slot] || '🎁');
-                return names.map((name, i) => `
-                    <button class="forge-item-cell" onclick="UI.openForgeDetail('${age}','${slot}',${i})">
-                        <span class="icon">${icon}</span>
-                        <small>${sp.toFixed(4)}%</small>
-                    </button>`).join('');
+                return names.map((name, i) => cell(`UI.openForgeDetail('${age}','${slot}',${i})`, icon, sp)).join('');
             }).join('');
             return `<div class="forge-age-section">
-                <div class="age-tag" style="--ac:${hex}">${AGE_ICON[age]} ${AGE_KR[age]} <small>${ageP.toFixed(2)}%</small></div>
+                <div class="fi-age-bar fl-head" style="--ac:${hex}">
+                    <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]} ⭐</span>
+                    <span class="fi-age-cur">${ageP.toFixed(2)}%</span>
+                </div>
                 <div class="forge-item-grid">${weaponCells}${otherCells}</div>
             </div>`;
         }).join('');
 
         this.els.forgeInfoModal.innerHTML = `
-            <div class="modal-card wide">
-                <div class="row" style="justify-content:space-between">
-                    <h3>모든 장비</h3>
-                    <button class="btn sm" onclick="UI.openForgeInfo()">◀ 뒤로</button>
+            <div class="idet-wrap">
+                <div class="modal-card paper fl-card">
+                    <h3 class="fi-title">모든 장비의 목록</h3>
+                    <div class="forge-age-list">${sections}</div>
                 </div>
-                <div class="forge-age-list">${sections}</div>
-                <button class="btn" onclick="UI.closeForgeInfo()">닫기</button>
+                <button class="x-btn" onclick="UI.openForgeInfo()">✕</button>
             </div>`;
     },
     renderForgeDetailView() {

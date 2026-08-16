@@ -273,13 +273,22 @@ body {
 .forge-age-list { display: flex; flex-direction: column; gap: .6rem; max-height: 55vh; overflow-y: auto; }
 .forge-age-section .age-tag { display: flex; align-items: center; gap: .3rem; margin-bottom: .3rem; }
 .forge-age-section .age-tag small { color: #90a4ae; font-weight: 400; }
-.forge-item-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .3rem; }
-.forge-item-cell {
-    background: #22272e; border: 1px solid #444c56; border-radius: .45rem; padding: .3rem .1rem;
-    display: flex; flex-direction: column; align-items: center; gap: .1rem; cursor: pointer; color: #eceff1;
+.forge-item-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: .45rem .4rem;
+    background: #d9d9d9; border-radius: .7rem; padding: .55rem .5rem;
 }
-.forge-item-cell .icon { font-size: 1.1rem; }
-.forge-item-cell small { font-size: .58rem; color: #90a4ae; }
+/* 원본(shot-042905): 회색 패널 안 흰 아이템 셀 + 좌하단 별 배지 + % 아래 표기 */
+.forge-item-cell {
+    background: none; border: none; padding: 0;
+    display: flex; flex-direction: column; align-items: center; gap: .12rem; cursor: pointer;
+}
+.fl-face {
+    position: relative; width: 100%; aspect-ratio: 1; background: #fff;
+    border: 2px solid var(--pp-line); border-radius: .5rem;
+    display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
+}
+.fl-star { position: absolute; left: -.15rem; bottom: -.2rem; font-size: .68rem; }
+.forge-item-cell small { font-size: .56rem; color: var(--pp-ink); font-weight: 800; }
 
 .substat-list { display: flex; flex-direction: column; gap: .2rem; margin: .4rem 0; max-height: 40vh; overflow-y: auto; }
 .substat-row {
@@ -1546,3 +1555,6 @@ body {
 .pinfo-gear .equip-cell .cell-lv { color: #fff; text-shadow: 0 1px 0 #000; }
 /* 옵션 합계: 원본은 좌정렬 굵은 검정 */
 .pinfo-subs-list { text-align: left; font-weight: 900; color: var(--pp-ink); font-size: .88rem; line-height: 1.6; padding-left: .4rem; }
+.fl-card { width: 90%; padding: .85rem .8rem .9rem; }
+.fl-head { margin-bottom: .4rem; }
+.fl-head .fi-age-cur { padding-right: .5rem; }
