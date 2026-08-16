@@ -145,7 +145,9 @@
                 const items = Forge.craft(Math.min(cfg.hammersPerBatch, S.hammers));
                 let foundTarget = false;
                 for (const item of items) {
-                    if (!Forge.passesAutoFilter(item)) { Forge.sell(item); continue; }
+                    // 장착 중인 장비와 정확히 일치(승천 대상)하는 아이템은 유지 시대/옵션 필터와 무관하게 항상 승천 판정으로 보냄 — 필터 때문에 무료 승천 재료가 팔려나가는 것 방지
+                    const isAscendTarget = Forge.isMatchingGear(item, S.equipment[item.slot]);
+                    if (!isAscendTarget && !Forge.passesAutoFilter(item)) { Forge.sell(item); continue; }
                     const r = Forge.autoResolve(item);
                     if (r.equipped) { UI.floatLoot(`🛠 ${item.name} 자동 장착!`); foundTarget = true; }
                 }
