@@ -1605,7 +1605,7 @@ const UI = {
             <div class="idet-wrap">
                 <div class="modal-card wide">
                     <div class="profile-title">설정</div>
-                    <div class="profile-sub">서버 시간: ${new Date().toLocaleString('ko-KR')}</div>
+                    <div class="profile-sub">서버 시간: ${(d0 => `${d0.getDate()}. ${d0.getMonth() + 1}월, ${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`)(new Date())}</div>
                     <div class="settings-list">
                         ${toggle('진동', d.vibration, "UI.onToggleSettingsDummy('vibration')")}
                         ${toggle('음악', SFX.musicEnabled, "UI.onToggleMusic()")}
