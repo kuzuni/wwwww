@@ -39,7 +39,10 @@ const Skills = {
             }
             results.push({ def, isNew: !cur, level: S.skills[def.id].level });
         }
-        SFX.gacha(results[results.length - 1].def.rarity);
+        // 배치 소환 시 마지막 굴림이 아니라 가장 높은 등급 기준으로 효과음 재생
+        const bestRarity = results.reduce((best, r) =>
+            RARITIES.indexOf(r.def.rarity) > RARITIES.indexOf(best) ? r.def.rarity : best, results[0].def.rarity);
+        SFX.gacha(bestRarity);
         saveGame();
         return { results, count };
     },
