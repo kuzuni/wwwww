@@ -20,6 +20,8 @@ const Scene3D = {
         this.renderer.shadowMap.enabled = true;               // 그림자 (사실감)
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.outputEncoding = THREE.sRGBEncoding;    // GLB 텍스처 색 보정
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping; // 필름톤 대비/채도 롤오프로 밋밋한 조명 보완
+        this.renderer.toneMappingExposure = 1.08;
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.Fog(0xa8d8ea, 12, 30);
 
@@ -38,6 +40,8 @@ const Scene3D = {
         this.sun.shadow.camera.near = 1; this.sun.shadow.camera.far = 30;
         this.scene.add(this.hemi, this.sun);
 
+        this.buildEmbers();
+        this.buildSky();
         this.buildTerrain();
 
         this.buildHero();
@@ -151,10 +155,206 @@ const Scene3D = {
         return back * back * (1.7 + n * 1.3) + front * (0.5 + n * 0.35);
     },
 
-    // ---- 숲 지형: 정점 변위 로우폴리 지형 + 원경 산맥 + 나무/덤불 + 안개 ----
+    // ---- 하늘: 정점색 그라디언트 돔(천정→지평선), 챕터 테마 색으로 다시 칠할 수 있음 ----
+    buildSky() {
+        const geo = new THREE.SphereGeometry(70, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.62);
+        const colors = new Float32Array(geo.attributes.position.count * 3);
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false });
+        this.skyDome = new THREE.Mesh(geo, mat);
+        this.skyDome.renderOrder = -1;
+        this.scene.add(this.skyDome);
+        this.buildClouds();
+        this.buildHaze();
+        this.paintSky(0x87ceeb, 0xa8d8ea);
+    },
+
+    // 돔의 정점 y좌표(천정=1 ~ 지평선=0)를 기준으로 두 색을 보간해 칠함.
+    // 지평선 색은 씬 안개색과 정확히 맞춰 원경 지형이 안개에 녹아드는 지점과 하늘이 이음매 없이 이어지게 함.
+    paintSky(skyHex, fogHex) {
+        const pos = this.skyDome.geometry.attributes.position;
+        const col = this.skyDome.geometry.attributes.color;
+        const zenith = new THREE.Color(skyHex).offsetHSL(0, 0.12, -0.28);
+        const horizon = new THREE.Color(fogHex);
+        let minY = Infinity, maxY = -Infinity;
+        for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y < minY) minY = y; if (y > maxY) maxY = y; }
+        const span = Math.max(0.001, maxY - minY);
+        const tmp = new THREE.Color();
+        for (let i = 0; i < pos.count; i++) {
+            const k = U.clamp((pos.getY(i) - minY) / span, 0, 1);
+            tmp.copy(horizon).lerp(zenith, Math.pow(k, 0.6));
+            col.setXYZ(i, tmp.r, tmp.g, tmp.b);
+        }
+        col.needsUpdate = true;
+        if (this.hazeMat) this.hazeMat.color.setHex(fogHex);
+        if (this.clouds) {
+            const cloudTint = new THREE.Color(skyHex).offsetHSL(0, -0.35, 0.32);
+            for (const cl of this.clouds) cl.material.color.copy(cloudTint);
+        }
+        if (this.embers) {
+            // 밝은 하늘색에 묻히지 않도록 항상 따뜻한 금빛을 베이스로 챕터 색을 살짝만 섞음
+            const emberTint = new THREE.Color(0xffcf82).lerp(new THREE.Color(fogHex).offsetHSL(0, 0.3, -0.1), 0.3);
+            for (const e of this.embers) e.material.color.copy(emberTint);
+        }
+    },
+
+    // 뭉게구름 텍스처 — 여러 원을 겹쳐 울퉁불퉁한 뭉치 실루엣을 만들고 아랫면에 살짝 그림자를 얹어 입체감을 줌
+    // (단일 원형 그라디언트는 "빛번짐"처럼 보여 구름으로 안 읽히므로 반드시 여러 퍼프를 합성)
+    makeCloudTexture() {
+        const size = 128;
+        const c = document.createElement('canvas');
+        c.width = c.height = size;
+        const ctx = c.getContext('2d');
+        const puffs = [
+            [0.5, 0.55, 0.4], [0.28, 0.52, 0.26], [0.72, 0.52, 0.28],
+            [0.4, 0.36, 0.24], [0.62, 0.38, 0.22], [0.5, 0.66, 0.3], [0.85, 0.58, 0.18],
+        ];
+        for (const [px, py, pr] of puffs) {
+            const cx = px * size, cy = py * size, r = pr * size;
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+            grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+            grad.addColorStop(0.55, 'rgba(255,255,255,0.6)');
+            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        }
+        // 아랫면 음영으로 입체감(광원 위→아래 가정)
+        ctx.globalCompositeOperation = 'source-atop';
+        const shade = ctx.createLinearGradient(0, size * 0.3, 0, size * 0.9);
+        shade.addColorStop(0, 'rgba(190,200,215,0)');
+        shade.addColorStop(1, 'rgba(150,165,190,0.4)');
+        ctx.fillStyle = shade;
+        ctx.fillRect(0, 0, size, size);
+        ctx.globalCompositeOperation = 'source-over';
+        return new THREE.CanvasTexture(c);
+    },
+
+    // 하늘에 떠서 천천히 흐르는 뭉게구름 스프라이트(원경감 + "빈 하늘" 인상 제거)
+    buildClouds() {
+        const tex = this.makeCloudTexture();
+        this.clouds = [];
+        for (let i = 0; i < 9; i++) {
+            const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, opacity: 0.9 });
+            const s = new THREE.Sprite(mat);
+            const scale = U.rand(8, 15);
+            s.scale.set(scale, scale * 0.48, 1);
+            // 카메라가 아래를 내려다보는 각도라 하늘 시야가 좁다 — 실제 프러스텀 안에 들어오는
+            // 낮은 고도(y 4.5~7.5)에 배치해야 화면에 실제 구름 크기로 보인다.
+            s.position.set(U.rand(-25, 25), U.rand(4.5, 7.5), U.rand(-42, -30));
+            s.userData.baseX = s.position.x;
+            s.userData.speed = U.rand(0.05, 0.14);
+            this.scene.add(s);
+            this.clouds.push(s);
+        }
+    },
+
+    // 부드러운 원형 발광 텍스처 (안개 띠/먼지 입자 공용) — 가장자리가 정확히 0으로 죽어 이음매가 안 보임
+    makeGlowTexture() {
+        const size = 128;
+        const c = document.createElement('canvas');
+        c.width = c.height = size;
+        const ctx = c.getContext('2d');
+        const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+        grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+        grad.addColorStop(0.45, 'rgba(255,255,255,0.4)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, size, size);
+        return new THREE.CanvasTexture(c);
+    },
+
+    // 산맥/구릉이 하늘과 만나는 지평선에 걸리는 얇은 반투명 안개 띠 — 실루엣의 딱딱한 경계선을 눅여줌.
+    // 하나의 큰 세로 그라디언트 평면(위/아래 모두 투명으로 완전히 죽어 판 가장자리가 안 보임)만 사용.
+    buildHaze() {
+        const size = 4, h = 256;
+        const c = document.createElement('canvas');
+        c.width = size; c.height = h;
+        const ctx = c.getContext('2d');
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, 'rgba(255,255,255,0)');
+        grad.addColorStop(0.5, 'rgba(255,255,255,0.5)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, size, h);
+        this.hazeMat = new THREE.MeshBasicMaterial({
+            map: new THREE.CanvasTexture(c), color: 0xa8d8ea, transparent: true,
+            depthWrite: false, fog: false, side: THREE.DoubleSide, opacity: 0.5,
+        });
+        this.haze = new THREE.Mesh(new THREE.PlaneGeometry(95, 12), this.hazeMat);
+        this.haze.position.set(0, 1.2, -16.5);
+        this.scene.add(this.haze);
+    },
+
+    // 전투 라인 위로 떠다니는 발광 먼지/불씨 입자 — 챕터 톤에 맞춰 색이 바뀌어(따뜻한 챕터=불씨, 서늘한 챕터=반딧불/마법가루)
+    // 밋밋한 조명에 반짝임을 더해 대기감·챕터 개성을 동시에 살림
+    buildEmbers() {
+        const tex = this.makeGlowTexture();
+        this.emberMat = new THREE.SpriteMaterial({
+            map: tex, transparent: true, depthWrite: false, fog: false,
+            blending: THREE.AdditiveBlending, opacity: 0.85, color: 0xffe0a0,
+        });
+        this.embers = [];
+        for (let i = 0; i < 16; i++) {
+            const s = new THREE.Sprite(this.emberMat.clone());
+            const x = U.rand(-9, 9), z = U.rand(-6.5, 1.5);
+            s.scale.setScalar(U.rand(0.17, 0.36));
+            s.position.set(x, this.heightAt(x, z) + U.rand(0.15, 1.8), z);
+            s.userData.baseX = x; s.userData.baseZ = z; s.userData.baseY = s.position.y;
+            s.userData.phase = U.rand(0, 10);
+            s.userData.rise = U.rand(0.05, 0.15);
+            this.scene.add(s);
+            this.embers.push(s);
+        }
+    },
+
+    // 절차적 잔디/지면 얼룩 텍스처 — 큰 규모 패치(마른 풀/흙 자국) + 작은 얼룩 + 미세 노이즈 3단 레이어.
+    // 재질 color가 그 위에 곱해져 챕터별 톤은 그대로 유지되면서 표면 디테일만 더함.
+    makeGroundTexture() {
+        const size = 512;
+        const c = document.createElement('canvas');
+        c.width = c.height = size;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#c2c2c2';
+        ctx.fillRect(0, 0, size, size);
+        // 1) 큰 패치 (마른 풀/흙 얼룩 — 색조까지 살짝 변주)
+        for (let i = 0; i < 26; i++) {
+            const x = Math.random() * size, y = Math.random() * size, r = 40 + Math.random() * 90;
+            const warm = Math.random() < 0.5;
+            const base = 140 + Math.random() * 70;
+            const cr = warm ? base + 18 : base - 10, cg = base, cb = warm ? base - 20 : base + 12;
+            ctx.fillStyle = `rgba(${cr | 0},${cg | 0},${cb | 0},${0.14 + Math.random() * 0.16})`;
+            ctx.beginPath();
+            ctx.ellipse(x, y, r, r * (0.45 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // 2) 작은 얼룩 (풀포기 뭉침 느낌)
+        for (let i = 0; i < 220; i++) {
+            const x = Math.random() * size, y = Math.random() * size, r = 6 + Math.random() * 26;
+            const shade = 120 + Math.random() * 110;
+            ctx.fillStyle = `rgba(${shade},${shade},${shade},${0.12 + Math.random() * 0.18})`;
+            ctx.beginPath();
+            ctx.ellipse(x, y, r, r * (0.5 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // 3) 미세 스펙클 노이즈 (표면 거칠기)
+        const img = ctx.getImageData(0, 0, size, size);
+        for (let i = 0; i < img.data.length; i += 4) {
+            const n = (Math.random() - 0.5) * 26;
+            img.data[i] = U.clamp(img.data[i] + n, 0, 255);
+            img.data[i + 1] = U.clamp(img.data[i + 1] + n, 0, 255);
+            img.data[i + 2] = U.clamp(img.data[i + 2] + n, 0, 255);
+        }
+        ctx.putImageData(img, 0, 0);
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(12, 6);
+        return tex;
+    },
+
+    // ---- 숲 지형: 정점 변위 로우폴리 지형 + 원경 산맥/구릉 + 나무/덤불 + 안개 ----
     buildTerrain() {
-        // 각진 플랫셰이딩 지형 메시
-        this.terrainMat = new THREE.MeshPhongMaterial({ color: 0x7cb342, flatShading: true, shininess: 0 });
+        // 각진 플랫셰이딩 지형 메시 + 얼룩 텍스처
+        this.terrainMat = new THREE.MeshPhongMaterial({ color: 0x7cb342, flatShading: true, shininess: 0, map: this.makeGroundTexture() });
         const geo = new THREE.PlaneGeometry(60, 30, 64, 28);
         geo.rotateX(-Math.PI / 2);
         const pos = geo.attributes.position;
@@ -167,6 +367,18 @@ const Scene3D = {
         this.ground = new THREE.Mesh(geo, this.terrainMat);
         this.ground.receiveShadow = true;
         this.scene.add(this.ground);
+
+        // 최원경 구릉 실루엣 (안개에 거의 잠겨 대기 원근감을 더함, 산맥보다 뒤·낮고 완만하게)
+        this.hillMat = new THREE.MeshPhongMaterial({ color: 0x6d9150, flatShading: true, shininess: 0, fog: true });
+        this.hills = [];
+        for (const [x, s] of [[-15, 7], [-5.5, 9], [4.5, 8], [14, 6.5], [21, 7.5]]) {
+            const h = new THREE.Mesh(new THREE.ConeGeometry(s, s * 0.55, 6), this.hillMat);
+            h.position.set(x, -s * 0.18, -19);
+            h.rotation.y = U.rand(0, 3);
+            h.userData.baseX = x;
+            this.scene.add(h);
+            this.hills.push(h);
+        }
 
         // 원경 산맥 (안개 속 실루엣)
         this.mountainMat = new THREE.MeshPhongMaterial({ color: 0x558b2f, flatShading: true, shininess: 0 });
@@ -1810,10 +2022,13 @@ const Scene3D = {
         this.terrainMat.color.setHex(t.ground);
         // 산맥/나뭇잎/덤불은 지면색 기반으로 톤 변주
         this.mountainMat.color.copy(new THREE.Color(t.ground).offsetHSL(0, 0.02, -0.1));
+        // 최원경 구릉은 지면색과 안개색을 섞어 대기에 잠긴 느낌으로
+        this.hillMat.color.copy(new THREE.Color(t.ground).lerp(new THREE.Color(t.fog), 0.45).offsetHSL(0, 0, -0.05));
         this.foliageMat.color.copy(new THREE.Color(t.ground).offsetHSL(-0.02, 0.08, -0.16));
         this.bushMat.color.copy(new THREE.Color(t.ground).offsetHSL(-0.01, 0.05, -0.1));
         this.hemi.color.setHex(t.sky);
         this.hemi.groundColor.copy(new THREE.Color(t.ground).offsetHSL(0, 0, -0.1));
+        this.paintSky(t.sky, t.fog);
     },
 
     shake(mag) { this.shakeMag = Math.max(this.shakeMag, mag); },
@@ -1985,6 +2200,29 @@ const Scene3D = {
             mist.position.y = mist.userData.baseY + Math.sin(this._clock * 0.6 + mist.userData.baseY * 5) * 0.12;
         }
         for (const mt of this.mountains) mt.position.x = mt.userData.baseX + this.worldX;
+        for (const h of this.hills) h.position.x = h.userData.baseX + this.worldX;
+        if (this.skyDome) this.skyDome.position.x = this.worldX;
+        if (this.haze) this.haze.position.x = this.worldX;
+        if (this.clouds) {
+            for (const cl of this.clouds) {
+                cl.userData.baseX += cl.userData.speed * dt;
+                if (cl.userData.baseX > 40) cl.userData.baseX = -40;
+                cl.position.x = cl.userData.baseX + this.worldX;
+            }
+        }
+        if (this.embers) {
+            for (const e of this.embers) {
+                e.userData.baseY += e.userData.rise * dt;
+                const groundY = this.heightAt(e.userData.baseX, e.userData.baseZ);
+                if (e.userData.baseY > groundY + 2.2) e.userData.baseY = groundY + 0.1;
+                e.position.set(
+                    e.userData.baseX + this.worldX + Math.sin(this._clock * 0.5 + e.userData.phase) * 0.25,
+                    e.userData.baseY,
+                    e.userData.baseZ
+                );
+                e.material.opacity = 0.55 + Math.sin(this._clock * 3 + e.userData.phase) * 0.3;
+            }
+        }
         // 투사체
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const pr = this.projectiles[i];
