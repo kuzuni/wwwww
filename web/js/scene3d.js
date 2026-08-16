@@ -946,7 +946,7 @@ const Scene3D = {
                 b.scale.y = 0.7;
                 b.castShadow = true;
                 const g = grounded(b, rad * 2.6);
-                const x = U.rand(-9, 9), z = U.rand(-2.4, 1.8);
+                const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.4, 1.8); } while (Math.abs(zz) < 0.85); return zz; })(); // 전투 라인 배제
                 g.position.set(x, this.heightAt(x, z) + 0.02, z);
                 this.scene.add(g);
                 this.rocks.push(g);
@@ -965,7 +965,7 @@ const Scene3D = {
             r.rotation.set(U.rand(0, 3), U.rand(0, 3), 0);
             r.castShadow = true;
             const g = grounded(r, rad * 2.4);
-            const x = U.rand(-9, 9), z = U.rand(-2.8, 1.6);
+            const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.8, 1.6); } while (Math.abs(zz) < 0.85); return zz; })(); // 전투 라인 배제
             g.position.set(x, this.heightAt(x, z) + 0.02, z);
             this.scene.add(g);
             this.rocks.push(g);
@@ -1064,7 +1064,8 @@ const Scene3D = {
             const dummy = new THREE.Object3D();
             const col = new THREE.Color();
             for (let i = 0; i < cnt; i++) {
-                const x = U.rand(-28, 28), z = U.rand(zMin, zMax);
+                let x = U.rand(-28, 28), z = U.rand(zMin, zMax);
+                if (Math.abs(z) < 0.55) z = 0.55 * Math.sign(z || 1) + z; // 스캐터도 전투 라인 살짝 비켜감
                 dummy.position.set(x, this.heightAt(x, z) + 0.02, z);
                 dummy.rotation.y = U.rand(0, Math.PI * 2);
                 const sc = U.rand(0.7, 1.6);
@@ -2493,6 +2494,18 @@ const Scene3D = {
             }
         };
 
+        // 박쥐/임프 공용 막날개 — 앞전 아치 + 손가락 골 스캘럽 뒷전 (평판 '비행기 주익' 오독 제거, 비평가 지적)
+        const wingGeo = (len, chord) => {
+            const sh = new THREE.Shape();
+            sh.moveTo(0, 0.02);
+            sh.quadraticCurveTo(len * 0.5, chord * 0.5, len, chord * 0.06);
+            sh.quadraticCurveTo(len * 0.86, -chord * 0.34, len * 0.66, -chord * 0.16);
+            sh.quadraticCurveTo(len * 0.5, -chord * 0.52, len * 0.32, -chord * 0.24);
+            sh.quadraticCurveTo(len * 0.16, -chord * 0.46, 0, -chord * 0.3);
+            sh.closePath();
+            return new THREE.ShapeGeometry(sh);
+        };
+
         const anim = { kind, wings: [], legs: [] };
         let body = null, armR = null, armL = null, topY = 1.1;
 
@@ -2661,9 +2674,13 @@ const Scene3D = {
                 cn(0.018, 0.06, s * 0.05, 0.5, 0.14, new THREE.MeshLambertMaterial({ color: 0xffffff })); // 송곳니
                 const wing = new THREE.Group();
                 wing.position.set(s * 0.17, 0.65, 0);
-                const wm = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 0.2), dark);
-                wm.position.x = s * 0.18;
-                wing.add(wm);
+                const wm = new THREE.Mesh(wingGeo(0.44, 0.3), new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0, -0.05, -0.18), side: THREE.DoubleSide }));
+                wm.scale.x = s;
+                const wBone = mk(new THREE.CylinderGeometry(0.014, 0.01, 0.42, 5), dark); // 앞전 뼈대
+                wBone.rotation.z = s * (Math.PI / 2 - 0.18);
+                wBone.position.set(s * 0.2, 0.055, 0.002);
+                wing.add(wm, wBone);
+                wing.rotation.y = s * -0.3; // 살짝 뒤로 스윕
                 wing.userData.s = s;
                 anim.wings.push(wing);
                 g.add(wing);
@@ -2828,14 +2845,11 @@ const Scene3D = {
                 bone1.position.set(s * 0.09, 0.05, 0); bone1.rotation.z = s * 1.1;
                 const bone2 = mk(new THREE.CylinderGeometry(0.009, 0.006, 0.16, 5), skinD);
                 bone2.position.set(s * 0.2, 0.02, 0); bone2.rotation.z = s * 1.9;
-                const memGeo = new THREE.BufferGeometry();
-                const mv = s > 0
-                    ? [0, 0.1, 0, 0.17, 0.1, 0, 0.27, -0.02, 0, 0, 0.1, 0, 0.27, -0.02, 0, 0.13, -0.09, 0]
-                    : [0, 0.1, 0, -0.17, 0.1, 0, -0.27, -0.02, 0, 0, 0.1, 0, -0.27, -0.02, 0, -0.13, -0.09, 0];
-                memGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(mv), 3));
-                memGeo.computeVertexNormals();
-                const mem = mk(memGeo, new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0, -0.05, -0.2), side: THREE.DoubleSide }));
+                const mem = mk(wingGeo(0.3, 0.22), new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0, -0.05, -0.2), side: THREE.DoubleSide }));
+                mem.scale.x = s;
+                mem.position.y = 0.08;
                 wing.add(bone1, bone2, mem);
+                wing.rotation.set(0.2, 0, s * 0.55); // 위·뒤로 접힌 스윕 — 수평 판자 금지
                 wing.userData.s = s;
                 anim.wings.push(wing);
                 g.add(wing);
