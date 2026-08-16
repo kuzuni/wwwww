@@ -35,9 +35,11 @@ const Scene3D = {
         this.sun = new THREE.DirectionalLight(0xfff3d6, 1.2);
         this.sun.position.set(5, 7, 4.5); // 고도를 45도 부근으로 낮춰 소품 그림자가 길게 드리우게
         this.sun.castShadow = true;
-        this.sun.shadow.mapSize.set(1024, 1024); // 2048은 중급 폰에서 프레임 하락 확인 — 1024 유지
-        this.sun.shadow.camera.left = -12; this.sun.shadow.camera.right = 12;   // 소품 배치 범위 x±9.5 전체 커버
-        this.sun.shadow.camera.top = 12; this.sun.shadow.camera.bottom = -12;   // (±8은 가장자리 나무 그림자가 잘렸음)
+        // 데스크톱만 2048 — 중급 폰은 프레임 하락 확인돼 1024 유지. 1024×24유닛의 저밀도가 '뭉개진 그림자 블롭'으로 읽힘 (비평가 4번)
+        const shadowRes = /Mobi|Android/i.test(navigator.userAgent) ? 1024 : 2048;
+        this.sun.shadow.mapSize.set(shadowRes, shadowRes);
+        this.sun.shadow.camera.left = -10; this.sun.shadow.camera.right = 10;   // 소품 배치 범위 x±9.5 커버 + 텍셀 밀도 확보
+        this.sun.shadow.camera.top = 10; this.sun.shadow.camera.bottom = -10;   // (±8은 가장자리 나무 그림자가 잘렸음)
         this.sun.shadow.camera.near = 1; this.sun.shadow.camera.far = 30;
         // 태양 반대편 서늘한 역광(그림자 없음) — 그늘진 면 실루엣이 배경에서 분리되게
         this.rim = new THREE.DirectionalLight(0xcfe4ff, 0.5); // 쿨톤 역광 강화 — 그늘 면 실루엣 분리(림 라이트) (비평가 14번)
@@ -1835,17 +1837,17 @@ const Scene3D = {
             // 슬릿 = 함몰 캐비티: 칠흑 내부 + 림 테두리 + 언릿 발광 눈 (표면 데칼 'T 스티커' 오독 제거, 비평가 지적)
             const cavity = new THREE.MeshBasicMaterial({ color: 0x0c0f12 });
             const slit = new THREE.Mesh(new THREE.BoxGeometry(0.23, 0.052, 0.07), cavity);
-            slit.position.set(0, 0.06, 0.234); // 림 타원 안쪽에 맞춤 — 모서리가 림 밖으로 새면 '검은 사각 스티커'
+            slit.position.set(0, 0.06, 0.252); // 전면(0.287)이 돔 표면(0.279) 밖 — 박스가 돔 안에 묻히면 캐비티가 아예 안 보임
             const rimGeo = new THREE.TorusGeometry(0.128, 0.012, 5, 14); // 슬릿 개구부 금속 림 — 재질 경계로 '뚫린 구멍' 판독
             rimGeo.scale(1, 0.32, 1);
-            const slitRim = new THREE.Mesh(rimGeo, new THREE.MeshLambertMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.08) })); // 무광 — Phong 하이라이트가 '유리 브로치'로 오독되던 문제
-            slitRim.position.set(0, 0.06, 0.28);
+            const slitRim = new THREE.Mesh(rimGeo, new THREE.MeshLambertMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.16) })); // 다크 무광 — 밝은 림이 '부유하는 흰 타원 링'으로 오독 (비평가 3번)
+            slitRim.position.set(0, 0.06, 0.289); // 캐비티 전면 바로 앞 — 표면과 이격되면 '부유 링'
             g.add(slitRim);
             for (const dx of [-0.055, 0.055]) { // 캐비티 속 언릿 발광 눈 — 어둠 대비 최대
                 const glowEye = new THREE.Mesh(new THREE.SphereGeometry(0.027, 6, 5),
                     new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.18, 0.24) }));
-                glowEye.position.set(dx * 1.2, 0.06, 0.288); // 캐비티 전면보다 앞 — 가려지면 무광 슬릿만 남음
-                glowEye.scale.set(1.3, 0.75, 0.5);
+                glowEye.position.set(dx * 1.2, 0.06, 0.293); // 캐비티 전면(0.287)보다 앞 — 가려지면 무광 슬릿만 남음
+                glowEye.scale.set(1.1, 0.55, 0.4);
                 g.add(glowEye);
             }
             const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.15, 0.045),
@@ -1872,10 +1874,16 @@ const Scene3D = {
             const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat); // 정수리 덮개
             dome.position.y = 0.1;
             g.add(dome);
-            for (const dx of [-0.09, 0.09]) {
-                const hole = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), darkMat);
-                hole.position.set(dx, 0.04, 0.255);
-                g.add(hole);
+            for (const dx of [-0.09, 0.09]) { // 눈 소켓: 함몰 어둠 + 림 + 발광 동공 — 민짜 회색 점 2개 오독 (비평가 3번)
+                const hole = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: 0x14181c }));
+                hole.position.set(dx, 0.04, 0.252); hole.scale.z = 0.5;
+                const socketRim = new THREE.Mesh(new THREE.TorusGeometry(0.047, 0.009, 5, 12),
+                    new THREE.MeshLambertMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.14) }));
+                socketRim.position.set(dx, 0.04, 0.273);
+                const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 5),
+                    new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.15, 0.2) }));
+                pupil.position.set(dx, 0.04, 0.278);
+                g.add(hole, socketRim, pupil);
             }
             const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.05, 8), rareMat);
             mouth.rotation.x = Math.PI / 2;
@@ -2756,6 +2764,9 @@ const Scene3D = {
             const jaw = mk(new THREE.SphereGeometry(0.13, 10, 8), skinD);
             jaw.scale.set(1.15, 0.55, 0.9);
             jawG.add(jaw);
+            const mouthLine = mk(new THREE.SphereGeometry(0.055, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2e1c14 })); // 벌린 입 다크 심 — 입 위치 실종 지적 (비평가)
+            mouthLine.position.set(0, 0.065, 0.09); mouthLine.scale.set(1.6, 0.4, 0.5); // 턱 앞전에 걸치게 — 두상 구에 가려지지 않는 깊이
+            jawG.add(mouthLine);
             for (const s of [-1, 1]) {
                 const tusk = mk(new THREE.ConeGeometry(0.02, 0.085, 6), new THREE.MeshLambertMaterial({ color: 0xf5efdd }));
                 tusk.position.set(s * 0.055, 0.05, 0.095); // 밑동은 턱 살 안, 끝은 윗입술 앞 — 턱에서 솟는 송곳니
@@ -2855,7 +2866,7 @@ const Scene3D = {
                 anim.wings.push(wing);
                 g.add(wing);
             }
-            eyes(0.66, 0.165, 0.08, 0.042, 'angry', { iris: 0xffb547, tilt: 0.14, browColor: 0x3a3142 }); // 흰자+호박 홍채 성난 눈 — '빈 눈' 오독 제거 (비평가 지적)
+            eyes(0.66, 0.165, 0.08, 0.042, 'angry', { iris: 0xffb547, glow: 0.12, tilt: 0.14, browColor: 0x3a3142 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
             anim.fly = true; topY = 1.0;
         } else if (kind === 'mushroom') {
             // 통통한 줄기 라테 + 갓 그룹(돔+테두리 립+반점+주름 프릴) + 밑동 발
@@ -2930,7 +2941,8 @@ const Scene3D = {
             headW.position.set(0, 0.6, 0.38);
             const skullW = mk(new THREE.SphereGeometry(0.105, 11, 8), furM);
             skullW.scale.set(0.95, 0.9, 1.05);
-            const snout = mk(new THREE.CylinderGeometry(0.048, 0.075, 0.16, 8), furL);
+            const muzzleM = lam(base.clone().offsetHSL(0.005, -0.04, 0.14), ProChar.hideTex()); // 주둥이 전용 중간 톤 — 순백 러프색은 '붙임 데칼'로 읽힘 (비평가)
+            const snout = mk(new THREE.CylinderGeometry(0.048, 0.075, 0.16, 8), muzzleM);
             snout.rotation.x = Math.PI / 2; snout.position.set(0, -0.02, 0.14);
             const bridge = mk(new THREE.SphereGeometry(0.045, 8, 6), furD); // 콧등 다크 스트라이프 — 밝은 주둥이와 톤 분리 (비평가: 주둥이가 두상에 뭉개짐)
             bridge.position.set(0, 0.03, 0.12); bridge.scale.set(0.8, 0.5, 2.1);
@@ -3049,7 +3061,7 @@ const Scene3D = {
                 ear.scale.z = 0.5;
                 g.add(horn1, horn2, ear);
             }
-            eyes(0.65, 0.105, 0.055, 0.034, 'angry', { iris: 0xffe14a, tilt: 0.22, browColor: 0x5c2338 }); // 흰자+노랑 홍채 성난 눈 — 실눈 슬릿 판독 불가 (비평가 지적)
+            eyes(0.65, 0.105, 0.055, 0.034, 'angry', { iris: 0xffe14a, glow: 0.12, tilt: 0.22, browColor: 0x5c2338 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
             const grin = mk(new THREE.TorusGeometry(0.052, 0.013, 6, 10, Math.PI * 0.8), new THREE.MeshBasicMaterial({ color: 0x33141f })); // 씩 웃는 입
             grin.position.set(0, 0.585, 0.107); grin.rotation.z = Math.PI + Math.PI * 0.1;
             g.add(grin);
@@ -3631,6 +3643,7 @@ const Scene3D = {
         // 가산 블렌딩은 밝은 배경에서 씻겨 보임 — 밝기 대신 채도를 올려 색 자체가 얹히게
         this.trailMat.color.setHex(colorHex).offsetHSL(0, 0.25, -0.05);
         this.trailPts = this.trailPts || [];
+        this._trailPrevLocal = null;
         this._trailOn = true;
     },
     updateTrail(dt) {
@@ -3644,17 +3657,23 @@ const Scene3D = {
             const tipLen = this.TRAIL_TIP[this.wtypeId] || 0.7;
             const b = this.weaponG.localToWorld(new THREE.Vector3(0, 0.12, 0));
             const t = this.weaponG.localToWorld(new THREE.Vector3(0, tipLen, 0));
-            // 저 fps에서도 리본이 끊기지 않게 프레임 사이를 보간 샘플로 메움
-            const last = pts[pts.length - 1];
-            if (last) {
-                const n = Math.min(6, Math.floor(last.t.distanceTo(t) / 0.12));
-                for (let j = 1; j <= n; j++) {
-                    const k = j / (n + 1);
-                    pts.push({ b: last.b.clone().lerp(b, k), t: last.t.clone().lerp(t, k), age: last.age * (1 - k) });
+            // 돌진(몸통 평행이동)은 궤적이 아님 — 영웅 로컬에서 날끝이 실제 휘둘러질 때만 기록 (비평가: 수평 부유 막대)
+            const lt = this.heroG.worldToLocal(t.clone());
+            const swung = !this._trailPrevLocal || lt.distanceTo(this._trailPrevLocal) > 0.06;
+            this._trailPrevLocal = lt;
+            if (swung) {
+                // 저 fps에서도 리본이 끊기지 않게 프레임 사이를 보간 샘플로 메움
+                const last = pts[pts.length - 1];
+                if (last) {
+                    const n = Math.min(6, Math.floor(last.t.distanceTo(t) / 0.12));
+                    for (let j = 1; j <= n; j++) {
+                        const k = j / (n + 1);
+                        pts.push({ b: last.b.clone().lerp(b, k), t: last.t.clone().lerp(t, k), age: last.age * (1 - k) });
+                    }
                 }
+                pts.push({ b, t, age: 0 });
+                while (pts.length > 23) pts.shift(); // 버퍼 상한 (24세그먼트 지오메트리)
             }
-            pts.push({ b, t, age: 0 });
-            while (pts.length > 23) pts.shift(); // 버퍼 상한 (24세그먼트 지오메트리)
         }
         if (!this.trailMesh) return;
         if (pts.length < 2) { this.trailMesh.visible = false; return; }

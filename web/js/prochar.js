@@ -366,15 +366,20 @@ const ProChar = {
             thumb.position.set(side * -0.042, -0.15, 0.028);
             thumb.scale.set(0.85, 1.5, 0.85);
             thumb.rotation.z = side * -0.55;
-            const knuckle = new THREE.Mesh(new THREE.BoxGeometry(0.068, 0.032, 0.022), gloveMat);
-            knuckle.position.set(0, -0.185, 0.042);
             const hand = new THREE.Mesh(new THREE.SphereGeometry(0.058, 8, 7),
                 new THREE.MeshPhongMaterial({ color: 0x7a5c46, shininess: 22, map: this.leatherTex() })); // 가죽 건틀릿 주먹 — '북채 팔' 오독 제거
             hand.position.y = -0.16;
             hand.scale.set(0.92, 1.1, 0.8); // 앞뒤로 눌러 주먹 사각 인상
             const handMount = new THREE.Group();
             handMount.position.y = -0.17;
-            elbow.add(elbowCap, forearm, cuff, hand, thumb, knuckle, handMount);
+            elbow.add(elbowCap, forearm, cuff, hand, thumb, handMount);
+            // 말린 손가락 마디 3개 — 너클 판 하나로는 '소시지 캡슐' 오독 (비평가 5번: 손가락 지오메트리 전무)
+            for (let fi = -1; fi <= 1; fi++) {
+                const seg = new THREE.Mesh(new THREE.SphereGeometry(0.021, 7, 6), gloveMat);
+                seg.position.set(fi * 0.036, -0.182, 0.045);
+                seg.scale.set(0.78, 1.3, 0.95);
+                elbow.add(seg);
+            }
             shoulder.add(pauldron, pauldron2, rivet, upperArm, elbow);
             spine.add(shoulder);
             R.arms.push({ shoulder, elbow, handMount });
@@ -426,7 +431,7 @@ const ProChar = {
         R.bones.neck = neck;
         const headG = new THREE.Group();
         headG.position.y = 0.1;
-        headG.scale.setScalar(0.73); // 보블헤드 완화 3차 — 전신 대비 두상 ~35% '유아 마스코트' 비율 지적 (0.82→0.78→0.73)
+        headG.scale.setScalar(0.68); // 보블헤드 완화 4차 — 다리 연장과 병행해도 두신비 1:3 '아기 로봇' 지적 잔존 (0.78→0.73→0.68)
         neck.add(headG);
         R.bones.head = headG;
         // 목 기둥 — 머리가 몸통 위에 떠 보이던 문제 (비평가: 목 연결부 부재)
@@ -562,7 +567,8 @@ const ProChar = {
                 'pelvis.rz': [[0, 0.05], [0.5, -0.05], [1, 0.05]],
                 // 바운스: 콘택트(0.45/0.95 부근)에서 낮고 패싱에서 높음
                 'root.py': [[0, 0.04], [0.2, 0.01], [0.45, 0.005], [0.7, 0.045], [0.95, 0.005], [1, 0.04]],
-                'cape.rx': [[0, 0.3], [0.5, 0.38], [1, 0.3]],
+                'cape.rx': [[0, 0.26], [0.25, 0.44], [0.5, 0.3], [0.75, 0.44], [1, 0.26]], // 걸음마다 출렁 — 강체 삼각형 오독 (비평가 6번)
+                'cape.rz': [[0, 0.06], [0.5, -0.06], [1, 0.06]],
                 'neck.rx': [[0, -0.08], [1, -0.08]],
             }
         },

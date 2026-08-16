@@ -88,6 +88,7 @@ const OUT = __dirname;
         const m = Scene3D.enemyMap.get(999);
         for (const a of Scene3D.anims) { try { a.fn && a.fn(1); a.onDone && a.onDone(); } catch (err) {} }
         Scene3D.anims = []; m.g.position.y = 0; m.g.userData.landed = true;
+        m.hpBg.visible = m.hpFg.visible = false; // 적 HP바 숨김 — 컷에서 '부유하는 청록 막대'로 오독됨 (비평가 2번의 실체)
     });
     await page.evaluate(() => {
         Scene3D.heroAttack(999);
