@@ -423,8 +423,13 @@ body {
 .modal.hidden, .hidden { display: none !important; }
 /* 세부정보류 팝업은 항상 소유 화면(플레이어 정보 등) 위에 겹침 — DOM 순서와 무관하게 스택 보장 */
 #detail-modal, #mount-upgrade-modal, #gear-detail-modal, #forge-item-modal { z-index: 22; }
+/* 장비 비교 팝업은 원본(shot-043224)처럼 하단 앵커 (버튼줄이 화면 ~78%H) */
+#craft-modal { align-items: flex-end; padding-bottom: 13%; }
+/* 기술 노드 팝업 액션 버튼 — 원본(shot-042605) 높이≈화면 7% 입체 블록 */
+.item-detail[data-tech-node] .btn { min-height: 3.6rem; font-size: 1rem; padding: .5rem .6rem; }
+/* 원본 팝업 인셋 실측(185 전수 패스): 일반 ≈69~76% W — 클론 82~94%는 과대. 시트(.sheet)는 풀스크린 유지 */
 .modal-card {
-    width: 82%; background: #1c2128; border: 2px solid var(--rc, #444c56);
+    width: 75%; background: #1c2128; border: 2px solid var(--rc, #444c56);
     border-radius: 1rem; padding: 1.1rem; text-align: center;
     display: flex; flex-direction: column; gap: .45rem;
 }
@@ -437,7 +442,7 @@ body {
 .modal-card .sub { font-size: .78rem; color: #81d4fa; }
 
 /* ---- 장비 비교/세부정보 팝업 (UI-SPEC 25·26번, 원본 shot-043224/043244) ---- */
-.modal-card.wide { width: 94%; }
+.modal-card.wide { width: 80%; }
 .cmp-wrap { display: flex; flex-direction: column; gap: 1.5rem; margin-top: .5rem; }
 .cmp-card-wrap { position: relative; }
 .cmp-ribbon {
@@ -1123,13 +1128,14 @@ body {
     border: none; background: none; padding: 0; display: block;
     font-size: .82rem; font-weight: 700; color: var(--pp-muted); line-height: 1.4;
 }
-.idet-wrap { display: flex; flex-direction: column; align-items: center; gap: 1.1rem; width: 100%; }
-/* 원본 공통: 팝업 하단 중앙의 빨간 원형 X 닫기 버튼 */
+.idet-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; }
+/* 원본 공통: 팝업 하단 중앙의 빨간 원형 X — 팝업 아래에 떠 있지 않고 하단 테두리에 절반 걸침 (185 전수 패스) */
 .x-btn {
     width: 3.4rem; height: 3.4rem; border-radius: 50%; cursor: pointer;
     background: var(--pp-red); color: #fff; border: 3px solid var(--pp-line);
     font-size: 1.5rem; font-weight: 900; line-height: 1; padding: 0;
     box-shadow: inset 0 -.28rem 0 var(--pp-red-dk);
+    margin-top: -1.7rem; position: relative; z-index: 2;
 }
 .x-btn:active { transform: translateY(.12rem); box-shadow: none; }
 
