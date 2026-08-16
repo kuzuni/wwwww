@@ -27,12 +27,9 @@ const Dungeons = {
         if (S.dungeons.lastReset !== today) {
             S.dungeons.lastReset = today;
             for (const d of this.DEFS) S.dungeons.keys[d.id] = this.MAX_KEYS;
-            // 열려 있는 던전 목록/상세 팝업이 있으면 리셋된 열쇠 수를 즉시 반영 (lastReset을 이미 갱신했으므로 재귀 호출은 안전)
-            // UI.init() 이전(boot 시퀀스)에도 ensure()가 호출되므로 UI.els가 아직 없을 수 있음을 가드
-            if (typeof UI !== 'undefined' && UI.els) {
-                if (!UI.els.dungeonModal.classList.contains('hidden')) UI.openDungeons();
-                if (!UI.els.dungeonDetailModal.classList.contains('hidden')) UI.renderDungeonDetail();
-            }
+            // 매일 09:00 리셋이 열려 있는 던전 목록/상세 팝업에도 즉시 반영되도록 (UI.init() 이전 부팅 시점 호출 대비 가드)
+            if (UI.els.dungeonModal && !UI.els.dungeonModal.classList.contains('hidden')) UI.openDungeons();
+            if (UI.els.dungeonDetailModal && !UI.els.dungeonDetailModal.classList.contains('hidden')) UI.renderDungeonDetail();
         }
         for (const d of this.DEFS) {
             if (S.dungeons.keys[d.id] === undefined) S.dungeons.keys[d.id] = this.MAX_KEYS;
