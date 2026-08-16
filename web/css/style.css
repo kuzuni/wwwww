@@ -1231,23 +1231,31 @@ body {
     border: 3px solid var(--pp-line); border-radius: .6rem; background: var(--rc, #ccc);
     display: flex; align-items: center; justify-content: center; font-size: 1.7rem;
 }
-.petup-xpbar {
-    position: relative; height: 1.4rem; background: var(--pp-panel); border: 3px solid var(--pp-line);
-    border-radius: .5rem; overflow: hidden; margin: .6rem 0 .5rem;
+/* 원본: 상단 대상 카드+경험치바+선택행은 회색 패널로 묶임, 경험치바는 검정 pill+파란 채움 */
+.petup-panel {
+    background: #c9c9c9; border: 3px solid var(--pp-line); border-radius: .7rem;
+    padding: .6rem .6rem .55rem; margin-bottom: .7rem;
 }
-.petup-xpbar div { position: absolute; inset: 0; width: 0; background: var(--pp-blue); }
+.petup-xpbar {
+    position: relative; height: 1.5rem; background: #10131f; border: 3px solid var(--pp-line);
+    border-radius: .6rem; overflow: hidden; margin: .6rem 0 .5rem;
+}
+.petup-xpbar div { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--pp-blue); }
 .petup-xpbar span {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    font-size: .68rem; font-weight: 800; color: var(--pp-ink);
+    font-size: .7rem; font-weight: 900; color: #fff;
 }
-.petup-selrow { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .5rem; }
+.petup-selrow { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.petup-selrow .btn.silver { font-size: .85rem; padding: .35rem 1rem; border-radius: .55rem; }
 .petup-sellabel { font-size: .82rem; font-weight: 800; color: var(--pp-ink); }
-.petup-slots { display: flex; justify-content: center; gap: .4rem; margin-bottom: .5rem; }
+.petup-slots { display: flex; justify-content: space-between; gap: .4rem; margin: 0 .6rem .6rem; }
+.petup-slotcol { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .3rem; }
 .petup-slot {
-    width: 2.2rem; height: 2.2rem; border-radius: .5rem; display: flex; align-items: center; justify-content: center;
-    font-size: 1.1rem; background: var(--rc, var(--pp-red)); border: 3px solid var(--pp-line);
+    width: 2.3rem; height: 2.3rem; border-radius: .5rem; display: flex; align-items: center; justify-content: center;
+    font-size: 1.15rem; background: var(--rc, var(--pp-red)); border: 3px solid var(--pp-line);
 }
-.petup-slot.empty { background: none; border-style: dashed; color: var(--pp-muted); font-size: .9rem; }
+.petup-slot.blank { background: none; border: none; }
+.petup-dash { width: 2.1rem; height: .18rem; background: #17181a; border-radius: .1rem; }
 .petup-divider { height: 2px; background: #dcdcdc; margin: 0 0 .55rem; }
 .mat-grid.pet-grid { gap: .75rem .4rem; }
 .hatchery {

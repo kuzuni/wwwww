@@ -850,8 +850,11 @@ const UI = {
             ...sel.pets.map(i => ({ icon: PET_ICONS[S.pets[i].name] || '🐾', rc: RARITY_CSS[S.pets[i].rarity] })),
             ...sel.eggs.map(i => ({ icon: '🥚', rc: RARITY_CSS[S.eggs[i].rarity] })),
         ];
-        const slotsHtml = (selected.length ? selected : [null]).map(s =>
-            s ? `<span class="petup-slot" style="--rc:${s.rc}">${s.icon}</span>` : `<span class="petup-slot empty">➕</span>`).join('');
+        // 원본(shot-042503): 슬롯 5칸 고정 — 빈 칸은 밑줄 대시, 선택된 재료는 밑줄 위 등급색 타일
+        const slotsHtml = Array.from({ length: 5 }, (_, i) => {
+            const m = selected[i];
+            return `<span class="petup-slotcol">${m ? `<span class="petup-slot" style="--rc:${m.rc}">${m.icon}</span>` : '<span class="petup-slot blank"></span>'}<span class="petup-dash"></span></span>`;
+        }).join('');
 
         const previewXp = sel.pets.reduce((s, i) => s + Pets.xpValue(S.pets[i].rarity) * Pets.levelMult(S.pets[i]), 0)
             + sel.eggs.reduce((s, i) => s + Pets.xpValue(S.eggs[i].rarity), 0);
@@ -860,6 +863,7 @@ const UI = {
         this.els.petUpgradeModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper petup-card">
+                    <div class="petup-panel">
                     <div class="petup-head">
                         <div class="petup-icon" style="--rc:${RARITY_CSS[target.rarity]}">
                             ${PET_ICONS[target.name] || '🐾'}
@@ -875,7 +879,8 @@ const UI = {
                         <span>${maxed ? '만렙' : `${U.fmt(target.xp || 0)}/${U.fmt(need)} 경험치${previewXp ? ` (+${U.fmt(previewXp)})` : ''}`}</span></div>
                     <div class="petup-selrow">
                         <span class="petup-sellabel">합칠 펫 선택</span>
-                        <button class="btn sm primary ${(sel.pets.length + sel.eggs.length) && !maxed ? '' : 'disabled'}" onclick="UI.onConfirmPetUpgrade()">업그레이드</button>
+                        <button class="btn silver ${(sel.pets.length + sel.eggs.length) && !maxed ? '' : 'disabled'}" onclick="UI.onConfirmPetUpgrade()">업그레이드</button>
+                    </div>
                     </div>
                     <div class="petup-slots">${slotsHtml}</div>
                     <div class="petup-divider"></div>
