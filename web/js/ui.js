@@ -796,39 +796,68 @@ const UI = {
         this.els.petUpgradeModal.classList.remove('hidden');
     },
     closePetUpgrade() { this.els.petUpgradeModal.classList.add('hidden'); },
+    // UI-SPEC 55번(원본 shot-042503) 레이아웃: 대상 카드(장착됨+Lv+⭐+피해/체력) → 경험치 바 →
+    // "합칠 펫 선택"+[업그레이드] → 선택 슬롯 → 구분선 → 보유 펫·알 타일 그리드(.pet-tile 재사용)
     renderPetUpgrade() {
         const target = S.pets[this._petUpgradeTarget];
         if (!target) { this.closePetUpgrade(); return; }
         const sel = this._petUpgradeMats;
         const need = Pets.xpNeeded(target.level);
         const maxed = target.level >= Pets.MAX_LEVEL;
+        const active = S.activePets.includes(this._petUpgradeTarget);
+        const pw = Pets.petPower(target);
 
-        const petChips = S.pets.map((p, i) => i === this._petUpgradeTarget ? '' : `
-            <button class="mat-chip ${sel.pets.includes(i) ? 'on' : ''} ${S.activePets.includes(i) ? 'active' : ''}" style="--rc:${RARITY_CSS[p.rarity]}" onclick="UI.onToggleUpgradeMat('pet', ${i})">
-                <span>${PET_ICONS[p.name] || '🐾'}</span><small>Lv.${p.level}${p.stars ? ` ⭐${p.stars}` : ''}</small>
+        const petTiles = S.pets.map((p, i) => i === this._petUpgradeTarget ? '' : `
+            <button class="pet-tile ${sel.pets.includes(i) ? 'selected' : ''}" style="--rc:${RARITY_CSS[p.rarity]}" onclick="UI.onToggleUpgradeMat('pet', ${i})">
+                <span class="tile-face">
+                    ${PET_ICONS[p.name] || '🐾'}
+                    ${S.activePets.includes(i) ? '<span class="sk-ribbon">장착됨</span>' : ''}
+                    <span class="sk-lv">Lv.${p.level}</span>
+                </span>
             </button>`).join('');
-        const eggChips = S.eggs.map((e, i) => `
-            <button class="mat-chip ${sel.eggs.includes(i) ? 'on' : ''}" style="--rc:${RARITY_CSS[e.rarity]}" onclick="UI.onToggleUpgradeMat('egg', ${i})">
-                <span>🥚</span><small>${RARITY_KR[e.rarity]}</small>
+        const eggTiles = S.eggs.map((e, i) => `
+            <button class="pet-tile egg ${sel.eggs.includes(i) ? 'selected' : ''}" style="--rc:${RARITY_CSS[e.rarity]}" onclick="UI.onToggleUpgradeMat('egg', ${i})">
+                <span class="tile-face">🥚</span>
+                <span class="tile-label">알</span>
             </button>`).join('');
+        const tilesHtml = petTiles + eggTiles || '<span class="muted">재료로 쓸 펫/알이 없습니다</span>';
+
+        const selected = [
+            ...sel.pets.map(i => ({ icon: PET_ICONS[S.pets[i].name] || '🐾', rc: RARITY_CSS[S.pets[i].rarity] })),
+            ...sel.eggs.map(i => ({ icon: '🥚', rc: RARITY_CSS[S.eggs[i].rarity] })),
+        ];
+        const slotsHtml = (selected.length ? selected : [null]).map(s =>
+            s ? `<span class="petup-slot" style="--rc:${s.rc}">${s.icon}</span>` : `<span class="petup-slot empty">➕</span>`).join('');
 
         const previewXp = sel.pets.reduce((s, i) => s + Pets.xpValue(S.pets[i].rarity) * Pets.levelMult(S.pets[i]), 0)
             + sel.eggs.reduce((s, i) => s + Pets.xpValue(S.eggs[i].rarity), 0);
+        const xpRatio = maxed ? 1 : U.clamp((target.xp || 0) / need, 0, 1);
 
         this.els.petUpgradeModal.innerHTML = `
-            <div class="modal-card wide">
-                <h3>${PET_KR[target.name] || target.name} 업그레이드</h3>
-                <div class="row">
-                    <span class="cell-img emoji" style="width:2.4rem;height:2.4rem;font-size:1.25rem;border-radius:50%;border-color:${RARITY_CSS[target.rarity]}">${PET_ICONS[target.name] || '🐾'}</span>
-                    <div>
-                        <div class="item-name">Lv.${target.level}${target.stars ? ` ⭐${target.stars}` : ''}</div>
-                        <div class="muted">${maxed ? '만렙' : `경험치 ${U.fmt(target.xp || 0)}/${U.fmt(need)}${previewXp ? ` (+${U.fmt(previewXp)} 예정)` : ''}`}</div>
+            <div class="idet-wrap">
+                <div class="modal-card paper petup-card">
+                    <div class="petup-head">
+                        <div class="petup-icon" style="--rc:${RARITY_CSS[target.rarity]}">
+                            ${PET_ICONS[target.name] || '🐾'}
+                            ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
+                            <span class="sk-lv">Lv.${target.level}</span>
+                        </div>
+                        <div class="idet-title">
+                            <div class="idet-name">[${RARITY_KR[target.rarity]}] ${PET_KR[target.name] || target.name}</div>
+                            <div class="idet-main">${U.fmt(pw.atk)} 피해<br>${U.fmt(pw.hp)} 체력</div>
+                        </div>
                     </div>
+                    <div class="petup-xpbar"><div style="width:${xpRatio * 100}%"></div>
+                        <span>${maxed ? '만렙' : `${U.fmt(target.xp || 0)}/${U.fmt(need)} 경험치${previewXp ? ` (+${U.fmt(previewXp)})` : ''}`}</span></div>
+                    <div class="petup-selrow">
+                        <span class="petup-sellabel">합칠 펫 선택</span>
+                        <button class="btn sm primary ${(sel.pets.length + sel.eggs.length) && !maxed ? '' : 'disabled'}" onclick="UI.onConfirmPetUpgrade()">업그레이드</button>
+                    </div>
+                    <div class="petup-slots">${slotsHtml}</div>
+                    <div class="petup-divider"></div>
+                    <div class="mat-grid pet-grid">${tilesHtml}</div>
                 </div>
-                <p class="muted">합칠 펫/알 선택 (최대 5개, 재료는 흡수되어 사라집니다)</p>
-                <div class="mat-grid">${petChips}${eggChips || (petChips ? '' : '<span class="muted">재료로 쓸 펫/알이 없습니다</span>')}</div>
-                <button class="btn primary ${(sel.pets.length + sel.eggs.length) && !maxed ? '' : 'disabled'}" onclick="UI.onConfirmPetUpgrade()">업그레이드</button>
-                <button class="btn" onclick="UI.closePetUpgrade()">닫기</button>
+                <button class="x-btn" onclick="UI.closePetUpgrade()">✕</button>
             </div>`;
     },
     onToggleUpgradeMat(type, idx) {
