@@ -39,9 +39,9 @@ const UI = {
 
     // 하단 탭 클릭: 던전/상점/전투(PvP)는 팝업, 나머지는 시트 토글(다시 누르면 닫힘)
     onTabClick(tab) {
-        if (tab === 'dungeon') { this.openDungeons(); return; }
-        if (tab === 'shop') { this.openShop(); return; }
-        if (tab === 'battle') { this.openLeague(); return; }
+        if (tab === 'dungeon') { this.switchTab(null); this.openDungeons(); return; }
+        if (tab === 'shop') { this.switchTab(null); this.openShop(); return; }
+        if (tab === 'battle') { this.switchTab(null); this.openLeague(); return; }
         this.switchTab(this.activeTab === tab ? null : tab);
     },
 
