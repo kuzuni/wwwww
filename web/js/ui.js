@@ -21,7 +21,7 @@ const UI = {
             stubModal: $('stub-modal'),
             forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
-            leagueModal: $('league-modal'),
+            leagueModal: $('league-modal'), passModal: $('pass-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -822,6 +822,7 @@ const UI = {
             </div>
             <div class="row">
                 <button class="btn primary" onclick="UI.openAscension()">🌟 승천</button>
+                <button class="btn primary" onclick="UI.openPass()">⚔️ 진행 패스</button>
             </div>
             <div class="row">
                 <button class="btn ${S.sfxOn ? 'on' : ''}" onclick="UI.onToggleSfx()">🔊 효과음 ${S.sfxOn ? 'ON' : 'OFF'}</button>
@@ -999,6 +1000,48 @@ const UI = {
         this.renderLeagueChallenge();
         this.renderTopBar();
     },
+
+    // ---- 진행 패스 (UI-SPEC 18번): 스테이지 도달 마일스톤. 무료만 실지급, 프리미엄은 잠금 표시(더미) ----
+    CURRENCY_ICON: { coins: '👑', hammers: '🔨', gems: '◆', tickets: '🎫', potions: '🧪', winders: '⚙️', eggCurrency: '🥚' },
+    passRewardText(reward) {
+        return Object.entries(reward).map(([k, v]) => `${this.CURRENCY_ICON[k] || ''}${U.fmt(v)}`).join(' ');
+    },
+    openPass() {
+        Pass.ensure();
+        this.renderPass();
+        this.els.passModal.classList.remove('hidden');
+    },
+    closePass() { this.els.passModal.classList.add('hidden'); },
+    renderPass() {
+        const rowsHtml = Pass.MILESTONES.map(m => {
+            const [c] = m.stage.split('-').map(Number);
+            const reached = Pass.reached(m.stage);
+            const claimed = Pass.claimed(m.stage);
+            const freeCell = claimed
+                ? `<div class="pass-cell free done">${this.passRewardText(m.free)}<br>✅</div>`
+                : reached
+                    ? `<button class="pass-cell free claimable" onclick="UI.onClaimPass('${m.stage}')">${this.passRewardText(m.free)}<br>수령</button>`
+                    : `<div class="pass-cell free locked">${this.passRewardText(m.free)}<br>🔒</div>`;
+            const premiumCell = `<div class="pass-cell premium locked" onclick="UI.onPremiumPass()">${this.passRewardText(m.premium)}<br>🔒</div>`;
+            return `<div class="pass-milestone-label">${this.difficultyLabel(c)} ${m.stage}</div>
+                <div class="pass-row">${freeCell}${premiumCell}</div>`;
+        }).join('');
+        this.els.passModal.innerHTML = `
+            <div class="modal-card wide">
+                <div class="row" style="justify-content:space-between">
+                    <h3>⚔️ 진행 패스</h3>
+                    <span class="pass-price" onclick="UI.onPremiumPass()">${Pass.PREMIUM_PRICE_KR}</span>
+                </div>
+                <p class="muted" style="text-align:center">전투를 진행하여 보상을 받으세요!</p>
+                <div class="pass-header-row"><span>무료</span><span>프리미엄</span></div>
+                <div class="pass-track">${rowsHtml}</div>
+                <button class="btn" onclick="UI.closePass()">닫기</button>
+            </div>`;
+    },
+    onClaimPass(key) {
+        if (Pass.claim(key)) { this.toast('🎁 진행 패스 보상 수령!'); this.renderPass(); this.renderTopBar(); }
+    },
+    onPremiumPass() { this.toast('💎 프리미엄 패스는 데모 버전에서 지원하지 않습니다'); },
 
     // ---- 기술 트리 (소환 탭 서브탭, UI-SPEC 10·15~16번): 분기 4개 카드 → 분기 상세(세로 노드 트리) → 노드 팝업 ----
     _techView: 'overview', _techBranch: null, _techNode: null,

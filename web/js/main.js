@@ -19,6 +19,7 @@
         Dungeons.ensure();
         TechTree.ensure();
         Mounts.ensure();
+        Pass.ensure();
         const offline = applyOffline();
 
         UI.init();

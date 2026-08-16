@@ -511,3 +511,24 @@ body {
     background: #22272e; border: 1px solid #444c56; border-radius: .5rem; padding: .4rem .55rem; font-size: .72rem;
 }
 .league-reward-label { font-weight: 800; white-space: nowrap; }
+
+/* ---- 진행 패스 (UI-SPEC 18번) ---- */
+.pass-price {
+    background: #4a3a10; color: #ffd54f; border: 1px solid #ffd54f; border-radius: .5rem;
+    padding: .2rem .6rem; font-size: .78rem; font-weight: 800; cursor: pointer; white-space: nowrap;
+}
+.pass-header-row {
+    display: grid; grid-template-columns: 1fr 1fr; text-align: center; font-weight: 800; font-size: .78rem;
+    margin-top: .4rem; color: #90a4ae;
+}
+.pass-track { max-height: 52vh; overflow-y: auto; margin: .4rem 0; }
+.pass-milestone-label { text-align: center; font-size: .68rem; color: #90a4ae; margin: .4rem 0 .2rem; }
+.pass-row { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+.pass-cell {
+    border-radius: .5rem; padding: .45rem .3rem; text-align: center; font-size: .72rem; font-weight: 700;
+    background: #22272e; border: 1px solid #444c56; color: #eceff1; cursor: default;
+}
+.pass-cell.free.claimable { background: #1f4a2c; border-color: #2ea043; color: #7ee2a8; cursor: pointer; }
+.pass-cell.free.done { background: #1c2128; color: #69f0ae; }
+.pass-cell.locked { opacity: .55; }
+.pass-cell.premium { cursor: pointer; }
