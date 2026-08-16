@@ -150,7 +150,6 @@ const UI = {
         const p = Scene3D.heroG ? Scene3D.heroG.position : { x: Combat.HERO_X, z: 0 };
         Scene3D.damageNumber(new THREE.Vector3(p.x, 1.8, p.z), text, cls);
     },
-    toastSkill(def) { this.floatLoot(`✨ ${def.name}!`); },
 
     toast(msg) {
         const el = document.createElement('div');
@@ -1295,6 +1294,12 @@ const UI = {
     },
     closeChat() { this.els.chatModal.classList.add('hidden'); },
     renderChatFull() {
+        // 봇 메시지 도착 시 재렌더링돼도 입력 중이던 텍스트·스크롤 위치를 잃지 않도록 보존
+        const prevInput = document.getElementById('chat-input');
+        const draft = prevInput ? prevInput.value : '';
+        const prevList = document.getElementById('chat-list');
+        const wasAtBottom = !prevList || (prevList.scrollHeight - prevList.scrollTop - prevList.clientHeight < 40);
+
         const listHtml = S.chat.messages.map(m => this.chatMsgHtml(m)).join('');
         this.els.chatModal.innerHTML = `
             <div class="modal-card chat-card">
@@ -1306,8 +1311,10 @@ const UI = {
                     <button class="btn primary sm" onclick="UI.onSendChat()">전송</button>
                 </div>
             </div>`;
+        const input = document.getElementById('chat-input');
+        if (input && draft) input.value = draft;
         const list = document.getElementById('chat-list');
-        if (list) list.scrollTop = list.scrollHeight;
+        if (list && wasAtBottom) list.scrollTop = list.scrollHeight;
     },
     onSendChat() {
         const input = document.getElementById('chat-input');
