@@ -1012,26 +1012,30 @@ const UI = {
         const desc = d.type === 'heal' ? `체력을 ${Math.round(Skills.effHeal(id) * 100)}% 회복합니다.`
             : d.type === 'buff' ? Object.entries(d.buff).map(([k, v]) => (k === 'atkPct' ? '공격력' : '공격 속도') + ` +${v}%`).join(', ') + ' 버프를 겁니다.'
             : `${d.type === 'aoe' ? '범위 안의 적 전체에게' : '적 하나에게'} 각각 <b>${U.fmt(Skills.dmg(id))}의 피해</b>를 줍니다.`;
+        // 원본(shot-042426): 좌상단 원형 오브(Lv뱃지+별+검정 조각 게이지) + 우측 제목·설명,
+        // 하단 "패시브:" 라벨+회색 pill, 대형 [업그레이드(실버)][장착(파랑)] 2분할 버튼
+        const ratio = U.clamp(sk.dupes / need, 0, 1) * 100;
         this.els.detailModal.innerHTML = `
             <div class="idet-wrap">
-                <div class="modal-card paper item-detail">
-                    <div class="idet-head">
-                        <div class="idet-icon" style="--rc:${RARITY_CSS[d.rarity]}">${SKILL_ICONS[id] || '✨'}${sk.stars ? `<span class="idet-star">⭐${sk.stars}</span>` : ''}</div>
-                        <div class="idet-title">
-                            <div class="idet-name">[${RARITY_KR[d.rarity]}] ${d.name}</div>
-                            <div class="idet-main">Lv.${sk.level} <small class="muted">조각 ${sk.dupes}/${need}</small></div>
+                <div class="modal-card paper skd-card">
+                    <div class="skd-head">
+                        <div class="skd-orbcol">
+                            <span class="sk-orb" style="--rc:${RARITY_CSS[d.rarity]}">${SKILL_ICONS[id] || '✨'}<span class="sk-lv">Lv.${sk.level}</span></span>
+                            <span class="sk-star">${sk.stars ? `⭐${sk.stars}` : '⭐'}</span>
+                            <span class="sk-shard"><i style="width:${ratio}%"></i><em>${sk.dupes}/${need}</em></span>
+                        </div>
+                        <div class="skd-body">
+                            <div class="skd-name">[${RARITY_KR[d.rarity]}] ${d.name}</div>
+                            <div class="skd-desc">${desc} <small class="muted">(쿨타임 ${d.cd}초)</small></div>
                         </div>
                     </div>
-                    <div class="idet-subs">
-                        <div class="idet-lead">${desc}</div>
-                        ${pb ? `<div class="substat-row">패시브: +${U.fmt(pb.atk)} 기본 피해 · +${U.fmt(pb.hp)} 기본 체력</div>` : ''}
-                        <div class="substat-row">쿨타임 ${d.cd}초</div>
-                    </div>
-                    <div class="idet-btns">
+                    ${pb ? `<div class="skd-passive-label">패시브:</div>
+                    <div class="skd-passive">+${U.fmt(pb.atk)} 기본 피해 +${U.fmt(pb.hp)} 기본 체력</div>` : '<div class="skd-passive-label"></div>'}
+                    <div class="skd-btns">
                         ${maxed
-                            ? `<button class="btn sm ${Skills.canAscend(id) ? 'primary' : 'disabled'}" onclick="UI.onAscendSkill('${id}'); UI.openSkillDetail('${id}')">⭐ 승천</button>`
-                            : `<button class="btn sm ${Skills.canUpgrade(id) ? 'primary' : 'disabled'}" onclick="UI.onUpgradeSkill('${id}'); UI.openSkillDetail('${id}')">업그레이드</button>`}
-                        <button class="btn sm ${equipped ? '' : 'primary'}" onclick="UI.onToggleSkill('${id}'); UI.openSkillDetail('${id}')">${equipped ? '해제' : '장착'}</button>
+                            ? `<button class="btn skd-btn silver ${Skills.canAscend(id) ? '' : 'disabled'}" onclick="UI.onAscendSkill('${id}'); UI.openSkillDetail('${id}')">⭐ 승천</button>`
+                            : `<button class="btn skd-btn silver ${Skills.canUpgrade(id) ? '' : 'disabled'}" onclick="UI.onUpgradeSkill('${id}'); UI.openSkillDetail('${id}')">업그레이드</button>`}
+                        <button class="btn primary skd-btn" onclick="UI.onToggleSkill('${id}'); UI.openSkillDetail('${id}')">${equipped ? '해제' : '장착'}</button>
                     </div>
                 </div>
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>
