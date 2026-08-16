@@ -724,6 +724,7 @@ const UI = {
     },
     onConfirmPetUpgrade() {
         const target = S.pets[this._petUpgradeTarget];
+        if (target && target.level >= Pets.MAX_LEVEL) { this.toast('만렙입니다 — 승천을 이용하세요'); return; }
         const sel = this._petUpgradeMats;
         const materialPets = sel.pets.map(i => S.pets[i]);
         const materialEggs = sel.eggs.map(i => S.eggs[i]);
@@ -1598,6 +1599,8 @@ const UI = {
     },
     onConfirmMountUpgrade() {
         const name = this._mountUpgradeTarget;
+        const target = S.mounts[name];
+        if (target && target.level >= Mounts.INDIV_MAX_LEVEL) { this.toast('만렙입니다 — 승천을 이용하세요'); return; }
         const sel = this._mountUpgradeMats;
         if (!sel.length) return;
         if (!Mounts.absorbMaterials(name, sel)) return;
