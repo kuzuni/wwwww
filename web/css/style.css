@@ -559,25 +559,32 @@ body {
 .pass-cell.locked { opacity: .55; }
 .pass-cell.premium { cursor: pointer; }
 
-/* ---- 상점 탭 (UI-SPEC 17번) ---- */
+/* ---- 상점 탭 (UI-SPEC 17번, 원본 shot-042632) ---- */
 .shop-banner {
-    background: linear-gradient(90deg, #b8860b, #8d6e10); color: #fff; text-align: center; font-weight: 800;
-    border-radius: .5rem; padding: .4rem; margin: .6rem 0 .3rem; font-size: .85rem;
+    background: linear-gradient(180deg, #ffb300, #dd8a00); color: #fff; text-align: center; font-weight: 900;
+    border: 3px solid var(--pp-line); border-radius: .4rem; padding: .5rem 1rem; margin: .7rem 0 .4rem; font-size: .95rem;
 }
-.shop-deals { display: flex; flex-direction: column; gap: .5rem; margin-bottom: .4rem; }
-.shop-deal-card { background: #22272e; border: 1px solid #444c56; border-radius: .6rem; padding: .5rem .6rem; }
+.shop-deals { display: flex; flex-direction: column; gap: .6rem; margin-bottom: .3rem; }
+.shop-deal-card {
+    position: relative; background: var(--pp-paper); border: 3px solid var(--pp-line); border-radius: .8rem;
+    padding: .6rem .7rem .7rem;
+}
 .shop-deal-title {
-    display: inline-block; background: #b71c1c; color: #fff; font-weight: 800; font-size: .72rem;
-    border-radius: .3rem; padding: .12rem .5rem; margin-bottom: .35rem;
+    display: inline-block; background: var(--pp-red); color: #fff; font-weight: 800; font-size: .78rem;
+    border-radius: .3rem; padding: .15rem .6rem; margin-bottom: .5rem;
 }
-.shop-deal-reward { font-size: .8rem; font-weight: 700; }
-.shop-deal-icon { font-size: 1.8rem; }
-.shop-gems { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .4rem; }
+.shop-deal-body { display: flex; align-items: flex-end; justify-content: space-between; gap: .5rem; }
+.shop-deal-rewards { display: flex; flex-direction: column; gap: .25rem; }
+.shop-deal-rewards span { font-size: .88rem; font-weight: 800; color: var(--pp-ink); }
+.shop-deal-icon { font-size: 2.6rem; }
+.shop-deal-card .btn { margin-top: .55rem; width: 100%; }
+.shop-gems { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; }
 .shop-gem-card {
-    background: #22272e; border: 1px solid #444c56; border-radius: .6rem; padding: .5rem;
+    background: var(--pp-paper); border: 3px solid var(--pp-line); border-radius: .8rem; padding: .6rem .4rem;
     display: flex; flex-direction: column; align-items: center; gap: .4rem;
 }
-.shop-gem-amt { color: #ff8a80; font-weight: 800; font-size: .82rem; }
+.shop-gem-amt { color: var(--pp-red); font-weight: 900; font-size: .9rem; }
+.shop-gem-icon { font-size: 2rem; }
 
 /* ---- 프로필/설정 팝업 (UI-SPEC 19~20번) ---- */
 .profile-avatar-box { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
@@ -964,6 +971,7 @@ body {
 /* ---- 펫 화면 (UI-SPEC 9·12·13번): 사각 타일 그리드 + 하단 어두운 부화장 ---- */
 .cur-pill.egg { background: #b26a00; }
 .cur-pill.gem { background: #c62828; }
+.cur-pill.coin { background: #b8860b; }
 .pet-tile { background: none; border: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .1rem; }
 .pet-tile .tile-face {
     position: relative; width: 100%; aspect-ratio: 1; border-radius: .5rem;

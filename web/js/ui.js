@@ -1332,13 +1332,18 @@ const UI = {
         this.els.shopModal.classList.remove('hidden');
     },
     closeShop() { this.els.shopModal.classList.add('hidden'); },
+    // 원본(shot-042632): 전체화면 흰 페이지 + 상단 재화 pill 2개 + "오늘의 특가" 배너 +
+    // 붉은 태그가 붙은 특가 카드 3장(재화 세로 나열 + 아이콘 + 가격 버튼) + "보석" 배너 + 젬 패키지 3개
     renderShop() {
+        const GEM_ICONS = ['🪙', '👛', '💰'];
         const dealsHtml = Shop.DEALS.map(d => {
             const claimed = Shop.claimed(d.key);
+            const rewardRows = Object.entries(d.reward).map(([k, v]) =>
+                `<span>${this.CURRENCY_ICON[k] || ''}${U.fmt(v)}</span>`).join('');
             return `<div class="shop-deal-card">
                 <div class="shop-deal-title">${d.name}</div>
-                <div class="row" style="align-items:center;justify-content:space-between">
-                    <div class="shop-deal-reward">${this.passRewardText(d.reward)}</div>
+                <div class="shop-deal-body">
+                    <div class="shop-deal-rewards">${rewardRows}</div>
                     <span class="shop-deal-icon">${d.icon}</span>
                 </div>
                 <button class="btn ${claimed ? 'disabled' : 'primary'}" onclick="UI.onClaimDeal('${d.key}')">
@@ -1346,20 +1351,24 @@ const UI = {
                 </button>
             </div>`;
         }).join('');
-        const gemsHtml = Shop.GEM_PACKS.map(p => `
+        const gemsHtml = Shop.GEM_PACKS.map((p, i) => `
             <div class="shop-gem-card">
                 <div class="shop-gem-amt">◆ ${U.fmt(p.gems)}</div>
+                <span class="shop-gem-icon">${GEM_ICONS[i] || '💰'}</span>
                 <button class="btn primary" onclick="UI.onBuyGems()">${p.priceKR}</button>
             </div>`).join('');
         this.els.shopModal.innerHTML = `
-            <div class="modal-card wide">
-                <h3>🏪 상점</h3>
+            <div class="modal-card sheet">
+                <div class="sheet-head">
+                    <span class="cur-pill coin">👑 ${U.fmt(S.coins)}</span>
+                    <h2 class="sheet-title">상점</h2>
+                    <span class="cur-pill gem">◆ ${U.fmt(S.gems)}</span>
+                </div>
                 <div class="shop-banner">오늘의 특가</div>
-                <p class="muted" style="text-align:center">일일 특가 3개는 매일 09:00에 초기화됩니다</p>
+                <p class="sheet-sub">일일 특가 3개 모두 구매하면 새로운 3개가 나와요!</p>
                 <div class="shop-deals">${dealsHtml}</div>
                 <div class="shop-banner">보석</div>
                 <div class="shop-gems">${gemsHtml}</div>
-                <button class="btn" onclick="UI.closeShop()">닫기</button>
             </div>`;
     },
     onClaimDeal(key) {
