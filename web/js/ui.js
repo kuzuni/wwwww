@@ -680,8 +680,8 @@ const UI = {
         const maxed = target.level >= Pets.MAX_LEVEL;
 
         const petChips = S.pets.map((p, i) => i === this._petUpgradeTarget ? '' : `
-            <button class="mat-chip ${sel.pets.includes(i) ? 'on' : ''}" style="--rc:${RARITY_CSS[p.rarity]}" onclick="UI.onToggleUpgradeMat('pet', ${i})">
-                <span>${PET_ICONS[p.name] || '🐾'}</span><small>Lv.${p.level}</small>
+            <button class="mat-chip ${sel.pets.includes(i) ? 'on' : ''} ${S.activePets.includes(i) ? 'active' : ''}" style="--rc:${RARITY_CSS[p.rarity]}" onclick="UI.onToggleUpgradeMat('pet', ${i})">
+                <span>${PET_ICONS[p.name] || '🐾'}</span><small>Lv.${p.level}${p.stars ? ` ⭐${p.stars}` : ''}</small>
             </button>`).join('');
         const eggChips = S.eggs.map((e, i) => `
             <button class="mat-chip ${sel.eggs.includes(i) ? 'on' : ''}" style="--rc:${RARITY_CSS[e.rarity]}" onclick="UI.onToggleUpgradeMat('egg', ${i})">
@@ -1559,8 +1559,8 @@ const UI = {
         const maxed = target.level >= Mounts.INDIV_MAX_LEVEL;
 
         const matChips = Object.entries(S.mounts).filter(([n]) => n !== name).map(([n, m]) => `
-            <button class="mat-chip ${sel.includes(n) ? 'on' : ''}" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.onToggleMountUpgradeMat('${n}')">
-                <span>${MOUNT_ICONS[n] || '🐴'}</span><small>Lv.${m.level}</small>
+            <button class="mat-chip ${sel.includes(n) ? 'on' : ''} ${S.activeMount === n ? 'active' : ''}" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.onToggleMountUpgradeMat('${n}')">
+                <span>${MOUNT_ICONS[n] || '🐴'}</span><small>Lv.${m.level}${m.stars ? ` ⭐${m.stars}` : ''}</small>
             </button>`).join('');
 
         const previewXp = sel.reduce((s, n) => s + Mounts.xpValue(S.mounts[n].rarity) * Mounts.levelMult(S.mounts[n]), 0);

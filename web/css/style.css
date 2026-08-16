@@ -246,6 +246,7 @@ body {
     display: flex; flex-direction: column; align-items: center; gap: .1rem; cursor: pointer; color: #eceff1;
 }
 .mat-chip.on { background: #253326; box-shadow: 0 0 0 2px #69f0ae inset; }
+.mat-chip.active { border-color: #ffd54f; } /* 출전 중인 개체 — 재료로 고를 때 신중하도록 강조 */
 .mat-chip span { font-size: 1.1rem; }
 .mat-chip small { font-size: .58rem; color: #90a4ae; }
 
