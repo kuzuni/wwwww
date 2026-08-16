@@ -3112,13 +3112,17 @@ const Scene3D = {
         blob.userData.sharedGeometry = true;
         this.scene.add(blob);
         m.blob = blob;
-        // 등장: 위에서 낙하 + 스쿼시
-        const targetScale = m.g.scale.x;
-        m.g.position.y = 3;
-        this.addAnim(0.4, k => {
-            m.g.position.y = 3 * (1 - k) * (1 - k);
-            m.g.scale.y = targetScale * (k > 0.85 ? 1 - (k - 0.85) * 2 : 1);
-        }, () => { m.g.position.y = 0; m.g.scale.y = targetScale; m.g.userData.landed = true; });
+        // 등장: 지면을 밟고 화면 밖(+x)에서 걸어 들어옴 — 하늘 낙하 금지 (사용자 지시).
+        // 스폰 x(3.1+)는 화면 밖이고 Combat 접근 로직이 전진시키므로 즉시 접지 + 걷기 모션이 곧 등장 연출.
+        m.g.userData.landed = true;
+        if (e.isBoss) { // 보스 플러리시: 지면 먼지 파동 + 스케일 인 (접지 유지)
+            const targetScale = m.g.scale.x;
+            m.g.scale.setScalar(targetScale * 0.55);
+            this.expandRing(m.g.position.clone(), new THREE.Color(0xbcaaa4), 1.4);
+            this.addAnim(0.32, k => {
+                m.g.scale.setScalar(targetScale * (0.55 + 0.45 * (1 - (1 - k) * (1 - k))));
+            }, () => m.g.scale.setScalar(targetScale));
+        }
     },
 
     clearEnemies() {
@@ -3397,10 +3401,37 @@ const Scene3D = {
         const m = this.enemyMap.get(id);
         if (!m) return;
         this.spawnSparks(m.g.position.clone().add(new THREE.Vector3(0, 0.5, 0)), isBoss ? 40 : 16, 0xff7043);
-        this.addAnim(0.45, k => {
-            m.g.rotation.z = k * Math.PI / 2;
-            m.g.position.y = -k * 0.6;
-            m.g.scale.multiplyScalar(0.985);
+        // 사망: 피격 경직 → 무릎 꺾임 → 뒤로(+x) 쓰러짐 → 착지 먼지 → 서서히 페이드아웃 (빙글 회전·순간 소멸 금지, 사용자 지시)
+        // update 루프는 !e.alive를 건너뛰므로 이 애니메이션이 트랜스폼을 단독 소유한다.
+        const mats = [];
+        m.g.traverse(o => {
+            if (!o.isMesh || !o.material) return;
+            (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => { mt.transparent = true; mats.push(mt); });
+        });
+        const baseY = m.g.position.y, sy0 = m.g.scale.y, ox = m.g.position.x, dur = isBoss ? 1.5 : 1.05;
+        let dusted = false;
+        this.addAnim(dur, k => {
+            if (k < 0.1) {
+                m.g.position.x = ox + k * 1.2; // 피격 반동 — 뒤로 밀림
+            } else if (k < 0.5) {
+                const f = (k - 0.1) / 0.4;
+                // 무릎 꺾임(이족) 또는 몸통 주저앉음(무릎 없는 종) + 등부터 가속 낙하
+                if (m.anim && m.anim.bleg) m.anim.bleg.forEach(L => { L.knee.rotation.x = -0.15 - f * 1.5; L.hip.rotation.x = f * 0.5; });
+                else m.g.scale.y = sy0 * (1 - 0.22 * f);
+                m.g.rotation.z = -f * f * 1.45;      // -z 회전 = +x(영웅 반대) 쪽으로 눕기
+                m.g.position.y = baseY * (1 - f);    // 비행체는 지면으로 내려앉음
+            } else {
+                if (!dusted) {
+                    dusted = true;
+                    this.expandRing(new THREE.Vector3(m.g.position.x + 0.25, 0, 0), new THREE.Color(0xbcaaa4), isBoss ? 1.5 : 0.9);
+                    m.g.traverse(o => { if (o.isMesh) o.castShadow = false; }); // 페이드 중 그림자 잔존 방지 (opacity는 캐스트 섀도우에 미반영)
+                }
+                m.g.rotation.z = -1.45;
+                m.g.position.y = 0;
+                const f = (k - 0.5) / 0.5;
+                mats.forEach(mt => mt.opacity = 1 - f); // 디졸브
+                if (m.blob) m.blob.scale.setScalar(0.95 * (1 - f)); // 공유 재질인 블롭 섀도우는 스케일로만 축소
+            }
         }, () => { this.disposeTree(m.g); this.scene.remove(m.g); if (m.blob) this.scene.remove(m.blob); this.enemyMap.delete(id); });
     },
 
