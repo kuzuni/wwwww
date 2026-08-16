@@ -36,8 +36,8 @@ const Scene3D = {
         this.sun.position.set(5, 7, 4.5); // 고도를 45도 부근으로 낮춰 소품 그림자가 길게 드리우게
         this.sun.castShadow = true;
         this.sun.shadow.mapSize.set(1024, 1024); // 2048은 중급 폰에서 프레임 하락 확인 — 1024 유지
-        this.sun.shadow.camera.left = -8; this.sun.shadow.camera.right = 8;
-        this.sun.shadow.camera.top = 8; this.sun.shadow.camera.bottom = -8;
+        this.sun.shadow.camera.left = -12; this.sun.shadow.camera.right = 12;   // 소품 배치 범위 x±9.5 전체 커버
+        this.sun.shadow.camera.top = 12; this.sun.shadow.camera.bottom = -12;   // (±8은 가장자리 나무 그림자가 잘렸음)
         this.sun.shadow.camera.near = 1; this.sun.shadow.camera.far = 30;
         // 태양 반대편 서늘한 역광(그림자 없음) — 그늘진 면 실루엣이 배경에서 분리되게
         this.rim = new THREE.DirectionalLight(0xcfe4ff, 0.3);
@@ -239,7 +239,8 @@ const Scene3D = {
         const tmp = new THREE.Color();
         // 3스톱: 지평선 글로우(안개색보다 밝고 살짝 따뜻) → 안개색 → 천정. 2스톱 "배경색" 인상 제거.
         // 밤 챕터는 글로우를 거의 죽여 "흐린 낮"처럼 보이는 문제를 방지 (달빛 박명 수준만 남김)
-        const glow = horizon.clone().offsetHSL(night ? 0.02 : 0.014, night ? 0.02 : 0.12, night ? 0.025 : 0.07);
+        // 낮 글로우는 색조를 거의 유지(분홍끼 제거)하고 채도만 올려 "증발한 백색" 대신 색이 있는 지평선 띠로
+        const glow = horizon.clone().offsetHSL(night ? 0.02 : 0.004, night ? 0.02 : 0.16, night ? 0.025 : 0.04);
         for (let i = 0; i < pos.count; i++) {
             const k = U.clamp((pos.getY(i) - minY) / span, 0, 1);
             if (k < 0.24) tmp.copy(glow).lerp(horizon, k / 0.24);
@@ -578,7 +579,8 @@ const Scene3D = {
             return m;
         };
         this.mountains = [mkRidge(this.mountainMat, 70, 5.4, 8, -12)];
-        this.hills = [mkRidge(this.hillMat, 95, 3.6, 11, -19)];
+        this.farHillMat = new THREE.MeshBasicMaterial({ color: 0x9db98d }); // 최원경 3번째 레이어 — 안개 직전 톤
+        this.hills = [mkRidge(this.hillMat, 95, 3.6, 11, -19), mkRidge(this.farHillMat, 120, 2.6, 14, -25)];
 
         // 소품 공유 매테리얼 (바이옴 재구성 시 지오메트리만 버리고 매테리얼은 재사용)
         this.foliageMat = new THREE.MeshPhongMaterial({ color: 0x33691e, flatShading: true, shininess: 0 });
@@ -658,7 +660,7 @@ const Scene3D = {
             const blob = new THREE.Mesh(this.blobGeo, this.blobShadowMat); // setShadow 이후에 붙여 castShadow 제외
             blob.rotation.x = -Math.PI / 2;
             blob.position.y = 0.03;
-            blob.scale.setScalar(0.85 * s + 0.45);
+            blob.scale.setScalar(1.15 * s + 0.5); // 캐노피 밖으로 그림자가 보이도록 넉넉하게
             blob.userData.sharedGeometry = true;
             t.add(blob);
             this.scene.add(t);
@@ -668,7 +670,7 @@ const Scene3D = {
         // 스토어 스크린샷은 랜드마크로 기억된다는 원칙 — 반복 소품 나열 인상 제거
         {
             const hero = new THREE.Group();
-            const main = this.makeProp(biome, 'p', 2.6);
+            const main = this.makeProp(biome, 'p', 3.3);
             hero.add(main);
             const side = this.makeProp(biome, 'r', 1.2);
             side.position.set(1.5, 0, 0.7);
@@ -970,16 +972,30 @@ const Scene3D = {
         return g;
     },
 
-    // 수정 결정(마법/심해) — 테마색으로 발광하는 크리스탈 클러스터 + 바닥 발광 링(접지 글로우)
+    // 수정 결정(마법/심해) — 테마색으로 발광하는 크리스탈 클러스터 + 바닥 발광 링(접지 글로우) + 공중 할로
     makeCrystal(s) {
         const g = new THREE.Group();
+        let tall = 0;
         for (let i = 0; i < 3; i++) {
             const h = U.rand(0.6, 1.25) * s;
+            tall = Math.max(tall, h);
             const c = new THREE.Mesh(new THREE.ConeGeometry(U.rand(0.09, 0.15) * s, h, 5), this.crystalMat);
             c.position.set(U.rand(-0.2, 0.2) * s, h * 0.42, U.rand(-0.16, 0.16) * s);
             c.rotation.set(U.rand(-0.28, 0.28), U.rand(0, 3), U.rand(-0.28, 0.28));
             g.add(c);
         }
+        // 공중 할로 스프라이트 — 블룸 없는 파이프라인에서 "빛이 번지는" 인상을 만드는 가짜 글로우.
+        // 지면 링만으론 발광이 지면 레이어에서 끝난다는 지적 → 결정 몸통 높이에 겹침
+        if (!this.crystalHaloMat) {
+            this.crystalHaloMat = new THREE.SpriteMaterial({
+                map: this.makeGlowTexture(), color: 0x4dd9e8, transparent: true, opacity: 0.4,
+                blending: THREE.AdditiveBlending, depthWrite: false,
+            });
+        }
+        const halo = new THREE.Sprite(this.crystalHaloMat);
+        halo.position.y = tall * 0.55;
+        halo.scale.setScalar(1.5 * s);
+        g.add(halo);
         if (!this.crystalGlowMat) {
             this.crystalGlowMat = new THREE.MeshBasicMaterial({
                 map: this.makeGlowTexture(), color: 0x26c6da, transparent: true, opacity: 0.8,
@@ -2569,6 +2585,7 @@ const Scene3D = {
         // 근·중·원 3단(근경 능선 → 원경 능선 → 하늘)의 대기 원근이 읽히게 함
         this.mountainMat.color.copy(new THREE.Color(t.ground).offsetHSL(0, 0.03, -0.16).lerp(new THREE.Color(t.fog), 0.22));
         this.hillMat.color.copy(new THREE.Color(t.ground).lerp(new THREE.Color(t.fog), 0.75));
+        this.farHillMat.color.copy(new THREE.Color(t.ground).lerp(new THREE.Color(t.fog), 0.9)); // 안개에 거의 잠긴 최원경
         this.foliageMat.color.copy(new THREE.Color(t.ground).offsetHSL(-0.02, 0.08, -0.16));
         this.foliageMatDark.color.copy(new THREE.Color(t.ground).offsetHSL(-0.025, 0.09, -0.23)); // 뒤 나무용 어두운 변주
         this.foliageMatLight.color.copy(new THREE.Color(t.ground).offsetHSL(-0.015, 0.07, -0.09)); // 앞 나무용 밝은 변주
@@ -2588,7 +2605,9 @@ const Scene3D = {
             this.hemi.intensity = 0.36;
             this.rim.intensity = 0.45;
             this.sun.color.copy(new THREE.Color(0xc6d4ff).lerp(new THREE.Color(t.sky), 0.25)); // 달빛
+            this.sun.position.set(5, 6.5, -7); // 달 디스크(우측 후방)와 같은 방향에서 내려오는 역광 — 그림자가 카메라 쪽으로
         } else {
+            this.sun.position.set(5, 7, 4.5); // 낮: 우측 전방 45도
             this.sun.intensity = biome === 'lava' ? 0.85 : 1.3; // 용암은 재구름에 덮인 흐린 붉은 하늘 — 직사광 약화
             this.hemi.intensity = biome === 'lava' ? 0.42 : 0.48;
             this.rim.intensity = 0.3;
@@ -2600,7 +2619,7 @@ const Scene3D = {
         // 발광체 라이트 블리드 — 마법=크리스탈 시안, 용암=크랙 주황. 그 외 바이옴은 끔
         if (biome === 'magic') {
             this.accent.color.setHex(0x26c6da);
-            this.accent.intensity = 1.1;
+            this.accent.intensity = 2.2;
             this.accent.position.set(1.5, 1.1, -3);
         } else if (biome === 'lava') {
             this.accent.color.setHex(0xff5722);
@@ -2611,7 +2630,8 @@ const Scene3D = {
         }
         // 바이옴별 돌 색 (설원=서리 낀 밝은 회청, 사막=테라코타 악센트, 바위산=지면보다 두 단계 어둡게 — 명도 분리)
         this.stoneMat.color.setHex(
-            biome === 'snow' ? 0xc9d8e6 : biome === 'desert' ? 0xb97f5e : biome === 'rock' ? 0x515f6a : 0x90a4ae);
+            biome === 'snow' ? 0xc9d8e6 : biome === 'desert' ? 0xb97f5e : biome === 'rock' ? 0x6a6055 : 0x90a4ae);
+        // 바위산: 지면 탠과 색온도를 맞춘 웜 그레이 — "배치한 에셋" 티 제거 (쿨 그레이는 지면과 따로 놀았음)
         // 천체: 낮=해, 밤=달+별 (테마 celestial 필드로 명시, 기본 sun)
         const cel = t.celestial || 'sun';
         const night = isNight;
@@ -2621,9 +2641,10 @@ const Scene3D = {
         // 수정 결정은 테마 하늘색 계열로 발광 (마법=보라, 심해=청록이 자동 반영)
         if (biome === 'magic') {
             // 몸통은 테마색, 발광은 시안 악센트 — 단일 색상환(전부 보라/청록)에 보색 계열 포인트를 박음
-            this.crystalMat.color.copy(new THREE.Color(t.sky).offsetHSL(0, 0.1, 0.05));
-            this.crystalMat.emissive.setHex(0x26c6da);
-            this.crystalMat.emissiveIntensity = 0.95; // 어두워진 마법 챕터 팔레트 위에서 발광 대비 극대화
+            // 몸통을 어두운 청록으로 눌러 ACES에서 흰색으로 증발하지 않고 시안 발광 색이 유지되게
+            this.crystalMat.color.setHex(0x0e4b57);
+            this.crystalMat.emissive.setHex(0x1cb8cf);
+            this.crystalMat.emissiveIntensity = 1.1;
         }
         // 용암: 반구광 지면 반사색을 뜨거운 주황으로 — 소품 아랫면이 용암빛을 받는 느낌
         if (biome === 'lava') this.hemi.groundColor.setHex(0x8a3d1a);
