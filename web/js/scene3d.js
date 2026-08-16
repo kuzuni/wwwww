@@ -42,11 +42,16 @@ const Scene3D = {
         // 태양 반대편 서늘한 역광(그림자 없음) — 그늘진 면 실루엣이 배경에서 분리되게
         this.rim = new THREE.DirectionalLight(0xcfe4ff, 0.3);
         this.rim.position.set(-5, 6, -6);
-        // 발광체 라이트 블리드용 악센트 포인트라이트 — 마법=크리스탈 시안, 용암=크랙 주황이
-        // 주변 지면·소품을 실제로 물들여 "unlit 스티커" 인상을 없앰 (기본은 꺼짐, setTheme에서 바이옴별 설정)
-        this.accent = new THREE.PointLight(0xffffff, 0, 16, 2);
-        this.accent.position.set(0, 1.0, -2.5);
-        this.scene.add(this.hemi, this.sun, this.rim, this.accent);
+        // 발광체 라이트 블리드용 악센트 포인트라이트 풀(3기) — 마법=크리스탈 시안, 용암=크랙 주황이
+        // 주변 지면·소품을 실제로 물들여 "unlit 스티커" 인상을 없앰. 발광 소품(크리스탈/용암 데칼)의
+        // 자식으로 붙어 무한맵 스크롤을 함께 따라간다 (기본은 꺼짐, buildProps에서 바이옴별 부착·설정)
+        this.accents = [];
+        for (let i = 0; i < 3; i++) {
+            const pl = new THREE.PointLight(0xffffff, 0, 9, 2);
+            pl.position.set(0, 0.9, 0); // 씬에는 넣지 않음 — buildProps가 발광 바이옴에서만 소품에 부착
+            this.accents.push(pl);
+        }
+        this.scene.add(this.hemi, this.sun, this.rim);
 
         this.buildEmbers();
         this.buildSky();
@@ -222,7 +227,40 @@ const Scene3D = {
             new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false, fog: false, opacity: 0.85 })
         );
         this.stars.position.set(0, 9.5, -41); // 가시 하늘 띠 중심에 걸치게
-        this.skyDome.add(this.sunDisc, this.moonDisc, this.stars);
+        // 오로라 커튼 2장(설원 밤 전용) — 세로 그라디언트 + 수직 스트릭의 가산 리본
+        const ac = document.createElement('canvas');
+        ac.width = 256; ac.height = 128;
+        const actx = ac.getContext('2d');
+        const ag = actx.createLinearGradient(0, 0, 0, 128);
+        ag.addColorStop(0, 'rgba(80,255,190,0)');
+        ag.addColorStop(0.45, 'rgba(80,255,190,0.75)'); // 피크를 아래쪽(가시 띠 안)에 — 위쪽은 프레임 밖
+        ag.addColorStop(0.75, 'rgba(60,190,255,0.4)');
+        ag.addColorStop(1, 'rgba(60,190,255,0)');
+        actx.fillStyle = ag;
+        actx.fillRect(0, 0, 256, 128);
+        actx.globalCompositeOperation = 'destination-out'; // 수직 스트릭으로 커튼 주름 표현 (과하면 커튼 자체가 지워짐)
+        for (let i = 0; i < 16; i++) {
+            const x = Math.random() * 256, w = 2 + Math.random() * 5;
+            actx.fillStyle = `rgba(0,0,0,${0.12 + Math.random() * 0.3})`;
+            actx.fillRect(x, 0, w, 128);
+        }
+        const auroraMat = new THREE.MeshBasicMaterial({
+            map: new THREE.CanvasTexture(ac), transparent: true, depthWrite: false, fog: false,
+            blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0.6,
+            toneMapped: false, // ACES가 가산색을 잿빛으로 눌러 "옅은 안개"처럼 보였음 — 순색 유지
+            depthTest: false,  // 원경 능선 메시가 하늘 가시 띠 대부분을 depth로 가림 — 능선 위에 겹쳐 그림
+        });
+        this.aurora = new THREE.Group();
+        // 카메라가 아래를 내려다봐 하늘 가시 띠가 좁다(y5~9, 능선 위 살짝) — 그 안에 피크가 오게 배치
+        for (const [x, y, z, w, h, rz] of [[-9, 7, -39, 30, 6, 0.1], [11, 7.8, -40, 26, 5.5, -0.14]]) {
+            const rb = new THREE.Mesh(new THREE.PlaneGeometry(w, h), auroraMat);
+            rb.position.set(x, y, z);
+            rb.rotation.z = rz;
+            rb.renderOrder = 2; // 투명 패스에서 능선·하늘 뒤가 아니라 위에 확실히 얹히게
+            this.aurora.add(rb);
+        }
+        this.aurora.visible = false;
+        this.skyDome.add(this.sunDisc, this.moonDisc, this.stars, this.aurora);
     },
 
     // 돔의 정점 y좌표(천정=1 ~ 지평선=0)를 기준으로 두 색을 보간해 칠함.
@@ -251,10 +289,10 @@ const Scene3D = {
         if (this.hazeMat) this.hazeMat.color.setHex(fogHex);
         if (this.clouds) {
             // 구름은 하늘보다 확실히 밝게 띄워 대비 확보 (밤엔 달빛에 은은히 비치는 정도로만)
-            const cloudTint = new THREE.Color(skyHex).offsetHSL(0, -0.4, night ? 0.1 : 0.4);
+            const cloudTint = new THREE.Color(skyHex).offsetHSL(0, -0.5, night ? 0.1 : 0.48);
             for (const cl of this.clouds) {
                 cl.material.color.copy(cloudTint);
-                cl.material.opacity = night ? 0.4 : 0.95;
+                cl.material.opacity = night ? 0.45 : 1;
             }
         }
         if (this.embers) {
@@ -278,9 +316,9 @@ const Scene3D = {
         for (const [px, py, pr] of puffs) {
             const cx = px * size, cy = py * size, r = pr * size;
             const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-            grad.addColorStop(0, 'rgba(255,255,255,0.95)');
-            grad.addColorStop(0.55, 'rgba(255,255,255,0.6)');
-            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            grad.addColorStop(0, 'rgba(255,255,255,1)');
+            grad.addColorStop(0.62, 'rgba(255,255,255,0.85)'); // 코어를 꽉 채우고 가장자리만 짧게 떨어뜨려
+            grad.addColorStop(1, 'rgba(255,255,255,0)');       // "빛번짐"이 아닌 "덩어리"로 읽히게
             ctx.fillStyle = grad;
             ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
         }
@@ -288,7 +326,7 @@ const Scene3D = {
         ctx.globalCompositeOperation = 'source-atop';
         const shade = ctx.createLinearGradient(0, size * 0.3, 0, size * 0.9);
         shade.addColorStop(0, 'rgba(190,200,215,0)');
-        shade.addColorStop(1, 'rgba(140,155,185,0.55)'); // 아랫면 음영을 진하게 — 밝은 하늘에서도 입체가 읽히게
+        shade.addColorStop(1, 'rgba(118,136,172,0.7)'); // 아랫면 음영을 진하게 — 밝은 하늘에서도 입체가 읽히게
         ctx.fillStyle = shade;
         ctx.fillRect(0, 0, size, size);
         ctx.globalCompositeOperation = 'source-over';
@@ -299,14 +337,16 @@ const Scene3D = {
     buildClouds() {
         const tex = this.makeCloudTexture();
         this.clouds = [];
-        for (let i = 0; i < 9; i++) {
+        for (let i = 0; i < 12; i++) {
             const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, opacity: 0.9 });
             const s = new THREE.Sprite(mat);
-            const scale = U.rand(8, 15);
+            const scale = U.rand(10, 19); // "구름 0개"로 인식되던 문제 — 화면에서 확실히 읽히는 크기로 상향
             s.scale.set(scale, scale * 0.48, 1);
             // 카메라가 아래를 내려다보는 각도라 하늘 시야가 좁다 — 실제 프러스텀 안에 들어오는
             // 낮은 고도(y 4.5~7.5)에 배치해야 화면에 실제 구름 크기로 보인다.
-            s.position.set(U.rand(-25, 25), U.rand(4.5, 7.5), U.rand(-42, -30));
+            // 절반은 화면 시야(x±14) 안에 확정 배치 — 랜덤이 전부 화면 밖으로 몰리면 "빈 하늘"이 됨
+            const cx = i < 6 ? U.rand(-14, 14) : U.rand(-25, 25);
+            s.position.set(cx, U.rand(5, 8.5), U.rand(-40, -26)); // 더 가깝고 높게 — 화면에서 덩어리로 읽히게
             s.userData.baseX = s.position.x;
             s.userData.speed = U.rand(0.05, 0.14);
             this.scene.add(s);
@@ -375,37 +415,151 @@ const Scene3D = {
 
     // 절차적 잔디/지면 얼룩 텍스처 — 큰 규모 패치(마른 풀/흙 자국) + 작은 얼룩 + 미세 노이즈 3단 레이어.
     // 재질 color가 그 위에 곱해져 챕터별 톤은 그대로 유지되면서 표면 디테일만 더함.
-    makeGroundTexture() {
+    // 바이옴별 지면 알베도 텍스처 — "어느 챕터나 같은 얼룩 평면" 인상을 없애기 위해 소재가
+    // 실제로 다르게 읽히는 패턴을 바이옴마다 그린다(풀결/모래 리플/암반 균열/눈 스파클/현무암 셀).
+    // 재질 color가 곱해지므로 전부 중성 회조 기반으로 그리고, 대비는 과감하게(원거리에서도 살아남게).
+    makeGroundTexture(biome) {
         const size = 512;
         const c = document.createElement('canvas');
         c.width = c.height = size;
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#c2c2c2';
         ctx.fillRect(0, 0, size, size);
-        // 1) 큰 패치 (마른 풀/흙 얼룩 — 색조까지 살짝 변주) — 로우폴리는 "면의 색 변주"로 재질을 말하므로 과감하게
-        for (let i = 0; i < 36; i++) {
-            const x = Math.random() * size, y = Math.random() * size, r = 40 + Math.random() * 110;
-            const warm = Math.random() < 0.5;
-            const base = 135 + Math.random() * 80;
-            const cr = warm ? base + 26 : base - 14, cg = base, cb = warm ? base - 28 : base + 16;
-            ctx.fillStyle = `rgba(${cr | 0},${cg | 0},${cb | 0},${0.2 + Math.random() * 0.2})`;
-            ctx.beginPath();
-            ctx.ellipse(x, y, r, r * (0.45 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2);
-            ctx.fill();
+        // 공용: 큰 색조 패치 (소재 기저의 명도/온도 변주)
+        const patches = (n, alpha) => {
+            for (let i = 0; i < n; i++) {
+                const x = Math.random() * size, y = Math.random() * size, r = 40 + Math.random() * 110;
+                const warm = Math.random() < 0.5;
+                const base = 130 + Math.random() * 85;
+                const cr = warm ? base + 28 : base - 16, cg = base, cb = warm ? base - 30 : base + 18;
+                ctx.fillStyle = `rgba(${cr | 0},${cg | 0},${cb | 0},${alpha + Math.random() * 0.2})`;
+                ctx.beginPath();
+                ctx.ellipse(x, y, r, r * (0.45 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        };
+        // 랩어라운드 대응 짧은 스트로크 (풀결 등) — 타일 경계에서 끊긴 티가 안 나게 화면 밖은 그냥 잘림 허용(짧아서 무해)
+        const strokes = (n, len, w, ang, spread, light, dark) => {
+            ctx.lineCap = 'round';
+            for (let i = 0; i < n; i++) {
+                const x = Math.random() * size, y = Math.random() * size;
+                const a = ang + (Math.random() - 0.5) * spread;
+                const l = len * (0.6 + Math.random() * 0.8);
+                const v = Math.random() < 0.5 ? light : dark;
+                ctx.strokeStyle = `rgba(${v},${v},${v},${0.22 + Math.random() * 0.26})`;
+                ctx.lineWidth = w * (0.7 + Math.random() * 0.6);
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+                ctx.stroke();
+            }
+        };
+        switch (biome) {
+            case 'desert': { // 모래 리플 — 수평 사인 물결 밴드(밝은 크레스트 + 어두운 트로프 쌍)
+                patches(22, 0.16);
+                for (let y = -8; y < size + 8; y += 9 + Math.random() * 7) {
+                    // 가로 랩어라운드: 사인 주기를 타일 폭의 정수배로 강제해 반복 경계 이음매 제거
+                    const amp = 3 + Math.random() * 4, ph = Math.random() * 9, cyc = 10 + (Math.random() * 9 | 0);
+                    for (const [off, col, w] of [[2.6, 'rgba(96,88,74,0.34)', 3.2], [0, 'rgba(238,232,214,0.5)', 2.1]]) {
+                        ctx.strokeStyle = col;
+                        ctx.lineWidth = w;
+                        ctx.beginPath();
+                        for (let x = 0; x <= size; x += 7) {
+                            const yy = y + off + Math.sin((x / size) * cyc * Math.PI * 2 + ph) * amp;
+                            x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
+                        }
+                        ctx.stroke();
+                    }
+                }
+                break;
+            }
+            case 'rock': { // 암반 — 각진 판 조각 + 가는 균열선
+                patches(26, 0.18);
+                for (let i = 0; i < 30; i++) { // 명도가 다른 각진 셰이드 판
+                    const x = Math.random() * size, y = Math.random() * size, r = 26 + Math.random() * 60;
+                    const v = 118 + Math.random() * 96 | 0;
+                    ctx.fillStyle = `rgba(${v},${v},${v + 6},${0.2 + Math.random() * 0.22})`;
+                    ctx.beginPath();
+                    const nv = 4 + (Math.random() * 3 | 0);
+                    for (let k = 0; k < nv; k++) {
+                        const a = (k / nv) * Math.PI * 2, rr = r * (0.6 + Math.random() * 0.5);
+                        const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+                        k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                    }
+                    ctx.closePath(); ctx.fill();
+                }
+                for (let i = 0; i < 14; i++) { // 균열 폴리라인
+                    ctx.strokeStyle = `rgba(52,50,48,${0.3 + Math.random() * 0.25})`;
+                    ctx.lineWidth = 1.4 + Math.random() * 1.2;
+                    let x = Math.random() * size, y = Math.random() * size, a = Math.random() * Math.PI * 2;
+                    ctx.beginPath(); ctx.moveTo(x, y);
+                    for (let s = 0; s < 9; s++) {
+                        a += (Math.random() - 0.5) * 1.1;
+                        x += Math.cos(a) * 16; y += Math.sin(a) * 16;
+                        ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+                }
+                break;
+            }
+            case 'snow': { // 눈 — 부드러운 굴곡 음영 + 바람 스트릭 + 스파클 점
+                patches(14, 0.1);
+                strokes(90, 46, 2.4, -0.25, 0.18, 224, 156); // 바람에 쓸린 사선 결
+                for (let i = 0; i < 240; i++) { // 스파클(햇빛 반짝임 점)
+                    const x = Math.random() * size, y = Math.random() * size;
+                    ctx.fillStyle = `rgba(255,255,255,${0.5 + Math.random() * 0.5})`;
+                    ctx.fillRect(x, y, Math.random() < 0.8 ? 1.4 : 2.2, 1.4);
+                }
+                break;
+            }
+            case 'lava': { // 현무암 자갈판 — 어두운 셀 + 밝은 재 틈. 크랙 emissiveMap과 별개의 식은 표면 결
+                patches(16, 0.14);
+                for (let i = 0; i < 64; i++) {
+                    const x = Math.random() * size, y = Math.random() * size, r = 14 + Math.random() * 34;
+                    const v = 96 + Math.random() * 60 | 0;
+                    ctx.fillStyle = `rgba(${v},${v - 4},${v - 8},${0.3 + Math.random() * 0.28})`;
+                    ctx.beginPath();
+                    const nv = 5 + (Math.random() * 2 | 0);
+                    for (let k = 0; k < nv; k++) {
+                        const a = (k / nv) * Math.PI * 2 + 0.3, rr = r * (0.68 + Math.random() * 0.4);
+                        const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+                        k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                    }
+                    ctx.closePath(); ctx.fill();
+                    ctx.strokeStyle = 'rgba(190,182,170,0.3)'; // 셀 가장자리 밝은 재 라인
+                    ctx.lineWidth = 1.6;
+                    ctx.stroke();
+                }
+                break;
+            }
+            case 'magic': { // 마법 — 큰 몽환 얼룩 + 마나 가루 점
+                patches(30, 0.22);
+                for (let i = 0; i < 130; i++) {
+                    const x = Math.random() * size, y = Math.random() * size;
+                    const v = 190 + Math.random() * 65 | 0;
+                    ctx.fillStyle = `rgba(${v - 40},${v},${v},${0.25 + Math.random() * 0.4})`;
+                    ctx.fillRect(x, y, 1.6, 1.6);
+                }
+                break;
+            }
+            default: { // forest: 얼룩 + 풀결 스트로크(짧고 촘촘한 결이 "잔디 재질"을 말해줌)
+                patches(30, 0.18);
+                strokes(700, 9, 1.6, -Math.PI / 2, 0.9, 214, 96);
+                for (let i = 0; i < 160; i++) { // 풀포기 뭉침 얼룩
+                    const x = Math.random() * size, y = Math.random() * size, r = 6 + Math.random() * 22;
+                    const shade = 115 + Math.random() * 115;
+                    ctx.fillStyle = `rgba(${shade},${shade},${shade},${0.12 + Math.random() * 0.16})`;
+                    ctx.beginPath();
+                    ctx.ellipse(x, y, r, r * (0.5 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
         }
-        // 2) 작은 얼룩 (풀포기 뭉침 느낌)
-        for (let i = 0; i < 220; i++) {
-            const x = Math.random() * size, y = Math.random() * size, r = 6 + Math.random() * 26;
-            const shade = 120 + Math.random() * 110;
-            ctx.fillStyle = `rgba(${shade},${shade},${shade},${0.12 + Math.random() * 0.18})`;
-            ctx.beginPath();
-            ctx.ellipse(x, y, r, r * (0.5 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        // 3) 미세 스펙클 노이즈 (표면 거칠기)
+        // 미세 스펙클 노이즈 (표면 거칠기 — 전 바이옴 공통)
         const img = ctx.getImageData(0, 0, size, size);
+        const speck = biome === 'snow' ? 14 : 30;
         for (let i = 0; i < img.data.length; i += 4) {
-            const n = (Math.random() - 0.5) * 26;
+            const n = (Math.random() - 0.5) * speck;
             img.data[i] = U.clamp(img.data[i] + n, 0, 255);
             img.data[i + 1] = U.clamp(img.data[i + 1] + n, 0, 255);
             img.data[i + 2] = U.clamp(img.data[i + 2] + n, 0, 255);
@@ -420,26 +574,58 @@ const Scene3D = {
     // 절차적 지면 노멀맵 — 범프 높이 캔버스를 소벨 필터로 법선으로 변환.
     // 색 얼룩과 달리 조명에 실제로 반응하는 요철이라, 어두운 챕터 색(용암 등)이 곱해져도
     // 표면 디테일이 죽지 않고 "칠해진 평면" 인상을 없애준다.
-    makeGroundNormalMap() {
+    makeGroundNormalMap(biome) {
         const size = 256;
         const c = document.createElement('canvas');
         c.width = c.height = size;
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#808080';
         ctx.fillRect(0, 0, size, size);
-        // 완만한 굴곡 (흙더미/풀 뭉치 규모)
-        for (let i = 0; i < 110; i++) {
-            const x = Math.random() * size, y = Math.random() * size, r = 5 + Math.random() * 20;
-            const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-            grad.addColorStop(0, Math.random() < 0.6 ? 'rgba(255,255,255,0.32)' : 'rgba(0,0,0,0.3)');
-            grad.addColorStop(1, 'rgba(128,128,128,0)');
-            ctx.fillStyle = grad;
-            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        if (biome === 'desert') {
+            // 리플 요철 — 알베도 물결과 같은 스케일의 수평 융기(가로로 길쭉한 타원 범프)
+            for (let i = 0; i < 150; i++) {
+                const x = Math.random() * size, y = Math.random() * size;
+                const rx = 16 + Math.random() * 26, ry = 2.2 + Math.random() * 3;
+                const grad = ctx.createRadialGradient(x, y, 0, x, y, rx);
+                grad.addColorStop(0, Math.random() < 0.62 ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.36)');
+                grad.addColorStop(1, 'rgba(128,128,128,0)');
+                ctx.fillStyle = grad;
+                ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx);
+                ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
+            }
+        } else if (biome === 'rock' || biome === 'lava') {
+            // 판/자갈 요철 — 명도가 균일한 다각형 판(경계에서 급격한 법선 변화 = 각진 단차)
+            for (let i = 0; i < 70; i++) {
+                const x = Math.random() * size, y = Math.random() * size, r = 9 + Math.random() * 22;
+                const v = 92 + Math.random() * 88 | 0;
+                ctx.fillStyle = `rgb(${v},${v},${v})`;
+                ctx.beginPath();
+                const nv = 5 + (Math.random() * 2 | 0);
+                for (let k = 0; k < nv; k++) {
+                    const a = (k / nv) * Math.PI * 2 + 0.4, rr = r * (0.66 + Math.random() * 0.4);
+                    const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+                    k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                }
+                ctx.closePath(); ctx.fill();
+            }
+        } else {
+            // 완만한 굴곡 (흙더미/풀 뭉치 규모) — 눈은 굴곡을 더 크고 부드럽게
+            const soft = biome === 'snow';
+            for (let i = 0; i < (soft ? 60 : 110); i++) {
+                const x = Math.random() * size, y = Math.random() * size, r = (soft ? 12 : 5) + Math.random() * (soft ? 34 : 20);
+                const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+                grad.addColorStop(0, Math.random() < 0.6 ? 'rgba(255,255,255,0.32)' : 'rgba(0,0,0,0.3)');
+                grad.addColorStop(1, 'rgba(128,128,128,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+            }
         }
         // 미세 거칠기
         const img = ctx.getImageData(0, 0, size, size);
+        const rough = biome === 'snow' ? 16 : 34;
         for (let i = 0; i < img.data.length; i += 4) {
-            const n = (Math.random() - 0.5) * 34;
+            const n = (Math.random() - 0.5) * rough;
             const v = U.clamp(img.data[i] + n, 0, 255);
             img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
         }
@@ -525,10 +711,11 @@ const Scene3D = {
     // ---- 숲 지형: 정점 변위 로우폴리 지형 + 원경 능선 + 바이옴 소품 + 안개 ----
     buildTerrain() {
         // 각진 플랫셰이딩 지형 메시 + 얼룩 텍스처 + 노멀맵(조명 반응 요철) + 버텍스 컬러 매크로 패치
+        const gt = this.groundTexFor('forest');
         this.terrainMat = new THREE.MeshPhongMaterial({
             color: 0x7cb342, flatShading: true, shininess: 0, vertexColors: true,
-            map: this.makeGroundTexture(), normalMap: this.makeGroundNormalMap(),
-            normalScale: new THREE.Vector2(1.1, 1.1),
+            map: gt.map, normalMap: gt.normal,
+            normalScale: new THREE.Vector2(1.45, 1.45), // 헤드리스/실기기 모두에서 요철이 확실히 읽히게 상향
         });
         const geo = new THREE.PlaneGeometry(60, 30, 64, 28);
         geo.rotateX(-Math.PI / 2);
@@ -553,10 +740,10 @@ const Scene3D = {
                     + Math.sin(x * P * 2 + 4.1 - z * 0.21) * 0.38;
                 let r = 1, g = 1, b = 1;
                 if (n > 0.12) {         // 밝은 마른 풀/모래 밴드 (살짝 따뜻)
-                    const k = smooth(U.clamp((n - 0.12) / 0.5, 0, 1)) * 0.24;
+                    const k = smooth(U.clamp((n - 0.12) / 0.5, 0, 1)) * 0.32;
                     r = 1 + k * 1.15; g = 1 + k; b = 1 + k * 0.55;
                 } else if (n < -0.16) { // 어두운 흙/이끼 패치 (살짝 차게)
-                    const k = smooth(U.clamp((-n - 0.16) / 0.5, 0, 1)) * 0.3;
+                    const k = smooth(U.clamp((-n - 0.16) / 0.5, 0, 1)) * 0.38;
                     r = 1 - k * 1.15; g = 1 - k; b = 1 - k * 0.75;
                 }
                 vcol[i * 3] = r; vcol[i * 3 + 1] = g; vcol[i * 3 + 2] = b;
@@ -621,10 +808,27 @@ const Scene3D = {
         }
     },
 
+    // 바이옴별 지면 텍스처 캐시 — 챕터 전환 때마다 캔버스를 다시 그리지 않게 1회 생성 후 재사용.
+    // 모든 맵의 repeat를 12,6으로 통일(r128은 emissiveMap 등이 map의 uv변환을 공유하므로 어긋나면 안 됨).
+    groundTexFor(biome) {
+        this._gtex = this._gtex || {};
+        if (!this._gtex[biome]) {
+            this._gtex[biome] = { map: this.makeGroundTexture(biome), normal: this.makeGroundNormalMap(biome) };
+        }
+        return this._gtex[biome];
+    },
+
     // ---- 바이옴 소품 세트: 챕터에 따라 나무/덤불/바위를 통째로 갈아끼움 ----
     // (색만 바뀌던 기존 방식에서 소재 자체가 바뀌는 방식으로 — 용암=죽은 나무·화산암, 설원=눈 덮인 소나무 등)
     buildProps(biome) {
         this._biome = biome;
+        // 바이옴 전용 지면 소재(알베도+노멀) 스왑 — 같은 얼룩 텍스처의 색만 바뀌던 인상 제거
+        if (this.terrainMat) {
+            const gt = this.groundTexFor(biome);
+            this.terrainMat.map = gt.map;
+            this.terrainMat.normalMap = gt.normal;
+            this.terrainMat.needsUpdate = true;
+        }
         // 기존 소품 제거 — 매테리얼·공유 지오메트리(블롭 섀도우)는 살리고 개별 지오메트리만 해제
         for (const o of [...this.trees, ...this.rocks]) {
             o.traverse(m => { if (m.isMesh && m.geometry && !m.userData.sharedGeometry) m.geometry.dispose(); });
@@ -648,14 +852,16 @@ const Scene3D = {
         // 접지 블롭 섀도우 공유 리소스 — 소품이 지면에 "붙어" 보이게 하는 소프트 원형 그림자
         if (!this.blobShadowMat) {
             this.blobShadowMat = new THREE.MeshBasicMaterial({
-                map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.38, depthWrite: false,
+                map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false,
             });
             this.blobGeo = new THREE.PlaneGeometry(1, 1);
         }
+        const emissiveAnchors = []; // 악센트 라이트를 붙일 발광 소품(마법=크리스탈, 용암=발광 데칼)
         for (const [x, z, s, kind] of spots) {
             const t = this.makeProp(biome, kind, s);
             t.position.set(x, this.heightAt(x, z), z);
             t.rotation.y = U.rand(0, Math.PI * 2);
+            if (biome === 'magic' && kind === 'p' && z > -5) emissiveAnchors.push(t); // 근·중경 크리스탈만
             this.setShadow(t);
             const blob = new THREE.Mesh(this.blobGeo, this.blobShadowMat); // setShadow 이후에 붙여 castShadow 제외
             blob.rotation.x = -Math.PI / 2;
@@ -691,7 +897,7 @@ const Scene3D = {
         if (biome === 'lava') {
             if (!this.lavaGlowMat) {
                 this.lavaGlowMat = new THREE.MeshBasicMaterial({
-                    map: this.makeGlowTexture(), color: 0xff5722, transparent: true, opacity: 0.28,
+                    map: this.makeGlowTexture(), color: 0xff5722, transparent: true, opacity: 0.42,
                     blending: THREE.AdditiveBlending, depthWrite: false,
                 });
             }
@@ -707,6 +913,51 @@ const Scene3D = {
                 wrap.position.set(x, this.heightAt(x, z), z);
                 this.scene.add(wrap);
                 this.rocks.push(wrap);
+                emissiveAnchors.push(wrap);
+            }
+        }
+        // 악센트 포인트라이트 풀 배치 — 발광 소품의 자식으로 붙여 크리스탈/크랙 "주변"이 실제로 물들게.
+        // (고정 라이트 1개는 소품 스크롤과 어긋나 라이트 블리드가 안 읽혔음 — 3회차 비평가 지적 반영)
+        {
+            const conf = biome === 'magic' ? { color: 0x2fd8ee, intensity: 2.6, dist: 9, y: 1.0 }
+                : biome === 'lava' ? { color: 0xff5722, intensity: 2.4, dist: 9, y: 0.5 } : null;
+            const n = emissiveAnchors.length;
+            const picks = n ? [0, Math.floor(n / 2), n - 1] : []; // 몰리지 않게 앞·중간·끝에서 선택
+            this.accents.forEach((pl, i) => {
+                if (pl.parent) pl.parent.remove(pl);
+                const anchor = conf && n ? emissiveAnchors[picks[i % picks.length]] : null;
+                if (anchor) {
+                    pl.color.setHex(conf.color);
+                    pl.intensity = conf.intensity;
+                    pl.distance = conf.dist;
+                    pl.position.set(0, conf.y, 0);
+                    anchor.add(pl);
+                } else {
+                    pl.intensity = 0; // 미사용 바이옴에선 씬에서 완전히 빼 프래그먼트 라이트 평가 비용 제로화
+                }                     // (스킬 이펙트가 이미 포인트라이트를 수시로 넣었다 빼므로 셰이더 재컴파일은 기존 동작 범위)
+            });
+        }
+        // 사막 중경 공백 채우기 — 소품 라인(z≈-3)과 원경 메사(z≈-12) 사이 빈 모래밭에
+        // 암석층/마른 관목/뼈 클러스터를 깔아 화면 중단이 비어 보이던 문제 해소 (3회차 비평가 지적)
+        if (biome === 'desert') {
+            const midSpots = [
+                [-8.2, -8.8, 2.1, 'strata'], [-2.2, -9.2, 2.4, 'strata'], [3.8, -8.4, 1.9, 'shrub'],
+                [8.6, -9, 2.2, 'strata'], [-5.2, -6.9, 1.25, 'shrub'], [0.6, -7.1, 1.05, 'bones'],
+                [6, -6.6, 1.15, 'shrub'], [-9.4, -6.2, 0.95, 'bones'],
+            ];
+            for (const [x, z, s, kind] of midSpots) {
+                const p = kind === 'strata' ? this.makeStrata(s) : kind === 'shrub' ? this.makeDryShrub(s) : this.makeBones(s);
+                p.position.set(x, this.heightAt(x, z), z);
+                p.rotation.y = U.rand(0, Math.PI * 2);
+                this.setShadow(p);
+                const blob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
+                blob.rotation.x = -Math.PI / 2;
+                blob.position.y = 0.03;
+                blob.scale.setScalar(0.9 * s + 0.4);
+                blob.userData.sharedGeometry = true;
+                p.add(blob);
+                this.scene.add(p);
+                this.trees.push(p);
             }
         }
         // 작은 소품도 접지 블롭을 깔아 "떠 있는 스티커" 인상 제거 — 회전은 내부 메시에만 주고 그룹은 수평 유지
@@ -769,18 +1020,28 @@ const Scene3D = {
             this.scatter.material.dispose();
             this.scatter = null;
         }
-        let geo, mat, n = 130, flat = true, tint = 0.12;
+        if (this.scatter2) {
+            this.ground.remove(this.scatter2);
+            this.scatter2.geometry.dispose();
+            this.scatter2.material.dispose();
+            this.scatter2 = null;
+        }
+        if (this.scatter3) {
+            this.ground.remove(this.scatter3);
+            this.scatter3.geometry.dispose(); // 재질은 scatter와 공유 — 지오메트리만 해제
+            this.scatter3 = null;
+        }
+        let geo, mat, n = 190, flat = true, tint = 0.12;
         switch (biome) {
             case 'desert':
                 geo = new THREE.DodecahedronGeometry(0.05, 0);
                 mat = new THREE.MeshLambertMaterial({ color: 0xb08a63 });
                 tint = 0.14;
                 break;
-            case 'rock': // 마른 관목 포기 — 무채색 화면에 황토 악센트
-                geo = new THREE.ConeGeometry(0.05, 0.14, 5);
-                mat = new THREE.MeshLambertMaterial({ color: 0x8f7a52 });
-                flat = false;
-                tint = 0.16;
+            case 'rock': // 웜 그레이 잔자갈 — 지면과 같은 소재군 (초록/황토 콘은 "정체불명 마커"로 읽혔음)
+                geo = new THREE.DodecahedronGeometry(0.055, 0);
+                mat = new THREE.MeshLambertMaterial({ color: 0x857868 });
+                tint = 0.15;
                 break;
             case 'snow':
                 geo = new THREE.DodecahedronGeometry(0.06, 0);
@@ -790,37 +1051,77 @@ const Scene3D = {
             case 'lava': // 잔불 머금은 스코리아 자갈 — 어두워진 현무암 지면 위에서 은은한 잉걸불 악센트
                 geo = new THREE.DodecahedronGeometry(0.05, 0);
                 mat = new THREE.MeshLambertMaterial({ color: 0x3b2d27, emissive: 0x4a1505 });
+                n = 150;
                 break;
             case 'magic': // 발광 이끼 조각 — 시안 악센트
                 geo = new THREE.OctahedronGeometry(0.045, 0);
                 mat = new THREE.MeshBasicMaterial({ color: 0x4dd0e1 });
-                n = 90;
+                n = 120;
                 tint = 0.2;
                 break;
             default: // forest: 풀 포기
                 geo = new THREE.ConeGeometry(0.05, 0.16, 5);
                 mat = new THREE.MeshLambertMaterial({ color: 0x558b2f });
-                n = 160;
+                n = 240;
                 flat = false;
                 tint = 0.2;
         }
-        const m = new THREE.InstancedMesh(geo, mat, n);
-        const dummy = new THREE.Object3D();
-        const col = new THREE.Color();
-        for (let i = 0; i < n; i++) {
-            const x = U.rand(-28, 28), z = U.rand(-3.4, 2.2);
-            dummy.position.set(x, this.heightAt(x, z) + 0.02, z);
-            dummy.rotation.y = U.rand(0, Math.PI * 2);
-            const sc = U.rand(0.7, 1.6);
-            dummy.scale.set(sc, sc * (flat ? U.rand(0.45, 0.75) : U.rand(0.8, 1.4)), sc);
-            dummy.updateMatrix();
-            m.setMatrixAt(i, dummy.matrix);
-            col.copy(mat.color).offsetHSL(U.rand(-0.015, 0.015), U.rand(-0.04, 0.04), U.rand(-tint, tint));
-            m.setColorAt(i, col);
-        }
-        m.receiveShadow = true;
-        this.ground.add(m);
-        this.scatter = m;
+        // 화면 하단(카메라 앞 둔덕 z 2.2~3.4)까지 스캐터를 확장 — "하단 40% 빈 지면" 구도 결함 완화
+        const mk = (geo2, mat2, cnt, flat2, tint2, zMin, zMax) => {
+            const im = new THREE.InstancedMesh(geo2, mat2, cnt);
+            const dummy = new THREE.Object3D();
+            const col = new THREE.Color();
+            for (let i = 0; i < cnt; i++) {
+                const x = U.rand(-28, 28), z = U.rand(zMin, zMax);
+                dummy.position.set(x, this.heightAt(x, z) + 0.02, z);
+                dummy.rotation.y = U.rand(0, Math.PI * 2);
+                const sc = U.rand(0.7, 1.6);
+                dummy.scale.set(sc, sc * (flat2 ? U.rand(0.45, 0.75) : U.rand(0.8, 1.4)), sc);
+                dummy.updateMatrix();
+                im.setMatrixAt(i, dummy.matrix);
+                col.copy(mat2.color).offsetHSL(U.rand(-0.015, 0.015), U.rand(-0.04, 0.04), U.rand(-tint2, tint2));
+                im.setColorAt(i, col);
+            }
+            im.receiveShadow = true;
+            this.ground.add(im);
+            return im;
+        };
+        this.scatter = mk(geo, mat, n, flat, tint, -3.4, 3.2);
+        // 근경 전용 디테일 레이어 — 카메라 앞 둔덕(z 3.2~5.6, 화면 최하단 40%)에 같은 소재를
+        // 더 크고 촘촘하게. 세로 화면 첫인상을 결정하는 근경이 "무텍스처 단색 평면"이던 결함 해소
+        this.scatter3 = (() => {
+            const im = new THREE.InstancedMesh(geo, mat, n);
+            const dummy = new THREE.Object3D();
+            const col = new THREE.Color();
+            for (let i = 0; i < n; i++) {
+                const x = U.rand(-28, 28), z = U.rand(3.2, 5.6);
+                dummy.position.set(x, this.heightAt(x, z) + 0.02, z);
+                dummy.rotation.y = U.rand(0, Math.PI * 2);
+                const sc = U.rand(1.1, 2.4); // 근경은 원근상 더 커야 자연스럽다
+                dummy.scale.set(sc, sc * (flat ? U.rand(0.45, 0.75) : U.rand(0.8, 1.4)), sc);
+                dummy.updateMatrix();
+                im.setMatrixAt(i, dummy.matrix);
+                col.copy(mat.color).offsetHSL(U.rand(-0.015, 0.015), U.rand(-0.04, 0.04), U.rand(-tint, tint));
+                im.setColorAt(i, col);
+            }
+            im.receiveShadow = true;
+            this.ground.add(im);
+            return im;
+        })();
+        // 보조 악센트 스캐터 — 5% 악센트 색 규칙(단색 팔레트 지적 반영): 초원=들꽃, 설원=얼음 결정,
+        // 바위산=골드 야생화, 마법=보라 자갈, 사막=적갈 자갈, 용암=재 조각
+        const acc = {
+            forest: [new THREE.OctahedronGeometry(0.035, 0), 0xfff3b0, 46],
+            snow: [new THREE.ConeGeometry(0.03, 0.1, 4), 0xbfe6ff, 34],
+            rock: [new THREE.OctahedronGeometry(0.035, 0), 0xd9b44a, 36],
+            magic: [new THREE.DodecahedronGeometry(0.045, 0), 0x3d2b6e, 60],
+            desert: [new THREE.DodecahedronGeometry(0.04, 0), 0x8a5a3c, 50],
+            lava: [new THREE.DodecahedronGeometry(0.04, 0), 0x6e625c, 50],
+        }[biome] || [new THREE.OctahedronGeometry(0.035, 0), 0xfff3b0, 46];
+        const accMat = biome === 'forest' || biome === 'rock' || biome === 'snow'
+            ? new THREE.MeshBasicMaterial({ color: acc[1] }) // 들꽃/결정은 자체 발색으로 또렷하게
+            : new THREE.MeshLambertMaterial({ color: acc[1] });
+        this.scatter2 = mk(acc[0], accMat, acc[2], true, 0.1, -3, 5.2);
     },
 
     makeProp(biome, kind, s) {
@@ -828,7 +1129,7 @@ const Scene3D = {
             case 'desert': return kind === 'p' ? this.makeCactus(s)
                 : (Math.random() < 0.5 ? this.makeRockSpire(s * 0.8) : this.makeSlab(s * 0.8));
             case 'rock': return kind === 'p' ? (Math.random() < 0.65 ? this.makeRockSpire(s) : this.makeRockCluster(s * 0.9, true))
-                : (Math.random() < 0.5 ? this.makeBoulder(s * 0.75, false, Math.random() < 0.55) : this.makeSlab(s * 0.7));
+                : (Math.random() < 0.5 ? this.makeBoulder(s * 0.75, false, Math.random() < 0.8) : this.makeSlab(s * 0.7));
             case 'snow': return kind === 'p' ? this.makePine(s, true) : this.makeBoulder(s * 0.65, true);
             case 'magic': return kind === 'p' ? this.makeCrystal(s) : this.makeRoundTree(s * 0.9);
             case 'lava': return kind === 'p' ? this.makeDeadTree(s) : this.makeVolcanicRock(s * 0.7);
@@ -855,38 +1156,69 @@ const Scene3D = {
         return g;
     },
 
-    // 죽은 나무(용암) — 잎 없이 갈라진 검게 탄 가지
+    // 죽은 나무(용암) — 잎 없이 갈라진 검게 탄 가지. 2단 분기 + 부러진 우듬지로 "Y자 막대기" 인상 제거
     makeDeadTree(s) {
         const g = new THREE.Group();
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.06 * s, 0.13 * s, 0.95 * s, 6), this.charTrunkMat);
-        trunk.position.y = 0.47 * s;
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * s, 0.14 * s, 0.9 * s, 6), this.charTrunkMat);
+        trunk.position.y = 0.45 * s;
         trunk.rotation.z = U.rand(-0.09, 0.09);
         g.add(trunk);
-        for (let i = 0; i < 3; i++) {
-            const br = new THREE.Mesh(new THREE.CylinderGeometry(0.02 * s, 0.045 * s, 0.55 * s, 5), this.charTrunkMat);
-            const a = (i / 3) * Math.PI * 2 + U.rand(0, 1.2);
-            br.position.set(Math.cos(a) * 0.17 * s, (0.68 + i * 0.14) * s, Math.sin(a) * 0.17 * s);
-            br.rotation.set(Math.sin(a) * U.rand(0.5, 0.95), 0, -Math.cos(a) * U.rand(0.5, 0.95));
+        const snag = new THREE.Mesh(new THREE.CylinderGeometry(0.001, 0.05 * s, 0.2 * s, 5), this.charTrunkMat); // 부러진 우듬지 스파이크
+        snag.position.y = 0.98 * s;
+        snag.rotation.z = trunk.rotation.z;
+        g.add(snag);
+        for (let i = 0; i < 4; i++) {
+            const len = U.rand(0.4, 0.6) * s;
+            const br = new THREE.Mesh(new THREE.CylinderGeometry(0.016 * s, 0.042 * s, len, 5), this.charTrunkMat);
+            const a = (i / 4) * Math.PI * 2 + U.rand(0, 0.9);
+            const y0 = (0.5 + i * 0.13) * s;
+            br.position.set(Math.cos(a) * 0.2 * s, y0, Math.sin(a) * 0.2 * s);
+            br.rotation.set(Math.sin(a) * U.rand(0.55, 0.95), 0, -Math.cos(a) * U.rand(0.55, 0.95));
             g.add(br);
+            // 2차 잔가지 — 가지 끝에서 다른 방향으로 꺾여 나감 (실루엣 디자인)
+            const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.006 * s, 0.016 * s, len * 0.55, 4), this.charTrunkMat);
+            tw.position.set(Math.cos(a) * 0.44 * s, y0 + len * 0.3, Math.sin(a) * 0.44 * s);
+            tw.rotation.set(Math.sin(a) * U.rand(0.1, 0.5), U.rand(0, 1.5), -Math.cos(a) * U.rand(0.9, 1.4));
+            g.add(tw);
         }
         return g;
     },
 
     // 선인장(사막) — 몸통 + ㄴ자 팔
+    // 선인장(사막) — 배흘림 몸통(라테) + 둥근 팔꿈치 관절 + 반구 꼭지. "직육면체 압출" 인상 제거
     makeCactus(s) {
         const g = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * s, 0.15 * s, 1.0 * s, 8), this.cactusMat);
-        body.position.y = 0.5 * s;
+        // 몸통: 아래가 불룩한 배흘림 프로필 (수직 압출 원기둥 대신 유기적 실루엣)
+        const prof = [[0.09, 0], [0.15, 0.14], [0.165, 0.4], [0.14, 0.7], [0.1, 0.94], [0.001, 1.02]];
+        const body = new THREE.Mesh(
+            new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r * s, y * s)), 9), this.cactusMat);
         g.add(body);
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.1 * s, 9, 6, 0, Math.PI * 2, 0, Math.PI / 2), this.cactusMat);
+        cap.position.y = 0.94 * s;
+        g.add(cap);
         for (const side of [-1, 1]) {
             if (Math.random() < 0.3) continue;
-            const y = U.rand(0.42, 0.66) * s;
-            const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.065 * s, 0.075 * s, 0.28 * s, 7), this.cactusMat);
-            seg1.rotation.z = side * Math.PI / 2;
-            seg1.position.set(side * 0.25 * s, y, 0);
-            const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06 * s, 0.07 * s, 0.34 * s, 7), this.cactusMat);
-            seg2.position.set(side * 0.37 * s, y + 0.19 * s, 0);
-            g.add(seg1, seg2);
+            const y = U.rand(0.38, 0.58) * s;
+            // 팔: 수평 세그먼트 → 구 관절 → 위로 꺾인 세그먼트 → 반구 팁 (곡선형 ㄴ자)
+            const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.06 * s, 0.07 * s, 0.24 * s, 8), this.cactusMat);
+            seg1.rotation.z = side * (Math.PI / 2 - 0.18);
+            seg1.position.set(side * 0.24 * s, y + 0.02 * s, 0);
+            const joint = new THREE.Mesh(new THREE.SphereGeometry(0.065 * s, 8, 6), this.cactusMat);
+            joint.position.set(side * 0.35 * s, y + 0.05 * s, 0);
+            const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * s, 0.062 * s, 0.32 * s, 8), this.cactusMat);
+            seg2.rotation.z = side * 0.12;
+            seg2.position.set(side * 0.37 * s, y + 0.2 * s, 0);
+            const tip = new THREE.Mesh(new THREE.SphereGeometry(0.052 * s, 8, 6), this.cactusMat);
+            tip.position.set(side * 0.385 * s, y + 0.36 * s, 0);
+            g.add(seg1, joint, seg2, tip);
+        }
+        // 사막 악센트 5%: 가끔 꼭대기에 분홍 선인장 꽃
+        if (Math.random() < 0.4) {
+            if (!this.cactusFlowerMat) this.cactusFlowerMat = new THREE.MeshLambertMaterial({ color: 0xef6292 });
+            const fl = new THREE.Mesh(new THREE.OctahedronGeometry(0.055 * s, 0), this.cactusFlowerMat);
+            fl.position.y = 1.02 * s;
+            fl.scale.y = 0.7;
+            g.add(fl);
         }
         return g;
     },
@@ -934,6 +1266,58 @@ const Scene3D = {
             p.rotation.set(U.rand(-0.16, 0.16), U.rand(0, 3), U.rand(0.12, 0.42) * (i % 2 ? 1 : -1)); // 비스듬한 적층
             g.add(p);
         }
+        return g;
+    },
+
+    // 사막 중경용 수평 퇴적 암석층 — 넓은 판을 낮게 쌓아 침식된 사암층(메사 축소판)을 만듦
+    makeStrata(s) {
+        const g = new THREE.Group();
+        const n = 3 + (Math.random() * 2 | 0);
+        let y = 0.07 * s;
+        for (let i = 0; i < n; i++) {
+            const w = (1 - i * 0.16) * s;
+            const p = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), this.stoneMat);
+            p.scale.set(w * U.rand(0.95, 1.2), 0.16 * s, w * U.rand(0.55, 0.75));
+            p.position.set(U.rand(-0.06, 0.06) * s, y, U.rand(-0.05, 0.05) * s);
+            p.rotation.y = U.rand(-0.25, 0.25);
+            g.add(p);
+            y += 0.15 * s;
+        }
+        return g;
+    },
+
+    // 사막 마른 관목 — 밑동에서 사방으로 뻗는 가는 가지 다발 (죽은 덤불)
+    makeDryShrub(s) {
+        const g = new THREE.Group();
+        const n = 5 + (Math.random() * 3 | 0);
+        for (let i = 0; i < n; i++) {
+            const len = U.rand(0.3, 0.5) * s;
+            const br = new THREE.Mesh(new THREE.CylinderGeometry(0.006 * s, 0.016 * s, len, 4), this.charTrunkMat);
+            const a = (i / n) * Math.PI * 2 + U.rand(-0.3, 0.3);
+            const tilt = U.rand(0.5, 1.0); // 바깥으로 눕는 정도
+            br.position.set(Math.cos(a) * Math.sin(tilt) * len * 0.4, Math.cos(tilt) * len * 0.45, Math.sin(a) * Math.sin(tilt) * len * 0.4);
+            br.rotation.z = -Math.cos(a) * tilt;
+            br.rotation.x = Math.sin(a) * tilt;
+            g.add(br);
+        }
+        return g;
+    },
+
+    // 사막 뼈 소품 — 모래에 반쯤 묻힌 갈비뼈 아치 + 두개골 (사막 서사 디테일)
+    makeBones(s) {
+        if (!this.boneMat) this.boneMat = new THREE.MeshLambertMaterial({ color: 0xe6ddc8 });
+        const g = new THREE.Group();
+        const ribs = 3 + (Math.random() * 2 | 0);
+        for (let i = 0; i < ribs; i++) {
+            const r = new THREE.Mesh(new THREE.TorusGeometry(U.rand(0.16, 0.22) * s * (1 - i * 0.1), 0.018 * s, 5, 10, Math.PI), this.boneMat);
+            r.position.set(0, 0.02, (i - ribs / 2) * 0.14 * s);
+            r.rotation.z = U.rand(-0.12, 0.12);
+            g.add(r);
+        }
+        const skull = new THREE.Mesh(new THREE.DodecahedronGeometry(0.09 * s, 0), this.boneMat);
+        skull.position.set(U.rand(0.25, 0.35) * s, 0.06 * s, (ribs / 2) * 0.14 * s + 0.1 * s);
+        skull.scale.set(1, 0.8, 1.25);
+        g.add(skull);
         return g;
     },
 
@@ -2579,13 +2963,18 @@ const Scene3D = {
     },
     setTheme(t) {
         this.renderer.setClearColor(t.sky);
-        this.scene.fog.color.setHex(t.fog);
+        // 안개색 보정 — 원본 팔레트의 안개는 회백 베일처럼 채도를 씻어냈음. 하늘색 쪽으로 당기고
+        // 낮엔 채도를 살짝 올려 "색이 있는 대기"로 (원경이 밝은 실루엣 레이어로 분리돼 보이게)
+        const isNightPre = (t.celestial || 'sun') === 'moon';
+        const fogC = new THREE.Color(t.fog).lerp(new THREE.Color(t.sky), 0.3);
+        if (!isNightPre) fogC.offsetHSL(0, 0.09, 0.01);
+        this.scene.fog.color.copy(fogC);
         this.terrainMat.color.setHex(t.ground);
         // 능선 실루엣(MeshBasic·무조명): 근경은 어둡게·원경은 안개에 깊이 잠기게 명도 단차를 크게 벌려
         // 근·중·원 3단(근경 능선 → 원경 능선 → 하늘)의 대기 원근이 읽히게 함
-        this.mountainMat.color.copy(new THREE.Color(t.ground).offsetHSL(0, 0.03, -0.16).lerp(new THREE.Color(t.fog), 0.22));
-        this.hillMat.color.copy(new THREE.Color(t.ground).lerp(new THREE.Color(t.fog), 0.75));
-        this.farHillMat.color.copy(new THREE.Color(t.ground).lerp(new THREE.Color(t.fog), 0.9)); // 안개에 거의 잠긴 최원경
+        this.mountainMat.color.copy(new THREE.Color(t.ground).offsetHSL(0, 0.03, -0.16).lerp(fogC, 0.22));
+        this.hillMat.color.copy(new THREE.Color(t.ground).lerp(fogC, 0.75));
+        this.farHillMat.color.copy(new THREE.Color(t.ground).lerp(fogC, 0.9)); // 안개에 거의 잠긴 최원경
         this.foliageMat.color.copy(new THREE.Color(t.ground).offsetHSL(-0.02, 0.08, -0.16));
         this.foliageMatDark.color.copy(new THREE.Color(t.ground).offsetHSL(-0.025, 0.09, -0.23)); // 뒤 나무용 어두운 변주
         this.foliageMatLight.color.copy(new THREE.Color(t.ground).offsetHSL(-0.015, 0.07, -0.09)); // 앞 나무용 밝은 변주
@@ -2599,7 +2988,7 @@ const Scene3D = {
         // 태양광을 절반 수준의 서늘한 달빛으로 낮추고 림라이트를 상대적으로 키워 실루엣 위주의 밤 화면을 만듦
         const isNight = (t.celestial || 'sun') === 'moon';
         // 밤은 전역 노출도 낮춰 지면·소품까지 확실히 어둡게 (라이트 감쇠만으론 ACES 어깨에서 중간톤이 다시 떠오름)
-        this.renderer.toneMappingExposure = isNight ? 0.82 : 1.08;
+        this.renderer.toneMappingExposure = isNight ? 0.82 : 1.0; // 낮도 살짝 눌러 밸류 중간값 확보 (백화 방지)
         if (isNight) {
             this.sun.intensity = 0.55;
             this.hemi.intensity = 0.36;
@@ -2607,27 +2996,25 @@ const Scene3D = {
             this.sun.color.copy(new THREE.Color(0xc6d4ff).lerp(new THREE.Color(t.sky), 0.25)); // 달빛
             this.sun.position.set(5, 6.5, -7); // 달 디스크(우측 후방)와 같은 방향에서 내려오는 역광 — 그림자가 카메라 쪽으로
         } else {
-            this.sun.position.set(5, 7, 4.5); // 낮: 우측 전방 45도
-            this.sun.intensity = biome === 'lava' ? 0.85 : 1.3; // 용암은 재구름에 덮인 흐린 붉은 하늘 — 직사광 약화
-            this.hemi.intensity = biome === 'lava' ? 0.42 : 0.48;
+            this.sun.position.set(7, 5.2, 3.2); // 낮: 측면 45도 저고도 — 캐스트 섀도를 길게, 요철 스컬핑 최대로
+            this.sun.intensity = biome === 'lava' ? 0.85 : 1.85; // 태양 비중 상향 — "앰비언트로 뜬 파스텔" 인상 제거
+            this.hemi.intensity = biome === 'lava' ? 0.42 : 0.3; // 채움광은 낮춰 명암비 확보
             this.rim.intensity = 0.3;
-            this.sun.color.copy(new THREE.Color(0xfff3d6).lerp(new THREE.Color(t.sky), 0.22));
+            this.sun.color.copy(new THREE.Color(0xffedc4).lerp(new THREE.Color(t.sky), 0.15)); // 더 따뜻한 직사광
         }
-        // 안개 심도: 낮은 원경을 조금 더 멀리까지 보이게(상단 화이트아웃 완화), 밤·용암은 짙게 유지
-        this.scene.fog.near = isNight ? 11 : 13;
-        this.scene.fog.far = isNight || biome === 'lava' ? 30 : 35;
-        // 발광체 라이트 블리드 — 마법=크리스탈 시안, 용암=크랙 주황. 그 외 바이옴은 끔
-        if (biome === 'magic') {
-            this.accent.color.setHex(0x26c6da);
-            this.accent.intensity = 2.2;
-            this.accent.position.set(1.5, 1.1, -3);
-        } else if (biome === 'lava') {
-            this.accent.color.setHex(0xff5722);
-            this.accent.intensity = 1.3;
-            this.accent.position.set(0, 0.7, -2);
+        // ch7 마법: ch6에서 성공한 달 역광 공식이 어두운 보라 팔레트에서 안 읽힘 — 시안 림을 크게 키워
+        // 크리스탈·암석 실루엣 윤곽이 배경에서 분리되게 (3회차 비평가 지적 반영)
+        if (biome === 'magic' && isNight) {
+            this.rim.intensity = 1.05;
+            this.rim.color.setHex(0x7fdcff);
         } else {
-            this.accent.intensity = 0;
+            this.rim.color.setHex(0xcfe4ff);
         }
+        // 안개 심도: 낮은 원경을 조금 더 멀리까지 보이게(상단 화이트아웃 완화), 밤·용암은 짙게 유지.
+        // 바위산은 안개를 더 얇게 — 원경 능선·하늘이 안개에 뭉개져 분리가 안 읽히던 문제 (3회차 비평가 지적)
+        this.scene.fog.near = isNight ? 11 : biome === 'rock' ? 15 : 13;
+        this.scene.fog.far = isNight || biome === 'lava' ? 30 : biome === 'rock' ? 42 : 35;
+        // 발광체 라이트 블리드(악센트 포인트라이트 3기)는 buildProps에서 발광 소품에 직접 부착·설정됨
         // 바이옴별 돌 색 (설원=서리 낀 밝은 회청, 사막=테라코타 악센트, 바위산=지면보다 두 단계 어둡게 — 명도 분리)
         this.stoneMat.color.setHex(
             biome === 'snow' ? 0xc9d8e6 : biome === 'desert' ? 0xb97f5e : biome === 'rock' ? 0x6a6055 : 0x90a4ae);
@@ -2638,6 +3025,7 @@ const Scene3D = {
         this.sunDisc.visible = cel === 'sun';
         this.moonDisc.visible = cel === 'moon';
         this.stars.visible = cel === 'moon';
+        if (this.aurora) this.aurora.visible = biome === 'snow' && night; // 설원 밤 전용 오로라
         // 수정 결정은 테마 하늘색 계열로 발광 (마법=보라, 심해=청록이 자동 반영)
         if (biome === 'magic') {
             // 몸통은 테마색, 발광은 시안 악센트 — 단일 색상환(전부 보라/청록)에 보색 계열 포인트를 박음
@@ -2660,7 +3048,12 @@ const Scene3D = {
             this.terrainMat.emissiveIntensity = 1;
         }
         this.terrainMat.needsUpdate = true; // emissiveMap 유무가 바뀌면 셰이더 재컴파일 필요
-        this.paintSky(t.sky, t.fog, night);
+        // 마법 챕터: 무광 검정 실루엣으로 보이던 롤리팝 나무에 은은한 보라 발광을 얹어 "언릿 소품" 인상 제거
+        for (const fm of this.foliageMats) {
+            fm.emissive.setHex(biome === 'magic' ? 0x4a2f8f : 0x000000);
+            fm.emissiveIntensity = biome === 'magic' ? 0.34 : 1;
+        }
+        this.paintSky(t.sky, fogC.getHex(), night);
     },
 
     shake(mag) { this.shakeMag = Math.max(this.shakeMag, mag); },

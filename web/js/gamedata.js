@@ -294,10 +294,10 @@ const UNLOCKS = [
 const CHAPTER_THEMES = [
     { sky: 0x87ceeb, fog: 0xa8d8ea, ground: 0x7cb342, biome: 'forest' },                    // 1 초원
     { sky: 0xffcc80, fog: 0xffe0b2, ground: 0xbca77b, biome: 'desert' },                    // 2 사막
-    { sky: 0x9fb0bd, fog: 0xc3ccd4, ground: 0x6b6157, biome: 'rock' },                      // 3 바위산 (근경 어둡고 따뜻, 원경 밝고 차게 — 3단 명도 계단)
+    { sky: 0x7f9cbd, fog: 0xaebfd4, ground: 0x6b6157, biome: 'rock' },                      // 3 바위산 (웜 그레이 지면 × 쿨 블루 하늘 — 회색×회색 단색 화면의 hue 분리)
     { sky: 0x4a6572, fog: 0x607d8b, ground: 0x455a64, biome: 'forest' },                    // 4 폭풍
     { sky: 0x263238, fog: 0x37474f, ground: 0x33691e, biome: 'forest', celestial: 'moon' }, // 5 밤 숲
-    { sky: 0x1a237e, fog: 0x283593, ground: 0x3949ab, biome: 'snow', celestial: 'moon' },   // 6 설원 밤
+    { sky: 0x1a237e, fog: 0x283593, ground: 0xaac2e2, biome: 'snow', celestial: 'moon' },   // 6 설원 밤 (눈 고유색 복원 — 남색 지면은 "파란 지형"으로 보였음)
     { sky: 0x2e1a72, fog: 0x3a2384, ground: 0x352061, biome: 'magic', celestial: 'moon' },  // 7 마법 (지면·하늘을 눌러 크리스탈 발광이 튀게)
     { sky: 0x006064, fog: 0x00838f, ground: 0x00acc1, biome: 'magic', celestial: 'none' },  // 8 심해
     { sky: 0xbf360c, fog: 0xd84315, ground: 0x231a17, biome: 'lava' },                      // 9 용암 (어두운 현무암 + 작열 크랙 — 하늘 대비 지면을 깊게 누름)
