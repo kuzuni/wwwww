@@ -52,7 +52,7 @@ const Forge = {
 
         // 서브스탯: 등급 순번+1개까지 랜덤
         const numSubs = U.randInt(1, Math.min(4, RARITIES.indexOf(rarity) + 1));
-        const subs = U.rollSubs(rarity, numSubs);
+        const subs = U.rollSubs(numSubs);
 
         // 무기: 타입 10종(근거리 5/원거리 5) 중 랜덤 — 모델·모션 결정
         // 투구/갑옷: 카탈로그 이름 인덱스 저장 — 이름별 3D 디자인 결정

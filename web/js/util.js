@@ -59,21 +59,28 @@ const U = {
     clamp: (v, a, b) => Math.min(b, Math.max(a, v)),
     lerp: (a, b, t) => a + (b - a) * t,
 
-    // 서브스탯 count개를 SUBSTATS 풀에서 중복 없이 굴림 (장비·펫·마운트 공용 옵션 체계)
-    rollSubs(rarity, count) {
+    // 서브스탯 count개를 SUBSTATS 풀에서 중복 없이 굴림 (장비·펫·마운트 공용 옵션 체계).
+    // 원본과 동일하게 값 범위는 등급과 무관한 1%~최대치 — 등급은 굴리는 개수만 정한다.
+    rollSubs(count) {
         const pool = [...SUBSTATS];
         const subs = [];
         for (let i = 0; i < count && pool.length; i++) {
             const idx = this.randInt(0, pool.length - 1);
-            const [key, label, caps] = pool.splice(idx, 1)[0];
-            const cap = caps[RARITIES.indexOf(rarity)];
-            subs.push({ key, label, value: +(this.rand(cap * 0.4, cap).toFixed(1)) });
+            const [key, label, max] = pool.splice(idx, 1)[0];
+            subs.push({ key, label, value: +(this.rand(SUBSTAT_MIN, max).toFixed(1)) });
         }
         return subs;
     },
 
     // 서브스탯 1개를 표시용 문자열로 (스킬 쿨감만 감소값이라 '-' 부호)
     subText(s) { return `${s.key === 'skillCd' ? '-' : '+'}${s.value}% ${s.label}`; },
+
+    // 서브스탯 풀 범위 표기 — 원본 장비 상세 팝업 형식 ("+1% - 12%", 쿨감만 "-1% - -7%")
+    subRangeText(key, max) {
+        return key === 'skillCd'
+            ? `-${SUBSTAT_MIN}% - -${max}%`
+            : `+${SUBSTAT_MIN}% - ${max}%`;
+    },
 
     // subs 배열들을 키별로 합산 (장비·펫·탈것 공용 서브스탯 집계)
     sumSubs(...subsLists) {

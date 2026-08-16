@@ -49,7 +49,7 @@ const Mounts = {
 
     canSummon() { return S.winders >= WINDERS_PER_SUMMON; },
 
-    rollSubs(rarity) { return U.rollSubs(rarity, 2); },
+    rollSubs() { return U.rollSubs(2); },
 
     // 개체 레벨(합성으로만 상승)에 따른 고정 스탯 배율 — pets.js와 동일 자체 설계 곡선
     levelMult(m) { return 1 + 0.12 * (m.level - 1); },
@@ -129,7 +129,7 @@ const Mounts = {
             // 중복은 합성/승천 재료(dupes)로만 적립. 레벨업은 '업그레이드' 팝업에서 다른 탈것을 흡수해서만 진행 (펫과 동일 방식)
             owned.dupes++;
         } else {
-            S.mounts[name] = { rarity, level: 1, dupes: 0, stars: 0, xp: 0, subs: this.rollSubs(rarity) };
+            S.mounts[name] = { rarity, level: 1, dupes: 0, stars: 0, xp: 0, subs: this.rollSubs() };
             // 장착 중인 탈것이 없으면 자동 장착
             if (!S.activeMount) this.equip(name);
         }

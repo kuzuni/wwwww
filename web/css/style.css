@@ -699,3 +699,132 @@ body {
     padding: .5rem .8rem; color: #eceff1; font-size: .82rem;
 }
 .btn.round { width: 2.2rem; height: 2.2rem; border-radius: 50%; padding: 0; flex: none; }
+
+/* ==========================================================================
+   원본 톤 레이어 (UI-SPEC 5번 — 흰 카툰 팝업 카드 / 검은 외곽선 / 파란 주요 버튼)
+   원본 스크린샷 web/ref/screens/*.png 기준. 다크 UI를 원본 플랫 카툰 톤으로 덮는다.
+   ========================================================================== */
+:root {
+    --pp-paper: #fff;          /* 팝업 바탕 */
+    --pp-ink: #17181a;         /* 본문 글자 */
+    --pp-line: #17181a;        /* 외곽선 (원본은 굵은 검정) */
+    --pp-panel: #efefef;       /* 팝업 안 회색 패널 */
+    --pp-muted: #8a8a8a;       /* 보조 글자 */
+    --pp-blue: #2f7dfa;  --pp-blue-dk: #1b56c4;
+    --pp-red: #e8362f;   --pp-red-dk: #a51710;
+    --pp-green: #35c04f; --pp-green-dk: #1f8c34;
+    --pp-gray: #c4c4c4;  --pp-gray-dk: #9a9a9a;
+    --pp-sheet: #f2f0ea;       /* 하단 장비 시트 바탕 */
+}
+
+/* ---- 팝업 카드: 흰 바탕 + 굵은 검정 외곽선 ---- */
+.modal-card {
+    background: var(--pp-paper); color: var(--pp-ink);
+    border: 3px solid var(--pp-line); border-radius: 1.1rem;
+    box-shadow: 0 .5rem 0 rgba(0,0,0,.25);
+}
+.modal-card h2, .modal-card h3, .modal-card h4 { color: var(--pp-ink); }
+.modal-card .muted, .modal-card .item-stat, .modal-card .age-pct,
+.modal-card .forge-item-cell small, .modal-card .mat-chip small { color: var(--pp-muted); }
+.modal-card .big-stat, .modal-card .cell-lv { color: var(--pp-ink); }
+
+/* 팝업 안 서브 카드/칩: 흰 바탕 + 검정 테두리 */
+.modal-card .pet-card, .modal-card .dungeon-card, .modal-card .tech-node,
+.modal-card .cmp-card, .modal-card .mat-chip, .modal-card .forge-item-cell,
+.modal-card .hatch-slot, .modal-card .egg-chip, .modal-card .equip-cell,
+.modal-card .check-row, .modal-card .stat-grid {
+    background: var(--pp-paper); border-color: var(--pp-line); color: var(--pp-ink);
+}
+.modal-card .substat-list, .modal-card .prob-box, .modal-card .upg-progress,
+.modal-card .age-bar-wrap { background: var(--pp-panel); }
+.modal-card .substat-row { border-color: #dcdcdc; color: var(--pp-ink); }
+.modal-card .icon-circle { background: var(--pp-panel); border-color: var(--pp-line); }
+.modal-card .cmp-tag { background: var(--pp-panel); color: var(--pp-muted); }
+.modal-card .stat-grid div:nth-child(even) { color: var(--pp-ink); }
+
+/* ---- 버튼: 파란 주요 / 빨간 위험 / 회색 비활성, 모두 검정 테두리 + 아래쪽 그림자 턱 ---- */
+.modal-card .btn, .panel .btn, #equip-sheet .btn {
+    border: 3px solid var(--pp-line); border-radius: .7rem; font-weight: 800;
+    background: var(--pp-gray); color: var(--pp-ink);
+    box-shadow: inset 0 -.22rem 0 var(--pp-gray-dk);
+}
+.modal-card .btn small, .panel .btn small, #equip-sheet .btn small { color: inherit; opacity: .85; }
+.modal-card .btn.primary, .panel .btn.primary, #equip-sheet .btn.primary,
+.modal-card .btn.on, .panel .btn.on, #equip-sheet .btn.on {
+    background: var(--pp-blue); color: #fff; box-shadow: inset 0 -.22rem 0 var(--pp-blue-dk);
+}
+.modal-card .btn.danger, .panel .btn.danger, .modal-card .btn.sell {
+    background: var(--pp-red); color: #fff; box-shadow: inset 0 -.22rem 0 var(--pp-red-dk);
+}
+.modal-card .btn.equip, .panel .btn.equip { background: var(--pp-blue); color: #fff; box-shadow: inset 0 -.22rem 0 var(--pp-blue-dk); }
+.modal-card .btn.disabled, .panel .btn.disabled, #equip-sheet .btn.disabled {
+    background: var(--pp-gray); color: #7b7b7b; box-shadow: inset 0 -.22rem 0 var(--pp-gray-dk); opacity: .75;
+}
+.modal-card .btn:active, .panel .btn:active, #equip-sheet .btn:active { transform: translateY(.1rem); box-shadow: none; }
+
+/* ---- 하단 시트(패널): 원본은 흰 전체화면 ---- */
+.panel {
+    background: var(--pp-paper); color: var(--pp-ink);
+    border-top: 3px solid var(--pp-line); box-shadow: 0 -.4rem 0 rgba(0,0,0,.18);
+}
+.panel h2, .panel h3 { color: var(--pp-ink); }
+.panel .muted, .panel .item-stat { color: var(--pp-muted); }
+.panel .pet-card, .panel .hatch-slot, .panel .egg-chip, .panel .tech-node,
+.panel .mat-chip, .panel .stat-grid, .panel .check-row {
+    background: var(--pp-paper); border-color: var(--pp-line); color: var(--pp-ink);
+}
+.panel .icon-circle { background: var(--pp-panel); border-color: var(--pp-line); }
+.panel .stat-grid div:nth-child(even) { color: var(--pp-ink); }
+.subtab-strip button {
+    background: var(--pp-panel); border: 3px solid var(--pp-line); color: var(--pp-ink); font-weight: 800;
+}
+.subtab-strip button.active { background: var(--pp-blue); border-color: var(--pp-line); color: #fff; }
+
+/* ---- 장비 시트: 밝은 바탕 + 진한 장비 카드 ---- */
+#equip-sheet { background: var(--pp-sheet); border-top: 3px solid var(--pp-line); }
+#equip-sheet .equip-cell {
+    background: #4e2b2b; border: 3px solid var(--pp-line); border-radius: .6rem;
+}
+#equip-sheet .equip-cell.empty { background: #d8d5cd; }
+#equip-sheet .equip-cell.empty .slot-name { color: #6d6a63; }
+#equip-sheet .equip-cell .cell-lv { color: #fff; text-shadow: 0 1px 0 #000; }
+#equip-sheet .equip-cell.egg-cell { background: #2f8ef4; }
+#equip-sheet .info-btn { background: var(--pp-paper); border: 2px solid var(--pp-line); color: var(--pp-ink); }
+#equip-sheet .anvil-btn { border: 3px solid var(--pp-line); }
+#equip-sheet .forge-time { color: #6d6a63; }
+#chat-preview { background: var(--pp-sheet); color: #3c3a35; border-top: 2px solid var(--pp-line); }
+
+/* ---- 장비 상세 팝업 (원본 비율: 카드폭 82%, 아이콘 18%, 회색 패널 93%) ---- */
+.modal-card.item-detail {
+    width: 82%; padding: 4.4%; gap: 0; text-align: left;
+}
+.idet-head { display: flex; align-items: flex-start; gap: 4.2%; }
+.idet-icon {
+    position: relative; width: 18%; aspect-ratio: 1; flex: none;
+    border: 2px solid #d5d5d5; border-radius: .55rem; background: #e9e9e9;
+    display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+}
+.idet-icon img { width: 88%; height: 88%; object-fit: contain; }
+.idet-star { position: absolute; left: 6%; bottom: -14%; font-size: .8rem; }
+.idet-title { min-width: 0; display: flex; flex-direction: column; gap: .2rem; padding-top: .1rem; }
+.idet-name { font-size: 1.05rem; font-weight: 800; color: var(--pp-ink); }
+.idet-main { font-size: 1rem; font-weight: 800; color: var(--pp-ink); }
+.idet-chance { font-size: .72rem; font-weight: 700; color: var(--pp-muted); }
+.idet-subs {
+    margin-top: 7%; background: var(--pp-panel); border-radius: .8rem; padding: 4%;
+    display: flex; flex-direction: column; gap: .18rem;
+}
+.idet-lead { font-size: .86rem; font-weight: 800; color: var(--pp-ink); margin-bottom: .4rem; line-height: 1.35; }
+.idet-subs .substat-row {
+    border: none; background: none; padding: 0; display: block;
+    font-size: .82rem; font-weight: 700; color: var(--pp-muted); line-height: 1.4;
+}
+.idet-wrap { display: flex; flex-direction: column; align-items: center; gap: 1.1rem; width: 100%; }
+/* 원본 공통: 팝업 하단 중앙의 빨간 원형 X 닫기 버튼 */
+.x-btn {
+    width: 3.4rem; height: 3.4rem; border-radius: 50%; cursor: pointer;
+    background: var(--pp-red); color: #fff; border: 3px solid var(--pp-line);
+    font-size: 1.5rem; font-weight: 900; line-height: 1; padding: 0;
+    box-shadow: inset 0 -.28rem 0 var(--pp-red-dk);
+}
+.x-btn:active { transform: translateY(.12rem); box-shadow: none; }

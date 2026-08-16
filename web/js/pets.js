@@ -99,7 +99,7 @@ const Pets = {
                     existing.dupes++;
                     UI.toast(`🥚 ${PET_KR[def.name] || def.name} 중복 획득 (재료 ${existing.dupes})`);
                 } else {
-                    S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, xp: 0, stars: 0, subs: this.rollSubs(h.rarity) });
+                    S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, xp: 0, stars: 0, subs: this.rollSubs() });
                     if (S.activePets.length < this.MAX_ACTIVE) {
                         S.activePets.push(S.pets.length - 1);
                         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
@@ -122,8 +122,8 @@ const Pets = {
     // 레벨(합성으로만 상승)에 따른 고정 스탯 배율 — 원본 레벨 커브 미확보, 자체 설계
     levelMult(p) { return 1 + 0.12 * (p.level - 1); },
 
-    // 옵션 2개: 장비와 동일한 서브스탯 풀에서 등급 상한치 기준으로 굴림
-    rollSubs(rarity) { return U.rollSubs(rarity, 2); },
+    // 옵션 2개: 장비와 동일한 서브스탯 풀(등급 무관 1%~최대치)에서 굴림
+    rollSubs() { return U.rollSubs(2); },
 
     // 장착(출전) 시 펫 1마리가 기여하는 고정 데미지·체력 (petStats 원본 수치 × 레벨 배율 × 승천 배율)
     petPower(p) {
