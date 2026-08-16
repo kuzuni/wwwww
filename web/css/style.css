@@ -49,7 +49,16 @@ body {
     position: absolute; top: .6rem; left: 50%; transform: translateX(-50%);
     font-size: 1.15rem; font-weight: 800; text-shadow: 0 2px 6px rgba(0,0,0,.6);
 }
-#wave-pips { position: absolute; top: 2.3rem; left: 50%; transform: translateX(-50%); display: flex; gap: .3rem; }
+/* 웨이브 진행 점: 원본처럼 점들을 선으로 이어 표시 (●─○) */
+#wave-pips {
+    position: absolute; top: 2.3rem; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: .3rem; padding: 0 .15rem;
+}
+#wave-pips::before {
+    content: ''; position: absolute; left: .35rem; right: .35rem; top: 50%;
+    height: 2px; margin-top: -1px; background: rgba(255,255,255,.3); border-radius: 1px;
+}
+#wave-pips .pip { position: relative; z-index: 1; }
 .pip { width: .55rem; height: .55rem; border-radius: 50%; background: rgba(255,255,255,.25); }
 .pip.done { background: #69f0ae; }
 .pip.now { background: #fff; box-shadow: 0 0 6px #fff; }
@@ -129,25 +138,30 @@ body {
     15% { opacity: 1; transform: translate(-50%,-50%) scale(1.4) rotate(3deg); }
     100% { opacity: 0; margin-top: -3.5rem; transform: translate(-50%,-50%) scale(1); } }
 
-/* ---- 스킬 바 ---- */
+/* ---- 스킬 슬롯 (전투 화면 우중단 — UI-SPEC 1번: 초록 자동 토글 + 검은 원형 버튼 3개) ---- */
 #skill-bar {
-    display: flex; gap: .45rem; padding: .45rem .6rem; background: #1c2128;
-    border-top: 1px solid #30363d; z-index: 5; min-height: 3.6rem;
+    position: absolute; right: .5rem; bottom: .6rem; z-index: 4;
+    display: flex; align-items: center; gap: .4rem;
 }
 .skill-btn {
-    position: relative; flex: 1; border: 2px solid var(--sc, #546e7a); border-radius: .6rem;
-    background: #22272e; color: #eceff1; font-weight: 700; font-size: .66rem;
-    cursor: pointer; overflow: hidden; padding: .2rem .1rem;
-    display: flex; flex-direction: column; align-items: center; gap: .05rem;
+    position: relative; width: 2.9rem; height: 2.9rem; border-radius: 50%;
+    border: 2px solid var(--sc, #546e7a); background: #11151a; color: #eceff1;
+    font-weight: 700; cursor: pointer; overflow: hidden; padding: 0;
+    display: flex; align-items: center; justify-content: center;
 }
-.skill-btn .sk-icon { font-size: 1.15rem; line-height: 1.2; }
+.skill-btn .sk-icon { font-size: 1.35rem; line-height: 1; }
+.skill-btn .sk-name { display: none; }
 .skill-btn.ready { box-shadow: 0 0 8px var(--sc, transparent); }
 .skill-btn .sk-cd {
     position: absolute; left: 0; bottom: 0; width: 100%; height: 0;
     background: rgba(0,0,0,.65); pointer-events: none;
 }
-.skill-btn.auto { flex: 0 0 3.2rem; border-color: #546e7a; color: #90a4ae; }
-.skill-btn.auto.on { border-color: #ffd54f; color: #ffd54f; box-shadow: 0 0 8px rgba(255,213,79,.4); }
+/* 자동 토글: 원본은 초록 알약 버튼 */
+.skill-btn.auto {
+    width: auto; height: 1.9rem; border-radius: 1rem; padding: 0 .6rem;
+    font-size: .72rem; background: #2f3a33; border-color: #546e7a; color: #90a4ae;
+}
+.skill-btn.auto.on { background: #2e7d32; border-color: #69f0ae; color: #fff; box-shadow: 0 0 8px rgba(105,240,174,.45); }
 
 /* ---- 패널 (하단 시트) ---- */
 .panel {
@@ -267,16 +281,26 @@ body {
 .equip-cell.egg-cell { cursor: default; }
 .equip-cell .slot-name { font-size: .6rem; color: #90a4ae; }
 .equip-cell .cell-lv { font-size: .68rem; font-weight: 800; color: #ffd54f; white-space: nowrap; }
-.anvil-row { display: flex; align-items: center; gap: .6rem; }
+/* 모루 = 중앙 큰 제작 버튼, 좌측 ⓘ, 우측 대장간 버튼 2개 (UI-SPEC 1번) */
+.anvil-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .4rem; }
+.anvil-side { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.anvil-side.left { align-items: flex-start; }
+.anvil-side.right { align-items: stretch; }
+.info-btn {
+    width: 1.5rem; height: 1.5rem; border-radius: 50%; cursor: pointer;
+    background: #22272e; border: 1px solid #444c56; color: #90a4ae; font-size: .8rem;
+    display: flex; align-items: center; justify-content: center; padding: 0;
+}
 .anvil-btn {
-    flex: none; width: 3.6rem; height: 3.6rem; border-radius: .7rem; cursor: pointer;
+    flex: none; width: 5.2rem; height: 4.4rem; border-radius: .7rem; cursor: pointer;
     background: linear-gradient(160deg, #a1887f, #5d4037); border: 2px solid #3e2723; color: #fff;
-    font-size: 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .05rem;
+    font-size: 2.1rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .05rem;
 }
 .anvil-btn:active { filter: brightness(1.15); }
-.anvil-btn small { font-size: .6rem; font-weight: 700; color: #ffe0b2; }
-.forge-actions { flex: 1; display: flex; flex-direction: column; gap: .3rem; }
-.forge-actions .btn { width: 100%; }
+.anvil-btn small { font-size: .68rem; font-weight: 800; color: #ffe0b2; }
+.forge-actions { display: flex; gap: .3rem; }
+.forge-actions .btn { flex: 1; line-height: 1.15; padding: .25rem .2rem; font-size: .68rem; }
+.forge-time { font-size: .62rem; font-weight: 700; color: #90a4ae; text-align: center; }
 
 .hatch-slot {
     flex: 1; background: #22272e; border: 1px dashed var(--rc, #444c56); border-radius: .5rem;

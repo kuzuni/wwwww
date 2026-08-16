@@ -162,15 +162,17 @@ const UI = {
     },
 
     // ---- 스킬 바 ----
+    // 자동 토글이 좌측, 원형 스킬 버튼이 우측 (UI-SPEC 1번 우중단 배치)
     renderSkillBar() {
-        this.els.skillBar.innerHTML = S.equippedSkills.map(id => {
+        this.els.skillBar.innerHTML = `<button class="skill-btn auto ${S.autoCast ? 'on' : ''}" onclick="UI.toggleAuto()">자동</button>`
+            + S.equippedSkills.map(id => {
             const d = Skills.def(id);
-            return `<button class="skill-btn" id="sb-${id}" style="--sc:${d.color}" onclick="Combat.tryCast('${id}', true)">
+            return `<button class="skill-btn" id="sb-${id}" style="--sc:${d.color}" title="${d.name}" onclick="Combat.tryCast('${id}', true)">
                 <span class="sk-icon">${SKILL_ICONS[id] || '✨'}</span>
                 <span class="sk-name">${d.name}</span>
                 <span class="sk-cd" id="sbcd-${id}"></span>
             </button>`;
-        }).join('') + `<button class="skill-btn auto ${S.autoCast ? 'on' : ''}" onclick="UI.toggleAuto()">AUTO</button>`;
+        }).join('');
     },
     toggleAuto() {
         S.autoCast = !S.autoCast;
@@ -196,11 +198,13 @@ const UI = {
         const upgrading = !!S.forgeUpgradeEndsAt;
         let forgeBtnHtml;
         if (!info) forgeBtnHtml = `<button class="btn sm disabled">대장간 최고 레벨</button>`;
-        else if (upgrading) {
-            forgeBtnHtml = `<button class="btn sm primary" onclick="UI.openForgeInfo()">⏱ <span id="equip-upg-time">${U.fmtTime((S.forgeUpgradeEndsAt - U.now()) / 1000)}</span></button>`;
-        } else {
-            forgeBtnHtml = `<button class="btn sm primary" onclick="UI.openForgeInfo()">대장간 레벨 ${S.forgeLevel}</button>`;
+        else {
+            // 원본은 버튼에 "대장간 레벨 N"만 두고 남은 시간은 버튼 아래 별도 줄에 표시
+            forgeBtnHtml = `<button class="btn sm primary" onclick="UI.openForgeInfo()">대장간<br>레벨 ${S.forgeLevel}</button>`;
         }
+        const upgTimeHtml = upgrading
+            ? `<div class="forge-time" id="equip-upg-time">${U.fmtTime((S.forgeUpgradeEndsAt - U.now()) / 1000)}</div>`
+            : '';
 
         // 카드 = 아이콘 + Lv + 별만 표시 (컴팩트, UI-SPEC 1번). 상세 정보는 클릭 시 '장비 세부정보 팝업'(UI-SPEC 26번)
         const autoUnlocked = isUnlocked('autoForge');
@@ -221,14 +225,21 @@ const UI = {
             </div>`
             : `<div class="equip-cell egg-cell empty"><span class="slot-name">부화 없음</span></div>`;
 
+        // 모루가 중앙, 우측에 [대장간 레벨 N]·[자동🔄] 가로 배치, 좌측에 ⓘ(모든 장비 목록) — UI-SPEC 1번
         this.els.equipSheet.innerHTML = `
             <div class="equip-grid">${equipHtml}${eggCellHtml}</div>
             <div class="anvil-row">
+                <div class="anvil-side left">
+                    <button class="info-btn" title="모든 장비 목록" onclick="UI.openForgeItemList()">ⓘ</button>
+                </div>
                 <button class="anvil-btn" onclick="UI.onCraft()">⚒️<small>🔨 ${U.fmt(S.hammers)}</small></button>
-                <div class="forge-actions">
-                    ${forgeBtnHtml}
-                    <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.openAutoForge()">
-                        자동🔄 ${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : '🔒'}</button>
+                <div class="anvil-side right">
+                    <div class="forge-actions">
+                        ${forgeBtnHtml}
+                        <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.openAutoForge()">
+                            자동🔄<br>${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : '🔒'}</button>
+                    </div>
+                    ${upgTimeHtml}
                 </div>
             </div>`;
     },
@@ -251,6 +262,12 @@ const UI = {
         this.els.forgeInfoModal.classList.remove('hidden');
     },
     openForgeList() { this._forgeView = 'list'; this.renderForgeInfo(); },
+    // 메인 화면 ⓘ 버튼: 확률 팝업을 거치지 않고 '모든 장비 목록'을 바로 연다 (UI-SPEC 1번·22번)
+    openForgeItemList() {
+        this._forgeView = 'list';
+        this.renderForgeInfo();
+        this.els.forgeInfoModal.classList.remove('hidden');
+    },
     openForgeDetail(age, slot, variant) {
         this._forgeView = 'detail';
         this._forgeItem = { age, slot, variant };
