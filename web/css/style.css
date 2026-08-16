@@ -83,7 +83,7 @@ body {
 
 /* ---- 오프라인 보상 팝업 (UI-SPEC 2번, 원본 shot-042110) — 위 검정 절반 + 아래 흰 절반 ---- */
 /* 원본(042110): 모달 70% W × 55% H, 위 어두운 구역 ≈40%, 아래 흰 구역은 여백 넉넉 */
-.modal-card.offline-card { padding: 0; gap: 0; overflow: hidden; width: 70%; height: 55%; }
+.modal-card.offline-card { padding: 0; gap: 0; overflow: hidden; width: 70%; height: 55vh; }
 .offline-top {
     background: linear-gradient(180deg, #232a52, #171b38); color: #fff;
     padding: 1.3rem .9rem 1.1rem; text-align: center; flex: 0 0 40%;
@@ -106,7 +106,7 @@ body {
     flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1.2rem;
 }
 .offline-total { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); }
-.offline-collect-btn { position: relative; width: 44%; align-self: center; min-height: 4.2rem; font-size: 1.2rem; } /* 원본 ≈30% 화면폭·8% H */
+.offline-bottom .offline-collect-btn { position: relative; width: 44%; align-self: center; height: 4.2rem; flex: 0 0 4.2rem; font-size: 1.2rem; } /* 원본 ≈30% 화면폭·8% H */
 .offline-collect-dot {
     position: absolute; top: -.3rem; right: -.3rem; width: .7rem; height: .7rem; border-radius: 50%;
     background: var(--pp-red); border: 2px solid #fff;
@@ -904,7 +904,7 @@ body {
 .profile-fields { flex: 1; display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
 .profile-field-label { font-size: .68rem; font-weight: 800; color: var(--pp-muted); text-align: left; }
 /* 원본(042724): 프로필 모달 70% W × 69% H, 탭은 모달 최하단 고정 */
-.profile-sheet { width: 70%; height: 69%; display: flex; flex-direction: column; }
+.profile-sheet { width: 70%; height: 66vh; display: flex; flex-direction: column; }
 .profile-sheet .profile-tabs { margin-top: auto; }
 .profile-field-row { display: flex; align-items: center; gap: .4rem; margin-top: .1rem; }
 .profile-field {
@@ -1504,7 +1504,7 @@ body {
 
 /* ===== 자동 제련 팝업 (shot-042950/043117 원본 대조 재작업) ===== */
 /* 원본(042950): 모달 ≈85% H — 필터와 하단 설정부 사이 큰 여백 유지 */
-.af-card { width: min(88vw, 21.5rem); height: 85%; padding: .85rem .8rem .8rem; display: flex; flex-direction: column; }
+.af-card { width: min(88vw, 21.5rem); height: 82vh; padding: .85rem .8rem .8rem; display: flex; flex-direction: column; }
 .af-card .af-scroll { flex: 1; max-height: none; }
 .af-card .af-bottom { margin-top: auto; }
 .af-title { text-align: center; font-size: 1.12rem; font-weight: 900; margin: .1rem 0 .5rem; }
@@ -1689,7 +1689,7 @@ body {
     border: 3px solid var(--pp-line); box-shadow: inset 0 -.28rem 0 #9c9c9c; font-weight: 900;
 }
 .btn.silver:active { transform: translateY(.1rem); box-shadow: none; }
-.dgd-card { width: 71%; min-height: 49%; padding: 0 0 1rem; overflow: hidden; gap: 0; display: flex; flex-direction: column; } /* 원본 ≈69% W × 49% H (185) */
+.dgd-card { width: 71%; min-height: 49vh; padding: 0 0 1rem; overflow: hidden; gap: 0; display: flex; flex-direction: column; } /* 원본 ≈69% W × 49% H (185) */
 .dgd-card .dg-detail-hero {
     position: relative; width: 100%; border-radius: 0; margin: 0 0 .6rem;
     height: 9.4rem; font-size: 3.4rem; /* 원본 배너 ≈15.4% H (185) */
