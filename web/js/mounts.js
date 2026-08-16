@@ -149,7 +149,7 @@ const Mounts = {
 
     equip(name) {
         if (!S.mounts[name]) return false;
-        S.activeMount = name;
+        S.activeMount = S.activeMount === name ? null : name; // 장착 중 재클릭 = 해제 (상세 팝업 [해제] 버튼)
         Combat.recalcHero();
         if (typeof Scene3D !== 'undefined' && Scene3D.refreshMount) Scene3D.refreshMount();
         saveGame();

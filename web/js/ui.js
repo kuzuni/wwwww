@@ -1084,23 +1084,33 @@ const UI = {
         this.showModal(this.els.detailModal);
     },
     stepSummonRates(d) {
-        const mod = this._ratesKind === 'pet' ? Pets : Skills;
-        const cur = this._ratesLevel === null ? mod.summonLevel() : this._ratesLevel;
-        this._ratesLevel = U.clamp(cur + d, 1, 100);
+        const isMount = this._ratesKind === 'mount';
+        const mod = this._ratesKind === 'pet' ? Pets : isMount ? Mounts : Skills;
+        const cur = this._ratesLevel === null ? (isMount ? Mounts.level() : mod.summonLevel()) : this._ratesLevel;
+        this._ratesLevel = U.clamp(cur + d, 1, isMount ? Mounts.MAX_LEVEL : 100);
         this.renderSummonRates();
     },
     renderSummonRates() {
-        const isPet = this._ratesKind === 'pet';
-        const mod = isPet ? Pets : Skills;
-        const lvl = this._ratesLevel === null ? mod.summonLevel() : this._ratesLevel;
-        const rates = mod.rates(lvl);
+        const isPet = this._ratesKind === 'pet', isMount = this._ratesKind === 'mount';
+        const mod = isPet ? Pets : isMount ? Mounts : Skills;
+        const lvl = this._ratesLevel === null ? (isMount ? Mounts.level() : mod.summonLevel()) : this._ratesLevel;
+        let rates;
+        if (isMount) { // 탈것 확률표는 분수(0~1) + needed 필드 — %로 환산
+            rates = {};
+            const row = mountSummonRates[U.clamp(lvl, 1, Mounts.MAX_LEVEL)];
+            for (const k in row) if (k !== 'needed') rates[k] = row[k] * 100;
+        } else rates = mod.rates(lvl);
         const barsHtml = RARITIES.filter(r => (rates[r] || 0) > 0).map(r => `
             <div class="rate-bar" style="--rc:${RARITY_CSS[r]}">
                 <span class="rate-name">${RARITY_KR[r]}</span>
                 <span class="rate-pct">${(rates[r] || 0).toFixed(2)}%</span>
             </div>`).join('');
-        const cnt = (isPet ? S.petSummonCount : S.summonCount) || 0;
-        const capped = mod.summonLevel() >= 100;
+        const cnt = (isMount ? S.mountOpens : isPet ? S.petSummonCount : S.summonCount) || 0;
+        const capped = isMount ? Mounts.level() >= Mounts.MAX_LEVEL : mod.summonLevel() >= 100;
+        const gaugeHtml = isMount
+            ? (() => { const need = Mounts.nextNeeded(), prev = Mounts.prevNeeded();
+                return `<div class="rates-prog"><div style="width:${(need ? U.clamp((cnt - prev) / (need - prev), 0, 1) : 1) * 100}%"></div><span>${need ? `${cnt - prev}/${need - prev}` : 'MAX'}</span></div>`; })()
+            : `<div class="rates-prog"><div style="width:${(capped ? 1 : (cnt % 5) / 5) * 100}%"></div><span>${capped ? 'MAX' : `${cnt % 5}/5`}</span></div>`;
         this.els.detailModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper rates-card">
@@ -1110,8 +1120,8 @@ const UI = {
                         <button class="tri-btn" onclick="UI.stepSummonRates(1)">▶</button>
                     </div>
                     <div class="rate-list">${barsHtml}</div>
-                    <p class="rates-tip">${isPet ? '알을' : '티켓을'} 소환하여 레벨 업하고 소환 확률을 높이세요!</p>
-                    <div class="rates-prog"><div style="width:${(capped ? 1 : (cnt % 5) / 5) * 100}%"></div><span>${capped ? 'MAX' : `${cnt % 5}/5`}</span></div>
+                    <p class="rates-tip">${isMount ? '태엽으로' : isPet ? '알을' : '티켓을'} 소환하여 레벨 업하고 소환 확률을 높이세요!</p>
+                    ${gaugeHtml}
                 </div>
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>
             </div>`;
@@ -1946,49 +1956,76 @@ const UI = {
             `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${((rates[r] || 0) * 100).toFixed(2)}%</span>`).join('');
         const mountSummonN = this.summonMult('mount');
 
-        const owned = Object.entries(S.mounts);
-        const listHtml = owned.length ? owned.map(([name, m]) => {
+        // 원본 레이아웃 재작성 (사용자 지시): 펫/스킬 화면 동일 패턴 — 전체화면 흰 시트 + 중앙 제목 +
+        // 태엽 pill + 사각 타일 그리드(내부 스크롤) + 하단 고정 공통 소환 바 + 빨간 X
+        const tiles = Object.entries(S.mounts).map(([name, m]) => {
             const active = S.activeMount === name;
-            const pw = Mounts.mountPower(m);
-            const subsText = (m.subs || []).map(s => U.subText(s)).join(' · ');
-            const maxed = m.level >= Mounts.INDIV_MAX_LEVEL;
-            return `<div class="pet-card with-icon ${active ? 'active' : ''}" style="--rc:${RARITY_CSS[m.rarity]}">
-                <span class="icon-circle">${MOUNT_ICONS[name] || '🐴'}</span>
-                <span class="item-name">${MOUNT_KR[name] || name} <small>Lv.${m.level}${m.stars ? ` ⭐${m.stars}` : ''}</small></span>
-                <span class="item-stat">⚔️ ${U.fmt(pw.atk)} · ❤️ ${U.fmt(pw.hp)} · ${RARITY_KR[m.rarity]}</span>
-                <span class="muted">중복(승천 재료) ${m.dupes}${subsText ? ' · ' + subsText : ''}</span>
-                <div class="btn-col">
-                    <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onEquipMount('${name}')">${active ? '장착 중' : '장착'}</button>
-                    ${maxed ? `<button class="btn sm ${Mounts.canAscend(name) ? '' : 'disabled'}" onclick="UI.onAscendMount('${name}')" title="${Mounts.canAscend(name) ? '' : `중복 ${m.dupes}/${Mounts.ASCEND_DUPES} 필요`}">⭐ 승천</button>`
-                        : `<button class="btn sm" onclick="UI.openMountUpgrade('${name}')">업그레이드</button>
-                           <button class="btn sm disabled" title="레벨 ${Mounts.INDIV_MAX_LEVEL} 달성 시 승천 가능">⭐ Lv.${Mounts.INDIV_MAX_LEVEL}부터</button>`}
-                </div>
-            </div>`;
-        }).join('') : '<span class="muted">보유 마운트 없음 — 소환해보세요!</span>';
+            return `<button class="pet-tile" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.openMountDetail('${name}')">
+                <span class="tile-face">
+                    ${MOUNT_ICONS[name] || '🐴'}
+                    ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
+                    <span class="sk-lv">Lv.${m.level}</span>
+                </span>
+                ${m.stars ? `<span class="sk-star">⭐${m.stars}</span>` : ''}
+            </button>`;
+        }).join('') || '<span class="muted">보유 탈것 없음 — 소환해보세요!</span>';
 
         this.els.mountModal.innerHTML = `
-            <div class="modal-card wide">
-                <h3>🐴 마운트 <small class="muted">⚙️ ${U.fmt(S.winders || 0)}</small></h3>
-                <p class="muted">탈것은 직접 공격하지 않고, 장착 시 고정 공격력·체력과 옵션을 제공합니다. 레벨업은 다른 탈것을 합성(업그레이드)해야 가능합니다.</p>
-                <div class="row">
-                    <div class="tech-node" style="flex:1">
-                        <div class="tech-node-head">
-                            <span class="item-name">소환 레벨</span>
-                            <span class="muted">Lv.${lvl} / ${Mounts.MAX_LEVEL}${need ? ` (${S.mountOpens - prevNeed}/${need - prevNeed})` : ' MAX'}</span>
-                        </div>
-                        <div class="tech-node-bar"><div style="width:${(progress * 100).toFixed(1)}%"></div></div>
+            <div class="modal-card sheet mount-sheet">
+                <div class="sheet-head"><h2 class="sheet-title">탈것</h2></div>
+                <div class="mount-pill-row"><span class="cur-pill winder">⚙️ ${U.fmt(S.winders || 0)}</span></div>
+                <div class="grid-scroll"><div class="sk-grid">${tiles}</div></div>
+                <div class="summon-bar">
+                    <button class="btn danger round back-btn" onclick="UI.closeMounts()">◀</button>
+                    <button class="btn xs x5-toggle ${mountSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('mount')">x${mountSummonN}</button>
+                    <button class="btn big summon-btn ${Mounts.canSummon(mountSummonN) ? '' : 'disabled'}" onclick="UI.onSummonMount()">
+                        소환 x${mountSummonN}<small class="summon-cost">⚙️ <b>${WINDERS_PER_SUMMON * mountSummonN}</b></small></button>
+                    <div class="summon-info">
+                        <button class="info-dot" onclick="UI.openSummonRates('mount')">i</button>
+                        <b>Lv. ${lvl}</b>
+                        <span class="summon-gauge"><i style="width:${(progress * 100).toFixed(1)}%"></i><em>${need ? `${S.mountOpens - prevNeed}/${need - prevNeed}` : 'MAX'}</em></span>
                     </div>
                 </div>
-                <div class="prob-box">${ratesHtml}</div>
-                <div class="row">
-                    <button class="btn sm ${mountSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('mount')">x${mountSummonN}</button>
-                    <button class="btn primary ${Mounts.canSummon(mountSummonN) ? '' : 'disabled'}" onclick="UI.onSummonMount()">소환 x${mountSummonN} <small>⚙️ ${WINDERS_PER_SUMMON * mountSummonN}</small></button>
-                </div>
-                <h3>보유 마운트</h3>
-                <div class="pet-list">${listHtml}</div>
-                <button class="btn" onclick="UI.closeMounts()">닫기</button>
             </div>`;
         this.showModal(this.els.mountModal);
+    },
+    // 탈것 상세 팝업 — 펫 상세와 동일 패턴 (타일 클릭 진입, 장착/해제·업그레이드·승천)
+    openMountDetail(name) {
+        const m = S.mounts[name];
+        if (!m) return;
+        const active = S.activeMount === name;
+        const pw = Mounts.mountPower(m);
+        const maxed = m.level >= Mounts.INDIV_MAX_LEVEL;
+        const subsHtml = (m.subs || []).map(s => U.subText(s)).join('<br>');
+        this.els.detailModal.innerHTML = `
+            <div class="idet-wrap">
+                <div class="modal-card paper petd-card">
+                    <div class="petd-head">
+                        <div class="petd-tilecol">
+                            <div class="petd-tile" style="--rc:${RARITY_CSS[m.rarity]}">
+                                ${MOUNT_ICONS[name] || '🐴'}
+                                ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
+                                <span class="sk-lv">Lv.${m.level}</span>
+                            </div>
+                            ${m.stars ? `<span class="sk-star">⭐${m.stars}</span>` : ''}
+                        </div>
+                        <div class="petd-body">
+                            <div class="petd-name" style="color:${RARITY_CSS[m.rarity]}">[${RARITY_KR[m.rarity]}] ${MOUNT_KR[name] || name}</div>
+                            <div class="petd-stats">${U.fmt(pw.atk)} 피해<br>${U.fmt(pw.hp)} 체력</div>
+                            <div class="petd-subs">${subsHtml || '옵션 없음'}<br><span class="muted">중복(승천 재료) ${m.dupes}</span></div>
+                        </div>
+                    </div>
+                    <div class="petd-btns">
+                        ${maxed
+                            ? `<button class="btn primary petd-btn ${Mounts.canAscend(name) ? '' : 'disabled'}" onclick="UI.onAscendMount('${name}'); UI.openMountDetail('${name}')">⭐ 승천${Mounts.canAscend(name) ? '' : `<small>재료 ${m.dupes}/${Mounts.ASCEND_DUPES}</small>`}</button>`
+                            : `<button class="btn primary petd-btn" onclick="UI.closeDetail(); UI.openMountUpgrade('${name}')">업그레이드</button>
+                               <button class="btn petd-btn disabled">⭐ 승천<small>Lv.${Mounts.INDIV_MAX_LEVEL} 달성 시</small></button>`}
+                        <button class="btn petd-btn ${active ? 'danger' : 'primary'}" onclick="UI.onEquipMount('${name}'); UI.openMountDetail('${name}')">${active ? '해제' : '장착'}</button>
+                    </div>
+                </div>
+                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+            </div>`;
+        this.showModal(this.els.detailModal);
     },
     closeMounts() { this.els.mountModal.classList.add('hidden'); },
     onSummonMount() {

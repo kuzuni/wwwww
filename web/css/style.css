@@ -1258,6 +1258,10 @@ body {
 
 /* ---- 펫 화면 (UI-SPEC 9·12·13번): 사각 타일 그리드 + 하단 어두운 부화장 ---- */
 .cur-pill.egg { background: #b26a00; }
+/* 탈것 시트 (펫/스킬 화면 동일 패턴, 사용자 지시): 제목 중앙 + 검정 태엽 pill 중앙 + 그리드 내부 스크롤 + 하단 소환 바 고정 */
+.modal-card.sheet.mount-sheet { overflow: hidden; padding-bottom: 4.2rem; } /* 하단 탭바(3.3rem)에 소환 바가 가리지 않게 */
+.mount-pill-row { display: flex; justify-content: center; }
+.cur-pill.winder { background: #2b2b2b; }
 .cur-pill.gem { background: #c62828; }
 .cur-pill.coin { background: #b8860b; }
 .pet-tile { background: none; border: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .1rem; }
