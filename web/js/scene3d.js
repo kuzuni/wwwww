@@ -1676,15 +1676,15 @@ const Scene3D = {
     WEAPON_GRIP: {
         sword:    { rot: [0.14, 0, -0.08], pose: { elbowR: -0.3 } },                       // 옆으로 자연스럽게 늘어뜨림, 날 살짝 전방
         dagger:   { rot: [0.22, 0, -0.1], pose: { elbowR: -0.5 } },                        // 팔꿈치 굽혀 세워 들기
-        axe:      { rot: [-0.5, 0, -0.22], pose: { elbowR: -0.4 } },                       // 팔 내린 채 자루를 어깨 뒤로 기울여 걸침
-        hammer:   { rot: [-0.5, 0, -0.22], pose: { elbowR: -0.4 } },                       // 팔 내린 채 자루를 어깨 뒤로 기울여 걸침
+        axe:      { rot: [-0.72, 0, -0.38], pose: { elbowR: -0.55 } },                     // 대각 뒤로 기울인 레디 캐리 (안쪽 기울임은 게임 카메라에서 무기가 몸 뒤로 숨음)
+        hammer:   { rot: [-0.72, 0, -0.38], pose: { elbowR: -0.55 } },                     // 대각 뒤로 기울인 레디 캐리 (안쪽 기울임은 게임 카메라에서 무기가 몸 뒤로 숨음)
         club:     { rot: [0.14, 0, -0.08], pose: { elbowR: -0.3 } },
         spear:    { rot: [0, 0, 0], pose: { elbowR: -0.3 } },                              // 수직으로 세워 들기 (기수 자세)
         staff:    { rot: [0, 0, 0], pose: { elbowR: -0.28 } },                             // 지면 짚듯 세워 들기
-        bow:      { hand: 'L', rot: [1.25, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } }, // 왼손 파지(팔 상승분 상쇄해 림이 수직) + 오른손 시위 대기
-        crossbow: { hand: 'L', rot: [1.25, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } },
-        gun:      { rot: [0, 0, 0], pose: { elbowR: -0.12 } },                             // 총구 전방 겨눔 (restX가 팔을 올림)
-        thrown:   { rot: [0.3, 0, 0], pose: { elbowR: -0.6 } },                            // 던질 준비 들기
+        bow:      { hand: 'L', scale: 0.6, rot: [1.25, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } }, // 왼손 파지(팔 상승분 상쇄해 림이 수직) + 오른손 시위 대기. 몸을 감싸던 과대 스케일 축소
+        crossbow: { hand: 'L', scale: 0.6, rot: [2.35, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } }, // 눕혀서 활대가 전방을 향하게 (수직 세움 금지)
+        gun:      { rot: [0, 0, 0], pose: { shoulderR: -0.35, elbowR: 0.2 } },             // 팔을 수평까지 펴서 총구 전방 겨눔 (restX 가산 + Idle 팔꿈치 굽힘 상쇄)
+        thrown:   { rot: [0.55, 0, 0], pose: { shoulderR: -1.75, elbowR: -0.9 } },         // 귀 옆 코킹 — 헤드가 위·뒤, 던질 준비
     },
     applyWeaponGrip() {
         const grip = this.WEAPON_GRIP[this.wtypeId] || this.WEAPON_GRIP.sword;
@@ -1696,6 +1696,7 @@ const Scene3D = {
         }
         this.weaponG.position.set(0, 0, 0);
         this.weaponG.rotation.set(grip.rot[0], grip.rot[1], grip.rot[2]);
+        this.weaponG.scale.setScalar(1.22 * (grip.scale || 1)); // 기본 존재감 스케일 × 무기별 보정 (활계 과대 축소)
         this._gripRot = grip.rot;
     },
 
