@@ -292,9 +292,11 @@ const ProChar = {
         const makeCapeGeo = () => {
             const geo = new THREE.PlaneGeometry(0.44, 0.6, 10, 12);
             const p = geo.attributes.position;
+            const kArr = new Float32Array(p.count); // 정점별 세로 계수(0=어깨,1=밑단) — 프레임별 천 물결의 진폭 가중치
             for (let i = 0; i < p.count; i++) {
                 const x = p.getX(i), y = p.getY(i);
                 const k = 0.5 - y / 0.6;                        // 0(위) → 1(아래)
+                kArr[i] = k;
                 let nx = x * (0.55 + k * 0.75);                 // 위는 좁게(어깨 폭), 아래로 퍼짐
                 const edge = Math.abs(x) / 0.22;                // 0(중앙)→1(가장자리)
                 if (k < 0.12) nx *= 0.75 + 2.1 * k;             // 위 모서리가 어깨 안쪽으로 말려 들어감(뾰족귀 제거)
@@ -306,10 +308,16 @@ const ProChar = {
                     + Math.sin(x * 33 + k * 2.2) * 0.012 * k);  // 세로 드레이프 잔물결
             }
             geo.computeVertexNormals();
+            geo.userData.kArr = kArr;
             return geo;
         };
         R.capeMat = new THREE.MeshLambertMaterial({ color: 0x8c2a2a, side: THREE.DoubleSide, map: this.capeTex() });
         const cape = new THREE.Mesh(makeCapeGeo(), R.capeMat);
+        // 천 시뮬 흉내: 베이스 정점을 저장해 두고 update()가 매 프레임 이동파를 얹음 (비평가: '판자 망토')
+        R.capeMesh = cape;
+        R._capeBase = cape.geometry.attributes.position.array.slice();
+        R._capeK = cape.geometry.userData.kArr;
+        R._capePhase = 0;
         const capeG = new THREE.Group();
         capeG.position.set(0, 0.42, -0.16);
         cape.position.y = -0.31;
@@ -350,13 +358,21 @@ const ProChar = {
             // 건틀릿 커프(원뿔 링) + 손
             const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.065, 0.07, 10), steel());
             cuff.position.y = -0.11;
+            // 주먹: 앞뒤 눌린 구 + 엄지 캡슐 + 너클 판 — '은색 공 벙어리장갑' 오독 해소 (비평가 11번)
+            const gloveMat = new THREE.MeshPhongMaterial({ color: 0x6b4e3a, shininess: 22, map: this.leatherTex() }); // 주먹과 같은 가죽, 반 톤 어둡게
+            const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.027, 6, 5), gloveMat);
+            thumb.position.set(side * -0.042, -0.15, 0.028);
+            thumb.scale.set(0.85, 1.5, 0.85);
+            thumb.rotation.z = side * -0.55;
+            const knuckle = new THREE.Mesh(new THREE.BoxGeometry(0.068, 0.032, 0.022), gloveMat);
+            knuckle.position.set(0, -0.185, 0.042);
             const hand = new THREE.Mesh(new THREE.SphereGeometry(0.058, 8, 7),
                 new THREE.MeshPhongMaterial({ color: 0x7a5c46, shininess: 22, map: this.leatherTex() })); // 가죽 건틀릿 주먹 — '북채 팔' 오독 제거
             hand.position.y = -0.16;
-            hand.scale.set(0.95, 1.12, 0.95);
+            hand.scale.set(0.92, 1.1, 0.8); // 앞뒤로 눌러 주먹 사각 인상
             const handMount = new THREE.Group();
             handMount.position.y = -0.17;
-            elbow.add(elbowCap, forearm, cuff, hand, handMount);
+            elbow.add(elbowCap, forearm, cuff, hand, thumb, knuckle, handMount);
             shoulder.add(pauldron, pauldron2, rivet, upperArm, elbow);
             spine.add(shoulder);
             R.arms.push({ shoulder, elbow, handMount });
@@ -733,6 +749,21 @@ const ProChar = {
             else if (ch === 'px') bone.position.x += v;
             else if (ch === 'py') bone.position.y += v;
             else if (ch === 'pz') bone.position.z += v;
+        }
+        // 망토 천 물결 — 세로 진행파+가로 미세 플러터 2겹, 걷기 중 증폭 (비평가: '두께 없는 판자 망토')
+        if (R.capeMesh) {
+            const walkAmp = R.state === 'Walking' ? 1.9 : 1;
+            R._capePhase += dt * (2.1 + (walkAmp - 1) * 1.6);
+            const p = R.capeMesh.geometry.attributes.position;
+            const base = R._capeBase, kA = R._capeK, ph = R._capePhase;
+            for (let i = 0; i < p.count; i++) {
+                const k = kA[i], bx = base[i * 3];
+                p.array[i * 3 + 2] = base[i * 3 + 2] +
+                    (Math.sin(ph * 1.15 + k * 3.1) * 0.03 + Math.sin(ph * 1.9 + bx * 9 + k * 1.4) * 0.013) * k * walkAmp;
+                p.array[i * 3 + 1] = base[i * 3 + 1] + Math.sin(ph * 1.5 + bx * 11 + k * 2) * 0.009 * k; // 밑단 플러터
+            }
+            p.needsUpdate = true;
+            R.capeMesh.geometry.computeVertexNormals();
         }
     },
 

@@ -1859,7 +1859,7 @@ const Scene3D = {
             g.add(dome, crest, cheek1, cheek2);
         } else if (style === 'mask') {      // 가면/방독면: 얼굴을 감싸는 곡면 판 (평판 박스 → 원통 셸)
             const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.22, 0.32, 14, 1, true, -Math.PI * 0.42, Math.PI * 0.84), mat);
-            plate.material = new THREE.MeshLambertMaterial({ color: c, side: THREE.DoubleSide });
+            plate.material = new THREE.MeshLambertMaterial({ color: mat.color.clone(), side: THREE.DoubleSide }); // 원색 직치환 금지 — 스틸 혼합 톤 공유
             plate.position.set(0, 0.02, 0.02);
             const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat); // 정수리 덮개
             dome.position.y = 0.1;
