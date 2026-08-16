@@ -472,15 +472,20 @@ body {
 /* 장착 = 파랑 / 판매 = 빨강 */
 .btn.equip { background: var(--pp-blue); border-color: var(--pp-line); color: #fff; box-shadow: inset 0 -.22rem 0 var(--pp-blue-dk); }
 .btn.sell { background: var(--pp-red); border-color: var(--pp-line); color: #fff; box-shadow: inset 0 -.22rem 0 var(--pp-red-dk); }
-.cmp-icon-wrap { position: relative; flex: none; padding-bottom: .75rem; text-align: center; }
+/* 별·Lv 배지는 아이콘 프레임 안 (원본 shot-043224 — 장비 그리드 셀과 동일 언어: Lv=내부 하단, ⭐=하단 테두리 걸침) */
+.cmp-icon-wrap { position: relative; flex: none; text-align: center; }
 .cmp-img {
+    display: block; margin: 0 auto;
     width: 3.6rem; height: 3.6rem; border-radius: .55rem;
     background: color-mix(in srgb, var(--rc, #6b3538) 58%, #17181a); /* 아이콘 배경도 시대색 통일 */
     border: 2px solid var(--pp-line); object-fit: contain;
 }
 .cmp-img.emoji, .cell-img.emoji { display: flex; align-items: center; justify-content: center; font-size: 1.9rem; }
-.cmp-icon-wrap .sk-lv { bottom: 0; }
-.cmp-star { display: block; font-size: .85rem; margin-top: .1rem; }
+.cmp-icon-wrap .sk-lv { bottom: .4rem; font-size: .66rem; }
+.cmp-star {
+    position: absolute; bottom: -.5rem; left: 50%; transform: translateX(-50%);
+    font-size: .85rem; margin: 0; z-index: 1; filter: drop-shadow(0 1px 0 rgba(0,0,0,.4));
+}
 .cell-img { /* 원본: 아이콘이 셀 배경 위에 프레임 없이 크게 얹힘 (내부 박스 없음) */
     width: 74%; height: 74%; align-self: center; background: none; border: none; object-fit: contain;
     filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));
