@@ -619,40 +619,67 @@ body {
 .shop-gem-amt { color: var(--pp-red); font-weight: 900; font-size: .9rem; }
 .shop-gem-icon { font-size: 2rem; }
 
-/* ---- 프로필/설정 팝업 (UI-SPEC 19~20번) ---- */
-.profile-avatar-box { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+/* ---- 프로필/설정 팝업 (UI-SPEC 19~20번, 원본 shot-042724/042744) ---- */
+.profile-title { font-size: 1.2rem; font-weight: 900; text-align: center; color: var(--pp-ink); margin: 0 0 .2rem; }
+.profile-sub { font-size: .78rem; font-weight: 700; text-align: center; color: var(--pp-muted); margin: -.3rem 0 .3rem; }
+.profile-top { display: flex; gap: .8rem; align-items: flex-start; }
+.profile-avatar-box { position: relative; flex: none; }
 .profile-avatar-big {
-    width: 4.2rem; height: 4.2rem; border-radius: .6rem; background: #22272e; border: 1px solid #444c56;
-    display: flex; align-items: center; justify-content: center; font-size: 2.2rem;
+    width: 4.6rem; height: 4.6rem; border-radius: .5rem; background: var(--pp-panel);
+    border: 3px solid var(--pp-line); display: flex; align-items: center; justify-content: center; font-size: 2.4rem;
 }
+.profile-edit-btn {
+    width: 1.5rem; height: 1.5rem; border-radius: 50%; padding: 0; flex: none;
+    background: var(--pp-blue); color: #fff; border: 2px solid var(--pp-line); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: .75rem; box-shadow: inset 0 -.15rem 0 var(--pp-blue-dk);
+}
+.profile-avatar-box .profile-edit-btn { position: absolute; bottom: -.4rem; left: -.4rem; }
+.profile-fields { flex: 1; display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
+.profile-field-label { font-size: .68rem; font-weight: 800; color: var(--pp-muted); }
+.profile-field-row { display: flex; align-items: center; gap: .4rem; margin-top: .1rem; }
 .profile-field {
-    flex: 1; background: #22272e; border: 1px solid #444c56; border-radius: .4rem;
-    padding: .3rem .55rem; font-size: .82rem; font-weight: 700;
+    flex: 1; background: var(--pp-panel); border: 2px solid var(--pp-line); border-radius: .4rem;
+    padding: .3rem .55rem; font-size: .82rem; font-weight: 700; color: var(--pp-ink); min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.profile-rank-label { text-align: center; font-weight: 800; font-size: .82rem; color: var(--pp-ink); margin: .9rem 0 .35rem; }
+.profile-rank-row { display: flex; gap: .5rem; }
+.profile-rank-row .btn { flex: 1; }
 .avatar-pick-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .3rem; margin: .5rem 0; }
 .avatar-pick-btn {
-    background: #22272e; border: 1px solid #444c56; border-radius: .4rem; font-size: 1.3rem;
+    background: var(--pp-panel); border: 2px solid var(--pp-line); border-radius: .4rem; font-size: 1.3rem;
     padding: .3rem 0; cursor: pointer;
 }
-.avatar-pick-btn.on { border-color: #ffd54f; background: #3a2f10; }
-.profile-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; margin: .6rem 0 .4rem; }
-.profile-tabs .btn.on { background: #1f4a2c; border-color: #2ea043; color: #7ee2a8; }
+.avatar-pick-btn.on { border-color: var(--pp-blue); background: #dbe9ff; }
+.profile-tabs {
+    display: grid; grid-template-columns: 1fr 1fr; margin-top: 1rem;
+    border: 3px solid var(--pp-line); border-radius: .5rem; overflow: hidden;
+}
+.profile-tabs button {
+    border: none; border-left: 3px solid var(--pp-line); font-weight: 900; font-size: .85rem;
+    padding: .55rem 0; cursor: pointer; color: #fff; background: var(--pp-ink);
+}
+.profile-tabs button:first-child { border-left: none; }
+.profile-tabs button.on { background: var(--pp-blue); }
+.settings-list { margin: 0 -1.1rem; }
 .settings-row {
     display: flex; justify-content: space-between; align-items: center;
-    background: #22272e; border: 1px solid #30363d; border-radius: .4rem;
-    padding: .4rem .6rem; margin-bottom: .3rem; font-size: .8rem;
+    padding: .5rem 1.1rem; font-size: .82rem; font-weight: 700; color: var(--pp-ink);
 }
-.settings-row.static { cursor: pointer; color: #90a4ae; }
+.settings-row:nth-child(odd) { background: var(--pp-panel); }
+.settings-row.static { cursor: pointer; }
+.settings-row.static::after { content: '›'; font-weight: 900; color: var(--pp-muted); font-size: 1.1rem; }
 .settings-toggle {
-    width: 2.4rem; height: 1.3rem; border-radius: 1rem; border: none; cursor: pointer;
-    background: #444c56; position: relative;
+    width: 2.5rem; height: 1.35rem; border-radius: 1rem; border: 2px solid var(--pp-line); cursor: pointer;
+    background: var(--pp-gray); position: relative; padding: 0;
 }
 .settings-toggle::after {
-    content: ''; position: absolute; top: .15rem; left: .15rem; width: 1rem; height: 1rem;
-    border-radius: 50%; background: #eceff1; transition: left .15s;
+    content: ''; position: absolute; top: .08rem; left: .08rem; width: 1.03rem; height: 1.03rem;
+    border-radius: 50%; background: #fff; border: 1px solid var(--pp-line); transition: left .15s;
 }
-.settings-toggle.on { background: #1e88e5; }
-.settings-toggle.on::after { left: 1.25rem; }
+.settings-toggle.on { background: var(--pp-blue); }
+.settings-toggle.on::after { left: 1.18rem; }
+.settings-check { color: var(--pp-green); font-size: 1.1rem; font-weight: 900; }
 
 /* ---- 진행 바 카드 (마운트 소환 레벨 등에도 공용) ---- */
 .tech-node {

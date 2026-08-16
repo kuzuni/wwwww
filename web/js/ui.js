@@ -1393,37 +1393,39 @@ const UI = {
             ? `<div class="avatar-pick-grid">${this.AVATAR_POOL.map(e =>
                 `<button class="avatar-pick-btn ${e === (S.avatarEmoji || '🛡️') ? 'on' : ''}" onclick="UI.onPickAvatar('${e}')">${e}</button>`).join('')}</div>` : '';
         this.els.profileModal.innerHTML = `
-            <div class="modal-card">
-                <h3>프로필</h3>
-                <div class="row" style="align-items:flex-start">
-                    <div class="profile-avatar-box">
-                        <span class="profile-avatar-big">${S.avatarEmoji || '🛡️'}</span>
-                        <button class="btn sm" onclick="UI.onToggleAvatarPick()">✏️</button>
-                    </div>
-                    <div style="flex:1">
-                        <label class="muted" style="font-size:.72rem">이름:</label>
-                        <div class="row" style="align-items:center">
-                            <span class="profile-field">${U.escapeHtml(S.nickname || '용사')}</span>
-                            <button class="btn sm" onclick="UI.onEditNickname()">✏️</button>
+            <div class="idet-wrap">
+                <div class="modal-card wide">
+                    <div class="profile-title">프로필</div>
+                    <div class="profile-top">
+                        <div class="profile-avatar-box">
+                            <span class="profile-avatar-big">${S.avatarEmoji || '🛡️'}</span>
+                            <button class="profile-edit-btn" onclick="UI.onToggleAvatarPick()">✏️</button>
                         </div>
-                        <label class="muted" style="font-size:.72rem">성별:</label>
-                        <div class="row" style="align-items:center">
-                            <span class="profile-field">${S.gender || '♂'}</span>
-                            <button class="btn sm" onclick="UI.onToggleGender()">✏️</button>
+                        <div class="profile-fields">
+                            <div class="profile-field-label">이름:</div>
+                            <div class="profile-field-row">
+                                <span class="profile-field">${U.escapeHtml(S.nickname || '용사')}</span>
+                                <button class="profile-edit-btn" onclick="UI.onEditNickname()">✏️</button>
+                            </div>
+                            <div class="profile-field-label">성별:</div>
+                            <div class="profile-field-row">
+                                <span class="profile-field">${S.gender || '♂'}</span>
+                                <button class="profile-edit-btn" onclick="UI.onToggleGender()">✏️</button>
+                            </div>
                         </div>
                     </div>
+                    ${avatarPicker}
+                    <div class="profile-rank-label">서버 랭킹</div>
+                    <div class="profile-rank-row">
+                        <button class="btn primary" onclick="UI.openStub('🏆 파워 랭킹', '서버 내 전투력 랭킹은 준비 중입니다.')">파워 랭킹</button>
+                        <button class="btn primary" onclick="UI.openStub('🛡 클랜 랭킹', '클랜 시스템은 준비 중입니다.')">클랜 랭킹</button>
+                    </div>
+                    <div class="profile-tabs">
+                        <button class="${this._profileView === 'profile' ? 'on' : ''}" onclick="UI.switchProfileView('profile')">프로필</button>
+                        <button class="${this._profileView === 'settings' ? 'on' : ''}" onclick="UI.switchProfileView('settings')">설정</button>
+                    </div>
                 </div>
-                ${avatarPicker}
-                <p class="muted" style="text-align:center;margin-top:.6rem">서버 랭킹</p>
-                <div class="row">
-                    <button class="btn primary" onclick="UI.openStub('🏆 파워 랭킹', '서버 내 전투력 랭킹은 준비 중입니다.')">파워 랭킹</button>
-                    <button class="btn primary" onclick="UI.openStub('🛡 클랜 랭킹', '클랜 시스템은 준비 중입니다.')">클랜 랭킹</button>
-                </div>
-                <div class="profile-tabs">
-                    <button class="btn ${this._profileView === 'profile' ? 'on' : ''}" onclick="UI.switchProfileView('profile')">프로필</button>
-                    <button class="btn ${this._profileView === 'settings' ? 'on' : ''}" onclick="UI.switchProfileView('settings')">설정</button>
-                </div>
-                <button class="btn" onclick="UI.closeProfile()">닫기</button>
+                <button class="x-btn" onclick="UI.closeProfile()">✕</button>
             </div>`;
     },
     onToggleAvatarPick() { this._avatarPicking = !this._avatarPicking; this.renderProfileView(); },
@@ -1442,26 +1444,34 @@ const UI = {
                 <span>${label}</span>
                 <button class="settings-toggle ${on ? 'on' : ''}" onclick="${onclick}"></button>
             </div>`;
+        const checkRow = (label) => `
+            <div class="settings-row static" onclick="UI.toast('데모 버전에서는 지원하지 않습니다')">
+                <span>${label}</span><span class="settings-check">✔</span>
+            </div>`;
         const staticRow = (label) => `<div class="settings-row static" onclick="UI.toast('데모 버전에서는 지원하지 않습니다')"><span>${label}</span></div>`;
         this.els.profileModal.innerHTML = `
-            <div class="modal-card">
-                <h3>설정</h3>
-                <p class="muted" style="text-align:center">서버 시간: ${new Date().toLocaleString('ko-KR')}</p>
-                ${toggle('진동', d.vibration, "UI.onToggleSettingsDummy('vibration')")}
-                ${toggle('음악', SFX.musicEnabled, "UI.onToggleMusic()")}
-                ${toggle('사운드 효과', S.sfxOn, "UI.onToggleSfxSetting()")}
-                ${toggle('채팅 표시', d.chatShow, "UI.onToggleSettingsDummy('chatShow')")}
-                ${toggle('채팅 다크 모드', d.chatDark, "UI.onToggleSettingsDummy('chatDark')")}
-                ${toggle('클랜 채팅 미리보기', d.clanChatPreview, "UI.onToggleSettingsDummy('clanChatPreview')")}
-                ${staticRow('언어')}
-                ${staticRow('계정')}
-                ${staticRow('차단 목록')}
-                ${staticRow('개인정보 보호')}
-                <div class="profile-tabs">
-                    <button class="btn ${this._profileView === 'profile' ? 'on' : ''}" onclick="UI.switchProfileView('profile')">프로필</button>
-                    <button class="btn ${this._profileView === 'settings' ? 'on' : ''}" onclick="UI.switchProfileView('settings')">설정</button>
+            <div class="idet-wrap">
+                <div class="modal-card wide">
+                    <div class="profile-title">설정</div>
+                    <div class="profile-sub">서버 시간: ${new Date().toLocaleString('ko-KR')}</div>
+                    <div class="settings-list">
+                        ${toggle('진동', d.vibration, "UI.onToggleSettingsDummy('vibration')")}
+                        ${toggle('음악', SFX.musicEnabled, "UI.onToggleMusic()")}
+                        ${toggle('사운드 효과', S.sfxOn, "UI.onToggleSfxSetting()")}
+                        ${toggle('채팅 표시', d.chatShow, "UI.onToggleSettingsDummy('chatShow')")}
+                        ${toggle('채팅 다크 모드', d.chatDark, "UI.onToggleSettingsDummy('chatDark')")}
+                        ${toggle('클랜 채팅 미리보기', d.clanChatPreview, "UI.onToggleSettingsDummy('clanChatPreview')")}
+                        ${staticRow('언어')}
+                        ${checkRow('계정')}
+                        ${staticRow('차단 목록')}
+                        ${staticRow('개인정보 보호')}
+                    </div>
+                    <div class="profile-tabs">
+                        <button class="${this._profileView === 'profile' ? 'on' : ''}" onclick="UI.switchProfileView('profile')">프로필</button>
+                        <button class="${this._profileView === 'settings' ? 'on' : ''}" onclick="UI.switchProfileView('settings')">설정</button>
+                    </div>
                 </div>
-                <button class="btn" onclick="UI.closeProfile()">닫기</button>
+                <button class="x-btn" onclick="UI.closeProfile()">✕</button>
             </div>`;
     },
     onToggleSettingsDummy(key) { S.settingsDummy[key] = !S.settingsDummy[key]; saveGame(); this.renderSettingsView(); },
