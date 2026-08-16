@@ -51,6 +51,8 @@ const League = {
             S.league.lastTicketReset = today;
             S.league.tickets = this.TICKET_MAX;
             saveGame();
+            // 열려 있는 리그 화면이 있으면 리셋된 티켓 수를 즉시 반영 (checkSeasonEnd와 동일 패턴)
+            if (!UI.els.leagueModal.classList.contains('hidden')) UI.openLeague();
         }
     },
 
