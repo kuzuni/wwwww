@@ -3,9 +3,24 @@ const UI = {
     els: {},
     activeTab: null,
     _pendingItem: null,
-    _skillSummonX5: false,
-    _petSummonX5: false,
-    _mountSummonX5: false,
+    // 소환 배수 4단 순환 (사용자 지시: x1→x5→x25→x75) — 스킬·펫·탈것 공통, S.summonMult에 저장돼 재접속 유지
+    SUMMON_MULTS: [1, 5, 25, 75],
+    summonMult(kind) { return (S && S.summonMult && S.summonMult[kind]) || 1; },
+    cycleSummonMult(kind) {
+        S.summonMult = S.summonMult || {};
+        const cur = this.summonMult(kind);
+        S.summonMult[kind] = this.SUMMON_MULTS[(this.SUMMON_MULTS.indexOf(cur) + 1) % this.SUMMON_MULTS.length];
+        saveGame();
+        if (kind === 'skill') this.renderSkills();
+        else if (kind === 'pet') this.renderPets();
+        else this.openMounts();
+    },
+    // 대량 소환 결과 요약 (x25/x75에도 토스트가 견디게 등급별 집계)
+    summarizeRarities(results) {
+        const cnt = {};
+        results.forEach(x => { const r = x.rarity || (x.def && x.def.rarity); cnt[r] = (cnt[r] || 0) + 1; });
+        return RARITIES.filter(r => cnt[r]).map(r => `${RARITY_KR[r]}×${cnt[r]}`).join(' · ');
+    },
 
     init() {
         const $ = id => document.getElementById(id);
@@ -724,7 +739,7 @@ const UI = {
             `<button class="btn xs" onclick="UI.onMerge('${r}')">${RARITY_KR[r]} 3 → ${RARITY_KR[RARITIES[RARITIES.indexOf(r) + 1]]} 알</button>` : '').join('');
 
         const petLvl = Pets.summonLevel(), petCapped = petLvl >= 100;
-        const petSummonN = this._petSummonX5 ? 5 : 1;
+        const petSummonN = this.summonMult('pet');
 
         p.innerHTML = `
             <div class="sheet-head">
@@ -740,7 +755,7 @@ const UI = {
             </div>
             <div class="summon-bar">
                 <button class="btn danger round back-btn" onclick="UI.switchTab(null)">◀</button>
-                <button class="btn xs x5-toggle ${this._petSummonX5 ? 'on' : ''}" onclick="UI.togglePetSummonX5()">x5</button>
+                <button class="btn xs x5-toggle ${petSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('pet')">x${petSummonN}</button>
                 <button class="btn big summon-btn ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">
                     소환 x${petSummonN}<small class="summon-cost">🥚 <b>${Pets.SUMMON_EGG_COST * petSummonN}</b></small></button>
                 <div class="summon-info">
@@ -797,16 +812,12 @@ const UI = {
         this.showModal(this.els.detailModal);
     },
 
-    togglePetSummonX5() {
-        this._petSummonX5 = !this._petSummonX5;
-        this.renderPets();
-    },
     onSummonPetEgg() {
-        const count = this._petSummonX5 ? 5 : 1;
+        const count = this.summonMult('pet');
         const r = Pets.summon(count);
-        if (!r) { this.toast(S.eggs.length + count > 20 ? '🥚 알 보관함이 가득 찼습니다 (20/20)' : '🥚 알이 부족합니다 (스테이지 클리어로 획득)'); return; }
+        if (!r) { this.toast(S.eggs.length + count > 20 ? `🥚 알 보관함 여유가 부족합니다 (${S.eggs.length}/20)` : '🥚 알이 부족합니다 (펫 던전에서 획득)'); return; }
         if (count === 1) this.toast(`🥚 ${RARITY_KR[r.results[0].rarity]} 알 획득!`);
-        else this.toast(`🥚 소환 x${count} — ` + r.results.map(x => RARITY_KR[x.rarity]).join(' · ') + ' 획득!');
+        else this.toast(`🥚 소환 x${count} — ${this.summarizeRarities(r.results)} 획득!`);
         this.renderPets();
     },
 
@@ -998,7 +1009,7 @@ const UI = {
         const p = this.els.skillsPanel;
         const lvl = Skills.summonLevel();
         const pb = Skills.activeBonus();
-        const skillSummonN = this._skillSummonX5 ? 5 : 1;
+        const skillSummonN = this.summonMult('skill');
         const capped = lvl >= 100;
 
         // 5열 원형 아이콘 그리드 — 셀 = 원형 아이콘 + Lv 배지 + 별 + 조각 게이지, 장착 시 리본
@@ -1043,7 +1054,7 @@ const UI = {
             </div>
             <div class="summon-bar">
                 <button class="btn danger round back-btn" onclick="UI.switchTab(null)">◀</button>
-                <button class="btn xs x5-toggle ${this._skillSummonX5 ? 'on' : ''}" onclick="UI.toggleSkillSummonX5()">x5</button>
+                <button class="btn xs x5-toggle ${skillSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('skill')">x${skillSummonN}</button>
                 <button class="btn big summon-btn ${Skills.canSummon(false, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(false)">
                     소환 x${skillSummonN}<small class="summon-cost">🎫 <b>${Skills.SUMMON_TICKET_COST * skillSummonN}</b></small></button>
                 <div class="summon-info">
@@ -1140,12 +1151,8 @@ const UI = {
     },
     closeDetail() { this.els.detailModal.classList.add('hidden'); },
 
-    toggleSkillSummonX5() {
-        this._skillSummonX5 = !this._skillSummonX5;
-        this.renderSkills();
-    },
     onSummon(useGems) {
-        const count = this._skillSummonX5 ? 5 : 1;
+        const count = this.summonMult('skill');
         const r = Skills.summon(useGems, count);
         if (!r) { this.toast(useGems ? '💎 젬이 부족합니다' : '🎫 티켓이 부족합니다 (스테이지 클리어로 획득)'); return; }
         if (count === 1) {
@@ -1934,7 +1941,7 @@ const UI = {
         const rates = Mounts.rates();
         const ratesHtml = RARITIES.filter(r => (rates[r] || 0) > 0).map(r =>   // 0% 등급 미표시 (사용자 지시)
             `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${((rates[r] || 0) * 100).toFixed(2)}%</span>`).join('');
-        const mountSummonN = this._mountSummonX5 ? 5 : 1;
+        const mountSummonN = this.summonMult('mount');
 
         const owned = Object.entries(S.mounts);
         const listHtml = owned.length ? owned.map(([name, m]) => {
@@ -1971,7 +1978,7 @@ const UI = {
                 </div>
                 <div class="prob-box">${ratesHtml}</div>
                 <div class="row">
-                    <button class="btn sm ${this._mountSummonX5 ? 'on' : ''}" onclick="UI.toggleMountSummonX5()">x5</button>
+                    <button class="btn sm ${mountSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('mount')">x${mountSummonN}</button>
                     <button class="btn primary ${Mounts.canSummon(mountSummonN) ? '' : 'disabled'}" onclick="UI.onSummonMount()">소환 x${mountSummonN} <small>⚙️ ${WINDERS_PER_SUMMON * mountSummonN}</small></button>
                 </div>
                 <h3>보유 마운트</h3>
@@ -1981,12 +1988,8 @@ const UI = {
         this.showModal(this.els.mountModal);
     },
     closeMounts() { this.els.mountModal.classList.add('hidden'); },
-    toggleMountSummonX5() {
-        this._mountSummonX5 = !this._mountSummonX5;
-        this.openMounts();
-    },
     onSummonMount() {
-        const count = this._mountSummonX5 ? 5 : 1;
+        const count = this.summonMult('mount');
         const r = Mounts.summon(count);
         if (!r) { this.toast('⚙️ 태엽이 부족합니다 (스테이지 클리어로 획득)'); return; }
         if (count === 1) {

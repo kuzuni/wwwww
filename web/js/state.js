@@ -25,6 +25,7 @@ function defaultState() {
         // 재화
         hammers: 80, coins: 500, gems: 0, tickets: 40, winders: 0, potions: 0, eggCurrency: 0,
         petSummonCount: 0,              // 누적 펫 소환 수 → 소환 레벨 상승
+        summonMult: { skill: 1, pet: 1, mount: 1 }, // 소환 배수 (x1→x5→x25→x75 순환, 사용자 지시 — 구세이브는 UI.summonMult()가 1로 폴백)
         hatchSlotBonus: 0,               // 부화장 슬롯 젬 구매 수 (기본 2칸 + 이 값)
         techResearch: null,             // 기술 트리 연구 중: {id, endsAt} | null (전역 1건)
         // 대장간
