@@ -225,6 +225,7 @@ const Pets = {
 
     merge(rarity) {
         if (!this.canMerge(rarity)) return false;
+        if (S.eggs.length >= 20) { UI.toast('🥚 알 보관함이 가득 차 합성할 수 없습니다'); return false; }
         let need = 3;
         for (let i = 0; i < S.pets.length && need > 0; i++) {
             const p = S.pets[i];
