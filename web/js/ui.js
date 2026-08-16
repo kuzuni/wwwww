@@ -114,7 +114,7 @@ const UI = {
     closeStub() { this.els.stubModal.classList.add('hidden'); },
 
     // ---- 소환 탭: 스킬/펫/기술 트리 서브탭 (UI-SPEC 8~16번) ----
-    _summonSub: 'pets',
+    _summonSub: 'skills', // 원본 서브탭 순서(스킬|펫|기술 트리)상 첫 탭 — onTabClick 폴백과 일치
     switchSummonSub(sub) {
         this._summonSub = sub;
         if (this.activeTab !== 'summon') { this.switchTab('summon'); return; } // switchTab이 다시 호출
@@ -167,7 +167,7 @@ const UI = {
         const h = Combat.hero;
         const r = U.clamp(h.hp / h.maxHp, 0, 1);
         this.els.heroHp.style.width = (r * 100) + '%';
-        this.els.heroHpText.textContent = `${U.fmt(h.hp)} / ${U.fmt(h.maxHp)}`;
+        this.els.heroHpText.textContent = `${U.fmt(Math.max(0, h.hp))} / ${U.fmt(h.maxHp)}`; // 막타 관통 음수 표시 방지
     },
     showBossBar(e) {
         this.els.bossBar.classList.remove('hidden');
@@ -245,7 +245,7 @@ const UI = {
         const info = Forge.upgradeInfo();
         const upgrading = !!S.forgeUpgradeEndsAt;
         let forgeBtnHtml;
-        if (!info) forgeBtnHtml = `<button class="btn sm disabled">대장간 최고 레벨</button>`;
+        if (!info) forgeBtnHtml = `<button class="btn sm disabled">대장간<br>최고 레벨</button>`; // 만렙 라벨도 미만렙과 같은 명시적 2줄 — 자동 래핑 클리핑 방지
         else {
             // 원본은 버튼에 "대장간 레벨 N"만 두고 남은 시간은 버튼 아래 별도 줄에 표시
             forgeBtnHtml = `<button class="btn sm primary" onclick="UI.openForgeInfo()">대장간<br>레벨 ${S.forgeLevel}</button>`;

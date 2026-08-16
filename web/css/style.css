@@ -1190,7 +1190,7 @@ body {
 .sk-shard i { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; }
 .sk-shard em {
     position: absolute; inset: 0; font-style: normal; font-size: .52rem; font-weight: 900;
-    color: #fff; text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
+    color: #fff; -webkit-text-stroke: 2.5px #17181a; paint-order: stroke fill; /* 흰 채움 위에서도 글리프 내부가 살아남는 외곽선 */
     display: flex; align-items: center; justify-content: center;
 }
 .equipped-row {

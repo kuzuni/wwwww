@@ -318,6 +318,7 @@ const Combat = {
         // 후퇴 없음 — 같은 스테이지 재도전 (무조건 전진)
         saveGame();
         this.hero.hp = this.hero.maxHp;
+        UI.updateHeroHp(); // 사망 직전 렌더된 음수 HP 표시를 리스폰 값으로 즉시 갱신
         this.phase = 'stageDelay';
         this.phaseTimer = 2.0;
     },
