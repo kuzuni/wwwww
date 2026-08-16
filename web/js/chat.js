@@ -25,13 +25,20 @@ const Chat = {
         for (let i = 0; i < n; i++) this.pushBotMessage(U.now() - (n - i) * 90000);
     },
 
-    randomBot() {
+    // 같은 닉네임 = 같은 인물 (아바타·클랜태그·성별 고정) — 이름 해시로 결정적 매핑 (UI.chatNameColor와 동일 방식)
+    persona(name) {
+        let h = 0;
+        for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
         return {
-            tag: U.choice(this.CLAN_TAGS),
-            name: U.choice(this.NAMES),
-            avatar: U.choice(this.AVATAR_POOL),
-            gender: U.chance(0.5) ? '♂' : '♀',
+            name,
+            tag: this.CLAN_TAGS[h % this.CLAN_TAGS.length],
+            avatar: this.AVATAR_POOL[(h >>> 4) % this.AVATAR_POOL.length],
+            gender: ((h >>> 8) & 1) ? '♂' : '♀',
         };
+    },
+
+    randomBot() {
+        return this.persona(U.choice(this.NAMES));
     },
 
     pushBotMessage(at) {
