@@ -39,6 +39,10 @@ const UI = {
         this.renderEquipSheet();
         this.renderChatPreview();
         this.watchTabX();
+        // 망치 수 드롭다운 바깥 클릭 시 닫힘 (자동 제련 팝업)
+        document.addEventListener('click', e => {
+            if (this._afDdOpen && !e.target.closest('.af-dd')) { this._afDdOpen = false; this.renderAutoForge(); }
+        });
     },
 
     // 하단 탭 클릭: 던전/상점/전투(PvP)는 팝업, 나머지는 시트 토글(다시 누르면 닫힘).
@@ -479,7 +483,7 @@ const UI = {
         this.renderAutoForge();
         this.showModal(this.els.autoForgeModal);
     },
-    closeAutoForge() { this.els.autoForgeModal.classList.add('hidden'); },
+    closeAutoForge() { this._afDdOpen = false; this.els.autoForgeModal.classList.add('hidden'); },
     // 원본(shot-042950/043117) 대조: 유지=풀폭 시대색 막대+체크, 필터=우측 토글+회색 pill 행,
     // 망치 수=검정 스피너, 하단 큰 파란 [시작], 닫기=카드 아래 빨간 X
     renderAutoForge() {
@@ -512,7 +516,10 @@ const UI = {
                     </div>
                     <div class="af-bottom">
                         <div class="af-row"><span>한 번에 사용된 망치 수</span>
-                            <button class="af-spinner" onclick="UI.onBumpHammers()">${cfg.hammersPerBatch}<span class="af-spin-arrow">▲</span></button></div>
+                            <div class="af-dd">
+                                <button class="af-spinner" onclick="UI.onToggleHammerDd(event)">${cfg.hammersPerBatch}<span class="af-spin-arrow">${this._afDdOpen ? '▼' : '▲'}</span></button>
+                                ${this._afDdOpen ? `<div class="af-dd-list">${Array.from({ length: this.HAMMER_BATCH_MAX }, (_, n) => `<button class="${cfg.hammersPerBatch === n + 1 ? 'on' : ''}" onclick="UI.onPickHammers(${n + 1})">${n + 1}</button>`).join('')}</div>` : ''}
+                            </div></div>
                         <div class="af-row"><span>목표 장비를 찾으면 제련 계속하기</span>
                             <span class="af-check ${cfg.continueOnTarget ? 'on' : ''}" onclick="UI.onToggleContinueOnTarget()">${cfg.continueOnTarget ? '✓' : ''}</span></div>
                         <button class="btn primary af-start" onclick="UI.onToggleAutoForge()">${S.autoForgeOn ? '중지' : '시작'}</button>
@@ -538,10 +545,18 @@ const UI = {
         cfg.filterOn = !cfg.filterOn;
         saveGame(); this.renderAutoForge();
     },
-    // 검정 스피너 탭 시 1→22 순환 증가 (원본은 ▲ 하나뿐이라 증가+랩어라운드 방식)
-    onBumpHammers() {
+    // 망치 수 커스텀 드롭다운 (사용자 지시: 순환 탭 대신 목록에서 바로 선택) — 상한 22는 UI-SPEC 82번 "1~22 범위" 원본 근거
+    HAMMER_BATCH_MAX: 22,
+    _afDdOpen: false,
+    onToggleHammerDd(ev) {
+        ev.stopPropagation();
+        this._afDdOpen = !this._afDdOpen;
+        this.renderAutoForge();
+    },
+    onPickHammers(n) {
         const cfg = Forge.autoForgeConfig();
-        cfg.hammersPerBatch = cfg.hammersPerBatch >= 22 ? 1 : (cfg.hammersPerBatch || 0) + 1;
+        cfg.hammersPerBatch = U.clamp(n, 1, this.HAMMER_BATCH_MAX);
+        this._afDdOpen = false;
         saveGame(); this.renderAutoForge();
     },
     onToggleContinueOnTarget() {

@@ -1401,6 +1401,20 @@ body {
     border-radius: .45rem; padding: .28rem .55rem; font-size: .92rem; font-weight: 900; font-family: inherit;
 }
 .af-spin-arrow { font-size: .7rem; }
+/* 망치 수 커스텀 드롭다운 — 검정 박스 룩 유지, 위로 펼침(카드 하단 클리핑 회피), 브라우저 기본 select 미사용 */
+.af-dd { position: relative; }
+.af-dd-list {
+    position: absolute; right: 0; bottom: calc(100% + .3rem); z-index: 6;
+    background: #17181a; border: 3px solid var(--pp-line); border-radius: .45rem;
+    max-height: 10.5rem; overflow-y: auto; min-width: 5.4rem;
+    display: flex; flex-direction: column; scrollbar-width: thin;
+}
+.af-dd-list button {
+    background: none; border: none; color: #fff; font-weight: 900; font-size: .92rem;
+    padding: .3rem .55rem; cursor: pointer; text-align: center; font-family: inherit; flex: none;
+}
+.af-dd-list button.on { background: var(--pp-blue); }
+.af-dd-list button:active { background: #2c313a; }
 .af-start { display: block; width: 68%; margin: .65rem auto .15rem; font-size: 1.02rem; padding: .55rem 0; }
 
 /* ===== 확률 정보 팝업 (shot-042831 원본 대조 재작업) ===== */
