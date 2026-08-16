@@ -1472,7 +1472,8 @@ const UI = {
         Mounts.ensure();
         const lvl = Mounts.level();
         const need = Mounts.nextNeeded();
-        const progress = need ? U.clamp(S.mountOpens / need, 0, 1) : 1;
+        const prevNeed = Mounts.prevNeeded();
+        const progress = need ? U.clamp((S.mountOpens - prevNeed) / (need - prevNeed), 0, 1) : 1;
         const rates = Mounts.rates();
         const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
             `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${(rates[r] * 100).toFixed(2)}%</span>`).join('');
@@ -1504,7 +1505,7 @@ const UI = {
                     <div class="tech-node" style="flex:1">
                         <div class="tech-node-head">
                             <span class="item-name">소환 레벨</span>
-                            <span class="muted">Lv.${lvl} / ${Mounts.MAX_LEVEL}${need ? ` (${S.mountOpens}/${need})` : ' MAX'}</span>
+                            <span class="muted">Lv.${lvl} / ${Mounts.MAX_LEVEL}${need ? ` (${S.mountOpens - prevNeed}/${need - prevNeed})` : ' MAX'}</span>
                         </div>
                         <div class="tech-node-bar"><div style="width:${(progress * 100).toFixed(1)}%"></div></div>
                     </div>

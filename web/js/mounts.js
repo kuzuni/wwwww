@@ -33,6 +33,12 @@ const Mounts = {
         return need === 'MAX' ? null : need;
     },
 
+    // 현재 레벨 시작 시점의 누적 오픈 수 (게이지가 레벨 내 진행률을 표시하도록 기준점 제공, 레벨 1이면 0)
+    prevNeeded() {
+        const lvl = this.level();
+        return lvl > 1 ? mountSummonRates[lvl - 1].needed : 0;
+    },
+
     // 현재 레벨의 등급 확률표 (needed 필드 제외)
     rates() {
         const r = mountSummonRates[Math.min(this.MAX_LEVEL, this.level())];
