@@ -1283,10 +1283,10 @@ const UI = {
         this.renderTopBar();
     },
 
-    // ---- 진행 패스 (UI-SPEC 18번): 스테이지 도달 마일스톤. 무료만 실지급, 프리미엄은 잠금 표시(더미) ----
+    // ---- 진행 패스 (UI-SPEC 18번, 원본 shot-042705): 스테이지 도달 마일스톤. 무료만 실지급, 프리미엄은 잠금 표시(더미) ----
     CURRENCY_ICON: { coins: '👑', hammers: '🔨', gems: '◆', tickets: '🎫', potions: '🧪', winders: '⚙️', eggCurrency: '🥚' },
-    passRewardText(reward) {
-        return Object.entries(reward).map(([k, v]) => `${this.CURRENCY_ICON[k] || ''}${U.fmt(v)}`).join(' ');
+    passRewardLines(reward) {
+        return Object.entries(reward).map(([k, v]) => `<span>${this.CURRENCY_ICON[k] || ''}${U.fmt(v)}</span>`).join('');
     },
     openPass() {
         Pass.ensure();
@@ -1300,24 +1300,25 @@ const UI = {
             const reached = Pass.reached(m.stage);
             const claimed = Pass.claimed(m.stage);
             const freeCell = claimed
-                ? `<div class="pass-cell free done">${this.passRewardText(m.free)}<br>✅</div>`
+                ? `<div class="pass-cell free done">${this.passRewardLines(m.free)}<span class="pass-badge check">✓</span></div>`
                 : reached
-                    ? `<button class="pass-cell free claimable" onclick="UI.onClaimPass('${m.stage}')">${this.passRewardText(m.free)}<br>수령</button>`
-                    : `<div class="pass-cell free locked">${this.passRewardText(m.free)}<br>🔒</div>`;
-            const premiumCell = `<div class="pass-cell premium locked" onclick="UI.onPremiumPass()">${this.passRewardText(m.premium)}<br>🔒</div>`;
+                    ? `<button class="pass-cell free claimable" onclick="UI.onClaimPass('${m.stage}')">${this.passRewardLines(m.free)}</button>`
+                    : `<div class="pass-cell free locked">${this.passRewardLines(m.free)}</div>`;
+            const premiumCell = `<div class="pass-cell premium locked" onclick="UI.onPremiumPass()">${this.passRewardLines(m.premium)}<span class="pass-badge lock">🔒</span></div>`;
             return `<div class="pass-milestone-label">${this.difficultyLabel(c)} ${m.stage}</div>
                 <div class="pass-row">${freeCell}${premiumCell}</div>`;
         }).join('');
         this.els.passModal.innerHTML = `
-            <div class="modal-card wide">
-                <div class="row" style="justify-content:space-between">
-                    <h3>⚔️ 진행 패스</h3>
-                    <span class="pass-price" onclick="UI.onPremiumPass()">${Pass.PREMIUM_PRICE_KR}</span>
+            <div class="idet-wrap">
+                <div class="modal-card wide pass-card">
+                    <div class="pass-sword">🗡️</div>
+                    <div class="pass-banner">진행 패스</div>
+                    <p class="pass-desc">전투를 진행하여 보상을 받으세요!</p>
+                    <div class="pass-price" onclick="UI.onPremiumPass()">${Pass.PREMIUM_PRICE_KR}</div>
+                    <div class="pass-header-row"><span>무료</span><span>프리미엄</span></div>
+                    <div class="pass-track">${rowsHtml}</div>
                 </div>
-                <p class="muted" style="text-align:center">전투를 진행하여 보상을 받으세요!</p>
-                <div class="pass-header-row"><span>무료</span><span>프리미엄</span></div>
-                <div class="pass-track">${rowsHtml}</div>
-                <button class="btn" onclick="UI.closePass()">닫기</button>
+                <button class="x-btn" onclick="UI.closePass()">✕</button>
             </div>`;
     },
     onClaimPass(key) {
