@@ -759,7 +759,7 @@ const UI = {
                 <button class="btn gem" onclick="UI.onSummon(true)">소환 <small>💎 ${Skills.SUMMON_GEM_COST}</small></button>
             </div>
             <div class="prob-box">${ratesHtml}</div>
-            <h3>보유 스킬 <span class="muted">(장착 ${S.equippedSkills.length}/4)</span></h3>
+            <h3>보유 스킬 <span class="muted">(장착 ${S.equippedSkills.length}/${Skills.MAX_ACTIVE})</span></h3>
             <div class="row">
                 <button class="btn sm" onclick="UI.onUpgradeAllSkills()">모두 업그레이드</button>
                 <button class="btn sm" onclick="UI.onQuickEquipSkills()">빠른 장착</button>
@@ -797,7 +797,7 @@ const UI = {
         this.renderSkills(); this.renderSkillBar();
     },
     onToggleSkill(id) {
-        if (!Skills.toggleEquip(id)) this.toast('스킬은 최대 4개 장착 가능합니다');
+        if (!Skills.toggleEquip(id)) this.toast(`스킬은 최대 ${Skills.MAX_ACTIVE}개 장착 가능합니다`);
         this.renderSkills();
     },
 
