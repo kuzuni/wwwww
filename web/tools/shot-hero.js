@@ -10,7 +10,7 @@ const OUT = __dirname;
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-    await page.goto(INDEX + '?debug=gear&w=sword', { waitUntil: 'load' }); // 검 장착 — 공격샷이 근접 스윙(slash)이어야 궤적 판독 가능 (staff=cast는 스윙 없음)
+    await page.goto(INDEX + '?debug=gear&w=sword&wage=medieval&rar=rare&hage=medieval&aage=medieval', { waitUntil: 'load' }); // 검 장착(공격샷 스윙 판독) — 중세·레어로 발광 오브·에너지 링 없이 캐릭터 본체 품질만 판독
     await page.waitForFunction(() => typeof Scene3D !== "undefined" && Scene3D.heroG && typeof Combat !== "undefined", null, { timeout: 15000 });
 
     // 영웅 '정면' 기준 궤도 카메라 — 이전 절대 yaw 방식은 등짝만 찍혔음(비평가: "팔이 없다"의 실체)
@@ -138,10 +138,14 @@ const OUT = __dirname;
         Scene3D.heroG.updateMatrixWorld(true);
         const p = new THREE.Vector3();
         R.handR.getWorldPosition(p);
+        const c = new THREE.Vector3();
+        Scene3D.heroG.getWorldPosition(c);
+        // 몸 중심→손 방향(수평)으로 카메라를 빼서 주먹이 프레임 중앙에 오게 — 몸통이 프레임을 먹던 문제 재프레이밍
+        const out = p.clone().sub(c); out.y = 0; out.normalize();
         const fwd = new THREE.Vector3();
         Scene3D.heroG.getWorldDirection(fwd);
-        fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.85); // 오른손 바깥쪽 사선 — 몸통 가림 회피
-        Scene3D.camLock = { pos: p.clone().add(fwd.multiplyScalar(0.95)).add(new THREE.Vector3(0, 0.12, 0)), look: p.clone() };
+        const camPos = p.clone().add(out.multiplyScalar(0.42)).add(fwd.multiplyScalar(0.3)).add(new THREE.Vector3(0, 0.1, 0));
+        Scene3D.camLock = { pos: camPos, look: p.clone().add(new THREE.Vector3(0, -0.02, 0)) };
     });
     await page.waitForTimeout(150);
     await shot('hero-hand.png');

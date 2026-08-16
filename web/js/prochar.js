@@ -360,26 +360,43 @@ const ProChar = {
             // 건틀릿 커프(원뿔 링) + 손
             const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.065, 0.07, 10), steel());
             cuff.position.y = -0.11;
-            // 주먹: 앞뒤 눌린 구 + 엄지 캡슐 + 너클 판 — '은색 공 벙어리장갑' 오독 해소 (비평가 11번)
-            const gloveMat = new THREE.MeshPhongMaterial({ color: 0x6b4e3a, shininess: 22, map: this.leatherTex() }); // 주먹과 같은 가죽, 반 톤 어둡게
-            const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.027, 6, 5), gloveMat);
-            thumb.position.set(side * -0.042, -0.15, 0.028);
-            thumb.scale.set(0.85, 1.5, 0.85);
-            thumb.rotation.z = side * -0.55;
-            const hand = new THREE.Mesh(new THREE.SphereGeometry(0.058, 8, 7),
-                new THREE.MeshPhongMaterial({ color: 0x7a5c46, shininess: 22, map: this.leatherTex() })); // 가죽 건틀릿 주먹 — '북채 팔' 오독 제거
-            hand.position.y = -0.16;
-            hand.scale.set(0.92, 1.1, 0.8); // 앞뒤로 눌러 주먹 사각 인상
+            // 주먹: 손바닥 블록 + 손가락 4지(기절·말절 2분절 컬) + 엄지 2분절 + 강철 너클 가드 — 근접샷에서 '손가락 없는 스텁' 오독 해소 (비평가 1번)
+            const gloveMat = new THREE.MeshPhongMaterial({ color: 0x6b4e3a, shininess: 22, map: this.leatherTex() });
+            const palmMat = new THREE.MeshPhongMaterial({ color: 0x7a5c46, shininess: 22, map: this.leatherTex() });
+            const fist = new THREE.Group();
+            fist.position.y = -0.16;
+            const palm = new THREE.Mesh(new THREE.SphereGeometry(0.052, 9, 8), palmMat);
+            palm.scale.set(1.0, 1.05, 0.72); // 앞뒤로 눌린 손등 블록
+            fist.add(palm);
+            for (let fi = 0; fi < 4; fi++) { // 4지 — 손등 앞면에 나란히, 아래·안쪽으로 말아쥔 2분절
+                const fx = (fi - 1.5) * 0.0235;
+                const fw = fi === 3 ? 0.017 : 0.02; // 새끼손가락만 가늘게
+                const prox = new THREE.Mesh(new THREE.CylinderGeometry(fw * 0.52, fw * 0.56, 0.042, 6), gloveMat);
+                prox.position.set(fx, -0.008, 0.045);
+                prox.rotation.x = -0.85; // 기절골 — 앞으로 뻗다 아래로 꺾임
+                const dist = new THREE.Mesh(new THREE.CylinderGeometry(fw * 0.44, fw * 0.5, 0.036, 6), gloveMat);
+                dist.position.set(fx, -0.045, 0.052);
+                dist.rotation.x = -2.1; // 말절골 — 손바닥 쪽으로 말림
+                const joint = new THREE.Mesh(new THREE.SphereGeometry(fw * 0.56, 6, 5), gloveMat);
+                joint.position.set(fx, -0.028, 0.058); // 두 분절 사이 관절 볼록
+                fist.add(prox, dist, joint);
+            }
+            // 엄지 — 손 안쪽에서 손가락들 앞을 가로지르는 2분절
+            const thumbA = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.015, 0.045, 6), gloveMat);
+            thumbA.position.set(side * -0.045, -0.022, 0.03);
+            thumbA.rotation.set(-0.5, 0, side * -0.85);
+            const thumbB = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.013, 0.036, 6), gloveMat);
+            thumbB.position.set(side * -0.022, -0.05, 0.052);
+            thumbB.rotation.set(-1.4, 0, side * -0.35);
+            fist.add(thumbA, thumbB);
+            // 강철 너클 가드 — 손등 위 장갑판 (건틀릿다움 + 프리미티브 접합 은폐)
+            const guard = new THREE.Mesh(new THREE.SphereGeometry(0.046, 8, 6), steelDark());
+            guard.position.set(0, 0.012, 0.012);
+            guard.scale.set(1.15, 0.75, 0.85);
+            fist.add(guard);
             const handMount = new THREE.Group();
             handMount.position.y = -0.17;
-            elbow.add(elbowCap, forearm, cuff, hand, thumb, handMount);
-            // 말린 손가락 마디 3개 — 너클 판 하나로는 '소시지 캡슐' 오독 (비평가 5번: 손가락 지오메트리 전무)
-            for (let fi = -1; fi <= 1; fi++) {
-                const seg = new THREE.Mesh(new THREE.SphereGeometry(0.021, 7, 6), gloveMat);
-                seg.position.set(fi * 0.036, -0.182, 0.045);
-                seg.scale.set(0.78, 1.3, 0.95);
-                elbow.add(seg);
-            }
+            elbow.add(elbowCap, forearm, cuff, fist, handMount);
             shoulder.add(pauldron, pauldron2, rivet, upperArm, elbow);
             spine.add(shoulder);
             R.arms.push({ shoulder, elbow, handMount });

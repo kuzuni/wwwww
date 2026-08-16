@@ -1653,16 +1653,16 @@ const Scene3D = {
         }
         // 등급 연출: 높을수록 화려하게
         const rIdx = RARITIES.indexOf(rarity);
-        if (rIdx >= 1) { // 희귀+: 등급색 젬
-            const gem = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6),
+        if (rIdx >= 1) { // 희귀+: 등급색 젬 — 파지점(y≈0) 위 리카소에 거치, 주먹과 겹쳐 '손에 붙은 발광구'로 읽히던 위치 상향 (비평가: 근접샷 주먹 가림)
+            const gem = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6),
                 new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 0.9 }));
-            gem.position.set(0, 0.02, 0.05);
+            gem.position.set(0, 0.105, 0.045);
             g.add(gem);
         }
-        if (rIdx >= 2) { // 영웅+: 등급색 트림 링
+        if (rIdx >= 2) { // 영웅+: 등급색 트림 링 — 젬 상향에 맞춰 간격 유지
             const trim = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10),
                 new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 0.7 }));
-            trim.position.y = 0.12;
+            trim.position.y = 0.19;
             g.add(trim);
         }
         if (rIdx >= 3) { // 전설+: 떠다니는 오브 — 무기 길이에 비례한 높이 (단검·투척에서 머리 옆 부유 금지)
