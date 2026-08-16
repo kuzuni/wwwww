@@ -1,4 +1,24 @@
 // ===== WebAudio 프로시저럴 효과음 (외부 파일 금지 — 오실레이터/노이즈로 전부 합성) =====
+
+// ---- BGM 악곡 데이터: C장조 캐주얼 판타지 코드 진행(I-V-vi-IV) + 2마디 멜로디 모티프 ----
+const MUSIC_BPM = 96;
+const MUSIC_STEPS_PER_BAR = 16;      // 16분음표 해상도
+const MUSIC_BARS_PER_CHORD = 2;
+const MUSIC_PROGRESSION = [          // MIDI 노트 번호 (베이스 1개 + 패드 3화음)
+    { bass: 48, pad: [60, 64, 67] }, // C  (I)
+    { bass: 55, pad: [67, 71, 74] }, // G  (V)
+    { bass: 57, pad: [69, 72, 76] }, // Am (vi)
+    { bass: 53, pad: [65, 69, 72] }, // F  (IV)
+];
+const MUSIC_LOOP_STEPS = MUSIC_PROGRESSION.length * MUSIC_BARS_PER_CHORD * MUSIC_STEPS_PER_BAR; // 128스텝 = 8마디
+// 2마디(32스텝) 펜타토닉 멜로디 모티프 — 코드 진행 4개 구간에서 그대로 반복(위에 얹히는 코드가 달라 매번 다르게 들림)
+const MUSIC_MELODY = (() => {
+    const m = new Array(32).fill(0);
+    const notes = { 0: 72, 4: 76, 8: 79, 12: 76, 16: 74, 20: 72, 22: 74, 24: 79, 28: 76, 30: 74 };
+    for (const k in notes) m[k] = notes[k];
+    return m;
+})();
+
 const SFX = {
     ctx: null,
     master: null,
@@ -87,9 +107,14 @@ const SFX = {
     },
 
     // ===== 배경 음악 (설정 팝업 "음악" 토글, UI-SPEC 20번 실동작) =====
-    // 외부 파일 없이 프로시저럴 코드 패드를 반복 재생 — sfxOn과 별개 버스(effOn 꺼도 음악은 계속)
+    // 외부 파일 없이 프로시저럴로 실제 곡처럼 들리게 합성 — 베이스+코드패드+멜로디+하이햇 4레이어를
+    // WebAudio 표준 look-ahead 스케줄러 패턴(짧은 타이머로 ctx.currentTime 기준 미리 예약)으로 루프.
+    // sfxOn과 별개 버스(효과음 꺼도 음악은 계속 재생)
     musicTimer: null,
     musicGain: null,
+    _musicStep: 0,
+    _musicNextTime: 0,
+    _musicStepDur: 0,
     get musicEnabled() { return !S || S.musicOn !== false; },
 
     startMusic() {
@@ -98,27 +123,13 @@ const SFX = {
         if (!ctx) return;
         if (!this.musicGain) {
             this.musicGain = ctx.createGain();
-            this.musicGain.gain.value = 0.05;
+            this.musicGain.gain.value = 0.16; // 마스터 음악 버스(스펙: 0.1~0.2)
             this.musicGain.connect(ctx.destination);
         }
-        const chord = [130.81, 164.81, 196.00, 246.94]; // C3-E3-G3-B3 소프트 패드
-        const playPad = () => {
-            if (!this.musicEnabled) return;
-            const t0 = ctx.currentTime;
-            chord.forEach(f => {
-                const osc = ctx.createOscillator();
-                const g = ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.value = f;
-                g.gain.setValueAtTime(0.0001, t0);
-                g.gain.linearRampToValueAtTime(0.6, t0 + 2);
-                g.gain.linearRampToValueAtTime(0.0001, t0 + 7.5);
-                osc.connect(g); g.connect(this.musicGain);
-                osc.start(t0); osc.stop(t0 + 8);
-            });
-        };
-        playPad();
-        this.musicTimer = setInterval(playPad, 8000);
+        this._musicStep = 0;
+        this._musicStepDur = 60 / MUSIC_BPM / 4; // 16분음표 길이(초)
+        this._musicNextTime = ctx.currentTime + 0.05;
+        this.musicTimer = setInterval(() => this._musicTick(), 25); // look-ahead: 25ms마다 깨어나 예약 큐를 채움
     },
 
     stopMusic() {
@@ -130,5 +141,74 @@ const SFX = {
         if (S.musicOn) this.startMusic(); else this.stopMusic();
         saveGame();
         return S.musicOn;
+    },
+
+    _noteFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); },
+
+    // 다음 스케줄 윈도우(현재 시각 + 120ms)까지 필요한 스텝을 모두 정확한 절대 시각으로 예약
+    _musicTick() {
+        const ctx = this.ctx;
+        if (!ctx || !this.musicEnabled) return;
+        while (this._musicNextTime < ctx.currentTime + 0.12) {
+            this._musicScheduleStep(this._musicStep, this._musicNextTime);
+            this._musicNextTime += this._musicStepDur;
+            this._musicStep = (this._musicStep + 1) % MUSIC_LOOP_STEPS;
+        }
+    },
+
+    _musicScheduleStep(step, t0) {
+        const barStep = step % MUSIC_STEPS_PER_BAR;
+        const chordSteps = MUSIC_BARS_PER_CHORD * MUSIC_STEPS_PER_BAR;
+        const chord = MUSIC_PROGRESSION[Math.floor(step / chordSteps) % MUSIC_PROGRESSION.length];
+        // 베이스: 마디 1·3박에 스타카토로
+        if (barStep === 0 || barStep === 8) {
+            this._musicOsc(this._noteFreq(chord.bass), 0.5, t0, { type: 'triangle', gain: 0.5, attack: 0.008 });
+        }
+        // 코드 패드: 코드가 바뀌는 시점(2마디)마다 한 번, 구간 전체를 채우는 길이로 스웰
+        if (step % chordSteps === 0) {
+            const dur = chordSteps * this._musicStepDur * 1.03;
+            for (const midi of chord.pad) {
+                this._musicOsc(this._noteFreq(midi), dur, t0, { type: 'sine', gain: 0.3, attack: dur * 0.3 });
+            }
+        }
+        // 멜로디: 2마디 펜타토닉 모티프(코드 진행 4구간에 반복 — 코드가 바뀌어 매번 다르게 들림)
+        const mel = MUSIC_MELODY[step % 32];
+        if (mel) this._musicOsc(this._noteFreq(mel), 0.4, t0, { type: 'triangle', gain: 0.45, attack: 0.01 });
+        // 퍼커션: 엇박(각 박의 "and")에 여린 하이햇
+        if (barStep % 4 === 2) this._musicHat(t0, 0.12);
+    },
+
+    // 절대 시각 t0에 정확히 시작하는 오실레이터 노트(어택-감쇠 엔벌로프)
+    _musicOsc(freq, dur, t0, opts) {
+        const ctx = this.ctx;
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = opts.type || 'sine';
+        osc.frequency.setValueAtTime(freq, t0);
+        const attack = Math.max(0.005, opts.attack || 0.01);
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.linearRampToValueAtTime(opts.gain, t0 + attack);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        osc.connect(g); g.connect(this.musicGain);
+        osc.start(t0); osc.stop(t0 + dur + 0.05);
+    },
+
+    // 절대 시각 t0에 정확히 시작하는 여린 하이햇(고역통과 필터 노이즈)
+    _musicHat(t0, gain) {
+        const ctx = this.ctx;
+        const dur = 0.045;
+        const n = Math.max(1, Math.floor(ctx.sampleRate * dur));
+        const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const filt = ctx.createBiquadFilter();
+        filt.type = 'highpass'; filt.frequency.value = 5500;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(gain, t0);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+        src.connect(filt); filt.connect(g); g.connect(this.musicGain);
+        src.start(t0);
     },
 };
