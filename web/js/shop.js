@@ -2,9 +2,10 @@
 // 원본은 실결제. 클론은 특가 3종만 "무료 수령 1회/일"로 대체(UI-SPEC 지시), 보석 패키지는 결제 더미(토스트)만.
 const Shop = {
     DEALS: [
-        { key: 'tech',  name: '기술 거래', icon: '🧪', reward: { potions: 150, hammers: 300 },  priceKR: '₩2,800' },
-        { key: 'pet',   name: '펫 거래',   icon: '🥚', reward: { eggCurrency: 660, hammers: 200 }, priceKR: '₩9,500' },
-        { key: 'mount', name: '탈것 거래', icon: '⚙️', reward: { winders: 2150, hammers: 4000 }, priceKR: '₩69,000' },
+        // 재화 3줄(마지막 젬)·수량은 원본(shot-042632) 표기 그대로
+        { key: 'tech',  name: '기술 거래', icon: '🔧', reward: { potions: 150, hammers: 300, gems: 10 },  priceKR: '₩2,800' },
+        { key: 'pet',   name: '펫 거래',   icon: '🐾', reward: { eggCurrency: 660, hammers: 200, gems: 20 }, priceKR: '₩9,500' },
+        { key: 'mount', name: '탈것 거래', icon: '⚙️', reward: { winders: 2150, hammers: 4000, gems: 150 }, priceKR: '₩69,000' },
     ],
     GEM_PACKS: [
         { gems: 60, priceKR: '₩2,800' },

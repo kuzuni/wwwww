@@ -1498,7 +1498,7 @@ const UI = {
                 <div class="shop-deal-body">
                     <div class="shop-deal-rewards">${rewardRows}</div>
                     <div class="shop-deal-right">
-                        <span class="shop-deal-icon">${d.icon}</span>
+                        <span class="shop-deal-art art-${d.key}"><i class="art-emblem">${d.icon}</i>${d.key === 'mount' ? '<i class="art-spill">⚙️⚙️⚙️</i>' : ''}</span>
                         <button class="btn primary shop-price-btn ${claimed ? 'disabled' : ''}" onclick="UI.onClaimDeal('${d.key}')">
                             ${claimed ? '수령 완료' : `무료 수령<br><small>(정가 ${d.priceKR})</small>`}</button>
                     </div>
@@ -1514,9 +1514,9 @@ const UI = {
         this.els.shopModal.innerHTML = `
             <div class="modal-card sheet shop-sheet">
                 <div class="sheet-head">
-                    <span class="cur-pill coin">👑 ${U.fmt(S.coins)}</span>
+                    <span class="cur-pill coin">👑 ${U.fmt(S.coins)}<i class="cur-plus">+</i></span>
                     <h2 class="sheet-title shop-title">상점</h2>
-                    <span class="cur-pill gem">◆ ${U.fmt(S.gems)}</span>
+                    <span class="cur-pill gem">◆ ${U.fmt(S.gems)}<i class="cur-plus">+</i></span>
                 </div>
                 <div class="shop-banner">오늘의 특가</div>
                 <p class="shop-sub">일일 특가 3개 모두 구매하면 새로운 3개가 나와요!</p>
