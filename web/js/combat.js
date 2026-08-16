@@ -171,12 +171,12 @@ const Combat = {
         UI.updateSkillBar();
     },
 
-    tryCast(id) {
+    tryCast(id, manual) {
         if ((this.cooldowns[id] || 0) > 0) return false;
         const d = Skills.def(id);
         const st = this.hero.stats;
         if (d.type === 'heal') {
-            if (this.hero.hp / this.hero.maxHp > 0.75) return false; // 낭비 방지
+            if (this.hero.hp / this.hero.maxHp > 0.75) { if (manual) UI.toast('체력이 충분합니다'); return false; } // 낭비 방지
             this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + this.hero.maxHp * Skills.effHeal(id));
             Scene3D.skillEffect('heal', d.color, []);
             UI.skillCutin(d);
@@ -188,7 +188,7 @@ const Combat = {
             UI.skillCutin(d);
         } else {
             const alive = this.aliveEnemies().filter(e => e.x < 3.2);
-            if (!alive.length) return false;
+            if (!alive.length) { if (manual) UI.toast('사거리 안에 적이 없습니다'); return false; }
             const dmg = Skills.dmg(id) * (1 + st.skillDmg / 100);
             UI.skillCutin(d);
             UI.skillFlash(d.color);

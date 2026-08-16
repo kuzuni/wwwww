@@ -168,7 +168,7 @@ const UI = {
     renderSkillBar() {
         this.els.skillBar.innerHTML = S.equippedSkills.map(id => {
             const d = Skills.def(id);
-            return `<button class="skill-btn" id="sb-${id}" style="--sc:${d.color}" onclick="Combat.tryCast('${id}')">
+            return `<button class="skill-btn" id="sb-${id}" style="--sc:${d.color}" onclick="Combat.tryCast('${id}', true)">
                 <span class="sk-icon">${SKILL_ICONS[id] || '✨'}</span>
                 <span class="sk-name">${d.name}</span>
                 <span class="sk-cd" id="sbcd-${id}"></span>
