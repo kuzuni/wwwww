@@ -57,27 +57,21 @@ const ProChar = {
             ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
         });
     },
-    // 천 직조: 사선 위브 + 세로 주름 음영 (망토)
-    clothTex() {
-        return this.canvasTex('cloth', (ctx, w, h) => {
-            ctx.fillStyle = '#cfd2d6'; ctx.fillRect(0, 0, w, h);
-            for (let y = 0; y < h; y += 3) {
-                for (let x = 0; x < w; x += 3) {
-                    const v = 176 + ((x + y) % 6 === 0 ? 26 : 0) + Math.floor(Math.random() * 22);
-                    ctx.fillStyle = `rgb(${v},${v},${v})`;
-                    ctx.fillRect(x, y, 2, 2);
-                }
-            }
-            for (let i = 0; i < 9; i++) { // 세로 주름
-                const x = (i + 0.5) * w / 9 + (Math.random() - 0.5) * 8;
-                const g = ctx.createLinearGradient(x - 7, 0, x + 7, 0);
-                g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(30,26,34,0.22)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-                ctx.fillStyle = g; ctx.fillRect(x - 7, 0, 14, h);
-            }
-            const bg = ctx.createLinearGradient(0, 0, 0, h); // 아래로 어두워지는 드레이프 음영
-            bg.addColorStop(0, 'rgba(255,255,255,0.10)'); bg.addColorStop(1, 'rgba(18,14,22,0.30)');
-            ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
-        });
+    // 망토 전용: 노이즈 없는 상단 밝음→하단 어두움 그라디언트 + 중앙 세로 광택
+    // (직조 노이즈가 스크린샷에서 압축 아티팩트로 오독되던 문제 교체 — 비평가 지적)
+    capeTex() {
+        return this.canvasTex('cape', (ctx, w, h) => {
+            const g = ctx.createLinearGradient(0, 0, 0, h);
+            g.addColorStop(0, '#e8e9ec');
+            g.addColorStop(0.35, '#c6c8cd');
+            g.addColorStop(1, '#7c7e86');
+            ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+            const sheen = ctx.createLinearGradient(0, 0, w, 0); // 중앙 세로 광택 롤
+            sheen.addColorStop(0, 'rgba(255,255,255,0)');
+            sheen.addColorStop(0.5, 'rgba(255,255,255,0.14)');
+            sheen.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = sheen; ctx.fillRect(0, 0, w, h);
+        }, 64, 128);
     },
     // 가죽: 잔금 크랙 + 스티치
     leatherTex() {
@@ -149,6 +143,16 @@ const ProChar = {
         const gold = new THREE.MeshPhongMaterial({ color: 0xd9a441, shininess: 96, specular: 0xffe9b0, envMap: env, combine: THREE.MixOperation, reflectivity: 0.35 });
         const skin = new THREE.MeshLambertMaterial({ color: 0xf2c9a4 });
         R.trimMat = gold;
+        // AO 링 — 파츠 경계(목/허리/어깨 소켓/고관절/손목)에 얹는 어두운 접촉 그림자 (비평가: AO 부재)
+        const aoMat = new THREE.MeshBasicMaterial({ color: 0x0d1218, transparent: true, opacity: 0.4, depthWrite: false });
+        const aoRing = (r, tube, parent, y, sz) => {
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 6, 16), aoMat);
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = y;
+            if (sz) ring.scale.z = sz; // 토러스 z축=상하 두께 → 납작하게
+            parent.add(ring);
+            return ring;
+        };
 
         const root = new THREE.Group();
 
@@ -160,11 +164,11 @@ const ProChar = {
         // 골반 장갑(스커트 판) — 앞뒤 곡면 판 + 벨트
         const skirtMat = steelDark();
         skirtMat.side = THREE.DoubleSide;
-        const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.25, 0.16, 12, 1, true), skirtMat);
-        skirt.position.y = -0.04;
-        const hem = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.014, 6, 14), gold);
+        const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.295, 0.18, 12, 1, true), skirtMat); // 밑단 플레어 — 허리→밑단 벌어지는 실루엣 꺾임
+        skirt.position.y = -0.045;
+        const hem = new THREE.Mesh(new THREE.TorusGeometry(0.295, 0.014, 6, 14), gold);
         hem.rotation.x = Math.PI / 2;
-        hem.position.y = -0.12;
+        hem.position.y = -0.135;
         const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.21, 0.07, 14), leather);
         belt.position.y = 0.04;
         belt.scale.z = 0.85;
@@ -172,6 +176,7 @@ const ProChar = {
         buckle.position.set(0, 0.04, 0.175);
         buckle.scale.set(1.1, 0.9, 0.45);
         pelvis.add(skirt, hem, belt, buckle);
+        aoRing(0.205, 0.02, pelvis, 0.005, 0.5); // 벨트 아래 접촉 그림자
 
         // 다리: 고관절 → 대퇴 → 무릎 → 정강이 → 부츠 (분절 피벗)
         R.legs = [];
@@ -200,6 +205,7 @@ const ProChar = {
             foot.scale.set(0.9, 0.55, 1.55);
             knee.add(kneeCap, shin, bootTop, foot);
             hip.add(thigh, cuisse, knee);
+            aoRing(0.082, 0.016, hip, -0.015, 0.5); // 고관절-대퇴 경계 접촉 그림자
             pelvis.add(hip);
             R.legs.push({ hip, knee });
             R.bones['hip' + (side < 0 ? 'L' : 'R')] = hip;
@@ -217,7 +223,7 @@ const ProChar = {
         const prof = [[0.185, 0], [0.225, 0.09], [0.245, 0.2], [0.235, 0.3], [0.19, 0.4], [0.12, 0.46]];
         for (const [r, y] of prof) cuirassPts.push(new THREE.Vector2(r, y));
         const cuirass = new THREE.Mesh(new THREE.LatheGeometry(cuirassPts, 18), steel());
-        cuirass.scale.z = 0.82; // 앞뒤로 살짝 납작하게 (흉갑 단면)
+        cuirass.scale.set(1.04, 1.08, 0.8); // 역삼각 실루엣 — 가슴 상향+좌우 확장, 앞뒤 눌림 (비평가: 실루엣 꺾임)
         // 목 링
         const gorget = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.032, 8, 14), steelDark());
         gorget.rotation.x = Math.PI / 2;
@@ -230,6 +236,8 @@ const ProChar = {
         const emblemRim = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 14), gold);
         emblemRim.position.copy(emblem.position);
         spine.add(cuirass, gorget, emblem, emblemRim);
+        aoRing(0.1, 0.022, spine, 0.435, 0.5);   // 목 링 아래 접촉 그림자
+        aoRing(0.185, 0.02, spine, 0.005, 0.5);  // 흉갑 밑단-허리 경계
 
         // 망토 — 어깨 뒤에서 늘어지는 곡면 판 (걷기/공격 시 스윙)
         // 직조 텍스처 + 스캘럽 밑단 + 위 모서리 라운딩 + 어두운 안감(깊이감) + 금 클래스프
@@ -252,7 +260,7 @@ const ProChar = {
             geo.computeVertexNormals();
             return geo;
         };
-        R.capeMat = new THREE.MeshLambertMaterial({ color: 0x8c2a2a, side: THREE.DoubleSide, map: this.clothTex() });
+        R.capeMat = new THREE.MeshLambertMaterial({ color: 0x8c2a2a, side: THREE.DoubleSide, map: this.capeTex() });
         const cape = new THREE.Mesh(makeCapeGeo(), R.capeMat);
         const capeG = new THREE.Group();
         capeG.position.set(0, 0.42, -0.16);
@@ -273,18 +281,19 @@ const ProChar = {
         R.arms = [];
         for (const side of [-1, 1]) {
             const shoulder = new THREE.Group();
-            shoulder.position.set(side * 0.25, 0.375, 0); // 어깨 폭 확장 (영웅 실루엣)
+            shoulder.position.set(side * 0.29, 0.385, 0); // 어깨 폭 15% 추가 확장 — 역삼각 실루엣 (비평가 지적)
             // 견갑 — 반구 셸 2겹 (관절과 함께 회전)
             const pauldron = new THREE.Mesh(
-                new THREE.SphereGeometry(0.105, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), steel());
+                new THREE.SphereGeometry(0.12, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), steel());
             pauldron.position.set(side * 0.015, 0.015, 0);
             pauldron.rotation.z = side * 0.35; // 바깥으로 흘러내리는 견갑 각
             const pauldron2 = new THREE.Mesh(
-                new THREE.SphereGeometry(0.082, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), steelDark());
-            pauldron2.position.set(side * 0.03, -0.055, 0);
+                new THREE.SphereGeometry(0.093, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), steelDark());
+            pauldron2.position.set(side * 0.032, -0.062, 0);
             pauldron2.rotation.z = side * 0.45;
-            const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 5), gold);
-            rivet.position.set(side * 0.015, 0.115, 0);
+            const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 5), gold);
+            rivet.position.set(side * 0.015, 0.13, 0);
+            aoRing(0.075, 0.018, shoulder, -0.03, 0.5); // 견갑 안쪽-상완 경계 접촉 그림자
             const upperArm = this.capsule(0.062, 0.052, 0.19, suit);
             const elbow = new THREE.Group();
             elbow.position.y = -0.19;
@@ -461,7 +470,9 @@ const ProChar = {
                 'elbowL.rx': [[0, -0.3], [0.5, -0.12], [1, -0.3]],
                 'elbowR.rx': [[0, -0.12], [0.5, -0.3], [1, -0.12]],
                 'spine.rx': [[0, 0.1], [1, 0.1]],
-                'spine.ry': [[0, 0.08], [0.5, -0.08], [1, 0.08]],
+                // 어깨·골반 역위상 요우 — 골반이 왼쪽 돌 때 상체는 오른쪽 (걷기 판독성, 비평가 지적)
+                'spine.ry': [[0, 0.26], [0.5, -0.26], [1, 0.26]],
+                'pelvis.ry': [[0, -0.13], [0.5, 0.13], [1, -0.13]],
                 'pelvis.rz': [[0, 0.045], [0.5, -0.045], [1, 0.045]],
                 'root.py': [[0, 0.035], [0.25, 0], [0.5, 0.035], [0.75, 0], [1, 0.035]],
                 'cape.rx': [[0, 0.3], [0.5, 0.38], [1, 0.3]],

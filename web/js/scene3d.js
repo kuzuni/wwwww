@@ -80,7 +80,7 @@ const Scene3D = {
         this.weaponG.visible = true;
         this.weaponG.position.set(0, 0, 0);
         this.weaponG.rotation.set(0, 0, 0);
-        this.weaponG.scale.setScalar(1);
+        this.weaponG.scale.setScalar(1.22); // 무기 존재감 20% 업 (비평가 지적)
         // 투구: 머리 마운트 (legacy helmetG 로컬 좌표 = 머리 중심 기준이라 그대로 이식)
         rig.headMount.add(this.helmetG);
         this.helmetG.visible = true;
@@ -1493,19 +1493,30 @@ const Scene3D = {
             if (rz) mesh.rotation.z = rz;
             g.add(mesh); return mesh;
         };
+        // 날 엣지 발광 스트립 — 베는 날이 빛을 받아 번들거리는 라인 (무기 존재감, 비평가 지적)
+        const edgeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(c).offsetHSL(0, -0.1, 0.32) });
+        const edge = (w, h, d, x, y, z, rz) => {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), edgeMat);
+            mesh.position.set(x, y, z || 0);
+            if (rz) mesh.rotation.z = rz;
+            g.add(mesh); return mesh;
+        };
         switch (wtypeId) {
             case 'sword':
                 box(0.09, 0.72, 0.04, mat, 0, 0.42);
+                edge(0.016, 0.68, 0.044, 0.048, 0.41);   // 앞날 하이라이트
                 box(0.24, 0.05, 0.06, dark, 0, 0.1);
                 cyl(0.035, 0.035, 0.18, wood, 0, -0.02);
                 break;
             case 'axe':
                 cyl(0.035, 0.045, 0.85, wood, 0, 0.3);
                 box(0.3, 0.22, 0.05, mat, 0.15, 0.62);
+                edge(0.016, 0.24, 0.054, 0.297, 0.62);   // 도끼날 엣지
                 break;
             case 'spear':
                 cyl(0.03, 0.035, 1.05, wood, 0, 0.4);
                 { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.26, 8), mat); tip.position.y = 1.03; g.add(tip); }
+                { const tipHl = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.1, 6), edgeMat); tipHl.position.y = 1.14; g.add(tipHl); }
                 break;
             case 'hammer':
                 cyl(0.04, 0.05, 0.72, wood, 0, 0.28);
@@ -1513,6 +1524,7 @@ const Scene3D = {
                 break;
             case 'dagger':
                 box(0.07, 0.4, 0.03, mat, 0, 0.24);
+                edge(0.014, 0.36, 0.034, 0.037, 0.235);  // 단검 날 하이라이트
                 box(0.16, 0.04, 0.05, dark, 0, 0.03);
                 cyl(0.03, 0.03, 0.12, wood, 0, -0.05);
                 break;
@@ -2532,8 +2544,9 @@ const Scene3D = {
                 throw: ['Throw', 'Spellcast_Shoot', '1H_Melee_Attack_Chop'],
             };
             this.heroPlay(CLIP_MAP[motion] || CLIP_MAP.slash, true, 1.8);
-            const endAtk = () => { this._attacking = false; this.heroG.position.x = fromX; };
+            const endAtk = () => { this._attacking = false; this._trailOn = false; this.heroG.position.x = fromX; };
             if (!wt || wt.kind === 'melee') {
+                this.trailStart(wcolor); // 스윙 궤적 트레일 (모션 판독성)
                 this.addAnim(0.36, k => {
                     const lunge = k < 0.5 ? k * 2 : (1 - k) * 2;
                     this.heroG.position.x = U.lerp(fromX, tx, lunge * 0.85);
@@ -2842,6 +2855,66 @@ const Scene3D = {
             () => { this.disposeTree(beam); this.scene.remove(beam); });
     },
 
+    // ---- 무기 궤적 트레일 (근접 스윙 판독성 — 삼각 스트립 리본, 수명 0.15s 테이퍼) ----
+    TRAIL_TIP: { sword: 0.95, axe: 0.85, spear: 1.25, hammer: 0.8, dagger: 0.55, club: 0.6 }, // 무기별 날 끝 y (weaponG 로컬)
+    trailStart(colorHex) {
+        if (!this.trailMesh) {
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(24 * 6 * 3), 3));
+            this.trailMat = new THREE.MeshBasicMaterial({
+                transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending,
+                depthWrite: false, side: THREE.DoubleSide,
+            });
+            this.trailMesh = new THREE.Mesh(geo, this.trailMat);
+            this.trailMesh.frustumCulled = false;
+            this.scene.add(this.trailMesh);
+        }
+        // 가산 블렌딩은 밝은 배경에서 씻겨 보임 — 밝기 대신 채도를 올려 색 자체가 얹히게
+        this.trailMat.color.setHex(colorHex).offsetHSL(0, 0.25, -0.05);
+        this.trailPts = this.trailPts || [];
+        this._trailOn = true;
+    },
+    updateTrail(dt) {
+        const pts = this.trailPts;
+        const LIFE = 0.18;
+        // 기존 샘플 에이징을 먼저 — 새 샘플이 이번 프레임 dt만큼 미리 늙으면 안 됨
+        for (const p of pts) p.age += dt;
+        while (pts.length && pts[0].age >= LIFE) pts.shift();
+        if (this._trailOn && this.weaponG && this.weaponG.visible) {
+            this.weaponG.updateWorldMatrix(true, false);
+            const tipLen = this.TRAIL_TIP[this.wtypeId] || 0.7;
+            const b = this.weaponG.localToWorld(new THREE.Vector3(0, 0.12, 0));
+            const t = this.weaponG.localToWorld(new THREE.Vector3(0, tipLen, 0));
+            // 저 fps에서도 리본이 끊기지 않게 프레임 사이를 보간 샘플로 메움
+            const last = pts[pts.length - 1];
+            if (last) {
+                const n = Math.min(6, Math.floor(last.t.distanceTo(t) / 0.12));
+                for (let j = 1; j <= n; j++) {
+                    const k = j / (n + 1);
+                    pts.push({ b: last.b.clone().lerp(b, k), t: last.t.clone().lerp(t, k), age: last.age * (1 - k) });
+                }
+            }
+            pts.push({ b, t, age: 0 });
+            while (pts.length > 23) pts.shift(); // 버퍼 상한 (24세그먼트 지오메트리)
+        }
+        if (!this.trailMesh) return;
+        if (pts.length < 2) { this.trailMesh.visible = false; return; }
+        this.trailMesh.visible = true;
+        const pos = this.trailMesh.geometry.attributes.position;
+        const b1 = new THREE.Vector3(), b2 = new THREE.Vector3();
+        let vi = 0;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const p0 = pts[i], p1 = pts[i + 1];
+            // 오래된 구간일수록 날 끝이 밑동 쪽으로 수축 → 테이퍼 리본
+            b1.copy(p0.b).lerp(p0.t, Math.max(0, 1 - p0.age / LIFE));
+            b2.copy(p1.b).lerp(p1.t, Math.max(0, 1 - p1.age / LIFE));
+            pos.setXYZ(vi++, p0.b.x, p0.b.y, p0.b.z); pos.setXYZ(vi++, b1.x, b1.y, b1.z); pos.setXYZ(vi++, b2.x, b2.y, b2.z);
+            pos.setXYZ(vi++, p0.b.x, p0.b.y, p0.b.z); pos.setXYZ(vi++, b2.x, b2.y, b2.z); pos.setXYZ(vi++, p1.b.x, p1.b.y, p1.b.z);
+        }
+        this.trailMesh.geometry.setDrawRange(0, vi);
+        pos.needsUpdate = true;
+    },
+
     // ---- 파티클 ----
     // 방사형 발광 스프라이트 텍스처 (파티클 공용, 1회 생성)
     sparkTex() {
@@ -3113,6 +3186,7 @@ const Scene3D = {
                     this.heroPlay(this.walking ? ['Walking'] : ['Idle']);
                     this.heroG.position.y = 0; // 상하 바운스는 리그 root.py 트랙이 담당
                 }
+                if (this._trailOn || (this.trailPts && this.trailPts.length)) this.updateTrail(dt);
             }
         }
         // 펫: 종별 고유 모션 — 몸짓은 종 특성 위주, 상하 바운스는 보조
@@ -3237,8 +3311,11 @@ const Scene3D = {
                 this.projectiles.splice(i, 1);
             }
         }
-        // 카메라: 플레이어 전진을 따라감 + 셰이크
-        if (this.shakeMag > 0.001) {
+        // 카메라: 플레이어 전진을 따라감 + 셰이크 (camLock = 검증 스크립트용 고정 훅)
+        if (this.camLock) {
+            this.camera.position.copy(this.camLock.pos);
+            this.camera.lookAt(this.camLock.look);
+        } else if (this.shakeMag > 0.001) {
             this.camera.position.set(
                 0.15 + this.worldX + U.rand(-1, 1) * this.shakeMag,
                 3.7 + U.rand(-1, 1) * this.shakeMag * 0.6,
