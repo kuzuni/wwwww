@@ -1560,7 +1560,17 @@ const UI = {
             </div>`;
     },
 
-    // ---- 채팅 화면 (UI-SPEC 28번): 하단 1줄 미리보기 + 탭하면 전체화면 채팅 ----
+    // ---- 채팅 화면 (UI-SPEC 28번, 원본 shot-043500): 하단 1줄 미리보기 + 탭하면 전체화면 채팅 ----
+    CHAT_NAME_COLORS: ['#ffab40', '#7ee2a8', '#81d4fa', '#f48fb1', '#ce93d8', '#ffd54f', '#ff8a65', '#a5d6a7', '#90caf9', '#f06292'],
+    chatNameColor(name) {
+        let h = 0;
+        for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+        return this.CHAT_NAME_COLORS[h % this.CHAT_NAME_COLORS.length];
+    },
+    chatTime(at) {
+        const d = new Date(at);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    },
     chatMsgHtml(m) {
         if (m.type === 'share') {
             // 좌=승자(초록) / 우=패자(회색) — 내가 졌어도 승자는 항상 왼쪽 (UI-SPEC 28번)
@@ -1569,19 +1579,20 @@ const UI = {
             return `<div class="chat-row">
                 <span class="chat-avatar">${m.myAvatar}</span>
                 <div class="chat-bubble-wrap">
-                    <div class="chat-name-line"><span class="chat-name" style="color:#ffab40">${U.escapeHtml(m.myName)}</span><span class="chat-time">${new Date(m.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                    <div class="chat-name-line"><span class="chat-name" style="color:${this.chatNameColor(m.myName)}">${U.escapeHtml(m.myName)}</span><span class="chat-time">${this.chatTime(m.at)}</span></div>
                     <div class="chat-share-card">
                         <div class="chat-share-side win">
+                            <span class="chat-share-label">승리</span>
                             <span class="icon-circle sm">${winner.avatar}</span>
                             <small>${U.escapeHtml(winner.name)}</small>
-                            <small class="muted">⚔️ ${U.fmt(winner.cp)}</small>
+                            <small>⚔️ ${U.fmt(winner.cp)}</small>
                         </div>
                         <div class="chat-share-side lose">
                             <span class="icon-circle sm">${loser.avatar}</span>
                             <small>${U.escapeHtml(loser.name)}</small>
-                            <small class="muted">⚔️ ${U.fmt(loser.cp)}</small>
+                            <small>⚔️ ${U.fmt(loser.cp)}</small>
                         </div>
-                        <span class="chat-share-badge">${m.win ? '🏆 승리' : '💀 패배'}</span>
+                        <span class="chat-share-cam">📹</span>
                     </div>
                 </div>
             </div>`;
@@ -1591,8 +1602,8 @@ const UI = {
             <span class="chat-avatar">${m.avatar}</span>
             <div class="chat-bubble-wrap">
                 <div class="chat-name-line">
-                    <span class="chat-name">${tagHtml}${U.escapeHtml(m.name)}</span><span class="muted">${m.gender}</span>
-                    <span class="chat-time">${new Date(m.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span class="chat-name" style="color:${m.mine ? '' : this.chatNameColor(m.name)}">${tagHtml}${U.escapeHtml(m.name)}</span><span class="muted">${m.gender}</span>
+                    <span class="chat-time">${this.chatTime(m.at)}</span>
                 </div>
                 <div class="chat-bubble">${U.escapeHtml(m.text)}</div>
             </div>
@@ -1601,8 +1612,14 @@ const UI = {
     renderChatPreview() {
         const last = Chat.lastMessage();
         if (!last || !this.els.chatPreview) return;
-        const preview = last.type === 'share' ? `${U.escapeHtml(last.myName)}이(가) 전투를 공유했습니다` : `${U.escapeHtml(last.name)}: ${U.escapeHtml(last.text)}`;
-        this.els.chatPreview.innerHTML = `<span class="chat-preview-text">${preview}</span><span class="chat-preview-badge">💬</span>`;
+        const name = last.type === 'share' ? last.myName : last.name;
+        const msg = last.type === 'share' ? '전투 결과를 공유했습니다' : last.text;
+        this.els.chatPreview.innerHTML = `
+            <span class="chat-preview-avatar">💬<span class="chat-preview-badge">99</span></span>
+            <span class="chat-preview-lines">
+                <span class="chat-preview-name">${U.escapeHtml(name)}</span>
+                <span class="chat-preview-msg">${U.escapeHtml(msg)}</span>
+            </span>`;
     },
     openChat() {
         Chat.ensure();
@@ -1625,7 +1642,6 @@ const UI = {
                     <button class="btn danger round" onclick="UI.closeChat()">◀</button>
                     <input id="chat-input" type="text" placeholder="메시지 보내기..." maxlength="200"
                         onkeydown="if(event.key==='Enter') UI.onSendChat()">
-                    <button class="btn primary sm" onclick="UI.onSendChat()">전송</button>
                 </div>
             </div>`;
         const input = document.getElementById('chat-input');
