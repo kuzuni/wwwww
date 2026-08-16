@@ -94,6 +94,34 @@ const ProChar = {
         }, 64, 64);
     },
 
+    // 그라디언트 환경 큐브맵 — 금속 반사가 '고무'가 아니라 '강철'로 읽히게 하는 핵심
+    envMap() {
+        if (this._envMap) return this._envMap;
+        const faces = [];
+        for (let i = 0; i < 6; i++) {
+            const c = document.createElement('canvas');
+            c.width = c.height = 32;
+            const ctx = c.getContext('2d');
+            if (i === 2) { // +Y 하늘: 밝은 청백
+                ctx.fillStyle = '#e8f2fb'; ctx.fillRect(0, 0, 32, 32);
+            } else if (i === 3) { // -Y 지면: 어두운 갈녹
+                ctx.fillStyle = '#4b5540'; ctx.fillRect(0, 0, 32, 32);
+            } else { // 측면: 하늘→지평선→지면 그라디언트
+                const g = ctx.createLinearGradient(0, 0, 0, 32);
+                g.addColorStop(0, '#dceaf8');
+                g.addColorStop(0.5, '#f6efe0'); // 지평선 웜톤 — 하이라이트 롤에 온기
+                g.addColorStop(0.55, '#7c8468');
+                g.addColorStop(1, '#4b5540');
+                ctx.fillStyle = g; ctx.fillRect(0, 0, 32, 32);
+            }
+            faces.push(c);
+        }
+        const tex = new THREE.CubeTexture(faces);
+        tex.needsUpdate = true;
+        this._envMap = tex;
+        return tex;
+    },
+
     // ---- 기사 리그 생성 ----
     // 반환: { group, update(dt), play(cands, once, timeScale), tint(), handR, headMount, state }
     createKnight() {
@@ -102,14 +130,15 @@ const ProChar = {
         // 재질 — 금속은 브러시드 텍스처+하이라이트 롤, 천/가죽은 직조 텍스처. armorMats는 장비 시대색 틴트 대상
         R.armorMats = [];
         const mTex = this.metalTex();
+        const env = this.envMap();
         const steel = () => {
-            const m = new THREE.MeshPhongMaterial({ color: 0x9fb2c2, shininess: 52, specular: 0x8fa3b4, map: mTex });
+            const m = new THREE.MeshPhongMaterial({ color: 0x9fb2c2, shininess: 70, specular: 0xc4d2de, map: mTex, envMap: env, combine: THREE.MixOperation, reflectivity: 0.32 });
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
             return m;
         };
         const steelDark = () => {
-            const m = new THREE.MeshPhongMaterial({ color: 0x5c6b7a, shininess: 40, specular: 0x55636f, map: mTex });
+            const m = new THREE.MeshPhongMaterial({ color: 0x5c6b7a, shininess: 52, specular: 0x8493a0, map: mTex, envMap: env, combine: THREE.MixOperation, reflectivity: 0.22 });
             m.userData.dark = true; // 틴트 시 명도 단차 유지용
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
@@ -117,7 +146,7 @@ const ProChar = {
         };
         const suit = new THREE.MeshLambertMaterial({ color: 0x323e46, map: mTex }); // 갑옷 밑 사슬/천
         const leather = new THREE.MeshLambertMaterial({ color: 0x5a4030, map: this.leatherTex() });
-        const gold = new THREE.MeshPhongMaterial({ color: 0xd9a441, shininess: 84, specular: 0xffe9b0 });
+        const gold = new THREE.MeshPhongMaterial({ color: 0xd9a441, shininess: 96, specular: 0xffe9b0, envMap: env, combine: THREE.MixOperation, reflectivity: 0.35 });
         const skin = new THREE.MeshLambertMaterial({ color: 0xf2c9a4 });
         R.trimMat = gold;
 
@@ -333,18 +362,23 @@ const ProChar = {
         jaw.scale.set(0.95, 0.7, 0.9);
         headG.add(skull, jaw);
         // 눈 — 흰자+홍채+하이라이트 3겹, 얼굴 중앙 높이(스컬 중심선)에 정확히 배치
-        for (const dx of [-0.072, 0.072]) {
-            const sclera = new THREE.Mesh(new THREE.SphereGeometry(0.037, 10, 8), new THREE.MeshBasicMaterial({ color: 0xf7f4ee }));
-            sclera.position.set(dx, 0.075, 0.155);
-            sclera.scale.set(1, 1.15, 0.42);
-            const iris = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2d4a66 }));
-            iris.position.set(dx, 0.072, 0.176);
-            iris.scale.set(1, 1.15, 0.5);
-            const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 5), new THREE.MeshBasicMaterial({ color: 0x10151c }));
-            pupil.position.set(dx, 0.072, 0.187);
-            const hl = new THREE.Mesh(new THREE.SphereGeometry(0.006, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-            hl.position.set(dx + 0.009, 0.083, 0.19);
+        for (const dx of [-0.078, 0.078]) {
+            const sclera = new THREE.Mesh(new THREE.SphereGeometry(0.046, 10, 8), new THREE.MeshBasicMaterial({ color: 0xf7f4ee }));
+            sclera.position.set(dx, 0.072, 0.152);
+            sclera.scale.set(1, 1.2, 0.4);
+            const iris = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2d4a66 }));
+            iris.position.set(dx, 0.068, 0.178);
+            iris.scale.set(1, 1.2, 0.5);
+            const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 5), new THREE.MeshBasicMaterial({ color: 0x10151c }));
+            pupil.position.set(dx, 0.068, 0.192);
+            const hl = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+            hl.position.set(dx + 0.012, 0.082, 0.196);
             headG.add(sclera, iris, pupil, hl);
+            // 볼터치 — 반투명 분홍 (캐주얼 3D 표정 온기)
+            const blush = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf29a8a, transparent: true, opacity: 0.38 }));
+            blush.position.set(dx * 1.35, 0.008, 0.148);
+            blush.scale.set(1.2, 0.7, 0.35);
+            headG.add(blush);
             // 눈썹 — 살짝 기울인 가는 캡슐 (결의 있는 인상)
             const brow = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.06, 6), new THREE.MeshLambertMaterial({ color: 0x6e4e1a })); // r128엔 CapsuleGeometry 없음
             brow.position.set(dx, 0.128, 0.168);

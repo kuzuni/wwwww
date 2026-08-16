@@ -2823,11 +2823,32 @@ const Scene3D = {
     },
 
     // ---- 파티클 ----
+    // 방사형 발광 스프라이트 텍스처 (파티클 공용, 1회 생성)
+    sparkTex() {
+        if (this._sparkTex) return this._sparkTex;
+        const c = document.createElement('canvas');
+        c.width = c.height = 64;
+        const ctx = c.getContext('2d');
+        const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        grad.addColorStop(0, 'rgba(255,255,255,1)');
+        grad.addColorStop(0.28, 'rgba(255,255,255,0.85)');
+        grad.addColorStop(0.62, 'rgba(255,255,255,0.22)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 64, 64);
+        this._sparkTex = new THREE.CanvasTexture(c);
+        return this._sparkTex;
+    },
+    // 발광 파티클: 가산 블렌딩 빌보드 (박스 파편이 '깨진 텍스처'로 보이던 문제 교체)
     spawnSparks(pos, count, colorHex) {
         for (let i = 0; i < count; i++) {
-            const p = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08),
-                new THREE.MeshBasicMaterial({ color: colorHex, transparent: true }));
+            const p = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: this.sparkTex(), color: colorHex, transparent: true,
+                blending: THREE.AdditiveBlending, depthWrite: false,
+            }));
             p.position.copy(pos);
+            p.userData.baseScale = U.rand(0.16, 0.34);
+            p.scale.setScalar(p.userData.baseScale);
             p.userData.vel = new THREE.Vector3(U.rand(-2.5, 2.5), U.rand(1.5, 4.5), U.rand(-1.5, 1.5));
             p.userData.life = U.rand(0.35, 0.7);
             p.userData.age = 0;
@@ -3128,14 +3149,16 @@ const Scene3D = {
             const p = this.particles[i];
             p.userData.age += dt;
             if (p.userData.age >= p.userData.life) {
-                this.disposeTree(p);
+                if (p.isSprite) p.material.dispose(); else this.disposeTree(p);
                 this.scene.remove(p);
                 this.particles.splice(i, 1);
                 continue;
             }
             p.position.addScaledVector(p.userData.vel, dt);
             if (!p.userData.noGravity) p.userData.vel.y -= 9 * dt;
-            p.material.opacity = 1 - p.userData.age / p.userData.life;
+            const lifeK = 1 - p.userData.age / p.userData.life;
+            p.material.opacity = lifeK;
+            if (p.isSprite && p.userData.baseScale) p.scale.setScalar(p.userData.baseScale * (0.4 + 0.6 * lifeK));
         }
         // 안개 드리프트 (카메라 주변 순환) + 원경 산맥은 카메라를 따라감
         for (const mist of this.mists) {
