@@ -5,6 +5,7 @@ const UI = {
     _pendingItem: null,
     _skillSummonX5: false,
     _petSummonX5: false,
+    _mountSummonX5: false,
 
     init() {
         const $ = id => document.getElementById(id);
@@ -1493,6 +1494,7 @@ const UI = {
         const rates = Mounts.rates();
         const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
             `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${(rates[r] * 100).toFixed(2)}%</span>`).join('');
+        const mountSummonN = this._mountSummonX5 ? 5 : 1;
 
         const owned = Object.entries(S.mounts);
         const listHtml = owned.length ? owned.map(([name, m]) => {
@@ -1528,7 +1530,8 @@ const UI = {
                 </div>
                 <div class="prob-box">${ratesHtml}</div>
                 <div class="row">
-                    <button class="btn primary ${Mounts.canSummon() ? '' : 'disabled'}" onclick="UI.onSummonMount()">소환 <small>⚙️ ${WINDERS_PER_SUMMON}</small></button>
+                    <button class="btn sm ${this._mountSummonX5 ? 'on' : ''}" onclick="UI.toggleMountSummonX5()">x5</button>
+                    <button class="btn primary ${Mounts.canSummon(mountSummonN) ? '' : 'disabled'}" onclick="UI.onSummonMount()">소환 x${mountSummonN} <small>⚙️ ${WINDERS_PER_SUMMON * mountSummonN}</small></button>
                 </div>
                 <h3>보유 마운트</h3>
                 <div class="pet-list">${listHtml}</div>
@@ -1537,11 +1540,22 @@ const UI = {
         this.els.mountModal.classList.remove('hidden');
     },
     closeMounts() { this.els.mountModal.classList.add('hidden'); },
+    toggleMountSummonX5() {
+        this._mountSummonX5 = !this._mountSummonX5;
+        this.openMounts();
+    },
     onSummonMount() {
-        const r = Mounts.summon();
+        const count = this._mountSummonX5 ? 5 : 1;
+        const r = Mounts.summon(count);
         if (!r) { this.toast('⚙️ 태엽이 부족합니다 (스테이지 클리어로 획득)'); return; }
-        if (r.isNew) this.toast(`🎉 새 마운트: ${MOUNT_KR[r.name] || r.name} (${RARITY_KR[r.rarity]})`);
-        else this.toast(`${MOUNT_KR[r.name] || r.name} 중복 획득 (재료 ${S.mounts[r.name].dupes})`);
+        if (count === 1) {
+            const res = r.results[0];
+            if (res.isNew) this.toast(`🎉 새 마운트: ${MOUNT_KR[res.name] || res.name} (${RARITY_KR[res.rarity]})`);
+            else this.toast(`${MOUNT_KR[res.name] || res.name} 중복 획득 (재료 ${S.mounts[res.name].dupes})`);
+        } else {
+            const newCount = r.results.filter(x => x.isNew).length;
+            this.toast(`⚙️ 소환 x${count} — 새 마운트 ${newCount}종 · 중복 ${count - newCount}개 획득`);
+        }
         this.openMounts(); this.renderTopBar();
     },
     onEquipMount(name) { if (Mounts.equip(name)) this.openMounts(); },

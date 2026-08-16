@@ -47,7 +47,7 @@ const Mounts = {
         return out;
     },
 
-    canSummon() { return S.winders >= WINDERS_PER_SUMMON; },
+    canSummon(count = 1) { return S.winders >= WINDERS_PER_SUMMON * count; },
 
     rollSubs(rarity) { return U.rollSubs(rarity, 2); },
 
@@ -115,28 +115,34 @@ const Mounts = {
         return true;
     },
 
-    summon() {
+    summon(count = 1) {
         this.ensure();
-        if (!this.canSummon()) return null;
-        S.winders -= WINDERS_PER_SUMMON;
-        S.mountOpens++;
-        const rarity = U.weightedPick(this.rates());
-        const name = U.choice(mountNames[rarity]);
+        if (!this.canSummon(count)) return null;
+        S.winders -= WINDERS_PER_SUMMON * count;
+        const results = [];
+        for (let i = 0; i < count; i++) {
+            S.mountOpens++;
+            const rarity = U.weightedPick(this.rates());
+            const name = U.choice(mountNames[rarity]);
 
-        const owned = S.mounts[name];
-        const isNew = !owned;
-        if (owned) {
-            // 중복은 합성/승천 재료(dupes)로만 적립. 레벨업은 '업그레이드' 팝업에서 다른 탈것을 흡수해서만 진행 (펫과 동일 방식)
-            owned.dupes++;
-        } else {
-            S.mounts[name] = { rarity, level: 1, dupes: 0, stars: 0, xp: 0, subs: this.rollSubs(rarity) };
-            // 장착 중인 탈것이 없으면 자동 장착
-            if (!S.activeMount) this.equip(name);
+            const owned = S.mounts[name];
+            const isNew = !owned;
+            if (owned) {
+                // 중복은 합성/승천 재료(dupes)로만 적립. 레벨업은 '업그레이드' 팝업에서 다른 탈것을 흡수해서만 진행 (펫과 동일 방식)
+                owned.dupes++;
+            } else {
+                S.mounts[name] = { rarity, level: 1, dupes: 0, stars: 0, xp: 0, subs: this.rollSubs(rarity) };
+                // 장착 중인 탈것이 없으면 자동 장착
+                if (!S.activeMount) this.equip(name);
+            }
+            results.push({ name, rarity, isNew, level: S.mounts[name].level });
         }
 
-        SFX.gacha(rarity);
+        const bestRarity = results.reduce((best, r) =>
+            RARITIES.indexOf(r.rarity) > RARITIES.indexOf(best) ? r.rarity : best, results[0].rarity);
+        SFX.gacha(bestRarity);
         saveGame();
-        return { name, rarity, isNew, level: S.mounts[name].level };
+        return { results };
     },
 
     equip(name) {
