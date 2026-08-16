@@ -27,12 +27,11 @@ const UI = {
             autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'),
             leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
-            profileModal: $('profile-modal'), playerInfoBtn: $('player-info-btn'), playerInfoModal: $('player-info-modal'),
+            profileModal: $('profile-modal'), playerInfoModal: $('player-info-modal'),
             chatPreview: $('chat-preview'), chatModal: $('chat-modal'),
             gearDetailModal: $('gear-detail-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
-        this.els.playerInfoBtn.addEventListener('click', () => this.openPlayerInfo());
         document.querySelectorAll('#tabbar button').forEach(btn => {
             btn.addEventListener('click', () => this.onTabClick(btn.dataset.tab));
         });
@@ -271,12 +270,12 @@ const UI = {
             </div>`
             : `<div class="equip-cell egg-cell empty"><span class="slot-name">부화 없음</span></div>`;
 
-        // 모루가 중앙, 우측에 [대장간 레벨 N]·[자동🔄] 가로 배치, 좌측에 ⓘ(모든 장비 목록) — UI-SPEC 1번
+        // 모루가 중앙, 우측에 [대장간 레벨 N]·[자동🔄] 가로 배치, 좌측에 !(플레이어 정보, UI-SPEC 27번) — UI-SPEC 1번
         this.els.equipSheet.innerHTML = `
             <div class="equip-grid">${equipHtml}${eggCellHtml}</div>
             <div class="anvil-row">
                 <div class="anvil-side left">
-                    <button class="info-btn" title="모든 장비 목록" onclick="UI.openForgeItemList()">ⓘ</button>
+                    <button class="info-btn" title="플레이어 정보" onclick="UI.openPlayerInfo()">!</button>
                 </div>
                 <button class="anvil-btn" onclick="UI.onCraft()">⚒️<small>🔨 ${U.fmt(S.hammers)}</small></button>
                 <div class="anvil-side right">
@@ -314,12 +313,6 @@ const UI = {
         this.els.forgeInfoModal.classList.remove('hidden');
     },
     openForgeList() { this._forgeView = 'list'; this.renderForgeInfo(); },
-    // 메인 화면 ⓘ 버튼: 확률 팝업을 거치지 않고 '모든 장비 목록'을 바로 연다 (UI-SPEC 1번·22번)
-    openForgeItemList() {
-        this._forgeView = 'list';
-        this.renderForgeInfo();
-        this.els.forgeInfoModal.classList.remove('hidden');
-    },
     // 장비 상세는 원본처럼 목록 팝업 '위에' 겹쳐 뜬다 (뒤 목록이 그대로 보임)
     openForgeDetail(age, slot, variant) {
         this._forgeItem = { age, slot, variant };

@@ -76,16 +76,6 @@ body {
 #offline-btn:active { background: #30363d; }
 #offline-btn.ready { border-color: #ffd54f; color: #ffd54f; }
 
-/* ---- 플레이어 정보 팝업 진입 버튼 (메인 화면 왼쪽 하단, UI-SPEC 27번) ---- */
-/* hero-hp-wrap(좌하단 42% 폭)과 겹치지 않도록 그 위쪽에 배치 */
-#player-info-btn {
-    position: absolute; left: .6rem; bottom: 1.7rem; z-index: 4;
-    width: 1.7rem; height: 1.7rem; border-radius: 50%;
-    background: rgba(28,33,40,.85); color: #90caf9; border: 1px solid #1e88e5;
-    font-size: 1rem; font-weight: 900; cursor: pointer;
-}
-#player-info-btn:active { background: #30363d; }
-
 #boss-bar {
     position: absolute; top: 3.2rem; left: 50%; transform: translateX(-50%);
     width: 70%; z-index: 4; text-align: center;
