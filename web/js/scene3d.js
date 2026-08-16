@@ -67,10 +67,33 @@ const Scene3D = {
         this.resize();
 
         // GLB 리깅 모델 비동기 로드 → 준비되면 영웅을 진짜 기사로 교체
-        Models.load(ok => { if (ok) this.setupHeroModel(); });
+        // ?hero=proc — 프로시저럴 영웅 병행 개발 플래그 (품질 통과 전까지 GLB 기본 유지)
+        if (ProChar.enabled()) this.setupHeroProc();
+        Models.load(ok => { if (ok && !this.heroRig) this.setupHeroModel(); });
     },
 
     // ---- GLB 영웅: 스켈레탈 애니메이션 기사 ----
+    // 프로시저럴 영웅 설치 — GLB와 동일한 인터페이스(무기 손 부착·투구 머리 부착·틴트·클립명)
+    setupHeroProc() {
+        const rig = ProChar.createKnight();
+        for (const child of [...this.heroG.children]) child.visible = false;
+        this.heroG.add(rig.group);
+        this.heroRig = rig;
+        this.setShadow(rig.group);
+        // 무기: 오른손 마운트 (legacy 좌표계와 동일 — 칼날 +y)
+        rig.handR.add(this.weaponG);
+        this.weaponG.visible = true;
+        this.weaponG.position.set(0, 0, 0);
+        this.weaponG.rotation.set(0, 0, 0);
+        this.weaponG.scale.setScalar(1);
+        // 투구: 머리 마운트 (legacy helmetG 로컬 좌표 = 머리 중심 기준이라 그대로 이식)
+        rig.headMount.add(this.helmetG);
+        this.helmetG.visible = true;
+        this.helmetG.position.set(0, 0, 0);
+        this.tintHeroGlb();
+        rig.play(['Idle']);
+    },
+
     setupHeroModel() {
         const gltf = Models.data.knight;
         if (!gltf || this.heroMixer) return;
@@ -112,6 +135,7 @@ const Scene3D = {
 
     // GLB 기사 고정 지오메트리에 장비 시대색 + 궁극+ 등급 발광을 오버레이 (색상만 변경, 형태는 고정)
     tintHeroGlb() {
+        if (this.heroRig) return ProChar.tint(this.heroRig, S.equipment);
         if (!this.glbArmorMeshes) return;
         const a = S.equipment.armor;
         const aIdx = a ? RARITIES.indexOf(a.rarity) : 0;
@@ -135,6 +159,7 @@ const Scene3D = {
     },
 
     heroPlay(cands, once, timeScale) {
+        if (this.heroRig) return this.heroRig.play(cands, once, timeScale);
         if (!this.heroMixer) return;
         const clip = Models.pickClip(Models.data.knight, cands);
         if (!clip) return;
@@ -3136,7 +3161,7 @@ const Scene3D = {
                 // 행군: 플레이어가 실제로 오른쪽(+x)으로 전진 — 카메라가 따라가고 소품은 제자리
                 this.worldX += 1.7 * dt;
                 this.heroG.position.x = Combat.HERO_X + this.worldX;
-                if (!this.heroMixer) {
+                if (!this.heroMixer && !this.heroRig) {
                     this.legs[0].rotation.x = walkCycle * 0.65;
                     this.legs[1].rotation.x = -walkCycle * 0.65;
                     this.armR.rotation.x = rest > -1 ? rest - walkCycle * 0.45 : rest;
@@ -3154,7 +3179,7 @@ const Scene3D = {
                 if (this.worldX - this.ground.position.x > 15) this.ground.position.x += 30;
             } else {
                 if (!this._attacking) this.heroG.position.x = Combat.HERO_X + this.worldX;
-                if (!this.heroMixer) {
+                if (!this.heroMixer && !this.heroRig) {
                     this.legs[0].rotation.x *= 0.85;
                     this.legs[1].rotation.x *= 0.85;
                     if (!this._attacking) {
@@ -3164,8 +3189,14 @@ const Scene3D = {
                     }
                 }
             }
-            // GLB: 믹서 갱신 + 상태 전환 (걷기/대기)
-            if (this.heroMixer) {
+            // 프로시저럴 리그: 키프레임 갱신 + 상태 전환 / GLB: 믹서 갱신 + 상태 전환 (걷기/대기)
+            if (this.heroRig) {
+                this.heroRig.update(dt);
+                if (!this._attacking) {
+                    this.heroPlay(this.walking ? ['Walking'] : ['Idle']);
+                    this.heroG.position.y = 0; // 상하 바운스는 리그 root.py 트랙이 담당
+                }
+            } else if (this.heroMixer) {
                 this.heroMixer.update(dt);
                 if (!this._attacking) this.heroPlay(this.walking ? ['Walking_A', 'Walking_B', 'Running_A'] : ['Idle']);
             }
