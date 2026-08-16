@@ -1571,12 +1571,24 @@ const Scene3D = {
                 box(0.07, 0.16, 0.09, dark, 0, 0.02, 0.02);// 그립
                 box(0.14, 0.1, 0.08, mat, 0, 0.16);
                 break;
-            case 'staff':
-                cyl(0.032, 0.038, 0.95, wood, 0, 0.35);
-                { const orb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8),
+            case 'staff': {
+                // 테이퍼 샤프트 + 그립 밴드 + 다면체 크리스탈 헤드 + 감싸는 링 ('막대사탕' 오독 제거, 비평가 지적)
+                cyl(0.026, 0.04, 0.95, wood, 0, 0.35);
+                cyl(0.042, 0.042, 0.05, dark, 0, 0.06);   // 그립 밴드 (손 위치 표시)
+                cyl(0.042, 0.042, 0.05, dark, 0, -0.08);
+                const crys = new THREE.Mesh(new THREE.OctahedronGeometry(0.1),
                     new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 0.8 }));
-                  orb.position.y = 0.88; g.add(orb); this._staffOrb = orb; }
+                crys.position.y = 0.92; crys.scale.y = 1.5;
+                g.add(crys); this._staffOrb = crys;
+                const holdRing = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.014, 6, 14), mat);
+                holdRing.position.y = 0.92;
+                const holdRing2 = holdRing.clone(); holdRing2.rotation.y = Math.PI / 2;
+                g.add(holdRing, holdRing2);
+                const collar = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 8), dark); // 헤드 받침 소켓
+                collar.position.y = 0.8;
+                g.add(collar);
                 break;
+            }
             case 'thrown':
                 cyl(0.03, 0.035, 0.42, wood, 0, 0.14);
                 box(0.2, 0.15, 0.04, mat, 0.1, 0.36);
@@ -1620,7 +1632,11 @@ const Scene3D = {
                 g.add(orb);
             }
         }
-        g.scale.setScalar((1 + ageIdx * 0.05) * (1 + Math.max(0, rIdx - 2) * 0.05));
+        // 시대·등급 성장 스케일 — 기존 0.05/0.05는 후기 시대에서 무기가 캐릭터 신장을 넘겨 개그가 됨 (비평가 지적)
+        g.scale.setScalar((1 + ageIdx * 0.02) * (1 + Math.max(0, rIdx - 2) * 0.03));
+        // 장병기 그립 보정: 원점(손)이 자루 하단이 아니라 실제 파지 지점에 오도록 전체를 내림
+        const gripDrop = { staff: 0.3, spear: 0.38 }[wtypeId];
+        if (gripDrop) for (const ch of g.children) ch.position.y -= gripDrop;
         return g;
     },
 
