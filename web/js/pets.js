@@ -212,31 +212,25 @@ const Pets = {
         return true;
     },
 
-    // 합성: 같은 등급 펫 3마리(중복 포함 수량) → 상위 등급 랜덤 알
+    // 합성: 같은 등급 여분 조각(dupes) 3개 → 상위 등급 랜덤 알. 레벨업·장착·승천된 펫 개체는 절대 소모하지 않음(조각만 소비)
     canMerge(rarity) {
         const ri = RARITIES.indexOf(rarity);
         if (ri >= RARITIES.length - 1) return false;
-        return this.countOfRarity(rarity) >= 3;
+        return this.dupesOfRarity(rarity) >= 3;
     },
 
-    countOfRarity(rarity) {
-        return S.pets.filter(p => p.rarity === rarity).reduce((s, p) => s + 1 + p.dupes, 0);
+    dupesOfRarity(rarity) {
+        return S.pets.filter(p => p.rarity === rarity).reduce((s, p) => s + p.dupes, 0);
     },
 
     merge(rarity) {
         if (!this.canMerge(rarity)) return false;
         let need = 3;
-        // 중복분부터 소모, 부족하면 개체 제거 (활성 목록 보정)
-        for (let i = S.pets.length - 1; i >= 0 && need > 0; i--) {
+        for (let i = 0; i < S.pets.length && need > 0; i++) {
             const p = S.pets[i];
-            if (p.rarity !== rarity) continue;
+            if (p.rarity !== rarity || p.dupes <= 0) continue;
             const useDupes = Math.min(p.dupes, need);
             p.dupes -= useDupes; need -= useDupes;
-            if (need > 0) {
-                S.activePets = S.activePets.filter(ai => ai !== i).map(ai => ai > i ? ai - 1 : ai);
-                S.pets.splice(i, 1);
-                need--;
-            }
         }
         const next = RARITIES[RARITIES.indexOf(rarity) + 1];
         this.addEgg(next);
