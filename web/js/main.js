@@ -43,6 +43,11 @@
 
         // 디버그: ?tab=summon|pets|skills|menu|debug 등으로 패널 바로 열기, ?debug=craft로 제작 모달 확인
         const params = new URLSearchParams(location.search);
+        // 디버그 탭은 ?debug=* 또는 ?tab=debug일 때만 노출 — 기본 5탭이 원본 레이아웃(042120)
+        if (!params.get('debug') && params.get('tab') !== 'debug') {
+            const dbgBtn = document.querySelector('#tabbar button[data-tab="debug"]');
+            if (dbgBtn) dbgBtn.style.display = 'none';
+        }
         const dbgTab = params.get('tab');
         if (dbgTab) UI.switchTab(dbgTab);
         if (params.get('debug') === 'craft') { S.hammers += 10; UI.onCraft(); }

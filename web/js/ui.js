@@ -661,7 +661,7 @@ const UI = {
         if (!item) return;
         this._gearDetailSlot = slot;
         this.els.gearDetailModal.innerHTML = `
-            <div class="modal-card wide">
+            <div class="modal-card wide gd-card">
                 <div class="cmp-wrap">${this.itemCardHTML(item, '장착됨', null, false)}</div>
             </div>`;
         this.showModal(this.els.gearDetailModal);
@@ -1550,7 +1550,7 @@ const UI = {
                 `<button class="avatar-pick-btn ${e === (S.avatarEmoji || '🛡️') ? 'on' : ''}" onclick="UI.onPickAvatar('${e}')">${e}</button>`).join('')}</div>` : '';
         this.els.profileModal.innerHTML = `
             <div class="idet-wrap">
-                <div class="modal-card wide">
+                <div class="modal-card wide profile-sheet">
                     <div class="profile-title">프로필</div>
                     <div class="profile-top">
                         <div class="profile-avatar-box">
@@ -1607,7 +1607,7 @@ const UI = {
         const staticRow = (label) => `<div class="settings-row static" onclick="UI.toast('데모 버전에서는 지원하지 않습니다')"><span>${label}</span></div>`;
         this.els.profileModal.innerHTML = `
             <div class="idet-wrap">
-                <div class="modal-card wide">
+                <div class="modal-card wide profile-sheet">
                     <div class="profile-title">설정</div>
                     <div class="profile-sub">서버 시간: ${(d0 => `${d0.getDate()}. ${d0.getMonth() + 1}월, ${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`)(new Date())}</div>
                     <div class="settings-list">

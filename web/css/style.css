@@ -82,10 +82,12 @@ body {
 #offline-btn.ready { border-color: #ffd54f; color: #ffd54f; }
 
 /* ---- 오프라인 보상 팝업 (UI-SPEC 2번, 원본 shot-042110) — 위 검정 절반 + 아래 흰 절반 ---- */
-.modal-card.offline-card { padding: 0; gap: 0; overflow: hidden; }
+/* 원본(042110): 모달 70% W × 55% H, 위 어두운 구역 ≈40%, 아래 흰 구역은 여백 넉넉 */
+.modal-card.offline-card { padding: 0; gap: 0; overflow: hidden; width: 70%; height: 55%; }
 .offline-top {
     background: linear-gradient(180deg, #232a52, #171b38); color: #fff;
-    padding: 1.1rem .9rem .9rem; text-align: center;
+    padding: 1.3rem .9rem 1.1rem; text-align: center; flex: 0 0 40%;
+    display: flex; flex-direction: column; justify-content: center;
 }
 .offline-title { font-size: 1.2rem; font-weight: 900; margin-bottom: .15rem; }
 .offline-sub { font-size: .82rem; font-weight: 700; color: #ccc; }
@@ -99,9 +101,12 @@ body {
 .offline-rate-icon.coin { background: #ffb300; }
 .offline-rate-icon.hammer { background: var(--pp-green); }
 .offline-rate b { color: var(--pp-green); font-weight: 900; font-size: .85rem; }
-.offline-bottom { background: #fff; padding: 1.1rem .9rem 1.3rem; text-align: center; }
-.offline-total { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); margin-bottom: .8rem; }
-.offline-collect-btn { position: relative; width: 100%; }
+.offline-bottom {
+    background: #fff; padding: 1.1rem .9rem 1.3rem; text-align: center;
+    flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1.2rem;
+}
+.offline-total { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); }
+.offline-collect-btn { position: relative; width: 44%; align-self: center; min-height: 4.2rem; font-size: 1.2rem; } /* 원본 ≈30% 화면폭·8% H */
 .offline-collect-dot {
     position: absolute; top: -.3rem; right: -.3rem; width: .7rem; height: .7rem; border-radius: 50%;
     background: var(--pp-red); border: 2px solid #fff;
@@ -420,12 +425,15 @@ body {
 
 /* ---- 모달/토스트 ---- */
 .modal {
-    position: absolute; inset: 0; background: rgba(0,0,0,.6); z-index: 20;
+    position: absolute; inset: 0; background: rgba(0,0,0,.72); z-index: 20; /* 원본 딤 강도 (185 재채점) */
     display: flex; align-items: center; justify-content: center;
 }
 .modal.hidden, .hidden { display: none !important; }
 /* 세부정보류 팝업은 항상 소유 화면(플레이어 정보 등) 위에 겹침 — DOM 순서와 무관하게 스택 보장 */
 #detail-modal, #mount-upgrade-modal, #gear-detail-modal, #forge-item-modal { z-index: 22; }
+/* 원본(043244): 장비 상세 카드는 화면 하단(장비 시트 위, 세로 60~78%)에 뜬다 — 폭 ≈70% */
+#gear-detail-modal { align-items: flex-end; padding-bottom: 15%; }
+#gear-detail-modal .gd-card { width: 70%; }
 /* 장비 비교 팝업은 원본(shot-043224)처럼 하단 앵커 (버튼줄이 화면 ~78%H) */
 #craft-modal { align-items: flex-end; padding-bottom: 13%; }
 /* 기술 노드 팝업 액션 버튼 — 원본(shot-042605) 높이≈화면 7% 입체 블록 */
@@ -561,7 +569,8 @@ body {
 }
 
 /* ---- 기술 트리: 분기 개요 카드 (UI-SPEC 10번, 원본 shot-042407) ---- */
-.tech-branch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin: .7rem 0 .3rem; }
+/* 원본(042407): 카드 ≈34% W, 좌우 여백 ≈13%, 그리드 시작 ≈13% H */
+.tech-branch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem .9rem; margin: 1.6rem 12% .3rem; }
 .tech-branch-card {
     display: flex; flex-direction: column; padding: 0; overflow: hidden; cursor: pointer;
     background: var(--pp-paper); border: 3px solid var(--pp-line); border-radius: .8rem;
@@ -613,7 +622,7 @@ body {
     width: 2rem; height: 2rem; border-radius: 50%; background: #161b22; border: 2px solid var(--rc, #444c56);
     display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
 }
-.league-emblem { text-align: center; font-size: 4.6rem; margin-top: -.1rem; } /* 원본 방패 ≈19% W (185) */
+.league-emblem { text-align: center; font-size: 3.3rem; margin-top: -.1rem; } /* 원본 방패 실측 재보정 (185 재채점) */
 .league-title { text-align: center; font-weight: 900; font-size: 1.15rem; color: #fff; margin: -.2rem 0 .3rem; }
 .league-season-bar {
     display: flex; align-items: center; justify-content: center; gap: .4rem;
@@ -625,7 +634,7 @@ body {
 /* 원본: 랭킹 행은 흰 카드(검정 순위/이름, 주황 전투력), 내 행만 파란 하이라이트 */
 .league-row {
     display: grid; grid-template-columns: 1.8rem 2.5rem 1fr auto; gap: .5rem; align-items: center; position: relative;
-    background: #fff; border: 2px solid #000; border-radius: .6rem; padding: .45rem .5rem .95rem; font-size: .78rem;
+    background: #fff; border: 2px solid #000; border-radius: .6rem; padding: .32rem .5rem .8rem; font-size: .78rem; /* 행 ≈6.7% H (185 재채점) */
 }
 .league-row.me { background: var(--pp-blue); }
 .league-avatar {
@@ -687,11 +696,11 @@ body {
     border-radius: .5rem; padding: .3rem 1.2rem; font-size: .78rem; font-weight: 900; color: var(--pp-ink);
 }
 .league-collect-pill b { display: block; color: #1d8f3c; }
-.league-reward-table {
-    display: flex; flex-direction: column; gap: 0; max-height: 40vh; overflow-y: auto;
-    background: #fff; margin: 0 -1.1rem -1.1rem; border-radius: 0 0 .8rem .8rem;
+.league-reward-table { /* 원본(042208): 흰 서브패널, 행 ≈8.4% H, 티어 4.5개 노출 (185 재채점) */
+    display: flex; flex-direction: column; gap: 0; max-height: 46vh; overflow-y: auto;
+    background: #fff; margin: 0 -.4rem -.4rem; border-radius: .7rem; border: 3px solid var(--pp-line);
 }
-.league-reward-tier { display: flex; align-items: center; gap: .6rem; padding: .55rem 1.1rem; border-top: 2px dashed #ccc; }
+.league-reward-tier { display: flex; align-items: center; gap: .6rem; padding: .85rem 1.1rem; border-top: 2px dashed #ccc; }
 .league-reward-tier:first-child { border-top: none; }
 .league-tier-rank { font-size: 1.3rem; font-weight: 900; width: 2.4rem; text-align: center; flex: none; color: var(--pp-ink); white-space: nowrap; }
 .league-tier-rank.text { font-size: .74rem; width: 3rem; }
@@ -709,6 +718,7 @@ body {
     display: flex; align-items: center; gap: .6rem; background: #cfcfcf; border: none;
     border-radius: .7rem; padding: .5rem .6rem; margin-bottom: .5rem;
 }
+.league-challenge-row .btn.sm { flex: 0 0 26%; min-height: 2.9rem; font-size: .85rem; } /* 원본 도전 버튼 ≈21% 화면폭 (185 재채점) */
 .league-challenge-avatar {
     width: 2.6rem; height: 2.6rem; border-radius: .4rem; background: #fff; border: 2px solid var(--pp-line);
     display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex: none;
@@ -892,7 +902,10 @@ body {
 }
 .profile-avatar-box .profile-edit-btn { position: absolute; bottom: -.4rem; left: -.4rem; }
 .profile-fields { flex: 1; display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
-.profile-field-label { font-size: .68rem; font-weight: 800; color: var(--pp-muted); }
+.profile-field-label { font-size: .68rem; font-weight: 800; color: var(--pp-muted); text-align: left; }
+/* 원본(042724): 프로필 모달 70% W × 69% H, 탭은 모달 최하단 고정 */
+.profile-sheet { width: 70%; height: 69%; display: flex; flex-direction: column; }
+.profile-sheet .profile-tabs { margin-top: auto; }
 .profile-field-row { display: flex; align-items: center; gap: .4rem; margin-top: .1rem; }
 .profile-field {
     flex: 1; background: var(--pp-panel); border: 2px solid var(--pp-line); border-radius: .4rem;
@@ -1013,12 +1026,13 @@ body {
 }
 .chat-input-bar .btn.round { width: 2.7rem; height: 2.7rem; font-size: 1.15rem; flex: none; }
 .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; padding: .2rem; }
-.chat-row { display: flex; gap: .4rem; align-items: flex-start; }
+/* 원본(043500): 아바타 ≈10% 화면폭·좌 여백, 말풍선 고정폭 ≈65% */
+.chat-row { display: flex; gap: .55rem; align-items: flex-start; padding-left: .55rem; }
 .chat-avatar {
-    width: 2.3rem; height: 2.3rem; border-radius: .35rem; background: #fff; border: 2px solid #000;
-    display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex: none;
+    width: 3rem; height: 3rem; border-radius: .4rem; background: #fff; border: 2px solid #000;
+    display: flex; align-items: center; justify-content: center; font-size: 1.6rem; flex: none;
 }
-.chat-bubble-wrap { flex: 1; min-width: 0; }
+.chat-bubble-wrap { flex: 0 0 68%; min-width: 0; margin-right: auto; }
 .chat-name-line { display: flex; align-items: center; gap: .3rem; font-size: .72rem; margin-bottom: .2rem; }
 .chat-name { font-weight: 800; }
 .chat-row.mine .chat-name { color: #7ee2a8; }
@@ -1026,7 +1040,7 @@ body {
 .chat-time { margin-left: auto; color: #8b93ad; font-size: .66rem; }
 .chat-bubble {
     background: #d6d6d6; color: #17181a; border-radius: .6rem; padding: .45rem .65rem; font-size: .8rem;
-    display: inline-block; max-width: 100%; word-break: break-word;
+    display: block; width: 100%; word-break: break-word; /* 원본: 짧은 메시지도 고정폭 말풍선 */
 }
 .chat-share-card {
     position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: .3rem;
@@ -1045,10 +1059,10 @@ body {
     background: var(--pp-blue); color: #fff; border: 2px solid #000; font-size: .82rem;
     display: flex; align-items: center; justify-content: center;
 }
-.chat-input-bar { display: flex; gap: .5rem; align-items: center; }
+.chat-input-bar { display: flex; gap: .6rem; align-items: center; padding: .55rem .2rem; } /* 원본: 두꺼운 검정 밴드 */
 .chat-input-bar input {
-    flex: 1; background: #fff; border: none; border-radius: 1.2rem;
-    padding: .6rem .9rem; color: #17181a; font-size: .82rem;
+    flex: 1; background: #fff; border: none; border-radius: 1.4rem;
+    padding: .8rem 1rem; color: #17181a; font-size: .86rem;
 }
 .btn.round { width: 2.6rem; height: 2.6rem; border-radius: 50%; padding: 0; flex: none; font-size: 1.15rem; }
 
@@ -1222,9 +1236,9 @@ body {
 }
 
 /* ---- 던전 배너: 원본 비율 3.3:1, 폭 78% ---- */
-.modal-card.sheet .dungeon-list { max-height: none; gap: .55rem; align-items: center; }
+.modal-card.sheet .dungeon-list { max-height: none; gap: .4rem; align-items: center; } /* 원본 간격 (185 재채점) */
 .modal-card.sheet .dg-banner {
-    width: 88%; aspect-ratio: 3.3 / 1; padding: .6rem .7rem;
+    width: 76.5%; aspect-ratio: 3.3 / 1; padding: .6rem .7rem; /* 원본 카드 ≈76.5% 화면폭 (185 재채점) */
     border: 3px solid var(--pp-line); border-radius: .8rem;
     align-items: flex-start; box-shadow: 0 .25rem 0 rgba(0,0,0,.3);
 }
@@ -1279,7 +1293,7 @@ body {
     text-align: center; align-self: center; min-width: 78%;
 }
 /* 원본(042340/042356) 실측: 오브/타일 지름 ≈12.5% W, 그리드 좌우 인셋 — 풀블리드 금지 (185 비평가) */
-.sk-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .75rem .5rem; padding: 0 9%; }
+.sk-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .75rem .8rem; padding: 0 12.5%; } /* 오브 ≈10.4% W (185 재채점) */
 .sk-cell { background: none; border: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .1rem; }
 .sk-orb {
     position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%;
@@ -1329,8 +1343,9 @@ body {
 }
 .sk-mini small { position: absolute; bottom: -.35rem; font-size: .5rem; font-weight: 800; color: var(--pp-ink); }
 .row.center { justify-content: center; }
-.summon-bar { display: flex; align-items: center; justify-content: center; gap: .5rem; }
-.panel .btn.big { font-size: 1.05rem; padding: .3rem .6rem; min-height: 3.8rem; flex: 0 1 38%; } /* 소환 바 원본(shot-042356): 높이≈7% H, 폭≈28~35% W — 풀폭 금지 */
+.summon-bar { display: flex; align-items: center; justify-content: center; gap: .5rem; position: relative; }
+.summon-bar .back-btn { position: absolute; left: .3rem; } /* 원본: 좌측 끝 (185 재채점) */
+.panel .btn.big { font-size: 1.05rem; padding: .3rem .6rem; min-height: 3.8rem; flex: 0 1 30%; } /* 소환 바 원본(shot-042356): 높이≈7% H, 폭≈28~35% W — 풀폭 금지 */
 .panel .btn.xs { font-size: .72rem; padding: .3rem .5rem; line-height: 1.1; }
 .panel .btn.xs.info { background: #fff; }
 .summon-prog {
@@ -1488,9 +1503,12 @@ body {
 }
 
 /* ===== 자동 제련 팝업 (shot-042950/043117 원본 대조 재작업) ===== */
-.af-card { width: min(88vw, 21.5rem); padding: .85rem .8rem .8rem; }
+/* 원본(042950): 모달 ≈85% H — 필터와 하단 설정부 사이 큰 여백 유지 */
+.af-card { width: min(88vw, 21.5rem); height: 85%; padding: .85rem .8rem .8rem; display: flex; flex-direction: column; }
+.af-card .af-scroll { flex: 1; max-height: none; }
+.af-card .af-bottom { margin-top: auto; }
 .af-title { text-align: center; font-size: 1.12rem; font-weight: 900; margin: .1rem 0 .5rem; }
-.af-label { font-size: .78rem; font-weight: 800; margin: 0 0 .28rem; }
+.af-label { font-size: .78rem; font-weight: 800; margin: 0 0 .28rem; text-align: left; }
 .af-scroll { overflow-y: auto; max-height: 42vh; }
 .af-age-bar {
     display: flex; align-items: center; gap: .45rem; cursor: pointer;
@@ -1554,7 +1572,7 @@ body {
 }
 .af-dd-list button.on { background: var(--pp-blue); }
 .af-dd-list button:active { background: #2c313a; }
-.af-start { display: block; width: 68%; margin: .65rem auto .15rem; font-size: 1.02rem; padding: .55rem 0; }
+.af-start { display: block; width: 38%; margin: .8rem auto .3rem; font-size: 1.05rem; padding: .6rem 0; min-height: 3.6rem; } /* 원본 ≈29% 화면폭 */
 
 /* ===== 확률 정보 팝업 (shot-042831 원본 대조 재작업) ===== */
 .fi-card { width: min(90vw, 22.5rem); padding: .85rem .8rem .9rem; position: relative; }
@@ -1671,7 +1689,7 @@ body {
     border: 3px solid var(--pp-line); box-shadow: inset 0 -.28rem 0 #9c9c9c; font-weight: 900;
 }
 .btn.silver:active { transform: translateY(.1rem); box-shadow: none; }
-.dgd-card { width: 71%; padding: 0 0 1rem; overflow: hidden; gap: 0; } /* 원본 ≈69% W (185) */
+.dgd-card { width: 71%; min-height: 49%; padding: 0 0 1rem; overflow: hidden; gap: 0; display: flex; flex-direction: column; } /* 원본 ≈69% W × 49% H (185) */
 .dgd-card .dg-detail-hero {
     position: relative; width: 100%; border-radius: 0; margin: 0 0 .6rem;
     height: 9.4rem; font-size: 3.4rem; /* 원본 배너 ≈15.4% H (185) */
@@ -1686,12 +1704,12 @@ body {
 .dgd-stage span { display: block; font-size: .88rem; font-weight: 900; color: var(--pp-ink); }
 .dgd-stage b { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); }
 .dgd-reward-pill {
-    background: #b9b9b9; border-radius: .6rem; margin: 0 auto .55rem; padding: .3rem .9rem; max-width: 78%;
+    background: #b9b9b9; border-radius: .6rem; margin: 0 auto .55rem; padding: .3rem .9rem; width: 78%; /* 원본 ≈55% 화면폭 */
     text-align: center; font-size: .88rem; font-weight: 900; color: var(--pp-ink);
 }
 .dgd-reward-label { color: #fff; text-shadow: -1px -1px 0 #6d6d6d, 1px -1px 0 #6d6d6d, -1px 1px 0 #6d6d6d, 1px 1px 0 #6d6d6d; margin-right: .3rem; }
 .dgd-keys { text-align: center; font-size: .95rem; font-weight: 900; color: var(--pp-ink); margin-bottom: .7rem; }
-.dgd-btns { display: flex; gap: .8rem; margin: 0 1.1rem; justify-content: center; }
+.dgd-btns { display: flex; gap: .8rem; margin: auto 1.1rem .2rem; justify-content: center; }
 .dgd-btns .btn { flex: 0 1 42%; min-height: 3.4rem; }
 .dgd-btn { flex: 1; font-size: .92rem; padding: .6rem .2rem; border-radius: .6rem; line-height: 1.25; }
 #panel-summon > .summon-sub { position: relative; } /* 분기 상세 ⓘ 절대배치 기준 */
