@@ -389,7 +389,7 @@ const UI = {
     closeAutoForge() { this.els.autoForgeModal.classList.add('hidden'); },
     renderAutoForge() {
         const cfg = Forge.autoForgeConfig();
-        const ageChecks = AGES.map(age => `
+        const ageChecks = AGES.slice(-5).map(age => `
             <label class="check-row">
                 <input type="checkbox" ${cfg.keepAges.includes(age) ? 'checked' : ''} onchange="UI.onToggleKeepAge('${age}')">
                 <span style="color:${this.ageHex(age)}">${AGE_ICON[age]} ${AGE_KR[age]}</span>
