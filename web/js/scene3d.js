@@ -356,8 +356,9 @@ const Scene3D = {
         for (let i = 0; i < 16; i++) {
             const s = new THREE.Sprite(this.emberMat.clone());
             const x = U.rand(-9, 9), z = U.rand(-6.5, 1.5);
-            s.scale.setScalar(U.rand(0.17, 0.36));
-            s.position.set(x, this.heightAt(x, z) + U.rand(0.15, 1.8), z);
+            s.scale.setScalar(U.rand(0.06, 0.13)); // 0.36은 '부유 발광구/이중 태양' 아티팩트로 읽힘 (비평가 지적)
+            s.material.opacity = 0.45;
+            s.position.set(x, this.heightAt(x, z) + U.rand(0.3, 1.2), z);
             s.userData.baseX = x; s.userData.baseZ = z; s.userData.baseY = s.position.y;
             s.userData.phase = U.rand(0, 10);
             s.userData.rise = U.rand(0.05, 0.15);
@@ -1050,9 +1051,9 @@ const Scene3D = {
                 n = 120;
                 tint = 0.2;
                 break;
-            default: // forest: 풀 포기 (잎날 클러스터)
+            default: // forest: 풀 포기 (잎날 클러스터) — 지형 알베도 쪽으로 30% 눌러 채도 정합
                 geo = this.tuftGeo();
-                mat = new THREE.MeshLambertMaterial({ color: 0x558b2f });
+                mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0x558b2f).lerp(new THREE.Color(0x9cbf6e), 0.35) });
                 n = 240;
                 flat = false;
                 tint = 0.2;
@@ -1677,6 +1678,13 @@ const Scene3D = {
         const w = S.equipment.weapon;
         this.wtypeId = w ? (w.wtype || 'sword') : 'club';
         this.weaponG.add(this.makeWeapon(this.wtypeId, w ? w.ageIdx : 0, w && w.rarity));
+        if (this.heroRig) { // 파지 랩 — 손가락이 자루를 감싸는 토러스 (무기가 팔 옆 '안테나'로 떠 보이던 문제)
+            const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.026, 6, 10),
+                new THREE.MeshLambertMaterial({ color: 0x7a5c46 }));
+            wrap.rotation.x = Math.PI / 2;
+            wrap.scale.z = 1.25;
+            this.weaponG.add(wrap);
+        }
         const wtDef = WEAPON_TYPES[this.wtypeId];
         this.armRest = wtDef ? wtDef.restX : -0.25;
         this.armR.rotation.x = this.armRest;
@@ -1756,13 +1764,20 @@ const Scene3D = {
             const helm = new THREE.Mesh(new THREE.SphereGeometry(0.28, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.78), mat);
             helm.position.y = 0.04;
             helm.scale.set(0.97, 1.02, 1);
-            const slit = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.05, 0.07), darkMat);
-            slit.position.set(0, 0.06, 0.235);
-            for (const dx of [-0.055, 0.055]) { // 슬릿 속 발광 눈 — 데칼 얼굴보다 값싸고 그럴듯한 시선 (비평가 처방)
-                const glowEye = new THREE.Mesh(new THREE.SphereGeometry(0.017, 6, 5),
-                    new THREE.MeshLambertMaterial({ color: pc, emissive: pc, emissiveIntensity: 1 }));
-                glowEye.position.set(dx, 0.06, 0.272);
-                glowEye.scale.set(1.3, 0.8, 0.5);
+            // 슬릿 = 함몰 캐비티: 칠흑 내부 + 림 테두리 + 언릿 발광 눈 (표면 데칼 'T 스티커' 오독 제거, 비평가 지적)
+            const cavity = new THREE.MeshBasicMaterial({ color: 0x0c0f12 });
+            const slit = new THREE.Mesh(new THREE.BoxGeometry(0.185, 0.042, 0.07), cavity);
+            slit.position.set(0, 0.06, 0.222); // 림 타원 안쪽에 맞춤 — 모서리가 림 밖으로 새면 '검은 사각 스티커'
+            const rimGeo = new THREE.TorusGeometry(0.105, 0.011, 5, 14); // 슬릿 개구부 금속 림 — 재질 경계로 '뚫린 구멍' 판독
+            rimGeo.scale(1, 0.32, 1);
+            const slitRim = new THREE.Mesh(rimGeo, mat);
+            slitRim.position.set(0, 0.06, 0.268);
+            g.add(slitRim);
+            for (const dx of [-0.055, 0.055]) { // 캐비티 속 언릿 발광 눈 — 어둠 대비 최대
+                const glowEye = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 5),
+                    new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.1, 0.18) }));
+                glowEye.position.set(dx, 0.06, 0.276); // 캐비티 전면보다 앞 — 가려지면 무광 슬릿만 남음
+                glowEye.scale.set(1.3, 0.75, 0.5);
                 g.add(glowEye);
             }
             const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.16, 0.05), mat); // 코 가드 세로 바
@@ -1836,7 +1851,7 @@ const Scene3D = {
             const vGeo = new THREE.TorusGeometry(0.25, 0.04, 8, 22, Math.PI * 0.86);
             vGeo.rotateZ(Math.PI * 0.07);
             vGeo.rotateX(Math.PI / 2);
-            const visorArc = new THREE.Mesh(vGeo, rareMat);
+            const visorArc = new THREE.Mesh(vGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.08, 0.14) })); // 언릿 = 발광 판독
             visorArc.position.set(0, 0.075, 0.035);
             visorArc.scale.y = 0.6;                            // 납작한 슬릿 단면
             // 이어 포드 + 정수리 능선
@@ -2726,7 +2741,9 @@ const Scene3D = {
                 headW.add(ear, earIn);
             }
             g.add(headW);
-            eyes(0.63, 0.47, 0.052, 0.028, 'slit', { iris: 0x9adcff, narrow: true, tilt: -0.35 });
+            eyes(0.635, 0.485, 0.052, 0.036, 'slit', { iris: 0x9adcff, narrow: true, tilt: -0.35 });
+            const backStripe = mk(new THREE.SphereGeometry(0.16, 10, 8), furD); // 등 다크 스트라이프 — 단색 덩어리 완화 투톤
+            backStripe.position.set(0, 0.5, -0.04); backStripe.scale.set(0.72, 0.45, 1.9);
             // 2관절 다리 4개: 어깨/고관절 피벗 → 상퇴 → 하퇴 → 발 (달리기 사이클은 기존 anim.legs 인터페이스)
             for (const [lx, lz, front] of [[-0.11, 0.22, 1], [0.11, 0.22, 1], [-0.1, -0.24, 0], [0.1, -0.24, 0]]) {
                 const leg = new THREE.Group();
@@ -2746,12 +2763,12 @@ const Scene3D = {
             // 꼬리: 위로 휘어 오르는 3분절 커브 (끝만 밝은 털)
             const tailG = new THREE.Group();
             tailG.position.set(0, 0.46, -0.33);
-            tailG.rotation.x = 0.85;
+            tailG.rotation.x = 0.55;
             let tPrev = tailG;
             for (let ti = 0; ti < 3; ti++) {
                 const holder = new THREE.Group();
                 holder.position.set(0, 0, -0.085);
-                holder.rotation.x = -0.38;
+                holder.rotation.x = -0.26;
                 const seg = mk(new THREE.SphereGeometry(0.058 - ti * 0.011, 8, 6), ti === 2 ? furL : furD);
                 seg.position.z = -0.045;
                 seg.scale.set(0.85, 0.85, 1.5);

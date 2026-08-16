@@ -174,13 +174,13 @@ const ProChar = {
         const mTex = this.metalTex();
         const env = this.envMap();
         const steel = () => {
-            const m = new THREE.MeshPhongMaterial({ color: 0x9fb2c2, shininess: 70, specular: 0xc4d2de, map: mTex, envMap: env, combine: THREE.MixOperation, reflectivity: 0.32 });
+            const m = new THREE.MeshPhongMaterial({ color: 0x9fb2c2, shininess: 34, specular: 0x93a2ae, map: mTex, envMap: env, combine: THREE.MixOperation, reflectivity: 0.2 }); // 순백 블로우아웃 방지 — 곡면 음영 보존
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
             return m;
         };
         const steelDark = () => {
-            const m = new THREE.MeshPhongMaterial({ color: 0x5c6b7a, shininess: 52, specular: 0x8493a0, map: mTex, envMap: env, combine: THREE.MixOperation, reflectivity: 0.22 });
+            const m = new THREE.MeshPhongMaterial({ color: 0x5c6b7a, shininess: 30, specular: 0x6b7885, map: mTex, envMap: env, combine: THREE.MixOperation, reflectivity: 0.15 });
             m.userData.dark = true; // 틴트 시 명도 단차 유지용
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
@@ -188,7 +188,7 @@ const ProChar = {
         };
         const suit = new THREE.MeshLambertMaterial({ color: 0x323e46, map: mTex }); // 갑옷 밑 사슬/천
         const leather = new THREE.MeshLambertMaterial({ color: 0x5a4030, map: this.leatherTex() });
-        const gold = new THREE.MeshPhongMaterial({ color: 0xd9a441, shininess: 96, specular: 0xffe9b0, envMap: env, combine: THREE.MixOperation, reflectivity: 0.35 });
+        const gold = new THREE.MeshPhongMaterial({ color: 0xd9a441, shininess: 55, specular: 0xd9c084, envMap: env, combine: THREE.MixOperation, reflectivity: 0.24 });
         const skin = new THREE.MeshLambertMaterial({ color: 0xf2c9a4 });
         R.trimMat = gold;
         // AO 링 — 파츠 경계(목/허리/어깨 소켓/고관절/손목)에 얹는 어두운 접촉 그림자 (비평가: AO 부재)
@@ -350,9 +350,10 @@ const ProChar = {
             // 건틀릿 커프(원뿔 링) + 손
             const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.065, 0.07, 10), steel());
             cuff.position.y = -0.11;
-            const hand = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 7), skin);
+            const hand = new THREE.Mesh(new THREE.SphereGeometry(0.058, 8, 7),
+                new THREE.MeshPhongMaterial({ color: 0x7a5c46, shininess: 22, map: this.leatherTex() })); // 가죽 건틀릿 주먹 — '북채 팔' 오독 제거
             hand.position.y = -0.16;
-            hand.scale.set(0.9, 1.1, 0.9);
+            hand.scale.set(0.95, 1.12, 0.95);
             const handMount = new THREE.Group();
             handMount.position.y = -0.17;
             elbow.add(elbowCap, forearm, cuff, hand, handMount);
