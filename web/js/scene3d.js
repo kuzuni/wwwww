@@ -1502,12 +1502,23 @@ const Scene3D = {
             g.add(mesh); return mesh;
         };
         switch (wtypeId) {
-            case 'sword':
-                box(0.09, 0.72, 0.04, mat, 0, 0.42);
-                edge(0.016, 0.68, 0.044, 0.048, 0.41);   // 앞날 하이라이트
-                box(0.24, 0.05, 0.06, dark, 0, 0.1);
-                cyl(0.035, 0.035, 0.18, wood, 0, -0.02);
+            case 'sword': {
+                // 테이퍼 날(끝으로 얇고 좁게) + 풀러 홈 + 포인트 + 크로스가드 + 그립 + 폼멜
+                const blade = box(0.1, 0.62, 0.036, mat, 0, 0.38);
+                { const p = blade.geometry.attributes.position;
+                  for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) { p.setX(i, p.getX(i) * 0.55); p.setZ(i, p.getZ(i) * 0.6); } // 위쪽 정점 수렴 = 테이퍼
+                  blade.geometry.computeVertexNormals(); }
+                { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.043, 0.14, 4), mat); tip.position.y = 0.75; tip.rotation.y = Math.PI / 4; tip.scale.z = 0.42; g.add(tip); }
+                box(0.018, 0.56, 0.04, dark, 0, 0.36);     // 풀러(혈조) 다크 라인
+                edge(0.014, 0.58, 0.04, 0.047, 0.36);      // 앞날 하이라이트
+                cyl(0.045, 0.032, 0.05, mat, 0, 0.085);    // 가드 위 리카소 링
+                box(0.26, 0.045, 0.06, dark, 0, 0.08);     // 크로스가드
+                { const q1 = new THREE.Mesh(new THREE.SphereGeometry(0.028, 7, 6), dark); q1.position.set(0.13, 0.08, 0); g.add(q1);
+                  const q2 = q1.clone(); q2.position.x = -0.13; g.add(q2); }
+                cyl(0.03, 0.034, 0.16, wood, 0, -0.03);    // 그립
+                { const pom = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 7), dark); pom.position.y = -0.13; g.add(pom); }
                 break;
+            }
             case 'axe':
                 cyl(0.035, 0.045, 0.85, wood, 0, 0.3);
                 box(0.3, 0.22, 0.05, mat, 0.15, 0.62);
@@ -2286,9 +2297,17 @@ const Scene3D = {
     },
 
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
+    // 종별 고유 팔레트 — 지형색 파생 금지 (전 종이 배경 보호색 연두 덩어리로 보이던 문제, 비평가 지적)
+    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x7fb069, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x9aa3ad, imp: 0xb0486b },
     monsterMesh(e) {
         const theme = CHAPTER_THEMES[(S.chapter - 1) % CHAPTER_THEMES.length];
-        const base = new THREE.Color(theme.ground).offsetHSL(U.rand(-0.08, 0.08), 0.2, -0.08);
+        const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
+        // 디버그: ?enemy=imp 로 특정 몬스터 강제
+        const forced = new URLSearchParams(location.search).get('enemy');
+        const kind = (forced && kinds.includes(forced)) ? forced : kinds[(e.id + S.chapter * 2) % kinds.length];
+        // 종 고유색 + 개체 지터 + 챕터 무드 10% 혼합 (씬 조화용)
+        const base = new THREE.Color(this.KIND_COLOR[kind]).offsetHSL(U.rand(-0.03, 0.03), U.rand(-0.04, 0.04), U.rand(-0.03, 0.03))
+            .lerp(new THREE.Color(theme.ground), 0.1);
         const g = new THREE.Group();
         const flashMats = [];
         const lam = (c2, map) => { const m = new THREE.MeshLambertMaterial({ color: c2, map: map || null }); flashMats.push(m); return m; };
@@ -2323,14 +2342,11 @@ const Scene3D = {
             }
         };
 
-        const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
-        // 디버그: ?enemy=imp 로 특정 몬스터 강제
-        const forced = new URLSearchParams(location.search).get('enemy');
-        const kind = (forced && kinds.includes(forced)) ? forced : kinds[(e.id + S.chapter * 2) % kinds.length];
         const anim = { kind, wings: [], legs: [] };
         let body = null, armR = null, armL = null, topY = 1.1;
 
         if (kind === 'slime') {
+            mat.transparent = true; mat.opacity = 0.85; // 젤리 반투명
             body = sp(0.45, 0, 0.34, 0, mat, 1, 0.72, 1);
             sp(0.15, 0.14, 0.66, 0, light);
             bx(0.18, 0.05, 0.03, 0, 0.26, 0.42, new THREE.MeshBasicMaterial({ color: 0x37474f }));
