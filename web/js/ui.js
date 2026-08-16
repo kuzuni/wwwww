@@ -41,15 +41,24 @@ const UI = {
         this.watchTabX();
     },
 
-    // 하단 탭 클릭: 던전/상점/전투(PvP)는 팝업, 나머지는 시트 토글(다시 누르면 닫힘)
+    // 하단 탭 클릭: 던전/상점/전투(PvP)는 팝업, 나머지는 시트 토글(다시 누르면 닫힘).
+    // 상호 배타(사용자 지시): 다른 탭 것을 열기 전에 이전 탭이 소유한 열린 팝업을 전부 닫는다.
     onTabClick(tab) {
         // 빨간 X 상태의 탭 = 닫기 버튼
         const btn = document.querySelector(`#tabbar button[data-tab="${tab}"]`);
         if (btn && btn.classList.contains('tab-x')) { this.closeOpened(); return; }
+        this.closeAllTabSurfaces();
         if (tab === 'dungeon') { this.switchTab(null); this.openDungeons(); return; }
         if (tab === 'shop') { this.switchTab(null); this.openShop(); return; }
         if (tab === 'battle') { this.switchTab(null); this.openLeague(); return; }
         this.switchTab(this.activeTab === tab ? null : tab);
+    },
+    // 탭 전환 공통 정리 — 탭이 소유한 전체화면 모달과 그 위에 겹친 하위 상세 팝업 일괄 닫기 (전투 씬은 무관)
+    closeAllTabSurfaces() {
+        for (const id of [...Object.keys(this.MODAL_TAB), 'detail-modal', 'stub-modal']) {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+        }
     },
 
     switchTab(tab) {
