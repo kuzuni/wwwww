@@ -4,6 +4,7 @@ const UI = {
     activeTab: null,
     _pendingItem: null,
     _skillSummonX5: false,
+    _petSummonX5: false,
 
     init() {
         const $ = id => document.getElementById(id);
@@ -612,11 +613,13 @@ const UI = {
             <div class="tech-node-bar"><div style="width:${(petCapped ? 1 : ((S.petSummonCount || 0) % 5) / 5) * 100}%"></div></div>
         </div>`;
 
+        const petSummonN = this._petSummonX5 ? 5 : 1;
         p.innerHTML = `
             <h2>🐾 펫 <span class="muted">🥚 ${U.fmt(S.eggCurrency || 0)} · 출전 ${S.activePets.length}/${Pets.MAX_ACTIVE}</span></h2>
             <p class="muted">펫은 직접 공격하지 않고, 출전 시 고정 공격력·체력과 옵션을 제공합니다. 레벨업은 [업그레이드]에서 다른 펫·알을 재료로 흡수해 진행합니다.</p>
             <div class="row">
-                <button class="btn primary ${Pets.canSummon() ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">소환 x1 <small>🥚 ${Pets.SUMMON_EGG_COST}</small></button>
+                <button class="btn sm ${this._petSummonX5 ? 'on' : ''}" onclick="UI.togglePetSummonX5()">x5</button>
+                <button class="btn primary ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">소환 x${petSummonN} <small>🥚 ${Pets.SUMMON_EGG_COST * petSummonN}</small></button>
             </div>
             ${petSummonProgHtml}
             <div class="prob-box">${ratesHtml}</div>
@@ -625,10 +628,16 @@ const UI = {
             ${mergeHtml ? `<h3>합성</h3><div class="row wrap">${mergeHtml}</div>` : ''}
             <h3>보유 펫</h3><div class="pet-list">${petsHtml}</div>`;
     },
+    togglePetSummonX5() {
+        this._petSummonX5 = !this._petSummonX5;
+        this.renderPets();
+    },
     onSummonPetEgg() {
-        const r = Pets.summon();
-        if (!r) { this.toast(S.eggs.length >= 20 ? '🥚 알 보관함이 가득 찼습니다 (20/20)' : '🥚 알이 부족합니다 (스테이지 클리어로 획득)'); return; }
-        this.toast(`🥚 ${RARITY_KR[r.rarity]} 알 획득!`);
+        const count = this._petSummonX5 ? 5 : 1;
+        const r = Pets.summon(count);
+        if (!r) { this.toast(S.eggs.length + count > 20 ? '🥚 알 보관함이 가득 찼습니다 (20/20)' : '🥚 알이 부족합니다 (스테이지 클리어로 획득)'); return; }
+        if (count === 1) this.toast(`🥚 ${RARITY_KR[r.results[0].rarity]} 알 획득!`);
+        else this.toast(`🥚 소환 x${count} — ` + r.results.map(x => RARITY_KR[x.rarity]).join(' · ') + ' 획득!');
         this.renderPets();
     },
 

@@ -40,16 +40,23 @@ const Pets = {
         const r = skillRatesData[this.summonLevel()];
         return { common: r[0], rare: r[1], epic: r[2], legendary: r[3], ultimate: r[4], mythic: r[5] };
     },
-    canSummon() { return (S.eggCurrency || 0) >= this.SUMMON_EGG_COST && S.eggs.length < 20; },
-    summon() {
-        if (!this.canSummon()) return null;
-        S.eggCurrency -= this.SUMMON_EGG_COST;
-        S.petSummonCount = (S.petSummonCount || 0) + 1;
-        const rarity = U.weightedPick(this.rates());
-        this.addEgg(rarity);
-        SFX.gacha(rarity);
+    // count번 연속 소환(UI-SPEC "소환 x5" 배치, 스킬과 동일 패턴) — 비용·보관함 여유를 선결제로 한 번에 확인, 결과는 배열로 반환
+    canSummon(count = 1) { return (S.eggCurrency || 0) >= this.SUMMON_EGG_COST * count && S.eggs.length + count <= 20; },
+    summon(count = 1) {
+        if (!this.canSummon(count)) return null;
+        S.eggCurrency -= this.SUMMON_EGG_COST * count;
+        const results = [];
+        for (let i = 0; i < count; i++) {
+            S.petSummonCount = (S.petSummonCount || 0) + 1;
+            const rarity = U.weightedPick(this.rates());
+            this.addEgg(rarity);
+            results.push({ rarity });
+        }
+        const bestRarity = results.reduce((best, r) =>
+            RARITIES.indexOf(r.rarity) > RARITIES.indexOf(best) ? r.rarity : best, results[0].rarity);
+        SFX.gacha(bestRarity);
         saveGame();
-        return { rarity };
+        return { results };
     },
 
     hatchTimeSec(rarity) { return baseHatchingTimes[rarity] * 60 * TechTree.hatchSpeedMult(); }, // ANIMALS 분기 '부화 가속'
