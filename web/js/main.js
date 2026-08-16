@@ -92,8 +92,15 @@
         }
 
         // 로직: 고정 100ms 틱 (탭 복귀 시 밀린 틱 따라잡기, 최대 5초분)
+        // 탭이 백그라운드인 동안은 건너뜀 — 안 그러면 브라우저가 스로틀링된 채로도 계속 틱을 돌려
+        // 몬스터 처치·스테이지 클리어 보상이 시뮬레이션되고, 이후 오프라인 보상까지 같은 시간에 또 지급됨.
+        // 탭이 다시 보일 때 logicLast를 리셋해 백그라운드 구간은 전부 오프라인 보상 계산으로 넘김.
         let logicLast = performance.now();
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) logicLast = performance.now();
+        });
         setInterval(() => {
+            if (document.hidden) return;
             const now = performance.now();
             let elapsed = Math.min(5000, now - logicLast);
             logicLast = now;
