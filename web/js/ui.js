@@ -2130,5 +2130,25 @@ const UI = {
             if (fill) fill.style.width = U.clamp(1 - remain / TechTree.time(S.techResearch.id, TechTree.level(S.techResearch.id) + 1), 0, 1) * 100 + '%';
             if (popupTime) popupTime.textContent = U.fmtTime(remain);
         }
+        // 맵 위 이정표 오브젝트 카운트다운 (UI-SPEC 1번)
+        if (S.league) {
+            const t = document.getElementById('waypoint-league-time');
+            if (t) t.textContent = U.fmtTime((S.league.seasonEndsAt - U.now()) / 1000);
+        }
+        const mt = document.getElementById('waypoint-mystery-time');
+        if (mt) mt.textContent = U.fmtTime(this.msUntilDailyReset() / 1000);
     },
+
+    // 매일 09:00 기준 다음 리셋까지 남은 ms — 미스터리 상자는 실제 배경 기능이 없어 기존 09:00 리셋(던전 열쇠 등)에 동기화한 자체 설계 카운트다운
+    msUntilDailyReset() {
+        const next = new Date(); next.setHours(9, 0, 0, 0);
+        if (next <= new Date()) next.setDate(next.getDate() + 1);
+        return next - Date.now();
+    },
+    onWaypointLeague() {
+        League.ensure();
+        this.renderLeagueRewards();
+        this.els.leagueModal.classList.remove('hidden');
+    },
+    onWaypointMystery() { this.openStub('❓ 미스터리 상자', '특별 이벤트 상자는 준비 중입니다.'); },
 };

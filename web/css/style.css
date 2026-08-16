@@ -102,6 +102,25 @@ body {
     background: var(--pp-red); border: 2px solid #fff;
 }
 
+/* ---- 맵 위 이정표 오브젝트 (UI-SPEC 1번, 원본 shot-042120): 리그 보상 / 미스터리 상자 / 진행 패스 진입점 ---- */
+.waypoint {
+    position: absolute; z-index: 3; background: none; border: none; padding: 0; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: .15rem;
+}
+.waypoint-icon {
+    width: 2.3rem; height: 2.3rem; border-radius: .5rem; background: rgba(20,24,20,.55);
+    border: 2px solid rgba(255,255,255,.5); display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem; box-shadow: 0 .15rem 0 rgba(0,0,0,.3);
+}
+.waypoint-time {
+    background: rgba(0,0,0,.65); color: #ffd54f; font-size: .6rem; font-weight: 800;
+    border-radius: .4rem; padding: 0 .35rem; white-space: nowrap;
+}
+#waypoint-league { top: 24%; left: 3%; }
+#waypoint-mystery { top: 21%; right: 3%; }
+#waypoint-pass { top: 36%; right: 4%; }
+#waypoint-pass .waypoint-icon { font-size: 1.4rem; }
+
 #boss-bar {
     position: absolute; top: 3.2rem; left: 50%; transform: translateX(-50%);
     width: 70%; z-index: 4; text-align: center;
