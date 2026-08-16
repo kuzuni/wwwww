@@ -424,7 +424,7 @@ const ProChar = {
         R.bones.neck = neck;
         const headG = new THREE.Group();
         headG.position.y = 0.1;
-        headG.scale.setScalar(0.78); // 보블헤드 완화 — 머리·견갑·어깨가 '같은 크기 공 3개'로 뭉개지던 문제 (비평가 지적, 0.82→0.78 재축소)
+        headG.scale.setScalar(0.73); // 보블헤드 완화 3차 — 전신 대비 두상 ~35% '유아 마스코트' 비율 지적 (0.82→0.78→0.73)
         neck.add(headG);
         R.bones.head = headG;
         // 목 기둥 — 머리가 몸통 위에 떠 보이던 문제 (비평가: 목 연결부 부재)
