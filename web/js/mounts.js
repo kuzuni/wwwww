@@ -96,6 +96,7 @@ const Mounts = {
         }
         this.addXp(targetName, totalXp);
         Combat.recalcHero();
+        if (typeof Scene3D !== 'undefined' && Scene3D.refreshMount) Scene3D.refreshMount();
         saveGame();
         return true;
     },
