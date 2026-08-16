@@ -496,19 +496,19 @@ const UI = {
         const pNew = Forge.itemPower(item), pCur = Forge.itemPower(cur);
         const better = pNew >= pCur;
         const diff = pCur > 0 ? ((pNew / pCur - 1) * 100) : 100;
-        // 새 장비가 위, 장착 중인 장비가 아래
+        // 장착 중인 장비가 위, 새 장비가 아래 (UI-SPEC 25번)
         this.els.craftModal.innerHTML = `
             <div class="modal-card wide" style="--rc:${RARITY_CSS[item.rarity]}">
                 <h3>${SLOT_KR[item.slot]} 획득!</h3>
                 <div class="cmp-wrap">
-                    ${this.itemCardHTML(item, 'NEW! 새 장비', better, true)}
-                    <div class="cmp-arrow ${better ? 'up' : 'down'}">${cur ? (better ? '▲ ' : '▼ ') + Math.abs(diff).toFixed(0) + '%' : 'NEW!'}</div>
                     ${this.itemCardHTML(cur, '장착 중', !better && cur)}
+                    <div class="cmp-arrow ${better ? 'up' : 'down'}">${cur ? (better ? '▲ ' : '▼ ') + Math.abs(diff).toFixed(0) + '%' : 'NEW!'}</div>
+                    ${this.itemCardHTML(item, 'NEW! 새 장비', better, true)}
                 </div>
                 <div class="row">
                     ${isMatch ? `<button class="btn gem" onclick="UI.resolveCraft('ascend')">⭐ 승천 (⭐${(cur.stars || 0) + 1})</button>` : ''}
-                    <button class="btn equip" onclick="UI.resolveCraft('equip')">✅ 장착${cur ? ' (기존 판매)' : ''}</button>
                     <button class="btn sell" onclick="UI.resolveCraft('sell')">🪙 판매 +${U.fmt(Forge.sellPrice(item))}</button>
+                    <button class="btn equip" onclick="UI.resolveCraft('equip')">✅ 장착${cur ? ' (기존 판매)' : ''}</button>
                 </div>
             </div>`;
         this.els.craftModal.classList.remove('hidden');
