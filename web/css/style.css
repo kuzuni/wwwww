@@ -49,7 +49,10 @@ body {
     content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
     background: radial-gradient(ellipse 120% 95% at 50% 42%, transparent 62%, rgba(8, 10, 16, 0.28) 100%);
 }
-#game3d { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
+#game3d {
+    position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block;
+    filter: saturate(1.12) contrast(1.07); /* 컬러 그레이딩 — 무보정 '에디터 뷰포트' 인상 제거 (비평가: 포스트프로세싱 전무). r128+CDN 금지 환경이라 컴포저 대신 CSS 그레이드 */
+}
 #fx-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 
 #stage-label {

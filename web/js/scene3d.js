@@ -357,7 +357,7 @@ const Scene3D = {
             const s = new THREE.Sprite(this.emberMat.clone());
             const x = U.rand(-9, 9), z = U.rand(-6.5, 1.5);
             s.scale.setScalar(U.rand(0.06, 0.13)); // 0.36은 '부유 발광구/이중 태양' 아티팩트로 읽힘 (비평가 지적)
-            s.material.opacity = 0.45;
+            s.material.opacity = 0.3; // 밝은 배경에서 순백 점('데드픽셀')으로 씻겨 보이던 문제 완화 (비평가 6번)
             s.position.set(x, this.heightAt(x, z) + U.rand(0.3, 1.2), z);
             s.userData.baseX = x; s.userData.baseZ = z; s.userData.baseY = s.position.y;
             s.userData.phase = U.rand(0, 10);
@@ -826,6 +826,7 @@ const Scene3D = {
             const t = this.makeProp(biome, kind, s);
             t.position.set(x, this.heightAt(x, z), z);
             t.rotation.y = U.rand(0, Math.PI * 2);
+            t.scale.multiplyScalar(U.rand(0.88, 1.14)); t.scale.y *= U.rand(0.94, 1.1); // 인스턴스 지터 — 동일 스케일 복붙 티 제거 (비평가 13번)
             if (biome === 'magic' && kind === 'p' && z > -5) emissiveAnchors.push(t); // 근·중경 크리스탈만
             this.setShadow(t);
             const blob = new THREE.Mesh(this.blobGeo, this.blobShadowMat); // setShadow 이후에 붙여 castShadow 제외
