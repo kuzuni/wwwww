@@ -3780,9 +3780,9 @@ const Scene3D = {
                         if (m.body) m.body.scale.y = 0.72 - (1 - s2) * 0.1;
                     } else {
                         // 이족보행: 관절 걷기 — 고관절 스윙+무릎 굽힘, 어깨 스윙+팔꿈치 굽힘 (통짜 막대기 금지)
-                        const ph = clk * 9 + id;
+                        const ph = clk * 8 + id; // 주기 0.785s — 0.1s 연속 캡처 8프레임과 정수배 겹침 방지 (프레임 중복 오독)
                         m.g.position.y = Math.abs(Math.sin(ph)) * (m.anim.bleg ? 0.045 : 0.07);
-                        m.g.rotation.z = Math.sin(ph) * (m.anim.bleg ? 0.05 : 0.08);
+                        m.g.rotation.z = Math.sin(ph) * (m.anim.bleg ? 0.03 : 0.08); // 롤 축소 — 다리 측면 벌어짐 오독 방지
                         if (m.anim.bleg) m.anim.bleg.forEach((L, j) => {
                             const lp = ph + j * Math.PI;
                             L.hip.rotation.x = Math.sin(lp) * 0.8;
@@ -3792,7 +3792,7 @@ const Scene3D = {
                         if (m.anim.barm) m.anim.barm.forEach((A, j) => {
                             const ap = ph + j * Math.PI + Math.PI; // 같은 쪽 다리와 역위상
                             A.sh.rotation.x = Math.sin(ap) * 0.65;
-                            A.elbow.rotation.x = -0.5 - Math.max(0, Math.sin(ap)) * 0.65; // 상시 굽힘 29°+ 앞 스윙 가산 (비평가: 강체 튜브 팔 금지)
+                            A.elbow.rotation.x = -0.7 - Math.max(0, Math.sin(ap)) * 0.6; // 상시 굽힘 40°+ 앞 스윙 가산 최대 74° (비평가: 강체 튜브 팔 금지)
                         });
                         else if (m.armR) {
                             m.armR.rotation.x = Math.sin(ph) * 0.55;

@@ -76,7 +76,7 @@ const OUT = process.argv[2] || __dirname;
         }, kind);
         for (let i = 0; i < 8; i++) {
             await page.evaluate(t => { window.__clk = t; }, 10 + i * 0.1);
-            await fitObj('Scene3D.enemyMap.get(window.__eid).g', 1.05, 1.05, -0.05); // 프로필(측면) — 적 요 -0.55 기준 +90°에서 무릎 각 판독
+            await fitObj('Scene3D.enemyMap.get(window.__eid).g', 1.05, 0.82, -0.05); // 3/4 측면 — 근·원 다리가 구분돼 미러 포즈 중복 오독 방지
             await page.waitForTimeout(120);
             await page.screenshot({ path: `${OUT}/walk-${name}-f${i}.png` });
         }
