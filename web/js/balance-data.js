@@ -38,32 +38,6 @@ const forgeProbabilities = {
     35: { quantum: 62.00, underworld: 36.00, divine: 2.00 }
 };
 
-const expValues = {
-    primitive: 1,
-    medieval: 1,
-    earlyModern: 1,
-    modern: 2,
-    space: 2,
-    interstellar: 2,
-    multiverse: 3,
-    quantum: 3,
-    underworld: 3,
-    divine: 3
-};
-
-const ageNames = {
-    primitive: 'Primitive',
-    medieval: 'Medieval',
-    earlyModern: 'Early-Modern',
-    modern: 'Modern',
-    space: 'Space',
-    interstellar: 'Interstellar',
-    multiverse: 'Multiverse',
-    quantum: 'Quantum',
-    underworld: 'Underworld',
-    divine: 'Divine'
-};
-
 // 대장간 업그레이드: 해머 비용 + 시간(초) — 원본 실측
 const forgeUpgrades = {
     2:{cost:400,time:300}, 3:{cost:700,time:900}, 4:{cost:1500,time:1800}, 5:{cost:3500,time:3600},
