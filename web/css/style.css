@@ -172,13 +172,20 @@ body {
     position: absolute; right: .5rem; bottom: .6rem; z-index: 4;
     display: flex; align-items: center; gap: .4rem;
 }
+/* 장착 슬롯: 스킬 화면 오브와 동일 문법 — 등급색 배경+어두운 외곽+내부 하이라이트, 빈 슬롯만 검정 (사용자 지시) */
 .skill-btn {
     position: relative; width: 2.9rem; height: 2.9rem; border-radius: 50%;
-    border: 2px solid var(--sc, #546e7a); background: #11151a; color: #eceff1;
+    border: 3px solid #17181a; background: var(--rc, #11151a); color: #eceff1;
     font-weight: 700; cursor: pointer; overflow: hidden; padding: 0;
     display: flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25);
 }
 .skill-btn .sk-icon { font-size: 1.35rem; line-height: 1; }
+.skill-btn .sk-lv {
+    position: absolute; bottom: .1rem; left: 50%; transform: translateX(-50%);
+    font-size: .5rem; font-weight: 900; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.8);
+    background: none; border: none; padding: 0;
+}
 .skill-btn .sk-name { display: none; }
 .skill-btn.ready { box-shadow: 0 0 8px var(--sc, transparent); }
 .skill-btn .sk-cd {

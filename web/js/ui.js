@@ -237,9 +237,11 @@ const UI = {
             const id = S.equippedSkills[i];
             if (!id) return `<span class="skill-btn empty"></span>`;
             const d = Skills.def(id);
-            return `<button class="skill-btn" id="sb-${id}" style="--sc:${d.color}" title="${d.name}" onclick="Combat.tryCast('${id}', true)">
+            // 장착 슬롯 = 스킬 화면과 동일한 등급색 오브 + 아이콘 + Lv (사용자 지시 — 검정 원은 빈 슬롯만)
+            return `<button class="skill-btn" id="sb-${id}" style="--sc:${d.color};--rc:${RARITY_CSS[d.rarity]}" title="${d.name}" onclick="Combat.tryCast('${id}', true)">
                 <span class="sk-icon">${SKILL_ICONS[id] || '✨'}</span>
                 <span class="sk-name">${d.name}</span>
+                <span class="sk-lv">Lv.${Skills.level(id)}</span>
                 <span class="sk-cd" id="sbcd-${id}"></span>
             </button>`;
         }).join('');
