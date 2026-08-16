@@ -1696,11 +1696,8 @@ const UI = {
                         </div>
                     </div>
                     ${previewHtml}
-                    <div class="pinfo-section-title">장착 장비</div>
                     <div class="equip-grid pinfo-gear">${gearHtml}</div>
-                    <div class="pinfo-section-title">장착 스킬 · 펫 · 탈것</div>
                     <div class="pinfo-loadout-row">${skillIconsHtml}${(petIconsHtml + mountIconHtml) || '<span class="muted">출전 중인 펫 없음</span>'}</div>
-                    <div class="pinfo-section-title">옵션 합계</div>
                     <div class="pinfo-subs-list">${subsHtml}</div>
                 </div>
                 <button class="x-btn" onclick="UI.closePlayerInfo()">✕</button>

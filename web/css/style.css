@@ -719,6 +719,7 @@ body {
 .modal-card.pass-card {
     background: linear-gradient(180deg, #2b3272, #1a2050); color: #fff;
     position: relative; overflow: visible; padding-top: 2.2rem;
+    width: 72%; /* 원본 ≈70% W (185) */
 }
 .pass-card h2, .pass-card h3, .pass-card h4 { color: #fff; }
 .pass-sword {
@@ -851,8 +852,8 @@ body {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .profile-rank-label { text-align: center; font-weight: 800; font-size: .82rem; color: var(--pp-ink); margin: .9rem 0 .35rem; }
-.profile-rank-row { display: flex; gap: .5rem; }
-.profile-rank-row .btn { flex: 1; }
+.profile-rank-row { display: flex; gap: .5rem; justify-content: center; }
+.profile-rank-row .btn { flex: 0 1 32%; } /* 원본 ≈22% W 컴팩트 중앙 (185) */
 .avatar-pick-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .3rem; margin: .5rem 0; }
 .avatar-pick-btn {
     background: var(--pp-panel); border: 2px solid var(--pp-line); border-radius: .4rem; font-size: 1.3rem;
@@ -862,6 +863,7 @@ body {
 .profile-tabs {
     display: grid; grid-template-columns: 1fr 1fr; margin-top: 1rem;
     border: 3px solid var(--pp-line); border-radius: .5rem; overflow: hidden;
+    width: 55%; margin-left: auto; margin-right: auto; /* 원본 토글 ≈50% W 중앙 (185) */
 }
 .profile-tabs button {
     border: none; border-left: 3px solid var(--pp-line); font-weight: 900; font-size: .85rem;
@@ -911,6 +913,7 @@ body {
 .pinfo-right { text-align: right; font-size: .76rem; font-weight: 700; color: var(--pp-ink); line-height: 1.55; }
 .pinfo-preview {
     display: flex; align-items: center; gap: .4rem; overflow-x: auto;
+    min-height: 7.6rem; /* 원본 프리뷰 ≈13% H (185) */
     background: linear-gradient(180deg, #6cbf5a 55%, #b5793f 55%); border: 2px solid var(--pp-line); border-radius: .5rem;
     padding: .4rem .5rem; margin: .5rem 0; font-size: .78rem; white-space: nowrap; color: #fff;
     text-shadow: 0 1px 2px rgba(0,0,0,.5);
@@ -1315,10 +1318,10 @@ body {
 .sk-mini.square { border-radius: .4rem; }
 
 /* ---- 펫 업그레이드 팝업 (UI-SPEC 55번, 원본 shot-042503): 대상 카드 + 경험치 바 + 선택 슬롯 + 재료 그리드 ---- */
-.petup-card { width: 88%; max-height: 82vh; padding: 4.4%; gap: 0; text-align: left; }
+.petup-card { width: 88%; height: 80vh; max-height: 80vh; padding: 4.4%; gap: 0; text-align: left; } /* 원본 ≈80% H 시트 (185) */
 .petup-head { display: flex; align-items: flex-start; gap: 4.2%; }
 .petup-icon {
-    position: relative; width: 22%; aspect-ratio: 1; flex: none;
+    position: relative; width: 16%; aspect-ratio: 1; flex: none; /* 원본 ≈15.6% W (185) */
     border: 3px solid var(--pp-line); border-radius: .6rem; background: var(--rc, #ccc);
     display: flex; align-items: center; justify-content: center; font-size: 1.7rem;
 }
