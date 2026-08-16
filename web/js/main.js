@@ -154,6 +154,9 @@
                 // 목표 발견 시 계속하기 미체크면 이번 배치를 전부 처리한 뒤에 정지 (남은 아이템 유실 방지)
                 if (foundTarget && !cfg.continueOnTarget) S.autoForgeOn = false;
                 UI.renderEquipSheet();
+                // 열려 있는 플레이어 정보/장비 세부정보 팝업도 함께 갱신 — 안 그러면 오토포지 중 스탯이 멈춰 보임
+                if (!UI.els.playerInfoModal.classList.contains('hidden')) UI.renderPlayerInfo();
+                if (!UI.els.gearDetailModal.classList.contains('hidden') && UI._gearDetailSlot) UI.openGearDetail(UI._gearDetailSlot);
             }
         }, 3000);
 

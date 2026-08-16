@@ -517,13 +517,14 @@ const UI = {
     openGearDetail(slot) {
         const item = S.equipment[slot];
         if (!item) return;
+        this._gearDetailSlot = slot;
         this.els.gearDetailModal.innerHTML = `
             <div class="modal-card" style="--rc:${RARITY_CSS[item.rarity]}">
                 ${this.itemCardHTML(item, '장착됨', false, false)}
             </div>`;
         this.els.gearDetailModal.classList.remove('hidden');
     },
-    closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); },
+    closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); this._gearDetailSlot = null; },
 
     // 스킬 컷인 + 화면 색 플래시
     skillCutin(def) {
