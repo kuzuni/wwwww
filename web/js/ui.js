@@ -1015,7 +1015,7 @@ const UI = {
                 <span class="icon-circle sm">${b.avatar}</span>
                 <span class="league-name">${b.name}<br><small class="muted">⚔️ ${U.fmt(b.cp)}</small></span>
                 <span class="league-score">⭐+${b.starReward}</span>
-                <button class="btn sm primary ${S.league.tickets > 0 ? '' : 'disabled'}" onclick="UI.onChallenge(${i})">도전 <small>🎫1</small></button>
+                <button class="btn sm primary ${S.league.tickets > 0 ? '' : 'disabled'}" onclick="UI.onChallenge(${i})">도전 <small>🎟1</small></button>
             </div>`).join('');
         this.els.leagueModal.innerHTML = `
             <div class="modal-card wide">
@@ -1024,14 +1024,14 @@ const UI = {
                     <h3>상대 선택</h3>
                 </div>
                 <p class="muted" style="text-align:center">도전 티켓은 매일 09:00에 보충됩니다!</p>
-                <p class="big-stat" style="text-align:center">🎫 ${S.league.tickets}/${League.TICKET_MAX}</p>
+                <p class="big-stat" style="text-align:center">🎟 ${S.league.tickets}/${League.TICKET_MAX}</p>
                 <div class="league-list">${rowsHtml}</div>
                 <button class="btn" onclick="UI.closeLeague()">닫기</button>
             </div>`;
     },
     onChallenge(idx) {
         const r = League.challenge(idx);
-        if (!r) { this.toast('🎫 도전 티켓이 부족합니다'); return; }
+        if (!r) { this.toast('🎟 도전 티켓이 부족합니다'); return; }
         this.toast(r.win ? `🏆 승리! ⭐+${r.starReward}` : `💀 ${r.bot.name}에게 패배했습니다`);
         Chat.shareLeagueResult(r.win, Combat.combatPower(), r.bot); // UI-SPEC 28번: 리그 전투 공유 카드 자동 게시
         this.renderChatPreview();
