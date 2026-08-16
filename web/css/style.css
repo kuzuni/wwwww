@@ -980,6 +980,13 @@ body {
     background: var(--pp-panel); border: 3px solid var(--pp-line); color: var(--pp-ink); font-weight: 800;
 }
 .subtab-strip button.active { background: var(--pp-blue); border-color: var(--pp-line); color: #fff; }
+/* 원본(shot-042340): 서브탭은 실버 세그먼트 통짜 바 — 개별 알약 대신 하나의 바를 3분할 */
+#summon-subtabs.subtab-strip { gap: 0; background: #b9b9b9; border: 3px solid var(--pp-line); border-radius: .7rem; overflow: hidden; padding: .28rem; }
+#summon-subtabs.subtab-strip button {
+    flex: 1; border: none; border-radius: .45rem; background: transparent;
+    font-size: .88rem; font-weight: 900; padding: .38rem 0; color: #17181a;
+}
+#summon-subtabs.subtab-strip button.active { background: var(--pp-blue); color: #fff; }
 
 /* ---- 장비 시트: 밝은 바탕 + 진한 장비 카드 ---- */
 #equip-sheet { background: var(--pp-sheet); border-top: 3px solid var(--pp-line); }
@@ -1097,9 +1104,9 @@ body {
 .cur-pill.ticket { background: #2e7d32; }
 .cur-pill.potion { background: #00897b; }
 .passive-banner {
-    background: #d9d9d9; border: 3px solid var(--pp-line); border-radius: 1rem;
-    padding: .2rem .7rem; font-size: .8rem; font-weight: 800; color: var(--pp-ink);
-    text-align: center; align-self: center;
+    background: #c9c9c9; border: none; border-radius: 1rem;
+    padding: .28rem 1.2rem; font-size: .84rem; font-weight: 900; color: #17181a;
+    text-align: center; align-self: center; min-width: 78%;
 }
 .sk-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .75rem .4rem; }
 .sk-cell { background: none; border: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .1rem; }
@@ -1121,19 +1128,26 @@ body {
 }
 .sk-star { font-size: .55rem; line-height: 1; }
 .sk-shard {
-    position: relative; width: 100%; height: .68rem; background: #fff;
-    border: 2px solid var(--pp-line); border-radius: .4rem; overflow: hidden;
+    position: relative; width: 100%; height: .72rem; background: #17181a;
+    border: 2px solid var(--pp-line); border-radius: .45rem; overflow: hidden;
 }
-.sk-shard i { position: absolute; inset: 0; background: #bdbdbd; }
+.sk-shard i { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; }
 .sk-shard em {
-    position: absolute; inset: 0; font-style: normal; font-size: .5rem; font-weight: 800;
-    color: var(--pp-ink); display: flex; align-items: center; justify-content: center;
+    position: absolute; inset: 0; font-style: normal; font-size: .52rem; font-weight: 900;
+    color: #fff; text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
+    display: flex; align-items: center; justify-content: center;
 }
 .equipped-row {
-    display: flex; align-items: center; gap: .5rem; margin-top: auto;
-    background: #e6e6e6; border: 3px solid var(--pp-line); border-radius: .6rem; padding: .3rem .5rem;
+    position: relative; display: flex; align-items: center; gap: .5rem; margin-top: auto;
+    background: #24262c; border: 3px solid var(--pp-line); border-radius: .6rem;
+    padding: .48rem .5rem; box-shadow: 0 .22rem 0 rgba(0,0,0,.35);
 }
-.equipped-label { font-size: .82rem; font-weight: 900; color: var(--pp-ink); }
+.equipped-label {
+    position: absolute; top: -.45rem; left: -.55rem; z-index: 1;
+    background: #fff; color: #17181a; font-size: .78rem; font-weight: 900;
+    border: 3px solid var(--pp-line); padding: .1rem 1.1rem .1rem .6rem;
+    clip-path: polygon(0 0, 100% 0, calc(100% - .7rem) 50%, 100% 100%, 0 100%);
+}
 .equipped-icons { display: flex; gap: .35rem; margin-left: auto; }
 .sk-mini {
     width: 2rem; height: 2rem; border-radius: 50%; background: var(--rc, #ccc);
@@ -1354,3 +1368,35 @@ body {
 .fi-skip-gem { color: #e11d48; }
 .fi-upgrade { display: block; margin: .7rem auto 0; padding: .5rem 1.4rem; font-size: .95rem; }
 .fi-prog #upg-fill { background: var(--pp-blue); }
+
+/* ===== 스킬/펫 소환 바 (shot-042340 원본 대조 재작업) ===== */
+.back-btn { width: 2.4rem; height: 2.4rem; border-radius: .6rem; padding: 0; flex: none; font-size: 1rem; }
+.panel .btn.x5-toggle {
+    background: #fff; border: 3px solid var(--pp-blue); color: var(--pp-blue);
+    border-radius: 1rem; font-weight: 900; padding: .3rem .8rem; flex: none; min-width: 0; box-shadow: none;
+}
+.panel .btn.x5-toggle.on { background: var(--pp-blue); color: #fff; border-color: var(--pp-line); }
+.summon-btn {
+    background: linear-gradient(180deg, #e3e3e3, #c2c2c2); color: #17181a; font-weight: 900;
+    border: 3px solid var(--pp-line); border-radius: .7rem;
+    box-shadow: inset 0 -.28rem 0 #9c9c9c; line-height: 1.2;
+}
+.summon-btn:active { transform: translateY(.1rem); box-shadow: none; }
+.summon-btn small { display: block; font-size: .78rem; font-weight: 900; }
+.summon-cost b { color: #e11d48; }
+.summon-info { display: flex; flex-direction: column; align-items: center; gap: .12rem; line-height: 1; }
+.summon-info > b { font-size: .78rem; color: var(--pp-ink); }
+.info-dot {
+    width: 1.35rem; height: 1.35rem; border-radius: 50%; border: none; cursor: pointer;
+    background: #17181a; color: #fff; font-size: .78rem; font-weight: 900; font-family: inherit; line-height: 1;
+}
+.summon-gauge {
+    position: relative; width: 4.2rem; height: .85rem; background: #17181a;
+    border: 2px solid var(--pp-line); border-radius: .5rem; overflow: hidden;
+}
+.summon-gauge i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--pp-blue); }
+.summon-gauge em {
+    position: absolute; inset: 0; font-style: normal; font-size: .56rem; font-weight: 900; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+}
+.summon-star { font-size: .6rem; }

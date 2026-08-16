@@ -57,7 +57,7 @@ const UI = {
         this.activeTab = tab;
         document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         for (const [k, p] of Object.entries(this.els.panels)) p.classList.toggle('open', k === tab);
-        if (tab === 'summon') this.switchSummonSub(this._summonSub || 'pets');
+        if (tab === 'summon') this.switchSummonSub(this._summonSub || 'skills'); // 원본 서브탭 순서상 스킬이 첫 탭
         if (tab === 'menu') this.renderMenu();
         if (tab === 'debug') this.renderDebug();
         this.refreshTabX();
@@ -904,10 +904,6 @@ const UI = {
         const pb = Skills.activeBonus();
         const skillSummonN = this._skillSummonX5 ? 5 : 1;
         const capped = lvl >= 100;
-        const summonProgHtml = `<div class="tech-node">
-            <div class="tech-node-head"><span class="muted">소환 레벨 Lv.${lvl}</span><span class="muted">${capped ? 'MAX' : `${(S.summonCount || 0) % 5}/5`}</span></div>
-            <div class="tech-node-bar"><div style="width:${(capped ? 1 : ((S.summonCount || 0) % 5) / 5) * 100}%"></div></div>
-        </div>`;
 
         // 5열 원형 아이콘 그리드 — 셀 = 원형 아이콘 + Lv 배지 + 별 + 조각 게이지, 장착 시 리본
         const gridHtml = SKILL_DEFS.filter(d => S.skills[d.id]).map(d => {
@@ -950,13 +946,17 @@ const UI = {
                 <button class="btn sm primary" onclick="UI.onQuickEquipSkills()">빠른 장착</button>
             </div>
             <div class="summon-bar">
-                <button class="btn xs ${this._skillSummonX5 ? 'primary' : ''}" onclick="UI.toggleSkillSummonX5()">x${skillSummonN}</button>
-                <button class="btn big ${Skills.canSummon(false, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(false)">
-                    소환 x${skillSummonN}<small>🎫 ${Skills.SUMMON_TICKET_COST * skillSummonN}</small></button>
-                <button class="btn xs info" onclick="UI.openSummonRates('skill')">ⓘ<small>Lv.${lvl}</small></button>
-            </div>
-            <div class="summon-prog"><div style="width:${(capped ? 1 : ((S.summonCount || 0) % 5) / 5) * 100}%"></div>
-                <span>${capped ? 'MAX' : `${(S.summonCount || 0) % 5}/5`}</span></div>`;
+                <button class="btn danger round back-btn" onclick="UI.switchTab(null)">◀</button>
+                <button class="btn xs x5-toggle ${this._skillSummonX5 ? 'on' : ''}" onclick="UI.toggleSkillSummonX5()">x5</button>
+                <button class="btn big summon-btn ${Skills.canSummon(false, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(false)">
+                    소환 x${skillSummonN}<small class="summon-cost">🎫 <b>${Skills.SUMMON_TICKET_COST * skillSummonN}</b></small></button>
+                <div class="summon-info">
+                    <button class="info-dot" onclick="UI.openSummonRates('skill')">i</button>
+                    <b>Lv. ${lvl}</b>
+                    <span class="summon-gauge"><i style="width:${(capped ? 1 : ((S.summonCount || 0) % 5) / 5) * 100}%"></i><em>${capped ? 'MAX' : `${(S.summonCount || 0) % 5}/5`}</em></span>
+                    <span class="summon-star">⭐</span>
+                </div>
+            </div>`;
     },
 
     // 소환 확률 팝업 (UI-SPEC 48번 — 스킬·펫 공용). 원본: ◀▶ 레벨 이동 + 등급별 색 막대 + 진행 게이지

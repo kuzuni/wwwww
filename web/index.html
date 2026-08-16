@@ -60,10 +60,11 @@
 
     <!-- 패널 (하단 시트, 탭으로 토글) -->
     <div id="panel-summon" class="panel">
+        <!-- 원본(shot-042340): 실버 세그먼트 통짜 바, 순서 스킬|펫|기술 트리, 활성=파랑 채움 -->
         <div id="summon-subtabs" class="subtab-strip">
-            <button data-sub="pets" onclick="UI.switchSummonSub('pets')">🐾 펫</button>
-            <button data-sub="skills" onclick="UI.switchSummonSub('skills')">✨ 스킬</button>
-            <button data-sub="tech" onclick="UI.switchSummonSub('tech')">🔬 기술 트리</button>
+            <button data-sub="skills" onclick="UI.switchSummonSub('skills')">스킬</button>
+            <button data-sub="pets" onclick="UI.switchSummonSub('pets')">펫</button>
+            <button data-sub="tech" onclick="UI.switchSummonSub('tech')">기술 트리</button>
         </div>
         <div id="panel-pets" class="summon-sub"></div>
         <div id="panel-skills" class="summon-sub"></div>
