@@ -11,6 +11,7 @@ const Models = {
         }
         const loader = new THREE.GLTFLoader();
         const names = Object.keys(MODEL_B64);
+        if (names.length === 0) { if (onReady) onReady(false); return; }
         let left = names.length;
         for (const name of names) {
             try {
