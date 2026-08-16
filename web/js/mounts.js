@@ -61,6 +61,39 @@ const Mounts = {
         return { atk: base.atk * mult, hp: base.hp * mult };
     },
 
+    // 경험치 흡수형 업그레이드 (펫과 동일 방식) — 원본 수치 미확보로 자체 설계 커브
+    xpNeeded(level) { return Math.floor(80 * Math.pow(level, 1.6)); },
+    // 재료로 흡수될 때 주는 경험치: 등급이 오를수록 크게 증가
+    xpValue(rarity) { return 30 * Math.pow(3, RARITIES.indexOf(rarity)); },
+    addXp(name, amount) {
+        const m = S.mounts[name];
+        if (!m) return;
+        m.xp = (m.xp || 0) + amount;
+        while (m.level < this.INDIV_MAX_LEVEL && m.xp >= this.xpNeeded(m.level)) {
+            m.xp -= this.xpNeeded(m.level);
+            m.level++;
+        }
+        if (m.level >= this.INDIV_MAX_LEVEL) m.xp = 0; // 만렙 도달분 잉여 경험치는 버림 (승천은 별도 시스템)
+    },
+    // 선택한 다른 탈것들을 흡수해 대상 탈것에 경험치로 환산 (재료는 소모되어 사라짐, 최대 5개)
+    absorbMaterials(targetName, materialNames) {
+        const target = S.mounts[targetName];
+        if (!target) return false;
+        let totalXp = 0;
+        for (const name of materialNames) {
+            if (name === targetName) continue;
+            const m = S.mounts[name];
+            if (!m) continue;
+            totalXp += this.xpValue(m.rarity) * this.levelMult(m);
+            delete S.mounts[name];
+            if (S.activeMount === name) S.activeMount = null;
+        }
+        this.addXp(targetName, totalXp);
+        Combat.recalcHero();
+        saveGame();
+        return true;
+    },
+
     // 승천(별): 개체 만렙 도달 후 중복(레벨 수만큼)을 소모해 별 1개 획득
     canAscend(name) {
         const m = S.mounts[name];
@@ -86,24 +119,18 @@ const Mounts = {
 
         const owned = S.mounts[name];
         const isNew = !owned;
-        let leveled = false;
         if (owned) {
+            // 중복은 합성/승천 재료(dupes)로만 적립. 레벨업은 '업그레이드' 팝업에서 다른 탈것을 흡수해서만 진행 (펫과 동일 방식)
             owned.dupes++;
-            // 중복 → 자동 합성 레벨업 (레벨 N→N+1에 중복 N개, 펫과 동일 방식). 만렙 후엔 중복만 쌓여 승천 재료가 됨
-            while (owned.dupes >= owned.level && owned.level < this.INDIV_MAX_LEVEL) {
-                owned.dupes -= owned.level;
-                owned.level++;
-                leveled = true;
-            }
         } else {
-            S.mounts[name] = { rarity, level: 1, dupes: 0, stars: 0, subs: this.rollSubs(rarity) };
+            S.mounts[name] = { rarity, level: 1, dupes: 0, stars: 0, xp: 0, subs: this.rollSubs(rarity) };
             // 장착 중인 탈것이 없으면 자동 장착
             if (!S.activeMount) this.equip(name);
         }
 
         SFX.gacha(rarity);
         saveGame();
-        return { name, rarity, isNew, leveled, level: S.mounts[name].level };
+        return { name, rarity, isNew, level: S.mounts[name].level };
     },
 
     equip(name) {

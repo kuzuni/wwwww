@@ -17,7 +17,7 @@ const UI = {
             petsPanel: $('panel-pets'), skillsPanel: $('panel-skills'), techPanel: $('panel-tech'),
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
             dungeonModal: $('dungeon-modal'), dungeonDetailModal: $('dungeon-detail-modal'),
-            mountModal: $('mount-modal'), ascendModal: $('ascend-modal'),
+            mountModal: $('mount-modal'), mountUpgradeModal: $('mount-upgrade-modal'), ascendModal: $('ascend-modal'),
             stubModal: $('stub-modal'),
             forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
@@ -1463,10 +1463,11 @@ const UI = {
                 <span class="icon-circle">${MOUNT_ICONS[name] || '🐴'}</span>
                 <span class="item-name">${MOUNT_KR[name] || name} <small>Lv.${m.level}${m.stars ? ` ⭐${m.stars}` : ''}</small></span>
                 <span class="item-stat">⚔️ ${U.fmt(pw.atk)} · ❤️ ${U.fmt(pw.hp)} · ${RARITY_KR[m.rarity]}</span>
-                <span class="muted">중복 ${m.dupes}/${m.level}${subsText ? ' · ' + subsText : ''}</span>
+                <span class="muted">중복(승천 재료) ${m.dupes}${subsText ? ' · ' + subsText : ''}</span>
                 <div class="btn-col">
                     <button class="btn sm ${active ? 'on' : ''}" onclick="UI.onEquipMount('${name}')">${active ? '장착 중' : '장착'}</button>
-                    ${maxed ? `<button class="btn sm ${Mounts.canAscend(name) ? '' : 'disabled'}" onclick="UI.onAscendMount('${name}')">⭐ 승천</button>` : ''}
+                    ${maxed ? `<button class="btn sm ${Mounts.canAscend(name) ? '' : 'disabled'}" onclick="UI.onAscendMount('${name}')">⭐ 승천</button>`
+                        : `<button class="btn sm" onclick="UI.openMountUpgrade('${name}')">업그레이드</button>`}
                 </div>
             </div>`;
         }).join('') : '<span class="muted">보유 마운트 없음 — 소환해보세요!</span>';
@@ -1474,7 +1475,7 @@ const UI = {
         this.els.mountModal.innerHTML = `
             <div class="modal-card wide">
                 <h3>🐴 마운트 <small class="muted">⚙️ ${U.fmt(S.winders || 0)}</small></h3>
-                <p class="muted">탈것은 직접 공격하지 않고, 장착 시 고정 공격력·체력과 옵션을 제공합니다. 레벨업은 같은 탈것 중복 합성으로만 가능합니다.</p>
+                <p class="muted">탈것은 직접 공격하지 않고, 장착 시 고정 공격력·체력과 옵션을 제공합니다. 레벨업은 다른 탈것을 합성(업그레이드)해야 가능합니다.</p>
                 <div class="row">
                     <div class="tech-node" style="flex:1">
                         <div class="tech-node-head">
@@ -1499,8 +1500,7 @@ const UI = {
         const r = Mounts.summon();
         if (!r) { this.toast('⚙️ 태엽이 부족합니다 (스테이지 클리어로 획득)'); return; }
         if (r.isNew) this.toast(`🎉 새 마운트: ${MOUNT_KR[r.name] || r.name} (${RARITY_KR[r.rarity]})`);
-        else if (r.leveled) this.toast(`⬆️ ${MOUNT_KR[r.name] || r.name} Lv.${r.level}!`);
-        else this.toast(`${MOUNT_KR[r.name] || r.name} 중복 획득`);
+        else this.toast(`${MOUNT_KR[r.name] || r.name} 중복 획득 (재료 ${S.mounts[r.name].dupes})`);
         this.openMounts(); this.renderTopBar();
     },
     onEquipMount(name) { if (Mounts.equip(name)) this.openMounts(); },
@@ -1508,6 +1508,64 @@ const UI = {
         if (!Mounts.ascend(name)) { this.toast('⚙️ 승천에 필요한 중복이 부족합니다'); return; }
         this.toast(`⭐ ${MOUNT_KR[name] || name} 승천! (⭐${S.mounts[name].stars})`);
         this.openMounts();
+    },
+
+    // 마운트 업그레이드 팝업 (펫 업그레이드와 동일 방식): 다른 탈것을 재료로 흡수해 경험치로 레벨업
+    _mountUpgradeTarget: null, _mountUpgradeMats: null,
+    openMountUpgrade(name) {
+        this._mountUpgradeTarget = name;
+        this._mountUpgradeMats = [];
+        this.renderMountUpgrade();
+        this.els.mountUpgradeModal.classList.remove('hidden');
+    },
+    closeMountUpgrade() { this.els.mountUpgradeModal.classList.add('hidden'); },
+    renderMountUpgrade() {
+        const name = this._mountUpgradeTarget;
+        const target = S.mounts[name];
+        if (!target) { this.closeMountUpgrade(); return; }
+        const sel = this._mountUpgradeMats;
+        const need = Mounts.xpNeeded(target.level);
+        const maxed = target.level >= Mounts.INDIV_MAX_LEVEL;
+
+        const matChips = Object.entries(S.mounts).filter(([n]) => n !== name).map(([n, m]) => `
+            <button class="mat-chip ${sel.includes(n) ? 'on' : ''}" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.onToggleMountUpgradeMat('${n}')">
+                <span>${MOUNT_ICONS[n] || '🐴'}</span><small>Lv.${m.level}</small>
+            </button>`).join('');
+
+        const previewXp = sel.reduce((s, n) => s + Mounts.xpValue(S.mounts[n].rarity) * Mounts.levelMult(S.mounts[n]), 0);
+
+        this.els.mountUpgradeModal.innerHTML = `
+            <div class="modal-card wide">
+                <h3>${MOUNT_KR[name] || name} 업그레이드</h3>
+                <div class="row">
+                    <span class="cell-img emoji" style="width:2.4rem;height:2.4rem;font-size:1.25rem;border-radius:50%;border-color:${RARITY_CSS[target.rarity]}">${MOUNT_ICONS[name] || '🐴'}</span>
+                    <div>
+                        <div class="item-name">Lv.${target.level}${target.stars ? ` ⭐${target.stars}` : ''}</div>
+                        <div class="muted">${maxed ? '만렙' : `경험치 ${U.fmt(target.xp || 0)}/${U.fmt(need)}${previewXp ? ` (+${U.fmt(previewXp)} 예정)` : ''}`}</div>
+                    </div>
+                </div>
+                <p class="muted">합칠 다른 탈것 선택 (최대 5개, 재료는 흡수되어 사라집니다)</p>
+                <div class="mat-grid">${matChips || '<span class="muted">재료로 쓸 다른 탈것이 없습니다</span>'}</div>
+                <button class="btn primary ${sel.length && !maxed ? '' : 'disabled'}" onclick="UI.onConfirmMountUpgrade()">업그레이드</button>
+                <button class="btn" onclick="UI.closeMountUpgrade()">닫기</button>
+            </div>`;
+    },
+    onToggleMountUpgradeMat(name) {
+        const sel = this._mountUpgradeMats;
+        const pos = sel.indexOf(name);
+        if (pos >= 0) sel.splice(pos, 1);
+        else if (sel.length < 5) sel.push(name);
+        this.renderMountUpgrade();
+    },
+    onConfirmMountUpgrade() {
+        const name = this._mountUpgradeTarget;
+        const sel = this._mountUpgradeMats;
+        if (!sel.length) return;
+        if (!Mounts.absorbMaterials(name, sel)) return;
+        this.toast(`✨ ${MOUNT_KR[name] || name} Lv.${S.mounts[name].level}!`);
+        this._mountUpgradeMats = [];
+        this.renderMountUpgrade();
+        this.renderTopBar();
     },
 
     onToggleSfx() {
