@@ -135,7 +135,8 @@ const Forge = {
             this.ascendGear(item.slot);
             return { equipped: false, ascended: true, gained: 0 };
         }
-        if (this.itemPower(item) > this.itemPower(cur)) {
+        // 승천 별을 쌓은 장착 중 장비는 오토포지가 임의로 교체·판매하지 않음(별은 판매가에 반영되지 않아 무경고로 영구 손실됨) — 교체는 항상 수동(비교 팝업)에서만
+        if ((!cur || !cur.stars) && this.itemPower(item) > this.itemPower(cur)) {
             const prev = this.equip(item);
             const gained = prev ? this.sell(prev) : 0;
             return { equipped: true, gained };
