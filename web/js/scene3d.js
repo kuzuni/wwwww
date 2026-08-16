@@ -570,6 +570,19 @@ const Scene3D = {
         this.setShadow(g);
         this.heroG = g;
         this.scene.add(g);
+
+        // 머리 위 HP 바 — 적(makeEnemyMesh)과 같은 패턴(어두운 배경+색 전경 평면 2장)이지만,
+        // 영웅은 공격/걷기 중 heroG.rotation.y가 계속 바뀌므로 그 자식으로 넣지 않고 씬에 독립적으로
+        // 두어 매 프레임 위치만 추적(update()) — 회전은 항상 0으로 고정돼 카메라를 그대로 향함.
+        this.heroHpG = new THREE.Group();
+        const hpBg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: 0x263238, side: THREE.DoubleSide }));
+        const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: 0x69f0ae, side: THREE.DoubleSide }));
+        hpFg.position.z = 0.01;
+        this.heroHpG.add(hpBg, hpFg);
+        this.heroHpBg = hpBg;
+        this.heroHpFg = hpFg;
+        this.heroHpG.position.set(g.position.x, 1.85, g.position.z);
+        this.scene.add(this.heroHpG);
     },
 
     // 무기 타입 10종 각각 다른 모델 (색/발광은 시대 티어, 보석은 등급 반영)
@@ -2086,6 +2099,14 @@ const Scene3D = {
             m.hpFg.scale.x = Math.max(0.001, ratio);
             m.hpFg.position.x = -0.4 * (1 - ratio);
             m.hpFg.material.color.setHex(ratio > 0.5 ? 0x69f0ae : ratio > 0.2 ? 0xffd740 : 0xff5252);
+        }
+        // 영웅 머리 위 HP 바: 위치는 heroG를 매 프레임 추적, 비율·색은 적과 동일한 임계값
+        if (this.heroHpG && this.heroG) {
+            this.heroHpG.position.set(this.heroG.position.x, this.heroG.position.y + 1.85, this.heroG.position.z);
+            const hRatio = Combat.hero.maxHp > 0 ? U.clamp(Combat.hero.hp / Combat.hero.maxHp, 0, 1) : 1;
+            this.heroHpFg.scale.x = Math.max(0.001, hRatio);
+            this.heroHpFg.position.x = -0.4 * (1 - hRatio);
+            this.heroHpFg.material.color.setHex(hRatio > 0.5 ? 0x69f0ae : hRatio > 0.2 ? 0xffd740 : 0xff5252);
         }
         // 영웅: 걷기(월드 전진) / 아이들 — GLB 모드는 스켈레탈 클립, 아니면 프로시저럴 관절
         if (this.heroG && this.legs) {
