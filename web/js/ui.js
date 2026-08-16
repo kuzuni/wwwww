@@ -1639,13 +1639,16 @@ const UI = {
             </div>`;
         }).join('');
 
-        const skillIconsHtml = S.equippedSkills.map(id => `<span class="sk-cell" style="cursor:default">
-            <span class="sk-orb">${SKILL_ICONS[id] || '✨'}<span class="sk-lv">Lv.${Skills.level(id)}</span></span></span>`).join('');
+        // 슬롯 클릭 → 각 세부정보 팝업이 플레이어 정보 위에 겹쳐 뜸 (사용자 지시 — 닫으면 플레이어 정보로 복귀)
+        const skillIconsHtml = S.equippedSkills.map(id => `<button class="sk-cell" onclick="UI.openSkillDetail('${id}')">
+            <span class="sk-orb">${SKILL_ICONS[id] || '✨'}<span class="sk-lv">Lv.${Skills.level(id)}</span></span></button>`).join('');
         const petIconsHtml = S.activePets.map(i => {
             const p = S.pets[i];
-            return `<span class="sk-cell" style="cursor:default">
-                <span class="sk-orb">${PET_ICONS[p.name] || '🐾'}<span class="sk-lv">Lv.${p.level}</span></span></span>`;
+            return `<button class="sk-cell" onclick="UI.openPetDetail(${i})">
+                <span class="sk-orb">${PET_ICONS[p.name] || '🐾'}<span class="sk-lv">Lv.${p.level}</span></span></button>`;
         }).join('');
+        const mountIconHtml = S.activeMount && S.mounts[S.activeMount] ? `<button class="sk-cell" onclick="UI.openMountUpgrade('${S.activeMount}')">
+            <span class="sk-orb">${MOUNT_ICONS[S.activeMount] || '🐴'}<span class="sk-lv">Lv.${S.mounts[S.activeMount].level}</span></span></button>` : '';
 
         const subsHtml = SUBSTATS
             .map(([key, label]) => ({ key, label, value: +stats.subs[key].toFixed(1) }))
@@ -1674,8 +1677,8 @@ const UI = {
                     ${previewHtml}
                     <div class="pinfo-section-title">장착 장비</div>
                     <div class="equip-grid pinfo-gear">${gearHtml}</div>
-                    <div class="pinfo-section-title">장착 스킬 · 펫</div>
-                    <div class="pinfo-loadout-row">${skillIconsHtml}${petIconsHtml || '<span class="muted">출전 중인 펫 없음</span>'}</div>
+                    <div class="pinfo-section-title">장착 스킬 · 펫 · 탈것</div>
+                    <div class="pinfo-loadout-row">${skillIconsHtml}${(petIconsHtml + mountIconHtml) || '<span class="muted">출전 중인 펫 없음</span>'}</div>
                     <div class="pinfo-section-title">옵션 합계</div>
                     <div class="pinfo-subs-list">${subsHtml}</div>
                 </div>

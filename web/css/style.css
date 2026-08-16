@@ -396,6 +396,8 @@ body {
     display: flex; align-items: center; justify-content: center;
 }
 .modal.hidden, .hidden { display: none !important; }
+/* 세부정보류 팝업은 항상 소유 화면(플레이어 정보 등) 위에 겹침 — DOM 순서와 무관하게 스택 보장 */
+#detail-modal, #mount-upgrade-modal, #gear-detail-modal, #forge-item-modal { z-index: 22; }
 .modal-card {
     width: 82%; background: #1c2128; border: 2px solid var(--rc, #444c56);
     border-radius: 1rem; padding: 1.1rem; text-align: center;
