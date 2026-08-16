@@ -61,19 +61,14 @@ const Scene3D = {
         this.buildTerrain();
 
         this.buildHero();
+        this.setupHeroProc(); // 프로시저럴 영웅이 기본 (GLB 파이프라인 제거 — 사용자 지시 2026-08-17)
         this.refreshHeroEquip();
         this.refreshPets();
         this.refreshMount();
         this.resize();
-
-        // GLB 리깅 모델 비동기 로드 → 준비되면 영웅을 진짜 기사로 교체
-        // ?hero=proc — 프로시저럴 영웅 병행 개발 플래그 (품질 통과 전까지 GLB 기본 유지)
-        if (ProChar.enabled()) this.setupHeroProc();
-        Models.load(ok => { if (ok && !this.heroRig) this.setupHeroModel(); });
     },
 
-    // ---- GLB 영웅: 스켈레탈 애니메이션 기사 ----
-    // 프로시저럴 영웅 설치 — GLB와 동일한 인터페이스(무기 손 부착·투구 머리 부착·틴트·클립명)
+    // ---- 프로시저럴 영웅 설치 (무기 손 부착·투구 머리 부착·틴트·클립명 인터페이스) ----
     setupHeroProc() {
         const rig = ProChar.createKnight();
         for (const child of [...this.heroG.children]) child.visible = false;
@@ -90,87 +85,17 @@ const Scene3D = {
         rig.headMount.add(this.helmetG);
         this.helmetG.visible = true;
         this.helmetG.position.set(0, 0, 0);
-        this.tintHeroGlb();
+        this.tintHero();
         rig.play(['Idle']);
     },
 
-    setupHeroModel() {
-        const gltf = Models.data.knight;
-        if (!gltf || this.heroMixer) return;
-        const model = gltf.scene;
-        const bbox = new THREE.Box3().setFromObject(model);
-        const s = 1.62 / Math.max(0.001, bbox.max.y - bbox.min.y);
-        model.scale.setScalar(s);
-        this.setShadow(model);
-        // 프로시저럴 기사 숨기고 GLB 모델 삽입
-        for (const child of [...this.heroG.children]) child.visible = false;
-        this.heroG.add(model);
-        this.heroModel = model;
-        this.heroMixer = new THREE.AnimationMixer(model);
-        this._heroState = '';
-        // 모델에 기본 부착된 무기/방패 숨김 (우리 장비 시스템이 무기를 관리)
-        model.traverse(o => {
-            if (o.name && /sword|shield|axe|crossbow|staff|dagger|arrow|quiver|knife|bow/i.test(o.name)) o.visible = false;
-        });
-        // GLB는 지오메트리 고정(Knight 고정 갑옷) → 장비 부위별 색 오버레이로 대체 표현
-        // Knight_Head(맨얼굴)는 제외, 투구/갑옷 파츠만 매테리얼 분리 후 장비 시대색으로 틴트
-        const GLB_ARMOR_PARTS = ['Knight_Body', 'Knight_ArmLeft', 'Knight_ArmRight', 'Knight_LegLeft', 'Knight_LegRight', 'Knight_Cape'];
-        this.glbArmorMeshes = GLB_ARMOR_PARTS.map(n => model.getObjectByName(n)).filter(Boolean);
-        this.glbHelmetMesh = model.getObjectByName('Knight_Helmet');
-        for (const m of [...this.glbArmorMeshes, this.glbHelmetMesh]) {
-            if (m && m.material) m.material = m.material.clone(); // 파츠별 독립 틴트를 위해 공유 매테리얼 분리
-        }
-        this.tintHeroGlb();
-        // 무기를 오른손 본에 부착 (장비 교체 시스템 유지)
-        const hand = model.getObjectByName('handslot.r') || model.getObjectByName('hand.r');
-        if (hand) {
-            hand.add(this.weaponG);
-            this.weaponG.visible = true;
-            this.weaponG.position.set(0, 0, 0);
-            this.weaponG.rotation.set(Math.PI / 2, 0, 0); // 본 축에 맞춰 세움
-            this.weaponG.scale.setScalar(1 / s);
-        }
-        this.heroPlay(['Idle']);
-    },
-
-    // GLB 기사 고정 지오메트리에 장비 시대색 + 궁극+ 등급 발광을 오버레이 (색상만 변경, 형태는 고정)
-    tintHeroGlb() {
-        if (this.heroRig) return ProChar.tint(this.heroRig, S.equipment);
-        if (!this.glbArmorMeshes) return;
-        const a = S.equipment.armor;
-        const aIdx = a ? RARITIES.indexOf(a.rarity) : 0;
-        const armorColor = a ? AGE_COLORS[a.age] : 0xb0bec5;
-        const armorGlow = aIdx >= 4 ? RARITY_HEX[a.rarity] : 0x000000;
-        for (const m of this.glbArmorMeshes) {
-            m.material.color.setHex(armorColor);
-            m.material.emissive.setHex(armorGlow);
-            m.material.emissiveIntensity = aIdx >= 4 ? 0.18 : 0;
-        }
-        if (this.glbHelmetMesh) {
-            const h = S.equipment.helmet;
-            this.glbHelmetMesh.visible = !!h;
-            if (h) {
-                const hIdx = RARITIES.indexOf(h.rarity);
-                this.glbHelmetMesh.material.color.setHex(AGE_COLORS[h.age]);
-                this.glbHelmetMesh.material.emissive.setHex(hIdx >= 4 ? RARITY_HEX[h.rarity] : 0x000000);
-                this.glbHelmetMesh.material.emissiveIntensity = hIdx >= 4 ? 0.18 : 0;
-            }
-        }
+    // 장비 시대색 + 등급 발광을 리그 재질에 반영
+    tintHero() {
+        if (this.heroRig) ProChar.tint(this.heroRig, S.equipment);
     },
 
     heroPlay(cands, once, timeScale) {
-        if (this.heroRig) return this.heroRig.play(cands, once, timeScale);
-        if (!this.heroMixer) return;
-        const clip = Models.pickClip(Models.data.knight, cands);
-        if (!clip) return;
-        if (!once && this._heroState === clip.name) return;
-        this.heroMixer.stopAllAction();
-        const action = this.heroMixer.clipAction(clip);
-        action.reset();
-        action.timeScale = timeScale || 1;
-        if (once) { action.setLoop(THREE.LoopOnce); }
-        action.play();
-        this._heroState = once ? '' : clip.name;
+        if (this.heroRig) this.heroRig.play(cands, once, timeScale);
     },
 
     resize() {
@@ -1699,13 +1624,10 @@ const Scene3D = {
             this.clearGroup(this.armorExtraG);
             this.armorExtraG.add(this.makeArmorExtras(style, c, ec));
         }
-        this.tintHeroGlb(); // GLB 기사 모드: 파츠별 색 오버레이 동기화
+        this.tintHero(); // 리그 파츠별 색 오버레이 동기화
         // 장비 교체 연출: 반짝 + 상승 파티클
         if (withFlash) {
             for (const m of this.armorMats) { m.emissive = new THREE.Color(0xffffff); m.emissiveIntensity = 0.8; }
-            if (this.glbArmorMeshes) for (const m of [...this.glbArmorMeshes, this.glbHelmetMesh]) {
-                if (m) { m.material.emissive.setHex(0xffffff); m.material.emissiveIntensity = 0.8; }
-            }
             setTimeout(() => this.refreshHeroEquip(false), 150); // 발광 상태 원복
 
             for (let i = 0; i < 12; i++) {
@@ -2374,35 +2296,7 @@ const Scene3D = {
         const anim = { kind, wings: [], legs: [] };
         let body = null, armR = null, armL = null, topY = 1.1;
 
-        // 골렘/고블린/머쉬룸/임프 자리는 GLB 스켈레톤 몬스터로 (리깅 애니메이션)
-        const GLB_ENEMY = { golem: 'skelWarrior', goblin: 'skelMinion', mushroom: 'skelMage', imp: 'skelRogue' };
-        let usedGLB = false;
-        if (Models.ready && GLB_ENEMY[kind] && typeof THREE.SkeletonUtils !== 'undefined') {
-            const src = Models.data[GLB_ENEMY[kind]];
-            if (src) {
-                const model = THREE.SkeletonUtils.clone(src.scene);
-                const bbox = new THREE.Box3().setFromObject(model);
-                const s2 = 1.3 / Math.max(0.001, bbox.max.y - bbox.min.y);
-                model.scale.setScalar(s2);
-                model.traverse(o => {
-                    if (o.isMesh) { o.material = o.material.clone(); flashMats.push(o.material); o.castShadow = true; o.userData.sharedGeometry = true; }
-                });
-                g.add(model);
-                const mixer = new THREE.AnimationMixer(model);
-                const walk = Models.pickClip(src, ['Walking_A', 'Running_A']);
-                if (walk) mixer.clipAction(walk).play();
-                anim.kind = 'skel';
-                anim.mixer = mixer;
-                anim.src = src;
-                body = model;
-                topY = 1.35;
-                usedGLB = true;
-            }
-        }
-
-        if (usedGLB) {
-            // GLB 몬스터 — 프로시저럴 생성 생략
-        } else if (kind === 'slime') {
+        if (kind === 'slime') {
             body = sp(0.45, 0, 0.34, 0, mat, 1, 0.72, 1);
             sp(0.15, 0.14, 0.66, 0, light);
             bx(0.18, 0.05, 0.03, 0, 0.26, 0.42, new THREE.MeshBasicMaterial({ color: 0x37474f }));
@@ -2604,8 +2498,8 @@ const Scene3D = {
         const targetPos = m ? m.g.position.clone().add(new THREE.Vector3(0, 0.6, 0)) : new THREE.Vector3(tx, 0.6, 0);
         const swooshAt = delayMs => setTimeout(() => this.swoosh(wcolor), delayMs);
 
-        // GLB 모드: 스켈레탈 애니메이션 클립으로 공격
-        if (this.heroMixer) {
+        // 리그 모드: 키프레임 클립으로 공격
+        if (this.heroRig) {
             const CLIP_MAP = {
                 slash: ['1H_Melee_Attack_Slice_Diagonal', '1H_Melee_Attack_Slice_Horizontal'],
                 chop: ['1H_Melee_Attack_Chop'],
@@ -2761,21 +2655,6 @@ const Scene3D = {
     enemyAttack(id) {
         const m = this.enemyMap.get(id);
         if (!m) return;
-        // GLB 스켈레톤: 공격 클립 재생 후 걷기 복귀
-        if (m.anim && m.anim.mixer && m.anim.src) {
-            const atk = Models.pickClip(m.anim.src, ['1H_Melee_Attack_Slice_Diagonal', '1H_Melee_Attack_Chop', '2H_Melee_Attack_Chop']);
-            if (atk) {
-                m.anim.mixer.stopAllAction();
-                const a = m.anim.mixer.clipAction(atk);
-                a.reset(); a.setLoop(THREE.LoopOnce); a.timeScale = 1.5; a.play();
-                setTimeout(() => {
-                    if (!this.enemyMap.has(id)) return;
-                    m.anim.mixer.stopAllAction();
-                    const w = Models.pickClip(m.anim.src, ['Walking_A', 'Running_A']);
-                    if (w) m.anim.mixer.clipAction(w).play();
-                }, 700);
-            }
-        }
         const ox = m.g.position.x;
         this.addAnim(0.3, k => {
             m.g.position.x = ox - Math.sin(k * Math.PI) * 0.55;
@@ -2823,13 +2702,8 @@ const Scene3D = {
     },
 
     heroDown() {
-        if (this.heroMixer) {
-            this.heroPlay(['Death_A', 'Death_B'], true);
-            setTimeout(() => this.heroPlay(['Idle']), 1600);
-        } else {
-            this.addAnim(0.5, k => { this.heroG.rotation.z = k * Math.PI / 2.2; });
-            setTimeout(() => { this.heroG.rotation.z = 0; }, 1400);
-        }
+        this.heroPlay(['Death_A'], true);
+        setTimeout(() => this.heroPlay(['Idle']), 1600);
         this.shake(0.4);
     },
 
@@ -3106,12 +2980,9 @@ const Scene3D = {
             if (!m || !e.alive) continue;
             m.g.position.x += ((e.x + this.worldX) - m.g.position.x) * Math.min(1, dt * 12);
             const walking = e.x > Combat.MELEE_X + 0.05;
-            if (m.anim && m.anim.mixer) m.anim.mixer.update(dt); // GLB 스켈레톤 애니메이션
             if (m.g.userData.landed) {
                 const clk = this._clock, id = e.id;
-                if (m.anim && m.anim.kind === 'skel') {
-                    // 리깅 걷기 클립이 알아서 움직임 — 절차 모션 불필요
-                } else if (m.anim && m.anim.fly) {
+                if (m.anim && m.anim.fly) {
                     // 박쥐류: 공중 부양 + 날개 퍼덕임
                     m.g.position.y = 0.12 + Math.sin(clk * 5 + id) * 0.1;
                     m.anim.wings.forEach(w => w.rotation.z = w.userData.s * (0.3 + Math.sin(clk * 16 + id) * 0.55));
@@ -3166,7 +3037,7 @@ const Scene3D = {
                 // 행군: 플레이어가 실제로 오른쪽(+x)으로 전진 — 카메라가 따라가고 소품은 제자리
                 this.worldX += 1.7 * dt;
                 this.heroG.position.x = Combat.HERO_X + this.worldX;
-                if (!this.heroMixer && !this.heroRig) {
+                if (!this.heroRig) {
                     this.legs[0].rotation.x = walkCycle * 0.65;
                     this.legs[1].rotation.x = -walkCycle * 0.65;
                     this.armR.rotation.x = rest > -1 ? rest - walkCycle * 0.45 : rest;
@@ -3184,7 +3055,7 @@ const Scene3D = {
                 if (this.worldX - this.ground.position.x > 15) this.ground.position.x += 30;
             } else {
                 if (!this._attacking) this.heroG.position.x = Combat.HERO_X + this.worldX;
-                if (!this.heroMixer && !this.heroRig) {
+                if (!this.heroRig) {
                     this.legs[0].rotation.x *= 0.85;
                     this.legs[1].rotation.x *= 0.85;
                     if (!this._attacking) {
@@ -3194,16 +3065,13 @@ const Scene3D = {
                     }
                 }
             }
-            // 프로시저럴 리그: 키프레임 갱신 + 상태 전환 / GLB: 믹서 갱신 + 상태 전환 (걷기/대기)
+            // 프로시저럴 리그: 키프레임 갱신 + 상태 전환 (걷기/대기)
             if (this.heroRig) {
                 this.heroRig.update(dt);
                 if (!this._attacking) {
                     this.heroPlay(this.walking ? ['Walking'] : ['Idle']);
                     this.heroG.position.y = 0; // 상하 바운스는 리그 root.py 트랙이 담당
                 }
-            } else if (this.heroMixer) {
-                this.heroMixer.update(dt);
-                if (!this._attacking) this.heroPlay(this.walking ? ['Walking_A', 'Walking_B', 'Running_A'] : ['Idle']);
             }
         }
         // 펫: 종별 고유 모션 — 몸짓은 종 특성 위주, 상하 바운스는 보조

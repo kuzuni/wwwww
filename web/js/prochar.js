@@ -2,18 +2,12 @@
 // 목표: 코드 생성만으로 AAA 모바일 3D 캐릭터 품질 — 단순 Box 조립 금지.
 // 라운드 지오메트리(라테 흉갑·캡슐 사지·구형 견갑), 관절 피벗 계층, 이징 키프레임 모션.
 // 기존 Scene3D 인터페이스(weaponG 손 부착, helmetG 머리 부착, heroPlay 클립 이름) 호환.
-// 개발 플래그: ?hero=proc 로 켠 상태에서만 GLB 대신 사용 (품질 9/10 통과 전까지 병행 개발).
 
 const ProChar = {
     // ---- 이징 ----
     ease(t) { return t * t * (3 - 2 * t); },            // smoothstep — 관절 기본
     easeOut(t) { return 1 - (1 - t) * (1 - t); },       // 빠른 시작 (타격 스윙)
     easeIn(t) { return t * t; },                        // 느린 시작 (와인드업)
-
-    enabled() {
-        try { return new URLSearchParams(location.search).get('hero') === 'proc'; }
-        catch (e) { return false; }
-    },
 
     // 캡슐(원기둥+반구 캡) — 사지/손가락 공용. 원점=위쪽 끝(피벗), 아래로 len만큼 늘어짐
     capsule(rTop, rBot, len, mat, seg) {
