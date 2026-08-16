@@ -5,13 +5,13 @@ const Dungeons = {
 
     DEFS: [
         { id: 'hammer',   name: 'Hammer Thief', kr: '해머 도둑',  icon: '🔨', unlock: '2-10', reward: '해머 · 코인',
-          theme: { sky: 0x5d4037, fog: 0x795548, ground: 0x4e342e } },
+          theme: { sky: 0x5d4037, fog: 0x795548, ground: 0x4e342e, biome: 'rock', celestial: 'none' } },
         { id: 'ghost',    name: 'Ghost Town',   kr: '유령 마을',  icon: '👻', unlock: '2-8',  reward: '스킬 티켓',
-          theme: { sky: 0x37474f, fog: 0x546e7a, ground: 0x455a64 } },
+          theme: { sky: 0x37474f, fog: 0x546e7a, ground: 0x455a64, biome: 'rock', celestial: 'moon' } },
         { id: 'invasion', name: 'Invasion',     kr: '침공',       icon: '🥚', unlock: '3-1',  reward: '펫 알 (상급 확률↑)',
-          theme: { sky: 0x4a148c, fog: 0x6a1b9a, ground: 0x38006b } },
+          theme: { sky: 0x4a148c, fog: 0x6a1b9a, ground: 0x38006b, biome: 'magic', celestial: 'moon' } },
         { id: 'zombie',   name: 'Zombie Rush',  kr: '좀비 러시',  icon: '🧟', unlock: '4-1',  reward: '물약 (기술 재화)',
-          theme: { sky: 0x1b5e20, fog: 0x2e7d32, ground: 0x1b3a1e } },
+          theme: { sky: 0x1b5e20, fog: 0x2e7d32, ground: 0x1b3a1e, biome: 'forest', celestial: 'none' } },
     ],
 
     def(id) { return this.DEFS.find(d => d.id === id); },

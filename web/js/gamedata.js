@@ -289,15 +289,17 @@ const UNLOCKS = [
 ];
 
 // 챕터별 배경 테마 (하늘색, 안개색, 바닥색)
+// biome: 챕터별 소품 세트(Scene3D.buildProps) — 색만 바뀌는 게 아니라 지형 소재 자체가 바뀜
+// celestial: 하늘 천체 ('sun'|'moon'|'none', 생략 시 sun) — 밤 챕터는 달+별
 const CHAPTER_THEMES = [
-    { sky: 0x87ceeb, fog: 0xa8d8ea, ground: 0x7cb342 }, // 1 초원
-    { sky: 0xffcc80, fog: 0xffe0b2, ground: 0xbca77b }, // 2 사막
-    { sky: 0x90a4ae, fog: 0xb0bec5, ground: 0x78909c }, // 3 바위산
-    { sky: 0x4a6572, fog: 0x607d8b, ground: 0x455a64 }, // 4 폭풍
-    { sky: 0x263238, fog: 0x37474f, ground: 0x33691e }, // 5 밤 숲
-    { sky: 0x1a237e, fog: 0x283593, ground: 0x3949ab }, // 6 설원 밤
-    { sky: 0x4527a0, fog: 0x512da8, ground: 0x5e35b1 }, // 7 마법
-    { sky: 0x006064, fog: 0x00838f, ground: 0x00acc1 }, // 8 심해
-    { sky: 0xbf360c, fog: 0xd84315, ground: 0x6d4c41 }, // 9 용암
-    { sky: 0xffd54f, fog: 0xffe082, ground: 0xfff176 }, // 10 천상
+    { sky: 0x87ceeb, fog: 0xa8d8ea, ground: 0x7cb342, biome: 'forest' },                    // 1 초원
+    { sky: 0xffcc80, fog: 0xffe0b2, ground: 0xbca77b, biome: 'desert' },                    // 2 사막
+    { sky: 0x9fb0bd, fog: 0xc3ccd4, ground: 0x77716a, biome: 'rock' },                      // 3 바위산 (지면 웜그레이 vs 바위 쿨그레이 온도 분리)
+    { sky: 0x4a6572, fog: 0x607d8b, ground: 0x455a64, biome: 'forest' },                    // 4 폭풍
+    { sky: 0x263238, fog: 0x37474f, ground: 0x33691e, biome: 'forest', celestial: 'moon' }, // 5 밤 숲
+    { sky: 0x1a237e, fog: 0x283593, ground: 0x3949ab, biome: 'snow', celestial: 'moon' },   // 6 설원 밤
+    { sky: 0x4527a0, fog: 0x512da8, ground: 0x5e35b1, biome: 'magic', celestial: 'moon' },  // 7 마법
+    { sky: 0x006064, fog: 0x00838f, ground: 0x00acc1, biome: 'magic', celestial: 'none' },  // 8 심해
+    { sky: 0xbf360c, fog: 0xd84315, ground: 0x4e3b34, biome: 'lava' },                      // 9 용암 (지면은 탄 화산토 톤)
+    { sky: 0xffd54f, fog: 0xffe082, ground: 0xfff176, biome: 'forest' },                    // 10 천상
 ];
