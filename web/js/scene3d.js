@@ -3403,6 +3403,7 @@ const Scene3D = {
         this.spawnSparks(m.g.position.clone().add(new THREE.Vector3(0, 0.5, 0)), isBoss ? 40 : 16, 0xff7043);
         // 사망: 피격 경직 → 무릎 꺾임 → 뒤로(+x) 쓰러짐 → 착지 먼지 → 서서히 페이드아웃 (빙글 회전·순간 소멸 금지, 사용자 지시)
         // update 루프는 !e.alive를 건너뛰므로 이 애니메이션이 트랜스폼을 단독 소유한다.
+        if (m.hpBg && m.hpBg.parent) m.hpBg.parent.visible = false; // HP바는 시체와 함께 넘어가지 않게 즉시 숨김 (좀비 잔상 방지)
         const mats = [];
         m.g.traverse(o => {
             if (!o.isMesh || !o.material) return;
