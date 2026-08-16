@@ -300,6 +300,7 @@ const Combat = {
         } else S.stage++;
         if (S.chapter * 100 + S.stage > S.bestChapter * 100 + S.bestStage) {
             S.bestChapter = S.chapter; S.bestStage = S.stage;
+            if (!UI.els.passModal.classList.contains('hidden')) UI.renderPass(); // 열려 있는 진행 패스 팝업의 마일스톤 잠금 즉시 갱신
         }
         saveGame();
         UI.renderTopBar();
