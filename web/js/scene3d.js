@@ -2522,8 +2522,8 @@ const Scene3D = {
                     const tall = style === 'round' ? 1.3 : style === 'sleepy' ? 0.62 : 0.92;
                     const sc = new THREE.Mesh(new THREE.SphereGeometry(er, 9, 7), new THREE.MeshLambertMaterial({ color: 0xfff6e8 })); // 음영 받는 흰자 — 평면 스티커 오독 방지 (비평가 지적)
                     sc.scale.set(1, tall, 0.55);
-                    const irisR = style === 'round' ? er * 0.7 : er * 0.55;
-                    const ir = new THREE.Mesh(new THREE.SphereGeometry(irisR, 8, 6), new THREE.MeshLambertMaterial({ color: o.iris || 0xd8352a, emissive: o.iris || 0xd8352a, emissiveIntensity: 0.45 })); // 은은한 발광 홍채
+                    const irisR = (style === 'round' ? er * 0.7 : er * 0.55) * (o.irisScale || 1); // irisScale<1 = 흰자 비중 확대 ('단추 눈' 방지)
+                    const ir = new THREE.Mesh(new THREE.SphereGeometry(irisR, 8, 6), new THREE.MeshLambertMaterial({ color: o.iris || 0xd8352a, emissive: o.iris || 0xd8352a, emissiveIntensity: o.glow !== undefined ? o.glow : 0.45 })); // 은은한 발광 홍채 (glow로 종별 무광 조절)
                     ir.position.z = er * 0.4;
                     if (style === 'sleepy') ir.scale.y = 0.75;
                     const pu = new THREE.Mesh(new THREE.SphereGeometry(irisR * 0.48, 6, 5), new THREE.MeshBasicMaterial({ color: 0x1a1210 }));
@@ -2709,7 +2709,17 @@ const Scene3D = {
             cloth.position.y = 0.42;
             const rope = mk(new THREE.TorusGeometry(0.205, 0.022, 6, 12), clothM);
             rope.rotation.x = Math.PI / 2; rope.position.y = 0.5;
-            g.add(body, belly, cloth, rope);
+            // 사선 가죽 밴돌리어 + 뼈 이빨 목걸이 — 초록 단색 몸통 분리 (비평가: 초록-초록 가독성 부족)
+            const strap = mk(new THREE.TorusGeometry(0.245, 0.026, 6, 18), clothM);
+            strap.position.set(0, 0.63, 0.02); strap.rotation.set(0.22, 0, 0.72);
+            const boneM = new THREE.MeshLambertMaterial({ color: 0xf3ead6 });
+            for (let bi = -2; bi <= 2; bi++) {
+                const tooth2 = mk(new THREE.ConeGeometry(0.02, 0.055, 5), boneM);
+                tooth2.position.set(bi * 0.055, 0.745 - Math.abs(bi) * 0.02, 0.235 - Math.abs(bi) * 0.012);
+                tooth2.rotation.x = Math.PI; // 이빨 끝 아래로
+                g.add(tooth2);
+            }
+            g.add(body, belly, cloth, rope, strap);
             // 머리: 큰 두상 + 대형 뾰족귀(안쪽 어두운 이중판) + 매부리코 + 언더바이트 송곳니
             const head = mk(new THREE.SphereGeometry(0.21, 12, 10), skinM);
             head.position.set(0, 0.95, 0.08); head.scale.set(1, 0.95, 0.95);
@@ -2854,7 +2864,8 @@ const Scene3D = {
                 if (s > 0) armR = armS; else armL = armS;
             }
             // 성난 왕눈 + 벌린 입 — 갓 그늘 아래 파묻힌 '얼굴 없는 소품' 탈피 (비평가 1위 결함)
-            eyes(0.3, 0.135, 0.08, 0.048, 'angry', { iris: 0xd84315, tilt: 0.1, browColor: 0x4a2c22 }); // 갓 색과 맞춘 선명 홍채 — 원거리 판독성
+            // 홍채 축소+무광+딥 크림슨, 흰자 비중 확대, 눈썹 진하게 — '주황 단추' 오독 재설계 (비평가 지적)
+            eyes(0.3, 0.135, 0.08, 0.048, 'angry', { iris: 0xb0301f, irisScale: 0.85, glow: 0.3, tilt: 0.16, browColor: 0x33201a });
             const mMouth = mk(new THREE.SphereGeometry(0.042, 8, 6), new THREE.MeshBasicMaterial({ color: 0x3a2420 }));
             mMouth.position.set(0, 0.165, 0.118); mMouth.scale.set(1.2, 0.8, 0.4); // 벌린 아우성 입
             const tooth = mk(new THREE.BoxGeometry(0.028, 0.02, 0.012), new THREE.MeshBasicMaterial({ color: 0xfff6e8 }));
