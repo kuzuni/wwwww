@@ -3750,10 +3750,10 @@ const Scene3D = {
                         m.anim.legs.forEach((lg, j) => {
                             // 로터리 갤럽 위상: 앞발 쌍·뒷발 쌍이 살짝 어긋나 어느 프레임에도 4지 동시 접지가 없음 (비평가: 죽은 프레임 금지)
                             const lp = clk * 13 + id + [0, 1.1, 3.25, 4.35][j];
-                            lg.rotation.x = Math.sin(lp) * 0.75;
+                            lg.rotation.x = Math.sin(lp) * 0.85;
                             const kn = m.anim.knees && m.anim.knees[j];
-                            // 스윙 복귀 구간 무릎 접힘 — 앞다리는 뒤로, 뒷다리는 앞으로 (사족 관절 방향)
-                            if (kn) kn.rotation.x = kn.userData.rx0 + (kn.userData.front ? -1 : 1) * Math.max(0, Math.sin(lp + 1.3)) * 0.6;
+                            // 스윙 복귀 구간 무릎 접힘 — 앞다리는 뒤로, 뒷다리는 앞으로 (사족 관절 방향). 접힘각 상향 (사용자 재검수: 정지 프레임 판독)
+                            if (kn) kn.rotation.x = kn.userData.rx0 + (kn.userData.front ? -1 : 1) * Math.max(0, Math.sin(lp + 1.3)) * 0.85;
                         });
                         m.g.rotation.x = Math.sin(clk * 11 + id) * 0.03;
                         if (m.anim.tail) m.anim.tail.rotation.z = Math.sin(clk * 9 + id) * 0.25; // 질주 중 꼬리 좌우 휘날림
@@ -3773,13 +3773,14 @@ const Scene3D = {
                         m.g.rotation.z = Math.sin(ph) * (m.anim.bleg ? 0.05 : 0.08);
                         if (m.anim.bleg) m.anim.bleg.forEach((L, j) => {
                             const lp = ph + j * Math.PI;
-                            L.hip.rotation.x = Math.sin(lp) * 0.65;
-                            L.knee.rotation.x = -0.12 - Math.max(0, -Math.sin(lp + 0.7)) * 0.85; // 상시 미세 굽힘 + 스윙 다리 접힘 (비평가: 기둥 다리 금지)
+                            L.hip.rotation.x = Math.sin(lp) * 0.8;
+                            // 상시 미세 굽힘 + 스윙 다리 최대 72° 접힘(발꿈치 차올림) — 사용자 재검수: 정지 프레임에서도 접힘 판독
+                            L.knee.rotation.x = -0.15 - Math.max(0, -Math.sin(lp + 0.7)) * 1.1;
                         });
                         if (m.anim.barm) m.anim.barm.forEach((A, j) => {
                             const ap = ph + j * Math.PI + Math.PI; // 같은 쪽 다리와 역위상
-                            A.sh.rotation.x = Math.sin(ap) * 0.6;
-                            A.elbow.rotation.x = -0.45 - Math.max(0, Math.sin(ap)) * 0.5; // 상시 굽힘 25°+ 앞 스윙 가산 (비평가: 강체 튜브 팔 금지)
+                            A.sh.rotation.x = Math.sin(ap) * 0.65;
+                            A.elbow.rotation.x = -0.5 - Math.max(0, Math.sin(ap)) * 0.65; // 상시 굽힘 29°+ 앞 스윙 가산 (비평가: 강체 튜브 팔 금지)
                         });
                         else if (m.armR) {
                             m.armR.rotation.x = Math.sin(ph) * 0.55;
