@@ -2454,16 +2454,15 @@ const Scene3D = {
 
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
     // 종별 고유 팔레트 — 지형색 파생 금지 (전 종이 배경 보호색 연두 덩어리로 보이던 문제, 비평가 지적)
-    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x63a04a, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x556279, imp: 0xb0486b }, // 늑대: 지면과 명도 분리되는 다크 슬레이트 (강한 태양광 톤업 감안 더 어둡게)
+    // 종별 키 컬러 — 배경 대비 채도 2단계 상향 원칙 (연두 필드 보호색 금지, 비평가 지적)
+    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x3da35a, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x556279, imp: 0xc23a52 },
     monsterMesh(e) {
-        const theme = CHAPTER_THEMES[(S.chapter - 1) % CHAPTER_THEMES.length];
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
         // 디버그: ?enemy=imp 로 특정 몬스터 강제
         const forced = new URLSearchParams(location.search).get('enemy');
         const kind = (forced && kinds.includes(forced)) ? forced : kinds[(e.id + S.chapter * 2) % kinds.length];
-        // 종 고유색 + 개체 지터 + 챕터 무드 10% 혼합 (씬 조화용)
-        const base = new THREE.Color(this.KIND_COLOR[kind]).offsetHSL(U.rand(-0.03, 0.03), U.rand(-0.04, 0.04), U.rand(-0.03, 0.03))
-            .lerp(new THREE.Color(theme.ground), 0.1);
+        // 종 고유색 + 개체 지터 (챕터 무드 혼합은 채도를 죽여 배경 보호색화 — 폐지, 비평가 지적)
+        const base = new THREE.Color(this.KIND_COLOR[kind]).offsetHSL(U.rand(-0.02, 0.02), U.rand(-0.03, 0.03), U.rand(-0.02, 0.02));
         const g = new THREE.Group();
         const flashMats = [];
         const lam = (c2, map) => { const m = new THREE.MeshLambertMaterial({ color: c2, map: map || null }); flashMats.push(m); return m; };
@@ -2593,6 +2592,18 @@ const Scene3D = {
                 crack.position.set(cx2, cy2, 0.305); crack.rotation.z = ang;
                 g.add(crack);
             }
+            // 옆구리 마그마 틈 + 이끼 패치 — 단색 표면 정보량 상향
+            for (const s of [-1, 1]) {
+                const flank = mk(new THREE.BoxGeometry(0.011, 0.13, 0.011), magma);
+                flank.position.set(s * 0.3, 0.62, 0.12); flank.rotation.z = s * 0.5;
+                g.add(flank);
+            }
+            const mossM = new THREE.MeshLambertMaterial({ color: 0x5e7d3a });
+            for (const [mx, my, mz, mr] of [[-0.14, 0.95, 0.1, 0.075], [0.2, 0.52, 0.2, 0.06], [0.05, 1.13, -0.05, 0.065]]) {
+                const moss = mk(new THREE.SphereGeometry(mr, 8, 6), mossM);
+                moss.position.set(mx, my, mz); moss.scale.y = 0.35;
+                g.add(moss);
+            }
             // 어깨 볼더 + 분절 팔(상완 캡슐 → 팔꿈치 → 하완 → 거대 주먹, 지면까지 늘어짐)
             for (const s of [-1, 1]) {
                 const sh = new THREE.Group();
@@ -2605,12 +2616,12 @@ const Scene3D = {
                 elbow.position.y = -0.32;
                 const eJoint = mk(new THREE.SphereGeometry(0.082, 8, 6), rockM); // 팔꿈치 관절 바위 — 굽힘 시 이음새 은폐
                 elbow.add(eJoint);
-                const fore = limb(0.07, 0.09, 0.24, rockD);
-                const fist = mk(new THREE.SphereGeometry(0.15, 10, 8), rockM);
-                fist.position.y = -0.3; fist.scale.set(1, 1.1, 1);
+                const fore = limb(0.088, 0.108, 0.26, rockD); // 하완이 상완보다 두꺼운 파괴자 실루엣
+                const fist = mk(new THREE.SphereGeometry(0.17, 10, 8), rockM);
+                fist.position.y = -0.32; fist.scale.set(1, 1.1, 1);
                 for (let k2 = 0; k2 < 3; k2++) { // 주먹 관절 돌기
-                    const knuckle = mk(new THREE.SphereGeometry(0.045, 7, 6), rockD);
-                    knuckle.position.set((k2 - 1) * 0.075, -0.38, s * 0.06);
+                    const knuckle = mk(new THREE.SphereGeometry(0.05, 7, 6), rockD);
+                    knuckle.position.set((k2 - 1) * 0.08, -0.42, s * 0.065);
                     elbow.add(knuckle);
                 }
                 elbow.add(fore, fist);
@@ -2761,7 +2772,7 @@ const Scene3D = {
                 cn(0.018, 0.06, s * 0.05, 0.5, 0.14, new THREE.MeshLambertMaterial({ color: 0xffffff })); // 송곳니
                 const wing = new THREE.Group();
                 wing.position.set(s * 0.17, 0.65, 0);
-                const wm = new THREE.Mesh(wingGeo(0.44, 0.3), new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0.015, 0.06, -0.06), side: THREE.DoubleSide })); // 몸 색과 이어지는 막 — '다른 에셋 평판' 오독 제거
+                const wm = new THREE.Mesh(wingGeo(0.44, 0.3), new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0.015, 0.06, -0.06), side: THREE.DoubleSide, transparent: true, opacity: 0.88 })); // 반투명 막 — 판자 오독 제거
                 wm.scale.x = s;
                 const wBone = mk(new THREE.CylinderGeometry(0.014, 0.01, 0.42, 5), dark); // 앞전 뼈대
                 wBone.rotation.z = s * (Math.PI / 2 - 0.18);
@@ -2794,9 +2805,10 @@ const Scene3D = {
             const capG = new THREE.Group(); // 갓 전체가 한 그룹으로 출렁임
             capG.position.y = 0.44;
             capG.rotation.x = -0.16; // 갓을 뒤로 젖혀 게임 카메라(전방 상단)에서 얼굴 가시성 확보 (비평가 지적)
-            const dome = mk(new THREE.SphereGeometry(0.32, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), mat);
+            const capM = lam(new THREE.Color(0xc9402e), ProChar.hideTex()); // 절대 지정 시그니처 레드 갓 — 파생색은 태양광에 살구색으로 씻김 (비평가 지적)
+            const dome = mk(new THREE.SphereGeometry(0.32, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), capM);
             dome.scale.set(1, 0.82, 1);
-            const lip = mk(new THREE.TorusGeometry(0.29, 0.05, 8, 16), dark);
+            const lip = mk(new THREE.TorusGeometry(0.29, 0.05, 8, 16), lam(base.clone().offsetHSL(0, 0.15, -0.16), ProChar.hideTex()));
             lip.rotation.x = Math.PI / 2; lip.position.y = 0.015;
             const frill = mk(new THREE.CylinderGeometry(0.28, 0.2, 0.06, 12, 1, true), light); // 갓 아래 주름살
             frill.material.side = THREE.DoubleSide;
@@ -2832,7 +2844,7 @@ const Scene3D = {
             // 사족 맹수 리그 재작성(비평가 3위 결함 '미구현 늑대'): 흉곽→골반 테이퍼 몸통 + 목/쐐기 두상 + 가슴 러프 + 2관절 다리 + 3분절 꼬리
             const furM = lam(base, ProChar.hideTex());
             const furD = lam(base.clone().offsetHSL(0, 0.02, -0.22), ProChar.hideTex()); // 대비 강화 — 단색 클레이 오독 방지
-            const furL = lam(base.clone().offsetHSL(0.01, -0.04, 0.18), ProChar.hideTex());
+            const furL = lam(base.clone().offsetHSL(0.01, -0.06, 0.27), ProChar.hideTex()); // 배·러프·꼬리끝 명확한 라이트 톤
             body = mk(new THREE.SphereGeometry(0.19, 12, 9), furM);           // 흉곽 (앞이 크고)
             body.position.set(0, 0.42, 0.12); body.scale.set(0.9, 0.92, 1.25);
             const hind = mk(new THREE.SphereGeometry(0.16, 11, 8), furM);     // 골반 (뒤가 작게)
