@@ -25,7 +25,7 @@ const UI = {
             forgeInfoModal: $('forge-info-modal'), forgeItemModal: $('forge-item-modal'),
             detailModal: $('detail-modal'),
             autoForgeModal: $('autoforge-modal'),
-            petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
+            petUpgradeModal: $('pet-upgrade-modal'),
             leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
             profileModal: $('profile-modal'), playerInfoBtn: $('player-info-btn'), playerInfoModal: $('player-info-modal'),
             chatPreview: $('chat-preview'), chatModal: $('chat-modal'),
@@ -70,7 +70,7 @@ const UI = {
         'dungeon-modal': 'dungeon', 'dungeon-detail-modal': 'dungeon',
         'shop-modal': 'shop', 'league-modal': 'battle', 'pass-modal': 'battle',
         'mount-modal': 'menu', 'mount-upgrade-modal': 'menu', 'pet-upgrade-modal': 'summon',
-        'tech-node-modal': 'summon', 'profile-modal': 'menu', 'player-info-modal': 'menu',
+        'profile-modal': 'menu', 'player-info-modal': 'menu',
         'chat-modal': 'menu', 'forge-info-modal': 'menu', 'forge-item-modal': 'menu',
         'autoforge-modal': 'menu',
     },
@@ -1602,44 +1602,67 @@ const UI = {
             const pct = TechTree.branchProgress(b.id);
             const researching = S.techResearch && b.nodes.includes(S.techResearch.id);
             const timeHtml = researching
-                ? ` <small class="tech-branch-time" id="tech-b-time-${b.id}" style="color:#4caf50">(${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)})</small>` : '';
+                ? ` <small id="tech-b-time-${b.id}">(${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)})</small>` : '';
             return `<button class="tech-branch-card" onclick="UI.openTechBranch('${b.id}')">
-                <div class="tech-branch-title">${b.name}</div>
+                <div class="tech-branch-head">${b.name}</div>
                 <div class="tech-branch-icon">${b.icon}</div>
-                <div class="tech-branch-pct">${pct.toFixed(1)}%${timeHtml}</div>
+                <div class="tech-branch-pct ${researching ? 'researching' : ''}">${pct.toFixed(1)}%${timeHtml}</div>
             </button>`;
         }).join('');
         this.els.techPanel.innerHTML = `
-            <h2>🔬 기술 트리 <span class="muted">🧪 ${U.fmt(S.potions || 0)}</span></h2>
+            <div class="sheet-head">
+                <span class="cur-pill potion">🧪 ${U.fmt(S.potions || 0)}</span>
+                <h2 class="sheet-title">기술 트리</h2>
+                <span class="cur-pill gem">💎 ${U.fmt(S.gems)}</span>
+            </div>
             <div class="tech-branch-grid">${cardsHtml}</div>`;
     },
+    // 분기 상세: 노드를 2개씩 쌍으로 묶어 가로선으로 잇고 쌍 사이는 세로선으로 이어
+    // 원본(shot-042546)의 좌우 분기 갈래 트리 형태를 재현한다.
+    // 노드 개수·효과는 원본 미확보로 자체 설계(기술트리 개편 항목에서 확정), 이번 작업은 배치만 원본화.
     renderTechBranchView() {
         const b = TechTree.BRANCHES.find(x => x.id === this._techBranch);
         const pct = TechTree.branchProgress(b.id);
-        const nodesHtml = b.nodes.map((id, i) => {
+        const nodeCol = (id) => {
             const lv = TechTree.level(id);
             const max = TechTree.isMax(id);
             const researching = TechTree.researchingId() === id;
-            const cls = max ? 'done' : (lv > 0 || researching) ? 'active' : 'locked';
+            const cls = researching ? 'researching' : max ? 'done' : lv > 0 ? 'active' : 'locked';
+            const tierPos = max ? TechTree.PER_TIER : lv === 0 ? 0 : ((lv - 1) % TechTree.PER_TIER) + 1;
             const badge = researching
-                ? `<small class="tech-tree-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
-                : `<small>${lv}/${TechTree.MAX_LEVEL}</small>`;
-            return `${i > 0 ? '<div class="tech-tree-line"></div>' : ''}
-                <button class="tech-tree-node ${cls}" onclick="UI.openTechNode('${id}')">
-                    <span class="tech-tree-icon">${max ? '⭐' : '🔬'}</span>
-                </button>
-                <div class="tech-tree-label">${TechTree.NODES[id].name}<br>${badge}</div>`;
-        }).join('');
+                ? `<small class="tech-tree-node-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
+                : `<small>${tierPos}/${TechTree.PER_TIER}</small>`;
+            return `<div class="tech-tree-node-col">
+                <button class="tech-tree-node ${cls}" onclick="UI.openTechNode('${id}')">${max ? '⭐' : '🔬'}</button>
+                <div class="tech-tree-label">${TechTree.NODES[id].name}<br>${badge}</div>
+            </div>`;
+        };
+        const rowsHtml = [];
+        for (let i = 0; i < b.nodes.length; i += 2) {
+            const pair = b.nodes.slice(i, i + 2);
+            if (i > 0) rowsHtml.push('<div class="tech-tree-vline"></div>');
+            rowsHtml.push(pair.length === 2
+                ? `<div class="tech-tree-row">${nodeCol(pair[0])}<div class="tech-tree-hline"></div>${nodeCol(pair[1])}</div>`
+                : nodeCol(pair[0]));
+        }
         this.els.techPanel.innerHTML = `
-            <div class="row" style="justify-content:space-between">
-                <button class="btn sm" onclick="UI.openTechOverview()">◀ 뒤로</button>
-                <h2>${b.icon} ${b.name} <small class="muted">${pct.toFixed(1)}%</small></h2>
+            <div class="sheet-head">
+                <span class="cur-pill potion">🧪 ${U.fmt(S.potions || 0)}</span>
+                <h2 class="sheet-title">${b.name}</h2>
+                <span class="cur-pill gem">💎 ${U.fmt(S.gems)}</span>
             </div>
-            <div class="tech-tree-col">${nodesHtml}</div>`;
+            <div class="tech-branch-detail-pct">${pct.toFixed(1)}%</div>
+            <div class="tech-tree-col">${rowsHtml.join('')}</div>
+            <button class="btn danger round tech-tree-back" onclick="UI.openTechOverview()">◀</button>`;
     },
-    // 노드 팝업 (분기 트리 위에 뜨는 별도 모달, UI-SPEC 15~16번 "노드 팝업")
-    openTechNode(id) { this._techNode = id; this.renderTechNodeModal(); this.els.techNodeModal.classList.remove('hidden'); },
-    closeTechNode() { this.els.techNodeModal.classList.add('hidden'); },
+    // 노드 팝업 (UI-SPEC 15~16번). 공용 상세 팝업 #detail-modal 재사용(공통 규칙) — 전용 모달 폐기.
+    openTechNode(id) { this._techNode = id; this.renderTechNodeModal(); this.els.detailModal.classList.remove('hidden'); },
+    // 백그라운드 틱이 연구 완료로 이 노드 팝업을 다시 그려도 되는지 확인(다른 상세 팝업이 열려 있을 수 있음)
+    isTechNodeOpen(id) {
+        if (this.els.detailModal.classList.contains('hidden')) return false;
+        const card = this.els.detailModal.querySelector('[data-tech-node]');
+        return !!card && card.dataset.techNode === id;
+    },
     renderTechNodeModal() {
         const id = this._techNode;
         const def = TechTree.NODES[id];
@@ -1647,32 +1670,45 @@ const UI = {
         const max = TechTree.isMax(id);
         const researching = TechTree.researchingId() === id;
         const otherResearch = S.techResearch && !researching;
+        const tierPos = max ? TechTree.PER_TIER : lv === 0 ? 0 : ((lv - 1) % TechTree.PER_TIER) + 1;
+        const tier = Math.min(5, Math.max(1, Math.ceil((max ? lv : lv + 1) / TechTree.PER_TIER)));
+        const roman = ['I', 'II', 'III', 'IV', 'V'][tier - 1];
 
         let actionHtml;
         if (max) {
-            actionHtml = `<div class="muted" style="text-align:center">연구 완료 (MAX)</div>`;
+            actionHtml = `<div class="idet-lead" style="text-align:center">연구 완료 (MAX)</div>`;
         } else if (researching) {
             const remain = (S.techResearch.endsAt - U.now()) / 1000;
-            actionHtml = `<div class="row">
+            actionHtml = `<div class="idet-lead" style="text-align:center">연구 진행 중</div>
                 <div class="upg-progress"><div id="tech-node-fill" style="width:${U.clamp(1 - remain / TechTree.time(id, lv + 1), 0, 1) * 100}%"></div><span id="tech-node-time">${U.fmtTime(remain)}</span></div>
-                <button class="btn gem" onclick="UI.onTechGemSkip()">💎 ${TechTree.gemSkipCost()} 건너뛰기</button>
-            </div>
-            <button class="btn danger" onclick="UI.onTechCancel()">취소</button>`;
+                <div class="idet-btns">
+                    <button class="btn sm gem" onclick="UI.onTechGemSkip()">💎 ${TechTree.gemSkipCost()} 건너뛰기</button>
+                    <button class="btn sm danger" onclick="UI.onTechCancel()">취소</button>
+                </div>`;
         } else {
             const cost = TechTree.nextCost(id), time = TechTree.time(id, lv + 1);
             const disabled = otherResearch || S.potions < cost;
-            actionHtml = `<button class="btn primary ${disabled ? 'disabled' : ''}" onclick="UI.onTechStart('${id}')">
-                🔬 연구 시작<br><small>🧪 ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</small></button>
-                ${otherResearch ? '<p class="muted">다른 연구가 진행 중입니다</p>' : ''}`;
+            actionHtml = `<button class="btn sm primary ${disabled ? 'disabled' : ''}" onclick="UI.onTechStart('${id}')">
+                🔬 연구 시작 · 🧪 ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</button>
+                ${otherResearch ? '<p class="muted" style="text-align:center">다른 연구가 진행 중입니다</p>' : ''}`;
         }
 
-        this.els.techNodeModal.innerHTML = `
-            <div class="modal-card wide">
-                <h3>${def.name}</h3>
-                <p class="muted">${def.desc}</p>
-                <p>레벨 ${lv} → ${max ? '(최고)' : lv + 1} · 현재 효과 +${U.fmt(TechTree.pct(id))}% ${!max ? `(다음 +${U.fmt((lv + 1) * def.per)}%)` : ''}</p>
-                ${actionHtml}
-                <button class="btn" onclick="UI.closeTechNode()">닫기</button>
+        this.els.detailModal.innerHTML = `
+            <div class="idet-wrap">
+                <div class="modal-card paper item-detail" data-tech-node="${id}">
+                    <div class="idet-head">
+                        <div class="idet-icon">${max ? '⭐' : '🔬'}<span class="idet-star">${tierPos}/${TechTree.PER_TIER}</span></div>
+                        <div class="idet-title">
+                            <div class="idet-name">${def.name} ${roman}</div>
+                            <div class="idet-main">+${U.fmt(TechTree.pct(id))}% <small class="muted">(+${U.fmt(def.per)}%)</small></div>
+                        </div>
+                    </div>
+                    <div class="idet-subs">
+                        <div class="idet-lead">${def.desc}</div>
+                    </div>
+                    ${actionHtml}
+                </div>
+                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
             </div>`;
     },
     onTechStart(id) {

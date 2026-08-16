@@ -488,26 +488,42 @@ body {
     display: flex; align-items: center; justify-content: center; font-size: 2.4rem;
 }
 
-/* ---- 기술 트리: 분기 개요 카드 (UI-SPEC 10번) ---- */
-.tech-branch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin: .5rem 0; }
+/* ---- 기술 트리: 분기 개요 카드 (UI-SPEC 10번, 원본 shot-042407) ---- */
+.tech-branch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin: .7rem 0 .3rem; }
 .tech-branch-card {
-    background: #22272e; border: 1px solid #444c56; border-radius: .6rem;
-    padding: .5rem; display: flex; flex-direction: column; align-items: center; gap: .25rem; cursor: pointer;
+    display: flex; flex-direction: column; padding: 0; overflow: hidden; cursor: pointer;
+    background: var(--pp-paper); border: 3px solid var(--pp-line); border-radius: .8rem;
 }
-.tech-branch-title { font-size: .78rem; font-weight: 700; }
-.tech-branch-icon { font-size: 1.8rem; }
-.tech-branch-pct { font-size: .78rem; color: #ffd54f; font-weight: 700; }
+.tech-branch-head {
+    background: var(--pp-ink); color: #fff; font-weight: 800; font-size: .82rem;
+    padding: .45rem .3rem; text-align: center; border-bottom: 3px solid var(--pp-line);
+}
+.tech-branch-icon { font-size: 2.3rem; text-align: center; padding: 1rem 0 .5rem; }
+.tech-branch-pct { font-weight: 800; font-size: .9rem; text-align: center; padding-bottom: .6rem; color: var(--pp-ink); }
+.tech-branch-pct.researching { color: var(--pp-green-dk); }
 
-/* ---- 기술 트리: 분기 상세 세로 노드 트리 (UI-SPEC 15~16번) ---- */
-.tech-tree-col { display: flex; flex-direction: column; align-items: center; gap: 0; margin: .5rem 0; }
-.tech-tree-line { width: .18rem; height: 1.1rem; background: #444c56; }
+/* ---- 기술 트리: 분기 상세 세로 노드 트리 (UI-SPEC 15~16번, 원본 shot-042546) ----
+   노드 2개씩 가로선으로 잇고, 쌍과 쌍 사이는 세로선으로 이어 좌우 분기 갈래 모양을 만든다. */
+.tech-branch-detail-pct { font-weight: 800; font-size: .95rem; text-align: center; color: var(--pp-ink); margin-top: -.2rem; }
+.tech-tree-col { display: flex; flex-direction: column; align-items: center; margin: .6rem 0 1rem; }
+.tech-tree-row { display: flex; align-items: flex-start; justify-content: center; }
+.tech-tree-hline { width: 2.6rem; height: .18rem; background: var(--pp-line); margin-top: 1.5rem; }
+.tech-tree-vline { width: .18rem; height: 1.3rem; background: var(--pp-line); align-self: center; }
+.tech-tree-node-col { display: flex; flex-direction: column; align-items: center; width: 5rem; }
 .tech-tree-node {
     width: 3rem; height: 3rem; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-size: 1.3rem; border: .18rem solid #444c56; background: #22272e; cursor: pointer;
+    font-size: 1.3rem; border: .18rem solid var(--pp-line); background: var(--pp-paper); cursor: pointer;
 }
-.tech-tree-node.active { border-color: #ffd54f; background: #3a2f10; }
-.tech-tree-node.done { border-color: #8d6e63; background: #4e342e; }
-.tech-tree-label { font-size: .68rem; text-align: center; color: #90a4ae; margin: .15rem 0 .3rem; }
+.tech-tree-node.locked { background: var(--pp-paper); opacity: .8; }
+.tech-tree-node.active { background: #c9925a; }
+.tech-tree-node.done { background: #a9793f; }
+.tech-tree-node.researching { background: var(--pp-green); }
+.tech-tree-label { font-size: .68rem; text-align: center; color: var(--pp-ink); font-weight: 700; margin: .25rem 0 .3rem; }
+.tech-tree-label .tech-tree-node-time {
+    display: inline-block; background: var(--pp-ink); color: var(--pp-green);
+    border-radius: .6rem; padding: .05rem .45rem; font-weight: 800; margin-top: .1rem;
+}
+.tech-tree-back { align-self: flex-start; margin-left: .3rem; }
 
 /* ---- PvP 리그 (UI-SPEC 3~5번) ---- */
 .league-list { display: flex; flex-direction: column; gap: .3rem; max-height: 46vh; overflow-y: auto; margin: .5rem 0; }
@@ -892,6 +908,7 @@ body {
     padding: .12rem .55rem; font-size: .78rem; font-weight: 800; white-space: nowrap;
 }
 .cur-pill.ticket { background: #2e7d32; }
+.cur-pill.potion { background: #00897b; }
 .passive-banner {
     background: #d9d9d9; border: 3px solid var(--pp-line); border-radius: 1rem;
     padding: .2rem .7rem; font-size: .8rem; font-weight: 800; color: var(--pp-ink);

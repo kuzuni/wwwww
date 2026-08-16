@@ -126,7 +126,7 @@ const TechTree = {
             Combat.recalcHero();
             saveGame();
             UI.renderTechTree(); // 열려 있는 기술 트리 개요/분기 화면도 즉시 갱신 (자체 가드 있음)
-            if (!UI.els.techNodeModal.classList.contains('hidden')) UI.renderTechNodeModal();
+            if (UI.isTechNodeOpen(id)) UI.renderTechNodeModal();
         }
     },
 
