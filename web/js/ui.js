@@ -1277,7 +1277,7 @@ const UI = {
                 <h3>설정</h3>
                 <p class="muted" style="text-align:center">서버 시간: ${new Date().toLocaleString('ko-KR')}</p>
                 ${toggle('진동', d.vibration, "UI.onToggleSettingsDummy('vibration')")}
-                ${toggle('음악', S.musicOn, "UI.onToggleMusic()")}
+                ${toggle('음악', SFX.musicEnabled, "UI.onToggleMusic()")}
                 ${toggle('사운드 효과', S.sfxOn, "UI.onToggleSfxSetting()")}
                 ${toggle('채팅 표시', d.chatShow, "UI.onToggleSettingsDummy('chatShow')")}
                 ${toggle('채팅 다크 모드', d.chatDark, "UI.onToggleSettingsDummy('chatDark')")}

@@ -90,7 +90,7 @@ const SFX = {
     // 외부 파일 없이 프로시저럴 코드 패드를 반복 재생 — sfxOn과 별개 버스(effOn 꺼도 음악은 계속)
     musicTimer: null,
     musicGain: null,
-    get musicEnabled() { return !!(S && S.musicOn); },
+    get musicEnabled() { return !S || S.musicOn !== false; },
 
     startMusic() {
         if (this.musicTimer || !this.musicEnabled) return;
