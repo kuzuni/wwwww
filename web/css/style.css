@@ -268,8 +268,10 @@ body {
 .equip-cell {
     background: #22272e; border: 1px solid var(--rc, #444c56); border-radius: .5rem;
     padding: .3rem; display: flex; flex-direction: column; align-items: center; gap: .15rem;
+    cursor: pointer;
 }
-.equip-cell.empty { opacity: .5; border-color: #444c56; }
+.equip-cell.empty { opacity: .5; border-color: #444c56; cursor: default; }
+.equip-cell.egg-cell { cursor: default; }
 .equip-cell .slot-name { font-size: .6rem; color: #90a4ae; }
 .equip-cell .cell-lv { font-size: .68rem; font-weight: 800; color: #ffd54f; white-space: nowrap; }
 .anvil-row { display: flex; align-items: center; gap: .6rem; }

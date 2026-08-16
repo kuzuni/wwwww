@@ -25,6 +25,7 @@ const UI = {
             leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
             profileModal: $('profile-modal'), playerInfoBtn: $('player-info-btn'), playerInfoModal: $('player-info-modal'),
             chatPreview: $('chat-preview'), chatModal: $('chat-modal'),
+            gearDetailModal: $('gear-detail-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         this.els.playerInfoBtn.addEventListener('click', () => this.openPlayerInfo());
@@ -203,12 +204,12 @@ const UI = {
             forgeBtnHtml = `<button class="btn sm primary" onclick="UI.openForgeInfo()">대장간 레벨 ${S.forgeLevel}</button>`;
         }
 
-        // 카드 = 아이콘 + Lv + 별만 표시 (컴팩트, UI-SPEC 1번). 상세 정보는 '장비 세부정보 팝업'(추후 항목)에서
+        // 카드 = 아이콘 + Lv + 별만 표시 (컴팩트, UI-SPEC 1번). 상세 정보는 클릭 시 '장비 세부정보 팝업'(UI-SPEC 26번)
         const autoUnlocked = isUnlocked('autoForge');
         const equipHtml = SLOTS.map(slot => {
             const it = S.equipment[slot];
             if (!it) return `<div class="equip-cell empty"><span class="slot-name">${SLOT_KR[slot]}</span></div>`;
-            return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}" title="${it.name}">
+            return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
                 ${this.itemImgHTML(it, 'cell-img')}
                 <span class="cell-lv">Lv.${it.level}${it.stars ? ` ⭐${it.stars}` : ''}</span>
             </div>`;
@@ -513,6 +514,18 @@ const UI = {
             </div>`;
         this.els.craftModal.classList.remove('hidden');
     },
+
+    // 장비 세부정보 팝업 (UI-SPEC 26번): 메인 화면 장비 카드 클릭 시 — 비교 팝업과 달리 버튼 없음, 바깥 탭하면 닫힘
+    openGearDetail(slot) {
+        const item = S.equipment[slot];
+        if (!item) return;
+        this.els.gearDetailModal.innerHTML = `
+            <div class="modal-card" style="--rc:${RARITY_CSS[item.rarity]}">
+                ${this.itemCardHTML(item, '장착됨', false, false)}
+            </div>`;
+        this.els.gearDetailModal.classList.remove('hidden');
+    },
+    closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); },
 
     // 스킬 컷인 + 화면 색 플래시
     skillCutin(def) {
@@ -1210,7 +1223,7 @@ const UI = {
         const gearHtml = SLOTS.map(slot => {
             const it = S.equipment[slot];
             if (!it) return `<div class="equip-cell empty"><span class="slot-name">${SLOT_KR[slot]}</span></div>`;
-            return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}" title="${it.name}">
+            return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
                 ${this.itemImgHTML(it, 'cell-img')}
                 <span class="cell-lv">Lv.${it.level}${it.stars ? ` ⭐${it.stars}` : ''}</span>
             </div>`;
