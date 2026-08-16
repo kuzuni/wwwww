@@ -1684,9 +1684,29 @@ const Scene3D = {
         spear:    { rot: [0.65, 0, 0], pose: { elbowR: -0.3 } },                           // 수직으로 세워 들기 (기수 자세) — restX·팔꿈치 전방 기울기 상쇄
         staff:    { rot: [0.58, 0, 0], pose: { elbowR: -0.28 } },                          // 지면 짚듯 세워 들기 — restX·팔꿈치 전방 기울기 상쇄
         bow:      { hand: 'L', scale: 0.6, rot: [0.95, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } }, // 왼손 파지(팔 상승분 상쇄해 림이 수직) + 오른손 시위 대기. 몸을 감싸던 과대 스케일 축소
-        crossbow: { hand: 'L', scale: 0.6, rot: [0.75, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } }, // 눕혀서 활대가 전방을 향하게 (수직 세움 금지)
+        crossbow: { hand: 'L', scale: 0.6, rot: [2.9, 0, 0], pose: { shoulderL: -0.85, elbowL: -0.12, shoulderR: -0.7, elbowR: -1.0 } }, // 가슴 높이 수평 전방 (얼굴 가림 금지 — 사용자 재검수), 회전은 팔 하강분만큼 가산 상쇄
         gun:      { rot: [0, 0, 0], pose: { shoulderR: -0.35, elbowR: 0.2 } },             // 팔을 수평까지 펴서 총구 전방 겨눔 (restX 가산 + Idle 팔꿈치 굽힘 상쇄)
         thrown:   { rot: [1.95, 0, 0], pose: { shoulderR: -1.45, elbowR: -0.5 } },         // 귀 옆 코킹 — 팔 상승분을 상쇄해 헤드가 위·뒤, 던질 준비
+    },
+    // C자 랩 주먹 — 자루를 감는 손가락 마디 링 3개 + 엄지 + 너클 볼록 (사용자 재검수: 무기가 손바닥에 '붙은' 게 아니라 '쥐어진' 실루엣)
+    // weaponG의 자식으로 원점(파지점)에 두므로 Idle/걷기/공격 전 상태에서 자루-주먹 정렬이 자동 유지된다.
+    makeGripWrap(shaftR, invScale) {
+        const g = new THREE.Group();
+        const skin = new THREE.MeshPhongMaterial({ color: 0x7a5c46, shininess: 22, map: ProChar.leatherTex() });
+        for (let i = 0; i < 3; i++) {
+            const seg = new THREE.Mesh(new THREE.TorusGeometry(shaftR + 0.018, 0.021, 7, 14, Math.PI * 1.8), skin);
+            seg.rotation.x = Math.PI / 2;    // 링 평면이 자루(로컬 y축)와 직교 — 손가락이 자루를 감는 방향
+            seg.rotation.z = -0.4;           // C자 열림부를 엄지 쪽으로
+            seg.position.y = 0.036 - i * 0.036;
+            g.add(seg);
+        }
+        const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.026, 7, 6), skin);
+        thumb.scale.set(1, 1.6, 1); thumb.position.set(shaftR + 0.012, 0.048, 0.018); thumb.rotation.z = 0.5;
+        const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.048, 8, 6), skin);
+        knuckle.scale.set(1.2, 1.05, 0.95); knuckle.position.set(-(shaftR + 0.004), 0, 0);
+        g.add(thumb, knuckle);
+        g.scale.setScalar(invScale); // weaponG 스케일 상쇄 — 활계 0.6 축소에도 주먹 크기 일정
+        return g;
     },
     applyWeaponGrip() {
         const grip = this.WEAPON_GRIP[this.wtypeId] || this.WEAPON_GRIP.sword;
@@ -1700,7 +1720,9 @@ const Scene3D = {
         const gp = grip.pos || [0, 0, 0];
         this.weaponG.position.set(gp[0], gp[1], gp[2]);
         this.weaponG.rotation.set(grip.rot[0], grip.rot[1], grip.rot[2]);
-        this.weaponG.scale.setScalar(1.22 * (grip.scale || 1)); // 기본 존재감 스케일 × 무기별 보정 (활계 과대 축소)
+        const sc = 1.22 * (grip.scale || 1);
+        this.weaponG.scale.setScalar(sc); // 기본 존재감 스케일 × 무기별 보정 (활계 과대 축소)
+        if (this.heroRig) this.weaponG.add(this.makeGripWrap(grip.shaftR || 0.033, 1 / sc)); // 파지점 C자 랩 주먹 (refreshHeroEquip의 clearGroup이 수명 관리)
         this._gripRot = grip.rot;
         this._gripPos = gp;
     },

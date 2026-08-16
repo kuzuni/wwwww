@@ -65,9 +65,10 @@ const WEAPONS = ['sword', 'axe', 'spear', 'hammer', 'dagger', 'bow', 'crossbow',
         await page.waitForTimeout(1000); // 공격 종료·파지 복원 대기
     }
 
-    // 원거리 걷기 자세 (활·총) — 걷는 중 조준 유지 확인
-    for (const w of ['bow', 'gun']) {
+    // 걷기 자세 — 전 무기 (걷는 중 손-무기 이탈 확인, 사용자 재검수 ④)
+    for (const w of WEAPONS) {
         await equip(w);
+        await page.evaluate(() => { Scene3D.clearEnemies(); Combat.enemies = []; }); // 공격 루프의 잔존 적 제거
         await page.evaluate(() => { window.__wx = Scene3D.worldX; Scene3D.walking = true; });
         await page.waitForTimeout(250);
         await page.evaluate(() => {
