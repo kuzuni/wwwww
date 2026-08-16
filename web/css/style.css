@@ -345,9 +345,6 @@ body {
 .modal-card h3 { font-size: 1.15rem; }
 .big-stat { font-size: 1.05rem; font-weight: 800; color: #ffd54f; }
 .modal-card .sub { font-size: .78rem; color: #81d4fa; }
-.compare { font-size: .85rem; font-weight: 800; }
-.compare.up { color: #69f0ae; }
-.compare.down { color: #ff8a80; }
 
 /* ---- 장비 비교 프리뷰 (새 장비 위 / 장착 중 아래) ---- */
 .modal-card.wide { width: 94%; }
@@ -402,7 +399,6 @@ body {
 }
 .cell-img.emoji { font-size: 1.25rem; }
 .cmp-name { font-size: .85rem; font-weight: 800; }
-.cmp-sub { font-size: .68rem; }
 .cmp-card .big-stat { font-size: .9rem; }
 .cmp-card .sub { font-size: .66rem; color: #81d4fa; }
 .cmp-power { font-size: .68rem; font-weight: 700; color: #ffd54f; margin-left: .3rem; }
