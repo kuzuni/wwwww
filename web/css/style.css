@@ -279,7 +279,6 @@ body {
     border: 2px solid var(--pp-line); border-radius: .5rem;
     display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
 }
-.fl-star { position: absolute; left: -.15rem; bottom: -.2rem; font-size: .68rem; }
 .forge-item-cell small { font-size: .56rem; color: var(--pp-ink); font-weight: 800; }
 
 .substat-list { display: flex; flex-direction: column; gap: .2rem; margin: .4rem 0; max-height: 40vh; overflow-y: auto; }
@@ -1478,7 +1477,6 @@ body {
     position: absolute; inset: 0; font-style: normal; font-size: .56rem; font-weight: 900; color: #fff;
     display: flex; align-items: center; justify-content: center;
 }
-.summon-star { font-size: .6rem; }
 
 /* ===== 스킬 상세 팝업 (shot-042426 원본 대조 재작업) ===== */
 .skd-card { width: 86%; min-height: 20rem; padding: 1rem .9rem 1.1rem; text-align: left; display: flex; flex-direction: column; gap: 0; }

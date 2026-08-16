@@ -351,7 +351,7 @@ const UI = {
         const rows = AGES.map(age => {   // 0%인 시대도 원본처럼 전부 표시
             const hex = this.ageHex(age);
             return `<div class="fi-age-bar" style="--ac:${hex}">
-                <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]} ⭐</span>
+                <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]}</span>
                 <span class="fi-age-cur">${pct(curP[age] || 0)}</span>
                 <span class="fi-age-next">${info ? pct(nextP[age] || 0) : '—'}</span>
             </div>`;
@@ -396,7 +396,7 @@ const UI = {
             const p = Forge.itemDropChance(age, 'weapon'); // 무기 변형은 모두 동일 확률
             const cell = (onclick, icon, pct) => `
                 <button class="forge-item-cell" onclick="${onclick}">
-                    <span class="fl-face">${icon}<span class="fl-star">⭐</span></span>
+                    <span class="fl-face">${icon}</span>
                     <small>${pct.toFixed(4)}%</small>
                 </button>`;
             const weaponCells = Object.keys(WEAPON_TYPES).map(wtype =>
@@ -409,7 +409,7 @@ const UI = {
             }).join('');
             return `<div class="forge-age-section">
                 <div class="fi-age-bar fl-head" style="--ac:${hex}">
-                    <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]} ⭐</span>
+                    <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]}</span>
                     <span class="fi-age-cur">${ageP.toFixed(2)}%</span>
                 </div>
                 <div class="forge-item-grid">${weaponCells}${otherCells}</div>
@@ -456,7 +456,7 @@ const UI = {
             <div class="idet-wrap">
                 <div class="modal-card paper item-detail">
                     <div class="idet-head">
-                        <div class="idet-icon">${thumb ? `<img src="${thumb}" alt="">` : icon}<span class="idet-star">⭐</span></div>
+                        <div class="idet-icon">${thumb ? `<img src="${thumb}" alt="">` : icon}</div>
                         <div class="idet-title">
                             <div class="idet-name">[${AGE_KR[age]}] ${name}</div>
                             <div class="idet-main">${U.fmt(baseVal)} ${main === 'atk' ? '피해' : '체력'}</div>
@@ -487,7 +487,7 @@ const UI = {
         const ageRows = AGES.slice(-5).map(age => `
             <div class="af-age-bar" style="--ac:${this.ageHex(age)}" onclick="UI.onToggleKeepAge('${age}')">
                 <span class="af-check ${cfg.keepAges.includes(age) ? 'on' : ''}">${cfg.keepAges.includes(age) ? '✓' : ''}</span>
-                <span class="af-age-name">${AGE_ICON[age]} ${AGE_KR[age]} ⭐</span>
+                <span class="af-age-name">${AGE_ICON[age]} ${AGE_KR[age]}</span>
                 <span class="af-age-pct">${pct(probs[age] || 0)}</span>
             </div>`).join('');
         const subRows = SUBSTATS.map(([key, label]) => `
@@ -578,7 +578,7 @@ const UI = {
                 <div class="cmp-icon-wrap">
                     ${this.itemImgHTML(item, 'cmp-img')}
                     <span class="sk-lv">Lv.${item.level}</span>
-                    <span class="cmp-star">⭐</span>
+                    ${item.stars ? `<span class="cmp-star">⭐${item.stars}</span>` : ''}
                 </div>
                 <div class="cmp-info">
                     <div class="cmp-name">[${AGE_KR[item.age]}] ${item.name}</div>
@@ -685,7 +685,7 @@ const UI = {
                     ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${pet.level}</span>
                 </span>
-                <span class="sk-star">${pet.stars ? `⭐${pet.stars}` : '⭐'}</span>
+                ${pet.stars ? `<span class="sk-star">⭐${pet.stars}</span>` : ''}
             </button>`;
         }).join('');
         const eggCells = S.eggs.map((egg, i) =>
@@ -728,7 +728,6 @@ const UI = {
                     <button class="info-dot" onclick="UI.openSummonRates('pet')">i</button>
                     <b>Lv. ${petLvl}</b>
                     <span class="summon-gauge"><i style="width:${(petCapped ? 1 : ((S.petSummonCount || 0) % 5) / 5) * 100}%"></i><em>${petCapped ? 'MAX' : `${(S.petSummonCount || 0) % 5}/5`}</em></span>
-                    <span class="summon-star">⭐</span>
                 </div>
             </div>
             <div class="hatchery">
@@ -758,7 +757,7 @@ const UI = {
                                 ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                                 <span class="sk-lv">Lv.${pet.level}</span>
                             </div>
-                            <span class="sk-star">${pet.stars ? `⭐${pet.stars}` : '⭐'}</span>
+                            ${pet.stars ? `<span class="sk-star">⭐${pet.stars}</span>` : ''}
                         </div>
                         <div class="petd-body">
                             <div class="petd-name" style="color:${RARITY_CSS[pet.rarity]}">[${RARITY_KR[pet.rarity]}] ${PET_KR[pet.name] || pet.name}</div>
@@ -967,7 +966,7 @@ const UI = {
                     ${equipped ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${sk.level}</span>
                 </span>
-                <span class="sk-star">${sk.stars ? `⭐${sk.stars}` : '⭐'}</span>
+                ${sk.stars ? `<span class="sk-star">⭐${sk.stars}</span>` : ''}
                 <span class="sk-shard"><i style="width:${ratio}%"></i><em>${sk.dupes}/${need}</em></span>
             </button>`;
         }).join('') || '<span class="muted">보유 스킬 없음 — 소환해보세요!</span>';
@@ -1003,7 +1002,6 @@ const UI = {
                     <button class="info-dot" onclick="UI.openSummonRates('skill')">i</button>
                     <b>Lv. ${lvl}</b>
                     <span class="summon-gauge"><i style="width:${(capped ? 1 : ((S.summonCount || 0) % 5) / 5) * 100}%"></i><em>${capped ? 'MAX' : `${(S.summonCount || 0) % 5}/5`}</em></span>
-                    <span class="summon-star">⭐</span>
                 </div>
             </div>`;
     },
@@ -1029,7 +1027,7 @@ const UI = {
         const rates = mod.rates(lvl);
         const barsHtml = RARITIES.map(r => `
             <div class="rate-bar" style="--rc:${RARITY_CSS[r]}">
-                <span class="rate-name">${RARITY_KR[r]} ⭐</span>
+                <span class="rate-name">${RARITY_KR[r]}</span>
                 <span class="rate-pct">${(rates[r] || 0).toFixed(2)}%</span>
             </div>`).join('');
         const cnt = (isPet ? S.petSummonCount : S.summonCount) || 0;
@@ -1070,7 +1068,7 @@ const UI = {
                     <div class="skd-head">
                         <div class="skd-orbcol">
                             <span class="sk-orb" style="--rc:${RARITY_CSS[d.rarity]}">${SKILL_ICONS[id] || '✨'}<span class="sk-lv">Lv.${sk.level}</span></span>
-                            <span class="sk-star">${sk.stars ? `⭐${sk.stars}` : '⭐'}</span>
+                            ${sk.stars ? `<span class="sk-star">⭐${sk.stars}</span>` : ''}
                             <span class="sk-shard"><i style="width:${ratio}%"></i><em>${sk.dupes}/${need}</em></span>
                         </div>
                         <div class="skd-body">
@@ -1780,7 +1778,7 @@ const UI = {
                 ? `<small class="tech-tree-node-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
                 : `<small>${tierPos}/${TechTree.PER_TIER}</small>`;
             return `<div class="tech-tree-node-col">
-                <button class="tech-tree-node ${cls}" onclick="UI.openTechNode('${id}')">${max ? '⭐' : TechTree.NODES[id].icon || '🔬'}</button>
+                <button class="tech-tree-node ${cls}" onclick="UI.openTechNode('${id}')">${max ? '✅' : TechTree.NODES[id].icon || '🔬'}</button>
                 <div class="tech-tree-label">${badge}</div>
             </div>`;
         };
@@ -1845,7 +1843,7 @@ const UI = {
             <div class="idet-wrap">
                 <div class="modal-card paper item-detail" data-tech-node="${id}">
                     <div class="idet-head">
-                        <div class="idet-icon">${max ? '⭐' : '🔬'}<span class="idet-star">${tierPos}/${TechTree.PER_TIER}</span></div>
+                        <div class="idet-icon">${max ? '✅' : '🔬'}<span class="idet-star">${tierPos}/${TechTree.PER_TIER}</span></div>
                         <div class="idet-title">
                             <div class="idet-name">${def.name} ${roman}</div>
                             <div class="idet-main">+${U.fmt(TechTree.pct(id))}% <small class="muted">(+${U.fmt(def.per)}%)</small></div>
