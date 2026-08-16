@@ -735,8 +735,8 @@ const UI = {
         const skillSummonN = this._skillSummonX5 ? 5 : 1;
         const capped = lvl >= 100;
         const summonProgHtml = `<div class="tech-node">
-            <div class="tech-node-head"><span class="muted">소환 레벨 Lv.${lvl}</span><span class="muted">${capped ? 'MAX' : `${S.summonCount % 5}/5`}</span></div>
-            <div class="tech-node-bar"><div style="width:${(capped ? 1 : (S.summonCount % 5) / 5) * 100}%"></div></div>
+            <div class="tech-node-head"><span class="muted">소환 레벨 Lv.${lvl}</span><span class="muted">${capped ? 'MAX' : `${(S.summonCount || 0) % 5}/5`}</span></div>
+            <div class="tech-node-bar"><div style="width:${(capped ? 1 : ((S.summonCount || 0) % 5) / 5) * 100}%"></div></div>
         </div>`;
 
         const listHtml = SKILL_DEFS.filter(d => S.skills[d.id]).map(d => {

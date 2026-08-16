@@ -6,7 +6,7 @@ const Skills = {
     MAX_ACTIVE: 3, // 장착 스킬 슬롯 수 (UI-SPEC: 스킬 버튼 3개, Pets.MAX_ACTIVE와 동일 패턴)
 
     // 소환 레벨: 누적 소환 수로 성장 (원본 고스트타운 레벨 대응)
-    summonLevel() { return Math.min(100, Math.floor(S.summonCount / 5) + 1); },
+    summonLevel() { return Math.min(100, Math.floor((S.summonCount || 0) / 5) + 1); },
 
     rates() {
         const r = skillRatesData[this.summonLevel()];
@@ -25,7 +25,7 @@ const Skills = {
         }
         const results = [];
         for (let i = 0; i < count; i++) {
-            S.summonCount++;
+            S.summonCount = (S.summonCount || 0) + 1;
             const rarity = U.weightedPick(this.rates());
             const pool = SKILL_DEFS.filter(d => d.rarity === rarity);
             const def = U.choice(pool);
