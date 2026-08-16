@@ -466,7 +466,7 @@ body {
 /* 원본(043224): 장착 장비는 박스 없이, 새 장비만 연회색 박스 + 아이콘 아래 빨간 '새로운!' (185 재채점) */
 .cmp-card-wrap.cur .cmp-card, .modal-card .cmp-card-wrap.cur .cmp-card { border: none; padding: .9rem .4rem .4rem; }
 .cmp-card-wrap.new .cmp-card, .modal-card .cmp-card-wrap.new .cmp-card { background: #ececec; border: none; }
-.cmp-newtag { display: block; margin-top: .2rem; color: var(--pp-red); font-weight: 900; font-size: .68rem; text-align: center; }
+.cmp-newtag { display: block; margin-top: .55rem; color: var(--pp-red); font-weight: 900; font-size: .68rem; text-align: center; }
 .cmp-card {
     min-width: 0; border: 3px solid var(--pp-line);
     border-radius: .8rem; padding: .9rem .7rem .7rem; display: flex; flex-direction: row;
