@@ -1604,6 +1604,7 @@ const UI = {
         this.toast(`✨ ${MOUNT_KR[name] || name} Lv.${S.mounts[name].level}!`);
         this._mountUpgradeMats = [];
         this.renderMountUpgrade();
+        this.openMounts(); // 재료로 소모된 마운트가 뒤에 깔린 목록에서도 즉시 사라지도록 (펫 플로우와 동일 패턴)
         this.renderTopBar();
     },
 
