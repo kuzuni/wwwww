@@ -25,6 +25,8 @@ const Combat = {
         this.hero.stats = Forge.heroStats();
         this.hero.maxHp = this.hero.stats.hp;
         this.hero.hp = this.hero.maxHp * U.clamp(ratio, 0, 1);
+        // "정보" 탭이 열려 있으면 갱신된 전투력 수치도 함께 반영 (renderMenu 자체 activeTab 가드로 안전)
+        UI.renderMenu();
     },
 
     // 종합 전투력 (상단바·PvP 리그 매칭 등에서 공용으로 참조)

@@ -841,6 +841,7 @@ const UI = {
 
     // ---- 메뉴 ----
     renderMenu() {
+        if (this.activeTab !== 'menu') return;
         const p = this.els.panels.menu;
         const st = Combat.hero.stats || {};
         p.innerHTML = `
