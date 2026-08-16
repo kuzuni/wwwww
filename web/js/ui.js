@@ -706,7 +706,7 @@ const UI = {
                 <button class="btn xs ${this._petSummonX5 ? 'primary' : ''}" onclick="UI.togglePetSummonX5()">x${petSummonN}</button>
                 <button class="btn big ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">
                     소환 x${petSummonN}<small>🥚 ${Pets.SUMMON_EGG_COST * petSummonN}</small></button>
-                <button class="btn xs info" onclick="UI.openPetRates()">ⓘ<small>Lv.${petLvl}</small></button>
+                <button class="btn xs info" onclick="UI.openSummonRates('pet')">ⓘ<small>Lv.${petLvl}</small></button>
             </div>
             <div class="summon-prog"><div style="width:${(petCapped ? 1 : ((S.petSummonCount || 0) % 5) / 5) * 100}%"></div>
                 <span>${petCapped ? 'MAX' : `${(S.petSummonCount || 0) % 5}/5`}</span></div>
@@ -714,19 +714,6 @@ const UI = {
                 <div class="hatch-row">${hatchHtml}</div>
                 ${Pets.canBuySlot() ? `<button class="btn xs slot-buy" onclick="UI.onBuyHatchSlot()">슬롯 +1<br>💎 ${Pets.slotCost()}</button>` : ''}
             </div>`;
-    },
-
-    // 펫 소환 확률 팝업 (UI-SPEC 48번 — 스킬과 같은 형식)
-    openPetRates() {
-        this.els.detailModal.innerHTML = `
-            <div class="idet-wrap">
-                <div class="modal-card paper">
-                    <h3>소환 확률 <small class="muted">Lv.${Pets.summonLevel()}</small></h3>
-                    <div class="prob-box">${this._petRatesHtml || ''}</div>
-                </div>
-                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
-            </div>`;
-        this.els.detailModal.classList.remove('hidden');
     },
 
     // 펫 상세 팝업 (UI-SPEC 54번): 고정 피해/체력 + 옵션 2줄 + [업그레이드][장착·해제]
@@ -929,24 +916,53 @@ const UI = {
                 <button class="btn xs ${this._skillSummonX5 ? 'primary' : ''}" onclick="UI.toggleSkillSummonX5()">x${skillSummonN}</button>
                 <button class="btn big ${Skills.canSummon(false, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(false)">
                     소환 x${skillSummonN}<small>🎫 ${Skills.SUMMON_TICKET_COST * skillSummonN}</small></button>
-                <button class="btn xs info" onclick="UI.openSummonRates()">ⓘ<small>Lv.${lvl}</small></button>
+                <button class="btn xs info" onclick="UI.openSummonRates('skill')">ⓘ<small>Lv.${lvl}</small></button>
             </div>
             <div class="summon-prog"><div style="width:${(capped ? 1 : ((S.summonCount || 0) % 5) / 5) * 100}%"></div>
                 <span>${capped ? 'MAX' : `${(S.summonCount || 0) % 5}/5`}</span></div>`;
         this._summonRatesHtml = ratesHtml;
     },
 
-    // 소환 확률 팝업 (UI-SPEC 48번 — 스킬·펫 공용)
-    openSummonRates() {
+    // 소환 확률 팝업 (UI-SPEC 48번 — 스킬·펫 공용). 원본: ◀▶ 레벨 이동 + 등급별 색 막대 + 진행 게이지
+    _ratesKind: 'skill', _ratesLevel: null,
+    openSummonRates(kind) {
+        this._ratesKind = kind || this._ratesKind;
+        this._ratesLevel = null; // 현재 레벨부터
+        this.renderSummonRates();
+        this.els.detailModal.classList.remove('hidden');
+    },
+    stepSummonRates(d) {
+        const mod = this._ratesKind === 'pet' ? Pets : Skills;
+        const cur = this._ratesLevel === null ? mod.summonLevel() : this._ratesLevel;
+        this._ratesLevel = U.clamp(cur + d, 1, 100);
+        this.renderSummonRates();
+    },
+    renderSummonRates() {
+        const isPet = this._ratesKind === 'pet';
+        const mod = isPet ? Pets : Skills;
+        const lvl = this._ratesLevel === null ? mod.summonLevel() : this._ratesLevel;
+        const rates = mod.rates(lvl);
+        const barsHtml = RARITIES.map(r => `
+            <div class="rate-bar" style="--rc:${RARITY_CSS[r]}">
+                <span class="rate-name">${RARITY_KR[r]} ⭐</span>
+                <span class="rate-pct">${(rates[r] || 0).toFixed(2)}%</span>
+            </div>`).join('');
+        const cnt = (isPet ? S.petSummonCount : S.summonCount) || 0;
+        const capped = mod.summonLevel() >= 100;
         this.els.detailModal.innerHTML = `
             <div class="idet-wrap">
-                <div class="modal-card paper">
-                    <h3>소환 확률 <small class="muted">Lv.${Skills.summonLevel()}</small></h3>
-                    <div class="prob-box">${this._summonRatesHtml || ''}</div>
+                <div class="modal-card paper rates-card">
+                    <div class="rates-head">
+                        <button class="tri-btn" onclick="UI.stepSummonRates(-1)">◀</button>
+                        <div><h3>레벨 ${lvl}</h3><div class="rates-sub">소환 확률</div></div>
+                        <button class="tri-btn" onclick="UI.stepSummonRates(1)">▶</button>
+                    </div>
+                    <div class="rate-list">${barsHtml}</div>
+                    <p class="rates-tip">${isPet ? '알을' : '티켓을'} 소환하여 레벨 업하고 소환 확률을 높이세요!</p>
+                    <div class="rates-prog"><div style="width:${(capped ? 1 : (cnt % 5) / 5) * 100}%"></div><span>${capped ? 'MAX' : `${cnt % 5}/5`}</span></div>
                 </div>
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>
             </div>`;
-        this.els.detailModal.classList.remove('hidden');
     },
 
     // 스킬 상세 팝업 (UI-SPEC 46번)

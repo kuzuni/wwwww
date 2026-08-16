@@ -8,8 +8,8 @@ const Skills = {
     // 소환 레벨: 누적 소환 수로 성장 (원본 고스트타운 레벨 대응)
     summonLevel() { return Math.min(100, Math.floor((S.summonCount || 0) / 5) + 1); },
 
-    rates() {
-        const r = skillRatesData[this.summonLevel()];
+    rates(level) {
+        const r = skillRatesData[U.clamp(level || this.summonLevel(), 1, 100)];
         return { common: r[0], rare: r[1], epic: r[2], legendary: r[3], ultimate: r[4], mythic: r[5] };
     },
 

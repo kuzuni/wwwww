@@ -36,8 +36,8 @@ const Pets = {
     // 원본 펫 전용 소환 확률표 미확보 → 스킬 소환 확률 곡선(skillRatesData)을 재사용해 자체 설계
     SUMMON_EGG_COST: 100,
     summonLevel() { return Math.min(100, Math.floor((S.petSummonCount || 0) / 5) + 1); },
-    rates() {
-        const r = skillRatesData[this.summonLevel()];
+    rates(level) {
+        const r = skillRatesData[U.clamp(level || this.summonLevel(), 1, 100)];
         return { common: r[0], rare: r[1], epic: r[2], legendary: r[3], ultimate: r[4], mythic: r[5] };
     },
     // count번 연속 소환(UI-SPEC "소환 x5" 배치, 스킬과 동일 패턴) — 비용·보관함 여유를 선결제로 한 번에 확인, 결과는 배열로 반환

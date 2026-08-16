@@ -21,9 +21,10 @@ const AGE_ICON = {
 };
 
 const RARITIES = ['common', 'rare', 'epic', 'legendary', 'ultimate', 'mythic'];
-const RARITY_KR = { common: '일반', rare: '희귀', epic: '영웅', legendary: '전설', ultimate: '궁극', mythic: '신화' };
-const RARITY_CSS = { common: '#b0bec5', rare: '#66bb6a', epic: '#42a5f5', legendary: '#ab47bc', ultimate: '#ffa726', mythic: '#ef5350' };
-const RARITY_HEX = { common: 0xb0bec5, rare: 0x66bb6a, epic: 0x42a5f5, legendary: 0xab47bc, ultimate: 0xffa726, mythic: 0xef5350 };
+// 등급 이름·색은 원본 소환 확률 팝업 표기 그대로 (회/파/초/노/빨/보)
+const RARITY_KR = { common: '일반', rare: '희귀한', epic: '서사시', legendary: '전설', ultimate: '궁극의', mythic: '신화' };
+const RARITY_CSS = { common: '#d6d6d6', rare: '#29b6f6', epic: '#3ddc50', legendary: '#ffe93d', ultimate: '#ff3b30', mythic: '#b23dff' };
+const RARITY_HEX = { common: 0xd6d6d6, rare: 0x29b6f6, epic: 0x3ddc50, legendary: 0xffe93d, ultimate: 0xff3b30, mythic: 0xb23dff };
 const RARITY_MULT = { common: 1, rare: 1.5, epic: 2.2, legendary: 3.2, ultimate: 4.6, mythic: 6.5 };
 
 // 장비 8부위. 무기/투구/갑옷은 외형에 반영(원본 페이퍼돌 방식)
