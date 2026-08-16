@@ -3785,9 +3785,10 @@ const Scene3D = {
                         m.g.rotation.z = Math.sin(ph) * (m.anim.bleg ? 0.03 : 0.08); // 롤 축소 — 다리 측면 벌어짐 오독 방지
                         if (m.anim.bleg) m.anim.bleg.forEach((L, j) => {
                             const lp = ph + j * Math.PI;
-                            L.hip.rotation.x = Math.sin(lp) * 0.8;
-                            // 상시 미세 굽힘 + 스윙 다리 최대 72° 접힘(발꿈치 차올림) — 사용자 재검수: 정지 프레임에서도 접힘 판독
-                            L.knee.rotation.x = -0.15 - Math.max(0, -Math.sin(lp + 0.7)) * 1.1;
+                            // 2차 고조파 가산 — 전후 스윙 비대칭(전방 빠르게·후방 느리게)으로 반주기 미러 중복 프레임 제거
+                            L.hip.rotation.x = Math.sin(lp) * 0.8 + Math.sin(2 * lp) * 0.12;
+                            // 코사인 벨 무릎: 스윙 다리가 몸 아래를 지날 때 최대 74° 접힘(발꿈치 차올림), 지지 구간은 미세 굽힘 — 정지 프레임 판독 (사용자 재검수)
+                            L.knee.rotation.x = -0.15 - Math.pow(Math.max(0, Math.cos(lp - 0.35)), 1.4) * 1.15;
                         });
                         if (m.anim.barm) m.anim.barm.forEach((A, j) => {
                             const ap = ph + j * Math.PI + Math.PI; // 같은 쪽 다리와 역위상

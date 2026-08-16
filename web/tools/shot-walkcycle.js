@@ -74,9 +74,12 @@ const OUT = process.argv[2] || __dirname;
             for (const a of Scene3D.anims) { try { a.fn && a.fn(1); a.onDone && a.onDone(); } catch (err) {} }
             Scene3D.anims = []; m.g.position.y = 0; m.g.userData.landed = true;
         }, kind);
+        // 카메라는 세트당 1회만 고정 — 프레임별 재피팅이 몸통 방향 요동으로 오독됨 (비평가 지적)
+        await page.evaluate(t => { window.__clk = t; }, 10);
+        await page.waitForTimeout(120);
+        await fitObj('Scene3D.enemyMap.get(window.__eid).g', 1.15, 0.55, -0.05); // 얼굴 쪽 3/4 — 근·원 다리 구분 + 무릎 각 판독
         for (let i = 0; i < 8; i++) {
             await page.evaluate(t => { window.__clk = t; }, 10 + i * 0.1);
-            await fitObj('Scene3D.enemyMap.get(window.__eid).g', 1.05, 0.82, -0.05); // 3/4 측면 — 근·원 다리가 구분돼 미러 포즈 중복 오독 방지
             await page.waitForTimeout(120);
             await page.screenshot({ path: `${OUT}/walk-${name}-f${i}.png` });
         }
