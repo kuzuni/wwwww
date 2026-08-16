@@ -76,7 +76,8 @@
 - [x] 죽은 코드 정리 — `UI.toastSkill(def)` (아무 곳에서도 호출되지 않는 미사용 헬퍼) 제거
 
 ### 🔍 전체 코드리뷰 폴리싱 2차 (2026-08-16, 펫 GLB 항목이 환경 제약으로 영구 차단돼 종료 조건에 준해 추가 — 최대 3개)
-- [ ] **해머 중복 지급 버그**: `Combat.tick`(web/js/combat.js:109)이 매 100ms 틱마다 `S.hammers += (OFFLINE_HAMMER_PER_MIN/60) * TechTree.offlineGainMult() * dt`로 활성 플레이 중에도 오프라인과 동일한 수급률로 해머를 지급하지만 `S.lastOfflineClaim`은 갱신하지 않는다. 반면 `claimOfflineNow()`/`applyOffline()`(web/js/state.js:101-121)은 `elapsed = now - S.lastOfflineClaim` 전체 구간에 대해 해머를 추가 지급한다. 결과: 플레이어가 게임을 켜둔 채 활동하다가 화면 좌상단 "💤오프라인" 버튼을 누르면 같은 시간 구간의 해머를 두 번 받는다(코인은 활성 틱 지급원이 없어 영향 없음). 수정: `Combat.tick`에서 해머 지급과 함께 `S.lastOfflineClaim += dt * 1000`로 같이 전진시켜 활성 재생분만큼 오프라인 계산 구간에서 자연스럽게 빠지도록 한다.
+- [x] **해머 중복 지급 버그**: `Combat.tick`(web/js/combat.js:109)이 매 100ms 틱마다 `S.hammers += (OFFLINE_HAMMER_PER_MIN/60) * TechTree.offlineGainMult() * dt`로 활성 플레이 중에도 오프라인과 동일한 수급률로 해머를 지급하지만 `S.lastOfflineClaim`은 갱신하지 않는다. 반면 `claimOfflineNow()`/`applyOffline()`(web/js/state.js:101-121)은 `elapsed = now - S.lastOfflineClaim` 전체 구간에 대해 해머를 추가 지급한다. 결과: 플레이어가 게임을 켜둔 채 활동하다가 화면 좌상단 "💤오프라인" 버튼을 누르면 같은 시간 구간의 해머를 두 번 받는다(코인은 활성 틱 지급원이 없어 영향 없음). 수정: `Combat.tick`에서 해머 지급과 함께 `S.lastOfflineClaim += dt * 1000`로 같이 전진시켜 활성 재생분만큼 오프라인 계산 구간에서 자연스럽게 빠지도록 한다.
+  - 진행 메모: 수정 후 산술 시뮬레이션(10초 활성 플레이 후 즉시 오프라인 보상 버튼 클릭)으로 검증 — 수정 전 0.333개(중복), 수정 후 0.167개(정상, 클레임분 0)로 확인.
 - [ ] **죽은 코드 정리**: `globalStage()`(web/js/state.js:125), `TechTree.tierOf()`(web/js/techtree.js:43), `Pass.claimAll()`(web/js/pass.js:42) 모두 정의만 되어 있고 어디서도 호출되지 않음(grep 확인 완료). `TechTree.cost()`/`time()`(techtree.js:54-68)이 `tierOf()`와 동일한 티어 계산식을 인라인으로 중복 구현 중이므로, `tierOf` 삭제 시 해당 중복도 함께 정리(또는 `cost`/`time`이 `tierOf`를 재사용하도록 변경). `globalStage`/`claimAll`은 사용처가 없으므로 삭제.
 - [ ] **부화장 기본 슬롯 수 스펙 불일치**: `web/js/pets.js:3` `BASE_HATCH_SLOTS: 2`이나 `web/ref/UI-SPEC.md:53`은 원본 스크린샷 기준 "최하단 부화장: 슬롯 3개"로 명시. `BASE_HATCH_SLOTS`를 3으로 수정.
 

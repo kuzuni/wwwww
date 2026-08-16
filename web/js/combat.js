@@ -107,6 +107,9 @@ const Combat = {
 
         // 액티브 해머 수급 (오프라인과 동일 배율: 분당 1 × 기술트리 배율, 소수점 연속 누적)
         S.hammers += (OFFLINE_HAMMER_PER_MIN / 60) * TechTree.offlineGainMult() * dt;
+        // 오프라인 보상 계산 구간(lastOfflineClaim~now)과 겹치지 않도록 활성 지급분만큼 함께 전진시킴
+        // (안 하면 활성 플레이 중 "오프라인 보상" 버튼을 눌렀을 때 같은 시간 구간의 해머를 두 번 받게 됨)
+        S.lastOfflineClaim += dt * 1000;
 
         // 체력 자연 회복: 기본 1%/s + 서브스탯 '체력 재생' 추가분
         const regenPct = 0.01 + (this.hero.stats ? this.hero.stats.hpRegen / 100 : 0);
