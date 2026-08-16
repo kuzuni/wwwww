@@ -1219,7 +1219,8 @@ body {
     padding: .28rem 1.2rem; font-size: .84rem; font-weight: 900; color: #17181a;
     text-align: center; align-self: center; min-width: 78%;
 }
-.sk-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .75rem .4rem; }
+/* 원본(042340/042356) 실측: 오브/타일 지름 ≈12.5% W, 그리드 좌우 인셋 — 풀블리드 금지 (185 비평가) */
+.sk-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .75rem .5rem; padding: 0 9%; }
 .sk-cell { background: none; border: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .1rem; }
 .sk-orb {
     position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%;
@@ -1252,6 +1253,7 @@ body {
     position: relative; display: flex; align-items: center; gap: .5rem; margin-top: auto;
     background: #24262c; border: 3px solid var(--pp-line); border-radius: .6rem;
     padding: .48rem .5rem; box-shadow: 0 .22rem 0 rgba(0,0,0,.35);
+    width: 74%; align-self: center; /* 원본 장착됨 바 ≈70% W (풀블리드 아님) */
 }
 .equipped-label {
     position: absolute; top: -.45rem; left: -.55rem; z-index: 1;
@@ -1269,7 +1271,7 @@ body {
 .sk-mini small { position: absolute; bottom: -.35rem; font-size: .5rem; font-weight: 800; color: var(--pp-ink); }
 .row.center { justify-content: center; }
 .summon-bar { display: flex; align-items: center; justify-content: center; gap: .5rem; }
-.panel .btn.big { font-size: 1.15rem; padding: .3rem 1.4rem; min-height: 3.8rem; } /* 소환 바 원본(shot-042356) 높이≈화면 7% */
+.panel .btn.big { font-size: 1.05rem; padding: .3rem .6rem; min-height: 3.8rem; flex: 0 1 38%; } /* 소환 바 원본(shot-042356): 높이≈7% H, 폭≈28~35% W — 풀폭 금지 */
 .panel .btn.xs { font-size: .72rem; padding: .3rem .5rem; line-height: 1.1; }
 .panel .btn.xs.info { background: #fff; }
 .summon-prog {
@@ -1351,30 +1353,32 @@ body {
 .pet-tile.mat-locked .tile-face { opacity: .5; }
 .petup-divider { height: 2px; background: #dcdcdc; margin: 0 0 .55rem; }
 .mat-grid.pet-grid { gap: .75rem .4rem; }
+/* 부화장 원본(042356) ≈19% H — 대형 행잉 램프가 패널을 채움 */
 .hatchery {
     display: flex; align-items: center; gap: .5rem; margin: 0 -.8rem -.0rem;
-    padding: .6rem .8rem; background: #1f2740; border-top: 3px solid var(--pp-line);
+    padding: .8rem .8rem; background: #1f2740; border-top: 3px solid var(--pp-line);
+    min-height: 10.5rem;
 }
 .hatch-row { flex: 1; display: flex; gap: .45rem; }
 /* 원본(shot-042356): 램프 아래 노란 빛 원뿔 + 알 — 박스 없는 스포트라이트 연출 */
 .hatch-cell {
     flex: 1; min-width: 0; position: relative; background: none; border: none;
-    padding: 2.1rem .2rem .1rem; display: flex; flex-direction: column; align-items: center; gap: .15rem;
+    padding: 3.6rem .2rem .1rem; display: flex; flex-direction: column; align-items: center; gap: .15rem;
 }
 .hatch-lamp {
     position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-    width: 1.5rem; height: .55rem; background: #23252b; border-radius: 0 0 .5rem .5rem;
+    width: 2.4rem; height: .8rem; background: #23252b; border-radius: 0 0 .6rem .6rem;
 }
 .hatch-lamp::before { content: ''; position: absolute; top: -.5rem; left: 50%; transform: translateX(-50%); width: .18rem; height: .5rem; background: #23252b; }
 .hatch-lamp::after { content: ''; position: absolute; bottom: -.28rem; left: 50%; transform: translateX(-50%); width: .5rem; height: .28rem; background: #ffe95c; border-radius: 0 0 .3rem .3rem; }
 .hatch-cone {
-    position: absolute; top: .5rem; left: 50%; transform: translateX(-50%);
-    width: 3.4rem; height: 3.3rem; pointer-events: none;
+    position: absolute; top: .7rem; left: 50%; transform: translateX(-50%);
+    width: 5rem; height: 5.4rem; pointer-events: none;
     background: linear-gradient(180deg, rgba(255,235,80,.9), rgba(255,235,80,.08));
     clip-path: polygon(38% 0, 62% 0, 100% 100%, 0 100%);
 }
 .hatch-cone.dim { background: linear-gradient(180deg, rgba(160,170,200,.35), rgba(160,170,200,.03)); }
-.hatch-cell.empty { color: #8b96b5; font-size: .65rem; justify-content: flex-end; min-height: 4.6rem; }
+.hatch-cell.empty { color: #8b96b5; font-size: .65rem; justify-content: flex-end; min-height: 8.6rem; }
 .hatch-hint { position: relative; z-index: 1; }
 .hatch-cell .hatch-egg { position: relative; z-index: 1; font-size: 1.7rem; margin-top: .5rem; filter: drop-shadow(0 .15rem .12rem rgba(0,0,0,.45)); }
 .hatch-cell .hatch-time { position: relative; z-index: 1; font-size: .62rem; font-weight: 900; color: #fff; white-space: nowrap; }
