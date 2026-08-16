@@ -225,9 +225,10 @@ body {
 .row { display: flex; gap: .45rem; align-items: stretch; margin: .3rem 0; }
 .row.wrap { flex-wrap: wrap; }
 
+/* 원본 실측(shot-042120/043224): 버튼이 화면 대비 큼 — 기본 .88rem, 팝업 하단 액션은 별도 확대 (사용자 지시 '버튼 크기 원본 비율') */
 .btn {
     background: #2d333b; color: #eceff1; border: 1px solid #444c56; border-radius: .55rem;
-    padding: .5rem .8rem; font-size: .82rem; font-weight: 700; cursor: pointer; flex: 1;
+    padding: .55rem .8rem; font-size: .88rem; font-weight: 700; cursor: pointer; flex: 1;
 }
 .btn small { display: block; font-weight: 400; font-size: .7rem; color: #90a4ae; }
 .btn.primary { background: #1f4a2c; border-color: #2ea043; }
@@ -237,6 +238,7 @@ body {
 .btn.on { background: #4a3a10; border-color: #ffd54f; color: #ffd54f; }
 .btn.disabled { opacity: .45; }
 .btn.sm { flex: 0 0 auto; padding: .3rem .6rem; font-size: .72rem; }
+#equip-sheet .btn.sm { padding: .36rem .7rem; font-size: .8rem; } /* 대장간/자동 버튼 — 원본 높이≈화면 5% */
 
 #panel-debug input[type=number] {
     background: #22272e; color: #eceff1; border: 1px solid #444c56; border-radius: .55rem;
@@ -1047,6 +1049,10 @@ body {
     background: var(--pp-gray); color: #7b7b7b; box-shadow: inset 0 -.22rem 0 var(--pp-gray-dk); opacity: .75;
 }
 .modal-card .btn:active, .panel .btn:active, #equip-sheet .btn:active { transform: translateY(.1rem); box-shadow: none; }
+/* 팝업 하단 액션 버튼 확대 — 원본(shot-043224 실측: 높이≈화면 6.9%, 판매/장착 2분할 큰 입체 버튼) */
+.modal-card > .row .btn:not(.sm):not(.xs) { min-height: 2.9rem; font-size: 1rem; }
+#craft-modal .row .btn { min-height: 4.2rem; font-size: 1.22rem; line-height: 1.15; border-radius: .85rem; }
+#craft-modal .row .btn small { font-size: .74rem; }
 
 /* ---- 하단 시트(패널): 원본은 흰 전체화면 ---- */
 .panel {
@@ -1246,7 +1252,7 @@ body {
 .sk-mini small { position: absolute; bottom: -.35rem; font-size: .5rem; font-weight: 800; color: var(--pp-ink); }
 .row.center { justify-content: center; }
 .summon-bar { display: flex; align-items: center; justify-content: center; gap: .5rem; }
-.panel .btn.big { font-size: 1rem; padding: .5rem 1.4rem; }
+.panel .btn.big { font-size: 1.15rem; padding: .3rem 1.4rem; min-height: 3.8rem; } /* 소환 바 원본(shot-042356) 높이≈화면 7% */
 .panel .btn.xs { font-size: .72rem; padding: .3rem .5rem; line-height: 1.1; }
 .panel .btn.xs.info { background: #fff; }
 .summon-prog {
@@ -1507,7 +1513,7 @@ body {
 }
 .fi-skip:active { transform: translateY(.1rem); box-shadow: none; }
 .fi-skip-gem { color: #e11d48; }
-.fi-upgrade { display: block; margin: .7rem auto 0; padding: .5rem 1.4rem; font-size: .95rem; }
+.fi-upgrade { display: block; margin: .7rem auto 0; padding: .65rem 1.5rem; font-size: 1.05rem; }
 .fi-prog #upg-fill { background: var(--pp-blue); }
 
 /* ===== 스킬/펫 소환 바 (shot-042340 원본 대조 재작업) ===== */
