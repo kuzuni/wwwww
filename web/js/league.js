@@ -68,7 +68,7 @@ const League = {
 
     // 나를 포함한 전체 랭킹(점수 내림차순)
     board() {
-        const me = { name: S.nickname || '용사', avatar: '🛡️', cp: Combat.combatPower(), score: S.league.score, server: '나', isMe: true };
+        const me = { name: S.nickname || '용사', avatar: S.avatarEmoji || '🛡️', cp: Combat.combatPower(), score: S.league.score, server: '나', isMe: true };
         return [...S.league.bots, me].sort((a, b) => b.score - a.score);
     },
     myRank() { return this.board().findIndex(e => e.isMe) + 1; },
