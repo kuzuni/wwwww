@@ -1634,10 +1634,11 @@ const Scene3D = {
                 new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 0.9 }));
             strip.position.set(0.03, 0.38, 0.02);
             g.add(strip);
-        } else if (ageIdx >= 7) { // 멀티버스 이후: 에너지 링
+        } else if (ageIdx >= 7) { // 멀티버스 이후: 에너지 링 — 무기 실높이에 맞춰 자루에 감김 (짧은 무기에서 허공 부유 금지, 비평가 지적)
+            const wTop = new THREE.Box3().setFromObject(g).max.y;
             const ring = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.015, 6, 14),
                 new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 1 }));
-            ring.position.y = 0.72;
+            ring.position.y = Math.min(0.72, wTop * 0.62);
             g.add(ring);
             mat.emissiveIntensity = 0.7;
         }
@@ -1655,12 +1656,13 @@ const Scene3D = {
             trim.position.y = 0.12;
             g.add(trim);
         }
-        if (rIdx >= 3) { // 전설+: 떠다니는 오브
+        if (rIdx >= 3) { // 전설+: 떠다니는 오브 — 무기 길이에 비례한 높이 (단검·투척에서 머리 옆 부유 금지)
             const orbCount = rIdx - 2; // 전설1, 궁극2, 신화3
+            const orbBase = Math.min(0.45, new THREE.Box3().setFromObject(g).max.y * 0.5);
             for (let i = 0; i < orbCount; i++) {
                 const orb = new THREE.Mesh(new THREE.SphereGeometry(0.035, 7, 6),
                     new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 1 }));
-                orb.position.set(Math.cos(i * 2.1) * 0.16, 0.45 + i * 0.14, Math.sin(i * 2.1) * 0.12);
+                orb.position.set(Math.cos(i * 2.1) * 0.16, orbBase + i * 0.14, Math.sin(i * 2.1) * 0.12);
                 g.add(orb);
             }
         }
@@ -1675,16 +1677,16 @@ const Scene3D = {
     // 무기별 파지: weaponG 로컬 회전(손이 자루를 감싸는 각) + 다관절 거치 자세(본별 rx 가산) + 활계는 왼손 파지 (사용자 지시: 무기 쥔 모양 차별화)
     WEAPON_GRIP: {
         sword:    { rot: [0.14, 0, -0.08], pose: { elbowR: -0.3 } },                       // 옆으로 자연스럽게 늘어뜨림, 날 살짝 전방
-        dagger:   { rot: [0.22, 0, -0.1], pose: { elbowR: -0.5 } },                        // 팔꿈치 굽혀 세워 들기
-        axe:      { rot: [-0.72, 0, -0.38], pose: { elbowR: -0.55 } },                     // 대각 뒤로 기울인 레디 캐리 (안쪽 기울임은 게임 카메라에서 무기가 몸 뒤로 숨음)
-        hammer:   { rot: [-0.72, 0, -0.38], pose: { elbowR: -0.55 } },                     // 대각 뒤로 기울인 레디 캐리 (안쪽 기울임은 게임 카메라에서 무기가 몸 뒤로 숨음)
+        dagger:   { rot: [0.22, 0, -0.1], pos: [0, -0.04, 0], pose: { elbowR: -0.5 } },    // 팔꿈치 굽혀 세워 들기, 자루를 주먹 속으로
+        axe:      { rot: [0.95, 0, -0.15], pose: { elbowR: -0.85 } },                      // 어깨 걸침 레디 캐리 — 자루 뒤로 기울여 헤드가 어깨 뒤·위 (수평 돌출 금지)
+        hammer:   { rot: [0.95, 0, -0.15], pose: { elbowR: -0.85 } },                      // 어깨 걸침 레디 캐리 — 자루 뒤로 기울여 헤드가 어깨 뒤·위 (수평 돌출 금지)
         club:     { rot: [0.14, 0, -0.08], pose: { elbowR: -0.3 } },
-        spear:    { rot: [0, 0, 0], pose: { elbowR: -0.3 } },                              // 수직으로 세워 들기 (기수 자세)
-        staff:    { rot: [0, 0, 0], pose: { elbowR: -0.28 } },                             // 지면 짚듯 세워 들기
-        bow:      { hand: 'L', scale: 0.6, rot: [1.25, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } }, // 왼손 파지(팔 상승분 상쇄해 림이 수직) + 오른손 시위 대기. 몸을 감싸던 과대 스케일 축소
-        crossbow: { hand: 'L', scale: 0.6, rot: [2.35, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } }, // 눕혀서 활대가 전방을 향하게 (수직 세움 금지)
+        spear:    { rot: [0.65, 0, 0], pose: { elbowR: -0.3 } },                           // 수직으로 세워 들기 (기수 자세) — restX·팔꿈치 전방 기울기 상쇄
+        staff:    { rot: [0.58, 0, 0], pose: { elbowR: -0.28 } },                          // 지면 짚듯 세워 들기 — restX·팔꿈치 전방 기울기 상쇄
+        bow:      { hand: 'L', scale: 0.6, rot: [0.95, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } }, // 왼손 파지(팔 상승분 상쇄해 림이 수직) + 오른손 시위 대기. 몸을 감싸던 과대 스케일 축소
+        crossbow: { hand: 'L', scale: 0.6, rot: [0.75, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } }, // 눕혀서 활대가 전방을 향하게 (수직 세움 금지)
         gun:      { rot: [0, 0, 0], pose: { shoulderR: -0.35, elbowR: 0.2 } },             // 팔을 수평까지 펴서 총구 전방 겨눔 (restX 가산 + Idle 팔꿈치 굽힘 상쇄)
-        thrown:   { rot: [0.55, 0, 0], pose: { shoulderR: -1.75, elbowR: -0.9 } },         // 귀 옆 코킹 — 헤드가 위·뒤, 던질 준비
+        thrown:   { rot: [1.95, 0, 0], pose: { shoulderR: -1.45, elbowR: -0.5 } },         // 귀 옆 코킹 — 팔 상승분을 상쇄해 헤드가 위·뒤, 던질 준비
     },
     applyWeaponGrip() {
         const grip = this.WEAPON_GRIP[this.wtypeId] || this.WEAPON_GRIP.sword;
@@ -1693,11 +1695,14 @@ const Scene3D = {
             if (this.weaponG.parent !== target) target.add(this.weaponG); // 활계 왼손 이관 (bow 클립도 왼팔을 드는 구성)
             this.heroRig.restPose = grip.pose || null;
             if (grip.hand === 'L') this.heroRig.restX = 0; // 조준 자세는 restPose가 양팔을 정의 — 오른어깨 이중 가산 방지
+            if (this.heroRig.shield) this.heroRig.shield.visible = grip.hand !== 'L'; // 활·석궁은 왼손 파지 — 같은 팔의 방패와 겹침 방지
         }
-        this.weaponG.position.set(0, 0, 0);
+        const gp = grip.pos || [0, 0, 0];
+        this.weaponG.position.set(gp[0], gp[1], gp[2]);
         this.weaponG.rotation.set(grip.rot[0], grip.rot[1], grip.rot[2]);
         this.weaponG.scale.setScalar(1.22 * (grip.scale || 1)); // 기본 존재감 스케일 × 무기별 보정 (활계 과대 축소)
         this._gripRot = grip.rot;
+        this._gripPos = gp;
     },
 
     refreshHeroEquip(withFlash) {
@@ -3028,7 +3033,8 @@ const Scene3D = {
             this.armR.rotation.set(rest, 0, 0);
             const gr = this._gripRot || [0, 0, 0];
             this.weaponG.rotation.set(gr[0], gr[1], gr[2]); // 무기별 파지 각 복원 (어깨 걸침 등)
-            this.weaponG.position.z = 0;
+            const gp = this._gripPos || [0, 0, 0];
+            this.weaponG.position.set(gp[0], gp[1], gp[2]);
             this.weaponG.visible = true;
         };
         const dash = k => {
@@ -3066,7 +3072,8 @@ const Scene3D = {
                 this._attacking = false; this._trailOn = false; this.heroG.position.x = fromX;
                 const gr = this._gripRot || [0, 0, 0];
                 this.weaponG.rotation.set(gr[0], gr[1], gr[2]); // 무기별 파지 각 복원
-                this.weaponG.position.z = 0;
+                const gp = this._gripPos || [0, 0, 0];
+                this.weaponG.position.set(gp[0], gp[1], gp[2]);
             };
             if (!wt || wt.kind === 'melee') {
                 this.trailStart(wcolor); // 스윙 궤적 트레일 (모션 판독성)
