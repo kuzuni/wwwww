@@ -346,9 +346,6 @@ const mountBoosts = {
     common: 10, rare: 40, epic: 80, legendary: 150, ultimate: 250, mythic: 400
 };
 
-// 등급 해금 마운트레벨 (표시용 — 확률표에 이미 반영되어 있음)
-const mountUnlockLevels = { common: 1, rare: 2, epic: 10, legendary: 18, ultimate: 26, mythic: 34 };
-
 // 마운트 이름 목록 (등급별)
 const mountNames = {
     common: ['Brown Leaf', 'Lily Leaf', 'Lily Pad'],
