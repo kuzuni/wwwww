@@ -19,6 +19,21 @@ const MUSIC_MELODY = (() => {
     return m;
 })();
 
+// ---- 보스전 변주: 템포를 올리고 A단조 쪽(i-VI-III-V)으로 틀어 긴장감을 더함 ----
+const MUSIC_BPM_BOSS = 112;
+const MUSIC_PROGRESSION_BOSS = [
+    { bass: 57, pad: [69, 72, 76] }, // Am (i)
+    { bass: 53, pad: [65, 69, 72] }, // F  (VI)
+    { bass: 48, pad: [60, 64, 67] }, // C  (III)
+    { bass: 52, pad: [64, 68, 71] }, // E  (V, 장3도로 긴장 부여)
+];
+const MUSIC_MELODY_BOSS = (() => {
+    const m = new Array(32).fill(0);
+    const notes = { 0: 81, 3: 79, 6: 76, 8: 79, 12: 81, 16: 84, 19: 81, 22: 79, 24: 76, 28: 79, 30: 76 };
+    for (const k in notes) m[k] = notes[k];
+    return m;
+})();
+
 const SFX = {
     ctx: null,
     master: null,
@@ -115,7 +130,15 @@ const SFX = {
     _musicStep: 0,
     _musicNextTime: 0,
     _musicStepDur: 0,
+    musicMode: 'normal',        // 'normal' | 'boss' — Combat이 보스 웨이브 시작/종료 시 전환
+    _musicPendingMode: null,    // 코드 전환 경계에서만 실제 반영(마디 중간에 뚝 끊기지 않게)
     get musicEnabled() { return !S || S.musicOn !== false; },
+
+    // 보스전 진입/종료 시 Combat이 호출 — 즉시 바뀌지 않고 다음 코드 전환 시점에 자연스럽게 갈아탐
+    setMusicMode(mode) {
+        if (mode !== this.musicMode) this._musicPendingMode = mode;
+        else this._musicPendingMode = null;
+    },
 
     startMusic() {
         if (this.musicTimer || !this.musicEnabled) return;
@@ -126,6 +149,8 @@ const SFX = {
             this.musicGain.gain.value = 0.16; // 마스터 음악 버스(스펙: 0.1~0.2)
             this.musicGain.connect(ctx.destination);
         }
+        this.musicMode = 'normal';
+        this._musicPendingMode = null;
         this._musicStep = 0;
         this._musicStepDur = 60 / MUSIC_BPM / 4; // 16분음표 길이(초)
         this._musicNextTime = ctx.currentTime + 0.05;
@@ -157,25 +182,52 @@ const SFX = {
     },
 
     _musicScheduleStep(step, t0) {
-        const barStep = step % MUSIC_STEPS_PER_BAR;
         const chordSteps = MUSIC_BARS_PER_CHORD * MUSIC_STEPS_PER_BAR;
-        const chord = MUSIC_PROGRESSION[Math.floor(step / chordSteps) % MUSIC_PROGRESSION.length];
-        // 베이스: 마디 1·3박에 스타카토로
-        if (barStep === 0 || barStep === 8) {
-            this._musicOsc(this._noteFreq(chord.bass), 0.5, t0, { type: 'triangle', gain: 0.5, attack: 0.008 });
+        // 모드 전환은 코드 구간 경계에서만 반영 — 곡 중간에 뚝 끊기지 않음
+        if (step % chordSteps === 0 && this._musicPendingMode) {
+            if (this._musicPendingMode !== this.musicMode) {
+                this.musicMode = this._musicPendingMode;
+                this._musicStepDur = 60 / (this.musicMode === 'boss' ? MUSIC_BPM_BOSS : MUSIC_BPM) / 4;
+            }
+            this._musicPendingMode = null;
         }
+        const isBoss = this.musicMode === 'boss';
+        const PROG = isBoss ? MUSIC_PROGRESSION_BOSS : MUSIC_PROGRESSION;
+        const MEL = isBoss ? MUSIC_MELODY_BOSS : MUSIC_MELODY;
+        const barStep = step % MUSIC_STEPS_PER_BAR;
+        const chord = PROG[Math.floor(step / chordSteps) % PROG.length];
+        // 베이스: 마디 1·3박에 스타카토로 (보스전은 1박에 저음 킥 강조 추가)
+        if (barStep === 0 || barStep === 8) {
+            this._musicOsc(this._noteFreq(chord.bass), 0.5, t0, { type: 'triangle', gain: isBoss ? 0.6 : 0.5, attack: 0.008 });
+        }
+        if (isBoss && barStep === 0) this._musicKick(t0);
         // 코드 패드: 코드가 바뀌는 시점(2마디)마다 한 번, 구간 전체를 채우는 길이로 스웰
         if (step % chordSteps === 0) {
             const dur = chordSteps * this._musicStepDur * 1.03;
             for (const midi of chord.pad) {
-                this._musicOsc(this._noteFreq(midi), dur, t0, { type: 'sine', gain: 0.3, attack: dur * 0.3 });
+                this._musicOsc(this._noteFreq(midi), dur, t0, { type: 'sine', gain: isBoss ? 0.34 : 0.3, attack: dur * 0.3 });
             }
         }
-        // 멜로디: 2마디 펜타토닉 모티프(코드 진행 4구간에 반복 — 코드가 바뀌어 매번 다르게 들림)
-        const mel = MUSIC_MELODY[step % 32];
-        if (mel) this._musicOsc(this._noteFreq(mel), 0.4, t0, { type: 'triangle', gain: 0.45, attack: 0.01 });
-        // 퍼커션: 엇박(각 박의 "and")에 여린 하이햇
-        if (barStep % 4 === 2) this._musicHat(t0, 0.12);
+        // 멜로디: 2마디 모티프(코드 진행 4구간에 반복 — 코드가 바뀌어 매번 다르게 들림)
+        const mel = MEL[step % 32];
+        if (mel) this._musicOsc(this._noteFreq(mel), isBoss ? 0.32 : 0.4, t0, { type: 'triangle', gain: 0.45, attack: 0.01 });
+        // 퍼커션: 엇박(각 박의 "and")에 여린 하이햇, 보스전은 좀 더 촘촘하게
+        if (isBoss ? barStep % 2 === 1 : barStep % 4 === 2) this._musicHat(t0, isBoss ? 0.1 : 0.12);
+    },
+
+    // 보스전 전용: 저음 킥(피치가 아래로 꺾이는 사인파) — 마디 첫 박에 타격감을 더함
+    _musicKick(t0) {
+        const ctx = this.ctx;
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, t0);
+        osc.frequency.exponentialRampToValueAtTime(45, t0 + 0.15);
+        g.gain.setValueAtTime(0.001, t0);
+        g.gain.linearRampToValueAtTime(0.55, t0 + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.22);
+        osc.connect(g); g.connect(this.musicGain);
+        osc.start(t0); osc.stop(t0 + 0.25);
     },
 
     // 절대 시각 t0에 정확히 시작하는 오실레이터 노트(어택-감쇠 엔벌로프)

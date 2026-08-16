@@ -48,6 +48,7 @@ const Combat = {
         this.pending = [];
         this.hero.hp = this.hero.maxHp; // 스테이지 시작 시 완전 회복
         UI.hideBossBar();
+        SFX.setMusicMode('normal'); // 이전 스테이지가 보스전 도중 중단됐을 경우를 대비한 방어적 리셋
         Scene3D.clearEnemies();
         if (Dungeons.run) Scene3D.setTheme(Dungeons.def(Dungeons.run.id).theme);
         else Scene3D.setChapterTheme(S.chapter);
@@ -76,7 +77,7 @@ const Combat = {
             Scene3D.spawnEnemy(e);
         }
         this.phase = 'fight';
-        if (isBossWave) { Scene3D.bossEntrance(); UI.showBossBar(this.enemies[0]); }
+        if (isBossWave) { Scene3D.bossEntrance(); UI.showBossBar(this.enemies[0]); SFX.setMusicMode('boss'); }
         UI.updateWavePips(this.wave);
     },
 
@@ -225,7 +226,7 @@ const Combat = {
             e.alive = false;
             this.onKill(e);
             Scene3D.killEnemy(e.id, e.isBoss);
-            if (e.isBoss) { Scene3D.shake(0.5); UI.hideBossBar(); }
+            if (e.isBoss) { Scene3D.shake(0.5); UI.hideBossBar(); SFX.setMusicMode('normal'); }
             if (!this.aliveEnemies().length) {
                 if (this.wave >= 5) this.stageClear();
                 else { this.phase = 'waveDelay'; this.phaseTimer = 1.6; } // 행군 구간
