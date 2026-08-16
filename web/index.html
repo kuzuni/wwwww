@@ -35,10 +35,10 @@
             <div id="hero-hp-track"><div id="hero-hp-fill"></div></div>
             <span id="hero-hp-text"></span>
         </div>
-    </div>
 
-    <!-- 스킬 바 -->
-    <div id="skill-bar"></div>
+        <!-- 스킬 슬롯: 전투 화면 우중단 (UI-SPEC 1번 — 자동 토글 + 원형 버튼 3개) -->
+        <div id="skill-bar"></div>
+    </div>
 
     <!-- 장비 시트 (상시 노출 — 대장간 탭 대체) -->
     <div id="equip-sheet"></div>
@@ -81,6 +81,7 @@
     <div id="ascend-modal" class="modal hidden"></div>
     <div id="stub-modal" class="modal hidden"></div>
     <div id="forge-info-modal" class="modal hidden"></div>
+    <div id="forge-item-modal" class="modal hidden" onclick="if (event.target === this) UI.closeForgeItemDetail()"></div>
     <div id="autoforge-modal" class="modal hidden"></div>
     <div id="tech-node-modal" class="modal hidden"></div>
     <div id="league-modal" class="modal hidden"></div>

@@ -22,7 +22,8 @@ const UI = {
             dungeonModal: $('dungeon-modal'), dungeonDetailModal: $('dungeon-detail-modal'),
             mountModal: $('mount-modal'), mountUpgradeModal: $('mount-upgrade-modal'), ascendModal: $('ascend-modal'),
             stubModal: $('stub-modal'),
-            forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
+            forgeInfoModal: $('forge-info-modal'), forgeItemModal: $('forge-item-modal'),
+            autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
             leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
             profileModal: $('profile-modal'), playerInfoBtn: $('player-info-btn'), playerInfoModal: $('player-info-modal'),
@@ -163,15 +164,17 @@ const UI = {
     },
 
     // ---- 스킬 바 ----
+    // 자동 토글이 좌측, 원형 스킬 버튼이 우측 (UI-SPEC 1번 우중단 배치)
     renderSkillBar() {
-        this.els.skillBar.innerHTML = S.equippedSkills.map(id => {
+        this.els.skillBar.innerHTML = `<button class="skill-btn auto ${S.autoCast ? 'on' : ''}" onclick="UI.toggleAuto()">자동</button>`
+            + S.equippedSkills.map(id => {
             const d = Skills.def(id);
-            return `<button class="skill-btn" id="sb-${id}" style="--sc:${d.color}" onclick="Combat.tryCast('${id}', true)">
+            return `<button class="skill-btn" id="sb-${id}" style="--sc:${d.color}" title="${d.name}" onclick="Combat.tryCast('${id}', true)">
                 <span class="sk-icon">${SKILL_ICONS[id] || '✨'}</span>
                 <span class="sk-name">${d.name}</span>
                 <span class="sk-cd" id="sbcd-${id}"></span>
             </button>`;
-        }).join('') + `<button class="skill-btn auto ${S.autoCast ? 'on' : ''}" onclick="UI.toggleAuto()">AUTO</button>`;
+        }).join('');
     },
     toggleAuto() {
         S.autoCast = !S.autoCast;
@@ -197,11 +200,13 @@ const UI = {
         const upgrading = !!S.forgeUpgradeEndsAt;
         let forgeBtnHtml;
         if (!info) forgeBtnHtml = `<button class="btn sm disabled">대장간 최고 레벨</button>`;
-        else if (upgrading) {
-            forgeBtnHtml = `<button class="btn sm primary" onclick="UI.openForgeInfo()">⏱ <span id="equip-upg-time">${U.fmtTime((S.forgeUpgradeEndsAt - U.now()) / 1000)}</span></button>`;
-        } else {
-            forgeBtnHtml = `<button class="btn sm primary" onclick="UI.openForgeInfo()">대장간 레벨 ${S.forgeLevel}</button>`;
+        else {
+            // 원본은 버튼에 "대장간 레벨 N"만 두고 남은 시간은 버튼 아래 별도 줄에 표시
+            forgeBtnHtml = `<button class="btn sm primary" onclick="UI.openForgeInfo()">대장간<br>레벨 ${S.forgeLevel}</button>`;
         }
+        const upgTimeHtml = upgrading
+            ? `<div class="forge-time" id="equip-upg-time">${U.fmtTime((S.forgeUpgradeEndsAt - U.now()) / 1000)}</div>`
+            : '';
 
         // 카드 = 아이콘 + Lv + 별만 표시 (컴팩트, UI-SPEC 1번). 상세 정보는 클릭 시 '장비 세부정보 팝업'(UI-SPEC 26번)
         const autoUnlocked = isUnlocked('autoForge');
@@ -222,14 +227,21 @@ const UI = {
             </div>`
             : `<div class="equip-cell egg-cell empty"><span class="slot-name">부화 없음</span></div>`;
 
+        // 모루가 중앙, 우측에 [대장간 레벨 N]·[자동🔄] 가로 배치, 좌측에 ⓘ(모든 장비 목록) — UI-SPEC 1번
         this.els.equipSheet.innerHTML = `
             <div class="equip-grid">${equipHtml}${eggCellHtml}</div>
             <div class="anvil-row">
+                <div class="anvil-side left">
+                    <button class="info-btn" title="모든 장비 목록" onclick="UI.openForgeItemList()">ⓘ</button>
+                </div>
                 <button class="anvil-btn" onclick="UI.onCraft()">⚒️<small>🔨 ${U.fmt(S.hammers)}</small></button>
-                <div class="forge-actions">
-                    ${forgeBtnHtml}
-                    <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.openAutoForge()">
-                        자동🔄 ${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : '🔒'}</button>
+                <div class="anvil-side right">
+                    <div class="forge-actions">
+                        ${forgeBtnHtml}
+                        <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.openAutoForge()">
+                            자동🔄<br>${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : '🔒'}</button>
+                    </div>
+                    ${upgTimeHtml}
                 </div>
             </div>`;
     },
@@ -258,15 +270,25 @@ const UI = {
         this.els.forgeInfoModal.classList.remove('hidden');
     },
     openForgeList() { this._forgeView = 'list'; this.renderForgeInfo(); },
-    openForgeDetail(age, slot, variant) {
-        this._forgeView = 'detail';
-        this._forgeItem = { age, slot, variant };
+    // 메인 화면 ⓘ 버튼: 확률 팝업을 거치지 않고 '모든 장비 목록'을 바로 연다 (UI-SPEC 1번·22번)
+    openForgeItemList() {
+        this._forgeView = 'list';
         this.renderForgeInfo();
+        this.els.forgeInfoModal.classList.remove('hidden');
     },
-    closeForgeInfo() { this.els.forgeInfoModal.classList.add('hidden'); },
+    // 장비 상세는 원본처럼 목록 팝업 '위에' 겹쳐 뜬다 (뒤 목록이 그대로 보임)
+    openForgeDetail(age, slot, variant) {
+        this._forgeItem = { age, slot, variant };
+        this.renderForgeDetailView();
+        this.els.forgeItemModal.classList.remove('hidden');
+    },
+    closeForgeItemDetail() { this.els.forgeItemModal.classList.add('hidden'); },
+    closeForgeInfo() {
+        this.els.forgeItemModal.classList.add('hidden');
+        this.els.forgeInfoModal.classList.add('hidden');
+    },
     renderForgeInfo() {
         if (this._forgeView === 'list') this.renderForgeListView();
-        else if (this._forgeView === 'detail') this.renderForgeDetailView();
         else this.renderForgeLevelView();
     },
     renderForgeLevelView() {
@@ -364,25 +386,31 @@ const UI = {
         const main = SLOT_MAIN[slot];
         const baseVal = Math.floor(main === 'atk' ? Forge.tierBaseAtk(ageIdx) : Forge.tierBaseHp(ageIdx));
         const p = Forge.itemDropChance(age, slot);
-        const subsListHtml = SUBSTATS.map(([key, label, caps]) =>
-            `<div class="substat-row"><span>${label}</span><span class="muted">${key === 'skillCd' ? '-' : '+'}${caps[0]}%~${key === 'skillCd' ? '-' : '+'}${caps[5]}%</span></div>`).join('');
+        // 원본 표기: 값 범위가 먼저, 옵션 이름이 뒤 ("+1% - 12% 치명타 확률")
+        const subsListHtml = SUBSTATS.map(([key, label, max]) =>
+            `<div class="substat-row">${U.subRangeText(key, max)} ${label}</div>`).join('');
+        const thumb = (typeof Scene3D !== 'undefined')
+            ? Scene3D.itemThumb({ slot, age, ageIdx, rarity: 'common', wtype: slot === 'weapon' ? variant : null, nameIdx: variant })
+            : null;
 
-        this.els.forgeInfoModal.innerHTML = `
-            <div class="modal-card wide">
-                <div class="row" style="justify-content:space-between">
-                    <h3>[${AGE_KR[age]}] ${name}</h3>
-                    <button class="btn sm" onclick="UI.openForgeList()">◀ 뒤로</button>
-                </div>
-                <div class="row">
-                    <div class="cell-img emoji" style="width:3.4rem;height:3.4rem;font-size:1.9rem">${icon}</div>
-                    <div>
-                        <div class="item-stat">${main === 'atk' ? '⚔️' : '❤️'} 기준 ${U.fmt(baseVal)} <small class="muted">(레벨·등급 배율 적용 전)</small></div>
-                        <div class="muted">획득 확률 ${p.toFixed(4)}% (등급 무관)</div>
+        // UI-SPEC 21~24번 '장비 상세 팝업' — 흰 카드, 좌측 아이콘 + 우측 제목/주스탯, 아래 회색 옵션 패널.
+        // 닫기는 원본처럼 카드 아래 중앙의 빨간 원형 X.
+        this.els.forgeItemModal.innerHTML = `
+            <div class="idet-wrap">
+                <div class="modal-card paper item-detail">
+                    <div class="idet-head">
+                        <div class="idet-icon">${thumb ? `<img src="${thumb}" alt="">` : icon}<span class="idet-star">⭐</span></div>
+                        <div class="idet-title">
+                            <div class="idet-name">[${AGE_KR[age]}] ${name}</div>
+                            <div class="idet-main">${U.fmt(baseVal)} ${main === 'atk' ? '피해' : '체력'}</div>
+                        </div>
+                    </div>
+                    <div class="idet-subs">
+                        <div class="idet-lead">장비은(는) 아래 목록에서 1~4x개의 고유한 하위 스탯을 굴립니다:</div>
+                        ${subsListHtml}
                     </div>
                 </div>
-                <p class="muted">이 장비는 등급 순번+1개까지 고유한 하위 스탯을 굴립니다 (전체 풀 13종):</p>
-                <div class="substat-list">${subsListHtml}</div>
-                <button class="btn" onclick="UI.closeForgeInfo()">닫기</button>
+                <button class="x-btn" title="닫기" onclick="UI.closeForgeItemDetail()">✕</button>
             </div>`;
     },
 
