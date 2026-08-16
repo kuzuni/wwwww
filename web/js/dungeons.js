@@ -98,8 +98,10 @@ const Dungeons = {
         if (S.dungeons.keys[id] <= 0) { UI.toast('🗝 열쇠가 없습니다 (매일 09:00 리셋)'); return false; }
         S.dungeons.keys[id]--;
         const st = S.dungeons.best[id];
-        this.grantRewards(id, st);
-        UI.toast(`⚡ ${this.def(id).kr} ${st}단계 소탕 — ${this.rewardText(id, st)}`);
+        const r = this.grantRewards(id, st);
+        // 침공(알) 보상은 grantRewards가 실제 결과(획득/보관함 가득 참)를 이미 정확히 토스트했으므로 정적 문구 대신 생략(중복·모순 방지)
+        const suffix = r.egg ? '' : ` — ${this.rewardText(id, st)}`;
+        UI.toast(`⚡ ${this.def(id).kr} ${st}단계 소탕${suffix}`);
         saveGame();
         UI.renderTopBar();
         return true;
@@ -110,8 +112,10 @@ const Dungeons = {
         this.run = null;
         S.dungeons.keys[id] = Math.max(0, S.dungeons.keys[id] - 1); // 완료 시점 열쇠 소모
         S.dungeons.best[id] = Math.max(S.dungeons.best[id], stage);
-        this.grantRewards(id, stage);
-        UI.toast(`🏆 ${this.def(id).kr} ${stage}단계 클리어! ${this.rewardText(id, stage)}`);
+        const r = this.grantRewards(id, stage);
+        // 침공(알) 보상은 grantRewards가 실제 결과(획득/보관함 가득 참)를 이미 정확히 토스트했으므로 정적 문구 대신 생략(중복·모순 방지)
+        const suffix = r.egg ? '' : ` ${this.rewardText(id, stage)}`;
+        UI.toast(`🏆 ${this.def(id).kr} ${stage}단계 클리어!${suffix}`);
         saveGame();
         UI.renderTopBar();
     },
