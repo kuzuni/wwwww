@@ -75,10 +75,10 @@ const U = {
     // 서브스탯 1개를 표시용 문자열로 (스킬 쿨감만 감소값이라 '-' 부호)
     subText(s) { return `${s.key === 'skillCd' ? '-' : '+'}${s.value}% ${s.label}`; },
 
-    // 서브스탯 풀 범위 표기 — 원본 장비 상세 팝업 형식 ("+1% - 12%", 쿨감만 "-1% - -7%")
+    // 서브스탯 풀 범위 표기 — 원본 장비 상세 팝업 형식 ("+1% - 12%", 쿨감만 "-1% - 7%")
     subRangeText(key, max) {
         return key === 'skillCd'
-            ? `-${SUBSTAT_MIN}% - -${max}%`
+            ? `-${SUBSTAT_MIN}% - ${max}%`
             : `+${SUBSTAT_MIN}% - ${max}%`;
     },
 

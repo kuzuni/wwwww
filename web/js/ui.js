@@ -449,7 +449,7 @@ const UI = {
                         </div>
                     </div>
                     <div class="idet-subs">
-                        <div class="idet-lead">장비은(는) 아래 목록에서 1~4x개의 고유한 하위 스탯을 굴립니다:</div>
+                        <div class="idet-lead">장비은(는) 아래 목록에서 2x개의 고유한 하위 스탯을 굴립니다:</div>
                         ${subsListHtml}
                     </div>
                 </div>
