@@ -467,6 +467,8 @@ body {
 .cmp-card-wrap.cur .cmp-card, .modal-card .cmp-card-wrap.cur .cmp-card { border: none; padding: .9rem .4rem .4rem; }
 .cmp-card-wrap.new .cmp-card, .modal-card .cmp-card-wrap.new .cmp-card { background: #ececec; border: none; }
 .cmp-newtag { display: block; margin-top: .55rem; color: var(--pp-red); font-weight: 900; font-size: .68rem; text-align: center; }
+/* 새 장비 카드: 랩 하단 앵커인 Lv 배지를 '새로운!' 줄 높이만큼 올려 아이콘 하단에 붙임 — 두 표기가 같은 y에 포개지던 QA 버그 (원본 043224: Lv는 아이콘 위, 새로운!은 그 아래 별도 줄) */
+.cmp-card-wrap.new .cmp-icon-wrap .sk-lv { bottom: 1.5rem; }
 .cmp-card {
     min-width: 0; border: 3px solid var(--pp-line);
     border-radius: .8rem; padding: .9rem .7rem .7rem; display: flex; flex-direction: row;
