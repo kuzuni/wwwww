@@ -939,7 +939,8 @@ const UI = {
         else this.renderDungeonDetail(); // 실패 사유 토스트 후 갱신
     },
     onSweepDungeon(id) {
-        if (Dungeons.sweep(id)) { this.renderDungeonDetail(); this.renderTopBar(); }
+        // 소탕 성공 시 열쇠가 줄어드는데, 상세 팝업 뒤에 계속 열려 있는 던전 목록(🔑 개수 표시)도 함께 갱신해야 함
+        if (Dungeons.sweep(id)) { this.renderDungeonDetail(); this.openDungeons(); this.renderTopBar(); }
     },
 
     // ---- PvP 리그 (UI-SPEC 3~5번): 랭킹 → 리그 보상 팝업 / 상대 선택 팝업 (봇 기반 오프라인 구현) ----
