@@ -288,7 +288,7 @@ const UI = {
                 <div class="anvil-side left">
                     <button class="info-btn" title="플레이어 정보" onclick="UI.openPlayerInfo()">!</button>
                 </div>
-                <button class="anvil-btn" onclick="UI.onCraft()">⚒️<small>🔨 ${U.fmt(S.hammers)}</small></button>
+                <button class="anvil-btn" onclick="UI.onCraft()">⚒️<small id="anvil-hammers">🔨 ${U.fmt(S.hammers)}</small></button>
                 <div class="anvil-side right">
                     <div class="forge-actions">
                         ${forgeBtnHtml}
@@ -298,6 +298,12 @@ const UI = {
                     ${upgTimeHtml}
                 </div>
             </div>`;
+    },
+
+    // 모루 버튼 아래 해머 카운터만 갱신 (매초 틱에서 전체 renderEquipSheet 재호출은 과함)
+    updateAnvilCounter() {
+        const el = document.getElementById('anvil-hammers');
+        if (el) el.textContent = `🔨 ${U.fmt(S.hammers)}`;
     },
 
     onStartUpgrade() {
@@ -2122,7 +2128,7 @@ const UI = {
     },
     onDebugAddCurrency(key) {
         S[key] = (S[key] || 0) + 100000;
-        this.renderTopBar(); this.renderDebug(); saveGame();
+        this.renderTopBar(); this.updateAnvilCounter(); this.renderDebug(); saveGame();
         const label = this.DEBUG_CURRENCIES.find(c => c.key === key)?.label || key;
         this.toast(`${label} +100000`);
     },
@@ -2144,6 +2150,7 @@ const UI = {
     // 매초 갱신 (타이머류)
     tickSecond() {
         this.renderTopBar();
+        this.updateAnvilCounter(); // 킬 드랍·분당 수급으로 계속 변하는 해머 보유량 (QA: 정적 문자열이라 안 갱신되던 버그)
         this.els.offlineBtn.classList.toggle('ready', (U.now() - S.lastOfflineClaim) / 1000 >= 60);
         // 대장간 업그레이드 카운트다운 (장비 시트 버튼 + 확률 정보 팝업 진행바)
         if (S.forgeUpgradeEndsAt) {
