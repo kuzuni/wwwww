@@ -13,6 +13,11 @@ const Skills = {
         return { common: r[0], rare: r[1], epic: r[2], legendary: r[3], ultimate: r[4], mythic: r[5] };
     },
 
+    // 펫/마운트와 동일한 패턴 — 버튼 비활성화 표시용 (Pets.canSummon/Mounts.canSummon 참고)
+    canSummon(useGems, count = 1) {
+        return useGems ? S.gems >= this.SUMMON_GEM_COST * count : S.tickets >= this.SUMMON_TICKET_COST * count;
+    },
+
     // count번 연속 소환(UI-SPEC "소환 x5" 배치) — 비용은 선결제로 한 번에 확인·차감, 결과는 배열로 반환
     summon(useGems, count = 1) {
         const cost = (useGems ? this.SUMMON_GEM_COST : this.SUMMON_TICKET_COST) * count;

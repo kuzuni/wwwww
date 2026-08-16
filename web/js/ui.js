@@ -776,8 +776,8 @@ const UI = {
             <p class="muted">장착 시 고정 패시브: +${U.fmt(pb.atk)} 기본 피해 · +${U.fmt(pb.hp)} 기본 체력</p>
             <div class="row">
                 <button class="btn sm ${this._skillSummonX5 ? 'on' : ''}" onclick="UI.toggleSkillSummonX5()">x5</button>
-                <button class="btn primary" onclick="UI.onSummon(false)">소환 x${skillSummonN} <small>🎫 ${Skills.SUMMON_TICKET_COST * skillSummonN}</small></button>
-                <button class="btn gem" onclick="UI.onSummon(true)">소환 x${skillSummonN} <small>💎 ${Skills.SUMMON_GEM_COST * skillSummonN}</small></button>
+                <button class="btn primary ${Skills.canSummon(false, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(false)">소환 x${skillSummonN} <small>🎫 ${Skills.SUMMON_TICKET_COST * skillSummonN}</small></button>
+                <button class="btn gem ${Skills.canSummon(true, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(true)">소환 x${skillSummonN} <small>💎 ${Skills.SUMMON_GEM_COST * skillSummonN}</small></button>
             </div>
             ${summonProgHtml}
             <div class="prob-box">${ratesHtml}</div>
