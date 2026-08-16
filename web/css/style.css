@@ -270,7 +270,7 @@ body {
     cursor: pointer;
 }
 .equip-cell.empty { opacity: .5; border-color: #444c56; cursor: default; }
-.equip-cell.egg-cell { cursor: default; }
+.equip-cell.egg-cell.empty { opacity: 1; cursor: pointer; } /* 부화 없음이어도 탈것 창 진입점이라 계속 클릭 가능 */
 .equip-cell .slot-name { font-size: .6rem; color: #90a4ae; }
 .equip-cell .cell-lv { font-size: .68rem; font-weight: 800; color: #ffd54f; white-space: nowrap; }
 /* 모루 = 중앙 큰 제작 버튼, 좌측 ⓘ, 우측 대장간 버튼 2개 (UI-SPEC 1번) */

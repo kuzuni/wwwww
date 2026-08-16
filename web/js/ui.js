@@ -261,14 +261,22 @@ const UI = {
                 <span class="cell-lv">Lv.${it.level}${it.stars ? ` ⭐${it.stars}` : ''}</span>
             </div>`;
         }).join('');
-        // 마지막 칸: 부화 중인 알 (파란 배경, UI-SPEC 1번 — 원본은 부화 중 펫도 섞여 표시되나 수치 미확보라 부화 카운트다운으로 근사)
+        // 마지막 칸: 부화 중인 알 (파란 배경, UI-SPEC 1번 — 원본은 부화 중 펫도 섞여 표시되나 수치 미확보라 부화 카운트다운으로 근사).
+        // 부화 중이 아닐 때는 탈것 창(UI.openMounts()) 진입점으로 쓴다 — 클릭 시 항상 탈것 창이 열리고,
+        // 부화 중이 아니면 장착 중인 탈것 아이콘+Lv(없으면 "탈것" 안내)를 보여준다(원본 근거 없는 자체 설계).
         const h0 = S.hatching[0];
+        const activeMount = S.activeMount ? S.mounts[S.activeMount] : null;
         const eggCellHtml = h0
-            ? `<div class="equip-cell egg-cell" title="${RARITY_KR[h0.rarity]} 알 부화 중">
+            ? `<div class="equip-cell egg-cell" title="${RARITY_KR[h0.rarity]} 알 부화 중 (탭하면 탈것 창)" onclick="UI.openMounts()">
                 <span class="cell-img emoji">🥚</span>
                 <span class="cell-lv" id="equip-egg-t">${U.fmtTime((h0.endsAt - U.now()) / 1000)}</span>
             </div>`
-            : `<div class="equip-cell egg-cell empty"><span class="slot-name">부화 없음</span></div>`;
+            : activeMount
+                ? `<div class="equip-cell egg-cell" title="탈것: ${MOUNT_KR[S.activeMount] || S.activeMount}" onclick="UI.openMounts()">
+                    <span class="cell-img emoji">${MOUNT_ICONS[S.activeMount] || '🐴'}</span>
+                    <span class="cell-lv">Lv.${activeMount.level}</span>
+                </div>`
+                : `<div class="equip-cell egg-cell empty" title="탈것" onclick="UI.openMounts()"><span class="slot-name">탈것</span></div>`;
 
         // 모루가 중앙, 우측에 [대장간 레벨 N]·[자동🔄] 가로 배치, 좌측에 !(플레이어 정보, UI-SPEC 27번) — UI-SPEC 1번
         this.els.equipSheet.innerHTML = `
@@ -1791,9 +1799,9 @@ const UI = {
             const newCount = r.results.filter(x => x.isNew).length;
             this.toast(`⚙️ 소환 x${count} — 새 마운트 ${newCount}종 · 중복 ${count - newCount}개 획득`);
         }
-        this.openMounts(); this.renderTopBar();
+        this.openMounts(); this.renderTopBar(); this.renderEquipSheet();
     },
-    onEquipMount(name) { if (Mounts.equip(name)) this.openMounts(); },
+    onEquipMount(name) { if (Mounts.equip(name)) { this.openMounts(); this.renderEquipSheet(); } },
     onAscendMount(name) {
         if (!Mounts.ascend(name)) { this.toast('⚙️ 승천에 필요한 중복이 부족합니다'); return; }
         this.toast(`⭐ ${MOUNT_KR[name] || name} 승천! (⭐${S.mounts[name].stars})`);
