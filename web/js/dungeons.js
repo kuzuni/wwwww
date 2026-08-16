@@ -93,7 +93,7 @@ const Dungeons = {
     // 소탕: 최고 클리어 단계 보상 즉시 수령 (열쇠 1개 소모)
     sweep(id) {
         this.ensure();
-        if (this.run) return false;
+        if (this.run) { UI.toast('⚔️ 이미 던전에 진행 중입니다'); return false; }
         if (S.dungeons.best[id] < 1) { UI.toast('먼저 1단계를 클리어해야 소탕할 수 있습니다'); return false; }
         if (S.dungeons.keys[id] <= 0) { UI.toast('🗝 열쇠가 없습니다 (매일 09:00 리셋)'); return false; }
         S.dungeons.keys[id]--;
