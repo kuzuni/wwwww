@@ -1059,8 +1059,8 @@ const UI = {
                 <div class="equipped-icons">${equippedRowHtml}</div>
             </div>
             <div class="row center">
-                <button class="btn sm primary" onclick="UI.onUpgradeAllSkills()">모두 업그레이드</button>
-                <button class="btn sm primary" onclick="UI.onQuickEquipSkills()">빠른 장착</button>
+                <button class="btn sm primary sk-action-btn" onclick="UI.onUpgradeAllSkills()">모두 업그레이드</button>
+                <button class="btn sm primary sk-action-btn" onclick="UI.onQuickEquipSkills()">빠른 장착</button>
             </div>
             <div class="summon-bar">
                 <button class="btn danger round back-btn" onclick="UI.switchTab(null)">◀</button>
@@ -1897,11 +1897,12 @@ const UI = {
             actionHtml = `<div class="idet-lead" style="text-align:center">연구 완료 (MAX)</div>`;
         } else if (researching) {
             const remain = (S.techResearch.endsAt - U.now()) / 1000;
+            // 원본(042605): 남색 트랙+파란 채움 진행바, [건너뛰기/◆N] 실버 블록 + [취소] 빨간 블록 2단
             actionHtml = `<div class="idet-lead" style="text-align:center">연구 진행 중</div>
-                <div class="upg-progress"><div id="tech-node-fill" style="width:${U.clamp(1 - remain / TechTree.time(id, lv + 1), 0, 1) * 100}%"></div><span id="tech-node-time">${U.fmtTime(remain)}</span></div>
-                <div class="idet-btns">
-                    <button class="btn sm gem" onclick="UI.onTechGemSkip()">💎 ${TechTree.gemSkipCost()} 건너뛰기</button>
-                    <button class="btn sm danger" onclick="UI.onTechCancel()">취소</button>
+                <div class="upg-progress tech-prog"><div id="tech-node-fill" style="width:${U.clamp(1 - remain / TechTree.time(id, lv + 1), 0, 1) * 100}%"></div><span id="tech-node-time">${U.fmtTime(remain)}</span></div>
+                <div class="idet-btns tech-btns">
+                    <button class="btn silver tn-skip" onclick="UI.onTechGemSkip()">건너뛰기<small>◆ ${TechTree.gemSkipCost()}</small></button>
+                    <button class="btn danger tn-cancel" onclick="UI.onTechCancel()">취소</button>
                 </div>`;
         } else {
             const cost = TechTree.nextCost(id), time = TechTree.time(id, lv + 1);

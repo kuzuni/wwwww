@@ -239,6 +239,7 @@ body {
 .btn.disabled { opacity: .45; }
 .btn.sm { flex: 0 0 auto; padding: .3rem .6rem; font-size: .72rem; }
 #equip-sheet .btn.sm { padding: .36rem .7rem; font-size: .8rem; } /* 대장간/자동 버튼 — 원본 높이≈화면 5% */
+.sk-action-btn { min-height: 2rem; padding: .3rem 1rem; font-size: .82rem; } /* 원본(042340) ≈3.7% H (185) */
 
 #panel-debug input[type=number] {
     background: #22272e; color: #eceff1; border: 1px solid #444c56; border-radius: .55rem;
@@ -1457,6 +1458,13 @@ body {
 .rates-tip { font-size: .8rem; font-weight: 800; color: var(--pp-ink); text-align: center; line-height: 1.4; }
 /* 원본(042521): 등급명 뒤 ⭐, 확률표 위 우측 검정 ⓘ 원형 버튼 */
 .rate-star { font-style: normal; font-size: .8em; filter: drop-shadow(0 1px 0 rgba(0,0,0,.35)); }
+/* 기술 노드 팝업 연구 중 상태 (042605): 남색 진행바 + 입체 블록 버튼 2개 */
+.tech-prog, .modal-card .tech-prog { height: 1.75rem; background: #10182b; border: 3px solid var(--pp-line); border-radius: .5rem; }
+.tech-prog #tech-node-fill { background: var(--pp-blue); }
+.tech-prog #tech-node-time { color: #fff; font-weight: 900; font-size: .85rem; }
+.tech-btns { display: flex; justify-content: center; gap: .8rem; margin-top: .5rem; }
+.tech-btns .btn { flex: 0 1 44%; min-height: 3.4rem; font-size: 1.05rem; font-weight: 900; line-height: 1.2; border-radius: .6rem; }
+.tn-skip small { display: block; font-size: .9rem; color: #c62828; font-weight: 900; }
 .rates-i {
     align-self: flex-end; width: 1.5rem; height: 1.5rem; border-radius: 50%; border: none; cursor: pointer;
     background: #17181a; color: #fff; font-weight: 900; font-size: .9rem; font-style: italic;
