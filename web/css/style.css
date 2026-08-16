@@ -36,6 +36,9 @@ body {
 .currency-pills .pill { background: #22272e; border-radius: 1rem; padding: .3rem .65rem; white-space: nowrap; font-weight: 700; }
 .currency-pills .pill.coin { color: #ffd54f; }
 .currency-pills .pill.gem { color: #ff8a80; }
+.pill-plus { width: 1.1rem; height: 1.1rem; border-radius: 50%; border: none; font-weight: 800; font-size: .75rem; line-height: 1; padding: 0; cursor: pointer; margin-right: .3rem; vertical-align: middle; }
+.pill.coin .pill-plus { background: #ffb300; color: #3e2600; }
+.pill.gem .pill-plus { background: #ff5252; color: #fff; }
 
 /* ---- 3D 전투 영역 ---- */
 #game-area { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }

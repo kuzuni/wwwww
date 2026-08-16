@@ -93,8 +93,8 @@ const UI = {
                 </div>
             </div>
             <div class="currency-pills">
-                <span class="pill coin">👑 ${U.fmt(S.coins)}</span>
-                <span class="pill gem">◆ ${U.fmt(S.gems)}</span>
+                <span class="pill coin"><button class="pill-plus" onclick="UI.openShop()">+</button>👑 ${U.fmt(S.coins)}</span>
+                <span class="pill gem"><button class="pill-plus" onclick="UI.openShop()">+</button>◆ ${U.fmt(S.gems)}</span>
             </div>`;
     },
 
