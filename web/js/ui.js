@@ -1352,40 +1352,41 @@ const UI = {
         this.els.shopModal.classList.remove('hidden');
     },
     closeShop() { this.els.shopModal.classList.add('hidden'); },
-    // 원본(shot-042632): 전체화면 흰 페이지 + 상단 재화 pill 2개 + "오늘의 특가" 배너 +
-    // 붉은 태그가 붙은 특가 카드 3장(재화 세로 나열 + 아이콘 + 가격 버튼) + "보석" 배너 + 젬 패키지 3개
+    // 원본(shot-042632): 다크 마룬 풀스크린 + 금색 리본 배너 + 특가 카드(좌상단 빨간 깃발 태그,
+    // 재화 회색 pill 세로 나열, 우측 상품 아이콘, 우하단 파란 가격 버튼) + 보석 카드 3장
     renderShop() {
         const GEM_ICONS = ['🪙', '👛', '💰'];
         const dealsHtml = Shop.DEALS.map(d => {
             const claimed = Shop.claimed(d.key);
             const rewardRows = Object.entries(d.reward).map(([k, v]) =>
-                `<span>${this.CURRENCY_ICON[k] || ''}${U.fmt(v)}</span>`).join('');
+                `<span class="shop-reward-pill">${this.CURRENCY_ICON[k] || ''} ${U.fmt(v)}</span>`).join('');
             return `<div class="shop-deal-card">
-                <div class="shop-deal-title">${d.name}</div>
+                <div class="shop-deal-tag">${d.name}</div>
                 <div class="shop-deal-body">
                     <div class="shop-deal-rewards">${rewardRows}</div>
-                    <span class="shop-deal-icon">${d.icon}</span>
+                    <div class="shop-deal-right">
+                        <span class="shop-deal-icon">${d.icon}</span>
+                        <button class="btn primary shop-price-btn ${claimed ? 'disabled' : ''}" onclick="UI.onClaimDeal('${d.key}')">
+                            ${claimed ? '수령 완료' : `무료 수령<br><small>(정가 ${d.priceKR})</small>`}</button>
+                    </div>
                 </div>
-                <button class="btn ${claimed ? 'disabled' : 'primary'}" onclick="UI.onClaimDeal('${d.key}')">
-                    ${claimed ? '✅ 오늘 수령 완료' : `🎁 무료 수령 <small class="muted">(정가 ${d.priceKR})</small>`}
-                </button>
             </div>`;
         }).join('');
         const gemsHtml = Shop.GEM_PACKS.map((p, i) => `
             <div class="shop-gem-card">
-                <div class="shop-gem-amt">◆ ${U.fmt(p.gems)}</div>
+                <div class="shop-gem-amt"><span class="shop-gem-dia">◆</span> ${U.fmt(p.gems)}</div>
                 <span class="shop-gem-icon">${GEM_ICONS[i] || '💰'}</span>
-                <button class="btn primary" onclick="UI.onBuyGems()">${p.priceKR}</button>
+                <button class="btn primary shop-price-btn" onclick="UI.onBuyGems()">${p.priceKR}</button>
             </div>`).join('');
         this.els.shopModal.innerHTML = `
-            <div class="modal-card sheet">
+            <div class="modal-card sheet shop-sheet">
                 <div class="sheet-head">
                     <span class="cur-pill coin">👑 ${U.fmt(S.coins)}</span>
-                    <h2 class="sheet-title">상점</h2>
+                    <h2 class="sheet-title shop-title">상점</h2>
                     <span class="cur-pill gem">◆ ${U.fmt(S.gems)}</span>
                 </div>
                 <div class="shop-banner">오늘의 특가</div>
-                <p class="sheet-sub">일일 특가 3개 모두 구매하면 새로운 3개가 나와요!</p>
+                <p class="shop-sub">일일 특가 3개 모두 구매하면 새로운 3개가 나와요!</p>
                 <div class="shop-deals">${dealsHtml}</div>
                 <div class="shop-banner">보석</div>
                 <div class="shop-gems">${gemsHtml}</div>
