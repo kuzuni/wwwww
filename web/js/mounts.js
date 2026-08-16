@@ -149,6 +149,7 @@ const Mounts = {
         if (!S.mounts[name]) return false;
         S.activeMount = name;
         Combat.recalcHero();
+        if (typeof Scene3D !== 'undefined' && Scene3D.refreshMount) Scene3D.refreshMount();
         saveGame();
         return true;
     },

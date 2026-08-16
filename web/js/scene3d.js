@@ -4,6 +4,7 @@ const Scene3D = {
     worldX: 0,               // 플레이어가 오른쪽으로 전진한 누적 거리 (무한 월드)
     heroG: null, weaponG: null, helmetG: null, bodyMesh: null,
     petGroups: [],
+    mountGroup: null,
     enemyMap: new Map(),     // id → {g, body, hpBg, hpFg, dead}
     particles: [],
     anims: [],               // {t, dur, fn(k), onDone}
@@ -42,6 +43,7 @@ const Scene3D = {
         this.buildHero();
         this.refreshHeroEquip();
         this.refreshPets();
+        this.refreshMount();
         this.resize();
 
         // GLB 리깅 모델 비동기 로드 → 준비되면 영웅을 진짜 기사로 교체
@@ -1041,6 +1043,76 @@ const Scene3D = {
         return g;
     },
 
+    // 탈것(마운트) 몸체 — 15종 개별 모델 대신 원본 이름을 형태 계열 4종(평판/사족보행/탈것/비행)으로
+    // 근사하고 등급색(RARITY_HEX)으로 구분한다(사용자 지시: "개별 모델 어려우면 등급별 대표 형태로 근사").
+    makeMountMesh(name, rarity) {
+        const g = new THREE.Group();
+        const c = RARITY_HEX[rarity] || 0xbdbdbd;
+        const M = (col, opt) => new THREE.MeshLambertMaterial(Object.assign({ color: col }, opt || {}));
+        const mat = M(c);
+        const dark = M(new THREE.Color(c).offsetHSL(0, 0, -0.18));
+        const light = M(new THREE.Color(c).offsetHSL(0, 0, 0.18));
+        const blk = new THREE.MeshBasicMaterial({ color: 0x263238 });
+        const sp = (r, x, y, z, m, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), m || mat); o.position.set(x, y, z); if (sx) o.scale.set(sx, sy, sz); g.add(o); return o; };
+        const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); g.add(o); return o; };
+        const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
+        const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 12), m || mat); o.position.set(x, y, z); g.add(o); return o; };
+        const to = (r, tr, x, y, z, m) => { const o = new THREE.Mesh(new THREE.TorusGeometry(r, tr, 8, 14), m || mat); o.position.set(x, y, z); g.add(o); return o; };
+        const eyes = (y, z, gap) => { for (const s of [-1, 1]) sp(0.026, s * (gap || 0.07), y, z, blk); };
+
+        const FLAT = ['Brown Leaf', 'Lily Leaf', 'Lily Pad', 'Hover Board', 'Hover Disk'];
+        const FLY = ['Giant Bee', 'Mini Dragon'];
+        const WHEELED = ['Bike', 'One-Wheel Droid'];
+
+        if (FLAT.includes(name)) { // 평판형: 나뭇잎/연잎/호버보드/호버디스크 — 넓적한 발판 + 탑승 발판 위 살짝 솟은 손잡이
+            const hover = name.startsWith('Hover');
+            sp(0.34, 0, 0.05, 0, hover ? dark : mat, 1.7, 0.32, 1.9);
+            if (hover) to(0.3, 0.03, 0, 0.01, 0, M(0x29e0ff, { emissive: 0x0aa0c0, emissiveIntensity: 0.6 }));
+            else sp(0.3, 0, 0.09, 0, light, 1.5, 0.2, 1.6);
+            g.userData.deck = g.children[0];
+        } else if (WHEELED.includes(name)) { // 탈것형: 자전거/외바퀴 드로이드 — 바퀴 + 프레임
+            if (name === 'Bike') {
+                for (const s of [-1, 1]) { const w = to(0.16, 0.03, s * 0.28, 0.16, 0, dark); w.rotation.y = Math.PI / 2; g.userData['w' + s] = w; }
+                bx(0.5, 0.04, 0.06, 0, 0.22, 0, mat);
+                bx(0.05, 0.18, 0.06, -0.18, 0.28, 0, mat);
+                bx(0.05, 0.18, 0.06, 0.18, 0.3, 0, mat);
+            } else {
+                const w = to(0.18, 0.05, 0, 0.18, 0, dark); w.rotation.x = Math.PI / 2; g.userData.wheel = w;
+                sp(0.13, 0, 0.34, 0, mat, 1.1, 0.9, 1.1);
+                sp(0.05, 0, 0.4, 0.09, new THREE.MeshBasicMaterial({ color: 0x29e0ff }));
+            }
+        } else if (FLY.includes(name)) { // 비행형: 거대 벌/미니 드래곤 — 몸통 + 날개
+            const dragon = name === 'Mini Dragon';
+            sp(0.16, 0, 0.22, 0, mat, dragon ? 1.3 : 1.1, 0.85, dragon ? 1.6 : 1.15);
+            if (dragon) { cn(0.07, 0.22, 0, 0.24, 0.32, mat); const tail = cy(0.05, 0.01, 0.34, 0, 0.2, -0.32, mat); tail.rotation.x = -1.5; g.userData.tail = tail; }
+            else for (let i = 0; i < 3; i++) bx(0.22, 0.05, 0.02, 0, 0.22, -0.12 + i * 0.12, dark);
+            g.userData.wings = [];
+            for (const s of [-1, 1]) {
+                const wing = bx(0.24, 0.02, 0.14, s * 0.2, 0.32, -0.02, light);
+                wing.userData.s = s;
+                g.userData.wings.push(wing);
+            }
+            eyes(0.26, dragon ? 0.36 : 0.15, 0.06);
+            if (!dragon) { const sting = cn(0.025, 0.12, 0, 0.2, -0.19, blk); sting.rotation.x = Math.PI; g.userData.tail = sting; }
+        } else { // 사족보행형: 거북이/게/말/공룡/돼지/염소 — 공용 몸통+머리+다리 골격, 파츠로 종 구분
+            sp(0.22, 0, 0.24, 0, mat, 1.3, 0.85, 1.6); // 몸통 (마운트다운 대형 사이즈)
+            if (name === 'Turtle') sp(0.2, 0, 0.32, -0.02, dark, 1.1, 0.7, 1.4); // 등딱지
+            if (name === 'Crab') { sp(0.24, 0, 0.2, 0, dark, 1.5, 0.55, 1.3); g.userData.claws = []; for (const s of [-1, 1]) { const cl = bx(0.1, 0.08, 0.16, s * 0.32, 0.22, 0.14, light); g.userData.claws.push(cl); } }
+            if (name === 'Brown Horse' || name === 'Dino') { const neck = cy(0.08, 0.1, name === 'Dino' ? 0.5 : 0.3, 0, 0.44, 0.22, mat); neck.rotation.x = -0.5; }
+            if (name === 'Goat') for (const s of [-1, 1]) { const horn = cn(0.025, 0.13, s * 0.06, 0.44, 0.34, light); horn.rotation.x = -0.6; horn.rotation.z = s * 0.3; }
+            if (name === 'Pig') cn(0.05, 0.08, 0, 0.24, 0.42, light).rotation.x = Math.PI / 2;
+            sp(0.14, 0, name === 'Brown Horse' || name === 'Dino' ? 0.58 : 0.32, name === 'Brown Horse' || name === 'Dino' ? 0.34 : 0.4, light); // 머리
+            eyes(name === 'Brown Horse' || name === 'Dino' ? 0.6 : 0.34, name === 'Brown Horse' || name === 'Dino' ? 0.42 : 0.48);
+            const tail = cy(0.03, 0.01, 0.24, 0, 0.24, -0.34, mat); tail.rotation.x = 1.3; g.userData.tail = tail;
+            g.userData.legs = [];
+            for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+                const leg = cy(0.05, 0.045, 0.24, sx * 0.16, 0.1, sz * 0.3, dark);
+                g.userData.legs.push(leg);
+            }
+        }
+        return g;
+    },
+
     refreshPets() {
         for (const pg of this.petGroups) { this.disposeTree(pg); this.scene.remove(pg); }
         this.petGroups = [];
@@ -1064,6 +1136,26 @@ const Scene3D = {
             this.scene.add(g);
             this.petGroups.push(g);
         });
+    },
+
+    // 탈것: 펫과 겹치지 않는 영웅 옆자리(오른쪽)에 따라다니는 연출만(사용자 지시 — 탑승 연출은 범위 밖)
+    refreshMount() {
+        if (this.mountGroup) { this.disposeTree(this.mountGroup); this.scene.remove(this.mountGroup); this.mountGroup = null; }
+        const name = S.activeMount, m = name && S.mounts[name];
+        if (!m) return;
+        const g = new THREE.Group();
+        const mesh = this.makeMountMesh(name, m.rarity);
+        mesh.scale.setScalar(1.1 + RARITIES.indexOf(m.rarity) * 0.1);
+        g.add(mesh);
+        g.rotation.y = -0.5; // 영웅과 마주보지 않게 살짝 바깥쪽
+        const spotX = 0.62, spotZ = 0.35; // 펫 자리(x<0)와 겹치지 않는 영웅 오른쪽
+        g.position.set(Combat.HERO_X + spotX + this.worldX, 0, spotZ);
+        g.userData.home = g.position.clone();
+        g.userData.spotX = spotX;
+        g.userData.phase = U.rand(0, Math.PI * 2);
+        this.setShadow(g);
+        this.scene.add(g);
+        this.mountGroup = g;
     },
 
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
@@ -1854,6 +1946,15 @@ const Scene3D = {
             if (ud.heads) ud.heads.forEach((h, j) => h.position.y = 0.32 + Math.sin(t * 5 + j * 2.1) * 0.05);
             if (ud.ghostMat) ud.ghostMat.opacity = 0.4 + Math.sin(t * 2.5) * 0.2;
         });
+        // 탈것: 종별 고유 모션 없이 영웅을 따라오며 가볍게 상하 바운스만(사용자 지시 — 따라다니는 연출만)
+        if (this.mountGroup) {
+            const ud = this.mountGroup.userData;
+            const t = this._clock + (ud.phase || 0);
+            ud.home.x = Combat.HERO_X + (ud.spotX || 0.6) + this.worldX;
+            this.mountGroup.position.x = ud.home.x;
+            const walkBoost = this.walking ? 1.6 : 1;
+            this.mountGroup.position.y = ud.home.y + Math.abs(Math.sin(t * 4)) * 0.05 * walkBoost;
+        }
         // 애니메이션 큐
         for (let i = this.anims.length - 1; i >= 0; i--) {
             const a = this.anims[i];
