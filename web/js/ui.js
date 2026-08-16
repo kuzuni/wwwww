@@ -702,7 +702,7 @@ const UI = {
         const equippedRowHtml = S.activePets.map(i => {
             const pet = S.pets[i];
             if (!pet) return '';
-            return `<span class="sk-mini square" style="--rc:${RARITY_CSS[pet.rarity]}">${PET_ICONS[pet.name] || '🐾'}<small>Lv.${pet.level}</small></span>`;
+            return `<button class="sk-mini square" style="--rc:${RARITY_CSS[pet.rarity]}" title="${PET_KR[pet.name] || pet.name} — 상세/해제" onclick="UI.openPetDetail(${i})">${PET_ICONS[pet.name] || '🐾'}<small>Lv.${pet.level}</small></button>`;
         }).join('') || '<span class="muted">없음</span>';
 
         const mergeHtml = RARITIES.slice(0, -1).map(r => Pets.canMerge(r) ?
@@ -1008,7 +1008,7 @@ const UI = {
         // 5열 원형 아이콘 그리드(조각 게이지) · 장착됨 행 · 버튼 2개 · 최하단 소환 버튼
         const equippedRowHtml = S.equippedSkills.map(id => {
             const sk = S.skills[id]; const d = Skills.def(id);
-            return `<span class="sk-mini" style="--rc:${RARITY_CSS[d.rarity]}">${SKILL_ICONS[id] || '✨'}<small>Lv.${sk.level}</small></span>`;
+            return `<button class="sk-mini" style="--rc:${RARITY_CSS[d.rarity]}" title="${d.name} — 상세/해제" onclick="UI.openSkillDetail('${id}')">${SKILL_ICONS[id] || '✨'}<small>Lv.${sk.level}</small></button>`;
         }).join('') || '<span class="muted">없음</span>';
 
         p.innerHTML = `

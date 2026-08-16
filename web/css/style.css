@@ -1205,6 +1205,7 @@ body {
     width: 2rem; height: 2rem; border-radius: 50%; background: var(--rc, #ccc);
     border: 2px solid var(--pp-line); display: flex; flex-direction: column;
     align-items: center; justify-content: center; font-size: .9rem; position: relative;
+    padding: 0; cursor: pointer; /* 장착됨 행 슬롯 클릭 → 상세 팝업(해제 버튼 포함) — button 요소 공용 */
 }
 .sk-mini small { position: absolute; bottom: -.35rem; font-size: .5rem; font-weight: 800; color: var(--pp-ink); }
 .row.center { justify-content: center; }
