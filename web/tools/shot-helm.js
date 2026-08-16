@@ -34,7 +34,11 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html') + 
             for (const sel of ['#topbar', '#equip-sheet', '#skill-bar', '#stage-label', '#wave-pips', '#chat-preview', '#hero-hp-wrap', '.waypoint', '#offline-btn'])
                 document.querySelectorAll(sel).forEach(el => el.style.visibility = 'hidden');
         });
-        await page.screenshot({ path: `${__dirname}/helm-${name}.png` });
+        const rect = await page.evaluate(() => { // 캔버스 영역만 크롭 — 데드스페이스/탭바 제거
+            const r = document.querySelector('canvas').getBoundingClientRect();
+            return { x: Math.max(0, r.x), y: Math.max(0, r.y), width: r.width, height: r.height };
+        });
+        await page.screenshot({ path: `${__dirname}/helm-${name}.png`, clip: rect });
         console.log(`helm-${name}.png` + (errors.length ? '  ERRORS: ' + errors.join(' | ') : '  (clean)'));
         await page.close();
     }

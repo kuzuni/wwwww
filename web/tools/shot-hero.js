@@ -1,4 +1,4 @@
-// 영웅 근접 샷 — camLock + Box3 피팅, Idle/걷기/공격 중간 프레임
+// 영웅 근접 샷 — 정면 기준 궤도 카메라(getWorldDirection) + 캔버스 크롭 + 공격 슬로모 임팩트 동결
 // 사용: node shot-hero.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html') + '';
@@ -10,10 +10,11 @@ const OUT = __dirname;
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-    await page.goto(INDEX + '?debug=gear', { waitUntil: 'load' });
+    await page.goto(INDEX + '?debug=gear&w=sword', { waitUntil: 'load' }); // 검 장착 — 공격샷이 근접 스윙(slash)이어야 궤적 판독 가능 (staff=cast는 스윙 없음)
     await page.waitForFunction(() => typeof Scene3D !== "undefined" && Scene3D.heroG && typeof Combat !== "undefined", null, { timeout: 15000 });
 
-    const fit = async (mult, yaw) => page.evaluate(([mult, yaw]) => {
+    // 영웅 '정면' 기준 궤도 카메라 — 이전 절대 yaw 방식은 등짝만 찍혔음(비평가: "팔이 없다"의 실체)
+    const fit = async (mult, orbit, hOff = 0.3) => page.evaluate(([mult, orbit, hOff]) => {
         Combat.tick = () => {};
         Scene3D.walking = false;
         Scene3D.clearEnemies(); Combat.enemies = [];
@@ -24,40 +25,53 @@ const OUT = __dirname;
         const size = box.getSize(new THREE.Vector3());
         const r = Math.max(size.x, size.y, size.z);
         const dist = r * mult + 0.3;
+        const fwd = new THREE.Vector3();
+        Scene3D.heroG.getWorldDirection(fwd); // 영웅 로컬 +z(정면)의 월드 방향
+        fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), orbit); // 정면 기준 좌우 궤도각
         Scene3D.camLock = {
-            pos: new THREE.Vector3(c.x + Math.sin(yaw) * dist, c.y + dist * 0.3, c.z + Math.cos(yaw) * dist),
+            pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * hOff, 0)),
             look: c.clone()
         };
-    }, [mult, yaw]);
+    }, [mult, orbit, hOff]);
 
     const hideUI = () => page.evaluate(() => {
         for (const sel of ['#topbar', '#equip-sheet', '#skill-bar', '#stage-label', '#wave-pips', '#chat-preview', '#hero-hp-wrap', '.waypoint', '#offline-btn'])
             document.querySelectorAll(sel).forEach(el => el.style.visibility = 'hidden');
     });
 
-    // 1) Idle 정면/측면 근접
-    await fit(1.15, 0.45); await page.waitForTimeout(600); await hideUI();
-    await page.screenshot({ path: OUT + '/hero-idle-front.png' });
-    await fit(1.15, 1.4); await page.waitForTimeout(300);
-    await page.screenshot({ path: OUT + '/hero-idle-side.png' });
+    // 캔버스 영역만 크롭 — 검정 데드스페이스/디버그 탭바 제거 (비평가 4번 결함)
+    const shot = async (file) => {
+        const rect = await page.evaluate(() => {
+            const cv = document.querySelector('canvas');
+            const r = cv.getBoundingClientRect();
+            return { x: Math.max(0, r.x), y: Math.max(0, r.y), width: r.width, height: r.height };
+        });
+        await page.screenshot({ path: OUT + '/' + file, clip: rect });
+    };
 
-    // 2) 걷기 중간 프레임 — 전진 동결 + 클립 위상 고정(스트라이드 극점) — 걷는 동안 영웅이 락 카메라 밖으로 나가던 문제
+    // 1) Idle 정면/측면 근접 (정면 3/4 + 반대쪽 3/4)
+    await fit(1.15, 0.35); await page.waitForTimeout(600); await hideUI();
+    await shot('hero-idle-front.png');
+    await fit(1.15, -0.9); await page.waitForTimeout(300);
+    await shot('hero-idle-side.png');
+
+    // 2) 걷기 중간 프레임 — 전진 동결 + 클립 위상 고정(스트라이드 극점)
     await page.evaluate(() => { window.__wx = Scene3D.worldX; Scene3D.walking = true; });
     await page.waitForTimeout(250); // Walking 클립 전환 대기
     await page.evaluate(() => {
         Object.defineProperty(Scene3D, 'worldX', { get() { return window.__wx; }, set() {}, configurable: true });
         if (Scene3D.heroRig) { Scene3D.heroRig._speed = 0; Scene3D.heroRig._t = 0; } // t=0 = 발 교차 최대 극점
     });
-    await fit(1.3, 2.1); // 3/4 측면 — 걷기 중 영웅이 +x(진행 방향)를 보므로 yaw를 크게 (팔꿈치·무릎 위상 판독용)
+    await fit(1.3, 0.75); // 정면 3/4 — 팔꿈치·무릎 위상 판독용
     await page.waitForTimeout(150);
-    await page.screenshot({ path: OUT + '/hero-walk.png' });
+    await shot('hero-walk.png');
     await page.evaluate(() => {
         delete Scene3D.worldX; Scene3D.worldX = window.__wx;
         if (Scene3D.heroRig) Scene3D.heroRig._speed = 1;
         Scene3D.walking = false;
     });
 
-    // 3) 공격 스윙 중간 프레임 (트레일 포함)
+    // 3) 공격 임팩트 동결 — 슬로모(트레일 리본 축적)로 스윙 후 t=0.5 임팩트 순간 정지
     await page.evaluate(() => {
         const e = { id: 999, x: Combat.MELEE_X, alive: true, hp: 100, maxHp: 100 };
         Combat.enemies = [e]; Scene3D.spawnEnemy(e);
@@ -65,15 +79,47 @@ const OUT = __dirname;
         for (const a of Scene3D.anims) { try { a.fn && a.fn(1); a.onDone && a.onDone(); } catch (err) {} }
         Scene3D.anims = []; m.g.position.y = 0; m.g.userData.landed = true;
     });
-    await fit(1.6, 0.45);
-    await page.evaluate(() => Scene3D.heroAttack(999));
-    await page.waitForTimeout(220);
-    await page.screenshot({ path: OUT + '/hero-attack-mid.png' });
-    await page.waitForTimeout(900);
+    await page.evaluate(() => {
+        Scene3D.heroAttack(999);
+        const R = Scene3D.heroRig;
+        if (R) R._speed *= 0.3; // 슬로모 — 트레일 포인트(LIFE 0.18s)가 궤적 리본으로 쌓이게
+        for (const a of Scene3D.anims) { const k = a.t / a.dur; a.dur /= 0.3; a.t = k * a.dur; } // 돌진도 동율 슬로모
+    });
+    await page.waitForFunction(() => {
+        const R = Scene3D.heroRig;
+        return R && R._clip && R._t / R._clip.dur >= 0.48; // 내려치기 임팩트 직후
+    }, null, { timeout: 8000, polling: 30 });
+    await page.evaluate(() => {
+        const R = Scene3D.heroRig; R._speed = 0; // 임팩트 프레임 동결
+        for (const a of Scene3D.anims) { const k = Math.min(1, a.t / a.dur); a.dur = 1e9; a.t = k * 1e9; }
+        // 동결된 포즈 기준으로 카메라 재피팅 — 돌진으로 이동한 위치/비틀린 몸통 반영, 적은 프레임에 유지
+        Scene3D.heroG.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(Scene3D.heroG);
+        const c = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const dist = Math.max(size.x, size.y, size.z) * 1.7 + 0.3;
+        const fwd = new THREE.Vector3();
+        Scene3D.heroG.getWorldDirection(fwd);
+        fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.7);
+        Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * 0.25, 0)), look: c.clone() };
+    });
+    await page.waitForTimeout(150);
+    await shot('hero-attack-mid.png');
+    // 동결 해제 + 상태 복원 (이후 전신샷 오염 방지)
+    await page.evaluate(() => {
+        Scene3D.anims = [];
+        Scene3D._attacking = false; Scene3D._trailOn = false;
+        Scene3D.trailPts = []; if (Scene3D.trailMesh) Scene3D.trailMesh.visible = false;
+        Scene3D.clearEnemies(); Combat.enemies = [];
+        Scene3D.heroG.position.x = Combat.HERO_X + Scene3D.worldX;
+        Scene3D.heroG.position.y = 0; Scene3D.heroG.rotation.set(0, 0.55, 0);
+        const R = Scene3D.heroRig; if (R) { R._speed = 1; Scene3D.heroPlay(['Idle']); }
+    });
+    await page.waitForTimeout(400);
 
-    // 4) 전신 룩 (조금 멀리)
-    await fit(1.5, 0.6); await page.waitForTimeout(400);
-    await page.screenshot({ path: OUT + '/hero-full.png' });
+    // 4) 전신 룩 (조금 멀리, 정면 3/4)
+    await fit(1.5, 0.55); await page.waitForTimeout(400);
+    await shot('hero-full.png');
 
     console.log('hero shots done' + (errors.length ? '  CONSOLE ERRORS: ' + errors.join(' | ') : '  (no console errors)'));
     await browser.close();
