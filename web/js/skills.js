@@ -137,13 +137,9 @@ const Skills = {
     activeBonus() {
         const b = { atk: 0, hp: 0 };
         for (const id of S.equippedSkills) {
-            const d = this.def(id);
-            const sk = S.skills[id];
-            if (!d) continue;
-            const base = SKILL_BASE_PASSIVE[d.rarity];
-            const mult = this.levelMult(id) * Ascension.starMult(sk && sk.stars);
-            b.atk += base.atk * mult;
-            b.hp += base.hp * mult;
+            const p = this.passiveOf(id);
+            b.atk += p.atk;
+            b.hp += p.hp;
         }
         return b;
     },
