@@ -2727,23 +2727,43 @@ const Scene3D = {
             const strap = mk(new THREE.TorusGeometry(0.245, 0.026, 6, 18), clothM);
             strap.position.set(0, 0.63, 0.02); strap.rotation.set(0.22, 0, 0.72);
             const boneM = new THREE.MeshLambertMaterial({ color: 0xf3ead6 });
+            // 뼈 이빨 목걸이 — 몸통 타원면(회전 0.22 포함)에 밀착 앵커 + 사이 구슬로 끈 암시 (비평가: 이빨이 몸통에 떠 보임)
+            const neckG = new THREE.Group();
+            neckG.position.copy(body.position); neckG.rotation.x = 0.22; // 몸통과 같은 기울기 → 로컬에서 타원식이 축정렬
+            const chestPt = (nx, ny) => { // 몸통 로컬 (nx,ny) → 표면 z (살짝 파묻음)
+                const q = 1 - (nx / 0.24) ** 2 - (ny / 0.2688) ** 2;
+                return new THREE.Vector3(nx, ny, 0.2208 * Math.sqrt(Math.max(0.02, q)) * 0.97);
+            };
             for (let bi = -2; bi <= 2; bi++) {
-                const tooth2 = mk(new THREE.ConeGeometry(0.02, 0.055, 5), boneM);
-                tooth2.position.set(bi * 0.055, 0.745 - Math.abs(bi) * 0.02, 0.235 - Math.abs(bi) * 0.012);
-                tooth2.rotation.x = Math.PI; // 이빨 끝 아래로
-                g.add(tooth2);
+                const p = chestPt(bi * 0.055, 0.15 - Math.abs(bi) * 0.022);
+                const tooth2 = mk(new THREE.ConeGeometry(0.018, 0.055, 5), boneM);
+                tooth2.position.copy(p);
+                tooth2.rotation.x = Math.PI - 0.35; // 끝 아래로 + 가슴 경사 따라 눕힘
+                neckG.add(tooth2);
+                if (bi < 2) { // 이빨 사이 구슬 — 끈 라인
+                    const bead = mk(new THREE.SphereGeometry(0.013, 6, 5), boneM);
+                    bead.position.copy(chestPt((bi + 0.5) * 0.055, 0.185 - Math.abs(bi + 0.5) * 0.022));
+                    neckG.add(bead);
+                }
             }
-            g.add(body, belly, cloth, rope, strap);
+            g.add(body, belly, cloth, rope, strap, neckG);
             // 머리: 큰 두상 + 대형 뾰족귀(안쪽 어두운 이중판) + 매부리코 + 언더바이트 송곳니
             const head = mk(new THREE.SphereGeometry(0.21, 12, 10), skinM);
             head.position.set(0, 0.95, 0.08); head.scale.set(1, 0.95, 0.95);
+            // 턱 그룹 — 언더바이트를 앞으로 빼(두상 구에 파묻히던 문제) 송곳니를 턱에 직접 앵커 (비평가: 이빨 부유)
+            const jawG = new THREE.Group();
+            jawG.position.set(0, 0.845, 0.19);
             const jaw = mk(new THREE.SphereGeometry(0.13, 10, 8), skinD);
-            jaw.position.set(0, 0.83, 0.15); jaw.scale.set(1.15, 0.55, 0.9);
-            g.add(head, jaw);
+            jaw.scale.set(1.15, 0.55, 0.9);
+            jawG.add(jaw);
             for (const s of [-1, 1]) {
-                const tusk = mk(new THREE.ConeGeometry(0.022, 0.07, 6), new THREE.MeshLambertMaterial({ color: 0xf5efdd }));
-                tusk.position.set(s * 0.07, 0.88, 0.22);
-                g.add(tusk);
+                const tusk = mk(new THREE.ConeGeometry(0.02, 0.085, 6), new THREE.MeshLambertMaterial({ color: 0xf5efdd }));
+                tusk.position.set(s * 0.055, 0.05, 0.095); // 밑동은 턱 살 안, 끝은 윗입술 앞 — 턱에서 솟는 송곳니
+                tusk.rotation.x = -0.35; // 앞으로 벌어진 언더바이트 각
+                jawG.add(tusk);
+            }
+            g.add(head, jawG);
+            for (const s of [-1, 1]) {
                 const ear = new THREE.Group();
                 ear.position.set(s * 0.19, 1.0, 0.02);
                 const earOut = mk(new THREE.ConeGeometry(0.075, 0.32, 6), skinM);
@@ -2861,12 +2881,14 @@ const Scene3D = {
             frill.position.y = -0.02;
             capG.add(dome, lip, frill);
             const spotM = new THREE.MeshLambertMaterial({ color: 0xfff8ec });
-            for (const [sx2, sy2, sr] of [[-0.14, 0.16, 0.062], [0.12, 0.2, 0.05], [0.02, 0.26, 0.04], [0.2, 0.08, 0.045], [-0.22, 0.06, 0.038]]) {
+            // 흰 반점을 갓 '상단' 곡면에 구면좌표로 앵커 — 정면 하단 배치가 몸통 반점으로 오독됨 (비평가 지적)
+            for (const [th, ph, sr] of [[0.3, 1.4, 0.055], [0.55, 2.35, 0.05], [0.52, 0.55, 0.045], [0.85, 1.85, 0.048], [0.82, 0.6, 0.038], [0.62, -2.0, 0.04]]) {
                 const spot = mk(new THREE.SphereGeometry(sr, 8, 6), spotM);
-                const sz2 = Math.sqrt(Math.max(0.01, 0.09 - sx2 * sx2 - (sy2 - 0.0) * (sy2 - 0.0) * 0.6));
-                spot.position.set(sx2, sy2, sz2 * 0.62); // 곡면에 파묻어 데칼 부유감 제거
-                spot.scale.z = 0.5;
-                spot.lookAt(spot.position.clone().multiplyScalar(2).add(capG.position));
+                const rr = 0.32 * 0.97; // 살짝 파묻음
+                const sx2 = Math.sin(th) * Math.cos(ph) * rr, sz2 = Math.sin(th) * Math.sin(ph) * rr, sy2 = Math.cos(th) * rr * 0.82;
+                spot.position.set(sx2, sy2, sz2);
+                spot.scale.z = 0.45;
+                spot.lookAt(sx2 * 2, sy2 * 2.4, sz2 * 2); // 갓 법선 방향으로 눕힘
                 capG.add(spot);
             }
             g.add(capG);
@@ -2910,6 +2932,9 @@ const Scene3D = {
             skullW.scale.set(0.95, 0.9, 1.05);
             const snout = mk(new THREE.CylinderGeometry(0.048, 0.075, 0.16, 8), furL);
             snout.rotation.x = Math.PI / 2; snout.position.set(0, -0.02, 0.14);
+            const bridge = mk(new THREE.SphereGeometry(0.045, 8, 6), furD); // 콧등 다크 스트라이프 — 밝은 주둥이와 톤 분리 (비평가: 주둥이가 두상에 뭉개짐)
+            bridge.position.set(0, 0.03, 0.12); bridge.scale.set(0.8, 0.5, 2.1);
+            headW.add(bridge);
             const noseW = mk(new THREE.SphereGeometry(0.028, 7, 6), new THREE.MeshBasicMaterial({ color: 0x1d2126 }));
             noseW.position.set(0, -0.005, 0.22);
             const jawW = mk(new THREE.BoxGeometry(0.07, 0.03, 0.11), furD);
@@ -2936,7 +2961,7 @@ const Scene3D = {
                 g.add(tuft, tuft2);
             }
             g.add(headW);
-            eyes(0.645, 0.49, 0.055, 0.042, 'fierce', { iris: 0xe8b13c, tilt: -0.28, browColor: 0x3c414d }); // 흰자+호박 홍채 — 원거리에서도 읽히는 맹수 눈 (발광 슬릿은 판독 불가, 비평가 지적)
+            eyes(0.645, 0.485, 0.082, 0.033, 'fierce', { iris: 0xe8b13c, glow: 0.25, tilt: -0.28, browColor: 0x3c414d }); // 흰자+호박 홍채 — gap 확대+눈 축소로 좌우 분리 (비평가: 두 눈이 하나의 발광 패치로 붙어 보임)
             const backStripe = mk(new THREE.SphereGeometry(0.16, 10, 8), furD); // 등 다크 새들 — 목덜미→엉덩이 한 흐름으로 세그먼트 경계 은폐
             backStripe.position.set(0, 0.49, -0.03); backStripe.scale.set(0.78, 0.5, 2.45);
             const bellyW = mk(new THREE.SphereGeometry(0.13, 10, 8), furL); // 밝은 아랫배 — 투톤 코트

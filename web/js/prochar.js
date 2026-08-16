@@ -75,23 +75,24 @@ const ProChar = {
     },
     // 바위: 화강암 얼룩 + 균열 라인 (골렘 몸통 — 그레이스케일, 틴트 대상)
     rockTex() {
+        // 512 해상도 — 128에선 클로즈업 샷에서 입자가 뭉개져 '민짜 점토'로 읽힘 (비평가 지적)
         return this.canvasTex('rock', (ctx, w, h) => {
             ctx.fillStyle = '#b9bcc0'; ctx.fillRect(0, 0, w, h);
-            for (let i = 0; i < 420; i++) { // 화강암 입자 얼룩
+            for (let i = 0; i < 5200; i++) { // 화강암 입자 얼룩 — 면적비만큼 증량, 입자 픽셀 크기는 유지해 상대적으로 잘게
                 const v = 130 + Math.floor(Math.random() * 110);
                 ctx.fillStyle = `rgba(${v},${v},${v - 6},${0.18 + Math.random() * 0.2})`;
-                const r = 1 + Math.random() * 3.2;
+                const r = 1.4 + Math.random() * 4.4;
                 ctx.beginPath();
                 ctx.arc(Math.random() * w, Math.random() * h, r, 0, Math.PI * 2);
                 ctx.fill();
             }
-            for (let i = 0; i < 8; i++) { // 균열 — 꺾이는 다크 라인
+            for (let i = 0; i < 22; i++) { // 균열 — 꺾이는 다크 라인
                 ctx.strokeStyle = `rgba(38,40,46,${0.35 + Math.random() * 0.25})`;
-                ctx.lineWidth = 1 + Math.random();
+                ctx.lineWidth = 2.5 + Math.random() * 2;
                 let x = Math.random() * w, y = Math.random() * h;
                 ctx.beginPath(); ctx.moveTo(x, y);
-                for (let j = 0; j < 4; j++) {
-                    x += (Math.random() - 0.5) * 34; y += (Math.random() - 0.3) * 26;
+                for (let j = 0; j < 5; j++) {
+                    x += (Math.random() - 0.5) * 110; y += (Math.random() - 0.3) * 85;
                     ctx.lineTo(x, y);
                 }
                 ctx.stroke();
@@ -99,27 +100,28 @@ const ProChar = {
             const vg = ctx.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, h * 0.75);
             vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(20,24,30,0.28)');
             ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
-        });
+        }, 512, 512);
     },
     // 생물 가죽: 부드러운 얼룩 반점 (고블린/임프 피부 — 그레이스케일, 틴트 대상)
     hideTex() {
+        // 512 해상도 — 반점을 잘게 다량 뿌려 클로즈업에서도 살결로 읽히게 (비평가: 민짜 재질)
         return this.canvasTex('hide', (ctx, w, h) => {
             ctx.fillStyle = '#c8cbc4'; ctx.fillRect(0, 0, w, h);
-            for (let i = 0; i < 90; i++) {
+            for (let i = 0; i < 1300; i++) {
                 const v = 150 + Math.floor(Math.random() * 70);
-                const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 4 + Math.random() * 9);
+                const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 7 + Math.random() * 16);
                 g.addColorStop(0, `rgba(${v},${v + 4},${v - 4},0.3)`);
                 g.addColorStop(1, 'rgba(0,0,0,0)');
                 ctx.save();
                 ctx.translate(Math.random() * w, Math.random() * h);
                 ctx.fillStyle = g;
-                ctx.fillRect(-14, -14, 28, 28);
+                ctx.fillRect(-24, -24, 48, 48);
                 ctx.restore();
             }
             const bg = ctx.createLinearGradient(0, 0, 0, h); // 아래로 살짝 어두워지는 배음영
             bg.addColorStop(0, 'rgba(255,255,255,0.08)'); bg.addColorStop(1, 'rgba(24,26,24,0.2)');
             ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
-        });
+        }, 512, 512);
     },
     // 가죽: 잔금 크랙 + 스티치
     leatherTex() {
@@ -206,7 +208,7 @@ const ProChar = {
 
         // ---------- 하체 ----------
         const pelvis = new THREE.Group();
-        pelvis.position.y = 0.54; // 다리 연장에 맞춰 상향 (영웅 비율 — 하체 길게)
+        pelvis.position.y = 0.615; // 다리 연장(대퇴 0.32·정강이 0.275)에 맞춰 상향 — 두상 축소만으론 '유아 마스코트' 비율 잔존 (비평가 지적)
         root.add(pelvis);
         R.bones.pelvis = pelvis;
         // 골반 장갑(스커트 판) — 앞뒤 곡면 판 + 벨트
@@ -231,25 +233,25 @@ const ProChar = {
         for (const side of [-1, 1]) {
             const hip = new THREE.Group();
             hip.position.set(side * 0.13, -0.06, 0);
-            const thigh = this.capsule(0.085, 0.07, 0.28, suit);
+            const thigh = this.capsule(0.085, 0.07, 0.32, suit); // 다리 연장 — 마스코트 비율 완화
             const cuisse = new THREE.Mesh(new THREE.SphereGeometry(0.095, 10, 8), steelDark()); // 대퇴 장갑판
-            cuisse.position.y = -0.1;
-            cuisse.scale.set(1, 1.35, 1);
+            cuisse.position.y = -0.115;
+            cuisse.scale.set(1, 1.45, 1);
             const knee = new THREE.Group();
-            knee.position.y = -0.28;
+            knee.position.y = -0.32;
             const kneeCap = new THREE.Mesh(new THREE.SphereGeometry(0.062, 8, 7), steel());
-            const shin = this.capsule(0.06, 0.052, 0.24, suit);
+            const shin = this.capsule(0.06, 0.052, 0.275, suit);
             // 정강이 장갑판 (그리브)
             const greave = new THREE.Mesh(new THREE.SphereGeometry(0.068, 9, 7), steelDark());
-            greave.position.set(0, -0.11, 0.012);
-            greave.scale.set(0.95, 1.55, 0.95);
+            greave.position.set(0, -0.128, 0.012);
+            greave.scale.set(0.95, 1.7, 0.95);
             knee.add(greave);
             // 부츠: 라운드 토 (구+원통 결합)
             const bootMat = new THREE.MeshPhongMaterial({ color: 0x4a3728, shininess: 25, map: this.leatherTex() });
             const bootTop = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.072, 0.1, 10), bootMat);
-            bootTop.position.y = -0.23;
+            bootTop.position.y = -0.265;
             const foot = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), bootMat);
-            foot.position.set(0, -0.28, 0.045);
+            foot.position.set(0, -0.315, 0.045);
             foot.scale.set(0.9, 0.55, 1.55);
             knee.add(kneeCap, shin, bootTop, foot);
             hip.add(thigh, cuisse, knee);
@@ -501,7 +503,7 @@ const ProChar = {
         headG.add(headMount);
         R.headMount = headMount;
 
-        root.position.y = 0.08; // 발바닥(pelvis 0.54 - 고관절 0.06 - 대퇴 0.28 - 정강이/부츠 0.28)이 y=0에 닿는 보정
+        root.position.y = 0.08; // 발바닥(pelvis 0.615 - 고관절 0.06 - 대퇴 0.32 - 정강이/부츠 0.315)이 y=0에 닿는 보정 — 연장분은 pelvis 상향으로 상쇄
         const outer = new THREE.Group();
         outer.add(root);
         R.group = outer;
