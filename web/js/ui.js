@@ -11,8 +11,7 @@ const UI = {
         const $ = id => document.getElementById(id);
         this.els = {
             topbar: $('topbar'), stageLabel: $('stage-label'), wavePips: $('wave-pips'),
-            heroHp: $('hero-hp-fill'), heroHpText: $('hero-hp-text'),
-            bossBar: $('boss-bar'), bossFill: $('boss-bar-fill'), bossWarn: $('boss-warning'),
+            bossWarn: $('boss-warning'),
             dmgFlash: $('dmg-flash'), lootFeed: $('loot-feed'), skillBar: $('skill-bar'),
             toasts: $('toasts'), offlineBtn: $('offline-btn'),
             equipSheet: $('equip-sheet'),
@@ -163,20 +162,6 @@ const UI = {
         this.els.wavePips.innerHTML = [1, 2, 3, 4, 5].map(w =>
             `<span class="pip ${w < wave ? 'done' : w === wave ? 'now' : ''} ${w === 5 ? 'boss' : ''}"></span>`).join('');
     },
-    updateHeroHp() {
-        const h = Combat.hero;
-        const r = U.clamp(h.hp / h.maxHp, 0, 1);
-        this.els.heroHp.style.width = (r * 100) + '%';
-        this.els.heroHpText.textContent = `${U.fmt(Math.max(0, h.hp))} / ${U.fmt(h.maxHp)}`; // 막타 관통 음수 표시 방지
-    },
-    showBossBar(e) {
-        this.els.bossBar.classList.remove('hidden');
-        this.updateBossBar(e);
-    },
-    updateBossBar(e) {
-        this.els.bossFill.style.width = (U.clamp(e.hp / e.maxHp, 0, 1) * 100) + '%';
-    },
-    hideBossBar() { this.els.bossBar.classList.add('hidden'); },
     bossWarning() {
         this.els.bossWarn.classList.remove('hidden');
         setTimeout(() => this.els.bossWarn.classList.add('hidden'), 1400);

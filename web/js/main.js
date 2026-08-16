@@ -37,7 +37,6 @@
         Combat.start();
         League.ensure(); // 전투력 계산이 끝난 뒤 봇 생성 (combatPower 참조)
         UI.renderTopBar(); // UI.init()에서 먼저 그린 상단바(전투력 0)를 실제 계산치로 갱신
-        UI.updateHeroHp();
         UI.updateStageLabel();
 
         if (offline) UI.showOffline(offline);
@@ -134,7 +133,6 @@
                 if (!UI.els.chatModal.classList.contains('hidden')) UI.renderChatFull();
             }
             UI.tickSecond();
-            UI.updateHeroHp();
         }, 1000);
 
         // 오토 포지: 3초마다 1회 사이클(설정된 망치 수만큼 제작) 후 자동 처리

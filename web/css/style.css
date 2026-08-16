@@ -126,14 +126,6 @@ body {
 #waypoint-pass { top: 36%; right: 4%; }
 #waypoint-pass .waypoint-icon { font-size: 1.4rem; }
 
-#boss-bar {
-    position: absolute; top: 3.2rem; left: 50%; transform: translateX(-50%);
-    width: 70%; z-index: 4; text-align: center;
-}
-#boss-bar .boss-name { font-size: .8rem; font-weight: 800; color: #ff8a80; text-shadow: 0 1px 4px #000; }
-.boss-track { height: .55rem; background: rgba(0,0,0,.55); border-radius: .3rem; overflow: hidden; border: 1px solid #30363d; }
-#boss-bar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff1744, #ff8a65); transition: width .15s; }
-
 #boss-warning {
     position: absolute; top: 40%; left: 50%; transform: translate(-50%,-50%);
     font-size: 2.2rem; font-weight: 900; color: #ff5252; text-shadow: 0 0 20px #ff1744;
@@ -157,11 +149,6 @@ body {
     padding: .12rem .5rem; border-radius: 1rem; animation: lootpop 1.6s forwards;
 }
 @keyframes lootpop { 0% { opacity: 0; transform: translateY(.5rem); } 12% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
-
-#hero-hp-wrap { position: absolute; left: .6rem; bottom: .55rem; width: 42%; z-index: 4; }
-#hero-hp-track { height: .6rem; background: rgba(0,0,0,.55); border-radius: .3rem; overflow: hidden; border: 1px solid #30363d; }
-#hero-hp-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #00e676, #b9f6ca); transition: width .15s; }
-#hero-hp-text { font-size: .68rem; font-weight: 700; text-shadow: 0 1px 3px #000; }
 
 /* 데미지 숫자 */
 .float-dmg {

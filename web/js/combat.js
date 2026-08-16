@@ -47,7 +47,6 @@ const Combat = {
         this.enemies = [];
         this.pending = [];
         this.hero.hp = this.hero.maxHp; // 스테이지 시작 시 완전 회복
-        UI.hideBossBar();
         SFX.setMusicMode('normal'); // 이전 스테이지가 보스전 도중 중단됐을 경우를 대비한 방어적 리셋
         Scene3D.clearEnemies();
         if (Dungeons.run) Scene3D.setTheme(Dungeons.def(Dungeons.run.id).theme);
@@ -77,7 +76,7 @@ const Combat = {
             Scene3D.spawnEnemy(e);
         }
         this.phase = 'fight';
-        if (isBossWave) { Scene3D.bossEntrance(); UI.showBossBar(this.enemies[0]); SFX.setMusicMode('boss'); }
+        if (isBossWave) { Scene3D.bossEntrance(); SFX.setMusicMode('boss'); }
         UI.updateWavePips(this.wave);
     },
 
@@ -221,12 +220,11 @@ const Combat = {
         // 서브스탯 '생명력 흡수': 영웅이 입힌 피해의 일부를 회복
         const st = this.hero.stats;
         if (st && st.lifesteal) this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + dmg * st.lifesteal / 100);
-        if (e.isBoss) UI.updateBossBar(e);
         if (e.hp <= 0) {
             e.alive = false;
             this.onKill(e);
             Scene3D.killEnemy(e.id, e.isBoss);
-            if (e.isBoss) { Scene3D.shake(0.5); UI.hideBossBar(); SFX.setMusicMode('normal'); }
+            if (e.isBoss) { Scene3D.shake(0.5); SFX.setMusicMode('normal'); }
             if (!this.aliveEnemies().length) {
                 if (this.wave >= 5) this.stageClear();
                 else { this.phase = 'waveDelay'; this.phaseTimer = 1.6; } // 행군 구간
@@ -244,7 +242,6 @@ const Combat = {
         this.hero.hp -= dmg;
         SFX.hit(false);
         Scene3D.heroHit();
-        UI.updateHeroHp();
         if (this.hero.hp <= 0) this.onDefeat();
     },
 
@@ -317,8 +314,7 @@ const Combat = {
         else UI.toast('💀 쓰러졌다... 회복 후 다시 도전!');
         // 후퇴 없음 — 같은 스테이지 재도전 (무조건 전진)
         saveGame();
-        this.hero.hp = this.hero.maxHp;
-        UI.updateHeroHp(); // 사망 직전 렌더된 음수 HP 표시를 리스폰 값으로 즉시 갱신
+        this.hero.hp = this.hero.maxHp; // 머리 위 바는 Scene3D.update가 매 프레임 자체 갱신
         this.phase = 'stageDelay';
         this.phaseTimer = 2.0;
     },
