@@ -214,23 +214,31 @@ const Forge = {
         }
     },
 
+    // 장비+출전 펫+장착 탈것의 서브스탯 13종 합계 (플레이어 정보 팝업 '옵션 합계 리스트'에도 공용)
+    allSubsBag() {
+        const gearSubs = [];
+        for (const slot of SLOTS) {
+            const it = S.equipment[slot];
+            if (it) gearSubs.push(...it.subs);
+        }
+        return U.sumSubs(gearSubs, Pets.activeBonus().subs, Mounts.activeBonus().subs);
+    },
+
     // 영웅 종합 스탯 (장비 + 서브스탯 + 버프) — 서브스탯 13종은 U.sumSubs로 공용 집계
     heroStats() {
         let atk = 15, hp = 150; // 맨몸 기본치
         let gearAtk = 0, gearHp = 0; // 기술트리 '장비 숙련' 보너스가 적용되는 부분
-        const gearSubs = [];
         for (const slot of SLOTS) {
             const it = S.equipment[slot];
             if (!it) continue;
             const starM = Ascension.starMult(it.stars); // 승천(별): 장비 1개당 별 개수만큼 능력치 배율 상승
             if (it.main === 'atk') gearAtk += it.value * starM; else gearHp += it.value * starM;
-            gearSubs.push(...it.subs);
         }
         // 출전 펫 + 장착 탈것: 고정 데미지·체력 + 서브스탯 (전투에 직접 참여하지 않고 스탯만 기여)
         const pb = Pets.activeBonus();
         const mb = Mounts.activeBonus();
         const sb = Skills.activeBonus(); // 장착 스킬 패시브: 고정 데미지·체력만 기여 (서브스탯 없음)
-        const bag = U.sumSubs(gearSubs, pb.subs, mb.subs);
+        const bag = this.allSubsBag();
 
         // 전투 중 버프 반영 (스킬 버프는 서브스탯 풀과 별개의 임시 효과)
         let buffAtkPct = 0, buffAtkSpd = 0;

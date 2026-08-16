@@ -22,7 +22,7 @@ const UI = {
             forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
             leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
-            profileModal: $('profile-modal'),
+            profileModal: $('profile-modal'), playerInfoModal: $('player-info-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -1179,6 +1179,65 @@ const UI = {
         if (S.sfxOn) { SFX.resume(); SFX.craft(); }
         saveGame();
         this.renderSettingsView();
+    },
+
+    // ---- 플레이어 정보 팝업 (UI-SPEC 27번): 메인 화면 왼쪽 하단 "!" 버튼 ----
+    openPlayerInfo() {
+        this.renderPlayerInfo();
+        this.els.playerInfoModal.classList.remove('hidden');
+    },
+    closePlayerInfo() { this.els.playerInfoModal.classList.add('hidden'); },
+    renderPlayerInfo() {
+        const st = Combat.hero.stats || {};
+        const cp = Combat.combatPower();
+        const equipHtml = SLOTS.map(slot => {
+            const it = S.equipment[slot];
+            if (!it) return `<div class="equip-cell empty"><span class="slot-name">${SLOT_KR[slot]}</span></div>`;
+            return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}" title="${it.name}">
+                ${this.itemImgHTML(it, 'cell-img')}
+                <span class="cell-lv">Lv.${it.level}${it.stars ? ` ⭐${it.stars}` : ''}</span>
+            </div>`;
+        }).join('');
+        const skillsHtml = S.equippedSkills.map(id => {
+            const d = Skills.def(id);
+            const lv = S.skills[id] ? S.skills[id].level : 1;
+            return `<div class="pi-chip" style="--rc:${RARITY_CSS[d.rarity]}"><span class="icon-circle sm">${SKILL_ICONS[id] || '✨'}</span><small>Lv.${lv}</small></div>`;
+        }).join('');
+        const petsHtml = S.activePets.map(i => {
+            const p = S.pets[i];
+            if (!p) return '';
+            return `<div class="pi-chip" style="--rc:${RARITY_CSS[p.rarity]}"><span class="icon-circle sm">${PET_ICONS[p.name] || '🐾'}</span><small>Lv.${p.level}</small></div>`;
+        }).join('');
+        const bag = Forge.allSubsBag();
+        const subsHtml = SUBSTATS.filter(([key]) => Math.abs(bag[key]) > 0.001)
+            .map(([key, label]) => `<div class="pi-sub-row">${key === 'skillCd' ? '-' : '+'}${bag[key].toFixed(1)}% ${label}</div>`).join('')
+            || '<p class="muted" style="text-align:center">보유한 옵션이 없습니다</p>';
+
+        this.els.playerInfoModal.innerHTML = `
+            <div class="modal-card wide">
+                <div class="row" style="justify-content:space-between;align-items:flex-start">
+                    <div class="row" style="align-items:center">
+                        <span class="avatar">${S.avatarEmoji || '🛡️'}</span>
+                        <div>
+                            <div style="font-weight:800">${S.nickname || '용사'}</div>
+                            <div class="muted" style="font-size:.72rem">${S.gender || '♂'} · 서버 5</div>
+                            <div class="cp">⚔️ ${U.fmt(cp)}</div>
+                        </div>
+                    </div>
+                    <div style="text-align:right;font-size:.74rem" class="muted">
+                        <div>⚒️ 대장간 Lv.${S.forgeLevel}</div>
+                        <div>💥 총 피해 ${U.fmt(st.atk || 0)}</div>
+                        <div>❤️ 총 체력 ${U.fmt(st.hp || 0)}</div>
+                    </div>
+                </div>
+                <h3 style="margin-top:.6rem">장착 장비</h3>
+                <div class="equip-grid">${equipHtml}</div>
+                <h3>장착 스킬 · 펫</h3>
+                <div class="pi-chip-row">${skillsHtml}${petsHtml}</div>
+                <h3>옵션 합계</h3>
+                <div class="pi-sub-list">${subsHtml}</div>
+                <button class="btn" onclick="UI.closePlayerInfo()">닫기</button>
+            </div>`;
     },
 
     // ---- 기술 트리 (소환 탭 서브탭, UI-SPEC 10·15~16번): 분기 4개 카드 → 분기 상세(세로 노드 트리) → 노드 팝업 ----
