@@ -131,6 +131,20 @@ const OUT = __dirname;
     await fit(1.5, 0.55); await page.waitForTimeout(400);
     await shot('hero-full.png');
 
+    // 5) 손 근접 — 검 파지 주먹(엄지·너클·건틀릿) 디테일 검증 (인계 ⑹)
+    await page.evaluate(() => {
+        const R = Scene3D.heroRig;
+        Scene3D.heroG.updateMatrixWorld(true);
+        const p = new THREE.Vector3();
+        R.handR.getWorldPosition(p);
+        const fwd = new THREE.Vector3();
+        Scene3D.heroG.getWorldDirection(fwd);
+        fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.85); // 오른손 바깥쪽 사선 — 몸통 가림 회피
+        Scene3D.camLock = { pos: p.clone().add(fwd.multiplyScalar(0.95)).add(new THREE.Vector3(0, 0.12, 0)), look: p.clone() };
+    });
+    await page.waitForTimeout(150);
+    await shot('hero-hand.png');
+
     console.log('hero shots done' + (errors.length ? '  CONSOLE ERRORS: ' + errors.join(' | ') : '  (no console errors)'));
     await browser.close();
 })();
