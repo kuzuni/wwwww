@@ -1971,15 +1971,26 @@ const UI = {
 
     showOffline(o) {
         this.els.offlineModal.innerHTML = `
-            <div class="modal-card">
-                <h3>💤 오프라인 보상</h3>
-                <p>수집 시간: ${U.fmtTime(o.counted)}${o.elapsed > o.counted ? ' (최대)' : ''}</p>
-                <p class="muted">👑 ${U.fmtDec(o.coinRate)}/초 &nbsp; 🔨 ${U.fmtDec(o.hammerRate)}/분</p>
-                <div class="big-stat">👑 ${U.fmtDec(o.coins)} &nbsp; 🔨 ${U.fmtDec(o.hammers)}</div>
-                <button class="btn primary" onclick="document.getElementById('offline-modal').classList.add('hidden')">수집</button>
+            <div class="idet-wrap">
+                <div class="modal-card offline-card">
+                    <div class="offline-top">
+                        <div class="offline-title">오프라인 보상</div>
+                        <div class="offline-sub">수집 시간: <b>${U.fmtTime(o.counted)}</b>${o.elapsed > o.counted ? ' (최대)' : ''}</div>
+                        <div class="offline-rates">
+                            <div class="offline-rate"><span class="offline-rate-icon coin">👑</span><b>${U.fmtDec(o.coinRate)}/초</b></div>
+                            <div class="offline-rate"><span class="offline-rate-icon hammer">🔨</span><b>${U.fmtDec(o.hammerRate)}/분</b></div>
+                        </div>
+                    </div>
+                    <div class="offline-bottom">
+                        <div class="offline-total">👑 ${U.fmtDec(o.coins)} &nbsp; 🔨 ${U.fmtDec(o.hammers)}</div>
+                        <button class="btn primary offline-collect-btn" onclick="UI.closeOfflineModal()">수집<span class="offline-collect-dot"></span></button>
+                    </div>
+                </div>
+                <button class="x-btn" onclick="UI.closeOfflineModal()">✕</button>
             </div>`;
         this.els.offlineModal.classList.remove('hidden');
     },
+    closeOfflineModal() { this.els.offlineModal.classList.add('hidden'); },
 
     onClaimOffline() {
         const r = claimOfflineNow();

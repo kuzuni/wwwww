@@ -76,6 +76,32 @@ body {
 #offline-btn:active { background: #30363d; }
 #offline-btn.ready { border-color: #ffd54f; color: #ffd54f; }
 
+/* ---- 오프라인 보상 팝업 (UI-SPEC 2번, 원본 shot-042110) — 위 검정 절반 + 아래 흰 절반 ---- */
+.modal-card.offline-card { padding: 0; gap: 0; overflow: hidden; }
+.offline-top {
+    background: linear-gradient(180deg, #232a52, #171b38); color: #fff;
+    padding: 1.1rem .9rem .9rem; text-align: center;
+}
+.offline-title { font-size: 1.2rem; font-weight: 900; margin-bottom: .15rem; }
+.offline-sub { font-size: .82rem; font-weight: 700; color: #ccc; }
+.offline-sub b { color: var(--pp-green); font-weight: 900; }
+.offline-rates { display: flex; justify-content: center; gap: 2.4rem; margin-top: .9rem; }
+.offline-rate { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+.offline-rate-icon {
+    width: 2.6rem; height: 2.6rem; border-radius: 50%; font-size: 1.4rem;
+    display: flex; align-items: center; justify-content: center; border: 2px solid #000;
+}
+.offline-rate-icon.coin { background: #ffb300; }
+.offline-rate-icon.hammer { background: var(--pp-green); }
+.offline-rate b { color: var(--pp-green); font-weight: 900; font-size: .85rem; }
+.offline-bottom { background: #fff; padding: 1.1rem .9rem 1.3rem; text-align: center; }
+.offline-total { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); margin-bottom: .8rem; }
+.offline-collect-btn { position: relative; width: 100%; }
+.offline-collect-dot {
+    position: absolute; top: -.3rem; right: -.3rem; width: .7rem; height: .7rem; border-radius: 50%;
+    background: var(--pp-red); border: 2px solid #fff;
+}
+
 #boss-bar {
     position: absolute; top: 3.2rem; left: 50%; transform: translateX(-50%);
     width: 70%; z-index: 4; text-align: center;
