@@ -497,7 +497,7 @@ body {
 .cmp-stat .arrow { font-size: .82rem; font-weight: 900; margin-left: .25rem; }
 .cmp-stat .arrow.up { color: var(--pp-green); }
 .cmp-stat .arrow.down { color: var(--pp-red); }
-.cmp-sub { font-size: .78rem; font-weight: 700; color: var(--pp-muted); line-height: 1.5; }
+.cmp-sub { font-size: .78rem; font-weight: 700; color: var(--pp-ink); line-height: 1.5; } /* 원본(043224/043244) 서브스탯은 검정 */
 
 /* ---- 스킬 컷인 + 화면 플래시 ---- */
 #skill-cutin {
