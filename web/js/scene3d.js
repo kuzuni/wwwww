@@ -2454,7 +2454,7 @@ const Scene3D = {
 
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
     // 종별 고유 팔레트 — 지형색 파생 금지 (전 종이 배경 보호색 연두 덩어리로 보이던 문제, 비평가 지적)
-    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x63a04a, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x848fa3, imp: 0xb0486b },
+    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x63a04a, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x556279, imp: 0xb0486b }, // 늑대: 지면과 명도 분리되는 다크 슬레이트 (강한 태양광 톤업 감안 더 어둡게)
     monsterMesh(e) {
         const theme = CHAPTER_THEMES[(S.chapter - 1) % CHAPTER_THEMES.length];
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
@@ -2499,10 +2499,10 @@ const Scene3D = {
                     eg.add(rim, slit);
                 } else {
                     const tall = style === 'round' ? 1.3 : style === 'sleepy' ? 0.62 : 0.92;
-                    const sc = new THREE.Mesh(new THREE.SphereGeometry(er, 9, 7), new THREE.MeshBasicMaterial({ color: 0xfff6e8 }));
+                    const sc = new THREE.Mesh(new THREE.SphereGeometry(er, 9, 7), new THREE.MeshLambertMaterial({ color: 0xfff6e8 })); // 음영 받는 흰자 — 평면 스티커 오독 방지 (비평가 지적)
                     sc.scale.set(1, tall, 0.55);
                     const irisR = style === 'round' ? er * 0.7 : er * 0.55;
-                    const ir = new THREE.Mesh(new THREE.SphereGeometry(irisR, 8, 6), new THREE.MeshBasicMaterial({ color: o.iris || 0xd8352a }));
+                    const ir = new THREE.Mesh(new THREE.SphereGeometry(irisR, 8, 6), new THREE.MeshLambertMaterial({ color: o.iris || 0xd8352a, emissive: o.iris || 0xd8352a, emissiveIntensity: 0.45 })); // 은은한 발광 홍채
                     ir.position.z = er * 0.4;
                     if (style === 'sleepy') ir.scale.y = 0.75;
                     const pu = new THREE.Mesh(new THREE.SphereGeometry(irisR * 0.48, 6, 5), new THREE.MeshBasicMaterial({ color: 0x1a1210 }));
@@ -2575,14 +2575,15 @@ const Scene3D = {
             // 바위 구축물: 역삼각 몸통 라테 + 마그마 코어 + 거대 주먹 분절 팔 (눈사람 금지)
             const rockM = lam(base.clone().offsetHSL(0, -0.12, -0.02), ProChar.rockTex());
             const rockD = lam(base.clone().offsetHSL(0, -0.12, -0.16), ProChar.rockTex());
+            rockM.flatShading = true; rockD.flatShading = true; // 각진 바위 파셋 — '매끈한 점토' 오독 제거 (비평가 지적)
             const magma = new THREE.MeshBasicMaterial({ color: 0xff5a22 }); // 깊은 마그마 오렌지 — 베이지 데칼 오독 방지
             const prof = [[0.17, 0], [0.3, 0.1], [0.36, 0.3], [0.33, 0.46], [0.2, 0.56]];
             body = mk(new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 12), rockM);
             body.position.y = 0.42; body.scale.z = 0.85;
             g.add(body);
             // 마그마 코어 + 가슴 균열 스트립
-            const core = mk(new THREE.SphereGeometry(0.062, 10, 8), magma);
-            core.position.set(0, 0.73, 0.325); core.scale.z = 0.35; // 몸통 표면(z≈0.31) 밖으로
+            const core = mk(new THREE.OctahedronGeometry(0.072), magma); // 각진 마그마 결정 — 평면 데칼 아닌 돌출 지오메트리
+            core.position.set(0, 0.73, 0.325); core.scale.z = 0.45; core.rotation.z = 0.35;
             const coreRim = mk(new THREE.TorusGeometry(0.075, 0.022, 6, 12), rockD); // 코어 둘레 함몰 바위 림 — 표면 스티커가 아니라 깨진 틈 속 마그마
             coreRim.position.set(0, 0.73, 0.318);
             g.add(core, coreRim);
@@ -2716,8 +2717,8 @@ const Scene3D = {
                 const fore = limb(0.04, 0.036, 0.15, skinD);
                 const wristBand = mk(new THREE.CylinderGeometry(0.041, 0.041, 0.05, 8), clothM); // 손목 랩 악센트
                 wristBand.position.y = -0.12;
-                const hand = mk(new THREE.SphereGeometry(0.05, 8, 6), skinM);
-                hand.position.y = -0.16;
+                const hand = mk(new THREE.SphereGeometry(0.062, 8, 6), skinM); // 큼직한 주먹 — 국수 가락 팔 끝 오독 방지
+                hand.position.y = -0.16; hand.scale.set(1, 0.85, 1.1);
                 elbow.add(fore, wristBand, hand);
                 if (s > 0) { // 가시 몽둥이 — 주먹 중심을 자루가 관통하도록 (손목 옆 부유 금지)
                     const club = new THREE.Group();
@@ -2732,7 +2733,7 @@ const Scene3D = {
                         spike.rotation.z = -Math.cos(a2) * 1.2; spike.rotation.x = Math.sin(a2) * 1.2;
                         club.add(spike);
                     }
-                    club.rotation.z = 0.5;
+                    club.rotation.z = 0.3; // 주먹에서 살짝만 기울여 — 자루가 주먹을 관통해 쥔 실루엣
                     elbow.add(club);
                 }
                 sh.add(upper, elbow);
@@ -2772,7 +2773,7 @@ const Scene3D = {
                     fb.rotation.z = s * (Math.PI / 2 - fa);
                     wing.add(fb);
                 }
-                wing.rotation.y = s * -0.3; // 살짝 뒤로 스윕
+                wing.rotation.set(0.16, s * -0.3, s * -0.1); // 살짝 뒤로 스윕 + 끝 처짐 — 수평 판자 오독 방지
                 wing.userData.s = s;
                 anim.wings.push(wing);
                 g.add(wing);
@@ -2781,7 +2782,7 @@ const Scene3D = {
             anim.fly = true; topY = 1.0;
         } else if (kind === 'mushroom') {
             // 통통한 줄기 라테 + 갓 그룹(돔+테두리 립+반점+주름 프릴) + 밑동 발
-            const stemM = lam(base.clone().offsetHSL(0, -0.28, 0.22), ProChar.hideTex());
+            const stemM = lam(base.clone().offsetHSL(0.015, -0.16, 0.24), ProChar.hideTex()); // 웜 크림 줄기 — 무채색 회백 미완성 오독 제거
             const stemProf = [[0.15, 0], [0.12, 0.1], [0.1, 0.22], [0.13, 0.32], [0.16, 0.38]];
             const stem = mk(new THREE.LatheGeometry(stemProf.map(p => new THREE.Vector2(p[0], p[1])), 10), stemM);
             g.add(stem);
@@ -2819,11 +2820,11 @@ const Scene3D = {
                 if (s > 0) armR = armS; else armL = armS;
             }
             // 성난 왕눈 + 벌린 입 — 갓 그늘 아래 파묻힌 '얼굴 없는 소품' 탈피 (비평가 1위 결함)
-            eyes(0.3, 0.14, 0.085, 0.05, 'angry', { iris: 0x8a4a2c, tilt: 0.1, browColor: 0x9c4634 });
-            const mMouth = mk(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: 0x3a2420 }));
-            mMouth.position.set(0, 0.17, 0.12); mMouth.scale.set(1.15, 0.85, 0.4); // 벌린 아우성 입
-            const tooth = mk(new THREE.BoxGeometry(0.028, 0.022, 0.012), new THREE.MeshBasicMaterial({ color: 0xfff6e8 }));
-            tooth.position.set(0, 0.19, 0.148);
+            eyes(0.3, 0.135, 0.08, 0.048, 'angry', { iris: 0xd84315, tilt: 0.1, browColor: 0x4a2c22 }); // 갓 색과 맞춘 선명 홍채 — 원거리 판독성
+            const mMouth = mk(new THREE.SphereGeometry(0.042, 8, 6), new THREE.MeshBasicMaterial({ color: 0x3a2420 }));
+            mMouth.position.set(0, 0.165, 0.118); mMouth.scale.set(1.2, 0.8, 0.4); // 벌린 아우성 입
+            const tooth = mk(new THREE.BoxGeometry(0.028, 0.02, 0.012), new THREE.MeshBasicMaterial({ color: 0xfff6e8 }));
+            tooth.position.set(0, 0.185, 0.145);
             g.add(mMouth, tooth);
             anim.cap = capG; anim.hop = true;
             body = capG; topY = 0.9;
@@ -2877,8 +2878,8 @@ const Scene3D = {
             }
             g.add(headW);
             eyes(0.645, 0.49, 0.055, 0.042, 'fierce', { iris: 0xe8b13c, tilt: -0.28, browColor: 0x3c414d }); // 흰자+호박 홍채 — 원거리에서도 읽히는 맹수 눈 (발광 슬릿은 판독 불가, 비평가 지적)
-            const backStripe = mk(new THREE.SphereGeometry(0.16, 10, 8), furD); // 등 다크 스트라이프 — 단색 덩어리 완화 투톤
-            backStripe.position.set(0, 0.5, -0.04); backStripe.scale.set(0.72, 0.45, 1.9);
+            const backStripe = mk(new THREE.SphereGeometry(0.16, 10, 8), furD); // 등 다크 새들 — 목덜미→엉덩이 한 흐름으로 세그먼트 경계 은폐
+            backStripe.position.set(0, 0.49, -0.03); backStripe.scale.set(0.78, 0.5, 2.45);
             const bellyW = mk(new THREE.SphereGeometry(0.13, 10, 8), furL); // 밝은 아랫배 — 투톤 코트
             bellyW.position.set(0, 0.33, -0.02); bellyW.scale.set(0.8, 0.6, 1.6);
             g.add(bellyW);
@@ -2913,9 +2914,9 @@ const Scene3D = {
                 const holder = new THREE.Group();
                 holder.position.set(0, 0, -0.085);
                 holder.rotation.x = -0.26;
-                const seg = mk(new THREE.SphereGeometry(0.072 - ti * 0.012, 8, 6), ti === 2 ? furL : furD); // 두툼한 브러시 꼬리
+                const seg = mk(new THREE.SphereGeometry(0.085 - ti * 0.014, 8, 6), ti === 2 ? furL : furD); // 두툼한 브러시 꼬리 — 질주 실루엣 방향성
                 seg.position.z = -0.05;
-                seg.scale.set(0.85, 0.85, 1.55);
+                seg.scale.set(0.85, 0.85, 1.6);
                 holder.add(seg);
                 tPrev.add(holder);
                 tPrev = holder;
@@ -2985,7 +2986,8 @@ const Scene3D = {
                 mem.scale.x = s;
                 mem.position.y = 0.08;
                 wing.add(bone1, bone2, mem);
-                wing.rotation.set(0.2, 0, s * 0.55); // 위·뒤로 접힌 스윕 — 수평 판자 금지
+                wing.position.y = 0.42; // 어깨 높이 — 머리 뒤에서 '대형 귀'로 오독되지 않게 (비평가 지적)
+                wing.rotation.set(0.2, 0, s * 0.8);
                 wing.userData.s = s;
                 anim.wings.push(wing);
                 g.add(wing);
@@ -3055,7 +3057,7 @@ const Scene3D = {
     ensureBlobRes() {
         if (this.blobShadowMat) return;
         this.blobShadowMat = new THREE.MeshBasicMaterial({
-            map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false,
+            map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.34, depthWrite: false, // 캐주얼 톤에 맞는 옅은 그림자
         });
         this.blobGeo = new THREE.PlaneGeometry(1, 1);
     },
