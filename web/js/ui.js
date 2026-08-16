@@ -39,10 +39,14 @@ const UI = {
         this.renderSkillBar();
         this.renderEquipSheet();
         this.renderChatPreview();
+        this.watchTabX();
     },
 
     // 하단 탭 클릭: 던전/상점/전투(PvP)는 팝업, 나머지는 시트 토글(다시 누르면 닫힘)
     onTabClick(tab) {
+        // 빨간 X 상태의 탭 = 닫기 버튼
+        const btn = document.querySelector(`#tabbar button[data-tab="${tab}"]`);
+        if (btn && btn.classList.contains('tab-x')) { this.closeOpened(); return; }
         if (tab === 'dungeon') { this.switchTab(null); this.openDungeons(); return; }
         if (tab === 'shop') { this.switchTab(null); this.openShop(); return; }
         if (tab === 'battle') { this.switchTab(null); this.openLeague(); return; }
@@ -56,6 +60,45 @@ const UI = {
         if (tab === 'summon') this.switchSummonSub(this._summonSub || 'pets');
         if (tab === 'menu') this.renderMenu();
         if (tab === 'debug') this.renderDebug();
+        this.refreshTabX();
+    },
+
+    // ---- 탭바: 팝업이 열리면 해당 탭이 빨간 X로 바뀐다 (UI-SPEC 공통 레이아웃) ----
+    // 팝업 여닫는 지점이 20곳이 넘어 호출부를 일일이 고치는 대신 표시 상태 변화를 관찰한다.
+    MODAL_TAB: {
+        'dungeon-modal': 'dungeon', 'dungeon-detail-modal': 'dungeon',
+        'shop-modal': 'shop', 'league-modal': 'battle', 'pass-modal': 'battle',
+        'mount-modal': 'menu', 'mount-upgrade-modal': 'menu', 'pet-upgrade-modal': 'summon',
+        'tech-node-modal': 'summon', 'profile-modal': 'menu', 'player-info-modal': 'menu',
+        'chat-modal': 'menu', 'forge-info-modal': 'menu', 'forge-item-modal': 'menu',
+        'autoforge-modal': 'menu',
+    },
+    watchTabX() {
+        const obs = new MutationObserver(() => this.refreshTabX());
+        document.querySelectorAll('.modal').forEach(m => obs.observe(m, { attributes: true, attributeFilter: ['class'] }));
+    },
+    // 지금 열려 있는 팝업/시트가 속한 탭 (없으면 null)
+    openedTab() {
+        for (const id in this.MODAL_TAB) {
+            const el = document.getElementById(id);
+            if (el && !el.classList.contains('hidden')) return this.MODAL_TAB[id];
+        }
+        return this.activeTab; // 하단 시트(소환/방/디버그)
+    },
+    refreshTabX() {
+        const xTab = this.openedTab();
+        document.querySelectorAll('#tabbar button').forEach(b => {
+            const isX = !!xTab && b.dataset.tab === xTab;
+            b.classList.toggle('tab-x', isX);
+            if (isX && !b.dataset.label) b.dataset.label = b.innerHTML;
+            if (isX) b.innerHTML = '<span class="tab-x-mark">✕</span>';
+            else if (b.dataset.label) { b.innerHTML = b.dataset.label; delete b.dataset.label; }
+        });
+    },
+    // X 상태의 탭을 누르면 열린 것을 닫는다
+    closeOpened() {
+        document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+        this.switchTab(null);
     },
 
     openStub(title, desc) {
@@ -913,21 +956,25 @@ const UI = {
             const ok = Dungeons.unlocked(d.id);
             const keys = S.dungeons.keys[d.id];
             const hex = '#' + d.theme.sky.toString(16).padStart(6, '0');
+            // 원본 배치: 좌상단 아이콘+이름, 우측에 열쇠 수와 [열기] 버튼을 세로로
             return `<div class="dg-banner ${ok ? '' : 'locked'}" style="--bg:${hex}">
                 <span class="dg-icon">${d.icon}</span>
                 <div class="dg-info">
                     <div class="item-name">${d.kr}</div>
-                    ${ok ? `<span class="dg-keys">🗝 ${keys}/${Dungeons.MAX_KEYS}</span>` : `<span class="muted">🔒 ${d.unlock} 도달 시 해금</span>`}
+                    ${ok ? '' : `<span class="dg-lock">🔒 ${d.unlock} 도달 시 해금</span>`}
                 </div>
-                <button class="btn sm primary ${ok ? '' : 'disabled'}" onclick="UI.openDungeonDetail('${d.id}')">열기</button>
+                <div class="dg-right">
+                    ${ok ? `<span class="dg-keys">🗝 ${keys}/${Dungeons.MAX_KEYS}</span>` : ''}
+                    <button class="btn sm primary ${ok ? '' : 'disabled'}" onclick="UI.openDungeonDetail('${d.id}')">열기</button>
+                </div>
             </div>`;
         }).join('');
+        // 원본(UI-SPEC 6~7번): 전체화면 흰 페이지 + 가로 배너 4개. 닫기는 탭바의 빨간 X.
         this.els.dungeonModal.innerHTML = `
-            <div class="modal-card wide">
-                <h3>던전</h3>
-                <p class="muted" style="text-align:center">던전 열쇠는 매일 09:00에 보충됩니다. 열쇠는 던전을 완료할 때만 소모됩니다</p>
+            <div class="modal-card sheet">
+                <h3 class="sheet-title">던전</h3>
+                <p class="sheet-sub">던전 열쇠는 매일 09:00에 보충됩니다. 열쇠는 던전을 완료할 때만 소모됩니다</p>
                 <div class="dungeon-list">${bannerHtml}</div>
-                <button class="btn" onclick="UI.closeDungeons()">닫기</button>
             </div>`;
         this.els.dungeonModal.classList.remove('hidden');
     },
