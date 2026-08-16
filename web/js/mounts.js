@@ -57,7 +57,7 @@ const Mounts = {
     // 장착 시 이 탈것 1마리가 기여하는 고정 데미지·체력 (레벨 배율 × 승천 배율)
     mountPower(m) {
         const base = this.baseStat(m.rarity);
-        const mult = this.levelMult(m) * Ascension.starMult(m.stars);
+        const mult = this.levelMult(m) * Ascension.starMult(m.stars) * TechTree.mountPowerMult();
         return { atk: base.atk * mult, hp: base.hp * mult };
     },
 

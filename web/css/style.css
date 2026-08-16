@@ -203,8 +203,8 @@ body {
     border: 1px solid #444c56; border-radius: .55rem; overflow: hidden;
     display: flex; align-items: center; justify-content: center;
 }
-#upg-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0; background: #1f4a2c; }
-#upg-time { position: relative; font-size: .8rem; font-weight: 700; }
+#upg-fill, #tech-node-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0; background: #1f4a2c; }
+#upg-time, #tech-node-time { position: relative; font-size: .8rem; font-weight: 700; }
 
 .age-rows { display: flex; flex-direction: column; gap: .3rem; margin: .5rem 0; }
 .age-row { display: grid; grid-template-columns: 5.2rem 1fr auto 1fr auto; gap: .3rem; align-items: center; font-size: .68rem; }
@@ -458,10 +458,7 @@ body {
     display: flex; align-items: center; justify-content: center; font-size: 2.4rem;
 }
 
-/* ---- 기술 트리 ---- */
-.tech-scroll { max-height: 62vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; gap: .6rem; }
-.tech-branch h3 { margin: .2rem 0 .35rem; font-size: .95rem; }
-.tech-node-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+/* ---- 기술 트리: 진행 바(대장간 소환 레벨 등에도 공용) ---- */
 .tech-node {
     background: #22272e; border: 1px solid #444c56; border-radius: .6rem;
     padding: .45rem .5rem; display: flex; flex-direction: column; gap: .25rem;
@@ -470,3 +467,24 @@ body {
 .tech-node-bar { height: .3rem; background: #161b22; border-radius: .2rem; overflow: hidden; }
 .tech-node-bar div { height: 100%; background: #ffd54f; }
 .tech-node .btn { width: 100%; }
+
+/* ---- 기술 트리: 분기 개요 카드 (UI-SPEC 10번) ---- */
+.tech-branch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin: .5rem 0; }
+.tech-branch-card {
+    background: #22272e; border: 1px solid #444c56; border-radius: .6rem;
+    padding: .5rem; display: flex; flex-direction: column; align-items: center; gap: .25rem; cursor: pointer;
+}
+.tech-branch-title { font-size: .78rem; font-weight: 700; }
+.tech-branch-icon { font-size: 1.8rem; }
+.tech-branch-pct { font-size: .78rem; color: #ffd54f; font-weight: 700; }
+
+/* ---- 기술 트리: 분기 상세 세로 노드 트리 (UI-SPEC 15~16번) ---- */
+.tech-tree-col { display: flex; flex-direction: column; align-items: center; gap: 0; margin: .5rem 0; }
+.tech-tree-line { width: .18rem; height: 1.1rem; background: #444c56; }
+.tech-tree-node {
+    width: 3rem; height: 3rem; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; border: .18rem solid #444c56; background: #22272e; cursor: pointer;
+}
+.tech-tree-node.active { border-color: #ffd54f; background: #3a2f10; }
+.tech-tree-node.done { border-color: #8d6e63; background: #4e342e; }
+.tech-tree-label { font-size: .68rem; text-align: center; color: #90a4ae; margin: .15rem 0 .3rem; }

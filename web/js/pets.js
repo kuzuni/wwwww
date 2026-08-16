@@ -121,7 +121,7 @@ const Pets = {
     // 장착(출전) 시 펫 1마리가 기여하는 고정 데미지·체력 (petStats 원본 수치 × 레벨 배율 × 승천 배율)
     petPower(p) {
         const def = this.petDef(p);
-        const mult = this.levelMult(p) * Ascension.starMult(p.stars);
+        const mult = this.levelMult(p) * Ascension.starMult(p.stars) * TechTree.petPowerMult();
         return { atk: def.damage * mult, hp: def.health * mult };
     },
 

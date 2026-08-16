@@ -20,7 +20,7 @@ const UI = {
             mountModal: $('mount-modal'), ascendModal: $('ascend-modal'),
             stubModal: $('stub-modal'),
             forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
-            petUpgradeModal: $('pet-upgrade-modal'),
+            petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -908,39 +908,109 @@ const UI = {
         if (Dungeons.sweep(id)) { this.renderDungeonDetail(); this.renderTopBar(); }
     },
 
-    // ---- 기술 트리 (소환 탭 서브탭) ----
-    openTechTree() { this.switchSummonSub('tech'); }, // 다른 화면에서 진입하는 진입점 (메뉴 버튼 등)
+    // ---- 기술 트리 (소환 탭 서브탭, UI-SPEC 10·15~16번): 분기 4개 카드 → 분기 상세(세로 노드 트리) → 노드 팝업 ----
+    _techView: 'overview', _techBranch: null, _techNode: null,
+    openTechTree() { this._techView = 'overview'; this.switchSummonSub('tech'); }, // 다른 화면에서 진입하는 진입점 (메뉴 버튼 등)
+    openTechOverview() { this._techView = 'overview'; this.renderTechTree(); }, // 서브탭 내부 뒤로가기
+    openTechBranch(id) { this._techView = 'branch'; this._techBranch = id; this.renderTechTree(); },
     renderTechTree() {
         if (this.activeTab !== 'summon' || this._summonSub !== 'tech') return;
         TechTree.ensure();
-        const branchHtml = TechTree.BRANCHES.map(b => {
-            const nodesHtml = b.nodes.map(id => {
-                const def = TechTree.NODES[id];
-                const lv = TechTree.level(id);
-                const max = TechTree.isMax(id);
-                const cost = TechTree.nextCost(id);
-                const tier = TechTree.tierOf(lv || 1);
-                return `<div class="tech-node">
-                    <div class="tech-node-head">
-                        <span class="item-name">${def.name} <small class="muted">T${tier}</small></span>
-                        <span class="muted">${lv}/${TechTree.MAX_LEVEL}</span>
-                    </div>
-                    <div class="muted" style="font-size:.75rem">${def.desc} · 현재 +${U.fmt(TechTree.pct(id))}%</div>
-                    <div class="tech-node-bar"><div style="width:${(lv / TechTree.MAX_LEVEL * 100).toFixed(1)}%"></div></div>
-                    <button class="btn sm primary ${!max && S.potions >= cost ? '' : 'disabled'}" onclick="UI.onUpgradeTech('${id}')">
-                        ${max ? 'MAX' : `🧪 ${U.fmt(cost)} (+${def.per}%)`}
-                    </button>
-                </div>`;
-            }).join('');
-            return `<div class="tech-branch"><h3>${b.icon} ${b.name}</h3><div class="tech-node-grid">${nodesHtml}</div></div>`;
+        if (this._techView === 'branch') this.renderTechBranchView();
+        else this.renderTechOverview();
+    },
+    renderTechOverview() {
+        const cardsHtml = TechTree.BRANCHES.map(b => {
+            const pct = TechTree.branchProgress(b.id);
+            const researching = S.techResearch && b.nodes.includes(S.techResearch.id);
+            const timeHtml = researching
+                ? ` <small class="tech-branch-time" id="tech-b-time-${b.id}" style="color:#4caf50">(${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)})</small>` : '';
+            return `<button class="tech-branch-card" onclick="UI.openTechBranch('${b.id}')">
+                <div class="tech-branch-title">${b.name}</div>
+                <div class="tech-branch-icon">${b.icon}</div>
+                <div class="tech-branch-pct">${pct.toFixed(1)}%${timeHtml}</div>
+            </button>`;
         }).join('');
         this.els.techPanel.innerHTML = `
             <h2>🔬 기술 트리 <span class="muted">🧪 ${U.fmt(S.potions || 0)}</span></h2>
-            <div class="tech-scroll">${branchHtml}</div>`;
+            <div class="tech-branch-grid">${cardsHtml}</div>`;
     },
-    onUpgradeTech(id) {
-        if (TechTree.upgrade(id)) { this.renderTechTree(); this.renderTopBar(); Combat.recalcHero(); }
-        else this.toast('🧪 물약이 부족합니다 (좀비 러시 던전에서 획득)');
+    renderTechBranchView() {
+        const b = TechTree.BRANCHES.find(x => x.id === this._techBranch);
+        const pct = TechTree.branchProgress(b.id);
+        const nodesHtml = b.nodes.map((id, i) => {
+            const lv = TechTree.level(id);
+            const max = TechTree.isMax(id);
+            const researching = TechTree.researchingId() === id;
+            const cls = max ? 'done' : (lv > 0 || researching) ? 'active' : 'locked';
+            const badge = researching
+                ? `<small class="tech-tree-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
+                : `<small>${lv}/${TechTree.MAX_LEVEL}</small>`;
+            return `${i > 0 ? '<div class="tech-tree-line"></div>' : ''}
+                <button class="tech-tree-node ${cls}" onclick="UI.openTechNode('${id}')">
+                    <span class="tech-tree-icon">${max ? '⭐' : '🔬'}</span>
+                </button>
+                <div class="tech-tree-label">${TechTree.NODES[id].name}<br>${badge}</div>`;
+        }).join('');
+        this.els.techPanel.innerHTML = `
+            <div class="row" style="justify-content:space-between">
+                <button class="btn sm" onclick="UI.openTechOverview()">◀ 뒤로</button>
+                <h2>${b.icon} ${b.name} <small class="muted">${pct.toFixed(1)}%</small></h2>
+            </div>
+            <div class="tech-tree-col">${nodesHtml}</div>`;
+    },
+    // 노드 팝업 (분기 트리 위에 뜨는 별도 모달, UI-SPEC 15~16번 "노드 팝업")
+    openTechNode(id) { this._techNode = id; this.renderTechNodeModal(); this.els.techNodeModal.classList.remove('hidden'); },
+    closeTechNode() { this.els.techNodeModal.classList.add('hidden'); },
+    renderTechNodeModal() {
+        const id = this._techNode;
+        const def = TechTree.NODES[id];
+        const lv = TechTree.level(id);
+        const max = TechTree.isMax(id);
+        const researching = TechTree.researchingId() === id;
+        const otherResearch = S.techResearch && !researching;
+
+        let actionHtml;
+        if (max) {
+            actionHtml = `<div class="muted" style="text-align:center">연구 완료 (MAX)</div>`;
+        } else if (researching) {
+            const remain = (S.techResearch.endsAt - U.now()) / 1000;
+            actionHtml = `<div class="row">
+                <div class="upg-progress"><div id="tech-node-fill" style="width:${U.clamp(1 - remain / TechTree.time(id, lv + 1), 0, 1) * 100}%"></div><span id="tech-node-time">${U.fmtTime(remain)}</span></div>
+                <button class="btn gem" onclick="UI.onTechGemSkip()">💎 ${TechTree.gemSkipCost()} 건너뛰기</button>
+            </div>
+            <button class="btn danger" onclick="UI.onTechCancel()">취소</button>`;
+        } else {
+            const cost = TechTree.nextCost(id), time = TechTree.time(id, lv + 1);
+            const disabled = otherResearch || S.potions < cost;
+            actionHtml = `<button class="btn primary ${disabled ? 'disabled' : ''}" onclick="UI.onTechStart('${id}')">
+                🔬 연구 시작<br><small>🧪 ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</small></button>
+                ${otherResearch ? '<p class="muted">다른 연구가 진행 중입니다</p>' : ''}`;
+        }
+
+        this.els.techNodeModal.innerHTML = `
+            <div class="modal-card wide">
+                <h3>${def.name}</h3>
+                <p class="muted">${def.desc}</p>
+                <p>레벨 ${lv} → ${max ? '(최고)' : lv + 1} · 현재 효과 +${U.fmt(TechTree.pct(id))}% ${!max ? `(다음 +${U.fmt((lv + 1) * def.per)}%)` : ''}</p>
+                ${actionHtml}
+                <button class="btn" onclick="UI.closeTechNode()">닫기</button>
+            </div>`;
+    },
+    onTechStart(id) {
+        if (TechTree.start(id)) { this.renderTechNodeModal(); this.renderTechBranchView(); this.renderTopBar(); }
+        else this.toast('🧪 물약이 부족하거나 다른 연구가 진행 중입니다');
+    },
+    onTechGemSkip() {
+        if (TechTree.gemSkip()) { this.renderTechNodeModal(); this.renderTechBranchView(); this.renderTopBar(); }
+        else this.toast('💎 젬이 부족합니다');
+    },
+    onTechCancel() {
+        TechTree.cancel();
+        this.renderTechNodeModal();
+        this.renderTechBranchView();
+        this.renderTopBar();
+        this.toast('🧪 연구를 취소하고 물약을 환불했습니다');
     },
 
     // ---- 마운트 ----
@@ -1175,5 +1245,16 @@ const UI = {
         });
         const eggT = document.getElementById('equip-egg-t');
         if (eggT && S.hatching[0]) eggT.textContent = U.fmtTime((S.hatching[0].endsAt - U.now()) / 1000);
+        // 기술 트리 연구 카운트다운 (개요 카드 / 분기 트리 노드 / 노드 팝업 진행바)
+        if (S.techResearch) {
+            const remain = (S.techResearch.endsAt - U.now()) / 1000;
+            const bTime = document.getElementById('tech-b-time-' + TechTree.branchOf(S.techResearch.id).id);
+            if (bTime) bTime.textContent = `(${U.fmtTime(remain)})`;
+            const nTime = document.getElementById('tech-n-time-' + S.techResearch.id);
+            if (nTime) nTime.textContent = U.fmtTime(remain);
+            const fill = document.getElementById('tech-node-fill'), popupTime = document.getElementById('tech-node-time');
+            if (fill) fill.style.width = U.clamp(1 - remain / TechTree.time(S.techResearch.id, TechTree.level(S.techResearch.id) + 1), 0, 1) * 100 + '%';
+            if (popupTime) popupTime.textContent = U.fmtTime(remain);
+        }
     },
 };

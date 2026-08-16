@@ -113,6 +113,7 @@
         // 1초 주기: 타이머/UI/부화/업그레이드 완료 체크
         setInterval(() => {
             Forge.tickUpgrade();
+            TechTree.tick();
             Pets.tick();
             Dungeons.ensure(); // 매일 09:00 열쇠 리셋 감지
             UI.tickSecond();
