@@ -388,28 +388,29 @@ body {
 .big-stat { font-size: 1.05rem; font-weight: 800; color: #ffd54f; }
 .modal-card .sub { font-size: .78rem; color: #81d4fa; }
 
-/* ---- 장비 비교 프리뷰 (새 장비 위 / 장착 중 아래) ---- */
+/* ---- 장비 비교/세부정보 팝업 (UI-SPEC 25·26번, 원본 shot-043224/043244) ---- */
 .modal-card.wide { width: 94%; }
-.cmp-wrap { display: flex; flex-direction: column; align-items: stretch; gap: .25rem; }
+.cmp-wrap { display: flex; flex-direction: column; gap: 1.5rem; margin-top: .5rem; }
+.cmp-card-wrap { position: relative; }
+.cmp-ribbon {
+    position: absolute; top: -1.05rem; left: .6rem; z-index: 1;
+    background: var(--pp-paper); border: 2px solid var(--pp-line); border-bottom: none;
+    padding: .22rem .95rem .22rem .6rem; font-weight: 800; font-size: .76rem; color: var(--pp-ink);
+    clip-path: polygon(0 0, 100% 0, 82% 100%, 0% 100%);
+}
+.cmp-ribbon.new { color: var(--pp-red); }
 .cmp-card {
-    min-width: 0; background: #22272e; border: 2px solid var(--rc, #444c56);
-    border-radius: .7rem; padding: .5rem .55rem; display: flex; flex-direction: row;
-    gap: .55rem; align-items: center; text-align: left;
+    min-width: 0; border: 3px solid var(--pp-line);
+    border-radius: .8rem; padding: .9rem .7rem .7rem; display: flex; flex-direction: row;
+    gap: .7rem; align-items: flex-start; text-align: left;
 }
-.cmp-card.empty { border-style: dashed; opacity: .6; justify-content: center; min-height: 4rem; flex-direction: column; gap: .2rem; }
-.cmp-card.best { box-shadow: 0 0 10px var(--rc, transparent); }
-.cmp-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .12rem; }
-.cmp-tag {
-    font-size: .62rem; font-weight: 800; color: #90a4ae; background: #161b22;
-    padding: .1rem .5rem; border-radius: 1rem;
-}
-.cmp-card.best .cmp-tag { color: #ffd54f; }
+.cmp-card.empty { border-style: dashed; opacity: .7; justify-content: center; min-height: 4rem; flex-direction: column; gap: .2rem; }
 
-/* 새 장비 연출: 반짝이 스윕 + 펄스 글로우 + NEW 뱃지 */
+/* 새 장비 연출: 반짝이 스윕 + 펄스 글로우 */
 .cmp-card.new { position: relative; overflow: hidden; animation: newpulse 1.3s ease-in-out infinite; }
 .cmp-card.new::after {
     content: ''; position: absolute; top: -60%; left: -80%; width: 45%; height: 220%;
-    background: linear-gradient(105deg, transparent, rgba(255,255,255,.4), transparent);
+    background: linear-gradient(105deg, transparent, rgba(255,255,255,.5), transparent);
     transform: rotate(15deg);
     animation: shinesweep 1.7s ease-in-out infinite;
     pointer-events: none;
@@ -419,37 +420,30 @@ body {
     0%, 100% { box-shadow: 0 0 6px var(--rc, #ffd54f); }
     50% { box-shadow: 0 0 16px var(--rc, #ffd54f); }
 }
-.cmp-tag.newtag {
-    background: linear-gradient(90deg, #ffd54f, #ffab40); color: #161b22;
-    animation: newtagbounce .7s ease-in-out infinite alternate;
-}
-@keyframes newtagbounce { from { transform: translateY(0); } to { transform: translateY(-2px) scale(1.05); } }
 
 /* 장착 = 파랑 / 판매 = 빨강 */
-.btn.equip { background: #14385c; border-color: #2f81f7; color: #cfe4ff; }
-.btn.sell { background: #4a1c1c; border-color: #f85149; color: #ffd7d5; }
+.btn.equip { background: var(--pp-blue); border-color: var(--pp-line); color: #fff; box-shadow: inset 0 -.22rem 0 var(--pp-blue-dk); }
+.btn.sell { background: var(--pp-red); border-color: var(--pp-line); color: #fff; box-shadow: inset 0 -.22rem 0 var(--pp-red-dk); }
+.cmp-icon-wrap { position: relative; flex: none; padding-bottom: .75rem; text-align: center; }
 .cmp-img {
-    width: 3.4rem; height: 3.4rem; border-radius: .55rem;
-    background: radial-gradient(circle at 35% 30%, #2d333b, #161b22);
-    border: 1px solid var(--rc, #444c56); object-fit: contain;
+    width: 3.6rem; height: 3.6rem; border-radius: .55rem;
+    background: #4e2b2b; border: 2px solid var(--pp-line); object-fit: contain;
 }
 .cmp-img.emoji, .cell-img.emoji { display: flex; align-items: center; justify-content: center; font-size: 1.9rem; }
+.cmp-icon-wrap .sk-lv { bottom: 0; }
+.cmp-star { display: block; font-size: .85rem; margin-top: .1rem; }
 .cell-img {
     width: 2.3rem; height: 2.3rem; border-radius: .45rem; align-self: center;
-    background: radial-gradient(circle at 35% 30%, #2d333b, #161b22);
-    border: 1px solid var(--rc, #444c56); object-fit: contain;
+    background: #4e2b2b; border: 1px solid var(--pp-line); object-fit: contain;
 }
 .cell-img.emoji { font-size: 1.25rem; }
-.cmp-name { font-size: .85rem; font-weight: 800; }
-.cmp-card .big-stat { font-size: .9rem; }
-.cmp-card .sub { font-size: .66rem; color: #81d4fa; }
-.cmp-power { font-size: .68rem; font-weight: 700; color: #ffd54f; margin-left: .3rem; }
-.cmp-arrow {
-    align-self: center; font-size: .82rem; font-weight: 900; white-space: nowrap;
-    padding: 0 .1rem;
-}
-.cmp-arrow.up { color: #69f0ae; }
-.cmp-arrow.down { color: #ff8a80; }
+.cmp-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
+.cmp-name { font-size: .88rem; font-weight: 800; color: var(--pp-ink); }
+.cmp-stat { font-size: .95rem; font-weight: 800; color: var(--pp-ink); }
+.cmp-stat .arrow { font-size: .82rem; font-weight: 900; margin-left: .25rem; }
+.cmp-stat .arrow.up { color: var(--pp-green); }
+.cmp-stat .arrow.down { color: var(--pp-red); }
+.cmp-sub { font-size: .78rem; font-weight: 700; color: var(--pp-muted); line-height: 1.5; }
 
 /* ---- 스킬 컷인 + 화면 플래시 ---- */
 #skill-cutin {
@@ -781,39 +775,31 @@ body {
 .tech-node-bar { height: .3rem; background: #161b22; border-radius: .2rem; overflow: hidden; }
 .tech-node-bar div { height: 100%; background: #ffd54f; }
 
-/* ---- 플레이어 정보 팝업 (UI-SPEC 27번) ---- */
+/* ---- 플레이어 정보 팝업 (UI-SPEC 27번, 원본 shot-043313) ---- */
 .pinfo-header { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
-.pinfo-id { display: flex; align-items: center; gap: .4rem; }
+.pinfo-id { display: flex; align-items: center; gap: .5rem; }
 .pinfo-id .avatar {
-    width: 2.6rem; height: 2.6rem; border-radius: 50%; background: #161b22;
-    border: 1px solid #444c56; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
+    width: 2.8rem; height: 2.8rem; border-radius: .4rem; background: var(--pp-panel);
+    border: 2px solid var(--pp-line); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
 }
-.pinfo-id-text { display: flex; flex-direction: column; line-height: 1.3; }
-.pinfo-id-text .name { font-weight: 800; font-size: .88rem; }
-.pinfo-id-text .clan { font-size: .68rem; color: #90a4ae; }
-.pinfo-id-text .cp { font-size: .8rem; font-weight: 800; color: #ff8a65; }
-.pinfo-right { text-align: right; font-size: .74rem; color: #cfd8dc; line-height: 1.5; }
+.pinfo-id-text { display: flex; flex-direction: column; line-height: 1.35; }
+.pinfo-id-text .name { font-weight: 900; font-size: .9rem; color: var(--pp-ink); }
+.pinfo-id-text .clan { font-size: .7rem; color: var(--pp-muted); font-weight: 700; }
+.pinfo-id-text .cp { font-size: .8rem; font-weight: 800; color: var(--pp-ink); }
+.pinfo-right { text-align: right; font-size: .76rem; font-weight: 700; color: var(--pp-ink); line-height: 1.55; }
 .pinfo-preview {
     display: flex; align-items: center; gap: .4rem; overflow-x: auto;
-    background: #0d1117; border: 1px solid #30363d; border-radius: .5rem;
-    padding: .4rem .5rem; margin: .5rem 0; font-size: .78rem; white-space: nowrap;
+    background: linear-gradient(180deg, #6cbf5a 55%, #b5793f 55%); border: 2px solid var(--pp-line); border-radius: .5rem;
+    padding: .4rem .5rem; margin: .5rem 0; font-size: .78rem; white-space: nowrap; color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,.5);
 }
-.pinfo-preview .pip { width: .5rem; height: .5rem; border-radius: 50%; background: rgba(255,255,255,.25); flex: none; }
-.pinfo-preview .pip.done { background: #69f0ae; }
+.pinfo-preview .pip { width: .5rem; height: .5rem; border-radius: 50%; background: rgba(255,255,255,.4); flex: none; }
+.pinfo-preview .pip.done { background: var(--pp-green); }
 .pinfo-preview .pip.now { background: #fff; box-shadow: 0 0 6px #fff; }
-.pinfo-section-title { font-size: .72rem; color: #90a4ae; margin: .5rem 0 .3rem; }
-.pinfo-loadout-row { display: flex; gap: .4rem; flex-wrap: wrap; }
-.pinfo-loadout-row .icon-circle.sm {
-    position: relative; width: 2.2rem; height: 2.2rem; border-radius: 50%; background: #22272e;
-    border: 1px solid #444c56; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
-}
-.pinfo-loadout-row .icon-circle.sm .lv-badge {
-    position: absolute; bottom: -.35rem; left: 50%; transform: translateX(-50%);
-    font-size: .58rem; font-weight: 800; color: #ffd54f; background: #161b22;
-    border-radius: .5rem; padding: 0 .25rem; white-space: nowrap;
-}
-.pinfo-subs-list { max-height: 30vh; overflow-y: auto; font-size: .78rem; line-height: 1.9; }
-.pinfo-subs-list .muted { font-size: .78rem; }
+.pinfo-section-title { font-size: .74rem; color: var(--pp-muted); font-weight: 800; margin: .5rem 0 .3rem; }
+.pinfo-loadout-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+.pinfo-subs-list { max-height: 30vh; overflow-y: auto; font-size: .8rem; font-weight: 700; color: var(--pp-ink); line-height: 1.9; }
+.pinfo-subs-list .muted { font-size: .8rem; }
 
 /* ---- 채팅 미리보기 1줄 (UI-SPEC 1·28번) ---- */
 #chat-preview {
@@ -919,7 +905,6 @@ body {
 .modal-card .age-bar-wrap { background: var(--pp-panel); }
 .modal-card .substat-row { border-color: #dcdcdc; color: var(--pp-ink); }
 .modal-card .icon-circle { background: var(--pp-panel); border-color: var(--pp-line); }
-.modal-card .cmp-tag { background: var(--pp-panel); color: var(--pp-muted); }
 .modal-card .stat-grid div:nth-child(even) { color: var(--pp-ink); }
 
 /* ---- 버튼: 파란 주요 / 빨간 위험 / 회색 비활성, 모두 검정 테두리 + 아래쪽 그림자 턱 ---- */

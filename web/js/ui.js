@@ -550,21 +550,24 @@ const UI = {
         return `<div class="${cls} emoji">${this.SLOT_EMOJI[item.slot] || '🎁'}</div>`;
     },
 
-    // 아이템 카드 HTML (비교 프리뷰용 — 가로형: 이미지 왼쪽 + 정보 오른쪽)
-    itemCardHTML(item, tag, highlight, isNew) {
-        if (!item) return `<div class="cmp-card empty"><div class="cmp-tag">${tag}</div><div class="muted" style="margin:auto">빈 슬롯 — 장착 중인 장비 없음</div></div>`;
-        const typeLabel = item.wtype
-            ? `${WEAPON_TYPES[item.wtype].kind === 'ranged' ? '🏹 원거리' : '🗡 근거리'}`
-            : SLOT_KR[item.slot];
-        const subsHtml = item.subs.length
-            ? `<div class="sub">${item.subs.map(s => U.subText(s)).join(' · ')}</div>` : '';
-        return `<div class="cmp-card ${highlight ? 'best' : ''} ${isNew ? 'new' : ''}" style="--rc:${RARITY_CSS[item.rarity]}">
-            ${this.itemImgHTML(item, 'cmp-img')}
-            <div class="cmp-info">
-                <div><span class="cmp-tag ${isNew ? 'newtag' : ''}">${tag}</span> <span class="rarity-tag">${AGE_KR[item.age]} · ${RARITY_KR[item.rarity]}</span></div>
-                <div class="cmp-name">${item.name} <small class="muted">${typeLabel} · Lv.${item.level}</small></div>
-                <div class="big-stat">${item.main === 'atk' ? '⚔️' : '❤️'} ${U.fmt(item.value)} <span class="cmp-power">전투력 ${U.fmt(Forge.itemPower(item))}</span></div>
-                ${subsHtml}
+    // 아이템 카드 HTML (비교/세부정보 공용, UI-SPEC 25·26번 원본 레이아웃 — 위 리본 태그 + 좌 아이콘(Lv+⭐) + 우 이름/주스탯(비교 화살표)/서브스탯)
+    itemCardHTML(item, tag, arrowDir, isNew) {
+        if (!item) return `<div class="cmp-card-wrap"><span class="cmp-ribbon">${tag}</span><div class="cmp-card empty"><div class="muted" style="margin:auto">빈 슬롯 — 장착 중인 장비 없음</div></div></div>`;
+        const subsHtml = item.subs.length ? item.subs.map(s => `<div class="cmp-sub">${U.subText(s)}</div>`).join('') : '';
+        const arrowHtml = arrowDir ? `<span class="arrow ${arrowDir}">${arrowDir === 'up' ? '▲' : '▼'}</span>` : '';
+        return `<div class="cmp-card-wrap">
+            <span class="cmp-ribbon ${isNew ? 'new' : ''}">${tag}</span>
+            <div class="cmp-card" style="--rc:${RARITY_CSS[item.rarity]}">
+                <div class="cmp-icon-wrap">
+                    ${this.itemImgHTML(item, 'cmp-img')}
+                    <span class="sk-lv">Lv.${item.level}</span>
+                    <span class="cmp-star">⭐</span>
+                </div>
+                <div class="cmp-info">
+                    <div class="cmp-name">[${AGE_KR[item.age]}] ${item.name}</div>
+                    <div class="cmp-stat">${U.fmt(item.value)} ${item.main === 'atk' ? '피해' : '체력'}${arrowHtml}</div>
+                    ${subsHtml}
+                </div>
             </div>
         </div>`;
     },
@@ -572,17 +575,15 @@ const UI = {
     showCraftModal(item) {
         const cur = S.equipment[item.slot];
         const isMatch = Forge.isMatchingGear(item, cur);
-        const pNew = Forge.itemPower(item), pCur = Forge.itemPower(cur);
-        const better = pNew >= pCur;
-        const diff = pCur > 0 ? ((pNew / pCur - 1) * 100) : 100;
+        // 원본은 전투력이 아니라 두 장비의 주 스탯(공격력/체력) 값을 직접 비교해 화살표를 매김 (UI-SPEC 25번)
+        const newIsHigher = !cur || item.value >= cur.value;
         // 장착 중인 장비가 위, 새 장비가 아래 (UI-SPEC 25번)
         this.els.craftModal.innerHTML = `
             <div class="modal-card wide" style="--rc:${RARITY_CSS[item.rarity]}">
                 <h3>${SLOT_KR[item.slot]} 획득!</h3>
                 <div class="cmp-wrap">
-                    ${this.itemCardHTML(cur, '장착 중', !better && cur)}
-                    <div class="cmp-arrow ${better ? 'up' : 'down'}">${cur ? (better ? '▲ ' : '▼ ') + Math.abs(diff).toFixed(0) + '%' : 'NEW!'}</div>
-                    ${this.itemCardHTML(item, 'NEW! 새 장비', better, true)}
+                    ${this.itemCardHTML(cur, '장착됨', cur ? (newIsHigher ? 'down' : 'up') : null, false)}
+                    ${this.itemCardHTML(item, '새로운!', cur ? (newIsHigher ? 'up' : 'down') : null, true)}
                 </div>
                 <div class="row">
                     ${isMatch ? `<button class="btn gem" onclick="UI.resolveCraft('ascend')">⭐ 승천 (⭐${(cur.stars || 0) + 1})</button>` : ''}
@@ -599,8 +600,8 @@ const UI = {
         if (!item) return;
         this._gearDetailSlot = slot;
         this.els.gearDetailModal.innerHTML = `
-            <div class="modal-card" style="--rc:${RARITY_CSS[item.rarity]}">
-                ${this.itemCardHTML(item, '장착됨', false, false)}
+            <div class="modal-card wide">
+                <div class="cmp-wrap">${this.itemCardHTML(item, '장착됨', null, false)}</div>
             </div>`;
         this.els.gearDetailModal.classList.remove('hidden');
     },
@@ -1518,11 +1519,12 @@ const UI = {
             </div>`;
         }).join('');
 
-        const skillIconsHtml = S.equippedSkills.map(id =>
-            `<span class="icon-circle sm">${SKILL_ICONS[id] || '✨'}<span class="lv-badge">Lv.${Skills.level(id)}</span></span>`).join('');
+        const skillIconsHtml = S.equippedSkills.map(id => `<span class="sk-cell" style="cursor:default">
+            <span class="sk-orb">${SKILL_ICONS[id] || '✨'}<span class="sk-lv">Lv.${Skills.level(id)}</span></span></span>`).join('');
         const petIconsHtml = S.activePets.map(i => {
             const p = S.pets[i];
-            return `<span class="icon-circle sm">${PET_ICONS[p.name] || '🐾'}<span class="lv-badge">Lv.${p.level}</span></span>`;
+            return `<span class="sk-cell" style="cursor:default">
+                <span class="sk-orb">${PET_ICONS[p.name] || '🐾'}<span class="sk-lv">Lv.${p.level}</span></span></span>`;
         }).join('');
 
         const subsHtml = SUBSTATS
@@ -1532,31 +1534,32 @@ const UI = {
             .join('') || '<div class="muted">보유한 옵션 없음</div>';
 
         this.els.playerInfoModal.innerHTML = `
-            <div class="modal-card">
-                <h3>플레이어 정보</h3>
-                <div class="pinfo-header">
-                    <div class="pinfo-id">
-                        <span class="avatar">${S.avatarEmoji || '🛡️'}</span>
-                        <div class="pinfo-id-text">
-                            <span class="name">${U.escapeHtml(S.nickname || '용사')} <span class="muted">[무소속]</span></span>
-                            <span class="clan">${S.gender || '♂'} · 서버 1</span>
-                            <span class="cp">⚔️ ${U.fmt(cp)}</span>
+            <div class="idet-wrap">
+                <div class="modal-card wide">
+                    <div class="pinfo-header">
+                        <div class="pinfo-id">
+                            <span class="avatar">${S.avatarEmoji || '🛡️'}</span>
+                            <div class="pinfo-id-text">
+                                <span class="name">${U.escapeHtml(S.nickname || '용사')} <span class="muted">[무소속]</span></span>
+                                <span class="clan">${S.gender || '♂'} · 서버 1</span>
+                                <span class="cp">⚔️ ${U.fmt(cp)}</span>
+                            </div>
+                        </div>
+                        <div class="pinfo-right">
+                            <div>Lv. ${S.forgeLevel} 대장간${stars ? ` ⭐${stars}` : ''}</div>
+                            <div>${U.fmt(stats.atk)} 총 피해</div>
+                            <div>${U.fmt(stats.hp)} 총 체력</div>
                         </div>
                     </div>
-                    <div class="pinfo-right">
-                        <div>Lv. ${S.forgeLevel} 대장간${stars ? ` ⭐${stars}` : ''}</div>
-                        <div>${U.fmt(stats.atk)} 총 피해</div>
-                        <div>${U.fmt(stats.hp)} 총 체력</div>
-                    </div>
+                    ${previewHtml}
+                    <div class="pinfo-section-title">장착 장비</div>
+                    <div class="equip-grid">${gearHtml}</div>
+                    <div class="pinfo-section-title">장착 스킬 · 펫</div>
+                    <div class="pinfo-loadout-row">${skillIconsHtml}${petIconsHtml || '<span class="muted">출전 중인 펫 없음</span>'}</div>
+                    <div class="pinfo-section-title">옵션 합계</div>
+                    <div class="pinfo-subs-list">${subsHtml}</div>
                 </div>
-                ${previewHtml}
-                <div class="pinfo-section-title">장착 장비</div>
-                <div class="equip-grid">${gearHtml}</div>
-                <div class="pinfo-section-title">장착 스킬 · 펫</div>
-                <div class="pinfo-loadout-row">${skillIconsHtml}${petIconsHtml || '<span class="muted">출전 중인 펫 없음</span>'}</div>
-                <div class="pinfo-section-title">옵션 합계</div>
-                <div class="pinfo-subs-list">${subsHtml}</div>
-                <button class="btn" onclick="UI.closePlayerInfo()">닫기</button>
+                <button class="x-btn" onclick="UI.closePlayerInfo()">✕</button>
             </div>`;
     },
 
