@@ -2644,24 +2644,78 @@ const Scene3D = {
             anim.cap = capG; anim.hop = true;
             body = capG; topY = 0.9;
         } else if (kind === 'wolf') {
-            body = sp(0.17, 0, 0.32, 0, mat, 0.95, 0.85, 1.6);
-            sp(0.11, 0, 0.44, 0.3, light);
-            bx(0.09, 0.08, 0.14, 0, 0.4, 0.42, light); // 주둥이
-            sp(0.025, 0, 0.42, 0.5, new THREE.MeshBasicMaterial({ color: 0x263238 }));
-            for (const s of [-1, 1]) { const ear = cn(0.04, 0.1, s * 0.07, 0.56, 0.26); ear.rotation.z = s * -0.2; }
-            for (const [lx, lz] of [[-0.09, 0.16], [0.09, 0.16], [-0.09, -0.16], [0.09, -0.16]]) {
+            // 사족 맹수 리그 재작성(비평가 3위 결함 '미구현 늑대'): 흉곽→골반 테이퍼 몸통 + 목/쐐기 두상 + 가슴 러프 + 2관절 다리 + 3분절 꼬리
+            const furM = lam(base, ProChar.hideTex());
+            const furD = lam(base.clone().offsetHSL(0, 0, -0.12), ProChar.hideTex());
+            const furL = lam(base.clone().offsetHSL(0, -0.02, 0.11), ProChar.hideTex());
+            body = mk(new THREE.SphereGeometry(0.19, 12, 9), furM);           // 흉곽 (앞이 크고)
+            body.position.set(0, 0.42, 0.12); body.scale.set(0.9, 0.92, 1.25);
+            const hind = mk(new THREE.SphereGeometry(0.16, 11, 8), furM);     // 골반 (뒤가 작게)
+            hind.position.set(0, 0.4, -0.22); hind.scale.set(0.82, 0.85, 1.1);
+            const belly = mk(new THREE.CylinderGeometry(0.155, 0.13, 0.34, 10), furM); // 연결 몸통
+            belly.rotation.x = Math.PI / 2; belly.position.set(0, 0.41, -0.05);
+            belly.scale.set(0.9, 1, 0.92);
+            const ruff = mk(new THREE.SphereGeometry(0.15, 10, 8), furL);     // 앞가슴 밝은 러프 털
+            ruff.position.set(0, 0.38, 0.26); ruff.scale.set(0.85, 0.8, 0.7);
+            const neckW = mk(new THREE.CylinderGeometry(0.085, 0.105, 0.18, 9), furM);
+            neckW.position.set(0, 0.52, 0.3); neckW.rotation.x = -0.7;
+            g.add(body, hind, belly, ruff, neckW);
+            const headW = new THREE.Group();                                   // 쐐기 두상 + 테이퍼 주둥이
+            headW.position.set(0, 0.6, 0.38);
+            const skullW = mk(new THREE.SphereGeometry(0.105, 11, 8), furM);
+            skullW.scale.set(0.95, 0.9, 1.05);
+            const snout = mk(new THREE.CylinderGeometry(0.048, 0.075, 0.16, 8), furL);
+            snout.rotation.x = Math.PI / 2; snout.position.set(0, -0.02, 0.14);
+            const noseW = mk(new THREE.SphereGeometry(0.028, 7, 6), new THREE.MeshBasicMaterial({ color: 0x1d2126 }));
+            noseW.position.set(0, -0.005, 0.22);
+            const jawW = mk(new THREE.BoxGeometry(0.07, 0.03, 0.11), furD);
+            jawW.position.set(0, -0.07, 0.1);
+            headW.add(skullW, snout, noseW, jawW);
+            for (const s of [-1, 1]) {                                         // 쫑긋 삼각 귀 (안쪽 어두운 면)
+                const ear = mk(new THREE.ConeGeometry(0.045, 0.11, 5), furM);
+                ear.position.set(s * 0.065, 0.12, -0.02); ear.rotation.set(-0.25, 0, s * -0.3);
+                const earIn = mk(new THREE.ConeGeometry(0.028, 0.08, 5), furD);
+                earIn.position.set(s * 0.065, 0.11, -0.005); earIn.rotation.set(-0.25, 0, s * -0.3);
+                earIn.scale.z = 0.5;
+                headW.add(ear, earIn);
+            }
+            g.add(headW);
+            eyes(0.63, 0.47, 0.052, 0.028, 'slit', { iris: 0x9adcff, narrow: true, tilt: -0.35 });
+            // 2관절 다리 4개: 어깨/고관절 피벗 → 상퇴 → 하퇴 → 발 (달리기 사이클은 기존 anim.legs 인터페이스)
+            for (const [lx, lz, front] of [[-0.11, 0.22, 1], [0.11, 0.22, 1], [-0.1, -0.24, 0], [0.1, -0.24, 0]]) {
                 const leg = new THREE.Group();
-                leg.position.set(lx, 0.3, lz);
-                const lm = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.028, 0.28, 7), dark);
-                lm.position.y = -0.14;
-                leg.add(lm);
+                leg.position.set(lx, 0.36, lz);
+                const upper = limb(0.05, 0.038, 0.18, furM);
+                upper.rotation.x = front ? 0.12 : -0.2;
+                const lower = limb(0.034, 0.026, 0.17, furD);
+                lower.position.y = -0.18; lower.rotation.x = front ? -0.1 : 0.32;
+                const paw = mk(new THREE.SphereGeometry(0.042, 7, 6), furL);
+                paw.position.set(0, -0.165, 0.025); paw.scale.set(1, 0.55, 1.35);
+                lower.add(paw);
+                upper.add(lower);
+                leg.add(upper);
                 anim.legs.push(leg);
                 g.add(leg);
             }
-            const tail = cn(0.045, 0.22, 0, 0.38, -0.32, dark);
-            tail.rotation.x = -2.3;
-            eyes(0.48, 0.38, 0.055, 0.03, 'slit', { iris: 0x9adcff, narrow: true, tilt: -0.35 });
-            topY = 0.9;
+            // 꼬리: 위로 휘어 오르는 3분절 커브 (끝만 밝은 털)
+            const tailG = new THREE.Group();
+            tailG.position.set(0, 0.46, -0.33);
+            tailG.rotation.x = 0.85;
+            let tPrev = tailG;
+            for (let ti = 0; ti < 3; ti++) {
+                const holder = new THREE.Group();
+                holder.position.set(0, 0, -0.085);
+                holder.rotation.x = -0.38;
+                const seg = mk(new THREE.SphereGeometry(0.058 - ti * 0.011, 8, 6), ti === 2 ? furL : furD);
+                seg.position.z = -0.045;
+                seg.scale.set(0.85, 0.85, 1.5);
+                holder.add(seg);
+                tPrev.add(holder);
+                tPrev = holder;
+            }
+            g.add(tailG);
+            anim.tail = tailG;
+            topY = 0.95;
         } else { // imp: 작은 악마 — 분절 사지 + 박쥐 막날개 + 화살촉 꼬리 + 곡선 뿔
             const skinM = lam(base, ProChar.hideTex());
             const skinD = lam(base.clone().offsetHSL(0, 0, -0.12), ProChar.hideTex());
@@ -3434,6 +3488,7 @@ const Scene3D = {
                         m.g.position.y = Math.abs(Math.sin(clk * 11 + id)) * 0.05;
                         m.anim.legs.forEach((lg, j) => lg.rotation.x = Math.sin(clk * 13 + id + j * Math.PI) * 0.6);
                         m.g.rotation.x = Math.sin(clk * 11 + id) * 0.03;
+                        if (m.anim.tail) m.anim.tail.rotation.z = Math.sin(clk * 9 + id) * 0.25; // 질주 중 꼬리 좌우 휘날림
                     } else if (m.anim && m.anim.hop) {
                         // 버섯: 크게 총총 + 갓 출렁
                         m.g.position.y = Math.abs(Math.sin(clk * 7 + id)) * 0.17;
