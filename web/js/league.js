@@ -18,10 +18,11 @@ const League = {
         this.checkSeasonEnd();
     },
 
-    startSeason() {
+    // resetScore: 시즌 갱신(3일 종료) 시 true — 봇 점수가 매번 새로 뽑히는 것과 맞춰 내 점수도 함께 리셋
+    startSeason(resetScore) {
         const myCp = Combat.combatPower();
         S.league = {
-            score: (S.league && S.league.score) || this.START_SCORE,
+            score: resetScore ? this.START_SCORE : ((S.league && S.league.score) || this.START_SCORE),
             tickets: this.TICKET_MAX,
             lastTicketReset: Dungeons.resetDateKey(),
             seasonEndsAt: U.now() + this.SEASON_MS,
@@ -58,7 +59,7 @@ const League = {
         const reward = this.rewardForRank(this.myRank());
         for (const k in reward) S[k] = (S[k] || 0) + reward[k];
         UI.toast(`🏆 리그 시즌 종료! 순위 보상을 획득했습니다`);
-        this.startSeason();
+        this.startSeason(true);
     },
 
     // 나를 포함한 전체 랭킹(점수 내림차순)
