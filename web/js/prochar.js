@@ -332,11 +332,11 @@ const ProChar = {
             shoulder.position.set(side * 0.29, 0.385, 0); // 어깨 폭 15% 추가 확장 — 역삼각 실루엣 (비평가 지적)
             // 견갑 — 반구 셸 2겹 (관절과 함께 회전)
             const pauldron = new THREE.Mesh(
-                new THREE.SphereGeometry(0.12, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), steel());
+                new THREE.SphereGeometry(0.105, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), steel()); // 머리와 등가 크기로 읽히던 견갑 축소
             pauldron.position.set(side * 0.015, 0.015, 0);
             pauldron.rotation.z = side * 0.35; // 바깥으로 흘러내리는 견갑 각
             const pauldron2 = new THREE.Mesh(
-                new THREE.SphereGeometry(0.093, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), steelDark());
+                new THREE.SphereGeometry(0.08, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), steelDark());
             pauldron2.position.set(side * 0.032, -0.062, 0);
             pauldron2.rotation.z = side * 0.45;
             const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 5), gold);
@@ -408,7 +408,7 @@ const ProChar = {
         R.bones.neck = neck;
         const headG = new THREE.Group();
         headG.position.y = 0.1;
-        headG.scale.setScalar(0.88); // 보블헤드 완화 — 영웅 비율 쪽으로
+        headG.scale.setScalar(0.82); // 보블헤드 완화 — 머리·견갑·어깨가 '같은 크기 공 3개'로 뭉개지던 문제 (비평가 지적)
         neck.add(headG);
         R.bones.head = headG;
         // 얼굴 — 둥근 두상 + 턱 라운딩 (헬멧 미착용 시 노출)

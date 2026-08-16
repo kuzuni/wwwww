@@ -2699,7 +2699,8 @@ const Scene3D = {
                 g.add(foot);
             }
             const capG = new THREE.Group(); // 갓 전체가 한 그룹으로 출렁임
-            capG.position.y = 0.42;
+            capG.position.y = 0.44;
+            capG.rotation.x = -0.16; // 갓을 뒤로 젖혀 게임 카메라(전방 상단)에서 얼굴 가시성 확보 (비평가 지적)
             const dome = mk(new THREE.SphereGeometry(0.32, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), mat);
             dome.scale.set(1, 0.82, 1);
             const lip = mk(new THREE.TorusGeometry(0.29, 0.05, 8, 16), dark);
@@ -2718,7 +2719,7 @@ const Scene3D = {
                 capG.add(spot);
             }
             g.add(capG);
-            eyes(0.24, 0.14, 0.075, 0.035, 'sleepy', { iris: 0x6b4a36, lid: 0xb0503e });
+            eyes(0.33, 0.155, 0.075, 0.038, 'sleepy', { iris: 0x6b4a36, lid: 0xb0503e }); // 갓 림 바로 아래 — 그늘에 파묻히지 않게
             anim.cap = capG; anim.hop = true;
             body = capG; topY = 0.9;
         } else if (kind === 'wolf') {
