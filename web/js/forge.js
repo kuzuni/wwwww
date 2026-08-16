@@ -204,6 +204,7 @@ const Forge = {
             UI.toast(`⚒️ 대장간 레벨 ${S.forgeLevel} 달성!`);
             UI.renderEquipSheet();
             saveGame();
+            if (!UI.els.forgeInfoModal.classList.contains('hidden')) UI.renderForgeInfo(); // 열린 확률 정보 팝업도 새 레벨로 즉시 갱신
         }
     },
 
