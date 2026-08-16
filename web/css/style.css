@@ -1535,3 +1535,14 @@ body {
 .petd-subs { font-weight: 800; font-size: .85rem; color: var(--pp-ink); line-height: 1.45; }
 .petd-btns { display: flex; gap: .8rem; }
 .petd-btn { flex: 1; font-size: 1.02rem; font-weight: 900; padding: .68rem 0; border-radius: .7rem; }
+
+/* ===== 플레이어 정보 팝업 (shot-043313 원본 대조 재작업) ===== */
+.pinfo-preview.shot { padding: 0; overflow: hidden; height: 7.2rem; }
+.pinfo-preview.shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 장비 셀: 메인 화면 장비 시트와 동일한 갈색 카드 톤 */
+.pinfo-gear .equip-cell { background: #4e2b2b; border: 3px solid var(--pp-line); border-radius: .6rem; }
+.pinfo-gear .equip-cell.empty { background: #d8d5cd; }
+.pinfo-gear .equip-cell.empty .slot-name { color: #6d6a63; }
+.pinfo-gear .equip-cell .cell-lv { color: #fff; text-shadow: 0 1px 0 #000; }
+/* 옵션 합계: 원본은 좌정렬 굵은 검정 */
+.pinfo-subs-list { text-align: left; font-weight: 900; color: var(--pp-ink); font-size: .88rem; line-height: 1.6; padding-left: .4rem; }

@@ -1536,18 +1536,19 @@ const UI = {
         const cp = Combat.combatPower();
         const stars = Ascension.totalStars();
 
-        // 현재 전투 장면 미니 프리뷰: 3D 캔버스를 별도로 복제 렌더링하는 대신
-        // 스테이지 라벨 + 진행 웨이브 점 + 출전 펫/탈것 아이콘으로 근사(원본은 실제 3D 축소 화면이나 클론 범위상 자체 설계)
-        const waveHtml = Dungeons.run ? '' : [1, 2, 3, 4, 5].map(w =>
-            `<span class="pip ${w < Combat.wave ? 'done' : w === Combat.wave ? 'now' : ''}"></span>`).join('');
-        const petIcons = S.activePets.map(i => PET_ICONS[S.pets[i].name] || '🐾').join(' ');
-        const previewHtml = `
-            <div class="pinfo-preview">
-                <span>🛡️</span>
-                <span>${this.els.stageLabel.textContent}</span>
-                ${waveHtml}
-                ${petIcons ? `<span>${petIcons}</span>` : ''}
-            </div>`;
+        // 현재 전투 장면 미니 프리뷰: 원본은 실제 전투 화면 스냅샷 — 3D 캔버스를 같은 프레임에
+        // 강제 렌더한 직후 toDataURL로 캡처해 img로 넣는다(preserveDrawingBuffer 없이 동작).
+        // 캡처 실패(WebGL 미지원 등) 시 기존 근사 표기로 폴백.
+        let previewHtml;
+        try {
+            Scene3D.renderer.render(Scene3D.scene, Scene3D.camera);
+            const shot = Scene3D.renderer.domElement.toDataURL('image/jpeg', 0.6);
+            previewHtml = `<div class="pinfo-preview shot"><img src="${shot}" alt=""></div>`;
+        } catch (e) {
+            const waveHtml = Dungeons.run ? '' : [1, 2, 3, 4, 5].map(w =>
+                `<span class="pip ${w < Combat.wave ? 'done' : w === Combat.wave ? 'now' : ''}"></span>`).join('');
+            previewHtml = `<div class="pinfo-preview"><span>🛡️</span><span>${this.els.stageLabel.textContent}</span>${waveHtml}</div>`;
+        }
 
         const gearHtml = SLOTS.map(slot => {
             const it = S.equipment[slot];
@@ -1592,7 +1593,7 @@ const UI = {
                     </div>
                     ${previewHtml}
                     <div class="pinfo-section-title">장착 장비</div>
-                    <div class="equip-grid">${gearHtml}</div>
+                    <div class="equip-grid pinfo-gear">${gearHtml}</div>
                     <div class="pinfo-section-title">장착 스킬 · 펫</div>
                     <div class="pinfo-loadout-row">${skillIconsHtml}${petIconsHtml || '<span class="muted">출전 중인 펫 없음</span>'}</div>
                     <div class="pinfo-section-title">옵션 합계</div>
