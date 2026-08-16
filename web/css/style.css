@@ -44,6 +44,11 @@ body {
 
 /* ---- 3D 전투 영역 ---- */
 #game-area { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+/* 비네트 포스트 — 화면 가장자리를 살짝 눌러 시선을 중앙 전투 라인으로 모음 (AAA 모바일 표준 마감) */
+#game-area::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background: radial-gradient(ellipse 120% 95% at 50% 42%, transparent 62%, rgba(8, 10, 16, 0.28) 100%);
+}
 #game3d { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
 #fx-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 

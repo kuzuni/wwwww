@@ -42,7 +42,11 @@ const Scene3D = {
         // 태양 반대편 서늘한 역광(그림자 없음) — 그늘진 면 실루엣이 배경에서 분리되게
         this.rim = new THREE.DirectionalLight(0xcfe4ff, 0.3);
         this.rim.position.set(-5, 6, -6);
-        this.scene.add(this.hemi, this.sun, this.rim);
+        // 발광체 라이트 블리드용 악센트 포인트라이트 — 마법=크리스탈 시안, 용암=크랙 주황이
+        // 주변 지면·소품을 실제로 물들여 "unlit 스티커" 인상을 없앰 (기본은 꺼짐, setTheme에서 바이옴별 설정)
+        this.accent = new THREE.PointLight(0xffffff, 0, 16, 2);
+        this.accent.position.set(0, 1.0, -2.5);
+        this.scene.add(this.hemi, this.sun, this.rim, this.accent);
 
         this.buildEmbers();
         this.buildSky();
@@ -547,11 +551,11 @@ const Scene3D = {
                 const n = Math.sin(x * P + z * 0.34 + 1.3) * 0.62
                     + Math.sin(x * P * 2 + 4.1 - z * 0.21) * 0.38;
                 let r = 1, g = 1, b = 1;
-                if (n > 0.18) {         // 밝은 마른 풀/모래 밴드 (살짝 따뜻)
-                    const k = smooth(U.clamp((n - 0.18) / 0.5, 0, 1)) * 0.16;
+                if (n > 0.12) {         // 밝은 마른 풀/모래 밴드 (살짝 따뜻)
+                    const k = smooth(U.clamp((n - 0.12) / 0.5, 0, 1)) * 0.24;
                     r = 1 + k * 1.15; g = 1 + k; b = 1 + k * 0.55;
-                } else if (n < -0.22) { // 어두운 흙/이끼 패치 (살짝 차게)
-                    const k = smooth(U.clamp((-n - 0.22) / 0.5, 0, 1)) * 0.2;
+                } else if (n < -0.16) { // 어두운 흙/이끼 패치 (살짝 차게)
+                    const k = smooth(U.clamp((-n - 0.16) / 0.5, 0, 1)) * 0.3;
                     r = 1 - k * 1.15; g = 1 - k; b = 1 - k * 0.75;
                 }
                 vcol[i * 3] = r; vcol[i * 3 + 1] = g; vcol[i * 3 + 2] = b;
@@ -578,12 +582,16 @@ const Scene3D = {
 
         // 소품 공유 매테리얼 (바이옴 재구성 시 지오메트리만 버리고 매테리얼은 재사용)
         this.foliageMat = new THREE.MeshPhongMaterial({ color: 0x33691e, flatShading: true, shininess: 0 });
+        // 잎 명도 변주 2종 — 나무마다 밝기가 달라 "같은 모델 복붙" 인상과 밤 숲의 "한 덩어리 검은 벽" 문제를 동시에 완화
+        this.foliageMatDark = this.foliageMat.clone();
+        this.foliageMatLight = this.foliageMat.clone();
+        this.foliageMats = [this.foliageMat, this.foliageMatDark, this.foliageMatLight];
         this.trunkMat = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
         this.bushMat = new THREE.MeshPhongMaterial({ color: 0x4a7c2f, flatShading: true, shininess: 0 });
         this.stoneMat = new THREE.MeshPhongMaterial({ color: 0x90a4ae, flatShading: true, shininess: 0 });
         this.mossMat = new THREE.MeshPhongMaterial({ color: 0x4f8578, flatShading: true, shininess: 0 }); // 바위산 청록 이끼(보색 악센트)
         this.snowMat = new THREE.MeshPhongMaterial({ color: 0xf4faff, flatShading: true, shininess: 35, specular: 0x9db8d4 });
-        this.cactusMat = new THREE.MeshPhongMaterial({ color: 0x4c9145, flatShading: true, shininess: 0 });
+        this.cactusMat = new THREE.MeshPhongMaterial({ color: 0x6da24f, flatShading: true, shininess: 0 }); // 웜 그린 — 웜 샌드 지면과 온도 통일
         this.charTrunkMat = new THREE.MeshLambertMaterial({ color: 0x30231d });
         this.charRockMat = new THREE.MeshPhongMaterial({ color: 0x2e2521, flatShading: true, shininess: 0 });
         this.lavaCoreMat = new THREE.MeshBasicMaterial({ color: 0xff7043 });
@@ -638,7 +646,7 @@ const Scene3D = {
         // 접지 블롭 섀도우 공유 리소스 — 소품이 지면에 "붙어" 보이게 하는 소프트 원형 그림자
         if (!this.blobShadowMat) {
             this.blobShadowMat = new THREE.MeshBasicMaterial({
-                map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false,
+                map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.38, depthWrite: false,
             });
             this.blobGeo = new THREE.PlaneGeometry(1, 1);
         }
@@ -655,6 +663,49 @@ const Scene3D = {
             t.add(blob);
             this.scene.add(t);
             this.trees.push(t);
+        }
+        // 히어로 랜드마크 — 챕터당 화면을 기억시키는 대형 센터피스 1기 (주 소품 2.6배 + 곁 소품으로 클러스터).
+        // 스토어 스크린샷은 랜드마크로 기억된다는 원칙 — 반복 소품 나열 인상 제거
+        {
+            const hero = new THREE.Group();
+            const main = this.makeProp(biome, 'p', 2.6);
+            hero.add(main);
+            const side = this.makeProp(biome, 'r', 1.2);
+            side.position.set(1.5, 0, 0.7);
+            side.rotation.y = U.rand(0, Math.PI * 2);
+            hero.add(side);
+            hero.position.set(-3.2, this.heightAt(-3.2, -7.6), -7.6);
+            this.setShadow(hero);
+            const hblob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
+            hblob.rotation.x = -Math.PI / 2;
+            hblob.position.y = 0.04;
+            hblob.scale.setScalar(2.9);
+            hblob.userData.sharedGeometry = true;
+            hero.add(hblob);
+            this.scene.add(hero);
+            this.trees.push(hero);
+        }
+        // 용암: 크랙 주변에 깔리는 부가 발광 데칼 — emissiveMap 크랙과 악센트 라이트를 잇는 은은한 지면광
+        if (biome === 'lava') {
+            if (!this.lavaGlowMat) {
+                this.lavaGlowMat = new THREE.MeshBasicMaterial({
+                    map: this.makeGlowTexture(), color: 0xff5722, transparent: true, opacity: 0.28,
+                    blending: THREE.AdditiveBlending, depthWrite: false,
+                });
+            }
+            for (let i = 0; i < 7; i++) {
+                const gl = new THREE.Mesh(this.blobGeo, this.lavaGlowMat);
+                gl.rotation.x = -Math.PI / 2;
+                gl.position.y = 0.045;
+                gl.scale.setScalar(U.rand(1.4, 2.6));
+                gl.userData.sharedGeometry = true;
+                const wrap = new THREE.Group(); // scrollables가 그룹 position을 조작하므로 좌표는 그룹에
+                wrap.add(gl);
+                const x = U.rand(-9, 9), z = U.rand(-5.5, 1.5);
+                wrap.position.set(x, this.heightAt(x, z), z);
+                this.scene.add(wrap);
+                this.rocks.push(wrap);
+            }
         }
         // 작은 소품도 접지 블롭을 깔아 "떠 있는 스티커" 인상 제거 — 회전은 내부 메시에만 주고 그룹은 수평 유지
         const grounded = (mesh, blobScale) => {
@@ -785,11 +836,12 @@ const Scene3D = {
 
     makePine(s, snow) {
         const g = new THREE.Group();
+        const fm = this.foliageMats[Math.random() * 3 | 0]; // 나무별 잎 명도 변주
         const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * s, 0.13 * s, 0.5 * s, 7), this.trunkMat);
         trunk.position.y = 0.25 * s;
         g.add(trunk);
         for (let i = 0; i < 3; i++) {
-            const cone = new THREE.Mesh(new THREE.ConeGeometry((0.55 - i * 0.13) * s, 0.62 * s, 7), this.foliageMat);
+            const cone = new THREE.Mesh(new THREE.ConeGeometry((0.55 - i * 0.13) * s, 0.62 * s, 7), fm);
             cone.position.y = (0.62 + i * 0.4) * s;
             g.add(cone);
             if (snow) { // 설원: 각 단 위에 눈 고깔을 얹음
@@ -930,14 +982,14 @@ const Scene3D = {
         }
         if (!this.crystalGlowMat) {
             this.crystalGlowMat = new THREE.MeshBasicMaterial({
-                map: this.makeGlowTexture(), color: 0x26c6da, transparent: true, opacity: 0.55,
+                map: this.makeGlowTexture(), color: 0x26c6da, transparent: true, opacity: 0.8,
                 blending: THREE.AdditiveBlending, depthWrite: false,
             });
         }
         const glow = new THREE.Mesh(this.blobGeo || (this.blobGeo = new THREE.PlaneGeometry(1, 1)), this.crystalGlowMat);
         glow.rotation.x = -Math.PI / 2;
         glow.position.y = 0.05;
-        glow.scale.setScalar(1.1 * s);
+        glow.scale.setScalar(1.7 * s); // 발광이 주변 지면까지 넓게 물들도록 (라이트 블리드 인상)
         glow.userData.sharedGeometry = true;
         g.add(glow);
         return g;
@@ -945,11 +997,12 @@ const Scene3D = {
 
     makeRoundTree(s) {
         const g = new THREE.Group();
+        const fm = this.foliageMats[Math.random() * 3 | 0]; // 나무별 잎 명도 변주
         const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * s, 0.12 * s, 0.6 * s, 7), this.trunkMat);
         trunk.position.y = 0.3 * s;
-        const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5 * s, 0), this.foliageMat);
+        const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5 * s, 0), fm);
         crown.position.y = 0.95 * s;
-        const crown2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32 * s, 0), this.foliageMat);
+        const crown2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32 * s, 0), fm);
         crown2.position.set(0.28 * s, 0.75 * s, 0.1 * s);
         g.add(trunk, crown, crown2);
         return g;
@@ -2517,6 +2570,8 @@ const Scene3D = {
         this.mountainMat.color.copy(new THREE.Color(t.ground).offsetHSL(0, 0.03, -0.16).lerp(new THREE.Color(t.fog), 0.22));
         this.hillMat.color.copy(new THREE.Color(t.ground).lerp(new THREE.Color(t.fog), 0.75));
         this.foliageMat.color.copy(new THREE.Color(t.ground).offsetHSL(-0.02, 0.08, -0.16));
+        this.foliageMatDark.color.copy(new THREE.Color(t.ground).offsetHSL(-0.025, 0.09, -0.23)); // 뒤 나무용 어두운 변주
+        this.foliageMatLight.color.copy(new THREE.Color(t.ground).offsetHSL(-0.015, 0.07, -0.09)); // 앞 나무용 밝은 변주
         this.bushMat.color.copy(new THREE.Color(t.ground).offsetHSL(-0.01, 0.05, -0.1));
         this.hemi.color.setHex(t.sky);
         this.hemi.groundColor.copy(new THREE.Color(t.ground).offsetHSL(0, 0, -0.1));
@@ -2534,10 +2589,25 @@ const Scene3D = {
             this.rim.intensity = 0.45;
             this.sun.color.copy(new THREE.Color(0xc6d4ff).lerp(new THREE.Color(t.sky), 0.25)); // 달빛
         } else {
-            this.sun.intensity = biome === 'lava' ? 0.85 : 1.2; // 용암은 재구름에 덮인 흐린 붉은 하늘 — 직사광 약화
-            this.hemi.intensity = biome === 'lava' ? 0.42 : 0.5;
+            this.sun.intensity = biome === 'lava' ? 0.85 : 1.3; // 용암은 재구름에 덮인 흐린 붉은 하늘 — 직사광 약화
+            this.hemi.intensity = biome === 'lava' ? 0.42 : 0.48;
             this.rim.intensity = 0.3;
             this.sun.color.copy(new THREE.Color(0xfff3d6).lerp(new THREE.Color(t.sky), 0.22));
+        }
+        // 안개 심도: 낮은 원경을 조금 더 멀리까지 보이게(상단 화이트아웃 완화), 밤·용암은 짙게 유지
+        this.scene.fog.near = isNight ? 11 : 13;
+        this.scene.fog.far = isNight || biome === 'lava' ? 30 : 35;
+        // 발광체 라이트 블리드 — 마법=크리스탈 시안, 용암=크랙 주황. 그 외 바이옴은 끔
+        if (biome === 'magic') {
+            this.accent.color.setHex(0x26c6da);
+            this.accent.intensity = 1.1;
+            this.accent.position.set(1.5, 1.1, -3);
+        } else if (biome === 'lava') {
+            this.accent.color.setHex(0xff5722);
+            this.accent.intensity = 1.3;
+            this.accent.position.set(0, 0.7, -2);
+        } else {
+            this.accent.intensity = 0;
         }
         // 바이옴별 돌 색 (설원=서리 낀 밝은 회청, 사막=테라코타 악센트, 바위산=지면보다 두 단계 어둡게 — 명도 분리)
         this.stoneMat.color.setHex(
