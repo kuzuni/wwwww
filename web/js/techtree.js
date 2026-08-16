@@ -125,6 +125,8 @@ const TechTree = {
             UI.toast(`🔬 ${this.NODES[id].name} Lv.${this.level(id)} 연구 완료!`);
             Combat.recalcHero();
             saveGame();
+            UI.renderTechTree(); // 소환 탭의 기술 서브탭이 아니면 자체 가드로 no-op
+            if (!UI.els.techNodeModal.classList.contains('hidden')) UI.renderTechNodeModal();
         }
     },
 
