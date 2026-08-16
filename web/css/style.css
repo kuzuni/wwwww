@@ -532,3 +532,23 @@ body {
 .pass-cell.free.done { background: #1c2128; color: #69f0ae; }
 .pass-cell.locked { opacity: .55; }
 .pass-cell.premium { cursor: pointer; }
+
+/* ---- 상점 탭 (UI-SPEC 17번) ---- */
+.shop-banner {
+    background: linear-gradient(90deg, #b8860b, #8d6e10); color: #fff; text-align: center; font-weight: 800;
+    border-radius: .5rem; padding: .4rem; margin: .6rem 0 .3rem; font-size: .85rem;
+}
+.shop-deals { display: flex; flex-direction: column; gap: .5rem; margin-bottom: .4rem; }
+.shop-deal-card { background: #22272e; border: 1px solid #444c56; border-radius: .6rem; padding: .5rem .6rem; }
+.shop-deal-title {
+    display: inline-block; background: #b71c1c; color: #fff; font-weight: 800; font-size: .72rem;
+    border-radius: .3rem; padding: .12rem .5rem; margin-bottom: .35rem;
+}
+.shop-deal-reward { font-size: .8rem; font-weight: 700; }
+.shop-deal-icon { font-size: 1.8rem; }
+.shop-gems { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .4rem; }
+.shop-gem-card {
+    background: #22272e; border: 1px solid #444c56; border-radius: .6rem; padding: .5rem;
+    display: flex; flex-direction: column; align-items: center; gap: .4rem;
+}
+.shop-gem-amt { color: #ff8a80; font-weight: 800; font-size: .82rem; }

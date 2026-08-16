@@ -21,7 +21,7 @@ const UI = {
             stubModal: $('stub-modal'),
             forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
-            leagueModal: $('league-modal'), passModal: $('pass-modal'),
+            leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -36,7 +36,7 @@ const UI = {
     // 하단 탭 클릭: 던전/상점/전투(PvP)는 팝업, 나머지는 시트 토글(다시 누르면 닫힘)
     onTabClick(tab) {
         if (tab === 'dungeon') { this.openDungeons(); return; }
-        if (tab === 'shop') { this.openStub('🏪 상점', '오늘의 특가·보석 패키지 등 상점 기능은 준비 중입니다.'); return; }
+        if (tab === 'shop') { this.openShop(); return; }
         if (tab === 'battle') { this.openLeague(); return; }
         this.switchTab(this.activeTab === tab ? null : tab);
     },
@@ -1042,6 +1042,49 @@ const UI = {
         if (Pass.claim(key)) { this.toast('🎁 진행 패스 보상 수령!'); this.renderPass(); this.renderTopBar(); }
     },
     onPremiumPass() { this.toast('💎 프리미엄 패스는 데모 버전에서 지원하지 않습니다'); },
+
+    // ---- 상점 탭 (UI-SPEC 17번): 오늘의 특가 3종 + 보석 패키지 ----
+    openShop() {
+        Shop.ensure();
+        this.renderShop();
+        this.els.shopModal.classList.remove('hidden');
+    },
+    closeShop() { this.els.shopModal.classList.add('hidden'); },
+    renderShop() {
+        const dealsHtml = Shop.DEALS.map(d => {
+            const claimed = Shop.claimed(d.key);
+            return `<div class="shop-deal-card">
+                <div class="shop-deal-title">${d.name}</div>
+                <div class="row" style="align-items:center;justify-content:space-between">
+                    <div class="shop-deal-reward">${this.passRewardText(d.reward)}</div>
+                    <span class="shop-deal-icon">${d.icon}</span>
+                </div>
+                <button class="btn ${claimed ? 'disabled' : 'primary'}" onclick="UI.onClaimDeal('${d.key}')">
+                    ${claimed ? '✅ 오늘 수령 완료' : `🎁 무료 수령 <small class="muted">(정가 ${d.priceKR})</small>`}
+                </button>
+            </div>`;
+        }).join('');
+        const gemsHtml = Shop.GEM_PACKS.map(p => `
+            <div class="shop-gem-card">
+                <div class="shop-gem-amt">◆ ${U.fmt(p.gems)}</div>
+                <button class="btn primary" onclick="UI.onBuyGems()">${p.priceKR}</button>
+            </div>`).join('');
+        this.els.shopModal.innerHTML = `
+            <div class="modal-card wide">
+                <h3>🏪 상점</h3>
+                <div class="shop-banner">오늘의 특가</div>
+                <p class="muted" style="text-align:center">일일 특가 3개는 매일 09:00에 초기화됩니다</p>
+                <div class="shop-deals">${dealsHtml}</div>
+                <div class="shop-banner">보석</div>
+                <div class="shop-gems">${gemsHtml}</div>
+                <button class="btn" onclick="UI.closeShop()">닫기</button>
+            </div>`;
+    },
+    onClaimDeal(key) {
+        if (Shop.claimDeal(key)) { this.toast('🎁 특가 보상 수령!'); this.renderShop(); this.renderTopBar(); }
+        else this.toast('오늘은 이미 수령했습니다');
+    },
+    onBuyGems() { this.toast('💎 데모 버전에서는 결제를 지원하지 않습니다'); },
 
     // ---- 기술 트리 (소환 탭 서브탭, UI-SPEC 10·15~16번): 분기 4개 카드 → 분기 상세(세로 노드 트리) → 노드 팝업 ----
     _techView: 'overview', _techBranch: null, _techNode: null,
