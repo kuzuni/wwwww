@@ -819,12 +819,7 @@ const Scene3D = {
             [6.5, -5.8, 1.7, 'p'], [-3.6, 2.6, 0.7, 'r'], [4.2, 2.8, 0.75, 'p'], [9.5, -5, 1.5, 'p'],
         ];
         // 접지 블롭 섀도우 공유 리소스 — 소품이 지면에 "붙어" 보이게 하는 소프트 원형 그림자
-        if (!this.blobShadowMat) {
-            this.blobShadowMat = new THREE.MeshBasicMaterial({
-                map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false,
-            });
-            this.blobGeo = new THREE.PlaneGeometry(1, 1);
-        }
+        this.ensureBlobRes();
         const emissiveAnchors = []; // 악센트 라이트를 붙일 발광 소품(마법=크리스탈, 용암=발광 데칼)
         for (const [x, z, s, kind] of spots) {
             const t = this.makeProp(biome, kind, s);
@@ -1471,6 +1466,14 @@ const Scene3D = {
         g.rotation.y = 0.55; // 적 방향(+x)으로 3/4 자세
         g.position.set(Combat.HERO_X, 0, 0);
         this.setShadow(g);
+        // 접지 블롭 섀도우 — 디렉셔널 섀도맵(1024/24유닛)이 흐릿해 캐릭터가 떠 보이던 문제 보강
+        this.ensureBlobRes();
+        const heroBlob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
+        heroBlob.rotation.x = -Math.PI / 2;
+        heroBlob.position.y = 0.025;
+        heroBlob.scale.setScalar(1.05);
+        heroBlob.userData.sharedGeometry = true;
+        g.add(heroBlob);
         this.heroG = g;
         this.scene.add(g);
 
@@ -2846,6 +2849,14 @@ const Scene3D = {
         return { g, body, hpBg, hpFg, armR, armL, flashMats, kind, anim };
     },
 
+    ensureBlobRes() {
+        if (this.blobShadowMat) return;
+        this.blobShadowMat = new THREE.MeshBasicMaterial({
+            map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false,
+        });
+        this.blobGeo = new THREE.PlaneGeometry(1, 1);
+    },
+
     spawnEnemy(e) {
         const m = this.monsterMesh(e);
         m.g.position.set(e.x + this.worldX, 0, 0);
@@ -2853,6 +2864,15 @@ const Scene3D = {
         this.setShadow(m.g);
         this.scene.add(m.g);
         this.enemyMap.set(e.id, m);
+        // 접지 블롭 섀도우 — scene 직속으로 두고 update에서 추적 (홉/비행 시 그림자는 지면에 남아야 함)
+        this.ensureBlobRes();
+        const blob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
+        blob.rotation.x = -Math.PI / 2;
+        blob.position.set(e.x + this.worldX, 0.03, 0);
+        blob.scale.setScalar(0.95);
+        blob.userData.sharedGeometry = true;
+        this.scene.add(blob);
+        m.blob = blob;
         // 등장: 위에서 낙하 + 스쿼시
         const targetScale = m.g.scale.x;
         m.g.position.y = 3;
@@ -2863,7 +2883,10 @@ const Scene3D = {
     },
 
     clearEnemies() {
-        for (const [, m] of this.enemyMap) { this.disposeTree(m.g); this.scene.remove(m.g); }
+        for (const [, m] of this.enemyMap) {
+            this.disposeTree(m.g); this.scene.remove(m.g);
+            if (m.blob) this.scene.remove(m.blob);
+        }
         this.enemyMap.clear();
     },
 
@@ -3122,7 +3145,7 @@ const Scene3D = {
             m.g.rotation.z = k * Math.PI / 2;
             m.g.position.y = -k * 0.6;
             m.g.scale.multiplyScalar(0.985);
-        }, () => { this.disposeTree(m.g); this.scene.remove(m.g); this.enemyMap.delete(id); });
+        }, () => { this.disposeTree(m.g); this.scene.remove(m.g); if (m.blob) this.scene.remove(m.blob); this.enemyMap.delete(id); });
     },
 
     heroHit() {
@@ -3528,6 +3551,11 @@ const Scene3D = {
                     m.g.rotation.z *= 0.9;
                     if (m.armL) m.armL.rotation.x *= 0.9;
                 }
+            }
+            if (m.blob) { // 블롭 섀도우 추적 — 홉/비행 높이에 따라 축소 (지면에 남는 그림자)
+                m.blob.position.x = m.g.position.x;
+                m.blob.position.z = m.g.position.z;
+                m.blob.scale.setScalar(0.95 * Math.max(0.35, 1 - m.g.position.y * 0.8));
             }
             const ratio = U.clamp(e.hp / e.maxHp, 0, 1);
             m.hpFg.scale.x = Math.max(0.001, ratio);
