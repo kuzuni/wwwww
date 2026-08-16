@@ -1218,7 +1218,7 @@ body {
     display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
     box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25);
 }
-.pet-tile.egg .tile-face { background: #3a2a2a; }
+.pet-tile.egg .tile-face { background: none; border: none; box-shadow: none; font-size: 2.1rem; filter: drop-shadow(0 .15rem .1rem rgba(0,0,0,.3)); }
 .pet-tile .tile-label { font-size: .6rem; font-weight: 800; color: var(--pp-ink); }
 .pet-tile.selected .tile-face { box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25), 0 0 0 .16rem var(--pp-blue); }
 .sk-mini.square { border-radius: .4rem; }
@@ -1255,13 +1255,28 @@ body {
     padding: .6rem .8rem; background: #1f2740; border-top: 3px solid var(--pp-line);
 }
 .hatch-row { flex: 1; display: flex; gap: .45rem; }
+/* 원본(shot-042356): 램프 아래 노란 빛 원뿔 + 알 — 박스 없는 스포트라이트 연출 */
 .hatch-cell {
-    flex: 1; min-width: 0; background: #2a3350; border: 3px solid var(--pp-line); border-radius: .5rem;
-    padding: .35rem .2rem; display: flex; flex-direction: column; align-items: center; gap: .15rem;
+    flex: 1; min-width: 0; position: relative; background: none; border: none;
+    padding: 2.1rem .2rem .1rem; display: flex; flex-direction: column; align-items: center; gap: .15rem;
 }
-.hatch-cell.empty { background: #26304a; color: #8b96b5; font-size: .65rem; justify-content: center; min-height: 3.6rem; }
-.hatch-cell .hatch-egg { font-size: 1.5rem; }
-.hatch-cell .hatch-time { font-size: .6rem; font-weight: 800; color: #fff; white-space: nowrap; }
+.hatch-lamp {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 1.5rem; height: .55rem; background: #23252b; border-radius: 0 0 .5rem .5rem;
+}
+.hatch-lamp::before { content: ''; position: absolute; top: -.5rem; left: 50%; transform: translateX(-50%); width: .18rem; height: .5rem; background: #23252b; }
+.hatch-lamp::after { content: ''; position: absolute; bottom: -.28rem; left: 50%; transform: translateX(-50%); width: .5rem; height: .28rem; background: #ffe95c; border-radius: 0 0 .3rem .3rem; }
+.hatch-cone {
+    position: absolute; top: .5rem; left: 50%; transform: translateX(-50%);
+    width: 3.4rem; height: 3.3rem; pointer-events: none;
+    background: linear-gradient(180deg, rgba(255,235,80,.9), rgba(255,235,80,.08));
+    clip-path: polygon(38% 0, 62% 0, 100% 100%, 0 100%);
+}
+.hatch-cone.dim { background: linear-gradient(180deg, rgba(160,170,200,.35), rgba(160,170,200,.03)); }
+.hatch-cell.empty { color: #8b96b5; font-size: .65rem; justify-content: flex-end; min-height: 4.6rem; }
+.hatch-hint { position: relative; z-index: 1; }
+.hatch-cell .hatch-egg { position: relative; z-index: 1; font-size: 1.7rem; margin-top: .5rem; filter: drop-shadow(0 .15rem .12rem rgba(0,0,0,.45)); }
+.hatch-cell .hatch-time { position: relative; z-index: 1; font-size: .62rem; font-weight: 900; color: #fff; white-space: nowrap; }
 .hatchery .slot-buy { flex: none; text-align: center; line-height: 1.2; }
 .row.wrap { flex-wrap: wrap; }
 

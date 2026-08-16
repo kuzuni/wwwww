@@ -662,8 +662,9 @@ const UI = {
         // 부화장(원본 최하단 어두운 패널): 슬롯 3개 + [슬롯+1 💎N]
         const hatchHtml = Array.from({ length: slots }, (_, i) => {
             const h = S.hatching[i];
-            if (!h) return `<div class="hatch-cell empty">빈 슬롯</div>`;
+            if (!h) return `<div class="hatch-cell empty"><span class="hatch-lamp"></span><span class="hatch-cone dim"></span><span class="hatch-hint">빈 슬롯</span></div>`;
             return `<div class="hatch-cell" style="--rc:${RARITY_CSS[h.rarity]}">
+                <span class="hatch-lamp"></span><span class="hatch-cone"></span>
                 <span class="hatch-egg">🥚</span>
                 <span class="hatch-time" id="hatch-t-${i}">${U.fmtTime((h.endsAt - U.now()) / 1000)}</span>
                 <button class="btn xs" onclick="UI.onHatchSkip(${i})">💎 ${Pets.gemSkipCost(h)}</button>
@@ -714,13 +715,17 @@ const UI = {
                 <div class="equipped-icons">${equippedRowHtml}</div>
             </div>
             <div class="summon-bar">
-                <button class="btn xs ${this._petSummonX5 ? 'primary' : ''}" onclick="UI.togglePetSummonX5()">x${petSummonN}</button>
-                <button class="btn big ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">
-                    소환 x${petSummonN}<small>🥚 ${Pets.SUMMON_EGG_COST * petSummonN}</small></button>
-                <button class="btn xs info" onclick="UI.openSummonRates('pet')">ⓘ<small>Lv.${petLvl}</small></button>
+                <button class="btn danger round back-btn" onclick="UI.switchTab(null)">◀</button>
+                <button class="btn xs x5-toggle ${this._petSummonX5 ? 'on' : ''}" onclick="UI.togglePetSummonX5()">x5</button>
+                <button class="btn big summon-btn ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">
+                    소환 x${petSummonN}<small class="summon-cost">🥚 <b>${Pets.SUMMON_EGG_COST * petSummonN}</b></small></button>
+                <div class="summon-info">
+                    <button class="info-dot" onclick="UI.openSummonRates('pet')">i</button>
+                    <b>Lv. ${petLvl}</b>
+                    <span class="summon-gauge"><i style="width:${(petCapped ? 1 : ((S.petSummonCount || 0) % 5) / 5) * 100}%"></i><em>${petCapped ? 'MAX' : `${(S.petSummonCount || 0) % 5}/5`}</em></span>
+                    <span class="summon-star">⭐</span>
+                </div>
             </div>
-            <div class="summon-prog"><div style="width:${(petCapped ? 1 : ((S.petSummonCount || 0) % 5) / 5) * 100}%"></div>
-                <span>${petCapped ? 'MAX' : `${(S.petSummonCount || 0) % 5}/5`}</span></div>
             <div class="hatchery">
                 <div class="hatch-row">${hatchHtml}</div>
                 ${Pets.canBuySlot() ? `<button class="btn xs slot-buy" onclick="UI.onBuyHatchSlot()">슬롯 +1<br>💎 ${Pets.slotCost()}</button>` : ''}
