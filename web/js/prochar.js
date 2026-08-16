@@ -34,20 +34,22 @@ const ProChar = {
         // 재질 — 금속은 하이라이트 롤, 천/가죽은 무광. armorMats는 장비 시대색 틴트 대상
         R.armorMats = [];
         const steel = () => {
-            const m = new THREE.MeshPhongMaterial({ color: 0xb8c4cf, shininess: 55, specular: 0x8899aa });
+            const m = new THREE.MeshPhongMaterial({ color: 0x84939f, shininess: 38, specular: 0x5f6d78 });
+            m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
             return m;
         };
         const steelDark = () => {
-            const m = new THREE.MeshPhongMaterial({ color: 0x87939e, shininess: 40, specular: 0x66727e });
+            const m = new THREE.MeshPhongMaterial({ color: 0x67737e, shininess: 30, specular: 0x49535c });
             m.userData.dark = true; // 틴트 시 명도 단차 유지용
+            m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
             return m;
         };
-        const suit = new THREE.MeshLambertMaterial({ color: 0x3a4750 });      // 갑옷 밑 사슬/천
-        const leather = new THREE.MeshLambertMaterial({ color: 0x5d4433 });
-        const gold = new THREE.MeshPhongMaterial({ color: 0xd9a94e, shininess: 80, specular: 0xffe9b0 });
-        const skin = new THREE.MeshLambertMaterial({ color: 0xffe0c9 });
+        const suit = new THREE.MeshLambertMaterial({ color: 0x2e3940 });      // 갑옷 밑 사슬/천
+        const leather = new THREE.MeshLambertMaterial({ color: 0x4a3527 });
+        const gold = new THREE.MeshPhongMaterial({ color: 0xc08f38, shininess: 60, specular: 0xdfc07f });
+        const skin = new THREE.MeshLambertMaterial({ color: 0xf2c9a4 });
         R.trimMat = gold;
 
         const root = new THREE.Group();
@@ -58,36 +60,40 @@ const ProChar = {
         root.add(pelvis);
         R.bones.pelvis = pelvis;
         // 골반 장갑(스커트 판) — 앞뒤 곡면 판 + 벨트
-        const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.25, 0.16, 12, 1, true), steelDark());
+        const skirtMat = steelDark();
+        skirtMat.side = THREE.DoubleSide;
+        const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.25, 0.16, 12, 1, true), skirtMat);
         skirt.position.y = -0.04;
-        const belt = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.035, 8, 16), leather);
-        belt.rotation.x = Math.PI / 2;
-        belt.position.y = 0.05;
-        belt.scale.z = 1.2;
-        const buckle = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), gold);
-        buckle.position.set(0, 0.05, 0.21);
-        buckle.scale.set(1, 0.8, 0.45);
-        pelvis.add(skirt, belt, buckle);
+        const hem = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.014, 6, 14), gold);
+        hem.rotation.x = Math.PI / 2;
+        hem.position.y = -0.12;
+        const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.21, 0.07, 14), leather);
+        belt.position.y = 0.04;
+        belt.scale.z = 0.85;
+        const buckle = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), gold);
+        buckle.position.set(0, 0.04, 0.175);
+        buckle.scale.set(1.1, 0.9, 0.45);
+        pelvis.add(skirt, hem, belt, buckle);
 
         // 다리: 고관절 → 대퇴 → 무릎 → 정강이 → 부츠 (분절 피벗)
         R.legs = [];
         for (const side of [-1, 1]) {
             const hip = new THREE.Group();
             hip.position.set(side * 0.13, -0.06, 0);
-            const thigh = this.capsule(0.085, 0.07, 0.2, suit);
+            const thigh = this.capsule(0.085, 0.07, 0.24, suit);
             const cuisse = new THREE.Mesh(new THREE.SphereGeometry(0.095, 10, 8), steelDark()); // 대퇴 장갑판
             cuisse.position.y = -0.09;
             cuisse.scale.set(1, 1.25, 1);
             const knee = new THREE.Group();
-            knee.position.y = -0.2;
+            knee.position.y = -0.24;
             const kneeCap = new THREE.Mesh(new THREE.SphereGeometry(0.062, 8, 7), steel());
-            const shin = this.capsule(0.06, 0.052, 0.16, suit);
+            const shin = this.capsule(0.06, 0.052, 0.2, suit);
             // 부츠: 라운드 토 (구+원통 결합)
             const bootMat = new THREE.MeshPhongMaterial({ color: 0x4a3728, shininess: 25 });
             const bootTop = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.072, 0.1, 10), bootMat);
-            bootTop.position.y = -0.15;
+            bootTop.position.y = -0.19;
             const foot = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), bootMat);
-            foot.position.set(0, -0.2, 0.045);
+            foot.position.set(0, -0.24, 0.045);
             foot.scale.set(0.9, 0.55, 1.55);
             knee.add(kneeCap, shin, bootTop, foot);
             hip.add(thigh, cuisse, knee);
@@ -109,14 +115,10 @@ const ProChar = {
         for (const [r, y] of prof) cuirassPts.push(new THREE.Vector2(r, y));
         const cuirass = new THREE.Mesh(new THREE.LatheGeometry(cuirassPts, 18), steel());
         cuirass.scale.z = 0.82; // 앞뒤로 살짝 납작하게 (흉갑 단면)
-        // 가슴 중앙 융기선
-        const ridge = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.3, 6), steel());
-        ridge.position.set(0, 0.24, 0.185);
-        ridge.rotation.x = 0.22;
         // 목 링
-        const gorget = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.035, 8, 14), steelDark());
+        const gorget = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.032, 8, 14), steelDark());
         gorget.rotation.x = Math.PI / 2;
-        gorget.position.y = 0.46;
+        gorget.position.y = 0.45;
         // 가슴 문장 (등급 발광용)
         R.emblemMat = new THREE.MeshPhongMaterial({ color: 0x78909c, shininess: 70 });
         const emblem = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), R.emblemMat);
@@ -124,19 +126,22 @@ const ProChar = {
         emblem.scale.z = 0.4;
         const emblemRim = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 14), gold);
         emblemRim.position.copy(emblem.position);
-        spine.add(cuirass, ridge, gorget, emblem, emblemRim);
+        spine.add(cuirass, gorget, emblem, emblemRim);
 
         // 망토 — 어깨 뒤에서 늘어지는 곡면 판 (걷기/공격 시 스윙)
-        const capeGeo = new THREE.PlaneGeometry(0.42, 0.62, 4, 6);
+        const capeGeo = new THREE.PlaneGeometry(0.44, 0.6, 6, 8);
         {
             const p = capeGeo.attributes.position;
             for (let i = 0; i < p.count; i++) {
                 const x = p.getX(i), y = p.getY(i);
-                p.setZ(i, -Math.abs(x) * 0.35 * (0.4 - y)); // 아래로 갈수록 좌우가 뒤로 말림
+                const k = 0.5 - y / 0.6;                        // 0(위) → 1(아래)
+                p.setX(i, x * (0.55 + k * 0.75));               // 위는 좁게(어깨 폭), 아래로 퍼짐
+                p.setZ(i, -Math.abs(x) * (0.45 + k * 0.9)       // 좌우가 뒤로 말리는 원통 곡률
+                    - Math.sin(k * Math.PI) * 0.035);           // 세로로도 살짝 부풀어 천 느낌
             }
             capeGeo.computeVertexNormals();
         }
-        R.capeMat = new THREE.MeshLambertMaterial({ color: 0x8e2f2f, side: THREE.DoubleSide });
+        R.capeMat = new THREE.MeshLambertMaterial({ color: 0x7c2626, side: THREE.DoubleSide });
         const cape = new THREE.Mesh(capeGeo, R.capeMat);
         const capeG = new THREE.Group();
         capeG.position.set(0, 0.42, -0.16);
@@ -150,17 +155,19 @@ const ProChar = {
         R.arms = [];
         for (const side of [-1, 1]) {
             const shoulder = new THREE.Group();
-            shoulder.position.set(side * 0.26, 0.4, 0);
+            shoulder.position.set(side * 0.235, 0.37, 0);
             // 견갑 — 반구 셸 2겹 (관절과 함께 회전)
             const pauldron = new THREE.Mesh(
-                new THREE.SphereGeometry(0.115, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), steel());
-            pauldron.position.set(side * 0.02, 0.05, 0);
+                new THREE.SphereGeometry(0.105, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), steel());
+            pauldron.position.set(side * 0.015, 0.015, 0);
+            pauldron.rotation.z = side * 0.35; // 바깥으로 흘러내리는 견갑 각
             const pauldron2 = new THREE.Mesh(
-                new THREE.SphereGeometry(0.09, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.5), steelDark());
-            pauldron2.position.set(side * 0.045, -0.02, 0);
-            const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 5), gold);
-            rivet.position.set(side * 0.02, 0.16, 0);
-            const upperArm = this.capsule(0.055, 0.048, 0.17, suit);
+                new THREE.SphereGeometry(0.082, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), steelDark());
+            pauldron2.position.set(side * 0.03, -0.055, 0);
+            pauldron2.rotation.z = side * 0.45;
+            const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 5), gold);
+            rivet.position.set(side * 0.015, 0.115, 0);
+            const upperArm = this.capsule(0.062, 0.052, 0.19, suit);
             const elbow = new THREE.Group();
             elbow.position.y = -0.19;
             const elbowCap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), steelDark());
@@ -193,8 +200,8 @@ const ProChar = {
         const boss = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), gold);
         boss.position.z = 0.1;
         shieldG.add(shieldBody, shieldRim, boss);
-        shieldG.rotation.y = Math.PI / 2;
-        shieldG.position.set(-0.05, 0.02, 0);
+        shieldG.rotation.y = -Math.PI / 2;
+        shieldG.position.set(-0.06, 0.03, 0);
         R.handL.add(shieldG);
         R.shield = shieldG;
 
@@ -208,35 +215,35 @@ const ProChar = {
         neck.add(headG);
         R.bones.head = headG;
         // 얼굴 — 둥근 두상 + 턱 라운딩 (헬멧 미착용 시 노출)
-        const skull = new THREE.Mesh(new THREE.SphereGeometry(0.21, 16, 12), skin);
-        skull.position.y = 0.09;
+        const skull = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 12), skin);
+        skull.position.y = 0.08;
         skull.scale.set(0.95, 1.05, 0.95);
-        const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 9), skin);
+        const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.145, 12, 9), skin);
         jaw.position.set(0, -0.01, 0.02);
         jaw.scale.set(0.95, 0.7, 0.9);
         headG.add(skull, jaw);
         // 눈 — 타원 + 하이라이트 (플레이스홀더 도트 탈피)
         for (const dx of [-0.075, 0.075]) {
-            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2b2320 }));
-            eye.position.set(dx, 0.1, 0.175);
-            eye.scale.set(0.85, 1.25, 0.5);
-            const hl = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-            hl.position.set(dx + 0.01, 0.125, 0.195);
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2b2320 }));
+            eye.position.set(dx, 0.09, 0.178);
+            eye.scale.set(0.8, 1.3, 0.45);
+            const hl = new THREE.Mesh(new THREE.SphereGeometry(0.01, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+            hl.position.set(dx + 0.012, 0.112, 0.192);
             headG.add(eye, hl);
         }
         // 머리카락 캡 (헬멧 없을 때) — 앞머리 라운드
-        const hair = new THREE.Mesh(new THREE.SphereGeometry(0.215, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), new THREE.MeshLambertMaterial({ color: 0xc9a24b }));
-        hair.position.y = 0.1;
+        const hair = new THREE.Mesh(new THREE.SphereGeometry(0.196, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), new THREE.MeshLambertMaterial({ color: 0xb8892f }));
+        hair.position.y = 0.09;
         hair.rotation.x = -0.18;
         headG.add(hair);
         R.hairMesh = hair;
         // 기존 헬멧 시스템 부착점 (Scene3D.helmetG가 여기 붙음 — 머리 중심 기준)
         const headMount = new THREE.Group();
-        headMount.position.y = 0.09;
+        headMount.position.y = 0.08;
         headG.add(headMount);
         R.headMount = headMount;
 
-        root.position.y = 0.55; // pelvis 0.46 + 다리 길이 보정 → 발바닥 y=0
+        root.position.y = 0.12; // 발바닥(무릎 -0.24-부츠 0.28 ≈ pelvis -0.58)이 y=0에 닿는 보정
         const outer = new THREE.Group();
         outer.add(root);
         R.group = outer;
@@ -454,6 +461,7 @@ const ProChar = {
         };
         for (const k in R.bones) apply(R.bones[k], R.base[k]);
         apply(R.root, R.base.root);
+        if (R.restX) R.bones.shoulderR.rotation.x += R.restX; // 무기별 거치 자세 (활/총=전방 조준)
         // 트랙 오프셋
         for (const key in R._clip.tracks) {
             const dot = key.indexOf('.');
@@ -477,10 +485,13 @@ const ProChar = {
         const color = a ? AGE_COLORS[a.age] : 0xb8c4cf;
         const glow = a && aIdx >= 4 ? RARITY_HEX[a.rarity] : 0x000000;
         for (const m of R.armorMats) {
-            // 기본 스틸 명도 차이를 유지한 채 색조만 입힘 (전부 같은 단색이 되지 않게)
-            const base = new THREE.Color(color);
             const isDark = m.userData && m.userData.dark;
-            m.color.copy(base).offsetHSL(0, a ? 0 : -0.05, isDark ? -0.08 : 0);
+            if (a) {
+                // 시대색을 명도 단차 유지한 채 입힘 — 다크 파츠는 확실히 어둡고 채도 낮게 (전신 형광 단색 방지)
+                m.color.setHex(color).offsetHSL(0, isDark ? -0.12 : -0.05, isDark ? -0.17 : -0.04);
+            } else {
+                m.color.setHex(m.userData.baseColor); // 무장비: 기본 스틸 톤 복원
+            }
             m.emissive.setHex(glow);
             m.emissiveIntensity = aIdx >= 4 ? 0.16 : 0;
         }

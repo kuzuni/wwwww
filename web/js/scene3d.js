@@ -1671,6 +1671,8 @@ const Scene3D = {
         const wtDef = WEAPON_TYPES[this.wtypeId];
         this.armRest = wtDef ? wtDef.restX : -0.25;
         this.armR.rotation.x = this.armRest;
+        // 프로시저럴 리그: 거치 자세를 리그 오른어깨 기본각으로 전달 (레거시 -0.25=내림 → 리그 0=내림 보정)
+        if (this.heroRig) this.heroRig.restX = this.armRest + 0.25;
         // 투구: 이름별 스타일 모델
         this.clearGroup(this.helmetG);
         const h = S.equipment.helmet;
@@ -1690,10 +1692,13 @@ const Scene3D = {
         this.emblemMat.emissive = new THREE.Color(a ? ec : 0x000000);
         this.emblemMat.emissiveIntensity = a ? 0.6 : 0;
         const style = a ? itemStyleOf(a) : 'plate';
-        this.shoulderPads.forEach(p => p.visible = style === 'plate');
-        this.chestPlate.visible = style !== 'hide' && style !== 'robe';
-        this.clearGroup(this.armorExtraG);
-        this.armorExtraG.add(this.makeArmorExtras(style, c, ec));
+        // 프로시저럴 리그 모드에선 레거시 파츠를 다시 켜지 않는다 (setupHeroProc이 전부 숨겼음)
+        if (!this.heroRig) {
+            this.shoulderPads.forEach(p => p.visible = style === 'plate');
+            this.chestPlate.visible = style !== 'hide' && style !== 'robe';
+            this.clearGroup(this.armorExtraG);
+            this.armorExtraG.add(this.makeArmorExtras(style, c, ec));
+        }
         this.tintHeroGlb(); // GLB 기사 모드: 파츠별 색 오버레이 동기화
         // 장비 교체 연출: 반짝 + 상승 파티클
         if (withFlash) {
