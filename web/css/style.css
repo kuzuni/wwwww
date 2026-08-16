@@ -314,15 +314,16 @@ body {
     padding: .55rem .6rem; background: #1c2128; border-top: 1px solid #30363d; z-index: 5;
 }
 /* 장비 그리드 (원본 shot-042120 실측): 셀≈13.8%vw 정사각·간격≈1.5%vw·라운드≈17%,
-   짙은 자주 바탕+다이아 크로스해치 패턴, Lv 흰 글자 셀 내부 하단, ⭐ 하단 테두리 걸침, 탈것 셀=2칸 폭 하늘색 */
+   다이아 크로스해치 패턴, Lv 흰 글자 셀 내부 하단, ⭐ 하단 테두리 걸침, 탈것 셀=2칸 폭 하늘색.
+   --rc = 시대색(AGE_COLORS, 확률 정보 팝업과 동일 — 사용자 지시 '등급/시대 색 통일'). 빈 슬롯만 자주 폴백 */
 .equip-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .4rem; }
 .equip-cell {
     position: relative; aspect-ratio: 1; min-width: 0;
     background:
         repeating-linear-gradient(45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),
         repeating-linear-gradient(-45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),
-        color-mix(in srgb, var(--rc, #6b3538) 34%, #2a1214);
-    border: 3px solid color-mix(in srgb, var(--rc, #6b3538) 22%, #1c0d0e);
+        color-mix(in srgb, var(--rc, #6b3538) 58%, #17181a);
+    border: 3px solid color-mix(in srgb, var(--rc, #6b3538) 80%, #000);
     border-radius: .7rem; padding: .2rem .2rem 1.1rem;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     cursor: pointer;
@@ -472,7 +473,8 @@ body {
 .cmp-icon-wrap { position: relative; flex: none; padding-bottom: .75rem; text-align: center; }
 .cmp-img {
     width: 3.6rem; height: 3.6rem; border-radius: .55rem;
-    background: #4e2b2b; border: 2px solid var(--pp-line); object-fit: contain;
+    background: color-mix(in srgb, var(--rc, #6b3538) 58%, #17181a); /* 아이콘 배경도 시대색 통일 */
+    border: 2px solid var(--pp-line); object-fit: contain;
 }
 .cmp-img.emoji, .cell-img.emoji { display: flex; align-items: center; justify-content: center; font-size: 1.9rem; }
 .cmp-icon-wrap .sk-lv { bottom: 0; }
@@ -1008,15 +1010,18 @@ body {
 .modal-card h2, .modal-card h3, .modal-card h4 { color: var(--pp-ink); }
 .modal-card .muted, .modal-card .item-stat, .modal-card .age-pct,
 .modal-card .forge-item-cell small, .modal-card .mat-chip small { color: var(--pp-muted); }
-.modal-card .big-stat, .modal-card .cell-lv { color: var(--pp-ink); }
+.modal-card .big-stat { color: var(--pp-ink); }
 
 /* 팝업 안 서브 카드/칩: 흰 바탕 + 검정 테두리 */
 .modal-card .pet-card, .modal-card .dungeon-card, .modal-card .tech-node,
 .modal-card .cmp-card, .modal-card .mat-chip, .modal-card .forge-item-cell,
-.modal-card .hatch-slot, .modal-card .egg-chip, .modal-card .equip-cell,
+.modal-card .hatch-slot, .modal-card .egg-chip,
 .modal-card .check-row, .modal-card .stat-grid {
     background: var(--pp-paper); border-color: var(--pp-line); color: var(--pp-ink);
 }
+/* 장비 셀·비교 카드는 팝업 안에서도 시대색 유지 (사용자 지시 '등급/시대 색 통일' —
+   equip-cell은 메인과 동일 다이아 셀, cmp-card는 종이 바탕에 시대색 테두리) */
+.modal-card .cmp-card { border-color: var(--rc, var(--pp-line)); }
 .modal-card .substat-list, .modal-card .prob-box, .modal-card .upg-progress,
 .modal-card .age-bar-wrap { background: var(--pp-panel); }
 .modal-card .substat-row { border-color: #dcdcdc; color: var(--pp-ink); }

@@ -593,7 +593,7 @@ const UI = {
             <span class="cell-img emoji dim">${this.EMPTY_SLOT_EMOJI[slot] || this.SLOT_EMOJI[slot] || '🎁'}</span>
             <span class="slot-name">${SLOT_KR[slot]}</span>
         </div>`;
-        return `<div class="equip-cell" style="--rc:${RARITY_CSS[it.rarity]}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
+        return `<div class="equip-cell" style="--rc:${this.ageHex(it.age)}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
             ${this.itemImgHTML(it, 'cell-img')}
             <span class="cell-lv">Lv. ${it.level}</span>
             ${it.stars ? `<span class="cell-star">⭐${it.stars > 1 ? it.stars : ''}</span>` : ''}
@@ -616,7 +616,7 @@ const UI = {
         const arrowHtml = arrowDir ? `<span class="arrow ${arrowDir}">${arrowDir === 'up' ? '▲' : '▼'}</span>` : '';
         return `<div class="cmp-card-wrap">
             <span class="cmp-ribbon ${isNew ? 'new' : ''}">${tag}</span>
-            <div class="cmp-card" style="--rc:${RARITY_CSS[item.rarity]}">
+            <div class="cmp-card" style="--rc:${this.ageHex(item.age)}">
                 <div class="cmp-icon-wrap">
                     ${this.itemImgHTML(item, 'cmp-img')}
                     <span class="sk-lv">Lv.${item.level}</span>
@@ -638,7 +638,7 @@ const UI = {
         const newIsHigher = !cur || item.value >= cur.value;
         // 장착 중인 장비가 위, 새 장비가 아래 (UI-SPEC 25번)
         this.els.craftModal.innerHTML = `
-            <div class="modal-card wide" style="--rc:${RARITY_CSS[item.rarity]}">
+            <div class="modal-card wide" style="--rc:${this.ageHex(item.age)}">
                 <h3>${SLOT_KR[item.slot]} 획득!</h3>
                 <div class="cmp-wrap">
                     ${this.itemCardHTML(cur, '장착됨', cur ? (newIsHigher ? 'down' : 'up') : null, false)}
