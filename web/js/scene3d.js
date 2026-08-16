@@ -2576,12 +2576,10 @@ const Scene3D = {
             // 광택 젤리: 고분할 스무스 돔 + Phong 스펙큘러 + 반투명 너머 비치는 내부 핵 (저분할 '바위 덩어리' 오독 제거, 비평가 지적)
             const jelly = new THREE.MeshPhongMaterial({ color: base, transparent: true, opacity: 0.82, shininess: 90, specular: 0xdff4ff });
             flashMats.push(jelly);
-            body = mk(new THREE.SphereGeometry(0.45, 24, 18), jelly);
-            body.position.y = 0.34; body.scale.set(1, 0.72, 1);
+            // 물방울 라테: 바닥 퍼짐→돔이 한 곡면 — 몸통 구+스커트 토러스 2피스는 '접시 위 슬라임'으로 읽힘 (비평가 12번)
+            const slProf = [[0.001, 0], [0.42, 0.012], [0.5, 0.07], [0.485, 0.18], [0.44, 0.3], [0.38, 0.42], [0.27, 0.54], [0.13, 0.62], [0.001, 0.65]];
+            body = mk(new THREE.LatheGeometry(slProf.map(([r, y]) => new THREE.Vector2(r, y)), 26), jelly);
             g.add(body);
-            const skirt = mk(new THREE.TorusGeometry(0.38, 0.08, 8, 20), jelly); // 바닥 퍼짐 스커트 — 접지감 (몸체에 파묻어 접시 오독 방지)
-            skirt.rotation.x = Math.PI / 2; skirt.position.y = 0.045; skirt.scale.set(1, 1, 0.45);
-            g.add(skirt);
             const core = mk(new THREE.SphereGeometry(0.15, 14, 10), lam(base.clone().offsetHSL(0.02, 0.18, -0.2))); // 몸속 핵
             core.position.set(0, 0.3, -0.04);
             g.add(core);
@@ -2965,11 +2963,11 @@ const Scene3D = {
             let tPrev = tailG;
             for (let ti = 0; ti < 3; ti++) {
                 const holder = new THREE.Group();
-                holder.position.set(0, 0, -0.085);
+                holder.position.set(0, 0, -0.068); // 분절 간격 축소+세그 연장 — '구슬 체인' 오독 방지 (비평가 13번)
                 holder.rotation.x = -0.26;
-                const seg = mk(new THREE.SphereGeometry(0.085 - ti * 0.014, 8, 6), ti === 2 ? furL : furD); // 두툼한 브러시 꼬리 — 질주 실루엣 방향성
-                seg.position.z = -0.05;
-                seg.scale.set(0.85, 0.85, 1.6);
+                const seg = mk(new THREE.SphereGeometry(0.085 - ti * 0.011, 8, 6), ti === 2 ? furL : furD); // 두툼한 브러시 꼬리 — 질주 실루엣 방향성
+                seg.position.z = -0.045;
+                seg.scale.set(0.82, 0.82, 1.85);
                 holder.add(seg);
                 tPrev.add(holder);
                 tPrev = holder;
@@ -3847,10 +3845,13 @@ const Scene3D = {
                         m.g.position.y = Math.abs(Math.sin(clk * 7 + id)) * 0.17;
                         if (m.anim.cap) m.anim.cap.rotation.z = Math.sin(clk * 7 + id) * 0.13;
                     } else if (m.anim && m.anim.kind === 'slime') {
-                        // 슬라임: 젤리 스쿼시 점프
+                        // 슬라임: 젤리 스쿼시 점프 (라테 몸통 기준 스케일 1, 스쿼시 시 가로 보존 팽창)
                         const s2 = Math.abs(Math.sin(clk * 6 + id));
                         m.g.position.y = s2 * 0.12;
-                        if (m.body) m.body.scale.y = 0.72 - (1 - s2) * 0.1;
+                        if (m.body) {
+                            m.body.scale.y = 1 - (1 - s2) * 0.14;
+                            m.body.scale.x = m.body.scale.z = 1 + (1 - s2) * 0.07;
+                        }
                     } else {
                         // 이족보행: 관절 걷기 — 고관절 스윙+무릎 굽힘, 어깨 스윙+팔꿈치 굽힘 (통짜 막대기 금지)
                         const ph = clk * 8 + id; // 주기 0.785s — 0.1s 연속 캡처 8프레임과 정수배 겹침 방지 (프레임 중복 오독)

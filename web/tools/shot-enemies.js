@@ -39,6 +39,9 @@ const OUT = __dirname;
             m.g.position.x = e.x + Scene3D.worldX;
             if (kind === 'wolf') m.g.rotation.y = -1.15; // 사족보행은 3/4 측면이 실루엣 판독에 유리
             m.g.updateMatrixWorld(true);
+            // 적 주변 소품 숨김 — 배경 바위/나무가 겹쳐 '몸에 붙은 혹'으로 오독되던 문제 (비평가: 늑대 등 위 바위)
+            for (const o of [...Scene3D.trees, ...Scene3D.rocks])
+                if (Math.abs(o.position.x - m.g.position.x) < 2.2 && o.position.z > -3.5) o.visible = false;
             // Box3 자동 피팅: HP바 제외하고 몸통만
             const hpG = m.g.children.find(c => c.children && c.children.some(cc => cc.geometry && cc.geometry.type === 'PlaneGeometry'));
             if (hpG) hpG.visible = false;
