@@ -1730,8 +1730,8 @@ const UI = {
                 ? `<small class="tech-tree-node-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
                 : `<small>${tierPos}/${TechTree.PER_TIER}</small>`;
             return `<div class="tech-tree-node-col">
-                <button class="tech-tree-node ${cls}" onclick="UI.openTechNode('${id}')">${max ? '⭐' : '🔬'}</button>
-                <div class="tech-tree-label">${TechTree.NODES[id].name}<br>${badge}</div>
+                <button class="tech-tree-node ${cls}" onclick="UI.openTechNode('${id}')">${max ? '⭐' : TechTree.NODES[id].icon || '🔬'}</button>
+                <div class="tech-tree-label">${badge}</div>
             </div>`;
         };
         const rowsHtml = [];
@@ -1749,8 +1749,9 @@ const UI = {
                 <span class="cur-pill gem">💎 ${U.fmt(S.gems)}</span>
             </div>
             <div class="tech-branch-detail-pct">${pct.toFixed(1)}%</div>
+            <button class="fi-info-btn tech-branch-info" onclick="UI.toast('🔬 분기 진행률 = 노드 레벨 합산 ÷ 최대 레벨')">i</button>
             <div class="tech-tree-col">${rowsHtml.join('')}</div>
-            <button class="btn danger round tech-tree-back" onclick="UI.openTechOverview()">◀</button>`;
+            <button class="btn danger tech-tree-back" onclick="UI.openTechOverview()">◀</button>`;
     },
     // 노드 팝업 (UI-SPEC 15~16번). 공용 상세 팝업 #detail-modal 재사용(공통 규칙) — 전용 모달 폐기.
     openTechNode(id) { this._techNode = id; this.renderTechNodeModal(); this.els.detailModal.classList.remove('hidden'); },
