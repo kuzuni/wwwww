@@ -466,41 +466,45 @@ const UI = {
         this.els.autoForgeModal.classList.remove('hidden');
     },
     closeAutoForge() { this.els.autoForgeModal.classList.add('hidden'); },
+    // 원본(shot-042950/043117) 대조: 유지=풀폭 시대색 막대+체크, 필터=우측 토글+회색 pill 행,
+    // 망치 수=검정 스피너, 하단 큰 파란 [시작], 닫기=카드 아래 빨간 X
     renderAutoForge() {
         const cfg = Forge.autoForgeConfig();
-        const ageChecks = AGES.slice(-5).map(age => `
-            <label class="check-row">
-                <input type="checkbox" ${cfg.keepAges.includes(age) ? 'checked' : ''} onchange="UI.onToggleKeepAge('${age}')">
-                <span style="color:${this.ageHex(age)}">${AGE_ICON[age]} ${AGE_KR[age]}</span>
-            </label>`).join('');
-        const subChecks = SUBSTATS.map(([key, label]) => `
-            <label class="check-row">
-                <input type="checkbox" ${cfg.filterSubs.includes(key) ? 'checked' : ''} onchange="UI.onToggleFilterSub('${key}')">
+        const probs = Forge.ageProbsAt(S.forgeLevel);
+        const pct = p => (parseFloat(p.toFixed(2)) || 0) + '%';
+        const ageRows = AGES.slice(-5).map(age => `
+            <div class="af-age-bar" style="--ac:${this.ageHex(age)}" onclick="UI.onToggleKeepAge('${age}')">
+                <span class="af-check ${cfg.keepAges.includes(age) ? 'on' : ''}">${cfg.keepAges.includes(age) ? '✓' : ''}</span>
+                <span class="af-age-name">${AGE_ICON[age]} ${AGE_KR[age]} ⭐</span>
+                <span class="af-age-pct">${pct(probs[age] || 0)}</span>
+            </div>`).join('');
+        const subRows = SUBSTATS.map(([key, label]) => `
+            <div class="af-sub-row" onclick="UI.onToggleFilterSub('${key}')">
+                <span class="af-check ${cfg.filterSubs.includes(key) ? 'on' : ''}">${cfg.filterSubs.includes(key) ? '✓' : ''}</span>
                 <span>${label}</span>
-            </label>`).join('');
+            </div>`).join('');
 
         this.els.autoForgeModal.innerHTML = `
-            <div class="modal-card wide">
-                <h3>🔄 자동 제련</h3>
-                <p class="muted">유지 — 체크한 시대의 장비만 장착 후보로 남깁니다 (모두 해제 시 전체 허용)</p>
-                <div class="check-grid">${ageChecks}</div>
-                <label class="check-row">
-                    <input type="checkbox" ${cfg.filterOn ? 'checked' : ''} onchange="UI.onToggleAutoFilterOn()">
-                    <span>옵션 필터</span>
-                </label>
-                ${cfg.filterOn ? `<div class="check-grid">${subChecks}</div>` : ''}
-                <div class="row" style="align-items:center">
-                    <span class="muted">한 번에 사용할 망치 수</span>
-                    <input type="number" min="1" max="22" value="${cfg.hammersPerBatch}" style="width:4rem"
-                        onchange="UI.onSetHammersPerBatch(this.value)">
+            <div class="idet-wrap">
+                <div class="modal-card paper af-card">
+                    <h3 class="af-title">자동 제련</h3>
+                    <div class="af-scroll">
+                        <div class="af-label">유지</div>
+                        ${ageRows}
+                        <div class="af-filter-row">필터
+                            <span class="af-toggle ${cfg.filterOn ? 'on' : ''}" onclick="UI.onToggleAutoFilterOn()"><span class="knob"></span></span>
+                        </div>
+                        ${cfg.filterOn ? subRows : ''}
+                    </div>
+                    <div class="af-bottom">
+                        <div class="af-row"><span>한 번에 사용된 망치 수</span>
+                            <button class="af-spinner" onclick="UI.onBumpHammers()">${cfg.hammersPerBatch}<span class="af-spin-arrow">▲</span></button></div>
+                        <div class="af-row"><span>목표 장비를 찾으면 제련 계속하기</span>
+                            <span class="af-check ${cfg.continueOnTarget ? 'on' : ''}" onclick="UI.onToggleContinueOnTarget()">${cfg.continueOnTarget ? '✓' : ''}</span></div>
+                        <button class="btn primary af-start" onclick="UI.onToggleAutoForge()">${S.autoForgeOn ? '중지' : '시작'}</button>
+                    </div>
                 </div>
-                <label class="check-row">
-                    <input type="checkbox" ${cfg.continueOnTarget ? 'checked' : ''} onchange="UI.onToggleContinueOnTarget()">
-                    <span>목표 장비를 찾으면 제련 계속하기</span>
-                </label>
-                <button class="btn primary ${S.autoForgeOn ? 'on' : ''}" onclick="UI.onToggleAutoForge()">
-                    ${S.autoForgeOn ? '■ 자동 제련 중지' : '▶ 시작'}</button>
-                <button class="btn" onclick="UI.closeAutoForge()">닫기</button>
+                <button class="x-btn" onclick="UI.closeAutoForge()">✕</button>
             </div>`;
     },
     onToggleKeepAge(age) {
@@ -520,9 +524,10 @@ const UI = {
         cfg.filterOn = !cfg.filterOn;
         saveGame(); this.renderAutoForge();
     },
-    onSetHammersPerBatch(v) {
+    // 검정 스피너 탭 시 1→22 순환 증가 (원본은 ▲ 하나뿐이라 증가+랩어라운드 방식)
+    onBumpHammers() {
         const cfg = Forge.autoForgeConfig();
-        cfg.hammersPerBatch = U.clamp(parseInt(v) || 1, 1, 22);
+        cfg.hammersPerBatch = cfg.hammersPerBatch >= 22 ? 1 : (cfg.hammersPerBatch || 0) + 1;
         saveGame(); this.renderAutoForge();
     },
     onToggleContinueOnTarget() {

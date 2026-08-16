@@ -1228,3 +1228,58 @@ body {
     font-size: .8rem; font-weight: 900; color: #fff;
 }
 #equip-sheet .equip-cell.egg-cell.empty { background: #d8d5cd; }
+
+/* ===== 자동 제련 팝업 (shot-042950/043117 원본 대조 재작업) ===== */
+.af-card { width: min(88vw, 21.5rem); padding: .85rem .8rem .8rem; }
+.af-title { text-align: center; font-size: 1.12rem; font-weight: 900; margin: .1rem 0 .5rem; }
+.af-label { font-size: .78rem; font-weight: 800; margin: 0 0 .28rem; }
+.af-scroll { overflow-y: auto; max-height: 42vh; }
+.af-age-bar {
+    display: flex; align-items: center; gap: .45rem; cursor: pointer;
+    background: var(--ac, #999); border: 3px solid var(--pp-line); border-radius: .6rem;
+    padding: .3rem .5rem; margin-bottom: .32rem;
+    background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.09) 0 .5rem, transparent .5rem 1rem);
+}
+.af-age-name {
+    flex: 1; text-align: left; font-weight: 900; font-size: .82rem; color: #fff;
+    text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
+}
+.af-age-pct {
+    font-weight: 900; font-size: .84rem; color: #fff;
+    text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
+}
+.af-check {
+    width: 1.2rem; height: 1.2rem; flex: none; cursor: pointer;
+    border: 3px solid var(--pp-line); border-radius: .35rem; background: #17181a;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: .78rem; font-weight: 900; color: #fff; line-height: 1;
+}
+.af-check.on { background: #23c552; }
+.af-filter-row {
+    display: flex; align-items: center; justify-content: flex-end; gap: .5rem;
+    font-size: .85rem; font-weight: 800; margin: .45rem 0;
+}
+.af-toggle {
+    width: 2.5rem; height: 1.3rem; flex: none; position: relative; cursor: pointer;
+    border: 3px solid var(--pp-line); border-radius: 1rem; background: #1e2a4a;
+}
+.af-toggle .knob {
+    position: absolute; top: .08rem; left: .12rem; width: .95rem; height: .95rem;
+    border-radius: 50%; background: var(--pp-blue); transition: left .15s;
+}
+.af-toggle.on { background: #35d435; }
+.af-toggle.on .knob { left: calc(100% - 1.07rem); }
+.af-sub-row {
+    display: flex; align-items: center; gap: .5rem; cursor: pointer;
+    background: var(--pp-panel); border-radius: 1rem; padding: .3rem .55rem; margin-bottom: .3rem;
+    font-size: .8rem; font-weight: 800; text-align: left;
+}
+.af-bottom { border-top: 3px solid var(--pp-line); margin: .55rem -.8rem 0; padding: .6rem .8rem 0; }
+.af-row { display: flex; align-items: center; justify-content: space-between; font-size: .82rem; font-weight: 800; margin-bottom: .55rem; text-align: left; }
+.af-spinner {
+    display: inline-flex; align-items: center; justify-content: space-between; gap: .6rem; cursor: pointer;
+    min-width: 5.4rem; background: #17181a; color: #fff; border: 3px solid var(--pp-line);
+    border-radius: .45rem; padding: .28rem .55rem; font-size: .92rem; font-weight: 900; font-family: inherit;
+}
+.af-spin-arrow { font-size: .7rem; }
+.af-start { display: block; width: 68%; margin: .65rem auto .15rem; font-size: 1.02rem; padding: .55rem 0; }
