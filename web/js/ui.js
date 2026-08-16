@@ -3,6 +3,7 @@ const UI = {
     els: {},
     activeTab: null,
     _pendingItem: null,
+    _skillSummonX5: false,
 
     init() {
         const $ = id => document.getElementById(id);
@@ -713,6 +714,7 @@ const UI = {
         const ratesHtml = RARITIES.filter(r => rates[r] > 0).map(r =>
             `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${rates[r].toFixed(2)}%</span>`).join('');
         const pb = Skills.activeBonus();
+        const skillSummonN = this._skillSummonX5 ? 5 : 1;
 
         const listHtml = SKILL_DEFS.filter(d => S.skills[d.id]).map(d => {
             const sk = S.skills[d.id];
@@ -741,8 +743,9 @@ const UI = {
             <h2>✨ 스킬 <span class="muted">소환 Lv.${lvl}</span></h2>
             <p class="muted">장착 시 고정 패시브: +${U.fmt(pb.atk)} 기본 피해 · +${U.fmt(pb.hp)} 기본 체력</p>
             <div class="row">
-                <button class="btn primary" onclick="UI.onSummon(false)">소환 <small>🎫 ${Skills.SUMMON_TICKET_COST}</small></button>
-                <button class="btn gem" onclick="UI.onSummon(true)">소환 <small>💎 ${Skills.SUMMON_GEM_COST}</small></button>
+                <button class="btn sm ${this._skillSummonX5 ? 'on' : ''}" onclick="UI.toggleSkillSummonX5()">x5</button>
+                <button class="btn primary" onclick="UI.onSummon(false)">소환 x${skillSummonN} <small>🎫 ${Skills.SUMMON_TICKET_COST * skillSummonN}</small></button>
+                <button class="btn gem" onclick="UI.onSummon(true)">소환 x${skillSummonN} <small>💎 ${Skills.SUMMON_GEM_COST * skillSummonN}</small></button>
             </div>
             <div class="prob-box">${ratesHtml}</div>
             <h3>보유 스킬 <span class="muted">(장착 ${S.equippedSkills.length}/${Skills.MAX_ACTIVE})</span></h3>
@@ -753,11 +756,22 @@ const UI = {
             <div class="pet-list">${listHtml}</div>`;
     },
 
+    toggleSkillSummonX5() {
+        this._skillSummonX5 = !this._skillSummonX5;
+        this.renderSkills();
+    },
     onSummon(useGems) {
-        const r = Skills.summon(useGems);
+        const count = this._skillSummonX5 ? 5 : 1;
+        const r = Skills.summon(useGems, count);
         if (!r) { this.toast(useGems ? '💎 젬이 부족합니다' : '🎫 티켓이 부족합니다 (스테이지 클리어로 획득)'); return; }
-        if (r.isNew) this.toast(`🎉 새 스킬: ${r.def.name} (${RARITY_KR[r.def.rarity]})`);
-        else this.toast(`🧩 ${r.def.name} 조각 획득 (Lv.${r.level})`);
+        if (count === 1) {
+            const res = r.results[0];
+            if (res.isNew) this.toast(`🎉 새 스킬: ${res.def.name} (${RARITY_KR[res.def.rarity]})`);
+            else this.toast(`🧩 ${res.def.name} 조각 획득 (Lv.${res.level})`);
+        } else {
+            const newCount = r.results.filter(x => x.isNew).length;
+            this.toast(`✨ 소환 x${count} — 새 스킬 ${newCount}종 · 조각 ${count - newCount}개 획득`);
+        }
         this.renderSkills(); this.renderSkillBar(); this.renderTopBar();
     },
     onUpgradeSkill(id) {

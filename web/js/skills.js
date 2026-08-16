@@ -1,6 +1,6 @@
 // ===== 스킬: 소환(원본 확률표), 조각 적립→업그레이드, 장착 시 고정 패시브 =====
 const Skills = {
-    SUMMON_TICKET_COST: 20,
+    SUMMON_TICKET_COST: 32, // UI-SPEC 45번 줄 실측 "소환 x5 🎫160"을 역산(160/5) — 기존 20은 원본 미확보 자체 설계 추정치였음
     SUMMON_GEM_COST: 200, // 원본 젬 소환가
     MAX_LEVEL: 60, // 만렙 후 조각은 승천(별)으로 전환 (원본 상한 미확보 → 자체 설계)
     MAX_ACTIVE: 3, // 장착 스킬 슬롯 수 (UI-SPEC: 스킬 버튼 3개, Pets.MAX_ACTIVE와 동일 패턴)
@@ -13,29 +13,35 @@ const Skills = {
         return { common: r[0], rare: r[1], epic: r[2], legendary: r[3], ultimate: r[4], mythic: r[5] };
     },
 
-    summon(useGems) {
+    // count번 연속 소환(UI-SPEC "소환 x5" 배치) — 비용은 선결제로 한 번에 확인·차감, 결과는 배열로 반환
+    summon(useGems, count = 1) {
+        const cost = (useGems ? this.SUMMON_GEM_COST : this.SUMMON_TICKET_COST) * count;
         if (useGems) {
-            if (S.gems < this.SUMMON_GEM_COST) return null;
-            S.gems -= this.SUMMON_GEM_COST;
+            if (S.gems < cost) return null;
+            S.gems -= cost;
         } else {
-            if (S.tickets < this.SUMMON_TICKET_COST) return null;
-            S.tickets -= this.SUMMON_TICKET_COST;
+            if (S.tickets < cost) return null;
+            S.tickets -= cost;
         }
-        S.summonCount++;
-        const rarity = U.weightedPick(this.rates());
-        const pool = SKILL_DEFS.filter(d => d.rarity === rarity);
-        const def = U.choice(pool);
+        const results = [];
+        for (let i = 0; i < count; i++) {
+            S.summonCount++;
+            const rarity = U.weightedPick(this.rates());
+            const pool = SKILL_DEFS.filter(d => d.rarity === rarity);
+            const def = U.choice(pool);
 
-        const cur = S.skills[def.id];
-        if (cur) {
-            cur.dupes++; // 조각 적립 (레벨업은 UI.onUpgradeSkill 등 수동 업그레이드로만)
-        } else {
-            S.skills[def.id] = { level: 1, dupes: 0, stars: 0 };
-            if (S.equippedSkills.length < this.MAX_ACTIVE) { S.equippedSkills.push(def.id); Combat.recalcHero(); }
+            const cur = S.skills[def.id];
+            if (cur) {
+                cur.dupes++; // 조각 적립 (레벨업은 UI.onUpgradeSkill 등 수동 업그레이드로만)
+            } else {
+                S.skills[def.id] = { level: 1, dupes: 0, stars: 0 };
+                if (S.equippedSkills.length < this.MAX_ACTIVE) { S.equippedSkills.push(def.id); Combat.recalcHero(); }
+            }
+            results.push({ def, isNew: !cur, level: S.skills[def.id].level });
         }
-        SFX.gacha(rarity);
+        SFX.gacha(results[results.length - 1].def.rarity);
         saveGame();
-        return { def, isNew: !cur, level: S.skills[def.id].level };
+        return { results, count };
     },
 
     def(id) { return SKILL_DEFS.find(d => d.id === id); },
