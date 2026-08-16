@@ -1,7 +1,8 @@
 // ===== 마운트: 태엽(클록와인더) 소환(원본 확률표) → 수집/장착 → 고정 데미지·체력+옵션 부스트 =====
 const Mounts = {
     MAX_LEVEL: 50, // 소환 레벨(등급 확률표) 상한
-    INDIV_MAX_LEVEL: 30, // 개체 만렙 — 이후 중복은 승천(별)으로 전환 (원본 상한 미확보 → 자체 설계)
+    INDIV_MAX_LEVEL: 100, // 승천은 Lv.100 도달부터 (사용자 확정 스펙 2026-08-17) — 경험치 커브는 기존 곡선 연장
+    ASCEND_DUPES: 30, // 승천 1회당 중복 요구치 — 만렙 상향(30→100)과 무관하게 기존 요구치 유지 (밸런스 보존)
     // 원본 스탯부스트 곡선(+10%~+400%, mountBoosts)을 고정치로 환산하는 기준값.
     // 원본은 상대적 %였을 뿐 고정 데미지/체력 원본 수치가 없어(BALANCE.md 미확보) 자체 설계 —
     // 영웅 맨몸 기본치(forge.js: atk 15 / hp 150)에 등급별 %를 곱해 절대 수치로 환산한다.
@@ -101,15 +102,15 @@ const Mounts = {
         return true;
     },
 
-    // 승천(별): 개체 만렙 도달 후 중복(레벨 수만큼)을 소모해 별 1개 획득
+    // 승천(별): Lv.100(만렙) 도달 후 중복 30개를 소모해 별 1개 획득
     canAscend(name) {
         const m = S.mounts[name];
-        return !!m && m.level >= this.INDIV_MAX_LEVEL && m.dupes >= this.INDIV_MAX_LEVEL;
+        return !!m && m.level >= this.INDIV_MAX_LEVEL && m.dupes >= this.ASCEND_DUPES;
     },
     ascend(name) {
         const m = S.mounts[name];
         if (!this.canAscend(name)) return false;
-        m.dupes -= this.INDIV_MAX_LEVEL;
+        m.dupes -= this.ASCEND_DUPES;
         m.stars = (m.stars || 0) + 1;
         Combat.recalcHero();
         saveGame();

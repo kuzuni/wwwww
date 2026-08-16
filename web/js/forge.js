@@ -87,8 +87,11 @@ const Forge = {
     isMatchingGear(a, b) {
         return !!a && !!b && a.slot === b.slot && a.rarity === b.rarity && a.name === b.name;
     },
+    ASCEND_FORGE_LEVEL: 35, // 장비 승천은 대장간 Lv.35부터 (사용자 확정 스펙 2026-08-17)
+    canAscendGear() { return S.forgeLevel >= this.ASCEND_FORGE_LEVEL; },
     // 장착 중인 장비에 별 1개 추가 (중복 장비를 흡수)
     ascendGear(slot) {
+        if (!this.canAscendGear()) return false;
         const it = S.equipment[slot];
         if (!it) return false;
         it.stars = (it.stars || 0) + 1;
@@ -131,7 +134,7 @@ const Forge = {
     // 동일 장비면 승천(별 흡수), 더 좋으면 장착하고 이전 장비 판매, 아니면 그대로 판매. 반환: {equipped, ascended, gained}
     autoResolve(item) {
         const cur = S.equipment[item.slot];
-        if (this.isMatchingGear(item, cur)) {
+        if (this.isMatchingGear(item, cur) && this.canAscendGear()) { // 대장간 Lv.35 미만이면 승천 불가 → 아래 판매 경로로
             this.ascendGear(item.slot);
             return { equipped: false, ascended: true, gained: 0 };
         }

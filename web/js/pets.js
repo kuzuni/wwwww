@@ -4,7 +4,8 @@ const Pets = {
     MAX_HATCH_SLOTS_CAP: 5, // 젬 구매로 늘릴 수 있는 상한 (원본 상한 미확보 → 자체 설계)
     SLOT_GEM_COST: 400, // 원본 확인된 단가(◆400) — 이후 구매는 회당 누적 증가(자체 설계)
     MAX_ACTIVE: 3,
-    MAX_LEVEL: 30, // 만렙 후 중복은 승천(별)으로 전환 (원본 레벨 상한 미확보 → 자체 설계)
+    MAX_LEVEL: 100, // 승천은 Lv.100 도달부터 (사용자 확정 스펙 2026-08-17) — 경험치 커브는 기존 곡선 연장
+    ASCEND_DUPES: 30, // 승천 1회당 중복 요구치 — 만렙 상향(30→100)과 무관하게 기존 요구치 유지 (밸런스 보존)
 
     // 현재 부화장 슬롯 수 (기본 2 + 젬 구매분, UI-SPEC 9번 "슬롯+1 ◆400")
     maxHatchSlots() { return Math.min(this.MAX_HATCH_SLOTS_CAP, this.BASE_HATCH_SLOTS + (S.hatchSlotBonus || 0)); },
@@ -172,15 +173,15 @@ const Pets = {
         return true;
     },
 
-    // 승천(별): 만렙 도달 후 중복(레벨 수만큼)을 소모해 별 1개 획득
+    // 승천(별): Lv.100(만렙) 도달 후 중복 30개를 소모해 별 1개 획득
     canAscend(idx) {
         const p = S.pets[idx];
-        return !!p && p.level >= this.MAX_LEVEL && p.dupes >= this.MAX_LEVEL;
+        return !!p && p.level >= this.MAX_LEVEL && p.dupes >= this.ASCEND_DUPES;
     },
     ascend(idx) {
         const p = S.pets[idx];
         if (!this.canAscend(idx)) return false;
-        p.dupes -= this.MAX_LEVEL;
+        p.dupes -= this.ASCEND_DUPES;
         p.stars = (p.stars || 0) + 1;
         Combat.recalcHero();
         saveGame();
