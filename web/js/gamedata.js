@@ -8,10 +8,11 @@ const AGE_KR = {
     interstellar: '성간', multiverse: '멀티버스', quantum: '퀀텀', underworld: '언더월드', divine: '디바인'
 };
 
+// 시대 색 (UI-SPEC.md:77 실측: 원시적=회백/중세의=하늘/근대 초기=초록/현대의=노랑/우주=빨강/항성간=보라/다중 우주=청록/양자=남색/지하 세계=적갈/신성한=주황, shot-042831.png로 재확인)
 const AGE_COLORS = {
-    primitive: 0x8d6e63, medieval: 0x90a4ae, earlyModern: 0xc0a080, modern: 0x607d8b,
-    space: 0x4dd0e1, interstellar: 0x7986cb, multiverse: 0xba68c8, quantum: 0x26c6da,
-    underworld: 0xef5350, divine: 0xffd54f
+    primitive: 0xe0e0e0, medieval: 0x1cafff, earlyModern: 0x1cff41, modern: 0xf8ff1c,
+    space: 0xff1c1c, interstellar: 0xaa1cff, multiverse: 0x2dffda, quantum: 0x341cff,
+    underworld: 0x6e2f30, divine: 0xff6408
 };
 
 const AGE_ICON = {
