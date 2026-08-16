@@ -27,6 +27,13 @@ const Combat = {
         this.hero.hp = this.hero.maxHp * U.clamp(ratio, 0, 1);
     },
 
+    // 종합 전투력 (상단바·PvP 리그 매칭 등에서 공용으로 참조)
+    combatPower() {
+        const st = this.hero.stats;
+        if (!st) return 0;
+        return st.atk * st.attacksPerSec * (1 + st.critCh / 100 * st.critDmg / 100) + st.hp / 8;
+    },
+
     // ---- 스테이지/웨이브 ----
     monsterBaseHp() {
         if (Dungeons.run) return Dungeons.monsterHp(Dungeons.run.id, Dungeons.run.stage);

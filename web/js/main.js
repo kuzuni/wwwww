@@ -33,6 +33,7 @@
         window.addEventListener('resize', fitLayout);
 
         Combat.start();
+        League.ensure(); // 전투력 계산이 끝난 뒤 봇 생성 (combatPower 참조)
         UI.updateHeroHp();
         UI.updateStageLabel();
 
@@ -116,6 +117,7 @@
             TechTree.tick();
             Pets.tick();
             Dungeons.ensure(); // 매일 09:00 열쇠 리셋 감지
+            League.ensure(); // 매일 09:00 도전 티켓 리셋 + 시즌 종료 감지
             UI.tickSecond();
             UI.updateHeroHp();
         }, 1000);

@@ -21,6 +21,7 @@ const UI = {
             stubModal: $('stub-modal'),
             forgeInfoModal: $('forge-info-modal'), autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
+            leagueModal: $('league-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -36,7 +37,7 @@ const UI = {
     onTabClick(tab) {
         if (tab === 'dungeon') { this.openDungeons(); return; }
         if (tab === 'shop') { this.openStub('🏪 상점', '오늘의 특가·보석 패키지 등 상점 기능은 준비 중입니다.'); return; }
-        if (tab === 'battle') { this.openStub('🚩 PvP 리그', '플래티넘 리그 랭킹·도전 시스템은 준비 중입니다.'); return; }
+        if (tab === 'battle') { this.openLeague(); return; }
         this.switchTab(this.activeTab === tab ? null : tab);
     },
 
@@ -77,8 +78,7 @@ const UI = {
 
     // ---- 상단바: 좌측 프로필 카드(아바타+닉네임+전투력), 우측 코인·젬 (UI-SPEC 1번) ----
     renderTopBar() {
-        const st = Combat.hero.stats;
-        const cp = st ? st.atk * st.attacksPerSec * (1 + st.critCh / 100 * st.critDmg / 100) + st.hp / 8 : 0;
+        const cp = Combat.combatPower();
         this.els.topbar.innerHTML = `
             <div class="profile-card">
                 <span class="avatar">🛡️</span>
@@ -906,6 +906,98 @@ const UI = {
     },
     onSweepDungeon(id) {
         if (Dungeons.sweep(id)) { this.renderDungeonDetail(); this.renderTopBar(); }
+    },
+
+    // ---- PvP 리그 (UI-SPEC 3~5번): 랭킹 → 리그 보상 팝업 / 상대 선택 팝업 (봇 기반 오프라인 구현) ----
+    leagueRow(e, rank) {
+        return `<div class="league-row ${e.isMe ? 'me' : ''}">
+            <span class="league-rank">${rank}</span>
+            <span class="icon-circle sm">${e.avatar}</span>
+            <span class="league-name">${e.name}<br><small class="muted">⚔️ ${U.fmt(e.cp)}</small></span>
+            <span class="league-score">⭐ ${U.fmt(e.score)}</span>
+            <span class="muted league-server">${e.server === '나' ? '나' : '서버 ' + e.server}</span>
+        </div>`;
+    },
+    openLeague() {
+        League.ensure();
+        this.renderLeagueBoard();
+        this.els.leagueModal.classList.remove('hidden');
+    },
+    closeLeague() { this.els.leagueModal.classList.add('hidden'); },
+    renderLeagueBoard() {
+        const board = League.board();
+        const myRank = League.myRank();
+        const start = Math.max(0, Math.min(myRank - 4, board.length - 8));
+        const windowRows = board.slice(start, start + 8).map((e, i) => this.leagueRow(e, start + i + 1)).join('');
+        const me = board.find(e => e.isMe);
+        const remain = (S.league.seasonEndsAt - U.now()) / 1000;
+        this.els.leagueModal.innerHTML = `
+            <div class="modal-card wide">
+                <div class="row" style="justify-content:space-between">
+                    <h3>🚩 플래티넘 리그</h3>
+                    <button class="btn sm" onclick="UI.openLeagueRewards()">🎁 보상</button>
+                </div>
+                <p class="muted" style="text-align:center">시즌 종료: ${U.fmtTime(remain)}</p>
+                <div class="league-list">${windowRows}</div>
+                <div class="league-pinned">${this.leagueRow(me, myRank)}</div>
+                <button class="btn primary" onclick="UI.openLeagueChallenge()">도전</button>
+                <button class="btn" onclick="UI.closeLeague()">닫기</button>
+            </div>`;
+    },
+    openLeagueRewards() { this.renderLeagueRewards(); },
+    renderLeagueRewards() {
+        const myRank = League.myRank();
+        const cur = League.rewardForRank(myRank);
+        const curHtml = `👑 ${U.fmt(cur.coins)} · 🔨 ${U.fmt(cur.hammers)} · 🎫 ${U.fmt(cur.tickets)} · 🥚 ${U.fmt(cur.eggCurrency)} · 🧪 ${U.fmt(cur.potions)} · ⚙️ ${U.fmt(cur.winders)}`;
+        const rowsHtml = League.REWARD_TIERS.map(t => {
+            const r = League.rewardForRank(t.rank);
+            return `<div class="league-reward-row">
+                <span class="league-reward-label">${t.label}</span>
+                <span class="muted">👑${U.fmt(r.coins)} 🔨${U.fmt(r.hammers)} 🎫${U.fmt(r.tickets)} 🥚${U.fmt(r.eggCurrency)} 🧪${U.fmt(r.potions)} ⚙️${U.fmt(r.winders)}</span>
+            </div>`;
+        }).join('');
+        const remain = (S.league.seasonEndsAt - U.now()) / 1000;
+        this.els.leagueModal.innerHTML = `
+            <div class="modal-card wide">
+                <div class="row" style="justify-content:space-between">
+                    <button class="btn sm" onclick="UI.openLeague()">◀ 뒤로</button>
+                    <h3>🎁 리그 보상</h3>
+                </div>
+                <p class="muted">현재 순위(${myRank})를 유지하면 시즌 종료 시 다음 보상을 받을 수 있습니다:</p>
+                <p class="big-stat" style="font-size:.95rem">${curHtml}</p>
+                <p class="muted" style="text-align:center">수집까지: ${U.fmtTime(remain)}</p>
+                <div class="league-reward-table">${rowsHtml}</div>
+                <button class="btn" onclick="UI.closeLeague()">닫기</button>
+            </div>`;
+    },
+    openLeagueChallenge() { this.renderLeagueChallenge(); },
+    renderLeagueChallenge() {
+        const list = League.challengeList();
+        const rowsHtml = list.map((b, i) => `
+            <div class="league-row">
+                <span class="icon-circle sm">${b.avatar}</span>
+                <span class="league-name">${b.name}<br><small class="muted">⚔️ ${U.fmt(b.cp)}</small></span>
+                <span class="league-score">⭐+${b.starReward}</span>
+                <button class="btn sm primary ${S.league.tickets > 0 ? '' : 'disabled'}" onclick="UI.onChallenge(${i})">도전 <small>🎫1</small></button>
+            </div>`).join('');
+        this.els.leagueModal.innerHTML = `
+            <div class="modal-card wide">
+                <div class="row" style="justify-content:space-between">
+                    <button class="btn sm" onclick="UI.openLeague()">◀ 뒤로</button>
+                    <h3>상대 선택</h3>
+                </div>
+                <p class="muted" style="text-align:center">도전 티켓은 매일 09:00에 보충됩니다!</p>
+                <p class="big-stat" style="text-align:center">🎫 ${S.league.tickets}/${League.TICKET_MAX}</p>
+                <div class="league-list">${rowsHtml}</div>
+                <button class="btn" onclick="UI.closeLeague()">닫기</button>
+            </div>`;
+    },
+    onChallenge(idx) {
+        const r = League.challenge(idx);
+        if (!r) { this.toast('🎫 도전 티켓이 부족합니다'); return; }
+        this.toast(r.win ? `🏆 승리! ⭐+${r.starReward}` : `💀 ${r.bot.name}에게 패배했습니다`);
+        this.renderLeagueChallenge();
+        this.renderTopBar();
     },
 
     // ---- 기술 트리 (소환 탭 서브탭, UI-SPEC 10·15~16번): 분기 4개 카드 → 분기 상세(세로 노드 트리) → 노드 팝업 ----
