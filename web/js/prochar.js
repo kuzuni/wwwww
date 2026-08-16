@@ -418,6 +418,10 @@ const ProChar = {
         jaw.position.set(0, -0.01, 0.02);
         jaw.scale.set(0.95, 0.7, 0.9);
         headG.add(skull, jaw);
+        // 얼굴 이목구비 그룹 — 풀커버 투구(visor/mask/tech) 착용 시 통째로 숨김 (투구 밖으로 코/눈 뚫림 방지)
+        const faceG = new THREE.Group();
+        headG.add(faceG);
+        R.faceMesh = faceG;
         // 눈 — 흰자+홍채+하이라이트 3겹, 얼굴 중앙 높이(스컬 중심선)에 정확히 배치
         for (const dx of [-0.078, 0.078]) {
             const sclera = new THREE.Mesh(new THREE.SphereGeometry(0.046, 10, 8), new THREE.MeshBasicMaterial({ color: 0xf7f4ee }));
@@ -430,30 +434,30 @@ const ProChar = {
             pupil.position.set(dx, 0.068, 0.192);
             const hl = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
             hl.position.set(dx + 0.012, 0.082, 0.196);
-            headG.add(sclera, iris, pupil, hl);
+            faceG.add(sclera, iris, pupil, hl);
             // 볼터치 — 반투명 분홍 (캐주얼 3D 표정 온기)
             const blush = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf29a8a, transparent: true, opacity: 0.38 }));
             blush.position.set(dx * 1.35, 0.008, 0.148);
             blush.scale.set(1.2, 0.7, 0.35);
-            headG.add(blush);
+            faceG.add(blush);
             // 눈썹 — 살짝 기울인 가는 캡슐 (결의 있는 인상)
             const brow = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.06, 6), new THREE.MeshLambertMaterial({ color: 0x6e4e1a })); // r128엔 CapsuleGeometry 없음
             brow.position.set(dx, 0.128, 0.168);
             brow.rotation.z = Math.PI / 2 + (dx < 0 ? -0.16 : 0.16);
             brow.rotation.y = (dx < 0 ? -1 : 1) * 0.35;
-            headG.add(brow);
+            faceG.add(brow);
         }
         // 코 — 작은 라운드 범프
         const nose = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), skin);
         nose.position.set(0, 0.045, 0.19);
         nose.scale.set(0.8, 1, 0.85);
-        headG.add(nose);
+        faceG.add(nose);
         // 입 — 옅은 미소 라인 (얇은 토러스 하단 아크, 절제된 톤)
         const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.0045, 5, 10, Math.PI * 0.6), new THREE.MeshBasicMaterial({ color: 0xb5786a }));
         mouth.position.set(0, -0.028, 0.172);
         mouth.rotation.z = Math.PI + Math.PI * 0.2;
         mouth.rotation.x = -0.3;
-        headG.add(mouth);
+        faceG.add(mouth);
         // 머리카락 (헬멧 없을 때) — 스웹트 숏컷: 베이스 캡 + 납작한 사이드스윕 프린지 (뭉게뭉게 금지)
         const hairG = new THREE.Group();
         const hairMat = new THREE.MeshPhongMaterial({ color: 0x8f6a26, shininess: 42, specular: 0x7a5c1e });
@@ -741,5 +745,10 @@ const ProChar = {
         }
         // 헬멧 착용 시 머리카락 숨김 (기존 helmetG 시스템이 머리에 붙음)
         if (R.hairMesh) R.hairMesh.visible = !equipment.helmet;
+        // 풀커버 투구(visor/mask/tech)는 이목구비도 숨김 — 코/눈이 투구 밖으로 뚫고 나오던 문제 (비평가 1위 결함)
+        if (R.faceMesh) {
+            const hStyle = equipment.helmet ? itemStyleOf(equipment.helmet) : null;
+            R.faceMesh.visible = !(hStyle === 'visor' || hStyle === 'mask' || hStyle === 'tech');
+        }
     },
 };

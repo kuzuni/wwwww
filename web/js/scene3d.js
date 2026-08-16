@@ -1706,12 +1706,26 @@ const Scene3D = {
             const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.205, 0.07, 14), rareMat);
             ribbon.position.y = 0.15;
             g.add(brim, top, ribbon);
-        } else if (style === 'visor') {     // 풀헬름 (얼굴 덮는 투구 + 눈 슬릿)
-            const helm = new THREE.Mesh(new THREE.SphereGeometry(0.27, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.72), mat);
-            helm.position.y = 0.02;
-            const slit = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.045, 0.06), darkMat);
-            slit.position.set(0, 0.0, 0.24);
-            g.add(helm, slit);
+        } else if (style === 'visor') {     // 풀헬름 — 돔+뺨가드+눈 슬릿, 슬릿 안 발광 눈 2점 (어둠 속 시선)
+            const helm = new THREE.Mesh(new THREE.SphereGeometry(0.28, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.78), mat);
+            helm.position.y = 0.04;
+            helm.scale.set(0.97, 1.02, 1);
+            const slit = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.05, 0.07), darkMat);
+            slit.position.set(0, 0.06, 0.235);
+            for (const dx of [-0.055, 0.055]) { // 슬릿 속 발광 눈 — 데칼 얼굴보다 값싸고 그럴듯한 시선 (비평가 처방)
+                const glowEye = new THREE.Mesh(new THREE.SphereGeometry(0.017, 6, 5),
+                    new THREE.MeshLambertMaterial({ color: pc, emissive: pc, emissiveIntensity: 1 }));
+                glowEye.position.set(dx, 0.06, 0.272);
+                glowEye.scale.set(1.3, 0.8, 0.5);
+                g.add(glowEye);
+            }
+            const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.16, 0.05), mat); // 코 가드 세로 바
+            noseBar.position.set(0, -0.02, 0.25);
+            const crest = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.03, 6, 14, Math.PI * 0.8), rareMat); // 정수리 볏 아크
+            crest.position.y = 0.13;
+            crest.rotation.y = Math.PI / 2;
+            crest.rotation.z = Math.PI * 0.1;
+            g.add(helm, slit, noseBar, crest);
         } else if (style === 'fin') {       // 볏 투구 (로마/사무라이)
             const dome = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), mat);
             dome.position.y = 0.02;
@@ -1721,17 +1735,21 @@ const Scene3D = {
             cheek1.position.set(-0.24, -0.08, 0.1);
             const cheek2 = cheek1.clone(); cheek2.position.x = 0.24;
             g.add(dome, crest, cheek1, cheek2);
-        } else if (style === 'mask') {      // 가면/방독면: 눈구멍 뚫린 얼굴 판
-            const plate = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.3, 0.07), mat);
-            plate.position.set(0, -0.02, 0.2);
+        } else if (style === 'mask') {      // 가면/방독면: 얼굴을 감싸는 곡면 판 (평판 박스 → 원통 셸)
+            const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.22, 0.32, 14, 1, true, -Math.PI * 0.42, Math.PI * 0.84), mat);
+            plate.material = new THREE.MeshLambertMaterial({ color: c, side: THREE.DoubleSide });
+            plate.position.set(0, 0.02, 0.02);
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat); // 정수리 덮개
+            dome.position.y = 0.1;
+            g.add(dome);
             for (const dx of [-0.09, 0.09]) {
                 const hole = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), darkMat);
-                hole.position.set(dx, 0.04, 0.245);
+                hole.position.set(dx, 0.04, 0.255);
                 g.add(hole);
             }
             const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.05, 8), rareMat);
             mouth.rotation.x = Math.PI / 2;
-            mouth.position.set(0, -0.1, 0.24);
+            mouth.position.set(0, -0.1, 0.265);
             const strap = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.045, 0.045), darkMat);
             strap.position.y = 0.02;
             g.add(plate, mouth, strap);
@@ -1758,16 +1776,43 @@ const Scene3D = {
                 spike.position.set(Math.cos(a) * 0.21, 0.28, Math.sin(a) * 0.21);
                 g.add(spike);
             }
-        } else if (style === 'tech') {      // 메카 헬름 (각진 + 안테나 + 발광 바이저)
-            const boxh = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.3, 0.34), mat);
-            boxh.position.y = 0.05;
-            const eye = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.06, 0.03), rareMat);
-            eye.position.set(0, 0.04, 0.19);
-            const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.22, 6), darkMat);
-            ant.position.set(0.15, 0.3, 0);
-            const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), rareMat);
-            antTip.position.set(0.15, 0.42, 0);
-            g.add(boxh, eye, ant, antTip);
+        } else if (style === 'tech') {      // 메카 헬름 — 곡면 셸 + 랩어라운드 발광 바이저 (박스 금지, 비평가 1위 결함 재작업)
+            const shell = new THREE.Mesh(new THREE.SphereGeometry(0.29, 10, 8), mat);
+            shell.material = new THREE.MeshLambertMaterial({ color: c });
+            shell.material.flatShading = true;                 // 저폴리 패싯 — 메카 판넬 인상
+            shell.position.y = 0.06;
+            shell.scale.set(0.98, 0.92, 1.05);
+            const jawGuard = new THREE.Mesh(new THREE.SphereGeometry(0.27, 10, 6, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.3), darkMat);
+            jawGuard.position.y = 0.07;
+            jawGuard.scale.set(0.96, 1.05, 1.02);
+            // 바이저: 앞면을 감싸는 토러스 아크 (발광) — 얼굴은 리그에서 숨겨지고 이 슬릿이 눈을 대신함
+            // 지오메트리 공간에서 회전: 아크 중점을 +y로 돌린 뒤 XZ 수평면으로 눕히면 중점이 정면(+z)에 온다
+            const vGeo = new THREE.TorusGeometry(0.25, 0.04, 8, 22, Math.PI * 0.86);
+            vGeo.rotateZ(Math.PI * 0.07);
+            vGeo.rotateX(Math.PI / 2);
+            const visorArc = new THREE.Mesh(vGeo, rareMat);
+            visorArc.position.set(0, 0.075, 0.035);
+            visorArc.scale.y = 0.6;                            // 납작한 슬릿 단면
+            // 이어 포드 + 정수리 능선
+            for (const dx of [-0.27, 0.27]) {
+                const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.05, 10), darkMat);
+                pod.rotation.z = Math.PI / 2;
+                pod.position.set(dx, 0.07, 0);
+                const podDot = new THREE.Mesh(new THREE.SphereGeometry(0.024, 6, 5), rareMat);
+                podDot.position.set(dx * 1.1, 0.07, 0);
+                g.add(pod, podDot);
+            }
+            const rGeo = new THREE.TorusGeometry(0.275, 0.03, 6, 16, Math.PI * 0.85); // 정수리 능선 — 전후 방향 아크 (셸 밖으로 살짝 돌출)
+            rGeo.rotateZ(Math.PI * 0.075);
+            rGeo.rotateY(Math.PI / 2);
+            const ridge = new THREE.Mesh(rGeo, darkMat);
+            ridge.position.y = 0.075;
+            const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.2, 6), darkMat);
+            ant.position.set(0.19, 0.34, -0.06);
+            ant.rotation.z = -0.18;
+            const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.026, 6, 6), rareMat);
+            antTip.position.set(0.21, 0.44, -0.06);
+            g.add(shell, jawGuard, visorArc, ridge, ant, antTip);
         } else if (style === 'bubble') {    // 우주 헬멧 (투명 돔)
             const bub = new THREE.Mesh(new THREE.SphereGeometry(0.31, 14, 10),
                 new THREE.MeshLambertMaterial({ color: c, transparent: true, opacity: 0.32 }));
