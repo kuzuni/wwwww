@@ -60,6 +60,8 @@ const League = {
         for (const k in reward) S[k] = (S[k] || 0) + reward[k];
         UI.toast(`🏆 리그 시즌 종료! 순위 보상을 획득했습니다`);
         this.startSeason(true);
+        // 봇/점수가 전면 재생성되므로, 열려 있는 리그 화면(랭킹/보상/도전 어느 뷰든)은 최신 랭킹 보드로 재진입
+        if (!UI.els.leagueModal.classList.contains('hidden')) UI.openLeague();
     },
 
     // 나를 포함한 전체 랭킹(점수 내림차순)
