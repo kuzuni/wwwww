@@ -20,6 +20,7 @@
         TechTree.ensure();
         Mounts.ensure();
         Pass.ensure();
+        Chat.ensure();
         const offline = applyOffline();
 
         UI.init();
@@ -119,6 +120,7 @@
             Pets.tick();
             Dungeons.ensure(); // 매일 09:00 열쇠 리셋 감지
             League.ensure(); // 매일 09:00 도전 티켓 리셋 + 시즌 종료 감지
+            if (Chat.tick()) UI.renderChatPreview(); // 봇 채팅 새 메시지 생성 시 하단 미리보기 갱신
             UI.tickSecond();
             UI.updateHeroHp();
         }, 1000);

@@ -605,3 +605,50 @@ body {
 .pi-sub-row {
     font-size: .74rem; padding: .25rem .1rem; border-bottom: 1px solid #30363d; color: #7ee2a8;
 }
+
+/* ---- 채팅 미리보기 1줄 (UI-SPEC 1·28번) ---- */
+#chat-preview {
+    display: flex; align-items: center; justify-content: space-between; gap: .4rem;
+    background: #1c2128; border-top: 1px solid #30363d; padding: .3rem .7rem;
+    font-size: .72rem; cursor: pointer; min-height: 1.6rem;
+}
+.chat-preview-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #90a4ae; }
+.chat-preview-badge { flex: none; }
+
+/* ---- 채팅 전체화면 (UI-SPEC 28번) ---- */
+.chat-card {
+    width: 96%; height: 88%; background: #0d1117; border-color: #30363d;
+    padding: .6rem; text-align: left; gap: .4rem;
+}
+.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; padding: .2rem; }
+.chat-row { display: flex; gap: .4rem; align-items: flex-start; }
+.chat-avatar {
+    width: 2.2rem; height: 2.2rem; border-radius: .3rem; background: #22272e; border: 1px solid #444c56;
+    display: flex; align-items: center; justify-content: center; font-size: 1.15rem; flex: none;
+}
+.chat-bubble-wrap { flex: 1; min-width: 0; }
+.chat-name-line { display: flex; align-items: center; gap: .3rem; font-size: .72rem; margin-bottom: .15rem; }
+.chat-name { font-weight: 800; color: #ffab40; }
+.chat-row.mine .chat-name { color: #7ee2a8; }
+.chat-tag { color: #81d4fa; }
+.chat-time { margin-left: auto; color: #546e7a; font-size: .66rem; }
+.chat-bubble {
+    background: #22272e; border-radius: .6rem; padding: .4rem .6rem; font-size: .78rem;
+    display: inline-block; max-width: 100%; word-break: break-word;
+}
+.chat-share-card {
+    position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: .3rem;
+    background: #22272e; border-radius: .6rem; padding: .5rem; margin-top: .1rem;
+}
+.chat-share-side {
+    display: flex; flex-direction: column; align-items: center; gap: .15rem;
+    background: #1f4a2c; border-radius: .5rem; padding: .4rem;
+}
+.chat-share-side.lose { background: #2a2f36; opacity: .8; }
+.chat-share-badge { position: absolute; top: -.5rem; left: .5rem; font-size: .68rem; font-weight: 800; background: #0d1117; padding: 0 .3rem; border-radius: .3rem; }
+.chat-input-bar { display: flex; gap: .4rem; align-items: center; }
+.chat-input-bar input {
+    flex: 1; background: #22272e; border: 1px solid #444c56; border-radius: 1rem;
+    padding: .5rem .8rem; color: #eceff1; font-size: .82rem;
+}
+.btn.round { width: 2.2rem; height: 2.2rem; border-radius: 50%; padding: 0; flex: none; }

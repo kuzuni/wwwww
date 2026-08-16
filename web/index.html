@@ -44,6 +44,9 @@
     <!-- 장비 시트 (상시 노출 — 대장간 탭 대체) -->
     <div id="equip-sheet"></div>
 
+    <!-- 채팅 미리보기 1줄 (탭하면 전체화면 채팅, UI-SPEC 28번) -->
+    <div id="chat-preview" onclick="UI.openChat()"></div>
+
     <!-- 패널 (하단 시트, 탭으로 토글) -->
     <div id="panel-summon" class="panel">
         <div id="summon-subtabs" class="subtab-strip">
@@ -85,6 +88,7 @@
     <div id="shop-modal" class="modal hidden"></div>
     <div id="profile-modal" class="modal hidden"></div>
     <div id="player-info-modal" class="modal hidden"></div>
+    <div id="chat-modal" class="modal hidden"></div>
     <div id="toasts"></div>
 </div>
 
@@ -108,6 +112,7 @@
 <script src="js/league.js"></script>
 <script src="js/pass.js"></script>
 <script src="js/shop.js"></script>
+<script src="js/chat.js"></script>
 <script src="js/combat.js"></script>
 <script src="js/scene3d.js"></script>
 <script src="js/ui.js"></script>

@@ -23,6 +23,7 @@ const UI = {
             petUpgradeModal: $('pet-upgrade-modal'), techNodeModal: $('tech-node-modal'),
             leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
             profileModal: $('profile-modal'), playerInfoModal: $('player-info-modal'),
+            chatPreview: $('chat-preview'), chatModal: $('chat-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -32,6 +33,7 @@ const UI = {
         this.renderTopBar();
         this.renderSkillBar();
         this.renderEquipSheet();
+        this.renderChatPreview();
     },
 
     // 하단 탭 클릭: 던전/상점/전투(PvP)는 팝업, 나머지는 시트 토글(다시 누르면 닫힘)
@@ -998,6 +1000,8 @@ const UI = {
         const r = League.challenge(idx);
         if (!r) { this.toast('🎫 도전 티켓이 부족합니다'); return; }
         this.toast(r.win ? `🏆 승리! ⭐+${r.starReward}` : `💀 ${r.bot.name}에게 패배했습니다`);
+        Chat.shareLeagueResult(r.win, Combat.combatPower(), r.bot); // UI-SPEC 28번: 리그 전투 공유 카드 자동 게시
+        this.renderChatPreview();
         this.renderLeagueChallenge();
         this.renderTopBar();
     },
@@ -1238,6 +1242,79 @@ const UI = {
                 <div class="pi-sub-list">${subsHtml}</div>
                 <button class="btn" onclick="UI.closePlayerInfo()">닫기</button>
             </div>`;
+    },
+
+    // ---- 채팅 화면 (UI-SPEC 28번): 하단 1줄 미리보기 + 탭하면 전체화면 채팅 ----
+    chatMsgHtml(m) {
+        if (m.type === 'share') {
+            // 좌=승자(초록) / 우=패자(회색) — 내가 졌어도 승자는 항상 왼쪽 (UI-SPEC 28번)
+            const winner = m.win ? { name: m.myName, avatar: m.myAvatar, cp: m.myCp } : { name: m.oppName, avatar: m.oppAvatar, cp: m.oppCp };
+            const loser = m.win ? { name: m.oppName, avatar: m.oppAvatar, cp: m.oppCp } : { name: m.myName, avatar: m.myAvatar, cp: m.myCp };
+            return `<div class="chat-row">
+                <span class="chat-avatar">${m.myAvatar}</span>
+                <div class="chat-bubble-wrap">
+                    <div class="chat-name-line"><span class="chat-name" style="color:#ffab40">${m.myName}</span><span class="chat-time">${new Date(m.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                    <div class="chat-share-card">
+                        <div class="chat-share-side win">
+                            <span class="icon-circle sm">${winner.avatar}</span>
+                            <small>${winner.name}</small>
+                            <small class="muted">⚔️ ${U.fmt(winner.cp)}</small>
+                        </div>
+                        <div class="chat-share-side lose">
+                            <span class="icon-circle sm">${loser.avatar}</span>
+                            <small>${loser.name}</small>
+                            <small class="muted">⚔️ ${U.fmt(loser.cp)}</small>
+                        </div>
+                        <span class="chat-share-badge">${m.win ? '🏆 승리' : '💀 패배'}</span>
+                    </div>
+                </div>
+            </div>`;
+        }
+        const tagHtml = m.tag ? `<span class="chat-tag">[${m.tag}]</span> ` : '';
+        return `<div class="chat-row ${m.mine ? 'mine' : ''}">
+            <span class="chat-avatar">${m.avatar}</span>
+            <div class="chat-bubble-wrap">
+                <div class="chat-name-line">
+                    <span class="chat-name">${tagHtml}${m.name}</span><span class="muted">${m.gender}</span>
+                    <span class="chat-time">${new Date(m.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <div class="chat-bubble">${m.text}</div>
+            </div>
+        </div>`;
+    },
+    renderChatPreview() {
+        const last = Chat.lastMessage();
+        if (!last || !this.els.chatPreview) return;
+        const preview = last.type === 'share' ? `${last.myName}이(가) 전투를 공유했습니다` : `${last.name}: ${last.text}`;
+        this.els.chatPreview.innerHTML = `<span class="chat-preview-text">${preview}</span><span class="chat-preview-badge">💬</span>`;
+    },
+    openChat() {
+        Chat.ensure();
+        this.renderChatFull();
+        this.els.chatModal.classList.remove('hidden');
+    },
+    closeChat() { this.els.chatModal.classList.add('hidden'); },
+    renderChatFull() {
+        const listHtml = S.chat.messages.map(m => this.chatMsgHtml(m)).join('');
+        this.els.chatModal.innerHTML = `
+            <div class="modal-card chat-card">
+                <div class="chat-list" id="chat-list">${listHtml}</div>
+                <div class="chat-input-bar">
+                    <button class="btn danger round" onclick="UI.closeChat()">◀</button>
+                    <input id="chat-input" type="text" placeholder="메시지 보내기..." maxlength="200"
+                        onkeydown="if(event.key==='Enter') UI.onSendChat()">
+                    <button class="btn primary sm" onclick="UI.onSendChat()">전송</button>
+                </div>
+            </div>`;
+        const list = document.getElementById('chat-list');
+        if (list) list.scrollTop = list.scrollHeight;
+    },
+    onSendChat() {
+        const input = document.getElementById('chat-input');
+        if (!input || !Chat.sendPlayer(input.value)) return;
+        input.value = '';
+        this.renderChatFull();
+        this.renderChatPreview();
     },
 
     // ---- 기술 트리 (소환 탭 서브탭, UI-SPEC 10·15~16번): 분기 4개 카드 → 분기 상세(세로 노드 트리) → 노드 팝업 ----
