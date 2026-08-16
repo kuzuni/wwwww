@@ -610,7 +610,7 @@ body {
     width: 2rem; height: 2rem; border-radius: 50%; background: #161b22; border: 2px solid var(--rc, #444c56);
     display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
 }
-.league-emblem { text-align: center; font-size: 2.6rem; margin-top: -.1rem; }
+.league-emblem { text-align: center; font-size: 4.6rem; margin-top: -.1rem; } /* 원본 방패 ≈19% W (185) */
 .league-title { text-align: center; font-weight: 900; font-size: 1.15rem; color: #fff; margin: -.2rem 0 .3rem; }
 .league-season-bar {
     display: flex; align-items: center; justify-content: center; gap: .4rem;
@@ -618,7 +618,7 @@ body {
     font-size: .8rem; font-weight: 700; color: #fff; margin: 0 auto .5rem; width: fit-content; cursor: pointer;
 }
 .league-season-bar b { color: var(--pp-green); }
-.league-list { display: flex; flex-direction: column; gap: .35rem; max-height: 46vh; overflow-y: auto; margin: .3rem 0; }
+.league-list { display: flex; flex-direction: column; gap: .35rem; max-height: 46vh; overflow-y: auto; margin: .3rem auto; width: 82%; } /* 원본 행 ≈77% W 인셋 (185) */
 /* 원본: 랭킹 행은 흰 카드(검정 순위/이름, 주황 전투력), 내 행만 파란 하이라이트 */
 .league-row {
     display: grid; grid-template-columns: 1.8rem 2.5rem 1fr auto; gap: .5rem; align-items: center; position: relative;
@@ -640,14 +640,19 @@ body {
 }
 .league-server { position: absolute; right: .55rem; bottom: .2rem; font-size: .6rem; color: #8a8a8a; }
 .league-row.me .league-server { color: #dce6ff; }
-.league-pinned { margin: .3rem 0 0; }
-.league-actions { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; }
+.league-pinned { margin: .3rem auto 0; width: 82%; position: relative; z-index: 1; background: #05070f; } /* 스크롤 행 겹침 가림 (185) */
+.league-actions { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; position: relative; justify-content: center; } /* 원본: 도전 중앙, ◀ 좌하단 분리 (185) */
 .league-back-btn {
     width: 2.5rem; height: 2.5rem; border-radius: .6rem; flex: none; cursor: pointer;
     background: var(--pp-red); color: #fff; border: 3px solid #000; font-size: 1.1rem; font-weight: 900;
     box-shadow: inset 0 -.22rem 0 var(--pp-red-dk);
 }
-.league-actions .btn.primary { flex: 1; }
+.league-actions .btn.primary { flex: 0 1 28%; min-height: 3.6rem; font-size: 1.05rem; }
+.league-actions .league-back-btn { position: absolute; left: 0; }
+/* 시트 화면 공통: 원본 좌하단 고정 빨간 ◀ (던전 목록·기술트리 개요 — 185 비평가 누락 지적) */
+.sheet-back-btn { position: absolute; left: .7rem; bottom: .7rem; z-index: 3; }
+/* 던전 [열기] 버튼 — 원본 카드 우하단 ≈16% W × 4% H */
+.dg-right .btn { min-width: 4.6rem; min-height: 2.4rem; font-size: .85rem; }
 
 /* ② 리그 보상 팝업 — 원본(shot-042208): 다크 남색 카드 + 빨간 리본, 상단 재화는 다크 pill, 하단 테이블만 흰색 */
 .modal-card.wide.lgr-card { background: linear-gradient(180deg, #232946, #171c33); }
@@ -1155,6 +1160,7 @@ body {
 .modal-card.sheet {
     width: 100%; height: 100%; border: none; border-radius: 0; padding: 1rem .9rem 1.2rem;
     box-shadow: none; gap: .5rem; justify-content: flex-start; overflow-y: auto;
+    position: relative; /* sheet-back-btn 앵커 */
 }
 .sheet-title { font-size: 1.35rem; font-weight: 900; text-align: center; color: var(--pp-ink); }
 .sheet-sub {
@@ -1571,7 +1577,7 @@ body {
 /* ===== 스킬 상세 팝업 (shot-042426 원본 대조 재작업) ===== */
 .skd-card { width: 86%; min-height: 20rem; padding: 1rem .9rem 1.1rem; text-align: left; display: flex; flex-direction: column; gap: 0; }
 .skd-head { display: flex; gap: .8rem; align-items: flex-start; }
-.skd-orbcol { width: 27%; flex: none; display: flex; flex-direction: column; align-items: center; gap: .22rem; }
+.skd-orbcol { width: 17.5%; flex: none; /* 원본 오브 ≈11% W (185) */ display: flex; flex-direction: column; align-items: center; gap: .22rem; }
 .skd-orbcol .sk-orb { font-size: 1.9rem; }
 .skd-orbcol .sk-shard { height: .85rem; border-radius: .5rem; }
 .skd-orbcol .sk-shard em { font-size: .6rem; }
@@ -1598,9 +1604,10 @@ body {
     border: 3px solid var(--pp-line); box-shadow: inset 0 -.28rem 0 #9c9c9c; font-weight: 900;
 }
 .btn.silver:active { transform: translateY(.1rem); box-shadow: none; }
-.dgd-card { width: 88%; padding: 0 0 1rem; overflow: hidden; gap: 0; }
+.dgd-card { width: 71%; padding: 0 0 1rem; overflow: hidden; gap: 0; } /* 원본 ≈69% W (185) */
 .dgd-card .dg-detail-hero {
     position: relative; width: 100%; border-radius: 0; margin: 0 0 .6rem;
+    height: 9.4rem; font-size: 3.4rem; /* 원본 배너 ≈15.4% H (185) */
 }
 .dgd-title {
     position: absolute; top: .4rem; left: 0; right: 0; text-align: center;
@@ -1612,12 +1619,13 @@ body {
 .dgd-stage span { display: block; font-size: .88rem; font-weight: 900; color: var(--pp-ink); }
 .dgd-stage b { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); }
 .dgd-reward-pill {
-    background: #b9b9b9; border-radius: .6rem; margin: 0 1.2rem .55rem; padding: .3rem .6rem;
+    background: #b9b9b9; border-radius: .6rem; margin: 0 auto .55rem; padding: .3rem .9rem; max-width: 78%;
     text-align: center; font-size: .88rem; font-weight: 900; color: var(--pp-ink);
 }
 .dgd-reward-label { color: #fff; text-shadow: -1px -1px 0 #6d6d6d, 1px -1px 0 #6d6d6d, -1px 1px 0 #6d6d6d, 1px 1px 0 #6d6d6d; margin-right: .3rem; }
 .dgd-keys { text-align: center; font-size: .95rem; font-weight: 900; color: var(--pp-ink); margin-bottom: .7rem; }
-.dgd-btns { display: flex; gap: .8rem; margin: 0 1.1rem; }
+.dgd-btns { display: flex; gap: .8rem; margin: 0 1.1rem; justify-content: center; }
+.dgd-btns .btn { flex: 0 1 42%; min-height: 3.4rem; }
 .dgd-btn { flex: 1; font-size: .92rem; padding: .6rem .2rem; border-radius: .6rem; line-height: 1.25; }
 #panel-summon > .summon-sub { position: relative; } /* 분기 상세 ⓘ 절대배치 기준 */
 
@@ -1629,7 +1637,7 @@ body {
     background: var(--pp-blue); font-size: .85rem; line-height: 1; padding: 0;
 }
 .petd-head { display: flex; gap: .9rem; align-items: flex-start; margin: .3rem 0 1rem; }
-.petd-tilecol { width: 24%; flex: none; display: flex; flex-direction: column; align-items: center; gap: .25rem; }
+.petd-tilecol { width: 17.5%; flex: none; /* 원본 타일 ≈12% W (185) */ display: flex; flex-direction: column; align-items: center; gap: .25rem; }
 .petd-tile {
     position: relative; width: 100%; aspect-ratio: 1; border-radius: .55rem;
     border: 3px solid var(--pp-line); background: var(--rc, #ccc);

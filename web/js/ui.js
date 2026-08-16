@@ -1276,6 +1276,7 @@ const UI = {
                 <h3 class="sheet-title">던전</h3>
                 <p class="sheet-sub">던전 열쇠는 매일 09:00에 보충됩니다. 열쇠는 던전을 완료할 때만 소모됩니다</p>
                 <div class="dungeon-list">${bannerHtml}</div>
+                <button class="league-back-btn sheet-back-btn" onclick="UI.closeDungeons()">◀</button>
             </div>`;
         this.showModal(this.els.dungeonModal);
     },
@@ -1832,7 +1833,8 @@ const UI = {
                 <h2 class="sheet-title">기술 트리</h2>
                 <span class="cur-pill gem">💎 ${U.fmt(S.gems)}</span>
             </div>
-            <div class="tech-branch-grid">${cardsHtml}</div>`;
+            <div class="tech-branch-grid">${cardsHtml}</div>
+            <button class="league-back-btn sheet-back-btn" onclick="UI.switchTab(null)">◀</button>`;
     },
     // 분기 상세: 노드를 2개씩 쌍으로 묶어 가로선으로 잇고 쌍 사이는 세로선으로 이어
     // 원본(shot-042546)의 좌우 분기 갈래 트리 형태를 재현한다.
