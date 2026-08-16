@@ -1,6 +1,8 @@
 /* ===== 포지 클론 스타일 — 9:16 레터박스, rem 기반 스케일 ===== */
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; overflow: hidden; background: #0d1117; }
+/* 폰 브라우저의 강제 다크모드(자동 색 반전) 비활성화 — 화면 색은 게임이 직접 지정한다 */
+:root { color-scheme: only light; }
 body {
     display: flex; align-items: center; justify-content: center;
     font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
