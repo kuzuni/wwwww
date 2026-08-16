@@ -1672,6 +1672,33 @@ const Scene3D = {
         return g;
     },
 
+    // 무기별 파지: weaponG 로컬 회전(손이 자루를 감싸는 각) + 다관절 거치 자세(본별 rx 가산) + 활계는 왼손 파지 (사용자 지시: 무기 쥔 모양 차별화)
+    WEAPON_GRIP: {
+        sword:    { rot: [0.14, 0, -0.08], pose: { elbowR: -0.3 } },                       // 옆으로 자연스럽게 늘어뜨림, 날 살짝 전방
+        dagger:   { rot: [0.22, 0, -0.1], pose: { elbowR: -0.5 } },                        // 팔꿈치 굽혀 세워 들기
+        axe:      { rot: [-0.5, 0, -0.22], pose: { elbowR: -0.4 } },                       // 팔 내린 채 자루를 어깨 뒤로 기울여 걸침
+        hammer:   { rot: [-0.5, 0, -0.22], pose: { elbowR: -0.4 } },                       // 팔 내린 채 자루를 어깨 뒤로 기울여 걸침
+        club:     { rot: [0.14, 0, -0.08], pose: { elbowR: -0.3 } },
+        spear:    { rot: [0, 0, 0], pose: { elbowR: -0.3 } },                              // 수직으로 세워 들기 (기수 자세)
+        staff:    { rot: [0, 0, 0], pose: { elbowR: -0.28 } },                             // 지면 짚듯 세워 들기
+        bow:      { hand: 'L', rot: [1.25, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } }, // 왼손 파지(팔 상승분 상쇄해 림이 수직) + 오른손 시위 대기
+        crossbow: { hand: 'L', rot: [1.25, 0, 0], pose: { shoulderL: -1.15, elbowL: -0.12, shoulderR: -0.95, elbowR: -1.05 } },
+        gun:      { rot: [0, 0, 0], pose: { elbowR: -0.12 } },                             // 총구 전방 겨눔 (restX가 팔을 올림)
+        thrown:   { rot: [0.3, 0, 0], pose: { elbowR: -0.6 } },                            // 던질 준비 들기
+    },
+    applyWeaponGrip() {
+        const grip = this.WEAPON_GRIP[this.wtypeId] || this.WEAPON_GRIP.sword;
+        if (this.heroRig) {
+            const target = grip.hand === 'L' ? this.heroRig.handL : this.heroRig.handR;
+            if (this.weaponG.parent !== target) target.add(this.weaponG); // 활계 왼손 이관 (bow 클립도 왼팔을 드는 구성)
+            this.heroRig.restPose = grip.pose || null;
+            if (grip.hand === 'L') this.heroRig.restX = 0; // 조준 자세는 restPose가 양팔을 정의 — 오른어깨 이중 가산 방지
+        }
+        this.weaponG.position.set(0, 0, 0);
+        this.weaponG.rotation.set(grip.rot[0], grip.rot[1], grip.rot[2]);
+        this._gripRot = grip.rot;
+    },
+
     refreshHeroEquip(withFlash) {
         if (!this.heroG) return;
         // 무기 (타입별 모델 + 모션 + 등급 젬 + 거치 자세)
@@ -1691,6 +1718,7 @@ const Scene3D = {
         this.armR.rotation.x = this.armRest;
         // 프로시저럴 리그: 거치 자세를 리그 오른어깨 기본각으로 전달 (레거시 -0.25=내림 → 리그 0=내림 보정)
         if (this.heroRig) this.heroRig.restX = this.armRest + 0.25;
+        this.applyWeaponGrip(); // 무기별 파지 자세 (손 선택·자루 감쌈 각·다관절 거치 — 활계는 restX를 0으로 덮음)
         // 투구: 이름별 스타일 모델
         this.clearGroup(this.helmetG);
         const h = S.equipment.helmet;
@@ -2989,6 +3017,7 @@ const Scene3D = {
         const motion = wt ? wt.motion : 'slash';
         const wcolor = S.equipment.weapon ? AGE_COLORS[S.equipment.weapon.age] : 0xcfd8dc;
         this._attacking = true;
+        this.weaponG.rotation.set(0, 0, 0); // 공격 중엔 중립 파지(스윙 궤적 기준) — 종료 시 resetArm이 파지 각 복원
         const rest = this.armRest !== undefined ? this.armRest : -0.25;
         const resetArm = () => {
             this._attacking = false;
@@ -2996,7 +3025,8 @@ const Scene3D = {
             this.heroG.position.y = 0;
             this.heroG.rotation.set(0, 0.55, 0);
             this.armR.rotation.set(rest, 0, 0);
-            this.weaponG.rotation.set(0, 0, 0);
+            const gr = this._gripRot || [0, 0, 0];
+            this.weaponG.rotation.set(gr[0], gr[1], gr[2]); // 무기별 파지 각 복원 (어깨 걸침 등)
             this.weaponG.position.z = 0;
             this.weaponG.visible = true;
         };
@@ -3031,7 +3061,12 @@ const Scene3D = {
                 throw: ['Throw', 'Spellcast_Shoot', '1H_Melee_Attack_Chop'],
             };
             this.heroPlay(CLIP_MAP[motion] || CLIP_MAP.slash, true, 1.8);
-            const endAtk = () => { this._attacking = false; this._trailOn = false; this.heroG.position.x = fromX; };
+            const endAtk = () => {
+                this._attacking = false; this._trailOn = false; this.heroG.position.x = fromX;
+                const gr = this._gripRot || [0, 0, 0];
+                this.weaponG.rotation.set(gr[0], gr[1], gr[2]); // 무기별 파지 각 복원
+                this.weaponG.position.z = 0;
+            };
             if (!wt || wt.kind === 'melee') {
                 this.trailStart(wcolor); // 스윙 궤적 트레일 (모션 판독성)
                 this.addAnim(0.36, k => {

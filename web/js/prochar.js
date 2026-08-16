@@ -709,6 +709,8 @@ const ProChar = {
         for (const k in R.bones) apply(R.bones[k], R.base[k]);
         apply(R.root, R.base.root);
         if (R.restX) R.bones.shoulderR.rotation.x += R.restX; // 무기별 거치 자세 (활/총=전방 조준)
+        // 무기별 다관절 거치 자세(rx 가산) — 공격/사망(once) 클립 중에는 클립이 양팔을 전부 정의하므로 미적용
+        if (R.restPose && !R._once) for (const bn in R.restPose) { const b = R.bones[bn]; if (b) b.rotation.x += R.restPose[bn]; }
         // 트랙 오프셋
         for (const key in R._clip.tracks) {
             const dot = key.indexOf('.');
