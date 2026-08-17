@@ -2269,7 +2269,8 @@ body {
     text-align: center; font-size: .88rem; font-weight: 900; color: var(--pp-ink);
 }
 .dgd-reward-label { color: #fff; text-shadow: -1px -1px 0 #6d6d6d, 1px -1px 0 #6d6d6d, -1px 1px 0 #6d6d6d, 1px 1px 0 #6d6d6d; margin-right: .3rem; }
-.dgd-keys { text-align: center; font-size: .95rem; font-weight: 900; color: var(--pp-ink); margin-bottom: .7rem; }
+/* 원본(042304)의 열쇠 줄은 아이콘+숫자 밴드가 22px(2.48%H)인 큰 표기인데 .95rem은 12px(1.35%H)로 −1.13%p 작다. */
+.dgd-keys { text-align: center; font-size: 1.5rem; font-weight: 900; color: var(--pp-ink); margin-bottom: .7rem; }
 /* 원본은 버튼 아래로 흰 여백이 58px(6.5%H) 남고 그 위에 빨간 ✕가 걸친다. .2rem(+카드 패딩 1rem)이면
    24px뿐이라 카드 하단이 원본보다 2.58%p 위에서 끝났다 — 아래 여백을 실측값으로 되돌린다. */
 .dgd-btns { display: flex; gap: .8rem; margin: auto 1.1rem 2.45rem; justify-content: center; }
