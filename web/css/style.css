@@ -653,6 +653,12 @@ body {
     display: inline-block; background: var(--pp-ink); color: var(--pp-green);
     border-radius: .6rem; padding: .05rem .45rem; font-weight: 800; margin-top: .1rem;
 }
+/* ---- 고등급 판매 경고 팝업 (사용자 지시 2026-08-17) ---- */
+.sellwarn-card { width: 76%; padding: 1rem .9rem 1rem; gap: .7rem; }
+.sellwarn-title { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); text-align: center; }
+.sellwarn-body { display: flex; flex-direction: column; gap: .3rem; text-align: center; }
+.sellwarn-item { font-size: .95rem; font-weight: 900; text-shadow: 0 1px 0 rgba(0,0,0,.35); }
+.sellwarn-note { font-size: .8rem; font-weight: 700; color: var(--pp-muted); }
 /* ---- ⓘ '총 보너스' 팝업 (원본: 굵은 검정 제목 + 세로 목록 + 길면 스크롤 + 하단 중앙 빨간 X) ---- */
 .tb-card { width: 78%; padding: 1rem .9rem 1.1rem; gap: .5rem; }
 .tb-title { font-size: 1.25rem; font-weight: 900; color: var(--pp-ink); text-align: center; }

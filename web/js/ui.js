@@ -931,9 +931,55 @@ const UI = {
         el.classList.add('play');
     },
 
+    // ---- 고등급 판매 경고 (사용자 지시 2026-08-17) ----
+    // 실수로 좋은 장비를 파는 걸 막는다. 규칙: '팔리는 장비'의 등급이 '판매 후 그 부위에 남게 될
+    // 장비'보다 높을 때만 물어보고, 같거나 낮으면 그냥 팔린다.
+    //   [판매] → 새 장비가 팔리고 장착 중인 것이 남는다   [장착] → 기존 장비가 팔리고 새 것이 남는다
+    // 빈 슬롯은 '남는 게 없음'이라 -1로 봐서 항상 물어본다(첫 장비를 실수로 파는 사고 방지 —
+    // 슬롯이 비는 건 신규 세이브 8회뿐이라 잔소리가 되지 않는다).
+    // 자동 제련(main.js)의 자동 판매는 사용자가 건 필터가 이미 걸러낸 결과라 경고 대상이 아니다.
+    rarityRank(item) { return item ? RARITIES.indexOf(item.rarity) : -1; },
+    sellWarning(mode) {
+        const item = this._pendingItem;
+        if (!item) return null;
+        const cur = S.equipment[item.slot];
+        const sold = mode === 'equip' ? cur : item;
+        const kept = mode === 'equip' ? item : cur;
+        if (!sold) return null; // [장착]인데 기존 장비가 없으면 팔리는 게 없다
+        if (this.rarityRank(sold) <= this.rarityRank(kept)) return null;
+        return { sold, kept };
+    },
     resolveCraft(mode) {
+        const warn = this.sellWarning(mode);
+        if (warn) { this._pendingCraftMode = mode; this.showSellConfirm(warn); return; }
+        this.doResolveCraft(mode);
+    },
+    showSellConfirm({ sold, kept }) {
+        const keptText = kept
+            ? `장착 중인 <b>${RARITY_KR[kept.rarity]}</b> ${SLOT_KR[kept.slot]}보다 높은 등급입니다.`
+            : `이 부위에 장착 중인 장비가 없습니다.`;
+        this.els.detailModal.innerHTML = `
+            <div class="idet-wrap">
+                <div class="modal-card paper sellwarn-card">
+                    <h3 class="sellwarn-title">정말 판매할까요?</h3>
+                    <p class="sellwarn-body">
+                        <span class="sellwarn-item" style="color:${RARITY_CSS[sold.rarity]}">${RARITY_KR[sold.rarity]} ${sold.name}</span>
+                        <span class="sellwarn-note">${keptText}</span>
+                    </p>
+                    <div class="row">
+                        <button class="btn sell" onclick="UI.onSellConfirm()">판매<small>🪙 +${U.fmt(Forge.sellPrice(sold))}</small></button>
+                        <button class="btn" onclick="UI.onSellCancel()">취소</button>
+                    </div>
+                </div>
+            </div>`;
+        this.showModal(this.els.detailModal);
+    },
+    onSellConfirm() { this.closeDetail(); this.doResolveCraft(this._pendingCraftMode); },
+    onSellCancel() { this.closeDetail(); }, // 비교 팝업은 그대로 열려 있어 다시 고를 수 있다
+    doResolveCraft(mode) {
         const item = this._pendingItem;
         this._pendingItem = null;
+        this._pendingCraftMode = null;
         this.els.craftModal.classList.add('hidden');
         if (!item) return;
         if (mode === 'equip') {
