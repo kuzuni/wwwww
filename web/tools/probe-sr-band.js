@@ -4,6 +4,12 @@
 //     "덜 비었다"를 눈으로만 판정하면 다음 세션이 또 같은 자리를 판다. 밴드별로
 //     ① 평균 휘도 ② 표준편차(=구조가 있는가) ③ 밝은 픽셀 비율을 내서 비교 가능하게 만든다.
 // 판정: 위 밴드의 표준편차가 '빈 배경'(맨 위 여백 밴드)과 같은 수준이면 여전히 빈 것이다.
+//
+// 🚨 **판을 두 개 잰다(2026-08-18 추가).** 예전엔 저등급 판(주역 없음)만 쟀는데, 위 밴드를
+//    채우는 천개(`.sr-canopy`)는 `stage && heroIdx < 0` 일 때만 붙는다 — 즉 **주역(전설 이상)이
+//    나온 판에서는 천개가 아예 없어 위 밴드가 통째로 빈다.** 그런데 지적(9차 ⑶)을 받은 캡처가
+//    바로 그 주역 판이었다. 한 판만 재는 프로브는 '고쳤다'고 통과시키면서 지적받은 화면을
+//    한 번도 안 보는 셈이라, 주역 판을 케이스로 추가했다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
@@ -24,14 +30,28 @@ const SEED = `
     await page.evaluate(() => { Scene3D.update = function () { }; });   // 3D 루프를 멈춰야 캡처가 빠르다
     await page.waitForTimeout(600);
 
-    // 저등급만 나오는 x5 — 주역(전설 이상)이 없어야 이 항목(ⓕ)의 화면이다
-    await page.evaluate(() => {
-        // 스킬 소환 결과는 `{def, isNew}` 형태다 — 저등급만 골라 주역(전설 이상)이 없는 판을 만든다
-        const low = SKILL_DEFS.filter(d => d.rarity === 'common' || d.rarity === 'rare').slice(0, 3);
-        const rolls = [0, 1, 2, 0, 1].map((k, i) => ({ def: low[k % low.length], isNew: i < 2 }));
-        UI.openSummonResult('skill', rolls);
-        UI.skipSummonResult && UI.skipSummonResult();
-    });
+    // [이름, 판을 세우는 소스] — 스킬 소환 결과는 `{def, isNew}` 형태다
+    const CASES = [
+        ['저등급(주역 없음·천개 있음)', () => {
+            const low = SKILL_DEFS.filter(d => d.rarity === 'common' || d.rarity === 'rare').slice(0, 3);
+            const rolls = [0, 1, 2, 0, 1].map((k, i) => ({ def: low[k % low.length], isNew: i < 2 }));
+            UI.openSummonResult('skill', rolls);
+            UI.skipSummonResult && UI.skipSummonResult();
+        }],
+        ['주역 있음(전설 이상)', () => {
+            const low = SKILL_DEFS.filter(d => d.rarity === 'common' || d.rarity === 'rare').slice(0, 3);
+            const hi = SKILL_DEFS.filter(d => d.rarity === 'legendary' || d.rarity === 'ultimate'
+                || d.rarity === 'mythic');
+            const rolls = [0, 1, 2, 0].map((k, i) => ({ def: low[k % low.length], isNew: i < 2 }));
+            rolls.push({ def: hi[hi.length - 1], isNew: true });
+            UI.openSummonResult('skill', rolls);
+            UI.skipSummonResult && UI.skipSummonResult();
+        }],
+    ];
+
+    let bad = 0;
+    for (const [caseName, build] of CASES) {
+    await page.evaluate(build);
     await page.waitForTimeout(1400);
 
     const out = await page.evaluate(() => {
@@ -46,6 +66,7 @@ const SEED = `
         };
     });
     if (!out.grid) { console.log('그리드를 못 찾았다 — 팝업이 안 떴다'); await browser.close(); process.exit(1); }
+    console.log(`\n[${caseName}]`);
 
     // ⚠️ 이 환경엔 pngjs가 없다 — 스크린샷을 base64로 페이지에 넣고 **캔버스로 디코드**해 읽는다
     //    (다른 폴리싱 프로브들이 쓰는 것과 같은 경로).
@@ -85,10 +106,17 @@ const SEED = `
             // 기준선(실측 기록): 천개(.sr-canopy) 도입 **전 2.51배 / 후 4.59배**.
             // 절대 합격선을 박아 두면 나중에 그 숫자에 맞춰 목표를 옮기게 되므로, 이 두 값을
             // 회귀 기준으로만 쓴다 — 4.0 아래로 떨어지면 위 밴드를 채우던 무언가가 죽은 것이다.
+            const ok = ratio >= 4.0;
+            if (!ok) bad++;
             console.log(`  → 위 밴드 구조도(표준편차 / 빈 배경 표준편차) = ${ratio.toFixed(2)}배`
-                        + `  (기준선: 천개 도입 전 2.51 / 후 4.59)  ${ratio >= 4.0 ? 'OK' : '✗ 회귀 의심'}`);
+                        + `  (기준선: 천개 도입 전 2.51 / 후 4.59)  ${ok ? 'OK' : '✗ 회귀 의심'}`);
         }
     }
+    await page.evaluate(() => UI.closeSummonResult && UI.closeSummonResult());
+    await page.waitForTimeout(300);
+    }
     console.log(errors.length ? 'PAGE ERRORS:\n' + errors.join('\n') : '(no page errors)');
+    console.log(bad ? `판정: FAIL (${bad}판)` : '판정: PASS (전 판)');
     await browser.close();
+    process.exit(bad || errors.length ? 1 : 0);
 })();

@@ -3392,6 +3392,12 @@ body {
     animation: srcanopy .9s cubic-bezier(.2,.9,.3,1) .1s forwards;
 }
 .sr-body.stage.one .sr-canopy { width: 62%; aspect-ratio: 3 / 1; margin-bottom: -2.6rem; }
+/* 주역 판 전용 — 주역이 단독 행을 쓰느라 그리드가 길어져 위 밴드에 남는 세로 예산이 적다.
+   아치를 납작하게, 빛발을 짧게 줄여 밴드를 채우되 화면을 위아래로 꽉 채우지는 않는다. */
+.sr-canopy.compact { width: 64%; aspect-ratio: 3.9 / 1; margin-bottom: -1.5rem; }
+.sr-canopy.compact i { height: 5.4rem; }
+.sr-canopy.compact i:nth-child(1) { margin-left: -4.4rem; height: 3.9rem; }
+.sr-canopy.compact i:nth-child(3) { margin-left: 4.4rem; height: 3.9rem; }
 @keyframes srcanopy {
     0%   { opacity: 0; transform: scale(.8) translateY(-.5rem); }
     100% { opacity: 1; transform: scale(1) translateY(0); }
@@ -4129,10 +4135,15 @@ body {
    좌상단이 비어 있다는 보증: `groupSummonEntries`가 `extra`를 `!g.newQty`일 때만 채우므로
    **NEW 배지(우상단)와 적립 배지는 상호 배타**다 — 위쪽 두 칸이 동시에 차는 일은 없다.
    `probe-sr-labels.js`가 두 배지의 상자 교차와 셀 이탈을 회귀 검사한다. */
+/* 🚨 크기 관련 9차 지적 A ⑷ "'조각 +3' 같은 부가 칩이 **7px**라 실기기에서 안 읽힌다".
+   실측(390폭): 기본 .56rem ≈ 7.4px · mid 판 .5rem ≈ **6.6px**. 10차 ③에서 이 배지를 라벨 줄에서
+   떼어내 자리를 벌어 뒀으므로 이제 키울 여유가 있다(위쪽 두 칸은 NEW와 상호 배타라 비어 있다).
+   ⚠️ 대신 **글자를 줄여 폭을 맞추는 처방은 금지**다 — 그게 이 지적을 만든 원인이고, 같은 회차의
+      '등급 칩이 셀마다 다르다'(B ⑵)도 같은 뿌리였다. 폭이 넘치면 배치를 바꿀 것. */
 .sr-dup {
-    position: absolute; top: 8%; left: 7%; z-index: 2;
-    background: rgba(2,5,16,.9); color: #cfe0ff; border: 1px solid rgba(255,255,255,.3);
-    border-radius: .4rem; padding: 0 .24rem; font-size: .56rem; font-weight: 900;
+    position: absolute; top: 7%; left: 6%; z-index: 2;
+    background: rgba(2,5,16,.92); color: #dfeaff; border: 1px solid rgba(255,255,255,.34);
+    border-radius: .4rem; padding: .02rem .3rem; font-size: .68rem; font-weight: 900;
     box-shadow: 0 .1rem .28rem rgba(0,0,0,.6); white-space: nowrap;
 }
 .sr-grid.dense .sr-new, .sr-grid.dense .sr-qty, .sr-grid.dense .sr-dup { display: none; }
@@ -4201,7 +4212,7 @@ body {
 .sr-grid.mid .sr-sub .sr-rk { padding: .03rem .22rem; }
 /* mid 셀은 구체가 3.9rem 남짓이라 좌·우 배지가 폭을 나눠 쓴다 — 둘 다 줄이고 모서리로 더 붙인다
    (probe-sr-labels.js 가 두 상자의 교차를 재서 회귀를 막는다) */
-.sr-grid.mid .sr-dup { top: 3%; left: 2%; font-size: .5rem; padding: 0 .16rem; }
+.sr-grid.mid .sr-dup { top: 3%; left: 2%; font-size: .62rem; padding: 0 .2rem; }
 .sr-grid.mid .sr-qty { bottom: 3%; right: 2%; }
 .sr-grid.dense .sr-name, .sr-grid.dense .sr-sub { display: none; }
 

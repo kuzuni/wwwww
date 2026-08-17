@@ -275,9 +275,19 @@ const UI = {
         // 위쪽 밴드 — 주역(전설 이상)이 없으면 `herorow`가 안 걸려 결과가 한 줄로만 남고,
         // 아래는 소환진이 받치는데 **타이틀과 아이콘 줄 사이가 통째로 빈다**(7·8차 잔여 지적 ⓕ).
         // 소환진을 위아래로 짝지어 '문(게이트)'을 만든다 — 아이콘이 그 아래로 내려온 것으로 읽히고,
-        // 늘어뜨린 빛발이 세로 구조를 만들어 밴드를 채운다. 주역이 있는 판에는 넣지 않는다
-        // (주역 단독 행이 이미 그 자리를 쓰고, 둘을 겹치면 화면이 위아래로 꽉 차 답답해진다).
-        const canopy = stage && heroIdx < 0;
+        // 늘어뜨린 빛발이 세로 구조를 만들어 밴드를 채운다.
+        // 🚨 **주역이 있는 판을 제외했던 것이 9차 지적 ⑶('세로 공백')의 원인이었다.**
+        //    예전 판단은 "주역 단독 행이 이미 그 자리를 쓰고, 둘을 겹치면 답답해진다"였는데,
+        //    주역 행은 그리드 **아래쪽**에 서므로 위 밴드는 그대로 비어 있었다 — 오히려 주역 판이
+        //    그리드가 길어져 **위 밴드만 홀로 남는** 최악의 배치가 된다. 실측(`probe-sr-band.js`,
+        //    412x892): 저등급 판 위 밴드 구조도 4.53배 vs **주역 판 2.94배**(천개 도입 전 2.51 수준).
+        //    지적을 받은 캡처가 바로 주역 판이었다. 이제 주역 판에도 천개를 세우되, 세로 예산이
+        //    빠듯하므로 `compact`(납작한 아치 + 짧은 빛발)로 붙인다.
+        const canopy = stage;
+        // compact 는 '주역이 **단독 행**을 써서 그리드가 길어진 판'에만 필요하다.
+        // x1(one)은 셀이 하나뿐이라 세로 예산이 넉넉하고, `.sr-body.stage.one .sr-canopy` 가
+        // 특이도로 이겨 어차피 제 크기를 쓴다.
+        const canopyCompact = heroRow;
         const m = this.els.summonResultModal;
         m.className = 'modal'; // hidden 해제 + 이전 done 상태 제거
         m.innerHTML = `
@@ -293,7 +303,7 @@ const UI = {
                 <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-head"><div class="sr-title">${meta.icon} ${meta.title} ×${rolls.length}</div></div>
                 <div class="sr-body${stage ? ' stage' : ''}${stage && size === ' one' ? ' one' : ''}">
-                    ${canopy ? '<div class="sr-canopy"><i></i><i></i><i></i></div>' : ''}
+                    ${canopy ? `<div class="sr-canopy${canopyCompact ? ' compact' : ''}"><i></i><i></i><i></i></div>` : ''}
                     <div class="sr-grid${size}${heroRow ? ' herorow' : ''}" style="--cols:${cols}">${cells}</div>
                     ${stage ? '<div class="sr-floor"></div>' : ''}
                 </div>
