@@ -1054,6 +1054,61 @@ const IconGen = {
             }
         },
 
+        // ---- 교차 검: 전투력(CP) 표시 ----
+        // 상단바·리그 행에서 10~14px로 찍힌다. 날을 가늘게 그리면 그 크기에서 회색 얼룩이 되므로
+        // 날 폭을 넉넉히 잡고 검마다 짙은 테를 둘러 X 실루엣이 먼저 읽히게 한다.
+        power(ctx, S) {
+            const G = IconGen;
+            // 검 하나 = 날(끝이 뾰족한 사다리꼴) + 가드 + 손잡이 + 폼멜. 원점 기준 세로로 그린 뒤 회전한다.
+            const blade = (rot) => {
+                ctx.save();
+                ctx.translate(S / 2, S / 2);
+                ctx.rotate(rot);
+                const w = S * 0.135, L = S * 0.40;          // 날 반폭 / 날 길이 — 10px에서 날이 사라지지 않게 두껍게
+                const shape = () => {
+                    ctx.moveTo(0, -L - S * 0.05);            // 칼끝
+                    ctx.lineTo(w, -L + S * 0.06);
+                    ctx.lineTo(w, S * 0.02);
+                    ctx.lineTo(-w, S * 0.02);
+                    ctx.lineTo(-w, -L + S * 0.06);
+                    ctx.closePath();
+                };
+                ctx.beginPath(); shape();
+                ctx.fillStyle = G._lin(ctx, -w, 0, w, 0,
+                    [[0, '#7d8b98'], [0.3, '#eef4f9'], [0.62, '#9fadba'], [1, '#4d5862']]);
+                ctx.fill();
+                ctx.lineWidth = S * 0.038; ctx.strokeStyle = 'rgba(18,24,30,.92)'; ctx.stroke();
+
+                // 가드(십자) — 금색
+                ctx.beginPath(); G._rrSub(ctx, -S * 0.22, S * 0.02, S * 0.44, S * 0.09, S * 0.03);
+                ctx.fillStyle = G._lin(ctx, 0, S * 0.02, 0, S * 0.095,
+                    [[0, '#ffe38f'], [0.55, '#e8a81a'], [1, '#96620a']]);
+                ctx.fill();
+                ctx.lineWidth = S * 0.024; ctx.strokeStyle = 'rgba(64,38,2,.8)'; ctx.stroke();
+
+                // 손잡이 + 폼멜
+                ctx.beginPath(); G._rrSub(ctx, -S * 0.045, S * 0.09, S * 0.09, S * 0.145, S * 0.025);
+                ctx.fillStyle = G._lin(ctx, -S * 0.045, 0, S * 0.045, 0,
+                    [[0, '#5a3a1c'], [0.45, '#9c6a35'], [1, '#4a2f16']]);
+                ctx.fill();
+                ctx.lineWidth = S * 0.022; ctx.strokeStyle = 'rgba(40,24,8,.85)'; ctx.stroke();
+                ctx.beginPath(); ctx.arc(0, S * 0.255, S * 0.055, 0, Math.PI * 2);
+                ctx.fillStyle = G._rad(ctx, -S * 0.015, S * 0.24, S * 0.005, 0, S * 0.255, S * 0.07,
+                    [[0, '#ffe9a6'], [1, '#b8790c']]);
+                ctx.fill();
+                ctx.lineWidth = S * 0.022; ctx.strokeStyle = 'rgba(64,38,2,.8)'; ctx.stroke();
+                ctx.restore();
+            };
+            ctx.save();
+            ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
+            ctx.filter = `blur(${S * 0.02}px)`;
+            ctx.translate(0, S * 0.03);
+            blade(0.72); blade(-0.72);
+            ctx.restore();
+            blade(0.72);    // 뒤쪽 검
+            blade(-0.72);   // 앞쪽 검
+        },
+
         // ---- 별: 승천 등급 배지(장비 셀·스킬/펫/탈것 타일·비교 카드·리그 점수) ----
         // 이 배지는 `.sk-star` 기준 10~12px로도 찍히므로 디테일보다 **실루엣과 테**가 전부다.
         // 뾰족한 5각 + 굵은 갈색 테 + 위쪽 밝은 그라디언트만 남기고 잔무늬는 넣지 않는다.

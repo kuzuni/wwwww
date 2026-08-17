@@ -790,7 +790,7 @@ const UI = {
                 <span class="avatar">${S.avatarEmoji || '🛡️'}</span>
                 <div class="profile-info">
                     <span class="nickname">${U.escapeHtml(S.nickname || '용사')}</span>
-                    <span class="cp">⚔️ ${U.fmt(cp)}</span>
+                    <span class="cp">${IconGen.img('power')} ${U.fmt(cp)}</span>
                 </div>
             </div>
             <div class="currency-pills">
@@ -2741,7 +2741,7 @@ const UI = {
         return `<div class="league-row ${e.isMe ? 'me' : ''}">
             <span class="league-rank">${rank}</span>
             <span class="league-avatar">${e.avatar}</span>
-            <span class="league-name">${U.escapeHtml(e.name)}<br><small>⚔️ ${U.fmt(e.cp)}</small></span>
+            <span class="league-name">${U.escapeHtml(e.name)}<br><small>${IconGen.img('power')} ${U.fmt(e.cp)}</small></span>
             <span class="league-score">${IconGen.img('star')} ${U.fmt(e.score)}</span>
             <span class="league-server">${e.server === '나' ? '나' : '서버 ' + e.server}</span>
         </div>`;
@@ -2810,7 +2810,7 @@ const UI = {
         const rowsHtml = list.map((b, i) => `
             <div class="league-challenge-row">
                 <span class="league-challenge-avatar">${b.avatar}</span>
-                <span class="league-challenge-name">${U.escapeHtml(b.name)}<br><small>⚔️ ${U.fmt(b.cp)}</small></span>
+                <span class="league-challenge-name">${U.escapeHtml(b.name)}<br><small>${IconGen.img('power')} ${U.fmt(b.cp)}</small></span>
                 <span class="league-challenge-side">
                     <span class="star">${IconGen.img('star')}+${b.starReward}</span>
                     <button class="btn sm ${S.league.tickets > 0 ? '' : 'disabled'}" onclick="UI.onChallenge(${i})">도전<br><small>${IconGen.img('ticket')}1</small></button>
@@ -3115,7 +3115,7 @@ const UI = {
                             <div class="pinfo-id-text">
                                 <span class="name">${U.escapeHtml(S.nickname || '용사')} <span class="muted">[무소속]</span></span>
                                 <span class="clan">${S.gender || '♂'} · 서버 1</span>
-                                <span class="cp">⚔️ ${U.fmt(cp)}</span>
+                                <span class="cp">${IconGen.img('power')} ${U.fmt(cp)}</span>
                             </div>
                         </div>
                         <div class="pinfo-right">
@@ -3174,12 +3174,12 @@ const UI = {
                         <div class="chat-share-side win">
                             <span class="chat-share-avatar"><span class="icon-circle sm">${winner.avatar}</span><span class="chat-share-label">승리</span></span>
                             <small>${U.escapeHtml(winner.name)}</small>
-                            <small>⚔️ ${U.fmt(winner.cp)}</small>
+                            <small>${IconGen.img('power')} ${U.fmt(winner.cp)}</small>
                         </div>
                         <div class="chat-share-side lose">
                             <span class="chat-share-avatar"><span class="icon-circle sm">${loser.avatar}</span></span>
                             <small>${U.escapeHtml(loser.name)}</small>
-                            <small>⚔️ ${U.fmt(loser.cp)}</small>
+                            <small>${IconGen.img('power')} ${U.fmt(loser.cp)}</small>
                         </div>
                         <span class="chat-share-cam">📹</span>
                     </div>

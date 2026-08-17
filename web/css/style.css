@@ -2467,6 +2467,10 @@ body {
 .rates-tip { font-size: .8rem; font-weight: 800; color: var(--pp-ink); text-align: center; line-height: 1.4; margin: 1.7rem 0; }
 /* 원본(042521): 등급명 뒤 ⭐, 확률표 위 우측 검정 ⓘ 원형 버튼 */
 .rate-star { font-style: normal; font-size: .8em; filter: drop-shadow(0 1px 0 rgba(0,0,0,.35)); }
+/* 리그 행의 전투력 표시는 글자가 작아 기본 .ico(1.45em)로는 9.6px밖에 안 된다 — 교차 검은 그 크기에서
+   날이 뭉개져 노란 얼룩으로 읽힌다(같은 행의 별은 11.5px에 단일 도형이라 살아남는다).
+   행 높이는 아바타·이름 블록이 잡고 있어 이 줄만 키워도 레이아웃이 밀리지 않는다. */
+.league-name .ico, .league-challenge-name .ico { width: 2em; height: 2em; margin: -.62em .04em -.62em 0; }
 /* 기술 노드 팝업 연구 중 상태 (042605): 남색 진행바 + 입체 블록 버튼 2개 */
 .tech-prog, .modal-card .tech-prog { height: 1.75rem; background: #10182b; border: 3px solid var(--pp-line); border-radius: .5rem; }
 .tech-prog #tech-node-fill { background: var(--pp-blue); }
