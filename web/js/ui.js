@@ -1194,7 +1194,7 @@ const UI = {
         const upgrading = !!S.forgeUpgradeEndsAt;
         const curP = Forge.ageProbsAt(S.forgeLevel);
         const nextP = info ? Forge.ageProbsAt(S.forgeLevel + 1) : {};
-        const pct = p => (parseFloat(p.toFixed(2)) || 0) + '%';
+        const pct = p => U.pctTrim(p);   // 세 화면(확률 정보·모든 장비의 목록·자동 제련) 공통 규칙 — U.pctTrim 단일 소스
         const rows = AGES.map(age => {   // 0% 시대도 표시 — 전체 확률표 열람이 목적 (사용자 재지시 2026-08-17)
             const hex = this.ageHex(age);
             // data-age = 시대별 무늬(자동 제련과 공유하는 --af-pat 규칙) · 별은 마지막 시대만 빈 별 —
@@ -1267,9 +1267,9 @@ const UI = {
                                                   { slot, age, ageIdx, wtype: null, nameIdx: i })).join('');
             }).join('');
             return `<div class="forge-age-section">
-                <div class="fi-age-bar fl-head" style="--ac:${hex}">
-                    <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]}</span>
-                    <span class="fi-age-cur">${ageP.toFixed(2)}%</span>
+                <div class="fi-age-bar fl-head" data-age="${age}" style="--ac:${hex}">
+                    <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]}<span class="fi-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
+                    <span class="fi-age-cur">${U.pctTrim(ageP)}</span>
                 </div>
                 <div class="forge-item-grid">${weaponCells}${otherCells}</div>
             </div>`;
@@ -1414,7 +1414,7 @@ const UI = {
     renderAutoForge() {
         const cfg = Forge.autoForgeConfig();
         const probs = Forge.ageProbsAt(S.forgeLevel);
-        const pct = p => (parseFloat(p.toFixed(2)) || 0) + '%';
+        const pct = p => U.pctTrim(p);   // 세 화면(확률 정보·모든 장비의 목록·자동 제련) 공통 규칙 — U.pctTrim 단일 소스
         // 자동 제련만 0% 시대를 숨긴다 — 여긴 '뽑을 수 있는 시대'를 고르는 화면이라 못 뽑는 시대가 있으면 안 된다 (사용자 재지시 2026-08-17)
         const ageRows = AGES.filter(age => (probs[age] || 0) > 0).map(age => `
             <div class="af-age-bar" data-age="${age}" style="--ac:${this.ageHex(age)}" onclick="UI.onToggleKeepAge('${age}')">
