@@ -3044,6 +3044,10 @@ const Scene3D = {
         this._thumbAmb = new THREE.AmbientLight(0xffffff, 0.42);
         this._thumbDir = new THREE.DirectionalLight(0xffffff, 0.72);
         this._thumbDir.position.set(2, 3, 2);
+        // 쿨톤 역광(림 라이트) — 본편·생물 썸네일과 동일한 3광 구성. 키 반대쪽 뒤에서 넣어 실루엣
+        // 가장자리를 투명 배경에서 떼어낸다(비평가 지적 ㉯⑶ "라이트 2개뿐, 림·접지그림자 없음").
+        this._thumbRim = new THREE.DirectionalLight(0xcfe4ff, 0.5);
+        this._thumbRim.position.set(-2.2, 1.6, -2.6);
         // 썸네일 렌더러는 별도 GL 컨텍스트 — 메인 씬의 PMREM 텍스처 공유 불가.
         // 자체 PMREM 환경 필수: 없으면 고금속 PBR 재질(무기 날 등)이 반사할 게 없어 검게 찍힘.
         try {
@@ -3132,7 +3136,7 @@ const Scene3D = {
             this.itemThumbInit();
             const sc = this._thumbScene;
             this.clearGroup(sc);
-            sc.add(this._thumbAmb, this._thumbDir);
+            sc.add(this._thumbAmb, this._thumbDir, this._thumbRim);
             let model;
             if (item.slot === 'weapon') {
                 model = this.makeWeapon(item.wtype || 'sword', item.ageIdx, item.rarity);
