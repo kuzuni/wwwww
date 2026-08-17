@@ -1580,6 +1580,11 @@ const UI = {
     // 총 0.72초 = 0.24초 × 3타. 반복 제작이 답답하지 않은 길이 안에서 마지막 타격만 강하게 준다.
     // 궤적·지속은 CSS 키프레임(.anvil-fx)이 소유하고, 여기서는 타격 시각에 소리·흔들림만 맞춰 건다.
     ANVIL_FX_MS: 720,
+    // ⚠️ 오버레이를 걷는 시각은 done()보다 **뒤**여야 한다. 예전엔 둘 다 720ms라
+    //    3타 링(지연 .628s + .2s)과 3타 불티(.628s + .26s)가 **수명의 20%쯤에서 통째로 잘려**,
+    //    "마지막이 가장 강하다"는 설계가 화면에서는 정확히 반대로 나왔다(비평가 실측 f-720:
+    //    3타 링이 1·2타보다 작고 불티는 중앙에 뭉친 채 사라짐). done()은 제때 부르고 그림만 더 산다.
+    ANVIL_FX_TAIL_MS: 900,
     ANVIL_HITS: [170, 410, 650],   // css afswing의 타격 프레임(24% / 57% / 90%)과 같은 시각
     // 타격점 = 모루 상판 윗면(ANVIL_SVG의 `M23 4 L90 3 L95 25 L12 26 Z`)의 중심.
     // 연출 오버레이는 모루와 **같은 viewBox(132×86)** 를 쓰므로 이 좌표 하나로 망치 머리·링·불티가
@@ -1621,12 +1626,18 @@ const UI = {
         const cx = this.ANVIL_HIT_X, cy = this.ANVIL_HIT_Y;
         const sparks = [];
         for (let h = 0; h < 3; h++) {
-            const n = h === 2 ? 9 : 6;                       // 마지막 타격이 가장 많이 튄다
+            const n = h === 2 ? 16 : 10;                     // 마지막 타격이 가장 많이 튄다
             for (let i = 0; i < n; i++) {
                 // 위쪽 반구로만 튀게 각도를 잡고(모루 아래로 파고드는 불티는 오독), 중력분을 더해 아래로 떨어뜨린다
                 const a = -Math.PI * (0.08 + 0.84 * (i + U.rand(0, 0.6)) / n);
-                const d = U.rand(9, 21) * (h === 2 ? 1.35 : 1);   // viewBox 단위(상판 폭 83)
-                sparks.push(`<circle class="af-spark" cx="${cx}" cy="${cy}" r="0.85" style="--dx:${(Math.cos(a) * d).toFixed(1)}px;--dy:${(Math.sin(a) * d + 7).toFixed(1)}px;--t:${(this.ANVIL_HITS[h] / 1000).toFixed(2)}s"/>`);
+                // 상판 폭이 83유닛인데 예전 최대 이동이 21이라 불티가 **상판 밖으로 못 나가** 실루엣을
+                // 깨지 못했다. 밝은 배경까지 나가야 '튄다'로 읽힌다.
+                const d = U.rand(16, 34) * (h === 2 ? 1.7 : 1);   // viewBox 단위(상판 폭 83)
+                // 원형 점(지름 1.2 CSS px)은 92px 버튼에서 먼지 얼룩이다 — 진행 방향으로 누운 스트릭으로.
+                const deg = (a * 180 / Math.PI).toFixed(1);
+                sparks.push(`<rect class="af-spark" x="${cx}" y="${(cy - 0.35).toFixed(2)}" width="3.4" height="0.7" rx="0.35"`
+                    + ` transform="rotate(${deg} ${cx} ${cy})"`
+                    + ` style="--dx:${(Math.cos(a) * d).toFixed(1)}px;--dy:${(Math.sin(a) * d + 7).toFixed(1)}px;--t:${(this.ANVIL_HITS[h] / 1000 - 0.02).toFixed(3)}s"/>`);
             }
         }
         const fx = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1647,7 +1658,11 @@ const UI = {
                     <stop offset="1" stop-color="#28160d"/>
                 </linearGradient>
             </defs>`
-            + [0, 1, 2].map(h => `<ellipse class="af-ring h${h}" cx="${cx}" cy="${cy}" rx="9" ry="3.1"/>`).join('')
+            // 92px 버튼에서 임팩트를 가장 싸게 파는 수단이 2~5프레임 백색 플래시인데 그게 아예 없었다
+            + [0, 1, 2].map(h => `<ellipse class="af-flash f${h}" cx="${cx}" cy="${cy}" rx="13" ry="4.6"/>`).join('')
+            // rx/ry는 `scale(1)`에서 곧바로 읽히는 크기로 잡는다 — 예전엔 scale(.35)로 시작해
+            // 첫 60~70ms 동안 스트로크가 0.27px라 **타격 프레임에 링이 아예 안 보였다**
+            + [0, 1, 2].map(h => `<ellipse class="af-ring h${h}" cx="${cx}" cy="${cy}" rx="7" ry="2.4"/>`).join('')
             + sparks.join('') + this.HAMMER_SVG;
         btn.appendChild(fx);
         btn.classList.add('striking');
@@ -1655,10 +1670,10 @@ const UI = {
             SFX.anvilHit(h === 2);
             if (typeof Scene3D !== 'undefined' && Scene3D.shake) Scene3D.shake(h === 2 ? 0.13 : 0.07); // 미세하게만
         }, t));
+        this._anvilTimers.push(setTimeout(done, this.ANVIL_FX_MS));
         this._anvilTimers.push(setTimeout(() => {
             fx.remove(); btn.classList.remove('striking');
-            done();
-        }, this.ANVIL_FX_MS));
+        }, this.ANVIL_FX_TAIL_MS));
     },
     // 연출을 도중에 끊는다 — 타이머와 오버레이를 같이 걷어내야 끝나고 팝업이 뜨는 일이 없다
     cancelAnvilStrike() {

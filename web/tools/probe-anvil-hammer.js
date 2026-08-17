@@ -132,6 +132,33 @@ async function waitBooted(page, timeout = 25000) {
         await btn.screenshot({ path: path.join(OUT, `anvilhammer-${f.name}.png`) }).catch(() => {});
     }
 
+    // ⑦ 이펙트 CSS 규칙이 **실제로 먹고 있는가**. 이게 없으면 style.css가 어디선가 깨져도
+    //    (실제로 키프레임 교체 중 잉여 `}` 하나로 이후 규칙이 통째로 죽은 적이 있다) 기하 검사는
+    //    전부 통과한다 — 망치 규칙은 깨진 지점보다 앞에 있기 때문이다. 링이 SVG 기본값
+    //    (fill=black·stroke=none)으로 떨어지는 순간을 수치로 잡는다.
+    const css = await page.evaluate(() => {
+        const g = (sel) => { const e = document.querySelector(sel); if (!e) return null; const c = getComputedStyle(e); return { fill: c.fill, stroke: c.stroke, sw: c.strokeWidth }; };
+        return { ring: g('.anvil-fx .af-ring'), flash: g('.anvil-fx .af-flash'), spark: g('.anvil-fx .af-spark') };
+    });
+    say(!!css.ring && css.ring.fill === 'none' && css.ring.stroke !== 'none',
+        `⑦ 링 규칙 적용됨 — fill=${css.ring && css.ring.fill} stroke=${css.ring && css.ring.stroke} (기본값 fill:black/stroke:none이면 CSS가 깨진 것)`);
+    say(!!css.flash && css.flash.fill !== 'rgb(0, 0, 0)', `⑦ 플래시 규칙 적용됨 — fill=${css.flash && css.flash.fill}`);
+    say(!!css.spark && css.spark.fill !== 'rgb(0, 0, 0)', `⑦ 불티 규칙 적용됨 — fill=${css.spark && css.spark.fill}`);
+
+    // ⑥ 오버레이 수명 ≥ 가장 늦게 끝나는 자식 애니메이션. 예전엔 둘 다 720ms라 **3타(가장 강해야 할
+    //    타격)의 링·불티가 수명 20% 지점에서 잘려** 화면상 가장 약해 보였다 — 눈으로는 "왜인지 밋밋"
+    //    으로만 보여 회귀해도 아무도 못 잡는다. 그래서 수치로 못 박는다.
+    const life = await page.evaluate(() => {
+        let end = 0;
+        document.querySelectorAll('.anvil-fx *').forEach(n => n.getAnimations().forEach(a => {
+            const t = a.effect.getTiming();
+            end = Math.max(end, (Number(t.delay) || 0) + (Number(t.duration) || 0));
+        }));
+        return { lastEndMs: end, tail: UI.ANVIL_FX_TAIL_MS, done: UI.ANVIL_FX_MS };
+    });
+    say(life.tail >= life.lastEndMs,
+        `⑥ 오버레이 수명 ${life.tail}ms ≥ 마지막 자식 애니메이션 종료 ${life.lastEndMs}ms (done()은 ${life.done}ms에 따로 부름)`);
+
     say(errs.length === 0, `⑤ 콘솔/페이지 에러 ${errs.length}건${errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''}`);
     await browser.close();
     console.log(fail ? `\n실패 ${fail}건` : '\n전부 통과');
