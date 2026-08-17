@@ -287,11 +287,35 @@ const UI = {
         this.switchTab(this.activeTab === tab ? null : tab);
     },
     // 탭 전환 공통 정리 — 탭이 소유한 전체화면 모달과 그 위에 겹친 하위 상세 팝업 일괄 닫기 (전투 씬은 무관)
+    // MODAL_TAB에 없는 모달도 여기서 닫아야 한다: 이 4종은 특정 탭 소유가 아니라 메인 화면에서도 뜨므로
+    // MODAL_TAB에 넣으면 엉뚱한 탭에 빨간 ✕가 붙는다. 대신 목록으로만 관리한다.
+    // (QA 5차 실측: 안 닫혀서 장비 상세 카드가 소환 서브탭을, 오프라인 보상 카드가 화면 절반을 덮어 조작을 막았다)
+    EXTRA_TAB_SURFACES: ['detail-modal', 'stub-modal', 'gear-detail-modal', 'offline-modal', 'ascend-modal'],
     closeAllTabSurfaces() {
-        for (const id of [...Object.keys(this.MODAL_TAB), 'detail-modal', 'stub-modal']) {
+        // 제작 비교 팝업만은 그냥 숨기면 제작한 장비가 사라진다 — 자동 판정으로 정리한 뒤 닫는다
+        this.resolvePendingCraft();
+        for (const id of [...Object.keys(this.MODAL_TAB), ...this.EXTRA_TAB_SURFACES]) {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
         }
+    },
+
+    // 제작 비교 팝업(craft-modal)은 판매/장착 강제 선택 팝업이라 닫기 버튼이 없다.
+    // 탭 전환처럼 팝업을 강제로 접는 경로에서 그냥 숨기면 _pendingItem이 장착도 판매도 안 된 채
+    // 사라져 제작한 장비가 유실된다. 그래서 오토포지와 같은 기준(Forge.autoResolve —
+    // 장착품보다 강하면 장착 후 기존품 판매, 아니면 판매)으로 처리하고 결과를 토스트로 알린다.
+    resolvePendingCraft() {
+        const m = this.els.craftModal;
+        if (!m || m.classList.contains('hidden')) return;
+        const item = this._pendingItem;
+        m.classList.add('hidden');
+        this._pendingItem = null;
+        if (!item) return;
+        const r = Forge.autoResolve(item);
+        this.toast(r.equipped ? `🛠 ${item.name} 자동 장착` : `🪙 ${item.name} 자동 판매 +${U.fmt(r.gained)}`);
+        this.renderTopBar();
+        this.renderEquipSheet();
+        saveGame();
     },
 
     switchTab(tab) {
@@ -338,6 +362,7 @@ const UI = {
     },
     // X 상태의 탭을 누르면 열린 것을 닫는다
     closeOpened() {
+        this.resolvePendingCraft(); // 여기도 전 모달 일괄 숨김이라 제작 대기품 유실 경로가 같다
         document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
         this.switchTab(null);
     },
