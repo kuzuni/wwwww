@@ -227,17 +227,36 @@ const TechTree = {
     // 사용자가 준 그림대로 **단계가 가로 블록**이다: 한 단계에 그 분기의 타입이 전부 놓이고,
     // 단계와 단계 사이에만 연결선을 그린다. 폭이 좁아 한 줄에 다 못 넣으므로 2개씩 흘려 쌓는다
     // (항목 ⑦이 허용한 배치). 타입 순서는 모든 단계에서 같아서 같은 타입이 같은 자리에 온다.
+    // 트리의 **맨 위 행과 맨 아래 행은 언제나 노드 1개**다 (사용자 지시 2026-08-17):
+    // 연결선이 한 점에서 퍼지고 한 점으로 모여야 위·아래 끝이 지저분해지지 않는다.
+    // 그래서 1단계는 첫 타입을 단독 행으로 떼고, 마지막 단계는 마지막 타입을 단독 행으로 뗀다.
+    // 가운데 단계는 예전 그대로 2개씩 흘려 쌓는다(단계 안 타입 배치는 유지 — 지시).
+    chunk2(types, tier) {
+        const g = [];
+        for (let i = 0; i < types.length; i += 2) g.push(types.slice(i, i + 2));
+        return g.map(ids => ids.map(ty => this.nid(ty, tier)));
+    },
     rows(branchId) {
         const b = this.BRANCHES.find(x => x.id === branchId);
         if (!b) return [];
         const out = [];
         for (let t = 1; t <= this.TIERS; t++) {
-            for (let i = 0; i < b.types.length; i += 2) {
-                out.push({
-                    ids: b.types.slice(i, i + 2).map(ty => this.nid(ty, t)),
-                    tier: t, first: i === 0, lastOfTier: i + 2 >= b.types.length,
-                });
+            const ty = b.types;
+            // 모든 단계가 **같은 행 패턴**('첫 타입 단독 → 나머지 2개씩')을 쓴다.
+            // 패턴이 단계마다 같아야 같은 타입이 항상 같은 x에 오고, 부모→자식 연결선이
+            // 꺾임 없는 세로 레일이 된다(패턴이 갈리면 연결선이 전부 사선/ㄱ자로 엉킨다).
+            let groups = ty.length > 1
+                ? [[this.nid(ty[0], t)], ...this.chunk2(ty.slice(1), t)]
+                : this.chunk2(ty, t);
+            // 타입이 홀수면 이 패턴의 마지막 행이 2노드로 끝난다 — 마지막 단계에서만
+            // 그 행을 한 노드씩 두 행으로 쪼개 **트리의 맨 아래가 노드 1개로 수렴**하게 한다.
+            const tail = groups[groups.length - 1];
+            if (t === this.TIERS && tail.length === 2) {
+                groups = [...groups.slice(0, -1), [tail[0]], [tail[1]]];
             }
+            groups.forEach((ids, i) => out.push({
+                ids, tier: t, first: i === 0, lastOfTier: i === groups.length - 1,
+            }));
         }
         return out;
     },

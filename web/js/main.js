@@ -17,6 +17,8 @@
         document.documentElement.style.setProperty('--app-h', h + 'px');
         document.documentElement.style.setProperty('--app-w', w + 'px');
         if (Scene3D.renderer) Scene3D.resize();
+        // 기술트리 연결선은 노드 중심을 **실측**해 그린 SVG라 화면 크기가 바뀌면 다시 그려야 한다
+        if (typeof UI !== 'undefined' && UI.drawTechLinks) UI.drawTechLinks();
     }
 
     function boot() {

@@ -2777,27 +2777,24 @@ const UI = {
                 ? `<small class="tech-tree-node-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
                 : `<small>${lv}/${TechTree.MAX_LEVEL}</small>`;
             return `<div class="tech-tree-node-col">
-                <button class="tech-tree-node ${cls}" onclick="UI.openTechNode('${id}')">${face}</button>
+                <button class="tech-tree-node ${cls}" data-tid="${id}" onclick="UI.openTechNode('${id}')">${face}</button>
                 <div class="tech-tree-label">${badge}</div>
             </div>`;
         };
-        // 골격 규칙 (원본 shot-042546의 좌우 갈래 모양을 단계 구조 위에서 유지한다):
-        //  ① 가로 바는 2노드 행의 좌우 노드를 잇는다 — 그 행이 위아래 중앙 줄기와 만날 때만 필요하다
-        //  ② 세로선은 같은 단계 안에서 위아래가 모두 2노드 행이면 좌·우 두 갈래, 그 밖에는 중앙 줄기
-        //  ③ 첫 행 위·마지막 행 아래로는 선을 그리지 않는다 (사용자 지시 — 위로 뻗은 짝대기 제거)
+        // 골격 규칙 (사용자 재지시 2026-08-17 — '선을 부모 관계대로'):
+        //  ① 그려지는 선 = `TechTree.parentsOf`가 정의한 부모→자식 연결과 **정확히 1:1**.
+        //     예전 구현은 단계와 단계 사이에 공용 세로선 하나만 그어, 선을 따라가도
+        //     무엇이 무엇을 여는지 알 수 없었다(부모는 '같은 타입 한 단계 위'인데
+        //     선은 타입과 무관한 중앙 줄기였다).
+        //  ② 선은 행 사이 빈칸이 아니라 **SVG 오버레이**에 그린다 — 부모와 자식이 서로 다른
+        //     행·열에 놓일 수 있어(1·5단계는 단독 노드 행이 끼어 열이 밀린다) 노드 중심을
+        //     실측해 이어야 한다. 같은 x면 세로 레일, 다르면 ㄱ자로 꺾어 내린다.
+        //  ③ 첫 행 위·마지막 행 아래로는 아무 선도 나가지 않는다(사용자 지시).
         const rows = TechTree.rows(b.id);
         const rowsHtml = [];
         rows.forEach((row, r) => {
-            const prev = rows[r - 1], next = rows[r + 1];
-            // 같은 단계 안에서 2노드 행이 연이을 때만 좌·우 두 갈래, 그 밖에는 중앙 줄기로 합류한다
-            // 연결선은 단계와 단계 사이에만 — 같은 단계 안의 행들은 서로 부모-자식이 아니다
-            const breakAbove = TechTree.tierBreak(prev, row);
-            const breakBelow = TechTree.tierBreak(row, next);
-            // 아직 안 열린 노드로 내려가는 선은 흐리게 — 선은 이어지되 어디부터 잠겼는지 한눈에 보인다
             const dim = row.ids.every(id => TechTree.isUnlocked(id)) ? '' : ' dim';
-            if (prev) rowsHtml.push(breakAbove
-                ? `<div class="tech-tree-vline${dim}"></div>`   // 단계 경계 — 세로 줄기로 잇는다
-                : '<div class="tech-tree-vgap"></div>');        // 같은 단계 안 — 자리만 띄운다
+            if (r > 0) rowsHtml.push('<div class="tech-tree-vgap"></div>');   // 행 간격만 — 선은 오버레이가 그린다
             // 단계 표시는 그 단계 첫 행에만. 절대배치라 행의 가로 배치(=원본 비율)에 영향을 주지 않는다.
             const tag = row.first ? `<span class="tech-tier-tag${dim}">${TechTree.roman(row.tier)}</span>` : '';
             if (row.ids.length === 1) { rowsHtml.push(`<div class="tech-tree-row">${tag}${nodeCol(row.ids[0])}</div>`); return; }
@@ -2813,8 +2810,46 @@ const UI = {
             </div>
             <div class="tech-branch-detail-pct">${pct.toFixed(1)}%</div>
             <button class="fi-info-btn tech-branch-info" onclick="UI.openTechBonuses()">!</button>
-            <div class="tech-tree-col">${rowsHtml.join('')}</div>
+            <div class="tech-tree-col"><svg class="tech-tree-links" aria-hidden="true"></svg>${rowsHtml.join('')}</div>
             <button class="btn danger tech-tree-back" onclick="UI.openTechOverview()">◀</button>`;
+        this.drawTechLinks();
+    },
+    // 연결선 그리기: 노드 중심을 실측해 `parentsOf`가 정의한 부모→자식만 잇는다.
+    // 부모 원 아래 테두리에서 자식 원 위 테두리까지만 그어 원 안으로 파고들지 않고,
+    // 첫 노드 위·마지막 노드 아래로도 나가지 않는다(선의 끝점이 곧 노드 테두리다).
+    drawTechLinks() {
+        const col = this.els.techPanel.querySelector('.tech-tree-col');
+        const svg = col && col.querySelector('.tech-tree-links');
+        if (!svg) return;
+        const cb = col.getBoundingClientRect();
+        const W = col.clientWidth, H = col.scrollHeight;
+        const pos = {};
+        col.querySelectorAll('.tech-tree-node[data-tid]').forEach(n => {
+            const r = n.getBoundingClientRect();
+            pos[n.dataset.tid] = {
+                x: r.left - cb.left + col.scrollLeft + r.width / 2,
+                y: r.top - cb.top + col.scrollTop + r.height / 2,
+                r: r.height / 2,
+            };
+        });
+        const segs = [];
+        for (const id of Object.keys(pos)) {
+            for (const pid of TechTree.parentsOf(id)) {
+                const a = pos[pid], c = pos[id];
+                if (!a || !c) continue;
+                const y1 = a.y + a.r, y2 = c.y - c.r;
+                // 부모가 0레벨이면 자식은 아직 못 연다 — 선은 이어지되 흐리게(어디서 막혔는지 보이게)
+                const dim = TechTree.level(pid) < 1 ? ' dim' : '';
+                const d = Math.abs(a.x - c.x) < 0.5
+                    ? `M${a.x.toFixed(1)} ${y1.toFixed(1)} L${a.x.toFixed(1)} ${y2.toFixed(1)}`
+                    : `M${a.x.toFixed(1)} ${y1.toFixed(1)} V${((y1 + y2) / 2).toFixed(1)} H${c.x.toFixed(1)} V${y2.toFixed(1)}`;
+                segs.push(`<path class="tt-link${dim}" data-from="${pid}" data-to="${id}" d="${d}"/>`);
+            }
+        }
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+        svg.setAttribute('width', W);
+        svg.setAttribute('height', H);
+        svg.innerHTML = segs.join('');
     },
     // ---- ⓘ '총 보너스' 팝업 (사용자 지시 2026-08-17, 원본 스크린샷 제공) ----
     // 원본: 굵은 검정 제목 '총 보너스' + 세로 목록(부위별 한 줄) + 길면 스크롤 + 하단 중앙 빨간 X.

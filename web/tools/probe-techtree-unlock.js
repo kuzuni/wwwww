@@ -35,7 +35,12 @@ async function waitBooted(page, timeout = 20000) {
 
     const res = await page.evaluate(() => {
         const out = { maxLevel: TechTree.MAX_LEVEL, branches: [], fails: [] };
-        const zero = () => { for (const id in TechTree.NODES) S.tech[id] = 0; };
+        // ⚠️ TechTree.NODES는 **타입**으로 키가 잡혀 있고(weaponMastery) 실제 노드 id는
+        // 'weaponMastery@2'다 — 예전 zero()는 NODES 키만 돌아 S.tech를 하나도 못 지웠다.
+        // 그래서 아래 ④ 레벨 상한 검사가 남긴 5레벨이 다음 노드 검사로 새어, 2단계 이상이
+        // 전부 '부모가 0레벨인데 열림'으로 오탐했다. 실제 노드 id 전부를 지운다.
+        const ALL = [].concat(...TechTree.BRANCHES.map(b => TechTree.nodesOf(b.id)));
+        const zero = () => { for (const id of ALL) S.tech[id] = 0; };
 
         for (const b of TechTree.BRANCHES) {
             const rows = TechTree.rows(b.id);
@@ -100,13 +105,16 @@ async function waitBooted(page, timeout = 20000) {
             const col = document.querySelector('.tech-tree-col');
             if (!col) return { bid, missing: true };
             const rows = TechTree.rows(bid);
-            // 행 사이마다 연결선이 정확히 하나(중앙 줄기 또는 좌우 갈래)여야 한다
-            const links = col.querySelectorAll(':scope > .tech-tree-vline, :scope > .tech-tree-vrow').length;
+            // 연결선은 SVG 오버레이의 path — **부모→자식 쌍 하나당 하나**여야 한다
+            // (예전 규약: 행 사이 공용 세로선 1개. 사용자 재지시 2026-08-17로 부모 관계대로 바뀜)
+            const links = col.querySelectorAll('.tech-tree-links .tt-link').length;
             const rowEls = col.querySelectorAll(':scope > .tech-tree-row').length;
-            // 첫 행 위/마지막 행 아래로 삐져나온 선이 없어야 한다
-            const kids = [...col.children].map(e => e.className.split(' ')[0]);
+            let pairs = 0;
+            for (const nid of TechTree.nodesOf(bid)) pairs += TechTree.parentsOf(nid).length;
+            // 첫/마지막 자식은 행이어야 한다 — SVG 오버레이(className이 문자열이 아님)는 세지 않는다
+            const kids = [...col.children].filter(e => e.tagName !== 'svg').map(e => String(e.getAttribute('class') || '').split(' ')[0]);
             return {
-                bid, rowEls, links, expectLinks: rows.length - 1,
+                bid, rowEls, links, expectLinks: pairs,
                 firstIsRow: kids[0] === 'tech-tree-row',
                 lastIsRow: kids[kids.length - 1] === 'tech-tree-row',
             };

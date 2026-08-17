@@ -47,12 +47,12 @@ const GEOM = () => {
         const r = n.getBoundingClientRect();
         return { cy: r.top + r.height / 2, top: r.top, bottom: r.bottom, cls: n.className };
     });
-    const lines = [];
-    for (const el of col.querySelectorAll('.tech-tree-vline')) {
-        const r = el.getBoundingClientRect();
-        const cs = getComputedStyle(el, '::before');
-        lines.push({ y0: r.top + px(cs.top), y1: r.bottom - px(cs.bottom) });
-    }
+    // 연결선은 이제 SVG 오버레이(.tech-tree-links .tt-link)다 — 부모→자식 한 쌍당 path 하나.
+    // (예전에는 단계 사이 공용 세로선 하나였다. 사용자 재지시 2026-08-17로 부모 관계대로 바뀜.)
+    const lines = [...col.querySelectorAll('.tech-tree-links .tt-link')].map(pth => {
+        const b = pth.getBBox();
+        return { y0: cr.top + b.y, y1: cr.top + b.y + b.height, from: pth.dataset.from, to: pth.dataset.to };
+    });
     return {
         col: { top: cr.top, left: cr.left, w: cr.width },
         nodes, lines,
@@ -101,18 +101,19 @@ const GEOM = () => {
             ok(g.labels.every(t => /^\d+\/5$/.test(t)), `${branch}: 노드 라벨이 N/5 형식이 아님`);
             ok(g.tags.join(',') === 'I,II,III,IV,V', `${branch}: 단계 태그 ${g.tags.join(',')} ≠ I,II,III,IV,V`);
 
-            // ⑥ 연결선은 단계 사이에만 (단계 수 - 1 = 4개), 노드 밖으로 삐져나오지 않는다
-            ok(g.lines.length === meta.tiers - 1, `${branch}: 단계 연결선 ${g.lines.length}개 ≠ ${meta.tiers - 1}개`);
-            const firstCy = Math.min(...g.nodes.map(n => n.cy)), lastCy = Math.max(...g.nodes.map(n => n.cy));
-            ok(!g.lines.some(l => l.y0 < firstCy - 1.5), `${branch}: 첫 노드 위로 뻗은 선이 있다`);
-            ok(!g.lines.some(l => l.y1 > lastCy + 1.5), `${branch}: 마지막 노드 아래로 뻗은 선이 있다`);
-            // 각 연결선이 위 단계 마지막 행과 아래 단계 첫 행의 노드 중심을 잇는지
+            // ⑥ 연결선 = 부모→자식 쌍 하나당 하나 (타입 수 × (단계-1)), 노드 밖으로 삐져나오지 않는다
+            const wantLinks = meta.types * (meta.tiers - 1);
+            ok(g.lines.length === wantLinks, `${branch}: 연결선 ${g.lines.length}개 ≠ 부모-자식 쌍 ${wantLinks}개`);
+            const firstTop = Math.min(...g.nodes.map(n => n.top)), lastBot = Math.max(...g.nodes.map(n => n.bottom));
+            ok(!g.lines.some(l => l.y0 < firstTop - 1.5), `${branch}: 첫 노드 위로 뻗은 선이 있다`);
+            ok(!g.lines.some(l => l.y1 > lastBot + 1.5), `${branch}: 마지막 노드 아래로 뻗은 선이 있다`);
+            // 각 연결선의 양끝이 실제 부모 원 아래·자식 원 위 테두리에 닿는지
             for (const l of g.lines) {
-                const above = g.nodes.filter(n => Math.abs(n.cy - l.y0) < 2).length;
-                const below = g.nodes.filter(n => Math.abs(n.cy - l.y1) < 2).length;
-                ok(above > 0 && below > 0, `${branch}: 연결선 끝이 노드 중심에 닿지 않는다 (${l.y0.toFixed(0)}~${l.y1.toFixed(0)})`);
+                const above = g.nodes.filter(n => Math.abs(n.bottom - l.y0) < 2.5).length;
+                const below = g.nodes.filter(n => Math.abs(n.top - l.y1) < 2.5).length;
+                ok(above > 0 && below > 0, `${branch}: 연결선 끝이 노드 테두리에 닿지 않는다 (${l.y0.toFixed(0)}~${l.y1.toFixed(0)})`);
             }
-            console.log(`  ${branch}: 타입 ${meta.types} × ${meta.tiers}단계 = 노드 ${g.nodes.length} · 단계 연결선 ${g.lines.length} · 태그 ${g.tags.join('')}`);
+            console.log(`  ${branch}: 타입 ${meta.types} × ${meta.tiers}단계 = 노드 ${g.nodes.length} · 부모-자식 연결선 ${g.lines.length} · 태그 ${g.tags.join('')}`);
         }
 
         // ② 해금 — 같은 타입 위 단계 1레벨이면 열리고, 다른 타입은 그대로 잠긴다

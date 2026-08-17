@@ -914,8 +914,13 @@ body {
     background: var(--pp-line); margin-top: calc(var(--tt-node) / 2 - var(--tt-bar) / 2);
     margin-left: calc(var(--tt-bite) * -1); margin-right: calc(var(--tt-bite) * -1);
 }
-/* 같은 단계 안 행 사이 — 연결선 없이 자리만 띄운다(단계 안 노드끼리는 부모-자식이 아니다) */
+/* 행 사이 간격만 잡는 빈칸 — 실제 연결선은 .tech-tree-links(SVG 오버레이)가 그린다 */
 .tech-tree-vgap { width: var(--tt-line); height: var(--tt-gap); }
+/* 연결선 오버레이: 노드(z-index 1) 아래에 깔려 원 뒤로 지나가고, 클릭은 통과시킨다.
+   부모-자식이 서로 다른 열에 놓일 수 있어(1·5단계 단독 노드 행) 실측 좌표로 그린다. */
+.tech-tree-links { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; overflow: visible; }
+.tech-tree-links .tt-link { fill: none; stroke: var(--pp-line); stroke-width: var(--tt-line); stroke-linecap: butt; }
+.tech-tree-links .tt-link.dim { stroke: #b9b6b0; }
 /* 원본에서 병렬 블록 가운데 행에는 가로 바가 없다 — 자리만 차지하는 빈 칸으로 간격을 유지한다 */
 .tech-tree-hgap { width: calc(var(--tt-span) - var(--tt-node)); height: var(--tt-bar); }
 /* 세로선: 레이아웃은 --tt-gap만 차지하고, 실제 선은 ::before가 위로 (반노드+라벨), 아래로 반노드를
