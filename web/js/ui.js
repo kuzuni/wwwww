@@ -632,7 +632,7 @@ const UI = {
             const d = Skills.def(id);
             // 장착 슬롯 = 스킬 화면과 동일한 등급색 오브 + 아이콘 + Lv (사용자 지시 — 검정 원은 빈 슬롯만)
             return `<button class="skill-btn" id="sb-${id}" style="--sc:${d.color};--rc:${RARITY_CSS[d.rarity]}" title="${d.name}" onclick="Combat.tryCast('${id}', true)">
-                <span class="sk-icon">${SKILL_ICONS[id] || '✨'}</span>
+                <span class="sk-icon">${IconGen.skill(id)}</span>
                 <span class="sk-name">${d.name}</span>
                 <span class="sk-lv">Lv.${Skills.level(id)}</span>
                 <span class="sk-cd" id="sbcd-${id}"></span>
@@ -1787,7 +1787,7 @@ const UI = {
             const ratio = U.clamp(sk.dupes / need, 0, 1) * 100;
             return `<button class="sk-cell" onclick="UI.openSkillDetail('${d.id}')">
                 <span class="sk-orb" style="--rc:${RARITY_CSS[d.rarity]}">
-                    ${SKILL_ICONS[d.id] || '✨'}
+                    ${IconGen.skill(d.id)}
                     ${equipped ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${sk.level}</span>
                 </span>
@@ -1800,7 +1800,7 @@ const UI = {
         // 5열 원형 아이콘 그리드(조각 게이지) · 장착됨 행 · 버튼 2개 · 최하단 소환 버튼
         const equippedRowHtml = S.equippedSkills.map(id => {
             const sk = S.skills[id]; const d = Skills.def(id);
-            return `<button class="sk-mini" style="--rc:${RARITY_CSS[d.rarity]}" title="${d.name} — 상세/해제" onclick="UI.openSkillDetail('${id}')">${SKILL_ICONS[id] || '✨'}<small>Lv.${sk.level}</small></button>`;
+            return `<button class="sk-mini" style="--rc:${RARITY_CSS[d.rarity]}" title="${d.name} — 상세/해제" onclick="UI.openSkillDetail('${id}')">${IconGen.skill(id)}<small>Lv.${sk.level}</small></button>`;
         }).join('') || '<span class="muted">없음</span>';
 
         p.innerHTML = `
@@ -1906,7 +1906,7 @@ const UI = {
                 <div class="modal-card paper skd-card">
                     <div class="skd-head">
                         <div class="skd-orbcol">
-                            <span class="sk-orb" style="--rc:${RARITY_CSS[d.rarity]}">${SKILL_ICONS[id] || '✨'}<span class="sk-lv">Lv.${sk.level}</span></span>
+                            <span class="sk-orb" style="--rc:${RARITY_CSS[d.rarity]}">${IconGen.skill(id)}<span class="sk-lv">Lv.${sk.level}</span></span>
                             ${sk.stars ? `<span class="sk-star">⭐${sk.stars}</span>` : ''}
                             <span class="sk-shard"><i style="width:${ratio}%"></i><em>${sk.dupes}/${need}</em></span>
                         </div>
@@ -2420,7 +2420,7 @@ const UI = {
 
         // 슬롯 클릭 → 각 세부정보 팝업이 플레이어 정보 위에 겹쳐 뜸 (사용자 지시 — 닫으면 플레이어 정보로 복귀)
         const skillIconsHtml = S.equippedSkills.map(id => `<button class="sk-cell" onclick="UI.openSkillDetail('${id}')">
-            <span class="sk-orb">${SKILL_ICONS[id] || '✨'}<span class="sk-lv">Lv.${Skills.level(id)}</span></span></button>`).join('');
+            <span class="sk-orb" style="--rc:${RARITY_CSS[Skills.def(id).rarity]}">${IconGen.skill(id)}<span class="sk-lv">Lv.${Skills.level(id)}</span></span></button>`).join('');
         const petIconsHtml = S.activePets.map(i => {
             const p = S.pets[i];
             return `<button class="sk-cell" onclick="UI.openPetDetail(${i})">

@@ -781,3 +781,225 @@ const IconGen = {
         },
     },
 };
+
+// ===== 스킬 아이콘: 속성 모티프 엠블럼(캔버스) — 오브 위에 얹는 발광 심볼 =====
+// 이모지(⚔️🌀🔥…)를 코드 생성 심볼로 교체한다. 모티프(칼/불/번개/방패…)가 스킬 정체성을,
+// 스킬 고유색(SKILL_DEFS[].color) 글로우가 속성 정체성을 만든다. 오브 배경(등급색 그라디언트)은
+// CSS(.sk-orb)가 소유하고, 여기서는 배경이 비치도록 '심볼만' 투명 배경으로 그린다.
+(function (G) {
+    const x = (v, S) => v * S, y = (v, S) => v * S;
+
+    // 심볼 하나를 '발광 엠블럼'으로 렌더한다.
+    //   ① 속성색 글로우(뒤) → ② 밝은 그라디언트 채움 → ③ 어두운 외곽선(밝은 오브 위 대비) → ④ 상단 하이라이트
+    // pathFn(ctx, S) 는 beginPath 없이 서브패스만 추가한다(규약). 채움은 nonzero.
+    function emblem(ctx, S, color, pathFn, glow) {
+        // ① 속성색 글로우 — 두 번 칠해 진하게. 밝은 오브에서 죽지 않도록 어두운 접지 그림자도 함께.
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,.45)';
+        ctx.shadowBlur = S * 0.05;
+        ctx.shadowOffsetY = S * 0.02;
+        ctx.fillStyle = 'rgba(0,0,0,.35)';
+        ctx.beginPath(); pathFn(ctx, S); ctx.fill();
+        ctx.restore();
+        ctx.save();
+        ctx.shadowColor = color;
+        ctx.shadowBlur = S * (glow || 0.12);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath(); pathFn(ctx, S); ctx.fill();
+        ctx.beginPath(); pathFn(ctx, S); ctx.fill();
+        ctx.restore();
+        // ② 본체 밝은 채움
+        ctx.beginPath(); pathFn(ctx, S);
+        ctx.fillStyle = G._lin(ctx, 0, S * 0.14, 0, S * 0.9,
+            [[0, '#ffffff'], [0.5, G._shade(color, 0.62)], [1, G._shade(color, 0.08)]]);
+        ctx.fill();
+        // ③ 어두운 외곽선 — 색조 파생. 밝은 등급색 오브(노랑·연두)에서도 실루엣이 살도록.
+        ctx.beginPath(); pathFn(ctx, S);
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.lineWidth = S * 0.038;
+        ctx.strokeStyle = G._shade(color, -0.64);
+        ctx.stroke();
+        // ④ 상단 하이라이트(클립)
+        ctx.save();
+        ctx.beginPath(); pathFn(ctx, S); ctx.clip();
+        ctx.fillStyle = G._lin(ctx, 0, S * 0.12, 0, S * 0.52,
+            [[0, 'rgba(255,255,255,.9)'], [1, 'rgba(255,255,255,0)']]);
+        ctx.fillRect(0, S * 0.08, S, S * 0.46);
+        ctx.restore();
+    }
+
+    // ---- 모티프 경로(정규화 0..1 좌표, beginPath 없이 서브패스만) ----
+    const P = {
+        sword(ctx, S) {                                  // 강타 — 위로 선 검
+            ctx.moveTo(x(.5, S), y(.07, S)); ctx.lineTo(x(.575, S), y(.30, S));
+            ctx.lineTo(x(.55, S), y(.60, S)); ctx.lineTo(x(.45, S), y(.60, S));
+            ctx.lineTo(x(.425, S), y(.30, S)); ctx.closePath();
+            ctx.moveTo(x(.28, S), y(.595, S)); ctx.lineTo(x(.72, S), y(.595, S));
+            ctx.lineTo(x(.72, S), y(.665, S)); ctx.lineTo(x(.28, S), y(.665, S)); ctx.closePath();
+            ctx.moveTo(x(.47, S), y(.665, S)); ctx.lineTo(x(.53, S), y(.665, S));
+            ctx.lineTo(x(.53, S), y(.855, S)); ctx.lineTo(x(.47, S), y(.855, S)); ctx.closePath();
+            ctx.moveTo(x(.5, S) + S * .055, y(.905, S)); ctx.arc(x(.5, S), y(.905, S), S * .055, 0, Math.PI * 2);
+        },
+        axe(ctx, S) {                                    // 처형 — 전투 도끼
+            ctx.moveTo(x(.455, S), y(.30, S)); ctx.lineTo(x(.545, S), y(.30, S));
+            ctx.lineTo(x(.545, S), y(.92, S)); ctx.lineTo(x(.455, S), y(.92, S)); ctx.closePath();
+            ctx.moveTo(x(.19, S), y(.36, S));
+            ctx.quadraticCurveTo(x(.5, S), y(.02, S), x(.81, S), y(.36, S));
+            ctx.quadraticCurveTo(x(.62, S), y(.31, S), x(.56, S), y(.42, S));
+            ctx.quadraticCurveTo(x(.5, S), y(.31, S), x(.44, S), y(.42, S));
+            ctx.quadraticCurveTo(x(.38, S), y(.31, S), x(.19, S), y(.36, S)); ctx.closePath();
+        },
+        whirl(ctx, S) {                                  // 회오리 베기 — 소용돌이 2엽
+            const cx = .5 * S, cy = .5 * S, ro = .40 * S, ri = .18 * S;
+            for (let k = 0; k < 2; k++) {
+                const a0 = k * Math.PI - 0.2, a1 = a0 + Math.PI * 0.92;
+                ctx.moveTo(cx + Math.cos(a0) * ri, cy + Math.sin(a0) * ri);
+                ctx.arc(cx, cy, ri, a0, a1, false);
+                ctx.lineTo(cx + Math.cos(a1) * ro, cy + Math.sin(a1) * ro);
+                ctx.arc(cx, cy, ro, a1, a0, true);
+                ctx.closePath();
+            }
+        },
+        cross(ctx, S) {                                  // 응급 처치 — 십자
+            const lo = .18, hi = .82, a = .385, b = .615;
+            ctx.moveTo(x(a, S), y(lo, S)); ctx.lineTo(x(b, S), y(lo, S)); ctx.lineTo(x(b, S), y(a, S));
+            ctx.lineTo(x(hi, S), y(a, S)); ctx.lineTo(x(hi, S), y(b, S)); ctx.lineTo(x(b, S), y(b, S));
+            ctx.lineTo(x(b, S), y(hi, S)); ctx.lineTo(x(a, S), y(hi, S)); ctx.lineTo(x(a, S), y(b, S));
+            ctx.lineTo(x(lo, S), y(b, S)); ctx.lineTo(x(lo, S), y(a, S)); ctx.lineTo(x(a, S), y(a, S)); ctx.closePath();
+        },
+        flame(ctx, S) {                                  // 화염구 — 불꽃
+            ctx.moveTo(x(.5, S), y(.05, S));
+            ctx.bezierCurveTo(x(.84, S), y(.36, S), x(.72, S), y(.68, S), x(.5, S), y(.93, S));
+            ctx.bezierCurveTo(x(.28, S), y(.68, S), x(.16, S), y(.36, S), x(.5, S), y(.05, S));
+            ctx.closePath();
+        },
+        flame3(ctx, S) {                                 // 용의 숨결 — 삼중 불꽃 부채
+            const tongue = (cx, top, w, h) => {
+                ctx.moveTo(x(cx, S), y(top, S));
+                ctx.bezierCurveTo(x(cx + w, S), y(top + h * .5, S), x(cx + w * .6, S), y(top + h, S), x(cx, S), y(top + h + .04, S));
+                ctx.bezierCurveTo(x(cx - w * .6, S), y(top + h, S), x(cx - w, S), y(top + h * .5, S), x(cx, S), y(top, S));
+                ctx.closePath();
+            };
+            tongue(.5, .06, .24, .72);
+            tongue(.28, .30, .16, .5);
+            tongue(.72, .30, .16, .5);
+        },
+        arrow(ctx, S) {                                  // 관통 사격 — 화살
+            ctx.moveTo(x(.5, S), y(.07, S)); ctx.lineTo(x(.69, S), y(.34, S)); ctx.lineTo(x(.565, S), y(.34, S));
+            ctx.lineTo(x(.565, S), y(.80, S)); ctx.lineTo(x(.435, S), y(.80, S)); ctx.lineTo(x(.435, S), y(.34, S));
+            ctx.lineTo(x(.31, S), y(.34, S)); ctx.closePath();
+            ctx.moveTo(x(.435, S), y(.70, S)); ctx.lineTo(x(.29, S), y(.92, S)); ctx.lineTo(x(.375, S), y(.70, S)); ctx.closePath();
+            ctx.moveTo(x(.565, S), y(.70, S)); ctx.lineTo(x(.71, S), y(.92, S)); ctx.lineTo(x(.625, S), y(.70, S)); ctx.closePath();
+        },
+        horn(ctx, S) {                                   // 전투의 함성 — 메가폰 + 음파
+            ctx.moveTo(x(.20, S), y(.40, S)); ctx.lineTo(x(.60, S), y(.18, S));
+            ctx.lineTo(x(.60, S), y(.82, S)); ctx.lineTo(x(.20, S), y(.60, S)); ctx.closePath();
+            ctx.moveTo(x(.12, S), y(.43, S)); ctx.lineTo(x(.20, S), y(.40, S));
+            ctx.lineTo(x(.20, S), y(.60, S)); ctx.lineTo(x(.12, S), y(.57, S)); ctx.closePath();
+            ctx.moveTo(x(.70, S), y(.30, S)); ctx.lineTo(x(.86, S), y(.24, S)); ctx.lineTo(x(.80, S), y(.40, S)); ctx.closePath();
+            ctx.moveTo(x(.70, S), y(.70, S)); ctx.lineTo(x(.86, S), y(.76, S)); ctx.lineTo(x(.80, S), y(.60, S)); ctx.closePath();
+        },
+        meteor(ctx, S) {                                 // 메테오 — 꼬리 달린 운석
+            const cx = .62, cy = .46, r = .21;
+            ctx.moveTo(x(cx, S) + r * S, y(cy, S)); ctx.arc(x(cx, S), y(cy, S), r * S, 0, Math.PI * 2);
+            const streak = (sx, sy, len, w) => {
+                ctx.moveTo(x(sx, S), y(sy, S));
+                ctx.lineTo(x(sx - len, S), y(sy - len, S));
+                ctx.lineTo(x(sx - len + w, S), y(sy - len + w * 1.6, S)); ctx.closePath();
+            };
+            streak(cx - .12, cy - .10, .30, .07);
+            streak(cx - .16, cy + .04, .24, .06);
+            streak(cx - .02, cy - .17, .22, .06);
+        },
+        bolt(ctx, S) {                                   // 낙뢰 — 번개
+            ctx.moveTo(x(.58, S), y(.05, S)); ctx.lineTo(x(.30, S), y(.52, S)); ctx.lineTo(x(.47, S), y(.52, S));
+            ctx.lineTo(x(.36, S), y(.95, S)); ctx.lineTo(x(.72, S), y(.40, S)); ctx.lineTo(x(.53, S), y(.40, S));
+            ctx.lineTo(x(.66, S), y(.05, S)); ctx.closePath();
+        },
+        sparkle(ctx, S) {                                // 축복 — 4각 반짝임
+            const cx = .5, cy = .48, R = .44, c = .11;
+            ctx.moveTo(x(cx, S), y(cy - R, S));
+            ctx.quadraticCurveTo(x(cx + c, S), y(cy - c, S), x(cx + R, S), y(cy, S));
+            ctx.quadraticCurveTo(x(cx + c, S), y(cy + c, S), x(cx, S), y(cy + R, S));
+            ctx.quadraticCurveTo(x(cx - c, S), y(cy + c, S), x(cx - R, S), y(cy, S));
+            ctx.quadraticCurveTo(x(cx - c, S), y(cy - c, S), x(cx, S), y(cy - R, S)); ctx.closePath();
+            const sm = (mx, my, r) => {
+                ctx.moveTo(x(mx, S), y(my - r, S));
+                ctx.quadraticCurveTo(x(mx + r * .28, S), y(my - r * .28, S), x(mx + r, S), y(my, S));
+                ctx.quadraticCurveTo(x(mx + r * .28, S), y(my + r * .28, S), x(mx, S), y(my + r, S));
+                ctx.quadraticCurveTo(x(mx - r * .28, S), y(my + r * .28, S), x(mx - r, S), y(my, S));
+                ctx.quadraticCurveTo(x(mx - r * .28, S), y(my - r * .28, S), x(mx, S), y(my - r, S)); ctx.closePath();
+            };
+            sm(.82, .22, .085); sm(.20, .78, .06);
+        },
+        shield(ctx, S) {                                 // 성역 — 방패
+            ctx.moveTo(x(.5, S), y(.09, S)); ctx.lineTo(x(.83, S), y(.22, S)); ctx.lineTo(x(.81, S), y(.55, S));
+            ctx.quadraticCurveTo(x(.72, S), y(.82, S), x(.5, S), y(.93, S));
+            ctx.quadraticCurveTo(x(.28, S), y(.82, S), x(.19, S), y(.55, S)); ctx.lineTo(x(.17, S), y(.22, S)); ctx.closePath();
+        },
+        halo(ctx, S) {                                   // 신성한 가호 — 후광 링 + 날개
+            const cx = .5 * S, cy = .44 * S, ro = .35 * S, ri = .20 * S;
+            ctx.moveTo(cx + ro, cy); ctx.arc(cx, cy, ro, 0, Math.PI * 2, false);
+            ctx.moveTo(cx + ri, cy); ctx.arc(cx, cy, ri, 0, Math.PI * 2, true);
+            ctx.moveTo(x(.30, S), y(.76, S)); ctx.lineTo(x(.5, S), y(.66, S)); ctx.lineTo(x(.42, S), y(.90, S)); ctx.closePath();
+            ctx.moveTo(x(.70, S), y(.76, S)); ctx.lineTo(x(.5, S), y(.66, S)); ctx.lineTo(x(.58, S), y(.90, S)); ctx.closePath();
+        },
+        burst(ctx, S) {                                  // 초신성 — 8각 폭발
+            const cx = .5 * S, cy = .5 * S, R = .47 * S, r = .17 * S, N = 8;
+            for (let i = 0; i < N * 2; i++) {
+                const a = (i / (N * 2)) * Math.PI * 2 - Math.PI / 2, rr = i % 2 ? r : R;
+                const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
+                i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+            }
+            ctx.closePath();
+        },
+        spear(ctx, S) {                                  // 공허의 창 / 신의 창 — 창(세로)
+            ctx.moveTo(x(.5, S), y(.05, S));
+            ctx.quadraticCurveTo(x(.64, S), y(.20, S), x(.565, S), y(.37, S));
+            ctx.lineTo(x(.435, S), y(.37, S));
+            ctx.quadraticCurveTo(x(.36, S), y(.20, S), x(.5, S), y(.05, S)); ctx.closePath();
+            ctx.moveTo(x(.41, S), y(.36, S)); ctx.lineTo(x(.59, S), y(.36, S));
+            ctx.lineTo(x(.565, S), y(.44, S)); ctx.lineTo(x(.435, S), y(.44, S)); ctx.closePath();
+            ctx.moveTo(x(.47, S), y(.42, S)); ctx.lineTo(x(.53, S), y(.42, S));
+            ctx.lineTo(x(.53, S), y(.95, S)); ctx.lineTo(x(.47, S), y(.95, S)); ctx.closePath();
+        },
+        hourglass(ctx, S) {                              // 시간 왜곡 — 모래시계
+            ctx.moveTo(x(.24, S), y(.11, S)); ctx.lineTo(x(.76, S), y(.11, S));
+            ctx.lineTo(x(.76, S), y(.19, S)); ctx.lineTo(x(.24, S), y(.19, S)); ctx.closePath();
+            ctx.moveTo(x(.24, S), y(.81, S)); ctx.lineTo(x(.76, S), y(.81, S));
+            ctx.lineTo(x(.76, S), y(.89, S)); ctx.lineTo(x(.24, S), y(.89, S)); ctx.closePath();
+            ctx.moveTo(x(.30, S), y(.19, S)); ctx.lineTo(x(.70, S), y(.19, S));
+            ctx.lineTo(x(.525, S), y(.50, S)); ctx.lineTo(x(.475, S), y(.50, S)); ctx.closePath();
+            ctx.moveTo(x(.475, S), y(.50, S)); ctx.lineTo(x(.525, S), y(.50, S));
+            ctx.lineTo(x(.70, S), y(.81, S)); ctx.lineTo(x(.30, S), y(.81, S)); ctx.closePath();
+        },
+    };
+
+    // 스킬 id → [모티프, 회전(rad, 선택), 글로우세기(선택)]
+    const SK = {
+        powerStrike: ['sword'], whirlwind: ['whirl'], firstAid: ['cross'],
+        fireball: ['flame'], pierceShot: ['arrow'], warCry: ['horn'],
+        meteor: ['meteor'], lightning: ['bolt', 0, 0.15], blessing: ['sparkle', 0, 0.16],
+        dragonBreath: ['flame3'], execution: ['axe'], sanctuary: ['shield'],
+        supernova: ['burst', 0, 0.15], voidLance: ['spear', Math.PI * 0.25], timeWarp: ['hourglass'],
+        apocalypse: ['meteor', 0, 0.16], godspear: ['spear', 0, 0.16], divineShield: ['halo', 0, 0.15],
+    };
+    // 색은 그리는 시점에 SKILL_DEFS 에서 조회한다(스크립트 로드 순서 무관하게 지연 조회).
+    const FALLBACK = { powerStrike: '#cfd8dc', whirlwind: '#b0bec5', firstAid: '#a5d6a7', fireball: '#ff8a65', pierceShot: '#81d4fa', warCry: '#ffcc80', meteor: '#ff7043', lightning: '#fff176', blessing: '#80cbc4', dragonBreath: '#ba68c8', execution: '#e57373', sanctuary: '#ce93d8', supernova: '#ffb74d', voidLance: '#9575cd', timeWarp: '#4dd0e1', apocalypse: '#ef5350', godspear: '#ffd54f', divineShield: '#fff59d' };
+
+    Object.keys(SK).forEach((id) => {
+        const [motif, rot, glow] = SK[id];
+        G.draw['sk_' + id] = function (ctx, S) {
+            let color = FALLBACK[id];
+            try { if (typeof SKILL_DEFS !== 'undefined') { const d = SKILL_DEFS.find(k => k.id === id); if (d && d.color) color = d.color; } } catch (e) { }
+            const path = P[motif] || P.sparkle;
+            if (rot) { ctx.save(); ctx.translate(S / 2, S / 2); ctx.rotate(rot); ctx.translate(-S / 2, -S / 2); }
+            emblem(ctx, S, color, path, glow);
+            if (rot) ctx.restore();
+        };
+    });
+
+    // 스킬 오브에 얹을 심볼 아이콘 HTML. (오브 배경/글로우는 CSS .sk-orb 가 담당)
+    G.skill = function (id) { return this.img('sk_' + id, 'sk-ico'); };
+})(IconGen);

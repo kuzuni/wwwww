@@ -274,7 +274,8 @@ body {
     display: flex; align-items: center; justify-content: center;
     box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25);
 }
-.skill-btn .sk-icon { font-size: 1.35rem; line-height: 1; }
+.skill-btn .sk-icon { font-size: 1.35rem; line-height: 1; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+.skill-btn .sk-icon .sk-ico { width: 88%; height: 88%; margin: 0; }
 .skill-btn .sk-lv {
     position: absolute; bottom: .1rem; left: 50%; transform: translateX(-50%);
     font-size: .5rem; font-weight: 900; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.8);
@@ -1780,10 +1781,17 @@ body {
 .sk-cell { background: none; border: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .1rem; }
 .sk-orb {
     position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%;
-    border: 3px solid var(--pp-line); background: var(--rc, #ccc);
-    display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
-    box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25);
+    border: 3px solid var(--pp-line); font-size: 1.4rem;
+    /* 등급색 오브: 좌상단 유광 하이라이트 + 하단 음영 그라디언트 + 등급색 글로우(발광 심볼과 합성) */
+    background:
+        radial-gradient(circle at 34% 26%, rgba(255,255,255,.55), rgba(255,255,255,0) 46%),
+        radial-gradient(circle at 50% 120%, rgba(0,0,0,.42), rgba(0,0,0,0) 62%),
+        var(--rc, #ccc);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25), inset 0 .12rem .2rem rgba(255,255,255,.3), 0 0 .55rem -.12rem var(--rc, #ccc);
 }
+/* 발광 심볼을 오브에 꽉 차게(프레임의 ≈90%) — 이모지 시절보다 크게 */
+.sk-orb .sk-ico { width: 90%; height: 90%; margin: 0; }
 .sk-lv {
     position: absolute; bottom: -.15rem; left: 50%; transform: translateX(-50%);
     background: #17181a; color: #fff; border-radius: .5rem; padding: 0 .25rem;
@@ -1819,11 +1827,17 @@ body {
 }
 .equipped-icons { display: flex; gap: .35rem; margin-left: auto; }
 .sk-mini { /* 원본(042340) 장착 아이콘 ≈8.7% 화면폭 + Lv 라벨 (185 재채점) */
-    width: 2.7rem; height: 2.7rem; border-radius: 50%; background: var(--rc, #ccc);
+    width: 2.7rem; height: 2.7rem; border-radius: 50%;
+    background:
+        radial-gradient(circle at 34% 26%, rgba(255,255,255,.55), rgba(255,255,255,0) 46%),
+        radial-gradient(circle at 50% 120%, rgba(0,0,0,.42), rgba(0,0,0,0) 62%),
+        var(--rc, #ccc);
     border: 2px solid var(--pp-line); display: flex; flex-direction: column;
     align-items: center; justify-content: center; font-size: 1.2rem; position: relative;
     padding: 0; cursor: pointer; /* 장착됨 행 슬롯 클릭 → 상세 팝업(해제 버튼 포함) — button 요소 공용 */
+    box-shadow: 0 0 .5rem -.14rem var(--rc, #ccc);
 }
+.sk-mini .sk-ico { width: 88%; height: 88%; margin: 0; }
 .sk-mini small { position: absolute; bottom: -.3rem; font-size: .52rem; font-weight: 900; color: #17181a; background: #fff; border: 1px solid #000; border-radius: .5rem; padding: 0 .22rem; line-height: 1.25; white-space: nowrap; }
 .row.center { justify-content: center; }
 .summon-bar { display: flex; align-items: center; justify-content: center; gap: .5rem; position: relative; }
