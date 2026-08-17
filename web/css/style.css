@@ -687,6 +687,13 @@ body {
 .league-actions .league-back-btn { position: absolute; left: 0; }
 /* 시트 화면 공통: 원본 좌하단 고정 빨간 ◀ (던전 목록·기술트리 개요 — 185 비평가 누락 지적) */
 .sheet-back-btn { position: absolute; left: .7rem; bottom: .7rem; z-index: 3; }
+/* 전체화면 시트(.modal-card.sheet)는 탭바 아래까지 뷰포트 전체를 덮는데 #tabbar(z-index:30)가
+   .modal(z-index:20) 위에 있어, bottom:.7rem이면 ◀가 탭바에 통째로 가려 보이지도 눌리지도 않았다
+   (QA 4차 실측 480×850: 버튼 [12,798,40,40] vs 탭바 [1,795,478,55], elementFromPoint가 탭바 ✕로 잡힘).
+   탭바 높이만큼 올려 리그 화면처럼 탭바 '위'에 놓는다. 탭바 위에서 끝나는 .panel 안의 같은 버튼
+   (기술 트리 분기)은 영향받지 않도록 시트 안쪽으로만 한정한다.
+   --tabbar-h는 탭바 실측 높이(55px @ 850) — 탭바는 rem 기반이라 뷰포트가 바뀌어도 같이 스케일된다. */
+.modal-card.sheet .sheet-back-btn { bottom: calc(var(--tabbar-h) + 2rem); } /* 여백 2rem은 원본 실측(◀ top 85.11%)에 맞춘 값 */
 /* 던전 [열기] 버튼 — 원본 카드 우하단 ≈16% W × 4% H */
 .dg-right .btn { min-width: 4.6rem; min-height: 2.4rem; font-size: .85rem; }
 
@@ -1096,6 +1103,7 @@ body {
     --pp-line: #17181a;        /* 외곽선 (원본은 굵은 검정) */
     --pp-panel: #efefef;       /* 팝업 안 회색 패널 */
     --pp-muted: #8a8a8a;       /* 보조 글자 */
+    --tabbar-h: 3.45rem;       /* 하단 탭바 높이 실측(55px @ 뷰포트 850) — 시트 좌하단 ◀ 띄우는 기준 */
     --pp-blue: #2f7dfa;  --pp-blue-dk: #1b56c4;
     --pp-red: #e8362f;   --pp-red-dk: #a51710;
     --pp-green: #35c04f; --pp-green-dk: #1f8c34;
