@@ -11,6 +11,11 @@
         app.style.width = w + 'px';
         app.style.height = h + 'px';
         document.documentElement.style.fontSize = Math.max(12, h / 844 * 16) + 'px';
+        // 레터박스 때문에 #app 높이 ≠ 브라우저 뷰포트 높이다(9:16보다 세로로 긴 폰에서 h < vh).
+        // 팝업 카드 높이를 vh로 잡으면 앱보다 큰 카드가 나와 하단 버튼이 탭바 밑으로 밀린다 —
+        // 실제 앱 높이를 CSS 변수로 내려 팝업이 이 값을 기준으로 크기를 잡게 한다.
+        document.documentElement.style.setProperty('--app-h', h + 'px');
+        document.documentElement.style.setProperty('--app-w', w + 'px');
         if (Scene3D.renderer) Scene3D.resize();
     }
 
