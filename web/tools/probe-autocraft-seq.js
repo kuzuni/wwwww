@@ -58,6 +58,13 @@ async function until(page, fnSrc, ms = 8000) {
         S.autoForge.hammersPerBatch = 3;
         S.autoForge.continueOnTarget = true;
         Forge.passesAutoFilter = () => false;   // 전부 탈락시켜 코인 연출 경로만 본다
+        // 🚨 탈락시키는 것만으로는 **판매되지 않는다** — 탈락분의 처리는 `UI.autoDispose`가 정하는데,
+        //    목표(필터 대상)가 하나도 없으면 `Forge.autoResolve`로 넘어가 **빈 슬롯이면 자동 장착**한다.
+        //    새 세이브는 8칸이 전부 비어 있어 앞 6~8개가 전부 장착으로 흘러가고, 예산 3개짜리 이 시나리오는
+        //    판매에 **한 번도 도달하지 못한다** — 그래서 '코인 연출이 안 뜬다'가 게임 결함처럼 보였다.
+        //    (실측 교차검증: 장착 6건 뒤 7번째부터 gained 20으로 판매되고 #coin-burst에 코인 5개가 실제로 찍힌다.)
+        //    이 프로브가 보려는 건 '탈락 → 판매 → 코인 연출' 경로이므로 목표가 있는 상태로 고정한다.
+        Forge.hasAutoTarget = () => true;
         const h0 = S.hammers;                   // 예산 소모는 '시작 직전' 값과 비교해야 한다
         UI.onToggleAutoForge();
         return { openedBefore, closedAfter: UI.els.autoForgeModal.classList.contains('hidden'), on: S.autoForgeOn, h0 };
