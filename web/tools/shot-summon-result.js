@@ -43,7 +43,14 @@ const SEEK = `(T => {
         const cell = el.closest ? el.closest('.sr-cell') : null;
         // 주역 비트 계열은 셀 등장 시각이 아니라 '마지막 셀 착지 시각'이 원점이다
         const HERO_ANIM = ['srrecede', 'srheropop', 'srbeam', 'srheroring', 'srshakehit', 'srgridlift'];
+        // 🚨 축적 구간(.charging) 애니메이션의 원점은 0이 아니라 '마지막 셀 하나만 남은 시각'
+        //    = d[n-2]다. 예전엔 이걸 0으로 두는 바람에 currentTime이 1680ms처럼 지속시간(550ms)을
+        //    한참 넘겨 **전부 마지막 프레임에 고정**됐고, 그래서 캡처상 대기 구간이 통째로
+        //    정지 프레임으로 찍혔다. 회차마다 '홀드백이 죽어 있다'가 1순위 지적으로 올라온
+        //    원인의 상당 부분이 이 계측 버그다 — 연출을 고치기 전에 원점부터 맞출 것.
+        const CHARGE_ANIM = ['srfloorcharge', 'srtickup', 'srhalocharge', 'srvig'];
         if (a.animationName && HERO_ANIM.indexOf(a.animationName) >= 0) base = last;
+        else if (a.animationName && CHARGE_ANIM.indexOf(a.animationName) >= 0) base = d[d.length - 2] || 0;
         else if (cell) base = d[cells.indexOf(cell)] || 0;
         else if (el.classList && el.classList.contains('sr-flash')) base = last;
         a.pause();

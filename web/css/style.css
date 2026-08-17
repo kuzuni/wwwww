@@ -2688,21 +2688,31 @@ body {
     width: min(3.9rem, calc((100% - (var(--cols, 5) - 1) * .8rem - 1.2rem) / var(--cols, 5)));
 }
 .sr-grid.dense .sr-cell { width: calc((100% - 4.2rem) / 8); }
+/* 주역 앞 강제 랩 — 폭 100%/높이 0인 빈 플렉스 아이템. 소량 결과에서도 주역이 단독 행에 선다. */
+.sr-break { flex: 0 0 100%; width: 100%; height: 0; margin: 0; }
 /* 등장 지속시간·오버슈트도 등급으로 갈린다 — 전 등급이 같은 이징이면 상위 등급이
    '더 큰 것'일 뿐 '다른 사건'이 되지 못한다(--pop: 짧고 딱딱한 하위 ↔ 길고 크게 넘치는 상위) */
+/* 등장은 '광원에서 사출된다' — 시작점이 슬롯이 아니라 광원 쪽(--dx/--dy, UI가 실측해 심는다)이라
+   빛이 터진 자리에서 아이콘이 날아와 슬롯에 꽂히는 한 동작으로 읽힌다. 되짚는 구간(0→58%)은
+   빠르게, 꽂힌 뒤(58→100%)는 오버슛만 정리한다. */
 .sr-cell.on { animation: srpop var(--pop, .22s) cubic-bezier(.18,1.6,.4,1) forwards; }
 @keyframes srpop {
-    0%   { opacity: 0; transform: scale(.3) translateY(.5rem); }
-    58%  { opacity: 1; transform: scale(calc(1 + .1 * var(--over, 1))) translateY(0); }
-    100% { opacity: 1; transform: scale(1); }
+    0%   { opacity: 0; transform: translate(var(--dx, 0), var(--dy, .5rem)) scale(.3); }
+    34%  { opacity: 1; transform: translate(calc(var(--dx, 0) * .34), calc(var(--dy, 0) * .34)) scale(.72); }
+    58%  { opacity: 1; transform: translate(0, 0) scale(calc(1 + .1 * var(--over, 1))); }
+    100% { opacity: 1; transform: translate(0, 0) scale(1); }
 }
 /* 등급 계단 — 상위 등급은 물리적으로 더 크고 더 세게 빛난다 */
-.sr-cell { --glow: 0; --ray: 0; --sz: 1; --pop: .14s; --over: .7; }
-.sr-cell[data-tier="1"] { --glow: .16; --ray: 0;   --sz: .99; --pop: .16s; --over: .8; }  /* 희귀한 */
-.sr-cell[data-tier="2"] { --glow: .3;  --ray: .16; --sz: 1.03; --pop: .22s; --over: 1; }  /* 서사시 */
-.sr-cell[data-tier="3"] { --glow: .55; --ray: .38; --sz: 1.08; --pop: .3s;  --over: 1.3; } /* 전설 */
-.sr-cell[data-tier="4"] { --glow: .8;  --ray: .6;  --sz: 1.16; --pop: .34s; --over: 1.6; } /* 궁극의 */
-.sr-cell[data-tier="5"] { --glow: 1;   --ray: .85; --sz: 1.26; --pop: .38s; --over: 1.9; } /* 신화 */
+/* ⚠️ --pop은 이제 '팝 시간'이 아니라 **사출 비행 + 착지 정리 시간**이다 — 예전 값(.14~.38s)은
+   제자리 스케일 팝에는 맞았지만 비행 경로가 생긴 뒤로는 짧아서, 60ms 간격 캡처에 비행이
+   한두 프레임밖에 안 잡혔다(= 비평가 눈에는 여전히 '제자리에서 태어난다'). 전 등급 +80ms.
+   소량 결과의 셀 간격이 250ms라 .22s까지는 다음 셀과 겹치지 않는다. */
+.sr-cell { --glow: 0; --ray: 0; --sz: 1; --pop: .22s; --over: .7; }
+.sr-cell[data-tier="1"] { --glow: .16; --ray: 0;   --sz: .99; --pop: .24s; --over: .8; }  /* 희귀한 */
+.sr-cell[data-tier="2"] { --glow: .3;  --ray: .16; --sz: 1.03; --pop: .3s;  --over: 1; }  /* 서사시 */
+.sr-cell[data-tier="3"] { --glow: .55; --ray: .38; --sz: 1.08; --pop: .38s; --over: 1.3; } /* 전설 */
+.sr-cell[data-tier="4"] { --glow: .8;  --ray: .6;  --sz: 1.16; --pop: .42s; --over: 1.6; } /* 궁극의 */
+.sr-cell[data-tier="5"] { --glow: 1;   --ray: .85; --sz: 1.26; --pop: .46s; --over: 1.9; } /* 신화 */
 /* 셀 뒤 등급 광주 — 아이콘 줄 위아래의 빈 남색 밴드를 구조로 채우고, 등급이 세로 길이로도 읽힌다 */
 .sr-cell::before {
     content: ''; position: absolute; left: 50%; bottom: 34%; width: 2.6rem; height: 15rem;
@@ -2735,10 +2745,15 @@ body {
     background: radial-gradient(closest-side, var(--rc-lite, #fff) 0%, var(--rc) 52%, rgba(0,0,0,0) 74%);
     filter: blur(6px);
 }
-.sr-cell.on .sr-ghost { animation: srghost .34s ease-out forwards; }
+/* 잔상은 이제 '아래에서 솟은 자국'이 아니라 **비행 경로에 끌리는 꼬리**다 — 셀이
+   광원 쪽에서 날아오므로(--dx/--dy), 잔상은 그 뒤쪽(광원 쪽)에 남아 따라붙는다.
+   셀 안에 있어서 셀의 이동이 이미 곱해진 상태라, 여기서는 '뒤처진 만큼'만 더 민다. */
+.sr-cell.on .sr-ghost { animation: srghost var(--pop, .22s) ease-out forwards; }
 @keyframes srghost {
-    0%   { opacity: calc(.42 + .4 * var(--glow)); transform: translateY(1.1rem) scale(.72, 1.42); }
-    55%  { opacity: calc(.24 + .26 * var(--glow)); transform: translateY(.22rem) scale(.95, 1.12); }
+    0%   { opacity: calc(.42 + .4 * var(--glow));
+           transform: translate(calc(var(--dx, 0rem) * .55), calc(var(--dy, 1.1rem) * .55)) scale(1.06); }
+    55%  { opacity: calc(.24 + .26 * var(--glow));
+           transform: translate(calc(var(--dx, 0rem) * .18), calc(var(--dy, .22rem) * .18)) scale(1.02); }
     100% { opacity: 0; transform: none; }
 }
 /* 착지 스파크 — 링 하나로는 '내려앉았다'만 말하고 '부딪혔다'를 말하지 못한다.
@@ -2885,14 +2900,15 @@ body {
     100%      { opacity: 1; transform: scale(1);   filter: none; }
 }
 /* 주역 등장 — 더 길고 더 크게 넘치고, 끝에서 원래 크기로 안 돌아온다(무대에 남는다) */
-#summon-result-modal.hero .sr-cell.heroic.on { animation: srheropop .42s cubic-bezier(.16,1.5,.36,1) forwards; }
+#summon-result-modal.hero .sr-cell.heroic.on { animation: srheropop .52s cubic-bezier(.16,1.5,.36,1) forwards; }
 /* ⚠️ 정착 스케일을 1보다 크게 두면 셀 폭을 넘는 이름판이 옆 셀 이름과 겹친다(실측 캡처).
    주역의 '큰 몸집'은 등급 계단(--sz 1.26)이 이미 맡고 있으므로 여기서는 1.0으로 되돌린다. */
 @keyframes srheropop {
-    0%   { opacity: 0; transform: scale(.42) translateY(.9rem); }
-    42%  { opacity: 1; transform: scale(1.3) translateY(-.14rem); }
-    72%  { opacity: 1; transform: scale(.98); }
-    100% { opacity: 1; transform: scale(1); }
+    0%   { opacity: 0; transform: translate(var(--dx, 0), var(--dy, .9rem)) scale(.42); }
+    30%  { opacity: 1; transform: translate(calc(var(--dx, 0) * .3), calc(var(--dy, 0) * .3)) scale(.86); }
+    42%  { opacity: 1; transform: translate(0, -.14rem) scale(1.3); }
+    72%  { opacity: 1; transform: translate(0, 0) scale(.98); }
+    100% { opacity: 1; transform: translate(0, 0) scale(1); }
 }
 /* 광창 버스트 — 십자 광축이 셀 밖으로 뻗었다 사라진다 */
 .sr-beam { position: absolute; left: 50%; top: 50%; width: 320%; height: 320%; opacity: 0; z-index: 0;
@@ -2925,13 +2941,24 @@ body {
 /* 소량(≤10)은 주역이 줄 오른쪽 끝에 서므로 반경을 그대로 두면 링이 화면 밖에서 잘린다 —
    밝은 띠(반경의 74~82%)가 화면 안에 남는 크기로 줄인다. 단독 히어로 행(mid/dense)은 중앙이라 그대로. */
 .sr-cell.heroic { --ringmax: 3.2; }
-.sr-grid:not(.mid):not(.dense) .sr-cell.heroic { --ringmax: 1.8; }
-.sr-grid:not(.mid):not(.dense) .sr-cell.heroic .sr-beam { width: 200%; height: 200%; }
-/* ⑥ 대량 소환에서 최상위 등급이 랩 잔여 슬롯(마지막 행 오른쪽 끝)에 유기되던 문제 —
-   주역은 단독 행을 차지한다. 한 줄 5개가 스펙인 소량(≤10)에서는 원본 구성을 지킨다. */
-.sr-grid.mid .sr-cell.heroic, .sr-grid.dense .sr-cell.heroic {
+/* 단독 행(herorow/mid/dense)은 주역이 화면 중앙이라 링을 크게 열어도 안 잘린다.
+   단독 행이 아닌 잔여 배치에서만 반경을 줄인다. */
+.sr-grid:not(.mid):not(.dense):not(.herorow) .sr-cell.heroic { --ringmax: 1.8; }
+.sr-grid:not(.mid):not(.dense):not(.herorow) .sr-cell.heroic .sr-beam { width: 200%; height: 200%; }
+/* ⑥ 최상위 등급이 랩 잔여 슬롯(행 오른쪽 끝)에 유기되던 문제 — 주역은 단독 행을 차지한다.
+   소량(≤10)도 예외가 아니다: 오른쪽 끝이면 광채·충격파가 화면 밖에서 잘리고 위계도 안 선다. */
+.sr-grid.mid .sr-cell.heroic, .sr-grid.dense .sr-cell.heroic, .sr-grid.herorow .sr-cell.heroic {
     width: 100%; display: flex; flex-direction: column; align-items: center;
 }
+/* 소량 단독 행은 화면에 여유가 있으니 mid보다 크게 — 주역이 '한 등급 큰 구슬'이 아니라
+   '따로 선 주인공'으로 읽히는 크기까지 올린다. */
+.sr-grid.herorow .sr-cell.heroic { --ringmax: 2.4; margin-top: .5rem; }
+.sr-grid.herorow .sr-cell.heroic .sr-orbwrap { width: min(7.4rem, 36vw); }
+.sr-grid.herorow .sr-cell.heroic .sr-orb { font-size: 3.2rem; }
+.sr-grid.herorow .sr-cell.heroic .sr-name {
+    font-size: .92rem; width: auto; max-width: min(12rem, 66vw); padding: .16rem .68rem;
+}
+.sr-grid.herorow .sr-cell.heroic .sr-sub { font-size: .76rem; padding: .07rem .56rem; }
 .sr-grid.mid .sr-cell.heroic .sr-orbwrap { width: min(6.2rem, 30vw); }
 .sr-grid.dense .sr-cell.heroic .sr-orbwrap { width: min(5rem, 24vw); }
 .sr-grid.mid .sr-cell.heroic .sr-orb { font-size: 2.6rem; }
@@ -2951,24 +2978,42 @@ body {
 /* ⚠️ 램프 하나(.3s)만 걸면 대기창(마지막 셀 간격 + 홀드백 = 550ms)의 뒤쪽이 다시 정지 프레임이
    된다 — 실측에서 1560~1740ms 구간의 프레임 간 변화가 0.0005까지 떨어졌다. 램프를 대기창 전체
    길이로 늘리고, 그 위에 **무한 반복 성분**(빛 고임 맥동)을 겹쳐 어느 프레임도 멈추지 않게 한다. */
-#summon-result-modal.charging .sr-floor { animation: srfloorcharge .55s ease-in forwards; }
+/* ⚠️ 이 램프들은 예전에 `ease-in` 이었다 — 그게 '대기 구간이 죽어 있다'의 진짜 원인이다.
+   ease-in은 앞부분이 거의 평평해서(진행률 50%에 값은 13%밖에 안 간다) 550ms 대기창의
+   앞 절반이 통째로 정지 프레임이 됐다. 비평가 2인 + 자체 실측이 독립적으로 같은 구간을
+   짚은 것도 이 때문이다. 가속감은 키프레임 간격 자체로 만들고(뒤로 갈수록 값 폭이 커진다)
+   보간은 linear로 둬서 **어느 120ms 창에서도 값이 멈추지 않게** 한다. */
+#summon-result-modal.charging .sr-floor { animation: srfloorcharge .55s linear forwards; }
 @keyframes srfloorcharge {
-    0%   { transform: scale(1);    filter: none; }
-    100% { transform: scale(1.06); filter: brightness(1.95) saturate(1.15); }
+    0%   { transform: scale(1);     filter: brightness(1); }
+    20%  { transform: scale(1.012); filter: brightness(1.16); }
+    40%  { transform: scale(1.026); filter: brightness(1.4) saturate(1.04); }
+    60%  { transform: scale(1.04);  filter: brightness(1.66) saturate(1.08); }
+    80%  { transform: scale(1.056); filter: brightness(1.94) saturate(1.12); }
+    100% { transform: scale(1.078); filter: brightness(2.3) saturate(1.18); }
 }
 #summon-result-modal.charging .sr-floor::after { animation: srtickup .55s steps(9) forwards; }
 @keyframes srtickup { 0% { opacity: .45; } 100% { opacity: 1; } }
 /* 중앙 광원이 점점 빠르게 뛴다 — 대기 구간에 '축적'을 만드는 상시 성분 */
-#summon-result-modal.charging .sr-halo { animation: srhalocharge .42s ease-in-out infinite alternate; }
-/* 진폭이 작으면(투명도만 흔들면) 실측 프레임 간 변화가 0.0006까지 떨어져 다시 '정지'로 읽힌다 —
-   중앙 광원 자체를 밝기까지 함께 밀어 맥동이 눈에 잡히게 한다 */
+/* 심장박동이 빨라지듯 맥동 간격이 좁아진다(132→110→99→88→77ms) — `infinite alternate`
+   한 주기(420ms 반주기)로는 대기창 안에 산 하나가 겨우 들어가 '축적'이 안 읽혔다.
+   진폭도 함께 키운다: 투명도만 흔들면 프레임 간 변화가 0.0006까지 떨어져 다시 '정지'가 된다. */
+#summon-result-modal.charging .sr-halo { animation: srhalocharge .55s linear forwards; }
 @keyframes srhalocharge {
-    from { opacity: .5; transform: translate(-50%, -50%) scale(.8);  filter: brightness(1); }
-    to   { opacity: 1;  transform: translate(-50%, -50%) scale(1.34); filter: brightness(2.6); }
+    0%   { opacity: .5;  transform: translate(-50%, -50%) scale(.80); filter: brightness(1); }
+    12%  { opacity: .82; transform: translate(-50%, -50%) scale(1.04); filter: brightness(1.55); }
+    24%  { opacity: .56; transform: translate(-50%, -50%) scale(.86);  filter: brightness(1.18); }
+    44%  { opacity: .9;  transform: translate(-50%, -50%) scale(1.18); filter: brightness(2.0); }
+    62%  { opacity: .62; transform: translate(-50%, -50%) scale(.94);  filter: brightness(1.34); }
+    80%  { opacity: .97; transform: translate(-50%, -50%) scale(1.3);  filter: brightness(2.45); }
+    90%  { opacity: .72; transform: translate(-50%, -50%) scale(1.06); filter: brightness(1.6); }
+    100% { opacity: 1;   transform: translate(-50%, -50%) scale(1.46); filter: brightness(2.95); }
 }
-#summon-result-modal.charging .sr-wrap::after { animation: srvig .55s ease-in forwards; }
+#summon-result-modal.charging .sr-wrap::after { animation: srvig .55s linear forwards; }
 @keyframes srvig {
     0%   { background: radial-gradient(122% 84% at 50% 44%, rgba(0,0,0,0) 40%, rgba(0,0,0,.58) 100%); }
+    35%  { background: radial-gradient(114% 76% at 50% 44%, rgba(0,0,0,0) 33%, rgba(0,0,0,.66) 100%); }
+    70%  { background: radial-gradient(105% 69% at 50% 44%, rgba(0,0,0,0) 26%, rgba(0,0,0,.74) 100%); }
     100% { background: radial-gradient(96% 62% at 50% 44%, rgba(0,0,0,0) 20%, rgba(0,0,0,.82) 100%); }
 }
 

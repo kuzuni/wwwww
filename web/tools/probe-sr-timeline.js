@@ -31,12 +31,16 @@ const SEEK = `(T => {
     if (m.classList.contains('done')) UI.buildSummonReflection();
     else { const r = m.querySelector('.sr-reflect'); if (r) r.remove(); }
     const HERO_ANIM = ['srrecede', 'srheropop', 'srbeam', 'srheroring', 'srshakehit', 'srgridlift'];
+    // 🚨 축적 구간 애니메이션의 원점은 0이 아니라 d[n-2]다 — 0으로 두면 currentTime이 지속시간을
+    //    넘겨 전부 마지막 프레임에 고정되고, 그래서 '홀드백이 죽어 있다'가 계측상 항상 참이 된다.
+    const CHARGE_ANIM = ['srfloorcharge', 'srtickup', 'srhalocharge', 'srvig'];
     for (const a of document.getAnimations()) {
         const el = a.effect && a.effect.target;
         if (!el || !el.getRootNode) continue;
         let base = 0;
         const cell = el.closest ? el.closest('.sr-cell') : null;
         if (a.animationName && HERO_ANIM.indexOf(a.animationName) >= 0) base = last;
+        else if (a.animationName && CHARGE_ANIM.indexOf(a.animationName) >= 0) base = d[d.length - 2] || 0;
         else if (cell) base = d[cells.indexOf(cell)] || 0;
         else if (el.classList && el.classList.contains('sr-flash')) base = last;
         a.pause();

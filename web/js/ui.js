@@ -190,11 +190,18 @@ const UI = {
         // 주역 셀 — 최고 등급이 전설 이상이면 마지막 셀이 '다른 사건'이 된다(전용 등장 비트).
         // 색·크기만 다른 같은 슬롯이면 '더 큰 것'일 뿐이라 위계가 사건으로 읽히지 않는다.
         const heroIdx = this.SR_HI_RARITIES.indexOf(best) >= 0 ? entries.length - 1 : -1;
+        // 소량(≤10)에서도 주역은 단독 행을 차지한다 — 예전엔 한 줄 5열이 '원본 구성'이라
+        // 주역을 줄 오른쪽 끝에 그대로 뒀는데, 그러면 ⑴ 최고 등급이 잔여 슬롯에 유기돼
+        // 위계가 안 서고 ⑵ 오른쪽 끝 셀이라 광채·충격파가 화면 밖에서 잘리고
+        // ⑶ 한 줄뿐이라 아래쪽 세로 밴드가 통째로 빈다 — 세 가지가 한 번에 걸렸다.
+        // 랩 지점을 강제하는 빈 플렉스 아이템을 주역 앞에 끼워 행을 가른다.
+        const heroRow = heroIdx > 0 && entries.length <= 10;
         const cells = entries.map((e, i) => {
             const hi = this.SR_HI_RARITIES.indexOf(e.rarity) >= 0;
             const rc = RARITY_CSS[e.rarity];
+            const brk = (heroRow && i === heroIdx) ? '<div class="sr-break"></div>' : '';
             // data-tier로 등급별 세기(크기·광채·광선)를 계단화한다 — 6등급이 2상태로 붕괴하지 않게
-            return `<div class="sr-cell${hi ? ' hi' : ''}${i === heroIdx ? ' heroic' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
+            return `${brk}<div class="sr-cell${hi ? ' hi' : ''}${i === heroIdx ? ' heroic' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
                 data-mat="${this.srMaterial(e.rarity)}"
                 style="--i:${i};--rc:${rc};--rc-lite:${this.srShade(rc, .5)};--rc-deep:${this.srShade(rc, -.62)}">
                 <div class="sr-orbwrap">
@@ -229,7 +236,7 @@ const UI = {
                 <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-head"><div class="sr-title">${meta.icon} ${meta.title} ×${rolls.length}</div></div>
                 <div class="sr-body${stage ? ' stage' : ''}${stage && size === ' one' ? ' one' : ''}">
-                    <div class="sr-grid${size}" style="--cols:${cols}">${cells}</div>
+                    <div class="sr-grid${size}${heroRow ? ' herorow' : ''}" style="--cols:${cols}">${cells}</div>
                     ${stage ? '<div class="sr-floor"></div>' : ''}
                 </div>
                 <div class="sr-foot">
@@ -256,6 +263,7 @@ const UI = {
         // 바닥 반사 복제본(.sr-reflect 안)이 아니라 진짜 그리드의 셀만 잡는다
         this._srCells = m.querySelectorAll('.sr-body > .sr-grid > .sr-cell');
         this._srEntries = entries;
+        this.setSummonEjectPaths(m);
         const n = this._srCells.length;
         const step = n <= 10 ? this.SR_SLOW_STEP : U.clamp(this.SR_REVEAL_BUDGET / n, 20, 120);
         // 셀별 등장 시각 — 마지막 최고 등급 한 개만 홀드백만큼 더 뜸들인다
@@ -268,6 +276,31 @@ const UI = {
         this._srStart = performance.now();
         this._srIdx = 0;
         this._srRaf = requestAnimationFrame(() => this.tickSummonResult());
+    },
+
+    // 아이콘 사출 경로 — 셀이 최종 슬롯에 그대로 '태어나면' 앞의 빛 모임과 인과로 안 묶인다
+    // (실측: 등장 전후로 셀 중심이 11px밖에 안 움직이는데 광원 중심은 160px 옆에 있었다).
+    // 광원(.sr-wrap 중심 = .sr-charge 방사 원점)에서 슬롯까지의 벡터를 셀마다 재서 --dx/--dy로
+    // 심어 두면 등장 이징이 그 경로를 되짚어 날아온다.
+    // ⚠️ 벡터를 100% 되짚으면 전 셀이 한 점에서 겹쳐 나와 5개가 한 덩어리로 보인다 —
+    //    일부(EJECT)만 되짚어 '광원 쪽에서 밀려 나온' 인상만 남긴다.
+    // ⚠️ px이 아니라 rem으로 심는다 — 뷰포트가 바뀌어도 경로가 셀 크기와 같은 비율로 움직인다.
+    SR_EJECT: 0.62,
+    setSummonEjectPaths(m) {
+        const wrap = m.querySelector('.sr-wrap');
+        if (!wrap || !this._srCells) return;
+        const wr = wrap.getBoundingClientRect();
+        if (!wr.width) return;   // 아직 레이아웃 전(숨겨진 상태) — 경로 없이 제자리 등장
+        const ox = wr.left + wr.width / 2, oy = wr.top + wr.height / 2;
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        this._srCells.forEach(c => {
+            const o = c.querySelector('.sr-orbwrap') || c;
+            const r = o.getBoundingClientRect();
+            const dx = (ox - (r.left + r.width / 2)) * this.SR_EJECT / rem;
+            const dy = (oy - (r.top + r.height / 2)) * this.SR_EJECT / rem;
+            c.style.setProperty('--dx', dx.toFixed(3) + 'rem');
+            c.style.setProperty('--dy', dy.toFixed(3) + 'rem');
+        });
     },
 
     // 등장 캐스케이드 — 아이콘마다 setTimeout을 걸면 3D 렌더 루프에 밀려 대량 소환이 몇 초씩 끌린다.
