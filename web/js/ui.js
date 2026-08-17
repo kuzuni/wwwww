@@ -1509,14 +1509,28 @@ const UI = {
         const n = U.clamp(3 + Math.round(Math.log10(Math.max(1, total)) * 1.7), 3, 10);
         const per = Math.floor(total / n);
         const coinHtml = IconGen.img('coin');
+        // ---- 착지 자리 배치 (QA 발견 버그 수정) ----
+        // 예전엔 dx를 ±52~108px, drop을 26~58px 난수로 뿌렸다. 그러면 착지점이 **세로로 두 줄쯤 되는
+        // 좁은 띠**에 몰리는데 라벨(`+1.23K`)은 가로로 길어서(최대 3.6rem) 10개가 서로를 덮어 하나도
+        // 안 읽혔다(실측 최대 겹침률 87%). 이제 착지점을 **줄(row)×칸(col) 격자**로 잡는다 —
+        // 한 줄의 칸 간격은 라벨 최대 너비보다 넓고, 줄 간격은 라벨 높이 + 위로 떠오르는 거리보다 넓다.
+        // 단위는 전부 rem 파생 — px 상수로 박으면 360/430/480 폭에서 간격이 제각각이 된다.
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        const rows = n <= 4 ? 1 : (n <= 8 ? 2 : 3);
+        const colGap = 4.6 * rem;   // 라벨 최대 너비(≈3.6rem)보다 1rem 여유
+        const rowGap = 2.4 * rem;   // 라벨 높이(≈0.93rem) + 떠오르는 거리(≈1.25rem)보다 여유
+        const row0 = 1.2 * rem;
+        // i를 줄에 라운드로빈으로 뿌린다 — x가 이웃한 코인이 같은 줄에 서지 않게
+        const colsIn = (r) => Math.ceil((n - r) / rows);
         let lastLand = 0;   // 마지막 코인이 지면에 닿는 시각 — 총액은 이보다 뒤에만 뜬다
         for (let i = 0; i < n; i++) {
             // 마지막 코인이 나머지를 흡수 — 착지 금액의 합이 총액과 정확히 같아야 한다
             const amt = i === n - 1 ? total - per * (n - 1) : per;
-            const spread = (i / Math.max(1, n - 1) - 0.5) * 2;           // -1 ~ +1
-            const dx = spread * U.rand(52, 108) + U.rand(-10, 10);
+            const row = i % rows, col = Math.floor(i / rows), cols = colsIn(row);
+            const span = colGap * (cols - 1) / 2;                        // 그 줄의 반폭
+            const dx = (cols <= 1 ? 0 : -span + col * colGap) + U.rand(-0.15, 0.15) * rem;
             const rise = -U.rand(58, 104);
-            const drop = U.rand(26, 58);
+            const drop = row0 + row * rowGap;                            // 줄 간격은 흔들지 않는다(겹침의 원인)
             const delay = i * 26 + U.rand(0, 24);
             const el = document.createElement('span');
             el.className = 'coin-fly';
