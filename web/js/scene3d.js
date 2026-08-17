@@ -2969,6 +2969,55 @@ const Scene3D = {
         const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 12), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const to = (r, tr, x, y, z, m) => { const o = new THREE.Mesh(new THREE.TorusGeometry(r, tr, 8, 14), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const eyes = (y, z, gap) => { for (const s of [-1, 1]) sp(0.026, s * (gap || 0.07), y, z, blk); };
+        // 두 점을 잇는 관 — 자전거 프레임처럼 비스듬한 파츠는 이걸로 그린다(회전각 손계산 금지)
+        const tube = (a, b, r, m) => {
+            const A = new THREE.Vector3(a[0], a[1], a[2]), B = new THREE.Vector3(b[0], b[1], b[2]);
+            const d = new THREE.Vector3().subVectors(B, A);
+            const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 8), m || mat);
+            o.position.copy(A).addScaledVector(d, 0.5);
+            o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+            g.add(o);
+            return o;
+        };
+
+        // ── 탑승 장구: 안장·앞뒤턱·뱃대끈·등자 ──────────────────────────────────────
+        // 사용자 합격 기준이 "엉덩이가 안장에, 다리가 몸통을 감싸고"인데, 그전에는 **안장 자체가 없었다** —
+        // 높이만 맞춰 등짝에 얹어 놓으니 아무리 정합을 맞춰도 '올라탄' 게 아니라 '얹힌' 것으로 읽혔다.
+        // ⚠️ 가죽색은 등급색(RARITY_HEX) 파생이 아니라 **고정 자연색**이어야 한다 — 등급 틴트가 전신을
+        //    덮으면 안장이 몸통에 그대로 묻혀서 있으나 마나가 된다(에픽=초록 전신에서 실측 확인).
+        const LEATHER = M(0x4e342e), TAN = M(0x8d6e63), IRON = M(0x9e9e9e);
+        // sy: 안장 '윗면' = 영웅 골반이 얹히는 높이(= MOUNT_FORMS.saddle과 같은 값을 넣을 것)
+        // halfW/halfH: 몸통 반폭·반높이(뱃대끈 크기), bodyY: 몸통 중심 높이
+        // foot: [x, y, z] 등자 위치 — 탑승 포즈에서 발이 실제로 오는 자리(계산 근거는 아래 주석)
+        const saddleRig = (sy, halfW, halfH, bodyY, foot) => {
+            sp(0.15, 0, sy - 0.045, -0.01, LEATHER, 0.95, 0.30, 1.15);   // 안장 방석 (윗면이 sy에 닿게)
+            sp(0.07, 0, sy - 0.02, 0.155, TAN, 0.9, 0.66, 0.5);          // 앞턱(pommel)
+            sp(0.075, 0, sy - 0.015, -0.175, TAN, 0.95, 0.8, 0.5);       // 뒷턱(cantle) — 엉덩이가 걸리는 턱
+            for (const s of [-1, 1]) sp(0.1, s * 0.125, sy - 0.09, 0.0, LEATHER, 0.22, 0.85, 1.15); // 옆날개(flap)
+            const gr = to(halfH * 1.06, 0.016, 0, bodyY, 0.02, TAN);     // 뱃대끈 — 몸통 단면(XY)을 감는다
+            gr.scale.set(halfW / (halfH * 1.06), 1, 1);
+            if (!foot) return;
+            // 등자: 위치를 상수로 박으면 반드시 어긋난다 — 다리 길이·탑승 포즈·탈것 배율이 전부 곱해진
+            // 자리라 손계산이 맞을 수가 없다(첫 시도에서 발보다 한 뼘 아래에 링이 대롱대롱 매달렸다).
+            // 여기선 기본 자리만 잡고, 실제 정렬은 `alignStirrups()`가 매 프레임 발 뼈를 재서 맞춘다.
+            g.userData.stirrups = [];
+            for (const s of [-1, 1]) {
+                const st = new THREE.Group();
+                const strap = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 6), TAN);
+                // 원점(=발)에서 위로 자란다 — scale.y가 곧 끈 길이. 길이 1로 두면 정렬 전 한 프레임 동안
+                // 영웅 키를 넘는 장대가 서므로 기본값도 그럴듯한 길이로 줄여 둔다.
+                strap.scale.y = 0.24; strap.position.y = 0.12;
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.012, 6, 12), IRON);
+                ring.rotation.y = Math.PI / 2;
+                st.add(strap, ring);
+                st.userData.strap = strap;
+                st.userData.anchorY = sy - 0.07;        // 안장 옆날개 밑 — 끈이 매달리는 지점
+                st.userData.side = s;
+                st.position.set(s * foot[0], foot[1], foot[2]);
+                g.add(st);
+                g.userData.stirrups.push(st);
+            }
+        };
 
         const FLAT = ['Brown Leaf', 'Lily Leaf', 'Lily Pad', 'Hover Board', 'Hover Disk'];
         const FLY = ['Giant Bee', 'Mini Dragon'];
@@ -2982,30 +3031,65 @@ const Scene3D = {
             g.userData.deck = g.children[0];
         } else if (WHEELED.includes(name)) { // 탈것형: 자전거/외바퀴 드로이드 — 바퀴 + 프레임
             if (name === 'Bike') {
-                for (const s of [-1, 1]) { const w = to(0.16, 0.03, s * 0.28, 0.16, 0, dark); w.rotation.y = Math.PI / 2; g.userData['w' + s] = w; }
-                bx(0.5, 0.04, 0.06, 0, 0.22, 0, mat);
-                bx(0.05, 0.18, 0.06, -0.18, 0.28, 0, mat);
-                bx(0.05, 0.18, 0.06, 0.18, 0.3, 0, mat);
+                // ⚠️ 예전엔 바퀴 두 짝을 **좌우(x=±0.28)** 에 세워 놨다 — 자전거가 아니라 링 두 개 사이에
+                //    영웅이 떠 있는 꼴이라 "탄 것 같지 않다"의 주범이었다. 바퀴는 앞뒤(z=±0.30)에 둔다.
+                for (const s of [-1, 1]) { const w = to(0.17, 0.028, 0, 0.17, s * 0.30, dark); w.rotation.y = Math.PI / 2; g.userData['w' + s] = w; }
+                const BB = [0, 0.10, 0.02];              // 크랭크축(bottom bracket)
+                const HEAD = [0, 0.40, 0.26], SEAT = [0, 0.34, -0.07];
+                tube(BB, HEAD, 0.022);                    // 다운튜브
+                tube(BB, SEAT, 0.022);                    // 시트튜브
+                tube(SEAT, HEAD, 0.02);                   // 탑튜브
+                tube(BB, [0, 0.17, -0.30], 0.017, dark);  // 체인스테이
+                tube(SEAT, [0, 0.17, -0.30], 0.017, dark);// 시트스테이
+                tube(HEAD, [0, 0.17, 0.30], 0.019, dark); // 앞포크
+                bx(0.30, 0.026, 0.026, 0, 0.45, 0.255, dark);           // 핸들바
+                for (const s of [-1, 1]) bx(0.05, 0.03, 0.03, s * 0.16, 0.45, 0.255, LEATHER); // 그립
+                sp(0.10, 0, 0.335, -0.075, LEATHER, 0.55, 0.30, 1.25);  // 안장(=form.saddle 0.36 윗면)
+                // 페달: 탑승 포즈의 발 위치(로컬 y 0.10 / z 0.10)에 맞춰 놓아 발이 헛돌지 않게
+                for (const s of [-1, 1]) {
+                    tube([0, 0.10, 0.02], [s * 0.085, 0.10, 0.10], 0.014, IRON);
+                    bx(0.07, 0.018, 0.09, s * 0.085, 0.093, 0.10, dark);
+                }
             } else {
-                const w = to(0.18, 0.05, 0, 0.18, 0, dark); w.rotation.x = Math.PI / 2; g.userData.wheel = w;
-                sp(0.13, 0, 0.34, 0, mat, 1.1, 0.9, 1.1);
-                sp(0.05, 0, 0.4, 0.09, new THREE.MeshBasicMaterial({ color: 0x29e0ff }));
+                const w = to(0.18, 0.05, 0, 0.18, 0, dark); w.rotation.y = Math.PI / 2; g.userData.wheel = w; // 굴러가는 면이 진행 방향을 보게
+                sp(0.11, 0, 0.30, 0, mat, 1.05, 0.9, 1.05);
+                sp(0.05, 0, 0.36, 0.10, new THREE.MeshBasicMaterial({ color: 0x29e0ff }));
+                sp(0.10, 0, 0.335, -0.03, LEATHER, 0.55, 0.30, 1.15);   // 안장
+                for (const s of [-1, 1]) bx(0.08, 0.02, 0.1, s * 0.115, 0.10, 0.09, dark); // 발판
             }
         } else if (FLY.includes(name)) { // 비행형: 거대 벌/미니 드래곤 — 몸통 + 날개
             const dragon = name === 'Mini Dragon';
-            sp(0.16, 0, 0.22, 0, mat, dragon ? 1.3 : 1.1, 0.85, dragon ? 1.6 : 1.15);
-            if (dragon) { cn(0.07, 0.22, 0, 0.24, 0.32, mat); const tail = cy(0.05, 0.01, 0.34, 0, 0.2, -0.32, mat); tail.rotation.x = -1.5; g.userData.tail = tail; }
-            else for (let i = 0; i < 3; i++) bx(0.22, 0.05, 0.02, 0, 0.22, -0.12 + i * 0.12, dark);
+            // 몸통을 좁고 길게 — 예전 (1.3, 0.85, 1.6)은 반폭 0.21이라 영웅 다리가 통째로 묻혀
+            // '녹색 비행선 위에 뜬 사람'으로 읽혔다. 반폭 0.152면 다리가 양옆으로 나온다.
+            sp(0.16, 0, 0.22, 0, mat, dragon ? 0.95 : 0.9, dragon ? 1.0 : 0.95, dragon ? 1.75 : 1.2);
+            if (dragon) {
+                const neck = cy(0.055, 0.075, 0.24, 0, 0.31, 0.28, mat); neck.rotation.x = -0.75;   // 목
+                sp(0.085, 0, 0.40, 0.40, light, 1.0, 0.85, 1.3);                                    // 머리
+                cn(0.045, 0.11, 0, 0.40, 0.50, light).rotation.x = Math.PI / 2;                      // 주둥이
+                for (const s of [-1, 1]) { const hn = cn(0.02, 0.09, s * 0.045, 0.47, 0.35, dark); hn.rotation.x = -0.7; } // 뿔
+                for (let i = 0; i < 4; i++) cn(0.024, 0.06, 0, 0.36 - i * 0.012, 0.10 - i * 0.11, dark); // 등지느러미
+                const tail = cy(0.05, 0.012, 0.38, 0, 0.20, -0.36, mat); tail.rotation.x = -1.45; g.userData.tail = tail;
+            } else {
+                for (let i = 0; i < 3; i++) bx(0.2, 0.055, 0.02, 0, 0.22, -0.12 + i * 0.12, dark);   // 벌 줄무늬
+                sp(0.09, 0, 0.26, 0.22, dark, 1.0, 0.9, 0.9);                                        // 머리
+            }
             g.userData.wings = [];
             for (const s of [-1, 1]) {
-                const wing = bx(0.24, 0.02, 0.14, s * 0.2, 0.32, -0.02, light);
+                // 날개를 크게 — 비행형이 '날고 있다'로 읽히려면 실루엣에서 몸통보다 넓어야 한다
+                const wing = dragon ? sp(0.16, s * 0.30, 0.36, -0.04, light, 1.5, 0.12, 1.0)
+                                    : bx(0.34, 0.02, 0.17, s * 0.25, 0.34, -0.02, light);
                 wing.userData.s = s;
                 g.userData.wings.push(wing);
             }
-            eyes(0.26, dragon ? 0.36 : 0.15, 0.06);
-            if (!dragon) { const sting = cn(0.025, 0.12, 0, 0.2, -0.19, blk); sting.rotation.x = Math.PI; g.userData.tail = sting; }
+            eyes(dragon ? 0.42 : 0.28, dragon ? 0.46 : 0.29, 0.05);
+            if (!dragon) { const sting = cn(0.025, 0.12, 0, 0.2, -0.21, blk); sting.rotation.x = Math.PI; g.userData.tail = sting; }
+            // 비행형 안장: form.saddle 0.38 / 몸통 반폭·반높이·중심 y / 발은 몸통 옆 허공(등자만)
+            saddleRig(0.38, dragon ? 0.152 : 0.144, dragon ? 0.16 : 0.152, 0.22, [0.20, 0.06, 0.09]);
         } else { // 사족보행형: 거북이/게/말/공룡/돼지/염소 — 공용 몸통+머리+다리 골격, 파츠로 종 구분
-            sp(0.22, 0, 0.24, 0, mat, 1.3, 0.85, 1.6); // 몸통 (마운트다운 대형 사이즈)
+            // 몸통: 예전 (1.3, 0.85, 1.6)은 반폭 0.286 — 탑승 배율까지 곱하면 영웅 다리보다 넓어
+            // 다리가 통째로 몸통 안에 묻혔다("공중부양/관통" 불합격 사유의 실체). 실제 말 배럴처럼
+            // **좁고 깊고 길게** 바꾼다: 반폭 0.180 / 반높이 0.209 / 반길이 0.385.
+            sp(0.22, 0, 0.24, 0, mat, 0.82, 0.95, 1.75);
             if (name === 'Turtle') sp(0.2, 0, 0.32, -0.02, dark, 1.1, 0.7, 1.4); // 등딱지
             if (name === 'Crab') { sp(0.24, 0, 0.2, 0, dark, 1.5, 0.55, 1.3); g.userData.claws = []; for (const s of [-1, 1]) { const cl = bx(0.1, 0.08, 0.16, s * 0.32, 0.22, 0.14, light); g.userData.claws.push(cl); } }
             if (name === 'Brown Horse' || name === 'Dino') { const neck = cy(0.08, 0.1, name === 'Dino' ? 0.5 : 0.3, 0, 0.44, 0.22, mat); neck.rotation.x = -0.5; }
@@ -3016,9 +3100,14 @@ const Scene3D = {
             const tail = cy(0.03, 0.01, 0.24, 0, 0.24, -0.34, mat); tail.rotation.x = 1.3; g.userData.tail = tail;
             g.userData.legs = [];
             for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-                const leg = cy(0.05, 0.045, 0.24, sx * 0.16, 0.1, sz * 0.3, dark);
+                const leg = cy(0.05, 0.045, 0.24, sx * 0.13, 0.1, sz * 0.3, dark); // 몸통이 좁아진 만큼 안쪽으로
                 g.userData.legs.push(leg);
             }
+            // 사족 안장: 윗면 0.44(=MOUNT_FORMS.quad.saddle) / 등자는 탑승 포즈의 실제 발 자리에.
+            // 발 자리 근거 — 골반이 안장(로컬 0.44)에 얹힌 상태에서 hip rx 0.78·knee -0.92로 접으면
+            // 발이 골반에서 약 0.66(영웅 단위) 아래·앞 0.23에 오고, 이 탈것의 총배율(≈1.9)로 나누면
+            // 로컬 (±0.19, 0.10, 0.10) 근방이다. 몸통 반폭 0.18보다 바깥이라 다리가 실루엣에 드러난다.
+            saddleRig(0.44, 0.180, 0.209, 0.24, [0.19, 0.10, 0.10]);
         }
         return g;
     },
@@ -3067,12 +3156,15 @@ const Scene3D = {
                    pose: { hipL: { rx: 0.92, rz: -0.16 }, hipR: { rx: 0.92, rz: 0.16 },
                            kneeL: { rx: -1.15 }, kneeR: { rx: -1.15 }, spine: { rx: 0.2 } } },
         // 비행형: 공중에 뜬 몸통을 다리로 조이며 앉는다 (벌림은 사족형보다 좁게)
-        fly:     { saddle: 0.38, hover: 0.42, bulk: 1.7,
-                   pose: { hipL: { rx: 0.8, rz: -0.26 }, hipR: { rx: 0.8, rz: 0.26 },
+        // 비행형: 공중에 뜬 몸통을 다리로 조이며 앉는다.
+        // ⚠️ bulk를 1.7까지 키우면 영웅이 '녹색 비행선 위의 점'이 된다 — 몸통을 좁게 다시 만든 뒤로는
+        //    다리가 감쌀 수 있으므로 1.28이면 충분하다(실측: 영웅 실루엣이 프레임 안에 온전히 들어옴).
+        fly:     { saddle: 0.38, hover: 0.42, bulk: 1.28,
+                   pose: { hipL: { rx: 0.8, rz: -0.3 }, hipR: { rx: 0.8, rz: 0.3 },
                            kneeL: { rx: -1.0 }, kneeR: { rx: -1.0 }, spine: { rx: 0.12 } } },
         // 사족보행형: 배럴이 굵어 다리를 가장 크게 벌려 감싼다
         quad:    { saddle: 0.44, hover: 0,
-                   pose: { hipL: { rx: 0.78, rz: -0.36 }, hipR: { rx: 0.78, rz: 0.36 },
+                   pose: { hipL: { rx: 0.78, rz: -0.42 }, hipR: { rx: 0.78, rz: 0.42 },
                            kneeL: { rx: -0.92 }, kneeR: { rx: -0.92 }, spine: { rx: 0.1 } } },
     },
     MOUNT_FORM_OF: {
@@ -3138,6 +3230,7 @@ const Scene3D = {
             rideScale = U.clamp(needSaddle / (form.saddle * sc), 1, 2.6);  // 과대·과소 확대 방지
         }
         mesh.scale.setScalar(sc * rideScale);
+        g.userData.stirrups = mesh.userData.stirrups || null;   // 등자는 메시 안에 달렸다 — 그룹에서도 찾게 올려 둔다
         const baseY = form.hover * sc * rideScale;
         g.position.set(Combat.HERO_X + this.worldX, baseY, 0);   // 영웅 발밑(별도 자리 아님)
         g.userData.home = g.position.clone();
@@ -3156,6 +3249,30 @@ const Scene3D = {
         // 공격이 끝날 때까지 남는다 — 비행형에서 지상형으로 갈아타면 한동안 공중에 뜬 채다. 즉시 스냅.
         if (this.heroG) this.heroG.position.y = heroY;
         this.applyWeaponGrip();                    // 무기 거치 자세와 탑승 포즈를 합성
+    },
+
+    // 등자를 영웅의 **실제 발 위치**로 옮긴다 — 상수로 박으면 포즈·다리 길이·탈것 배율이 곱해진 자리를
+    // 손으로 맞히는 셈이라 반드시 어긋난다(안장 높이를 역산하기로 한 것과 같은 이유).
+    // 매 프레임 호출해도 비용은 벡터 두 번 — 걷기 바운스·기울기에도 발에 딱 붙어 따라간다.
+    _stirrupFoot: null,
+    alignStirrups() {
+        const g = this.mountGroup, rig = this.heroRig;
+        if (!g || !g.userData.stirrups || !rig || !rig.bones || !rig.bones.kneeL || !this.heroG) return;
+        if (!this._stirrupFoot) this._stirrupFoot = new THREE.Vector3();
+        this.heroG.updateWorldMatrix(true, true);
+        g.updateWorldMatrix(true, true);
+        for (const st of g.userData.stirrups) {
+            const knee = rig.bones['knee' + (st.userData.side < 0 ? 'L' : 'R')];
+            if (!knee || !st.parent) continue;
+            // ⚠️ 변환 기준은 `mountGroup`이 아니라 **등자의 실제 부모(배율이 걸린 안쪽 메시 그룹)** 다.
+            //    mountGroup 로컬로 재면 탈것 배율(≈1.9배)만큼 어긋나 끈이 영웅 키를 넘겨 솟는다.
+            // (0, -0.315, 0.045) = prochar.js가 부츠(발) 메시를 무릎 로컬로 박아 둔 자리
+            const l = st.parent.worldToLocal(knee.localToWorld(this._stirrupFoot.set(0, -0.315, 0.045)));
+            st.position.copy(l);
+            const len = Math.max(0.04, st.userData.anchorY - l.y);
+            st.userData.strap.scale.y = len;
+            st.userData.strap.position.y = len / 2;
+        }
     },
 
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
@@ -5271,6 +5388,7 @@ const Scene3D = {
                 mg.rotation.x += (lean - mg.rotation.x) * Math.min(1, dt * 8);
                 if (!this._attacking) this.heroG.position.y += bob;   // 영웅도 같은 바운스를 그대로 받는다
                 this.heroG.rotation.x = mg.rotation.x * 0.6;
+                this.alignStirrups();                                 // 등자를 실제 발 위치에 붙인다
             }
         }
         // 파티클
