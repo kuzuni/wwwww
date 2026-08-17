@@ -2379,7 +2379,11 @@ body {
 .asc-card { text-align: center; }
 .asc-row { display: flex; align-items: center; gap: .4rem; padding: .34rem .5rem; margin: .22rem 0;
     background: var(--pp-panel); border-radius: .5rem; font-size: .82rem; }
-.asc-row.ready { background: #2f7d32; color: #fff; }
+/* 조건을 채운 행은 탭하면 그 라인 확인 팝업으로 들어간다 — 죽은 줄이 아님을 손끝에 알린다 */
+.asc-row.ready { background: #2f7d32; color: #fff; cursor: pointer; }
+.asc-row.ready::after { content: '▶'; font-size: .7rem; opacity: .8; margin-left: .1rem; }
+/* 대장간 만렙 버튼이 승천 가능 상태임을 알린다 — 장비 라인 승천의 진입점이 이 버튼 하나뿐이다 */
+.btn.sm.ascend-ready { background: linear-gradient(#4caf50, #2e7d32); color: #fff; }
 .asc-name { flex: 0 0 5.2rem; text-align: left; font-weight: 800; }
 .asc-prog { flex: 1; text-align: left; opacity: .85; }
 .asc-cnt { flex: 0 0 3rem; text-align: right; font-weight: 800; }

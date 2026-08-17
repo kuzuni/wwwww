@@ -735,7 +735,15 @@ const UI = {
         const info = Forge.upgradeInfo();
         const upgrading = !!S.forgeUpgradeEndsAt;
         let forgeBtnHtml;
-        if (!info) forgeBtnHtml = `<button class="btn sm disabled">대장간<br>최고 레벨</button>`; // 만렙 라벨도 미만렙과 같은 명시적 2줄 — 자동 래핑 클리핑 방지
+        // ⚠️ 만렙(Lv.35)에서도 **버튼은 살아 있어야 한다**(QA 11차 버그). `⭐ 승천`은 이 버튼으로만 열리는
+        // 대장간 정보 팝업 안에 있어서, 예전처럼 `disabled`로 죽이면 **프레스티지 한 갈래가 통째로 잠긴다** —
+        // 34→35 업그레이드가 실측 23일이라 대다수는 팝업을 닫아 둔 채 완료를 맞고, 그러면 다시 열 방법이 없었다.
+        // 라벨만 상태에 맞게 바꾸고 onclick은 유지한다(만렙에서도 확률표 열람은 계속 필요하다).
+        if (!info) {
+            forgeBtnHtml = Ascension.ready('forge')
+                ? `<button class="btn sm primary ascend-ready" onclick="UI.openForgeInfo()">⭐ 승천<br>가능</button>`
+                : `<button class="btn sm primary" onclick="UI.openForgeInfo()">대장간<br>최고 레벨</button>`; // 만렙 라벨도 미만렙과 같은 명시적 2줄 — 자동 래핑 클리핑 방지
+        }
         else {
             // 원본은 버튼에 "대장간 레벨 N"만 두고 남은 시간은 버튼 아래 별도 줄에 표시
             forgeBtnHtml = `<button class="btn sm primary" onclick="UI.openForgeInfo()">대장간<br>레벨 ${S.forgeLevel}</button>`;
@@ -3134,7 +3142,10 @@ const UI = {
         const rowsHtml = Ascension.LINES.map(l => {
             const p = Ascension.progress(l), rdy = Ascension.ready(l);
             const label = l === 'forge' ? `대장간 Lv.${p.cur}/${p.max}` : `소환 Lv.${p.cur}/${p.max}`;
-            return `<div class="asc-row ${rdy ? 'ready' : ''}">
+            // 조건을 채운 행은 **탭하면 그 라인 확인 팝업으로 들어간다**(QA 11차 버그). 예전에는 `ready`
+            // 클래스만 붙은 죽은 <div>라, 개요를 보고도 승천할 방법이 없었다 — 라인별 진입 버튼(소환 화면
+            // ⭐승천 가능·대장간 정보 팝업)을 못 찾으면 개요가 막다른 길이 된다. 여기서 네 라인을 한 번에 연다.
+            return `<div class="asc-row ${rdy ? 'ready' : ''}"${rdy ? ` onclick="UI.openAscension('${l}')"` : ''}>
                 <span class="asc-name">${Ascension.LINE_ICON[l]} ${Ascension.LINE_KR[l]}</span>
                 <span class="asc-prog">${label}</span>
                 <span class="asc-cnt">${Ascension.count(l) ? `⭐${Ascension.count(l)}` : '—'}</span>
