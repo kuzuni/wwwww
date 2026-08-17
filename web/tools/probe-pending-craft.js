@@ -22,13 +22,17 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     const chk = (ok, msg) => { console.log((ok ? '✓ ' : '✗ ') + msg); if (!ok) bad++; };
 
     // ── ① 비교 팝업이 뜬 채 새로고침 ──────────────────────────────
+    // 제작 → 모루 타격 연출(0.72초) → 비교 팝업. 대기품은 연출 '전에' 세이브에 남아야 한다
+    // (연출 도중 새로고침해도 유실되지 않는 것이 이 항목의 핵심).
     const before = await page.evaluate(() => {
         S.equipment.weapon = null;                       // 빈 슬롯에서 시작 — 장착/판매 판정이 명확
         UI.onCraft();
         return { hammers: S.hammers, pending: S.pendingCraft && S.pendingCraft.name,
+                 saved: (JSON.parse(localStorage.getItem(SAVE_KEY)).pendingCraft || {}).name,
                  modal: !UI.els.craftModal.classList.contains('hidden') };
     });
-    chk(before.modal && !!before.pending, `제작 직후: 비교 팝업 열림 + 세이브에 대기품 기록(${before.pending})`);
+    chk(!!before.pending && before.saved === before.pending && !before.modal,
+        `제작 직후(타격 연출 중): 팝업은 아직 안 뜨고 대기품만 세이브에 기록(${before.pending})`);
 
     await page.reload({ waitUntil: 'load' }); await ready(); await freeze();
     const after = await page.evaluate(() => ({
@@ -54,6 +58,7 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
     // ── ③ 선택 없이 새로고침 → 판매 선택도 정상인지 ────────────────
     await page.evaluate(() => { UI.onCraft(); });
+    await page.waitForTimeout(900);   // 모루 타격 연출이 끝나 팝업이 뜰 때까지
     await page.reload({ waitUntil: 'load' }); await ready(); await freeze();
     const sold = await page.evaluate(() => {
         const before = S.coins, name = UI._pendingItem && UI._pendingItem.name;
@@ -63,16 +68,32 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     chk(sold.gained > 0 && sold.cleared, `복원 팝업에서 [판매] → 코인 +${sold.gained} (${sold.name})`);
 
     // ── ④ 탭 전환 자동 판정(기존 동작)이 유지되는지 ────────────────
-    const tab = await page.evaluate(() => {
+    // 연출이 '끝난 뒤' 탭 전환 + 연출 '도중' 탭 전환 둘 다 대기품이 정리돼야 한다
+    const tab = await page.evaluate(async () => {
         S.equipment.helmet = null;
         UI.onCraft();
+        await new Promise(r => setTimeout(r, 900));
         const name = UI._pendingItem.name;
         UI.closeAllTabSurfaces();
         const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
         return { name, cleared: S.pendingCraft === null && saved.pendingCraft === null,
                  modal: !UI.els.craftModal.classList.contains('hidden') };
     });
-    chk(tab.cleared && !tab.modal, `탭 전환 자동 판정 유지 — 대기품 정리됨 (${tab.name})`);
+    chk(tab.cleared && !tab.modal, `연출 종료 후 탭 전환 자동 판정 — 대기품 정리됨 (${tab.name})`);
+
+    // 타격 연출 '도중' 탭 전환 — 모달 기준으로 판정하면 이 경로가 새어 나가 연출이 끝난 뒤
+    // 엉뚱한 탭 위에 팝업이 떴다(대기품 기준으로 바꿔 막은 회귀).
+    const mid = await page.evaluate(async () => {
+        UI.onCraft();
+        await new Promise(r => setTimeout(r, 200));      // 아직 타격 중
+        UI.closeAllTabSurfaces();
+        const clearedNow = S.pendingCraft === null && UI._pendingItem === null;
+        await new Promise(r => setTimeout(r, 900));      // 연출이 끝났을 시각까지 기다린다
+        return { clearedNow, modalAfter: !UI.els.craftModal.classList.contains('hidden'),
+                 fx: document.querySelectorAll('.anvil-fx').length };
+    });
+    chk(mid.clearedNow && !mid.modalAfter && mid.fx === 0,
+        '타격 연출 도중 탭 전환 — 즉시 자동 판정되고, 연출이 끝나도 팝업이 뒤늦게 뜨지 않음');
 
     // ── ⑤ 구세이브(pendingCraft 키 없음) 부팅 ──────────────────────
     await page.evaluate(() => {

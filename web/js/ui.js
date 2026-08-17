@@ -389,9 +389,13 @@ const UI = {
         this.showCraftModal(item);
     },
     resolvePendingCraft() {
+        // 판정 기준은 '팝업이 열려 있는가'가 아니라 '대기품이 있는가'다 — 모루 타격 연출(0.72초)
+        // 동안에는 대기품은 이미 있는데 팝업이 아직 안 떠서, 모달 기준으로 보면 이 경로가 통째로
+        // 새어 나갔다(탭을 옮겨도 정리되지 않고, 연출이 끝나면 엉뚱한 탭 위에 팝업이 떴다).
+        if (!this._pendingItem) return;
+        this.cancelAnvilStrike();
         const m = this.els.craftModal;
-        if (!m || m.classList.contains('hidden')) return;
-        m.classList.add('hidden');
+        if (m) m.classList.add('hidden');
         const item = this.clearPendingCraft();
         if (!item) { saveGame(); return; }
         const r = Forge.autoResolve(item);
@@ -1005,6 +1009,15 @@ const UI = {
             fx.remove(); btn.classList.remove('striking');
             done();
         }, this.ANVIL_FX_MS));
+    },
+    // 연출을 도중에 끊는다 — 타이머와 오버레이를 같이 걷어내야 끝나고 팝업이 뜨는 일이 없다
+    cancelAnvilStrike() {
+        (this._anvilTimers || []).forEach(clearTimeout);
+        this._anvilTimers = [];
+        this._anvilBusy = false;
+        const btn = document.querySelector('.anvil-btn');
+        if (btn) btn.classList.remove('striking');
+        document.querySelectorAll('.anvil-fx').forEach(n => n.remove());
     },
     onCraft() {
         if (this._anvilBusy) return;   // 연출 중 재클릭 무시 — 연타로 해머만 녹는 걸 막는다
