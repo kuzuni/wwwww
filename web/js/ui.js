@@ -650,6 +650,11 @@ const UI = {
     keepScroll(fn) {
         const saved = [];
         for (const el of document.querySelectorAll('*')) {
+            // 스크롤을 스스로 관리하는 컨테이너(data-own-scroll)는 건너뛴다. 채팅 리스트가 그렇다 —
+            // '바닥에 붙어 있으면 새 메시지를 따라간다'는 정책이 따로 있는데, 여기서 렌더 직전 위치를
+            // 되돌려 놓으면 그 정책이 매번 무효가 돼 새 메시지가 화면 밖에 쌓인다(실측: 바닥 419 로
+            // 민 직후 keepScroll 이 옛 367 로 복구).
+            if (el.hasAttribute('data-own-scroll')) continue;
             if (el.scrollTop > 0) saved.push([this.domPath(el), el.scrollTop]);
         }
         try { return fn(); }
@@ -3090,31 +3095,53 @@ const UI = {
         this.showModal(this.els.chatModal);
         // renderChatFull 안의 scrollTop 지정은 모달이 아직 hidden(display:none)이라 무시된다 —
         // 보이게 만든 뒤 한 번 더 내려야 원본처럼 '최신 메시지가 입력바 바로 위'로 온다.
-        const list = document.getElementById('chat-list');
-        if (list) list.scrollTop = list.scrollHeight;
+        this.pinChatBottom();
     },
     closeChat() { this.els.chatModal.classList.add('hidden'); },
+    // 봇 메시지는 15~40초마다 오고 그때마다 main.js 틱이 이걸 부른다. 예전엔 여기서 카드를 통째로
+    // innerHTML 교체해 입력 <input>이 **새 노드로 갈렸고**, 그래서 타이핑 중이던 포커스·캐럿이 body로
+    // 빠져 이후 친 글자가 아무데도 안 들어갔다(QA 13차). 입력값만 되살리는 걸로는 부족했다 —
+    // 포커스는 노드에 붙는 것이라 노드를 갈면 무조건 사라진다.
+    // 그래서 카드 골격(입력 바 포함)은 처음 한 번만 만들고, 이후 갱신은 메시지 리스트만 다시 그린다.
     renderChatFull() {
-        // 봇 메시지 도착 시 재렌더링돼도 입력 중이던 텍스트·스크롤 위치를 잃지 않도록 보존
-        const prevInput = document.getElementById('chat-input');
-        const draft = prevInput ? prevInput.value : '';
-        const prevList = document.getElementById('chat-list');
-        const wasAtBottom = !prevList || (prevList.scrollHeight - prevList.scrollTop - prevList.clientHeight < 40);
-
-        const listHtml = S.chat.messages.map(m => this.chatMsgHtml(m)).join('');
-        this.els.chatModal.innerHTML = `
+        if (!document.getElementById('chat-input')) {
+            this.els.chatModal.innerHTML = `
             <div class="modal-card chat-card">
-                <div class="chat-list" id="chat-list">${listHtml}</div>
+                <div class="chat-list" id="chat-list" data-own-scroll onscroll="UI.onChatScroll()"></div>
                 <div class="chat-input-bar">
                     <button class="btn danger round" onclick="UI.closeChat()">◀</button>
                     <input id="chat-input" type="text" placeholder="메시지 보내기..." maxlength="200"
                         onkeydown="if(event.key==='Enter') UI.onSendChat()">
                 </div>
             </div>`;
-        const input = document.getElementById('chat-input');
-        if (input && draft) input.value = draft;
+        }
+        this.renderChatList();
+    },
+    renderChatList() {
         const list = document.getElementById('chat-list');
-        if (list && wasAtBottom) list.scrollTop = list.scrollHeight;
+        if (!list) return;
+        list.innerHTML = S.chat.messages.map(m => this.chatMsgHtml(m)).join('');
+        if (this._chatStick !== false) this.pinChatBottom(); // 바닥에 붙어 있었으면 새 메시지를 따라간다
+    },
+    // 리스트를 최신 메시지에 붙인다.
+    // ⚠️ 이게 오래 안 먹던 이유: installScrollKeeper()가 `render*` 이름의 메서드를 전부 keepScroll로 감싸는데,
+    //    keepScroll은 렌더 직전 위치를 기억했다가 렌더 뒤에 되돌린다 — 즉 여기서 바닥으로 민 값이 곧바로
+    //    옛 위치로 복구됐다(실측: 419로 밀면 한 틱 뒤 367로 되돌아옴). 그래서 새 메시지가 입력바 위로
+    //    올라오지 않고 화면 밖에 쌓였다. 채팅 리스트에 `data-own-scroll`을 달아 그 복구에서 빼는 것으로 푼다.
+    pinChatBottom() {
+        const list = document.getElementById('chat-list');
+        if (!list) return;
+        this._chatStick = true;
+        list.scrollTop = list.scrollHeight;   // 브라우저가 실제 도달 가능한 최대치로 클램프한다
+        this._chatPinnedTop = list.scrollTop; // 그 클램프된 값이 '바닥'의 정확한 기준점
+    },
+    // 사용자가 위로 올려 옛 메시지를 읽는 중이면 새 메시지가 와도 끌어내리지 않는다.
+    // 우리가 민 스크롤과 사용자가 올린 스크롤은 기준점(_chatPinnedTop)과의 거리로 가른다 —
+    // pinChatBottom이 기준점을 먼저 갱신해 두므로 우리 스크롤은 항상 '바닥'으로 판정된다.
+    onChatScroll() {
+        const list = document.getElementById('chat-list');
+        if (!list) return;
+        this._chatStick = list.scrollTop >= (this._chatPinnedTop || 0) - 40;
     },
     onSendChat() {
         const input = document.getElementById('chat-input');
