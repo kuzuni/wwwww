@@ -2135,11 +2135,29 @@ const Scene3D = {
             const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.15, 0.045),
                 new THREE.MeshStandardMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.14), metalness: 0.8, roughness: 0.45 })); // 코 가드 — 슬림+다크 (밝은 굵은 바가 '반투명 띠 아티팩트'로 오독, 비평가 7번)
             noseBar.position.set(0, -0.02, 0.262);
-            const crest = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.03, 6, 14, Math.PI * 0.8), rareMat); // 정수리 볏 아크
-            crest.position.y = 0.13;
+            // 정수리 볏 아크 — ⚠️ 이전 값(반지름 0.21, 중심 y 0.13)은 **돔 셸 안에 묻혀 있었다.**
+            // 돔은 반지름 0.28·스케일 y1.02·중심 y0.04이므로 표면이 y축 0.2856인데, 볏은 자기 중심이
+            // 0.09 위에 있어 정수리(0.09+0.21=0.30)만 셸을 0.014 뚫고 나오고 양 끝(18°/162°에서
+            // 중심거리 0.253)은 셸 속에 잠겼다. 그래서 볏이 '연결 안 된 파란 탭 조각'으로 보였다
+            // (비평가 A·B가 각각 "머리 위에 붙은 데 없는 수직 막대"로 지목한 것의 실체).
+            // 수정: 중심을 돔 중심(y 0.04)에 맞추고 반지름을 셸 바로 바깥(0.295)으로 키워 아크
+            // 전체가 셸 위를 타게 한다. 아크 길이는 0.8π→0.62π로 줄여 끝이 눈 슬릿(y 0.088)
+            // 아래로 내려오지 않게 하고, rotation.z로 정수리(90°)에 중심을 맞춘다.
+            const crestArc = Math.PI * 0.62;
+            const crestR = 0.295;
+            const crest = new THREE.Mesh(new THREE.TorusGeometry(crestR, 0.026, 6, 16, crestArc), rareMat);
+            crest.position.y = 0.04;
             crest.rotation.y = Math.PI / 2;
-            crest.rotation.z = Math.PI * 0.1;
+            crest.rotation.z = Math.PI / 2 - crestArc / 2;
             g.add(helm, slit, noseBar, crest);
+            // 아크 끝 마감 — 부분 토러스는 **끝 뚜껑이 없어** 열린 튜브 단면이 그대로 보인다.
+            // 끝점마다 같은 재질의 작은 구를 얹어 막는다(방패 개방 셸과 같은 부류의 결함).
+            for (const s of [-1, 1]) {
+                const a = Math.PI / 2 + s * crestArc / 2;
+                const capEnd = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), rareMat);
+                capEnd.position.set(0, 0.04 + Math.sin(a) * crestR, Math.cos(a) * crestR);
+                g.add(capEnd);
+            }
         } else if (style === 'fin') {       // 볏 투구 (로마/사무라이)
             const dome = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), mat);
             dome.position.y = 0.02;
@@ -4460,9 +4478,11 @@ const Scene3D = {
         // 태양광을 절반 수준의 서늘한 달빛으로 낮추고 림라이트를 상대적으로 키워 실루엣 위주의 밤 화면을 만듦
         const isNight = (t.celestial || 'sun') === 'moon';
         // 밤은 전역 노출도 낮춰 지면·소품까지 확실히 어둡게 (라이트 감쇠만으론 ACES 어깨에서 중간톤이 다시 떠오름)
-        // 낮 노출 1.0 → 1.10: 조명 총량을 크게 낮췄으므로(아래) 하이라이트를 되살리기 위해 노출로 되돌린다.
-        // 광량↓ + 노출↑ 조합이 핵심 — 광량만 낮추면 전체가 어둡고, 노출만 낮추면 다크 엔드가 생기지 않는다.
-        this.renderer.toneMappingExposure = isNight ? 0.82 : 1.10;
+        // 낮 노출 1.02. ⚠️ 앞선 커밋에서 1.10으로 올렸던 것을 되돌린 값이다 — 비평가 재채점이
+        // "올린 노출이 광량 감소분을 먹어치웠다"며 hero-walk 프레임의 27.9%가 명도 0.85를 넘는다고
+        // 지적했고, 실측으로 확인됐다(명도 0.85 초과 비율: 수정 전 2.16% → 노출 1.10에서 2.75%로 **악화**).
+        // 노출만 1.02로 내리면 같은 광량에서 1.53%로 원래보다도 좋아지고 다크 엔드는 오히려 늘어난다.
+        this.renderer.toneMappingExposure = isNight ? 0.82 : 1.02;
         if (isNight) {
             this.sun.intensity = 0.55;
             this.hemi.intensity = 0.36;
@@ -4480,14 +4500,17 @@ const Scene3D = {
             // 선형 0.026 이하가 필요하고 광량 2.45배(sun1.85+hemi.3+rim.3) 아래서는 불가능하다.
             // 즉 **재질을 더 어둡게 칠해도 절대 해결되지 않는 문제**였다.
             // 실측(probe-light-sweep.js, 캐릭터 면적 중 명도 0.18 이하 비율 darkPctHero):
-            //   현재 1.85/0.30/0.30 노출1.00 ......... 0%      중간값 명도 0.745
-            //   1.15/0.18/0.20 노출1.10 (채택) ....... 6.05%   중간값 0.657
-            //   0.95/0.14/0.16 노출1.15 .............. 9.11%   중간값 0.616 (너무 어두워 보류)
+            //   수정 전 1.85/0.30/0.30 노출1.00 ...... 0%      중간값 0.755  하이라이트(>0.85) 2.16%
+            //   1.15/0.18/0.20 노출1.10 .............. 1.06%   중간값 0.684  하이라이트 2.75% ← 악화
+            //   1.15/0.18/0.20 노출1.02 .............. 2.13%   중간값 0.667  하이라이트 1.53%
+            //   1.00/0.15/0.18 노출1.02 (채택) ....... 5.06%   중간값 0.633  하이라이트 1.36%
+            //   0.90/0.12/0.16 노출1.00 .............. 7.40%   중간값 0.596  (더 어두워 보류)
+            // 채택값은 수정 전 대비 다크 엔드·중간값·하이라이트 **세 지표 모두** 개선한다.
             // env IBL은 원인이 아님을 분리 검증했다(envMapIntensity만 0.5로 낮추면 1.02%에 그침) —
             // 그래서 재질별 envMapIntensity는 손대지 않는다. 라이트 3개 + 노출 4개 값만의 변경.
-            this.sun.intensity = biome === 'lava' ? 0.62 : 1.15;
-            this.hemi.intensity = biome === 'lava' ? 0.26 : 0.18; // 채움광이 다크 엔드를 들어올리는 주범 — 함께 하향
-            this.rim.intensity = 0.2;
+            this.sun.intensity = biome === 'lava' ? 0.54 : 1.00;
+            this.hemi.intensity = biome === 'lava' ? 0.22 : 0.15; // 채움광이 다크 엔드를 들어올리는 주범 — 함께 하향
+            this.rim.intensity = 0.18;
             this.sun.color.copy(new THREE.Color(0xffedc4).lerp(new THREE.Color(t.sky), 0.15)); // 더 따뜻한 직사광
         }
         // ch7 마법: ch6에서 성공한 달 역광 공식이 어두운 보라 팔레트에서 안 읽힘 — 시안 림을 크게 키워
