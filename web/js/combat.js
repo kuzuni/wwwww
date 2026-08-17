@@ -163,7 +163,7 @@ const Combat = {
             if (this.downUntil) {
                 if (U.now() < this.downUntil) return;
                 this.downUntil = 0;
-                this.riseUntil = U.now() + 800; // ProChar Revive 클립 길이
+                this.riseUntil = U.now() + 850; // ProChar Revive 클립 길이(dur 0.85s)
                 Scene3D.heroRevive();
                 return;
             }

@@ -1792,12 +1792,14 @@ const Scene3D = {
         this.applyRimLight(g);
         // 접지 블롭 섀도우 — 디렉셔널 섀도맵(1024/24유닛)이 흐릿해 캐릭터가 떠 보이던 문제 보강
         this.ensureBlobRes();
-        const heroBlob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
+        // 사망 시 시체 길이에 맞춰 타원으로 늘리므로 머티리얼만 전용 인스턴스로(공유본을 건드리면 소품 전체가 짙어진다)
+        const heroBlob = new THREE.Mesh(this.blobGeo, this.blobShadowMat.clone());
         heroBlob.rotation.x = -Math.PI / 2;
         heroBlob.position.y = 0.025;
         heroBlob.scale.setScalar(0.82); // 컨택트 AO — 실그림자와 이중 노출 방지 위해 발밑 접지부만
         heroBlob.userData.sharedGeometry = true;
         g.add(heroBlob);
+        this.heroBlob = heroBlob;
         this.heroG = g;
         this.scene.add(g);
 
@@ -4637,15 +4639,66 @@ const Scene3D = {
         this.heroPlay(['Death_A'], true);
         this.shake(0.4);
         UI.flashDamage(1); // 화면 붉은 비네트 — 치명타 피격보다 진하게
-        // 몸이 지면에 닿는 타이밍(클립 0.45~0.6 구간)에 흙먼지와 접지 파동
-        const hp = this.heroG ? this.heroG.position.clone() : new THREE.Vector3();
-        let dust = false;
-        this.addAnim(0.75, k => {
-            if (dust || k < 0.62) return;
-            dust = true;
-            this.spawnSparks(hp.clone().add(new THREE.Vector3(0.1, 0.2, 0)), 14, 0xbcaaa4, { speed: 1.2 });
-            this.expandRing(hp, new THREE.Color(0x9e8d84), 1.1);
-            this.shake(0.22); // 두 번째 흔들림 = 몸이 바닥에 부딪히는 순간
+        // 2단 붕괴에 맞춘 2단 접지 먼지 — 클립(dur 1.45)의 무릎 접지 t=0.38(≈0.55초), 몸통 접지 t=0.78(≈1.13초).
+        // ⚠️ 클립 타이밍을 바꾸면 이 상수도 같이 바꿀 것(먼지가 몸보다 먼저/늦게 터지면 접지가 거짓말이 된다).
+        // ⚠️ 스폰 위치는 heroG.position(=발밑 원점)이 아니라 **그 순간 실제로 바닥에 닿는 부위**를 리그에서
+        //    읽어 쓴다 — 옆으로 무너지면 몸통이 원점에서 0.8쯤 벗어나 있어, 예전처럼 원점에 터뜨리면
+        //    먼지가 시체에서 한 몸 길이 떨어진 빈 땅에서 피어난다(비평가 지적).
+        const rig = this.heroRig;
+        const groundAt = (bone, fallback) => {
+            if (!rig || !rig.bones[bone]) return (this.heroG ? this.heroG.position.clone() : new THREE.Vector3());
+            const p = rig.bones[bone].getWorldPosition(new THREE.Vector3());
+            p.y = (this.heroG ? this.heroG.position.y : 0) + (fallback || 0.06);
+            return p;
+        };
+        let knee = false, body = false;
+        this.addAnim(1.3, k => {
+            const t = k * 1.3;
+            if (!knee && t >= 0.55) {   // 무릎이 먼저 꺾여 바닥에 닿는다 — 작게
+                knee = true;
+                const p = groundAt('kneeL');
+                this.spawnSparks(p.clone().add(new THREE.Vector3(0, 0.08, 0)), 7, 0xbcaaa4, { speed: 0.8 });
+                this.expandRing(p, new THREE.Color(0x9e8d84), 0.6);
+                this.shake(0.1);
+            }
+            if (!body && t >= 1.13) {   // 몸통이 바닥에 부딪히는 순간 — 크게, 어깨·골반 두 점에서
+                body = true;
+                const sh = groundAt('shoulderL'), pv = groundAt('pelvis');
+                this.spawnSparks(sh.clone().add(new THREE.Vector3(0, 0.1, 0)), 11, 0xbcaaa4, { speed: 1.25 });
+                this.spawnSparks(pv.clone().add(new THREE.Vector3(0, 0.1, 0)), 9, 0xbcaaa4, { speed: 1.05 });
+                this.expandRing(sh, new THREE.Color(0x9e8d84), 1.15);
+                this.expandRing(pv, new THREE.Color(0x9e8d84), 0.95);
+                this.shake(0.24);
+                this.corpseBlob(true);   // 접지 그림자를 시체 길이에 맞춰 늘린다
+            }
+        });
+    },
+
+    // 시체 접지 그림자 — 서 있을 때의 작은 원형 블롭은 옆으로 누운 몸을 못 받쳐 "그림자와 몸이 따로 논다"는
+    // 인상을 준다(비평가: 부츠 옆 지면과 1m 떨어진 지면의 휘도가 동일). 누우면 몸통 길이에 맞춘 타원으로
+    // 늘리고 살짝 짙게, 기상하면 되돌린다. 리그 좌표(어깨~골반)에서 중심을 읽어 몸을 따라간다.
+    corpseBlob(on) {
+        const b = this.heroBlob, rig = this.heroRig;
+        if (!b) return;
+        if (!on) { this._blobTo = { x: 0, z: 0, sx: 0.82, sy: 0.82, op: 0.17 }; }
+        else {
+            let cx = 0, cz = 0;
+            if (rig && rig.bones.pelvis && rig.bones.neck) {
+                const a = this.heroG.worldToLocal(rig.bones.pelvis.getWorldPosition(new THREE.Vector3()));
+                const c = this.heroG.worldToLocal(rig.bones.neck.getWorldPosition(new THREE.Vector3()));
+                cx = (a.x + c.x) / 2; cz = (a.z + c.z) / 2;
+            }
+            this._blobTo = { x: cx, z: cz, sx: 1.95, sy: 1.0, op: 0.28 };
+        }
+        this._blobFrom = { x: b.position.x, z: b.position.z, sx: b.scale.x, sy: b.scale.y, op: b.material.opacity };
+        const f = this._blobFrom, o = this._blobTo;
+        this.addAnim(0.28, k => {
+            const e = k * k * (3 - 2 * k);
+            b.position.x = f.x + (o.x - f.x) * e;
+            b.position.z = f.z + (o.z - f.z) * e;
+            b.scale.x = f.sx + (o.sx - f.sx) * e;
+            b.scale.y = f.sy + (o.sy - f.sy) * e;
+            b.material.opacity = f.op + (o.op - f.op) * e;
         });
     },
 
@@ -4653,8 +4706,9 @@ const Scene3D = {
     heroRevive() {
         if (!this.heroDead) return;
         this.heroDead = false;
-        this._heroReviveT = 0.8; // Revive 클립 길이 — 이 동안에도 Idle이 덮어쓰면 안 된다
+        this._heroReviveT = 0.85; // Revive 클립 길이 — 이 동안에도 Idle이 덮어쓰면 안 된다
         this.heroPlay(['Revive'], true);
+        this.corpseBlob(false);   // 늘려 놨던 시체 그림자를 발밑 원형으로 되돌린다
         const hp = this.heroG ? this.heroG.position.clone() : new THREE.Vector3();
         this.expandRing(hp, new THREE.Color(0x9be7a0), 1.3);
         this.spawnSparks(hp.clone().add(new THREE.Vector3(0, 0.5, 0)), 12, 0x69f0ae, { speed: 1.4 });

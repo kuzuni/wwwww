@@ -5,8 +5,8 @@ const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const OUT = process.argv[2] || __dirname;
 
-// 사망 클립 1.3초 → 누운 채 유지 → 2.4초에 기상(0.8초) → 3.2초 스테이지 재시작
-const FRAMES = [0.25, 0.75, 1.35, 2.10, 2.70, 3.15];
+// 사망 클립 1.45초(무릎 접지 0.55 → 몸통 접지 1.13) → 누운 채 유지 → 2.4초에 기상(0.85초) → 스테이지 재시작
+const FRAMES = [0.25, 0.58, 0.90, 1.15, 1.45, 2.20, 2.65, 3.10, 3.40];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
