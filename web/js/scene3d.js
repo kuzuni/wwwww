@@ -554,7 +554,11 @@ const Scene3D = {
             const s = new THREE.Sprite(this.emberMat.clone());
             const x = U.rand(-9, 9), z = U.rand(-6.5, 1.5);
             s.scale.setScalar(U.rand(0.05, 0.085)); // 크기·강도 편차 축소 — 큰 개체가 '렌즈 얼룩'으로 읽힘 (비평가 7.1 17번)
-            s.material.opacity = 0.22;
+            // ⚠️ 이 값은 update의 반짝임이 **곱해서** 쓴다. 예전엔 update가 `opacity = 0.55 + sin*0.3`으로
+            // 통째로 덮어써서, 여기서 내려놓은 0.22가 죽은 코드였다(실측 최대 0.850 = 의도의 3.86배).
+            // 가산 합성 + 블룸이라 그 차이가 곧 '화면 우측 허연 뭉텅이'로 나타났다.
+            s.userData.baseOpacity = U.rand(0.17, 0.26);
+            s.material.opacity = s.userData.baseOpacity;
             s.position.set(x, this.heightAt(x, z) + U.rand(0.3, 1.2), z);
             s.userData.baseX = x; s.userData.baseZ = z; s.userData.baseY = s.position.y;
             s.userData.phase = U.rand(0, 10);
@@ -5795,7 +5799,10 @@ const Scene3D = {
                     e.userData.baseY,
                     e.userData.baseZ
                 );
-                e.material.opacity = 0.55 + Math.sin(this._clock * 3 + e.userData.phase) * 0.3;
+                // 반짝임은 빌드 시 정한 기준 불투명도에 **곱한다** — 상수로 덮어쓰면 크기·강도 편차를
+                // 줄여 둔 튜닝이 통째로 무효가 된다(0.22 의도 → 0.85 실측).
+                const b = e.userData.baseOpacity !== undefined ? e.userData.baseOpacity : 0.22;
+                e.material.opacity = b * (0.62 + Math.sin(this._clock * 3 + e.userData.phase) * 0.38);
             }
         }
         // 투사체

@@ -28,6 +28,15 @@ const SCREENS = [...SRC.matchAll(/^\s*\['([\w-]+)',\s*(?:'[\d]+'|null),\s*`([^`]
     await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 60000 });
     await page.waitForTimeout(500);
     await page.evaluate(() => { if (typeof Scene3D !== 'undefined') Scene3D.update = function () {}; });
+    // shot-screens.js와 같은 제작 팝업 차단 + 별칭 설치. 이 별칭이 없으면 craft-compare 오프너가
+    // `UI._realShowCraftModal is not a function`으로 죽어 **매 실행마다 가짜 에러 1건**이 뜬다
+    // (오프너 목록만 shot-screens.js에서 가져오고 그쪽 셋업은 안 가져와서 생긴 누락).
+    await page.evaluate(() => {
+        UI._realShowCraftModal = UI.showCraftModal;
+        UI.showCraftModal = () => { };
+        UI.resolvePendingCraft = () => { };
+        UI.autoSeqStep = () => { };
+    });
 
     // shot-screens.js의 SEED를 그대로 실행한다 (빈 화면·잠금으로 레이아웃이 안 뜨는 걸 방지) —
     // 시드가 갈라지면 '그 화면에서만 나는 에러'를 놓치므로 소스를 복사하지 않고 잘라 쓴다.
