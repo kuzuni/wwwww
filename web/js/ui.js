@@ -1188,6 +1188,7 @@ const UI = {
     onSellStored(slot, idx) {
         const gained = Forge.sellStored(slot, idx);
         if (!gained) return;
+        this.coinBurst(gained);
         this.toast(`🪙 판매 +${U.fmt(gained)}`);
         this.renderTopBar(); this.renderEquipSheet();
         // 마지막 보관품을 팔았고 장착 중인 것도 없으면 열어 둘 내용이 없다
@@ -1196,6 +1197,66 @@ const UI = {
         saveGame();
     },
     closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); this._gearDetailSlot = null; },
+
+    // ---- 판매 코인 분출 (사용자 지시: "모루에서 코인이 터지듯 튀어나오고, 착지 자리마다 금액이 떠오르게") ----
+    // 궤적은 CSS 키프레임이 소유하고(연타로 여러 벌이 동시에 돌아도 서로 안 잘라먹는다),
+    // 포물선은 x(등속)와 y(상승 감속→낙하 가속)를 **다른 요소에 나눠 걸어** 만든다 — 한 요소에 걸면
+    // translate가 합성되면서 직선으로 보인다. 착지 시각(비율)은 CSS 키프레임과 아래 상수가 같이 소유한다.
+    COIN_FLY_MS: 780,
+    COIN_LAND_K: 0.72,   // 키프레임에서 코인이 지면에 닿는 지점(= @keyframes coinFlyY의 72%)
+    coinBurst(total) {
+        total = Math.floor(Number(total) || 0);
+        if (total <= 0) return;
+        const btn = document.querySelector('.anvil-btn');
+        const host = document.getElementById('app');
+        if (!btn || !host) return; // 모루가 화면에 없으면(전체화면 시트 등) 조용히 생략
+        const hb = host.getBoundingClientRect(), bb = btn.getBoundingClientRect();
+        const ox = bb.left - hb.left + bb.width / 2, oy = bb.top - hb.top + bb.height * 0.4;
+
+        let layer = document.getElementById('coin-burst');
+        if (!layer) {
+            layer = document.createElement('div');
+            layer.id = 'coin-burst';
+            host.appendChild(layer);
+        }
+        // 금액 규모로 3~10개 — 금액이 커질수록 많아지되 상한을 둔다(성능·가독성)
+        const n = U.clamp(3 + Math.round(Math.log10(Math.max(1, total)) * 1.7), 3, 10);
+        const per = Math.floor(total / n);
+        const coinHtml = IconGen.img('coin');
+        for (let i = 0; i < n; i++) {
+            // 마지막 코인이 나머지를 흡수 — 착지 금액의 합이 총액과 정확히 같아야 한다
+            const amt = i === n - 1 ? total - per * (n - 1) : per;
+            const spread = (i / Math.max(1, n - 1) - 0.5) * 2;           // -1 ~ +1
+            const dx = spread * U.rand(52, 108) + U.rand(-10, 10);
+            const rise = -U.rand(58, 104);
+            const drop = U.rand(26, 58);
+            const delay = i * 26 + U.rand(0, 24);
+            const el = document.createElement('span');
+            el.className = 'coin-fly';
+            el.style.cssText = `left:${ox}px; top:${oy}px; --dx:${dx.toFixed(1)}px; --dur:${this.COIN_FLY_MS}ms; --delay:${delay.toFixed(0)}ms`;
+            el.innerHTML = `<span class="coin-fly-y" style="--rise:${rise.toFixed(1)}px; --drop:${drop.toFixed(1)}px">`
+                + `<span class="coin-fly-img">${coinHtml}</span></span>`;
+            layer.appendChild(el);
+            setTimeout(() => el.remove(), this.COIN_FLY_MS + delay + 120);
+            // 착지하는 그 순간 그 자리에서 금액이 떠오른다(데미지 숫자와 같은 문법)
+            setTimeout(() => {
+                const t = document.createElement('span');
+                t.className = 'coin-amt';
+                t.textContent = '+' + U.fmt(amt);
+                t.style.cssText = `left:${(ox + dx).toFixed(1)}px; top:${(oy + drop).toFixed(1)}px`;
+                layer.appendChild(t);
+                setTimeout(() => t.remove(), 760);
+            }, delay + this.COIN_FLY_MS * this.COIN_LAND_K);
+        }
+        // 총 획득액은 모루 위에 크게 한 번 — 코인 개수만큼 나뉜 숫자만 보면 합계가 안 읽힌다
+        const sum = document.createElement('span');
+        sum.className = 'coin-total';
+        sum.innerHTML = `+${U.fmt(total)} ${coinHtml}`;
+        sum.style.cssText = `left:${ox}px; top:${(oy - 26)}px`;
+        layer.appendChild(sum);
+        setTimeout(() => sum.remove(), 1100);
+        SFX.gacha('common'); // 동전 소리 대용 — 짧은 상승 스윕
+    },
 
     // 스킬 컷인 + 화면 색 플래시
     skillCutin(def) {
@@ -1273,8 +1334,9 @@ const UI = {
                 this.toast(overflow
                     ? `📦 ${prev.name} 보관 · 보관함이 꽉 차 가장 약한 장비를 판매했습니다 +${U.fmt(overflow)}`
                     : `📦 ${prev.name} 보관함에 보관`);
+                if (overflow) this.coinBurst(overflow); // 보관함 넘침 자동 판매도 코인이 나온다
             }
-        } else Forge.sell(item);
+        } else this.coinBurst(Forge.sell(item));
         this.renderTopBar();
         this.renderEquipSheet();
         saveGame();

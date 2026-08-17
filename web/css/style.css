@@ -2776,3 +2776,55 @@ body {
 .petd-tile.egg .ico { width: 82%; height: 82%; margin: 0; vertical-align: middle; }
 /* 상점 젬 표기는 숫자와 같은 줄이라 살짝 크게 */
 .shop-gem-dia .ico { width: 1.5em; height: 1.5em; margin: -.3em .06em -.3em 0; }
+
+/* ---- 판매 코인 분출 (사용자 지시: 모루에서 코인이 터지듯 나오고 착지 자리마다 금액이 떠오른다) ----
+   포물선은 x(등속)와 y(상승 감속 → 낙하 가속 → 바운스 1회)를 다른 요소에 나눠 걸어 만든다.
+   한 요소에 둘 다 걸면 transform이 합성되면서 직선 이동으로 보인다. */
+#coin-burst { position: absolute; inset: 0; pointer-events: none; z-index: 33; overflow: hidden; }
+.coin-fly {
+    position: absolute; will-change: transform;
+    animation: coinFlyX var(--dur, 780ms) linear var(--delay, 0ms) forwards;
+}
+.coin-fly-y { display: block; animation: coinFlyY var(--dur, 780ms) var(--delay, 0ms) forwards; }
+/* 1.15rem은 장비 시트 위에서 '먼지'로 읽혔다(실측 프레임) — 키우고 금색 글로우로 값을 띄운다 */
+.coin-fly-img { display: block; width: 1.55rem; height: 1.55rem; animation: coinSpin .42s linear infinite;
+    filter: drop-shadow(0 0 .3rem rgba(255,193,7,.95)) drop-shadow(0 1px 1px rgba(0,0,0,.55)); }
+.coin-fly-img .ico { width: 100%; height: 100%; display: block; }
+@keyframes coinFlyX { from { transform: translate(-50%, -50%); } to { transform: translate(calc(-50% + var(--dx)), -50%); } }
+@keyframes coinFlyY {
+    0%   { transform: translateY(0); animation-timing-function: cubic-bezier(.15,.7,.4,1); }   /* 솟구침 — 감속 */
+    45%  { transform: translateY(var(--rise)); animation-timing-function: cubic-bezier(.6,0,.85,.4); } /* 낙하 — 가속 */
+    72%  { transform: translateY(var(--drop)); animation-timing-function: cubic-bezier(.2,.7,.4,1); }  /* 착지 */
+    84%  { transform: translateY(calc(var(--drop) - .5rem)); animation-timing-function: cubic-bezier(.6,0,.9,.5); } /* 바운스 1회 */
+    100% { transform: translateY(var(--drop)); opacity: 0; }                                   /* 흡수되듯 사라짐 */
+}
+@keyframes coinSpin { from { transform: rotateY(0); } to { transform: rotateY(360deg); } }
+
+/* 착지 자리에서 떠오르는 금액 — 데미지 숫자와 같은 문법(위로 뜨며 페이드), 색만 금색 */
+.coin-amt {
+    position: absolute; transform: translate(-50%, -50%);
+    font-size: .82rem; font-weight: 900; color: #ffd54f; white-space: nowrap;
+    text-shadow: 0 1px 0 #000, 0 0 .4rem rgba(255,183,77,.9);
+    animation: coinAmt .72s ease-out forwards;
+}
+@keyframes coinAmt {
+    0%   { opacity: 0; transform: translate(-50%, -35%) scale(.8); }
+    18%  { opacity: 1; transform: translate(-50%, -60%) scale(1.12); }
+    100% { opacity: 0; transform: translate(-50%, -170%) scale(1); }
+}
+/* 총 획득액 — 코인 개수만큼 쪼갠 숫자만 보면 합계가 안 읽힌다 */
+.coin-total {
+    position: absolute; transform: translate(-50%, -50%);
+    display: flex; align-items: center; gap: .25rem; white-space: nowrap;
+    font-size: 1.25rem; font-weight: 900; color: #ffd54f;
+    text-shadow: 0 2px 0 #000, 0 0 .7rem rgba(255,183,77,.95);
+    animation: coinTotal 1.05s ease-out forwards;
+}
+.coin-total .ico { width: 1.1rem; height: 1.1rem; }
+@keyframes coinTotal {
+    0%   { opacity: 0; transform: translate(-50%, -30%) scale(.7); }
+    14%  { opacity: 1; transform: translate(-50%, -55%) scale(1.18); }
+    26%  { transform: translate(-50%, -58%) scale(1); }
+    72%  { opacity: 1; transform: translate(-50%, -85%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -125%) scale(.96); }
+}
