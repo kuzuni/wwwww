@@ -3015,11 +3015,20 @@ const Scene3D = {
         if (this._thumbR) return;
         this._thumbR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
         this._thumbR.setSize(96, 96);
+        // 본편(init L30~34)·생물 썸네일(creatureThumbInit)과 **같은 색 파이프라인**을 준다.
+        // 예전엔 이 렌더러만 Linear·톤매핑 없음 + 흰 AmbientLight 0.85 라 밝은 물질(뼈·천·은·금·holo)의
+        // 하이라이트가 순백으로 타 형태 정보가 통째로 소실됐다(비평가 D3, `probe-equip-clip.js` 실측:
+        // 피사체 17.1% 순백 클리핑·일부 칸 100%). ACESFilmic 이 스펙큘러를 롤오프하고, sRGB 인코딩은
+        // 재질색을 본편과 같은 감마로 낸다(장비 재질 빌더는 본편 sRGB+ACES 하에서 영웅에 입혀지는 그것과
+        // 동일하므로 톤매핑을 맞춰야 썸네일이 실착용 모습과 일치한다). 흰 채움광도 낮춰 포화 여지를 줄인다.
+        this._thumbR.outputEncoding = THREE.sRGBEncoding;
+        this._thumbR.toneMapping = THREE.ACESFilmicToneMapping;
+        this._thumbR.toneMappingExposure = 1.0;
         this._thumbScene = new THREE.Scene();
         // far 는 넉넉히 — 자동 프레이밍이 형상에 따라 카메라를 멀리 빼므로 10 이면 큰 모델이 잘린다
         this._thumbCam = new THREE.PerspectiveCamera(35, 1, 0.01, 200);
-        this._thumbAmb = new THREE.AmbientLight(0xffffff, 0.85);
-        this._thumbDir = new THREE.DirectionalLight(0xffffff, 0.8);
+        this._thumbAmb = new THREE.AmbientLight(0xffffff, 0.42);
+        this._thumbDir = new THREE.DirectionalLight(0xffffff, 0.72);
         this._thumbDir.position.set(2, 3, 2);
         // 썸네일 렌더러는 별도 GL 컨텍스트 — 메인 씬의 PMREM 텍스처 공유 불가.
         // 자체 PMREM 환경 필수: 없으면 고금속 PBR 재질(무기 날 등)이 반사할 게 없어 검게 찍힘.
