@@ -105,8 +105,12 @@ const SEED = () => {
             // 화면 간 오염 제거: closeAllTabSurfaces는 MODAL_TAB 등록 모달만 닫으므로
             // 오프라인 보상·상세 툴팁 같은 미등록 모달이 다음 화면 위에 그대로 남아 캡처를 덮는다
             // (비평가 6인 전원이 '오프라인 모달이 화면 53%를 가려 채점 불가'로 지적) — 전 .modal 강제 닫기 + 토스트 소거
+            // 탭 패널(소환/방 등)은 .modal이 아니라 switchTab이 관리하는 별도 면이라 위 두 줄로는 안 닫힌다
+            // — 앞 화면에서 켠 탭이 남아 다음 화면의 '배경'으로 찍힌다(gear-detail 배경에 기술 트리가 깔려
+            // 원본 대비 밴드가 33%p 어긋난 것으로 잡혔다). 탭 상태까지 되돌려야 배경이 원본과 같은 메인이 된다.
             await page.evaluate(() => {
                 try { UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); } catch (e) { }
+                try { UI.switchTab && UI.switchTab(null); } catch (e) { }
                 document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
                 const t = document.getElementById('toasts'); if (t) t.innerHTML = '';
             });
