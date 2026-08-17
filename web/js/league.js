@@ -36,12 +36,12 @@ const League = {
         const bots = Array.from({ length: this.BOT_COUNT }, (_, i) => ({
             name: shuffled[i] || `Guest${i}`,
             avatar: U.choice(this.AVATAR_POOL),
-            cp: Math.max(1, myCp * U.rand(0.4, 2.5)),
+            cp: Big.of(myCp).mul(U.rand(0.4, 2.5)).max(Big.ONE), // Big — 세이브엔 문자열로 나가고 Big.of()로 되읽는다
             score: Math.round(U.rand(20, 200)),
             server: U.randInt(1, 30),
         }));
         // 상위 5명을 "도전 상대" 후보로 고정 (전투력 강한 순 — 강할수록 ⭐보상 큼, UI-SPEC 5번)
-        bots.sort((a, b) => b.cp - a.cp);
+        bots.sort((a, b) => Big.of(b.cp).cmp(Big.of(a.cp)));
         return bots;
     },
 
@@ -86,7 +86,9 @@ const League = {
         const bot = S.league.bots[idx];
         const starReward = this.CHALLENGE_COUNT - idx;
         const myCp = Combat.combatPower();
-        const winChance = U.clamp(0.15 + (myCp / (myCp + bot.cp)) * 0.7, 0.05, 0.95);
+        // 전투력이 Big이라 나눗셈은 ratioTo로 — 승천이 쌓여 양쪽이 거대해져도 비율은 0~1로 안전하다
+        const botCp = Big.of(bot.cp);
+        const winChance = U.clamp(0.15 + myCp.ratioTo(myCp.add(botCp)) * 0.7, 0.05, 0.95);
         const win = U.chance(winChance);
         S.league.tickets--;
         if (win) S.league.score += starReward;

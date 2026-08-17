@@ -4179,7 +4179,7 @@ const Scene3D = {
                 m.blob.position.z = m.g.position.z;
                 m.blob.scale.setScalar((m.blob.userData.baseS || 0.95) * Math.max(0.55, 1 - m.g.position.y * 0.35)); // 0.8 감쇠는 비행 고도에서 블롭이 소멸해 '부유 스티커' (비평가 7.3 5번)
             }
-            const ratio = U.clamp(e.hp / e.maxHp, 0, 1);
+            const ratio = U.clamp(Big.of(e.hp).ratioTo(e.maxHp), 0, 1); // hp는 Big — 비율만 Number로 뽑는다
             m.hpFg.scale.x = Math.max(0.001, ratio);
             m.hpFg.position.x = -0.4 * (1 - ratio);
             m.hpFg.material.color.setHex(ratio > 0.5 ? 0x69f0ae : ratio > 0.2 ? 0xffd740 : 0xff5252);
@@ -4187,7 +4187,7 @@ const Scene3D = {
         // 영웅 머리 위 HP 바: 위치는 heroG를 매 프레임 추적, 비율·색은 적과 동일한 임계값
         if (this.heroHpG && this.heroG) {
             this.heroHpG.position.set(this.heroG.position.x, this.heroG.position.y + 1.85, this.heroG.position.z);
-            const hRatio = Combat.hero.maxHp > 0 ? U.clamp(Combat.hero.hp / Combat.hero.maxHp, 0, 1) : 1;
+            const hRatio = !Big.of(Combat.hero.maxHp).isZero() ? U.clamp(Big.of(Combat.hero.hp).ratioTo(Combat.hero.maxHp), 0, 1) : 1;
             this.heroHpFg.scale.x = Math.max(0.001, hRatio);
             this.heroHpFg.position.x = -0.4 * (1 - hRatio);
             this.heroHpFg.material.color.setHex(hRatio > 0.5 ? 0x69f0ae : hRatio > 0.2 ? 0xffd740 : 0xff5252);

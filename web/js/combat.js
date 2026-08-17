@@ -5,7 +5,7 @@ const Combat = {
     HERO_X: -1.35,
 
     enemies: [],
-    hero: { hp: 1, maxHp: 1, atkTimer: 0, stats: null },
+    hero: { hp: Big.ONE, maxHp: Big.ONE, atkTimer: 0, stats: null }, // hp·maxHp는 Big (승천 배율로 Number 한계를 넘는다)
     buffs: [],               // {buff:{atkPct|atkSpd}, until}
     cooldowns: {},           // skillId → 남은 초
     pending: [],             // 지연 실행 큐 [{t, fn}]
@@ -21,25 +21,29 @@ const Combat = {
     },
 
     recalcHero() {
-        const ratio = this.hero.maxHp > 0 ? this.hero.hp / this.hero.maxHp : 1;
+        // 비율은 Number로 뽑는다 — 체력이 아무리 커도 비율은 0~1이라 정밀도 문제가 없다
+        const ratio = (this.hero.maxHp && !Big.of(this.hero.maxHp).isZero())
+            ? Big.of(this.hero.hp).ratioTo(this.hero.maxHp) : 1;
         this.hero.stats = Forge.heroStats();
         this.hero.maxHp = this.hero.stats.hp;
-        this.hero.hp = this.hero.maxHp * U.clamp(ratio, 0, 1);
+        this.hero.hp = this.hero.maxHp.mul(U.clamp(ratio, 0, 1));
         // "정보" 탭이 열려 있으면 갱신된 전투력 수치도 함께 반영 (renderMenu 자체 activeTab 가드로 안전)
         UI.renderMenu();
     },
 
     // 종합 전투력 (상단바·PvP 리그 매칭 등에서 공용으로 참조)
+    // 종합 전투력 (Big) — 상단바 표시·PvP 매칭 공용
     combatPower() {
         const st = this.hero.stats;
-        if (!st) return 0;
-        return st.atk * st.attacksPerSec * (1 + st.critCh / 100 * st.critDmg / 100) + st.hp / 8;
+        if (!st) return Big.ZERO;
+        return st.atk.mul(st.attacksPerSec * (1 + st.critCh / 100 * st.critDmg / 100)).add(st.hp.div(8));
     },
 
     // ---- 스테이지/웨이브 ----
+    // 몬스터 기본 HP (Big) — 영웅 스탯이 승천으로 커지면 몬스터도 같은 축에서 비교돼야 한다
     monsterBaseHp() {
-        if (Dungeons.run) return Dungeons.monsterHp(Dungeons.run.id, Dungeons.run.stage);
-        return 55 * Math.pow(5.6, S.chapter - 1) * Math.pow(1.19, S.stage - 1);
+        if (Dungeons.run) return Big.of(Dungeons.monsterHp(Dungeons.run.id, Dungeons.run.stage));
+        return Big.of(55).mul(Math.pow(5.6, S.chapter - 1)).mul(Big.of(1.19).pow(S.stage - 1));
     },
 
     setupStage() {
@@ -58,14 +62,14 @@ const Combat = {
     nextWave() {
         this.wave++;
         const isBossWave = this.wave === 5;
-        const baseHp = this.monsterBaseHp() * (1 + 0.08 * (this.wave - 1));
+        const baseHp = this.monsterBaseHp().mul(1 + 0.08 * (this.wave - 1));
         const count = isBossWave ? 1 : (this.wave <= 2 ? 2 : 3);
         for (let i = 0; i < count; i++) {
-            const hp = baseHp * (isBossWave ? 6 : 1);
+            const hp = baseHp.mul(isBossWave ? 6 : 1);
             const e = {
                 id: ++this._enemySeq,
                 hp, maxHp: hp,
-                atk: hp / (isBossWave ? 9 : 14),
+                atk: hp.div(isBossWave ? 9 : 14),
                 x: 3.1 + i * 1.2 + U.rand(0, 0.4),
                 speed: U.rand(1.0, 1.4),
                 atkTimer: U.rand(0.3, 0.9),
@@ -115,7 +119,7 @@ const Combat = {
 
         // 체력 자연 회복: 기본 1%/s + 서브스탯 '체력 재생' 추가분
         const regenPct = 0.01 + (this.hero.stats ? this.hero.stats.hpRegen / 100 : 0);
-        this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + this.hero.maxHp * regenPct * dt);
+        this.hero.hp = this.hero.hp.add(this.hero.maxHp.mul(regenPct * dt)).min(this.hero.maxHp);
 
         if (this.phase === 'waveDelay' || this.phase === 'stageDelay') {
             this.phaseTimer -= dt;
@@ -157,7 +161,7 @@ const Combat = {
                 this.pending.push({ t: wt.impact + h * 0.12, fn: () => {
                     if (!target.alive) return;
                     const crit = U.chance(st.critCh / 100);
-                    const dmg = st.atk * U.rand(0.9, 1.1) * (crit ? st.critDmg / 100 + 1 : 1) * weaponDmgBonus;
+                    const dmg = st.atk.mul(U.rand(0.9, 1.1) * (crit ? st.critDmg / 100 + 1 : 1) * weaponDmgBonus);
                     this.damageEnemy(target, dmg, crit, null);
                     if (crit) Scene3D.shake(0.12);
                 }});
@@ -178,11 +182,12 @@ const Combat = {
         const d = Skills.def(id);
         const st = this.hero.stats;
         if (d.type === 'heal') {
-            if (this.hero.hp / this.hero.maxHp > 0.75) { if (manual) UI.toast('체력이 충분합니다'); return false; } // 낭비 방지
-            this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + this.hero.maxHp * Skills.effHeal(id));
+            if (this.hero.hp.ratioTo(this.hero.maxHp) > 0.75) { if (manual) UI.toast('체력이 충분합니다'); return false; } // 낭비 방지
+            const healAmt = this.hero.maxHp.mul(Skills.effHeal(id));
+            this.hero.hp = this.hero.hp.add(healAmt).min(this.hero.maxHp);
             Scene3D.skillEffect('heal', d.color, []);
             UI.skillCutin(d);
-            UI.floatTextAtHero(`+${U.fmt(this.hero.maxHp * Skills.effHeal(id))}`, 'heal');
+            UI.floatTextAtHero(`+${U.fmt(healAmt)}`, 'heal');
         } else if (d.type === 'buff') {
             // 같은 스킬의 이전 버프를 먼저 제거 — 재사용 대기시간이 지속시간보다 짧아지면(스킬재사용대기시간 서브스탯) 무한 중첩 방지
             this.buffs = this.buffs.filter(b => b.id !== id);
@@ -193,13 +198,13 @@ const Combat = {
         } else {
             const alive = this.aliveEnemies().filter(e => e.x < 3.2);
             if (!alive.length) { if (manual) UI.toast('사거리 안에 적이 없습니다'); return false; }
-            const dmg = Skills.dmg(id) * (1 + st.skillDmg / 100);
+            const dmg = Skills.dmg(id).mul(1 + st.skillDmg / 100);
             UI.skillCutin(d);
             UI.skillFlash(d.color);
             if (d.type === 'aoe') {
                 Scene3D.skillEffect(d.fx, d.color, alive.map(e => e.id));
                 Scene3D.shake(0.35);
-                for (const e of alive) this.pending.push({ t: 0.25, fn: () => { if (e.alive) this.damageEnemy(e, dmg * U.rand(0.9, 1.1), false, 'skill'); } });
+                for (const e of alive) this.pending.push({ t: 0.25, fn: () => { if (e.alive) this.damageEnemy(e, dmg.mul(U.rand(0.9, 1.1)), false, 'skill'); } });
             } else {
                 const t = this.priorityTarget();
                 if (!t) return false;
@@ -214,13 +219,14 @@ const Combat = {
 
     damageEnemy(e, dmg, crit, kind) {
         if (!e.alive) return;
-        e.hp -= dmg;
+        dmg = Big.of(dmg);
+        e.hp = e.hp.sub(dmg);
         SFX.hit(crit);
         Scene3D.hitEnemy(e.id, dmg, crit, kind);
         // 서브스탯 '생명력 흡수': 영웅이 입힌 피해의 일부를 회복
         const st = this.hero.stats;
-        if (st && st.lifesteal) this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + dmg * st.lifesteal / 100);
-        if (e.hp <= 0) {
+        if (st && st.lifesteal) this.hero.hp = this.hero.hp.add(dmg.mul(st.lifesteal / 100)).min(this.hero.maxHp);
+        if (!e.hp.isPos()) {
             e.alive = false;
             this.onKill(e);
             Scene3D.killEnemy(e.id, e.isBoss);
@@ -239,10 +245,10 @@ const Combat = {
             UI.floatTextAtHero('BLOCK', 'block');
             return;
         }
-        this.hero.hp -= dmg;
+        this.hero.hp = this.hero.hp.sub(dmg);
         SFX.hit(false);
         Scene3D.heroHit();
-        if (this.hero.hp <= 0) this.onDefeat();
+        if (!this.hero.hp.isPos()) this.onDefeat();
     },
 
     // ---- 보상 ----

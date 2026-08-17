@@ -63,8 +63,8 @@ const Mounts = {
     // 장착 시 이 탈것 1마리가 기여하는 고정 데미지·체력 (레벨 배율 × 승천 배율)
     mountPower(m) {
         const base = this.baseStat(m.rarity);
-        const mult = this.levelMult(m) * Ascension.starMult(m.stars) * TechTree.mountPowerMult();
-        return { atk: base.atk * mult, hp: base.hp * mult };
+        const mult = Ascension.starMult(m.stars).mul(this.levelMult(m) * TechTree.mountPowerMult());
+        return { atk: mult.mul(base.atk), hp: mult.mul(base.hp) };
     },
 
     // 경험치 흡수형 업그레이드 (펫과 동일 방식) — 원본 수치 미확보로 자체 설계 커브
@@ -145,7 +145,7 @@ const Mounts = {
 
     // 장착 중인 탈것의 고정 공격력·체력 + 서브스탯 보너스 (없으면 전부 0)
     activeBonus() {
-        const b = { atk: 0, hp: 0, subs: [] };
+        const b = { atk: Big.ZERO, hp: Big.ZERO, subs: [] };
         const m = S.activeMount ? S.mounts[S.activeMount] : null;
         if (!m) return b;
         const pw = this.mountPower(m);

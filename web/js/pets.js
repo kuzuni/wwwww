@@ -128,8 +128,8 @@ const Pets = {
     // 장착(출전) 시 펫 1마리가 기여하는 고정 데미지·체력 (petStats 원본 수치 × 레벨 배율 × 승천 배율)
     petPower(p) {
         const def = this.petDef(p);
-        const mult = this.levelMult(p) * Ascension.starMult(p.stars) * TechTree.petPowerMult();
-        return { atk: def.damage * mult, hp: def.health * mult };
+        const mult = Ascension.starMult(p.stars).mul(this.levelMult(p) * TechTree.petPowerMult());
+        return { atk: mult.mul(def.damage), hp: mult.mul(def.health) };
     },
 
     // 경험치 흡수형 업그레이드 (UI-SPEC '펫 업그레이드 팝업') — 원본 수치 미확보로 자체 설계 커브
@@ -177,13 +177,13 @@ const Pets = {
 
     // 출전 중인 모든 펫의 합산 보너스 (고정 공격력·체력 + 서브스탯 원본 배열)
     activeBonus() {
-        const b = { atk: 0, hp: 0, subs: [] };
+        const b = { atk: Big.ZERO, hp: Big.ZERO, subs: [] };
         for (const idx of S.activePets) {
             const p = S.pets[idx];
             if (!p) continue;
             const pw = this.petPower(p);
-            b.atk += pw.atk;
-            b.hp += pw.hp;
+            b.atk = b.atk.add(pw.atk);
+            b.hp = b.hp.add(pw.hp);
             b.subs.push(...(p.subs || []));
         }
         return b;

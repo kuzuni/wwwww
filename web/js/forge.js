@@ -4,6 +4,13 @@ const Forge = {
     tierBaseAtk(ageIdx) { return 12 * Math.pow(6, ageIdx); },
     tierBaseHp(ageIdx) { return 70 * Math.pow(6, ageIdx); },
 
+    // 장비 1개의 최종 능력치 = 티어 기본치 × 레벨 배율 × 등급 배율 × 승천 배율.
+    // 승천 배율(Ascension.STAR_MULT^별)이 곱해지는 순간 Number 한계를 넘으므로 Big으로 계산한다.
+    itemValue(item) {
+        if (!item) return Big.ZERO;
+        return Big.of(item.value).mul(Ascension.starMult(item.stars));
+    },
+
     // ===== 시대별 뽑기 레벨 (원본 포지마스터 방식, 사용자 원본 확인 2026-08-17) =====
     // 대장간 레벨로 장비 레벨을 산정하던 방식(forgeLevel×3, max-5~max)은 추측이라 폐기.
     // 각 시대는 자기만의 "현재 뽑기 레벨"(S.rollLevel[age])을 갖고, 그 시대 장비가 나올 때마다
@@ -117,11 +124,12 @@ const Forge = {
         return { name, slot, age, ageIdx, rarity, level, main, value, subs, wtype, nameIdx, stars: Ascension.count('forge') };
     },
 
+    // 장비 비교용 종합 위력 (Big) — 승천 별이 붙으면 Number로는 표현이 안 돼 Big으로 반환한다.
     itemPower(item) {
-        if (!item) return 0;
-        let p = item.value;
-        for (const s of item.subs) p *= (1 + s.value / 200); // 서브스탯 대략 환산
-        return p * Ascension.starMult(item.stars);
+        if (!item) return Big.ZERO;
+        let sub = 1;
+        for (const s of item.subs) sub *= (1 + s.value / 200); // 서브스탯 대략 환산 (배율이라 Number로 충분)
+        return this.itemValue(item).mul(sub);
     },
 
     // 장착 중인 장비와 슬롯·등급·이름이 같은지 (비교 팝업의 '같은 장비' 표기용)
@@ -167,7 +175,8 @@ const Forge = {
     autoResolve(item) {
         const cur = S.equipment[item.slot];
         // 승천 별을 쌓은 장착 중 장비는 오토포지가 임의로 교체·판매하지 않음(별은 판매가에 반영되지 않아 무경고로 영구 손실됨) — 교체는 항상 수동(비교 팝업)에서만
-        if ((!cur || !cur.stars) && this.itemPower(item) > this.itemPower(cur)) {
+        // itemPower는 Big — '>'로 비교하면 객체가 문자열로 강제 변환돼 "1.2e5" > "3.4e2" 같은 사전식 비교가 된다. 반드시 gt()로.
+        if ((!cur || !cur.stars) && this.itemPower(item).gt(this.itemPower(cur))) {
             const prev = this.equip(item);
             const gained = prev ? this.sell(prev) : 0;
             return { equipped: true, gained };
@@ -252,13 +261,13 @@ const Forge = {
 
     // 영웅 종합 스탯 (장비 + 서브스탯 + 버프) — 서브스탯 13종은 U.sumSubs로 공용 집계
     heroStats() {
-        let atk = 15, hp = 150; // 맨몸 기본치
-        let gearAtk = 0, gearHp = 0; // 기술트리 '장비 숙련' 보너스가 적용되는 부분
+        let atk = Big.of(15), hp = Big.of(150); // 맨몸 기본치
+        let gearAtk = Big.ZERO, gearHp = Big.ZERO; // 기술트리 '장비 숙련' 보너스가 적용되는 부분
         for (const slot of SLOTS) {
             const it = S.equipment[slot];
             if (!it) continue;
-            const starM = Ascension.starMult(it.stars); // 승천(별): 장비 1개당 별 개수만큼 능력치 배율 상승
-            if (it.main === 'atk') gearAtk += it.value * starM; else gearHp += it.value * starM;
+            const v = this.itemValue(it); // 승천(별): 장비 1개당 별 개수만큼 능력치 배율 상승
+            if (it.main === 'atk') gearAtk = gearAtk.add(v); else gearHp = gearHp.add(v);
         }
         // 출전 펫 + 장착 탈것: 고정 데미지·체력 + 서브스탯 (전투에 직접 참여하지 않고 스탯만 기여)
         const pb = Pets.activeBonus();
@@ -273,11 +282,13 @@ const Forge = {
             if (b.buff.atkSpd) buffAtkSpd += b.buff.atkSpd;
         }
 
-        atk += gearAtk * TechTree.gearPowerMult() + pb.atk + mb.atk + sb.atk;
-        hp += gearHp * TechTree.gearPowerMult() + pb.hp + mb.hp + sb.hp;
+        // 합산은 Big — 승천한 장비/펫/탈것/스킬이 하나라도 섞이면 Number로는 담기지 않는다.
+        atk = atk.add(gearAtk.mul(TechTree.gearPowerMult())).add(pb.atk).add(mb.atk).add(sb.atk);
+        hp = hp.add(gearHp.mul(TechTree.gearPowerMult())).add(pb.hp).add(mb.hp).add(sb.hp);
         return {
-            atk: atk * (1 + (bag.dmgPct + buffAtkPct) / 100),
-            hp: hp * (1 + bag.hpPct / 100),
+            // atk·hp만 Big. 나머지(확률·%·공속)는 승천과 무관하게 작은 값이라 Number 그대로 둔다.
+            atk: atk.mul(1 + (bag.dmgPct + buffAtkPct) / 100),
+            hp: hp.mul(1 + bag.hpPct / 100),
             critCh: Math.min(80, 5 + bag.critCh),
             critDmg: 100 + bag.critDmg,
             attacksPerSec: 1.1 * (1 + (bag.atkSpd + buffAtkSpd) / 100),

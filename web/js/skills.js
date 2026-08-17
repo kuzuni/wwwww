@@ -62,7 +62,8 @@ const Skills = {
     dmg(id) {
         const d = this.def(id);
         const sk = S.skills[id];
-        return SKILL_BASE_DMG[d.rarity] * (d.mult || 0) * this.levelMult(id) * Ascension.starMult(sk && sk.stars);
+        // 승천 배율이 곱해지면 Number 한계를 넘으므로 Big 반환 (전투 데미지도 Big으로 흐른다)
+        return Ascension.starMult(sk && sk.stars).mul(SKILL_BASE_DMG[d.rarity] * (d.mult || 0) * this.levelMult(id));
     },
     effHeal(id) {
         const d = this.def(id);
@@ -116,10 +117,10 @@ const Skills = {
     // 스킬 1개의 고정 패시브 (기본 피해·기본 체력) — 상세 팝업 표시용
     passiveOf(id) {
         const d = this.def(id), sk = S.skills[id];
-        if (!d || !sk) return { atk: 0, hp: 0 };
+        if (!d || !sk) return { atk: Big.ZERO, hp: Big.ZERO };
         const base = SKILL_BASE_PASSIVE[d.rarity];
-        const mult = this.levelMult(id) * Ascension.starMult(sk.stars);
-        return { atk: base.atk * mult, hp: base.hp * mult };
+        const mult = Ascension.starMult(sk.stars).mul(this.levelMult(id));
+        return { atk: mult.mul(base.atk), hp: mult.mul(base.hp) };
     },
 
     // 보유한 모든 스킬의 고정 패시브 합계 (기본 피해·기본 체력).
@@ -128,13 +129,13 @@ const Skills = {
     // 액티브 시전은 Combat이 S.equippedSkills만 돌린다.
     // 펫·탈것은 이와 달리 출전/장착 효과라 activeBonus()로 유지.
     ownedPassive() {
-        const b = { atk: 0, hp: 0 };
+        let atk = Big.ZERO, hp = Big.ZERO;
         for (const id of Object.keys(S.skills)) {
             const p = this.passiveOf(id);
-            b.atk += p.atk;
-            b.hp += p.hp;
+            atk = atk.add(p.atk);
+            hp = hp.add(p.hp);
         }
-        return b;
+        return { atk, hp };
     },
 
     toggleEquip(id) {

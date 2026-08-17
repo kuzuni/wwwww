@@ -628,7 +628,7 @@ const UI = {
                 </div>
                 <div class="cmp-info">
                     <div class="cmp-name">[${AGE_KR[item.age]}] ${item.name}</div>
-                    <div class="cmp-stat">${U.fmt(item.value)} ${item.main === 'atk' ? '피해' : '체력'}${arrowHtml}</div>
+                    <div class="cmp-stat">${U.fmt(Forge.itemValue(item))} ${item.main === 'atk' ? '피해' : '체력'}${arrowHtml}</div>
                     ${subsHtml}
                 </div>
             </div>
@@ -639,7 +639,8 @@ const UI = {
         const cur = S.equipment[item.slot];
         const isMatch = Forge.isMatchingGear(item, cur);
         // 원본은 전투력이 아니라 두 장비의 주 스탯(공격력/체력) 값을 직접 비교해 화살표를 매김 (UI-SPEC 25번)
-        const newIsHigher = !cur || item.value >= cur.value;
+        // 승천 별이 붙은 장비와 안 붙은 장비를 함께 비교해야 하므로 별 배율까지 반영한 itemValue로 견준다
+        const newIsHigher = !cur || Forge.itemValue(item).gte(Forge.itemValue(cur));
         // 장착 중인 장비가 위, 새 장비가 아래 (UI-SPEC 25번)
         // 원본(shot-043224): 타이틀 줄 없음, 버튼 라벨은 "판매"/"장착"만 — 판매액·기존 판매 안내는 소자로
         this.els.craftModal.innerHTML = `
