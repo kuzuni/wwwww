@@ -1022,7 +1022,13 @@ body {
 .pass-badge.lock { top: .3rem; right: .35rem; font-size: 1rem; filter: drop-shadow(0 1px 0 #000); }
 
 /* ---- 상점 탭 (shot-042632 원본 대조 재작업: 다크 마룬 배경 + 금색 리본 + 깃발 태그 카드) ---- */
-.modal-card.sheet.shop-sheet { background: #3b1030; }
+/* 상점은 뷰포트 전체를 덮는 스크롤 시트인데 #tabbar(z-index:30)가 .modal(z-index:20) 위에 떠 있어,
+   시트 아래쪽 --tabbar-h 만큼은 항상 탭바에 가린다. 아래 여백이 1.2rem뿐이면 맨 끝 '보석' 카드 3장의
+   가격 버튼이 스크롤을 끝까지 내려도 탭바 아래(430×932 실측 y=791~819 vs 탭바 top=776)에 남아
+   elementFromPoint가 탭바 버튼으로 잡히고, 그 자리를 누르면 상점이 닫혀 버렸다(4개 뷰포트 전부 재현).
+   같은 풀스크린 시트인 .mount-sheet(1647행)와 동일하게 탭바 높이만큼 스크롤 여유를 더해 마지막
+   블록이 탭바 위로 올라오게 한다. 스크롤 상단(scrollTop=0) 레이아웃은 그대로라 원본 비율 영향 없음. */
+.modal-card.sheet.shop-sheet { background: #3b1030; padding-bottom: calc(var(--tabbar-h) + .9rem); }
 .shop-sheet .shop-title { color: #ffb300; }
 .shop-sub { text-align: center; color: #fff; font-size: .8rem; font-weight: 800; margin: .15rem 0 .55rem; }
 .shop-banner {
