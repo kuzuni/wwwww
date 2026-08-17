@@ -489,19 +489,21 @@ const PET_MOTION = {
 // 마운트 이름 한글화 + 아이콘(이모지 프리뷰)
 const MOUNT_KR = {
     'Brown Leaf': '갈색 나뭇잎', 'Lily Leaf': '수련잎', 'Lily Pad': '연잎',
-    'Turtle': '거북이', 'Crab': '게', 'Brown Horse': '갈색 말', 'Dino': '공룡',
-    'Pig': '돼지', 'Goat': '염소',
-    'Bike': '자전거', 'Giant Bee': '거대 벌',
-    'Mini Dragon': '미니 드래곤', 'One-Wheel Droid': '외바퀴 드로이드',
-    'Hover Board': '호버보드', 'Hover Disk': '호버 디스크',
+    'Oak Leaf': '떡갈나무잎', 'Log Raft': '통나무 뗏목', 'Sheep': '양',
+    'Turtle': '거북이', 'Crab': '게', 'Brown Horse': '갈색 말', 'Dino': '공룡', 'Boar': '멧돼지',
+    'Pig': '돼지', 'Goat': '염소', 'Camel': '낙타', 'Elk': '큰사슴', 'Panther': '흑표범',
+    'Bike': '자전거', 'Giant Bee': '거대 벌', 'Armored Rhino': '장갑 코뿔소',
+    'Mini Dragon': '미니 드래곤', 'One-Wheel Droid': '외바퀴 드로이드', 'Mech Spider': '기계 거미',
+    'Hover Board': '호버보드', 'Hover Disk': '호버 디스크', 'Star Whale': '별고래',
 };
 const MOUNT_ICONS = {
     'Brown Leaf': '🍂', 'Lily Leaf': '🍃', 'Lily Pad': '🪷',
-    'Turtle': '🐢', 'Crab': '🦀', 'Brown Horse': '🐴', 'Dino': '🦕',
-    'Pig': '🐷', 'Goat': '🐐',
-    'Bike': '🚲', 'Giant Bee': '🐝',
-    'Mini Dragon': '🐉', 'One-Wheel Droid': '🤖',
-    'Hover Board': '🛹', 'Hover Disk': '🛸',
+    'Oak Leaf': '🌿', 'Log Raft': '🪵', 'Sheep': '🐑',
+    'Turtle': '🐢', 'Crab': '🦀', 'Brown Horse': '🐴', 'Dino': '🦕', 'Boar': '🐗',
+    'Pig': '🐷', 'Goat': '🐐', 'Camel': '🐫', 'Elk': '🦌', 'Panther': '🐆',
+    'Bike': '🚲', 'Giant Bee': '🐝', 'Armored Rhino': '🦏',
+    'Mini Dragon': '🐉', 'One-Wheel Droid': '🤖', 'Mech Spider': '🕷',
+    'Hover Board': '🛹', 'Hover Disk': '🛸', 'Star Whale': '🐋',
 };
 
 // 기능 해금 (원본 스테이지 해금 테이블)

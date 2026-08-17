@@ -326,13 +326,19 @@ const mountBoosts = {
 };
 
 // 마운트 이름 목록 (등급별)
+// 탈것 로스터 — 등급당 종수를 **펫과 같은 수준**으로 맞춘다 (사용자 지시 2026-08-18
+// "탈것 존나 여러 개 뽑았는데 3개만 보인다, 펫처럼 각자로 되게 여러 개 떠야 하는데").
+// 중복은 펫과 똑같이 dupes로 합쳐지는 게 정상 규칙이고, 3개만 보인 진짜 원인은 **common이 3종뿐**이라
+// 초반 소환이 그 3종으로 수렴한 것이었다(실측: 20회 소환 → 타일 3개·중복 17). 펫 로스터(6/5/5/3/3/3)에
+// 맞춰 common 6 · rare 5 · epic 5 · legendary 3 · ultimate 3 · mythic 3 = 25종으로 늘렸다.
+// ⚠️ 종을 추가하면 MOUNT_KR·MOUNT_ICONS(gamedata.js)와 Scene3D.MOUNT_FORM_OF(계열)도 같이 채울 것.
 const mountNames = {
-    common: ['Brown Leaf', 'Lily Leaf', 'Lily Pad'],
-    rare: ['Turtle', 'Crab', 'Brown Horse', 'Dino'],
-    epic: ['Pig', 'Goat'],
-    legendary: ['Bike', 'Giant Bee'],
-    ultimate: ['Mini Dragon', 'One-Wheel Droid'],
-    mythic: ['Hover Board', 'Hover Disk']
+    common: ['Brown Leaf', 'Lily Leaf', 'Lily Pad', 'Oak Leaf', 'Log Raft', 'Sheep'],
+    rare: ['Turtle', 'Crab', 'Brown Horse', 'Dino', 'Boar'],
+    epic: ['Pig', 'Goat', 'Camel', 'Elk', 'Panther'],
+    legendary: ['Bike', 'Giant Bee', 'Armored Rhino'],
+    ultimate: ['Mini Dragon', 'One-Wheel Droid', 'Mech Spider'],
+    mythic: ['Hover Board', 'Hover Disk', 'Star Whale']
 };
 
 const WINDERS_PER_SUMMON = 50; // 소환 1회당 태엽(클록와인더) 비용

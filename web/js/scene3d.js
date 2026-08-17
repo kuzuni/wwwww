@@ -3534,11 +3534,11 @@ const Scene3D = {
             }
         };
 
-        const FLAT = ['Brown Leaf', 'Lily Leaf', 'Lily Pad', 'Hover Board', 'Hover Disk'];
-        const FLY = ['Giant Bee', 'Mini Dragon'];
-        const WHEELED = ['Bike', 'One-Wheel Droid'];
+        // 계열은 MOUNT_FORM_OF 하나만 본다 — 예전엔 여기 FLAT/FLY/WHEELED 배열이 따로 있어서
+        // 탈것을 추가할 때 두 곳을 맞춰야 했고, 한쪽만 고치면 '몸은 사족인데 포즈는 평판'이 된다.
+        const formKey = this.MOUNT_FORM_OF[name] || 'quad';
 
-        if (FLAT.includes(name)) { // 평판형: 나뭇잎/연잎/호버보드/호버디스크 — 넓적한 발판 + 탑승 발판 위 살짝 솟은 손잡이
+        if (formKey === 'flat') { // 평판형: 나뭇잎/연잎/호버보드/호버디스크 — 넓적한 발판 + 탑승 발판 위 살짝 솟은 손잡이
             // 예전 (1.7, 0.32, 1.9)는 폭이 영웅 어깨너비의 3배라, 게임 카메라 거리에서 '탈것'이 아니라
             // 잔디에 깔린 초록 범위 표시 데칼로 읽혔다(비평가 지적, 실제로 그렇게 보인다).
             // 폭을 줄이고 두께를 키우고 지면에서 띄워(hover 0.10) 판때기로 읽히게 한다.
@@ -3547,8 +3547,45 @@ const Scene3D = {
             sp(0.34, 0, 0.02, 0, dark, 1.08, 0.2, 1.28);   // 아래턱 — 옆에서 봤을 때 두께가 보이게
             if (hover) to(0.3, 0.03, 0, 0.01, 0, M(0x29e0ff, { emissive: 0x0aa0c0, emissiveIntensity: 0.6 })).rotation.x = -Math.PI / 2; // 눕혀야 발판 테두리가 된다 (세로로 서 있어 발판 아래로 반원이 튀어나왔다)
             else sp(0.3, 0, 0.09, 0, light, 1.5, 0.2, 1.6);
+            // 같은 평판이라도 종이 구분돼야 한다 — 같은 발판만 색만 바꿔 내보내면 로스터를 늘려도
+            // '똑같은 판때기가 여러 개'로 읽혀 사용자 지적이 그대로 남는다.
+            if (name === 'Oak Leaf') {                    // 떡갈나무잎: 굵은 주맥 + 갈라진 결각 + 잎자루
+                // ⚠️ 발판 스피어의 실제 반높이는 0.34×0.42=0.143이라 윗면이 y=0.193이다.
+                //    주맥을 y 0.10에 두면 **판 안에 묻혀** 아무것도 안 보인다(첫 시도가 그랬다).
+                bx(0.05, 0.025, 0.90, 0, 0.205, 0, dark);                                  // 주맥 — 윗면 위에 얹는다
+                for (let i = 0; i < 3; i++) for (const s of [-1, 1]) {                      // 결각(잎 가장자리 굴곡)
+                    sp(0.115, s * 0.36, 0.05, -0.28 + i * 0.28, mat, 1.0, 0.42, 1.0);
+                }
+                const stem = cy(0.028, 0.02, 0.26, 0, 0.06, -0.60, dark); stem.rotation.x = Math.PI / 2; // 잎자루
+            } else if (name === 'Log Raft') {              // 통나무 뗏목: 통나무 4짝 + 가로 결박
+                for (let i = 0; i < 4; i++) {
+                    const lg = cy(0.075, 0.075, 0.92, -0.20 + i * 0.135, 0.085, 0, i % 2 ? mat : dark);
+                    lg.rotation.x = Math.PI / 2;
+                }
+                for (const z of [-0.28, 0.28]) bx(0.62, 0.022, 0.035, 0, 0.155, z, M(0x6d4c41));  // 결박 밧줄
+            } else if (name === 'Brown Leaf') {            // 마른 잎: 끝이 말려 올라가고 잎맥이 갈라진다
+                sp(0.19, 0, 0.14, -0.42, mat, 1.0, 0.5, 0.7).rotation.x = -0.5;                 // 말린 끝
+                bx(0.035, 0.02, 0.80, 0, 0.205, 0.02, dark);                                    // 주맥
+                for (let i = 0; i < 3; i++) for (const s of [-1, 1]) {                          // 측맥
+                    const v = bx(0.30, 0.015, 0.02, s * 0.17, 0.20, -0.20 + i * 0.24, dark);
+                    v.rotation.y = s * 0.55;
+                }
+            } else if (name === 'Lily Leaf') {             // 수련잎: 원형 판에 V자 갈라짐(노치)
+                cn(0.17, 0.30, 0, 0.13, 0.40, dark).rotation.x = -Math.PI / 2;                  // 앞쪽 노치(어두운 쐐기)
+                to(0.33, 0.022, 0, 0.185, 0, dark).rotation.x = -Math.PI / 2;                   // 가장자리 테
+            } else if (name === 'Lily Pad') {              // 연잎: 솟은 테두리 + 가운데 물방울
+                to(0.34, 0.045, 0, 0.16, 0, mat).rotation.x = -Math.PI / 2;                     // 오목하게 솟은 테두리
+                sp(0.075, 0, 0.20, 0.06, M(0x81d4fa, { emissive: 0x0288d1, emissiveIntensity: 0.35 }), 1.0, 0.55, 1.0); // 물방울
+            } else if (name === 'Hover Board') {           // 호버보드: 각진 데크 + 아래 추진 노즐 2개
+                bx(0.62, 0.055, 0.86, 0, 0.15, 0, mat);                                         // 각진 데크(원판과 실루엣 분리)
+                for (const z of [-0.28, 0.28]) {
+                    const noz = cy(0.085, 0.11, 0.07, 0, -0.03, z, M(0x29e0ff, { emissive: 0x0aa0c0, emissiveIntensity: 0.9 }));
+                    noz.userData.thruster = true;
+                    bx(0.30, 0.03, 0.10, 0, 0.09, z, dark);                                     // 트럭(데크와 노즐을 잇는 받침)
+                }
+            }
             g.userData.deck = g.children[0];
-        } else if (WHEELED.includes(name)) { // 탈것형: 자전거/외바퀴 드로이드 — 바퀴 + 프레임
+        } else if (formKey === 'wheeled') { // 탈것형: 자전거/외바퀴 드로이드 — 바퀴 + 프레임
             if (name === 'Bike') {
                 // ⚠️ 예전엔 바퀴 두 짝을 **좌우(x=±0.28)** 에 세워 놨다 — 자전거가 아니라 링 두 개 사이에
                 //    영웅이 떠 있는 꼴이라 "탄 것 같지 않다"의 주범이었다. 바퀴는 앞뒤(z=±0.30)에 둔다.
@@ -3576,12 +3613,23 @@ const Scene3D = {
                 sp(0.10, 0, 0.335, -0.03, LEATHER, 0.55, 0.30, 1.15);   // 안장
                 for (const s of [-1, 1]) bx(0.08, 0.02, 0.1, s * 0.115, 0.10, 0.09, dark); // 발판
             }
-        } else if (FLY.includes(name)) { // 비행형: 거대 벌/미니 드래곤 — 몸통 + 날개
-            const dragon = name === 'Mini Dragon';
+        } else if (formKey === 'fly') { // 비행형: 거대 벌/미니 드래곤/별고래 — 몸통 + 날개
+            const dragon = name === 'Mini Dragon', whale = name === 'Star Whale';
             // 몸통을 좁고 길게 — 예전 (1.3, 0.85, 1.6)은 반폭 0.21이라 영웅 다리가 통째로 묻혀
             // '녹색 비행선 위에 뜬 사람'으로 읽혔다. 반폭 0.152면 다리가 양옆으로 나온다.
-            sp(0.16, 0, 0.22, 0, mat, dragon ? 0.95 : 0.9, dragon ? 1.0 : 0.95, dragon ? 1.75 : 1.2);
-            if (dragon) {
+            // 고래도 같은 반폭을 지킨다 — 실루엣은 길이(z)로 키우고 폭은 건드리지 않는다.
+            sp(0.16, 0, 0.22, 0, mat, dragon ? 0.95 : whale ? 0.95 : 0.9, dragon ? 1.0 : whale ? 1.05 : 0.95,
+               dragon ? 1.75 : whale ? 2.0 : 1.2);
+            if (whale) {
+                // 별고래: 둥근 머리 + 아래턱 홈 + 꼬리 지느러미(fluke), 등에 별 반짝임
+                HEADPART(sp(0.13, 0, 0.235, 0.44, mat, 1.0, 0.92, 1.05));                             // 둥근 이마
+                for (let i = 0; i < 4; i++) bx(0.14, 0.014, 0.02, 0, 0.135, 0.16 + i * 0.09, dark);    // 아래턱 주름
+                const fl = bx(0.44, 0.03, 0.14, 0, 0.20, -0.44, light); fl.rotation.x = 0.22;          // 꼬리 지느러미
+                g.userData.tail = fl;
+                const star = M(0xfff59d, { emissive: 0xffd54f, emissiveIntensity: 0.75 });
+                for (const [sx, sy2, sz] of [[0.10, 0.36, 0.10], [-0.09, 0.35, -0.14], [0.04, 0.37, -0.30]])
+                    sp(0.028, sx, sy2, sz, star);                                                      // 등에 박힌 별
+            } else if (dragon) {
                 // ⚠️ 말과 같은 사고 — 목·머리가 안장 바로 앞(z 0.28~0.40)에 서 있어서 **먼 쪽 다리를
                 //    100% 가렸다**(실측). 용은 목을 앞으로 뻗고 나는 실루엣이 정상이므로, 어깨에서
                 //    앞·아래로 길게 빼면 다리가 드러나면서 '날고 있는' 자세도 같이 좋아진다.
@@ -3601,15 +3649,17 @@ const Scene3D = {
             g.userData.wings = [];
             for (const s of [-1, 1]) {
                 // 날개를 크게 — 비행형이 '날고 있다'로 읽히려면 실루엣에서 몸통보다 넓어야 한다
-                const wing = dragon ? sp(0.16, s * 0.30, 0.36, -0.04, light, 1.5, 0.12, 1.0)
-                                    : bx(0.34, 0.02, 0.17, s * 0.25, 0.34, -0.02, light);
+                // 고래는 날개가 아니라 **가슴지느러미**라 몸통 앞쪽·아래에 눕혀 단다
+                const wing = whale ? sp(0.15, s * 0.30, 0.19, 0.10, light, 1.7, 0.1, 0.85)
+                                   : dragon ? sp(0.16, s * 0.30, 0.36, -0.04, light, 1.5, 0.12, 1.0)
+                                            : bx(0.34, 0.02, 0.17, s * 0.25, 0.34, -0.02, light);
                 wing.userData.s = s;
                 g.userData.wings.push(wing);
             }
-            eyes(dragon ? 0.41 : 0.28, dragon ? 0.78 : 0.29, 0.05);
-            if (!dragon) { const sting = cn(0.025, 0.12, 0, 0.2, -0.21, blk); sting.rotation.x = Math.PI; g.userData.tail = sting; }
+            eyes(dragon ? 0.41 : whale ? 0.25 : 0.28, dragon ? 0.78 : whale ? 0.52 : 0.29, whale ? 0.09 : 0.05);
+            if (!dragon && !whale) { const sting = cn(0.025, 0.12, 0, 0.2, -0.21, blk); sting.rotation.x = Math.PI; g.userData.tail = sting; }
             // 비행형 안장: form.saddle 0.38 / 몸통 반폭·반높이·중심 y / 발은 몸통 옆 허공(등자만)
-            saddleRig(0.38, dragon ? 0.152 : 0.144, dragon ? 0.16 : 0.152, 0.22, [0.20, 0.06, 0.09]);
+            saddleRig(0.38, dragon || whale ? 0.152 : 0.144, dragon ? 0.16 : whale ? 0.168 : 0.152, 0.22, [0.20, 0.06, 0.09]);
         } else { // 사족보행형: 거북이/게/말/공룡/돼지/염소 — 공용 몸통+머리+다리 골격, 파츠로 종 구분
             // 몸통: 예전 (1.3, 0.85, 1.6)은 반폭 0.286 — 탑승 배율까지 곱하면 영웅 다리보다 넓어
             // 다리가 통째로 몸통 안에 묻혔다("공중부양/관통" 불합격 사유의 실체). 실제 말 배럴처럼
@@ -3621,11 +3671,51 @@ const Scene3D = {
             //    즉 안장 바로 앞·위에 굵게 서 있고 머리가 z 0.34에 얹혀서, 카메라에서 보면 그 둘이
             //    **반대쪽(먼) 다리를 통째로 가렸다**(실측: 먼 허벅지·정강이 가림률 100%). 말은 목이 앞으로
             //    누워 나가는 동물이라, 앞·아래로 빼면서 굵기도 줄이면 다리가 드러나고 실루엣도 말다워진다.
-            const longNeck = name === 'Brown Horse' || name === 'Dino';
+            // 낙타도 목이 긴 계열 — 같은 목 튜브를 쓴다(가림률이 이미 검증된 형상이라 새로 만들지 않는다).
+            // 큰사슴은 짧은목 자리(headZ 0.46)를 유지한다 — 뿔을 그 머리 위치에 맞춰 달았기 때문이다.
+            const longNeck = name === 'Brown Horse' || name === 'Dino' || name === 'Camel';
             if (longNeck) HEADPART(tube([0, 0.40, 0.26], name === 'Dino' ? [0, 0.40, 0.60] : [0, 0.32, 0.58], 0.058, mat));
             // 뿔·코는 머리에 붙어 있어야 한다 — 머리를 앞으로 뺀 만큼(z +0.06) 같이 따라간다
             if (name === 'Goat') for (const s of [-1, 1]) { const horn = cn(0.025, 0.13, s * 0.06, 0.44, 0.40, light); horn.rotation.x = -0.6; horn.rotation.z = s * 0.3; }
             if (name === 'Pig') cn(0.05, 0.08, 0, 0.30, 0.56, light).rotation.x = Math.PI / 2;
+            // ── 추가 종의 식별 파츠 (로스터 확장 2026-08-18) ───────────────────────────────
+            // ⚠️ 파츠는 **안장 앞·위(z 0.2~0.4, y 0.4~0.5)를 피해서** 붙인다 — 거기 굵은 걸 세우면
+            //    카메라(탈것 앞-왼쪽 위)에서 먼 쪽 다리를 가려 probe-ride-clear가 바로 잡아낸다.
+            //    뿔·주둥이는 머리(headZ 0.46~0.68)에, 등짐·갈기는 몸통 뒤(z ≤ 0)에.
+            if (name === 'Sheep') {                        // 양: 뭉실한 양털 + 짧고 말린 뿔
+                for (const [sx, sy2, sz] of [[0.13, 0.36, -0.14], [-0.13, 0.36, -0.14], [0, 0.40, -0.30], [0, 0.38, 0.06]])
+                    sp(0.11, sx, sy2, sz, light, 1.0, 0.85, 1.0);
+                for (const s of [-1, 1]) { const h = to(0.045, 0.018, s * 0.07, 0.40, 0.44, dark); h.rotation.y = Math.PI / 2; }
+            } else if (name === 'Boar') {                  // 멧돼지: 위로 솟은 엄니 한 쌍 + 등 갈기
+                for (const s of [-1, 1]) { const tk = cn(0.018, 0.10, s * 0.055, 0.32, 0.54, M(0xf5f0e1)); tk.rotation.x = -0.45; tk.rotation.z = s * 0.25; }
+                for (let i = 0; i < 4; i++) cn(0.02, 0.07, 0, 0.40 + (i === 0 ? 0.02 : 0), -0.22 + i * 0.11, dark);
+            } else if (name === 'Camel') {                 // 낙타: 등에 혹 둘 — 안장 앞뒤로 비켜 앉힌다
+                sp(0.115, 0, 0.40, -0.26, dark, 1.0, 1.15, 0.95);
+                sp(0.10, 0, 0.38, 0.16, dark, 0.95, 1.05, 0.9);
+            } else if (name === 'Elk') {                   // 큰사슴: 가지 뿔(머리 위 좌우로 뻗음)
+                for (const s of [-1, 1]) {
+                    const beam = tube([s * 0.05, 0.42, 0.44], [s * 0.20, 0.60, 0.52], 0.017, light);
+                    beam.userData.part = 'head';
+                    for (let i = 0; i < 3; i++) {
+                        const tine = cn(0.014, 0.08, s * (0.11 + i * 0.045), 0.52 + i * 0.035, 0.46 + i * 0.03, light);
+                        tine.rotation.z = s * -0.5; tine.userData.part = 'head';
+                    }
+                }
+            } else if (name === 'Panther') {               // 흑표범: 낮고 검은 몸통 + 긴 꼬리(아래 tail이 대체)
+                sp(0.21, 0, 0.235, 0, M(0x1c1c22), 0.80, 0.86, 1.80);
+                for (const s of [-1, 1]) { const ear = cn(0.028, 0.06, s * 0.06, 0.42, 0.44, M(0x1c1c22)); ear.userData.part = 'head'; }
+            } else if (name === 'Armored Rhino') {         // 장갑 코뿔소: 코뿔 + 등 장갑판
+                const horn = cn(0.045, 0.16, 0, 0.34, 0.60, M(0xe0e0e0)); horn.rotation.x = -0.35;
+                horn.userData.part = 'head';
+                for (let i = 0; i < 3; i++) bx(0.30, 0.05, 0.16, 0, 0.40 - i * 0.012, -0.26 + i * 0.20, IRON);
+            } else if (name === 'Mech Spider') {           // 기계 거미: 다리 4쌍(추가 2쌍) + 단안 센서
+                for (const s of [-1, 1]) for (const z of [0.16, -0.16]) {
+                    const up = tube([s * 0.14, 0.26, z], [s * 0.34, 0.40, z], 0.022, IRON);
+                    tube([s * 0.34, 0.40, z], [s * 0.40, 0.02, z], 0.018, dark);
+                    up.userData.mechLeg = true;
+                }
+                sp(0.05, 0, 0.30, 0.52, M(0xff5252, { emissive: 0xd50000, emissiveIntensity: 0.8 })).userData.part = 'head';
+            }
             // 머리도 같은 이유로 앞으로 뺀다 — 목 끝에 얹고 z축으로 늘려 주둥이가 있는 두상으로.
             // 짧은목 계열(거북·게·돼지·염소)도 z 0.40→0.46으로 조금 더 내보내 다리 시야선에서 비킨다.
             // ⚠️ 높이가 핵심이다 — 게임 카메라는 탈것 **앞-왼쪽 위**(탈것 로컬 약 (-3.0, 3.2, 7.8))에 있어서
@@ -3715,10 +3805,13 @@ const Scene3D = {
                    pose: { hipL: { rx: 0.78, rz: -0.58 }, hipR: { rx: 0.78, rz: 0.58 },
                            kneeL: { rx: -0.92 }, kneeR: { rx: -0.92 }, spine: { rx: 0.1 } } },
     },
+    // 종 → 계열. **여기 없는 종은 사족형(quad)** 이고, makeMountMesh의 몸통 분기도 이 표 하나만 본다.
     MOUNT_FORM_OF: {
-        'Brown Leaf': 'flat', 'Lily Leaf': 'flat', 'Lily Pad': 'flat', 'Hover Board': 'flat', 'Hover Disk': 'flat',
+        'Brown Leaf': 'flat', 'Lily Leaf': 'flat', 'Lily Pad': 'flat', 'Oak Leaf': 'flat',
+        'Log Raft': 'flat', 'Hover Board': 'flat', 'Hover Disk': 'flat',
         'Bike': 'wheeled', 'One-Wheel Droid': 'wheeled',
-        'Giant Bee': 'fly', 'Mini Dragon': 'fly',
+        'Giant Bee': 'fly', 'Mini Dragon': 'fly', 'Star Whale': 'fly',
+        // 나머지(거북·게·말·공룡·멧돼지·돼지·염소·낙타·큰사슴·흑표범·양·장갑 코뿔소·기계 거미)는 quad
     },
     mountFormOf(name) { return this.MOUNT_FORMS[this.MOUNT_FORM_OF[name] || 'quad']; },
     RIDE_FOOT_CLEAR: 0.06,   // 탑승 시 영웅 원점(발) 높이 — 발이 지면을 살짝 띄워 '끌리지' 않게
