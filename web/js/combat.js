@@ -40,10 +40,26 @@ const Combat = {
     },
 
     // ---- 스테이지/웨이브 ----
+    BOSS_HP_MULT: 6,   // 보스 웨이브(5웨이브) HP 배율 — 일반 몹 대비
+    BOSS_ATK_DIV: 9,   // 보스 공격력 = HP / 이 값
+    MOB_ATK_DIV: 14,   // 일반 몹 공격력 = HP / 이 값
+
     // 몬스터 기본 HP (Big) — 영웅 스탯이 승천으로 커지면 몬스터도 같은 축에서 비교돼야 한다
     monsterBaseHp() {
         if (Dungeons.run) return Big.of(Dungeons.monsterHp(Dungeons.run.id, Dungeons.run.stage));
         return Big.of(55).mul(Math.pow(5.6, S.chapter - 1)).mul(Big.of(1.19).pow(S.stage - 1));
+    },
+
+    // 1장 초반 보스 완화 계수 (2026-08-17 QA 5차 버그)
+    // 맨몸 영웅(DPS 23·HP 180)은 1-1 보스(HP 435·공 48)를 절대 못 잡아 무조작 방치 시 진행이 영원히 0이었다.
+    // 원본 스펙(web/ref/UI-SPEC.md)에는 튜토리얼·유도 UI 개념 자체가 없으므로 "먼저 제작하라"는 온보딩이
+    // 아니라 밸런스 문제로 판정하고, 1장 초반 보스 배율만 완만하게 낮춘다. 1-9에서 1.0으로 복귀하며
+    // 2장 이후와 던전은 손대지 않는다. 장비를 한 번이라도 제작하면 전투력이 두 자릿수 배로 뛰어
+    // 어느 구간이든 즉사시키므로, 이 완화가 체감되는 건 맨몸 방치 플레이어뿐이다.
+    // 실측(맨몸 클리어율): 1-1·1-2 100% → 1-3 45% → 1-4부터 벽. 방치만으로도 2~3칸은 전진한다.
+    bossEase() {
+        if (Dungeons.run || S.chapter > 1) return 1;
+        return Math.min(1, 0.35 + 0.09 * (S.stage - 1));
     },
 
     setupStage() {
@@ -64,12 +80,13 @@ const Combat = {
         const isBossWave = this.wave === 5;
         const baseHp = this.monsterBaseHp().mul(1 + 0.08 * (this.wave - 1));
         const count = isBossWave ? 1 : (this.wave <= 2 ? 2 : 3);
+        const bossMult = this.BOSS_HP_MULT * this.bossEase();
         for (let i = 0; i < count; i++) {
-            const hp = baseHp.mul(isBossWave ? 6 : 1);
+            const hp = baseHp.mul(isBossWave ? bossMult : 1);
             const e = {
                 id: ++this._enemySeq,
                 hp, maxHp: hp,
-                atk: hp.div(isBossWave ? 9 : 14),
+                atk: hp.div(isBossWave ? this.BOSS_ATK_DIV : this.MOB_ATK_DIV),
                 x: 3.1 + i * 1.2 + U.rand(0, 0.4),
                 speed: U.rand(1.0, 1.4),
                 atkTimer: U.rand(0.3, 0.9),
