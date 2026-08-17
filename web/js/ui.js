@@ -1197,14 +1197,14 @@ const UI = {
         el.classList.add('play');
     },
 
-    // ---- 고등급 판매 경고 (사용자 지시 2026-08-17) ----
-    // 실수로 좋은 장비를 파는 걸 막는다. 규칙: '팔리는 장비'의 등급이 '판매 후 그 부위에 남게 될
-    // 장비'보다 높을 때만 물어보고, 같거나 낮으면 그냥 팔린다.
+    // ---- 고등급 판매 경고 (사용자 지시 2026-08-17, 재확인 2026-08-17) ----
+    // 비교 기준은 **오직 등급(RARITIES 인덱스)** 이다 — 시대(원시/중세…)·레벨·전투력 차이는 전부 무시.
+    // 파는 장비의 등급이 그 부위에 남을 장비보다 **strictly 높을 때만** 물어본다.
+    //   같은 등급이면 무경고(원시 일반↔천상 일반처럼 시대·레벨이 달라도 등급만 같으면 안 뜬다), 낮아도 무경고.
     //   [판매] → 새 장비가 팔리고 장착 중인 것이 남는다
-    //   [장착] → 새 것을 끼고 **기존 장비는 보관함으로 간다(판매 아님)** — 파는 게 없으니 경고도 없다
-    //            (사용자 지시 2026-08-17: "장착은 장착만, 판매는 판매 버튼으로만")
-    // 빈 슬롯은 '남는 게 없음'이라 -1로 봐서 항상 물어본다(첫 장비를 실수로 파는 사고 방지 —
-    // 슬롯이 비는 건 신규 세이브 8회뿐이라 잔소리가 되지 않는다).
+    //   [장착] → 새 것을 끼고 기존 장비는 보관함으로 간다(판매 아님) — 파는 게 없으니 경고도 없다
+    // 빈 부위는 **비교할 등급 자체가 없으므로 경고하지 않는다**(사용자 재확인 — 빈 부위마다 매번
+    // 물어보면 잔소리가 된다. 전에는 -1로 쳐서 항상 물어봤다).
     // 자동 제련(main.js)의 자동 판매는 사용자가 건 필터가 이미 걸러낸 결과라 경고 대상이 아니다.
     rarityRank(item) { return item ? RARITIES.indexOf(item.rarity) : -1; },
     sellWarning(mode) {
@@ -1212,6 +1212,7 @@ const UI = {
         const item = this._pendingItem;
         if (!item) return null;
         const kept = S.equipment[item.slot];
+        if (!kept) return null; // 빈 부위 — 비교 대상이 없다
         if (this.rarityRank(item) <= this.rarityRank(kept)) return null;
         return { sold: item, kept };
     },
@@ -1220,10 +1221,9 @@ const UI = {
         if (warn) { this._pendingCraftMode = mode; this.showSellConfirm(warn); return; }
         this.doResolveCraft(mode);
     },
+    // kept는 항상 있다 — sellWarning이 '남을 장비보다 등급이 높을 때'만 이걸 부르기 때문
     showSellConfirm({ sold, kept }) {
-        const keptText = kept
-            ? `장착 중인 <b>${RARITY_KR[kept.rarity]}</b> ${SLOT_KR[kept.slot]}보다 높은 등급입니다.`
-            : `이 부위에 장착 중인 장비가 없습니다.`;
+        const keptText = `장착 중인 <b>${RARITY_KR[kept.rarity]}</b> ${SLOT_KR[kept.slot]}보다 높은 등급입니다.`;
         this.els.detailModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper sellwarn-card">
