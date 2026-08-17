@@ -51,12 +51,14 @@ const Dungeons = {
     // 단계 n 클리어 보상 (근사 설계)
     rewards(id, stage) {
         const g = Math.pow(1.25, stage - 1);
-        if (id === 'hammer')   return { hammers: Math.ceil(25 * g), coins: Math.ceil(600 * Math.pow(1.5, stage - 1)) };
-        if (id === 'ghost')    return { tickets: Math.ceil(20 * g) };
+        // 대장간 분기 '해머도둑 해머/코인 보너스' 노드가 이 던전 보상에 붙는다
+        if (id === 'hammer')   return { hammers: Math.ceil(25 * g * TechTree.thiefHammerMult()),
+                                        coins: Math.ceil(600 * Math.pow(1.5, stage - 1) * TechTree.thiefCoinMult()) };
+        if (id === 'ghost')    return { tickets: Math.ceil(20 * g * TechTree.dungeonTicketMult()) }; // '던전 티켓 보너스'
         // 알 화폐(🥚)의 유일한 수급처 (사용자 확정 — 사냥 지급 전면 삭제): 소환 1회=100🥚 기준 1단계≈2.5회분, 단계당 +1회분.
-        // ANIMALS '알 채집꾼' 테크는 이 보상에 적용 (기존 스테이지 클리어 지급이 사라져 여기로 이관)
-        if (id === 'invasion') return { eggCurrency: Math.ceil((150 + 100 * stage) * TechTree.eggGainMult()) };
-        return { potions: 10 * stage };
+        // 옛 ANIMALS '알 채집꾼' 배율은 원본 트리에 대응 노드가 없어 제거(기술 트리 원본화, 2026-08-17)
+        if (id === 'invasion') return { eggCurrency: Math.ceil(150 + 100 * stage) };
+        return { potions: Math.ceil(10 * stage * TechTree.dungeonPotionMult()) }; // '던전 물약 보너스'
     },
     rewardText(id, stage) {
         const r = this.rewards(id, stage);

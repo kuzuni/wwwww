@@ -532,7 +532,7 @@ const UI = {
                         <div class="af-row"><span>한 번에 사용된 망치 수</span>
                             <div class="af-dd">
                                 <button class="af-spinner" onclick="UI.onToggleHammerDd(event)">${cfg.hammersPerBatch}<span class="af-spin-arrow">${this._afDdOpen ? '▼' : '▲'}</span></button>
-                                ${this._afDdOpen ? `<div class="af-dd-list">${Array.from({ length: this.HAMMER_BATCH_MAX }, (_, n) => `<button class="${cfg.hammersPerBatch === n + 1 ? 'on' : ''}" onclick="UI.onPickHammers(${n + 1})">${n + 1}</button>`).join('')}</div>` : ''}
+                                ${this._afDdOpen ? `<div class="af-dd-list">${Array.from({ length: this.hammerBatchMax() }, (_, n) => `<button class="${cfg.hammersPerBatch === n + 1 ? 'on' : ''}" onclick="UI.onPickHammers(${n + 1})">${n + 1}</button>`).join('')}</div>` : ''}
                             </div></div>
                         <div class="af-row"><span>목표 장비를 찾으면 제련 계속하기</span>
                             <span class="af-check ${cfg.continueOnTarget ? 'on' : ''}" onclick="UI.onToggleContinueOnTarget()">${cfg.continueOnTarget ? '✓' : ''}</span></div>
@@ -561,6 +561,8 @@ const UI = {
     },
     // 망치 수 커스텀 드롭다운 (사용자 지시: 순환 탭 대신 목록에서 바로 선택) — 상한 22는 UI-SPEC 82번 "1~22 범위" 원본 근거
     HAMMER_BATCH_MAX: 22,
+    // 기술트리 '오토포지' 노드가 1회 동시 해머 상한을 올린다 (업당 +1)
+    hammerBatchMax() { return this.HAMMER_BATCH_MAX + TechTree.autoForgeSlotBonus(); },
     _afDdOpen: false,
     onToggleHammerDd(ev) {
         ev.stopPropagation();
@@ -569,7 +571,7 @@ const UI = {
     },
     onPickHammers(n) {
         const cfg = Forge.autoForgeConfig();
-        cfg.hammersPerBatch = U.clamp(n, 1, this.HAMMER_BATCH_MAX);
+        cfg.hammersPerBatch = U.clamp(n, 1, this.hammerBatchMax());
         this._afDdOpen = false;
         saveGame(); this.renderAutoForge();
     },
@@ -1062,7 +1064,7 @@ const UI = {
                 ${Ascension.ready('skill')
                     ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('skill')">⭐ 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
                     : `<button class="btn big summon-btn ${Skills.canSummon(false, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(false)">
-                    소환 x${skillSummonN}<small class="summon-cost">🎫 <b>${Skills.SUMMON_TICKET_COST * skillSummonN}</b></small></button>`}
+                    소환 x${skillSummonN}<small class="summon-cost">🎫 <b>${Skills.ticketCost(skillSummonN)}</b></small></button>`}
                 <div class="summon-info">
                     <button class="info-dot" onclick="UI.openSummonRates('skill')">i</button>
                     <b>Lv. ${lvl}</b>
@@ -1981,7 +1983,7 @@ const UI = {
                     ${Ascension.ready('mount')
                         ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('mount')">⭐ 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
                         : `<button class="btn big summon-btn ${Mounts.canSummon(mountSummonN) ? '' : 'disabled'}" onclick="UI.onSummonMount()">
-                        소환 x${mountSummonN}<small class="summon-cost">⚙️ <b>${WINDERS_PER_SUMMON * mountSummonN}</b></small></button>`}
+                        소환 x${mountSummonN}<small class="summon-cost">⚙️ <b>${Mounts.winderCost(mountSummonN)}</b></small></button>`}
                     <div class="summon-info">
                         <button class="info-dot" onclick="UI.openSummonRates('mount')">i</button>
                         <b>Lv. ${lvl}</b>
@@ -2327,9 +2329,11 @@ const UI = {
             if (el) el.textContent = U.fmtTime((h.endsAt - U.now()) / 1000);
         });
         // 기술 트리 연구 카운트다운 (개요 카드 / 분기 트리 노드 / 노드 팝업 진행바)
-        if (S.techResearch) {
+        // 노드 개편 등으로 없는 노드 id가 남아 있으면 branchOf가 undefined라 매 초 예외가 난다 — 가드
+        if (S.techResearch && TechTree.NODES[S.techResearch.id]) {
             const remain = (S.techResearch.endsAt - U.now()) / 1000;
-            const bTime = document.getElementById('tech-b-time-' + TechTree.branchOf(S.techResearch.id).id);
+            const branch = TechTree.branchOf(S.techResearch.id);
+            const bTime = branch && document.getElementById('tech-b-time-' + branch.id);
             if (bTime) bTime.textContent = `(${U.fmtTime(remain)})`;
             const nTime = document.getElementById('tech-n-time-' + S.techResearch.id);
             if (nTime) nTime.textContent = U.fmtTime(remain);

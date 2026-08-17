@@ -92,10 +92,9 @@ function resetGame() {
 // 정수로 내림하는 건 실제 소비 시점(해머 차감 등)뿐 — 여기선 실수를 그대로 반환한다.
 function offlineRewardFor(elapsedSec) {
     const cap = OFFLINE_CAP_SEC * TechTree.offlineCapMult();
-    const gainMult = TechTree.offlineGainMult();
     const t = Math.min(elapsedSec, cap);
-    const coinRate = OFFLINE_COIN_PER_SEC * gainMult;   // /초
-    const hammerRate = OFFLINE_HAMMER_PER_MIN * gainMult; // /분
+    const coinRate = OFFLINE_COIN_PER_SEC * TechTree.offlineCoinMult();     // /초
+    const hammerRate = OFFLINE_HAMMER_PER_MIN * TechTree.offlineHammerMult(); // /분
     const coins = t * coinRate;
     const hammers = (t / 60) * hammerRate;
     return { counted: t, coins, hammers, coinRate, hammerRate };

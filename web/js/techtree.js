@@ -1,40 +1,96 @@
-// ===== 기술 트리 (대장간 연구) — BALANCE.md 스펙 + UI-SPEC 10·15~16번 =====
-// 4분기(대장간/힘/스킬·펫&기술/ANIMALS) × 노드당 5업×5티어(총 25업). 재화: 물약(포션, 좀비 러시 던전).
-// 노드별 비용·시간 커브는 원본 미확보 → 자체 설계(티어당 급증 + 티어 내 완만한 증가).
+// ===== 기술 트리 (대장간 연구) — 원본 포지마스터 방식 이식 (사용자 확정 2026-08-17) =====
+// 분기 3개: ① 힘·탈것 ② 대장간 ③ 스킬·펫&기술. 원본의 ANIMALS 분기와 길드(Guild)는 사용자 지시로 제외.
+// 노드 구성·효과 수치는 개발자 가이드(1vcian.me/ForgeMasterCalculator) + 사용자가 원본 게임에서 직접 확인한 값.
+// 노드당 상한은 5업 (사용자 확인 — 원본 25업이 아니라 이 상한을 따른다).
 // 연구는 대장간 업그레이드와 동일하게 물약 선결제 + 실시간 타이머(전체 트리 통틀어 동시 1건) 방식.
 const TechTree = {
-    MAX_LEVEL: 25,   // 노드당 총 업그레이드 수 (5업 × 5티어)
-    PER_TIER: 5,
+    MAX_LEVEL: 5,    // 노드당 총 업그레이드 수 (사용자 확인 상한)
+    PER_TIER: 5,     // 진행 표기 단위 = 상한과 동일 (한 티어)
 
-    // UI-SPEC: 카드 4개 [대장간][힘][스킬,펫&기술][ANIMALS] — 스펙 스크린샷에 영문 그대로 표기됨
     BRANCHES: [
-        { id: 'forge',    name: '대장간',        icon: '⚒️', nodes: ['forgeSpeed', 'forgeCost'] },
-        { id: 'power',    name: '힘',           icon: '💪', nodes: ['gearPower', 'sellBonus'] },
-        { id: 'skillpet', name: '스킬, 펫 & 기술', icon: '✨', nodes: ['offlineCap', 'offlineGain'] },
-        { id: 'animals',  name: 'ANIMALS',      icon: '🐾', nodes: ['petPower', 'mountPower', 'eggGain', 'hatchSpeed'] },
+        { id: 'power',    name: '힘 · 탈것',       icon: '💪', nodes: [
+            'weaponMastery', 'armorMastery', 'gearMaxLevel', 'mountDmg', 'mountHp', 'mountCost', 'extraMount'] },
+        { id: 'forge',    name: '대장간',          icon: '⚒️', nodes: [
+            'forgeTimer', 'forgeCost', 'sellPrice', 'thiefHammer', 'thiefCoin',
+            'autoForgeSlot', 'freeForge', 'offlineCap', 'offlineCoin', 'offlineHammer'] },
+        { id: 'skillpet', name: '스킬, 펫 & 기술', icon: '✨', nodes: [
+            'techTimer', 'skillDmg', 'skillPassiveDmg', 'skillPassiveHp', 'techCost', 'petHp', 'petDmg',
+            'skillSummonCost', 'hatchTimer', 'extraEgg', 'dungeonTicket', 'dungeonPotion'] },
     ],
 
+    // per = 1업당 수치. 단위는 대부분 %지만 gearMaxLevel(레벨)·autoForgeSlot(개)은 절대 수치다.
     NODES: {
-        forgeSpeed:  { name: '대장간 가속',  desc: '업그레이드 시간 단축', per: 4,  base: 40, tierMult: 7 },
-        forgeCost:   { name: '제련 효율',    desc: '업그레이드 비용 감소', per: 2,  base: 40, tierMult: 7 },
-        gearPower:   { name: '장비 숙련',    desc: '장비 공격력·체력 증가', per: 2,  base: 50, tierMult: 7 },
-        sellBonus:   { name: '상인의 눈',    desc: '장비 판매가 증가',     per: 2,  base: 50, tierMult: 7 },
-        offlineCap:  { name: '시간 압축',    desc: '오프라인 보상 캡 증가', per: 16, base: 60, tierMult: 7 },
-        offlineGain: { name: '숙련된 부관',  desc: '오프라인 보상량 증가', per: 2,  base: 60, tierMult: 7 },
-        petPower:    { name: '야생의 감각',  desc: '펫 전투 능력치(고정 피해·체력) 증가', per: 2, base: 55, tierMult: 7 },
-        mountPower:  { name: '조련술',       desc: '탈것 전투 능력치(고정 피해·체력) 증가', per: 2, base: 55, tierMult: 7 },
-        eggGain:     { name: '알 채집꾼',    desc: '펫 던전(침공) 알 화폐 획득량 증가', per: 8, base: 40, tierMult: 7 },
-        hatchSpeed:  { name: '부화 가속',    desc: '알 부화 시간 단축',    per: 4,  base: 40, tierMult: 7 },
+        // ① 힘 · 탈것
+        weaponMastery:   { name: '무기 마스터리',   desc: '무기·장갑·목걸이·반지 피해 증가', icon: '⚔️', per: 2,  base: 50 },
+        armorMastery:    { name: '방어구 마스터리', desc: '투구·갑옷·신발·벨트 체력 증가',   icon: '🛡️', per: 2,  base: 50 },
+        gearMaxLevel:    { name: '장비 레벨업',     desc: '장비 최대 강화 레벨 증가',        icon: '🔺', per: 2,  base: 60 },
+        mountDmg:        { name: '탈것 데미지 마스터리', desc: '탈것 피해 증가',             icon: '🐎', per: 2,  base: 55 },
+        mountHp:         { name: '탈것 체력 마스터리',   desc: '탈것 체력 증가',             icon: '🐴', per: 2,  base: 55 },
+        mountCost:       { name: '탈것 소환 비용',  desc: '탈것 소환 태엽 비용 감소',        icon: '⚙️', per: 1,  base: 55 },
+        extraMount:      { name: '추가 탈것 확률',  desc: '탈것 소환 시 추가 획득 확률',      icon: '🎰', per: 2,  base: 55 },
+        // ② 대장간
+        forgeTimer:      { name: '제련 타이머',     desc: '대장간 업그레이드 시간 단축',      icon: '⏱️', per: 4,  base: 40 },
+        forgeCost:       { name: '제련 업그레이드 비용', desc: '대장간 업그레이드 비용 감소', icon: '🪙', per: 2,  base: 40 },
+        sellPrice:       { name: '장비 판매가',     desc: '장비 판매 가격 증가',             icon: '💰', per: 2,  base: 50 },
+        thiefHammer:     { name: '해머도둑 해머 보너스', desc: '해머 도둑 던전 해머 보상 증가', icon: '🔨', per: 2, base: 50 },
+        thiefCoin:       { name: '해머도둑 코인 보너스', desc: '해머 도둑 던전 코인 보상 증가', icon: '🏦', per: 2, base: 50 },
+        autoForgeSlot:   { name: '오토포지',        desc: '자동 제련 1회 동시 해머 수 증가',  icon: '🤖', per: 1,  base: 60 },
+        freeForge:       { name: '무료 제련 확률',  desc: '제련 시 해머를 소모하지 않을 확률', icon: '🍀', per: 1,  base: 60 },
+        offlineCap:      { name: '최대 오프라인 시간', desc: '오프라인 보상 누적 상한 증가',  icon: '⌛', per: 16, base: 60 },
+        offlineCoin:     { name: '코인 오프라인 보상', desc: '오프라인 코인 수급 증가',       icon: '🪙', per: 2,  base: 60 },
+        offlineHammer:   { name: '해머 오프라인 보상', desc: '오프라인 해머 수급 증가',       icon: '🔨', per: 2,  base: 60 },
+        // ③ 스킬 · 펫 & 기술
+        techTimer:       { name: '기술 연구 타이머', desc: '기술 연구 시간 단축',            icon: '🔬', per: 4,  base: 45 },
+        skillDmg:        { name: '스킬 피해',       desc: '스킬 발동 피해 증가',             icon: '💥', per: 2,  base: 55 },
+        skillPassiveDmg: { name: '패시브 스킬 피해', desc: '보유 스킬 패시브 기본 피해 증가', icon: '🗡️', per: 2,  base: 55 },
+        skillPassiveHp:  { name: '패시브 스킬 체력', desc: '보유 스킬 패시브 기본 체력 증가', icon: '❤️', per: 2,  base: 55 },
+        techCost:        { name: '기술 연구 비용',  desc: '기술 노드 업그레이드 비용 감소',   icon: '🧪', per: 2,  base: 45 },
+        petHp:           { name: '펫 보너스 체력',  desc: '펫 체력 증가',                    icon: '🐾', per: 2,  base: 55 },
+        petDmg:          { name: '펫 보너스 피해',  desc: '펫 피해 증가',                    icon: '🐕', per: 2,  base: 55 },
+        skillSummonCost: { name: '스킬 소환 비용',  desc: '스킬 소환 티켓 비용 감소',         icon: '🎫', per: 1,  base: 55 },
+        hatchTimer:      { name: '알 부화 타이머',  desc: '알 부화 시간 단축',               icon: '🥚', per: 10, base: 40 },
+        extraEgg:        { name: '추가 알 소환 기회', desc: '알 소환 시 추가 획득 확률',      icon: '🎁', per: 2,  base: 55 },
+        dungeonTicket:   { name: '던전 티켓 보너스', desc: '던전 클리어 스킬 티켓 보상 증가',  icon: '🎟️', per: 1,  base: 50 },
+        dungeonPotion:   { name: '던전 물약 보너스', desc: '던전 클리어 기술 물약 보상 증가',  icon: '⚗️', per: 1,  base: 50 },
     },
 
-    LV_MULT: 1.28, // 같은 티어 내 레벨당 비용 증가율
-    TIME_BASE: 20, // 초. 티어당 급증 + 티어 내 완만한 증가 (대장간 업그레이드 시간 커브와 동일 methodology)
-    TIME_TIER_MULT: 6,
-    TIME_LV_MULT: 1.22,
+    // 구세이브 마이그레이션: 폐기된 4분기 노드 id → 새 노드 id.
+    // 뜻이 그대로 이어지는 것만 옮기고, 한 노드가 둘로 쪼개진 건(오프라인 수급·펫·탈것) 양쪽에 같은 레벨을 준다
+    // — 플레이어가 산 효과를 뺏지 않기 위해서다. 원본에 없는 eggGain(알 화폐 획득량)은 대응 노드가 없어 폐기.
+    LEGACY_MAP: {
+        forgeSpeed:  ['forgeTimer'],
+        forgeCost:   ['forgeCost'],
+        sellBonus:   ['sellPrice'],
+        gearPower:   ['weaponMastery', 'armorMastery'],
+        offlineCap:  ['offlineCap'],
+        offlineGain: ['offlineCoin', 'offlineHammer'],
+        petPower:    ['petDmg', 'petHp'],
+        mountPower:  ['mountDmg', 'mountHp'],
+        hatchSpeed:  ['hatchTimer'],
+    },
+
+    LV_MULT: 1.55, // 레벨당 비용 증가율 (5업 상한에 맞춘 커브 — 25업 시절의 티어 급증 곡선 대체)
+    TIME_BASE: 20, // 초
+    TIME_LV_MULT: 1.9,
 
     ensure() {
         if (!S.tech) S.tech = {};
+        // 구세이브의 폐기 노드 레벨을 새 노드로 이관 (한 번만 — 이관 후 옛 키는 지운다)
+        for (const oldId in this.LEGACY_MAP) {
+            if (this.NODES[oldId] || S.tech[oldId] === undefined) continue; // 이름이 그대로 살아남은 노드는 건너뜀
+            const lv = S.tech[oldId] || 0;
+            for (const newId of this.LEGACY_MAP[oldId]) {
+                if (this.NODES[newId]) S.tech[newId] = Math.max(S.tech[newId] || 0, lv);
+            }
+            delete S.tech[oldId];
+        }
+        // 폐기 노드 잔여 키 제거 (LEGACY_MAP에 없는 옛 노드 — 예: 원본에 대응이 없는 eggGain)
+        for (const id in S.tech) if (!this.NODES[id]) delete S.tech[id];
         for (const id in this.NODES) if (S.tech[id] === undefined) S.tech[id] = 0;
+        // 상한이 25 → 5로 내려갔으므로 초과분은 잘라낸다
+        for (const id in this.NODES) S.tech[id] = U.clamp(S.tech[id], 0, this.MAX_LEVEL);
+        // 진행 중이던 연구가 폐기된 노드면 취소하고 물약을 돌려준다
+        if (S.techResearch && !this.NODES[S.techResearch.id]) S.techResearch = null;
         if (S.techResearch === undefined) S.techResearch = null; // {id, endsAt} — 전체 트리 통틀어 동시 1건
     },
 
@@ -49,28 +105,28 @@ const TechTree = {
         return sum / (b.nodes.length * this.MAX_LEVEL) * 100;
     },
 
-    // 레벨 하나(1-based)를 구매하는 데 드는 물약 비용
+    // 레벨 하나(1-based)를 구매하는 데 드는 물약 비용 — '기술 연구 비용' 노드로 할인된다
     cost(id, level) {
         const def = this.NODES[id];
-        const tier = Math.ceil(level / this.PER_TIER);
-        const posInTier = ((level - 1) % this.PER_TIER) + 1;
-        const tierBase = def.base * Math.pow(def.tierMult, tier - 1);
-        return Math.ceil(tierBase * Math.pow(this.LV_MULT, posInTier - 1));
+        if (!def) return null; // 폐기된 노드 id로 물어와도 화면이 죽지 않게 (노드 개편 시 stale 참조 방어)
+        const raw = def.base * Math.pow(this.LV_MULT, level - 1);
+        return Math.max(1, Math.ceil(raw * this.techCostMult()));
     },
 
-    // 레벨 하나를 연구하는 데 걸리는 실시간(초)
+    // 레벨 하나를 연구하는 데 걸리는 실시간(초) — '기술 연구 타이머' 노드로 단축된다
     time(id, level) {
-        const tier = Math.ceil(level / this.PER_TIER);
-        const posInTier = ((level - 1) % this.PER_TIER) + 1;
-        const tierBase = this.TIME_BASE * Math.pow(this.TIME_TIER_MULT, tier - 1);
-        return Math.ceil(tierBase * Math.pow(this.TIME_LV_MULT, posInTier - 1));
+        if (!this.NODES[id]) return null;
+        const raw = this.TIME_BASE * Math.pow(this.TIME_LV_MULT, level - 1);
+        return Math.max(1, Math.ceil(raw * this.techTimeMult()));
     },
 
     nextCost(id) {
+        if (!this.NODES[id]) return null;
         const lv = this.level(id);
         return lv >= this.MAX_LEVEL ? null : this.cost(id, lv + 1);
     },
     nextTime(id) {
+        if (!this.NODES[id]) return null;
         const lv = this.level(id);
         return lv >= this.MAX_LEVEL ? null : this.time(id, lv + 1);
     },
@@ -131,20 +187,43 @@ const TechTree = {
     },
 
     // 포인트당 수치 × 레벨 = 노드 총 효과(%)
-    pct(id) { return this.level(id) * this.NODES[id].per; },
+    pct(id) { const d = this.NODES[id]; return d ? this.level(id) * d.per : 0; }, // 없는 노드 id는 0 (노드 개편 중 stale 참조 방어)
 
     // ===== 다른 모듈에서 참조하는 효과 배율 =====
-    forgeTimeMult() { return 1 / (1 + this.pct('forgeSpeed') / 100); },      // 시간 = base ÷ (1+tech%)
-    forgeCostMult() { return Math.max(0.1, 1 - this.pct('forgeCost') / 100); }, // 비용 = base × (1-tech%)
-    gearPowerMult() { return 1 + this.pct('gearPower') / 100; },
-    // 장비 뽑기 레벨 캡 보너스(레벨 수, %가 아님) — 힘·탈것 분기 '장비 레벨업' 노드(+2/pt).
-    // 그 노드는 기술 트리 원본화 작업에서 추가되므로, 아직 없으면 0을 돌려줘 캡 100을 유지한다.
-    gearMaxLevelBonus() { return this.NODES.gearMaxLevel ? this.pct('gearMaxLevel') : 0; },
-    sellPriceMult() { return 1 + this.pct('sellBonus') / 100; },
+    // 규칙: 증가형은 (1 + %/100), 단축·감소형은 시간이면 ÷(1+%), 비용이면 ×(1-%) — 원본 표기가 "타이머 속도 +N%"라
+    // 시간 단축은 나눗셈(속도 증가), "비용 -N%"는 곱셈(직접 감산)으로 맞췄다.
+    // ① 힘 · 탈것
+    gearAtkMult() { return 1 + this.pct('weaponMastery') / 100; },   // 무기·장갑·목걸이·반지 (주스탯 atk 장비)
+    gearHpMult() { return 1 + this.pct('armorMastery') / 100; },     // 투구·갑옷·신발·벨트 (주스탯 hp 장비)
+    gearMaxLevelBonus() { return this.pct('gearMaxLevel'); },        // 장비 최대 강화 레벨 +2/업 (레벨 수, %가 아님)
+    mountDmgMult() { return 1 + this.pct('mountDmg') / 100; },
+    mountHpMult() { return 1 + this.pct('mountHp') / 100; },
+    mountCostMult() { return Math.max(0.1, 1 - this.pct('mountCost') / 100); },
+    extraMountChance() { return this.pct('extraMount') / 100; },     // 소환 1회당 추가 1마리 확률
+    // ② 대장간
+    forgeTimeMult() { return 1 / (1 + this.pct('forgeTimer') / 100); },
+    forgeCostMult() { return Math.max(0.1, 1 - this.pct('forgeCost') / 100); },
+    sellPriceMult() { return 1 + this.pct('sellPrice') / 100; },
+    thiefHammerMult() { return 1 + this.pct('thiefHammer') / 100; },
+    thiefCoinMult() { return 1 + this.pct('thiefCoin') / 100; },
+    // 원본은 "티어당 동시 해머 +1"인데 노드 상한이 5업(=1티어)이라 그대로 옮기면 5업 중 4업이 무효과가 된다.
+    // 5업 모델에 맞춰 업당 +1(최대 +5)로 해석했다 — 상한 스펙이 바뀌면 여기부터 고칠 것.
+    autoForgeSlotBonus() { return this.pct('autoForgeSlot'); },
+    freeForgeChance() { return this.pct('freeForge') / 100; },
     offlineCapMult() { return 1 + this.pct('offlineCap') / 100; },
-    offlineGainMult() { return 1 + this.pct('offlineGain') / 100; },
-    petPowerMult() { return 1 + this.pct('petPower') / 100; },
-    mountPowerMult() { return 1 + this.pct('mountPower') / 100; },
-    eggGainMult() { return 1 + this.pct('eggGain') / 100; },        // ANIMALS: 펫 던전(침공) 알 화폐 획득량
-    hatchSpeedMult() { return 1 / (1 + this.pct('hatchSpeed') / 100); }, // ANIMALS: 부화 시간 단축
+    offlineCoinMult() { return 1 + this.pct('offlineCoin') / 100; },
+    offlineHammerMult() { return 1 + this.pct('offlineHammer') / 100; },
+    // ③ 스킬 · 펫 & 기술
+    techTimeMult() { return 1 / (1 + this.pct('techTimer') / 100); },
+    techCostMult() { return Math.max(0.1, 1 - this.pct('techCost') / 100); },
+    skillDmgMult() { return 1 + this.pct('skillDmg') / 100; },
+    skillPassiveDmgMult() { return 1 + this.pct('skillPassiveDmg') / 100; },
+    skillPassiveHpMult() { return 1 + this.pct('skillPassiveHp') / 100; },
+    petDmgMult() { return 1 + this.pct('petDmg') / 100; },
+    petHpMult() { return 1 + this.pct('petHp') / 100; },
+    skillSummonCostMult() { return Math.max(0.1, 1 - this.pct('skillSummonCost') / 100); },
+    hatchSpeedMult() { return 1 / (1 + this.pct('hatchTimer') / 100); },
+    extraEggChance() { return this.pct('extraEgg') / 100; },         // 소환 1회당 추가 1개 확률
+    dungeonTicketMult() { return 1 + this.pct('dungeonTicket') / 100; },
+    dungeonPotionMult() { return 1 + this.pct('dungeonPotion') / 100; },
 };

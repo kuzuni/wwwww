@@ -51,6 +51,11 @@ const Pets = {
             const rarity = U.weightedPick(this.rates());
             this.addEgg(rarity);
             results.push({ rarity });
+            // 기술트리 '추가 알 소환 기회'(+2%/업): 비용 없이 알 1개 더 (보관함 여유가 있을 때만)
+            if (U.chance(TechTree.extraEggChance())) {
+                const extra = U.weightedPick(this.rates());
+                if (this.addEgg(extra)) results.push({ rarity: extra, extra: true });
+            }
         }
         const bestRarity = results.reduce((best, r) =>
             RARITIES.indexOf(r.rarity) > RARITIES.indexOf(best) ? r.rarity : best, results[0].rarity);
@@ -128,8 +133,8 @@ const Pets = {
     // 장착(출전) 시 펫 1마리가 기여하는 고정 데미지·체력 (petStats 원본 수치 × 레벨 배율 × 승천 배율)
     petPower(p) {
         const def = this.petDef(p);
-        const mult = Ascension.starMult(p.stars).mul(this.levelMult(p) * TechTree.petPowerMult());
-        return { atk: mult.mul(def.damage), hp: mult.mul(def.health) };
+        const mult = Ascension.starMult(p.stars).mul(this.levelMult(p));
+        return { atk: mult.mul(def.damage * TechTree.petDmgMult()), hp: mult.mul(def.health * TechTree.petHpMult()) };
     },
 
     // 경험치 흡수형 업그레이드 (UI-SPEC '펫 업그레이드 팝업') — 원본 수치 미확보로 자체 설계 커브

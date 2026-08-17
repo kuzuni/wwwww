@@ -47,7 +47,9 @@ const Mounts = {
         return out;
     },
 
-    canSummon(count = 1) { return S.winders >= WINDERS_PER_SUMMON * count; },
+    // 기술트리 '탈것 소환 비용'(-1%/업) 반영 실제 태엽 비용 — 표시·차감 양쪽이 이 함수를 쓴다
+    winderCost(count = 1) { return Math.max(1, Math.ceil(WINDERS_PER_SUMMON * count * TechTree.mountCostMult())); },
+    canSummon(count = 1) { return S.winders >= this.winderCost(count); },
 
     rollSubs() { return U.rollSubs(2); },
 
@@ -63,8 +65,8 @@ const Mounts = {
     // 장착 시 이 탈것 1마리가 기여하는 고정 데미지·체력 (레벨 배율 × 승천 배율)
     mountPower(m) {
         const base = this.baseStat(m.rarity);
-        const mult = Ascension.starMult(m.stars).mul(this.levelMult(m) * TechTree.mountPowerMult());
-        return { atk: mult.mul(base.atk), hp: mult.mul(base.hp) };
+        const mult = Ascension.starMult(m.stars).mul(this.levelMult(m));
+        return { atk: mult.mul(base.atk * TechTree.mountDmgMult()), hp: mult.mul(base.hp * TechTree.mountHpMult()) };
     },
 
     // 경험치 흡수형 업그레이드 (펫과 동일 방식) — 원본 수치 미확보로 자체 설계 커브
@@ -107,9 +109,12 @@ const Mounts = {
     summon(count = 1) {
         this.ensure();
         if (!this.canSummon(count)) return null;
-        S.winders -= WINDERS_PER_SUMMON * count;
+        S.winders -= this.winderCost(count);
         const results = [];
-        for (let i = 0; i < count; i++) {
+        // 기술트리 '추가 탈것 확률'(+2%/업): 소환 1회당 확률만큼 추가 소환 (비용 없음)
+        let rolls = count;
+        for (let i = 0; i < count; i++) if (U.chance(TechTree.extraMountChance())) rolls++;
+        for (let i = 0; i < rolls; i++) {
             S.mountOpens++;
             const rarity = U.weightedPick(this.rates());
             const name = U.choice(mountNames[rarity]);

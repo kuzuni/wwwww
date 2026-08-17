@@ -1,6 +1,8 @@
 // ===== 스킬: 소환(원본 확률표), 조각 적립→업그레이드, 장착 시 고정 패시브 =====
 const Skills = {
     SUMMON_TICKET_COST: 32, // UI-SPEC 45번 줄 실측 "소환 x5 🎫160"을 역산(160/5) — 기존 20은 원본 미확보 자체 설계 추정치였음
+    // 기술트리 '스킬 소환 비용'(-1%/업) 반영 실제 티켓 비용 — 표시·차감 양쪽이 이 함수를 쓴다
+    ticketCost(count = 1) { return Math.max(1, Math.ceil(this.SUMMON_TICKET_COST * count * TechTree.skillSummonCostMult())); },
     SUMMON_GEM_COST: 200, // 원본 젬 소환가
     MAX_LEVEL: 100, // 승천은 Lv.100 도달부터 (사용자 확정 스펙 2026-08-17) — 조각 커브는 기존 곡선 연장(60+ = 8개)
     MAX_ACTIVE: 3, // 장착 스킬 슬롯 수 (UI-SPEC: 스킬 버튼 3개, Pets.MAX_ACTIVE와 동일 패턴)
@@ -15,12 +17,12 @@ const Skills = {
 
     // 펫/마운트와 동일한 패턴 — 버튼 비활성화 표시용 (Pets.canSummon/Mounts.canSummon 참고)
     canSummon(useGems, count = 1) {
-        return useGems ? S.gems >= this.SUMMON_GEM_COST * count : S.tickets >= this.SUMMON_TICKET_COST * count;
+        return useGems ? S.gems >= this.SUMMON_GEM_COST * count : S.tickets >= this.ticketCost(count);
     },
 
     // count번 연속 소환(UI-SPEC "소환 x5" 배치) — 비용은 선결제로 한 번에 확인·차감, 결과는 배열로 반환
     summon(useGems, count = 1) {
-        const cost = (useGems ? this.SUMMON_GEM_COST : this.SUMMON_TICKET_COST) * count;
+        const cost = useGems ? this.SUMMON_GEM_COST * count : this.ticketCost(count);
         if (useGems) {
             if (S.gems < cost) return null;
             S.gems -= cost;
@@ -120,7 +122,7 @@ const Skills = {
         if (!d || !sk) return { atk: Big.ZERO, hp: Big.ZERO };
         const base = SKILL_BASE_PASSIVE[d.rarity];
         const mult = Ascension.starMult(sk.stars).mul(this.levelMult(id));
-        return { atk: mult.mul(base.atk), hp: mult.mul(base.hp) };
+        return { atk: mult.mul(base.atk * TechTree.skillPassiveDmgMult()), hp: mult.mul(base.hp * TechTree.skillPassiveHpMult()) };
     },
 
     // 보유한 모든 스킬의 고정 패시브 합계 (기본 피해·기본 체력).

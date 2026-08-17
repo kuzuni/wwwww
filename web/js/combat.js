@@ -112,7 +112,7 @@ const Combat = {
         if (this.buffs.length !== beforeBuffs) this.recalcHero();
 
         // 액티브 해머 수급 (오프라인과 동일 배율: 분당 1 × 기술트리 배율, 소수점 연속 누적)
-        S.hammers += (OFFLINE_HAMMER_PER_MIN / 60) * TechTree.offlineGainMult() * dt;
+        S.hammers += (OFFLINE_HAMMER_PER_MIN / 60) * TechTree.offlineHammerMult() * dt;
         // 오프라인 보상 계산 구간(lastOfflineClaim~now)과 겹치지 않도록 활성 지급분만큼 함께 전진시킴
         // (안 하면 활성 플레이 중 "오프라인 보상" 버튼을 눌렀을 때 같은 시간 구간의 해머를 두 번 받게 됨)
         S.lastOfflineClaim += dt * 1000;
@@ -198,7 +198,8 @@ const Combat = {
         } else {
             const alive = this.aliveEnemies().filter(e => e.x < 3.2);
             if (!alive.length) { if (manual) UI.toast('사거리 안에 적이 없습니다'); return false; }
-            const dmg = Skills.dmg(id).mul(1 + st.skillDmg / 100);
+            // 서브스탯 '스킬 피해' + 기술트리 '스킬 피해' 노드 (곱연산)
+            const dmg = Skills.dmg(id).mul((1 + st.skillDmg / 100) * TechTree.skillDmgMult());
             UI.skillCutin(d);
             UI.skillFlash(d.color);
             if (d.type === 'aoe') {

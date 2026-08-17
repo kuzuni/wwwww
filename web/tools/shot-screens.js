@@ -26,7 +26,7 @@ const SCREENS = [
     ['pet-upgrade', '042503', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetUpgrade(0)`],
     ['summon-rates', '042521', `UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.openSummonRates('skill')`],
     ['tech-branch', '042546', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('forge')`],
-    ['tech-node', '042605', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('forge'); UI.openTechNode('forgeSpeed')`],
+    ['tech-node', '042605', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('forge'); UI.openTechNode('forgeTimer')`],
     ['shop', '042632', `UI.openShop()`],
     ['pass', '042705', `UI.openPass()`],
     ['profile', '042724', `UI.openProfile()`],
@@ -77,7 +77,7 @@ const SEED = () => {
     // 대장간 업그레이드 진행 중 (확률 정보 팝업 하단 진행바)
     S.forgeUpgradeEndsAt = U.now() + 96 * 60e3;
     // 기술 연구 진행 중 (기술 노드 초록 배지)
-    try { S.techResearch = { id: 'forgeSpeed', endsAt: U.now() + 42 * 60e3 }; } catch (e) { }
+    try { S.techResearch = { id: 'forgeTimer', endsAt: U.now() + 42 * 60e3 }; } catch (e) { }
     // 던전 최고 기록
     try { Dungeons.ensure(); for (const d of Dungeons.DEFS) { S.dungeons.best[d.id] = 19; S.dungeons.keys[d.id] = 2; } } catch (e) { }
     saveGame();

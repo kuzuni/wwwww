@@ -148,7 +148,8 @@ const Forge = {
         const results = [];
         for (let i = 0; i < count; i++) {
             if (S.hammers < 1) break;
-            S.hammers -= 1;
+            // 기술트리 '무료 제련 확률'(+1%/업): 해머를 소모하지 않고 제련
+            if (!U.chance(TechTree.freeForgeChance())) S.hammers -= 1;
             S.totalCrafts++;
             results.push(this.rollItem());
         }
@@ -283,8 +284,8 @@ const Forge = {
         }
 
         // 합산은 Big — 승천한 장비/펫/탈것/스킬이 하나라도 섞이면 Number로는 담기지 않는다.
-        atk = atk.add(gearAtk.mul(TechTree.gearPowerMult())).add(pb.atk).add(mb.atk).add(sb.atk);
-        hp = hp.add(gearHp.mul(TechTree.gearPowerMult())).add(pb.hp).add(mb.hp).add(sb.hp);
+        atk = atk.add(gearAtk.mul(TechTree.gearAtkMult())).add(pb.atk).add(mb.atk).add(sb.atk);
+        hp = hp.add(gearHp.mul(TechTree.gearHpMult())).add(pb.hp).add(mb.hp).add(sb.hp);
         return {
             // atk·hp만 Big. 나머지(확률·%·공속)는 승천과 무관하게 작은 값이라 Number 그대로 둔다.
             atk: atk.mul(1 + (bag.dmgPct + buffAtkPct) / 100),
