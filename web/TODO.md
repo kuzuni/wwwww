@@ -12,6 +12,9 @@
 2. **작업이 30분을 넘기면** 중간에 `bash web/tools/claim.sh refresh "<항목ID>"`로 리스를 갱신한다(안 하면 죽은 세션으로 간주돼 다른 세션이 회수한다).
 3. **작업을 끝냈거나(=커밋·푸시 완료) 양보하면** `bash web/tools/claim.sh release "<항목ID>"`로 놓는다.
 4. `<항목ID>`는 **짧고 안정적인 슬러그**로, TODO 항목마다 같은 값을 쓴다 — 예: `techtree-links`, `nav-tabs`, `mount-slot-icon`, `pet-slot-icon`, `craft-popup-stay`, `autoforge-1craft-bug`. (새 항목이면 제목에서 슬러그를 만들고 첫 acquire 때 정한 값을 계속 쓴다.)
+   - ⚠️ **슬러그 명시 강제 (2026-08-18 신설 — 계정1·2 병렬 시 같은 버그 중복 수정 방지):** 락은 **슬러그 문자열이 같아야만** BUSY로 충돌한다. 두 세션(다른 계정 포함)이 같은 항목에 **서로 다른 슬러그**를 지으면 각자 다른 락을 잡아 **같은 버그를 동시에 고친다.** 그래서:
+     ① 항목에 `(slug: xxx)`가 적혀 있으면 **반드시 그 값**을 claim ID로 쓴다(제목에서 새로 짓지 말 것).
+     ② 슬러그가 없는 항목(특히 `### 🐛 QA 발견 버그`·즉석 발견 항목)을 처음 잡는 세션은, **acquire 하기 전에** 그 항목 제목 옆에 `(slug: xxx)`를 적어 **TODO.md만 먼저 커밋·푸시**(`git pull --rebase` 후)한 뒤 그 슬러그로 acquire한다 → 이후 모든 세션·계정이 같은 슬러그로 수렴한다. 슬러그는 소문자-하이픈 영문(예: `pet-egg-nan`, `dungeon-enter-freeze`).
 5. **exit 4 = 인프라 고장(경쟁 아님)**: 2026-08-18까지 `claim.sh`는 push refspec 을 `origin main`(로컬 브랜치)으로 줘서, **detached HEAD 이거나 로컬 main 이 낡은 컨테이너에서는 push 가 항상 거부**되고 그걸 `BUSY`로 뭉개 **모든 항목에 거짓 BUSY**를 냈다(멀쩡한 항목을 세션마다 건너뛴 원인 — 실제로 이 함정에 걸린 세션이 있다). 지금은 `HEAD:refs/heads/main` 으로 밀고, remote 에 남의 락이 실제로 있는지 확인해 **BUSY(2)와 인프라 고장(4)을 분리**한다. exit 4 가 나오면 항목을 포기하지 말고 `git status -sb`(더티 트리 → 먼저 커밋)와 `git branch -vv`(detached/낡은 main → `git checkout -B main origin/main`)를 고친 뒤 재시도할 것. ⚠️ **acquire 는 실패 경로에서 `git reset --hard` 를 돌린다 — 커밋 안 한 작업 파일이 날아간다.** 반드시 깨끗한 트리에서 부를 것.
 6. 현재 점유 현황은 `bash web/tools/claim.sh list`로 본다. **acquire가 BUSY면 절대 우회해서 착수하지 말 것** — 이 규칙을 어기면 같은 항목 중복 구현→한쪽 폐기가 그대로 재발한다.
 > ⚠️ bash가 없는 환경(순수 PowerShell 세션)이면 최소한 `git pull` 후 `locks/<항목ID>.lock` 존재 여부를 직접 확인하고, 없으면 같은 형식(`owner=`,`item=`,`ts=`)으로 만들어 커밋·푸시한 뒤 착수할 것.
