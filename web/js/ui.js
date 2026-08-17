@@ -2196,21 +2196,32 @@ const UI = {
                     </div>
                     <div class="offline-bottom">
                         <div class="offline-total">👑 ${U.fmtDec(o.coins)} &nbsp; 🔨 ${U.fmtDec(o.hammers)}</div>
-                        <button class="btn primary offline-collect-btn" onclick="UI.closeOfflineModal()">수집<span class="offline-collect-dot"></span></button>
+                        <button class="btn primary offline-collect-btn" onclick="UI.onCollectOffline()">수집<span class="offline-collect-dot"></span></button>
                     </div>
                 </div>
                 <button class="x-btn" onclick="UI.closeOfflineModal()">✕</button>
             </div>`;
         this.showModal(this.els.offlineModal);
     },
+    // X로 닫기 = 단순 닫힘. 보상은 그대로 남아 버튼으로 언제든 다시 열 수 있다 (사용자 지시 2026-08-17)
     closeOfflineModal() { this.els.offlineModal.classList.add('hidden'); },
 
+    // 오프라인 버튼: 미수집 누적분을 '미리보기'로 연다 (여는 것만으로는 지급되지 않음)
     onClaimOffline() {
-        const r = claimOfflineNow();
+        const r = pendingOffline();
         if (!r) { this.toast('💤 아직 누적된 오프라인 보상이 없습니다'); return; }
         this.showOffline(r);
+    },
+
+    // [수집]에서만 실제 지급 + 누적 리셋
+    onCollectOffline() {
+        const r = claimOfflineNow();
+        if (!r) { this.toast('💤 아직 누적된 오프라인 보상이 없습니다'); this.closeOfflineModal(); return; }
+        this.closeOfflineModal();
+        this.toast(`👑 ${U.fmtDec(r.coins)} · 🔨 ${U.fmtDec(r.hammers)} 수집!`);
         this.els.offlineBtn.classList.remove('ready');
         this.renderTopBar();
+        this.renderEquipSheet(); // 해머 수가 제작 화면에도 바로 반영되게
         saveGame();
     },
 
@@ -2311,6 +2322,11 @@ const UI = {
         this.renderTopBar();
         this.updateAnvilCounter(); // 킬 드랍·분당 수급으로 계속 변하는 해머 보유량 (QA: 정적 문자열이라 안 갱신되던 버그)
         this.els.offlineBtn.classList.toggle('ready', (U.now() - S.lastOfflineClaim) / 1000 >= 60);
+        // 켜둔 채로도 누적이 자라므로, 열려 있는 오프라인 팝업의 수치를 매 초 갱신한다 (사용자 지시 2026-08-17)
+        if (!this.els.offlineModal.classList.contains('hidden')) {
+            const p = pendingOffline();
+            if (p) this.showOffline(p);
+        }
         // 대장간 업그레이드 카운트다운 (장비 시트 버튼 + 확률 정보 팝업 진행바)
         if (S.forgeUpgradeEndsAt) {
             const remain = (S.forgeUpgradeEndsAt - U.now()) / 1000;

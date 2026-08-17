@@ -100,26 +100,23 @@ function offlineRewardFor(elapsedSec) {
     return { counted: t, coins, hammers, coinRate, hammerRate };
 }
 
-// 부팅 시 자동 지급 (마지막 수령 시각 기준). 1분 미만 경과는 무시하고 누적 유지. 반환값: 보상 요약 or null
-function applyOffline() {
-    const elapsed = Math.floor((U.now() - S.lastOfflineClaim) / 1000);
-    if (elapsed < 60) return null;
-    const r = offlineRewardFor(elapsed);
-    S.coins += r.coins;
-    S.hammers += r.hammers;
-    S.lastOfflineClaim = U.now();
-    return { elapsed, ...r };
-}
-
-// 전투 화면 오프라인 보상 버튼: 접속 중에도 마지막 수령 시각부터의 누적분을 즉시 수령
-function claimOfflineNow() {
+// 미수집 누적분 조회 — 상태를 건드리지 않는다(순수 계산).
+// 팝업은 이 값을 '미리보기'로 보여주고, 실제 지급은 [수집]을 눌러 claimOfflineNow()가 할 때만 일어난다.
+// 그래서 팝업을 X로 닫아도 보상이 사라지지 않고, 게임을 켜둔 채로도 누적이 계속 자란다.
+function pendingOffline() {
     const elapsed = Math.floor((U.now() - S.lastOfflineClaim) / 1000);
     if (elapsed < 1) return null;
-    const r = offlineRewardFor(elapsed);
+    return { elapsed, ...offlineRewardFor(elapsed) };
+}
+
+// [수집] 전용 — 여기서만 재화가 지급되고 누적 기준 시각이 리셋된다
+function claimOfflineNow() {
+    const r = pendingOffline();
+    if (!r) return null;
     S.coins += r.coins;
     S.hammers += r.hammers;
     S.lastOfflineClaim = U.now();
-    return { elapsed, ...r };
+    return r;
 }
 
 // 현재 스테이지 키 "1-3"

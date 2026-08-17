@@ -23,7 +23,8 @@
         Forge.ensureRollLevels(); // 시대별 뽑기 레벨 필드 보정 (구세이브는 전 시대 1레벨부터 시작)
         Pass.ensure();
         Chat.ensure();
-        const offline = applyOffline();
+        // 부팅 시 자동 지급은 폐기 — 누적분은 그대로 두고 팝업으로 보여주기만 한다(수집은 [수집] 버튼에서만).
+        const offlinePending = pendingOffline();
 
         UI.init();
         // 브라우저 자동재생 정책: 최초 사용자 입력 시 AudioContext 활성화
@@ -41,7 +42,7 @@
         UI.renderTopBar(); // UI.init()에서 먼저 그린 상단바(전투력 0)를 실제 계산치로 갱신
         UI.updateStageLabel();
 
-        if (offline) UI.showOffline(offline);
+        if (offlinePending && offlinePending.elapsed >= 60) UI.showOffline(offlinePending); // 1분 미만 경과는 팝업 생략
 
         // 디버그: ?tab=summon|pets|skills|menu|debug 등으로 패널 바로 열기, ?debug=craft로 제작 모달 확인
         const params = new URLSearchParams(location.search);
