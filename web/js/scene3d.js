@@ -4625,10 +4625,13 @@ const Scene3D = {
         this.flashMesh(m, crit ? 0.28 : 0.2, crit ? 0.14 : 0.1);
         this.rimFlash(m, crit ? 0.13 : 0.1);
         // ② 접촉점 — 영웅(-x)에서 들어온 타격이므로 몸통 왼쪽 앞면에 플레어 + 그 축으로 파편
-        const hitPt = pos.clone().add(new THREE.Vector3(-0.3 * (m.baseScale || 1), 0.55 * (m.baseScale || 1), 0.12));
+        // 접촉점 높이도 실높이 비례로 — 고정 0.55는 키 작은 슬라임에선 머리 위, 키 큰 골렘·보스에선
+        // 무릎~허벅지에 맞아 "다리를 때렸다"로 읽혔다(연속 프레임 a4/a5 실측). 처치 버스트가 이미 쓰는
+        // eh*0.5(몸통 중앙) 규칙으로 통일하되, 아래로 살짝(0.46) 내려 가슴이 아니라 명치에 꽂히게 한다.
+        const eh = (m.topY || 1.1) * (m.baseScale || 1);
+        const hitPt = pos.clone().add(new THREE.Vector3(-0.3 * (m.baseScale || 1), eh * 0.46, 0.12));
         // 플레어 지름 상한 = 적 실높이의 0.55배. 예전엔 고정 0.95~1.25유닛이라 키 0.85인 슬라임에서
         // 플레어가 몸 전체보다 커져 하반신이 통째로 지워졌다(비평가 2차 ⓐ). 종·보스 스케일을 따라간다.
-        const eh = (m.topY || 1.1) * (m.baseScale || 1);
         const fmax = eh * 0.55;
         // 코어(순백)/중간(주황빛 살구)/외곽(진주황) 3층 — 한 색으로 겹치면 가산 합성에서 전부 순백으로
         // 포화돼 '흰 원반'이 된다. 바깥층일수록 크고 어둡고 옅게 둬야 불꽃의 색 계조가 남는다.
@@ -5265,11 +5268,26 @@ const Scene3D = {
     damageNumber(worldPos, text, cls, opt) {
         if (this.fxLayer.children.length > 40) return; // 과부하 방지
         const pt = this.project(worldPos);
+        // 슬롯 회피 — 아직 살아 있는 숫자와 같은 자리에 스폰되면 위 칸으로 밀어 올린다.
+        // 연타(일반→크리)에서 두 숫자가 같은 픽셀에 겹쳐 서로를 읽을 수 없게 되던 결함(연속 프레임 a5 실측:
+        // 흰 '140' 위에 주황 '320'이 포개져 위계가 아니라 얼룩으로 보였다). 월드 오프셋(크리 +0.3)만으로는
+        // 대상이 같으면 투영 좌표가 거의 겹친다. **시계를 쓰지 않고 DOM에 실제로 남아 있는 요소만 본다** —
+        // 촬영기가 숫자 수명을 시뮬 시각으로 갈아끼워도 같은 규칙이 성립한다.
+        let ty = pt.y;
+        for (let i = 0; i < 4; i++) {
+            let clash = false;
+            for (const o of this.fxLayer.children) {
+                const ox = parseFloat(o.style.left), oy = parseFloat(o.style.top);
+                if (Math.abs(ox - pt.x) < 54 && Math.abs(oy - ty) < 26) { clash = true; break; }
+            }
+            if (!clash) break;
+            ty -= 28; // 한 칸 = 숫자 높이 남짓. 4칸(112px)까지만 — 그 위는 화면 밖·HUD 영역이다
+        }
         const el = document.createElement('div');
         el.className = 'float-dmg ' + cls;
         el.textContent = text;
         el.style.left = pt.x + 'px';
-        el.style.top = pt.y + 'px';
+        el.style.top = ty + 'px';
         // 아크 파라미터: 좌우 드리프트·도약 높이·크기를 개별로 줘 같은 자리에 연타로 겹쳐도 흩어져 읽힌다
         if (opt) {
             if (opt.dx !== undefined) el.style.setProperty('--dx', opt.dx.toFixed(1) + 'px');
