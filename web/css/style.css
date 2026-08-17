@@ -483,7 +483,9 @@ body {
 .modal-card .sub { font-size: .78rem; color: #81d4fa; }
 
 /* ---- 장비 비교/세부정보 팝업 (UI-SPEC 25·26번, 원본 shot-043224/043244) ---- */
-.modal-card.wide { width: 80%; }
+/* 원본 실측: 넓은 팝업도 화면 폭의 70~77%에 머문다(비교 팝업 shot-043224 = 73.9%).
+   클론은 80%라 +6.1%p — 비평가 6인이 공통 지적한 '모달 폭 일괄 과대'의 기본값. */
+.modal-card.wide { width: 74%; }
 .cmp-wrap { display: flex; flex-direction: column; gap: 1.5rem; margin-top: .5rem; }
 .cmp-card-wrap { position: relative; }
 .cmp-ribbon {
@@ -1061,7 +1063,9 @@ body {
 .profile-fields { flex: 1; display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
 .profile-field-label { font-size: .68rem; font-weight: 800; color: var(--pp-muted); text-align: left; }
 /* 원본(042724): 프로필 모달 70% W × 69% H, 탭은 모달 최하단 고정 */
-.profile-sheet { width: 70%; height: min(calc(var(--app-h) * .66), var(--popup-h-max)); display: flex; flex-direction: column; }
+/* .modal-card.wide(클래스 2개)가 .profile-sheet(1개)보다 특이도가 높아 70%가 먹지 않고 80%로 그려졌다
+   — 복합 선택자로 승격해 원본 실측 71.6%를 적용한다. */
+.modal-card.wide.profile-sheet { width: 71.6%; height: min(calc(var(--app-h) * .66), var(--popup-h-max)); display: flex; flex-direction: column; }
 .profile-sheet .profile-tabs { margin-top: auto; }
 .profile-field-row { display: flex; align-items: center; gap: .4rem; margin-top: .1rem; }
 .profile-field {
@@ -1337,9 +1341,13 @@ body {
 #chat-preview { background: var(--pp-sheet); color: #3c3a35; border-top: 2px solid var(--pp-line); }
 
 /* ---- 장비 상세 팝업 (원본 비율: 카드폭 82%, 아이콘 18%, 회색 패널 93%) ---- */
+/* .item-detail은 기술 노드 팝업(#detail-modal)과 장비 시대 상세(#forge-item-modal) 둘이 공유하는데
+   원본 폭이 서로 다르다 — 기술 노드(shot-042605) 77.6% vs 장비 상세(shot-042931) 70.5%.
+   기본값을 기술 노드에 맞추고 장비 상세만 모달 스코프로 따로 좁힌다. */
 .modal-card.item-detail {
-    width: 82%; padding: 4.4%; gap: 0; text-align: left;
+    width: 77.6%; padding: 4.4%; gap: 0; text-align: left;
 }
+#forge-item-modal .modal-card.item-detail { width: 70.5%; }
 .idet-head { display: flex; align-items: flex-start; gap: 4.2%; }
 .idet-icon {
     position: relative; width: 18%; aspect-ratio: 1; flex: none;
@@ -1564,7 +1572,7 @@ body {
 .sk-mini.square { border-radius: .4rem; }
 
 /* ---- 펫 업그레이드 팝업 (UI-SPEC 55번, 원본 shot-042503): 대상 카드 + 경험치 바 + 선택 슬롯 + 재료 그리드 ---- */
-.petup-card { width: 88%; height: min(calc(var(--app-h) * .8), var(--popup-h-max)); max-height: var(--popup-h-max); padding: 4.4%; gap: 0; text-align: left; } /* 원본 ≈80% H 시트 (185) */
+.petup-card { width: 74.7%; /* 원본 shot-042503 실측 */ height: min(calc(var(--app-h) * .8), var(--popup-h-max)); max-height: var(--popup-h-max); padding: 4.4%; gap: 0; text-align: left; } /* 원본 ≈80% H 시트 (185) */
 .petup-head { display: flex; align-items: flex-start; gap: 4.2%; }
 .petup-icon {
     position: relative; width: 16%; aspect-ratio: 1; flex: none; /* 원본 ≈15.6% W (185) */
@@ -1645,7 +1653,7 @@ body {
 .row.wrap { flex-wrap: wrap; }
 
 /* ---- 소환 확률 팝업 (UI-SPEC 48번): ◀▶ + 등급별 색 막대 + 진행 게이지 ---- */
-.rates-card { width: 84%; gap: .6rem; }
+.rates-card { width: 75.5%; /* 원본 shot-042521 실측 */ gap: .6rem; }
 .rates-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .rates-head h3 { font-size: 1.3rem; font-weight: 900; }
 .rates-sub { font-size: .82rem; font-weight: 800; color: var(--pp-ink); }
@@ -1849,7 +1857,7 @@ body {
 }
 
 /* ===== 스킬 상세 팝업 (shot-042426 원본 대조 재작업) ===== */
-.skd-card { width: 86%; min-height: 20rem; padding: 1rem .9rem 1.1rem; text-align: left; display: flex; flex-direction: column; gap: 0; }
+.skd-card { width: 76.1%; /* 원본 shot-042426 실측 */ min-height: 20rem; padding: 1rem .9rem 1.1rem; text-align: left; display: flex; flex-direction: column; gap: 0; }
 .skd-head { display: flex; gap: .8rem; align-items: flex-start; }
 .skd-orbcol { width: 17.5%; flex: none; /* 원본 오브 ≈11% W (185) */ display: flex; flex-direction: column; align-items: center; gap: .22rem; }
 .skd-orbcol .sk-orb { font-size: 1.9rem; }
@@ -1904,7 +1912,7 @@ body {
 #panel-summon > .summon-sub { position: relative; } /* 분기 상세 ⓘ 절대배치 기준 */
 
 /* ===== 펫 상세 팝업 (shot-042449 원본 대조 재작업) ===== */
-.petd-card { width: 86%; padding: 1.1rem .9rem 1.2rem; text-align: left; position: relative; gap: 0; }
+.petd-card { width: 76.9%; /* 원본 shot-042449 실측 */ padding: 1.1rem .9rem 1.2rem; text-align: left; position: relative; gap: 0; }
 .petd-share {
     position: absolute; top: .55rem; right: .55rem; cursor: pointer;
     width: 1.7rem; height: 1.7rem; border: 2px solid var(--pp-line); border-radius: .4rem;
@@ -1934,7 +1942,7 @@ body {
 /* 플레이어 정보 장비 그리드도 .equip-cell 기본 룩 공유 (일괄 통일) */
 /* 옵션 합계: 원본은 좌정렬 굵은 검정 */
 .pinfo-subs-list { text-align: left; font-weight: 900; color: var(--pp-ink); font-size: .88rem; line-height: 1.6; padding-left: .4rem; }
-.fl-card { width: 90%; padding: .85rem .8rem .9rem; }
+.fl-card { width: 71%; /* 원본 shot-042905 71.3% · shot-042931 70.5% 실측 */ padding: .85rem .8rem .9rem; }
 .fl-head { margin-bottom: .4rem; }
 .fl-head .fi-age-cur { padding-right: .5rem; }
 .skill-btn.empty { background: rgba(10,10,14,.75); border: 2px solid rgba(255,255,255,.18); pointer-events: none; }
