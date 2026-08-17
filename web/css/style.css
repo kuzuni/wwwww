@@ -1971,7 +1971,7 @@ body {
     --fx: 50%; --fy: 50%; /* 홀드백 착지 원점 — JS가 셀 위치로 갱신 */
     position: relative; width: 100%; height: 100%;
     display: flex; flex-direction: column; align-items: center;
-    padding: .9rem .7rem .8rem;
+    padding: .9rem 1.1rem .8rem;
 }
 /* 스포크가 프레임 끝까지 직선으로 뻗는 것을 막는 비네트 */
 .sr-wrap::after {
@@ -2082,9 +2082,11 @@ body {
     -webkit-mask-image: linear-gradient(rgba(0,0,0,0) 0, #000 5%, #000 95%, rgba(0,0,0,0) 100%);
     mask-image: linear-gradient(rgba(0,0,0,0) 0, #000 5%, #000 95%, rgba(0,0,0,0) 100%);
 }
-.sr-cell { width: min(5.6rem, calc((100% - 3.4rem) / 5)); text-align: center; opacity: 0; transform: scale(.35); }
+.sr-cell { position: relative; width: min(5.6rem, calc((100% - 3.6rem) / 5)); text-align: center; opacity: 0; transform: scale(.35); }
 .sr-grid.one .sr-cell { width: min(13rem, 58vw); }
-.sr-grid.mid .sr-cell { width: calc((100% - 3.4rem) / 6); }
+/* 5열 고정 + 상한 — 폭을 꽉 채우면 15셀이 3행에서 넘쳐 스크롤이 생긴다.
+   결과 화면은 한눈에 다 보이는 편이 나으므로 스크롤 없이 들어가는 크기로 묶는다. */
+.sr-grid.mid .sr-cell { width: min(3.9rem, calc((100% - 4.4rem) / 5)); }
 .sr-grid.dense .sr-cell { width: calc((100% - 4.2rem) / 8); }
 .sr-cell.on { animation: srpop .38s cubic-bezier(.18,1.6,.4,1) forwards; }
 @keyframes srpop {
@@ -2094,10 +2096,21 @@ body {
 }
 /* 등급 계단 — 상위 등급은 물리적으로 더 크고 더 세게 빛난다 */
 .sr-cell { --glow: 0; --ray: 0; --sz: 1; }
-.sr-cell[data-tier="3"] { --glow: .55; --ray: .38; --sz: 1.05; } /* 전설 */
-.sr-cell[data-tier="4"] { --glow: .8;  --ray: .6;  --sz: 1.1; }  /* 궁극의 */
-.sr-cell[data-tier="5"] { --glow: 1;   --ray: .85; --sz: 1.16; } /* 신화 */
-.sr-orbwrap { position: relative; width: 100%; aspect-ratio: 1; transform: scale(var(--sz)); }
+.sr-cell[data-tier="1"] { --glow: .16; --ray: 0;   --sz: .99; }  /* 희귀한 */
+.sr-cell[data-tier="2"] { --glow: .3;  --ray: .16; --sz: 1.03; } /* 서사시 */
+.sr-cell[data-tier="3"] { --glow: .55; --ray: .38; --sz: 1.08; } /* 전설 */
+.sr-cell[data-tier="4"] { --glow: .8;  --ray: .6;  --sz: 1.16; } /* 궁극의 */
+.sr-cell[data-tier="5"] { --glow: 1;   --ray: .85; --sz: 1.26; } /* 신화 */
+/* 셀 뒤 등급 광주 — 아이콘 줄 위아래의 빈 남색 밴드를 구조로 채우고, 등급이 세로 길이로도 읽힌다 */
+.sr-cell::before {
+    content: ''; position: absolute; left: 50%; bottom: 34%; width: 2.6rem; height: 15rem;
+    transform: translateX(-50%); pointer-events: none; z-index: -1; filter: blur(7px);
+    background: linear-gradient(rgba(255,255,255,0), var(--rc));
+    opacity: calc(.1 + .34 * var(--glow));
+    -webkit-mask-image: linear-gradient(rgba(0,0,0,0), #000 72%);
+    mask-image: linear-gradient(rgba(0,0,0,0), #000 72%);
+}
+.sr-orbwrap { position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%; transform: scale(var(--sz)); }
 /* 접지 그림자 — 구체 내부 그라디언트로는 읽히지 않아 구 밖에 눌린 타원으로 깐다 */
 .sr-orbwrap::before {
     content: ''; position: absolute; left: 13%; right: 13%; bottom: -6%; height: 13%;
@@ -2105,61 +2118,61 @@ body {
     background: radial-gradient(closest-side, rgba(0,0,0,.62), rgba(0,0,0,0) 76%);
 }
 /* 팝 순간 퍼지는 등급색 충격파 링 — 셀 경계를 넘어 퍼지게 */
+/* 착지 충격파 — 3px 하드 보더는 4배 확대에서 레이더 레티클처럼 보이고 이웃 셀을 관통한다.
+   감쇠하는 링으로 바꾸고 최대 반경도 등급(--glow)에 비례시켜 일반 드랍과 신화의 임팩트를 벌린다 */
 .sr-orbwrap::after {
     content: ''; position: absolute; inset: 0; border-radius: 50%;
-    border: 3px solid var(--rc); opacity: 0; pointer-events: none; mix-blend-mode: screen;
+    opacity: 0; pointer-events: none; mix-blend-mode: screen;
+    background: radial-gradient(closest-side, rgba(0,0,0,0) 62%, var(--rc) 78%, rgba(0,0,0,0) 92%);
 }
 .sr-cell.on .sr-orbwrap::after { animation: srring .55s ease-out forwards; }
 @keyframes srring {
-    0%   { opacity: .95; transform: scale(.65); }
-    100% { opacity: 0;   transform: scale(2.3); }
+    0%   { opacity: calc(.32 + .62 * var(--glow)); transform: scale(.65); }
+    100% { opacity: 0; transform: scale(calc(1.5 + .8 * var(--glow))); }
 }
 /* 유광 구체 — 상단 스페큘러는 하드 경계(초승달)가 아니라 감쇠하는 타원 하이라이트로,
    테두리는 이중 스트로크(흰 border + 검정 링) 대신 내부 인셋 한 겹으로 */
 .sr-orb {
     position: absolute; inset: 0; border-radius: 50%; border: none;
     display: flex; align-items: center; justify-content: center; line-height: 1;
-    font-size: 1.6rem; text-shadow: 0 .12rem .3rem rgba(0,0,0,.7);
+    font-size: 2.4rem; text-shadow: 0 .12rem .3rem rgba(0,0,0,.7);
     background:
-        radial-gradient(58% 52% at 50% 15%, rgba(255,255,255,.8), rgba(255,255,255,0) 64%),
-        radial-gradient(125% 125% at 30% 20%, var(--rc-lite, #fff) 0%, var(--rc) 44%, var(--rc-deep, #000) 84%, #080c1a 100%);
+        radial-gradient(16% 13% at 36% 19%, #fff, rgba(255,255,255,0) 72%),
+        radial-gradient(58% 52% at 50% 15%, rgba(255,255,255,.6), rgba(255,255,255,0) 64%),
+        radial-gradient(125% 125% at 30% 20%, var(--rc-lite, #fff) 0%, var(--rc) 40%, var(--rc-deep, #000) 72%, #05070f 100%);
     box-shadow: inset 0 0 0 1px rgba(255,255,255,.16),
                 inset 0 -.5rem .85rem rgba(4,8,24,.62),
                 inset 0 .1rem .28rem rgba(255,255,255,.45),
+                inset -.1rem -.16rem .5rem rgba(255,255,255,.2), /* 반대편 바운스 림 */
                 0 .5rem .8rem -.15rem rgba(0,0,0,.7);
 }
-.sr-grid.one .sr-orb { font-size: 4.2rem; }
-.sr-grid.mid .sr-orb { font-size: 1.15rem; }
-.sr-grid.dense .sr-orb { font-size: .95rem; }
+.sr-grid.one .sr-orb { font-size: 6.2rem; }
+.sr-grid.mid .sr-orb { font-size: 1.7rem; }
+.sr-grid.dense .sr-orb { font-size: 1.25rem; }
 /* 하위 등급은 눌러 둔다 — 일반색(#d6d6d6)이 팔레트 최고 휘도라 그대로 두면
    쓰레기 드랍이 화면에서 가장 빛나는 휘도 역전이 생긴다 */
-.sr-cell:not(.hi) .sr-orb { filter: saturate(.62) brightness(.72); }
+.sr-cell[data-tier="0"] .sr-orb,
+.sr-cell[data-tier="1"] .sr-orb { filter: saturate(.66) brightness(.74); }
+.sr-cell[data-tier="2"] .sr-orb { filter: saturate(.95) brightness(.9); } /* 서사시는 쓰레기와 구분되게 덜 누른다 */
 /* 상위 등급 내부의 휘도 역전(순노랑 전설이 어두운 보라 신화보다 밝음)은 본체 밝기로 정규화 */
-.sr-cell[data-tier="3"] .sr-orb { filter: brightness(.86) saturate(1.05); }
-.sr-cell[data-tier="4"] .sr-orb,
-.sr-cell[data-tier="5"] .sr-orb { filter: brightness(1.1); }
-.sr-cell.hi .sr-orb {
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.22),
-                inset 0 -.5rem .85rem rgba(4,8,24,.62),
-                inset 0 .1rem .28rem rgba(255,255,255,.45),
-                0 .5rem .8rem -.15rem rgba(0,0,0,.7),
-                0 0 calc(1.1rem * var(--glow)) var(--rc),
+/* 상위 등급 내부의 휘도 역전은 본체 brightness를 올리는 대신 채도로 조정한다 —
+   brightness를 올리면 3스톱 그라디언트의 어두운 림이 씻겨 구체가 평면 원반이 된다.
+   채도 높은 궁극의(#ff3b30)가 파스텔 신화(#b23dff)를 시선에서 이기던 것도 채도로 누른다 */
+.sr-cell[data-tier="3"] .sr-orb { filter: brightness(.9) saturate(1.05); }
+.sr-cell[data-tier="4"] .sr-orb { filter: saturate(.88); }
+.sr-cell[data-tier="5"] .sr-orb { filter: saturate(1.08); }
+/* 외부 광채는 래퍼에 걸어 본체 그라디언트 위에 얹히지 않게 한다 */
+.sr-orbwrap {
+    box-shadow: 0 0 calc(1.1rem * var(--glow)) var(--rc),
                 0 0 calc(2.3rem * var(--glow)) var(--rc);
 }
 /* 펄스는 본체 밝기가 아니라 광채가 뛰게 — brightness를 올리면 노란 구체가 흰색으로
    클리핑돼 안의 아이콘이 지워진다 */
-.sr-cell.hi.on .sr-orb { animation: srpulse 1.6s ease-in-out .45s infinite; }
+/* 같은 등급이 여러 개면 같은 딜레이로 완벽히 동기 호흡해 기계적으로 보인다 — 셀 index로 위상 분산 */
+.sr-cell.hi.on .sr-orbwrap { animation: srpulse 1.6s ease-in-out infinite; animation-delay: calc(.45s + var(--i, 0) * .17s); }
 @keyframes srpulse {
-    0%, 100% {
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.22), inset 0 -.5rem .85rem rgba(4,8,24,.62),
-                    inset 0 .1rem .28rem rgba(255,255,255,.45), 0 .5rem .8rem -.15rem rgba(0,0,0,.7),
-                    0 0 calc(1.1rem * var(--glow)) var(--rc), 0 0 calc(2.3rem * var(--glow)) var(--rc);
-    }
-    50% {
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.28), inset 0 -.5rem .85rem rgba(4,8,24,.62),
-                    inset 0 .1rem .28rem rgba(255,255,255,.45), 0 .5rem .8rem -.15rem rgba(0,0,0,.7),
-                    0 0 calc(1.7rem * var(--glow)) var(--rc), 0 0 calc(3.2rem * var(--glow)) var(--rc);
-    }
+    0%, 100% { box-shadow: 0 0 calc(1.1rem * var(--glow)) var(--rc), 0 0 calc(2.3rem * var(--glow)) var(--rc); }
+    50%      { box-shadow: 0 0 calc(1.7rem * var(--glow)) var(--rc), 0 0 calc(3.4rem * var(--glow)) var(--rc); }
 }
 /* 광선은 셀 폭을 크게 넘기면 옆 셀과 뭉개져 얼룩 띠가 된다 — 반경을 줄이고 가장자리를 감쇠 */
 .sr-ray {
@@ -2172,18 +2185,11 @@ body {
 @keyframes srrayfade { to { opacity: var(--ray); } }
 @keyframes srrayspin { to { transform: rotate(360deg); } }
 /* 신화 전용 역회전 이중 링 — 최상위 등급만의 표식 */
-.sr-cell[data-tier="5"] .sr-orbwrap { box-shadow: 0 0 0 .12rem rgba(255,255,255,.28); border-radius: 50%; }
-.sr-cell[data-tier="5"].on .sr-orbwrap {
-    animation: srmythic 5s linear infinite;
-}
-@keyframes srmythic {
-    0%   { box-shadow: 0 0 0 .12rem rgba(255,255,255,.28), 0 0 .55rem .05rem var(--rc); }
-    50%  { box-shadow: 0 0 0 .16rem rgba(255,255,255,.5),  0 0 .95rem .1rem var(--rc); }
-    100% { box-shadow: 0 0 0 .12rem rgba(255,255,255,.28), 0 0 .55rem .05rem var(--rc); }
-}
+/* 신화 전용 테두리 링 — 래퍼 box-shadow는 광채/펄스가 쓰므로 outline으로 분리한다 */
+.sr-cell[data-tier="5"] .sr-orbwrap { outline: .12rem solid rgba(255,255,255,.34); outline-offset: .12rem; }
 /* ③ 배지 — 정사각 래퍼 모서리가 아니라 원의 림에 붙인다 */
 .sr-new {
-    position: absolute; top: 4%; right: 2%; z-index: 2;
+    position: absolute; top: 8%; right: 7%; z-index: 2;
     background: linear-gradient(#ff6a5e, #e02114); color: #fff; border: 2px solid rgba(0,0,0,.6);
     border-radius: .5rem; padding: .02rem .26rem;
     font-size: .54rem; font-weight: 900; letter-spacing: .04em;
@@ -2191,7 +2197,7 @@ body {
 }
 /* 대량 소환에서 가장 중요한 정보 — 가장 작은 글자가 되면 안 된다 */
 .sr-qty {
-    position: absolute; bottom: 4%; right: 2%; z-index: 2;
+    position: absolute; bottom: 8%; right: 7%; z-index: 2;
     background: rgba(2,5,16,.9); color: #fff; border: 1px solid var(--rc);
     border-radius: .4rem; padding: 0 .3rem; font-size: .7rem; font-weight: 900;
     box-shadow: 0 .1rem .28rem rgba(0,0,0,.6);
@@ -2199,19 +2205,29 @@ body {
 .sr-grid.dense .sr-new, .sr-grid.dense .sr-qty { display: none; }
 .sr-name {
     margin-top: .5rem; font-size: .7rem; font-weight: 800; color: #fff; line-height: 1.18;
-    /* 긴 이름은 잘라내지 않고 두 줄까지 허용하되, 높이를 고정해 셀 아래 배지 줄이 어긋나지 않게 */
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-    white-space: normal; overflow: hidden; height: 2.36em;
+    /* 긴 이름은 두 줄까지 허용하되 높이를 최소값으로 잡아 1줄일 때 아래 빈 바가 남지 않게.
+       flex 정렬과 -webkit-box(2줄 클램프)는 같은 요소에서 공존하지 못하므로 클램프는 내부 span에 둔다 */
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    white-space: normal; overflow: hidden; min-height: 2.36em;
+    width: 92%; margin-left: auto; margin-right: auto;
+    position: relative; z-index: 3;
+    background: rgba(6,10,26,.84); box-shadow: 0 0 0 1px rgba(255,255,255,.08);
     text-shadow: 0 .1rem .3rem rgba(0,0,0,.95);
-    background: linear-gradient(rgba(6,10,26,0), rgba(6,10,26,.7) 45%);
-    border-radius: .3rem; padding: .08rem .2rem;
+    border-radius: .3rem; padding: .12rem .2rem;
 }
+.sr-name > span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .sr-sub {
     display: inline-block; margin-top: .2rem; padding: .04rem .36rem; border-radius: .45rem;
     background: rgba(2,5,16,.62); border: 1px solid rgba(255,255,255,.16);
     font-size: .62rem; font-weight: 900; color: var(--rc); letter-spacing: .02em;
 }
-.sr-grid.one .sr-name { font-size: 1.25rem; margin-top: .85rem; height: auto; -webkit-line-clamp: 1; }
+/* x1은 셀이 넓어 이름 배경판이 입력창처럼 보인다 — 글자 폭에만 깔리게 */
+.sr-grid.one .sr-name {
+    font-size: 1.25rem; margin-top: .85rem; min-height: 0; width: auto;
+    background: none; box-shadow: none; text-shadow: 0 .12rem .4rem rgba(0,0,0,.95);
+}
+/* 큰 구체에서는 정사각 래퍼 모서리 기준 배지가 원 밖으로 떠 보인다 — 림 안쪽으로 */
+.sr-grid.one .sr-new { top: 10%; right: 9%; font-size: .62rem; }
 .sr-grid.one .sr-sub { font-size: .95rem; padding: .14rem .65rem; margin-top: .35rem; }
 .sr-grid.mid .sr-name { font-size: .56rem; margin-top: .3rem; height: 2.4em; }
 .sr-grid.mid .sr-sub { font-size: .5rem; padding: .02rem .22rem; }
@@ -2244,6 +2260,16 @@ body {
     border: 2px solid rgba(60,38,4,.75); border-radius: .7rem;
     box-shadow: inset 0 -.22rem 0 rgba(120,72,4,.5), inset 0 .16rem 0 rgba(255,255,255,.55),
                 0 .35rem .8rem rgba(0,0,0,.6);
+}
+/* 결과 등급을 배경에 승격 — 연출이 끝난 뒤에만 켜서 스포일러가 되지 않게 한다 */
+#summon-result-modal.done {
+    background: radial-gradient(118% 76% at 50% 44%, var(--bg-a, #24306a) 0%, var(--bg-b, #101740) 38%, #070b20 68%, #03040c 100%);
+    transition: background .5s ease-out;
+}
+#summon-result-modal.done .sr-rays { opacity: .3; animation-duration: 26s; }
+#summon-result-modal.done .sr-halo {
+    background: radial-gradient(closest-side, var(--halo, rgba(120,165,255,.4)) 0%, rgba(0,0,0,0) 100%);
+    transition: background .5s ease-out;
 }
 #summon-result-modal.done .sr-hint { display: none; }
 #summon-result-modal.done .sr-ok { display: block; animation: srpop .32s cubic-bezier(.18,1.6,.4,1) both; }

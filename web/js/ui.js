@@ -102,6 +102,14 @@ const UI = {
                 .toString(16).padStart(2, '0')).join('');
     },
 
+    srRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; },
+    // base에 tint를 amt만큼 섞는다 — 결과 등급에 따라 배경 분위기를 승격시킬 때 쓴다
+    srBlend(base, tint, amt) {
+        const a = this.srRgb(base), b = this.srRgb(tint);
+        return '#' + a.map((c, i) => U.clamp(Math.round(c + (b[i] - c) * amt), 0, 255)
+            .toString(16).padStart(2, '0')).join('');
+    },
+
     // 배경에 천천히 떠오르는 빛가루 — 정지 화면이 죽어 보이지 않게 하는 용도라 난수 대신
     // 고정 수열로 흩어 놓는다(소환할 때마다 배치가 튀지 않게)
     summonMotes() {
@@ -121,19 +129,19 @@ const UI = {
         const best = entries[entries.length - 1].rarity; // 오름차순 정렬이라 마지막이 최고 등급
         // 최고 등급이 전설 이상이고 그 셀이 하나뿐일 때만 홀드백 — 흔한 등급까지 뜸들이면 늘어진다
         const holdback = this.SR_HI_RARITIES.indexOf(best) >= 0 && entries[entries.length - 1].qty === 1;
-        const cells = entries.map(e => {
+        const cells = entries.map((e, i) => {
             const hi = this.SR_HI_RARITIES.indexOf(e.rarity) >= 0;
             const rc = RARITY_CSS[e.rarity];
             // data-tier로 등급별 세기(크기·광채·광선)를 계단화한다 — 6등급이 2상태로 붕괴하지 않게
             return `<div class="sr-cell${hi ? ' hi' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
-                style="--rc:${rc};--rc-lite:${this.srShade(rc, .5)};--rc-deep:${this.srShade(rc, -.6)}">
+                style="--i:${i};--rc:${rc};--rc-lite:${this.srShade(rc, .5)};--rc-deep:${this.srShade(rc, -.62)}">
                 <div class="sr-orbwrap">
                     <span class="sr-ray"></span>
                     <span class="sr-orb">${e.icon}</span>
                     ${e.qty > 1 ? `<b class="sr-qty">×${e.qty}</b>` : ''}
                     ${e.isNew ? '<span class="sr-new">NEW</span>' : ''}
                 </div>
-                <div class="sr-name">${e.name}</div>
+                <div class="sr-name"><span>${e.name}</span></div>
                 <div class="sr-sub">${e.sub}</div>
             </div>`;
         }).join('');
@@ -157,6 +165,12 @@ const UI = {
                     <button class="btn sr-ok" onclick="event.stopPropagation(); UI.closeSummonResult()">확인</button>
                 </div>
             </div>`;
+        // 뽑은 최고 등급을 배경에 반영한다(.done에서만 켜짐) — 쓰레기와 신화가 같은 화면이면
+        // 결과창의 정서적 위계가 0이 된다
+        const bc = RARITY_CSS[best], brgb = this.srRgb(bc);
+        m.style.setProperty('--bg-a', this.srBlend('#24306a', bc, .24));
+        m.style.setProperty('--bg-b', this.srBlend('#101740', bc, .16));
+        m.style.setProperty('--halo', `rgba(${brgb[0]},${brgb[1]},${brgb[2]},.4)`);
         this.clearSummonTimers();
         this._srDone = false;
         SFX.summonCharge(best);
@@ -231,6 +245,7 @@ const UI = {
         this._srDone = false;
         const m = this.els.summonResultModal;
         m.className = 'modal hidden';
+        m.removeAttribute('style');
         m.innerHTML = '';
     },
 
