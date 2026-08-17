@@ -1509,7 +1509,8 @@ const UI = {
                     <div class="pass-sword">🗡️</div>
                     <div class="pass-banner">진행 패스</div>
                     <div class="pass-desc-row">
-                        <p class="pass-desc">전투를 진행하여 보상을<br>받으세요!</p>
+                        <!-- 원본(042705)은 "…보상을 받 / 으세요!"로 단어 중간에서 접힌다(2행 모두 가운데 정렬) -->
+                        <p class="pass-desc">전투를 진행하여 보상을 받<br>으세요!</p>
                         <div class="pass-price" onclick="UI.onPremiumPass()">${Pass.PREMIUM_PRICE_KR}</div>
                     </div>
                     <div class="pass-header-row"><span>무료</span><span>프리미엄</span></div>

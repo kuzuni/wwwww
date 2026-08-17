@@ -772,10 +772,16 @@ body {
 }
 
 /* ---- 진행 패스 (UI-SPEC 18번, 원본 shot-042705) — 어두운 남색 카드(다른 화면의 흰 시트와 다름, 스크린샷 우선) ---- */
+/* 원본(shot-042705, 488×890)을 픽셀 스캔해 세로 스택을 실측했다 — 카드 외곽 y 116~757(높이 72.0%H),
+   패딩상단 37 · 리본 41 · 간격 19 · 설명행 51 · 간격 21 · 탭행 26 · 트랙(흰 영역) 391 · 하단 다크 띠 47(px).
+   기존 클론은 트랙이 50vh(446px)로 과대하고 하단 다크 띠가 없어(`margin-bottom: -.9rem`) 카드가 69px 길었고,
+   그만큼 세로 중앙 정렬이 카드를 위로 밀어 카드 상단이 11.32%(원본 13.03%)에 놓였다 — 탭 행이 원본보다
+   2.76%p 위에 있던 편차의 절반이 여기서 나온다. gap도 0으로 두고 간격은 전부 margin으로 실측값을 준다. */
 .modal-card.pass-card {
     background: linear-gradient(180deg, #2b3272, #1a2050); color: #fff;
-    position: relative; overflow: visible; padding-top: 2.2rem;
-    width: 72%; /* 원본 ≈70% W (185) */
+    position: relative; overflow: visible; gap: 0;
+    padding: 2.3rem 1.1rem 2.94rem; /* 상 37px · 하 47px(트랙 아래 다크 띠) */
+    width: 72%; /* 원본 ≈70% W (185) — 보상 카드 폭이 원본 32.38%에 맞는 값이라 유지 */
 }
 .pass-card h2, .pass-card h3, .pass-card h4 { color: #fff; }
 .pass-sword {
@@ -787,30 +793,66 @@ body {
     position: absolute; top: -3.55rem; left: 50%; transform: translateX(-50%) rotate(-45deg);
     font-size: 4.8rem; line-height: 1; filter: drop-shadow(.18rem .25rem .18rem rgba(0,0,0,.55)); z-index: 1;
 }
-.pass-banner { /* 원본: 카드 좌우를 넘는 풀블리드 리본 */
+/* ---- 리본: 카드 좌우를 넘는 풀블리드 ----
+   원본 실측 — 밴드(밝은 채움) x 47~431 = 폭 78.89%W, 외곽(검정 3px 포함) 높이 41px.
+   클론은 밴드가 73.55%밖에 안 돼 -5.34%p 좁았다. 카드 콘텐츠 폭(318px)에서 좌우로
+   40.8px씩 빼내 밴드 외곽 400px(=80.1%W, 채움 78.9%W)를 만든다. */
+.pass-banner {
     position: relative; background: linear-gradient(180deg, #5252f0, #3c3cbe); border: 3px solid var(--pp-line);
-    color: #fff; font-weight: 900; font-size: 1.05rem; text-align: center;
-    border-radius: .2rem; padding: .55rem; margin: 0 -1.7rem .55rem;
+    color: #fff; font-weight: 900; font-size: 1.05rem; text-align: center; line-height: 1.15;
+    border-radius: .2rem; padding: .49rem .5rem; margin: 0 -2.55rem 1.19rem; /* 아래 간격 19px */
 }
-.pass-banner::before, .pass-banner::after { content: ''; position: absolute; top: .6rem; border-style: solid; z-index: -1; }
-.pass-banner::before { left: -.95rem; border-width: 1rem .95rem 1rem 0; border-color: transparent #26268f transparent transparent; }
-.pass-banner::after { right: -.95rem; border-width: 1rem 0 1rem .95rem; border-color: transparent transparent transparent #26268f; }
-.pass-desc-row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin: 0 .2rem .6rem; }
-.pass-desc { text-align: left; font-size: .8rem; font-weight: 800; color: #fff; margin: 0; line-height: 1.4; }
+/* 리본 끝단은 삼각형이 아니라 '제비꼬리(swallowtail)' — 원본 좌측 꼬리 실측 x 24~59 · y 164~202
+   (36×39px)이고 바깥쪽 모서리에 깊이 11px(=30.5%)의 V 홈이 파여 있다. 리본보다 8px 아래에서
+   시작해 6px 더 내려와 접힌 자락처럼 보인다. 기존 클론은 세로 중앙의 단순 ◀ 삼각형(폭 15px)이라
+   꼬리까지 합친 폭이 79.16%(원본 88.32%)에 그쳤다. clip-path로 홈을 파 원본 실루엣을 재현한다. */
+.pass-banner::before, .pass-banner::after {
+    content: ''; position: absolute; top: .31rem; width: 2.3rem; height: 2.44rem;
+    background: #2112a0; z-index: -1;
+}
+.pass-banner::before { left: -1.44rem; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 31% 50%); }
+.pass-banner::after { right: -1.44rem; clip-path: polygon(0 0, 100% 0, 69% 50%, 100% 100%, 0 100%); }
+
+/* 설명행 — 원본은 좌우 flex 양끝 배치가 아니라 아래 [무료]/[프리미엄] 탭과 같은 2등분 그리드다.
+   실측: 안내문 글자 블록 중심 153.5px, 가격 배지 중심 324.5px, 카드 안쪽 70~408(중앙 239)
+   → 각각 왼쪽 절반의 중심 154.5 · 오른쪽 절반의 중심 323.5와 일치한다. 클론은 flex
+   space-between이라 안내문이 왼쪽 끝(좌측 x 19.04%, 원본 15.98%)에, 배지가 오른쪽 끝
+   (우측 80.16%, 원본 74.39%)에 붙어 둘 다 2%p 넘게 어긋나 있었다. */
+.pass-desc-row {
+    display: grid; grid-template-columns: 1fr 1fr; align-items: center;
+    margin: 0 -.9rem 1.31rem; /* 탭 행과 같은 풀블리드 폭 · 아래 간격 21px */
+}
+.pass-desc { text-align: center; font-size: .78rem; font-weight: 800; color: #fff; margin: 0; line-height: 1.4; }
+/* 가격 배지는 둥근 사각형이 아니라 아래가 뾰족한 '페넌트' — 원본 외곽 x 286~363(폭 15.98%W) ·
+   y 215~266(높이 5.73%H)이고 아래 모서리(82% 지점)부터 가운데로 모여 꼭짓점을 만든다.
+   검정 외곽선은 바깥 레이어(배경 --pp-line)를, 주황 면은 3px 안쪽으로 물린 ::before를 같은
+   clip-path로 잘라 만든다(테두리 속성은 clip-path에 잘려 쓸 수 없음). */
 .pass-price {
-    display: block; flex: none; width: fit-content;
-    background: linear-gradient(180deg, #ffb300, #dd8a00); color: #fff; border: 3px solid var(--pp-line);
-    border-radius: .5rem; padding: .35rem 1.2rem; font-size: .85rem; font-weight: 900; cursor: pointer; white-space: nowrap;
+    --pen: polygon(0 0, 100% 0, 100% 82%, 50% 100%, 0 82%);
+    position: relative; z-index: 0; justify-self: center; width: fit-content;
+    background: var(--pp-line); clip-path: var(--pen); border: 0; border-radius: .3rem .3rem 0 0;
+    padding: .92rem .72rem 1.23rem; font-size: .8rem; font-weight: 900; line-height: 1.3;
+    color: #fff; cursor: pointer; white-space: nowrap;
+    text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
+}
+.pass-price::before {
+    content: ''; position: absolute; inset: 3px; z-index: -1;
+    background: linear-gradient(180deg, #ffa41c 0 68%, #b5700a 68%);
+    clip-path: var(--pen); border-radius: .2rem .2rem 0 0;
 }
 .pass-header-row {
     display: grid; grid-template-columns: 1fr 1fr; text-align: center; font-weight: 900; font-size: .85rem;
     color: #fff; margin: 0 -.9rem; border-top: 3px solid var(--pp-line); border-bottom: 3px solid var(--pp-line);
 }
-.pass-header-row span:first-child { background: var(--pp-blue); padding: .45rem 0; border-right: 3px solid var(--pp-line); }
-.pass-header-row span:last-child { background: #f2a93c; padding: .45rem 0; }
+/* 원본 탭 행 실측: 채움 y 290~309(높이 20px) + 검정 3px 상하 = 외곽 26px = 2.92%H.
+   클론은 40px(4.50%H)이라 아래 트랙까지 밀어 올렸다 — 패딩을 .2rem·line-height 1로 줄여 맞춘다. */
+.pass-header-row span:first-child { background: var(--pp-blue); padding: .2rem 0; line-height: 1; border-right: 3px solid var(--pp-line); }
+.pass-header-row span:last-child { background: #f2a93c; padding: .2rem 0; line-height: 1; }
+/* 원본 흰 트랙은 y 316~706 = 391px(43.8%H)이고 그 아래로 47px 다크 띠가 남는다(카드 하단 패딩).
+   50vh + margin-bottom -.9rem 조합은 트랙을 카드 바닥까지 끌어내려 띠를 없애고 카드를 69px 늘렸다. */
 .pass-track {
-    max-height: 50vh; overflow-y: auto; position: relative;
-    background: #fff; margin: 0 -.9rem -.9rem; padding: 0 .9rem .6rem;
+    max-height: 43.8vh; overflow-y: auto; position: relative;
+    background: #fff; margin: 0 -.9rem; padding: 0 .9rem .6rem;
 }
 .pass-track::before {
     content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: .2rem;
