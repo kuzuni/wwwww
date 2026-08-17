@@ -71,6 +71,41 @@ function defaultState() {
     };
 }
 
+// 구세이브·손상 세이브 필드 보정 (QA 10차 버그: 필드가 빠진 세이브가 부팅을 통째로 죽였다).
+// 다른 시스템은 전부 자기 `ensure()`로 자기 필드를 메꾸는데(Dungeons·TechTree·Mounts·Ascension·
+// Forge·Pass·Chat) **코어 상태에는 그게 없어서**, `version`만 있고 나머지가 빠진 세이브가
+// `if (!S.version)` 가드를 그대로 통과해 `S.equippedSkills[0]`에서 TypeError로 `UI.init()`이 끊기고
+// boot()의 나머지(3D·전투·틱·자동저장)가 통째로 실행되지 않았다. 그 자리를 여기서 막는다.
+//
+// 판정 규칙: 기본값 형태(shape)와 **다르면** 기본값으로 되돌린다.
+//   · `undefined` → 기본값 (필드 자체가 없는 세이브)
+//   · `null` → 기본값. 단 **기본값이 원래 null인 필드**(techResearch·pendingCraft·activeMount·장비 슬롯 등)는
+//     null이 정상이므로 그대로 둔다 — 여기서 되돌리면 "장비를 벗은 상태"가 못 저장된다.
+//   · 타입 불일치(배열이어야 하는데 객체, 숫자여야 하는데 문자열 등) → 기본값
+// 중첩은 **고정 형태 레코드만** 재귀로 메꾼다. `rollLevel`/`mounts`/`skills`/`clearedBosses`처럼
+// 키가 플레이 중 늘어나는 사전은 재귀 대상이 아니다 — 기본값에 있는 항목을 도로 살려낼 수 있다.
+const STATE_SHAPE_KEYS = ['summonMult', 'autoForge', 'lineAscend', 'settingsDummy', 'equipment'];
+
+function ensureStateShape() {
+    const d = defaultState();
+    const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
+    let fixed = 0;
+    for (const k of Object.keys(d)) {
+        const want = d[k], got = S[k];
+        // 기본값이 null인 필드는 아무 값이나 받는다(구조상 '없음'이 정상 상태)
+        if (want === null) { if (got === undefined) { S[k] = null; fixed++; } continue; }
+        if (got === undefined || got === null || kind(got) !== kind(want)) { S[k] = want; fixed++; continue; }
+        if (STATE_SHAPE_KEYS.includes(k)) {
+            for (const sk of Object.keys(want)) {
+                const sw = want[sk], sg = got[sk];
+                if (sw === null) { if (sg === undefined) { got[sk] = null; fixed++; } continue; }
+                if (sg === undefined || sg === null || kind(sg) !== kind(sw)) { got[sk] = sw; fixed++; }
+            }
+        }
+    }
+    return fixed;
+}
+
 function saveGame() {
     if (!S) return;
     S.lastSeen = U.now();
@@ -82,7 +117,10 @@ function loadGame() {
         const raw = localStorage.getItem(SAVE_KEY);
         if (raw) {
             S = JSON.parse(raw);
+            // 통짜 교체라 세이브가 객체가 아니면(배열·숫자·문자열·null) 그 뒤가 전부 무너진다
+            if (!S || typeof S !== 'object' || Array.isArray(S)) { S = defaultState(); return false; }
             if (!S.version) S = defaultState();
+            ensureStateShape();   // 빠진/망가진 코어 필드를 기본값으로 메꾼다 (부팅 중단 방지)
             if (!S.lastOfflineClaim) S.lastOfflineClaim = S.lastSeen || U.now();
             // 폐기된 보관함(S.inventory)·보류 큐(S.heldCrafts) 데이터는 조용히 버린다 —
             // 사용자가 원하지 않은 시스템이라 안에 있던 장비를 되살리지 않는다(사용자 확정 2026-08-17).

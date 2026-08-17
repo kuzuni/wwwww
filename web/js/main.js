@@ -33,7 +33,12 @@
         // 부팅 시 자동 지급은 폐기 — 누적분은 그대로 두고 팝업으로 보여주기만 한다(수집은 [수집] 버튼에서만).
         const offlinePending = pendingOffline();
 
-        UI.init();
+        // 렌더 한 곳이 터져도 그 뒤(3D·전투·틱·자동저장 등록)가 통째로 날아가면 안 된다 —
+        // QA 10차 버그가 정확히 그 모양이었다(세이브 필드 누락 → renderSkillBar TypeError →
+        // boot() 중단 → 화면이 얇은 띠로 붕괴 + 게임 내 초기화 버튼조차 안 그려져 탈출 불가).
+        // 세이브 쪽 원인은 loadGame()의 ensureStateShape()가 막지만, 어떤 렌더 실패도 같은 사고를
+        // 다시 일으키지 못하게 여기서 한 겹 더 끊는다. 조용히 삼키지는 않는다(콘솔에 남긴다).
+        try { UI.init(); } catch (e) { console.error('UI.init() 실패 — 나머지 부팅은 계속한다', e); }
         // 브라우저 자동재생 정책: 최초 사용자 입력 시 AudioContext 활성화
         document.addEventListener('pointerdown', () => { SFX.resume(); SFX.startMusic(); }, { once: true });
         Scene3D.init(
