@@ -2893,17 +2893,74 @@ const Scene3D = {
     // 곧바로 <img>를 낼 수 있게 하는 조회용. 키 형식을 UI에 흘리지 않으려고 여기 둔다.
     creatureThumbCached(kind, name, rarity) {
         if (!name || !this._thumbCache) return null;
-        return this._thumbCache[kind + ':' + name + ':' + (rarity || '')] || null;
+        return this._thumbCache[kind + ':' + name + ':' + (rarity || '') + '@' + this.creatureThemeKey()] || null;
+    },
+    // ---- 생물(탈것·펫) 썸네일 전용 렌더러 ----
+    // 장비 썸네일 렌더러(_thumbR)를 같이 쓰면 색이 전장과 어긋난다: 그쪽은 기본 인코딩(Linear·
+    // 톤매핑 없음)에 흰 AmbientLight 0.85가 얹혀 있어, 재질색이 거의 날것으로 나오고 음영이
+    // 들려 채도가 과하게 찍힌다(실측: 서펀트 썸네일 rgb(98,216,208) vs 전장 rgb(121,169,160),
+    // Δ채널 48). 슬롯 아이콘의 합격 조건이 "전장의 그놈과 같은 색"이라 본편과 같은 색
+    // 파이프라인·같은 조명이 필수다. 탈것·펫 재질은 Lambert/Basic뿐이라 PMREM은 필요 없다.
+    creatureThumbInit() {
+        if (!this._creatureR) {
+            const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+            r.setSize(160, 160);
+            r.outputEncoding = THREE.sRGBEncoding;             // 본편(init L30~34)과 동일
+            r.toneMapping = THREE.ACESFilmicToneMapping;
+            r.toneMappingExposure = 1.02;
+            // 그림자는 켜지 않는다 — 본편 태양의 그림자 카메라는 ±10유닛이라 1유닛짜리 펫의
+            // 부위 간 그림자를 사실상 못 잡는데, 개체에 맞춘 썸네일 카메라는 텍셀이 10배
+            // 촘촘해 본편에 없는 자기그림자·애크니가 생겨 오히려 전장보다 어두워진다
+            // (실측 Δ밝기 39, normalBias 0.02로도 부위가 많은 종은 36~47).
+            this._creatureR = r;
+            this._creatureScene = new THREE.Scene();
+            this._creatureCam = new THREE.PerspectiveCamera(35, 1, 0.01, 200);
+            this._creatureHemi = new THREE.HemisphereLight(0xbddcff, 0x6e7a60, 0.54);
+            this._creatureSun = new THREE.DirectionalLight(0xfff3d6, 1.2);
+            this._creatureRim = new THREE.DirectionalLight(0xcfe4ff, 0.5);
+            this._creatureScene.add(this._creatureHemi, this._creatureSun, this._creatureRim);
+        }
+        this.syncCreatureLights();
+    },
+    // 조명·노출을 **살아 있는 씬에서 복사**한다.
+    // ⚠️ 생성자 초기값(hemi 0.54 / sun 1.2 / rim 0.5)을 베껴 쓰면 안 된다 — setTheme이 챕터마다
+    //    전부 덮어쓴다(실측: 초원 낮 = hemi 0.15 / sun 1.0 / rim 0.18). 초기값으로 구우면
+    //    채움광이 과해 썸네일만 허옇게 뜬다.
+    syncCreatureLights() {
+        if (this.hemi) {
+            this._creatureHemi.color.copy(this.hemi.color);
+            this._creatureHemi.groundColor.copy(this.hemi.groundColor);
+            this._creatureHemi.intensity = this.hemi.intensity;
+        }
+        if (this.sun) {
+            this._creatureSun.color.copy(this.sun.color);
+            this._creatureSun.intensity = this.sun.intensity;
+            this._creatureSun.position.copy(this.sun.position);
+        }
+        if (this.rim) {
+            this._creatureRim.color.copy(this.rim.color);
+            this._creatureRim.intensity = this.rim.intensity;
+            this._creatureRim.position.copy(this.rim.position);
+        }
+        if (this.renderer) this._creatureR.toneMappingExposure = this.renderer.toneMappingExposure;
+    },
+    // 테마가 바뀌면(챕터 이동·밤) 조명이 달라지므로 그 조합마다 따로 굽는다 — 안 그러면 낮에
+    // 구운 썸네일이 밤 화면에 그대로 남아 다시 "슬롯이 실제와 다른" 상태가 된다.
+    creatureThemeKey() {
+        const n = (v) => (v === undefined || v === null ? '-' : (+v).toFixed(2));
+        return [n(this.renderer && this.renderer.toneMappingExposure), n(this.hemi && this.hemi.intensity),
+                n(this.sun && this.sun.intensity), n(this.rim && this.rim.intensity),
+                this.sun ? this.sun.color.getHexString() : '-'].join('|');
     },
     creatureThumb(kind, name, build, rarity) {
         if (!name) return null;
-        const key = kind + ':' + name + ':' + (rarity || '');
+        const key = kind + ':' + name + ':' + (rarity || '') + '@' + this.creatureThemeKey();
         if (this._thumbCache[key]) return this._thumbCache[key];
         try {
-            this.itemThumbInit();
-            const sc = this._thumbScene;
+            this.creatureThumbInit();
+            const sc = this._creatureScene;
             this.clearGroup(sc);
-            sc.add(this._thumbAmb, this._thumbDir);
+            sc.add(this._creatureHemi, this._creatureSun, this._creatureRim);
             const mesh = build();
             // 게임에서 보이는 것과 같은 3/4 방향 — 슬롯과 필드의 실루엣이 같아야 '같은 놈'으로 읽힌다
             const g = new THREE.Group();
@@ -2920,7 +2977,7 @@ const Scene3D = {
             const size = box.getSize(new THREE.Vector3());
             const ctr = box.getCenter(new THREE.Vector3());
             g.position.sub(ctr);
-            const cam = this._thumbCam;
+            const cam = this._creatureCam;
             // 시선은 **인게임 메인 카메라와 같은 각**으로 — 요구가 "같은 앵글로 렌더한 썸네일"이라
             // 보기 좋은 각을 따로 고르면 그 자체가 '슬롯과 실물이 다르다'가 된다.
             // 메인 리그: 카메라 y3.7·z8.2 → 주시점 y0.9 (init의 camera.position/lookAt) = 고도 ≈18.9°.
@@ -2966,13 +3023,11 @@ const Scene3D = {
             cam.position.copy(dir).multiplyScalar(dist);
             cam.lookAt(0, 0, 0);
             cam.updateProjectionMatrix();
-            this._thumbR.render(sc, cam);
-            const url = this._thumbR.domElement.toDataURL();
-            // ⚠️ 카메라는 장비 썸네일과 공유한다 — 원위치시키지 않으면 다음 장비 썸네일이 통째로 어긋난다
-            this.itemThumbResetCam();
+            this._creatureR.render(sc, cam);
+            const url = this._creatureR.domElement.toDataURL();
             this._thumbCache[key] = url;
             return url;
-        } catch (e) { this.itemThumbResetCam(); return null; }
+        } catch (e) { return null; }
     },
 
     // ---- 펫: 종별 실물 모델 25종 ----
