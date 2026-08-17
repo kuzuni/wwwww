@@ -2103,10 +2103,29 @@ const UI = {
                 <span class="cur-pill gem">💎 ${U.fmt(S.gems)}</span>
             </div>
             <div class="tech-branch-detail-pct">${pct.toFixed(1)}%</div>
-            <button class="fi-info-btn tech-branch-info" onclick="UI.toast('🔬 분기 진행률 = 노드 레벨 합산 ÷ 최대 레벨')">i</button>
+            <button class="fi-info-btn tech-branch-info" onclick="UI.openTechBonuses()">!</button>
             <div class="tech-tree-col">${rowsHtml.join('')}</div>
             <button class="btn danger tech-tree-back" onclick="UI.openTechOverview()">◀</button>`;
     },
+    // ---- ⓘ '총 보너스' 팝업 (사용자 지시 2026-08-17, 원본 스크린샷 제공) ----
+    // 원본: 굵은 검정 제목 '총 보너스' + 세로 목록(부위별 한 줄) + 길면 스크롤 + 하단 중앙 빨간 X.
+    // 수치는 저장하지 않고 매번 TechTree.totalBonuses()로 현재 연구 상태에서 계산한다.
+    openTechBonuses() { this.renderTechBonuses(); this.showModal(this.els.detailModal); },
+    renderTechBonuses() {
+        const lines = TechTree.totalBonuses();
+        const listHtml = lines.length
+            ? lines.map(l => `<div class="tb-row"><span class="tb-label">${l.label}</span><span class="tb-val">${l.text}</span></div>`).join('')
+            : `<p class="muted" style="text-align:center">아직 연구한 기술이 없습니다</p>`;
+        this.els.detailModal.innerHTML = `
+            <div class="idet-wrap">
+                <div class="modal-card paper tb-card">
+                    <h3 class="tb-title">총 보너스</h3>
+                    <div class="tb-list">${listHtml}</div>
+                </div>
+                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+            </div>`;
+    },
+
     // 노드 팝업 (UI-SPEC 15~16번). 공용 상세 팝업 #detail-modal 재사용(공통 규칙) — 전용 모달 폐기.
     openTechNode(id) { this._techNode = id; this.renderTechNodeModal(); this.showModal(this.els.detailModal); },
     // 백그라운드 틱이 연구 완료로 이 노드 팝업을 다시 그려도 되는지 확인(다른 상세 팝업이 열려 있을 수 있음)

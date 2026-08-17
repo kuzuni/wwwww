@@ -653,13 +653,29 @@ body {
     display: inline-block; background: var(--pp-ink); color: var(--pp-green);
     border-radius: .6rem; padding: .05rem .45rem; font-weight: 800; margin-top: .1rem;
 }
+/* ---- ⓘ '총 보너스' 팝업 (원본: 굵은 검정 제목 + 세로 목록 + 길면 스크롤 + 하단 중앙 빨간 X) ---- */
+.tb-card { width: 78%; padding: 1rem .9rem 1.1rem; gap: .5rem; }
+.tb-title { font-size: 1.25rem; font-weight: 900; color: var(--pp-ink); text-align: center; }
+.tb-list {
+    display: flex; flex-direction: column; max-height: calc(var(--app-h) * .46); overflow-y: auto;
+    text-align: left; padding-right: .2rem;
+}
+.tb-row {
+    display: flex; align-items: baseline; justify-content: space-between; gap: .6rem;
+    font-size: .84rem; font-weight: 800; color: var(--pp-ink);
+    padding: .3rem .15rem; border-bottom: 2px solid #e2e0da;
+}
+.tb-row:last-child { border-bottom: none; }
+.tb-val { color: #1fa64a; font-weight: 900; white-space: nowrap; }
 /* 뒤로가기: 원본은 좌하단 고정 빨간 둥근 사각 — 스크롤 컨테이너 안에서 sticky로 고정 */
 .panel .btn.tech-tree-back {
     position: sticky; bottom: .6rem; align-self: flex-start; margin: auto 0 .2rem .3rem;
     flex: none; width: 2.5rem; height: 2.5rem; min-height: 2.5rem; border-radius: .6rem; padding: 0; font-size: 1rem;
 }
 /* .fi-info-btn(top:.7rem, style.css 하단 선언)과 같은 특이도면 소스 순서에 덮이므로 복합 선택자로 승격 */
-.fi-info-btn.tech-branch-info { position: absolute; top: 4rem; right: .9rem; }
+/* z-index 2 — .tech-tree-col이 세로선 트렁크 때문에 position:relative가 되면서
+   DOM상 뒤에 오는 이 컨테이너가 절대배치 ⓘ 버튼을 덮어 클릭을 가로챘다(Playwright 실클릭 타임아웃). */
+.fi-info-btn.tech-branch-info { position: absolute; top: 4rem; right: .9rem; z-index: 2; }
 
 /* ---- PvP 리그 (UI-SPEC 3~5번, 원본 shot-042149/042208/042228) ---- */
 /* ① 랭킹 화면 — 다른 완료 화면(흰 시트)과 달리 원본은 어두운 화면이라 sheet에 다크 변형 추가 */

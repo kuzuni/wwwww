@@ -57,6 +57,67 @@ const TechTree = {
         dungeonPotion:   { name: '던전 물약 보너스', desc: '던전 클리어 기술 물약 보상 증가',  icon: '⚗️', per: 1,  base: 50 },
     },
 
+    // ===== ⓘ '총 보너스' 팝업 줄 구성 (사용자 지시 2026-08-17, 원본 스크린샷 제공) =====
+    // 원본은 누적 보너스를 '부위별로 한 줄씩' 나눠 보여준다 — "무기 보너스 피해 +14%",
+    // "장갑 보너스 피해 +14%", "무기 최대 레벨 +12", "헬멧 최대 레벨 +12" …
+    // 우리 트리는 여러 부위를 한 노드로 묶었으므로(마스터리 2종·장비 레벨업), expand로 걸리는
+    // 부위 수만큼 줄을 펼쳐 원본과 같은 모양을 만든다. expand 없는 노드는 한 줄.
+    //   expand: 'atk'(공격 4부위) | 'hp'(체력 4부위) | 'all'(8부위) — label은 부위명 뒤에 붙는 접미사
+    BONUS: {
+        weaponMastery:   { label: '보너스 피해', expand: 'atk' },
+        armorMastery:    { label: '보너스 체력', expand: 'hp' },
+        gearMaxLevel:    { label: '최대 레벨',   expand: 'all' },
+        mountDmg:        { label: '탈것 보너스 피해' },
+        mountHp:         { label: '탈것 보너스 체력' },
+        mountCost:       { label: '탈것 소환 비용 감소' },
+        extraMount:      { label: '추가 탈것 확률' },
+        forgeTimer:      { label: '대장간 업그레이드 속도' },
+        forgeCost:       { label: '대장간 업그레이드 비용 감소' },
+        sellPrice:       { label: '장비 판매가' },
+        thiefHammer:     { label: '해머 도둑 해머 보상' },
+        thiefCoin:       { label: '해머 도둑 코인 보상' },
+        autoForgeSlot:   { label: '자동 제련 동시 해머' },
+        freeForge:       { label: '무료 제련 확률' },
+        offlineCap:      { label: '최대 오프라인 시간' },
+        offlineCoin:     { label: '오프라인 코인 보상' },
+        offlineHammer:   { label: '오프라인 해머 보상' },
+        techTimer:       { label: '기술 연구 속도' },
+        skillDmg:        { label: '스킬 피해' },
+        skillPassiveDmg: { label: '패시브 스킬 피해' },
+        skillPassiveHp:  { label: '패시브 스킬 체력' },
+        techCost:        { label: '기술 연구 비용 감소' },
+        petHp:           { label: '펫 보너스 체력' },
+        petDmg:          { label: '펫 보너스 피해' },
+        skillSummonCost: { label: '스킬 소환 비용 감소' },
+        hatchTimer:      { label: '알 부화 속도' },
+        extraEgg:        { label: '추가 알 소환 확률' },
+        dungeonTicket:   { label: '던전 티켓 보상' },
+        dungeonPotion:   { label: '던전 물약 보상' },
+    },
+    EXPAND_SLOTS: {
+        atk: () => SLOTS.filter(s => SLOT_MAIN[s] === 'atk'),
+        hp:  () => SLOTS.filter(s => SLOT_MAIN[s] === 'hp'),
+        all: () => SLOTS.slice(),
+    },
+
+    // 현재 연구 상태에서 실제로 붙어 있는 누적 보너스만 한 줄씩 모아 반환한다 (값 0인 노드는 제외).
+    // 분기 정의 순서를 그대로 따라 같은 계열 보너스가 붙어 나온다.
+    totalBonuses() {
+        const out = [];
+        for (const b of this.BRANCHES) {
+            for (const id of b.nodes) {
+                const meta = this.BONUS[id];
+                const value = this.totalOf(id);
+                if (!meta || !value) continue;
+                const unit = this.unitOf(id) === '%' ? '%' : '';
+                const mk = label => out.push({ id, label, text: '+' + U.fmt(value) + unit });
+                if (meta.expand) for (const slot of this.EXPAND_SLOTS[meta.expand]()) mk(SLOT_KR[slot] + ' ' + meta.label);
+                else mk(meta.label);
+            }
+        }
+        return out;
+    },
+
     // 구세이브 마이그레이션: 폐기된 4분기 노드 id → 새 노드 id.
     // 뜻이 그대로 이어지는 것만 옮기고, 한 노드가 둘로 쪼개진 건(오프라인 수급·펫·탈것) 양쪽에 같은 레벨을 준다
     // — 플레이어가 산 효과를 뺏지 않기 위해서다. 원본에 없는 eggGain(알 화폐 획득량)은 대응 노드가 없어 폐기.
