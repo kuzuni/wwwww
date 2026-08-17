@@ -1010,7 +1010,7 @@ const UI = {
         if (this.activeTab !== 'summon' || this._summonSub !== 'skills') return;
         const p = this.els.skillsPanel;
         const lvl = Skills.summonLevel();
-        const pb = Skills.activeBonus();
+        const pb = Skills.ownedPassive();
         const skillSummonN = this.summonMult('skill');
         const capped = lvl >= 100;
 

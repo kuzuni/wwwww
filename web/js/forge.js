@@ -222,7 +222,7 @@ const Forge = {
         // 출전 펫 + 장착 탈것: 고정 데미지·체력 + 서브스탯 (전투에 직접 참여하지 않고 스탯만 기여)
         const pb = Pets.activeBonus();
         const mb = Mounts.activeBonus();
-        const sb = Skills.activeBonus(); // 장착 스킬 패시브: 고정 데미지·체력만 기여 (서브스탯 없음)
+        const sb = Skills.ownedPassive(); // 보유 스킬 패시브: 장착 여부와 무관, 고정 데미지·체력만 기여 (서브스탯 없음)
         const bag = this.allSubsBag();
 
         // 전투 중 버프 반영 (스킬 버프는 서브스탯 풀과 별개의 임시 효과)

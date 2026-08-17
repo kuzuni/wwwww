@@ -40,7 +40,8 @@ const Skills = {
                 cur.dupes++; // 조각 적립 (레벨업은 UI.onUpgradeSkill 등 수동 업그레이드로만)
             } else {
                 S.skills[def.id] = { level: 1, dupes: 0, stars: Ascension.count('skill') };
-                if (S.equippedSkills.length < this.MAX_ACTIVE) { S.equippedSkills.push(def.id); Combat.recalcHero(); }
+                if (S.equippedSkills.length < this.MAX_ACTIVE) S.equippedSkills.push(def.id);
+                Combat.recalcHero(); // 신규 보유 스킬은 장착 여부와 무관하게 패시브를 더하므로 항상 재계산
             }
             results.push({ def, isNew: !cur, level: S.skills[def.id].level });
         }
@@ -84,7 +85,7 @@ const Skills = {
         if (!sk || !this.canUpgrade(id)) return false;
         sk.dupes -= this.shardsRequired(sk.level);
         sk.level++;
-        if (S.equippedSkills.includes(id)) Combat.recalcHero();
+        Combat.recalcHero(); // 레벨은 패시브 배율(levelMult)에 곧장 들어가므로 미장착 스킬도 재계산 대상
         saveGame();
         return true;
     },
@@ -121,10 +122,14 @@ const Skills = {
         return { atk: base.atk * mult, hp: base.hp * mult };
     },
 
-    // 장착 중인 모든 스킬의 고정 패시브 합계 (기본 피해·기본 체력)
-    activeBonus() {
+    // 보유한 모든 스킬의 고정 패시브 합계 (기본 피해·기본 체력).
+    // 스킬 패시브는 '보유 효과' — 3개 장착 슬롯에 넣지 않아도 가지고만 있으면 합산된다
+    // (사용자 확정 2026-08-17, 원본 포지마스터 방식). 장착이 결정하는 건 '발동'뿐:
+    // 액티브 시전은 Combat이 S.equippedSkills만 돌린다.
+    // 펫·탈것은 이와 달리 출전/장착 효과라 activeBonus()로 유지.
+    ownedPassive() {
         const b = { atk: 0, hp: 0 };
-        for (const id of S.equippedSkills) {
+        for (const id of Object.keys(S.skills)) {
             const p = this.passiveOf(id);
             b.atk += p.atk;
             b.hp += p.hp;
