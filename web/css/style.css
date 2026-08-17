@@ -142,9 +142,11 @@ body {
 }
 @keyframes bosswarn { from { transform: translate(-50%,-50%) scale(1); } to { transform: translate(-50%,-50%) scale(1.15); } }
 
+/* 영웅 피격 비네트 — 세기(--vig)는 피해 비율에 따라 JS가 준다 (쥬시니스 패스) */
 #dmg-flash {
     position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 5;
-    background: radial-gradient(ellipse at center, transparent 55%, rgba(244,67,54,.55) 100%);
+    --vig: .55;
+    background: radial-gradient(ellipse at center, transparent 48%, rgba(244,67,54,var(--vig)) 100%);
     transition: opacity .1s;
 }
 #dmg-flash.on { opacity: 1; }
@@ -165,16 +167,20 @@ body {
     font-weight: 900; font-size: 1rem; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.8);
     animation: dmgrise .85s forwards;
 }
-.float-dmg.dmg-crit { color: #ffab40; font-size: 1.5rem; animation: dmgcrit .85s forwards; }
+.float-dmg.dmg-crit { color: #ff9100; font-size: 1.85rem; -webkit-text-stroke: 1px rgba(90,30,0,.55); animation: dmgcrit .9s forwards; }
 .float-dmg.dmg-skill { color: #82b1ff; font-size: 1.25rem; }
 .float-dmg.heal { color: #69f0ae; font-size: 1.1rem; }
 .float-dmg.block { color: #90caf9; font-size: 1rem; }
-@keyframes dmgrise { 0% { opacity: 0; margin-top: 0; transform: translate(-50%,-50%) scale(.6); }
-    15% { opacity: 1; transform: translate(-50%,-50%) scale(1.1); }
-    100% { opacity: 0; margin-top: -3rem; transform: translate(-50%,-50%) scale(1); } }
-@keyframes dmgcrit { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.5) rotate(-8deg); }
-    15% { opacity: 1; transform: translate(-50%,-50%) scale(1.4) rotate(3deg); }
-    100% { opacity: 0; margin-top: -3.5rem; transform: translate(-50%,-50%) scale(1); } }
+/* 튀어오르는 아크 — 위로 솟았다 중력에 눌려 떨어지는 포물선(margin-top 이징 곡선), 옆으로도 살짝 흩어진다 */
+@keyframes dmgrise { 0% { opacity: 0; margin-top: 0; transform: translate(-50%,-50%) scale(.5); }
+    14% { opacity: 1; transform: translate(-50%,-50%) scale(1.18) translateX(.1rem); }
+    45% { opacity: 1; margin-top: -2.6rem; transform: translate(-50%,-50%) scale(1) translateX(.3rem); }
+    100% { opacity: 0; margin-top: -1.7rem; transform: translate(-50%,-50%) scale(.92) translateX(.45rem); } }
+@keyframes dmgcrit { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.45) rotate(-14deg); }
+    12% { opacity: 1; transform: translate(-50%,-50%) scale(1.62) rotate(6deg); }
+    26% { transform: translate(-50%,-50%) scale(1.28) rotate(-3deg); }
+    50% { opacity: 1; margin-top: -3.2rem; transform: translate(-50%,-50%) scale(1.12) rotate(1deg) translateX(.35rem); }
+    100% { opacity: 0; margin-top: -2.1rem; transform: translate(-50%,-50%) scale(1) rotate(0deg) translateX(.55rem); } }
 
 /* ---- 스킬 슬롯 (전투 화면 우중단 — UI-SPEC 1번: 초록 자동 토글 + 검은 원형 버튼 3개) ---- */
 #skill-bar {

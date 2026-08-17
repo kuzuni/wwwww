@@ -264,7 +264,7 @@ const Combat = {
         }
         this.hero.hp = this.hero.hp.sub(dmg);
         SFX.hit(false);
-        Scene3D.heroHit();
+        Scene3D.heroHit(dmg); // 피해량 전달 — 머리 위 바 흔들림·화면 비네트 세기를 피해 비율에 맞춘다
         if (!this.hero.hp.isPos()) this.onDefeat();
     },
 

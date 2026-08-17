@@ -445,9 +445,14 @@ const UI = {
         this.els.bossWarn.classList.remove('hidden');
         setTimeout(() => this.els.bossWarn.classList.add('hidden'), 1400);
     },
-    flashDamage() {
-        this.els.dmgFlash.classList.add('on');
-        setTimeout(() => this.els.dmgFlash.classList.remove('on'), 120);
+    // 영웅 피격 시 화면 가장자리 붉은 비네트 — 피해가 클수록 진하고 조금 더 오래 (사용자 지시: 쥬시니스)
+    flashDamage(lossRatio) {
+        const f = U.clamp(lossRatio === undefined ? 0.12 : lossRatio, 0, 1);
+        const el = this.els.dmgFlash;
+        el.style.setProperty('--vig', (0.3 + Math.min(0.62, f * 1.9)).toFixed(2));
+        el.classList.add('on');
+        clearTimeout(this._vigT);
+        this._vigT = setTimeout(() => el.classList.remove('on'), 120 + Math.round(Math.min(0.16, f * 0.5) * 1000));
     },
     floatLoot(text) {
         if (this.els.lootFeed.children.length > 6) this.els.lootFeed.firstChild.remove();

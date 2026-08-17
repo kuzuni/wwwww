@@ -1698,6 +1698,7 @@ const Scene3D = {
         this.heroHpG.add(hpBg, hpFg);
         this.heroHpBg = hpBg;
         this.heroHpFg = hpFg;
+        this._heroBar = { hpBg, hpFg }; // 적 HP바와 같은 헬퍼(updateHpBar/punchHpBar)를 쓰기 위한 래퍼
         this.heroHpG.position.set(g.position.x, 1.85, g.position.z);
         this.scene.add(this.heroHpG);
     },
@@ -3667,16 +3668,38 @@ const Scene3D = {
         setTimeout(() => { for (const mat of m.flashMats) mat.emissiveIntensity = 0; }, 80);
         const ox = m.g.position.x;
         this.addAnim(0.18, k => { m.g.position.x = ox + Math.sin(k * Math.PI) * 0.18; });
-        this.spawnSparks(m.g.position.clone().add(new THREE.Vector3(0, 0.6, 0)), crit ? 14 : 6, crit ? 0xffab40 : 0xffee58);
-        // 데미지 숫자
+        // 스케일 펀치 — 맞는 순간 눌렸다 되돌아온다(크리티컬은 더 깊게). 넉백과 축이 달라 서로 묻히지 않는다.
+        const sx = m.g.scale.x, sy = m.g.scale.y;
+        const punch = crit ? 0.22 : 0.11;
+        this.addAnim(crit ? 0.22 : 0.15, k => {
+            const p = Math.sin(k * Math.PI) * punch;
+            m.g.scale.set(sx * (1 + p * 0.6), sy * (1 - p), sx * (1 + p * 0.6));
+        }, () => { m.g.scale.set(sx, sy, sx); });
+        if (crit) this.hitStop(0.055); // 크리티컬 히트스톱 — 한 박자 멈춰야 '묵직하게' 읽힌다
+        this.spawnSparks(m.g.position.clone().add(new THREE.Vector3(0, 0.6, 0)), crit ? 22 : 9, crit ? 0xffab40 : 0xffee58);
+        // HP바 2단 연출 — 피해 비율만큼 잔상바가 남고, 큰 피해면 바가 흔들린다
+        const e = Combat.enemies.find(x => x.id === id);
+        const loss = (e && !Big.of(e.maxHp).isZero()) ? U.clamp(Big.of(dmg).ratioTo(e.maxHp), 0, 1) : 0.1;
+        this.punchHpBar(m, loss);
+        // 데미지 숫자 — 크리티컬은 크게, 튀어오르는 아크로 흩어지게
         const cls = kind === 'skill' ? 'dmg-skill' : crit ? 'dmg-crit' : 'dmg';
         this.damageNumber(m.g.position.clone().add(new THREE.Vector3(U.rand(-0.3, 0.3), U.rand(1.1, 1.5), 0)), U.fmt(dmg), cls);
+    },
+
+    // 히트스톱: 짧게 전역 타임스케일을 0에 가깝게 눌렀다 되돌린다 (update가 dt에 곱해 쓴다)
+    hitStop(dur) {
+        this._hitStop = Math.max(this._hitStop || 0, dur);
     },
 
     killEnemy(id, isBoss) {
         const m = this.enemyMap.get(id);
         if (!m) return;
-        this.spawnSparks(m.g.position.clone().add(new THREE.Vector3(0, 0.5, 0)), isBoss ? 40 : 16, 0xff7043);
+        // 처치 순간 파편/스파크 버스트 강화 + 즉발 충격 링 (쥬시니스 패스)
+        const at = m.g.position.clone().add(new THREE.Vector3(0, 0.5, 0));
+        this.spawnSparks(at, isBoss ? 58 : 26, 0xff7043);
+        this.spawnSparks(at, isBoss ? 22 : 10, 0xffe082); // 밝은 심지 — 단색 버스트가 '먼지'로 읽히지 않게 2색 레이어
+        this.expandRing(new THREE.Vector3(m.g.position.x, 0.06, m.g.position.z), new THREE.Color(0xffab40), isBoss ? 1.9 : 1.05);
+        if (isBoss) this.hitStop(0.09); // 보스 처치는 한 박자 더 묵직하게
         // 사망: 피격 경직 → 무릎 꺾임 → 뒤로(+x) 쓰러짐 → 착지 먼지 → 서서히 페이드아웃 (빙글 회전·순간 소멸 금지, 사용자 지시)
         // update 루프는 !e.alive를 건너뛰므로 이 애니메이션이 트랜스폼을 단독 소유한다.
         if (m.hpBg && m.hpBg.parent) m.hpBg.parent.visible = false; // HP바는 시체와 함께 넘어가지 않게 즉시 숨김 (좀비 잔상 방지)
@@ -3712,11 +3735,86 @@ const Scene3D = {
         }, () => { this.disposeTree(m.g); this.scene.remove(m.g); if (m.blob) this.scene.remove(m.blob); this.enemyMap.delete(id); });
     },
 
-    heroHit() {
+    // ---- 머리 위 HP바 쥬시니스 (사용자 지시: "HP 깎이는 연출 최대한 쥬시하게") ----
+    // 2단 바: 앞바(hpFg)는 즉시 깎이고, 그 뒤의 손실 잔상바(hpGhost)가 잠깐 멈췄다가 스르륵 따라 줄어든다.
+    // 잔상이 남긴 폭이 곧 "방금 잃은 양"이라 한 대에 얼마나 아팠는지가 눈으로 읽힌다.
+    GHOST_HOLD: 0.22,   // 잔상바가 제자리에 멈춰 있는 시간 — 이 구간이 손실량을 각인시킨다
+    GHOST_SPEED: 3.0,   // 이후 따라붙는 속도 (비율/초) — 홀드 0.22 + 추격 0.2 ≈ 총 0.42초로 스펙(짧게) 안에 들어온다
+
+    // 잔상바 메쉬를 앞바 뒤에 깔고, 흔들림 전용 컨테이너로 바 3종을 묶는다 (적·영웅 공용, 최초 1회)
+    attachGhostBar(bar) {
+        if (!bar || bar.hpGhost || !bar.hpFg || !bar.hpFg.parent) return;
+        const parent = bar.hpFg.parent;
+        const ghost = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09),
+            new THREE.MeshBasicMaterial({ color: 0xff8a65, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
+        ghost.position.set(0, bar.hpFg.position.y, bar.hpFg.position.z - 0.004); // 앞바 바로 뒤
+        // 흔들림은 이 그룹에만 건다. 영웅 바의 부모(heroHpG)는 매 프레임 월드 좌표가 재설정되므로
+        // 거기에 직접 오프셋을 주면 바가 월드 원점으로 튄다 — 항상 0을 기준으로 하는 컨테이너가 필요하다.
+        const shakeG = new THREE.Group();
+        parent.add(shakeG);
+        if (bar.hpBg) shakeG.add(bar.hpBg);
+        shakeG.add(ghost, bar.hpFg); // 앞바를 마지막에 넣어 잔상바 위로 그려지게
+        bar.shakeG = shakeG;
+        bar.hpGhost = ghost;
+        bar.ghostRatio = 1;
+        bar.ghostHold = 0;
+    },
+
+    updateHpBar(bar, ratio, dt) {
+        if (!bar || !bar.hpFg) return;
+        if (!bar.hpGhost) this.attachGhostBar(bar);
+        // 앞바 — 즉시 반영
+        bar.hpFg.scale.x = Math.max(0.001, ratio);
+        bar.hpFg.position.x = -0.4 * (1 - ratio);
+        // 피격 직후 짧은 흰 플래시 → 이후 잔량 구간색
+        const base = ratio > 0.5 ? 0x69f0ae : ratio > 0.2 ? 0xffd740 : 0xff5252;
+        if (bar.flash > 0) {
+            bar.flash -= dt;
+            bar.hpFg.material.color.setHex(0xffffff);
+        } else {
+            bar.hpFg.material.color.setHex(base);
+        }
+        // 잔상바 — 줄었으면 잠깐 멈췄다가 따라 내려온다. 회복(비율 증가)은 즉시 동기화.
+        if (bar.ghostRatio === undefined) bar.ghostRatio = ratio;
+        if (ratio > bar.ghostRatio) bar.ghostRatio = ratio;
+        if (bar.ghostHold > 0) bar.ghostHold -= dt;
+        else if (bar.ghostRatio > ratio) {
+            bar.ghostRatio = Math.max(ratio, bar.ghostRatio - this.GHOST_SPEED * dt * Math.max(0.45, bar.ghostRatio - ratio + 0.45)); // 남은 차이가 클수록 빠르게(가속 추격)
+        }
+        const g = bar.hpGhost;
+        if (g) {
+            g.scale.x = Math.max(0.001, bar.ghostRatio);
+            g.position.x = -0.4 * (1 - bar.ghostRatio);
+            g.visible = bar.ghostRatio - ratio > 0.002;
+        }
+        // 큰 피해면 바 자체가 흔들린다 (전용 컨테이너만 흔들어 부모 좌표계를 건드리지 않는다)
+        if (bar.shakeG) {
+            if (bar.shake > 0) {
+                bar.shake -= dt;
+                bar.shakeG.position.x = Math.sin(bar.shake * 90) * bar.shake * 0.22;
+            } else if (bar.shakeG.position.x !== 0) {
+                bar.shakeG.position.x = 0;
+            }
+        }
+    },
+
+    // 피해량 비율에 따라 바 플래시·홀드·흔들림을 건다 (적·영웅 공용)
+    punchHpBar(bar, lossRatio) {
+        if (!bar) return;
+        bar.flash = 0.1;
+        bar.ghostHold = this.GHOST_HOLD;
+        if (lossRatio > 0.12) bar.shake = Math.min(0.26, 0.12 + lossRatio * 0.4); // 큰 피해만 흔든다
+    },
+
+    heroHit(dmg) {
         const ox = this.heroG.position.x;
         this.addAnim(0.2, k => { this.heroG.position.x = ox - Math.sin(k * Math.PI) * 0.2; },
             () => { this.heroG.position.x = Combat.HERO_X; });
-        UI.flashDamage();
+        // 영웅 머리 위 바도 적과 같은 문법으로 반응 — 피해 비율이 클수록 크게 흔들린다
+        const maxHp = Combat.hero && Combat.hero.maxHp;
+        const loss = (dmg !== undefined && maxHp && !Big.of(maxHp).isZero()) ? U.clamp(Big.of(dmg).ratioTo(maxHp), 0, 1) : 0.1;
+        this.punchHpBar(this._heroBar, loss);
+        UI.flashDamage(loss); // 화면 가장자리 붉은 비네트 — 큰 피해일수록 진하게
     },
 
     heroDown() {
@@ -4100,6 +4198,12 @@ const Scene3D = {
     addAnim(dur, fn, onDone) { this.anims.push({ t: 0, dur, fn, onDone }); },
 
     update(dt) {
+        // 히트스톱: 크리티컬 순간 연출 시간만 거의 멈춘다. Combat 틱은 별도라 전투 진행에는 영향이 없고,
+        // dt를 0으로 두면 애니메이션이 죽으므로 아주 작은 값으로 눌러 '한 프레임 정지'처럼 보이게 한다.
+        if (this._hitStop > 0) {
+            this._hitStop -= dt;
+            dt *= 0.12;
+        }
         this._clock += dt;
         // 적 위치 동기화 + 걷기 모션 + HP바 (논리 좌표 + 월드 오프셋)
         for (const e of Combat.enemies) {
@@ -4180,17 +4284,13 @@ const Scene3D = {
                 m.blob.scale.setScalar((m.blob.userData.baseS || 0.95) * Math.max(0.55, 1 - m.g.position.y * 0.35)); // 0.8 감쇠는 비행 고도에서 블롭이 소멸해 '부유 스티커' (비평가 7.3 5번)
             }
             const ratio = U.clamp(Big.of(e.hp).ratioTo(e.maxHp), 0, 1); // hp는 Big — 비율만 Number로 뽑는다
-            m.hpFg.scale.x = Math.max(0.001, ratio);
-            m.hpFg.position.x = -0.4 * (1 - ratio);
-            m.hpFg.material.color.setHex(ratio > 0.5 ? 0x69f0ae : ratio > 0.2 ? 0xffd740 : 0xff5252);
+            this.updateHpBar(m, ratio, dt);
         }
         // 영웅 머리 위 HP 바: 위치는 heroG를 매 프레임 추적, 비율·색은 적과 동일한 임계값
         if (this.heroHpG && this.heroG) {
             this.heroHpG.position.set(this.heroG.position.x, this.heroG.position.y + 1.85, this.heroG.position.z);
             const hRatio = !Big.of(Combat.hero.maxHp).isZero() ? U.clamp(Big.of(Combat.hero.hp).ratioTo(Combat.hero.maxHp), 0, 1) : 1;
-            this.heroHpFg.scale.x = Math.max(0.001, hRatio);
-            this.heroHpFg.position.x = -0.4 * (1 - hRatio);
-            this.heroHpFg.material.color.setHex(hRatio > 0.5 ? 0x69f0ae : hRatio > 0.2 ? 0xffd740 : 0xff5252);
+            this.updateHpBar(this._heroBar, hRatio, dt);
         }
         // 영웅: 걷기(월드 전진) / 아이들 — GLB 모드는 스켈레탈 클립, 아니면 프로시저럴 관절
         if (this.heroG && this.legs) {
