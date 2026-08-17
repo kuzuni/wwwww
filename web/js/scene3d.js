@@ -446,8 +446,8 @@ const Scene3D = {
         for (let i = 0; i < 16; i++) {
             const s = new THREE.Sprite(this.emberMat.clone());
             const x = U.rand(-9, 9), z = U.rand(-6.5, 1.5);
-            s.scale.setScalar(U.rand(0.06, 0.13)); // 0.36은 '부유 발광구/이중 태양' 아티팩트로 읽힘 (비평가 지적)
-            s.material.opacity = 0.3; // 밝은 배경에서 순백 점('데드픽셀')으로 씻겨 보이던 문제 완화 (비평가 6번)
+            s.scale.setScalar(U.rand(0.05, 0.085)); // 크기·강도 편차 축소 — 큰 개체가 '렌즈 얼룩'으로 읽힘 (비평가 7.1 17번)
+            s.material.opacity = 0.22;
             s.position.set(x, this.heightAt(x, z) + U.rand(0.3, 1.2), z);
             s.userData.baseX = x; s.userData.baseZ = z; s.userData.baseY = s.position.y;
             s.userData.phase = U.rand(0, 10);
@@ -1233,7 +1233,7 @@ const Scene3D = {
                 break;
             default: // forest: 풀 포기 (잎날 클러스터) — 지형 알베도 쪽으로 30% 눌러 채도 정합
                 geo = this.tuftGeo();
-                mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0x558b2f).lerp(new THREE.Color(0x9cbf6e), 0.35) });
+                mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0x558b2f).lerp(new THREE.Color(0x9cbf6e), 0.58) }); // 지면 알베도로 더 눌러 채도 정합 — 네온 튀는 스프라이트 인상 (비평가 7.1 9번)
                 n = 240;
                 flat = false;
                 tint = 0.2;
@@ -1863,7 +1863,7 @@ const Scene3D = {
 
     // 무기별 파지: weaponG 로컬 회전(손이 자루를 감싸는 각) + 다관절 거치 자세(본별 rx 가산) + 활계는 왼손 파지 (사용자 지시: 무기 쥔 모양 차별화)
     WEAPON_GRIP: {
-        sword:    { rot: [0.14, 0, -0.08], pose: { elbowR: -0.3 } },                       // 옆으로 자연스럽게 늘어뜨림, 날 살짝 전방
+        sword:    { rot: [0.22, 0, -0.3], pose: { elbowR: -0.3 } },                       // 날을 어깨 바깥·전방으로 기울여 견갑 관통 해소 (비평가 7.1 11번 '꽂힘도 쥠도 아님')
         dagger:   { rot: [0.22, 0, -0.1], pos: [0, -0.04, 0], pose: { elbowR: -0.5 } },    // 팔꿈치 굽혀 세워 들기, 자루를 주먹 속으로
         axe:      { rot: [0.95, 0, -0.15], pose: { elbowR: -0.85 } },                      // 어깨 걸침 레디 캐리 — 자루 뒤로 기울여 헤드가 어깨 뒤·위 (수평 돌출 금지)
         hammer:   { rot: [0.95, 0, -0.15], pose: { elbowR: -0.85 } },                      // 어깨 걸침 레디 캐리 — 자루 뒤로 기울여 헤드가 어깨 뒤·위 (수평 돌출 금지)
