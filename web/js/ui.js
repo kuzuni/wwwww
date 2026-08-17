@@ -474,6 +474,7 @@ const UI = {
             autoForgeModal: $('autoforge-modal'),
             petUpgradeModal: $('pet-upgrade-modal'),
             leagueModal: $('league-modal'), passModal: $('pass-modal'), shopModal: $('shop-modal'),
+            questModal: $('quest-modal'),
             profileModal: $('profile-modal'), playerInfoModal: $('player-info-modal'),
             chatPreview: $('chat-preview'), chatModal: $('chat-modal'),
             gearDetailModal: $('gear-detail-modal'),
@@ -519,6 +520,7 @@ const UI = {
         if (btn && btn.classList.contains('tab-x')) { this.closeOpened(); return; }
         this.closeAllTabSurfaces();
         if (tab === 'dungeon') { this.switchTab(null); this.openDungeons(); return; }
+        if (tab === 'quest') { this.switchTab(null); this.openQuests(); return; }   // 반복 퀘스트 (사용자 지시 2026-08-18)
         if (tab === 'shop') { this.switchTab(null); this.openShop(); return; }
         if (tab === 'pvp') { this.switchTab(null); this.openLeague(); return; }   // PVP = 리그 도전 (사용자 지시 2026-08-18)
         this.switchTab(this.activeTab === tab ? null : tab);
@@ -601,7 +603,7 @@ const UI = {
     // 팝업 여닫는 지점이 20곳이 넘어 호출부를 일일이 고치는 대신 표시 상태 변화를 관찰한다.
     MODAL_TAB: {
         'dungeon-modal': 'dungeon', 'dungeon-detail-modal': 'dungeon',
-        'shop-modal': 'shop', 'league-modal': 'pvp', 'pass-modal': 'pvp',
+        'shop-modal': 'shop', 'quest-modal': 'quest', 'league-modal': 'pvp', 'pass-modal': 'pvp',
         'pet-upgrade-modal': 'summon',
     },
     watchTabX() {
@@ -2589,6 +2591,56 @@ const UI = {
         this.showModal(this.els.dungeonModal);
     },
     closeDungeons() { this.els.dungeonModal.classList.add('hidden'); },
+
+    // ---- 반복 퀘스트 시트 (사용자 지시 2026-08-18 `quest-tab`) ----
+    // 던전 시트와 같은 전체화면 흰 페이지 + 세로 목록 패턴이다(새 레이아웃을 만들지 않는다 —
+    // 원본에 대응 화면이 없으므로 기존 시트 규약을 그대로 따르는 게 화면 간 일관성에 맞다).
+    // **날짜·일차 표기는 넣지 않는다**(사용자 재확인) — "언제 깨도 똑같다"가 사양이라
+    // '오늘의 퀘스트'·'남은 시간' 같은 문구가 들어가면 그 자체로 사양 위반이다.
+    openQuests() {
+        const rows = Quests.list().map((q, i) => {
+            const def = Quests.def(q.id);
+            const done = Quests.isDone(q);
+            const pct = U.clamp(q.prog / q.need, 0, 1) * 100;
+            const unit = def.unit === undefined ? '회' : def.unit;
+            return `<div class="qst-row ${done ? 'done' : ''}">
+                <span class="qst-icon">${IconGen.img(def.icon)}</span>
+                <div class="qst-body">
+                    <div class="qst-name">${def.text} ${U.fmt(q.need)}${unit}</div>
+                    <div class="qst-bar"><i style="width:${pct.toFixed(1)}%"></i><em>${U.fmt(Math.min(q.prog, q.need))}/${U.fmt(q.need)}</em></div>
+                </div>
+                <div class="qst-right">
+                    <span class="qst-reward">${IconGen.img(this.QUEST_CUR_ICON[q.rw.cur] || 'coin')} ${U.fmt(q.rw.amt)}</span>
+                    <button class="btn sm ${done ? 'primary' : 'disabled'}" onclick="UI.onClaimQuest(${i})">수령</button>
+                </div>
+            </div>`;
+        }).join('') || '<span class="muted grid-empty">퀘스트를 불러오지 못했습니다</span>';
+
+        this.els.questModal.innerHTML = `
+            <div class="modal-card sheet">
+                <h3 class="sheet-title">퀘스트</h3>
+                <p class="sheet-sub">수령하면 그 자리에 새 퀘스트가 올라옵니다</p>
+                <div class="quest-list">${rows}</div>
+                <button class="league-back-btn sheet-back-btn" onclick="UI.closeQuests()">◀</button>
+            </div>`;
+        this.showModal(this.els.questModal);
+    },
+    // 보상 재화 → IconGen 아이콘 이름. 재화 이름과 아이콘 이름이 1:1이 아닌 것만 실제 매핑이 필요하다.
+    QUEST_CUR_ICON: { coins: 'coin', hammers: 'hammer', gems: 'gem', tickets: 'ticket', winders: 'winder', eggCurrency: 'egg', potions: 'potion' },
+    closeQuests() { this.els.questModal.classList.add('hidden'); },
+    // 진행도가 오를 때 열려 있는 시트만 갱신한다 — 닫혀 있으면 아무 일도 하지 않는다(Quests.bump가 매 행동마다 부른다)
+    refreshQuestsIfOpen() {
+        if (!this.els || !this.els.questModal || this.els.questModal.classList.contains('hidden')) return;
+        this.keepScroll(() => this.openQuests());
+    },
+    onClaimQuest(i) {
+        const got = Quests.claim(i);
+        if (!got) return;
+        this.toast(`📜 ${got.text} 완료! ${Quests.CUR_KR[got.cur] || got.cur} +${U.fmt(got.amt)}`);
+        this.renderTopBar();
+        this.renderEquipSheet();
+        this.keepScroll(() => this.openQuests());   // 수령한 자리에 새 퀘스트가 즉시 올라온다
+    },
 
     _dgDetailId: null, _dgDetailStage: 1,
     openDungeonDetail(id) {

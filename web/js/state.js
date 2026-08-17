@@ -70,6 +70,10 @@ function defaultState() {
         // 장착 중인 마운트 이름 목록. 개수 제한 없음 (사용자 지시 2026-08-18 "탈것도").
         // [0]이 영웅이 실제로 올라타는 탈것이고, 나머지는 3D에서 뒤쪽에 따라다닌다(Scene3D.refreshMount).
         activeMounts: [],
+        // 반복 퀘스트 (사용자 지시 2026-08-18) — 날짜·일차 개념 없음. 항상 3개가 떠 있고
+        // 수령한 자리만 즉시 새로 뽑힌다. 형태는 Quests.ensure()가 잡는다.
+        quests: [],                     // [{id, need, prog, rw:{cur, amt}}]
+        questsCleared: 0,               // 누적 수령 수 → 요구치·보상 배수
     });
 }
 

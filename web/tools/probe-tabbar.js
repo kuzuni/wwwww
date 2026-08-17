@@ -17,7 +17,10 @@ const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const REF = path.resolve(__dirname, '../ref/screens/shot-042120.png');
 const VW = 499, VH = 892;
-const TABS = ['pvp', 'dungeon', 'summon', 'shop'];   // 배포 탭바에 보이는 4개(디버그는 숨김)
+const TABS = ['pvp', 'dungeon', 'summon', 'quest', 'shop'];   // 배포 탭바에 보이는 5개(디버그는 숨김)
+// 2026-08-18 `quest-tab`: 소환과 상점 사이에 퀘스트가 들어와 **보이는 탭이 4→5개**가 됐다.
+// 셀 분할 수를 안 고치면 4칸으로 5개를 재면서 이웃 아이콘 2개가 한 칸에 잡혀(실측 24.25%W)
+// 멀쩡한 아이콘이 '원본보다 +15%p 크다'로 뜬다 — 첫 실행에서 실제로 그렇게 오검출했다.
 
 // 이미지 데이터에서 셀별 잉크 bbox 를 낸다. bg 는 셀 테두리 픽셀의 최빈색으로 잡는다.
 // (인자에 쓰지 않는 H 를 두면 호출부에서 한 칸씩 밀려 cells=undefined 가 되고 스캔이 조용히
@@ -125,7 +128,7 @@ const SCAN = function (data, W, y0, y1, cells) {
         const d = ctx.getImageData(0, 0, img.width, img.height).data;
         const scan = new Function('return ' + scanSrc)();
         // 배포에서 보이는 탭 수로 셀을 나눈다(디버그 탭은 숨김이라 flex 셀도 없다)
-        return { W: img.width, H: img.height, cells: scan(d, img.width, 0, img.height, 4) };
+        return { W: img.width, H: img.height, cells: scan(d, img.width, 0, img.height, 5) };
     }, ['data:image/png;base64,' + clipShot.toString('base64'), SCAN.toString()]);
 
     // ---- ③ 캘리브레이션: 측정기가 정말 '탭바 내용'만 잡는가 ----
@@ -143,7 +146,7 @@ const SCAN = function (data, W, y0, y1, cells) {
         ctx.drawImage(img, 0, 0);
         const d = ctx.getImageData(0, 0, img.width, img.height).data;
         const scan = new Function('return ' + scanSrc)();
-        return scan(d, img.width, 0, img.height, 4);
+        return scan(d, img.width, 0, img.height, 5);
     }, ['data:image/png;base64,' + blankShot.toString('base64'), SCAN.toString()]);
     // ---- ④ ✕ 상태 왕복: refreshTabX 가 innerHTML 을 통째로 갈았다 되돌리는 경로 ----
     // 여기서 아이콘이 이모지로 되돌아가면 팝업을 한 번 열고 닫은 뒤부터 탭바가 이모지로 남는다.
@@ -165,7 +168,7 @@ const SCAN = function (data, W, y0, y1, cells) {
 
     // ---- 보고 ----
     const pctW = v => (v / VW) * 100, pctH = v => (v / VH) * 100;
-    if (!ref.cells || ref.cells.length !== 5 || !clone.cells || clone.cells.length !== 4) {
+    if (!ref.cells || ref.cells.length !== 5 || !clone.cells || clone.cells.length !== 5) {
         console.log(`=> 측정기 고장: 스캔이 칸을 못 냈다(원본 ${ref.cells ? ref.cells.length : 'null'}칸 / 클론 ${clone.cells ? clone.cells.length : 'null'}칸).`);
         process.exit(2);
     }
@@ -174,15 +177,17 @@ const SCAN = function (data, W, y0, y1, cells) {
     const bandD = pctH(dom.band.h) - pctH(ref.band[1] - ref.band[0]);
     console.log(`  밴드 높이 Δ ${bandD >= 0 ? '+' : ''}${bandD.toFixed(2)}%p  ${Math.abs(bandD) <= 2 ? 'OK' : 'FAIL'}`);
 
-    // 원본 5칸 중 우리가 쓰는 개념 4개와 매칭: 원본 순서 [던전, 방, 소환, PVP, 상점] → 방(1번)은 삭제됨
-    const refIdx = { dungeon: 0, summon: 2, pvp: 3, shop: 4 };
+    // 원본 순서 [던전, 방, 소환, PVP, 상점]. '방'은 삭제됐지만 그 자리에 **퀘스트**가 들어와
+    // 다시 5칸이 됐으므로, 신규 퀘스트 아이콘은 원본 1번 칸(방)을 **크기 기준으로만** 견준다
+    // (모양은 대응 원본이 없는 신규 아이콘이라 잉크 bbox 치수만 같은 급인지 본다).
+    const refIdx = { dungeon: 0, quest: 1, summon: 2, pvp: 3, shop: 4 };
     console.log('\n원본 5칸 잉크 bbox (%W×%H):');
     ref.cells.forEach((c, i) => console.log(`  [${i}] ${c ? `${pctW(c.w).toFixed(2)}×${pctH(c.h).toFixed(2)}  (${c.w}×${c.h}px)  ink=${c.ink}` : '없음'}`));
     const refLong = ref.cells.filter(Boolean).map(c => Math.max(pctW(c.w), pctH(c.h)));
     const refAvg = refLong.reduce((a, b) => a + b, 0) / refLong.length;
     console.log(`  → 원본 긴 변 평균 ${refAvg.toFixed(2)}% (최소 ${Math.min(...refLong).toFixed(2)} / 최대 ${Math.max(...refLong).toFixed(2)})`);
 
-    console.log('\n클론 4칸 (라벨 숨김 상태):');
+    console.log('\n클론 5칸 (라벨 숨김 상태):');
     let fail = 0;
     clone.cells.forEach((c, i) => {
         const tab = dom.buttons[i] ? dom.buttons[i].tab : '?';

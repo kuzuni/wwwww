@@ -967,6 +967,43 @@ body {
 .dg-banner .dg-icon { font-size: 1.8rem; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
 .dg-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; font-size: .8rem; }
 .dg-keys { font-size: .75rem; font-weight: 800; color: #ffd54f; }
+/* ---- 반복 퀘스트 시트 (사용자 지시 2026-08-18 `quest-tab`) ----
+   원본에 대응 화면이 없어 던전 시트(흰 페이지 + 세로 목록)와 같은 규약을 따른다: 카드 폭은
+   던전 배너와 같은 77.6%W, 다만 내용이 '아이콘 + 이름/진행바 + 보상/버튼' 3열이라 높이는
+   내용에 맡긴다(던전처럼 aspect-ratio 로 묶으면 진행바가 눌린다). */
+.quest-list { display: flex; flex-direction: column; gap: .5rem; }
+.modal-card.sheet .quest-list { gap: .62rem; align-items: center; margin: 0 -.9rem; }
+.qst-row {
+    display: flex; align-items: center; gap: .6rem; text-align: left;
+    background: var(--pp-paper, #fff); border: 3px solid var(--pp-line); border-radius: .8rem;
+    padding: .55rem .7rem; box-shadow: 0 .25rem 0 rgba(0,0,0,.3);
+}
+.modal-card.sheet .qst-row { width: 77.6%; }
+/* 수령 대기 = 초록 테두리로 '지금 누를 것'을 못 박는다(버튼만 살아나면 스크롤 중에 놓친다) */
+.qst-row.done { border-color: var(--pp-green, #1cc11c); background: #f2fff2; }
+.qst-icon { flex: 0 0 auto; display: flex; align-items: center; }
+.qst-icon .ico { width: 2.1rem; height: 2.1rem; }
+.qst-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .28rem; }
+.qst-name { font-size: .84rem; font-weight: 900; color: var(--pp-ink); }
+/* 진행바 — 소환 게이지(.summon-gauge)와 같은 '트랙 + 채움 + 가운데 수치' 3층 구조 */
+/* 트랙은 소환 게이지와 같은 **어두운** 바탕이다 — 첫 시안은 밝은 회색(#d8d8d8)에 흰 글자를
+   얹어 채움 밖 구간의 '2/5'가 사실상 안 읽혔다(대비 1.2:1). 게임 전역 게이지 규약을 따른다. */
+.qst-bar {
+    position: relative; height: .95rem; border-radius: .48rem; overflow: hidden;
+    background: #17181a; border: 2px solid var(--pp-line);
+}
+.qst-bar i { display: block; height: 100%; background: linear-gradient(180deg, #4fc3f7, #0288d1); }
+.qst-row.done .qst-bar i { background: linear-gradient(180deg, #81e884, #2e9e31); }
+.qst-bar em {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: .62rem; font-weight: 900; font-style: normal; color: #fff;
+    text-shadow: 0 1px 1px rgba(0,0,0,.75);
+}
+.qst-right { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: .28rem; }
+.qst-reward { display: flex; align-items: center; gap: .2rem; font-size: .74rem; font-weight: 900; color: var(--pp-ink); }
+.qst-reward .ico { width: 1.05rem; height: 1.05rem; }
+.qst-right .btn { min-width: 3.9rem; min-height: 1.9rem; font-size: .78rem; padding: .2rem .4rem; }
+
 .dg-detail-hero {
     height: 5rem; border-radius: .6rem; margin-bottom: .4rem;
     background: linear-gradient(120deg, var(--bg, #444c56), #161b22);

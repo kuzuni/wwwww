@@ -132,6 +132,7 @@ const Pets = {
                     UI.toast(`🎉 새 펫: ${PET_KR[def.name] || def.name} (${RARITY_KR[h.rarity]})`);
                 }
                 Combat.recalcHero();
+                Quests.bump('petHatch');             // 반복 퀘스트 '알 부화'
                 UI.renderPets();
                 UI.renderEquipSheet();
                 saveGame();
@@ -263,6 +264,7 @@ const Pets = {
         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
         Combat.recalcHero();
         UI.toast(`✨ 합성 성공! ${RARITY_KR[next]} 알 획득`);
+        Quests.bump('petMerge');                     // 반복 퀘스트 '펫 합성'
         saveGame();
         return true;
     },

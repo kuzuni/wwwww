@@ -51,6 +51,7 @@ const Skills = {
         const bestRarity = results.reduce((best, r) =>
             RARITIES.indexOf(r.def.rarity) > RARITIES.indexOf(best) ? r.def.rarity : best, results[0].def.rarity);
         SFX.gacha(bestRarity);
+        Quests.bump('skillSummon', results.length);   // 반복 퀘스트 '스킬 소환'
         saveGame();
         return { results, count };
     },

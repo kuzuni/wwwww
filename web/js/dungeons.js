@@ -133,6 +133,7 @@ const Dungeons = {
         const { id, stage } = this.run;
         this.run = null;
         S.dungeons.keys[id] = Math.max(0, S.dungeons.keys[id] - 1); // 완료 시점 열쇠 소모
+        Quests.bump('dungeonClear');                 // 반복 퀘스트 '던전 완료'(= 열쇠 사용 지점)
         S.dungeons.best[id] = Math.max(S.dungeons.best[id], stage);
         const r = this.grantRewards(id, stage);
         UI.toast(`🏆 ${this.def(id).kr} ${stage}단계 클리어! ${this.rewardText(id, stage)}`);

@@ -140,6 +140,7 @@ const Mounts = {
         const bestRarity = results.reduce((best, r) =>
             RARITIES.indexOf(r.rarity) > RARITIES.indexOf(best) ? r.rarity : best, results[0].rarity);
         SFX.gacha(bestRarity);
+        Quests.bump('mountSummon', results.length);   // 반복 퀘스트 '탈것 소환'
         saveGame();
         return { results };
     },

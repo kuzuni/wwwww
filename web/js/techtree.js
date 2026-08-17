@@ -348,6 +348,7 @@ const TechTree = {
             const id = S.techResearch.id;
             S.tech[id] = this.level(id) + 1;
             S.techResearch = null;
+            Quests.bump('techDone');                 // 반복 퀘스트 '기술 연구 완료'
             SFX.levelUp();
             UI.toast(`🔬 ${this.def(id).name} ${this.roman(this.tierOf(id))}단계 Lv.${this.level(id)} 연구 완료!`);
             Combat.recalcHero();

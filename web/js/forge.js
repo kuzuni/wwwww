@@ -175,6 +175,7 @@ const Forge = {
             results.push(this.rollItem());
         }
         if (results.length) SFX.craft();
+        Quests.bump('craft', results.length);   // 반복 퀘스트 '장비 제작'
         return results;
     },
 
@@ -183,12 +184,14 @@ const Forge = {
         S.equipment[item.slot] = item;
         if (typeof Scene3D !== 'undefined') Scene3D.refreshHeroEquip(true); // 교체 연출 포함
         Combat.recalcHero();
+        Quests.bump('equipGear');               // 반복 퀘스트 '장비 장착'
         return prev; // 이전 장비 — 호출부는 참조만 하고 버린다(보관·판매 없음)
     },
 
     sell(item) {
         const price = this.sellPrice(item);
         S.coins += price;
+        Quests.bump('sellGear');                // 반복 퀘스트 '장비 판매'
         return price;
     },
 
@@ -248,7 +251,9 @@ const Forge = {
     startUpgrade() {
         const info = this.upgradeInfo();
         if (!this.canStartUpgrade()) return false;
-        S.coins -= this.upgradeCost(info); // 업그레이드는 골드로 (해머는 제작 전용)
+        const spent = this.upgradeCost(info);
+        S.coins -= spent; // 업그레이드는 골드로 (해머는 제작 전용)
+        Quests.bump('coinSpend', spent);        // 반복 퀘스트 '코인 소비' — 게임에서 코인이 나가는 유일한 지점
         S.forgeUpgradeEndsAt = U.now() + this.upgradeTime(info) * 1000;
         saveGame();
         return true;
@@ -273,6 +278,7 @@ const Forge = {
         if (S.forgeUpgradeEndsAt && U.now() >= S.forgeUpgradeEndsAt) {
             S.forgeLevel = Math.min(35, S.forgeLevel + 1);
             S.forgeUpgradeEndsAt = null;
+            Quests.bump('gearUpgrade');          // 반복 퀘스트 '대장간 강화 완료'
             SFX.levelUp();
             UI.toast(`⚒️ 대장간 레벨 ${S.forgeLevel} 달성!`);
             UI.renderEquipSheet();
