@@ -1053,10 +1053,15 @@ const UI = {
     EMPTY_SLOT_EMOJI: { weapon: '🗡', helmet: '🪖', armor: '👕' },
     equipCellHTML(slot) {
         const it = S.equipment[slot];
-        if (!it) return `<div class="equip-cell empty">
-            <span class="cell-img emoji dim">${this.EMPTY_SLOT_EMOJI[slot] || this.SLOT_EMOJI[slot] || '🎁'}</span>
-            <span class="slot-name">${SLOT_KR[slot]}</span>
-        </div>`;
+        // 빈 부위라도 보관품이 있으면 눌러서 보관함을 열 수 있어야 한다(그러지 않으면 도달 불가)
+        if (!it) {
+            const stored = Forge.inventoryOf(slot).length;
+            return `<div class="equip-cell empty"${stored ? ` onclick="UI.openGearDetail('${slot}')"` : ''}>
+                <span class="cell-img emoji dim">${this.EMPTY_SLOT_EMOJI[slot] || this.SLOT_EMOJI[slot] || '🎁'}</span>
+                <span class="slot-name">${SLOT_KR[slot]}</span>
+                ${stored ? `<span class="cell-stored">📦${stored}</span>` : ''}
+            </div>`;
+        }
         return `<div class="equip-cell" style="--rc:${this.ageHex(it.age)}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
             ${this.itemImgHTML(it, 'cell-img')}
             <span class="cell-lv">Lv. ${it.level}</span>
@@ -1112,22 +1117,66 @@ const UI = {
                 </div>
                 <div class="row">
                     <button class="btn sell" onclick="UI.resolveCraft('sell')">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(item))}</small></button>
-                    <button class="btn equip" onclick="UI.resolveCraft('equip')">장착${cur ? '<small>기존 판매</small>' : ''}</button>
+                    <button class="btn equip" onclick="UI.resolveCraft('equip')">장착${cur ? '<small>기존 보관</small>' : ''}</button>
                 </div>
             </div>`;
         this.showModal(this.els.craftModal);
     },
 
-    // 장비 세부정보 팝업 (UI-SPEC 26번): 메인 화면 장비 카드 클릭 시 — 비교 팝업과 달리 버튼 없음, 바깥 탭하면 닫힘
+    // 장비 세부정보 팝업 (UI-SPEC 26번): 메인 화면 장비 카드 클릭 시 — 비교 팝업과 달리 버튼 없음, 바깥 탭하면 닫힘.
+    // 여기에 그 부위의 **보관함**(장착으로 밀려난 장비)을 붙였다 — 사용자 지시 2026-08-17이 요구한
+    // '보관 장비 열람/재장착/판매 진입점'이다. 보관품이 없으면 목록 자체를 그리지 않으므로
+    // 보관함이 빈 상태(원본 대조 기준 상태)의 화면은 원본과 그대로 같다.
     openGearDetail(slot) {
         const item = S.equipment[slot];
-        if (!item) return;
+        const stored = Forge.inventoryOf(slot);
+        if (!item && !stored.length) return;
         this._gearDetailSlot = slot;
         this.els.gearDetailModal.innerHTML = `
             <div class="modal-card wide gd-card">
                 <div class="cmp-wrap">${this.itemCardHTML(item, '장착됨', null, false)}</div>
+                ${this.storedListHTML(slot)}
             </div>`;
         this.showModal(this.els.gearDetailModal);
+    },
+    // 보관함 목록 — 한 줄에 장비 하나(아이콘·이름·주스탯) + [장착]/[판매]
+    storedListHTML(slot) {
+        const list = Forge.inventoryOf(slot);
+        if (!list.length) return '';
+        // 강한 것부터 — 되장착할 것을 맨 위에서 찾게 한다. 표시 순서만 바꾸고 원본 배열은 건드리지 않는다.
+        const rows = list.map((it, i) => ({ it, i }))
+            .sort((a, b) => Forge.itemValue(b.it).cmp(Forge.itemValue(a.it)))
+            .map(({ it, i }) => `<div class="inv-row" style="--rc:${this.ageHex(it.age)}">
+                ${this.itemImgHTML(it, 'inv-img')}
+                <div class="inv-info">
+                    <div class="inv-name">[${AGE_KR[it.age]}] ${it.name}</div>
+                    <div class="inv-stat">Lv.${it.level} · ${U.fmt(Forge.itemValue(it))} ${it.main === 'atk' ? '피해' : '체력'}${it.stars ? ` · ⭐${it.stars}` : ''}</div>
+                </div>
+                <div class="inv-btns">
+                    <button class="btn equip inv-btn" onclick="UI.onEquipStored('${slot}',${i})">장착</button>
+                    <button class="btn sell inv-btn" onclick="UI.onSellStored('${slot}',${i})">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(it))}</small></button>
+                </div>
+            </div>`).join('');
+        return `<div class="inv-box">
+            <div class="inv-head">📦 보관함 <small>${list.length}/${Forge.INVENTORY_CAP}</small></div>
+            <div class="inv-list">${rows}</div>
+        </div>`;
+    },
+    onEquipStored(slot, idx) {
+        const it = Forge.equipStored(slot, idx);
+        if (!it) return;
+        this.toast(`🛠 ${it.name} 장착 — 쓰던 장비는 보관함으로`);
+        this.renderTopBar(); this.renderEquipSheet(); this.openGearDetail(slot); saveGame();
+    },
+    onSellStored(slot, idx) {
+        const gained = Forge.sellStored(slot, idx);
+        if (!gained) return;
+        this.toast(`🪙 판매 +${U.fmt(gained)}`);
+        this.renderTopBar(); this.renderEquipSheet();
+        // 마지막 보관품을 팔았고 장착 중인 것도 없으면 열어 둘 내용이 없다
+        if (!S.equipment[slot] && !Forge.inventoryOf(slot).length) this.closeGearDetail();
+        else this.openGearDetail(slot);
+        saveGame();
     },
     closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); this._gearDetailSlot = null; },
 
@@ -1151,20 +1200,20 @@ const UI = {
     // ---- 고등급 판매 경고 (사용자 지시 2026-08-17) ----
     // 실수로 좋은 장비를 파는 걸 막는다. 규칙: '팔리는 장비'의 등급이 '판매 후 그 부위에 남게 될
     // 장비'보다 높을 때만 물어보고, 같거나 낮으면 그냥 팔린다.
-    //   [판매] → 새 장비가 팔리고 장착 중인 것이 남는다   [장착] → 기존 장비가 팔리고 새 것이 남는다
+    //   [판매] → 새 장비가 팔리고 장착 중인 것이 남는다
+    //   [장착] → 새 것을 끼고 **기존 장비는 보관함으로 간다(판매 아님)** — 파는 게 없으니 경고도 없다
+    //            (사용자 지시 2026-08-17: "장착은 장착만, 판매는 판매 버튼으로만")
     // 빈 슬롯은 '남는 게 없음'이라 -1로 봐서 항상 물어본다(첫 장비를 실수로 파는 사고 방지 —
     // 슬롯이 비는 건 신규 세이브 8회뿐이라 잔소리가 되지 않는다).
     // 자동 제련(main.js)의 자동 판매는 사용자가 건 필터가 이미 걸러낸 결과라 경고 대상이 아니다.
     rarityRank(item) { return item ? RARITIES.indexOf(item.rarity) : -1; },
     sellWarning(mode) {
+        if (mode === 'equip') return null; // 장착은 아무것도 팔지 않는다
         const item = this._pendingItem;
         if (!item) return null;
-        const cur = S.equipment[item.slot];
-        const sold = mode === 'equip' ? cur : item;
-        const kept = mode === 'equip' ? item : cur;
-        if (!sold) return null; // [장착]인데 기존 장비가 없으면 팔리는 게 없다
-        if (this.rarityRank(sold) <= this.rarityRank(kept)) return null;
-        return { sold, kept };
+        const kept = S.equipment[item.slot];
+        if (this.rarityRank(item) <= this.rarityRank(kept)) return null;
+        return { sold: item, kept };
     },
     resolveCraft(mode) {
         const warn = this.sellWarning(mode);
@@ -1199,8 +1248,15 @@ const UI = {
         this.els.craftModal.classList.add('hidden');
         if (!item) return;
         if (mode === 'equip') {
+            // 기존 장비는 팔지 않고 보관함으로 (사용자 지시 2026-08-17) — 보관함이 꽉 찼을 때만
+            // 가장 약한 것이 자동 판매되고, 그때는 사용자가 알 수 있게 알린다.
             const prev = Forge.equip(item);
-            if (prev) Forge.sell(prev);
+            if (prev) {
+                const overflow = Forge.store(prev);
+                this.toast(overflow
+                    ? `📦 ${prev.name} 보관 · 보관함이 꽉 차 가장 약한 장비를 판매했습니다 +${U.fmt(overflow)}`
+                    : `📦 ${prev.name} 보관함에 보관`);
+            }
         } else Forge.sell(item);
         this.renderTopBar();
         this.renderEquipSheet();

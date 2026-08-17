@@ -47,6 +47,9 @@ function defaultState() {
         },
         // 장비: slot → item | null
         equipment: { weapon: null, helmet: null, armor: null, gloves: null, necklace: null, ring: null, shoes: null, belt: null },
+        // 보관함: slot → 장착하지 않은 장비 배열 (사용자 지시 2026-08-17 — [장착]은 장착만 하고
+        // 기존 장비는 팔지 않고 여기 보관한다. 판매는 [판매] 버튼을 눌렀을 때만.)
+        inventory: {},
         // 펫 (시작 알 1개 지급)
         eggs: [{ rarity: 'common' }],   // 미부화 알: {rarity}
         hatching: [],                   // 부화 중: {rarity, endsAt} 최대 2슬롯

@@ -440,6 +440,13 @@ body {
 }
 .equip-cell.egg-cell.empty .mount-sil { font-size: 1.5rem; filter: brightness(0) opacity(.32); transform: translateY(-.15rem); } /* 탑승물 실루엣 — 빈 상태 판독 단서 */
 .equip-cell.empty { cursor: default; }
+.equip-cell.empty[onclick] { cursor: pointer; } /* 보관품이 있는 빈 부위 — 눌러서 보관함을 연다 */
+/* 빈 부위의 보관품 개수 배지 (보관함이 비어 있으면 아예 안 그린다 = 원본 화면 그대로) */
+.equip-cell .cell-stored {
+    position: absolute; top: -.35rem; right: -.35rem; z-index: 1;
+    background: #17181a; border: 2px solid #6b3538; border-radius: .5rem; padding: 0 .22rem;
+    font-size: .6rem; font-weight: 900; color: #ffd54f;
+}
 .equip-cell.empty .cell-img.dim { filter: grayscale(1) opacity(.35); font-size: 1.35rem; }
 .equip-cell.egg-cell.empty { cursor: pointer; } /* 탈것 창 진입점이라 빈 상태에도 클릭 가능 */
 .equip-cell .slot-name { position: absolute; bottom: .3rem; left: 0; right: 0; text-align: center; font-size: .58rem; font-weight: 800; color: #b9a8a8; }
@@ -598,6 +605,27 @@ body {
    — 탭바 높이에 맞물리게 바꿔 어떤 탭바 높이에서도 그 위에 앉는다. */
 #gear-detail-modal { align-items: flex-end; padding-bottom: calc(var(--tabbar-h) + .8rem); }
 #gear-detail-modal .gd-card { width: 70%; }
+/* ---- 보관함 (사용자 지시 2026-08-17: 장착으로 밀려난 장비를 팔지 않고 보관) ----
+   장비 세부정보 팝업 안에 붙는다. 보관품이 없으면 목록 자체를 그리지 않으므로(ui.js storedListHTML)
+   원본 대조 상태(보관함 빈 상태)의 이 화면은 원본 shot-043244 그대로다. */
+.inv-box { margin-top: .9rem; text-align: left; display: flex; flex-direction: column; gap: .4rem; }
+.inv-head { font-size: .82rem; font-weight: 900; color: #ffd54f; }
+.inv-head small { color: #90a4ae; font-weight: 800; margin-left: .25rem; }
+/* 목록은 팝업이 탭바를 넘지 않게 앱 높이 기준으로 잘라 스크롤 (--popup-h-max와 같은 계열 규칙) */
+.inv-list { display: flex; flex-direction: column; gap: .35rem; max-height: calc(var(--app-h) * .3); overflow-y: auto; }
+.inv-row {
+    display: flex; align-items: center; gap: .5rem; padding: .3rem .4rem;
+    background: color-mix(in srgb, var(--rc, #6b3538) 26%, #17181a);
+    border: 2px solid color-mix(in srgb, var(--rc, #6b3538) 70%, #000); border-radius: .5rem;
+}
+.inv-row .inv-img { width: 2.1rem; height: 2.1rem; object-fit: contain; flex: none; }
+.inv-row .inv-img.emoji { display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.inv-info { flex: 1; min-width: 0; }
+.inv-name { font-size: .72rem; font-weight: 900; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-stat { font-size: .66rem; font-weight: 700; color: #b0bec5; }
+.inv-btns { display: flex; gap: .25rem; flex: none; }
+.modal-card .btn.inv-btn { min-height: 1.9rem; padding: .15rem .45rem; font-size: .7rem; line-height: 1.1; }
+.modal-card .btn.inv-btn small { font-size: .58rem; display: block; }
 /* 장비 비교 팝업은 원본(shot-043224)처럼 하단 앵커 (버튼줄이 화면 ~78%H) */
 #craft-modal { align-items: flex-end; padding-bottom: calc(var(--tabbar-h) + .8rem); }
 /* 기술 노드 팝업 액션 버튼 — 원본(shot-042605) 높이≈화면 7% 입체 블록 */
