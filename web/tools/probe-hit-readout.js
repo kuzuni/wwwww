@@ -20,6 +20,10 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 20000 });
     await page.waitForFunction(() => Combat.enemies && Combat.enemies.some(e => e.alive), null, { timeout: 20000 });
     await page.waitForTimeout(1200);
+    // ⚠️ 위 대기 1.2초 동안에도 전투는 계속 돈다 — 그 사이 적이 죽어 `enemies.find(alive)` 가
+    //    undefined 가 되는 플레이크를 실제로 밟았다. 측정 직전에 **살아 있는 적이 생길 때까지**
+    //    다시 기다린다(전투를 먼저 얼리면 새 웨이브가 안 나와 영영 못 기다린다).
+    await page.waitForFunction(() => Combat.enemies && Combat.enemies.some(e => e.alive && Scene3D.enemyMap.get(e.id)), null, { timeout: 20000 });
 
     const out = await page.evaluate(() => {
         Combat.tick = () => { };
@@ -78,15 +82,22 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
             res.hit.push({ t: 66, bar, num: num && num.rect, text: num && num.text, overlap: overlap(bar, num && num.rect) });
         }
 
-        // ── ① 처치: 시각별 앞바/잔상바 채움 비율 ──
+        // ── ① 처치: 시각별 앞바/잔상바 채움 ──
+        // ⚠️ 위 140 타격으로 적이 이미 빈사면 기준값이 무너져 비율이 의미를 잃는다(실측으로 밟았다:
+        //    v0=0.001 이라 잔상바 비율이 922 로 찍혔다). **체력을 만땅으로 되돌린 뒤** 처치한다.
+        e.hp = e.maxHp ? (e.maxHp.clone ? e.maxHp.clone() : e.maxHp) : e.hp;
+        step(0.05);   // driveHpBar 가 앞바를 만땅으로 되돌릴 한 프레임
+        if (m.hpFg) { m.hpFg.scale.x = 1; m.hpFg.position.x = 0; }
+        if (m.hpGhost) { m.hpGhost.scale.x = 1; m.hpGhost.position.x = 0; m.ghostV = 1; }
         const v0 = m.hpFg ? m.hpFg.scale.x : null;
         Combat.damageEnemy(e, Big.of(1e9), true, null);
         const snap = (t) => {
             const num = newestNum();
             res.kill.push({
                 t,
-                front: m.hpFg ? +(m.hpFg.scale.x / v0).toFixed(3) : null,   // 처치 직전 대비 (1 = 그대로, 0 = 비었다)
-                ghost: m.hpGhost ? +(m.hpGhost.scale.x / v0).toFixed(3) : null,
+                // **절대값**으로 준다 — scale.x 1.0 = 트랙이 꽉 참, 0 = 비었다. 비평가의 '48% 차 있다'와 직접 비교된다.
+                front: m.hpFg ? +m.hpFg.scale.x.toFixed(3) : null,
+                ghost: m.hpGhost ? +m.hpGhost.scale.x.toFixed(3) : null,
                 ghostVisible: m.hpGhost ? m.hpGhost.visible : null,
                 barVisible: m.hpBg ? m.hpBg.visible : null,
                 numText: num && num.text,
@@ -111,7 +122,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     console.log('\n── ① 처치 후 HP바 채움 (처치 직전 폭 = 1.000) ──');
     console.log('  처치 직전 앞바 scale.x = %s', out.v0);
     for (const k of out.kill) {
-        console.log('  +%3dms  앞바=%s  잔상바=%s(visible %s)  바보임=%s  숫자="%s"',
+        console.log('  +%sms  앞바=%s  잔상바=%s(visible %s)  바보임=%s  숫자="%s"',
             k.t, String(k.front).padStart(5), String(k.ghost).padStart(5), k.ghostVisible, k.barVisible, k.numText);
     }
     console.log('  판정: 비평가는 +16ms 에 "약 48% 차 있다"고 했다 — 앞바 값이 그 근처면 지적이 맞다.');

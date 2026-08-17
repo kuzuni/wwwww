@@ -5340,9 +5340,27 @@ const Scene3D = {
         const cls = kind === 'skill' ? 'dmg-skill' : crit ? 'dmg-crit' : 'dmg';
         // 숫자는 HP바 위로 바 높이(0.135)의 2.2배 이상 띄운다 — 예전 고정 1.25는 큰 적에서 바와 겹쳐
         // 숫자가 바를 가리고 둘 다 못 읽혔다(비평가 2차 ⓔ). 크리는 항상 일반보다 한 슬롯 위.
-        const numY = (m.barY || 1.1) * (m.baseScale || 1) + 0.135 * 2.2 + (crit ? 0.3 : 0);
+        // ⚠️ 높이는 **바의 실제 월드 좌표**에서 뽑는다. 예전에는 `m.barY * m.baseScale` 로 근사했는데
+        // `m.baseScale` 은 빌더에서 `g.scale.x` 가 아직 1일 때 굳어 실제 배율과 어긋난다(골렘 실측:
+        // barBase 1 vs 실제 1.15 — TODO에 '곁다리 발견'으로 등재만 돼 있던 그 값이다). 그래서 계산상
+        // 바 위로 0.297 띄운 숫자가 화면에서는 바와 **같은 높이**에 앉아 잔상바를 덮었다
+        // (비평가 5차 A #5·B #2 독립 일치, a1 프레임 육안 확인: '140'이 노란 잔상 세그먼트를 가린다).
+        const bw = this._numV || (this._numV = new THREE.Vector3());
+        let numY;
+        if (m.hpBg) {
+            m.hpBg.getWorldPosition(bw);
+            const bs = m.barBase !== undefined ? m.barBase : (m.hpG ? m.hpG.scale.y : 1); // 펀치가 섞인 live scale 대신 기준값
+            numY = (bw.y - pos.y) + 0.135 * 0.5 * bs + 0.30 + (crit ? 0.3 : 0);
+        } else {
+            numY = (m.barY || 1.1) * (m.baseScale || 1) + 0.135 * 2.2 + (crit ? 0.3 : 0);
+        }
         const numPos = pos.clone().add(new THREE.Vector3(0.45, numY + U.rand(0, 0.1), 0));
-        const numOpt = { dx: U.rand(6, 26), rise: -(30 + sev * 18 + (crit ? 12 : 0)), scale: 1 + Math.min(0.3, sev * 0.9) };
+        // 월드 계산만으로는 원근·배율이 섞여 겹침을 보장 못 한다 — 바 상단의 **화면 y**를 같이 넘겨
+        // 스폰 직후 픽셀 단위로 한 번 더 밀어 올린다(아래 damageNumber 의 clearY).
+        const numOpt = {
+            dx: U.rand(6, 26), rise: -(30 + sev * 18 + (crit ? 12 : 0)), scale: 1 + Math.min(0.3, sev * 0.9),
+            clearY: m.hpBg ? this.project(bw).y - 6 : undefined,
+        };
         const el = this.damageNumber(numPos, U.fmt(dmg), cls, numOpt);
         if (freeze && el) {
             // 프리즈 동안 CSS 아크를 정지. 재개는 **애니메이션 큐**에 맡긴다 — 큐는 dt로 도는데
@@ -5402,12 +5420,36 @@ const Scene3D = {
             // ⚠️ 잔상바도 **반드시 같이 0까지 내려야 한다.** 앞바만 비우고 잔상바를 남겼더니
             // +180ms 프레임에서 트랙이 "빨갛게 55% 차 있는 바"로 보였다 — 죽는 게 아니라 **분노해서 붉어진 것**으로
             // 읽히는 정반대 신호다(비평가 4차 4번). 잔상은 앞바보다 0.18초 늦게 따라가되 0.26초에는 반드시 0이 된다.
+            // ⚠️ **앞바는 처치 프레임에 즉시 0으로 스냅한다.** 예전에는 0.12초에 걸쳐 훑어 내렸는데,
+            // 그러면 가장 주목도 높은 +16ms 프레임에서 바가 아직 **94% 차 있다**(실측
+            // `probe-hit-readout.js`: 앞바 0.941). 화면 전체는 "죽었다"고 터지는데 바만 "아직 절반
+            // 남았다"고 말하는 정반대 신호다 — 비평가 5차에서 **채점자 2인이 독립적으로** 최상위
+            // 지적으로 올렸다(A #2 "b1에서 55% 잔량", B #1 "48% 잔량, 가장 큰 이벤트가 바 피드백은
+            // 가장 약하다"). 일반 타격은 +16ms에 이미 반영되는데 처치만 늦는 규칙 불일치이기도 하다.
+            // 3차 지적 'HP가 0이 되는 순간이 한 프레임도 안 나온다'는 이 스냅으로 **오히려 더 확실히**
+            // 충족된다(빈 트랙이 임팩트 프레임부터 보인다). '얼마를 잃었나'의 서사는 잔상바가 전담한다.
+            if (hpFg) { hpFg.scale.x = 0.001; hpFg.position.x = -0.4; }
+            if (gh) { gh.visible = true; gh.scale.x = g0; gh.position.x = -0.4 * (1 - g0); }
+            // ⚠️ 프레임 플래시·세로 펀치는 여기서 **직접** 몰아야 한다. `hitHpBar`가 세우는 `hpFlash`/
+            // `barPunch`는 `driveHpBar`가 소비하는데, 처치 바는 `barDying`이라 update가 driveHpBar를
+            // 아예 건너뛴다 — 그래서 지금까지 처치 바에는 '맞았다' 반응이 하나도 없었다(비평가 A #2·B #1
+            // "프레임 화이트 플래시가 안 걸린다"). 일반 타격(0.14초)보다 세고 길게 줘 위계를 맞춘다.
+            const barBase0 = m.barBase !== undefined ? m.barBase : (m.hpG ? m.hpG.scale.y : 1);
+            const bgC0 = this.srgbC(0x0d1114).clone(), whiteC = new THREE.Color(0xffffff);
             this.addAnim(0.26, k => {
-                const fk = Math.min(1, k / 0.46);                    // 앞바: 0.12초에 0
-                const v = Math.max(0.001, v0 * (1 - fk * fk));
-                if (hpFg) { hpFg.scale.x = v; hpFg.position.x = -0.4 * (1 - v); }
-                if (gh) {                                            // 잔상바: 0.07초 버틴 뒤 0.26초에 0
-                    const gk = U.clamp((k - 0.27) / 0.73, 0, 1);
+                if (hpFg) { hpFg.scale.x = 0.001; hpFg.position.x = -0.4; } // 스냅 유지 (driveHpBar가 못 건드리게)
+                const t = k * 0.26;
+                const fl = U.clamp(1 - t / 0.2, 0, 1);                 // 프레임 흰 플래시 0.2초 (일반 0.14초보다 길게)
+                if (m.hpBg) {
+                    m.hpBg.material.color.copy(bgC0).lerp(whiteC, fl);
+                    m.hpBg.material.opacity = 0.82 + fl * 0.18;
+                }
+                if (m.hpG) m.hpG.scale.y = barBase0 * (1 + 0.26 * U.clamp(1 - t / 0.13, 0, 1)); // 세로 펀치 1.26배 (일반 1.18배)
+                if (gh) {
+                    // 잔상바가 잃은 전량을 물려받는다. **먼저 버티고 그다음 태운다** — 곧바로 감쇠시키면
+                    // 임팩트 프레임에 이미 절반이 사라져(실측 0.515) '얼마를 잃었나'가 안 읽힌다.
+                    // 0.06초 홀드 → 0.13초 선형 소진. 홀드 구간이 곧 손실 폭을 보여 주는 시간이다.
+                    const gk = U.clamp((k - 0.23) / 0.5, 0, 1);
                     const gv = Math.max(0.001, g0 * (1 - gk));
                     gh.scale.x = gv; gh.position.x = -0.4 * (1 - gv);
                     gh.visible = gk < 1;
@@ -6066,6 +6108,14 @@ const Scene3D = {
             if (opt.scale !== undefined) el.style.setProperty('--pop', opt.scale.toFixed(2));
         }
         this.fxLayer.appendChild(el);
+        // 화면 단위 최종 보증 — 숫자 **아래 모서리**가 HP바 위에 걸리지 않게 한 번 더 올린다.
+        // `.float-dmg` 는 translate(-50%,-50%) 라 style.top 이 **중심**이다: 아래 모서리 = top + 높이/2.
+        // 월드 오프셋만으로는 적 크기·원근에 따라 몇 px 부족한 경우가 남는다(실측: 숫자 22px 높이에
+        // 클리어런스가 19px뿐이라 바를 걸쳤다). offsetHeight 는 append 뒤에야 확정되므로 여기서 잰다.
+        if (opt && opt.clearY !== undefined) {
+            const maxTop = opt.clearY - el.offsetHeight / 2;
+            if (ty > maxTop) { ty = Math.max(this.DMG_RISE_HEADROOM, maxTop); el.style.top = ty + 'px'; }
+        }
         setTimeout(() => el.remove(), 900);
         return el; // 호출부가 프리즈 동안 아크를 멈춰 둘 수 있게 (hitEnemy ⑥)
     },
