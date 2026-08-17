@@ -575,26 +575,47 @@ const ProChar = {
             // 정면·측면샷에서 '맨발'로 읽혔다 — 건틀릿이 이미 겪은 함정(0x6b4e3a → 0x241408)과 같은 원인이라 같은 방식으로 역보정한다.
             // …그런데 0x2a1a0d조차 조명 후 화면 명도 0.35~0.45로 떠, 값 구조 기준(0.10~0.18)에는 여전히 밝다.
             // 부츠는 캐릭터에서 가장 큰 '어두워야 마땅한' 면적이므로 니어블랙(DEEP)으로 내린다.
+            // ⚠️ 비평가 잔여 지적 ⓖ: "부츠가 발가락·굽·발목 꺾임 없는 둥근 포드".
+            //    원인은 발이 **타원체 한 덩어리**(구 r0.075 를 0.9/0.55/1.55 로 늘린 것)였다는 것이다 —
+            //    타원체는 어느 단면을 잘라도 타원이라 발가락도 굽도 만들 수 없고, 목단(0.062→0.072)이
+            //    아래로 벌어지며 그 타원으로 바로 흘러내려 발목마저 사라졌다(꺾임 0개).
+            // → 실루엣에 꺾임을 4군데 만든다: ① 발목 조임 ② 발등 ③ 가늘어지며 들리는 발가락 ④ 굽 블록.
+            // ⚠️ 최하단 y 는 건드리지 않는다 — 이전 밑창·굽의 바닥이 -0.368 이었고 지면 접지가 여기 맞춰져
+            //    있다. 새 굽·앞꿈치 밑창 **둘 다 -0.368** 에 맞춰 놓았으니 이 값을 바꾸지 말 것.
             const bootMat = deepHide;
-            const bootTop = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.072, 0.1, 10), bootMat);
-            bootTop.position.y = -0.265;
-            const foot = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), bootMat);
-            foot.position.set(0, -0.315, 0.045);
-            foot.scale.set(0.9, 0.55, 1.55);
+            const bootTop = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.056, 0.082, 10), bootMat); // 아래로 좁아진다(전에는 벌어졌다)
+            bootTop.position.y = -0.258;
+            // ① 발목 조임 — 0.056 → 0.046 으로 한 번 조인 뒤 발등에서 다시 벌어진다
+            const ankleNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.046, 0.036, 12), bootMat);
+            ankleNeck.position.y = -0.313;
+            // ② 발등·발허리 — 짧고 두껍게. 발 전체를 여기서 끝내지 않는 것이 핵심(전에는 이게 발 전부였다).
+            const midFoot = new THREE.Mesh(new THREE.SphereGeometry(0.066, 10, 8), bootMat);
+            midFoot.position.set(0, -0.330, 0.028);
+            midFoot.scale.set(0.92, 0.55, 1.25);
+            // ③ 발가락 — 발등보다 **가늘고**(반폭 0.045 < 0.061) 끝이 살짝 들린다(토 스프링).
+            //    rotation.x 음수라야 앞쪽이 올라간다(+z 점의 y' = -z·sinθ).
+            const toe = new THREE.Mesh(new THREE.SphereGeometry(0.052, 10, 7), bootMat);
+            toe.position.set(0, -0.3295, 0.113);
+            toe.scale.set(0.86, 0.48, 1.05);
+            toe.rotation.x = -0.14;
             // 사바톤(발등 판금) + 발목 라메 — 관절 장갑(폴린·쿠터)과 같은 언어로 발끝까지 마감
-            const sabaton = new THREE.Mesh(new THREE.SphereGeometry(0.068, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), steel());
-            sabaton.position.set(0, -0.305, 0.052);
-            sabaton.scale.set(0.92, 0.62, 1.5);
-            const ankleLame = new THREE.Mesh(new THREE.CylinderGeometry(0.074, 0.08, 0.028, 12), steelDark());
-            ankleLame.position.y = -0.298;
-            // 밑창 — 발 바닥면에 깔리는 니어블랙 판. 지면 접지선을 어둡게 눌러 캐릭터가 '떠 있지 않게' 하고,
+            const sabaton = new THREE.Mesh(new THREE.SphereGeometry(0.058, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), steel());
+            sabaton.position.set(0, -0.322, 0.070);
+            sabaton.scale.set(0.95, 0.62, 1.55);
+            sabaton.rotation.x = -0.10;                      // 발가락 들림과 같은 각으로 얹힌다
+            const ankleLame = new THREE.Mesh(new THREE.CylinderGeometry(0.060, 0.066, 0.026, 12), steelDark());
+            ankleLame.position.y = -0.296;
+            // ④ 굽 — 뒤쪽만 아래로 내려간 블록. 앞꿈치 밑창과 **분리**돼 있어 옆에서 보면 그 사이가
+            //    아치로 떠 보인다. 이게 발바닥선의 꺾임이고, 통짜 밑창 하나로는 절대 안 생긴다.
+            const heel = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.045, 0.036, 8), deepGasket);
+            heel.position.set(0, -0.3495, -0.030);
+            heel.scale.set(1.05, 1, 1.15);
+            // 앞꿈치 밑창 — 니어블랙 판. 지면 접지선을 어둡게 눌러 캐릭터가 '떠 있지 않게' 하고,
             // 실루엣 최하단(카메라가 내려다보므로 실제로 보이는 면)에 확실한 다크 앵커를 준다.
-            const sole = new THREE.Mesh(new THREE.SphereGeometry(0.076, 10, 6, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5), deepGasket);
-            sole.position.set(0, -0.336, 0.045);
-            sole.scale.set(0.94, 0.42, 1.58);
-            const heel = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.046, 0.03, 10), deepGasket);
-            heel.position.set(0, -0.345, -0.012);
-            knee.add(kneeCap, shin, bootTop, foot, sabaton, ankleLame, sole, heel);
+            const sole = new THREE.Mesh(new THREE.SphereGeometry(0.062, 10, 6, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5), deepGasket);
+            sole.position.set(0, -0.344, 0.088);
+            sole.scale.set(0.95, 0.38, 1.34);
+            knee.add(kneeCap, shin, bootTop, ankleNeck, midFoot, toe, sabaton, ankleLame, sole, heel);
             hip.add(thigh, thighPad, garter, cuisse, knee);
             aoRing(0.082, 0.016, hip, -0.015, 0.5); // 고관절-대퇴 경계 접촉 그림자
             pelvis.add(hip);
