@@ -1817,7 +1817,8 @@ const Scene3D = {
         this.heroHpBg = hpBg;
         this.heroHpGhost = hpGhost;
         this.heroHpFg = hpFg;
-        this.heroBar = { hpFg, hpGhost, hpBg, ghostV: 1 }; // 적과 같은 2단 바 상태(driveHpBar가 소유, 플래시는 트랙에)
+        // 적과 같은 2단 바 상태(driveHpBar가 소유, 플래시는 트랙에). hpG를 넘겨야 세로 펀치가 걸린다.
+        this.heroBar = { hpFg, hpGhost, hpBg, ghostV: 1, hpG: this.heroHpG };
         this.heroHpG.position.set(g.position.x, 1.85, g.position.z);
         this.scene.add(this.heroHpG);
     },
@@ -4592,6 +4593,10 @@ const Scene3D = {
         o.ghostHold = 0.15 + Math.min(0.13, sev * 0.5);  // 큰 피해일수록 잔상이 오래 버텨 손실 폭이 읽힌다
         o.ghostColor = sev > 0.15 ? 0xd63a3a : 0xe8a800; // 큰 덩어리는 빨강, 잔손질은 노랑
         o.barShake = Math.min(1.2, (o.barShake || 0) + 0.3 + sev * 2.4);
+        // 바 고유 세로 펀치 — 몸의 스쿼시를 상속하던 걸 끊은 뒤(바를 scene 직속으로 옮김) 바에 남은
+        // 유일한 '맞았다' 반응이다. 임팩트 **프레임에서 최대**여야 한다 — 뒤늦게 커지면 위계가
+        // 시간을 거스른다(크리 숫자가 흰색으로 태어나 +186ms에 주황이 되던 것과 같은 실수).
+        o.barPunch = 1;
     },
 
     // 2단 바 구동: 앞바는 즉시(흰 플래시), 잔상바는 잠깐 버텼다 스르륵 추격. shakeX/Y는 호출부가 바 위치에 더한다.
@@ -4621,6 +4626,13 @@ const Scene3D = {
             gh.position.x = -0.4 * (1 - o.ghostV);
             gh.material.color.copy(this.srgbC(o.ghostColor || 0xffca28));
             gh.visible = o.ghostV > ratio + 0.004;
+        }
+        // 세로 펀치: 1.18배로 태어나 120ms에 걸쳐 1.0으로 돌아온다. 가로(scale.x)는 절대 건드리지
+        // 않는다 — 채움 폭이 곧 남은 체력이라, 늘리면 그 프레임의 수치가 거짓말이 된다.
+        if (o.hpG) {
+            if (o.barBase === undefined) o.barBase = o.hpG.scale.y;
+            o.barPunch = Math.max(0, (o.barPunch || 0) - dt / 0.12);
+            o.hpG.scale.y = o.barBase * (1 + 0.18 * o.barPunch);
         }
         o.barShake = Math.max(0, (o.barShake || 0) - dt * 5.5);
         const s = o.barShake;
