@@ -612,9 +612,15 @@ const ProChar = {
             heel.scale.set(1.05, 1, 1.15);
             // 앞꿈치 밑창 — 니어블랙 판. 지면 접지선을 어둡게 눌러 캐릭터가 '떠 있지 않게' 하고,
             // 실루엣 최하단(카메라가 내려다보므로 실제로 보이는 면)에 확실한 다크 앵커를 준다.
-            const sole = new THREE.Mesh(new THREE.SphereGeometry(0.062, 10, 6, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5), deepGasket);
-            sole.position.set(0, -0.344, 0.088);
-            sole.scale.set(0.95, 0.38, 1.34);
+            // ⚠️ 반구(SphereGeometry 아래 절반)였다 — 그래서 바닥이 **곡면**이라 접지가 선이 아니라 점이었다.
+            //    비평가가 "밑창 슬래브 없음, 매끈한 콩"이라 지적했고 **실측으로 확인됐다**
+            //    (probe-boot-profile.js 신설: 접지선 평탄도 = 최저행 ±1px 가로길이 ÷ 발길이 = 28/119 = 0.235).
+            //    같은 지적의 나머지 둘은 오측정이었다 — 발목 조임 27.1%, 뒤꿈치 수직면 40px 로 둘 다 실재한다.
+            // → 바닥이 평평한 원통 슬래브로 교체. 갑피(발등 반폭 0.061)보다 사방으로 조금 넓게(0.063) 잡아
+            //    밑창이 갑피 밖으로 돌출하게 한다 — 실제 신발의 웰트가 그렇고, 옆에서 볼 때 접지선이 산다.
+            const sole = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.016, 14), deepGasket);
+            sole.position.set(0, -0.3596, 0.088);      // 바닥 -0.3676 — 굽과 같은 높이 (접지 회귀 방지)
+            sole.scale.set(1.02, 1, 1.40);
             knee.add(kneeCap, shin, bootTop, ankleNeck, midFoot, toe, sabaton, ankleLame, sole, heel);
             hip.add(thigh, thighPad, garter, cuisse, knee);
             aoRing(0.082, 0.016, hip, -0.015, 0.5); // 고관절-대퇴 경계 접촉 그림자
