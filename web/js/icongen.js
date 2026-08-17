@@ -900,6 +900,11 @@ IconGen._genderSym = function (ctx, S, female) {
         }
     };
 
+    // 원본 성별 기호는 15w x 14.7h 로 거의 정사각(비 1.02)인데, 그대로 그리면 원+화살표가
+    // 세로로 길어 비 0.82(18.7h)가 된다(비평가 D 실측 +0.81%p). 세로만 눌러 원본 비로 맞춘다.
+    ctx.save();
+    ctx.translate(0, S * 0.09);
+    ctx.scale(1, 0.82);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     path();
@@ -918,6 +923,7 @@ IconGen._genderSym = function (ctx, S, female) {
     ctx.strokeStyle = lite;
     ctx.lineWidth = S * 0.06;
     ctx.stroke();
+    ctx.restore();
     ctx.restore();
 };
 
