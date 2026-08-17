@@ -51,6 +51,27 @@ const path = require('path');
         ok(Math.abs(m.g.rotation.z) < 0.02, '움찔 회전 복귀');
         ok(Math.abs(m.g.position.x - x0) < 0.05, '넉백 후 제자리 복귀');
 
+        // 3-b) 히트축 스쿼시가 **소액 타격에도** 걸리고, 축이 맞고, 정점이 프레임에 남는다
+        // (비평가 4차 ⓐ: 예전엔 sev>0.1 게이트라 95%를 차지하는 소액 타격의 몸 변형이 0이었다)
+        Combat.damageEnemy(e, Big.of(2), false, null); // sev ≈ 0.002 — 게이트 시절이면 변형 0
+        step(2);
+        const sqX = m.g.scale.x / s0, sqY = m.g.scale.y / s0;
+        ok(sqX < 0.97 && sqY > 1.02, '소액 타격도 히트축 압축 (x ' + sqX.toFixed(3) + ' / y ' + sqY.toFixed(3) + ')');
+        ok(sqX < 1 && sqY > 1, '스쿼시 축이 히트축(x 압축·y 팽창) — 옛 착지형 스쿼시의 반대');
+        step(3); // 유지 구간(55ms ≈ 6.6프레임) 안쪽
+        ok(Math.abs(m.g.scale.x / s0 - sqX) < 1e-6, '최대 압축 유지 — 정점이 프레임 사이로 빠지지 않음');
+        step(90);
+        ok(Math.abs(m.g.scale.x - s0) < 1e-6, '소액 타격 스쿼시도 원래 크기 복귀');
+
+        // 3-c) 처치 시 진행 중이던 스쿼시가 접힌다 (안 접으면 시체가 눌린 채 굳는다)
+        Combat.damageEnemy(e, Big.of(1), false, null);
+        step(2);
+        Scene3D.killEnemy(e.id, false);
+        ok(Math.abs(m.g.scale.x - s0) < 1e-6 && !m.punchT,
+            '처치가 진행 중 스쿼시를 접는다 (x ' + m.g.scale.x.toFixed(4) + ')');
+        step(300); // 사망 연출(1.05초) 종료 + enemyMap 정리까지
+        ({ e, m } = mk(801)); // 이후 검사들이 쓸 개체를 같은 id로 되살린다
+
         // 4) 히트스톱이 반드시 풀린다 (연출이 영구 슬로모로 남지 않게)
         Combat.damageEnemy(e, Big.of(300), true, null);
         step(30);

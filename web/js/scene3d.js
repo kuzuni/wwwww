@@ -4802,11 +4802,15 @@ const Scene3D = {
             m.g.position.x = ox + p * kb;
             m.g.rotation.z = -p * roll;
         }, () => { m.g.rotation.z = 0; });
-        // ④ 크리·큰 피해: 스케일 펀치(눌렸다 튐) + 진짜 프리즈 한 박자 + 카메라 반응
+        // ④ 히트축 스쿼시 — **모든 타격**에 건다(비평가 4차 ⓐ).
+        // 예전엔 `crit || sev > 0.1` 게이트가 걸려 있어, 아이들 게임에서 95%를 차지하는 소액 타격은
+        // 몸 변형이 통째로 0이었다(실측: sev 0.02에서 scale 1/1, 화면 변위 8.4px = 몸폭의 14%뿐).
+        // 그래서 "적이 맞았다"가 아니라 "칼이 스파크를 튀겼다"로 읽혔다. 진폭만 피해량으로 벌린다.
+        m.punchT = m.punchDur = crit ? 0.30 : 0.24;
+        m.punchHold = crit ? 0.075 : 0.055; // 최대 압축 유지 — 이 뒤부터 elastic 복귀(비평가 권고 "60ms 후")
+        m.punchAmp = (0.07 + Math.min(0.07, sev * 0.28)) * (crit ? 1.55 : 1);
         let freeze = 0;
         if (crit || sev > 0.1) {
-            m.punchT = m.punchDur = crit ? 0.18 : 0.13;
-            m.punchAmp = crit ? 0.17 : 0.09 + Math.min(0.06, sev * 0.2);
             freeze = crit ? 0.045 : 0.028;
             this.hitStop(freeze);
             // 감속만으로는 '한 박자'가 지각되지 않는다.
@@ -4905,6 +4909,11 @@ const Scene3D = {
             if (!o.isMesh || !o.material) return;
             (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => { mt.transparent = true; mats.push(mt); });
         });
+        // 진행 중이던 히트축 스쿼시를 먼저 접는다 — update 루프는 `!e.alive`를 건너뛰므로 여기서 안 끄면
+        // 시체가 눌린 채(x 0.86 등) 영원히 굳고, 아래 `sy0`가 부푼 값을 기준으로 잡아 쓰러지는 시체 키가
+        // 마지막 한 방의 세기에 따라 달라진다. 예전엔 크리·큰 피해만 펀치를 걸어 잘 안 드러났다.
+        m.punchT = 0;
+        m.g.scale.setScalar(m.baseScale || 1);
         const baseY = m.g.position.y, sy0 = m.g.scale.y, ox = m.g.position.x, dur = isBoss ? 1.5 : 1.05;
         // 쓰러지는 구간을 버스트 수명(≈250ms) 안으로 당긴다. 예전엔 낙하가 k=0.5(=525ms)까지 끌려
         // 파편이 다 꺼진 +346ms에도 시체가 27° 기울어 서 있었다 — 폭발과 죽음이 다른 사건으로 보였다
@@ -5735,13 +5744,28 @@ const Scene3D = {
                 m.blob.position.z = m.g.position.z;
                 m.blob.scale.setScalar((m.blob.userData.baseS || 0.95) * Math.max(0.55, 1 - m.g.position.y * 0.35)); // 0.8 감쇠는 비행 고도에서 블롭이 소멸해 '부유 스티커' (비평가 7.3 5번)
             }
-            // 크리·큰 피해 스케일 펀치 — 접지 후에만(등장 스케일 인 연출과 겹치지 않게)
+            // 히트축 스쿼시 — 접지 후에만(등장 스케일 인 연출과 겹치지 않게)
             if (m.punchT > 0 && m.g.userData.landed) {
                 m.punchT = Math.max(0, m.punchT - dt);
-                const e = m.punchT / m.punchDur;      // 1 → 0
-                const s = 1 + m.punchAmp * e * e;     // 임팩트 프레임이 최대 스쿼시, 이후 원형 복원
+                // ⚠️ 축이 예전엔 반대였다. 옛 식은 x·z를 **넓히고** y를 눌러 '위에서 착지한 스쿼시'였는데,
+                // 실제 타격은 영웅(-x)에서 옆으로 들어온다 — 히트축을 **압축**하고 세로로 부풀어야
+                // 옆에서 맞은 몸으로 읽힌다. 적 그룹은 yaw -0.55라 로컬 x가 월드 히트축과 85% 정렬돼 있어
+                // 로컬 x 압축으로 충분하다(나머지 성분은 카메라에서 깊이라 안 보인다).
+                const el = m.punchDur - m.punchT;     // 임팩트 이후 경과
+                let a;
+                if (el < m.punchHold) a = m.punchAmp; // ⓐ 유지 — 최대 압축을 프레임 서너 장 붙잡는다.
+                // 유지 구간이 없으면 소액 타격이 한 프레임짜리 깜빡임으로 끝난다(히트스톱이 없어
+                // 정점이 렌더 프레임 사이에 통째로 빠진다 — 실측: 첫 프레임이 이미 진폭의 54%,
+                // 두 번째 프레임엔 0). 크리·큰 피해만 멀쩡해 보였던 건 히트스톱이 정점을 얼려 준 덕이다.
+                else {
+                    // ⓑ elastic 복귀 — 감쇠 진동. 단조 복귀(옛 e*e)는 부풀었다 꺼지는 풍선으로 읽혀
+                    // 충격이 안 남는다. 영점 통과 ≈ 진행률 0.156, 반대쪽 오버슈트 정점 ≈ 0.31에서 진폭의 22%.
+                    const v = (el - m.punchHold) / Math.max(1e-4, m.punchDur - m.punchHold); // 0 → 1
+                    a = m.punchAmp * Math.exp(-4.8 * v) * Math.cos(v * Math.PI * 3.2);
+                }
                 const b = m.baseScale || 1;
-                if (m.punchT > 0) m.g.scale.set(b * s, b / (1 + (s - 1) * 1.4), b * s); // 가로로 눌리고 세로는 줄어듦(부피 보존)
+                // 세로 0.92·깊이 0.14 배분은 부피 보존(-1 + 0.92 + 0.14 ≈ 0)에서 나온 값이다.
+                if (m.punchT > 0) m.g.scale.set(b * (1 - a), b * (1 + a * 0.92), b * (1 + a * 0.14));
                 else m.g.scale.setScalar(b);
             }
             const ratio = U.clamp(Big.of(e.hp).ratioTo(e.maxHp), 0, 1); // hp는 Big — 비율만 Number로 뽑는다
