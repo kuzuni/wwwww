@@ -1137,13 +1137,22 @@ const UI = {
     // (첫 썸네일 호출이 렌더러·PMREM 환경맵을 만드느라 유독 무거워 동기로 부르면 화면이 붙잡힌다).
     mountFace(name, cls) {
         const m = name && S.mounts[name];
-        return `<span class="${cls} mt-face" data-kind="mount" data-mt="${name || ''}" data-rarity="${m ? m.rarity : ''}">`
-            + `${MOUNT_ICONS[name] || '🐴'}</span>`;
+        return this.creatureFace('mount', name, m ? m.rarity : '', cls, MOUNT_ICONS[name] || '🐴');
+    },
+    // ⚠️ 이미 구워 둔 썸네일이면 **이모지를 거치지 않고 바로 박는다.** 매번 이모지로 깔고
+    //    하이드레이트를 기다리면, 그리는 도중에 또 다시 그려지는 화면에서는 앞 프레임의 작업이
+    //    떨어져 나가 몇 칸이 이모지로 남는다(실측: 탈것 화면 15칸 중 3칸이 간헐적으로 잔존).
+    //    첫 굽기 때만 이모지 폴백이 필요하고, 그 뒤로는 다시 그려도 항상 완성된 그림이 나온다.
+    creatureFace(kind, name, rarity, cls, emoji) {
+        const attrs = `class="${cls} mt-face" data-kind="${kind}" data-mt="${name || ''}" data-rarity="${rarity || ''}"`;
+        const url = typeof Scene3D !== 'undefined' && Scene3D.creatureThumbCached
+            ? Scene3D.creatureThumbCached(kind, name, rarity) : null;
+        if (url) return `<span ${attrs.replace('mt-face', 'mt-face has-thumb')}><img src="${url}" alt=""></span>`;
+        return `<span ${attrs}>${emoji}</span>`;
     },
     // 펫도 같은 문제(🐾 이모지 ≠ 실제 3D 펫) — 완전히 같은 파이프라인을 쓴다
     petFace(name, cls) {
-        return `<span class="${cls} mt-face" data-kind="pet" data-mt="${name || ''}">`
-            + `${PET_ICONS[name] || '🐾'}</span>`;
+        return this.creatureFace('pet', name, '', cls, PET_ICONS[name] || '🐾');
     },
     hydrateMountThumbs(root) {
         const scope = root || document;

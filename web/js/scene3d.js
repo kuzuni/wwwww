@@ -2889,6 +2889,12 @@ const Scene3D = {
     // 탈것·펫 공용 — 실제 게임 모델을 슬롯 아이콘 각도로 찍는다.
     // 종마다 몸집·형태가 크게 달라 고정 카메라로는 잘리거나 좁쌀만 하게 찍히므로
     // **바운딩 박스로 매번 프레이밍을 역산**하는 게 핵심이다.
+    // 이미 구워 둔 썸네일이 있으면 돌려준다(굽지는 않는다) — UI가 다시 그릴 때 이모지를 거치지 않고
+    // 곧바로 <img>를 낼 수 있게 하는 조회용. 키 형식을 UI에 흘리지 않으려고 여기 둔다.
+    creatureThumbCached(kind, name, rarity) {
+        if (!name || !this._thumbCache) return null;
+        return this._thumbCache[kind + ':' + name + ':' + (rarity || '')] || null;
+    },
     creatureThumb(kind, name, build, rarity) {
         if (!name) return null;
         const key = kind + ':' + name + ':' + (rarity || '');
@@ -2904,19 +2910,60 @@ const Scene3D = {
             g.rotation.y = 0.55;
             g.add(mesh);
             sc.add(g);
-            // 프레이밍: 모델을 원점으로 당기고, 카메라를 외접구 반경에서 화각으로 역산한 거리에 둔다
+            // ── 프레이밍: 근사 대신 **정점을 카메라 축에 직접 투영**해 맞춘다 ──────────────────
+            // ⚠️ 최대변/외접구 반경 × 여유계수 방식은 종에 따라 헐거움이 제각각이다 — 실측하면
+            //    자전거 실루엣이 프레임의 36×53%(픽셀 6.0%), 나뭇잎 51×26%, 거북이 34×52%로
+            //    9/15가 절반 이하만 채웠다. 몸집이 아니라 **형태**가 문제라 계수 하나로는 못 맞춘다
+            //    (납작한 판때기와 길쭉한 자전거가 같은 '최대변'을 가진다).
+            //    파츠가 저폴리라 정점을 전부 훑어도 싸다 — 근사가 없으니 어떤 형상이든 여백이 같다.
             const box = new THREE.Box3().setFromObject(g);
             const size = box.getSize(new THREE.Vector3());
-            const mid = box.getCenter(new THREE.Vector3());
-            const radius = Math.max(size.x, size.y, size.z) * 0.5 || 0.5;
-            g.position.sub(mid);
+            const ctr = box.getCenter(new THREE.Vector3());
+            g.position.sub(ctr);
             const cam = this._thumbCam;
-            const fov = cam.fov * Math.PI / 180;
-            // 여유 계수 — 1.9로 두면 탈것이 프레임의 절반만 차지해 슬롯·타일에서 좁쌀처럼 보인다
-            // (실측 캡처에서 확인). radius는 **최대 변**을 지름으로 잡은 과대 추정이라 1.35로도
-            // 뿔·꼬리·날개가 잘리지 않는다.
-            const dist = (radius * 1.35) / Math.sin(fov / 2);
-            cam.position.set(dist * 0.42, dist * 0.40, dist * 0.82);
+            // 시선은 **인게임 메인 카메라와 같은 각**으로 — 요구가 "같은 앵글로 렌더한 썸네일"이라
+            // 보기 좋은 각을 따로 고르면 그 자체가 '슬롯과 실물이 다르다'가 된다.
+            // 메인 리그: 카메라 y3.7·z8.2 → 주시점 y0.9 (init의 camera.position/lookAt) = 고도 ≈18.9°.
+            // 방위각은 0이고(카메라 x는 worldX를 따라간다), 모델 요각 0.55는 위에서 이미 줬다.
+            const dir = new THREE.Vector3(0, 3.7 - 0.9, 8.2).normalize();
+            const fwd = dir.clone().negate();
+            const right = new THREE.Vector3(0, 1, 0).cross(fwd).normalize();
+            const up = fwd.clone().cross(right).normalize();
+            const tanV = Math.tan(cam.fov * Math.PI / 360), tanH = tanV * cam.aspect;
+            const us = [], vs = [], ws = [];
+            g.updateMatrixWorld(true);
+            g.traverse(o => {
+                const pos = o.geometry && o.geometry.attributes && o.geometry.attributes.position;
+                if (!pos) return;
+                const v = new THREE.Vector3();
+                for (let i = 0; i < pos.count; i++) {
+                    v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+                    us.push(v.dot(right)); vs.push(v.dot(up)); ws.push(v.dot(fwd));
+                }
+            });
+            if (!us.length) {   // 폴백: 정점을 못 읽으면 AABB 꼭짓점으로
+                const h = size.clone().multiplyScalar(0.5);
+                for (let i = 0; i < 8; i++) {
+                    const p = new THREE.Vector3((i & 1 ? 1 : -1) * h.x, (i & 2 ? 1 : -1) * h.y, (i & 4 ? 1 : -1) * h.z);
+                    us.push(p.dot(right)); vs.push(p.dot(up)); ws.push(p.dot(fwd));
+                }
+            }
+            // 화면 좌표(u,v)로 중심을 다시 잡는다 — 월드 박스 중심은 카메라가 비스듬해 화면 중앙과
+            // 어긋나고, 그만큼 반대쪽 여백이 낭비돼 실물이 작아진다.
+            // 정점이 수만 개라 Math.min(...arr) 전개는 스택을 넘길 수 있어 루프로 센다.
+            let uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity;
+            for (let i = 0; i < us.length; i++) {
+                if (us[i] < uMin) uMin = us[i]; if (us[i] > uMax) uMax = us[i];
+                if (vs[i] < vMin) vMin = vs[i]; if (vs[i] > vMax) vMax = vs[i];
+            }
+            const uc = (uMin + uMax) / 2, vc = (vMin + vMax) / 2;
+            g.position.addScaledVector(right, -uc).addScaledVector(up, -vc);
+            let dist = 0.3;
+            for (let i = 0; i < us.length; i++) {
+                dist = Math.max(dist, Math.abs(vs[i] - vc) / tanV - ws[i], Math.abs(us[i] - uc) / tanH - ws[i]);
+            }
+            dist *= 1.04;                                    // 테두리 여백 4%
+            cam.position.copy(dir).multiplyScalar(dist);
             cam.lookAt(0, 0, 0);
             cam.updateProjectionMatrix();
             this._thumbR.render(sc, cam);
