@@ -1,0 +1,179 @@
+// 기술 트리 개요(shot-042407 / tech-overview) 비율 대조 — **원본 PNG 와 클론 캡처를 같은 픽셀 코드로** 잰다.
+//
+// 왜 DOM 실측이 아니라 양쪽 다 픽셀인가 — 이 화면의 판정 요소가 **테두리·그림자를 가진 상자**라
+// DOM rect(테두리 포함/그림자 제외)와 원본 픽셀(눈에 보이는 잉크)이 서로 다른 것을 재게 된다.
+// TODO 의 채점 함정 ① '한쪽만 부속 포함'이 정확히 이 실수다. 같은 스캔 코드를 두 이미지에 돌리면
+// 그 여지가 없다. (클론 캡처는 `tools/shot-screens.js` 가 만든 ref-cmp/clone/tech-overview.png)
+//
+// ⚠️ 세션 인계 메모 ㉠ 의 함정을 먼저 친다: **원본 캡처가 앱보다 넓거나 높을 수 있다.**
+//    (chat 은 세로가 804, shot-042449 는 가로 중심이 앱 중심과 1.8%p 어긋나 있었다.)
+//    그래서 먼저 앱 좌우 끝과 중심을 찾아 이미지 중심과 비교하고, %W 는 **앱 폭 기준**으로 환산한다.
+//    이번 원본은 497×890 에 앱 0~496(중심 248.0 vs 이미지 248.5) — 쏠림 없음을 확인했다.
+//
+// 사용: node probe-techov-px.js
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const path = require('path');
+const fs = require('fs');
+const REF = path.resolve(__dirname, '../ref/screens/shot-042407.png');
+const CLONE = path.resolve(__dirname, 'ref-cmp/clone/tech-overview.png');
+const TOL = 2;   // ±2%p (TODO 상단 UI 규칙)
+
+const MEASURE = async ([src]) => {
+        const img = new Image();
+        await new Promise(r => { img.onload = r; img.src = src; });
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        const g = c.getContext('2d', { willReadFrequently: true });
+        g.drawImage(img, 0, 0);
+        const W = c.width, H = c.height, D = g.getImageData(0, 0, W, H).data;
+        const at = (x, y) => { const i = (y * W + x) * 4; return [D[i], D[i + 1], D[i + 2]]; };
+        const lum = (x, y) => { const p = at(x, y); return (0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]) / 255; };
+        const near = (p, q, t) => Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]) <= t;
+
+        const log = [];
+        // ---- 앱 상자: 화면 배경(흰색)과 그 바깥 띠를 가른다 ----
+        // 이 화면은 본문이 흰색이라 y=500 행(빈 영역)에서 흰 구간을 훑으면 앱 좌우 끝이 나온다.
+        let ax0 = -1, ax1 = -1;
+        for (let x = 0; x < W; x++) if (lum(x, 500) > 0.9) { if (ax0 < 0) ax0 = x; ax1 = x; }
+        log.push(`앱 가로 ${ax0}~${ax1} (폭 ${ax1 - ax0 + 1}) · 이미지 폭 ${W} · 앱 중심 ${((ax0 + ax1) / 2).toFixed(1)} vs 이미지 중심 ${(W / 2).toFixed(1)}`);
+        if (ax0 < 0) { ax0 = 0; ax1 = W - 1; }
+        const AW = ax1 - ax0 + 1;
+
+        // ---- 세로: 탭바 상단(어두운 밴드) ----
+        const rowDark = y => { let n = 0; for (let x = ax0; x <= ax1; x++) if (lum(x, y) < 0.22) n++; return n / AW; };
+        let tabTop = -1;
+        for (let y = H - 1; y > H * 0.6; y--) { if (rowDark(y) > 0.8) tabTop = y; else if (tabTop > 0) break; }
+        // ---- 서브탭 회색 밴드(스킬/펫/기술 트리) 상단 ----
+        const rowGrayish = y => { let n = 0; for (let x = ax0; x <= ax1; x++) { const p = at(x, y); if (Math.abs(p[0] - p[1]) < 12 && Math.abs(p[1] - p[2]) < 12 && p[0] > 140 && p[0] < 215) n++; } return n / AW; };
+        let subTop = -1;
+        for (let y = tabTop - 1; y > H * 0.6; y--) { if (rowGrayish(y) > 0.6) subTop = y; else if (subTop > 0) break; }
+
+        // ---- 분기 카드 4장: 검정 테두리 사각형 ----
+        // 카드 헤더가 남색(#1c2333 계열), 몸통이 흰색, 테두리가 검정이다.
+        // 열 위치는 카드 상단 헤더 행에서 검정 구간으로, 행 위치는 열 중앙에서 검정 구간으로 잡는다.
+        const isBlack = (x, y) => lum(x, y) < 0.12;
+        // 헤더 밴드가 있는 y 를 찾는다: 어두운 픽셀이 가로로 25~85% 인 첫 행
+        let hy = -1;
+        for (let y = Math.round(H * 0.10); y < Math.round(H * 0.20); y++) { const f = rowDark(y); if (f > 0.25 && f < 0.85) { hy = y; break; } }
+        const runs = [];
+        if (hy > 0) {
+            let s = -1;
+            for (let x = ax0; x <= ax1; x++) {
+                const d = lum(x, hy) < 0.35;
+                if (d && s < 0) s = x;
+                if ((!d || x === ax1) && s >= 0) { if (x - s > AW * 0.15) runs.push([s, x - 1]); s = -1; }
+            }
+        }
+        log.push(`헤더 행 y=${hy} · 카드 열 구간 ${JSON.stringify(runs)}`);
+        // 각 카드 행의 세로 범위 — 열 중앙 한 픽셀로는 못 잡는다(아이콘·글자가 섞인다).
+        // **카드 열 폭 전체에서 어두운 픽셀 비율이 80% 넘는 행**만 골라 덩어리로 묶는다:
+        // 위 덩어리 = 상단 테두리 + 남색 헤더(붙어 있다), 아래 한 줄 = 하단 테두리.
+        const bands = [];
+        if (runs.length) {
+            const [cx0, cx1] = runs[0];
+            let s = -1;
+            for (let y = Math.round(H * 0.08); y < Math.round(H * 0.55); y++) {
+                let n = 0;
+                for (let x = cx0; x <= cx1; x++) if (lum(x, y) < 0.35) n++;
+                const d = n / (cx1 - cx0 + 1) > 0.8;
+                if (d && s < 0) s = y;
+                if (!d && s >= 0) { bands.push([s, y - 1]); s = -1; }
+            }
+            if (s >= 0) bands.push([s, Math.round(H * 0.55) - 1]);
+        }
+        log.push(`카드 열1 어두운 행 덩어리 ${JSON.stringify(bands)}`);
+        // ⚠️ 헤더 덩어리가 **제목 글자 때문에 쪼개진다** — 2행 헤더('스킬, 펫 & 기술')는 흰 글자가
+        //    길어 어두운 비율이 80% 아래로 내려가는 행이 생겨 [281,287]+[299,308] 로 갈렸다
+        //    (1행 '대장간'은 짧아서 안 갈렸다). 가까운 덩어리를 먼저 합치지 않으면 카드 2장이
+        //    엉뚱하게 짝지어져 2행 하단이 34.61% 로 나온다(실제 47.19%).
+        const merged = [];
+        for (const b of bands) {
+            const last = merged[merged.length - 1];
+            if (last && b[0] - last[1] <= 15) last[1] = b[1];
+            else merged.push([b[0], b[1]]);
+        }
+        log.push(`합친 덩어리 ${JSON.stringify(merged)}`);
+        // 이제 [헤더덩어리, 하단테두리] × 2 로 접힌다
+        const cardsY = [];
+        for (let i = 0; i + 1 < merged.length; i += 2) cardsY.push([merged[i][0], merged[i + 1][1], merged[i][1]]);
+        log.push(`카드 행 구간 ${JSON.stringify(cardsY)}`);
+
+        // ⚠️ 가로 치수는 **헤더 밴드에서 가장 짙은 행**에서 다시 잰다. 두 번 데었다:
+        //   ⑴ 위에서 쓴 hy 는 '어두운 비율이 25~85% 인 첫 행'이라 사실상 **카드 맨 윗줄 = 라운드
+        //      모서리**다. 모서리에서는 카드가 실제보다 좁게 나오고, 코너 반경이 조금만 달라도
+        //      폭 Δ 가 2%p 가까이 흔들린다(같은 빌드에서 +0.47 → −1.93%p 로 뒤집혔다 — 코드는
+        //      그대로였고 행 위치만 바뀌었다).
+        //   ⑵ 그렇다고 **밴드 한가운데**를 쓰면 이번엔 헤더의 **흰 제목 글자**가 어두운 구간을
+        //      토막 내서, 폭 필터(15%W)에 걸린 조각만 남아 카드 하나가 통째로 사라진다
+        //      (원본 카드열1 좌가 52.31%W 로 나와 Δ −36%p 라는 헛것이 나왔다).
+        //   → 모서리도 글자도 아닌 행 = **밴드 안에서 어두운 비율이 최대인 행**이 정답이다.
+        if (cardsY.length) {
+            let my = cardsY[0][0], best = -1;
+            for (let y = cardsY[0][0]; y <= cardsY[0][2]; y++) { const f = rowDark(y); if (f > best) { best = f; my = y; } }
+            const runs2 = [];
+            let s = -1;
+            for (let x = ax0; x <= ax1; x++) {
+                const d = lum(x, my) < 0.35;
+                if (d && s < 0) s = x;
+                if ((!d || x === ax1) && s >= 0) { if (x - s > AW * 0.15) runs2.push([s, x - 1]); s = -1; }
+            }
+            if (runs2.length >= 2) { runs.length = 0; runs.push(...runs2); log.push(`헤더 최짙은 행 y=${my}(어두움 ${(best * 100).toFixed(0)}%) 재측정 열 구간 ${JSON.stringify(runs2)}`); }
+        }
+
+        // ---- 뒤로 버튼(빨강 ◀) ----
+        let bx0 = W, bx1 = -1, by0 = H, by1 = -1;
+        for (let y = Math.round(H * 0.6); y < (subTop > 0 ? subTop : H); y++) for (let x = ax0; x <= ax1; x++) {
+            const p = at(x, y);
+            if (p[0] > 150 && p[1] < 90 && p[2] < 90) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+        }
+
+        const pw = v => +((v) / AW * 100).toFixed(2);
+        const ph = v => +((v) / H * 100).toFixed(2);
+        const R = {};
+        if (runs.length >= 2) {
+            R['카드열1 좌'] = pw(runs[0][0] - ax0); R['카드열1 폭'] = pw(runs[0][1] - runs[0][0] + 1);
+            R['카드열2 좌'] = pw(runs[1][0] - ax0); R['카드열2 폭'] = pw(runs[1][1] - runs[1][0] + 1);
+            R['카드 가로간격'] = pw(runs[1][0] - runs[0][1] - 1);
+        }
+        if (cardsY.length >= 2) {
+            R['카드1행 상단'] = ph(cardsY[0][0]); R['카드1행 하단'] = ph(cardsY[0][1]); R['카드 높이'] = ph(cardsY[0][1] - cardsY[0][0] + 1);
+            R['헤더 높이'] = ph(cardsY[0][2] - cardsY[0][0] + 1);
+            R['카드2행 상단'] = ph(cardsY[1][0]); R['카드2행 하단'] = ph(cardsY[1][1]);
+            R['카드 세로간격'] = ph(cardsY[1][0] - cardsY[0][1] - 1);
+        }
+        if (bx1 > 0) { R['뒤로 좌'] = pw(bx0 - ax0); R['뒤로 폭'] = pw(bx1 - bx0 + 1); R['뒤로 상단'] = ph(by0); R['뒤로 높이'] = ph(by1 - by0 + 1); }
+        if (subTop > 0) R['서브탭 상단'] = ph(subTop);
+        if (tabTop > 0) R['탭바 상단'] = ph(tabTop);
+        return { size: [W, H], app: [ax0, ax1], log, R };
+};
+
+(async () => {
+    const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+    const page = await browser.newPage();
+    await page.setContent('<body style="margin:0">');
+    const run = async f => page.evaluate(MEASURE, ['data:image/png;base64,' + fs.readFileSync(f).toString('base64')]);
+    const ref = await run(REF);
+    const clone = await run(CLONE);
+
+    for (const [label, o] of [['원본 shot-042407', ref], ['클론 tech-overview', clone]]) {
+        console.log(`\n${label} ${o.size.join('×')} · 앱 ${o.app.join('~')}`);
+        o.log.forEach(l => console.log('  ' + l));
+    }
+
+    console.log('\n요소'.padEnd(16) + '원본'.padStart(8) + '클론'.padStart(9) + 'Δ%p'.padStart(9) + '  판정');
+    const ng = [];
+    let worst = 0;
+    for (const [k, v] of Object.entries(ref.R)) {
+        const got = clone.R[k];
+        if (got == null) { ng.push(`${k}: 클론 측정 불가`); console.log(k.padEnd(14) + v.toFixed(2).padStart(11) + '     —' + '        (측정 불가)'); continue; }
+        const d = +(got - v).toFixed(2);
+        if (Math.abs(d) > Math.abs(worst)) worst = d;
+        const ok = Math.abs(d) <= TOL;
+        if (!ok) ng.push(`${k} ${d > 0 ? '+' : ''}${d}%p`);
+        console.log(k.padEnd(14) + v.toFixed(2).padStart(11) + got.toFixed(2).padStart(9) + `${d > 0 ? '+' : ''}${d}`.padStart(9) + (ok ? '  ok' : `  ← ±${TOL}%p 초과`));
+    }
+    console.log(`\n최대 편차 ${worst > 0 ? '+' : ''}${worst}%p · 초과 ${ng.length}건${ng.length ? ':\n  ' + ng.join('\n  ') : ''}`);
+    console.log(ng.length ? 'FAIL' : 'PASS — 전 요소 ±' + TOL + '%p 이내');
+    await browser.close();
+    process.exit(ng.length ? 1 : 0);
+})();

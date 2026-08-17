@@ -1011,8 +1011,22 @@ body {
 }
 
 /* ---- 기술 트리: 분기 개요 카드 (UI-SPEC 10번, 원본 shot-042407) ---- */
-/* 원본(042407): 카드 ≈34% W, 좌우 여백 ≈13%, 그리드 시작 ≈13% H */
-.tech-branch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem .9rem; margin: 1.6rem 12% .3rem; }
+/* 원본(042407 · 497×890, 앱 0~496 = 쏠림 없음) 픽셀 실측 → `tools/probe-techov-px.js`:
+     카드열1 좌 14.49%W · 폭 31.99%W · 가로간격 6.64%W
+     1행 상단 13.03%H · 하단 28.65%H · 높이 15.73%H · 헤더 3.15%H
+     2행 상단 31.57%H · 하단 47.19%H · **세로간격 2.81%H**
+   교정 전 클론은 **카드 크기는 맞는데(높이 −0.15%p·폭 +0.47%p) 세로 시작만 −3.39%p 위**였고,
+   행 간격이 −0.90%p 좁아 2행이 −4.44%p 까지 누적으로 밀렸다. 크기를 건드리면 맞는 값이 깨지므로
+   **시작 오프셋과 행 간격만** 올린다(gear-detail 에서 나온 '카드 크기는 맞는데 세로 위치만 틀림'
+   패턴과 같은 계열, 이번이 2번째다).
+   margin-top 1.6rem(27px) → 3.39rem(57px) = +3.39%H · row-gap 1rem → 1.48rem = +0.90%H.
+   루트 폰트가 앱 높이 기준(main.js: h/844*16)이라 %H 는 rem 으로 그대로 환산된다.
+   가로는 **바깥 폭은 맞고 안쪽 분배만 틀렸다** — 좌우 여백(13.7/14.1%W)과 오른쪽 끝은 원본과
+   ±0.4%p 인데 열 간격이 5.03 → 3.01%W(−2.02%p)로 좁아 그만큼 카드가 넓었다(+0.87%p).
+   열 간격만 원본대(5.03%W = 그리드 폭의 7%)로 벌리면 카드 폭이 저절로 33.44%W(Δ −0.16)가 된다.
+   가로 치수는 rem 이 아니라 %로 잡는다 — 루트 폰트가 높이 기준이라 화면비가 달라지면 rem 은
+   가로 비율을 유지하지 못한다(파일 상단 .equip-grid 주석과 같은 이유). */
+.tech-branch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.48rem 7%; margin: 3.39rem 12% .3rem; }
 .tech-branch-card {
     display: flex; flex-direction: column; padding: 0; overflow: hidden; cursor: pointer;
     background: var(--pp-paper); border: 3px solid var(--pp-line); border-radius: .8rem;
@@ -1239,6 +1253,11 @@ body {
 .league-actions .league-back-btn { position: absolute; left: 0; }
 /* 시트 화면 공통: 원본 좌하단 고정 빨간 ◀ (던전 목록·기술트리 개요 — 185 비평가 누락 지적) */
 .sheet-back-btn { position: absolute; left: .7rem; bottom: .7rem; z-index: 3; }
+/* 기술 트리 개요만 앵커가 다르다 — 이 버튼의 offsetParent 가 `#app`이 아니라 **`.summon-sub`**(앱
+   좌단에서 이미 13.5px 안쪽)이라, 같은 `left:.7rem` 이 화면에선 25.2px 이 된다. 원본은 빨강 면이
+   앱 좌단에서 13px(2.62%W)인데 클론은 28px(5.61%W)로 **+2.99%p 초과**였다(probe-techov-px.js).
+   컨테이너 인셋이 이미 원본 값과 거의 같으므로 여기서만 추가 인셋을 0 으로 둔다(→ +0.65%p). */
+#panel-tech .sheet-back-btn { left: 0; }
 /* 전체화면 시트(.modal-card.sheet)는 탭바 아래까지 뷰포트 전체를 덮는데 #tabbar(z-index:30)가
    .modal(z-index:20) 위에 있어, bottom:.7rem이면 ◀가 탭바에 통째로 가려 보이지도 눌리지도 않았다
    (QA 4차 실측 480×850: 버튼 [12,798,40,40] vs 탭바 [1,795,478,55], elementFromPoint가 탭바 ✕로 잡힘).
