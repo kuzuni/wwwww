@@ -4623,8 +4623,10 @@ const Scene3D = {
         const o = opt || {};
         if (this.particles.length > 300) return;
         for (let i = 0; i < count; i++) {
-            const sh = new THREE.Mesh(new THREE.PlaneGeometry(U.rand(0.14, 0.24) * (o.scale || 1), U.rand(0.035, 0.06) * (o.scale || 1)),
-                new THREE.MeshBasicMaterial({ map: this.sparkTex(), color: colorHex, transparent: true, depthWrite: false, toneMapped: false }));
+            // 비율을 4:1 → 2:1대로 낮춘다 — 너무 가늘면 하드 에지를 줘도 '조각'이 아니라 '선'으로 읽히고,
+            // 텀블링해도 굵기 변화가 안 보인다(비평가 4차 ⓕ).
+            const sh = new THREE.Mesh(new THREE.PlaneGeometry(U.rand(0.13, 0.21) * (o.scale || 1), U.rand(0.055, 0.1) * (o.scale || 1)),
+                new THREE.MeshBasicMaterial({ map: this.shardTex(), color: colorHex, transparent: true, depthWrite: false, toneMapped: false, alphaTest: 0.35 }));
             const ang = (o.dir || 0) + U.rand(-o.spread || -0.45, o.spread || 0.45);
             const spd = U.rand(1.8, 3.6) * (o.speed || 1); // 적 몸통이 1유닛 남짓 — 이보다 빠르면 파편이 화면 밖까지 날아가 타격점과 분리된다
             sh.position.copy(pos).addScaledVector(new THREE.Vector3(Math.cos(ang), Math.sin(ang), 0), 0.22); // 임팩트 프레임에 이미 몸 밖
@@ -5458,6 +5460,33 @@ const Scene3D = {
         ctx.fillRect(0, 0, 64, 64);
         this._sparkTex = new THREE.CanvasTexture(c);
         return this._sparkTex;
+    },
+
+    // 파편(조각) 전용 텍스처 — **하드 에지**. 예전엔 파편도 `sparkTex()`(부드러운 방사 그라디언트)를
+    // 써서 배경 반딧불과 같은 소프트 보케로 보였고, 그래서 처치가 "적이 부서진다"가 아니라
+    // "빛이 흩어진다"로 읽혔다(비평가 4차 ⓕ). 조각은 **경계가 또렷해야** 고체로 읽힌다.
+    // 한쪽에 어두운 패싯을 넣어 텀블링(z 스핀)할 때 면이 바뀌는 게 보이게 한다 — 균일한 흰 쿼드는
+    // 아무리 돌려도 정지한 막대로 보인다.
+    shardTex() {
+        if (this._shardTex) return this._shardTex;
+        const c = document.createElement('canvas');
+        c.width = c.height = 64;
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0, 0, 64, 64);
+        // 끝으로 갈수록 가늘어지는 비대칭 조각 — 직사각형은 '막대기', 테이퍼가 있어야 '깨진 조각'
+        ctx.beginPath();
+        ctx.moveTo(2, 20); ctx.lineTo(46, 4); ctx.lineTo(62, 30); ctx.lineTo(40, 60); ctx.lineTo(6, 46);
+        ctx.closePath();
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        // 어두운 패싯(조각의 그늘진 면) — 곱연산될 재질색 위에서 명암 단차가 된다
+        ctx.beginPath();
+        ctx.moveTo(46, 4); ctx.lineTo(62, 30); ctx.lineTo(40, 60);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0,0,0,.45)';
+        ctx.fill();
+        this._shardTex = new THREE.CanvasTexture(c);
+        return this._shardTex;
     },
     // 발광 파티클: 가산 블렌딩 빌보드 (박스 파편이 '깨진 텍스처'로 보이던 문제 교체)
     // opt.solid=true면 일반 블렌딩 — 가산은 밝은 초원 배경 위에서 하얗게 씻겨 버스트가 안 읽히므로,
