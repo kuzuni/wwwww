@@ -5634,6 +5634,9 @@ const Scene3D = {
     },
 
     // ---- 데미지 숫자 (DOM 오버레이) ----
+    // 데미지 숫자가 아크 정점에서도 3D 캔버스 안에 남게 하는 상단 여유 — 최대 아크 높이(크리 -47.4px)에
+    // 몇 px을 더한 값. 이보다 위에 스폰하면 정점이 상단 HUD로 넘어간다.
+    DMG_RISE_HEADROOM: 56,
     damageNumber(worldPos, text, cls, opt) {
         if (this.fxLayer.children.length > 40) return; // 과부하 방지
         const pt = this.project(worldPos);
@@ -5655,9 +5658,15 @@ const Scene3D = {
             // 3D 캔버스 위(=상단 재화 바)로 넘어가, 숫자가 HUD에 겹쳐 "앱 UI가 피해를 입은 것처럼"
             // 보인다(비평가 4차 ⓑ가 실제로 잡은 조건 — 실측 연타 5발에서 최고점 top 58.2px vs
             // HUD 하단 58.3px). 캔버스를 벗어나게 되면 더 올리지 않고 겹침을 감수한다.
-            if (ty - 28 < 12) break;
+            if (ty - 28 < this.DMG_RISE_HEADROOM) break;
             ty -= 28;
         }
+        // ⚠️ 슬롯 y가 캔버스 안이라고 끝이 아니다 — 숫자는 그 자리에서 **아크로 더 올라간다**.
+        //    실측(probe-dmgnum-travel.js): 슬롯 y 33.9·53에서 정점이 뷰포트 44.7·48.6으로
+        //    캔버스 상단 58.3을 넘어 상단 재화 바를 침범했다(아크 실이동 31~45px). 슬롯 상한만
+        //    보던 기존 가드가 아크 높이를 계산에 안 넣어서 생긴 구멍이다. 정점 기준으로 바닥을 깐다.
+        //    (아크 자체는 권고치 46px 안이라 손대지 않는다 — 깎으면 멀쩡한 연출만 죽는다.)
+        ty = Math.max(ty, this.DMG_RISE_HEADROOM);
         const el = document.createElement('div');
         el.className = 'float-dmg ' + cls;
         el.textContent = text;
