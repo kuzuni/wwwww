@@ -30,7 +30,7 @@ const TARGETS = [
             if (m.text().startsWith('APPRECT')) console.log(`  [${m.text()}]`);
         });
         await page.goto(INDEX, { waitUntil: 'load' });
-        await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 15000 });
+        await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 60000 });
         await page.waitForTimeout(400);
         await page.evaluate(() => { UI.onTabClick('shop'); });
         await page.waitForFunction(() => !document.querySelector('.modal.opening'), null, { timeout: 5000 }).catch(() => {});

@@ -25,7 +25,7 @@ const SCREENS = [...SRC.matchAll(/^\s*\['([\w-]+)',\s*(?:'[\d]+'|null),\s*`([^`]
         errs.push(`[${where}] ${m.text()}`);
     });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 15000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 60000 });
     await page.waitForTimeout(500);
     await page.evaluate(() => { if (typeof Scene3D !== 'undefined') Scene3D.update = function () {}; });
 

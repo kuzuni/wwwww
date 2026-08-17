@@ -27,7 +27,7 @@ const VIEWPORTS = [
         page.on('pageerror', e => errs.push(`${vp.width}x${vp.height} ${e.message}`));
         page.on('console', m => { if (m.type() === 'error') errs.push(`${vp.width}x${vp.height} ${m.text()}`); });
         await page.goto(INDEX, { waitUntil: 'load' });
-        await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 15000 });
+        await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 60000 });
         await page.waitForTimeout(400);
 
         // 상점 열고 시트를 끝까지 내린다

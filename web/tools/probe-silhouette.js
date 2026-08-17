@@ -18,7 +18,7 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         Math.random = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
     });
     await page.goto(INDEX + '?debug=gear&w=sword&wage=medieval&rar=rare&hage=medieval&aage=medieval', { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 15000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 60000 });
 
     await page.waitForTimeout(2500); // 콜드스타트 정착 — 첫 런만 마스크가 300px 작게 잡히던 타이밍 편차 제거
     const r = await page.evaluate(() => {

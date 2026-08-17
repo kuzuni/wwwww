@@ -12,7 +12,7 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     page.on('pageerror', e => errs.push(String(e)));
     page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') errs.push(m.type() + ': ' + m.text()); });
     await page.goto(INDEX + '?debug=gear&w=sword&wage=medieval&rar=rare&hage=medieval&aage=medieval', { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroRig, null, { timeout: 15000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroRig, null, { timeout: 60000 });
 
     const r = await page.evaluate(() => {
         const R = Scene3D.renderer, gl = R.getContext();

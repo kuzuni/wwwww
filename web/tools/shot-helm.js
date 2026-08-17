@@ -9,7 +9,7 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html') + 
         page.on('pageerror', e => errors.push(String(e)));
         page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
         await page.goto(`${INDEX}?debug=gear&h=${h}&w=sword&wage=medieval&rar=rare`, { waitUntil: 'load' }); // 기본값 divine/legendary는 에너지 링·검날 발광이 블룸에 순백 기둥+유령 링으로 폭주 (비평가 7.1 3번)
-        await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 15000 });
+        await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
         await page.evaluate(() => {
             Combat.tick = () => {}; Scene3D.walking = false;
             Scene3D.clearEnemies(); Combat.enemies = [];

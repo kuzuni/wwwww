@@ -11,7 +11,7 @@ const OUT = __dirname;
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== "undefined" && Scene3D.heroG && typeof Combat !== "undefined", null, { timeout: 15000 });
+    await page.waitForFunction(() => typeof Scene3D !== "undefined" && Scene3D.heroG && typeof Combat !== "undefined", null, { timeout: 60000 });
     // 적이 화면에 자리잡고 전투가 벌어지는 순간까지 대기 (스폰 직후 낙하/미배치 프레임 회피)
     await page.waitForFunction(() => Combat.enemies && Combat.enemies.filter(e => e.alive).length >= 2, null, { timeout: 20000 });
     await page.waitForTimeout(2500); // 접근·교전 진입

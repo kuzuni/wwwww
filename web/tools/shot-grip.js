@@ -12,7 +12,7 @@ const WEAPONS = ['sword', 'axe', 'spear', 'hammer', 'dagger', 'bow', 'crossbow',
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(INDEX + '?debug=gear&hage=medieval', { waitUntil: 'load' }); // 개방형 투구 — 자세 판독용
-    await page.waitForFunction(() => typeof Scene3D !== "undefined" && Scene3D.heroG && typeof Combat !== "undefined", null, { timeout: 15000 });
+    await page.waitForFunction(() => typeof Scene3D !== "undefined" && Scene3D.heroG && typeof Combat !== "undefined", null, { timeout: 60000 });
 
     await page.evaluate(() => {
         Combat.tick = () => {};

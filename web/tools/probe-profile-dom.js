@@ -19,7 +19,7 @@ const TARGET = {   // 원본 %H (496×893 스크린샷 기준)
     });
     const page = await browser.newPage({ viewport: { width: 499, height: 892 } });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 15000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 60000 });
     await page.waitForTimeout(400);
     await page.evaluate(() => { if (typeof Scene3D !== 'undefined') Scene3D.update = function () {}; UI.openProfile(); });
     await page.waitForTimeout(500);

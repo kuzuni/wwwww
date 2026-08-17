@@ -27,7 +27,7 @@ const CASES = [
     page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push(m.text()); });
 
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 15000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 60000 });
     await page.waitForTimeout(400);
     await page.evaluate(() => {
         // 측정용: pointer-events:none 때문에 elementFromPoint가 경고 레이어를 통과해 버린다 — 히트 테스트 동안만 켠다

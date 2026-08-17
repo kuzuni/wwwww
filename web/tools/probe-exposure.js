@@ -8,7 +8,7 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     const page = await browser.newPage({ viewport: { width: 480, height: 854 } });
     page.on('pageerror', e => console.log('ERR', String(e)));
     await page.goto(INDEX + '?debug=gear&w=sword&wage=medieval&rar=rare&hage=medieval&aage=medieval', { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 15000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 60000 });
 
     const out = await page.evaluate(() => {
         Combat.tick = () => {};

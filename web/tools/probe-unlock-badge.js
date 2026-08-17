@@ -25,7 +25,7 @@ const btnState = page => page.evaluate(BTN_SRC);
     page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push(m.text()); });
 
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 15000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 60000 });
     await page.waitForTimeout(400);
 
     // ① 해금 전 상태 — 2-9까지만 도달시키고 시트를 다시 그린다

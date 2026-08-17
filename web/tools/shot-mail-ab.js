@@ -15,7 +15,7 @@ const OUT = __dirname;
     page.on('pageerror', e => errs.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
     await page.goto(INDEX + '?debug=gear&w=sword&wage=medieval&rar=rare&hage=medieval&aage=medieval', { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroRig && Scene3D.heroRig.bones.hipR, null, { timeout: 15000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroRig && Scene3D.heroRig.bones.hipR, null, { timeout: 60000 });
 
     await page.evaluate(() => {
         Combat.tick = () => {};
