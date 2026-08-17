@@ -135,12 +135,53 @@ body {
 #waypoint-pass { top: 36%; right: 4%; }
 #waypoint-pass .waypoint-icon { font-size: 1.4rem; }
 
-#boss-warning {
-    position: absolute; top: 40%; left: 50%; transform: translate(-50%,-50%);
-    font-size: 2.2rem; font-weight: 900; color: #ff5252; text-shadow: 0 0 20px #ff1744;
-    animation: bosswarn .35s infinite alternate; z-index: 6; pointer-events: none;
+/* ===== 보스 등장 경고 (총 2.0초) =====
+   ① 붉은 비네트가 3회 점멸하며 배경을 눌러 준다  ② 화면 가로를 가로지르는 경고 배너가
+   위아래 사선 스트라이프 레일과 함께 열렸다 닫힌다  ③ 배너 안 WARNING 텍스트는 좌로 흐른다.
+   요소별 지속·감쇠를 전부 키프레임이 소유해서(JS 타이머 조합은 웨이브 연타에서 서로 잘라먹는다)
+   JS는 .hidden만 떼었다 붙이면 되고, 프레임 단위 검증도 가능하다. */
+#boss-warning { position: absolute; inset: 0; z-index: 6; pointer-events: none; overflow: hidden; }
+#boss-warning .bw-vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 26%, rgba(120,0,0,.38) 62%, rgba(255,26,26,.85) 100%);
+    animation: bwvig 2s ease-out forwards;
 }
-@keyframes bosswarn { from { transform: translate(-50%,-50%) scale(1); } to { transform: translate(-50%,-50%) scale(1.15); } }
+@keyframes bwvig {   /* 3회 점멸 후 잔광 */
+    0%, 100% { opacity: 0; }
+    6%  { opacity: 1; }  14% { opacity: .15; }
+    22% { opacity: 1; }  30% { opacity: .15; }
+    38% { opacity: .9; } 70% { opacity: .3; }
+}
+#boss-warning .bw-banner {
+    position: absolute; top: 38%; left: 0; right: 0; transform: translateY(-50%);
+    background: linear-gradient(180deg, rgba(24,0,0,.9), rgba(70,0,0,.82) 50%, rgba(24,0,0,.9));
+    box-shadow: 0 0 24px rgba(255,26,26,.6), inset 0 0 18px rgba(255,60,40,.35);
+    animation: bwopen 2s cubic-bezier(.2,.9,.3,1) forwards;
+}
+@keyframes bwopen {  /* 세로로 열렸다 닫힘 — 배너 자체는 화면 폭 전체 */
+    0%   { transform: translateY(-50%) scaleY(0); opacity: 0; }
+    8%   { transform: translateY(-50%) scaleY(1.12); opacity: 1; }
+    12%  { transform: translateY(-50%) scaleY(1); opacity: 1; }
+    82%  { transform: translateY(-50%) scaleY(1); opacity: 1; }
+    100% { transform: translateY(-50%) scaleY(0); opacity: 0; }
+}
+/* 사선 스트라이프 레일 (공사장 경고 테이프) */
+#boss-warning .bw-rail {
+    height: .34rem;
+    background: repeating-linear-gradient(-45deg, #ffca28 0 .5rem, #1a1a1a .5rem 1rem);
+    animation: bwrail .6s linear infinite;
+}
+@keyframes bwrail { to { background-position: 1.414rem 0; } }
+#boss-warning .bw-marquee { overflow: hidden; padding: .3rem 0; }
+#boss-warning .bw-track {
+    display: flex; width: max-content; animation: bwscroll 3.2s linear infinite;
+}
+#boss-warning .bw-track span {
+    font-size: 1.5rem; font-weight: 900; letter-spacing: .12em; white-space: nowrap;
+    color: #fff0f0; text-shadow: 0 0 12px #ff1744, 0 0 26px #ff1744, 0 2px 0 #7f0000;
+    padding-right: 1.2rem;
+}
+@keyframes bwscroll { to { transform: translateX(-50%); } }
 
 /* 영웅 피격 비네트 — 세기(--vig)는 피해 비율에 따라 JS가 준다 (쥬시니스 패스) */
 #dmg-flash {

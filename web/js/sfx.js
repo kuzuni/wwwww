@@ -105,6 +105,18 @@ const SFX = {
         if (crit) this.tone(1200, 0.12, { type: 'triangle', gain: 0.22, slideTo: 1800 });
     },
 
+    // 보스 등장 경고 사이렌 — 상승/하강 스윕 3회 + 저역 임팩트.
+    // CSS 배너(#boss-warning, 총 2.0초)의 점멸 타이밍에 맞춰 0.62초 주기로 감는다.
+    bossSiren() {
+        for (let i = 0; i < 3; i++) {
+            const d = i * 0.62;
+            this.tone(320, 0.3, { type: 'sawtooth', gain: 0.16, slideTo: 760, delay: d });        // 감아올림
+            this.tone(760, 0.28, { type: 'sawtooth', gain: 0.14, slideTo: 330, delay: d + 0.3 }); // 떨어짐
+        }
+        this.noiseBurst(0.5, { gain: 0.12, filterFreq: 320 });   // 배 아래 울리는 저역 임팩트
+        this.tone(70, 0.6, { type: 'sine', gain: 0.22, slideTo: 42 });
+    },
+
     craft() {
         this.tone(660, 0.09, { type: 'square', gain: 0.2 });
         this.tone(880, 0.12, { type: 'square', gain: 0.2, delay: 0.06 });

@@ -4471,9 +4471,13 @@ const Scene3D = {
         this.shake(0.4);
     },
 
+    // 보스 웨이브 진입 — 경고 배너 + 사이렌을 같은 프레임에 걸고, 카메라를 두 번 흔든다
+    // (두 번째는 배너가 닫히며 보스가 접지하는 타이밍). 전투 루프는 멈추지 않는다.
     bossEntrance() {
         this.shake(0.5);
         UI.bossWarning();
+        SFX.bossSiren();
+        setTimeout(() => this.shake(0.35), UI.BOSS_WARN_MS - 260);
     },
 
     // ---- 스킬 이펙트 ----

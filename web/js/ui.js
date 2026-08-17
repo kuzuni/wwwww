@@ -571,9 +571,16 @@ const UI = {
         this.els.wavePips.innerHTML = [1, 2, 3, 4, 5].map(w =>
             `<span class="pip ${w < wave ? 'done' : w === wave ? 'now' : ''} ${w === 5 ? 'boss' : ''}"></span>`).join('');
     },
+    // 보스 등장 경고 (총 2.0초). 지속·감쇠는 CSS 키프레임이 소유하고 여기서는 켜고 끄기만 한다 —
+    // 웨이브가 연달아 넘어가도 리플로우 강제로 처음부터 다시 돌게 해서 연출이 잘려 보이지 않게 한다.
+    BOSS_WARN_MS: 2000,
     bossWarning() {
-        this.els.bossWarn.classList.remove('hidden');
-        setTimeout(() => this.els.bossWarn.classList.add('hidden'), 1400);
+        const el = this.els.bossWarn;
+        clearTimeout(this._bossWarnT);
+        el.classList.add('hidden');
+        void el.offsetWidth;
+        el.classList.remove('hidden');
+        this._bossWarnT = setTimeout(() => el.classList.add('hidden'), this.BOSS_WARN_MS);
     },
     flashDamage(sev) {
         // 화면 가장자리 붉은 비네트 — 큰 피해일수록 진하게. 지속·감쇠는 CSS 키프레임이 소유한다
