@@ -526,8 +526,8 @@ const UI = {
                 </div>
             </div>
             <div class="currency-pills">
-                <span class="pill coin"><button class="pill-plus" onclick="UI.openShop()">+</button>👑 ${U.fmt(S.coins)}</span>
-                <span class="pill gem"><button class="pill-plus" onclick="UI.openShop()">+</button>◆ ${U.fmt(S.gems)}</span>
+                <span class="pill coin"><button class="pill-plus" onclick="UI.openShop()">+</button>${IconGen.img('coin')} ${U.fmt(S.coins)}</span>
+                <span class="pill gem"><button class="pill-plus" onclick="UI.openShop()">+</button>${IconGen.img('gem')} ${U.fmt(S.gems)}</span>
             </div>`;
     },
 
@@ -654,7 +654,7 @@ const UI = {
                 <div class="anvil-side left">
                     <button class="info-btn" title="플레이어 정보" onclick="UI.openPlayerInfo()">!</button>
                 </div>
-                <button class="anvil-btn" onclick="UI.onCraft()">⚒️<small id="anvil-hammers">🔨 ${U.fmt(S.hammers)}</small></button>
+                <button class="anvil-btn" onclick="UI.onCraft()">⚒️<small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}</small></button>
                 <div class="anvil-side right">
                     <div class="forge-actions">
                         ${forgeBtnHtml}
@@ -669,7 +669,7 @@ const UI = {
     // 모루 버튼 아래 해머 카운터만 갱신 (매초 틱에서 전체 renderEquipSheet 재호출은 과함)
     updateAnvilCounter() {
         const el = document.getElementById('anvil-hammers');
-        if (el) el.textContent = `🔨 ${U.fmt(S.hammers)}`;
+        if (el) el.innerHTML = `${IconGen.img('hammer')} ${U.fmt(S.hammers)}`;
     },
 
     onStartUpgrade() {
@@ -738,11 +738,11 @@ const UI = {
             actionHtml = `
                 <div class="fi-upg-label">업그레이드 진행 중....</div>
                 <div class="rates-prog fi-prog"><div id="upg-fill" style="width:${U.clamp(1 - remain / Forge.upgradeTime(info), 0, 1) * 100}%"></div><span id="upg-time">${U.fmtTime(remain)}</span></div>
-                <button class="btn fi-skip" onclick="UI.onGemSkipForge()">건너뛰기<br><span class="fi-skip-gem">◆ ${Forge.gemSkipCost()}</span></button>`;
+                <button class="btn fi-skip" onclick="UI.onGemSkipForge()">건너뛰기<br><span class="fi-skip-gem">${IconGen.img('gem')} ${Forge.gemSkipCost()}</span></button>`;
         } else {
             const cost = Forge.upgradeCost(info), time = Forge.upgradeTime(info);
             actionHtml = `<button class="btn primary fi-upgrade ${S.coins < cost ? 'disabled' : ''}" onclick="UI.onStartUpgrade()">
-                레벨 ${S.forgeLevel + 1} 업그레이드<br><small>🪙 ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</small></button>`;
+                레벨 ${S.forgeLevel + 1} 업그레이드<br><small>${IconGen.img('coin')} ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</small></button>`;
         }
 
         this.els.forgeInfoModal.innerHTML = `
@@ -752,8 +752,8 @@ const UI = {
                     <h3 class="fi-title">확률 정보</h3>
                     <div class="fi-sub">제련 확률</div>
                     <div class="fi-pills">
-                        <span class="fi-pill"><span class="fi-pill-ico coin">👑</span>${U.fmt(S.coins)}</span>
-                        <span class="fi-pill"><span class="fi-pill-ico gem">◆</span>${U.fmt(S.gems)}</span>
+                        <span class="fi-pill"><span class="fi-pill-ico coin">${IconGen.img('coin')}</span>${U.fmt(S.coins)}</span>
+                        <span class="fi-pill"><span class="fi-pill-ico gem">${IconGen.img('gem')}</span>${U.fmt(S.gems)}</span>
                     </div>
                     <div class="fi-level-row"><span>레벨 ${S.forgeLevel}</span><span class="fi-arrow">▶</span><span>${info ? `레벨 ${S.forgeLevel + 1}` : '최고'}</span></div>
                     <div class="fi-rows">${rows}</div>
@@ -1016,7 +1016,7 @@ const UI = {
                     ${this.itemCardHTML(item, '새로운!', cur ? (newIsHigher ? 'up' : 'down') : null, true)}
                 </div>
                 <div class="row">
-                    <button class="btn sell" onclick="UI.resolveCraft('sell')">판매<small>🪙 +${U.fmt(Forge.sellPrice(item))}</small></button>
+                    <button class="btn sell" onclick="UI.resolveCraft('sell')">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(item))}</small></button>
                     <button class="btn equip" onclick="UI.resolveCraft('equip')">장착${cur ? '<small>기존 판매</small>' : ''}</button>
                 </div>
             </div>`;
@@ -1089,7 +1089,7 @@ const UI = {
                         <span class="sellwarn-note">${keptText}</span>
                     </p>
                     <div class="row">
-                        <button class="btn sell" onclick="UI.onSellConfirm()">판매<small>🪙 +${U.fmt(Forge.sellPrice(sold))}</small></button>
+                        <button class="btn sell" onclick="UI.onSellConfirm()">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(sold))}</small></button>
                         <button class="btn" onclick="UI.onSellCancel()">취소</button>
                     </div>
                 </div>
@@ -1125,9 +1125,9 @@ const UI = {
             if (!h) return `<div class="hatch-cell empty"><span class="hatch-lamp"></span><span class="hatch-cone dim"></span><span class="hatch-hint">빈 슬롯</span></div>`;
             return `<div class="hatch-cell" style="--rc:${RARITY_CSS[h.rarity]}">
                 <span class="hatch-lamp"></span><span class="hatch-cone"></span>
-                <span class="hatch-egg">🥚</span>
+                <span class="hatch-egg">${IconGen.img('egg', null, { tint: RARITY_CSS[h.rarity] })}</span>
                 <span class="hatch-time" id="hatch-t-${i}">${U.fmtTime((h.endsAt - U.now()) / 1000)}</span>
-                <button class="btn xs" onclick="UI.onHatchSkip(${i})">💎 ${Pets.gemSkipCost(h)}</button>
+                <button class="btn xs" onclick="UI.onHatchSkip(${i})">${IconGen.img('gem')} ${Pets.gemSkipCost(h)}</button>
             </div>`;
         }).join('');
 
@@ -1145,7 +1145,7 @@ const UI = {
         }).join('');
         const eggCells = S.eggs.map((egg, i) =>
             `<button class="pet-tile egg" style="--rc:${RARITY_CSS[egg.rarity]}" onclick="UI.openEggDetail(${i})" title="${RARITY_KR[egg.rarity]} 알">
-                <span class="tile-face">🥚</span>
+                <span class="tile-face">${IconGen.img('egg', null, { tint: RARITY_CSS[egg.rarity] })}</span>
                 <span class="tile-label">알</span>
             </button>`).join('');
         const gridHtml = (petCells + eggCells) || '<span class="muted grid-empty">보유 펫·알 없음 — 소환해보세요!</span>';
@@ -1164,9 +1164,9 @@ const UI = {
 
         p.innerHTML = `
             <div class="sheet-head">
-                <span class="cur-pill egg">🥚 ${U.fmt(S.eggCurrency || 0)}</span>
+                <span class="cur-pill egg">${IconGen.img('egg')} ${U.fmt(S.eggCurrency || 0)}</span>
                 <h2 class="sheet-title">펫</h2>
-                <span class="cur-pill gem">💎 ${U.fmt(S.gems)}</span>
+                <span class="cur-pill gem">${IconGen.img('gem')} ${U.fmt(S.gems)}</span>
             </div>
             <div class="grid-scroll"><div class="sk-grid">${gridHtml}</div>
             ${mergeHtml ? `<div class="row center wrap">${mergeHtml}</div>` : ''}</div>
@@ -1179,7 +1179,7 @@ const UI = {
                 ${Ascension.ready('pet')
                     ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('pet')">⭐ 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
                     : `<button class="btn big summon-btn ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">
-                    소환 x${petSummonN}<small class="summon-cost">🥚 <b>${Pets.SUMMON_EGG_COST * petSummonN}</b></small></button>`}
+                    소환 x${petSummonN}<small class="summon-cost">${IconGen.img('egg')} <b>${Pets.SUMMON_EGG_COST * petSummonN}</b></small></button>`}
                 <div class="summon-info">
                     <button class="info-dot" onclick="UI.openSummonRates('pet')">i</button>
                     <b>Lv. ${petLvl}</b>
@@ -1189,7 +1189,7 @@ const UI = {
             <div class="hatchery">
                 <button class="btn danger round back-btn hatch-back" onclick="UI.switchTab(null)">◀</button>
                 <div class="hatch-row">${hatchHtml}</div>
-                ${Pets.canBuySlot() ? `<button class="btn xs slot-buy" onclick="UI.onBuyHatchSlot()">슬롯 +1<br>💎 ${Pets.slotCost()}</button>` : ''}
+                ${Pets.canBuySlot() ? `<button class="btn xs slot-buy" onclick="UI.onBuyHatchSlot()">슬롯 +1<br>${IconGen.img('gem')} ${Pets.slotCost()}</button>` : ''}
             </div>`;
     },
 
@@ -1253,7 +1253,7 @@ const UI = {
                 <div class="modal-card paper petd-card">
                     <div class="petd-head">
                         <div class="petd-tilecol">
-                            <div class="petd-tile egg" style="--rc:${RARITY_CSS[egg.rarity]}">🥚</div>
+                            <div class="petd-tile egg" style="--rc:${RARITY_CSS[egg.rarity]}">${IconGen.img('egg', null, { tint: RARITY_CSS[egg.rarity] })}</div>
                         </div>
                         <div class="petd-body">
                             <div class="petd-name" style="color:${RARITY_CSS[egg.rarity]}">[${RARITY_KR[egg.rarity]}] 알</div>
@@ -1324,7 +1324,7 @@ const UI = {
         }).join('');
         const eggTiles = S.eggs.map((e, i) => `
             <button class="pet-tile egg ${sel.eggs.includes(i) ? 'selected' : ''}" style="--rc:${RARITY_CSS[e.rarity]}" onclick="UI.onToggleUpgradeMat('egg', ${i})">
-                <span class="tile-face">🥚${sel.eggs.includes(i) ? '<span class="tile-check">✓</span>' : ''}</span>
+                <span class="tile-face">${IconGen.img('egg', null, { tint: RARITY_CSS[e.rarity] })}${sel.eggs.includes(i) ? '<span class="tile-check">✓</span>' : ''}</span>
                 <span class="tile-label">알</span>
             </button>`).join('');
         const tilesHtml = petTiles + eggTiles || '<span class="muted">재료로 쓸 펫/알이 없습니다</span>';
@@ -1453,7 +1453,7 @@ const UI = {
 
         p.innerHTML = `
             <div class="sheet-head">
-                <span class="cur-pill ticket">🎫 ${U.fmt(S.tickets)}</span>
+                <span class="cur-pill ticket">${IconGen.img('ticket')} ${U.fmt(S.tickets)}</span>
                 <h2 class="sheet-title">스킬 ${Object.keys(S.skills).length}/${SKILL_DEFS.length}</h2>
             </div>
             <div class="passive-banner">+${U.fmt(pb.atk)} 기본 피해 &nbsp; +${U.fmt(pb.hp)} 기본 체력</div>
@@ -1472,7 +1472,7 @@ const UI = {
                 ${Ascension.ready('skill')
                     ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('skill')">⭐ 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
                     : `<button class="btn big summon-btn ${Skills.canSummon(false, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(false)">
-                    소환 x${skillSummonN}<small class="summon-cost">🎫 <b>${Skills.ticketCost(skillSummonN)}</b></small></button>`}
+                    소환 x${skillSummonN}<small class="summon-cost">${IconGen.img('ticket')} <b>${Skills.ticketCost(skillSummonN)}</b></small></button>`}
                 <div class="summon-info">
                     <button class="info-dot" onclick="UI.openSummonRates('skill')">i</button>
                     <b>Lv. ${lvl}</b>
@@ -1619,10 +1619,10 @@ const UI = {
                 <div>💥 치명타</div><div>${(st.critCh || 0).toFixed(1)}% / +${(st.critDmg || 0).toFixed(0)}%</div>
                 <div>⚡ 공격 속도</div><div>${(st.attacksPerSec || 0).toFixed(2)}/s</div>
                 <div>🗡 처치 수</div><div>${U.fmt(S.kills)}</div>
-                <div>🔨 총 제작</div><div>${U.fmt(S.totalCrafts)}</div>
+                <div>${IconGen.img('hammer')} 총 제작</div><div>${U.fmt(S.totalCrafts)}</div>
                 <div>📈 최고 스테이지</div><div>${S.bestChapter}-${S.bestStage}</div>
-                <div>🧪 물약</div><div>${U.fmt(S.potions || 0)} <small class="muted">(기술 트리 재화)</small></div>
-                <div>⚙️ 태엽</div><div>${U.fmt(S.winders || 0)} <small class="muted">(마운트 재화)</small></div>
+                <div>${IconGen.img('potion')} 물약</div><div>${U.fmt(S.potions || 0)} <small class="muted">(기술 트리 재화)</small></div>
+                <div>${IconGen.img('winder')} 태엽</div><div>${U.fmt(S.winders || 0)} <small class="muted">(마운트 재화)</small></div>
                 <div>🌟 승천 별</div><div>⭐ ${Ascension.totalStars()}</div>
             </div>
             <div class="row">
@@ -1640,7 +1640,7 @@ const UI = {
                 <button class="btn" onclick="saveGame(); UI.toast('💾 저장 완료')">수동 저장</button>
                 <button class="btn danger" onclick="if(confirm('정말 처음부터 시작할까요?')) resetGame()">초기화</button>
             </div>
-            <p class="muted">오프라인 보상: 🪙 1/초 · 🔨 1/분 (최대 4시간)<br>
+            <p class="muted">오프라인 보상: ${IconGen.img('coin')} 1/초 · ${IconGen.img('hammer')} 1/분 (최대 4시간)<br>
             대장간 업그레이드·부화는 게임을 꺼도 진행됩니다.</p>`;
     },
 
@@ -1739,7 +1739,7 @@ const UI = {
     },
     leagueRewardGrid(r) {
         return ['hammers', 'coins', 'tickets', 'eggCurrency', 'potions', 'winders']
-            .map(k => `<span>${this.CURRENCY_ICON[k]}${U.fmt(r[k])}</span>`).join('');
+            .map(k => `<span>${this.curIcon(k)}${U.fmt(r[k])}</span>`).join('');
     },
     openLeague() {
         League.ensure();
@@ -1804,7 +1804,7 @@ const UI = {
                 <span class="league-challenge-name">${U.escapeHtml(b.name)}<br><small>⚔️ ${U.fmt(b.cp)}</small></span>
                 <span class="league-challenge-side">
                     <span class="star">⭐+${b.starReward}</span>
-                    <button class="btn sm ${S.league.tickets > 0 ? '' : 'disabled'}" onclick="UI.onChallenge(${i})">도전<br><small>🎫1</small></button>
+                    <button class="btn sm ${S.league.tickets > 0 ? '' : 'disabled'}" onclick="UI.onChallenge(${i})">도전<br><small>${IconGen.img('ticket')}1</small></button>
                 </span>
             </div>`).join('');
         this.els.leagueModal.innerHTML = `
@@ -1812,7 +1812,7 @@ const UI = {
                 <div class="modal-card wide">
                     <div class="profile-title">상대 선택</div>
                     <p class="league-challenge-desc">도전 티켓은 매일 09:00에 보충됩니다!</p>
-                    <div class="league-ticket-pill">🎫 ${S.league.tickets}/${League.TICKET_MAX}</div>
+                    <div class="league-ticket-pill">${IconGen.img('ticket')} ${S.league.tickets}/${League.TICKET_MAX}</div>
                     <div>${rowsHtml}</div>
                 </div>
                 <button class="x-btn" onclick="UI.openLeague()">✕</button>
@@ -1829,9 +1829,11 @@ const UI = {
     },
 
     // ---- 진행 패스 (UI-SPEC 18번, 원본 shot-042705): 스테이지 도달 마일스톤. 무료만 실지급, 프리미엄은 잠금 표시(더미) ----
-    CURRENCY_ICON: { coins: '👑', hammers: '🔨', gems: '◆', tickets: '🎫', potions: '🧪', winders: '⚙️', eggCurrency: '🥚' },
+    CURRENCY_ICON: { coins: 'coin', hammers: 'hammer', gems: 'gem', tickets: 'ticket', potions: 'potion', winders: 'winder', eggCurrency: 'egg' },
+    // 재화 키 → 캔버스 생성 아이콘 <img>. 알 수 없는 키는 빈 문자열로 떨어진다.
+    curIcon(k) { return IconGen.img(this.CURRENCY_ICON[k]); },
     passRewardLines(reward) {
-        return Object.entries(reward).map(([k, v]) => `<span>${this.CURRENCY_ICON[k] || ''}${U.fmt(v)}</span>`).join('');
+        return Object.entries(reward).map(([k, v]) => `<span>${this.curIcon(k)}${U.fmt(v)}</span>`).join('');
     },
     openPass() {
         Pass.ensure();
@@ -1889,7 +1891,7 @@ const UI = {
         const dealsHtml = Shop.DEALS.map(d => {
             const claimed = Shop.claimed(d.key);
             const rewardRows = Object.entries(d.reward).map(([k, v]) =>
-                `<span class="shop-reward-pill">${this.CURRENCY_ICON[k] || ''} ${U.fmt(v)}</span>`).join('');
+                `<span class="shop-reward-pill">${this.curIcon(k)} ${U.fmt(v)}</span>`).join('');
             return `<div class="shop-deal-card">
                 <div class="shop-deal-tag">${d.name}</div>
                 <div class="shop-deal-body">
@@ -1904,16 +1906,16 @@ const UI = {
         }).join('');
         const gemsHtml = Shop.GEM_PACKS.map((p, i) => `
             <div class="shop-gem-card">
-                <div class="shop-gem-amt"><span class="shop-gem-dia">◆</span> ${U.fmt(p.gems)}</div>
+                <div class="shop-gem-amt"><span class="shop-gem-dia">${IconGen.img('gem')}</span> ${U.fmt(p.gems)}</div>
                 <span class="shop-gem-icon">${GEM_ICONS[i] || '💰'}</span>
                 <button class="btn primary shop-price-btn" onclick="UI.onBuyGems()">${p.priceKR}</button>
             </div>`).join('');
         this.els.shopModal.innerHTML = `
             <div class="modal-card sheet shop-sheet">
                 <div class="sheet-head">
-                    <span class="cur-pill coin">👑 ${U.fmt(S.coins)}<i class="cur-plus">+</i></span>
+                    <span class="cur-pill coin">${IconGen.img('coin')} ${U.fmt(S.coins)}<i class="cur-plus">+</i></span>
                     <h2 class="sheet-title shop-title">상점</h2>
-                    <span class="cur-pill gem">◆ ${U.fmt(S.gems)}<i class="cur-plus">+</i></span>
+                    <span class="cur-pill gem">${IconGen.img('gem')} ${U.fmt(S.gems)}<i class="cur-plus">+</i></span>
                 </div>
                 <div class="shop-banner">오늘의 특가</div>
                 <p class="shop-sub">일일 특가 3개 모두 구매하면 새로운 3개가 나와요!</p>
@@ -2230,9 +2232,9 @@ const UI = {
         }).join('');
         this.els.techPanel.innerHTML = `
             <div class="sheet-head">
-                <span class="cur-pill potion">🧪 ${U.fmt(S.potions || 0)}</span>
+                <span class="cur-pill potion">${IconGen.img('potion')} ${U.fmt(S.potions || 0)}</span>
                 <h2 class="sheet-title">기술 트리</h2>
-                <span class="cur-pill gem">💎 ${U.fmt(S.gems)}</span>
+                <span class="cur-pill gem">${IconGen.img('gem')} ${U.fmt(S.gems)}</span>
             </div>
             <div class="tech-branch-grid">${cardsHtml}</div>
             <button class="league-back-btn sheet-back-btn" onclick="UI.switchTab(null)">◀</button>`;
@@ -2287,9 +2289,9 @@ const UI = {
         });
         this.els.techPanel.innerHTML = `
             <div class="sheet-head">
-                <span class="cur-pill potion">🧪 ${U.fmt(S.potions || 0)}</span>
+                <span class="cur-pill potion">${IconGen.img('potion')} ${U.fmt(S.potions || 0)}</span>
                 <h2 class="sheet-title">${b.name}</h2>
-                <span class="cur-pill gem">💎 ${U.fmt(S.gems)}</span>
+                <span class="cur-pill gem">${IconGen.img('gem')} ${U.fmt(S.gems)}</span>
             </div>
             <div class="tech-branch-detail-pct">${pct.toFixed(1)}%</div>
             <button class="fi-info-btn tech-branch-info" onclick="UI.openTechBonuses()">!</button>
@@ -2343,14 +2345,14 @@ const UI = {
             actionHtml = `<div class="idet-lead" style="text-align:center">연구 진행 중</div>
                 <div class="upg-progress tech-prog"><div id="tech-node-fill" style="width:${U.clamp(1 - remain / TechTree.time(id, lv + 1), 0, 1) * 100}%"></div><span id="tech-node-time">${U.fmtTime(remain)}</span></div>
                 <div class="idet-btns tech-btns">
-                    <button class="btn silver tn-skip" onclick="UI.onTechGemSkip()">건너뛰기<small>◆ ${TechTree.gemSkipCost()}</small></button>
+                    <button class="btn silver tn-skip" onclick="UI.onTechGemSkip()">건너뛰기<small>${IconGen.img('gem')} ${TechTree.gemSkipCost()}</small></button>
                     <button class="btn danger tn-cancel" onclick="UI.onTechCancel()">취소</button>
                 </div>`;
         } else {
             const cost = TechTree.nextCost(id), time = TechTree.time(id, lv + 1);
             const disabled = otherResearch || S.potions < cost;
             actionHtml = `<button class="btn sm primary ${disabled ? 'disabled' : ''}" onclick="UI.onTechStart('${id}')">
-                🔬 연구 시작 · 🧪 ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</button>
+                🔬 연구 시작 · ${IconGen.img('potion')} ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</button>
                 ${otherResearch ? '<p class="muted" style="text-align:center">다른 연구가 진행 중입니다</p>' : ''}`;
         }
 
@@ -2416,7 +2418,7 @@ const UI = {
         this.els.mountModal.innerHTML = `
             <div class="modal-card sheet mount-sheet">
                 <div class="sheet-head"><h2 class="sheet-title">탈것</h2></div>
-                <div class="mount-pill-row"><span class="cur-pill winder">⚙️ ${U.fmt(S.winders || 0)}</span></div>
+                <div class="mount-pill-row"><span class="cur-pill winder">${IconGen.img('winder')} ${U.fmt(S.winders || 0)}</span></div>
                 <div class="grid-scroll"><div class="sk-grid">${tiles}</div></div>
                 <div class="summon-bar">
                     <button class="btn danger round back-btn" onclick="UI.closeMounts()">◀</button>
@@ -2424,7 +2426,7 @@ const UI = {
                     ${Ascension.ready('mount')
                         ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('mount')">⭐ 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
                         : `<button class="btn big summon-btn ${Mounts.canSummon(mountSummonN) ? '' : 'disabled'}" onclick="UI.onSummonMount()">
-                        소환 x${mountSummonN}<small class="summon-cost">⚙️ <b>${Mounts.winderCost(mountSummonN)}</b></small></button>`}
+                        소환 x${mountSummonN}<small class="summon-cost">${IconGen.img('winder')} <b>${Mounts.winderCost(mountSummonN)}</b></small></button>`}
                     <div class="summon-info">
                         <button class="info-dot" onclick="UI.openSummonRates('mount')">i</button>
                         <b>Lv. ${lvl}</b>
@@ -2624,12 +2626,12 @@ const UI = {
                         <div class="offline-title">오프라인 보상</div>
                         <div class="offline-sub">수집 시간: <b>${U.fmtTime(o.counted)}</b>${o.elapsed > o.counted ? ' (최대)' : ''}</div>
                         <div class="offline-rates">
-                            <div class="offline-rate"><span class="offline-rate-icon coin">👑</span><b>${U.fmtDec(o.coinRate)}/초</b></div>
-                            <div class="offline-rate"><span class="offline-rate-icon hammer">🔨</span><b>${U.fmtDec(o.hammerRate)}/분</b></div>
+                            <div class="offline-rate"><span class="offline-rate-icon coin">${IconGen.img('coin')}</span><b>${U.fmtDec(o.coinRate)}/초</b></div>
+                            <div class="offline-rate"><span class="offline-rate-icon hammer">${IconGen.img('hammer')}</span><b>${U.fmtDec(o.hammerRate)}/분</b></div>
                         </div>
                     </div>
                     <div class="offline-bottom">
-                        <div class="offline-total">👑 ${U.fmt(o.coins)} &nbsp; 🔨 ${U.fmt(o.hammers)}</div>
+                        <div class="offline-total">${IconGen.img('coin')} ${U.fmt(o.coins)} &nbsp; ${IconGen.img('hammer')} ${U.fmt(o.hammers)}</div>
                         <button class="btn primary offline-collect-btn" onclick="UI.onCollectOffline()">수집<span class="offline-collect-dot"></span></button>
                     </div>
                 </div>
