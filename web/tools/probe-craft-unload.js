@@ -1,7 +1,8 @@
 // 제작 비교 팝업(판매/장착 강제 선택)이 뜬 채로 새로고침하면 제작품이 장착도 판매도
 // 되지 않고 사라지던 버그의 회귀 검증 도구.
 // 전투 수입 간섭을 없애려고 Combat.tick을 무력화한 뒤 세 경로를 잰다:
-//   (A) 탭 전환      — UI.onTabClick('menu')로 팝업을 접는다 → autoResolve로 장착돼야 한다
+//   (A) 탭 전환      — UI.onTabClick('summon')으로 팝업을 접는다 → autoResolve로 장착돼야 한다
+//                     ('방' 탭은 2026-08-18 사용자 지시로 삭제 — 남은 시트 탭인 소환으로 옮겼다)
 //   (B) 새로고침      — 팝업이 뜬 채로 F5 → 제작품이 살아 있어야 한다
 //   (C) 직접 선택 후 새로고침 — [장착]을 고른 뒤 F5 → 정확히 1개만 남아야 한다(복제 금지)
 // (B)의 '살아 있다'는 두 형태를 모두 인정한다 — 부팅 시 자동 판정으로 장착되거나(구현 A),
@@ -73,7 +74,7 @@ const SNAP = () => ({
         }
 
         if (mode === 'A-탭전환') {
-            await page.evaluate(() => UI.onTabClick('menu'));
+            await page.evaluate(() => UI.onTabClick('summon'));
             await page.waitForTimeout(300);
         } else if (mode === 'C-직접선택후새로고침') {
             // 사용자가 [장착]을 직접 고른 뒤 새로고침 — 세이브의 대기품이 남아 있으면

@@ -77,8 +77,8 @@ const check = (n, c, d) => {
             weaponNull: S.equipment.weapon === null, helmetNull: S.equipment.helmet === null,
             savedKeys: Object.keys(JSON.parse(localStorage.getItem('forgeclone_save_v1') || '{}')).length,
         }));
-        // 게임 내 초기화 버튼은 방(메뉴) 탭 안에 있다 — 렌더가 살아 있어야 도달한다
-        await page.evaluate(() => { try { UI.switchTab('menu'); } catch (e) { /* 렌더가 죽었으면 0건으로 잡힌다 */ } });
+        // 게임 내 초기화 버튼은 프로필 팝업 ▸ 설정 탭에 있다 ('방' 탭 삭제, 사용자 지시 2026-08-18)
+        await page.evaluate(() => { try { UI.openProfile(); UI.switchProfileView('settings'); } catch (e) { /* 렌더가 죽었으면 0건으로 잡힌다 */ } });
         await page.waitForTimeout(300);
         const resetInMenu = await page.evaluate(() => document.querySelectorAll('[onclick*="resetGame"]').length);
 

@@ -1468,6 +1468,15 @@ body {
 .settings-toggle.on { background: var(--pp-blue); }
 .settings-toggle.on::after { left: 1.18rem; }
 .settings-check { color: var(--pp-green); font-size: 1.1rem; font-weight: 900; }
+/* 실동작 행(수동 저장·게임 초기화) — 목록 맨 끝이라 원본 대조 구간(상단 10행)에는 안 걸린다.
+   행 높이를 바꾸지 않도록 토글(1.35rem)보다 낮게 유지한다. */
+.settings-row[onclick] { cursor: pointer; }
+.settings-act {
+    font-size: .72rem; font-weight: 800; color: var(--pp-blue);
+    border: 2px solid var(--pp-line); border-radius: .5rem; background: #fff;
+    padding: .1rem .5rem; line-height: 1.15rem;
+}
+.settings-act.danger { color: #d33; }
 
 /* ---- 진행 바 카드 (마운트 소환 레벨 등에도 공용) ---- */
 .tech-node {
@@ -1917,7 +1926,7 @@ body {
 .grid-scroll::-webkit-scrollbar { width: 4px; }
 .grid-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,.35); border-radius: 2px; }
 #summon-subtabs { order: 2; margin: 0 -.8rem; padding: .5rem .8rem calc(.5rem + env(safe-area-inset-bottom, 0px)); flex: none; border-top: 3px solid var(--pp-line); background: var(--pp-paper); }
-#panel-menu, #panel-debug { overflow-y: auto; padding-bottom: 1rem; }
+#panel-debug { overflow-y: auto; padding-bottom: 1rem; }   /* #panel-menu는 '방' 탭 삭제로 제거됨 (2026-08-18) */
 
 /* ---- 스킬 화면 (UI-SPEC 8·11·14번): 5열 원형 아이콘 그리드 ---- */
 .sheet-head { display: flex; align-items: center; gap: .5rem; position: relative; }

@@ -413,7 +413,7 @@ const UI = {
             dmgFlash: $('dmg-flash'), lootFeed: $('loot-feed'), skillBar: $('skill-bar'),
             toasts: $('toasts'), offlineBtn: $('offline-btn'),
             equipSheet: $('equip-sheet'),
-            panels: { summon: $('panel-summon'), menu: $('panel-menu'), debug: $('panel-debug') },
+            panels: { summon: $('panel-summon'), debug: $('panel-debug') },   // '방'(menu) 탭 제거 (사용자 지시 2026-08-18)
             petsPanel: $('panel-pets'), skillsPanel: $('panel-skills'), techPanel: $('panel-tech'),
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
             dungeonModal: $('dungeon-modal'), dungeonDetailModal: $('dungeon-detail-modal'),
@@ -446,7 +446,7 @@ const UI = {
         this.els.craftModal.addEventListener('click', e => this.onCraftDimClick(e));
     },
 
-    // 하단 탭 클릭: 던전/상점/전투(PvP)는 팝업, 나머지는 시트 토글(다시 누르면 닫힘).
+    // 하단 탭 클릭: PVP/던전/상점은 팝업, 나머지(소환·디버그)는 시트 토글(다시 누르면 닫힘).
     // 상호 배타(사용자 지시): 다른 탭 것을 열기 전에 이전 탭이 소유한 열린 팝업을 전부 닫는다.
     onTabClick(tab) {
         // 빨간 X 상태의 탭 = 닫기 버튼
@@ -455,14 +455,19 @@ const UI = {
         this.closeAllTabSurfaces();
         if (tab === 'dungeon') { this.switchTab(null); this.openDungeons(); return; }
         if (tab === 'shop') { this.switchTab(null); this.openShop(); return; }
-        if (tab === 'battle') { this.switchTab(null); this.openLeague(); return; }
+        if (tab === 'pvp') { this.switchTab(null); this.openLeague(); return; }   // PVP = 리그 도전 (사용자 지시 2026-08-18)
         this.switchTab(this.activeTab === tab ? null : tab);
     },
     // 탭 전환 공통 정리 — 탭이 소유한 전체화면 모달과 그 위에 겹친 하위 상세 팝업 일괄 닫기 (전투 씬은 무관)
     // MODAL_TAB에 없는 모달도 여기서 닫아야 한다: 이 4종은 특정 탭 소유가 아니라 메인 화면에서도 뜨므로
     // MODAL_TAB에 넣으면 엉뚱한 탭에 빨간 ✕가 붙는다. 대신 목록으로만 관리한다.
     // (QA 5차 실측: 안 닫혀서 장비 상세 카드가 소환 서브탭을, 오프라인 보상 카드가 화면 절반을 덮어 조작을 막았다)
-    EXTRA_TAB_SURFACES: ['detail-modal', 'stub-modal', 'gear-detail-modal', 'offline-modal', 'ascend-modal'],
+    // '방'(menu) 탭 삭제(사용자 지시 2026-08-18)로 소유 탭이 사라진 8종도 여기로 내렸다.
+    // 전부 자체 ✕/◀ 닫기 버튼이 있어 탭바 빨간 ✕가 없어도 갇히지 않는다 — 필요한 건
+    // '탭을 옮기면 접힌다'는 동작뿐이고, 그건 MODAL_TAB이 아니라 이 목록이 담당한다.
+    EXTRA_TAB_SURFACES: ['detail-modal', 'stub-modal', 'gear-detail-modal', 'offline-modal', 'ascend-modal',
+        'mount-modal', 'mount-upgrade-modal', 'profile-modal', 'player-info-modal',
+        'chat-modal', 'forge-info-modal', 'forge-item-modal', 'autoforge-modal'],
     closeAllTabSurfaces() {
         // 제작 비교 팝업만은 그냥 숨기면 제작한 장비가 사라진다 — 자동 판정으로 정리한 뒤 닫는다
         this.resolvePendingCraft();
@@ -520,7 +525,6 @@ const UI = {
         document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         for (const [k, p] of Object.entries(this.els.panels)) p.classList.toggle('open', k === tab);
         if (tab === 'summon') this.switchSummonSub(this._summonSub || 'skills'); // 원본 서브탭 순서상 스킬이 첫 탭
-        if (tab === 'menu') this.renderMenu();
         if (tab === 'debug') this.renderDebug();
         this.refreshTabX();
     },
@@ -529,11 +533,8 @@ const UI = {
     // 팝업 여닫는 지점이 20곳이 넘어 호출부를 일일이 고치는 대신 표시 상태 변화를 관찰한다.
     MODAL_TAB: {
         'dungeon-modal': 'dungeon', 'dungeon-detail-modal': 'dungeon',
-        'shop-modal': 'shop', 'league-modal': 'battle', 'pass-modal': 'battle',
-        'mount-modal': 'menu', 'mount-upgrade-modal': 'menu', 'pet-upgrade-modal': 'summon',
-        'profile-modal': 'menu', 'player-info-modal': 'menu',
-        'chat-modal': 'menu', 'forge-info-modal': 'menu', 'forge-item-modal': 'menu',
-        'autoforge-modal': 'menu',
+        'shop-modal': 'shop', 'league-modal': 'pvp', 'pass-modal': 'pvp',
+        'pet-upgrade-modal': 'summon',
     },
     watchTabX() {
         const obs = new MutationObserver(() => this.refreshTabX());
@@ -2231,43 +2232,13 @@ const UI = {
         this.renderSkills();
     },
 
-    // ---- 메뉴 ----
-    renderMenu() {
-        if (this.activeTab !== 'menu') return;
-        const p = this.els.panels.menu;
-        const st = Combat.hero.stats || {};
-        p.innerHTML = `
-            <h2>📋 정보</h2>
-            <div class="stat-grid">
-                <div>⚔️ 공격력</div><div>${U.fmt(st.atk || 0)}</div>
-                <div>❤️ 체력</div><div>${U.fmt(st.hp || 0)}</div>
-                <div>💥 치명타</div><div>${(st.critCh || 0).toFixed(1)}% / +${(st.critDmg || 0).toFixed(0)}%</div>
-                <div>⚡ 공격 속도</div><div>${(st.attacksPerSec || 0).toFixed(2)}/s</div>
-                <div>🗡 처치 수</div><div>${U.fmt(S.kills)}</div>
-                <div>${IconGen.img('hammer')} 총 제작</div><div>${U.fmt(S.totalCrafts)}</div>
-                <div>📈 최고 스테이지</div><div>${S.bestChapter}-${S.bestStage}</div>
-                <div>${IconGen.img('potion')} 물약</div><div>${U.fmt(S.potions || 0)} <small class="muted">(기술 트리 재화)</small></div>
-                <div>${IconGen.img('winder')} 태엽</div><div>${U.fmt(S.winders || 0)} <small class="muted">(마운트 재화)</small></div>
-                <div>🌟 승천 별</div><div>⭐ ${Ascension.totalStars()}</div>
-            </div>
-            <div class="row">
-                <button class="btn primary" onclick="UI.openTechTree()">🔬 기술 트리</button>
-                <button class="btn primary" onclick="UI.openMounts()">🐴 마운트</button>
-            </div>
-            <div class="row">
-                <button class="btn primary" onclick="UI.openAscension()">🌟 승천</button>
-                <button class="btn primary" onclick="UI.openPass()">⚔️ 진행 패스</button>
-            </div>
-            <div class="row">
-                <button class="btn ${S.sfxOn ? 'on' : ''}" onclick="UI.onToggleSfx()">🔊 효과음 ${S.sfxOn ? 'ON' : 'OFF'}</button>
-            </div>
-            <div class="row">
-                <button class="btn" onclick="saveGame(); UI.toast('💾 저장 완료')">수동 저장</button>
-                <button class="btn danger" onclick="if(confirm('정말 처음부터 시작할까요?')) resetGame()">초기화</button>
-            </div>
-            <p class="muted">오프라인 보상: ${IconGen.img('coin')} 1/초 · ${IconGen.img('hammer')} 1/분 (최대 4시간)<br>
-            대장간 업그레이드·부화는 게임을 꺼도 진행됩니다.</p>`;
-    },
+    // ---- '방' 탭 잔재 ----
+    // 하단 탭 '방'(panel-menu)은 사용자 지시(2026-08-18)로 삭제됐다. Combat이 전투력 갱신 때마다
+    // 이 함수를 부르므로(combat.js — 3D 스트림 소유 파일이라 호출부는 건드리지 않는다) 이름만 남긴다.
+    // 그 시트가 갖고 있던 것들의 새 위치: 정보=플레이어 정보 팝업(!) · 기술 트리=소환 서브탭 ·
+    // 마운트=장비 시트 탈것 칸 · 승천=대장간 정보 팝업 · 진행 패스=맵 이정표 ·
+    // 효과음/수동 저장/초기화=프로필 ▸ 설정.
+    renderMenu() {},
 
     // ---- 던전: 가로 배너 목록 + 상세(난이도 선택) 팝업 (UI-SPEC 6~7번) ----
     openDungeons() {
@@ -2626,6 +2597,13 @@ const UI = {
                 <span>${label}</span><span class="settings-check">✔</span>
             </div>`;
         const staticRow = (label) => `<div class="settings-row static" onclick="UI.toast('데모 버전에서는 지원하지 않습니다')"><span>${label}</span></div>`;
+        // 실동작 행 — '방' 탭을 없애면서(사용자 지시 2026-08-18) 갈 곳이 없어진 수동 저장·초기화를
+        // 여기로 옮겼다. 초기화 경로가 통째로 사라지면 안 된다는 게 그 항목의 조건이었다.
+        // 목록 끝에 붙이므로 원본과 대조하는 상단 10행의 위치·높이는 그대로다(잘림 단서도 유지).
+        const actRow = (label, onclick, act, cls) => `
+            <div class="settings-row" onclick="${onclick}">
+                <span>${label}</span><span class="settings-act ${cls || ''}">${act}</span>
+            </div>`;
         this.els.profileModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card wide profile-sheet">
@@ -2642,6 +2620,8 @@ const UI = {
                         ${checkRow('계정')}
                         ${staticRow('차단 목록')}
                         ${staticRow('개인정보 보호')}
+                        ${actRow('수동 저장', "saveGame(); UI.toast('💾 저장 완료')", '저장')}
+                        ${actRow('게임 초기화', "if(confirm('정말 처음부터 시작할까요?')) resetGame()", '초기화', 'danger')}
                     </div>
                     <div class="profile-tabs">
                         <button class="${this._profileView === 'profile' ? 'on' : ''}" onclick="UI.switchProfileView('profile')">프로필</button>
@@ -3249,13 +3229,6 @@ const UI = {
         this.renderMountUpgrade();
         this.keepScroll(() => this.openMounts()); // 재료로 소모된 마운트가 뒤에 깔린 목록에서도 즉시 사라지도록 (펫 플로우와 동일 패턴)
         this.renderTopBar();
-    },
-
-    onToggleSfx() {
-        S.sfxOn = !S.sfxOn;
-        if (S.sfxOn) { SFX.resume(); SFX.craft(); }
-        this.renderMenu();
-        saveGame();
     },
 
     // ---- 승천(별) ----

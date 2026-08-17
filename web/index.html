@@ -61,15 +61,19 @@
         <div id="panel-skills" class="summon-sub"></div>
         <div id="panel-tech" class="summon-sub"></div>
     </div>
-    <div id="panel-menu" class="panel"></div>
     <div id="panel-debug" class="panel"></div>
 
-    <!-- 하단 탭 -->
+    <!-- 하단 탭 (사용자 지시 2026-08-18: "pvp, 던전, 소환, 상점 이 순서로 박고 방은 없애라")
+         · PVP = 리그 도전(openLeague)이 이 게임의 PvP다 — 옛 '전투' 탭을 승격시킨 것.
+         · '전투'는 방치형 메인 화면이라 탭이 아니라 홈이다(다른 탭/팝업을 닫으면 자동 복귀).
+         · '방'(panel-menu) 삭제 — 그 안의 진입점은 전부 다른 곳에 있다:
+           기술 트리=소환 서브탭 · 마운트=장비 시트 탈것 칸 · 승천=대장간 정보 팝업 ·
+           진행 패스=맵 이정표 · 정보=플레이어 정보 팝업(!) · 저장/초기화=프로필▸설정.
+         · 디버그는 배포 탭바에서 숨기고 ?debug= / ?tab=debug 로만 노출한다(main.js). -->
     <div id="tabbar">
+        <button data-tab="pvp">⚔️<span>PVP</span></button>
         <button data-tab="dungeon">💀<span>던전</span></button>
-        <button data-tab="menu">🚪<span>방</span></button>
         <button data-tab="summon">🧪<span>소환</span></button>
-        <button data-tab="battle">🚩<span>전투</span></button>
         <button data-tab="shop">🏪<span>상점</span></button>
         <button data-tab="debug">🐞<span>디버그</span></button>
     </div>

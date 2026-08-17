@@ -61,9 +61,9 @@
         // 자동 제작이 켜진 채로 저장됐으면 순차 시퀀스를 이어서 시작한다
         if (S.autoForgeOn && isUnlocked('autoForge')) UI.startAutoSeq();
 
-        // 디버그: ?tab=summon|pets|skills|menu|debug 등으로 패널 바로 열기, ?debug=craft로 제작 모달 확인
+        // 디버그: ?tab=summon|pets|skills|debug 등으로 패널 바로 열기, ?debug=craft로 제작 모달 확인
         const params = new URLSearchParams(location.search);
-        // 디버그 탭은 ?debug=* 또는 ?tab=debug일 때만 노출 — 기본 5탭이 원본 레이아웃(042120)
+        // 디버그 탭은 ?debug=* 또는 ?tab=debug일 때만 노출 — 기본 노출은 PVP·던전·소환·상점 4탭 (사용자 지시 2026-08-18)
         if (!params.get('debug') && params.get('tab') !== 'debug') {
             const dbgBtn = document.querySelector('#tabbar button[data-tab="debug"]');
             if (dbgBtn) dbgBtn.style.display = 'none';
