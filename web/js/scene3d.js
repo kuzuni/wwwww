@@ -19,6 +19,7 @@ const Scene3D = {
     camPush: 0,              // 카메라 돌리 인 오프셋(z를 이만큼 당김) — 보스 워닝 연출이 소유
     heroDead: false,         // 영웅 사망 중 — update의 Idle/Walking 자동 전환과 행군을 잠근다
     _heroReviveT: 0,         // 기상 클립 잔여 시간(초) — 같은 이유로 자동 전환을 잠근다
+    REVIVE_DUR: 0.85,        // ProChar Revive 클립 길이 — 잠금 시간·안장 복귀 보간이 같은 값을 쓴다
     fxLayer: null, container: null,
     _clock: 0,
 
@@ -5219,7 +5220,7 @@ const Scene3D = {
     heroRevive() {
         if (!this.heroDead) return;
         this.heroDead = false;
-        this._heroReviveT = 0.85; // Revive 클립 길이 — 이 동안에도 Idle이 덮어쓰면 안 된다
+        this._heroReviveT = this.REVIVE_DUR; // Revive 클립 길이 — 이 동안에도 Idle이 덮어쓰면 안 된다
         this.heroPlay(['Revive'], true);
         // ⚠️ 연출 위치는 heroG 원점(발밑)이 아니라 **아직 누워 있는 몸통**에 — 원점에 터뜨리면 시체에서
         //    한 몸 길이 떨어진 빈 땅에서 빛이 피어난다(사망 먼지와 같은 실수).
@@ -6076,7 +6077,13 @@ const Scene3D = {
             const walkBoost = this.walking ? 1.6 : 1;
             const bob = Math.abs(Math.sin(t * 4)) * 0.05 * walkBoost;
             mg.position.y = (ud.baseY || 0) + bob;
-            if (this.riding) {
+            // ⚠️ 쓰러진 영웅은 **탑승 중이 아니다** — 안장에서 굴러떨어져 바닥에 눕는 연출이고
+            //    Death 클립 자체가 groundPose(탑승 하체 포즈 미가산)다. 여기서 riding을 그대로 믿으면
+            //    아래 `+= bob`이 사망 구간 내내 **누적**돼 시체가 하늘로 솟는다 —
+            //    사용자가 3번 재지적한 '죽을 때 하늘로 올라간다'의 진짜 원인이 이것이었다
+            //    (Death 클립은 멀쩡했다. 실측: 사망 후 1.8초에 y=3.9까지 올라가고 계속 상승).
+            //    사망 구간의 영웅 y는 아래 heroGroundY()가 단독으로 소유한다.
+            if (this.riding && !this.heroDead) {
                 // 달릴 때 앞뒤로 까딱이는 기울기 — 정지하면 0으로 수렴시켜 어정쩡한 기울임을 남기지 않는다
                 const lean = this.walking ? Math.sin(t * 4) * 0.07 : 0;
                 mg.rotation.x += (lean - mg.rotation.x) * Math.min(1, dt * 8);
@@ -6084,6 +6091,17 @@ const Scene3D = {
                 this.heroG.rotation.x = mg.rotation.x * 0.6;
                 this.alignStirrups();                                 // 등자를 실제 발 위치에 붙인다
             }
+        }
+        // ===== 사망·기상 구간의 영웅 높이 — 이 구간만은 여기가 단독 주인이다 =====
+        // 사용자 3회 재지적('죽을 때 하늘로 올라간다')의 원인은 Death 클립이 아니라 **주인 없는 y**였다:
+        // 위 걷기/대기/리그 분기는 전부 `!heroDead` 가드가 걸려 사망 중에는 y를 아무도 안 쓰는데,
+        // 탈것 바운스만 가드 없이 `+=`로 얹혀 매 프레임 누적됐다(실측 1.8초에 y=3.9, 계속 상승).
+        // 이제 사망하면 안장에서 내려와 **지면(0)** 에 눕고(Death 클립 자체가 groundPose다),
+        // 기상 클립이 도는 동안 안장 높이로 부드럽게 되돌아온다 — 다 일어난 뒤 rideY로 튀지 않게.
+        if (this.heroG && (this.heroDead || this._heroReviveT > 0)) {
+            const k = this.heroDead ? 0 : 1 - U.clamp(this._heroReviveT / this.REVIVE_DUR, 0, 1);
+            this.heroG.position.y = (this.rideY || 0) * (k * k * (3 - 2 * k));
+            this.heroG.rotation.x = 0;   // 탈것 기울기가 시체에 남아 비스듬히 떠 보이지 않게
         }
         // 파티클
         for (let i = this.particles.length - 1; i >= 0; i--) {
