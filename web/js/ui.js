@@ -849,6 +849,14 @@ const UI = {
                 </div>
                 <button class="x-btn" onclick="UI.closeAutoForge()">✕</button>
             </div>`;
+        // 망치 수 목록은 6칸 창에 22개가 들어가는 스크롤 목록이다. 새로 그리면 scrollTop이 0이라
+        // 기본값 10이 선택돼 있어도 1~6만 보여 "지금 몇인지"도 "22까지 있다"는 것도 알 수 없다.
+        // 선택 항목을 창 가운데로 스크롤해 현재 값과 위아래 범위가 함께 보이게 한다.
+        if (this._afDdOpen) {
+            const list = this.els.autoForgeModal.querySelector('.af-dd-list');
+            const on = list && list.querySelector('button.on');
+            if (on) list.scrollTop = on.offsetTop - (list.clientHeight - on.offsetHeight) / 2;
+        }
     },
     onToggleKeepAge(age) {
         const cfg = Forge.autoForgeConfig();
@@ -1093,7 +1101,7 @@ const UI = {
                 <span class="tile-face">🥚</span>
                 <span class="tile-label">알</span>
             </button>`).join('');
-        const gridHtml = (petCells + eggCells) || '<span class="muted">보유 펫·알 없음 — 소환해보세요!</span>';
+        const gridHtml = (petCells + eggCells) || '<span class="muted grid-empty">보유 펫·알 없음 — 소환해보세요!</span>';
 
         const equippedRowHtml = S.activePets.map(i => {
             const pet = S.pets[i];
@@ -1387,7 +1395,7 @@ const UI = {
                 ${sk.stars ? `<span class="sk-star">⭐${sk.stars}</span>` : ''}
                 <span class="sk-shard"><i style="width:${ratio}%"></i><em>${sk.dupes}/${need}</em></span>
             </button>`;
-        }).join('') || '<span class="muted">보유 스킬 없음 — 소환해보세요!</span>';
+        }).join('') || '<span class="muted grid-empty">보유 스킬 없음 — 소환해보세요!</span>';
 
         // 원본(UI-SPEC 8·11·14번) 배치: 좌상단 티켓 · 중앙 제목 · 패시브 배너 ·
         // 5열 원형 아이콘 그리드(조각 게이지) · 장착됨 행 · 버튼 2개 · 최하단 소환 버튼
@@ -2356,7 +2364,7 @@ const UI = {
                 </span>
                 ${m.stars ? `<span class="sk-star">⭐${m.stars}</span>` : ''}
             </button>`;
-        }).join('') || '<span class="muted">보유 탈것 없음 — 소환해보세요!</span>';
+        }).join('') || '<span class="muted grid-empty">보유 탈것 없음 — 소환해보세요!</span>';
 
         this.els.mountModal.innerHTML = `
             <div class="modal-card sheet mount-sheet">
