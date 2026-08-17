@@ -258,6 +258,12 @@ const UI = {
         // 한 줄짜리 결과(≤5개)는 아이콘 줄 위아래로 빈 남색 밴드가 구조적으로 남는다 —
         // 아래쪽은 소환진(룬 바닥)으로 받쳐 피사체가 떠 있지 않고 무대 위에 선 것으로 읽히게 한다.
         const stage = entries.length <= 5;
+        // 위쪽 밴드 — 주역(전설 이상)이 없으면 `herorow`가 안 걸려 결과가 한 줄로만 남고,
+        // 아래는 소환진이 받치는데 **타이틀과 아이콘 줄 사이가 통째로 빈다**(7·8차 잔여 지적 ⓕ).
+        // 소환진을 위아래로 짝지어 '문(게이트)'을 만든다 — 아이콘이 그 아래로 내려온 것으로 읽히고,
+        // 늘어뜨린 빛발이 세로 구조를 만들어 밴드를 채운다. 주역이 있는 판에는 넣지 않는다
+        // (주역 단독 행이 이미 그 자리를 쓰고, 둘을 겹치면 화면이 위아래로 꽉 차 답답해진다).
+        const canopy = stage && heroIdx < 0;
         const m = this.els.summonResultModal;
         m.className = 'modal'; // hidden 해제 + 이전 done 상태 제거
         m.innerHTML = `
@@ -273,6 +279,7 @@ const UI = {
                 <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-head"><div class="sr-title">${meta.icon} ${meta.title} ×${rolls.length}</div></div>
                 <div class="sr-body${stage ? ' stage' : ''}${stage && size === ' one' ? ' one' : ''}">
+                    ${canopy ? '<div class="sr-canopy"><i></i><i></i><i></i></div>' : ''}
                     <div class="sr-grid${size}${heroRow ? ' herorow' : ''}" style="--cols:${cols}">${cells}</div>
                     ${stage ? '<div class="sr-floor"></div>' : ''}
                 </div>

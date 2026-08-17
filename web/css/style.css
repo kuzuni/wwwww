@@ -2972,6 +2972,61 @@ body {
     animation: srfloorbreath 4.2s ease-in-out infinite;
 }
 @keyframes srfloorbreath { 0%, 100% { opacity: .5; } 50% { opacity: .9; } }
+/* 천개(게이트 상단) — 주역이 없는 한 줄 결과는 아이콘 줄 **위쪽** 밴드가 통째로 빈다
+   (아래쪽만 소환진이 받치고 있었다). 소환진을 뒤집어 짝지어 문을 만들고, 거기서 빛발을
+   늘어뜨려 아이콘이 '그 아래로 내려온 것'으로 읽히게 한다.
+   ⚠️ 바닥과 달리 **불투명한 면을 깔면 안 된다** — 위쪽은 타이틀이 앉는 자리라 면을 깔면
+   글자가 뿌옇게 덮인다. 호(弧)와 빛발만 쓰고 가운데는 비워 둔다. */
+.sr-canopy {
+    position: relative; width: 78%; aspect-ratio: 3.1 / 1; margin-bottom: -2.2rem;
+    pointer-events: none; z-index: 0; opacity: 0;
+    animation: srcanopy .9s cubic-bezier(.2,.9,.3,1) .1s forwards;
+}
+.sr-body.stage.one .sr-canopy { width: 62%; aspect-ratio: 3 / 1; margin-bottom: -2.6rem; }
+@keyframes srcanopy {
+    0%   { opacity: 0; transform: scale(.8) translateY(-.5rem); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+/* 아치 — 바닥 링과 같은 타원이지만 아래 절반만 마스크로 남겨 '문의 윗틀'이 된다 */
+.sr-canopy::before {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    border: .08rem solid var(--floor-line, rgba(150,195,255,.5));
+    background: radial-gradient(closest-side, rgba(0,0,0,0) 68%,
+        var(--floor-fill, rgba(96,146,255,.2)) 88%, rgba(0,0,0,0) 100%);
+    -webkit-mask-image: linear-gradient(#000 0%, #000 42%, rgba(0,0,0,0) 78%);
+    mask-image: linear-gradient(#000 0%, #000 42%, rgba(0,0,0,0) 78%);
+    box-shadow: 0 .5rem 2.4rem var(--floor-fill, rgba(96,146,255,.2));
+}
+/* 룬 눈금도 아래 절반만 — 바닥과 같은 언어라 한 벌로 읽힌다 */
+.sr-canopy::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: repeating-conic-gradient(var(--floor-line, rgba(150,195,255,.5)) 0deg 1.1deg,
+                rgba(0,0,0,0) 1.1deg 9deg);
+    -webkit-mask-image: radial-gradient(closest-side, rgba(0,0,0,0) 86%, #000 92%, #000 99%, rgba(0,0,0,0) 100%),
+                        linear-gradient(#000 0%, #000 40%, rgba(0,0,0,0) 62%);
+    mask-image: radial-gradient(closest-side, rgba(0,0,0,0) 86%, #000 92%, #000 99%, rgba(0,0,0,0) 100%),
+                linear-gradient(#000 0%, #000 40%, rgba(0,0,0,0) 62%);
+    -webkit-mask-composite: source-in; mask-composite: intersect;
+    animation: srfloorbreath 4.2s ease-in-out infinite;
+}
+/* 빛발 3가닥 — 아치에서 **위로** 뻗는다. 아래로 늘어뜨리면 아이콘 줄과 겹쳐 묻히고,
+   정작 비어 있는 건 아치 위(타이틀 아래) 밴드다. 문틀에서 빛이 위로 새어 나가는 꼴이라
+   '아이콘이 여기를 통해 내려왔다'는 인과도 같이 선다.
+   서로 다른 주기로 호흡시켜 종료 후 아이들 구간의 변화량에도 보탠다. */
+.sr-canopy i {
+    position: absolute; bottom: 56%; left: 50%; width: .62rem; height: 8.6rem;
+    transform: translateX(-50%); transform-origin: 50% 100%; border-radius: 50%;
+    background: linear-gradient(0deg, var(--floor-line, rgba(150,195,255,.5)) 0%,
+        rgba(150,195,255,.22) 38%, rgba(150,195,255,.07) 72%, rgba(150,195,255,0) 100%);
+    filter: blur(2.2px);
+    animation: srveil 3.1s ease-in-out infinite;
+}
+.sr-canopy i:nth-child(1) { margin-left: -5.6rem; height: 6.2rem; animation-duration: 3.8s; }
+.sr-canopy i:nth-child(3) { margin-left: 5.6rem; height: 6.2rem; animation-duration: 4.6s; animation-delay: -1.2s; }
+@keyframes srveil {
+    0%, 100% { opacity: .42; transform: translateX(-50%) scaleY(.84); }
+    50%      { opacity: .85; transform: translateX(-50%) scaleY(1.12); }
+}
 /* 배경 광선 — 등간격 하드 스포크는 바람개비처럼 보인다. 굵기가 다른 2겹을 겹쳐 살짝 흐린다 */
 .sr-rays {
     position: absolute; left: 50%; top: 50%; width: 190%; aspect-ratio: 1;
@@ -3664,7 +3719,8 @@ body {
     0%, 100% { opacity: .78; transform: translate(-50%, -50%) scale(1); }
     50%      { opacity: 1;   transform: translate(-50%, -50%) scale(1.1); }
 }
-#summon-result-modal.done .sr-floor {
+#summon-result-modal.done .sr-floor,
+#summon-result-modal.done .sr-canopy {   /* 천개도 바닥과 한 벌 — 등급색 승격을 같이 받는다 */
     --floor-line: var(--floor-line-hi, rgba(150,195,255,.5));
     --floor-fill: var(--floor-fill-hi, rgba(96,146,255,.2));
 }
