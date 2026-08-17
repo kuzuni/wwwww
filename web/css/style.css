@@ -3426,11 +3426,35 @@ body {
 /* 등장은 '광원에서 사출된다' — 시작점이 슬롯이 아니라 광원 쪽(--dx/--dy, UI가 실측해 심는다)이라
    빛이 터진 자리에서 아이콘이 날아와 슬롯에 꽂히는 한 동작으로 읽힌다. 되짚는 구간(0→58%)은
    빠르게, 꽂힌 뒤(58→100%)는 오버슛만 정리한다. */
-.sr-cell.on { animation: srpop var(--pop, .22s) cubic-bezier(.18,1.6,.4,1) forwards; }
+.sr-cell.on { animation: srpop var(--pop, .32s) cubic-bezier(.18,1.6,.4,1) forwards; }
+/* 🚨 비행 구간은 `--pop`의 0→**76%**다(예전 0→58%). 9차 A ⑴ [치명] "사출이 화면에 없다"의
+   진짜 원인이 여기였다 — `tools/probe-sr-eject-visible.js`로 A와 **같은 60ms 절대 격자**로 재니
+   비행이 잡히는 프레임이 **셀당 1장**뿐이었고, 격자합 이동량이 42~47px(경로 166~199px)로
+   A가 보고한 31~45px과 정확히 일치했다. 즉 A의 계측은 맞았고 해석만 틀렸다(경로는 있다).
+   경로 **길이**는 이미 슬롯-광원 거리의 77~84%로 충분하다 — 부족한 건 **시간**이었다:
+   0→58% × --pop .22s = 비행 128ms → 60ms 격자에 1~2장. 그래서 ⓐ 비행이 차지하는 구간을
+   76%로 늘리고 ⓑ 등급별 --pop을 +100ms 올려 최저 등급도 비행 243ms를 확보했다.
+   ⓒ 경로 중간 마디를 2개로 쪼개(28%·52%) 격자가 어느 위상에 떨어져도 중반이 잡히게 했다.
+   ⚠️ 여기서 값을 되돌리려면 그 프로브를 먼저 돌릴 것 — 눈으로는 예전 값도 멀쩡해 보인다. */
+/* 🚨 **구간별 이징이 이 연출의 핵심이다.** 예전에는 애니메이션 전체에 스프링 이징
+   (cubic-bezier(.18,1.6,.4,1))이 걸려 있었는데, CSS는 그 이징을 **키프레임 쌍마다** 적용한다 —
+   y1=1.6인 백아웃 곡선은 각 구간의 이동을 앞 1/3에서 거의 끝내 버린다. 그래서 비행 구간을
+   210ms로 늘려도(3.5프레임분) 60ms 격자에는 여전히 2장만 걸렸다(실측). 위치가 시간에
+   비례해 움직여야 프레임에 남는다 ⇒ **비행 구간은 거의 등속으로, 스프링은 착지 구간에만.**
+   ⚠️ 되돌리기 전에 `probe-sr-eject-visible.js`를 돌릴 것 — 이 값은 프레임 수로 정한 것이다. */
 @keyframes srpop {
-    0%   { opacity: 0; transform: translate(var(--dx, 0), var(--dy, .5rem)) scale(.3); }
-    34%  { opacity: 1; transform: translate(calc(var(--dx, 0) * .34), calc(var(--dy, 0) * .34)) scale(.72); }
-    58%  { opacity: 1; transform: translate(0, 0) scale(calc(1 + .1 * var(--over, 1))); }
+    /* ⚠️ 시작 opacity는 0이 아니라 .34다. 0이면 **비행의 첫 프레임이 투명해서 안 보이고**,
+       비행 210ms 중 앞 60ms가 화면에서 사라진다(실측: 등장 시각이 캡처 격자에 딱 맞는 셀만
+       비행 프레임이 3장→2장으로 줄었다). 광원에서 튀어나오는 아이콘은 이미 빛 속에 있으니
+       흐리게라도 보이는 게 인과에도 맞다 — 팝이 아니라 '빛에서 나온다'로 읽힌다. */
+    0%   { animation-timing-function: cubic-bezier(.35,0,.65,.4);  /* 광원에서 밀려 나오는 가속 */
+           opacity: .34; transform: translate(var(--dx, 0), var(--dy, .5rem)) scale(.3); }
+    30%  { animation-timing-function: linear;                       /* 비행 — 등속이라야 프레임에 남는다 */
+           opacity: 1; transform: translate(calc(var(--dx, 0) * .62), calc(var(--dy, 0) * .62)) scale(.6); }
+    56%  { animation-timing-function: cubic-bezier(.3,.55,.55,1);    /* 슬롯으로 감속 */
+           opacity: 1; transform: translate(calc(var(--dx, 0) * .34), calc(var(--dy, 0) * .34)) scale(.82); }
+    76%  { animation-timing-function: cubic-bezier(.18,1.6,.4,1);   /* 착지 스프링(오버슛 정리) */
+           opacity: 1; transform: translate(0, 0) scale(calc(1 + .1 * var(--over, 1))); }
     100% { opacity: 1; transform: translate(0, 0) scale(1); }
 }
 /* 등급 계단 — 상위 등급은 물리적으로 더 크고 더 세게 빛난다 */
@@ -3438,12 +3462,12 @@ body {
    제자리 스케일 팝에는 맞았지만 비행 경로가 생긴 뒤로는 짧아서, 60ms 간격 캡처에 비행이
    한두 프레임밖에 안 잡혔다(= 비평가 눈에는 여전히 '제자리에서 태어난다'). 전 등급 +80ms.
    소량 결과의 셀 간격이 250ms라 .22s까지는 다음 셀과 겹치지 않는다. */
-.sr-cell { --glow: 0; --ray: 0; --sz: 1; --pop: .22s; --over: .7; }
-.sr-cell[data-tier="1"] { --glow: .16; --ray: 0;   --sz: .99; --pop: .24s; --over: .8; }  /* 희귀한 */
-.sr-cell[data-tier="2"] { --glow: .3;  --ray: .16; --sz: 1.03; --pop: .3s;  --over: 1; }  /* 서사시 */
-.sr-cell[data-tier="3"] { --glow: .55; --ray: .38; --sz: 1.08; --pop: .38s; --over: 1.3; } /* 전설 */
-.sr-cell[data-tier="4"] { --glow: .8;  --ray: .6;  --sz: 1.16; --pop: .42s; --over: 1.6; } /* 궁극의 */
-.sr-cell[data-tier="5"] { --glow: 1;   --ray: .85; --sz: 1.26; --pop: .46s; --over: 1.9; } /* 신화 */
+.sr-cell { --glow: 0; --ray: 0; --sz: 1; --pop: .32s; --over: .7; }
+.sr-cell[data-tier="1"] { --glow: .16; --ray: 0;   --sz: .99; --pop: .34s; --over: .8; }  /* 희귀한 */
+.sr-cell[data-tier="2"] { --glow: .3;  --ray: .16; --sz: 1.03; --pop: .38s; --over: 1; }  /* 서사시 */
+.sr-cell[data-tier="3"] { --glow: .55; --ray: .38; --sz: 1.08; --pop: .44s; --over: 1.3; } /* 전설 */
+.sr-cell[data-tier="4"] { --glow: .8;  --ray: .6;  --sz: 1.16; --pop: .48s; --over: 1.6; } /* 궁극의 */
+.sr-cell[data-tier="5"] { --glow: 1;   --ray: .85; --sz: 1.26; --pop: .52s; --over: 1.9; } /* 신화 */
 /* 셀 뒤 등급 광주 — 아이콘 줄 위아래의 빈 남색 밴드를 구조로 채우고, 등급이 세로 길이로도 읽힌다 */
 .sr-cell::before {
     content: ''; position: absolute; left: 50%; bottom: 34%; width: 2.6rem; height: 15rem;
@@ -3480,11 +3504,15 @@ body {
    광원 쪽에서 날아오므로(--dx/--dy), 잔상은 그 뒤쪽(광원 쪽)에 남아 따라붙는다.
    셀 안에 있어서 셀의 이동이 이미 곱해진 상태라, 여기서는 '뒤처진 만큼'만 더 민다. */
 .sr-cell.on .sr-ghost { animation: srghost var(--pop, .22s) ease-out forwards; }
+/* 꼬리 마디를 비행 창(0→76%)에 맞춰 다시 찍는다 — 예전엔 55%에 거의 사그라들어
+   늘어난 비행의 뒷부분에 꼬리가 없었다(A ⑴의 '잔상 꼬리가 안 보인다'의 절반). */
 @keyframes srghost {
     0%   { opacity: calc(.42 + .4 * var(--glow));
-           transform: translate(calc(var(--dx, 0rem) * .55), calc(var(--dy, 1.1rem) * .55)) scale(1.06); }
-    55%  { opacity: calc(.24 + .26 * var(--glow));
-           transform: translate(calc(var(--dx, 0rem) * .18), calc(var(--dy, .22rem) * .18)) scale(1.02); }
+           transform: translate(calc(var(--dx, 0rem) * .58), calc(var(--dy, 1.1rem) * .58)) scale(1.06); }
+    40%  { opacity: calc(.34 + .3 * var(--glow));
+           transform: translate(calc(var(--dx, 0rem) * .36), calc(var(--dy, .5rem) * .36)) scale(1.05); }
+    76%  { opacity: calc(.2 + .24 * var(--glow));
+           transform: translate(calc(var(--dx, 0rem) * .1), calc(var(--dy, .12rem) * .1)) scale(1.02); }
     100% { opacity: 0; transform: none; }
 }
 /* 착지 스파크 — 링 하나로는 '내려앉았다'만 말하고 '부딪혔다'를 말하지 못한다.
