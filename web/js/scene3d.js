@@ -157,9 +157,20 @@ const Scene3D = {
             depthTest: false, depthWrite: false,
         });
     },
+    // 머리 위 HP바 전용 레이어 — 블룸 추출 대상에서 빼고 합성 뒤에 따로 얹는다.
+    // 이유(실측): 밝은 초원 바이옴 + 히트 스파크 블룸이 바를 통째로 하얗게 날려버려
+    // '2단 바로 잃은 양을 보여준다'는 연출 자체가 화면에서 사라졌다. 바는 정보 UI라 항상 읽혀야 한다.
+    BAR_LAYER: 2,
+
     renderFrame() {
-        if (!this.postOn || !this._rtScene) { this.renderer.render(this.scene, this.camera); return; }
+        if (!this.postOn || !this._rtScene) {
+            this.camera.layers.set(0);
+            this.renderer.render(this.scene, this.camera);
+            this.renderBarOverlay(); // 모바일 폴백도 같은 가독성을 갖도록 동일 경로
+            return;
+        }
         const r = this.renderer;
+        this.camera.layers.set(0); // 바 레이어 제외 — 블룸이 바를 먹지 않게
         r.setRenderTarget(this._rtScene);
         r.render(this.scene, this.camera);
         this._fsQuad.material = this._brightMat;
@@ -176,6 +187,26 @@ const Scene3D = {
         this._compMat.uniforms.tScene.value = this._rtScene.texture;
         this._compMat.uniforms.tBloom.value = this._rtA.texture;
         r.setRenderTarget(null); r.render(this._fsScene, this._fsCam);
+        this.renderBarOverlay();
+    },
+
+    // 합성 결과 위에 HP바만 다시 그린다 — 깊이는 비워 지형/적에 가리지 않게(정보 UI)
+    renderBarOverlay() {
+        const r = this.renderer;
+        this.camera.layers.set(this.BAR_LAYER);
+        const ac = r.autoClear;
+        r.autoClear = false;
+        r.setRenderTarget(null);
+        r.clearDepth();
+        r.render(this.scene, this.camera);
+        r.autoClear = ac;
+        this.camera.layers.set(0);
+    },
+
+    // 바 구성 메쉬를 전부 오버레이 레이어로 옮긴다 (적·영웅 공용, 새 메쉬 추가 시에도 호출)
+    markBarLayer(obj) {
+        if (!obj) return;
+        obj.traverse(o => o.layers.set(this.BAR_LAYER));
     },
 
     resize() {
@@ -3746,18 +3777,28 @@ const Scene3D = {
         if (!bar || bar.hpGhost || !bar.hpFg || !bar.hpFg.parent) return;
         const parent = bar.hpFg.parent;
         const ghost = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09),
-            new THREE.MeshBasicMaterial({ color: 0xff8a65, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
+            new THREE.MeshBasicMaterial({ color: 0xff5722, side: THREE.DoubleSide, transparent: true, opacity: 0.95 }));
         ghost.position.set(0, bar.hpFg.position.y, bar.hpFg.position.z - 0.004); // 앞바 바로 뒤
         // 흔들림은 이 그룹에만 건다. 영웅 바의 부모(heroHpG)는 매 프레임 월드 좌표가 재설정되므로
         // 거기에 직접 오프셋을 주면 바가 월드 원점으로 튄다 — 항상 0을 기준으로 하는 컨테이너가 필요하다.
         const shakeG = new THREE.Group();
         parent.add(shakeG);
+        // 어두운 테두리 판 — 밝은 바이옴에서 바 실루엣이 배경에 녹지 않게 (앞바보다 조금 크게 깔기)
+        const rim = new THREE.Mesh(new THREE.PlaneGeometry(0.87, 0.155),
+            new THREE.MeshBasicMaterial({ color: 0x0a0e12, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
+        rim.position.set(0, bar.hpFg.position.y, bar.hpFg.position.z - 0.008);
+        shakeG.add(rim);
         if (bar.hpBg) shakeG.add(bar.hpBg);
         shakeG.add(ghost, bar.hpFg); // 앞바를 마지막에 넣어 잔상바 위로 그려지게
         bar.shakeG = shakeG;
         bar.hpGhost = ghost;
+        bar.hpRim = rim;
         bar.ghostRatio = 1;
         bar.ghostHold = 0;
+        this.markBarLayer(shakeG); // 블룸 뒤 오버레이로 그리기 위해 레이어 이동
+        // 바는 정보 UI라 ACES 톤매핑을 타면 안 된다 — 태우면 초록/노랑/빨강 잔량색이 전부
+        // 물빠진 파스텔로 수렴해 위험 신호가 안 읽힌다(실측: 0x69f0ae가 거의 흰빛으로 떴다).
+        shakeG.traverse(o => { if (o.material) o.material.toneMapped = false; });
     },
 
     updateHpBar(bar, ratio, dt) {
