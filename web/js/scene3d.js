@@ -4544,7 +4544,9 @@ const Scene3D = {
 
     // 외곽 림 번쩍임: 몸통 지오메트리를 살짝 키운 BackSide 셸이라 실루엣 테두리만 빛난다.
     // 전신을 하얗게 태우지 않고도 "맞았다"가 즉시 읽히는 신호 — 셸은 개체당 한 번만 만들어 재사용(드로우콜 1).
-    rimFlash(m, dur) {
+    // color/scale은 위계용 — 일반 피격은 흰 얇은 셸, 크리는 주황 두꺼운 셸, 처치는 가장 두껍다.
+    // 접촉 프레임(+16ms) 한 장만 보고 "이건 크리다"가 읽혀야 한다(비평가 3차 2번: 세 이벤트의 접촉 프레임이 사실상 동일).
+    rimFlash(m, dur, color, scale) {
         if (!m.body || !m.body.geometry) return;
         if (!m.rimShell) {
             const sh = new THREE.Mesh(m.body.geometry, new THREE.MeshBasicMaterial({
@@ -4557,6 +4559,8 @@ const Scene3D = {
         }
         const sh = m.rimShell;
         sh.visible = true;
+        sh.material.color.setHex(color === undefined ? 0xffffff : color);
+        sh.scale.setScalar(scale || 1.13);
         m.rimSeq = (m.rimSeq || 0) + 1;
         const seq = m.rimSeq;
         sh.material.opacity = 1;
@@ -4649,7 +4653,7 @@ const Scene3D = {
         const pos = m.g.position;
         // ① 옅은 틴트 + 외곽 림 셸 — 밝기가 아니라 윤곽으로 피격을 알린다(형태 유지가 우선)
         this.flashMesh(m, crit ? 0.28 : 0.2, crit ? 0.14 : 0.1);
-        this.rimFlash(m, crit ? 0.13 : 0.1);
+        this.rimFlash(m, crit ? 0.13 : 0.1, crit ? 0xff8a3d : 0xffffff, crit ? 1.2 : 1.1);
         // ② 접촉점 — 영웅(-x)에서 들어온 타격이므로 몸통 왼쪽 앞면에 플레어 + 그 축으로 파편
         // 접촉점 높이도 실높이 비례로 — 고정 0.55는 키 작은 슬라임에선 머리 위, 키 큰 골렘·보스에선
         // 무릎~허벅지에 맞아 "다리를 때렸다"로 읽혔다(연속 프레임 a4/a5 실측). 처치 버스트가 이미 쓰는
@@ -4729,7 +4733,8 @@ const Scene3D = {
         this.impactFlare(burst, 0xffffff, fmax * 0.5, 0.13, 0.3, 0.5);   // 코어(순백)
         this.impactFlare(burst, 0xffd28a, fmax, 0.18, 0.2, 0.42);        // 중간(살구)
         this.impactFlare(burst, 0xff7a2a, fmax * 1.28, 0.22, -0.4, 0.24); // 외곽 잔광
-        this.spawnShards(burst, isBoss ? 22 : 12, 0xff7043, { dir: 0, spread: Math.PI, speed: isBoss ? 1.5 : 1.15, scale: isBoss ? 1.7 : 1.25 });
+        // 파편 수는 위계의 뼈대 — 일반 4~8, 크리 8, 처치 24(보스 34). 개수 차이가 곧 '사건의 크기'다.
+        this.spawnShards(burst, isBoss ? 34 : 24, 0xff7043, { dir: 0, spread: Math.PI, speed: isBoss ? 1.5 : 1.15, scale: isBoss ? 1.7 : 1.25 });
         this.spawnSparks(burst, isBoss ? 30 : 14, 0xffd54f, { speed: 2.3 });             // 가산 불티 — 파편 사이 잔광
         this.spawnSparks(burst, isBoss ? 14 : 6, 0xffffff, { scale: 1.35, speed: 1.7 }); // 흰 코어
         this.flashLight(burst, isBoss ? 0xffab40 : 0xffcc80, isBoss ? 0.45 : 0.3);
@@ -4739,7 +4744,7 @@ const Scene3D = {
         this.scorchDecal(new THREE.Vector3(m.g.position.x + 0.18, 0, m.g.position.z),
             (isBoss ? 1.2 : 0.66) * (m.baseScale || 1), isBoss ? 2.4 : 1.8);
         this.hitStop(isBoss ? 0.07 : 0.045);
-        this.rimFlash(m, 0.12);
+        this.rimFlash(m, 0.16, 0xffd28a, 1.3); // 세 이벤트 중 가장 두껍고 오래 — 처치가 페이오프임이 윤곽만으로 읽히게
         this.flashMesh(m, 0.28, 0.09); // 시신이 흰 덩어리로 뭉개지면 정작 파편이 안 보인다 — 짧고 옅게
         // 사망: 피격 경직 → 무릎 꺾임 → 뒤로(+x) 쓰러짐 → 착지 먼지 → 서서히 페이드아웃 (빙글 회전·순간 소멸 금지, 사용자 지시)
         // update 루프는 !e.alive를 건너뛰므로 이 애니메이션이 트랜스폼을 단독 소유한다.
@@ -5165,9 +5170,12 @@ const Scene3D = {
         ring.rotation.x = -Math.PI / 2;
         ring.position.set(pos.x, 0.12, pos.z);
         this.scene.add(ring);
-        this.addAnim(0.45, k => {
-            ring.scale.setScalar(1 + k * maxR * 2);
-            ring.material.opacity = 0.9 * (1 - k);
+        // 0.45초는 접촉 후 146ms 프레임에도 링이 만개한 채 남아 '충격파'가 아니라 지면 얼룩으로 읽혔다
+        // (비평가 3차 부록). 0.28초로 줄이고, 처음 25% 안에 다 퍼지게 앞당겨 **퍼지는 동작**이 보이게 한다.
+        this.addAnim(0.28, k => {
+            const g = Math.min(1, k * 4);               // 0→1을 첫 25%(70ms)에 — 튀어나오며 퍼진다
+            ring.scale.setScalar(0.35 + g * maxR * 2);
+            ring.material.opacity = 0.95 * (1 - k) * (1 - k);
         }, () => { this.disposeTree(ring); this.scene.remove(ring); });
     },
 
