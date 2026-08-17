@@ -3660,12 +3660,12 @@ body {
    제자리 스케일 팝에는 맞았지만 비행 경로가 생긴 뒤로는 짧아서, 60ms 간격 캡처에 비행이
    한두 프레임밖에 안 잡혔다(= 비평가 눈에는 여전히 '제자리에서 태어난다'). 전 등급 +80ms.
    소량 결과의 셀 간격이 250ms라 .22s까지는 다음 셀과 겹치지 않는다. */
-.sr-cell { --glow: 0; --ray: 0; --sz: 1; --pop: .32s; --over: .7; }
-.sr-cell[data-tier="1"] { --glow: .16; --ray: 0;   --sz: .99; --pop: .34s; --over: .8; }  /* 희귀한 */
-.sr-cell[data-tier="2"] { --glow: .3;  --ray: .16; --sz: 1.03; --pop: .38s; --over: 1; }  /* 서사시 */
-.sr-cell[data-tier="3"] { --glow: .55; --ray: .38; --sz: 1.08; --pop: .44s; --over: 1.3; } /* 전설 */
-.sr-cell[data-tier="4"] { --glow: .8;  --ray: .6;  --sz: 1.16; --pop: .48s; --over: 1.6; } /* 궁극의 */
-.sr-cell[data-tier="5"] { --glow: 1;   --ray: .85; --sz: 1.26; --pop: .52s; --over: 1.9; } /* 신화 */
+.sr-cell { --glow: 0; --ray: 0; --sz: 1; --pop: .32s; --over: .7; --idle: .7; }
+.sr-cell[data-tier="1"] { --glow: .16; --ray: 0;   --sz: .99; --pop: .34s; --over: .8; --idle: .82; }  /* 희귀한 */
+.sr-cell[data-tier="2"] { --glow: .3;  --ray: .16; --sz: 1.03; --pop: .38s; --over: 1; --idle: 1; }  /* 서사시 */
+.sr-cell[data-tier="3"] { --glow: .55; --ray: .38; --sz: 1.08; --pop: .44s; --over: 1.3; --idle: 1.24; } /* 전설 */
+.sr-cell[data-tier="4"] { --glow: .8;  --ray: .6;  --sz: 1.16; --pop: .48s; --over: 1.6; --idle: 1.5; } /* 궁극의 */
+.sr-cell[data-tier="5"] { --glow: 1;   --ray: .85; --sz: 1.26; --pop: .52s; --over: 1.9; --idle: 1.8; } /* 신화 */
 /* 셀 뒤 등급 광주 — 아이콘 줄 위아래의 빈 남색 밴드를 구조로 채우고, 등급이 세로 길이로도 읽힌다 */
 .sr-cell::before {
     content: ''; position: absolute; left: 50%; bottom: 34%; width: 2.6rem; height: 15rem;
@@ -4029,9 +4029,17 @@ body {
     animation: srbreath 2.6s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * .21s);
 }
+/* 아이들 호흡 진폭을 **등급에 가중**한다(9차 A ⑹ '아이들 위계'). 예전엔 전 등급이 똑같이
+   -.16rem / ×1.055 였고, 실측상 등급 간 차이는 광채(--glow)에서만 나왔다 — 즉 위계가
+   구조가 아니라 부산물이었다. `--idle`로 호흡 자체를 계단화해 최고 등급이 가장 크게 숨쉰다.
+   ⚠️ 실측 주의: 이 구간을 `tools/shot-summon-result.js`의 **시크 캡처**로 재지 말 것 —
+   그 경로는 모든 애니메이션을 `pause()` 하므로 무한 루프인 아이들이 통째로 정지 프레임이 되고,
+   `forwards`로 끝 프레임에 고정된 주역 비트와 겹쳐 **'주역이 죽어 있다'는 반대 결론**이 난다.
+   실시간으로 재는 자는 `tools/probe-sr-idle-weight.js` 다. */
 @keyframes srbreath {
     0%, 100% { transform: translateY(0) scale(var(--sz)); }
-    50%      { transform: translateY(-.16rem) scale(calc(var(--sz) * 1.055)); }
+    50%      { transform: translateY(calc(-.16rem * var(--idle, 1)))
+                          scale(calc(var(--sz) * (1 + .055 * var(--idle, 1)))); }
 }
 /* 상위 등급은 호흡 + 광채 펄스 둘 다 (서로 다른 속성이라 겹쳐도 안전) */
 #summon-result-modal.done .sr-cell.hi.on .sr-orbwrap {
@@ -4207,10 +4215,22 @@ body {
    자리는 미리 잡아 둬야(visibility) [확인] 버튼이 튀지 않는다. */
 .sr-sum { display: flex; flex-wrap: wrap; justify-content: center; gap: .32rem; visibility: hidden; }
 #summon-result-modal.done .sr-sum { visibility: visible; animation: srtitle .3s ease-out both; }
+/* 🚨 **9차 비평가 B ⑷ [높음] "무채색 아웃라인 6개·10px라 '신화 11개'가 가장 안 읽힌다"의 원인.**
+   여기서 `color: var(--rc)` 를 읽었는데 JS(`UI.chipVars`)가 심는 건 `--cb`/`--cf` 라
+   **--rc 가 정의된 적이 없었다** → 무효값이 되어 여섯 칩이 전부 부모 상속색(흰색)으로 떨어졌고,
+   `border: 1px solid currentColor` 때문에 테두리까지 똑같은 흰 선이 됐다.
+   실측(수정 전, x25): 6칩의 computed color 가 전부 `rgb(236,239,241)`·폰트 9.2px.
+   → 셀 안 등급 칩(`.sr-rk`)이 이미 쓰는 **등급색 솔리드 필 + 대비 자동 전경색**으로 통일하고,
+     등급이 오를수록 커지고 광채가 붙게 계단을 준다(요약에서도 최고 등급이 먼저 읽혀야 한다). */
 .sr-chip {
-    color: var(--rc); border: 1px solid currentColor; border-radius: .5rem;
-    padding: .12rem .5rem; font-size: .7rem; font-weight: 900; background: rgba(2,5,16,.55);
+    background: var(--cb, #d6d6d6); color: var(--cf, #070b18);
+    border: none; border-radius: .5rem;
+    padding: .16rem .55rem; font-size: .82rem; font-weight: 900; line-height: 1.3;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 .1rem .26rem rgba(0,0,0,.55);
 }
+.sr-chip[data-tier="3"] { font-size: .88rem; }
+.sr-chip[data-tier="4"] { font-size: .94rem; box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 .1rem .26rem rgba(0,0,0,.55), 0 0 .5rem var(--cb); }
+.sr-chip[data-tier="5"] { font-size: 1rem;   box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 .1rem .26rem rgba(0,0,0,.55), 0 0 .7rem var(--cb); }
 .sr-hint {
     font-size: .74rem; font-weight: 700; color: rgba(210,225,255,.75);
     border: 1px solid rgba(255,255,255,.22); border-radius: 1rem; padding: .3rem .85rem;

@@ -104,8 +104,13 @@ const UI = {
         for (const e of entries) cnt[e.rarity] = (cnt[e.rarity] || 0) + 1;
         // 그리드가 등급 오름차순으로 뜨므로 집계 칩도 같은 방향으로 읽혀야 한다 —
         // 예전엔 칩만 내림차순이라 "마지막에 뜬 최고 등급"이 요약에서는 맨 왼쪽에 있었다
+        // 🚨 `data-tier`를 반드시 실을 것 — 요약 칩의 크기·광채 위계가 여기에 걸린다.
+        //    9차 비평가 B ⑷ "무채색 아웃라인 6개라 '신화 11개'가 가장 안 읽힌다"의 원인은
+        //    css가 `color: var(--rc)`를 읽는데 chipVars는 `--cb/--cf`만 심어 **--rc가 미정의**라
+        //    여섯 칩이 전부 상속색(흰색)으로 떨어진 것이었다(실측: 6칩 color 전부 rgb(236,239,241)).
         const chips = RARITIES.filter(r => cnt[r])
-            .map(r => `<b class="sr-chip" style="${this.chipVars(r)}">${RARITY_KR[r]} ${cnt[r]}</b>`).join('');
+            .map(r => `<b class="sr-chip" data-tier="${RARITIES.indexOf(r)}" style="${this.chipVars(r)}">`
+                + `${RARITY_KR[r]} ${cnt[r]}</b>`).join('');
         return `<div class="sr-sum">${chips}</div>`;
     },
 
