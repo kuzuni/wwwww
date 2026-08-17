@@ -633,20 +633,25 @@ body {
    좌우 열 세로선은 x=171·324 · 선 두께 2px · 노드 지름 53.4px.
    세로선은 ::before로 노드 중심~노드 중심까지 늘려 그리고 불투명한 원이 그 위를 덮는다 —
    라벨 높이나 타이머 배지 때문에 행이 길어져도 선이 끊기지 않게 하는 장치다. */
-/* 골격 치수는 전부 원본 비율에서 유도한다(앱 크기가 바뀌어도 비율이 유지되게):
-   노드 지름 53.4/505 = 10.57%W · 좌우 노드 중심 간격 153/505 = 30.30%W · 행 피치 95.5/883 = 10.82%H.
+/* 골격 치수는 전부 원본 비율에서 유도한다(앱 크기가 바뀌어도 비율이 유지되게).
+   **기준은 앱 세로폭(%H)이다** — 원본 화면(505×883)은 9:16이 아니라 0.572 비율이라 클론은 같은
+   뷰포트에서 가로가 레터박스로 496.7px까지 좁아진다. 가로폭 기준으로 잡으면 그만큼(-1.7%)
+   전 치수가 작아져 지름·열 간격이 원본보다 좁아진다(비평가 실측 지적). 세로폭은 양쪽이 같으므로
+   %H로 잡아야 원본 픽셀과 그대로 맞는다:
+   노드 바깥지름 58/883 = 6.568%H · 좌우 노드 중심 간격 153/883 = 17.327%H · 행 피치 95.5/883 = 10.816%H.
    가로 바 폭은 '간격 − 지름'으로 계산해 좌우 원 안쪽 가장자리에 정확히 맞물리고, 양끝 .25rem은
    원 밑으로 파고들게 해(원이 불투명·z-index 1) 어떤 배율에서도 선이 원에서 떨어지지 않는다. */
 /* 축·시작 높이도 원본에 맞춘다: 원본 트리 축은 앱 정중앙이 아니라 49.11%W(=248/505)로 4px 왼쪽에
    있고(원본 화면의 스크롤바 폭만큼 콘텐츠 박스가 좁아진 결과), 첫 행 노드 중심은 14.38%H(=127/883)다.
    margin-top은 헤더 블록이 원본보다 12px 짧은 만큼을 메워 첫 행을 그 높이에 앉힌다. */
 .tech-tree-col {
-    position: relative; display: flex; flex-direction: column; align-items: center; margin: 1.33rem 0 1rem;
+    position: relative; display: flex; flex-direction: column; align-items: center; margin: 1.15rem 0 1rem;
     transform: translateX(calc(var(--app-w, 499px) * -.0089));
-    --tt-node: calc(var(--app-w, 499px) * .1057);
-    --tt-span: calc(var(--app-w, 499px) * .3030);
-    --tt-pitch: calc(var(--app-h, 887px) * .1082);
-    --tt-line: 2px;
+    --tt-node: calc(var(--app-h, 887px) * .06568);
+    --tt-span: calc(var(--app-h, 887px) * .17327);
+    --tt-pitch: calc(var(--app-h, 887px) * .10816);
+    --tt-line: 2px;                                                   /* 세로선 두께(원본 2px) */
+    --tt-bar: 3px;                                                    /* 가로 바 두께(원본 3px) */
     --tt-label: 1.05rem;                                              /* 라벨 블록 고정 높이 */
     --tt-bite: .25rem;                                                /* 선이 원 밑으로 파고드는 깊이 */
     --tt-gap: calc(var(--tt-pitch) - var(--tt-node) - var(--tt-label)); /* 행 사이 세로선 구간 */
@@ -660,12 +665,12 @@ body {
 .tech-tree-row { display: flex; align-items: flex-start; justify-content: center; }
 /* 가로 바: 중심이 노드 중심 높이에 오도록 margin-top으로 반노드만큼 내린다 */
 .tech-tree-hline {
-    width: calc(var(--tt-span) - var(--tt-node) + var(--tt-bite) * 2); height: var(--tt-line);
-    background: var(--pp-line); margin-top: calc(var(--tt-node) / 2 - var(--tt-line) / 2);
+    width: calc(var(--tt-span) - var(--tt-node) + var(--tt-bite) * 2); height: var(--tt-bar);
+    background: var(--pp-line); margin-top: calc(var(--tt-node) / 2 - var(--tt-bar) / 2);
     margin-left: calc(var(--tt-bite) * -1); margin-right: calc(var(--tt-bite) * -1);
 }
 /* 원본에서 병렬 블록 가운데 행에는 가로 바가 없다 — 자리만 차지하는 빈 칸으로 간격을 유지한다 */
-.tech-tree-hgap { width: calc(var(--tt-span) - var(--tt-node)); height: var(--tt-line); }
+.tech-tree-hgap { width: calc(var(--tt-span) - var(--tt-node)); height: var(--tt-bar); }
 /* 세로선: 레이아웃은 --tt-gap만 차지하고, 실제 선은 ::before가 위로 (반노드+라벨), 아래로 반노드를
    넘겨 그려 '노드 중심에서 노드 중심까지' 잇는다(원 뒤는 불투명 원이 가린다) — 라벨 높이가 바뀌어도
    선이 끊기지 않는다. */
