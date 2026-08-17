@@ -105,11 +105,11 @@ const OUT = __dirname;
         const R = Scene3D.heroRig;
         if (R && !R.__playWrapped) {
             R.__origPlay = R.play;
-            R.play = (c, once, ts, cb) => R.__origPlay(c, once, (ts || 1) * 0.25, cb);
+            R.play = (c, once, ts, cb) => R.__origPlay(c, once, (ts || 1) * 0.12, cb); // 0.25는 헤드리스 ~5fps에서 스윙당 샘플이 모자라 각진 부채 — 더 느리게 돌려 밀도 확보
             R.__playWrapped = true;
         }
-        Scene3D.TRAIL_MIN_STEP = 0.012; // 슬로모 0.25×에선 프레임당 날끝 이동이 기본 게이트 0.06 미달 → 포인트가 아예 기록 안 됨
-        Scene3D.TRAIL_LIFE = 0.75; // 슬로모 0.25×에선 실시간 기준 수명이 스윙 애니메이션 시간을 못 덮음(0.22s 실시간 = 0.055s 애니) → 와인드업~임팩트 풀 아크가 살아남게 연장
+        Scene3D.TRAIL_MIN_STEP = 0.006; // 슬로모 0.12×에선 프레임당 날끝 이동이 기본 게이트 0.06 미달 → 포인트가 아예 기록 안 됨
+        Scene3D.TRAIL_LIFE = 0.9; // 슬로모 0.12×에선 실시간 기준 수명이 스윙 애니메이션 시간을 못 덮음 — 과대(0.75@0.25×)는 와인드업 스트로크가 통째로 살아남아 머리 위 '파란 돛'(비평가 7.4 재현): 다운스윙 스미어가 주가 되는 값
         (window.__realAtk || Scene3D.heroAttack).call(Scene3D, 999); // fit()이 노옵으로 막아둔 실제 공격 호출
         for (const a of Scene3D.anims) { const k = a.t / a.dur; a.dur /= 0.25; a.t = k * a.dur; } // 돌진도 동율 슬로모
         // 임팩트 동결을 페이지 안에서 동기 실행 — Node 폴링 왕복(수십~수백 ms) 동안 트레일 포인트(LIFE 0.18s)가
@@ -117,7 +117,7 @@ const OUT = __dirname;
         window.__frozen = false;
         window.__frzIv = setInterval(() => {
             const R2 = Scene3D.heroRig;
-            if (!(R2 && R2._once && R2._clip && R2._t / R2._clip.dur >= 0.56)) return; // 사선 교차 후반 — 0.5는 아크가 머리 위 '돛'으로 서 있고, TRAIL_LIFE 연장으로 0.56에서도 리본 생존
+            if (!(R2 && R2._once && R2._clip && R2._t / R2._clip.dur >= 0.64)) return; // 다운스윙 후반 — 0.56은 와인드업 잔상이 지배해 '돛', 0.64에서 칼끝 뒤로 흐르는 스미어가 주가 됨
             clearInterval(window.__frzIv);
             R2._speed = 0;
             Scene3D._origUpdateTrail = Scene3D.updateTrail;
@@ -126,7 +126,7 @@ const OUT = __dirname;
             window.__frozen = true;
         }, 8);
     });
-    await page.waitForFunction(() => window.__frozen === true, null, { timeout: 8000, polling: 30 });
+    await page.waitForFunction(() => window.__frozen === true, null, { timeout: 25000, polling: 30 }); // 슬로모 0.12× — 돌진 4×+스윙 4.2s 후 0.64 위상 도달까지 여유
     await page.evaluate(() => {
         for (const a of Scene3D.anims) { const k = Math.min(1, a.t / a.dur); a.dur = 1e9; a.t = k * 1e9; }
         // 임팩트 순간 연출 — 실제 게임 히트 프레임의 구성 요소(플래시·스쿼시)를 동결 프레임에 명시 적용
@@ -135,6 +135,19 @@ const OUT = __dirname;
         if (em) {
             for (const fm of em.flashMats) { fm.emissive.setHex(0xffffff); fm.emissiveIntensity = 0.28; } // 0.65는 반투명 슬라임이 유령처럼 씻겨 나감
             em.g.scale.set(1.12, 0.85, 1.12); // 피격 스쿼시
+            // 히트 파편 — 인게임 onHit이 실제로 쓰는 spawnSparks 구성(비평가 7.4 1번 '임팩트 파티클 전무')을
+            // 동결 프레임에 직접 배치: 스폰 → 0.05s 수동 전진(방사 산개) → 속도·수명 동결
+            const hitP = em.g.position.clone().add(new THREE.Vector3(0, 0.55, 0));
+            const before = Scene3D.particles.length;
+            Scene3D.spawnSparks(hitP, 10, 0xffee58);
+            for (let i = before; i < Scene3D.particles.length; i++) {
+                const p = Scene3D.particles[i];
+                p.position.addScaledVector(p.userData.vel, 0.05); // 타격점에서 갓 터진 산개 반경
+                p.userData.vel.set(0, 0, 0);
+                p.userData.noGravity = true;
+                p.userData.life = 1e9; // 스크린샷 지연 동안 에이징으로 소멸 방지
+            }
+            Scene3D.flashLight(hitP, 0xffe082, 1e9); // 타격점 웜 플래시 라이트 — 동결 유지
         }
         // 동결된 포즈 기준으로 카메라 재피팅 — 돌진으로 이동한 위치/비틀린 몸통 반영, 적은 프레임에 유지
         Scene3D.heroG.updateMatrixWorld(true);

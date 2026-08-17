@@ -3891,13 +3891,15 @@ const Scene3D = {
             if (swung) {
                 let last = pts[pts.length - 1];
                 if (last && last.dir) {
-                    // 스윙 방향 반전(와인드업→다운스윙 커스프)에서 리본이 접혀 겹침 — '방사 스포크' (비평가 7.3 2번): 새 스트로크로 리셋
+                    // 스윙 방향 반전(와인드업→다운스윙 커스프)에서 리본이 접혀 겹침 — '방사 스포크' (비평가 7.3 2번).
+                    // 전체 소거(pts.length=0)는 저fps에서 프레임 델타 각이 90°를 넘겨 매 프레임 오발 → 리본이 상시 소거돼
+                    // '트레일 없는 공격샷'(비평가 7.4 1번)의 실체 — 스트로크 경계만 표시해 이전 리본은 자연 페이드시킨다
                     const dirNew = new THREE.Vector3().subVectors(t, last.t);
-                    if (dirNew.dot(last.dir) < 0) { pts.length = 0; last = null; }
+                    if (dirNew.dot(last.dir) < 0) { last.brk = true; last = null; }
                 }
                 if (last) {
-                    // 저 fps에서도 리본이 끊기지 않게 프레임 사이를 보간 샘플로 메움
-                    const n = Math.min(6, Math.floor(last.t.distanceTo(t) / 0.12));
+                    // 저 fps에서도 리본이 끊기지 않게 프레임 사이를 보간 샘플로 메움 (상한 12 — 6은 저fps 캡처에서 직선 코드가 '각진 부채'로 노출)
+                    const n = Math.min(12, Math.floor(last.t.distanceTo(t) / 0.06));
                     for (let j = 1; j <= n; j++) {
                         const k = j / (n + 1);
                         pts.push({ b: last.b.clone().lerp(b, k), t: last.t.clone().lerp(t, k), age: last.age * (1 - k) });
@@ -3917,6 +3919,7 @@ const Scene3D = {
         // 그대로 보이는 '각진 종이부채'로 읽힘 (비평가 7.3 2번): 폭은 유지하고 알파로만 스미어
         for (let i = 0; i < pts.length - 1; i++) {
             const p0 = pts[i], p1 = pts[i + 1];
+            if (p0.brk) continue; // 스트로크 경계 — 반전 커스프를 가로질러 연결하면 리본이 접힘
             const f0 = Math.max(0, 1 - p0.age / LIFE), f1 = Math.max(0, 1 - p1.age / LIFE);
             fade.setX(vi, 0); pos.setXYZ(vi++, p0.b.x, p0.b.y, p0.b.z);
             fade.setX(vi, f0); pos.setXYZ(vi++, p0.t.x, p0.t.y, p0.t.z);
