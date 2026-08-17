@@ -249,15 +249,12 @@ const Scene3D = {
     // 주의: 주입 지점이 톤매핑 앞 **선형 공간**이라 sRGB 인코딩 후 크게 밝아진다.
     //   그래서 darkColor는 니어블랙, darkStrength도 0.88처럼 세게 필요하다(0.38은 육안 무변화).
     RIM: { color: 0xdcefff, strength: 0, power: 5.0, darkColor: 0x0a1119, darkStrength: 0.88, darkPower: 1.35 },
-    // 펫 전용 다크 컨투어 — 기본값보다 넓게(power↓)·진하게(strength↑). 펫은 화면 점유가 0.4%대로 작아
-    // 기본 컨투어로는 같은 색 배경/탈것에서 형태가 녹는다.
-    PET_RIM_DARK: { strength: 0.97, power: 1.05 },
     _rimUniforms: [],
-    // dark = { strength, power } 로 다크 컨투어만 개체별로 세게 줄 수 있다.
-    // 펫이 이 오버라이드를 쓴다 — 초록 거북이 초록 탈것 배 아래 붙으면 명암비가 1.14:1까지 떨어져
-    // "가려지진 않았는데 탈것 뱃살로 읽히는" 상태가 된다(비평가 실측). 컨투어를 넓게·진하게 깔아 오려낸다.
-    // setRimLook은 uRimColor/uRimStr만 갱신하므로 이 오버라이드는 밤·바이옴 색보정에도 살아남는다.
-    applyRimLight(g, dark) {
+    // ⚠️ 펫에는 이 림이 **전혀 걸리지 않는다** — makePetMesh는 MeshLambert/MeshBasic만 쓰고
+    //    아래 필터가 Standard/Phong이 아닌 재질을 건너뛰기 때문이다. 펫 실루엣을 림으로 분리하려는
+    //    시도(다크 컨투어 강화)를 한 번 했다가 비평가 계측에서 '변화 0'으로 확인돼 되돌렸다.
+    //    펫에 림을 걸려면 먼저 펫 재질을 Standard/Phong으로 올려야 한다.
+    applyRimLight(g) {
         g.traverse(o => {
             if (!o.isMesh || !o.material) return;
             for (const m of (Array.isArray(o.material) ? o.material : [o.material])) {
@@ -271,8 +268,8 @@ const Scene3D = {
                     uRimStr: { value: this.RIM.strength },
                     uRimPow: { value: this.RIM.power },
                     uRimDark: { value: new THREE.Color(this.RIM.darkColor) },
-                    uRimDarkStr: { value: dark && dark.strength != null ? dark.strength : this.RIM.darkStrength },
-                    uRimDarkPow: { value: dark && dark.power != null ? dark.power : this.RIM.darkPower },
+                    uRimDarkStr: { value: this.RIM.darkStrength },
+                    uRimDarkPow: { value: this.RIM.darkPower },
                 };
                 this._rimUniforms.push(u);
                 const prev = m.onBeforeCompile;
@@ -3167,7 +3164,7 @@ const Scene3D = {
             g.userData.phase = U.rand(0, Math.PI * 2);  // 개체별 위상차
             g.userData.speed = U.rand(0.85, 1.25);       // 개체별 속도차
             this.setShadow(g, true);
-            this.applyRimLight(g, this.PET_RIM_DARK); // 배경·탈것과 색이 겹쳐도 실루엣이 분리되게 컨투어 강화
+            this.applyRimLight(g);
             this.scene.add(g);
             this.petGroups.push(g);
         });

@@ -1,12 +1,24 @@
 // 펫 가림 실측 프로브 — TODO '펫이 플레이어에 가려서 안 보임' 항목의 수치 근거.
-// 사용: node probe-pet-occlusion.js [--spots "x,z;x,z;x,z"]
+// 사용: node probe-pet-occlusion.js
 //
 // 스크린샷 눈대중으로는 "가려졌다"를 판정할 수 없어서(펫과 탈것이 같은 초록이면 특히)
-// **화면 좌표로 투영한 실루엣 픽셀 겹침**을 직접 센다:
-//   ① 펫/영웅/탈것 각 그룹의 모든 메시 버텍스를 카메라로 투영해 화면 폴리곤(볼록 껍질 대신 바운딩 격자)을 만든다
-//   ② 펫 격자 셀 중심마다 "그 방향으로 영웅·탈것이 더 카메라에 가까이 있는가"를 깊이로 비교해 가림 여부 판정
-//   ③ 펫 실루엣 셀 중 가려진 비율 = occluded%. 이 값이 판정 기준.
-// 격자 해상도는 펫 바운딩박스를 24x24로 쪼갠다(펫이 작아도 안정적).
+// **화면 좌표로 투영한 실루엣 겹침**을 200x200 격자에서 직접 센다:
+//   ① 펫/영웅/탈것/소품의 모든 메시 버텍스를 카메라로 투영해 셀별 최소거리(깊이맵)를 만든다
+//   ② 펫 셀마다 "그 방향에 더 카메라에 가까운 오클루더가 있는가"를 깊이로 비교
+//   ③ 펫 실루엣 셀 중 가려진 비율 = 가림%. 이게 판정 기준. 원인을 영웅·탈것 / 소품으로 분리 보고한다.
+//
+// ⚠️ 이 측정기는 한 번 '전부 0%'로 오통과를 냈다. 재발 방지로 남기는 교훈 3가지:
+//   ⓐ InstancedMesh는 geometry가 기준 1개다 — instanceMatrix를 각각 곱하지 않으면 풀·자갈 전
+//      인스턴스가 원점에 겹쳐 찍혀 소품 가림이 0%로 나온다.
+//   ⓑ 탈것 그룹 속성명은 `Scene3D.mountGroup`이다(mountG 아님). 오타면 탈것이 오클루더에서
+//      조용히 빠지고, 그래도 결과는 그럴듯한 0%라 눈치채기 어렵다.
+//   ⓒ **한 순간만 재면 안 된다.** 소품은 월드 고정이고 x주기 26으로 재배치되므로(scene3d.js)
+//      "그 순간 나무가 없었을 뿐"인 상태가 통과로 잡힌다 → 주기 한 바퀴를 걷는 스윕이 본 판정이다.
+// 위 세 함정을 자동으로 잡기 위해 매 실행 앞에 **캘리브레이션 자기검증**을 돌린다: 펫을 일부러
+// 영웅 뒤(z=-0.65)·정후방으로 옮겨 가림이 각각 40%·90% 이상으로 잡히는지 확인하고, 안 잡히면
+// 측정 결과를 신뢰할 수 없으므로 즉시 실패로 끝낸다.
+//
+// 종료 코드: 0=PASS, 1=가림 기준(12%) 초과, 2=캘리브레이션 실패(측정기 고장)
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
@@ -47,54 +59,54 @@ const spotsArg = (() => {
         };
         Scene3D.clearEnemies(); Combat.enemies = []; Combat.phase = 'walk';
 
-        // ── 그룹의 화면 투영 샘플: 모든 메시의 버텍스를 화면 좌표+카메라거리로 ──
+        // ── 그룹의 화면 투영: 버텍스를 **곧바로 깊이 격자에 래스터화**한다.
+        // 점 객체 배열을 만들면 소품 인스턴스에서 수십만 개가 쌓여 GC로 스윕이 못 끝난다
+        // (Vector3.clone()도 버텍스마다 할당됐다) — 재사용 벡터 + 직접 쓰기로 바꿨다.
         const cam = Scene3D.camera;
-        const projGroup = (root) => {
-            const pts = [];
-            if (!root) return pts;
+        const GRID = 200;
+        const newGrid = () => new Float64Array(GRID * GRID).fill(Infinity);
+        const _v = new THREE.Vector3();
+        const rasterGroup = (root, grid) => {
+            if (!root) return grid;
             root.updateWorldMatrix(true, true);
+            const hx = Scene3D.heroG ? Scene3D.heroG.position.x : 0;
             root.traverse(o => {
                 if (!o.isMesh || !o.geometry || !o.geometry.attributes || !o.geometry.attributes.position) return;
                 if (o.visible === false) return;
                 const pos = o.geometry.attributes.position;
-                const stride = Math.max(1, Math.floor(pos.count / 300)); // 메시당 최대 ~300 버텍스 샘플
-                const v = new THREE.Vector3();
+                const stride = Math.max(1, Math.floor(pos.count / 220)); // 메시당 최대 ~220 버텍스 샘플
                 // ⚠️ InstancedMesh는 geometry가 **기준 지오메트리 1개**라 matrixWorld만 곱하면
-                //    전 인스턴스가 원점에 겹쳐 찍힌다 — 풀·자갈 같은 인스턴스 소품 가림을 0%로
-                //    오보고하는 원인이었다. instanceMatrix를 반드시 각각 곱한다.
+                //    전 인스턴스가 원점에 겹쳐 찍힌다 — 인스턴스 소품 가림을 0%로 오보고한 원인.
                 const inst = o.isInstancedMesh ? o.count : 0;
                 const im = new THREE.Matrix4();
                 const emit = (mat) => {
                     for (let i = 0; i < pos.count; i += stride) {
-                        v.fromBufferAttribute(pos, i).applyMatrix4(mat);
-                        const d = v.distanceTo(cam.position);
-                        const p = v.clone().project(cam);
-                        if (p.z < -1 || p.z > 1) continue;
-                        pts.push({ x: (p.x + 1) / 2, y: (1 - p.y) / 2, d });
+                        _v.fromBufferAttribute(pos, i).applyMatrix4(mat);
+                        const d = _v.distanceTo(cam.position);
+                        _v.project(cam);
+                        if (_v.z < -1 || _v.z > 1) continue;
+                        const gx = ((_v.x + 1) * 0.5 * GRID) | 0, gy = ((1 - _v.y) * 0.5 * GRID) | 0;
+                        if (gx < 0 || gy < 0 || gx >= GRID || gy >= GRID) continue;
+                        const k = gy * GRID + gx;
+                        if (d < grid[k]) grid[k] = d;
                     }
                 };
                 if (inst) {
+                    // 인스턴스가 수천 개라 전부 투영하면 스윕이 분 단위로 늘어난다 —
+                    // 펫을 가릴 수 있는 건 파티 근처(월드 x ±6)뿐이니 그 밖은 건너뛴다.
                     const combined = new THREE.Matrix4();
                     for (let n = 0; n < inst; n++) {
                         o.getMatrixAt(n, im);
                         combined.multiplyMatrices(o.matrixWorld, im);
+                        if (Math.abs(combined.elements[12] - hx) > 6) continue;
                         emit(combined);
                     }
                 } else emit(o.matrixWorld);
             });
-            return pts;
+            return grid;
         };
-        // 점군 → 화면 격자 깊이맵(셀당 최소 거리 = 가장 앞면)
-        const GRID = 200;
-        const depthMap = (pts) => {
-            const m = new Float64Array(GRID * GRID).fill(Infinity);
-            for (const p of pts) {
-                const gx = Math.floor(p.x * GRID), gy = Math.floor(p.y * GRID);
-                if (gx < 0 || gy < 0 || gx >= GRID || gy >= GRID) continue;
-                const k = gy * GRID + gx;
-                if (p.d < m[k]) m[k] = p.d;
-            }
-            // 점군은 표면 샘플이라 구멍이 생긴다 → 3x3 팽창으로 실루엣을 메운다(가림을 과소평가하지 않게)
+        // 표면 샘플이라 구멍이 생긴다 → 3x3 팽창으로 실루엣을 메운다(가림을 과소평가하지 않게)
+        const dilate = (m) => {
             const o = m.slice();
             for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
                 let best = m[y * GRID + x];
@@ -108,38 +120,53 @@ const spotsArg = (() => {
             }
             return o;
         };
+        const boxOfGrid = (m) => {
+            let a = 1, b = 1, c = 0, d = 0, any = false;
+            for (let k = 0; k < m.length; k++) {
+                if (!isFinite(m[k])) continue;
+                any = true;
+                const x = (k % GRID) / GRID, y = ((k / GRID) | 0) / GRID;
+                if (x < a) a = x; if (x > c) c = x; if (y < b) b = y; if (y > d) d = y;
+            }
+            return any ? [+a.toFixed(3), +b.toFixed(3), +c.toFixed(3), +d.toFixed(3)] : null;
+        };
 
         const measure = (label) => {
-            const heroPts = projGroup(Scene3D.heroG);
-            const mountPts = Scene3D.mountGroup ? projGroup(Scene3D.mountGroup) : [];
-            const occ = depthMap(heroPts.concat(mountPts));
+            // 영웅+탈것만의 깊이맵(항목의 공식 합격 기준)
+            const riderGrid = newGrid();
+            rasterGroup(Scene3D.heroG, riderGrid);
+            if (Scene3D.mountGroup) rasterGroup(Scene3D.mountGroup, riderGrid);
+            const occ = dilate(riderGrid);
             // 항목의 합격 기준은 '영웅·탈것에 의한 가림'이지만, 실제로 "안 보인다"는 데는
             // 전경 소품(나무·바위)도 기여한다 — 원인을 분리해서 같이 계측한다.
             // 지면/하늘은 펫보다 항상 뒤이거나 아래이므로 깊이 비교에서 자연히 걸러진다.
             const petSet = new Set(Scene3D.petGroups);
-            const propPts = [];
+            const allGrid = riderGrid.slice();
+            const heroX = Scene3D.heroG ? Scene3D.heroG.position.x : 0;
             for (const child of Scene3D.scene.children) {
                 if (child === Scene3D.heroG || child === Scene3D.mountGroup || petSet.has(child)) continue;
                 if (child.isLight || child.isCamera) continue;
-                propPts.push(...projGroup(child));
+                // 파티에서 월드 x로 멀리 떨어진 소품은 펫을 가릴 수 없다 — 스윕 비용을 줄인다.
+                // (지면 타일처럼 넓게 퍼진 오브젝트는 인스턴스 단위로 rasterGroup 안에서 다시 걸러진다)
+                if (!child.isInstancedMesh && child.children.length === 0 && Math.abs(child.position.x - heroX) > 6) continue;
+                rasterGroup(child, allGrid);
             }
-            const occAll = depthMap(heroPts.concat(mountPts, propPts));
+            const occAll = dilate(allGrid);
             const rows = [];
             Scene3D.petGroups.forEach((pg, i) => {
-                const pts = projGroup(pg);
-                if (!pts.length) { rows.push({ i, name: pg.userData.name, cells: 0, occludedPct: 100, allPct: 100, note: 'off-screen' }); return; }
-                const pd = depthMap(pts);
+                const pd = dilate(rasterGroup(pg, newGrid()));
                 let cells = 0, hidden = 0, hiddenAll = 0;
                 let minX = 1, maxX = 0, minY = 1, maxY = 0;
                 for (let k = 0; k < pd.length; k++) {
                     if (!isFinite(pd[k])) continue;
                     cells++;
-                    const x = (k % GRID) / GRID, y = Math.floor(k / GRID) / GRID;
+                    const x = (k % GRID) / GRID, y = ((k / GRID) | 0) / GRID;
                     if (x < minX) minX = x; if (x > maxX) maxX = x;
                     if (y < minY) minY = y; if (y > maxY) maxY = y;
                     if (isFinite(occ[k]) && occ[k] < pd[k] - 0.01) hidden++;
                     if (isFinite(occAll[k]) && occAll[k] < pd[k] - 0.01) hiddenAll++;
                 }
+                if (!cells) { rows.push({ i, name: pg.userData.name, cells: 0, occludedPct: 100, allPct: 100, areaPct: 0, box: null, note: 'off-screen' }); return; }
                 rows.push({
                     i, name: pg.userData.name,
                     cells, occludedPct: +(hidden / cells * 100).toFixed(1),
@@ -151,13 +178,7 @@ const spotsArg = (() => {
             });
             // 영웅·탈것의 화면 박스 — 펫이 '가려지지는 않았지만 실루엣이 맞닿아 융합'하는 경우를
             // 잡으려면 겹침%만으로는 부족하다(비평가 지적: 초록 거북 ↔ 초록 탈것 명암비 1.14:1).
-            const boxOf = (pts) => {
-                if (!pts.length) return null;
-                let a = 1, b = 1, c = 0, d = 0;
-                for (const p of pts) { if (p.x < a) a = p.x; if (p.x > c) c = p.x; if (p.y < b) b = p.y; if (p.y > d) d = p.y; }
-                return [+a.toFixed(3), +b.toFixed(3), +c.toFixed(3), +d.toFixed(3)];
-            };
-            const rider = boxOf(heroPts.concat(mountPts));
+            const rider = boxOfGrid(riderGrid);
             // 펫 박스와 영웅·탈것 박스가 화면에서 겹치는 면적 비율(펫 박스 기준)
             for (const r of rows) {
                 if (!rider || !r.box) { r.touch = 0; continue; }
@@ -169,7 +190,32 @@ const spotsArg = (() => {
             return { label, pets: rows, rider, spots: Scene3D.petGroups.map(p => [+(p.userData.spotX).toFixed(2), +p.position.z.toFixed(2)]) };
         };
 
-        const results = [];
+        // ── 캘리브레이션: 일부러 가리는 자리로 옮겨 측정기가 실제로 검출하는지 ──
+        // (전부 0%를 뱉는 고장난 측정기를 통과로 오독하지 않기 위한 안전장치)
+        const calib = [];
+        setMount(null); setPets(1); step(0.5);
+        {
+            const pg = Scene3D.petGroups[0];
+            const orig = pg.position.clone();
+            // 임계값은 '확실히 검출한다'만 보장하는 느슨한 값으로 둔다 — 절대치는 버텍스 샘플 밀도
+            // (stride)에 따라 흔들린다(같은 자리가 구현 변경 전 41%, 후 34%로 나왔다). 실제 배치가
+            // 0~5%인 것과 확실히 구분되면 목적을 달성한다. 정확한 수치 재현이 목적이 아니다.
+            for (const [label, x, z, min] of [
+                ['영웅 뒤 z=-0.65', orig.x, -0.65, 25],
+                ['영웅 정후방', Scene3D.heroG.position.x, -1.0, 90],
+            ]) {
+                pg.position.set(x, 0.4, z);
+                if (pg.userData.home) pg.userData.home.copy(pg.position);
+                pg.updateWorldMatrix(true, true);
+                const got = measure('calib').pets[0].occludedPct;
+                calib.push({ label, got, min, ok: got >= min });
+            }
+            pg.position.copy(orig);
+            if (pg.userData.home) pg.userData.home.copy(orig);
+            pg.updateWorldMatrix(true, true);
+        }
+
+        const results = [{ label: '__calib__', calib }];
         setMount(null); setPets(1); step(0.9); results.push(measure('pets-1'));
         setPets(3); step(0.9); results.push(measure('pets-3'));
         setMount('Brown Horse'); step(0.9); results.push(measure('pets-3+quad'));
@@ -183,9 +229,11 @@ const spotsArg = (() => {
         //    주기 한 바퀴(26 유닛)를 걸으면서 최악 가림을 찾는다. worldX += 1.7*dt → 26유닛 ≈ 15.3초.
         const sweep = [];
         setMount(null); setPets(3); Scene3D.walking = true;
+        // 소품 주기는 26이지만 지면 타일·잔풀 주기는 30이다(heightAt의 x주기 30) — 둘 다 덮으려면
+        // 31유닛 이상 걸어야 한다. 26.5로 끊으면 잔풀 배치의 12%를 못 본다.
         const startX = Scene3D.worldX;
-        while (Scene3D.worldX - startX < 26.5) {
-            step(0.3); // ≈0.5 유닛 전진마다 표본
+        while (Scene3D.worldX - startX < 31.5) {
+            step(0.45); // ≈0.75 유닛 전진마다 표본
             const m = measure('sweep');
             for (const p of m.pets) sweep.push({ w: +(Scene3D.worldX - startX).toFixed(1), i: p.i, name: p.name, hero: p.occludedPct, all: p.allPct });
         }
@@ -194,9 +242,18 @@ const spotsArg = (() => {
         return results;
     }, spotsArg);
 
+    let calibBad = 0;
     for (const r of out) {
+        if (r.label === '__calib__') {
+            console.log('===== 캘리브레이션 자기검증(측정기가 실제로 가림을 잡는가) =====');
+            for (const c of r.calib) {
+                if (!c.ok) calibBad++;
+                console.log(`  ${c.ok ? '✅' : '❌'} ${c.label}: 가림 ${c.got}% (기대 >=${c.min}%)`);
+            }
+            continue;
+        }
         if (r.label === '__sweep__') {
-            console.log('\n===== 행군 스윕(소품 주기 26유닛 한 바퀴) — 펫별 최악 가림 =====');
+            console.log('\n===== 행군 스윕(소품 주기 26 + 지면·잔풀 주기 30 한 바퀴) — 펫별 최악 가림 =====');
             const byPet = new Map();
             for (const s of r.sweep) {
                 const cur = byPet.get(s.i);
@@ -220,8 +277,17 @@ const spotsArg = (() => {
             console.log(`  ${flag} pet${p.i} ${String(p.name).padEnd(10)} 영웅·탈것가림 ${String(p.occludedPct).padStart(5)}%  ${pflag}소품가림 ${String(propOnly).padStart(5)}%  ${tflag}실루엣접촉 ${String(p.touch).padStart(5)}%  box=${JSON.stringify(p.box)}`);
         }
     }
-    const worst = Math.max(...out.flatMap(r => r.label === '__sweep__' ? r.sweep.map(s => s.all) : r.pets.map(p => p.allPct)));
+    // ⚠️ __calib__ 행은 pets가 없다 — 필터를 빼면 여기서 TypeError로 죽어 아래 PASS/FAIL 판정과
+    //    콘솔 에러 리포트가 아예 출력되지 않고 종료코드가 항상 1이 된다(실제로 한 번 그랬다).
+    const worst = Math.max(...out
+        .filter(r => r.sweep || r.pets)
+        .flatMap(r => r.sweep ? r.sweep.map(s => s.all) : r.pets.map(p => p.allPct)));
     console.log(`\n최대 가림 = ${worst}%  → ${worst <= 12 ? 'PASS(<=12%)' : 'FAIL'}`);
     console.log(errors.length ? errors.join('\n') : '(no console errors)');
     await browser.close();
+    if (calibBad) {
+        console.log(`\n❌ 캘리브레이션 ${calibBad}건 실패 — 측정기가 가림을 검출하지 못하므로 위 수치는 신뢰할 수 없다.`);
+        process.exit(2);
+    }
+    process.exit(worst <= 12 ? 0 : 1);
 })();
