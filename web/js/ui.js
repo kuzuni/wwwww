@@ -1860,7 +1860,6 @@ const UI = {
 
     showCraftModal(item) {
         const cur = S.equipment[item.slot];
-        const isMatch = Forge.isMatchingGear(item, cur);
         // 아래 카드가 '방금 뽑은 것'인지 '[장착]에 밀려 내려온 옛 장비'인지로 리본이 갈린다.
         // 표식(_swapped)은 대기품에 얹혀 세이브까지 따라가므로 새로고침 복원(restorePendingCraft)·
         // 보류 카드 재개봉(onOpenHeld)에서도 라벨이 '새로운!'으로 되돌아가지 않는다.
@@ -2006,32 +2005,30 @@ const UI = {
         el.classList.add('play');
     },
 
-    // ---- 고등급 판매 경고 (사용자 지시 2026-08-17, 재확인 2026-08-17) ----
-    // 비교 기준은 **오직 등급(RARITIES 인덱스)** 이다 — 시대(원시/중세…)·레벨·전투력 차이는 전부 무시.
-    // 파는 장비의 등급이 그 부위에 남을 장비보다 **strictly 높을 때만** 물어본다.
-    //   같은 등급이면 무경고(원시 일반↔천상 일반처럼 시대·레벨이 달라도 등급만 같으면 안 뜬다), 낮아도 무경고.
+    // ---- 상위 시대 장비 판매 경고 (사용자 지시 2026-08-17, 축 정정 2026-08-18) ----
+    // 비교 기준은 **오직 시대(AGES 인덱스)** 다 — 레벨·서브스탯 차이는 무시한다.
+    // 파는 장비의 시대가 그 부위에 남을 장비보다 **strictly 뒤(높은 인덱스)일 때만** 물어본다.
+    //   같은 시대면 무경고(레벨이 아무리 달라도), 앞선 시대(더 옛날)면 무경고.
     //   [판매] → 새 장비가 팔리고 장착 중인 것이 남는다
     //   [장착] → 새 것을 끼고 **기존 장비는 그냥 사라진다**(판매 아님) — 파는 게 없으니 경고도 없다
-    // 빈 부위는 **비교할 등급 자체가 없으므로 경고하지 않는다**(사용자 재확인 — 빈 부위마다 매번
-    // 물어보면 잔소리가 된다. 전에는 -1로 쳐서 항상 물어봤다).
+    // 빈 부위는 비교 대상이 없으므로 경고하지 않는다.
     // 자동 제련(main.js)의 자동 판매는 사용자가 건 필터가 이미 걸러낸 결과라 경고 대상이 아니다.
     //
-    // ⚠️ '같은 등급인데도 경고가 뜬다'(사용자 재지적 2026-08-18)의 정체 — **판정이 아니라 표시**였다.
-    // 실게임 60회 제작 재현(`tools/probe-sell-warning-repro.js`): 등급 오판정 0건·팝업이 보여준
-    // 장착품과 경고가 비교한 장비가 어긋난 케이스 0건. 대신 **경고 17건 전부가 화면에 등급 단서가
-    // 하나도 없는 상태에서 떴다** — 비교 팝업의 카드는 `[시대] 이름`과 스탯만 쓰고 이름색·테두리색이
-    // 양쪽 다 잉크색(rgb(23,24,26))이라, 희귀한 반지를 팔면서 일반 반지를 남기는 순간에도 두 카드가
-    // 똑같아 보인다. 게다가 장비는 **등급을 어디에서도 표시하지 않는 유일한 카테고리**다(펫·탈것·스킬
-    // 세부정보는 전부 `[등급] 이름`으로 띄운다). 그래서 사용자 눈에는 '같은 등급인데 경고'가 된다.
-    // → 판정은 그대로 두고, 경고 팝업이 **파는 것과 남는 것의 등급을 나란히** 보여주게 고쳤다.
-    rarityRank(item) { return item ? RARITIES.indexOf(item.rarity) : -1; },
+    // ⚠️ **왜 rarity가 아니라 시대인가 (사용자 확정 2026-08-18: "장비는 서사시·일반 이런류 등급 안 쓰는 거다")**
+    // 예전 판정은 `RARITIES` 인덱스(일반<희귀한<서사시…)를 썼다. 그런데 장비는 게임 어디에서도 그 축을
+    // 표시하지 않는다 — 화면에 보이는 등급은 `[중세]`·`[근세]` 같은 **시대**뿐이다. 그래서 중세 장비를
+    // 팔면서 근세 장비를 남기는 상황(= 파는 쪽이 한 시대 아래)에 "서사시 > 일반, 2단계 높은 등급"이라는
+    // 경고가 떴고, 같은 팝업이 바로 위에서 그 장비에 ▼(더 약함)를 찍어 둔 상태였다. 축을 시대로 바꾸면
+    // 경고 문구·칩·비교 카드가 전부 같은 어휘를 쓴다.
+    // (`item.rarity` 필드 자체가 폐기됐다 — forge.js `rollItem` 메모 참조.)
+    ageRank(item) { return item ? AGES.indexOf(item.age) : -1; },
     sellWarning(mode) {
         if (mode === 'equip') return null; // 장착은 아무것도 팔지 않는다
         const item = this._pendingItem;
         if (!item) return null;
         const kept = S.equipment[item.slot];
         if (!kept) return null; // 빈 부위 — 비교 대상이 없다
-        if (this.rarityRank(item) <= this.rarityRank(kept)) return null;
+        if (this.ageRank(item) <= this.ageRank(kept)) return null;
         return { sold: item, kept };
     },
     resolveCraft(mode) {
@@ -2039,21 +2036,30 @@ const UI = {
         if (warn) { this._pendingCraftMode = mode; this.showSellConfirm(warn); return; }
         this.doResolveCraft(mode);
     },
-    // kept는 항상 있다 — sellWarning이 '남을 장비보다 등급이 높을 때'만 이걸 부르기 때문
+    // kept는 항상 있다 — sellWarning이 '남을 장비보다 시대가 뒤일 때'만 이걸 부르기 때문
     //
-    // 이 팝업은 **왜 경고가 떴는지를 그 자리에서 증명하는 화면**이다(사용자 재지적 2026-08-18).
-    // 전에는 파는 것만 등급색으로 쓰고 남는 것은 "장착 중인 일반 반지보다 높은 등급입니다"라는
-    // 문장 안에 묻어 뒀는데, 한국어에서 '일반'은 등급명이면서 동시에 '평범한'이라는 보통명사라
-    // 그 문장이 등급 비교로 읽히지 않았다. 이제 **파는 것 / 남는 것을 같은 형식의 등급 칩으로
-    // 나란히** 놓고 몇 단계 차이인지까지 적는다 — 양쪽을 눈으로 견줄 수 있어야 '같은 등급인데
-    // 왜 뜨냐'가 성립하지 않는다.
-    rarityChip(rarity) {
-        return `<span class="swc-rank" style="${this.chipVars(rarity)}">${RARITY_KR[rarity]}</span>`;
+    // 이 팝업은 **왜 경고가 떴는지를 그 자리에서 증명하는 화면**이다. 파는 것 / 남는 것을 같은 형식의
+    // **시대 칩**으로 나란히 놓고 몇 시대 차이인지 적는다. 시대만으로는 "그런데 실제로는 이게 더 약한데?"가
+    // 남으므로(레벨이 낮은 후기 시대 장비) **양쪽 주스탯과 ▲▼를 함께** 찍어 비교 팝업과 같은 정보를 준다 —
+    // 두 지표가 어긋나는 순간을 사용자가 화면에서 바로 볼 수 있어야 한다.
+    ageChipVars(age) {
+        const hex = '#' + ((AGE_COLORS[age] || 0xcccccc) >>> 0).toString(16).padStart(6, '0');
+        const p = this.chipFill(hex);
+        return `--cb:${p.bg};--cf:${p.fg}`;
+    },
+    ageChip(age) {
+        return `<span class="swc-rank" style="${this.ageChipVars(age)}">${AGE_KR[age]}</span>`;
+    },
+    // 주스탯 한 줄 — 비교 팝업 카드와 같은 표기(값 + 피해/체력 + ▲▼)
+    statLine(it, other) {
+        const v = Forge.itemValue(it), o = Forge.itemValue(other);
+        const arrow = v.gt(o) ? '<span class="arrow up">▲</span>' : v.lt(o) ? '<span class="arrow down">▼</span>' : '';
+        return `<span class="swc-stat">${U.fmt(v)} ${it.main === 'atk' ? '피해' : '체력'}${arrow}</span>`;
     },
     // 카드에 적힌 것과 같은 표기(`[시대] 이름`)로 써야 방금 본 카드와 짝이 맞는다
     itemLabel(it) { return `[${AGE_KR[it.age]}] ${it.name}`; },
     showSellConfirm({ sold, kept }) {
-        const gap = this.rarityRank(sold) - this.rarityRank(kept);
+        const gap = this.ageRank(sold) - this.ageRank(kept);
         this.els.detailModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper sellwarn-card">
@@ -2061,17 +2067,19 @@ const UI = {
                     <div class="sellwarn-cmp">
                         <div class="swc-col">
                             <span class="swc-tag sell">파는 것</span>
-                            ${this.rarityChip(sold.rarity)}
+                            ${this.ageChip(sold.age)}
                             <span class="swc-name">${this.itemLabel(sold)}</span>
+                            ${this.statLine(sold, kept)}
                         </div>
                         <span class="swc-gt">&gt;</span>
                         <div class="swc-col">
                             <span class="swc-tag">남는 것</span>
-                            ${this.rarityChip(kept.rarity)}
+                            ${this.ageChip(kept.age)}
                             <span class="swc-name">${this.itemLabel(kept)}</span>
+                            ${this.statLine(kept, sold)}
                         </div>
                     </div>
-                    <p class="sellwarn-note">파는 쪽이 <b>${gap}단계</b> 높은 등급입니다.<br>등급이 같거나 낮으면 이 창은 뜨지 않습니다.</p>
+                    <p class="sellwarn-note">파는 쪽이 <b>${gap}시대</b> 뒤의 장비입니다.<br>같은 시대이거나 더 앞선 시대면 이 창은 뜨지 않습니다.</p>
                     <div class="row">
                         <button class="btn sell" onclick="UI.onSellConfirm()">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(sold))}</small></button>
                         <button class="btn" onclick="UI.onSellCancel()">취소</button>

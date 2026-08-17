@@ -1,22 +1,24 @@
-// 판매 경고 규칙 검증 (사용자 재확인 2026-08-17): 비교 기준은 **오직 등급 인덱스**다.
-//  ① 같은 등급 → 무경고 (시대·레벨·전투력이 아무리 달라도)
-//  ② 파는 쪽 등급이 더 높을 때만 경고
-//  ③ 더 낮으면 무경고  ④ 빈 부위는 비교 대상이 없으니 무경고
+// 판매 경고 규칙 검증 (축 정정 2026-08-18): 비교 기준은 **오직 시대 인덱스(AGES)** 다.
+// 장비는 일반/서사시 같은 등급 축을 쓰지 않는다 — 화면에 보이는 등급이 곧 시대다(사용자 확정).
+//  ① 같은 시대 → 무경고 (레벨·전투력이 아무리 달라도)
+//  ② 파는 쪽 시대가 더 뒤일 때만 경고
+//  ③ 더 앞선(옛) 시대면 무경고  ④ 빈 부위는 비교 대상이 없으니 무경고
 //  ⑤ [장착]은 파는 게 없으므로 언제나 무경고
 // 경고 없이 바로 팔리는지는 '팝업이 떴는가 + 코인이 늘었는가'로 함께 본다.
 // 사용: node probe-sell-warning.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
-// [팔 장비 등급, 장착 중 등급, 경고 기대] — 시대/레벨은 일부러 어긋나게 준다
+// [팔 장비 시대, 장착 중 시대, 경고 기대] — 레벨은 아래에서 일부러 반대로 준다
+// (파는 쪽 1레벨 / 남는 쪽 90레벨 → 레벨이 판정에 섞이면 결과가 뒤집힌다)
 const CASES = [
-    ['common', 'common', false, '같은 등급(일반↔일반)'],
-    ['mythic', 'mythic', false, '같은 등급(신화↔신화, 시대·레벨 다름)'],
-    ['epic', 'epic', false, '같은 등급(영웅↔영웅)'],
-    ['rare', 'common', true, '한 단계 높음(희귀>일반)'],
-    ['mythic', 'common', true, '많이 높음(신화>일반)'],
-    ['common', 'mythic', false, '낮음(일반<신화)'],
-    ['epic', 'legendary', false, '낮음(영웅<전설)'],
+    ['primitive', 'primitive', false, '같은 시대(원시↔원시)'],
+    ['divine', 'divine', false, '같은 시대(천상↔천상, 레벨 다름)'],
+    ['medieval', 'medieval', false, '같은 시대(중세↔중세)'],
+    ['medieval', 'primitive', true, '한 시대 뒤(중세>원시)'],
+    ['divine', 'primitive', true, '많이 뒤(천상>원시)'],
+    ['primitive', 'divine', false, '앞선 시대(원시<천상)'],
+    ['medieval', 'earlyModern', false, '앞선 시대(중세<근세) — 사용자 스크린샷 케이스'],
 ];
 
 (async () => {
@@ -39,13 +41,14 @@ const CASES = [
         S.hammers = 1e6; S.forgeLevel = 30;
     });
 
-    for (const [sellR, keepR, expect, label] of CASES) {
-        const r = await page.evaluate(({ sellR, keepR }) => {
+    for (const [sellAge, keepAge, expect, label] of CASES) {
+        const r = await page.evaluate(({ sellAge, keepAge }) => {
             UI.closeDetail();
-            // 장착품: 낮은 시대·높은 레벨 / 파는 것: 높은 시대·낮은 레벨 — 등급 외 축을 일부러 어긋냄
-            const cur = Forge.rollItem(); cur.slot = 'weapon'; cur.rarity = keepR; cur.age = AGES[0]; cur.level = 90;
+            const setAge = (it, age) => { it.age = age; it.ageIdx = AGES.indexOf(age); };
+            // 장착품은 90레벨, 파는 것은 1레벨 — 레벨이 판정에 섞이면 기대값이 어긋난다
+            const cur = Forge.rollItem(); cur.slot = 'weapon'; setAge(cur, keepAge); cur.level = 90;
             S.equipment.weapon = cur;
-            const it = Forge.rollItem(); it.slot = 'weapon'; it.rarity = sellR; it.age = AGES[AGES.length - 1]; it.level = 1;
+            const it = Forge.rollItem(); it.slot = 'weapon'; setAge(it, sellAge); it.level = 1;
             const coins0 = S.coins;
             UI.setPendingCraft(it); UI.showCraftModal(it);
             UI.resolveCraft('sell');
@@ -54,7 +57,7 @@ const CASES = [
             if (warned) UI.onSellCancel();
             UI.clearPendingCraft(); UI.els.craftModal.classList.add('hidden');
             return { warned, coinDelta: S.coins - coins0, text };
-        }, { sellR, keepR });
+        }, { sellAge, keepAge });
         ok(r.warned === expect, `${label}: 경고 ${r.warned ? '떴다' : '안 떴다'} (기대 ${expect ? '뜸' : '안 뜸'})`);
         // 경고가 안 떠야 하는 경우는 그 자리에서 바로 팔려야 한다(그냥 무시되면 안 됨)
         if (!expect) ok(r.coinDelta > 0, `${label}: 경고 없이 판매가 이뤄지지 않음 (코인 +${r.coinDelta})`);
@@ -65,7 +68,7 @@ const CASES = [
     // ④ 빈 부위 — 무경고
     const empty = await page.evaluate(() => {
         UI.closeDetail(); S.equipment.weapon = null;
-        const it = Forge.rollItem(); it.slot = 'weapon'; it.rarity = 'mythic';
+        const it = Forge.rollItem(); it.slot = 'weapon'; it.age = AGES[AGES.length - 1]; it.ageIdx = AGES.length - 1;
         const coins0 = S.coins;
         UI.setPendingCraft(it); UI.showCraftModal(it); UI.resolveCraft('sell');
         const warned = !document.getElementById('detail-modal').classList.contains('hidden');
@@ -75,13 +78,13 @@ const CASES = [
     });
     ok(!empty.warned, '빈 부위인데 경고가 떴다');
     ok(empty.coinDelta > 0, '빈 부위에서 판매가 이뤄지지 않음');
-    console.log(`  경고X 빈 부위(신화 판매) → ${empty.warned ? '경고' : `즉시 판매 +${empty.coinDelta}`}`);
+    console.log(`  경고X 빈 부위(천상 판매) → ${empty.warned ? '경고' : `즉시 판매 +${empty.coinDelta}`}`);
 
     // ⑤ [장착]은 언제나 무경고 (파는 게 없다)
     const eq = await page.evaluate(() => {
         UI.closeDetail();
-        const cur = Forge.rollItem(); cur.slot = 'weapon'; cur.rarity = 'mythic'; S.equipment.weapon = cur;
-        const it = Forge.rollItem(); it.slot = 'weapon'; it.rarity = 'common';
+        const cur = Forge.rollItem(); cur.slot = 'weapon'; cur.age = AGES[0]; cur.ageIdx = 0; S.equipment.weapon = cur;
+        const it = Forge.rollItem(); it.slot = 'weapon'; it.age = AGES[AGES.length - 1]; it.ageIdx = AGES.length - 1;
         const coins0 = S.coins;
         UI.setPendingCraft(it); UI.showCraftModal(it); UI.resolveCraft('equip');
         const warned = !document.getElementById('detail-modal').classList.contains('hidden');
@@ -90,8 +93,8 @@ const CASES = [
         return { warned, coinDelta: S.coins - coins0, equippedNew: S.equipment.weapon === it };
     });
     ok(!eq.warned, '[장착]에 경고가 떴다 (파는 게 없는데)');
-    ok(eq.coinDelta === 0 && eq.equippedNew, '[장착]에서 신화 장비가 팔렸다 (그냥 사라져야 한다)');
-    console.log(`  경고X [장착](신화→일반 교체) → 경고 ${eq.warned} · 코인 +${eq.coinDelta} · 새 장비 장착 ${eq.equippedNew}`);
+    ok(eq.coinDelta === 0 && eq.equippedNew, '[장착]에서 옛 장비가 팔렸다 (그냥 사라져야 한다)');
+    console.log(`  경고X [장착](원시→천상 교체) → 경고 ${eq.warned} · 코인 +${eq.coinDelta} · 새 장비 장착 ${eq.equippedNew}`);
 
     console.log(`실패 ${fails.length}건 / 콘솔 에러 ${errs.length}건`);
     fails.forEach(f => console.log('  FAIL ' + f));

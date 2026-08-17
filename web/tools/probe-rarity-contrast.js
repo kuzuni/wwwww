@@ -66,14 +66,16 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
             UI.openMountDetail(mn);
             measure(`탈것 상세 ${RARITY_KR[r]}`, '.petd-name');
 
+        }
+        // 판매 경고 칩은 **시대 칩**이다 — 장비는 등급 축을 쓰지 않는다(사용자 확정 2026-08-18).
+        // 그래서 6등급이 아니라 10시대를 전부 잰다. 필 색은 AGE_COLORS, 전경은 chipFill이 고른다.
+        for (const age of AGES) {
             document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
-            const sold = Object.assign(Forge.rollItem(), { rarity: r, name: '테스트 장비' });
-            const kept = Object.assign(Forge.rollItem(), { rarity: 'common', slot: sold.slot });
+            const mkAge = it => Object.assign(it, { age, ageIdx: AGES.indexOf(age), name: '테스트 장비' });
+            const sold = mkAge(Forge.rollItem());
+            const kept = Object.assign(Forge.rollItem(), { age: AGES[0], ageIdx: 0, slot: sold.slot });
             UI.showSellConfirm({ sold, kept });
-            // 2026-08-18: 경고 창이 '파는 것 / 남는 것' 등급 칩 대조로 바뀌었다(`sell-warn-samerank`).
-            // 흰 글자를 흰 카드에 얹던 `.sellwarn-item`은 없어졌고, 이제 등급색 **필** 위의 전경색을 잰다
-            // (bgOf가 칩 자신의 배경을 먼저 집으므로 chipFill이 보장하는 그 대비가 그대로 측정된다).
-            measure(`판매 경고 ${RARITY_KR[r]}`, '.swc-rank');
+            measure(`판매 경고 ${AGE_KR[age]}`, '.swc-rank');
         }
         return out;
     });

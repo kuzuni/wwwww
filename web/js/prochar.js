@@ -1315,12 +1315,14 @@ const ProChar = {
         }
     },
 
-    // 장비 시대색 틴트 (tintHeroGlb 대체) — 흉갑/견갑/다리판 = 갑옷색, 문장 = 등급 발광
+    // 장비 시대색 틴트 (tintHeroGlb 대체) — 흉갑/견갑/다리판 = 갑옷색, 문장 = 시대 장식색 발광
+    // (등급 롤 폐기, 사용자 확정 2026-08-18: 장비의 등급 축은 시대뿐 — RARITY_* 참조 금지)
     tint(R, equipment) {
         const a = equipment.armor;
-        const aIdx = a ? RARITIES.indexOf(a.rarity) : 0;
+        const aIdx = a ? gearOrnateTier(AGES.indexOf(a.age)) : 0;
         const color = a ? AGE_COLORS[a.age] : 0xb8c4cf;
-        const glow = a && aIdx >= 4 ? RARITY_HEX[a.rarity] : 0x000000;
+        const acc = a ? (AGE_ACCENT[a.age] || 0xffd54f) : 0x78909c;
+        const glow = a && aIdx >= 4 ? acc : 0x000000;
         for (const m of R.armorMats) {
             const isDark = m.userData && m.userData.dark;
             if (a) {
@@ -1336,12 +1338,12 @@ const ProChar = {
             m.emissiveIntensity = aIdx >= 4 ? 0.16 : 0;
         }
         if (R.emblemMat) {
-            R.emblemMat.color.setHex(a ? RARITY_HEX[a.rarity] : 0x78909c);
-            R.emblemMat.emissive.setHex(a && aIdx >= 2 ? RARITY_HEX[a.rarity] : 0x000000);
+            R.emblemMat.color.setHex(acc);
+            R.emblemMat.emissive.setHex(a && aIdx >= 2 ? acc : 0x000000);
             R.emblemMat.emissiveIntensity = 0.35;
         }
         if (R.shieldFaceMat) { // 방패 문장 필드 — 갑옷 등급색으로 어둡게 (문장 배경 느낌)
-            if (a) R.shieldFaceMat.color.setHex(RARITY_HEX[a.rarity]).offsetHSL(0, -0.08, -0.14);
+            if (a) R.shieldFaceMat.color.setHex(acc).offsetHSL(0, -0.08, -0.14);
             else R.shieldFaceMat.color.setHex(0x3f5a74);
         }
         // 헬멧 착용 시 머리카락 숨김 (기존 helmetG 시스템이 머리에 붙음)

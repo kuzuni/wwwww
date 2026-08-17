@@ -1860,7 +1860,8 @@ const Scene3D = {
 
     // 무기 모델 — 지오메트리 계열(shape) × 재질 계열(mat)의 조합.
     // 같은 계열이라도 시대 재질이 다르면 완전히 다른 무기로 읽힌다 (돌도끼 vs 전투도끼).
-    makeWeapon(wtypeId, ageIdx, rarity) {
+    // rarity 인자 폐기 (장비 등급 롤 제거, 사용자 확정 2026-08-18) — 장식 단계·색은 시대에서 나온다
+    makeWeapon(wtypeId, ageIdx) {
         const g = new THREE.Group();
         const c = AGE_COLORS[AGES[ageIdx]];
         const glow = ageIdx >= 4;
@@ -2211,31 +2212,32 @@ const Scene3D = {
             g.add(ring);
             mat.emissiveIntensity = 0.7;
         }
-        // 등급 연출: 높을수록 화려하게
-        const rIdx = RARITIES.indexOf(rarity);
-        if (rIdx >= 1) { // 희귀+: 등급색 젬 — 파지점(y≈0) 위 리카소에 거치, 주먹과 겹쳐 '손에 붙은 발광구'로 읽히던 위치 상향 (비평가: 근접샷 주먹 가림)
+        // 장식 연출: **시대가 오를수록** 화려하게 (예전엔 숨은 등급 롤이 이 단계를 정했다)
+        const rIdx = gearOrnateTier(ageIdx);
+        const acc = AGE_ACCENT[AGES[ageIdx]] || 0xffd54f;
+        if (rIdx >= 1) { // 장식색 젬 — 파지점(y≈0) 위 리카소에 거치, 주먹과 겹쳐 '손에 붙은 발광구'로 읽히던 위치 상향 (비평가: 근접샷 주먹 가림)
             const gem = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6),
-                new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 0.9 }));
+                new THREE.MeshLambertMaterial({ color: acc, emissive: acc, emissiveIntensity: 0.9 }));
             gem.position.set(0, 0.105, 0.045);
             g.add(gem);
         }
-        if (rIdx >= 2) { // 영웅+: 등급색 트림 링 — 젬 상향에 맞춰 간격 유지
+        if (rIdx >= 2) { // 장식색 트림 링 — 젬 상향에 맞춰 간격 유지
             const trim = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10),
-                new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 0.7 }));
+                new THREE.MeshLambertMaterial({ color: acc, emissive: acc, emissiveIntensity: 0.7 }));
             trim.position.y = 0.19;
             g.add(trim);
         }
-        if (rIdx >= 3) { // 전설+: 떠다니는 오브 — 무기 길이에 비례한 높이 (단검·투척에서 머리 옆 부유 금지)
-            const orbCount = rIdx - 2; // 전설1, 궁극2, 신화3
+        if (rIdx >= 3) { // 후기 시대: 떠다니는 오브 — 무기 길이에 비례한 높이 (단검·투척에서 머리 옆 부유 금지)
+            const orbCount = rIdx - 2; // 시대 단계 3/4/5에서 1·2·3개
             const orbBase = Math.min(0.45, new THREE.Box3().setFromObject(g).max.y * 0.5);
             for (let i = 0; i < orbCount; i++) {
                 const orb = new THREE.Mesh(new THREE.SphereGeometry(0.035, 7, 6),
-                    new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 1 }));
+                    new THREE.MeshLambertMaterial({ color: acc, emissive: acc, emissiveIntensity: 1 }));
                 orb.position.set(Math.cos(i * 2.1) * 0.16, orbBase + i * 0.14, Math.sin(i * 2.1) * 0.12);
                 g.add(orb);
             }
         }
-        // 시대·등급 성장 스케일 — 기존 0.05/0.05는 후기 시대에서 무기가 캐릭터 신장을 넘겨 개그가 됨 (비평가 지적)
+        // 시대 성장 스케일 — 기존 0.05/0.05는 후기 시대에서 무기가 캐릭터 신장을 넘겨 개그가 됨 (비평가 지적)
         g.scale.setScalar((1 + ageIdx * 0.02) * (1 + Math.max(0, rIdx - 2) * 0.03));
         // 장병기 그립 보정: 원점(손)이 자루 하단이 아니라 실제 파지 지점에 오도록 전체를 내림
         const gripDrop = { staff: 0.3, spear: 0.38, scythe: 0.34, rapier: 0.05 }[shape];
@@ -2322,7 +2324,7 @@ const Scene3D = {
         this.clearGroup(this.weaponG);
         const w = S.equipment.weapon;
         this.wtypeId = w ? (w.wtype || 'sword') : 'club';
-        this.weaponG.add(this.makeWeapon(this.wtypeId, w ? w.ageIdx : 0, w && w.rarity));
+        this.weaponG.add(this.makeWeapon(this.wtypeId, w ? w.ageIdx : 0));
         // (구형 파지 랩 토러스 제거 — applyWeaponGrip의 makeGripWrap C자 랩과 중복이었고,
         //  무텍스처 베이지 램버트 도넛이 근접샷에서 '맨손 스텁'으로 오독됨, 비평가 7.4 4번)
         const wtDef = WEAPON_TYPES[this.wtypeId];
@@ -2334,18 +2336,19 @@ const Scene3D = {
         // 투구: 이름별 스타일 모델
         this.clearGroup(this.helmetG);
         const h = S.equipment.helmet;
-        if (h) this.helmetG.add(this.makeHelmet(h.age, h.rarity, itemStyleOf(h), itemNameOf(h)));
+        if (h) this.helmetG.add(this.makeHelmet(h.age, itemStyleOf(h), itemNameOf(h)));
         // 갑옷 → 색 + 이름별 스타일 (견갑/흉갑 유무, 부속 장착)
         const a = S.equipment.armor;
         const c = a ? AGE_COLORS[a.age] : 0xb0bec5;
-        const aIdx = a ? RARITIES.indexOf(a.rarity) : 0;
+        // 발광 문턱과 문장색은 **시대**에서 나온다 (등급 롤 폐기, 사용자 확정 2026-08-18)
+        const aIdx = a ? gearOrnateTier(AGES.indexOf(a.age)) : 0;
         for (const m of this.armorMats) {
             m.color.setHex(c);
-            // 궁극+ 갑옷은 은은한 등급색 발광
-            m.emissive = new THREE.Color(aIdx >= 4 ? RARITY_HEX[a.rarity] : 0x000000);
+            // 후기 시대 갑옷은 은은한 장식색 발광
+            m.emissive = new THREE.Color(aIdx >= 4 ? (AGE_ACCENT[a.age] || 0xffffff) : 0x000000);
             m.emissiveIntensity = aIdx >= 4 ? 0.18 : 0;
         }
-        const ec = a ? RARITY_HEX[a.rarity] : 0x78909c;
+        const ec = a ? (AGE_ACCENT[a.age] || 0xffd54f) : 0x78909c;
         this.emblemMat.color.setHex(ec);
         this.emblemMat.emissive = new THREE.Color(a ? ec : 0x000000);
         this.emblemMat.emissiveIntensity = a ? 0.6 : 0;
@@ -2592,10 +2595,10 @@ const Scene3D = {
     },
 
     // 투구: 이름별 스타일 11종
-    makeHelmet(age, rarity, style, name) {
+    makeHelmet(age, style, name) {
         const g = new THREE.Group();
         const c = AGE_COLORS[age];
-        const pc = RARITY_HEX[rarity] || 0xef5350; // 장식 = 등급색
+        const pc = AGE_ACCENT[age] || 0xef5350; // 장식 = 시대 장식색(등급 롤 폐기)
         // 시대색 직치환은 '고무 풍선'으로 읽힘(비평가) — 시대 재질 세트를 거쳐 PBR 분리 (갑옷 tint와 동일 원칙)
         const mats = this.ageGearMats(age, name);
         const mat = mats.body;
@@ -2841,7 +2844,7 @@ const Scene3D = {
         return g;
     },
 
-    makeArmorPreview(age, rarity, style, name) {
+    makeArmorPreview(age, style, name) {
         const g = new THREE.Group();
         const c = AGE_COLORS[age];
         const mats = this.ageGearMats(age, name);
@@ -2867,7 +2870,7 @@ const Scene3D = {
                 g.add(pad);
             }
         }
-        const extras = this.makeArmorExtras(style, c, RARITY_HEX[rarity] || 0xffffff, mats);
+        const extras = this.makeArmorExtras(style, c, AGE_ACCENT[age] || 0xffffff, mats);
         extras.position.y = -0.65; // 부속 좌표계를 프리뷰 몸통 기준으로 보정
         g.add(extras);
         // ⚠️ suit·vest 는 **프리뷰에서 서로 구분이 안 됐다** — 실측(probe-equip-dedupe)에서 남은
@@ -2901,9 +2904,9 @@ const Scene3D = {
     },
 
     // 장신구 프리뷰 3D 모델 (부위당 3종 변형)
-    makeAccessoryPreview(slot, variant, age, rarity, name) {
+    makeAccessoryPreview(slot, variant, age, name) {
         const g = new THREE.Group();
-        const rc = RARITY_HEX[rarity] || 0xffd54f;
+        const rc = AGE_ACCENT[age] || 0xffd54f;
         // 장신구도 시대 재질을 따른다 — 원시 '가죽끈 목걸이'가 매끈한 금속 링으로 나오던 문제
         const mats = this.ageGearMats(age, name);
         const mat = mats.body;
@@ -3103,7 +3106,7 @@ const Scene3D = {
     },
     itemThumb(item) {
         if (!item) return null;
-        const key = item.slot + ':' + (item.wtype || '') + ':' + item.age + ':' + item.rarity + ':' + (item.nameIdx !== undefined ? item.nameIdx : '');
+        const key = item.slot + ':' + (item.wtype || '') + ':' + item.age + ':' + (item.nameIdx !== undefined ? item.nameIdx : '');
         if (this._thumbCache[key]) return this._thumbCache[key];
         try {
             this.itemThumbInit();
@@ -3112,14 +3115,14 @@ const Scene3D = {
             sc.add(this._thumbAmb, this._thumbDir);
             let model;
             if (item.slot === 'weapon') {
-                model = this.makeWeapon(item.wtype || 'sword', item.ageIdx, item.rarity);
+                model = this.makeWeapon(item.wtype || 'sword', item.ageIdx);
             } else if (item.slot === 'helmet') {
-                model = this.makeHelmet(item.age, item.rarity, itemStyleOf(item), itemNameOf(item));
+                model = this.makeHelmet(item.age, itemStyleOf(item), itemNameOf(item));
             } else if (item.slot === 'armor') {
-                model = this.makeArmorPreview(item.age, item.rarity, itemStyleOf(item), itemNameOf(item));
+                model = this.makeArmorPreview(item.age, itemStyleOf(item), itemNameOf(item));
             } else {
                 // 장신구류: 부위당 3종 변형 프리뷰
-                model = this.makeAccessoryPreview(item.slot, Math.max(0, item.nameIdx || 0) % 3, item.age, item.rarity, itemNameOf(item));
+                model = this.makeAccessoryPreview(item.slot, Math.max(0, item.nameIdx || 0) % 3, item.age, itemNameOf(item));
             }
             // ⚠️ 부위별 고정 배율(투구1.5·갑옷1.3·장신구1.4)+고정 카메라를 쓰면 **형상**에 따라
             //    잘리거나 좁쌀만 하게 찍힌다 — 납작한 '수호의 후광'은 프레임 위쪽 실선 한 줄,
@@ -5053,7 +5056,7 @@ const Scene3D = {
                 mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(0.075, 0),
                     new THREE.MeshStandardMaterial({ color: 0x8d8a80, metalness: 0.02, roughness: 0.96, flatShading: true }));
             } else {
-                mesh = this.makeWeapon(this.wtypeId || 'thrown', wAge, w && w.rarity);
+                mesh = this.makeWeapon(this.wtypeId || 'thrown', wAge);
                 mesh.scale.setScalar(0.9);
             }
         }

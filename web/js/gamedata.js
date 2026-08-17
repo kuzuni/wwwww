@@ -30,6 +30,19 @@ const AGE_ICON = {
     interstellar: '🛸', multiverse: '🌀', quantum: '⚛️', underworld: '🔥', divine: '✨'
 };
 
+// 장비 장식색(문장·젬·트림·발광) — **시대색과 대비되는 보조색**이다.
+// 예전엔 등급색(RARITY_HEX)을 썼지만 장비는 등급 축을 쓰지 않는다(제약: 장비의 등급 = 시대,
+// 사용자 확정 2026-08-18). 시대색을 그대로 장식에 쓰면 갑옷 본체색과 같아져 장식이 사라지므로
+// 시대마다 **본체색의 반대쪽 색**을 하나씩 골라 둔다(원시 회백↔구리, 중세 하늘↔금, 근세 초록↔주황 …).
+const AGE_ACCENT = {
+    primitive: 0xc98b4b, medieval: 0xffc94d, earlyModern: 0xff7043, modern: 0x42a5f5,
+    space: 0x40e0d0, interstellar: 0xffd54f, multiverse: 0xff5aa8, quantum: 0x7cffb2,
+    underworld: 0xffab40, divine: 0xfff3b0
+};
+// 장비 장식 단계(0~5): 시대가 오를수록 화려해진다. 예전 등급 인덱스(0~5)가 하던 역할을
+// 시대 인덱스(0~9)에서 뽑아 쓴다 — 젬/트림/오브가 붙는 문턱이 등급이 아니라 시대가 된다.
+function gearOrnateTier(ageIdx) { return Math.min(5, Math.floor((ageIdx || 0) * 5 / 9)); }
+
 const RARITIES = ['common', 'rare', 'epic', 'legendary', 'ultimate', 'mythic'];
 // 등급 이름·색은 원본 소환 확률 팝업 표기 그대로 (회/파/초/노/빨/보)
 const RARITY_KR = { common: '일반', rare: '희귀한', epic: '서사시', legendary: '전설', ultimate: '궁극의', mythic: '신화' };

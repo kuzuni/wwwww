@@ -23,9 +23,9 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
             const b = mats.body;
             // 시대 디테일 개수 — 트림 재질을 쓰는 메시가 몇 개 붙었는지 센다
             const count = g => { let n = 0; g.traverse(o => { if (o.isMesh && o.userData.ageTrim) n++; }); return n; };
-            const helm = Scene3D.makeHelmet(age, 'common', 'visor');
-            const armor = Scene3D.makeArmorPreview(age, 'common', 'plate');
-            const acc = Scene3D.makeAccessoryPreview('belt', 0, age, 'common');
+            const helm = Scene3D.makeHelmet(age, 'visor');
+            const armor = Scene3D.makeArmorPreview(age, 'plate');
+            const acc = Scene3D.makeAccessoryPreview('belt', 0, age);
             let meshes = 0; armor.traverse(o => { if (o.isMesh) meshes++; });
             out.push({
                 age, kind,

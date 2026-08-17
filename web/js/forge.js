@@ -20,7 +20,7 @@ const Forge = {
     gearSumAtkAt(rarity, level = 1) { return this.ATK_SLOTS * this.tierBaseAtk(this.ageOfRarity(rarity)) * this.levelMult(level); },
     gearSumHpAt(rarity, level = 1) { return this.HP_SLOTS * this.tierBaseHp(this.ageOfRarity(rarity)) * this.levelMult(level); },
 
-    // 장비 1개의 최종 능력치 = 티어 기본치 × 레벨 배율 × 등급 배율 × 승천 배율.
+    // 장비 1개의 최종 능력치 = 티어 기본치 × 레벨 배율 × 승천 배율 (등급 배율 없음 — rollItem 메모 참조).
     // 승천 배율(Ascension.STAR_MULT^별)이 곱해지는 순간 Number 한계를 넘으므로 Big으로 계산한다.
     itemValue(item) {
         if (!item) return Big.ZERO;
@@ -71,13 +71,11 @@ const Forge = {
         this.ensureRollLevels();
     },
 
-    // 등급 가중치: 대장간 레벨에 따라 고등급 확률 상승 (자체 설계 — 원본 미공개)
-    rarityWeights(fl) {
-        return {
-            common: 60, rare: 22 + fl * 0.3, epic: 9 + fl * 0.35,
-            legendary: 3 + fl * 0.22, ultimate: 0.6 + fl * 0.1, mythic: 0.08 + fl * 0.04,
-        };
-    },
+    // ⚠️ 장비 등급 롤(`rarityWeights`)은 폐기됐다 (사용자 확정 2026-08-18 "ⓑ로 해라 롤 없애고").
+    //    장비의 등급 축은 시대(AGES)뿐이고, 예전엔 그 위에 **화면에 안 보이는** 등급을 하나 더
+    //    굴려 주스탯을 최대 6.5배(RARITY_MULT) 흔들었다 — 같은 시대·이름·레벨 장비 둘의 전력이
+    //    이유 없이 달라 보이던 원인. 이제 변동폭은 **시대·레벨·서브스탯 개수**만 만든다.
+    //    RARITY_* 상수는 펫·알·탈것·스킬 전용으로 남는다(장비에서 참조 금지 — TODO 제약 참조).
     // 시대별 확률표 (지정 레벨, 없으면 1레벨)
     ageProbsAt(level) { return forgeProbabilities[level] || forgeProbabilities[1]; },
 
@@ -95,13 +93,11 @@ const Forge = {
         return ageP * slotP * variantP * 100;
     },
 
-    // 아이템 롤: 시대(원본 확률표) + 등급 + 레벨 + 서브스탯
+    // 아이템 롤: 시대(원본 확률표) + 레벨 + 서브스탯 — **등급 롤 없음**(위 메모 참조)
     rollItem() {
         const probs = forgeProbabilities[S.forgeLevel] || forgeProbabilities[1];
         const age = U.weightedPick(probs);
         const ageIdx = AGES.indexOf(age);
-
-        const rarity = U.weightedPick(this.rarityWeights(S.forgeLevel));
 
         // 레벨: 그 시대의 현재 뽑기 레벨을 그대로 쓰고, 뽑은 뒤 랜덤워크로 다음 레벨을 굴린다.
         // (뽑기 전이 아니라 뽑은 뒤에 굴려야 그 시대의 첫 장비가 1레벨로 나온다 — 원본 규칙 ①)
@@ -110,12 +106,15 @@ const Forge = {
 
         const slot = U.choice(SLOTS);
         const lvMult = Math.pow(1.01, level - 1);
-        const rMult = RARITY_MULT[rarity];
         const main = SLOT_MAIN[slot];
-        const value = Math.floor((main === 'atk' ? this.tierBaseAtk(ageIdx) : this.tierBaseHp(ageIdx)) * lvMult * rMult);
+        // 주스탯 = 시대 티어 × 레벨 배율. 등급 배율이 빠지면서 **같은 시대·레벨·부위 장비의
+        // 주스탯은 항상 같다** — 차이는 서브스탯과 승천 별에서만 난다.
+        // 이 식은 펫·탈것 밸런스 기준축(gearSumAtkAt/gearSumHpAt)이 이미 쓰던 값과 정확히 일치한다
+        // (그 축엔 원래 등급 배율이 없었다 — 즉 이번 제거로 실제 장비가 기준축과 맞아떨어졌다).
+        const value = Math.floor((main === 'atk' ? this.tierBaseAtk(ageIdx) : this.tierBaseHp(ageIdx)) * lvMult);
 
-        // 서브스탯: 등급 순번+1개까지 랜덤
-        const numSubs = U.randInt(1, Math.min(4, RARITIES.indexOf(rarity) + 1));
+        // 서브스탯: 1~4개 랜덤 (예전엔 등급 순번+1이 상한이었다 — 등급이 사라지며 변동폭을 여기가 받는다)
+        const numSubs = U.randInt(1, 4);
         const subs = U.rollSubs(numSubs);
 
         // 무기: 그 시대에 실제로 존재한 무기 중에서만 랜덤 — 모델·모션 결정
@@ -142,7 +141,7 @@ const Forge = {
             }
         }
 
-        return { name, slot, age, ageIdx, rarity, level, main, value, subs, wtype, nameIdx, stars: Ascension.count('forge') };
+        return { name, slot, age, ageIdx, level, main, value, subs, wtype, nameIdx, stars: Ascension.count('forge') };
     },
 
     // 장비 비교용 종합 위력 (Big) — 승천 별이 붙으면 Number로는 표현이 안 돼 Big으로 반환한다.
@@ -153,16 +152,21 @@ const Forge = {
         return this.itemValue(item).mul(sub);
     },
 
-    // 장착 중인 장비와 슬롯·등급·이름이 같은지 (비교 팝업의 '같은 장비' 표기용)
+    // 장착 중인 장비와 슬롯·시대·이름이 같은지 (비교 팝업의 '같은 장비' 표기용)
+    // 등급 롤 폐기로 `a.rarity === b.rarity` 조건이 사라졌다 — 이제 같은 이름·같은 시대면 같은 장비다
+    // (이름은 시대 카탈로그에서 나오므로 시대까지 보면 동일 디자인이 보장된다).
     isMatchingGear(a, b) {
-        return !!a && !!b && a.slot === b.slot && a.rarity === b.rarity && a.name === b.name;
+        return !!a && !!b && a.slot === b.slot && a.age === b.age && a.name === b.name;
     },
     // 개별 장비 승천은 폐기 — 승천은 대장간 라인 단위(Ascension.ascend('forge'))로만 일어나고,
     // 제작되는 장비가 그 승천 횟수만큼 별을 달고 나온다 (사용자 확정 2026-08-17).
 
+    // 판매가 = **원본 공식 그대로** `20 × 1.01^(레벨-1) × (1 + 판매보너스%)` (BALANCE.md '대장간' 절).
+    // 우리 클론만 여기에 등급 배수(RARITY_MULT 1~6.5)를 얹고 있었는데, 원본에는 그런 축이 없다 —
+    // 원본도 장비를 시대 티어 10단계로만 구분한다(BALANCE.md '등급 체계'). 등급 롤을 없애면서
+    // 배수도 원본대로 되돌린다: 시대가 뒤일수록 뽑기 레벨이 높아 판매가는 레벨을 타고 자연히 오른다.
     sellPrice(item) {
-        // 원본 공식: 20 × 1.01^(레벨-1), 등급 배수 반영 + 기술트리 판매가 보너스
-        return Math.floor(20 * Math.pow(1.01, item.level - 1) * RARITY_MULT[item.rarity] * TechTree.sellPriceMult());
+        return Math.floor(20 * Math.pow(1.01, item.level - 1) * TechTree.sellPriceMult());
     },
 
     craft(count) {

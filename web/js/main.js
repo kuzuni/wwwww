@@ -87,8 +87,8 @@
             // 외형 검증: ?debug=gear&h=2&a=2 (이름 인덱스 지정 가능)
             const hi = parseInt(params.get('h') || '0'), ai = parseInt(params.get('a') || '0');
             const hAge = params.get('hage') || 'quantum', aAge = params.get('aage') || 'underworld';
-            const wAge = params.get('wage') || 'divine', rar = params.get('rar') || 'legendary'; // 검증샷용 — 발광 링·오브 없는 저시대·저등급 지정 가능
-            const mk = (slot, age, wtype, nameIdx) => ({ name: 'test', slot, age, ageIdx: AGES.indexOf(age), rarity: rar, level: 50, main: SLOT_MAIN[slot], value: 1000, subs: [], wtype, nameIdx });
+            const wAge = params.get('wage') || 'divine'; // 검증샷용 — 발광 링·오브는 시대로만 갈린다(등급 롤 폐기)
+            const mk = (slot, age, wtype, nameIdx) => ({ name: 'test', slot, age, ageIdx: AGES.indexOf(age), level: 50, main: SLOT_MAIN[slot], value: 1000, subs: [], wtype, nameIdx });
             Forge.equip(mk('weapon', wAge, params.get('w') || 'staff'));
             Forge.equip(mk('helmet', hAge, null, hi));
             Forge.equip(mk('armor', aAge, null, ai));

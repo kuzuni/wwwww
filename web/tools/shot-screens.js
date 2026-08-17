@@ -77,7 +77,6 @@ const SEED = () => {
     // rollItem은 등급에 따라 1~4줄을 랜덤으로 굴려서, 1줄짜리가 걸리면 카드가 줄당 약 2%H씩 짧게 찍혀
     // '카드 높이·위치가 원본과 다르다'는 가짜 불일치가 잡힌다 — 캡처용으로 전 부위를 2줄로 고정한다.
     for (const slot of Object.keys(S.equipment)) { const it = S.equipment[slot]; if (it) it.subs = U.rollSubs(2); }
-    if (S.equipment.weapon) S.equipment.weapon.rarity = 'mythic';
     // 스킬 — 소환 비용을 먼저 채워야 실제로 뽑힌다(티켓 160으론 30연차 960이 모자라 그리드가 비어버림)
     // 원본(042340)은 **15/18 보유(3줄 그리드)** 상태다. 소환을 굴려서는 등급 확률 때문에 아무리 많이
     // 돌려도 낮은 등급 4~6종에서 멈춰 그리드가 1줄로 찍힌다(30연차·360연차 모두 실측) — 캡처용으로 직접 세운다.

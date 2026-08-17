@@ -33,7 +33,7 @@ const REF_AVG = 80, TOL = 8, CHIP = 97;   // 원본 평균 80%(75~88) · ±8%p �
             // 가장 불리한 조건: 밝은 미래 시대 + 최고 등급 = 발광/금속 파츠
             for (const slot of SLOTS) {
                 const it = Forge.rollItem();
-                it.slot = slot; it.age = AGES[AGES.length - 1]; it.rarity = 'mythic'; it.level = 107; it.stars = 1;
+                it.slot = slot; it.age = AGES[AGES.length - 1]; it.ageIdx = AGES.length - 1; it.level = 107; it.stars = 1;
                 S.equipment[slot] = it;
             }
             Combat.recalcHero(); UI.renderEquipSheet();

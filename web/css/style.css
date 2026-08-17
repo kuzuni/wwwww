@@ -1188,7 +1188,8 @@ body {
 }
 .swc-tag { font-size: .68rem; font-weight: 800; color: var(--pp-muted); }
 .swc-tag.sell { color: var(--pp-red); }
-/* 등급 칩은 다른 화면(소환 결과·펫 재료)과 같은 규약 — 등급색 필 + 대비 4.5:1 전경 */
+/* 시대 칩 — 필 색은 시대색(AGE_COLORS), 전경은 대비 4.5:1로 자동 선택(chipFill).
+   장비는 등급(일반/서사시) 축을 쓰지 않으므로 이 자리도 시대다 (사용자 확정 2026-08-18). */
 .swc-rank {
     background: var(--cb); color: var(--cf); border-radius: .45rem;
     padding: .1rem .5rem; font-size: .78rem; font-weight: 900; white-space: nowrap;
@@ -1197,6 +1198,15 @@ body {
     font-size: .72rem; font-weight: 700; color: var(--pp-ink); text-align: center;
     line-height: 1.15; word-break: keep-all;
 }
+/* 주스탯 줄 — 시대가 뒤라고 늘 더 센 게 아니므로(레벨이 낮은 후기 시대 장비) 실전력을 함께 보여준다.
+   ▲▼는 비교 팝업 카드의 .arrow 규칙을 그대로 물려받는다. */
+.swc-stat {
+    font-size: .74rem; font-weight: 800; color: var(--pp-ink);
+    display: flex; align-items: center; gap: .15rem; white-space: nowrap;
+}
+.swc-stat .arrow { font-size: .7rem; }
+.swc-stat .arrow.up { color: var(--pp-green); }
+.swc-stat .arrow.down { color: var(--pp-red); }
 .swc-gt { flex: 0 0 auto; font-size: 1.05rem; font-weight: 900; color: var(--pp-red); }
 .sellwarn-note { font-size: .8rem; font-weight: 700; color: var(--pp-muted); text-align: center; line-height: 1.35; }
 /* ---- ⓘ '총 보너스' 팝업 (원본: 굵은 검정 제목 + 세로 목록 + 길면 스크롤 + 하단 중앙 빨간 X) ---- */
