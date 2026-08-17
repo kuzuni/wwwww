@@ -1223,6 +1223,169 @@ const IconGen = {
             ctx.lineWidth = S * 0.075; ctx.strokeStyle = '#17181a'; ctx.stroke();
         },
 
+        // ---- 기술 트리 노드 모티프 8종 ----
+        // 원본(shot-042605)의 노드는 **청동 원판 위에 작은 픽토그램**이고 이모지가 아니다.
+        // 노드는 --tt-node(≈58px)의 40% = 23px 로 찍히므로, 전부 **단일 실루엣 + 굵은 검정 테**로
+        // 그린다(power 아이콘에서 배운 대로 도형이 둘 이상이면 이 크기에서 얼룩이 된다 —
+        // paw/clover/dice 는 부속을 붙이되 본체가 먼저 읽히도록 본체를 크게 잡았다).
+        // opt.tint 로 색을 갈아 같은 도형을 둘로 쓴다(펫 체력=초록 / 펫 피해=붉은색) —
+        // 같은 가지에 나란히 놓이는 두 노드라 색까지 같으면 '중복 아이콘'으로 읽힌다.
+        paw(ctx, S, o) {                                 // 펫 보너스 — 발바닥
+            const G = IconGen, ink = '#17181a';
+            const base = (o && o.tint) || '#35c14a';
+            const pad = G._lin(ctx, 0, S * 0.4, 0, S * 0.9,
+                [[0, G._shade(base, 0.42)], [0.5, base], [1, G._shade(base, -0.35)]]);
+            const toe = (x, y, rx, ry) => {
+                ctx.beginPath(); ctx.ellipse(x * S, y * S, rx * S, ry * S, 0, 0, Math.PI * 2);
+                ctx.fillStyle = pad; ctx.fill();
+                ctx.lineWidth = S * 0.055; ctx.strokeStyle = ink; ctx.stroke();
+            };
+            const main = () => { ctx.ellipse(S * 0.5, S * 0.685, S * 0.28, S * 0.225, 0, 0, Math.PI * 2); };
+            ctx.beginPath(); main(); ctx.fillStyle = pad; ctx.fill();
+            G._innerShadow(ctx, main, 'rgba(6,50,18,.5)', S * 0.045, 0, -S * 0.02);
+            ctx.beginPath(); main(); ctx.lineWidth = S * 0.062; ctx.strokeStyle = ink; ctx.stroke();
+            toe(0.20, 0.335, 0.105, 0.125); toe(0.415, 0.245, 0.105, 0.13);
+            toe(0.625, 0.26, 0.105, 0.13); toe(0.82, 0.365, 0.10, 0.12);
+        },
+        check(ctx, S) {                                  // 최대 레벨 노드 — 초록 체크
+            const G = IconGen;
+            const p = () => {
+                ctx.moveTo(S * 0.14, S * 0.50); ctx.lineTo(S * 0.30, S * 0.34);
+                ctx.lineTo(S * 0.42, S * 0.50); ctx.lineTo(S * 0.74, S * 0.19);
+                ctx.lineTo(S * 0.90, S * 0.35); ctx.lineTo(S * 0.42, S * 0.82);
+                ctx.closePath();
+            };
+            ctx.beginPath(); p();
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.19, 0, S * 0.82, [[0, '#7ee2a0'], [0.5, '#2fb85e'], [1, '#177a3a']]);
+            ctx.fill();
+            G._innerShadow(ctx, p, 'rgba(8,50,24,.45)', S * 0.045, 0, -S * 0.02);
+            ctx.beginPath(); p(); ctx.lineWidth = S * 0.07; ctx.strokeStyle = '#17181a'; ctx.stroke();
+        },
+        heart(ctx, S) {                                  // 패시브 체력 — 하트
+            const G = IconGen, cx = S * 0.5;
+            const p = () => {
+                ctx.moveTo(cx, S * 0.86);
+                ctx.bezierCurveTo(S * 0.02, S * 0.53, S * 0.14, S * 0.13, cx, S * 0.35);
+                ctx.bezierCurveTo(S * 0.86, S * 0.13, S * 0.98, S * 0.53, cx, S * 0.86);
+                ctx.closePath();
+            };
+            ctx.beginPath(); p();
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.2, 0, S * 0.86, [[0, '#ff7a86'], [0.45, '#e8323f'], [1, '#9c1420']]);
+            ctx.fill();
+            G._innerShadow(ctx, p, 'rgba(80,4,12,.5)', S * 0.05, 0, -S * 0.02);
+            ctx.save(); ctx.beginPath(); p(); ctx.clip();
+            ctx.fillStyle = 'rgba(255,255,255,.4)';
+            ctx.beginPath(); ctx.ellipse(S * 0.33, S * 0.34, S * 0.10, S * 0.07, -0.5, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+            ctx.beginPath(); p(); ctx.lineWidth = S * 0.07; ctx.strokeStyle = '#17181a'; ctx.stroke();
+        },
+        clover(ctx, S) {                                 // 무료 제련 확률 — 네잎 클로버
+            const G = IconGen, cx = S * 0.5, cy = S * 0.46, r = S * 0.20;
+            const grad = G._lin(ctx, 0, cy - r * 2, 0, cy + r * 2, [[0, '#6ee87f'], [0.5, '#2fb84a'], [1, '#177a30']]);
+            ctx.beginPath();
+            ctx.moveTo(cx, cy + S * 0.03);
+            ctx.quadraticCurveTo(cx - S * 0.05, cy + S * 0.30, cx - S * 0.17, cy + S * 0.40);
+            ctx.lineWidth = S * 0.06; ctx.strokeStyle = '#177a30'; ctx.stroke();
+            for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+                ctx.beginPath();
+                ctx.ellipse(cx + dx * r * 0.78, cy + dy * r * 0.78, r * 0.78, r * 0.78, 0, 0, Math.PI * 2);
+                ctx.fillStyle = grad; ctx.fill();
+                ctx.lineWidth = S * 0.055; ctx.strokeStyle = '#17181a'; ctx.stroke();
+            }
+        },
+        horse(ctx, S) {                                  // 탈것 마스터리 — 말 머리
+            const G = IconGen;
+            const head = () => {
+                ctx.moveTo(S * 0.30, S * 0.88);
+                ctx.lineTo(S * 0.30, S * 0.52);
+                ctx.quadraticCurveTo(S * 0.32, S * 0.30, S * 0.50, S * 0.24);
+                ctx.lineTo(S * 0.46, S * 0.10);                  // 귀
+                ctx.lineTo(S * 0.62, S * 0.22);
+                ctx.quadraticCurveTo(S * 0.84, S * 0.28, S * 0.86, S * 0.44);
+                ctx.quadraticCurveTo(S * 0.87, S * 0.56, S * 0.70, S * 0.58);
+                ctx.quadraticCurveTo(S * 0.58, S * 0.60, S * 0.56, S * 0.88);
+                ctx.closePath();
+            };
+            ctx.beginPath(); head();
+            ctx.fillStyle = G._lin(ctx, S * 0.3, 0, S * 0.86, S, [[0, '#b98652'], [0.5, '#8d5f31'], [1, '#5a3a1a']]);
+            ctx.fill();
+            G._innerShadow(ctx, head, 'rgba(40,20,4,.55)', S * 0.05, 0, -S * 0.02);
+            ctx.beginPath(); head(); ctx.lineWidth = S * 0.065; ctx.strokeStyle = '#17181a'; ctx.stroke();
+            ctx.beginPath(); ctx.arc(S * 0.66, S * 0.40, S * 0.045, 0, Math.PI * 2);
+            ctx.fillStyle = '#17181a'; ctx.fill();
+        },
+        moneybag(ctx, S) {                               // 판매가·코인 보너스 — 돈자루
+            const G = IconGen, cx = S * 0.5;
+            const bag = () => {
+                ctx.moveTo(cx - S * 0.16, S * 0.34);
+                ctx.bezierCurveTo(S * 0.04, S * 0.50, S * 0.08, S * 0.88, cx, S * 0.88);
+                ctx.bezierCurveTo(S * 0.92, S * 0.88, S * 0.96, S * 0.50, cx + S * 0.16, S * 0.34);
+                ctx.closePath();
+            };
+            ctx.beginPath(); bag();
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.34, 0, S * 0.88, [[0, '#e6c98a'], [0.45, '#c79a4e'], [1, '#8a6524']]);
+            ctx.fill();
+            G._innerShadow(ctx, bag, 'rgba(60,38,4,.5)', S * 0.05, 0, -S * 0.02);
+            ctx.beginPath(); bag(); ctx.lineWidth = S * 0.065; ctx.strokeStyle = '#17181a'; ctx.stroke();
+            // 목끈
+            ctx.beginPath(); G._rrSub(ctx, cx - S * 0.20, S * 0.20, S * 0.40, S * 0.15, S * 0.05);
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.20, 0, S * 0.35, [[0, '#a9752c'], [1, '#7a5218']]);
+            ctx.fill(); ctx.lineWidth = S * 0.06; ctx.strokeStyle = '#17181a'; ctx.stroke();
+            // 코인 문양
+            ctx.beginPath(); ctx.arc(cx, S * 0.62, S * 0.15, 0, Math.PI * 2);
+            ctx.fillStyle = '#f5cb45'; ctx.fill();
+            ctx.lineWidth = S * 0.05; ctx.strokeStyle = '#6b4a08'; ctx.stroke();
+        },
+        robot(ctx, S) {                                  // 오토포지 — 로봇 머리
+            const G = IconGen, cx = S * 0.5;
+            const head = () => G._rrSub(ctx, S * 0.16, S * 0.30, S * 0.68, S * 0.52, S * 0.14);
+            // 안테나
+            ctx.beginPath(); ctx.moveTo(cx, S * 0.30); ctx.lineTo(cx, S * 0.14);
+            ctx.lineWidth = S * 0.07; ctx.strokeStyle = '#17181a'; ctx.stroke();
+            ctx.beginPath(); ctx.arc(cx, S * 0.12, S * 0.085, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff5a4a'; ctx.fill();
+            ctx.lineWidth = S * 0.055; ctx.strokeStyle = '#17181a'; ctx.stroke();
+            ctx.beginPath(); head();
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.30, 0, S * 0.82, [[0, '#dfe6ee'], [0.5, '#a9b5c2'], [1, '#6f7b88']]);
+            ctx.fill();
+            G._innerShadow(ctx, head, 'rgba(24,32,42,.5)', S * 0.05, 0, -S * 0.02);
+            ctx.beginPath(); head(); ctx.lineWidth = S * 0.065; ctx.strokeStyle = '#17181a'; ctx.stroke();
+            // 눈 두 개 (파란 발광)
+            for (const dx of [-0.155, 0.155]) {
+                ctx.beginPath(); ctx.arc(cx + dx * S, S * 0.52, S * 0.075, 0, Math.PI * 2);
+                ctx.fillStyle = '#2f7bff'; ctx.fill();
+                ctx.lineWidth = S * 0.045; ctx.strokeStyle = '#17181a'; ctx.stroke();
+            }
+            // 입 슬릿
+            ctx.beginPath(); G._rrSub(ctx, cx - S * 0.16, S * 0.66, S * 0.32, S * 0.075, S * 0.03);
+            ctx.fillStyle = '#3a444f'; ctx.fill();
+        },
+        uptri(ctx, S) {                                  // 장비 최대 레벨 — 상승 삼각형
+            const G = IconGen, cx = S * 0.5;
+            const tri = () => {
+                ctx.moveTo(cx, S * 0.14); ctx.lineTo(S * 0.90, S * 0.78);
+                ctx.lineTo(S * 0.10, S * 0.78); ctx.closePath();
+            };
+            ctx.beginPath(); tri();
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.14, 0, S * 0.78, [[0, '#7ee2a0'], [0.5, '#2fb85e'], [1, '#177a3a']]);
+            ctx.fill();
+            G._innerShadow(ctx, tri, 'rgba(8,50,24,.5)', S * 0.05, 0, -S * 0.02);
+            ctx.beginPath(); tri(); ctx.lineWidth = S * 0.075; ctx.strokeStyle = '#17181a'; ctx.stroke();
+        },
+        dice(ctx, S) {                                   // 추가 획득 확률 — 주사위
+            const G = IconGen;
+            const box = () => G._rrSub(ctx, S * 0.14, S * 0.14, S * 0.72, S * 0.72, S * 0.15);
+            ctx.beginPath(); box();
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.14, 0, S * 0.86, [[0, '#ffffff'], [0.5, '#e2e6ea'], [1, '#aeb6bd']]);
+            ctx.fill();
+            G._innerShadow(ctx, box, 'rgba(30,36,42,.45)', S * 0.05, 0, -S * 0.02);
+            ctx.beginPath(); box(); ctx.lineWidth = S * 0.07; ctx.strokeStyle = '#17181a'; ctx.stroke();
+            ctx.fillStyle = '#17181a';
+            for (const [x, y] of [[0.32, 0.32], [0.5, 0.5], [0.68, 0.68], [0.68, 0.32], [0.32, 0.68]]) {
+                ctx.beginPath(); ctx.arc(x * S, y * S, S * 0.062, 0, Math.PI * 2); ctx.fill();
+            }
+        },
+
         // ---- 유령: 던전 '유령 마을' 배너 ----
         // 배너 배경이 밝은 회색이라 흰 유령이 묻힌다 — 푸른 그림자와 짙은 외곽선으로 실루엣을 세운다.
         ghost(ctx, S) {
@@ -1689,6 +1852,20 @@ IconGen._genderSym = function (ctx, S, female) {
             emblem(ctx, S, color, path, glow);
             if (rot) ctx.restore();
         };
+    });
+
+    // ---- 기술 트리 노드용 단독 모티프 ----
+    // 🚨 `sword`·`shield`·`cross`·`burst`·`hourglass`·`sparkle` 는 **`draw` 의 항목이 아니라 `P`(모티프 경로)**다.
+    //    `draw` 에 있는 줄 알고 `IconGen.img('sword')` 를 부르면 조용히 빈 문자열이 돌아와 **노드가 빈 원으로
+    //    렌더된다**(실제로 그렇게 나왔다). 스킬 오브와 같은 `emblem` 렌더러로 감싸 단독 아이콘으로 등록한다.
+    const TECH_MOTIF = {
+        tm_sword: ['sword', '#cfd8dc'], tm_shield: ['shield', '#b39ddb'],
+        tm_cross: ['cross', '#a5d6a7'], tm_burst: ['burst', '#ffb74d'],
+        tm_hourglass: ['hourglass', '#4dd0e1'], tm_sparkle: ['sparkle', '#80cbc4'],
+    };
+    Object.keys(TECH_MOTIF).forEach((k) => {
+        const [motif, color] = TECH_MOTIF[k];
+        G.draw[k] = function (ctx, S) { emblem(ctx, S, color, P[motif]); };
     });
 
     // 스킬 오브에 얹을 심볼 아이콘 HTML. (오브 배경/글로우는 CSS .sk-orb 가 담당)

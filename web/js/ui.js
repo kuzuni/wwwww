@@ -1749,6 +1749,34 @@ const UI = {
         if (this.WEAPON_SHAPE_EMOJI[shape]) return this.WEAPON_SHAPE_EMOJI[shape];
         return (WEAPON_TYPES[wtype] && WEAPON_TYPES[wtype].kind === 'ranged') ? '🏹' : '🗡';
     },
+    // 기술 트리 노드·가지 아이콘 — 원본(shot-042605)의 노드는 **청동 원판 위 픽토그램**이지 이모지가 아니다.
+    // 여기 없는 id 는 `techtree.js` 의 이모지로 그대로 떨어지므로 노드가 추가돼도 안 깨진다.
+    // ⚠️ 같은 가지에 나란히 놓이는 '피해/체력' 짝은 서로 다른 모티프를 준다(mount 는 말↔하트,
+    //    skill 은 검↔십자, pet 은 같은 발바닥을 tint 로 갈랐다) — 같으면 '중복 아이콘'으로 읽힌다.
+    //    반대로 가지가 다르거나 대상이 정말 같은 것(해머 보상 2종·코인 보상 2종·타이머 3종)은
+    //    원본도 모티프를 돌려 쓰므로 그대로 공유한다.
+    TECH_ICON: {
+        weaponMastery: 'power', armorMastery: 'tm_shield', gearMaxLevel: 'uptri',
+        mountDmg: 'horse', mountHp: 'heart', mountCost: 'winder', extraMount: 'dice',
+        forgeTimer: 'tm_hourglass', forgeCost: 'coin', sellPrice: 'moneybag',
+        thiefHammer: 'hammer', thiefCoin: 'trophy', autoForgeSlot: 'robot',
+        freeForge: 'clover', offlineCap: 'winder', offlineCoin: 'coin', offlineHammer: 'hammer',
+        techTimer: 'tm_hourglass', skillDmg: 'tm_burst', skillPassiveDmg: 'tm_sword', skillPassiveHp: 'tm_cross',
+        techCost: 'potion', petHp: 'paw', petDmg: 'paw', skillSummonCost: 'ticket',
+        hatchTimer: 'egg', extraEgg: 'gift', dungeonTicket: 'ticket', dungeonPotion: 'potion',
+    },
+    TECH_ICON_TINT: { petDmg: '#e8544a' },
+    TECH_BRANCH_ICON: { power: 'power', forge: 'hammer', skillpet: 'tm_sparkle' },
+    // ⚠️ 노드 id 는 `type@tier`(TechTree.nid) 라 표를 그대로 찾으면 **항상 빗나가 이모지로 떨어진다**
+    //    — 실제로 처음에 그렇게 짜서 교체가 한 칸도 안 먹었다. 반드시 `TechTree.typeOf` 로 벗겨서 찾는다.
+    techIcon(id, cls) {
+        const type = TechTree.typeOf(id);
+        const name = this.TECH_ICON[type];
+        if (!name) return (TechTree.def(id) || {}).icon || '\u{1F52C}';
+        const tint = this.TECH_ICON_TINT[type];
+        return IconGen.img(name, cls, tint ? { tint } : null);
+    },
+
     // 장비 그리드 공용 셀 (원본 shot-042120 정합): 정사각 고정 프레임 + 아이콘 상부 채움 + Lv 내부 하단 + ⭐는 하단 테두리 걸침.
     // 빈 슬롯도 동일 프레임 유지(찌그러짐 금지, 사용자 지시) — 흐린 부위 아이콘 실루엣 + 부위명.
     EMPTY_SLOT_EMOJI: { weapon: '🗡', helmet: '🪖', armor: '👕' },
@@ -3349,7 +3377,7 @@ const UI = {
                 ? ` <small id="tech-b-time-${b.id}">(${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)})</small>` : '';
             return `<button class="tech-branch-card" onclick="UI.openTechBranch('${b.id}')">
                 <div class="tech-branch-head">${b.name}</div>
-                <div class="tech-branch-icon">${b.icon}</div>
+                <div class="tech-branch-icon">${IconGen.img(this.TECH_BRANCH_ICON[b.id]) || b.icon}</div>
                 <div class="tech-branch-pct ${researching ? 'researching' : ''}">${pct.toFixed(1)}%${timeHtml}</div>
             </button>`;
         }).join('');
@@ -3376,7 +3404,7 @@ const UI = {
             const researching = TechTree.researchingId() === id;
             const open = TechTree.isUnlocked(id);
             const cls = researching ? 'researching' : max ? 'done' : !open ? 'tlocked' : lv > 0 ? 'active' : 'locked';
-            const face = max ? '✅' : !open ? IconGen.img('lock') : (TechTree.def(id) || {}).icon || '🔬';
+            const face = max ? IconGen.img('check') : !open ? IconGen.img('lock') : this.techIcon(id);
             const badge = researching
                 ? `<small class="tech-tree-node-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
                 : `<small>${lv}/${TechTree.MAX_LEVEL}</small>`;
@@ -3541,7 +3569,7 @@ const UI = {
             const cost = TechTree.nextCost(id), time = TechTree.time(id, lv + 1);
             const disabled = otherResearch || S.potions < cost;
             actionHtml = `<button class="btn sm primary ${disabled ? 'disabled' : ''}" onclick="UI.onTechStart('${id}')">
-                🔬 연구 시작 · ${IconGen.img('potion')} ${U.fmt(cost)} · ⏱ ${U.fmtTime(time)}</button>
+                연구 시작 · ${IconGen.img('potion')} ${U.fmt(cost)} · ${IconGen.img('tm_hourglass')} ${U.fmtTime(time)}</button>
                 ${otherResearch ? '<p class="muted" style="text-align:center">다른 연구가 진행 중입니다</p>' : ''}`;
         }
 
@@ -3549,7 +3577,7 @@ const UI = {
             <div class="idet-wrap">
                 <div class="modal-card paper item-detail" data-tech-node="${id}">
                     <div class="idet-head">
-                        <div class="idet-icon tn-bronze">${max ? '✅' : !open ? IconGen.img('lock') : '🔬'}<span class="idet-star">${lv}/${TechTree.MAX_LEVEL}</span></div>
+                        <div class="idet-icon tn-bronze">${max ? IconGen.img('check') : !open ? IconGen.img('lock') : this.techIcon(id)}<span class="idet-star">${lv}/${TechTree.MAX_LEVEL}</span></div>
                         <div class="idet-title">
                             <div class="idet-name">${def.name} <small class="tn-lv">${roman}단계 · Lv.${lv}/${TechTree.MAX_LEVEL}</small></div>
                             <div class="idet-main">+${U.fmt(TechTree.totalOf(id))}${unit} <small class="tn-gain">(${TechTree.gainNote()} +${U.fmt(def.per)}${unit} · 이 노드 +${U.fmt(TechTree.nodeTotal(id))}${unit})</small></div>

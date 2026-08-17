@@ -1086,6 +1086,15 @@ body {
     padding: .45rem .3rem; text-align: center; border-bottom: 3px solid var(--pp-line);
 }
 .tech-branch-icon { font-size: 2.3rem; text-align: center; padding: 1rem 0 .5rem; }
+/* 코드 생성 아이콘은 `.ico`(1.45em) 기본 크기로는 프레임에 조그맣게 떠 있다 — '아이콘 크기 확대' ⑤의
+   85~95% 기준에 맞춰 프레임 기준 rem 으로 직접 준다. margin 0 은 `.ico` 의 세로 정렬용 음수 마진 상쇄용.
+   ⚠️ **2.4rem 은 임의 값이 아니라 이모지가 차지하던 줄상자 높이에 맞춰 실측으로 좁힌 값**이다 — 2.9rem 으로 두면
+   카드가 4.1px 자라 이미 교정해 둔 tech-overview 의 카드 높이가 15.76→16.22%H, 행 피치가
+   18.56→19.02%H 로 밀린다(`probe-techoverview-dom.js` 로 실측). 아이콘 크기는 이 화면에선
+   카드 높이를 곧장 바꾸므로 키우려면 카드 비율을 다시 재야 한다. */
+.tech-branch-icon .ico { width: 2.4rem; height: 2.4rem; margin: 0; vertical-align: middle; }
+/* 노드 원판은 테두리가 두꺼워 안쪽 지름이 작다 — 원본(shot-042605)도 픽토그램이 원판의 ~70%다 */
+.tech-tree-node .ico { width: 72%; height: 72%; margin: 0; }
 .tech-branch-pct { font-weight: 800; font-size: .9rem; text-align: center; padding-bottom: .6rem; color: var(--pp-ink); }
 .tech-branch-pct.researching { color: var(--pp-green-dk); }
 
@@ -2258,6 +2267,7 @@ body {
 /* 노드 이름 옆 총 진행(Lv.N/25) — 5티어 확장으로 티어 로마숫자만으론 전체 진행이 안 보여 함께 표기 */
 .tn-lv { color: var(--pp-muted); font-weight: 700; font-size: .72rem; margin-left: .15rem; }
 .idet-icon img { width: 88%; height: 88%; object-fit: contain; }
+.idet-icon .ico { width: 78%; height: 78%; margin: 0; }
 .idet-star { position: absolute; left: 6%; bottom: -14%; font-size: .8rem; }
 .idet-title { min-width: 0; display: flex; flex-direction: column; gap: .2rem; padding-top: .1rem; }
 .idet-name { font-size: 1.05rem; font-weight: 800; color: var(--pp-ink); }
