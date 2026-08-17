@@ -2803,6 +2803,7 @@ const UI = {
     },
     openLeagueRewards() { this.renderLeagueRewards(); },
     renderLeagueRewards() {
+        League.ensure();
         const myRank = League.myRank();
         const cur = League.rewardForRank(myRank);
         const rowsHtml = League.REWARD_TIERS.map(t => {
@@ -2815,17 +2816,25 @@ const UI = {
             </div>`;
         }).join('');
         const remain = (S.league.seasonEndsAt - U.now()) / 1000;
-        this.els.leagueModal.innerHTML = `
-            <div class="idet-wrap">
-                <div class="modal-card wide lgr-card">
-                    <div class="league-reward-banner">${IconGen.img('trophy')} 플래티넘 리그 보상</div>
-                    <p class="league-reward-desc">현재 순위(${myRank})를 유지하면 시즌 종료 시<br>다음 보상을 받을 수 있습니다:</p>
-                    <div class="league-reward-grid">${this.leagueRewardGrid(cur)}</div>
-                    <div class="league-collect-pill">수집까지: <b>${U.fmtTime(remain)}</b></div>
-                    <div class="league-reward-table">${rowsHtml}</div>
+        // 원본(shot-042208)에서 이 팝업은 리그 시트를 **대체하지 않고 그 위에 겹쳐 뜬다** — 뒤에
+        // 엠블럼·'플래티넘 리그' 제목·◀ 버튼·회색 밴드가 딤 처리된 채 그대로 남아 있다.
+        // 이전 구현은 leagueModal.innerHTML을 통째로 갈아끼워 시트를 지웠고, 그 결과 팝업 뒤가
+        // 전투 화면(숲·영웅·상단바)이 돼 배경이 원본과 완전히 달랐다(비율 대조 자체가 불가능했다).
+        // 시트를 그대로 렌더한 뒤 딤 레이어만 덧붙인다.
+        this.renderLeagueBoard();
+        this.els.leagueModal.insertAdjacentHTML('beforeend', `
+            <div class="lgr-overlay">
+                <div class="idet-wrap">
+                    <div class="modal-card wide lgr-card">
+                        <div class="league-reward-banner">${IconGen.img('trophy')} 플래티넘 리그 보상</div>
+                        <p class="league-reward-desc">현재 순위(${myRank})를 유지하면 시즌 종료 시<br>다음 보상을 받을 수 있습니다:</p>
+                        <div class="league-reward-grid">${this.leagueRewardGrid(cur)}</div>
+                        <div class="league-collect-pill">수집까지: <b>${U.fmtTime(remain)}</b></div>
+                        <div class="league-reward-table">${rowsHtml}</div>
+                    </div>
+                    <button class="x-btn" onclick="UI.openLeague()">✕</button>
                 </div>
-                <button class="x-btn" onclick="UI.openLeague()">✕</button>
-            </div>`;
+            </div>`);
     },
     openLeagueChallenge() { this.renderLeagueChallenge(); },
     renderLeagueChallenge() {

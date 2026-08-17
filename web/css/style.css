@@ -1315,21 +1315,65 @@ body {
 .dg-right .btn { min-width: 4.6rem; min-height: 2.4rem; font-size: .85rem; }
 
 /* ② 리그 보상 팝업 — 원본(shot-042208): 다크 남색 카드 + 빨간 리본, 상단 재화는 다크 pill, 하단 테이블만 흰색 */
-/* 카드가 탭바를 넘지 않게 상한을 걸고, 넘치는 만큼은 안쪽 보상 표가 줄어들며 스크롤한다 */
-.modal-card.wide.lgr-card {
-    background: linear-gradient(180deg, #232946, #171c33);
-    max-height: var(--popup-h-max); min-height: 0; overflow: hidden;
+/* 이 팝업은 리그 시트를 지우고 그 자리에 뜨는 게 아니라 **시트 위에 딤과 함께 겹쳐** 뜬다
+   (원본에서 뒤로 엠블럼·제목·◀·회색 밴드가 비쳐 보인다 — ui.js `renderLeagueRewards` 주석 참고).
+   딤 강도는 원본 두 장의 같은 요소 색을 비교해 역산했다: 시트 배경 rgb(14,17,27)→rgb(1,2,3) ·
+   회색 밴드 rgb(175,175,175)→rgb(17,17,17) · 빨간 ◀ rgb(255,16,23)→rgb(25,2,2).
+   세 소스가 모두 **순검정 α=0.90**으로 떨어진다(0.903 / 0.902 / 0.902). */
+/* z-index 2 필수 — `.league-foot`(회색 밴드)가 `position: relative; z-index: 1` 이라, 딤을
+   auto(0) 로 두면 **밴드만 딤 위로 튀어나와 혼자 밝게 남는다**(실제로 그렇게 찍혔다). */
+.lgr-overlay {
+    position: absolute; inset: 0; z-index: 2; background: rgba(0,0,0,.90);
+    display: flex; align-items: center; justify-content: center;
 }
-.lgr-card .league-reward-table { flex: 1; min-height: 3rem; }
+/* .idet-wrap 이 카드 아래로 튀어나온 ✕ 까지 끌어안은 채 세로 중앙 정렬돼 카드가 위로 뜬다
+   (profile·dungeon-detail·offline·gear-detail·pet-upgrade 에 이은 이 패스 8번째 사례).
+   카드 아래 패딩을 원본값(2.78rem)으로 키우자 그만큼 더 떠서 리본 상단이 −1.49%p 가 됐다. */
+.lgr-overlay .idet-wrap { position: relative; top: .76rem; }
+/* 카드가 탭바를 넘지 않게 상한을 걸고, 넘치는 만큼은 안쪽 보상 표가 줄어들며 스크롤한다 */
+/* 🚨 명암 오독 6번째 — 카드 배경은 파랑보라 그라데이션이 아니라 **평면 #0e111b** 이다.
+   딤(α=.90) 덕에 뒤 시트와 확실히 갈려 세로 색구간 스캔으로 직접 읽힌다: 카드 안쪽 x=15.93%W 열이
+   표 위(y171~377)·표 아래(y723~768) 양쪽 모두 rgb(14,17,27) 한 값으로 200행 넘게 이어진다
+   (그라데이션이면 값이 흘러야 한다). 클론은 rgb(35,41,70)→rgb(31,37,65)라 확연히 푸르렀다. */
+.modal-card.wide.lgr-card {
+    background: #0e111b;
+    /* 원본은 리본 위로 카드 남색이 **한 픽셀도 안 보인다**(리본 바로 위가 딤 rgb(1,2,3)) — 리본이
+       카드 상단에 걸쳐 있다. 클론은 위쪽 패딩 때문에 22px(2.47%H)의 남색 띠가 리본 위에 남았다.
+       아래 패딩은 반대로 원본이 표 밑에 47px(5.28%H)을 두는데 클론은 19px 뿐이었다(1.1rem). */
+    padding: 0 1.1rem 2.78rem;
+    max-height: var(--popup-h-max); min-height: 0;
+    /* 리본이 카드 좌우로 튀어나오므로(아래 참고) 클리핑하면 안 된다 — 넘침은 보상 표가 자기
+       overflow-y 로 흡수한다. */
+    overflow: visible;
+}
+.lgr-card .league-reward-table { flex: none; }
+/* ---- 리본: 원본은 **카드보다 넓다** (카드 12.30~86.90%W 인데 리본 본체가 8.47~90.52%W) ----
+   원본 실측(042208, 502×890 · 앱 496px):
+     · 밝은 본체 rgb(255,16,23) — x 8.47~90.52%W(폭 82.06) · y118~164 = 13.26~18.54%H(높이 5.28)
+       아래에 rgb(69,4,6) 1px 베벨 + 검정 2px 외곽선.
+     · 제비꼬리 rgb(160,10,14)(= 본체색의 62.5% 명도) — 본체 양옆에 각 4.44%W,
+       바깥 끝이 3.83%W / 95.36%W. y126~177 = 14.16~19.89%H(높이 5.84)로 **본체보다 8px 늦게 시작해
+       13px 늦게 끝난다**. 바깥 변에 V 노치가 파여 있고 apex 는 꼬리 폭의 50% 지점(6.05%W).
+   이전 구현은 꼬리가 '바깥을 향한 solid 삼각형'이라 노치가 없었고, 리본 전체가 카드 안에 갇혀
+   폭이 65.11%W(원본 91.73, −26.62%p)였다. */
 .league-reward-banner {
-    position: relative; background: var(--pp-red); color: #fff; text-align: center; font-weight: 900; font-size: 1rem;
-    padding: .55rem 1.2rem; border-radius: .3rem; margin: .2rem 1rem .6rem;
+    position: relative; background: #ff1017; color: #fff; font-weight: 900; font-size: 1rem;
+    width: calc(var(--app-w) * .8206); height: calc(var(--app-h) * .0528);
+    display: flex; align-items: center; justify-content: center; gap: .3rem;
+    /* ⚠️ `margin: auto` 로는 못 가운데 맞춘다 — 리본이 카드 콘텐츠 박스(≈67%W)보다 넓어 남는 공간이
+       음수라 auto 마진이 0으로 접히고 통째로 오른쪽으로 흘러넘친다(실측: 리본 우 99.80%W 로 화면 밖).
+       flex 교차축 정렬은 넘칠 때도 양쪽으로 균등히 넘치므로 align-self 를 쓴다. */
+    border-radius: .3rem; margin: 0 0 1.2rem; align-self: center; flex: none;
+    box-shadow: inset 0 -1px 0 #450406;
 }
 .league-reward-banner::before, .league-reward-banner::after {
-    content: ''; position: absolute; top: 0; width: 0; height: 0; border-style: solid;
+    content: ''; position: absolute; background: #a00a0e;
+    top: calc(var(--app-h) * .009); height: calc(var(--app-h) * .0584);
+    width: calc(var(--app-w) * .0444);
 }
-.league-reward-banner::before { left: -.9rem; border-width: 1.05rem .9rem 1.05rem 0; border-color: transparent var(--pp-red-dk) transparent transparent; }
-.league-reward-banner::after { right: -.9rem; border-width: 1.05rem 0 1.05rem .9rem; border-color: transparent transparent transparent var(--pp-red-dk); }
+/* 노치는 **바깥 변**에서 파고든다(안쪽 변은 본체에 붙는 직선) */
+.league-reward-banner::before { right: 100%; clip-path: polygon(100% 0, 0 0, 50% 50%, 0 100%, 100% 100%); }
+.league-reward-banner::after { left: 100%; clip-path: polygon(0 0, 100% 0, 50% 50%, 100% 100%, 0 100%); }
 .lgr-card .league-reward-desc { color: #fff; }
 .league-reward-desc { text-align: center; font-size: .82rem; font-weight: 700; margin: 0 0 .5rem; line-height: 1.4; }
 .league-reward-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .3rem .5rem; margin-bottom: .55rem; }
@@ -1344,12 +1388,33 @@ body {
     border-radius: .5rem; padding: .3rem 1.2rem; font-size: .78rem; font-weight: 900; color: var(--pp-ink);
 }
 .league-collect-pill b { display: block; color: #1d8f3c; }
-.league-reward-table { /* 원본(042208): 흰 서브패널, 행 ≈8.4% H, 티어 4.5개 노출 (185 재채점) */
-    display: flex; flex-direction: column; gap: 0; max-height: calc(var(--app-h) * .46); overflow-y: auto;
-    background: #fff; margin: 0 -.4rem -.4rem; border-radius: .7rem; border: 3px solid var(--pp-line);
+/* 흰 보상 표 — 원본은 **카드 좌우에 여백 없이 꽉 찬다**(원본 표 12.30~86.90%W = 카드 12.30~86.90 과 동일).
+   클론은 카드 안쪽으로 3.93%W 들여져 폭이 −7.25%p 였다 → 카드 패딩(1.1rem)+테두리(2px)만큼 음수 마진.
+   원본 세로 실측(x=200 열): 카드 남색 ~y377 → **검정 2px(y378~379)** → **rgb(202,202,202) 4px(y380~383)**
+   → 흰색 y384~707 → rgb(202,202,202) y716~720 → 검정 2px(y721~722) → 카드 남색 y723.
+   즉 바깥 박스 y378~722 = **38.99%H**, 검정 테두리 안쪽에 밝은 회색 띠가 한 겹 더 있다(inset 그림자로 재현). */
+.league-reward-table {
+    display: flex; flex-direction: column; gap: 0; overflow-y: auto;
+    height: calc(var(--app-h) * .3899);
+    background: #fff; margin: 0 calc(-1.1rem - 5px);   /* -2px(=카드 테두리)로는 표 바깥 박스가 카드보다 3px 안쪽에 섰다 — 실측으로 3px 더 뺀다 */ border-radius: .7rem; border: 2px solid var(--pp-line);
+    box-shadow: inset 0 4px 0 #cacaca, inset 0 -5px 0 #cacaca;
 }
-.league-reward-tier { display: flex; align-items: center; gap: .6rem; padding: .85rem 1.1rem; border-top: 2px dashed #ccc; }
-.league-reward-tier:first-child { border-top: none; }
+/* 티어 행 높이 — 원본 티어 피치 **8.61%H**(구분선 46.24→54.83→63.48→72.08, 76.6px)인데
+   클론은 7.85%H(70px)로 **행마다 −0.76%p**였다. 한 행만 보면 통과지만 4행 누적이면 −3.0%p로
+   표 안쪽이 통째로 어긋난다(settings·league 에서 같은 함정을 밟았다). 세로 패딩으로 6.6px 보충. */
+/* 🚨 명암 오독 7번째 — 구분선은 밝은 회색(#ccc)이 아니라 **거의 검정**이다.
+   원본 실측(y459~460, 표 안쪽 비백색 픽셀 나열): 2px 두께로 y459 가 rgb(17,17,17)·y460 이 rgb(0,0,0),
+   **표 흰 영역 좌끝(x64)부터 꽉 차게** 그려지고 대시 ≈16px / 간격 ≈15px(주기 31px = 6.25%W) 이다.
+   CSS `dashed` 는 2px 테두리에서 4px 안팎의 잔 대시가 나와 원본 리듬과 다르므로 반복 그라데이션으로 그린다
+   (가로 치수라 rem 금지 — 루트 폰트가 높이 기준이다). 테두리를 뺀 2px 은 세로 패딩으로 되돌린다. */
+.league-reward-tier {
+    display: flex; align-items: center; gap: .6rem; padding: 1.1rem;
+    background-image: repeating-linear-gradient(to right,
+        var(--pp-line) 0 calc(var(--app-w) * .0323),
+        transparent calc(var(--app-w) * .0323) calc(var(--app-w) * .0625));
+    background-repeat: no-repeat; background-size: 100% 2px; background-position: 0 0;
+}
+.league-reward-tier:first-child { background-image: none; }
 .league-tier-rank { font-size: 1.3rem; font-weight: 900; width: 2.4rem; text-align: center; flex: none; color: var(--pp-ink); white-space: nowrap; }
 .league-tier-rank.text { font-size: .74rem; width: 3rem; }
 .league-tier-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .22rem .45rem; flex: 1; font-size: .74rem; font-weight: 800; color: var(--pp-ink); }
