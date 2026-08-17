@@ -605,22 +605,50 @@ body {
 /* ---- 기술 트리: 분기 상세 세로 노드 트리 (UI-SPEC 15~16번, 원본 shot-042546) ----
    노드 2개씩 가로선으로 잇고, 쌍과 쌍 사이는 세로선으로 이어 좌우 분기 갈래 모양을 만든다. */
 .tech-branch-detail-pct { font-weight: 800; font-size: .95rem; text-align: center; color: var(--pp-ink); margin-top: -.2rem; }
-.tech-tree-col { display: flex; flex-direction: column; align-items: center; margin: .6rem 0 1rem; }
+/* 연결선 — 원본(042546) 실측(505×883): 노드 지름 62px · 행 간격(노드 중심 사이) 95px ·
+   좌우 노드 중심 간격 153px(=9.14rem) · 중앙 세로선은 노드 중심에서 노드 중심까지 이어지고
+   노드 원 뒤로 지나간다(원이 불투명이라 가려짐) · 첫 행 위로 36px 트렁크가 솟는다.
+   기존 클론이 '다 끊어져 보인' 이유는 셋이었다:
+   ① 세로선이 행 사이 빈틈(1.3rem)만 채워, 위 행 노드 중심~아래 행 노드 중심 108px 중 22px만 그림
+   ② 노드 칸(.tech-tree-node-col 5rem)이 원(3.7rem)보다 넓어 가로선 양끝에 .65rem씩 죽은 공간이 생겨
+      가로선이 원에 닿지 못함 ③ 첫 행 위 트렁크가 아예 없음.
+   레이아웃(행 간격)은 그대로 두고 ::before로 '그림만' 늘려 노드 중심까지 닿게 한다. */
+.tech-tree-col { position: relative; display: flex; flex-direction: column; align-items: center; margin: .6rem 0 1rem; }
+/* 첫 행 위 트렁크 — 원본 36px(2.15rem), 아래 끝이 첫 노드 중심(1.85rem)에 맞물린다 */
+.tech-tree-col::before {
+    content: ''; position: absolute; left: 50%; transform: translateX(-50%);
+    top: -.3rem; width: .18rem; height: 2.15rem; background: var(--pp-line);
+}
 .tech-tree-row { display: flex; align-items: flex-start; justify-content: center; }
-.tech-tree-hline { width: 2.6rem; height: .18rem; background: var(--pp-line); margin-top: 1.8rem; }
-.tech-tree-vline { width: .18rem; height: 1.3rem; background: var(--pp-line); align-self: center; }
-.tech-tree-node-col { display: flex; flex-direction: column; align-items: center; width: 5rem; }
+/* 노드 칸을 원 크기(3.7rem)에 맞춰 죽은 공간을 없애고, 가로선 폭 5.44rem으로 좌우 원에 정확히 맞물린다
+   — 노드 중심 간격 3.7+5.44 = 9.14rem으로 원본 실측과 일치. margin-top은 선 두께 절반을 뺀 1.76rem이라
+   선의 중심이 노드 중심(1.85rem)에 온다. */
+.tech-tree-hline { width: 5.44rem; height: .18rem; background: var(--pp-line); margin-top: 1.76rem; }
+/* 세로선: 레이아웃은 .55rem(행 피치를 원본 95px에 맞춘 값)만 차지하고,
+   실제 선은 ::before가 위로 3.27rem(반노드 1.85 + 라벨 블록 1.42), 아래로 1.85rem 넘겨 그린다. */
+.tech-tree-vline { position: relative; width: .18rem; height: .55rem; align-self: center; }
+.tech-tree-vline::before {
+    content: ''; position: absolute; left: 0; width: 100%;
+    top: -3.27rem; bottom: -1.85rem; background: var(--pp-line);
+}
+.tech-tree-node-col { display: flex; flex-direction: column; align-items: center; width: 3.7rem; }
 /* 원본: 큰 브론즈 원(진행/완료), 미해금은 흰 원 — 이름 라벨 없음, N/5만 */
 .tech-tree-node {
     width: 3.7rem; height: 3.7rem; border-radius: 50%; display: flex; align-items: center; justify-content: center;
     font-size: 1.5rem; border: .3rem solid #6f4517; background: #c9925a; cursor: pointer;
     box-shadow: inset 0 -.3rem 0 rgba(0,0,0,.22);
+    position: relative; z-index: 1; /* 원 뒤로 지나가는 세로선을 불투명하게 가린다 (원본 정합) */
 }
 .tech-tree-node.locked { background: #f4f2ee; border-color: #9c9c9c; box-shadow: inset 0 -.3rem 0 rgba(0,0,0,.08); }
 .tech-tree-node.active { background: #c9925a; }
 .tech-tree-node.done { background: #a9793f; border-color: #5d3810; }
 .tech-tree-node.researching { background: var(--pp-green); border-color: #1d6b33; }
-.tech-tree-label { font-size: .78rem; text-align: center; color: var(--pp-ink); font-weight: 900; margin: .22rem 0 .3rem; }
+/* 라벨 높이를 고정한다 — 연구 중 타이머 배지가 붙어 행이 길어지면 세로선 오프셋(3.27rem)이
+   어긋나 그 행만 선이 끊긴다. 배지는 .9rem을 살짝 넘겨도 레이아웃을 밀지 않고 그려지기만 한다. */
+.tech-tree-label {
+    font-size: .78rem; text-align: center; color: var(--pp-ink); font-weight: 900; margin: .22rem 0 .3rem;
+    height: .9rem; display: flex; align-items: center; justify-content: center; white-space: nowrap;
+}
 .tech-tree-label .tech-tree-node-time {
     display: inline-block; background: var(--pp-ink); color: var(--pp-green);
     border-radius: .6rem; padding: .05rem .45rem; font-weight: 800; margin-top: .1rem;
