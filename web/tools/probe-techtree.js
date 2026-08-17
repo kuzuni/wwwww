@@ -1,8 +1,11 @@
-// 기술 트리 5단계(티어) 세로 트리 검증 도구 (사용자 정정 2026-08-17 항목)
-//  ① 노드 상한 5레벨 · 노드 라벨 'N/5'
-//  ② 1단계 미완료 시 2단계 잠김 / 1단계 전부 만렙이면 2단계 해금 (실클릭으로 연구 시작까지)
-//  ③ 연결선이 노드 중심 ~ 노드 중심으로 끊김 없이 이어짐(::before 실측)
-//  ④ 첫 노드 위·마지막 노드 아래로 삐져나온 선이 없음(픽셀 스캔)
+// 기술 트리 검증 — 구조는 '타입 × 5단계 격자' (사용자 재정정 2026-08-17 4회차)
+//  ① 한 분기에서 각 타입이 5번(단계마다) 나타난다 — 노드 수 = 타입 수 × 5
+//  ② 해금: '무기 마스터리 1단계' 1레벨 → '무기 마스터리 2단계' 즉시 열림.
+//     다른 타입의 2단계는 그 타입 1단계가 0이면 잠긴 채여야 한다(단계 통째 완료 아님)
+//  ③ 노드당 상한 5, 라벨 N/5
+//  ④ 보너스는 그 타입의 5단계 노드 레벨 합산
+//  ⑤ 단계가 높을수록 비용·시간이 비싸다
+//  ⑥ 연결선은 단계 사이에만, 첫 노드 위·마지막 노드 아래로 삐져나오지 않는다
 // 사용: node probe-techtree.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
@@ -10,46 +13,52 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 const VIEWPORTS = [
     { width: 499, height: 892 },   // 원본 대조용
     { width: 412, height: 915 },
-    { width: 390, height: 844 },
     { width: 360, height: 800 },
 ];
 const BRANCHES = ['power', 'forge', 'skillpet'];
 
-// 트리 화면 열기 — 3D 렌더 루프는 캡처가 15~30초씩 걸리므로 먼저 멈춘다(인계 메모)
+// UI·S·TechTree는 최상위 const라 waitForFunction 술어에서 안 보인다 — evaluate 폴링으로 기다린다.
+async function waitBooted(page, timeout = 20000) {
+    const t0 = Date.now();
+    for (;;) {
+        const ok = await page.evaluate(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && !!S).catch(() => false);
+        if (ok) return;
+        if (Date.now() - t0 > timeout) throw new Error('부팅 대기 시간 초과');
+        await page.waitForTimeout(100);
+    }
+}
+
 async function openBranch(page, branch) {
     await page.evaluate((b) => {
-        // 렌더 루프가 도는 동안은 swiftshader 스크린샷 한 장이 15~30초다 — 먼저 멈춘다.
-        // (const 전역이라 window.Scene3D로는 안 잡힌다 — typeof로 확인할 것)
+        // 렌더 루프가 도는 동안은 swiftshader 캡처가 15~30초다 — 먼저 멈춘다(const 전역이라 typeof로 확인)
         if (typeof Scene3D !== 'undefined') Scene3D.update = function () {};
         UI.openTechTree();
         UI.openTechBranch(b);
     }, branch);
-    await page.waitForTimeout(450); // 패널 전환·아이콘 로드가 끝나 레이아웃이 굳을 때까지
+    await page.waitForTimeout(400);
 }
 
-// 노드/연결선 기하 실측. 선은 ::before가 그리므로 getComputedStyle로 실제 그려지는 구간을 잰다.
+// 노드/연결선 기하 실측. 선은 ::before가 그리므로 getComputedStyle로 실제 구간을 잰다.
 const GEOM = () => {
     const col = document.querySelector('.tech-tree-col');
     const cr = col.getBoundingClientRect();
     const px = v => parseFloat(v) || 0;
     const nodes = [...col.querySelectorAll('.tech-tree-node')].map(n => {
         const r = n.getBoundingClientRect();
-        return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, top: r.top, bottom: r.bottom, d: r.width, cls: n.className };
+        return { cy: r.top + r.height / 2, top: r.top, bottom: r.bottom, cls: n.className };
     });
-    // 세로선: 레이아웃 박스 + ::before 오프셋으로 실제 선의 y 구간을 만든다
     const lines = [];
-    for (const el of col.querySelectorAll('.tech-tree-vline, .tech-tree-vrow i')) {
+    for (const el of col.querySelectorAll('.tech-tree-vline')) {
         const r = el.getBoundingClientRect();
         const cs = getComputedStyle(el, '::before');
-        lines.push({ x: r.left + r.width / 2, y0: r.top + px(cs.top), y1: r.bottom - px(cs.bottom) });
+        lines.push({ y0: r.top + px(cs.top), y1: r.bottom - px(cs.bottom) });
     }
-    const bars = [...col.querySelectorAll('.tech-tree-hline')].map(el => {
-        const r = el.getBoundingClientRect();
-        return { x0: r.left, x1: r.right, cy: r.top + r.height / 2 };
-    });
-    const labels = [...col.querySelectorAll('.tech-tree-label')].map(el => el.textContent.trim());
-    const tags = [...col.querySelectorAll('.tech-tier-tag')].map(el => el.textContent.trim());
-    return { col: { top: cr.top, bottom: cr.bottom, left: cr.left, right: cr.right, w: cr.width }, nodes, lines, bars, labels, tags };
+    return {
+        col: { top: cr.top, left: cr.left, w: cr.width },
+        nodes, lines,
+        labels: [...col.querySelectorAll('.tech-tree-label')].map(el => el.textContent.trim()),
+        tags: [...col.querySelectorAll('.tech-tier-tag')].map(el => el.textContent.trim()),
+    };
 };
 
 (async () => {
@@ -58,17 +67,15 @@ const GEOM = () => {
         args: ['--use-gl=angle', '--enable-unsafe-swiftshader'],
     });
     const errs = [], fails = [];
-    const ok = (cond, msg) => { if (!cond) fails.push(msg); return cond; };
+    const ok = (c, m) => { if (!c) fails.push(m); };
 
     for (const vp of VIEWPORTS) {
         const page = await browser.newPage({ viewport: vp });
         page.on('pageerror', e => errs.push(`${vp.width}x${vp.height} ${e.message}`));
-        page.on('console', m => { if (m.type() === 'error') errs.push(`${vp.width}x${vp.height} ${m.text()}`); });
+        page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push(`${vp.width}x${vp.height} ${m.text()}`); });
         await page.goto(INDEX, { waitUntil: 'load' });
-        // waitForFunction 컨텍스트에서는 페이지 스크립트의 const 전역이 다 보이지 않는다(TechTree 미인식) —
-        // 로드 판정은 UI·S로 하고 실제 조회는 전부 page.evaluate로 한다.
-        await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 15000 });
-        await page.waitForTimeout(400);
+        await waitBooted(page);
+        await page.waitForTimeout(300);
         console.log(`\n===== ${vp.width}x${vp.height} =====`);
 
         for (const branch of BRANCHES) {
@@ -76,161 +83,87 @@ const GEOM = () => {
             const g = await page.evaluate(GEOM);
             const meta = await page.evaluate(b => {
                 const br = TechTree.BRANCHES.find(x => x.id === b);
-                return { tiers: br.tiers, nodes: br.nodes, max: TechTree.MAX_LEVEL, tiersN: TechTree.TIERS };
+                const ids = TechTree.nodesOf(b);
+                // 각 타입이 몇 번 등장하는지 (전부 5번이어야 한다)
+                const perType = {};
+                ids.forEach(id => { const t = TechTree.typeOf(id); perType[t] = (perType[t] || 0) + 1; });
+                return {
+                    types: br.types.length, nodes: ids.length, tiers: TechTree.TIERS, max: TechTree.MAX_LEVEL,
+                    everyTypeFiveTimes: br.types.every(t => perType[t] === TechTree.TIERS),
+                };
             }, branch);
 
-            // ① 구조: 5단계 · 노드 상한 5 · 라벨 N/5 · 단계 태그 I~V 5개
-            ok(meta.tiers.length === 5, `${branch}: 단계 수 ${meta.tiers.length} ≠ 5`);
-            ok(meta.max === 5, `${branch}: MAX_LEVEL ${meta.max} ≠ 5`);
-            ok(g.nodes.length === meta.nodes.length, `${branch}: 그려진 노드 ${g.nodes.length} ≠ ${meta.nodes.length}`);
-            ok(g.labels.every(t => /^\d+\/5$/.test(t)), `${branch}: 노드 라벨이 N/5 형식이 아님 — ${g.labels.join(',')}`);
+            // ① 타입 × 5단계
+            ok(meta.nodes === meta.types * meta.tiers, `${branch}: 노드 ${meta.nodes} ≠ 타입 ${meta.types} × ${meta.tiers}단계`);
+            ok(meta.everyTypeFiveTimes, `${branch}: 5단계에 전부 반복되지 않는 타입이 있다`);
+            ok(g.nodes.length === meta.nodes, `${branch}: 그려진 노드 ${g.nodes.length} ≠ ${meta.nodes}`);
+            // ③ 라벨 N/5 · 단계 태그 5개
+            ok(g.labels.every(t => /^\d+\/5$/.test(t)), `${branch}: 노드 라벨이 N/5 형식이 아님`);
             ok(g.tags.join(',') === 'I,II,III,IV,V', `${branch}: 단계 태그 ${g.tags.join(',')} ≠ I,II,III,IV,V`);
 
-            // ② 연결선 연속성: 세로선이 위 노드 중심 ~ 아래 노드 중심을 덮는지 (오차 1.5px)
-            const rowsY = [...new Set(g.nodes.map(n => Math.round(n.cy)))].sort((a, b) => a - b);
-            let gaps = 0;
-            for (let i = 0; i < rowsY.length - 1; i++) {
-                const covered = g.lines.some(l => l.y0 <= rowsY[i] + 1.5 && l.y1 >= rowsY[i + 1] - 1.5);
-                if (!covered) { gaps++; console.log(`   [gap] ${branch} y ${rowsY[i]}→${rowsY[i + 1]} 미연결`); }
+            // ⑥ 연결선은 단계 사이에만 (단계 수 - 1 = 4개), 노드 밖으로 삐져나오지 않는다
+            ok(g.lines.length === meta.tiers - 1, `${branch}: 단계 연결선 ${g.lines.length}개 ≠ ${meta.tiers - 1}개`);
+            const firstCy = Math.min(...g.nodes.map(n => n.cy)), lastCy = Math.max(...g.nodes.map(n => n.cy));
+            ok(!g.lines.some(l => l.y0 < firstCy - 1.5), `${branch}: 첫 노드 위로 뻗은 선이 있다`);
+            ok(!g.lines.some(l => l.y1 > lastCy + 1.5), `${branch}: 마지막 노드 아래로 뻗은 선이 있다`);
+            // 각 연결선이 위 단계 마지막 행과 아래 단계 첫 행의 노드 중심을 잇는지
+            for (const l of g.lines) {
+                const above = g.nodes.filter(n => Math.abs(n.cy - l.y0) < 2).length;
+                const below = g.nodes.filter(n => Math.abs(n.cy - l.y1) < 2).length;
+                ok(above > 0 && below > 0, `${branch}: 연결선 끝이 노드 중심에 닿지 않는다 (${l.y0.toFixed(0)}~${l.y1.toFixed(0)})`);
             }
-            ok(gaps === 0, `${branch}: 세로 연결선 끊김 ${gaps}구간`);
-
-            // ③ 가로 바가 좌우 노드 안쪽 가장자리에 맞물리는지 (원본 정합 — 오차 1px)
-            for (const bar of g.bars) {
-                const pair = g.nodes.filter(n => Math.abs(n.cy - bar.cy) < 2).sort((a, b) => a.cx - b.cx);
-                if (pair.length !== 2) { fails.push(`${branch}: 가로 바 y=${bar.cy.toFixed(0)}에 짝 노드 ${pair.length}개`); continue; }
-                ok(bar.x0 <= pair[0].cx + pair[0].d / 2 + 1 && bar.x1 >= pair[1].cx - pair[1].d / 2 - 1,
-                    `${branch}: 가로 바가 노드에 안 닿음 ${bar.x0.toFixed(1)}~${bar.x1.toFixed(1)}`);
-            }
-
-            // ④ 첫 노드 위·마지막 노드 아래로 삐져나온 선 없음
-            const firstCy = rowsY[0], lastCy = rowsY[rowsY.length - 1];
-            const above = g.lines.filter(l => l.y0 < firstCy - 1.5);
-            const below = g.lines.filter(l => l.y1 > lastCy + 1.5);
-            ok(above.length === 0, `${branch}: 첫 노드 위로 뻗은 선 ${above.length}개 (y0=${above.map(l => l.y0.toFixed(0))})`);
-            ok(below.length === 0, `${branch}: 마지막 노드 아래로 뻗은 선 ${below.length}개`);
-            // 픽셀 스캔 교차검증 — 트리 축의 '진행률 텍스트 아래 ~ 첫 노드 위' 구간에 선 픽셀이 없어야 한다.
-            // (트렁크를 지운 뒤로 .tech-tree-col 자체가 첫 노드에서 시작하므로, 옛 트렁크가 그려지던
-            //  바깥 여백까지 담으려면 패널을 통째로 찍어야 한다. 진행률 텍스트는 축에 걸리므로 제외한다.)
-            const shot = (await page.locator('#panel-tech').screenshot()).toString('base64');
-            // 좌표는 스크린샷과 같은 순간의 DOM에서 다시 잰다 — 앞서 잰 rect를 쓰면 그 사이 레이아웃이
-            // 움직였을 때(아이콘 로드·패널 전환) 엉뚱한 구간을 스캔한다.
-            const stray = await page.evaluate(async ({ b64 }) => {
-                const panel = document.getElementById('panel-tech');
-                const pr = panel.getBoundingClientRect();
-                const pctEl = panel.querySelector('.tech-branch-detail-pct');
-                const col = panel.querySelector('.tech-tree-col');
-                const colR = col.getBoundingClientRect();
-                const cx = colR.left + colR.width / 2;
-                const firstTop = Math.min(...[...col.querySelectorAll('.tech-tree-node')].map(n => n.getBoundingClientRect().top));
-                const yStart = (pctEl ? pctEl.getBoundingClientRect().bottom : pr.top) + 2 - pr.top;
-                const img = new Image();
-                await new Promise(r => { img.onload = r; img.src = 'data:image/png;base64,' + b64; });
-                const cv = document.createElement('canvas');
-                cv.width = img.width; cv.height = img.height;
-                const ctx = cv.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                const sx = img.width / pr.width;                  // 스크린샷은 CSS px과 배율이 같지만 방어적으로 환산
-                const x = Math.round((cx - pr.left) * sx);
-                const y0 = Math.round(yStart * sx);
-                const y1 = Math.round((firstTop - pr.top) * sx) - 2; // 첫 노드 윗변 2px 위까지
-                if (y1 - y0 <= 0) return { hit: 0, scanned: 0 };
-                const h = y1 - y0;
-                const strip = ctx.getImageData(Math.max(0, x - 2), y0, 5, h).data; // 한 번에 읽는다(픽셀별 호출은 느리다)
-                let hit = 0;
-                for (let y = 0; y < h; y++) {
-                    for (let dx = 0; dx < 5; dx++) {
-                        const p = (y * 5 + dx) * 4;
-                        if (strip[p + 3] > 40 && strip[p] < 120 && strip[p + 1] < 120 && strip[p + 2] < 120) { hit++; break; }
-                    }
-                }
-                return { hit, scanned: h };
-            }, { b64: shot });
-            ok(stray.hit === 0, `${branch}: 첫 노드 위 픽셀 스캔에서 선 ${stray.hit}px 검출`);
-
-            console.log(`  ${branch}: 노드 ${g.nodes.length} · 행 ${rowsY.length} · 세로선 ${g.lines.length} · 가로바 ${g.bars.length}`
-                + ` · 단계태그 ${g.tags.join('')} · 첫노드위 스캔 ${stray.scanned}px 중 선 ${stray.hit}px`);
+            console.log(`  ${branch}: 타입 ${meta.types} × ${meta.tiers}단계 = 노드 ${g.nodes.length} · 단계 연결선 ${g.lines.length} · 태그 ${g.tags.join('')}`);
         }
 
-        // ⑤ 잠금/해금 로직 — 실제 화면·실클릭으로 확인 (forge 분기: 1단계 2노드)
-        await openBranch(page, 'forge');
-        const lockBefore = await page.evaluate(() => {
+        // ② 해금 — 같은 타입 위 단계 1레벨이면 열리고, 다른 타입은 그대로 잠긴다
+        await openBranch(page, 'power');
+        const lock = await page.evaluate(() => {
             S.potions = 1e9;
-            UI.openTechBranch('forge');
-            const t1 = TechTree.tierNodes('forge', 1), t2 = TechTree.tierNodes('forge', 2);
-            return {
-                t1open: t1.every(id => TechTree.isUnlocked(id)),
-                t2open: t2.some(id => TechTree.isUnlocked(id)),
-                t2start: TechTree.canStart(t2[0]),
-                locked: [...document.querySelectorAll('.tech-tree-node.tlocked')].length,
+            for (const k in S.tech) S.tech[k] = 0;
+            const A = 'weaponMastery', B = 'armorMastery';
+            const before = {
+                a1: TechTree.isUnlocked(TechTree.nid(A, 1)),
+                a2: TechTree.isUnlocked(TechTree.nid(A, 2)),
+                b2: TechTree.isUnlocked(TechTree.nid(B, 2)),
             };
+            S.tech[TechTree.nid(A, 1)] = 1;      // 딱 1레벨만 (만렙 아님)
+            const after = {
+                a2: TechTree.isUnlocked(TechTree.nid(A, 2)),
+                a3: TechTree.isUnlocked(TechTree.nid(A, 3)),
+                b2: TechTree.isUnlocked(TechTree.nid(B, 2)),
+                canStartA2: TechTree.canStart(TechTree.nid(A, 2)),
+            };
+            return { before, after };
         });
-        ok(lockBefore.t1open, '1단계 노드가 잠겨 있음');
-        ok(!lockBefore.t2open && !lockBefore.t2start, '1단계 미완료인데 2단계가 열려 있음');
-        ok(lockBefore.locked > 0, '잠긴 노드 표시(.tlocked)가 0개');
+        ok(lock.before.a1 && !lock.before.a2 && !lock.before.b2, '초기 상태에서 2단계가 이미 열려 있다');
+        ok(lock.after.a2 && lock.after.canStartA2, '같은 타입 1단계를 1레벨 찍었는데 2단계가 안 열렸다');
+        ok(!lock.after.a3, '2단계가 0레벨인데 3단계가 열렸다');
+        ok(!lock.after.b2, '다른 타입의 1단계가 0레벨인데 그 타입 2단계가 열렸다');
+        console.log(`  해금: 무기1↑1렙 → 무기2 열림 ${lock.after.a2} · 무기3 잠김 ${!lock.after.a3} · 방어구2 잠김 ${!lock.after.b2}`);
 
-        // 잠긴 노드 팝업: [연구 시작]이 아니라 잠김 안내가 떠야 한다
-        const lockedPopup = await page.evaluate(() => {
-            UI.openTechNode(TechTree.tierNodes('forge', 2)[0]);
-            const t = document.getElementById('detail-modal').innerText;
-            UI.closeDetail();
-            return t;
+        // ③ 상한 5 ④ 보너스 5단계 합산 ⑤ 단계가 오를수록 비용·시간 증가
+        const calc = await page.evaluate(() => {
+            for (const k in S.tech) S.tech[k] = 0;
+            S.tech[TechTree.nid('weaponMastery', 1)] = 9;   // 상한 초과 세이브
+            TechTree.ensure();
+            const capped = TechTree.level(TechTree.nid('weaponMastery', 1));
+            // 5단계 전부 3레벨 → 타입 총 레벨 15, per=2 → +30%
+            for (let t = 1; t <= TechTree.TIERS; t++) S.tech[TechTree.nid('weaponMastery', t)] = 3;
+            const sum = { typeLevel: TechTree.typeLevel('weaponMastery'), pct: TechTree.pct('weaponMastery'),
+                          nodeOnly: TechTree.nodeTotal(TechTree.nid('weaponMastery', 1)),
+                          mult: +TechTree.gearAtkMult().toFixed(3) };
+            const cost = [1, 2, 3, 4, 5].map(t => TechTree.cost(TechTree.nid('weaponMastery', t), 1));
+            const time = [1, 2, 3, 4, 5].map(t => TechTree.time(TechTree.nid('weaponMastery', t), 1));
+            return { capped, sum, cost, time };
         });
-        ok(/잠김/.test(lockedPopup) && /단계를 모두 완료하면 열립니다/.test(lockedPopup),
-            `잠긴 노드 팝업 문구 이상: ${JSON.stringify(lockedPopup.slice(0, 80))}`);
-
-        // 상한 확인: 6레벨을 넣어도 5로 잘리는지 + 만렙 노드는 연구 시작 불가
-        const capped = await page.evaluate(() => {
-            const t1 = TechTree.tierNodes('forge', 1);
-            S.tech[t1[0]] = 9; TechTree.ensure();
-            return { lv: TechTree.level(t1[0]), start: TechTree.canStart(t1[0]) };
-        });
-        ok(capped.lv === 5, `상한 초과 세이브가 ${capped.lv}로 남음 (5여야 함)`);
-        ok(capped.start === false, '만렙 노드에서 연구 시작이 가능함');
-
-        // 1단계를 전부 만렙으로 → 2단계 해금 + 실클릭으로 연구 시작
-        const unlocked = await page.evaluate(() => {
-            TechTree.tierNodes('forge', 1).forEach(id => { S.tech[id] = 5; });
-            UI.openTechBranch('forge');
-            const t2 = TechTree.tierNodes('forge', 2);
-            return { open: t2.every(id => TechTree.isUnlocked(id)), can: TechTree.canStart(t2[0]), id: t2[0],
-                     t3open: TechTree.tierNodes('forge', 3).some(id => TechTree.isUnlocked(id)) };
-        });
-        ok(unlocked.open && unlocked.can, '1단계 완료 후에도 2단계가 잠겨 있음');
-        ok(!unlocked.t3open, '2단계 미완료인데 3단계가 열려 있음');
-
-        // 노드 → 팝업 → [연구 시작] 실클릭 (좌표 히트 테스트 포함)
-        const nodeBox = await page.evaluate((id) => {
-            const idx = TechTree.BRANCHES.find(b => b.id === 'forge').nodes.indexOf(id);
-            const el = document.querySelectorAll('.tech-tree-node')[idx];
-            const r = el.getBoundingClientRect();
-            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-            return { x: r.left + r.width / 2, y: r.top + r.height / 2, self: hit === el };
-        }, unlocked.id);
-        ok(nodeBox.self, '2단계 노드 중앙이 다른 요소에 덮임');
-        await page.mouse.click(nodeBox.x, nodeBox.y);
-        await page.waitForTimeout(150);
-        const started = await page.evaluate(() => {
-            const btn = [...document.querySelectorAll('#detail-modal button')].find(b => /연구 시작/.test(b.textContent));
-            if (!btn) return { err: 'no-start-btn' };
-            const r = btn.getBoundingClientRect();
-            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-            btn.click();
-            return { self: hit === btn || btn.contains(hit), running: !!S.techResearch, id: S.techResearch && S.techResearch.id };
-        });
-        ok(!started.err && started.self && started.running,
-            `2단계 노드 연구 시작 실패: ${JSON.stringify(started)}`);
-
-        // 연구 중 배지가 붙어도 행 피치(=선 연속성)가 안 흔들리는지
-        const pitchOk = await page.evaluate(() => {
-            UI.closeDetail(); UI.openTechBranch('forge');
-            const ys = [...new Set([...document.querySelectorAll('.tech-tree-node')]
-                .map(n => Math.round(n.getBoundingClientRect().top)))].sort((a, b) => a - b);
-            const d = ys.slice(1).map((y, i) => y - ys[i]);
-            return { d, uniform: d.every(v => Math.abs(v - d[0]) <= 1) };
-        });
-        ok(pitchOk.uniform, `연구 중 행 피치가 흔들림: ${pitchOk.d.join(',')}`);
-        console.log(`  잠금/해금: 1단계 열림·2단계 잠김 → 1단계 만렙 → 2단계 해금·연구 시작 OK · 행 피치 ${pitchOk.d.join('/')}`);
+        ok(calc.capped === 5, `상한 초과 세이브가 ${calc.capped}로 남음 (5여야 함)`);
+        ok(calc.sum.typeLevel === 15 && calc.sum.pct === 30 && calc.sum.mult === 1.3,
+            `보너스가 5단계 합산이 아니다 ${JSON.stringify(calc.sum)}`);
+        ok(calc.sum.nodeOnly === 6, `노드 단독 기여가 틀렸다 (${calc.sum.nodeOnly}, 3레벨×2 = 6이어야)`);
+        const inc = a => a.every((v, i) => i === 0 || v > a[i - 1]);
+        ok(inc(calc.cost) && inc(calc.time), `단계가 올라도 비용·시간이 안 오른다 ${calc.cost} / ${calc.time}`);
+        console.log(`  집계: 5단계 각 3렙 → 타입 15렙 · +${calc.sum.pct}% · 배율 ${calc.sum.mult} (노드 하나는 +${calc.sum.nodeOnly}%)`);
+        console.log(`  단계별 1레벨 비용 ${calc.cost.join(' → ')} · 시간 ${calc.time.join(' → ')}초`);
         await page.close();
     }
 

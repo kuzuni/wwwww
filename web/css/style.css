@@ -885,6 +885,8 @@ body {
     background: var(--pp-line); margin-top: calc(var(--tt-node) / 2 - var(--tt-bar) / 2);
     margin-left: calc(var(--tt-bite) * -1); margin-right: calc(var(--tt-bite) * -1);
 }
+/* 같은 단계 안 행 사이 — 연결선 없이 자리만 띄운다(단계 안 노드끼리는 부모-자식이 아니다) */
+.tech-tree-vgap { width: var(--tt-line); height: var(--tt-gap); }
 /* 원본에서 병렬 블록 가운데 행에는 가로 바가 없다 — 자리만 차지하는 빈 칸으로 간격을 유지한다 */
 .tech-tree-hgap { width: calc(var(--tt-span) - var(--tt-node)); height: var(--tt-bar); }
 /* 세로선: 레이아웃은 --tt-gap만 차지하고, 실제 선은 ::before가 위로 (반노드+라벨), 아래로 반노드를

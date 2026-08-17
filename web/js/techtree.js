@@ -2,42 +2,30 @@
 // 분기 3개: ① 힘·탈것 ② 대장간 ③ 스킬·펫&기술. 원본의 ANIMALS 분기와 길드(Guild)는 사용자 지시로 제외.
 // 노드 구성·효과 수치는 개발자 가이드(1vcian.me/ForgeMasterCalculator) + 사용자가 원본 게임에서 직접 확인한 값.
 //
-// ===== 트리 구조 (사용자 재정정 2026-08-17 — '단계 통째 완료' 해석을 폐기하고 재작업) =====
-// 5단계(티어)는 **노드 안의 단계가 아니라 트리 자체의 단계**다:
-//   ① 각 분기는 위→아래로 이어지는 5단계(티어) 세로 트리.
-//   ② 해금은 단계 단위가 아니라 **노드 그래프의 선행 조건**이다 — 선으로 이어진 부모 노드가
-//      전부 **1레벨 이상**이면 자식이 열린다(부모 만렙 불필요, 2부모면 둘 다 1렙 이상).
-//      판정은 isUnlocked()/parentsOf() 참고. 단계는 비용·시간 배수에만 쓴다.
-//   ③ 노드 하나는 **최대 5레벨**(원본 스크린샷 shot-042546의 'N/5' 표기와 일치).
-// 따라서 비용·시간 커브의 '티어 배수'는 레벨이 아니라 **노드가 속한 단계**에서 나온다.
+// ===== 트리 구조 (사용자 재정정 2026-08-17, 4회차 — '타입이 한 단계에만 있다'는 배치를 폐기) =====
+// 분기의 **모든 타입이 매 단계마다 반복**된다. 「힘·탈것」이면 7타입 × 5단계 = 35노드이고
+// '무기 마스터리 1단계'와 '무기 마스터리 2단계'는 서로 다른 노드다(노드 id = `타입@단계`).
+//   ① 노드 하나는 최대 5레벨(원본 shot-042546의 'N/5').
+//   ② 해금: **바로 위 단계의 같은 타입 노드가 1레벨 이상**이면 열린다(직속 부모 1개, 1레벨이면 충분).
+//      1단계는 부모가 없어 항상 열려 있다.
+//   ③ 단계 사이에 연결선을 그린다 — 같은 타입이 단계를 위→아래로 잇는 세로 골격이다.
+//   ④ 보너스는 **그 타입의 5개 단계 노드 레벨을 전부 합산**한다(pct()가 타입 단위로 센다).
+//   ⑤ 비용·시간은 단계가 높을수록 비싸고 오래 걸린다(단계 배수) + 노드 안 레벨마다 증가.
 // 연구는 대장간 업그레이드와 동일하게 물약 선결제 + 실시간 타이머(전체 트리 통틀어 동시 1건) 방식.
 const TechTree = {
     TIERS: 5,        // 트리 단계 I~V
     MAX_LEVEL: 5,    // 노드당 최대 레벨 (원본 'N/5')
 
-    // tiers[0]이 1단계 — 위에서 아래로 그려진다. nodes(평탄화 목록)는 ensure()가 만들어 붙인다.
+    // types = 그 분기의 타입 목록. 이 타입들이 1~5단계에 **똑같이 반복**돼 노드 인스턴스가 된다.
     BRANCHES: [
-        { id: 'power',    name: '힘 · 탈것',       icon: '💪', tiers: [
-            ['weaponMastery', 'armorMastery'],
-            ['gearMaxLevel'],
-            ['mountDmg', 'mountHp'],
-            ['mountCost'],
-            ['extraMount'],
-        ] },
-        { id: 'forge',    name: '대장간',          icon: '⚒️', tiers: [
-            ['forgeTimer', 'forgeCost'],
-            ['sellPrice', 'freeForge'],
-            ['thiefHammer', 'thiefCoin'],
-            ['autoForgeSlot', 'offlineCap'],
-            ['offlineCoin', 'offlineHammer'],
-        ] },
-        { id: 'skillpet', name: '스킬, 펫 & 기술', icon: '✨', tiers: [
-            ['techTimer', 'techCost'],
-            ['skillDmg', 'skillPassiveDmg', 'skillPassiveHp'],
-            ['petHp', 'petDmg'],
-            ['skillSummonCost', 'hatchTimer', 'extraEgg'],
-            ['dungeonTicket', 'dungeonPotion'],
-        ] },
+        { id: 'power',    name: '힘 · 탈것',       icon: '💪', types: [
+            'weaponMastery', 'armorMastery', 'gearMaxLevel', 'mountDmg', 'mountHp', 'mountCost', 'extraMount'] },
+        { id: 'forge',    name: '대장간',          icon: '⚒️', types: [
+            'forgeTimer', 'forgeCost', 'sellPrice', 'thiefHammer', 'thiefCoin',
+            'autoForgeSlot', 'freeForge', 'offlineCap', 'offlineCoin', 'offlineHammer'] },
+        { id: 'skillpet', name: '스킬, 펫 & 기술', icon: '✨', types: [
+            'techTimer', 'skillDmg', 'skillPassiveDmg', 'skillPassiveHp', 'techCost', 'petHp', 'petDmg',
+            'skillSummonCost', 'hatchTimer', 'extraEgg', 'dungeonTicket', 'dungeonPotion'] },
     ],
 
     // per = 1업당 수치. 단위는 대부분 %지만 gearMaxLevel(레벨)·autoForgeSlot(개)은 절대 수치다.
@@ -125,7 +113,7 @@ const TechTree = {
     totalBonuses() {
         const out = [];
         for (const b of this.BRANCHES) {
-            for (const id of b.nodes) {
+            for (const id of b.types) {   // 타입 단위 — 그 타입의 5개 단계 노드 합산이 실제 보너스다
                 const meta = this.BONUS[id];
                 const value = this.totalOf(id);
                 if (!meta || !value) continue;
@@ -166,110 +154,111 @@ const TechTree = {
 
     ensure() {
         if (!S.tech) S.tech = {};
-        // 구세이브의 폐기 노드 레벨을 새 노드로 이관 (한 번만 — 이관 후 옛 키는 지운다)
+        // 구세이브의 폐기 노드 레벨을 살아남은 타입으로 이관 (한 번만 — 이관 후 옛 키는 지운다)
         for (const oldId in this.LEGACY_MAP) {
-            if (this.NODES[oldId] || S.tech[oldId] === undefined) continue; // 이름이 그대로 살아남은 노드는 건너뜀
+            if (this.NODES[oldId] || S.tech[oldId] === undefined) continue;
             const lv = S.tech[oldId] || 0;
             for (const newId of this.LEGACY_MAP[oldId]) {
                 if (this.NODES[newId]) S.tech[newId] = Math.max(S.tech[newId] || 0, lv);
             }
             delete S.tech[oldId];
         }
-        // 폐기 노드 잔여 키 제거 (LEGACY_MAP에 없는 옛 노드 — 예: 원본에 대응이 없는 eggGain)
-        for (const id in S.tech) if (!this.NODES[id]) delete S.tech[id];
-        for (const id in this.NODES) if (S.tech[id] === undefined) S.tech[id] = 0;
-        // 상한 밖 값 보정 — '노드당 25업' 시절 세이브는 6~25레벨을 들고 있으므로 5로 자른다
-        // (구조 재작업이라 되돌릴 방법이 없다. 잘린 만큼은 아래 단계 노드가 열려 있는 형태로 남는다.)
-        for (const id in this.NODES) S.tech[id] = U.clamp(S.tech[id], 0, this.MAX_LEVEL);
-        // 진행 중이던 연구가 폐기된 노드면 취소하고 선결제한 물약을 돌려준다 (개편 때문에 플레이어가 손해 보지 않게).
-        // 옛 노드의 비용 커브는 사라졌으므로 LEGACY_MAP으로 효과를 이어받은 새 노드의 다음 단계 비용으로 환산한다.
-        // 이어받은 노드가 없는 폐기 노드(예: eggGain)는 환산 기준이 없어 취소만 한다.
-        if (S.techResearch && !this.NODES[S.techResearch.id]) {
-            const heir = (this.LEGACY_MAP[S.techResearch.id] || []).find(nid => this.NODES[nid]);
+        // 구조 이관: 예전에는 저장 키가 타입 이름 하나(`weaponMastery`)였다. 이제 타입이 5단계에
+        // 반복되므로 키가 `타입@단계`다 — 옛 레벨은 **1단계 노드**로 옮긴다(위 단계는 거기서 열린다).
+        for (const id of Object.keys(S.tech)) {
+            if (id.indexOf('@') >= 0) continue;
+            const lv = U.clamp(S.tech[id] || 0, 0, this.MAX_LEVEL);
+            if (this.NODES[id]) {
+                const first = this.nid(id, 1);
+                S.tech[first] = Math.max(S.tech[first] || 0, lv);
+            }
+            delete S.tech[id];
+        }
+        // 전 분기 × 전 단계 인스턴스를 채우고, 목록에 없는 키는 지운다
+        const valid = {};
+        for (const b of this.BRANCHES) for (const id of this.nodesOf(b.id)) {
+            valid[id] = true;
+            S.tech[id] = U.clamp(S.tech[id] || 0, 0, this.MAX_LEVEL);
+        }
+        for (const id of Object.keys(S.tech)) if (!valid[id]) delete S.tech[id];
+        // 진행 중이던 연구가 사라진 노드면 취소하고 선결제한 물약을 돌려준다.
+        // (구조가 바뀌어 id가 달라졌을 뿐이면 같은 타입 1단계로 옮겨 환불 기준을 잡는다.)
+        if (S.techResearch && !valid[S.techResearch.id]) {
+            const heir = this.NODES[this.typeOf(S.techResearch.id)] ? this.nid(this.typeOf(S.techResearch.id), 1) : null;
             if (heir) S.potions += this.cost(heir, Math.min(this.level(heir) + 1, this.MAX_LEVEL));
             S.techResearch = null;
         }
         if (S.techResearch === undefined) S.techResearch = null; // {id, endsAt} — 전체 트리 통틀어 동시 1건
     },
 
+    // ===== 노드 인스턴스 = 타입@단계 =====
+    // 같은 타입이 5단계에 반복되므로 노드의 정체성은 '타입 + 단계'다. 저장 키도 이 id를 쓴다.
+    nid(type, tier) { return type + '@' + tier; },
+    typeOf(id) { return String(id).split('@')[0]; },
+    tierOf(id) { const t = +String(id).split('@')[1]; return t >= 1 && t <= this.TIERS ? t : 1; },
+    def(id) { return this.NODES[this.typeOf(id)]; },
+    // 분기의 전 노드(그리는 순서 = 1단계 타입 전부 → 2단계 …)
+    nodesOf(branchId) {
+        const b = this.BRANCHES.find(x => x.id === branchId);
+        if (!b) return [];
+        const out = [];
+        for (let t = 1; t <= this.TIERS; t++) for (const ty of b.types) out.push(this.nid(ty, t));
+        return out;
+    },
     level(id) { return S.tech[id] || 0; },
     isMax(id) { return this.level(id) >= this.MAX_LEVEL; },
-    branchOf(id) { return this.BRANCHES.find(b => b.nodes.includes(id)); },
-
-    // ===== 트리 단계(티어) =====
-    // 단계는 노드가 트리에서 몇 번째 줄에 있는지다 — 노드 레벨과 무관하다(1-based, 1~5).
-    tierOf(id) {
-        const b = this.branchOf(id);
-        if (!b) return 1;
-        const t = b.tiers.findIndex(list => list.includes(id));
-        return t < 0 ? 1 : t + 1;
-    },
+    branchOf(id) { const ty = this.typeOf(id); return this.BRANCHES.find(b => b.types.indexOf(ty) >= 0); },
     tierNodes(branchId, tier) {
         const b = this.BRANCHES.find(x => x.id === branchId);
-        return (b && b.tiers[tier - 1]) || [];
+        return b ? b.types.map(ty => this.nid(ty, tier)) : [];
     },
-    // ===== 해금 = 선으로 이어진 부모 노드가 전부 1레벨 이상 (사용자 재정정 2026-08-17) =====
-    // '단계 통째 만렙'이 아니다. 부모가 1개면 그 부모가 딱 1레벨만 돼도 자식이 열리고,
-    // 부모가 2개면(위에서 선 두 개가 들어오면) 둘 다 1레벨 이상이어야 열린다.
-    //
-    // 부모 관계는 화면에 그려지는 선과 반드시 같아야 해서, 그리기와 같은 규칙으로 여기서 만든다
-    // (UI는 rows()/parentsOf()를 그대로 받아 쓴다 — 두 곳에 규칙을 두면 선과 판정이 어긋난다):
-    //   ① 각 단계의 노드를 2개씩 잘라 행으로 쌓는다. 홀수면 마지막 노드가 중앙 단독 행이다.
-    //   ② 같은 단계 안에서 2노드 행이 연달아 오면 좌·우 두 갈래로 세로선이 내려간다
-    //      → 왼쪽 노드의 부모는 위 행 왼쪽, 오른쪽 노드의 부모는 위 행 오른쪽 (각 1부모).
-    //   ③ 그 밖에는 가운데 줄기 하나로 합류한다 → 그 행 노드들의 부모는 위 행 노드 '전부'
-    //      (위 행이 2노드면 2부모 합류, 1노드면 1부모에서 갈라짐).
-    //   ④ 첫 행은 부모가 없어 언제나 열려 있다.
+
+    // ===== 해금 = 바로 위 단계의 '같은 타입' 노드가 1레벨 이상 (사용자 재정정 2026-08-17 4회차) =====
+    // 부모는 언제나 한 개(같은 타입 한 단계 위)이고, 1단계는 부모가 없어 항상 열려 있다.
+    parentsOf(id) {
+        const tier = this.tierOf(id);
+        return tier <= 1 ? [] : [this.nid(this.typeOf(id), tier - 1)];
+    },
+    isUnlocked(id) { return this.parentsOf(id).every(p => this.level(p) >= 1); },
+    // 해금 대기 중인 노드가 '무엇을 올려야 열리는지' — 아직 0레벨인 부모 노드 id 목록
+    lockedBy(id) { return this.parentsOf(id).filter(p => this.level(p) < 1); },
+
+    // ===== 그리기 골격 =====
+    // 사용자가 준 그림대로 **단계가 가로 블록**이다: 한 단계에 그 분기의 타입이 전부 놓이고,
+    // 단계와 단계 사이에만 연결선을 그린다. 폭이 좁아 한 줄에 다 못 넣으므로 2개씩 흘려 쌓는다
+    // (항목 ⑦이 허용한 배치). 타입 순서는 모든 단계에서 같아서 같은 타입이 같은 자리에 온다.
     rows(branchId) {
         const b = this.BRANCHES.find(x => x.id === branchId);
         if (!b) return [];
         const out = [];
-        b.tiers.forEach((ids, t) => {
-            for (let i = 0; i < ids.length; i += 2) {
-                out.push({ ids: ids.slice(i, i + 2), tier: t + 1, first: i === 0 });
+        for (let t = 1; t <= this.TIERS; t++) {
+            for (let i = 0; i < b.types.length; i += 2) {
+                out.push({
+                    ids: b.types.slice(i, i + 2).map(ty => this.nid(ty, t)),
+                    tier: t, first: i === 0, lastOfTier: i + 2 >= b.types.length,
+                });
             }
-        });
+        }
         return out;
     },
-    // 같은 단계 안에서 위아래가 모두 2노드 행일 때만 좌·우 갈래(=부모가 1:1로 갈린다)
-    railBetween(upper, lower) {
-        return !!upper && !!lower && upper.tier === lower.tier
-            && upper.ids.length === 2 && lower.ids.length === 2;
-    },
-    parentsOf(id) {
-        const b = this.branchOf(id);
-        if (!b) return [];
-        const rows = this.rows(b.id);
-        for (let r = 1; r < rows.length; r++) {
-            const row = rows[r], i = row.ids.indexOf(id);
-            if (i < 0) continue;
-            const prev = rows[r - 1];
-            return this.railBetween(prev, row) ? [prev.ids[i]] : prev.ids.slice();
-        }
-        return []; // 첫 행이거나 목록에 없는 노드
-    },
-    isUnlocked(id) {
-        const parents = this.parentsOf(id);
-        return parents.every(p => this.level(p) >= 1);
-    },
-    // 해금 대기 중인 노드가 '무엇을 올려야 열리는지' — 아직 0레벨인 부모 노드 id 목록
-    lockedBy(id) {
-        return this.parentsOf(id).filter(p => this.level(p) < 1);
-    },
+    // 연결선은 단계와 단계 사이에만 (같은 단계 안의 행들은 서로 부모-자식이 아니다)
+    tierBreak(upper, lower) { return !!upper && !!lower && upper.tier !== lower.tier; },
+
     ROMAN: ['I', 'II', 'III', 'IV', 'V'],
     roman(tier) { return this.ROMAN[tier - 1] || 'I'; },
     tierLabel(id) { return this.roman(this.tierOf(id)); },
 
     // 분기 진행률(%): 분기 내 모든 노드 레벨 합 ÷ (노드 수 × MAX_LEVEL)
     branchProgress(branchId) {
-        const b = this.BRANCHES.find(x => x.id === branchId);
-        const sum = b.nodes.reduce((s, id) => s + this.level(id), 0);
-        return sum / (b.nodes.length * this.MAX_LEVEL) * 100;
+        const ids = this.nodesOf(branchId);
+        if (!ids.length) return 0;
+        const sum = ids.reduce((s, id) => s + this.level(id), 0);
+        return sum / (ids.length * this.MAX_LEVEL) * 100;
     },
 
     // 레벨 하나(1-based)를 구매하는 데 드는 물약 비용 — '기술 연구 비용' 노드로 할인된다
     cost(id, level) {
-        const def = this.NODES[id];
+        const def = this.def(id);
         if (!def) return null; // 폐기된 노드 id로 물어와도 화면이 죽지 않게 (노드 개편 시 stale 참조 방어)
         const raw = def.base * Math.pow(this.LV_MULT, level - 1) * Math.pow(this.TIER_MULT, this.tierOf(id) - 1);
         return Math.max(1, Math.ceil(raw * this.techCostMult()));
@@ -277,18 +266,18 @@ const TechTree = {
 
     // 레벨 하나를 연구하는 데 걸리는 실시간(초) — '기술 연구 타이머' 노드로 단축된다
     time(id, level) {
-        if (!this.NODES[id]) return null;
+        if (!this.def(id)) return null;
         const raw = this.TIME_BASE * Math.pow(this.TIME_LV_MULT, level - 1) * Math.pow(this.TIME_TIER_MULT, this.tierOf(id) - 1);
         return Math.max(1, Math.ceil(raw * this.techTimeMult()));
     },
 
     nextCost(id) {
-        if (!this.NODES[id]) return null;
+        if (!this.def(id)) return null;
         const lv = this.level(id);
         return lv >= this.MAX_LEVEL ? null : this.cost(id, lv + 1);
     },
     nextTime(id) {
-        if (!this.NODES[id]) return null;
+        if (!this.def(id)) return null;
         const lv = this.level(id);
         return lv >= this.MAX_LEVEL ? null : this.time(id, lv + 1);
     },
@@ -341,7 +330,7 @@ const TechTree = {
             S.tech[id] = this.level(id) + 1;
             S.techResearch = null;
             SFX.levelUp();
-            UI.toast(`🔬 ${this.NODES[id].name} Lv.${this.level(id)} 연구 완료!`);
+            UI.toast(`🔬 ${this.def(id).name} ${this.roman(this.tierOf(id))}단계 Lv.${this.level(id)} 연구 완료!`);
             Combat.recalcHero();
             saveGame();
             UI.renderTechTree(); // 열려 있는 기술 트리 개요/분기 화면도 즉시 갱신 (자체 가드 있음)
@@ -349,13 +338,25 @@ const TechTree = {
         }
     },
 
-    // 포인트당 수치 × 레벨 = 노드 총 효과(%)
-    pct(id) { const d = this.NODES[id]; return d ? this.level(id) * d.per : 0; }, // 없는 노드 id는 0 (노드 개편 중 stale 참조 방어)
+    // 타입 총 레벨 = 그 타입의 5개 단계 노드 레벨 합 (사용자 재정정 ⑥: 보너스는 전 단계 합산)
+    typeLevel(type) {
+        let sum = 0;
+        for (let t = 1; t <= this.TIERS; t++) sum += this.level(this.nid(type, t));
+        return sum;
+    },
+    // 포인트당 수치 × 총 레벨 = 그 타입의 총 효과(%). 인자로 노드 id(`타입@단계`)를 줘도 타입으로 본다.
+    pct(idOrType) {
+        const type = this.typeOf(idOrType);
+        const d = this.NODES[type];
+        return d ? this.typeLevel(type) * d.per : 0;   // 없는 타입은 0 (개편 중 stale 참조 방어)
+    },
+    // 노드 하나가 지금 내고 있는 몫 (팝업에서 '이 노드'의 기여를 보여줄 때)
+    nodeTotal(id) { const d = this.def(id); return d ? this.level(id) * d.per : 0; },
 
     // ===== 노드 효과 표기 =====
     // 노드 상한이 5레벨이 된 뒤로는 전부 '레벨당 per'로 통일된다(오토포지의 옛 '티어당' 예외 폐기).
-    totalOf(id) { return this.pct(id); },
-    unitOf(id) { const d = this.NODES[id]; return (d && d.unit) || '%'; },
+    totalOf(idOrType) { return this.pct(idOrType); },
+    unitOf(idOrType) { const d = this.NODES[this.typeOf(idOrType)]; return (d && d.unit) || '%'; },
     gainNote() { return '레벨당'; },
 
     // ===== 다른 모듈에서 참조하는 효과 배율 =====
@@ -396,6 +397,3 @@ const TechTree = {
     dungeonPotionMult() { return 1 + this.pct('dungeonPotion') / 100; },
 };
 
-// 분기별 평탄화 노드 목록(위 단계 → 아래 단계 순서)을 로드 시점에 만들어 둔다 —
-// branchOf()·totalBonuses()·진행률·UI가 전부 이 목록을 본다.
-TechTree.BRANCHES.forEach(b => { b.nodes = [].concat.apply([], b.tiers); });

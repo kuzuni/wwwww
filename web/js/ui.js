@@ -2613,7 +2613,7 @@ const UI = {
     renderTechOverview() {
         const cardsHtml = TechTree.BRANCHES.map(b => {
             const pct = TechTree.branchProgress(b.id);
-            const researching = S.techResearch && b.nodes.includes(S.techResearch.id);
+            const researching = S.techResearch && TechTree.branchOf(S.techResearch.id) === b;
             const timeHtml = researching
                 ? ` <small id="tech-b-time-${b.id}">(${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)})</small>` : '';
             return `<button class="tech-branch-card" onclick="UI.openTechBranch('${b.id}')">
@@ -2631,9 +2631,10 @@ const UI = {
             <div class="tech-branch-grid">${cardsHtml}</div>
             <button class="league-back-btn sheet-back-btn" onclick="UI.switchTab(null)">◀</button>`;
     },
-    // 분기 상세: 위→아래로 이어지는 5단계 세로 트리.
-    // 해금은 선으로 이어진 부모 노드가 전부 1레벨 이상일 때다 (사용자 재정정 2026-08-17).
-    // 행 구성·좌우 갈래 판정은 TechTree.rows()/railBetween()에서 그대로 받아 쓴다 —
+    // 분기 상세: **단계가 가로 블록**인 5단계 트리 (사용자 재정정 2026-08-17 4회차).
+    // 한 단계에 그 분기의 타입이 전부 놓이고(폭이 좁아 2개씩 흘려 쌓는다), 같은 타입이
+    // 5단계에 반복된다. 해금은 '바로 위 단계의 같은 타입 노드가 1레벨 이상'이다.
+    // 행 구성·단계 경계 판정은 TechTree.rows()/tierBreak()에서 그대로 받아 쓴다 —
     // 부모 판정과 같은 규칙에서 나와야 그려진 선과 잠금 상태가 어긋나지 않는다.
     renderTechBranchView() {
         const b = TechTree.BRANCHES.find(x => x.id === this._techBranch);
@@ -2644,7 +2645,7 @@ const UI = {
             const researching = TechTree.researchingId() === id;
             const open = TechTree.isUnlocked(id);
             const cls = researching ? 'researching' : max ? 'done' : !open ? 'tlocked' : lv > 0 ? 'active' : 'locked';
-            const face = researching ? TechTree.NODES[id].icon || '🔬' : max ? '✅' : !open ? '🔒' : TechTree.NODES[id].icon || '🔬';
+            const face = max ? '✅' : !open ? '🔒' : (TechTree.def(id) || {}).icon || '🔬';
             const badge = researching
                 ? `<small class="tech-tree-node-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
                 : `<small>${lv}/${TechTree.MAX_LEVEL}</small>`;
@@ -2662,17 +2663,19 @@ const UI = {
         rows.forEach((row, r) => {
             const prev = rows[r - 1], next = rows[r + 1];
             // 같은 단계 안에서 2노드 행이 연이을 때만 좌·우 두 갈래, 그 밖에는 중앙 줄기로 합류한다
-            const railAbove = TechTree.railBetween(prev, row);
-            const railBelow = TechTree.railBetween(row, next);
+            // 연결선은 단계와 단계 사이에만 — 같은 단계 안의 행들은 서로 부모-자식이 아니다
+            const breakAbove = TechTree.tierBreak(prev, row);
+            const breakBelow = TechTree.tierBreak(row, next);
             // 아직 안 열린 노드로 내려가는 선은 흐리게 — 선은 이어지되 어디부터 잠겼는지 한눈에 보인다
             const dim = row.ids.every(id => TechTree.isUnlocked(id)) ? '' : ' dim';
-            if (prev) rowsHtml.push(railAbove
-                ? `<div class="tech-tree-vrow${dim}"><i></i><i></i></div>`
-                : `<div class="tech-tree-vline${dim}"></div>`);
+            if (prev) rowsHtml.push(breakAbove
+                ? `<div class="tech-tree-vline${dim}"></div>`   // 단계 경계 — 세로 줄기로 잇는다
+                : '<div class="tech-tree-vgap"></div>');        // 같은 단계 안 — 자리만 띄운다
             // 단계 표시는 그 단계 첫 행에만. 절대배치라 행의 가로 배치(=원본 비율)에 영향을 주지 않는다.
             const tag = row.first ? `<span class="tech-tier-tag${dim}">${TechTree.roman(row.tier)}</span>` : '';
             if (row.ids.length === 1) { rowsHtml.push(`<div class="tech-tree-row">${tag}${nodeCol(row.ids[0])}</div>`); return; }
-            const bar = (!railAbove || !railBelow) ? `<div class="tech-tree-hline${dim}"></div>` : '<div class="tech-tree-hgap"></div>';
+            // 한 단계 안의 두 노드는 부모-자식이 아니므로 가로 바를 긋지 않는다(자리만 유지)
+            const bar = '<div class="tech-tree-hgap"></div>';
             rowsHtml.push(`<div class="tech-tree-row">${tag}${nodeCol(row.ids[0])}${bar}${nodeCol(row.ids[1])}</div>`);
         });
         this.els.techPanel.innerHTML = `
@@ -2715,7 +2718,7 @@ const UI = {
     },
     renderTechNodeModal() {
         const id = this._techNode;
-        const def = TechTree.NODES[id];
+        const def = TechTree.def(id);
         const lv = TechTree.level(id);
         const max = TechTree.isMax(id);
         const researching = TechTree.researchingId() === id;
@@ -2729,7 +2732,7 @@ const UI = {
             actionHtml = `<div class="idet-lead" style="text-align:center">연구 완료 (MAX)</div>`;
         } else if (!open) {
             // 선으로 이어진 부모 노드를 1레벨만 찍으면 열린다 — 아직 0레벨인 부모를 그대로 알려준다
-            const need = TechTree.lockedBy(id).map(p => (TechTree.NODES[p] || {}).name || p);
+            const need = TechTree.lockedBy(id).map(p => `${(TechTree.def(p) || {}).name || p} ${TechTree.roman(TechTree.tierOf(p))}단계`);
             const what = need.length > 1 ? `${need.join(' · ')}를 각각` : `${need[0] || '위 노드'}를`;
             actionHtml = `<button class="btn sm primary disabled">🔒 잠김</button>
                 <p class="muted" style="text-align:center">${what} 1레벨 이상 올리면 열립니다</p>`;
@@ -2757,7 +2760,7 @@ const UI = {
                         <div class="idet-icon tn-bronze">${max ? '✅' : !open ? '🔒' : '🔬'}<span class="idet-star">${lv}/${TechTree.MAX_LEVEL}</span></div>
                         <div class="idet-title">
                             <div class="idet-name">${def.name} <small class="tn-lv">${roman}단계 · Lv.${lv}/${TechTree.MAX_LEVEL}</small></div>
-                            <div class="idet-main">+${U.fmt(TechTree.totalOf(id))}${unit} <small class="tn-gain">(${TechTree.gainNote()} +${U.fmt(def.per)}${unit})</small></div>
+                            <div class="idet-main">+${U.fmt(TechTree.totalOf(id))}${unit} <small class="tn-gain">(${TechTree.gainNote()} +${U.fmt(def.per)}${unit} · 이 노드 +${U.fmt(TechTree.nodeTotal(id))}${unit})</small></div>
                         </div>
                     </div>
                     <div class="idet-subs">
@@ -3176,7 +3179,7 @@ const UI = {
         });
         // 기술 트리 연구 카운트다운 (개요 카드 / 분기 트리 노드 / 노드 팝업 진행바)
         // 노드 개편 등으로 없는 노드 id가 남아 있으면 branchOf가 undefined라 매 초 예외가 난다 — 가드
-        if (S.techResearch && TechTree.NODES[S.techResearch.id]) {
+        if (S.techResearch && TechTree.def(S.techResearch.id)) {
             const remain = (S.techResearch.endsAt - U.now()) / 1000;
             const branch = TechTree.branchOf(S.techResearch.id);
             const bTime = branch && document.getElementById('tech-b-time-' + branch.id);
