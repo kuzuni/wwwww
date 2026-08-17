@@ -2931,7 +2931,9 @@ const UI = {
     // 원본(shot-042632): 다크 마룬 풀스크린 + 금색 리본 배너 + 특가 카드(좌상단 빨간 깃발 태그,
     // 재화 회색 pill 세로 나열, 우측 상품 아이콘, 우하단 파란 가격 버튼) + 보석 카드 3장
     renderShop() {
-        const GEM_ICONS = ['🪙', '👛', '💰'];
+        // 원본(042632)의 보석 패키지 그림은 금화·지갑 이모지가 아니라 '붉은 보석 묶음'이 양에 따라
+        // 낱개 더미 → 자루 → 항아리로 커지는 3단이다 — IconGen 캔버스 아이콘으로 교체.
+        const GEM_ICONS = ['shop_gems1', 'shop_gems2', 'shop_gems3'];
         const dealsHtml = Shop.DEALS.map(d => {
             const claimed = Shop.claimed(d.key);
             const rewardRows = Object.entries(d.reward).map(([k, v]) =>
@@ -2942,8 +2944,9 @@ const UI = {
                     <div class="shop-deal-rewards">${rewardRows}</div>
                     <div class="shop-deal-right">
                         <span class="shop-deal-art art-${d.key}"><i class="art-emblem">${d.icon}</i>${d.key === 'mount' ? '<i class="art-spill">⚙️⚙️⚙️</i>' : ''}</span>
-                        <button class="btn primary shop-price-btn ${claimed ? 'disabled' : ''}" onclick="UI.onClaimDeal('${d.key}')">
-                            ${claimed ? '수령 완료' : `무료 수령<br><small>(정가 ${d.priceKR})</small>`}</button>
+                        <button class="btn primary shop-price-btn ${claimed ? 'disabled' : ''}" onclick="UI.onClaimDeal('${d.key}')"
+                            title="${claimed ? '오늘은 이미 수령했습니다' : '데모판은 결제 대신 하루 1회 무료 수령입니다'}">
+                            ${claimed ? '수령 완료' : d.priceKR}</button>
                     </div>
                 </div>
             </div>`;
@@ -2951,7 +2954,7 @@ const UI = {
         const gemsHtml = Shop.GEM_PACKS.map((p, i) => `
             <div class="shop-gem-card">
                 <div class="shop-gem-amt"><span class="shop-gem-dia">${IconGen.img('gem')}</span> ${U.fmt(p.gems)}</div>
-                <span class="shop-gem-icon">${GEM_ICONS[i] || '💰'}</span>
+                <span class="shop-gem-icon">${IconGen.img(GEM_ICONS[i] || 'shop_gems3')}</span>
                 <button class="btn primary shop-price-btn" onclick="UI.onBuyGems()">${p.priceKR}</button>
             </div>`).join('');
         this.els.shopModal.innerHTML = `
@@ -2966,6 +2969,7 @@ const UI = {
                 <div class="shop-deals">${dealsHtml}</div>
                 <div class="shop-banner">보석</div>
                 <div class="shop-gems">${gemsHtml}</div>
+                <button class="league-back-btn sheet-back-btn" onclick="UI.switchTab(null)">◀</button>
             </div>`;
     },
     onClaimDeal(key) {
