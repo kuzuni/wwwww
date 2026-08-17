@@ -1352,7 +1352,9 @@ const UI = {
                 </div>
                 <div class="row">
                     <button class="btn sell" onclick="UI.resolveCraft('sell')">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(item))}</small></button>
-                    <button class="btn equip" onclick="UI.resolveCraft('equip')">장착${cur ? '<small>기존 보관</small>' : ''}</button>
+                    <!-- '기존 보관'은 보관함 시절 문구다 — 보관함 폐기 후 밀려난 장비는 보관되지 않고 사라지므로
+                         그대로 두면 거짓 안내가 된다(사용자 확정 2026-08-17 "장착은 교체만"). -->
+                    <button class="btn equip" onclick="UI.resolveCraft('equip')">장착${cur ? '<small>기존 교체</small>' : ''}</button>
                 </div>
             </div>`;
         this.showModal(this.els.craftModal);

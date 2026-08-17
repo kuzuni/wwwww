@@ -662,7 +662,9 @@ body {
 #gear-detail-modal { align-items: flex-end; padding-bottom: calc(var(--app-h) * .223); }
 #gear-detail-modal .gd-card { width: 70%; }
 /* 장비 비교 팝업은 원본(shot-043224)처럼 하단 앵커 (버튼줄이 화면 ~78%H) */
-#craft-modal { align-items: flex-end; padding-bottom: calc(var(--tabbar-h) + .8rem); }
+/* 원본(043224) 카드 하단은 86.90%H인데 `+.8rem`으로는 88.45%H로 1.55%p **낮게** 앉아 카드가 통째로 밀렸다.
+   하단 앵커라 padding-bottom을 키워야 카드가 올라온다(줄이면 더 내려간다 — 방향을 헷갈리기 쉽다). */
+#craft-modal { align-items: flex-end; padding-bottom: calc(var(--tabbar-h) + 1.65rem); }
 /* 기술 노드 팝업 액션 버튼 — 원본(shot-042605) 높이≈화면 7% 입체 블록 */
 .item-detail[data-tech-node] .btn { min-height: 3.6rem; font-size: 1rem; padding: .5rem .6rem; }
 /* 원본 팝업 인셋 실측(185 전수 패스): 일반 ≈69~76% W — 클론 82~94%는 과대. 시트(.sheet)는 풀스크린 유지 */
@@ -683,7 +685,9 @@ body {
 /* 원본 실측: 넓은 팝업도 화면 폭의 70~77%에 머문다(비교 팝업 shot-043224 = 73.9%).
    클론은 80%라 +6.1%p — 비평가 6인이 공통 지적한 '모달 폭 일괄 과대'의 기본값. */
 .modal-card.wide { width: 74%; }
-.cmp-wrap { display: flex; flex-direction: column; gap: 1.5rem; margin-top: .5rem; }
+/* 하단 앵커라 gap을 키우면 위 카드가 **올라간다** — 새 카드 아래 여백을 키운 뒤 gap 1.5rem을 그대로 두면
+   장착 카드가 원본보다 4.4%p 위로 뜬다. 두 카드는 각자 안쪽 패딩(.4rem/.9rem)으로 이미 벌어져 있으므로 0. */
+.cmp-wrap { display: flex; flex-direction: column; gap: 0; margin-top: .5rem; }
 .cmp-card-wrap { position: relative; }
 .cmp-ribbon {
     position: absolute; top: -1.05rem; left: .6rem; z-index: 1;
@@ -694,7 +698,9 @@ body {
 .cmp-ribbon.new { color: var(--pp-red); }
 /* 원본(043224): 장착 장비는 박스 없이, 새 장비만 연회색 박스 + 아이콘 아래 빨간 '새로운!' (185 재채점) */
 .cmp-card-wrap.cur .cmp-card, .modal-card .cmp-card-wrap.cur .cmp-card { border: none; padding: .9rem .4rem .4rem; }
-.cmp-card-wrap.new .cmp-card, .modal-card .cmp-card-wrap.new .cmp-card { background: #ececec; border: none; }
+/* 원본은 새 장비 옵션 마지막 줄과 [판매][장착] 줄 사이를 5.27%H(47px) 비운다(클론 3.13%H) —
+   '새로운!' 표기가 아이콘 아래 별도 줄로 앉을 자리이기도 하다. 회색 박스 아래 여백으로 만든다. */
+.cmp-card-wrap.new .cmp-card, .modal-card .cmp-card-wrap.new .cmp-card { background: #ececec; border: none; padding-bottom: 1.5rem; }
 .cmp-newtag { display: block; margin-top: .55rem; color: var(--pp-red); font-weight: 900; font-size: .68rem; text-align: center; }
 /* 새 장비 카드: 랩 하단 앵커인 Lv 배지를 '새로운!' 줄 높이만큼 올려 아이콘 하단에 붙임 — 두 표기가 같은 y에 포개지던 QA 버그 (원본 043224: Lv는 아이콘 위, 새로운!은 그 아래 별도 줄) */
 .cmp-card-wrap.new .cmp-icon-wrap .sk-lv { bottom: 1.5rem; }
@@ -743,7 +749,8 @@ body {
 }
 .cell-img.emoji { font-size: 1.45rem; display: flex; align-items: center; justify-content: center; }
 .cmp-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
-.cmp-name { font-size: .88rem; font-weight: 800; color: var(--pp-ink); }
+/* 원본 장비 이름줄 글자 밴드는 16~17px(1.79~1.90%H)인데 .88rem은 13px(1.46%H)로 −0.44%p 작다. */
+.cmp-name { font-size: 1.05rem; font-weight: 800; color: var(--pp-ink); }
 .cmp-stat { font-size: .95rem; font-weight: 800; color: var(--pp-ink); }
 .cmp-stat .arrow { font-size: .82rem; font-weight: 900; margin-left: .25rem; }
 .cmp-stat .arrow.up { color: var(--pp-green); }

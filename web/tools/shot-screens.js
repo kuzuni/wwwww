@@ -38,7 +38,8 @@ const SCREENS = [
     ['forge-detail', '042931', `UI.openForgeInfo(); UI.openForgeList(); UI.openForgeDetail(AGES[0], 'weapon', Object.keys(WEAPON_TYPES)[0])`],
     ['autoforge', '042950', `UI.openAutoForge()`],
     ['autoforge-filter', '043117', `S.autoForge.filterOn=true; UI.openAutoForge()`],
-    ['craft-compare', '043224', `UI.showCraftModal(Forge.rollItem())`],
+    // 새 장비도 원본처럼 서브옵션 2줄로 고정 (랜덤 1~4줄이면 카드 높이가 매 런 달라져 대조가 안 된다)
+    ['craft-compare', '043224', `UI.showCraftModal(Object.assign(Forge.rollItem(), { subs: U.rollSubs(2) }))`],
     ['gear-detail', '043244', `UI.openGearDetail('weapon')`],
     ['player-info', '043313', `UI.openPlayerInfo()`],
     ['chat', '043500', `UI.openChat()`],
@@ -61,6 +62,11 @@ const SEED = () => {
         for (let i = 0; i < 40 && !it; i++) { const r = Forge.rollItem(); if (r.slot === slot) it = r; }
         if (it) { it.level = 20 + (it.ageIdx || 0); S.equipment[slot] = it; }
     }
+    // 원본 카드(shot-043244 장비 상세 · shot-043224 제작 비교)의 장비는 **서브옵션 2줄**짜리다.
+    // rollItem은 등급에 따라 1~4줄을 랜덤으로 굴려서, 1줄짜리가 걸리면 카드가 줄당 약 2%H씩 짧게 찍혀
+    // '카드 높이·위치가 원본과 다르다'는 가짜 불일치가 잡힌다 — 캡처용으로 전 부위를 2줄로 고정한다.
+    for (const slot of Object.keys(S.equipment)) { const it = S.equipment[slot]; if (it) it.subs = U.rollSubs(2); }
+    if (S.equipment.weapon) S.equipment.weapon.rarity = 'mythic';
     // 스킬 — 소환 비용을 먼저 채워야 실제로 뽑힌다(티켓 160으론 30연차 960이 모자라 그리드가 비어버림)
     S.tickets = 99999; Skills.summon(false, 30); S.tickets = 160;
     for (const k of Object.keys(S.skills)) S.skills[k].level = 20 + (S.skills[k].level || 1);
