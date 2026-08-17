@@ -793,13 +793,18 @@ const UI = {
         if (!item) { this.stopAutoSeq(); return; }
         this.setPendingCraft(item);   // 연출 도중 새로고침해도 결과물이 남게 (수동 제작과 같은 규약)
         this.renderTopBar();
+        // _anvilBusy는 망치질만이 아니라 **'제작 한 벌'이 끝날 때까지** 잡는다. 타격이 끝난 뒤
+        // 탈락 카드 노출(0.62초) 동안 풀어 두면, 그 사이 모루를 다시 누른 수동 제작이
+        // setPendingCraft로 대기품을 덮어써 **앞 장비가 해머만 먹고 판매도 안 된 채 사라졌다**
+        // (실측: 돌 반지 → 사냥꾼 허리띠로 교체되고 돌 반지는 코인으로도 회수되지 않음).
+        // 통과분은 비교 팝업이 뜨는 순간부터 팝업 자신이 재클릭을 막으므로 거기서 푼다.
         this._anvilBusy = true;
         this.playAnvilStrike(() => {
-            this._anvilBusy = false;
-            if (this._pendingItem !== item) return;   // 연출 중 탭 이동 등으로 이미 정리됨
+            if (this._pendingItem !== item) { this._anvilBusy = false; return; }   // 연출 중 탭 이동 등으로 이미 정리됨
             // 장착 중인 것과 같은 장비(승천 재료)는 필터와 무관하게 항상 사용자에게 보여준다
             const keep = Forge.isMatchingGear(item, S.equipment[item.slot]) || Forge.passesAutoFilter(item);
             if (keep) {
+                this._anvilBusy = false;
                 // ⑤ '계속하기'가 꺼져 있으면 이번 선택까지만 하고 멈춘다
                 if (!Forge.autoForgeConfig().continueOnTarget) seq.stopAfterPick = true;
                 this.showCraftModal(item);
@@ -807,6 +812,7 @@ const UI = {
             }
             // 탈락 — 무엇이 나왔는지 카드로 잠깐 보여준 뒤 코인으로 터뜨린다
             this.showAutoDropCard(item, () => {
+                this._anvilBusy = false;
                 const it = this.clearPendingCraft();
                 if (!it) { this.autoSeqStep(); return; }
                 this.coinBurst(Forge.sell(it));
