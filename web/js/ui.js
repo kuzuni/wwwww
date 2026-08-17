@@ -334,6 +334,8 @@ const UI = {
         document.addEventListener('click', e => {
             if (this._afDdOpen && !e.target.closest('.af-dd')) { this._afDdOpen = false; this.renderAutoForge(); }
         });
+        // 비교 팝업 딤 클릭 = 보류 (사용자 지시 2026-08-17) — 강제 선택 대신 '나중에 결정'
+        this.els.craftModal.addEventListener('click', e => this.onCraftDimClick(e));
     },
 
     // 하단 탭 클릭: 던전/상점/전투(PvP)는 팝업, 나머지는 시트 토글(다시 누르면 닫힘).
@@ -687,7 +689,7 @@ const UI = {
                 <div class="anvil-side left">
                     <button class="info-btn" title="플레이어 정보" onclick="UI.openPlayerInfo()">!</button>
                 </div>
-                <button class="anvil-btn" onclick="UI.onCraft()">${this.ANVIL_SVG}<small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}</small></button>
+                ${this.anvilSlotHTML()}
                 <div class="anvil-side right">
                     <div class="forge-actions">
                         ${forgeBtnHtml}
@@ -697,6 +699,43 @@ const UI = {
                     ${upgTimeHtml}
                 </div>
             </div>`;
+    },
+
+    // 모루 자리 — 보류해 둔 제작품이 있으면 모루 대신 그 카드가 놓인다 (사용자 지시 2026-08-17 ⑦).
+    // 카드를 누르면 그 장비의 비교 팝업이 다시 떠서 장착/판매를 고를 수 있다.
+    anvilSlotHTML() {
+        const held = this.heldCrafts()[0];
+        if (!held) {
+            return `<button class="anvil-btn" onclick="UI.onCraft()">${this.ANVIL_SVG}<small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}</small></button>`;
+        }
+        const more = this.heldCrafts().length - 1;
+        return `<button class="anvil-btn held-slot" style="--rc:${this.ageHex(held.age)}" onclick="UI.onOpenHeld()">
+            <span class="held-tag">보류</span>
+            ${this.itemImgHTML(held, 'held-img')}
+            <span class="held-name">${held.name}</span>
+            <small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}${more ? ` · +${more}` : ''}</small>
+        </button>`;
+    },
+    heldCrafts() { if (!Array.isArray(S.heldCrafts)) S.heldCrafts = []; return S.heldCrafts; },
+    // 보류 카드 클릭 → 그 장비의 비교 팝업을 다시 띄운다(대기품으로 되돌린다)
+    onOpenHeld() {
+        const list = this.heldCrafts();
+        if (!list.length || this._pendingItem) return;
+        this.setPendingCraft(list.shift());
+        this.renderEquipSheet();
+        this.showCraftModal(this._pendingItem);
+    },
+    // 비교 팝업 딤 클릭 = 보류: 팝업만 닫고 장비는 모루 자리에 카드로 남긴다(강제 선택 해제)
+    onCraftDimClick(e) {
+        if (e.target !== this.els.craftModal) return;   // 카드 안쪽 클릭은 무시
+        const item = this.clearPendingCraft();
+        if (!item) return;
+        this.heldCrafts().push(item);
+        this.els.craftModal.classList.add('hidden');
+        this.renderEquipSheet();
+        saveGame();
+        this.toast('📌 보류 — 모루 자리의 카드를 누르면 다시 고를 수 있습니다');
+        this.autoSeqStep();   // 자동 시퀀스 중이었다면 계속 진행 (보류는 시퀀스를 멈추지 않는다)
     },
 
     // 모루 버튼 아래 해머 카운터만 갱신 (매초 틱에서 전체 renderEquipSheet 재호출은 과함)
@@ -716,9 +755,82 @@ const UI = {
     onToggleAutoForge() {
         if (!isUnlocked('autoForge')) { this.toast('🔒 스테이지 2-10 도달 시 해금됩니다'); return; }
         S.autoForgeOn = !S.autoForgeOn;
+        // ① 시작하면 설정 팝업을 닫는다 — 연출이 모루 위에서 도는데 팝업이 덮고 있으면 아무것도 안 보인다
+        if (S.autoForgeOn) this.closeAutoForge();
         this.renderEquipSheet();
         if (!this.els.autoForgeModal.classList.contains('hidden')) this.renderAutoForge();
         saveGame();
+        if (S.autoForgeOn) this.startAutoSeq(); else this.stopAutoSeq();
+    },
+
+    // ===== 자동 제작 순차 시퀀스 (사용자 지시 2026-08-17) =====
+    // 예전 구현은 main.js의 3초 인터벌에서 배치로 즉시 처리해 아무 연출이 없었다. 이제 한 개씩,
+    // **망치질 → 뽑힌 것 보여주기 → (필터 통과=비교 팝업 대기 / 탈락=코인 판매 연출)** 순서로 돈다.
+    // 비교 팝업이 뜨면 사용자가 고를 때까지 다음 제작으로 넘어가지 않는다(고르면 doResolveCraft가,
+    // 보류하면 onCraftDimClick이 다음 스텝을 부른다). 예산·해머가 떨어지거나 토글이 꺼지면 정지.
+    _autoSeq: null,
+    startAutoSeq() {
+        if (this._autoSeq) return;
+        const cfg = Forge.autoForgeConfig();
+        this._autoSeq = { left: Math.max(1, cfg.hammersPerBatch), stopAfterPick: false };
+        this.autoSeqStep();
+    },
+    stopAutoSeq() {
+        this._autoSeq = null;
+        if (S.autoForgeOn) { S.autoForgeOn = false; this.renderEquipSheet(); saveGame(); }
+        if (!this.els.autoForgeModal.classList.contains('hidden')) this.renderAutoForge();
+    },
+    autoSeqStep() {
+        const seq = this._autoSeq;
+        if (!seq || !S.autoForgeOn) return;
+        if (this._pendingItem || this._anvilBusy) return;   // 선택 대기 중이거나 망치질 중 — 끝나면 다시 불린다
+        if (seq.stopAfterPick || seq.left <= 0 || S.hammers < 1) { this.stopAutoSeq(); return; }
+        seq.left--;
+        const item = Forge.craft(1)[0];
+        if (!item) { this.stopAutoSeq(); return; }
+        this.setPendingCraft(item);   // 연출 도중 새로고침해도 결과물이 남게 (수동 제작과 같은 규약)
+        this.renderTopBar();
+        this._anvilBusy = true;
+        this.playAnvilStrike(() => {
+            this._anvilBusy = false;
+            if (this._pendingItem !== item) return;   // 연출 중 탭 이동 등으로 이미 정리됨
+            // 장착 중인 것과 같은 장비(승천 재료)는 필터와 무관하게 항상 사용자에게 보여준다
+            const keep = Forge.isMatchingGear(item, S.equipment[item.slot]) || Forge.passesAutoFilter(item);
+            if (keep) {
+                // ⑤ '계속하기'가 꺼져 있으면 이번 선택까지만 하고 멈춘다
+                if (!Forge.autoForgeConfig().continueOnTarget) seq.stopAfterPick = true;
+                this.showCraftModal(item);
+                return;
+            }
+            // 탈락 — 무엇이 나왔는지 카드로 잠깐 보여준 뒤 코인으로 터뜨린다
+            this.showAutoDropCard(item, () => {
+                const it = this.clearPendingCraft();
+                if (!it) { this.autoSeqStep(); return; }
+                this.coinBurst(Forge.sell(it));
+                this.renderTopBar();
+                this.renderEquipSheet();
+                saveGame();
+                this.autoSeqStep();
+            });
+        });
+    },
+    // 필터 탈락 장비를 모루 위에 잠깐 띄운다 — '무엇이 뽑혔는지'는 항상 보여야 한다(항목 ③)
+    AUTO_CARD_MS: 620,
+    showAutoDropCard(item, done) {
+        const host = document.getElementById('app');
+        const btn = document.querySelector('.anvil-btn');
+        if (!host || !btn) { done(); return; }
+        const hb = host.getBoundingClientRect(), bb = btn.getBoundingClientRect();
+        const el = document.createElement('div');
+        el.className = 'auto-drop-card';
+        el.style.setProperty('--rc', this.ageHex(item.age));
+        el.style.left = (bb.left - hb.left + bb.width / 2) + 'px';
+        el.style.top = (bb.top - hb.top) + 'px';
+        el.innerHTML = `${this.itemImgHTML(item, 'adc-img')}
+            <div class="adc-info"><div class="adc-name">${item.name}</div>
+            <div class="adc-stat">${U.fmt(Forge.itemValue(item))} ${item.main === 'atk' ? '피해' : '체력'}</div></div>`;
+        host.appendChild(el);
+        setTimeout(() => { el.remove(); done(); }, this.AUTO_CARD_MS);
     },
 
     // ---- 대장간 팝업 3종 (UI-SPEC 21~24번): ① 확률 정보 ② 전체 장비 목록 ③ 장비 상세 ----
@@ -1388,6 +1500,7 @@ const UI = {
         this.renderTopBar();
         this.renderEquipSheet();
         saveGame();
+        this.autoSeqStep();   // 자동 시퀀스가 이 선택을 기다리고 있었다면 다음 제작으로
     },
 
     // ---- 펫 패널 ----

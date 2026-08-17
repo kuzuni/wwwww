@@ -51,6 +51,8 @@
 
         // 지난 세션이 판매/장착을 고르지 않고 떠난 제작품 복원 — 오프라인 팝업보다 뒤에 띄워 위로 오게 한다
         UI.restorePendingCraft();
+        // 자동 제작이 켜진 채로 저장됐으면 순차 시퀀스를 이어서 시작한다
+        if (S.autoForgeOn && isUnlocked('autoForge')) UI.startAutoSeq();
 
         // 디버그: ?tab=summon|pets|skills|menu|debug 등으로 패널 바로 열기, ?debug=craft로 제작 모달 확인
         const params = new URLSearchParams(location.search);
@@ -152,28 +154,17 @@
             UI.tickSecond();
         }, 1000);
 
-        // 오토 포지: 3초마다 1회 사이클(설정된 망치 수만큼 제작) 후 자동 처리
-        // 탭이 백그라운드일 때도 건너뜀 — 로직 틱과 동일하게 해머 소비·장비 교체가 오프라인 보상과 별도로 시뮬레이션되는 것을 막음
+        // 오토 포지: 예전에는 여기서 3초마다 배치로 즉시 처리해 아무 연출이 없었다.
+        // 이제 UI.autoSeqStep()이 한 개씩 '망치질 → 카드 → 비교 팝업/코인 판매'로 돌린다(사용자 지시 2026-08-17).
+        // 이 틱은 시퀀스가 어떤 이유로든(탭 백그라운드 복귀, 팝업 대기 해제 누락) 멈춰 있으면 다시 밀어 주는 안전망이다.
         setInterval(() => {
             if (document.hidden) return;
-            if (S.autoForgeOn && isUnlocked('autoForge') && S.hammers >= 1) {
-                const cfg = Forge.autoForgeConfig();
-                const items = Forge.craft(Math.min(cfg.hammersPerBatch, S.hammers));
-                let foundTarget = false;
-                for (const item of items) {
-                    // 장착 중인 장비와 정확히 일치(승천 대상)하는 아이템은 유지 시대/옵션 필터와 무관하게 항상 승천 판정으로 보냄 — 필터 때문에 무료 승천 재료가 팔려나가는 것 방지
-                    const isAscendTarget = Forge.isMatchingGear(item, S.equipment[item.slot]);
-                    if (!isAscendTarget && !Forge.passesAutoFilter(item)) { Forge.sell(item); continue; }
-                    const r = Forge.autoResolve(item);
-                    if (r.equipped) { UI.floatLoot(`🛠 ${item.name} 자동 장착!`); foundTarget = true; }
-                }
-                // 목표 발견 시 계속하기 미체크면 이번 배치를 전부 처리한 뒤에 정지 (남은 아이템 유실 방지)
-                if (foundTarget && !cfg.continueOnTarget) S.autoForgeOn = false;
-                UI.renderEquipSheet();
-                // 열려 있는 플레이어 정보/장비 세부정보 팝업도 함께 갱신 — 안 그러면 오토포지 중 스탯이 멈춰 보임
-                if (!UI.els.playerInfoModal.classList.contains('hidden')) UI.renderPlayerInfo();
-                if (!UI.els.gearDetailModal.classList.contains('hidden') && UI._gearDetailSlot) UI.renderGearDetail();
-            }
+            if (!S.autoForgeOn || !isUnlocked('autoForge')) return;
+            if (S.hammers < 1) { UI.stopAutoSeq(); return; }
+            if (!UI._autoSeq) UI.startAutoSeq(); else UI.autoSeqStep();
+            // 열려 있는 플레이어 정보/장비 세부정보 팝업도 함께 갱신 — 안 그러면 오토포지 중 스탯이 멈춰 보임
+            if (!UI.els.playerInfoModal.classList.contains('hidden')) UI.renderPlayerInfo();
+            if (!UI.els.gearDetailModal.classList.contains('hidden') && UI._gearDetailSlot) UI.renderGearDetail();
         }, 3000);
 
         // 자동 저장: 30초 + 탭 이탈 시

@@ -480,6 +480,43 @@ body {
     filter: drop-shadow(0 .18rem .12rem rgba(0,0,0,.35));
 }
 .anvil-btn:active { transform: translateY(.1rem); }
+/* ---- 보류 카드 (사용자 지시 2026-08-17 ⑦): 비교 팝업 딤을 누르면 모루 자리에 이 카드가 놓인다 ----
+   모루와 같은 박스를 쓰므로 모루 행의 높이·폭(원본 비율 검증 대상)이 그대로 유지된다. */
+.anvil-btn.held-slot {
+    justify-content: center; gap: .1rem; font-size: 1rem; padding: .25rem;
+    background: color-mix(in srgb, var(--rc, #6b3538) 30%, #17181a);
+    border: 3px solid color-mix(in srgb, var(--rc, #6b3538) 80%, #000); border-radius: .7rem;
+    /* 모루 버튼과 같은 높이 — 카드로 바뀌어도 모루 행·장비 시트 높이(원본 비율 검증 대상)가 안 움직인다 */
+    height: 5.45rem;
+}
+.anvil-btn.held-slot .held-tag {
+    position: absolute; top: -.5rem; left: 50%; transform: translateX(-50%);
+    background: #f0a020; color: #17181a; font-size: .6rem; font-weight: 900;
+    border-radius: .5rem; padding: 0 .35rem; border: 2px solid #17181a;
+}
+.anvil-btn.held-slot .held-img { width: 2.1rem; height: 2.1rem; margin: 0; }
+.anvil-btn.held-slot .held-name {
+    font-size: .62rem; font-weight: 900; color: #fff; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* ---- 자동 제작에서 필터 탈락한 장비를 잠깐 보여주는 카드 (항목 ③ '무엇이 뽑혔는지는 항상 보여준다') ---- */
+.auto-drop-card {
+    position: absolute; z-index: 25; transform: translate(-50%, -110%);
+    display: flex; align-items: center; gap: .4rem; padding: .3rem .5rem;
+    background: color-mix(in srgb, var(--rc, #6b3538) 26%, #17181a);
+    border: 2px solid color-mix(in srgb, var(--rc, #6b3538) 75%, #000); border-radius: .55rem;
+    box-shadow: 0 .3rem .6rem rgba(0,0,0,.45); pointer-events: none;
+    animation: adcpop .62s ease-out forwards;
+}
+.auto-drop-card .adc-img { width: 1.8rem; height: 1.8rem; margin: 0; flex: none; }
+.auto-drop-card .adc-name { font-size: .68rem; font-weight: 900; color: #fff; white-space: nowrap; }
+.auto-drop-card .adc-stat { font-size: .62rem; font-weight: 700; color: #ffd54f; white-space: nowrap; }
+@keyframes adcpop {   /* 뽑힌 순간 튀어나왔다가, 코인으로 터지기 직전에 모루 쪽으로 빨려 들어간다 */
+    0%   { opacity: 0; transform: translate(-50%, -80%) scale(.7); }
+    18%  { opacity: 1; transform: translate(-50%, -118%) scale(1.05); }
+    70%  { opacity: 1; transform: translate(-50%, -110%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -84%) scale(.82); }
+}
 /* 모루 그림은 버튼 폭을 꽉 채운다. font-size(4.4rem)는 그대로 두는데, 타격 연출의 망치·링·불꽃이
    전부 em 단위로 이 값을 기준 삼기 때문이다 — 크기만 SVG로 넘기고 기준 글자 크기는 건드리지 않는다.
    높이는 viewBox 비율(132:86 = 원본 실측 1.41:1)대로 따라와 이모지 때(≈4.4rem)와 거의 같다. */
