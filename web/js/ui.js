@@ -557,11 +557,28 @@ const UI = {
         }
     },
 
+    // 지금 떠 있는 팝업 중 가장 높은 z-index (없으면 0).
+    // 팝업끼리는 형제 노드라 같은 z-index면 index.html 선언 순서가 위아래를 정한다 —
+    // 그래서 '나중에 연 팝업이 아래로 깔려 보이지도 눌리지도 않는' 결함이 생겼다
+    // (승천×대장간 정보, 제작 비교×진행 패스, 탈것×플레이어 정보, 스텁×프로필).
+    topModalZ() {
+        let max = 0;
+        document.querySelectorAll('.modal:not(.hidden)').forEach(m => {
+            const z = parseInt(getComputedStyle(m).zIndex, 10);
+            if (Number.isFinite(z) && z > max) max = z;
+        });
+        return max;
+    },
+
     showModal(el) {
         if (!el.classList.contains('hidden')) return; // 이미 열려 있음 — 재렌더 경로, 애니메이션 금지
         // 새로 여는 팝업은 항상 맨 위에서 시작한다 (직전에 열었을 때의 스크롤 잔상 제거).
         // 재렌더 경로는 위 return으로 빠져나가므로 keepScroll이 복원한 위치를 덮어쓰지 않는다.
         el.querySelectorAll('*').forEach(n => { if (n.scrollTop) n.scrollTop = 0; });
+        // 겹쳐 열 때만 한 칸 올린다. 단독으로 열 때는 인라인 값을 비워 CSS 기본층으로 되돌려
+        // (일반 20 / 세부정보 22 / 채팅 40 / 소환 결과 60) 값이 무한정 누적되지 않게 한다.
+        const top = this.topModalZ();
+        el.style.zIndex = top ? top + 1 : '';
         el.classList.remove('hidden');
         el.classList.add('opening');
         clearTimeout(el._openingT);
