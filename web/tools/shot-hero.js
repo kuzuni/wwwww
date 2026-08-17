@@ -97,19 +97,35 @@ const OUT = __dirname;
         m.hpBg.visible = m.hpFg.visible = false; // 적 HP바 숨김 — 컷에서 '부유하는 청록 막대'로 오독됨 (비평가 2번의 실체)
     });
     await page.evaluate(() => {
+        // ❗주의: heroAttack의 돌진 onDone이 heroPlay(스윙, once, timeScale)를 호출하며 R._speed를 덮어써서
+        // 공격 직후 R._speed *= 0.5 방식은 무효가 됨 → 스윙이 실속으로 돌아 0.25s 임팩트 창을 폴링이 놓치고
+        // Idle 루프의 t 0.5에서 동결되는 회귀 발생 (비평가 6.9: '공격샷에 트레일이 아예 없다'의 실체).
+        // R.play 래핑으로 스윙 클립 자체에 슬로모를 주입해 결정론적으로 해결.
+        const R = Scene3D.heroRig;
+        if (R && !R.__playWrapped) {
+            R.__origPlay = R.play;
+            R.play = (c, once, ts, cb) => R.__origPlay(c, once, (ts || 1) * 0.25, cb);
+            R.__playWrapped = true;
+        }
+        Scene3D.TRAIL_MIN_STEP = 0.012; // 슬로모 0.25×에선 프레임당 날끝 이동이 기본 게이트 0.06 미달 → 포인트가 아예 기록 안 됨
         (window.__realAtk || Scene3D.heroAttack).call(Scene3D, 999); // fit()이 노옵으로 막아둔 실제 공격 호출
-        const R = Scene3D.heroRig;
-        if (R) R._speed *= 0.5; // 슬로모 — 트레일 포인트(LIFE 0.18s)가 궤적 리본으로 쌓이게 (0.3은 리본이 짧아 스텁만 남음)
-        for (const a of Scene3D.anims) { const k = a.t / a.dur; a.dur /= 0.5; a.t = k * a.dur; } // 돌진도 동율 슬로모
+        for (const a of Scene3D.anims) { const k = a.t / a.dur; a.dur /= 0.25; a.t = k * a.dur; } // 돌진도 동율 슬로모
+        // 임팩트 동결을 페이지 안에서 동기 실행 — Node 폴링 왕복(수십~수백 ms) 동안 트레일 포인트(LIFE 0.18s)가
+        // 전부 늙어 사라져 '리본 없는 공격샷'이 되던 회귀의 근본 해결
+        window.__frozen = false;
+        window.__frzIv = setInterval(() => {
+            const R2 = Scene3D.heroRig;
+            if (!(R2 && R2._once && R2._clip && R2._t / R2._clip.dur >= 0.5)) return; // 0.6은 팔로스루 복귀 구간이라 오히려 리본이 죽음 — 0.5(임팩트 직후)가 최적
+            clearInterval(window.__frzIv);
+            R2._speed = 0;
+            Scene3D._origUpdateTrail = Scene3D.updateTrail;
+            Scene3D.updateTrail = () => {}; // 트레일 에이징 즉시 동결 — 리본이 산 채로 남는다
+            if (Scene3D.trailMat) Scene3D.trailMat.depthTest = false; // 스윙 궤적이 몸 반대편이라 리본이 몸통에 가려짐 — 컷 한정 오버레이
+            window.__frozen = true;
+        }, 8);
     });
-    await page.waitForFunction(() => {
-        const R = Scene3D.heroRig;
-        return R && R._clip && R._t / R._clip.dur >= 0.5; // 내려치기 임팩트 직후 — 팔로스루 직전이 날 판독 최적
-    }, null, { timeout: 8000, polling: 30 });
+    await page.waitForFunction(() => window.__frozen === true, null, { timeout: 8000, polling: 30 });
     await page.evaluate(() => {
-        const R = Scene3D.heroRig; R._speed = 0; // 임팩트 프레임 동결
-        Scene3D._origUpdateTrail = Scene3D.updateTrail;
-        Scene3D.updateTrail = () => {}; // 트레일 에이징도 동결 — 안 멈추면 스크린샷 시점(수백 ms 뒤)에 리본이 전부 소멸 (비평가 6.4 6번 'VFX 전무'의 실체)
         for (const a of Scene3D.anims) { const k = Math.min(1, a.t / a.dur); a.dur = 1e9; a.t = k * 1e9; }
         // 임팩트 순간 연출 — 실제 게임 히트 프레임의 구성 요소(플래시·스쿼시)를 동결 프레임에 명시 적용
         // (동결이 히트 콜백을 막아 '타격감 제로 컷'이 되던 문제, 비평가 6.8 4번)
@@ -137,12 +153,16 @@ const OUT = __dirname;
         if (Scene3D._origUpdateTrail) { Scene3D.updateTrail = Scene3D._origUpdateTrail; delete Scene3D._origUpdateTrail; }
         Scene3D.heroAttack = () => {}; // 이후 전신·손 샷 동안 재공격 차단 유지
         Scene3D.trailStart = () => {}; // 공격 내부 setTimeout 체인이 trailStart를 직접 재호출해 뷰티샷에 링이 남는 문제 원천 차단
+        Scene3D.TRAIL_MIN_STEP = 0.06; // 기본 게이트 복원
+        if (Scene3D.trailMat) Scene3D.trailMat.depthTest = true;
         Scene3D._attacking = false; Scene3D._trailOn = false;
         Scene3D.trailPts = []; if (Scene3D.trailMesh) Scene3D.trailMesh.visible = false;
         Scene3D.clearEnemies(); Combat.enemies = [];
         Scene3D.heroG.position.x = Combat.HERO_X + Scene3D.worldX;
         Scene3D.heroG.position.y = 0; Scene3D.heroG.rotation.set(0, 0.55, 0);
-        const R = Scene3D.heroRig; if (R) { R._speed = 1; Scene3D.heroPlay(['Idle']); }
+        const R = Scene3D.heroRig;
+        if (R && R.__playWrapped) { R.play = R.__origPlay; R.__playWrapped = false; } // 슬로모 래핑 해제
+        if (R) { R._speed = 1; Scene3D.heroPlay(['Idle']); }
     });
     await page.waitForTimeout(400);
 

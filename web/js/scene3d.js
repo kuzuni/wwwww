@@ -732,8 +732,8 @@ const Scene3D = {
                 const r = 12 + Math.random() * 26;
                 const warm = Math.random() < 0.6;
                 const gb = ctx.createRadialGradient(x, y, 0, x, y, r);
-                gb.addColorStop(0, warm ? 'rgba(118,90,60,0.16)' : 'rgba(84,64,44,0.15)');
-                gb.addColorStop(1, 'rgba(90,68,46,0)');
+                gb.addColorStop(0, warm ? 'rgba(104,78,50,0.3)' : 'rgba(72,54,36,0.28)'); // 저알파 밝은 톤은 '안개 자국'으로 읽힘(비평가 6.9 7번) — 주변 잔디보다 확실히 어두운 황토
+                gb.addColorStop(1, 'rgba(80,60,40,0)');
                 ctx.fillStyle = gb;
                 ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
             }
@@ -2014,7 +2014,7 @@ const Scene3D = {
         } else if (style === 'tech') {      // 메카 헬름 — 곡면 셸 + 랩어라운드 발광 바이저 (박스 금지, 비평가 1위 결함 재작업)
             const shell = new THREE.Mesh(new THREE.SphereGeometry(0.29, 10, 8), mat);
             shell.material = new THREE.MeshStandardMaterial({ color: new THREE.Color(c).lerp(new THREE.Color(0xb8c4cf), 0.28), metalness: 0.85, roughness: 0.42 }); // 스틸 혼합 — 원색 풍선 방지
-            shell.material.flatShading = true;                 // 저폴리 패싯 — 메카 판넬 인상
+            // flatShading 패싯 제거 — visor/mask는 스무스인데 tech만 패싯이라 '다른 파이프라인' 비일관 (비평가 6.9 9번)
             shell.position.y = 0.06;
             shell.scale.set(0.98, 0.92, 1.05);
             const jawGuard = new THREE.Mesh(new THREE.SphereGeometry(0.27, 10, 6, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.3), darkMat);
@@ -2032,8 +2032,8 @@ const Scene3D = {
             }));
             visorArc.position.set(0, 0.01, 0.035);             // 눈높이로 하강 — 이마 밴드 오독 방지
             visorArc.scale.y = 0.6;                            // 납작한 슬릿 단면
-            for (const dx of [-0.095, 0.095]) {                // 유리면 위 발광 눈 — 채도 높은 순색 + 가산 글로우 셸
-                const eyeC = new THREE.Color(pc).offsetHSL(0, 0.25, 0.08);
+            for (const dx of [-0.095, 0.095]) {                // 유리면 위 발광 눈 — 등급색 파생은 창백하게 씻김(비평가 6.9) → 고정 시안 렌즈
+                const eyeC = new THREE.Color(0x35e0ff);
                 const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: eyeC }));
                 eye.position.set(dx, 0.01, 0.3);
                 eye.scale.set(1.3, 0.72, 0.4);                 // 가로로 긴 렌즈 눈
@@ -2620,7 +2620,7 @@ const Scene3D = {
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
     // 종별 고유 팔레트 — 지형색 파생 금지 (전 종이 배경 보호색 연두 덩어리로 보이던 문제, 비평가 지적)
     // 종별 키 컬러 — 배경 대비 채도 2단계 상향 원칙 (연두 필드 보호색 금지, 비평가 지적)
-    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x3da35a, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x556279, imp: 0xc23a52 },
+    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x1f8038, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x556279, imp: 0xc23a52 }, // 고블린 진초록 하향 — 민트 피부가 민트 초원에 묻힘 (비평가 6.8 9번)
     monsterMesh(e) {
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
         // 디버그: ?enemy=imp 로 특정 몬스터 강제
@@ -3779,7 +3779,7 @@ const Scene3D = {
             const t = this.weaponG.localToWorld(new THREE.Vector3(0, tipLen, 0));
             // 돌진(몸통 평행이동)은 궤적이 아님 — 영웅 로컬에서 날끝이 실제 휘둘러질 때만 기록 (비평가: 수평 부유 막대)
             const lt = this.heroG.worldToLocal(t.clone());
-            const swung = !this._trailPrevLocal || lt.distanceTo(this._trailPrevLocal) > 0.06;
+            const swung = !this._trailPrevLocal || lt.distanceTo(this._trailPrevLocal) > (this.TRAIL_MIN_STEP || 0.06); // 슬로모 촬영 시 하향 조정 가능
             this._trailPrevLocal = lt;
             if (swung) {
                 // 저 fps에서도 리본이 끊기지 않게 프레임 사이를 보간 샘플로 메움

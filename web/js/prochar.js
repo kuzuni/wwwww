@@ -475,9 +475,13 @@ const ProChar = {
         neck.add(headG);
         R.bones.head = headG;
         // 목 기둥 — 머리가 몸통 위에 떠 보이던 문제 (비평가: 목 연결부 부재)
-        const neckMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.078, 0.14, 10), skin);
-        neckMesh.position.y = 0.03;
-        neck.add(neckMesh);
+        // 밝은 살색 긴 기둥은 '노출된 흰 실린더'로 오독(비평가 6.9 3번) — 짧게+그늘 톤, 사슬 카울로 상단 커버
+        const neckMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.078, 0.1, 10),
+            new THREE.MeshStandardMaterial({ color: 0xd9b28c, metalness: 0, roughness: 0.65 }));
+        neckMesh.position.y = 0.015;
+        const cowl = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.095, 0.07, 10), suit); // 사슬 카울 — 목-흉갑 경계 마감
+        cowl.position.y = -0.02;
+        neck.add(neckMesh, cowl);
         // 얼굴 — 둥근 두상 + 턱 라운딩 (헬멧 미착용 시 노출)
         const skull = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 12), skin);
         skull.position.y = 0.08;
