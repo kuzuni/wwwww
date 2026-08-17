@@ -789,27 +789,44 @@ const ProChar = {
         for (const side of [-1, 1]) {
             const shoulder = new THREE.Group();
             shoulder.position.set(side * 0.29, 0.385, 0); // 어깨 폭 15% 추가 확장 — 역삼각 실루엣 (비평가 지적)
-            // 견갑 — 반구 셸 2겹 (관절과 함께 회전)
-            const pauldron = new THREE.Mesh(
-                new THREE.SphereGeometry(0.105, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), steel()); // 머리와 등가 크기로 읽히던 견갑 축소
-            pauldron.position.set(side * 0.015, 0.015, 0);
-            pauldron.rotation.z = side * 0.35; // 바깥으로 흘러내리는 견갑 각
-            const pauldron2 = new THREE.Mesh(
-                new THREE.SphereGeometry(0.08, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), steelDark());
-            pauldron2.position.set(side * 0.032, -0.062, 0);
-            pauldron2.rotation.z = side * 0.45;
-            const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 5), gold);
-            rivet.position.set(side * 0.015, 0.13, 0);
-            // 견갑 안감 — 셸 바로 안쪽에 니어블랙 반구를 겹친다. 어깨는 캐릭터에서 화면 위쪽을 차지하는
-            // 큰 밝은 면인데, 그 밑면이 어두워야 판금이 '두께 있는 껍데기'로 읽힌다(현재는 종잇장).
-            const pauldronLine = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1, 12, 8, 0, Math.PI * 2, Math.PI * 0.34, Math.PI * 0.3), deepLine);
-            pauldronLine.position.copy(pauldron.position);
-            pauldronLine.rotation.z = pauldron.rotation.z;
-            const pauldron2Line = new THREE.Mesh(
-                new THREE.SphereGeometry(0.076, 10, 7, 0, Math.PI * 2, Math.PI * 0.3, Math.PI * 0.3), deepLine);
-            pauldron2Line.position.copy(pauldron2.position);
-            pauldron2Line.rotation.z = pauldron2.rotation.z;
+            // 견갑 — 라메(판금 밴드) 3겹 셸 (관절과 함께 회전)
+            // ⚠️ 비평가 잔여 지적 ⓔ: "견갑이 문자 그대로 구 2개 — 요크가 만든 수평선 위에 다시 둥근
+            //    스택을 얹는다". 반구가 반구로 읽히는 이유는 실루엣에 **꺾임이 하나도 없기** 때문이다
+            //    (반구는 어느 각도에서 봐도 같은 원호라 크기만 바뀐다). 그래서 이전 세션들이 반지름을
+            //    줄이고(0.105) 각도를 눕혀도 '작은 구'가 됐을 뿐 판금으로 넘어가지 못했다.
+            // → 처방대로 **아래로 각진 라메 밴드**로 교체한다: ① 캡을 라테로 깎아 윗면은 눕히고
+            //    어깨 모서리에서 급강하시켜 실루엣에 꺾임을 만들고 ② 그 아래를 바깥으로 벌어지는
+            //    원뿔대 밴드 2겹으로 덮되 ③ 밴드마다 밑단 림(밝은 금속 테)과 니어블랙 안감을 붙여
+            //    경계마다 명암 띠가 생기게 한다. 구는 매끈한 그라디언트 하나지만 라메는 띠가 3줄이다.
+            const pauldronG = new THREE.Group();
+            pauldronG.position.set(side * 0.012, 0.012, 0);
+            pauldronG.rotation.z = side * 0.3;  // 바깥으로 흘러내리는 견갑 각
+            // 캡(최상단 라메) — 윗면 거의 수평 → 어깨 모서리에서 급강하. 이 꺾임이 '구가 아님'의 핵심.
+            const capPts = [];
+            for (const [r, y] of [[0.005, 0.062], [0.038, 0.058], [0.068, 0.047], [0.089, 0.028], [0.097, 0.005], [0.099, -0.016]])
+                capPts.push(new THREE.Vector2(r, y));
+            const pCap = new THREE.Mesh(new THREE.LatheGeometry(capPts, 14), steel());
+            const pCapLine = new THREE.Mesh(new THREE.LatheGeometry(
+                capPts.map(v => new THREE.Vector2(v.x * 0.95, v.y - 0.004)), 14), deepLine); // 캡 안감(두께)
+            pauldronG.add(pCap, pCapLine);
+            // 라메 밴드 2겹 — [상단r, 하단r, 높이, y]. 아래로 갈수록 넓어져(원뿔대) 어깨가 '흘러내린다'.
+            // ⚠️ 반지름 상한은 **실루엣 폭**이 정한다 — 첫 판에서 0.117/0.129 로 잡았더니 근접샷에서
+            //    어깨가 '판금 선반'으로 읽혔다(구 문제를 반대편으로 넘긴 셈). 원래 반구가 0.105 였으므로
+            //    최대 0.119 = +13% 선에서 멈춘다. 라메 판독은 폭이 아니라 **밴드 경계 수**가 만든다.
+            for (const [rt, rb, hh, ly] of [[0.097, 0.110, 0.040, -0.035], [0.108, 0.119, 0.035, -0.069]]) {
+                const band = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, hh, 14, 1, true), steel());
+                band.position.y = ly;
+                // 안감은 DoubleSide(deepLine)라 열린 밑단으로 올려다볼 때 어두운 속이 보인다 — 판금 두께
+                const bandIn = new THREE.Mesh(new THREE.CylinderGeometry(rt * 0.95, rb * 0.95, hh * 1.04, 14, 1, true), deepLine);
+                bandIn.position.y = ly;
+                // 밑단 림 — 밴드 경계마다 밝은 금속 테. 구의 매끈한 그라디언트를 가로로 끊는 실질 요소.
+                const rim = new THREE.Mesh(new THREE.TorusGeometry(rb, 0.0075, 5, 16), steelDark());
+                rim.rotation.x = Math.PI / 2;
+                rim.position.y = ly - hh / 2;
+                pauldronG.add(band, bandIn, rim);
+            }
+            const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.019, 6, 5), gold);
+            rivet.position.set(side * 0.012, 0.080, 0); // 캡 꼭대기 리벳 (셸 상단 0.062 + 견갑 y 0.012 위)
             aoRing(0.075, 0.018, shoulder, -0.03, 0.5); // 견갑 안쪽-상완 경계 접촉 그림자
             const upperArm = this.capsule(0.062, 0.052, 0.19, mailMat);
             // 상완 패딩 소매 — 견갑 아래로 삐져나오는 누빔천 (판금 → 천 → 사슬 3층 경계)
@@ -891,7 +908,7 @@ const ProChar = {
             const handMount = new THREE.Group();
             handMount.position.y = -0.17;
             elbow.add(elbowGasket, elbowCap, couterWing, couterRivet, forearm, vambraceA, vambraceB, cuff, fist, strap, handMount);
-            shoulder.add(pauldron, pauldronLine, pauldron2, pauldron2Line, rivet, upperArm, armPad, elbow);
+            shoulder.add(pauldronG, rivet, upperArm, armPad, elbow);
             spine.add(shoulder);
             R.arms.push({ shoulder, elbow, handMount });
             R.bones['shoulder' + (side < 0 ? 'L' : 'R')] = shoulder;
@@ -972,6 +989,26 @@ const ProChar = {
         const cowl = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.095, 0.07, 12), mailMat); // 사슬 카울 — 이름대로 실제 사슬 직조로(사지와 동일 재질) 목-흉갑 경계 마감
         cowl.position.y = -0.02;
         neck.add(neckMesh, cowl);
+        // 스탠딩 고젯 칼라 — 비평가 잔여 지적 ⓔ "목 기둥 부재: 요크와 투구가 2~3px 어두운 이음선으로 만난다".
+        // ⚠️ 앞선 세션이 "밝은 살색 긴 기둥은 노출된 흰 실린더로 오독된다"며 목을 의도적으로 짧게 만든
+        //    이력이 있다(위 neckMesh 주석). 그래서 **살색 기둥을 늘리는 방향으로 가면 안 된다** —
+        //    지적이 처방한 대로 판금 칼라를 세운다. 살은 그대로 짧게 두고, 고젯 링에서 턱 밑까지
+        //    **판금**이 올라가 머리와 몸통 사이에 실제 높이를 가진 기둥을 만든다.
+        // ⚠️ 몸통(spine)에 붙인다 — 실제 고젯은 흉갑에 얹히는 파츠라 고개를 돌려도 따라 돌지 않는다.
+        //    neck 에 붙이면 칼라가 머리와 같이 회전해 '목도리'가 된다.
+        const collarPts = [];
+        for (const [r, y] of [[0.099, 0.432], [0.092, 0.468], [0.097, 0.502], [0.111, 0.533], [0.114, 0.547]])
+            collarPts.push(new THREE.Vector2(r, y));
+        const collar = new THREE.Mesh(new THREE.LatheGeometry(collarPts, 16), steel());
+        // 칼라 안감 — 위가 열린 셸이라 안쪽이 보인다. 니어블랙으로 채워야 목이 '뚫린 밝은 구멍'이 아니라
+        // 그늘로 읽힌다(gorgetIn 이 같은 일을 링 안쪽에서 하고 있고, 그 위를 이어받는다).
+        const collarIn = new THREE.Mesh(new THREE.LatheGeometry(
+            collarPts.map(v => new THREE.Vector2(v.x * 0.93, v.y)), 16), deepLine);
+        // 칼라 상단 림 — 견갑 라메와 같은 언어(밴드 밑단 밝은 테)로 칼라 끝을 매듭짓는다
+        const collarRim = new THREE.Mesh(new THREE.TorusGeometry(0.114, 0.008, 5, 18), steelDark());
+        collarRim.rotation.x = Math.PI / 2;
+        collarRim.position.y = 0.547;
+        spine.add(collar, collarIn, collarRim);
         // 얼굴 — 둥근 두상 + 턱 라운딩 (헬멧 미착용 시 노출)
         const skull = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 12), skin);
         skull.position.y = 0.08;
