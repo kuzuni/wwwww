@@ -290,7 +290,7 @@ const UI = {
                 <span class="cell-img emoji">${MOUNT_ICONS[S.activeMount] || '🐴'}</span>
                 <span class="cell-lv">Lv.${activeMount.level}</span>
             </div>`
-            : `<div class="equip-cell egg-cell empty" title="탈것" onclick="UI.openMounts()"><span class="slot-name">탈것</span></div>`;
+            : `<div class="equip-cell egg-cell empty" title="탈것" onclick="UI.openMounts()"><span class="mount-sil">🐴</span><span class="slot-name">탈것</span></div>`;
 
         // 모루가 중앙, 우측에 [대장간 레벨 N]·[자동🔄] 가로 배치, 좌측에 !(플레이어 정보, UI-SPEC 27번) — UI-SPEC 1번
         this.els.equipSheet.innerHTML = `
