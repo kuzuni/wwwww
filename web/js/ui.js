@@ -110,6 +110,36 @@ const UI = {
             .toString(16).padStart(2, '0')).join('');
     },
 
+    // 등급 → 재질. 색만으로 등급을 말하면 여섯 등급이 '같은 구슬의 색놀이'로 보인다.
+    // 하위=무광 금속 / 중위=유리 / 상위=보석으로 재질 자체를 갈라 위계를 만든다.
+    SR_MATERIAL: ['metal', 'metal', 'glass', 'glass', 'gem', 'gem'],
+    srMaterial(rarity) { return this.SR_MATERIAL[RARITIES.indexOf(rarity)] || 'metal'; },
+
+    // 열 수 — 5열 고정이면 11개가 5/5/1이 돼 마지막 행에 한 개만 남는 고아 행이 생긴다.
+    // 4~6열 중 마지막 행이 가장 덜 비는 값을 고른다(동률이면 5열에 가까운 쪽).
+    srCols(n) {
+        let best = 5, bestFill = -1;
+        for (const c of [5, 4, 6]) {
+            const fill = (n % c === 0 ? c : n % c) / c; // 마지막 행 충전율
+            if (fill > bestFill + 1e-9) { bestFill = fill; best = c; }
+        }
+        return best;
+    },
+
+    // ① 빛 모임 구간에 중심으로 빨려드는 빛줄기 — 팝만 있고 '모이는 힘'이 없으면
+    // 기대감 구간이 흰 플래시 한 장으로 끝난다. 난수 대신 고정 수열로 흩어 놓는다.
+    summonStreaks() {
+        let h = '';
+        for (let i = 0; i < 14; i++) {
+            // 딜레이 폭은 짧게 — 셀 등장(SR_CHARGE_MS 480ms)까지 전부 사라져야
+            // 아이콘 줄 위에 흰 막대가 남지 않는다
+            h += `<i style="--a:${(i * 360 / 14 + (i % 3) * 7).toFixed(1)}deg;`
+               + `--r:${(7.5 + (i * 17) % 6)}rem;--len:${(2.2 + (i % 4) * .8).toFixed(1)}rem;`
+               + `--d:${((i * 53) % 120) / 1000}s"></i>`;
+        }
+        return `<div class="sr-streaks">${h}</div>`;
+    },
+
     // 배경에 천천히 떠오르는 빛가루 — 정지 화면이 죽어 보이지 않게 하는 용도라 난수 대신
     // 고정 수열로 흩어 놓는다(소환할 때마다 배치가 튀지 않게)
     summonMotes() {
@@ -134,10 +164,13 @@ const UI = {
             const rc = RARITY_CSS[e.rarity];
             // data-tier로 등급별 세기(크기·광채·광선)를 계단화한다 — 6등급이 2상태로 붕괴하지 않게
             return `<div class="sr-cell${hi ? ' hi' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
+                data-mat="${this.srMaterial(e.rarity)}"
                 style="--i:${i};--rc:${rc};--rc-lite:${this.srShade(rc, .5)};--rc-deep:${this.srShade(rc, -.62)}">
                 <div class="sr-orbwrap">
                     <span class="sr-ray"></span>
+                    <span class="sr-ghost"></span>
                     <span class="sr-orb">${e.icon}</span>
+                    <span class="sr-spark"></span>
                     ${e.qty > 1 ? `<b class="sr-qty">×${e.qty}</b>` : ''}
                     ${e.isNew ? '<span class="sr-new">NEW</span>' : ''}
                 </div>
@@ -147,6 +180,10 @@ const UI = {
         }).join('');
         // 셀 수에 따라 크기 단계 — 묶음 덕분에 x75도 보통은 mid에서 멈춘다
         const size = entries.length === 1 ? ' one' : entries.length > 24 ? ' dense' : entries.length > 10 ? ' mid' : '';
+        const cols = this.srCols(entries.length);
+        // 한 줄짜리 결과(≤5개)는 아이콘 줄 위아래로 빈 남색 밴드가 구조적으로 남는다 —
+        // 아래쪽은 소환진(룬 바닥)으로 받쳐 피사체가 떠 있지 않고 무대 위에 선 것으로 읽히게 한다.
+        const stage = entries.length <= 5;
         const m = this.els.summonResultModal;
         m.className = 'modal'; // hidden 해제 + 이전 done 상태 제거
         m.innerHTML = `
@@ -155,10 +192,14 @@ const UI = {
                 <div class="sr-halo"></div>
                 ${this.summonMotes()}
                 <div class="sr-charge"></div>
+                ${this.summonStreaks()}
                 <div class="sr-shock"></div>
                 <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-head"><div class="sr-title">${meta.icon} ${meta.title} ×${rolls.length}</div></div>
-                <div class="sr-body"><div class="sr-grid${size}">${cells}</div></div>
+                <div class="sr-body${stage ? ' stage' : ''}${stage && size === ' one' ? ' one' : ''}">
+                    <div class="sr-grid${size}" style="--cols:${cols}">${cells}</div>
+                    ${stage ? '<div class="sr-floor"></div>' : ''}
+                </div>
                 <div class="sr-foot">
                     ${this.summonSummary(rolls)}
                     <div class="sr-hint">화면을 탭하면 건너뜁니다</div>
@@ -171,6 +212,12 @@ const UI = {
         m.style.setProperty('--bg-a', this.srBlend('#24306a', bc, .24));
         m.style.setProperty('--bg-b', this.srBlend('#101740', bc, .16));
         m.style.setProperty('--halo', `rgba(${brgb[0]},${brgb[1]},${brgb[2]},.4)`);
+        // 소환진도 결과 등급색으로 물들인다(.done에서만) — 배경/halo와 같은 승격 규칙
+        // 선은 등급색 원본이 아니라 밝게 띄운 파생색 — 배경까지 그 등급색으로 물든 뒤라
+        // 원색 그대로는 배경에 묻혀 소환진이 사라진다
+        const lrgb = this.srRgb(this.srShade(bc, .55));
+        m.style.setProperty('--floor-line-hi', `rgba(${lrgb[0]},${lrgb[1]},${lrgb[2]},.85)`);
+        m.style.setProperty('--floor-fill-hi', `rgba(${brgb[0]},${brgb[1]},${brgb[2]},.26)`);
         this.clearSummonTimers();
         this._srDone = false;
         SFX.summonCharge(best);

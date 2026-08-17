@@ -2076,6 +2076,43 @@ body {
     position: relative; width: 100%; height: 100%;
     display: flex; flex-direction: column; align-items: center;
     padding: .9rem 1.1rem .8rem;
+    /* 카메라 셰이크 — 빛 모임이 터지는 순간 화면이 한 번 흔들린다. 연출 프리미티브가
+       팝/플래시뿐이면 충격이 화면에 전달되지 않는다 */
+    animation: srshake .5s cubic-bezier(.22,.85,.32,1) both;
+}
+@keyframes srshake {
+    0%   { transform: none; }
+    16%  { transform: translate3d(.5%, -.9%, 0) scale(1.012); }
+    32%  { transform: translate3d(-.42%, .6%, 0) scale(1.008); }
+    50%  { transform: translate3d(.3%, .34%, 0) scale(1.004); }
+    70%  { transform: translate3d(-.16%, -.2%, 0); }
+    100% { transform: none; }
+}
+/* 최고 등급 착지 — 앞의 것보다 짧고 세게 */
+#summon-result-modal.flash .sr-wrap { animation: srshakehit .44s cubic-bezier(.2,.9,.3,1) both; }
+@keyframes srshakehit {
+    0%   { transform: none; }
+    12%  { transform: translate3d(-.85%, 1.15%, 0) scale(1.02); }
+    28%  { transform: translate3d(.72%, -.8%, 0) scale(1.014); }
+    46%  { transform: translate3d(-.44%, .46%, 0) scale(1.007); }
+    68%  { transform: translate3d(.22%, -.22%, 0); }
+    100% { transform: none; }
+}
+/* ① 중심으로 빨려드는 빛줄기 — 빛 모임 구간의 '모이는 힘'을 눈에 보이게 한다 */
+.sr-streaks { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
+.sr-streaks i {
+    position: absolute; left: 50%; top: 50%; width: .15rem; height: var(--len, 3rem);
+    margin-left: -.075rem; border-radius: .1rem; opacity: 0;
+    transform-origin: 50% 100%;
+    background: linear-gradient(rgba(186,216,255,0), #dfeeff 62%, #fff);
+    box-shadow: 0 0 .4rem rgba(160,205,255,.8);
+    animation: srstreak .36s cubic-bezier(.4,.02,.22,1) var(--d, 0s) forwards;
+}
+@keyframes srstreak {
+    0%   { opacity: 0;   transform: rotate(var(--a)) translateY(calc(-1 * var(--r))) scaleY(.55); }
+    26%  { opacity: .95; }
+    72%  { opacity: .7; }
+    100% { opacity: 0;   transform: rotate(var(--a)) translateY(-1.1rem) scaleY(1.5); }
 }
 /* 스포크가 프레임 끝까지 직선으로 뻗는 것을 막는 비네트 */
 .sr-wrap::after {
@@ -2093,6 +2130,46 @@ body {
     width: 124%; height: calc(100% + 2rem); pointer-events: none;
     background: radial-gradient(58% 48% at 50% 50%, rgba(4,7,20,.58) 0%, rgba(4,7,20,.26) 56%, rgba(4,7,20,0) 100%);
 }
+/* 소환진(룬 바닥) — 한 줄짜리 결과는 아이콘 줄 아래가 통째로 빈 남색 밴드로 남는다.
+   원근으로 눕힌 룬 원을 깔아 구체가 '무대 위에 선' 것으로 읽히게 하고 세로 구조를 만든다. */
+/* 소환진은 그리드 바로 아래에 붙어야 '무대'로 읽힌다 — 패널 바닥에 절대배치하면
+   아이콘 줄과 따로 노는 별개의 도형이 된다. 그리드 다음 형제로 두고 음수 마진으로 겹친다. */
+.sr-body.stage { flex-direction: column; }
+.sr-body.stage .sr-grid { flex: 0 0 auto; }
+.sr-floor {
+    position: relative; width: 82%; aspect-ratio: 3.1 / 1; margin-top: -2.7rem;
+    pointer-events: none; z-index: 0; opacity: 0;
+    animation: srfloor .85s cubic-bezier(.2,.9,.3,1) .16s forwards;
+}
+.sr-body.stage.one .sr-floor { width: 64%; aspect-ratio: 2.6 / 1; margin-top: -3.4rem; }
+@keyframes srfloor {
+    0%   { opacity: 0; transform: scale(.74); }
+    100% { opacity: 1; transform: scale(1); }
+}
+/* 바깥 링 + 안쪽 동심 링 + 바닥 광 (세 겹 다 그라디언트라 타원으로 함께 눌린다) */
+.sr-floor::before {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    border: .09rem solid var(--floor-line, rgba(150,195,255,.5));
+    background:
+        radial-gradient(closest-side, rgba(0,0,0,0) 61%,
+            var(--floor-line, rgba(150,195,255,.5)) 63.5%, rgba(0,0,0,0) 66.5%),
+        radial-gradient(closest-side, var(--floor-fill, rgba(96,146,255,.2)) 0%,
+            rgba(96,146,255,.07) 58%, rgba(0,0,0,0) 100%);
+    /* 안쪽은 빛이 고인 바닥으로, 바깥은 넓게 번지게 — 원 아래 남는 밴드를 빛으로 메운다 */
+    box-shadow: inset 0 0 3.2rem var(--floor-fill, rgba(96,146,255,.2)),
+                0 .6rem 3.6rem .4rem var(--floor-fill, rgba(96,146,255,.2));
+}
+/* 룬 눈금 — 링 바로 위 좁은 띠에만 얹는다. 띠가 넓으면 타원으로 눌려 긁힌 자국이 되고,
+   회전시키면 타원 위를 도는 붓질처럼 보여 둘 다 쓰지 않는다. 대신 아주 느린 호흡만. */
+.sr-floor::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: repeating-conic-gradient(var(--floor-line, rgba(150,195,255,.5)) 0deg 1.1deg,
+                rgba(0,0,0,0) 1.1deg 9deg);
+    -webkit-mask-image: radial-gradient(closest-side, rgba(0,0,0,0) 87%, #000 93%, #000 99%, rgba(0,0,0,0) 100%);
+    mask-image: radial-gradient(closest-side, rgba(0,0,0,0) 87%, #000 93%, #000 99%, rgba(0,0,0,0) 100%);
+    animation: srfloorbreath 4.2s ease-in-out infinite;
+}
+@keyframes srfloorbreath { 0%, 100% { opacity: .5; } 50% { opacity: .9; } }
 /* 배경 광선 — 등간격 하드 스포크는 바람개비처럼 보인다. 굵기가 다른 2겹을 겹쳐 살짝 흐린다 */
 .sr-rays {
     position: absolute; left: 50%; top: 50%; width: 190%; aspect-ratio: 1;
@@ -2186,11 +2263,18 @@ body {
     -webkit-mask-image: linear-gradient(rgba(0,0,0,0) 0, #000 5%, #000 95%, rgba(0,0,0,0) 100%);
     mask-image: linear-gradient(rgba(0,0,0,0) 0, #000 5%, #000 95%, rgba(0,0,0,0) 100%);
 }
-.sr-cell { position: relative; width: min(5.6rem, calc((100% - 3.6rem) / 5)); text-align: center; opacity: 0; transform: scale(.35); }
+.sr-cell {
+    position: relative; text-align: center; opacity: 0; transform: scale(.35);
+    width: min(5.6rem, calc((100% - (var(--cols, 5) - 1) * .8rem - .4rem) / var(--cols, 5)));
+}
 .sr-grid.one .sr-cell { width: min(13rem, 58vw); }
-/* 5열 고정 + 상한 — 폭을 꽉 채우면 15셀이 3행에서 넘쳐 스크롤이 생긴다.
-   결과 화면은 한눈에 다 보이는 편이 나으므로 스크롤 없이 들어가는 크기로 묶는다. */
-.sr-grid.mid .sr-cell { width: min(3.9rem, calc((100% - 4.4rem) / 5)); }
+/* 상한 있는 --cols열 — 폭을 꽉 채우면 15셀이 3행에서 넘쳐 스크롤이 생긴다.
+   결과 화면은 한눈에 다 보이는 편이 나으므로 스크롤 없이 들어가는 크기로 묶는다.
+   열 수는 JS(UI.srCols)가 '마지막 행이 가장 덜 비는 값'으로 정한다 — 5열 고정이면
+   11개가 5/5/1이 돼 마지막 행에 한 개만 남는 고아 행이 생긴다. */
+.sr-grid.mid .sr-cell {
+    width: min(3.9rem, calc((100% - (var(--cols, 5) - 1) * .8rem - 1.2rem) / var(--cols, 5)));
+}
 .sr-grid.dense .sr-cell { width: calc((100% - 4.2rem) / 8); }
 .sr-cell.on { animation: srpop .38s cubic-bezier(.18,1.6,.4,1) forwards; }
 @keyframes srpop {
@@ -2230,6 +2314,37 @@ body {
     background: radial-gradient(closest-side, rgba(0,0,0,0) 62%, var(--rc) 78%, rgba(0,0,0,0) 92%);
 }
 .sr-cell.on .sr-orbwrap::after { animation: srring .55s ease-out forwards; }
+/* 잔상(모션 스트레치) — 팝이 아래에서 올라오는데 궤적이 없으면 '순간이동 후 튕김'으로 보인다.
+   본체 뒤에 세로로 늘어난 흐린 복제를 깔아 이동 흔적을 남긴다 */
+.sr-ghost {
+    position: absolute; inset: 0; border-radius: 50%; pointer-events: none; z-index: 0; opacity: 0;
+    background: radial-gradient(closest-side, var(--rc-lite, #fff) 0%, var(--rc) 52%, rgba(0,0,0,0) 74%);
+    filter: blur(6px);
+}
+.sr-cell.on .sr-ghost { animation: srghost .34s ease-out forwards; }
+@keyframes srghost {
+    0%   { opacity: calc(.42 + .4 * var(--glow)); transform: translateY(1.1rem) scale(.72, 1.42); }
+    55%  { opacity: calc(.24 + .26 * var(--glow)); transform: translateY(.22rem) scale(.95, 1.12); }
+    100% { opacity: 0; transform: none; }
+}
+/* 착지 스파크 — 링 하나로는 '내려앉았다'만 말하고 '부딪혔다'를 말하지 못한다.
+   box-shadow 8방향 복제를 transform: scale로 바깥으로 날린다(오프셋도 함께 확대된다) */
+.sr-spark {
+    position: absolute; left: 50%; top: 50%; width: .22rem; height: .22rem;
+    margin: -.11rem 0 0 -.11rem; border-radius: 50%; background: #fff;
+    pointer-events: none; z-index: 2; opacity: 0; mix-blend-mode: screen;
+    box-shadow:
+        0 -1.5rem 0 -.02rem var(--rc),  1.06rem -1.06rem 0 -.06rem #fff,
+        1.5rem 0 0 -.02rem var(--rc),   1.06rem 1.06rem 0 -.07rem #fff,
+        0 1.5rem 0 -.05rem var(--rc),  -1.06rem 1.06rem 0 -.06rem #fff,
+        -1.5rem 0 0 -.02rem var(--rc), -1.06rem -1.06rem 0 -.07rem #fff;
+}
+.sr-cell.on .sr-spark { animation: srspark .42s cubic-bezier(.14,.82,.3,1) forwards; }
+@keyframes srspark {
+    0%   { opacity: calc(.45 + .55 * var(--glow)); transform: scale(.16); }
+    62%  { opacity: calc(.34 + .44 * var(--glow)); }
+    100% { opacity: 0; transform: scale(calc(1.05 + .55 * var(--glow))); }
+}
 @keyframes srring {
     0%   { opacity: calc(.32 + .62 * var(--glow)); transform: scale(.65); }
     100% { opacity: 0; transform: scale(calc(1.5 + .8 * var(--glow))); }
@@ -2249,6 +2364,60 @@ body {
                 inset 0 .1rem .28rem rgba(255,255,255,.45),
                 inset -.1rem -.16rem .5rem rgba(255,255,255,.2), /* 반대편 바운스 림 */
                 0 .5rem .8rem -.15rem rgba(0,0,0,.7);
+}
+/* 재질 정체성 — 여섯 등급이 '같은 구슬의 색놀이'로 보이던 문제. 색 위계와 별개로
+   재질 자체를 셋으로 가른다: 하위=무광 금속 / 중위=유리 / 상위=보석.
+   기본 .sr-orb 스택(유광 구체)은 metal이 이어받고, glass·gem이 각자 덮어쓴다. */
+/* 금속 — 이방성(가로 밴드) 하이라이트, 낮은 채도, 반사가 좁고 단단하다 */
+.sr-cell[data-mat="metal"] .sr-orb {
+    background:
+        radial-gradient(14% 11% at 35% 18%, #fff, rgba(255,255,255,0) 74%),
+        linear-gradient(rgba(255,255,255,0) 33%, rgba(255,255,255,.42) 42%,
+            rgba(255,255,255,.05) 48%, rgba(255,255,255,.22) 55%, rgba(255,255,255,0) 64%),
+        radial-gradient(122% 122% at 28% 16%, var(--rc-lite, #fff) 0%, var(--rc) 36%,
+            var(--rc-deep, #000) 72%, #05070f 100%);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.2),
+                inset 0 -.5rem .8rem rgba(4,8,24,.7),
+                inset 0 .1rem .24rem rgba(255,255,255,.4),
+                inset -.1rem -.16rem .5rem rgba(255,255,255,.14),
+                0 .5rem .8rem -.15rem rgba(0,0,0,.7);
+}
+/* 유리 — 속이 비어 어둡고, 빛이 통과해 바닥에 등급색 코스틱이 고인다. 림이 밝다 */
+.sr-cell[data-mat="glass"] .sr-orb {
+    background:
+        radial-gradient(12% 9% at 33% 16%, #fff, rgba(255,255,255,0) 70%),
+        radial-gradient(48% 32% at 50% 86%, var(--rc-lite, #fff) 0%, rgba(255,255,255,0) 76%),
+        radial-gradient(closest-side, rgba(2,5,14,.5) 0%, rgba(2,5,14,.12) 54%, rgba(0,0,0,0) 72%),
+        radial-gradient(125% 125% at 30% 20%, var(--rc-lite, #fff) 0%, var(--rc) 44%,
+            var(--rc-deep, #000) 78%, #05070f 100%);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.34),
+                inset 0 -.34rem .7rem var(--rc),
+                inset 0 .12rem .3rem rgba(255,255,255,.55),
+                inset -.1rem -.16rem .5rem rgba(255,255,255,.24),
+                0 .5rem .8rem -.15rem rgba(0,0,0,.7);
+}
+/* 보석 — 패싯(깎은 면)이 갈리고, 면마다 밝기가 튄다. 위에 십자 글린트 */
+.sr-cell[data-mat="gem"] .sr-orb {
+    background:
+        radial-gradient(11% 8% at 35% 18%, #fff, rgba(255,255,255,0) 72%),
+        /* 등간격 반복은 큰 구체에서 바람개비가 된다 — 폭·밝기가 불규칙한 9면으로 깎는다 */
+        conic-gradient(from 18deg at 46% 42%,
+            rgba(255,255,255,.17) 0deg 34deg, rgba(0,0,0,.17) 34deg 72deg,
+            rgba(255,255,255,.06) 72deg 118deg, rgba(0,0,0,.1) 118deg 155deg,
+            rgba(255,255,255,.21) 155deg 196deg, rgba(0,0,0,.19) 196deg 240deg,
+            rgba(255,255,255,.04) 240deg 292deg, rgba(0,0,0,.13) 292deg 330deg,
+            rgba(255,255,255,.14) 330deg 360deg),
+        radial-gradient(125% 125% at 30% 20%, var(--rc-lite, #fff) 0%, var(--rc) 40%,
+            var(--rc-deep, #000) 74%, #05070f 100%);
+}
+.sr-cell[data-mat="gem"] .sr-orb::before {
+    content: ''; position: absolute; left: 20%; top: 8%; width: 42%; height: 32%;
+    pointer-events: none;
+    background:
+        linear-gradient(rgba(255,255,255,0) 43%, #fff 50%, rgba(255,255,255,0) 57%),
+        linear-gradient(90deg, rgba(255,255,255,0) 43%, #fff 50%, rgba(255,255,255,0) 57%);
+    -webkit-mask-image: radial-gradient(closest-side, #000 0%, rgba(0,0,0,.45) 38%, rgba(0,0,0,0) 72%);
+    mask-image: radial-gradient(closest-side, #000 0%, rgba(0,0,0,.45) 38%, rgba(0,0,0,0) 72%);
 }
 .sr-grid.one .sr-orb { font-size: 6.2rem; }
 .sr-grid.mid .sr-orb { font-size: 1.7rem; }
@@ -2374,6 +2543,10 @@ body {
 #summon-result-modal.done .sr-halo {
     background: radial-gradient(closest-side, var(--halo, rgba(120,165,255,.4)) 0%, rgba(0,0,0,0) 100%);
     transition: background .5s ease-out;
+}
+#summon-result-modal.done .sr-floor {
+    --floor-line: var(--floor-line-hi, rgba(150,195,255,.5));
+    --floor-fill: var(--floor-fill-hi, rgba(96,146,255,.2));
 }
 #summon-result-modal.done .sr-hint { display: none; }
 #summon-result-modal.done .sr-ok { display: block; animation: srpop .32s cubic-bezier(.18,1.6,.4,1) both; }

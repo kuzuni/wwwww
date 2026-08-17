@@ -1,5 +1,10 @@
 // 소환 결과 연출 팝업 캡처 — 등장 연출 타이밍(연속 프레임) + x1/x5/x75 그리드 확인
 // 사용: PW_PATH=<playwright 경로> node shot-summon-result.js [출력디렉터리]
+//
+// ⚠️ 캡처 속도: 3D 렌더 루프(Scene3D.update)가 도는 동안에는 swiftshader에서 스크린샷 한 장이
+// 15~30초가 걸려 기본 30s 타임아웃에 걸린다. 팝업은 불투명 풀스크린 오버레이라 3D 화면이
+// 보이지 않으므로, 캡처 전에 Scene3D.update를 비워 루프를 멈춘다 — 한 장 18s → 0.15s.
+// 그 덕에 아래 '타임라인' 섹션에서 연출을 ms 단위로 세워 놓고 연속 프레임을 뽑을 수 있다.
 const { chromium } = require(process.env.PW_PATH || 'playwright');
 const path = require('path');
 const fs = require('fs');
@@ -13,6 +18,27 @@ const SEED = `
     S.bestChapter = 20; S.bestStage = 9;
     saveGame();
 `;
+const FREEZE_3D = `Scene3D.update = function () {};`;
+
+// 연출을 절대 시각 T(ms)로 세운다 — 셀 등장은 클래스로, CSS 애니메이션은 currentTime으로.
+// 셀 애니메이션은 그 셀이 뜬 시각(_srDelays[i])이 원점이므로 그만큼 빼 준다.
+const SEEK = `(T => {
+    const m = UI.els.summonResultModal;
+    const cells = [...UI._srCells], d = UI._srDelays, last = d[d.length - 1];
+    cells.forEach((c, i) => c.classList.toggle('on', d[i] <= T));
+    m.classList.toggle('flash', !!UI._srHoldback && last <= T);
+    m.classList.toggle('done', T >= last + UI.SR_TAIL_MS);
+    for (const a of document.getAnimations()) {
+        const el = a.effect && a.effect.target;
+        if (!el || !el.getRootNode) continue;
+        let base = 0;
+        const cell = el.closest ? el.closest('.sr-cell') : null;
+        if (cell) base = d[cells.indexOf(cell)] || 0;
+        else if (el.classList && el.classList.contains('sr-flash')) base = last;
+        a.pause();
+        try { a.currentTime = Math.max(0, T - base); } catch (e) { /* 무한 반복 외 예외 무시 */ }
+    }
+})`;
 
 // [이름, 소환 실행 소스, 연속 캡처할 시각(ms)]
 const CASES = [
@@ -27,17 +53,29 @@ const CASES = [
     ['mount-x1-hi', `S.mountOpens = 5000; S.summonMult = {mount:1}; UI.openMounts(); UI.onSummonMount();`, [1400, 3400]],
 ];
 
+// 연속 프레임으로 훑을 케이스 — [이름, 소환 소스, 프레임 간격, 마지막 시각]
+const TIMELINES = [
+    ['tl-x5-hi', `S.summonCount = 5000; S.summonMult = {skill:5}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, 60, 2760],
+    ['tl-x75', `S.summonCount = 5000; S.summonMult = {skill:75}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, 90, 3060],
+];
+
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
     const errors = [];
-    for (const [name, open, times] of CASES) {
+    const newPage = async (tag) => {
         const page = await browser.newPage({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1 });
-        page.on('pageerror', e => errors.push(`${name} PAGEERROR ${e}`));
-        page.on('console', m => { if (m.type() === 'error') errors.push(`${name} CONSOLE ${m.text()}`); });
+        page.on('pageerror', e => errors.push(`${tag} PAGEERROR ${e}`));
+        page.on('console', m => { if (m.type() === 'error') errors.push(`${tag} CONSOLE ${m.text()}`); });
         await page.goto(INDEX);
         await page.waitForFunction('typeof UI !== "undefined" && UI.els');
         await page.evaluate(SEED);
-        await page.waitForTimeout(300);
+        await page.evaluate(FREEZE_3D);
+        await page.waitForTimeout(200);
+        return page;
+    };
+
+    for (const [name, open, times] of CASES) {
+        const page = await newPage(name);
         const t0 = Date.now();
         await page.evaluate(open);
         for (const t of times) {
@@ -45,15 +83,21 @@ const CASES = [
             if (wait > 0) await page.waitForTimeout(wait);
             await page.screenshot({ path: path.join(OUT, `${name}-${t}.png`) });
         }
-        // 상태 점검: 연출 종료 여부 + 셀 수 + 확인 버튼 노출
+        // 상태 점검: 연출 종료 여부 + 셀 수 + 확인 버튼 노출 + 행 분포(고아 행 확인)
         const st = await page.evaluate(`(() => {
             const m = UI.els.summonResultModal;
             const ok = m.querySelector('.sr-ok');
+            const cells = [...m.querySelectorAll('.sr-cell')];
+            const rows = {};
+            for (const c of cells) { const y = Math.round(c.getBoundingClientRect().top); rows[y] = (rows[y] || 0) + 1; }
             return {
                 open: !m.classList.contains('hidden'),
                 done: m.classList.contains('done'),
-                cells: m.querySelectorAll('.sr-cell').length,
+                cells: cells.length,
                 revealed: m.querySelectorAll('.sr-cell.on').length,
+                cols: m.querySelector('.sr-grid').style.getPropertyValue('--cols'),
+                rows: Object.values(rows),
+                mats: [...new Set(cells.map(c => c.dataset.mat))],
                 okVisible: !!(ok && ok.offsetParent !== null),
                 okRect: ok ? ok.getBoundingClientRect().toJSON() : null,
                 appRect: document.getElementById('app').getBoundingClientRect().toJSON(),
@@ -66,40 +110,20 @@ const CASES = [
         console.log(`${name} closed-by-tap: ${closed}`);
         await page.close();
     }
-    // 캐스케이드 중간 프레임은 실시간 캡처로는 못 잡는다 — WebGL 페이지의 screenshot 한 장이
-    // 0.5초 넘게 걸려서 t=900ms를 노려도 이미 다 뜬 뒤가 찍힌다. 그래서 연출을 멈춘 뒤
-    // 셀을 k개까지만 켜서 각 단계를 결정론적으로 남긴다(팝 애니메이션이 도는 순간이 찍힌다).
-    {
-        const page = await browser.newPage({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1 });
-        page.on('pageerror', e => errors.push(`stages PAGEERROR ${e}`));
-        await page.goto(INDEX);
-        await page.waitForFunction('typeof UI !== "undefined" && UI.els');
-        await page.evaluate(SEED);
-        await page.evaluate(`S.summonCount = 5000; S.summonMult = {skill:5};
-            UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false); UI.clearSummonTimers();`);
-        await page.screenshot({ path: path.join(OUT, 'stage-0-charge.png') }); // 빛 모임만
-        for (let k = 1; k <= 5; k++) {
-            await page.evaluate(`UI._srCells[${k - 1}].classList.add('on')`);
-            await page.screenshot({ path: path.join(OUT, `stage-${k}.png`) });
+
+    // 연속 프레임 — 연출을 ms 단위로 세워 놓고 훑는다. 실시간 캡처는 스크린샷 한 장이
+    // 연출보다 오래 걸려 중간 프레임을 놓치므로 타임라인을 직접 감는다.
+    for (const [name, open, step, end] of TIMELINES) {
+        const dir = path.join(OUT, name);
+        fs.mkdirSync(dir, { recursive: true });
+        const page = await newPage(name);
+        await page.evaluate(open);
+        await page.evaluate(`UI.clearSummonTimers()`);
+        for (let t = 0; t <= end; t += step) {
+            await page.evaluate(`(${SEEK})(${t})`);
+            await page.screenshot({ path: path.join(dir, `t${String(t).padStart(4, '0')}.png`) });
         }
-        await page.evaluate(`UI.finishSummonResult()`);
-        await page.waitForTimeout(400); // [확인] 팝 애니메이션이 끝난 뒤
-        await page.screenshot({ path: path.join(OUT, 'stage-done.png') });
-        await page.close();
-    }
-    // 빛 모임/충격파는 0.68초 안에 끝나는데 screenshot 한 장이 그보다 오래 걸려 실시간으로는
-    // 절대 못 잡는다. 애니메이션을 음수 delay로 원하는 시점에 세워 두고 캡처한다.
-    for (const at of [0.1, 0.28, 0.5]) {
-        const page = await browser.newPage({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1 });
-        page.on('pageerror', e => errors.push(`charge PAGEERROR ${e}`));
-        await page.goto(INDEX);
-        await page.waitForFunction('typeof UI !== "undefined" && UI.els');
-        await page.evaluate(SEED);
-        await page.addStyleTag({ content:
-            `.sr-charge, .sr-shock { animation-delay: -${at}s !important; animation-play-state: paused !important; }` });
-        await page.evaluate(`S.summonMult = {skill:5}; UI.switchTab('summon'); UI.switchSummonSub('skills');
-            UI.onSummon(false); UI.clearSummonTimers();`);
-        await page.screenshot({ path: path.join(OUT, `charge-${String(at).replace('.', '')}.png`) });
+        console.log(`${name}: ${Math.floor(end / step) + 1} frames → ${dir}`);
         await page.close();
     }
     await browser.close();
