@@ -39,7 +39,7 @@ const SCREENS = [
     ['autoforge', '042950', `UI.openAutoForge()`],
     ['autoforge-filter', '043117', `S.autoForge.filterOn=true; UI.openAutoForge()`],
     // 새 장비도 원본처럼 서브옵션 2줄로 고정 (랜덤 1~4줄이면 카드 높이가 매 런 달라져 대조가 안 된다)
-    ['craft-compare', '043224', `UI.showCraftModal(Object.assign(Forge.rollItem(), { subs: U.rollSubs(2) }))`],
+    ['craft-compare', '043224', `UI._realShowCraftModal(Object.assign(Forge.rollItem(), { subs: U.rollSubs(2) }))`],
     ['gear-detail', '043244', `UI.openGearDetail('weapon')`],
     ['player-info', '043313', `UI.openPlayerInfo()`],
     ['chat', '043500', `UI.openChat()`],
@@ -68,10 +68,13 @@ const SEED = () => {
     for (const slot of Object.keys(S.equipment)) { const it = S.equipment[slot]; if (it) it.subs = U.rollSubs(2); }
     if (S.equipment.weapon) S.equipment.weapon.rarity = 'mythic';
     // 스킬 — 소환 비용을 먼저 채워야 실제로 뽑힌다(티켓 160으론 30연차 960이 모자라 그리드가 비어버림)
-    S.tickets = 99999; Skills.summon(false, 30); S.tickets = 160;
-    for (const k of Object.keys(S.skills)) S.skills[k].level = 20 + (S.skills[k].level || 1);
+    // 원본(042340)은 **15/18 보유(3줄 그리드)** 상태다. 소환을 굴려서는 등급 확률 때문에 아무리 많이
+    // 돌려도 낮은 등급 4~6종에서 멈춰 그리드가 1줄로 찍힌다(30연차·360연차 모두 실측) — 캡처용으로 직접 세운다.
+    S.skills = {}; S.equippedSkills = [];
+    SKILL_DEFS.slice(0, 15).forEach((d, i) => { S.skills[d.id] = { level: 20 + i * 3, dupes: (i * 3) % 8, stars: 0 }; });
     S.summonCount = 260;
     S.equippedSkills = Object.keys(S.skills).slice(0, 3);
+    Combat.recalcHero();
     // 펫 — 알/부화/보유 모두 채움
     S.eggCurrency = 5000; Pets.summon(30);
     for (let i = 0; i < 8 && S.eggs.length; i++) { const e = S.eggs.shift(); S.pets.push({ name: Pets.LIST ? Pets.LIST[i % Pets.LIST.length].name : ('펫' + i), rarity: e.rarity, level: 10 + i * 3, dupes: 4 }); }
@@ -106,6 +109,18 @@ const SEED = () => {
     // screenshot 사이에 새 토스트를 띄워 원본에 없는 알림 pill 이 화면에 찍힌다(리그 캡처에서
     // 시즌 종료 pill 위에 '첫 클리어' 토스트가 겹쳐 찍힌 사례). 채점용 캡처가 오염되면 안 된다.
     await page.evaluate(() => { UI.toast = () => { }; });
+    // ⚠️ 자동 제련(S.autoForgeOn=true 시드)이 캡처 대기 중에 제작을 돌려 **비교 팝업이 화면 위에 떠 버린다**
+    // — skills 캡처가 통째로 비교 팝업으로 덮인 실제 사례. '런마다 내용이 달라진다'던 흔들림의 원인이기도 하다.
+    // [자동 ON] 배지는 살려야 하므로 S.autoForgeOn은 그대로 두고, 제작 진입과 팝업만 막는다.
+    // (craft-compare 화면은 오프너에서 _realShowCraftModal로 직접 띄운다)
+    await page.evaluate(() => {
+        UI._realShowCraftModal = UI.showCraftModal;
+        UI.showCraftModal = () => { };
+        UI.resolvePendingCraft = () => { };
+        UI.autoSeqStep = () => { };
+        UI.clearPendingCraft(); UI.renderEquipSheet();
+        UI.coinBurst = () => { };   // 대기품 자동 판정 판매의 코인 분출(780ms)이 다음 화면 위로 날아와 찍힌다
+    });
     // 전투 씬이 자리잡을 시간 (메인/플레이어 정보 프리뷰)
     await page.waitForTimeout(2500);
     // 디버그 탭 숨김 유지 확인용 로그

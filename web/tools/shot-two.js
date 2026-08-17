@@ -20,6 +20,18 @@ const SC = require('./shot-screens-seed.js');
     // screenshot 사이에 새 토스트를 띄워 원본에 없는 알림 pill 이 화면에 찍힌다(리그 캡처에서
     // 시즌 종료 pill 위에 '첫 클리어' 토스트가 겹쳐 찍힌 사례). 채점용 캡처가 오염되면 안 된다.
     await page.evaluate(() => { UI.toast = () => { }; });
+    // ⚠️ 자동 제련(S.autoForgeOn=true 시드)이 캡처 대기 중에 제작을 돌려 **비교 팝업이 화면 위에 떠 버린다**
+    // — skills 캡처가 통째로 비교 팝업으로 덮인 실제 사례. '런마다 내용이 달라진다'던 흔들림의 원인이기도 하다.
+    // [자동 ON] 배지는 살려야 하므로 S.autoForgeOn은 그대로 두고, 제작 진입과 팝업만 막는다.
+    // (craft-compare 화면은 오프너에서 _realShowCraftModal로 직접 띄운다)
+    await page.evaluate(() => {
+        UI._realShowCraftModal = UI.showCraftModal;
+        UI.showCraftModal = () => { };
+        UI.resolvePendingCraft = () => { };
+        UI.autoSeqStep = () => { };
+        UI.clearPendingCraft(); UI.renderEquipSheet();
+        UI.coinBurst = () => { };   // 대기품 자동 판정 판매의 코인 분출(780ms)이 다음 화면 위로 날아와 찍힌다
+    });
     await page.waitForTimeout(2500);
     for (const arg of process.argv.slice(2)) {
         const i = arg.indexOf(':'); const name = arg.slice(0, i), src = arg.slice(i + 1);
