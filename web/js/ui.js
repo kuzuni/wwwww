@@ -1149,12 +1149,20 @@ const UI = {
         const stored = Forge.inventoryOf(slot);
         if (!item && !stored.length) return;
         this._gearDetailSlot = slot;
+        this.renderGearDetail();
+        this.showModal(this.els.gearDetailModal);
+    },
+    // 내용만 다시 그리는 경로를 open과 분리해 둔다 — 이름이 render*라 installScrollKeeper가 자동으로
+    // 감싸므로, 보관함에서 재장착·판매해 다시 그려도 **목록 스크롤이 맨 위로 튀지 않는다**
+    // (open*은 스크롤 보존 대상이 아니라서, 재렌더에 openGearDetail을 쓰면 매번 목록이 튄다).
+    renderGearDetail() {
+        const slot = this._gearDetailSlot;
+        if (!slot) return;
         this.els.gearDetailModal.innerHTML = `
             <div class="modal-card wide gd-card">
-                <div class="cmp-wrap">${this.itemCardHTML(item, '장착됨', null, false)}</div>
+                <div class="cmp-wrap">${this.itemCardHTML(S.equipment[slot], '장착됨', null, false)}</div>
                 ${this.storedListHTML(slot)}
             </div>`;
-        this.showModal(this.els.gearDetailModal);
     },
     // 보관함 목록 — 한 줄에 장비 하나(아이콘·이름·주스탯) + [장착]/[판매]
     storedListHTML(slot) {
@@ -1183,7 +1191,8 @@ const UI = {
         const it = Forge.equipStored(slot, idx);
         if (!it) return;
         this.toast(`🛠 ${it.name} 장착 — 쓰던 장비는 보관함으로`);
-        this.renderTopBar(); this.renderEquipSheet(); this.openGearDetail(slot); saveGame();
+        // 재렌더는 renderGearDetail로 — openGearDetail을 쓰면 보관함 목록이 맨 위로 튄다
+        this.renderTopBar(); this.renderEquipSheet(); this.renderGearDetail(); saveGame();
     },
     onSellStored(slot, idx) {
         const gained = Forge.sellStored(slot, idx);
@@ -1193,7 +1202,7 @@ const UI = {
         this.renderTopBar(); this.renderEquipSheet();
         // 마지막 보관품을 팔았고 장착 중인 것도 없으면 열어 둘 내용이 없다
         if (!S.equipment[slot] && !Forge.inventoryOf(slot).length) this.closeGearDetail();
-        else this.openGearDetail(slot);
+        else this.renderGearDetail();
         saveGame();
     },
     closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); this._gearDetailSlot = null; },

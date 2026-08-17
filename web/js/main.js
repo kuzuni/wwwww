@@ -172,7 +172,7 @@
                 UI.renderEquipSheet();
                 // 열려 있는 플레이어 정보/장비 세부정보 팝업도 함께 갱신 — 안 그러면 오토포지 중 스탯이 멈춰 보임
                 if (!UI.els.playerInfoModal.classList.contains('hidden')) UI.renderPlayerInfo();
-                if (!UI.els.gearDetailModal.classList.contains('hidden') && UI._gearDetailSlot) UI.openGearDetail(UI._gearDetailSlot);
+                if (!UI.els.gearDetailModal.classList.contains('hidden') && UI._gearDetailSlot) UI.renderGearDetail();
             }
         }, 3000);
 

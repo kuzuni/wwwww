@@ -133,7 +133,27 @@ async function waitBooted(page, timeout = 20000) {
     console.log(`\n③ 탈것 상세 [장착] — ${ok3 ? 'OK' : 'FAIL'}`);
     console.log(`   재생된 카드 애니메이션 [${c.anims.join(', ') || '없음'}] / 도중 hidden=${c.hiddenSeen} / 끝에 닫힘=${c.endHidden} / opacity=${c.endOpacity}`);
 
-    const fail = (ok1 ? 0 : 1) + (ok2 ? 0 : 1) + (ok3 ? 0 : 1);
+    // ④ 보관함 목록을 스크롤한 상태에서 재장착 — 목록이 맨 위로 튀면 사용자에겐 '팝업이 사라졌다'로 읽힌다.
+    //    installScrollKeeper()는 render* 만 감싸므로, 재렌더를 openGearDetail(=open*)로 하면 매번 튄다.
+    const scroll = await page.evaluate(() => {
+        UI.closeOpened && UI.closeOpened();
+        S.inventory.weapon = [];
+        for (let i = 0; i < 10; i++) { const it = Forge.rollItem(); it.slot = 'weapon'; Forge.store(it); }
+        if (!S.equipment.weapon) { const it = Forge.rollItem(); it.slot = 'weapon'; Forge.equip(it); }
+        UI.openGearDetail('weapon');
+        const list = document.querySelector('#gear-detail-modal .inv-list');
+        const scrollable = list.scrollHeight > list.clientHeight;
+        list.scrollTop = 60;
+        const set = list.scrollTop;
+        document.querySelectorAll('#gear-detail-modal .inv-row .btn.equip')[4].click();
+        const after = document.querySelector('#gear-detail-modal .inv-list');
+        return { scrollable, set, after: after ? after.scrollTop : null };
+    });
+    const ok4 = scroll.scrollable && scroll.after === scroll.set;
+    console.log(`\n④ 보관함 스크롤 보존 — ${ok4 ? 'OK' : 'FAIL'}`);
+    console.log(`   목록 스크롤 가능=${scroll.scrollable} / 재장착 전 ${scroll.set} → 후 ${scroll.after}`);
+
+    const fail = (ok1 ? 0 : 1) + (ok2 ? 0 : 1) + (ok3 ? 0 : 1) + (ok4 ? 0 : 1);
     console.log(`\n실패 ${fail}건 / 콘솔 에러 ${errs.length}건`);
     errs.slice(0, 8).forEach(e => console.log('  ERR ' + e));
     await browser.close();
