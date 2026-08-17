@@ -766,9 +766,14 @@ body {
     width: 72%; /* 원본 ≈70% W (185) */
 }
 .pass-card h2, .pass-card h3, .pass-card h4 { color: #fff; }
-.pass-sword { /* 원본(042705): 검 ≈13% H, 절반이 카드 위로 돌출 — 칼끝 아래 수직 */
-    position: absolute; top: -6.4rem; left: 50%; transform: translateX(-50%) rotate(-45deg);
-    font-size: 6.6rem; line-height: 1; filter: drop-shadow(.18rem .25rem .18rem rgba(0,0,0,.55)); z-index: 1;
+.pass-sword {
+    /* 원본(042705) 실측: 검이 y 22~140/890 = 화면 높이의 2.5%~15.7%(높이 ≈13%)에 들어오고
+       폼멜이 화면 안에서 시작한다. 이전 값(font-size 6.6rem / top -6.4rem)은 회전 후 바운딩
+       박스가 169px이라 상단 36px가 뷰포트 밖으로 잘려 폼멜이 사라지고, 검이 topbar 위에
+       그려졌다(모달 z20 > topbar) — QA 4차 실측 [155,-36,169,169] vs topbar [1,0,478,58].
+       칼끝 위치(≈15%)는 유지한 채 크기만 원본 비례로 줄여 폼멜을 화면 안으로 들였다. */
+    position: absolute; top: -3.55rem; left: 50%; transform: translateX(-50%) rotate(-45deg);
+    font-size: 4.8rem; line-height: 1; filter: drop-shadow(.18rem .25rem .18rem rgba(0,0,0,.55)); z-index: 1;
 }
 .pass-banner { /* 원본: 카드 좌우를 넘는 풀블리드 리본 */
     position: relative; background: linear-gradient(180deg, #5252f0, #3c3cbe); border: 3px solid var(--pp-line);
