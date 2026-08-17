@@ -112,3 +112,6 @@ InitTestScene*.unity*
 /node_modules/
 /package.json
 /package-lock.json
+
+# 3D 검증 캡처 원본 프레임 — 스크립트로 재생성 가능(용량 절약)
+web/tools/hpjuice/*-[0-9][0-9].png
