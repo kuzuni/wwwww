@@ -29,7 +29,12 @@ const forgeProbabilities = {
     26: { interstellar: 43.80, multiverse: 50.00, quantum: 6.00, underworld: 0.25 },
     27: { interstellar: 31.50, multiverse: 60.00, quantum: 8.00, underworld: 0.50 },
     28: { interstellar: 21.00, multiverse: 65.00, quantum: 13.00, underworld: 1.00 },
-    29: { interstellar: 7.00, multiverse: 68.00, quantum: 23.00, underworld: 2.00 },
+    // 29레벨만 원본 게임 스크린샷(ref/screens/shot-042950·043117 자동 제련 '유지' 목록)이 기준이다.
+    // 추출원(ForgeMasterCalculator = data/raw/app.js)은 이 행을 `interstellar 7.00 … 4줄`로 적어 뒀지만,
+    // 원본 게임은 같은 행을 **6.99 / 68 / 23 / 2 / 신성한 0.02 의 5줄**로 띄운다(두 스샷 모두 동일).
+    // 합이 100.01 이라 추출원 저자가 divine 0.02 를 버리고 6.99→7.00 으로 반올림해 100.00 을 맞춘 것으로 보인다.
+    // 추첨은 U.weightedPick 이 합으로 정규화하므로 100.01 이어도 안전하다. data/raw/app.js 는 추출 원문이라 손대지 않는다.
+    29: { interstellar: 6.99, multiverse: 68.00, quantum: 23.00, underworld: 2.00, divine: 0.02 },
     30: { multiverse: 60.00, quantum: 36.00, underworld: 4.00, divine: 0.01 },
     31: { multiverse: 50.90, quantum: 43.00, underworld: 6.00, divine: 0.05 },
     32: { multiverse: 41.70, quantum: 50.00, underworld: 8.00, divine: 0.25 },
