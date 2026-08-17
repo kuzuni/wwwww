@@ -3032,8 +3032,12 @@ const Scene3D = {
             mesh.scale.setScalar(0.85 + RARITIES.indexOf(p.rarity) * 0.14);
             g.add(mesh);
             g.rotation.y = 0.55; // 적 방향 3/4
-            const spots = [[-0.1, 0.95], [-0.45, -0.65], [-0.3, 1.45]]; // 영웅 주변 대형 (화면 안)
-            g.position.set(Combat.HERO_X + spots[i][0] + this.worldX, 0.45 + i * 0.18, spots[i][1]);
+            // 펫은 전부 **카메라 쪽(z+) 앞줄**에 부채꼴로 세운다 — 카메라가 (0.15, 3.7, 8.2)에서 내려다보므로
+            // z가 0 이하인 자리는 영웅 몸통 뒤에 그대로 가린다(기존 2번 자리 z=-0.65가 사용자가 지적한 그 자리).
+            // x는 영웅~적 교전선(HERO_X -1.35 ~ MELEE_X -0.5)을 피해 좌우로 벌리고, z를 엇갈려 서로도 안 겹치게.
+            // 탈것은 이제 영웅 발밑(탑승)이라 예전처럼 오른쪽 자리를 비워 둘 필요가 없다.
+            const spots = [[-0.72, 1.18], [0.02, 1.62], [0.68, 1.12]];
+            g.position.set(Combat.HERO_X + spots[i][0] + this.worldX, 0.4, spots[i][1]);
             g.userData.home = g.position.clone();
             g.userData.spotX = spots[i][0];
             g.userData.name = p.name;
