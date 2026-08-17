@@ -1423,6 +1423,17 @@ body {
 .league-reward-tier:first-child { background-image: none; }
 .league-tier-rank { font-size: 1.3rem; font-weight: 900; width: 2.4rem; text-align: center; flex: none; color: var(--pp-ink); white-space: nowrap; }
 .league-tier-rank.text { font-size: .74rem; width: 3rem; }
+/* 1~3위 배지 — 아이콘 위에 흰 숫자를 겹친다. 숫자를 흐름에 두면 배지 옆에 붙어 칸이 넓어지므로
+   배지만 흐름에 남기고 숫자는 absolute 로 덮는다(칸 폭 2.4rem 고정을 지킨다 = 비율 감사 통과선). */
+.league-tier-rank.badge { position: relative; display: flex; align-items: center; justify-content: center; height: 2.15rem; }
+.league-tier-rank.badge .lgr-rank-ico { width: 2.15rem; height: 2.15rem; margin: 0; }   /* 프레임의 ~90% — '아이콘 크기 확대' ⑤ */
+.lgr-rank-n {
+    /* 원본은 숫자가 왕관 몸통 한가운데(뿔 사이 골보다 아래)에 앉고 배지 높이의 절반쯤을 차지한다 */
+    position: absolute; left: 0; right: 0; top: 55%; transform: translateY(-50%);
+    font-size: 1.22rem; font-weight: 900; color: #fff; line-height: 1;
+    /* 원본 숫자는 흰 글자에 검정 외곽선 — 배지 색이 어두워도 밝아도 읽힌다 */
+    -webkit-text-stroke: .16rem #17181a; paint-order: stroke fill;
+}
 .league-tier-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .22rem .45rem; flex: 1; font-size: .74rem; font-weight: 800; color: var(--pp-ink); }
 .league-tier-grid span { background: #d9d9d9; border-radius: 1rem; padding: .12rem .55rem; white-space: nowrap; }
 

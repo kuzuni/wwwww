@@ -2811,10 +2811,14 @@ const UI = {
         const cur = League.rewardForRank(myRank);
         const rowsHtml = League.REWARD_TIERS.map(t => {
             const r = League.rewardForRank(t.rank);
-            const isTop3 = t.rank <= 3;
-            const icon = t.rank === 1 ? '👑' : t.rank === 2 ? '🥈' : t.rank === 3 ? '🥉' : t.label;
+            // 원본(shot-042208 확대)은 1·2위가 **왕관 배지 위에 흰 숫자**, 3위가 **벽돌색 마름모 배지
+            // 위에 흰 숫자**다 — 🥈🥉 이모지가 아니다. 4위 이하만 흰 글자 라벨('4-5' 등).
+            const badge = t.rank <= 3 ? 'rank' + t.rank : '';
+            const icon = badge
+                ? `${IconGen.img(badge, 'lgr-rank-ico')}<span class="lgr-rank-n">${t.rank}</span>`
+                : t.label;
             return `<div class="league-reward-tier">
-                <div class="league-tier-rank ${isTop3 ? '' : 'text'}">${icon}</div>
+                <div class="league-tier-rank ${badge ? 'badge' : 'text'}">${icon}</div>
                 <div class="league-tier-grid">${this.leagueRewardGrid(r)}</div>
             </div>`;
         }).join('');

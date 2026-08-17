@@ -138,6 +138,45 @@ const IconGen = {
             return s / 4294967296;
         };
     },
+    // 등수 왕관(리그 보상 1·2위) — 뿔 3개 + 각 뿔 끝 구슬 + 받침띠. 팔레트만 갈아 두 등수를 낸다.
+    // ⚠️ 숫자는 여기서 그리지 않는다 — 원본도 배지 위에 흰 글자를 얹는 구조라, 등수마다 아이콘을
+    //    새로 굽지 않고 DOM 글자로 덮는 편이 캐시(아이콘당 20~36KB)에도 유리하다.
+    _crownRank(ctx, S, pal) {
+        const G = this, cx = S * 0.5;
+        const L = S * 0.13, R = S * 0.87;            // 좌우 끝
+        const peakY = S * 0.30, midPeakY = S * 0.25; // 바깥 뿔 / 가운데 뿔 꼭짓점
+        const valleyY = S * 0.52, baseTop = S * 0.66, baseBot = S * 0.80;
+        const body = () => {
+            ctx.moveTo(L, peakY);
+            ctx.lineTo(cx - S * 0.155, valleyY);
+            ctx.lineTo(cx, midPeakY);
+            ctx.lineTo(cx + S * 0.155, valleyY);
+            ctx.lineTo(R, peakY);
+            ctx.lineTo(R - S * 0.02, baseTop);
+            ctx.lineTo(L + S * 0.02, baseTop);
+            ctx.closePath();
+        };
+        const base = () => G._rrSub(ctx, L - S * 0.01, baseTop, (R - L) + S * 0.02, baseBot - baseTop, S * 0.03);
+        // 받침띠 먼저(몸통 아래로 깔린다)
+        ctx.beginPath(); base();
+        ctx.fillStyle = G._lin(ctx, 0, baseTop, 0, baseBot, pal.base);
+        ctx.fill();
+        ctx.beginPath(); body();
+        ctx.fillStyle = G._lin(ctx, 0, peakY, 0, baseTop, pal.body);
+        ctx.fill();
+        G._innerShadow(ctx, body, 'rgba(40,20,0,.45)', S * 0.045, 0, -S * 0.02);
+        // 뿔 끝 구슬 — 몸통 위에 얹되 테는 마지막에 한 번에 두른다
+        const balls = [[L, peakY - S * 0.055], [cx, midPeakY - S * 0.06], [R, peakY - S * 0.055]];
+        const ballR = S * 0.085;
+        for (const [bx, by] of balls) {
+            ctx.beginPath(); ctx.arc(bx, by, ballR, 0, Math.PI * 2);
+            ctx.fillStyle = pal.ball; ctx.fill();
+            ctx.lineWidth = S * 0.062; ctx.strokeStyle = '#17181a'; ctx.stroke();
+        }
+        ctx.lineWidth = S * 0.062; ctx.strokeStyle = '#17181a';
+        ctx.beginPath(); base(); ctx.stroke();
+        ctx.beginPath(); body(); ctx.stroke();
+    },
     // #rrggbb 를 밝기 조정
     _shade(hex, amt) {
         const n = parseInt(hex.slice(1), 16);
@@ -1146,6 +1185,42 @@ const IconGen = {
             ctx.lineWidth = S * 0.05;   // 흰 셀·검은 리본 어디에 얹혀도 형태가 유지되도록 두껍게
             ctx.strokeStyle = 'rgba(74,42,2,.85)';
             ctx.stroke();
+        },
+
+        // ---- 리그 보상 등수 배지 (원본 shot-042208 확대 대조) ----
+        // 원본은 👑🥈🥉 이모지가 아니라 **숫자를 얹는 배지**다: 1·2위는 뿔 3개 끝에 구슬이 달린 왕관
+        // (1위 주황금, 2위 올리브회색 + 밝은 받침띠), 3위는 벽돌색 마름모. 숫자는 배지가 아니라
+        // 그 위에 흰 글자로 얹히므로 **아이콘에는 숫자를 그리지 않는다**(등수 칸이 span 으로 덮는다).
+        // 두 왕관은 팔레트만 다른 같은 도형이라 `_crownRank` 하나로 그린다.
+        rank1(ctx, S) {
+            IconGen._crownRank(ctx, S, {
+                body: [[0, '#ffc65a'], [0.45, '#f5a11b'], [1, '#e07f08']],
+                base: [[0, '#f79a14'], [1, '#e07a06']], ball: '#f78a0f',
+            });
+        },
+        rank2(ctx, S) {
+            IconGen._crownRank(ctx, S, {
+                body: [[0, '#a8a189'], [0.45, '#857f68'], [1, '#6b6553']],
+                base: [[0, '#d6d0b6'], [1, '#b9b298']], ball: '#8f8971',
+            });
+        },
+        // 3위 — 벽돌색 마름모(정사각형 45° 회전). 굵은 검정 테 + 위쪽 하이라이트.
+        rank3(ctx, S) {
+            const G = IconGen, cx = S * 0.5, cy = S * 0.5, r = S * 0.40;
+            const dia = () => {
+                ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy);
+                ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy); ctx.closePath();
+            };
+            ctx.beginPath(); dia();
+            ctx.fillStyle = G._lin(ctx, 0, cy - r, 0, cy + r, [[0, '#c4644a'], [0.5, '#a64a34'], [1, '#7d3524']]);
+            ctx.fill();
+            G._innerShadow(ctx, dia, 'rgba(60,20,10,.5)', S * 0.05, 0, -S * 0.02);
+            ctx.save(); ctx.beginPath(); dia(); ctx.clip();
+            ctx.fillStyle = 'rgba(255,255,255,.22)';
+            ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx - r, cy); ctx.closePath(); ctx.fill();
+            ctx.restore();
+            ctx.beginPath(); dia();
+            ctx.lineWidth = S * 0.075; ctx.strokeStyle = '#17181a'; ctx.stroke();
         },
 
         // ---- 유령: 던전 '유령 마을' 배너 ----
