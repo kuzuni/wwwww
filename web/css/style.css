@@ -1350,6 +1350,9 @@ body {
    끌어안은 채 .modal 세로 중앙에 놓이므로 카드가 그만큼 위로 밀린다. 카드를 키울수록 이 편차가
    커져(13.9%H) 카드 안 내용이 통째로 올라가므로, 이 모달에 한해 래퍼를 내려 원본 위치에 맞춘다. */
 #profile-modal .idet-wrap { position: relative; top: .8rem; }
+/* 던전 상세도 같은 함정 — 카드는 원본과 같은 크기(49.6%H)인데 래퍼가 ✕까지 끌어안고 가운데 정렬되는
+   바람에 카드 중심이 원본보다 1.84%p 위였다(원본 중심 50.23%H vs 클론 48.39%H). */
+#dungeon-detail-modal .idet-wrap { position: relative; top: .98rem; }
 .profile-field-row { display: flex; align-items: center; gap: .4rem; margin-top: .1rem; }
 .profile-field {
     flex: 1; background: var(--pp-panel); border: 2px solid var(--pp-line); border-radius: .4rem;
@@ -2238,10 +2241,12 @@ body {
     border: 3px solid var(--pp-line); box-shadow: inset 0 -.28rem 0 #9c9c9c; font-weight: 900;
 }
 .btn.silver:active { transform: translateY(.1rem); box-shadow: none; }
-.dgd-card { width: 71%; min-height: calc(var(--app-h) * .49); padding: 0 0 1rem; overflow: hidden; gap: 0; display: flex; flex-direction: column; } /* 원본 ≈69% W × 49% H (185) */
+.dgd-card { width: 71%; min-height: calc(var(--app-h) * .496); padding: 0 0 1rem; overflow: hidden; gap: 0; display: flex; flex-direction: column; } /* 원본 ≈69% W × 49% H (185) */
 .dgd-card .dg-detail-hero {
     position: relative; width: 100%; border-radius: 0; margin: 0 0 .6rem;
-    height: 9.4rem; font-size: 3.4rem; /* 원본 배너 ≈15.4% H (185) */
+    /* 원본 실측(shot-042304): 배너 226→362px = 15.4%H. 9.4rem 은 17.8%H(158px)라 +2.4%p 두꺼웠다 —
+       주석의 의도(≈15.4%)와 실제 rem 값이 어긋나 있었으므로 화면 높이 비율로 직접 지정한다. */
+    height: calc(var(--app-h) * .154); font-size: 3.4rem;
 }
 .dgd-title {
     position: absolute; top: .4rem; left: 0; right: 0; text-align: center;
@@ -2258,7 +2263,9 @@ body {
 }
 .dgd-reward-label { color: #fff; text-shadow: -1px -1px 0 #6d6d6d, 1px -1px 0 #6d6d6d, -1px 1px 0 #6d6d6d, 1px 1px 0 #6d6d6d; margin-right: .3rem; }
 .dgd-keys { text-align: center; font-size: .95rem; font-weight: 900; color: var(--pp-ink); margin-bottom: .7rem; }
-.dgd-btns { display: flex; gap: .8rem; margin: auto 1.1rem .2rem; justify-content: center; }
+/* 원본은 버튼 아래로 흰 여백이 58px(6.5%H) 남고 그 위에 빨간 ✕가 걸친다. .2rem(+카드 패딩 1rem)이면
+   24px뿐이라 카드 하단이 원본보다 2.58%p 위에서 끝났다 — 아래 여백을 실측값으로 되돌린다. */
+.dgd-btns { display: flex; gap: .8rem; margin: auto 1.1rem 2.45rem; justify-content: center; }
 .dgd-btns .btn { flex: 0 1 42%; min-height: 3.4rem; }
 .dgd-btn { flex: 1; font-size: .92rem; padding: .6rem .2rem; border-radius: .6rem; line-height: 1.25; }
 #panel-summon > .summon-sub { position: relative; } /* 분기 상세 ⓘ 절대배치 기준 */
