@@ -3016,7 +3016,8 @@ const Scene3D = {
         this._thumbR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
         this._thumbR.setSize(96, 96);
         this._thumbScene = new THREE.Scene();
-        this._thumbCam = new THREE.PerspectiveCamera(35, 1, 0.1, 10);
+        // far 는 넉넉히 — 자동 프레이밍이 형상에 따라 카메라를 멀리 빼므로 10 이면 큰 모델이 잘린다
+        this._thumbCam = new THREE.PerspectiveCamera(35, 1, 0.01, 200);
         this._thumbAmb = new THREE.AmbientLight(0xffffff, 0.85);
         this._thumbDir = new THREE.DirectionalLight(0xffffff, 0.8);
         this._thumbDir.position.set(2, 3, 2);
@@ -3037,6 +3038,69 @@ const Scene3D = {
         cam.lookAt(0, 0.4, 0);
         cam.updateProjectionMatrix();
     },
+    // 장비 썸네일의 시선 — 위 고정 카메라와 같은 3/4 각(위치 - 주시점). 자동 프레이밍이 거리만 다시 잡는다.
+    ITEM_THUMB_DIR: { x: 1.0, y: 0.55, z: 2.3 },
+
+    // ---- 썸네일 공용 프레이밍: 정점을 카메라 축에 직접 투영해 여백을 맞춘다 ----
+    // ⚠️ 최대변·외접구 반경 × 여유계수 방식은 **형상**에 따라 헐거움이 제각각이다 — 납작한 후광과
+    //    길쭉한 고깔이 같은 '최대변'을 가지므로, 계수 하나로는 한쪽이 잘리고 한쪽이 좁쌀이 된다.
+    //    파츠가 저폴리라 정점을 전부 훑어도 싸다 — 근사가 없으니 어떤 형상이든 여백이 같다.
+    // g 를 화면 중심으로 옮기고 cam 을 dir 방향 거리에 놓는다(둘 다 제자리에서 변형).
+    // pad = 테두리 여백 계수(1.04 면 프레임의 96%를 채운다).
+    thumbFrameToFit(cam, g, dir, pad) {
+        const fwd = dir.clone().negate();
+        const right = new THREE.Vector3(0, 1, 0).cross(fwd).normalize();
+        const up = fwd.clone().cross(right).normalize();
+        const tanV = Math.tan(cam.fov * Math.PI / 360), tanH = tanV * cam.aspect;
+        const box = new THREE.Box3().setFromObject(g);
+        const size = box.getSize(new THREE.Vector3());
+        g.position.sub(box.getCenter(new THREE.Vector3()));
+        const us = [], vs = [], ws = [];
+        g.updateMatrixWorld(true);
+        g.traverse(o => {
+            const pos = o.geometry && o.geometry.attributes && o.geometry.attributes.position;
+            if (!pos) return;
+            const v = new THREE.Vector3();
+            for (let i = 0; i < pos.count; i++) {
+                v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+                us.push(v.dot(right)); vs.push(v.dot(up)); ws.push(v.dot(fwd));
+            }
+        });
+        if (!us.length) {   // 폴백: 정점을 못 읽으면 AABB 꼭짓점으로
+            const h = size.clone().multiplyScalar(0.5);
+            for (let i = 0; i < 8; i++) {
+                const p = new THREE.Vector3((i & 1 ? 1 : -1) * h.x, (i & 2 ? 1 : -1) * h.y, (i & 4 ? 1 : -1) * h.z);
+                us.push(p.dot(right)); vs.push(p.dot(up)); ws.push(p.dot(fwd));
+            }
+        }
+        // 화면 좌표(u,v)로 중심을 다시 잡는다 — 월드 박스 중심은 카메라가 비스듬해 화면 중앙과
+        // 어긋나고, 그만큼 반대쪽 여백이 낭비돼 실물이 작아진다.
+        // 정점이 수만 개라 Math.min(...arr) 전개는 스택을 넘길 수 있어 루프로 센다.
+        let uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity;
+        for (let i = 0; i < us.length; i++) {
+            if (us[i] < uMin) uMin = us[i]; if (us[i] > uMax) uMax = us[i];
+            if (vs[i] < vMin) vMin = vs[i]; if (vs[i] > vMax) vMax = vs[i];
+        }
+        const uc = (uMin + uMax) / 2, vc = (vMin + vMax) / 2;
+        g.position.addScaledVector(right, -uc).addScaledVector(up, -vc);
+        let dist = 0.3;
+        for (let i = 0; i < us.length; i++) {
+            dist = Math.max(dist, Math.abs(vs[i] - vc) / tanV - ws[i], Math.abs(us[i] - uc) / tanH - ws[i]);
+        }
+        dist *= (pad === undefined ? 1.04 : pad);
+        cam.position.copy(dir).multiplyScalar(dist);
+        cam.lookAt(0, 0, 0);
+        cam.updateProjectionMatrix();
+        // ⚠️ 남은 오차와 **시도했다가 되돌린 것**(다음 세션이 다시 밟지 말 것):
+        //    위 계산은 정점을 카메라 축에 **직교 투영**한 근사다. 원근이 빠져 있어 실루엣 중심이
+        //    프레임 중심에서 최대 7.8% 어긋난다(신발·벨트 행이 통째로 아래로 쏠린다 — probe-equip-framing
+        //    의 '치우침' 항목). 이걸 잡으려고 **실제 NDC로 중심·거리를 4회 반복 보정**하는 2차 패스를
+        //    붙여 봤더니 오히려 발산했다: 크롭 0칸 → 157칸, 가로 중심오차 최대 -37.5%.
+        //    원인은 matrixWorldInverse 가 아니다 — three 의 Camera.updateMatrixWorld 는 그걸 이미
+        //    갱신하므로, 명시적으로 뒤집어 줘도 결과가 **바이트 단위로 동일**했다(실측). 다른 데 있다.
+        //    2차 패스를 다시 시도하려면 먼저 그 발산 원인부터 규명할 것.
+        return dist;
+    },
     itemThumb(item) {
         if (!item) return null;
         const key = item.slot + ':' + (item.wtype || '') + ':' + item.age + ':' + item.rarity + ':' + (item.nameIdx !== undefined ? item.nameIdx : '');
@@ -3049,22 +3113,24 @@ const Scene3D = {
             let model;
             if (item.slot === 'weapon') {
                 model = this.makeWeapon(item.wtype || 'sword', item.ageIdx, item.rarity);
-                model.position.y = -0.15;
             } else if (item.slot === 'helmet') {
                 model = this.makeHelmet(item.age, item.rarity, itemStyleOf(item), itemNameOf(item));
-                model.scale.setScalar(1.5);
-                model.position.y = 0.1;
             } else if (item.slot === 'armor') {
                 model = this.makeArmorPreview(item.age, item.rarity, itemStyleOf(item), itemNameOf(item));
-                model.scale.setScalar(1.3);
-                model.position.y = 0.35;
             } else {
                 // 장신구류: 부위당 3종 변형 프리뷰
                 model = this.makeAccessoryPreview(item.slot, Math.max(0, item.nameIdx || 0) % 3, item.age, item.rarity, itemNameOf(item));
-                model.scale.setScalar(1.4);
-                model.position.y = 0.1;
             }
-            sc.add(model);
+            // ⚠️ 부위별 고정 배율(투구1.5·갑옷1.3·장신구1.4)+고정 카메라를 쓰면 **형상**에 따라
+            //    잘리거나 좁쌀만 하게 찍힌다 — 납작한 '수호의 후광'은 프레임 위쪽 실선 한 줄,
+            //    길쭉한 '사신의 모자'·'마법사의 모자'는 고깔 끝이 잘리고, 장갑은 타일 한가운데
+            //    작은 덩어리로 떠 있었다(탈것 썸네일이 같은 함정을 먼저 밟고 자동 프레이밍으로 고쳤다).
+            //    배율·y오프셋은 자동 프레이밍이 흡수하므로 여기서 주지 않는다.
+            const g = new THREE.Group();
+            g.add(model);
+            sc.add(g);
+            const d = this.ITEM_THUMB_DIR;
+            this.thumbFrameToFit(this._thumbCam, g, new THREE.Vector3(d.x, d.y, d.z).normalize(), 1.06);
             this._thumbR.render(sc, this._thumbCam);
             const url = this._thumbR.domElement.toDataURL();
             this._thumbCache[key] = url;
@@ -3164,62 +3230,17 @@ const Scene3D = {
             g.rotation.y = 0.55;
             g.add(mesh);
             sc.add(g);
-            // ── 프레이밍: 근사 대신 **정점을 카메라 축에 직접 투영**해 맞춘다 ──────────────────
-            // ⚠️ 최대변/외접구 반경 × 여유계수 방식은 종에 따라 헐거움이 제각각이다 — 실측하면
-            //    자전거 실루엣이 프레임의 36×53%(픽셀 6.0%), 나뭇잎 51×26%, 거북이 34×52%로
-            //    9/15가 절반 이하만 채웠다. 몸집이 아니라 **형태**가 문제라 계수 하나로는 못 맞춘다
-            //    (납작한 판때기와 길쭉한 자전거가 같은 '최대변'을 가진다).
-            //    파츠가 저폴리라 정점을 전부 훑어도 싸다 — 근사가 없으니 어떤 형상이든 여백이 같다.
-            const box = new THREE.Box3().setFromObject(g);
-            const size = box.getSize(new THREE.Vector3());
-            const ctr = box.getCenter(new THREE.Vector3());
-            g.position.sub(ctr);
-            const cam = this._creatureCam;
+            // ── 프레이밍: 근사 대신 **정점을 카메라 축에 직접 투영**해 맞춘다 (thumbFrameToFit) ──
+            //    실측하면 근사 방식은 자전거 실루엣이 프레임의 36×53%(픽셀 6.0%), 나뭇잎 51×26%,
+            //    거북이 34×52%로 9/15가 절반 이하만 채웠다. 장비 썸네일도 같은 함정을 밟아 지금은
+            //    같은 헬퍼를 쓴다.
             // 시선은 **인게임 메인 카메라와 같은 각**으로 — 요구가 "같은 앵글로 렌더한 썸네일"이라
             // 보기 좋은 각을 따로 고르면 그 자체가 '슬롯과 실물이 다르다'가 된다.
             // 메인 리그: 카메라 y3.7·z8.2 → 주시점 y0.9 (init의 camera.position/lookAt) = 고도 ≈18.9°.
             // 방위각은 0이고(카메라 x는 worldX를 따라간다), 모델 요각 0.55는 위에서 이미 줬다.
+            const cam = this._creatureCam;
             const dir = new THREE.Vector3(0, 3.7 - 0.9, 8.2).normalize();
-            const fwd = dir.clone().negate();
-            const right = new THREE.Vector3(0, 1, 0).cross(fwd).normalize();
-            const up = fwd.clone().cross(right).normalize();
-            const tanV = Math.tan(cam.fov * Math.PI / 360), tanH = tanV * cam.aspect;
-            const us = [], vs = [], ws = [];
-            g.updateMatrixWorld(true);
-            g.traverse(o => {
-                const pos = o.geometry && o.geometry.attributes && o.geometry.attributes.position;
-                if (!pos) return;
-                const v = new THREE.Vector3();
-                for (let i = 0; i < pos.count; i++) {
-                    v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
-                    us.push(v.dot(right)); vs.push(v.dot(up)); ws.push(v.dot(fwd));
-                }
-            });
-            if (!us.length) {   // 폴백: 정점을 못 읽으면 AABB 꼭짓점으로
-                const h = size.clone().multiplyScalar(0.5);
-                for (let i = 0; i < 8; i++) {
-                    const p = new THREE.Vector3((i & 1 ? 1 : -1) * h.x, (i & 2 ? 1 : -1) * h.y, (i & 4 ? 1 : -1) * h.z);
-                    us.push(p.dot(right)); vs.push(p.dot(up)); ws.push(p.dot(fwd));
-                }
-            }
-            // 화면 좌표(u,v)로 중심을 다시 잡는다 — 월드 박스 중심은 카메라가 비스듬해 화면 중앙과
-            // 어긋나고, 그만큼 반대쪽 여백이 낭비돼 실물이 작아진다.
-            // 정점이 수만 개라 Math.min(...arr) 전개는 스택을 넘길 수 있어 루프로 센다.
-            let uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity;
-            for (let i = 0; i < us.length; i++) {
-                if (us[i] < uMin) uMin = us[i]; if (us[i] > uMax) uMax = us[i];
-                if (vs[i] < vMin) vMin = vs[i]; if (vs[i] > vMax) vMax = vs[i];
-            }
-            const uc = (uMin + uMax) / 2, vc = (vMin + vMax) / 2;
-            g.position.addScaledVector(right, -uc).addScaledVector(up, -vc);
-            let dist = 0.3;
-            for (let i = 0; i < us.length; i++) {
-                dist = Math.max(dist, Math.abs(vs[i] - vc) / tanV - ws[i], Math.abs(us[i] - uc) / tanH - ws[i]);
-            }
-            dist *= 1.04;                                    // 테두리 여백 4%
-            cam.position.copy(dir).multiplyScalar(dist);
-            cam.lookAt(0, 0, 0);
-            cam.updateProjectionMatrix();
+            this.thumbFrameToFit(cam, g, dir, 1.04);         // 테두리 여백 4%
             this._creatureR.render(sc, cam);
             const url = this._creatureR.domElement.toDataURL();
             this._thumbCache[key] = url;
