@@ -1380,13 +1380,36 @@ body {
     background: var(--pp-panel); border: 3px solid var(--pp-line); color: var(--pp-ink); font-weight: 800;
 }
 .subtab-strip button.active { background: var(--pp-blue); border-color: var(--pp-line); color: #fff; }
-/* 원본(shot-042340): 서브탭은 실버 세그먼트 통짜 바 — 개별 알약 대신 하나의 바를 3분할 */
-#summon-subtabs.subtab-strip { gap: 0; background: #b9b9b9; border: 3px solid var(--pp-line); border-radius: .7rem; overflow: hidden; padding: .28rem; }
-#summon-subtabs.subtab-strip button {
-    flex: 1; border: none; border-radius: .45rem; background: transparent;
-    font-size: .88rem; font-weight: 900; padding: .38rem 0; color: #17181a;
+/* 원본(shot-042546) 실측: 서브탭은 '전체폭 실버 패널 + 그 안에 들여쓴 검은 라운드 pill' 2층 구조다.
+   클론엔 pill 층이 없어 실버 바 자체가 전체폭이었고, 그 탓에 3분할 경계가 양끝까지 벌어져
+   탭 라벨 중심이 원본에서 2%p 이상 어긋났다(비평가 2인 공통 1순위 지적).
+   원본 실측(505×883) — 실버 패널 y737~803(높이 67px=7.59%H, 위 검은 테두리 2px 포함) ·
+   검은 pill x24~476(폭 453px=90.6%, 좌우 들여쓰기 각 ~4.75%) y756~787(높이 32px=3.62%H) ·
+   활성 파란 블록 y752~790(높이 39px=4.42%H — pill보다 위아래로 튀어나온다) ·
+   라벨 중심 X 19.41% / 49.11% / 78.71%. */
+#summon-subtabs.subtab-strip {
+    gap: 0; border: none; border-top: 3px solid var(--pp-line); border-radius: 0;
+    background: #afafaf; overflow: visible;
+    display: flex; align-items: center; justify-content: center;
+    height: calc(var(--app-h, 887px) * .0759 + env(safe-area-inset-bottom, 0px));
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
 }
-#summon-subtabs.subtab-strip button.active { background: var(--pp-blue); color: #fff; }
+.subtab-pill {
+    display: flex; align-items: center; justify-content: center;
+    width: 90.6%; height: calc(var(--app-h, 887px) * .0362);
+    background: var(--pp-ink); border-radius: .5rem;
+}
+#summon-subtabs.subtab-strip button {
+    flex: 1; height: 100%; border: none; border-radius: .42rem; background: transparent;
+    font-size: .8rem; font-weight: 800; padding: 0; color: #d9d9d9;
+    display: flex; align-items: center; justify-content: center; white-space: nowrap;
+}
+/* 원본: 비활성 세그먼트 사이에만 얇은 밝은 구분선 — 활성 블록이 덮는 경계엔 없다 */
+.subtab-pill button + button:not(.active) { box-shadow: inset 1px 0 0 rgba(255, 255, 255, .3); }
+#summon-subtabs.subtab-strip button.active {
+    background: var(--pp-blue); color: #fff; font-weight: 900;
+    border: 2px solid var(--pp-line); height: calc(var(--app-h, 887px) * .0442);
+}
 
 /* ---- 장비 시트: 밝은 바탕 + 진한 장비 카드 ---- */
 #equip-sheet { background: var(--pp-sheet); border-top: 3px solid var(--pp-line); }
