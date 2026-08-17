@@ -2,11 +2,7 @@
 const Mounts = {
     MAX_LEVEL: 50, // 소환 레벨(등급 확률표) 상한
     INDIV_MAX_LEVEL: 100, // 승천은 Lv.100 도달부터 (사용자 확정 스펙 2026-08-17) — 경험치 커브는 기존 곡선 연장
-    // 원본 스탯부스트 곡선(+10%~+400%, mountBoosts)을 고정치로 환산하는 기준값.
-    // 원본은 상대적 %였을 뿐 고정 데미지/체력 원본 수치가 없어(BALANCE.md 미확보) 자체 설계 —
-    // 영웅 맨몸 기본치(forge.js: atk 15 / hp 150)에 등급별 %를 곱해 절대 수치로 환산한다.
-    BASE_ATK: 15,
-    BASE_HP: 150,
+    // 등급별 기준치는 Forge의 장비 8부위 합에서 파생된다(baseStat 참고) — 별도 기준값 상수 불필요.
 
     ensure() {
         if (S.winders === undefined) S.winders = 0;
@@ -53,13 +49,13 @@ const Mounts = {
 
     rollSubs() { return U.rollSubs(2); },
 
-    // 개체 레벨(합성으로만 상승)에 따른 고정 스탯 배율 — pets.js와 동일 자체 설계 곡선
-    levelMult(m) { return 1 + 0.12 * (m.level - 1); },
+    // 레벨 배율 — 장비·펫과 동일 커브(1.01^(lvl-1))로 통일 (사용자 확정 2026-08-17)
+    levelMult(m) { return Forge.levelMult(m.level); },
 
-    // 등급별 고정 데미지·체력 기준치 (레벨 배율 반영 전)
+    // 장착 슬롯 1칸 = 장비 8부위와 등가 → 탈것 1마리는 같은 등급 장비 8부위 합 전체 (사용자 확정 2026-08-17).
+    // 원본 mountBoosts(%) 기반 환산은 이 밸런스 규칙이 우선이라 폐기.
     baseStat(rarity) {
-        const pct = mountBoosts[rarity];
-        return { atk: this.BASE_ATK * pct / 100, hp: this.BASE_HP * pct / 100 };
+        return { atk: Forge.gearSumAtkAt(rarity), hp: Forge.gearSumHpAt(rarity) };
     },
 
     // 장착 시 이 탈것 1마리가 기여하는 고정 데미지·체력 (레벨 배율 × 승천 배율)

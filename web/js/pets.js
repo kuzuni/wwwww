@@ -119,22 +119,31 @@ const Pets = {
         }
     },
 
-    petDef(p) {
-        let d = (petStats[p.rarity] || []).find(x => x.name === p.name);
-        if (!d) for (const r of RARITIES) { d = (petStats[r] || []).find(x => x.name === p.name); if (d) break; }
-        return d || { name: p.name, damage: 50, health: 500 };
+    // 개체별 원본 수치(damage/health)는 밸런스 규칙이 우선이라 스탯 계산에서 빠졌고,
+    // petStats는 이제 '어떤 등급에 어떤 펫이 있는가'(부화 풀·이름)만 담당해 petDef가 필요 없어졌다.
+    // 레벨 배율 — 장비와 동일 커브(1.01^(lvl-1))로 통일. 전에는 1+0.12×(lvl-1)이라
+    // L100에서 12.88배 vs 장비 2.68배로 어긋나, 특정 레벨에서만 등가가 성립했다 (사용자 확정 2026-08-17)
+    levelMult(p) { return Forge.levelMult(p.level); },
+
+    // 출전 슬롯 3칸 = 장비 8부위와 등가 → 펫 1마리는 같은 등급 장비 8부위 합의 1/3 (사용자 확정 2026-08-17).
+    // 등급↔시대 매핑은 Forge.ageOfRarity가 담당하고, 여기선 개수 등가만 나눈다.
+    baseStat(rarity) {
+        return {
+            atk: Forge.gearSumAtkAt(rarity) / this.MAX_ACTIVE,
+            hp: Forge.gearSumHpAt(rarity) / this.MAX_ACTIVE,
+        };
     },
-    // 레벨(합성으로만 상승)에 따른 고정 스탯 배율 — 원본 레벨 커브 미확보, 자체 설계
-    levelMult(p) { return 1 + 0.12 * (p.level - 1); },
 
     // 옵션 2개: 장비와 동일한 서브스탯 풀(등급 무관 1%~최대치)에서 굴림
     rollSubs() { return U.rollSubs(2); },
 
-    // 장착(출전) 시 펫 1마리가 기여하는 고정 데미지·체력 (petStats 원본 수치 × 레벨 배율 × 승천 배율)
+    // 장착(출전) 시 펫 1마리가 기여하는 고정 데미지·체력 = 등급 기준치 × 레벨 배율 × 승천 배율.
+    // petStats의 개체별 damage/health는 밸런스 규칙(등급↔시대 매핑·개수 등가)이 우선이라 더 이상 쓰지 않는다
+    // — 탈것이 원래 등급 기준(baseStat)이었던 것과 같은 방식으로 맞췄다 (사용자 확정 2026-08-17).
     petPower(p) {
-        const def = this.petDef(p);
+        const base = this.baseStat(p.rarity);
         const mult = Ascension.starMult(p.stars).mul(this.levelMult(p));
-        return { atk: mult.mul(def.damage * TechTree.petDmgMult()), hp: mult.mul(def.health * TechTree.petHpMult()) };
+        return { atk: mult.mul(base.atk * TechTree.petDmgMult()), hp: mult.mul(base.hp * TechTree.petHpMult()) };
     },
 
     // 경험치 흡수형 업그레이드 (UI-SPEC '펫 업그레이드 팝업') — 원본 수치 미확보로 자체 설계 커브

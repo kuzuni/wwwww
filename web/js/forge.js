@@ -1,8 +1,24 @@
 // ===== 대장간: 제작(뽑기), 장비, 판매, 업그레이드 =====
 const Forge = {
-    // 장비 티어 기본치: 시대가 오를수록 ×6 (펫 성장 커브에 맞춘 근사)
-    tierBaseAtk(ageIdx) { return 12 * Math.pow(6, ageIdx); },
-    tierBaseHp(ageIdx) { return 70 * Math.pow(6, ageIdx); },
+    // 장비 티어 기본치: 시대가 오를수록 ×6
+    TIER_BASE_ATK: 12,
+    TIER_BASE_HP: 70,
+    TIER_STEP: 6,          // 시대당 배수
+    ATK_SLOTS: 4,          // 무기·장갑·목걸이·반지
+    HP_SLOTS: 4,           // 투구·갑옷·신발·벨트
+    LEVEL_STEP: 1.01,      // 레벨당 배수 — 펫·탈것도 이 커브로 통일 (사용자 확정 2026-08-17)
+    tierBaseAtk(ageIdx) { return this.TIER_BASE_ATK * Math.pow(this.TIER_STEP, ageIdx); },
+    tierBaseHp(ageIdx) { return this.TIER_BASE_HP * Math.pow(this.TIER_STEP, ageIdx); },
+    // 레벨 배율 — 장비·펫·탈것 공용 (등가가 특정 레벨에서만 성립하지 않게 커브를 하나로 통일)
+    levelMult(level) { return Math.pow(this.LEVEL_STEP, (level || 1) - 1); },
+
+    // ===== 펫·탈것 밸런스 기준축 (사용자 확정 2026-08-17) =====
+    // 펫/탈것 등급 6단계를 장비 시대 10단계에 양끝 맞춤: 일반=원시(0), 신화=디바인(9).
+    // 중간은 등급당 ×6^(9/5)≈24.6이라 일반→신화 총 스팬이 장비의 6^9와 정확히 같아진다.
+    ageOfRarity(rarity) { return RARITIES.indexOf(rarity) * (AGES.length - 1) / (RARITIES.length - 1); },
+    // 같은 등급·레벨에서 장비 8부위 합 — 펫·탈것 기준치는 전부 이 값에서 나온다
+    gearSumAtkAt(rarity, level = 1) { return this.ATK_SLOTS * this.tierBaseAtk(this.ageOfRarity(rarity)) * this.levelMult(level); },
+    gearSumHpAt(rarity, level = 1) { return this.HP_SLOTS * this.tierBaseHp(this.ageOfRarity(rarity)) * this.levelMult(level); },
 
     // 장비 1개의 최종 능력치 = 티어 기본치 × 레벨 배율 × 등급 배율 × 승천 배율.
     // 승천 배율(Ascension.STAR_MULT^별)이 곱해지는 순간 Number 한계를 넘으므로 Big으로 계산한다.
