@@ -119,7 +119,7 @@ async function until(page, fnSrc, ms = 8000) {
     // ---- ⑹-b '계속하기' OFF면 첫 선택 후 정지 ----
     const offCase = await page.evaluate(async () => {
         S.hammers = 200; S.autoForgeOn = false; UI._autoSeq = null;
-        S.heldCrafts = []; UI.clearPendingCraft(); UI.els.craftModal.classList.add('hidden');
+        UI.clearPendingCraft(); UI.els.craftModal.classList.add('hidden');
         S.autoForge.continueOnTarget = false; S.autoForge.hammersPerBatch = 10;
         Forge.passesAutoFilter = () => true;
         UI.onToggleAutoForge();
@@ -134,7 +134,7 @@ async function until(page, fnSrc, ms = 8000) {
 
     // ---- ⑺ 딤 클릭 = 보류 → 모루 자리 카드 → 다시 열기 ----
     await page.evaluate(() => {
-        S.autoForgeOn = false; UI._autoSeq = null; S.heldCrafts = [];
+        S.autoForgeOn = false; UI._autoSeq = null;
         UI.clearPendingCraft(); UI.els.craftModal.classList.add('hidden');
         const it = Forge.rollItem(); UI.setPendingCraft(it); UI.showCraftModal(it);
     });
@@ -145,25 +145,25 @@ async function until(page, fnSrc, ms = 8000) {
     });
     await page.mouse.click(box.x, box.y);
     await page.waitForTimeout(300);
+    // 보류는 pendingCraft 1슬롯이 전부다 (보관함·큐 없음 — 사용자 확정 2026-08-17)
     const held = await page.evaluate(() => ({
         modalClosed: document.getElementById('craft-modal').classList.contains('hidden'),
-        heldN: (S.heldCrafts || []).length,
         pending: !!S.pendingCraft,
         cardOnAnvil: !!document.querySelector('.anvil-btn.held-slot'),
-        saved: ((JSON.parse(localStorage.getItem('forgeclone_save_v1')) || {}).heldCrafts || []).length,
+        saved: !!(JSON.parse(localStorage.getItem('forgeclone_save_v1')) || {}).pendingCraft,
     }));
-    ok(held.modalClosed && held.heldN === 1 && held.cardOnAnvil,
+    ok(held.modalClosed && held.pending && held.cardOnAnvil,
         `딤 클릭 보류가 동작하지 않았다 ${JSON.stringify(held)}`);
-    ok(held.saved === 1, '보류품이 세이브에 남지 않았다(새로고침 시 유실)');
+    ok(held.saved, '보류품이 세이브에 남지 않았다(새로고침 시 유실)');
     const reopened = await page.evaluate(() => {
         document.querySelector('.anvil-btn.held-slot').click();
         return {
             modalOpen: !document.getElementById('craft-modal').classList.contains('hidden'),
-            heldN: (S.heldCrafts || []).length, pending: !!S.pendingCraft,
+            pending: !!S.pendingCraft,
             anvilBack: !document.querySelector('.anvil-btn.held-slot'),
         };
     });
-    ok(reopened.modalOpen && reopened.heldN === 0 && reopened.pending && reopened.anvilBack,
+    ok(reopened.modalOpen && reopened.pending && reopened.anvilBack,
         `보류 카드 클릭으로 비교 팝업이 다시 뜨지 않았다 ${JSON.stringify(reopened)}`);
     console.log(`⑺ 보류: 딤 클릭 → 모루 자리 카드(세이브 보존) → 카드 클릭 → 비교 팝업 재등장·모루 복귀`);
 
@@ -176,11 +176,11 @@ async function until(page, fnSrc, ms = 8000) {
             return { row: +(r.height / app.height * 100).toFixed(2), top: +((r.top - app.top) / app.height * 100).toFixed(2),
                      sheet: +(s.height / app.height * 100).toFixed(2) };
         };
-        S.heldCrafts = []; UI.clearPendingCraft(); UI.els.craftModal.classList.add('hidden'); UI.renderEquipSheet();
+        UI.clearPendingCraft(); UI.els.craftModal.classList.add('hidden'); UI.renderEquipSheet();
         const normal = m();
-        S.heldCrafts = [Forge.rollItem()]; UI.renderEquipSheet();
+        UI.setPendingCraft(Forge.rollItem()); UI.els.craftModal.classList.add('hidden'); UI.renderEquipSheet();
         const held = m();
-        S.heldCrafts = []; UI.renderEquipSheet();
+        UI.clearPendingCraft(); UI.renderEquipSheet();
         return { normal, held };
     });
     const dRow = Math.abs(geo.held.row - geo.normal.row), dSheet = Math.abs(geo.held.sheet - geo.normal.sheet);

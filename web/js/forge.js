@@ -183,7 +183,7 @@ const Forge = {
         S.equipment[item.slot] = item;
         if (typeof Scene3D !== 'undefined') Scene3D.refreshHeroEquip(true); // 교체 연출 포함
         Combat.recalcHero();
-        return prev; // 이전 장비 (호출부가 보관함에 넣는다)
+        return prev; // 이전 장비 — 호출부는 참조만 하고 버린다(보관·판매 없음)
     },
 
     sell(item) {
@@ -192,57 +192,17 @@ const Forge = {
         return price;
     },
 
-    // ===== 보관함 (사용자 지시 2026-08-17: "장착은 장착만, 판매는 판매 버튼으로만") =====
-    // 장착으로 밀려난 장비는 팔지 않고 부위별 보관함에 넣는다. 세이브가 무한정 커지지 않게
-    // 부위당 상한을 두고, 넘치면 **가장 약한 것부터** 자동 판매한다(코인은 그대로 지급).
-    // 상한을 넘길 만큼 쌓이는 건 오토포지를 오래 돌린 경우뿐이라 수동 플레이에서는 닿지 않는다.
-    INVENTORY_CAP: 20,
-    ensureInventory() {
-        if (!S.inventory || typeof S.inventory !== 'object') S.inventory = {};
-        for (const slot of SLOTS) if (!Array.isArray(S.inventory[slot])) S.inventory[slot] = [];
-        return S.inventory;
-    },
-    inventoryOf(slot) { return this.ensureInventory()[slot] || []; },
-    inventoryCount() { return SLOTS.reduce((n, s) => n + this.inventoryOf(s).length, 0); },
-    // 보관 — 넘치면 가장 약한 것을 팔아 자리를 만든다. 반환: 넘쳐서 자동 판매된 코인(0이면 없음)
-    store(item) {
-        if (!item) return 0;
-        const list = this.ensureInventory()[item.slot];
-        list.push(item);
-        let overflow = 0;
-        while (list.length > this.INVENTORY_CAP) {
-            let weakest = 0;
-            for (let i = 1; i < list.length; i++) if (this.itemValue(list[i]).lt(this.itemValue(list[weakest]))) weakest = i;
-            overflow += this.sell(list.splice(weakest, 1)[0]);
-        }
-        return overflow;
-    },
-    // 보관품을 장착 — 지금 끼고 있던 것은 그 자리에 들어간다(맞교환이라 보관 수는 그대로)
-    equipStored(slot, idx) {
-        const list = this.inventoryOf(slot);
-        const item = list[idx];
-        if (!item) return null;
-        list.splice(idx, 1);
-        const prev = this.equip(item);
-        if (prev) list.push(prev);
-        return item;
-    },
-    sellStored(slot, idx) {
-        const list = this.inventoryOf(slot);
-        if (!list[idx]) return 0;
-        return this.sell(list.splice(idx, 1)[0]);
-    },
-
-    // 더 좋으면 장착하고 이전 장비는 보관, 아니면 새 것을 판매. 반환: {equipped, gained}
+    // 더 좋으면 장착, 아니면 새 것을 판매. 반환: {equipped, gained}
+    // **장착으로 밀려난 이전 장비는 그냥 사라진다** — 판매도 보관도 없다(사용자 확정 2026-08-17:
+    // "보관함 이런 거 만들라 한 적 없다". 원본 포지마스터에도 창고가 없다).
     // (동일 장비 '별 흡수' 경로는 라인 승천 도입으로 폐기 — 중복 장비는 일반 판매)
-    // 밀려난 장비를 팔지 않는 건 사용자 지시다 — 자동 경로도 같은 규칙을 따른다(보관함 상한 초과분만 자동 판매).
     autoResolve(item) {
         const cur = S.equipment[item.slot];
         // 승천 별을 쌓은 장착 중 장비는 오토포지가 임의로 교체하지 않음 — 교체는 항상 수동(비교 팝업)에서만
         // itemPower는 Big — '>'로 비교하면 객체가 문자열로 강제 변환돼 "1.2e5" > "3.4e2" 같은 사전식 비교가 된다. 반드시 gt()로.
         if ((!cur || !cur.stars) && this.itemPower(item).gt(this.itemPower(cur))) {
-            const prev = this.equip(item);
-            return { equipped: true, gained: prev ? this.store(prev) : 0 };
+            this.equip(item);   // 이전 장비는 소멸
+            return { equipped: true, gained: 0 };
         }
         return { equipped: false, gained: this.sell(item) };
     },

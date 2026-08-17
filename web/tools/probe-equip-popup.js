@@ -1,12 +1,12 @@
 // '장착하면 팝업이 꺼진다/깜빡인다'(사용자 재지적 2026-08-17)의 재현·회귀 검증 도구.
 //
 // 게임 안에서 [장착] 라벨이 붙은 버튼은 5곳이다. 전부 같은 기준으로 잰다:
-//   ① 장비 상세/보관함 팝업 → 보관 장비 [장착]  (UI.onEquipStored)
+//   ① 보류 카드 클릭 → 비교 팝업 (보관함 폐기 후 유일한 '들고 있는' 상태)
 //   ② 제작 비교 팝업 → [장착]                   (UI.resolveCraft('equip'))
 //   ③ 펫 상세 → [장착]                          (UI.onTogglePet + openPetDetail)
 //   ④ 스킬 상세 → [장착]                        (UI.onToggleSkill + openSkillDetail)
 //   ⑤ 탈것 상세 → [장착]                        (UI.onEquipMount + openMountDetail)
-// 여기에 ⑥ 보관함 스크롤 보존을 더한다(병행 UI 세션이 찾아 고친 실제 결함) — 목록을 내려 둔 채
+// (⑥ 보관함 스크롤 보존 케이스는 보관함 시스템이 사용자 지시로 폐기되면서 함께 제거했다 —
 // 재장착했을 때 맨 위로 튀면, 팝업은 열려 있어도 사용자 눈에는 '팝업이 사라졌다'로 읽힌다.
 //
 // 기대: ②만 닫히는 게 정상(판매/장착 강제 선택 팝업이라 고르면 끝난다).
@@ -30,7 +30,13 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
 const BOOT = async page => {
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 20000 });
+    // UI·S는 최상위 const라 waitForFunction 컨텍스트에서 안 보일 때가 있다(실측으로 타임아웃 확인) —
+    // 부팅 판정은 evaluate 폴링으로 한다.
+    for (let i = 0, t0 = Date.now(); ; i++) {
+        if (await page.evaluate(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && !!S).catch(() => false)) break;
+        if (Date.now() - t0 > 20000) throw new Error('부팅 대기 시간 초과');
+        await page.waitForTimeout(100);
+    }
     await page.waitForTimeout(700);
     await page.evaluate(() => { Combat.tick = function () {}; S.autoForgeOn = false; }); // 전투 수입이 장비/코인을 흔들지 않게
 };
@@ -127,38 +133,29 @@ const report = (label, bad, extra, raw) => {
         return p;
     };
 
-    // ---------- ① 보관함에서 재장착 (여러 조건) ----------
-    // S.inventory는 부위별 배열을 담는 **객체**다(Forge.ensureInventory) — 배열로 덮으면 안 된다.
-    // rollItem()은 부위를 무작위로 고르므로 slot만 맞춰 심는다.
-    const GEAR_CASES = [
-        { name: '장착1+보관3', eq: true, n: 3 },
-        { name: '장착1+보관1', eq: true, n: 1 },
-        { name: '빈슬롯+보관1 (장착 뒤 보관 0 → 보관함 박스가 사라져 카드가 줄어드는 경우)', eq: false, n: 1 },
-        { name: '빈슬롯+보관2', eq: false, n: 2 },
-    ];
-    for (const c of GEAR_CASES) {
+    // ---------- ① 보류 카드 클릭 → 비교 팝업 (보관함 폐기 후의 유일한 '들고 있는' 상태) ----------
+    {
         const p = await newPage('①');
-        const st = await p.evaluate(({ eq, n }) => {
-            S.hammers = 500; S.equipment = {}; S.inventory = {}; Forge.ensureInventory();
-            const need = n + (eq ? 1 : 0), got = [];
-            for (let i = 0; i < 120 && got.length < need; i++) {
-                const it = Forge.rollItem(); if (!it) continue;
-                it.slot = 'weapon'; it.main = SLOT_MAIN['weapon']; got.push(it);
-            }
-            if (eq) S.equipment.weapon = got.shift();
-            for (const it of got) Forge.inventoryOf('weapon').push(it);
+        await p.evaluate(() => {
+            S.hammers = 300;
+            const it = Forge.rollItem();
+            UI.setPendingCraft(it);
+            UI.els.craftModal.classList.add('hidden');   // 보류 상태(팝업 닫힘 + 모루 자리에 카드)
             UI.renderEquipSheet();
-            return { eq: !!S.equipment.weapon, stored: Forge.inventoryOf('weapon').length };
-        }, c);
-        if (st.stored < 1) { console.log(`\n== ①보관함재장착 ${c.name} == 준비 실패 — 측정 불가`); fail++; await p.close(); continue; }
-        await p.evaluate(() => UI.openGearDetail('weapon'));
-        await SETTLE(p, 'gear-detail-modal');           // 진입 애니메이션이 끝난 뒤부터 잰다
-        await p.evaluate(ARM, 'gear-detail-modal');
-        await p.click('#gear-detail-modal .inv-row .btn.equip');   // 직접 호출이 아니라 진짜 클릭
-        await p.waitForTimeout(700);
-        const r = await p.evaluate(DISARM);
-        report(`①보관함재장착 ${c.name}`, judgeStaysOpen(r), `rAF표본=${r.frames.length} DOM변경=${r.muts.length}`, r);
-        await p.close();
+        });
+        await p.waitForTimeout(500);
+        const has = await p.evaluate(() => !!document.querySelector('.anvil-btn.held-slot'));
+        if (!has) { console.log('\n== ①보류카드 == 준비 실패 — 카드가 없다'); fail++; await p.close(); }
+        else {
+            await p.evaluate(ARM, 'craft-modal');
+            await p.click('.anvil-btn.held-slot');   // 직접 호출이 아니라 진짜 클릭
+            await p.waitForTimeout(700);
+            const r = await p.evaluate(DISARM);
+            // 이 경로는 팝업이 '열리는' 게 정상이라 닫힘/재등장 판정 대신 열렸는지만 본다
+            const opened = await p.evaluate(() => !document.getElementById('craft-modal').classList.contains('hidden'));
+            report('①보류카드 → 비교 팝업', opened ? [] : ['팝업이 열리지 않았다'], `rAF표본=${r.frames.length}`, r);
+            await p.close();
+        }
     }
 
     // ---------- ② 제작 비교 팝업에서 장착 (닫히는 게 정상) ----------
@@ -258,43 +255,6 @@ const report = (label, bad, extra, raw) => {
             const r = await p.evaluate(DISARM);
             report('⑤탈것상세장착', judgeStaysOpen(r), `rAF표본=${r.frames.length}`, r);
         }
-        await p.close();
-    }
-
-    // ---------- ⑥ 보관함 스크롤 보존 ----------
-    // installScrollKeeper()는 render* 만 감싼다. 재렌더를 openGearDetail(= open* )로 하면
-    // 스크롤 보존을 안 타서 목록이 매번 맨 위로 튄다 — 그래서 재렌더 경로를 render*로 분리했다(047120a).
-    {
-        const p = await newPage('⑥');
-        const setup = await p.evaluate(() => {
-            S.hammers = 500; S.equipment = {}; S.inventory = {}; Forge.ensureInventory();
-            for (let i = 0; i < 10; i++) { const it = Forge.rollItem(); if (!it) continue; it.slot = 'weapon'; it.main = SLOT_MAIN['weapon']; Forge.store(it); }
-            if (!S.equipment.weapon) { const it = Forge.rollItem(); it.slot = 'weapon'; it.main = SLOT_MAIN['weapon']; Forge.equip(it); }
-            UI.renderEquipSheet();
-            return Forge.inventoryOf('weapon').length;
-        });
-        await p.evaluate(() => UI.openGearDetail('weapon'));
-        await SETTLE(p, 'gear-detail-modal');
-        const r = await p.evaluate(() => {
-            const list = document.querySelector('#gear-detail-modal .inv-list');
-            if (!list) return { err: '보관함 목록 없음' };
-            const scrollable = list.scrollHeight > list.clientHeight;
-            list.scrollTop = 60;
-            const set = list.scrollTop;
-            const btns = document.querySelectorAll('#gear-detail-modal .inv-row .btn.equip');
-            const target = btns[Math.min(4, btns.length - 1)];
-            if (!target) return { err: '장착 버튼 없음' };
-            target.click();
-            const after = document.querySelector('#gear-detail-modal .inv-list');
-            return { scrollable, set, after: after ? after.scrollTop : null };
-        });
-        const bad = [];
-        if (r.err) bad.push(r.err);
-        else {
-            if (!r.scrollable) bad.push('목록이 스크롤되지 않아 검증 불가 — 보관품을 더 심어야 한다');
-            if (r.after !== r.set) bad.push(`스크롤이 ${r.set} → ${r.after}로 튐`);
-        }
-        report(`⑥보관함 스크롤 보존(보관 ${setup}개)`, bad, r.err ? '' : `스크롤가능=${r.scrollable} ${r.set}→${r.after}`);
         await p.close();
     }
 

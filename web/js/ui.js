@@ -704,39 +704,37 @@ const UI = {
             </div>`;
     },
 
-    // 모루 자리 — 보류해 둔 제작품이 있으면 모루 대신 그 카드가 놓인다 (사용자 지시 2026-08-17 ⑦).
-    // 카드를 누르면 그 장비의 비교 팝업이 다시 떠서 장착/판매를 고를 수 있다.
+    // 모루 자리 — **결정하지 않은 제작품(보류)이 있으면 모루 대신 그 카드가 놓인다** (사용자 확정 2026-08-17).
+    // 보류는 `pendingCraft` 1슬롯이 전부다(창고 없음): 카드를 누르면 비교 팝업이 다시 뜨고,
+    // 장착/판매로 처리해야 모루가 돌아와 다음 제작이 가능하다.
     anvilSlotHTML() {
-        const held = this.heldCrafts()[0];
+        const held = this.heldItem();
         if (!held) {
             return `<button class="anvil-btn" onclick="UI.onCraft()">${this.ANVIL_SVG}<small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}</small></button>`;
         }
-        const more = this.heldCrafts().length - 1;
         return `<button class="anvil-btn held-slot" style="--rc:${this.ageHex(held.age)}" onclick="UI.onOpenHeld()">
             <span class="held-tag">보류</span>
             ${this.itemImgHTML(held, 'held-img')}
             <span class="held-name">${held.name}</span>
-            <small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}${more ? ` · +${more}` : ''}</small>
+            <small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}</small>
         </button>`;
     },
-    heldCrafts() { if (!Array.isArray(S.heldCrafts)) S.heldCrafts = []; return S.heldCrafts; },
-    // 보류 카드 클릭 → 그 장비의 비교 팝업을 다시 띄운다(대기품으로 되돌린다)
-    onOpenHeld() {
-        const list = this.heldCrafts();
-        if (!list.length || this._pendingItem) return;
-        this.setPendingCraft(list.shift());
-        this.renderEquipSheet();
-        this.showCraftModal(this._pendingItem);
+    // 보류 중인 제작품 = 비교 팝업이 닫혀 있는 대기품 (팝업이 열려 있으면 모루 자리는 그대로 둔다)
+    heldItem() {
+        return this._pendingItem && this.els.craftModal.classList.contains('hidden') ? this._pendingItem : null;
     },
-    // 비교 팝업 딤 클릭 = 보류: 팝업만 닫고 장비는 모루 자리에 카드로 남긴다(강제 선택 해제)
+    // 보류 카드 클릭 → 그 장비의 비교 팝업을 다시 띄운다
+    onOpenHeld() {
+        if (!this._pendingItem) return;
+        this.showCraftModal(this._pendingItem);
+        this.renderEquipSheet();
+    },
+    // 비교 팝업 딤 클릭 = 보류: 팝업만 닫고 장비는 대기품 그대로 둔다 → 모루 자리에 카드로 보인다
     onCraftDimClick(e) {
         if (e.target !== this.els.craftModal) return;   // 카드 안쪽 클릭은 무시
-        const item = this.clearPendingCraft();
-        if (!item) return;
-        this.heldCrafts().push(item);
+        if (!this._pendingItem) return;
         this.els.craftModal.classList.add('hidden');
         this.renderEquipSheet();
-        saveGame();
         this.toast('📌 보류 — 모루 자리의 카드를 누르면 다시 고를 수 있습니다');
         this.autoSeqStep();   // 자동 시퀀스 중이었다면 계속 진행 (보류는 시퀀스를 멈추지 않는다)
     },
@@ -786,7 +784,20 @@ const UI = {
     autoSeqStep() {
         const seq = this._autoSeq;
         if (!seq || !S.autoForgeOn) return;
-        if (this._pendingItem || this._anvilBusy) return;   // 선택 대기 중이거나 망치질 중 — 끝나면 다시 불린다
+        if (this._anvilBusy) return;                        // 망치질 중 — 끝나면 다시 불린다
+        // 모루 자리에 보류 카드가 있으면 **필터로 먼저 정리한다**(사용자 확정 2026-08-17 ③):
+        // 필터에 안 걸리는 보류품은 자동 판매(코인 연출)하고 진행, 걸리는 것이면 비교 팝업으로 넘긴다.
+        if (this._pendingItem) {
+            if (!this.els.craftModal.classList.contains('hidden')) return;   // 이미 선택 대기 중
+            const held = this._pendingItem;
+            const keep = Forge.isMatchingGear(held, S.equipment[held.slot]) || Forge.passesAutoFilter(held);
+            if (keep) { this.showCraftModal(held); this.renderEquipSheet(); return; }
+            this.clearPendingCraft();
+            this.coinBurst(Forge.sell(held));
+            this.toast(`🪙 보류품 ${held.name} 자동 판매 (필터 제외)`);
+            this.renderTopBar();
+            this.renderEquipSheet();
+        }
         if (seq.stopAfterPick || seq.left <= 0 || S.hammers < 1) { this.stopAutoSeq(); return; }
         seq.left--;
         const item = Forge.craft(1)[0];
@@ -1199,6 +1210,8 @@ const UI = {
     },
     onCraft() {
         if (this._anvilBusy) return;   // 연출 중 재클릭 무시 — 연타로 해머만 녹는 걸 막는다
+        // 보류 카드가 모루 자리를 차지하고 있으면 그걸 먼저 처리해야 한다(사용자 확정 2026-08-17 ②)
+        if (this._pendingItem) { this.onOpenHeld(); return; }
         if (S.hammers < 1) { this.toast('🔨 해머가 부족합니다 (분당 1개 수급)'); return; }
         const item = Forge.craft(1)[0];
         // 대기품은 연출 '전에' 세이브에 남긴다 — 타격 0.72초 사이에 새로고침해도 결과물이 살아 있다
@@ -1230,15 +1243,10 @@ const UI = {
     EMPTY_SLOT_EMOJI: { weapon: '🗡', helmet: '🪖', armor: '👕' },
     equipCellHTML(slot) {
         const it = S.equipment[slot];
-        // 빈 부위라도 보관품이 있으면 눌러서 보관함을 열 수 있어야 한다(그러지 않으면 도달 불가)
-        if (!it) {
-            const stored = Forge.inventoryOf(slot).length;
-            return `<div class="equip-cell empty"${stored ? ` onclick="UI.openGearDetail('${slot}')"` : ''}>
-                <span class="cell-img emoji dim">${this.EMPTY_SLOT_EMOJI[slot] || this.SLOT_EMOJI[slot] || '🎁'}</span>
-                <span class="slot-name">${SLOT_KR[slot]}</span>
-                ${stored ? `<span class="cell-stored">📦${stored}</span>` : ''}
-            </div>`;
-        }
+        if (!it) return `<div class="equip-cell empty">
+            <span class="cell-img emoji dim">${this.EMPTY_SLOT_EMOJI[slot] || this.SLOT_EMOJI[slot] || '🎁'}</span>
+            <span class="slot-name">${SLOT_KR[slot]}</span>
+        </div>`;
         return `<div class="equip-cell" style="--rc:${this.ageHex(it.age)}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
             ${this.itemImgHTML(it, 'cell-img')}
             <span class="cell-lv">Lv. ${it.level}</span>
@@ -1301,71 +1309,23 @@ const UI = {
     },
 
     // 장비 세부정보 팝업 (UI-SPEC 26번): 메인 화면 장비 카드 클릭 시 — 비교 팝업과 달리 버튼 없음, 바깥 탭하면 닫힘.
-    // 여기에 그 부위의 **보관함**(장착으로 밀려난 장비)을 붙였다 — 사용자 지시 2026-08-17이 요구한
-    // '보관 장비 열람/재장착/판매 진입점'이다. 보관품이 없으면 목록 자체를 그리지 않으므로
-    // 보관함이 빈 상태(원본 대조 기준 상태)의 화면은 원본과 그대로 같다.
     openGearDetail(slot) {
-        const item = S.equipment[slot];
-        const stored = Forge.inventoryOf(slot);
-        if (!item && !stored.length) return;
+        if (!S.equipment[slot]) return;
         this._gearDetailSlot = slot;
         this.renderGearDetail();
         this.showModal(this.els.gearDetailModal);
     },
     // 내용만 다시 그리는 경로를 open과 분리해 둔다 — 이름이 render*라 installScrollKeeper가 자동으로
-    // 감싸므로, 보관함에서 재장착·판매해 다시 그려도 **목록 스크롤이 맨 위로 튀지 않는다**
-    // (open*은 스크롤 보존 대상이 아니라서, 재렌더에 openGearDetail을 쓰면 매번 목록이 튄다).
+    // 감싸므로, 오토포지 틱 등으로 다시 그려도 스크롤이 맨 위로 튀지 않는다.
     renderGearDetail() {
         const slot = this._gearDetailSlot;
         if (!slot) return;
         this.els.gearDetailModal.innerHTML = `
             <div class="modal-card wide gd-card">
                 <div class="cmp-wrap">${this.itemCardHTML(S.equipment[slot], '장착됨', null, false)}</div>
-                ${this.storedListHTML(slot)}
             </div>`;
     },
-    // 보관함 목록 — 한 줄에 장비 하나(아이콘·이름·주스탯) + [장착]/[판매]
-    storedListHTML(slot) {
-        const list = Forge.inventoryOf(slot);
-        if (!list.length) return '';
-        // 강한 것부터 — 되장착할 것을 맨 위에서 찾게 한다. 표시 순서만 바꾸고 원본 배열은 건드리지 않는다.
-        const rows = list.map((it, i) => ({ it, i }))
-            .sort((a, b) => Forge.itemValue(b.it).cmp(Forge.itemValue(a.it)))
-            .map(({ it, i }) => `<div class="inv-row" style="--rc:${this.ageHex(it.age)}">
-                ${this.itemImgHTML(it, 'inv-img')}
-                <div class="inv-info">
-                    <div class="inv-name">[${AGE_KR[it.age]}] ${it.name}</div>
-                    <div class="inv-stat">Lv.${it.level} · ${U.fmt(Forge.itemValue(it))} ${it.main === 'atk' ? '피해' : '체력'}${it.stars ? ` · ⭐${it.stars}` : ''}</div>
-                </div>
-                <div class="inv-btns">
-                    <button class="btn equip inv-btn" onclick="UI.onEquipStored('${slot}',${i})">장착</button>
-                    <button class="btn sell inv-btn" onclick="UI.onSellStored('${slot}',${i})">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(it))}</small></button>
-                </div>
-            </div>`).join('');
-        return `<div class="inv-box">
-            <div class="inv-head">📦 보관함 <small>${list.length}/${Forge.INVENTORY_CAP}</small></div>
-            <div class="inv-list">${rows}</div>
-        </div>`;
-    },
-    onEquipStored(slot, idx) {
-        const it = Forge.equipStored(slot, idx);
-        if (!it) return;
-        this.toast(`🛠 ${it.name} 장착 — 쓰던 장비는 보관함으로`);
-        // 재렌더는 renderGearDetail로 — openGearDetail을 쓰면 보관함 목록이 맨 위로 튄다
-        this.renderTopBar(); this.renderEquipSheet(); this.renderGearDetail(); saveGame();
-    },
-    onSellStored(slot, idx) {
-        const gained = Forge.sellStored(slot, idx);
-        if (!gained) return;
-        this.coinBurst(gained);
-        this.toast(`🪙 판매 +${U.fmt(gained)}`);
-        this.renderTopBar(); this.renderEquipSheet();
-        // 마지막 보관품을 팔았고 장착 중인 것도 없으면 열어 둘 내용이 없다
-        if (!S.equipment[slot] && !Forge.inventoryOf(slot).length) this.closeGearDetail();
-        else this.renderGearDetail();
-        saveGame();
-    },
-    closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); this._gearDetailSlot = null; },
+        closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); this._gearDetailSlot = null; },
 
     // ---- 판매 코인 분출 (사용자 지시: "모루에서 코인이 터지듯 튀어나오고, 착지 자리마다 금액이 떠오르게") ----
     // 궤적은 CSS 키프레임이 소유하고(연타로 여러 벌이 동시에 돌아도 서로 안 잘라먹는다),
@@ -1449,7 +1409,7 @@ const UI = {
     // 파는 장비의 등급이 그 부위에 남을 장비보다 **strictly 높을 때만** 물어본다.
     //   같은 등급이면 무경고(원시 일반↔천상 일반처럼 시대·레벨이 달라도 등급만 같으면 안 뜬다), 낮아도 무경고.
     //   [판매] → 새 장비가 팔리고 장착 중인 것이 남는다
-    //   [장착] → 새 것을 끼고 기존 장비는 보관함으로 간다(판매 아님) — 파는 게 없으니 경고도 없다
+    //   [장착] → 새 것을 끼고 **기존 장비는 그냥 사라진다**(판매 아님) — 파는 게 없으니 경고도 없다
     // 빈 부위는 **비교할 등급 자체가 없으므로 경고하지 않는다**(사용자 재확인 — 빈 부위마다 매번
     // 물어보면 잔소리가 된다. 전에는 -1로 쳐서 항상 물어봤다).
     // 자동 제련(main.js)의 자동 판매는 사용자가 건 필터가 이미 걸러낸 결과라 경고 대상이 아니다.
@@ -1494,18 +1454,9 @@ const UI = {
         this._pendingCraftMode = null;
         this.els.craftModal.classList.add('hidden');
         if (!item) return;
-        if (mode === 'equip') {
-            // 기존 장비는 팔지 않고 보관함으로 (사용자 지시 2026-08-17) — 보관함이 꽉 찼을 때만
-            // 가장 약한 것이 자동 판매되고, 그때는 사용자가 알 수 있게 알린다.
-            const prev = Forge.equip(item);
-            if (prev) {
-                const overflow = Forge.store(prev);
-                this.toast(overflow
-                    ? `📦 ${prev.name} 보관 · 보관함이 꽉 차 가장 약한 장비를 판매했습니다 +${U.fmt(overflow)}`
-                    : `📦 ${prev.name} 보관함에 보관`);
-                if (overflow) this.coinBurst(overflow); // 보관함 넘침 자동 판매도 코인이 나온다
-            }
-        } else this.coinBurst(Forge.sell(item));
+        // [장착]은 장착만 한다 — 이전 장비는 팔지도 보관하지도 않고 그냥 사라진다(사용자 확정 2026-08-17)
+        if (mode === 'equip') Forge.equip(item);
+        else this.coinBurst(Forge.sell(item));
         this.renderTopBar();
         this.renderEquipSheet();
         saveGame();

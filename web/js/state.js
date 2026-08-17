@@ -37,9 +37,6 @@ function defaultState() {
         // 판매/장착을 아직 고르지 않은 제작품. 비교 팝업은 닫기 버튼이 없는 강제 선택 팝업이라
         // 여기 남겨 두지 않으면 새로고침·탭 종료 때 해머만 소모되고 결과물이 사라진다(부팅 시 팝업 복원).
         pendingCraft: null,
-        // 비교 팝업에서 딤(바깥)을 눌러 '나중에 결정'으로 미뤄 둔 제작품 (사용자 지시 2026-08-17).
-        // 모루 자리에 카드로 놓이고, 그 카드를 누르면 비교 팝업이 다시 뜬다. 세이브에 남으므로 유실 없음.
-        heldCrafts: [],
         autoForgeOn: false,
         autoForge: {                    // 자동 제련 설정 (UI-SPEC 21~24번 자동 제련 팝업)
             keepAges: [],                // 유지 시대 체크 목록 (빈 배열 = 전체 허용)
@@ -50,9 +47,6 @@ function defaultState() {
         },
         // 장비: slot → item | null
         equipment: { weapon: null, helmet: null, armor: null, gloves: null, necklace: null, ring: null, shoes: null, belt: null },
-        // 보관함: slot → 장착하지 않은 장비 배열 (사용자 지시 2026-08-17 — [장착]은 장착만 하고
-        // 기존 장비는 팔지 않고 여기 보관한다. 판매는 [판매] 버튼을 눌렀을 때만.)
-        inventory: {},
         // 펫 (시작 알 1개 지급)
         eggs: [{ rarity: 'common' }],   // 미부화 알: {rarity}
         hatching: [],                   // 부화 중: {rarity, endsAt} 최대 2슬롯
@@ -84,6 +78,14 @@ function loadGame() {
             S = JSON.parse(raw);
             if (!S.version) S = defaultState();
             if (!S.lastOfflineClaim) S.lastOfflineClaim = S.lastSeen || U.now();
+            // 폐기된 보관함(S.inventory)·보류 큐(S.heldCrafts) 데이터는 조용히 버린다 —
+            // 사용자가 원하지 않은 시스템이라 안에 있던 장비를 되살리지 않는다(사용자 확정 2026-08-17).
+            // 보류는 이제 pendingCraft 1슬롯이 전부다.
+            delete S.inventory;
+            if (S.heldCrafts) {
+                if (!S.pendingCraft && Array.isArray(S.heldCrafts) && S.heldCrafts[0]) S.pendingCraft = S.heldCrafts[0];
+                delete S.heldCrafts;
+            }
             return true;
         }
     } catch (e) { /* 파싱 실패 → 새 게임 */ }
