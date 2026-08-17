@@ -59,8 +59,8 @@ const SEED = () => {
         for (let i = 0; i < 40 && !it; i++) { const r = Forge.rollItem(); if (r.slot === slot) it = r; }
         if (it) { it.level = 20 + (it.ageIdx || 0); S.equipment[slot] = it; }
     }
-    // 스킬
-    Skills.summon(false, 30);
+    // 스킬 — 소환 비용을 먼저 채워야 실제로 뽑힌다(티켓 160으론 30연차 960이 모자라 그리드가 비어버림)
+    S.tickets = 99999; Skills.summon(false, 30); S.tickets = 160;
     for (const k of Object.keys(S.skills)) S.skills[k].level = 20 + (S.skills[k].level || 1);
     S.summonCount = 260;
     S.equippedSkills = Object.keys(S.skills).slice(0, 3);
@@ -100,10 +100,18 @@ const SEED = () => {
     const done = [];
     for (const [name, ref, src] of SCREENS) {
         try {
-            await page.evaluate(() => { try { UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); } catch (e) { } });
+            // 화면 간 오염 제거: closeAllTabSurfaces는 MODAL_TAB 등록 모달만 닫으므로
+            // 오프라인 보상·상세 툴팁 같은 미등록 모달이 다음 화면 위에 그대로 남아 캡처를 덮는다
+            // (비평가 6인 전원이 '오프라인 모달이 화면 53%를 가려 채점 불가'로 지적) — 전 .modal 강제 닫기 + 토스트 소거
+            await page.evaluate(() => {
+                try { UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); } catch (e) { }
+                document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+                const t = document.getElementById('toasts'); if (t) t.innerHTML = '';
+            });
             await page.waitForTimeout(120);
             await page.evaluate(new Function(src));
             await page.waitForTimeout(650); // 열림 애니메이션(300ms) + 렌더 여유
+            await page.evaluate(() => { const t = document.getElementById('toasts'); if (t) t.innerHTML = ''; });
             await page.screenshot({ path: path.join(OUT, name + '.png') });
             done.push(name + (ref ? '←' + ref : ''));
         } catch (e) {
