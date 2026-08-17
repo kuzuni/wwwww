@@ -2069,9 +2069,13 @@ const Scene3D = {
                 pupil.position.set(dx, 0.04, 0.278);
                 g.add(hole, socketRim, pupil);
             }
-            const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.05, 8), rareMat);
+            // 호흡 필터 — 발광 원통(rareMat)은 '턱 밑에서 새는 흰 광원'으로 오독 (비평가 7.1 12번) → 다크 금속 벤트+가는 등급색 림만
+            const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.05, 10), darkMat);
             mouth.rotation.x = Math.PI / 2;
             mouth.position.set(0, -0.1, 0.265);
+            const ventRim = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.008, 5, 12), rareMat);
+            ventRim.position.set(0, -0.1, 0.292);
+            g.add(ventRim);
             const strap = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.045, 0.045), darkMat);
             strap.position.y = 0.02;
             g.add(plate, mouth, strap);
@@ -2707,7 +2711,7 @@ const Scene3D = {
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
     // 종별 고유 팔레트 — 지형색 파생 금지 (전 종이 배경 보호색 연두 덩어리로 보이던 문제, 비평가 지적)
     // 종별 키 컬러 — 배경 대비 채도 2단계 상향 원칙 (연두 필드 보호색 금지, 비평가 지적)
-    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x1f8038, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x556279, imp: 0xc23a52 }, // 고블린 진초록 하향 — 민트 피부가 민트 초원에 묻힘 (비평가 6.8 9번)
+    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x156326, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x556279, imp: 0xc23a52 }, // 고블린 0x1f8038도 라이팅+ACES에 세이지로 씻겨 초원에 잠식 (비평가 7.1 10번) — 한 단계 더 어둡고 짙게
     monsterMesh(e) {
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
         // 디버그: ?enemy=imp 로 특정 몬스터 강제
@@ -2818,7 +2822,7 @@ const Scene3D = {
             const smMouth = mk(new THREE.TorusGeometry(0.05, 0.014, 6, 10, Math.PI * 0.85), new THREE.MeshBasicMaterial({ color: 0x274048 }));
             smMouth.position.set(0, 0.3, 0.43); smMouth.rotation.z = Math.PI + Math.PI * 0.075; // 아래로 벌린 입 아크 (스티커 박스 입 제거)
             g.add(smMouth);
-            eyes(0.42, 0.4, 0.13, 0.045, 'round', { iris: 0x1d4e63 });
+            eyes(0.42, 0.4, 0.13, 0.045, 'angry', { iris: 0x1d4e63, browColor: 0x1e4552 }); // 점 눈 2개는 NPC로 읽힘 (비평가 7.1 13번) — 성난 눈썹으로 적대 표정
             anim.body = body; topY = 0.85;
         } else if (kind === 'golem') {
             // 바위 구축물: 역삼각 몸통 라테 + 마그마 코어 + 거대 주먹 분절 팔 (눈사람 금지)
@@ -3147,7 +3151,7 @@ const Scene3D = {
             const headW = new THREE.Group();                                   // 쐐기 두상 + 테이퍼 주둥이
             headW.position.set(0, 0.6, 0.38);
             const skullW = mk(new THREE.SphereGeometry(0.105, 11, 8), furM);
-            skullW.scale.set(1.12, 0.9, 1.05); // x 확폭 — 흰자가 두상 옆으로 삐져나와 '흰 뿔'로 오독되던 문제 (비평가 6.4 9번)
+            skullW.scale.set(1.24, 0.92, 1.05); // x 확폭 2차 — 1.12로도 3/4 각도에서 흰자+호박 홍채가 실루엣 밖 '유니콘 뿔'로 돌출 (비평가 7.1 14번)
             const muzzleM = lam(base.clone().offsetHSL(0.005, -0.04, 0.14), ProChar.hideTex()); // 주둥이 전용 중간 톤 — 순백 러프색은 '붙임 데칼'로 읽힘 (비평가)
             const snout = mk(new THREE.CylinderGeometry(0.048, 0.075, 0.16, 8), muzzleM);
             snout.rotation.x = Math.PI / 2; snout.position.set(0, -0.02, 0.14);
