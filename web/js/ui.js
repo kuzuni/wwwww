@@ -1354,7 +1354,7 @@ const UI = {
         const ageRows = AGES.filter(age => (probs[age] || 0) > 0).map(age => `
             <div class="af-age-bar" data-age="${age}" style="--ac:${this.ageHex(age)}" onclick="UI.onToggleKeepAge('${age}')">
                 <span class="af-check ${cfg.keepAges.includes(age) ? 'on' : ''}">${cfg.keepAges.includes(age) ? '✓' : ''}</span>
-                <span class="af-age-name">${AGE_ICON[age]} ${AGE_KR[age]}</span>
+                <span class="af-age-name">${AGE_ICON[age]} ${AGE_KR[age]}<span class="af-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
                 <span class="af-age-pct">${pct(probs[age] || 0)}</span>
             </div>`).join('');
         const subRows = SUBSTATS.map(([key, label]) => `

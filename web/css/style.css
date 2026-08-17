@@ -2519,35 +2519,22 @@ body {
 }
 /* 글자·체크는 두 오버레이 위로 */
 .af-age-bar > * { position: relative; z-index: 1; }
+/* 시대 이름 뒤 별 — 원본은 시대마다 이름 뒤에 주황 별이 붙고 마지막 시대('신성한')만 빈 별이다.
+   `shot-042950`·`shot-043117`(자동 제련)과 `shot-042831`(확률 정보, 10시대 전부 보임) 세 장에서
+   같은 규칙이라 **시대에 고정된 표기**로 보고 상수로 넣었다. 플레이어 상태(보유 여부 등)에
+   따라 차는 표시일 가능성도 배제는 못 하니, 대응하는 상태를 찾으면 그때 연결할 것.
+   ⚠️ ⭐ 이모지가 아니라 텍스트 글리프(★/☆)다 — 아이콘 AAA 교체 항목의 대상이 되지 않게. */
+.af-age-star {
+    margin-left: .22rem; color: #ffb300; font-size: .88rem; letter-spacing: 0;
+    text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
+}
+.af-age-bar[data-age="divine"] .af-age-star { color: #fff; }
 
-/* 시대별 무늬 — 앞 5개는 원본 확대 캡처에서 그대로 읽은 것, 뒤 5개(원본 샷에 안 나온 시대)는
-   같은 언어로 시대 컨셉에 맞춰 채웠다(돌=반점, 중세=쉐브론, 근세=격자 짜임, 현대=테크 그리드, 우주=별먼지) */
-.af-age-bar[data-age="primitive"] {
-    --af-pat: radial-gradient(circle at 30% 30%, rgba(0,0,0,.18) 0 22%, rgba(0,0,0,0) 24%),
-              radial-gradient(circle at 72% 68%, rgba(255,255,255,.22) 0 16%, rgba(255,255,255,0) 18%);
-    --af-pat-size: .7rem .7rem, .55rem .55rem;
-}
-.af-age-bar[data-age="medieval"] {
-    --af-pat: repeating-linear-gradient(135deg, rgba(255,255,255,.16) 0 .18rem, rgba(255,255,255,0) .18rem .5rem),
-              repeating-linear-gradient(45deg, rgba(0,0,0,.12) 0 .18rem, rgba(0,0,0,0) .18rem .5rem);
-    --af-pat-size: auto, auto;
-}
-.af-age-bar[data-age="earlyModern"] {
-    --af-pat: repeating-linear-gradient(90deg, rgba(0,0,0,.14) 0 .12rem, rgba(0,0,0,0) .12rem .42rem),
-              repeating-linear-gradient(0deg, rgba(255,255,255,.16) 0 .12rem, rgba(255,255,255,0) .12rem .42rem);
-    --af-pat-size: auto, auto;
-}
-.af-age-bar[data-age="modern"] {
-    --af-pat: repeating-linear-gradient(90deg, rgba(0,0,0,.16) 0 .07rem, rgba(0,0,0,0) .07rem .62rem),
-              repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 .07rem, rgba(0,0,0,0) .07rem .62rem);
-    --af-pat-size: auto, auto;
-}
-.af-age-bar[data-age="space"] {
-    --af-pat: radial-gradient(circle at 50% 50%, rgba(255,255,255,.34) 0 12%, rgba(255,255,255,0) 14%),
-              radial-gradient(circle at 20% 78%, rgba(255,255,255,.2) 0 9%, rgba(255,255,255,0) 11%);
-    --af-pat-size: .9rem .9rem, 1.5rem 1.5rem;
-}
-/* --- 아래 5개는 원본 shot-042950 확대본에서 읽은 무늬 --- */
+/* 시대별 무늬 — 전부 원본에서 읽은 것이다. 🚨 **앞 5개 시대(원시~우주)는 원본에서 무늬가 없다**:
+   `shot-042831`(확률 정보)은 10시대를 한 화면에 보여주는데 원시적·중세의·근대 초기·현대의·우주는
+   민무늬 단색이고, 항성간부터 다섯 시대만 무늬를 갖는다. (처음엔 앞 5개도 시대 컨셉에 맞춰
+   돌 반점·쉐브론 같은 걸 지어냈는데, 확률 정보 원본을 열어 보고 지어낸 것임이 드러나 걷어냈다 —
+   원본에 없는 것을 넣는 건 '원본이 절대 기준' 규칙 위반이다.) */
 .af-age-bar[data-age="interstellar"] {          /* 밝은 광휘 얼룩 — 원본은 우측 상단에 둥근 한 점이 뜬다 */
     --af-pat: radial-gradient(closest-side, rgba(255,255,255,.44), rgba(255,255,255,0) 70%),
               radial-gradient(closest-side, rgba(255,255,255,.2), rgba(255,255,255,0) 72%);
