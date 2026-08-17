@@ -1279,11 +1279,22 @@ body {
     font-size: .8rem; font-weight: 700; line-height: 1.4; text-align: center;
     color: #4a4a4a; margin-bottom: .5rem; padding: 0 .6rem;
 }
+/* 원본(042251)의 설명문은 화면폭 ≈65%로 좁게 물려 두 줄이 균형 있게 접힌다. 클론은 거의 전폭이라
+   마지막 글자 하나("다")만 둘째 줄로 떨어지는 고아 줄이 생기고, 그만큼 헤더가 낮아져 첫 카드가
+   원본보다 위에서 시작했다(실측 12.22% vs 원본 14.11%). 폭을 원본에 맞춰 좁히고 아래 여백으로
+   첫 카드 top을 원본 위치에 맞춘다. */
+.modal-card.sheet .sheet-sub { max-width: 74%; margin-left: auto; margin-right: auto; margin-bottom: .95rem; }
 
-/* ---- 던전 배너: 원본 비율 3.3:1, 폭 78% ---- */
-.modal-card.sheet .dungeon-list { max-height: none; gap: .4rem; align-items: center; } /* 원본 간격 (185 재채점) */
+/* ---- 던전 배너 ----
+   원본 shot-042251(496×893)을 픽셀 스캔해 실측한 값 (흰 배경 위 카드 밴드 검출):
+   카드 폭 77.62%W(좌 인셋 11.29%) · 높이 12.49%H · 카드 간격 1.12%H · 첫 카드 top 14.11%H.
+   → 가로세로비 = (0.7762×496) / (0.1249×893) ≈ 3.45 : 1.
+   폭은 .modal-card.sheet 의 좌우 패딩(.9rem)이 포함된 컨테이너 기준이라 그대로 %를 주면
+   화면폭 대비로는 그만큼 줄어든다(76.5% → 실측 71.94%, 원본과 -5.7%p). 목록의 좌우 마진으로
+   시트 패딩을 상쇄해 % 기준을 '화면폭'과 일치시킨 뒤 실측값을 그대로 쓴다. */
+.modal-card.sheet .dungeon-list { max-height: none; gap: .62rem; align-items: center; margin: 0 -.9rem; } /* 간격 .62rem ≈ 10px = 원본 1.12%H */
 .modal-card.sheet .dg-banner {
-    width: 76.5%; aspect-ratio: 3.3 / 1; padding: .6rem .7rem; /* 원본 카드 ≈76.5% 화면폭 (185 재채점) */
+    width: 77.6%; aspect-ratio: 3.45 / 1; padding: .6rem .7rem; /* 원본 실측 77.62%W · 3.45:1 */
     border: 3px solid var(--pp-line); border-radius: .8rem;
     align-items: flex-start; box-shadow: 0 .25rem 0 rgba(0,0,0,.3);
 }
