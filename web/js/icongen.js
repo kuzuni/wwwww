@@ -1054,6 +1054,45 @@ const IconGen = {
             }
         },
 
+        // ---- 별: 승천 등급 배지(장비 셀·스킬/펫/탈것 타일·비교 카드·리그 점수) ----
+        // 이 배지는 `.sk-star` 기준 10~12px로도 찍히므로 디테일보다 **실루엣과 테**가 전부다.
+        // 뾰족한 5각 + 굵은 갈색 테 + 위쪽 밝은 그라디언트만 남기고 잔무늬는 넣지 않는다.
+        star(ctx, S) {
+            const G = IconGen, cx = S * 0.5, cy = S * 0.52, R = S * 0.46, r = R * 0.44;
+            const path = () => {
+                for (let i = 0; i < 10; i++) {
+                    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+                    const rr = i % 2 ? r : R;
+                    const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
+                    i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+                }
+                ctx.closePath();
+            };
+            ctx.save();
+            ctx.globalAlpha = 0.4; ctx.fillStyle = '#000';
+            ctx.filter = `blur(${S * 0.018}px)`;
+            ctx.translate(0, S * 0.035);
+            ctx.beginPath(); path(); ctx.fill();
+            ctx.restore();
+
+            ctx.beginPath(); path();
+            ctx.fillStyle = G._rad(ctx, cx - R * 0.25, cy - R * 0.45, S * 0.01, cx, cy, R * 1.15,
+                [[0, '#fffbe0'], [0.32, '#ffd94e'], [0.68, '#f2ab12'], [1, '#b46b04']]);
+            ctx.fill();
+            G._innerShadow(ctx, path, 'rgba(90,52,2,.55)', S * 0.035, 0, -S * 0.016);
+            // 위쪽 뿔 하이라이트 — 작은 크기에서 '금속 별'로 읽히게 하는 유일한 디테일
+            ctx.save();
+            ctx.beginPath(); path(); ctx.clip();
+            ctx.fillStyle = G._lin(ctx, 0, cy - R, 0, cy,
+                [[0, 'rgba(255,255,255,.6)'], [1, 'rgba(255,255,255,0)']]);
+            ctx.fillRect(cx - R, cy - R, R * 2, R);
+            ctx.restore();
+            ctx.beginPath(); path();
+            ctx.lineWidth = S * 0.05;   // 흰 셀·검은 리본 어디에 얹혀도 형태가 유지되도록 두껍게
+            ctx.strokeStyle = 'rgba(74,42,2,.85)';
+            ctx.stroke();
+        },
+
         // ---- 유령: 던전 '유령 마을' 배너 ----
         // 배너 배경이 밝은 회색이라 흰 유령이 묻힌다 — 푸른 그림자와 짙은 외곽선으로 실루엣을 세운다.
         ghost(ctx, S) {

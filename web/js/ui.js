@@ -880,7 +880,7 @@ const UI = {
         // 라벨만 상태에 맞게 바꾸고 onclick은 유지한다(만렙에서도 확률표 열람은 계속 필요하다).
         if (!info) {
             forgeBtnHtml = Ascension.ready('forge')
-                ? `<button class="btn sm primary ascend-ready" onclick="UI.openForgeInfo()">⭐ 승천<br>가능</button>`
+                ? `<button class="btn sm primary ascend-ready" onclick="UI.openForgeInfo()">${IconGen.img('star')} 승천<br>가능</button>`
                 : `<button class="btn sm primary" onclick="UI.openForgeInfo()">대장간<br>최고 레벨</button>`; // 만렙 라벨도 미만렙과 같은 명시적 2줄 — 자동 래핑 클리핑 방지
         }
         else {
@@ -1162,7 +1162,7 @@ const UI = {
         let actionHtml;
         if (Ascension.ready('forge')) { // Lv.35 도달 — 업그레이드 대신 라인 승천 (사용자 확정 2026-08-17)
             actionHtml = `<button class="btn primary fi-upgrade" onclick="UI.openAscension('forge')">
-                ⭐ 승천<br><small>대장간 Lv.${Ascension.FORGE_LEVEL} 도달 · 이후 제작 장비 ⭐${Ascension.count('forge') + 1}</small></button>`;
+                ${IconGen.img('star')} 승천<br><small>대장간 Lv.${Ascension.FORGE_LEVEL} 도달 · 이후 제작 장비 ${IconGen.img('star')}${Ascension.count('forge') + 1}</small></button>`;
         } else if (!info) actionHtml = `<div class="fi-upg-label">대장간 최고 레벨</div>`;
         else if (upgrading) {
             const remain = (S.forgeUpgradeEndsAt - U.now()) / 1000;
@@ -1686,7 +1686,7 @@ const UI = {
         return `<div class="equip-cell" style="--rc:${this.ageHex(it.age)}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
             ${this.itemImgHTML(it, 'cell-img')}
             <span class="cell-lv">Lv. ${it.level}</span>
-            ${it.stars ? `<span class="cell-star">⭐${it.stars > 1 ? it.stars : ''}</span>` : ''}
+            ${it.stars ? `<span class="cell-star">${IconGen.img('star')}${it.stars > 1 ? it.stars : ''}</span>` : ''}
         </div>`;
     },
 
@@ -1786,7 +1786,7 @@ const UI = {
                 <div class="cmp-icon-wrap">
                     ${this.itemImgHTML(item, 'cmp-img')}
                     <span class="sk-lv">Lv.${item.level}</span>
-                    ${item.stars ? `<span class="cmp-star">⭐${item.stars}</span>` : ''}
+                    ${item.stars ? `<span class="cmp-star">${IconGen.img('star')}${item.stars}</span>` : ''}
                     ${isNew ? `<span class="cmp-newtag">${tag}</span>` : ''}
                 </div>
                 <div class="cmp-info">
@@ -2080,7 +2080,7 @@ const UI = {
                     ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${pet.level}</span>
                 </span>
-                ${pet.stars ? `<span class="sk-star">⭐${pet.stars}</span>` : ''}
+                ${pet.stars ? `<span class="sk-star">${IconGen.img('star')}${pet.stars}</span>` : ''}
             </button>`;
         }).join('');
         const eggCells = S.eggs.map((egg, i) =>
@@ -2117,7 +2117,7 @@ const UI = {
             <div class="summon-bar">
                 <button class="btn xs x5-toggle ${petSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('pet')">x${petSummonN}</button>
                 ${Ascension.ready('pet')
-                    ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('pet')">⭐ 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
+                    ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('pet')">${IconGen.img('star')} 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
                     : `<button class="btn big summon-btn ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">
                     소환 x${Pets.summonCount(petSummonN)}<small class="summon-cost">${IconGen.img('eggCracked')} <b>${Pets.summonCost(petSummonN)}</b></small></button>`}
                 <div class="summon-info">
@@ -2155,7 +2155,7 @@ const UI = {
                                 ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                                 <span class="sk-lv">Lv.${pet.level}</span>
                             </div>
-                            ${pet.stars ? `<span class="sk-star">⭐${pet.stars}</span>` : ''}
+                            ${pet.stars ? `<span class="sk-star">${IconGen.img('star')}${pet.stars}</span>` : ''}
                         </div>
                         <div class="petd-body">
                             <div class="petd-name" style="color:${UI.inkRarity(RARITY_CSS[pet.rarity])}">[${RARITY_KR[pet.rarity]}] ${PET_KR[pet.name] || pet.name}</div>
@@ -2385,7 +2385,7 @@ const UI = {
                     ${equipped ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${sk.level}</span>
                 </span>
-                ${sk.stars ? `<span class="sk-star">⭐${sk.stars}</span>` : ''}
+                ${sk.stars ? `<span class="sk-star">${IconGen.img('star')}${sk.stars}</span>` : ''}
                 <span class="sk-shard"><i style="width:${ratio}%"></i><em>${sk.dupes}/${need}</em></span>
             </button>`;
         }).join('') || '<span class="muted grid-empty">보유 스킬 없음 — 소환해보세요!</span>';
@@ -2416,7 +2416,7 @@ const UI = {
                 <button class="btn danger round back-btn" onclick="UI.switchTab(null)">◀</button>
                 <button class="btn xs x5-toggle ${skillSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('skill')">x${skillSummonN}</button>
                 ${Ascension.ready('skill')
-                    ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('skill')">⭐ 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
+                    ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('skill')">${IconGen.img('star')} 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
                     : `<button class="btn big summon-btn ${Skills.canSummon(false, skillSummonN) ? '' : 'disabled'}" onclick="UI.onSummon(false)">
                     소환 x${skillSummonN}<small class="summon-cost">${IconGen.img('ticket')} <b>${Skills.ticketCost(skillSummonN)}</b></small></button>`}
                 <div class="summon-info">
@@ -2455,7 +2455,7 @@ const UI = {
         // 0% 등급도 표시 — 확률표 열람이 목적이라 안 나오는 등급도 보여야 한다 (사용자 재지시 2026-08-17)
         const barsHtml = RARITIES.map(r => `
             <div class="rate-bar" style="--rc:${RARITY_CSS[r]}">
-                <span class="rate-name">${RARITY_KR[r]} <i class="rate-star">⭐</i></span>
+                <span class="rate-name">${RARITY_KR[r]} <i class="rate-star">${IconGen.img('star')}</i></span>
                 <span class="rate-pct">${(rates[r] || 0).toFixed(2)}%</span>
             </div>`).join('');
         const cnt = (isMount ? S.mountOpens : isPet ? S.petSummonCount : S.summonCount) || 0;
@@ -2501,7 +2501,7 @@ const UI = {
                     <div class="skd-head">
                         <div class="skd-orbcol">
                             <span class="sk-orb" style="--rc:${RARITY_CSS[d.rarity]}">${IconGen.skill(id)}<span class="sk-lv">Lv.${sk.level}</span></span>
-                            ${sk.stars ? `<span class="sk-star">⭐${sk.stars}</span>` : ''}
+                            ${sk.stars ? `<span class="sk-star">${IconGen.img('star')}${sk.stars}</span>` : ''}
                             <span class="sk-shard"><i style="width:${ratio}%"></i><em>${sk.dupes}/${need}</em></span>
                         </div>
                         <div class="skd-body">
@@ -2708,7 +2708,7 @@ const UI = {
             <span class="league-rank">${rank}</span>
             <span class="league-avatar">${e.avatar}</span>
             <span class="league-name">${U.escapeHtml(e.name)}<br><small>⚔️ ${U.fmt(e.cp)}</small></span>
-            <span class="league-score">⭐ ${U.fmt(e.score)}</span>
+            <span class="league-score">${IconGen.img('star')} ${U.fmt(e.score)}</span>
             <span class="league-server">${e.server === '나' ? '나' : '서버 ' + e.server}</span>
         </div>`;
     },
@@ -2778,7 +2778,7 @@ const UI = {
                 <span class="league-challenge-avatar">${b.avatar}</span>
                 <span class="league-challenge-name">${U.escapeHtml(b.name)}<br><small>⚔️ ${U.fmt(b.cp)}</small></span>
                 <span class="league-challenge-side">
-                    <span class="star">⭐+${b.starReward}</span>
+                    <span class="star">${IconGen.img('star')}+${b.starReward}</span>
                     <button class="btn sm ${S.league.tickets > 0 ? '' : 'disabled'}" onclick="UI.onChallenge(${i})">도전<br><small>${IconGen.img('ticket')}1</small></button>
                 </span>
             </div>`).join('');
@@ -3085,7 +3085,7 @@ const UI = {
                             </div>
                         </div>
                         <div class="pinfo-right">
-                            <div>Lv. ${S.forgeLevel} 대장간${stars ? ` ⭐${stars}` : ''}</div>
+                            <div>Lv. ${S.forgeLevel} 대장간${stars ? ` ${IconGen.img('star')}${stars}` : ''}</div>
                             <div>${U.fmt(stats.atk)} 총 피해</div>
                             <div>${U.fmt(stats.hp)} 총 체력</div>
                         </div>
@@ -3508,7 +3508,7 @@ const UI = {
                     ${active ? `<span class="sk-ribbon">${Mounts.ridden() === name ? '탑승 중' : '장착됨'}</span>` : ''}
                     <span class="sk-lv">Lv.${m.level}</span>
                 </span>
-                ${m.stars ? `<span class="sk-star">⭐${m.stars}</span>` : ''}
+                ${m.stars ? `<span class="sk-star">${IconGen.img('star')}${m.stars}</span>` : ''}
             </button>`;
         }).join('') || '<span class="muted grid-empty">보유 탈것 없음 — 소환해보세요!</span>';
 
@@ -3521,7 +3521,7 @@ const UI = {
                     <button class="btn danger round back-btn" onclick="UI.closeMounts()">◀</button>
                     <button class="btn xs x5-toggle ${mountSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('mount')">x${mountSummonN}</button>
                     ${Ascension.ready('mount')
-                        ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('mount')">⭐ 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
+                        ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('mount')">${IconGen.img('star')} 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
                         : `<button class="btn big summon-btn ${Mounts.canSummon(mountSummonN) ? '' : 'disabled'}" onclick="UI.onSummonMount()">
                         소환 x${mountSummonN}<small class="summon-cost">${IconGen.img('winder')} <b>${Mounts.winderCost(mountSummonN)}</b></small></button>`}
                     <div class="summon-info">
@@ -3553,7 +3553,7 @@ const UI = {
                                 ${active ? `<span class="sk-ribbon">${ridden ? '탑승 중' : '장착됨'}</span>` : ''}
                                 <span class="sk-lv">Lv.${m.level}</span>
                             </div>
-                            ${m.stars ? `<span class="sk-star">⭐${m.stars}</span>` : ''}
+                            ${m.stars ? `<span class="sk-star">${IconGen.img('star')}${m.stars}</span>` : ''}
                         </div>
                         <div class="petd-body">
                             <div class="petd-name" style="color:${UI.inkRarity(RARITY_CSS[m.rarity])}">[${RARITY_KR[m.rarity]}] ${MOUNT_KR[name] || name}</div>
@@ -3605,7 +3605,7 @@ const UI = {
 
         const matChips = Object.entries(S.mounts).filter(([n]) => n !== name).map(([n, m]) => `
             <button class="mat-chip ${sel.includes(n) ? 'on' : ''} ${Mounts.isActive(n) ? 'active' : ''}" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.onToggleMountUpgradeMat('${n}')">
-                ${UI.mountFace(n, 'mt-inline')}<small>Lv.${m.level}${m.stars ? ` ⭐${m.stars}` : ''}</small>
+                ${UI.mountFace(n, 'mt-inline')}<small>Lv.${m.level}${m.stars ? ` ${IconGen.img('star')}${m.stars}` : ''}</small>
             </button>`).join('');
 
         const previewXp = sel.reduce((s, n) => s + Mounts.xpValue(S.mounts[n].rarity) * Mounts.levelMult(S.mounts[n]), 0);
@@ -3616,7 +3616,7 @@ const UI = {
                 <div class="row">
                     <span class="cell-img emoji" style="width:2.4rem;height:2.4rem;font-size:1.25rem;border-radius:50%;border-color:${RARITY_CSS[target.rarity]}">${UI.mountFace(name, 'mt-inline')}</span>
                     <div>
-                        <div class="item-name">Lv.${target.level}${target.stars ? ` ⭐${target.stars}` : ''}</div>
+                        <div class="item-name">Lv.${target.level}${target.stars ? ` ${IconGen.img('star')}${target.stars}` : ''}</div>
                         <div class="muted">${maxed ? '만렙' : `경험치 ${U.fmt(target.xp || 0)}/${U.fmt(need)}${previewXp ? ` (+${U.fmt(previewXp)} 예정)` : ''}`}</div>
                     </div>
                 </div>
@@ -3664,7 +3664,7 @@ const UI = {
             return `<div class="asc-row ${rdy ? 'ready' : ''}"${rdy ? ` onclick="UI.openAscension('${l}')"` : ''}>
                 <span class="asc-name">${Ascension.LINE_ICON[l]} ${Ascension.LINE_KR[l]}</span>
                 <span class="asc-prog">${label}</span>
-                <span class="asc-cnt">${Ascension.count(l) ? `⭐${Ascension.count(l)}` : '—'}</span>
+                <span class="asc-cnt">${Ascension.count(l) ? `${IconGen.img('star')}${Ascension.count(l)}` : '—'}</span>
             </div>`;
         }).join('');
 
@@ -3679,12 +3679,12 @@ const UI = {
                     <div class="asc-focus-cnt">현재 승천 ${Ascension.count(line)}회 → <b>${next}회</b></div>
                     <div class="asc-focus-eff">
                         · ${resetKr}됩니다<br>
-                        · 이후 새로 ${line === 'forge' ? '제작되는 장비' : '소환되는 ' + Ascension.LINE_KR[line]}가 <b>⭐${next}</b>로 나옵니다<br>
+                        · 이후 새로 ${line === 'forge' ? '제작되는 장비' : '소환되는 ' + Ascension.LINE_KR[line]}가 <b>${IconGen.img('star')}${next}</b>로 나옵니다<br>
                         · 이미 보유한 것의 별은 그대로 유지됩니다
                     </div>
                 </div>
                 <div class="asc-btns">
-                    <button class="btn primary ${Ascension.ready(line) ? '' : 'disabled'}" onclick="UI.onAscendLine('${line}')">⭐ 승천</button>
+                    <button class="btn primary ${Ascension.ready(line) ? '' : 'disabled'}" onclick="UI.onAscendLine('${line}')">${IconGen.img('star')} 승천</button>
                     <button class="btn" onclick="UI.closeAscension()">취소</button>
                 </div>`;
         } else {
@@ -3694,7 +3694,7 @@ const UI = {
         this.els.ascendModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper asc-card">
-                    <h3>🌟 승천 <small class="muted">보유 별 합계 ⭐ ${b.gear + b.skill + b.pet + b.mount}</small></h3>
+                    <h3>${IconGen.img('star')} 승천 <small class="muted">보유 별 합계 ${IconGen.img('star')} ${b.gear + b.skill + b.pet + b.mount}</small></h3>
                     <p class="muted">라인마다 조건을 채우면 그 라인을 승천시킵니다 — 승천 횟수만큼 <b>이후 획득물</b>에 별이 붙습니다.</p>
                     ${rowsHtml}
                     ${bodyHtml}
