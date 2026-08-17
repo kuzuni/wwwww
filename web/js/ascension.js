@@ -54,6 +54,7 @@ const Ascension = {
         if (line === 'forge') {
             S.forgeLevel = 1;
             S.forgeUpgradeEndsAt = null; // 진행 중이던 대장간 업그레이드는 프레스티지와 함께 취소
+            Forge.resetRollLevels();     // 전 시대 뽑기 레벨 1로 리셋 — 승천 후에도 원시부터 1레벨 (원본 규칙 ④)
         } else if (line === 'skill') {
             S.summonCount = 0;
         } else if (line === 'pet') {

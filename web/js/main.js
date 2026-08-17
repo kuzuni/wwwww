@@ -20,6 +20,7 @@
         TechTree.ensure();
         Mounts.ensure();
         Ascension.ensure(); // 라인 승천 횟수 필드 보정 (구세이브 마이그레이션)
+        Forge.ensureRollLevels(); // 시대별 뽑기 레벨 필드 보정 (구세이브는 전 시대 1레벨부터 시작)
         Pass.ensure();
         Chat.ensure();
         const offline = applyOffline();

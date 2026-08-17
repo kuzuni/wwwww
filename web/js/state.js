@@ -32,6 +32,7 @@ function defaultState() {
         lineAscend: { forge: 0, skill: 0, pet: 0, mount: 0 },
         // 대장간
         forgeLevel: 1,
+        rollLevel: {},                  // 시대(age) → 그 시대의 현재 뽑기 레벨. 빈 객체면 Forge.ensureRollLevels()가 전부 1로 채움 (원본 규칙 ①③)
         forgeUpgradeEndsAt: null,       // 절대시각(ms). null이면 미진행
         autoForgeOn: false,
         autoForge: {                    // 자동 제련 설정 (UI-SPEC 21~24번 자동 제련 팝업)

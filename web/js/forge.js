@@ -4,7 +4,49 @@ const Forge = {
     tierBaseAtk(ageIdx) { return 12 * Math.pow(6, ageIdx); },
     tierBaseHp(ageIdx) { return 70 * Math.pow(6, ageIdx); },
 
-    maxItemLevel() { return Math.min(100, S.forgeLevel * 3); },
+    // ===== 시대별 뽑기 레벨 (원본 포지마스터 방식, 사용자 원본 확인 2026-08-17) =====
+    // 대장간 레벨로 장비 레벨을 산정하던 방식(forgeLevel×3, max-5~max)은 추측이라 폐기.
+    // 각 시대는 자기만의 "현재 뽑기 레벨"(S.rollLevel[age])을 갖고, 그 시대 장비가 나올 때마다
+    // 랜덤워크로 오르내린다 — 그래서 오래 뽑은 시대는 100레벨, 방금 열린 시대는 1레벨부터 나온다.
+    ROLL_BASE_CAP: 100,   // 기본 레벨 캡 (기술트리 '장비 레벨업' 노드로 상향)
+    ROLL_UP_PCT: 70,      // +1레벨 확률(%)
+    ROLL_SAME_PCT: 20,    // 동일 확률(%) — 나머지 10%가 −1레벨
+
+    // 레벨 캡 = 100 + 기술트리 보너스. '장비 레벨업' 노드(+2/pt)는 기술 트리 원본화 작업에서
+    // 추가될 예정이라, 노드가 아직 없으면 gearMaxLevelBonus()가 0을 돌려줘 기본 캡 100이 된다.
+    maxItemLevel() { return this.ROLL_BASE_CAP + TechTree.gearMaxLevelBonus(); },
+
+    // 구세이브 보정 + 신규 시대 lazy 초기화. 처음 열린 시대는 1레벨부터 시작한다.
+    ensureRollLevels() {
+        if (!S.rollLevel || typeof S.rollLevel !== 'object') S.rollLevel = {};
+        for (const age of AGES) {
+            const v = S.rollLevel[age];
+            if (typeof v !== 'number' || !isFinite(v) || v < 1) S.rollLevel[age] = 1;
+        }
+    },
+
+    // 그 시대의 현재 뽑기 레벨 (캡으로 잘라서 반환 — 기술트리 캡이 내려가는 경우 대비)
+    rollLevelOf(age) {
+        this.ensureRollLevels();
+        return U.clamp(S.rollLevel[age], 1, this.maxItemLevel());
+    },
+
+    // 그 시대 장비를 1개 뽑은 뒤의 랜덤워크: +1(70%) / 동일(20%) / −1(10%), [1, 캡]으로 제한
+    advanceRollLevel(age) {
+        this.ensureRollLevels();
+        const roll = Math.random() * 100;
+        const delta = roll < this.ROLL_UP_PCT ? 1
+            : roll < this.ROLL_UP_PCT + this.ROLL_SAME_PCT ? 0
+                : -1;
+        S.rollLevel[age] = U.clamp(S.rollLevel[age] + delta, 1, this.maxItemLevel());
+        return S.rollLevel[age];
+    },
+
+    // 라인 승천 시 호출 — 모든 시대의 뽑기 레벨을 1로 되돌린다(승천 1회차에도 원시부터 1레벨).
+    resetRollLevels() {
+        S.rollLevel = {};
+        this.ensureRollLevels();
+    },
 
     // 등급 가중치: 대장간 레벨에 따라 고등급 확률 상승 (자체 설계 — 원본 미공개)
     rarityWeights(fl) {
@@ -38,11 +80,10 @@ const Forge = {
 
         const rarity = U.weightedPick(this.rarityWeights(S.forgeLevel));
 
-        // 레벨: 원본 방식 — 일반 티어는 max-5~max, 최저확률 티어는 1부터
-        const maxLv = this.maxItemLevel();
-        const probsVals = Object.values(probs);
-        const isLowestTier = probs[age] === Math.min(...probsVals) && probsVals.length > 1;
-        const level = isLowestTier ? U.randInt(1, maxLv) : U.randInt(Math.max(1, maxLv - 5), maxLv);
+        // 레벨: 그 시대의 현재 뽑기 레벨을 그대로 쓰고, 뽑은 뒤 랜덤워크로 다음 레벨을 굴린다.
+        // (뽑기 전이 아니라 뽑은 뒤에 굴려야 그 시대의 첫 장비가 1레벨로 나온다 — 원본 규칙 ①)
+        const level = this.rollLevelOf(age);
+        this.advanceRollLevel(age);
 
         const slot = U.choice(SLOTS);
         const lvMult = Math.pow(1.01, level - 1);

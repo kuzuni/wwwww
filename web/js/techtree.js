@@ -137,6 +137,9 @@ const TechTree = {
     forgeTimeMult() { return 1 / (1 + this.pct('forgeSpeed') / 100); },      // 시간 = base ÷ (1+tech%)
     forgeCostMult() { return Math.max(0.1, 1 - this.pct('forgeCost') / 100); }, // 비용 = base × (1-tech%)
     gearPowerMult() { return 1 + this.pct('gearPower') / 100; },
+    // 장비 뽑기 레벨 캡 보너스(레벨 수, %가 아님) — 힘·탈것 분기 '장비 레벨업' 노드(+2/pt).
+    // 그 노드는 기술 트리 원본화 작업에서 추가되므로, 아직 없으면 0을 돌려줘 캡 100을 유지한다.
+    gearMaxLevelBonus() { return this.NODES.gearMaxLevel ? this.pct('gearMaxLevel') : 0; },
     sellPriceMult() { return 1 + this.pct('sellBonus') / 100; },
     offlineCapMult() { return 1 + this.pct('offlineCap') / 100; },
     offlineGainMult() { return 1 + this.pct('offlineGain') / 100; },
