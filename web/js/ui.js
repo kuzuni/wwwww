@@ -2195,7 +2195,7 @@ const UI = {
                         </div>
                     </div>
                     <div class="offline-bottom">
-                        <div class="offline-total">👑 ${U.fmtDec(o.coins)} &nbsp; 🔨 ${U.fmtDec(o.hammers)}</div>
+                        <div class="offline-total">👑 ${U.fmt(o.coins)} &nbsp; 🔨 ${U.fmt(o.hammers)}</div>
                         <button class="btn primary offline-collect-btn" onclick="UI.onCollectOffline()">수집<span class="offline-collect-dot"></span></button>
                     </div>
                 </div>
@@ -2218,7 +2218,7 @@ const UI = {
         const r = claimOfflineNow();
         if (!r) { this.toast('💤 아직 누적된 오프라인 보상이 없습니다'); this.closeOfflineModal(); return; }
         this.closeOfflineModal();
-        this.toast(`👑 ${U.fmtDec(r.coins)} · 🔨 ${U.fmtDec(r.hammers)} 수집!`);
+        this.toast(`👑 ${U.fmt(r.coins)} · 🔨 ${U.fmt(r.hammers)} 수집!`);
         this.els.offlineBtn.classList.remove('ready');
         this.renderTopBar();
         this.renderEquipSheet(); // 해머 수가 제작 화면에도 바로 반영되게

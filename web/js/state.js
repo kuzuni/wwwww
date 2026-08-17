@@ -88,15 +88,18 @@ function resetGame() {
 }
 
 // 오프라인 보상 수급률 계산 (수급률 기반, 원본 방식)
-// 기본 수급률(골드 1/초·해머 1/분)에 기술트리 배율을 곱해 소수점 단위로 계산·누적한다.
-// 정수로 내림하는 건 실제 소비 시점(해머 차감 등)뿐 — 여기선 실수를 그대로 반환한다.
+// 기본 수급률(골드 1/초·해머 1/분)에 기술트리 배율을 곱해 소수점 단위로 누적하되,
+// 재화는 정수부만 지급한다 — 소수부는 버리고 이월하지 않는다 (사용자 지시 2026-08-17).
+// 내림을 여기 한 곳에서 하는 이유: 팝업 미리보기와 실제 지급이 같은 값을 쓰게 해
+// "603.87로 보여 놓고 603을 준다" 같은 표시·지급 불일치가 구조적으로 생기지 않게 하려는 것.
+// coinRate/hammerRate는 재화가 아니라 '수급률' 표시값이라 실수 그대로 둔다.
 function offlineRewardFor(elapsedSec) {
     const cap = OFFLINE_CAP_SEC * TechTree.offlineCapMult();
     const t = Math.min(elapsedSec, cap);
     const coinRate = OFFLINE_COIN_PER_SEC * TechTree.offlineCoinMult();     // /초
     const hammerRate = OFFLINE_HAMMER_PER_MIN * TechTree.offlineHammerMult(); // /분
-    const coins = t * coinRate;
-    const hammers = (t / 60) * hammerRate;
+    const coins = Math.floor(t * coinRate);
+    const hammers = Math.floor((t / 60) * hammerRate);
     return { counted: t, coins, hammers, coinRate, hammerRate };
 }
 
@@ -113,6 +116,10 @@ function pendingOffline() {
 function claimOfflineNow() {
     const r = pendingOffline();
     if (!r) return null;
+    // 정수 내림 결과가 전부 0이면 수집을 성립시키지 않는다. 지급할 게 없는데 기준 시각만
+    // 리셋되면 소수부가 통째로 날아가, 짧은 간격으로 [수집]을 누를수록 손해를 보게 된다
+    // (특히 해머는 1/분이라 60초 미만 수집이면 매번 0). 소수부 이월 없이 이 함정만 막는다.
+    if (r.coins <= 0 && r.hammers <= 0) return null;
     S.coins += r.coins;
     S.hammers += r.hammers;
     S.lastOfflineClaim = U.now();
