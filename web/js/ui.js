@@ -13,7 +13,7 @@ const UI = {
         saveGame();
         if (kind === 'skill') this.renderSkills();
         else if (kind === 'pet') this.renderPets();
-        else this.openMounts();
+        else this.keepScroll(() => this.openMounts());   // 이미 열린 목록 재렌더 — 스크롤 유지
     },
 
     // ===== 소환 결과 연출 팝업 (스킬·펫·탈것 공용) =====
@@ -493,7 +493,10 @@ const UI = {
         }
     },
     // UI.render*()를 전부 스크롤 보존으로 감싼다 — 핸들러를 하나씩 고치는 대신 한 곳에서 일괄 적용.
-    // 재렌더 경로만 감싸면 되므로 open*/close*는 건드리지 않는다(신규 오픈은 showModal이 맨 위로 리셋).
+    // 정규식을 open*까지 넓히지 **않는** 이유: 최초 오픈 때 showModal이 맨 위로 리셋한 스크롤을
+    // keepScroll이 옛 위치로 되돌려 '새 팝업은 맨 위에서 시작' 규칙을 깬다. 그래서 '이미 열린 화면을
+    // open*으로 다시 그리는' 핸들러만 호출부에서 `keepScroll(() => this.open*())`로 감쌌다
+    // (탈것 5경로·던전 소탕·대장간 업그레이드/젬 스킵 — QA가 기록한 목록 그대로).
     installScrollKeeper() {
         if (this._scrollKeeperOn) return;
         this._scrollKeeperOn = true;
@@ -745,11 +748,11 @@ const UI = {
     },
 
     onStartUpgrade() {
-        if (Forge.startUpgrade()) { this.renderEquipSheet(); this.renderTopBar(); this.openForgeInfo(); }
+        if (Forge.startUpgrade()) { this.renderEquipSheet(); this.renderTopBar(); this.keepScroll(() => this.openForgeInfo()); }
         else this.toast('🪙 코인이 부족합니다');
     },
     onGemSkipForge() {
-        if (Forge.gemSkip()) { this.renderTopBar(); this.openForgeInfo(); }
+        if (Forge.gemSkip()) { this.renderTopBar(); this.keepScroll(() => this.openForgeInfo()); }
         else this.toast('💎 젬이 부족합니다');
     },
     onToggleAutoForge() {
@@ -2116,7 +2119,7 @@ const UI = {
     },
     onSweepDungeon(id) {
         // 소탕 성공 시 열쇠가 줄어드는데, 상세 팝업 뒤에 계속 열려 있는 던전 목록(🔑 개수 표시)도 함께 갱신해야 함
-        if (Dungeons.sweep(id)) { this.renderDungeonDetail(); this.openDungeons(); this.renderTopBar(); }
+        if (Dungeons.sweep(id)) { this.renderDungeonDetail(); this.keepScroll(() => this.openDungeons()); this.renderTopBar(); }
     },
 
     // ---- PvP 리그 (UI-SPEC 3~5번, 원본 shot-042149/042208/042228): 랭킹 → 리그 보상 팝업 / 상대 선택 팝업 (봇 기반 오프라인 구현) ----
@@ -2875,10 +2878,10 @@ const UI = {
         const count = this.summonMult('mount');
         const r = Mounts.summon(count);
         if (!r) { this.toast('⚙️ 태엽이 부족합니다 (스테이지 클리어로 획득)'); return; }
-        this.openMounts(); this.renderTopBar(); this.renderEquipSheet();
+        this.keepScroll(() => this.openMounts()); this.renderTopBar(); this.renderEquipSheet();
         this.openSummonResult('mount', r.results); // 결과는 토스트 대신 전용 연출 팝업으로 보여준다
     },
-    onEquipMount(name) { if (Mounts.equip(name)) { this.openMounts(); this.renderEquipSheet(); } },
+    onEquipMount(name) { if (Mounts.equip(name)) { this.keepScroll(() => this.openMounts()); this.renderEquipSheet(); } },
 
     // 마운트 업그레이드 팝업 (펫 업그레이드와 동일 방식): 다른 탈것을 재료로 흡수해 경험치로 레벨업
     _mountUpgradeTarget: null, _mountUpgradeMats: null,
@@ -2937,7 +2940,7 @@ const UI = {
         this.toast(`✨ ${MOUNT_KR[name] || name} Lv.${S.mounts[name].level}!`);
         this._mountUpgradeMats = [];
         this.renderMountUpgrade();
-        this.openMounts(); // 재료로 소모된 마운트가 뒤에 깔린 목록에서도 즉시 사라지도록 (펫 플로우와 동일 패턴)
+        this.keepScroll(() => this.openMounts()); // 재료로 소모된 마운트가 뒤에 깔린 목록에서도 즉시 사라지도록 (펫 플로우와 동일 패턴)
         this.renderTopBar();
     },
 
@@ -3011,7 +3014,7 @@ const UI = {
         if (line === 'forge' && !this.els.forgeInfoModal.classList.contains('hidden')) this.renderForgeInfo();
         if (line === 'skill') this.renderSkills();
         if (line === 'pet') this.renderPets();
-        if (line === 'mount' && !this.els.mountModal.classList.contains('hidden')) this.openMounts();
+        if (line === 'mount' && !this.els.mountModal.classList.contains('hidden')) this.keepScroll(() => this.openMounts());
     },
     closeAscension() { this.els.ascendModal.classList.add('hidden'); },
 
