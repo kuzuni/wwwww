@@ -477,6 +477,10 @@ body {
     filter: drop-shadow(0 .18rem .12rem rgba(0,0,0,.35));
 }
 .anvil-btn:active { transform: translateY(.1rem); }
+/* 모루 그림은 버튼 폭을 꽉 채운다. font-size(4.4rem)는 그대로 두는데, 타격 연출의 망치·링·불꽃이
+   전부 em 단위로 이 값을 기준 삼기 때문이다 — 크기만 SVG로 넘기고 기준 글자 크기는 건드리지 않는다.
+   높이는 viewBox 비율(132:86 = 원본 실측 1.41:1)대로 따라와 이모지 때(≈4.4rem)와 거의 같다. */
+.anvil-btn .anvil-svg { display: block; width: 100%; height: auto; overflow: visible; }
 /* ===== 모루 타격 연출 (총 0.72초 = 0.24초 × 3타) =====
    제작을 누르면 팝업이 즉발로 뜨는 대신 망치가 모루를 세 번 내리친다.
    타격 시각은 24% / 57% / 90% 지점이고, 마지막이 가장 강하다.

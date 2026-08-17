@@ -687,7 +687,7 @@ const UI = {
                 <div class="anvil-side left">
                     <button class="info-btn" title="플레이어 정보" onclick="UI.openPlayerInfo()">!</button>
                 </div>
-                <button class="anvil-btn" onclick="UI.onCraft()">⚒️<small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}</small></button>
+                <button class="anvil-btn" onclick="UI.onCraft()">${this.ANVIL_SVG}<small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}</small></button>
                 <div class="anvil-side right">
                     <div class="forge-actions">
                         ${forgeBtnHtml}
@@ -977,6 +977,23 @@ const UI = {
         cfg.continueOnTarget = !cfg.continueOnTarget;
         saveGame(); this.renderAutoForge();
     },
+
+    // 제작 버튼은 ⚒️ 이모지가 아니라 원본(shot-042120)처럼 모루 그림이어야 한다.
+    // 원본 실측(499×892 스크린샷에서 모루가 차지하는 영역 ≈107×76px, 가로세로 1.41:1)을 viewBox로
+    // 옮겨 인라인 SVG로 그린다 — 외부 에셋 금지 제약을 지키면서 어느 배율에서도 또렷하다.
+    // 구성은 원본과 같은 4단: 오른쪽으로 뻗는 뿔 / 상판(윗면 밝은 면 + 앞면 그늘) / 좁고 어두운 허리 /
+    // 상판보다 넓은 받침(밝은 테 + 몸통). 금속 질감·하이라이트 고도화는 폴리싱 단계 몫이다.
+    ANVIL_SVG: `<svg class="anvil-svg" viewBox="0 0 132 86" aria-hidden="true">
+            <g stroke="#1a100e" stroke-width="3" stroke-linejoin="round">
+                <path d="M96 12 L130 26 L96 36 Z" fill="#962f13"/>
+                <path d="M22 6 L108 6 L96 24 L10 24 Z" fill="#b2481f"/>
+                <path d="M10 24 L96 24 L96 42 L10 42 Z" fill="#822f16"/>
+                <path d="M10 36 L96 36 L96 42 L10 42 Z" fill="#6d2612" stroke="none"/>
+                <path d="M40 42 L68 42 L62 56 L46 56 Z" fill="#281a17"/>
+                <path d="M24 56 L88 56 L100 66 L12 66 Z" fill="#6d3027"/>
+                <path d="M12 66 L100 66 L94 80 L18 80 Z" fill="#4a201b"/>
+            </g>
+        </svg>`,
 
     // ---- 모루 타격 연출 (사용자 지시: 제작을 누르면 망치가 쾅쾅 친 뒤에 비교 팝업) ----
     // 총 0.72초 = 0.24초 × 3타. 반복 제작이 답답하지 않은 길이 안에서 마지막 타격만 강하게 준다.
