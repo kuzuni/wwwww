@@ -19,6 +19,32 @@ const SCREENS = [
     { id: 'skill', open: () => { S.skills = {}; S.equippedSkills = []; UI.renderSkills(); } },
 ];
 
+// UI·S는 최상위 `const`/`let`이라 window의 속성이 아니다(`window.UI === undefined`).
+// page.waitForFunction의 술어는 이 렉시컬 전역을 못 보고 타임아웃 나는 경우가 있어
+// (같은 술어가 어떤 실행에서는 통과하고 어떤 실행에서는 15초를 다 쓴다) 신뢰할 수 없다.
+// page.evaluate는 항상 보이므로 evaluate 폴링으로 부팅을 기다린다.
+async function waitBooted(page, timeout = 20000) {
+    const t0 = Date.now();
+    for (;;) {
+        const ready = await page.evaluate(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && !!S)
+            .catch(() => false);
+        if (ready) return;
+        if (Date.now() - t0 > timeout) throw new Error('부팅 대기 시간 초과 (UI/S 미정의)');
+        await page.waitForTimeout(100);
+    }
+}
+
+// 등장 트랜지션이 끝날 때까지 (같은 이유로 evaluate 폴링).
+async function waitNoOpening(page, timeout = 5000) {
+    const t0 = Date.now();
+    for (;;) {
+        const done = await page.evaluate(() => !document.querySelector('.modal.opening')).catch(() => true);
+        if (done) return;
+        if (Date.now() - t0 > timeout) return; // 트랜지션이 안 끝나도 측정은 진행(아래 250ms 여유)
+        await page.waitForTimeout(50);
+    }
+}
+
 (async () => {
     const browser = await chromium.launch({
         executablePath: '/opt/pw-browsers/chromium',
@@ -35,7 +61,7 @@ const SCREENS = [
             page.on('pageerror', e => errs.push(`${vp.width}x${vp.height} ${e}`));
             page.on('console', m => { if (m.type() === 'error') errs.push(`${vp.width}x${vp.height} ${m.text()}`); });
             await page.goto(INDEX, { waitUntil: 'load' });
-            await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 15000 });
+            await waitBooted(page);
 
             await page.evaluate((screenId) => {
                 // 펫·스킬은 소환 탭의 서브탭이라 switchSummonSub로 실제로 띄워야 한다 —
@@ -45,8 +71,10 @@ const SCREENS = [
                 else { S.skills = {}; S.equippedSkills = []; UI.switchSummonSub('skills'); }
             }, sc.id);
             // 등장 트랜지션(.modal.opening)은 transform: scale을 걸어 rect를 줄인다 —
-            // 애니메이션이 끝나야 실제 레이아웃 폭이 나온다.
-            await page.waitForFunction(() => !document.querySelector('.modal.opening'), null, { timeout: 5000 }).catch(() => {});
+            // 애니메이션이 끝나야 실제 레이아웃 폭이 나온다. 여기서 안 기다리면 rect는 축소된
+            // 값이 나오는데 getComputedStyle의 padding은 축소되지 않아, 둘을 섞어 계산하는
+            // contentW가 어긋나 멀쩡한 화면이 FAIL로 찍힌다(스케일 0.70에서 실측 확인).
+            await waitNoOpening(page);
             await page.waitForTimeout(250);
 
             const r = await page.evaluate((screenId) => {
