@@ -2880,16 +2880,26 @@ const Scene3D = {
     // 장비 썸네일과 같은 오프스크린 렌더러에 태우되, 탈것은 종마다 몸집·형태가 크게 달라
     // 고정 카메라로는 잘리거나 좁쌀만 하게 찍힌다 — **바운딩 박스로 매번 프레이밍을 역산**한다.
     mountThumb(name, rarity) {
+        return this.creatureThumb('mount', name, () => this.makeMountMesh(name, rarity || 'common'), rarity);
+    },
+    // 펫도 같은 문제(슬롯 이모지 🐾 ≠ 실제 3D 펫) — 탈것과 완전히 같은 파이프라인에 태운다.
+    petThumb(name) {
+        return this.creatureThumb('pet', name, () => this.makePetMesh(name));
+    },
+    // 탈것·펫 공용 — 실제 게임 모델을 슬롯 아이콘 각도로 찍는다.
+    // 종마다 몸집·형태가 크게 달라 고정 카메라로는 잘리거나 좁쌀만 하게 찍히므로
+    // **바운딩 박스로 매번 프레이밍을 역산**하는 게 핵심이다.
+    creatureThumb(kind, name, build, rarity) {
         if (!name) return null;
-        const key = 'mount:' + name + ':' + (rarity || '');
+        const key = kind + ':' + name + ':' + (rarity || '');
         if (this._thumbCache[key]) return this._thumbCache[key];
         try {
             this.itemThumbInit();
             const sc = this._thumbScene;
             this.clearGroup(sc);
             sc.add(this._thumbAmb, this._thumbDir);
-            const mesh = this.makeMountMesh(name, rarity || 'common');
-            // 게임에서 보이는 것과 같은 3/4 방향 — 슬롯과 필드의 실루엣이 같아야 '같은 탈것'으로 읽힌다
+            const mesh = build();
+            // 게임에서 보이는 것과 같은 3/4 방향 — 슬롯과 필드의 실루엣이 같아야 '같은 놈'으로 읽힌다
             const g = new THREE.Group();
             g.rotation.y = 0.55;
             g.add(mesh);

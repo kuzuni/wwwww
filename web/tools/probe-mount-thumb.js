@@ -1,4 +1,4 @@
-// 탈것 슬롯 아이콘 = 실제 3D 탈것인가 (사용자 지시 2026-08-18)
+// 탈것·펫 슬롯 아이콘 = 실제 3D 모델인가 (사용자 지시 2026-08-18)
 // 사용자 지적: 장비 슬롯의 탈것 아이콘이 실제 게임 속 탈것과 생김새가 너무 다르다(이모지였다).
 // 슬롯 썸네일이 ⑴ 이모지가 아니라 실제 3D 스냅샷으로 바뀌었는지 ⑵ 탈것마다 다른 그림인지
 // ⑶ 실제 장착된 탈것과 같은 형상·색인지(썸네일 vs 필드 렌더 대조)를 확인한다.
@@ -85,6 +85,26 @@ const SEED = `
     })()`);
     console.log(`⑶ 장비 슬롯: ${JSON.stringify(slot)}`);
 
+    // ⑷ 펫도 같은 파이프라인 — 출전 슬롯·펫 목록 썸네일이 실제 3D 펫으로 바뀌었는가
+    const pet = await page.evaluate(`(async () => {
+        Object.keys(PET_KR).forEach((n, i) => {
+            if (!S.pets.some(p => p.name === n)) S.pets.push({ name: n, rarity: 'common', level: 1, stars: 0, xp: 0 });
+        });
+        S.activePets = [0, 1, 2].filter(i => S.pets[i]);
+        // ⚠️ 'pets'는 탭이 아니라 소환 탭의 서브탭이다 — renderPets()는 그 둘이 맞을 때만 그린다
+        UI.switchTab('summon'); UI.switchSummonSub('pets');
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const faces = [...document.querySelectorAll('.mt-face[data-kind="pet"]')];
+        const made = faces.filter(e => e.classList.contains('has-thumb'));
+        const names = [...new Set(faces.map(e => e.dataset.mt))];
+        return { total: faces.length, withImg: made.length, names: names.length,
+                 leftoverEmoji: faces.filter(e => e.textContent.trim()).length };
+    })()`);
+    console.log(`⑷ 펫: 자리 ${pet.total}개 중 3D 썸네일 ${pet.withImg}개 (종 ${pet.names})`
+        + `, 이모지 잔존 ${pet.leftoverEmoji}개`);
+    await page.screenshot({ path: path.join(OUT, 'pet-list.png') });
+    await page.evaluate(`UI.closeModals && UI.closeModals()`).catch(() => {});
+
     // 슬롯 캡처 + 같은 탈것을 실제 장착한 전투 화면 캡처 → 나란히 육안 대조용
     await page.screenshot({ path: path.join(OUT, 'gear-slot.png') });
     await page.evaluate(`UI.switchTab('battle'); Scene3D.refreshMount();`);
@@ -97,7 +117,8 @@ const SEED = `
 
     // 합격 조건: 전 종 썸네일이 생성되고, 장비 슬롯이 이모지가 아니라 그 썸네일 <img>로 채워진다
     const pass = made.length === names.length
-        && slot.found && slot.hasImg && !slot.text && slot.fill > 0.5;
+        && slot.found && slot.hasImg && !slot.text && slot.fill > 0.5
+        && pet.total > 0 && pet.withImg === pet.total && pet.leftoverEmoji === 0;
     console.log(`\n판정: ${pass ? 'PASS' : 'FAIL'}  → ${OUT}`);
     console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'NO CONSOLE/PAGE ERRORS');
     await browser.close();

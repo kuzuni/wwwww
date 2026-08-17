@@ -1137,18 +1137,25 @@ const UI = {
     // (첫 썸네일 호출이 렌더러·PMREM 환경맵을 만드느라 유독 무거워 동기로 부르면 화면이 붙잡힌다).
     mountFace(name, cls) {
         const m = name && S.mounts[name];
-        return `<span class="${cls} mt-face" data-mount="${name || ''}" data-rarity="${m ? m.rarity : ''}">`
+        return `<span class="${cls} mt-face" data-kind="mount" data-mt="${name || ''}" data-rarity="${m ? m.rarity : ''}">`
             + `${MOUNT_ICONS[name] || '🐴'}</span>`;
+    },
+    // 펫도 같은 문제(🐾 이모지 ≠ 실제 3D 펫) — 완전히 같은 파이프라인을 쓴다
+    petFace(name, cls) {
+        return `<span class="${cls} mt-face" data-kind="pet" data-mt="${name || ''}">`
+            + `${PET_ICONS[name] || '🐾'}</span>`;
     },
     hydrateMountThumbs(root) {
         const scope = root || document;
         if (typeof Scene3D === 'undefined' || !Scene3D.mountThumb) return;
-        const faces = [...scope.querySelectorAll('.mt-face[data-mount]:not(.has-thumb)')].filter(e => e.dataset.mount);
+        const faces = [...scope.querySelectorAll('.mt-face[data-mt]:not(.has-thumb)')].filter(e => e.dataset.mt);
         if (!faces.length) return;
         requestAnimationFrame(() => {
             for (const el of faces) {
                 if (!el.isConnected) continue;
-                const url = Scene3D.mountThumb(el.dataset.mount, el.dataset.rarity || 'common');
+                const url = el.dataset.kind === 'pet'
+                    ? Scene3D.petThumb(el.dataset.mt)
+                    : Scene3D.mountThumb(el.dataset.mt, el.dataset.rarity || 'common');
                 if (url) { el.innerHTML = `<img src="${url}" alt="">`; el.classList.add('has-thumb'); }
             }
         });
@@ -1784,7 +1791,7 @@ const UI = {
             const active = S.activePets.includes(i);
             return `<button class="pet-tile" style="--rc:${RARITY_CSS[pet.rarity]}" onclick="UI.openPetDetail(${i})">
                 <span class="tile-face">
-                    ${PET_ICONS[pet.name] || '🐾'}
+                    ${UI.petFace(pet.name, 'mt-inline')}
                     ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${pet.level}</span>
                 </span>
@@ -1801,7 +1808,7 @@ const UI = {
         const equippedRowHtml = S.activePets.map(i => {
             const pet = S.pets[i];
             if (!pet) return '';
-            return `<button class="sk-mini square" style="--rc:${RARITY_CSS[pet.rarity]}" title="${PET_KR[pet.name] || pet.name} — 상세/해제" onclick="UI.openPetDetail(${i})">${PET_ICONS[pet.name] || '🐾'}<small>Lv.${pet.level}</small></button>`;
+            return `<button class="sk-mini square" style="--rc:${RARITY_CSS[pet.rarity]}" title="${PET_KR[pet.name] || pet.name} — 상세/해제" onclick="UI.openPetDetail(${i})">${UI.petFace(pet.name, 'mt-inline')}<small>Lv.${pet.level}</small></button>`;
         }).join('') || '<span class="muted">없음</span>';
 
         const mergeHtml = RARITIES.slice(0, -1).map(r => Pets.canMerge(r) ?
@@ -1839,6 +1846,7 @@ const UI = {
                 <div class="hatch-row">${hatchHtml}</div>
                 ${Pets.canBuySlot() ? `<button class="btn xs slot-buy" onclick="UI.onBuyHatchSlot()">슬롯 +1<br>${IconGen.img('gem')} ${Pets.slotCost()}</button>` : ''}
             </div>`;
+        this.hydrateMountThumbs();   // 펫 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },
 
     // 펫 상세 팝업 (UI-SPEC 54번): 고정 피해/체력 + 옵션 2줄 + [업그레이드][장착·해제]
@@ -1858,7 +1866,7 @@ const UI = {
                     <div class="petd-head">
                         <div class="petd-tilecol">
                             <div class="petd-tile" style="--rc:${RARITY_CSS[pet.rarity]}">
-                                ${PET_ICONS[pet.name] || '🐾'}
+                                ${UI.petFace(pet.name, 'mt-inline')}
                                 ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                                 <span class="sk-lv">Lv.${pet.level}</span>
                             </div>
@@ -1880,6 +1888,7 @@ const UI = {
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>
             </div>`;
         this.showModal(this.els.detailModal);
+        this.hydrateMountThumbs();   // 펫 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },
 
     onSummonPetEgg() {
@@ -1965,7 +1974,7 @@ const UI = {
             return `
             <button class="pet-tile ${on ? 'selected' : ''} ${locked ? 'mat-locked' : ''}" style="--rc:${RARITY_CSS[p.rarity]}" onclick="UI.onToggleUpgradeMat('pet', ${i})">
                 <span class="tile-face">
-                    ${PET_ICONS[p.name] || '🐾'}
+                    ${UI.petFace(p.name, 'mt-inline')}
                     ${locked ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${p.level}</span>
                     ${on ? '<span class="tile-check">✓</span>' : ''}
@@ -2004,7 +2013,7 @@ const UI = {
                     <div class="petup-panel">
                     <div class="petup-head">
                         <div class="petup-icon" style="--rc:${RARITY_CSS[target.rarity]}">
-                            ${PET_ICONS[target.name] || '🐾'}
+                            ${UI.petFace(target.name, 'mt-inline')}
                             ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                             <span class="sk-lv">Lv.${target.level}</span>
                         </div>
@@ -2026,6 +2035,7 @@ const UI = {
                 </div>
                 <button class="x-btn" onclick="UI.closePetUpgrade()">✕</button>
             </div>`;
+        this.hydrateMountThumbs();   // 펫 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },
     // 등급 r에서 재료로 쓸 수 있는 인덱스 풀 — 펫은 대상·장착 중 제외
     _matPool(type, r) {
@@ -2701,7 +2711,7 @@ const UI = {
         const petIconsHtml = S.activePets.map(i => {
             const p = S.pets[i];
             return `<button class="sk-cell" onclick="UI.openPetDetail(${i})">
-                <span class="sk-orb">${PET_ICONS[p.name] || '🐾'}<span class="sk-lv">Lv.${p.level}</span></span></button>`;
+                <span class="sk-orb">${UI.petFace(p.name, 'mt-inline')}<span class="sk-lv">Lv.${p.level}</span></span></button>`;
         }).join('');
         const mountIconHtml = S.activeMount && S.mounts[S.activeMount] ? `<button class="sk-cell" onclick="UI.openMountUpgrade('${S.activeMount}')">
             <span class="sk-orb">${UI.mountFace(S.activeMount, 'mt-inline')}<span class="sk-lv">Lv.${S.mounts[S.activeMount].level}</span></span></button>` : '';
