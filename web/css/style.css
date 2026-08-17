@@ -737,10 +737,11 @@ body {
 .tech-branch-pct.researching { color: var(--pp-green-dk); }
 
 /* ---- 기술 트리: 분기 상세 세로 노드 트리 (UI-SPEC 15~16번, 원본 shot-042546) ----
-   원본 골격은 '전 행 2개짜리 사다리'가 아니다 — 행 구성이 2·2·2·1·2·1·1 주기로, 중앙 줄기에서
-   좌우 병렬 갈래로 갈라졌다가 중앙 단독 노드로 합류하고 다시 갈라진다. 가로 바는 병렬 블록의
-   진입행·이탈행에만 있고(가운데 행엔 없다), 세로선은 블록 안에서는 좌·우 열, 블록 밖에서는
-   중앙 줄기에 그린다. 행 구성은 ui.js의 UI.techRowSizes()가 노드 수에 맞춰 잘라 만든다. */
+   구조는 **위→아래 5단계(티어) 트리**다(사용자 정정 2026-08-17): 한 단계의 노드를 전부 만렙(5/5)으로
+   만들면 그 아래 단계가 해금된다. 한 단계 안에서는 2개짜리 병렬 행을 쌓고 홀수면 마지막 노드가
+   중앙 단독 행이 된다 — 행 구성은 ui.js의 UI.techTierRows()가 만든다. 가로 바는 2노드 행의 좌우를
+   잇고, 세로선은 같은 단계 안 2노드 행끼리는 좌·우 두 갈래, 단계가 바뀌면 중앙 줄기로 합류한다.
+   골격 치수(지름·행 피치·좌우 간격·선 두께)는 아래 원본 실측값을 그대로 유지한다. */
 .tech-branch-detail-pct { font-weight: 800; font-size: .95rem; text-align: center; color: var(--pp-ink); margin-top: -.2rem; }
 /* 연결선 — 원본(042546) 픽셀 실측(505×883): 노드 중심 (171,127)(324,127)(171,222)(324,222)
    (171,318)(324,318)(248,413)(171,510)(324,510)(248,605)(248,700) · 가로 바는 y=125·317·509 **세 곳뿐**
@@ -771,13 +772,22 @@ body {
     --tt-bite: .25rem;                                                /* 선이 원 밑으로 파고드는 깊이 */
     --tt-gap: calc(var(--tt-pitch) - var(--tt-node) - var(--tt-label)); /* 행 사이 세로선 구간 */
 }
-/* 첫 행 위 트렁크 — 원본은 y 90~127로 길이 37px이고 아래 끝이 첫 노드 중심에 정확히 맞물린다.
-   top을 '반노드 − 길이'로 잡아 아래 끝이 항상 노드 중심에 오게 한다(노드 아래로 삐져나오면 안 됨). */
-.tech-tree-col::before {
-    content: ''; position: absolute; left: 50%; transform: translateX(-50%);
-    top: calc(var(--tt-node) / 2 - 2.2rem); height: 2.2rem; width: var(--tt-line); background: var(--pp-line);
+/* 첫 노드 위로 뻗던 트렁크(.tech-tree-col::before)는 제거했다 — 원본에는 있지만 사용자 지시로
+   뺀다: "첫 노드 위엔 아무것도 없으니 그 선은 빼야 한다"(2026-08-17). 연결선은 노드와 노드
+   사이에만 그리고, 첫 행 위·마지막 행 아래로는 아무 선도 나가지 않는다. */
+.tech-tree-row { position: relative; display: flex; align-items: flex-start; justify-content: center; }
+/* 단계(I~V) 표식 — 절대배치라 행의 가로 배치(원본 비율 검증 대상)에 영향을 주지 않는다.
+   행 폭은 1노드/2노드에 따라 달라지므로 '행 중앙 = 트리 축'을 기준으로 왼쪽 노드 바깥에 건다 —
+   어느 행에 붙어도 x가 같다. */
+.tech-tier-tag {
+    position: absolute; top: calc(var(--tt-node) / 2 - .6rem);
+    /* right:50%(=행 중앙=트리 축) 기준으로 왼쪽 노드 바깥까지 밀어낸다 — 오른쪽 끝을 기준으로 잡아야
+       'I'와 'III'처럼 글자 폭이 달라도 노드 밑으로 파고들지 않는다(노드가 z-index 1로 덮는다). */
+    right: 50%; transform: translateX(calc((var(--tt-span) / 2 + var(--tt-node) / 2 + .4rem) * -1));
+    font-size: .72rem; font-weight: 900; color: var(--pp-ink); opacity: .75;
+    border: 2px solid var(--pp-line); border-radius: .35rem; padding: 0 .28rem; background: #fff;
 }
-.tech-tree-row { display: flex; align-items: flex-start; justify-content: center; }
+.tech-tier-tag.dim { opacity: .35; }
 /* 가로 바: 중심이 노드 중심 높이에 오도록 margin-top으로 반노드만큼 내린다 */
 .tech-tree-hline {
     width: calc(var(--tt-span) - var(--tt-node) + var(--tt-bite) * 2); height: var(--tt-bar);
@@ -801,6 +811,8 @@ body {
     content: ''; position: absolute; left: 0; width: 100%;
     top: calc((var(--tt-node) / 2 + var(--tt-label)) * -1); bottom: calc(var(--tt-node) / -2); background: var(--pp-line);
 }
+/* 잠긴 단계로 내려가는 선 — 끊지 않고 흐리게만 (선 연속성은 유지) */
+.tech-tree-vline.dim::before, .tech-tree-vrow.dim i::before, .tech-tree-hline.dim { background: #b9b6b0; }
 .tech-tree-node-col { display: flex; flex-direction: column; align-items: center; width: var(--tt-node); }
 /* 원본: 큰 브론즈 원(진행/완료), 미해금은 흰 원 — 이름 라벨 없음, N/5만 */
 .tech-tree-node {
@@ -810,6 +822,8 @@ body {
     position: relative; z-index: 1; /* 원 뒤로 지나가는 세로선을 불투명하게 가린다 (원본 정합) */
 }
 .tech-tree-node.locked { background: #f4f2ee; border-color: #9c9c9c; box-shadow: inset 0 -.3rem 0 rgba(0,0,0,.08); }
+/* 아직 안 열린 단계의 노드 — 흰 원(미연구)과 구분되게 회색으로 눌러 둔다 */
+.tech-tree-node.tlocked { background: #d9d6d0; border-color: #8c8880; box-shadow: inset 0 -.3rem 0 rgba(0,0,0,.12); opacity: .72; }
 .tech-tree-node.active { background: #c9925a; }
 .tech-tree-node.done { background: #a9793f; border-color: #5d3810; }
 .tech-tree-node.researching { background: var(--pp-green); border-color: #1d6b33; }

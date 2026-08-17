@@ -2332,19 +2332,15 @@ const UI = {
             <div class="tech-branch-grid">${cardsHtml}</div>
             <button class="league-back-btn sheet-back-btn" onclick="UI.switchTab(null)">◀</button>`;
     },
-    // 원본 행 구성 주기 — 노드 수에 맞춰 잘라 쓴다 (renderTechBranchView 주석 참고)
-    TECH_ROW_CYCLE: [2, 2, 2, 1, 2, 1, 1],
-    techRowSizes(n) {
+    // 한 단계(티어)의 노드를 행으로 자른다 — 원본(shot-042546)처럼 2개짜리 병렬 행을 쌓고,
+    // 홀수면 마지막 노드가 중앙 단독 행(그 단계의 '마지막 노드')이 된다. 3개면 2+1이다.
+    techTierRows(ids) {
         const rows = [];
-        for (let i = 0, k = 0; i < n; k++) {
-            const size = Math.min(this.TECH_ROW_CYCLE[k % this.TECH_ROW_CYCLE.length], n - i);
-            rows.push(size);
-            i += size;
-        }
+        for (let i = 0; i < ids.length; i += 2) rows.push(ids.slice(i, i + 2));
         return rows;
     },
-    // 분기 상세: 원본(shot-042546)의 좌우 분기 갈래 트리 형태를 재현한다.
-    // 노드 개수·효과는 원본 미확보로 자체 설계(기술트리 개편 항목에서 확정), 이번 작업은 배치만 원본화.
+    // 분기 상세: 위→아래로 이어지는 5단계 세로 트리 (사용자 정정 2026-08-17).
+    // 한 단계의 노드를 전부 만렙(5/5)으로 만들면 그 아래 단계가 해금된다.
     renderTechBranchView() {
         const b = TechTree.BRANCHES.find(x => x.id === this._techBranch);
         const pct = TechTree.branchProgress(b.id);
@@ -2352,33 +2348,40 @@ const UI = {
             const lv = TechTree.level(id);
             const max = TechTree.isMax(id);
             const researching = TechTree.researchingId() === id;
-            const cls = researching ? 'researching' : max ? 'done' : lv > 0 ? 'active' : 'locked';
+            const open = TechTree.isUnlocked(id);
+            const cls = researching ? 'researching' : max ? 'done' : !open ? 'tlocked' : lv > 0 ? 'active' : 'locked';
+            const face = researching ? TechTree.NODES[id].icon || '🔬' : max ? '✅' : !open ? '🔒' : TechTree.NODES[id].icon || '🔬';
             const badge = researching
                 ? `<small class="tech-tree-node-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
-                : `<small>${TechTree.tierLabel(id)} ${TechTree.tierPos(id)}/${TechTree.PER_TIER}</small>`;
+                : `<small>${lv}/${TechTree.MAX_LEVEL}</small>`;
             return `<div class="tech-tree-node-col">
-                <button class="tech-tree-node ${cls}" onclick="UI.openTechNode('${id}')">${max ? '✅' : TechTree.NODES[id].icon || '🔬'}</button>
+                <button class="tech-tree-node ${cls}" onclick="UI.openTechNode('${id}')">${face}</button>
                 <div class="tech-tree-label">${badge}</div>
             </div>`;
         };
-        // 원본(shot-042546) 골격 재현: 행 구성이 2·2·2·1·2·1·1 주기다 — 중앙 줄기에서 좌우 병렬
-        // 갈래로 갈라졌다가 중앙 단독 노드로 합류하고 다시 갈라진다. 규칙 두 개로 골격이 결정된다:
-        //  ① 가로 바는 연속된 2노드 행 묶음(=병렬 블록)의 **진입행·이탈행에만** — 블록 가운데 행엔 없다
-        //  ② 세로선은 위아래가 모두 2노드 행이면 좌·우 열 두 갈래, 그 밖에는 중앙 줄기 한 줄
-        // (12노드=2,2,2,1,2,1,1,1 / 10노드=2,2,2,1,2,1 / 7노드=2,2,2,1 로 자연히 잘린다)
-        const sizes = this.techRowSizes(b.nodes.length);
+        // 골격 규칙 (원본 shot-042546의 좌우 갈래 모양을 단계 구조 위에서 유지한다):
+        //  ① 가로 바는 2노드 행의 좌우 노드를 잇는다 — 그 행이 위아래 중앙 줄기와 만날 때만 필요하다
+        //  ② 세로선은 같은 단계 안에서 위아래가 모두 2노드 행이면 좌·우 두 갈래, 그 밖에는 중앙 줄기
+        //  ③ 첫 행 위·마지막 행 아래로는 선을 그리지 않는다 (사용자 지시 — 위로 뻗은 짝대기 제거)
+        const rows = [];
+        b.tiers.forEach((ids, t) => this.techTierRows(ids).forEach((r, i) => rows.push({ ids: r, tier: t + 1, first: i === 0 })));
         const rowsHtml = [];
-        let at = 0;
-        sizes.forEach((size, r) => {
-            const prev = sizes[r - 1], next = sizes[r + 1];
-            if (r > 0) rowsHtml.push(prev === 2 && size === 2
-                ? '<div class="tech-tree-vrow"><i></i><i></i></div>' // 병렬 블록 안 — 좌·우 두 갈래
-                : '<div class="tech-tree-vline"></div>');            // 블록 진입/이탈 — 중앙 줄기
-            const ids = b.nodes.slice(at, at + size);
-            at += size;
-            if (size === 1) { rowsHtml.push(`<div class="tech-tree-row">${nodeCol(ids[0])}</div>`); return; }
-            const bar = (prev !== 2 || next !== 2) ? '<div class="tech-tree-hline"></div>' : '<div class="tech-tree-hgap"></div>';
-            rowsHtml.push(`<div class="tech-tree-row">${nodeCol(ids[0])}${bar}${nodeCol(ids[1])}</div>`);
+        rows.forEach((row, r) => {
+            const prev = rows[r - 1], next = rows[r + 1];
+            // 같은 단계 안에서 2노드 행이 연이을 때만 좌·우 두 갈래, 단계가 바뀌면 중앙 줄기로 합류한다
+            const railAbove = !!prev && prev.tier === row.tier && prev.ids.length === 2 && row.ids.length === 2;
+            const railBelow = !!next && next.tier === row.tier && next.ids.length === 2 && row.ids.length === 2;
+            // 아직 안 열린 단계로 내려가는 선은 흐리게 — 선은 이어지되 어디부터 잠겼는지 한눈에 보인다
+            const open = TechTree.tierUnlocked(b.id, row.tier);
+            const dim = open ? '' : ' dim';
+            if (prev) rowsHtml.push(railAbove
+                ? `<div class="tech-tree-vrow${dim}"><i></i><i></i></div>`
+                : `<div class="tech-tree-vline${dim}"></div>`);
+            // 단계 표시는 그 단계 첫 행에만. 절대배치라 행의 가로 배치(=원본 비율)에 영향을 주지 않는다.
+            const tag = row.first ? `<span class="tech-tier-tag${dim}">${TechTree.roman(row.tier)}</span>` : '';
+            if (row.ids.length === 1) { rowsHtml.push(`<div class="tech-tree-row">${tag}${nodeCol(row.ids[0])}</div>`); return; }
+            const bar = (!railAbove || !railBelow) ? `<div class="tech-tree-hline${dim}"></div>` : '<div class="tech-tree-hgap"></div>';
+            rowsHtml.push(`<div class="tech-tree-row">${tag}${nodeCol(row.ids[0])}${bar}${nodeCol(row.ids[1])}</div>`);
         });
         this.els.techPanel.innerHTML = `
             <div class="sheet-head">
@@ -2425,13 +2428,19 @@ const UI = {
         const max = TechTree.isMax(id);
         const researching = TechTree.researchingId() === id;
         const otherResearch = S.techResearch && !researching;
-        const tierPos = TechTree.tierPos(id);
-        const roman = TechTree.tierLabel(id);
+        const roman = TechTree.tierLabel(id);          // 노드가 속한 트리 단계 I~V
+        const open = TechTree.isUnlocked(id);
         const unit = TechTree.unitOf(id);
 
         let actionHtml;
         if (max) {
             actionHtml = `<div class="idet-lead" style="text-align:center">연구 완료 (MAX)</div>`;
+        } else if (!open) {
+            // 위 단계를 전부 만렙으로 만들어야 열린다 — 무엇이 남았는지 그대로 알려준다
+            const need = TechTree.lockedBy(id);
+            const left = TechTree.tierNodes(TechTree.branchOf(id).id, need).filter(n => !TechTree.isMax(n)).length;
+            actionHtml = `<button class="btn sm primary disabled">🔒 잠김</button>
+                <p class="muted" style="text-align:center">${need}단계를 모두 완료하면 열립니다 (남은 노드 ${left}개)</p>`;
         } else if (researching) {
             const remain = (S.techResearch.endsAt - U.now()) / 1000;
             // 원본(042605): 남색 트랙+파란 채움 진행바, [건너뛰기/◆N] 실버 블록 + [취소] 빨간 블록 2단
@@ -2453,10 +2462,10 @@ const UI = {
             <div class="idet-wrap">
                 <div class="modal-card paper item-detail" data-tech-node="${id}">
                     <div class="idet-head">
-                        <div class="idet-icon tn-bronze">${max ? '✅' : '🔬'}<span class="idet-star">${tierPos}/${TechTree.PER_TIER}</span></div>
+                        <div class="idet-icon tn-bronze">${max ? '✅' : !open ? '🔒' : '🔬'}<span class="idet-star">${lv}/${TechTree.MAX_LEVEL}</span></div>
                         <div class="idet-title">
-                            <div class="idet-name">${def.name} ${roman} <small class="tn-lv">Lv.${lv}/${TechTree.MAX_LEVEL}</small></div>
-                            <div class="idet-main">+${U.fmt(TechTree.totalOf(id))}${unit} <small class="tn-gain">(${TechTree.gainNote(id)} +${U.fmt(def.per)}${unit})</small></div>
+                            <div class="idet-name">${def.name} <small class="tn-lv">${roman}단계 · Lv.${lv}/${TechTree.MAX_LEVEL}</small></div>
+                            <div class="idet-main">+${U.fmt(TechTree.totalOf(id))}${unit} <small class="tn-gain">(${TechTree.gainNote()} +${U.fmt(def.per)}${unit})</small></div>
                         </div>
                     </div>
                     <div class="idet-subs">
