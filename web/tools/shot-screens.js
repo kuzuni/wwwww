@@ -143,7 +143,11 @@ const SEED = () => {
             await page.evaluate(new Function(src));
             await page.waitForTimeout(650); // 열림 애니메이션(300ms) + 렌더 여유
             await page.evaluate(() => { const t = document.getElementById('toasts'); if (t) t.innerHTML = ''; });
-            await page.screenshot({ path: path.join(OUT, name + '.png') });
+            // 첫 화면(main)이 'waiting for fonts to load'에서 30초 타임아웃으로 통째로 빠지던 것 해소 —
+            // screenshot 내부의 폰트 대기는 조절할 수 없으므로 document.fonts.ready 를 먼저 상한을 걸어 소화하고
+            // (여기서 안 끝나도 렌더는 폴백 폰트로 정상), screenshot 자체 타임아웃도 올린다.
+            await page.evaluate(() => Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))])).catch(() => { });
+            await page.screenshot({ path: path.join(OUT, name + '.png'), timeout: 60000 });
             done.push(name + (ref ? '←' + ref : ''));
         } catch (e) {
             errors.push('SCREEN ' + name + ': ' + e.message);

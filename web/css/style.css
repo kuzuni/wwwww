@@ -1494,28 +1494,45 @@ body {
 .chat-preview-msg { font-size: .68rem; color: #6d6a63; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- 채팅 전체화면 (UI-SPEC 28번, 원본 shot-043500) ---- */
-/* 원본 shot-043500: 순검정 풀스크린 — 카드형 여백 0, 나가기는 좌하단 빨간 ◀ (사용자 지시).
-   뒤쪽 paper 테마 .modal-card 재정의(966행대)보다 우선하도록 id 셀렉터로 특이도 확보 */
+/* 원본 shot-043500: **흰 배경** 풀스크린 + 회색 말풍선, 검정은 하단 입력 밴드뿐 — 카드형 여백 0,
+   나가기는 좌하단 빨간 ◀ (사용자 지시).
+   ⚠️ 이전 주석의 '순검정'은 오독이었다. 픽셀 census 실측: 흰색 52.6% · 말풍선 #cecece 25.2% ·
+   입력바 #0e111b 5.3% · 글자 검정 2.9%. 리그 화면과 같은 명암 반전 결함이었다.
+   뒤쪽 paper 테마 .modal-card 재정의(966행대)보다 우선하도록 id 셀렉터로 특이도 확보.
+
+   ⚠️ 이 화면의 원본은 499×804(하단 크롭)이라 다른 shot(499×892)과 세로가 달라 %H 비교가 무효다.
+   가로는 양쪽 499로 같으므로 **모든 치수를 앱 가로폭 기준 calc(var(--app-w) * x)**로 잡는다
+   (세로 치수도 %W로 환산 — 화면비가 달라져도 원본 픽셀비가 유지된다). */
 #chat-modal .modal-card.chat-card {
-    width: 100%; height: 100%; max-height: 100%; background: #000; border: none; border-radius: 0;
-    padding: .6rem .6rem calc(.6rem + env(safe-area-inset-bottom, 0px)); text-align: left; gap: .4rem;
+    width: 100%; height: 100%; max-height: 100%; background: #fff; border: none; border-radius: 0;
+    padding: 0 0 env(safe-area-inset-bottom, 0px); text-align: left; gap: 0;
 }
-.chat-input-bar .btn.round { width: 2.7rem; height: 2.7rem; font-size: 1.15rem; flex: none; }
-.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; padding: .2rem; }
-/* 원본(043500): 아바타 ≈10% 화면폭·좌 여백, 말풍선 고정폭 ≈65% */
-.chat-row { display: flex; gap: .55rem; align-items: flex-start; padding-left: .55rem; }
+/* 원본 뒤로 버튼 36×29px(7.21×5.81%W) — 정사각이 아니라 라운드 사각이라 50% 반경을 쓰면 타원이 된다 */
+.chat-input-bar .btn.round {
+    width: calc(var(--app-w) * .0721); height: calc(var(--app-w) * .0581);
+    border-radius: .35rem; font-size: 1.15rem; flex: none;
+}
+.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; padding: 0; }
+/* 원본 실측(499px 폭): 좌 여백 63px=12.63%W · 아바타 44px=8.82%W · 간격 4px=0.80%W ·
+   말풍선 324px=64.93%W → 우끝 87.17%W. 합이 곧 우측 여백 12.82%W다. */
+.chat-row {
+    display: flex; gap: calc(var(--app-w) * .008); align-items: flex-start;
+    padding-left: calc(var(--app-w) * .1263);
+}
 .chat-avatar {
-    width: 3rem; height: 3rem; border-radius: .4rem; background: #fff; border: 2px solid #000;
+    width: calc(var(--app-w) * .0882); height: calc(var(--app-w) * .0882);
+    border-radius: .4rem; background: #fff; border: 2px solid #000;
     display: flex; align-items: center; justify-content: center; font-size: 1.6rem; flex: none;
 }
-.chat-bubble-wrap { flex: 0 0 68%; min-width: 0; margin-right: auto; }
+.chat-bubble-wrap { flex: 0 0 calc(var(--app-w) * .6493); min-width: 0; margin-right: auto; }
 .chat-name-line { display: flex; align-items: center; gap: .3rem; font-size: .72rem; margin-bottom: .2rem; }
 .chat-name { font-weight: 800; }
-.chat-row.mine .chat-name { color: #7ee2a8; }
-.chat-tag { color: #81d4fa; }
-.chat-time { margin-left: auto; color: #8b93ad; font-size: .66rem; }
+.chat-row.mine .chat-name { color: #ff880f; } /* 원본은 내 메시지 이름도 같은 주황 */
+/* 원본은 태그·이름을 구분하지 않고 전부 같은 주황 rgb(255,136,15), 시간은 rgb(84,84,84) */
+.chat-tag { color: #ff880f; }
+.chat-time { margin-left: auto; color: #545454; font-size: .66rem; }
 .chat-bubble {
-    background: #d6d6d6; color: #17181a; border-radius: .6rem; padding: .45rem .65rem; font-size: .8rem;
+    background: #cecece; color: #17181a; border-radius: .6rem; padding: .45rem .65rem; font-size: .8rem;
     display: block; width: 100%; word-break: break-word; /* 원본: 짧은 메시지도 고정폭 말풍선 */
 }
 .chat-share-card {
@@ -1535,7 +1552,13 @@ body {
     background: var(--pp-blue); color: #fff; border: 2px solid #000; font-size: .82rem;
     display: flex; align-items: center; justify-content: center;
 }
-.chat-input-bar { display: flex; gap: .6rem; align-items: center; padding: .55rem .2rem; } /* 원본: 두꺼운 검정 밴드 */
+/* 원본 실측: 밴드 높이 87px=17.43%W(카드가 흰색이 됐으므로 밴드는 자기 배경 #0e111b 를 직접 갖는다),
+   좌 인셋 10px=2.00%W · 버튼→입력칸 간격 13px=2.60%W · 우 인셋 14px=2.81%W
+   → 입력칸 좌 11.82%W · 폭 85.37%W 가 자동으로 따라온다. 세로 패딩 22px=4.41%W. */
+.chat-input-bar {
+    display: flex; gap: calc(var(--app-w) * .026); align-items: center; background: #0e111b;
+    padding: calc(var(--app-w) * .0441) calc(var(--app-w) * .0281) calc(var(--app-w) * .0441) calc(var(--app-w) * .02);
+}
 .chat-input-bar input {
     flex: 1; background: #fff; border: none; border-radius: 1.4rem;
     padding: .8rem 1rem; color: #17181a; font-size: .86rem;

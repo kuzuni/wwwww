@@ -2515,7 +2515,9 @@ const UI = {
     },
 
     // ---- 채팅 화면 (UI-SPEC 28번, 원본 shot-043500): 하단 1줄 미리보기 + 탭하면 전체화면 채팅 ----
-    CHAT_NAME_COLORS: ['#ffab40', '#7ee2a8', '#81d4fa', '#f48fb1', '#ce93d8', '#ffd54f', '#ff8a65', '#a5d6a7', '#90caf9', '#f06292'],
+    // 원본 shot-043500 실측: 흰 배경에 모든 사용자 이름이 같은 주황 rgb(255,136,15)이다.
+    // (이전 파스텔 10색 팔레트는 배경이 검정일 때를 전제한 것이라 흰 배경에서 전부 읽히지 않는다.)
+    CHAT_NAME_COLORS: ['#ff880f'],
     chatNameColor(name) {
         let h = 0;
         for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
