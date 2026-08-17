@@ -526,9 +526,9 @@ body {
 
 /* ---- 스킬 컷인 + 화면 플래시 ---- */
 #skill-cutin {
-    position: absolute; top: 26%; left: 50%; transform: translateX(-50%) scale(0);
-    font-size: 1.7rem; font-weight: 900; white-space: nowrap; z-index: 6;
-    text-shadow: 0 0 14px currentColor, 0 2px 6px rgba(0,0,0,.8);
+    position: absolute; top: 20%; left: 50%; transform: translateX(-50%) scale(0);
+    font-size: 1.05rem; font-weight: 800; letter-spacing: .04em; white-space: nowrap; z-index: 6; /* 1.7rem 중앙 배너는 '워터마크'로 오독 (비평가 6.8 HUD 지적) — 캐릭터 상단의 작은 콜아웃으로 */
+    text-shadow: 0 0 10px currentColor, 0 2px 5px rgba(0,0,0,.8);
     pointer-events: none; opacity: 0;
 }
 #skill-cutin.play { animation: cutin .8s ease-out forwards; }
