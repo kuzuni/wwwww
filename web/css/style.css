@@ -661,32 +661,46 @@ body {
    타격 시각은 24% / 57% / 90% 지점이고, 마지막이 가장 강하다.
    모루 버튼 자체를 기준(position:relative)으로 삼아 오버레이가 정확히 모루 위에 온다. */
 .anvil-btn { position: relative; }
-.anvil-btn.striking { animation: anvilbump .72s linear; }
+/* 연출 중에만 모루를 위로 올린다 — 망치를 들어올린 프레임이 바로 위 장비 그리드 뒤로 숨었다(실측). */
+.anvil-btn.striking { animation: anvilbump .72s linear; z-index: 30; }
 @keyframes anvilbump {   /* 타격마다 모루가 눌렸다 돌아온다 */
     0%, 18%, 34%, 51%, 67%, 84%, 100% { transform: translateY(0) scale(1); }
     24% { transform: translateY(.09rem) scale(.975); }
     57% { transform: translateY(.09rem) scale(.975); }
     90% { transform: translateY(.16rem) scale(.95); }   /* 마지막 타격이 가장 깊다 */
 }
-.anvil-fx { position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 3; }
+/* 오버레이는 .anvil-svg와 **같은 박스·같은 viewBox(132×86)** 를 쓴다 — 그래야 망치 머리와 불티가
+   상판 좌표(55,14)에 그대로 맞는다. 예전엔 span 오버레이가 버튼 전체 높이(모루 + 해머 카운터 줄)를
+   기준으로 %를 잡아, top:62%가 상판이 아니라 받침 아래를 가리켰다. */
+.anvil-fx {
+    position: absolute; left: 0; top: 0; width: 100%; height: auto;
+    pointer-events: none; overflow: visible; z-index: 3;
+}
+/* 망치는 타격면(로컬 원점 = viewBox 55,14)을 축으로 돈다 — 회전각이 0인 프레임이 곧 '머리가 상판에
+   닿은' 자세다. 들어올릴 때는 손잡이가 서게 반시계(-)로 감고, 그만큼 머리를 위로 띄운다. */
 .anvil-fx .af-hammer {
-    position: absolute; left: 50%; top: -.2em; font-size: .5em; line-height: 1;
-    transform-origin: 20% 80%; animation: afswing .72s linear forwards;
+    transform-box: view-box; transform-origin: 55px 14px;
+    animation: afswing .72s linear forwards;
 }
+/* 거치 각(-20°)에 이 회전이 더해진다 — 타격 프레임을 +12°로 둬야 합이 -8°라 **타격면이 상판과
+   거의 나란히** 닿는다(0°로 두면 -20° 기울어 머리 왼쪽 모서리로만 찍힌다). */
 @keyframes afswing {     /* 들어올렸다 내리치기 ×3 — 마지막은 더 크게 감아 올린다 */
-    0%   { transform: translate(-15%, -70%) rotate(-72deg); opacity: 0; }
-    8%   { transform: translate(-15%, -70%) rotate(-72deg); opacity: 1; }
-    24%  { transform: translate(-15%, -8%)  rotate(16deg); }
-    41%  { transform: translate(-15%, -66%) rotate(-64deg); }
-    57%  { transform: translate(-15%, -8%)  rotate(16deg); }
-    74%  { transform: translate(-15%, -82%) rotate(-86deg); }
-    90%  { transform: translate(-15%, -2%)  rotate(22deg); }
-    100% { transform: translate(-15%, -40%) rotate(-30deg); opacity: 0; }
+    0%   { transform: translate(2px, -19px) rotate(-22deg); opacity: 0; }
+    8%   { transform: translate(2px, -19px) rotate(-22deg); opacity: 1; }
+    24%  { transform: translate(0, 0)       rotate(12deg); }
+    41%  { transform: translate(1px, -17px) rotate(-18deg); }
+    57%  { transform: translate(0, 0)       rotate(12deg); }
+    74%  { transform: translate(3px, -24px) rotate(-30deg); }
+    /* ⚠️ opacity를 8%와 100% 두 곳에만 쓰면 그 사이가 선형 보간돼 **세 번째 타격에서 이미 0.11까지
+       투명**해진다(실측: 90% 프레임에서 망치가 거의 안 보였다). 마지막 타격까지 1로 붙들고
+       그 뒤에만 뺀다. */
+    90%  { transform: translate(0, 1.2px)   rotate(15deg); opacity: 1; }   /* 마지막 타격은 살짝 파고든다 */
+    100% { transform: translate(2px, -13px) rotate(-12deg); opacity: 0; }
 }
-/* 타격 링 파동 — 타격 시각에 맞춰 각각 지연을 다르게 준다 */
+/* 타격 링 파동 — 타격 시각에 맞춰 각각 지연을 다르게 준다. 상판이 살짝 누워 보이므로 원이 아니라 타원. */
 .anvil-fx .af-ring {
-    position: absolute; left: 50%; top: 62%; width: 1.1em; height: .38em; margin: -.19em 0 0 -.55em;
-    border: .07em solid rgba(255,214,120,.95); border-radius: 50%;
+    fill: none; stroke: rgba(255,214,120,.95); stroke-width: 1.1;
+    transform-box: fill-box; transform-origin: center;
     opacity: 0; animation: afring .3s ease-out forwards;
 }
 .anvil-fx .af-ring.h0 { animation-delay: .17s; }
@@ -696,11 +710,11 @@ body {
     0%   { opacity: .95; transform: scale(.35); }
     100% { opacity: 0; transform: scale(var(--afr, 2.4)); }
 }
-/* 불티 — 타격점에서 좌우로 튄다. 이동량(--dx/--dy)·지연(--t)은 JS가 인라인으로 준다
+/* 불티 — 타격점에서 좌우로 튄다. 이동량(--dx/--dy: viewBox 단위)·지연(--t)은 JS가 인라인으로 준다
    (각도를 CSS cos()/sin()으로 풀면 구형 엔진에서 통째로 무효가 되므로 값으로 내려받는다) */
 .anvil-fx .af-spark {
-    position: absolute; left: 50%; top: 62%; width: .1em; height: .1em; margin: -.05em 0 0 -.05em;
-    border-radius: 50%; background: #ffd76a; box-shadow: 0 0 .2em #ffb300;
+    fill: #ffd76a; filter: drop-shadow(0 0 1.4px #ffb300);
+    transform-box: fill-box; transform-origin: center;
     opacity: 0; animation: afspark .34s ease-out forwards; animation-delay: var(--t, 0s);
 }
 @keyframes afspark {

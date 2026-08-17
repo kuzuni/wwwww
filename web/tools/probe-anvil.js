@@ -1,6 +1,6 @@
 // 제작(뽑기) 버튼이 ⚒️ 이모지가 아니라 모루 그림으로 렌더되는지 확인하는 도구.
 // 원본 shot-042120에서 모루는 화면 높이의 ≈8.5%(499×892 중 76px)를 차지한다 — 같은 비율로
-// 그려지는지, 타격 연출 오버레이(.anvil-fx)가 여전히 모루 위에 정확히 얹히는지 함께 잰다.
+// 그려지는지, 타격 연출 오버레이(.anvil-fx)가 여전히 모루 그림(.anvil-svg) 위에 정확히 얹히는지 함께 잰다.
 // 화면 캡처는 scratch/anvil-<w>x<h>.png 로 저장한다.
 // 사용: node probe-anvil.js [출력디렉터리]
 const path = require('path');
@@ -62,14 +62,18 @@ async function waitBooted(page, timeout = 20000) {
             };
         });
 
-        // 타격 연출을 걸고 오버레이가 모루 위에 정확히 얹히는지 확인
+        // 타격 연출을 걸고 오버레이가 모루 위에 정확히 얹히는지 확인.
+        // 기준은 **버튼이 아니라 모루 그림(.anvil-svg)** 이다 — 오버레이가 모루와 같은 viewBox(132×86)를
+        // 쓰게 바뀌면서(2026-08-18 anvil-hammer-fx) 세로 크기가 버튼(모루 + 해머 카운터 줄)이 아니라
+        // 모루 그림에 맞는다. 버튼 기준으로 재면 정상인데도 항상 어긋남으로 나온다.
         const fx = await page.evaluate(async () => {
             UI.onCraft();
             await new Promise(r => setTimeout(r, 120));
             const btn = document.querySelector('.anvil-btn');
+            const anv = document.querySelector('.anvil-btn .anvil-svg');
             const el = document.querySelector('.anvil-fx');
-            if (!btn || !el) return { fxFound: false };
-            const a = btn.getBoundingClientRect(), f = el.getBoundingClientRect();
+            if (!btn || !anv || !el) return { fxFound: false };
+            const a = anv.getBoundingClientRect(), f = el.getBoundingClientRect();
             return {
                 fxFound: true,
                 striking: btn.classList.contains('striking'),

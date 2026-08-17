@@ -1529,23 +1529,74 @@ const UI = {
     // 궤적·지속은 CSS 키프레임(.anvil-fx)이 소유하고, 여기서는 타격 시각에 소리·흔들림만 맞춰 건다.
     ANVIL_FX_MS: 720,
     ANVIL_HITS: [170, 410, 650],   // css afswing의 타격 프레임(24% / 57% / 90%)과 같은 시각
+    // 타격점 = 모루 상판 윗면(ANVIL_SVG의 `M23 4 L90 3 L95 25 L12 26 Z`)의 중심.
+    // 연출 오버레이는 모루와 **같은 viewBox(132×86)** 를 쓰므로 이 좌표 하나로 망치 머리·링·불티가
+    // 전부 같은 지점에 맞는다 — 예전처럼 버튼 높이의 %(top:62%)로 찍으면 해머 카운터 줄까지
+    // 포함된 높이라 실제 상판보다 한참 아래에 불티가 튀었다.
+    ANVIL_HIT_X: 55,
+    ANVIL_HIT_Y: 14,
+    // 망치 그림(로컬 좌표: 원점 = 타격면 중심, +x = 손잡이 방향, +y = 모루 쪽).
+    // 이 로컬 프레임을 `translate(타격점) rotate(-20)`으로 얹으면 **머리 타격면이 정확히 상판에 닿고**
+    // 손잡이는 오른쪽 위로 뻗는다. 예전 🔨 이모지는 글리프마다 머리 위치가 달라(폰트 의존)
+    // transform-origin을 어떻게 잡아도 손잡이로 치는 프레임이 나왔다 — 그래서 직접 그린다.
+    HAMMER_SVG: `<g class="af-hammer">
+        <g transform="translate(55,14) rotate(-20) scale(1.16)">
+            <g stroke="#14100e" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+                <!-- 손잡이 (머리보다 먼저 = 머리 뒤로 들어간다). 머리:자루 ≈ 1:1.7 —
+                     자루가 짧으면 망치가 아니라 나무망치(맬릿)로 읽힌다. -->
+                <path d="M3 -16.8 L38.4 -17.6 Q43.8 -17.7 43.8 -13.4 Q43.8 -9.1 38.4 -9.2 L3 -10 Z" fill="url(#hmr-wood)"/>
+                <!-- 그립 감개 -->
+                <path d="M27 -17.3 L38.4 -17.6 Q43.8 -17.7 43.8 -13.4 Q43.8 -9.1 38.4 -9.2 L27 -9.5 Z" fill="url(#hmr-grip)"/>
+                <!-- 머리: 타격면(아래) → 몸통 → 뒷굽(위). 뒷굽은 뾰족한 못이 아니라 짧고 넓은 테이퍼 —
+                     이 크기(머리 폭 ≈21px)에서 가는 핀은 검은 외곽선에 먹혀 얼룩으로만 보인다. -->
+                <path d="M-5.8 -18.4 L5.8 -18.4 L3.8 -23.6 Q0 -25 -3.8 -23.6 Z" fill="url(#hmr-steel)"/>
+                <path d="M-7.2 -18.6 Q-7.2 -12.4 -7.2 -7.4 L-8.4 -7.4 Q-9 -7.4 -9 -6.2 L-9 -1 Q-9 0.9 -7 0.9 L7 0.9 Q9 0.9 9 -1 L9 -6.2 Q9 -7.4 8.4 -7.4 L7.2 -7.4 Q7.2 -12.4 7.2 -18.6 Q7.2 -20 5.6 -20 L-5.6 -20 Q-7.2 -20 -7.2 -18.6 Z" fill="url(#hmr-steel)"/>
+            </g>
+            <g stroke="none" pointer-events="none">
+                <!-- 림라이트 + 타격면 마모 자국: 단색 덩어리로 보이지 않게 -->
+                <path d="M-6 -19 L-3.4 -19 L-3.4 -6.4 L-6 -6.4 Z" fill="#fff" opacity=".22"/>
+                <path d="M-3.4 -22.8 L-1.2 -23.6 L0.4 -19.4 L-2.6 -19.4 Z" fill="#fff" opacity=".16"/>
+                <path d="M-7.6 -5.2 L7.6 -5.2 L7.6 -3.4 L-7.6 -3.4 Z" fill="#000" opacity=".22"/>
+                <path d="M4 -16.5 L38 -17.2 L38 -15.4 L4 -14.8 Z" fill="#fff" opacity=".15"/>
+                <path d="M30.6 -17.4 L31.8 -17.4 L31.8 -9.4 L30.6 -9.4 Z" fill="#000" opacity=".26"/>
+                <path d="M35.4 -17.5 L36.6 -17.5 L36.6 -9.3 L35.4 -9.3 Z" fill="#000" opacity=".26"/>
+            </g>
+        </g>
+    </g>`,
     playAnvilStrike(done) {
         const btn = document.querySelector('.anvil-btn');
         if (!btn) { done(); return; }   // 장비 시트가 닫혀 있으면 연출을 건너뛰고 결과만 낸다
-        const fx = document.createElement('span');
-        fx.className = 'anvil-fx';
+        const cx = this.ANVIL_HIT_X, cy = this.ANVIL_HIT_Y;
         const sparks = [];
         for (let h = 0; h < 3; h++) {
             const n = h === 2 ? 9 : 6;                       // 마지막 타격이 가장 많이 튄다
             for (let i = 0; i < n; i++) {
                 // 위쪽 반구로만 튀게 각도를 잡고(모루 아래로 파고드는 불티는 오독), 중력분을 더해 아래로 떨어뜨린다
                 const a = -Math.PI * (0.08 + 0.84 * (i + U.rand(0, 0.6)) / n);
-                const d = U.rand(0.5, 1.15) * (h === 2 ? 1.35 : 1);
-                sparks.push(`<span class="af-spark" style="--dx:${(Math.cos(a) * d).toFixed(2)}em;--dy:${(Math.sin(a) * d + 0.4).toFixed(2)}em;--t:${(this.ANVIL_HITS[h] / 1000).toFixed(2)}s"></span>`);
+                const d = U.rand(9, 21) * (h === 2 ? 1.35 : 1);   // viewBox 단위(상판 폭 83)
+                sparks.push(`<circle class="af-spark" cx="${cx}" cy="${cy}" r="0.85" style="--dx:${(Math.cos(a) * d).toFixed(1)}px;--dy:${(Math.sin(a) * d + 7).toFixed(1)}px;--t:${(this.ANVIL_HITS[h] / 1000).toFixed(2)}s"/>`);
             }
         }
-        fx.innerHTML = `<span class="af-hammer">🔨</span>`
-            + [0, 1, 2].map(h => `<span class="af-ring h${h}"></span>`).join('') + sparks.join('');
+        const fx = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        fx.setAttribute('class', 'anvil-fx');
+        fx.setAttribute('viewBox', '0 0 132 86');
+        fx.setAttribute('aria-hidden', 'true');
+        fx.innerHTML = `<defs>
+                <linearGradient id="hmr-steel" x1=".1" y1="0" x2=".9" y2="1">
+                    <stop offset="0" stop-color="#cfd6de"/><stop offset=".38" stop-color="#98a3ae"/>
+                    <stop offset=".72" stop-color="#5f6a75"/><stop offset="1" stop-color="#3d454e"/>
+                </linearGradient>
+                <linearGradient id="hmr-wood" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#a9743f"/><stop offset=".5" stop-color="#82521f"/>
+                    <stop offset="1" stop-color="#54330f"/>
+                </linearGradient>
+                <linearGradient id="hmr-grip" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#5a3a2c"/><stop offset=".55" stop-color="#3f2619"/>
+                    <stop offset="1" stop-color="#28160d"/>
+                </linearGradient>
+            </defs>`
+            + [0, 1, 2].map(h => `<ellipse class="af-ring h${h}" cx="${cx}" cy="${cy}" rx="9" ry="3.1"/>`).join('')
+            + sparks.join('') + this.HAMMER_SVG;
         btn.appendChild(fx);
         btn.classList.add('striking');
         this._anvilTimers = this.ANVIL_HITS.map((t, h) => setTimeout(() => {
