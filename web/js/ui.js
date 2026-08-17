@@ -1858,7 +1858,7 @@ const UI = {
                 <span class="tile-face">${IconGen.img('egg', null, { tint: RARITY_CSS[e.rarity] })}${sel.eggs.includes(i) ? '<span class="tile-check">✓</span>' : ''}</span>
                 <span class="tile-label">알</span>
             </button>`).join('');
-        const tilesHtml = petTiles + eggTiles || '<span class="muted">재료로 쓸 펫/알이 없습니다</span>';
+        const tilesHtml = petTiles + eggTiles || '<span class="muted mat-empty">재료로 쓸 펫/알이 없습니다</span>';
 
         // 슬롯 5칸 행 폐지 → 보유 등급별 일괄 선택 버튼 (알=🥚 실루엣, 펫=🐾 실루엣, 등급색 — 사용자 지시)
         const bulkBtns = RARITIES.map(r => {
@@ -3091,7 +3091,7 @@ const UI = {
                     </div>
                 </div>
                 <p class="muted">합칠 다른 탈것 선택 (최대 5개, 재료는 흡수되어 사라집니다)</p>
-                <div class="mat-grid">${matChips || '<span class="muted">재료로 쓸 다른 탈것이 없습니다</span>'}</div>
+                <div class="mat-grid">${matChips || '<span class="muted mat-empty">재료로 쓸 다른 탈것이 없습니다</span>'}</div>
                 <button class="btn primary ${sel.length && !maxed ? '' : 'disabled'}" onclick="UI.onConfirmMountUpgrade()">업그레이드</button>
                 <button class="btn" onclick="UI.closeMountUpgrade()">닫기</button>
             </div>`;

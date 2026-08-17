@@ -427,6 +427,9 @@ body {
 
 /* ---- 펫 업그레이드 (경험치 흡수 재료 선택) ---- */
 .mat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .3rem; max-height: calc(var(--app-h) * .4); overflow-y: auto; margin: .4rem 0; }
+/* 재료가 하나도 없을 때의 안내문 — 5열 그리드의 **첫 칸(폭 51~53px)** 에 갇혀 세로 3~4줄로
+   쪼개진 채 왼쪽에 붙고 카드 나머지 90%가 백지로 남았다(QA 11차). 한 줄로 전 칸을 쓰게 한다. */
+.mat-grid > .mat-empty { grid-column: 1 / -1; text-align: center; padding: 1.1rem .5rem; line-height: 1.35; }
 .mat-chip {
     background: #22272e; border: 2px solid var(--rc, #444c56); border-radius: .5rem; padding: .3rem .1rem;
     display: flex; flex-direction: column; align-items: center; gap: .1rem; cursor: pointer; color: #eceff1;
