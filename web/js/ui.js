@@ -106,6 +106,31 @@ const UI = {
     },
 
     srRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; },
+
+    // ===== 흰 '페이퍼' 카드 위에서 쓸 등급색 =====
+    // RARITY_CSS는 어두운 3D 씬·검은 UI 위에서 쓰라고 잡은 **밝은** 팔레트다. 흰 카드 위
+    // 텍스트 색으로 그대로 쓰면 6등급 전부 WCAG AA(4.5:1) 미달이고 전설은 1.24:1로
+    // 거의 백지 위 백지였다(QA 11차 실측). 팔레트 자체는 전 화면 공용이라 건드리지 않고,
+    // **흰 배경에 쓸 때만** 같은 색상(hue)을 유지한 채 4.5:1을 넘을 때까지 어둡게 낮춘다.
+    _inkCache: {},
+    relLum(hex) {
+        return this.srRgb(hex).map(c => {
+            const s = c / 255;
+            return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+        }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+    },
+    contrastOnWhite(hex) { return 1.05 / (this.relLum(hex) + 0.05); },
+    // 흰 카드 위 텍스트용 등급색 (AA 4.5:1 보장)
+    inkRarity(hex, target) {
+        const need = target || 4.5;
+        const key = hex + '@' + need;
+        if (this._inkCache[key]) return this._inkCache[key];
+        let out = hex;
+        // 5%씩 낮추며 처음 기준을 넘는 지점에서 멈춘다 — 필요 이상으로 검게 만들지 않는다
+        for (let i = 0; i < 20 && this.contrastOnWhite(out) < need; i++) out = this.srShade(hex, -0.05 * (i + 1));
+        this._inkCache[key] = out;
+        return out;
+    },
     // base에 tint를 amt만큼 섞는다 — 결과 등급에 따라 배경 분위기를 승격시킬 때 쓴다
     srBlend(base, tint, amt) {
         const a = this.srRgb(base), b = this.srRgb(tint);
@@ -1623,7 +1648,7 @@ const UI = {
                 <div class="modal-card paper sellwarn-card">
                     <h3 class="sellwarn-title">정말 판매할까요?</h3>
                     <p class="sellwarn-body">
-                        <span class="sellwarn-item" style="color:${RARITY_CSS[sold.rarity]}">${RARITY_KR[sold.rarity]} ${sold.name}</span>
+                        <span class="sellwarn-item" style="color:${UI.inkRarity(RARITY_CSS[sold.rarity])}">${RARITY_KR[sold.rarity]} ${sold.name}</span>
                         <span class="sellwarn-note">${keptText}</span>
                     </p>
                     <div class="row">
@@ -1754,7 +1779,7 @@ const UI = {
                             ${pet.stars ? `<span class="sk-star">⭐${pet.stars}</span>` : ''}
                         </div>
                         <div class="petd-body">
-                            <div class="petd-name" style="color:${RARITY_CSS[pet.rarity]}">[${RARITY_KR[pet.rarity]}] ${PET_KR[pet.name] || pet.name}</div>
+                            <div class="petd-name" style="color:${UI.inkRarity(RARITY_CSS[pet.rarity])}">[${RARITY_KR[pet.rarity]}] ${PET_KR[pet.name] || pet.name}</div>
                             <div class="petd-stats">${U.fmt(pw.atk)} 피해<br>${U.fmt(pw.hp)} 체력</div>
                             <div class="petd-subs">${subsHtml || '옵션 없음'}</div>
                         </div>
@@ -1795,7 +1820,7 @@ const UI = {
                             <div class="petd-tile egg" style="--rc:${RARITY_CSS[egg.rarity]}">${IconGen.img('egg', null, { tint: RARITY_CSS[egg.rarity] })}</div>
                         </div>
                         <div class="petd-body">
-                            <div class="petd-name" style="color:${RARITY_CSS[egg.rarity]}">[${RARITY_KR[egg.rarity]}] 알</div>
+                            <div class="petd-name" style="color:${UI.inkRarity(RARITY_CSS[egg.rarity])}">[${RARITY_KR[egg.rarity]}] 알</div>
                             <div class="petd-stats">부화 소요 ${U.fmtTime(hatchSec)}</div>
                             <div class="petd-subs">${slotsFull ? `부화 슬롯이 가득 찼습니다 (${Pets.maxHatchSlots()}칸)` : `부화장 ${S.hatching.length}/${Pets.maxHatchSlots()} 사용 중`}</div>
                         </div>
@@ -3038,7 +3063,7 @@ const UI = {
                             ${m.stars ? `<span class="sk-star">⭐${m.stars}</span>` : ''}
                         </div>
                         <div class="petd-body">
-                            <div class="petd-name" style="color:${RARITY_CSS[m.rarity]}">[${RARITY_KR[m.rarity]}] ${MOUNT_KR[name] || name}</div>
+                            <div class="petd-name" style="color:${UI.inkRarity(RARITY_CSS[m.rarity])}">[${RARITY_KR[m.rarity]}] ${MOUNT_KR[name] || name}</div>
                             <div class="petd-stats">${U.fmt(pw.atk)} 피해<br>${U.fmt(pw.hp)} 체력</div>
                             <div class="petd-subs">${subsHtml || '옵션 없음'}<br><span class="muted">중복(승천 재료) ${m.dupes}</span></div>
                         </div>
