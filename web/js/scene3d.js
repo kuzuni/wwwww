@@ -919,36 +919,65 @@ const Scene3D = {
             pc.width = 1024; pc.height = 256; // 512×128은 근경에서 가장자리가 뭉개져 저해상 블렌딩으로 읽힘 (비평가 7.1 19번)
             const ctx = pc.getContext('2d');
             ctx.clearRect(0, 0, 1024, 256);
+            // ⚠️ 이 캔버스는 **네 변 모두에서 알파가 0이어야** 한다. 예전에는 블롭 중심 y가 60~196이고
+            // 반경이 최대 76이라 칠이 캔버스 위아래(0·256) 밖으로 잘려 나갔고, 그래서 데칼 평면의
+            // 앞·뒤 모서리가 지면 위에 **직선으로 드러났다** — 비평가 4차 지적 ⓔ '지면 사각 이음매'의 실체다
+            // (실측: 데칼을 끄면 캔버스 로컬 y241의 단차가 통째로 사라졌다 — probe-ground-seam.js).
+            // 좌우도 마찬가지다. repeat.set(2,1)로 가로 반복하는데 x=0/1024에서 잘린 블롭이 이어지지 않아
+            // 반복 경계마다 세로 이음선이 생겼다 → 아래 wrapArc가 블롭을 x축으로 감아 그려 이어 붙인다.
+            const wrapArc = (x, y, r, fill) => {
+                for (const ox of [0, -1024, 1024]) {           // 경계를 넘는 블롭은 반대쪽에도 그린다 = 이음매 없는 반복
+                    if (x + ox + r < 0 || x + ox - r > 1024) continue;
+                    const gb = ctx.createRadialGradient(x + ox, y, 0, x + ox, y, r);
+                    gb.addColorStop(0, fill);
+                    gb.addColorStop(1, 'rgba(80,60,40,0)');
+                    ctx.fillStyle = gb;
+                    ctx.beginPath(); ctx.arc(x + ox, y, r, 0, Math.PI * 2); ctx.fill();
+                }
+            };
             // 직선 그라디언트 밴드는 '아스팔트 고속도로'로 읽힘 — 소프트 블롭을 중심선 따라 지터로 겹쳐 유기적인 다짐길로
             for (let i = 0; i < 300; i++) {
                 const x = Math.random() * 1024;
                 const y = 128 + Math.sin(x * 0.01 + 1.7) * 28 + U.rand(-40, 40); // 중심선 자체가 완만히 굽이침
                 const r = 24 + Math.random() * 52;
                 const warm = Math.random() < 0.6;
-                const gb = ctx.createRadialGradient(x, y, 0, x, y, r);
-                gb.addColorStop(0, warm ? 'rgba(104,78,50,0.3)' : 'rgba(72,54,36,0.28)'); // 저알파 밝은 톤은 '안개 자국'으로 읽힘(비평가 6.9 7번) — 주변 잔디보다 확실히 어두운 황토
-                gb.addColorStop(1, 'rgba(80,60,40,0)');
-                ctx.fillStyle = gb;
-                ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+                // 저알파 밝은 톤은 '안개 자국'으로 읽힘(비평가 6.9 7번) — 주변 잔디보다 확실히 어두운 황토
+                wrapArc(x, y, r, warm ? 'rgba(104,78,50,0.3)' : 'rgba(72,54,36,0.28)');
             }
             for (let i = 0; i < 52; i++) { // 짧은 발자국/긁힘 결 — 긴 스트릭은 차선으로 오독
                 ctx.strokeStyle = Math.random() < 0.5 ? 'rgba(66,48,32,0.2)' : 'rgba(140,112,80,0.16)';
                 ctx.lineWidth = 2.4 + Math.random() * 3.2;
                 const x = Math.random() * 1024, y = 80 + Math.random() * 96;
-                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 12 + Math.random() * 28, y + U.rand(-6, 6)); ctx.stroke();
+                for (const ox of [0, -1024, 1024]) {
+                    ctx.beginPath(); ctx.moveTo(x + ox, y); ctx.lineTo(x + ox + 12 + Math.random() * 28, y + U.rand(-6, 6)); ctx.stroke();
+                }
             }
             for (let i = 0; i < 60; i++) { // 잔자갈
                 const v = 110 + Math.floor(Math.random() * 55);
                 ctx.fillStyle = `rgba(${v},${v - 12},${v - 28},0.4)`;
-                ctx.beginPath();
-                ctx.arc(Math.random() * 1024, 76 + Math.random() * 104, 1.6 + Math.random() * 3.6, 0, Math.PI * 2);
-                ctx.fill();
+                const x = Math.random() * 1024, y = 76 + Math.random() * 104, r = 1.6 + Math.random() * 3.6;
+                for (const ox of [0, -1024, 1024]) { ctx.beginPath(); ctx.arc(x + ox, y, r, 0, Math.PI * 2); ctx.fill(); }
             }
+            // 위아래 페더링 — 잘려 나간 칠을 지워 **캔버스 상·하단 알파를 정확히 0으로** 만든다.
+            // 이것이 없으면 평면 모서리가 그대로 직선으로 보인다(위 주석 참조).
+            // 남는 코어 밴드는 y 46~210(=64%)이라, 평면 깊이를 1.7 → 2.66으로 키워 **길의 실제 폭(1.7유닛)은 유지**하고
+            // 늘어난 만큼을 전부 페이드에 쓴다.
+            ctx.globalCompositeOperation = 'destination-out';
+            const fade = (y0, y1) => {                      // y0(완전 제거) → y1(보존)
+                const g2 = ctx.createLinearGradient(0, y0, 0, y1);
+                g2.addColorStop(0, 'rgba(0,0,0,1)');
+                g2.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = g2;
+                ctx.fillRect(0, Math.min(y0, y1), 1024, Math.abs(y1 - y0));
+            };
+            fade(0, 46);
+            fade(256, 210);
+            ctx.globalCompositeOperation = 'source-over';
             const ptex = new THREE.CanvasTexture(pc);
             ptex.wrapS = THREE.RepeatWrapping;
             ptex.repeat.set(2, 1);
             ptex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); // 저각 시점 밉 뭉개짐 방지 — 근경 가장자리 선명도
-            const pathGeo = new THREE.PlaneGeometry(60, 1.7, 1, 1);
+            const pathGeo = new THREE.PlaneGeometry(60, 2.66, 1, 1); // 1.7 → 2.66: 늘린 폭은 전부 위아래 페더링 몫이라 길 코어 폭은 그대로다
             pathGeo.rotateX(-Math.PI / 2);
             this.pathMesh = new THREE.Mesh(pathGeo, new THREE.MeshLambertMaterial({
                 map: ptex, transparent: true, depthWrite: false,
