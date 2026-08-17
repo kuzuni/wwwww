@@ -89,8 +89,14 @@ const TechTree = {
         for (const id in this.NODES) if (S.tech[id] === undefined) S.tech[id] = 0;
         // 상한이 25 → 5로 내려갔으므로 초과분은 잘라낸다
         for (const id in this.NODES) S.tech[id] = U.clamp(S.tech[id], 0, this.MAX_LEVEL);
-        // 진행 중이던 연구가 폐기된 노드면 취소하고 물약을 돌려준다
-        if (S.techResearch && !this.NODES[S.techResearch.id]) S.techResearch = null;
+        // 진행 중이던 연구가 폐기된 노드면 취소하고 선결제한 물약을 돌려준다 (개편 때문에 플레이어가 손해 보지 않게).
+        // 옛 노드의 비용 커브는 사라졌으므로 LEGACY_MAP으로 효과를 이어받은 새 노드의 다음 단계 비용으로 환산한다.
+        // 이어받은 노드가 없는 폐기 노드(예: eggGain)는 환산 기준이 없어 취소만 한다.
+        if (S.techResearch && !this.NODES[S.techResearch.id]) {
+            const heir = (this.LEGACY_MAP[S.techResearch.id] || []).find(nid => this.NODES[nid]);
+            if (heir) S.potions += this.cost(heir, Math.min(this.level(heir) + 1, this.MAX_LEVEL));
+            S.techResearch = null;
+        }
         if (S.techResearch === undefined) S.techResearch = null; // {id, endsAt} — 전체 트리 통틀어 동시 1건
     },
 
