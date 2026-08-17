@@ -819,7 +819,7 @@ const UI = {
         const activeMount = S.activeMount ? S.mounts[S.activeMount] : null;
         const eggCellHtml = activeMount
             ? `<div class="equip-cell egg-cell" title="탈것: ${MOUNT_KR[S.activeMount] || S.activeMount}" onclick="UI.openMounts()">
-                <span class="cell-img emoji">${MOUNT_ICONS[S.activeMount] || '🐴'}</span>
+                ${UI.mountFace(S.activeMount, 'cell-img emoji')}
                 <span class="cell-lv">Lv.${activeMount.level}</span>
             </div>`
             : `<div class="equip-cell egg-cell empty" title="탈것" onclick="UI.openMounts()"><span class="mount-sil">🐴</span><span class="slot-name">탈것</span></div>`;
@@ -841,6 +841,7 @@ const UI = {
                     ${upgTimeHtml}
                 </div>
             </div>`;
+        this.hydrateMountThumbs();   // 탈것 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },
 
     // 모루 자리 — **결정하지 않은 제작품(보류)이 있으면 모루 대신 그 카드가 놓인다** (사용자 확정 2026-08-17).
@@ -1128,6 +1129,29 @@ const UI = {
                 <button class="x-btn" onclick="UI.openForgeInfo()">✕</button>
             </div>`;
         this.hydrateForgeThumbs(this.els.forgeInfoModal);
+    },
+
+    // ---- 탈것 아이콘 = 실제 3D 탈것 (사용자 지시 2026-08-18) ----
+    // 슬롯에 이모지(🐴)를 박아 두면 실제로 소환되는 탈것과 생김새가 전혀 달라 '다른 물건'으로 읽힌다.
+    // 장비 썸네일과 같은 방식: 이모지를 먼저 깔고 다음 프레임에 3D 스냅샷으로 교체한다
+    // (첫 썸네일 호출이 렌더러·PMREM 환경맵을 만드느라 유독 무거워 동기로 부르면 화면이 붙잡힌다).
+    mountFace(name, cls) {
+        const m = name && S.mounts[name];
+        return `<span class="${cls} mt-face" data-mount="${name || ''}" data-rarity="${m ? m.rarity : ''}">`
+            + `${MOUNT_ICONS[name] || '🐴'}</span>`;
+    },
+    hydrateMountThumbs(root) {
+        const scope = root || document;
+        if (typeof Scene3D === 'undefined' || !Scene3D.mountThumb) return;
+        const faces = [...scope.querySelectorAll('.mt-face[data-mount]:not(.has-thumb)')].filter(e => e.dataset.mount);
+        if (!faces.length) return;
+        requestAnimationFrame(() => {
+            for (const el of faces) {
+                if (!el.isConnected) continue;
+                const url = Scene3D.mountThumb(el.dataset.mount, el.dataset.rarity || 'common');
+                if (url) { el.innerHTML = `<img src="${url}" alt="">`; el.classList.add('has-thumb'); }
+            }
+        });
     },
 
     // 화면에 들어온 장비 셀만 3D 스냅샷 썸네일로 교체 — 같은 부위 5개가 전부 같은 이모지로 반복되던 문제를
@@ -2667,7 +2691,7 @@ const UI = {
         const am = S.activeMount ? S.mounts[S.activeMount] : null;
         gearHtml += am
             ? `<div class="equip-cell egg-cell pinfo-mount-wide" onclick="UI.openMounts()">
-                <span class="cell-img emoji">${MOUNT_ICONS[S.activeMount] || '🐴'}</span>
+                ${UI.mountFace(S.activeMount, 'cell-img emoji')}
                 <span class="cell-lv">Lv.${am.level}</span></div>`
             : `<div class="equip-cell egg-cell empty pinfo-mount-wide" onclick="UI.openMounts()"><span class="slot-name">탈것</span></div>`;
 
@@ -2680,7 +2704,7 @@ const UI = {
                 <span class="sk-orb">${PET_ICONS[p.name] || '🐾'}<span class="sk-lv">Lv.${p.level}</span></span></button>`;
         }).join('');
         const mountIconHtml = S.activeMount && S.mounts[S.activeMount] ? `<button class="sk-cell" onclick="UI.openMountUpgrade('${S.activeMount}')">
-            <span class="sk-orb">${MOUNT_ICONS[S.activeMount] || '🐴'}<span class="sk-lv">Lv.${S.mounts[S.activeMount].level}</span></span></button>` : '';
+            <span class="sk-orb">${UI.mountFace(S.activeMount, 'mt-inline')}<span class="sk-lv">Lv.${S.mounts[S.activeMount].level}</span></span></button>` : '';
 
         const subsHtml = SUBSTATS
             .map(([key, label]) => ({ key, label, value: +stats.subs[key].toFixed(1) }))
@@ -2713,6 +2737,7 @@ const UI = {
                 </div>
                 <button class="x-btn" onclick="UI.closePlayerInfo()">✕</button>
             </div>`;
+        this.hydrateMountThumbs();   // 탈것 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },
 
     // ---- 채팅 화면 (UI-SPEC 28번, 원본 shot-043500): 하단 1줄 미리보기 + 탭하면 전체화면 채팅 ----
@@ -3094,7 +3119,7 @@ const UI = {
             const active = S.activeMount === name;
             return `<button class="pet-tile" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.openMountDetail('${name}')">
                 <span class="tile-face">
-                    ${MOUNT_ICONS[name] || '🐴'}
+                    ${UI.mountFace(name, 'mt-inline')}
                     ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${m.level}</span>
                 </span>
@@ -3122,6 +3147,7 @@ const UI = {
                 </div>
             </div>`;
         this.showModal(this.els.mountModal);
+        this.hydrateMountThumbs();   // 탈것 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },
     // 탈것 상세 팝업 — 펫 상세와 동일 패턴 (타일 클릭 진입, 장착/해제·업그레이드·승천)
     openMountDetail(name) {
@@ -3137,7 +3163,7 @@ const UI = {
                     <div class="petd-head">
                         <div class="petd-tilecol">
                             <div class="petd-tile" style="--rc:${RARITY_CSS[m.rarity]}">
-                                ${MOUNT_ICONS[name] || '🐴'}
+                                ${UI.mountFace(name, 'mt-inline')}
                                 ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                                 <span class="sk-lv">Lv.${m.level}</span>
                             </div>
@@ -3159,6 +3185,7 @@ const UI = {
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>
             </div>`;
         this.showModal(this.els.detailModal);
+        this.hydrateMountThumbs();   // 탈것 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },
     closeMounts() { this.els.mountModal.classList.add('hidden'); },
     onSummonMount() {
@@ -3189,7 +3216,7 @@ const UI = {
 
         const matChips = Object.entries(S.mounts).filter(([n]) => n !== name).map(([n, m]) => `
             <button class="mat-chip ${sel.includes(n) ? 'on' : ''} ${S.activeMount === n ? 'active' : ''}" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.onToggleMountUpgradeMat('${n}')">
-                <span>${MOUNT_ICONS[n] || '🐴'}</span><small>Lv.${m.level}${m.stars ? ` ⭐${m.stars}` : ''}</small>
+                ${UI.mountFace(n, 'mt-inline')}<small>Lv.${m.level}${m.stars ? ` ⭐${m.stars}` : ''}</small>
             </button>`).join('');
 
         const previewXp = sel.reduce((s, n) => s + Mounts.xpValue(S.mounts[n].rarity) * Mounts.levelMult(S.mounts[n]), 0);
@@ -3198,7 +3225,7 @@ const UI = {
             <div class="modal-card wide">
                 <h3>${MOUNT_KR[name] || name} 업그레이드</h3>
                 <div class="row">
-                    <span class="cell-img emoji" style="width:2.4rem;height:2.4rem;font-size:1.25rem;border-radius:50%;border-color:${RARITY_CSS[target.rarity]}">${MOUNT_ICONS[name] || '🐴'}</span>
+                    <span class="cell-img emoji" style="width:2.4rem;height:2.4rem;font-size:1.25rem;border-radius:50%;border-color:${RARITY_CSS[target.rarity]}">${UI.mountFace(name, 'mt-inline')}</span>
                     <div>
                         <div class="item-name">Lv.${target.level}${target.stars ? ` ⭐${target.stars}` : ''}</div>
                         <div class="muted">${maxed ? '만렙' : `경험치 ${U.fmt(target.xp || 0)}/${U.fmt(need)}${previewXp ? ` (+${U.fmt(previewXp)} 예정)` : ''}`}</div>
@@ -3209,6 +3236,7 @@ const UI = {
                 <button class="btn primary ${sel.length && !maxed ? '' : 'disabled'}" onclick="UI.onConfirmMountUpgrade()">업그레이드</button>
                 <button class="btn" onclick="UI.closeMountUpgrade()">닫기</button>
             </div>`;
+        this.hydrateMountThumbs();   // 탈것 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },
     onToggleMountUpgradeMat(name) {
         const sel = this._mountUpgradeMats;

@@ -2813,29 +2813,39 @@ const Scene3D = {
 
     // ---- 장비 썸네일: 미니 렌더러로 실제 3D 모델을 찍어 이미지 생성 (캐시) ----
     _thumbCache: {},
+    // 오프스크린 썸네일 렌더러 — 장비/탈것이 공유한다(GL 컨텍스트를 여러 개 만들면 금방 한도에 걸린다)
+    itemThumbInit() {
+        if (this._thumbR) return;
+        this._thumbR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+        this._thumbR.setSize(96, 96);
+        this._thumbScene = new THREE.Scene();
+        this._thumbCam = new THREE.PerspectiveCamera(35, 1, 0.1, 10);
+        this._thumbAmb = new THREE.AmbientLight(0xffffff, 0.85);
+        this._thumbDir = new THREE.DirectionalLight(0xffffff, 0.8);
+        this._thumbDir.position.set(2, 3, 2);
+        // 썸네일 렌더러는 별도 GL 컨텍스트 — 메인 씬의 PMREM 텍스처 공유 불가.
+        // 자체 PMREM 환경 필수: 없으면 고금속 PBR 재질(무기 날 등)이 반사할 게 없어 검게 찍힘.
+        try {
+            const pm = new THREE.PMREMGenerator(this._thumbR);
+            this._thumbScene.environment = pm.fromCubemap(ProChar.envMap()).texture;
+            pm.dispose();
+        } catch (e) { /* 폴백: 라이트만 */ }
+        this.itemThumbResetCam();
+    },
+    // 장비 썸네일용 고정 프레이밍 — 탈것 썸네일이 카메라를 옮기므로 매번 되돌려 놓는다
+    itemThumbResetCam() {
+        const cam = this._thumbCam;
+        if (!cam) return;
+        cam.position.set(1.0, 0.95, 2.3);
+        cam.lookAt(0, 0.4, 0);
+        cam.updateProjectionMatrix();
+    },
     itemThumb(item) {
         if (!item) return null;
         const key = item.slot + ':' + (item.wtype || '') + ':' + item.age + ':' + item.rarity + ':' + (item.nameIdx !== undefined ? item.nameIdx : '');
         if (this._thumbCache[key]) return this._thumbCache[key];
         try {
-            if (!this._thumbR) {
-                this._thumbR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-                this._thumbR.setSize(96, 96);
-                this._thumbScene = new THREE.Scene();
-                this._thumbCam = new THREE.PerspectiveCamera(35, 1, 0.1, 10);
-                this._thumbCam.position.set(1.0, 0.95, 2.3);
-                this._thumbCam.lookAt(0, 0.4, 0);
-                this._thumbAmb = new THREE.AmbientLight(0xffffff, 0.85);
-                this._thumbDir = new THREE.DirectionalLight(0xffffff, 0.8);
-                this._thumbDir.position.set(2, 3, 2);
-                // 썸네일 렌더러는 별도 GL 컨텍스트 — 메인 씬의 PMREM 텍스처 공유 불가.
-                // 자체 PMREM 환경 필수: 없으면 고금속 PBR 재질(무기 날 등)이 반사할 게 없어 검게 찍힘.
-                try {
-                    const pm = new THREE.PMREMGenerator(this._thumbR);
-                    this._thumbScene.environment = pm.fromCubemap(ProChar.envMap()).texture;
-                    pm.dispose();
-                } catch (e) { /* 폴백: 라이트만 */ }
-            }
+            this.itemThumbInit();
             const sc = this._thumbScene;
             this.clearGroup(sc);
             sc.add(this._thumbAmb, this._thumbDir);
@@ -2863,6 +2873,49 @@ const Scene3D = {
             this._thumbCache[key] = url;
             return url;
         } catch (e) { return null; }
+    },
+
+    // ---- 탈것 썸네일: 슬롯 아이콘 = 실제로 소환되는 그 탈것 (사용자 지시 2026-08-18) ----
+    // 슬롯에 이모지(🐴 등)를 박아 두면 실제 3D 탈것과 생김새가 전혀 달라 '다른 물건'으로 읽힌다.
+    // 장비 썸네일과 같은 오프스크린 렌더러에 태우되, 탈것은 종마다 몸집·형태가 크게 달라
+    // 고정 카메라로는 잘리거나 좁쌀만 하게 찍힌다 — **바운딩 박스로 매번 프레이밍을 역산**한다.
+    mountThumb(name, rarity) {
+        if (!name) return null;
+        const key = 'mount:' + name + ':' + (rarity || '');
+        if (this._thumbCache[key]) return this._thumbCache[key];
+        try {
+            this.itemThumbInit();
+            const sc = this._thumbScene;
+            this.clearGroup(sc);
+            sc.add(this._thumbAmb, this._thumbDir);
+            const mesh = this.makeMountMesh(name, rarity || 'common');
+            // 게임에서 보이는 것과 같은 3/4 방향 — 슬롯과 필드의 실루엣이 같아야 '같은 탈것'으로 읽힌다
+            const g = new THREE.Group();
+            g.rotation.y = 0.55;
+            g.add(mesh);
+            sc.add(g);
+            // 프레이밍: 모델을 원점으로 당기고, 카메라를 외접구 반경에서 화각으로 역산한 거리에 둔다
+            const box = new THREE.Box3().setFromObject(g);
+            const size = box.getSize(new THREE.Vector3());
+            const mid = box.getCenter(new THREE.Vector3());
+            const radius = Math.max(size.x, size.y, size.z) * 0.5 || 0.5;
+            g.position.sub(mid);
+            const cam = this._thumbCam;
+            const fov = cam.fov * Math.PI / 180;
+            // 여유 계수 — 1.9로 두면 탈것이 프레임의 절반만 차지해 슬롯·타일에서 좁쌀처럼 보인다
+            // (실측 캡처에서 확인). radius는 **최대 변**을 지름으로 잡은 과대 추정이라 1.35로도
+            // 뿔·꼬리·날개가 잘리지 않는다.
+            const dist = (radius * 1.35) / Math.sin(fov / 2);
+            cam.position.set(dist * 0.42, dist * 0.40, dist * 0.82);
+            cam.lookAt(0, 0, 0);
+            cam.updateProjectionMatrix();
+            this._thumbR.render(sc, cam);
+            const url = this._thumbR.domElement.toDataURL();
+            // ⚠️ 카메라는 장비 썸네일과 공유한다 — 원위치시키지 않으면 다음 장비 썸네일이 통째로 어긋난다
+            this.itemThumbResetCam();
+            this._thumbCache[key] = url;
+            return url;
+        } catch (e) { this.itemThumbResetCam(); return null; }
     },
 
     // ---- 펫: 종별 실물 모델 25종 ----
