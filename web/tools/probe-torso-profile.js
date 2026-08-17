@@ -7,8 +7,12 @@
 // ⚠️ 팔·망토·방패·검은 몸통 폭이 아니다 — 정면 프레임에서 팔이 몸통 옆에 붙어 폭에 섞이므로
 //    측정 전에 arms/cape/shield/weapon 그룹을 숨겨 '몸통 코어'만 남긴다.
 //
-// 사용: node probe-torso-profile.js
+// 사용: node probe-torso-profile.js [side]
+// ⚠️ `side` 인자를 주면 카메라를 옆으로 90° 돌려 **깊이(앞뒤) 프로파일**을 잰다. 정면 프로파일이
+//    통과해도 측면이 균일 깊이면 몸통은 여전히 달걀이다(비평가 잔여 지적 ⓔ "측면이 균일 깊이 달걀").
+//    측면 모드에서 'w'로 찍히는 값은 폭이 아니라 **깊이**이고, 허리÷가슴도 깊이 비다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const SIDE = process.argv.slice(2).includes('side');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
 (async () => {
@@ -20,7 +24,7 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     await page.goto(INDEX + '?debug=gear&w=sword&wage=medieval&rar=rare&hage=medieval&aage=medieval', { waitUntil: 'load' });
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroRig && typeof ProChar !== 'undefined', null, { timeout: 60000 });
 
-    const out = await page.evaluate(() => {
+    const out = await page.evaluate((SIDE) => {
         Combat.tick = () => {};
         if (typeof Skills !== 'undefined' && Skills.tick) Skills.tick = () => {};
         Scene3D.heroAttack = () => {};
@@ -54,6 +58,9 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         const size = box.getSize(new THREE.Vector3());
         const fwd = new THREE.Vector3();
         Scene3D.heroG.getWorldDirection(fwd);
+        // 측면 모드: 시선 방향을 y축으로 90° 돌린다(정면 벡터의 수평 수직축) — 같은 거리·같은 높이라
+        // 정면/측면 수치를 그대로 비교할 수 있다.
+        if (SIDE) fwd.set(-fwd.z, fwd.y, fwd.x);
         const dist = Math.max(size.x, size.y, size.z) * 1.25 + 0.3;
         Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)), look: c.clone() }; // 수평 시선 — 원근 왜곡 없이 폭만
         Scene3D.camera.position.copy(Scene3D.camLock.pos);
@@ -126,23 +133,36 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         for (let r = rowOfFrac(0.86); r <= rowOfFrac(0.97); r++) { const s = span(r); if (!s) continue; shMin = Math.min(shMin, s); shMax = Math.max(shMax, s); shN++; }
         const samples = [];
         for (let i = 0; i <= 16; i++) samples.push(at(i / 16));
+        // 실루엣 중심선 — 측면 모드에서 이게 수직 직선이면 앞뒤 대칭(=회전체 달걀)이다.
+        // 라테는 정의상 회전체라 z 스케일을 높이별로 바꿔도 중심선은 그대로 직선이다. 즉 '측면 달걀'을
+        // 깨는 유일한 방법은 높이별 z 오프셋(가슴 앞으로·허리 뒤로)이고, 그 효과는 이 지표에만 나타난다.
+        const mid = f => { const r = rowOfFrac(f); return lo[r] < 0 ? null : (lo[r] + hi[r]) / 2; };
+        const midS = [];
+        for (let i = 0; i <= 16; i++) { const m = mid(i / 16); midS.push({ f: +(i / 16).toFixed(3), m: m === null ? null : +m.toFixed(1) }); }
+        const mv = midS.map(s => s.m).filter(m => m !== null);
+        const midSpread = mv.length ? +(Math.max(...mv) - Math.min(...mv)).toFixed(1) : null;
         return {
             px: { w, h }, trunk: { yBot, yTop, heightPx: H },
             waist, chest, hip: at(0.06),
             waistOverChest: null, shoulderFlatness: shN ? +((shMax - shMin) / shMax).toFixed(3) : null,
-            samples,
+            samples, midS, midSpread,
         };
-    });
+    }, SIDE);
 
     if (out.error) { console.log('ERROR: ' + out.error); await browser.close(); process.exit(1); }
     out.waistOverChest = +(out.waist.w / out.chest.w).toFixed(3);
+    const L = SIDE ? '깊이' : '폭';
+    console.log('시점 :', SIDE ? '측면(깊이 프로파일)' : '정면(폭 프로파일)');
     console.log('canvas', JSON.stringify(out.px), '몸통 마스크', JSON.stringify(out.trunk));
-    console.log('허리 최소폭 :', out.waist.w + 'px @ 몸통분율 ' + out.waist.f);
-    console.log('가슴 최대폭 :', out.chest.w + 'px @ 몸통분율 ' + out.chest.f, '(가슴이면 ≥0.62, 배면 0.45~0.58)');
+    console.log('허리 최소' + L + ' :', out.waist.w + 'px @ 몸통분율 ' + out.waist.f);
+    console.log('가슴 최대' + L + ' :', out.chest.w + 'px @ 몸통분율 ' + out.chest.f, '(가슴이면 ≥0.62, 배면 0.45~0.58)');
     console.log('허리÷가슴  :', out.waistOverChest, '(목표 ≤0.78 — 잘록한 허리. 1에 가까우면 달걀)');
     console.log('어깨선 비수평도 :', out.shoulderFlatness, '(작을수록 수평 어깨)');
-    console.log('폭 프로파일(몸통분율:폭px)  0=스커트 밑단, 1=고젯');
+    console.log(L + ' 프로파일(몸통분율:' + L + 'px)  0=스커트 밑단, 1=고젯');
     console.log('  ' + out.samples.map(s => s.f + ':' + s.w).join('  '));
+    console.log('중심선 이동폭 :', out.midSpread + 'px', SIDE ? '(측면: 0에 가까우면 앞뒤 대칭 = 회전체 달걀. S자면 6px 이상)' : '(정면: 좌우 대칭이라 0 근처가 정상)');
+    console.log('중심선(몸통분율:중심x px)');
+    console.log('  ' + out.midS.map(s => s.f + ':' + s.m).join('  '));
     console.log(errs.length ? 'ERRORS: ' + errs.join(' | ') : '(no console errors)');
     await browser.close();
 })();

@@ -487,8 +487,10 @@ const ProChar = {
         skirtMat.side = THREE.DoubleSide;
         // 상단 0.205→0.19 / 밑단 0.295→0.30 — 흉갑 밑단을 0.163으로 조인 것에 맞춰 스커트 상단도
         // 함께 좁힌다. 안 좁히면 스커트 림이 잘록해진 허리보다 밖으로 튀어나와 허리 꺾임을 덮어버린다.
-        const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.30, 0.18, 14, 1, true), skirtMat); // 밑단 플레어 — 허리→밑단 벌어지는 실루엣 꺾임
-        skirt.position.y = -0.045;
+        // 상수로 뽑아 둔다 — 아래 태싯 스트랩이 스커트 원뿔면 위에 정확히 얹히도록 여기서 역산한다
+        const SK_TOP = 0.19, SK_BOT = 0.30, SK_H = 0.18, SK_Y = -0.045;
+        const skirt = new THREE.Mesh(new THREE.CylinderGeometry(SK_TOP, SK_BOT, SK_H, 14, 1, true), skirtMat); // 밑단 플레어 — 허리→밑단 벌어지는 실루엣 꺾임
+        skirt.position.y = SK_Y;
         const hem = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.014, 6, 16), gold);
         hem.rotation.x = Math.PI / 2;
         hem.position.y = -0.135;
@@ -507,10 +509,20 @@ const ProChar = {
         buckle.position.set(0, 0.05, 0.158); // 벨트 z 반경이 0.183×0.85≒0.156이므로 그 위에 얹힘 (벨트 축소 반영)
         buckle.scale.set(1.1, 0.9, 0.45);
         // 벨트에 매달리는 세로 스트랩 2줄 — 골반 앞면에 어두운 세로 분할선을 넣어 판금 덩어리를 끊는다
+        // ⚠️ 이 스트랩은 **화면에 한 번도 보인 적이 없는 죽은 지오메트리였다**(앞 세션 부수 발견 ⑨, 미수정).
+        //    z 0.196 에 평평하게 세워 뒀는데 같은 높이의 스커트 표면이 0.236 이라 완전히 매몰됐다.
+        //    원인은 상수를 눈대중으로 박은 것 — 스커트는 **밑단으로 벌어지는 원뿔**이라 표면 z 가 높이마다
+        //    다르고(스트랩 상단 0.177 → 하단 0.262), 기울기 0.12rad 로는 그 33° 경사를 따라갈 수 없다.
+        //    → 스커트 상수에서 원뿔면을 역산해 얹는다. 이제 스커트 치수를 바꿔도 스트랩이 따라간다.
+        const skirtR = y => SK_TOP + (SK_BOT - SK_TOP) * ((SK_Y + SK_H / 2 - y) / SK_H); // pelvis y → 스커트 반지름
+        const STRAP_X = 0.085, STRAP_HALF = 0.065, STRAP_Y = -0.03;
+        const strapZAt = y => Math.sqrt(Math.max(1e-6, skirtR(y) * skirtR(y) - STRAP_X * STRAP_X)); // 원형 단면에서 x 만큼 옆으로 간 지점의 z
+        const zTop = strapZAt(STRAP_Y + STRAP_HALF), zBot = strapZAt(STRAP_Y - STRAP_HALF);
         for (const sx of [-1, 1]) {
-            const tassetStrap = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.13, 0.012), deepHide);
-            tassetStrap.position.set(sx * 0.085, -0.03, 0.196);
-            tassetStrap.rotation.x = -0.12;
+            const tassetStrap = new THREE.Mesh(new THREE.BoxGeometry(0.036, STRAP_HALF * 2, 0.012), deepHide);
+            // +0.009 = 스트랩 두께 절반(0.006) + 여유 — 곡면 위에 확실히 얹혀 z-fighting 없이 보이게
+            tassetStrap.position.set(sx * STRAP_X, STRAP_Y, (zTop + zBot) / 2 + 0.009);
+            tassetStrap.rotation.x = Math.atan2(zTop - zBot, STRAP_HALF * 2); // 원뿔 경사와 평행 (음수 = 위가 뒤로)
             pelvis.add(tassetStrap);
         }
         pelvis.add(skirt, skirtLine, hem, belt, buckle);
@@ -619,8 +631,67 @@ const ProChar = {
             [0.132, 0.465],
         ];
         for (const [r, y] of prof) cuirassPts.push(new THREE.Vector2(r, y));
-        const cuirass = new THREE.Mesh(new THREE.LatheGeometry(cuirassPts, 22), steel()); // 세그먼트 18→22 (허리 곡률이 급해 각지던 것)
-        cuirass.scale.set(1.04, 1.08, 0.8); // 역삼각 실루엣 — 가슴 상향+좌우 확장, 앞뒤 눌림 (비평가: 실루엣 꺾임)
+        // ⚠️ 측면 S자 프로파일 (비평가 잔여 지적 ⓔ "정면은 해소됐고 측면만 남았다 — 균일 깊이 달걀").
+        //    라테는 **정의상 회전체**라 위 prof 반지름을 아무리 다듬어도, scale.z 를 아무리 눌러도
+        //    옆에서 본 실루엣의 **중심선은 완벽한 수직 직선**이다 — 즉 측면은 언제나 앞뒤 대칭 달걀이다.
+        //    실측(신설 `probe-torso-profile.js side`): 중심선 이동폭 8px 이지만 단조 증감이 아닌 ±노이즈,
+        //    깊이 프로파일도 폭 프로파일의 상수배(허리÷가슴 깊이 0.561 ≒ 폭비 0.64)일 뿐이었다.
+        //    → 고치는 방법은 하나뿐: **높이별 z 오프셋**. 흉곽을 앞으로 내밀고 요추를 뒤로 당겨
+        //    (사람 몸통의 실제 시상면 곡선) 중심선 자체를 휘게 한다. 깊이 배수도 함께 갈라
+        //    가슴은 두껍게·허리는 얇게 눌러 '같은 비율로 축소된 같은 타원'이 되지 않게 한다.
+        // ⚠️ 오프셋 상한은 **벨트**가 정한다 — 허리를 뒤로 너무 밀면 흉갑 뒷면이 벨트(z 반경 0.15) 밖으로
+        //    튀어나와 판금이 가죽을 뚫는다. 허리 z 반경 0.163×0.8×0.85=0.111 + 오프셋 0.016 = 0.127 < 0.15.
+        const TORSO_TOP = 0.465;                 // 라테 최상단 y (제어점 t 정규화 기준)
+        const CUIRASS_SZ = 0.8;                  // 아래 scale.z 와 반드시 같은 값 (부착물 z 계산에 재사용)
+        const TZ = [                             // [t, 깊이배수, z오프셋] — 허리(뒤·얇게) → 가슴(앞·두껍게) → 어깨(복귀)
+            [0.00, 0.85, -0.020],
+            [0.26, 0.90, -0.012],
+            [0.50, 0.98, 0.006],
+            [0.74, 1.04, 0.020],                 // 가슴 최대폭 지점 = 최대 전방 돌출
+            [1.00, 0.96, 0.010],
+        ];
+        const torsoZ = t => {
+            t = Math.min(1, Math.max(0, t));
+            for (let i = 1; i < TZ.length; i++) {
+                if (t <= TZ[i][0]) {
+                    const a = TZ[i - 1], b = TZ[i], k = (t - a[0]) / (b[0] - a[0]);
+                    const s = k * k * (3 - 2 * k);   // smoothstep — 제어점에서 각지지 않게
+                    return { d: a[1] + (b[1] - a[1]) * s, o: a[2] + (b[2] - a[2]) * s };
+                }
+            }
+            const l = TZ[TZ.length - 1];
+            return { d: l[1], o: l[2] };
+        };
+        const profR = y => {                     // prof 제어점 사이 반지름 선형 보간 (부착물 접지 계산용)
+            if (y <= prof[0][1]) return prof[0][0];
+            for (let i = 1; i < prof.length; i++) {
+                if (y <= prof[i][1]) {
+                    const a = prof[i - 1], b = prof[i];
+                    return a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]);
+                }
+            }
+            return prof[prof.length - 1][0];
+        };
+        // 흉갑 표면의 앞면 z (spine 로컬) — 문장·스트랩처럼 흉갑에 '붙는' 파츠가 새 곡면을 따라가게 한다.
+        // 이걸 안 하면 가슴을 앞으로 내민 만큼 문장이 판금 **속으로 매몰**된다(tassetStrap 이 정확히 그렇게 죽어 있었다).
+        // x 를 주면 그 지점의 타원 단면 깊이까지 반영한다 — 오프셋 o 는 곡면 전체의 평행이동이라
+        // 타원 보정 **밖**에 있어야 한다(안에 넣으면 중심에서 멀어질수록 S자 오프셋이 사라진다).
+        const torsoSurfZ = (y, x) => {
+            const m = torsoZ(y / TORSO_TOP), r = profR(y);
+            const k = x ? Math.sqrt(Math.max(0, 1 - Math.pow(x / (1.04 * r), 2))) : 1;
+            return (r * m.d * k + m.o) * CUIRASS_SZ;
+        };
+        const cuirassGeo = new THREE.LatheGeometry(cuirassPts, 22); // 세그먼트 18→22 (허리 곡률이 급해 각지던 것)
+        {
+            const p = cuirassGeo.attributes.position;
+            for (let i = 0; i < p.count; i++) {
+                const m = torsoZ(p.getY(i) / TORSO_TOP);
+                p.setZ(i, p.getZ(i) * m.d + m.o);
+            }
+            cuirassGeo.computeVertexNormals();   // 곡면이 바뀌었으므로 필수 — 안 하면 음영이 옛 회전체를 그린다
+        }
+        const cuirass = new THREE.Mesh(cuirassGeo, steel());
+        cuirass.scale.set(1.04, 1.08, CUIRASS_SZ); // 역삼각 실루엣 — 가슴 상향+좌우 확장, 앞뒤 눌림 (비평가: 실루엣 꺾임)
         // 목 링
         const gorget = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.032, 8, 14), steelDark());
         gorget.rotation.x = Math.PI / 2;
@@ -628,7 +699,8 @@ const ProChar = {
         // 가슴 문장 (등급 발광용)
         R.emblemMat = new THREE.MeshStandardMaterial({ color: 0x78909c, metalness: 0.6, roughness: 0.32 });
         const emblem = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), R.emblemMat);
-        emblem.position.set(0, 0.3, 0.2);
+        // z 상수(0.2)를 곡면 계산으로 교체 — 가슴이 앞으로 나온 만큼 문장도 따라 나와야 매몰되지 않는다
+        emblem.position.set(0, 0.3, torsoSurfZ(0.3) + 0.002);
         emblem.scale.z = 0.4;
         const emblemRim = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 14), gold);
         emblemRim.position.copy(emblem.position);
@@ -638,7 +710,9 @@ const ProChar = {
         gorgetIn.position.y = 0.452;
         // 가슴 가로 스트랩 — 흉갑 위를 사선으로 지나는 니어블랙 띠 (밝은 판금 덩어리를 분할)
         const chestStrap = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.3, 0.014), deepHide);
-        chestStrap.position.set(-0.055, 0.26, 0.196);
+        // x 가 중심에서 벗어난 만큼 그 지점의 곡면 z 는 얕아진다(타원 단면) — 그 보정까지 넣어야
+        // 스트랩이 위쪽에서만 뜨고 아래쪽에서 파묻히는 일이 없다.
+        chestStrap.position.set(-0.055, 0.26, torsoSurfZ(0.26, -0.055) + 0.004);
         chestStrap.rotation.set(-0.14, 0, 0.42);
         // 어깨 요크(클라비클 플레이트) — 흉갑 상단이 한 점으로 수렴해 두상이 몸통에 바로 얹힌
         // '눈사람'으로 읽히던 문제의 나머지 절반. 허리를 조이는 것만으로는 상단이 여전히 뾰족하다.
