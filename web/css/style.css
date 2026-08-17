@@ -86,11 +86,16 @@ body {
 #offline-btn.ready { border-color: #ffd54f; color: #ffd54f; }
 
 /* ---- 오프라인 보상 팝업 (UI-SPEC 2번, 원본 shot-042110) — 위 검정 절반 + 아래 흰 절반 ---- */
-/* 원본(042110): 모달 70% W × 55% H, 위 어두운 구역 ≈40%, 아래 흰 구역은 여백 넉넉 */
-.modal-card.offline-card { padding: 0; gap: 0; overflow: hidden; width: 70%; height: min(calc(var(--app-h) * .55), var(--popup-h-max)); }
+/* 원본(042110, 500×893) 픽셀 실측 — 위 어림값(70%W·55%H·어두운 구역 40%)을 실측치로 갈았다:
+   카드 x 15.20~84.20%W(폭 69.00) · y 22.93~77.29%H(높이 54.36) · 짙은 상단부 22.93~45.75(높이 22.82,
+   카드의 41.98%) · 흰 하단부 46.20~77.29 · [수집] 버튼 x 34.40~64.80%W(폭 30.40).
+   ⚠️ 카드가 세로로 2%p 위에 있던 것은 크기가 아니라 `.idet-wrap`이 카드 아래 ✕까지 끌어안은 채
+   가운데 정렬되는 이 패스의 단골 함정이다(프로필·던전 상세와 같은 처방 — 래퍼를 내린다). */
+.modal-card.offline-card { padding: 0; gap: 0; overflow: hidden; width: 69%; height: min(calc(var(--app-h) * .5436), var(--popup-h-max)); }
+#offline-modal .idet-wrap { position: relative; top: .96rem; }
 .offline-top {
     background: linear-gradient(180deg, #232a52, #171b38); color: #fff;
-    padding: 1.3rem .9rem 1.1rem; text-align: center; flex: 0 0 40%;
+    padding: 1.3rem .9rem 1.1rem; text-align: center; flex: 0 0 41.98%;
     display: flex; flex-direction: column; justify-content: center;
 }
 .offline-title { font-size: 1.2rem; font-weight: 900; margin-bottom: .15rem; }
@@ -110,7 +115,7 @@ body {
     flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1.2rem;
 }
 .offline-total { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); }
-.offline-bottom .offline-collect-btn { position: relative; width: 44%; align-self: center; height: 4.2rem; flex: 0 0 4.2rem; font-size: 1.2rem; } /* 원본 ≈30% 화면폭·8% H */
+.offline-bottom .offline-collect-btn { position: relative; width: 48.1%; align-self: center; height: 4.2rem; flex: 0 0 4.2rem; font-size: 1.2rem; } /* 원본 폭 30.40%W 실측 — 하단부 안쪽 폭 기준 48.1% */
 .offline-collect-dot {
     position: absolute; top: -.3rem; right: -.3rem; width: .7rem; height: .7rem; border-radius: 50%;
     background: var(--pp-red); border: 2px solid #fff;
