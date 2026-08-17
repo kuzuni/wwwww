@@ -1013,10 +1013,15 @@ const UI = {
             // 남겨 두면 중복이 뽑힐 때마다 배치가 팝업에서 멈추는 원인만 된다 — 목표 판정만 본다.
             const keep = Forge.passesAutoFilter(item);
             if (keep) {
-                this._anvilBusy = false;
                 // ⑤ '계속하기'가 꺼져 있으면 이번 선택까지만 하고 멈춘다
                 if (!Forge.autoForgeConfig().continueOnTarget) seq.stopAfterPick = true;
-                this.showCraftModal(item);
+                // 통과분도 카드로 먼저 보여준 뒤 비교 팝업 (사용자 지시 2026-08-18 — 탈락분만
+                // 카드가 있고 통과분은 팝업이 즉발로 떠서 '뭐가 뽑혔는지' 순간이 없었다)
+                this.showCraftReveal(item, () => {
+                    this._anvilBusy = false;
+                    if (this._pendingItem !== item) { this.autoSeqStep(); return; }
+                    this.showCraftModal(item);
+                });
                 return;
             }
             // 탈락 — 무엇이 나왔는지 카드로 잠깐 보여준 뒤 코인으로 터뜨린다
@@ -1044,15 +1049,15 @@ const UI = {
         if (Forge.hasAutoTarget()) return { equipped: false, gained: Forge.sell(item) };
         return Forge.autoResolve(item);
     },
-    // 필터 탈락 장비를 모루 위에 잠깐 띄운다 — '무엇이 뽑혔는지'는 항상 보여야 한다(항목 ③)
-    AUTO_CARD_MS: 620,
-    showAutoDropCard(item, done) {
+    // 모루 위에 뜨는 결과 카드 한 벌 — 탈락 카드(코인으로 빨려 들어감)와 리빌 카드(떠올라 머무름)가
+    // 같은 몸통·같은 좌표계를 쓴다. 궤적만 css 클래스로 갈린다.
+    buildCraftCard(item, cls) {
         const host = document.getElementById('app');
         const btn = document.querySelector('.anvil-btn');
-        if (!host || !btn) { done(); return; }
+        if (!host || !btn) return null;
         const hb = host.getBoundingClientRect(), bb = btn.getBoundingClientRect();
         const el = document.createElement('div');
-        el.className = 'auto-drop-card';
+        el.className = cls;
         el.style.setProperty('--rc', this.ageHex(item.age));
         el.style.left = (bb.left - hb.left + bb.width / 2) + 'px';
         el.style.top = (bb.top - hb.top) + 'px';
@@ -1060,7 +1065,25 @@ const UI = {
             <div class="adc-info"><div class="adc-name">${item.name}</div>
             <div class="adc-stat">${U.fmt(Forge.itemValue(item))} ${item.main === 'atk' ? '피해' : '체력'}</div></div>`;
         host.appendChild(el);
+        return el;
+    },
+    // 필터 탈락 장비를 모루 위에 잠깐 띄운다 — '무엇이 뽑혔는지'는 항상 보여야 한다(항목 ③)
+    AUTO_CARD_MS: 620,
+    showAutoDropCard(item, done) {
+        const el = this.buildCraftCard(item, 'auto-drop-card');
+        if (!el) { done(); return; }
         setTimeout(() => { el.remove(); done(); }, this.AUTO_CARD_MS);
+    },
+    // 제작 결과를 비교 팝업 '앞에' 카드로 리빌한다 (사용자 지시 2026-08-18:
+    // "망치질 → 카드보여줌 → 비교팝업" 순서인데 카드를 안 보여준다).
+    // 탈락 카드와 달리 모루 위로 튀어올라 **머문 채** 팝업에 자리를 넘긴다(빨려 들어가지 않는다).
+    // 카드가 걷히기 전에 팝업이 겹쳐 뜨면 '보여줬다'가 안 되므로, 카드가 사라진 뒤에 done을 부른다.
+    REVEAL_CARD_MS: 560,
+    showCraftReveal(item, done) {
+        const el = this.buildCraftCard(item, 'auto-drop-card craft-reveal');
+        if (!el) { done(); return; }
+        SFX.craftReveal(AGES.indexOf(item.age));
+        setTimeout(() => { el.remove(); done(); }, this.REVEAL_CARD_MS);
     },
 
     // ---- 대장간 팝업 3종 (UI-SPEC 21~24번): ① 확률 정보 ② 전체 장비 목록 ③ 장비 상세 ----
@@ -1527,6 +1550,9 @@ const UI = {
         const btn = document.querySelector('.anvil-btn');
         if (btn) btn.classList.remove('striking');
         document.querySelectorAll('.anvil-fx').forEach(n => n.remove());
+        // 리빌 카드도 같이 걷는다 — 안 걷으면 탭을 옮긴 화면 위에 카드만 남아 떠 있다.
+        // (남은 타이머의 done은 대기품이 이미 정리된 걸 보고 팝업을 띄우지 않는다)
+        document.querySelectorAll('.auto-drop-card.craft-reveal').forEach(n => n.remove());
     },
     onCraft() {
         if (this._anvilBusy) return;   // 연출 중 재클릭 무시 — 연타로 해머만 녹는 걸 막는다
@@ -1537,11 +1563,17 @@ const UI = {
         // 대기품은 연출 '전에' 세이브에 남긴다 — 타격 0.72초 사이에 새로고침해도 결과물이 살아 있다
         this.setPendingCraft(item);
         this.renderTopBar();
+        // 망치질이 끝나도 _anvilBusy는 **리빌 카드가 걷힐 때까지** 잡는다 — 카드가 떠 있는 사이
+        // 모루를 다시 누르면 setPendingCraft가 대기품을 덮어써 앞 장비가 해머만 먹고 사라진다
+        // (자동 제작 탈락 카드에서 이미 겪은 것과 같은 사고).
         this._anvilBusy = true;
         this.playAnvilStrike(() => {
-            this._anvilBusy = false;
-            // 연출 도중 탭을 옮겨 대기품이 이미 자동 판정됐다면(closeAllTabSurfaces) 팝업을 새로 띄우지 않는다
-            if (this._pendingItem === item) this.showCraftModal(item);
+            // 연출 도중 탭을 옮겨 대기품이 이미 자동 판정됐다면(closeAllTabSurfaces) 리빌도 팝업도 없다
+            if (this._pendingItem !== item) { this._anvilBusy = false; return; }
+            this.showCraftReveal(item, () => {
+                this._anvilBusy = false;
+                if (this._pendingItem === item) this.showCraftModal(item);
+            });
         });
     },
 

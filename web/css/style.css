@@ -626,6 +626,32 @@ body {
     70%  { opacity: 1; transform: translate(-50%, -110%) scale(1); }
     100% { opacity: 0; transform: translate(-50%, -84%) scale(.82); }
 }
+/* ---- 제작 결과 리빌 카드 (사용자 지시 2026-08-18: 망치질 → 카드보여줌 → 비교팝업) ----
+   탈락 카드와 몸통은 같지만 끝에서 빨려 들어가지 않는다: 튀어올라 **머문 채** 비교 팝업에 자리를 넘긴다.
+   등급(시대)색 링이 한 번 퍼지고 카드 위를 광택이 훑어, 0.56초 안에 '무엇이 뽑혔는지'가 읽힌다. */
+.auto-drop-card.craft-reveal {
+    overflow: hidden;
+    animation: crpop .56s cubic-bezier(.18,.9,.28,1.06) forwards, crring .56s ease-out forwards;
+}
+.auto-drop-card.craft-reveal::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,.4) 50%, transparent 62%);
+    transform: translateX(-130%); animation: crsheen .56s ease-out .08s forwards;
+}
+@keyframes crpop {
+    0%        { opacity: 0; transform: translate(-50%, -74%) scale(.62); }
+    24%       { opacity: 1; transform: translate(-50%, -126%) scale(1.12); }
+    44%       { opacity: 1; transform: translate(-50%, -112%) scale(.97); }
+    62%, 100% { opacity: 1; transform: translate(-50%, -117%) scale(1); }
+}
+@keyframes crring {   /* 시대색 링이 카드에서 한 번 퍼져 나간다 */
+    0%   { box-shadow: 0 .3rem .6rem rgba(0,0,0,.45), 0 0 0 0 color-mix(in srgb, var(--rc, #6b3538) 72%, transparent); }
+    100% { box-shadow: 0 .3rem .6rem rgba(0,0,0,.45), 0 0 0 1.1rem transparent; }
+}
+@keyframes crsheen {
+    0%        { transform: translateX(-130%); }
+    58%, 100% { transform: translateX(150%); }
+}
 /* 모루 그림은 버튼 폭을 꽉 채운다. font-size(4.4rem)는 그대로 두는데, 타격 연출의 망치·링·불꽃이
    전부 em 단위로 이 값을 기준 삼기 때문이다 — 크기만 SVG로 넘기고 기준 글자 크기는 건드리지 않는다.
    높이는 viewBox 비율(132:86 = 원본 실측 1.41:1)대로 따라와 이모지 때(≈4.4rem)와 거의 같다. */

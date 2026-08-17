@@ -37,7 +37,8 @@ async function waitBooted(page, timeout = 20000) {
         if (typeof Scene3D !== 'undefined') Scene3D.update = function () {};
         Combat.tick = function () {};
         S.hammers = 1e6; S.forgeLevel = 30; S.bestChapter = 5; S.bestStage = 9;
-        UI.playAnvilStrike = cb => cb();   // 연출 0.72초 건너뛰기
+        UI.playAnvilStrike = cb => cb();          // 연출 0.72초 건너뛰기
+        UI.showCraftReveal = (it, cb) => cb();    // 결과 카드 리빌 0.56초 건너뛰기 (사용자 지시 2026-08-18로 끼어든 단계)
     });
 
     // ⑴ 보관함 흔적이 없다

@@ -30,7 +30,10 @@ const STEP = 90, FRAMES = 9;   // 0 ~ 720ms
         const t0 = performance.now();
         const tick = () => {
             const t = performance.now() - t0;
-            if (t > 1600) return res(out);
+            // 3.2초 — 타격 0.72초 + 리빌 카드 0.56초(사용자 지시 2026-08-18로 그 사이에 끼었다) 뒤에
+            // 팝업이 뜬다. 소프트웨어 GL에서 rAF가 3fps까지 떨어지므로 창을 넉넉히 잡아야
+            // 팝업 프레임이 통째로 빠지지 않는다(1.6초 창에서 실제로 빠졌다).
+            if (t > 3200) return res(out);
             const fx = document.querySelector('.anvil-fx');
             const btn = document.querySelector('.anvil-btn');
             const ham = fx && fx.querySelector('.af-hammer');
@@ -40,6 +43,7 @@ const STEP = 90, FRAMES = 9;   // 0 ~ 720ms
                 striking: !!(btn && btn.classList.contains('striking')),
                 hammer: ham ? getComputedStyle(ham).transform : 'none',
                 sparks: fx ? fx.querySelectorAll('.af-spark').length : 0,
+                reveal: !!document.querySelector('.auto-drop-card.craft-reveal'),
                 modal: !UI.els.craftModal.classList.contains('hidden'),
                 hammers: S.hammers, busy: !!UI._anvilBusy,
             });
@@ -112,7 +116,13 @@ const STEP = 90, FRAMES = 9;   // 0 ~ 720ms
         chk(Math.max(...fxOn.map(f => f.sparks)) >= 18, `불티 ${Math.max(...fxOn.map(f => f.sparks))}개 생성`);
         chk(fxOn.every(f => f.striking), '연출 중 모루 버튼이 눌림 상태(striking) 유지');
     }
+    // 순서 계약(사용자 지시 2026-08-18): 망치질 → **결과 카드 리빌** → 비교 팝업.
+    // 카드 단계가 빠지면 "카드를 안 보여준다"는 그 지적으로 되돌아간 것이다.
+    const firstReveal = tl.find(f => f.reveal);
+    chk(!!firstReveal, firstReveal ? `결과 카드 리빌 등장 ${firstReveal.t}ms` : '결과 카드 리빌이 없다 (망치질 → 카드 → 팝업 순서 깨짐)');
+    if (firstReveal && fxOn.length) chk(firstReveal.t >= fxOn[fxOn.length - 1].t, `카드가 타격 연출 뒤에 뜸 (타격 종료 ${fxOn[fxOn.length - 1].t}ms → 카드 ${firstReveal.t}ms)`);
     chk(!!firstModal, firstModal ? `비교 팝업 등장 ${firstModal.t}ms` : '비교 팝업이 뜨지 않음');
+    if (firstModal && firstReveal) chk(firstModal.t > firstReveal.t, `팝업이 카드 뒤에 뜸 (카드 ${firstReveal.t}ms → 팝업 ${firstModal.t}ms)`);
     if (firstModal && fxOn.length) chk(firstModal.t >= fxOn[fxOn.length - 1].t, `팝업이 타격 연출 뒤에 뜸 (타격 종료 ${fxOn[fxOn.length - 1].t}ms → 팝업 ${firstModal.t}ms)`);
     chk(spent === 1, `연타해도 해머 1개만 소모 (실측 ${spent}개) — 연출 중 재클릭 무시`);
     chk(tl.some(f => f.busy), '연출 중 _anvilBusy 잠금 관측');

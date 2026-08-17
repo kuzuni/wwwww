@@ -133,6 +133,14 @@ const SFX = {
         this.tone(880, 0.12, { type: 'square', gain: 0.2, delay: 0.06 });
     },
 
+    // 제작 결과 리빌 카드가 튀어나오는 순간 — 시대가 높을수록 음이 높고, 중세 이후는 5도를 한 겹 얹는다
+    craftReveal(ageIdx) {
+        const idx = Math.max(0, ageIdx | 0);
+        const base = 560 * Math.pow(1.07, idx);
+        this.tone(base, 0.13, { type: 'triangle', gain: 0.18, slideTo: base * 1.5 });
+        if (idx >= 4) this.tone(base * 1.5, 0.2, { type: 'sine', gain: 0.1, delay: 0.05, slideTo: base * 2 });
+    },
+
     levelUp() {
         [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
             this.tone(f, 0.16, { type: 'triangle', gain: 0.28, delay: i * 0.07 }));
