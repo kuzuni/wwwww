@@ -107,3 +107,8 @@ InitTestScene*.unity*
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Playwright 검증 도구용 로컬 설치 (게임은 file:// 구동이라 런타임 의존성 없음)
+/node_modules/
+/package.json
+/package-lock.json

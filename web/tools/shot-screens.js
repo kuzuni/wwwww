@@ -1,0 +1,118 @@
+// 전 UI 화면 캡처 — 원본 shot-*.png 대조용 (TODO ② '전 UI 비율 전수 검증 패스' 2차 재채점)
+// 사용: PW_PATH=<playwright 경로> node shot-screens.js [출력디렉터리]  — 기본 출력 web/tools/ref-cmp/clone/
+// 짝: compose-ref.js 가 이 출력과 web/ref/screens/shot-*.png 를 좌우 합성(ref-cmp/cmp/)해 비평가 채점용 이미지를 만든다
+const { chromium } = require(process.env.PW_PATH || 'playwright');
+const path = require('path');
+const fs = require('fs');
+const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
+const OUT = process.argv[2] || path.join(__dirname, 'ref-cmp/clone');
+fs.mkdirSync(OUT, { recursive: true });
+
+// 화면 목록: [출력이름, 원본shot, 페이지 안에서 실행할 오프너 소스]
+const SCREENS = [
+    ['main', '042120', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces();`],
+    ['offline', '042110', `UI.showOffline(offlineRewardFor(4*3600))`],
+    ['league', '042149', `UI.openLeague()`],
+    ['league-rewards', '042208', `UI.openLeague(); UI.openLeagueRewards()`],
+    ['league-challenge', '042228', `UI.openLeague(); UI.openLeagueChallenge()`],
+    ['dungeons', '042251', `UI.openDungeons()`],
+    ['dungeon-detail', '042304', `UI.openDungeons(); UI.openDungeonDetail('hammer')`],
+    ['skills', '042340', `UI.switchTab('summon'); UI.switchSummonSub('skills')`],
+    ['pets', '042356', `UI.switchTab('summon'); UI.switchSummonSub('pets')`],
+    ['pets-2', '042445', `UI.switchTab('summon'); UI.switchSummonSub('pets')`],
+    ['tech-overview', '042407', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechOverview()`],
+    ['skill-detail', '042426', `UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.openSkillDetail(Object.keys(S.skills)[0])`],
+    ['pet-detail', '042449', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetDetail(0)`],
+    ['pet-upgrade', '042503', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetUpgrade(0)`],
+    ['summon-rates', '042521', `UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.openSummonRates('skill')`],
+    ['tech-branch', '042546', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('forge')`],
+    ['tech-node', '042605', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('forge'); UI.openTechNode('forgeSpeed')`],
+    ['shop', '042632', `UI.openShop()`],
+    ['pass', '042705', `UI.openPass()`],
+    ['profile', '042724', `UI.openProfile()`],
+    ['settings', '042744', `UI.openProfile(); UI._profileView='settings'; UI.renderProfile()`],
+    ['forge-info', '042831', `UI.openForgeInfo()`],
+    ['forge-list', '042905', `UI.openForgeInfo(); UI.openForgeList()`],
+    ['forge-detail', '042931', `UI.openForgeInfo(); UI.openForgeList(); UI.openForgeDetail(AGES[0], 'weapon', Object.keys(WEAPON_TYPES)[0])`],
+    ['autoforge', '042950', `UI.openAutoForge()`],
+    ['autoforge-filter', '043117', `S.autoForge.filterOn=true; UI.openAutoForge()`],
+    ['craft-compare', '043224', `UI.showCraftModal(Forge.rollItem())`],
+    ['gear-detail', '043244', `UI.openGearDetail('weapon')`],
+    ['player-info', '043313', `UI.openPlayerInfo()`],
+    ['chat', '043500', `UI.openChat()`],
+    ['mounts', null, `UI.openMounts()`],
+];
+
+// 캡처용 진행 상태 주입 — 빈 화면/잠금으로 레이아웃이 안 보이는 걸 방지
+const SEED = () => {
+    S.chapter = 4; S.stage = 1; S.bestChapter = 20; S.bestStage = 9; // 원본(어려움 4-1) 정합 + 영웅 생존(20-9은 즉사해 사망 토스트가 캡처 오염)
+    S.hammers = 3.02e5; S.coins = 2.71e7; S.gems = 8150; S.tickets = 160;
+    S.winders = 320; S.potions = 45; S.eggCurrency = 900; S.kills = 48210;
+    S.forgeLevel = 29; S.name = '용사';
+    S.autoForgeOn = true;
+    S.autoForge.hammersPerBatch = 22;
+    S.autoForge.keepAges = [0, 1];
+    S.autoForge.filterSubs = ['atk', 'crit'];
+    // 장비 8부위 풀장착
+    for (const slot of Object.keys(S.equipment)) {
+        let it = null;
+        for (let i = 0; i < 40 && !it; i++) { const r = Forge.rollItem(); if (r.slot === slot) it = r; }
+        if (it) { it.level = 20 + (it.ageIdx || 0); S.equipment[slot] = it; }
+    }
+    // 스킬
+    Skills.summon(false, 30);
+    for (const k of Object.keys(S.skills)) S.skills[k].level = 20 + (S.skills[k].level || 1);
+    S.summonCount = 260;
+    S.equippedSkills = Object.keys(S.skills).slice(0, 3);
+    // 펫 — 알/부화/보유 모두 채움
+    S.eggCurrency = 5000; Pets.summon(30);
+    for (let i = 0; i < 8 && S.eggs.length; i++) { const e = S.eggs.shift(); S.pets.push({ name: Pets.LIST ? Pets.LIST[i % Pets.LIST.length].name : ('펫' + i), rarity: e.rarity, level: 10 + i * 3, dupes: 4 }); }
+    if (S.hatching.length < 2 && S.eggs.length) S.hatching.push({ rarity: S.eggs.shift().rarity, endsAt: U.now() + 3600e3 });
+    S.activePets = [0, 1, 2].filter(i => S.pets[i]);
+    S.petSummonCount = 150;
+    // 탈것
+    S.winders = 4000; Mounts.summon(12); S.mountOpens = 90;
+    const mn = Object.keys(S.mounts)[0]; if (mn) S.activeMount = mn;
+    S.winders = 320;
+    // 대장간 업그레이드 진행 중 (확률 정보 팝업 하단 진행바)
+    S.forgeUpgradeEndsAt = U.now() + 96 * 60e3;
+    // 기술 연구 진행 중 (기술 노드 초록 배지)
+    try { S.techResearch = { id: 'forgeSpeed', endsAt: U.now() + 42 * 60e3 }; } catch (e) { }
+    // 던전 최고 기록
+    try { Dungeons.ensure(); for (const d of Dungeons.DEFS) { S.dungeons.best[d.id] = 19; S.dungeons.keys[d.id] = 2; } } catch (e) { }
+    saveGame();
+};
+
+(async () => {
+    const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
+    const page = await browser.newPage({ viewport: { width: 499, height: 892 }, deviceScaleFactor: 1 });
+    const errors = [];
+    page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
+    page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
+    await page.goto(INDEX, { waitUntil: 'load' });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && typeof Forge !== 'undefined', null, { timeout: 20000 });
+    await page.evaluate(SEED);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && S.forgeLevel === 29, null, { timeout: 20000 });
+    // 전투 씬이 자리잡을 시간 (메인/플레이어 정보 프리뷰)
+    await page.waitForTimeout(2500);
+    // 디버그 탭 숨김 유지 확인용 로그
+    const done = [];
+    for (const [name, ref, src] of SCREENS) {
+        try {
+            await page.evaluate(() => { try { UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); } catch (e) { } });
+            await page.waitForTimeout(120);
+            await page.evaluate(new Function(src));
+            await page.waitForTimeout(650); // 열림 애니메이션(300ms) + 렌더 여유
+            await page.screenshot({ path: path.join(OUT, name + '.png') });
+            done.push(name + (ref ? '←' + ref : ''));
+        } catch (e) {
+            errors.push('SCREEN ' + name + ': ' + e.message);
+        }
+    }
+    console.log('captured ' + done.length + '/' + SCREENS.length);
+    console.log(done.join(', '));
+    if (errors.length) console.log('\nERRORS(' + errors.length + '):\n' + errors.slice(0, 25).join('\n'));
+    else console.log('\n(no console errors)');
+    await browser.close();
+})();
