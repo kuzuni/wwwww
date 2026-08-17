@@ -1690,16 +1690,24 @@ const UI = {
     // 가로 평균 79.4% / 세로 평균 82.1%. 실루엣 모양은 장비마다 달라 '긴 변'을 기준으로 맞춘다
     // (짧은 변까지 억지로 키우면 검·창 같은 길쭉한 장비가 셀 밖으로 삐져나온다).
     THUMB_INK: 0.83,
-    _thumbFit: {},          // dataURL → transform 문자열
+    _thumbFit: {},          // dataURL → { t: transform 문자열, k: 확대 배율 }
     _thumbPending: {},
+    // 잰 결과를 요소에 얹는다. ⚠️ `--fit-k`를 같이 심는 게 중요하다 — CSS filter 는 요소에 먼저 걸리고
+    // transform 이 그 결과를 확대하므로, 검정 아웃라인(drop-shadow)도 **배율만큼 같이 두꺼워진다**.
+    // 배율이 장비마다 1.0~3.2로 달라서 그대로 두면 칸마다 테 두께가 3배까지 벌어진다(원본은 균일).
+    // 아웃라인 폭을 `calc(--slot-out / --fit-k)` 로 나눠 화면상 두께를 일정하게 만든다.
+    applyThumbFit(img, fit) {
+        img.style.transform = fit.t;
+        img.style.setProperty('--fit-k', fit.k);
+    },
     // 렌더 직후 호출 — 이미 잰 썸네일은 즉시, 처음 보는 썸네일은 디코드 후 비동기로 적용한다
     fitThumbs(root) {
         const imgs = (root || document).querySelectorAll('img.fit-ink');
         for (const img of imgs) {
             const src = img.getAttribute('src');
             if (!src) continue;
-            const t = this._thumbFit[src];
-            if (t) { img.style.transform = t; continue; }
+            const fit = this._thumbFit[src];
+            if (fit) { this.applyThumbFit(img, fit); continue; }
             if (this._thumbPending[src]) continue;
             this._thumbPending[src] = true;
             this.measureThumb(src);
@@ -1710,7 +1718,7 @@ const UI = {
         im.onload = () => {
             delete this._thumbPending[src];
             const w = im.naturalWidth, h = im.naturalHeight;
-            let t = 'none';
+            let t = 'none', kOut = 1;
             try {
                 const cv = document.createElement('canvas');
                 cv.width = w; cv.height = h;
@@ -1732,11 +1740,12 @@ const UI = {
                     const ox = -((x0 + x1 + 1) / 2 / w - 0.5) * 100;
                     const oy = -((y0 + y1 + 1) / 2 / h - 0.5) * 100;
                     t = `scale(${k.toFixed(3)}) translate(${ox.toFixed(2)}%, ${oy.toFixed(2)}%)`;
+                    kOut = +k.toFixed(3);
                 }
             } catch (e) { /* 캔버스 접근 실패(파일 프로토콜 등) — 원본 크기 그대로 둔다 */ }
-            this._thumbFit[src] = t;
+            const fit = this._thumbFit[src] = { t, k: kOut };
             document.querySelectorAll('img.fit-ink').forEach(el => {
-                if (el.getAttribute('src') === src) el.style.transform = t;
+                if (el.getAttribute('src') === src) UI.applyThumbFit(el, fit);
             });
         };
         im.onerror = () => { delete this._thumbPending[src]; };
