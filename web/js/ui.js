@@ -1569,7 +1569,7 @@ const UI = {
                 ${Ascension.ready('pet')
                     ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('pet')">⭐ 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
                     : `<button class="btn big summon-btn ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">
-                    소환 x${petSummonN}<small class="summon-cost">${IconGen.img('egg')} <b>${Pets.SUMMON_EGG_COST * petSummonN}</b></small></button>`}
+                    소환 x${Pets.summonCount(petSummonN)}<small class="summon-cost">${IconGen.img('egg')} <b>${Pets.summonCost(petSummonN)}</b></small></button>`}
                 <div class="summon-info">
                     <button class="info-dot" onclick="UI.openSummonRates('pet')">i</button>
                     <b>Lv. ${petLvl}</b>
@@ -1627,7 +1627,9 @@ const UI = {
     onSummonPetEgg() {
         const count = this.summonMult('pet');
         const r = Pets.summon(count);
-        if (!r) { this.toast(S.eggs.length + count > 20 ? `🥚 알 보관함 여유가 부족합니다 (${S.eggs.length}/20)` : '🥚 알이 부족합니다 (펫 던전에서 획득)'); return; }
+        if (!r) { this.toast(Pets.eggSpace() < 1 ? `🥚 알 보관함이 가득 찼습니다 (${S.eggs.length}/${Pets.EGG_CAP})` : '🥚 알이 부족합니다 (펫 던전에서 획득)'); return; }
+        // 보관함 여유가 배수보다 적어 줄어든 경우엔 몇 개만 나갔는지 알려준다(버튼이 죽지는 않는다)
+        if (r.clamped) this.toast(`🥚 보관함 여유만큼 ${r.summoned}개만 소환했습니다 (${S.eggs.length}/${Pets.EGG_CAP})`);
         this.renderPets();
         this.openSummonResult('pet', r.results); // 결과는 토스트 대신 전용 연출 팝업으로 보여준다
     },

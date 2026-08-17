@@ -4,6 +4,10 @@ const Pets = {
     MAX_HATCH_SLOTS_CAP: 5, // 젬 구매로 늘릴 수 있는 상한 (원본 상한 미확보 → 자체 설계)
     SLOT_GEM_COST: 400, // 원본 확인된 단가(◆400) — 이후 구매는 회당 누적 증가(자체 설계)
     MAX_ACTIVE: 3,
+    // 알 보관 상한. 예전 값 20은 공통 소환 배수(UI.SUMMON_MULTS 최대 x75)보다 작아서
+    // x25·x75가 빈 보관함에서도 항상 실패했다 — "제공되는 배수는 반드시 사용 가능해야 한다"에 맞춰
+    // 최대 배수를 빈 보관함에서 한 번에 받을 수 있는 크기로 올린다.
+    EGG_CAP: 100,
     MAX_LEVEL: 100, // 승천은 Lv.100 도달부터 (사용자 확정 스펙 2026-08-17) — 경험치 커브는 기존 곡선 연장
 
     // 현재 부화장 슬롯 수 (기본 2 + 젬 구매분, UI-SPEC 9번 "슬롯+1 ◆400")
@@ -27,7 +31,7 @@ const Pets = {
     },
 
     addEgg(rarity) {
-        if (S.eggs.length >= 20) return false;
+        if (S.eggs.length >= this.EGG_CAP) return false;
         S.eggs.push({ rarity });
         return true;
     },
@@ -41,18 +45,29 @@ const Pets = {
         return { common: r[0], rare: r[1], epic: r[2], legendary: r[3], ultimate: r[4], mythic: r[5] };
     },
     // count번 연속 소환(UI-SPEC "소환 x5" 배치, 스킬과 동일 패턴) — 비용·보관함 여유를 선결제로 한 번에 확인, 결과는 배열로 반환
-    canSummon(count = 1) { return (S.eggCurrency || 0) >= this.SUMMON_EGG_COST * count && S.eggs.length + count <= 20; },
+    eggSpace() { return Math.max(0, this.EGG_CAP - S.eggs.length); },
+    // 보관함 여유가 요청 수보다 적으면 남은 칸만큼만 소환한다 — 배수 버튼이 죽는 대신
+    // 실제로 소환될 개수로 줄어들고, 과금도 그 개수만큼만 한다.
+    summonCount(count = 1) { return Math.min(Math.max(1, Math.floor(count) || 1), this.eggSpace()); },
+    summonCost(count = 1) { return this.SUMMON_EGG_COST * this.summonCount(count); },
+    canSummon(count = 1) {
+        const n = this.summonCount(count);
+        return n >= 1 && (S.eggCurrency || 0) >= this.SUMMON_EGG_COST * n;
+    },
     summon(count = 1) {
-        if (!this.canSummon(count)) return null;
-        S.eggCurrency -= this.SUMMON_EGG_COST * count;
+        const n = this.summonCount(count);
+        if (n < 1 || (S.eggCurrency || 0) < this.SUMMON_EGG_COST * n) return null;
+        S.eggCurrency -= this.SUMMON_EGG_COST * n;
         const results = [];
-        for (let i = 0; i < count; i++) {
+        for (let i = 0; i < n; i++) {
             S.petSummonCount = (S.petSummonCount || 0) + 1;
             const rarity = U.weightedPick(this.rates());
-            this.addEgg(rarity);
+            // 방어: 여유가 사라졌으면 남은 유료분은 소환하지 않고 그만큼 환불한다(아래 보너스 예약 규칙상 실제로는 발생하지 않음)
+            if (!this.addEgg(rarity)) { S.eggCurrency += this.SUMMON_EGG_COST * (n - i); break; }
             results.push({ rarity });
-            // 기술트리 '추가 알 소환 기회'(+2%/업): 비용 없이 알 1개 더 (보관함 여유가 있을 때만)
-            if (U.chance(TechTree.extraEggChance())) {
+            // 기술트리 '추가 알 소환 기회'(+2%/업): 비용 없이 알 1개 더.
+            // 남은 유료분(n-1-i개) 자리를 보너스가 잡아먹으면 과금한 알이 사라지므로, 그만큼은 예약해 두고 남을 때만 준다.
+            if (U.chance(TechTree.extraEggChance()) && this.eggSpace() > (n - 1 - i)) {
                 const extra = U.weightedPick(this.rates());
                 if (this.addEgg(extra)) results.push({ rarity: extra, extra: true });
             }
@@ -61,7 +76,8 @@ const Pets = {
             RARITIES.indexOf(r.rarity) > RARITIES.indexOf(best) ? r.rarity : best, results[0].rarity);
         SFX.gacha(bestRarity);
         saveGame();
-        return { results };
+        // summoned/clamped = 요청 배수보다 적게 나갔는지(보관함 여유 부족) — UI가 안내 토스트에 쓴다
+        return { results, requested: count, summoned: results.filter(r => !r.extra).length, clamped: n < count };
     },
 
     hatchTimeSec(rarity) { return baseHatchingTimes[rarity] * 60 * TechTree.hatchSpeedMult(); }, // ANIMALS 분기 '부화 가속'
@@ -227,7 +243,7 @@ const Pets = {
 
     merge(rarity) {
         if (!this.canMerge(rarity)) return false;
-        if (S.eggs.length >= 20) { UI.toast('🥚 알 보관함이 가득 차 합성할 수 없습니다'); return false; }
+        if (S.eggs.length >= this.EGG_CAP) { UI.toast('🥚 알 보관함이 가득 차 합성할 수 없습니다'); return false; }
         let need = 3;
         for (let i = 0; i < S.pets.length && need > 0; i++) {
             const p = S.pets[i];
