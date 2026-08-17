@@ -94,6 +94,8 @@ function judgeStaysOpen({ frames, muts, hidden }) {
     return bad;
 }
 // 닫히는 게 정상인 팝업의 판정 — '닫힌 뒤 다시 보임'(투명해졌다 재등장)만 잡는다.
+// (2026-08-18 현재 호출부 없음 — 제작 비교 팝업이 '유지'로 뒤집히며 마지막 사용처가 사라졌다.
+//  닫힘이 정상인 팝업이 다시 생기면 그대로 쓰면 되므로 남겨 둔다.)
 function judgeClosesOnce({ frames, muts }) {
     const bad = [];
     const seq = frames.map(f => !f.hidden && f.display !== 'none' && f.opacity > 0.99);
@@ -177,7 +179,9 @@ const report = (label, bad, extra, raw) => {
             await p.click('#craft-modal .btn.equip');
             await p.waitForTimeout(700);
             const r = await p.evaluate(DISARM);
-            report('②제작비교팝업 장착(닫힘 정상)', judgeClosesOnce(r), `rAF표본=${r.frames.length}`, r);
+            // 사용자 지시 2026-08-18로 뒤집힌 항목: [장착]은 팝업을 **닫지 않는다**
+            // (닫히는 경로는 [판매]와 딤 클릭 둘뿐). 그래서 '유지' 판정으로 본다.
+            report('②제작비교팝업 장착(유지 정상)', judgeStaysOpen(r), `rAF표본=${r.frames.length}`, r);
         }
         await p.close();
     }

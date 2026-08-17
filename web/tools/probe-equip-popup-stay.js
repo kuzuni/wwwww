@@ -3,7 +3,8 @@
 //   측정값/프레임 = { hidden, opacity, cardW, opening } — opacity가 1 미만이거나 카드가 사라진 프레임이 하나라도
 //   있으면 깜빡임으로 본다. .opening 클래스가 재렌더 뒤에 다시 붙어도 (열림 애니메이션 재시작) 깜빡임이다.
 // 경로: ① 탈것 상세 [장착] ② 탈것 목록 재렌더 ③ 펫 상세 [출전] ④ 장비 상세(장착됨) 팝업이 제작 틱에도 유지되는지
-//       ⑤ 제작 비교 팝업 [장착] — 여긴 닫히는 게 정상이라 '닫힘'만 확인하고 깜빡임은 보지 않는다.
+//       ⑤ 제작 비교 팝업 [장착] — **열린 채 유지**가 정상이다(사용자 지시 2026-08-18로 뒤집혔다:
+//         닫히는 경로는 [판매]와 딤 클릭 둘뿐). 자동 제련 시퀀스 중에만 닫고 다음 제작으로 넘어간다.
 // 사용: node probe-equip-popup-stay.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
@@ -135,9 +136,34 @@ const verdict = (frames, { mustStayOpen }) => {
     await run('⑥ 탈것 상세 버튼 실클릭', '#detail-modal',
         `() => { const b = [...document.querySelectorAll('#detail-modal .btn')].find(x => /장착|해제/.test(x.textContent)); b.click(); }`, true);
 
-    // ⑤ 제작 비교 팝업 [장착] — 닫히는 게 정상
-    await page.evaluate(() => { UI.closeGearDetail(); UI.setPendingCraft(Forge.craft(1)[0]); UI.showCraftModal(UI._pendingItem); });
-    await run('⑤ 제작 비교 [장착](닫힘 정상)', '#craft-modal', `() => UI.resolveCraft('equip')`, false);
+    // ⑤ 제작 비교 팝업 [장착] — 수동 제작에서는 **열린 채 유지**(사용자 지시 2026-08-18)
+    await page.evaluate(() => { UI.closeGearDetail(); UI._autoSeq = null; UI.setPendingCraft(Forge.craft(1)[0]); UI.showCraftModal(UI._pendingItem); });
+    await run('⑤ 제작 비교 [장착](유지)', '#craft-modal', `() => UI.resolveCraft('equip')`, true);
+
+    // ⑤-b 장착이 실제로 됐는지 + 그 상태에서 딤 클릭이면 닫히는지 (유일한 닫기 경로)
+    const after = await page.evaluate(() => {
+        const el = document.querySelector('#craft-modal');
+        const before = { open: !el.classList.contains('hidden'), btns: [...el.querySelectorAll('.btn')].map(b => b.textContent.trim()) };
+        el.click();   // 딤(모달 자신) 클릭
+        return { before, closedByDim: el.classList.contains('hidden') };
+    });
+    ok(after.before.open, '⑤-b 장착 직후 제작 비교 팝업이 닫혔다 (열린 채여야 한다)');
+    ok(!after.before.btns.some(t => /^판매/.test(t)), `⑤-b 장착 후에도 [판매] 버튼이 살아 있다 (${after.before.btns.join(' / ')})`);
+    ok(after.closedByDim, '⑤-b 딤을 눌러도 안 닫힌다 — 장착 후 팝업에 갇힌다');
+    rows.push(`⑤-b 장착 후 상태            열림=${after.before.open} 버튼=[${after.before.btns.join(' / ')}] 딤닫힘=${after.closedByDim}`);
+
+    // ⑤-c 자동 제련 시퀀스 중에는 장착이 팝업을 닫고 다음으로 넘어간다(예외 경로)
+    const autoClosed = await page.evaluate(() => {
+        UI._autoSeq = { left: 1, stopAfterPick: false };
+        S.autoForgeOn = false;                    // autoSeqStep이 곧바로 다음 제작을 띄우지 않게 정지
+        UI.setPendingCraft(Forge.craft(1)[0]); UI.showCraftModal(UI._pendingItem);
+        UI.resolveCraft('equip');
+        const closed = document.querySelector('#craft-modal').classList.contains('hidden');
+        UI._autoSeq = null;
+        return closed;
+    });
+    ok(autoClosed, '⑤-c 자동 제련 시퀀스에서 장착했는데 팝업이 안 닫혔다 (시퀀스가 멈춘다)');
+    rows.push(`⑤-c 자동 시퀀스 장착         닫힘=${autoClosed}`);
 
     console.log(rows.join('\n'));
     console.log(errs.length ? '콘솔 에러: ' + errs.join(' / ') : '콘솔 에러 0건');

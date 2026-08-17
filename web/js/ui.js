@@ -870,9 +870,12 @@ const UI = {
     // 비교 팝업 딤 클릭 = 보류: 팝업만 닫고 장비는 대기품 그대로 둔다 → 모루 자리에 카드로 보인다
     onCraftDimClick(e) {
         if (e.target !== this.els.craftModal) return;   // 카드 안쪽 클릭은 무시
-        if (!this._pendingItem) return;
         this.els.craftModal.classList.add('hidden');
         this.renderEquipSheet();
+        // 대기품이 없으면 '장착 완료' 상태로 열려 있던 팝업이다 — 보류할 게 없으니 그냥 닫는다.
+        // (이 분기가 없으면 장착 후 팝업이 딤으로도 안 닫혀 갇힌다 — 사용자 지시 2026-08-18로
+        //  장착이 더 이상 팝업을 닫지 않게 되면서 생긴 새 경로다.)
+        if (!this._pendingItem) return;
         this.toast('📌 보류 — 모루 자리의 카드를 누르면 다시 고를 수 있습니다');
         this.autoSeqStep();   // 자동 시퀀스 중이었다면 계속 진행 (보류는 시퀀스를 멈추지 않는다)
     },
@@ -1697,15 +1700,40 @@ const UI = {
     doResolveCraft(mode) {
         const item = this.clearPendingCraft();
         this._pendingCraftMode = null;
-        this.els.craftModal.classList.add('hidden');
+        // 팝업이 닫히는 경로는 **[판매]와 딤 클릭 둘뿐**이다 (사용자 지시 2026-08-18).
+        // [장착]은 장착만 하고 팝업을 그대로 열어 둔다 — 앞선 세션이 이걸 '현 사양상 정상'으로
+        // 판정해 닫아 버렸던 게 잘못이었다. 단 **자동 제련 시퀀스 중에는 예외**다:
+        // 거기서는 '선택 = 다음 제작으로 진행'이 사양이라(autocraft-seq 항목) 닫고 넘어가야
+        // 시퀀스가 팝업 대기 상태로 멈추지 않는다.
+        const auto = !!this._autoSeq;
+        const keepOpen = mode === 'equip' && !auto;
+        if (!keepOpen) this.els.craftModal.classList.add('hidden');
         if (!item) return;
         // [장착]은 장착만 한다 — 이전 장비는 팔지도 보관하지도 않고 그냥 사라진다(사용자 확정 2026-08-17)
+        const prev = mode === 'equip' ? S.equipment[item.slot] : null;
         if (mode === 'equip') Forge.equip(item);
         else this.coinBurst(Forge.sell(item));
         this.renderTopBar();
         this.renderEquipSheet();
         saveGame();
+        if (keepOpen) this.showCraftEquipped(prev, item);
         this.autoSeqStep();   // 자동 시퀀스가 이 선택을 기다리고 있었다면 다음 제작으로
+    },
+    // [장착] 직후에도 열려 있는 비교 팝업 — 무엇이 무엇으로 바뀌었는지를 그대로 보여준다.
+    // 대기품은 이미 소비됐으므로 [판매]·[장착] 버튼은 살려 두면 안 된다(팔 것도 장착할 것도 없다).
+    // 이 상태에서 닫는 길은 딤 클릭이다(판매는 더 이상 해당 사항이 없어 버튼 자체가 없다).
+    showCraftEquipped(prev, item) {
+        this.els.craftModal.innerHTML = `
+            <div class="modal-card wide" style="--rc:${this.ageHex(item.age)}">
+                <div class="cmp-wrap">
+                    ${this.itemCardHTML(prev, '교체됨', null, false)}
+                    ${this.itemCardHTML(item, '장착됨', null, true)}
+                </div>
+                <div class="row">
+                    <button class="btn equip" disabled>장착 완료<small>딤을 누르면 닫힙니다</small></button>
+                </div>
+            </div>`;
+        this.showModal(this.els.craftModal);
     },
 
     // ---- 펫 패널 ----

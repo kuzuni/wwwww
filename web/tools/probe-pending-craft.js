@@ -54,7 +54,10 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
                  modal: !UI.els.craftModal.classList.contains('hidden'), name };
     });
     chk(equipped.ok, `복원 팝업에서 [장착] → 실제 장착됨 (${equipped.name})`);
-    chk(equipped.cleared && equipped.savedCleared && !equipped.modal, '선택 후 대기품이 메모리·세이브 양쪽에서 비워지고 팝업 닫힘');
+    // 팝업은 **닫히지 않는 게 정상**이다(사용자 지시 2026-08-18: 닫히는 경로는 [판매]와 딤뿐).
+    // 대기품이 비워지는 것은 그대로여야 한다 — 안 비우면 같은 장비가 모루 자리에 보류로 남는다.
+    chk(equipped.cleared && equipped.savedCleared, '선택 후 대기품이 메모리·세이브 양쪽에서 비워짐');
+    chk(equipped.modal, '[장착] 후에도 비교 팝업이 열린 채 유지됨 (사용자 지시 2026-08-18)');
 
     // ── ③ 선택 없이 새로고침 → 판매 선택도 정상인지 ────────────────
     await page.evaluate(() => { UI.onCraft(); });
