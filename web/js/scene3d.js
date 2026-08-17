@@ -5611,10 +5611,19 @@ const Scene3D = {
             // "프레임 화이트 플래시가 안 걸린다"). 일반 타격(0.14초)보다 세고 길게 줘 위계를 맞춘다.
             const barBase0 = m.barBase !== undefined ? m.barBase : (m.hpG ? m.hpG.scale.y : 1);
             const bgC0 = this.srgbC(0x0d1114).clone(), whiteC = new THREE.Color(0xffffff);
-            this.addAnim(0.26, k => {
+            // 🚨 지속 0.26 → **0.19초**. 잔상바는 0.19초에 0에 닿는데(아래 gk) 애니메이션이 0.26초까지
+            //    끌린 뒤 다시 0.16초 팝아웃이 붙어, **빈 바가 +180~420ms 동안 허공에 떠 있었다**
+            //    (비평가 5차 ⓓ, A #7 · B #8: "b3(+346ms)에 빈 바 x≈370~450인데 시체는 x≈495~595로
+            //    이미 130px 오른쪽·아래"). 실측(`probe-hit-readout.js`)도 같았다: 빈 트랙 +180ms,
+            //    +346ms 에도 바 opacity 0.063 으로 잔존.
+            //    잔상바가 0에 닿는 **바로 그 시각**에 애니메이션을 끝내고 팝아웃으로 넘긴다.
+            //    ⚠️ 잔상 곡선(0.06초 홀드 → 0.13초 소진)은 4차 지적 '얼마를 잃었나가 안 읽힌다'의
+            //       처방이라 **절대 시간으로 그대로 보존**한다 — 아래 gk 를 k 비율이 아니라 t 초로 쓴 이유다.
+            const KILLBAR_T = 0.19;
+            this.addAnim(KILLBAR_T, k => {
                 if (hpFg) { hpFg.scale.x = 0.001; hpFg.position.x = -0.4; } // 스냅 유지 (driveHpBar가 못 건드리게)
-                const t = k * 0.26;
-                const fl = U.clamp(1 - t / 0.2, 0, 1);                 // 프레임 흰 플래시 0.2초 (일반 0.14초보다 길게)
+                const t = k * KILLBAR_T;
+                const fl = U.clamp(1 - t / 0.17, 0, 1);                // 프레임 흰 플래시 0.17초 (일반 0.14초보다 길게)
                 if (m.hpBg) {
                     m.hpBg.material.color.copy(bgC0).lerp(whiteC, fl);
                     m.hpBg.material.opacity = 0.82 + fl * 0.18;
@@ -5624,15 +5633,17 @@ const Scene3D = {
                     // 잔상바가 잃은 전량을 물려받는다. **먼저 버티고 그다음 태운다** — 곧바로 감쇠시키면
                     // 임팩트 프레임에 이미 절반이 사라져(실측 0.515) '얼마를 잃었나'가 안 읽힌다.
                     // 0.06초 홀드 → 0.13초 선형 소진. 홀드 구간이 곧 손실 폭을 보여 주는 시간이다.
-                    const gk = U.clamp((k - 0.23) / 0.5, 0, 1);
+                    const gk = U.clamp((t - 0.06) / 0.13, 0, 1);   // 절대 시간: 0.06초 홀드 → 0.13초 소진 → 0.19초에 0
                     const gv = Math.max(0.001, g0 * (1 - gk));
                     gh.scale.x = gv; gh.position.x = -0.4 * (1 - gv);
                     gh.visible = gk < 1;
                 }
             }, () => {
-                if (gh) gh.visible = false; // 빈 트랙이 한 박자(팝아웃 전 0.16초) 그대로 보여야 '0이 됐다'가 지각된다
-                // 팝아웃 — 0.16초에 걸쳐 살짝 부풀며 사라진다(툭 꺼지면 '버그로 사라졌다'로 읽힌다)
-                this.addAnim(0.16, k => {
+                if (gh) gh.visible = false;
+                // 팝아웃 — 0.12초에 걸쳐 살짝 부풀며 사라진다(툭 꺼지면 '버그로 사라졌다'로 읽힌다).
+                // '0이 됐다'는 이미 **임팩트 프레임부터** 빈 앞바로 190ms 넘게 보여 줬으므로
+                // 여기서 빈 트랙을 더 붙들 이유가 없다(그게 ⓓ의 원인이었다).
+                this.addAnim(0.12, k => {
                     barG.scale.setScalar(s0 * (1 + 0.15 * k));
                     [m.hpBg, hpFg, gh].forEach(o => { if (o) { o.material.transparent = true; o.material.opacity = 1 - k; } });
                 }, () => { barG.visible = false; });

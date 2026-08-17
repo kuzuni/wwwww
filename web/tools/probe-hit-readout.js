@@ -99,7 +99,12 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
                 front: m.hpFg ? +m.hpFg.scale.x.toFixed(3) : null,
                 ghost: m.hpGhost ? +m.hpGhost.scale.x.toFixed(3) : null,
                 ghostVisible: m.hpGhost ? m.hpGhost.visible : null,
-                barVisible: m.hpBg ? m.hpBg.visible : null,
+                // ⚠️ `m.hpBg.visible` 은 **끝까지 true 다** — 팝아웃은 부모 그룹의 visible 과
+                //    재질 opacity 로 끄기 때문이다. 이걸로 '바가 사라졌나'를 판정하면 영원히 '보임'이라
+                //    비평가 ⓓ('사망 후 빈 바가 허공에 남는다')를 프로브가 절대 못 잡는다.
+                barVisible: m.hpBg && m.hpBg.parent
+                    ? (m.hpBg.parent.visible && m.hpBg.material.opacity > 0.02) : null,
+                barOpacity: m.hpBg ? +m.hpBg.material.opacity.toFixed(3) : null,
                 numText: num && num.text,
             });
         };
@@ -122,10 +127,21 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     console.log('\n── ① 처치 후 HP바 채움 (처치 직전 폭 = 1.000) ──');
     console.log('  처치 직전 앞바 scale.x = %s', out.v0);
     for (const k of out.kill) {
-        console.log('  +%sms  앞바=%s  잔상바=%s(visible %s)  바보임=%s  숫자="%s"',
-            k.t, String(k.front).padStart(5), String(k.ghost).padStart(5), k.ghostVisible, k.barVisible, k.numText);
+        console.log('  +%sms  앞바=%s  잔상바=%s(visible %s)  바보임=%s(opacity %s)  숫자="%s"',
+            k.t, String(k.front).padStart(5), String(k.ghost).padStart(5), k.ghostVisible,
+            k.barVisible, k.barOpacity, k.numText);
     }
     console.log('  판정: 비평가는 +16ms 에 "약 48% 차 있다"고 했다 — 앞바 값이 그 근처면 지적이 맞다.');
+    {
+        // 비평가 5차 ⓓ: "사망 후 빈 HP바가 허공에 남는다"(A #7 · B #8) — b3(+346ms)에 빈 바가 있는데
+        // 시체는 이미 130px 오른쪽·아래다. 바가 비는 시각(잔상까지 0)과 사라지는 시각의 **간격**이 결함이다.
+        const emptied = out.kill.find(k => k.front <= 0.01 && k.ghost <= 0.01);
+        const gone = out.kill.find(k => !k.barVisible);
+        const late = out.kill.find(k => k.t >= 346 && k.barVisible);
+        console.log('  ⓓ 빈 트랙이 된 시각 %s / 바가 사라진 시각 %s',
+            emptied ? '+' + emptied.t + 'ms' : '(구간 내 없음)', gone ? '+' + gone.t + 'ms' : '(구간 내 없음)');
+        console.log('  ⓓ 판정: +346ms 에 빈 바가 %s → %s', late ? '남아 있다' : '없다', late ? 'FAIL' : 'PASS');
+    }
 
     console.log(errors.length ? '\nCONSOLE ERRORS: ' + errors.join(' | ') : '\n(no console errors)');
     await browser.close();
