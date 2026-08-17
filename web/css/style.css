@@ -690,7 +690,13 @@ body {
    닿은' 자세다. 들어올릴 때는 손잡이가 서게 반시계(-)로 감고, 그만큼 머리를 위로 띄운다. */
 .anvil-fx .af-hammer {
     transform-box: view-box; transform-origin: 55px 14px;
-    animation: afswing .72s linear forwards;
+    /* 스윙(0~720ms) 뒤 퇴장(720~880ms)을 따로 건다 — 오버레이가 900ms까지 사는 것은 3타 링·불티를
+       끝까지 살리기 위해서지 망치를 공중에 세워 두려는 게 아니다. */
+    animation: afswing .72s linear forwards, afexit .16s cubic-bezier(.35,0,.75,.4) .72s forwards;
+}
+@keyframes afexit {   /* 감아 올린 자세 그대로 화면 위로 빠진다 */
+    0%   { transform: translate(5px, -34px)  rotate(-46deg); opacity: 1; }
+    100% { transform: translate(8px, -62px)  rotate(-64deg); opacity: 0; }
 }
 /* 거치 각(-20°)에 이 회전이 더해진다 — 타격 프레임을 +10~16°로 둬야 합이 -10°~-4°라 **타격면이
    상판과 거의 나란히** 닿는다(0°로 두면 -20° 기울어 머리 왼쪽 모서리로만 찍힌다).

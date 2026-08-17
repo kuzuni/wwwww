@@ -154,10 +154,11 @@ async function waitBooted(page, timeout = 25000) {
             const t = a.effect.getTiming();
             end = Math.max(end, (Number(t.delay) || 0) + (Number(t.duration) || 0));
         }));
-        return { lastEndMs: end, tail: UI.ANVIL_FX_TAIL_MS, done: UI.ANVIL_FX_MS };
+        return { lastEndMs: end, life: UI.ANVIL_FX_MS };
     });
-    say(life.tail >= life.lastEndMs,
-        `⑥ 오버레이 수명 ${life.tail}ms ≥ 마지막 자식 애니메이션 종료 ${life.lastEndMs}ms (done()은 ${life.done}ms에 따로 부름)`);
+    say(life.life >= life.lastEndMs,
+        `⑥ 오버레이 수명 ${life.life}ms ≥ 마지막 자식 애니메이션 종료 ${life.lastEndMs}ms`);
+    say(life.life <= 900, `⑥ 총 템포 ${life.life}ms ≤ 900ms (항목 스펙 0.6~0.9초)`);
 
     say(errs.length === 0, `⑤ 콘솔/페이지 에러 ${errs.length}건${errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''}`);
     await browser.close();

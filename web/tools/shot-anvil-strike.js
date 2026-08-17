@@ -5,7 +5,7 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
-const STEP = 90, FRAMES = 9;   // 0 ~ 720ms
+const STEP = 100, FRAMES = 10;  // 0 ~ 900ms (연출 총 길이 = UI.ANVIL_FX_MS)
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -58,9 +58,12 @@ const STEP = 90, FRAMES = 9;   // 0 ~ 720ms
     }));
 
     // ── 정지 프레임 시트 ──
-    // ⚠️ 여기서 거는 인라인 animation-delay는 .af-ring.h0/h1/h2가 CSS로 갖고 있는 개별 지연(.17/.41/.65s)을
-    //    덮어쓴다 — 그래서 정지 프레임에서는 링 3개가 같이 뜬다. 실제 타격 시각이 어긋난 게 아니라 캡처
-    //    방식의 한계이며, 타격 순서 판정은 위의 실시간 타임라인이 담당한다.
+    // 프레임 고정은 **Web Animations API**로 한다(인라인 animation-delay 아님).
+    // ⚠️ 인라인 `animation-delay: -Nms`는 요소가 가진 **모든** 애니메이션에 같은 값을 덮어쓴다:
+    //    ⑴ .af-ring.h0/h1/h2의 개별 지연(.152/.390/.628s)이 날아가 링 3개가 한꺼번에 뜨고,
+    //    ⑵ .af-hammer가 `afswing` + `afexit`(지연 .72s) 두 개를 갖게 된 뒤로는 afexit이 0ms부터
+    //       돌아 **9프레임 중 7프레임이 퇴장 자세로 고정**됐다(실측: 서로 다른 transform이 3종뿐 →
+    //       '망치가 안 움직인다'는 거짓 실패). currentTime을 물리면 각 애니메이션의 제 지연이 그대로 살아난다.
     await page.evaluate(() => { UI.els.craftModal.classList.add('hidden'); UI.clearPendingCraft(); });
     const shots = [], poses = [];
     for (let i = 0; i < FRAMES; i++) {
@@ -70,9 +73,8 @@ const STEP = 90, FRAMES = 9;   // 0 ~ 720ms
             UI._anvilBusy = false;
             UI.playAnvilStrike(() => {});
             const fx = document.querySelector('.anvil-fx');
-            for (const n of [btn, fx, ...fx.querySelectorAll('*')]) {
-                n.style.animationPlayState = 'paused';
-                n.style.animationDelay = `-${ms}ms`;
+            for (const n of [btn, fx, ...fx.querySelectorAll('*'), ...btn.querySelectorAll('*')]) {
+                n.getAnimations().forEach(a => { a.pause(); a.currentTime = ms; });
             }
             const h = fx.querySelector('.af-hammer'), r = fx.querySelector('.af-ring.h2');
             return { hammer: getComputedStyle(h).transform, hOp: getComputedStyle(h).opacity,
