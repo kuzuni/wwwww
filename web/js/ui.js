@@ -2182,8 +2182,18 @@ const UI = {
             <div class="tech-branch-grid">${cardsHtml}</div>
             <button class="league-back-btn sheet-back-btn" onclick="UI.switchTab(null)">◀</button>`;
     },
-    // 분기 상세: 노드를 2개씩 쌍으로 묶어 가로선으로 잇고 쌍 사이는 세로선으로 이어
-    // 원본(shot-042546)의 좌우 분기 갈래 트리 형태를 재현한다.
+    // 원본 행 구성 주기 — 노드 수에 맞춰 잘라 쓴다 (renderTechBranchView 주석 참고)
+    TECH_ROW_CYCLE: [2, 2, 2, 1, 2, 1, 1],
+    techRowSizes(n) {
+        const rows = [];
+        for (let i = 0, k = 0; i < n; k++) {
+            const size = Math.min(this.TECH_ROW_CYCLE[k % this.TECH_ROW_CYCLE.length], n - i);
+            rows.push(size);
+            i += size;
+        }
+        return rows;
+    },
+    // 분기 상세: 원본(shot-042546)의 좌우 분기 갈래 트리 형태를 재현한다.
     // 노드 개수·효과는 원본 미확보로 자체 설계(기술트리 개편 항목에서 확정), 이번 작업은 배치만 원본화.
     renderTechBranchView() {
         const b = TechTree.BRANCHES.find(x => x.id === this._techBranch);
@@ -2201,14 +2211,25 @@ const UI = {
                 <div class="tech-tree-label">${badge}</div>
             </div>`;
         };
+        // 원본(shot-042546) 골격 재현: 행 구성이 2·2·2·1·2·1·1 주기다 — 중앙 줄기에서 좌우 병렬
+        // 갈래로 갈라졌다가 중앙 단독 노드로 합류하고 다시 갈라진다. 규칙 두 개로 골격이 결정된다:
+        //  ① 가로 바는 연속된 2노드 행 묶음(=병렬 블록)의 **진입행·이탈행에만** — 블록 가운데 행엔 없다
+        //  ② 세로선은 위아래가 모두 2노드 행이면 좌·우 열 두 갈래, 그 밖에는 중앙 줄기 한 줄
+        // (12노드=2,2,2,1,2,1,1,1 / 10노드=2,2,2,1,2,1 / 7노드=2,2,2,1 로 자연히 잘린다)
+        const sizes = this.techRowSizes(b.nodes.length);
         const rowsHtml = [];
-        for (let i = 0; i < b.nodes.length; i += 2) {
-            const pair = b.nodes.slice(i, i + 2);
-            if (i > 0) rowsHtml.push('<div class="tech-tree-vline"></div>');
-            rowsHtml.push(pair.length === 2
-                ? `<div class="tech-tree-row">${nodeCol(pair[0])}<div class="tech-tree-hline"></div>${nodeCol(pair[1])}</div>`
-                : nodeCol(pair[0]));
-        }
+        let at = 0;
+        sizes.forEach((size, r) => {
+            const prev = sizes[r - 1], next = sizes[r + 1];
+            if (r > 0) rowsHtml.push(prev === 2 && size === 2
+                ? '<div class="tech-tree-vrow"><i></i><i></i></div>' // 병렬 블록 안 — 좌·우 두 갈래
+                : '<div class="tech-tree-vline"></div>');            // 블록 진입/이탈 — 중앙 줄기
+            const ids = b.nodes.slice(at, at + size);
+            at += size;
+            if (size === 1) { rowsHtml.push(`<div class="tech-tree-row">${nodeCol(ids[0])}</div>`); return; }
+            const bar = (prev !== 2 || next !== 2) ? '<div class="tech-tree-hline"></div>' : '<div class="tech-tree-hgap"></div>';
+            rowsHtml.push(`<div class="tech-tree-row">${nodeCol(ids[0])}${bar}${nodeCol(ids[1])}</div>`);
+        });
         this.els.techPanel.innerHTML = `
             <div class="sheet-head">
                 <span class="cur-pill potion">🧪 ${U.fmt(S.potions || 0)}</span>
