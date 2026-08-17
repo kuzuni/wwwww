@@ -1125,8 +1125,17 @@ body {
 /* 원본(042724): 프로필 모달 70% W × 69% H, 탭은 모달 최하단 고정 */
 /* .modal-card.wide(클래스 2개)가 .profile-sheet(1개)보다 특이도가 높아 70%가 먹지 않고 80%로 그려졌다
    — 복합 선택자로 승격해 원본 실측 71.6%를 적용한다. */
-.modal-card.wide.profile-sheet { width: 71.6%; height: min(calc(var(--app-h) * .66), var(--popup-h-max)); display: flex; flex-direction: column; }
-.profile-sheet .profile-tabs { margin-top: auto; }
+/* 카드 높이는 원본 실측 재확인(전수 검증 패스): shot-042744 카드 135~745px/884 = 69.00%H,
+   shot-042724 카드 139~749px/893 = 68.31%H — 두 원본 모두 카드 실높이 610px로 일치한다.
+   .66은 여기서 4~5%p 짧아 카드 하단(과 거기 걸친 ✕)이 통째로 위로 올라와 있었다. */
+.modal-card.wide.profile-sheet { width: 71.6%; height: min(calc(var(--app-h) * .70), var(--popup-h-max)); display: flex; flex-direction: column; }
+/* 원본은 [프로필][설정] 줄 아래로 카드 바닥까지 55px(6.2%H)의 흰 여백이 남는다 —
+   카드 패딩 1.1rem만으로는 13px뿐이라 버튼줄이 바닥에 붙어 있었다. */
+.profile-sheet .profile-tabs { margin-top: auto; margin-bottom: 2.2rem; }
+/* 원본 카드 상단은 15.27%H(042744)·15.57%H(042724)인데, .idet-wrap 이 카드 아래로 튀어나온 ✕ 높이까지
+   끌어안은 채 .modal 세로 중앙에 놓이므로 카드가 그만큼 위로 밀린다. 카드를 키울수록 이 편차가
+   커져(13.9%H) 카드 안 내용이 통째로 올라가므로, 이 모달에 한해 래퍼를 내려 원본 위치에 맞춘다. */
+#profile-modal .idet-wrap { position: relative; top: .8rem; }
 .profile-field-row { display: flex; align-items: center; gap: .4rem; margin-top: .1rem; }
 .profile-field {
     flex: 1; background: var(--pp-panel); border: 2px solid var(--pp-line); border-radius: .4rem;
@@ -1145,7 +1154,10 @@ body {
 .profile-tabs {
     display: grid; grid-template-columns: 1fr 1fr; margin-top: 1rem;
     border: 3px solid var(--pp-line); border-radius: .5rem; overflow: hidden;
-    width: 55%; margin-left: auto; margin-right: auto; /* 원본 토글 ≈50% W 중앙 (185) */
+    /* 원본 실측: 버튼줄 251px — shot-042744 51.33%W(489), shot-042724 50.60%W(496).
+       55%는 이 '화면 대비 %'를 카드 콘텐츠 대비 %로 잘못 옮긴 값이라 실제로는 34.7%W(173px)로 그려졌다.
+       카드 콘텐츠 폭(카드 71.6%W − 테두리 3px×2 − 패딩 1.1rem×2) 기준으로 환산하면 81%다. */
+    width: 81%; margin-left: auto; margin-right: auto;
 }
 .profile-tabs button {
     border: none; border-left: 3px solid var(--pp-line); font-weight: 900; font-size: .85rem;
@@ -1153,12 +1165,26 @@ body {
 }
 .profile-tabs button:first-child { border-left: none; }
 .profile-tabs button.on { background: var(--pp-blue); }
-.settings-list { margin: 0 -1.1rem; }
+/* 줄무늬 색은 원본 픽셀값 그대로 — shot-042744 목록은 rgb(204,204,204)/rgb(238,238,238) 교대다.
+   --pp-panel(#efefef)+카드 흰색(#fff)으로 그리면 대비가 51 → 16으로 떨어져 줄이 거의 안 보였다.
+   --pp-panel은 다른 팝업 패널이 공용하는 토큰이라 건드리지 않고 이 목록 전용 값으로 둔다. */
+/* 원본 목록은 24.77%H에서 시작해 70.14%H에서 '행 중간에 잘린 채' 끝난다(45.4%H) — 항목이 더 있는
+   스크롤 목록이라서다. 클론은 10행이 전부 들어가 버려 목록 하단이 원본보다 2.9%p 높았다.
+   같은 높이로 잘라 마지막 행이 반쯤 보이게 두면 '더 있다'는 단서까지 원본과 같아진다.
+   스크롤바는 원본에 보이지 않으므로 숨긴다(잘린 행 자체가 단서 역할). */
+.settings-list {
+    margin: 0 -1.1rem; background: #eee;
+    max-height: calc(var(--app-h) * .456); overflow-y: auto; scrollbar-width: none;
+}
+.settings-list::-webkit-scrollbar { display: none; }
 .settings-row {
     display: flex; justify-content: space-between; align-items: center;
-    padding: .5rem 1.1rem; font-size: .82rem; font-weight: 700; color: var(--pp-ink);
+    /* 원본 행 여백은 좌우 비대칭이다 — 라벨 왼쪽 18px / 토글 오른쪽 34px(489폭 기준).
+       세로 .5rem은 행 높이를 39.5px로 만들어 원본 42px(4.75%H)보다 0.32%p 낮았고, 10행이 쌓이며
+       목록 하단에서 3%p 넘게 벌어졌다 — 행 하나로는 통과처럼 보이지만 누적되면 불통과다. */
+    padding: .58rem 1.95rem .58rem 1.1rem; font-size: .82rem; font-weight: 700; color: var(--pp-ink);
 }
-.settings-row:nth-child(odd) { background: var(--pp-panel); }
+.settings-row:nth-child(odd) { background: #ccc; }
 .settings-row.static { cursor: pointer; }
 .settings-toggle {
     width: 2.5rem; height: 1.35rem; border-radius: 1rem; border: 2px solid var(--pp-line); cursor: pointer;
