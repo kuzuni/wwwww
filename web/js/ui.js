@@ -2875,37 +2875,63 @@ const UI = {
             <button class="btn danger tech-tree-back" onclick="UI.openTechOverview()">◀</button>`;
         this.drawTechLinks();
     },
-    // 연결선 그리기: 노드 중심을 실측해 `parentsOf`가 정의한 부모→자식만 잇는다.
-    // 부모 원 아래 테두리에서 자식 원 위 테두리까지만 그어 원 안으로 파고들지 않고,
-    // 첫 노드 위·마지막 노드 아래로도 나가지 않는다(선의 끝점이 곧 노드 테두리다).
+    // 연결선 그리기 (사용자 재지적 2026-08-18 — "일자로만 가지 말고 한 덩어리로 보이게"):
+    // 골격은 `parentsOf`(같은 타입 세로 레일)가 아니라 **사용자가 그려 준 다이아몬드 골격**이다.
+    //   · 이웃한 두 행을 잇는다 — 2행↔2행이면 좌·우 열이 각자 세로 레일로 내려가고,
+    //   · 단독 행 → 2노드 행이면 단독 노드에서 **가로 바로 갈라져(fork)** 두 열로 퍼지고,
+    //   · 2노드 행 → 단독 행이면 두 열이 **가로 바로 묶인 뒤(converge)** 한 점으로 모인다.
+    // 그래서 단계마다 '한 점 → 두 열 → 한 점'의 다이아몬드가 이어져 트리 전체가 끊긴 데 없는
+    // 한 덩어리로 읽힌다. 예전 구현은 같은 타입끼리만 이어 열이 서로 안 묶였고(가로선 0개),
+    // 그 레일이 3~4행을 관통해 '평행한 막대들'로 보였다 — 사용자가 지적한 그 모양이다.
+    // 선의 끝점은 언제나 원 테두리이고, 첫 행 위·마지막 행 아래로는 아무 선도 나가지 않는다.
+    // (무엇이 무엇을 여는지는 노드 팝업의 `lockedBy` 안내가 담당한다 — 선은 골격 전용.)
     drawTechLinks() {
         const col = this.els.techPanel.querySelector('.tech-tree-col');
         const svg = col && col.querySelector('.tech-tree-links');
         if (!svg) return;
         const cb = col.getBoundingClientRect();
         const W = col.clientWidth, H = col.scrollHeight;
-        const pos = {};
-        col.querySelectorAll('.tech-tree-node[data-tid]').forEach(n => {
+        const boxOf = (n) => {
             const r = n.getBoundingClientRect();
-            pos[n.dataset.tid] = {
+            return {
+                id: n.dataset.tid,
                 x: r.left - cb.left + col.scrollLeft + r.width / 2,
                 y: r.top - cb.top + col.scrollTop + r.height / 2,
                 r: r.height / 2,
             };
-        });
+        };
+        const rows = [...col.querySelectorAll('.tech-tree-row')]
+            .map(row => [...row.querySelectorAll('.tech-tree-node[data-tid]')].map(boxOf))
+            .filter(ns => ns.length);
         const segs = [];
-        for (const id of Object.keys(pos)) {
-            for (const pid of TechTree.parentsOf(id)) {
-                const a = pos[pid], c = pos[id];
-                if (!a || !c) continue;
-                const y1 = a.y + a.r, y2 = c.y - c.r;
-                // 부모가 0레벨이면 자식은 아직 못 연다 — 선은 이어지되 흐리게(어디서 막혔는지 보이게)
-                const dim = TechTree.level(pid) < 1 ? ' dim' : '';
-                const d = Math.abs(a.x - c.x) < 0.5
-                    ? `M${a.x.toFixed(1)} ${y1.toFixed(1)} L${a.x.toFixed(1)} ${y2.toFixed(1)}`
-                    : `M${a.x.toFixed(1)} ${y1.toFixed(1)} V${((y1 + y2) / 2).toFixed(1)} H${c.x.toFixed(1)} V${y2.toFixed(1)}`;
-                segs.push(`<path class="tt-link${dim}" data-from="${pid}" data-to="${id}" d="${d}"/>`);
+        const push = (d, dim, from, to) =>
+            segs.push(`<path class="tt-link${dim ? ' dim' : ''}" data-from="${from}" data-to="${to}" d="${d}"/>`);
+        const n1 = (v) => v.toFixed(1);
+        for (let i = 0; i + 1 < rows.length; i++) {
+            const A = rows[i], B = rows[i + 1];
+            // 아래 행이 통째로 잠겨 있으면 선을 흐리게 — 어디까지 열렸는지 골격만 봐도 보이게 한다
+            const dim = B.every(n => !TechTree.isUnlocked(n.id));
+            const yTop = Math.max(...A.map(n => n.y + n.r));   // 위 행 원들의 아래 테두리
+            const yBot = Math.min(...B.map(n => n.y - n.r));   // 아래 행 원들의 위 테두리
+            const yMid = (yTop + yBot) / 2;
+            if (A.length === B.length) {
+                // 같은 폭의 행끼리 — 열마다 세로 레일(열이 어긋나면 ㄱ자로 꺾어 내린다)
+                A.forEach((a, k) => {
+                    const c = B[k];
+                    const d = Math.abs(a.x - c.x) < 0.5
+                        ? `M${n1(a.x)} ${n1(a.y + a.r)} L${n1(a.x)} ${n1(c.y - c.r)}`
+                        : `M${n1(a.x)} ${n1(a.y + a.r)} V${n1(yMid)} H${n1(c.x)} V${n1(c.y - c.r)}`;
+                    push(d, dim, a.id, c.id);
+                });
+                continue;
             }
+            // 폭이 다른 행끼리 — 가운데 높이에 가로 바를 놓고 위·아래를 그 바에 물린다(fork/converge).
+            // 바에 고유 id를 주고 스텁이 그 id를 참조하게 해, 검증기가 '한 덩어리인지'를 그래프로 잴 수 있다.
+            const bar = 'bar' + i;
+            const xs = [...A, ...B].map(n => n.x);
+            push(`M${n1(Math.min(...xs))} ${n1(yMid)} H${n1(Math.max(...xs))}`, dim, bar, bar);
+            A.forEach(a => push(`M${n1(a.x)} ${n1(a.y + a.r)} V${n1(yMid)}`, dim, a.id, bar));
+            B.forEach(c => push(`M${n1(c.x)} ${n1(yMid)} V${n1(c.y - c.r)}`, dim, bar, c.id));
         }
         svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
         svg.setAttribute('width', W);

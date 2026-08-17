@@ -101,19 +101,21 @@ const GEOM = () => {
             ok(g.labels.every(t => /^\d+\/5$/.test(t)), `${branch}: 노드 라벨이 N/5 형식이 아님`);
             ok(g.tags.join(',') === 'I,II,III,IV,V', `${branch}: 단계 태그 ${g.tags.join(',')} ≠ I,II,III,IV,V`);
 
-            // ⑥ 연결선 = 부모→자식 쌍 하나당 하나 (타입 수 × (단계-1)), 노드 밖으로 삐져나오지 않는다
-            const wantLinks = meta.types * (meta.tiers - 1);
-            ok(g.lines.length === wantLinks, `${branch}: 연결선 ${g.lines.length}개 ≠ 부모-자식 쌍 ${wantLinks}개`);
+            // ⑥ 연결선 — 골격 자체의 판정은 probe-techtree-links.js가 한다(사용자 재지적 2026-08-18로
+            //    '부모-자식 1:1'에서 '이웃 행을 잇는 다이아몬드 골격'으로 바뀌어 개수 공식이 없어졌다).
+            //    여기서는 이 화면의 기하 불변식만 본다: 선이 노드 밖으로 삐져나오지 않는다.
+            ok(g.lines.length > 0, `${branch}: 연결선이 하나도 없다`);
             const firstTop = Math.min(...g.nodes.map(n => n.top)), lastBot = Math.max(...g.nodes.map(n => n.bottom));
             ok(!g.lines.some(l => l.y0 < firstTop - 1.5), `${branch}: 첫 노드 위로 뻗은 선이 있다`);
             ok(!g.lines.some(l => l.y1 > lastBot + 1.5), `${branch}: 마지막 노드 아래로 뻗은 선이 있다`);
-            // 각 연결선의 양끝이 실제 부모 원 아래·자식 원 위 테두리에 닿는지
+            // 세로 선분은 양끝이 노드 테두리나 가로 바에 물려야 한다(가로 바 자신은 높이 0이라 제외)
             for (const l of g.lines) {
-                const above = g.nodes.filter(n => Math.abs(n.bottom - l.y0) < 2.5).length;
-                const below = g.nodes.filter(n => Math.abs(n.top - l.y1) < 2.5).length;
-                ok(above > 0 && below > 0, `${branch}: 연결선 끝이 노드 테두리에 닿지 않는다 (${l.y0.toFixed(0)}~${l.y1.toFixed(0)})`);
+                if (l.y1 - l.y0 < 1.5) continue;                       // 가로 바
+                const touches = (y) => g.nodes.some(n => Math.abs(n.bottom - y) < 2.5 || Math.abs(n.top - y) < 2.5)
+                    || g.lines.some(o => o.y1 - o.y0 < 1.5 && Math.abs(o.y0 - y) < 2.5);
+                ok(touches(l.y0) && touches(l.y1), `${branch}: 연결선 끝이 노드/가로바에 안 닿는다 (${l.y0.toFixed(0)}~${l.y1.toFixed(0)})`);
             }
-            console.log(`  ${branch}: 타입 ${meta.types} × ${meta.tiers}단계 = 노드 ${g.nodes.length} · 부모-자식 연결선 ${g.lines.length} · 태그 ${g.tags.join('')}`);
+            console.log(`  ${branch}: 타입 ${meta.types} × ${meta.tiers}단계 = 노드 ${g.nodes.length} · 연결선 ${g.lines.length} · 태그 ${g.tags.join('')}`);
         }
 
         // ② 해금 — 같은 타입 위 단계 1레벨이면 열리고, 다른 타입은 그대로 잠긴다

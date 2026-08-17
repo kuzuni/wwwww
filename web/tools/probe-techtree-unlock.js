@@ -105,12 +105,16 @@ async function waitBooted(page, timeout = 20000) {
             const col = document.querySelector('.tech-tree-col');
             if (!col) return { bid, missing: true };
             const rows = TechTree.rows(bid);
-            // 연결선은 SVG 오버레이의 path — **부모→자식 쌍 하나당 하나**여야 한다
-            // (예전 규약: 행 사이 공용 세로선 1개. 사용자 재지시 2026-08-17로 부모 관계대로 바뀜)
+            // 연결선은 SVG 오버레이의 path — **이웃한 두 행을 잇는 다이아몬드 골격**이다
+            // (사용자 재지적 2026-08-18: 부모-자식 1:1 레일은 '평행한 막대들'로 읽혀 폐기).
+            // 기대 개수 = 행 폭이 같으면 열 수만큼 세로 레일, 다르면 가로 바 1 + 위·아래 스텁.
             const links = col.querySelectorAll('.tech-tree-links .tt-link').length;
             const rowEls = col.querySelectorAll(':scope > .tech-tree-row').length;
             let pairs = 0;
-            for (const nid of TechTree.nodesOf(bid)) pairs += TechTree.parentsOf(nid).length;
+            for (let i = 0; i + 1 < rows.length; i++) {
+                const a = rows[i].ids.length, c = rows[i + 1].ids.length;
+                pairs += a === c ? a : 1 + a + c;
+            }
             // 첫/마지막 자식은 행이어야 한다 — SVG 오버레이(className이 문자열이 아님)는 세지 않는다
             const kids = [...col.children].filter(e => e.tagName !== 'svg').map(e => String(e.getAttribute('class') || '').split(' ')[0]);
             return {
