@@ -47,13 +47,18 @@ sync() { git pull --rebase -q origin "$BRANCH" 2>/dev/null; }
 
 # 락 파일만 커밋하고 push. push 실패 시 rebase 후 재시도.
 # on rebase conflict(같은 항목을 상대가 먼저 잡음) → 콜러가 처리하도록 1 반환.
+# ⚠️ push refspec 은 반드시 `HEAD:refs/heads/$BRANCH` 로 줄 것 — `origin $BRANCH` 는
+#    "로컬 브랜치 $BRANCH"를 밀기 때문에, 체크아웃이 detached HEAD 이거나 로컬 main 이
+#    낡은 컨테이너에서는 push 가 non-fast-forward 로 **항상** 거부된다.
+#    (2026-08-18 UI 세션 실측: 클론된 컨테이너가 detached HEAD + 로컬 main 이 구
+#     히스토리(ahead 8/behind 51)에 머문 상태라 acquire 가 전부 거짓 BUSY 를 냈다.)
 push_lock() {
   local msg="$1"
   git add "$LOCK_DIR" >/dev/null 2>&1
   git commit -q -m "$msg" >/dev/null 2>&1 || return 0   # 변경 없음
   local i
   for i in 1 2 3 4 5 6 7 8; do
-    if git push -q origin "$BRANCH" 2>/dev/null; then return 0; fi
+    if git push -q origin "HEAD:refs/heads/$BRANCH" 2>/dev/null; then return 0; fi
     if ! git pull --rebase -q origin "$BRANCH" 2>/dev/null; then
       return 1   # 충돌 — 콜러가 양보/복구 결정
     fi
@@ -83,12 +88,26 @@ case "$cmd" in
     mkdir -p "$LOCK_DIR"
     printf 'owner=%s\nitem=%s\nts=%s\n' "$ME" "$id" "$NOW" > "$LOCK_DIR/$id.lock"
     if ! push_lock "[claim] $id"; then
-      # 충돌 = 경쟁 세션이 같은 항목을 먼저 land. 내 락 커밋을 버리고 양보.
+      # 내 락 커밋을 버리고 remote 상태로 되돌린 뒤 원인을 갈라 본다.
+      # ⚠️ 이 reset --hard 는 **커밋 안 한 작업 파일까지 날린다**. acquire 는 문서대로
+      #    반드시 깨끗한 트리에서 부를 것(더티 트리면 pull --rebase 가 거부돼 여기로 온다).
       git rebase --abort >/dev/null 2>&1 || true
       git fetch -q origin "$BRANCH" >/dev/null 2>&1 || true
       git reset --hard -q FETCH_HEAD >/dev/null 2>&1 || true
-      echo "BUSY $id — 경쟁 세션이 먼저 잡음(rebase 충돌). 양보함."
-      exit 2
+      # 진짜 경쟁이면 remote 에 남의 락이 살아 있다. 없으면 push 자체가 고장난 것 —
+      # 이걸 BUSY 로 뭉개면 세션이 '남이 잡았구나' 하고 멀쩡한 항목을 계속 건너뛴다.
+      if [ -f "$LOCK_DIR/$id.lock" ]; then
+        owner="$(lock_owner "$id")"; ts="$(lock_ts "$id")"; ts="${ts:-0}"
+        if [ "$owner" != "$ME" ] && [ $(( NOW - ts )) -lt "$LEASE_SEC" ]; then
+          echo "BUSY $id — 경쟁 세션이 먼저 잡음(owner=$owner). 양보함."
+          exit 2
+        fi
+      fi
+      echo "ERROR $id — 경쟁이 아니라 push/rebase 자체가 실패했다(remote 에 남의 락 없음)."
+      echo "  ① 트리가 더러우면(git status -sb) pull --rebase 가 거부된다 → 먼저 커밋할 것."
+      echo "  ② detached HEAD 이거나 로컬 $BRANCH 가 낡으면 push 가 계속 거부된다 →"
+      echo "     git checkout -B $BRANCH origin/$BRANCH 로 붙이고 재시도."
+      exit 4
     fi
     # land 후 재확인: 정말 내가 소유자인가(동시 land 레이스 방어)
     sync || true
