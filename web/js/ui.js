@@ -364,7 +364,7 @@ const UI = {
         const curP = Forge.ageProbsAt(S.forgeLevel);
         const nextP = info ? Forge.ageProbsAt(S.forgeLevel + 1) : {};
         const pct = p => (parseFloat(p.toFixed(2)) || 0) + '%';
-        const rows = AGES.filter(age => (curP[age] || 0) > 0).map(age => {   // 0% 시대 미표시 (사용자 지시)
+        const rows = AGES.map(age => {   // 0% 시대도 표시 — 전체 확률표 열람이 목적 (사용자 재지시 2026-08-17)
             const hex = this.ageHex(age);
             return `<div class="fi-age-bar" style="--ac:${hex}">
                 <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]}</span>
@@ -409,7 +409,7 @@ const UI = {
     },
     // 원본(shot-042905): 시대색 헤더 막대 + 회색 패널 안 흰 아이템 셀(별 배지, % 아래 표기), 닫기=빨간 X(확률 정보로 복귀)
     renderForgeListView() {
-        const sections = AGES.filter(age => (Forge.ageProbsAt(S.forgeLevel)[age] || 0) > 0).map(age => {   // 0% 시대 미표시 (사용자 지시)
+        const sections = AGES.map(age => {   // 0% 시대도 표시 — 확률 정보 팝업 계열 (사용자 재지시 2026-08-17)
             const hex = this.ageHex(age);
             const ageP = Forge.ageProbsAt(S.forgeLevel)[age] || 0;
             const p = Forge.itemDropChance(age, 'weapon'); // 무기 변형은 모두 동일 확률
@@ -503,6 +503,7 @@ const UI = {
         const cfg = Forge.autoForgeConfig();
         const probs = Forge.ageProbsAt(S.forgeLevel);
         const pct = p => (parseFloat(p.toFixed(2)) || 0) + '%';
+        // 자동 제련만 0% 시대를 숨긴다 — 여긴 '뽑을 수 있는 시대'를 고르는 화면이라 못 뽑는 시대가 있으면 안 된다 (사용자 재지시 2026-08-17)
         const ageRows = AGES.filter(age => (probs[age] || 0) > 0).map(age => `
             <div class="af-age-bar" style="--ac:${this.ageHex(age)}" onclick="UI.onToggleKeepAge('${age}')">
                 <span class="af-check ${cfg.keepAges.includes(age) ? 'on' : ''}">${cfg.keepAges.includes(age) ? '✓' : ''}</span>
@@ -1095,7 +1096,8 @@ const UI = {
             const row = mountSummonRates[U.clamp(lvl, 1, Mounts.MAX_LEVEL)];
             for (const k in row) if (k !== 'needed') rates[k] = row[k] * 100;
         } else rates = mod.rates(lvl);
-        const barsHtml = RARITIES.filter(r => (rates[r] || 0) > 0).map(r => `
+        // 0% 등급도 표시 — 확률표 열람이 목적이라 안 나오는 등급도 보여야 한다 (사용자 재지시 2026-08-17)
+        const barsHtml = RARITIES.map(r => `
             <div class="rate-bar" style="--rc:${RARITY_CSS[r]}">
                 <span class="rate-name">${RARITY_KR[r]} <i class="rate-star">⭐</i></span>
                 <span class="rate-pct">${(rates[r] || 0).toFixed(2)}%</span>
@@ -1950,7 +1952,7 @@ const UI = {
         const prevNeed = Mounts.prevNeeded();
         const progress = need ? U.clamp((S.mountOpens - prevNeed) / (need - prevNeed), 0, 1) : 1;
         const rates = Mounts.rates();
-        const ratesHtml = RARITIES.filter(r => (rates[r] || 0) > 0).map(r =>   // 0% 등급 미표시 (사용자 지시)
+        const ratesHtml = RARITIES.map(r =>   // 0% 등급도 표시 — 숨기는 건 자동 제련 팝업뿐 (사용자 재지시 2026-08-17)
             `<span class="prob-chip" style="--c:${RARITY_CSS[r]}">${RARITY_KR[r]} ${((rates[r] || 0) * 100).toFixed(2)}%</span>`).join('');
         const mountSummonN = this.summonMult('mount');
 
