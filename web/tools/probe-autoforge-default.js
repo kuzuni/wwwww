@@ -1,0 +1,114 @@
+// 자동 제련이 '기본 설정 그대로'도 자동으로 도는지 검증 (QA 9차 결함).
+// 기존 probe-autocraft-seq.js는 Forge.passesAutoFilter를 스텁으로 갈아끼워 재현되지 않던 구간이다 —
+// 여기서는 **실제 설정값**으로만 돌린다.
+//  ① 기본값(유지 시대 미체크·필터 OFF·계속하기 미체크·망치 N) → 손대지 않아도 망치 N개를 다 쓰고 정지,
+//     그 사이 비교 팝업이 한 번도 뜨지 않는다(= 진짜 '자동')
+//  ② 기본값에서 장착품보다 강한 장비가 나오면 그냥 팔지 않고 자동 장착된다 (업그레이드 유실 금지)
+//  ③ 유지 시대를 켜면 예전 동작 그대로 — 목표가 뽑히면 비교 팝업이 뜨고 '계속하기' OFF면 거기서 멈춘다
+//  ④ 유지 시대를 켠 상태의 탈락품은 (자동 장착이 아니라) 판매된다 — 사용자 지시 우선
+// 사용: node probe-autoforge-default.js
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
+
+async function until(page, fnSrc, ms = 30000) {
+    const t0 = Date.now();
+    for (;;) {
+        if (await page.evaluate(fnSrc).catch(() => false)) return true;
+        if (Date.now() - t0 > ms) return false;
+        await page.waitForTimeout(50);
+    }
+}
+
+(async () => {
+    const browser = await chromium.launch({
+        executablePath: '/opt/pw-browsers/chromium',
+        args: ['--use-gl=angle', '--enable-unsafe-swiftshader'],
+    });
+    const page = await browser.newPage({ viewport: { width: 430, height: 932 } });
+    const errs = [], fails = [];
+    const ok = (c, m) => { if (!c) fails.push(m); };
+    page.on('pageerror', e => errs.push(e.message));
+    page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push(m.text()); });
+
+    await page.goto(INDEX, { waitUntil: 'load' });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 20000 });
+    await page.waitForTimeout(400);
+    await page.evaluate(() => {
+        if (typeof Scene3D !== 'undefined') Scene3D.update = function () {};
+        Combat.tick = function () {};
+        S.bestChapter = 5; S.bestStage = 9; S.hammers = 500; S.forgeLevel = 20;
+        // 비교 팝업이 뜬 적이 있는지 세는 계수기 (뜨자마자 닫지 않고 그대로 둔다 — 멈춤도 관찰 대상)
+        UI._probeCraftOpens = 0;
+        const orig = UI.showCraftModal.bind(UI);
+        UI.showCraftModal = function (item) { UI._probeCraftOpens++; return orig(item); };
+    });
+
+    // ---- ① 기본 설정 그대로 시작 ----
+    const N = 6;
+    const a = await page.evaluate(n => {
+        S.autoForge = { keepAges: [], filterOn: false, filterSubs: [], hammersPerBatch: n, continueOnTarget: false };
+        S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
+        UI.els.craftModal.classList.add('hidden');
+        UI._probeCraftOpens = 0;
+        const h0 = S.hammers;
+        UI.onToggleAutoForge();
+        return { h0, on: S.autoForgeOn };
+    }, N);
+    ok(a.on, '기본 설정에서 자동 제련이 켜지지 않았다');
+    const stopped = await until(page, `S.autoForgeOn === false`, 40000);
+    const a2 = await page.evaluate(() => ({ h: S.hammers, opens: UI._probeCraftOpens, seq: !!UI._autoSeq }));
+    ok(stopped, `기본 설정에서 배치가 끝나지 않았다 (해머 ${a.h0} → ${a2.h}, 비교 팝업 ${a2.opens}회)`);
+    ok(a.h0 - a2.h === N, `기본 설정 예산 ${N}개를 다 써야 하는데 ${a.h0 - a2.h}개 소모`);
+    ok(a2.opens === 0, `기본 설정인데 비교 팝업이 ${a2.opens}회 떴다 (손이 가야 하면 '자동'이 아니다)`);
+    ok(!a2.seq, '배치 종료 후에도 시퀀스가 남아 있다');
+    console.log(`① 기본 설정 무개입 배치 — 해머 ${a.h0} → ${a2.h} (예산 ${N} 소진), 비교 팝업 ${a2.opens}회, 정지=${!a2.on}`);
+
+    // ---- ② 기본 설정에서 업그레이드는 자동 장착 ----
+    const b = await page.evaluate(async () => {
+        S.equipment.weapon = null;
+        Combat.recalcHero();
+        S.autoForge.hammersPerBatch = 3;
+        S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
+        UI.onToggleAutoForge();
+        for (let i = 0; i < 800 && S.autoForgeOn; i++) await new Promise(r => setTimeout(r, 50));
+        const filled = Object.keys(S.equipment).filter(k => S.equipment[k]).length;
+        return { filled, weapon: !!S.equipment.weapon };
+    });
+    ok(b.filled > 0, '기본 설정 배치를 돌렸는데 장착된 장비가 하나도 없다 (업그레이드를 전부 팔아버렸다)');
+    console.log(`② 기본 설정 자동 장착 — 배치 후 장착 슬롯 ${b.filled}개 (무기 ${b.weapon})`);
+
+    // ---- ③ 유지 시대를 켜면 목표는 비교 팝업으로 (계속하기 OFF → 거기서 정지) ----
+    const c = await page.evaluate(async () => {
+        S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
+        UI.els.craftModal.classList.add('hidden');
+        UI._probeCraftOpens = 0;
+        S.autoForge.keepAges = AGES.slice();     // 전 시대 유지 = 뽑는 족족 목표
+        S.autoForge.continueOnTarget = false;
+        S.autoForge.hammersPerBatch = 5;
+        S.hammers = 500;
+        UI.onToggleAutoForge();
+        for (let i = 0; i < 400 && UI.els.craftModal.classList.contains('hidden'); i++) await new Promise(r => setTimeout(r, 50));
+        return { opened: !UI.els.craftModal.classList.contains('hidden'), opens: UI._probeCraftOpens };
+    });
+    ok(c.opened && c.opens >= 1, '유지 시대를 켰는데 목표 장비가 비교 팝업으로 뜨지 않았다');
+    console.log(`③ 유지 시대 ON — 목표 장비 비교 팝업 ${c.opens}회 (선택 대기)`);
+
+    // ---- ④ 유지 시대 ON일 때 탈락품은 판매(자동 장착 아님) ----
+    const d = await page.evaluate(() => {
+        S.autoForge.keepAges = ['primitive'];
+        S.autoForge.filterOn = false; S.autoForge.filterSubs = [];
+        const target = Forge.hasAutoTarget();
+        const item = Object.assign(Forge.rollItem(), { age: 'future', slot: 'weapon' });
+        S.equipment.weapon = null; Combat.recalcHero();
+        const r = UI.autoDispose(item);           // 탈락품 처리 경로만 직접 검사
+        return { target, equipped: r.equipped, gained: r.gained > 0, still: !S.equipment.weapon };
+    });
+    ok(d.target, '유지 시대를 켰는데 hasAutoTarget()가 false다');
+    ok(!d.equipped && d.gained && d.still, '유지 시대 지정 상태인데 탈락품이 자동 장착됐다 (사용자 지시 무시)');
+    console.log(`④ 유지 시대 지정 시 탈락품 — 자동장착=${d.equipped} 판매수익=${d.gained}`);
+
+    if (errs.length) console.log('콘솔 에러:\n' + errs.join('\n'));
+    console.log(fails.length || errs.length ? `\n❌ FAIL (${fails.length}건)\n` + fails.join('\n') : '\n✅ PASS — 기본 설정에서도 자동 제련이 예산만큼 자동으로 돈다');
+    await browser.close();
+    process.exit(fails.length || errs.length ? 1 : 0);
+})();

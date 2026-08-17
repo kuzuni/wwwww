@@ -99,6 +99,10 @@ async function waitBooted(page, timeout = 20000) {
         const held = S.pendingCraft, coins0 = S.coins;
         Forge.passesAutoFilter = () => false;      // 보류품이 필터에서 빠지는 상황
         Forge.isMatchingGear = () => false;
+        // 유지 시대를 하나 켜 둔다 — 목표 미설정(기본값)이면 탈락품은 판매가 아니라
+        // 오토포지 표준 판정(강하면 자동 장착)으로 가므로 코인이 안 들어온다.
+        // 이 케이스가 보려는 건 '보류품이 자동 판매로 정리되는가'다.
+        S.autoForge.keepAges = ['primitive'];
         S.autoForge.hammersPerBatch = 1; S.autoForge.continueOnTarget = false;
         S.autoForgeOn = false; UI._autoSeq = null;
         UI.onToggleAutoForge();                    // 자동제작 시작

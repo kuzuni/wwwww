@@ -212,9 +212,19 @@ const Forge = {
         if (!S.autoForge) S.autoForge = { keepAges: [], filterOn: false, filterSubs: [], hammersPerBatch: 10, continueOnTarget: false };
         return S.autoForge;
     },
+    // 유지 시대나 옵션 필터를 하나라도 켜 뒀는가 = '목표 장비'라는 개념이 정의돼 있는가.
+    // 기본값(유지 시대 전부 미체크 + 필터 OFF)은 목표가 없는 상태다.
+    hasAutoTarget() {
+        const cfg = this.autoForgeConfig();
+        return cfg.keepAges.length > 0 || (cfg.filterOn && cfg.filterSubs.length > 0);
+    },
     // 유지 시대·옵션 필터를 통과하는 아이템만 자동 장착 후보로 인정 (탈락 시 즉시 판매)
+    // 목표 미설정(기본값)이면 **무엇도 목표가 아니다** — 예전엔 여기서 무조건 true를 돌려줘
+    // 뽑히는 족족 '목표 장비'로 판정됐고, 그래서 비교 팝업이 뜬 채 배치가 첫 제작에서 멈춰
+    // '한 번에 사용된 망치 수' 설정이 통째로 무의미했다 (QA 9차).
     passesAutoFilter(item) {
         const cfg = this.autoForgeConfig();
+        if (!this.hasAutoTarget()) return false;
         if (cfg.keepAges.length && !cfg.keepAges.includes(item.age)) return false;
         if (cfg.filterOn && cfg.filterSubs.length && !item.subs.some(s => cfg.filterSubs.includes(s.key))) return false;
         return true;

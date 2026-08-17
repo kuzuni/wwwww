@@ -857,11 +857,12 @@ const UI = {
         if (this._pendingItem) {
             if (!this.els.craftModal.classList.contains('hidden')) return;   // 이미 선택 대기 중
             const held = this._pendingItem;
-            const keep = Forge.isMatchingGear(held, S.equipment[held.slot]) || Forge.passesAutoFilter(held);
+            const keep = Forge.passesAutoFilter(held);
             if (keep) { this.showCraftModal(held); this.renderEquipSheet(); return; }
             this.clearPendingCraft();
-            this.coinBurst(Forge.sell(held));
-            this.toast(`🪙 보류품 ${held.name} 자동 판매 (필터 제외)`);
+            const r = this.autoDispose(held);
+            if (r.equipped) this.toast(`🛠 보류품 ${held.name} 자동 장착`);
+            else { this.coinBurst(r.gained); this.toast(`🪙 보류품 ${held.name} 자동 판매 (필터 제외)`); }
             this.renderTopBar();
             this.renderEquipSheet();
         }
@@ -879,8 +880,10 @@ const UI = {
         this._anvilBusy = true;
         this.playAnvilStrike(() => {
             if (this._pendingItem !== item) { this._anvilBusy = false; return; }   // 연출 중 탭 이동 등으로 이미 정리됨
-            // 장착 중인 것과 같은 장비(승천 재료)는 필터와 무관하게 항상 사용자에게 보여준다
-            const keep = Forge.isMatchingGear(item, S.equipment[item.slot]) || Forge.passesAutoFilter(item);
+            // 예전엔 '장착 중인 것과 같은 장비 = 승천 재료'라 필터와 무관하게 팝업으로 보여줬지만,
+            // 개별 장비 승천이 라인 승천으로 대체되면서 중복 장비는 일반 판매다(forge.js:isMatchingGear 메모).
+            // 남겨 두면 중복이 뽑힐 때마다 배치가 팝업에서 멈추는 원인만 된다 — 목표 판정만 본다.
+            const keep = Forge.passesAutoFilter(item);
             if (keep) {
                 this._anvilBusy = false;
                 // ⑤ '계속하기'가 꺼져 있으면 이번 선택까지만 하고 멈춘다
@@ -893,13 +896,25 @@ const UI = {
                 this._anvilBusy = false;
                 const it = this.clearPendingCraft();
                 if (!it) { this.autoSeqStep(); return; }
-                this.coinBurst(Forge.sell(it));
+                const r = this.autoDispose(it);
+                if (r.equipped) this.toast(`🛠 ${it.name} 자동 장착`);
+                else this.coinBurst(r.gained);
                 this.renderTopBar();
                 this.renderEquipSheet();
                 saveGame();
                 this.autoSeqStep();
             });
         });
+    },
+    // '목표 아님'으로 판정된 장비의 처리. 반환은 Forge.autoResolve와 같은 { equipped, gained }.
+    // 유지 시대·필터를 하나라도 켜 뒀으면 그건 명시적 의사표시라 탈락품을 그대로 판매한다
+    // (원시 시대만 유지하라고 해 놓고 중세 장비를 자동 장착하면 지시를 어기는 것).
+    // 아무것도 안 켠 기본 설정에서는 목표라는 개념이 없으므로 오토포지 표준 판정
+    // (Forge.autoResolve — 장착품보다 강하면 장착, 아니면 판매)에 맡긴다. 이렇게 해야
+    // 기본 설정에서도 망치 예산을 끝까지 소화하면서 업그레이드를 그냥 팔아버리지 않는다.
+    autoDispose(item) {
+        if (Forge.hasAutoTarget()) return { equipped: false, gained: Forge.sell(item) };
+        return Forge.autoResolve(item);
     },
     // 필터 탈락 장비를 모루 위에 잠깐 띄운다 — '무엇이 뽑혔는지'는 항상 보여야 한다(항목 ③)
     AUTO_CARD_MS: 620,

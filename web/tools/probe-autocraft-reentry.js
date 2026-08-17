@@ -19,7 +19,9 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         if (typeof Combat !== 'undefined') Combat.tick = () => {};
         if (typeof Scene3D !== 'undefined' && Scene3D.update) Scene3D.update = () => {};
         S.hammers = 200; S.coins = 0; S.bestChapter = 9; S.bestStage = 10;
-        S.autoForge = { keepAges: [], filterOn: false, filterSubs: [], hammersPerBatch: 6, continueOnTarget: true };
+        // keepAges를 비워 두면 '목표 미설정' = 오토포지 표준 판정(강하면 자동 장착)이라 코인이 안 들어온다.
+        // 이 프로브가 보려는 건 **탈락 → 카드 노출 → 코인 판매** 경로이므로 유지 시대를 하나 켜 둔다.
+        S.autoForge = { keepAges: ['primitive'], filterOn: false, filterSubs: [], hammersPerBatch: 6, continueOnTarget: true };
         Forge.passesAutoFilter = () => false;    // 전부 탈락 → 카드 노출 → 코인 판매 경로만 돈다
         Forge.isMatchingGear = () => false;
         S.autoForgeOn = false;
