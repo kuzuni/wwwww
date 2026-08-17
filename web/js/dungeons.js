@@ -8,7 +8,7 @@ const Dungeons = {
           theme: { sky: 0x5d4037, fog: 0x795548, ground: 0x4e342e, biome: 'rock', celestial: 'none' } },
         { id: 'ghost',    name: 'Ghost Town',   kr: '유령 마을',  icon: '👻', unlock: '2-8',  reward: '스킬 티켓',
           theme: { sky: 0x37474f, fog: 0x546e7a, ground: 0x455a64, biome: 'rock', celestial: 'moon' } },
-        { id: 'invasion', name: 'Invasion',     kr: '침공',       icon: '🥚', unlock: '3-1',  reward: '펫 알 (상급 확률↑)',
+        { id: 'invasion', name: 'Invasion',     kr: '침공',       icon: '🥚', unlock: '3-1',  reward: '알 화폐 (펫 소환용)',
           theme: { sky: 0x4a148c, fog: 0x6a1b9a, ground: 0x38006b, biome: 'magic', celestial: 'moon' } },
         { id: 'zombie',   name: 'Zombie Rush',  kr: '좀비 러시',  icon: '🧟', unlock: '4-1',  reward: '물약 (기술 재화)',
           theme: { sky: 0x1b5e20, fog: 0x2e7d32, ground: 0x1b3a1e, biome: 'forest', celestial: 'none' } },
@@ -72,11 +72,11 @@ const Dungeons = {
         if (r.hammers) { S.hammers += r.hammers; S.coins += r.coins; }
         if (r.tickets) S.tickets += r.tickets;
         if (r.potions) S.potions += r.potions;
-        if (r.eggCurrency) {
-            // 침공(펫 던전) 보상 = 알 화폐 — 알은 펫 화면 [소환]으로만 획득 (사용자 확정)
-            S.eggCurrency = (S.eggCurrency || 0) + r.eggCurrency;
-            UI.toast(`🥚 알 화폐 +${U.fmt(r.eggCurrency)} — 펫 화면에서 소환하세요`);
-        }
+        // 침공(펫 던전) 보상 = 알 화폐 — 알은 펫 화면 [소환]으로만 획득 (사용자 확정).
+        // 별도 토스트를 띄우지 않는다: 알 직접 지급이던 시절엔 '보관함 가득'으로 실패할 수 있어
+        // 실제 결과를 여기서 따로 알렸지만, 알 화폐는 실패 경로가 없어 완료 배너 한 줄이면 충분하다
+        // (남겨 두면 다른 던전과 달리 침공만 토스트가 2개 뜬다 — QA 4차 지적).
+        if (r.eggCurrency) S.eggCurrency = (S.eggCurrency || 0) + r.eggCurrency;
         return r;
     },
 
@@ -104,12 +104,10 @@ const Dungeons = {
         S.dungeons.keys[id]--;
         const st = S.dungeons.best[id];
         const r = this.grantRewards(id, st);
-        // 침공(알) 보상은 grantRewards가 실제 결과(획득/보관함 가득 참)를 이미 정확히 토스트했으므로 정적 문구 대신 생략(중복·모순 방지)
-        const suffix = r.egg ? '' : ` — ${this.rewardText(id, st)}`;
-        UI.toast(`⚡ ${this.def(id).kr} ${st}단계 소탕${suffix}`);
+        UI.toast(`⚡ ${this.def(id).kr} ${st}단계 소탕 — ${this.rewardText(id, st)}`);
         saveGame();
         UI.renderTopBar();
-        if (r.egg) UI.renderPets(); // 침공 알 보상이 열려 있는 펫 패널(알 보관함)에도 즉시 반영되도록
+        if (r.eggCurrency) UI.renderPets(); // 침공 알 화폐 보상이 열려 있는 펫 패널(🥚 pill·[소환] 버튼)에도 즉시 반영되도록
         return true;
     },
 
@@ -119,12 +117,10 @@ const Dungeons = {
         S.dungeons.keys[id] = Math.max(0, S.dungeons.keys[id] - 1); // 완료 시점 열쇠 소모
         S.dungeons.best[id] = Math.max(S.dungeons.best[id], stage);
         const r = this.grantRewards(id, stage);
-        // 침공(알) 보상은 grantRewards가 실제 결과(획득/보관함 가득 참)를 이미 정확히 토스트했으므로 정적 문구 대신 생략(중복·모순 방지)
-        const suffix = r.egg ? '' : ` ${this.rewardText(id, stage)}`;
-        UI.toast(`🏆 ${this.def(id).kr} ${stage}단계 클리어!${suffix}`);
+        UI.toast(`🏆 ${this.def(id).kr} ${stage}단계 클리어! ${this.rewardText(id, stage)}`);
         saveGame();
         UI.renderTopBar();
-        if (r.egg) UI.renderPets(); // 침공 알 보상이 열려 있는 펫 패널(알 보관함)에도 즉시 반영되도록
+        if (r.eggCurrency) UI.renderPets(); // 침공 알 화폐 보상이 열려 있는 펫 패널(🥚 pill·[소환] 버튼)에도 즉시 반영되도록
     },
 
     onFail() {
