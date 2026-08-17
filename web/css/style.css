@@ -1617,8 +1617,26 @@ body {
 }
 /* 원본 뒤로 버튼은 #FF1017 + 순검정 테두리다(E·F 공통 지적: 클론 #E8362F + 3px #17181A 라 흐리다).
    전역 `--pp-red`(1681행)는 다른 화면 빨강 버튼이 전부 따라 바뀌므로 채팅으로만 한정한다. */
-.chat-input-bar .btn.danger.round { background: #ff1017; border: 2px solid #000; color: #fff; }
-.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .30rem; padding: 0; }
+/* 🚨 캐스케이드 버그(7차 비평가 B 발견, 계산값으로 재현 확인) — 위 `.chat-input-bar .btn.round`(0-3-0)의
+   `box-shadow: 0 3px 0 #4e0507`을 **더 뒤에 있는 같은 특이도** `.modal-card .btn.danger`(1787행)의
+   `inset 0 -.22rem 0 var(--pp-red-dk)`가 이겨서, 원본의 '아래로 튀어나온 4px 베벨'이 안쪽 그림자로
+   뒤집혀 있었다(실측 계산값 `rgb(165,23,16) 0 -3.7px inset`). 0-4-0인 이 규칙에서 되찾는다.
+   삼각 글리프의 검정 외곽선도 여기서 준다 — 원본은 흰 삼각형에 검정 2px 키라인이 둘려 있는데
+   클론은 버튼 안쪽 검정 픽셀이 0이었다(A·B 공통 지적). */
+.chat-input-bar .btn.danger.round {
+    background: #ff1017; border: 2px solid #000; color: #fff;
+    box-shadow: 0 3px 0 #4e0507;
+    text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000,
+                 -1px -1px #000, 1px -1px #000, -1px 1px #000, 1px 1px #000;
+}
+.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .41rem; padding: 0; }
+/* 말풍선 높이를 원본 28px 로 못 박자 행 피치가 58.19px(원본 60px, −0.36%p)로 줄었다 — 말풍선을 다시
+   키우면 높이 항목이 깨지므로 **행 간격 쪽으로** 1.8px 을 되돌린다(.30→.41rem). 두 항목 동시 통과. */
+/* 원본은 마지막 말풍선이 입력바에 1.40%W 붙어 있는데 클론은 37.47%W가 백지였다(7차 비평가 2인 공통 1순위).
+   목록이 뷰포트보다 짧으면 scrollTop 지정이 무효라 flex 기본 정렬(flex-start)로 위에 붙는다.
+   ⚠️ 컨테이너에 justify-content:flex-end 를 주면 넘칠 때 상단 행이 스크롤로 못 닿는 고전 버그가 생긴다 —
+   첫 행 margin-top:auto 는 넘치면 0으로 접혀서 그 부작용이 없다. */
+.chat-list > .chat-row:first-child { margin-top: auto; }
 /* 원본 실측(499px 폭): 좌 여백 63px=12.63%W · 아바타 44px=8.82%W · 간격 4px=0.80%W ·
    말풍선 324px=64.93%W → 우끝 87.17%W. 합이 곧 우측 여백 12.82%W다. */
 .chat-row {
@@ -1670,6 +1688,11 @@ body {
 /* 원본 시간 표기는 굵다 — 색(#545454)·우측 끝(x447)·높이는 이미 일치하는데 획만 얇았다
    (F 실측: 획 3.71 → 2.12px, 잉크 −41%). 굵기만 올린다. */
 .chat-time { margin-left: auto; color: #545454; font-size: .92rem; font-weight: 700; }
+/* 7차 비평가 A·B 공통 — 글자 '크기'는 원본과 픽셀 일치인데 '획'만 일관되게 1px 얇다
+   (본문 3.08→2.10px, 시간 3.20→2.14px). 시스템 산세리프는 700에서 14px 기준 2px가 한계라
+   weight 로는 더 못 올린다 → 스트로크로 채운다. 글리프 advance 는 안 늘어나 폭 항목이 안 깨진다.
+   **font-size 는 건드리지 말 것** — 캡/어센더 높이는 이미 원본과 같다. */
+.chat-bubble, .chat-time { -webkit-text-stroke: .5px currentColor; paint-order: stroke fill; }
 /* 원본 실측: 같은 문자열("how's it going")이 원본 102×14px vs 교정 전 클론 79×12px 로 타이포가 통째로
    작았다. 글자 잉크 높이 14px 기준으로 키우고, 안쪽 좌 패딩도 원본 9px 에 맞춘다(교정 전 12px). */
 /* 원본 본문은 굵은 산세리프다 — 잉크 밀도 실측 원본 6.44 px/열 vs 교정 전 클론 4.70 px/열(−27%).
@@ -1678,6 +1701,10 @@ body {
 .chat-bubble {
     background: #cecece; color: #000; border-radius: .42rem; padding: .36rem .45rem .48rem; font-size: .90rem;
     font-weight: 700;
+    /* 원본은 전 행 말풍선이 28~29px 로 균일한데 클론은 라틴 31px / 한글 34px 로 스크립트마다 갈렸다
+       (A ⑤ · B ⑧ 공통). 행이 쌓이면 이 3px 이 누적돼 9행에서 +3.21%p 로 게이트를 넘는다.
+       line-height 를 앱 폭 기준으로 못 박아 스크립트와 무관하게 같은 높이가 되게 한다. */
+    line-height: calc(var(--app-w) * .0287);
     display: block; width: 100%; word-break: break-word; /* 원본: 짧은 메시지도 고정폭 말풍선 */
 }
 .chat-share-card {
@@ -1715,7 +1742,10 @@ body {
    본문과 같은 이유로 굵기도 올린다 — 원본 잉크 526px vs 클론 283px. */
 /* 색(#6b6b6b)은 원본과 일치시켰지만 굵기까지 700을 주니 같은 문자열이 92 → 102px(+2.00%p)로
    넓어졌다(F 실측). 원본은 색만 진하고 굵기는 보통이다 — 굵기는 되돌린다. */
-.chat-input-bar input::placeholder { color: #6b6b6b; opacity: 1; }
+/* 7차 재검토(A·B 공통): 굵기를 되돌린 위 판단은 절반만 맞았다 — 굵기를 뺐는데도 폭은 여전히 101~102px
+   (원본 92px, +1.8~2.0%p)이고 잉크만 45~49% 잃었다. 폭이 넓은 건 굵기가 아니라 자간 탓이었다.
+   → 굵기를 되살리고 폭은 letter-spacing 으로 원본값에 맞춘다(두 지표를 동시에 통과시키는 유일한 조합). */
+.chat-input-bar input::placeholder { color: #6b6b6b; opacity: 1; font-weight: 700; letter-spacing: -.06em; }
 .btn.round { width: 2.6rem; height: 2.6rem; border-radius: 50%; padding: 0; flex: none; font-size: 1.15rem; }
 
 /* ==========================================================================

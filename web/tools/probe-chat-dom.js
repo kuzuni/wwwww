@@ -21,7 +21,7 @@ const T = {
 };
 
 (async () => {
-    const browser = await chromium.launch({ args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
+    const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
     const page = await browser.newPage({ viewport: { width: 499, height: 892 } });
     const errs = [];
     page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });

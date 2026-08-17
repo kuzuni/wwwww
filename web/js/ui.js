@@ -2809,7 +2809,7 @@ const UI = {
             return `<div class="chat-row">
                 <span class="chat-avatar">${m.myAvatar}</span>
                 <div class="chat-bubble-wrap">
-                    <div class="chat-name-line"><span class="chat-name" style="color:${this.chatNameColor(m.myName)}">${U.escapeHtml(m.myName)}</span><span class="chat-time">${this.chatTime(m.at)}</span></div>
+                    <div class="chat-name-line"><span class="chat-name" style="color:${this.chatNameColor(m.myName)}">${m.tag ? `<span class="chat-tag">[${U.escapeHtml(m.tag)}]</span> ` : ''}${U.escapeHtml(m.myName)}</span>${this.chatNameIcons({ name: m.myName, gender: m.gender })}<span class="chat-time">${this.chatTime(m.at)}</span></div>
                     <div class="chat-share-card">
                         <div class="chat-share-side win">
                             <span class="chat-share-label">승리</span>
@@ -2855,6 +2855,10 @@ const UI = {
         Chat.ensure();
         this.renderChatFull();
         this.showModal(this.els.chatModal);
+        // renderChatFull 안의 scrollTop 지정은 모달이 아직 hidden(display:none)이라 무시된다 —
+        // 보이게 만든 뒤 한 번 더 내려야 원본처럼 '최신 메시지가 입력바 바로 위'로 온다.
+        const list = document.getElementById('chat-list');
+        if (list) list.scrollTop = list.scrollHeight;
     },
     closeChat() { this.els.chatModal.classList.add('hidden'); },
     renderChatFull() {

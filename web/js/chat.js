@@ -20,9 +20,23 @@ const Chat = {
         if (!S.chat.messages.length) this.seed();
     },
 
+    // 원본(shot-043500)은 '스크롤된 백로그'다 — 맨 위 행이 화면 상단에서 잘려 있고 마지막 말풍선이 입력바에
+    // 바로 붙어 있다. 6개만 심으면 목록이 넘치지 않아 하단에 앱 가로폭의 37%나 되는 흰 공백이 남는다
+    // (7차 비평가 공통 1순위 지적). 목록이 확실히 넘치는 수를 심고, 원본처럼 전투 공유 카드도 하나 끼운다.
     seed() {
-        const n = 6;
-        for (let i = 0; i < n; i++) this.pushBotMessage(U.now() - (n - i) * 90000);
+        const n = 18, gap = 90000, base = U.now() - n * gap;
+        for (let i = 0; i < n; i++) {
+            if (i === n - 2) this.seedShareCard(base + i * gap);
+            else this.pushBotMessage(base + i * gap);
+        }
+    },
+
+    // 원본의 공유 카드는 '내 결과'가 아니라 다른 플레이어([MELK] MilkMessiah)가 올린 것이라 mine:false다
+    seedShareCard(at) {
+        const win = this.persona('MilkMessiah'), lose = this.persona('Bearopotamus');
+        this.push({ type: 'share', win: true, tag: win.tag, name: win.name, gender: win.gender,
+            myName: win.name, myAvatar: win.avatar, myCp: 4.1e12,
+            oppName: lose.name, oppAvatar: lose.avatar, oppCp: 50.8e9, at, mine: false });
     },
 
     // 같은 닉네임 = 같은 인물 (아바타·클랜태그·성별 고정) — 이름 해시로 결정적 매핑 (UI.chatNameColor와 동일 방식)
