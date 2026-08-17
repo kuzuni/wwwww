@@ -93,6 +93,15 @@ const UI = {
         return `<div class="sr-sum">${chips}</div>`;
     },
 
+    // 등급색에서 밝은/어두운 스톱을 계산한다. RARITY_CSS는 전 화면 공용 데이터라 건드리지 않고,
+    // 구체 그라디언트에만 파생색을 쓴다 (color-mix 미지원 브라우저에서도 동작하게 JS로 계산).
+    srShade(hex, amt) {
+        const n = parseInt(hex.slice(1), 16);
+        return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+            .map(c => U.clamp(Math.round(amt > 0 ? c + (255 - c) * amt : c * (1 + amt)), 0, 255)
+                .toString(16).padStart(2, '0')).join('');
+    },
+
     // 배경에 천천히 떠오르는 빛가루 — 정지 화면이 죽어 보이지 않게 하는 용도라 난수 대신
     // 고정 수열로 흩어 놓는다(소환할 때마다 배치가 튀지 않게)
     summonMotes() {
@@ -114,7 +123,10 @@ const UI = {
         const holdback = this.SR_HI_RARITIES.indexOf(best) >= 0 && entries[entries.length - 1].qty === 1;
         const cells = entries.map(e => {
             const hi = this.SR_HI_RARITIES.indexOf(e.rarity) >= 0;
-            return `<div class="sr-cell${hi ? ' hi' : ''}" style="--rc:${RARITY_CSS[e.rarity]}">
+            const rc = RARITY_CSS[e.rarity];
+            // data-tier로 등급별 세기(크기·광채·광선)를 계단화한다 — 6등급이 2상태로 붕괴하지 않게
+            return `<div class="sr-cell${hi ? ' hi' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
+                style="--rc:${rc};--rc-lite:${this.srShade(rc, .5)};--rc-deep:${this.srShade(rc, -.6)}">
                 <div class="sr-orbwrap">
                     <span class="sr-ray"></span>
                     <span class="sr-orb">${e.icon}</span>
@@ -134,8 +146,8 @@ const UI = {
                 <div class="sr-rays"></div>
                 <div class="sr-halo"></div>
                 ${this.summonMotes()}
-                <div class="sr-charge" style="--rc:${RARITY_CSS[best]}"></div>
-                <div class="sr-shock" style="--rc:${RARITY_CSS[best]}"></div>
+                <div class="sr-charge"></div>
+                <div class="sr-shock"></div>
                 <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-head"><div class="sr-title">${meta.icon} ${meta.title} ×${rolls.length}</div></div>
                 <div class="sr-body"><div class="sr-grid${size}">${cells}</div></div>
@@ -177,8 +189,18 @@ const UI = {
         }
         // 한 프레임에 여러 개가 몰려도 효과음은 최고 등급 하나만 (대량 소환에서 소리가 뭉치는 것 방지)
         if (loud) SFX.summonReveal(loud);
-        // 홀드백 셀이 착지하는 순간 화면 전체를 등급색으로 한 번 훑는다
-        if (loud && this._srHoldback && this._srIdx >= n) this.els.summonResultModal.classList.add('flash');
+        // 홀드백 셀이 착지하는 순간, 그 셀 위치를 원점으로 화면을 등급색으로 한 번 훑는다
+        // (화면 중앙 고정이면 오른쪽 끝에 착지한 셀과 터지는 자리가 어긋난다)
+        if (loud && this._srHoldback && this._srIdx >= n) {
+            const m = this.els.summonResultModal, wrap = m.querySelector('.sr-wrap');
+            const orb = this._srCells[n - 1].querySelector('.sr-orb');
+            if (wrap && orb) {
+                const wr = wrap.getBoundingClientRect(), cr = orb.getBoundingClientRect();
+                wrap.style.setProperty('--fx', ((cr.left + cr.width / 2 - wr.left) / wr.width * 100).toFixed(1) + '%');
+                wrap.style.setProperty('--fy', ((cr.top + cr.height / 2 - wr.top) / wr.height * 100).toFixed(1) + '%');
+            }
+            m.classList.add('flash');
+        }
         if (this._srIdx >= n) {
             this._srTimers.push(setTimeout(() => this.finishSummonResult(), this.SR_TAIL_MS));
             this._srRaf = 0;

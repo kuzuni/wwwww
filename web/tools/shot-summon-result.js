@@ -66,6 +66,42 @@ const CASES = [
         console.log(`${name} closed-by-tap: ${closed}`);
         await page.close();
     }
+    // 캐스케이드 중간 프레임은 실시간 캡처로는 못 잡는다 — WebGL 페이지의 screenshot 한 장이
+    // 0.5초 넘게 걸려서 t=900ms를 노려도 이미 다 뜬 뒤가 찍힌다. 그래서 연출을 멈춘 뒤
+    // 셀을 k개까지만 켜서 각 단계를 결정론적으로 남긴다(팝 애니메이션이 도는 순간이 찍힌다).
+    {
+        const page = await browser.newPage({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1 });
+        page.on('pageerror', e => errors.push(`stages PAGEERROR ${e}`));
+        await page.goto(INDEX);
+        await page.waitForFunction('typeof UI !== "undefined" && UI.els');
+        await page.evaluate(SEED);
+        await page.evaluate(`S.summonCount = 5000; S.summonMult = {skill:5};
+            UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false); UI.clearSummonTimers();`);
+        await page.screenshot({ path: path.join(OUT, 'stage-0-charge.png') }); // 빛 모임만
+        for (let k = 1; k <= 5; k++) {
+            await page.evaluate(`UI._srCells[${k - 1}].classList.add('on')`);
+            await page.screenshot({ path: path.join(OUT, `stage-${k}.png`) });
+        }
+        await page.evaluate(`UI.finishSummonResult()`);
+        await page.waitForTimeout(400); // [확인] 팝 애니메이션이 끝난 뒤
+        await page.screenshot({ path: path.join(OUT, 'stage-done.png') });
+        await page.close();
+    }
+    // 빛 모임/충격파는 0.68초 안에 끝나는데 screenshot 한 장이 그보다 오래 걸려 실시간으로는
+    // 절대 못 잡는다. 애니메이션을 음수 delay로 원하는 시점에 세워 두고 캡처한다.
+    for (const at of [0.1, 0.28, 0.5]) {
+        const page = await browser.newPage({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1 });
+        page.on('pageerror', e => errors.push(`charge PAGEERROR ${e}`));
+        await page.goto(INDEX);
+        await page.waitForFunction('typeof UI !== "undefined" && UI.els');
+        await page.evaluate(SEED);
+        await page.addStyleTag({ content:
+            `.sr-charge, .sr-shock { animation-delay: -${at}s !important; animation-play-state: paused !important; }` });
+        await page.evaluate(`S.summonMult = {skill:5}; UI.switchTab('summon'); UI.switchSummonSub('skills');
+            UI.onSummon(false); UI.clearSummonTimers();`);
+        await page.screenshot({ path: path.join(OUT, `charge-${String(at).replace('.', '')}.png`) });
+        await page.close();
+    }
     await browser.close();
     console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'NO CONSOLE/PAGE ERRORS');
 })();
