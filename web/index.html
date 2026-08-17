@@ -95,6 +95,8 @@
     <div id="player-info-modal" class="modal hidden"></div>
     <div id="chat-modal" class="modal hidden"></div>
     <div id="gear-detail-modal" class="modal hidden" onclick="if (event.target === this) UI.closeGearDetail()"></div>
+    <!-- 소환 결과 연출: 탭바(z-index 30)까지 덮는 풀스크린 오버레이라 별도 z-index를 CSS에서 준다 -->
+    <div id="summon-result-modal" class="modal hidden" onclick="UI.onSummonResultTap()"></div>
     <div id="toasts"></div>
 </div>
 

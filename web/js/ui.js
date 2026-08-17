@@ -15,11 +15,201 @@ const UI = {
         else if (kind === 'pet') this.renderPets();
         else this.openMounts();
     },
-    // 대량 소환 결과 요약 (x25/x75에도 토스트가 견디게 등급별 집계)
-    summarizeRarities(results) {
+
+    // ===== 소환 결과 연출 팝업 (스킬·펫·탈것 공용) =====
+    // 원본 구성: 어두운(남색/검정) 풀스크린 오버레이 위에 뽑힌 항목을 등급색 원형 아이콘으로 나열.
+    // 연출: ① 빛 모임 플래시+충격파(기대감) → ② 아이콘이 등급 오름차순으로 하나씩 팝(스케일 바운스,
+    // 고등급은 등급색 광채+회전 광선) → ③ 최고 등급은 한 박자 늦게 홀드백 등장 + 화면 플래시
+    // → ④ 등급별 집계 + [확인]. 탭하면 스킵(전부 즉시 표시), 완료 상태에서 탭하면 닫힘.
+    // 대량 소환(x25/x75)은 같은 항목을 한 셀로 묶고 수량 배지를 달아 색점 나열이 되지 않게 한다.
+    SUMMON_KIND: {
+        skill: { title: '스킬 소환', icon: '🎫' },
+        pet: { title: '펫 소환', icon: '🥚' },
+        mount: { title: '탈것 소환', icon: '⚙️' },
+    },
+    SUMMON_DUP_LABEL: { skill: '조각', mount: '재료' }, // 중복분 적립 환산 표기 (펫은 알 단위라 없음)
+    SR_HI_RARITIES: ['legendary', 'ultimate', 'mythic'], // 광채 강조 대상
+    SR_REVEAL_BUDGET: 2200, // 셀이 많을 때 전체 등장 연출이 넘지 않을 시간(ms)
+    SR_SLOW_STEP: 250,      // 10개 이하 소량 뽑기의 셀 간격 — 캐스케이드가 눈에 보이게 넉넉히
+    SR_CHARGE_MS: 480,      // 빛 모임 구간 길이(.sr-charge 애니메이션과 맞춤)
+    SR_HOLDBACK_MS: 420,    // 최고 등급 1개를 마지막에 한 박자 늦게 띄우는 여유
+    SR_TAIL_MS: 300,        // 마지막 아이콘이 뜬 뒤 [확인]이 나오기까지의 여운
+    _srTimers: [], _srRaf: 0,
+    _srCells: null, _srEntries: null, _srDelays: null, _srStart: 0, _srIdx: 0,
+    _srDone: false,
+
+    // 모듈별 소환 결과 배열을 팝업이 쓰는 공통 형태로 변환 (묶음 전, 굴림 1회 = 1개)
+    summonEntries(kind, results) {
+        if (kind === 'skill') return results.map(r => ({
+            key: 'sk:' + r.def.id, icon: SKILL_ICONS[r.def.id] || '✨',
+            rarity: r.def.rarity, name: r.def.name, isNew: !!r.isNew,
+        }));
+        if (kind === 'mount') return results.map(r => ({
+            key: 'mt:' + r.name, icon: MOUNT_ICONS[r.name] || '🐴',
+            rarity: r.rarity, name: MOUNT_KR[r.name] || r.name, isNew: !!r.isNew,
+        }));
+        // 펫은 알 단위 획득이라 신규/중복 개념이 없다 — 기술트리 보너스 알만 따로 묶는다
+        return results.map(r => ({
+            key: 'eg:' + r.rarity + (r.extra ? ':x' : ''), icon: '🥚', rarity: r.rarity,
+            name: r.extra ? `보너스 ${RARITY_KR[r.rarity]} 알` : `${RARITY_KR[r.rarity]} 알`, isNew: false,
+        }));
+    },
+
+    SR_MERGE_FROM: 11, // 이 개수부터 같은 항목을 한 셀로 묶는다
+
+    // merge=true면 같은 항목을 셀 하나로 합치고 수량 배지로 표시한다. x75도 고유 항목 수
+    // (스킬 18·탈것 15·알 12종)까지만 늘어나 이름/등급이 그대로 살아남는다.
+    // x5 이하는 원본 구성("x5면 아이콘 5개")을 지켜야 하므로 묶지 않고 그대로 나열한다.
+    groupSummonEntries(kind, entries, merge) {
+        const dup = this.SUMMON_DUP_LABEL[kind];
+        let list;
+        if (merge) {
+            const map = new Map();
+            for (const e of entries) {
+                const g = map.get(e.key);
+                if (g) { g.qty++; if (e.isNew) g.newQty++; }
+                else map.set(e.key, Object.assign({ qty: 1, newQty: e.isNew ? 1 : 0 }, e));
+            }
+            list = [...map.values()];
+        } else {
+            list = entries.map(e => Object.assign({ qty: 1, newQty: e.isNew ? 1 : 0 }, e));
+        }
+        for (const g of list) {
+            g.isNew = g.newQty > 0;
+            // 중복만 나온 항목은 적립 환산(조각/재료)으로, 그 외는 등급명으로 표기
+            g.sub = (dup && !g.newQty) ? `${dup} +${g.qty}` : RARITY_KR[g.rarity];
+        }
+        // 등급 오름차순 — 마지막에 뜨는 셀이 최고 등급이 되게(홀드백 연출의 전제)
+        return list.sort((a, b) => RARITIES.indexOf(a.rarity) - RARITIES.indexOf(b.rarity));
+    },
+
+    // 등급별 획득 수 집계 칩 — 대량 소환에서 "무엇이 얼마나 나왔는지"를 한 줄로 알려준다
+    summonSummary(entries) {
+        if (entries.length <= 1) return '';
         const cnt = {};
-        results.forEach(x => { const r = x.rarity || (x.def && x.def.rarity); cnt[r] = (cnt[r] || 0) + 1; });
-        return RARITIES.filter(r => cnt[r]).map(r => `${RARITY_KR[r]}×${cnt[r]}`).join(' · ');
+        for (const e of entries) cnt[e.rarity] = (cnt[e.rarity] || 0) + 1;
+        const chips = RARITIES.filter(r => cnt[r]).reverse()
+            .map(r => `<b class="sr-chip" style="--rc:${RARITY_CSS[r]}">${RARITY_KR[r]} ${cnt[r]}</b>`).join('');
+        return `<div class="sr-sum">${chips}</div>`;
+    },
+
+    // 배경에 천천히 떠오르는 빛가루 — 정지 화면이 죽어 보이지 않게 하는 용도라 난수 대신
+    // 고정 수열로 흩어 놓는다(소환할 때마다 배치가 튀지 않게)
+    summonMotes() {
+        let h = '';
+        for (let i = 0; i < 18; i++) {
+            h += `<i style="--x:${(i * 37) % 100}%;--y:${(i * 61) % 100}%;--s:${3 + (i * 13) % 5}px;`
+               + `--d:${((i * 271) % 3400) / 1000}s;--dur:${3.4 + (i % 5) * 0.55}s"></i>`;
+        }
+        return `<div class="sr-motes">${h}</div>`;
+    },
+
+    openSummonResult(kind, results) {
+        if (!results || !results.length) return;
+        const meta = this.SUMMON_KIND[kind] || this.SUMMON_KIND.skill;
+        const rolls = this.summonEntries(kind, results);
+        const entries = this.groupSummonEntries(kind, rolls, rolls.length >= this.SR_MERGE_FROM);
+        const best = entries[entries.length - 1].rarity; // 오름차순 정렬이라 마지막이 최고 등급
+        // 최고 등급이 전설 이상이고 그 셀이 하나뿐일 때만 홀드백 — 흔한 등급까지 뜸들이면 늘어진다
+        const holdback = this.SR_HI_RARITIES.indexOf(best) >= 0 && entries[entries.length - 1].qty === 1;
+        const cells = entries.map(e => {
+            const hi = this.SR_HI_RARITIES.indexOf(e.rarity) >= 0;
+            return `<div class="sr-cell${hi ? ' hi' : ''}" style="--rc:${RARITY_CSS[e.rarity]}">
+                <div class="sr-orbwrap">
+                    <span class="sr-ray"></span>
+                    <span class="sr-orb">${e.icon}</span>
+                    ${e.qty > 1 ? `<b class="sr-qty">×${e.qty}</b>` : ''}
+                    ${e.isNew ? '<span class="sr-new">NEW</span>' : ''}
+                </div>
+                <div class="sr-name">${e.name}</div>
+                <div class="sr-sub">${e.sub}</div>
+            </div>`;
+        }).join('');
+        // 셀 수에 따라 크기 단계 — 묶음 덕분에 x75도 보통은 mid에서 멈춘다
+        const size = entries.length === 1 ? ' one' : entries.length > 24 ? ' dense' : entries.length > 10 ? ' mid' : '';
+        const m = this.els.summonResultModal;
+        m.className = 'modal'; // hidden 해제 + 이전 done 상태 제거
+        m.innerHTML = `
+            <div class="sr-wrap">
+                <div class="sr-rays"></div>
+                <div class="sr-halo"></div>
+                ${this.summonMotes()}
+                <div class="sr-charge" style="--rc:${RARITY_CSS[best]}"></div>
+                <div class="sr-shock" style="--rc:${RARITY_CSS[best]}"></div>
+                <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
+                <div class="sr-head"><div class="sr-title">${meta.icon} ${meta.title} ×${rolls.length}</div></div>
+                <div class="sr-body"><div class="sr-grid${size}">${cells}</div></div>
+                <div class="sr-foot">
+                    ${this.summonSummary(rolls)}
+                    <div class="sr-hint">화면을 탭하면 건너뜁니다</div>
+                    <button class="btn sr-ok" onclick="event.stopPropagation(); UI.closeSummonResult()">확인</button>
+                </div>
+            </div>`;
+        this.clearSummonTimers();
+        this._srDone = false;
+        SFX.summonCharge(best);
+        this._srCells = m.querySelectorAll('.sr-cell');
+        this._srEntries = entries;
+        const n = this._srCells.length;
+        const step = n <= 10 ? this.SR_SLOW_STEP : U.clamp(this.SR_REVEAL_BUDGET / n, 20, 120);
+        // 셀별 등장 시각 — 마지막 최고 등급 한 개만 홀드백만큼 더 뜸들인다
+        this._srDelays = [];
+        for (let i = 0; i < n; i++) {
+            this._srDelays.push(this.SR_CHARGE_MS + i * step + (holdback && i === n - 1 ? this.SR_HOLDBACK_MS : 0));
+        }
+        this._srHoldback = holdback;
+        this._srStart = performance.now();
+        this._srIdx = 0;
+        this._srRaf = requestAnimationFrame(() => this.tickSummonResult());
+    },
+
+    // 등장 캐스케이드 — 아이콘마다 setTimeout을 걸면 3D 렌더 루프에 밀려 대량 소환이 몇 초씩 끌린다.
+    // 매 프레임 '지금까지 떴어야 할 셀'을 경과 시간으로 다시 판정해 밀린 만큼 따라잡는다.
+    tickSummonResult() {
+        const n = this._srCells.length;
+        const elapsed = performance.now() - this._srStart;
+        let loud = null; // 이번 프레임에 뜬 것 중 최고 등급
+        while (this._srIdx < n && this._srDelays[this._srIdx] <= elapsed) {
+            const e = this._srEntries[this._srIdx];
+            this._srCells[this._srIdx].classList.add('on');
+            if (!loud || RARITIES.indexOf(e.rarity) > RARITIES.indexOf(loud)) loud = e.rarity;
+            this._srIdx++;
+        }
+        // 한 프레임에 여러 개가 몰려도 효과음은 최고 등급 하나만 (대량 소환에서 소리가 뭉치는 것 방지)
+        if (loud) SFX.summonReveal(loud);
+        // 홀드백 셀이 착지하는 순간 화면 전체를 등급색으로 한 번 훑는다
+        if (loud && this._srHoldback && this._srIdx >= n) this.els.summonResultModal.classList.add('flash');
+        if (this._srIdx >= n) {
+            this._srTimers.push(setTimeout(() => this.finishSummonResult(), this.SR_TAIL_MS));
+            this._srRaf = 0;
+            return;
+        }
+        this._srRaf = requestAnimationFrame(() => this.tickSummonResult());
+    },
+
+    // 연출 종료 — 힌트를 감추고 [확인]을 띄운다
+    finishSummonResult() {
+        this._srDone = true;
+        this.els.summonResultModal.classList.add('done');
+    },
+    // 오버레이 탭: 연출 중이면 스킵(전부 즉시 표시), 이미 끝났으면 닫기
+    onSummonResultTap() {
+        if (this._srDone) { this.closeSummonResult(); return; }
+        this.clearSummonTimers();
+        this.els.summonResultModal.querySelectorAll('.sr-cell').forEach(el => el.classList.add('on'));
+        this._srIdx = this._srCells ? this._srCells.length : 0;
+        this.finishSummonResult();
+    },
+    clearSummonTimers() {
+        this._srTimers.forEach(clearTimeout); this._srTimers = [];
+        if (this._srRaf) { cancelAnimationFrame(this._srRaf); this._srRaf = 0; }
+    },
+    closeSummonResult() {
+        this.clearSummonTimers();
+        this._srDone = false;
+        const m = this.els.summonResultModal;
+        m.className = 'modal hidden';
+        m.innerHTML = '';
     },
 
     init() {
@@ -45,6 +235,7 @@ const UI = {
             profileModal: $('profile-modal'), playerInfoModal: $('player-info-modal'),
             chatPreview: $('chat-preview'), chatModal: $('chat-modal'),
             gearDetailModal: $('gear-detail-modal'),
+            summonResultModal: $('summon-result-modal'),
         };
         this.els.offlineBtn.addEventListener('click', () => this.onClaimOffline());
         document.querySelectorAll('#tabbar button').forEach(btn => {
@@ -879,9 +1070,8 @@ const UI = {
         const count = this.summonMult('pet');
         const r = Pets.summon(count);
         if (!r) { this.toast(S.eggs.length + count > 20 ? `🥚 알 보관함 여유가 부족합니다 (${S.eggs.length}/20)` : '🥚 알이 부족합니다 (펫 던전에서 획득)'); return; }
-        if (count === 1) this.toast(`🥚 ${RARITY_KR[r.results[0].rarity]} 알 획득!`);
-        else this.toast(`🥚 소환 x${count} — ${this.summarizeRarities(r.results)} 획득!`);
         this.renderPets();
+        this.openSummonResult('pet', r.results); // 결과는 토스트 대신 전용 연출 팝업으로 보여준다
     },
 
     // 알 상세 팝업 — 클릭 즉시 부화 금지(사용자 지시): 펫 상세와 같은 패턴, [부화] 버튼으로만 부화 시작
@@ -1224,15 +1414,8 @@ const UI = {
         const count = this.summonMult('skill');
         const r = Skills.summon(useGems, count);
         if (!r) { this.toast(useGems ? '💎 젬이 부족합니다' : '🎫 티켓이 부족합니다 (스테이지 클리어로 획득)'); return; }
-        if (count === 1) {
-            const res = r.results[0];
-            if (res.isNew) this.toast(`🎉 새 스킬: ${res.def.name} (${RARITY_KR[res.def.rarity]})`);
-            else this.toast(`🧩 ${res.def.name} 조각 획득 (Lv.${res.level})`);
-        } else {
-            const newCount = r.results.filter(x => x.isNew).length;
-            this.toast(`✨ 소환 x${count} — 새 스킬 ${newCount}종 · 조각 ${count - newCount}개 획득`);
-        }
         this.renderSkills(); this.renderSkillBar(); this.renderTopBar();
+        this.openSummonResult('skill', r.results); // 결과는 토스트 대신 전용 연출 팝업으로 보여준다
     },
     onUpgradeSkill(id) {
         if (!Skills.upgrade(id)) { this.toast('🧩 조각이 부족합니다'); return; }
@@ -2085,15 +2268,8 @@ const UI = {
         const count = this.summonMult('mount');
         const r = Mounts.summon(count);
         if (!r) { this.toast('⚙️ 태엽이 부족합니다 (스테이지 클리어로 획득)'); return; }
-        if (count === 1) {
-            const res = r.results[0];
-            if (res.isNew) this.toast(`🎉 새 마운트: ${MOUNT_KR[res.name] || res.name} (${RARITY_KR[res.rarity]})`);
-            else this.toast(`${MOUNT_KR[res.name] || res.name} 중복 획득 (재료 ${S.mounts[res.name].dupes})`);
-        } else {
-            const newCount = r.results.filter(x => x.isNew).length;
-            this.toast(`⚙️ 소환 x${count} — 새 마운트 ${newCount}종 · 중복 ${count - newCount}개 획득`);
-        }
         this.openMounts(); this.renderTopBar(); this.renderEquipSheet();
+        this.openSummonResult('mount', r.results); // 결과는 토스트 대신 전용 연출 팝업으로 보여준다
     },
     onEquipMount(name) { if (Mounts.equip(name)) { this.openMounts(); this.renderEquipSheet(); } },
 

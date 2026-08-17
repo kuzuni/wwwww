@@ -1880,3 +1880,223 @@ body {
 .asc-btns .btn { flex: 1; min-height: 2.9rem; }
 /* 소환 바: 승천 가능 상태의 소환 버튼 (초록 강조) */
 .summon-bar .btn.big.ascend-ready { background: linear-gradient(#4caf50, #2e7d32); color: #fff; }
+
+/* ==== 소환 결과 연출 팝업 (스킬·펫·탈것 공용, UI.openSummonResult) ====
+   원본 구성: 어두운 남색/검정 풀스크린 오버레이 위에 뽑힌 항목을 등급색 원형 아이콘으로 나열.
+   구성(배치)만 원본을 따르고 질감은 원신급 기준 — 평면 원이 아니라 유광 구체(내부 림 + 상단
+   스페큘러 + 접지 그림자)에 등급색 광채를 얹고, 뒤에는 느리게 도는 광선/빛가루로 깊이를 만든다.
+   화면은 제목(상) / 그리드(중, flex:1) / 집계·버튼(하) 3단으로 나눠 세로 여백을 고르게 쓴다.
+   `.modal`(z-index 20)은 `#tabbar`(z-index 30) 아래로 깔리므로 화면 전체를 덮는 이 오버레이만 60. */
+#summon-result-modal {
+    z-index: 60; padding: 0; overflow: hidden;
+    background: radial-gradient(118% 76% at 50% 44%, #24306a 0%, #101740 38%, #070b20 68%, #03040c 100%);
+}
+.sr-wrap {
+    position: relative; width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 1.2rem .7rem .9rem;
+}
+.sr-head { flex: 0 0 auto; padding-top: 9%; } /* 제목과 아이콘 줄 사이 빈 띠를 줄인다 */
+.sr-body { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; width: 100%; }
+/* 배경 광선 — 아주 느리게 도는 방사 광선. 중심 구멍을 아이콘 줄에 맞춰 뚫는다 */
+.sr-rays {
+    position: absolute; left: 50%; top: 50%; width: 190%; aspect-ratio: 1;
+    transform: translate(-50%, -50%); pointer-events: none; opacity: .11;
+    background: repeating-conic-gradient(rgba(190,215,255,.9) 0deg 1.6deg, rgba(255,255,255,0) 1.6deg 14deg);
+    -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,0) 3%, #000 11%, rgba(0,0,0,.4) 24%, rgba(0,0,0,0) 44%);
+    mask-image: radial-gradient(circle, rgba(0,0,0,0) 3%, #000 11%, rgba(0,0,0,.4) 24%, rgba(0,0,0,0) 44%);
+    animation: srrayspin 48s linear infinite;
+}
+/* 중앙 광원 — 아이콘 줄 뒤를 밝혀 대비를 만든다 */
+.sr-halo {
+    position: absolute; left: 50%; top: 50%; width: 26rem; height: 16rem;
+    transform: translate(-50%, -50%); pointer-events: none;
+    background: radial-gradient(closest-side, rgba(120,165,255,.3) 0%, rgba(90,130,255,.1) 48%, rgba(0,0,0,0) 100%);
+}
+/* 배경 빛가루 — 정지 화면이 죽지 않게 아주 느리게 떠오른다 */
+.sr-motes { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.sr-motes i {
+    position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s);
+    border-radius: 50%; opacity: 0;
+    background: radial-gradient(circle, #fff 0%, rgba(180,212,255,.6) 42%, rgba(255,255,255,0) 72%);
+    animation: srmote var(--dur) ease-in-out var(--d) infinite;
+}
+@keyframes srmote {
+    0%   { opacity: 0;   transform: translateY(.7rem) scale(.55); }
+    35%  { opacity: .85; }
+    70%  { opacity: .45; }
+    100% { opacity: 0;   transform: translateY(-2.6rem) scale(1.1); }
+}
+
+/* ① 빛 모임 — 아이콘이 뜨기 직전 화면 전체가 등급색으로 밝아졌다 가라앉는다.
+   국소 원으로 두면 캡처 프레임에 흔적조차 안 남아 전체화면으로 키웠다 (JS SR_CHARGE_MS와 동기) */
+.sr-charge {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at 50% 50%, #fff 0%, var(--rc, #fff) 13%, rgba(255,255,255,0) 46%);
+    animation: srcharge .68s cubic-bezier(.3,.7,.3,1) forwards;
+}
+@keyframes srcharge {
+    0%   { opacity: 0;   transform: scale(.16); }
+    40%  { opacity: 1;   transform: scale(.6); }
+    100% { opacity: 0;   transform: scale(1.9); }
+}
+/* 빛 모임과 함께 퍼지는 충격파 링 */
+.sr-shock {
+    position: absolute; left: 50%; top: 50%; width: 9rem; height: 9rem; margin: -4.5rem 0 0 -4.5rem;
+    border-radius: 50%; border: .22rem solid var(--rc, #fff); pointer-events: none; opacity: 0;
+    animation: srshock .6s ease-out forwards;
+}
+@keyframes srshock {
+    0%   { opacity: .95; transform: scale(.2); }
+    100% { opacity: 0;   transform: scale(3.1); }
+}
+/* 홀드백(최고 등급 마지막 등장) 착지 순간의 화면 플래시 */
+.sr-flash {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(circle at 50% 50%, #fff 0%, var(--rc, #fff) 34%, rgba(255,255,255,0) 78%);
+}
+#summon-result-modal.flash .sr-flash { animation: srflash .5s ease-out forwards; }
+@keyframes srflash { 0% { opacity: .85; } 100% { opacity: 0; } }
+
+.sr-title {
+    position: relative; z-index: 1;
+    font-size: 1.6rem; font-weight: 900; letter-spacing: .07em; color: #fff;
+    text-shadow: 0 0 1rem rgba(150,190,255,.8), 0 .2rem .55rem rgba(0,0,0,.85);
+    padding: .3rem 1.4rem;
+    background: linear-gradient(90deg, rgba(255,255,255,0), rgba(12,20,52,.85) 14%, rgba(12,20,52,.85) 86%, rgba(255,255,255,0));
+    border-top: 1px solid rgba(255,214,120,.4); border-bottom: 1px solid rgba(255,214,120,.4);
+    animation: srtitle .45s ease-out both;
+}
+@keyframes srtitle { from { opacity: 0; transform: translateY(-.6rem); } to { opacity: 1; transform: none; } }
+
+/* ② 아이콘 그리드 — 같은 항목은 한 셀로 묶여 있어 x75도 보통 20셀 이하로 들어온다 */
+.sr-grid {
+    position: relative; z-index: 1;
+    display: flex; flex-wrap: wrap; align-content: center; justify-content: center;
+    gap: 1rem .5rem; width: 100%; max-height: 100%; overflow-y: auto; padding: .6rem .5rem;
+    /* 잘림을 알 수 있게 위아래를 페이드 (스크롤 어포던스) */
+    -webkit-mask-image: linear-gradient(rgba(0,0,0,0) 0, #000 5%, #000 95%, rgba(0,0,0,0) 100%);
+    mask-image: linear-gradient(rgba(0,0,0,0) 0, #000 5%, #000 95%, rgba(0,0,0,0) 100%);
+}
+.sr-cell { width: min(5.2rem, calc((100% - 4.2rem) / 5)); text-align: center; opacity: 0; transform: scale(.35); }
+.sr-grid.one .sr-cell { width: 9rem; }      /* x1은 크게 한 개 */
+.sr-grid.mid .sr-cell { width: 3.7rem; }
+.sr-grid.dense .sr-cell { width: 2.85rem; } /* 고유 항목이 24종을 넘는 예외적 경우 */
+.sr-cell.on { animation: srpop .38s cubic-bezier(.18,1.6,.4,1) forwards; }
+@keyframes srpop {
+    0%   { opacity: 0; transform: scale(.3) translateY(.5rem); }
+    58%  { opacity: 1; transform: scale(1.16) translateY(0); }
+    100% { opacity: 1; transform: scale(1); }
+}
+.sr-orbwrap { position: relative; width: 100%; aspect-ratio: 1; }
+/* 팝 순간 퍼지는 등급색 충격파 링 */
+.sr-orbwrap::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    border: 3px solid var(--rc); opacity: 0; pointer-events: none;
+}
+.sr-cell.on .sr-orbwrap::after { animation: srring .55s ease-out forwards; }
+@keyframes srring {
+    0%   { opacity: .95; transform: scale(.65); }
+    100% { opacity: 0;   transform: scale(2); }
+}
+/* 유광 구체: 등급색 본체(2스톱) + 내부 림 + 상단 스페큘러 초승달 + 접지 그림자 */
+.sr-orb {
+    position: absolute; inset: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; line-height: 1;
+    font-size: 1.45rem; text-shadow: 0 .1rem .25rem rgba(0,0,0,.55);
+    border: 2px solid rgba(255,255,255,.3);
+    background:
+        radial-gradient(circle at 62% 108%, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 58%),
+        linear-gradient(158deg, rgba(255,255,255,.28) 0%, rgba(0,0,0,.42) 100%),
+        var(--rc, #ccc);
+    box-shadow: 0 0 0 3px rgba(0,0,0,.55), 0 .3rem .65rem rgba(0,0,0,.55);
+}
+.sr-orb::before { /* 내부 림 — 위는 밝고 아래는 어둡게 눌러 구면감을 만든다 */
+    content: ''; position: absolute; inset: 6%; border-radius: 50%; pointer-events: none;
+    box-shadow: inset 0 .34rem .5rem rgba(255,255,255,.34), inset 0 -.42rem .55rem rgba(0,0,0,.58);
+}
+.sr-orb::after { /* 상단 스페큘러 초승달 */
+    content: ''; position: absolute; inset: 8% 13% 50%; pointer-events: none;
+    border-radius: 50% / 62% 62% 38% 38%;
+    background: linear-gradient(rgba(255,255,255,.62), rgba(255,255,255,.04));
+}
+.sr-grid.one .sr-orb { font-size: 3.2rem; border-width: 3px; }
+.sr-grid.mid .sr-orb { font-size: 1.2rem; }
+.sr-grid.dense .sr-orb { font-size: .95rem; box-shadow: 0 0 0 2px rgba(0,0,0,.55), 0 .15rem .35rem rgba(0,0,0,.5); }
+/* 일반/희귀는 눌러 둔다 — 일반색(#d6d6d6)이 팔레트 중 가장 밝아 그대로 두면
+   쓰레기 드랍이 화면에서 제일 빛나는 휘도 역전이 생긴다 */
+.sr-cell:not(.hi) .sr-orb { filter: saturate(.62) brightness(.72); border-color: rgba(255,255,255,.16); }
+/* 전설 이상은 등급색 광채 + 회전 광선으로 강조 */
+.sr-cell.hi .sr-orb {
+    box-shadow: 0 0 0 3px rgba(0,0,0,.55), 0 .3rem .65rem rgba(0,0,0,.55),
+                0 0 1rem var(--rc), 0 0 2.4rem var(--rc);
+}
+.sr-cell.hi.on .sr-orb { animation: srpulse 1.5s ease-in-out .4s infinite; }
+@keyframes srpulse { 50% { filter: brightness(1.5) saturate(1.25); } }
+/* 광선은 셀 폭을 크게 넘기면 옆 셀과 뭉개져 노란 얼룩 띠가 된다 — 반경을 줄이고 가장자리를 감쇠 */
+.sr-ray {
+    position: absolute; inset: -14%; border-radius: 50%; pointer-events: none; opacity: 0;
+    -webkit-mask-image: radial-gradient(circle, #000 18%, rgba(0,0,0,.45) 40%, rgba(0,0,0,0) 62%);
+    mask-image: radial-gradient(circle, #000 18%, rgba(0,0,0,.45) 40%, rgba(0,0,0,0) 62%);
+}
+.sr-cell.hi .sr-ray { background: repeating-conic-gradient(var(--rc) 0deg 4deg, rgba(255,255,255,0) 4deg 26deg); }
+.sr-cell.hi.on .sr-ray { animation: srrayfade .5s ease-out forwards, srrayspin 3.6s linear infinite; }
+@keyframes srrayfade { to { opacity: .72; } }
+@keyframes srrayspin { to { transform: rotate(360deg); } }
+/* ③ 신규 획득 배지 / 묶인 수량 배지 — 정사각 래퍼 모서리가 아니라 원의 림에 붙인다 */
+.sr-new {
+    position: absolute; top: 3%; right: 1%; z-index: 2;
+    background: linear-gradient(#ff6a5e, #e02114); color: #fff; border: 2px solid rgba(0,0,0,.6);
+    border-radius: .5rem; padding: .02rem .26rem;
+    font-size: .52rem; font-weight: 900; letter-spacing: .04em;
+    box-shadow: 0 .12rem .3rem rgba(0,0,0,.6);
+}
+.sr-qty {
+    position: absolute; bottom: 1%; right: 1%; z-index: 2;
+    background: rgba(0,0,0,.82); color: #fff; border: 1px solid var(--rc);
+    border-radius: .38rem; padding: 0 .24rem; font-size: .52rem; font-weight: 900;
+}
+.sr-grid.dense .sr-new, .sr-grid.dense .sr-qty { display: none; }
+.sr-name {
+    margin-top: .42rem; font-size: .68rem; font-weight: 800; color: #fff; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-shadow: 0 .1rem .3rem rgba(0,0,0,.9);
+}
+.sr-sub {
+    display: inline-block; margin-top: .18rem; padding: .04rem .34rem; border-radius: .45rem;
+    background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.14);
+    font-size: .6rem; font-weight: 900; color: var(--rc); letter-spacing: .02em;
+}
+.sr-grid.one .sr-name { font-size: 1.15rem; margin-top: .75rem; }
+.sr-grid.one .sr-sub { font-size: .9rem; padding: .12rem .6rem; margin-top: .32rem; }
+.sr-grid.mid .sr-name { font-size: .58rem; margin-top: .3rem; }
+.sr-grid.mid .sr-sub { font-size: .5rem; padding: .02rem .22rem; }
+.sr-grid.dense .sr-name, .sr-grid.dense .sr-sub { display: none; }
+
+/* ④ 하단: 등급별 집계 → 연출 중엔 스킵 안내, 끝나면 [확인] */
+.sr-foot {
+    position: relative; z-index: 1; flex: 0 0 auto; width: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+    gap: .6rem; min-height: 6.2rem; padding-top: .6rem;
+}
+.sr-sum { display: flex; flex-wrap: wrap; justify-content: center; gap: .3rem; }
+.sr-chip {
+    color: var(--rc); border: 1px solid currentColor; border-radius: .5rem;
+    padding: .1rem .45rem; font-size: .62rem; font-weight: 900; background: rgba(0,0,0,.4);
+}
+.sr-hint {
+    font-size: .74rem; font-weight: 700; color: rgba(210,225,255,.75);
+    border: 1px solid rgba(255,255,255,.22); border-radius: 1rem; padding: .3rem .85rem;
+    animation: srhint 1.4s ease-in-out infinite;
+}
+@keyframes srhint { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+.sr-ok {
+    display: none; min-width: 9rem; min-height: 2.9rem; font-size: 1.02rem; font-weight: 900;
+    color: #2a1c04; letter-spacing: .06em;
+    background: linear-gradient(#ffe89a 0%, #ffc93c 46%, #e8a015 100%);
+    border: 2px solid rgba(60,38,4,.75); border-radius: .7rem;
+    box-shadow: inset 0 -.22rem 0 rgba(120,72,4,.5), inset 0 .16rem 0 rgba(255,255,255,.55),
+                0 .3rem .7rem rgba(0,0,0,.55), 0 0 1.3rem rgba(255,200,70,.4);
+}
+#summon-result-modal.done .sr-hint { display: none; }
+#summon-result-modal.done .sr-ok { display: block; animation: srpop .32s cubic-bezier(.18,1.6,.4,1) both; }

@@ -121,6 +121,20 @@ const SFX = {
         this.noiseBurst(0.15, { gain: 0.1, filterFreq: 4000, delay: 0.02 });
     },
 
+    // 소환 결과 팝업 '빛 모임' 구간 — 상승 스윕 + 얕은 노이즈. 최고 등급이 높을수록 더 높고 길게 감아올린다
+    summonCharge(rarity) {
+        const hi = rarity === 'legendary' || rarity === 'ultimate' || rarity === 'mythic';
+        this.tone(220, hi ? 0.42 : 0.3, { type: 'triangle', gain: 0.16, slideTo: hi ? 1760 : 880 });
+        this.noiseBurst(hi ? 0.34 : 0.22, { gain: 0.06, filterFreq: 2600 });
+    },
+    // 아이콘 하나가 팝하는 순간 — 등급이 올라갈수록 음이 높아지고, 전설 이상은 5도 화음을 한 겹 더 얹는다
+    summonReveal(rarity) {
+        const idx = Math.max(0, RARITIES.indexOf(rarity));
+        const base = 520 * Math.pow(1.09, idx);
+        this.tone(base, 0.12, { type: 'sine', gain: 0.17, slideTo: base * 1.5 });
+        if (idx >= 3) this.tone(base * 1.5, 0.22, { type: 'triangle', gain: 0.11, delay: 0.04, slideTo: base * 2 });
+    },
+
     // ===== 배경 음악 (설정 팝업 "음악" 토글, UI-SPEC 20번 실동작) =====
     // 외부 파일 없이 프로시저럴로 실제 곡처럼 들리게 합성 — 베이스+코드패드+멜로디+하이햇 4레이어를
     // WebAudio 표준 look-ahead 스케줄러 패턴(짧은 타이머로 ctx.currentTime 기준 미리 예약)으로 루프.
