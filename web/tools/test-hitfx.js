@@ -94,6 +94,19 @@ const path = require('path');
         Scene3D.fxLayer.innerHTML = '';
         step(60);
 
+        // 3-f) 피아 구분: 만피에서 적 바는 빨강 계열, 영웅 바는 초록 계열 (비평가 4차 ⓓ)
+        e.hp = Big.of(e.maxHp);
+        Combat.hero.hp = Big.of(Combat.hero.maxHp);
+        step(3);
+        const foeC = m.hpFg.material.color, heroC = Scene3D.heroBar.hpFg.material.color;
+        ok(foeC.r > foeC.g * 2 && foeC.r > foeC.b * 2, '적 바 = 적대 빨강 (r ' + foeC.r.toFixed(3) + ' g ' + foeC.g.toFixed(3) + ')');
+        ok(heroC.g > heroC.r * 2, '영웅 바 = 초록 (g ' + heroC.g.toFixed(3) + ' r ' + heroC.r.toFixed(3) + ')');
+        // 잔상은 채움과 갈려야 손실 폭이 읽힌다 — 적 바가 빨강이 된 뒤 잔상까지 빨강이면 사라진다
+        Combat.damageEnemy(e, Big.of(300), false, null);
+        step(3);
+        const gC = m.hpGhost.material.color;
+        ok(gC.g > gC.b * 1.5 && gC.r > 0.3, '적 잔상바가 빨강 채움과 갈림 (노랑~살구)');
+
         // 4) 히트스톱이 반드시 풀린다 (연출이 영구 슬로모로 남지 않게)
         Combat.damageEnemy(e, Big.of(300), true, null);
         step(30);

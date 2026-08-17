@@ -1823,7 +1823,7 @@ const Scene3D = {
         this.heroHpFg = hpFg;
         // 적과 같은 2단 바 상태(driveHpBar가 소유, 플래시는 트랙에). hpG를 넘겨야 세로 펀치가 걸린다.
         this.heroBar = { hpFg, hpGhost, hpBg, ghostV: 1, hpG: this.heroHpG };
-        this.heroHpG.position.set(g.position.x, 1.85, g.position.z);
+        this.heroHpG.position.set(g.position.x, 2.18, g.position.z);
         this.scene.add(this.heroHpG);
     },
 
@@ -4259,6 +4259,10 @@ const Scene3D = {
         this.setShadow(m.g, true);
         this.applyRimLight(m.g);
         this.scene.add(m.g);
+        // 적 바는 **적대 빨강**으로 못 박는다 — 영웅 바와 같은 초록/노랑/빨강 램프를 쓰면 둘이
+        // 같은 색이라 피아 구분이 안 됐다(비평가 4차 ⓓ). 남은 체력은 어차피 **바 길이**가 말해 주므로
+        // 램프의 경고 기능은 정작 그게 필요한 영웅 바에만 남긴다.
+        m.foe = true;
         // HP 바는 scene 직속(몸 변형 비상속) — 위치는 update가 매 프레임 추적
         if (m.hpG) {
             m.hpG.position.set(m.g.position.x, m.g.position.y, m.g.position.z);
@@ -4714,7 +4718,11 @@ const Scene3D = {
         if (!o) return;
         o.hpFlash = 1;
         o.ghostHold = 0.15 + Math.min(0.13, sev * 0.5);  // 큰 피해일수록 잔상이 오래 버텨 손실 폭이 읽힌다
-        o.ghostColor = sev > 0.15 ? 0xd63a3a : 0xe8a800; // 큰 덩어리는 빨강, 잔손질은 노랑
+        // 잔상(방금 잃은 양)은 채움과 색이 갈려야 폭이 읽힌다. 영웅 바(초록 채움)에선 큰 덩어리=빨강이
+        // 대비가 최대지만, **적 바는 채움이 이미 빨강**이라 같은 빨강을 쓰면 잔상이 통째로 사라진다
+        // (ⓓ로 채움을 적대 빨강으로 고정하며 생긴 조건). 적 쪽은 노랑~살구로 밝기를 올려 분리한다.
+        o.ghostColor = o.foe ? (sev > 0.15 ? 0xffd166 : 0xe8a800)
+                             : (sev > 0.15 ? 0xd63a3a : 0xe8a800);
         o.barShake = Math.min(1.2, (o.barShake || 0) + 0.3 + sev * 2.4);
         // 바 고유 세로 펀치 — 몸의 스쿼시를 상속하던 걸 끊은 뒤(바를 scene 직속으로 옮김) 바에 남은
         // 유일한 '맞았다' 반응이다. 임팩트 **프레임에서 최대**여야 한다 — 뒤늦게 커지면 위계가
@@ -4733,7 +4741,12 @@ const Scene3D = {
         // 채움은 항상 순수 체력색 — 예전엔 여기에 흰색을 섞어서 피격 순간(정작 제일 오래 보는 프레임)에
         // 초록/노랑/빨강 색코딩이 통째로 날아갔다(비평가 2차 ⓓ). 플래시는 아래 트랙 테두리로 옮겼다.
         // ⚠️ setHex 금지 — srgbC로 변환한 색을 copy 한다(출력 sRGB 인코딩 때문. srgbC 주석 참조).
-        fg.material.color.copy(this.srgbC(ratio > 0.5 ? 0x2ebd6b : ratio > 0.2 ? 0xe8a800 : 0xd63a3a));
+        // 적 = 적대 빨강 고정, 영웅 = 초록/노랑/빨강 경고 램프(비평가 4차 ⓓ: 둘이 같은 초록이라
+        // 피아 구분이 안 됐다). 적 쪽도 완전 단색은 아니고, 빈사에서 한 단계 짙어져 '거의 잡았다'가
+        // 읽히게 둔다 — 단 색상(hue)은 빨강 밖으로 나가지 않아 소유자 코딩이 흔들리지 않는다.
+        fg.material.color.copy(this.srgbC(o.foe
+            ? (ratio > 0.2 ? 0xe5484d : 0xa81b1b)
+            : (ratio > 0.5 ? 0x2ebd6b : ratio > 0.2 ? 0xe8a800 : 0xd63a3a)));
         // 트랙(채움보다 큰 어두운 판 = 테두리)만 흰색으로 밀어올린다 — 바 둘레가 번쩍이고 내용물은 읽힌다
         if (o.hpBg) {
             o.hpBg.material.color.copy(this.srgbC(0x0d1114)).lerp(W, o.hpFlash * 0.9);
@@ -4992,8 +5005,8 @@ const Scene3D = {
         // 영웅 피해 숫자 — 적과 반대쪽(왼쪽)으로 흘려 적 숫자와 소유자가 헷갈리지 않게 한다.
         // 높이는 영웅 HP바 위. 색·외곽선은 CSS의 .dmg-hero가 가진다.
         if (dmg !== undefined && dmg !== null && this.heroG) {
-            // 영웅 바(heroHpG.y = 1.85) 위로 바 높이(0.135)의 2.2배 — 적 숫자와 같은 규칙
-            const barY = this.heroHpG ? this.heroHpG.position.y : 1.85;
+            // 영웅 바(heroHpG.y = 2.18) 위로 바 높이(0.135)의 2.2배 — 적 숫자와 같은 규칙
+            const barY = this.heroHpG ? this.heroHpG.position.y : 2.18;
             const p = this.heroG.position.clone().add(new THREE.Vector3(-0.15, barY + 0.135 * 2.2, 0));
             this.damageNumber(p, U.fmt(dmg), 'dmg-hero',
                 { dx: -U.rand(10, 30), rise: -(26 + sev * 14), scale: 1 + Math.min(0.25, sev * 0.8) });
@@ -5799,7 +5812,10 @@ const Scene3D = {
             this.driveHpBar(this.heroBar, hRatio, dt);
             this.heroHpG.position.set(
                 this.heroG.position.x + this.heroBar.shakeX,
-                this.heroG.position.y + 1.85 + this.heroBar.shakeY,
+                // 2.18 = 머리 위 여유. 예전 1.85는 근접 교전에서 적 바와 **화면 세로 7.8px**밖에
+                // 안 벌어져 두 바가 같은 스캔라인에 붙어 피아 구분이 안 됐다(비평가 4차 ⓓ 실측).
+                // 2.18이면 29.6px — 비평가 요구치 26px을 넘긴다.
+                this.heroG.position.y + 2.18 + this.heroBar.shakeY,
                 this.heroG.position.z);
         }
         // 영웅: 걷기(월드 전진) / 아이들 — GLB 모드는 스켈레탈 클립, 아니면 프로시저럴 관절
