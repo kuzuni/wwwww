@@ -2512,17 +2512,18 @@ body {
 .af-scroll { overflow-y: auto; max-height: calc(var(--app-h) * .42); margin: 0 -.62rem; }
 .af-age-bar {
     display: flex; align-items: center; gap: .45rem; cursor: pointer;
-    background: var(--ac, #999); border: 3px solid var(--pp-line); border-radius: .6rem;
-    padding: .18rem .5rem; margin-bottom: .32rem;   /* 체크 박스를 원본 크기로 키운 만큼 줄여 막대 높이는 원본(3.28%H)에 붙인다 */
+    /* 원본 막대에는 **검정 테두리가 없다**(shot-042950 4배 확대 — 흰 여백에서 바로 색면으로 넘어간다).
+       테두리를 빼면 높이도 6px 줄어 원본 29px(3.28%H)에 맞는다 — 종전 34px 은 테두리가 만든 초과분이었다. */
+    background: var(--ac, #999); border-radius: .6rem;
+    padding: .21rem .5rem; margin-bottom: .48rem;   /* 원본 막대 높이 29px(3.28%H) · 간격 8px(피치 37px = 4.18%H) */
     background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.09) 0 .5rem, transparent .5rem 1rem);
 }
+/* 원본 시대명·% 는 **검정 민글자**다(확률 정보 화면과 같은 화풍 — 흰 글자 + 검정 외곽선이 아니다) */
 .af-age-name {
-    flex: 1; text-align: left; font-weight: 900; font-size: .82rem; color: #fff;
-    text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
+    flex: 1; text-align: left; font-weight: 900; font-size: .82rem; color: #000;
 }
 .af-age-pct {
-    font-weight: 900; font-size: .84rem; color: #fff; padding-right: .28rem;   /* 원본은 % 숫자와 막대 오른쪽 모서리 사이가 ~2.5%W 뜬다 */
-    text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
+    font-weight: 900; font-size: .84rem; color: #000; padding-right: .28rem;   /* 원본은 % 숫자와 막대 오른쪽 모서리 사이가 ~2.5%W 뜬다 */
 }
 /* 원본 확대 실측: 체크 박스는 23px(목표 행)~26px(시대 막대) 짜리 **검정 라운드 사각**이고,
    켜진 상태도 배경은 검정 그대로 두고 **✓ 글리프만 초록**이다 — 상자를 통째로 초록으로 채우던
@@ -2621,6 +2622,9 @@ body {
     background-size: var(--af-pat-size, auto);
     background-position: var(--af-pat-pos, 0 0);
     background-repeat: var(--af-pat-repeat, repeat);
+    /* 잔여 지적 ⓐ — 원본은 무늬가 막대 오른쪽에만 있고 체크·아이콘·이름이 앉는 왼쪽은 비어 있다 */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0 30%, #000 50%);
+    mask-image: linear-gradient(90deg, transparent 0 30%, #000 50%);
 }
 /* 광택 층 — 위쪽 하이라이트에서 아래쪽 그늘로. 무늬 위에 얹혀 막대에 두께를 준다 */
 .af-age-bar::after {
@@ -2640,7 +2644,7 @@ body {
     margin-left: .22rem; color: #ffb300; font-size: .88rem; letter-spacing: 0;
     text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
 }
-.af-age-bar[data-age="divine"] .af-age-star { color: #fff; }
+.af-age-bar[data-age="divine"] .af-age-star { color: #000; text-shadow: none; }   /* 빈 별은 검정 윤곽 (원본 확대 확인) */
 
 /* 시대별 무늬 — 전부 원본에서 읽은 것이다. 🚨 **앞 5개 시대(원시~우주)는 원본에서 무늬가 없다**:
    `shot-042831`(확률 정보)은 10시대를 한 화면에 보여주는데 원시적·중세의·근대 초기·현대의·우주는
