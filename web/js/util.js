@@ -17,7 +17,11 @@ const U = {
         n = Math.floor(n);
         const abs = Math.abs(n);
         if (abs < 1000) return String(n);
-        const units = ['K', 'M', 'B', 'T', 'Qa', 'Qi'];
+        // T(1e12) 위로는 접미사 표가 Big 경로에만 있다(aa/ab/…). number 를 계속 1000으로 나누면
+        // 접미사가 Qi 에서 끝나 그 위가 전부 Qi 로 눌리고, 1e18 을 넘는 순간 가수가 지수 표기로
+        // 바뀌어 "1e+22Qi"·"InfinityQi" 가 화면에 그대로 샌다. 그래서 여기서부터 fmtBig 에 넘긴다.
+        if (!(abs < 1e15)) return fmtBig(Big.of(n));   // NaN 이 아닌 Infinity 도 이 가지로 들어온다
+        const units = ['K', 'M', 'B', 'T'];
         let u = -1, v = n;
         while (Math.abs(v) >= 1000 && u < units.length - 1) { v /= 1000; u++; }
         return (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)) + units[u];
@@ -29,7 +33,8 @@ const U = {
         if (n === null || n === undefined || isNaN(n)) return '0';
         const abs = Math.abs(n);
         if (abs < 1000) return n.toFixed(2);
-        const units = ['K', 'M', 'B', 'T', 'Qa', 'Qi'];
+        if (!(abs < 1e15)) return fmtBig(Big.of(n), 2);   // fmt 와 같은 이유로 T 위는 Big 경로에 위임
+        const units = ['K', 'M', 'B', 'T'];
         let u = -1, v = n;
         while (Math.abs(v) >= 1000 && u < units.length - 1) { v /= 1000; u++; }
         return v.toFixed(2) + units[u];

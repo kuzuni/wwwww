@@ -192,7 +192,13 @@ function fmtBig(v, decimals) {
     }
     const tier = Math.floor(a.e / 3);
     const unit = bigUnitFor(tier);
-    if (unit === null) return (neg ? '-' : '') + `${a.m.toFixed(2)}e${a.e}`;
+    if (unit === null) {
+        // zz(10^2045) 를 넘겨 접미사가 없는 구간. 지수 자체가 평문 자릿수로 못 적힐 만큼 크면
+        // (1e21 이상 — 여기엔 오버플로우 표식 BIG_MAX_E 도 포함된다) `${a.e}` 가 다시 지수 표기라
+        // "1.00e1e+308" 같은 이중 지수가 나온다. 그 구간은 어차피 무한대 취급이니 ∞ 로 보인다.
+        if (a.e >= 1e21) return (neg ? '-' : '') + '∞';
+        return (neg ? '-' : '') + `${a.m.toFixed(2)}e${a.e.toFixed(0)}`;
+    }
     // 가수를 3자리 묶음에 맞춰 되돌린다: 10^(e - 3*tier) 만큼 곱함 → [1,1000)
     const shown = a.m * Math.pow(10, a.e - tier * 3);
     const d = decimals !== undefined ? decimals : (shown >= 100 ? 0 : shown >= 10 ? 1 : 2);
