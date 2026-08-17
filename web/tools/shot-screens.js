@@ -25,7 +25,9 @@ const SCREENS = [
     ['pet-detail', '042449', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetDetail(0)`],
     ['pet-upgrade', '042503', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetUpgrade(0)`],
     ['summon-rates', '042521', `UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.openSummonRates('skill')`],
-    ['tech-branch', '042546', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('forge')`],
+    // 원본 042546의 제목은 '스킬, 펫 & 기술'이다 — 대장간 분기(10노드)를 찍어 놓고 이 원본과 대조하면
+    // 노드 수부터 달라 비율 비교가 무의미해진다. 원본과 같은 skillpet 분기(12노드)를 찍는다.
+    ['tech-branch', '042546', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('skillpet')`],
     ['tech-node', '042605', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('forge'); UI.openTechNode('forgeTimer')`],
     ['shop', '042632', `UI.openShop()`],
     ['pass', '042705', `UI.openPass()`],
