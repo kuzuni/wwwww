@@ -919,7 +919,7 @@ const UI = {
                     <div class="forge-actions">
                         ${forgeBtnHtml}
                         <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.openAutoForge()">
-                            자동🔄<br>${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : '🔒'}</button>
+                            자동🔄<br>${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : IconGen.img('lock')}</button>
                     </div>
                     ${upgTimeHtml}
                 </div>
@@ -2570,10 +2570,10 @@ const UI = {
                 <span class="dg-icon">${d.icon}</span>
                 <div class="dg-info">
                     <div class="item-name">${d.kr}</div>
-                    ${ok ? '' : `<span class="dg-lock">🔒 ${d.unlock} 도달 시 해금</span>`}
+                    ${ok ? '' : `<span class="dg-lock">${IconGen.img('lock')} ${d.unlock} 도달 시 해금</span>`}
                 </div>
                 <div class="dg-right">
-                    ${ok ? `<span class="dg-keys">🗝 ${keys}/${Dungeons.MAX_KEYS}</span>` : ''}
+                    ${ok ? `<span class="dg-keys">${IconGen.img('key')} ${keys}/${Dungeons.MAX_KEYS}</span>` : ''}
                     <button class="btn sm primary ${ok ? '' : 'disabled'}" onclick="UI.openDungeonDetail('${d.id}')">열기</button>
                 </div>
             </div>`;
@@ -2623,7 +2623,7 @@ const UI = {
                         <button class="tri-btn" onclick="UI.onDungeonStageStep(1)" style="visibility:${stage >= best + 1 ? 'hidden' : 'visible'}">▶</button>
                     </div>
                     <div class="dgd-reward-pill"><span class="dgd-reward-label">보상:</span>${Dungeons.rewardText(id, stage)}</div>
-                    <div class="dgd-keys">🗝 ${keys}/${Dungeons.MAX_KEYS}</div>
+                    <div class="dgd-keys">${IconGen.img('key')} ${keys}/${Dungeons.MAX_KEYS}</div>
                     <div class="dgd-btns">
                         <button class="btn silver dgd-btn ${keys > 0 && best >= 1 ? '' : 'disabled'}" onclick="UI.onSweepDungeon('${id}')">이전 스테이지<br>소탕</button>
                         <button class="btn silver dgd-btn ${keys > 0 ? '' : 'disabled'}" onclick="UI.onEnterDungeon('${id}', ${stage})">입장</button>
@@ -2672,7 +2672,7 @@ const UI = {
             <div class="modal-card sheet league-sheet">
                 <div class="league-emblem">🛡️</div>
                 <div class="league-title">플래티넘 리그</div>
-                <div class="league-season-bar" onclick="UI.openLeagueRewards()">🎁 <span>시즌 종료: <b>${U.fmtTime(remain)}</b></span></div>
+                <div class="league-season-bar" onclick="UI.openLeagueRewards()">${IconGen.img('gift')} <span>시즌 종료: <b>${U.fmtTime(remain)}</b></span></div>
                 <div class="league-list">${windowRows}</div>
                 <div class="league-foot">
                     <div class="league-pinned">${this.leagueRow(me, myRank)}</div>
@@ -2700,7 +2700,7 @@ const UI = {
         this.els.leagueModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card wide lgr-card">
-                    <div class="league-reward-banner">플래티넘 리그 보상</div>
+                    <div class="league-reward-banner">${IconGen.img('trophy')} 플래티넘 리그 보상</div>
                     <p class="league-reward-desc">현재 순위(${myRank})를 유지하면 시즌 종료 시<br>다음 보상을 받을 수 있습니다:</p>
                     <div class="league-reward-grid">${this.leagueRewardGrid(cur)}</div>
                     <div class="league-collect-pill">수집까지: <b>${U.fmtTime(remain)}</b></div>
@@ -3223,7 +3223,7 @@ const UI = {
             const researching = TechTree.researchingId() === id;
             const open = TechTree.isUnlocked(id);
             const cls = researching ? 'researching' : max ? 'done' : !open ? 'tlocked' : lv > 0 ? 'active' : 'locked';
-            const face = max ? '✅' : !open ? '🔒' : (TechTree.def(id) || {}).icon || '🔬';
+            const face = max ? '✅' : !open ? IconGen.img('lock') : (TechTree.def(id) || {}).icon || '🔬';
             const badge = researching
                 ? `<small class="tech-tree-node-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
                 : `<small>${lv}/${TechTree.MAX_LEVEL}</small>`;
@@ -3373,7 +3373,7 @@ const UI = {
             // 선으로 이어진 부모 노드를 1레벨만 찍으면 열린다 — 아직 0레벨인 부모를 그대로 알려준다
             const need = TechTree.lockedBy(id).map(p => `${(TechTree.def(p) || {}).name || p} ${TechTree.roman(TechTree.tierOf(p))}단계`);
             const what = need.length > 1 ? `${need.join(' · ')}를 각각` : `${need[0] || '위 노드'}를`;
-            actionHtml = `<button class="btn sm primary disabled">🔒 잠김</button>
+            actionHtml = `<button class="btn sm primary disabled">${IconGen.img('lock')} 잠김</button>
                 <p class="muted" style="text-align:center">${what} 1레벨 이상 올리면 열립니다</p>`;
         } else if (researching) {
             const remain = (S.techResearch.endsAt - U.now()) / 1000;
@@ -3396,7 +3396,7 @@ const UI = {
             <div class="idet-wrap">
                 <div class="modal-card paper item-detail" data-tech-node="${id}">
                     <div class="idet-head">
-                        <div class="idet-icon tn-bronze">${max ? '✅' : !open ? '🔒' : '🔬'}<span class="idet-star">${lv}/${TechTree.MAX_LEVEL}</span></div>
+                        <div class="idet-icon tn-bronze">${max ? '✅' : !open ? IconGen.img('lock') : '🔬'}<span class="idet-star">${lv}/${TechTree.MAX_LEVEL}</span></div>
                         <div class="idet-title">
                             <div class="idet-name">${def.name} <small class="tn-lv">${roman}단계 · Lv.${lv}/${TechTree.MAX_LEVEL}</small></div>
                             <div class="idet-main">+${U.fmt(TechTree.totalOf(id))}${unit} <small class="tn-gain">(${TechTree.gainNote()} +${U.fmt(def.per)}${unit} · 이 노드 +${U.fmt(TechTree.nodeTotal(id))}${unit})</small></div>

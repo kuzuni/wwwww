@@ -89,6 +89,16 @@ const IconGen = {
         });
         ctx.closePath();
     },
+    // 라운드 사각형을 **서브패스로만** 추가한다(beginPath 안 함) — 여러 도형을 한 경로로 합치거나
+    // _innerShadow 의 pathFn 규약("서브패스만 추가")을 지켜야 할 때 쓴다.
+    _rrSub(ctx, x, y, w, h, r) {
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+    },
     _rr(ctx, x, y, w, h, r) {
         ctx.beginPath();
         ctx.moveTo(x + r, y);
@@ -822,6 +832,226 @@ const IconGen = {
                 [[0, 'rgba(255,255,255,.42)'], [1, 'rgba(255,255,255,0)']]);
             ctx.fillRect(cx - R, cy - R, R * 2, R * 1.2);
             ctx.restore();
+        },
+
+        // ---- 자물쇠: 잠김 배지 (던전 미해금·기술 노드·자동 제련 버튼) ----
+        // 어두운 강철 고리 + 황동 몸통. 14px 배지로도 읽히도록 고리를 굵게, 열쇠구멍을 크게 잡는다.
+        lock(ctx, S) {
+            const G = IconGen, cx = S * 0.5;
+            const bx = S * 0.17, by = S * 0.44, bw = S * 0.66, bh = S * 0.44, br = S * 0.10;
+            const body = () => G._rrSub(ctx, bx, by, bw, bh, br);   // 서브패스만 추가(_innerShadow 규약)
+
+            // 고리 — 몸통 뒤에 깔리도록 먼저
+            ctx.beginPath();
+            ctx.arc(cx, by + S * 0.015, S * 0.20, Math.PI, 0);
+            ctx.lineWidth = S * 0.115;
+            ctx.strokeStyle = G._lin(ctx, cx - S * 0.2, 0, cx + S * 0.2, 0,
+                [[0, '#8d99a5'], [0.35, '#e8eff5'], [0.7, '#8996a3'], [1, '#4a555f']]);
+            ctx.stroke();
+            ctx.lineWidth = S * 0.145;
+            ctx.strokeStyle = 'rgba(20,26,32,.55)';
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.stroke();
+            ctx.globalCompositeOperation = 'source-over';
+
+            // 몸통 그림자
+            ctx.save();
+            ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
+            ctx.filter = `blur(${S * 0.016}px)`;
+            ctx.translate(0, S * 0.028);
+            ctx.beginPath(); body(); ctx.fill();
+            ctx.restore();
+
+            ctx.beginPath(); body();
+            ctx.fillStyle = G._lin(ctx, 0, by, 0, by + bh,
+                [[0, '#ffe08a'], [0.3, '#f0b52e'], [0.68, '#c8870f'], [1, '#8a5806']]);
+            ctx.fill();
+            G._innerShadow(ctx, body, 'rgba(70,40,2,.6)', S * 0.04, 0, -S * 0.018);
+            // 상단 광택
+            ctx.save();
+            ctx.beginPath(); body(); ctx.clip();
+            ctx.fillStyle = 'rgba(255,255,255,.5)';
+            ctx.fillRect(bx, by, bw, bh * 0.16);
+            ctx.restore();
+
+            // 열쇠구멍 — 원 + 아래로 벌어지는 홈
+            ctx.beginPath();
+            ctx.arc(cx, by + bh * 0.40, S * 0.075, 0, Math.PI * 2);
+            ctx.moveTo(cx - S * 0.038, by + bh * 0.42);
+            ctx.lineTo(cx - S * 0.062, by + bh * 0.84);
+            ctx.lineTo(cx + S * 0.062, by + bh * 0.84);
+            ctx.lineTo(cx + S * 0.038, by + bh * 0.42);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(48,26,2,.88)';
+            ctx.fill();
+
+            ctx.beginPath(); body();
+            ctx.lineWidth = S * 0.024;
+            ctx.strokeStyle = 'rgba(60,34,2,.8)';
+            ctx.stroke();
+        },
+
+        // ---- 열쇠: 던전 입장 열쇠 개수 표시 ----
+        key(ctx, S) {
+            const G = IconGen;
+            const gold = () => G._lin(ctx, 0, S * 0.2, 0, S * 0.85,
+                [[0, '#ffeba6'], [0.32, '#f4c034'], [0.7, '#cf920f'], [1, '#8d5c05']]);
+            ctx.save();
+            ctx.translate(S / 2, S / 2); ctx.rotate(-0.62); ctx.translate(-S / 2, -S / 2);
+            const bx = S * 0.30, by = S * 0.26, bR = S * 0.155;   // 손잡이 고리
+            const path = () => {
+                ctx.moveTo(bx + bR, by);
+                ctx.arc(bx, by, bR, 0, Math.PI * 2);
+                G._rrSub(ctx, bx - S * 0.045, by + bR * 0.6, S * 0.09, S * 0.50, S * 0.03);   // 대
+                G._rrSub(ctx, bx + S * 0.04, by + bR * 0.6 + S * 0.30, S * 0.13, S * 0.075, S * 0.02); // 이 1
+                G._rrSub(ctx, bx + S * 0.04, by + bR * 0.6 + S * 0.42, S * 0.10, S * 0.07, S * 0.02);  // 이 2
+            };
+            ctx.save();
+            ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
+            ctx.filter = `blur(${S * 0.016}px)`;
+            ctx.translate(S * 0.02, S * 0.03);
+            ctx.beginPath(); path(); ctx.fill('evenodd');
+            ctx.restore();
+
+            ctx.beginPath(); path();
+            ctx.fillStyle = gold();
+            ctx.fill('evenodd');
+            // 고리 구멍
+            ctx.beginPath();
+            ctx.arc(bx, by, bR * 0.44, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(50,30,2,.85)';
+            ctx.fill();
+            ctx.beginPath(); path();
+            ctx.lineWidth = S * 0.022;
+            ctx.strokeStyle = 'rgba(64,38,2,.78)';
+            ctx.stroke();
+            // 대 위쪽 하이라이트
+            ctx.beginPath();
+            ctx.moveTo(bx - S * 0.018, by + bR * 0.8);
+            ctx.lineTo(bx - S * 0.018, by + bR * 0.6 + S * 0.44);
+            ctx.lineWidth = S * 0.018;
+            ctx.strokeStyle = 'rgba(255,255,255,.45)';
+            ctx.stroke();
+            ctx.restore();
+        },
+
+        // ---- 선물 상자: 보상 수령 (리그 시즌·패스·특가) ----
+        gift(ctx, S) {
+            const G = IconGen;
+            const bx = S * 0.14, bw = S * 0.72, ly = S * 0.30, lh = S * 0.16;
+            const by = ly + lh, bh = S * 0.44;
+            const rw = S * 0.15;                     // 리본 폭
+            const rx = S * 0.5 - rw / 2;
+
+            ctx.save();
+            ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
+            ctx.filter = `blur(${S * 0.016}px)`;
+            ctx.translate(0, S * 0.03);
+            ctx.beginPath(); G._rr(ctx, bx, ly, bw, bh + lh, S * 0.05); ctx.fill();
+            ctx.restore();
+
+            // 상자 몸통
+            const boxPath = () => G._rrSub(ctx, bx + S * 0.03, by, bw - S * 0.06, bh, S * 0.035);
+            ctx.beginPath(); boxPath();
+            ctx.fillStyle = G._lin(ctx, 0, by, 0, by + bh,
+                [[0, '#ff7a6b'], [0.45, '#e8402f'], [1, '#96150c']]);
+            ctx.fill();
+            G._innerShadow(ctx, boxPath, 'rgba(70,6,2,.5)', S * 0.035, 0, -S * 0.018);
+            ctx.beginPath(); boxPath();
+            ctx.lineWidth = S * 0.022; ctx.strokeStyle = 'rgba(58,6,2,.8)'; ctx.stroke();
+
+            // 뚜껑
+            ctx.beginPath(); G._rr(ctx, bx, ly, bw, lh, S * 0.035);
+            ctx.fillStyle = G._lin(ctx, 0, ly, 0, ly + lh,
+                [[0, '#ff9c8e'], [0.6, '#ee5240'], [1, '#b8200f']]);
+            ctx.fill();
+            ctx.lineWidth = S * 0.022; ctx.strokeStyle = 'rgba(58,6,2,.8)'; ctx.stroke();
+
+            // 리본 세로 + 매듭 고리 2개
+            const ribbon = G._lin(ctx, rx, 0, rx + rw, 0,
+                [[0, '#e0a70d'], [0.4, '#ffe58a'], [1, '#c98a06']]);
+            ctx.beginPath(); ctx.rect(rx, ly, rw, bh + lh);
+            ctx.fillStyle = ribbon; ctx.fill();
+            ctx.lineWidth = S * 0.018; ctx.strokeStyle = 'rgba(96,60,2,.6)'; ctx.stroke();
+
+            const loop = (dir) => {
+                ctx.beginPath();
+                ctx.moveTo(S * 0.5, ly + S * 0.02);
+                ctx.quadraticCurveTo(S * 0.5 + dir * S * 0.30, ly - S * 0.20, S * 0.5 + dir * S * 0.10, ly - S * 0.015);
+                ctx.closePath();
+                ctx.fillStyle = ribbon; ctx.fill();
+                ctx.lineWidth = S * 0.02; ctx.strokeStyle = 'rgba(96,60,2,.65)'; ctx.stroke();
+            };
+            loop(1); loop(-1);
+            ctx.beginPath();
+            ctx.arc(S * 0.5, ly + S * 0.005, S * 0.055, 0, Math.PI * 2);
+            ctx.fillStyle = G._rad(ctx, S * 0.48, ly - S * 0.015, S * 0.005, S * 0.5, ly, S * 0.07,
+                [[0, '#fff6c9'], [1, '#d99c08']]);
+            ctx.fill();
+            ctx.lineWidth = S * 0.018; ctx.strokeStyle = 'rgba(96,60,2,.65)'; ctx.stroke();
+        },
+
+        // ---- 트로피: 리그 승리 ----
+        trophy(ctx, S) {
+            const G = IconGen, cx = S * 0.5;
+            const cupTop = S * 0.20, cupBot = S * 0.60, halfTop = S * 0.24;
+            const gold = G._lin(ctx, cx - halfTop, cupTop, cx + halfTop, cupBot,
+                [[0, '#fff2bd'], [0.28, '#f5cb45'], [0.62, '#d69a12'], [1, '#8f5f05']]);
+            const cup = () => {
+                ctx.moveTo(cx - halfTop, cupTop);
+                ctx.lineTo(cx + halfTop, cupTop);
+                ctx.lineTo(cx + halfTop * 0.72, cupBot - S * 0.06);
+                ctx.quadraticCurveTo(cx, cupBot + S * 0.05, cx - halfTop * 0.72, cupBot - S * 0.06);
+                ctx.closePath();
+            };
+            // 손잡이
+            const handle = (dir) => {
+                ctx.beginPath();
+                ctx.moveTo(cx + dir * halfTop * 0.94, cupTop + S * 0.03);
+                ctx.quadraticCurveTo(cx + dir * S * 0.40, cupTop + S * 0.10, cx + dir * halfTop * 0.90, cupTop + S * 0.21);
+                ctx.lineWidth = S * 0.055;
+                ctx.strokeStyle = gold;
+                ctx.stroke();
+                ctx.lineWidth = S * 0.075;
+                ctx.strokeStyle = 'rgba(64,38,2,.55)';
+                ctx.globalCompositeOperation = 'destination-over';
+                ctx.stroke();
+                ctx.globalCompositeOperation = 'source-over';
+            };
+            handle(1); handle(-1);
+
+            ctx.save();
+            ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
+            ctx.filter = `blur(${S * 0.016}px)`;
+            ctx.translate(0, S * 0.03);
+            ctx.beginPath(); cup(); ctx.fill();
+            ctx.restore();
+
+            ctx.beginPath(); cup();
+            ctx.fillStyle = gold;
+            ctx.fill();
+            G._innerShadow(ctx, cup, 'rgba(70,40,2,.55)', S * 0.04, 0, -S * 0.018);
+            ctx.save();
+            ctx.beginPath(); cup(); ctx.clip();
+            ctx.fillStyle = 'rgba(255,255,255,.45)';
+            ctx.fillRect(cx - halfTop, cupTop, halfTop * 2, S * 0.045);
+            ctx.fillStyle = 'rgba(255,255,255,.3)';
+            ctx.fillRect(cx - halfTop * 0.6, cupTop, S * 0.05, cupBot - cupTop);
+            ctx.restore();
+            ctx.beginPath(); cup();
+            ctx.lineWidth = S * 0.024; ctx.strokeStyle = 'rgba(64,38,2,.8)'; ctx.stroke();
+
+            // 기둥 + 받침 2단
+            const post = () => G._rr(ctx, cx - S * 0.055, cupBot, S * 0.11, S * 0.11, S * 0.02);
+            const base1 = () => G._rr(ctx, cx - S * 0.15, cupBot + S * 0.10, S * 0.30, S * 0.07, S * 0.02);
+            const base2 = () => G._rr(ctx, cx - S * 0.21, cupBot + S * 0.16, S * 0.42, S * 0.09, S * 0.025);
+            for (const p of [post, base1, base2]) {
+                ctx.beginPath(); p();
+                ctx.fillStyle = G._lin(ctx, 0, cupBot, 0, cupBot + S * 0.26,
+                    [[0, '#f7d364'], [0.5, '#d29a14'], [1, '#8a5a05']]);
+                ctx.fill();
+                ctx.lineWidth = S * 0.022; ctx.strokeStyle = 'rgba(64,38,2,.8)'; ctx.stroke();
+            }
         },
 
         // ---- 채팅 이름줄 성별 심볼 (원본 shot-043500 실측) ----
