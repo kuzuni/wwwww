@@ -86,11 +86,12 @@ const CASES = [
         UI.setPendingCraft(it); UI.showCraftModal(it); UI.resolveCraft('equip');
         const warned = !document.getElementById('detail-modal').classList.contains('hidden');
         if (warned) UI.onSellCancel();
-        return { warned, coinDelta: S.coins - coins0, storedMythic: Forge.inventoryOf('weapon').indexOf(cur) >= 0 };
+        // 보관함은 폐기됐다 — [장착] 시 이전 장비는 그냥 사라진다(코인이 안 늘어야 한다는 것만 본다)
+        return { warned, coinDelta: S.coins - coins0, equippedNew: S.equipment.weapon === it };
     });
     ok(!eq.warned, '[장착]에 경고가 떴다 (파는 게 없는데)');
-    ok(eq.coinDelta === 0 && eq.storedMythic, '[장착]에서 신화 장비가 팔렸다 (보관돼야 한다)');
-    console.log(`  경고X [장착](신화→일반 교체) → 경고 ${eq.warned} · 코인 +${eq.coinDelta} · 신화 보관 ${eq.storedMythic}`);
+    ok(eq.coinDelta === 0 && eq.equippedNew, '[장착]에서 신화 장비가 팔렸다 (그냥 사라져야 한다)');
+    console.log(`  경고X [장착](신화→일반 교체) → 경고 ${eq.warned} · 코인 +${eq.coinDelta} · 새 장비 장착 ${eq.equippedNew}`);
 
     console.log(`실패 ${fails.length}건 / 콘솔 에러 ${errs.length}건`);
     fails.forEach(f => console.log('  FAIL ' + f));
