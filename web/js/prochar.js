@@ -62,16 +62,38 @@ const ProChar = {
     capeTex() {
         return this.canvasTex('cape', (ctx, w, h) => {
             const g = ctx.createLinearGradient(0, 0, 0, h);
-            g.addColorStop(0, '#e8e9ec');
+            g.addColorStop(0, '#f0f1f4');
             g.addColorStop(0.35, '#c6c8cd');
-            g.addColorStop(1, '#7c7e86');
+            g.addColorStop(1, '#6b6d75'); // 상하 명도차 확대 — 단색 판자 오독 해소 (비평가 7.1 6번)
             ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+            // 세로 드레이프 음영 — 지오메트리 주름(sin x*33)과 유사 주기의 소프트 스트라이프로 '접힌 천' 깊이
+            for (let i = 0; i < 6; i++) {
+                const x = (i + 0.5) / 6 * w;
+                const sg = ctx.createLinearGradient(x - w * 0.09, 0, x + w * 0.09, 0);
+                sg.addColorStop(0, 'rgba(0,0,0,0)');
+                sg.addColorStop(0.5, 'rgba(30,20,20,0.22)');
+                sg.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = sg;
+                ctx.fillRect(x - w * 0.09, h * 0.12, w * 0.18, h * 0.88);
+            }
             const sheen = ctx.createLinearGradient(0, 0, w, 0); // 중앙 세로 광택 롤
             sheen.addColorStop(0, 'rgba(255,255,255,0)');
             sheen.addColorStop(0.5, 'rgba(255,255,255,0.14)');
             sheen.addColorStop(1, 'rgba(255,255,255,0)');
             ctx.fillStyle = sheen; ctx.fillRect(0, 0, w, h);
-        }, 64, 128);
+            // 직조 그레인 — 미세 가로 결
+            for (let y = 0; y < h; y += 2) {
+                ctx.fillStyle = `rgba(${y % 4 ? 255 : 0},${y % 4 ? 255 : 0},${y % 4 ? 255 : 0},0.028)`;
+                ctx.fillRect(0, y, w, 1);
+            }
+            // 헴 트림 — 밑단·양옆 재봉 밴드 (테두리가 잘린 종이가 아니라 마감된 천)
+            ctx.fillStyle = 'rgba(40,22,22,0.5)';
+            ctx.fillRect(0, h * 0.94, w, h * 0.06);
+            ctx.fillRect(0, 0, w * 0.045, h);
+            ctx.fillRect(w * 0.955, 0, w * 0.045, h);
+            ctx.fillStyle = 'rgba(255,225,170,0.5)'; // 금사 스티치 라인
+            ctx.fillRect(0, h * 0.935, w, 1.5);
+        }, 128, 256);
     },
     // 바위: 화강암 얼룩 + 균열 라인 (골렘 몸통 — 그레이스케일, 틴트 대상)
     rockTex() {
@@ -185,20 +207,20 @@ const ProChar = {
         R.armorMats = [];
         const mTex = this.metalTex();
         const steel = () => {
-            const m = new THREE.MeshStandardMaterial({ color: 0x9fb2c2, metalness: 0.85, roughness: 0.3, map: mTex, envMapIntensity: 0.9 }); // 브러시드 스틸 — 태양 핫스팟이 곡면에 실제로 맺히게 러프 하향 (비평가 6.9 5번 '갑옷은 여전히 새틴')
+            const m = new THREE.MeshStandardMaterial({ color: 0x9fb2c2, metalness: 0.85, roughness: 0.3, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.9 }); // 브러시드 스틸 — 태양 핫스팟이 곡면에 실제로 맺히게 러프 하향 (비평가 6.9 5번 '갑옷은 여전히 새틴')
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
             return m;
         };
         const steelDark = () => {
-            const m = new THREE.MeshStandardMaterial({ color: 0x5c6b7a, metalness: 0.8, roughness: 0.5, map: mTex, envMapIntensity: 0.65 });
+            const m = new THREE.MeshStandardMaterial({ color: 0x5c6b7a, metalness: 0.8, roughness: 0.5, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.65 });
             m.userData.dark = true; // 틴트 시 명도 단차 유지용
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
             return m;
         };
         const suit = new THREE.MeshStandardMaterial({ color: 0x323e46, metalness: 0.35, roughness: 0.68, map: mTex }); // 갑옷 밑 사슬/천 — 반금속 직조
-        const leather = new THREE.MeshStandardMaterial({ color: 0x5a4030, metalness: 0, roughness: 0.85, map: this.leatherTex() });
+        const leather = new THREE.MeshStandardMaterial({ color: 0x5a4030, metalness: 0, roughness: 0.85, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.012 });
         const gold = new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: 0.95, roughness: 0.3, envMapIntensity: 0.8 });
         const skin = new THREE.MeshStandardMaterial({ color: 0xf2c9a4, metalness: 0, roughness: 0.6 });
         R.trimMat = gold;
@@ -256,7 +278,7 @@ const ProChar = {
             greave.scale.set(0.95, 1.7, 0.95);
             knee.add(greave);
             // 부츠: 라운드 토 (구+원통 결합)
-            const bootMat = new THREE.MeshStandardMaterial({ color: 0x4a3728, metalness: 0, roughness: 0.8, map: this.leatherTex() });
+            const bootMat = new THREE.MeshStandardMaterial({ color: 0x4a3728, metalness: 0, roughness: 0.8, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.012 });
             const bootTop = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.072, 0.1, 10), bootMat);
             bootTop.position.y = -0.265;
             const foot = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), bootMat);
@@ -333,6 +355,11 @@ const ProChar = {
         capeG.position.set(0, 0.42, -0.16);
         cape.position.y = -0.31;
         capeG.add(cape);
+        // 다크 라이닝 — 같은 지오메트리 공유(천 시뮬 동기 무료)로 살짝 뒤에 겹쳐 실루엣 가장자리에서 두께로 읽힘 (비평가 7.1 6번 '종이 망토')
+        const lining = new THREE.Mesh(cape.geometry, new THREE.MeshStandardMaterial({ color: 0x4d1616, metalness: 0, roughness: 1, side: THREE.DoubleSide }));
+        lining.position.set(0, -0.31, -0.014);
+        lining.scale.set(1.03, 1.012, 1);
+        capeG.add(lining);
         capeG.rotation.x = 0.14;
         // 클래스프: 양어깨 금 원판 + 가슴을 가로지르는 가죽 스트랩
         for (const sx of [-1, 1]) {
@@ -370,8 +397,8 @@ const ProChar = {
             const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.065, 0.07, 10), steel());
             cuff.position.y = -0.11;
             // 주먹: 손바닥 블록 + 손가락 4지(기절·말절 2분절 컬) + 엄지 2분절 + 강철 너클 가드 — 근접샷에서 '손가락 없는 스텁' 오독 해소 (비평가 1번)
-            const gloveMat = new THREE.MeshStandardMaterial({ color: 0x6b4e3a, metalness: 0, roughness: 0.82, map: this.leatherTex() }); // 가죽 PBR
-            const palmMat = new THREE.MeshStandardMaterial({ color: 0x7a5c46, metalness: 0, roughness: 0.8, map: this.leatherTex() });
+            const gloveMat = new THREE.MeshStandardMaterial({ color: 0x6b4e3a, metalness: 0, roughness: 0.82, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.014 }); // 가죽 PBR — 범프로 근접 그레인 (비평가 7.1 5번)
+            const palmMat = new THREE.MeshStandardMaterial({ color: 0x7a5c46, metalness: 0, roughness: 0.8, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.014 });
             const fist = new THREE.Group();
             fist.position.y = -0.16;
             const palm = new THREE.Mesh(new THREE.SphereGeometry(0.052, 9, 8), palmMat);
