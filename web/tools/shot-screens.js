@@ -25,7 +25,9 @@ const SCREENS = [
     ['skill-detail', '042426', `UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.openSkillDetail(Object.keys(S.skills)[0])`],
     ['pet-detail', '042449', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetDetail(0)`],
     ['pet-upgrade', '042503', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetUpgrade(0)`],
-    ['summon-rates', '042521', `UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.openSummonRates('skill')`],
+    // 원본 042521은 **펫** 확률표다(레벨 69 · "달걀을(를) 소환하여") — 스킬로 열면 배경 그리드와 문구가 달라
+    // 비율 말고 내용까지 어긋난 채로 대조하게 된다. tech-branch 를 원본 분기에 맞춘 것과 같은 이유.
+    ['summon-rates', '042521', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openSummonRates('pet')`],
     // 원본 042546의 제목은 '스킬, 펫 & 기술'이다 — 대장간 분기(10노드)를 찍어 놓고 이 원본과 대조하면
     // 노드 수부터 달라 비율 비교가 무의미해진다. 원본과 같은 skillpet 분기(12노드)를 찍는다.
     ['tech-branch', '042546', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('skillpet')`],

@@ -2383,24 +2383,32 @@ body {
 .row.wrap { flex-wrap: wrap; }
 
 /* ---- 소환 확률 팝업 (UI-SPEC 48번): ◀▶ + 등급별 색 막대 + 진행 게이지 ---- */
-.rates-card { width: 75.5%; /* 원본 shot-042521 실측 */ gap: .6rem; }
+/* 원본 실측(499×894): 카드 x 60~430(폭 371 = 74.35%W) y 200~689(높이 490 = 54.81%H)
+   · 등급 바 x 77~413 → 카드 좌우 안쪽 여백 17px = 앱폭의 3.41%(`%` 패딩은 .idet-wrap ≈ 앱폭 기준)
+   · 진행 바 아래 흰 여백 68px — 여기가 8.78%p 비어 카드가 통째로 짧았다. */
+.rates-card { width: 74.35%; /* 원본 shot-042521 실측 371/499 */ gap: .6rem; padding: 1.1rem 3.41% 4.01rem; }
+/* .idet-wrap 이 카드 아래 ✕ 까지 안고 세로 중앙 정렬돼 카드가 1.7%p 위로 뜬다(이 패스에서 6번째 사례).
+   #detail-modal 은 여러 팝업이 공유하므로 이 팝업 마크업에만 붙는 .rates-wrap 으로 스코프한다. */
+.rates-wrap { position: relative; top: .74rem; }
 .rates-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .rates-head h3 { font-size: 1.3rem; font-weight: 900; }
 .rates-sub { font-size: .82rem; font-weight: 800; color: var(--pp-ink); }
 .tri-btn {
-    width: 2.6rem; height: 2.2rem; cursor: pointer;
+    width: 1.77rem; /* 원본 30px */ height: 2.2rem; cursor: pointer;
     background: none; border: none; padding: 0;
     color: var(--pp-blue); font-size: 1.7rem; font-weight: 900; line-height: 1;
     text-shadow: -2px -2px 0 #17181a, 2px -2px 0 #17181a, -2px 2px 0 #17181a, 2px 2px 0 #17181a;
 }
 .tri-btn:active { transform: translateY(.1rem); }
-.rate-list { display: flex; flex-direction: column; gap: .32rem; }
+/* 원본 바 29px · 간격 4px(피치 33px) — 한 줄만 보면 +0.34%p 라 통과지만 6줄이 쌓여 +27.8px 다 */
+.rate-list { display: flex; flex-direction: column; gap: .24rem; }
 .rate-bar {
     display: flex; align-items: center; justify-content: space-between;
     background: var(--rc, #ccc); border: 3px solid var(--pp-line); border-radius: .5rem;
-    padding: .2rem .55rem; font-size: .85rem; font-weight: 900; color: #17181a;
+    padding: .12rem .55rem; font-size: .85rem; font-weight: 900; color: #17181a;
 }
-.rates-tip { font-size: .8rem; font-weight: 800; color: var(--pp-ink); text-align: center; line-height: 1.4; }
+/* 원본은 등급 바 마지막 줄~진행 바 사이가 97px 이고 그 한가운데 한 줄짜리 안내문이 뜬다(클론은 39px 이었다) */
+.rates-tip { font-size: .8rem; font-weight: 800; color: var(--pp-ink); text-align: center; line-height: 1.4; margin: 1.7rem 0; }
 /* 원본(042521): 등급명 뒤 ⭐, 확률표 위 우측 검정 ⓘ 원형 버튼 */
 .rate-star { font-style: normal; font-size: .8em; filter: drop-shadow(0 1px 0 rgba(0,0,0,.35)); }
 /* 기술 노드 팝업 연구 중 상태 (042605): 남색 진행바 + 입체 블록 버튼 2개 */
@@ -2417,7 +2425,7 @@ body {
 }
 .rates-prog {
     position: relative; height: 1.4rem; background: #17181a; border: 3px solid var(--pp-line);
-    border-radius: .4rem; overflow: hidden;
+    border-radius: .4rem; overflow: hidden; margin: 0 .35rem; /* 원본 진행 바는 등급 바보다 좌우로 8px 더 들어간다 */
 }
 .rates-prog div { position: absolute; inset: 0; background: var(--pp-blue); }
 .rates-prog span {

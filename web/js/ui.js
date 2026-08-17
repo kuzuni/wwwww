@@ -2437,7 +2437,7 @@ const UI = {
                 return `<div class="rates-prog"><div style="width:${(need ? U.clamp((cnt - prev) / (need - prev), 0, 1) : 1) * 100}%"></div><span>${need ? `${cnt - prev}/${need - prev}` : 'MAX'}</span></div>`; })()
             : `<div class="rates-prog"><div style="width:${(capped ? 1 : (cnt % 5) / 5) * 100}%"></div><span>${capped ? 'MAX' : `${cnt % 5}/5`}</span></div>`;
         this.els.detailModal.innerHTML = `
-            <div class="idet-wrap">
+            <div class="idet-wrap rates-wrap">
                 <div class="modal-card paper rates-card">
                     <div class="rates-head">
                         <button class="tri-btn" onclick="UI.stepSummonRates(-1)">◀</button>
