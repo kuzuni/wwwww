@@ -3466,9 +3466,11 @@ const Scene3D = {
             crown.position.y = topY;
             g.add(crown);
         }
-        // HP 바: 카메라를 향하도록 역회전한 서브그룹에 부착
+        // HP 바: 몸의 변형을 따라가면 안 되므로 g의 자식이 아니라 scene 직속으로 두고
+        // update에서 위치만 추적한다(블롭 섀도우와 같은 방식). g의 자식이면 크리 스케일 펀치·
+        // 넉백·3/4 회전을 그대로 상속해 바가 기울고 채움 폭이 과장돼 체력 판독이 망가진다.
+        // 보스 등 baseScale은 바 크기에 반영해야 하므로(예전 동작) 그룹 스케일로 옮긴다.
         const hpG = new THREE.Group();
-        hpG.rotation.y = 0.55; // 그룹 회전(-0.55) 상쇄
         const barY = (e.isBoss ? topY + 0.35 : topY + 0.25);
         // 트랙(배경)을 채움바보다 크게 잡아 어두운 테두리를 만든다 — 같은 크기면 테두리가 안 생겨
         // 밝은 초원 위에서 바 경계가 사라진다. 채움색은 toneMapped=false + 블룸 임계 아래 채도로 (비평가 3번)
@@ -3480,7 +3482,7 @@ const Scene3D = {
         const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: 0x2ebd6b, side: THREE.DoubleSide, toneMapped: false }));
         hpFg.position.set(0, barY, 0.01);
         hpG.add(hpBg, hpGhost, hpFg);
-        g.add(hpG);
+        hpG.scale.setScalar(g.scale.x); // scene 직속이라 예전에 상속받던 baseScale을 직접 건다
         return { g, body, hpBg, hpGhost, hpFg, hpG, armR, armL, flashMats, kind, anim, baseScale: g.scale.x, topY, barY };
     },
 
@@ -3501,6 +3503,11 @@ const Scene3D = {
         this.setShadow(m.g);
         this.applyRimLight(m.g);
         this.scene.add(m.g);
+        // HP 바는 scene 직속(몸 변형 비상속) — 위치는 update가 매 프레임 추적
+        if (m.hpG) {
+            m.hpG.position.set(m.g.position.x, m.g.position.y, m.g.position.z);
+            this.scene.add(m.hpG);
+        }
         this.enemyMap.set(e.id, m);
         // 접지 블롭 섀도우 — scene 직속으로 두고 update에서 추적 (홉/비행 시 그림자는 지면에 남아야 함)
         this.ensureBlobRes();
@@ -3531,6 +3538,7 @@ const Scene3D = {
     clearEnemies() {
         for (const [, m] of this.enemyMap) {
             this.disposeTree(m.g); this.scene.remove(m.g);
+            if (m.hpG) { this.disposeTree(m.hpG); this.scene.remove(m.hpG); } // 바가 scene 직속이라 따로 걷어낸다
             if (m.blob) this.scene.remove(m.blob);
         }
         this.enemyMap.clear();
@@ -4080,7 +4088,12 @@ const Scene3D = {
                 mats.forEach(mt => mt.opacity = 1 - f); // 디졸브
                 if (m.blob) m.blob.scale.setScalar(0.95 * (1 - f)); // 공유 재질인 블롭 섀도우는 스케일로만 축소
             }
-        }, () => { this.disposeTree(m.g); this.scene.remove(m.g); if (m.blob) this.scene.remove(m.blob); this.enemyMap.delete(id); });
+        }, () => {
+            this.disposeTree(m.g); this.scene.remove(m.g);
+            if (m.hpG) { this.disposeTree(m.hpG); this.scene.remove(m.hpG); } // 바가 scene 직속이라 따로 걷어낸다
+            if (m.blob) this.scene.remove(m.blob);
+            this.enemyMap.delete(id);
+        });
     },
 
     heroHit(sev) {
@@ -4665,7 +4678,10 @@ const Scene3D = {
             }
             const ratio = U.clamp(Big.of(e.hp).ratioTo(e.maxHp), 0, 1); // hp는 Big — 비율만 Number로 뽑는다
             this.driveHpBar(m, ratio, dt);
-            if (m.hpG) m.hpG.position.set(m.shakeX, m.shakeY, 0); // 피격 순간 바 자체가 흔들림
+            // 바는 scene 직속이라 몸 위치를 직접 따라간다(변형은 상속하지 않는다).
+            // 피격 셰이크는 바 고유 흔들림이므로 추적 위치에 더한다.
+            if (m.hpG) m.hpG.position.set(
+                m.g.position.x + m.shakeX, m.g.position.y + m.shakeY, m.g.position.z);
         }
         // 영웅 머리 위 HP 바: 위치는 heroG를 매 프레임 추적, 비율·색은 적과 동일한 임계값
         if (this.heroHpG && this.heroG && this.heroBar) {
