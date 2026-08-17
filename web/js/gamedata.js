@@ -3,11 +3,15 @@
 const AGES = ['primitive', 'medieval', 'earlyModern', 'modern', 'space',
               'interstellar', 'multiverse', 'quantum', 'underworld', 'divine'];
 
-// 시대 이름은 음차 대신 자연스러운 한글로 (사용자 지시 2026-08-17: 디바인 → 천상 확정,
-// 나머지 음차도 같은 방향 — 멀티버스→다중우주, 퀀텀→양자, 언더월드→명계)
+// 시대 이름은 음차 대신 자연스러운 한글로 (사용자 지시 2026-08-17).
+// 그 지시는 표기를 둘로 갈라 놨다 — **디바인 → 천상은 '사용자 확정'**이고, 나머지 음차
+// (멀티버스·퀀텀·언더월드)는 "방향만 이렇고 **정확한 표기는 원본 확인 우선**"이었다.
+// 그래서 2026-08-18 원본 대조(shot-042950·shot-043117 두 장 모두)로 확정한 표기를 쓴다:
+//   항성간 · 다중 우주(띄어쓰기) · 지하 세계(띄어쓰기). 양자는 원본과 이미 일치.
+//   divine 만 원본('신성한')과 다르게 '천상'을 유지한다 — 사용자가 확정한 표기라 원본보다 우선.
 const AGE_KR = {
     primitive: '원시', medieval: '중세', earlyModern: '근세', modern: '현대', space: '우주',
-    interstellar: '성간', multiverse: '다중우주', quantum: '양자', underworld: '명계', divine: '천상'
+    interstellar: '항성간', multiverse: '다중 우주', quantum: '양자', underworld: '지하 세계', divine: '천상'
 };
 
 // 시대 색 (UI-SPEC.md:77 실측: 원시적=회백/중세의=하늘/근대 초기=초록/현대의=노랑/우주=빨강/항성간=보라/다중 우주=청록/양자=남색/지하 세계=적갈/신성한=주황, shot-042831.png로 재확인)
