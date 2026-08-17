@@ -889,7 +889,6 @@ body {
     --tt-line: 2px;                                                   /* 세로선 두께(원본 2px) */
     --tt-bar: 2px;                                                    /* 가로 바 두께(원본 실측 2px — y=125·126 두 줄) */
     --tt-label: 1.05rem;                                              /* 라벨 블록 고정 높이 */
-    --tt-bite: .25rem;                                                /* 선이 원 밑으로 파고드는 깊이 */
     --tt-gap: calc(var(--tt-pitch) - var(--tt-node) - var(--tt-label)); /* 행 사이 세로선 구간 */
 }
 /* 첫 노드 위로 뻗던 트렁크(.tech-tree-col::before)는 제거했다 — 원본에는 있지만 사용자 지시로
@@ -908,12 +907,6 @@ body {
     border: 2px solid var(--pp-line); border-radius: .35rem; padding: 0 .28rem; background: #fff;
 }
 .tech-tier-tag.dim { opacity: .35; }
-/* 가로 바: 중심이 노드 중심 높이에 오도록 margin-top으로 반노드만큼 내린다 */
-.tech-tree-hline {
-    width: calc(var(--tt-span) - var(--tt-node) + var(--tt-bite) * 2); height: var(--tt-bar);
-    background: var(--pp-line); margin-top: calc(var(--tt-node) / 2 - var(--tt-bar) / 2);
-    margin-left: calc(var(--tt-bite) * -1); margin-right: calc(var(--tt-bite) * -1);
-}
 /* 행 사이 간격만 잡는 빈칸 — 실제 연결선은 .tech-tree-links(SVG 오버레이)가 그린다 */
 .tech-tree-vgap { width: var(--tt-line); height: var(--tt-gap); }
 /* 연결선 오버레이: 노드(z-index 1) 아래에 깔려 원 뒤로 지나가고, 클릭은 통과시킨다.
@@ -923,23 +916,6 @@ body {
 .tech-tree-links .tt-link.dim { stroke: #b9b6b0; }
 /* 원본에서 병렬 블록 가운데 행에는 가로 바가 없다 — 자리만 차지하는 빈 칸으로 간격을 유지한다 */
 .tech-tree-hgap { width: calc(var(--tt-span) - var(--tt-node)); height: var(--tt-bar); }
-/* 세로선: 레이아웃은 --tt-gap만 차지하고, 실제 선은 ::before가 위로 (반노드+라벨), 아래로 반노드를
-   넘겨 그려 '노드 중심에서 노드 중심까지' 잇는다(원 뒤는 불투명 원이 가린다) — 라벨 높이가 바뀌어도
-   선이 끊기지 않는다. */
-.tech-tree-vline { position: relative; width: var(--tt-line); height: var(--tt-gap); align-self: center; }
-.tech-tree-vline::before {
-    content: ''; position: absolute; left: 0; width: 100%;
-    top: calc((var(--tt-node) / 2 + var(--tt-label)) * -1); bottom: calc(var(--tt-node) / -2); background: var(--pp-line);
-}
-/* 병렬 블록 안의 세로선 — 좌·우 열 두 갈래(중심 간격은 가로 바와 같은 --tt-span) */
-.tech-tree-vrow { display: flex; justify-content: center; height: var(--tt-gap); gap: calc(var(--tt-span) - var(--tt-line)); }
-.tech-tree-vrow i { position: relative; width: var(--tt-line); }
-.tech-tree-vrow i::before {
-    content: ''; position: absolute; left: 0; width: 100%;
-    top: calc((var(--tt-node) / 2 + var(--tt-label)) * -1); bottom: calc(var(--tt-node) / -2); background: var(--pp-line);
-}
-/* 잠긴 단계로 내려가는 선 — 끊지 않고 흐리게만 (선 연속성은 유지) */
-.tech-tree-vline.dim::before, .tech-tree-vrow.dim i::before, .tech-tree-hline.dim { background: #b9b6b0; }
 .tech-tree-node-col { display: flex; flex-direction: column; align-items: center; width: var(--tt-node); }
 /* 원본: 큰 브론즈 원(진행/완료), 미해금은 흰 원 — 이름 라벨 없음, N/5만 */
 .tech-tree-node {
