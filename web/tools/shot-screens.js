@@ -121,6 +121,14 @@ const SEED = () => {
         UI.autoSeqStep = () => { };
         UI.clearPendingCraft(); UI.renderEquipSheet();
         UI.coinBurst = () => { };   // 대기품 자동 판정 판매의 코인 분출(780ms)이 다음 화면 위로 날아와 찍힌다
+        // 보스 경고 마퀴(#boss-warning)와 피격 비네트(#dmg-flash)는 둘 다 **화면 전체를 덮는** 연출이라
+        // 캡처가 통째로 붉게 물들고 상단에 WARNING 띠가 찍힌다 — 원본 shot 에는 없는 것이라
+        // 비율 채점이 그대로 무의미해진다(main 캡처가 전면 적색 베일로 나온 실제 사례).
+        // 전투는 계속 돌게 두고 이 두 연출만 막는다.
+        UI.bossWarning = () => { };
+        UI.flashDamage = () => { };
+        const bw = document.getElementById('boss-warning'); if (bw) bw.classList.add('hidden');
+        const df = document.getElementById('dmg-flash'); if (df) { df.classList.remove('on'); df.style.display = 'none'; }
     });
     // 전투 씬이 자리잡을 시간 (메인/플레이어 정보 프리뷰)
     await page.waitForTimeout(2500);

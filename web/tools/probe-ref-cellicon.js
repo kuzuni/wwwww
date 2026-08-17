@@ -3,7 +3,8 @@
 // 2) 셀 안에서 배경(시대색+스트라이프)/테두리/Lv배지/별이 아닌 픽셀 = 아이콘 그림.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path'), fs = require('fs');
-const IMG = path.resolve(__dirname, '../ref/screens/shot-042120.png');
+// 인자로 다른 PNG(클론 캡처)도 잴 수 있다 — 원본/클론을 같은 자로 재야 비교가 성립한다.
+const IMG = path.resolve(process.argv[2] || path.join(__dirname, '../ref/screens/shot-042120.png'));
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
