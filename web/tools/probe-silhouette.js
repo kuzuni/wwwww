@@ -11,11 +11,19 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     const errs = [];
     page.on('pageerror', e => errs.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+    // 결정론적 월드 — 소품 배치·풀 위치가 Math.random에 걸려 있어 로드마다 지표가 크게 흔들렸다
+    // (같은 코드로 darkPctHero 2.95 / 7.27 / 9.88 관측). 시드 PRNG로 고정해야 전/후 비교가 성립한다.
+    await page.addInitScript(() => {
+        let s = 0x2f6e2b1;
+        Math.random = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    });
     await page.goto(INDEX + '?debug=gear&w=sword&wage=medieval&rar=rare&hage=medieval&aage=medieval', { waitUntil: 'load' });
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 15000 });
 
+    await page.waitForTimeout(2500); // 콜드스타트 정착 — 첫 런만 마스크가 300px 작게 잡히던 타이밍 편차 제거
     const r = await page.evaluate(() => {
         Combat.tick = () => {};
+        Scene3D.walking = false; Scene3D.worldX = 0; // 월드 스크롤·걷기 위상 고정
         if (typeof Skills !== 'undefined' && Skills.tick) Skills.tick = () => {};
         // 포즈 고정 — Idle 모션이 계속 돌면 팔·망토 위치가 실행마다 달라 지표가 크게 흔들린다.
         ProChar.update = () => {};

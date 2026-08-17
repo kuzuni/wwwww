@@ -12,11 +12,19 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     const errs = [];
     page.on('pageerror', e => errs.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+    // 결정론적 월드 (probe-silhouette.js와 동일 시드) — 대응 비교라 필수는 아니지만 재현성을 위해
+    await page.addInitScript(() => {
+        let s = 0x2f6e2b1;
+        Math.random = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    });
     await page.goto(INDEX + '?debug=gear&w=sword&wage=medieval&rar=rare&hage=medieval&aage=medieval', { waitUntil: 'load' });
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 15000 });
 
+    await page.waitForTimeout(2500);
     const rows = await page.evaluate(() => {
         Combat.tick = () => {};
+        Scene3D.walking = false; Scene3D.worldX = 0;
+        ProChar.update = () => {};
         if (typeof Skills !== 'undefined' && Skills.tick) Skills.tick = () => {};
         const R = Scene3D.renderer, gl = R.getContext();
         const w = R.domElement.width, h = R.domElement.height;
@@ -56,20 +64,34 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
                 edgeStep: +(step / bn).toFixed(4),
             };
         };
+        // ⚠️ **절대값 비교 금지** — 소품 배치·전투 이펙트·걷기 위상 때문에 로드마다 darkPctHero가
+        // 5.5~10.2로 흔들린다(Math.random 시드 고정 + 걷기 정지 후에도 잔존). 그래서 이 도구는
+        // **한 프레임 안에서 조건만 토글하는 대응 비교(paired A/B)**만 한다 — 같은 월드·같은 포즈라
+        // 차분이 곧 그 조건의 효과다.
         const out = [];
-        const relight = () => Scene3D.tintHero(); // 톤 베이스를 바꿨으니 시대색 틴트를 다시 얹어야 실제 화면값이 나온다
-        const mailMats = () => (ProChar._toneMats || []).filter(m => m.userData.tone === 'mail');
-        const setMail = (metal, env) => { for (const m of mailMats()) { m.metalness = metal; m.envMapIntensity = env; m.needsUpdate = true; } };
-        // ① albedo 스윕 (metalness 0.78 · env 0.55 고정)
-        for (const m of [0x8e9aa6, 0x2a323c, 0x0e1319]) {
-            ProChar.setTone({ mail: m }); relight();
-            out.push(Object.assign({ tag: 'albedo ' + m.toString(16) }, measure()));
-        }
-        // ② 반사 스윕 — 금속은 화면값을 albedo가 아니라 환경 반사가 지배한다는 가설 검증
-        ProChar.setTone({ mail: 0x0e1319 }); relight();
-        for (const [mt, ev] of [[0.78, 0.55], [0.6, 0.34], [0.45, 0.2], [0.3, 0.12], [0.18, 0.06]]) {
-            setMail(mt, ev);
-            out.push(Object.assign({ tag: `metal ${mt} env ${ev}` }, measure()));
+        const relight = () => Scene3D.tintHero();
+        const setRecv = v => Scene3D.heroG.traverse(o => { if (o.isMesh) o.receiveShadow = v; });
+        // A/B ①: 캐릭터 셀프 섀도 (receiveShadow)
+        setRecv(false); out.push(Object.assign({ tag: 'selfShadow OFF' }, measure()));
+        setRecv(true); out.push(Object.assign({ tag: 'selfShadow ON' }, measure()));
+        // A/B ②: 니어블랙 재질층 (DEEP albedo를 기존 가죽 톤으로 되돌린 대조군)
+        ProChar.setDeep({ color: 0x2a1a0d }); out.push(Object.assign({ tag: 'DEEP off(구 가죽)' }, measure()));
+        ProChar.setDeep({ color: 0x04050a }); out.push(Object.assign({ tag: 'DEEP on' }, measure()));
+        // A/B ③: 블랙엔드 사슬
+        ProChar.setTone({ mail: 0x8e9aa6 }); relight(); out.push(Object.assign({ tag: 'mail 구톤' }, measure()));
+        ProChar.setTone({ mail: 0x0e1319 }); relight(); out.push(Object.assign({ tag: 'mail 블랙엔드' }, measure()));
+        // A/B ④: 셀프 섀도가 안 먹히는 게 **섀도맵 텍셀 밀도** 탓인지 분리 검증.
+        // 현재 프러스텀 ±10유닛 / 2048px = 텍셀 ~1cm. 캐릭터 키가 1.5유닛이니 자기 몸에 지는
+        // 그림자는 텍셀 몇 개 폭이라 PCF에 뭉개진다. 프러스텀을 좁히면 밀도가 올라간다.
+        // A/B ④: 섀도맵 텍셀 밀도. **이 행들은 셀프 섀도가 아니라 지면 접지 그림자의 선명도를 잰다** —
+        // 아래 결과를 보고 '캐릭터 전용 근접 캐스케이드'를 실제로 구현했다가 되돌린 기록이 TODO에 있으니
+        // 같은 길을 다시 파지 말 것(요약: 키라이트를 둘로 쪼개면 넓은 그림자가 그만큼 옅어져 상쇄된다).
+        setRecv(true);
+        for (const half of [10, 6, 3, 1.5]) {
+            const c = Scene3D.sun.shadow.camera;
+            c.left = -half; c.right = half; c.top = half; c.bottom = -half;
+            c.updateProjectionMatrix();
+            out.push(Object.assign({ tag: `shadowCam ±${half}` }, measure()));
         }
         return out;
     });
