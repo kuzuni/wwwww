@@ -769,9 +769,14 @@ const UI = {
             this.els.stageLabel.textContent = `${d.icon} ${d.kr} ${Dungeons.run.stage}단계`;
         } else this.els.stageLabel.textContent = `${this.difficultyLabel(S.chapter)} ${S.chapter}-${S.stage}`;
     },
+    // pip 개수는 그 판의 총 웨이브 수를 따라간다 — 던전은 1~3, 메인은 5 (사용자 지시 2026-08-18).
+    // 5개를 박아 두면 3웨이브 던전에서 "2개 남았는데 클리어"로 보인다.
     updateWavePips(wave) {
-        this.els.wavePips.innerHTML = [1, 2, 3, 4, 5].map(w =>
-            `<span class="pip ${w < wave ? 'done' : w === wave ? 'now' : ''} ${w === 5 ? 'boss' : ''}"></span>`).join('');
+        const total = Combat.totalWaves();
+        const pips = [];
+        for (let w = 1; w <= total; w++) pips.push(w);
+        this.els.wavePips.innerHTML = pips.map(w =>
+            `<span class="pip ${w < wave ? 'done' : w === wave ? 'now' : ''} ${w === total ? 'boss' : ''}"></span>`).join('');
     },
     // 보스 경고 배너 — 길이는 Scene3D.BOSS_WARN_DUR가 소유한다(3D 연출·사이렌·보스 스폰이 같은 시계를 쓴다).
     // 지속·감쇠는 전부 CSS 키프레임이 가지므로 여기서는 클래스만 붙였다 뗀다.
@@ -2862,7 +2867,7 @@ const UI = {
             const shot = Scene3D.renderer.domElement.toDataURL('image/jpeg', 0.6);
             previewHtml = `<div class="pinfo-preview shot"><img src="${shot}" alt=""></div>`;
         } catch (e) {
-            const waveHtml = Dungeons.run ? '' : [1, 2, 3, 4, 5].map(w =>
+            const waveHtml = Dungeons.run ? '' : Array.from({ length: Combat.totalWaves() }, (_, i) => i + 1).map(w =>
                 `<span class="pip ${w < Combat.wave ? 'done' : w === Combat.wave ? 'now' : ''}"></span>`).join('');
             previewHtml = `<div class="pinfo-preview"><span>🛡️</span><span>${this.els.stageLabel.textContent}</span>${waveHtml}</div>`;
         }

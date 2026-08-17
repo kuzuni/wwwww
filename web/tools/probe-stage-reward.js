@@ -1,6 +1,7 @@
 // 스테이지 클리어 보상이 골드만인지 실측 — 사용: node probe-stage-reward.js
 // 판정: 클리어 전후 비-골드 재화(🎫 티켓·⚙️ 태엽·🥚 알·🧪 물약·🔨 해머·💎 젬) 델타 0, 코인만 증가,
-//       첫 클리어 토스트에 🎫/⚙️ 표기 없음. 던전 클리어(해머 도둑)는 별개 경로라 태엽이 나와야 정상.
+//       첫 클리어 토스트에 🎫/⚙️ 표기 없음. 던전 클리어(해머 도둑)는 별개 경로 —
+//       **망치+골드 2종만** 나와야 정상(사용자 지시 2026-08-18로 태엽 ⚙️ 보상이 빠졌다).
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
@@ -43,7 +44,7 @@ const CUR = ['coins', 'tickets', 'winders', 'eggCurrency', 'potions', 'hammers',
         Combat.stageClear();
         out.repeat = { before: before2, after: snap(), toasts: [...toasts] };
 
-        // ---- ③ 던전(해머 도둑) 클리어는 별개 경로 — 태엽이 나와야 정상 ----
+        // ---- ③ 던전(해머 도둑) 클리어는 별개 경로 — 망치+골드만 나와야 정상 (사용자 지시 2026-08-18) ----
         Dungeons.ensure();
         const before3 = snap();
         Dungeons.grantRewards('hammer', 1);
@@ -73,8 +74,11 @@ const CUR = ['coins', 'tickets', 'winders', 'eggCurrency', 'potions', 'hammers',
     t('첫 클리어 토스트에 🎫/⚙️ 표기 없음', !run.first.toasts.some(m => /🎫|⚙️/.test(m)), run.first.toasts.join(' / '));
     t('반복 클리어 — 비-골드 재화 델타 0', NONGOLD.every(k => d2[k] === 0), NONGOLD.filter(k => d2[k]).map(k => `${k} +${d2[k]}`).join(', ') || '전부 0');
     t('반복 클리어 — 티켓·태엽 지급 없음', d2.tickets === 0 && d2.winders === 0);
-    t('던전(해머 도둑)은 태엽 수급처로 유지 — 탈것이 잠기지 않게', d3.winders > 0, `⚙️ +${d3.winders}`);
-    t('던전 목록 표기에 태엽 반영', /⚙️/.test(run.dungeon.text), run.dungeon.text);
+    // 사용자 지시 2026-08-18 "해머 도둑은 망치+골드만 준다" — 태엽 보상 제거로 기대값이 뒤집혔다.
+    // (태엽 수급은 리그 시즌 보상·진행 패스 4-10 마일스톤만 남는다)
+    t('던전(해머 도둑) 보상은 망치+골드 2종만 — 태엽 없음', d3.winders === 0 && d3.hammers > 0 && d3.coins > 0,
+      `🔨 +${d3.hammers} · 🪙 +${d3.coins} · ⚙️ +${d3.winders}`);
+    t('던전 목록 표기에 태엽 없음', !/⚙️/.test(run.dungeon.text), run.dungeon.text);
     t('콘솔 에러 0건', errors.length === 0, errors.slice(0, 3).join(' | '));
 
     console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과'));

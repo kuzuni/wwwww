@@ -1,10 +1,20 @@
 // ===== 던전 4종: 열쇠 2/2 매일 09:00 리셋, 완료 시 소모, 최고 클리어 단계 소탕 (원본: BALANCE.md) =====
 const Dungeons = {
     MAX_KEYS: 2,
-    run: null, // 진행 중이면 {id, stage}
+    run: null, // 진행 중이면 {id, stage, waves}
+
+    // 던전 한 판의 웨이브 수 — 1~3 (사용자 지시 2026-08-18 "던전은 웨이브 수 1~3개로 해줘").
+    // 메인 스테이지의 5웨이브는 그대로 두고 던전만 짧게 간다. 마지막 웨이브가 보스라
+    // waves=1이면 보스 단판이 된다(구조는 메인과 같고 길이만 다르다).
+    // 값은 **입장할 때 한 번** 뽑아 run.waves에 굳힌다 — Combat.totalWaves가 매 판정마다 부르는
+    // 자리라, 여기서 매번 뽑으면 pip 개수와 클리어 판정이 같은 판 안에서 어긋난다.
+    MIN_WAVES: 1,
+    MAX_WAVES: 3,
+    DEFAULT_WAVES: 3,   // run.waves가 없는 구버전 진행 상태용 폴백
+    rollWaves() { return this.MIN_WAVES + Math.floor(Math.random() * (this.MAX_WAVES - this.MIN_WAVES + 1)); },
 
     DEFS: [
-        { id: 'hammer',   name: 'Hammer Thief', kr: '해머 도둑',  icon: '🔨', unlock: '2-10', reward: '해머 · 코인 · 태엽',
+        { id: 'hammer',   name: 'Hammer Thief', kr: '해머 도둑',  icon: '🔨', unlock: '2-10', reward: '해머 · 코인',
           theme: { sky: 0x5d4037, fog: 0x795548, ground: 0x4e342e, biome: 'rock', celestial: 'none' } },
         { id: 'ghost',    name: 'Ghost Town',   kr: '유령 마을',  icon: '👻', unlock: '2-8',  reward: '스킬 티켓',
           theme: { sky: 0x37474f, fog: 0x546e7a, ground: 0x455a64, biome: 'rock', celestial: 'moon' } },
@@ -48,27 +58,29 @@ const Dungeons = {
         return 55 * Math.pow(5.6, unlockCh - 1) * Math.pow(1.35, stage - 1);
     },
 
-    // 단계 n 클리어 보상 (근사 설계)
+    // 단계 n 클리어 보상 — **선형**(사용자 지시 2026-08-18):
+    //   "클리어하고 다음 난이도 깨는 보상은 +2개 추가되는 식으로 하면 되고, 맨 처음 보상은 100개로 하면 됨."
+    // 즉 1단계 100개, 단계마다 +2개. 던전별 지수 스케일(1.25^n · 600·1.5^n · 150+100n · 10n)을 전부 이 식으로 갈았다.
+    // 보상 '종류'는 그대로 두고 **수량만** 통일한다.
+    // 기술트리 배율 노드(thiefHammerMult·dungeonTicketMult·dungeonPotionMult)는 남긴다 — 플레이어가
+    // 이미 투자한 노드라 여기서 떼면 그 노드들이 아무 효과 없는 죽은 칸이 된다. 선형화는 '단계 스케일'만이다.
+    BASE_REWARD: 100,
+    PER_STAGE: 2,
+    rewardAmount(stage) { return this.BASE_REWARD + this.PER_STAGE * (Math.max(1, stage) - 1); },
     rewards(id, stage) {
-        const g = Math.pow(1.25, stage - 1);
-        // 대장간 분기 '해머도둑 해머/코인 보너스' 노드가 이 던전 보상에 붙는다
-        // 태엽(⚙️)은 스테이지 클리어 지급이 폐지되면서(사용자 지시 2026-08-17 '클리어 보상은 골드만')
-        // 리그 시즌 보상·진행 패스 4-10 마일스톤만 남았는데, 소환 1회가 50태엽이라 패스 40으로는 한 번도 못 뽑고
-        // 리그는 3일 주기라 탈것 시스템이 며칠간 아예 잠긴다. ref/UI-SPEC.md가 태엽 수급처로
-        // "리그, 진행 패스 (던전 부가 보상으로 근사 가능)"를 명시하므로, 반복 플레이로도 모이도록 여기에 부가 보상으로 붙인다.
-        // (해머 도둑은 원래도 2종 지급이라 부가 보상 자리가 있는 유일한 던전)
-        if (id === 'hammer')   return { hammers: Math.ceil(25 * g * TechTree.thiefHammerMult()),
-                                        coins: Math.ceil(600 * Math.pow(1.5, stage - 1) * TechTree.thiefCoinMult()),
-                                        winders: Math.ceil(15 * g) };
-        if (id === 'ghost')    return { tickets: Math.ceil(20 * g * TechTree.dungeonTicketMult()) }; // '던전 티켓 보너스'
-        // 알 화폐(🥚)의 유일한 수급처 (사용자 확정 — 사냥 지급 전면 삭제): 소환 1회=100🥚 기준 1단계≈2.5회분, 단계당 +1회분.
-        // 옛 ANIMALS '알 채집꾼' 배율은 원본 트리에 대응 노드가 없어 제거(기술 트리 원본화, 2026-08-17)
-        if (id === 'invasion') return { eggCurrency: Math.ceil(150 + 100 * stage) };
-        return { potions: Math.ceil(10 * stage * TechTree.dungeonPotionMult()) }; // '던전 물약 보너스'
+        const n = this.rewardAmount(stage);
+        // 해머 도둑은 **망치 + 골드 2종만** 준다 (사용자 지시 2026-08-18 — 붙어 있던 태엽 ⚙️ 보상 제거).
+        // ⚠️ 태엽 수급이 여기서 사라져 리그 시즌 보상·진행 패스 4-10 마일스톤만 남는다.
+        if (id === 'hammer')   return { hammers: Math.ceil(n * TechTree.thiefHammerMult()),
+                                        coins: Math.ceil(n * TechTree.thiefCoinMult()) };
+        if (id === 'ghost')    return { tickets: Math.ceil(n * TechTree.dungeonTicketMult()) }; // '던전 티켓 보너스'
+        // 알 화폐(🥚)의 유일한 수급처 (사용자 확정 — 사냥 지급 전면 삭제)
+        if (id === 'invasion') return { eggCurrency: n };
+        return { potions: Math.ceil(n * TechTree.dungeonPotionMult()) };                        // '던전 물약 보너스'
     },
     rewardText(id, stage) {
         const r = this.rewards(id, stage);
-        if (r.hammers) return `🔨 ${U.fmt(r.hammers)} · 🪙 ${U.fmt(r.coins)} · ⚙️ ${U.fmt(r.winders)}`;
+        if (r.hammers) return `🔨 ${U.fmt(r.hammers)} · 🪙 ${U.fmt(r.coins)}`;
         if (r.tickets) return `🎫 ${U.fmt(r.tickets)}`;
         if (r.eggCurrency) return `🥚 ${U.fmt(r.eggCurrency)}`;
         return `🧪 ${U.fmt(r.potions)}`;
@@ -76,7 +88,6 @@ const Dungeons = {
     grantRewards(id, stage) {
         const r = this.rewards(id, stage);
         if (r.hammers) { S.hammers += r.hammers; S.coins += r.coins; }
-        if (r.winders) S.winders += r.winders;
         if (r.tickets) S.tickets += r.tickets;
         if (r.potions) S.potions += r.potions;
         // 침공(펫 던전) 보상 = 알 화폐 — 알은 펫 화면 [소환]으로만 획득 (사용자 확정).
@@ -94,7 +105,7 @@ const Dungeons = {
         if (!this.unlocked(id)) { UI.toast(`🔒 스테이지 ${this.def(id).unlock} 도달 시 해금`); return false; }
         if (S.dungeons.keys[id] <= 0) { UI.toast('🗝 열쇠가 없습니다 (매일 09:00 리셋)'); return false; }
         const best = S.dungeons.best[id];
-        this.run = { id, stage: U.clamp(stage || best + 1, 1, best + 1) };
+        this.run = { id, stage: U.clamp(stage || best + 1, 1, best + 1), waves: this.rollWaves() };
         UI.toast(`${this.def(id).icon} ${this.def(id).kr} ${this.run.stage}단계 입장!`);
         saveGame();
         Combat.hero.hp = Combat.hero.maxHp;

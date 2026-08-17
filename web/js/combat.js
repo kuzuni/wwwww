@@ -73,6 +73,16 @@ const Combat = {
         return Math.min(1, 0.35 + 0.09 * (S.stage - 1));
     },
 
+    // 스테이지 한 판의 총 웨이브 수 — 마지막 웨이브가 보스다.
+    // 메인 스테이지는 예전 그대로 5, **던전만 1~3**(사용자 지시 2026-08-18 "던전은 웨이브 수 1~3개로 해줘").
+    // 던전 값은 입장 시 Dungeons.enter가 run.waves에 굳혀 둔다 — 여기서 매번 뽑으면 같은 판에서
+    // 총수가 프레임마다 바뀌어 pip 개수와 클리어 판정이 서로 어긋난다.
+    MAIN_WAVES: 5,
+    totalWaves() {
+        if (Dungeons.run) return Dungeons.run.waves || Dungeons.DEFAULT_WAVES;
+        return this.MAIN_WAVES;
+    },
+
     setupStage() {
         this.wave = 0;
         this.enemies = [];
@@ -93,7 +103,7 @@ const Combat = {
         // 보스 웨이브는 경고 연출을 먼저 돌리고 그게 끝난 뒤에 보스를 내보낸다 (사용자 지시 ③ "연출 후 보스 등장").
         // 연출 구간은 적이 없는 별도 페이즈라 전투 루프는 계속 돌되(버프 만료·재생·지연 큐 정상 동작)
         // 행군만 멈춘다 — 화면이 흐르면 경고 배너가 '지나가는 장식'으로 읽힌다.
-        if (this.wave === 5) {
+        if (this.wave === this.totalWaves()) {
             this.phase = 'bossWarn';
             this.phaseTimer = Scene3D.BOSS_IMPACT; // 배너 전체 길이가 아니라 '착지 임팩트' 시점 — 파동과 보스가 같은 프레임에 나온다
             Scene3D.bossEntrance();
@@ -105,7 +115,7 @@ const Combat = {
     },
 
     spawnWave() {
-        const isBossWave = this.wave === 5;
+        const isBossWave = this.wave === this.totalWaves();
         const baseHp = this.monsterBaseHp().mul(1 + 0.08 * (this.wave - 1));
         const count = isBossWave ? 1 : (this.wave <= 2 ? 2 : 3);
         const bossMult = this.BOSS_HP_MULT * this.bossEase();
@@ -320,7 +330,7 @@ const Combat = {
             this.restackMelee(); // 남은 적이 빈 앞자리로 한 칸 당겨 선다 — 줄이 끊긴 채 남지 않게
             if (e.isBoss) { Scene3D.shake(0.5); SFX.setMusicMode('normal'); }
             if (!this.aliveEnemies().length) {
-                if (this.wave >= 5) this.stageClear();
+                if (this.wave >= this.totalWaves()) this.stageClear();
                 else { this.phase = 'waveDelay'; this.phaseTimer = 1.6; } // 행군 구간
             }
         }
