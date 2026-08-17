@@ -3003,7 +3003,10 @@ const Scene3D = {
             g.userData.stirrups = [];
             for (const s of [-1, 1]) {
                 const st = new THREE.Group();
-                const strap = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 6), TAN);
+                // ⚠️ 끈은 **납작한 띠 + 어두운 가죽색**이어야 한다. 처음엔 밝은 탄색 원통으로 뒀더니
+                //    비평가가 이걸 "갑옷 없는 살색 다리"로 읽었다 — 굵기 일정한 밝은 원통이 정강이와
+                //    실루엣이 같아서 생긴 오독이라, 단면과 명도를 둘 다 다리와 다르게 만들어 끊는다.
+                const strap = new THREE.Mesh(new THREE.BoxGeometry(0.03, 1, 0.012), LEATHER);
                 // 원점(=발)에서 위로 자란다 — scale.y가 곧 끈 길이. 길이 1로 두면 정렬 전 한 프레임 동안
                 // 영웅 키를 넘는 장대가 서므로 기본값도 그럴듯한 길이로 줄여 둔다.
                 strap.scale.y = 0.24; strap.position.y = 0.12;
@@ -3024,8 +3027,12 @@ const Scene3D = {
         const WHEELED = ['Bike', 'One-Wheel Droid'];
 
         if (FLAT.includes(name)) { // 평판형: 나뭇잎/연잎/호버보드/호버디스크 — 넓적한 발판 + 탑승 발판 위 살짝 솟은 손잡이
+            // 예전 (1.7, 0.32, 1.9)는 폭이 영웅 어깨너비의 3배라, 게임 카메라 거리에서 '탈것'이 아니라
+            // 잔디에 깔린 초록 범위 표시 데칼로 읽혔다(비평가 지적, 실제로 그렇게 보인다).
+            // 폭을 줄이고 두께를 키우고 지면에서 띄워(hover 0.10) 판때기로 읽히게 한다.
             const hover = name.startsWith('Hover');
-            sp(0.34, 0, 0.05, 0, hover ? dark : mat, 1.7, 0.32, 1.9);
+            sp(0.34, 0, 0.05, 0, hover ? dark : mat, 1.15, 0.42, 1.35);
+            sp(0.34, 0, 0.02, 0, dark, 1.08, 0.2, 1.28);   // 아래턱 — 옆에서 봤을 때 두께가 보이게
             if (hover) to(0.3, 0.03, 0, 0.01, 0, M(0x29e0ff, { emissive: 0x0aa0c0, emissiveIntensity: 0.6 })).rotation.x = -Math.PI / 2; // 눕혀야 발판 테두리가 된다 (세로로 서 있어 발판 아래로 반원이 튀어나왔다)
             else sp(0.3, 0, 0.09, 0, light, 1.5, 0.2, 1.6);
             g.userData.deck = g.children[0];
@@ -3128,7 +3135,12 @@ const Scene3D = {
             // z가 0 이하인 자리는 영웅 몸통 뒤에 그대로 가린다(기존 2번 자리 z=-0.65가 사용자가 지적한 그 자리).
             // x는 영웅~적 교전선(HERO_X -1.35 ~ MELEE_X -0.5)을 피해 좌우로 벌리고, z를 엇갈려 서로도 안 겹치게.
             // 탈것은 이제 영웅 발밑(탑승)이라 예전처럼 오른쪽 자리를 비워 둘 필요가 없다.
-            const spots = [[-0.72, 1.18], [0.02, 1.62], [0.68, 1.12]];
+            // 탈것을 타면 탈것의 다리·몸통이 펫을 다시 가린다(비평가 실측: 3마리 중 2마리가 탈것 다리에
+            // 잘리고 1마리는 배 밑으로 들어갔다). 영웅만 있을 때 기준으로 잡은 반경이라 탈것 풋프린트를
+            // 못 피하는 것 — 탈것 장착 중에는 좌우로 더 벌리고 카메라 쪽으로 더 당긴다.
+            const mounted = !!S.activeMount;
+            const spots = mounted ? [[-1.16, 1.52], [0.06, 2.02], [1.14, 1.46]]
+                                  : [[-0.72, 1.18], [0.02, 1.62], [0.68, 1.12]];
             g.position.set(Combat.HERO_X + spots[i][0] + this.worldX, 0.4, spots[i][1]);
             g.userData.home = g.position.clone();
             g.userData.spotX = spots[i][0];
@@ -3148,7 +3160,8 @@ const Scene3D = {
     // ⚠️ saddle 값은 makeMountMesh의 실제 지오메트리 상단에서 뽑았다 — 모델을 바꾸면 여기도 같이 본다.
     MOUNT_FORMS: {
         // 평판형: 발판 위에 '두 발로 선다' — 앉는 게 아니라 서는 유일한 계열
-        flat:    { saddle: 0.17, hover: 0.02, stand: true,
+        // saddle = 발판 윗면의 로컬 높이(= 지오메트리에서 뽑은 값 0.05 + 0.34*0.42). 판 두께를 바꾸면 여기도 같이 본다.
+        flat:    { saddle: 0.193, hover: 0.10, stand: true,
                    pose: { hipL: { rx: 0.06, rz: -0.13 }, hipR: { rx: 0.06, rz: 0.13 },
                            kneeL: { rx: -0.18 }, kneeR: { rx: -0.18 }, spine: { rx: 0.06 } } },
         // 탈것형(자전거/외바퀴): 안장에 앉아 상체를 앞으로 숙이고 무릎을 깊게 접는다
@@ -3160,11 +3173,13 @@ const Scene3D = {
         // ⚠️ bulk를 1.7까지 키우면 영웅이 '녹색 비행선 위의 점'이 된다 — 몸통을 좁게 다시 만든 뒤로는
         //    다리가 감쌀 수 있으므로 1.28이면 충분하다(실측: 영웅 실루엣이 프레임 안에 온전히 들어옴).
         fly:     { saddle: 0.38, hover: 0.42, bulk: 1.28,
-                   pose: { hipL: { rx: 0.8, rz: -0.3 }, hipR: { rx: 0.8, rz: 0.3 },
+                   pose: { hipL: { rx: 0.8, rz: -0.43 }, hipR: { rx: 0.8, rz: 0.43 },
                            kneeL: { rx: -1.0 }, kneeR: { rx: -1.0 }, spine: { rx: 0.12 } } },
         // 사족보행형: 배럴이 굵어 다리를 가장 크게 벌려 감싼다
         quad:    { saddle: 0.44, hover: 0,
-                   pose: { hipL: { rx: 0.78, rz: -0.42 }, hipR: { rx: 0.78, rz: 0.42 },
+                   // rz 0.42는 발이 배럴 밖으로 겨우 0.004(로컬)만 나와, 각도만 조금 틀어도 다리가
+                   // 몸통에 스쳐 묻혔다 — 여유를 0.05대로 벌려 어느 각도에서도 다리가 읽히게 한다.
+                   pose: { hipL: { rx: 0.78, rz: -0.58 }, hipR: { rx: 0.78, rz: 0.58 },
                            kneeL: { rx: -0.92 }, kneeR: { rx: -0.92 }, spine: { rx: 0.1 } } },
     },
     MOUNT_FORM_OF: {
@@ -3199,6 +3214,7 @@ const Scene3D = {
         if (!m) {                                    // 해제: 지면 복귀 + 탑승 포즈·기울기 제거
             if (this.heroG) { this.heroG.rotation.x = 0; this.heroG.position.y = 0; }
             this.applyWeaponGrip();
+            if (this.petGroups.length) this.refreshPets();   // 펫 자리는 탈것 유무에 따라 달라진다
             return;
         }
         const g = new THREE.Group();
@@ -3249,6 +3265,7 @@ const Scene3D = {
         // 공격이 끝날 때까지 남는다 — 비행형에서 지상형으로 갈아타면 한동안 공중에 뜬 채다. 즉시 스냅.
         if (this.heroG) this.heroG.position.y = heroY;
         this.applyWeaponGrip();                    // 무기 거치 자세와 탑승 포즈를 합성
+        if (this.petGroups.length) this.refreshPets();   // 탈것 풋프린트를 피해 펫 자리를 다시 잡는다
     },
 
     // 등자를 영웅의 **실제 발 위치**로 옮긴다 — 상수로 박으면 포즈·다리 길이·탈것 배율이 곱해진 자리를

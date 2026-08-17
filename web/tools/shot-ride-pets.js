@@ -71,8 +71,9 @@ const MOUNTS = [
         //    엔진이 검증 스크립트용으로 열어 둔 `Scene3D.camLock` 훅을 써야 고정된다(scene3d.js:5235).
         // camY/lookY는 **영웅 발 높이 기준 상대값** — 비행형은 영웅이 공중에 뜨므로 절대 높이로 두면
         // 머리가 프레임 위로 잘려 나간다(계열 비교가 성립하지 않는다).
+        // x도 영웅의 **실제 위치**를 쓴다 — 공격은 앞으로 돌진하므로 HERO_X로 고정하면 프레임 밖으로 나간다.
         window.__camera = (yawDeg, dist, camY, lookY) => {
-            const hx = Combat.HERO_X + Scene3D.worldX;
+            const hx = Scene3D.heroG ? Scene3D.heroG.position.x : Combat.HERO_X + Scene3D.worldX;
             const hy = Scene3D.heroG ? Scene3D.heroG.position.y : 0;
             const a = yawDeg * Math.PI / 180;
             Scene3D.camLock = {
@@ -104,7 +105,8 @@ const MOUNTS = [
         await shot(`ride-${form}-side`);
         await page.evaluate(() => { __camera(0, 3.4, 1.7, 0.95); __walk(true); __step(0.62); });
         await shot(`ride-${form}-walk`);
-        await page.evaluate(() => { __walk(false); __attack(); __step(0.22); });
+        // 돌진이 끝난 자리에서 카메라를 다시 물린다 — 안 그러면 영웅이 프레임 밖으로 나간 컷이 남는다
+        await page.evaluate(() => { __walk(false); __attack(); __step(0.22); __camera(0, 3.4, 1.7, 0.95); __step(1 / 120); });
         await shot(`ride-${form}-attack`);
     }
 
