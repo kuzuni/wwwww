@@ -9,7 +9,8 @@ const U = {
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     },
 
-    // 큰 수 표기: 1.2K, 3.4M, 5.6B, 7.8T, 이후 aa/ab/… (Big은 bignum.js의 fmtBig으로 위임)
+    // 큰 수 표기: 1.2k, 3.4m, 5.6b, 7.8t, 이후 aa/ab/… (Big은 bignum.js의 fmtBig으로 위임)
+    // 접미사 소문자 + 꼬리 0 제거는 원본 실측 규칙 — 근거는 bignum.js BIG_UNITS 주석 참조.
     fmt(n) {
         // 세이브를 거쳐 온 Big은 문자열("1.5e300")로 되읽히므로 문자열도 Big 경로로 보낸다
         if (n instanceof Big || typeof n === 'string') return fmtBig(Big.of(n));
@@ -21,10 +22,11 @@ const U = {
         // 접미사가 Qi 에서 끝나 그 위가 전부 Qi 로 눌리고, 1e18 을 넘는 순간 가수가 지수 표기로
         // 바뀌어 "1e+22Qi"·"InfinityQi" 가 화면에 그대로 샌다. 그래서 여기서부터 fmtBig 에 넘긴다.
         if (!(abs < 1e15)) return fmtBig(Big.of(n));   // NaN 이 아닌 Infinity 도 이 가지로 들어온다
-        const units = ['K', 'M', 'B', 'T'];
+        const units = BIG_UNITS;
         let u = -1, v = n;
         while (Math.abs(v) >= 1000 && u < units.length - 1) { v /= 1000; u++; }
-        return (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)) + units[u];
+        const body = Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
+        return bigTrimZeros(body) + units[u];
     },
 
     // 소수점 보존 표기 (오프라인 보상 수급률·누적량 등 실수 표시용): 1.13, 8.87k, 149.05
@@ -34,7 +36,8 @@ const U = {
         const abs = Math.abs(n);
         if (abs < 1000) return n.toFixed(2);
         if (!(abs < 1e15)) return fmtBig(Big.of(n), 2);   // fmt 와 같은 이유로 T 위는 Big 경로에 위임
-        const units = ['K', 'M', 'B', 'T'];
+        // fmtDec 는 '소수점 보존'이 목적이라 꼬리 0을 남긴다(fmtBig 의 decimals 명시 경로와 같은 규칙).
+        const units = BIG_UNITS;
         let u = -1, v = n;
         while (Math.abs(v) >= 1000 && u < units.length - 1) { v /= 1000; u++; }
         return v.toFixed(2) + units[u];

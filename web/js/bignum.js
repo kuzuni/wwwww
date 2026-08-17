@@ -168,8 +168,16 @@ class Big {
 
 // ---- 표시 포맷 ----
 // 1000 미만은 그대로, 이후 K/M/B/T → aa/ab/ac… (10^15부터 3자리마다) → 한계 넘으면 e표기.
-const BIG_UNITS = ['K', 'M', 'B', 'T'];
+// ⚠️ 접미사는 **소문자**다 — 원본 실측(shot-042120 `782k`·`20.7b`, 042149 `32b`·`41.7b`,
+// 042632 `2.15k`·`4k`). 위 구간의 aa/ab/… 도 소문자라 사다리가 k→m→b→t→aa 로 이어진다.
+const BIG_UNITS = ['k', 'm', 'b', 't'];
 const BIG_ALPHA = 'abcdefghijklmnopqrstuvwxyz';
+
+// 꼬리 0 제거 — 원본은 4000 을 `4.00k` 가 아니라 `4k`, 32e9 를 `32.0b` 가 아니라 `32b` 로 쓴다.
+// 소수점이 없는 문자열("782")은 건드리지 않는다(그냥 잘랐다간 782 → 782 이 아니라 78 이 된다).
+function bigTrimZeros(s) {
+    return s.indexOf('.') < 0 ? s : s.replace(/0+$/, '').replace(/\.$/, '');
+}
 
 function bigUnitFor(tier) {
     // tier: 1=K, 2=M, 3=B, 4=T, 5=aa, 6=ab, …
@@ -179,7 +187,7 @@ function bigUnitFor(tier) {
     return BIG_ALPHA[Math.floor(i / BIG_ALPHA.length)] + BIG_ALPHA[i % BIG_ALPHA.length];
 }
 
-// 큰 수 표기: 999 / 1.23K / 4.56aa / 1.2e2000
+// 큰 수 표기: 999 / 1.23k / 4.56aa / 1.2e2000
 function fmtBig(v, decimals) {
     const b = Big.of(v);
     if (b.m === 0) return '0';
@@ -202,5 +210,7 @@ function fmtBig(v, decimals) {
     // 가수를 3자리 묶음에 맞춰 되돌린다: 10^(e - 3*tier) 만큼 곱함 → [1,1000)
     const shown = a.m * Math.pow(10, a.e - tier * 3);
     const d = decimals !== undefined ? decimals : (shown >= 100 ? 0 : shown >= 10 ? 1 : 2);
-    return (neg ? '-' : '') + shown.toFixed(d) + unit;
+    // decimals 를 명시한 호출(U.fmtDec 등)은 '자릿수 보존'이 목적이라 꼬리 0을 남긴다.
+    const body = decimals !== undefined ? shown.toFixed(d) : bigTrimZeros(shown.toFixed(d));
+    return (neg ? '-' : '') + body + unit;
 }
