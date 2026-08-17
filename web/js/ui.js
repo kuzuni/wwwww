@@ -545,6 +545,9 @@ const UI = {
         const item = this._pendingItem;
         this._pendingItem = null;
         S.pendingCraft = null;
+        // '스왑으로 내려온 옛 장비' 표식은 대기품일 때만 의미가 있다. 지우지 않으면 이 장비가
+        // 다시 장착될 때 S.equipment까지 표식을 달고 들어간다(자동 판정 경로 포함).
+        if (item) delete item._swapped;
         return item;
     },
     // 부팅 시 복원: 지난 세션이 선택하지 않고 떠난 제작품이 있으면 비교 팝업을 그대로 다시 띄운다.
@@ -926,9 +929,9 @@ const UI = {
         if (e.target !== this.els.craftModal) return;   // 카드 안쪽 클릭은 무시
         this.els.craftModal.classList.add('hidden');
         this.renderEquipSheet();
-        // 대기품이 없으면 '장착 완료' 상태로 열려 있던 팝업이다 — 보류할 게 없으니 그냥 닫는다.
-        // (이 분기가 없으면 장착 후 팝업이 딤으로도 안 닫혀 갇힌다 — 사용자 지시 2026-08-18로
-        //  장착이 더 이상 팝업을 닫지 않게 되면서 생긴 새 경로다.)
+        // 대기품이 없는 팝업(모두 소비된 상태)이면 보류할 게 없으니 그냥 닫는다.
+        // [장착] 스왑 후에는 내려온 옛 장비가 대기품으로 남아 있으므로 아래 보류 경로를 탄다 —
+        // 딤으로 접으면 그 옛 장비가 모루 자리 카드로 가고, 다시 눌러 팔거나 되장착할 수 있다.
         if (!this._pendingItem) return;
         this.toast('📌 보류 — 모루 자리의 카드를 누르면 다시 고를 수 있습니다');
         this.autoSeqStep();   // 자동 시퀀스 중이었다면 계속 진행 (보류는 시퀀스를 멈추지 않는다)
@@ -1708,6 +1711,11 @@ const UI = {
     showCraftModal(item) {
         const cur = S.equipment[item.slot];
         const isMatch = Forge.isMatchingGear(item, cur);
+        // 아래 카드가 '방금 뽑은 것'인지 '[장착]에 밀려 내려온 옛 장비'인지로 리본이 갈린다.
+        // 표식(_swapped)은 대기품에 얹혀 세이브까지 따라가므로 새로고침 복원(restorePendingCraft)·
+        // 보류 카드 재개봉(onOpenHeld)에서도 라벨이 '새로운!'으로 되돌아가지 않는다.
+        const swapped = !!item._swapped;
+        const newTag = swapped ? '교체됨' : '새로운!';
         // 원본은 전투력이 아니라 두 장비의 주 스탯(공격력/체력) 값을 직접 비교해 화살표를 매김 (UI-SPEC 25번)
         // 승천 별이 붙은 장비와 안 붙은 장비를 함께 비교해야 하므로 별 배율까지 반영한 itemValue로 견준다
         const newIsHigher = !cur || Forge.itemValue(item).gte(Forge.itemValue(cur));
@@ -1717,13 +1725,13 @@ const UI = {
             <div class="modal-card wide" style="--rc:${this.ageHex(item.age)}">
                 <div class="cmp-wrap">
                     ${this.itemCardHTML(cur, '장착됨', cur ? (newIsHigher ? 'down' : 'up') : null, false)}
-                    ${this.itemCardHTML(item, '새로운!', cur ? (newIsHigher ? 'up' : 'down') : null, true)}
+                    ${this.itemCardHTML(item, newTag, cur ? (newIsHigher ? 'up' : 'down') : null, true)}
                 </div>
                 <div class="row">
                     <button class="btn sell" onclick="UI.resolveCraft('sell')">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(item))}</small></button>
                     <!-- '기존 보관'은 보관함 시절 문구다 — 보관함 폐기 후 밀려난 장비는 보관되지 않고 사라지므로
                          그대로 두면 거짓 안내가 된다(사용자 확정 2026-08-17 "장착은 교체만"). -->
-                    <button class="btn equip" onclick="UI.resolveCraft('equip')">장착${cur ? '<small>기존 교체</small>' : ''}</button>
+                    <button class="btn equip" onclick="UI.resolveCraft('equip')">장착${cur ? `<small>${swapped ? '다시 장착' : '기존 교체'}</small>` : ''}</button>
                 </div>
             </div>`;
         this.showModal(this.els.craftModal);
@@ -1897,39 +1905,31 @@ const UI = {
         const item = this.clearPendingCraft();
         this._pendingCraftMode = null;
         // 팝업이 닫히는 경로는 **[판매]와 딤 클릭 둘뿐**이다 (사용자 지시 2026-08-18).
-        // [장착]은 장착만 하고 팝업을 그대로 열어 둔다 — 앞선 세션이 이걸 '현 사양상 정상'으로
-        // 판정해 닫아 버렸던 게 잘못이었다. 단 **자동 제련 시퀀스 중에는 예외**다:
-        // 거기서는 '선택 = 다음 제작으로 진행'이 사양이라(autocraft-seq 항목) 닫고 넘어가야
-        // 시퀀스가 팝업 대기 상태로 멈추지 않는다.
+        // [장착]은 팝업을 닫는 대신 **두 카드를 맞바꾼다**: 방금 장착한 것이 위(장착됨)로 가고,
+        // 그때까지 끼고 있던 옛 장비가 아래로 내려와 **새 대기품**이 된다. 판매 버튼이 그대로
+        // 살아 있으니 내려온 옛 장비를 그 자리에서 팔거나, [장착]을 다시 눌러 되돌릴 수 있다
+        // (사용자 지시 2026-08-18 "새거 장착했다가 예전꺼 장착했다가 판매할 수 있게").
+        // 예외 둘 — ⑴ 빈 부위라 내려올 옛 장비가 없으면 스왑할 게 없으니 닫는다.
+        //           ⑵ 자동 제련 시퀀스 중에는 '선택 = 다음 제작으로 진행'이 사양이라(autocraft-seq)
+        //              닫고 넘어가야 시퀀스가 팝업 대기 상태로 멈추지 않는다. 이 경로의 옛 장비는
+        //              종전대로 소멸한다(스왑을 반복하면 시퀀스가 진행되지 않는다).
         const auto = !!this._autoSeq;
-        const keepOpen = mode === 'equip' && !auto;
-        if (!keepOpen) this.els.craftModal.classList.add('hidden');
+        const prev = (item && mode === 'equip') ? S.equipment[item.slot] : null;
+        const swapBack = mode === 'equip' && !auto && !!prev;
+        if (!swapBack) this.els.craftModal.classList.add('hidden');
         if (!item) return;
-        // [장착]은 장착만 한다 — 이전 장비는 팔지도 보관하지도 않고 그냥 사라진다(사용자 확정 2026-08-17)
-        const prev = mode === 'equip' ? S.equipment[item.slot] : null;
         if (mode === 'equip') Forge.equip(item);
         else this.coinBurst(Forge.sell(item));
         this.renderTopBar();
         this.renderEquipSheet();
-        saveGame();
-        if (keepOpen) this.showCraftEquipped(prev, item);
+        if (swapBack) {
+            prev._swapped = true;
+            this.setPendingCraft(prev);   // saveGame 포함 — 스왑 도중 새로고침해도 옛 장비가 안 사라진다
+            this.showCraftModal(prev);    // 위=지금 장착된 새 것, 아래=내려온 옛 것
+        } else {
+            saveGame();
+        }
         this.autoSeqStep();   // 자동 시퀀스가 이 선택을 기다리고 있었다면 다음 제작으로
-    },
-    // [장착] 직후에도 열려 있는 비교 팝업 — 무엇이 무엇으로 바뀌었는지를 그대로 보여준다.
-    // 대기품은 이미 소비됐으므로 [판매]·[장착] 버튼은 살려 두면 안 된다(팔 것도 장착할 것도 없다).
-    // 이 상태에서 닫는 길은 딤 클릭이다(판매는 더 이상 해당 사항이 없어 버튼 자체가 없다).
-    showCraftEquipped(prev, item) {
-        this.els.craftModal.innerHTML = `
-            <div class="modal-card wide" style="--rc:${this.ageHex(item.age)}">
-                <div class="cmp-wrap">
-                    ${this.itemCardHTML(prev, '교체됨', null, false)}
-                    ${this.itemCardHTML(item, '장착됨', null, true)}
-                </div>
-                <div class="row">
-                    <button class="btn equip" disabled>장착 완료<small>딤을 누르면 닫힙니다</small></button>
-                </div>
-            </div>`;
-        this.showModal(this.els.craftModal);
     },
 
     // ---- 펫 패널 ----

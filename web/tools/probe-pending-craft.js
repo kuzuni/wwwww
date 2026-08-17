@@ -47,17 +47,28 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     // ── ② 복원된 팝업에서 [장착] 선택 ─────────────────────────────
     const equipped = await page.evaluate(() => {
         const slot = UI._pendingItem.slot, name = UI._pendingItem.name;
+        const prevName = S.equipment[slot] && S.equipment[slot].name;   // 스왑으로 내려올 옛 장비
         UI.doResolveCraft('equip');
         const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
-        return { ok: S.equipment[slot] && S.equipment[slot].name === name,
-                 cleared: S.pendingCraft === null, savedCleared: saved.pendingCraft === null,
+        return { ok: S.equipment[slot] && S.equipment[slot].name === name, prevName,
+                 pending: S.pendingCraft && S.pendingCraft.name,
+                 savedPending: saved.pendingCraft && saved.pendingCraft.name,
                  modal: !UI.els.craftModal.classList.contains('hidden'), name };
     });
     chk(equipped.ok, `복원 팝업에서 [장착] → 실제 장착됨 (${equipped.name})`);
-    // 팝업은 **닫히지 않는 게 정상**이다(사용자 지시 2026-08-18: 닫히는 경로는 [판매]와 딤뿐).
-    // 대기품이 비워지는 것은 그대로여야 한다 — 안 비우면 같은 장비가 모루 자리에 보류로 남는다.
-    chk(equipped.cleared && equipped.savedCleared, '선택 후 대기품이 메모리·세이브 양쪽에서 비워짐');
-    chk(equipped.modal, '[장착] 후에도 비교 팝업이 열린 채 유지됨 (사용자 지시 2026-08-18)');
+    // [장착]의 계약은 **부위가 비었는지**로 갈린다(사용자 지시 2026-08-18 craft-equip-swap):
+    //  · 옛 장비가 있으면 팝업을 닫지 않고 두 카드를 맞바꾼다 — 옛 장비가 새 대기품(메모리·세이브 양쪽)이 되어
+    //    그 자리에서 팔거나 되장착할 수 있다.
+    //  · 빈 부위면 내려올 게 없으니 대기품을 비우고 닫는다.
+    if (equipped.prevName) {
+        chk(equipped.pending === equipped.prevName && equipped.savedPending === equipped.prevName,
+            `[장착] 스왑 → 옛 장비(${equipped.prevName})가 메모리·세이브 양쪽에서 새 대기품 (${equipped.pending}/${equipped.savedPending})`);
+        chk(equipped.modal, '[장착] 후에도 비교 팝업이 열린 채 유지됨 (사용자 지시 2026-08-18)');
+    } else {
+        chk(equipped.pending === null && equipped.savedPending === null,
+            '빈 부위 [장착] → 대기품이 메모리·세이브 양쪽에서 비워짐');
+        chk(!equipped.modal, '빈 부위 [장착] → 스왑할 옛 장비가 없으니 팝업이 닫힘');
+    }
 
     // ── ③ 선택 없이 새로고침 → 판매 선택도 정상인지 ────────────────
     await page.evaluate(() => { UI.onCraft(); });

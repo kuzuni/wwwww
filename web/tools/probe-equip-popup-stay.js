@@ -137,20 +137,114 @@ const verdict = (frames, { mustStayOpen }) => {
         `() => { const b = [...document.querySelectorAll('#detail-modal .btn')].find(x => /장착|해제/.test(x.textContent)); b.click(); }`, true);
 
     // ⑤ 제작 비교 팝업 [장착] — 수동 제작에서는 **열린 채 유지**(사용자 지시 2026-08-18)
-    await page.evaluate(() => { UI.closeGearDetail(); UI._autoSeq = null; UI.setPendingCraft(Forge.craft(1)[0]); UI.showCraftModal(UI._pendingItem); });
+    // 스왑을 보려면 그 부위가 비어 있으면 안 된다(빈 부위는 내려올 옛 장비가 없어 닫히는 게 정상) →
+    // 대기품과 같은 슬롯에 옛 장비를 확정적으로 끼워 둔다.
+    await page.evaluate(() => {
+        UI.closeGearDetail(); UI._autoSeq = null;
+        const it = Forge.craft(1)[0];
+        let old = Forge.craft(1)[0];
+        for (let i = 0; i < 60 && old.slot !== it.slot; i++) old = Forge.craft(1)[0];
+        old.name = '옛장비-표식'; S.equipment[it.slot] = old;
+        window.__swap = { newName: it.name, oldName: old.name, slot: it.slot };
+        UI.setPendingCraft(it); UI.showCraftModal(it);
+    });
     await run('⑤ 제작 비교 [장착](유지)', '#craft-modal', `() => UI.resolveCraft('equip')`, true);
 
-    // ⑤-b 장착이 실제로 됐는지 + 그 상태에서 딤 클릭이면 닫히는지 (유일한 닫기 경로)
+    // ⑤-b 장착 = 두 카드 스왑 (사용자 지시 2026-08-18): 위=방금 장착한 새 것, 아래=내려온 옛 것,
+    //      판매 버튼은 그대로 살아 있어 옛 장비를 그 자리에서 팔 수 있어야 한다.
     const after = await page.evaluate(() => {
         const el = document.querySelector('#craft-modal');
-        const before = { open: !el.classList.contains('hidden'), btns: [...el.querySelectorAll('.btn')].map(b => b.textContent.trim()) };
-        el.click();   // 딤(모달 자신) 클릭
-        return { before, closedByDim: el.classList.contains('hidden') };
+        const s = window.__swap;
+        const nameOf = (q) => (el.querySelector(q + ' .cmp-name') || {}).textContent || '';
+        return {
+            open: !el.classList.contains('hidden'),
+            btns: [...el.querySelectorAll('.btn')].map(b => b.textContent.trim()),
+            topName: nameOf('.cmp-card-wrap.cur'), botName: nameOf('.cmp-card-wrap.new'),
+            botTag: (el.querySelector('.cmp-newtag') || {}).textContent || '',
+            equippedName: (S.equipment[s.slot] || {}).name,
+            pendingName: (UI._pendingItem || {}).name,
+            savedPending: (S.pendingCraft || {}).name,
+            s,
+        };
     });
-    ok(after.before.open, '⑤-b 장착 직후 제작 비교 팝업이 닫혔다 (열린 채여야 한다)');
-    ok(!after.before.btns.some(t => /^판매/.test(t)), `⑤-b 장착 후에도 [판매] 버튼이 살아 있다 (${after.before.btns.join(' / ')})`);
-    ok(after.closedByDim, '⑤-b 딤을 눌러도 안 닫힌다 — 장착 후 팝업에 갇힌다');
-    rows.push(`⑤-b 장착 후 상태            열림=${after.before.open} 버튼=[${after.before.btns.join(' / ')}] 딤닫힘=${after.closedByDim}`);
+    ok(after.open, '⑤-b 장착 직후 제작 비교 팝업이 닫혔다 (열린 채여야 한다)');
+    ok(after.btns.some(t => /^판매/.test(t)), `⑤-b 장착 후 [판매] 버튼이 사라졌다 — 내려온 옛 장비를 팔 수 없다 (${after.btns.join(' / ')})`);
+    ok(after.btns.some(t => /^장착/.test(t)), `⑤-b 장착 후 [장착] 버튼이 사라졌다 — 스왑백을 못 한다 (${after.btns.join(' / ')})`);
+    ok(after.equippedName === after.s.newName, `⑤-b 새 장비가 실제로 장착되지 않았다 (장착됨=${after.equippedName})`);
+    ok(after.topName.includes(after.s.newName), `⑤-b 위 카드가 새로 장착된 장비가 아니다 (${after.topName})`);
+    ok(after.botName.includes(after.s.oldName), `⑤-b 아래 카드로 옛 장비가 내려오지 않았다 (${after.botName})`);
+    ok(after.botTag === '교체됨', `⑤-b 아래 카드 리본이 '교체됨'이 아니다 (${after.botTag})`);
+    ok(after.pendingName === after.s.oldName, `⑤-b 옛 장비가 새 대기품이 아니다 (${after.pendingName})`);
+    ok(after.savedPending === after.s.oldName, `⑤-b 스왑된 대기품이 세이브에 안 남았다 — 새로고침하면 옛 장비 유실 (${after.savedPending})`);
+    rows.push(`⑤-b 장착 스왑              위=${after.topName.trim()} 아래=${after.botName.trim()}(${after.botTag}) 버튼=[${after.btns.join(' / ')}]`);
+
+    // ⑤-b2 스왑백 — 내려온 옛 장비에 [장착]을 다시 누르면 원래대로 되돌아간다(무한 왕복 가능)
+    const back = await page.evaluate(() => {
+        const s = window.__swap;
+        UI.resolveCraft('equip');
+        const el = document.querySelector('#craft-modal');
+        return {
+            open: !el.classList.contains('hidden'),
+            equippedName: (S.equipment[s.slot] || {}).name,
+            pendingName: (UI._pendingItem || {}).name,
+            hasSell: [...el.querySelectorAll('.btn')].some(b => /^판매/.test(b.textContent.trim())),
+        };
+    });
+    ok(back.open && back.hasSell, '⑤-b2 스왑백 후 팝업/판매 버튼이 유지되지 않았다');
+    ok(back.equippedName === after.s.oldName, `⑤-b2 스왑백으로 옛 장비가 다시 장착되지 않았다 (${back.equippedName})`);
+    ok(back.pendingName === after.s.newName, `⑤-b2 스왑백에서 새 장비가 아래로 안 내려왔다 (${back.pendingName})`);
+    rows.push(`⑤-b2 스왑백                장착됨=${back.equippedName} 대기=${back.pendingName} 판매버튼=${back.hasSell}`);
+
+    // ⑤-b3 내려온 장비를 그 자리에서 판매 → 팔리고 팝업이 닫힌다(판매는 닫는 경로)
+    const sold = await page.evaluate(() => {
+        const s = window.__swap, before = S.coins;
+        UI.doResolveCraft('sell');   // 등급 경고 팝업을 건너뛰고 판매 자체를 본다
+        return {
+            closed: document.querySelector('#craft-modal').classList.contains('hidden'),
+            gained: S.coins > before, pending: UI._pendingItem, equippedName: (S.equipment[s.slot] || {}).name,
+        };
+    });
+    ok(sold.closed, '⑤-b3 내려온 장비를 팔았는데 팝업이 안 닫혔다');
+    ok(sold.gained, '⑤-b3 판매인데 코인이 안 늘었다');
+    ok(!sold.pending, '⑤-b3 판매 후에도 대기품이 남았다');
+    ok(sold.equippedName === after.s.oldName, `⑤-b3 판매가 장착 중인 장비를 건드렸다 (${sold.equippedName})`);
+    rows.push(`⑤-b3 내려온 장비 판매       닫힘=${sold.closed} 코인증가=${sold.gained} 장착유지=${sold.equippedName}`);
+
+    // ⑤-b4 빈 부위 장착 — 내려올 옛 장비가 없으니 스왑할 게 없다 → 닫힌다
+    const empty = await page.evaluate(() => {
+        const it = Forge.craft(1)[0];
+        S.equipment[it.slot] = null;
+        UI._autoSeq = null; UI.setPendingCraft(it); UI.showCraftModal(it);
+        UI.resolveCraft('equip');
+        return {
+            closed: document.querySelector('#craft-modal').classList.contains('hidden'),
+            equipped: (S.equipment[it.slot] || {}).name === it.name, pending: UI._pendingItem,
+        };
+    });
+    ok(empty.closed, '⑤-b4 빈 부위에 장착했는데 팝업이 안 닫혔다 (스왑할 옛 장비가 없다)');
+    ok(empty.equipped, '⑤-b4 빈 부위 장착이 실제로 안 됐다');
+    ok(!empty.pending, '⑤-b4 빈 부위 장착 후 대기품이 남았다');
+    rows.push(`⑤-b4 빈 부위 장착           닫힘=${empty.closed} 장착됨=${empty.equipped}`);
+
+    // ⑤-b5 딤 클릭 = 보류 — 스왑으로 내려온 옛 장비가 모루 자리 카드로 남아야 한다(유실 금지)
+    const held = await page.evaluate(() => {
+        const it = Forge.craft(1)[0];
+        let old = Forge.craft(1)[0];
+        for (let i = 0; i < 60 && old.slot !== it.slot; i++) old = Forge.craft(1)[0];
+        old.name = '보류될-옛장비'; S.equipment[it.slot] = old;
+        UI._autoSeq = null; UI.setPendingCraft(it); UI.showCraftModal(it);
+        UI.resolveCraft('equip');                       // 스왑 — 아래 카드 = old
+        const el = document.querySelector('#craft-modal');
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true }));   // 딤 클릭 = 보류
+        return {
+            closedByDim: el.classList.contains('hidden'),
+            heldName: (UI.heldItem() || {}).name, savedName: (S.pendingCraft || {}).name,
+        };
+    });
+    ok(held.closedByDim, '⑤-b5 스왑 상태에서 딤을 눌러도 안 닫힌다 — 팝업에 갇힌다');
+    ok(held.heldName === '보류될-옛장비', `⑤-b5 보류하니 내려온 옛 장비가 사라졌다 (보류품=${held.heldName})`);
+    ok(held.savedName === '보류될-옛장비', `⑤-b5 보류된 옛 장비가 세이브에 안 남았다 (${held.savedName})`);
+    rows.push(`⑤-b5 스왑 후 딤 보류        닫힘=${held.closedByDim} 보류품=${held.heldName}`);
 
     // ⑤-c 자동 제련 시퀀스 중에는 장착이 팝업을 닫고 다음으로 넘어간다(예외 경로)
     const autoClosed = await page.evaluate(() => {
