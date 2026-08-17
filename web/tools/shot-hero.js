@@ -11,7 +11,9 @@ const OUT = __dirname;
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(INDEX + '?debug=gear&w=sword&wage=medieval&rar=rare&hage=medieval&aage=medieval', { waitUntil: 'load' }); // 검 장착(공격샷 스윙 판독) — 중세·레어로 발광 오브·에너지 링 없이 캐릭터 본체 품질만 판독
-    await page.waitForFunction(() => typeof Scene3D !== "undefined" && Scene3D.heroG && typeof Combat !== "undefined", null, { timeout: 15000 });
+    // ⚠️ 15000ms는 이 컨테이너에서 간헐 실패한다 — 콜드 스타트(스위프트셰이더 셰이더 컴파일)에 20초 넘게
+    //    걸리는 런이 있어 3회 중 2회 TimeoutError로 죽었다. 부팅 자체는 정상이므로 상한만 올린다.
+    await page.waitForFunction(() => typeof Scene3D !== "undefined" && Scene3D.heroG && typeof Combat !== "undefined", null, { timeout: 60000 });
 
     // 영웅 '정면' 기준 궤도 카메라 — 이전 절대 yaw 방식은 등짝만 찍혔음(비평가: "팔이 없다"의 실체)
     const fit = async (mult, orbit, hOff = 0.3) => page.evaluate(([mult, orbit, hOff]) => {
@@ -48,6 +50,17 @@ const OUT = __dirname;
 
     // 캔버스 영역만 크롭 — 검정 데드스페이스/디버그 탭바 제거 (비평가 4번 결함)
     const shot = async (file) => {
+        // ⚠️ 촬영 직전 떠 있는 FX 스프라이트만 **가린다** — fit() 이후 대기 중에 스폰되는 연출이 있어
+        //    같은 스크립트로도 런마다 흰 보케 원이 캐릭터 위에 흩뿌려진 프레임이 나왔다(재현: 3런 중 1런).
+        //    비평가 채점이 이 우연한 오염을 캐릭터 결함으로 읽으면 채점 자체가 무의미해지므로 여기서 끊는다.
+        // ❗visible만 만진다. 처음엔 여기서 `Scene3D.anims`를 강제 완료·비웠는데, 그러면 뒤따르는
+        //    공격 컷의 돌진→스윙 체인이 끊겨 `__frozen`이 영원히 오지 않았다(90초 상한도 초과).
+        //    촬영 헬퍼는 게임 상태를 바꾸지 않는다 — 이 줄을 되돌리지 말 것.
+        await page.evaluate(() => {
+            const loose = [];
+            Scene3D.scene.traverse(o => { if (o.isSprite) loose.push(o); });
+            for (const s of loose) if (s !== Scene3D.sunDisc && s !== Scene3D.moonDisc && !(Scene3D.clouds || []).includes(s)) s.visible = false;
+        });
         const rect = await page.evaluate(() => {
             const cv = document.querySelector('canvas');
             const r = cv.getBoundingClientRect();
@@ -126,7 +139,9 @@ const OUT = __dirname;
             window.__frozen = true;
         }, 8);
     });
-    await page.waitForFunction(() => window.__frozen === true, null, { timeout: 25000, polling: 30 }); // 슬로모 0.12× — 돌진 4×+스윙 4.2s 후 0.64 위상 도달까지 여유
+    // 25000ms도 이 컨테이너에선 부족했다 — 슬로모 0.12×는 실시간 30초 이상이고 스위프트셰이더
+    // 소프트웨어 렌더라 프레임 간격이 들쭉날쭉하다. 상한만 올린다(도달 조건 자체는 불변).
+    await page.waitForFunction(() => window.__frozen === true, null, { timeout: 90000, polling: 30 }); // 슬로모 0.12× — 돌진 4×+스윙 4.2s 후 0.64 위상 도달까지 여유
     await page.evaluate(() => {
         for (const a of Scene3D.anims) { const k = Math.min(1, a.t / a.dur); a.dur = 1e9; a.t = k * 1e9; }
         // 임팩트 순간 연출 — 실제 게임 히트 프레임의 구성 요소(플래시·스쿼시)를 동결 프레임에 명시 적용

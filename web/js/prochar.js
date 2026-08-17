@@ -415,20 +415,26 @@ const ProChar = {
         // 골반 장갑(스커트 판) — 앞뒤 곡면 판 + 벨트
         const skirtMat = steelDark();
         skirtMat.side = THREE.DoubleSide;
-        const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.295, 0.18, 12, 1, true), skirtMat); // 밑단 플레어 — 허리→밑단 벌어지는 실루엣 꺾임
+        // 상단 0.205→0.19 / 밑단 0.295→0.30 — 흉갑 밑단을 0.163으로 조인 것에 맞춰 스커트 상단도
+        // 함께 좁힌다. 안 좁히면 스커트 림이 잘록해진 허리보다 밖으로 튀어나와 허리 꺾임을 덮어버린다.
+        const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.30, 0.18, 14, 1, true), skirtMat); // 밑단 플레어 — 허리→밑단 벌어지는 실루엣 꺾임
         skirt.position.y = -0.045;
-        const hem = new THREE.Mesh(new THREE.TorusGeometry(0.295, 0.014, 6, 14), gold);
+        const hem = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.014, 6, 16), gold);
         hem.rotation.x = Math.PI / 2;
         hem.position.y = -0.135;
         // 스커트 안감 — 판금 셸 바로 안쪽에 니어블랙 원통을 겹쳐 밑단 플레어 아래가 '빈 껍데기'가 아니라
         // 그늘진 두께로 읽히게. 실루엣 하단에 어두운 값 면적을 크게 확보하는 핵심 파츠다.
-        const skirtLine = new THREE.Mesh(new THREE.CylinderGeometry(0.196, 0.286, 0.178, 12, 1, true), deepLine);
+        const skirtLine = new THREE.Mesh(new THREE.CylinderGeometry(0.182, 0.291, 0.178, 14, 1, true), deepLine);
         skirtLine.position.y = -0.048;
-        const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.21, 0.07, 14), deepHide);
-        belt.position.y = 0.04;
+        // 벨트 — 허리를 실제로 '조이는' 파츠. 폭을 흉갑 밑단(x 0.170)과 스커트 상단(0.19) 사이로 좁히고
+        // 높이를 0.07→0.1로 늘려 스커트 상단(월드 0.615)부터 흉갑 밑단(0.715)까지 빈틈 없이 잇는다.
+        // 전에는 벨트가 0.2/0.21로 흉갑 밑단(0.192)보다 넓어, 조여야 할 지점이 오히려 몸통의
+        // 최대 돌출부였다 — 허리가 안 읽힌 직접 원인.
+        const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.176, 0.19, 0.1, 16), deepHide);
+        belt.position.y = 0.05;
         belt.scale.z = 0.85;
         const buckle = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), gold);
-        buckle.position.set(0, 0.04, 0.175);
+        buckle.position.set(0, 0.05, 0.158); // 벨트 z 반경이 0.183×0.85≒0.156이므로 그 위에 얹힘 (벨트 축소 반영)
         buckle.scale.set(1.1, 0.9, 0.45);
         // 벨트에 매달리는 세로 스트랩 2줄 — 골반 앞면에 어두운 세로 분할선을 넣어 판금 덩어리를 끊는다
         for (const sx of [-1, 1]) {
@@ -438,7 +444,7 @@ const ProChar = {
             pelvis.add(tassetStrap);
         }
         pelvis.add(skirt, skirtLine, hem, belt, buckle);
-        aoRing(0.205, 0.02, pelvis, 0.005, 0.5); // 벨트 아래 접촉 그림자
+        aoRing(0.186, 0.02, pelvis, 0.005, 0.5); // 벨트 아래 접촉 그림자 (벨트 축소 0.2→0.176에 맞춰)
 
         // 다리: 고관절 → 대퇴 → 무릎 → 정강이 → 부츠 (분절 피벗)
         R.legs = [];
@@ -522,10 +528,28 @@ const ProChar = {
         R.bones.spine = spine;
 
         // 흉갑: 라테 곡면(허리 잘록→가슴 볼록→어깨 수렴) — "판때기 Box" 대신 진짜 곡률
+        // ⚠️ 프로파일 재작성 (비평가 1위 '몸통이 달걀, 허리가 없어 눈사람 스택'). 이전 프로파일은
+        //    [0.185,0] [0.225,0.09] [0.245,0.2] [0.235,0.3] [0.19,0.4] [0.12,0.46] 로,
+        //    **최대 반지름이 y 0.2 = 흉갑 높이의 43%** 에 있었다. 즉 가장 굵은 곳이 배였고 밑단(0.185)이
+        //    최대폭의 76%밖에 안 좁아져 허리가 읽히지 않았다 — 아래에서 위로 부풀다가 다시 좁아지는
+        //    곡선은 정의상 달걀이다. 신설 `probe-torso-profile.js` 실측: 허리÷가슴 0.94(달걀 판정선 1.0).
+        // → 최대 반지름을 y 0.345 = **높이의 74%(가슴)** 로 올리고 밑단을 0.163까지 조여
+        //    허리÷가슴을 0.64로 만든다. 그래야 골반 플레어 → 잘록한 허리 → 부푼 가슴 → 어깨선의
+        //    4단 꺾임이 생긴다(전에는 꺾임이 1개였다).
         const cuirassPts = [];
-        const prof = [[0.185, 0], [0.225, 0.09], [0.245, 0.2], [0.235, 0.3], [0.19, 0.4], [0.12, 0.46]];
+        const prof = [
+            [0.163, 0],      // 허리 — 벨트에 조여지는 가장 좁은 지점
+            [0.171, 0.05],
+            [0.196, 0.12],   // 갈비 아래
+            [0.228, 0.21],
+            [0.249, 0.30],
+            [0.254, 0.345],  // 가슴 최대폭 — 흉갑 높이의 74% 지점
+            [0.243, 0.395],
+            [0.196, 0.435],  // 어깨 요크로 수렴
+            [0.132, 0.465],
+        ];
         for (const [r, y] of prof) cuirassPts.push(new THREE.Vector2(r, y));
-        const cuirass = new THREE.Mesh(new THREE.LatheGeometry(cuirassPts, 18), steel());
+        const cuirass = new THREE.Mesh(new THREE.LatheGeometry(cuirassPts, 22), steel()); // 세그먼트 18→22 (허리 곡률이 급해 각지던 것)
         cuirass.scale.set(1.04, 1.08, 0.8); // 역삼각 실루엣 — 가슴 상향+좌우 확장, 앞뒤 눌림 (비평가: 실루엣 꺾임)
         // 목 링
         const gorget = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.032, 8, 14), steelDark());
@@ -546,9 +570,22 @@ const ProChar = {
         const chestStrap = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.3, 0.014), deepHide);
         chestStrap.position.set(-0.055, 0.26, 0.196);
         chestStrap.rotation.set(-0.14, 0, 0.42);
-        spine.add(cuirass, gorget, gorgetIn, chestStrap, emblem, emblemRim);
+        // 어깨 요크(클라비클 플레이트) — 흉갑 상단이 한 점으로 수렴해 두상이 몸통에 바로 얹힌
+        // '눈사람'으로 읽히던 문제의 나머지 절반. 허리를 조이는 것만으로는 상단이 여전히 뾰족하다.
+        // 가슴에서 견갑 안쪽(x ±0.2)까지 **수평으로** 잇는 납작한 판을 얹어 몸통이 어깨선으로 끝나게 한다.
+        // x 확장 0.251 > 견갑 내측 0.2 이므로 둘 사이의 빈 틈(달걀 어깨의 실체)이 실제로 메워진다.
+        const yoke = new THREE.Mesh(new THREE.SphereGeometry(0.155, 20, 10, 0, Math.PI * 2, 0, Math.PI * 0.58), steel());
+        yoke.position.y = 0.375;
+        yoke.scale.set(1.62, 0.5, 0.92); // 좌우로 넓고 위아래로 눌린 판 — '어깨 폭'을 담당
+        // 요크 밑면 니어블랙 — 견갑 안감(pauldronLine)과 같은 언어로 판금 두께를 만든다.
+        // 이게 없으면 요크가 종잇장으로 읽혀 어깨선이 그려지기만 하고 입체가 안 생긴다.
+        const yokeLine = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 10, 0, Math.PI * 2, Math.PI * 0.36, Math.PI * 0.3), deepLine);
+        yokeLine.position.copy(yoke.position);
+        yokeLine.scale.copy(yoke.scale);
+        spine.add(cuirass, gorget, gorgetIn, chestStrap, emblem, emblemRim, yoke, yokeLine);
         aoRing(0.1, 0.022, spine, 0.435, 0.5);   // 목 링 아래 접촉 그림자
-        aoRing(0.185, 0.02, spine, 0.005, 0.5);  // 흉갑 밑단-허리 경계
+        aoRing(0.172, 0.02, spine, 0.005, 0.5);  // 흉갑 밑단-허리 경계 (밑단 0.185→0.163 조임에 맞춰 축소)
+        aoRing(0.235, 0.018, spine, 0.352, 0.45); // 요크 밑면-가슴 경계 — 어깨선 아래 접촉 그림자
 
         // 망토 — 어깨 뒤에서 늘어지는 곡면 판 (걷기/공격 시 스윙)
         // 직조 텍스처 + 스캘럽 밑단 + 위 모서리 라운딩 + 어두운 안감(깊이감) + 금 클래스프
