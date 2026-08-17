@@ -62,8 +62,8 @@ const ProChar = {
     capeTex() {
         return this.canvasTex('cape', (ctx, w, h) => {
             const g = ctx.createLinearGradient(0, 0, 0, h);
-            g.addColorStop(0, '#f0f1f4');
-            g.addColorStop(0.35, '#c6c8cd');
+            g.addColorStop(0, '#d6d7db'); // f0f1f4는 강광에서 적색이 연어색으로 씻김 — 샷 간 알베도 흔들림 (비평가 7.3 7번)
+            g.addColorStop(0.35, '#bcbec4');
             g.addColorStop(1, '#6b6d75'); // 상하 명도차 확대 — 단색 판자 오독 해소 (비평가 7.1 6번)
             ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
             // 세로 드레이프 음영 — 지오메트리 주름(sin x*33)과 유사 주기의 소프트 스트라이프로 '접힌 천' 깊이
@@ -207,7 +207,7 @@ const ProChar = {
         R.armorMats = [];
         const mTex = this.metalTex();
         const steel = () => {
-            const m = new THREE.MeshStandardMaterial({ color: 0x9fb2c2, metalness: 0.85, roughness: 0.3, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.9 }); // 브러시드 스틸 — 태양 핫스팟이 곡면에 실제로 맺히게 러프 하향 (비평가 6.9 5번 '갑옷은 여전히 새틴')
+            const m = new THREE.MeshStandardMaterial({ color: 0x9fb2c2, metalness: 0.85, roughness: 0.34, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.72 }); // 브러시드 스틸 — env 0.9/러프 0.3은 근접샷 흉갑이 순백 블로우아웃 (비평가 7.3 1번)
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
             return m;

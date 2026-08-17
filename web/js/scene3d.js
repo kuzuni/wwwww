@@ -38,9 +38,9 @@ const Scene3D = {
 
         // 라이팅: 반구광(하늘/땅 색 반사)은 낮추고 태양광 비중을 높여 방향성 음영을 강조
         // (균일하게 밝은 "판대기" 인상 제거 — 나무/바위 한쪽 면에 그늘이 지게)
-        this.hemi = new THREE.HemisphereLight(0xbddcff, 0x6e7a60, 0.48); // 지면 반사색 채도 완화 — 캐릭터가 초록 앰비언트에 잠기던 문제 (비평가 14번)
+        this.hemi = new THREE.HemisphereLight(0xbddcff, 0x6e7a60, 0.54); // 그림자 바닥톤 소폭 상승 — 검록 얼룩 완화 (비평가 7.3 4번)
         this.sun = new THREE.DirectionalLight(0xfff3d6, 1.2);
-        this.sun.position.set(5, 7, 4.5); // 고도를 45도 부근으로 낮춰 소품 그림자가 길게 드리우게
+        this.sun.position.set(4, 9.5, 3.5); // 고도 ~60도 — 45도의 긴 그림자가 본체 이탈 '검은 얼룩'으로 읽힘 (비평가 7.3 4번 골렘·버섯)
         this.sun.castShadow = true;
         // 데스크톱만 2048 — 중급 폰은 프레임 하락 확인돼 1024 유지. 1024×24유닛의 저밀도가 '뭉개진 그림자 블롭'으로 읽힘 (비평가 4번)
         const shadowRes = /Mobi|Android/i.test(navigator.userAgent) ? 1024 : 2048;
@@ -841,6 +841,7 @@ const Scene3D = {
                 map: ptex, transparent: true, depthWrite: false,
             }));
             this.pathMesh.position.set(0, 0.02, 0.1); // 전투 라인 위 살짝 띄움 (z-파이팅 방지)
+            this.pathMesh.renderOrder = -1; // 투명끼리 심도 정렬 경합 시 데칼이 블롭 섀도우를 덮어 길 위 그림자가 소멸 (비행체 '부유 스티커'의 실체) — 데칼을 항상 먼저
             this.pathMesh.receiveShadow = true;
             this.ground.add(this.pathMesh);
         }
@@ -3368,7 +3369,7 @@ const Scene3D = {
             map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.17, depthWrite: false, // 실그림자(섀도맵)의 접지 AO 보조 — 0.34는 실그림자와 이중 노출로 '그림자 두 개' 오독 (비평가: 버섯·임프 블롭 정합)
         });
         this.blobShadowFlyMat = this.blobShadowMat.clone();
-        this.blobShadowFlyMat.opacity = 0.3; // 비행체 전용 — 실그림자를 끄므로 블롭이 유일한 접지 단서
+        this.blobShadowFlyMat.opacity = 0.45; // 비행체 전용 — 실그림자를 끄므로 블롭이 유일한 접지 단서 (0.3은 샷에서 안 보여 '부유 스티커', 비평가 7.3 5번)
         this.blobGeo = new THREE.PlaneGeometry(1, 1);
     },
 
@@ -3387,7 +3388,8 @@ const Scene3D = {
         const blob = new THREE.Mesh(this.blobGeo, flying ? this.blobShadowFlyMat : this.blobShadowMat);
         blob.rotation.x = -Math.PI / 2;
         blob.position.set(e.x + this.worldX, 0.03, 0);
-        blob.scale.setScalar(0.72); // 실그림자 접지부 안에 들어가는 컨택트 AO 크기 — 0.95는 별개 그림자로 보임
+        blob.scale.setScalar(flying ? 0.85 : 0.72); // 실그림자 접지부 안 컨택트 AO — 비행체는 블롭이 유일한 접지 단서라 더 크게
+        blob.userData.baseS = blob.scale.x;
         blob.userData.sharedGeometry = true;
         this.scene.add(blob);
         m.blob = blob;
@@ -3887,16 +3889,21 @@ const Scene3D = {
             const swung = !this._trailPrevLocal || lt.distanceTo(this._trailPrevLocal) > (this.TRAIL_MIN_STEP || 0.06); // 슬로모 촬영 시 하향 조정 가능
             this._trailPrevLocal = lt;
             if (swung) {
-                // 저 fps에서도 리본이 끊기지 않게 프레임 사이를 보간 샘플로 메움
-                const last = pts[pts.length - 1];
+                let last = pts[pts.length - 1];
+                if (last && last.dir) {
+                    // 스윙 방향 반전(와인드업→다운스윙 커스프)에서 리본이 접혀 겹침 — '방사 스포크' (비평가 7.3 2번): 새 스트로크로 리셋
+                    const dirNew = new THREE.Vector3().subVectors(t, last.t);
+                    if (dirNew.dot(last.dir) < 0) { pts.length = 0; last = null; }
+                }
                 if (last) {
+                    // 저 fps에서도 리본이 끊기지 않게 프레임 사이를 보간 샘플로 메움
                     const n = Math.min(6, Math.floor(last.t.distanceTo(t) / 0.12));
                     for (let j = 1; j <= n; j++) {
                         const k = j / (n + 1);
                         pts.push({ b: last.b.clone().lerp(b, k), t: last.t.clone().lerp(t, k), age: last.age * (1 - k) });
                     }
                 }
-                pts.push({ b, t, age: 0 });
+                pts.push({ b, t, age: 0, dir: last ? new THREE.Vector3().subVectors(t, last.t) : null });
                 while (pts.length > 47) pts.shift(); // 버퍼 상한 (48세그먼트 지오메트리)
             }
         }
@@ -3905,20 +3912,18 @@ const Scene3D = {
         this.trailMesh.visible = true;
         const pos = this.trailMesh.geometry.attributes.position;
         const fade = this.trailMesh.geometry.attributes.aFade;
-        const b1 = new THREE.Vector3(), b2 = new THREE.Vector3();
         let vi = 0;
+        // 풀폭 쿼드 + 안쪽(자루) 가장자리 알파 0 크로스 페이드 — 날끝 수축 테이퍼는 삼각 슬라이스가
+        // 그대로 보이는 '각진 종이부채'로 읽힘 (비평가 7.3 2번): 폭은 유지하고 알파로만 스미어
         for (let i = 0; i < pts.length - 1; i++) {
             const p0 = pts[i], p1 = pts[i + 1];
             const f0 = Math.max(0, 1 - p0.age / LIFE), f1 = Math.max(0, 1 - p1.age / LIFE);
-            // 오래된 구간일수록 날 끝이 밑동 쪽으로 수축 → 테이퍼 리본
-            b1.copy(p0.b).lerp(p0.t, f0);
-            b2.copy(p1.b).lerp(p1.t, f1);
-            fade.setX(vi, f0); pos.setXYZ(vi++, p0.b.x, p0.b.y, p0.b.z);
-            fade.setX(vi, f0); pos.setXYZ(vi++, b1.x, b1.y, b1.z);
-            fade.setX(vi, f1); pos.setXYZ(vi++, b2.x, b2.y, b2.z);
-            fade.setX(vi, f0); pos.setXYZ(vi++, p0.b.x, p0.b.y, p0.b.z);
-            fade.setX(vi, f1); pos.setXYZ(vi++, b2.x, b2.y, b2.z);
-            fade.setX(vi, f1); pos.setXYZ(vi++, p1.b.x, p1.b.y, p1.b.z);
+            fade.setX(vi, 0); pos.setXYZ(vi++, p0.b.x, p0.b.y, p0.b.z);
+            fade.setX(vi, f0); pos.setXYZ(vi++, p0.t.x, p0.t.y, p0.t.z);
+            fade.setX(vi, f1); pos.setXYZ(vi++, p1.t.x, p1.t.y, p1.t.z);
+            fade.setX(vi, 0); pos.setXYZ(vi++, p0.b.x, p0.b.y, p0.b.z);
+            fade.setX(vi, f1); pos.setXYZ(vi++, p1.t.x, p1.t.y, p1.t.z);
+            fade.setX(vi, 0); pos.setXYZ(vi++, p1.b.x, p1.b.y, p1.b.z);
         }
         this.trailMesh.geometry.setDrawRange(0, vi);
         pos.needsUpdate = true;
@@ -4174,7 +4179,7 @@ const Scene3D = {
             if (m.blob) { // 블롭 섀도우 추적 — 홉/비행 높이에 따라 축소 (지면에 남는 그림자)
                 m.blob.position.x = m.g.position.x;
                 m.blob.position.z = m.g.position.z;
-                m.blob.scale.setScalar(0.95 * Math.max(0.35, 1 - m.g.position.y * 0.8));
+                m.blob.scale.setScalar((m.blob.userData.baseS || 0.95) * Math.max(0.55, 1 - m.g.position.y * 0.35)); // 0.8 감쇠는 비행 고도에서 블롭이 소멸해 '부유 스티커' (비평가 7.3 5번)
             }
             const ratio = U.clamp(e.hp / e.maxHp, 0, 1);
             m.hpFg.scale.x = Math.max(0.001, ratio);
