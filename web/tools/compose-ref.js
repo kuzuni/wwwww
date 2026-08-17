@@ -14,7 +14,7 @@ const PAIRS = [
     ['summon-rates', '042521'], ['tech-branch', '042546'], ['tech-node', '042605'],
     ['shop', '042632'], ['pass', '042705'], ['profile', '042724'], ['settings', '042744'],
     ['forge-info', '042831'], ['forge-list', '042905'], ['forge-detail', '042931'],
-    ['autoforge', '042950'], ['autoforge-filter', '043117'], ['craft-compare', '043224'],
+    ['autoforge', '043117'], ['autoforge-filter', '042950'], ['craft-compare', '043224'],  /* 042950=필터ON / 043117=필터OFF — shot-screens.js 와 짝 일치 */
     ['gear-detail', '043244'], ['player-info', '043313'], ['chat', '043500'],
 ];
 const H = 880; // 정규화 높이

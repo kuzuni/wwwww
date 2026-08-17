@@ -37,8 +37,12 @@ const SCREENS = [
     ['forge-info', '042831', `UI.openForgeInfo()`],
     ['forge-list', '042905', `UI.openForgeInfo(); UI.openForgeList()`],
     ['forge-detail', '042931', `UI.openForgeInfo(); UI.openForgeList(); UI.openForgeDetail(AGES[0], 'weapon', Object.keys(WEAPON_TYPES)[0])`],
-    ['autoforge', '042950', `UI.openAutoForge()`],
-    ['autoforge-filter', '043117', `S.autoForge.filterOn=true; UI.openAutoForge()`],
+    // ⚠️ 원본 짝이 뒤집혀 있었다: 042950 은 **필터 ON**(토글 초록 + 서브옵션 목록 노출),
+    // 043117 이 **필터 OFF**(토글 남색 + 목록 없음)다. 기본 시드는 filterOn=false 라
+    // 'autoforge'(OFF)를 042950(ON)과, 'autoforge-filter'(ON)를 043117(OFF)과 대조하고 있었다 —
+    // 좌우 합성이 두 장 다 어긋나 비율·스킨 채점이 통째로 무의미해진다.
+    ['autoforge', '043117', `UI.openAutoForge()`],
+    ['autoforge-filter', '042950', `S.autoForge.filterOn=true; UI.openAutoForge()`],
     // 새 장비도 원본처럼 서브옵션 2줄로 고정 (랜덤 1~4줄이면 카드 높이가 매 런 달라져 대조가 안 된다)
     ['craft-compare', '043224', `UI._realShowCraftModal(Object.assign(Forge.rollItem(), { subs: U.rollSubs(2) }))`],
     ['gear-detail', '043244', `UI.openGearDetail('weapon')`],
@@ -55,8 +59,12 @@ const SEED = () => {
     S.forgeLevel = 29; S.name = '용사';
     S.autoForgeOn = true;
     S.autoForge.hammersPerBatch = 22;
-    S.autoForge.keepAges = [0, 1];
-    S.autoForge.filterSubs = ['atk', 'crit'];
+    // ⚠️ 둘 다 실제 키가 아니라 캡처에서 체크가 하나도 안 켜졌다 — keepAges 는 인덱스가 아니라
+    // 시대 문자열(renderAutoForge 의 cfg.keepAges.includes(age)), filterSubs 는 SUBSTATS 의 키다.
+    // 원본 042950 은 마지막 두 시대 + 치명타 확률·피해가 켜진 상태라 같은 상태로 맞춘다.
+    S.autoForge.keepAges = ['underworld', 'divine'];
+    S.autoForge.filterSubs = ['critCh', 'critDmg'];
+    S.autoForge.continueOnTarget = true;   // 원본 042950/043117 둘 다 이 체크가 켜져 있다
     // 장비 8부위 풀장착
     for (const slot of Object.keys(S.equipment)) {
         let it = null;

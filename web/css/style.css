@@ -2379,16 +2379,29 @@ body {
 
 /* ===== 자동 제련 팝업 (shot-042950/043117 원본 대조 재작업) ===== */
 /* 원본(042950): 모달 ≈85% H — 필터와 하단 설정부 사이 큰 여백 유지 */
-.af-card { width: min(calc(var(--app-w) * .88), 21.5rem); height: min(calc(var(--app-h) * .82), var(--popup-h-max)); padding: .85rem .8rem .8rem; display: flex; flex-direction: column; }
+/* 원본 shot-042950 실측(503x885): 카드 x11.53%W w74.55%W · y7.23%H h84.52%H.
+   ⚠️ 높이는 공용 --popup-h-max(≈77.6%H)로는 못 낸다 — 이 팝업은 원본에서 탭바 영역까지 내려오고
+   ✕ 버튼이 탭바 위에 겹친다. 그래서 이 카드만 상한을 벗고 원본 비율을 직접 쓴다. */
+.af-card { width: min(calc(var(--app-w) * .7455), 22.2rem); height: calc(var(--app-h) * .8452); padding: .85rem .8rem .8rem; display: flex; flex-direction: column; }
 .af-card .af-scroll { flex: 1; max-height: none; }
 .af-card .af-bottom { margin-top: auto; }
+/* .idet-wrap 은 카드 아래로 튀어나온 ✕까지 끌어안은 채 세로 중앙 정렬돼 카드가 1.09%p 위로 뜬다
+   (프로필·던전 상세와 같은 함정) — 이 모달도 래퍼를 그만큼 내려 원본 y에 맞춘다. */
+#autoforge-modal .idet-wrap { position: relative; top: .58rem; }
+/* 카드를 원본 높이(84.52%H)로 되돌리면 아래로 튀어나온 ✕가 탭바 영역(90.5%H~)까지 내려온다.
+   .modal(z-index:20) 은 #tabbar(30) 아래라 ✕가 탭바에 가려 보이지도 눌리지도 않는다
+   (시트 화면의 ◀가 겪었던 것과 같은 함정). 원본 042950 도 탭바가 딤에 덮이고 ✕가 그 위에 있다. */
+#autoforge-modal { z-index: 31; }
 .af-title { text-align: center; font-size: 1.12rem; font-weight: 900; margin: .1rem 0 .5rem; }
-.af-label { font-size: .78rem; font-weight: 800; margin: 0 0 .28rem; text-align: left; }
-.af-scroll { overflow-y: auto; max-height: calc(var(--app-h) * .42); }
+/* 원본에서 시대 막대·필터 행은 카드 안쪽 6px 까지 붙는데(막대 폭 72.17%W) 카드 좌우 패딩은
+   하단 블록(글자 들여쓰기 17px) 기준이라 더 넓다 — 스크롤 영역만 음수 마진으로 되돌리고
+   '유지' 라벨은 padding 으로 제자리에 남긴다. */
+.af-label { font-size: .78rem; font-weight: 800; margin: 0 0 .28rem; padding-left: .62rem; text-align: left; }
+.af-scroll { overflow-y: auto; max-height: calc(var(--app-h) * .42); margin: 0 -.62rem; }
 .af-age-bar {
     display: flex; align-items: center; gap: .45rem; cursor: pointer;
     background: var(--ac, #999); border: 3px solid var(--pp-line); border-radius: .6rem;
-    padding: .3rem .5rem; margin-bottom: .32rem;
+    padding: .18rem .5rem; margin-bottom: .32rem;   /* 체크 박스를 원본 크기로 키운 만큼 줄여 막대 높이는 원본(3.28%H)에 붙인다 */
     background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.09) 0 .5rem, transparent .5rem 1rem);
 }
 .af-age-name {
@@ -2396,40 +2409,56 @@ body {
     text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
 }
 .af-age-pct {
-    font-weight: 900; font-size: .84rem; color: #fff;
+    font-weight: 900; font-size: .84rem; color: #fff; padding-right: .28rem;   /* 원본은 % 숫자와 막대 오른쪽 모서리 사이가 ~2.5%W 뜬다 */
     text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
 }
+/* 원본 확대 실측: 체크 박스는 23px(목표 행)~26px(시대 막대) 짜리 **검정 라운드 사각**이고,
+   켜진 상태도 배경은 검정 그대로 두고 **✓ 글리프만 초록**이다 — 상자를 통째로 초록으로 채우던
+   종전 구현은 원본과 다른 물건으로 보였다(비평가 지적으로 확인). */
 .af-check {
-    width: 1.2rem; height: 1.2rem; flex: none; cursor: pointer;
+    width: 1.32rem; height: 1.32rem; flex: none; cursor: pointer;
     border: 3px solid var(--pp-line); border-radius: .35rem; background: #17181a;
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: .78rem; font-weight: 900; color: #fff; line-height: 1;
+    font-size: .95rem; font-weight: 900; color: #fff; line-height: 1;
 }
-.af-check.on { background: #23c552; }
+.af-check.on { background: #17181a; color: #23c552; }
 .af-filter-row {
     display: flex; align-items: center; justify-content: flex-end; gap: .5rem;
     font-size: .85rem; font-weight: 800; margin: .45rem 0;
+    /* 노브가 트랙 오른쪽으로 .82rem 튀어나오는데 .af-scroll 이 overflow-y:auto 라 가로도 잘린다
+       — 그만큼 안쪽으로 들여 노브 오른쪽 끝이 스크롤 영역 경계에 딱 맞게 한다 */
+    padding-right: .82rem;
 }
+/* 원본 확대 실측(shot-042950 ON / shot-043117 OFF): 트랙은 30x19px 로 **좁고**, 파란 노브가
+   26.5px 짜리 큰 원이라 트랙 위아래로 넘치고 켜지면 트랙 오른쪽 끝 밖으로 13.5px 튀어나온다.
+   (트랙 42px + 노브 16px 이던 종전 값은 '평범한 스위치'라 원본의 인상이 안 났다 — 비평가 지적) */
 .af-toggle {
-    width: 2.5rem; height: 1.3rem; flex: none; position: relative; cursor: pointer;
+    width: 1.78rem; height: 1.3rem; flex: none; position: relative; cursor: pointer;
     border: 3px solid var(--pp-line); border-radius: 1rem; background: #1e2a4a;
 }
 .af-toggle .knob {
-    position: absolute; top: .08rem; left: .12rem; width: .95rem; height: .95rem;
+    position: absolute; top: 50%; left: -.55rem; width: 1.57rem; height: 1.57rem;
+    margin-top: -.785rem; border: 3px solid var(--pp-line);
     border-radius: 50%; background: var(--pp-blue); transition: left .15s;
 }
 .af-toggle.on { background: #35d435; }
-.af-toggle.on .knob { left: calc(100% - 1.07rem); }
+.af-toggle.on .knob { left: 1.03rem; }
+/* 원본 필터 행: 높이 29.5px 에 행 사이 **순백 간격 9px** 이라 알약 카드가 하나씩 떨어져 보인다.
+   .3rem 패딩 + .3rem 간격(5px)이면 피치는 맞아도 행끼리 붙어 한 덩어리 리스트로 보였다(비평가 지적). */
 .af-sub-row {
     display: flex; align-items: center; gap: .5rem; cursor: pointer;
-    background: var(--pp-panel); border-radius: 1rem; padding: .3rem .55rem; margin-bottom: .3rem;
+    background: var(--pp-panel); border-radius: 1rem; padding: .18rem .55rem; margin-bottom: .53rem;
     font-size: .8rem; font-weight: 800; text-align: left;
 }
 .af-bottom { border-top: 3px solid var(--pp-line); margin: .55rem -.8rem 0; padding: .6rem .8rem 0; }
 .af-row { display: flex; align-items: center; justify-content: space-between; font-size: .82rem; font-weight: 800; margin-bottom: .55rem; text-align: left; }
+/* 원본 세로 배치(카드 대비): 스피너 65.08~69.04%H · 목표행 체크 71.8~74.6%H · [시작] 77.9~86.3%H.
+   두 행 사이가 첫 행 아래 여백보다 훨씬 넓다 — 균등 .55rem 이면 하단 블록이 통째로 짧아진다. */
+.af-row:first-child { margin-bottom: 1.63rem; }
+.af-dd { width: 40.4%; }                      /* 원본 스피너 폭 27.44%W = 하단 블록 내용폭의 40.4% */
 .af-spinner {
     display: inline-flex; align-items: center; justify-content: space-between; gap: .6rem; cursor: pointer;
-    min-width: 5.4rem; background: #17181a; color: #fff; border: 3px solid var(--pp-line);
+    width: 100%; min-width: 0; background: #17181a; color: #fff; border: 3px solid var(--pp-line);
     border-radius: .45rem; padding: .28rem .55rem; font-size: .92rem; font-weight: 900; font-family: inherit;
 }
 .af-spin-arrow { font-size: .7rem; }
@@ -2452,7 +2481,169 @@ body {
 .af-dd-list::-webkit-scrollbar { width: 6px; }
 .af-dd-list::-webkit-scrollbar-track { background: #0f1013; border-radius: 3px; }
 .af-dd-list::-webkit-scrollbar-thumb { background: #5a6068; border-radius: 3px; }
-.af-start { display: block; width: 38%; margin: .8rem auto .3rem; font-size: 1.05rem; padding: .6rem 0; min-height: 3.6rem; } /* 원본 ≈29% 화면폭 */
+/* 원본 [시작] 실측: 테두리 포함 x33.4%W w30.86%W · y77.9~86.3%H(h 8.4%H), 아래로 카드 바닥까지 5.2%H 여백.
+   폭 38%·min-height 3.6rem 이던 값은 화면폭 25.03%·6.79%H 로 각각 5.77%p·1.57%p 작았다. */
+/* 글자: 원본 '시작' 은 글자 높이 21px(클론 17px)에 사방 검정 아웃라인이 둘러져 있다 —
+   1.05rem·아웃라인 없음이면 큰 버튼 안에서 글자만 작게 떠 원본의 무게가 안 나온다. */
+.af-start { display: block; width: 45.4%; margin: 1.5rem auto 2.09rem; font-size: 1.3rem; padding: .6rem 0; min-height: 4.45rem; }
+
+/* ===== 자동 제련 AAA 스킨 (TODO '전 화면 AAA 스킨' 1번 화면 — shot-042950/043117) =====
+   배치는 원본이 절대 기준이라 **치수를 바꾸는 속성은 하나도 건드리지 않는다** —
+   여기서 쓰는 것은 background-image / box-shadow / text-shadow / transform 뿐이고
+   padding·border·font-size·margin·width·height 는 위 블록 값 그대로다.
+   원본 확대 대조에서 나온 가장 큰 표면 차이는 **시대 막대의 무늬가 시대마다 다르다**는 것이었다:
+   성간=광휘 얼룩 · 다중우주=픽셀 블록 · 양자=동심원 · 명계=마름모 격자 · 천상=별.
+   클론은 10시대 전부 같은 45° 줄무늬 하나였다(그래서 막대가 죄다 같은 천으로 보였다). */
+.af-age-bar {
+    position: relative; overflow: hidden;
+    background-image: none;   /* 공용 45° 줄무늬 해제 — 무늬는 아래 ::before 가 시대별로 깐다 */
+    box-shadow:
+        inset 0 .09rem 0 rgba(255,255,255,.34),
+        inset 0 -.12rem 0 rgba(0,0,0,.24),
+        0 .12rem 0 rgba(0,0,0,.3), 0 .2rem .4rem rgba(0,0,0,.24);
+}
+/* 무늬 층 — 시대별 --af-pat/--af-pat-size 를 받는다(별도 박스라 시대마다 타일 크기를 자유롭게 준다) */
+.af-age-bar::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background-image: var(--af-pat, none);
+    background-size: var(--af-pat-size, auto);
+    background-position: var(--af-pat-pos, 0 0);
+    background-repeat: var(--af-pat-repeat, repeat);
+}
+/* 광택 층 — 위쪽 하이라이트에서 아래쪽 그늘로. 무늬 위에 얹혀 막대에 두께를 준다 */
+.af-age-bar::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(180deg,
+        rgba(255,255,255,.3) 0, rgba(255,255,255,.07) 44%,
+        rgba(0,0,0,.04) 56%, rgba(0,0,0,.26) 100%);
+}
+/* 글자·체크는 두 오버레이 위로 */
+.af-age-bar > * { position: relative; z-index: 1; }
+
+/* 시대별 무늬 — 앞 5개는 원본 확대 캡처에서 그대로 읽은 것, 뒤 5개(원본 샷에 안 나온 시대)는
+   같은 언어로 시대 컨셉에 맞춰 채웠다(돌=반점, 중세=쉐브론, 근세=격자 짜임, 현대=테크 그리드, 우주=별먼지) */
+.af-age-bar[data-age="primitive"] {
+    --af-pat: radial-gradient(circle at 30% 30%, rgba(0,0,0,.18) 0 22%, rgba(0,0,0,0) 24%),
+              radial-gradient(circle at 72% 68%, rgba(255,255,255,.22) 0 16%, rgba(255,255,255,0) 18%);
+    --af-pat-size: .7rem .7rem, .55rem .55rem;
+}
+.af-age-bar[data-age="medieval"] {
+    --af-pat: repeating-linear-gradient(135deg, rgba(255,255,255,.16) 0 .18rem, rgba(255,255,255,0) .18rem .5rem),
+              repeating-linear-gradient(45deg, rgba(0,0,0,.12) 0 .18rem, rgba(0,0,0,0) .18rem .5rem);
+    --af-pat-size: auto, auto;
+}
+.af-age-bar[data-age="earlyModern"] {
+    --af-pat: repeating-linear-gradient(90deg, rgba(0,0,0,.14) 0 .12rem, rgba(0,0,0,0) .12rem .42rem),
+              repeating-linear-gradient(0deg, rgba(255,255,255,.16) 0 .12rem, rgba(255,255,255,0) .12rem .42rem);
+    --af-pat-size: auto, auto;
+}
+.af-age-bar[data-age="modern"] {
+    --af-pat: repeating-linear-gradient(90deg, rgba(0,0,0,.16) 0 .07rem, rgba(0,0,0,0) .07rem .62rem),
+              repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 .07rem, rgba(0,0,0,0) .07rem .62rem);
+    --af-pat-size: auto, auto;
+}
+.af-age-bar[data-age="space"] {
+    --af-pat: radial-gradient(circle at 50% 50%, rgba(255,255,255,.34) 0 12%, rgba(255,255,255,0) 14%),
+              radial-gradient(circle at 20% 78%, rgba(255,255,255,.2) 0 9%, rgba(255,255,255,0) 11%);
+    --af-pat-size: .9rem .9rem, 1.5rem 1.5rem;
+}
+/* --- 아래 5개는 원본 shot-042950 확대본에서 읽은 무늬 --- */
+.af-age-bar[data-age="interstellar"] {          /* 밝은 광휘 얼룩 — 원본은 우측 상단에 둥근 한 점이 뜬다 */
+    --af-pat: radial-gradient(closest-side, rgba(255,255,255,.44), rgba(255,255,255,0) 70%),
+              radial-gradient(closest-side, rgba(255,255,255,.2), rgba(255,255,255,0) 72%);
+    --af-pat-size: 2.4rem 2.4rem, 3.8rem 3.8rem;
+    --af-pat-pos: 74% 22%, 30% 78%;             /* 원본처럼 '깔린 무늬'가 아니라 뜬 점 두 개라 타일링하지 않는다 */
+    --af-pat-repeat: no-repeat, no-repeat;
+}
+.af-age-bar[data-age="multiverse"] {            /* 픽셀 블록 — 두 밴드가 겹치는 칸만 밝게 떠 블록처럼 보인다 */
+    --af-pat: repeating-linear-gradient(90deg, rgba(255,255,255,.3) 0 .34rem, rgba(255,255,255,0) .34rem 1.05rem),
+              repeating-linear-gradient(0deg, rgba(255,255,255,.42) 0 .3rem, rgba(255,255,255,0) .3rem .85rem);
+    --af-pat-size: auto, auto;
+}
+.af-age-bar[data-age="quantum"] {               /* 동심원 파문 */
+    --af-pat: repeating-radial-gradient(circle at 56% 50%, rgba(255,255,255,.27) 0 .11rem, rgba(255,255,255,0) .11rem .6rem);
+    --af-pat-size: auto;
+}
+.af-age-bar[data-age="underworld"] {            /* 마름모 격자 */
+    --af-pat: repeating-linear-gradient(45deg, rgba(0,0,0,.3) 0 .5rem, rgba(0,0,0,0) .5rem 1rem),
+              repeating-linear-gradient(-45deg, rgba(0,0,0,.3) 0 .5rem, rgba(0,0,0,0) .5rem 1rem);
+    --af-pat-size: auto, auto;
+}
+.af-age-bar[data-age="divine"] {                /* 별 타일 — 5각 별 path 를 인라인 SVG 로 (외부 에셋 아님) */
+    --af-pat: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><path d='M12 2.6 14.7 9.3 21.9 9.8 16.4 14.5 18.1 21.4 12 17.6 5.9 21.4 7.6 14.5 2.1 9.8 9.3 9.3Z' fill='rgba(255,255,255,0.36)'/></svg>");
+    --af-pat-size: 1.5rem 1.5rem;
+}
+
+/* 체크박스 — 눌리는 물건으로 보이게 안쪽 그늘 + 위 테두리 하이라이트, 켜지면 초록 광택 */
+.af-check {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.14) 0, rgba(255,255,255,0) 46%, rgba(0,0,0,.3) 100%);
+    box-shadow: inset 0 .06rem 0 rgba(255,255,255,.22), inset 0 -.1rem .18rem rgba(0,0,0,.45);
+    transition: transform .07s ease-out, filter .07s;
+}
+/* 켜진 상태도 상자는 검정이라 표면 처리는 같게 두고, ✓ 만 살짝 띄운다.
+   ⚠️ 바깥 초록 글로우(0 0 .3rem)는 원본에 없다 — 비평가가 '렌더링 아티팩트처럼 보인다'고 지적해 뺐다. */
+.af-check.on {
+    box-shadow: inset 0 .06rem 0 rgba(255,255,255,.26), inset 0 -.1rem .18rem rgba(0,0,0,.45);
+    text-shadow: 0 .06rem .1rem rgba(0,0,0,.6);
+}
+.af-check:active { transform: translateY(.06rem); filter: brightness(1.12); }
+
+/* 필터 토글 — 트랙은 파인 홈, 노브는 광택 구슬 */
+.af-toggle {
+    background-image: linear-gradient(180deg, rgba(0,0,0,.34) 0, rgba(0,0,0,0) 55%, rgba(255,255,255,.14) 100%);
+    box-shadow: inset 0 .12rem .18rem rgba(0,0,0,.5);
+}
+.af-toggle .knob {
+    background-image: radial-gradient(circle at 34% 26%, rgba(255,255,255,.6) 0, rgba(255,255,255,0) 54%);
+    box-shadow: inset 0 -.2rem 0 var(--pp-blue-dk), 0 .1rem .18rem rgba(0,0,0,.4);
+    transition: left .15s ease-out;
+}
+.af-toggle.on { box-shadow: inset 0 .12rem .18rem rgba(0,0,0,.34), 0 0 .34rem rgba(53,212,53,.5); }
+
+/* 필터 서브옵션 행 — 위 하이라이트/아래 그늘로 얇은 카드 두께, 누르면 살짝 내려앉음 */
+.af-sub-row {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.75) 0, rgba(255,255,255,0) 48%, rgba(0,0,0,.07) 100%);
+    box-shadow: inset 0 .07rem 0 rgba(255,255,255,.85), inset 0 -.07rem 0 rgba(0,0,0,.08), 0 .07rem .12rem rgba(0,0,0,.1);
+    transition: transform .07s ease-out, filter .07s;
+}
+.af-sub-row:active { transform: translateY(.06rem); filter: brightness(.97); }
+
+/* 망치 수 스피너 — 검정 금속 톤(위 림라이트 + 안쪽 아래 그늘 + 바깥 턱) */
+.af-spinner {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.17) 0, rgba(255,255,255,.02) 45%, rgba(0,0,0,.34) 100%);
+    box-shadow: inset 0 .07rem 0 rgba(255,255,255,.26), inset 0 -.12rem .24rem rgba(0,0,0,.5), 0 .12rem 0 rgba(0,0,0,.28);
+    text-shadow: 0 .07rem 0 rgba(0,0,0,.5);
+    transition: transform .07s ease-out, box-shadow .07s;
+}
+.af-spinner:active { transform: translateY(.1rem); box-shadow: inset 0 .12rem .3rem rgba(0,0,0,.55); }
+
+/* [시작] — 공용 .btn 의 안쪽 아래턱은 그대로 두고 위 광택 + 바깥 앰비언트만 얹는다
+   (:active 는 공용 규칙이 box-shadow: none 으로 눌린 상태를 이미 만든다) */
+.af-start {
+    background-image: linear-gradient(180deg,
+        rgba(255,255,255,.34) 0, rgba(255,255,255,.06) 44%,
+        rgba(0,0,0,.08) 56%, rgba(0,0,0,.2) 100%);
+    box-shadow: inset 0 -.52rem 0 var(--pp-blue-dk), inset 0 .1rem 0 rgba(255,255,255,.42),
+                0 .22rem .5rem rgba(20,60,140,.4);
+    /* 원본과 같은 사방 검정 아웃라인 + 아래 그림자 */
+    text-shadow: -2px -2px 0 #17181a, 2px -2px 0 #17181a, -2px 2px 0 #17181a, 2px 2px 0 #17181a,
+                 0 .16rem 0 rgba(0,0,0,.45);
+}
+
+/* 카드 자체 — 공용 아래턱(0 .5rem 0)에 은은한 앰비언트를 더해 팝업이 화면에서 떠 보이게.
+   ⚠️ 파랑 실측: 원본 [시작] 은 rgb(0,93,255)·아래턱 rgb(0,28,78) 인데 전역 --pp-blue 는 #2f7dfa 로
+   더 밝고 탁하다. 전역 토큰을 바꾸면 모든 화면의 파란 버튼이 함께 움직이므로(화면당 커밋 하나 규칙)
+   이번엔 이 카드 안으로만 한정하고, 전역 교체는 TODO 메모에 남겼다. */
+.af-card { box-shadow: 0 .5rem 0 rgba(0,0,0,.25), 0 1rem 1.8rem rgba(0,0,0,.42); --pp-blue: #005dff; --pp-blue-dk: #001c4e; }
+/* 원본 타이틀은 검정 글자에 **흰 외곽선**이 둘러진 게임 타이틀 서체다(글자 높이 20px, 클론 18px).
+   외곽선 없는 납작한 볼드체는 카드 안에서 위계가 죽는다 — 비평가 1순위 지적. */
+.af-title {
+    font-size: 1.26rem;
+    text-shadow: -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 2px 2px 0 #fff,
+                 0 .16rem .26rem rgba(0,0,0,.28);
+}
+/* 하단 구획선 아래에 얇은 하이라이트 한 줄 — 종이 두 장이 겹친 느낌 */
+.af-bottom { box-shadow: inset 0 .07rem 0 rgba(255,255,255,.9); }
 
 /* ===== 확률 정보 팝업 (shot-042831 원본 대조 재작업) ===== */
 .fi-card {

@@ -1337,7 +1337,7 @@ const UI = {
         const pct = p => (parseFloat(p.toFixed(2)) || 0) + '%';
         // 자동 제련만 0% 시대를 숨긴다 — 여긴 '뽑을 수 있는 시대'를 고르는 화면이라 못 뽑는 시대가 있으면 안 된다 (사용자 재지시 2026-08-17)
         const ageRows = AGES.filter(age => (probs[age] || 0) > 0).map(age => `
-            <div class="af-age-bar" style="--ac:${this.ageHex(age)}" onclick="UI.onToggleKeepAge('${age}')">
+            <div class="af-age-bar" data-age="${age}" style="--ac:${this.ageHex(age)}" onclick="UI.onToggleKeepAge('${age}')">
                 <span class="af-check ${cfg.keepAges.includes(age) ? 'on' : ''}">${cfg.keepAges.includes(age) ? '✓' : ''}</span>
                 <span class="af-age-name">${AGE_ICON[age]} ${AGE_KR[age]}</span>
                 <span class="af-age-pct">${pct(probs[age] || 0)}</span>
