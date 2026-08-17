@@ -1096,7 +1096,18 @@ const ProChar = {
         apply(R.root, R.base.root);
         if (R.restX) R.bones.shoulderR.rotation.x += R.restX; // 무기별 거치 자세 (활/총=전방 조준)
         // 무기별 다관절 거치 자세(rx 가산) — 공격/사망(once) 클립 중에는 클립이 양팔을 전부 정의하므로 미적용
-        if (R.restPose && !R._once) for (const bn in R.restPose) { const b = R.bones[bn]; if (b) b.rotation.x += R.restPose[bn]; }
+        // 값이 숫자면 rx 가산(기존 무기 거치 자세), 객체면 {rx,ry,rz} 축별 가산 —
+        // 탑승 포즈는 다리를 '벌려서' 감싸야 해서 rz(좌우 벌림)가 필수다.
+        if (R.restPose && !R._once) for (const bn in R.restPose) {
+            const b = R.bones[bn]; if (!b) continue;
+            const v = R.restPose[bn];
+            if (typeof v === 'number') b.rotation.x += v;
+            else {
+                if (v.rx) b.rotation.x += v.rx;
+                if (v.ry) b.rotation.y += v.ry;
+                if (v.rz) b.rotation.z += v.rz;
+            }
+        }
         // 트랙 오프셋
         for (const key in R._clip.tracks) {
             const dot = key.indexOf('.');

@@ -2241,7 +2241,10 @@ const Scene3D = {
         if (this.heroRig) {
             const target = grip.hand === 'L' ? this.heroRig.handL : this.heroRig.handR;
             if (this.weaponG.parent !== target) target.add(this.weaponG); // 활계 왼손 이관 (bow 클립도 왼팔을 드는 구성)
-            this.heroRig.restPose = grip.pose || null;
+            // 무기 거치 자세(상체) + 탑승 포즈(하체)를 합성 — 탈것에 타면 다리는 안장을 감싸고 팔은 무기를 든다
+            this.heroRig.restPose = (this.ridePose || grip.pose)
+                ? Object.assign({}, grip.pose || null, this.ridePose || null)
+                : null;
             if (grip.hand === 'L') this.heroRig.restX = 0; // 조준 자세는 restPose가 양팔을 정의 — 오른어깨 이중 가산 방지
             if (this.heroRig.shield) this.heroRig.shield.visible = grip.hand !== 'L'; // 활·석궁은 왼손 파지 — 같은 팔의 방패와 겹침 방지
         }
@@ -2971,7 +2974,7 @@ const Scene3D = {
         if (FLAT.includes(name)) { // 평판형: 나뭇잎/연잎/호버보드/호버디스크 — 넓적한 발판 + 탑승 발판 위 살짝 솟은 손잡이
             const hover = name.startsWith('Hover');
             sp(0.34, 0, 0.05, 0, hover ? dark : mat, 1.7, 0.32, 1.9);
-            if (hover) to(0.3, 0.03, 0, 0.01, 0, M(0x29e0ff, { emissive: 0x0aa0c0, emissiveIntensity: 0.6 }));
+            if (hover) to(0.3, 0.03, 0, 0.01, 0, M(0x29e0ff, { emissive: 0x0aa0c0, emissiveIntensity: 0.6 })).rotation.x = -Math.PI / 2; // 눕혀야 발판 테두리가 된다 (세로로 서 있어 발판 아래로 반원이 튀어나왔다)
             else sp(0.3, 0, 0.09, 0, light, 1.5, 0.2, 1.6);
             g.userData.deck = g.children[0];
         } else if (WHEELED.includes(name)) { // 탈것형: 자전거/외바퀴 드로이드 — 바퀴 + 프레임
@@ -3043,25 +3046,109 @@ const Scene3D = {
         });
     },
 
-    // 탈것: 펫과 겹치지 않는 영웅 옆자리(오른쪽)에 따라다니는 연출만(사용자 지시 — 탑승 연출은 범위 밖)
+    // 탈것 형태 계열별 탑승 규격 (사용자 지시 2026-08-17 "플레이어가 실제로 타고 있게").
+    // saddle: 탈것 로컬 기준 안장(영웅 골반이 얹히는) 높이 — 스케일을 곱해 실제 탑승 높이가 된다.
+    // hover:  탈것 자체가 지면에서 뜨는 높이(비행형만). pose: 탑승 시 다리 포즈(하체가 몸통을 감싸는 각).
+    // ⚠️ saddle 값은 makeMountMesh의 실제 지오메트리 상단에서 뽑았다 — 모델을 바꾸면 여기도 같이 본다.
+    MOUNT_FORMS: {
+        // 평판형: 발판 위에 '두 발로 선다' — 앉는 게 아니라 서는 유일한 계열
+        flat:    { saddle: 0.17, hover: 0.02, stand: true,
+                   pose: { hipL: { rx: 0.06, rz: -0.13 }, hipR: { rx: 0.06, rz: 0.13 },
+                           kneeL: { rx: -0.18 }, kneeR: { rx: -0.18 }, spine: { rx: 0.06 } } },
+        // 탈것형(자전거/외바퀴): 안장에 앉아 상체를 앞으로 숙이고 무릎을 깊게 접는다
+        wheeled: { saddle: 0.36, hover: 0,
+                   pose: { hipL: { rx: 0.92, rz: -0.16 }, hipR: { rx: 0.92, rz: 0.16 },
+                           kneeL: { rx: -1.15 }, kneeR: { rx: -1.15 }, spine: { rx: 0.2 } } },
+        // 비행형: 공중에 뜬 몸통을 다리로 조이며 앉는다 (벌림은 사족형보다 좁게)
+        fly:     { saddle: 0.38, hover: 0.42, bulk: 1.7,
+                   pose: { hipL: { rx: 0.8, rz: -0.26 }, hipR: { rx: 0.8, rz: 0.26 },
+                           kneeL: { rx: -1.0 }, kneeR: { rx: -1.0 }, spine: { rx: 0.12 } } },
+        // 사족보행형: 배럴이 굵어 다리를 가장 크게 벌려 감싼다
+        quad:    { saddle: 0.44, hover: 0,
+                   pose: { hipL: { rx: 0.78, rz: -0.36 }, hipR: { rx: 0.78, rz: 0.36 },
+                           kneeL: { rx: -0.92 }, kneeR: { rx: -0.92 }, spine: { rx: 0.1 } } },
+    },
+    MOUNT_FORM_OF: {
+        'Brown Leaf': 'flat', 'Lily Leaf': 'flat', 'Lily Pad': 'flat', 'Hover Board': 'flat', 'Hover Disk': 'flat',
+        'Bike': 'wheeled', 'One-Wheel Droid': 'wheeled',
+        'Giant Bee': 'fly', 'Mini Dragon': 'fly',
+    },
+    mountFormOf(name) { return this.MOUNT_FORMS[this.MOUNT_FORM_OF[name] || 'quad']; },
+    RIDE_FOOT_CLEAR: 0.06,   // 탑승 시 영웅 원점(발) 높이 — 발이 지면을 살짝 띄워 '끌리지' 않게
+    // 탑승 포즈에서의 골반 로컬 높이 — 안장 높이를 역산하는 기준값.
+    // 리그가 있으면 실측하고(포즈·장비가 바뀌어도 따라온다), 없으면 실측해 둔 기본값을 쓴다.
+    heroPelvisLocalY() {
+        const rig = this.heroRig;
+        if (rig && rig.bones && rig.bones.pelvis && this.heroG) {
+            // ⚠️ 월드 y에서 heroG.position.y를 빼는 방식은 쓰지 말 것 — refreshMount가 rideY를 바꾼 뒤
+            //    update()가 아직 heroG를 옮기지 않은 프레임에서는 둘의 기준이 어긋나 값이 오염된다
+            //    (탈것을 연속으로 갈아탈 때 골반이 1.4까지 튀어 비행형 안장 높이가 통째로 빗나갔다).
+            //    heroG 로컬 좌표로 직접 변환하면 영웅이 어디에 떠 있든 항상 같은 값이 나온다.
+            this.heroG.updateWorldMatrix(false, true);   // 직전 프레임 행렬이 섞이면 값이 튄다 — 재고 나서 읽는다
+            const y = this.heroG.worldToLocal(rig.bones.pelvis.getWorldPosition(new THREE.Vector3())).y;
+            // 이 리그의 골반은 0.77 부근이 정상 — 그 밖 값은 프레임이 섞인 오염이므로 버리고 기본값을 쓴다
+            if (isFinite(y) && y > 0.6 && y < 1.0) return y;
+        }
+        return 0.774;
+    },
+
+    // 탈것: 장착 중이면 영웅이 실제로 올라탄다 — 탈것은 영웅 발밑, 영웅은 안장 높이로 상승.
     refreshMount() {
         if (this.mountGroup) { this.disposeTree(this.mountGroup); this.scene.remove(this.mountGroup); this.mountGroup = null; }
+        this.rideY = 0; this.ridePose = null; this.riding = null;
         const name = S.activeMount, m = name && S.mounts[name];
-        if (!m) return;
+        if (!m) {                                    // 해제: 지면 복귀 + 탑승 포즈·기울기 제거
+            if (this.heroG) { this.heroG.rotation.x = 0; this.heroG.position.y = 0; }
+            this.applyWeaponGrip();
+            return;
+        }
         const g = new THREE.Group();
         const mesh = this.makeMountMesh(name, m.rarity);
-        mesh.scale.setScalar(1.1 + RARITIES.indexOf(m.rarity) * 0.1);
+        const sc = 1.1 + RARITIES.indexOf(m.rarity) * 0.1;
+        mesh.scale.setScalar(sc);
         g.add(mesh);
-        g.rotation.y = -0.5; // 영웅과 마주보지 않게 살짝 바깥쪽
-        const spotX = 0.62, spotZ = 0.35; // 펫 자리(x<0)와 겹치지 않는 영웅 오른쪽
-        g.position.set(Combat.HERO_X + spotX + this.worldX, 0, spotZ);
+        const form = this.mountFormOf(name);
+        g.rotation.y = 0.55;                       // 영웅과 같은 3/4 방향 — 타고 있으므로 같은 곳을 본다
+        // ── 탑승 정합: 안장이 영웅 골반에 오도록 탈것 크기를 역산한다 ──
+        // 원래 크기(펫 옆자리 연출용)로는 안장이 골반보다 한참 아래라, 영웅이 위에 '떠 있는' 것으로 읽혔다.
+        // 손으로 맞춘 상수 대신 영웅 골반 높이에서 필요한 안장 높이를 풀어 탈것 배율을 정한다 —
+        // 종마다 몸집이 달라도 자동으로 맞고, 모델을 손봐도 따라온다.
+        let rideScale = 1, heroY = 0;
+        const pelvisLocal = this.heroPelvisLocalY();
+        if (form.stand) {
+            // 평판형: 발판 위에 두 발로 서므로 발이 곧 안장 — 크기는 원래대로 둔다
+            heroY = (form.hover + form.saddle) * sc;   // 발판 윗면 = 발 높이
+        } else if (form.hover) {
+            // 비행형: 지면에 발이 닿을 이유가 없다. 몸집만 키워 다리로 감쌀 수 있게 하고,
+            // 골반을 안장에 맞춰 영웅째로 공중에 띄운다 (발은 허공에 뜬 채가 정상).
+            rideScale = form.bulk || 1.7;
+            heroY = (form.hover + form.saddle) * sc * rideScale - pelvisLocal;
+        } else {
+            // 지상 탑승형(사족·탈것): 발이 지면을 살짝 띄운 높이에 오게 두고,
+            // 그 자세의 골반 높이가 곧 필요한 안장 높이 — 거기에 맞춰 탈것을 키운다
+            heroY = this.RIDE_FOOT_CLEAR;
+            const needSaddle = heroY + pelvisLocal;
+            rideScale = U.clamp(needSaddle / (form.saddle * sc), 1, 2.6);  // 과대·과소 확대 방지
+        }
+        mesh.scale.setScalar(sc * rideScale);
+        const baseY = form.hover * sc * rideScale;
+        g.position.set(Combat.HERO_X + this.worldX, baseY, 0);   // 영웅 발밑(별도 자리 아님)
         g.userData.home = g.position.clone();
-        g.userData.spotX = spotX;
+        g.userData.spotX = 0;
+        g.userData.baseY = baseY;
         g.userData.phase = U.rand(0, Math.PI * 2);
         this.setShadow(g);
         this.applyRimLight(g);
         this.scene.add(g);
         this.mountGroup = g;
+        // 탑승 상태: 영웅을 안장 높이로 올리고 하체를 탑승 포즈로 고정
+        this.riding = { name, form, scale: sc * rideScale };
+        this.rideY = heroY;
+        this.ridePose = form.pose;
+        // 공격 중에는 update의 영웅 y 갱신이 통째로 막혀 있어(공격 클립이 y를 소유) 이전 탈것 높이가
+        // 공격이 끝날 때까지 남는다 — 비행형에서 지상형으로 갈아타면 한동안 공중에 뜬 채다. 즉시 스냅.
+        if (this.heroG) this.heroG.position.y = heroY;
+        this.applyWeaponGrip();                    // 무기 거치 자세와 탑승 포즈를 합성
     },
 
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
@@ -3820,7 +3907,7 @@ const Scene3D = {
         const resetArm = () => {
             this._attacking = false;
             this.heroG.position.x = fromX;
-            this.heroG.position.y = 0;
+            this.heroG.position.y = this.rideY || 0;
             this.heroG.rotation.set(0, 0.55, 0);
             this.armR.rotation.set(rest, 0, 0);
             const gr = this._gripRot || [0, 0, 0];
@@ -3832,7 +3919,7 @@ const Scene3D = {
         const dash = k => {
             const lunge = k < 0.5 ? k * 2 : (1 - k) * 2;
             this.heroG.position.x = U.lerp(fromX, tx, lunge * 0.85);
-            this.heroG.position.y = Math.sin(k * Math.PI) * 0.18;            // 점프
+            this.heroG.position.y = (this.rideY || 0) + Math.sin(k * Math.PI) * 0.18;            // 점프
             this.heroG.rotation.y = 0.55 + Math.sin(k * Math.PI) * 0.55;    // 몸통 비틀기
             this.heroG.rotation.z = -Math.sin(k * Math.PI) * 0.15;          // 앞으로 기울임
         };
@@ -3941,7 +4028,7 @@ const Scene3D = {
             this.addAnim(0.38, k => {
                 this.heroG.rotation.y = 0.55 + Math.sin(k * Math.PI) * 0.25;
                 this.armR.rotation.x = U.lerp(-0.25, -2.7, Math.sin(k * Math.PI));
-                this.heroG.position.y = Math.sin(k * Math.PI) * 0.1;
+                this.heroG.position.y = (this.rideY || 0) + Math.sin(k * Math.PI) * 0.1;
             }, resetArm);
             this.flashLight(this.heroG.position, wcolor, 0.3);
             this.fireProjectile('magic', targetPos, wcolor, wt.impact);
@@ -3978,7 +4065,7 @@ const Scene3D = {
     // ---- 투사체 ----
     projectiles: [],
     fireProjectile(kind, to, colorHex, dur) {
-        const from = new THREE.Vector3(this.heroG.position.x + 0.45, 1.05, 0.1);
+        const from = new THREE.Vector3(this.heroG.position.x + 0.45, 1.05 + (this.rideY || 0), 0.1); // 탑승 중엔 발사 원점도 같이 올라간다
         let mesh;
         if (kind === 'arrow') {
             mesh = new THREE.Group();
@@ -4962,8 +5049,8 @@ const Scene3D = {
                     this.legs[1].rotation.x = -walkCycle * 0.65;
                     this.armR.rotation.x = rest > -1 ? rest - walkCycle * 0.45 : rest;
                     this.armL.rotation.x = -0.15 + walkCycle * 0.45;
-                    this.heroG.position.y = Math.abs(walkCycle) * 0.06;
-                } else this.heroG.position.y = 0;
+                    this.heroG.position.y = (this.rideY || 0) + Math.abs(walkCycle) * 0.06;
+                } else this.heroG.position.y = this.rideY || 0;
                 // 지나간 소품은 전방에 재배치 (무한 월드)
                 for (const o of this.scrollables) {
                     if (o.position.x < this.worldX - 13) {
@@ -4981,7 +5068,7 @@ const Scene3D = {
                     if (!this._attacking) {
                         this.armR.rotation.x += (rest - this.armR.rotation.x) * 0.15;
                         this.armL.rotation.x += (-0.15 - this.armL.rotation.x) * 0.15;
-                        this.heroG.position.y = Math.sin(this._clock * 3) * 0.03;
+                        this.heroG.position.y = (this.rideY || 0) + Math.sin(this._clock * 3) * 0.03;
                     }
                 }
             }
@@ -4989,8 +5076,9 @@ const Scene3D = {
             if (this.heroRig) {
                 this.heroRig.update(dt);
                 if (!this._attacking) {
-                    this.heroPlay(this.walking ? ['Walking'] : ['Idle']);
-                    this.heroG.position.y = 0; // 상하 바운스는 리그 root.py 트랙이 담당
+                    // 탑승 중엔 다리 걷기 클립을 쓰지 않는다 — 이동은 탈것이 하고 다리는 안장을 감싼 채 고정
+                    this.heroPlay((this.walking && !this.riding) ? ['Walking'] : ['Idle']);
+                    this.heroG.position.y = this.rideY || 0; // 상하 바운스는 리그 root.py 트랙이 담당(탑승 중엔 안장 높이가 바닥)
                 }
                 if (this._trailOn || (this.trailPts && this.trailPts.length)) this.updateTrail(dt);
             }
@@ -5027,15 +5115,6 @@ const Scene3D = {
             if (ud.heads) ud.heads.forEach((h, j) => h.position.y = 0.32 + Math.sin(t * 5 + j * 2.1) * 0.05);
             if (ud.ghostMat) ud.ghostMat.opacity = 0.4 + Math.sin(t * 2.5) * 0.2;
         });
-        // 탈것: 종별 고유 모션 없이 영웅을 따라오며 가볍게 상하 바운스만(사용자 지시 — 따라다니는 연출만)
-        if (this.mountGroup) {
-            const ud = this.mountGroup.userData;
-            const t = this._clock + (ud.phase || 0);
-            ud.home.x = Combat.HERO_X + (ud.spotX || 0.6) + this.worldX;
-            this.mountGroup.position.x = ud.home.x;
-            const walkBoost = this.walking ? 1.6 : 1;
-            this.mountGroup.position.y = ud.home.y + Math.abs(Math.sin(t * 4)) * 0.05 * walkBoost;
-        }
         // 애니메이션 큐
         for (let i = this.anims.length - 1; i >= 0; i--) {
             const a = this.anims[i];
@@ -5043,6 +5122,32 @@ const Scene3D = {
             const k = Math.min(1, a.t / a.dur);
             a.fn(k);
             if (k >= 1) { if (a.onDone) a.onDone(); this.anims.splice(i, 1); }
+        }
+        // 탈것: 영웅이 올라타 있으므로 탈것이 곧 이동체다 — 영웅 발밑에 붙어 같은 리듬으로 흔들린다.
+        // 걷기 중 바운스·기울기는 '탈것이 달리는 것'이고 영웅은 그 위에 얹혀 같은 오프셋을 받는다
+        // (둘이 따로 놀면 즉시 공중부양으로 읽힌다).
+        if (this.mountGroup) {
+            const ud = this.mountGroup.userData;
+            const t = this._clock + (ud.phase || 0);
+            const mg = this.mountGroup;
+            if (this.riding) {
+                // 공격 돌진 중에도 따라붙는다 — 여기서 놓으면 영웅만 앞으로 튀어나가 탈것이 뒤에 남는다
+                mg.position.x = this.heroG.position.x;   // 별도 자리가 아니라 정확히 영웅 발밑
+                mg.position.z = this.heroG.position.z;
+            } else {
+                ud.home.x = Combat.HERO_X + (ud.spotX || 0) + this.worldX;
+                mg.position.x = ud.home.x;
+            }
+            const walkBoost = this.walking ? 1.6 : 1;
+            const bob = Math.abs(Math.sin(t * 4)) * 0.05 * walkBoost;
+            mg.position.y = (ud.baseY || 0) + bob;
+            if (this.riding) {
+                // 달릴 때 앞뒤로 까딱이는 기울기 — 정지하면 0으로 수렴시켜 어정쩡한 기울임을 남기지 않는다
+                const lean = this.walking ? Math.sin(t * 4) * 0.07 : 0;
+                mg.rotation.x += (lean - mg.rotation.x) * Math.min(1, dt * 8);
+                if (!this._attacking) this.heroG.position.y += bob;   // 영웅도 같은 바운스를 그대로 받는다
+                this.heroG.rotation.x = mg.rotation.x * 0.6;
+            }
         }
         // 파티클
         for (let i = this.particles.length - 1; i >= 0; i--) {
