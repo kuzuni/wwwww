@@ -8,7 +8,10 @@
 
 ## 0. 사전 준비 (2번째 계정에서 딱 3가지)
 
-1. **GitHub 저장소 접근** — `kuzuni/wwwww`에 2번째 계정의 GitHub 아이디를 **Collaborator(write)** 로 초대. (Settings → Collaborators → Add people) 초대 수락해야 그 계정의 클라우드 세션이 push 가능.
+1. **GitHub 저장소 접근** — 택1:
+   - **(간단) 같은 GitHub 계정을 2번째 클로드 계정에도 연결** — GitHub OAuth 토큰은 GitHub 계정 단위이고 클로드 GitHub 앱은 저장소에 설치되는 거라 특정 클로드 계정에 안 묶인다. 2번째 클로드 계정에서 GitHub 연결 시 **똑같은 kuzuni 계정으로 로그인**하면 양쪽이 같은 repo에 push 가능(추정). Collaborator 초대 불필요. ⚠️ **공식 문서에 명시 안 됨 — 붙여보고 push 되는지 먼저 테스트.**
+   - **(문서화된 확실한 방법) 별도 GitHub 계정을 Collaborator로** — 2번째 GitHub 계정을 `kuzuni/wwwww`에 **Collaborator(Write)** 로 초대·수락(Settings → Collaborators → Add people), 그 계정으로 2번째 클로드 연결. 커밋 작성자는 그 2번째 GitHub 유저로 찍힘.
+   - 참고: 우리 루틴은 `main`에 직접 push. 두 계정 다 write만 있으면 OK, 클레임 가드가 커밋 기준이라 계정 넘어서도 직렬화됨. 한도는 계정별 별도 카운트(그래서 처리량이 는다).
 2. **환경(environment) 생성** — 2번째 계정으로 claude.ai/code에서 `github.com/kuzuni/wwwww`를 연결해 한 번 세션을 띄우면 그 계정 전용 `environment_id`(예: `env_xxx`)가 생긴다. **이 값은 계정마다 다르다** — 아래 레시피의 `environment_id`를 그걸로 교체.
 3. **모델 정책 확인** — [[fable-only-model]]: 루틴 모델은 `claude-fable-5`, 한도 소진 시 `claude-opus-5`. **소넷 금지.** (현재 1번 계정 루틴은 전부 `claude-opus-5`.)
 
