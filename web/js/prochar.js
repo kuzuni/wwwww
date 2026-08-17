@@ -185,7 +185,7 @@ const ProChar = {
         R.armorMats = [];
         const mTex = this.metalTex();
         const steel = () => {
-            const m = new THREE.MeshStandardMaterial({ color: 0x9fb2c2, metalness: 0.85, roughness: 0.38, map: mTex, envMapIntensity: 0.75 }); // 브러시드 스틸 — 순백 블로우아웃 방지 위해 env 감쇠
+            const m = new THREE.MeshStandardMaterial({ color: 0x9fb2c2, metalness: 0.85, roughness: 0.3, map: mTex, envMapIntensity: 0.9 }); // 브러시드 스틸 — 태양 핫스팟이 곡면에 실제로 맺히게 러프 하향 (비평가 6.9 5번 '갑옷은 여전히 새틴')
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
             return m;
@@ -316,7 +316,7 @@ const ProChar = {
                 if (k > 0.88) p.setY(i, y + Math.sin(x * 46) * 0.022 * ((k - 0.88) / 0.12));
                 p.setZ(i, -Math.abs(x) * (0.45 + k * 0.9)       // 좌우가 뒤로 말리는 원통 곡률
                     - Math.sin(k * Math.PI) * 0.035
-                    + Math.sin(x * 33 + k * 2.2) * 0.034 * k);  // 세로 드레이프 주름 — 정지샷에서도 '천'으로 읽히는 깊이 (비평가 4번)
+                    + Math.sin(x * 33 + k * 2.2) * 0.052 * k);  // 세로 드레이프 주름 심화 — 0.034는 정지샷에서 '강체 판자'로 읽힘 (비평가 6.9 6번)
             }
             geo.computeVertexNormals();
             geo.userData.kArr = kArr;
@@ -811,7 +811,7 @@ const ProChar = {
             for (let i = 0; i < p.count; i++) {
                 const k = kA[i], bx = base[i * 3];
                 p.array[i * 3 + 2] = base[i * 3 + 2] +
-                    (Math.sin(ph * 1.15 + k * 3.1) * 0.045 + Math.sin(ph * 1.9 + bx * 9 + k * 1.4) * 0.02) * k * walkAmp;
+                    (Math.sin(ph * 1.15 + k * 3.1) * 0.062 + Math.sin(ph * 1.9 + bx * 9 + k * 1.4) * 0.028) * k * walkAmp; // 진폭 상향 — 정지 프레임에서도 물결이 읽히게
                 p.array[i * 3 + 1] = base[i * 3 + 1] + Math.sin(ph * 1.5 + bx * 11 + k * 2) * 0.009 * k; // 밑단 플러터
             }
             p.needsUpdate = true;
