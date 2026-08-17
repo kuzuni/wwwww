@@ -182,13 +182,13 @@ body {
 .bw-track { display: flex; width: max-content; animation: bwscroll 2.6s linear infinite; }
 .bw-track span {
     flex: none; white-space: nowrap; font-size: 1.5rem; font-weight: 900; letter-spacing: .14em;
-    color: #fff; text-shadow: 0 0 .45rem #ff1744, 0 0 1.2rem #ff1744, 0 2px 0 #000;
+    color: #fff; text-shadow: 0 0 .45rem #ff1744, 0 0 1.2rem #ff1744, 0 2px 0 var(--olc);
 }
 /* ⓓ 한글 부제 — 배너가 영문 마퀴라 "무슨 일이 났는지"는 여기서 읽힌다 */
 .bw-sub {
     position: absolute; left: 0; right: 0; top: calc(18% + 2.5rem); text-align: center;
     font-size: .95rem; font-weight: 900; letter-spacing: .55em; text-indent: .55em;
-    color: #ffd54f; text-shadow: 0 0 .6rem rgba(255,23,68,.95), 0 2px 0 #000; opacity: 0;
+    color: #ffd54f; text-shadow: 0 0 .6rem rgba(255,23,68,.95), 0 2px 0 var(--olc); opacity: 0;
     animation: bwsub var(--bw-dur, 2s) ease-out forwards;
 }
 @keyframes bwdim   { 0% { opacity: 0; } 8% { opacity: 1; } 76% { opacity: 1; } 100% { opacity: 0; } }
@@ -484,36 +484,46 @@ body {
 .equip-cell.egg-cell.empty { cursor: pointer; } /* 탈것 창 진입점이라 빈 상태에도 클릭 가능 */
 .equip-cell .slot-name { position: absolute; bottom: .3rem; left: 0; right: 0; text-align: center; font-size: .58rem; font-weight: 800; color: #b9a8a8; }
 /* 밝은 하늘색 egg-cell 위에서 회색 라벨이 대비 1.5:1로 안 읽히던 QA 버그 — 흰 글자+검정 그림자 (185) */
-.equip-cell.egg-cell .slot-name { color: #fff; text-shadow: 0 1px 0 #000, 0 0 3px rgba(0,0,0,.55); font-size: .72rem; }
+.equip-cell.egg-cell .slot-name { color: #fff; text-shadow: 0 1px 0 var(--olc), 0 0 3px rgba(0,0,0,.55); font-size: .72rem; }
 /* 아이콘이 셀을 꽉 채우게 커진 뒤 `Lv. NNN`이 밝은 아이콘 위에서 씻겨나가던 QA 버그.
    원인은 `0 1px 0 #000` — **아래 한 줄뿐이라 좌우·위쪽 대비가 0**이었다(원본은 글자 사방에 검정 테).
    실측(probe-lv-outline.js, 글자 둘레 3px 띠의 어두운 픽셀 비율): 수정 전 **7~10%** · 원본 61.9%.
    글자가 사실상 맨몸으로 밝은 그림 위에 놓여 있었다.
 
-   두 갈래로 고친다 — 왜 테만으로는 안 되는지가 계측에 그대로 나온다:
-   ⑴ 사방 8방향 테. ⚠️ 두께 함정: 두껍게 두르면 띠 수치는 쉽게 오르지만 글자 뒤가 통짜 검은 라벨 칩이
-      돼 '아이콘 위에 얹힌 글자' 인상이 깨진다(비평가 감점 기록). 그래서 **글자 사이 투과율**을 함께
-      재 원본대(35%)를 밑돌지 않는 선에서 두께를 정했다.
-   ⑵ 셀 하단 스크림. 원본은 라벨 **뒤 배경 자체가 63.5% 어둡다**(라벨 바로 위 같은 띠로 실측) —
-      원본 수치의 대부분은 테가 아니라 어두운 배경 몫이다. 우리는 아이콘을 셀에 꽉 채운 뒤로 그 자리가
-      4~9%까지 밝아져, 테만으로는 최악 조건에서 39%가 한계였다. 원본과 같은 '어두운 발치'를 돌려준다. */
-/* --ol 솔리드 테 두께. 1라운드에서 max(2px,.13rem) + 블러 헤일로로 갔다가 비평가 2명에게
-   52·61점을 맞았다 — 두 사람이 독립적으로 같은 진단을 냈다: **자간이 3~4px인데 테를 양쪽 2px씩
-   물리면 산술적으로 자간이 닫힌다.** 실제로 `0`의 속공간까지 메워져 라벨이 검은 슬래브가 됐고,
-   블러 헤일로가 그 슬래브의 상·하 직선 경계를 만들어 '검정 라벨 바'로 읽혔다.
-   → 테는 원본 실측대로 **1px 픽셀 정렬**, 헤일로는 **삭제**. 잃은 대비는 아래 스크림이 받는다.
-   판정 지표도 비평가들의 자로 바꿨다 — 라벨 상자 안 근검정 ≤40% · 배경 비침 ≥25%(원본 39%/27%). */
-.equip-cell .cell-lv, .equip-cell .cell-star { --ol: max(1px, .06rem); --old: var(--ol); }
-/* 셀 하단 스크림 — 라벨이 앉는 발치만 어둡게. 원본도 라벨 뒤 배경이 63.5% 어둡다(라벨 바로 위 같은
-   띠로 실측)는 근거로 넣었고, 비평가 1도 원본 하단 감광(61→43)을 확인해 '유지' 판정을 냈다.
-   다만 비평가 2가 26% 지점에서 띠 경계가 보인다고 지적해, 테를 1px로 줄이며 늘어난 몫을
-   **더 낮은 농도로 더 길게** 받도록 고쳤다(.45/26% → .34/38%). 빈 칸·탈것 칸은 라벨이 없거나
-   밝은 하늘색 버튼이라 제외. 쌓임 순서: 스크림(0) < ⭐(1) < Lv(2), 아이콘은 스크림 아래로 내린다. */
-.equip-cell:not(.egg-cell):not(.empty)::after {
-    content: ''; position: absolute; left: -3px; right: -3px; bottom: -3px; height: 38%;
-    background: linear-gradient(180deg, rgba(0,0,0,0) 0, rgba(0,0,0,.1) 38%, rgba(0,0,0,.26) 68%, rgba(0,0,0,.42) 100%);
-    border-radius: 0 0 .7rem .7rem; pointer-events: none; z-index: 0;
-}
+   고치는 축은 셋이다 — 사방 8방향 검정 테, 흰 획 굵기, 색 프린지 제거. ⚠️ 두께 함정: 테만 두껍게
+   두르면 띠 수치는 쉽게 오르지만 글자 뒤가 통짜 검은 라벨 칩이 돼 '아이콘 위에 얹힌 글자' 인상이
+   깨진다. 그래서 **글자 사이 배경 비침**과 **흰 획 굵기**를 함께 재며 원본대에 맞췄다. */
+/* 테 두께와 흰 획 굵기 — 비평가 4회 채점으로 좁힌 값이다.
+   1라운드 2px+헤일로 → 52·61점("자간 3~4px에 테 2px씩이면 산술적으로 자간이 닫힌다").
+   2라운드 1px+헤일로 삭제 → 70·69점. 칩 함정과 색 프린지는 빠져나왔지만 두 사람이 나란히
+   **진짜 병인**을 짚었다: 원본 흰 획은 2.56px인데 우리는 1.62px, 즉 **잉크 질량이 3분의 2**다.
+   획이 마르면 같은 테도 상대적으로 두꺼워 보여서, 테를 깎는 방향으로 가면 이번엔 너무 성겨진다.
+   → 획을 먼저 굵히고(-webkit-text-stroke로 흰 코어를 부풀린다. font-weight는 이미 900이라
+     더 올릴 데가 없고, 폰트 크기는 잉크 폭이 이미 원본대(68.2% vs 68.7%)라 건드리면 안 된다)
+     그다음 테를 원본 실측치인 2px대로 되돌린다. 순서가 반대면 슬래브가 된다.
+   ⚠️ 테 두께에서 비평가 둘이 **정반대 처방**을 냈다 — 한쪽은 원본을 1px로 읽어 "얇게", 다른 쪽은
+   2.31px로 읽어 "줄이지 말라". 눈으로 갈릴 문제가 아니라서 프로브에 자를 하나 더 넣었다:
+   **글자 둘레에 붙은 근검정 면적 / 둘레 길이 = 실효 테 두께**. 원본 실측 **2.69px**로 후자가 맞았다.
+   (1.3px로 내렸을 때 실측 1.10px — 원본의 40%밖에 안 된다.)
+   대각선 오프셋만 축(軸)의 .72배로 줄인다. 8방향을 전부 같은 길이로 쏘면 모서리에서 √2배로 뻗어
+   글자 바깥 2px까지 어두운 꼬리가 끌리고(비평가 2 실측: 5~9링에 37~57% 잔존) 이웃 글자의 테끼리
+   붙어 검정이 한 판으로 융합된다. 축 두께는 원본대로 두고 모서리만 깎는 게 맞다.
+   착지값 1.55px은 4차(1.3px, 74·80점 — 회귀 없이 개선된 첫 라운드)에서 두 비평가가 나란히 준
+   처방("1.5~1.6px까지만, 3차의 2.4px 근처로는 절대 가지 말 것")이다. 3차에서 2.4px로 올렸다가
+   `0`의 속공간이 메워져 67점으로 떨어진 전력이 있으니 이 상한을 넘기지 말 것.
+   `-webkit-text-stroke`는 .45px → .3px로 줄였다 — 흰 획을 굵혀 주는 대신 글리프를 **안쪽으로도**
+   밀어 `0`의 속공간을 잠식한다(원본 카운터 18~21px² vs .45px일 때 일률 10px²). font-weight는
+   이미 900이라 더 올릴 데가 없어서, 코어 굵기를 조금 내주고 속공간을 사는 쪽으로 균형을 잡았다.
+   테 색이 **순검정이 아니라 rgba(0,0,0,.86)**인 것도 원본 서명이다 — 원본 `0`의 속공간을 찍으면
+   #2e1414로, 셀 배경(#592627)의 R/G 비(2.34)가 그대로 살아 있다. 즉 좁은 틈에서는 배경이 절반쯤
+   비친다. 불투명 검정으로 두면 겹쳐 쌓인 바깥 윤곽은 똑같아 보여도 속공간만 통째로 메워진다.
+   합격 판정은 숫자보다 이것으로 한다: **확대해서 `0` 안쪽에 셀 배경색이 비치면 통과, 순검정이면 실패.** */
+.equip-cell .cell-lv, .equip-cell .cell-star { --ol: max(1.55px, .1rem); --old: calc(var(--ol) * .72); --olc: rgba(0,0,0,.86); }
+/* 하단 스크림은 **뺐다**. 2라운드에서 "원본도 라벨 뒤가 63.5% 어둡다"를 근거로 넣었는데,
+   비평가 2명이 각자 원본 셀의 세로 휘도를 훑어 **셀 전 구간이 평탄**(55.2 / 상하비 0.94~0.96)임을
+   보였다 — 원본은 셀 **전체가** 고르게 어두운 것이지 발치만 어두운 게 아니다. 우리 셀이 밝은 건
+   아이콘이 셀을 꽉 채우기 때문이고, 그건 라벨이 아니라 썸네일 쪽 사정이다. 원본에 없는 장치로
+   덮는 대신 글자 자체가 버티게 한다. */
 .equip-cell .cell-img { z-index: 0; }
 .equip-cell .cell-lv {
     position: absolute; bottom: .28rem; left: 0; right: 0; text-align: center; z-index: 2;
@@ -521,25 +531,26 @@ body {
        .72rem는 64.6%로 작았다. 비평가 2명이 공통으로 "원본은 흰 글자가 주인공인데 클론은 검정이
        주인공"이라 지적한 실체가 이 크기 차이다 — 획이 가늘면 같은 테도 상대적으로 두꺼워 보인다. */
     font-size: .78rem; font-weight: 900; color: #fff; white-space: nowrap;
-    /* 자간 — 1px 테가 양쪽에서 붙어도 글자 사이가 닫히지 않게 여유를 준다(비평가 2명 공통 지적).
+    /* 자간 — 테가 양쪽에서 붙어도 글자 사이가 닫히지 않게 여유를 준다(비평가 2명 공통 지적).
        서브픽셀 AA는 검정 테 위에서 청/주황 프린지를 만들어 흰 획을 탁하게 만든다(원본은 중성 회색
        AA) — 그레이스케일 AA로 강제한다. -webkit-font-smoothing 만으로는 이 요소에서 프린지가 남아
        레이어 승격(translateZ)까지 얹어야 서브픽셀 렌더링이 실제로 꺼진다. */
-    letter-spacing: .03em; -webkit-font-smoothing: antialiased; transform: translateZ(0);
+    letter-spacing: .05em; -webkit-font-smoothing: antialiased; transform: translateZ(0);
+    -webkit-text-stroke: .3px #fff;
     text-shadow:
-        var(--ol) 0 0 #000, calc(var(--ol) * -1) 0 0 #000,
-        0 var(--ol) 0 #000, 0 calc(var(--ol) * -1) 0 #000,
-        var(--old) var(--old) 0 #000, calc(var(--old) * -1) var(--old) 0 #000,
-        var(--old) calc(var(--old) * -1) 0 #000, calc(var(--old) * -1) calc(var(--old) * -1) 0 #000;
+        var(--ol) 0 0 var(--olc), calc(var(--ol) * -1) 0 0 var(--olc),
+        0 var(--ol) 0 var(--olc), 0 calc(var(--ol) * -1) 0 var(--olc),
+        var(--old) var(--old) 0 var(--olc), calc(var(--old) * -1) var(--old) 0 var(--olc),
+        var(--old) calc(var(--old) * -1) 0 var(--olc), calc(var(--old) * -1) calc(var(--old) * -1) 0 var(--olc);
 }
 .equip-cell .cell-star {
     position: absolute; bottom: -.5rem; left: 50%; transform: translateX(-50%);
     font-size: .8rem; font-weight: 900; color: #ffd54f; z-index: 1;
     text-shadow:
-        var(--ol) 0 0 #000, calc(var(--ol) * -1) 0 0 #000,
-        0 var(--ol) 0 #000, 0 calc(var(--ol) * -1) 0 #000,
-        var(--old) var(--old) 0 #000, calc(var(--old) * -1) var(--old) 0 #000,
-        var(--old) calc(var(--old) * -1) 0 #000, calc(var(--old) * -1) calc(var(--old) * -1) 0 #000;
+        var(--ol) 0 0 var(--olc), calc(var(--ol) * -1) 0 0 var(--olc),
+        0 var(--ol) 0 var(--olc), 0 calc(var(--ol) * -1) 0 var(--olc),
+        var(--old) var(--old) 0 var(--olc), calc(var(--old) * -1) var(--old) 0 var(--olc),
+        var(--old) calc(var(--old) * -1) 0 var(--olc), calc(var(--old) * -1) calc(var(--old) * -1) 0 var(--olc);
 }
 /* 모루 = 중앙 큰 제작 버튼, 좌측 ⓘ, 우측 대장간 버튼 2개 (UI-SPEC 1번) */
 .anvil-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .4rem; }
@@ -1249,7 +1260,7 @@ body {
     background: var(--pp-line); clip-path: var(--pen); border: 0; border-radius: .3rem .3rem 0 0;
     padding: .92rem .72rem 1.23rem; font-size: .8rem; font-weight: 900; line-height: 1.3;
     color: #fff; cursor: pointer; white-space: nowrap;
-    text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
+    text-shadow: 1px 1px 0 var(--olc), -1px 1px 0 var(--olc), 1px -1px 0 var(--olc), -1px -1px 0 var(--olc);
 }
 .pass-price::before {
     content: ''; position: absolute; inset: 3px; z-index: -1;
@@ -1645,9 +1656,9 @@ body {
 .chat-name, .chat-tag {
     /* 원본 외곽선은 **변당 2px**이다(비평가 C 실측: 이름 글자 띠 원본 15px vs 1px 외곽선 클론 11px).
        1px 8방향으로는 절반밖에 안 나오므로 2px 링을 겹쳐 두른다. */
-    text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000,
+    text-shadow: -1px 0 var(--olc), 1px 0 var(--olc), 0 -1px #000, 0 1px #000,
                  -1px -1px #000, 1px -1px #000, -1px 1px #000, 1px 1px #000,
-                 -2px 0 #000, 2px 0 #000, 0 -2px #000, 0 2px #000,
+                 -2px 0 var(--olc), 2px 0 var(--olc), 0 -2px #000, 0 2px #000,
                  -2px -1px #000, 2px -1px #000, -2px 1px #000, 2px 1px #000,
                  -1px -2px #000, 1px -2px #000, -1px 2px #000, 1px 2px #000;
 }
@@ -3310,7 +3321,7 @@ body {
 .coin-amt {
     position: absolute; transform: translate(-50%, -50%);
     font-size: .82rem; font-weight: 900; color: #ffd54f; white-space: nowrap;
-    text-shadow: 0 1px 0 #000, 0 0 .4rem rgba(255,183,77,.9);
+    text-shadow: 0 1px 0 var(--olc), 0 0 .4rem rgba(255,183,77,.9);
     animation: coinAmt .72s ease-out forwards;
 }
 @keyframes coinAmt {
@@ -3323,7 +3334,7 @@ body {
     position: absolute; transform: translate(-50%, -50%);
     display: flex; align-items: center; gap: .25rem; white-space: nowrap;
     font-size: 1.25rem; font-weight: 900; color: #ffd54f;
-    text-shadow: 0 2px 0 #000, 0 0 .7rem rgba(255,183,77,.95);
+    text-shadow: 0 2px 0 var(--olc), 0 0 .7rem rgba(255,183,77,.95);
     animation: coinTotal 1.05s ease-out forwards;
 }
 .coin-total .ico { width: 1.1rem; height: 1.1rem; }
