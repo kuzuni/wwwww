@@ -16,6 +16,12 @@ const OUT = __dirname;
     // 영웅 '정면' 기준 궤도 카메라 — 이전 절대 yaw 방식은 등짝만 찍혔음(비평가: "팔이 없다"의 실체)
     const fit = async (mult, orbit, hOff = 0.3) => page.evaluate(([mult, orbit, hOff]) => {
         Combat.tick = () => {};
+        if (typeof Skills !== 'undefined' && Skills.tick) Skills.tick = () => {}; // 자동 스킬 시전 차단 — 거대 시전 링이 뷰티샷을 오염 (비평가 6.8 7번)
+        if (!window.__realAtk) window.__realAtk = Scene3D.heroAttack;
+        Scene3D.heroAttack = () => {}; // 잔여 setTimeout발 자동 공격 차단 — 대기 중 트레일이 기록돼 뷰티샷에 'C자 링'으로 남음 (hero-full 오염의 실체)
+        for (const a of Scene3D.anims) { try { a.fn && a.fn(1); a.onDone && a.onDone(); } catch (err) {} } // 진행 중 연출 즉시 완료·제거
+        Scene3D.anims = [];
+        Scene3D._trailOn = false; Scene3D.trailPts = []; if (Scene3D.trailMesh) Scene3D.trailMesh.visible = false; // 촬영 전 잔여 트레일 소거
         Scene3D.walking = false;
         Scene3D.clearEnemies(); Combat.enemies = [];
         Scene3D.heroG.updateMatrixWorld(true);
@@ -91,7 +97,7 @@ const OUT = __dirname;
         m.hpBg.visible = m.hpFg.visible = false; // 적 HP바 숨김 — 컷에서 '부유하는 청록 막대'로 오독됨 (비평가 2번의 실체)
     });
     await page.evaluate(() => {
-        Scene3D.heroAttack(999);
+        (window.__realAtk || Scene3D.heroAttack).call(Scene3D, 999); // fit()이 노옵으로 막아둔 실제 공격 호출
         const R = Scene3D.heroRig;
         if (R) R._speed *= 0.5; // 슬로모 — 트레일 포인트(LIFE 0.18s)가 궤적 리본으로 쌓이게 (0.3은 리본이 짧아 스텁만 남음)
         for (const a of Scene3D.anims) { const k = a.t / a.dur; a.dur /= 0.5; a.t = k * a.dur; } // 돌진도 동율 슬로모
@@ -105,16 +111,23 @@ const OUT = __dirname;
         Scene3D._origUpdateTrail = Scene3D.updateTrail;
         Scene3D.updateTrail = () => {}; // 트레일 에이징도 동결 — 안 멈추면 스크린샷 시점(수백 ms 뒤)에 리본이 전부 소멸 (비평가 6.4 6번 'VFX 전무'의 실체)
         for (const a of Scene3D.anims) { const k = Math.min(1, a.t / a.dur); a.dur = 1e9; a.t = k * 1e9; }
+        // 임팩트 순간 연출 — 실제 게임 히트 프레임의 구성 요소(플래시·스쿼시)를 동결 프레임에 명시 적용
+        // (동결이 히트 콜백을 막아 '타격감 제로 컷'이 되던 문제, 비평가 6.8 4번)
+        const em = Scene3D.enemyMap.get(999);
+        if (em) {
+            for (const fm of em.flashMats) { fm.emissive.setHex(0xffffff); fm.emissiveIntensity = 0.28; } // 0.65는 반투명 슬라임이 유령처럼 씻겨 나감
+            em.g.scale.set(1.12, 0.85, 1.12); // 피격 스쿼시
+        }
         // 동결된 포즈 기준으로 카메라 재피팅 — 돌진으로 이동한 위치/비틀린 몸통 반영, 적은 프레임에 유지
         Scene3D.heroG.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(Scene3D.heroG);
         const c = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
-        const dist = Math.max(size.x, size.y, size.z) * 1.7 + 0.3;
+        const dist = Math.max(size.x, size.y, size.z) * 1.45 + 0.3; // 더 낮고 가깝게 — 액션 밀착감 (비평가 6.8 4번)
         const fwd = new THREE.Vector3();
         Scene3D.heroG.getWorldDirection(fwd);
         fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.95); // 적 반대편 측면 궤도 확대 — 검·트레일이 머리 뒤에 숨지 않게 (비평가 6.4 6번)
-        Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * 0.3, 0)), look: c.clone() };
+        Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * 0.22, 0)), look: c.clone() };
     });
     await page.waitForTimeout(150);
     await shot('hero-attack-mid.png');
@@ -122,6 +135,8 @@ const OUT = __dirname;
     await page.evaluate(() => {
         Scene3D.anims = [];
         if (Scene3D._origUpdateTrail) { Scene3D.updateTrail = Scene3D._origUpdateTrail; delete Scene3D._origUpdateTrail; }
+        Scene3D.heroAttack = () => {}; // 이후 전신·손 샷 동안 재공격 차단 유지
+        Scene3D.trailStart = () => {}; // 공격 내부 setTimeout 체인이 trailStart를 직접 재호출해 뷰티샷에 링이 남는 문제 원천 차단
         Scene3D._attacking = false; Scene3D._trailOn = false;
         Scene3D.trailPts = []; if (Scene3D.trailMesh) Scene3D.trailMesh.visible = false;
         Scene3D.clearEnemies(); Combat.enemies = [];
@@ -147,7 +162,7 @@ const OUT = __dirname;
         const out = p.clone().sub(c); out.y = 0; out.normalize();
         const fwd = new THREE.Vector3();
         Scene3D.heroG.getWorldDirection(fwd);
-        const camPos = p.clone().add(out.multiplyScalar(0.42)).add(fwd.multiplyScalar(0.3)).add(new THREE.Vector3(0, 0.1, 0));
+        const camPos = p.clone().add(out.multiplyScalar(0.46)).add(fwd.multiplyScalar(0.3)).add(new THREE.Vector3(0, 0.3, 0)); // 3/4 상단 앵글 — 손가락 컬·너클 가드 자기폐색 해소 (비평가 6.8 1번)
         Scene3D.camLock = { pos: camPos, look: p.clone().add(new THREE.Vector3(0, -0.02, 0)) };
     });
     await page.waitForTimeout(150);

@@ -138,25 +138,34 @@ const ProChar = {
         }, 64, 64);
     },
 
-    // 그라디언트 환경 큐브맵 — 금속 반사가 '고무'가 아니라 '강철'로 읽히게 하는 핵심
+    // 그라디언트 환경 큐브맵 — 금속 반사가 '고무'가 아니라 '강철'로 읽히게 하는 핵심.
+    // 저대비 민짜 그라디언트는 반사 '내용물'이 없어 금속이 새틴으로 뭉개짐(비평가 6.8) — 태양 핫스팟+어두운 지면으로 대비 확보
     envMap() {
         if (this._envMap) return this._envMap;
         const faces = [];
         for (let i = 0; i < 6; i++) {
             const c = document.createElement('canvas');
-            c.width = c.height = 32;
+            c.width = c.height = 64;
             const ctx = c.getContext('2d');
-            if (i === 2) { // +Y 하늘: 밝은 청백
-                ctx.fillStyle = '#e8f2fb'; ctx.fillRect(0, 0, 32, 32);
-            } else if (i === 3) { // -Y 지면: 어두운 갈녹
-                ctx.fillStyle = '#4b5540'; ctx.fillRect(0, 0, 32, 32);
-            } else { // 측면: 하늘→지평선→지면 그라디언트
-                const g = ctx.createLinearGradient(0, 0, 0, 32);
-                g.addColorStop(0, '#dceaf8');
-                g.addColorStop(0.5, '#f6efe0'); // 지평선 웜톤 — 하이라이트 롤에 온기
-                g.addColorStop(0.55, '#7c8468');
-                g.addColorStop(1, '#4b5540');
-                ctx.fillStyle = g; ctx.fillRect(0, 0, 32, 32);
+            if (i === 2) { // +Y 하늘: 밝은 청백 + 천정 태양 글로우
+                ctx.fillStyle = '#dcebfa'; ctx.fillRect(0, 0, 64, 64);
+                const sg = ctx.createRadialGradient(44, 22, 0, 44, 22, 26);
+                sg.addColorStop(0, '#ffffff'); sg.addColorStop(0.35, '#fff6dd'); sg.addColorStop(1, 'rgba(255,246,221,0)');
+                ctx.fillStyle = sg; ctx.fillRect(0, 0, 64, 64);
+            } else if (i === 3) { // -Y 지면: 어두운 갈녹 — 대비 확보 위해 더 어둡게
+                ctx.fillStyle = '#2f3828'; ctx.fillRect(0, 0, 64, 64);
+            } else { // 측면: 하늘→지평선→지면 그라디언트 (지평선 명암 단차 강화)
+                const g = ctx.createLinearGradient(0, 0, 0, 64);
+                g.addColorStop(0, '#e6f1fb');
+                g.addColorStop(0.48, '#fdf3da'); // 지평선 웜톤 — 하이라이트 롤에 온기
+                g.addColorStop(0.55, '#5c6448');
+                g.addColorStop(1, '#2f3828');
+                ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+                if (i === 0) { // +X면 태양 원반 — 금속 하이라이트의 '광원 반사' 콘텐츠
+                    const sg = ctx.createRadialGradient(32, 14, 0, 32, 14, 18);
+                    sg.addColorStop(0, '#ffffff'); sg.addColorStop(0.3, '#ffeec4'); sg.addColorStop(1, 'rgba(255,238,196,0)');
+                    ctx.fillStyle = sg; ctx.fillRect(0, 0, 64, 64);
+                }
             }
             faces.push(c);
         }
@@ -368,6 +377,7 @@ const ProChar = {
             const palm = new THREE.Mesh(new THREE.SphereGeometry(0.052, 9, 8), palmMat);
             palm.scale.set(1.0, 1.05, 0.72); // 앞뒤로 눌린 손등 블록
             fist.add(palm);
+            const creaseMat = new THREE.MeshBasicMaterial({ color: 0x2e2115 }); // 손가락 사이 다크 크리즈 — 같은 살구색 융합 방지 (비평가 6.8 1번)
             for (let fi = 0; fi < 4; fi++) { // 4지 — 손등 앞면에 나란히, 아래·안쪽으로 말아쥔 2분절
                 const fx = (fi - 1.5) * 0.0235;
                 const fw = fi === 3 ? 0.017 : 0.02; // 새끼손가락만 가늘게
@@ -380,6 +390,12 @@ const ProChar = {
                 const joint = new THREE.Mesh(new THREE.SphereGeometry(fw * 0.56, 6, 5), gloveMat);
                 joint.position.set(fx, -0.028, 0.058); // 두 분절 사이 관절 볼록
                 fist.add(prox, dist, joint);
+                if (fi < 3) { // 손가락 사이 홈 — 얇은 다크 판이 분절 경계를 실루엣 안에서도 판독시킴
+                    const crease = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.05, 0.045), creaseMat);
+                    crease.position.set(fx + 0.0118, -0.026, 0.05);
+                    crease.rotation.x = -1.4;
+                    fist.add(crease);
+                }
             }
             // 엄지 — 손 안쪽에서 손가락들 앞을 가로지르는 2분절
             const thumbA = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.015, 0.045, 6), gloveMat);
@@ -390,10 +406,13 @@ const ProChar = {
             thumbB.rotation.set(-1.4, 0, side * -0.35);
             fist.add(thumbA, thumbB);
             // 강철 너클 가드 — 손등 위 장갑판 (건틀릿다움 + 프리미티브 접합 은폐)
-            const guard = new THREE.Mesh(new THREE.SphereGeometry(0.046, 8, 6), steelDark());
+            // 다크 스틸은 가죽과 명도가 붙어 안 읽힘(비평가 6.8 1번) — 밝은 스틸 + 골드 리벳으로 재질 대비 확보
+            const guard = new THREE.Mesh(new THREE.SphereGeometry(0.048, 9, 7), steel());
             guard.position.set(0, 0.012, 0.012);
             guard.scale.set(1.15, 0.75, 0.85);
-            fist.add(guard);
+            const gRivet = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 5), gold);
+            gRivet.position.set(0, 0.03, 0.038);
+            fist.add(guard, gRivet);
             // 손목 가죽 스트랩 — 클로즈업 중간 디테일 (커프-주먹 경계 정의)
             const strap = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.012, 6, 12), gloveMat);
             strap.rotation.x = Math.PI / 2;

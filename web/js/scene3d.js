@@ -677,7 +677,7 @@ const Scene3D = {
         // 각진 플랫셰이딩 지형 메시 + 얼룩 텍스처 + 노멀맵(조명 반응 요철) + 버텍스 컬러 매크로 패치
         const gt = this.groundTexFor('forest');
         this.terrainMat = new THREE.MeshPhongMaterial({
-            color: 0x7cb342, flatShading: true, shininess: 0, vertexColors: true,
+            color: 0x7cb342, shininess: 0, vertexColors: true, // flatShading 제거 — 넓은 지면의 삼각 파세팅이 '로우폴리 프로토타입' 인상 (비평가 6.8 5번), 요철은 노멀맵이 담당
             map: gt.map, normalMap: gt.normal,
             normalScale: new THREE.Vector2(0.7, 0.7), // 1.45는 고주파 스펙클('카펫')로 읽힘 — 저폴리 소품과 톤 맞춤
         });
@@ -717,6 +717,51 @@ const Scene3D = {
         this.ground = new THREE.Mesh(geo, this.terrainMat);
         this.ground.receiveShadow = true;
         this.scene.add(this.ground);
+
+        // 전투 라인 흙길 데칼 — 영웅·적이 오가는 z≈0 밴드에 밟혀 다져진 길 (단색 초원 '녹색 램프' 인상 해소, 비평가 지적)
+        // ground의 자식이라 지형 타일 순환(x±30 점프)을 자동으로 따라간다. 텍스처 x반복 2 = 주기 30과 일치.
+        {
+            const pc = document.createElement('canvas');
+            pc.width = 512; pc.height = 128;
+            const ctx = pc.getContext('2d');
+            ctx.clearRect(0, 0, 512, 128);
+            // 직선 그라디언트 밴드는 '아스팔트 고속도로'로 읽힘 — 소프트 블롭을 중심선 따라 지터로 겹쳐 유기적인 다짐길로
+            for (let i = 0; i < 150; i++) {
+                const x = Math.random() * 512;
+                const y = 64 + Math.sin(x * 0.02 + 1.7) * 14 + U.rand(-20, 20); // 중심선 자체가 완만히 굽이침
+                const r = 12 + Math.random() * 26;
+                const warm = Math.random() < 0.6;
+                const gb = ctx.createRadialGradient(x, y, 0, x, y, r);
+                gb.addColorStop(0, warm ? 'rgba(118,90,60,0.16)' : 'rgba(84,64,44,0.15)');
+                gb.addColorStop(1, 'rgba(90,68,46,0)');
+                ctx.fillStyle = gb;
+                ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+            }
+            for (let i = 0; i < 26; i++) { // 짧은 발자국/긁힘 결 — 긴 스트릭은 차선으로 오독
+                ctx.strokeStyle = Math.random() < 0.5 ? 'rgba(66,48,32,0.2)' : 'rgba(140,112,80,0.16)';
+                ctx.lineWidth = 1.2 + Math.random() * 1.6;
+                const x = Math.random() * 512, y = 40 + Math.random() * 48;
+                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 6 + Math.random() * 14, y + U.rand(-3, 3)); ctx.stroke();
+            }
+            for (let i = 0; i < 30; i++) { // 잔자갈
+                const v = 110 + Math.floor(Math.random() * 55);
+                ctx.fillStyle = `rgba(${v},${v - 12},${v - 28},0.4)`;
+                ctx.beginPath();
+                ctx.arc(Math.random() * 512, 38 + Math.random() * 52, 0.8 + Math.random() * 1.8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            const ptex = new THREE.CanvasTexture(pc);
+            ptex.wrapS = THREE.RepeatWrapping;
+            ptex.repeat.set(2, 1);
+            const pathGeo = new THREE.PlaneGeometry(60, 1.7, 1, 1);
+            pathGeo.rotateX(-Math.PI / 2);
+            this.pathMesh = new THREE.Mesh(pathGeo, new THREE.MeshLambertMaterial({
+                map: ptex, transparent: true, depthWrite: false,
+            }));
+            this.pathMesh.position.set(0, 0.02, 0.1); // 전투 라인 위 살짝 띄움 (z-파이팅 방지)
+            this.pathMesh.receiveShadow = true;
+            this.ground.add(this.pathMesh);
+        }
 
         // 원경 능선 2겹 — 노이즈 프로필의 커스텀 실루엣 메시(콘의 단조로운 삼각형 대체).
         // 안개 낀 원경은 조명 음영이 거의 안 읽히므로 라이팅 없는 순색(MeshBasic)+fog 블렌딩이 그림처럼 보임.
@@ -979,6 +1024,50 @@ const Scene3D = {
             g.position.set(x, this.heightAt(x, z) + 0.02, z);
             this.scene.add(g);
             this.rocks.push(g);
+        }
+        // 꽃 무리 + 양치류 — 2차 식생 (나무·바위·풀 3종 반복의 단조로움 해소, 비평가 '환경 밀도' 지적)
+        if (!['lava', 'desert', 'rock', 'snow'].includes(biome)) {
+            const petalCols = [0xef6292, 0xfff176, 0xba68c8, 0xff8a65, 0xf5f5f5];
+            this._flowerMats = this._flowerMats || petalCols.map(c => new THREE.MeshLambertMaterial({ color: c }));
+            this._stemMat = this._stemMat || new THREE.MeshLambertMaterial({ color: 0x4a7332 });
+            this._fernMat = this._fernMat || new THREE.MeshLambertMaterial({ color: 0x3d6b2a, side: THREE.DoubleSide });
+            for (let i = 0; i < 6; i++) { // 꽃 무리: 줄기+꽃송이 2~4개 클러스터
+                const cl = new THREE.Group();
+                const n = 2 + Math.floor(Math.random() * 3);
+                const mat = this._flowerMats[Math.floor(Math.random() * this._flowerMats.length)];
+                for (let j = 0; j < n; j++) {
+                    const fx = U.rand(-0.09, 0.09), fz = U.rand(-0.09, 0.09), fh = U.rand(0.09, 0.16);
+                    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.011, fh, 5), this._stemMat);
+                    stem.position.set(fx, fh / 2, fz);
+                    stem.rotation.z = U.rand(-0.2, 0.2);
+                    const head = new THREE.Mesh(new THREE.IcosahedronGeometry(U.rand(0.028, 0.042), 0), mat);
+                    head.position.set(fx + stem.rotation.z * -fh * 0.5, fh + 0.02, fz);
+                    cl.add(stem, head);
+                }
+                const g = grounded(cl, 0.5);
+                const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.6, 1.7); } while (Math.abs(zz) < 0.9); return zz; })();
+                g.position.set(x, this.heightAt(x, z) + 0.02, z);
+                this.scene.add(g);
+                this.rocks.push(g);
+            }
+            for (let i = 0; i < 4; i++) { // 양치류: 중심에서 방사형으로 젖힌 잎날 5~6개
+                const fern = new THREE.Group();
+                const blades = 5 + Math.floor(Math.random() * 2);
+                for (let j = 0; j < blades; j++) {
+                    const a = (j / blades) * Math.PI * 2 + U.rand(-0.2, 0.2);
+                    const len = U.rand(0.16, 0.26);
+                    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.035, len, 4), this._fernMat);
+                    blade.scale.z = 0.3; // 납작한 잎
+                    blade.position.set(Math.cos(a) * 0.07, len * 0.42, Math.sin(a) * 0.07);
+                    blade.rotation.set(Math.sin(a) * 0.85, -a, Math.cos(a) * 0.85); // 바깥으로 젖힘
+                    fern.add(blade);
+                }
+                const g = grounded(fern, 0.6);
+                const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.6, 1.7); } while (Math.abs(zz) < 0.9); return zz; })();
+                g.position.set(x, this.heightAt(x, z) + 0.02, z);
+                this.scene.add(g);
+                this.rocks.push(g);
+            }
         }
         // 무한맵 스크롤 대상 (걷는 동안 왼쪽으로 흘러가며 순환, 지형 높이 추적)
         this.scrollables = [...this.trees, ...this.rocks];
@@ -1937,18 +2026,22 @@ const Scene3D = {
             vGeo.rotateZ(Math.PI * 0.07);
             vGeo.rotateX(Math.PI / 2);
             // 밝은 단색 아크는 눈을 가리는 '안대/눈가리개'로 오독(비평가 6.4 5번) — 다크 스모크 유리 밴드 + 안쪽 발광 눈 2점으로 재작업
+            // 고금속·저러프는 밝은 하늘 env를 통반사해 도로 '밝은 밴드'가 됨(비평가 6.8 3번) — 저금속 무광에 가까운 흑유리로
             const visorArc = new THREE.Mesh(vGeo, new THREE.MeshStandardMaterial({
-                color: 0x10161c, metalness: 0.9, roughness: 0.12, envMapIntensity: 1.1,
-                emissive: new THREE.Color(pc), emissiveIntensity: 0.12
+                color: 0x090d13, metalness: 0.3, roughness: 0.32, envMapIntensity: 0.45
             }));
             visorArc.position.set(0, 0.01, 0.035);             // 눈높이로 하강 — 이마 밴드 오독 방지
             visorArc.scale.y = 0.6;                            // 납작한 슬릿 단면
-            for (const dx of [-0.095, 0.095]) {                // 유리면 위 발광 눈 — 시선 판독 복원 (밴드 전면 z보다 앞)
-                const eye = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6),
-                    new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.1, 0.22) }));
+            for (const dx of [-0.095, 0.095]) {                // 유리면 위 발광 눈 — 채도 높은 순색 + 가산 글로우 셸
+                const eyeC = new THREE.Color(pc).offsetHSL(0, 0.25, 0.08);
+                const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: eyeC }));
                 eye.position.set(dx, 0.01, 0.3);
                 eye.scale.set(1.3, 0.72, 0.4);                 // 가로로 긴 렌즈 눈
-                g.add(eye);
+                const glow = new THREE.Mesh(new THREE.SphereGeometry(0.068, 8, 6),
+                    new THREE.MeshBasicMaterial({ color: eyeC, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
+                glow.position.copy(eye.position);
+                glow.scale.set(1.35, 0.8, 0.45);
+                g.add(eye, glow);
             }
             // 이어 포드 + 정수리 능선
             for (const dx of [-0.27, 0.27]) {
@@ -3660,15 +3753,15 @@ const Scene3D = {
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(24 * 6 * 3), 3));
             this.trailMat = new THREE.MeshBasicMaterial({
-                transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending,
+                transparent: true, opacity: 0.92, blending: THREE.AdditiveBlending, // 0.75는 밝은 배경에서 빈혈 리본으로 씻김 (비평가 6.8 4번)
                 depthWrite: false, side: THREE.DoubleSide,
             });
             this.trailMesh = new THREE.Mesh(geo, this.trailMat);
             this.trailMesh.frustumCulled = false;
             this.scene.add(this.trailMesh);
         }
-        // 가산 블렌딩은 밝은 배경에서 씻겨 보임 — 밝기 대신 채도를 올려 색 자체가 얹히게
-        this.trailMat.color.setHex(colorHex).offsetHSL(0, 0.25, -0.05);
+        // 가산 블렌딩은 밝은 배경에서 씻겨 보임 — 채도·명도 동시 상향으로 코어가 살아있는 리본 (비평가 6.8 4번)
+        this.trailMat.color.setHex(colorHex).offsetHSL(0, 0.3, 0.06);
         this.trailPts = this.trailPts || [];
         this._trailPrevLocal = null;
         this._trailOn = true;
