@@ -35,7 +35,6 @@
 
         <div id="skill-cutin"></div>
         <div id="skill-flash"></div>
-        <div id="dmg-flash"></div>
         <div id="loot-feed"></div>
 
         <!-- 스킬 슬롯: 전투 화면 우중단 (UI-SPEC 1번 — 자동 토글 + 원형 버튼 3개) -->
@@ -74,6 +73,11 @@
         <button data-tab="shop">🏪<span>상점</span></button>
         <button data-tab="debug">🐞<span>디버그</span></button>
     </div>
+
+    <!-- 영웅 피격 비네트 — 보스 경고와 같은 이유로 #app 직속이다.
+         #game-area 안에 두면 3D 영역(화면 상단 절반)만 붉어지고 장비 시트·탭바에는
+         비네트가 없어, 경계선 y에서 붉은 기가 직선으로 잘리는 게 눈에 보였다. -->
+    <div id="dmg-flash"></div>
 
     <!-- 보스 경고 연출 (사용자 지시: "워닝 워닝 워닝" 느낌으로 화려하게)
          #game-area가 아니라 #app 직속이라야 장비 시트·탭바까지 포함한 '화면 전체'를 덮는다.

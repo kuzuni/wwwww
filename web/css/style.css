@@ -213,13 +213,16 @@ body {
 
 /* 영웅 피격 비네트 — 세기(--vig)는 피해 비율에 따라 JS가 준다 (쥬시니스 패스) */
 #dmg-flash {
-    position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 5;
+    /* #app 직속 풀스크린 — 34는 탭바(10)·장비 시트 위, 보스 경고(35) 바로 아래다.
+       모달이 떠 있을 때는 보스 경고와 같은 규칙으로 모달(20) 밑(19)으로 내린다. */
+    position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 34;
     /* 밝은 낮 배경 위에서는 가장자리 붉은 가산만으로 신호가 안 된다 — 안쪽 32%까지 당기고
        어두운 적색을 섞어 '감광'까지 만든다(비평가 4번: c1~c3에서 비네트가 아예 관측 안 됨). */
     background: radial-gradient(ellipse at center, transparent 30%, rgba(120,14,14,.42) 66%, rgba(255,58,44,.92) 100%);
 }
 /* 켜짐은 즉발, 유지 후 여운 있게 소멸 — 타이머+트랜지션 대신 키프레임 하나로 (세기는 flashDamage가 --vig로 주입) */
 #dmg-flash.on { animation: dmgvignette .44s ease-out forwards; }
+#app:has(> .modal:not(.hidden)) #dmg-flash { z-index: 19; }
 @keyframes dmgvignette {
     0%   { opacity: 0; }
     7%   { opacity: var(--vig, 1); }
