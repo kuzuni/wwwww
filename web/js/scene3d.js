@@ -1808,10 +1808,10 @@ const Scene3D = {
         // 영웅은 공격/걷기 중 heroG.rotation.y가 계속 바뀌므로 그 자식으로 넣지 않고 씬에 독립적으로
         // 두어 매 프레임 위치만 추적(update()) — 회전은 항상 0으로 고정돼 카메라를 그대로 향함.
         this.heroHpG = new THREE.Group();
-        const hpBg = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.135), new THREE.MeshBasicMaterial({ color: 0x0d1114, side: THREE.DoubleSide, transparent: true, opacity: 0.82, toneMapped: false }));
-        const hpGhost = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: 0xe8a800, side: THREE.DoubleSide, toneMapped: false }));
+        const hpBg = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.135), new THREE.MeshBasicMaterial({ color: this.srgbC(0x0d1114), side: THREE.DoubleSide, transparent: true, opacity: 0.82, toneMapped: false }));
+        const hpGhost = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: this.srgbC(0xe8a800), side: THREE.DoubleSide, toneMapped: false }));
         hpGhost.position.z = 0.005;
-        const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: 0x2ebd6b, side: THREE.DoubleSide, toneMapped: false }));
+        const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: this.srgbC(0x2ebd6b), side: THREE.DoubleSide, toneMapped: false }));
         hpFg.position.z = 0.01;
         this.heroHpG.add(hpBg, hpGhost, hpFg);
         this.heroHpBg = hpBg;
@@ -4110,12 +4110,12 @@ const Scene3D = {
         const barY = (e.isBoss ? topY + 0.35 : topY + 0.25);
         // 트랙(배경)을 채움바보다 크게 잡아 어두운 테두리를 만든다 — 같은 크기면 테두리가 안 생겨
         // 밝은 초원 위에서 바 경계가 사라진다. 채움색은 toneMapped=false + 블룸 임계 아래 채도로 (비평가 3번)
-        const hpBg = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.135), new THREE.MeshBasicMaterial({ color: 0x0d1114, side: THREE.DoubleSide, transparent: true, opacity: 0.82, toneMapped: false }));
+        const hpBg = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.135), new THREE.MeshBasicMaterial({ color: this.srgbC(0x0d1114), side: THREE.DoubleSide, transparent: true, opacity: 0.82, toneMapped: false }));
         hpBg.position.y = barY;
         // 손실 잔상바(고스트): 앞바는 즉시 깎이고 이 바가 뒤늦게 스르륵 따라 줄어들며 "방금 얼마나 깎였는지"를 보여준다
-        const hpGhost = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: 0xe8a800, side: THREE.DoubleSide, toneMapped: false }));
+        const hpGhost = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: this.srgbC(0xe8a800), side: THREE.DoubleSide, toneMapped: false }));
         hpGhost.position.set(0, barY, 0.005);
-        const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: 0x2ebd6b, side: THREE.DoubleSide, toneMapped: false }));
+        const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: this.srgbC(0x2ebd6b), side: THREE.DoubleSide, toneMapped: false }));
         hpFg.position.set(0, barY, 0.01);
         hpG.add(hpBg, hpGhost, hpFg);
         hpG.scale.setScalar(g.scale.x); // scene 직속이라 예전에 상속받던 baseScale을 직접 건다
@@ -4572,6 +4572,19 @@ const Scene3D = {
         }, () => { this.camera.fov = this._fov0; this.camera.updateProjectionMatrix(); });
     },
 
+    // sRGB로 고른 UI 색을 three 머티리얼에 넣기 위한 변환 (hex → 선형 THREE.Color, 캐시).
+    // renderer.outputEncoding = sRGBEncoding이라 머티리얼 색은 **선형값으로 취급돼 출력에서 다시
+    // sRGB 인코딩**된다. 그래서 0x0d1114(니어블랙)를 그냥 넣으면 화면에는 (63,71,77) 중간 슬레이트로,
+    // 민트 0x2ebd6b는 (115,224,173) 파스텔로 뜬다 — 디자인 팔레트가 통째로 한 단계 밝고 옅어진다.
+    // (3차 비평가가 "채움이 (107,233,173) 민트"라고 계측한 값이 정확히 이 현상이다.)
+    // 매 프레임 도는 경로에서도 쓰므로 hex별로 캐시해 Color 할당을 없앤다.
+    srgbC(hex) {
+        const c = this._srgbCache || (this._srgbCache = new Map());
+        let v = c.get(hex);
+        if (!v) { v = new THREE.Color(hex).convertSRGBToLinear(); c.set(hex, v); }
+        return v;
+    },
+
     // 머리 위 HP 바 피격 신호: 앞바 흰 플래시 + 잔상바 지연 + 바 흔들림 (감쇠는 driveHpBar가 매 프레임 처리)
     hitHpBar(o, sev) {
         if (!o) return;
@@ -4591,10 +4604,11 @@ const Scene3D = {
         o.hpFlash = Math.max(0, (o.hpFlash || 0) - dt * 7); // 흰 플래시 ≈0.14초
         // 채움은 항상 순수 체력색 — 예전엔 여기에 흰색을 섞어서 피격 순간(정작 제일 오래 보는 프레임)에
         // 초록/노랑/빨강 색코딩이 통째로 날아갔다(비평가 2차 ⓓ). 플래시는 아래 트랙 테두리로 옮겼다.
-        fg.material.color.setHex(ratio > 0.5 ? 0x2ebd6b : ratio > 0.2 ? 0xe8a800 : 0xd63a3a);
+        // ⚠️ setHex 금지 — srgbC로 변환한 색을 copy 한다(출력 sRGB 인코딩 때문. srgbC 주석 참조).
+        fg.material.color.copy(this.srgbC(ratio > 0.5 ? 0x2ebd6b : ratio > 0.2 ? 0xe8a800 : 0xd63a3a));
         // 트랙(채움보다 큰 어두운 판 = 테두리)만 흰색으로 밀어올린다 — 바 둘레가 번쩍이고 내용물은 읽힌다
         if (o.hpBg) {
-            o.hpBg.material.color.setHex(0x0d1114).lerp(W, o.hpFlash * 0.9);
+            o.hpBg.material.color.copy(this.srgbC(0x0d1114)).lerp(W, o.hpFlash * 0.9);
             o.hpBg.material.opacity = 0.82 + o.hpFlash * 0.18;
         }
         if (gh) {
@@ -4605,7 +4619,7 @@ const Scene3D = {
             }
             gh.scale.x = Math.max(0.001, o.ghostV);
             gh.position.x = -0.4 * (1 - o.ghostV);
-            gh.material.color.setHex(o.ghostColor || 0xffca28);
+            gh.material.color.copy(this.srgbC(o.ghostColor || 0xffca28));
             gh.visible = o.ghostV > ratio + 0.004;
         }
         o.barShake = Math.max(0, (o.barShake || 0) - dt * 5.5);
@@ -5086,8 +5100,15 @@ const Scene3D = {
     },
 
     scorchDecal(pos, radius, dur) {
+        // ⚠️ 색은 반드시 convertSRGBToLinear를 거친다. renderer.outputEncoding = sRGBEncoding이라
+        // 머티리얼 색은 **선형값으로 취급돼 출력에서 sRGB 인코딩**된다 — 0x3a1a0a(니어블랙 갈색)를
+        // 그냥 넣으면 화면에는 (131,90,57) 중간 갈색으로 나와, '어두운 값을 하나 넣는다'는 이 데칼의
+        // 존재 이유가 뒤집힌다(실측: 데칼이 지면 R채널을 오히려 +2.9 밝게 만들었다 — 3차 지적 ⑤).
         const d = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2),
-            new THREE.MeshBasicMaterial({ map: this.scorchTex(), color: 0x3a1a0a, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+            new THREE.MeshBasicMaterial({
+                map: this.scorchTex(), color: new THREE.Color(0x3a1a0a).convertSRGBToLinear(),
+                transparent: true, opacity: 0, depthWrite: false, toneMapped: false,
+            }));
         d.rotation.x = -Math.PI / 2;
         d.position.set(pos.x, 0.035, pos.z); // 지면(0)보다 살짝 위 — z-파이팅 방지, 블롭 섀도우(0.025)보다도 위
         this.scene.add(d);
