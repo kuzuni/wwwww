@@ -51,7 +51,14 @@ const T = {
                 '아바타 좌 인셋': pw(av.left - app.left), '아바타 폭': pw(av.width), '아바타 높이': pw(av.height),
                 '아바타→말풍선 간격': pw(bw.left - av.right),
                 '말풍선 좌': pw(bu.left - app.left), '말풍선 폭': pw(bu.width), '말풍선 우끝': pw(bu.right - app.left),
-                '말풍선 높이(1줄)': pw(bu.height), '행 피치': r1 ? pw(r1.getBoundingClientRect().top - r0.getBoundingClientRect().top) : null,
+                // 행 피치·말풍선 높이는 **전 행 평균**으로 낸다 — 한 행만 재면 한글 행(말풍선이 더 높다)이
+                // 걸렸는지에 따라 런마다 ±4px 튄다(비평가 B도 같은 흔들림을 지적).
+                '말풍선 높이(1줄)': pw(rows.map(r => r.querySelector('.chat-bubble'))
+                    .filter(b => b && b.getBoundingClientRect().height < 46)
+                    .reduce((s, b, _, a) => s + b.getBoundingClientRect().height / a.length, 0)),
+                '행 피치': rows.length > 1
+                    ? pw((rows[rows.length - 1].getBoundingClientRect().top - r0.getBoundingClientRect().top) / (rows.length - 1))
+                    : null,
                 '입력바 높이': pw(bar.height),
                 '입력칸 좌': pw(inp.left - app.left), '입력칸 폭': pw(inp.width), '입력칸 높이': pw(inp.height),
                 '뒤로버튼 좌': pw(bk.left - app.left), '뒤로버튼 폭': pw(bk.width), '뒤로버튼 높이': pw(bk.height),

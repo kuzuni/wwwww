@@ -1517,7 +1517,7 @@ body {
     width: calc(var(--app-w) * .0721); height: calc(var(--app-w) * .0581);
     border-radius: .35rem; font-size: 1.15rem; flex: none;
 }
-.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; padding: 0; }
+.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .47rem; padding: 0; }
 /* 원본 실측(499px 폭): 좌 여백 63px=12.63%W · 아바타 44px=8.82%W · 간격 4px=0.80%W ·
    말풍선 324px=64.93%W → 우끝 87.17%W. 합이 곧 우측 여백 12.82%W다. */
 .chat-row {
@@ -1530,14 +1530,21 @@ body {
     display: flex; align-items: center; justify-content: center; font-size: 1.6rem; flex: none;
 }
 .chat-bubble-wrap { flex: 0 0 calc(var(--app-w) * .6493); min-width: 0; margin-right: auto; }
-.chat-name-line { display: flex; align-items: center; gap: .3rem; font-size: .72rem; margin-bottom: .2rem; }
+/* 원본 이름줄은 말풍선(우끝 434px)보다 13px 더 오른쪽(447px=89.58%W)까지 뻗어 시간이 그 끝에 붙는다
+   — 말풍선 폭에 맞춰 놓으면 시간이 2.61%p 안쪽으로 들어온다. 이름줄만 폭을 따로 준다. */
+.chat-name-line {
+    display: flex; align-items: center; gap: .3rem; font-size: .88rem; margin-bottom: .30rem;
+    width: calc(var(--app-w) * .6754);
+}
 .chat-name { font-weight: 800; }
 .chat-row.mine .chat-name { color: #ff880f; } /* 원본은 내 메시지 이름도 같은 주황 */
 /* 원본은 태그·이름을 구분하지 않고 전부 같은 주황 rgb(255,136,15), 시간은 rgb(84,84,84) */
 .chat-tag { color: #ff880f; }
-.chat-time { margin-left: auto; color: #545454; font-size: .66rem; }
+.chat-time { margin-left: auto; color: #545454; font-size: .82rem; }
+/* 원본 실측: 같은 문자열("how's it going")이 원본 102×14px vs 교정 전 클론 79×12px 로 타이포가 통째로
+   작았다. 글자 잉크 높이 14px 기준으로 키우고, 안쪽 좌 패딩도 원본 9px 에 맞춘다(교정 전 12px). */
 .chat-bubble {
-    background: #cecece; color: #17181a; border-radius: .6rem; padding: .45rem .65rem; font-size: .8rem;
+    background: #cecece; color: #17181a; border-radius: .6rem; padding: .38rem .45rem; font-size: .90rem;
     display: block; width: 100%; word-break: break-word; /* 원본: 짧은 메시지도 고정폭 말풍선 */
 }
 .chat-share-card {
@@ -1562,11 +1569,13 @@ body {
    → 입력칸 좌 11.82%W · 폭 85.37%W 가 자동으로 따라온다. 세로 패딩 22px=4.41%W. */
 .chat-input-bar {
     display: flex; gap: calc(var(--app-w) * .026); align-items: center; background: #0e111b;
-    padding: calc(var(--app-w) * .0441) calc(var(--app-w) * .0281) calc(var(--app-w) * .0441) calc(var(--app-w) * .02);
+    padding: calc(var(--app-w) * .034) calc(var(--app-w) * .0281) calc(var(--app-w) * .048) calc(var(--app-w) * .02);
 }
+/* 원본 입력칸은 알약이 아니다 — 426×42px 에 모서리 반경 ≈4px(반경/높이 0.10, 알약이면 0.5)이고
+   플레이스홀더 좌 여백은 23px. */
 .chat-input-bar input {
-    flex: 1; background: #fff; border: none; border-radius: 1.4rem;
-    padding: .8rem 1rem; color: #17181a; font-size: .86rem;
+    flex: 1; background: #fff; border: none; border-radius: .24rem;
+    padding: .8rem 1.37rem; color: #17181a; font-size: .86rem;
 }
 .btn.round { width: 2.6rem; height: 2.6rem; border-radius: 50%; padding: 0; flex: none; font-size: 1.15rem; }
 
