@@ -4031,10 +4031,20 @@ const Scene3D = {
         const m = this.enemyMap.get(id);
         if (!m) return;
         // 처치 버스트: 주황 파편 + 흰 코어 스파크 + 순간 점광 + 충격 링, 보스는 전부 확대판 (마지막 한 방이 제일 세게 터지도록)
-        const burst = m.g.position.clone().add(new THREE.Vector3(0, 0.5, 0));
+        // 버스트 원점은 적 실높이의 중간 — 고정 +0.5는 보스(실높이 2.1)에선 무릎 높이라
+        // 마지막 한 방이 발밑에서 터졌다.
+        const eh = (m.topY || 1.1) * (m.baseScale || 1);
+        const burst = m.g.position.clone().add(new THREE.Vector3(0, eh * 0.5, 0));
         // 3층 구조: 코어 플레어(순간) → 사방으로 흩어지는 파편 쿼드(개체로 읽히는 뼈대) → 불티/지면 링(잔향).
         // 점 스프라이트만으로는 시신 위에 뭉쳐 '주황 얼룩 하나'가 된다 (비평가 6번).
-        this.impactFlare(burst, 0xffd28a, isBoss ? 4.2 : 2.6, 0.18, 0.2);
+        // 플레어는 hitEnemy와 같은 상한 규칙(적 실높이 비례 + 3층 색분리 + peak 억제)을 쓴다.
+        // 고정 2.6/4.2유닛은 키 0.85 슬라임 기준 실높이의 3배라 처치 프레임에서 시신이 통째로
+        // 지워졌다(비평가 3차 ②: 하반신 클리핑 31.5%/18.8%). 처치는 페이오프이므로 계수만
+        // 피격(0.55)보다 키운다.
+        const fmax = eh * (isBoss ? 1.1 : 0.95);
+        this.impactFlare(burst, 0xffffff, fmax * 0.5, 0.13, 0.3, 0.5);   // 코어(순백)
+        this.impactFlare(burst, 0xffd28a, fmax, 0.18, 0.2, 0.42);        // 중간(살구)
+        this.impactFlare(burst, 0xff7a2a, fmax * 1.28, 0.22, -0.4, 0.24); // 외곽 잔광
         this.spawnShards(burst, isBoss ? 22 : 12, 0xff7043, { dir: 0, spread: Math.PI, speed: isBoss ? 1.5 : 1.15, scale: isBoss ? 1.7 : 1.25 });
         this.spawnSparks(burst, isBoss ? 30 : 14, 0xffd54f, { speed: 2.3 });             // 가산 불티 — 파편 사이 잔광
         this.spawnSparks(burst, isBoss ? 14 : 6, 0xffffff, { scale: 1.35, speed: 1.7 }); // 흰 코어
