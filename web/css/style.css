@@ -216,7 +216,7 @@ body {
 
 /* ---- 패널 (하단 시트) ---- */
 .panel {
-    position: absolute; left: 0; right: 0; bottom: 3.3rem; height: 58%;
+    position: absolute; left: 0; right: 0; bottom: var(--tabbar-h); height: 58%;
     background: #1c2128ee; backdrop-filter: blur(4px);
     border-top: 2px solid #30363d; border-radius: 1rem 1rem 0 0;
     padding: .8rem .8rem 1.2rem; overflow-y: auto; z-index: 8;
@@ -1444,7 +1444,7 @@ body {
 
 /* ---- 하단 시트 → 원본은 전체화면 흰 페이지 + 서브탭이 맨 아래 (UI-SPEC 8~16번) ---- */
 .panel {
-    top: 0; bottom: 3.3rem; height: auto; border-radius: 0;
+    top: 0; bottom: var(--tabbar-h); height: auto; border-radius: 0;
     padding: .8rem .8rem 0; display: flex; flex-direction: column; gap: .5rem; overflow: hidden;
 }
 #panel-summon > .summon-sub { flex: 1; min-height: 0; overflow-y: auto; order: 1; padding-bottom: .6rem; }
@@ -1545,7 +1545,8 @@ body {
 /* ---- 펫 화면 (UI-SPEC 9·12·13번): 사각 타일 그리드 + 하단 어두운 부화장 ---- */
 .cur-pill.egg { background: #b26a00; }
 /* 탈것 시트 (펫/스킬 화면 동일 패턴, 사용자 지시): 제목 중앙 + 검정 태엽 pill 중앙 + 그리드 내부 스크롤 + 하단 소환 바 고정 */
-.modal-card.sheet.mount-sheet { overflow: hidden; padding-bottom: 4.2rem; } /* 하단 탭바(3.3rem)에 소환 바가 가리지 않게 */
+/* 소환 바가 탭바에 가리지 않게 탭바 높이 + 여유만큼 비운다 (탭바 높이가 바뀌면 자동으로 따라온다) */
+.modal-card.sheet.mount-sheet { overflow: hidden; padding-bottom: calc(var(--tabbar-h) + .9rem); }
 .mount-pill-row { display: flex; justify-content: center; }
 .cur-pill.winder { background: #2b2b2b; }
 .cur-pill.gem { background: #c62828; }
