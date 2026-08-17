@@ -1627,7 +1627,7 @@ body {
 /* 원본 뒤로 버튼 36×29px(7.21×5.81%W) — 정사각이 아니라 라운드 사각이라 50% 반경을 쓰면 타원이 된다 */
 .chat-input-bar .btn.round {
     width: calc(var(--app-w) * .0721); height: calc(var(--app-w) * .0581);
-    border-radius: .35rem; font-size: 1.02rem; flex: none; box-shadow: 0 3px 0 #4e0507;
+    border-radius: .35rem; font-size: 1.02rem; flex: none;
     align-self: flex-end; margin-bottom: 2px;
 }
 /* 원본 뒤로 버튼은 #FF1017 + 순검정 테두리다(E·F 공통 지적: 클론 #E8362F + 3px #17181A 라 흐리다).
@@ -1640,7 +1640,12 @@ body {
    클론은 버튼 안쪽 검정 픽셀이 0이었다(A·B 공통 지적). */
 .chat-input-bar .btn.danger.round {
     background: #ff1017; border: 2px solid #000; color: #fff;
-    box-shadow: 0 3px 0 #4e0507;
+    /* 🚨 7차에 '원본은 바깥으로 튀어나온 outset'이라는 비평가 지적을 받아 outset 으로 바꿨는데 **오독이었다**.
+       내 픽셀 실측(x=16 세로): y749 검정 1px · y750~770 #ff1017 21px · y771~775 **#4e0507 5px(테두리 안쪽)**
+       · y776 검정 1px = 총 28px(5.61%W, 원본값). 바깥 그림자로 빼면 버튼이 32px(+0.80%p)로 커진다.
+       테두리도 2px 이 아니라 **1px** 이다. 되돌리되 색은 원본값(#4e0507)을 유지한다. */
+    border-width: 1px;
+    box-shadow: inset 0 -5px 0 #4e0507;
     text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000,
                  -1px -1px #000, 1px -1px #000, -1px 1px #000, 1px 1px #000;
 }
@@ -1652,6 +1657,9 @@ body {
    ⚠️ 컨테이너에 justify-content:flex-end 를 주면 넘칠 때 상단 행이 스크롤로 못 닿는 고전 버그가 생긴다 —
    첫 행 margin-top:auto 는 넘치면 0으로 접혀서 그 부작용이 없다. */
 .chat-list > .chat-row:first-child { margin-top: auto; }
+/* 원본은 마지막 말풍선 하단과 입력바 사이에 6~7px(1.20~1.40%W) 흰 여백이 있다 — 7차 교정 후 0px 이
+   되어 말풍선이 검정 밴드에 직접 붙었다(8차 C·D 공통 지적). */
+.chat-list { padding-bottom: calc(var(--app-w) * .012); }
 /* 원본 실측(499px 폭): 좌 여백 63px=12.63%W · 아바타 44px=8.82%W · 간격 4px=0.80%W ·
    말풍선 324px=64.93%W → 우끝 87.17%W. 합이 곧 우측 여백 12.82%W다. */
 .chat-row {
@@ -1714,29 +1722,52 @@ body {
    비평가 A·B·C가 모두 '글자 크기는 맞는데 획이 가늘고 좁다'로 지적했다. **font-size 는 건드리지 말 것**
    — 어센더/캡 높이는 이미 원본과 픽셀 단위로 같아서(11px) 키우면 통과 중인 항목이 깨진다. 굵기만 올린다. */
 .chat-bubble {
-    background: #cecece; color: #000; border-radius: .42rem; padding: .36rem .45rem .48rem; font-size: .90rem;
+    background: #cecece; color: #000; border-radius: .42rem; padding: .30rem .45rem .38rem; font-size: .90rem;
     font-weight: 700;
     /* 원본은 전 행 말풍선이 28~29px 로 균일한데 클론은 라틴 31px / 한글 34px 로 스크립트마다 갈렸다
        (A ⑤ · B ⑧ 공통). 행이 쌓이면 이 3px 이 누적돼 9행에서 +3.21%p 로 게이트를 넘는다.
        line-height 를 앱 폭 기준으로 못 박아 스크립트와 무관하게 같은 높이가 되게 한다. */
-    line-height: calc(var(--app-w) * .0287);
+    /* ⚠️ 1줄 높이만 보고 .0287(14.3px)로 잡으면 **다줄에서 행간이 무너진다**(줄이 서로 겹친다).
+       원본 다줄 말풍선의 줄 증분은 17~18px(3.5%W)이고 2줄 47px · 3줄 63px 이다 — 증분을 원본에 맞추고
+       세로 패딩을 11.5px 로 줄여 1줄 높이 29px(원본 28~29)을 유지한다. 두 조건을 동시에 만족하는 조합. */
+    line-height: calc(var(--app-w) * .0351);
     display: block; width: 100%; word-break: break-word; /* 원본: 짧은 메시지도 고정폭 말풍선 */
 }
+/* 원본(shot-043500) 전투 공유 카드 픽셀 실측 — 8차 비평가 C·D 가 공통 1순위로 꼽은 항목이고,
+   직접 재현해 전부 확인했다(가로 y=69%: 초록 rgb(57,171,54) x22.65 w32.06 → 회색 rgb(206,206,206)
+   x54.71 w31.46 로 **두 패널이 간격 0으로 밀착**, 래퍼가 아예 없다 · 세로 x=25%: 카드 y552..646 = 95px).
+   교정 전 클론은 `#d6d6d6` 래퍼가 패딩 8px + 갭 8px 을 먹어 127px(+6.41%p)였다.
+   내부 스택도 원본은 3단(아바타 타일 → 이름 → 전투력)이고 '승리'는 **아바타 하단에 겹친 오버레이**라
+   세로를 안 먹는다 — 클론은 별도 줄로 올려 한 단이 더 쌓여 있었다. */
 .chat-share-card {
-    position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: .3rem;
-    background: #d6d6d6; border-radius: .6rem; padding: .5rem; margin-top: .1rem;
+    position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    background: transparent; border-radius: 0; padding: 0; margin-top: .1rem;
+    /* ⚠️ overflow:hidden 을 주면 카드 밖으로 나가는 공유(📹) 배지가 통째로 잘린다 — 원본 카드는
+       모서리가 각져 있어(y552 첫 행이 이미 초록 풀폭) 클리핑이 필요 없다. */
 }
 .chat-share-side {
-    display: flex; flex-direction: column; align-items: center; gap: .2rem;
-    background: #35c04f; border-radius: .5rem; padding: .5rem .4rem; color: #fff;
+    display: flex; flex-direction: column; align-items: center; gap: calc(var(--app-w) * .010);
+    background: #39ab36; border-radius: 0; padding: calc(var(--app-w) * .014) .3rem calc(var(--app-w) * .016);
+    color: #000;   /* 원본 카드 안 이름은 검정 — 흰 글자는 명암 반전이었다 */
 }
-.chat-share-side .icon-circle.sm { background: #fff; }
+/* 원본 아바타는 원형이 아니라 44px(8.82%W) **각진 흰 타일 + 검정 키라인**이다 */
+.chat-share-side .icon-circle.sm {
+    background: #fff; border: 2px solid #000; border-radius: .28rem;
+    width: calc(var(--app-w) * .0882); height: calc(var(--app-w) * .0882); font-size: 1.5rem;
+}
 .chat-share-side small { font-weight: 800; }
-.chat-share-side.lose { background: #9a9a9a; }
-.chat-share-label { font-weight: 900; font-size: .8rem; }
+.chat-share-side small:last-child { color: #ff880f; }   /* 원본 전투력 수치는 주황 */
+.chat-share-side.lose { background: #cecece; }          /* 원본은 말풍선과 같은 회색이라 목록에 녹아든다 */
+.chat-share-avatar { position: relative; display: flex; }
+.chat-share-label {
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--app-w) * -.008);
+    font-weight: 900; font-size: .78rem; color: #ff880f; white-space: nowrap;
+}
+/* 원본 공유 배지는 17×14px(3.41×2.81%W) 각진 파란 칩이고 우끝이 시간 텍스트 우끝(89.78%W)과 정렬된다 */
 .chat-share-cam {
-    position: absolute; top: -.5rem; right: -.3rem; width: 1.7rem; height: 1.7rem; border-radius: 50%;
-    background: var(--pp-blue); color: #fff; border: 2px solid #000; font-size: .82rem;
+    position: absolute; top: calc(var(--app-w) * -.016); right: calc(var(--app-w) * -.025);
+    width: calc(var(--app-w) * .0341); height: calc(var(--app-w) * .0281); border-radius: .18rem;
+    background: var(--pp-blue); color: #fff; border: 1px solid #000; font-size: .6rem;
     display: flex; align-items: center; justify-content: center;
 }
 /* 원본 실측: 밴드 높이 87px=17.43%W(카드가 흰색이 됐으므로 밴드는 자기 배경 #0e111b 를 직접 갖는다),

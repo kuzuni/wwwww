@@ -14,6 +14,13 @@ const Chat = {
         'welcome new players!', '물약 파밍 어디가 제일 좋아요?', 'nice base', 'server 8 is so quiet today',
         '승천 별 몇개 모았어요?', 'brb', 'need more hammers 😭', '오늘도 화이팅!', 'anyone in a clan?',
     ],
+    // 원본 화면은 10행 중 2행이 2~3줄짜리 장문이다 — 전부 1줄이면 말풍선 높이의 리듬이 사라져
+    // 목록이 원본보다 균일하고 잉크 밀도가 3.8%p 낮아 보인다(8차 비평가 C·D 공통 지적).
+    LONG_LINES: [
+        "Didnt they just merge 7 w quite a few? Maybe server 7 could merge with us or something",
+        '오토포지 필터 설정 어떻게 하는 게 제일 효율 좋아요? 지금은 희귀 이상만 남기고 다 파는 중인데 이게 맞나 싶네요',
+        'anyone know if the ascension reset keeps your tech tree levels? i dont wanna lose 3 days of progress',
+    ],
 
     ensure() {
         if (!S.chat) S.chat = { messages: [], lastBotAt: U.now() };
@@ -27,6 +34,8 @@ const Chat = {
         const n = 18, gap = 90000, base = U.now() - n * gap;
         for (let i = 0; i < n; i++) {
             if (i === n - 2) this.seedShareCard(base + i * gap);
+            // 원본 비율(10행 중 2행)에 맞춰 장문을 두 군데 섞는다
+            else if (i === 2 || i === 11) this.pushBotMessage(base + i * gap, U.choice(this.LONG_LINES));
             else this.pushBotMessage(base + i * gap);
         }
     },
@@ -55,10 +64,10 @@ const Chat = {
         return this.persona(U.choice(this.NAMES));
     },
 
-    pushBotMessage(at) {
+    pushBotMessage(at, text) {
         const bot = this.randomBot();
         this.push({ type: 'msg', tag: bot.tag, name: bot.name, avatar: bot.avatar, gender: bot.gender,
-            text: U.choice(this.LINES), at: at || U.now(), mine: false });
+            text: text || U.choice(this.LINES), at: at || U.now(), mine: false });
     },
 
     push(entry) {

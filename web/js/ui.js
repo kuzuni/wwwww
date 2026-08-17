@@ -2920,13 +2920,12 @@ const UI = {
                     <div class="chat-name-line"><span class="chat-name" style="color:${this.chatNameColor(m.myName)}">${m.tag ? `<span class="chat-tag">[${U.escapeHtml(m.tag)}]</span> ` : ''}${U.escapeHtml(m.myName)}</span>${this.chatNameIcons({ name: m.myName, gender: m.gender })}<span class="chat-time">${this.chatTime(m.at)}</span></div>
                     <div class="chat-share-card">
                         <div class="chat-share-side win">
-                            <span class="chat-share-label">승리</span>
-                            <span class="icon-circle sm">${winner.avatar}</span>
+                            <span class="chat-share-avatar"><span class="icon-circle sm">${winner.avatar}</span><span class="chat-share-label">승리</span></span>
                             <small>${U.escapeHtml(winner.name)}</small>
                             <small>⚔️ ${U.fmt(winner.cp)}</small>
                         </div>
                         <div class="chat-share-side lose">
-                            <span class="icon-circle sm">${loser.avatar}</span>
+                            <span class="chat-share-avatar"><span class="icon-circle sm">${loser.avatar}</span></span>
                             <small>${U.escapeHtml(loser.name)}</small>
                             <small>⚔️ ${U.fmt(loser.cp)}</small>
                         </div>
