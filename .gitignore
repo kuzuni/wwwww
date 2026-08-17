@@ -112,3 +112,6 @@ InitTestScene*.unity*
 /node_modules/
 /package.json
 /package-lock.json
+
+# claim.sh 세션 로컬 id (체크아웃마다 고유, 공유 금지)
+.claim-id
