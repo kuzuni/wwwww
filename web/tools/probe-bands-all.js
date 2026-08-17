@@ -20,7 +20,9 @@ const PAIRS = [
     ['summon-rates', '042521'], ['tech-branch', '042546'], ['tech-node', '042605'],
     ['shop', '042632'], ['pass', '042705'], ['profile', '042724'], ['settings', '042744'],
     ['forge-info', '042831'], ['forge-list', '042905'], ['forge-detail', '042931'],
-    ['autoforge', '042950'], ['autoforge-filter', '043117'], ['craft-compare', '043224'],
+    /* 042950=필터 ON / 043117=필터 OFF — shot-screens.js·compose-ref.js 는 2026-08-17 에 짝을 바로잡았는데
+       이 표만 뒤집힌 채 남아 있었다(자동 제련 두 화면의 밴드 점수가 서로 바뀐 채 순위표에 올라갔다). */
+    ['autoforge', '043117'], ['autoforge-filter', '042950'], ['craft-compare', '043224'],
     ['gear-detail', '043244'], ['player-info', '043313'], ['chat', '043500'],
 ];
 
