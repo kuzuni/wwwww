@@ -678,10 +678,22 @@ body {
 }
 .league-pinned { margin: 0 auto; width: 82%; }
 .league-actions { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; position: relative; justify-content: center; } /* 원본: 도전 중앙, ◀ 좌하단 분리 (185) */
+/* 원본 실측(shot-042149 리그, 498×896): 버튼 35×29px = 폭 7.03% · 높이 3.24%, 가로세로비 1.21로
+   정사각이 아니라 가로로 살짝 넓다. 바닥의 어두운 빨강 띠는 버튼 높이의 ≈20%로 두툼하다.
+   이전 값(2.5rem 정사각 + inset .22rem)은 42×42px 정사각에 띠가 8%뿐이라 더 크고 납작해 보였다. */
 .league-back-btn {
-    width: 2.5rem; height: 2.5rem; border-radius: .6rem; flex: none; cursor: pointer;
-    background: var(--pp-red); color: #fff; border: 3px solid #000; font-size: 1.1rem; font-weight: 900;
-    box-shadow: inset 0 -.22rem 0 var(--pp-red-dk);
+    width: 2.1rem; height: 1.75rem; border-radius: .45rem; flex: none; cursor: pointer;
+    background: var(--pp-red); color: #fff; border: 3px solid #000; font-size: .95rem; font-weight: 900;
+    box-shadow: inset 0 -.36rem 0 var(--pp-red-dk);
+    display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1;
+    font-size: 0; /* '◀' 문자를 숨긴다 — 플랫폼 이모지 폰트가 컬러 글리프로 그려서 원본의 단색 흰 삼각형과 달라진다 */
+}
+/* 원본의 흰 삼각형을 CSS로 직접 그린다 (외부 에셋·폰트 의존 없음, file:// 안전).
+   원본 실측 비율: 버튼 35×29 안에서 삼각형 ≈14×16px. 바닥 어두운 띠를 피하려 살짝 위로 올린다. */
+.league-back-btn::before {
+    content: ''; display: block; margin-bottom: .18rem;
+    border-style: solid; border-width: .47rem .83rem .47rem 0;
+    border-color: transparent #fff transparent transparent;
 }
 .league-actions .btn.primary { flex: 0 1 28%; min-height: 3.6rem; font-size: 1.05rem; }
 .league-actions .league-back-btn { position: absolute; left: 0; }
