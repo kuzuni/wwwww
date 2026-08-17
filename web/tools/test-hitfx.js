@@ -85,6 +85,15 @@ const path = require('path');
             '프리즈가 풀리면 아크 재개');
         step(60);
 
+        // 3-e) 연타로 슬롯이 쌓여도 숫자가 3D 캔버스 위(상단 HUD)로 넘어가지 않는다
+        Scene3D.fxLayer.innerHTML = '';
+        for (let i = 0; i < 8; i++) { Combat.damageEnemy(e, Big.of(140), i % 2 === 0, null); step(4); }
+        const tops = [...Scene3D.fxLayer.children].map(o => parseFloat(o.style.top));
+        ok(tops.length > 0 && Math.min(...tops) >= 12,
+            '연타 슬롯이 HUD를 침범하지 않음 (최고 top ' + Math.min(...tops).toFixed(1) + 'px)');
+        Scene3D.fxLayer.innerHTML = '';
+        step(60);
+
         // 4) 히트스톱이 반드시 풀린다 (연출이 영구 슬로모로 남지 않게)
         Combat.damageEnemy(e, Big.of(300), true, null);
         step(30);

@@ -266,9 +266,17 @@ body {
     text-shadow: 0 0 9px rgba(255,109,0,.7), 0 2px 5px rgba(0,0,0,.6); }
 .float-dmg.dmg-skill { color: #82b1ff; font-size: 1.1rem; }
 /* 영웅이 맞은 피해 — 적 숫자(흰/주황)와 소유자가 헷갈리면 안 되므로 붉은 계열로 못 박고,
-   흐름도 반대쪽(왼쪽)으로 흘린다. 크기는 일반 피해와 같게 둔다(내 피해가 적 피해보다 커 보이면 위계가 뒤집힌다). */
-.float-dmg.dmg-hero { color: #ff5555; font-size: 1rem;
-    text-shadow: 0 0 8px rgba(198,40,40,.6), 0 2px 4px rgba(0,0,0,.6); }
+   흐름도 반대쪽(왼쪽)으로 흘린다. 크기는 일반 피해와 같게 둔다(내 피해가 적 피해보다 커 보이면 위계가 뒤집힌다).
+   ⚠️ **붉은 비네트 위의 붉은 글자**라 세트에서 가장 안 읽혔다(비평가 4차 ⓒ). 범인은 색이 아니라
+   **붉은 글로우**였다 — `0 0 8px rgba(198,40,40,.6)`가 글자 둘레를 비네트와 같은 붉은 기로 채워
+   글리프 경계를 지웠다. 글로우를 어두운 헤일로로 바꾸고 스트로크를 두껍게 해 **대비를 명도로** 만든다.
+   채움도 한 단계 밝혀(#ff7b7b) 붉은 필드 위에서 밝기로 뜨게 한다. */
+.float-dmg.dmg-hero { color: #ff9a9a; font-size: 1rem;
+    -webkit-text-stroke: 1.3px rgba(28,2,2,.96);
+    text-shadow: 0 0 5px rgba(0,0,0,.85), 0 0 12px rgba(0,0,0,.55), 0 2px 4px rgba(0,0,0,.7); }
+/* ▼ = "나에게 들어온 피해" 표식. 색·위치만으로는 소유자가 안 읽혀서(적 숫자도 상황에 따라 왼쪽에
+   뜰 수 있다) 기호로 못 박는다. 숫자 크기는 안 건드리고 기호만 작게 붙인다. */
+.float-dmg.dmg-hero::before { content: '▼'; font-size: .72em; margin-right: .14em; vertical-align: .04em; }
 .float-dmg.heal { color: #69f0ae; font-size: 1.1rem; }
 .float-dmg.block { color: #90caf9; font-size: 1rem; }
 /* 솟구쳤다 정점에서 살짝 떨어지는 포물선 — 직선 상승보다 무게가 실려 보인다 */

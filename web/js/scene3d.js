@@ -5501,7 +5501,13 @@ const Scene3D = {
                 if (Math.abs(ox - pt.x) < 54 && Math.abs(oy - ty) < 26) { clash = true; break; }
             }
             if (!clash) break;
-            ty -= 28; // 한 칸 = 숫자 높이 남짓. 4칸(112px)까지만 — 그 위는 화면 밖·HUD 영역이다
+            // 한 칸 = 숫자 높이 남짓. 4칸(112px)까지만 — 그 위는 화면 밖·HUD 영역이다.
+            // ⚠️ 칸 수 상한만으로는 부족하다: 스폰 y가 이미 높은 큰 적을 연타하면 4칸을 다 쓰기 전에
+            // 3D 캔버스 위(=상단 재화 바)로 넘어가, 숫자가 HUD에 겹쳐 "앱 UI가 피해를 입은 것처럼"
+            // 보인다(비평가 4차 ⓑ가 실제로 잡은 조건 — 실측 연타 5발에서 최고점 top 58.2px vs
+            // HUD 하단 58.3px). 캔버스를 벗어나게 되면 더 올리지 않고 겹침을 감수한다.
+            if (ty - 28 < 12) break;
+            ty -= 28;
         }
         const el = document.createElement('div');
         el.className = 'float-dmg ' + cls;
