@@ -85,6 +85,36 @@ function defaultState() {
 // 중첩은 **고정 형태 레코드만** 재귀로 메꾼다. `rollLevel`/`mounts`/`skills`/`clearedBosses`처럼
 // 키가 플레이 중 늘어나는 사전은 재귀 대상이 아니다 — 기본값에 있는 항목을 도로 살려낼 수 있다.
 const STATE_SHAPE_KEYS = ['summonMult', 'autoForge', 'lineAscend', 'settingsDummy', 'equipment'];
+// 0이 될 수 없는 진행 수치 — 손상 세이브의 0·음수는 1로 올린다(나머지 수치는 0 하한)
+const STATE_MIN_ONE_KEYS = ['version', 'chapter', 'stage', 'bestChapter', 'bestStage', 'forgeLevel'];
+
+// 형태 보정만으로는 안 잡히는 나머지 한 갈래: **타입은 맞는데 가리키는 대상이 없는 참조**.
+// `equippedSkills:["ghostSkill"]`은 배열이라 위 검사를 통과하지만 `Skills.def()`가 undefined를
+// 돌려줘 `renderSkillBar()`의 `d.color`에서 똑같이 UI.init()이 끊긴다(펫도 `S.pets[i].rarity`로 동형).
+// 형태가 아니라 '실재 여부'를 보는 검사라 ensureStateShape()와 분리해 둔다.
+function pruneDanglingRefs() {
+    if (typeof SKILL_DEFS !== 'undefined') {
+        const max = typeof Skills !== 'undefined' ? Skills.MAX_ACTIVE : 3;
+        S.equippedSkills = S.equippedSkills
+            .filter(id => typeof id === 'string' && SKILL_DEFS.some(def => def.id === id))
+            .slice(0, max);
+    }
+    S.pets = S.pets.filter(p => p && typeof p === 'object' && !Array.isArray(p));
+    S.eggs = S.eggs.filter(e => e && typeof e === 'object' && !Array.isArray(e));
+    S.hatching = S.hatching.filter(h => h && typeof h === 'object' && !Array.isArray(h));
+    const seen = new Set();
+    S.activePets = S.activePets.filter(i => {
+        if (!Number.isInteger(i) || i < 0 || i >= S.pets.length || seen.has(i)) return false;
+        seen.add(i);
+        return true;
+    }).slice(0, typeof Pets !== 'undefined' ? Pets.MAX_ACTIVE : 3);
+    // 장비 슬롯은 STATE_SHAPE_KEYS 재귀가 '기본값이 null'이라 어떤 값이든 통과시킨다 —
+    // 문자열·배열이 들어 있으면 장비 시트가 터지므로 여기서 null로 되돌린다.
+    for (const slot of Object.keys(S.equipment)) {
+        const it = S.equipment[slot];
+        if (it !== null && (typeof it !== 'object' || Array.isArray(it))) S.equipment[slot] = null;
+    }
+}
 
 function ensureStateShape() {
     const d = defaultState();
@@ -95,6 +125,16 @@ function ensureStateShape() {
         // 기본값이 null인 필드는 아무 값이나 받는다(구조상 '없음'이 정상 상태)
         if (want === null) { if (got === undefined) { S[k] = null; fixed++; } continue; }
         if (got === undefined || got === null || kind(got) !== kind(want)) { S[k] = want; fixed++; continue; }
+        // 타입은 'number'로 맞는데 값이 못 쓰는 수인 경우 — QA가 실측한 사망 케이스 2종을 여기서 잡는다.
+        // ⑴ 비유한값: `1e400`은 JSON.parse에서 Infinity가 되고 NaN도 kind()로는 그냥 'number'라
+        //    통과한다. 재화가 Infinity면 이후 연산이 전부 Infinity/NaN으로 번진다.
+        // ⑵ 음수: 재화·카운터는 0 하한, 진행 수치(chapter·stage·forgeLevel 등)는 1 하한.
+        //    **유한한 초대형값(coins:1e308)은 승천 반복으로 실제 도달 가능하므로 건드리지 않는다.**
+        if (typeof want === 'number') {
+            if (!Number.isFinite(got)) { S[k] = want; fixed++; continue; }
+            const min = STATE_MIN_ONE_KEYS.includes(k) ? 1 : 0;
+            if (got < min) { S[k] = min; fixed++; continue; }
+        }
         if (STATE_SHAPE_KEYS.includes(k)) {
             for (const sk of Object.keys(want)) {
                 const sw = want[sk], sg = got[sk];
@@ -121,6 +161,7 @@ function loadGame() {
             if (!S || typeof S !== 'object' || Array.isArray(S)) { S = defaultState(); return false; }
             if (!S.version) S = defaultState();
             ensureStateShape();   // 빠진/망가진 코어 필드를 기본값으로 메꾼다 (부팅 중단 방지)
+            pruneDanglingRefs();  // 형태는 맞지만 대상이 없는 참조(없는 스킬 id·허공 펫 인덱스)를 끊는다
             if (!S.lastOfflineClaim) S.lastOfflineClaim = S.lastSeen || U.now();
             // 폐기된 보관함(S.inventory)·보류 큐(S.heldCrafts) 데이터는 조용히 버린다 —
             // 사용자가 원하지 않은 시스템이라 안에 있던 장비를 되살리지 않는다(사용자 확정 2026-08-17).
