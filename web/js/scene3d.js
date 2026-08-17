@@ -24,6 +24,13 @@ const Scene3D = {
         this.renderer.toneMappingExposure = 1.08;
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.Fog(0xa8d8ea, 12, 30);
+        // PBR 환경광 — ProChar의 절차 하늘/지면 큐브맵을 PMREM으로 필터링해 MeshStandardMaterial 전역 공급.
+        // 금속(높은 metalness)이 반사할 '세상'이 생겨 무광 플라스틱 인상이 사라지는 핵심 (비평가 6.0 1위 결함).
+        try {
+            const pmrem = new THREE.PMREMGenerator(this.renderer);
+            this.scene.environment = pmrem.fromCubemap(ProChar.envMap()).texture;
+            pmrem.dispose();
+        } catch (e) { /* PMREM 실패 시 라이트만으로 렌더 (구형 기기 폴백) */ }
 
         this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
         this.camera.position.set(0.15, 3.7, 8.2);
@@ -1528,15 +1535,16 @@ const Scene3D = {
         const g = new THREE.Group();
         const c = AGE_COLORS[AGES[ageIdx]];
         const glow = ageIdx >= 4;
-        const mat = new THREE.MeshLambertMaterial({ color: c, emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.5 : 0 });
+        const mat = new THREE.MeshStandardMaterial({ color: c, metalness: 0.65, roughness: 0.45, emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.5 : 0 });
         // 날 전용 금속: 스틸 베이스에 시대색 18%만 — 시대색 직치환 날은 '노란 막대사탕'으로 읽힘 (비평가 2번)
-        const bladeMat = new THREE.MeshPhongMaterial({
+        // PBR 분리: 날은 고금속·저러프 — scene.environment 반사로 '강철'이 읽히는 핵심
+        const bladeMat = new THREE.MeshStandardMaterial({
             color: new THREE.Color(0xc9d2da).lerp(new THREE.Color(c), 0.18),
-            shininess: 80, specular: 0x8a949c, envMap: ProChar.envMap(), reflectivity: 0.25,
+            metalness: 0.92, roughness: 0.28, envMapIntensity: 0.85,
             emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.16 : 0
         });
-        const wood = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
-        const dark = new THREE.MeshLambertMaterial({ color: 0x37474f });
+        const wood = new THREE.MeshStandardMaterial({ color: 0x5d4037, metalness: 0, roughness: 0.85 });
+        const dark = new THREE.MeshStandardMaterial({ color: 0x37474f, metalness: 0.7, roughness: 0.5 });
         const box = (w, h, d, m, x, y, z, rz) => {
             const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
             mesh.position.set(x || 0, y || 0, z || 0);
@@ -1701,7 +1709,7 @@ const Scene3D = {
     // weaponG의 자식으로 원점(파지점)에 두므로 Idle/걷기/공격 전 상태에서 자루-주먹 정렬이 자동 유지된다.
     makeGripWrap(shaftR, invScale) {
         const g = new THREE.Group();
-        const skin = new THREE.MeshPhongMaterial({ color: 0x7a5c46, shininess: 22, map: ProChar.leatherTex() });
+        const skin = new THREE.MeshStandardMaterial({ color: 0x7a5c46, metalness: 0, roughness: 0.8, map: ProChar.leatherTex() }); // 히어로 주먹과 동일 가죽 PBR
         for (let i = 0; i < 3; i++) {
             const seg = new THREE.Mesh(new THREE.TorusGeometry(shaftR + 0.018, 0.021, 7, 14, Math.PI * 1.8), skin);
             seg.rotation.x = Math.PI / 2;    // 링 평면이 자루(로컬 y축)와 직교 — 손가락이 자루를 감는 방향
@@ -1800,12 +1808,12 @@ const Scene3D = {
         const g = new THREE.Group();
         const c = AGE_COLORS[age];
         const pc = RARITY_HEX[rarity] || 0xef5350; // 장식 = 등급색
-        // 시대색 직치환 Lambert는 '고무 풍선'으로 읽힘(비평가) — 스틸 톤에 섞은 뒤 금속 스펙큘러 부여 (갑옷 tint와 동일 원칙)
-        const mat = new THREE.MeshPhongMaterial({
+        // 시대색 직치환은 '고무 풍선'으로 읽힘(비평가) — 스틸 톤에 섞은 뒤 PBR 금속 분리 (갑옷 tint와 동일 원칙)
+        const mat = new THREE.MeshStandardMaterial({
             color: new THREE.Color(c).lerp(new THREE.Color(0xb8c4cf), 0.32).offsetHSL(0, -0.06, -0.02),
-            shininess: 55, specular: 0x6b747c, envMap: ProChar.envMap(), reflectivity: 0.22 // 환경 반사 — '무광 비닐' 오독 해소 (비평가 3번)
+            metalness: 0.85, roughness: 0.38, envMapIntensity: 0.75 // 환경 반사 — '무광 비닐' 오독 해소 (비평가 3번)
         });
-        const darkMat = new THREE.MeshLambertMaterial({ color: 0x263238 });
+        const darkMat = new THREE.MeshStandardMaterial({ color: 0x263238, metalness: 0.6, roughness: 0.55 });
         const rareMat = new THREE.MeshLambertMaterial({ color: pc, emissive: pc, emissiveIntensity: 0.45 });
         style = style || 'plume';
 
@@ -1851,7 +1859,7 @@ const Scene3D = {
                 g.add(glowEye);
             }
             const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.15, 0.045),
-                new THREE.MeshLambertMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.14) })); // 코 가드 — 슬림+다크 (밝은 굵은 바가 '반투명 띠 아티팩트'로 오독, 비평가 7번)
+                new THREE.MeshStandardMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.14), metalness: 0.8, roughness: 0.45 })); // 코 가드 — 슬림+다크 (밝은 굵은 바가 '반투명 띠 아티팩트'로 오독, 비평가 7번)
             noseBar.position.set(0, -0.02, 0.262);
             const crest = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.03, 6, 14, Math.PI * 0.8), rareMat); // 정수리 볏 아크
             crest.position.y = 0.13;
@@ -1869,7 +1877,7 @@ const Scene3D = {
             g.add(dome, crest, cheek1, cheek2);
         } else if (style === 'mask') {      // 가면/방독면: 얼굴을 감싸는 곡면 판 (평판 박스 → 원통 셸)
             const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.22, 0.32, 14, 1, true, -Math.PI * 0.42, Math.PI * 0.84), mat);
-            plate.material = new THREE.MeshLambertMaterial({ color: mat.color.clone(), side: THREE.DoubleSide }); // 원색 직치환 금지 — 스틸 혼합 톤 공유
+            plate.material = new THREE.MeshStandardMaterial({ color: mat.color.clone(), metalness: 0.85, roughness: 0.4, side: THREE.DoubleSide }); // 원색 직치환 금지 — 스틸 혼합 톤 공유
             plate.position.set(0, 0.02, 0.02);
             const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat); // 정수리 덮개
             dome.position.y = 0.1;
@@ -1878,7 +1886,7 @@ const Scene3D = {
                 const hole = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: 0x14181c }));
                 hole.position.set(dx, 0.04, 0.252); hole.scale.z = 0.5;
                 const socketRim = new THREE.Mesh(new THREE.TorusGeometry(0.047, 0.009, 5, 12),
-                    new THREE.MeshLambertMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.14) }));
+                    new THREE.MeshStandardMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.14), metalness: 0.8, roughness: 0.45 }));
                 socketRim.position.set(dx, 0.04, 0.273);
                 const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 5),
                     new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.15, 0.2) }));
@@ -1916,7 +1924,7 @@ const Scene3D = {
             }
         } else if (style === 'tech') {      // 메카 헬름 — 곡면 셸 + 랩어라운드 발광 바이저 (박스 금지, 비평가 1위 결함 재작업)
             const shell = new THREE.Mesh(new THREE.SphereGeometry(0.29, 10, 8), mat);
-            shell.material = new THREE.MeshLambertMaterial({ color: new THREE.Color(c).lerp(new THREE.Color(0xb8c4cf), 0.28) }); // 스틸 혼합 — 원색 풍선 방지
+            shell.material = new THREE.MeshStandardMaterial({ color: new THREE.Color(c).lerp(new THREE.Color(0xb8c4cf), 0.28), metalness: 0.85, roughness: 0.42 }); // 스틸 혼합 — 원색 풍선 방지
             shell.material.flatShading = true;                 // 저폴리 패싯 — 메카 판넬 인상
             shell.position.y = 0.06;
             shell.scale.set(0.98, 0.92, 1.05);
@@ -1928,9 +1936,20 @@ const Scene3D = {
             const vGeo = new THREE.TorusGeometry(0.25, 0.04, 8, 22, Math.PI * 0.86);
             vGeo.rotateZ(Math.PI * 0.07);
             vGeo.rotateX(Math.PI / 2);
-            const visorArc = new THREE.Mesh(vGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.08, 0.14) })); // 언릿 = 발광 판독
-            visorArc.position.set(0, 0.075, 0.035);
+            // 밝은 단색 아크는 눈을 가리는 '안대/눈가리개'로 오독(비평가 6.4 5번) — 다크 스모크 유리 밴드 + 안쪽 발광 눈 2점으로 재작업
+            const visorArc = new THREE.Mesh(vGeo, new THREE.MeshStandardMaterial({
+                color: 0x10161c, metalness: 0.9, roughness: 0.12, envMapIntensity: 1.1,
+                emissive: new THREE.Color(pc), emissiveIntensity: 0.12
+            }));
+            visorArc.position.set(0, 0.01, 0.035);             // 눈높이로 하강 — 이마 밴드 오독 방지
             visorArc.scale.y = 0.6;                            // 납작한 슬릿 단면
+            for (const dx of [-0.095, 0.095]) {                // 유리면 위 발광 눈 — 시선 판독 복원 (밴드 전면 z보다 앞)
+                const eye = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6),
+                    new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.1, 0.22) }));
+                eye.position.set(dx, 0.01, 0.3);
+                eye.scale.set(1.3, 0.72, 0.4);                 // 가로로 긴 렌즈 눈
+                g.add(eye);
+            }
             // 이어 포드 + 정수리 능선
             for (const dx of [-0.27, 0.27]) {
                 const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.05, 10), darkMat);
@@ -1956,7 +1975,7 @@ const Scene3D = {
             g.add(shell, jawGuard, visorArc, ridge, antSock, ant, antTip);
         } else if (style === 'bubble') {    // 우주 헬멧 (투명 돔)
             const bub = new THREE.Mesh(new THREE.SphereGeometry(0.31, 14, 10),
-                new THREE.MeshLambertMaterial({ color: c, transparent: true, opacity: 0.32 }));
+                new THREE.MeshStandardMaterial({ color: c, metalness: 0, roughness: 0.08, transparent: true, opacity: 0.32 })); // 유리 돔 — 매끈한 반사
             const rim = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.035, 8, 18), mat);
             rim.rotation.x = Math.PI / 2;
             rim.position.y = -0.16;
@@ -2090,6 +2109,13 @@ const Scene3D = {
                 this._thumbAmb = new THREE.AmbientLight(0xffffff, 0.85);
                 this._thumbDir = new THREE.DirectionalLight(0xffffff, 0.8);
                 this._thumbDir.position.set(2, 3, 2);
+                // 썸네일 렌더러는 별도 GL 컨텍스트 — 메인 씬의 PMREM 텍스처 공유 불가.
+                // 자체 PMREM 환경 필수: 없으면 고금속 PBR 재질(무기 날 등)이 반사할 게 없어 검게 찍힘.
+                try {
+                    const pm = new THREE.PMREMGenerator(this._thumbR);
+                    this._thumbScene.environment = pm.fromCubemap(ProChar.envMap()).texture;
+                    pm.dispose();
+                } catch (e) { /* 폴백: 라이트만 */ }
             }
             const sc = this._thumbScene;
             this.clearGroup(sc);
@@ -2511,7 +2537,7 @@ const Scene3D = {
         const base = new THREE.Color(this.KIND_COLOR[kind]).offsetHSL(U.rand(-0.02, 0.02), U.rand(-0.03, 0.03), U.rand(-0.02, 0.02));
         const g = new THREE.Group();
         const flashMats = [];
-        const lam = (c2, map) => { const m = new THREE.MeshLambertMaterial({ color: c2, map: map || null }); flashMats.push(m); return m; };
+        const lam = (c2, map) => { const m = new THREE.MeshStandardMaterial({ color: c2, map: map || null, metalness: 0, roughness: 0.72 }); flashMats.push(m); return m; }; // 유기물 PBR — 부드러운 스펙큘러 롤오프 (무광 점토 인상 완화)
         const mat = lam(base);
         const dark = lam(base.clone().offsetHSL(0, 0, -0.13));
         const light = lam(base.clone().offsetHSL(0, 0, 0.1));
@@ -2590,7 +2616,7 @@ const Scene3D = {
 
         if (kind === 'slime') {
             // 광택 젤리: 고분할 스무스 돔 + Phong 스펙큘러 + 반투명 너머 비치는 내부 핵 (저분할 '바위 덩어리' 오독 제거, 비평가 지적)
-            const jelly = new THREE.MeshPhongMaterial({ color: base, transparent: true, opacity: 0.82, shininess: 90, specular: 0xdff4ff });
+            const jelly = new THREE.MeshStandardMaterial({ color: base, transparent: true, opacity: 0.82, metalness: 0, roughness: 0.12, envMapIntensity: 1.2 }); // 젖은 젤리 — 환경 반사로 광택
             flashMats.push(jelly);
             // 물방울 라테: 바닥 퍼짐→돔이 한 곡면 — 몸통 구+스커트 토러스 2피스는 '접시 위 슬라임'으로 읽힘 (비평가 12번)
             const slProf = [[0.001, 0], [0.42, 0.012], [0.5, 0.07], [0.485, 0.18], [0.44, 0.3], [0.38, 0.42], [0.27, 0.54], [0.13, 0.62], [0.001, 0.65]];
@@ -2883,6 +2909,7 @@ const Scene3D = {
             capG.position.y = 0.44;
             capG.rotation.x = -0.16; // 갓을 뒤로 젖혀 게임 카메라(전방 상단)에서 얼굴 가시성 확보 (비평가 지적)
             const capM = lam(new THREE.Color(0xc9402e), ProChar.hideTex()); // 절대 지정 시그니처 레드 갓 — 파생색은 태양광에 살구색으로 씻김 (비평가 지적)
+            capM.side = THREE.DoubleSide; // 열린 반구 그림자 구멍 방지 — 단면 셸은 그림자 맵에 초승달 구멍('소용돌이 그림자' 아티팩트)을 냄
             const dome = mk(new THREE.SphereGeometry(0.32, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), capM);
             dome.scale.set(1, 0.82, 1);
             const lip = mk(new THREE.TorusGeometry(0.29, 0.05, 8, 16), lam(base.clone().offsetHSL(0, 0.15, -0.16), ProChar.hideTex()));
@@ -2940,7 +2967,7 @@ const Scene3D = {
             const headW = new THREE.Group();                                   // 쐐기 두상 + 테이퍼 주둥이
             headW.position.set(0, 0.6, 0.38);
             const skullW = mk(new THREE.SphereGeometry(0.105, 11, 8), furM);
-            skullW.scale.set(0.95, 0.9, 1.05);
+            skullW.scale.set(1.12, 0.9, 1.05); // x 확폭 — 흰자가 두상 옆으로 삐져나와 '흰 뿔'로 오독되던 문제 (비평가 6.4 9번)
             const muzzleM = lam(base.clone().offsetHSL(0.005, -0.04, 0.14), ProChar.hideTex()); // 주둥이 전용 중간 톤 — 순백 러프색은 '붙임 데칼'로 읽힘 (비평가)
             const snout = mk(new THREE.CylinderGeometry(0.048, 0.075, 0.16, 8), muzzleM);
             snout.rotation.x = Math.PI / 2; snout.position.set(0, -0.02, 0.14);
@@ -2958,9 +2985,9 @@ const Scene3D = {
                 headW.add(fang);
             }
             for (const s of [-1, 1]) {                                         // 쫑긋 삼각 귀 (안쪽 어두운 면)
-                const ear = mk(new THREE.ConeGeometry(0.045, 0.11, 5), furM);
+                const ear = mk(new THREE.ConeGeometry(0.045, 0.11, 5), furD);  // 다크 톤 — 밝은 귀가 역광에서 '흰 뿔'로 오독 (비평가 6.4 9번)
                 ear.position.set(s * 0.065, 0.12, -0.02); ear.rotation.set(-0.25, 0, s * -0.3);
-                const earIn = mk(new THREE.ConeGeometry(0.028, 0.08, 5), furD);
+                const earIn = mk(new THREE.ConeGeometry(0.028, 0.08, 5), lam(new THREE.Color(0x272c36))); // 귀 안쪽 — 외이보다 한층 더 어둡게
                 earIn.position.set(s * 0.065, 0.11, -0.005); earIn.rotation.set(-0.25, 0, s * -0.3);
                 earIn.scale.z = 0.5;
                 headW.add(ear, earIn);
@@ -2973,7 +3000,7 @@ const Scene3D = {
                 g.add(tuft, tuft2);
             }
             g.add(headW);
-            eyes(0.645, 0.485, 0.082, 0.033, 'fierce', { iris: 0xe8b13c, glow: 0.25, tilt: -0.28, browColor: 0x3c414d }); // 흰자+호박 홍채 — gap 확대+눈 축소로 좌우 분리 (비평가: 두 눈이 하나의 발광 패치로 붙어 보임)
+            eyes(0.645, 0.472, 0.072, 0.03, 'fierce', { iris: 0xe8b13c, glow: 0.25, tilt: -0.28, browColor: 0x3c414d }); // 흰자+호박 홍채 — 두상 안에 파묻어 배치(흰 뿔 오독 방지), 좌우 분리 유지
             const backStripe = mk(new THREE.SphereGeometry(0.16, 10, 8), furD); // 등 다크 새들 — 목덜미→엉덩이 한 흐름으로 세그먼트 경계 은폐
             backStripe.position.set(0, 0.49, -0.03); backStripe.scale.set(0.78, 0.5, 2.45);
             const bellyW = mk(new THREE.SphereGeometry(0.13, 10, 8), furL); // 밝은 아랫배 — 투톤 코트

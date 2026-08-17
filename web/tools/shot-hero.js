@@ -93,15 +93,17 @@ const OUT = __dirname;
     await page.evaluate(() => {
         Scene3D.heroAttack(999);
         const R = Scene3D.heroRig;
-        if (R) R._speed *= 0.3; // 슬로모 — 트레일 포인트(LIFE 0.18s)가 궤적 리본으로 쌓이게
-        for (const a of Scene3D.anims) { const k = a.t / a.dur; a.dur /= 0.3; a.t = k * a.dur; } // 돌진도 동율 슬로모
+        if (R) R._speed *= 0.5; // 슬로모 — 트레일 포인트(LIFE 0.18s)가 궤적 리본으로 쌓이게 (0.3은 리본이 짧아 스텁만 남음)
+        for (const a of Scene3D.anims) { const k = a.t / a.dur; a.dur /= 0.5; a.t = k * a.dur; } // 돌진도 동율 슬로모
     });
     await page.waitForFunction(() => {
         const R = Scene3D.heroRig;
-        return R && R._clip && R._t / R._clip.dur >= 0.48; // 내려치기 임팩트 직후
+        return R && R._clip && R._t / R._clip.dur >= 0.5; // 내려치기 임팩트 직후 — 팔로스루 직전이 날 판독 최적
     }, null, { timeout: 8000, polling: 30 });
     await page.evaluate(() => {
         const R = Scene3D.heroRig; R._speed = 0; // 임팩트 프레임 동결
+        Scene3D._origUpdateTrail = Scene3D.updateTrail;
+        Scene3D.updateTrail = () => {}; // 트레일 에이징도 동결 — 안 멈추면 스크린샷 시점(수백 ms 뒤)에 리본이 전부 소멸 (비평가 6.4 6번 'VFX 전무'의 실체)
         for (const a of Scene3D.anims) { const k = Math.min(1, a.t / a.dur); a.dur = 1e9; a.t = k * 1e9; }
         // 동결된 포즈 기준으로 카메라 재피팅 — 돌진으로 이동한 위치/비틀린 몸통 반영, 적은 프레임에 유지
         Scene3D.heroG.updateMatrixWorld(true);
@@ -111,7 +113,7 @@ const OUT = __dirname;
         const dist = Math.max(size.x, size.y, size.z) * 1.7 + 0.3;
         const fwd = new THREE.Vector3();
         Scene3D.heroG.getWorldDirection(fwd);
-        fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.65); // 적 반대편 궤도 — 근접 적이 카메라와 영웅 사이에 끼어 하반신을 가리던 문제 (비평가 1번)
+        fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.95); // 적 반대편 측면 궤도 확대 — 검·트레일이 머리 뒤에 숨지 않게 (비평가 6.4 6번)
         Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * 0.3, 0)), look: c.clone() };
     });
     await page.waitForTimeout(150);
@@ -119,6 +121,7 @@ const OUT = __dirname;
     // 동결 해제 + 상태 복원 (이후 전신샷 오염 방지)
     await page.evaluate(() => {
         Scene3D.anims = [];
+        if (Scene3D._origUpdateTrail) { Scene3D.updateTrail = Scene3D._origUpdateTrail; delete Scene3D._origUpdateTrail; }
         Scene3D._attacking = false; Scene3D._trailOn = false;
         Scene3D.trailPts = []; if (Scene3D.trailMesh) Scene3D.trailMesh.visible = false;
         Scene3D.clearEnemies(); Combat.enemies = [];

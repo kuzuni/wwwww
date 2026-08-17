@@ -171,27 +171,27 @@ const ProChar = {
     createKnight() {
         const R = { bones: {}, base: {}, state: '', _t: 0, _clip: null, _once: false, _speed: 1, _idleT: 0 };
 
-        // 재질 — 금속은 브러시드 텍스처+하이라이트 롤, 천/가죽은 직조 텍스처. armorMats는 장비 시대색 틴트 대상
+        // 재질 — PBR 분리(비평가 6.0 1위 결함 '전 재질 무광 플라스틱'): 금속=높은 metalness+낮은 roughness,
+        // 유기물(가죽/천/피부)=metalness 0+높은 roughness. 환경광은 Scene3D가 PMREM으로 scene.environment에 공급.
         R.armorMats = [];
         const mTex = this.metalTex();
-        const env = this.envMap();
         const steel = () => {
-            const m = new THREE.MeshPhongMaterial({ color: 0x9fb2c2, shininess: 34, specular: 0x93a2ae, map: mTex, envMap: env, combine: THREE.MixOperation, reflectivity: 0.2 }); // 순백 블로우아웃 방지 — 곡면 음영 보존
+            const m = new THREE.MeshStandardMaterial({ color: 0x9fb2c2, metalness: 0.85, roughness: 0.38, map: mTex, envMapIntensity: 0.75 }); // 브러시드 스틸 — 순백 블로우아웃 방지 위해 env 감쇠
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
             return m;
         };
         const steelDark = () => {
-            const m = new THREE.MeshPhongMaterial({ color: 0x5c6b7a, shininess: 30, specular: 0x6b7885, map: mTex, envMap: env, combine: THREE.MixOperation, reflectivity: 0.15 });
+            const m = new THREE.MeshStandardMaterial({ color: 0x5c6b7a, metalness: 0.8, roughness: 0.5, map: mTex, envMapIntensity: 0.65 });
             m.userData.dark = true; // 틴트 시 명도 단차 유지용
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
             return m;
         };
-        const suit = new THREE.MeshLambertMaterial({ color: 0x323e46, map: mTex }); // 갑옷 밑 사슬/천
-        const leather = new THREE.MeshLambertMaterial({ color: 0x5a4030, map: this.leatherTex() });
-        const gold = new THREE.MeshPhongMaterial({ color: 0xd9a441, shininess: 55, specular: 0xd9c084, envMap: env, combine: THREE.MixOperation, reflectivity: 0.24 });
-        const skin = new THREE.MeshLambertMaterial({ color: 0xf2c9a4 });
+        const suit = new THREE.MeshStandardMaterial({ color: 0x323e46, metalness: 0.35, roughness: 0.68, map: mTex }); // 갑옷 밑 사슬/천 — 반금속 직조
+        const leather = new THREE.MeshStandardMaterial({ color: 0x5a4030, metalness: 0, roughness: 0.85, map: this.leatherTex() });
+        const gold = new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: 0.95, roughness: 0.3, envMapIntensity: 0.8 });
+        const skin = new THREE.MeshStandardMaterial({ color: 0xf2c9a4, metalness: 0, roughness: 0.6 });
         R.trimMat = gold;
         // AO 링 — 파츠 경계(목/허리/어깨 소켓/고관절/손목)에 얹는 어두운 접촉 그림자 (비평가: AO 부재)
         const aoMat = new THREE.MeshBasicMaterial({ color: 0x0d1218, transparent: true, opacity: 0.4, depthWrite: false });
@@ -247,7 +247,7 @@ const ProChar = {
             greave.scale.set(0.95, 1.7, 0.95);
             knee.add(greave);
             // 부츠: 라운드 토 (구+원통 결합)
-            const bootMat = new THREE.MeshPhongMaterial({ color: 0x4a3728, shininess: 25, map: this.leatherTex() });
+            const bootMat = new THREE.MeshStandardMaterial({ color: 0x4a3728, metalness: 0, roughness: 0.8, map: this.leatherTex() });
             const bootTop = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.072, 0.1, 10), bootMat);
             bootTop.position.y = -0.265;
             const foot = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), bootMat);
@@ -279,7 +279,7 @@ const ProChar = {
         gorget.rotation.x = Math.PI / 2;
         gorget.position.y = 0.45;
         // 가슴 문장 (등급 발광용)
-        R.emblemMat = new THREE.MeshPhongMaterial({ color: 0x78909c, shininess: 70 });
+        R.emblemMat = new THREE.MeshStandardMaterial({ color: 0x78909c, metalness: 0.6, roughness: 0.32 });
         const emblem = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), R.emblemMat);
         emblem.position.set(0, 0.3, 0.2);
         emblem.scale.z = 0.4;
@@ -313,7 +313,7 @@ const ProChar = {
             geo.userData.kArr = kArr;
             return geo;
         };
-        R.capeMat = new THREE.MeshLambertMaterial({ color: 0x8c2a2a, side: THREE.DoubleSide, map: this.capeTex() });
+        R.capeMat = new THREE.MeshStandardMaterial({ color: 0x8c2a2a, metalness: 0, roughness: 0.92, side: THREE.DoubleSide, map: this.capeTex() }); // 천 — 무광 직물
         const cape = new THREE.Mesh(makeCapeGeo(), R.capeMat);
         // 천 시뮬 흉내: 베이스 정점을 저장해 두고 update()가 매 프레임 이동파를 얹음 (비평가: '판자 망토')
         R.capeMesh = cape;
@@ -361,8 +361,8 @@ const ProChar = {
             const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.065, 0.07, 10), steel());
             cuff.position.y = -0.11;
             // 주먹: 손바닥 블록 + 손가락 4지(기절·말절 2분절 컬) + 엄지 2분절 + 강철 너클 가드 — 근접샷에서 '손가락 없는 스텁' 오독 해소 (비평가 1번)
-            const gloveMat = new THREE.MeshPhongMaterial({ color: 0x6b4e3a, shininess: 22, map: this.leatherTex() });
-            const palmMat = new THREE.MeshPhongMaterial({ color: 0x7a5c46, shininess: 22, map: this.leatherTex() });
+            const gloveMat = new THREE.MeshStandardMaterial({ color: 0x6b4e3a, metalness: 0, roughness: 0.82, map: this.leatherTex() }); // 가죽 PBR
+            const palmMat = new THREE.MeshStandardMaterial({ color: 0x7a5c46, metalness: 0, roughness: 0.8, map: this.leatherTex() });
             const fist = new THREE.Group();
             fist.position.y = -0.16;
             const palm = new THREE.Mesh(new THREE.SphereGeometry(0.052, 9, 8), palmMat);
@@ -394,9 +394,13 @@ const ProChar = {
             guard.position.set(0, 0.012, 0.012);
             guard.scale.set(1.15, 0.75, 0.85);
             fist.add(guard);
+            // 손목 가죽 스트랩 — 클로즈업 중간 디테일 (커프-주먹 경계 정의)
+            const strap = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.012, 6, 12), gloveMat);
+            strap.rotation.x = Math.PI / 2;
+            strap.position.y = -0.135;
             const handMount = new THREE.Group();
             handMount.position.y = -0.17;
-            elbow.add(elbowCap, forearm, cuff, fist, handMount);
+            elbow.add(elbowCap, forearm, cuff, fist, strap, handMount);
             shoulder.add(pauldron, pauldron2, rivet, upperArm, elbow);
             spine.add(shoulder);
             R.arms.push({ shoulder, elbow, handMount });
@@ -414,7 +418,7 @@ const ProChar = {
         shieldBody.scale.set(1, 1, 1.25);
         const shieldRim = new THREE.Mesh(new THREE.TorusGeometry(0.155, 0.017, 6, 22), gold);
         // 문장 필드 — 중앙 원판(장비 없을 땐 청강색, 갑옷 장착 시 등급색)
-        R.shieldFaceMat = new THREE.MeshPhongMaterial({ color: 0x3f5a74, shininess: 46, specular: 0x6b8399 });
+        R.shieldFaceMat = new THREE.MeshStandardMaterial({ color: 0x3f5a74, metalness: 0.55, roughness: 0.42 });
         const face = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.016, 20), R.shieldFaceMat);
         face.rotation.x = Math.PI / 2;
         face.position.z = 0.055;
@@ -505,7 +509,7 @@ const ProChar = {
         faceG.add(mouth);
         // 머리카락 (헬멧 없을 때) — 스웹트 숏컷: 베이스 캡 + 납작한 사이드스윕 프린지 (뭉게뭉게 금지)
         const hairG = new THREE.Group();
-        const hairMat = new THREE.MeshPhongMaterial({ color: 0x8f6a26, shininess: 42, specular: 0x7a5c1e });
+        const hairMat = new THREE.MeshStandardMaterial({ color: 0x8f6a26, metalness: 0, roughness: 0.5 }); // 머릿결 광택 — 낮은 러프니스
         const cap = new THREE.Mesh(new THREE.SphereGeometry(0.202, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.6), hairMat);
         cap.position.y = 0.088;
         cap.rotation.x = -0.1;
