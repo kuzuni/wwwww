@@ -2,10 +2,12 @@
 // 분기 3개: ① 힘·탈것 ② 대장간 ③ 스킬·펫&기술. 원본의 ANIMALS 분기와 길드(Guild)는 사용자 지시로 제외.
 // 노드 구성·효과 수치는 개발자 가이드(1vcian.me/ForgeMasterCalculator) + 사용자가 원본 게임에서 직접 확인한 값.
 //
-// ===== 트리 구조 (사용자 정정 2026-08-17 — '노드당 25업' 해석을 폐기하고 재작업) =====
+// ===== 트리 구조 (사용자 재정정 2026-08-17 — '단계 통째 완료' 해석을 폐기하고 재작업) =====
 // 5단계(티어)는 **노드 안의 단계가 아니라 트리 자체의 단계**다:
 //   ① 각 분기는 위→아래로 이어지는 5단계(티어) 세로 트리.
-//   ② 한 단계의 노드를 **전부 만렙(5/5)** 으로 만들면 그 아래 다음 단계가 해금된다 (1→2→3→4→5 순차).
+//   ② 해금은 단계 단위가 아니라 **노드 그래프의 선행 조건**이다 — 선으로 이어진 부모 노드가
+//      전부 **1레벨 이상**이면 자식이 열린다(부모 만렙 불필요, 2부모면 둘 다 1렙 이상).
+//      판정은 isUnlocked()/parentsOf() 참고. 단계는 비용·시간 배수에만 쓴다.
 //   ③ 노드 하나는 **최대 5레벨**(원본 스크린샷 shot-042546의 'N/5' 표기와 일치).
 // 따라서 비용·시간 커브의 '티어 배수'는 레벨이 아니라 **노드가 속한 단계**에서 나온다.
 // 연구는 대장간 업그레이드와 동일하게 물약 선결제 + 실시간 타이머(전체 트리 통틀어 동시 1건) 방식.
@@ -206,27 +208,53 @@ const TechTree = {
         const b = this.BRANCHES.find(x => x.id === branchId);
         return (b && b.tiers[tier - 1]) || [];
     },
-    // 단계 완료 = 그 단계의 모든 노드가 만렙(5/5)
-    tierDone(branchId, tier) {
-        const list = this.tierNodes(branchId, tier);
-        return list.length > 0 && list.every(id => this.isMax(id));
+    // ===== 해금 = 선으로 이어진 부모 노드가 전부 1레벨 이상 (사용자 재정정 2026-08-17) =====
+    // '단계 통째 만렙'이 아니다. 부모가 1개면 그 부모가 딱 1레벨만 돼도 자식이 열리고,
+    // 부모가 2개면(위에서 선 두 개가 들어오면) 둘 다 1레벨 이상이어야 열린다.
+    //
+    // 부모 관계는 화면에 그려지는 선과 반드시 같아야 해서, 그리기와 같은 규칙으로 여기서 만든다
+    // (UI는 rows()/parentsOf()를 그대로 받아 쓴다 — 두 곳에 규칙을 두면 선과 판정이 어긋난다):
+    //   ① 각 단계의 노드를 2개씩 잘라 행으로 쌓는다. 홀수면 마지막 노드가 중앙 단독 행이다.
+    //   ② 같은 단계 안에서 2노드 행이 연달아 오면 좌·우 두 갈래로 세로선이 내려간다
+    //      → 왼쪽 노드의 부모는 위 행 왼쪽, 오른쪽 노드의 부모는 위 행 오른쪽 (각 1부모).
+    //   ③ 그 밖에는 가운데 줄기 하나로 합류한다 → 그 행 노드들의 부모는 위 행 노드 '전부'
+    //      (위 행이 2노드면 2부모 합류, 1노드면 1부모에서 갈라짐).
+    //   ④ 첫 행은 부모가 없어 언제나 열려 있다.
+    rows(branchId) {
+        const b = this.BRANCHES.find(x => x.id === branchId);
+        if (!b) return [];
+        const out = [];
+        b.tiers.forEach((ids, t) => {
+            for (let i = 0; i < ids.length; i += 2) {
+                out.push({ ids: ids.slice(i, i + 2), tier: t + 1, first: i === 0 });
+            }
+        });
+        return out;
     },
-    // 1단계는 언제나 열려 있고, 그 아래는 바로 위 단계를 완료해야 열린다
-    tierUnlocked(branchId, tier) {
-        for (let t = 1; t < tier; t++) if (!this.tierDone(branchId, t)) return false;
-        return true;
+    // 같은 단계 안에서 위아래가 모두 2노드 행일 때만 좌·우 갈래(=부모가 1:1로 갈린다)
+    railBetween(upper, lower) {
+        return !!upper && !!lower && upper.tier === lower.tier
+            && upper.ids.length === 2 && lower.ids.length === 2;
+    },
+    parentsOf(id) {
+        const b = this.branchOf(id);
+        if (!b) return [];
+        const rows = this.rows(b.id);
+        for (let r = 1; r < rows.length; r++) {
+            const row = rows[r], i = row.ids.indexOf(id);
+            if (i < 0) continue;
+            const prev = rows[r - 1];
+            return this.railBetween(prev, row) ? [prev.ids[i]] : prev.ids.slice();
+        }
+        return []; // 첫 행이거나 목록에 없는 노드
     },
     isUnlocked(id) {
-        const b = this.branchOf(id);
-        return !b || this.tierUnlocked(b.id, this.tierOf(id));
+        const parents = this.parentsOf(id);
+        return parents.every(p => this.level(p) >= 1);
     },
-    // 해금 대기 중인 노드가 '무엇을 끝내야 열리는지' — 바로 위의 미완료 단계 번호
+    // 해금 대기 중인 노드가 '무엇을 올려야 열리는지' — 아직 0레벨인 부모 노드 id 목록
     lockedBy(id) {
-        const b = this.branchOf(id);
-        if (!b) return null;
-        const tier = this.tierOf(id);
-        for (let t = 1; t < tier; t++) if (!this.tierDone(b.id, t)) return t;
-        return null;
+        return this.parentsOf(id).filter(p => this.level(p) < 1);
     },
     ROMAN: ['I', 'II', 'III', 'IV', 'V'],
     roman(tier) { return this.ROMAN[tier - 1] || 'I'; },
