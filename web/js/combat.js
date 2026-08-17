@@ -357,9 +357,17 @@ const Combat = {
 
     onDefeat() {
         Scene3D.heroDown();
-        if (Dungeons.run) Dungeons.onFail();
-        else UI.toast('💀 쓰러졌다... 회복 후 다시 도전!');
-        // 후퇴 없음 — 같은 스테이지 재도전 (무조건 전진)
+        if (Dungeons.run) Dungeons.onFail(); // 던전 실패는 후퇴 대상이 아니다 — 던전은 자체 단계를 쓴다
+        else {
+            // 사망 시 1스테이지 후퇴 (사용자 지시 2026-08-17). 챕터는 절대 안 깎인다 —
+            // 하한은 그 챕터의 X-1이라 3-1에서 죽어도 2-10으로 넘어가지 않는다.
+            // 최고 기록(bestChapter/bestStage)은 후퇴로 깎이지 않는다 — 진행 패스 마일스톤이 되감기면 안 된다.
+            const back = S.stage > 1;
+            if (back) S.stage--;
+            UI.toast(back ? `💀 쓰러졌다... ${S.chapter}-${S.stage}로 한 스테이지 후퇴!` : '💀 쓰러졌다... 회복 후 다시 도전!');
+            UI.renderTopBar();
+            UI.updateStageLabel(); // 쓰러져 있는 2.4초 동안 라벨이 옛 스테이지를 가리키지 않게(setupStage 전에 먼저 갱신)
+        }
         saveGame();
         this.hero.hp = this.hero.maxHp; // 머리 위 바는 Scene3D.update가 매 프레임 자체 갱신
         this.phase = 'stageDelay';
