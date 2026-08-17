@@ -2031,7 +2031,7 @@ const UI = {
         // 원본(shot-042449): 좌측 등급색 타일(장착됨 리본+Lv뱃지+별) + 우측 등급색 이름·굵은 스탯 2줄·옵션 플레인 텍스트,
         // 우상단 파란 클립보드(공유 더미), 하단 대형 [업그레이드(파랑)][제거(빨강)/장착(파랑)] 2분할, 닫기=빨간 X
         this.els.detailModal.innerHTML = `
-            <div class="idet-wrap">
+            <div class="idet-wrap petd-wrap">
                 <div class="modal-card paper petd-card">
                     <button class="petd-share" onclick="UI.toast('📋 공유는 데모 버전에서 지원하지 않습니다')">📋</button>
                     <div class="petd-head">

@@ -2803,19 +2803,42 @@ body {
 .dgd-btn { flex: 1; font-size: .92rem; padding: .6rem .2rem; border-radius: .6rem; line-height: 1.25; }
 #panel-summon > .summon-sub { position: relative; } /* 분기 상세 ⓘ 절대배치 기준 */
 
-/* ===== 펫 상세 팝업 (shot-042449 원본 대조 재작업) ===== */
-.petd-card { width: 76.9%; /* 원본 shot-042449 실측 */ padding: 1.1rem .9rem 1.2rem; text-align: left; position: relative; gap: 0; }
+/* ===== 펫 상세 팝업 (shot-042449 원본 대조 재작업) =====
+   원본 실측(490×886 PNG, 행/열 색 구간 스캔): 카드 x 51~421(폭 371 = 75.71%W) · y 362~653(높이 292 = 32.96%H)
+   카드 안 세로 예산 292px = 위 여백 28 + 머리(타일 62 / 글자 391~481) 91 + 사이 40 + 버튼 68(베벨 6 포함) + 아래 여백 64.
+   ⚠️ 아래 여백 64px 은 오타가 아니다 — 원본은 버튼 아래로 흰 여백을 크게 두고 그 위에 빨간 ✕ 가 걸친다.
+   ⚠️ 원본 캡처는 좌측이 ~15px 잘려 있다(탭바 5칸 아이콘 중심 간격으로 역산한 앱 중심 x=236 이 이미지 중심 245 와 다르다).
+      그래서 카드는 이미지 기준으로 좌 10.41 / 우 86.12%W 로 '왼쪽에 쏠려' 보이지만, 앱 안에서는 정중앙이다 —
+      클론은 정중앙 정렬을 유지하고 폭만 원본 실측(75.71%W)에 맞춘다. 좌/우 각각 +1.7%p 는 이 크롭 탓이다.
+   🚨 `.petd-card`·`.petd-head`·`.petd-btn` 은 **알 상세(openEggDetail)·탈것 상세와 공용**이다. 그 두 화면은
+      아직 원본 대조 전이라, 이 화면 실측에서 나온 세로 예산(아래 여백·머리 마진·버튼 높이 등)은 전역 규칙이
+      아니라 펫 상세 마크업에만 붙는 `.petd-wrap` 스코프로 넣는다. 전역에 두면 재보지도 않은 두 화면이 끌려간다. */
+.petd-card { width: 75.7%; /* 원본 shot-042449 실측 371/490 */ padding: 1.1rem .9rem 1.2rem; text-align: left; position: relative; gap: 0; }
+/* 원본 팝업은 화면 정중앙이 아니라 아래쪽에 놓인다(카드 중심 57.34%H) — .idet-wrap 은 #detail-modal 을
+   여러 팝업이 공유하므로 펫 상세 마크업에만 붙는 .petd-wrap 으로 스코프해 내린다. */
+.petd-wrap { position: relative; top: 4.77rem; }
+.petd-wrap .petd-card { padding-bottom: 4.17rem; }        /* 버튼 아래 흰 여백 64px */
+.petd-wrap .petd-head { gap: 1.7rem; margin-bottom: 2.38rem; }  /* 타일→이름 28px · 머리→버튼 40px */
+.petd-wrap .petd-btns { gap: 1.25rem; padding: 0 1.16rem; }     /* 원본 버튼 줄은 카드 콘텐츠 폭을 꽉 안 채운다: 좌우 인셋 19.5px · 버튼 사이 21px */
+.petd-wrap .petd-btn { min-height: 3.75rem; }                   /* 원본 버튼 높이 63px(베벨 제외) */
+.petd-wrap .petd-stats { line-height: 1.0; margin-bottom: .1rem; }
+.petd-wrap .petd-subs { line-height: 1.19; }
+.petd-wrap .petd-name { margin-bottom: .05rem; }
 .petd-share {
     position: absolute; top: .55rem; right: .55rem; cursor: pointer;
     width: 1.7rem; height: 1.7rem; border: 2px solid var(--pp-line); border-radius: .4rem;
     background: var(--pp-blue); font-size: .85rem; line-height: 1; padding: 0;
 }
 .petd-head { display: flex; gap: .9rem; align-items: flex-start; margin: .3rem 0 1rem; }
-.petd-tilecol { width: 17.5%; flex: none; /* 원본 타일 ≈12% W (185) */ display: flex; flex-direction: column; align-items: center; gap: .25rem; }
+.petd-tilecol { width: 18.1%; flex: none; /* 원본 타일 61px = 카드 콘텐츠 폭 337 의 18.1% */ display: flex; flex-direction: column; align-items: center; gap: .25rem; }
 .petd-tile {
     position: relative; width: 100%; aspect-ratio: 1; border-radius: .55rem;
     border: 3px solid var(--pp-line); background: var(--rc, #ccc);
-    display: flex; align-items: center; justify-content: center; font-size: 1.9rem;
+    display: flex; align-items: center; justify-content: center;
+    /* ⚠️ 이 타일은 세로 flex 자식이라 min-height:auto 가 걸린다 — 안의 얼굴(2.1em)이 aspect-ratio 로
+       정해진 정사각형보다 크면 타일이 통째로 세로로 늘어난다(1.9rem 일 때 59.7×71.9 로 +12px 이었다).
+       얼굴 크기를 줄여 정사각형 안에 가두는 게 맞다. */
+    font-size: 1.5rem;
     box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25);
 }
 .petd-tile .sk-ribbon { font-size: .58rem; padding: .05rem .35rem; }
