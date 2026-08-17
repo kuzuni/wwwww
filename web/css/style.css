@@ -2013,6 +2013,19 @@ body {
 .sk-mini .sk-ico { width: 88%; height: 88%; margin: 0; }
 .sk-mini small { position: absolute; bottom: -.3rem; font-size: .52rem; font-weight: 900; color: #17181a; background: #fff; border: 1px solid #000; border-radius: .5rem; padding: 0 .22rem; line-height: 1.25; white-space: nowrap; }
 .row.center { justify-content: center; }
+/* ---- 스킬 화면(shot-042340) 하단 스택 비율 교정 — 전 UI 비율 전수 검증 패스 (2026-08-17 UI 스트림) ----
+   원본 픽셀 실측(%H): 장착됨 바 56.29~62.13(h 5.84) · 버튼줄 64.16~68.88(h 4.72) · 소환바 74.49.
+   교정 전 클론: 장착됨 59.40~67.02(h 7.62) · 버튼줄 68.44~72.23(h 3.79) · 소환바 73.65
+   → 바가 +1.78%p 두껍고, 버튼줄이 −0.93%p 낮고, 버튼줄~소환바 사이가 −4.19%p 좁아
+     **아래 스택이 통째로 짧은 만큼 장착됨 바가 +3.11%p 아래로 밀려** 있었다.
+   `.grid-scroll`이 `flex: 1`로 남는 공간을 전부 먹으므로, 아래 스택을 원본 높이로 **키우면**
+   장착됨 바가 그만큼 위로 올라온다(줄이면 반대로 더 내려간다 — 방향을 헷갈리지 말 것).
+   ⚠️ `.equipped-row`·`.sk-mini`는 펫 화면(shot-042445)과 공용인데 펫은 아직 요소 실측 전이라,
+   회귀를 막으려고 이 패스에서는 **스킬 화면으로만 스코프**한다. 펫 차례에 같은 수치로 재검증할 것. */
+#panel-skills .equipped-row { padding: .28rem .5rem; margin-bottom: .32rem; }
+#panel-skills .equipped-row .sk-mini { width: 2.16rem; height: 2.16rem; }
+#panel-skills .sk-action-btn { min-height: 2.49rem; }
+#panel-skills .summon-bar { margin-top: 2.21rem; }
 .summon-bar { display: flex; align-items: center; justify-content: center; gap: .5rem; position: relative; }
 .summon-bar .back-btn { position: absolute; left: .3rem; } /* 원본: 좌측 끝 (185 재채점) */
 .summon-bar .btn.big { font-size: 1.05rem; padding: .3rem .6rem; min-height: 3.8rem; flex: 0 1 30%; } /* 소환 바 원본(shot-042356): 높이≈7% H, 폭≈28~35% W — 풀폭 금지. 스코프는 소환 바 기준 — 패널 스코프면 모달 소환 바(탈것)에 미적용 (QA 버그) */
