@@ -803,14 +803,14 @@ const Scene3D = {
         // ground의 자식이라 지형 타일 순환(x±30 점프)을 자동으로 따라간다. 텍스처 x반복 2 = 주기 30과 일치.
         {
             const pc = document.createElement('canvas');
-            pc.width = 512; pc.height = 128;
+            pc.width = 1024; pc.height = 256; // 512×128은 근경에서 가장자리가 뭉개져 저해상 블렌딩으로 읽힘 (비평가 7.1 19번)
             const ctx = pc.getContext('2d');
-            ctx.clearRect(0, 0, 512, 128);
+            ctx.clearRect(0, 0, 1024, 256);
             // 직선 그라디언트 밴드는 '아스팔트 고속도로'로 읽힘 — 소프트 블롭을 중심선 따라 지터로 겹쳐 유기적인 다짐길로
-            for (let i = 0; i < 150; i++) {
-                const x = Math.random() * 512;
-                const y = 64 + Math.sin(x * 0.02 + 1.7) * 14 + U.rand(-20, 20); // 중심선 자체가 완만히 굽이침
-                const r = 12 + Math.random() * 26;
+            for (let i = 0; i < 300; i++) {
+                const x = Math.random() * 1024;
+                const y = 128 + Math.sin(x * 0.01 + 1.7) * 28 + U.rand(-40, 40); // 중심선 자체가 완만히 굽이침
+                const r = 24 + Math.random() * 52;
                 const warm = Math.random() < 0.6;
                 const gb = ctx.createRadialGradient(x, y, 0, x, y, r);
                 gb.addColorStop(0, warm ? 'rgba(104,78,50,0.3)' : 'rgba(72,54,36,0.28)'); // 저알파 밝은 톤은 '안개 자국'으로 읽힘(비평가 6.9 7번) — 주변 잔디보다 확실히 어두운 황토
@@ -818,22 +818,23 @@ const Scene3D = {
                 ctx.fillStyle = gb;
                 ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
             }
-            for (let i = 0; i < 26; i++) { // 짧은 발자국/긁힘 결 — 긴 스트릭은 차선으로 오독
+            for (let i = 0; i < 52; i++) { // 짧은 발자국/긁힘 결 — 긴 스트릭은 차선으로 오독
                 ctx.strokeStyle = Math.random() < 0.5 ? 'rgba(66,48,32,0.2)' : 'rgba(140,112,80,0.16)';
-                ctx.lineWidth = 1.2 + Math.random() * 1.6;
-                const x = Math.random() * 512, y = 40 + Math.random() * 48;
-                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 6 + Math.random() * 14, y + U.rand(-3, 3)); ctx.stroke();
+                ctx.lineWidth = 2.4 + Math.random() * 3.2;
+                const x = Math.random() * 1024, y = 80 + Math.random() * 96;
+                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 12 + Math.random() * 28, y + U.rand(-6, 6)); ctx.stroke();
             }
-            for (let i = 0; i < 30; i++) { // 잔자갈
+            for (let i = 0; i < 60; i++) { // 잔자갈
                 const v = 110 + Math.floor(Math.random() * 55);
                 ctx.fillStyle = `rgba(${v},${v - 12},${v - 28},0.4)`;
                 ctx.beginPath();
-                ctx.arc(Math.random() * 512, 38 + Math.random() * 52, 0.8 + Math.random() * 1.8, 0, Math.PI * 2);
+                ctx.arc(Math.random() * 1024, 76 + Math.random() * 104, 1.6 + Math.random() * 3.6, 0, Math.PI * 2);
                 ctx.fill();
             }
             const ptex = new THREE.CanvasTexture(pc);
             ptex.wrapS = THREE.RepeatWrapping;
             ptex.repeat.set(2, 1);
+            ptex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); // 저각 시점 밉 뭉개짐 방지 — 근경 가장자리 선명도
             const pathGeo = new THREE.PlaneGeometry(60, 1.7, 1, 1);
             pathGeo.rotateX(-Math.PI / 2);
             this.pathMesh = new THREE.Mesh(pathGeo, new THREE.MeshLambertMaterial({
