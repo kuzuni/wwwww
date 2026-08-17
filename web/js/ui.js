@@ -553,7 +553,12 @@ const UI = {
         for (const name of Object.keys(this)) {
             if (!/^render[A-Z]/.test(name) || typeof this[name] !== 'function') continue;
             const orig = this[name];
-            this[name] = function (...args) { return UI.keepScroll(() => orig.apply(this, args)); };
+            // 렌더 뒤에 썸네일 잉크 맞춤도 같이 건다 — 캐시된 썸네일은 즉시 적용된다
+            this[name] = function (...args) {
+                const r = UI.keepScroll(() => orig.apply(this, args));
+                UI.fitThumbs();
+                return r;
+            };
         }
     },
 
@@ -1338,10 +1343,77 @@ const UI = {
 
     ageHex(age) { return '#' + AGE_COLORS[age].toString(16).padStart(6, '0'); },
 
+    // ===== 3D 스냅샷 썸네일을 프레임에 꽉 채우기 =====
+    // Scene3D.itemThumb은 96×96 캔버스를 **고정 카메라**로 찍는다. 장비마다 실루엣이 달라
+    // 그림이 캔버스의 40%대만 채우고 나머지는 투명 여백이라, 셀에 넣으면 원본(잉크 79.4%)의
+    // 1/4 크기로 보였다(실측 18%). 카메라를 좁히는 건 scene3d.js(3D 스트림 소관)라,
+    // UI 쪽에서 **찍힌 그림의 불투명 bbox를 한 번 재서** 그만큼 확대·중심 보정한다.
+    // 이 방식은 3D가 나중에 프레이밍을 바꿔도 자동으로 따라간다(고정 배율 하드코딩 금지).
+    // 측정은 dataURL 단위 캐시 — Scene3D가 아이템 키로 썸네일을 캐시하므로 재렌더 비용 0.
+    // 원본 shot-042120 실측(499×892, 셀 67px, 9칸): 잉크 bbox **긴 변** 평균 82.9%(73.1~88.1%),
+    // 가로 평균 79.4% / 세로 평균 82.1%. 실루엣 모양은 장비마다 달라 '긴 변'을 기준으로 맞춘다
+    // (짧은 변까지 억지로 키우면 검·창 같은 길쭉한 장비가 셀 밖으로 삐져나온다).
+    THUMB_INK: 0.83,
+    _thumbFit: {},          // dataURL → transform 문자열
+    _thumbPending: {},
+    // 렌더 직후 호출 — 이미 잰 썸네일은 즉시, 처음 보는 썸네일은 디코드 후 비동기로 적용한다
+    fitThumbs(root) {
+        const imgs = (root || document).querySelectorAll('img.fit-ink');
+        for (const img of imgs) {
+            const src = img.getAttribute('src');
+            if (!src) continue;
+            const t = this._thumbFit[src];
+            if (t) { img.style.transform = t; continue; }
+            if (this._thumbPending[src]) continue;
+            this._thumbPending[src] = true;
+            this.measureThumb(src);
+        }
+    },
+    measureThumb(src) {
+        const im = new Image();
+        im.onload = () => {
+            delete this._thumbPending[src];
+            const w = im.naturalWidth, h = im.naturalHeight;
+            let t = 'none';
+            try {
+                const cv = document.createElement('canvas');
+                cv.width = w; cv.height = h;
+                const cx = cv.getContext('2d');
+                cx.drawImage(im, 0, 0);
+                const d = cx.getImageData(0, 0, w, h).data;
+                let x0 = w, x1 = -1, y0 = h, y1 = -1;
+                for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+                    if (d[(y * w + x) * 4 + 3] > 24) {
+                        if (x < x0) x0 = x; if (x > x1) x1 = x;
+                        if (y < y0) y0 = y; if (y > y1) y1 = y;
+                    }
+                }
+                if (x1 >= 0) {
+                    const fill = Math.max((x1 - x0 + 1) / w, (y1 - y0 + 1) / h);
+                    // 배율은 상한을 둔다 — 빈 캔버스에 가까운 썸네일이 나와도 화면을 뚫지 않게
+                    const k = Math.min(3.2, Math.max(1, this.THUMB_INK / Math.max(0.05, fill)));
+                    // 잉크 중심을 프레임 중심으로: scale 먼저라 translate는 스케일 전 좌표계(요소 크기 %)
+                    const ox = -((x0 + x1 + 1) / 2 / w - 0.5) * 100;
+                    const oy = -((y0 + y1 + 1) / 2 / h - 0.5) * 100;
+                    t = `scale(${k.toFixed(3)}) translate(${ox.toFixed(2)}%, ${oy.toFixed(2)}%)`;
+                }
+            } catch (e) { /* 캔버스 접근 실패(파일 프로토콜 등) — 원본 크기 그대로 둔다 */ }
+            this._thumbFit[src] = t;
+            document.querySelectorAll('img.fit-ink').forEach(el => {
+                if (el.getAttribute('src') === src) el.style.transform = t;
+            });
+        };
+        im.onerror = () => { delete this._thumbPending[src]; };
+        im.src = src;
+    },
+
     // 장비 이미지: 무기/투구/갑옷은 실제 3D 모델 스냅샷, 나머지는 아이콘
     itemImgHTML(item, cls) {
         const thumb = (typeof Scene3D !== 'undefined') ? Scene3D.itemThumb(item) : null;
-        if (thumb) return `<img class="${cls}" src="${thumb}" alt="">`;
+        // 잉크 맞춤은 지금은 메인 화면 장비 셀에만 건다 — 비교 팝업·모루 카드는 이미
+        // 원본 비율로 채점을 통과한 배치라 배율을 건드리면 그쪽이 어긋난다.
+        const fit = /\bcell-img\b/.test(cls) ? ' fit-ink' : '';
+        if (thumb) return `<img class="${cls}${fit}" src="${thumb}" alt="">`;
         return `<div class="${cls} emoji">${this.SLOT_EMOJI[item.slot] || '🎁'}</div>`;
     },
 
