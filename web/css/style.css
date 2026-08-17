@@ -650,7 +650,10 @@ body {
 /* 원본(043244): 장비 상세 카드는 화면 하단(장비 시트 위, 세로 60~78%)에 뜬다 — 폭 ≈70% */
 /* padding-bottom의 %는 컨테이너 '너비' 기준이라 탭바가 높아져도 따라오지 않아 카드가 탭바에 물렸다
    — 탭바 높이에 맞물리게 바꿔 어떤 탭바 높이에서도 그 위에 앉는다. */
-#gear-detail-modal { align-items: flex-end; padding-bottom: calc(var(--tabbar-h) + .8rem); }
+/* 원본 실측(shot-043244, 497×897): 흰 카드(‘장착됨’ 탭 포함) 바운딩 박스가 y 59.64%H → 하단 77.15%H.
+   이전 값(탭바 높이 + .8rem)은 카드 하단이 88.45%H 로 **+11.30%p 아래**에 붙어 있었다(폭·높이는
+   원본과 ±0.6%p 로 이미 맞았고 세로 위치만 어긋난 케이스). 바닥에서 띄우는 양을 실측값으로 지정한다. */
+#gear-detail-modal { align-items: flex-end; padding-bottom: calc(var(--app-h) * .223); }
 #gear-detail-modal .gd-card { width: 70%; }
 /* 장비 비교 팝업은 원본(shot-043224)처럼 하단 앵커 (버튼줄이 화면 ~78%H) */
 #craft-modal { align-items: flex-end; padding-bottom: calc(var(--tabbar-h) + .8rem); }
