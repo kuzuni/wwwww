@@ -2968,7 +2968,7 @@ const Scene3D = {
                 cn(0.018, 0.06, s * 0.05, 0.5, 0.14, new THREE.MeshLambertMaterial({ color: 0xffffff })); // 송곳니
                 const wing = new THREE.Group();
                 wing.position.set(s * 0.17, 0.65, 0);
-                const wm = new THREE.Mesh(wingGeo(0.44, 0.3), new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0.015, 0.06, -0.06), side: THREE.DoubleSide, transparent: true, opacity: 0.88 })); // 반투명 막 — 판자 오독 제거
+                const wm = new THREE.Mesh(wingGeo(0.44, 0.3), new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0.015, 0.06, -0.06), side: THREE.DoubleSide, transparent: true, opacity: 0.76 })); // 반투명 막 — 0.88은 사실상 불투명 판자로 읽힘 (비평가 6.8 8번)
                 wm.scale.x = s;
                 const wBone = mk(new THREE.CylinderGeometry(0.014, 0.01, 0.42, 5), dark); // 앞전 뼈대
                 wBone.rotation.z = s * (Math.PI / 2 - 0.18);
@@ -3198,12 +3198,12 @@ const Scene3D = {
                 bone1.position.set(s * 0.09, 0.05, 0); bone1.rotation.z = s * 1.1;
                 const bone2 = mk(new THREE.CylinderGeometry(0.009, 0.006, 0.16, 5), skinD);
                 bone2.position.set(s * 0.2, 0.02, 0); bone2.rotation.z = s * 1.9;
-                const mem = mk(wingGeo(0.3, 0.22), new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0.02, 0.08, -0.04), side: THREE.DoubleSide })); // 몸 색과 이어지는 밝은 막 — 배경에 뭉개짐 방지
+                const mem = mk(wingGeo(0.42, 0.3), new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0.02, 0.08, -0.04), side: THREE.DoubleSide, transparent: true, opacity: 0.85 })); // 반투명 막 — 판자 오독 제거, 몸 대비 과소(비행 설득력) 확대 (비평가 6.8 8번)
                 mem.scale.x = s;
                 mem.position.y = 0.08;
                 wing.add(bone1, bone2, mem);
-                wing.position.y = 0.42; // 어깨 높이 — 머리 뒤에서 '대형 귀'로 오독되지 않게 (비평가 지적)
-                wing.rotation.set(0.2, 0, s * 0.8);
+                wing.position.set(s * 0.135, 0.42, -0.13); // 소켓을 등 뒤·바깥으로 — 날개 평면이 몸통을 관통·교차하던 문제
+                wing.rotation.set(0.32, s * -0.25, s * 0.55); // 펼침각 완화 + 뒤로 젖힘
                 wing.userData.s = s;
                 anim.wings.push(wing);
                 g.add(wing);
