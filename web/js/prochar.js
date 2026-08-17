@@ -245,6 +245,65 @@ const ProChar = {
         }, 64, 64);
     },
 
+    // ---------- 값 구조: 니어블랙 재질 ----------
+    // 비평가 2인이 공통 1위로 지목한 결함 = "캐릭터에 진짜 어두운 값이 아예 없다"(실측 darkPctHero 0.04%,
+    // 요구치는 캐릭터 면적의 15~20%가 명도 0.10~0.18). 외곽선/컨투어로는 테두리 한 줄만 어두워질 뿐이라
+    // **면적을 가진 어두운 재질**이 필요하다 — 가죽 스트랩·부츠 밑창·관절 개스킷·고젯 안쪽·판금 밑면.
+    //
+    // ⚠️ 헥스 선정의 함정: r128은 `setHex`를 **리니어**로 해석하고 렌더러는 **sRGB**로 출력하므로
+    // 화면 명도는 대략 hex^(1/2.2)로 떠오른다. 여기에 태양+환경광 곱까지 얹히면 '어두워 보이는' 헥스
+    // (0x2a1a0d 부츠 등)가 화면에서는 0.35~0.45로 나온다 — 이미 이 함정에 두 번 빠진 기록이 위에 있다
+    // (건틀릿 0x6b4e3a→0x241408, 부츠 0x4a3728→0x2a1a0d). 목표 대역 0.10~0.18을 **조명 후**에 맞추려면
+    // 리니어 albedo가 0.01 근처여야 한다 — `probe-hero-dark.js`로 스윕해 채택한 값이 아래 DEEP.
+    DEEP: { color: 0x04050a, roughness: 0.94, metalness: 0.18, env: 0.14 },
+    // 갑옷 금속 3톤. 스트랩·개스킷만으로는 어두운 값이 캐릭터 면적의 2%대에 그친다(실측) — 요구치 15~20%를
+    // 채우려면 **면적을 가진 층**이 어두워야 한다. 판금(steel)은 하이라이트 담당이라 밝게 두고,
+    // 사지를 통째로 덮는 **사슬(mail)을 블랙엔드 스틸로** 내려 대면적 다크를 만든다(중세 흑갑 리퍼런스).
+    // 판금이 밝게 남으므로 '검은 덩어리'가 아니라 밝은 판금 ↔ 어두운 사슬의 재질 대비로 읽힌다.
+    // 스윕 실측(probe-hero-dark.js, 480×854 인게임 뷰 / 사슬 albedo만 갈아가며):
+    //   mail 0x8e9aa6(기존) bandPct 1.38 · 0x2a323c 2.29 · 0x0e1319 2.50 · 0x080b10 2.33(과다 → 오히려 감소)
+    //   steelDark 0x5c6b7a(기존) 2.34 · 0x2a323c 2.50 · 0x1c222a 2.63(판금 대비가 과해 보조판이 구멍으로 읽힘)
+    // → mail 0x0e1319 · steelDark 0x232a33 채택. **주의: albedo만으로는 2.5%가 천장이다** — metalness 0.78 금속은
+    // 화면값을 albedo가 아니라 **환경 반사**가 지배하므로, 요구치 15~20%는 전역 필(반구광·env·림) 하향이
+    // 선행돼야 한다(별도 '전역 값 구조' 작업). 이 항목은 그 선행 작업이 먹힐 재질 바닥을 까는 몫.
+    TONE: { steel: 0x9fb2c2, steelDark: 0x232a33, mail: 0x0e1319 },
+    setTone(o) {
+        Object.assign(this.TONE, o);
+        for (const m of this._toneMats || []) {
+            const t = m.userData.tone;
+            if (o[t] === undefined) continue;
+            m.userData.baseColor = o[t];
+            m.color.setHex(o[t]);
+            m.needsUpdate = true;
+        }
+    },
+    // 니어블랙 가죽/고무 — 텍스처 맵은 밝은 베이스(#c9b8a6)를 곱하므로 쓰지 않고, 범프만 얹어 질감을 남긴다.
+    deepMat(o) {
+        const D = this.DEEP;
+        const bump = this.leatherTex();
+        const m = new THREE.MeshStandardMaterial({
+            color: (o && o.color) !== undefined ? o.color : D.color,
+            metalness: (o && o.metalness) !== undefined ? o.metalness : D.metalness,
+            roughness: (o && o.roughness) !== undefined ? o.roughness : D.roughness,
+            bumpMap: bump, bumpScale: 0.016,
+            envMapIntensity: (o && o.env) !== undefined ? o.env : D.env,
+        });
+        if (o && o.side) m.side = o.side;
+        (this._deepMats || (this._deepMats = [])).push(m);
+        return m;
+    },
+    // 스윕 도구용 — 이미 만들어진 니어블랙 재질 전부를 한 번에 갈아끼운다(probe-hero-dark.js).
+    setDeep(o) {
+        Object.assign(this.DEEP, o);
+        for (const m of this._deepMats || []) {
+            if (o.color !== undefined) m.color.setHex(o.color);
+            if (o.roughness !== undefined) m.roughness = o.roughness;
+            if (o.metalness !== undefined) m.metalness = o.metalness;
+            if (o.env !== undefined) m.envMapIntensity = o.env;
+            m.needsUpdate = true;
+        }
+    },
+
     // 그라디언트 환경 큐브맵 — 금속 반사가 '고무'가 아니라 '강철'로 읽히게 하는 핵심.
     // 저대비 민짜 그라디언트는 반사 '내용물'이 없어 금속이 새틴으로 뭉개짐(비평가 6.8) — 태양 핫스팟+어두운 지면으로 대비 확보
     envMap() {
@@ -290,38 +349,53 @@ const ProChar = {
         // 재질 — PBR 분리(비평가 6.0 1위 결함 '전 재질 무광 플라스틱'): 금속=높은 metalness+낮은 roughness,
         // 유기물(가죽/천/피부)=metalness 0+높은 roughness. 환경광은 Scene3D가 PMREM으로 scene.environment에 공급.
         R.armorMats = [];
+        if (!this._toneMats) this._toneMats = []; // 톤 스윕 대상 레지스트리 (영웅·썸네일 등 여러 리그가 누적)
         const mTex = this.metalTex();
+        // 금속 3톤은 스윕 대상이라 상수로 뽑는다(TONE) — 값 구조 튜닝은 probe-hero-dark.js가 ProChar.setTone()으로 돌린다.
+        const T = this.TONE;
         const steel = () => {
-            const m = new THREE.MeshStandardMaterial({ color: 0x9fb2c2, metalness: 0.85, roughness: 0.34, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.72 }); // 브러시드 스틸 — env 0.9/러프 0.3은 근접샷 흉갑이 순백 블로우아웃 (비평가 7.3 1번)
+            const m = new THREE.MeshStandardMaterial({ color: T.steel, metalness: 0.85, roughness: 0.34, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.72 }); // 브러시드 스틸 — env 0.9/러프 0.3은 근접샷 흉갑이 순백 블로우아웃 (비평가 7.3 1번)
+            m.userData.tone = 'steel';
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
+            (this._toneMats || (this._toneMats = [])).push(m);
             return m;
         };
         const steelDark = () => {
-            const m = new THREE.MeshStandardMaterial({ color: 0x5c6b7a, metalness: 0.8, roughness: 0.5, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.65 });
+            const m = new THREE.MeshStandardMaterial({ color: T.steelDark, metalness: 0.8, roughness: 0.5, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.65 });
             m.userData.dark = true; // 틴트 시 명도 단차 유지용
+            m.userData.tone = 'steelDark';
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
+            this._toneMats.push(m);
             return m;
         };
         // 사지 전용 사슬갑옷 — 민짜 캡슐이 '맨살 튜브'로 읽히던 최대 감점원(비평가 7.3 3번) 해소.
         // 고리 직조 텍스처를 범프로도 써서 실루엣 없이도 금속 직물로 판독되게 한다. 사지는 원통이라 세로 반복을 늘린다.
         const mailTex = this.mailTex();
         const mail = () => {
-            const m = new THREE.MeshStandardMaterial({ color: 0x8e9aa6, metalness: 0.78, roughness: 0.56, map: mailTex, bumpMap: mailTex, bumpScale: 0.02, envMapIntensity: 0.55 });
+            const m = new THREE.MeshStandardMaterial({ color: T.mail, metalness: 0.78, roughness: 0.56, map: mailTex, bumpMap: mailTex, bumpScale: 0.02, envMapIntensity: 0.55 });
             m.userData.dark = true; // 시대색 혼합비를 낮춰 광 나는 판금과 명도·채도가 붙지 않게 (판금 대비 유지)
+            m.userData.tone = 'mail';
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
+            this._toneMats.push(m);
             return m;
         };
         const padTex = this.padTex();
         const padding = new THREE.MeshStandardMaterial({ color: 0x6b5844, metalness: 0, roughness: 0.9, map: padTex, bumpMap: padTex, bumpScale: 0.014 }); // 사슬 밑 갬버슨 — 판금과 사슬 사이 완충층
         const leather = new THREE.MeshStandardMaterial({ color: 0x5a4030, metalness: 0, roughness: 0.85, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.012 });
+        // 니어블랙 3종 — 값 구조용(위 DEEP 주석 참조). 스트랩/밑창은 가죽·고무, 개스킷은 살짝 금속기 있는 고무,
+        // 판금 밑면(라이닝)은 안쪽이라 환경광을 거의 못 받는 셈이므로 env를 더 죽인다.
+        const deepHide = this.deepMat();                                   // 벨트·스트랩·부츠·건틀릿
+        const deepGasket = this.deepMat({ metalness: 0.32, roughness: 0.78 }); // 관절 개스킷(고무+흑철)
+        const deepLine = this.deepMat({ env: 0.06, roughness: 0.98, side: THREE.DoubleSide }); // 판금 밑면/안감
         const gold = new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: 0.95, roughness: 0.3, envMapIntensity: 0.8 });
         const skin = new THREE.MeshStandardMaterial({ color: 0xf2c9a4, metalness: 0, roughness: 0.6 });
         R.trimMat = gold;
         // AO 링 — 파츠 경계(목/허리/어깨 소켓/고관절/손목)에 얹는 어두운 접촉 그림자 (비평가: AO 부재)
-        const aoMat = new THREE.MeshBasicMaterial({ color: 0x0d1218, transparent: true, opacity: 0.4, depthWrite: false });
+        // 0.4는 하이키 배경에서 거의 읽히지 않았다(경계 대비 실측) — 값 구조 패스에 맞춰 0.62로 올린다.
+        const aoMat = new THREE.MeshBasicMaterial({ color: 0x070a0f, transparent: true, opacity: 0.62, depthWrite: false });
         const aoRing = (r, tube, parent, y, sz) => {
             const ring = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 6, 16), aoMat);
             ring.rotation.x = Math.PI / 2;
@@ -346,13 +420,24 @@ const ProChar = {
         const hem = new THREE.Mesh(new THREE.TorusGeometry(0.295, 0.014, 6, 14), gold);
         hem.rotation.x = Math.PI / 2;
         hem.position.y = -0.135;
-        const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.21, 0.07, 14), leather);
+        // 스커트 안감 — 판금 셸 바로 안쪽에 니어블랙 원통을 겹쳐 밑단 플레어 아래가 '빈 껍데기'가 아니라
+        // 그늘진 두께로 읽히게. 실루엣 하단에 어두운 값 면적을 크게 확보하는 핵심 파츠다.
+        const skirtLine = new THREE.Mesh(new THREE.CylinderGeometry(0.196, 0.286, 0.178, 12, 1, true), deepLine);
+        skirtLine.position.y = -0.048;
+        const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.21, 0.07, 14), deepHide);
         belt.position.y = 0.04;
         belt.scale.z = 0.85;
         const buckle = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), gold);
         buckle.position.set(0, 0.04, 0.175);
         buckle.scale.set(1.1, 0.9, 0.45);
-        pelvis.add(skirt, hem, belt, buckle);
+        // 벨트에 매달리는 세로 스트랩 2줄 — 골반 앞면에 어두운 세로 분할선을 넣어 판금 덩어리를 끊는다
+        for (const sx of [-1, 1]) {
+            const tassetStrap = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.13, 0.012), deepHide);
+            tassetStrap.position.set(sx * 0.085, -0.03, 0.196);
+            tassetStrap.rotation.x = -0.12;
+            pelvis.add(tassetStrap);
+        }
+        pelvis.add(skirt, skirtLine, hem, belt, buckle);
         aoRing(0.205, 0.02, pelvis, 0.005, 0.5); // 벨트 아래 접촉 그림자
 
         // 다리: 고관절 → 대퇴 → 무릎 → 정강이 → 부츠 (분절 피벗)
@@ -368,6 +453,9 @@ const ProChar = {
             // 대퇴 상단 패딩 링 — 스커트(판금)와 사슬이 맞물리는 경계에 누빔천을 끼워 재질이 3층으로 읽히게
             const thighPad = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.088, 0.055, 12), padding);
             thighPad.position.y = -0.022;
+            // 대퇴 가터 스트랩 — 사슬 위를 감는 니어블랙 띠 (금속 명도 덩어리를 가로로 끊는다)
+            const garter = new THREE.Mesh(new THREE.CylinderGeometry(0.089, 0.086, 0.03, 12), deepHide);
+            garter.position.y = -0.2;
             const knee = new THREE.Group();
             knee.position.y = -0.32;
             // 무릎 폴린(poleyn): 슬개 돔 + 측면 팬 윙 + 상하 라메 2겹 — 관절이 '캡슐 이음매'가 아니라 관절 장갑으로 보이게
@@ -384,7 +472,10 @@ const ProChar = {
             kneeLameDn.position.y = -0.044;
             const kneeRivet = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 5), gold);
             kneeRivet.position.set(side * 0.052, 0.006, 0.012);
-            knee.add(poleynWing, kneeLameUp, kneeLameDn, kneeRivet);
+            // 무릎 개스킷 — 라메 2겹 사이로 드러나는 니어블랙 관절 슬리브. 접합부 벌어짐도 함께 가린다.
+            const kneeGasket = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.056, 0.088, 12), deepGasket);
+            kneeGasket.position.y = -0.002;
+            knee.add(kneeGasket, poleynWing, kneeLameUp, kneeLameDn, kneeRivet);
             const shin = this.capsule(0.06, 0.052, 0.275, mailMat);
             // 정강이 장갑판 (그리브)
             const greave = new THREE.Mesh(new THREE.SphereGeometry(0.068, 9, 7), steelDark());
@@ -394,7 +485,9 @@ const ProChar = {
             // 부츠: 라운드 토 (구+원통 결합) + 강철 사바톤
             // 0x4a3728은 r128의 리니어 해석 + sRGB 출력 + 밝은 가죽 텍스처(#c9b8a6)가 겹쳐 화면에서 살구빛 탄으로 떠
             // 정면·측면샷에서 '맨발'로 읽혔다 — 건틀릿이 이미 겪은 함정(0x6b4e3a → 0x241408)과 같은 원인이라 같은 방식으로 역보정한다.
-            const bootMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0d, metalness: 0, roughness: 0.8, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.012 });
+            // …그런데 0x2a1a0d조차 조명 후 화면 명도 0.35~0.45로 떠, 값 구조 기준(0.10~0.18)에는 여전히 밝다.
+            // 부츠는 캐릭터에서 가장 큰 '어두워야 마땅한' 면적이므로 니어블랙(DEEP)으로 내린다.
+            const bootMat = deepHide;
             const bootTop = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.072, 0.1, 10), bootMat);
             bootTop.position.y = -0.265;
             const foot = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), bootMat);
@@ -406,8 +499,15 @@ const ProChar = {
             sabaton.scale.set(0.92, 0.62, 1.5);
             const ankleLame = new THREE.Mesh(new THREE.CylinderGeometry(0.074, 0.08, 0.028, 12), steelDark());
             ankleLame.position.y = -0.298;
-            knee.add(kneeCap, shin, bootTop, foot, sabaton, ankleLame);
-            hip.add(thigh, thighPad, cuisse, knee);
+            // 밑창 — 발 바닥면에 깔리는 니어블랙 판. 지면 접지선을 어둡게 눌러 캐릭터가 '떠 있지 않게' 하고,
+            // 실루엣 최하단(카메라가 내려다보므로 실제로 보이는 면)에 확실한 다크 앵커를 준다.
+            const sole = new THREE.Mesh(new THREE.SphereGeometry(0.076, 10, 6, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5), deepGasket);
+            sole.position.set(0, -0.336, 0.045);
+            sole.scale.set(0.94, 0.42, 1.58);
+            const heel = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.046, 0.03, 10), deepGasket);
+            heel.position.set(0, -0.345, -0.012);
+            knee.add(kneeCap, shin, bootTop, foot, sabaton, ankleLame, sole, heel);
+            hip.add(thigh, thighPad, garter, cuisse, knee);
             aoRing(0.082, 0.016, hip, -0.015, 0.5); // 고관절-대퇴 경계 접촉 그림자
             pelvis.add(hip);
             R.legs.push({ hip, knee });
@@ -438,7 +538,15 @@ const ProChar = {
         emblem.scale.z = 0.4;
         const emblemRim = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 14), gold);
         emblemRim.position.copy(emblem.position);
-        spine.add(cuirass, gorget, emblem, emblemRim);
+        // 고젯 안쪽 — 목 링 안에 니어블랙 원통을 세워 목-흉갑 사이가 뚫린 밝은 틈이 아니라
+        // 깊은 그늘로 읽히게. 캐릭터 상단부의 유일한 다크 앵커라 실루엣 판독에 크게 기여한다.
+        const gorgetIn = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.092, 0.1, 12, 1, true), deepLine);
+        gorgetIn.position.y = 0.452;
+        // 가슴 가로 스트랩 — 흉갑 위를 사선으로 지나는 니어블랙 띠 (밝은 판금 덩어리를 분할)
+        const chestStrap = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.3, 0.014), deepHide);
+        chestStrap.position.set(-0.055, 0.26, 0.196);
+        chestStrap.rotation.set(-0.14, 0, 0.42);
+        spine.add(cuirass, gorget, gorgetIn, chestStrap, emblem, emblemRim);
         aoRing(0.1, 0.022, spine, 0.435, 0.5);   // 목 링 아래 접촉 그림자
         aoRing(0.185, 0.02, spine, 0.005, 0.5);  // 흉갑 밑단-허리 경계
 
@@ -478,7 +586,9 @@ const ProChar = {
         cape.position.y = -0.31;
         capeG.add(cape);
         // 다크 라이닝 — 같은 지오메트리 공유(천 시뮬 동기 무료)로 살짝 뒤에 겹쳐 실루엣 가장자리에서 두께로 읽힘 (비평가 7.1 6번 '종이 망토')
-        const lining = new THREE.Mesh(cape.geometry, new THREE.MeshStandardMaterial({ color: 0x4d1616, metalness: 0, roughness: 1, side: THREE.DoubleSide }));
+        // 0x4d1616는 조명 후 0.3대라 '어두운 붉은 천'일 뿐 값 구조에는 기여하지 못했다 — 니어블랙으로 내리되
+        // 순수 무채색이 아니라 아주 약한 적색기를 남겨 망토와 같은 옷감 계열로 읽히게 한다.
+        const lining = new THREE.Mesh(cape.geometry, this.deepMat({ color: 0x0a0407, roughness: 1, env: 0.05, side: THREE.DoubleSide }));
         lining.position.set(0, -0.31, -0.014);
         lining.scale.set(1.03, 1.012, 1);
         capeG.add(lining);
@@ -509,6 +619,16 @@ const ProChar = {
             pauldron2.rotation.z = side * 0.45;
             const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 5), gold);
             rivet.position.set(side * 0.015, 0.13, 0);
+            // 견갑 안감 — 셸 바로 안쪽에 니어블랙 반구를 겹친다. 어깨는 캐릭터에서 화면 위쪽을 차지하는
+            // 큰 밝은 면인데, 그 밑면이 어두워야 판금이 '두께 있는 껍데기'로 읽힌다(현재는 종잇장).
+            const pauldronLine = new THREE.Mesh(
+                new THREE.SphereGeometry(0.1, 12, 8, 0, Math.PI * 2, Math.PI * 0.34, Math.PI * 0.3), deepLine);
+            pauldronLine.position.copy(pauldron.position);
+            pauldronLine.rotation.z = pauldron.rotation.z;
+            const pauldron2Line = new THREE.Mesh(
+                new THREE.SphereGeometry(0.076, 10, 7, 0, Math.PI * 2, Math.PI * 0.3, Math.PI * 0.3), deepLine);
+            pauldron2Line.position.copy(pauldron2.position);
+            pauldron2Line.rotation.z = pauldron2.rotation.z;
             aoRing(0.075, 0.018, shoulder, -0.03, 0.5); // 견갑 안쪽-상완 경계 접촉 그림자
             const upperArm = this.capsule(0.062, 0.052, 0.19, mailMat);
             // 상완 패딩 소매 — 견갑 아래로 삐져나오는 누빔천 (판금 → 천 → 사슬 3층 경계)
@@ -525,6 +645,8 @@ const ProChar = {
             couterWing.scale.set(1, 0.5, 1.1);
             const couterRivet = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 5), gold);
             couterRivet.position.set(side * 0.042, 0.004, 0.01);
+            // 팔꿈치 개스킷 — 무릎과 같은 언어(니어블랙 관절 슬리브)
+            const elbowGasket = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.044, 0.072, 12), deepGasket);
             const forearm = this.capsule(0.046, 0.042, 0.13, mailMat);
             // 뱀브레이스 라메 2겹 — 하완이 민짜 튜브로 남지 않게 판금 밴드를 감는다
             const vambraceA = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.05, 0.028, 12), steel());
@@ -535,8 +657,11 @@ const ProChar = {
             const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.065, 0.07, 10), steel());
             cuff.position.y = -0.11;
             // 주먹: 손바닥 블록 + 손가락 4지(기절·말절 2분절 컬) + 엄지 2분절 + 강철 너클 가드 — 근접샷에서 '손가락 없는 스텁' 오독 해소 (비평가 1번)
-            const gloveMat = new THREE.MeshStandardMaterial({ color: 0x241408, metalness: 0, roughness: 0.82, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.014 }); // 가죽 PBR — 범프로 근접 그레인 (비평가 7.1 5번). r128 setHex는 리니어 해석 + sRGB 출력이라 헥스가 화면에서 2배쯤 떠 보임 — 0x6b4e3a는 베이지 = 피부색 오독 (비평가 7.4 4번), 시각 목표(#5c3d26)의 감마 역보정값 사용
-            const palmMat = new THREE.MeshStandardMaterial({ color: 0x2e1a0c, metalness: 0, roughness: 0.8, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.014 });
+            // 가죽 PBR — 범프로 근접 그레인 (비평가 7.1 5번). 헥스는 두 번의 역보정을 거쳤지만(0x6b4e3a→0x241408)
+            // 조명 후 명도가 여전히 0.3대여서 값 구조에는 못 낀다 — 부츠와 같은 이유로 니어블랙으로 통일한다.
+            // 손등 너클 가드(밝은 스틸)와 골드 리벳이 그대로 남으므로 '검은 뭉치'로 뭉개지지 않는다.
+            const gloveMat = deepHide;
+            const palmMat = this.deepMat({ roughness: 0.88, metalness: 0.1 });
             const fist = new THREE.Group();
             fist.position.y = -0.16;
             const palm = new THREE.Mesh(new THREE.SphereGeometry(0.052, 9, 8), palmMat);
@@ -584,8 +709,8 @@ const ProChar = {
             strap.position.y = -0.135;
             const handMount = new THREE.Group();
             handMount.position.y = -0.17;
-            elbow.add(elbowCap, couterWing, couterRivet, forearm, vambraceA, vambraceB, cuff, fist, strap, handMount);
-            shoulder.add(pauldron, pauldron2, rivet, upperArm, armPad, elbow);
+            elbow.add(elbowGasket, elbowCap, couterWing, couterRivet, forearm, vambraceA, vambraceB, cuff, fist, strap, handMount);
+            shoulder.add(pauldron, pauldronLine, pauldron2, pauldron2Line, rivet, upperArm, armPad, elbow);
             spine.add(shoulder);
             R.arms.push({ shoulder, elbow, handMount });
             R.bones['shoulder' + (side < 0 ? 'L' : 'R')] = shoulder;
@@ -633,12 +758,12 @@ const ProChar = {
         // 뒷판 + 가죽 손잡이 끈 — ① 개방 셸을 실제로 막아 두께가 있는 방패로 읽히게 하고
         // ② 비평가 2인이 공통 1위로 지목한 '캐릭터에 진짜 어두운 값이 없다'는 결함에
         // 니어블랙 가죽 면적을 보태며 ③ "들고 있지 않고 떠 있다"는 지적(손잡이 부재)을 해소한다.
-        const shieldBack = new THREE.Mesh(new THREE.CylinderGeometry(0.163, 0.163, 0.012, 20), leather);
+        const shieldBack = new THREE.Mesh(new THREE.CylinderGeometry(0.163, 0.163, 0.012, 20), deepHide);
         shieldBack.rotation.x = Math.PI / 2;
         shieldBack.position.z = -0.012;
         shieldG.add(shieldBack);
         for (const sy of [-1, 1]) {   // 팔을 지나는 가로 스트랩 2줄 (뒷판보다 앞=팔 쪽)
-            const strap = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.028, 0.016), leather);
+            const strap = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.028, 0.016), deepHide);
             strap.position.set(0, sy * 0.062, -0.03);
             shieldG.add(strap);
         }
