@@ -1897,10 +1897,9 @@ const UI = {
             const max = TechTree.isMax(id);
             const researching = TechTree.researchingId() === id;
             const cls = researching ? 'researching' : max ? 'done' : lv > 0 ? 'active' : 'locked';
-            const tierPos = max ? TechTree.PER_TIER : lv === 0 ? 0 : ((lv - 1) % TechTree.PER_TIER) + 1;
             const badge = researching
                 ? `<small class="tech-tree-node-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
-                : `<small>${tierPos}/${TechTree.PER_TIER}</small>`;
+                : `<small>${TechTree.tierLabel(id)} ${TechTree.tierPos(id)}/${TechTree.PER_TIER}</small>`;
             return `<div class="tech-tree-node-col">
                 <button class="tech-tree-node ${cls}" onclick="UI.openTechNode('${id}')">${max ? '✅' : TechTree.NODES[id].icon || '🔬'}</button>
                 <div class="tech-tree-label">${badge}</div>
@@ -1940,9 +1939,9 @@ const UI = {
         const max = TechTree.isMax(id);
         const researching = TechTree.researchingId() === id;
         const otherResearch = S.techResearch && !researching;
-        const tierPos = max ? TechTree.PER_TIER : lv === 0 ? 0 : ((lv - 1) % TechTree.PER_TIER) + 1;
-        const tier = Math.min(5, Math.max(1, Math.ceil((max ? lv : lv + 1) / TechTree.PER_TIER)));
-        const roman = ['I', 'II', 'III', 'IV', 'V'][tier - 1];
+        const tierPos = TechTree.tierPos(id);
+        const roman = TechTree.tierLabel(id);
+        const unit = TechTree.unitOf(id);
 
         let actionHtml;
         if (max) {
@@ -1970,8 +1969,8 @@ const UI = {
                     <div class="idet-head">
                         <div class="idet-icon tn-bronze">${max ? '✅' : '🔬'}<span class="idet-star">${tierPos}/${TechTree.PER_TIER}</span></div>
                         <div class="idet-title">
-                            <div class="idet-name">${def.name} ${roman}</div>
-                            <div class="idet-main">+${U.fmt(TechTree.pct(id))}% <small class="tn-gain">(+${U.fmt(def.per)}%)</small></div>
+                            <div class="idet-name">${def.name} ${roman} <small class="tn-lv">Lv.${lv}/${TechTree.MAX_LEVEL}</small></div>
+                            <div class="idet-main">+${U.fmt(TechTree.totalOf(id))}${unit} <small class="tn-gain">(${TechTree.gainNote(id)} +${U.fmt(def.per)}${unit})</small></div>
                         </div>
                     </div>
                     <div class="idet-subs">

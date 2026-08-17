@@ -1,11 +1,13 @@
 // ===== 기술 트리 (대장간 연구) — 원본 포지마스터 방식 이식 (사용자 확정 2026-08-17) =====
 // 분기 3개: ① 힘·탈것 ② 대장간 ③ 스킬·펫&기술. 원본의 ANIMALS 분기와 길드(Guild)는 사용자 지시로 제외.
 // 노드 구성·효과 수치는 개발자 가이드(1vcian.me/ForgeMasterCalculator) + 사용자가 원본 게임에서 직접 확인한 값.
-// 노드당 상한은 5업 (사용자 확인 — 원본 25업이 아니라 이 상한을 따른다).
+// 노드당 상한은 5티어 × 티어당 5업 = 25업 (사용자 지시 2026-08-17 — 원본 guide.html "5× per tier,
+// 25 upgrades per node"로 복귀. 그전 세션의 "5업 상한" 해석을 폐기한다).
 // 연구는 대장간 업그레이드와 동일하게 물약 선결제 + 실시간 타이머(전체 트리 통틀어 동시 1건) 방식.
 const TechTree = {
-    MAX_LEVEL: 5,    // 노드당 총 업그레이드 수 (사용자 확인 상한)
-    PER_TIER: 5,     // 진행 표기 단위 = 상한과 동일 (한 티어)
+    TIERS: 5,        // 티어 I~V
+    PER_TIER: 5,     // 티어당 업그레이드 수
+    MAX_LEVEL: 25,   // = TIERS × PER_TIER
 
     BRANCHES: [
         { id: 'power',    name: '힘 · 탈것',       icon: '💪', nodes: [
@@ -23,7 +25,7 @@ const TechTree = {
         // ① 힘 · 탈것
         weaponMastery:   { name: '무기 마스터리',   desc: '무기·장갑·목걸이·반지 피해 증가', icon: '⚔️', per: 2,  base: 50 },
         armorMastery:    { name: '방어구 마스터리', desc: '투구·갑옷·신발·벨트 체력 증가',   icon: '🛡️', per: 2,  base: 50 },
-        gearMaxLevel:    { name: '장비 레벨업',     desc: '장비 최대 강화 레벨 증가',        icon: '🔺', per: 2,  base: 60 },
+        gearMaxLevel:    { name: '장비 레벨업',     desc: '장비 최대 강화 레벨 증가',        icon: '🔺', per: 2,  base: 60, unit: '레벨' },
         mountDmg:        { name: '탈것 데미지 마스터리', desc: '탈것 피해 증가',             icon: '🐎', per: 2,  base: 55 },
         mountHp:         { name: '탈것 체력 마스터리',   desc: '탈것 체력 증가',             icon: '🐴', per: 2,  base: 55 },
         mountCost:       { name: '탈것 소환 비용',  desc: '탈것 소환 태엽 비용 감소',        icon: '⚙️', per: 1,  base: 55 },
@@ -34,7 +36,8 @@ const TechTree = {
         sellPrice:       { name: '장비 판매가',     desc: '장비 판매 가격 증가',             icon: '💰', per: 2,  base: 50 },
         thiefHammer:     { name: '해머도둑 해머 보너스', desc: '해머 도둑 던전 해머 보상 증가', icon: '🔨', per: 2, base: 50 },
         thiefCoin:       { name: '해머도둑 코인 보너스', desc: '해머 도둑 던전 코인 보상 증가', icon: '🏦', per: 2, base: 50 },
-        autoForgeSlot:   { name: '오토포지',        desc: '자동 제련 1회 동시 해머 수 증가',  icon: '🤖', per: 1,  base: 60 },
+        // 원본 사양이 '티어당 +1'이라 perTier: true — 티어를 완성(5업)해야 +1이 붙고 최대 +5다.
+        autoForgeSlot:   { name: '오토포지',        desc: '자동 제련 1회 동시 해머 수 증가',  icon: '🤖', per: 1,  base: 60, unit: '개', perTier: true },
         freeForge:       { name: '무료 제련 확률',  desc: '제련 시 해머를 소모하지 않을 확률', icon: '🍀', per: 1,  base: 60 },
         offlineCap:      { name: '최대 오프라인 시간', desc: '오프라인 보상 누적 상한 증가',  icon: '⌛', per: 16, base: 60 },
         offlineCoin:     { name: '코인 오프라인 보상', desc: '오프라인 코인 수급 증가',       icon: '🪙', per: 2,  base: 60 },
@@ -69,9 +72,16 @@ const TechTree = {
         hatchSpeed:  ['hatchTimer'],
     },
 
-    LV_MULT: 1.55, // 레벨당 비용 증가율 (5업 상한에 맞춘 커브 — 25업 시절의 티어 급증 곡선 대체)
+    // 비용·시간 커브 — 티어 안에서는 완만하게, 티어가 오를 때 한 번 크게 뛴다
+    // (사용자 지시 "티어 올라갈수록 비용·연구시간 증가"). 25업으로 늘어난 만큼 업당 증가율은
+    // 낮추고(1.55 → 1.16) 티어 배수를 따로 곱해 초반이 5업 시절보다 빡세지지 않게 했다.
+    // 결과(base 50 노드): Lv5 91 → Lv6 195(티어 II 진입) → Lv15 1,367 → Lv25 20,638 물약,
+    // 한 노드 만렙까지 물약 105,440 / 실시간 26.7시간. 전 구간 단조 증가 확인.
+    LV_MULT: 1.16,      // 티어 안에서 1업당 비용 증가율
+    TIER_MULT: 1.85,    // 티어가 오를 때 붙는 추가 배수
     TIME_BASE: 20, // 초
-    TIME_LV_MULT: 1.9,
+    TIME_LV_MULT: 1.26,
+    TIME_TIER_MULT: 1.45,
 
     ensure() {
         if (!S.tech) S.tech = {};
@@ -87,7 +97,7 @@ const TechTree = {
         // 폐기 노드 잔여 키 제거 (LEGACY_MAP에 없는 옛 노드 — 예: 원본에 대응이 없는 eggGain)
         for (const id in S.tech) if (!this.NODES[id]) delete S.tech[id];
         for (const id in this.NODES) if (S.tech[id] === undefined) S.tech[id] = 0;
-        // 상한이 25 → 5로 내려갔으므로 초과분은 잘라낸다
+        // 상한 밖 값 방어 (상한이 5 → 25로 올라가 잘릴 일은 없지만, 손상된 세이브 대비)
         for (const id in this.NODES) S.tech[id] = U.clamp(S.tech[id], 0, this.MAX_LEVEL);
         // 진행 중이던 연구가 폐기된 노드면 취소하고 선결제한 물약을 돌려준다 (개편 때문에 플레이어가 손해 보지 않게).
         // 옛 노드의 비용 커브는 사라졌으므로 LEGACY_MAP으로 효과를 이어받은 새 노드의 다음 단계 비용으로 환산한다.
@@ -104,6 +114,16 @@ const TechTree = {
     isMax(id) { return this.level(id) >= this.MAX_LEVEL; },
     branchOf(id) { return this.BRANCHES.find(b => b.nodes.includes(id)); },
 
+    // ===== 티어 표기 =====
+    // 화면에는 '다음에 살 업그레이드'가 속한 티어와 그 티어 안 진행도를 보여준다 —
+    // Lv0 → I 0/5, Lv4 → I 4/5, Lv5 → II 0/5, Lv24 → V 4/5, 만렙 → V 5/5.
+    tierOf(level) { return U.clamp(Math.ceil(level / this.PER_TIER), 1, this.TIERS); }, // 업그레이드 번호(1-based)가 속한 티어
+    curTier(id) { return this.isMax(id) ? this.TIERS : this.tierOf(this.level(id) + 1); },
+    tierPos(id) { return this.isMax(id) ? this.PER_TIER : this.level(id) % this.PER_TIER; },
+    ROMAN: ['I', 'II', 'III', 'IV', 'V'],
+    roman(tier) { return this.ROMAN[tier - 1] || 'I'; },
+    tierLabel(id) { return this.roman(this.curTier(id)); },
+
     // 분기 진행률(%): 분기 내 모든 노드 레벨 합 ÷ (노드 수 × MAX_LEVEL)
     branchProgress(branchId) {
         const b = this.BRANCHES.find(x => x.id === branchId);
@@ -115,14 +135,14 @@ const TechTree = {
     cost(id, level) {
         const def = this.NODES[id];
         if (!def) return null; // 폐기된 노드 id로 물어와도 화면이 죽지 않게 (노드 개편 시 stale 참조 방어)
-        const raw = def.base * Math.pow(this.LV_MULT, level - 1);
+        const raw = def.base * Math.pow(this.LV_MULT, level - 1) * Math.pow(this.TIER_MULT, this.tierOf(level) - 1);
         return Math.max(1, Math.ceil(raw * this.techCostMult()));
     },
 
     // 레벨 하나를 연구하는 데 걸리는 실시간(초) — '기술 연구 타이머' 노드로 단축된다
     time(id, level) {
         if (!this.NODES[id]) return null;
-        const raw = this.TIME_BASE * Math.pow(this.TIME_LV_MULT, level - 1);
+        const raw = this.TIME_BASE * Math.pow(this.TIME_LV_MULT, level - 1) * Math.pow(this.TIME_TIER_MULT, this.tierOf(level) - 1);
         return Math.max(1, Math.ceil(raw * this.techTimeMult()));
     },
 
@@ -195,6 +215,17 @@ const TechTree = {
     // 포인트당 수치 × 레벨 = 노드 총 효과(%)
     pct(id) { const d = this.NODES[id]; return d ? this.level(id) * d.per : 0; }, // 없는 노드 id는 0 (노드 개편 중 stale 참조 방어)
 
+    // ===== 노드 효과 표기 =====
+    // 대부분 업당 per씩 쌓이지만 perTier 노드(오토포지)는 원본대로 '티어당' 증가라
+    // 완성한 티어 수만 센다 — 화면 표기도 '(티어당 +1개)'로 달라진다.
+    totalOf(id) {
+        const d = this.NODES[id];
+        if (!d) return 0;
+        return d.perTier ? Math.floor(this.level(id) / this.PER_TIER) * d.per : this.pct(id);
+    },
+    unitOf(id) { const d = this.NODES[id]; return (d && d.unit) || '%'; },
+    gainNote(id) { const d = this.NODES[id]; return d && d.perTier ? '티어당' : '업당'; },
+
     // ===== 다른 모듈에서 참조하는 효과 배율 =====
     // 규칙: 증가형은 (1 + %/100), 단축·감소형은 시간이면 ÷(1+%), 비용이면 ×(1-%) — 원본 표기가 "타이머 속도 +N%"라
     // 시간 단축은 나눗셈(속도 증가), "비용 -N%"는 곱셈(직접 감산)으로 맞췄다.
@@ -212,9 +243,9 @@ const TechTree = {
     sellPriceMult() { return 1 + this.pct('sellPrice') / 100; },
     thiefHammerMult() { return 1 + this.pct('thiefHammer') / 100; },
     thiefCoinMult() { return 1 + this.pct('thiefCoin') / 100; },
-    // 원본은 "티어당 동시 해머 +1"인데 노드 상한이 5업(=1티어)이라 그대로 옮기면 5업 중 4업이 무효과가 된다.
-    // 5업 모델에 맞춰 업당 +1(최대 +5)로 해석했다 — 상한 스펙이 바뀌면 여기부터 고칠 것.
-    autoForgeSlotBonus() { return this.pct('autoForgeSlot'); },
+    // 상한이 25업(5티어)로 복귀했으므로 원본 사양 "티어당 동시 해머 +1"(최대 +5)을 그대로 쓴다
+    // — 5업 상한 시절의 임시 해석(업당 +1)은 폐기.
+    autoForgeSlotBonus() { return this.totalOf('autoForgeSlot'); },
     freeForgeChance() { return this.pct('freeForge') / 100; },
     offlineCapMult() { return 1 + this.pct('offlineCap') / 100; },
     offlineCoinMult() { return 1 + this.pct('offlineCoin') / 100; },
