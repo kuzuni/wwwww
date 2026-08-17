@@ -1898,6 +1898,24 @@ body {
     border: none; background: none; padding: 0; display: block;
     font-size: .82rem; font-weight: 700; color: var(--pp-muted); line-height: 1.4;
 }
+/* ── 장비 시대 상세(#forge-item-modal) 원본 실측 교정 — 원본 shot-042931(492×881) 픽셀 대조 ──
+   기술 노드 팝업(#detail-modal)과 마크업을 공유하지만 원본의 비율·색이 서로 다르므로 이 모달만 덮어쓴다.
+   원본 실측: 카드 25.20~72.76%H(높이 47.56) · 좌우 패딩 13px(2.64%W) · 아이콘 65px 정사각(13.21%W)
+   · 회색 패널 38.37~71.40%H, 배경 rgb(214,214,214) · lead 순검정 2줄 · 하위 스탯 행 피치 1.93%H(17px)
+   · 행 글자 rgb(58,58,58). 교정 전 클론은 행 피치가 2.47%H라 13행 누적으로 카드가 +6.14%p 높았다.
+   ⚠️ %패딩·%마진은 '자기 폭'이 아니라 '컨테이닝 블록 폭' 기준이라 카드 폭이 아니라 .idet-wrap(≈앱폭) 기준으로 환산했다. */
+#forge-item-modal .modal-card.item-detail { padding: 1.7% 2.7%; }
+/* L1399의 함정과 같은 건 — 래퍼가 카드 아래로 튀어나온 ✕까지 끌어안고 중앙 정렬돼 카드가 0.54%p 위로 뜬다 */
+#forge-item-modal .idet-wrap { position: relative; top: .29rem; }
+#forge-item-modal .idet-icon { width: 21.1%; }          /* 카드 콘텐츠 폭 기준 → 원본 65px */
+#forge-item-modal .idet-subs {
+    margin-top: 12.9%; padding: 3.3% 4% 4.4%; gap: 0;   /* 원본 아이콘 하단→패널 상단 41px */
+    background: #d6d6d6;                                /* 원본 실측 rgb(214,214,214) — --pp-panel(#efefef)은 25 밝았다 */
+}
+#forge-item-modal .idet-lead { font-size: .92rem; line-height: 1.13; margin-bottom: .96rem; color: #000; }
+/* 행 글자는 '잉크 높이'만 맞추면 폭이 +3.61%p 터진다 — 원본의 기하학 산세리프가 시스템 폰트보다 좁다.
+   높이(−0.12%H)를 조금 희생하고 폭을 게이트 안으로 넣는 쪽으로 잡았다(원본 잉크 28.05%W). */
+#forge-item-modal .idet-subs .substat-row { font-size: .84rem; line-height: 1.21; letter-spacing: -.01em; color: #3a3a3a; }
 .idet-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; }
 /* 원본 공통: 팝업 하단 중앙의 빨간 원형 X — 팝업 아래에 떠 있지 않고 하단 테두리에 절반 걸침 (185 전수 패스) */
 .x-btn {
