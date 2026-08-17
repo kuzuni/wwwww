@@ -27,13 +27,24 @@ const SEEK = `(T => {
     const cells = [...UI._srCells], d = UI._srDelays, last = d[d.length - 1];
     cells.forEach((c, i) => c.classList.toggle('on', d[i] <= T));
     m.classList.toggle('flash', !!UI._srHoldback && last <= T);
+    // 주역 비트(.hero)와 홀드백 축적 구간(.charging)도 시각으로 재현한다 —
+    // 실시간으로는 fireSummonHero가 걸지만, 시크할 때는 T로 직접 판정해야 프레임이 맞는다
+    m.classList.toggle('hero', UI._srHeroIdx >= 0 && last <= T);
+    m.classList.toggle('charging', !!UI._srHoldback && d[d.length - 2] !== undefined
+        && d[d.length - 2] <= T && T < last);
     m.classList.toggle('done', T >= last + UI.SR_TAIL_MS);
+    // 바닥 반사는 finishSummonResult가 만든다 — 시크 경로는 타이머를 죽여 놓으므로 직접 부른다
+    if (m.classList.contains('done')) UI.buildSummonReflection();
+    else { const r = m.querySelector('.sr-reflect'); if (r) r.remove(); }
     for (const a of document.getAnimations()) {
         const el = a.effect && a.effect.target;
         if (!el || !el.getRootNode) continue;
         let base = 0;
         const cell = el.closest ? el.closest('.sr-cell') : null;
-        if (cell) base = d[cells.indexOf(cell)] || 0;
+        // 주역 비트 계열은 셀 등장 시각이 아니라 '마지막 셀 착지 시각'이 원점이다
+        const HERO_ANIM = ['srrecede', 'srheropop', 'srbeam', 'srheroring', 'srshakehit', 'srgridlift'];
+        if (a.animationName && HERO_ANIM.indexOf(a.animationName) >= 0) base = last;
+        else if (cell) base = d[cells.indexOf(cell)] || 0;
         else if (el.classList && el.classList.contains('sr-flash')) base = last;
         a.pause();
         try { a.currentTime = Math.max(0, T - base); } catch (e) { /* 무한 반복 외 예외 무시 */ }
@@ -87,15 +98,15 @@ const TIMELINES = [
         const st = await page.evaluate(`(() => {
             const m = UI.els.summonResultModal;
             const ok = m.querySelector('.sr-ok');
-            const cells = [...m.querySelectorAll('.sr-cell')];
+            const cells = [...m.querySelectorAll('.sr-body > .sr-grid > .sr-cell')]; // 반사 복제본 제외
             const rows = {};
             for (const c of cells) { const y = Math.round(c.getBoundingClientRect().top); rows[y] = (rows[y] || 0) + 1; }
             return {
                 open: !m.classList.contains('hidden'),
                 done: m.classList.contains('done'),
                 cells: cells.length,
-                revealed: m.querySelectorAll('.sr-cell.on').length,
-                cols: m.querySelector('.sr-grid').style.getPropertyValue('--cols'),
+                revealed: m.querySelectorAll('.sr-body > .sr-grid > .sr-cell.on').length,
+                cols: m.querySelector('.sr-body > .sr-grid').style.getPropertyValue('--cols'),
                 rows: Object.values(rows),
                 mats: [...new Set(cells.map(c => c.dataset.mat))],
                 okVisible: !!(ok && ok.offsetParent !== null),

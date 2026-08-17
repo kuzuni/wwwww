@@ -31,12 +31,15 @@ const UI = {
     SR_HI_RARITIES: ['legendary', 'ultimate', 'mythic'], // 광채 강조 대상
     SR_REVEAL_BUDGET: 2200, // 셀이 많을 때 전체 등장 연출이 넘지 않을 시간(ms)
     SR_SLOW_STEP: 250,      // 10개 이하 소량 뽑기의 셀 간격 — 캐스케이드가 눈에 보이게 넉넉히
-    SR_CHARGE_MS: 480,      // 빛 모임 구간 길이(.sr-charge 애니메이션과 맞춤)
-    SR_HOLDBACK_MS: 420,    // 최고 등급 1개를 마지막에 한 박자 늦게 띄우는 여유
+    // 빛 모임은 이 시각에 '최대 휘도'로 터진다 — 그 백색 오버슛이 감쇠하는 동안 첫 아이콘이
+    // 꺼내진다(예전엔 120ms에 피크를 찍고 480ms엔 암전인데 아이콘이 540ms에 떠서, 빛과
+    // 아이콘이 인과로 안 묶이고 '별개 애니메이션 두 개'로 읽혔다)
+    SR_CHARGE_MS: 480,      // 빛 모임 정점 시각(.sr-charge 애니메이션 길이와 맞춤)
+    SR_HOLDBACK_MS: 300,    // 최고 등급 1개를 마지막에 한 박자 늦게 띄우는 여유(정지 구간이 아니라 축적 구간)
     SR_TAIL_MS: 300,        // 마지막 아이콘이 뜬 뒤 [확인]이 나오기까지의 여운
     _srTimers: [], _srRaf: 0,
     _srCells: null, _srEntries: null, _srDelays: null, _srStart: 0, _srIdx: 0,
-    _srDone: false,
+    _srDone: false, _srHeroIdx: -1,
 
     // 모듈별 소환 결과 배열을 팝업이 쓰는 공통 형태로 변환 (묶음 전, 굴림 1회 = 1개)
     summonEntries(kind, results) {
@@ -159,15 +162,19 @@ const UI = {
         const best = entries[entries.length - 1].rarity; // 오름차순 정렬이라 마지막이 최고 등급
         // 최고 등급이 전설 이상이고 그 셀이 하나뿐일 때만 홀드백 — 흔한 등급까지 뜸들이면 늘어진다
         const holdback = this.SR_HI_RARITIES.indexOf(best) >= 0 && entries[entries.length - 1].qty === 1;
+        // 주역 셀 — 최고 등급이 전설 이상이면 마지막 셀이 '다른 사건'이 된다(전용 등장 비트).
+        // 색·크기만 다른 같은 슬롯이면 '더 큰 것'일 뿐이라 위계가 사건으로 읽히지 않는다.
+        const heroIdx = this.SR_HI_RARITIES.indexOf(best) >= 0 ? entries.length - 1 : -1;
         const cells = entries.map((e, i) => {
             const hi = this.SR_HI_RARITIES.indexOf(e.rarity) >= 0;
             const rc = RARITY_CSS[e.rarity];
             // data-tier로 등급별 세기(크기·광채·광선)를 계단화한다 — 6등급이 2상태로 붕괴하지 않게
-            return `<div class="sr-cell${hi ? ' hi' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
+            return `<div class="sr-cell${hi ? ' hi' : ''}${i === heroIdx ? ' heroic' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
                 data-mat="${this.srMaterial(e.rarity)}"
                 style="--i:${i};--rc:${rc};--rc-lite:${this.srShade(rc, .5)};--rc-deep:${this.srShade(rc, -.62)}">
                 <div class="sr-orbwrap">
                     <span class="sr-ray"></span>
+                    <span class="sr-beam"></span>
                     <span class="sr-ghost"></span>
                     <span class="sr-orb">${e.icon}</span>
                     <span class="sr-spark"></span>
@@ -221,7 +228,8 @@ const UI = {
         this.clearSummonTimers();
         this._srDone = false;
         SFX.summonCharge(best);
-        this._srCells = m.querySelectorAll('.sr-cell');
+        // 바닥 반사 복제본(.sr-reflect 안)이 아니라 진짜 그리드의 셀만 잡는다
+        this._srCells = m.querySelectorAll('.sr-body > .sr-grid > .sr-cell');
         this._srEntries = entries;
         const n = this._srCells.length;
         const step = n <= 10 ? this.SR_SLOW_STEP : U.clamp(this.SR_REVEAL_BUDGET / n, 20, 120);
@@ -231,6 +239,7 @@ const UI = {
             this._srDelays.push(this.SR_CHARGE_MS + i * step + (holdback && i === n - 1 ? this.SR_HOLDBACK_MS : 0));
         }
         this._srHoldback = holdback;
+        this._srHeroIdx = heroIdx;
         this._srStart = performance.now();
         this._srIdx = 0;
         this._srRaf = requestAnimationFrame(() => this.tickSummonResult());
@@ -250,18 +259,14 @@ const UI = {
         }
         // 한 프레임에 여러 개가 몰려도 효과음은 최고 등급 하나만 (대량 소환에서 소리가 뭉치는 것 방지)
         if (loud) SFX.summonReveal(loud);
-        // 홀드백 셀이 착지하는 순간, 그 셀 위치를 원점으로 화면을 등급색으로 한 번 훑는다
+        // 홀드백 대기 구간은 '정지'가 아니라 '축적'이어야 한다 — 마지막 한 칸을 남긴 순간부터
+        // 소환진이 돌고 눈금이 켜지고 비네트가 조여든다(예전엔 이 480ms가 완전 정지 프레임이라
+        // 긴장이 아니라 렌더가 멈춘 것으로 읽혔다)
+        const m = this.els.summonResultModal;
+        if (this._srHoldback && this._srIdx === n - 1) m.classList.add('charging');
+        // 주역 셀이 착지하는 순간, 그 셀 위치를 원점으로 화면을 등급색으로 한 번 훑는다
         // (화면 중앙 고정이면 오른쪽 끝에 착지한 셀과 터지는 자리가 어긋난다)
-        if (loud && this._srHoldback && this._srIdx >= n) {
-            const m = this.els.summonResultModal, wrap = m.querySelector('.sr-wrap');
-            const orb = this._srCells[n - 1].querySelector('.sr-orb');
-            if (wrap && orb) {
-                const wr = wrap.getBoundingClientRect(), cr = orb.getBoundingClientRect();
-                wrap.style.setProperty('--fx', ((cr.left + cr.width / 2 - wr.left) / wr.width * 100).toFixed(1) + '%');
-                wrap.style.setProperty('--fy', ((cr.top + cr.height / 2 - wr.top) / wr.height * 100).toFixed(1) + '%');
-            }
-            m.classList.add('flash');
-        }
+        if (loud && this._srIdx >= n && this._srHeroIdx >= 0) this.fireSummonHero();
         if (this._srIdx >= n) {
             this._srTimers.push(setTimeout(() => this.finishSummonResult(), this.SR_TAIL_MS));
             this._srRaf = 0;
@@ -270,17 +275,60 @@ const UI = {
         this._srRaf = requestAnimationFrame(() => this.tickSummonResult());
     },
 
+    // 주역(최고 등급) 착지 전용 비트 — 나머지 셀이 뒤로 물러나고(saturate/brightness/scale 후퇴)
+    // 그 위로 광창 버스트 + 충격파 + 화면 킥이 350ms 동안 터진다. 등장 이징까지 같으면
+    // 신화가 '같은 슬롯의 큰 구슬'로 끝나므로 사건 자체를 갈라 놓는다.
+    fireSummonHero() {
+        const m = this.els.summonResultModal, wrap = m.querySelector('.sr-wrap');
+        const cell = this._srCells && this._srCells[this._srHeroIdx];
+        if (!cell) return;
+        const orb = cell.querySelector('.sr-orb');
+        if (wrap && orb) {
+            const wr = wrap.getBoundingClientRect(), cr = orb.getBoundingClientRect();
+            wrap.style.setProperty('--fx', ((cr.left + cr.width / 2 - wr.left) / wr.width * 100).toFixed(1) + '%');
+            wrap.style.setProperty('--fy', ((cr.top + cr.height / 2 - wr.top) / wr.height * 100).toFixed(1) + '%');
+        }
+        m.classList.remove('charging');
+        m.classList.add('hero');
+        if (this._srHoldback) m.classList.add('flash'); // 화면 훑는 섬광은 뜸들인 단독 등장일 때만
+    },
+
     // 연출 종료 — 힌트를 감추고 [확인]을 띄운다
     finishSummonResult() {
         this._srDone = true;
+        this.els.summonResultModal.classList.remove('charging');
         this.els.summonResultModal.classList.add('done');
+        this.buildSummonReflection();
+    },
+
+    // 아이콘 줄 아래에 남는 빈 밴드를 바닥 반사로 채운다(한 줄 결과 = 소환진 무대일 때만).
+    // 그리드를 복제해 뒤집고 흐리는 방식 — 거울상 글자는 읽히지도 않고 노이즈만 되므로
+    // 이름·등급·배지는 떼고 구체만 남긴다.
+    buildSummonReflection() {
+        const body = this.els.summonResultModal.querySelector('.sr-body.stage');
+        if (!body || body.querySelector('.sr-reflect')) return;
+        const grid = body.querySelector('.sr-grid');
+        if (!grid || !grid.querySelector('.sr-orbwrap')) return;
+        const clone = grid.cloneNode(true);
+        clone.querySelectorAll('.sr-cell').forEach(c => { c.classList.add('on'); c.classList.remove('heroic'); });
+        clone.querySelectorAll('.sr-name, .sr-sub, .sr-new, .sr-qty, .sr-ray, .sr-beam, .sr-ghost, .sr-spark')
+            .forEach(e => e.remove());
+        const ref = document.createElement('div');
+        ref.className = 'sr-reflect';
+        // ⚠️ 반사면은 '구체 바로 아래'가 아니라 '셀 줄 아래'다 — 구체 밑에는 불투명한 이름판이
+        // 깔려 있어 그 자리에 두면 반사가 통째로 가려진다(실측 캡처에서 확인). 셀 줄이 끝나는
+        // 지점에서 시작해 소환진 위로 상이 고이게 한다.
+        ref.style.top = (grid.offsetTop + grid.offsetHeight - 8) + 'px';
+        ref.appendChild(clone);
+        body.appendChild(ref);
     },
     // 오버레이 탭: 연출 중이면 스킵(전부 즉시 표시), 이미 끝났으면 닫기
     onSummonResultTap() {
         if (this._srDone) { this.closeSummonResult(); return; }
         this.clearSummonTimers();
-        this.els.summonResultModal.querySelectorAll('.sr-cell').forEach(el => el.classList.add('on'));
+        this.els.summonResultModal.querySelectorAll('.sr-body > .sr-grid > .sr-cell').forEach(el => el.classList.add('on'));
         this._srIdx = this._srCells ? this._srCells.length : 0;
+        if (this._srHeroIdx >= 0) this.fireSummonHero(); // 스킵해도 주역 비트는 건너뛰지 않는다
         this.finishSummonResult();
     },
     clearSummonTimers() {
@@ -290,6 +338,8 @@ const UI = {
     closeSummonResult() {
         this.clearSummonTimers();
         this._srDone = false;
+        this._srHeroIdx = -1;
+        this._srCells = null;
         const m = this.els.summonResultModal;
         m.className = 'modal hidden';
         m.removeAttribute('style');
