@@ -496,9 +496,10 @@ const IconGen = {
             const rnd = G._rng(20260817);
             const glX = cx - w * 0.40, glY = S * 0.31;   // 광택 위치 — 반점이 겹치면 구멍처럼 보인다
             ctx.fillStyle = G._shade(base, -0.42);
-            for (let i = 0; i < 16; i++) {
-                const a = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * w * 0.88;
-                const x = cx + Math.cos(a) * rr, y = S * 0.55 + Math.sin(a) * rr * 1.35;
+            // 중앙에 몰리면 14px 축소 시 반점 쌍이 '눈'으로 읽힌다 → 바깥 링에만, 개수도 줄여 배치
+            for (let i = 0; i < 11; i++) {
+                const a = rnd() * Math.PI * 2, rr = (0.52 + rnd() * 0.44) * w * 0.92;
+                const x = cx + Math.cos(a) * rr, y = S * 0.58 + Math.sin(a) * rr * 1.3;
                 // 광택 위/정수리 근처의 고립된 반점은 '구멍'처럼 보이므로 제외
                 if (Math.hypot((x - glX) / (w * 0.46), (y - glY) / (S * 0.20)) < 1) continue;
                 if (y < S * 0.36) continue;
@@ -767,16 +768,15 @@ const IconGen = {
             ctx.strokeStyle = 'rgba(24,30,36,.6)';
             ctx.stroke();
 
-            // 상단 림라이트 (기어 실루엣 안쪽으로만)
+            // 상단 라이팅 — 호(arc)로 그으면 그 호가 지나가는 톱니 3개에만 흰 캡이 붙어
+            // '톱니마다 다른 모자'처럼 보인다. 전체에 고르게 걸리는 세로 그라디언트로 대체.
             ctx.save();
             ctx.beginPath();
             gear();
             ctx.clip();
-            ctx.beginPath();
-            ctx.arc(cx, cy, R * 0.96, Math.PI * 1.12, Math.PI * 1.78);
-            ctx.lineWidth = S * 0.035;
-            ctx.strokeStyle = 'rgba(255,255,255,.4)';
-            ctx.stroke();
+            ctx.fillStyle = G._lin(ctx, 0, cy - R, 0, cy + R * 0.15,
+                [[0, 'rgba(255,255,255,.42)'], [1, 'rgba(255,255,255,0)']]);
+            ctx.fillRect(cx - R, cy - R, R * 2, R * 1.2);
             ctx.restore();
         },
     },
