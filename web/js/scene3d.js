@@ -65,6 +65,8 @@ const Scene3D = {
         // (안 옮기면 전진 몇 초 만에 소품 전체가 그림자 카메라 프러스텀 밖으로 벗어나 그림자가 소실됨)
         this.scene.add(this.hemi, this.sun, this.sun.target, this.rim);
 
+        this.initPost(); // 블룸+비네트 포스트 스택 (데스크톱 한정 — 모바일은 풀스크린 패스 비용)
+
         this.buildEmbers();
         this.buildSky();
         this.buildTerrain();
@@ -107,12 +109,90 @@ const Scene3D = {
         if (this.heroRig) this.heroRig.play(cands, once, timeScale);
     },
 
+    // ---- 포스트 프로세싱: 브라이트패스 → 분리 가우시안 블러(1/4 해상도) → 합성+비네트 ----
+    // CDN 금지 제약으로 EffectComposer 없이 r128 코어만으로 구현 (비평가 6.9 권고 1순위 — 전 샷 공통 +α).
+    // 모바일은 풀스크린 3패스 비용이 커서 비활성(그림자 해상도와 동일한 UA 분기).
+    initPost() {
+        if (/Mobi|Android/i.test(navigator.userAgent)) { this.postOn = false; return; }
+        this.postOn = true;
+        const pars = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat };
+        this._rtScene = new THREE.WebGLRenderTarget(2, 2, pars);
+        this._rtScene.texture.encoding = THREE.sRGBEncoding; // 캔버스 직접 렌더와 동일한 색으로 RT에 기록
+        this._rtA = new THREE.WebGLRenderTarget(2, 2, pars);
+        this._rtB = new THREE.WebGLRenderTarget(2, 2, pars);
+        this._fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        this._fsScene = new THREE.Scene();
+        this._fsQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), null);
+        this._fsScene.add(this._fsQuad);
+        const V = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+        this._brightMat = new THREE.ShaderMaterial({
+            uniforms: { tSrc: { value: null } },
+            vertexShader: V,
+            // 임계 0.82 소프트 니 — 밝은 하늘 전체가 안개처럼 번지지 않게 상위 하이라이트(스펙큘러·발광·순백)만 추출
+            fragmentShader: 'varying vec2 vUv; uniform sampler2D tSrc;\n' +
+                'void main(){ vec3 c = texture2D(tSrc, vUv).rgb;\n' +
+                '  float l = dot(c, vec3(0.299, 0.587, 0.114));\n' +
+                '  gl_FragColor = vec4(c * smoothstep(0.82, 1.0, l), 1.0); }',
+            depthTest: false, depthWrite: false,
+        });
+        this._blurMat = new THREE.ShaderMaterial({
+            uniforms: { tSrc: { value: null }, dir: { value: new THREE.Vector2(1, 0) }, texel: { value: new THREE.Vector2(1 / 256, 1 / 256) } },
+            vertexShader: V,
+            fragmentShader: 'varying vec2 vUv; uniform sampler2D tSrc; uniform vec2 dir; uniform vec2 texel;\n' +
+                'void main(){ vec2 o = dir * texel;\n' +
+                '  vec3 s = texture2D(tSrc, vUv).rgb * 0.227;\n' +
+                '  s += (texture2D(tSrc, vUv + o * 1.384).rgb + texture2D(tSrc, vUv - o * 1.384).rgb) * 0.316;\n' +
+                '  s += (texture2D(tSrc, vUv + o * 3.230).rgb + texture2D(tSrc, vUv - o * 3.230).rgb) * 0.070;\n' +
+                '  gl_FragColor = vec4(s, 1.0); }',
+            depthTest: false, depthWrite: false,
+        });
+        this._compMat = new THREE.ShaderMaterial({
+            uniforms: { tScene: { value: null }, tBloom: { value: null }, strength: { value: 0.5 } },
+            vertexShader: V,
+            fragmentShader: 'varying vec2 vUv; uniform sampler2D tScene; uniform sampler2D tBloom; uniform float strength;\n' +
+                'void main(){ vec3 c = texture2D(tScene, vUv).rgb + texture2D(tBloom, vUv).rgb * strength;\n' +
+                '  float d = distance(vUv, vec2(0.5, 0.5));\n' +
+                '  c *= 1.0 - smoothstep(0.58, 0.88, d) * 0.24;\n' + // 미세 비네트 — 시선을 중앙으로
+                '  gl_FragColor = vec4(c, 1.0); }',
+            depthTest: false, depthWrite: false,
+        });
+    },
+    renderFrame() {
+        if (!this.postOn || !this._rtScene) { this.renderer.render(this.scene, this.camera); return; }
+        const r = this.renderer;
+        r.setRenderTarget(this._rtScene);
+        r.render(this.scene, this.camera);
+        this._fsQuad.material = this._brightMat;
+        this._brightMat.uniforms.tSrc.value = this._rtScene.texture;
+        r.setRenderTarget(this._rtA); r.render(this._fsScene, this._fsCam);
+        for (let i = 0; i < 2; i++) { // 2회 왕복 분리 블러 — 1/4 해상도라 저비용
+            this._fsQuad.material = this._blurMat;
+            this._blurMat.uniforms.tSrc.value = this._rtA.texture; this._blurMat.uniforms.dir.value.set(1, 0);
+            r.setRenderTarget(this._rtB); r.render(this._fsScene, this._fsCam);
+            this._blurMat.uniforms.tSrc.value = this._rtB.texture; this._blurMat.uniforms.dir.value.set(0, 1);
+            r.setRenderTarget(this._rtA); r.render(this._fsScene, this._fsCam);
+        }
+        this._fsQuad.material = this._compMat;
+        this._compMat.uniforms.tScene.value = this._rtScene.texture;
+        this._compMat.uniforms.tBloom.value = this._rtA.texture;
+        r.setRenderTarget(null); r.render(this._fsScene, this._fsCam);
+    },
+
     resize() {
         const w = this.container.clientWidth, h = this.container.clientHeight;
         if (!w || !h) return;
         this.renderer.setSize(w, h, false);
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
+        if (this.postOn && this._rtScene) { // 포스트 RT 해상도 동기화 (씬=풀, 블러=1/4)
+            const db = new THREE.Vector2();
+            this.renderer.getDrawingBufferSize(db);
+            this._rtScene.setSize(db.x, db.y);
+            const bw = Math.max(2, Math.floor(db.x / 4)), bh = Math.max(2, Math.floor(db.y / 4));
+            this._rtA.setSize(bw, bh);
+            this._rtB.setSize(bw, bh);
+            this._blurMat.uniforms.texel.value.set(1 / bw, 1 / bh);
+        }
     },
 
     // 그룹 내 모든 메시가 그림자를 드리우게
@@ -4259,6 +4339,6 @@ const Scene3D = {
         } else {
             this.camera.position.set(0.15 + this.worldX, 3.7, 8.2);
         }
-        this.renderer.render(this.scene, this.camera);
+        this.renderFrame(); // 블룸+비네트 포스트 스택 경유 (모바일은 직접 렌더 폴백)
     },
 };
