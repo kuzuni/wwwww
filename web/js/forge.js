@@ -89,9 +89,6 @@ const Forge = {
     },
     // 개별 장비 승천은 폐기 — 승천은 대장간 라인 단위(Ascension.ascend('forge'))로만 일어나고,
     // 제작되는 장비가 그 승천 횟수만큼 별을 달고 나온다 (사용자 확정 2026-08-17).
-    ascendGearRemoved() {
-        return false;
-    },
 
     sellPrice(item) {
         // 원본 공식: 20 × 1.01^(레벨-1), 등급 배수 반영 + 기술트리 판매가 보너스

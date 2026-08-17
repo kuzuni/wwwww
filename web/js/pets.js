@@ -5,7 +5,6 @@ const Pets = {
     SLOT_GEM_COST: 400, // 원본 확인된 단가(◆400) — 이후 구매는 회당 누적 증가(자체 설계)
     MAX_ACTIVE: 3,
     MAX_LEVEL: 100, // 승천은 Lv.100 도달부터 (사용자 확정 스펙 2026-08-17) — 경험치 커브는 기존 곡선 연장
-    ASCEND_DUPES: 30, // 승천 1회당 중복 요구치 — 만렙 상향(30→100)과 무관하게 기존 요구치 유지 (밸런스 보존)
 
     // 현재 부화장 슬롯 수 (기본 2 + 젬 구매분, UI-SPEC 9번 "슬롯+1 ◆400")
     maxHatchSlots() { return Math.min(this.MAX_HATCH_SLOTS_CAP, this.BASE_HATCH_SLOTS + (S.hatchSlotBonus || 0)); },

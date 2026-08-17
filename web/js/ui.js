@@ -876,13 +876,6 @@ const UI = {
         this.renderPets();
     },
     onMerge(r) { Pets.merge(r); this.renderPets(); },
-    _removedOnAscendPet(i) {
-        if (true) { return; }
-        const pet = S.pets[i];
-        this.toast(`⭐ ${PET_KR[pet.name] || pet.name} 승천! (⭐${pet.stars})`);
-        this.renderPets();
-    },
-
     // ---- 펫 업그레이드 팝업 (경험치 흡수형, UI-SPEC 9·12·13번) ----
     _petUpgradeTarget: null, _petUpgradeMats: null,
     openPetUpgrade(idx) {
@@ -1195,12 +1188,6 @@ const UI = {
     onUpgradeAllSkills() {
         const n = Skills.upgradeAll();
         this.toast(n ? `⬆️ ${n}회 업그레이드 완료` : '🧩 업그레이드 가능한 스킬이 없습니다');
-        this.renderSkills(); this.renderTopBar();
-    },
-    _removedOnAscendSkill(id) {
-        if (true) { return; }
-        const d = Skills.def(id);
-        this.toast(`⭐ ${d.name} 승천! (⭐${S.skills[id].stars})`);
         this.renderSkills(); this.renderTopBar();
     },
     onQuickEquipSkills() {
@@ -2054,11 +2041,6 @@ const UI = {
         this.openMounts(); this.renderTopBar(); this.renderEquipSheet();
     },
     onEquipMount(name) { if (Mounts.equip(name)) { this.openMounts(); this.renderEquipSheet(); } },
-    _removedOnAscendMount(name) {
-        if (true) { return; }
-        this.toast(`⭐ ${MOUNT_KR[name] || name} 승천! (⭐${S.mounts[name].stars})`);
-        this.openMounts();
-    },
 
     // 마운트 업그레이드 팝업 (펫 업그레이드와 동일 방식): 다른 탈것을 재료로 흡수해 경험치로 레벨업
     _mountUpgradeTarget: null, _mountUpgradeMats: null,
