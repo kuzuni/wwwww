@@ -336,7 +336,17 @@ const ProChar = {
     // → mail 0x0e1319 · steelDark 0x232a33 채택. **주의: albedo만으로는 2.5%가 천장이다** — metalness 0.78 금속은
     // 화면값을 albedo가 아니라 **환경 반사**가 지배하므로, 요구치 15~20%는 전역 필(반구광·env·림) 하향이
     // 선행돼야 한다(별도 '전역 값 구조' 작업). 이 항목은 그 선행 작업이 먹힐 재질 바닥을 까는 몫.
-    TONE: { steel: 0x9fb2c2, steelDark: 0x232a33, mail: 0x0e1319 },
+    // ⚠️ 2026-08-18 값 하향 (비평가 2인이 독립 1~2순위로 올린 "캐릭터가 배경과 값으로 분리되지 않는다").
+    //    이전 값 steel 0x9fb2c2 / steelDark 0x232a33 / mail 0x0e1319 은 **화면 평균 L 109 로, 이 캐릭터가
+    //    가리고 있는 배경(L 123)과 명도 델타가 14 밖에 안 났다** — 색상만으로 분리되고 있어 그레이스케일·
+    //    썸네일에서 몸통이 잔디에 녹는다(`probe-hero-value.js` 실측, 3런 13.9/14.2/16.2 로 재현).
+    //    각 채널 ×0.50. 아래 envMapIntensity ×0.45 와 **한 세트로만 의미가 있다**(둘 중 하나만 되돌리면
+    //    델타가 게이트 아래로 내려간다). 근거는 `probe-hero-value-sweep.js` 표:
+    //      · roughness 는 사실상 무효(13.4 → 12.8) — 이 손잡이는 잡지 말 것
+    //      · albedo 와 env 는 둘 다 유효하고 곱해서 쓸 때 가장 적게 어둡게 하고 게이트를 넘는다
+    //      · 웜 재질(금 트림·살색·망토)은 **건드리지 않는다** — 두 비평가가 '되돌리지 말 것'으로 꼽았다
+    //    실측 결과: 델타 14 → 48.7, 영웅 평균 L 74.4 (비평가 처방대로 판금 베이스 L 70~85 대역).
+    TONE: { steel: 0x505961, steelDark: 0x12151a, mail: 0x070a0d },
     setTone(o) {
         Object.assign(this.TONE, o);
         for (const m of this._toneMats || []) {
@@ -424,7 +434,7 @@ const ProChar = {
         // 금속 3톤은 스윕 대상이라 상수로 뽑는다(TONE) — 값 구조 튜닝은 probe-hero-dark.js가 ProChar.setTone()으로 돌린다.
         const T = this.TONE;
         const steel = () => {
-            const m = new THREE.MeshStandardMaterial({ color: T.steel, metalness: 0.85, roughness: 0.34, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.72 }); // 브러시드 스틸 — env 0.9/러프 0.3은 근접샷 흉갑이 순백 블로우아웃 (비평가 7.3 1번)
+            const m = new THREE.MeshStandardMaterial({ color: T.steel, metalness: 0.85, roughness: 0.34, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.32 }); // 브러시드 스틸 — env 0.9/러프 0.3은 근접샷 흉갑이 순백 블로우아웃 (비평가 7.3 1번)
             m.userData.tone = 'steel';
             m.userData.baseColor = m.color.getHex();
             R.armorMats.push(m);
@@ -432,7 +442,7 @@ const ProChar = {
             return m;
         };
         const steelDark = () => {
-            const m = new THREE.MeshStandardMaterial({ color: T.steelDark, metalness: 0.8, roughness: 0.5, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.65 });
+            const m = new THREE.MeshStandardMaterial({ color: T.steelDark, metalness: 0.8, roughness: 0.5, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.29 });
             m.userData.dark = true; // 틴트 시 명도 단차 유지용
             m.userData.tone = 'steelDark';
             m.userData.baseColor = m.color.getHex();
@@ -444,7 +454,7 @@ const ProChar = {
         // 고리 직조 텍스처를 범프로도 써서 실루엣 없이도 금속 직물로 판독되게 한다. 사지는 원통이라 세로 반복을 늘린다.
         const mailTex = this.mailTex();
         const mail = () => {
-            const m = new THREE.MeshStandardMaterial({ color: T.mail, metalness: 0.78, roughness: 0.56, map: mailTex, bumpMap: mailTex, bumpScale: 0.02, envMapIntensity: 0.55 });
+            const m = new THREE.MeshStandardMaterial({ color: T.mail, metalness: 0.78, roughness: 0.56, map: mailTex, bumpMap: mailTex, bumpScale: 0.02, envMapIntensity: 0.25 });
             m.userData.dark = true; // 시대색 혼합비를 낮춰 광 나는 판금과 명도·채도가 붙지 않게 (판금 대비 유지)
             m.userData.tone = 'mail';
             m.userData.baseColor = m.color.getHex();
