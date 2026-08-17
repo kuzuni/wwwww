@@ -140,6 +140,76 @@ const ProChar = {
             ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
         }, 512, 512);
     },
+    // ===== 적 몬스터 표면 질감 (2026-08-17) =====
+    // 적은 골렘(rockTex)만 맵을 물고 나머지 6종은 전부 민짜 `MeshStandardMaterial`이었다.
+    // 그래서 늑대는 회색 캡슐 조립, 버섯 몸통은 흰 덩어리로 읽혔다 — 영웅에 쓴 것과 같은
+    // 캔버스 생성 텍스처를 적에도 물린다. 두 텍스처 모두 **밝은 회색 베이스**(≈0.88)로
+    // 그려 albedo에 곱해져도 종별 키 컬러가 어두워지지 않게 한다(맵은 색에 곱해진다 —
+    // rockTex의 #b9bcc0 베이스가 원시 장비를 통째로 어둡게 만들었던 함정과 같은 계열).
+    // 털: 방향성 있는 짧은 스트로크 다발 (늑대/박쥐/고블린 머리털)
+    furTex() {
+        // 타일을 반복해 월드 스케일을 맞춘다 — repeat 1이면 512px 결이 몸통을 한 바퀴에 한 번만
+        // 감아 털 한 올이 손가락만 해진다(체인메일에서 이미 밟은 함정과 같은 계열).
+        const t = this.canvasTex('fur', (ctx, w, h) => {
+            ctx.fillStyle = '#dcdcda'; ctx.fillRect(0, 0, w, h);
+            // 아래로 흐르는 결 — 결이 한 방향으로 서야 '털'이고, 무작위면 그냥 노이즈다
+            ctx.lineCap = 'round';
+            for (let i = 0; i < 2600; i++) {
+                const x = Math.random() * w, y = Math.random() * h;
+                const len = 7 + Math.random() * 15;
+                const drift = (Math.random() - 0.5) * 7; // 결이 살짝 눕는 정도
+                const v = 150 + Math.floor(Math.random() * 105);
+                ctx.strokeStyle = `rgba(${v},${v},${v - 4},${0.16 + Math.random() * 0.26})`;
+                ctx.lineWidth = 1 + Math.random() * 1.9;
+                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + drift, y + len); ctx.stroke();
+            }
+            for (let i = 0; i < 190; i++) { // 뭉친 털다발 그림자 — 결에 덩어리감을 준다
+                const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 12 + Math.random() * 22);
+                g.addColorStop(0, 'rgba(96,98,102,0.24)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.save(); ctx.translate(Math.random() * w, Math.random() * h);
+                ctx.fillStyle = g; ctx.fillRect(-34, -34, 68, 68); ctx.restore();
+            }
+            const bg = ctx.createLinearGradient(0, 0, 0, h);
+            bg.addColorStop(0, 'rgba(255,255,255,0.1)'); bg.addColorStop(1, 'rgba(30,30,34,0.16)');
+            ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+        }, 512, 512);
+        t.repeat.set(3, 3);
+        return t;
+    },
+    // 살갗: 굵은 얼룩 + 미세 모공 (고블린/임프/버섯 몸통 — 유기물인데 민짜면 점토로 읽힌다)
+    skinTex() {
+        const t = this.canvasTex('skin', (ctx, w, h) => {
+            ctx.fillStyle = '#e0dedb'; ctx.fillRect(0, 0, w, h);
+            for (let i = 0; i < 240; i++) { // 넓은 색조 얼룩 — 살결의 큰 무늬
+                const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 20 + Math.random() * 46);
+                const v = 176 + Math.floor(Math.random() * 62);
+                g.addColorStop(0, `rgba(${v},${v - 3},${v - 8},0.3)`); g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.save(); ctx.translate(Math.random() * w, Math.random() * h);
+                ctx.fillStyle = g; ctx.fillRect(-70, -70, 140, 140); ctx.restore();
+            }
+            for (let i = 0; i < 3400; i++) { // 모공 — 잘고 촘촘해야 클로즈업에서 살결로 읽힌다
+                const v = 148 + Math.floor(Math.random() * 80);
+                ctx.fillStyle = `rgba(${v},${v - 4},${v - 10},${0.14 + Math.random() * 0.18})`;
+                ctx.beginPath();
+                ctx.arc(Math.random() * w, Math.random() * h, 0.9 + Math.random() * 2.1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            for (let i = 0; i < 26; i++) { // 주름 — 관절·접힘이 있는 살갗
+                ctx.strokeStyle = `rgba(120,114,110,${0.16 + Math.random() * 0.16})`;
+                ctx.lineWidth = 1.6 + Math.random() * 2.2;
+                let x = Math.random() * w, y = Math.random() * h;
+                ctx.beginPath(); ctx.moveTo(x, y);
+                for (let j = 0; j < 4; j++) { x += (Math.random() - 0.5) * 90; y += (Math.random() - 0.4) * 70; ctx.lineTo(x, y); }
+                ctx.stroke();
+            }
+            const vg = ctx.createRadialGradient(w / 2, h / 2, h * 0.34, w / 2, h / 2, h * 0.78);
+            vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(28,26,30,0.2)');
+            ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
+        }, 512, 512);
+        t.repeat.set(2, 2); // 살갗 무늬는 털보다 굵다 — 반복을 낮게
+        return t;
+    },
+
     // 생물 가죽: 부드러운 얼룩 반점 (고블린/임프 피부 — 그레이스케일, 틴트 대상)
     hideTex() {
         // 512 해상도 — 반점을 잘게 다량 뿌려 클로즈업에서도 살결로 읽히게 (비평가: 민짜 재질)

@@ -3590,10 +3590,23 @@ const Scene3D = {
         const base = new THREE.Color(this.KIND_COLOR[kind]).offsetHSL(U.rand(-0.02, 0.02), U.rand(-0.03, 0.03), U.rand(-0.02, 0.02));
         const g = new THREE.Group();
         const flashMats = [];
-        const lam = (c2, map) => { const m = new THREE.MeshStandardMaterial({ color: c2, map: map || null, metalness: 0, roughness: 0.72 }); flashMats.push(m); return m; }; // 유기물 PBR — 부드러운 스펙큘러 롤오프 (무광 점토 인상 완화)
-        const mat = lam(base);
-        const dark = lam(base.clone().offsetHSL(0, 0, -0.13));
-        const light = lam(base.clone().offsetHSL(0, 0, 0.1));
+        const lam = (c2, map) => {
+            const m = new THREE.MeshStandardMaterial({ color: c2, map: map || null, metalness: 0, roughness: 0.72 });
+            // 맵이 있으면 굴곡까지 함께 준다 — 알베도만 바꾸면 표면이 아니라 '무늬 스티커'로 읽힌다
+            if (map) { m.bumpMap = map; m.bumpScale = 0.013; }
+            flashMats.push(m); return m;
+        }; // 유기물 PBR — 부드러운 스펙큘러 롤오프 (무광 점토 인상 완화)
+        // 종별 표면 질감 — 예전엔 **골렘(rockTex)만** 맵을 물고 나머지 6종은 전부 민짜였다.
+        // 그래서 늑대는 회색 캡슐 조립, 버섯 몸통은 흰 덩어리로 읽혔다(영웅은 캔버스 텍스처 +
+        // AO를 쓰는데 적만 안 쓰던 것). 털 계열은 furTex, 살갗 계열은 skinTex를 물린다.
+        // ⚠️ 맵은 albedo에 **곱해진다** — 텍스처 평균이 ≈0.88이라 그만큼 색이 죽는다.
+        //    종 키 컬러를 유지하려고 맵을 물리는 종만 명도를 되올려 준다(원시 장비에서 이미 밟은 함정).
+        const bodyTex = (kind === 'wolf' || kind === 'bat') ? ProChar.furTex()
+            : (kind === 'goblin' || kind === 'imp' || kind === 'mushroom') ? ProChar.skinTex() : null;
+        if (bodyTex) base.offsetHSL(0, 0.02, 0.055);
+        const mat = lam(base, bodyTex);
+        const dark = lam(base.clone().offsetHSL(0, 0, -0.13), bodyTex);
+        const light = lam(base.clone().offsetHSL(0, 0, 0.1), bodyTex);
         const mk = (geo, m) => new THREE.Mesh(geo, m); // 그룹 조립용 (g에 자동 추가 안 함)
         const limb = (rTop, rBot, len, m) => ProChar.capsule(rTop, rBot, len, m, 9); // 분절 사지 — 피벗=위쪽 끝
         const sp = (r, x, y, z, m, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 11, 9), m || mat); o.position.set(x, y, z); if (sx) o.scale.set(sx, sy, sz); g.add(o); return o; };
