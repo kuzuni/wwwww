@@ -507,14 +507,14 @@ const UI = {
         this.els.bossWarn.classList.remove('hidden');
         setTimeout(() => this.els.bossWarn.classList.add('hidden'), 1400);
     },
-    // 영웅 피격 시 화면 가장자리 붉은 비네트 — 피해가 클수록 진하고 조금 더 오래 (사용자 지시: 쥬시니스)
-    flashDamage(lossRatio) {
-        const f = U.clamp(lossRatio === undefined ? 0.12 : lossRatio, 0, 1);
+    flashDamage(sev) {
+        // 화면 가장자리 붉은 비네트 — 큰 피해일수록 진하게. 지속·감쇠는 CSS 키프레임이 소유한다
+        // (JS 타이머+트랜지션 조합은 연타 시 서로 잘라먹고, 프레임 단위 검증도 불가능했다).
         const el = this.els.dmgFlash;
-        el.style.setProperty('--vig', (0.3 + Math.min(0.62, f * 1.9)).toFixed(2));
+        el.style.setProperty('--vig', Math.min(0.92, 0.45 + (sev || 0.12) * 1.5).toFixed(2)); // 1.0은 화면 전체가 붉게 잠긴다
+        el.classList.remove('on');
+        void el.offsetWidth; // 리플로우 강제 — 연타해도 애니메이션이 처음부터 다시 돈다
         el.classList.add('on');
-        clearTimeout(this._vigT);
-        this._vigT = setTimeout(() => el.classList.remove('on'), 120 + Math.round(Math.min(0.16, f * 0.5) * 1000));
     },
     floatLoot(text) {
         if (this.els.lootFeed.children.length > 6) this.els.lootFeed.firstChild.remove();

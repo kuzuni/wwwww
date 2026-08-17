@@ -264,7 +264,8 @@ const Combat = {
         }
         this.hero.hp = this.hero.hp.sub(dmg);
         SFX.hit(false);
-        Scene3D.heroHit(dmg); // 피해량 전달 — 머리 위 바 흔들림·화면 비네트 세기를 피해 비율에 맞춘다
+        // 최대 HP 대비 피해 비중을 넘겨 반동·비네트·바 흔들림 세기를 맞춘다
+        Scene3D.heroHit(Big.of(this.hero.maxHp).isZero() ? 0.12 : Big.of(dmg).ratioTo(this.hero.maxHp));
         if (!this.hero.hp.isPos()) this.onDefeat();
     },
 

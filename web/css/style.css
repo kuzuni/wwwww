@@ -145,11 +145,18 @@ body {
 /* 영웅 피격 비네트 — 세기(--vig)는 피해 비율에 따라 JS가 준다 (쥬시니스 패스) */
 #dmg-flash {
     position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 5;
-    --vig: .55;
-    background: radial-gradient(ellipse at center, transparent 48%, rgba(244,67,54,var(--vig)) 100%);
-    transition: opacity .1s;
+    /* 밝은 낮 배경 위에서는 가장자리 붉은 가산만으로 신호가 안 된다 — 안쪽 32%까지 당기고
+       어두운 적색을 섞어 '감광'까지 만든다(비평가 4번: c1~c3에서 비네트가 아예 관측 안 됨). */
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(120,14,14,.42) 66%, rgba(255,58,44,.92) 100%);
 }
-#dmg-flash.on { opacity: 1; }
+/* 켜짐은 즉발, 유지 후 여운 있게 소멸 — 타이머+트랜지션 대신 키프레임 하나로 (세기는 flashDamage가 --vig로 주입) */
+#dmg-flash.on { animation: dmgvignette .44s ease-out forwards; }
+@keyframes dmgvignette {
+    0%   { opacity: 0; }
+    7%   { opacity: var(--vig, 1); }
+    38%  { opacity: var(--vig, 1); }
+    100% { opacity: 0; }
+}
 
 #loot-feed {
     position: absolute; right: .6rem; bottom: 3.4rem; display: flex; flex-direction: column;
@@ -162,25 +169,37 @@ body {
 @keyframes lootpop { 0% { opacity: 0; transform: translateY(.5rem); } 12% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
 
 /* 데미지 숫자 */
+/* 튀어오르는 아크: --dx(좌우 드리프트) / --rise(도약 높이, 음수) / --pop(크기)을 Scene3D.damageNumber가 피해량에 따라 주입 */
 .float-dmg {
     position: absolute; transform: translate(-50%,-50%); pointer-events: none;
-    font-weight: 900; font-size: 1rem; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.8);
-    animation: dmgrise .85s forwards;
+    font-weight: 900; font-size: 1rem; color: #fff;
+    /* 밝은 초원 배경에선 블러 그림자만으로 글자가 안 뜬다 — 실선 외곽선으로 대비 확보 */
+    -webkit-text-stroke: .6px rgba(30,10,0,.95);
+    text-shadow: 0 2px 4px rgba(0,0,0,.55);
+    --dx: 0px; --rise: -42px; --pop: 1;
+    animation: dmgrise .55s cubic-bezier(.16,.86,.35,1) forwards;
 }
-.float-dmg.dmg-crit { color: #ff9100; font-size: 1.85rem; -webkit-text-stroke: 1px rgba(90,30,0,.55); animation: dmgcrit .9s forwards; }
-.float-dmg.dmg-skill { color: #82b1ff; font-size: 1.25rem; }
+/* 크리 위계는 '크기'가 아니라 색·펀치로 준다 — 1.5rem은 화면 폭 1/3을 먹고 대상과 HP바를 가렸다 */
+.float-dmg.dmg-crit { color: #ff8a1e; font-size: 1.15rem; animation-name: dmgcrit;
+    text-shadow: 0 0 9px rgba(255,109,0,.7), 0 2px 5px rgba(0,0,0,.6); }
+.float-dmg.dmg-skill { color: #82b1ff; font-size: 1.1rem; }
 .float-dmg.heal { color: #69f0ae; font-size: 1.1rem; }
 .float-dmg.block { color: #90caf9; font-size: 1rem; }
-/* 튀어오르는 아크 — 위로 솟았다 중력에 눌려 떨어지는 포물선(margin-top 이징 곡선), 옆으로도 살짝 흩어진다 */
-@keyframes dmgrise { 0% { opacity: 0; margin-top: 0; transform: translate(-50%,-50%) scale(.5); }
-    14% { opacity: 1; transform: translate(-50%,-50%) scale(1.18) translateX(.1rem); }
-    45% { opacity: 1; margin-top: -2.6rem; transform: translate(-50%,-50%) scale(1) translateX(.3rem); }
-    100% { opacity: 0; margin-top: -1.7rem; transform: translate(-50%,-50%) scale(.92) translateX(.45rem); } }
-@keyframes dmgcrit { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.45) rotate(-14deg); }
-    12% { opacity: 1; transform: translate(-50%,-50%) scale(1.62) rotate(6deg); }
-    26% { transform: translate(-50%,-50%) scale(1.28) rotate(-3deg); }
-    50% { opacity: 1; margin-top: -3.2rem; transform: translate(-50%,-50%) scale(1.12) rotate(1deg) translateX(.35rem); }
-    100% { opacity: 0; margin-top: -2.1rem; transform: translate(-50%,-50%) scale(1) rotate(0deg) translateX(.55rem); } }
+/* 솟구쳤다 정점에서 살짝 떨어지는 포물선 — 직선 상승보다 무게가 실려 보인다 */
+@keyframes dmgrise {
+    0%   { opacity: 1; transform: translate(-50%,-50%) scale(calc(var(--pop) * .9)); } /* 임팩트 프레임이 가장 잘 보여야 한다 — 페이드인 금지 */
+    7%   { opacity: 1; transform: translate(calc(-50% + var(--dx) * .16), calc(-50% + var(--rise) * .36)) scale(calc(var(--pop) * 1.24)); }
+    34%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .7), calc(-50% + var(--rise))) scale(var(--pop)); }
+    62%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .9), calc(-50% + var(--rise) * .78)) scale(var(--pop)); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--rise) * .68)) scale(calc(var(--pop) * .9)); }
+}
+@keyframes dmgcrit {
+    0%   { opacity: 1; color: #fff; transform: translate(-50%,-50%) scale(calc(var(--pop) * .8)) rotate(-10deg); } /* 흰색으로 터져 주황으로 식는다 */
+    9%   { opacity: 1; color: #ff8a1e; transform: translate(calc(-50% + var(--dx) * .16), calc(-50% + var(--rise) * .34)) scale(calc(var(--pop) * 1.35)) rotate(5deg); }
+    26%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .62), calc(-50% + var(--rise))) scale(calc(var(--pop) * 1.05)) rotate(-3deg); }
+    60%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .88), calc(-50% + var(--rise) * .76)) scale(var(--pop)) rotate(1deg); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--rise) * .66)) scale(calc(var(--pop) * .92)) rotate(0deg); }
+}
 
 /* ---- 스킬 슬롯 (전투 화면 우중단 — UI-SPEC 1번: 초록 자동 토글 + 검은 원형 버튼 3개) ---- */
 #skill-bar {
