@@ -1128,7 +1128,8 @@ const ProChar = {
         //    (예전 값 −0.44는 몸을 지하 0.78로 처박아 상체만 남겼다 = 사용자가 말한 '공중에 뜬 채 젖혀짐'.)
         //    모든 높이 값은 tools/probe-death-ground.js 실측 — 붕괴 전 구간에서 리그 최저 정점이 지면 ±0.06.
         Death: {
-            dur: 1.45, once: true, tracks: {
+            // groundPose: 지면에 쓰러지는 클립 — 탑승 하체 포즈를 가산하지 않는다(다리를 감은 채 쓰러지면 더 어색하다)
+            dur: 1.45, once: true, groundPose: true, tracks: {
                 'spine.rx': [[0, 0], [0.07, -0.55], [0.2, -0.3], [0.38, 0.34], [0.62, 0.22], [0.8, 0.1], [1, 0.06]],
                 'spine.ry': [[0, 0], [0.16, 0.28], [0.6, 0.14], [1, 0.1]],
                 'spine.rz': [[0, 0], [0.55, 0.1], [0.8, 0.26], [1, 0.22]],     // 무너지는 쪽으로 몸통이 먼저 기운다
@@ -1162,7 +1163,7 @@ const ProChar = {
         Revive: { // 기상: 옆으로 누운 몸을 굴려 무릎으로 세우고 일어선다
             // ⚠️ 0초 값은 **Death 끝값과 한 글자도 다르면 안 된다** — 다르면 기상 첫 프레임에 순간이동한다.
             //    (tools/probe-death-ground.js가 Death 끝 ↔ Revive 0초 최저 정점 차를 찍어 준다. 0.00이어야 정상)
-            dur: 0.85, once: true, tracks: {
+            dur: 0.85, once: true, groundPose: true, tracks: {   // Death와 같은 이유로 탑승 하체 포즈 미가산
                 'root.rz': [[0, 1.42], [0.3, 1.05], [0.62, 0.3], [0.85, -0.06], [1, 0]],   // 먼저 몸을 굴려 세우고
                 'root.rx': [[0, -0.45], [0.35, -0.25], [0.7, 0.14], [1, 0]],
                 'root.py': [[0, 0.345], [0.3, 0.05], [0.55, -0.22], [0.9, 0.03], [1, 0]],   // 무릎 자세를 거쳐 키가 돌아온다
@@ -1262,16 +1263,24 @@ const ProChar = {
         // 무기별 다관절 거치 자세(rx 가산) — 공격/사망(once) 클립 중에는 클립이 양팔을 전부 정의하므로 미적용
         // 값이 숫자면 rx 가산(기존 무기 거치 자세), 객체면 {rx,ry,rz} 축별 가산 —
         // 탑승 포즈는 다리를 '벌려서' 감싸야 해서 rz(좌우 벌림)가 필수다.
-        if (R.restPose && !R._once) for (const bn in R.restPose) {
-            const b = R.bones[bn]; if (!b) continue;
-            const v = R.restPose[bn];
-            if (typeof v === 'number') b.rotation.x += v;
-            else {
-                if (v.rx) b.rotation.x += v.rx;
-                if (v.ry) b.rotation.y += v.ry;
-                if (v.rz) b.rotation.z += v.rz;
+        const addPose = (pose) => {
+            for (const bn in pose) {
+                const b = R.bones[bn]; if (!b) continue;
+                const v = pose[bn];
+                if (typeof v === 'number') b.rotation.x += v;
+                else {
+                    if (v.rx) b.rotation.x += v.rx;
+                    if (v.ry) b.rotation.y += v.ry;
+                    if (v.rz) b.rotation.z += v.rz;
+                }
             }
-        }
+        };
+        if (R.restPose && !R._once) addPose(R.restPose);
+        // 탑승 하체 포즈는 **공격 클립(once) 중에도 유지**한다 — restPose를 통째로 끄면 안장에 감겨 있던
+        // 다리가 공격 한 번에 곧게 펴져 '올라탄 게 아니라 위에 떠서 지나가는' 프레임이 나온다
+        // (실측: 4계열 전부 공격 중 hip/knee가 0으로 복귀). 공격 클립이 정의하는 건 어깨·팔꿈치·척추뿐이라
+        // 하체를 가산해도 상체 아크는 그대로다. 사망·기상 클립만 예외 — 쓰러진 몸이 다리를 감고 있으면 더 어색하다.
+        else if (R.ridePose && R._once && !R._clip.groundPose) addPose(R.ridePose);
         // 트랙 오프셋
         for (const key in R._clip.tracks) {
             const dot = key.indexOf('.');

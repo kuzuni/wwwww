@@ -2269,6 +2269,9 @@ const Scene3D = {
             this.heroRig.restPose = (this.ridePose || grip.pose)
                 ? Object.assign({}, grip.pose || null, this.ridePose || null)
                 : null;
+            // 공격 클립(once) 중에는 restPose가 통째로 꺼진다 — 그때도 하체만은 안장을 감고 있어야 하므로
+            // 탑승 포즈를 따로 넘긴다(ProChar.update가 once 클립에서 이쪽만 가산한다).
+            this.heroRig.ridePose = this.ridePose || null;
             if (grip.hand === 'L') this.heroRig.restX = 0; // 조준 자세는 restPose가 양팔을 정의 — 오른어깨 이중 가산 방지
             if (this.heroRig.shield) this.heroRig.shield.visible = grip.hand !== 'L'; // 활·석궁은 왼손 파지 — 같은 팔의 방패와 겹침 방지
         }
@@ -3309,6 +3312,9 @@ const Scene3D = {
         const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 12), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const to = (r, tr, x, y, z, m) => { const o = new THREE.Mesh(new THREE.TorusGeometry(r, tr, 8, 14), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const eyes = (y, z, gap) => { for (const s of [-1, 1]) sp(0.026, s * (gap || 0.07), y, z, blk); };
+        // 머리·목 표식 — 탑승 시 **이 파츠가 영웅 다리를 가리면 결함**이다(몸통·안장이 먼 다리를 가리는 건
+        // 실제로 말을 탄 사진에서도 그러니 정상). tools/probe-ride-clear.js가 이 표식으로 둘을 갈라 본다.
+        const HEADPART = (o) => { o.userData.part = 'head'; return o; };
         // 두 점을 잇는 관 — 자전거 프레임처럼 비스듬한 파츠는 이걸로 그린다(회전각 손계산 금지)
         const tube = (a, b, r, m) => {
             const A = new THREE.Vector3(a[0], a[1], a[2]), B = new THREE.Vector3(b[0], b[1], b[2]);
@@ -3333,7 +3339,9 @@ const Scene3D = {
             sp(0.15, 0, sy - 0.045, -0.01, LEATHER, 0.95, 0.30, 1.15);   // 안장 방석 (윗면이 sy에 닿게)
             sp(0.07, 0, sy - 0.02, 0.155, TAN, 0.9, 0.66, 0.5);          // 앞턱(pommel)
             sp(0.075, 0, sy - 0.015, -0.175, TAN, 0.95, 0.8, 0.5);       // 뒷턱(cantle) — 엉덩이가 걸리는 턱
-            for (const s of [-1, 1]) sp(0.1, s * 0.125, sy - 0.09, 0.0, LEATHER, 0.22, 0.85, 1.15); // 옆날개(flap)
+            // 옆날개(flap)는 **영웅 허벅지보다 안쪽**에 있어야 한다 — 밖으로 나가면 다리를 앞에서 가린다
+            // (실측: 비행형 근접 허벅지 가림률 67%가 이 날개였다). 안장 방석 폭(0.15×0.95) 안에 붙인다.
+            for (const s of [-1, 1]) sp(0.1, s * 0.102, sy - 0.09, 0.0, LEATHER, 0.22, 0.85, 1.15); // 옆날개(flap)
             const gr = to(halfH * 1.06, 0.016, 0, bodyY, 0.02, TAN);     // 뱃대끈 — 몸통 단면(XY)을 감는다
             gr.scale.set(halfW / (halfH * 1.06), 1, 1);
             if (!foot) return;
@@ -3410,15 +3418,21 @@ const Scene3D = {
             // '녹색 비행선 위에 뜬 사람'으로 읽혔다. 반폭 0.152면 다리가 양옆으로 나온다.
             sp(0.16, 0, 0.22, 0, mat, dragon ? 0.95 : 0.9, dragon ? 1.0 : 0.95, dragon ? 1.75 : 1.2);
             if (dragon) {
-                const neck = cy(0.055, 0.075, 0.24, 0, 0.31, 0.28, mat); neck.rotation.x = -0.75;   // 목
-                sp(0.085, 0, 0.40, 0.40, light, 1.0, 0.85, 1.3);                                    // 머리
-                cn(0.045, 0.11, 0, 0.40, 0.50, light).rotation.x = Math.PI / 2;                      // 주둥이
-                for (const s of [-1, 1]) { const hn = cn(0.02, 0.09, s * 0.045, 0.47, 0.35, dark); hn.rotation.x = -0.7; } // 뿔
+                // ⚠️ 말과 같은 사고 — 목·머리가 안장 바로 앞(z 0.28~0.40)에 서 있어서 **먼 쪽 다리를
+                //    100% 가렸다**(실측). 용은 목을 앞으로 뻗고 나는 실루엣이 정상이므로, 어깨에서
+                //    앞·아래로 길게 빼면 다리가 드러나면서 '날고 있는' 자세도 같이 좋아진다.
+                // 자리는 스윕으로 잡았다(y를 0.08씩 훑어 '추가 가림 0'이 되는 구간을 찾음) — 시선이
+                // 먼 발을 스치는 띠가 좁아서, 그 띠보다 **확실히 위**로 올리고 앞으로 뺀 자리를 골랐다.
+                // 위아래 ±0.08 이웃도 전부 0이라 카메라가 조금 흔들려도 다시 가리지 않는다.
+                HEADPART(tube([0, 0.47, 0.32], [0, 0.39, 0.64], 0.05, mat));                         // 목
+                HEADPART(sp(0.082, 0, 0.37, 0.72, light, 1.0, 0.85, 1.35));                          // 머리
+                cn(0.042, 0.11, 0, 0.37, 0.85, light).rotation.x = Math.PI / 2;                      // 주둥이
+                for (const s of [-1, 1]) { const hn = cn(0.02, 0.09, s * 0.042, 0.44, 0.67, dark); hn.rotation.x = -0.7; } // 뿔
                 for (let i = 0; i < 4; i++) cn(0.024, 0.06, 0, 0.36 - i * 0.012, 0.10 - i * 0.11, dark); // 등지느러미
                 const tail = cy(0.05, 0.012, 0.38, 0, 0.20, -0.36, mat); tail.rotation.x = -1.45; g.userData.tail = tail;
             } else {
                 for (let i = 0; i < 3; i++) bx(0.2, 0.055, 0.02, 0, 0.22, -0.12 + i * 0.12, dark);   // 벌 줄무늬
-                sp(0.09, 0, 0.26, 0.22, dark, 1.0, 0.9, 0.9);                                        // 머리
+                HEADPART(sp(0.09, 0, 0.26, 0.22, dark, 1.0, 0.9, 0.9));                              // 머리
             }
             g.userData.wings = [];
             for (const s of [-1, 1]) {
@@ -3428,7 +3442,7 @@ const Scene3D = {
                 wing.userData.s = s;
                 g.userData.wings.push(wing);
             }
-            eyes(dragon ? 0.42 : 0.28, dragon ? 0.46 : 0.29, 0.05);
+            eyes(dragon ? 0.41 : 0.28, dragon ? 0.78 : 0.29, 0.05);
             if (!dragon) { const sting = cn(0.025, 0.12, 0, 0.2, -0.21, blk); sting.rotation.x = Math.PI; g.userData.tail = sting; }
             // 비행형 안장: form.saddle 0.38 / 몸통 반폭·반높이·중심 y / 발은 몸통 옆 허공(등자만)
             saddleRig(0.38, dragon ? 0.152 : 0.144, dragon ? 0.16 : 0.152, 0.22, [0.20, 0.06, 0.09]);
@@ -3439,11 +3453,26 @@ const Scene3D = {
             sp(0.22, 0, 0.24, 0, mat, 0.82, 0.95, 1.75);
             if (name === 'Turtle') sp(0.2, 0, 0.32, -0.02, dark, 1.1, 0.7, 1.4); // 등딱지
             if (name === 'Crab') { sp(0.24, 0, 0.2, 0, dark, 1.5, 0.55, 1.3); g.userData.claws = []; for (const s of [-1, 1]) { const cl = bx(0.1, 0.08, 0.16, s * 0.32, 0.22, 0.14, light); g.userData.claws.push(cl); } }
-            if (name === 'Brown Horse' || name === 'Dino') { const neck = cy(0.08, 0.1, name === 'Dino' ? 0.5 : 0.3, 0, 0.44, 0.22, mat); neck.rotation.x = -0.5; }
-            if (name === 'Goat') for (const s of [-1, 1]) { const horn = cn(0.025, 0.13, s * 0.06, 0.44, 0.34, light); horn.rotation.x = -0.6; horn.rotation.z = s * 0.3; }
-            if (name === 'Pig') cn(0.05, 0.08, 0, 0.24, 0.42, light).rotation.x = Math.PI / 2;
-            sp(0.14, 0, name === 'Brown Horse' || name === 'Dino' ? 0.58 : 0.32, name === 'Brown Horse' || name === 'Dino' ? 0.34 : 0.4, light); // 머리
-            eyes(name === 'Brown Horse' || name === 'Dino' ? 0.6 : 0.34, name === 'Brown Horse' || name === 'Dino' ? 0.42 : 0.48);
+            // ⚠️ 목·머리는 **기갑(withers, z 0.30) 에서 앞으로 뻗어 나가야** 한다. 예전엔 목이 (0, 0.44, 0.22)
+            //    즉 안장 바로 앞·위에 굵게 서 있고 머리가 z 0.34에 얹혀서, 카메라에서 보면 그 둘이
+            //    **반대쪽(먼) 다리를 통째로 가렸다**(실측: 먼 허벅지·정강이 가림률 100%). 말은 목이 앞으로
+            //    누워 나가는 동물이라, 앞·아래로 빼면서 굵기도 줄이면 다리가 드러나고 실루엣도 말다워진다.
+            const longNeck = name === 'Brown Horse' || name === 'Dino';
+            if (longNeck) HEADPART(tube([0, 0.40, 0.26], name === 'Dino' ? [0, 0.40, 0.60] : [0, 0.32, 0.58], 0.058, mat));
+            // 뿔·코는 머리에 붙어 있어야 한다 — 머리를 앞으로 뺀 만큼(z +0.06) 같이 따라간다
+            if (name === 'Goat') for (const s of [-1, 1]) { const horn = cn(0.025, 0.13, s * 0.06, 0.44, 0.40, light); horn.rotation.x = -0.6; horn.rotation.z = s * 0.3; }
+            if (name === 'Pig') cn(0.05, 0.08, 0, 0.30, 0.56, light).rotation.x = Math.PI / 2;
+            // 머리도 같은 이유로 앞으로 뺀다 — 목 끝에 얹고 z축으로 늘려 주둥이가 있는 두상으로.
+            // 짧은목 계열(거북·게·돼지·염소)도 z 0.40→0.46으로 조금 더 내보내 다리 시야선에서 비킨다.
+            // ⚠️ 높이가 핵심이다 — 게임 카메라는 탈것 **앞-왼쪽 위**(탈것 로컬 약 (-3.0, 3.2, 7.8))에 있어서
+            //    시선이 앞쪽으로 갈수록 위로 올라간다(z 1당 y 약 +0.37). 그래서 머리를 '앞으로만' 빼면
+            //    오히려 카메라 쪽으로 다가와 먼 다리를 더 가린다(실측: z 0.64·y 0.52에서 여전히 100%).
+            //    앞으로 빼면서 **시선보다 낮게** 내려야 비로소 다리가 드러난다 — 머리를 앞으로 뻗어 내린
+            //    자세는 달리는 말·나는 용의 자세라 실루엣도 같이 좋아진다.
+            const headY = longNeck ? (name === 'Dino' ? 0.34 : 0.30) : 0.32;
+            const headZ = longNeck ? (name === 'Dino' ? 0.68 : 0.66) : 0.46;
+            HEADPART(sp(0.13, 0, headY, headZ, light, 0.92, 0.88, 1.35)); // 머리
+            eyes(headY + 0.04, headZ + 0.10, 0.062);
             const tail = cy(0.03, 0.01, 0.24, 0, 0.24, -0.34, mat); tail.rotation.x = 1.3; g.userData.tail = tail;
             g.userData.legs = [];
             for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
