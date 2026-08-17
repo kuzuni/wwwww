@@ -91,11 +91,14 @@ body {
    카드의 41.98%) · 흰 하단부 46.20~77.29 · [수집] 버튼 x 34.40~64.80%W(폭 30.40).
    ⚠️ 카드가 세로로 2%p 위에 있던 것은 크기가 아니라 `.idet-wrap`이 카드 아래 ✕까지 끌어안은 채
    가운데 정렬되는 이 패스의 단골 함정이다(프로필·던전 상세와 같은 처방 — 래퍼를 내린다). */
-.modal-card.offline-card { padding: 0; gap: 0; overflow: hidden; width: 69%; height: min(calc(var(--app-h) * .5436), var(--popup-h-max)); }
-#offline-modal .idet-wrap { position: relative; top: .96rem; }
+.modal-card.offline-card { padding: 0; gap: 0; overflow: hidden; width: 69%; height: min(calc(var(--app-h) * .5504), var(--popup-h-max)); /* 원본 카드 바깥 높이 55.04%H 실측(22.59~77.63) */ }
+#offline-modal .idet-wrap { position: relative; top: .91rem; } /* 원본 카드 상단 22.93%H — .96rem 이면 21.41%H 로 1.52%p 떠 있었다 */
+/* 원본(042110) 헤더는 **평면 rgb(14,17,27)**이다 — 세로 색구간 스캔에서 201px 한 덩어리로 잡힌다.
+   클론의 파란 그라데이션(#232a52→#171b38)은 원본보다 확연히 푸르다(league·chat·forge-detail 에 이은
+   네 번째 색 오독). 헤더 비중도 원본은 카드의 22.82%H인데 41.98%(=21.53%H)라 −1.29%p 짧았다. */
 .offline-top {
-    background: linear-gradient(180deg, #232a52, #171b38); color: #fff;
-    padding: 1.3rem .9rem 1.1rem; text-align: center; flex: 0 0 41.98%;
+    background: #0e111b; color: #fff;
+    padding: 1.3rem .9rem 1.1rem; text-align: center; flex: 0 0 42.80%; /* 원본 헤더 23.27%H / 카드 콘텐츠 54.37%H */
     display: flex; flex-direction: column; justify-content: center;
 }
 .offline-title { font-size: 1.2rem; font-weight: 900; margin-bottom: .15rem; }
@@ -112,10 +115,14 @@ body {
 .offline-rate b { color: var(--pp-green); font-weight: 900; font-size: .85rem; }
 .offline-bottom {
     background: #fff; padding: 1.1rem .9rem 1.3rem; text-align: center;
-    flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1.2rem;
+    flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1.79rem;
+    /* 원본 합계줄 잉크 하단 57.49%H → 버튼 파란 면 상단 61.19%H = 33px 간격. 1.2rem(20px)이면 23px 이라
+       버튼이 1.32%p 위에 떴다. 흰 영역은 원본도 상하 대칭 중앙정렬이라 간격만 키우면 둘 다 제자리로 온다. */
 }
 .offline-total { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); }
-.offline-bottom .offline-collect-btn { position: relative; width: 48.1%; align-self: center; height: 4.2rem; flex: 0 0 4.2rem; font-size: 1.2rem; } /* 원본 폭 30.40%W 실측 — 하단부 안쪽 폭 기준 48.1% */
+.offline-bottom .offline-collect-btn { position: relative; width: 51.7%; align-self: center; height: 4.6rem; flex: 0 0 4.6rem; font-size: 1.2rem; }
+/* 원본 파란 면 실측 x 34.80%W · 폭 29.80%W · 높이 7.49%H. 앞 주석의 '원본 폭 30.40%W → 48.1%' 환산은
+   결과가 26.25%W(−3.55%p)로 나와 틀렸다 — 실측 파란 면 기준으로 다시 잡는다. */
 .offline-collect-dot {
     position: absolute; top: -.3rem; right: -.3rem; width: .7rem; height: .7rem; border-radius: 50%;
     background: var(--pp-red); border: 2px solid #fff;
@@ -1777,7 +1784,10 @@ body {
        (앱높이 + 카드높이 + 1.7rem)/2 ≤ 앱높이 − 탭바높이 → 카드높이 ≤ 앱높이 − 2×탭바 − 1.7rem.
        여유 .2rem을 더해 계산한다 — 탭바 높이를 바꾸면 상한이 자동으로 따라온다. */
     --popup-h-max: calc(var(--app-h) - 2 * var(--tabbar-h) - 1.9rem);
-    --pp-blue: #2f7dfa;  --pp-blue-dk: #1b56c4;
+    /* 원본 파랑은 4개 화면(042110 오프라인·042340 스킬 소환·042304 던전상세·043224 비교팝업)에서
+       전부 rgb(0,93,255)로 **동일**하다 — 픽셀 census 로 교차검증했다(각 화면 최빈 파랑 1위, 7천~9천px).
+       베벨 어두운 쪽도 rgb(0,73,201)로 일치. `--pp-red`와 달리 화면마다 다르지 않으므로 토큰째 고친다. */
+    --pp-blue: #005dff;  --pp-blue-dk: #0049c9;
     --pp-red: #e8362f;   --pp-red-dk: #a51710;
     --pp-green: #35c04f; --pp-green-dk: #1f8c34;
     --pp-gray: #c4c4c4;  --pp-gray-dk: #9a9a9a;
