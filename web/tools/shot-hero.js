@@ -43,6 +43,7 @@ const OUT = __dirname;
     const hideUI = () => page.evaluate(() => {
         for (const sel of ['#topbar', '#equip-sheet', '#skill-bar', '#stage-label', '#wave-pips', '#chat-preview', '#hero-hp-wrap', '.waypoint', '#offline-btn'])
             document.querySelectorAll(sel).forEach(el => el.style.visibility = 'hidden');
+            if (Scene3D.fxLayer) Scene3D.fxLayer.style.visibility = 'hidden'; // 코인 토스트('+3')가 검증샷 오염 (비평가 7.1 8번 부수)
     });
 
     // 캔버스 영역만 크롭 — 검정 데드스페이스/디버그 탭바 제거 (비평가 4번 결함)
@@ -108,6 +109,7 @@ const OUT = __dirname;
             R.__playWrapped = true;
         }
         Scene3D.TRAIL_MIN_STEP = 0.012; // 슬로모 0.25×에선 프레임당 날끝 이동이 기본 게이트 0.06 미달 → 포인트가 아예 기록 안 됨
+        Scene3D.TRAIL_LIFE = 0.75; // 슬로모 0.25×에선 실시간 기준 수명이 스윙 애니메이션 시간을 못 덮음(0.22s 실시간 = 0.055s 애니) → 와인드업~임팩트 풀 아크가 살아남게 연장
         (window.__realAtk || Scene3D.heroAttack).call(Scene3D, 999); // fit()이 노옵으로 막아둔 실제 공격 호출
         for (const a of Scene3D.anims) { const k = a.t / a.dur; a.dur /= 0.25; a.t = k * a.dur; } // 돌진도 동율 슬로모
         // 임팩트 동결을 페이지 안에서 동기 실행 — Node 폴링 왕복(수십~수백 ms) 동안 트레일 포인트(LIFE 0.18s)가
@@ -115,7 +117,7 @@ const OUT = __dirname;
         window.__frozen = false;
         window.__frzIv = setInterval(() => {
             const R2 = Scene3D.heroRig;
-            if (!(R2 && R2._once && R2._clip && R2._t / R2._clip.dur >= 0.5)) return; // 0.6은 팔로스루 복귀 구간이라 오히려 리본이 죽음 — 0.5(임팩트 직후)가 최적
+            if (!(R2 && R2._once && R2._clip && R2._t / R2._clip.dur >= 0.56)) return; // 사선 교차 후반 — 0.5는 아크가 머리 위 '돛'으로 서 있고, TRAIL_LIFE 연장으로 0.56에서도 리본 생존
             clearInterval(window.__frzIv);
             R2._speed = 0;
             Scene3D._origUpdateTrail = Scene3D.updateTrail;
@@ -142,7 +144,7 @@ const OUT = __dirname;
         const dist = Math.max(size.x, size.y, size.z) * 1.45 + 0.3; // 더 낮고 가깝게 — 액션 밀착감 (비평가 6.8 4번)
         const fwd = new THREE.Vector3();
         Scene3D.heroG.getWorldDirection(fwd);
-        fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.95); // 적 반대편 측면 궤도 확대 — 검·트레일이 머리 뒤에 숨지 않게 (비평가 6.4 6번)
+        fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.95); // 적 반대편 측면 궤도 — -1.35는 리본 원근이 찢겨 부유 슬리버 발생, -0.95가 아크 판독 최적
         Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * 0.22, 0)), look: c.clone() };
     });
     await page.waitForTimeout(150);
@@ -154,6 +156,7 @@ const OUT = __dirname;
         Scene3D.heroAttack = () => {}; // 이후 전신·손 샷 동안 재공격 차단 유지
         Scene3D.trailStart = () => {}; // 공격 내부 setTimeout 체인이 trailStart를 직접 재호출해 뷰티샷에 링이 남는 문제 원천 차단
         Scene3D.TRAIL_MIN_STEP = 0.06; // 기본 게이트 복원
+        delete Scene3D.TRAIL_LIFE; // 수명 기본값 복원
         if (Scene3D.trailMat) Scene3D.trailMat.depthTest = true;
         Scene3D._attacking = false; Scene3D._trailOn = false;
         Scene3D.trailPts = []; if (Scene3D.trailMesh) Scene3D.trailMesh.visible = false;

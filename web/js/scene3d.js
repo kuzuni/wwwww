@@ -128,11 +128,11 @@ const Scene3D = {
         this._brightMat = new THREE.ShaderMaterial({
             uniforms: { tSrc: { value: null } },
             vertexShader: V,
-            // 임계 0.82 소프트 니 — 밝은 하늘 전체가 안개처럼 번지지 않게 상위 하이라이트(스펙큘러·발광·순백)만 추출
+            // 임계 0.9 소프트 니 — 0.82는 스틸 검날·히트 플래시가 통째로 순백 기둥으로 폭주(비평가 7.1 1·3번 화이트아웃), 최상위 하이라이트만 추출
             fragmentShader: 'varying vec2 vUv; uniform sampler2D tSrc;\n' +
                 'void main(){ vec3 c = texture2D(tSrc, vUv).rgb;\n' +
                 '  float l = dot(c, vec3(0.299, 0.587, 0.114));\n' +
-                '  gl_FragColor = vec4(c * smoothstep(0.82, 1.0, l), 1.0); }',
+                '  gl_FragColor = vec4(c * smoothstep(0.9, 1.0, l), 1.0); }',
             depthTest: false, depthWrite: false,
         });
         this._blurMat = new THREE.ShaderMaterial({
@@ -147,7 +147,7 @@ const Scene3D = {
             depthTest: false, depthWrite: false,
         });
         this._compMat = new THREE.ShaderMaterial({
-            uniforms: { tScene: { value: null }, tBloom: { value: null }, strength: { value: 0.5 } },
+            uniforms: { tScene: { value: null }, tBloom: { value: null }, strength: { value: 0.34 } }, // 0.5는 밝은 면이 형태를 잃음 (비평가 7.1 화이트아웃)
             vertexShader: V,
             fragmentShader: 'varying vec2 vUv; uniform sampler2D tScene; uniform sampler2D tBloom; uniform float strength;\n' +
                 'void main(){ vec3 c = texture2D(tScene, vUv).rgb + texture2D(tBloom, vUv).rgb * strength;\n' +
@@ -388,7 +388,8 @@ const Scene3D = {
             // 낮은 고도(y 4.5~7.5)에 배치해야 화면에 실제 구름 크기로 보인다.
             // 절반은 화면 시야(x±14) 안에 확정 배치 — 랜덤이 전부 화면 밖으로 몰리면 "빈 하늘"이 됨
             const cx = i < 6 ? U.rand(-14, 14) : U.rand(-25, 25);
-            s.position.set(cx, U.rand(5, 8.5), U.rand(-40, -26)); // 더 가깝고 높게 — 화면에서 덩어리로 읽히게
+            // y 5~8.5는 능선에 몸통이 다 가려져 꼭대기 슬리버만 '정체불명 수평선 2줄'로 노출 (비평가 7.1 7번 아티팩트의 실체)
+            s.position.set(cx, U.rand(10.5, 15), U.rand(-42, -28)); // 능선 위 온전한 덩어리로
             s.userData.baseX = s.position.x;
             s.userData.speed = U.rand(0.05, 0.14);
             this.scene.add(s);
@@ -1679,7 +1680,7 @@ const Scene3D = {
         const heroBlob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
         heroBlob.rotation.x = -Math.PI / 2;
         heroBlob.position.y = 0.025;
-        heroBlob.scale.setScalar(1.05);
+        heroBlob.scale.setScalar(0.82); // 컨택트 AO — 실그림자와 이중 노출 방지 위해 발밑 접지부만
         heroBlob.userData.sharedGeometry = true;
         g.add(heroBlob);
         this.heroG = g;
@@ -3353,8 +3354,10 @@ const Scene3D = {
     ensureBlobRes() {
         if (this.blobShadowMat) return;
         this.blobShadowMat = new THREE.MeshBasicMaterial({
-            map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.34, depthWrite: false, // 캐주얼 톤에 맞는 옅은 그림자
+            map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.17, depthWrite: false, // 실그림자(섀도맵)의 접지 AO 보조 — 0.34는 실그림자와 이중 노출로 '그림자 두 개' 오독 (비평가: 버섯·임프 블롭 정합)
         });
+        this.blobShadowFlyMat = this.blobShadowMat.clone();
+        this.blobShadowFlyMat.opacity = 0.3; // 비행체 전용 — 실그림자를 끄므로 블롭이 유일한 접지 단서
         this.blobGeo = new THREE.PlaneGeometry(1, 1);
     },
 
@@ -3367,10 +3370,13 @@ const Scene3D = {
         this.enemyMap.set(e.id, m);
         // 접지 블롭 섀도우 — scene 직속으로 두고 update에서 추적 (홉/비행 시 그림자는 지면에 남아야 함)
         this.ensureBlobRes();
-        const blob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
+        // 비행체는 태양 각도로 실그림자가 본체에서 멀리 이탈해 '따로 노는 얼룩'이 됨 (비평가 7.1 4번) — 실그림자 끄고 발밑 수직 블롭만
+        const flying = m.kind === 'bat';
+        if (flying) m.g.traverse(o => { if (o.isMesh) o.castShadow = false; });
+        const blob = new THREE.Mesh(this.blobGeo, flying ? this.blobShadowFlyMat : this.blobShadowMat);
         blob.rotation.x = -Math.PI / 2;
         blob.position.set(e.x + this.worldX, 0.03, 0);
-        blob.scale.setScalar(0.95);
+        blob.scale.setScalar(0.72); // 실그림자 접지부 안에 들어가는 컨택트 AO 크기 — 0.95는 별개 그림자로 보임
         blob.userData.sharedGeometry = true;
         this.scene.add(blob);
         m.blob = blob;
@@ -3831,24 +3837,32 @@ const Scene3D = {
     trailStart(colorHex) {
         if (!this.trailMesh) {
             const geo = new THREE.BufferGeometry();
-            geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(24 * 6 * 3), 3));
-            this.trailMat = new THREE.MeshBasicMaterial({
-                transparent: true, opacity: 0.92, blending: THREE.AdditiveBlending, // 0.75는 밝은 배경에서 빈혈 리본으로 씻김 (비평가 6.8 4번)
-                depthWrite: false, side: THREE.DoubleSide,
+            geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(48 * 6 * 3), 3)); // 48세그 — 풀 아크 수용 (24세그는 스윙 절반에서 버퍼 포화 → '블레이드 옆 스텁')
+            geo.setAttribute('aFade', new THREE.BufferAttribute(new Float32Array(48 * 6), 1)); // 1=새 샘플, 0=수명 끝 — 나이 기반 알파 그라디언트
+            // 가산 블렌딩은 풀 아크에서 겹침이 순백 삼각형으로 폭주 (비평가 7.1 1번 화이트아웃의 실체) —
+            // 노멀 블렌딩 + 나이별 알파 페이드 + 신선한 구간만 백색 코어로 '읽히는 곡선' 리본
+            this.trailMat = new THREE.ShaderMaterial({
+                uniforms: { uColor: { value: new THREE.Color(0xffffff) } },
+                vertexShader: 'attribute float aFade; varying float vFade;\n' +
+                    'void main(){ vFade = aFade; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+                fragmentShader: 'uniform vec3 uColor; varying float vFade;\n' +
+                    'void main(){ float f = clamp(vFade, 0.0, 1.0);\n' +
+                    '  vec3 col = mix(uColor, vec3(1.0), pow(f, 4.0) * 0.35);\n' + // 날 끝 최신 구간만 얇은 흰 코어
+                    '  gl_FragColor = vec4(col, pow(f, 1.6) * 0.72); }',
+                transparent: true, depthWrite: false, side: THREE.DoubleSide,
             });
             this.trailMesh = new THREE.Mesh(geo, this.trailMat);
             this.trailMesh.frustumCulled = false;
             this.scene.add(this.trailMesh);
         }
-        // 가산 블렌딩은 밝은 배경에서 씻겨 보임 — 채도·명도 동시 상향으로 코어가 살아있는 리본 (비평가 6.8 4번)
-        this.trailMat.color.setHex(colorHex).offsetHSL(0, 0.3, 0.06);
+        this.trailMat.uniforms.uColor.value.setHex(colorHex).offsetHSL(0, 0.35, -0.04); // 채도 상향·명도 소폭 하향 — 밝은 배경 위 washy 방지
         this.trailPts = this.trailPts || [];
         this._trailPrevLocal = null;
         this._trailOn = true;
     },
     updateTrail(dt) {
         const pts = this.trailPts;
-        const LIFE = 0.18;
+        const LIFE = this.TRAIL_LIFE || 0.22; // 촬영 슬로모 시 상향 주입 가능 — 0.18은 스윙 전반부가 리본에서 죽음
         // 기존 샘플 에이징을 먼저 — 새 샘플이 이번 프레임 dt만큼 미리 늙으면 안 됨
         for (const p of pts) p.age += dt;
         while (pts.length && pts[0].age >= LIFE) pts.shift();
@@ -3872,25 +3886,32 @@ const Scene3D = {
                     }
                 }
                 pts.push({ b, t, age: 0 });
-                while (pts.length > 23) pts.shift(); // 버퍼 상한 (24세그먼트 지오메트리)
+                while (pts.length > 47) pts.shift(); // 버퍼 상한 (48세그먼트 지오메트리)
             }
         }
         if (!this.trailMesh) return;
         if (pts.length < 2) { this.trailMesh.visible = false; return; }
         this.trailMesh.visible = true;
         const pos = this.trailMesh.geometry.attributes.position;
+        const fade = this.trailMesh.geometry.attributes.aFade;
         const b1 = new THREE.Vector3(), b2 = new THREE.Vector3();
         let vi = 0;
         for (let i = 0; i < pts.length - 1; i++) {
             const p0 = pts[i], p1 = pts[i + 1];
+            const f0 = Math.max(0, 1 - p0.age / LIFE), f1 = Math.max(0, 1 - p1.age / LIFE);
             // 오래된 구간일수록 날 끝이 밑동 쪽으로 수축 → 테이퍼 리본
-            b1.copy(p0.b).lerp(p0.t, Math.max(0, 1 - p0.age / LIFE));
-            b2.copy(p1.b).lerp(p1.t, Math.max(0, 1 - p1.age / LIFE));
-            pos.setXYZ(vi++, p0.b.x, p0.b.y, p0.b.z); pos.setXYZ(vi++, b1.x, b1.y, b1.z); pos.setXYZ(vi++, b2.x, b2.y, b2.z);
-            pos.setXYZ(vi++, p0.b.x, p0.b.y, p0.b.z); pos.setXYZ(vi++, b2.x, b2.y, b2.z); pos.setXYZ(vi++, p1.b.x, p1.b.y, p1.b.z);
+            b1.copy(p0.b).lerp(p0.t, f0);
+            b2.copy(p1.b).lerp(p1.t, f1);
+            fade.setX(vi, f0); pos.setXYZ(vi++, p0.b.x, p0.b.y, p0.b.z);
+            fade.setX(vi, f0); pos.setXYZ(vi++, b1.x, b1.y, b1.z);
+            fade.setX(vi, f1); pos.setXYZ(vi++, b2.x, b2.y, b2.z);
+            fade.setX(vi, f0); pos.setXYZ(vi++, p0.b.x, p0.b.y, p0.b.z);
+            fade.setX(vi, f1); pos.setXYZ(vi++, b2.x, b2.y, b2.z);
+            fade.setX(vi, f1); pos.setXYZ(vi++, p1.b.x, p1.b.y, p1.b.z);
         }
         this.trailMesh.geometry.setDrawRange(0, vi);
         pos.needsUpdate = true;
+        fade.needsUpdate = true;
     },
 
     // ---- 파티클 ----

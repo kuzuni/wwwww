@@ -63,6 +63,7 @@ const OUT = __dirname;
         await page.evaluate(() => {
             for (const sel of ['#topbar', '#equip-sheet', '#skill-bar', '#stage-label', '#wave-pips', '#chat-preview', '#hero-hp-wrap', '.waypoint', '#offline-btn'])
                 document.querySelectorAll(sel).forEach(el => el.style.visibility = 'hidden');
+            if (Scene3D.fxLayer) Scene3D.fxLayer.style.visibility = 'hidden'; // 코인 토스트('+3')가 검증샷 오염 (비평가 7.1 8번 부수)
         });
         const rect = await page.evaluate(() => { // 캔버스 영역만 크롭 — 데드스페이스/탭바 제거
             const r = document.querySelector('canvas').getBoundingClientRect();
