@@ -1586,6 +1586,22 @@ body {
 /* 원본은 태그·이름을 구분하지 않고 전부 같은 주황 rgb(255,136,15), 시간은 rgb(84,84,84) */
 .chat-tag { color: #ff880f; }
 .chat-name-line .muted { font-size: 1.15em; line-height: 1; }
+/* 이름 뒤 아이콘 클러스터 — 원본(shot-043500) 실측: 클러스터 x 53.51~61.92%W(폭 8.42%W),
+   성별 15×14px(3.01×2.81%W) · 클랜 배지 26×22px(5.21×4.41%W). 교정 전에는 회색 텍스트 글리프
+   하나(1.00%W)뿐이라 −7.4%p였다. rem 은 높이 기준이라 가로 비율이 안 지켜지므로 --app-w 로 잡는다. */
+/* ⚠️ `.ico`(3091행)가 이 규칙보다 **뒤에** 있어 같은 특이도면 .ico의 1.45em이 이긴다 —
+   실제로 교정 도중 두 아이콘이 계속 16px(3.21%W)로만 그려졌다. 부모를 붙여 특이도를 올린다.
+   상자를 정사각으로 두는 이유: `.ico`는 background-size:contain 이라 상자가 세로로 짧으면
+   그림이 짧은 변에 맞춰 가로가 함께 줄어든다. 캔버스 안에서 그림이 차지하는 비율
+   (성별 ≈.765×.865, 배지 ≈.96×.79)로 역산해 상자 크기를 잡았다. */
+.chat-name-line .chat-gender { width: calc(var(--app-w) * .0370); height: calc(var(--app-w) * .0370); flex: none; }
+.chat-name-line .chat-clan { width: calc(var(--app-w) * .0540); height: calc(var(--app-w) * .0540); flex: none; margin-left: calc(var(--app-w) * -.004); }
+/* 원본 닉네임은 검은 외곽선이 둘려 흰 배경에서 떠 보인다(비평가 A·B 공통 지적) — 잉크 폭이
+   원본 2.78%W vs 클론 2.16%W로 얇았던 원인. text-shadow 4방향으로 1px 스트로크를 흉내낸다. */
+.chat-name, .chat-tag {
+    text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000,
+                 -1px -1px #000, 1px -1px #000, -1px 1px #000, 1px 1px #000;
+}
 .chat-time { margin-left: auto; color: #545454; font-size: .92rem; }
 /* 원본 실측: 같은 문자열("how's it going")이 원본 102×14px vs 교정 전 클론 79×12px 로 타이포가 통째로
    작았다. 글자 잉크 높이 14px 기준으로 키우고, 안쪽 좌 패딩도 원본 9px 에 맞춘다(교정 전 12px). */

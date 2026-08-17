@@ -779,7 +779,146 @@ const IconGen = {
             ctx.fillRect(cx - R, cy - R, R * 2, R * 1.2);
             ctx.restore();
         },
+
+        // ---- 채팅 이름줄 성별 심볼 (원본 shot-043500 실측) ----
+        // 원본은 이름 뒤에 **색이 있는 성별 아이콘**을 둔다 — 클론은 회색 텍스트 글리프(♀ 1.00%W)라
+        // 원본 클러스터(8.42%W) 대비 −7.4%p로 이름줄이 통째로 가벼워 보였다(비평가 2인 공통 1순위 지적).
+        // 실측 색: 몸통 rgb(0,48,144)·외곽 rgb(0,0,24)·하이라이트 rgb(240,240,240).
+        gender_m(ctx, S) { IconGen._genderSym(ctx, S, false); },
+        gender_f(ctx, S) { IconGen._genderSym(ctx, S, true); },
+
+        // ---- 채팅 이름줄 클랜 배지 ----
+        // 원본 실측 색: 몸통 rgb(24,0,48)/rgb(24,0,24), 발광 rgb(168,0,240), 금속 하이라이트 rgb(192~240).
+        // 뿔이 좌우로 벌어지고 위에 밝은 관이 얹힌 어두운 보라 문장.
+        clanbadge(ctx, S) {
+            const G = IconGen, cx = S / 2;
+            const ink = '#180018', body = '#180030', glow = '#a800f0';
+            // 원본 배지는 26×22px = 가로가 1.18배 넓다. `.ico`는 background-size:contain 이라
+            // **정사각 캔버스를 넣으면 상자의 짧은 변(세로)에 맞춰져** 가로가 그만큼 좁아진다
+            // (교정 전 실측 3.81%W, 목표 5.21%W). 그래서 그림 자체를 세로로 눌러 1.18 비율로 만든다.
+            ctx.save();
+            ctx.translate(0, S * 0.09);
+            ctx.scale(1, 0.84);
+
+            // ① 좌우 뿔 — 배지 위쪽에서 바깥으로 벌어진다
+            ctx.save();
+            ctx.strokeStyle = ink;
+            ctx.lineWidth = S * 0.055;
+            for (const s of [-1, 1]) {
+                ctx.beginPath();
+                ctx.moveTo(cx + s * S * 0.20, S * 0.36);
+                ctx.quadraticCurveTo(cx + s * S * 0.46, S * 0.20, cx + s * S * 0.48, S * 0.04);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx + s * S * 0.20, S * 0.36);
+                ctx.quadraticCurveTo(cx + s * S * 0.44, S * 0.22, cx + s * S * 0.46, S * 0.07);
+                ctx.strokeStyle = glow;
+                ctx.lineWidth = S * 0.03;
+                ctx.stroke();
+                ctx.strokeStyle = ink;
+                ctx.lineWidth = S * 0.055;
+            }
+            ctx.restore();
+
+            // ② 방패 본체 (아래로 뾰족한 문장)
+            const shield = () => {
+                ctx.beginPath();
+                ctx.moveTo(cx - S * 0.30, S * 0.22);
+                ctx.lineTo(cx + S * 0.30, S * 0.22);
+                ctx.lineTo(cx + S * 0.30, S * 0.62);
+                ctx.quadraticCurveTo(cx, S * 0.98, cx - S * 0.30, S * 0.62);
+                ctx.closePath();
+            };
+            shield();
+            ctx.fillStyle = ink;
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = S * 0.10;
+            ctx.strokeStyle = ink;
+            ctx.stroke();
+            ctx.fill();
+
+            ctx.save();
+            shield();
+            ctx.clip();
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.24, 0, S * 0.92,
+                [[0, '#4a1070'], [0.55, body], [1, '#0c0018']]);
+            ctx.fillRect(0, 0, S, S);
+            // 가운데 세로 발광 슬릿 — 원본의 보라 빛줄기
+            ctx.fillStyle = glow;
+            ctx.globalAlpha = 0.92;
+            ctx.fillRect(cx - S * 0.045, S * 0.30, S * 0.09, S * 0.42);
+            ctx.globalAlpha = 0.30;
+            ctx.fillStyle = G._lin(ctx, cx - S * 0.2, 0, cx + S * 0.2, 0,
+                [[0, 'rgba(168,0,240,0)'], [0.5, glow], [1, 'rgba(168,0,240,0)']]);
+            ctx.fillRect(cx - S * 0.30, S * 0.22, S * 0.60, S * 0.76);
+            ctx.restore();
+
+            // ③ 위에 얹힌 밝은 관
+            ctx.beginPath();
+            ctx.moveTo(cx - S * 0.25, S * 0.25);
+            ctx.lineTo(cx - S * 0.16, S * 0.06);
+            ctx.lineTo(cx, S * 0.20);
+            ctx.lineTo(cx + S * 0.16, S * 0.06);
+            ctx.lineTo(cx + S * 0.25, S * 0.25);
+            ctx.closePath();
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.06, 0, S * 0.25,
+                [[0, '#ffffff'], [1, '#c0c0c0']]);
+            ctx.strokeStyle = ink;
+            ctx.lineWidth = S * 0.05;
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+            ctx.fill();
+            ctx.restore();
+        },
     },
+};
+
+// 성별 심볼 공용 — 화성(♂)/금성(♀) 기호를 같은 굵기·같은 외곽선으로 그린다.
+// 14px 안팎에서 읽혀야 하므로 획을 굵게 잡고 검은 외곽선을 먼저 깔아 흰 배경에서 떠 보이게 한다.
+IconGen._genderSym = function (ctx, S, female) {
+    const cx = S / 2, ink = '#001030';
+    const body = female ? '#e0409f' : '#0030b4';
+    const lite = female ? '#ff9ad4' : '#7fc4ff';
+    const r = S * 0.215, cy = female ? S * 0.40 : S * 0.60;
+
+    const path = () => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        if (female) {
+            ctx.moveTo(cx, cy + r);
+            ctx.lineTo(cx, S * 0.92);
+            ctx.moveTo(cx - S * 0.15, S * 0.78);
+            ctx.lineTo(cx + S * 0.15, S * 0.78);
+        } else {
+            const d = r * 0.707;
+            ctx.moveTo(cx + d, cy - d);
+            ctx.lineTo(S * 0.90, S * 0.10);
+            ctx.moveTo(S * 0.90, S * 0.10);
+            ctx.lineTo(S * 0.58, S * 0.10);
+            ctx.moveTo(S * 0.90, S * 0.10);
+            ctx.lineTo(S * 0.90, S * 0.42);
+        }
+    };
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    path();
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = S * 0.30;
+    ctx.stroke();
+    path();
+    ctx.strokeStyle = body;
+    ctx.lineWidth = S * 0.17;
+    ctx.stroke();
+    // 좌상단 하이라이트 — 작은 크기에서도 입체로 읽히게
+    ctx.save();
+    ctx.globalAlpha = 0.75;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, Math.PI * 1.05, Math.PI * 1.55);
+    ctx.strokeStyle = lite;
+    ctx.lineWidth = S * 0.06;
+    ctx.stroke();
+    ctx.restore();
 };
 
 // ===== 스킬 아이콘: 속성 모티프 엠블럼(캔버스) — 오브 위에 얹는 발광 심볼 =====

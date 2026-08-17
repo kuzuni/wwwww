@@ -2683,6 +2683,20 @@ const UI = {
         for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
         return this.CHAT_NAME_COLORS[h % this.CHAT_NAME_COLORS.length];
     },
+
+    // 이름 뒤 아이콘 클러스터 — 원본(shot-043500)은 [성별 아이콘][클랜 배지] 두 개를 단다.
+    // 실측: 클러스터 전체 x 53.51~61.92%W(8.42%W), 성별 ≈3.0%W, 배지 ≈5.0%W.
+    // 클론은 회색 텍스트 ♀ 하나(1.00%W)뿐이라 −7.4%p — 비평가 A·B가 모두 1순위로 꼽은 결함이다.
+    // 배지는 원본처럼 '일부 유저만' 달아야 줄이 단조로워지지 않으므로 이름 해시로 약 2/3에 준다.
+    chatNameIcons(m) {
+        const g = m.gender === '♀' ? 'gender_f' : 'gender_m';
+        let out = IconGen.img(g, 'chat-gender');
+        let h = 0;
+        const key = m.name || '';
+        for (let i = 0; i < key.length; i++) h = (h * 33 + key.charCodeAt(i)) >>> 0;
+        if (h % 3 !== 0) out += IconGen.img('clanbadge', 'chat-clan');
+        return out;
+    },
     chatTime(at) {
         const d = new Date(at);
         return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -2718,7 +2732,7 @@ const UI = {
             <span class="chat-avatar">${m.avatar}</span>
             <div class="chat-bubble-wrap">
                 <div class="chat-name-line">
-                    <span class="chat-name" style="color:${m.mine ? '' : this.chatNameColor(m.name)}">${tagHtml}${U.escapeHtml(m.name)}</span><span class="muted">${m.gender}</span>
+                    <span class="chat-name" style="color:${m.mine ? '' : this.chatNameColor(m.name)}">${tagHtml}${U.escapeHtml(m.name)}</span>${this.chatNameIcons(m)}
                     <span class="chat-time">${this.chatTime(m.at)}</span>
                 </div>
                 <div class="chat-bubble">${U.escapeHtml(m.text)}</div>
