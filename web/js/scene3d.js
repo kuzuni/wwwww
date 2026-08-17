@@ -245,8 +245,15 @@ const Scene3D = {
     // 주의: 주입 지점이 톤매핑 앞 **선형 공간**이라 sRGB 인코딩 후 크게 밝아진다.
     //   그래서 darkColor는 니어블랙, darkStrength도 0.88처럼 세게 필요하다(0.38은 육안 무변화).
     RIM: { color: 0xdcefff, strength: 0, power: 5.0, darkColor: 0x0a1119, darkStrength: 0.88, darkPower: 1.35 },
+    // 펫 전용 다크 컨투어 — 기본값보다 넓게(power↓)·진하게(strength↑). 펫은 화면 점유가 0.4%대로 작아
+    // 기본 컨투어로는 같은 색 배경/탈것에서 형태가 녹는다.
+    PET_RIM_DARK: { strength: 0.97, power: 1.05 },
     _rimUniforms: [],
-    applyRimLight(g) {
+    // dark = { strength, power } 로 다크 컨투어만 개체별로 세게 줄 수 있다.
+    // 펫이 이 오버라이드를 쓴다 — 초록 거북이 초록 탈것 배 아래 붙으면 명암비가 1.14:1까지 떨어져
+    // "가려지진 않았는데 탈것 뱃살로 읽히는" 상태가 된다(비평가 실측). 컨투어를 넓게·진하게 깔아 오려낸다.
+    // setRimLook은 uRimColor/uRimStr만 갱신하므로 이 오버라이드는 밤·바이옴 색보정에도 살아남는다.
+    applyRimLight(g, dark) {
         g.traverse(o => {
             if (!o.isMesh || !o.material) return;
             for (const m of (Array.isArray(o.material) ? o.material : [o.material])) {
@@ -260,8 +267,8 @@ const Scene3D = {
                     uRimStr: { value: this.RIM.strength },
                     uRimPow: { value: this.RIM.power },
                     uRimDark: { value: new THREE.Color(this.RIM.darkColor) },
-                    uRimDarkStr: { value: this.RIM.darkStrength },
-                    uRimDarkPow: { value: this.RIM.darkPower },
+                    uRimDarkStr: { value: dark && dark.strength != null ? dark.strength : this.RIM.darkStrength },
+                    uRimDarkPow: { value: dark && dark.power != null ? dark.power : this.RIM.darkPower },
                 };
                 this._rimUniforms.push(u);
                 const prev = m.onBeforeCompile;
@@ -1053,7 +1060,13 @@ const Scene3D = {
             [-7, -3.2, 1.1, 'p'], [-5.2, -2.6, 0.8, 'r'], [-3.4, -3.8, 1.3, 'p'], [-1.2, -3, 0.9, 'r'],
             [0.8, -3.6, 1.2, 'p'], [2.6, -2.8, 0.85, 'p'], [4.4, -3.5, 1.15, 'r'], [6.2, -2.9, 0.9, 'p'],
             [8, -3.8, 1.3, 'p'], [-8.8, -2.4, 0.7, 'r'], [-6, -5.5, 1.6, 'p'], [0, -6, 1.8, 'p'],
-            [6.5, -5.8, 1.7, 'p'], [-3.6, 2.6, 0.7, 'r'], [4.2, 2.8, 0.75, 'p'], [9.5, -5, 1.5, 'p'],
+            [6.5, -5.8, 1.7, 'p'],
+            // ⚠️ 이 두 자리는 예전에 z=+2.6/+2.8(카메라 쪽 전경)이었다 — 펫이 z 1.1~2.0에 서므로
+            // **소품이 펫보다 카메라에 가까워** 행군 중 파티를 관통했다. 소품은 월드 고정이고 x주기 26으로
+            // 재배치되니(5311줄) 어떤 x에 두든 결국 파티 위를 지나간다 → 전경 대역 자체를 비운다.
+            // 실측(tools/probe-pet-occlusion.js 행군 스윕): 옛 배치에서 거북이 최악 가림 27.1%
+            // (비평가 독립 판독 29%와 일치) → 아래처럼 영웅 뒤(z<0)로 내리면 0%.
+            [-2.2, -1.9, 0.7, 'r'], [3.5, -1.6, 0.75, 'p'], [9.5, -5, 1.5, 'p'],
         ];
         // 접지 블롭 섀도우 공유 리소스 — 소품이 지면에 "붙어" 보이게 하는 소프트 원형 그림자
         this.ensureBlobRes();
@@ -3148,7 +3161,7 @@ const Scene3D = {
             g.userData.phase = U.rand(0, Math.PI * 2);  // 개체별 위상차
             g.userData.speed = U.rand(0.85, 1.25);       // 개체별 속도차
             this.setShadow(g);
-            this.applyRimLight(g);
+            this.applyRimLight(g, this.PET_RIM_DARK); // 배경·탈것과 색이 겹쳐도 실루엣이 분리되게 컨투어 강화
             this.scene.add(g);
             this.petGroups.push(g);
         });
