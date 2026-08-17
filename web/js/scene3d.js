@@ -4331,6 +4331,13 @@ const Scene3D = {
         // 같은 색이라 피아 구분이 안 됐다(비평가 4차 ⓓ). 남은 체력은 어차피 **바 길이**가 말해 주므로
         // 램프의 경고 기능은 정작 그게 필요한 영웅 바에만 남긴다.
         m.foe = true;
+        // 개체 폭 실측 — Combat.restackMelee가 "몸폭만큼" 자리를 벌리는 데 쓴다.
+        // 종마다 폭이 1.0~1.6유닛으로 제각각이라 고정 간격으로는 슬라임은 파묻히고 박쥐는 뜬다.
+        // 3/4 yaw(-0.55)가 걸린 뒤에 재야 화면에서 실제로 차지하는 가로폭이 나오므로 여기서 잰다.
+        // 스폰 시 한 번만(웨이브당 최대 3회) — 매 프레임 재면 스쿼시·돌진 변형이 섞여 대열이 떨린다.
+        m.g.updateWorldMatrix(true, true);
+        const bbW = new THREE.Box3().setFromObject(m.g).getSize(new THREE.Vector3()).x;
+        m.halfW = Number.isFinite(bbW) && bbW > 0 ? Math.max(0.24, bbW / 2) : 0.5;
         // HP 바는 scene 직속(몸 변형 비상속) — 위치는 update가 매 프레임 추적
         if (m.hpG) {
             m.hpG.position.set(m.g.position.x, m.g.position.y, m.g.position.z);
@@ -4368,6 +4375,9 @@ const Scene3D = {
             }, () => m.g.scale.setScalar(targetScale));
         }
     },
+
+    // 근접 대열 계산용 반폭 — Combat이 스폰 직후 물어본다. 메시가 없으면(이론상 없음) 보수적 기본값.
+    enemyHalfW(id) { const m = this.enemyMap.get(id); return (m && m.halfW) || 0.5; },
 
     clearEnemies() {
         for (const [, m] of this.enemyMap) {
@@ -5796,7 +5806,12 @@ const Scene3D = {
             const m = this.enemyMap.get(e.id);
             if (!m || !e.alive) continue;
             m.g.position.x += ((e.x + this.worldX) - m.g.position.x) * Math.min(1, dt * 12);
-            const walking = e.x > Combat.MELEE_X + 0.05;
+            // 깊이 레인(z)도 같은 계수로 따라간다 — 앞자리가 비어 대열이 다시 짜이면 옆으로
+            // 미끄러지듯 자리를 옮긴다(순간이동 금지). HP바·블롭 섀도우는 이 z를 그대로 추적한다.
+            m.g.position.z += ((e.z || 0) - m.g.position.z) * Math.min(1, dt * 12);
+            // ⚠️ 정지 판정은 개체별 stopX로 — MELEE_X 고정으로 두면 뒷줄이 제자리에 선 채로
+            //    영원히 걷기 모션을 돈다(대열 도입 전에는 전원이 MELEE_X에 섰으므로 같은 값이었다).
+            const walking = e.x > Combat.stopXOf(e) + 0.05;
             if (m.g.userData.landed) {
                 const clk = this._clock, id = e.id;
                 if (m.anim && m.anim.fly) {

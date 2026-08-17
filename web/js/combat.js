@@ -1,8 +1,16 @@
 // ===== 전투 엔진: 고정 틱 로직 (렌더링과 분리) =====
 const Combat = {
     TICK: 0.1,               // 100ms 고정 틱
-    MELEE_X: -0.5,           // 적 근접 정지 위치 (세로 화면에 맞춘 좁은 전장)
+    MELEE_X: -0.5,           // 적 근접 정지 위치 (세로 화면에 맞춘 좁은 전장) — 대열 맨 앞자리
     HERO_X: -1.35,
+    // 근접 대열 편성 파라미터 (restackMelee) — 전원이 MELEE_X 한 점에 겹쳐 서던 문제의 해법.
+    // 세로 9:16 전장은 가로로 쓸 수 있는 폭이 약 2.7유닛뿐인데 몸폭은 1.0~1.6유닛이라
+    // "몸폭만큼 전부 벌리기"는 세 번째 적을 화면 밖으로 밀어낸다. 그래서 가로(x)로는
+    // 몸폭의 일부만 벌리고(PACK) 나머지 분리는 깊이(z) 레인이 맡는다 — 카메라가 내려다보므로
+    // z가 다르면 화면에서 위아래로 갈리고 원근 크기까지 달라져 개체가 앞뒤로 읽힌다.
+    MELEE_PACK: 0.62,        // 이웃한 두 적의 (반폭+반폭) 중 x로 벌릴 비율
+    MELEE_GAP: 0.2,          // 그 위에 얹는 고정 여유 (유닛)
+    MELEE_LANE_Z: [0, 0.95, -0.9], // 슬롯별 깊이 레인 — 앞줄 / 카메라 쪽 / 안쪽
 
     enemies: [],
     hero: { hp: Big.ONE, maxHp: Big.ONE, atkTimer: 0, stats: null }, // hp·maxHp는 Big (승천 배율로 Number 한계를 넘는다)
@@ -117,9 +125,35 @@ const Combat = {
             this.enemies.push(e);
             Scene3D.spawnEnemy(e);
         }
+        this.restackMelee(); // 메시가 다 만들어진 뒤라 몸폭을 실측해 자리를 나눌 수 있다
         this.phase = 'fight';
         UI.updateWavePips(this.wave);
     },
+
+    // 근접 대열 편성 — 앞선 순서대로 각자의 정지 자리(stopX)와 깊이 레인(z)을 나눠 준다.
+    // 예전에는 전원이 MELEE_X 한 점으로 클램프돼 몸이 서로 관통하고 머리 위 HP바가 화면에서
+    // 통째로 포개졌다(QA 12차 실측: 몸 간격 0.000유닛, 바 겹침 46.8px = 바 폭 47px과 같음).
+    // ⚠️ 공격은 각자 제 자리에서 그대로 한다 — "한 점에 붙어야만 때린다"로 바꾸면 뒷줄이 놀아
+    //    영웅이 받는 피해가 1/3로 줄고 밸런스가 통째로 달라진다. 자리만 벌리고 판정은 그대로다.
+    // 매 틱이 아니라 **구성이 바뀔 때만**(스폰·처치) 부른다. 매 틱 재정렬하면 걸어오는 도중
+    // 속도 차로 순위가 엎치락뒤치락해 목적지가 떨려 보인다.
+    restackMelee() {
+        const alive = this.aliveEnemies();
+        const q = alive.filter(e => !e.isBoss).sort((a, b) => a.x - b.x);
+        let edge = this.MELEE_X;   // 앞 적의 뒷면 — 첫 적은 정지선 그 자체에서 시작한다
+        for (let i = 0; i < q.length; i++) {
+            const e = q[i];
+            const hw = Scene3D.enemyHalfW(e.id);
+            e.stopX = i === 0 ? this.MELEE_X : edge + hw * this.MELEE_PACK;
+            edge = e.stopX + hw * this.MELEE_PACK + this.MELEE_GAP;
+            e.z = this.MELEE_LANE_Z[i % this.MELEE_LANE_Z.length];
+        }
+        // 보스는 혼자 나오므로 대열이 없다 — 늘 정면 한가운데
+        for (const e of alive) if (e.isBoss) { e.stopX = this.MELEE_X; e.z = 0; }
+    },
+
+    // 적의 정지 자리 — 대열이 아직 안 짜였으면(구버전 세이브·던전 진입 프레임) 예전 한 점으로 폴백
+    stopXOf(e) { return e.stopX === undefined ? this.MELEE_X : e.stopX; },
 
     aliveEnemies() { return this.enemies.filter(e => e.alive); },
     frontEnemy() {
@@ -184,9 +218,10 @@ const Combat = {
 
         // 적 이동/공격
         for (const e of this.aliveEnemies()) {
-            if (e.x > this.MELEE_X) {
+            const stop = this.stopXOf(e);
+            if (e.x > stop) {
                 e.x -= e.speed * dt;
-                if (e.x < this.MELEE_X) e.x = this.MELEE_X;
+                if (e.x < stop) e.x = stop;
             } else {
                 e.atkTimer -= dt;
                 if (e.atkTimer <= 0) {
@@ -282,6 +317,7 @@ const Combat = {
             e.alive = false;
             this.onKill(e);
             Scene3D.killEnemy(e.id, e.isBoss);
+            this.restackMelee(); // 남은 적이 빈 앞자리로 한 칸 당겨 선다 — 줄이 끊긴 채 남지 않게
             if (e.isBoss) { Scene3D.shake(0.5); SFX.setMusicMode('normal'); }
             if (!this.aliveEnemies().length) {
                 if (this.wave >= 5) this.stageClear();
