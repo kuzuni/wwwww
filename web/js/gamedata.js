@@ -3,9 +3,11 @@
 const AGES = ['primitive', 'medieval', 'earlyModern', 'modern', 'space',
               'interstellar', 'multiverse', 'quantum', 'underworld', 'divine'];
 
+// 시대 이름은 음차 대신 자연스러운 한글로 (사용자 지시 2026-08-17: 디바인 → 천상 확정,
+// 나머지 음차도 같은 방향 — 멀티버스→다중우주, 퀀텀→양자, 언더월드→명계)
 const AGE_KR = {
     primitive: '원시', medieval: '중세', earlyModern: '근세', modern: '현대', space: '우주',
-    interstellar: '성간', multiverse: '멀티버스', quantum: '퀀텀', underworld: '언더월드', divine: '디바인'
+    interstellar: '성간', multiverse: '다중우주', quantum: '양자', underworld: '명계', divine: '천상'
 };
 
 // 시대 색 (UI-SPEC.md:77 실측: 원시적=회백/중세의=하늘/근대 초기=초록/현대의=노랑/우주=빨강/항성간=보라/다중 우주=청록/양자=남색/지하 세계=적갈/신성한=주황, shot-042831.png로 재확인)
@@ -108,6 +110,82 @@ const ARMOR_STYLES = {
 };
 
 // 장신구류(외형 미반영 5부위): 부위당 3종 변형 — 이름/프리뷰 모델이 다름
+// 시대 정체성 반영 (사용자 지시 2026-08-17: "장신구 이름도 시대 테마에 맞게 — 원시=가죽·뼈, 미래=합금·홀로").
+// 전 시대가 같은 이름 3종을 돌려쓰던 탓에 원시 시대에 '건틀릿'·'인장 반지'가 나왔다.
+// 인덱스 0/1/2는 프리뷰 모델 변형과 정렬돼 있으므로 시대별로 순서를 지킬 것.
+const ACC_NAMES_BY_AGE = {
+    primitive: {
+        gloves:   ['가죽 손싸개', '뼈 손목보호대', '생가죽 랩'],
+        necklace: ['뼈 목걸이', '이빨 부적', '조가비 펜던트'],
+        ring:     ['뼈 고리', '돌 반지', '나무 고리'],
+        shoes:    ['가죽 신', '털가죽 발싸개', '풀 엮은 신'],
+        belt:     ['가죽 끈', '사냥꾼 허리띠', '뼈 장식 띠'],
+    },
+    medieval: {
+        gloves:   ['사슬 장갑', '건틀릿', '가죽 장갑'],
+        necklace: ['성물 목걸이', '기사단 아뮬렛', '십자 펜던트'],
+        ring:     ['인장 반지', '문장 반지', '보석 반지'],
+        shoes:    ['사슬 신발', '판금 부츠', '그리브'],
+        belt:     ['검대', '전투 벨트', '문장 허리띠'],
+    },
+    earlyModern: {
+        gloves:   ['총사 장갑', '승마 장갑', '레이스 커프스'],
+        necklace: ['회중시계 줄', '항해사 목걸이', '카메오 펜던트'],
+        ring:     ['귀족 인장 반지', '은 반지', '보석 반지'],
+        shoes:    ['버클 구두', '승마 부츠', '각반'],
+        belt:     ['탄약 벨트', '장교 허리띠', '장식 새시'],
+    },
+    modern: {
+        gloves:   ['전술 장갑', '방탄 건틀릿', '핸드랩'],
+        necklace: ['인식표', '전자 목걸이', '군용 펜던트'],
+        ring:     ['티타늄 반지', '부대 반지', '보석 반지'],
+        shoes:    ['전투화', '방탄 부츠', '정강이 보호대'],
+        belt:     ['전술 벨트', '탄입대 벨트', '장교 벨트'],
+    },
+    space: {
+        gloves:   ['여압 장갑', '합금 건틀릿', '진공 랩'],
+        necklace: ['산소 회로 목걸이', '항법 아뮬렛', '궤도 펜던트'],
+        ring:     ['합금 반지', '신호 반지', '결정 반지'],
+        shoes:    ['자력 부츠', '추진 부츠', '여압 그리브'],
+        belt:     ['생명유지 벨트', '공구 벨트', '추진 벨트'],
+    },
+    interstellar: {
+        gloves:   ['플라즈마 건틀릿', '나노 장갑', '중력자 랩'],
+        necklace: ['항성 목걸이', '초광속 아뮬렛', '성운 펜던트'],
+        ring:     ['아다만티움 반지', '항성 반지', '중력 반지'],
+        shoes:    ['관성 부츠', '아다만티움 그리브', '항성 신발'],
+        belt:     ['중력 벨트', '워프 벨트', '항성 허리띠'],
+    },
+    multiverse: {
+        gloves:   ['홀로 장갑', '코드 건틀릿', '픽셀 랩'],
+        necklace: ['차원 목걸이', '방화벽 아뮬렛', '데이터 펜던트'],
+        ring:     ['홀로 반지', '해시 인장 반지', '프리즘 반지'],
+        shoes:    ['부팅 부츠', '가상 신발', '렌더 그리브'],
+        belt:     ['차원 벨트', '코드 벨트', '픽셀 허리띠'],
+    },
+    quantum: {
+        gloves:   ['파동 장갑', '얽힘의 건틀릿', '입자 랩'],
+        necklace: ['얽힘의 목걸이', '중첩 아뮬렛', '위상 펜던트'],
+        ring:     ['양자 반지', '스핀 반지', '위상 반지'],
+        shoes:    ['위상 부츠', '터널링 신발', '입자 그리브'],
+        belt:     ['양자 벨트', '주파수 벨트', '위상 허리띠'],
+    },
+    underworld: {
+        gloves:   ['헬포지드 건틀릿', '망자의 장갑', '용암 랩'],
+        necklace: ['원한의 목걸이', '영혼 아뮬렛', '독니 펜던트'],
+        ring:     ['저주받은 반지', '망자의 인장', '흑염 반지'],
+        shoes:    ['용암 부츠', '망자의 신발', '재의 그리브'],
+        belt:     ['사슬 벨트', '지옥불 허리띠', '뼈 장식 벨트'],
+    },
+    divine: {
+        gloves:   ['성흔의 장갑', '천상의 건틀릿', '광휘의 랩'],
+        necklace: ['후광 목걸이', '대천사 아뮬렛', '신탁의 펜던트'],
+        ring:     ['맹세의 반지', '성인의 인장', '광휘의 반지'],
+        shoes:    ['천상의 신발', '성광 부츠', '광휘의 그리브'],
+        belt:     ['성대', '팔라딘 벨트', '후광 허리띠'],
+    },
+};
+// 시대 미지정 호출용 기본 이름 (구 세이브·폴백 경로)
 const ACC_NAMES = {
     gloves:   ['장갑', '건틀릿', '핸드랩'],
     necklace: ['목걸이', '아뮬렛', '펜던트'],
@@ -115,6 +193,11 @@ const ACC_NAMES = {
     shoes:    ['신발', '부츠', '그리브'],
     belt:     ['벨트', '전투 벨트', '장식 벨트'],
 };
+// 시대·부위별 장신구 이름 3종 (표에 없으면 시대 무관 기본 이름)
+function accNames(age, slot) {
+    const byAge = ACC_NAMES_BY_AGE[age];
+    return (byAge && byAge[slot]) || ACC_NAMES[slot] || [SLOT_KR[slot]];
+}
 
 function itemStyleOf(item) {
     if (!item) return null;
@@ -124,21 +207,105 @@ function itemStyleOf(item) {
     return (arr && arr[item.nameIdx]) || (item.slot === 'helmet' ? 'plume' : 'plate');
 }
 
-// 무기 타입: 근거리 5종 + 원거리 5종 — 타입마다 3D 모델·공격 모션이 다름
+// 무기 타입 — 타입마다 3D 모델·공격 모션이 다름
 // impact: 공격 시작 후 데미지 적용 시점(초), range: 공격 가능 거리
 // restX: 평상시 오른팔 각도(거치 자세) — 활/총은 항상 앞으로 조준, 근접은 내려 들기
+// shape: 3D 지오메트리 계열(Scene3D.makeWeapon의 분기) — 여러 타입이 한 계열을 공유하고 재질·비율로 갈린다
+// mat:   재질 계열(stone/bone/steel/blackpowder/gunmetal/energy/holy) — 시대 정체성을 만드는 축
+// ⚠️ 실제 등장 시대는 AGE_WEAPONS가 정한다 (사용자 지시 2026-08-17 "원시 시대에 총이 나오면 안 됨").
+//    여기 정의됐다고 아무 시대에서나 뽑히지 않는다. 시대 분리 이전 세이브가 들고 있는 타입도
+//    렌더는 돼야 하므로 기존 id 10종은 이름·계열만 바뀐 채 전부 살아 있다.
 const WEAPON_TYPES = {
-    sword:    { kr: '검',        kind: 'melee',  impact: 0.16, motion: 'slash',  restX: -0.25 },
-    axe:      { kr: '도끼',      kind: 'melee',  impact: 0.20, motion: 'chop',   restX: -0.25 },
-    spear:    { kr: '창',        kind: 'melee',  impact: 0.16, motion: 'thrust', restX: -0.6 },
-    hammer:   { kr: '해머',      kind: 'melee',  impact: 0.22, motion: 'slam',   restX: -0.25 },
-    dagger:   { kr: '단검',      kind: 'melee',  impact: 0.13, motion: 'double', restX: -0.25 },
-    bow:      { kr: '활',        kind: 'ranged', impact: 0.34, motion: 'bow',    restX: -1.35 },
-    crossbow: { kr: '석궁',      kind: 'ranged', impact: 0.30, motion: 'bow',    restX: -1.35 },
-    gun:      { kr: '총',        kind: 'ranged', impact: 0.20, motion: 'gun',    restX: -1.45 },
-    staff:    { kr: '마법 지팡이', kind: 'ranged', impact: 0.36, motion: 'cast',  restX: -0.55 },
-    thrown:   { kr: '투척 도끼',  kind: 'ranged', impact: 0.32, motion: 'throw',  restX: -0.45 },
+    // ── 원시: 돌·나무·뼈 ──
+    club:       { kr: '몽둥이',       kind: 'melee',  impact: 0.20, motion: 'slam',   restX: -0.25, shape: 'club',     mat: 'stone' },
+    stoneAxe:   { kr: '돌도끼',       kind: 'melee',  impact: 0.20, motion: 'chop',   restX: -0.25, shape: 'axe',      mat: 'stone' },
+    stoneSpear: { kr: '돌창',         kind: 'melee',  impact: 0.16, motion: 'thrust', restX: -0.6,  shape: 'spear',    mat: 'stone' },
+    boneDagger: { kr: '뼈 단검',      kind: 'melee',  impact: 0.13, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'bone' },
+    sling:      { kr: '투석구',       kind: 'ranged', impact: 0.30, motion: 'throw',  restX: -0.45, shape: 'sling',    mat: 'bone' },
+    // ── 중세: 단조 강철 ──
+    sword:      { kr: '검',           kind: 'melee',  impact: 0.16, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'steel' },
+    axe:        { kr: '전투도끼',     kind: 'melee',  impact: 0.20, motion: 'chop',   restX: -0.25, shape: 'axe',      mat: 'steel' },
+    spear:      { kr: '창',           kind: 'melee',  impact: 0.16, motion: 'thrust', restX: -0.6,  shape: 'spear',    mat: 'steel' },
+    mace:       { kr: '철퇴',         kind: 'melee',  impact: 0.22, motion: 'slam',   restX: -0.25, shape: 'mace',     mat: 'steel' },
+    hammer:     { kr: '전투 망치',    kind: 'melee',  impact: 0.22, motion: 'slam',   restX: -0.25, shape: 'hammer',   mat: 'steel' },
+    bow:        { kr: '활',           kind: 'ranged', impact: 0.34, motion: 'bow',    restX: -1.35, shape: 'bow',      mat: 'steel' },
+    crossbow:   { kr: '석궁',         kind: 'ranged', impact: 0.30, motion: 'bow',    restX: -1.35, shape: 'crossbow', mat: 'steel' },
+    // ── 근세: 흑색화약·레이피어 ──
+    sabre:      { kr: '사브르',       kind: 'melee',  impact: 0.15, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'steel' },
+    rapier:     { kr: '레이피어',     kind: 'melee',  impact: 0.14, motion: 'thrust', restX: -0.3,  shape: 'rapier',   mat: 'steel' },
+    dagger:     { kr: '단검',         kind: 'melee',  impact: 0.13, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'steel' },
+    thrown:     { kr: '투척 도끼',    kind: 'ranged', impact: 0.32, motion: 'throw',  restX: -0.45, shape: 'thrown',   mat: 'steel' },
+    musket:     { kr: '머스킷',       kind: 'ranged', impact: 0.26, motion: 'gun',    restX: -1.45, shape: 'rifle',    mat: 'blackpowder' },
+    flintlock:  { kr: '플린트락',     kind: 'ranged', impact: 0.22, motion: 'gun',    restX: -1.45, shape: 'pistol',   mat: 'blackpowder' },
+    // ── 현대: 화기 ──
+    combatKnife:{ kr: '전투 나이프',  kind: 'melee',  impact: 0.12, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'gunmetal' },
+    pistol:     { kr: '권총',         kind: 'ranged', impact: 0.16, motion: 'gun',    restX: -1.45, shape: 'pistol',   mat: 'gunmetal' },
+    gun:        { kr: '소총',         kind: 'ranged', impact: 0.20, motion: 'gun',    restX: -1.45, shape: 'rifle',    mat: 'gunmetal' },
+    shotgun:    { kr: '산탄총',       kind: 'ranged', impact: 0.24, motion: 'gun',    restX: -1.45, shape: 'rifle',    mat: 'gunmetal' },
+    smg:        { kr: '기관단총',     kind: 'ranged', impact: 0.14, motion: 'gun',    restX: -1.45, shape: 'smg',      mat: 'gunmetal' },
+    // ── 우주: 에너지 무기 등장 ──
+    ionBlade:   { kr: '이온 블레이드', kind: 'melee', impact: 0.15, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'energy' },
+    gravHammer: { kr: '중력 해머',    kind: 'melee',  impact: 0.24, motion: 'slam',   restX: -0.25, shape: 'hammer',   mat: 'energy' },
+    laser:      { kr: '레이저 라이플', kind: 'ranged', impact: 0.18, motion: 'gun',   restX: -1.45, shape: 'rifle',    mat: 'energy' },
+    plasmaCannon:{ kr: '플라즈마 캐논', kind: 'ranged', impact: 0.28, motion: 'gun',  restX: -1.45, shape: 'cannon',   mat: 'energy' },
+    railgun:    { kr: '레일건',       kind: 'ranged', impact: 0.30, motion: 'gun',    restX: -1.45, shape: 'rifle',    mat: 'energy' },
+    // ── 성간 ──
+    fusionBlade:{ kr: '융합 검',      kind: 'melee',  impact: 0.15, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'energy' },
+    photonLance:{ kr: '광자 창',      kind: 'melee',  impact: 0.16, motion: 'thrust', restX: -0.6,  shape: 'spear',    mat: 'energy' },
+    starHammer: { kr: '항성 망치',    kind: 'melee',  impact: 0.24, motion: 'slam',   restX: -0.25, shape: 'hammer',   mat: 'energy' },
+    novaCannon: { kr: '노바 캐논',    kind: 'ranged', impact: 0.30, motion: 'gun',    restX: -1.45, shape: 'cannon',   mat: 'energy' },
+    arcThrower: { kr: '아크 방사기',  kind: 'ranged', impact: 0.34, motion: 'cast',   restX: -0.55, shape: 'staff',    mat: 'energy' },
+    // ── 다중우주 ──
+    realityBlade:{ kr: '현실 절단검', kind: 'melee',  impact: 0.15, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'energy' },
+    glitchDagger:{ kr: '글리치 단검', kind: 'melee',  impact: 0.12, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'energy' },
+    riftLauncher:{ kr: '균열 발사기', kind: 'ranged', impact: 0.30, motion: 'gun',    restX: -1.45, shape: 'cannon',   mat: 'energy' },
+    staff:      { kr: '마법 지팡이',  kind: 'ranged', impact: 0.36, motion: 'cast',   restX: -0.55, shape: 'staff',    mat: 'energy' },
+    echoBow:    { kr: '메아리 활',    kind: 'ranged', impact: 0.32, motion: 'bow',    restX: -1.35, shape: 'bow',      mat: 'energy' },
+    // ── 양자 ──
+    waveBlade:  { kr: '파동검',       kind: 'melee',  impact: 0.15, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'energy' },
+    tunnelDagger:{ kr: '터널링 단검', kind: 'melee',  impact: 0.12, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'energy' },
+    collapseHammer:{ kr: '붕괴 망치', kind: 'melee',  impact: 0.24, motion: 'slam',   restX: -0.25, shape: 'hammer',   mat: 'energy' },
+    quantumRifle:{ kr: '양자 소총',   kind: 'ranged', impact: 0.20, motion: 'gun',    restX: -1.45, shape: 'rifle',    mat: 'energy' },
+    entangleStaff:{ kr: '얽힘의 지팡이', kind: 'ranged', impact: 0.36, motion: 'cast', restX: -0.55, shape: 'staff',   mat: 'energy' },
+    // ── 명계 ──
+    hellBlade:  { kr: '지옥검',       kind: 'melee',  impact: 0.16, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'energy' },
+    soulScythe: { kr: '영혼 낫',      kind: 'melee',  impact: 0.22, motion: 'chop',   restX: -0.25, shape: 'scythe',   mat: 'energy' },
+    doomHammer: { kr: '파멸의 망치',  kind: 'melee',  impact: 0.24, motion: 'slam',   restX: -0.25, shape: 'hammer',   mat: 'energy' },
+    boneStaff:  { kr: '해골 지팡이',  kind: 'ranged', impact: 0.36, motion: 'cast',   restX: -0.55, shape: 'staff',    mat: 'bone' },
+    wraithBow:  { kr: '망령의 활',    kind: 'ranged', impact: 0.32, motion: 'bow',    restX: -1.35, shape: 'bow',      mat: 'energy' },
+    // ── 천상: 신성·오라 ──
+    holySword:  { kr: '신성한 검',    kind: 'melee',  impact: 0.15, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'holy' },
+    divineLance:{ kr: '신의 창',      kind: 'melee',  impact: 0.16, motion: 'thrust', restX: -0.6,  shape: 'spear',    mat: 'holy' },
+    judgementHammer:{ kr: '심판의 망치', kind: 'melee', impact: 0.24, motion: 'slam', restX: -0.25, shape: 'hammer',   mat: 'holy' },
+    auraStaff:  { kr: '오라 지팡이',  kind: 'ranged', impact: 0.36, motion: 'cast',   restX: -0.55, shape: 'staff',    mat: 'holy' },
+    seraphBow:  { kr: '세라핌의 활',  kind: 'ranged', impact: 0.32, motion: 'bow',    restX: -1.35, shape: 'bow',      mat: 'holy' },
 };
+
+// 시대별 등장 무기 (사용자 지시 2026-08-17) — 뽑기·확률 목록·3D 전부 이 표만 본다.
+// 원시·중세에 화약/에너지 무기가 절대 섞이지 않는 것이 이 항목의 핵심 수용 조건.
+const AGE_WEAPONS = {
+    primitive:    ['club', 'stoneAxe', 'stoneSpear', 'boneDagger', 'sling'],
+    medieval:     ['sword', 'axe', 'spear', 'mace', 'hammer', 'bow', 'crossbow'],
+    earlyModern:  ['sabre', 'rapier', 'dagger', 'thrown', 'musket', 'flintlock'],
+    modern:       ['combatKnife', 'pistol', 'gun', 'shotgun', 'smg'],
+    space:        ['ionBlade', 'gravHammer', 'laser', 'plasmaCannon', 'railgun'],
+    interstellar: ['fusionBlade', 'photonLance', 'starHammer', 'novaCannon', 'arcThrower'],
+    multiverse:   ['realityBlade', 'glitchDagger', 'riftLauncher', 'staff', 'echoBow'],
+    quantum:      ['waveBlade', 'tunnelDagger', 'collapseHammer', 'quantumRifle', 'entangleStaff'],
+    underworld:   ['hellBlade', 'soulScythe', 'doomHammer', 'boneStaff', 'wraithBow'],
+    divine:       ['holySword', 'divineLance', 'judgementHammer', 'auraStaff', 'seraphBow'],
+};
+
+// 그 시대에 나올 수 있는 무기 id 목록 (미정의 시대는 중세로 폴백)
+function weaponsOfAge(age) { return AGE_WEAPONS[age] || AGE_WEAPONS.medieval; }
+// 3D 지오메트리 계열 — 여러 무기 타입이 한 모델 계열을 공유한다
+function weaponShape(wtypeId) { const d = WEAPON_TYPES[wtypeId]; return (d && d.shape) || wtypeId; }
+// 재질 계열 — 미지정이면 시대로 자동(후반 시대는 에너지)
+function weaponMatKind(wtypeId, ageIdx) {
+    const d = WEAPON_TYPES[wtypeId];
+    if (d && d.mat) return d.mat;
+    return (ageIdx || 0) >= 4 ? 'energy' : 'steel';
+}
 
 // 서브스탯 풀: 원본 13종 (UI-SPEC 21~24번 '장비 상세' 팝업 확인) — [키, 표시명, 등급별 최대치(%)]
 // 등급별 최대치는 원본 개별 수치 미확보로 기존 methodology(공/체% 커브 비율)를 그대로 적용해 스펙의 전체 범위(1~X%)에 맞춰 자체 설계.

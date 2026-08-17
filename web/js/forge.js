@@ -81,11 +81,11 @@ const Forge = {
     // 시대별 확률표 (지정 레벨, 없으면 1레벨)
     ageProbsAt(level) { return forgeProbabilities[level] || forgeProbabilities[1]; },
 
-    // 부위별 외형 변형 개수 (무기=10종 고정, 투구/갑옷=시대별 이름 수, 장신구=3종 고정)
+    // 부위별 외형 변형 개수 (무기=그 시대의 등장 무기 수, 투구/갑옷=시대별 이름 수, 장신구=3종 고정)
     variantCount(age, slot) {
-        if (slot === 'weapon') return Object.keys(WEAPON_TYPES).length;
+        if (slot === 'weapon') return weaponsOfAge(age).length;
         if (slot === 'helmet' || slot === 'armor') return (ITEM_NAMES[age] && ITEM_NAMES[age][slot] && ITEM_NAMES[age][slot].length) || 1;
-        return (ACC_NAMES[slot] || []).length || 1;
+        return accNames(age, slot).length || 1;
     },
     // 특정 시대·부위의 개별 아이템(등급 무관) 1개가 나올 확률(%) — rollItem 추첨 로직을 그대로 역산
     itemDropChance(age, slot) {
@@ -118,11 +118,14 @@ const Forge = {
         const numSubs = U.randInt(1, Math.min(4, RARITIES.indexOf(rarity) + 1));
         const subs = U.rollSubs(numSubs);
 
-        // 무기: 타입 10종(근거리 5/원거리 5) 중 랜덤 — 모델·모션 결정
+        // 무기: 그 시대에 실제로 존재한 무기 중에서만 랜덤 — 모델·모션 결정
+        //       (시대 무관 전체 풀에서 뽑으면 원시 시대에 총이 나온다 — 사용자 지시 2026-08-17)
         // 투구/갑옷: 카탈로그 이름 인덱스 저장 — 이름별 3D 디자인 결정
         let wtype = null, name, nameIdx = -1;
         if (slot === 'weapon') {
-            wtype = U.choice(Object.keys(WEAPON_TYPES));
+            const pool = weaponsOfAge(age);
+            nameIdx = U.randInt(0, pool.length - 1);
+            wtype = pool[nameIdx];
             name = `${AGE_KR[age]} ${WEAPON_TYPES[wtype].kr}`;
         } else {
             const cat = ITEM_NAMES[age];
@@ -130,10 +133,10 @@ const Forge = {
                 nameIdx = U.randInt(0, cat[slot].length - 1);
                 name = cat[slot][nameIdx];
             } else {
-                // 장신구류: 부위당 3종 변형 (이름+프리뷰 모델 상이)
-                const accs = ACC_NAMES[slot] || [SLOT_KR[slot]];
+                // 장신구류: 부위당 3종 변형 (이름+프리뷰 모델 상이) — 이름은 시대 테마를 따른다
+                const accs = accNames(age, slot);
                 nameIdx = U.randInt(0, accs.length - 1);
-                name = `${AGE_KR[age]} ${accs[nameIdx]}`;
+                name = accs[nameIdx];
             }
         }
 

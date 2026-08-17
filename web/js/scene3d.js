@@ -1803,21 +1803,74 @@ const Scene3D = {
         this.scene.add(this.heroHpG);
     },
 
-    // 무기 타입 10종 각각 다른 모델 (색/발광은 시대 티어, 보석은 등급 반영)
+    // 무기 모델 — 지오메트리 계열(shape) × 재질 계열(mat)의 조합.
+    // 같은 계열이라도 시대 재질이 다르면 완전히 다른 무기로 읽힌다 (돌도끼 vs 전투도끼).
     makeWeapon(wtypeId, ageIdx, rarity) {
         const g = new THREE.Group();
         const c = AGE_COLORS[AGES[ageIdx]];
         const glow = ageIdx >= 4;
-        const mat = new THREE.MeshStandardMaterial({ color: c, metalness: 0.65, roughness: 0.45, emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.5 : 0 });
-        // 날 전용 금속: 스틸 베이스에 시대색 18%만 — 시대색 직치환 날은 '노란 막대사탕'으로 읽힘 (비평가 2번)
-        // PBR 분리: 날은 고금속·저러프 — scene.environment 반사로 '강철'이 읽히는 핵심
-        const bladeMat = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0xc9d2da).lerp(new THREE.Color(c), 0.18),
-            metalness: 0.92, roughness: 0.28, envMapIntensity: 0.85,
-            emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.16 : 0
-        });
-        const wood = new THREE.MeshStandardMaterial({ color: 0x1f1109, metalness: 0, roughness: 0.85, map: ProChar.leatherTex() }); // 0x5d4037 민짜는 강광에서 베이지 원통 = 맨살 오독 (비평가 7.4 4번) — 가죽 감김 그레인
-        const dark = new THREE.MeshStandardMaterial({ color: 0x37474f, metalness: 0.7, roughness: 0.5 });
+        const shape = weaponShape(wtypeId);
+        const matKind = weaponMatKind(wtypeId, ageIdx);
+        const energy = matKind === 'energy';
+        // 재질 계열별 팔레트 — mat(헤드/액센트) / bladeMat(날) / wood(자루) / dark(부속) / edgeMat(날 하이라이트)
+        // steel이 기존 룩이고, 나머지는 시대 정체성을 만드는 축 (사용자 지시 2026-08-17).
+        let mat, bladeMat, wood, dark, edgeHex;
+        const std = o => new THREE.MeshStandardMaterial(o);
+        if (matKind === 'stone') {
+            // 원시: 무광 회백 석재 + 가죽끈 결속 — 금속기가 전혀 없어야 '돌'로 읽힌다
+            mat      = std({ color: 0x8d8a80, metalness: 0.02, roughness: 0.96, flatShading: true });
+            bladeMat = std({ color: 0x9b978b, metalness: 0.02, roughness: 0.94, flatShading: true });
+            wood     = std({ color: 0x4a3220, metalness: 0, roughness: 0.9, map: ProChar.leatherTex() });
+            dark     = std({ color: 0x2e1f13, metalness: 0, roughness: 0.88, map: ProChar.leatherTex() });
+            edgeHex  = 0xc9c3b2;
+        } else if (matKind === 'bone') {
+            mat      = std({ color: 0xe3dbc2, metalness: 0.04, roughness: 0.72, flatShading: true });
+            bladeMat = std({ color: 0xeee7d2, metalness: 0.05, roughness: 0.66 });
+            wood     = std({ color: 0x4a3220, metalness: 0, roughness: 0.9, map: ProChar.leatherTex() });
+            dark     = std({ color: 0x3b2a1a, metalness: 0, roughness: 0.85, map: ProChar.leatherTex() });
+            edgeHex  = 0xfaf5e4;
+        } else if (matKind === 'blackpowder') {
+            // 근세: 호두나무 개머리 + 황동 부속 + 무광 흑철 총열
+            mat      = std({ color: 0xb08d57, metalness: 0.88, roughness: 0.3 });   // 황동
+            bladeMat = std({ color: 0x9aa3ab, metalness: 0.9, roughness: 0.32, envMapIntensity: 0.85 });
+            wood     = std({ color: 0x4a2c17, metalness: 0, roughness: 0.72 });
+            dark     = std({ color: 0x2a2119, metalness: 0.55, roughness: 0.55 });
+            edgeHex  = 0xd8b878;
+        } else if (matKind === 'gunmetal') {
+            // 0x23272b/0x15181b 조합은 어두운 배경에서 총몸이 통째로 묻혀 '가는 막대' 하나만 남았다
+            // (썸네일 대조에서 현대 화기 5종이 전부 같은 실루엣으로 읽힘) — 명도를 올려 덩어리를 살린다
+            mat      = std({ color: 0x5b636b, metalness: 0.86, roughness: 0.36 });
+            bladeMat = std({ color: 0x9aa3ab, metalness: 0.9, roughness: 0.3, envMapIntensity: 0.85 });
+            wood     = std({ color: 0x3d444b, metalness: 0.25, roughness: 0.72 });  // 폴리머 그립/핸드가드
+            dark     = std({ color: 0x272d33, metalness: 0.5, roughness: 0.58 });
+            edgeHex  = 0xb9c2ca;
+        } else if (energy) {
+            // 우주 이후: 어두운 테크 프레임 + 시대색 발광 날 — 날 자체가 광원처럼 읽혀야 한다
+            mat      = std({ color: 0x2b3440, metalness: 0.82, roughness: 0.3, emissive: c, emissiveIntensity: 0.35 });
+            bladeMat = std({ color: c, metalness: 0.2, roughness: 0.25, emissive: c, emissiveIntensity: 1.15, transparent: true, opacity: 0.88 });
+            wood     = std({ color: 0x1c2129, metalness: 0.35, roughness: 0.7 });
+            dark     = std({ color: 0x131820, metalness: 0.6, roughness: 0.5 });
+            edgeHex  = new THREE.Color(c).offsetHSL(0, 0, 0.35).getHex();
+        } else if (matKind === 'holy') {
+            mat      = std({ color: 0xffd76a, metalness: 0.94, roughness: 0.18, emissive: 0xffc247, emissiveIntensity: 0.3 });
+            bladeMat = std({ color: 0xfff4d0, metalness: 0.86, roughness: 0.16, envMapIntensity: 1.0, emissive: 0xfff0c0, emissiveIntensity: 0.42 });
+            wood     = std({ color: 0xe8dcc0, metalness: 0.05, roughness: 0.62 });
+            dark     = std({ color: 0xb9922f, metalness: 0.9, roughness: 0.3 });
+            edgeHex  = 0xfffbe8;
+        } else {
+            // steel (기존 룩 — 되돌리지 말 것)
+            mat = std({ color: c, metalness: 0.65, roughness: 0.45, emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.5 : 0 });
+            // 날 전용 금속: 스틸 베이스에 시대색 18%만 — 시대색 직치환 날은 '노란 막대사탕'으로 읽힘 (비평가 2번)
+            // PBR 분리: 날은 고금속·저러프 — scene.environment 반사로 '강철'이 읽히는 핵심
+            bladeMat = std({
+                color: new THREE.Color(0xc9d2da).lerp(new THREE.Color(c), 0.18),
+                metalness: 0.92, roughness: 0.28, envMapIntensity: 0.85,
+                emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.16 : 0
+            });
+            wood = std({ color: 0x1f1109, metalness: 0, roughness: 0.85, map: ProChar.leatherTex() }); // 0x5d4037 민짜는 강광에서 베이지 원통 = 맨살 오독 (비평가 7.4 4번) — 가죽 감김 그레인
+            dark = std({ color: 0x37474f, metalness: 0.7, roughness: 0.5 });
+            edgeHex = new THREE.Color(c).offsetHSL(0, -0.1, 0.32).getHex();
+        }
         const box = (w, h, d, m, x, y, z, rz) => {
             const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
             mesh.position.set(x || 0, y || 0, z || 0);
@@ -1831,14 +1884,23 @@ const Scene3D = {
             g.add(mesh); return mesh;
         };
         // 날 엣지 발광 스트립 — 베는 날이 빛을 받아 번들거리는 라인 (무기 존재감, 비평가 지적)
-        const edgeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(c).offsetHSL(0, -0.1, 0.32) });
+        const edgeMat = new THREE.MeshBasicMaterial({ color: edgeHex });
+        // 결속 가죽끈 — 돌·뼈 무기의 '묶어서 만든' 정체성 (헤드와 자루가 한 덩어리로 보이면 안 됨)
+        const lashing = (y, r) => {
+            for (let i = 0; i < 3; i++) {
+                const t = new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 5, 10), dark);
+                t.rotation.x = Math.PI / 2; t.rotation.z = i * 0.7;
+                t.position.y = y + (i - 1) * 0.045;
+                g.add(t);
+            }
+        };
         const edge = (w, h, d, x, y, z, rz) => {
             const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), edgeMat);
             mesh.position.set(x, y, z || 0);
             if (rz) mesh.rotation.z = rz;
             g.add(mesh); return mesh;
         };
-        switch (wtypeId) {
+        switch (shape) {
             case 'sword': {
                 // 테이퍼 날(끝으로 얇고 좁게) + 풀러 홈 + 포인트 + 크로스가드 + 그립 + 폼멜
                 const blade = box(0.1, 0.62, 0.036, bladeMat, 0, 0.38);
@@ -1858,13 +1920,28 @@ const Scene3D = {
             }
             case 'axe':
                 cyl(0.035, 0.045, 0.85, wood, 0, 0.3);
-                box(0.3, 0.22, 0.05, mat, 0.15, 0.62);
-                edge(0.016, 0.24, 0.054, 0.297, 0.62);   // 도끼날 엣지
+                if (matKind === 'stone') {
+                    // 돌도끼: 쪼갠 돌덩이를 자루 홈에 얹고 끈으로 동여맨 형태 — 판금 도끼와 실루엣부터 달라야 한다
+                    { const head = new THREE.Mesh(new THREE.DodecahedronGeometry(0.16, 0), mat);
+                      head.scale.set(1, 0.85, 0.42); head.position.set(0.09, 0.62, 0); head.rotation.z = -0.25; g.add(head); }
+                    edge(0.02, 0.2, 0.05, 0.216, 0.615, 0, -0.25);   // 쪼개진 날 면
+                    lashing(0.6, 0.06);
+                } else {
+                    box(0.3, 0.22, 0.05, mat, 0.15, 0.62);
+                    edge(0.016, 0.24, 0.054, 0.297, 0.62);   // 도끼날 엣지
+                }
                 break;
             case 'spear':
                 cyl(0.03, 0.035, 1.05, wood, 0, 0.4);
-                { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.26, 8), mat); tip.position.y = 1.03; g.add(tip); }
-                { const tipHl = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.1, 6), edgeMat); tipHl.position.y = 1.14; g.add(tipHl); }
+                if (matKind === 'stone') {
+                    // 돌창: 뾰족하게 깬 돌 촉 + 결속끈 (매끈한 금속 원뿔 금지)
+                    { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.062, 0.24, 5), mat);
+                      tip.position.y = 1.02; tip.rotation.y = 0.4; tip.scale.z = 0.55; g.add(tip); }
+                    lashing(0.9, 0.045);
+                } else {
+                    { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.26, 8), mat); tip.position.y = 1.03; g.add(tip); }
+                    { const tipHl = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.1, 6), edgeMat); tipHl.position.y = 1.14; g.add(tipHl); }
+                }
                 break;
             case 'hammer':
                 cyl(0.04, 0.05, 0.72, wood, 0, 0.28);
@@ -1915,6 +1992,153 @@ const Scene3D = {
                 cyl(0.03, 0.035, 0.42, wood, 0, 0.14);
                 box(0.2, 0.15, 0.04, mat, 0.1, 0.36);
                 break;
+            case 'club': {
+                // 원시 몽둥이: 손잡이는 가늘고 타격부로 갈수록 굵어지는 비대칭 곤봉 + 박아넣은 돌조각
+                cyl(0.036, 0.075, 0.66, wood, 0, 0.26);
+                { const knob = new THREE.Mesh(new THREE.DodecahedronGeometry(0.1, 0), wood);
+                  knob.scale.set(1, 1.15, 0.95); knob.position.y = 0.58; g.add(knob); }
+                for (let i = 0; i < 4; i++) {   // 박힌 돌조각 = 원시 무기 정체성
+                    const chip = new THREE.Mesh(new THREE.TetrahedronGeometry(0.045), mat);
+                    chip.position.set(Math.cos(i * 1.6) * 0.075, 0.44 + i * 0.055, Math.sin(i * 1.6) * 0.07);
+                    chip.rotation.set(i, i * 1.3, 0);
+                    g.add(chip);
+                }
+                lashing(0.18, 0.05);
+                break;
+            }
+            case 'mace': {
+                // 철퇴: 자루 + 플랜지 달린 구형 헤드 (해머의 각진 헤드와 구분)
+                cyl(0.032, 0.038, 0.6, wood, 0, 0.22);
+                cyl(0.05, 0.05, 0.04, dark, 0, 0.5);
+                { const ball = new THREE.Mesh(new THREE.SphereGeometry(0.115, 10, 8), mat); ball.position.y = 0.62; g.add(ball); }
+                for (let i = 0; i < 6; i++) {   // 방사형 플랜지(가시)
+                    const sp = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.09, 4), mat);
+                    const a = i * Math.PI / 3;
+                    sp.position.set(Math.cos(a) * 0.15, 0.62, Math.sin(a) * 0.15);
+                    sp.rotation.set(Math.PI / 2, 0, -a - Math.PI / 2);  // 원뿔 축을 방사 방향으로
+                    g.add(sp);
+                }
+                { const pom = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), dark); pom.position.y = -0.09; g.add(pom); }
+                break;
+            }
+            case 'rapier': {
+                // 레이피어: 아주 가늘고 긴 찌르기 날 + 컵 힐트 (검과 실루엣이 확실히 갈리게)
+                box(0.032, 0.86, 0.032, bladeMat, 0, 0.5);
+                edge(0.012, 0.82, 0.012, 0.016, 0.5);
+                { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.1, 4), bladeMat); tip.position.y = 0.97; g.add(tip); }
+                { const cup = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+                  cup.rotation.x = Math.PI; cup.position.y = 0.075; g.add(cup); }   // 컵 가드
+                { const knuck = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.008, 5, 10, Math.PI), mat);
+                  knuck.rotation.y = Math.PI / 2; knuck.position.y = 0.01; g.add(knuck); }  // 너클 보우
+                cyl(0.024, 0.026, 0.14, wood, 0, -0.04);
+                { const pom = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 6), mat); pom.position.y = -0.12; g.add(pom); }
+                break;
+            }
+            case 'scythe': {
+                // 낫: 긴 자루 + 직각으로 뻗은 큰 곡선 날 (도끼의 덩어리 헤드와 정반대 실루엣)
+                cyl(0.028, 0.034, 1.0, wood, 0, 0.36);
+                { const blade = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.026, 5, 12, Math.PI * 0.62), bladeMat);
+                  blade.position.set(0.02, 0.84, 0); blade.rotation.z = -0.5; blade.scale.z = 0.32; g.add(blade); }
+                { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.16, 5), bladeMat);
+                  tip.position.set(0.35, 1.04, 0); tip.rotation.z = -1.9; tip.scale.z = 0.4; g.add(tip); }
+                cyl(0.045, 0.045, 0.07, dark, 0, 0.8);      // 날 소켓
+                lashing(0.06, 0.042);
+                break;
+            }
+            case 'sling': {
+                // 투석구: 가죽 주머니 + 두 가닥 끈 + 장전된 돌 (총기류로 오독되면 안 되는 원시 원거리 무기)
+                { const pouch = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), dark);
+                  pouch.rotation.x = Math.PI; pouch.scale.set(1, 0.75, 0.8); pouch.position.y = -0.24; g.add(pouch); }
+                { const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.07, 0), mat); stone.position.y = -0.235; g.add(stone); }
+                for (const sx of [-0.075, 0.075]) {   // 두 가닥 끈이 손에서 주머니로
+                    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.28, 5), dark);
+                    cord.position.set(sx, -0.11, 0); cord.rotation.z = sx > 0 ? -0.22 : 0.22;
+                    g.add(cord);
+                }
+                cyl(0.028, 0.032, 0.12, wood, 0, 0.04);   // 손잡이 매듭
+                break;
+            }
+            case 'pistol': {
+                // 권총/플린트락: 짧은 총열 + 각진 그립 (장총과 길이로 확실히 구분)
+                box(0.055, 0.26, 0.06, bladeMat, 0, 0.19);      // 총열
+                box(0.07, 0.1, 0.075, mat, 0, 0.06);            // 슬라이드/약실
+                { const grip = box(0.062, 0.17, 0.085, wood, -0.01, -0.05); grip.rotation.x = 0.22; }
+                box(0.03, 0.05, 0.03, dark, 0, 0.0, 0.045);     // 방아쇠울
+                if (matKind === 'blackpowder') {
+                    { const hammerPart = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.06, 0.02), mat);
+                      hammerPart.position.set(0, 0.1, -0.045); hammerPart.rotation.x = -0.5; g.add(hammerPart); } // 부싯돌 공이
+                    { const pan = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.02, 0.03), mat); pan.position.set(0, 0.08, -0.02); g.add(pan); }
+                }
+                break;
+            }
+            case 'rifle': {
+                // 장총 계열(머스킷/소총/산탄총/레이저/레일건) — 공통 골격 위에 id별 식별 부속을 얹는다.
+                // 공통 골격만 두면 썸네일에서 5종이 전부 같은 막대로 읽힌다 (실측 확인 후 분화).
+                const long = wtypeId === 'musket' || wtypeId === 'railgun';   // 장열 화기
+                const barrelH = long ? 0.74 : 0.6;
+                box(0.05, barrelH, 0.055, bladeMat, 0, 0.4 + barrelH / 2 - 0.28);
+                box(0.095, 0.3, 0.1, wood, 0, 0.14);            // 총몸/핸드가드
+                { const stock = box(0.08, 0.26, 0.095, wood, 0, -0.12); stock.rotation.x = 0.12; }  // 개머리판
+                box(0.055, 0.13, 0.075, dark, 0, -0.02, 0.055); // 그립
+                box(0.03, 0.05, 0.03, dark, 0, 0.02, 0.065);    // 방아쇠울
+                if (wtypeId === 'shotgun') {
+                    // 산탄총: 나란한 2연장 총열 + 펌프 — 굵고 짧은 실루엣
+                    box(0.05, 0.58, 0.055, bladeMat, 0.055, 0.42);
+                    { const pump = box(0.13, 0.14, 0.075, dark, 0.027, 0.3); pump.rotation.z = 0; }
+                } else if (wtypeId === 'gun' || wtypeId === 'quantumRifle') {
+                    // 소총: 아래로 뻗은 곡선 탄창 + 조준경 (가장 '소총'다운 식별자)
+                    { const magz = box(0.055, 0.24, 0.08, dark, 0, -0.02, 0.1); magz.rotation.x = -0.32; }
+                    box(0.035, 0.06, 0.13, dark, 0, 0.3, -0.075);   // 조준경
+                } else if (matKind === 'energy') {
+                    // 에너지 계열: 총열 발광 코일 + 방열 핀 (레일건은 평행 레일 2줄)
+                    if (wtypeId === 'railgun') {
+                        for (const rx of [-0.055, 0.055]) {
+                            const rail = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.7, 0.022), bladeMat);
+                            rail.position.set(rx, 0.5, 0); g.add(rail);
+                        }
+                    } else {
+                        for (let i = 0; i < 3; i++) {
+                            const coil = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.013, 5, 12), bladeMat);
+                            coil.rotation.x = Math.PI / 2; coil.position.y = 0.34 + i * 0.13;
+                            g.add(coil);
+                        }
+                    }
+                    { const cell = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.05), bladeMat); cell.position.set(0, 0.08, 0.085); g.add(cell); } // 에너지 셀
+                } else if (matKind === 'blackpowder') {
+                    // 머스킷: 꽂을대 + 총열 밴드 + 부싯돌 기관 — 현대 화기와 확실히 구분되는 구식 부속
+                    { const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.56, 5), mat); rod.position.set(0, 0.44, 0.05); g.add(rod); }
+                    for (const by of [0.3, 0.52]) {
+                        const band = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.009, 5, 10), mat);
+                        band.rotation.x = Math.PI / 2; band.position.y = by; g.add(band);
+                    }
+                    { const lock = box(0.03, 0.09, 0.05, mat, 0, 0.12, -0.06); lock.rotation.x = -0.35; }  // 부싯돌 공이
+                }
+                break;
+            }
+            case 'smg': {
+                // 기관단총: 짧고 뭉툭한 총열 + 아래로 뻗은 탄창 (소총 실루엣과 구분)
+                box(0.05, 0.3, 0.055, bladeMat, 0, 0.28);
+                box(0.09, 0.22, 0.095, mat, 0, 0.1);            // 리시버
+                { const magz = box(0.05, 0.2, 0.07, dark, 0, -0.06, 0.02); magz.rotation.x = -0.12; }  // 탄창
+                box(0.05, 0.11, 0.07, wood, 0, -0.02, -0.03);   // 그립
+                { const stock = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 5, 10, Math.PI), dark);
+                  stock.rotation.y = Math.PI / 2; stock.position.set(0, -0.08, -0.09); g.add(stock); } // 접이식 개머리
+                break;
+            }
+            case 'cannon': {
+                // 캐논/발사기: 굵은 포신 + 어깨 견착부 + 에너지 셀 (라이플보다 확연히 굵게)
+                cyl(0.11, 0.13, 0.62, mat, 0, 0.36);            // 포신
+                { const muzzle = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.028, 6, 14), dark);
+                  muzzle.rotation.x = Math.PI / 2; muzzle.position.y = 0.66; g.add(muzzle); }  // 포구 링
+                { const bore = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.06, 10), bladeMat);
+                  bore.position.y = 0.68; g.add(bore); }        // 발광 포구
+                box(0.13, 0.24, 0.14, dark, 0, 0.06);           // 몸체
+                { const cell = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.18, 8), bladeMat);
+                  cell.rotation.z = Math.PI / 2; cell.position.set(0, 0.1, 0.11); g.add(cell); }  // 에너지 셀
+                box(0.06, 0.13, 0.08, wood, 0, -0.08, 0.02);    // 그립
+                { const pad = box(0.1, 0.14, 0.1, dark, 0, -0.12, -0.06); pad.rotation.x = 0.2; }  // 견착 패드
+                break;
+            }
             default: // 무기 없음 → 나무 몽둥이
                 cyl(0.045, 0.06, 0.5, wood, 0, 0.22);
         }
@@ -1959,7 +2183,7 @@ const Scene3D = {
         // 시대·등급 성장 스케일 — 기존 0.05/0.05는 후기 시대에서 무기가 캐릭터 신장을 넘겨 개그가 됨 (비평가 지적)
         g.scale.setScalar((1 + ageIdx * 0.02) * (1 + Math.max(0, rIdx - 2) * 0.03));
         // 장병기 그립 보정: 원점(손)이 자루 하단이 아니라 실제 파지 지점에 오도록 전체를 내림
-        const gripDrop = { staff: 0.3, spear: 0.38 }[wtypeId];
+        const gripDrop = { staff: 0.3, spear: 0.38, scythe: 0.34, rapier: 0.05 }[shape];
         if (gripDrop) for (const ch of g.children) ch.position.y -= gripDrop;
         return g;
     },
@@ -1977,6 +2201,15 @@ const Scene3D = {
         crossbow: { hand: 'L', scale: 0.6, rot: [2.9, 0, 0], pose: { shoulderL: -0.85, elbowL: -0.12, shoulderR: -0.7, elbowR: -1.0 } }, // 가슴 높이 수평 전방 (얼굴 가림 금지 — 사용자 재검수), 회전은 팔 하강분만큼 가산 상쇄
         gun:      { rot: [0, 0, 0], pose: { shoulderR: -0.35, elbowR: 0.2 } },             // 팔을 수평까지 펴서 총구 전방 겨눔 (restX 가산 + Idle 팔꿈치 굽힘 상쇄)
         thrown:   { rot: [1.95, 0, 0], pose: { shoulderR: -1.45, elbowR: -0.5 } },         // 귀 옆 코킹 — 팔 상승분을 상쇄해 헤드가 위·뒤, 던질 준비
+        // 시대별 무기 분리로 늘어난 계열 (키는 shape — gripOf가 id → shape 순으로 찾는다)
+        mace:     { rot: [0.95, 0, -0.15], pose: { elbowR: -0.85 } },                      // 해머와 같은 어깨 걸침 레디 캐리
+        rapier:   { rot: [0.18, 0, -0.22], pose: { elbowR: -0.4 } },                       // 가늘고 길어 검보다 세워 들기
+        scythe:   { rot: [0.62, 0, 0], pose: { elbowR: -0.3 } },                           // 장병기 — 창처럼 세워 들기
+        sling:    { rot: [0.2, 0, 0], pose: { shoulderR: -0.5, elbowR: -0.7 } },           // 주머니를 아래로 늘어뜨린 대기 자세
+        pistol:   { rot: [0, 0, 0], pose: { shoulderR: -0.45, elbowR: 0.25 } },            // 한 손 겨눔 — 총열이 짧아 팔을 더 편다
+        rifle:    { rot: [0, 0, 0], pose: { shoulderR: -0.35, elbowR: 0.2 } },             // 기존 gun과 동일한 견착 겨눔
+        smg:      { rot: [0, 0, 0], pose: { shoulderR: -0.4, elbowR: 0.22 } },
+        cannon:   { rot: [0, 0, 0], pose: { shoulderR: -0.3, elbowR: 0.15 } },             // 굵고 무거운 견착 화기
     },
     // C자 랩 주먹 — 자루를 감는 손가락 마디 링 3개 + 엄지 + 너클 볼록 (사용자 재검수: 무기가 손바닥에 '붙은' 게 아니라 '쥐어진' 실루엣)
     // weaponG의 자식으로 원점(파지점)에 두므로 Idle/걷기/공격 전 상태에서 자루-주먹 정렬이 자동 유지된다.
@@ -1998,8 +2231,13 @@ const Scene3D = {
         g.scale.setScalar(invScale); // weaponG 스케일 상쇄 — 활계 0.6 축소에도 주먹 크기 일정
         return g;
     },
+    // 파지 규칙은 지오메트리 계열이 정한다 — 같은 계열이면 재질이 달라도 쥐는 법은 같다
+    // (id 직접 지정이 있으면 그게 우선: 계열 공유 중 예외를 두고 싶을 때)
+    gripOf(wtypeId) {
+        return this.WEAPON_GRIP[wtypeId] || this.WEAPON_GRIP[weaponShape(wtypeId)] || this.WEAPON_GRIP.sword;
+    },
     applyWeaponGrip() {
-        const grip = this.WEAPON_GRIP[this.wtypeId] || this.WEAPON_GRIP.sword;
+        const grip = this.gripOf(this.wtypeId);
         if (this.heroRig) {
             const target = grip.hand === 'L' ? this.heroRig.handL : this.heroRig.handR;
             if (this.weaponG.parent !== target) target.add(this.weaponG); // 활계 왼손 이관 (bow 클립도 왼팔을 드는 구성)
@@ -3753,9 +3991,17 @@ const Scene3D = {
             mesh = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshBasicMaterial({ color: colorHex }));
         } else if (kind === 'magic') {
             mesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.95 }));
-        } else { // spin (투척 도끼)
-            mesh = this.makeWeapon('thrown', S.equipment.weapon ? S.equipment.weapon.ageIdx : 0);
-            mesh.scale.setScalar(0.9);
+        } else { // spin — 던지는 무기 자체가 날아간다
+            const w = S.equipment.weapon;
+            const wAge = w ? w.ageIdx : 0;
+            if (weaponShape(this.wtypeId) === 'sling') {
+                // 투석구는 무기가 아니라 '돌'이 날아간다 (도끼가 날아가면 원시 시대에 강철 도끼가 뜨는 꼴)
+                mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(0.075, 0),
+                    new THREE.MeshStandardMaterial({ color: 0x8d8a80, metalness: 0.02, roughness: 0.96, flatShading: true }));
+            } else {
+                mesh = this.makeWeapon(this.wtypeId || 'thrown', wAge, w && w.rarity);
+                mesh.scale.setScalar(0.9);
+            }
         }
         mesh.position.copy(from);
         this.scene.add(mesh);
@@ -4282,7 +4528,8 @@ const Scene3D = {
     },
 
     // ---- 무기 궤적 트레일 (근접 스윙 판독성 — 삼각 스트립 리본, 수명 0.15s 테이퍼) ----
-    TRAIL_TIP: { sword: 0.95, axe: 0.85, spear: 1.25, hammer: 0.8, dagger: 0.55, club: 0.6 }, // 무기별 날 끝 y (weaponG 로컬)
+    // 무기 계열별 날 끝 y (weaponG 로컬) — 궤적을 날 끝에서 뽑기 위한 길이표
+    TRAIL_TIP: { sword: 0.95, axe: 0.85, spear: 1.25, hammer: 0.8, dagger: 0.55, club: 0.6, mace: 0.75, rapier: 1.05, scythe: 1.15 },
     trailStart(colorHex) {
         if (!this.trailMesh) {
             const geo = new THREE.BufferGeometry();
@@ -4317,7 +4564,7 @@ const Scene3D = {
         while (pts.length && pts[0].age >= LIFE) pts.shift();
         if (this._trailOn && this.weaponG && this.weaponG.visible) {
             this.weaponG.updateWorldMatrix(true, false);
-            const tipLen = this.TRAIL_TIP[this.wtypeId] || 0.7;
+            const tipLen = this.TRAIL_TIP[weaponShape(this.wtypeId)] || 0.7;
             const b = this.weaponG.localToWorld(new THREE.Vector3(0, 0.12, 0));
             const t = this.weaponG.localToWorld(new THREE.Vector3(0, tipLen, 0));
             // 돌진(몸통 평행이동)은 궤적이 아님 — 영웅 로컬에서 날끝이 실제 휘둘러질 때만 기록 (비평가: 수평 부유 막대)

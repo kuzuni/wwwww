@@ -773,10 +773,11 @@ const UI = {
                     <span class="fl-face">${icon}</span>
                     <small>${pct.toFixed(4)}%</small>
                 </button>`;
-            const weaponCells = Object.keys(WEAPON_TYPES).map(wtype =>
-                cell(`UI.openForgeDetail('${age}','weapon','${wtype}')`, WEAPON_TYPES[wtype].kind === 'ranged' ? '🏹' : '🗡', p)).join('');
+            // 무기는 그 시대에 등장하는 종류만 (원시에 총이 뜨면 안 됨 — 사용자 지시 2026-08-17)
+            const weaponCells = weaponsOfAge(age).map(wtype =>
+                cell(`UI.openForgeDetail('${age}','weapon','${wtype}')`, this.weaponEmoji(wtype), p)).join('');
             const otherCells = ['helmet', 'armor', 'gloves', 'necklace', 'ring', 'shoes', 'belt'].map(slot => {
-                const names = (slot === 'helmet' || slot === 'armor') ? ((ITEM_NAMES[age] && ITEM_NAMES[age][slot]) || []) : (ACC_NAMES[slot] || []);
+                const names = (slot === 'helmet' || slot === 'armor') ? ((ITEM_NAMES[age] && ITEM_NAMES[age][slot]) || []) : accNames(age, slot);
                 const sp = Forge.itemDropChance(age, slot);
                 const icon = slot === 'helmet' ? '🪖' : slot === 'armor' ? '👕' : (this.SLOT_EMOJI[slot] || '🎁');
                 return names.map((name, i) => cell(`UI.openForgeDetail('${age}','${slot}',${i})`, icon, sp)).join('');
@@ -804,13 +805,13 @@ const UI = {
         const ageIdx = AGES.indexOf(age);
         let name, icon;
         if (slot === 'weapon') {
-            name = `${WEAPON_TYPES[variant].kr}`;
-            icon = WEAPON_TYPES[variant].kind === 'ranged' ? '🏹' : '🗡';
+            name = `${(WEAPON_TYPES[variant] || {}).kr || SLOT_KR.weapon}`;
+            icon = this.weaponEmoji(variant);
         } else if (slot === 'helmet' || slot === 'armor') {
             name = (ITEM_NAMES[age] && ITEM_NAMES[age][slot] && ITEM_NAMES[age][slot][variant]) || SLOT_KR[slot];
             icon = slot === 'helmet' ? '🪖' : '👕';
         } else {
-            const accs = ACC_NAMES[slot] || [SLOT_KR[slot]];
+            const accs = accNames(age, slot);
             name = accs[variant];
             icon = this.SLOT_EMOJI[slot] || '🎁';
         }
@@ -953,6 +954,18 @@ const UI = {
     },
 
     SLOT_EMOJI: { gloves: '🧤', necklace: '📿', ring: '💍', shoes: '👢', belt: '🎽' },
+    // 무기 계열별 아이콘 — 총기 시대에 활 아이콘이 뜨던 문제 (전 무기가 🏹/🗡 둘로만 갈렸다).
+    // 항목 '이모지→코드 생성 아이콘 전면 교체'가 들어오면 이 표가 그 매핑의 진입점이 된다.
+    WEAPON_SHAPE_EMOJI: {
+        club: '🏏', axe: '🪓', scythe: '🌾', spear: '🔱', mace: '🔨', hammer: '🔨',
+        sword: '🗡', rapier: '🤺', dagger: '🔪', bow: '🏹', crossbow: '🏹', sling: '💫',
+        pistol: '🔫', rifle: '🔫', smg: '🔫', cannon: '💥', staff: '🪄', thrown: '🪃',
+    },
+    weaponEmoji(wtype) {
+        const shape = typeof weaponShape === 'function' ? weaponShape(wtype) : wtype;
+        if (this.WEAPON_SHAPE_EMOJI[shape]) return this.WEAPON_SHAPE_EMOJI[shape];
+        return (WEAPON_TYPES[wtype] && WEAPON_TYPES[wtype].kind === 'ranged') ? '🏹' : '🗡';
+    },
     // 장비 그리드 공용 셀 (원본 shot-042120 정합): 정사각 고정 프레임 + 아이콘 상부 채움 + Lv 내부 하단 + ⭐는 하단 테두리 걸침.
     // 빈 슬롯도 동일 프레임 유지(찌그러짐 금지, 사용자 지시) — 흐린 부위 아이콘 실루엣 + 부위명.
     EMPTY_SLOT_EMOJI: { weapon: '🗡', helmet: '🪖', armor: '👕' },
