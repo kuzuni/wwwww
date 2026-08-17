@@ -9,8 +9,9 @@ const U = {
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     },
 
-    // 큰 수 표기: 1.2K, 3.4M, 5.6B, 7.8T, 이후 e표기
+    // 큰 수 표기: 1.2K, 3.4M, 5.6B, 7.8T, 이후 aa/ab/… (Big은 bignum.js의 fmtBig으로 위임)
     fmt(n) {
+        if (n instanceof Big) return fmtBig(n);
         if (n === null || n === undefined || isNaN(n)) return '0';
         n = Math.floor(n);
         const abs = Math.abs(n);
@@ -23,6 +24,7 @@ const U = {
 
     // 소수점 보존 표기 (오프라인 보상 수급률·누적량 등 실수 표시용): 1.13, 8.87k, 149.05
     fmtDec(n) {
+        if (n instanceof Big) return fmtBig(n, 2);
         if (n === null || n === undefined || isNaN(n)) return '0';
         const abs = Math.abs(n);
         if (abs < 1000) return n.toFixed(2);
