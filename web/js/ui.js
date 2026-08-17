@@ -2468,7 +2468,7 @@ const UI = {
         // 하단 "패시브:" 라벨+회색 pill, 대형 [업그레이드(실버)][장착(파랑)] 2분할 버튼
         const ratio = U.clamp(sk.dupes / need, 0, 1) * 100;
         this.els.detailModal.innerHTML = `
-            <div class="idet-wrap">
+            <div class="idet-wrap skd-wrap">
                 <div class="modal-card paper skd-card">
                     <div class="skd-head">
                         <div class="skd-orbcol">

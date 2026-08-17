@@ -2778,7 +2778,13 @@ body {
 }
 
 /* ===== 스킬 상세 팝업 (shot-042426 원본 대조 재작업) ===== */
-.skd-card { width: 76.1%; /* 원본 shot-042426 실측 */ min-height: 20rem; padding: 1rem .9rem 1.1rem; text-align: left; display: flex; flex-direction: column; gap: 0; }
+/* 원본 실측(495×882): 카드 x 61~431(폭 371 = 74.95%W) y 309~645(높이 337 = 38.21%H)
+   · 패시브 pill x 103~389(57.98%W) — 카드에서 좌우 42px 씩 더 들어간다
+   · 버튼 줄 x 97~394(좌우 인셋 36/37px · 버튼 사이 23px) — 카드 콘텐츠 폭을 꽉 채우지 않는다 */
+.skd-card { width: 74.95%; /* 원본 shot-042426 실측 371/495 */ min-height: 20rem; padding: 1rem .9rem 2.93rem; /* 원본 버튼 아래 흰 여백 49px */ text-align: left; display: flex; flex-direction: column; gap: 0; }
+/* .idet-wrap 이 카드 아래 ✕ 까지 안고 세로 중앙 정렬돼 카드가 5.6%p 위로 뜬다(이 패스 7번째 사례).
+   #detail-modal 공용이라 이 팝업 마크업에만 붙는 .skd-wrap 으로 스코프한다. */
+.skd-wrap { position: relative; top: 2.96rem; }
 .skd-head { display: flex; gap: .8rem; align-items: flex-start; }
 .skd-orbcol { width: 17.5%; flex: none; /* 원본 오브 ≈11% W (185) */ display: flex; flex-direction: column; align-items: center; gap: .22rem; }
 .skd-orbcol .sk-orb { font-size: 1.9rem; }
@@ -2790,10 +2796,11 @@ body {
 .skd-desc b { font-weight: 900; }
 .skd-passive-label { margin-top: auto; text-align: center; font-size: .85rem; font-weight: 800; color: var(--pp-ink); }
 .skd-passive {
-    background: #c9c9c9; border-radius: 1rem; padding: .3rem .8rem; margin: .25rem 0 .9rem;
+    background: #c9c9c9; border-radius: 1rem; padding: .06rem .8rem; margin: .25rem 1.35rem .9rem; /* 좌우 1.35rem = 원본 42px 인셋 · 원본 pill 높이 17px */
+    line-height: 1.15;
     text-align: center; font-size: .88rem; font-weight: 900; color: #17181a;
 }
-.skd-btns { display: flex; gap: .8rem; }
+.skd-btns { display: flex; gap: 1.32rem; padding: 0 .99rem; }
 .skd-btn { flex: 1; font-size: 1.02rem; font-weight: 900; padding: .68rem 0; border-radius: .7rem; }
 .skd-btn.silver {
     background: linear-gradient(180deg, #e3e3e3, #c2c2c2); color: #17181a;
