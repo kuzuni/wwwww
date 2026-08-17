@@ -1755,7 +1755,7 @@ const UI = {
         const arrowHtml = arrowDir ? `<span class="arrow ${arrowDir}">${arrowDir === 'up' ? '▲' : '▼'}</span>` : '';
         return `<div class="cmp-card-wrap ${isNew ? 'new' : 'cur'}">
             ${isNew ? '' : `<span class="cmp-ribbon">${tag}</span>`}
-            <div class="cmp-card" style="--rc:${this.ageHex(item.age)}">
+            <div class="cmp-card" style="--rc:${this.ageHex(item.age)};--rcink:${this.inkRarity(this.ageHex(item.age))}">
                 <div class="cmp-icon-wrap">
                     ${this.itemImgHTML(item, 'cmp-img')}
                     <span class="sk-lv">Lv.${item.level}</span>
