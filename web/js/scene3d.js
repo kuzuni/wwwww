@@ -4112,7 +4112,12 @@ const Scene3D = {
         // 넉백·3/4 회전을 그대로 상속해 바가 기울고 채움 폭이 과장돼 체력 판독이 망가진다.
         // 보스 등 baseScale은 바 크기에 반영해야 하므로(예전 동작) 그룹 스케일로 옮긴다.
         const hpG = new THREE.Group();
-        const barY = (e.isBoss ? topY + 0.35 : topY + 0.25);
+        // ⚠️ 간격은 배율로 나눠서 넣는다 — 아래에서 hpG에 baseScale을 통째로 걸기 때문에, 간격을 그냥 더하면
+        // 그것까지 배율을 먹어 **덩치가 클수록 바가 머리 위로 더 멀리 뜬다**(보스 1.9배 = 0.35가 0.665로).
+        // 비평가가 회차마다 지적한 "바가 대상과 떨어져 공중에 떠 있다"의 실제 원인. 이렇게 두면
+        // 월드 간격이 종·등급과 무관하게 항상 일정하다(월드 y = topY*배율 + 간격).
+        const gs = g.scale.x || 1;
+        const barY = topY + (e.isBoss ? 0.35 : 0.25) / gs;
         // 트랙(배경)을 채움바보다 크게 잡아 어두운 테두리를 만든다 — 같은 크기면 테두리가 안 생겨
         // 밝은 초원 위에서 바 경계가 사라진다. 채움색은 toneMapped=false + 블룸 임계 아래 채도로 (비평가 3번)
         const hpBg = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.135), new THREE.MeshBasicMaterial({ color: this.srgbC(0x0d1114), side: THREE.DoubleSide, transparent: true, opacity: 0.82, toneMapped: false }));
@@ -4123,7 +4128,7 @@ const Scene3D = {
         const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: this.srgbC(0x2ebd6b), side: THREE.DoubleSide, toneMapped: false }));
         hpFg.position.set(0, barY, 0.01);
         hpG.add(hpBg, hpGhost, hpFg);
-        hpG.scale.setScalar(g.scale.x); // scene 직속이라 예전에 상속받던 baseScale을 직접 건다
+        hpG.scale.setScalar(gs); // scene 직속이라 예전에 상속받던 baseScale을 직접 건다
         return { g, body, hpBg, hpGhost, hpFg, hpG, armR, armL, flashMats, kind, anim, baseScale: g.scale.x, topY, barY };
     },
 
