@@ -3276,3 +3276,6 @@ const UI = {
     },
     onWaypointMystery() { this.openStub('❓ 미스터리 상자', '특별 이벤트 상자는 준비 중입니다.'); },
 };
+
+/* 캡처 하네스 지원(state.js 주석 참고): 렉시컬 전역을 window에도 노출 — Playwright 격리 컨텍스트용 */
+window.UI = UI;

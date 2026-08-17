@@ -6,6 +6,12 @@ const OFFLINE_HAMMER_PER_MIN = 1;   // 원본: 분당 해머 1
 
 let S = null;
 
+/* 캡처 하네스 지원: `let S` / `const UI` 같은 최상위 렉시컬 전역은 window 프로퍼티가 아니라서
+   Playwright의 waitForFunction(격리 컨텍스트)에서 안 보인다 — 검증 스크립트들이 20초 타임아웃으로
+   전부 멈추던 원인. window에 접근자를 걸어 두면(S는 재할당되므로 getter) 두 세계에서 똑같이 보인다.
+   게임 코드는 계속 렉시컬 `S`를 참조하므로(렉시컬이 window 프로퍼티를 가림) 동작 변화는 없다. */
+Object.defineProperty(window, 'S', { get: () => S, configurable: true });
+
 function defaultState() {
     return {
         version: 1,

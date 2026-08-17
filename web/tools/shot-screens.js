@@ -5,6 +5,7 @@ const { chromium } = require(process.env.PW_PATH || 'playwright');
 const path = require('path');
 const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
+const { waitReady } = require('./wait-ready.js');
 const OUT = process.argv[2] || path.join(__dirname, 'ref-cmp/clone');
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -101,10 +102,10 @@ const SEED = () => {
     page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && typeof Forge !== 'undefined', null, { timeout: 20000 });
+    await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined" && typeof Forge !== "undefined"', { label: '스크립트 로드' });
     await page.evaluate(SEED);
     await page.reload({ waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && S.forgeLevel === 29, null, { timeout: 20000 });
+    await waitReady(page, 'typeof UI !== "undefined" && S && S.forgeLevel === 29', { label: '시드 상태 로드' });
     // 캡처 중에는 토스트를 아예 막는다 — innerHTML 비우기만으로는 부족하다: 전투 틱이 clear 와
     // screenshot 사이에 새 토스트를 띄워 원본에 없는 알림 pill 이 화면에 찍힌다(리그 캡처에서
     // 시즌 종료 pill 위에 '첫 클리어' 토스트가 겹쳐 찍힌 사례). 채점용 캡처가 오염되면 안 된다.
@@ -125,7 +126,11 @@ const SEED = () => {
     await page.waitForTimeout(2500);
     // 디버그 탭 숨김 유지 확인용 로그
     const done = [];
-    for (const [name, ref, src] of SCREENS) {
+    // ONLY=main,chat 처럼 화면을 골라 찍는다 — 한 화면만 고치는 반복 루프에서 30화면 전수(수 분)를
+    // 매번 돌릴 이유가 없다. 미지정이면 종전대로 전체.
+    const ONLY = (process.env.ONLY || '').split(',').map(s => s.trim()).filter(Boolean);
+    const TARGETS = ONLY.length ? SCREENS.filter(s => ONLY.includes(s[0])) : SCREENS;
+    for (const [name, ref, src] of TARGETS) {
         try {
             // 화면 간 오염 제거: closeAllTabSurfaces는 MODAL_TAB 등록 모달만 닫으므로
             // 오프라인 보상·상세 툴팁 같은 미등록 모달이 다음 화면 위에 그대로 남아 캡처를 덮는다
@@ -153,7 +158,7 @@ const SEED = () => {
             errors.push('SCREEN ' + name + ': ' + e.message);
         }
     }
-    console.log('captured ' + done.length + '/' + SCREENS.length);
+    console.log("captured " + done.length + "/" + TARGETS.length);
     console.log(done.join(', '));
     if (errors.length) console.log('\nERRORS(' + errors.length + '):\n' + errors.slice(0, 25).join('\n'));
     else console.log('\n(no console errors)');
