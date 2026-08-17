@@ -22,9 +22,14 @@ const FRAMES = [0.25, 0.75, 1.35, 2.10, 2.70, 3.15];
         const realTick = Combat.tick.bind(Combat);
         const realUpdate = Scene3D.update.bind(Scene3D);
         Combat.tick = () => {}; Scene3D.update = () => {};
+        // 사망 구간은 벽시계(U.now)로 재므로 가상 시계도 스텝과 같이 밀어야 한다.
+        // 안 그러면 스크린샷 한 장에 수 초씩 걸리는 소프트웨어 GL에서 실제 시간만 앞서 달려,
+        // 라벨이 250ms인 프레임에 이미 기상이 시작돼 있는 식으로 시간축이 어긋난다.
+        let vt = Date.now();
+        U.now = () => vt;
         window.__step = (total) => {
             const n = Math.max(1, Math.round(total * 120));
-            for (let i = 0; i < n; i++) { realTick(1 / 120); realUpdate(1 / 120); }
+            for (let i = 0; i < n; i++) { vt += 1000 / 120; realTick(1 / 120); realUpdate(1 / 120); }
         };
         Scene3D.clearEnemies();
         Combat.enemies = []; Combat.pending = [];

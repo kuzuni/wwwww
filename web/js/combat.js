@@ -12,6 +12,9 @@ const Combat = {
     wave: 0,
     phase: 'idle',           // fight | waveDelay | stageDelay
     phaseTimer: 0,
+    // 사망 연출 구간만 벽시계로 잰다 (아래 onDefeat 주석 참고) — 0이면 사망 중이 아님
+    downUntil: 0,            // 쓰러진 채 유지할 시각 (ms)
+    riseUntil: 0,            // 기상 클립이 끝나는 시각 (ms)
     _enemySeq: 0,
 
     start() {
@@ -67,6 +70,7 @@ const Combat = {
         this.enemies = [];
         this.pending = [];
         this.hero.hp = this.hero.maxHp; // 스테이지 시작 시 완전 회복
+        this.downUntil = 0; this.riseUntil = 0;
         Scene3D.heroRevive(); // 사망 상태로 스테이지가 시작되지 않게(던전 입장 등으로 기상 예약이 지워진 경우 대비)
         SFX.setMusicMode('normal'); // 이전 스테이지가 보스전 도중 중단됐을 경우를 대비한 방어적 리셋
         Scene3D.clearEnemies();
@@ -155,6 +159,19 @@ const Combat = {
         this.hero.hp = this.hero.hp.add(this.hero.maxHp.mul(regenPct * dt)).min(this.hero.maxHp);
 
         if (this.phase === 'waveDelay' || this.phase === 'stageDelay' || this.phase === 'bossWarn') {
+            // 쓰러져 누워 있는 동안 — 스테이지 타이머를 세워 둔다 (캐치업 버스트가 연출을 건너뛰지 못하게)
+            if (this.downUntil) {
+                if (U.now() < this.downUntil) return;
+                this.downUntil = 0;
+                this.riseUntil = U.now() + 800; // ProChar Revive 클립 길이
+                Scene3D.heroRevive();
+                return;
+            }
+            // 일어서는 중 — 기상 클립이 끝나야 다음 스테이지로 넘어간다
+            if (this.riseUntil) {
+                if (U.now() < this.riseUntil) return;
+                this.riseUntil = 0;
+            }
             this.phaseTimer -= dt;
             if (this.phaseTimer <= 0) {
                 if (this.phase === 'waveDelay') this.nextWave();
@@ -347,8 +364,12 @@ const Combat = {
         this.phase = 'stageDelay';
         // 사망 클립 1.3초 + 쓰러진 채 머무는 시간 + 기상 0.8초. 2.0초면 쓰러지자마자 다시 서서
         // "죽은 것처럼 안 보인다"는 지적이 그대로 남는다 — 누운 포즈가 확실히 읽힐 만큼 준다.
-        this.phaseTimer = 3.2;
-        // 기상은 다음 스테이지 셋업 직전에 — 클립 0.8초가 스테이지 시작 전에 끝나게 앞당겨 건다
-        this.pending.push({ t: 2.4, fn: () => Scene3D.heroRevive() });
+        this.phaseTimer = 0.8; // 기상까지 끝난 뒤 남는 행군 구간 (연출 길이는 아래 벽시계가 담당)
+        // ⚠️ 기상 예약을 pending(=틱 누적)으로 걸면 안 된다. main.js의 로직 루프는 탭 스톨·긴 프레임 뒤
+        // Math.min(5000, …) 만큼을 한 번의 인터벌 발화에서 while로 몰아 돌리므로(최대 50틱=5초치),
+        // 그 한 번에 쓰러짐→기상→다음 스테이지까지 전부 지나가 사망이 또 안 보인다(실측: 실제 2ms 만에 스테이지 재시작).
+        // 그래서 사망 구간만 벽시계로 잰다 — 캐치업이 몇 틱을 몰아 돌리든 실제 시간이 흘러야 일어난다.
+        this.downUntil = U.now() + 2400;
+        this.riseUntil = 0;
     },
 };

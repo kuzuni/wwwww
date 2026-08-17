@@ -20,9 +20,14 @@ const path = require('path');
         const realTick = Combat.tick.bind(Combat);
         const realUpdate = Scene3D.update.bind(Scene3D);
         Combat.tick = () => {}; Scene3D.update = () => {}; Scene3D.renderFrame = () => {};
+        // 사망 구간은 벽시계(U.now)로 재므로, 틱만 돌리면 시간이 흐르지 않아 기상이 영원히 안 온다.
+        // 스텝과 같은 양만큼 가상 시계도 함께 밀어 준다 — 실제 플레이에서 흐르는 시간을 그대로 흉내낸다.
+        const realNow = U.now;
+        let vt = Date.now();
+        U.now = () => vt;
         const step = (total) => {
             const n = Math.max(1, Math.round(total * 120));
-            for (let i = 0; i < n; i++) { realTick(1 / 120); realUpdate(1 / 120); }
+            for (let i = 0; i < n; i++) { vt += 1000 / 120; realTick(1 / 120); realUpdate(1 / 120); }
         };
         const rig = Scene3D.heroRig;
         const pose = () => ({ rootRx: +rig.root.rotation.x.toFixed(3), rootPy: +rig.root.position.y.toFixed(3), clip: rig._clip && rig._clip.dur });
