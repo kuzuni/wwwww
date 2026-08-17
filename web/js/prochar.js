@@ -572,8 +572,15 @@ const ProChar = {
 
         // 방패 (왼손) — 축소 라운드 셸 + 림 리벳 + 문장 필드(등급색 틴트 대상) + 방사 보강대
         const shieldG = new THREE.Group();
+        // ⚠️ 이 돔은 thetaLength 0.35π의 **뚜껑 없는 개방 셸**이다. 기본 side=FrontSide면
+        // 오목한 안쪽에서 볼 때 한 픽셀도 그리지 않아, 문장 원판(r 0.105)과 금색 림(r 0.155)
+        // 사이 고리 영역으로 **배경이 그대로 비친다**(probe-shield.js: 안쪽 시점에서 돔 기여
+        // 0픽셀, domeSide=FrontSide, domePhi=1.1 실측 / 비평가 B가 "림 안으로 풀과 꽃이
+        // 보인다"고 지목한 것의 실체). 팔이 스윙하며 안쪽이 카메라를 향하는 순간이 실제로 있다.
+        const shieldShellMat = steel();
+        shieldShellMat.side = THREE.DoubleSide;   // steel()은 호출마다 새 인스턴스라 다른 파츠에 영향 없음
         const shieldBody = new THREE.Mesh(
-            new THREE.SphereGeometry(0.185, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.35), steel());
+            new THREE.SphereGeometry(0.185, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.35), shieldShellMat);
         shieldBody.rotation.x = Math.PI / 2;
         shieldBody.scale.set(1, 1, 1.25);
         const shieldRim = new THREE.Mesh(new THREE.TorusGeometry(0.155, 0.017, 6, 22), gold);
@@ -598,6 +605,18 @@ const ProChar = {
             const a = i * Math.PI / 4;
             riv.position.set(Math.cos(a) * 0.155, Math.sin(a) * 0.155, 0.012);
             shieldG.add(riv);
+        }
+        // 뒷판 + 가죽 손잡이 끈 — ① 개방 셸을 실제로 막아 두께가 있는 방패로 읽히게 하고
+        // ② 비평가 2인이 공통 1위로 지목한 '캐릭터에 진짜 어두운 값이 없다'는 결함에
+        // 니어블랙 가죽 면적을 보태며 ③ "들고 있지 않고 떠 있다"는 지적(손잡이 부재)을 해소한다.
+        const shieldBack = new THREE.Mesh(new THREE.CylinderGeometry(0.163, 0.163, 0.012, 20), leather);
+        shieldBack.rotation.x = Math.PI / 2;
+        shieldBack.position.z = -0.012;
+        shieldG.add(shieldBack);
+        for (const sy of [-1, 1]) {   // 팔을 지나는 가로 스트랩 2줄 (뒷판보다 앞=팔 쪽)
+            const strap = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.028, 0.016), leather);
+            strap.position.set(0, sy * 0.062, -0.03);
+            shieldG.add(strap);
         }
         shieldG.add(shieldBody, shieldRim, face, boss);
         shieldG.rotation.y = -Math.PI / 2;
