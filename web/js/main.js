@@ -49,6 +49,9 @@
 
         if (offlinePending && offlinePending.elapsed >= 60) UI.showOffline(offlinePending); // 1분 미만 경과는 팝업 생략
 
+        // 지난 세션이 판매/장착을 고르지 않고 떠난 제작품 복원 — 오프라인 팝업보다 뒤에 띄워 위로 오게 한다
+        UI.restorePendingCraft();
+
         // 디버그: ?tab=summon|pets|skills|menu|debug 등으로 패널 바로 열기, ?debug=craft로 제작 모달 확인
         const params = new URLSearchParams(location.search);
         // 디버그 탭은 ?debug=* 또는 ?tab=debug일 때만 노출 — 기본 5탭이 원본 레이아웃(042120)

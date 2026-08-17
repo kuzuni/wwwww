@@ -34,6 +34,9 @@ function defaultState() {
         forgeLevel: 1,
         rollLevel: {},                  // 시대(age) → 그 시대의 현재 뽑기 레벨. 빈 객체면 Forge.ensureRollLevels()가 전부 1로 채움 (원본 규칙 ①③)
         forgeUpgradeEndsAt: null,       // 절대시각(ms). null이면 미진행
+        // 판매/장착을 아직 고르지 않은 제작품. 비교 팝업은 닫기 버튼이 없는 강제 선택 팝업이라
+        // 여기 남겨 두지 않으면 새로고침·탭 종료 때 해머만 소모되고 결과물이 사라진다(부팅 시 팝업 복원).
+        pendingCraft: null,
         autoForgeOn: false,
         autoForge: {                    // 자동 제련 설정 (UI-SPEC 21~24번 자동 제련 팝업)
             keepAges: [],                // 유지 시대 체크 목록 (빈 배열 = 전체 허용)

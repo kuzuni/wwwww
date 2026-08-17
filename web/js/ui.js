@@ -366,13 +366,34 @@ const UI = {
     // 탭 전환처럼 팝업을 강제로 접는 경로에서 그냥 숨기면 _pendingItem이 장착도 판매도 안 된 채
     // 사라져 제작한 장비가 유실된다. 그래서 오토포지와 같은 기준(Forge.autoResolve —
     // 장착품보다 강하면 장착 후 기존품 판매, 아니면 판매)으로 처리하고 결과를 토스트로 알린다.
+    // 대기 중인 제작품은 메모리(_pendingItem)와 세이브(S.pendingCraft) 두 곳에 같이 둔다.
+    // 메모리만 두면 새로고침·탭 종료에서 해머만 소모되고 결과물이 사라지고(QA 7차),
+    // 세이브만 두면 팝업이 참조할 대상이 없다. 항상 이 두 함수로만 세우고 지운다.
+    setPendingCraft(item) {
+        this._pendingItem = item;
+        S.pendingCraft = item;
+        saveGame();   // 해머 차감과 대기품을 같은 저장에 묶는다 — 여기서 죽어도 둘 다 남거나 둘 다 없다
+    },
+    clearPendingCraft() {
+        const item = this._pendingItem;
+        this._pendingItem = null;
+        S.pendingCraft = null;
+        return item;
+    },
+    // 부팅 시 복원: 지난 세션이 선택하지 않고 떠난 제작품이 있으면 비교 팝업을 그대로 다시 띄운다.
+    // (자동 판정으로 정리하지 않는 이유 — 선택은 사용자 몫이고, 강제 판정은 '내가 안 고른 장비가 팔렸다'가 된다)
+    restorePendingCraft() {
+        const item = S.pendingCraft;
+        if (!item || !item.slot) return;
+        this._pendingItem = item;
+        this.showCraftModal(item);
+    },
     resolvePendingCraft() {
         const m = this.els.craftModal;
         if (!m || m.classList.contains('hidden')) return;
-        const item = this._pendingItem;
         m.classList.add('hidden');
-        this._pendingItem = null;
-        if (!item) return;
+        const item = this.clearPendingCraft();
+        if (!item) { saveGame(); return; }
         const r = Forge.autoResolve(item);
         this.toast(r.equipped ? `🛠 ${item.name} 자동 장착` : `🪙 ${item.name} 자동 판매 +${U.fmt(r.gained)}`);
         this.renderTopBar();
@@ -948,7 +969,7 @@ const UI = {
     onCraft() {
         if (S.hammers < 1) { this.toast('🔨 해머가 부족합니다 (분당 1개 수급)'); return; }
         const item = Forge.craft(1)[0];
-        this._pendingItem = item;
+        this.setPendingCraft(item);
         this.showCraftModal(item);
         this.renderTopBar();
     },
@@ -1112,8 +1133,7 @@ const UI = {
     onSellConfirm() { this.closeDetail(); this.doResolveCraft(this._pendingCraftMode); },
     onSellCancel() { this.closeDetail(); }, // 비교 팝업은 그대로 열려 있어 다시 고를 수 있다
     doResolveCraft(mode) {
-        const item = this._pendingItem;
-        this._pendingItem = null;
+        const item = this.clearPendingCraft();
         this._pendingCraftMode = null;
         this.els.craftModal.classList.add('hidden');
         if (!item) return;
