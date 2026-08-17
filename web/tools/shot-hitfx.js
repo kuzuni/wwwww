@@ -64,6 +64,17 @@ const OUT = process.argv[2] || __dirname;
         Combat.hero.hp = Big.of(1000); Combat.hero.maxHp = Big.of(1000);
         Combat.phase = 'fight';
         Scene3D.fxLayer.innerHTML = ''; // 동결 전 전투에서 남은 데미지 숫자 제거(수명 관리를 시뮬 시각으로 옮기면 영원히 남는다)
+        // 비네트도 같은 이유로 리셋해야 한다. 동결 직전 실전투에서 영웅이 한 대 맞으면 `.on`이 남은 채로
+        // 얼어붙어 ① A/B(적 피격) 구간 내내 붉은 비네트가 깔리고 ② 그때 __born이 박혀서, 정작 C 구간의
+        // 진짜 영웅 피격에서는 k가 이미 1을 넘어 opacity 0이 된다. 비평가 2인이 "비네트가 적 피격에 걸려
+        // 있고 영웅 피격엔 없다"고 본 것의 정체가 이것 — 연출 버그가 아니라 촬영기 버그였다.
+        const vigEl = document.getElementById('dmg-flash');
+        vigEl.classList.remove('on');
+        vigEl.style.removeProperty('opacity');
+        vigEl.__born = undefined;
+        // 이후 매 발동마다 시뮬 시각으로 나이를 다시 잰다(실시간 setTimeout/애니메이션과 분리)
+        const realFlashDamage = UI.flashDamage.bind(UI);
+        UI.flashDamage = (sev) => { realFlashDamage(sev); vigEl.__born = Scene3D.__t; };
         window.__step(0.016);
     });
 
