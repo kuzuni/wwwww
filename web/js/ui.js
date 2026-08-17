@@ -1152,8 +1152,10 @@ const UI = {
         const pct = p => (parseFloat(p.toFixed(2)) || 0) + '%';
         const rows = AGES.map(age => {   // 0% 시대도 표시 — 전체 확률표 열람이 목적 (사용자 재지시 2026-08-17)
             const hex = this.ageHex(age);
-            return `<div class="fi-age-bar" style="--ac:${hex}">
-                <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]}</span>
+            // data-age = 시대별 무늬(자동 제련과 공유하는 --af-pat 규칙) · 별은 마지막 시대만 빈 별 —
+            // 둘 다 이 화면 원본(shot-042831)에서 읽은 규칙이다
+            return `<div class="fi-age-bar" data-age="${age}" style="--ac:${hex}">
+                <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]}<span class="fi-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
                 <span class="fi-age-cur">${pct(curP[age] || 0)}</span>
                 <span class="fi-age-next">${info ? pct(nextP[age] || 0) : '—'}</span>
             </div>`;

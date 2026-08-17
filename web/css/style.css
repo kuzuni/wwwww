@@ -2647,30 +2647,29 @@ body {
    민무늬 단색이고, 항성간부터 다섯 시대만 무늬를 갖는다. (처음엔 앞 5개도 시대 컨셉에 맞춰
    돌 반점·쉐브론 같은 걸 지어냈는데, 확률 정보 원본을 열어 보고 지어낸 것임이 드러나 걷어냈다 —
    원본에 없는 것을 넣는 건 '원본이 절대 기준' 규칙 위반이다.) */
-.af-age-bar[data-age="interstellar"] {          /* 밝은 광휘 얼룩 — 원본은 우측 상단에 둥근 한 점이 뜬다 */
+.af-age-bar[data-age="interstellar"], .fi-age-bar[data-age="interstellar"] {  /* 밝은 광휘 얼룩 — 원본은 우측 상단에 둥근 한 점이 뜬다 */
     --af-pat: radial-gradient(closest-side, rgba(255,255,255,.44), rgba(255,255,255,0) 70%),
               radial-gradient(closest-side, rgba(255,255,255,.2), rgba(255,255,255,0) 72%);
     --af-pat-size: 2.4rem 2.4rem, 3.8rem 3.8rem;
     --af-pat-pos: 74% 22%, 30% 78%;             /* 원본처럼 '깔린 무늬'가 아니라 뜬 점 두 개라 타일링하지 않는다 */
     --af-pat-repeat: no-repeat, no-repeat;
 }
-.af-age-bar[data-age="multiverse"] {            /* 픽셀 블록 — 두 밴드가 겹치는 칸만 밝게 떠 블록처럼 보인다 */
+.af-age-bar[data-age="multiverse"], .fi-age-bar[data-age="multiverse"] {            /* 픽셀 블록 — 두 밴드가 겹치는 칸만 밝게 떠 블록처럼 보인다 */
     --af-pat: repeating-linear-gradient(90deg, rgba(255,255,255,.3) 0 .34rem, rgba(255,255,255,0) .34rem 1.05rem),
               repeating-linear-gradient(0deg, rgba(255,255,255,.42) 0 .3rem, rgba(255,255,255,0) .3rem .85rem);
     --af-pat-size: auto, auto;
 }
-.af-age-bar[data-age="quantum"] {               /* 동심원 파문 */
-    --af-pat: repeating-radial-gradient(circle at 56% 50%, rgba(255,255,255,.27) 0 .11rem, rgba(255,255,255,0) .11rem .6rem);
-    --af-pat-size: auto;
+.af-age-bar[data-age="quantum"], .fi-age-bar[data-age="quantum"] {               /* 동심원 파문 */
+    --af-pat: repeating-radial-gradient(circle at 52% 50%, rgba(255,255,255,.23) 0 .17rem, rgba(255,255,255,0) .17rem .84rem);
+    --af-pat-size: auto;   /* 원본 링: 굵기 ~3px · 간격 ~13px · 중심 52% (얇고 촘촘하면 막대 끝에서 세로 줄무늬가 된다) */
 }
-.af-age-bar[data-age="underworld"] {            /* 마름모 격자 */
-    --af-pat: repeating-linear-gradient(45deg, rgba(0,0,0,.3) 0 .5rem, rgba(0,0,0,0) .5rem 1rem),
-              repeating-linear-gradient(-45deg, rgba(0,0,0,.3) 0 .5rem, rgba(0,0,0,0) .5rem 1rem);
-    --af-pat-size: auto, auto;
+.af-age-bar[data-age="underworld"], .fi-age-bar[data-age="underworld"] {            /* 마름모 격자 */
+    --af-pat: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><path d='M16 4 26 16 16 28 6 16Z' fill='rgba(0,0,0,0.26)'/></svg>");
+    --af-pat-size: 2rem 2rem;   /* 원본은 ~20px 마름모가 ~33px 간격으로 **떨어져** 있다(줄무늬 두 벌이면 빈틈 없는 격자가 된다) */
 }
-.af-age-bar[data-age="divine"] {                /* 별 타일 — 5각 별 path 를 인라인 SVG 로 (외부 에셋 아님) */
+.af-age-bar[data-age="divine"], .fi-age-bar[data-age="divine"] {                /* 별 타일 — 5각 별 path 를 인라인 SVG 로 (외부 에셋 아님) */
     --af-pat: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><path d='M12 2.6 14.7 9.3 21.9 9.8 16.4 14.5 18.1 21.4 12 17.6 5.9 21.4 7.6 14.5 2.1 9.8 9.3 9.3Z' fill='rgba(255,255,255,0.36)'/></svg>");
-    --af-pat-size: 1.5rem 1.5rem;
+    --af-pat-size: 1.55rem 1.55rem;   /* 원본 별 ≈22px · 간격 ≈26px (확률 정보 원본 3배 확대 실측) */
 }
 
 /* 체크박스 — 눌리는 물건으로 보이게 안쪽 그늘 + 위 테두리 하이라이트, 켜지면 초록 광택 */
@@ -2746,14 +2745,24 @@ body {
 
 /* ===== 확률 정보 팝업 (shot-042831 원본 대조 재작업) ===== */
 .fi-card {
-    width: min(calc(var(--app-w) * .9), 22.5rem); padding: .85rem .8rem .9rem; position: relative;
-    max-height: var(--popup-h-max); min-height: 0; overflow: hidden;
+    width: min(calc(var(--app-w) * .9), 22.9rem); padding: .85rem .8rem .9rem; position: relative;   /* 원본 카드 77.19%W */
+    /* 🚨 공용 `--popup-h-max`(≈77.6%H)로는 원본 높이가 안 나온다 — 원본 카드는 81.04%H(px 80~793)로
+       탭바 영역까지 내려오고 ✕가 탭바 위에 겹친다(자동 제련 카드와 같은 계열, 2번째).
+       그래서 이 팝업만 상한을 벗고 앱 높이 비율을 직접 쓴다. */
+    height: calc(var(--app-h) * .8104); max-height: calc(var(--app-h) * .8104);
+    min-height: 0; overflow: hidden;
 }
-.fi-card .fi-rows { flex: 1; min-height: 3rem; overflow-y: auto; }
+/* 🚨 카드 높이를 고정하면 **남는 세로 공간이 생기고**, 카드가 flex 컬럼이라 flex-grow 를 가진 자식이
+   그걸 통째로 먹는다 — 실제로 `.fi-skip` 이 234px 로 부풀고 그만큼 막대 줄이 눌려 막대가 17.7px 로
+   찌그러졌다(원본 29px). 높이 고정과 flex 기본값은 같이 쓰면 안 된다:
+   막대 줄은 '필요할 때만 줄어드는'(0 1 auto) 스크롤 상자로, 막대와 버튼은 안 줄고 안 늘게 못 박는다. */
+.fi-card .fi-rows { flex: 0 1 auto; min-height: 3rem; overflow-y: auto; }
+.fi-card .fi-age-bar, .fi-card .fi-skip, .fi-card .fi-upgrade { flex: none; }
 .fi-title { text-align: center; font-size: 1.12rem; font-weight: 900; margin: .1rem 0 0; }
 .fi-sub { text-align: center; font-size: .78rem; font-weight: 800; margin-bottom: .45rem; }
+/* ⓘ 는 제목이 아니라 **부제 줄 높이**에 앉는다(원본 잉크 y 123~144 = 부제 130~143 과 겹친다) */
 .fi-info-btn {
-    position: absolute; top: .7rem; right: .7rem; width: 1.5rem; height: 1.5rem; cursor: pointer;
+    position: absolute; top: 3.03rem; right: .7rem; width: 1.5rem; height: 1.5rem; cursor: pointer;
     border: none; border-radius: 50%; background: #17181a; color: #fff;
     font-size: .85rem; font-weight: 900; font-family: inherit; line-height: 1;
 }
@@ -2766,35 +2775,83 @@ body {
 .fi-pill-ico { width: 1.25rem; height: 1.25rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .75rem; flex: none; }
 .fi-pill-ico.coin { background: #f59e0b; }
 .fi-pill-ico.gem { background: #ef4444; }
+/* 레벨 줄은 막대 오른쪽 끝에서 4px 안쪽에서 끝난다(원본 잉크 x 281~423 vs 막대 65~427) —
+   막대와 같은 음수 마진을 주고 그만큼만 되돌려 오른쪽 기준선을 맞춘다. 글자도 막대 % 보다 크다. */
 .fi-level-row {
     display: flex; justify-content: flex-end; align-items: center; gap: .55rem;
-    font-size: .8rem; font-weight: 800; margin-bottom: .3rem; padding-right: .2rem;
+    font-size: .93rem; font-weight: 800; margin: 0 -.6rem .3rem; padding-right: .48rem;
 }
-.fi-rows { display: flex; flex-direction: column; gap: .28rem; }
+/* 막대는 카드 안쪽 여백보다 좌우로 더 나간다 — 원본은 카드 바깥선에서 8px 안쪽(막대 73.93%W vs 카드 77.19%W)이라
+   카드 패딩(.8rem)만큼 들어가면 4.7%p 좁다. 글자 들여쓰기는 그대로 두고 막대 줄만 음수 마진으로 되돌린다
+   (자동 제련의 `.af-scroll` 과 같은 처리). */
+.fi-rows { display: flex; flex-direction: column; gap: .24rem; margin: 0 -.6rem; }
 .fi-age-bar {
     display: flex; align-items: center; overflow: hidden;
-    background: var(--ac, #999); border: 3px solid var(--pp-line); border-radius: .55rem;
-    background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.09) 0 .5rem, transparent .5rem 1rem);
+    background: var(--ac, #999); border-radius: .55rem;
 }
+/* 원본 시대명은 **검정 민글자**다 — 흰 글자에 검정 외곽선이 아니다(원시적·우주·양자·지하 세계·신성한을
+   8배 확대해 전부 확인했다. 어두운 남색 막대인 '양자'까지 검정이라 밝기 대비로 갈리는 규칙도 아니다). */
 .fi-age-name {
-    flex: 1; text-align: left; padding: .22rem 0 .22rem .5rem;
-    font-weight: 900; font-size: .8rem; color: #fff;
-    text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
+    flex: 1; text-align: left; padding: .3rem 0 .3rem .5rem;   /* 막대 높이 3.29%H(29px)를 만드는 값 */
+    font-weight: 900; font-size: .8rem; color: #000;
     white-space: nowrap;
 }
-.fi-age-cur { font-weight: 900; font-size: .8rem; color: #17181a; padding-right: .55rem; }
+.fi-age-cur { font-weight: 900; font-size: .8rem; color: #000; padding-right: .55rem; }
+/* 다음 레벨 세그먼트 — 원본은 테두리 없이 **막대색을 그대로 곱하기로 어둡게** 한 면이다.
+   실측: 막대 rgb(28,175,255) → 세그먼트 rgb(22,135,197), 회색 rgb(224) → rgb(173) 로 둘 다 ×0.772 다
+   (회색을 덮는 방식이면 채도가 빠져 빨강·주황 막대에서 색이 확 틀어진다 — 종전 rgba(110,110,110,.42)가 그랬다). */
 .fi-age-next {
-    width: 22%; flex: none; align-self: stretch; display: flex; align-items: center; justify-content: center;
-    font-weight: 900; font-size: .8rem; color: #17181a;
-    background: linear-gradient(rgba(110,110,110,.42), rgba(110,110,110,.42));
-    border-left: 3px solid var(--pp-line);
+    width: 25.9%; flex: none; align-self: stretch; display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: .8rem; color: #000;
+    background: rgba(0,0,0,.228);
 }
-.fi-upg-label { text-align: center; font-size: .85rem; font-weight: 900; margin: .7rem 0 .35rem; }
-.fi-prog { margin: 0 .3rem; }
-.fi-skip {
-    display: block; margin: .8rem auto 0; padding: .45rem 1.6rem; line-height: 1.25;
-    background: #c9c9c9; color: #17181a; font-size: 1rem; font-weight: 900;
+/* ── 확률 정보 AAA 스킨 (TODO '전 화면 AAA 스킨' 2번 화면 — shot-042831) ──
+   무늬 지도(성간=광휘 얼룩·다중 우주=픽셀 블록·양자=동심원·지하 세계=마름모·천상=별)는 **원래 이 원본에서 읽은 것**이라
+   자동 제련(.af-age-bar)이 쓰던 `--af-pat` 규칙의 선택자에 `.fi-age-bar` 를 얹어 그대로 공유한다(정의를 복제하지 않는다).
+   앞 5개 시대(원시적~우주)가 민무늬인 것도 원본 그대로다. */
+.fi-age-bar { position: relative; }
+/* 무늬 층 — 🔍 원본에서 무늬는 **막대 오른쪽에만** 있다: 다섯 시대 전부 아이콘·이름이 앉는 왼쪽 구역은
+   비어 있고 대략 30% 지점부터 무늬가 든다(항성간 광휘 얼룩은 55%, 다중 우주 픽셀 블록은 이름 끝에서 시작,
+   양자 동심원은 오른쪽에서 퍼지고, 지하 세계 마름모·천상 별도 왼쪽 여백을 남긴다).
+   전면 타일링하면 글자 뒤가 지저분해지고 동심원은 좌우 끝에서 세로 줄무늬처럼 읽힌다 — 왼쪽을 마스크로 지운다. */
+.fi-age-bar::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    background-image: var(--af-pat, none);
+    background-size: var(--af-pat-size, auto);
+    background-position: var(--af-pat-pos, 0 0);
+    background-repeat: var(--af-pat-repeat, repeat);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0 24%, #000 46%);
+    mask-image: linear-gradient(90deg, transparent 0 24%, #000 46%);
+}
+.fi-age-bar::after {    /* 광택 층 — 위 하이라이트에서 아래 그늘로. 평면 색면에 두께를 준다 */
+    content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    background-image: linear-gradient(180deg,
+        rgba(255,255,255,.13) 0, rgba(255,255,255,.03) 42%,
+        rgba(0,0,0,.02) 58%, rgba(0,0,0,.15) 100%);   /* 원본은 평면 색면 — 광택이 세면 채도가 빠져 '다른 색'이 된다 */
+}
+.fi-age-bar > * { position: relative; z-index: 1; }
+.fi-age-bar { box-shadow: inset 0 .08rem 0 rgba(255,255,255,.3), inset 0 -.1rem 0 rgba(0,0,0,.2), 0 .1rem 0 rgba(0,0,0,.22); }
+/* 다음 레벨 세그먼트는 무늬·광택 위에 얹혀야 어두운 면이 제 색으로 보인다 */
+.fi-age-next { z-index: 2; }
+/* 시대 이름 뒤 별 — 자동 제련과 같은 규칙(마지막 시대만 빈 별). 원본 8배 확대로 '우주'까지 채운 별임을 확인했다. */
+.fi-age-star {
+    margin-left: .22rem; color: #ffb300; font-size: .88rem;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+}
+/* 마지막 시대는 빈 별(☆ 글리프) — 원본은 검정 윤곽만 있고 속은 막대 주황이 그대로 비친다 */
+.fi-age-bar[data-age="divine"] .fi-age-star { color: #000; text-shadow: none; }
+
+.fi-upg-label { text-align: center; font-size: .79rem; font-weight: 900; margin: 2.05rem 0 .4rem; }
+.fi-prog { margin: 0 .66rem; height: 1.79rem; }   /* 원본 진행바 3.41%H(30px) — 공용 .rates-prog(1.4rem)보다 두껍다 */
+/* 원본 [건너뛰기]: 31.57%W x 8.74%H, 글자는 **흰색 + 검정 외곽선**(클론은 검정 민글자였다).
+   ⚠️ `color` 는 반드시 `.fi-card .fi-skip` 처럼 두 클래스로 걸 것 — `.modal-card .btn { color: var(--pp-ink) }`
+      가 특이도 0-2-0 이라 `.fi-skip` 한 클래스로는 진다(흰 글자가 안 먹어 **검정 글자에 검정 외곽선**이
+      겹쳐 글자가 통째로 뭉개진 채 한 번 렌더됐다). 글자 크기도 원본 잉크 높이 22px 에 맞춘 값이다. */
+.fi-card .fi-skip {
+    display: block; margin: 0 auto; padding: .72rem 2.2rem; line-height: 1.25;
+    background: #c9c9c9; color: #fff; font-size: 1.16rem; font-weight: 900;
     border: 3px solid var(--pp-line); border-radius: .6rem;
+    text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
     box-shadow: inset 0 -.25rem 0 #9c9c9c;
 }
 .fi-skip:active { transform: translateY(.1rem); box-shadow: none; }
