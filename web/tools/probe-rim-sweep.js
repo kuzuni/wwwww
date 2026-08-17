@@ -15,6 +15,8 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     const rows = await page.evaluate(() => {
         Combat.tick = () => {};
         if (typeof Skills !== 'undefined' && Skills.tick) Skills.tick = () => {};
+        ProChar.update = () => {};   // 포즈 고정 (결정성)
+        if (Scene3D.heroRig) { Scene3D.heroRig._t = 0; Scene3D.heroRig._idleT = 0; }
         const R = Scene3D.renderer, gl = R.getContext();
         const w = R.domElement.width, h = R.domElement.height;
         const grab = () => {

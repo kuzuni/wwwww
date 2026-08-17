@@ -17,6 +17,9 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     const r = await page.evaluate(() => {
         Combat.tick = () => {};
         if (typeof Skills !== 'undefined' && Skills.tick) Skills.tick = () => {};
+        // 포즈 고정 — Idle 모션이 계속 돌면 팔·망토 위치가 실행마다 달라 지표가 크게 흔들린다.
+        ProChar.update = () => {};
+        if (Scene3D.heroRig) { Scene3D.heroRig._t = 0; Scene3D.heroRig._idleT = 0; }
         const R = Scene3D.renderer, gl = R.getContext();
         const w = R.domElement.width, h = R.domElement.height;
         const grab = () => {
