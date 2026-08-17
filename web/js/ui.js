@@ -973,12 +973,52 @@ const UI = {
         saveGame(); this.renderAutoForge();
     },
 
+    // ---- 모루 타격 연출 (사용자 지시: 제작을 누르면 망치가 쾅쾅 친 뒤에 비교 팝업) ----
+    // 총 0.72초 = 0.24초 × 3타. 반복 제작이 답답하지 않은 길이 안에서 마지막 타격만 강하게 준다.
+    // 궤적·지속은 CSS 키프레임(.anvil-fx)이 소유하고, 여기서는 타격 시각에 소리·흔들림만 맞춰 건다.
+    ANVIL_FX_MS: 720,
+    ANVIL_HITS: [170, 410, 650],   // css afswing의 타격 프레임(24% / 57% / 90%)과 같은 시각
+    playAnvilStrike(done) {
+        const btn = document.querySelector('.anvil-btn');
+        if (!btn) { done(); return; }   // 장비 시트가 닫혀 있으면 연출을 건너뛰고 결과만 낸다
+        const fx = document.createElement('span');
+        fx.className = 'anvil-fx';
+        const sparks = [];
+        for (let h = 0; h < 3; h++) {
+            const n = h === 2 ? 9 : 6;                       // 마지막 타격이 가장 많이 튄다
+            for (let i = 0; i < n; i++) {
+                // 위쪽 반구로만 튀게 각도를 잡고(모루 아래로 파고드는 불티는 오독), 중력분을 더해 아래로 떨어뜨린다
+                const a = -Math.PI * (0.08 + 0.84 * (i + U.rand(0, 0.6)) / n);
+                const d = U.rand(0.5, 1.15) * (h === 2 ? 1.35 : 1);
+                sparks.push(`<span class="af-spark" style="--dx:${(Math.cos(a) * d).toFixed(2)}em;--dy:${(Math.sin(a) * d + 0.4).toFixed(2)}em;--t:${(this.ANVIL_HITS[h] / 1000).toFixed(2)}s"></span>`);
+            }
+        }
+        fx.innerHTML = `<span class="af-hammer">🔨</span>`
+            + [0, 1, 2].map(h => `<span class="af-ring h${h}"></span>`).join('') + sparks.join('');
+        btn.appendChild(fx);
+        btn.classList.add('striking');
+        this._anvilTimers = this.ANVIL_HITS.map((t, h) => setTimeout(() => {
+            SFX.anvilHit(h === 2);
+            if (typeof Scene3D !== 'undefined' && Scene3D.shake) Scene3D.shake(h === 2 ? 0.13 : 0.07); // 미세하게만
+        }, t));
+        this._anvilTimers.push(setTimeout(() => {
+            fx.remove(); btn.classList.remove('striking');
+            done();
+        }, this.ANVIL_FX_MS));
+    },
     onCraft() {
+        if (this._anvilBusy) return;   // 연출 중 재클릭 무시 — 연타로 해머만 녹는 걸 막는다
         if (S.hammers < 1) { this.toast('🔨 해머가 부족합니다 (분당 1개 수급)'); return; }
         const item = Forge.craft(1)[0];
+        // 대기품은 연출 '전에' 세이브에 남긴다 — 타격 0.72초 사이에 새로고침해도 결과물이 살아 있다
         this.setPendingCraft(item);
-        this.showCraftModal(item);
         this.renderTopBar();
+        this._anvilBusy = true;
+        this.playAnvilStrike(() => {
+            this._anvilBusy = false;
+            // 연출 도중 탭을 옮겨 대기품이 이미 자동 판정됐다면(closeAllTabSurfaces) 팝업을 새로 띄우지 않는다
+            if (this._pendingItem === item) this.showCraftModal(item);
+        });
     },
 
     SLOT_EMOJI: { gloves: '🧤', necklace: '📿', ring: '💍', shoes: '👢', belt: '🎽' },

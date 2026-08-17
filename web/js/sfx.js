@@ -117,6 +117,14 @@ const SFX = {
         this.tone(70, 0.6, { type: 'sine', gain: 0.22, slideTo: 42 });
     },
 
+    // 모루 타격 — 금속 클랭(고음이 빠르게 떨어지고 배음이 남는다) + 짧은 스파크 노이즈.
+    // 마지막 타격은 더 세고 낮게 울려 '마무리'로 들린다.
+    anvilHit(strong) {
+        this.tone(strong ? 1650 : 1950, strong ? 0.2 : 0.12, { type: 'square', gain: strong ? 0.2 : 0.14, slideTo: strong ? 620 : 900 });
+        this.tone(strong ? 520 : 660, strong ? 0.26 : 0.16, { type: 'triangle', gain: strong ? 0.16 : 0.1, slideTo: strong ? 300 : 440 });
+        this.noiseBurst(strong ? 0.11 : 0.07, { gain: strong ? 0.22 : 0.14, filterFreq: 5200 });
+    },
+
     craft() {
         this.tone(660, 0.09, { type: 'square', gain: 0.2 });
         this.tone(880, 0.12, { type: 'square', gain: 0.2, delay: 0.06 });
