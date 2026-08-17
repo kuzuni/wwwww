@@ -8,8 +8,16 @@ const Mounts = {
         if (S.winders === undefined) S.winders = 0;
         if (S.mountOpens === undefined) S.mountOpens = 0;
         if (!S.mounts) S.mounts = {};          // name → {rarity, level, dupes, subs}
-        if (S.activeMount === undefined) S.activeMount = null; // name | null
+        // 장착 탈것은 배열이고 개수 제한이 없다 (사용자 지시 2026-08-18 "펫칸 제한없게 해라, 탈것도").
+        // 구세이브(문자열 1개)는 loadGame의 migrateActiveMounts가 이관하지만, 세이브를 안 거치고
+        // 직접 상태를 세우는 경로(검증 스크립트·새 게임)도 있어 여기서 한 번 더 방어한다.
+        if (!Array.isArray(S.activeMounts)) S.activeMounts = [];
+        if (typeof installMountCompat === 'function') installMountCompat(S);
     },
+
+    // 영웅이 실제로 올라타는 탈것 = 장착 목록의 첫 번째. 나머지는 3D에서 뒤를 따라다닌다.
+    ridden() { return S.activeMounts && S.activeMounts.length ? S.activeMounts[0] : null; },
+    isActive(name) { return !!S.activeMounts && S.activeMounts.indexOf(name) >= 0; },
 
     // 누적 오픈 수(S.mountOpens)로부터 현재 "소환 레벨"(등급 확률표 결정용) 산출
     // 원본: Lv1→2 2회, 이후 +3, Lv34부터 +34, Lv50 MAX
@@ -90,7 +98,7 @@ const Mounts = {
             if (!m) continue;
             totalXp += this.xpValue(m.rarity) * this.levelMult(m);
             delete S.mounts[name];
-            if (S.activeMount === name) S.activeMount = null;
+            S.activeMounts = S.activeMounts.filter(n => n !== name);
         }
         this.addXp(targetName, totalXp);
         Combat.recalcHero();
@@ -122,8 +130,9 @@ const Mounts = {
                 owned.dupes++;
             } else {
                 S.mounts[name] = { rarity, level: 1, dupes: 0, stars: Ascension.count('mount'), xp: 0, subs: this.rollSubs() };
-                // 장착 중인 탈것이 없으면 자동 장착
-                if (!S.activeMount) this.equip(name);
+                // 장착 중인 탈것이 하나도 없을 때만 자동 장착. 슬롯 제한은 없어졌지만 자동 장착까지
+                // 무제한으로 풀면 소환 한 번에 장면이 탈것으로 뒤덮인다 — 추가 장착은 사용자가 고른다.
+                if (!S.activeMounts.length) this.equip(name);
             }
             results.push({ name, rarity, isNew, level: S.mounts[name].level });
         }
@@ -135,24 +144,46 @@ const Mounts = {
         return { results };
     },
 
+    // 장착/해제 토글. 개수 제한 없음 — 몇 마리든 동시에 장착된다 (사용자 지시 2026-08-18).
+    // 목록 맨 앞이 '타고 있는' 탈것이라, 새로 장착한 탈것은 뒤에 붙어 따라다니는 쪽이 된다
+    // (장착할 때마다 영웅이 올라탄 탈것이 바뀌면 화면이 계속 튄다).
     equip(name) {
+        this.ensure();
         if (!S.mounts[name]) return false;
-        S.activeMount = S.activeMount === name ? null : name; // 장착 중 재클릭 = 해제 (상세 팝업 [해제] 버튼)
+        const pos = S.activeMounts.indexOf(name);
+        if (pos >= 0) S.activeMounts.splice(pos, 1);   // 장착 중 재클릭 = 해제 (상세 팝업 [해제] 버튼)
+        else S.activeMounts.push(name);
         Combat.recalcHero();
         if (typeof Scene3D !== 'undefined' && Scene3D.refreshMount) Scene3D.refreshMount();
         saveGame();
         return true;
     },
 
-    // 장착 중인 탈것의 고정 공격력·체력 + 서브스탯 보너스 (없으면 전부 0)
+    // 타고 있는 탈것을 이 탈것으로 바꾼다(목록 맨 앞으로). 장착돼 있지 않으면 장착부터 한다.
+    setRidden(name) {
+        this.ensure();
+        if (!S.mounts[name]) return false;
+        S.activeMounts = [name, ...S.activeMounts.filter(n => n !== name)];
+        Combat.recalcHero();
+        if (typeof Scene3D !== 'undefined' && Scene3D.refreshMount) Scene3D.refreshMount();
+        saveGame();
+        return true;
+    },
+
+    // 장착 중인 **모든** 탈것의 합산 고정 공격력·체력 + 서브스탯 (없으면 전부 0).
+    // 탈것 1마리 = 같은 등급 장비 8부위 합이라는 등가 규칙은 그대로 두고 마리 수만 늘어난다
+    // — 슬롯 제한 해제가 사용자 지시라 밸런스 메모보다 우선한다(TODO pet-mount-slot-unlimited).
     activeBonus() {
         const b = { atk: Big.ZERO, hp: Big.ZERO, subs: [] };
-        const m = S.activeMount ? S.mounts[S.activeMount] : null;
-        if (!m) return b;
-        const pw = this.mountPower(m);
-        b.atk = pw.atk;
-        b.hp = pw.hp;
-        b.subs = m.subs || [];
+        if (!Array.isArray(S.activeMounts)) return b;
+        for (const name of S.activeMounts) {
+            const m = S.mounts[name];
+            if (!m) continue;
+            const pw = this.mountPower(m);
+            b.atk = b.atk.add(pw.atk);
+            b.hp = b.hp.add(pw.hp);
+            b.subs.push(...(m.subs || []));
+        }
         return b;
     },
 };

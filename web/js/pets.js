@@ -3,7 +3,11 @@ const Pets = {
     BASE_HATCH_SLOTS: 3, // 원본 스크린샷 기준 부화장 기본 슬롯 3개 (UI-SPEC.md 53번 줄)
     MAX_HATCH_SLOTS_CAP: 5, // 젬 구매로 늘릴 수 있는 상한 (원본 상한 미확보 → 자체 설계)
     SLOT_GEM_COST: 400, // 원본 확인된 단가(◆400) — 이후 구매는 회당 누적 증가(자체 설계)
-    MAX_ACTIVE: 3,
+    // ⚠️ 예전 `MAX_ACTIVE: 3` 하나가 세 가지 뜻으로 겹쳐 쓰였다 — 출전 상한 / 부화 시 자동 출전 수 /
+    //    밸런스 등가 나눗수. 사용자 지시("펫칸 제한없게 해라" 2026-08-18)로 **상한만** 없애야 하는데
+    //    한 상수라 나머지 둘까지 같이 흔들려서, 뜻대로 쪼갰다.
+    AUTO_ACTIVE: 3,  // 부화로 새 펫이 나왔을 때 자동으로 출전시키는 최대 마리 수(그 뒤로는 사용자가 고름)
+    POWER_DIV: 3,    // 밸런스 등가 나눗수 — 펫 1마리 = 같은 등급 장비 8부위 합의 1/3 (사용자 확정 2026-08-17)
     // 알 보관 상한. 예전 값 20은 공통 소환 배수(UI.SUMMON_MULTS 최대 x75)보다 작아서
     // x25·x75가 빈 보관함에서도 항상 실패했다 — "제공되는 배수는 반드시 사용 가능해야 한다"에 맞춰
     // 최대 배수를 빈 보관함에서 한 번에 받을 수 있는 크기로 올린다.
@@ -121,7 +125,7 @@ const Pets = {
                     UI.toast(`🥚 ${PET_KR[def.name] || def.name} 중복 획득 (재료 ${existing.dupes})`);
                 } else {
                     S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, xp: 0, stars: Ascension.count('pet'), subs: this.rollSubs() });
-                    if (S.activePets.length < this.MAX_ACTIVE) {
+                    if (S.activePets.length < this.AUTO_ACTIVE) {
                         S.activePets.push(S.pets.length - 1);
                         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
                     }
@@ -141,12 +145,14 @@ const Pets = {
     // L100에서 12.88배 vs 장비 2.68배로 어긋나, 특정 레벨에서만 등가가 성립했다 (사용자 확정 2026-08-17)
     levelMult(p) { return Forge.levelMult(p.level); },
 
-    // 출전 슬롯 3칸 = 장비 8부위와 등가 → 펫 1마리는 같은 등급 장비 8부위 합의 1/3 (사용자 확정 2026-08-17).
+    // 펫 1마리 = 같은 등급 장비 8부위 합의 1/3 (사용자 확정 2026-08-17).
+    // 출전 슬롯 제한이 없어진 뒤로도 **마리당 기여도는 그대로** 둔다 — 나눗수를 출전 수에 연동하면
+    // 펫을 더 장착할수록 마리당 값이 줄어 "칸을 늘렸는데 세지지 않는다"가 되기 때문.
     // 등급↔시대 매핑은 Forge.ageOfRarity가 담당하고, 여기선 개수 등가만 나눈다.
     baseStat(rarity) {
         return {
-            atk: Forge.gearSumAtkAt(rarity) / this.MAX_ACTIVE,
-            hp: Forge.gearSumHpAt(rarity) / this.MAX_ACTIVE,
+            atk: Forge.gearSumAtkAt(rarity) / this.POWER_DIV,
+            hp: Forge.gearSumHpAt(rarity) / this.POWER_DIV,
         };
     },
 
@@ -219,11 +225,12 @@ const Pets = {
         return b;
     },
 
+    // 출전/해제 토글. 개수 제한 없음 (사용자 지시 2026-08-18) — 보유한 펫은 전부 동시에 출전할 수 있다.
     toggleActive(petIdx) {
+        if (!S.pets[petIdx]) return false;
         const pos = S.activePets.indexOf(petIdx);
         if (pos >= 0) S.activePets.splice(pos, 1);
-        else if (S.activePets.length < this.MAX_ACTIVE) S.activePets.push(petIdx);
-        else return false;
+        else S.activePets.push(petIdx);
         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
         Combat.recalcHero();
         saveGame();

@@ -13,7 +13,7 @@ let S = null;
 Object.defineProperty(window, 'S', { get: () => S, configurable: true });
 
 function defaultState() {
-    return {
+    return installMountCompat({
         version: 1,
         createdAt: U.now(),
         lastSeen: U.now(),
@@ -57,7 +57,7 @@ function defaultState() {
         eggs: [{ rarity: 'common' }],   // 미부화 알: {rarity}
         hatching: [],                   // 부화 중: {rarity, endsAt} 최대 2슬롯
         pets: [],                       // {name, rarity, level, dupes}
-        activePets: [],                 // pets 배열 인덱스, 최대 3
+        activePets: [],                 // 출전 중인 pets 배열 인덱스. 개수 제한 없음 (사용자 지시 2026-08-18 "펫칸 제한없게 해라")
         // 스킬 (시작 스킬: 강타)
         skills: { powerStrike: { level: 1, dupes: 0, stars: 0 } },
         equippedSkills: ['powerStrike'],
@@ -67,8 +67,26 @@ function defaultState() {
         // 마운트
         mountOpens: 0,                  // 누적 소환 수 → 마운트 레벨 상승
         mounts: {},                     // name → {rarity, count}
-        activeMount: null,              // 장착 중인 마운트 이름
-    };
+        // 장착 중인 마운트 이름 목록. 개수 제한 없음 (사용자 지시 2026-08-18 "탈것도").
+        // [0]이 영웅이 실제로 올라타는 탈것이고, 나머지는 3D에서 뒤쪽에 따라다닌다(Scene3D.refreshMount).
+        activeMounts: [],
+    });
+}
+
+// 구 필드 `S.activeMount`(문자열 1개) 호환 접근자.
+// 정식 상태는 이제 `S.activeMounts` 배열이지만, tools/ 아래 검증 스크립트 12개가 `S.activeMount = 'x'`로
+// 장면을 세팅한다 — 그쪽을 전부 고치는 대신 읽기/쓰기를 배열로 옮겨 주는 얇은 층을 둔다.
+//   읽기: 타고 있는 탈것(=activeMounts[0]) | null    쓰기: null → 전부 해제, 이름 → 그 하나만 장착
+// enumerable:false 라 JSON.stringify(S)에 안 실린다 — 세이브에는 activeMounts만 남는다.
+function installMountCompat(st) {
+    if (!st || Object.getOwnPropertyDescriptor(st, 'activeMount')?.get) return st;
+    delete st.activeMount;
+    Object.defineProperty(st, 'activeMount', {
+        get() { return this.activeMounts && this.activeMounts.length ? this.activeMounts[0] : null; },
+        set(v) { this.activeMounts = v ? [v] : []; },
+        enumerable: false, configurable: true,
+    });
+    return st;
 }
 
 // 구세이브·손상 세이브 필드 보정 (QA 10차 버그: 필드가 빠진 세이브가 부팅을 통째로 죽였다).
@@ -102,18 +120,36 @@ function pruneDanglingRefs() {
     S.pets = S.pets.filter(p => p && typeof p === 'object' && !Array.isArray(p));
     S.eggs = S.eggs.filter(e => e && typeof e === 'object' && !Array.isArray(e));
     S.hatching = S.hatching.filter(h => h && typeof h === 'object' && !Array.isArray(h));
+    // 출전 펫은 개수 상한이 없다(사용자 지시 2026-08-18) — 중복·범위 밖 인덱스만 걷어낸다
     const seen = new Set();
     S.activePets = S.activePets.filter(i => {
         if (!Number.isInteger(i) || i < 0 || i >= S.pets.length || seen.has(i)) return false;
         seen.add(i);
         return true;
-    }).slice(0, typeof Pets !== 'undefined' ? Pets.MAX_ACTIVE : 3);
+    });
+    // 장착 탈것도 같은 갈래: 타입은 배열인데 없는 탈것 이름을 가리키면 3D·스탯 합산에서 터진다
+    const seenMounts = new Set();
+    S.activeMounts = S.activeMounts.filter(n => {
+        if (typeof n !== 'string' || !S.mounts[n] || seenMounts.has(n)) return false;
+        seenMounts.add(n);
+        return true;
+    });
     // 장비 슬롯은 STATE_SHAPE_KEYS 재귀가 '기본값이 null'이라 어떤 값이든 통과시킨다 —
     // 문자열·배열이 들어 있으면 장비 시트가 터지므로 여기서 null로 되돌린다.
     for (const slot of Object.keys(S.equipment)) {
         const it = S.equipment[slot];
         if (it !== null && (typeof it !== 'object' || Array.isArray(it))) S.equipment[slot] = null;
     }
+}
+
+// 구세이브 이관: `activeMount: "Brown Horse"`(문자열 1개) → `activeMounts: ["Brown Horse"]`.
+// ⚠️ ensureStateShape()보다 **먼저** 불러야 한다 — 나중이면 shape 보정이 없는 activeMounts를
+//    기본값 []로 먼저 채워 버려서, 구세이브에 장착돼 있던 탈것이 조용히 벗겨진다.
+// 접근자를 걸기 전에 원본 데이터 프로퍼티를 읽어야 하므로 순서도 이 함수 안에서 고정한다.
+function migrateActiveMounts() {
+    const legacy = typeof S.activeMount === 'string' && S.activeMount ? S.activeMount : null;
+    if (!Array.isArray(S.activeMounts)) S.activeMounts = legacy ? [legacy] : [];
+    installMountCompat(S);   // 데이터 프로퍼티였던 activeMount를 접근자로 교체(= 세이브에서 제거)
 }
 
 function ensureStateShape() {
@@ -160,6 +196,7 @@ function loadGame() {
             // 통짜 교체라 세이브가 객체가 아니면(배열·숫자·문자열·null) 그 뒤가 전부 무너진다
             if (!S || typeof S !== 'object' || Array.isArray(S)) { S = defaultState(); return false; }
             if (!S.version) S = defaultState();
+            migrateActiveMounts(); // 구세이브의 activeMount(문자열 1개) → activeMounts(배열). ensureStateShape보다 먼저!
             ensureStateShape();   // 빠진/망가진 코어 필드를 기본값으로 메꾼다 (부팅 중단 방지)
             pruneDanglingRefs();  // 형태는 맞지만 대상이 없는 참조(없는 스킬 id·허공 펫 인덱스)를 끊는다
             if (!S.lastOfflineClaim) S.lastOfflineClaim = S.lastSeen || U.now();

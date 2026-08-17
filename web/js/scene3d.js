@@ -11,7 +11,8 @@ const Scene3D = {
     worldX: 0,               // 플레이어가 오른쪽으로 전진한 누적 거리 (무한 월드)
     heroG: null, weaponG: null, helmetG: null, bodyMesh: null,
     petGroups: [],
-    mountGroup: null,
+    mountGroup: null,      // 영웅이 올라탄 탈것 (활성 목록의 맨 앞 1마리)
+    mountFollowers: [],    // 장착은 했지만 타지 않은 나머지 탈것들 — 뒤쪽 호에서 따라온다
     enemyMap: new Map(),     // id → {g, body, hpBg, hpFg, dead}
     particles: [],
     anims: [],               // {t, dur, fn(k), onDone}
@@ -3742,9 +3743,59 @@ const Scene3D = {
         return g;
     },
 
+    // ── 출전 대열 좌표 ──────────────────────────────────────────────────────
+    // 출전 슬롯 제한이 없어져(사용자 지시 2026-08-18) 펫이 최대 25마리·탈것이 최대 15마리까지
+    // 동시에 설 수 있다. 예전처럼 자리를 3개만 손으로 박아 두면 4번째부터 `spots[i]`가 undefined라
+    // 그 자리에서 터진다 — 마리 수에 따라 자리를 만들어 내는 함수로 바꾼다.
+    //
+    // 앞 3자리는 예전 값을 그대로 쓴다. 저 좌표는 "z<=0은 영웅 몸통 뒤에 가린다 / 탈것을 타면
+    // 탈것 다리가 펫을 자른다"를 실측으로 잡아낸 결과라, 흔한 3마리 이하 구성의 그림을 지키려면
+    // 새 공식으로 덮어쓰지 않는 편이 낫다. 4번째부터만 바깥쪽 호를 만들어 붙인다.
+    PET_ROW0: {
+        mounted:  [[-1.16, 1.52], [0.06, 2.02], [1.14, 1.46]],
+        unmounted: [[-0.72, 1.18], [0.02, 1.62], [0.68, 1.12]],
+    },
+    // 4번째부터의 호. 두 가지를 동시에 만족해야 한다:
+    //  ⑴ 카메라(z 8.2)로 다가오면 화면을 가린다 → **깊이(rz)보다 폭(rx)을 훨씬 빨리** 넓힌다.
+    //  ⑵ 행 사이가 붙으면 안 된다 → rzStep이 너무 작으면 앞뒤 행이 0.4유닛까지 겹친다(실측으로 걸림).
+    //     행 안쪽 간격(gap)만 보고 행 간격을 안 보면 이 함정에 빠진다 — 둘 다 tools/test-slot-unlimited.js가 잰다.
+    // hmin: 정면(각 0) 쪽으로 비워 둘 각도. 펫은 정면도 써야 하니 0.
+    PET_ARC: { rx0: 3.2, rxStep: 1.4, rz0: 2.35, rzStep: 0.78, hmin: 0, hmax: 1.18, gap: 1.15, mountedRx: 0.45, mountedRz: 0.42 },
+    // 타지 않은 탈것(따라다니는 무리)은 영웅 **뒤쪽** 호에 세운다 — 덩치가 커서 앞에 두면
+    // 전투선과 펫을 통째로 가린다. hmin > 0 으로 **정면 뒤(각 0)를 비워** 영웅 몸통에 가리는 자리를 없앤다.
+    MOUNT_ARC: { rx0: 2.5, rxStep: 1.5, rz0: 1.7, rzStep: 0.85, zBase: -0.35, hmin: 0.32, hmax: 1.2, gap: 1.4 },
+
+    // 인덱스 i번째 개체가 설 [x, z] (영웅 기준 상대 좌표). row0은 손으로 맞춘 고정 자리, 그 뒤는 호에서 생성.
+    // 한 행은 항상 **좌우 짝수 쌍**으로 채운다 — 좌우가 어긋나면 무리가 한쪽으로 쏠려 보이고,
+    // hmin을 둔 탈것 호에서는 홀수 배치가 결국 정면(각 0)에 한 마리를 세워 버린다.
+    formationSpot(i, arc, row0) {
+        if (row0 && i < row0.length) return row0[i];
+        let n = i - (row0 ? row0.length : 0);
+        const span = arc.hmax - arc.hmin;
+        for (let r = 0; r < 64; r++) {
+            const rx = arc.rx0 + r * arc.rxStep, rz = arc.rz0 + r * arc.rzStep;
+            // 이 행의 한쪽 정원 = 호 길이(span·rx) ÷ 개체 간격. 전체 정원은 그 2배(좌우 대칭).
+            const half = Math.max(1, Math.round((span * rx) / arc.gap));
+            if (n >= half * 2) { n -= half * 2; continue; }
+            const side = n % 2 ? 1 : -1, k = (n - (n % 2)) / 2;
+            const a = arc.hmin + (k + 0.5) * (span / half);   // 칸 중앙에 세워 양 끝이 호 끝에 붙지 않게
+            const z = arc.zBase === undefined ? rz * Math.cos(a) : arc.zBase - rz * Math.cos(a);
+            return [side * rx * Math.sin(a), z];
+        }
+        return [0, arc.zBase === undefined ? arc.rz0 : arc.zBase - arc.rz0];   // 도달 불가(64행 = 수백 마리)
+    },
+
     refreshPets() {
         for (const pg of this.petGroups) { this.disposeTree(pg); this.scene.remove(pg); }
         this.petGroups = [];
+        // 탈것을 타고 있으면 탈것 풋프린트를 피해 앞 3자리를 넓게 쓰고, 생성 호도 그만큼 밀어낸다
+        const mounted = !!Mounts.ridden();
+        const row0 = mounted ? this.PET_ROW0.mounted : this.PET_ROW0.unmounted;
+        // 탑승 중 row0은 더 넓고 더 깊은 자리라, 생성 호도 폭·깊이 양쪽으로 같이 밀어내야
+        // 4번째 펫이 3번째 자리에 붙어 선다(rx만 밀면 앞뒤로 겹친다 — 실측으로 걸렸다).
+        const arc = mounted
+            ? { ...this.PET_ARC, rx0: this.PET_ARC.rx0 + this.PET_ARC.mountedRx, rz0: this.PET_ARC.rz0 + this.PET_ARC.mountedRz }
+            : this.PET_ARC;
         S.activePets.forEach((pi, i) => {
             const p = S.pets[pi];
             if (!p) return;
@@ -3761,12 +3812,11 @@ const Scene3D = {
             // 탈것을 타면 탈것의 다리·몸통이 펫을 다시 가린다(비평가 실측: 3마리 중 2마리가 탈것 다리에
             // 잘리고 1마리는 배 밑으로 들어갔다). 영웅만 있을 때 기준으로 잡은 반경이라 탈것 풋프린트를
             // 못 피하는 것 — 탈것 장착 중에는 좌우로 더 벌리고 카메라 쪽으로 더 당긴다.
-            const mounted = !!S.activeMount;
-            const spots = mounted ? [[-1.16, 1.52], [0.06, 2.02], [1.14, 1.46]]
-                                  : [[-0.72, 1.18], [0.02, 1.62], [0.68, 1.12]];
-            g.position.set(Combat.HERO_X + spots[i][0] + this.worldX, 0.4, spots[i][1]);
+            // 4번째부터는 formationSpot이 바깥 호에 자리를 만들어 준다(출전 제한 해제, 최대 25마리).
+            const spot = this.formationSpot(i, arc, row0);
+            g.position.set(Combat.HERO_X + spot[0] + this.worldX, 0.4, spot[1]);
             g.userData.home = g.position.clone();
-            g.userData.spotX = spots[i][0];
+            g.userData.spotX = spot[0];
             g.userData.name = p.name;
             g.userData.phase = U.rand(0, Math.PI * 2);  // 개체별 위상차
             g.userData.speed = U.rand(0.85, 1.25);       // 개체별 속도차
@@ -3833,10 +3883,13 @@ const Scene3D = {
     },
 
     // 탈것: 장착 중이면 영웅이 실제로 올라탄다 — 탈것은 영웅 발밑, 영웅은 안장 높이로 상승.
+    // 장착 제한이 없어져(사용자 지시 2026-08-18) 여러 마리를 동시에 낄 수 있는데, 몸이 하나라
+    // **탈 수 있는 건 맨 앞 한 마리**뿐이다. 나머지는 뒤쪽 호에 무리로 세운다(refreshMountFollowers).
     refreshMount() {
         if (this.mountGroup) { this.disposeTree(this.mountGroup); this.scene.remove(this.mountGroup); this.mountGroup = null; }
         this.rideY = 0; this.ridePose = null; this.riding = null;
-        const name = S.activeMount, m = name && S.mounts[name];
+        this.refreshMountFollowers();
+        const name = Mounts.ridden(), m = name && S.mounts[name];
         if (!m) {                                    // 해제: 지면 복귀 + 탑승 포즈·기울기 제거
             if (this.heroG) { this.heroG.rotation.x = 0; this.heroG.position.y = 0; }
             this.applyWeaponGrip();
@@ -3892,6 +3945,36 @@ const Scene3D = {
         if (this.heroG) this.heroG.position.y = heroY;
         this.applyWeaponGrip();                    // 무기 거치 자세와 탑승 포즈를 합성
         if (this.petGroups.length) this.refreshPets();   // 탈것 풋프린트를 피해 펫 자리를 다시 잡는다
+    },
+
+    // 타지 않은 나머지 장착 탈것 = 뒤를 따라오는 무리. 탑승 정합(안장 역산)은 필요 없으므로
+    // 원래 크기 그대로 두고, 영웅 **뒤쪽** 호에 세워 전투선과 앞줄 펫을 가리지 않게 한다.
+    refreshMountFollowers() {
+        for (const fg of this.mountFollowers) { this.disposeTree(fg); this.scene.remove(fg); }
+        this.mountFollowers = [];
+        const names = Array.isArray(S.activeMounts) ? S.activeMounts.slice(1) : [];
+        names.forEach((name, i) => {
+            const m = S.mounts[name];
+            if (!m) return;
+            const g = new THREE.Group();
+            const sc = 1.1 + RARITIES.indexOf(m.rarity) * 0.1;
+            const mesh = this.makeMountMesh(name, m.rarity);
+            mesh.scale.setScalar(sc);
+            g.add(mesh);
+            g.rotation.y = 0.55;                     // 영웅과 같은 3/4 방향
+            const spot = this.formationSpot(i, this.MOUNT_ARC, null);
+            const baseY = this.mountFormOf(name).hover * sc;   // 비행형은 원래 뜨는 높이 유지
+            g.position.set(Combat.HERO_X + spot[0] + this.worldX, baseY, spot[1]);
+            g.userData.home = g.position.clone();
+            g.userData.spotX = spot[0];
+            g.userData.baseY = baseY;
+            g.userData.phase = U.rand(0, Math.PI * 2);   // 개체별 위상차 — 무리가 한 몸처럼 까딱이지 않게
+            g.userData.speed = U.rand(0.85, 1.2);
+            this.setShadow(g, true);
+            this.applyRimLight(g);
+            this.scene.add(g);
+            this.mountFollowers.push(g);
+        });
     },
 
     // 등자를 영웅의 **실제 발 위치**로 옮긴다 — 상수로 박으면 포즈·다리 길이·탈것 배율이 곱해진 자리를
@@ -6347,6 +6430,14 @@ const Scene3D = {
                 this.heroG.rotation.x = mg.rotation.x * 0.6;
                 this.alignStirrups();                                 // 등자를 실제 발 위치에 붙인다
             }
+        }
+        // 따라오는 탈것 무리: 영웅 전진을 같이 따라가고, 개체별 위상·속도로 어긋나게 까딱인다
+        for (const fg of this.mountFollowers) {
+            const ud = fg.userData;
+            const t = this._clock * (ud.speed || 1) + (ud.phase || 0);
+            ud.home.x = Combat.HERO_X + (ud.spotX || 0) + this.worldX;
+            fg.position.x = ud.home.x;
+            fg.position.y = (ud.baseY || 0) + Math.abs(Math.sin(t * 4)) * 0.05 * (this.walking ? 1.6 : 1);
         }
         // ===== 사망·기상 구간의 영웅 높이 — 이 구간만은 여기가 단독 주인이다 =====
         // 사용자 3회 재지적('죽을 때 하늘로 올라간다')의 원인은 Death 클립이 아니라 **주인 없는 y**였다:

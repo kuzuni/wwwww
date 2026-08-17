@@ -20,7 +20,8 @@ const sandbox = {
     // 참조 무결성 검사용 실제 데이터 대역
     SKILL_DEFS: [{ id: 'powerStrike' }, { id: 'fireball' }],
     Skills: { MAX_ACTIVE: 3 },
-    Pets: { MAX_ACTIVE: 3 },
+    // Pets 스텁은 뺐다 — 출전 슬롯 제한이 없어져(2026-08-18) pruneDanglingRefs가 Pets를 더 안 본다.
+    // 상수 스텁을 남겨 두면 "아직 상한이 있다"로 읽혀 다음 세션을 헷갈리게 한다.
     TechTree: { offlineCapMult: () => 1, offlineCoinMult: () => 1, offlineHammerMult: () => 1 },
     UNLOCKS: [],
 };
