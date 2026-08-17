@@ -27,14 +27,24 @@ const SEEK = `(T => {
     const cells = [...UI._srCells], d = UI._srDelays, last = d[d.length - 1];
     cells.forEach((c, i) => c.classList.toggle('on', d[i] <= T));
     m.classList.toggle('flash', !!UI._srHoldback && last <= T);
+    // 주역 비트 두 단계는 착지 후 SR_HERO_HOLD_MS 만에 풀린다(실제 런타임과 동일)
+    const beatEnd = last + UI.SR_HERO_HOLD_MS;
+    m.classList.toggle('hero-cue', UI._srCueAt >= 0 && T >= UI._srCueAt && T < beatEnd);
+    m.classList.toggle('hero-in', UI._srRecedeAt >= 0 && T >= UI._srRecedeAt && T < beatEnd);
     m.classList.toggle('done', T >= last + UI.SR_TAIL_MS);
     for (const a of document.getAnimations()) {
         const el = a.effect && a.effect.target;
         if (!el || !el.getRootNode) continue;
+        const pe = a.effect.pseudoElement || '';
         let base = 0;
         const cell = el.closest ? el.closest('.sr-cell') : null;
         if (cell) base = d[cells.indexOf(cell)] || 0;
         else if (el.classList && el.classList.contains('sr-flash')) base = last;
+        else if (el.classList && el.classList.contains('sr-grid')) base = last;
+        else if (el.classList && el.classList.contains('sr-heroline')) base = last;
+        // .hero-cue가 켜질 때 시작하는 축적 애니메이션들(비네트·소환진)은 원점이 _srCueAt
+        else if (pe && el.classList &&
+                 (el.classList.contains('sr-floor') || el.classList.contains('sr-wrap'))) base = Math.max(0, UI._srCueAt);
         a.pause();
         try { a.currentTime = Math.max(0, T - base); } catch (e) { /* 무한 반복 외 예외 무시 */ }
     }

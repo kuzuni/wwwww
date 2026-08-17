@@ -2295,7 +2295,8 @@ body {
     padding: .9rem 1.1rem .8rem;
     /* 카메라 셰이크 — 빛 모임이 터지는 순간 화면이 한 번 흔들린다. 연출 프리미티브가
        팝/플래시뿐이면 충격이 화면에 전달되지 않는다 */
-    animation: srshake .5s cubic-bezier(.22,.85,.32,1) both;
+       셰이크도 빛이 터지는 정점(.46s)에 맞춰 지연시킨다 — 0초에 흔들면 원인 없이 흔들린다 */
+    animation: srshake .5s cubic-bezier(.22,.85,.32,1) .46s both;
 }
 @keyframes srshake {
     0%   { transform: none; }
@@ -2384,9 +2385,9 @@ body {
                 rgba(0,0,0,0) 1.1deg 9deg);
     -webkit-mask-image: radial-gradient(closest-side, rgba(0,0,0,0) 87%, #000 93%, #000 99%, rgba(0,0,0,0) 100%);
     mask-image: radial-gradient(closest-side, rgba(0,0,0,0) 87%, #000 93%, #000 99%, rgba(0,0,0,0) 100%);
-    animation: srfloorbreath 4.2s ease-in-out infinite;
+    animation: srfloorbreath 2.6s ease-in-out infinite;
 }
-@keyframes srfloorbreath { 0%, 100% { opacity: .5; } 50% { opacity: .9; } }
+@keyframes srfloorbreath { 0%, 100% { opacity: .34; } 50% { opacity: 1; } }
 /* 배경 광선 — 등간격 하드 스포크는 바람개비처럼 보인다. 굵기가 다른 2겹을 겹쳐 살짝 흐린다 */
 .sr-rays {
     position: absolute; left: 50%; top: 50%; width: 190%; aspect-ratio: 1;
@@ -2405,6 +2406,24 @@ body {
     transform: translate(-50%, -50%); pointer-events: none;
     background: radial-gradient(closest-side, rgba(120,165,255,.3) 0%, rgba(90,130,255,.1) 48%, rgba(0,0,0,0) 100%);
 }
+/* ⑸ 바닥 잉걸 — 연출이 끝난 뒤 화면이 완전히 정지(t2400과 t2760이 동일 프레임)하던 문제와
+   하단 45% 공백을 함께 처리한다. 아래쪽 밴드에서만 피어올라 사라지므로 아이콘 줄을 방해하지 않는다. */
+.sr-embers { position: absolute; left: 0; right: 0; bottom: 0; height: 52%; z-index: 0;
+    pointer-events: none; overflow: hidden; opacity: 0; transition: opacity .6s ease-out; }
+#summon-result-modal.done .sr-embers { opacity: 1; }
+.sr-embers i {
+    position: absolute; left: var(--x); bottom: -1rem;
+    width: calc(var(--s) * 1.9); height: calc(var(--s) * 1.9);
+    border-radius: 50%; opacity: 0; mix-blend-mode: screen;
+    background: radial-gradient(circle, #fff 0%, var(--halo, rgba(150,190,255,.5)) 45%, rgba(255,255,255,0) 74%);
+    animation: srember var(--dur) linear var(--d) infinite;
+}
+@keyframes srember {
+    0%   { opacity: 0;   transform: translate(0, 0) scale(.5); }
+    18%  { opacity: .9; }
+    72%  { opacity: .5; }
+    100% { opacity: 0;   transform: translate(var(--sway), -14rem) scale(1.15); }
+}
 /* 배경 빛가루 */
 .sr-motes { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .sr-motes i {
@@ -2422,34 +2441,61 @@ body {
 
 /* ① 빛 모임 — 화면 전체가 밝아졌다 가라앉는다. 색은 중립(등급색을 쓰면 첫 0.7초에
    최고 등급을 스포일해 홀드백 연출이 무의미해진다) */
+/* ⚠️ 인과 관계 — 예전에는 휘도가 t=120ms에 정점을 찍고 480ms엔 거의 암전인데 첫 아이콘이
+   그 뒤에 떴다. "빛이 다 꺼진 뒤 별개 애니메이션이 시작"으로 읽힌다. 이징을 후반 가속으로
+   뒤집어 **480ms(= SR_CHARGE_MS, 첫 셀 등장 시각)가 최대 휘도**가 되게 하고, 아이콘은
+   그 정점의 백색 오버슛이 감쇠하는 동안 그 안에서 꺼내진다. 두 애니메이션을 이어 붙이되
+   뒤엣것은 backwards fill을 주지 않아야(forwards만) 앞 구간을 덮어쓰지 않는다. */
 .sr-charge {
     position: absolute; inset: 0; pointer-events: none; z-index: 3;
+    /* 알파 오버레이는 아래를 탁하게 죽인다 — 가산 합성으로 '빛'이 되게 한다 */
+    mix-blend-mode: screen;
     background: radial-gradient(circle at 50% 50%, #fff 0%, #eaf2ff 8%,
                 rgba(150,190,255,.6) 21%, rgba(255,255,255,0) 44%);
-    animation: srcharge .68s cubic-bezier(.3,.7,.3,1) forwards;
+    animation: srcharge .48s cubic-bezier(.7,0,.9,.2) both,
+               srchargeout .42s cubic-bezier(.16,.72,.3,1) .48s forwards;
 }
+/* 바깥에서 안으로 조여들며 밝아진다 — 빛줄기(.sr-streaks)가 모이는 방향과 같다 */
 @keyframes srcharge {
-    0%   { opacity: 0;   transform: scale(.16); }
-    40%  { opacity: 1;   transform: scale(.6); }
-    100% { opacity: 0;   transform: scale(1.9); }
+    0%   { opacity: .05; transform: scale(1.5); }
+    100% { opacity: 1;   transform: scale(.52); }
+}
+/* 정점에서 터져 나가며 감쇠 — 이 구간 안에서 아이콘이 등장한다 */
+@keyframes srchargeout {
+    0%   { opacity: 1;   transform: scale(.52); }
+    100% { opacity: 0;   transform: scale(2.2); }
 }
 .sr-shock {
     position: absolute; left: 50%; top: 50%; width: 9rem; height: 9rem; margin: -4.5rem 0 0 -4.5rem;
     border-radius: 50%; border: .22rem solid #eaf2ff; pointer-events: none; opacity: 0; z-index: 3;
     box-shadow: 0 0 1.2rem rgba(180,215,255,.75);
-    animation: srshock .6s ease-out forwards;
+    /* 충격파는 빛이 모인 '뒤'가 아니라 정점에서 터져야 인과가 맞는다 */
+    animation: srshock .34s cubic-bezier(.15,.85,.3,1) .44s forwards;
 }
 @keyframes srshock {
     0%   { opacity: .95; transform: scale(.2); }
+    55%  { opacity: .4; }
     100% { opacity: 0;   transform: scale(3.1); }
 }
-/* 홀드백 착지 플래시 — 원점을 착지 셀(--fx/--fy)에 맞춘다 */
+/* 홀드백 착지 플래시 — 원점을 착지 셀(--fx/--fy)에 맞춘다.
+   ⚠️ 알파 오버레이로 깔면 이웃 셀을 '밝히는' 대신 '탁하게 덮어' 등급색 구분이 무너진다
+   (x75에서 그리드 전체가 라벤더 안개가 됐다). 가산 합성으로 바꾸고, 셀을 실제로 밝히는 건
+   그리드에 따로 얹은 brightness 키프레임이 맡는다. */
 .sr-flash {
     position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 3;
-    background: radial-gradient(circle at var(--fx) var(--fy), #fff 0%, var(--rc, #fff) 26%, rgba(255,255,255,0) 72%);
+    mix-blend-mode: screen;
+    /* 감쇠 반경을 72%→46%로 조인다. 넓게 깔면 가산 합성이어도 15셀 전체의 채도가
+       같은 등급색으로 수렴해(측정: 채도 .394→.156) 등급색 코딩 자체가 죽는다 */
+    background: radial-gradient(circle at var(--fx) var(--fy), #fff 0%, var(--rc, #fff) 17%, rgba(255,255,255,0) 46%);
 }
-#summon-result-modal.flash .sr-flash { animation: srflash .55s ease-out forwards; }
-@keyframes srflash { 0% { opacity: .85; } 100% { opacity: 0; } }
+#summon-result-modal.flash .sr-flash { animation: srflash .42s ease-out forwards; }
+@keyframes srflash { 0% { opacity: .62; } 100% { opacity: 0; } }
+#summon-result-modal.flash .sr-grid,
+#summon-result-modal.flash .sr-heroline { animation: srgridlit .5s ease-out; }
+@keyframes srgridlit {
+    0%   { filter: brightness(1.55) saturate(1.15); }
+    100% { filter: none; }
+}
 
 .sr-title {
     position: relative; z-index: 1;
@@ -2484,6 +2530,25 @@ body {
     position: relative; text-align: center; opacity: 0; transform: scale(.35);
     width: min(5.6rem, calc((100% - (var(--cols, 5) - 1) * .8rem - .4rem) / var(--cols, 5)));
 }
+/* ⑹ 히어로 행 — 대량 소환에서 최상위 등급이 랩의 잔여 슬롯(마지막 행 오른쪽 끝)에
+   유기되던 문제. 소수의 최상위 등급은 그리드 위 단독 행으로 올려 74개 중복 사이에 묻히지 않게 한다.
+   그리드보다 큰 셀 폭 + 아래 구분선으로 '이 판의 성과'임을 위계로 말한다. */
+.sr-heroline {
+    position: relative; z-index: 2; flex: 0 0 auto;
+    display: flex; justify-content: center; align-items: flex-end; gap: 1.4rem;
+    width: 100%; padding: .2rem 0 .9rem; margin-bottom: .5rem;
+}
+.sr-heroline::after {
+    content: ''; position: absolute; left: 12%; right: 12%; bottom: 0; height: 1px;
+    background: linear-gradient(90deg, rgba(255,255,255,0), var(--halo, rgba(150,190,255,.5)) 30%,
+                var(--halo, rgba(150,190,255,.5)) 70%, rgba(255,255,255,0));
+}
+.sr-heroline .sr-cell { width: min(7.4rem, 26vw); }
+.sr-heroline .sr-orb { font-size: 3.4rem; }
+.sr-heroline .sr-name { font-size: .82rem; }
+/* 히어로 행이 있으면 본문은 세로 스택(행 → 그리드) */
+.sr-body.herorow { flex-direction: column; }
+.sr-body.herorow .sr-grid { flex: 0 1 auto; }
 .sr-grid.one .sr-cell { width: min(13rem, 58vw); }
 /* 상한 있는 --cols열 — 폭을 꽉 채우면 15셀이 3행에서 넘쳐 스크롤이 생긴다.
    결과 화면은 한눈에 다 보이는 편이 나으므로 스크롤 없이 들어가는 크기로 묶는다.
@@ -2493,11 +2558,59 @@ body {
     width: min(3.9rem, calc((100% - (var(--cols, 5) - 1) * .8rem - 1.2rem) / var(--cols, 5)));
 }
 .sr-grid.dense .sr-cell { width: calc((100% - 4.2rem) / 8); }
-.sr-cell.on { animation: srpop .38s cubic-bezier(.18,1.6,.4,1) forwards; }
+/* 등장 이징·지속시간을 등급별로 가른다 — 전 등급이 같은 120~180ms 균일 스케일인이면
+   최상위는 '더 큰 것'일 뿐 '다른 사건'이 되지 못한다. 오버슛량도 --over로 계단화. */
+.sr-cell { --over: .12; }
+.sr-cell.on { animation: srpop .22s cubic-bezier(.18,1.6,.4,1) forwards; }
+.sr-cell[data-tier="2"].on, .sr-cell[data-tier="3"].on { animation-duration: .3s; }
+.sr-cell[data-tier="4"].on, .sr-cell[data-tier="5"].on { animation-duration: .46s; }
+.sr-cell[data-tier="2"] { --over: .16; }
+.sr-cell[data-tier="3"] { --over: .2; }
+.sr-cell[data-tier="4"] { --over: .27; }
+.sr-cell[data-tier="5"] { --over: .34; }
 @keyframes srpop {
     0%   { opacity: 0; transform: scale(.3) translateY(.5rem); }
-    58%  { opacity: 1; transform: scale(1.16) translateY(0); }
+    58%  { opacity: 1; transform: scale(calc(1 + var(--over))) translateY(0); }
     100% { opacity: 1; transform: scale(1); }
+}
+
+/* ═══ 최상위 등급 전용 비트 ═══
+   ⑷ 홀드백 대기 구간이 완전 정지 프레임이라 '긴장'이 아니라 '렌더 멈춤'으로 읽혔다.
+   .hero-cue = 저강도 축적(비네트 조임 + 소환진 점등 + 배경 광선 가속),
+   .hero-in  = 착지 140ms 전 나머지 셀 후퇴 → 주역 분리. */
+#summon-result-modal.hero-cue .sr-rays { animation-duration: 9s; opacity: .3; transition: opacity .3s ease-in; }
+#summon-result-modal.hero-cue .sr-floor::after { animation: srfloorcue .34s ease-in forwards; }
+@keyframes srfloorcue { from { opacity: .5; } to { opacity: 1; } }
+#summon-result-modal.hero-cue .sr-floor::before { animation: srfloorcue2 .34s ease-in forwards; }
+@keyframes srfloorcue2 {
+    to { box-shadow: inset 0 0 4.6rem var(--floor-fill, rgba(96,146,255,.2)),
+                     0 .6rem 5.4rem .9rem var(--floor-fill, rgba(96,146,255,.2)); }
+}
+/* 비네트 조임 — 그라디언트 스톱은 보간이 안 되므로 별도 레이어 하나를 페이드인시킨다 */
+.sr-wrap::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2; opacity: 0;
+    background: radial-gradient(88% 60% at 50% 46%, rgba(0,0,0,0) 22%, rgba(0,0,0,.72) 100%);
+}
+#summon-result-modal.hero-cue .sr-wrap::before { animation: srvig .32s ease-in forwards; }
+@keyframes srvig { to { opacity: 1; } }
+/* 나머지 셀 후퇴 — transform은 .on 애니메이션이 forwards로 잠그므로 건드리지 않고,
+   래퍼 스케일에 --recede 계수를 곱해 트랜지션한다 */
+.sr-cell { --recede: 1; transition: filter .18s ease-out; }
+#summon-result-modal.hero-in .sr-cell:not(.hero) {
+    filter: saturate(.35) brightness(.6);
+}
+#summon-result-modal.hero-in .sr-cell:not(.hero) { --recede: .94; }
+/* 주역 착지 — 셀 뒤에서 광창이 터진다(::before는 등급 광주가 쓰므로 ::after) */
+.sr-cell.hero::after {
+    content: ''; position: absolute; left: 50%; top: 0; width: 100%; padding-top: 100%;
+    transform: translateX(-50%) scale(.35); border-radius: 50%;
+    pointer-events: none; z-index: -1; opacity: 0; mix-blend-mode: screen;
+    background: radial-gradient(closest-side, #fff 0%, var(--rc) 38%, rgba(255,255,255,0) 72%);
+}
+.sr-cell.hero.on::after { animation: sroburst .55s cubic-bezier(.1,.8,.3,1) forwards; }
+@keyframes sroburst {
+    0%   { opacity: .95; transform: translateX(-50%) scale(.35); }
+    100% { opacity: 0;   transform: translateX(-50%) scale(2.5); }
 }
 /* 등급 계단 — 상위 등급은 물리적으로 더 크고 더 세게 빛난다 */
 .sr-cell { --glow: 0; --ray: 0; --sz: 1; }
@@ -2515,7 +2628,11 @@ body {
     -webkit-mask-image: linear-gradient(rgba(0,0,0,0), #000 72%);
     mask-image: linear-gradient(rgba(0,0,0,0), #000 72%);
 }
-.sr-orbwrap { position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%; transform: scale(var(--sz)); }
+/* --recede는 주역 등장 비트에서 나머지 셀을 물러나게 하는 계수(기본 1) */
+.sr-orbwrap {
+    position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%;
+    transform: scale(calc(var(--sz) * var(--recede, 1))); transition: transform .18s ease-out;
+}
 /* 접지 그림자 — 구체 내부 그라디언트로는 읽히지 않아 구 밖에 눌린 타원으로 깐다 */
 .sr-orbwrap::before {
     content: ''; position: absolute; left: 13%; right: 13%; bottom: -6%; height: 13%;
@@ -2636,6 +2753,34 @@ body {
     -webkit-mask-image: radial-gradient(closest-side, #000 0%, rgba(0,0,0,.45) 38%, rgba(0,0,0,0) 72%);
     mask-image: radial-gradient(closest-side, #000 0%, rgba(0,0,0,.45) 38%, rgba(0,0,0,0) 72%);
 }
+/* ⑸ 상시 아이들 — 구체 호흡(위상차)과 표면 스페큘러 스윕. 연출이 끝나면 화면이
+   완전히 멈춰 '렌더 정지'로 읽히던 문제. 브리딩은 본체 transform으로(광채 펄스와 겹치지 않게). */
+#summon-result-modal.done .sr-orb {
+    animation: srbreathe 2.4s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * .19s);
+}
+@keyframes srbreathe {
+    0%, 100% { transform: scale(1) translateY(0); }
+    50%      { transform: scale(1.055) translateY(-.14rem); }
+}
+.sr-orb::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    opacity: 0; mix-blend-mode: screen; overflow: hidden;
+    background: linear-gradient(102deg, rgba(255,255,255,0) 30%,
+                rgba(255,255,255,.72) 47%, rgba(255,255,255,0) 64%);
+    -webkit-mask-image: radial-gradient(closest-side, #000 76%, rgba(0,0,0,0) 100%);
+    mask-image: radial-gradient(closest-side, #000 76%, rgba(0,0,0,0) 100%);
+}
+#summon-result-modal.done .sr-orb::after {
+    animation: srsweep 3.4s ease-in-out infinite;
+    animation-delay: calc(.7s + var(--i, 0) * .29s);
+}
+@keyframes srsweep {
+    0%, 58%, 100% { opacity: 0; transform: translateX(-60%); }
+    66%           { opacity: 1; }
+    82%           { opacity: .7; }
+    92%           { opacity: 0; transform: translateX(60%); }
+}
 .sr-grid.one .sr-orb { font-size: 6.2rem; }
 .sr-grid.mid .sr-orb { font-size: 1.7rem; }
 .sr-grid.dense .sr-orb { font-size: 1.25rem; }
@@ -2733,6 +2878,11 @@ body {
    자리는 미리 잡아 둬야(visibility) [확인] 버튼이 튀지 않는다. */
 .sr-sum { display: flex; flex-wrap: wrap; justify-content: center; gap: .32rem; visibility: hidden; }
 #summon-result-modal.done .sr-sum { visibility: visible; animation: srtitle .3s ease-out both; }
+#summon-result-modal.done .sr-ok { animation: srokin .34s cubic-bezier(.2,1.5,.4,1) .1s both; }
+@keyframes srokin {
+    0%   { opacity: 0; transform: scale(.86) translateY(.5rem); }
+    100% { opacity: 1; transform: none; }
+}
 .sr-chip {
     color: var(--rc); border: 1px solid currentColor; border-radius: .5rem;
     padding: .12rem .5rem; font-size: .7rem; font-weight: 900; background: rgba(2,5,16,.55);
@@ -2756,7 +2906,7 @@ body {
     background: radial-gradient(118% 76% at 50% 44%, var(--bg-a, #24306a) 0%, var(--bg-b, #101740) 38%, #070b20 68%, #03040c 100%);
     transition: background .5s ease-out;
 }
-#summon-result-modal.done .sr-rays { opacity: .3; animation-duration: 26s; }
+#summon-result-modal.done .sr-rays { opacity: .3; animation-duration: 15s; }
 #summon-result-modal.done .sr-halo {
     background: radial-gradient(closest-side, var(--halo, rgba(120,165,255,.4)) 0%, rgba(0,0,0,0) 100%);
     transition: background .5s ease-out;

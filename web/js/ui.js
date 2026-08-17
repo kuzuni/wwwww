@@ -32,10 +32,20 @@ const UI = {
     SR_REVEAL_BUDGET: 2200, // 셀이 많을 때 전체 등장 연출이 넘지 않을 시간(ms)
     SR_SLOW_STEP: 250,      // 10개 이하 소량 뽑기의 셀 간격 — 캐스케이드가 눈에 보이게 넉넉히
     SR_CHARGE_MS: 480,      // 빛 모임 구간 길이(.sr-charge 애니메이션과 맞춤)
-    SR_HOLDBACK_MS: 420,    // 최고 등급 1개를 마지막에 한 박자 늦게 띄우는 여유
+    // 최고 등급 등장 전 뜸들이는 여유. 420ms는 완전 정지 프레임이라 '긴장'이 아니라
+    // '렌더 멈춤'으로 읽혔다 — 340으로 줄이고 그 안을 저강도 축적(.hero-cue)으로 채운다
+    SR_HOLDBACK_MS: 340,
+    SR_RECEDE_MS: 140,      // 주역 착지 직전, 나머지 셀이 물러나기 시작하는 리드 타임
+    // 히어로 그룹이 2개 이상일 때 그 안에서의 간격. 170ms면 두 최고 등급이 같은 플래시에
+    // 얹혀 나와 '단독 등장'이 성립하지 않는다 — 각자 자기 순간을 갖도록 벌린다
+    SR_HERO_STEP: 380,
+    // 주역 착지 후 나머지 셀이 물러나 있는 시간. finishSummonResult가 SR_TAIL_MS에
+    // 후퇴를 풀므로 그보다 크게 잡으면 실효가 없다 — 같은 값으로 맞춰 둔다
+    SR_HERO_HOLD_MS: 300,
     SR_TAIL_MS: 300,        // 마지막 아이콘이 뜬 뒤 [확인]이 나오기까지의 여운
     _srTimers: [], _srRaf: 0,
     _srCells: null, _srEntries: null, _srDelays: null, _srStart: 0, _srIdx: 0,
+    _srCueAt: -1, _srRecedeAt: -1, _srCued: false, _srReceded: false,
     _srDone: false,
 
     // 모듈별 소환 결과 배열을 팝업이 쓰는 공통 형태로 변환 (묶음 전, 굴림 1회 = 1개)
@@ -151,19 +161,39 @@ const UI = {
         return `<div class="sr-motes">${h}</div>`;
     },
 
+    // 연출이 끝난 뒤 화면이 완전히 정지하던 문제(비평가 ⑸) — 바닥에서 피어올라 사라지는
+    // 잉걸을 상시로 돌려 아래쪽 빈 밴드에 움직임을 남긴다. .done에서만 보인다.
+    summonEmbers() {
+        let h = '';
+        for (let i = 0; i < 14; i++) {
+            h += `<i style="--x:${(6 + (i * 43) % 89)}%;--s:${2 + (i * 7) % 4}px;`
+               + `--d:${((i * 397) % 4200) / 1000}s;--dur:${4.2 + (i % 4) * 0.7}s;`
+               + `--sway:${((i % 5) - 2) * 0.7}rem"></i>`;
+        }
+        return `<div class="sr-embers">${h}</div>`;
+    },
+
     openSummonResult(kind, results) {
         if (!results || !results.length) return;
         const meta = this.SUMMON_KIND[kind] || this.SUMMON_KIND.skill;
         const rolls = this.summonEntries(kind, results);
         const entries = this.groupSummonEntries(kind, rolls, rolls.length >= this.SR_MERGE_FROM);
         const best = entries[entries.length - 1].rarity; // 오름차순 정렬이라 마지막이 최고 등급
-        // 최고 등급이 전설 이상이고 그 셀이 하나뿐일 때만 홀드백 — 흔한 등급까지 뜸들이면 늘어진다
-        const holdback = this.SR_HI_RARITIES.indexOf(best) >= 0 && entries[entries.length - 1].qty === 1;
-        const cells = entries.map((e, i) => {
+        // 최고 등급이 전설 이상이고 그 등급 셀이 3개 이하일 때만 '사건'으로 대접한다 —
+        // 흔한 등급까지, 혹은 결과의 절반이 최고 등급인 판까지 뜸들이면 늘어진다
+        const bestCount = entries.filter(e => e.rarity === best).length;
+        const isEvent = this.SR_HI_RARITIES.indexOf(best) >= 0 && bestCount <= 3;
+        const heroStart = isEvent ? entries.length - bestCount : entries.length;
+        // ⑹ 대량 소환에서 최고 등급이 랩 잔여 슬롯(마지막 행 오른쪽 끝)에 유기되던 문제 —
+        // 소수의 최상위 등급은 그리드 위 단독 히어로 행으로 승격해 74개 중복 사이에 묻히지 않게 한다
+        const heroRow = isEvent && entries.length > 10;
+        const cellHtml = entries.map((e, i) => {
             const hi = this.SR_HI_RARITIES.indexOf(e.rarity) >= 0;
             const rc = RARITY_CSS[e.rarity];
             // data-tier로 등급별 세기(크기·광채·광선)를 계단화한다 — 6등급이 2상태로 붕괴하지 않게
-            return `<div class="sr-cell${hi ? ' hi' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
+            // data-o = 등장 순서(히어로 행은 DOM상 위에 오지만 마지막에 등장한다)
+            return `<div class="sr-cell${hi ? ' hi' : ''}${i >= heroStart ? ' hero' : ''}"
+                data-o="${i}" data-tier="${RARITIES.indexOf(e.rarity)}"
                 data-mat="${this.srMaterial(e.rarity)}"
                 style="--i:${i};--rc:${rc};--rc-lite:${this.srShade(rc, .5)};--rc-deep:${this.srShade(rc, -.62)}">
                 <div class="sr-orbwrap">
@@ -177,13 +207,17 @@ const UI = {
                 <div class="sr-name"><span>${e.name}</span></div>
                 <div class="sr-sub">${e.sub}</div>
             </div>`;
-        }).join('');
+        });
+        const gridCount = heroRow ? heroStart : entries.length;
+        const cells = cellHtml.slice(0, gridCount).join('');
+        const heroCells = heroRow ? cellHtml.slice(heroStart).join('') : '';
         // 셀 수에 따라 크기 단계 — 묶음 덕분에 x75도 보통은 mid에서 멈춘다
-        const size = entries.length === 1 ? ' one' : entries.length > 24 ? ' dense' : entries.length > 10 ? ' mid' : '';
-        const cols = this.srCols(entries.length);
+        // (히어로 행으로 빠진 셀은 그리드 밀도 계산에서 뺀다)
+        const size = gridCount === 1 ? ' one' : gridCount > 24 ? ' dense' : gridCount > 10 ? ' mid' : '';
+        const cols = this.srCols(gridCount);
         // 한 줄짜리 결과(≤5개)는 아이콘 줄 위아래로 빈 남색 밴드가 구조적으로 남는다 —
         // 아래쪽은 소환진(룬 바닥)으로 받쳐 피사체가 떠 있지 않고 무대 위에 선 것으로 읽히게 한다.
-        const stage = entries.length <= 5;
+        const stage = gridCount <= 5;
         const m = this.els.summonResultModal;
         m.className = 'modal'; // hidden 해제 + 이전 done 상태 제거
         m.innerHTML = `
@@ -191,12 +225,14 @@ const UI = {
                 <div class="sr-rays"></div>
                 <div class="sr-halo"></div>
                 ${this.summonMotes()}
+                ${this.summonEmbers()}
                 <div class="sr-charge"></div>
                 ${this.summonStreaks()}
                 <div class="sr-shock"></div>
                 <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-head"><div class="sr-title">${meta.icon} ${meta.title} ×${rolls.length}</div></div>
-                <div class="sr-body${stage ? ' stage' : ''}${stage && size === ' one' ? ' one' : ''}">
+                <div class="sr-body${stage ? ' stage' : ''}${stage && size === ' one' ? ' one' : ''}${heroRow ? ' herorow' : ''}">
+                    ${heroRow ? `<div class="sr-heroline">${heroCells}</div>` : ''}
                     <div class="sr-grid${size}" style="--cols:${cols}">${cells}</div>
                     ${stage ? '<div class="sr-floor"></div>' : ''}
                 </div>
@@ -221,16 +257,29 @@ const UI = {
         this.clearSummonTimers();
         this._srDone = false;
         SFX.summonCharge(best);
-        this._srCells = m.querySelectorAll('.sr-cell');
+        // DOM 순서가 아니라 data-o(등장 순서)로 정렬 — 히어로 행은 그리드 위에 그려지지만
+        // 등장은 마지막이어야 한다
+        this._srCells = Array.from(m.querySelectorAll('.sr-cell'))
+            .sort((a, b) => (+a.dataset.o) - (+b.dataset.o));
         this._srEntries = entries;
         const n = this._srCells.length;
         const step = n <= 10 ? this.SR_SLOW_STEP : U.clamp(this.SR_REVEAL_BUDGET / n, 20, 120);
-        // 셀별 등장 시각 — 마지막 최고 등급 한 개만 홀드백만큼 더 뜸들인다
+        // 히어로 그룹은 앞 셀이 다 앉은 뒤 홀드백만큼 뜸들였다가 자기들끼리 한 박자씩 등장한다.
+        // 앞에 셀이 하나도 없으면(x1 최고 등급) 기다릴 대상이 없으므로 홀드백 0.
+        const hold = heroStart > 0 ? this.SR_HOLDBACK_MS : 0;
+        const heroBase = this.SR_CHARGE_MS + Math.max(0, heroStart - 1) * step + hold;
         this._srDelays = [];
         for (let i = 0; i < n; i++) {
-            this._srDelays.push(this.SR_CHARGE_MS + i * step + (holdback && i === n - 1 ? this.SR_HOLDBACK_MS : 0));
+            this._srDelays.push(i < heroStart
+                ? this.SR_CHARGE_MS + i * step
+                : heroBase + (i - heroStart) * this.SR_HERO_STEP);
         }
-        this._srHoldback = holdback;
+        this._srHoldback = isEvent;
+        // 주역 전용 비트 — 홀드백 구간을 저강도 축적(.hero-cue)으로 채우고,
+        // 착지 직전에 나머지 셀을 물러나게(.hero-in) 해 '더 큰 것'이 아니라 '다른 사건'으로 만든다
+        this._srCued = this._srReceded = false;
+        this._srCueAt = (isEvent && hold > 0) ? heroBase - hold : -1;
+        this._srRecedeAt = (isEvent && heroStart > 0) ? heroBase - this.SR_RECEDE_MS : -1;
         this._srStart = performance.now();
         this._srIdx = 0;
         this._srRaf = requestAnimationFrame(() => this.tickSummonResult());
@@ -241,6 +290,14 @@ const UI = {
     tickSummonResult() {
         const n = this._srCells.length;
         const elapsed = performance.now() - this._srStart;
+        const mm = this.els.summonResultModal;
+        // 주역 등장 전 축적 → 나머지 셀 후퇴. 두 단계를 나눠야 '기다림'이 정지 화면이 아니게 된다
+        if (!this._srCued && this._srCueAt >= 0 && elapsed >= this._srCueAt) {
+            this._srCued = true; mm.classList.add('hero-cue');
+        }
+        if (!this._srReceded && this._srRecedeAt >= 0 && elapsed >= this._srRecedeAt) {
+            this._srReceded = true; mm.classList.add('hero-in');
+        }
         let loud = null; // 이번 프레임에 뜬 것 중 최고 등급
         while (this._srIdx < n && this._srDelays[this._srIdx] <= elapsed) {
             const e = this._srEntries[this._srIdx];
@@ -261,6 +318,8 @@ const UI = {
                 wrap.style.setProperty('--fy', ((cr.top + cr.height / 2 - wr.top) / wr.height * 100).toFixed(1) + '%');
             }
             m.classList.add('flash');
+            // 후퇴는 사건이 끝나면 풀어 준다 — 계속 눌러 두면 결과 화면이 반쯤 꺼진 채로 남는다
+            this._srTimers.push(setTimeout(() => m.classList.remove('hero-in', 'hero-cue'), this.SR_HERO_HOLD_MS));
         }
         if (this._srIdx >= n) {
             this._srTimers.push(setTimeout(() => this.finishSummonResult(), this.SR_TAIL_MS));
@@ -273,7 +332,9 @@ const UI = {
     // 연출 종료 — 힌트를 감추고 [확인]을 띄운다
     finishSummonResult() {
         this._srDone = true;
-        this.els.summonResultModal.classList.add('done');
+        const m = this.els.summonResultModal;
+        m.classList.remove('hero-in', 'hero-cue');
+        m.classList.add('done');
     },
     // 오버레이 탭: 연출 중이면 스킵(전부 즉시 표시), 이미 끝났으면 닫기
     onSummonResultTap() {
