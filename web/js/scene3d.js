@@ -4500,7 +4500,12 @@ const Scene3D = {
             m.punchAmp = crit ? 0.17 : 0.09 + Math.min(0.06, sev * 0.2);
             freeze = crit ? 0.045 : 0.028;
             this.hitStop(freeze);
-            if (crit) { this.shake(0.07); this.fovPunch(0.026, 0.13); } // 감속만으로는 '한 박자'가 지각되지 않는다
+            // 감속만으로는 '한 박자'가 지각되지 않는다.
+            // ⚠️ 셰이크 세기는 **다른 이벤트와의 상대값**으로 잡아야 한다 — 0.07은 화면 6.7px라
+            // 무기 스윙이 이미 부르는 shake(0.15)(=15px)에 `Math.max`로 통째로 먹혀 크리에서만
+            // 카메라가 더 흔들리는 일이 아예 없었다(비평가 '셰이크 미관측'의 실제 원인).
+            // 스윙 0.15 < 크리 0.2(22px) < 보스 등장 0.4~0.5 순으로 벌린다.
+            if (crit) { this.shake(0.2); this.fovPunch(0.026, 0.13); }
         }
         // ⑤ HP 바 신호
         this.hitHpBar(m, sev);

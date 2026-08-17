@@ -262,9 +262,15 @@ body {
     62%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .9), calc(-50% + var(--rise) * .78)) scale(var(--pop)); }
     100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--rise) * .68)) scale(calc(var(--pop) * .9)); }
 }
+/* ⚠️ 위계는 **태어나는 프레임에** 서 있어야 한다 — 예전엔 0%가 `color:#fff` + `scale(.8)`이라
+   타격이 가장 잘 보이는 임팩트 프레임에서 크리가 일반타보다 오히려 작고 색도 같은 흰색이었고,
+   주황·확대는 한참 뒤에 왔다(색·크기 위계의 시간 역행). 이제 0%부터 주황 + 일반타보다 큰
+   스케일로 태어나고, '흰색으로 터지는' 열기는 글자 색이 아니라 **글로우**가 맡는다. */
 @keyframes dmgcrit {
-    0%   { opacity: 1; color: #fff; transform: translate(-50%,-50%) scale(calc(var(--pop) * .8)) rotate(-10deg); } /* 흰색으로 터져 주황으로 식는다 */
-    9%   { opacity: 1; color: #ff8a1e; transform: translate(calc(-50% + var(--dx) * .16), calc(-50% + var(--rise) * .34)) scale(calc(var(--pop) * 1.35)) rotate(5deg); }
+    0%   { opacity: 1; color: #ff8a1e; transform: translate(-50%,-50%) scale(calc(var(--pop) * 1.12)) rotate(-10deg);
+           text-shadow: 0 0 3px #fff, 0 0 14px rgba(255,214,150,.95), 0 2px 5px rgba(0,0,0,.6); }
+    9%   { opacity: 1; color: #ff8a1e; transform: translate(calc(-50% + var(--dx) * .16), calc(-50% + var(--rise) * .34)) scale(calc(var(--pop) * 1.35)) rotate(5deg);
+           text-shadow: 0 0 9px rgba(255,109,0,.7), 0 2px 5px rgba(0,0,0,.6); }
     26%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .62), calc(-50% + var(--rise))) scale(calc(var(--pop) * 1.05)) rotate(-3deg); }
     60%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .88), calc(-50% + var(--rise) * .76)) scale(var(--pop)) rotate(1deg); }
     100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--rise) * .66)) scale(calc(var(--pop) * .92)) rotate(0deg); }
