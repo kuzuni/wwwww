@@ -135,53 +135,72 @@ body {
 #waypoint-pass { top: 36%; right: 4%; }
 #waypoint-pass .waypoint-icon { font-size: 1.4rem; }
 
-/* ===== 보스 등장 경고 (총 2.0초) =====
-   ① 붉은 비네트가 3회 점멸하며 배경을 눌러 준다  ② 화면 가로를 가로지르는 경고 배너가
-   위아래 사선 스트라이프 레일과 함께 열렸다 닫힌다  ③ 배너 안 WARNING 텍스트는 좌로 흐른다.
-   요소별 지속·감쇠를 전부 키프레임이 소유해서(JS 타이머 조합은 웨이브 연타에서 서로 잘라먹는다)
-   JS는 .hidden만 떼었다 붙이면 되고, 프레임 단위 검증도 가능하다. */
-#boss-warning { position: absolute; inset: 0; z-index: 6; pointer-events: none; overflow: hidden; }
-#boss-warning .bw-vignette {
-    position: absolute; inset: 0;
-    background: radial-gradient(ellipse at center, transparent 26%, rgba(120,0,0,.38) 62%, rgba(255,26,26,.85) 100%);
-    animation: bwvig 2s ease-out forwards;
+/* ---- 보스 경고 연출 (사용자 지시: 밋밋한 "⚠️ BOSS ⚠️" 한 줄 → "워닝 워닝 워닝" 급 화면 전체 연출) ----
+   #app 직속 풀스크린이라 탭바(z-index 30) 위, 채팅(40) 아래에 깔린다. 전체 길이는 JS가 --bw-dur로 주고,
+   점멸 박자(.42s)는 SFX.bossSiren의 사이렌 스윕 3회와 같은 값이다 — 소리와 그림이 같은 박에 터져야
+   "워닝"으로 읽힌다(어긋나면 그냥 빨간 화면 깜빡임으로 보인다). */
+#boss-warning { position: absolute; inset: 0; z-index: 35; pointer-events: none; overflow: hidden; }
+
+/* ⓐ 감광 — 화면을 눌러 배너가 유일한 밝은 값이 되게 (연출 중 배경이 그대로 밝으면 배너가 스티커로 보인다) */
+.bw-dim {
+    position: absolute; inset: 0; opacity: 0;
+    background: radial-gradient(ellipse at 50% 42%, rgba(72,4,4,.34), rgba(6,2,4,.76));
+    animation: bwdim var(--bw-dur, 2s) ease-out forwards;
 }
-@keyframes bwvig {   /* 3회 점멸 후 잔광 */
-    0%, 100% { opacity: 0; }
-    6%  { opacity: 1; }  14% { opacity: .15; }
-    22% { opacity: 1; }  30% { opacity: .15; }
-    38% { opacity: .9; } 70% { opacity: .3; }
+/* ⓑ 붉은 플래시 점멸 3회 — screen 합성이라 밝은 낮 배경에서도 '가산 경광등'으로 읽힌다 */
+.bw-flash {
+    position: absolute; inset: 0; opacity: 0; mix-blend-mode: screen;
+    background: radial-gradient(ellipse at 50% 42%, rgba(255,72,48,.62), rgba(190,10,10,.34) 70%);
+    animation: bwflash .42s ease-out 3;
 }
-#boss-warning .bw-banner {
-    position: absolute; top: 38%; left: 0; right: 0; transform: translateY(-50%);
-    background: linear-gradient(180deg, rgba(24,0,0,.9), rgba(70,0,0,.82) 50%, rgba(24,0,0,.9));
-    box-shadow: 0 0 24px rgba(255,26,26,.6), inset 0 0 18px rgba(255,60,40,.35);
-    animation: bwopen 2s cubic-bezier(.2,.9,.3,1) forwards;
+/* ⓒ 화면 가로를 통째로 가로지르는 경고 배너 — 위아래 사선 위험 표지 띠 + 흐르는 텍스트 */
+.bw-banner {
+    /* 18% — 전투 라인(지면·적 실루엣·머리 위 HP바)보다 확실히 위. 38%로 두면 배너가 바로
+       보스가 솟는 자리를 덮어 "경고는 화려한데 정작 등장이 안 보이는" 프레임이 나온다(실측). */
+    position: absolute; left: 0; right: 0; top: 18%;
+    transform: translateY(-50%) scaleY(0); transform-origin: 50% 50%;
+    background: linear-gradient(180deg, #1e0202, #5a0707 45%, #240303);
+    box-shadow: 0 0 2.2rem rgba(255,46,38,.6), inset 0 0 1.5rem rgba(0,0,0,.8);
+    animation: bwbanner var(--bw-dur, 2s) cubic-bezier(.16,1.5,.4,1) forwards;
 }
-@keyframes bwopen {  /* 세로로 열렸다 닫힘 — 배너 자체는 화면 폭 전체 */
-    0%   { transform: translateY(-50%) scaleY(0); opacity: 0; }
-    8%   { transform: translateY(-50%) scaleY(1.12); opacity: 1; }
-    12%  { transform: translateY(-50%) scaleY(1); opacity: 1; }
-    82%  { transform: translateY(-50%) scaleY(1); opacity: 1; }
-    100% { transform: translateY(-50%) scaleY(0); opacity: 0; }
+.bw-hazard {
+    height: .5rem;
+    background-image: repeating-linear-gradient(-45deg, #ffca28 0 .55rem, #16100a .55rem 1.1rem);
+    background-size: 1.556rem 100%; /* -45° 줄무늬 1주기(1.1rem)를 가로축으로 환산 = 1.1×√2 */
+    animation: bwhazard .62s linear infinite;
 }
-/* 사선 스트라이프 레일 (공사장 경고 테이프) */
-#boss-warning .bw-rail {
-    height: .34rem;
-    background: repeating-linear-gradient(-45deg, #ffca28 0 .5rem, #1a1a1a .5rem 1rem);
-    animation: bwrail .6s linear infinite;
+.bw-marquee { overflow: hidden; padding: .3rem 0; animation: bwblink .42s ease-out 3; }
+.bw-track { display: flex; width: max-content; animation: bwscroll 2.6s linear infinite; }
+.bw-track span {
+    flex: none; white-space: nowrap; font-size: 1.5rem; font-weight: 900; letter-spacing: .14em;
+    color: #fff; text-shadow: 0 0 .45rem #ff1744, 0 0 1.2rem #ff1744, 0 2px 0 #000;
 }
-@keyframes bwrail { to { background-position: 1.414rem 0; } }
-#boss-warning .bw-marquee { overflow: hidden; padding: .3rem 0; }
-#boss-warning .bw-track {
-    display: flex; width: max-content; animation: bwscroll 3.2s linear infinite;
+/* ⓓ 한글 부제 — 배너가 영문 마퀴라 "무슨 일이 났는지"는 여기서 읽힌다 */
+.bw-sub {
+    position: absolute; left: 0; right: 0; top: calc(18% + 2.5rem); text-align: center;
+    font-size: .95rem; font-weight: 900; letter-spacing: .55em; text-indent: .55em;
+    color: #ffd54f; text-shadow: 0 0 .6rem rgba(255,23,68,.95), 0 2px 0 #000; opacity: 0;
+    animation: bwsub var(--bw-dur, 2s) ease-out forwards;
 }
-#boss-warning .bw-track span {
-    font-size: 1.5rem; font-weight: 900; letter-spacing: .12em; white-space: nowrap;
-    color: #fff0f0; text-shadow: 0 0 12px #ff1744, 0 0 26px #ff1744, 0 2px 0 #7f0000;
-    padding-right: 1.2rem;
+@keyframes bwdim   { 0% { opacity: 0; } 8% { opacity: 1; } 76% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes bwflash { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes bwhazard { from { background-position: 0 0; } to { background-position: 1.556rem 0; } }
+@keyframes bwblink { 0% { opacity: .25; } 18% { opacity: 1; } 100% { opacity: .55; } }
+@keyframes bwscroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes bwbanner {
+    0%   { transform: translateY(-50%) scaleY(0); }
+    7%   { transform: translateY(-50%) scaleY(1.35); }
+    13%  { transform: translateY(-50%) scaleY(1); }
+    82%  { transform: translateY(-50%) scaleY(1); }
+    92%  { transform: translateY(-50%) scaleY(1.18); } /* 보스 착지 임팩트에 배너가 한 번 부푼 뒤 닫힌다 */
+    100% { transform: translateY(-50%) scaleY(0); }
 }
-@keyframes bwscroll { to { transform: translateX(-50%); } }
+@keyframes bwsub {
+    0% { opacity: 0; letter-spacing: 1.4em; text-indent: 1.4em; }
+    16% { opacity: 1; letter-spacing: .55em; text-indent: .55em; }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+}
 
 /* 영웅 피격 비네트 — 세기(--vig)는 피해 비율에 따라 JS가 준다 (쥬시니스 패스) */
 #dmg-flash {

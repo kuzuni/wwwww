@@ -33,22 +33,6 @@
             <span class="waypoint-icon">⚔️</span>
         </button>
 
-        <!-- 보스 등장 경고: 붉은 비네트 + 사선 스트라이프 레일 사이를 흐르는 WARNING 텍스트 배너.
-             연출은 전부 CSS 키프레임이 소유하고(JS 타이머 조합은 연타에서 서로 잘라먹는다),
-             JS는 클래스 하나만 붙였다 뗀다. -->
-        <div id="boss-warning" class="hidden">
-            <div class="bw-vignette"></div>
-            <div class="bw-banner">
-                <div class="bw-rail"></div>
-                <div class="bw-marquee">
-                    <div class="bw-track">
-                        <span>⚠ WARNING ⚠ BOSS APPROACHING </span><span>⚠ WARNING ⚠ BOSS APPROACHING </span>
-                        <span>⚠ WARNING ⚠ BOSS APPROACHING </span><span>⚠ WARNING ⚠ BOSS APPROACHING </span>
-                    </div>
-                </div>
-                <div class="bw-rail"></div>
-            </div>
-        </div>
         <div id="skill-cutin"></div>
         <div id="skill-flash"></div>
         <div id="dmg-flash"></div>
@@ -89,6 +73,26 @@
         <button data-tab="battle">🚩<span>전투</span></button>
         <button data-tab="shop">🏪<span>상점</span></button>
         <button data-tab="debug">🐞<span>디버그</span></button>
+    </div>
+
+    <!-- 보스 경고 연출 (사용자 지시: "워닝 워닝 워닝" 느낌으로 화려하게)
+         #game-area가 아니라 #app 직속이라야 장비 시트·탭바까지 포함한 '화면 전체'를 덮는다.
+         한 줄 텍스트는 안에서 두 번 반복해 둔다 — 마퀴 트랙을 translateX(-50%)로 굴려
+         이음매 없이 흐르게 하려면 두 조각의 폭이 정확히 같아야 한다. -->
+    <div id="boss-warning" class="hidden">
+        <div class="bw-dim"></div>
+        <div class="bw-flash"></div>
+        <div class="bw-banner">
+            <div class="bw-hazard"></div>
+            <div class="bw-marquee">
+                <div class="bw-track">
+                    <span>WARNING ◆ WARNING ◆ WARNING ◆ WARNING ◆ </span>
+                    <span>WARNING ◆ WARNING ◆ WARNING ◆ WARNING ◆ </span>
+                </div>
+            </div>
+            <div class="bw-hazard"></div>
+        </div>
+        <div class="bw-sub">보스 출현</div>
     </div>
 
     <!-- 모달/토스트 -->

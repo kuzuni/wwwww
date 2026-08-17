@@ -105,16 +105,19 @@ const SFX = {
         if (crit) this.tone(1200, 0.12, { type: 'triangle', gain: 0.22, slideTo: 1800 });
     },
 
-    // 보스 등장 경고 사이렌 — 상승/하강 스윕 3회 + 저역 임팩트.
-    // CSS 배너(#boss-warning, 총 2.0초)의 점멸 타이밍에 맞춰 0.62초 주기로 감는다.
+    // 보스 경고 사이렌 — 화면 연출(#boss-warning)과 같은 .42초 박자로 상승/하강 스윕 3회,
+    // 그 아래 저역 럼블을 계속 깔고, 1.55초에 보스가 지면을 밟는 서브베이스 임팩트로 닫는다.
+    // 박자를 CSS 애니메이션과 맞추는 게 핵심 — 소리와 점멸이 어긋나면 경보가 아니라 잡음으로 들린다.
     bossSiren() {
         for (let i = 0; i < 3; i++) {
-            const d = i * 0.62;
-            this.tone(320, 0.3, { type: 'sawtooth', gain: 0.16, slideTo: 760, delay: d });        // 감아올림
-            this.tone(760, 0.28, { type: 'sawtooth', gain: 0.14, slideTo: 330, delay: d + 0.3 }); // 떨어짐
+            const d = i * 0.42;
+            this.tone(330, 0.2, { type: 'sawtooth', gain: 0.15, delay: d, slideTo: 880 });        // 올림
+            this.tone(880, 0.2, { type: 'sawtooth', gain: 0.15, delay: d + 0.2, slideTo: 330 });  // 내림
+            this.tone(110, 0.34, { type: 'square', gain: 0.05, delay: d });                       // 사이렌 아래 배음
         }
-        this.noiseBurst(0.5, { gain: 0.12, filterFreq: 320 });   // 배 아래 울리는 저역 임팩트
-        this.tone(70, 0.6, { type: 'sine', gain: 0.22, slideTo: 42 });
+        this.noiseBurst(1.5, { gain: 0.11, filterFreq: 130 }); // 지축 럼블
+        this.tone(72, 0.5, { type: 'sine', gain: 0.4, delay: 1.55, slideTo: 34 });
+        this.noiseBurst(0.42, { gain: 0.32, filterFreq: 700, delay: 1.55 });
     },
 
     // 모루 타격 — 금속 클랭(고음이 빠르게 떨어지고 배음이 남는다) + 짧은 스파크 노이즈.

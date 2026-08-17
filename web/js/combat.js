@@ -77,6 +77,21 @@ const Combat = {
 
     nextWave() {
         this.wave++;
+        // 보스 웨이브는 경고 연출을 먼저 돌리고 그게 끝난 뒤에 보스를 내보낸다 (사용자 지시 ③ "연출 후 보스 등장").
+        // 연출 구간은 적이 없는 별도 페이즈라 전투 루프는 계속 돌되(버프 만료·재생·지연 큐 정상 동작)
+        // 행군만 멈춘다 — 화면이 흐르면 경고 배너가 '지나가는 장식'으로 읽힌다.
+        if (this.wave === 5) {
+            this.phase = 'bossWarn';
+            this.phaseTimer = Scene3D.BOSS_IMPACT; // 배너 전체 길이가 아니라 '착지 임팩트' 시점 — 파동과 보스가 같은 프레임에 나온다
+            Scene3D.bossEntrance();
+            SFX.setMusicMode('boss'); // 사이렌과 같은 시점에 걸어 다음 코드 경계에서 보스곡으로 갈아탄다
+            UI.updateWavePips(this.wave);
+            return;
+        }
+        this.spawnWave();
+    },
+
+    spawnWave() {
         const isBossWave = this.wave === 5;
         const baseHp = this.monsterBaseHp().mul(1 + 0.08 * (this.wave - 1));
         const count = isBossWave ? 1 : (this.wave <= 2 ? 2 : 3);
@@ -87,7 +102,8 @@ const Combat = {
                 id: ++this._enemySeq,
                 hp, maxHp: hp,
                 atk: hp.div(isBossWave ? this.BOSS_ATK_DIV : this.MOB_ATK_DIV),
-                x: 3.1 + i * 1.2 + U.rand(0, 0.4),
+                // 일반 몹은 화면 밖(+x)에서 걸어 들어오지만, 보스는 워닝이 지목한 화면 안 자리에 솟는다
+                x: isBossWave ? Scene3D.BOSS_SPAWN_X : 3.1 + i * 1.2 + U.rand(0, 0.4),
                 speed: U.rand(1.0, 1.4),
                 atkTimer: U.rand(0.3, 0.9),
                 isBoss: isBossWave,
@@ -97,7 +113,6 @@ const Combat = {
             Scene3D.spawnEnemy(e);
         }
         this.phase = 'fight';
-        if (isBossWave) { Scene3D.bossEntrance(); SFX.setMusicMode('boss'); }
         UI.updateWavePips(this.wave);
     },
 
@@ -116,7 +131,8 @@ const Combat = {
     // ---- 메인 틱 ----
     tick(dt) {
         // 걷기 상태: 전투 중이 아니거나 적이 없으면 행군 (무한맵 스크롤)
-        Scene3D.walking = this.phase !== 'fight' || !this.aliveEnemies().length;
+        // 보스 경고 중에는 행군을 멈춘다 — 연출이 지목한 착지 지점(worldX 기준)이 흘러가면 안 된다
+        Scene3D.walking = this.phase !== 'bossWarn' && (this.phase !== 'fight' || !this.aliveEnemies().length);
         // 지연 큐
         for (let i = this.pending.length - 1; i >= 0; i--) {
             this.pending[i].t -= dt;
@@ -137,10 +153,11 @@ const Combat = {
         const regenPct = 0.01 + (this.hero.stats ? this.hero.stats.hpRegen / 100 : 0);
         this.hero.hp = this.hero.hp.add(this.hero.maxHp.mul(regenPct * dt)).min(this.hero.maxHp);
 
-        if (this.phase === 'waveDelay' || this.phase === 'stageDelay') {
+        if (this.phase === 'waveDelay' || this.phase === 'stageDelay' || this.phase === 'bossWarn') {
             this.phaseTimer -= dt;
             if (this.phaseTimer <= 0) {
                 if (this.phase === 'waveDelay') this.nextWave();
+                else if (this.phase === 'bossWarn') this.spawnWave(); // 경고가 끝난 그 프레임에 보스가 솟는다
                 else this.setupStage();
             }
             return;

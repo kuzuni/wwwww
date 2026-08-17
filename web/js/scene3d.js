@@ -16,6 +16,7 @@ const Scene3D = {
     particles: [],
     anims: [],               // {t, dur, fn(k), onDone}
     shakeMag: 0,
+    camPush: 0,              // 카메라 돌리 인 오프셋(z를 이만큼 당김) — 보스 워닝 연출이 소유
     fxLayer: null, container: null,
     _clock: 0,
 
@@ -3854,12 +3855,18 @@ const Scene3D = {
         // 등장: 지면을 밟고 화면 밖(+x)에서 걸어 들어옴 — 하늘 낙하 금지 (사용자 지시).
         // 스폰 x(3.1+)는 화면 밖이고 Combat 접근 로직이 전진시키므로 즉시 접지 + 걷기 모션이 곧 등장 연출.
         m.g.userData.landed = true;
-        if (e.isBoss) { // 보스 플러리시: 지면 먼지 파동 + 스케일 인 (접지 유지)
+        if (e.isBoss) {
+            // 보스 등장: 워닝이 지목한 자리에서 먼지 파동 + 스케일 인 (접지 유지 — 하늘 낙하 금지).
+            // bossEntrance의 착지 임팩트와 같은 프레임에 시작되므로 여기서는 '솟아오르는 몸' 쪽만 담당한다.
             const targetScale = m.g.scale.x;
-            m.g.scale.setScalar(targetScale * 0.55);
-            this.expandRing(m.g.position.clone(), new THREE.Color(0xbcaaa4), 1.4);
-            this.addAnim(0.32, k => {
-                m.g.scale.setScalar(targetScale * (0.55 + 0.45 * (1 - (1 - k) * (1 - k))));
+            m.g.scale.setScalar(targetScale * 0.42);
+            this.expandRing(m.g.position.clone(), new THREE.Color(0xbcaaa4), 1.8);
+            this.spawnSparks(m.g.position.clone().add(new THREE.Vector3(0, 0.3, 0)), 18, 0xd7ccc8, { speed: 1.6 });
+            this.addAnim(0.42, k => {
+                // 오버슈트(1.08배)로 한 번 부풀었다 자리를 잡는다 — 선형 확대는 '스티커가 커지는' 인상
+                const e2 = 1 - Math.pow(1 - k, 3);
+                const over = Math.sin(Math.PI * Math.min(1, k / 0.85)) * 0.08;
+                m.g.scale.setScalar(targetScale * (0.42 + 0.58 * e2 + over));
             }, () => m.g.scale.setScalar(targetScale));
         }
     },
@@ -4475,13 +4482,85 @@ const Scene3D = {
         this.shake(0.4);
     },
 
-    // 보스 웨이브 진입 — 경고 배너 + 사이렌을 같은 프레임에 걸고, 카메라를 두 번 흔든다
-    // (두 번째는 배너가 닫히며 보스가 접지하는 타이밍). 전투 루프는 멈추지 않는다.
+    // ---- 보스 등장 워닝 연출 (사용자 지시: "워닝 워닝 워닝" 느낌으로 화려하게) ----
+    // 화면(#boss-warning) · 사운드(SFX.bossSiren) · 3D가 전부 이 두 상수를 기준으로 같은 박에 움직인다.
+    BOSS_WARN_DUR: 2.0,   // 총 길이(배너 닫힘까지) — 사용자 지시 ④ "1.5~2.5초"
+    BOSS_BEAT: 0.42,      // 점멸/사이렌 스윕 1회 박자 (3회 = 1.26초)
+    BOSS_IMPACT: 1.55,    // 보스가 지면을 밟는 순간 — Combat이 이 시점에 보스를 스폰한다(연출 → 등장, 사용자 지시 ③)
+    BOSS_SPAWN_X: 1.75,   // 보스가 서는 자리(논리 x). 화면 안 오른쪽 — 경고 링이 여기를 미리 지목한다
+
     bossEntrance() {
-        this.shake(0.5);
-        UI.bossWarning();
+        const px = this.BOSS_SPAWN_X + this.worldX;
+        UI.bossWarning(this.BOSS_WARN_DUR);
         SFX.bossSiren();
-        setTimeout(() => this.shake(0.35), UI.BOSS_WARN_MS - 260);
+        // 착지 지점 위에 붉은 경고 기둥을 세워 "여기서 뭔가 나온다"를 미리 읽히게 한다.
+        const pillar = this.bossWarnPillar(px);
+        let beat = -1, impacted = false;
+        this.addAnim(this.BOSS_WARN_DUR, k => {
+            const t = k * this.BOSS_WARN_DUR;
+            // 카메라를 임팩트까지 천천히 밀어 넣는다(ease-out) — 등장 직전 압박감
+            if (!impacted) this.camPush = 0.9 * (1 - Math.pow(1 - Math.min(1, t / this.BOSS_IMPACT), 3));
+            // 경고 링 3회 — 박마다 점점 크고 세게
+            const b = Math.floor(t / this.BOSS_BEAT);
+            if (b !== beat && b < 3) {
+                beat = b;
+                this.expandRing(new THREE.Vector3(px, 0, 0), new THREE.Color(0xff3d2e), 1.0 + b * 0.45);
+                this.flashLight(new THREE.Vector3(px, 0.3, 0), 0xff2a1e, 0.26);
+                this.shake(0.05 + b * 0.035);
+            }
+            if (pillar) { // 기둥은 박에 맞춰 밝아졌다 어두워지며 서서히 자란다
+                const pulse = 0.35 + 0.65 * Math.pow(1 - (t % this.BOSS_BEAT) / this.BOSS_BEAT, 2);
+                pillar.material.opacity = (impacted ? 0 : 0.72 * pulse * Math.min(1, t / 0.5));
+                pillar.scale.y = 0.55 + 0.45 * Math.min(1, t / this.BOSS_IMPACT);
+                pillar.rotation.y = t * 0.9; // 느린 회전 — 정지한 원뿔은 배경 프롭으로 읽힌다
+            }
+            // 착지 임팩트: 지축 파동 + 큰 흔들림 + 카메라 릴리즈 (보스 스케일 인과 같은 프레임)
+            if (!impacted && t >= this.BOSS_IMPACT) {
+                impacted = true;
+                this.shake(0.5);
+                this.fovPunch(0.05, 0.3);
+                this.expandRing(new THREE.Vector3(px, 0, 0), new THREE.Color(0xff6a3c), 3.4);
+                this.expandRing(new THREE.Vector3(px, 0, 0), new THREE.Color(0xffe0b2), 2.0);
+                this.spawnSparks(new THREE.Vector3(px, 0.25, 0), 22, 0xffab40, { speed: 2.2 });
+                this.flashLight(new THREE.Vector3(px, 0.6, 0), 0xff8a3d, 0.4);
+                const push0 = this.camPush;
+                this.addAnim(0.45, kk => { this.camPush = push0 * (1 - kk); }, () => { this.camPush = 0; });
+            }
+        }, () => {
+            this.camPush = 0;
+            if (pillar) { this.disposeTree(pillar); this.scene.remove(pillar); }
+        });
+    },
+
+    // 광주용 세로 알파 그라디언트 — 밑동만 진하고 위로 갈수록 사라진다.
+    // 균일 알파로 두면 가산 합성이 원뿔 전체를 채워 '허연 사다리꼴 판'으로 읽힌다(실측 프레임).
+    bossWarnTex() {
+        if (this._bossWarnTex) return this._bossWarnTex;
+        const c = document.createElement('canvas');
+        c.width = 4; c.height = 128;
+        const ctx = c.getContext('2d');
+        const g = ctx.createLinearGradient(0, 0, 0, 128); // 캔버스 위=원기둥 위(three는 flipY)
+        g.addColorStop(0, 'rgba(255,255,255,0)');
+        g.addColorStop(0.55, 'rgba(255,255,255,.30)');
+        g.addColorStop(1, 'rgba(255,255,255,1)');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 128);
+        this._bossWarnTex = new THREE.CanvasTexture(c);
+        return this._bossWarnTex;
+    },
+
+    // 착지 지점에서 솟는 붉은 경고 광주(가산 합성 원뿔) — 등장 위치를 미리 알리는 표식
+    bossWarnPillar(px) {
+        const pillar = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.62, 1.05, 3.4, 20, 1, true),
+            new THREE.MeshBasicMaterial({
+                color: 0xff1a10, map: this.bossWarnTex(), transparent: true, opacity: 0, side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+            }));
+        pillar.geometry.translate(0, 1.7, 0); // 원점을 밑동으로 — scale.y를 키워도 바닥에서 자란다
+        pillar.position.set(px, 0, 0);
+        pillar.scale.y = 0.55;
+        this.scene.add(pillar);
+        return pillar;
     },
 
     // ---- 스킬 이펙트 ----
@@ -5232,6 +5311,8 @@ const Scene3D = {
             }
         }
         // 카메라: 플레이어 전진을 따라감 + 셰이크 (camLock = 검증 스크립트용 고정 훅)
+        // 돌리 인(보스 워닝 전용): 카메라 rotation은 init의 lookAt으로 고정이라 z만 당기면 그대로 줌 인이 된다
+        const camZ = 8.2 - (this.camPush || 0);
         if (this.camLock) {
             this.camera.position.copy(this.camLock.pos);
             this.camera.lookAt(this.camLock.look);
@@ -5239,11 +5320,11 @@ const Scene3D = {
             this.camera.position.set(
                 0.15 + this.worldX + U.rand(-1, 1) * this.shakeMag,
                 3.7 + U.rand(-1, 1) * this.shakeMag * 0.6,
-                8.2
+                camZ
             );
             this.shakeMag *= Math.pow(0.001, dt); // 감쇠
         } else {
-            this.camera.position.set(0.15 + this.worldX, 3.7, 8.2);
+            this.camera.position.set(0.15 + this.worldX, 3.7, camZ);
         }
         this.renderFrame(); // 블룸+비네트 포스트 스택 경유 (모바일은 직접 렌더 폴백)
     },
