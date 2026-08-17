@@ -23,6 +23,7 @@ const UI = {
     },
 
     init() {
+        this.installScrollKeeper(); // render* 전부를 스크롤 보존으로 감싼다 (init 최초 1회)
         const $ = id => document.getElementById(id);
         this.els = {
             topbar: $('topbar'), stageLabel: $('stage-label'), wavePips: $('wave-pips'),
@@ -130,8 +131,57 @@ const UI = {
 
     // 팝업 표시 공통 경로 — 열림 애니메이션(cardpop)은 '처음 열릴 때 1회만'.
     // 이미 열린 팝업의 내용 갱신(재렌더 후 재호출)은 opening을 다시 붙이지 않아 깜빡임이 없다 (사용자 지시).
+    // ---- 스크롤 위치 보존 (사용자 지시 2026-08-17) ----
+    // 액션 핸들러 대부분이 화면을 innerHTML로 통째 재렌더한다. 그러면 스크롤 컨테이너가
+    // 새 노드로 교체되면서 scrollTop이 0이 돼 "버튼만 눌렀는데 목록이 맨 위로 튀는" 현상이 생긴다.
+    // 노드 참조는 교체와 함께 죽으므로, 재렌더 직전 위치를 '구조 선택자'로 적어 두고
+    // 재렌더 후 같은 자리를 다시 찾아 되돌린다.
+    domPath(el) {
+        if (el.id) return '#' + CSS.escape(el.id);
+        const parts = [];
+        for (let n = el; n && n.nodeType === 1 && n !== document.body; n = n.parentElement) {
+            if (n.id) { parts.unshift('#' + CSS.escape(n.id)); break; }
+            if (!n.parentElement) break;
+            const i = Array.prototype.indexOf.call(n.parentElement.children, n) + 1;
+            parts.unshift(n.tagName.toLowerCase() + ':nth-child(' + i + ')');
+        }
+        return parts.join(' > ');
+    },
+    // fn 실행 전후로 '지금 실제로 스크롤돼 있는' 컨테이너의 위치를 보존한다.
+    // 스크롤이 0인 요소는 기록하지 않으므로 새로 열리는 화면은 그대로 맨 위에서 시작한다.
+    keepScroll(fn) {
+        const saved = [];
+        for (const el of document.querySelectorAll('*')) {
+            if (el.scrollTop > 0) saved.push([this.domPath(el), el.scrollTop]);
+        }
+        try { return fn(); }
+        finally {
+            for (const [path, top] of saved) {
+                if (!path) continue;
+                let el = null;
+                try { el = document.querySelector(path); } catch (e) { el = null; }
+                // 재렌더로 콘텐츠가 짧아졌으면 브라우저가 알아서 최대치로 잘라 준다
+                if (el && el.scrollTop !== top) el.scrollTop = top;
+            }
+        }
+    },
+    // UI.render*()를 전부 스크롤 보존으로 감싼다 — 핸들러를 하나씩 고치는 대신 한 곳에서 일괄 적용.
+    // 재렌더 경로만 감싸면 되므로 open*/close*는 건드리지 않는다(신규 오픈은 showModal이 맨 위로 리셋).
+    installScrollKeeper() {
+        if (this._scrollKeeperOn) return;
+        this._scrollKeeperOn = true;
+        for (const name of Object.keys(this)) {
+            if (!/^render[A-Z]/.test(name) || typeof this[name] !== 'function') continue;
+            const orig = this[name];
+            this[name] = function (...args) { return UI.keepScroll(() => orig.apply(this, args)); };
+        }
+    },
+
     showModal(el) {
         if (!el.classList.contains('hidden')) return; // 이미 열려 있음 — 재렌더 경로, 애니메이션 금지
+        // 새로 여는 팝업은 항상 맨 위에서 시작한다 (직전에 열었을 때의 스크롤 잔상 제거).
+        // 재렌더 경로는 위 return으로 빠져나가므로 keepScroll이 복원한 위치를 덮어쓰지 않는다.
+        el.querySelectorAll('*').forEach(n => { if (n.scrollTop) n.scrollTop = 0; });
         el.classList.remove('hidden');
         el.classList.add('opening');
         clearTimeout(el._openingT);
