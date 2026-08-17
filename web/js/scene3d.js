@@ -2012,19 +2012,25 @@ const Scene3D = {
             const helm = new THREE.Mesh(new THREE.SphereGeometry(0.28, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.78), mat);
             helm.position.y = 0.04;
             helm.scale.set(0.97, 1.02, 1);
-            // 슬릿 = 함몰 캐비티: 칠흑 내부 + 림 테두리 + 언릿 발광 눈 (표면 데칼 'T 스티커' 오독 제거, 비평가 지적)
+            // 슬릿 = 돔 곡률을 따라 감싸는 함몰 밴드 — 박스 돌출식은 정면 '선글라스 스티커'·측면 '번진 글자' 오독 (비평가 7.1 2번)
             const cavity = new THREE.MeshBasicMaterial({ color: 0x0c0f12 });
-            const slit = new THREE.Mesh(new THREE.BoxGeometry(0.23, 0.052, 0.07), cavity);
-            slit.position.set(0, 0.06, 0.252); // 전면(0.287)이 돔 표면(0.279) 밖 — 박스가 돔 안에 묻히면 캐비티가 아예 안 보임
-            const rimGeo = new THREE.TorusGeometry(0.128, 0.012, 5, 14); // 슬릿 개구부 금속 림 — 재질 경계로 '뚫린 구멍' 판독
-            rimGeo.scale(1, 0.32, 1);
-            const slitRim = new THREE.Mesh(rimGeo, new THREE.MeshLambertMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.16) })); // 다크 무광 — 밝은 림이 '부유하는 흰 타원 링'으로 오독 (비평가 3번)
-            slitRim.position.set(0, 0.06, 0.289); // 캐비티 전면 바로 앞 — 표면과 이격되면 '부유 링'
-            g.add(slitRim);
+            const slitArc = Math.PI * 0.62; // 전면 ±56° — 측면에선 자연스럽게 원근 수축
+            const slit = new THREE.Mesh(new THREE.CylinderGeometry(0.2855, 0.2855, 0.048, 18, 1, true, -slitArc / 2, slitArc), cavity);
+            slit.position.set(0, 0.06, 0);
+            for (const [sy, off] of [[0.088, 0.5], [0.032, -0.5]]) { // 상하 금속 림 — 개구부 프레임이 빛을 받아 '뚫린 구멍'으로 판독
+                const rim = new THREE.Mesh(new THREE.TorusGeometry(0.2865, 0.011, 5, 18, slitArc),
+                    new THREE.MeshStandardMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.1), metalness: 0.85, roughness: 0.35 }));
+                rim.rotation.x = Math.PI / 2;
+                rim.rotation.z = Math.PI / 2 - slitArc / 2; // 토러스 아크 중심을 +z로
+                rim.position.y = sy;
+                g.add(rim);
+            }
             for (const dx of [-0.055, 0.055]) { // 캐비티 속 언릿 발광 눈 — 어둠 대비 최대
                 const glowEye = new THREE.Mesh(new THREE.SphereGeometry(0.027, 6, 5),
                     new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.18, 0.24) }));
-                glowEye.position.set(dx * 1.2, 0.06, 0.293); // 캐비티 전면(0.287)보다 앞 — 가려지면 무광 슬릿만 남음
+                const ex = dx * 1.2, ez = Math.sqrt(0.2855 * 0.2855 - ex * ex) + 0.004; // 밴드 원통면 위 — 평면 배치는 측면에서 밴드 밖 부유
+                glowEye.position.set(ex, 0.06, ez);
+                glowEye.rotation.y = Math.atan2(ex, ez); // 면 법선 방향
                 glowEye.scale.set(1.1, 0.55, 0.4);
                 g.add(glowEye);
             }
