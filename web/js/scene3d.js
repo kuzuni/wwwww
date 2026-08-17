@@ -4662,7 +4662,10 @@ const Scene3D = {
         const pos = m.g.position;
         // ① 옅은 틴트 + 외곽 림 셸 — 밝기가 아니라 윤곽으로 피격을 알린다(형태 유지가 우선)
         this.flashMesh(m, crit ? 0.28 : 0.2, crit ? 0.14 : 0.1);
-        this.rimFlash(m, crit ? 0.13 : 0.1, crit ? 0xff8a3d : 0xffffff, crit ? 1.2 : 1.1);
+        // 일반 피격 림을 **순백에서 청백으로** 바꾼다 — 골렘·해골처럼 몸 albedo가 이미 near-white인 종에서
+        // 흰 가산 림은 명도차가 10%도 안 나 "깜빡였는지조차 모르겠다"가 됐다(비평가 4차 2번).
+        // 청백(0x9fe3ff)은 따뜻한 회백 몸/초원 배경 어느 쪽과도 색상이 갈려 같은 밝기에서도 분리된다.
+        this.rimFlash(m, crit ? 0.13 : 0.1, crit ? 0xff8a3d : 0x9fe3ff, crit ? 1.2 : 1.12);
         // ② 접촉점 — 영웅(-x)에서 들어온 타격이므로 몸통 왼쪽 앞면에 플레어 + 그 축으로 파편
         // 접촉점 높이도 실높이 비례로 — 고정 0.55는 키 작은 슬라임에선 머리 위, 키 큰 골렘·보스에선
         // 무릎~허벅지에 맞아 "다리를 때렸다"로 읽혔다(연속 프레임 a4/a5 실측). 처치 버스트가 이미 쓰는
@@ -4764,11 +4767,22 @@ const Scene3D = {
             const barG = m.hpBg.parent, hpFg = m.hpFg, gh = m.hpGhost;
             const v0 = hpFg ? hpFg.scale.x : 0, s0 = barG.scale.x || 1;
             m.barDying = true; // update의 driveHpBar가 이 바를 다시 건드리지 않게 (드레인을 덮어쓰면 계단이 생긴다)
-            this.addAnim(0.12, k => {
-                const v = Math.max(0.001, v0 * (1 - k));
+            const g0 = gh ? Math.max(gh.scale.x, v0) : 0;
+            // ⚠️ 잔상바도 **반드시 같이 0까지 내려야 한다.** 앞바만 비우고 잔상바를 남겼더니
+            // +180ms 프레임에서 트랙이 "빨갛게 55% 차 있는 바"로 보였다 — 죽는 게 아니라 **분노해서 붉어진 것**으로
+            // 읽히는 정반대 신호다(비평가 4차 4번). 잔상은 앞바보다 0.18초 늦게 따라가되 0.26초에는 반드시 0이 된다.
+            this.addAnim(0.26, k => {
+                const fk = Math.min(1, k / 0.46);                    // 앞바: 0.12초에 0
+                const v = Math.max(0.001, v0 * (1 - fk * fk));
                 if (hpFg) { hpFg.scale.x = v; hpFg.position.x = -0.4 * (1 - v); }
-                if (gh) gh.visible = true; // 잔상바는 남겨 둔다 — 방금 깎아낸 폭이 곧 마지막 한 방의 크기
+                if (gh) {                                            // 잔상바: 0.07초 버틴 뒤 0.26초에 0
+                    const gk = U.clamp((k - 0.27) / 0.73, 0, 1);
+                    const gv = Math.max(0.001, g0 * (1 - gk));
+                    gh.scale.x = gv; gh.position.x = -0.4 * (1 - gv);
+                    gh.visible = gk < 1;
+                }
             }, () => {
+                if (gh) gh.visible = false; // 빈 트랙이 한 박자(팝아웃 전 0.16초) 그대로 보여야 '0이 됐다'가 지각된다
                 // 팝아웃 — 0.16초에 걸쳐 살짝 부풀며 사라진다(툭 꺼지면 '버그로 사라졌다'로 읽힌다)
                 this.addAnim(0.16, k => {
                     barG.scale.setScalar(s0 * (1 + 0.15 * k));
