@@ -55,13 +55,18 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         };
         const base = CHAPTER_THEMES[0];
         const out = [];
-        for (const d of [0, 0.06, 0.10, 0.14, 0.18, 0.24]) {
-            const t = Object.assign({}, base);
-            const c = new THREE.Color(base.ground).offsetHSL(0, 0, -d);
-            t.ground = c.getHex();
-            Scene3D.setTheme(t);
-            out.push(Object.assign({ tag: `ground L-${d.toFixed(2)}` }, measure()));
+        const run = (tag, v) => {
+            Object.assign(Scene3D.VALUE, v);
+            Scene3D.setTheme(base);
+            out.push(Object.assign({ tag }, measure()));
+        };
+        // ① 지면 명도 오프셋 스윕 (식생·채도 보정은 끈 채 단독 효과 확인)
+        for (const d of [0, 0.08, 0.12, 0.155, 0.20, 0.26]) {
+            run(`ground -${d.toFixed(3)}`, { ground: -d, groundSat: 0, foliage: 0, farDesat: 0 });
         }
+        // ② 채택 후보 위에 식생 추가 하향 + 원경 채도 하향을 얹어 최종 조합 확인
+        run('adopt(-.155/.07/.2)', { ground: -0.155, groundSat: -0.05, foliage: -0.07, farDesat: 0.2 });
+        run('deeper(-.20/.11/.26)', { ground: -0.20, groundSat: -0.07, foliage: -0.11, farDesat: 0.26 });
         return out;
     });
     console.log('tag'.padEnd(18), 'edgeStep  signed    bodyLum  medianLum  darkPctAll');

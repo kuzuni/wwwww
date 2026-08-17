@@ -1,5 +1,12 @@
 // ===== Three.js 3D 전투 씬 + 연출(파티클/셰이크/데미지 숫자) =====
 const Scene3D = {
+    // 전역 값 그레이드 — setTheme()이 지면·능선·식생 albedo에 일괄 적용한다(스윕: tools/probe-terrain-sweep.js).
+    // ground/foliage = HSL 명도 오프셋, groundSat = 명도를 내릴 때 함께 빠지는 채도 보정,
+    // farDesat = 원경 LOD로 갈수록 계단식으로 빼는 채도(대기 원근).
+    // 값은 **비율**이다 — 고정 오프셋(-0.20)을 쓰면 이미 어두운 챕터(9 용암 ground L 0.11, 7 마법 0.25)가
+    // 니어블랙으로 붕괴한다. 현재 명도에 비례해 깎고(groundK) 절대 낙폭에 상한(groundMax)을 둔다.
+    //   ch1 초원 L .48 → -.192 / ch6 설원 밤 L .78 → -.22(상한) / ch7 마법 L .25 → -.10 / ch9 용암 L .11 → -.044
+    VALUE: { groundK: 0.40, groundMax: 0.22, foliageK: 0.22, foliageMax: 0.12, satK: 0.35, farDesat: 0.26 },
     renderer: null, scene: null, camera: null,
     worldX: 0,               // 플레이어가 오른쪽으로 전진한 누적 거리 (무한 월드)
     heroG: null, weaponG: null, helmetG: null, bodyMesh: null,
@@ -4354,18 +4361,37 @@ const Scene3D = {
         const fogC = new THREE.Color(t.fog).lerp(new THREE.Color(t.sky), 0.3);
         if (!isNightPre) fogC.offsetHSL(0, 0.09, 0.01);
         this.scene.fog.color.copy(fogC);
-        this.terrainMat.color.setHex(t.ground);
+        // ---- 전역 값 그레이드 (비평가 2인 공통 1위 '글로벌 값 붕괴') ----
+        // 광량 하향(1.85→1.15)만으로는 화면 중간값이 내려가지 않았다 — **실측으로 뒤집힌 건이라 근거를 남긴다**:
+        // 광량을 내린 뒤 다시 재도 medianLum 0.7392 → 0.7706으로 오히려 **올랐다**. 화면 면적의 대부분을
+        // 차지하는 능선 3겹(mountain/hill/farHill)이 **MeshBasic 무조명**이라 라이트에 전혀 반응하지 않고,
+        // 노출만 1.00→1.10으로 올라 그대로 10% 밝아졌기 때문이다. 지면·식생도 t.ground albedo가 지배한다.
+        // → 전역 값 구조의 실제 지렛대는 **조명이 아니라 albedo**다. 여기서 t.ground를 한 번 눌러
+        // 파생 재질 전부(지면·능선 3겹·수풀·덤불·반구광 바닥)에 일괄 반영한다.
+        // 하늘·안개는 누르지 않는다 — 밝은 끝을 남겨야 명도 폭(다크 엔드 ↔ 라이트 엔드)이 생긴다.
+        const V = Scene3D.VALUE;
+        const gHSL = new THREE.Color(t.ground).getHSL({ h: 0, s: 0, l: 0 });
+        // 밤 챕터는 노출 0.82 + 광량 하향이 이미 값을 눌러 놨다 — 같은 그레이드를 그대로 얹으면
+        // 5장 밤 숲의 뭉개짐(명도 0.04 이하)이 3.9% → 8.3%로 뛰어 디테일이 소실된다(실측). 절반만 적용.
+        const nightK = isNightPre ? 0.5 : 1;
+        const dL = -Math.min(V.groundMax, V.groundK * gHSL.l) * nightK;   // 비례 하향 + 절대 낙폭 상한
+        const dF = -Math.min(V.foliageMax, V.foliageK * gHSL.l) * nightK; // 식생 추가 하향
+        const gC = new THREE.Color(t.ground).offsetHSL(0, V.satK * dL, dL); // 명도를 내리면 채도도 함께 (탁한 파스텔 방지)
+        this.terrainMat.color.copy(gC);
         // 능선 실루엣(MeshBasic·무조명): 근경은 어둡게·원경은 안개에 깊이 잠기게 명도 단차를 크게 벌려
-        // 근·중·원 3단(근경 능선 → 원경 능선 → 하늘)의 대기 원근이 읽히게 함
-        this.mountainMat.color.copy(new THREE.Color(t.ground).offsetHSL(0, 0.03, -0.16).lerp(fogC, 0.22));
-        this.hillMat.color.copy(new THREE.Color(t.ground).lerp(fogC, 0.75));
-        this.farHillMat.color.copy(new THREE.Color(t.ground).lerp(fogC, 0.9)); // 안개에 거의 잠긴 최원경
-        this.foliageMat.color.copy(new THREE.Color(t.ground).offsetHSL(-0.02, 0.08, -0.16));
-        this.foliageMatDark.color.copy(new THREE.Color(t.ground).offsetHSL(-0.025, 0.09, -0.23)); // 뒤 나무용 어두운 변주
-        this.foliageMatLight.color.copy(new THREE.Color(t.ground).offsetHSL(-0.015, 0.07, -0.09)); // 앞 나무용 밝은 변주
-        this.bushMat.color.copy(new THREE.Color(t.ground).offsetHSL(-0.01, 0.05, -0.1));
+        // 근·중·원 3단(근경 능선 → 원경 능선 → 하늘)의 대기 원근이 읽히게 함.
+        // 대기 원근은 명도만이 아니라 **채도**로도 읽힌다 — 멀수록 채도를 계단식으로 빼(farDesat) 원경이
+        // 근경과 같은 초록 덩어리로 붙지 않게 한다(비평가 ⑵ '원경 LOD 채도 낮추기').
+        this.mountainMat.color.copy(gC.clone().offsetHSL(0, 0.03 - V.farDesat * 0.35, -0.16).lerp(fogC, 0.22));
+        this.hillMat.color.copy(gC.clone().offsetHSL(0, -V.farDesat * 0.7, 0).lerp(fogC, 0.75));
+        this.farHillMat.color.copy(gC.clone().offsetHSL(0, -V.farDesat, 0).lerp(fogC, 0.9)); // 안개에 거의 잠긴 최원경
+        // 식생은 지면보다 한 단계 더 눌러 '어두운 덩어리'로 — 화면의 다크 엔드를 실제로 담당하는 레이어
+        this.foliageMat.color.copy(gC.clone().offsetHSL(-0.02, 0.08, -0.16 + dF));
+        this.foliageMatDark.color.copy(gC.clone().offsetHSL(-0.025, 0.09, -0.23 + dF)); // 뒤 나무용 어두운 변주
+        this.foliageMatLight.color.copy(gC.clone().offsetHSL(-0.015, 0.07, -0.09 + dF)); // 앞 나무용 밝은 변주
+        this.bushMat.color.copy(gC.clone().offsetHSL(-0.01, 0.05, -0.1 + dF));
         this.hemi.color.setHex(t.sky);
-        this.hemi.groundColor.copy(new THREE.Color(t.ground).offsetHSL(0, 0, -0.1));
+        this.hemi.groundColor.copy(gC.clone().offsetHSL(0, 0, -0.1));
         // 바이옴 소품 교체 (같은 바이옴이면 그대로 유지)
         const biome = t.biome || 'forest';
         if (biome !== this._biome) this.buildProps(biome);
