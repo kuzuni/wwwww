@@ -80,9 +80,6 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         // A/B ③: 블랙엔드 사슬
         ProChar.setTone({ mail: 0x8e9aa6 }); relight(); out.push(Object.assign({ tag: 'mail 구톤' }, measure()));
         ProChar.setTone({ mail: 0x0e1319 }); relight(); out.push(Object.assign({ tag: 'mail 블랙엔드' }, measure()));
-        // A/B ④: 셀프 섀도가 안 먹히는 게 **섀도맵 텍셀 밀도** 탓인지 분리 검증.
-        // 현재 프러스텀 ±10유닛 / 2048px = 텍셀 ~1cm. 캐릭터 키가 1.5유닛이니 자기 몸에 지는
-        // 그림자는 텍셀 몇 개 폭이라 PCF에 뭉개진다. 프러스텀을 좁히면 밀도가 올라간다.
         // A/B ④: 섀도맵 텍셀 밀도. **이 행들은 셀프 섀도가 아니라 지면 접지 그림자의 선명도를 잰다** —
         // 아래 결과를 보고 '캐릭터 전용 근접 캐스케이드'를 실제로 구현했다가 되돌린 기록이 TODO에 있으니
         // 같은 길을 다시 파지 말 것(요약: 키라이트를 둘로 쪼개면 넓은 그림자가 그만큼 옅어져 상쇄된다).
