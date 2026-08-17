@@ -126,7 +126,9 @@ const Forge = {
             const pool = weaponsOfAge(age);
             nameIdx = U.randInt(0, pool.length - 1);
             wtype = pool[nameIdx];
-            name = `${AGE_KR[age]} ${WEAPON_TYPES[wtype].kr}`;
+            // 무기 이름은 이제 시대 전용이므로(몽둥이=원시, 세라핌의 활=천상) 시대 접두사를 붙이지 않는다.
+            // 표시하는 쪽이 이미 '[시대] 이름'으로 감싸서 '[원시] 원시 몽둥이'가 됐다 — 투구·갑옷·장신구와 같은 규칙으로 통일.
+            name = WEAPON_TYPES[wtype].kr;
         } else {
             const cat = ITEM_NAMES[age];
             if (cat && cat[slot]) {
