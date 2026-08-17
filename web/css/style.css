@@ -1482,6 +1482,12 @@ body {
 .pinfo-preview .pip.now { background: #fff; box-shadow: 0 0 6px #fff; }
 .pinfo-section-title { font-size: .74rem; color: var(--pp-muted); font-weight: 800; margin: .5rem 0 .3rem; }
 .pinfo-loadout-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+/* .sk-orb는 width:100%(부모 .sk-cell 기준)라 **폭을 정해 주는 부모**가 있어야 한다.
+   스킬 화면에서는 .sk-cell이 그리드 칸이라 폭이 잡히지만, 여기선 flex 아이템이라 폭이
+   내용물에서 나온다 — 스킬 오브는 안이 <img>(CSS 크기 지정)라 순환이 되어 6×6px로
+   찌부러졌고, 펫·탈것 오브만 이모지 글자 폭 덕에 멀쩡해 보였다(QA 11차).
+   같은 줄의 세 종류가 같은 지름이 되도록 칸 폭을 명시한다. */
+.pinfo-loadout-row .sk-cell { width: calc(var(--app-h, 887px) * .054); flex: 0 0 auto; }
 /* 옵션 합계: 카드가 화면을 넘지 않게 플렉스 제약 + 목록만 내부 스크롤(터치·얇은 스크롤바) — 항목 잘림 방지 (사용자 지시).
    %max-height는 높이 auto인 .idet-wrap 기준으론 무효라 래퍼에 먼저 제약을 건다 */
 #player-info-modal .idet-wrap { max-height: 76%; display: flex; flex-direction: column; } /* 원본(043313) ≈73% H (185 재채점) */
