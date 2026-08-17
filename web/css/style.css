@@ -1771,3 +1771,22 @@ body {
 .fl-head { margin-bottom: .4rem; }
 .fl-head .fi-age-cur { padding-right: .5rem; }
 .skill-btn.empty { background: rgba(10,10,14,.75); border: 2px solid rgba(255,255,255,.18); pointer-events: none; }
+
+/* ===== 승천(라인 프레스티지) 팝업 — 사용자 확정 2026-08-17 ===== */
+.asc-card { text-align: center; }
+.asc-row { display: flex; align-items: center; gap: .4rem; padding: .34rem .5rem; margin: .22rem 0;
+    background: var(--pp-panel); border-radius: .5rem; font-size: .82rem; }
+.asc-row.ready { background: #2f7d32; color: #fff; }
+.asc-name { flex: 0 0 5.2rem; text-align: left; font-weight: 800; }
+.asc-prog { flex: 1; text-align: left; opacity: .85; }
+.asc-cnt { flex: 0 0 3rem; text-align: right; font-weight: 800; }
+.asc-focus { margin-top: .7rem; padding: .6rem .5rem; background: var(--pp-sheet);
+    border: 3px solid var(--pp-line); border-radius: .6rem; }
+.asc-focus-icon { font-size: 2.4rem; line-height: 1; }
+.asc-focus-title { font-weight: 900; font-size: 1.05rem; margin-top: .2rem; }
+.asc-focus-cnt { font-size: .86rem; margin: .25rem 0 .4rem; }
+.asc-focus-eff { font-size: .76rem; text-align: left; line-height: 1.5; opacity: .9; }
+.asc-btns { display: flex; gap: .5rem; margin-top: .7rem; }
+.asc-btns .btn { flex: 1; min-height: 2.9rem; }
+/* 소환 바: 승천 가능 상태의 소환 버튼 (초록 강조) */
+.summon-bar .btn.big.ascend-ready { background: linear-gradient(#4caf50, #2e7d32); color: #fff; }

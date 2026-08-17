@@ -73,7 +73,7 @@ const Forge = {
             }
         }
 
-        return { name, slot, age, ageIdx, rarity, level, main, value, subs, wtype, nameIdx, stars: 0 };
+        return { name, slot, age, ageIdx, rarity, level, main, value, subs, wtype, nameIdx, stars: Ascension.count('forge') };
     },
 
     itemPower(item) {
@@ -83,21 +83,14 @@ const Forge = {
         return p * Ascension.starMult(item.stars);
     },
 
-    // 승천(별) 대상 판별: 이미 장착 중인 장비와 슬롯·등급·이름이 같은 장비를 다시 획득 (원본 조건 미확보 → 자체 설계)
+    // 장착 중인 장비와 슬롯·등급·이름이 같은지 (비교 팝업의 '같은 장비' 표기용)
     isMatchingGear(a, b) {
         return !!a && !!b && a.slot === b.slot && a.rarity === b.rarity && a.name === b.name;
     },
-    ASCEND_FORGE_LEVEL: 35, // 장비 승천은 대장간 Lv.35부터 (사용자 확정 스펙 2026-08-17)
-    canAscendGear() { return S.forgeLevel >= this.ASCEND_FORGE_LEVEL; },
-    // 장착 중인 장비에 별 1개 추가 (중복 장비를 흡수)
-    ascendGear(slot) {
-        if (!this.canAscendGear()) return false;
-        const it = S.equipment[slot];
-        if (!it) return false;
-        it.stars = (it.stars || 0) + 1;
-        Combat.recalcHero();
-        saveGame();
-        return true;
+    // 개별 장비 승천은 폐기 — 승천은 대장간 라인 단위(Ascension.ascend('forge'))로만 일어나고,
+    // 제작되는 장비가 그 승천 횟수만큼 별을 달고 나온다 (사용자 확정 2026-08-17).
+    ascendGearRemoved() {
+        return false;
     },
 
     sellPrice(item) {
@@ -131,13 +124,10 @@ const Forge = {
         return price;
     },
 
-    // 동일 장비면 승천(별 흡수), 더 좋으면 장착하고 이전 장비 판매, 아니면 그대로 판매. 반환: {equipped, ascended, gained}
+    // 더 좋으면 장착하고 이전 장비 판매, 아니면 그대로 판매. 반환: {equipped, gained}
+    // (동일 장비 '별 흡수' 경로는 라인 승천 도입으로 폐기 — 중복 장비는 일반 판매)
     autoResolve(item) {
         const cur = S.equipment[item.slot];
-        if (this.isMatchingGear(item, cur) && this.canAscendGear()) { // 대장간 Lv.35 미만이면 승천 불가 → 아래 판매 경로로
-            this.ascendGear(item.slot);
-            return { equipped: false, ascended: true, gained: 0 };
-        }
         // 승천 별을 쌓은 장착 중 장비는 오토포지가 임의로 교체·판매하지 않음(별은 판매가에 반영되지 않아 무경고로 영구 손실됨) — 교체는 항상 수동(비교 팝업)에서만
         if ((!cur || !cur.stars) && this.itemPower(item) > this.itemPower(cur)) {
             const prev = this.equip(item);

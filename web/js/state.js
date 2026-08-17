@@ -28,6 +28,8 @@ function defaultState() {
         summonMult: { skill: 1, pet: 1, mount: 1 }, // 소환 배수 (x1→x5→x25→x75 순환, 사용자 지시 — 구세이브는 UI.summonMult()가 1로 폴백)
         hatchSlotBonus: 0,               // 부화장 슬롯 젬 구매 수 (기본 2칸 + 이 값)
         techResearch: null,             // 기술 트리 연구 중: {id, endsAt} | null (전역 1건)
+        // 승천(라인 단위 프레스티지) — 라인별 승천 횟수 = 이후 그 라인 획득물의 별 개수
+        lineAscend: { forge: 0, skill: 0, pet: 0, mount: 0 },
         // 대장간
         forgeLevel: 1,
         forgeUpgradeEndsAt: null,       // 절대시각(ms). null이면 미진행

@@ -102,20 +102,8 @@ const Mounts = {
         return true;
     },
 
-    // 승천(별): Lv.100(만렙) 도달 후 중복 30개를 소모해 별 1개 획득
-    canAscend(name) {
-        const m = S.mounts[name];
-        return !!m && m.level >= this.INDIV_MAX_LEVEL && m.dupes >= this.ASCEND_DUPES;
-    },
-    ascend(name) {
-        const m = S.mounts[name];
-        if (!this.canAscend(name)) return false;
-        m.dupes -= this.ASCEND_DUPES;
-        m.stars = (m.stars || 0) + 1;
-        Combat.recalcHero();
-        saveGame();
-        return true;
-    },
+    // 개별 탈것 승천은 폐기 — 승천은 소환 라인 단위(Ascension.ascend('mount'))이며,
+    // 소환 레벨 만렙에서 소환 버튼이 승천 안내로 전환된다 (사용자 확정 2026-08-17).
 
     summon(count = 1) {
         this.ensure();
@@ -133,7 +121,7 @@ const Mounts = {
                 // 중복은 합성/승천 재료(dupes)로만 적립. 레벨업은 '업그레이드' 팝업에서 다른 탈것을 흡수해서만 진행 (펫과 동일 방식)
                 owned.dupes++;
             } else {
-                S.mounts[name] = { rarity, level: 1, dupes: 0, stars: 0, xp: 0, subs: this.rollSubs() };
+                S.mounts[name] = { rarity, level: 1, dupes: 0, stars: Ascension.count('mount'), xp: 0, subs: this.rollSubs() };
                 // 장착 중인 탈것이 없으면 자동 장착
                 if (!S.activeMount) this.equip(name);
             }

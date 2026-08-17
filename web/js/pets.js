@@ -100,7 +100,7 @@ const Pets = {
                     existing.dupes++;
                     UI.toast(`🥚 ${PET_KR[def.name] || def.name} 중복 획득 (재료 ${existing.dupes})`);
                 } else {
-                    S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, xp: 0, stars: 0, subs: this.rollSubs() });
+                    S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, xp: 0, stars: Ascension.count('pet'), subs: this.rollSubs() });
                     if (S.activePets.length < this.MAX_ACTIVE) {
                         S.activePets.push(S.pets.length - 1);
                         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
@@ -173,20 +173,8 @@ const Pets = {
         return true;
     },
 
-    // 승천(별): Lv.100(만렙) 도달 후 중복 30개를 소모해 별 1개 획득
-    canAscend(idx) {
-        const p = S.pets[idx];
-        return !!p && p.level >= this.MAX_LEVEL && p.dupes >= this.ASCEND_DUPES;
-    },
-    ascend(idx) {
-        const p = S.pets[idx];
-        if (!this.canAscend(idx)) return false;
-        p.dupes -= this.ASCEND_DUPES;
-        p.stars = (p.stars || 0) + 1;
-        Combat.recalcHero();
-        saveGame();
-        return true;
-    },
+    // 개별 펫 승천은 폐기 — 승천은 소환 라인 단위(Ascension.ascend('pet'))이며,
+    // 소환 레벨 만렙에서 소환 버튼이 승천 안내로 전환된다 (사용자 확정 2026-08-17).
 
     // 출전 중인 모든 펫의 합산 보너스 (고정 공격력·체력 + 서브스탯 원본 배열)
     activeBonus() {

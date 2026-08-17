@@ -39,7 +39,7 @@ const Skills = {
             if (cur) {
                 cur.dupes++; // 조각 적립 (레벨업은 UI.onUpgradeSkill 등 수동 업그레이드로만)
             } else {
-                S.skills[def.id] = { level: 1, dupes: 0, stars: 0 };
+                S.skills[def.id] = { level: 1, dupes: 0, stars: Ascension.count('skill') };
                 if (S.equippedSkills.length < this.MAX_ACTIVE) { S.equippedSkills.push(def.id); Combat.recalcHero(); }
             }
             results.push({ def, isNew: !cur, level: S.skills[def.id].level });
@@ -88,20 +88,8 @@ const Skills = {
         saveGame();
         return true;
     },
-    // 승천(별): 만렙 도달 후 조각(만렙 요구치만큼)을 소모해 별 1개 획득
-    canAscend(id) {
-        const sk = S.skills[id];
-        return !!sk && sk.level >= this.MAX_LEVEL && sk.dupes >= this.shardsRequired(this.MAX_LEVEL);
-    },
-    ascend(id) {
-        const sk = S.skills[id];
-        if (!this.canAscend(id)) return false;
-        sk.dupes -= this.shardsRequired(this.MAX_LEVEL);
-        sk.stars = (sk.stars || 0) + 1;
-        if (S.equippedSkills.includes(id)) Combat.recalcHero();
-        saveGame();
-        return true;
-    },
+    // 개별 스킬 승천은 폐기 — 승천은 소환 라인 단위(Ascension.ascend('skill'))이며,
+    // 소환 레벨 만렙에서 소환 버튼이 승천 안내로 전환된다 (사용자 확정 2026-08-17).
     // 보유한 모든 스킬을 조각이 허용하는 한 최대한 업그레이드
     upgradeAll() {
         let count = 0;
