@@ -432,14 +432,23 @@ body {
 .stat-grid div:nth-child(even) { text-align: right; font-weight: 700; color: #ffd54f; }
 
 /* ---- 하단 탭 ---- */
+/* 원본(shot-042120 499×892 / shot-042632 500×878) 실측: 탭바 밴드 높이 84px 두 곳 모두 = 9.42%·9.57%H,
+   그 안의 아이콘 높이 ≈50px(5.6%H). 클론은 55px(6.44%H)에 아이콘 1.15rem(19px)이라 3%p 낮고
+   아이콘도 원본의 1/2.6 크기였다 — 전 화면 공통 편차라 비율 검증에서 제일 먼저 잡을 항목.
+   높이는 --tabbar-h 한 곳에서 관리한다(시트 좌하단 ◀·팝업 높이 상한이 같은 값을 참조). */
 #tabbar {
     display: flex; background: #1c2128; border-top: 1px solid #30363d; z-index: 10;
+    height: var(--tabbar-h); flex: none;
 }
 #tabbar button {
-    flex: 1; background: none; border: none; color: #78909c; padding: .45rem 0 .55rem;
-    font-size: 1.15rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .1rem;
+    flex: 1; background: none; border: none; color: #78909c; padding: .18rem 0 .22rem;
+    font-size: 2.6rem; cursor: pointer; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 0;
+    /* 이모지 글리프는 em 박스를 넘겨 그려진다 — line-height 1이면 아이콘이 아래 라벨 위로 흘러내려
+       글자와 겹친다(실측 확인). 글리프가 들어갈 만큼 줄상자를 키우고 라벨만 1로 되돌린다. */
+    line-height: 1.3;
 }
-#tabbar button span { font-size: .62rem; font-weight: 700; }
+#tabbar button span { font-size: .62rem; font-weight: 700; line-height: 1; }
 #tabbar button.active { color: #ffd54f; }
 
 /* ---- 모달/토스트 ---- */
@@ -451,10 +460,12 @@ body {
 /* 세부정보류 팝업은 항상 소유 화면(플레이어 정보 등) 위에 겹침 — DOM 순서와 무관하게 스택 보장 */
 #detail-modal, #mount-upgrade-modal, #gear-detail-modal, #forge-item-modal { z-index: 22; }
 /* 원본(043244): 장비 상세 카드는 화면 하단(장비 시트 위, 세로 60~78%)에 뜬다 — 폭 ≈70% */
-#gear-detail-modal { align-items: flex-end; padding-bottom: 15%; }
+/* padding-bottom의 %는 컨테이너 '너비' 기준이라 탭바가 높아져도 따라오지 않아 카드가 탭바에 물렸다
+   — 탭바 높이에 맞물리게 바꿔 어떤 탭바 높이에서도 그 위에 앉는다. */
+#gear-detail-modal { align-items: flex-end; padding-bottom: calc(var(--tabbar-h) + .8rem); }
 #gear-detail-modal .gd-card { width: 70%; }
 /* 장비 비교 팝업은 원본(shot-043224)처럼 하단 앵커 (버튼줄이 화면 ~78%H) */
-#craft-modal { align-items: flex-end; padding-bottom: 13%; }
+#craft-modal { align-items: flex-end; padding-bottom: calc(var(--tabbar-h) + .8rem); }
 /* 기술 노드 팝업 액션 버튼 — 원본(shot-042605) 높이≈화면 7% 입체 블록 */
 .item-detail[data-tech-node] .btn { min-height: 3.6rem; font-size: 1rem; padding: .5rem .6rem; }
 /* 원본 팝업 인셋 실측(185 전수 패스): 일반 ≈69~76% W — 클론 82~94%는 과대. 시트(.sheet)는 풀스크린 유지 */
@@ -766,7 +777,12 @@ body {
 .dg-right .btn { min-width: 4.6rem; min-height: 2.4rem; font-size: .85rem; }
 
 /* ② 리그 보상 팝업 — 원본(shot-042208): 다크 남색 카드 + 빨간 리본, 상단 재화는 다크 pill, 하단 테이블만 흰색 */
-.modal-card.wide.lgr-card { background: linear-gradient(180deg, #232946, #171c33); }
+/* 카드가 탭바를 넘지 않게 상한을 걸고, 넘치는 만큼은 안쪽 보상 표가 줄어들며 스크롤한다 */
+.modal-card.wide.lgr-card {
+    background: linear-gradient(180deg, #232946, #171c33);
+    max-height: var(--popup-h-max); min-height: 0; overflow: hidden;
+}
+.lgr-card .league-reward-table { flex: 1; min-height: 3rem; }
 .league-reward-banner {
     position: relative; background: var(--pp-red); color: #fff; text-align: center; font-weight: 900; font-size: 1rem;
     padding: .55rem 1.2rem; border-radius: .3rem; margin: .2rem 1rem .6rem;
@@ -1218,7 +1234,7 @@ body {
     --pp-line: #17181a;        /* 외곽선 (원본은 굵은 검정) */
     --pp-panel: #efefef;       /* 팝업 안 회색 패널 */
     --pp-muted: #8a8a8a;       /* 보조 글자 */
-    --tabbar-h: 3.45rem;       /* 하단 탭바 높이 실측(55px @ 뷰포트 850) — 시트 좌하단 ◀ 띄우는 기준 */
+    --tabbar-h: 5rem;          /* 하단 탭바 높이 = 원본 실측 9.42~9.57%H (앱 높이 52.75rem 기준 5rem = 9.48%) */
     /* #app 실제 높이 — main.js fitLayout()이 매 리사이즈마다 px로 덮어쓴다.
        레터박스(9:16) 때문에 세로로 긴 폰에서는 100vh보다 작다(412×915 → 앱 732px). JS 전 폴백만 100vh. */
     --app-h: 100vh;
@@ -1226,9 +1242,9 @@ body {
     /* 가운데 정렬 팝업이 하단 탭바를 침범하지 않는 카드 높이 상한.
        .modal은 #app 전체(탭바 포함)를 덮고 세로 가운데 정렬이라, 카드 아래로 반쯤 걸치는
        .x-btn(3.4rem, margin-top -1.7rem → 순증 1.7rem)까지 탭바 위에 두려면
-       (앱높이 + 카드높이 + 1.7rem)/2 ≤ 앱높이 − 탭바높이 → 카드높이 ≤ 앱높이 − 8.6rem.
-       여유 .2rem을 더해 8.8rem으로 잡는다. */
-    --popup-h-max: calc(var(--app-h) - 8.8rem);
+       (앱높이 + 카드높이 + 1.7rem)/2 ≤ 앱높이 − 탭바높이 → 카드높이 ≤ 앱높이 − 2×탭바 − 1.7rem.
+       여유 .2rem을 더해 계산한다 — 탭바 높이를 바꾸면 상한이 자동으로 따라온다. */
+    --popup-h-max: calc(var(--app-h) - 2 * var(--tabbar-h) - 1.9rem);
     --pp-blue: #2f7dfa;  --pp-blue-dk: #1b56c4;
     --pp-red: #e8362f;   --pp-red-dk: #a51710;
     --pp-green: #35c04f; --pp-green-dk: #1f8c34;
@@ -1743,7 +1759,11 @@ body {
 .af-start { display: block; width: 38%; margin: .8rem auto .3rem; font-size: 1.05rem; padding: .6rem 0; min-height: 3.6rem; } /* 원본 ≈29% 화면폭 */
 
 /* ===== 확률 정보 팝업 (shot-042831 원본 대조 재작업) ===== */
-.fi-card { width: min(calc(var(--app-w) * .9), 22.5rem); padding: .85rem .8rem .9rem; position: relative; }
+.fi-card {
+    width: min(calc(var(--app-w) * .9), 22.5rem); padding: .85rem .8rem .9rem; position: relative;
+    max-height: var(--popup-h-max); min-height: 0; overflow: hidden;
+}
+.fi-card .fi-rows { flex: 1; min-height: 3rem; overflow-y: auto; }
 .fi-title { text-align: center; font-size: 1.12rem; font-weight: 900; margin: .1rem 0 0; }
 .fi-sub { text-align: center; font-size: .78rem; font-weight: 800; margin-bottom: .45rem; }
 .fi-info-btn {
