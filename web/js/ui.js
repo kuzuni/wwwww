@@ -3110,10 +3110,28 @@ const UI = {
         this.toast('🗝 던전 열쇠 리필 완료');
     },
 
+    // 스테이지 도달 해금(UNLOCKS)은 전투 쪽(Combat.stageClear)에서 일어나는데 그 경로가 장비 시트를
+    // 다시 그리지 않아, 2-10을 클리어해도 [자동🔄] 버튼이 🔒 잠김 표시로 남아 있었다 (QA 9차).
+    // 매 초 해금 상태를 비교해 **바뀐 순간에만** 다시 그린다 — 매 초 renderEquipSheet는 과하다.
+    syncUnlockBadges() {
+        if (!this._unlockSeen) this._unlockSeen = {};
+        let opened = null;
+        UNLOCKS.forEach(u => {
+            const now = isUnlocked(u.key);
+            const prev = this._unlockSeen[u.key];
+            this._unlockSeen[u.key] = now;
+            if (prev !== undefined && prev !== now && now) opened = u;  // 첫 틱은 기준값만 잡는다(부팅 토스트 방지)
+        });
+        if (!opened) return;
+        this.renderEquipSheet();  // 현재 UNLOCKS 표시는 전부 장비 시트 안에 있다 (autoForge = 자동🔄 버튼)
+        this.toast(`🔓 ${opened.name} 해금!`);
+    },
+
     // 매초 갱신 (타이머류)
     tickSecond() {
         this.renderTopBar();
         this.updateAnvilCounter(); // 킬 드랍·분당 수급으로 계속 변하는 해머 보유량 (QA: 정적 문자열이라 안 갱신되던 버그)
+        this.syncUnlockBadges();   // 해금 즉시 잠금 배지 해제 (QA 9차: 해금돼도 🔒로 남던 버그)
         this.els.offlineBtn.classList.toggle('ready', (U.now() - S.lastOfflineClaim) / 1000 >= 60);
         // 켜둔 채로도 누적이 자라므로, 열려 있는 오프라인 팝업의 수치를 매 초 갱신한다 (사용자 지시 2026-08-17)
         if (!this.els.offlineModal.classList.contains('hidden')) {
