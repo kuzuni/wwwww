@@ -115,3 +115,6 @@ InitTestScene*.unity*
 
 # claim.sh 세션 로컬 id (체크아웃마다 고유, 공유 금지)
 .claim-id
+
+# shot-hitfx.js 가 채점 라운드마다 새로 굽는 임시 캡처 (동일 파일이 web/tools/shots-<N>cha/ 에 보존본으로 커밋된다)
+web/tools/hitfx-*.png
