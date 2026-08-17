@@ -3973,8 +3973,19 @@ const Scene3D = {
         }
         mesh.scale.setScalar(sc * rideScale);
         g.userData.stirrups = mesh.userData.stirrups || null;   // 등자는 메시 안에 달렸다 — 그룹에서도 찾게 올려 둔다
-        const baseY = form.hover * sc * rideScale;
+        let baseY = form.hover * sc * rideScale;
         g.position.set(Combat.HERO_X + this.worldX, baseY, 0);   // 영웅 발밑(별도 자리 아님)
+        // ── 접지 보정: 어떤 종도 지면 아래로 파고들지 않게 ──
+        // 안장 역산이 탈것을 최대 2.6배까지 키우는데(위 rideScale), **배율은 메시 원점 기준**이라
+        // 원점보다 조금 아래에 있던 파츠(바퀴 밑동·발굽)의 음수 오프셋까지 같은 배율로 커진다.
+        // 실측(probe-ride-ground): 자전거 -0.051 / 외바퀴 드로이드 -0.098 / 사족형 -0.036 — 바퀴가
+        // 지면에 묻혔다(항목의 불합격 조건 '관통'). 종마다 상수를 박는 대신 **실제 bbox 하단을 재서**
+        // 모자란 만큼 들어 올린다 — 모델을 손봐도, 새 종이 들어와도 따라온다.
+        // ⚠️ 들어 올린 만큼 안장도 같이 올라가므로 **heroY에 같은 값을 더해야** 골반-안장 정합
+        //    (probe-ride-fit의 '+0.000')이 유지된다. 한쪽만 올리면 영웅이 안장에 파묻힌다.
+        g.updateMatrixWorld(true);
+        const lift = Math.max(0, -new THREE.Box3().setFromObject(g).min.y);
+        if (lift > 0) { baseY += lift; g.position.y = baseY; heroY += lift; }
         g.userData.home = g.position.clone();
         g.userData.spotX = 0;
         g.userData.baseY = baseY;
