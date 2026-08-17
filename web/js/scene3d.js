@@ -86,6 +86,7 @@ const Scene3D = {
         this.heroG.add(rig.group);
         this.heroRig = rig;
         this.setShadow(rig.group);
+        this.applyRimLight(rig.group);
         // 무기: 오른손 마운트 (legacy 좌표계와 동일 — 칼날 +y)
         rig.handR.add(this.weaponG);
         this.weaponG.visible = true;
@@ -199,6 +200,87 @@ const Scene3D = {
     setShadow(g) {
         g.traverse(o => { if (o.isMesh) o.castShadow = true; });
         return g;
+    },
+
+    // ---- 캐릭터 프레넬 림 라이트 (스타일라이즈드 3D의 최우선 시그니처) ----
+    // 왜 라이트로는 안 되는가: 기존 `this.rim`은 DirectionalLight라 **면의 방향**에만 반응해
+    // 넓은 면을 골고루 밝힐 뿐, 실루엣 '테두리'를 따라가지 않는다. 그래서 캐릭터와 배경의
+    // 명도가 붙으면(실측: 영웅 0.63 vs 배경 0.707 — 차이 0.077) 윤곽이 배경에 녹아든다.
+    // 여기서는 시선-법선 프레넬(1-N·V)로 **시야 기준 테두리**만 밝혀 배경에서 오려낸다.
+    //
+    // 주입 지점: 이 three.js 빌드에는 `output_fragment` 청크가 없어(청크 목록 실측 확인)
+    // `outgoingLight`를 잡을 수 없다. 대신 gl_FragColor가 이미 대입된 직후인
+    // `tonemapping_fragment` 앞에 끼워 `gl_FragColor.rgb`에 더한다 — 톤매핑을 거치므로
+    // 림이 1.0에서 딱 잘리지 않고 필름톤으로 롤오프되는 이점도 있다.
+    // ⚠️ 실측이 뒤집은 설계: 밝은 림만 넣으면 실루엣 분리가 **나빠진다.**
+    // 초원 배경은 하이키(화면 평균 명도 0.707)이고 캐릭터 테두리는 그보다 어두워서(부호 단차 -0.10)
+    // 분리는 이미 '어두운 윤곽'에서 나오고 있었다. 여기에 밝은 림을 더하면 그 어두운 테두리를
+    // 메워 경계 단차가 0.1413 → 0.1318로 떨어졌다(probe-silhouette.js 실측).
+    // 그래서 2단 구성으로 간다: ① 넓은 프레넬 **다크 컨투어**(외곽선 패스의 절차적 등가물 —
+    // 배경이 밝을수록 분리에 직접 기여) ② 그 안쪽에 좁은 **밝은 림**(형태 정의·금속 광택).
+    // 스윕 실측(probe-rim-sweep.js, 경계 명도 단차 edgeStep 기준):
+    //   림/컨투어 OFF ............ 0.1523 (기준선)
+    //   다크 컨투어 0.88 pow1.1 ... 0.1650  ← 채택 (+8.3%)
+    //   + 밝은 림 0.35 pow5 ...... 0.1486  ← 기준선보다 나쁨
+    //   + 밝은 림 0.90 pow5 ...... 0.1458  ← 더 나쁨
+    // → **밝은 림은 강도에 무관하게 분리를 악화시킨다**(어두운 테두리를 메우므로). strength 0으로 봉인.
+    //   배경이 어두워지는 작업(지형 값 구조)이 선행되면 그때 다시 켤 가치가 생긴다 — 코드는 남겨 둔다.
+    // 주의: 주입 지점이 톤매핑 앞 **선형 공간**이라 sRGB 인코딩 후 크게 밝아진다.
+    //   그래서 darkColor는 니어블랙, darkStrength도 0.88처럼 세게 필요하다(0.38은 육안 무변화).
+    RIM: { color: 0xdcefff, strength: 0, power: 5.0, darkColor: 0x0a1119, darkStrength: 0.88, darkPower: 1.35 },
+    _rimUniforms: [],
+    applyRimLight(g) {
+        g.traverse(o => {
+            if (!o.isMesh || !o.material) return;
+            for (const m of (Array.isArray(o.material) ? o.material : [o.material])) {
+                // Standard/Phong만 — 이 둘만 vViewPosition을 선언한다. Lambert/Basic(눈 흰자·동공 등
+                // 작은 디테일)은 건너뛴다: 실루엣 분리는 몸체 재질만으로 충분하다.
+                if (!(m.isMeshStandardMaterial || m.isMeshPhongMaterial)) continue;
+                if (m.userData.__rim) continue;          // 중복 주입 방지 (heroG/rig.group 2중 호출)
+                m.userData.__rim = true;
+                const u = {
+                    uRimColor: { value: new THREE.Color(this.RIM.color) },
+                    uRimStr: { value: this.RIM.strength },
+                    uRimPow: { value: this.RIM.power },
+                    uRimDark: { value: new THREE.Color(this.RIM.darkColor) },
+                    uRimDarkStr: { value: this.RIM.darkStrength },
+                    uRimDarkPow: { value: this.RIM.darkPower },
+                };
+                this._rimUniforms.push(u);
+                const prev = m.onBeforeCompile;
+                m.onBeforeCompile = (shader, renderer) => {
+                    if (prev) prev(shader, renderer);
+                    for (const k in u) shader.uniforms[k] = u[k];
+                    shader.fragmentShader = 'uniform vec3 uRimColor;\nuniform float uRimStr;\nuniform float uRimPow;\n'
+                        + 'uniform vec3 uRimDark;\nuniform float uRimDarkStr;\nuniform float uRimDarkPow;\n'
+                        + shader.fragmentShader.replace('#include <tonemapping_fragment>', [
+                            '{',
+                            '  vec3 rN = normalize(normal);',            // 뷰 공간 법선 (normal_fragment_begin)
+                            '  vec3 rV = normalize(vViewPosition);',     // 프래그먼트 → 카메라
+                            '  float fres = 1.0 - clamp(dot(rN, rV), 0.0, 1.0);',
+                            // ① 다크 컨투어 — 넓게 깔아 밝은 배경에서 실루엣을 오려낸다(외곽선 대체)
+                            '  float df = pow(fres, uRimDarkPow) * uRimDarkStr;',
+                            '  gl_FragColor.rgb = mix(gl_FragColor.rgb, uRimDark, clamp(df, 0.0, 1.0));',
+                            // ② 밝은 림 — 좁게, 위/뒤쪽 테두리 위주(균일하면 '만화 아웃라인'으로 읽힘)
+                            '  float rf = pow(fres, uRimPow);',
+                            '  rf *= mix(0.3, 1.0, clamp(rN.y * 0.5 + 0.62, 0.0, 1.0));',
+                            '  gl_FragColor.rgb += uRimColor * (rf * uRimStr);',
+                            '}',
+                            '#include <tonemapping_fragment>',
+                        ].join('\n'));
+                };
+                m.needsUpdate = true;
+            }
+        });
+        return g;
+    },
+
+    // 밤/바이옴 색보정에서 림 색·강도를 함께 옮긴다 (하늘색과 림이 어긋나면 스티커로 읽힘)
+    setRimLook(colorHex, strength) {
+        for (const u of this._rimUniforms) {
+            u.uRimColor.value.setHex(colorHex);
+            u.uRimStr.value = strength;
+        }
     },
 
     // 지형 고도: 전투 라인은 평지, 뒤로 갈수록 능선 (x 주기 30 — 지형 타일 순환용)
@@ -1677,6 +1759,7 @@ const Scene3D = {
         g.rotation.y = 0.55; // 적 방향(+x)으로 3/4 자세
         g.position.set(Combat.HERO_X, 0, 0);
         this.setShadow(g);
+        this.applyRimLight(g);
         // 접지 블롭 섀도우 — 디렉셔널 섀도맵(1024/24유닛)이 흐릿해 캐릭터가 떠 보이던 문제 보강
         this.ensureBlobRes();
         const heroBlob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
@@ -2681,6 +2764,7 @@ const Scene3D = {
             g.userData.phase = U.rand(0, Math.PI * 2);  // 개체별 위상차
             g.userData.speed = U.rand(0.85, 1.25);       // 개체별 속도차
             this.setShadow(g);
+            this.applyRimLight(g);
             this.scene.add(g);
             this.petGroups.push(g);
         });
@@ -2702,6 +2786,7 @@ const Scene3D = {
         g.userData.spotX = spotX;
         g.userData.phase = U.rand(0, Math.PI * 2);
         this.setShadow(g);
+        this.applyRimLight(g);
         this.scene.add(g);
         this.mountGroup = g;
     },
@@ -3374,6 +3459,7 @@ const Scene3D = {
         m.g.position.set(e.x + this.worldX, 0, 0);
         m.g.rotation.y = -0.55; // 영웅 방향(-x)으로 3/4 자세
         this.setShadow(m.g);
+        this.applyRimLight(m.g);
         this.scene.add(m.g);
         this.enemyMap.set(e.id, m);
         // 접지 블롭 섀도우 — scene 직속으로 두고 update에서 추적 (홉/비행 시 그림자는 지면에 남아야 함)
