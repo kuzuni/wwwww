@@ -2560,6 +2560,15 @@ const UI = {
     // 효과음/수동 저장/초기화=프로필 ▸ 설정.
     renderMenu() {},
 
+    // 던전 배너 얼굴 — 이모지(🔨👻🥚🧟) 대신 IconGen 아이콘을 쓴다.
+    // 매핑을 dungeons.js 가 아니라 여기 두는 건 그 파일이 던전 규칙(해금·보상·열쇠) 소유라
+    // 화면 표현만 바꾸자고 건드릴 이유가 없어서다. 없는 id 는 원래 이모지로 떨어진다.
+    DG_ICON: { hammer: 'hammer', ghost: 'ghost', invasion: 'egg', zombie: 'zombie' },
+    dgIcon(d) {
+        const name = this.DG_ICON[d.id];
+        return name && typeof IconGen !== 'undefined' && IconGen.url(name) ? IconGen.img(name) : d.icon;
+    },
+
     // ---- 던전: 가로 배너 목록 + 상세(난이도 선택) 팝업 (UI-SPEC 6~7번) ----
     openDungeons() {
         Dungeons.ensure();
@@ -2569,7 +2578,7 @@ const UI = {
             const hex = '#' + d.theme.sky.toString(16).padStart(6, '0');
             // 원본 배치: 좌상단 아이콘+이름, 우측에 열쇠 수와 [열기] 버튼을 세로로
             return `<div class="dg-banner ${ok ? '' : 'locked'}" style="--bg:${hex}">
-                <span class="dg-icon">${d.icon}</span>
+                <span class="dg-icon">${this.dgIcon(d)}</span>
                 <div class="dg-info">
                     <div class="item-name">${d.kr}</div>
                     ${ok ? '' : `<span class="dg-lock">${IconGen.img('lock')} ${d.unlock} 도달 시 해금</span>`}
@@ -2668,7 +2677,7 @@ const UI = {
         this.els.dungeonDetailModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper dgd-card">
-                    <div class="dg-detail-hero" style="--bg:${hex}"><span class="dg-icon">${d.icon}</span><span class="dgd-title">${d.kr}</span></div>
+                    <div class="dg-detail-hero" style="--bg:${hex}"><span class="dg-icon">${this.dgIcon(d)}</span><span class="dgd-title">${d.kr}</span></div>
                     <div class="dgd-stage-row">
                         <button class="tri-btn" onclick="UI.onDungeonStageStep(-1)" style="visibility:${stage <= 1 ? 'hidden' : 'visible'}">◀</button>
                         <div class="dgd-stage"><span>난이도</span><b>${stage}단계</b></div>

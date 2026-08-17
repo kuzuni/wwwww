@@ -7,7 +7,9 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 
 const SHOTS = [
     ['dungeons', () => UI.openDungeons()],
-    ['dungeon-detail', () => { UI.openDungeons(); UI.openDungeonDetail('hammer'); }],
+    // 상세는 해금된 던전만 열린다(잠겨 있으면 토스트만 뜨고 목록이 그대로 남는다) —
+    // 진행도를 올려 4종 다 해금한 뒤 연다.
+    ['dungeon-detail', () => { S.bestChapter = 5; S.bestStage = 5; UI.openDungeons(); UI.openDungeonDetail('zombie'); }],
     ['league', () => UI.openLeague()],
     ['league-rewards', () => { UI.openLeague(); UI.openLeagueRewards(); }],
     // 앞 컷에서 연 팝업들이 그대로 덮으므로 전부 닫고 간다(샷마다 상태가 누적된다).

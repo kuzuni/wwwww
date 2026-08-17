@@ -1054,6 +1054,109 @@ const IconGen = {
             }
         },
 
+        // ---- 유령: 던전 '유령 마을' 배너 ----
+        // 배너 배경이 밝은 회색이라 흰 유령이 묻힌다 — 푸른 그림자와 짙은 외곽선으로 실루엣을 세운다.
+        ghost(ctx, S) {
+            const G = IconGen, cx = S * 0.5;
+            const top = S * 0.16, bot = S * 0.86, hw = S * 0.30;
+            const body = () => {
+                ctx.moveTo(cx - hw, bot - S * 0.12);
+                ctx.lineTo(cx - hw, top + hw * 0.6);
+                ctx.arc(cx, top + hw * 0.6, hw, Math.PI, 0);          // 둥근 머리
+                ctx.lineTo(cx + hw, bot - S * 0.12);
+                // 아래 자락 물결 3개
+                const w = (hw * 2) / 3;
+                for (let i = 0; i < 3; i++) {
+                    const x0 = cx + hw - w * i;
+                    ctx.quadraticCurveTo(x0 - w * 0.25, bot + S * 0.06, x0 - w * 0.5, bot - S * 0.05);
+                    ctx.quadraticCurveTo(x0 - w * 0.75, bot - S * 0.16, x0 - w, bot - S * 0.12);
+                }
+                ctx.closePath();
+            };
+            ctx.save();
+            ctx.globalAlpha = 0.4; ctx.fillStyle = '#0b1430';
+            ctx.filter = `blur(${S * 0.03}px)`;
+            ctx.translate(S * 0.015, S * 0.04);
+            ctx.beginPath(); body(); ctx.fill();
+            ctx.restore();
+
+            ctx.beginPath(); body();
+            ctx.fillStyle = G._rad(ctx, cx - hw * 0.4, top + hw * 0.3, S * 0.02, cx, S * 0.55, S * 0.62,
+                [[0, '#ffffff'], [0.5, '#e8eefb'], [1, '#b9c6e4']]);
+            ctx.fill();
+            G._innerShadow(ctx, body, 'rgba(70,90,140,.55)', S * 0.05, 0, -S * 0.02);
+            ctx.beginPath(); body();
+            ctx.lineWidth = S * 0.026; ctx.strokeStyle = 'rgba(38,48,78,.8)'; ctx.stroke();
+
+            // 눈 2개 + 벌린 입
+            const eye = (ex) => {
+                ctx.beginPath();
+                ctx.ellipse(ex, top + hw * 0.62, S * 0.055, S * 0.075, 0, 0, Math.PI * 2);
+                ctx.fillStyle = '#1b2440'; ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(ex - S * 0.018, top + hw * 0.50, S * 0.018, S * 0.024, 0, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fill();
+            };
+            eye(cx - S * 0.115); eye(cx + S * 0.115);
+            ctx.beginPath();
+            ctx.ellipse(cx, top + hw * 1.20, S * 0.055, S * 0.075, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#1b2440'; ctx.fill();
+        },
+
+        // ---- 좀비: 던전 '좀비 러시' 배너 ----
+        zombie(ctx, S) {
+            const G = IconGen, cx = S * 0.5, cy = S * 0.52;
+            const hw = S * 0.30, hh = S * 0.34;
+            const head = () => { ctx.moveTo(cx + hw, cy); ctx.ellipse(cx, cy, hw, hh, 0, 0, Math.PI * 2); };
+
+            ctx.save();
+            ctx.globalAlpha = 0.38; ctx.fillStyle = '#000';
+            ctx.filter = `blur(${S * 0.02}px)`;
+            ctx.translate(0, S * 0.035);
+            ctx.beginPath(); head(); ctx.fill();
+            ctx.restore();
+
+            ctx.beginPath(); head();
+            ctx.fillStyle = G._rad(ctx, cx - hw * 0.35, cy - hh * 0.45, S * 0.02, cx, cy, hw * 1.5,
+                [[0, '#b6e88a'], [0.45, '#77bf4a'], [0.78, '#4a8a2c'], [1, '#28551a']]);
+            ctx.fill();
+            G._innerShadow(ctx, head, 'rgba(16,44,10,.6)', S * 0.05, 0, -S * 0.02);
+            ctx.beginPath(); head();
+            ctx.lineWidth = S * 0.026; ctx.strokeStyle = 'rgba(18,42,12,.85)'; ctx.stroke();
+
+            // 썩은 자국 2개
+            ctx.save();
+            ctx.beginPath(); head(); ctx.clip();
+            ctx.fillStyle = 'rgba(40,84,26,.55)';
+            ctx.beginPath(); ctx.ellipse(cx + hw * 0.45, cy - hh * 0.15, S * 0.06, S * 0.045, 0.5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(cx - hw * 0.5, cy + hh * 0.35, S * 0.05, S * 0.035, -0.4, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+
+            // 눈 — 왼쪽은 크게 튀어나오고(흰자+작은 동공) 오른쪽은 감긴 흉터
+            ctx.beginPath();
+            ctx.ellipse(cx - S * 0.11, cy - S * 0.06, S * 0.075, S * 0.068, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#f6ffe9'; ctx.fill();
+            ctx.lineWidth = S * 0.018; ctx.strokeStyle = 'rgba(18,42,12,.8)'; ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(cx - S * 0.095, cy - S * 0.045, S * 0.028, 0, Math.PI * 2);
+            ctx.fillStyle = '#16240e'; ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(cx + S * 0.055, cy - S * 0.075); ctx.lineTo(cx + S * 0.185, cy - S * 0.035);
+            ctx.lineWidth = S * 0.028; ctx.strokeStyle = 'rgba(18,42,12,.85)'; ctx.stroke();
+
+            // 입 — 벌어진 채 이가 몇 개만 남은
+            const my = cy + S * 0.16;
+            ctx.beginPath();
+            ctx.moveTo(cx - S * 0.155, my - S * 0.03);
+            ctx.quadraticCurveTo(cx, my + S * 0.12, cx + S * 0.155, my - S * 0.03);
+            ctx.quadraticCurveTo(cx, my + S * 0.02, cx - S * 0.155, my - S * 0.03);
+            ctx.closePath();
+            ctx.fillStyle = '#20180f'; ctx.fill();
+            ctx.fillStyle = '#f2f6e4';
+            ctx.fillRect(cx - S * 0.085, my - S * 0.022, S * 0.045, S * 0.05);
+            ctx.fillRect(cx + S * 0.035, my - S * 0.022, S * 0.04, S * 0.042);
+        },
+
         // ---- 채팅 이름줄 성별 심볼 (원본 shot-043500 실측) ----
         // 원본은 이름 뒤에 **색이 있는 성별 아이콘**을 둔다 — 클론은 회색 텍스트 글리프(♀ 1.00%W)라
         // 원본 클러스터(8.42%W) 대비 −7.4%p로 이름줄이 통째로 가벼워 보였다(비평가 2인 공통 1순위 지적).
