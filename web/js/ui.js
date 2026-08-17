@@ -79,8 +79,11 @@ const UI = {
         }
         for (const g of list) {
             g.isNew = g.newQty > 0;
-            // 중복만 나온 항목은 적립 환산(조각/재료)으로, 그 외는 등급명으로 표기
-            g.sub = (dup && !g.newQty) ? `${dup} +${g.qty}` : RARITY_KR[g.rarity];
+            // 라벨 2슬롯 — **등급은 언제나 왼쪽에 남는다**. 예전엔 한 칸에 등급명과 적립
+            // 환산(조각/재료)을 번갈아 넣어서, 중복만 나온 항목은 등급 텍스트가 통째로
+            // 사라졌다(x75 mid 15장 중 10장). 가장 중요한 라벨이 부가 정보에 밀려나면 안 된다.
+            g.sub = RARITY_KR[g.rarity];
+            g.extra = (dup && !g.newQty) ? `${dup} +${g.qty}` : '';
         }
         // 등급 오름차순 — 마지막에 뜨는 셀이 최고 등급이 되게(홀드백 연출의 전제)
         return list.sort((a, b) => RARITIES.indexOf(a.rarity) - RARITIES.indexOf(b.rarity));
@@ -91,8 +94,10 @@ const UI = {
         if (entries.length <= 1) return '';
         const cnt = {};
         for (const e of entries) cnt[e.rarity] = (cnt[e.rarity] || 0) + 1;
-        const chips = RARITIES.filter(r => cnt[r]).reverse()
-            .map(r => `<b class="sr-chip" style="--rc:${RARITY_CSS[r]}">${RARITY_KR[r]} ${cnt[r]}</b>`).join('');
+        // 그리드가 등급 오름차순으로 뜨므로 집계 칩도 같은 방향으로 읽혀야 한다 —
+        // 예전엔 칩만 내림차순이라 "마지막에 뜬 최고 등급"이 요약에서는 맨 왼쪽에 있었다
+        const chips = RARITIES.filter(r => cnt[r])
+            .map(r => `<b class="sr-chip" style="${this.chipVars(r)}">${RARITY_KR[r]} ${cnt[r]}</b>`).join('');
         return `<div class="sr-sum">${chips}</div>`;
     },
 
@@ -131,6 +136,36 @@ const UI = {
         this._inkCache[key] = out;
         return out;
     },
+    // ===== 등급 칩(솔리드 필) 배색 =====
+    // 예전 칩은 '어두운 반투명 배경 + 등급색 글자 + 등급색 테두리'였다. 등급색 팔레트는
+    // 밝기가 제각각(일반 #d6d6d6 ↔ 궁극 #ff3b30)이라 같은 배경 위에 얹으면 대비가
+    // 신화 1.93 : 일반 4.63으로 벌어져 **가장 중요한 등급일수록 가장 안 읽혔다**.
+    // 등급색을 배경으로 깔고 전경을 대비 기준으로 고르면 등급마다 대비가 평평해진다.
+    _chipCache: {},
+    contrastPair(a, b) {
+        const la = this.relLum(a), lb = this.relLum(b);
+        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    },
+    // 등급색 필 위에서 4.5:1을 넘는 전경색을 고른다. 검정/흰색 중 대비가 큰 쪽을 쓰되,
+    // 그래도 모자라면 필을 밝히거나(검정 글자) 어둡게(흰 글자) 밀어 기준을 채운다.
+    chipFill(hex) {
+        if (this._chipCache[hex]) return this._chipCache[hex];
+        const INK = '#070b18', PAPER = '#ffffff';
+        let bg = hex;
+        let fg = this.contrastPair(bg, INK) >= this.contrastPair(bg, PAPER) ? INK : PAPER;
+        for (let i = 0; i < 20 && this.contrastPair(bg, fg) < 4.5; i++) {
+            // 검정 글자면 필을 밝게, 흰 글자면 어둡게 — 색상(hue)은 그대로 유지된다
+            bg = this.srShade(hex, (fg === INK ? 0.05 : -0.05) * (i + 1));
+        }
+        const out = { bg, fg };
+        this._chipCache[hex] = out;
+        return out;
+    },
+    chipVars(rarity) {
+        const p = this.chipFill(RARITY_CSS[rarity]);
+        return `--cb:${p.bg};--cf:${p.fg}`;
+    },
+
     // base에 tint를 amt만큼 섞는다 — 결과 등급에 따라 배경 분위기를 승격시킬 때 쓴다
     srBlend(base, tint, amt) {
         const a = this.srRgb(base), b = this.srRgb(tint);
@@ -203,7 +238,7 @@ const UI = {
             // data-tier로 등급별 세기(크기·광채·광선)를 계단화한다 — 6등급이 2상태로 붕괴하지 않게
             return `${brk}<div class="sr-cell${hi ? ' hi' : ''}${i === heroIdx ? ' heroic' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
                 data-mat="${this.srMaterial(e.rarity)}"
-                style="--i:${i};--rc:${rc};--rc-lite:${this.srShade(rc, .5)};--rc-deep:${this.srShade(rc, -.62)}">
+                style="--i:${i};--rc:${rc};--rc-lite:${this.srShade(rc, .5)};--rc-deep:${this.srShade(rc, -.62)};${this.chipVars(e.rarity)}">
                 <div class="sr-orbwrap">
                     <span class="sr-ray"></span>
                     <span class="sr-beam"></span>
@@ -214,7 +249,7 @@ const UI = {
                     ${e.isNew ? '<span class="sr-new">NEW</span>' : ''}
                 </div>
                 <div class="sr-name"><span>${e.name}</span></div>
-                <div class="sr-sub">${e.sub}</div>
+                <div class="sr-sub${e.extra ? ' two' : ''}"><b class="sr-rk">${e.sub}</b>${e.extra ? `<i class="sr-ex">${e.extra}</i>` : ''}</div>
             </div>`;
         }).join('');
         // 셀 수에 따라 크기 단계 — 묶음 덕분에 x75도 보통은 mid에서 멈춘다
@@ -233,6 +268,8 @@ const UI = {
                 <div class="sr-charge"></div>
                 ${this.summonStreaks()}
                 <div class="sr-shock"></div>
+                <div class="sr-shock echo"></div>
+                <div class="sr-idle"><i></i><i></i></div>
                 <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-head"><div class="sr-title">${meta.icon} ${meta.title} ×${rolls.length}</div></div>
                 <div class="sr-body${stage ? ' stage' : ''}${stage && size === ' one' ? ' one' : ''}">

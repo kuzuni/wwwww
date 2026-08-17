@@ -2767,13 +2767,29 @@ body {
    링만 먼저 퍼진다 */
 .sr-shock {
     position: absolute; left: 50%; top: 50%; width: 9rem; height: 9rem; margin: -4.5rem 0 0 -4.5rem;
-    border-radius: 50%; border: .22rem solid #eaf2ff; pointer-events: none; opacity: 0; z-index: 3;
-    box-shadow: 0 0 1.2rem rgba(180,215,255,.75);
-    animation: srshock .6s ease-out .46s forwards;
+    border-radius: 50%; border: .34rem solid #eaf2ff; pointer-events: none; opacity: 0; z-index: 3;
+    box-shadow: 0 0 1.6rem rgba(180,215,255,.8), inset 0 0 1.2rem rgba(150,200,255,.5);
+    animation: srshock .92s cubic-bezier(.1,.72,.22,1) .46s forwards;
 }
+/* 충격파는 '한 겹의 흰 원'이 아니라 **두께가 줄며 흩어지는 압력파**다 — 예전엔 굵기가
+   고정된 하드 엣지 링이 0.6초 만에 사라져 CSS 원 하나가 커지는 것으로 읽혔다.
+   퍼질수록 얇아지고(border-width) 번지며(blur) 꺼진다. */
 @keyframes srshock {
-    0%   { opacity: .95; transform: scale(.2); }
-    100% { opacity: 0;   transform: scale(3.1); }
+    0%   { opacity: .98; transform: scale(.18); border-width: .38rem; filter: blur(0); }
+    32%  { opacity: .82;                        border-width: .22rem; filter: blur(.3px); }
+    68%  { opacity: .34;                        border-width: .11rem; filter: blur(1.3px); }
+    100% { opacity: 0;   transform: scale(3.4); border-width: .03rem; filter: blur(2.8px); }
+}
+/* 뒤따르는 잔파(echo) — 압력파가 하나면 '링 애니메이션', 둘이면 '터진 것'으로 읽힌다.
+   부모 transform과 곱해지지 않게 형제 요소로 둔다(::after로 두면 배율이 중첩된다). */
+.sr-shock.echo {
+    border-width: .16rem; border-color: rgba(206,228,255,.75);
+    box-shadow: 0 0 1.1rem rgba(150,195,255,.5);
+    animation: srshockecho .78s cubic-bezier(.12,.7,.22,1) .60s forwards;
+}
+@keyframes srshockecho {
+    0%   { opacity: .7; transform: scale(.3); border-width: .2rem; filter: blur(.4px); }
+    100% { opacity: 0;  transform: scale(2.5); border-width: .02rem; filter: blur(2.2px); }
 }
 /* 화면 셰이크도 정점에 맞춘다(예전엔 0ms — 빛 모임이 시작하기도 전에 흔들렸다) */
 .sr-wrap { animation-delay: .42s; }
@@ -3108,7 +3124,9 @@ body {
 .sr-grid.herorow .sr-cell.heroic .sr-name {
     font-size: .92rem; width: auto; max-width: min(12rem, 66vw); padding: .16rem .68rem;
 }
-.sr-grid.herorow .sr-cell.heroic .sr-sub { font-size: .76rem; padding: .07rem .56rem; }
+.sr-grid.herorow .sr-cell.heroic .sr-sub { font-size: .76rem; gap: .3rem; }
+.sr-grid.herorow .sr-cell.heroic .sr-sub .sr-rk,
+.sr-grid.herorow .sr-cell.heroic .sr-sub .sr-ex { padding: .07rem .56rem; }
 .sr-grid.mid .sr-cell.heroic .sr-orbwrap { width: min(6.2rem, 30vw); }
 .sr-grid.dense .sr-cell.heroic .sr-orbwrap { width: min(5rem, 24vw); }
 .sr-grid.mid .sr-cell.heroic .sr-orb { font-size: 2.6rem; }
@@ -3119,7 +3137,11 @@ body {
     font-size: .82rem; width: auto; max-width: min(11rem, 62vw); padding: .14rem .6rem;
 }
 .sr-grid.mid .sr-cell.heroic .sr-sub, .sr-grid.dense .sr-cell.heroic .sr-sub {
-    font-size: .7rem; padding: .06rem .5rem;
+    font-size: .7rem; gap: .28rem;
+}
+.sr-grid.mid .sr-cell.heroic .sr-sub .sr-rk, .sr-grid.dense .sr-cell.heroic .sr-sub .sr-rk,
+.sr-grid.mid .sr-cell.heroic .sr-sub .sr-ex, .sr-grid.dense .sr-cell.heroic .sr-sub .sr-ex {
+    padding: .06rem .5rem;
 }
 
 /* ==== 홀드백 대기 = 축적 구간(.charging) — 예전엔 480ms가 완전 정지 프레임이라
@@ -3170,16 +3192,16 @@ body {
 /* ==== 연출 종료 후 아이들 루프(.done) — 예전엔 t2400과 t2760이 완전히 같은 프레임이라
    화면이 얼어붙은 것으로 읽혔다. 구체 호흡(위상차) + 표면 스페큘러 스윕 + 소환진 상시 회전. ==== */
 #summon-result-modal.done .sr-cell.on .sr-orbwrap {
-    animation: srbreath 3.4s ease-in-out infinite;
+    animation: srbreath 2.6s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * .21s);
 }
 @keyframes srbreath {
-    0%, 100% { transform: scale(var(--sz)); }
-    50%      { transform: scale(calc(var(--sz) * 1.028)); }
+    0%, 100% { transform: translateY(0) scale(var(--sz)); }
+    50%      { transform: translateY(-.16rem) scale(calc(var(--sz) * 1.055)); }
 }
 /* 상위 등급은 호흡 + 광채 펄스 둘 다 (서로 다른 속성이라 겹쳐도 안전) */
 #summon-result-modal.done .sr-cell.hi.on .sr-orbwrap {
-    animation: srbreath 3.4s ease-in-out infinite, srpulse 1.6s ease-in-out infinite;
+    animation: srbreath 2.6s ease-in-out infinite, srpulse 1.6s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * .21s), calc(.45s + var(--i, 0) * .17s);
 }
 /* 표면 스페큘러 스윕 — 배경은 border-radius로 잘리므로 background-position만 흘린다
@@ -3188,18 +3210,37 @@ body {
     content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; opacity: 0;
     background: linear-gradient(112deg, rgba(255,255,255,0) 40%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 60%);
     background-size: 260% 100%; background-repeat: no-repeat;
-    animation: srsweep 5s ease-in-out infinite;
-    animation-delay: calc(var(--i, 0) * .37s);
+    animation: srsweep 3.6s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * .29s);
 }
 @keyframes srsweep {
-    0%, 58%   { opacity: 0;  background-position: -80% 0; }
-    64%, 82%  { opacity: .5; }
+    0%, 34%   { opacity: 0;  background-position: -80% 0; }
+    44%, 76%  { opacity: .62; }
     88%, 100% { opacity: 0;  background-position: 180% 0; }
 }
 /* ⚠️ 소환진은 **돌리지 않는다** — 34s까지 늦춰도 타원으로 눌린 눈금이 회전하면
    링을 따라 도는 붓질 자국으로 보인다(실측 캡처에서 확인, 기존 주석의 경고 그대로다).
    대신 방사 대칭이라 회전 아티팩트가 없는 '고인 빛'만 상시 호흡시킨다. */
-#summon-result-modal.done .sr-floor::before { animation: srfloorglow 5.2s ease-in-out infinite; }
+#summon-result-modal.done .sr-floor::before { animation: srfloorglow 3.2s ease-in-out infinite; }
+/* ==== 아이들 파문 — 호흡(밝기 변화)만으로는 '천천히 밝아지는 정지 화면'이라 프레임 간
+   변화가 0에 붙는다. **공간을 가로질러 이동하는** 것이 하나는 있어야 화면이 돈다.
+   소환진이 2.4초마다 부드러운 파문을 뱉는 것으로 처리한다(연출이 끝난 뒤에만, 그리드
+   뒤에서, 링 두 개를 반주기 어긋나게 둬 끊기지 않게). ==== */
+.sr-idle { position: absolute; inset: 0; pointer-events: none; z-index: 0; display: none; }
+#summon-result-modal.done .sr-idle { display: block; }
+.sr-idle i {
+    position: absolute; left: 50%; top: 50%; width: 11rem; height: 11rem; margin: -5.5rem 0 0 -5.5rem;
+    border-radius: 50%; opacity: 0;
+    border: .12rem solid var(--halo, rgba(120,165,255,.4));
+    box-shadow: 0 0 1.4rem var(--halo, rgba(120,165,255,.4));
+    animation: sridlering 2.4s ease-out infinite;
+}
+.sr-idle i:nth-child(2) { animation-delay: 1.2s; }
+@keyframes sridlering {
+    0%   { opacity: 0;   transform: scale(.42); }
+    18%  { opacity: .62; }
+    100% { opacity: 0;   transform: scale(2.3); }
+}
 @keyframes srfloorglow {
     0%, 100% { box-shadow: inset 0 0 3.2rem var(--floor-fill, rgba(96,146,255,.2)),
                            0 .6rem 3.6rem .4rem var(--floor-fill, rgba(96,146,255,.2)); }
@@ -3210,12 +3251,14 @@ body {
    복제해 넣는다). 거울상 글자는 노이즈라 이름·배지는 떼고 구체만 뒤집어 흐린다. */
 .sr-reflect {
     position: absolute; left: 0; right: 0; pointer-events: none; z-index: 0;
-    transform: scaleY(-1); opacity: .48; filter: blur(2px) saturate(.9) brightness(.95);
+    /* ⚠️ blur가 약하면 뒤집힌 이모지 얼굴이 그대로 식별돼 '반사'가 아니라 '거꾸로 놓인
+       아이콘 줄'로 읽힌다(비평가 지적 + 육안 확인). 형태만 남고 표정은 뭉개질 만큼 번지게. */
+    transform: scaleY(-1); opacity: .44; filter: blur(10px) saturate(.85) brightness(.92);
     -webkit-mask-image: linear-gradient(#000 0%, rgba(0,0,0,.4) 52%, rgba(0,0,0,0) 88%);
     mask-image: linear-gradient(#000 0%, rgba(0,0,0,.4) 52%, rgba(0,0,0,0) 88%);
     animation: srreflect .5s ease-out both;
 }
-@keyframes srreflect { from { opacity: 0; } to { opacity: .48; } }
+@keyframes srreflect { from { opacity: 0; } to { opacity: .44; } }
 /* 복제본은 연출을 다시 재생하면 안 된다(원본과 위상이 어긋나 두 겹으로 떨린다) */
 .sr-reflect * { animation: none !important; }
 .sr-reflect .sr-cell { opacity: 1; transform: none; }
@@ -3240,7 +3283,11 @@ body {
     /* 긴 이름은 두 줄까지 허용하되 높이를 최소값으로 잡아 1줄일 때 아래 빈 바가 남지 않게.
        flex 정렬과 -webkit-box(2줄 클램프)는 같은 요소에서 공존하지 못하므로 클램프는 내부 span에 둔다 */
     display: flex; align-items: center; justify-content: center; text-align: center;
-    white-space: normal; overflow: hidden; min-height: 2.36em;
+    /* 높이를 **고정**한다 — 1줄/2줄이 섞이면 아래 등급 칩의 y가 셀마다 어긋난다(실측 299 vs 304).
+       그리고 `word-break: keep-all`로 한글 단어 중간에서 끊기지 않게 한다("회오리 베 / 기" →
+       "회오리 / 베기"): 기본 break 규칙은 한글을 음절 단위로 쪼개 이름을 못 읽게 만든다. */
+    white-space: normal; word-break: keep-all; overflow-wrap: anywhere;
+    overflow: hidden; height: 2.36em;
     width: 92%; margin-left: auto; margin-right: auto;
     position: relative; z-index: 3;
     background: rgba(6,10,26,.84); box-shadow: 0 0 0 1px rgba(255,255,255,.08);
@@ -3248,21 +3295,48 @@ body {
     border-radius: .3rem; padding: .12rem .2rem;
 }
 .sr-name > span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* 라벨 2슬롯 — 좌=등급(항상), 우=적립 환산(있을 때만). 한 칸을 번갈아 쓰면 중복만 나온
+   항목에서 등급 텍스트가 통째로 사라진다. 등급 칩은 **등급색 솔리드 필 + 대비 4.5:1
+   자동 전경색**(UI.chipFill)이라 여섯 등급의 가독성이 평평하다 — 예전 '어두운 배경 +
+   등급색 글자'는 신화 1.93 : 일반 4.63으로 위계와 대비가 반대로 갔다. */
 .sr-sub {
-    display: inline-block; margin-top: .2rem; padding: .04rem .36rem; border-radius: .45rem;
-    background: rgba(2,5,16,.62); border: 1px solid rgba(255,255,255,.16);
-    font-size: .62rem; font-weight: 900; color: var(--rc); letter-spacing: .02em;
+    display: flex; align-items: center; justify-content: center; gap: .22rem;
+    margin-top: .2rem; font-size: .62rem; font-weight: 900; letter-spacing: .02em;
+    line-height: 1.25;
+    /* 칩 두 개가 셀 폭을 넘으면 줄바꿈이 아니라 **글자 안에서** 끊긴다("일 / 반") —
+       칩은 절대 접히지 않게 못 박고, 좁은 그리드에서는 아래 사이즈 규칙이 글자를 줄인다 */
+    flex-wrap: nowrap; white-space: nowrap; max-width: 100%;
 }
+.sr-sub .sr-rk, .sr-sub .sr-ex { flex: 0 0 auto; white-space: nowrap; }
+.sr-sub .sr-rk {
+    padding: .05rem .38rem; border-radius: .45rem;
+    background: var(--cb, #d6d6d6); color: var(--cf, #070b18);
+    box-shadow: 0 0 0 1px rgba(0,0,0,.45), 0 .08rem .22rem rgba(0,0,0,.5);
+}
+.sr-sub .sr-ex {
+    font-style: normal; padding: .05rem .32rem; border-radius: .45rem;
+    background: rgba(2,5,16,.72); border: 1px solid rgba(255,255,255,.22); color: #e8eeff;
+}
+/* 칩이 둘이면 한 칸에 두 배가 들어간다 — 기본 크기 그대로면 셀 폭(5열 기준 ~74px)을 넘어
+   이웃 셀 라벨과 맞붙는다. 두 칩 셀만 한 단계 줄여 셀 안에 가둔다. */
+.sr-sub.two { font-size: .46rem; gap: .14rem; }
+.sr-sub.two .sr-rk, .sr-sub.two .sr-ex { padding: .04rem .26rem; }
 /* x1은 셀이 넓어 이름 배경판이 입력창처럼 보인다 — 글자 폭에만 깔리게 */
 .sr-grid.one .sr-name {
-    font-size: 1.25rem; margin-top: .85rem; min-height: 0; width: auto;
+    font-size: 1.25rem; margin-top: .85rem; height: auto; min-height: 0; width: auto;
     background: none; box-shadow: none; text-shadow: 0 .12rem .4rem rgba(0,0,0,.95);
 }
 /* 큰 구체에서는 정사각 래퍼 모서리 기준 배지가 원 밖으로 떠 보인다 — 림 안쪽으로 */
 .sr-grid.one .sr-new { top: 10%; right: 9%; font-size: .62rem; }
-.sr-grid.one .sr-sub { font-size: .95rem; padding: .14rem .65rem; margin-top: .35rem; }
+.sr-grid.one .sr-sub, .sr-grid.one .sr-sub.two { font-size: .95rem; margin-top: .35rem; gap: .34rem; }
+.sr-grid.one .sr-sub .sr-rk, .sr-grid.one .sr-sub .sr-ex,
+.sr-grid.one .sr-sub.two .sr-rk, .sr-grid.one .sr-sub.two .sr-ex { padding: .14rem .65rem; }
 .sr-grid.mid .sr-name { font-size: .56rem; margin-top: .3rem; height: 2.4em; }
-.sr-grid.mid .sr-sub { font-size: .5rem; padding: .02rem .22rem; }
+.sr-grid.mid .sr-sub { font-size: .5rem; gap: .12rem; }
+.sr-grid.mid .sr-sub .sr-rk, .sr-grid.mid .sr-sub .sr-ex { padding: .03rem .22rem; }
+/* 칩이 둘인 셀만 한 단계 더 줄인다(:has 미지원 환경 대비로 JS가 .two를 함께 붙인다) */
+.sr-grid.mid .sr-sub.two { font-size: .44rem; gap: .1rem; }
+.sr-grid.mid .sr-sub.two .sr-rk, .sr-grid.mid .sr-sub.two .sr-ex { padding: .03rem .17rem; }
 .sr-grid.dense .sr-name, .sr-grid.dense .sr-sub { display: none; }
 
 /* ④ 하단: 등급별 집계 → 연출 중엔 스킵 안내, 끝나면 [확인] */
@@ -3298,10 +3372,31 @@ body {
     background: radial-gradient(118% 76% at 50% 44%, var(--bg-a, #24306a) 0%, var(--bg-b, #101740) 38%, #070b20 68%, #03040c 100%);
     transition: background .5s ease-out;
 }
-#summon-result-modal.done .sr-rays { opacity: .3; animation-duration: 26s; }
+#summon-result-modal.done .sr-rays {
+    opacity: .3;
+    animation: srrayspin 26s linear infinite, srraysbreath 2.4s ease-in-out infinite;
+}
+/* 광선막 자체의 밝기를 함께 흔든다 — 26s 회전은 프레임 간 변화가 0에 가까워
+   '돌고 있다'가 아니라 '멈췄다'로 읽혔다 */
+@keyframes srraysbreath {
+    0%, 100% { opacity: .14; }
+    50%      { opacity: .5; }
+}
 #summon-result-modal.done .sr-halo {
     background: radial-gradient(closest-side, var(--halo, rgba(120,165,255,.4)) 0%, rgba(0,0,0,0) 100%);
     transition: background .5s ease-out;
+}
+/* ⚠️ 중앙 광원(.sr-halo)은 아이들 연출의 무대가 **아니다** — 바로 앞의 어두운 받침
+   (.sr-body::before, 중앙 rgba(4,7,20,.58))에 가려 opacity를 0↔1로 극단까지 흔들어도
+   화면 평균 휘도가 움직이지 않는다(실측). 숨을 쉬어야 하는 건 그 '받침' 쪽이다. */
+#summon-result-modal.done .sr-body::before {
+    animation: srstagebreath 2.6s ease-in-out infinite;
+}
+/* 무대 받침의 농도·크기를 흔든다 — 그리드 바로 뒤에 있어 실제로 보이는 레이어이고,
+   면적이 넓어 '정지 프레임'을 깨는 데 값이 가장 크다 */
+@keyframes srstagebreath {
+    0%, 100% { opacity: .78; transform: translate(-50%, -50%) scale(1); }
+    50%      { opacity: 1;   transform: translate(-50%, -50%) scale(1.1); }
 }
 #summon-result-modal.done .sr-floor {
     --floor-line: var(--floor-line-hi, rgba(150,195,255,.5));

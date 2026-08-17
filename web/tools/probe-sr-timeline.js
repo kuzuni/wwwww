@@ -97,7 +97,11 @@ const STATS = `(async (b64, prev) => {
 
     const rows = [];
     let prev = null;
-    for (let t = 0; t <= 3000; t += 60) {
+    // 🚨 예전엔 3000ms에서 끊었다. 아이들 루프의 주기가 1.9~3.6초인데 표본 구간이
+    //    800ms(2200~3000)뿐이라 **한 호흡도 다 담기지 않았고**, 그래서 어떤 진폭을 넣어도
+    //    "아이들이 정지"로 계측됐다(느린 루프를 짧은 창으로 재면 항상 평평하다).
+    //    가장 느린 아이들 루프(3.6s 스윕)가 한 바퀴 이상 도는 5600ms까지 본다.
+    for (let t = 0; t <= 5600; t += 60) {
         await page.evaluate(`(${SEEK})(${t})`);
         const buf = await page.screenshot();
         const st = await shot.evaluate(`(${STATS})(${JSON.stringify(buf.toString('base64'))}, ${prev ? JSON.stringify(prev) : 'null'})`);
