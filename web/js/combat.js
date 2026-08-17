@@ -330,15 +330,16 @@ const Combat = {
         }
         const key = stageKey();
         // 알 화폐는 스테이지 클리어에서 지급하지 않음 — 펫 던전(침공) 보상이 유일 수급처 (사용자 확정)
+        // 스테이지 클리어 보상은 오직 골드만 (사용자 지시 2026-08-17).
+        // 예전엔 첫 클리어 🎫15+⚙️10, 반복 클리어 🎫5+⚙️3을 함께 줬다 — 티켓·태엽은 스테이지에서 일절 지급하지 않는다.
+        // 반복 클리어는 처치 코인으로 충분하므로 별도 지급 없음, 첫 클리어만 골드 보너스.
         const firstClear = !S.clearedBosses[key];
         if (firstClear) {
             S.clearedBosses[key] = true;
-            S.tickets += 15;
-            S.winders += 10;
-            UI.toast(`🏆 ${key} 첫 클리어! 🎫+${15 + 5} ⚙️+${10 + 3}`);
+            const bonus = Math.ceil(60 * Math.pow(1.6, S.chapter - 1) * Math.pow(1.06, S.stage - 1)); // 일반 몹 코인의 ≈20배
+            S.coins += bonus;
+            UI.toast(`🏆 ${key} 첫 클리어! 🪙+${U.fmt(bonus)}`);
         }
-        S.tickets += 5;
-        S.winders += 3;
 
         // 무조건 전진
         if (S.stage >= 10) {
