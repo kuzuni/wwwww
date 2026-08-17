@@ -17,6 +17,8 @@ const Scene3D = {
     anims: [],               // {t, dur, fn(k), onDone}
     shakeMag: 0,
     camPush: 0,              // 카메라 돌리 인 오프셋(z를 이만큼 당김) — 보스 워닝 연출이 소유
+    heroDead: false,         // 영웅 사망 중 — update의 Idle/Walking 자동 전환과 행군을 잠근다
+    _heroReviveT: 0,         // 기상 클립 잔여 시간(초) — 같은 이유로 자동 전환을 잠근다
     fxLayer: null, container: null,
     _clock: 0,
 
@@ -4476,10 +4478,39 @@ const Scene3D = {
         UI.flashDamage(sev);
     },
 
+    // 영웅 사망 — 예전에는 Death 클립을 걸어도 **바로 다음 프레임에 update의 Idle/Walking 자동 전환이
+    // 덮어써서** 영웅이 그냥 서 있었다(사용자 지적 "죽었는데 죽은 것처럼 안 보인다"). once 클립은
+    // play()에서 R.state를 ''로 두므로 루프 클립 중복 방지 가드에 걸리지 않아 매 프레임 다시 깔린다.
+    // → `heroDead` 플래그로 자동 전환을 잠그고, 리그가 마지막 포즈(t=1)를 그대로 유지하게 둔다.
     heroDown() {
+        if (this.heroDead) return;
+        this.heroDead = true;
+        this._attacking = false;
+        this.walking = false;
         this.heroPlay(['Death_A'], true);
-        setTimeout(() => this.heroPlay(['Idle']), 1600);
         this.shake(0.4);
+        UI.flashDamage(1); // 화면 붉은 비네트 — 치명타 피격보다 진하게
+        // 몸이 지면에 닿는 타이밍(클립 0.45~0.6 구간)에 흙먼지와 접지 파동
+        const hp = this.heroG ? this.heroG.position.clone() : new THREE.Vector3();
+        let dust = false;
+        this.addAnim(0.75, k => {
+            if (dust || k < 0.62) return;
+            dust = true;
+            this.spawnSparks(hp.clone().add(new THREE.Vector3(0.1, 0.2, 0)), 14, 0xbcaaa4, { speed: 1.2 });
+            this.expandRing(hp, new THREE.Color(0x9e8d84), 1.1);
+            this.shake(0.22); // 두 번째 흔들림 = 몸이 바닥에 부딪히는 순간
+        });
+    },
+
+    // 기상 — 사망 포즈에서 일어서는 전환. 자동 전환 잠금은 클립 길이만큼만 유지한다
+    heroRevive() {
+        if (!this.heroDead) return;
+        this.heroDead = false;
+        this._heroReviveT = 0.8; // Revive 클립 길이 — 이 동안에도 Idle이 덮어쓰면 안 된다
+        this.heroPlay(['Revive'], true);
+        const hp = this.heroG ? this.heroG.position.clone() : new THREE.Vector3();
+        this.expandRing(hp, new THREE.Color(0x9be7a0), 1.3);
+        this.spawnSparks(hp.clone().add(new THREE.Vector3(0, 0.5, 0)), 12, 0x69f0ae, { speed: 1.4 });
     },
 
     // ---- 보스 등장 워닝 연출 (사용자 지시: "워닝 워닝 워닝" 느낌으로 화려하게) ----
@@ -5116,6 +5147,9 @@ const Scene3D = {
         }
         // 영웅 머리 위 HP 바: 위치는 heroG를 매 프레임 추적, 비율·색은 적과 동일한 임계값
         if (this.heroHpG && this.heroG && this.heroBar) {
+            // 사망 중에는 바를 숨긴다 — Combat.onDefeat이 재도전을 위해 hp를 즉시 만피로 되돌리므로
+            // 그대로 두면 쓰러진 시체 위에 가득 찬 초록 바가 뜬다(실측 프레임에서 확인).
+            this.heroHpG.visible = !this.heroDead;
             const hRatio = !Big.of(Combat.hero.maxHp).isZero() ? U.clamp(Big.of(Combat.hero.hp).ratioTo(Combat.hero.maxHp), 0, 1) : 1;
             this.driveHpBar(this.heroBar, hRatio, dt);
             this.heroHpG.position.set(
@@ -5127,8 +5161,9 @@ const Scene3D = {
         if (this.heroG && this.legs) {
             const walkCycle = Math.sin(this._clock * 11);
             const rest = this.armRest !== undefined ? this.armRest : -0.25;
-            if (this.walking && !this._attacking) {
+            if (this.walking && !this._attacking && !this.heroDead) {
                 // 행군: 플레이어가 실제로 오른쪽(+x)으로 전진 — 카메라가 따라가고 소품은 제자리
+                // 쓰러져 있는 동안은 전진하지 않는다(시체가 미끄러져 가는 그림 방지)
                 this.worldX += 1.7 * dt;
                 this.heroG.position.x = Combat.HERO_X + this.worldX;
                 if (!this.heroRig) {
@@ -5162,7 +5197,9 @@ const Scene3D = {
             // 프로시저럴 리그: 키프레임 갱신 + 상태 전환 (걷기/대기)
             if (this.heroRig) {
                 this.heroRig.update(dt);
-                if (!this._attacking) {
+                if (this._heroReviveT > 0) this._heroReviveT -= dt;
+                // 사망/기상 중에는 자동 전환을 잠근다 — 안 그러면 다음 프레임 Idle이 클립을 덮어쓴다
+                if (!this._attacking && !this.heroDead && !(this._heroReviveT > 0)) {
                     // 탑승 중엔 다리 걷기 클립을 쓰지 않는다 — 이동은 탈것이 하고 다리는 안장을 감싼 채 고정
                     this.heroPlay((this.walking && !this.riding) ? ['Walking'] : ['Idle']);
                     this.heroG.position.y = this.rideY || 0; // 상하 바운스는 리그 root.py 트랙이 담당(탑승 중엔 안장 높이가 바닥)

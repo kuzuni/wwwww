@@ -67,6 +67,7 @@ const Combat = {
         this.enemies = [];
         this.pending = [];
         this.hero.hp = this.hero.maxHp; // 스테이지 시작 시 완전 회복
+        Scene3D.heroRevive(); // 사망 상태로 스테이지가 시작되지 않게(던전 입장 등으로 기상 예약이 지워진 경우 대비)
         SFX.setMusicMode('normal'); // 이전 스테이지가 보스전 도중 중단됐을 경우를 대비한 방어적 리셋
         Scene3D.clearEnemies();
         if (Dungeons.run) Scene3D.setTheme(Dungeons.def(Dungeons.run.id).theme);
@@ -344,6 +345,10 @@ const Combat = {
         saveGame();
         this.hero.hp = this.hero.maxHp; // 머리 위 바는 Scene3D.update가 매 프레임 자체 갱신
         this.phase = 'stageDelay';
-        this.phaseTimer = 2.0;
+        // 사망 클립 1.3초 + 쓰러진 채 머무는 시간 + 기상 0.8초. 2.0초면 쓰러지자마자 다시 서서
+        // "죽은 것처럼 안 보인다"는 지적이 그대로 남는다 — 누운 포즈가 확실히 읽힐 만큼 준다.
+        this.phaseTimer = 3.2;
+        // 기상은 다음 스테이지 셋업 직전에 — 클립 0.8초가 스테이지 시작 전에 끝나게 앞당겨 건다
+        this.pending.push({ t: 2.4, fn: () => Scene3D.heroRevive() });
     },
 };
