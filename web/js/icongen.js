@@ -1148,3 +1148,183 @@ IconGen._genderSym = function (ctx, S, female) {
     // 스킬 오브에 얹을 심볼 아이콘 HTML. (오브 배경/글로우는 CSS .sk-orb 가 담당)
     G.skill = function (id) { return this.img('sk_' + id, 'sk-ico'); };
 })(IconGen);
+
+/* ============================================================================
+ * 하단 탭바 아이콘 5종 (기타 슬라이스)
+ *
+ * 🎨 아트 랭귀지 — 앞 세션이 남긴 '원본 정합 vs AAA 품질' 충돌을 여기서 정한다.
+ *   원본 탭바(shot-042120 y808~889)를 9배 확대해 보면 아이콘 화풍이 명확하다:
+ *   **두꺼운 검정 키라인 + 평면 채색 + 한 톤 음영 + 점 하이라이트**(슬라임 이마의 흰 점).
+ *   즉 원본은 '평면 3색 벡터'도 아니고 '준사실 베벨'도 아닌 **스티커형 카툰 벡터**다.
+ *   그래서 재화 아이콘처럼 그라디언트·베벨로 가면 원본 정합에서 감점, 완전 평면으로 가면
+ *   품질에서 감점이다 — 이 슬라이스는 **원본의 키라인 언어를 그대로 쓰고 그 안에서
+ *   음영·하이라이트로 마감**한다(이 화풍 자체가 AAA 모바일 아이콘의 주류 표현이다).
+ *
+ * 원본 실측(499×892 · tools/probe-tabbar.js) 잉크 bbox:
+ *   던전(해골) 43×43 · 소환(발바닥+슬라임) 49×47 · PVP(방패기) 58×47 · 상점 45×41 px
+ *   → 각 아이콘의 잉크가 캔버스의 92% 안팎을 채우고, 가로세로비는 원본 실루엣을 따른다.
+ * ============================================================================ */
+(function (G) {
+    const K = '#0b0d10';            // 키라인(검정) — 원본과 같은 순검정 계열
+    // 스티커 기법: 같은 경로를 굵게 스트로크한 뒤 그 위에 칠한다.
+    // 스트로크의 안쪽 절반이 칠에 덮여 **바깥 절반만 남아** 균일한 키라인이 된다.
+    const ink = (ctx, S, path, fill, lw) => {
+        ctx.save();
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.beginPath(); path();
+        ctx.strokeStyle = K; ctx.lineWidth = S * (lw === undefined ? 0.075 : lw);
+        ctx.stroke();
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.restore();
+    };
+    // 키라인 없이 위에 얹는 칠(음영·하이라이트·구멍). clip 안에서 쓰면 실루엣을 안 넘는다.
+    const on = (ctx, path, fill) => { ctx.save(); ctx.beginPath(); path(); ctx.fillStyle = fill; ctx.fill(); ctx.restore(); };
+    const circle = (ctx, S, x, y, r) => () => ctx.arc(x * S, y * S, r * S, 0, Math.PI * 2);
+    const ell = (ctx, S, x, y, rx, ry, rot) => () => ctx.ellipse(x * S, y * S, rx * S, ry * S, rot || 0, 0, Math.PI * 2);
+    const poly = (ctx, S, pts) => () => pts.forEach((p, i) => { const X = p[0] * S, Y = p[1] * S; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+    const rrect = (ctx, S, x, y, w, h, r) => () => G._rr(ctx, x * S, y * S, w * S, h * S, r * S);
+    // 굵은 선분(자루·팔 등) — 스트로크로 그리면 키라인을 못 씌우니 사각형 경로로 만든다
+    const bar = (ctx, S, x0, y0, x1, y1, w) => {
+        const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1;
+        const nx = (-dy / L) * w / 2, ny = (dx / L) * w / 2;
+        return poly(ctx, S, [[x0 + nx, y0 + ny], [x1 + nx, y1 + ny], [x1 - nx, y1 - ny], [x0 - nx, y0 - ny]]);
+    };
+
+    // ---- 던전: 해골 + 꽂힌 검 (원본 0번 칸) ----
+    G.draw.tab_dungeon = function (ctx, S) {
+        // 검이 먼저(해골 뒤) — 자루는 왼쪽 위, 칼끝은 오른쪽 아래로 관통
+        ink(ctx, S, bar(ctx, S, 0.335, 0.265, 0.845, 0.845, 0.135), '#c6ccd2', 0.062);   // 칼날
+        ink(ctx, S, poly(ctx, S, [[0.690, 0.640], [0.930, 0.930], [0.615, 0.830]]), '#9aa2aa', 0.055); // 칼끝 음영면
+        ink(ctx, S, bar(ctx, S, 0.190, 0.395, 0.470, 0.130, 0.110), '#e0761b', 0.058);   // 주황 코등이
+        ink(ctx, S, bar(ctx, S, 0.258, 0.178, 0.360, 0.290, 0.098), '#4a2f24', 0.055);   // 자루
+        ink(ctx, S, circle(ctx, S, 0.222, 0.132, 0.070), '#b9c0c7', 0.055);              // 자루 끝 구슬
+
+        // 해골: 두개골 + 이빨턱
+        ink(ctx, S, rrect(ctx, S, 0.345, 0.585, 0.310, 0.215, 0.045), '#f4f6f8', 0.070); // 턱
+        ink(ctx, S, circle(ctx, S, 0.500, 0.455, 0.272), '#f4f6f8', 0.075);              // 두개골
+        ctx.save();                                                                      // 음영·구멍은 두개골 안에서만
+        ctx.beginPath(); circle(ctx, S, 0.500, 0.455, 0.272)(); ctx.clip();
+        on(ctx, circle(ctx, S, 0.365, 0.560, 0.215), '#cfd5db');                          // 왼아래 한 톤 음영
+        ctx.restore();
+        on(ctx, rrect(ctx, S, 0.443, 0.640, 0.030, 0.165, 0.014), K);                     // 이빨 사이 2줄
+        on(ctx, rrect(ctx, S, 0.529, 0.640, 0.030, 0.165, 0.014), K);
+        on(ctx, rrect(ctx, S, 0.352, 0.395, 0.118, 0.195, 0.056), K);                     // 눈구멍 2개
+        on(ctx, rrect(ctx, S, 0.530, 0.395, 0.118, 0.195, 0.056), K);
+        on(ctx, circle(ctx, S, 0.612, 0.318, 0.048), 'rgba(255,255,255,.92)');             // 점 하이라이트
+    };
+
+    // ---- 소환: 발바닥 + 슬라임 얼굴 + 초록 순환 화살 (원본 2번 칸) ----
+    G.draw.tab_summon = function (ctx, S) {
+        const paw = '#1f6fb2';
+        ink(ctx, S, ell(ctx, S, 0.315, 0.590, 0.130, 0.165, -0.12), paw, 0.070);          // 발바닥 패드
+        [[0.120, 0.440, 0.066], [0.262, 0.330, 0.070], [0.098, 0.625, 0.062], [0.188, 0.775, 0.060]]
+            .forEach(t => ink(ctx, S, circle(ctx, S, t[0], t[1], t[2]), paw, 0.062));      // 발가락 4개
+        ctx.save();
+        ctx.beginPath(); ell(ctx, S, 0.315, 0.590, 0.130, 0.165, -0.12)(); ctx.clip();
+        on(ctx, ell(ctx, S, 0.245, 0.680, 0.115, 0.145, -0.12), '#17578c');                // 패드 음영
+        ctx.restore();
+
+        // 초록 순환 화살 (소환/뽑기 모티프) — 열린 링 + 화살촉
+        const g = '#39d13a', cxr = 0.615, cyr = 0.335, rr = 0.150, lw = 0.088;
+        const arc = (w) => { ctx.save(); ctx.beginPath(); ctx.arc(cxr * S, cyr * S, rr * S, Math.PI * 0.80, Math.PI * 1.86); ctx.strokeStyle = w; ctx.lineWidth = lw * S; ctx.lineCap = 'butt'; ctx.stroke(); ctx.restore(); };
+        arc(K); ctx.save(); ctx.lineWidth = (lw - 0.036) * S; arc(g); ctx.restore();
+        ink(ctx, S, poly(ctx, S, [[0.735, 0.150], [0.815, 0.300], [0.640, 0.288]]), g, 0.058); // 화살촉
+        ink(ctx, S, poly(ctx, S, [[0.845, 0.430], [0.905, 0.480], [0.845, 0.530], [0.800, 0.480]]), '#f5b31c', 0.050); // 금 조각
+
+        // 슬라임 얼굴
+        ink(ctx, S, circle(ctx, S, 0.665, 0.680, 0.222), '#4ec8ee', 0.072);
+        ctx.save();
+        ctx.beginPath(); circle(ctx, S, 0.665, 0.680, 0.222)(); ctx.clip();
+        on(ctx, circle(ctx, S, 0.760, 0.790, 0.170), '#33a8cf');                            // 아래쪽 음영
+        ctx.restore();
+        // ⚠️ arc 의 anticlockwise 를 false 로 두면 위쪽 반원이 그려져 입이 아니라 '모자'가 된다.
+        //    캔버스는 y가 아래로 커지므로 **아래로 벌린 입 = 0.5π(아래)를 지나는 스윕 = anticlockwise:true**.
+        ink(ctx, S, () => { ctx.moveTo(0.545 * S, 0.706 * S); ctx.arc(0.665 * S, 0.706 * S, 0.120 * S, Math.PI, 0, true); ctx.closePath(); }, '#e4232b', 0.048); // 벌린 입
+        on(ctx, circle(ctx, S, 0.600, 0.582, 0.048), 'rgba(255,255,255,.95)');               // 점 하이라이트
+    };
+
+    // ---- PVP: 방패 깃발 + 교차 검 (원본 3번 칸) ----
+    G.draw.tab_pvp = function (ctx, S) {
+        // 방패 몸통
+        ink(ctx, S, poly(ctx, S, [[0.215, 0.240], [0.785, 0.240], [0.785, 0.600], [0.500, 0.885], [0.215, 0.600]]), '#2c3038', 0.072);
+        ctx.save();
+        ctx.beginPath(); poly(ctx, S, [[0.215, 0.240], [0.785, 0.240], [0.785, 0.600], [0.500, 0.885], [0.215, 0.600]])(); ctx.clip();
+        on(ctx, rrect(ctx, S, 0.215, 0.240, 0.570, 0.150, 0.01), '#383d47');                 // 상단 한 톤 밝힘
+        ctx.restore();
+
+        // 교차 검 2자루 (금색) — 자루가 아래, 칼끝이 위
+        const sword = (hx, hy, tx, ty) => {
+            const ang = Math.atan2(ty - hy, tx - hx), L = Math.hypot(tx - hx, ty - hy);
+            ctx.save();
+            ctx.translate(hx * S, hy * S); ctx.rotate(ang + Math.PI / 2);
+            const u = (v) => -v * L;                                                        // 자루→칼끝 방향(로컬 -y)
+            const w = 0.052;
+            ink(ctx, S, poly(ctx, S, [[-w, u(0.16)], [w, u(0.16)], [w, u(0.86)], [0, u(1.0)], [-w, u(0.86)]]), '#f2b01c', 0.052); // 칼날
+            on(ctx, poly(ctx, S, [[0, u(0.16)], [w, u(0.16)], [w, u(0.86)], [0, u(1.0)]]), '#c1861a');                            // 칼날 음영면
+            ink(ctx, S, poly(ctx, S, [[-0.105, u(0.20)], [0.105, u(0.20)], [0.105, u(0.115)], [-0.105, u(0.115)]]), '#f2b01c', 0.048); // 코등이
+            ink(ctx, S, poly(ctx, S, [[-0.028, u(0.11)], [0.028, u(0.11)], [0.028, u(-0.02)], [-0.028, u(-0.02)]]), '#c1861a', 0.045); // 자루
+            ink(ctx, S, circle(ctx, S, 0, u(-0.055), 0.040), '#f2b01c', 0.045);              // 자루 끝 구슬
+            ctx.restore();
+        };
+        sword(0.335, 0.775, 0.700, 0.335);
+        sword(0.665, 0.775, 0.300, 0.335);
+
+        // 금색 깃대 — 가로 봉 + 양끝 마구리
+        // 마구리를 좌우로 더 벌린다 — 원본 방패기는 58×47px(가로세로비 1.23)로 5칸 중 가장 넓다
+        ink(ctx, S, rrect(ctx, S, 0.140, 0.132, 0.720, 0.098, 0.040), '#f4b41a', 0.062);
+        on(ctx, rrect(ctx, S, 0.158, 0.146, 0.684, 0.036, 0.018), '#ffd257');                // 봉 상단 광택
+        ink(ctx, S, rrect(ctx, S, 0.030, 0.100, 0.112, 0.162, 0.032), '#f4b41a', 0.058);
+        ink(ctx, S, rrect(ctx, S, 0.858, 0.100, 0.112, 0.162, 0.032), '#f4b41a', 0.058);
+    };
+
+    // ---- 상점: 줄무늬 어닝 가게 (원본 4번 칸) ----
+    G.draw.tab_shop = function (ctx, S) {
+        ink(ctx, S, rrect(ctx, S, 0.100, 0.815, 0.800, 0.072, 0.018), '#3c4149', 0.055);     // 바닥 굽
+        ink(ctx, S, rrect(ctx, S, 0.165, 0.455, 0.670, 0.372, 0.020), '#d8dce1', 0.068);     // 벽
+        ink(ctx, S, rrect(ctx, S, 0.212, 0.540, 0.155, 0.283, 0.016), '#0e8d98', 0.052);     // 문
+        on(ctx, rrect(ctx, S, 0.232, 0.560, 0.045, 0.245, 0.012), '#14aab6');                // 문 광택
+        ink(ctx, S, rrect(ctx, S, 0.400, 0.540, 0.392, 0.205, 0.016), '#0f9aa5', 0.052);     // 창
+        on(ctx, rrect(ctx, S, 0.420, 0.558, 0.070, 0.170, 0.010), '#3ec3cd');                // 창 광택
+
+        // 어닝: 붉은/흰 스캘럽 7개 — 하나의 실루엣으로 키라인을 두르고 안쪽만 색을 교대
+        const ax0 = 0.135, ax1 = 0.865, ay = 0.300, ah = 0.155, n = 9, sw = (ax1 - ax0) / n;
+        const skirt = () => {
+            ctx.moveTo(ax0 * S, ay * S);
+            ctx.lineTo(ax1 * S, ay * S);
+            ctx.lineTo(ax1 * S, (ay + ah * 0.52) * S);
+            for (let i = n - 1; i >= 0; i--) {
+                const x = ax0 + sw * i;
+                ctx.arc((x + sw / 2) * S, (ay + ah * 0.52) * S, (sw / 2) * S, 0, Math.PI, false);
+            }
+            ctx.lineTo(ax0 * S, ay * S);
+            ctx.closePath();
+        };
+        ink(ctx, S, skirt, '#eef1f4', 0.062);
+        ctx.save();
+        ctx.beginPath(); skirt(); ctx.clip();
+        for (let i = 0; i < n; i += 2) on(ctx, rrect(ctx, S, ax0 + sw * i, ay, sw, ah, 0), '#e02a2a');
+        ctx.restore();
+        ink(ctx, S, rrect(ctx, S, 0.145, 0.222, 0.710, 0.082, 0.024), '#f59416', 0.058);     // 간판
+        on(ctx, rrect(ctx, S, 0.163, 0.236, 0.674, 0.028, 0.014), '#ffb64d');                // 간판 광택
+    };
+
+    // ---- 디버그: 무당벌레 (배포 탭바에서는 숨김 — ?debug= 로만 노출) ----
+    G.draw.tab_debug = function (ctx, S) {
+        [[-1, 0.30], [-1, 0.52], [-1, 0.74], [1, 0.30], [1, 0.52], [1, 0.74]].forEach(([s, y]) =>
+            ink(ctx, S, bar(ctx, S, 0.5 + s * 0.16, y, 0.5 + s * 0.40, y - 0.06, 0.055), '#26292f', 0.045));
+        ink(ctx, S, circle(ctx, S, 0.500, 0.230, 0.135), '#26292f', 0.062);                   // 머리
+        ink(ctx, S, ell(ctx, S, 0.500, 0.590, 0.290, 0.320), '#e0342c', 0.072);               // 몸통
+        ctx.save();
+        ctx.beginPath(); ell(ctx, S, 0.500, 0.590, 0.290, 0.320)(); ctx.clip();
+        on(ctx, rrect(ctx, S, 0.478, 0.270, 0.044, 0.650, 0), K);                             // 등 가운데 줄
+        [[0.340, 0.470, 0.062], [0.660, 0.470, 0.062], [0.375, 0.720, 0.052], [0.625, 0.720, 0.052]]
+            .forEach(d => on(ctx, circle(ctx, S, d[0], d[1], d[2]), K));                      // 점
+        on(ctx, circle(ctx, S, 0.640, 0.760, 0.170), 'rgba(0,0,0,.16)');                      // 아래 음영
+        ctx.restore();
+        on(ctx, circle(ctx, S, 0.400, 0.400, 0.052), 'rgba(255,255,255,.92)');                // 점 하이라이트
+    };
+
+    // 탭바 아이콘 HTML. 크기는 CSS(#tabbar .tab-ico)가 원본 실측 비율로 잡는다.
+    G.tab = function (name) { return this.img('tab_' + name, 'tab-ico'); };
+})(IconGen);

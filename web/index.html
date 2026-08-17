@@ -71,11 +71,13 @@
            진행 패스=맵 이정표 · 정보=플레이어 정보 팝업(!) · 저장/초기화=프로필▸설정.
          · 디버그는 배포 탭바에서 숨기고 ?debug= / ?tab=debug 로만 노출한다(main.js). -->
     <div id="tabbar">
-        <button data-tab="pvp">⚔️<span>PVP</span></button>
-        <button data-tab="dungeon">💀<span>던전</span></button>
-        <button data-tab="summon">🧪<span>소환</span></button>
-        <button data-tab="shop">🏪<span>상점</span></button>
-        <button data-tab="debug">🐞<span>디버그</span></button>
+        <!-- 아이콘은 IconGen 캔버스 아이콘으로 교체된다(UI.hydrateTabIcons). data-ico 가 생성기 이름이고,
+             안의 이모지는 스크립트 이전 첫 프레임용 폴백이다. -->
+        <button data-tab="pvp" data-ico="tab_pvp">⚔️<span>PVP</span></button>
+        <button data-tab="dungeon" data-ico="tab_dungeon">💀<span>던전</span></button>
+        <button data-tab="summon" data-ico="tab_summon">🧪<span>소환</span></button>
+        <button data-tab="shop" data-ico="tab_shop">🏪<span>상점</span></button>
+        <button data-tab="debug" data-ico="tab_debug">🐞<span>디버그</span></button>
     </div>
 
     <!-- 영웅 피격 비네트 — 보스 경고와 같은 이유로 #app 직속이다.

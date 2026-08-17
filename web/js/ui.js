@@ -433,6 +433,7 @@ const UI = {
         document.querySelectorAll('#tabbar button').forEach(btn => {
             btn.addEventListener('click', () => this.onTabClick(btn.dataset.tab));
         });
+        this.hydrateTabIcons();
         this.renderTopBar();
         this.renderSkillBar();
         this.renderEquipSheet();
@@ -444,6 +445,20 @@ const UI = {
         });
         // 비교 팝업 딤 클릭 = 보류 (사용자 지시 2026-08-17) — 강제 선택 대신 '나중에 결정'
         this.els.craftModal.addEventListener('click', e => this.onCraftDimClick(e));
+    },
+
+    // 탭바 이모지(⚔️💀🧪🏪🐞)를 IconGen 캔버스 아이콘으로 교체한다.
+    // ⚠️ 반드시 refreshTabX() 보다 먼저(= init 안에서) 부를 것 — refreshTabX 는 ✕ 상태로 바꿀 때
+    //    버튼 innerHTML 을 dataset.label 에 넣어 두고 되돌리므로, 그때 이미 아이콘이 박혀 있어야
+    //    ✕ 를 닫은 뒤에도 아이콘이 살아 돌아온다(이모지로 되돌아가지 않는다).
+    hydrateTabIcons() {
+        if (typeof IconGen === 'undefined') return;
+        document.querySelectorAll('#tabbar button[data-ico]').forEach(btn => {
+            const ico = IconGen.tab(btn.dataset.ico.replace(/^tab_/, ''));
+            if (!ico) return;                       // 생성 실패 시 이모지 폴백을 그대로 둔다
+            const label = btn.querySelector('span');
+            btn.innerHTML = ico + (label ? label.outerHTML : '');
+        });
     },
 
     // 하단 탭 클릭: PVP/던전/상점은 팝업, 나머지(소환·디버그)는 시트 토글(다시 누르면 닫힘).
