@@ -2316,7 +2316,7 @@ const Scene3D = {
             this.shoulderPads.forEach(p => p.visible = style === 'plate');
             this.chestPlate.visible = style !== 'hide' && style !== 'robe';
             this.clearGroup(this.armorExtraG);
-            this.armorExtraG.add(this.makeArmorExtras(style, c, ec));
+            this.armorExtraG.add(this.makeArmorExtras(style, c, ec, a ? this.ageGearMats(a.age) : null));
         }
         this.tintHero(); // 리그 파츠별 색 오버레이 동기화
         // 장비 교체 연출: 반짝 + 상승 파티클
@@ -2331,17 +2331,156 @@ const Scene3D = {
         }
     },
 
+    // ---- 시대 재질 언어 (사용자 지시: 원시=돌·나무·뼈·가죽 / 중세=단조 철·리벳 / 미래=합금·발광 라인) ----
+    // 무기는 weaponMatKind가 이미 시대를 stone/bone/blackpowder/gunmetal/energy로 갈라놨는데,
+    // 투구·갑옷·장신구는 전 시대가 **같은 식('스틸 32% 혼합 + metalness .85')** 하나였다 —
+    // 그래서 원시 시대 '뼈 투구'도 매끈한 회백 금속으로 나와 시대색만 다른 같은 물건으로 읽혔다.
+    // 무기와 같은 시대 구획을 부위 장비에도 적용해, 부위를 넘나들어도 한 세트로 읽히게 한다.
+    ageGearKind(age) {
+        const i = Math.max(0, AGES.indexOf(age));
+        return i === 0 ? 'primal' : i === 1 ? 'forged' : i === 2 ? 'brass' : i === 3 ? 'polymer' : 'alloy';
+    },
+
+    // 시대별 재질 세트 — body(주 표면) / dark(부속·스트랩) / trim(시대 디테일) / glow 여부.
+    // ⚠️ map은 albedo에 **곱해진다**. rockTex 베이스가 #b9bcc0(≈0.73), leatherTex가 #c9b8a6(≈0.76)이라
+    //    맵을 얹는 계열은 color를 그만큼 올려두지 않으면 시대색이 통째로 한 단 어두워진다(실측 후 보정).
+    ageGearMats(age) {
+        const kind = this.ageGearKind(age);
+        const c = new THREE.Color(AGE_COLORS[age] !== undefined ? AGE_COLORS[age] : 0xb0bec5);
+        const mix = (hex, t) => c.clone().lerp(new THREE.Color(hex), t);
+        const std = o => new THREE.MeshStandardMaterial(o);
+        if (kind === 'primal') {
+            // 돌·뼈·가죽: 금속기 0. flatShading으로 깎아낸 면을 남기고 rockTex 입자로 '민짜 점토'를 막는다.
+            const rock = ProChar.rockTex();
+            return {
+                kind, glow: false,
+                body: std({ color: mix(0xded2b0, 0.52).offsetHSL(0, -0.08, 0.06), metalness: 0.02, roughness: 0.96,
+                    map: rock, bumpMap: rock, bumpScale: 0.022, flatShading: true, envMapIntensity: 0.22 }),
+                dark: std({ color: 0x33220f, metalness: 0, roughness: 0.9,
+                    map: ProChar.leatherTex(), bumpMap: ProChar.leatherTex(), bumpScale: 0.014 }),
+                trim: std({ color: 0x2a1a0c, metalness: 0, roughness: 0.92, map: ProChar.leatherTex() }), // 가죽 결속끈
+                bead: std({ color: 0xe8dfc4, metalness: 0.03, roughness: 0.62, flatShading: true }),      // 뼈·이빨 장식
+            };
+        }
+        if (kind === 'forged') {
+            // 단조 철: 브러시드 결 + 리벳. 기존 룩(스틸 32% 혼합)이 이 계열이었으므로 톤은 그대로 이어받는다.
+            const metal = ProChar.metalTex();
+            return {
+                kind, glow: false,
+                body: std({ color: mix(0xb8c4cf, 0.32).offsetHSL(0, -0.06, 0.06), metalness: 0.86, roughness: 0.42,
+                    map: metal, bumpMap: metal, bumpScale: 0.014, envMapIntensity: 0.75 }),
+                dark: std({ color: 0x232a33, metalness: 0.62, roughness: 0.56 }),
+                trim: std({ color: 0x8c99a6, metalness: 0.92, roughness: 0.3, envMapIntensity: 0.9 }), // 리벳 대가리
+            };
+        }
+        if (kind === 'brass') {
+            // 근세: 황동 부속 + 무두질 가죽 (무기 blackpowder 계열과 같은 팔레트)
+            return {
+                kind, glow: false,
+                body: std({ color: mix(0xb08d57, 0.42), metalness: 0.8, roughness: 0.34, envMapIntensity: 0.8 }),
+                dark: std({ color: 0x2a2119, metalness: 0.2, roughness: 0.72, map: ProChar.leatherTex() }),
+                trim: std({ color: 0xd8b878, metalness: 0.92, roughness: 0.26, envMapIntensity: 0.95 }),
+            };
+        }
+        if (kind === 'polymer') {
+            // 현대: 무광 폴리머 패널 + 저광 금속 (무기 gunmetal과 짝)
+            return {
+                kind, glow: false,
+                body: std({ color: mix(0x6b7480, 0.34), metalness: 0.34, roughness: 0.66, envMapIntensity: 0.5 }),
+                dark: std({ color: 0x272d33, metalness: 0.5, roughness: 0.58 }),
+                trim: std({ color: 0x1c2126, metalness: 0.45, roughness: 0.5 }), // 벤트 슬랫
+            };
+        }
+        // alloy — 우주 이후: 어두운 합금 셸 + 시대색 발광 라인 (무기 energy와 짝)
+        return {
+            kind, glow: true,
+            body: std({ color: mix(0x2b3340, 0.56), metalness: 0.9, roughness: 0.24, envMapIntensity: 0.95 }),
+            dark: std({ color: 0x161b22, metalness: 0.7, roughness: 0.4 }),
+            trim: new THREE.MeshBasicMaterial({ color: c.clone().offsetHSL(0, 0.1, 0.22) }), // 언릿 발광 라인
+        };
+    },
+
+    // 같은 재질 계열 안에서 명도만 다른 파생 재질 (맵·금속도를 공유해야 '다른 파이프라인'으로 안 읽힌다)
+    tintOf(base, dl, opt) {
+        const m = base.clone();
+        m.color = base.color.clone().offsetHSL(0, 0, dl || 0);
+        if (opt) Object.assign(m, opt);
+        return m;
+    },
+
+    // 조립이 끝난 장비 그룹에 시대 디테일을 얹는다 — 바운딩 박스에서 '아랫단 밴드'를 잡아
+    // 계열마다 다른 것을 두른다(리벳 링 / 발광 링 / 가죽끈+뼈구슬 / 황동 스터드 / 폴리머 벤트).
+    // 스타일 11종·갑옷 6종이 제각각이라 좌표 상수로는 못 맞춘다 — 실제 크기에서 역산한다.
+    addAgeTrim(g, mats, opt) {
+        const o = opt || {};
+        const bb = new THREE.Box3().setFromObject(g);
+        if (!isFinite(bb.min.y) || bb.isEmpty()) return;
+        const size = bb.getSize(new THREE.Vector3());
+        const ctr = bb.getCenter(new THREE.Vector3());
+        // 원형이 아니라 **타원**으로 두른다 — 갑옷 몸통은 0.46×0.30 박스라 원 링을 두르면
+        // 앞뒤로 6cm 떠서 '허공에 뜬 고리'가 된다(투구는 rx≈rz라 차이가 없다).
+        const sc = o.rScale || 0.94;
+        const rx = size.x * 0.5 * sc, rz = size.z * 0.5 * sc;
+        const r = Math.max(rx, rz);
+        if (!(Math.min(rx, rz) > 0.02)) return;
+        const y = bb.min.y + size.y * (o.yFrac !== undefined ? o.yFrac : 0.24);
+        const put = (mesh, x, yy, z) => {
+            mesh.position.set(ctr.x + x, yy, ctr.z + z);
+            mesh.userData.ageTrim = mats.kind; // 실측 도구가 '시대 디테일이 실제로 붙었나'를 세는 표식
+            g.add(mesh);
+            return mesh;
+        };
+        // 타원 링: 토러스는 로컬 XY면 → rotation.x=π/2로 눕히면 로컬 y가 월드 z가 된다(scale.y로 z반경 조절)
+        const ellipseRing = (tube, seg, m) => {
+            const t = new THREE.Mesh(new THREE.TorusGeometry(rx, tube, 5, seg), m);
+            t.rotation.x = Math.PI / 2;
+            t.scale.y = rz / rx;
+            return t;
+        };
+        if (mats.kind === 'forged') {                       // 리벳 8개 링 — 단조 판금의 서명
+            const n = o.rivets || 8, rr = Math.min(0.026, r * 0.11);
+            for (let i = 0; i < n; i++) {
+                const a = (i / n) * Math.PI * 2 + 0.2;
+                const riv = new THREE.Mesh(new THREE.SphereGeometry(rr, 7, 5, 0, Math.PI * 2, 0, Math.PI * 0.5), mats.trim);
+                riv.rotation.x = Math.PI / 2;
+                riv.rotation.z = -a;
+                put(riv, Math.cos(a) * rx, y, Math.sin(a) * rz);
+            }
+        } else if (mats.kind === 'alloy') {                 // 발광 라인 — 아랫단 링 + 정면 세로 스트립
+            put(ellipseRing(Math.min(0.014, r * 0.06), 24, mats.trim), 0, y, 0);
+            const bar = new THREE.Mesh(new THREE.BoxGeometry(Math.min(0.05, rx * 0.4), size.y * 0.3, 0.012), mats.trim);
+            put(bar, 0, y + size.y * 0.2, rz * 0.99);
+        } else if (mats.kind === 'primal') {                // 가죽 결속끈 + 매달린 뼈 구슬
+            put(ellipseRing(Math.min(0.02, r * 0.085), 18, mats.trim), 0, y, 0);
+            for (const [dx, dy] of [[-0.055, -0.05], [0, -0.075], [0.055, -0.05]]) {
+                const tooth = new THREE.Mesh(new THREE.ConeGeometry(Math.min(0.022, r * 0.09), Math.min(0.07, r * 0.3), 5), mats.bead);
+                tooth.rotation.x = Math.PI;
+                put(tooth, dx, y + dy, rz * 0.86);
+            }
+        } else if (mats.kind === 'brass') {                 // 황동 림 밴드 + 스터드 4개
+            put(ellipseRing(Math.min(0.016, r * 0.07), 20, mats.trim), 0, y, 0);
+            for (let i = 0; i < 4; i++) {
+                const a = (i / 4) * Math.PI * 2 + 0.4;
+                const stud = new THREE.Mesh(new THREE.SphereGeometry(Math.min(0.024, r * 0.1), 7, 5), mats.trim);
+                put(stud, Math.cos(a) * rx, y + size.y * 0.1, Math.sin(a) * rz);
+            }
+        } else if (mats.kind === 'polymer') {               // 정면 벤트 슬랫 3줄
+            for (let i = 0; i < 3; i++) {
+                const slat = new THREE.Mesh(new THREE.BoxGeometry(Math.min(0.16, rx * 1.1), 0.016, 0.014), mats.trim);
+                put(slat, 0, y + i * 0.032, rz * 0.98);
+            }
+        }
+    },
+
     // 투구: 이름별 스타일 11종
     makeHelmet(age, rarity, style) {
         const g = new THREE.Group();
         const c = AGE_COLORS[age];
         const pc = RARITY_HEX[rarity] || 0xef5350; // 장식 = 등급색
-        // 시대색 직치환은 '고무 풍선'으로 읽힘(비평가) — 스틸 톤에 섞은 뒤 PBR 금속 분리 (갑옷 tint와 동일 원칙)
-        const mat = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(c).lerp(new THREE.Color(0xb8c4cf), 0.32).offsetHSL(0, -0.06, -0.02),
-            metalness: 0.85, roughness: 0.38, envMapIntensity: 0.75 // 환경 반사 — '무광 비닐' 오독 해소 (비평가 3번)
-        });
-        const darkMat = new THREE.MeshStandardMaterial({ color: 0x263238, metalness: 0.6, roughness: 0.55 });
+        // 시대색 직치환은 '고무 풍선'으로 읽힘(비평가) — 시대 재질 세트를 거쳐 PBR 분리 (갑옷 tint와 동일 원칙)
+        const mats = this.ageGearMats(age);
+        const mat = mats.body;
+        const darkMat = mats.dark;
         const rareMat = new THREE.MeshLambertMaterial({ color: pc, emissive: pc, emissiveIntensity: 0.45 });
         style = style || 'plume';
 
@@ -2377,7 +2516,7 @@ const Scene3D = {
             slit.position.set(0, 0.06, 0);
             for (const [sy, off] of [[0.088, 0.5], [0.032, -0.5]]) { // 상하 금속 림 — 개구부 프레임이 빛을 받아 '뚫린 구멍'으로 판독
                 const rim = new THREE.Mesh(new THREE.TorusGeometry(0.2865, 0.011, 5, 18, slitArc),
-                    new THREE.MeshStandardMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.1), metalness: 0.85, roughness: 0.35 }));
+                    this.tintOf(mat, -0.1)); // 시대 재질 계승 — 여기만 금속으로 굳히면 원시 투구에 강철 림이 붙는다
                 rim.rotation.x = Math.PI / 2;
                 rim.rotation.z = Math.PI / 2 - slitArc / 2; // 토러스 아크 중심을 +z로
                 rim.position.y = sy;
@@ -2393,7 +2532,7 @@ const Scene3D = {
                 g.add(glowEye);
             }
             const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.15, 0.045),
-                new THREE.MeshStandardMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.14), metalness: 0.8, roughness: 0.45 })); // 코 가드 — 슬림+다크 (밝은 굵은 바가 '반투명 띠 아티팩트'로 오독, 비평가 7번)
+                this.tintOf(mat, -0.14)); // 코 가드 — 슬림+다크 (밝은 굵은 바가 '반투명 띠 아티팩트'로 오독, 비평가 7번)
             noseBar.position.set(0, -0.02, 0.262);
             // 정수리 볏 아크 — ⚠️ 이전 값(반지름 0.21, 중심 y 0.13)은 **돔 셸 안에 묻혀 있었다.**
             // 돔은 반지름 0.28·스케일 y1.02·중심 y0.04이므로 표면이 y축 0.2856인데, 볏은 자기 중심이
@@ -2429,7 +2568,7 @@ const Scene3D = {
             g.add(dome, crest, cheek1, cheek2);
         } else if (style === 'mask') {      // 가면/방독면: 얼굴을 감싸는 곡면 판 (평판 박스 → 원통 셸)
             const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.22, 0.32, 14, 1, true, -Math.PI * 0.42, Math.PI * 0.84), mat);
-            plate.material = new THREE.MeshStandardMaterial({ color: mat.color.clone(), metalness: 0.85, roughness: 0.4, side: THREE.DoubleSide }); // 원색 직치환 금지 — 스틸 혼합 톤 공유
+            plate.material = this.tintOf(mat, 0, { side: THREE.DoubleSide }); // 원색 직치환 금지 — 시대 재질 톤 공유
             plate.position.set(0, 0.02, 0.02);
             const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat); // 정수리 덮개
             dome.position.y = 0.1;
@@ -2438,7 +2577,7 @@ const Scene3D = {
                 const hole = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: 0x14181c }));
                 hole.position.set(dx, 0.04, 0.252); hole.scale.z = 0.5;
                 const socketRim = new THREE.Mesh(new THREE.TorusGeometry(0.047, 0.009, 5, 12),
-                    new THREE.MeshStandardMaterial({ color: mat.color.clone().offsetHSL(0, 0, -0.14), metalness: 0.8, roughness: 0.45 }));
+                    this.tintOf(mat, -0.14));
                 socketRim.position.set(dx, 0.04, 0.273);
                 const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 5),
                     new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.15, 0.2) }));
@@ -2480,7 +2619,7 @@ const Scene3D = {
             }
         } else if (style === 'tech') {      // 메카 헬름 — 곡면 셸 + 랩어라운드 발광 바이저 (박스 금지, 비평가 1위 결함 재작업)
             const shell = new THREE.Mesh(new THREE.SphereGeometry(0.29, 10, 8), mat);
-            shell.material = new THREE.MeshStandardMaterial({ color: new THREE.Color(c).lerp(new THREE.Color(0xb8c4cf), 0.28), metalness: 0.85, roughness: 0.42 }); // 스틸 혼합 — 원색 풍선 방지
+            shell.material = this.tintOf(mat, 0.02); // 시대 재질 계승 — 원색 풍선 방지는 ageGearMats의 혼합이 이미 담당
             // flatShading 패싯 제거 — visor/mask는 스무스인데 tech만 패싯이라 '다른 파이프라인' 비일관 (비평가 6.9 9번)
             shell.position.y = 0.06;
             shell.scale.set(0.98, 0.92, 1.05);
@@ -2541,16 +2680,24 @@ const Scene3D = {
             rim.position.y = -0.16;
             g.add(bub, rim);
         }
+        // 시대 디테일 — halo(빛 링만)·bubble(유리 돔)은 두를 표면이 없어 제외
+        if (style !== 'halo' && style !== 'bubble') this.addAgeTrim(g, mats, { yFrac: 0.2 });
         g.scale.setScalar(0.85); // 두상 밀착 피팅 — 헬멧이 머리보다 한 치수 커서 '풍선'으로 읽히던 문제 (비평가 3번 결함)
         return g;
     },
 
     // 갑옷 스타일별 부속 (몸통 기준 좌표 — 영웅 몸통 y0.65)
-    makeArmorExtras(style, colorHex, rareHex) {
+    // mats: 시대 재질 세트(ageGearMats). 없으면 기존 램버트 폴백 — 호출부가 시대를 모를 때만.
+    makeArmorExtras(style, colorHex, rareHex, mats) {
         const g = new THREE.Group();
         const darker = new THREE.Color(colorHex).offsetHSL(0, 0, -0.12);
+        // 부속도 본체와 같은 시대 재질이어야 한 벌로 읽힌다 (백팩만 매끈한 플라스틱으로 남던 문제)
+        const body = mats ? this.tintOf(mats.body, -0.1) : new THREE.MeshLambertMaterial({ color: darker });
+        // 천 계열(로브 자락·망토)은 금속기를 빼야 '철판 커튼'이 안 된다
+        const cloth = mats ? this.tintOf(mats.body, -0.1, { metalness: 0.02, roughness: 0.9, envMapIntensity: 0.3, side: THREE.DoubleSide })
+                           : new THREE.MeshLambertMaterial({ color: darker, side: THREE.DoubleSide });
         if (style === 'suit') {          // 백팩 + 발광 스트라이프
-            const pack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, 0.14), new THREE.MeshLambertMaterial({ color: darker }));
+            const pack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, 0.14), body);
             pack.position.set(0, 0.68, -0.24);
             const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.32, 0.02),
                 new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.7 }));
@@ -2558,16 +2705,16 @@ const Scene3D = {
             g.add(pack, stripe);
         } else if (style === 'vest') {   // 전술 파우치
             for (const dx of [-0.11, 0.11]) {
-                const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.06), new THREE.MeshLambertMaterial({ color: 0x37474f }));
+                const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.06), mats ? mats.dark : new THREE.MeshLambertMaterial({ color: 0x37474f }));
                 pouch.position.set(dx, 0.56, 0.17);
                 g.add(pouch);
             }
         } else if (style === 'robe') {   // 로브 자락
-            const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.5, 10, 1, true), new THREE.MeshLambertMaterial({ color: darker, side: THREE.DoubleSide }));
+            const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.5, 10, 1, true), cloth);
             skirt.position.y = 0.32;
             g.add(skirt);
         } else if (style === 'cape') {   // 망토
-            const cape = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.66, 0.04), new THREE.MeshLambertMaterial({ color: darker }));
+            const cape = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.66, 0.04), cloth);
             cape.position.set(0, 0.6, -0.2);
             cape.rotation.x = 0.12;
             g.add(cape);
@@ -2578,15 +2725,21 @@ const Scene3D = {
     makeArmorPreview(age, rarity, style) {
         const g = new THREE.Group();
         const c = AGE_COLORS[age];
-        const mat = new THREE.MeshLambertMaterial({ color: c });
+        const mats = this.ageGearMats(age);
+        style = style || 'plate';
+        // 가죽·로브는 판금 재질을 쓰면 '철판 원피스'로 읽힌다 — 시대색은 유지한 채 금속기만 뺀다
+        const soft = style === 'hide' || style === 'robe';
+        const mat = soft ? this.tintOf(mats.body, -0.02, { metalness: 0.03, roughness: 0.9, envMapIntensity: 0.3 }) : mats.body;
         const torso = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.5, 0.3), mat);
         g.add(torso);
-        style = style || 'plate';
-        if (style !== 'hide' && style !== 'robe') {
+        if (!soft) {
             const chest = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.08), mat);
             chest.position.set(0, 0.1, 0.16);
             g.add(chest);
         }
+        // 시대 디테일은 **몸통 기준으로** 두른다 — 견갑·망토까지 포함한 바운딩 박스로 재면
+        // 반경이 0.44까지 커져 리벳이 가슴 앞 6cm 허공에 뜬다
+        this.addAgeTrim(g, mats, { yFrac: 0.16, rScale: 0.99 });
         if (style === 'plate') {
             for (const dx of [-0.3, 0.3]) {
                 const pad = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), mat);
@@ -2595,7 +2748,7 @@ const Scene3D = {
                 g.add(pad);
             }
         }
-        const extras = this.makeArmorExtras(style, c, RARITY_HEX[rarity] || 0xffffff);
+        const extras = this.makeArmorExtras(style, c, RARITY_HEX[rarity] || 0xffffff, mats);
         extras.position.y = -0.65; // 부속 좌표계를 프리뷰 몸통 기준으로 보정
         g.add(extras);
         return g;
@@ -2604,11 +2757,12 @@ const Scene3D = {
     // 장신구 프리뷰 3D 모델 (부위당 3종 변형)
     makeAccessoryPreview(slot, variant, age, rarity) {
         const g = new THREE.Group();
-        const c = AGE_COLORS[age];
         const rc = RARITY_HEX[rarity] || 0xffd54f;
-        const mat = new THREE.MeshLambertMaterial({ color: c });
+        // 장신구도 시대 재질을 따른다 — 원시 '가죽끈 목걸이'가 매끈한 금속 링으로 나오던 문제
+        const mats = this.ageGearMats(age);
+        const mat = mats.body;
         const gemMat = new THREE.MeshLambertMaterial({ color: rc, emissive: rc, emissiveIntensity: 0.7 });
-        const dark = new THREE.MeshLambertMaterial({ color: 0x3e2723 });
+        const dark = mats.dark;
         const add = (mesh, x, y, z) => { mesh.position.set(x || 0, y || 0, z || 0); g.add(mesh); return mesh; };
         if (slot === 'gloves') {
             if (variant === 0) { // 장갑: 손바닥 + 엄지
