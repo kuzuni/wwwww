@@ -70,7 +70,10 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
             const sold = Object.assign(Forge.rollItem(), { rarity: r, name: '테스트 장비' });
             const kept = Object.assign(Forge.rollItem(), { rarity: 'common', slot: sold.slot });
             UI.showSellConfirm({ sold, kept });
-            measure(`판매 경고 ${RARITY_KR[r]}`, '.sellwarn-item');
+            // 2026-08-18: 경고 창이 '파는 것 / 남는 것' 등급 칩 대조로 바뀌었다(`sell-warn-samerank`).
+            // 흰 글자를 흰 카드에 얹던 `.sellwarn-item`은 없어졌고, 이제 등급색 **필** 위의 전경색을 잰다
+            // (bgOf가 칩 자신의 배경을 먼저 집으므로 chipFill이 보장하는 그 대비가 그대로 측정된다).
+            measure(`판매 경고 ${RARITY_KR[r]}`, '.swc-rank');
         }
         return out;
     });

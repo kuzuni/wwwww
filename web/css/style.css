@@ -1069,12 +1069,31 @@ body {
     display: inline-block; background: var(--pp-ink); color: var(--pp-green);
     border-radius: .6rem; padding: .05rem .45rem; font-weight: 800; margin-top: .1rem;
 }
-/* ---- 고등급 판매 경고 팝업 (사용자 지시 2026-08-17) ---- */
+/* ---- 고등급 판매 경고 팝업 (사용자 지시 2026-08-17, 등급 대조 추가 2026-08-18) ----
+   비교 팝업의 카드에는 등급이 어디에도 안 나오므로(이름색·테두리색이 양쪽 다 잉크색), 이 창이
+   **등급을 처음 보여주는 자리**다. 파는 것/남는 것을 좌우 대칭으로 놓고 가운데 '>'로 대소를 못
+   박는다 — 한쪽만 색칠하면 비교로 안 읽힌다는 게 이번 재지적의 요지였다. */
 .sellwarn-card { width: 76%; padding: 1rem .9rem 1rem; gap: .7rem; }
 .sellwarn-title { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); text-align: center; }
 .sellwarn-body { display: flex; flex-direction: column; gap: .3rem; text-align: center; }
-.sellwarn-item { font-size: .95rem; font-weight: 900; text-shadow: 0 1px 0 rgba(0,0,0,.35); }
-.sellwarn-note { font-size: .8rem; font-weight: 700; color: var(--pp-muted); }
+.sellwarn-cmp { display: flex; align-items: center; justify-content: center; gap: .45rem; }
+.swc-col {
+    flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: .22rem;
+    background: rgba(23,24,26,.05); border-radius: .55rem; padding: .4rem .3rem;
+}
+.swc-tag { font-size: .68rem; font-weight: 800; color: var(--pp-muted); }
+.swc-tag.sell { color: var(--pp-red); }
+/* 등급 칩은 다른 화면(소환 결과·펫 재료)과 같은 규약 — 등급색 필 + 대비 4.5:1 전경 */
+.swc-rank {
+    background: var(--cb); color: var(--cf); border-radius: .45rem;
+    padding: .1rem .5rem; font-size: .78rem; font-weight: 900; white-space: nowrap;
+}
+.swc-name {
+    font-size: .72rem; font-weight: 700; color: var(--pp-ink); text-align: center;
+    line-height: 1.15; word-break: keep-all;
+}
+.swc-gt { flex: 0 0 auto; font-size: 1.05rem; font-weight: 900; color: var(--pp-red); }
+.sellwarn-note { font-size: .8rem; font-weight: 700; color: var(--pp-muted); text-align: center; line-height: 1.35; }
 /* ---- ⓘ '총 보너스' 팝업 (원본: 굵은 검정 제목 + 세로 목록 + 길면 스크롤 + 하단 중앙 빨간 X) ---- */
 .tb-card { width: 78%; padding: 1rem .9rem 1.1rem; gap: .5rem; }
 .tb-title { font-size: 1.25rem; font-weight: 900; color: var(--pp-ink); text-align: center; }

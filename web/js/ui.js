@@ -1928,6 +1928,15 @@ const UI = {
     // 빈 부위는 **비교할 등급 자체가 없으므로 경고하지 않는다**(사용자 재확인 — 빈 부위마다 매번
     // 물어보면 잔소리가 된다. 전에는 -1로 쳐서 항상 물어봤다).
     // 자동 제련(main.js)의 자동 판매는 사용자가 건 필터가 이미 걸러낸 결과라 경고 대상이 아니다.
+    //
+    // ⚠️ '같은 등급인데도 경고가 뜬다'(사용자 재지적 2026-08-18)의 정체 — **판정이 아니라 표시**였다.
+    // 실게임 60회 제작 재현(`tools/probe-sell-warning-repro.js`): 등급 오판정 0건·팝업이 보여준
+    // 장착품과 경고가 비교한 장비가 어긋난 케이스 0건. 대신 **경고 17건 전부가 화면에 등급 단서가
+    // 하나도 없는 상태에서 떴다** — 비교 팝업의 카드는 `[시대] 이름`과 스탯만 쓰고 이름색·테두리색이
+    // 양쪽 다 잉크색(rgb(23,24,26))이라, 희귀한 반지를 팔면서 일반 반지를 남기는 순간에도 두 카드가
+    // 똑같아 보인다. 게다가 장비는 **등급을 어디에서도 표시하지 않는 유일한 카테고리**다(펫·탈것·스킬
+    // 세부정보는 전부 `[등급] 이름`으로 띄운다). 그래서 사용자 눈에는 '같은 등급인데 경고'가 된다.
+    // → 판정은 그대로 두고, 경고 팝업이 **파는 것과 남는 것의 등급을 나란히** 보여주게 고쳤다.
     rarityRank(item) { return item ? RARITIES.indexOf(item.rarity) : -1; },
     sellWarning(mode) {
         if (mode === 'equip') return null; // 장착은 아무것도 팔지 않는다
@@ -1944,16 +1953,38 @@ const UI = {
         this.doResolveCraft(mode);
     },
     // kept는 항상 있다 — sellWarning이 '남을 장비보다 등급이 높을 때'만 이걸 부르기 때문
+    //
+    // 이 팝업은 **왜 경고가 떴는지를 그 자리에서 증명하는 화면**이다(사용자 재지적 2026-08-18).
+    // 전에는 파는 것만 등급색으로 쓰고 남는 것은 "장착 중인 일반 반지보다 높은 등급입니다"라는
+    // 문장 안에 묻어 뒀는데, 한국어에서 '일반'은 등급명이면서 동시에 '평범한'이라는 보통명사라
+    // 그 문장이 등급 비교로 읽히지 않았다. 이제 **파는 것 / 남는 것을 같은 형식의 등급 칩으로
+    // 나란히** 놓고 몇 단계 차이인지까지 적는다 — 양쪽을 눈으로 견줄 수 있어야 '같은 등급인데
+    // 왜 뜨냐'가 성립하지 않는다.
+    rarityChip(rarity) {
+        return `<span class="swc-rank" style="${this.chipVars(rarity)}">${RARITY_KR[rarity]}</span>`;
+    },
+    // 카드에 적힌 것과 같은 표기(`[시대] 이름`)로 써야 방금 본 카드와 짝이 맞는다
+    itemLabel(it) { return `[${AGE_KR[it.age]}] ${it.name}`; },
     showSellConfirm({ sold, kept }) {
-        const keptText = `장착 중인 <b>${RARITY_KR[kept.rarity]}</b> ${SLOT_KR[kept.slot]}보다 높은 등급입니다.`;
+        const gap = this.rarityRank(sold) - this.rarityRank(kept);
         this.els.detailModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper sellwarn-card">
                     <h3 class="sellwarn-title">정말 판매할까요?</h3>
-                    <p class="sellwarn-body">
-                        <span class="sellwarn-item" style="color:${UI.inkRarity(RARITY_CSS[sold.rarity])}">${RARITY_KR[sold.rarity]} ${sold.name}</span>
-                        <span class="sellwarn-note">${keptText}</span>
-                    </p>
+                    <div class="sellwarn-cmp">
+                        <div class="swc-col">
+                            <span class="swc-tag sell">파는 것</span>
+                            ${this.rarityChip(sold.rarity)}
+                            <span class="swc-name">${this.itemLabel(sold)}</span>
+                        </div>
+                        <span class="swc-gt">&gt;</span>
+                        <div class="swc-col">
+                            <span class="swc-tag">남는 것</span>
+                            ${this.rarityChip(kept.rarity)}
+                            <span class="swc-name">${this.itemLabel(kept)}</span>
+                        </div>
+                    </div>
+                    <p class="sellwarn-note">파는 쪽이 <b>${gap}단계</b> 높은 등급입니다.<br>등급이 같거나 낮으면 이 창은 뜨지 않습니다.</p>
                     <div class="row">
                         <button class="btn sell" onclick="UI.onSellConfirm()">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(sold))}</small></button>
                         <button class="btn" onclick="UI.onSellCancel()">취소</button>
