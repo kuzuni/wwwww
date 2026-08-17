@@ -3056,7 +3056,11 @@ body {
    `.modal`(z-index 20)은 `#tabbar`(z-index 30) 아래로 깔리므로 화면 전체를 덮는 이 오버레이만 60. */
 #summon-result-modal {
     z-index: 60; padding: 0; overflow: hidden;
-    background: radial-gradient(118% 76% at 50% 44%, #24306a 0%, #101740 38%, #070b20 68%, #03040c 100%);
+    /* 빌드업 배경도 최고 등급을 예고한다(--bg-pre-*, `.done` 승격분의 45%). 일반 판은
+       예고 세기가 0이라 아래 기본색과 정확히 같은 값이 들어온다 — 저등급 기준선 불변. */
+    background: radial-gradient(118% 76% at 50% 44%, var(--bg-pre-a, #24306a) 0%,
+                var(--bg-pre-b, #101740) 38%, #070b20 68%, #03040c 100%);
+    transition: background .4s ease-out;
 }
 .sr-wrap {
     --fx: 50%; --fy: 50%; /* 홀드백 착지 원점 — JS가 셀 위치로 갱신 */
@@ -3086,14 +3090,37 @@ body {
     68%  { transform: translate3d(.22%, -.22%, 0); }
     100% { transform: none; }
 }
+/* ===== 소환 결과 팝업의 고정 z 사다리 (9차 비평가 2인 일치 지적 ⑴ 처방) =====
+   지적: "소환진·충격파 링이 이름표/등급칩 **위**를 관통한다"(A 3위 / B 4위, 정지·연속
+   프레임 전부에서 재현). 원인은 층마다 z를 그때그때 붙인 것이다 — `.sr-shock`이 3,
+   `.sr-grid`이 1이라 **충격파 링이 이름판과 등급 칩을 가로질러 그려졌고**, `.sr-floor`는
+   0으로 그리드보다 아래인데도 x1 이름판이 배경 없는 투명이라 룬 스트로크가 글자 사이로
+   비쳐 '관통'으로 읽혔다(그쪽은 아래 `.sr-grid.one .sr-name`에서 함께 처리).
+   그래서 **한 곳에 사다리를 고정한다**. 새 층을 넣을 때 이 표에 자리를 정하고 넣을 것:
+       0  배경 방사선(.sr-rays)·중앙 광원(.sr-halo)
+       1  빛가루(.sr-motes)·아이들 파동(.sr-idle)
+       2  비네트(.sr-wrap::after)
+       5  무대 받침(.sr-body::before)
+      10  소환진 바닥(.sr-floor) / 12 바닥 반사(.sr-reflect)
+      20  천개(.sr-canopy)
+      25  착지 섬광(.sr-flash — 가산이라 셀 아래여야 셀을 탁하게 죽이지 않는다)
+      30  충격파·잔파(.sr-shock)
+      40  구체 그리드(.sr-grid) — 셀 안에서 다시 orbwrap 2 → 이름표/칩 3
+      45  타이틀(.sr-head)·하단 집계·버튼(.sr-foot)
+      60  빛 모임(.sr-charge)·수렴 빛줄기(.sr-streaks) — 순수 광원이라 피사체 앞이 맞다
+   ⚠️ `.sr-body`는 z-index:auto라 스택 컨텍스트를 만들지 않는다 — 그 자식(floor/canopy/grid)의
+      z는 `.sr-wrap` 컨텍스트에서 형제들과 **같은 사다리로** 비교된다. 그래서 한 표로 쓴다. */
 /* ① 중심으로 빨려드는 빛줄기 — 빛 모임 구간의 '모이는 힘'을 눈에 보이게 한다 */
-.sr-streaks { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
+.sr-streaks { position: absolute; inset: 0; z-index: 60; pointer-events: none; overflow: hidden; }
 .sr-streaks i {
-    position: absolute; left: 50%; top: 50%; width: .15rem; height: var(--len, 3rem);
-    margin-left: -.075rem; border-radius: .1rem; opacity: 0;
+    /* 굵기도 예고에 물린다 — 신화 판은 빛줄기가 1.5배 굵다. margin-left는 항상 폭의 절반 */
+    position: absolute; left: 50%; top: 50%; height: var(--len, 3rem);
+    width: calc(.15rem * (1 + .5 * var(--pre-k, 0)));
+    margin-left: calc(-.075rem * (1 + .5 * var(--pre-k, 0)));
+    border-radius: .1rem; opacity: 0;
     transform-origin: 50% 100%;
-    background: linear-gradient(rgba(186,216,255,0), #dfeeff 62%, #fff);
-    box-shadow: 0 0 .4rem rgba(160,205,255,.8);
+    background: linear-gradient(rgba(186,216,255,0), var(--pre-line, #dfeeff) 62%, #fff);
+    box-shadow: 0 0 .4rem var(--pre-glow, rgba(160,205,255,.8));
     animation: srstreak .36s cubic-bezier(.4,.02,.22,1) var(--d, 0s) forwards;
 }
 @keyframes srstreak {
@@ -3104,10 +3131,11 @@ body {
 }
 /* 스포크가 프레임 끝까지 직선으로 뻗는 것을 막는 비네트 */
 .sr-wrap::after {
-    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
     background: radial-gradient(122% 84% at 50% 44%, rgba(0,0,0,0) 40%, rgba(0,0,0,.58) 100%);
 }
-.sr-head { flex: 0 0 auto; padding-top: 2%; }
+/* 타이틀은 천개(z 20)보다 위 — 천개 아치가 글자를 가로지르면 안 된다 */
+.sr-head { position: relative; z-index: 45; flex: 0 0 auto; padding-top: 2%; }
 .sr-body {
     position: relative; flex: 1 1 auto; min-height: 0; width: 100%;
     display: flex; align-items: center; justify-content: center;
@@ -3115,7 +3143,7 @@ body {
 /* 그리드 뒤 어두운 받침 — 피사체를 배경 광선에서 분리한다 */
 .sr-body::before {
     content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    width: 124%; height: calc(100% + 2rem); pointer-events: none;
+    width: 124%; height: calc(100% + 2rem); pointer-events: none; z-index: 5;
     background: radial-gradient(58% 48% at 50% 50%, rgba(4,7,20,.58) 0%, rgba(4,7,20,.26) 56%, rgba(4,7,20,0) 100%);
 }
 /* 소환진(룬 바닥) — 한 줄짜리 결과는 아이콘 줄 아래가 통째로 빈 남색 밴드로 남는다.
@@ -3126,7 +3154,7 @@ body {
 .sr-body.stage .sr-grid { flex: 0 0 auto; }
 .sr-floor {
     position: relative; width: 82%; aspect-ratio: 3.1 / 1; margin-top: -2.7rem;
-    pointer-events: none; z-index: 0; opacity: 0;
+    pointer-events: none; z-index: 10; opacity: 0;
     animation: srfloor .85s cubic-bezier(.2,.9,.3,1) .16s forwards;
 }
 .sr-body.stage.one .sr-floor { width: 64%; aspect-ratio: 2.6 / 1; margin-top: -3.4rem; }
@@ -3165,7 +3193,7 @@ body {
    글자가 뿌옇게 덮인다. 호(弧)와 빛발만 쓰고 가운데는 비워 둔다. */
 .sr-canopy {
     position: relative; width: 78%; aspect-ratio: 3.1 / 1; margin-bottom: -2.2rem;
-    pointer-events: none; z-index: 0; opacity: 0;
+    pointer-events: none; z-index: 20; opacity: 0;
     animation: srcanopy .9s cubic-bezier(.2,.9,.3,1) .1s forwards;
 }
 .sr-body.stage.one .sr-canopy { width: 62%; aspect-ratio: 3 / 1; margin-bottom: -2.6rem; }
@@ -3215,11 +3243,13 @@ body {
 }
 /* 배경 광선 — 등간격 하드 스포크는 바람개비처럼 보인다. 굵기가 다른 2겹을 겹쳐 살짝 흐린다 */
 .sr-rays {
-    position: absolute; left: 50%; top: 50%; width: 190%; aspect-ratio: 1;
-    transform: translate(-50%, -50%); pointer-events: none; opacity: .17; filter: blur(.6px);
+    position: absolute; left: 50%; top: 50%; width: 190%; aspect-ratio: 1; z-index: 0;
+    transform: translate(-50%, -50%); pointer-events: none; filter: blur(.6px);
+    /* 예고(--pre-k)만큼 밝아진다 — 고등급 판은 공개 전부터 배경이 더 달궈져 있다 */
+    opacity: calc(.17 + .11 * var(--pre-k, 0));
     background:
-        repeating-conic-gradient(rgba(190,215,255,.5) 0deg .7deg, rgba(255,255,255,0) .7deg 9deg),
-        repeating-conic-gradient(rgba(150,190,255,.3) 0deg 2.6deg, rgba(255,255,255,0) 2.6deg 31deg);
+        repeating-conic-gradient(var(--pre-ray, rgba(190,215,255,.5)) 0deg .7deg, rgba(255,255,255,0) .7deg 9deg),
+        repeating-conic-gradient(var(--pre-ray2, rgba(150,190,255,.3)) 0deg 2.6deg, rgba(255,255,255,0) 2.6deg 31deg);
     /* 구멍을 그리드 밖에서 시작시켜 광선이 구체·이름을 관통하지 않게 한다 */
     -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,0) 22%, #000 34%, rgba(0,0,0,.32) 54%, rgba(0,0,0,0) 72%);
     mask-image: radial-gradient(circle, rgba(0,0,0,0) 22%, #000 34%, rgba(0,0,0,.32) 54%, rgba(0,0,0,0) 72%);
@@ -3227,12 +3257,13 @@ body {
 }
 /* 중앙 광원 — 아이콘 줄 뒤를 밝혀 대비를 만든다 */
 .sr-halo {
-    position: absolute; left: 50%; top: 50%; width: 26rem; height: 16rem;
+    position: absolute; left: 50%; top: 50%; width: 26rem; height: 16rem; z-index: 0;
     transform: translate(-50%, -50%); pointer-events: none;
-    background: radial-gradient(closest-side, rgba(120,165,255,.3) 0%, rgba(90,130,255,.1) 48%, rgba(0,0,0,0) 100%);
+    /* 공개 전에도 최고 등급색으로 물들어 있다(--pre-halo) — 아래 '등급 예고' 주석 참조 */
+    background: radial-gradient(closest-side, var(--pre-halo, rgba(120,165,255,.3)) 0%, rgba(90,130,255,.1) 48%, rgba(0,0,0,0) 100%);
 }
 /* 배경 빛가루 */
-.sr-motes { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.sr-motes { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 .sr-motes i {
     position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s);
     border-radius: 50%; opacity: 0;
@@ -3246,36 +3277,55 @@ body {
     100% { opacity: 0;   transform: translateY(-2.6rem) scale(1.1); }
 }
 
-/* ① 빛 모임 — 화면 전체가 밝아졌다 가라앉는다. 색은 중립(등급색을 쓰면 첫 0.7초에
-   최고 등급을 스포일해 홀드백 연출이 무의미해진다) */
+/* ===== 등급 예고 (9차 비평가 B ⑴ [치명] 처방 — "공개 전 등급 예고가 0") =====
+   지적: `skill-x5-620`(전원 일반)과 `tl-x5-hi/t0600`(신화 포함)이 **사실상 같은 화면**이라,
+   원신 긴장의 원천인 '색으로 미리 알려주기'가 통째로 없다. 2인 채점에서 가장 구조적인 지적.
+   ⚠️ 이 파일의 옛 주석은 정반대를 적어 두고 있었다 — "등급색을 쓰면 최고 등급을 스포일해
+   홀드백이 무의미해진다". **그 판단이 틀렸다.** 예고는 스포일러가 아니라 긴장의 원천이고,
+   원신도 소원 연출의 색(청/자/금)으로 최고 등급을 먼저 알린다. 다만 **'무엇'은 끝까지 숨긴다** —
+   알려 주는 건 '얼마나 센 게 온다'뿐이라 홀드백(어느 셀인지)은 그대로 살아 있다.
+   그래서 예고를 **빌드업 4레이어에 `maxRarity` 하나로 물린다**(JS가 심는 변수):
+     ⓐ `--pre-mid`  빛 모임(.sr-charge)의 중간 밴드 색 — 중심 백열은 그대로 두고 테두리만 물든다
+     ⓑ `--pre-line`/`--pre-glow` 수렴 빛줄기(.sr-streaks)와 충격파(.sr-shock) 색·광량
+     ⓒ `--pre-ray`/`--pre-ray2`/`--pre-halo` 배경 방사선·중앙 광원 색
+     ⓓ `--pre-k`(0=일반 … 1=신화) 위 전부의 세기 + 정점 크기(`--pre-sc`)
+   `--pre-k`가 0이면 전 레이어가 예전 중립값과 같다 — 일반만 나온 판의 회귀 기준선이 유지된다. */
+/* ① 빛 모임 — 화면 전체가 밝아졌다 가라앉는다 */
 /* ⚠️ 인과: 휘도는 첫 아이콘이 뜨는 시각(UI.SR_CHARGE_MS = 480ms)에 **정점**을 찍어야 한다.
    예전 이징은 120ms에 피크를 찍고 480ms엔 거의 암전이라, 빛이 다 꺼진 뒤 아이콘이 시작하는
    '별개 애니메이션 두 개'로 읽혔다. 후반 가속 이징으로 뒤집어 480ms에 최대 휘도를 만들고,
    그 뒤 백색 오버슛이 감쇠하는 420ms 안에서 아이콘을 꺼낸다(두 번째 애니메이션이 이어받는다 —
    지연 중에는 fill이 없어 첫 애니메이션만 적용된다). */
 .sr-charge {
-    position: absolute; inset: 0; pointer-events: none; z-index: 3;
+    position: absolute; inset: 0; pointer-events: none; z-index: 60;
     background: radial-gradient(circle at 50% 50%, #fff 0%, #eaf2ff 8%,
-                rgba(150,190,255,.6) 21%, rgba(255,255,255,0) 44%);
+                var(--pre-mid, rgba(150,190,255,.6)) 21%, rgba(255,255,255,0) 44%);
     animation: srcharge .48s cubic-bezier(.7,0,.9,.2) both,
                srchargeout .42s cubic-bezier(.1,.6,.3,1) .48s forwards;
 }
+/* 정점 크기도 예고에 물린다(--pre-sc = 1 + .22 * --pre-k) — 신화 판은 같은 480ms에
+   더 넓게 터진다. 키프레임 안에서도 var()는 쓸 수 있다. */
 @keyframes srcharge { /* 모임 — 후반 가속(0.48s에 정점) */
     0%   { opacity: .06; transform: scale(.1); }
-    62%  { opacity: .3;  transform: scale(.3); }
-    100% { opacity: 1;   transform: scale(.72); }
+    /* 중간 마디의 밝기도 예고에 물린다 — 고등급 판은 정점 전부터 이미 달궈져 있어야
+       '공개 전 예고'가 순수 빌드업 프레임(430ms)에서도 읽힌다 */
+    62%  { opacity: calc(.3 + .22 * var(--pre-k, 0)); transform: scale(calc(.3 * var(--pre-sc, 1))); }
+    100% { opacity: 1;   transform: scale(calc(.72 * var(--pre-sc, 1))); }
 }
 @keyframes srchargeout { /* 정점의 백색 오버슛 감쇠 — 이 구간 안에서 아이콘이 나온다 */
-    0%   { opacity: 1;   transform: scale(.72); }
-    22%  { opacity: .72; transform: scale(1.1); }
-    100% { opacity: 0;   transform: scale(2.05); }
+    0%   { opacity: 1;   transform: scale(calc(.72 * var(--pre-sc, 1))); }
+    22%  { opacity: .72; transform: scale(calc(1.1 * var(--pre-sc, 1))); }
+    100% { opacity: 0;   transform: scale(calc(2.05 * var(--pre-sc, 1))); }
 }
 /* 충격파도 빛이 터지는 정점(480ms)에 나가야 한다 — 0ms에 터지면 아무것도 없는 화면에서
    링만 먼저 퍼진다 */
+/* z 30 — 그리드(40)보다 **아래**다. 예전엔 3이라 링 스트로크가 이름표·등급칩 위를 가로질렀다
+   (9차 비평가 2인 일치 지적 ⑴). 압력파는 피사체 뒤에서 퍼져야 피사체가 앞에 선 것으로 읽힌다. */
 .sr-shock {
     position: absolute; left: 50%; top: 50%; width: 9rem; height: 9rem; margin: -4.5rem 0 0 -4.5rem;
-    border-radius: 50%; border: .34rem solid #eaf2ff; pointer-events: none; opacity: 0; z-index: 3;
-    box-shadow: 0 0 1.6rem rgba(180,215,255,.8), inset 0 0 1.2rem rgba(150,200,255,.5);
+    border-radius: 50%; border: .34rem solid var(--pre-line, #eaf2ff);
+    pointer-events: none; opacity: 0; z-index: 30;
+    box-shadow: 0 0 1.6rem var(--pre-glow, rgba(180,215,255,.8)), inset 0 0 1.2rem rgba(150,200,255,.5);
     animation: srshock .92s cubic-bezier(.1,.72,.22,1) .46s forwards;
 }
 /* 충격파는 '한 겹의 흰 원'이 아니라 **두께가 줄며 흩어지는 압력파**다 — 예전엔 굵기가
@@ -3290,8 +3340,8 @@ body {
 /* 뒤따르는 잔파(echo) — 압력파가 하나면 '링 애니메이션', 둘이면 '터진 것'으로 읽힌다.
    부모 transform과 곱해지지 않게 형제 요소로 둔다(::after로 두면 배율이 중첩된다). */
 .sr-shock.echo {
-    border-width: .16rem; border-color: rgba(206,228,255,.75);
-    box-shadow: 0 0 1.1rem rgba(150,195,255,.5);
+    border-width: .16rem; border-color: var(--pre-line, rgba(206,228,255,.75));
+    box-shadow: 0 0 1.1rem var(--pre-glow, rgba(150,195,255,.5));
     animation: srshockecho .78s cubic-bezier(.12,.7,.22,1) .60s forwards;
 }
 @keyframes srshockecho {
@@ -3305,7 +3355,7 @@ body {
    (x75에서 그리드 전체가 라벤더 안개가 됐다). 가산(screen)으로 바꾸고 z를 셀 아래로 내린다 —
    셀 자체를 밝히는 일은 아래 srgridlift(그리드 brightness 키프레임)가 맡는다. */
 .sr-flash {
-    position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 0;
+    position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 25;
     mix-blend-mode: screen;
     background: radial-gradient(circle at var(--fx) var(--fy), #fff 0%, var(--rc, #fff) 26%, rgba(255,255,255,0) 72%);
 }
@@ -3339,7 +3389,7 @@ body {
 /* ② 아이콘 그리드. 셀이 적을 때는 overflow를 열어 광채가 잘리지 않게 하고(스크롤 불필요),
    많을 때만 스크롤+페이드 마스크를 켠다 — overflow-y:auto 는 가로도 함께 잘라낸다. */
 .sr-grid {
-    position: relative; z-index: 1;
+    position: relative; z-index: 40;   /* 사다리: 소환진 10 · 천개 20 · 충격파 30 **아래** 다음이 피사체 */
     display: flex; flex-wrap: wrap; align-content: center; justify-content: center;
     gap: 1.1rem .8rem; width: 100%; overflow: visible; padding: .4rem 0;
 }
@@ -3395,7 +3445,7 @@ body {
     -webkit-mask-image: linear-gradient(rgba(0,0,0,0), #000 72%);
     mask-image: linear-gradient(rgba(0,0,0,0), #000 72%);
 }
-.sr-orbwrap { position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%; transform: scale(var(--sz)); }
+.sr-orbwrap { position: relative; z-index: 2; width: 100%; aspect-ratio: 1; border-radius: 50%; transform: scale(var(--sz)); }
 /* 접지 그림자 — 구체 내부 그라디언트로는 읽히지 않아 구 밖에 눌린 타원으로 깐다 */
 .sr-orbwrap::before {
     content: ''; position: absolute; left: 13%; right: 13%; bottom: -6%; height: 13%;
@@ -3631,9 +3681,9 @@ body {
 .sr-grid.herorow .sr-cell.heroic .sr-name {
     font-size: .92rem; width: auto; max-width: min(12rem, 66vw); padding: .16rem .68rem;
 }
-.sr-grid.herorow .sr-cell.heroic .sr-sub { font-size: .76rem; gap: .3rem; }
-.sr-grid.herorow .sr-cell.heroic .sr-sub .sr-rk,
-.sr-grid.herorow .sr-cell.heroic .sr-sub .sr-ex { padding: .07rem .56rem; }
+.sr-grid.herorow .sr-cell.heroic .sr-sub { font-size: .76rem; }
+.sr-grid.herorow .sr-cell.heroic .sr-sub .sr-rk { padding: .07rem .56rem; }
+.sr-grid.herorow .sr-cell.heroic .sr-dup { font-size: .66rem; padding: .02rem .34rem; }
 .sr-grid.mid .sr-cell.heroic .sr-orbwrap { width: min(6.2rem, 30vw); }
 .sr-grid.dense .sr-cell.heroic .sr-orbwrap { width: min(5rem, 24vw); }
 .sr-grid.mid .sr-cell.heroic .sr-orb { font-size: 2.6rem; }
@@ -3644,10 +3694,9 @@ body {
     font-size: .82rem; width: auto; max-width: min(11rem, 62vw); padding: .14rem .6rem;
 }
 .sr-grid.mid .sr-cell.heroic .sr-sub, .sr-grid.dense .sr-cell.heroic .sr-sub {
-    font-size: .7rem; gap: .28rem;
+    font-size: .7rem;
 }
-.sr-grid.mid .sr-cell.heroic .sr-sub .sr-rk, .sr-grid.dense .sr-cell.heroic .sr-sub .sr-rk,
-.sr-grid.mid .sr-cell.heroic .sr-sub .sr-ex, .sr-grid.dense .sr-cell.heroic .sr-sub .sr-ex {
+.sr-grid.mid .sr-cell.heroic .sr-sub .sr-rk, .sr-grid.dense .sr-cell.heroic .sr-sub .sr-rk {
     padding: .06rem .5rem;
 }
 
@@ -3733,7 +3782,7 @@ body {
    변화가 0에 붙는다. **공간을 가로질러 이동하는** 것이 하나는 있어야 화면이 돈다.
    소환진이 2.4초마다 부드러운 파문을 뱉는 것으로 처리한다(연출이 끝난 뒤에만, 그리드
    뒤에서, 링 두 개를 반주기 어긋나게 둬 끊기지 않게). ==== */
-.sr-idle { position: absolute; inset: 0; pointer-events: none; z-index: 0; display: none; }
+.sr-idle { position: absolute; inset: 0; pointer-events: none; z-index: 1; display: none; }
 #summon-result-modal.done .sr-idle { display: block; }
 .sr-idle i {
     position: absolute; left: 50%; top: 50%; width: 11rem; height: 11rem; margin: -5.5rem 0 0 -5.5rem;
@@ -3757,7 +3806,7 @@ body {
 /* 바닥 반사 — 아이콘 줄 아래 남는 빈 밴드를 구조로 채운다(UI.finishSummonResult가 그리드를
    복제해 넣는다). 거울상 글자는 노이즈라 이름·배지는 떼고 구체만 뒤집어 흐린다. */
 .sr-reflect {
-    position: absolute; left: 0; right: 0; pointer-events: none; z-index: 0;
+    position: absolute; left: 0; right: 0; pointer-events: none; z-index: 12;
     /* ⚠️ blur가 약하면 뒤집힌 이모지 얼굴이 그대로 식별돼 '반사'가 아니라 '거꾸로 놓인
        아이콘 줄'로 읽힌다(비평가 지적 + 육안 확인). 형태만 남고 표정은 뭉개질 만큼 번지게. */
     transform: scaleY(-1); opacity: .44; filter: blur(10px) saturate(.85) brightness(.92);
@@ -3784,7 +3833,23 @@ body {
     border-radius: .4rem; padding: 0 .3rem; font-size: .7rem; font-weight: 900;
     box-shadow: 0 .1rem .28rem rgba(0,0,0,.6);
 }
-.sr-grid.dense .sr-new, .sr-grid.dense .sr-qty { display: none; }
+/* 중복 적립 환산(조각/재료 +N) — 라벨 줄에서 내려온 배지.
+   ⚠️ **좌하단이 아니라 좌상단이다.** 9차 처방은 '우하단 ×N과 좌우 대칭인 좌하단'이었는데,
+   그대로 두면 `probe-sr-labels.js` 실측에서 **360×640 기본 크기 셀에서 ×N 배지와 최대
+   220.7px² 겹쳤다**(셀 폭이 좁아 두 배지가 한 변을 나눠 쓸 수 없다). 여기서 글자를 더
+   줄이는 건 금지다 — 같은 회차에 'A ⑷ 부가 칩이 7px라 실기기에서 안 읽힌다'가 이미 걸려
+   있어 축소는 지적을 하나 고치고 하나를 만드는 짓이 된다. 그래서 **대각선**으로 옮겼다:
+   ×N(우하단)과 절대 만나지 않고 크기를 지킬 수 있는 유일한 배치다.
+   좌상단이 비어 있다는 보증: `groupSummonEntries`가 `extra`를 `!g.newQty`일 때만 채우므로
+   **NEW 배지(우상단)와 적립 배지는 상호 배타**다 — 위쪽 두 칸이 동시에 차는 일은 없다.
+   `probe-sr-labels.js`가 두 배지의 상자 교차와 셀 이탈을 회귀 검사한다. */
+.sr-dup {
+    position: absolute; top: 8%; left: 7%; z-index: 2;
+    background: rgba(2,5,16,.9); color: #cfe0ff; border: 1px solid rgba(255,255,255,.3);
+    border-radius: .4rem; padding: 0 .24rem; font-size: .56rem; font-weight: 900;
+    box-shadow: 0 .1rem .28rem rgba(0,0,0,.6); white-space: nowrap;
+}
+.sr-grid.dense .sr-new, .sr-grid.dense .sr-qty, .sr-grid.dense .sr-dup { display: none; }
 .sr-name {
     margin-top: .5rem; font-size: .7rem; font-weight: 800; color: #fff; line-height: 1.18;
     /* 긴 이름은 두 줄까지 허용하되 높이를 최소값으로 잡아 1줄일 때 아래 빈 바가 남지 않게.
@@ -3802,53 +3867,61 @@ body {
     border-radius: .3rem; padding: .12rem .2rem;
 }
 .sr-name > span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-/* 라벨 2슬롯 — 좌=등급(항상), 우=적립 환산(있을 때만). 한 칸을 번갈아 쓰면 중복만 나온
-   항목에서 등급 텍스트가 통째로 사라진다. 등급 칩은 **등급색 솔리드 필 + 대비 4.5:1
-   자동 전경색**(UI.chipFill)이라 여섯 등급의 가독성이 평평하다 — 예전 '어두운 배경 +
-   등급색 글자'는 신화 1.93 : 일반 4.63으로 위계와 대비가 반대로 갔다. */
+/* 라벨 줄 = **등급 칩 전용**. 등급 칩은 등급색 솔리드 필 + 대비 4.5:1 자동 전경색(UI.chipFill)
+   이라 여섯 등급의 가독성이 평평하다 — 예전 '어두운 배경 + 등급색 글자'는 신화 1.93 :
+   일반 4.63으로 위계와 대비가 반대로 갔다.
+   🚨 9차 비평가 B ⑵ [치명] "등급 칩 크기가 셀마다 다르다"의 처방: 예전에는 이 줄을 등급 칩과
+   적립 환산 칩(조각/재료 +N)이 **둘이 나눠 썼고**, 8차에서 폭 초과를 `.sr-sub.two { font-size:
+   .46rem }`(기본 .62rem의 74%)로 막았다. 그래서 **중복이 붙은 셀만 등급 칩까지 같이 작아졌다** —
+   한 화면에서 등급 칩이 두 가지 크기로 섞여 위계가 무너진다.
+   ⇒ 적립 환산은 라벨 줄에서 **빼서 구체 좌하단 배지(.sr-dup)로 내렸다**(우하단 ×N과 대칭).
+     등급 칩은 이제 줄을 독차지하므로 폭이 넘지 않고, `.two` 축소 규칙 자체가 필요 없다.
+     칩 크기를 다시 조건부로 줄이는 규칙을 넣지 말 것 — 그게 이 지적의 원인이었다. */
 .sr-sub {
-    display: flex; align-items: center; justify-content: center; gap: .22rem;
+    position: relative; z-index: 3;   /* 사다리: 셀 안에서 orbwrap 2 → 이름표·칩 3 */
+    display: flex; align-items: center; justify-content: center;
     margin-top: .2rem; font-size: .62rem; font-weight: 900; letter-spacing: .02em;
     line-height: 1.25;
-    /* 칩 두 개가 셀 폭을 넘으면 줄바꿈이 아니라 **글자 안에서** 끊긴다("일 / 반") —
-       칩은 절대 접히지 않게 못 박고, 좁은 그리드에서는 아래 사이즈 규칙이 글자를 줄인다 */
+    /* 칩이 셀 폭을 넘으면 줄바꿈이 아니라 **글자 안에서** 끊긴다("일 / 반") — 절대 접히지 않게 */
     flex-wrap: nowrap; white-space: nowrap; max-width: 100%;
 }
-.sr-sub .sr-rk, .sr-sub .sr-ex { flex: 0 0 auto; white-space: nowrap; }
 .sr-sub .sr-rk {
+    flex: 0 0 auto; white-space: nowrap;   /* 크기 고정 — 이웃 요소 때문에 줄어들지 않는다 */
     padding: .05rem .38rem; border-radius: .45rem;
     background: var(--cb, #d6d6d6); color: var(--cf, #070b18);
     box-shadow: 0 0 0 1px rgba(0,0,0,.45), 0 .08rem .22rem rgba(0,0,0,.5);
 }
-.sr-sub .sr-ex {
-    font-style: normal; padding: .05rem .32rem; border-radius: .45rem;
-    background: rgba(2,5,16,.72); border: 1px solid rgba(255,255,255,.22); color: #e8eeff;
-}
-/* 칩이 둘이면 한 칸에 두 배가 들어간다 — 기본 크기 그대로면 셀 폭(5열 기준 ~74px)을 넘어
-   이웃 셀 라벨과 맞붙는다. 두 칩 셀만 한 단계 줄여 셀 안에 가둔다. */
-.sr-sub.two { font-size: .46rem; gap: .14rem; }
-.sr-sub.two .sr-rk, .sr-sub.two .sr-ex { padding: .04rem .26rem; }
-/* x1은 셀이 넓어 이름 배경판이 입력창처럼 보인다 — 글자 폭에만 깔리게 */
+/* x1(단발)만 이름 판이 통째로 없어서 소환진 룬 스트로크가 글자 사이로 비쳐 '관통'으로
+   읽혔다 — 9차 비평가 2인 일치 지적 ⑴의 나머지 절반(`mount-x1-hi-3400`의 '자전거',
+   `skill-x1-3400`의 '회오리 베기'에서 육안 확인).
+   ⚠️ **예전 풀폭 판을 되살리면 안 된다** — x1은 셀이 넓어(13rem) 폭을 다 쓰면 판이
+   입력창처럼 보인다(그래서 지웠던 것이고, 그 판단 자체는 옳았다). 대신 **글자 폭에만
+   붙는 좁은 판**을 준다: width는 fit-content, 배경은 반투명 남흑, 라운드는 글자 크기에
+   비례. 판이 글자를 감싸므로 뒤로 지나는 스트로크가 글자와 겹치지 않는다. */
 .sr-grid.one .sr-name {
-    font-size: 1.25rem; margin-top: .85rem; height: auto; min-height: 0; width: auto;
-    background: none; box-shadow: none; text-shadow: 0 .12rem .4rem rgba(0,0,0,.95);
+    font-size: 1.25rem; margin-top: .85rem; height: auto; min-height: 0;
+    width: fit-content; max-width: 100%; margin-left: auto; margin-right: auto;
+    background: rgba(8,10,20,.88); box-shadow: 0 0 0 1px rgba(255,255,255,.1);
+    border-radius: .5rem; padding: .2rem .5rem;
+    text-shadow: 0 .12rem .4rem rgba(0,0,0,.95);
 }
 /* 큰 구체에서는 정사각 래퍼 모서리 기준 배지가 원 밖으로 떠 보인다 — 림 안쪽으로 */
 .sr-grid.one .sr-new { top: 10%; right: 9%; font-size: .62rem; }
-.sr-grid.one .sr-sub, .sr-grid.one .sr-sub.two { font-size: .95rem; margin-top: .35rem; gap: .34rem; }
-.sr-grid.one .sr-sub .sr-rk, .sr-grid.one .sr-sub .sr-ex,
-.sr-grid.one .sr-sub.two .sr-rk, .sr-grid.one .sr-sub.two .sr-ex { padding: .14rem .65rem; }
+.sr-grid.one .sr-sub { font-size: .95rem; margin-top: .35rem; }
+.sr-grid.one .sr-sub .sr-rk { padding: .14rem .65rem; }
+.sr-grid.one .sr-dup { top: 10%; left: 9%; font-size: .74rem; padding: .04rem .4rem; }
 .sr-grid.mid .sr-name { font-size: .56rem; margin-top: .3rem; height: 2.4em; }
-.sr-grid.mid .sr-sub { font-size: .5rem; gap: .12rem; }
-.sr-grid.mid .sr-sub .sr-rk, .sr-grid.mid .sr-sub .sr-ex { padding: .03rem .22rem; }
-/* 칩이 둘인 셀만 한 단계 더 줄인다(:has 미지원 환경 대비로 JS가 .two를 함께 붙인다) */
-.sr-grid.mid .sr-sub.two { font-size: .44rem; gap: .1rem; }
-.sr-grid.mid .sr-sub.two .sr-rk, .sr-grid.mid .sr-sub.two .sr-ex { padding: .03rem .17rem; }
+.sr-grid.mid .sr-sub { font-size: .5rem; }
+.sr-grid.mid .sr-sub .sr-rk { padding: .03rem .22rem; }
+/* mid 셀은 구체가 3.9rem 남짓이라 좌·우 배지가 폭을 나눠 쓴다 — 둘 다 줄이고 모서리로 더 붙인다
+   (probe-sr-labels.js 가 두 상자의 교차를 재서 회귀를 막는다) */
+.sr-grid.mid .sr-dup { top: 3%; left: 2%; font-size: .5rem; padding: 0 .16rem; }
+.sr-grid.mid .sr-qty { bottom: 3%; right: 2%; }
 .sr-grid.dense .sr-name, .sr-grid.dense .sr-sub { display: none; }
 
 /* ④ 하단: 등급별 집계 → 연출 중엔 스킵 안내, 끝나면 [확인] */
 .sr-foot {
-    position: relative; z-index: 1; flex: 0 0 auto; width: 100%;
+    position: relative; z-index: 45; flex: 0 0 auto; width: 100%;
     display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
     gap: .55rem; min-height: 4.9rem; padding-top: .5rem;
 }

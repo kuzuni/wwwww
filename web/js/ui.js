@@ -85,9 +85,11 @@ const UI = {
         }
         for (const g of list) {
             g.isNew = g.newQty > 0;
-            // 라벨 2슬롯 — **등급은 언제나 왼쪽에 남는다**. 예전엔 한 칸에 등급명과 적립
-            // 환산(조각/재료)을 번갈아 넣어서, 중복만 나온 항목은 등급 텍스트가 통째로
-            // 사라졌다(x75 mid 15장 중 10장). 가장 중요한 라벨이 부가 정보에 밀려나면 안 된다.
+            // 라벨 줄은 **등급 칩 전용**이다. 예전엔 한 칸에 등급명과 적립 환산(조각/재료)을
+            // 번갈아 넣어서 중복만 나온 항목의 등급이 통째로 사라졌고(x75 mid 15장 중 10장),
+            // 그걸 '2슬롯'으로 고친 뒤에는 폭 초과를 폰트 축소로 막아 **중복이 붙은 셀만
+            // 등급 칩까지 작아졌다**(9차 비평가 B ⑵ [치명]). 지금은 적립 환산을 라벨 줄에서
+            // 빼서 구체 좌하단 배지(.sr-dup)로 내렸다 — 등급 칩 크기는 전 셀에서 같다.
             g.sub = RARITY_KR[g.rarity];
             g.extra = (dup && !g.newQty) ? `${dup} +${g.qty}` : '';
         }
@@ -252,10 +254,11 @@ const UI = {
                     <span class="sr-orb">${e.icon}</span>
                     <span class="sr-spark"></span>
                     ${e.qty > 1 ? `<b class="sr-qty">×${e.qty}</b>` : ''}
+                    ${e.extra ? `<b class="sr-dup">${e.extra}</b>` : ''}
                     ${e.isNew ? '<span class="sr-new">NEW</span>' : ''}
                 </div>
                 <div class="sr-name"><span>${e.name}</span></div>
-                <div class="sr-sub${e.extra ? ' two' : ''}"><b class="sr-rk">${e.sub}</b>${e.extra ? `<i class="sr-ex">${e.extra}</i>` : ''}</div>
+                <div class="sr-sub"><b class="sr-rk">${e.sub}</b></div>
             </div>`;
         }).join('');
         // 셀 수에 따라 크기 단계 — 묶음 덕분에 x75도 보통은 mid에서 멈춘다
@@ -301,6 +304,35 @@ const UI = {
         m.style.setProperty('--bg-a', this.srBlend('#24306a', bc, .24));
         m.style.setProperty('--bg-b', this.srBlend('#101740', bc, .16));
         m.style.setProperty('--halo', `rgba(${brgb[0]},${brgb[1]},${brgb[2]},.4)`);
+        // ===== 등급 예고 — 공개 **전** 빌드업을 최고 등급에 물린다 (9차 비평가 B ⑴ [치명]) =====
+        // 지적: 전원 일반인 판과 신화가 섞인 판의 620ms 프레임이 사실상 같은 화면이라,
+        // 원신 긴장의 원천인 '색으로 미리 알려주기'가 통째로 없다.
+        // ⚠️ 예전 판단("등급색을 쓰면 스포일러가 되니 빌드업은 중립")은 틀렸다 — 알려 주는 건
+        //    '얼마나 센 게 온다'뿐이고 '무엇/어느 셀'은 끝까지 숨으므로 홀드백은 그대로 산다.
+        // --pre-k(0=일반 … 1=신화) 하나로 4레이어(빛 모임·빛줄기·방사선/광원·충격파)의
+        // 색과 세기를 함께 움직인다. k=0이면 전부 예전 중립값과 같아 저등급 판의 기준선이 유지된다.
+        const pk = RARITIES.indexOf(best) / (RARITIES.length - 1);
+        const pmid = this.srRgb(this.srBlend('#96beff', bc, pk));       // 빛 모임 중간 밴드
+        const pline = this.srBlend('#dfeeff', this.srShade(bc, .3), pk); // 빛줄기·충격파 스트로크
+        const pglow = this.srRgb(this.srBlend('#a0cdff', bc, pk));       // 그 둘의 광채
+        const pray = this.srRgb(this.srBlend('#bed7ff', bc, pk));        // 배경 방사선
+        m.style.setProperty('--pre-k', pk.toFixed(3));
+        m.style.setProperty('--pre-sc', (1 + .22 * pk).toFixed(3));
+        m.style.setProperty('--pre-mid', `rgba(${pmid.join(',')},.6)`);
+        m.style.setProperty('--pre-line', pline);
+        m.style.setProperty('--pre-glow', `rgba(${pglow.join(',')},${(.8 + .18 * pk).toFixed(2)})`);
+        m.style.setProperty('--pre-ray', `rgba(${pray.join(',')},${(.5 + .22 * pk).toFixed(2)})`);
+        m.style.setProperty('--pre-ray2', `rgba(${pray.join(',')},${(.3 + .2 * pk).toFixed(2)})`);
+        m.style.setProperty('--pre-halo', `rgba(${brgb[0]},${brgb[1]},${brgb[2]},${(.3 + .16 * pk).toFixed(2)})`);
+        // 배경 자체를 예고에 물린다 — 실측으로 확인한 유일한 '넓은 면적' 레버다.
+        // ⚠️ 중앙 광원(.sr-halo)은 레버가 아니다: 바로 앞의 무대 받침(.sr-body::before,
+        //    중앙 rgba(4,7,20,.58))에 가려 opacity를 극단까지 흔들어도 화면 평균이 안 움직인다
+        //    (앞 세션 실측, TODO 진행 메모에 기록). 반대로 모달 배경은 팝업 주변부를 통째로
+        //    차지해 순수 빌드업 프레임(430ms, 셀 0개)에서도 화면 평균을 실제로 움직인다.
+        // 승격 단계는 남긴다 — 빌드업은 `.done` 의 45%만 물들고, 결과 공개 때 100%로 올라간다.
+        const PRE_BG = .45;
+        m.style.setProperty('--bg-pre-a', this.srBlend('#24306a', bc, .24 * PRE_BG * pk));
+        m.style.setProperty('--bg-pre-b', this.srBlend('#101740', bc, .16 * PRE_BG * pk));
         // 소환진도 결과 등급색으로 물들인다(.done에서만) — 배경/halo와 같은 승격 규칙
         // 선은 등급색 원본이 아니라 밝게 띄운 파생색 — 배경까지 그 등급색으로 물든 뒤라
         // 원색 그대로는 배경에 묻혀 소환진이 사라진다
@@ -419,7 +451,7 @@ const UI = {
         if (!grid || !grid.querySelector('.sr-orbwrap')) return;
         const clone = grid.cloneNode(true);
         clone.querySelectorAll('.sr-cell').forEach(c => { c.classList.add('on'); c.classList.remove('heroic'); });
-        clone.querySelectorAll('.sr-name, .sr-sub, .sr-new, .sr-qty, .sr-ray, .sr-beam, .sr-ghost, .sr-spark')
+        clone.querySelectorAll('.sr-name, .sr-sub, .sr-new, .sr-qty, .sr-dup, .sr-ray, .sr-beam, .sr-ghost, .sr-spark')
             .forEach(e => e.remove());
         const ref = document.createElement('div');
         ref.className = 'sr-reflect';
