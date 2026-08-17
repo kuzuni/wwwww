@@ -13,7 +13,7 @@
 //   ① hiddenPct — 적 i의 실루엣 셀 중 "더 카메라에 가까운 다른 적"에 가려진 비율.
 //      이게 개체 판독성의 본 지표다. 몸이 서로 파묻히면 바로 튄다.
 //   ② 바 판독 — 머리 위 HP바를 화면 좌표 사각형으로 투영해 모든 쌍을 본다. 한 쌍이 읽히려면
-//      **가로로 떨어져 있거나(≥4px) 세로로 확실히 다른 줄에 있어야(≥22px ≈ 바 높이 3배)** 한다.
+//      **가로로 떨어져 있거나(≥0.55×바높이) 세로로 확실히 다른 줄에 있어야(≥3.05×바높이)** 한다.
 //      "세로로 겹치는 쌍만" 보던 초판은 바 y가 7px 어긋난 것도 통과시켰는데, 그건 원 지적이
 //      말한 "바 2~3개가 10~20px 간격으로 포개진" 바로 그 상태다 — 기준을 그래서 두 갈래로 뒀다.
 //   ③ onScreen — 적 실루엣 중심이 뷰포트 안에 있는가. 겹침을 x로 벌려 푸는 수정은
@@ -30,8 +30,14 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 
 // 판정 기준
 const MAX_HIDDEN = 12;   // % — 한 마리가 다른 적에 가려도 되는 실루엣 비율 상한
-const BAR_H_GAP = 4;     // px — HP바 쌍이 가로로 갈렸다고 인정하는 최소 간격
-const BAR_V_GAP = 22;    // px — 가로로 겹칠 때, 다른 줄로 읽히려면 필요한 세로 간격 (바 높이 ≈7px의 3배)
+// 바 판독 기준은 **실측 바 높이의 배수**로 잡는다(고정 px 아님).
+// 왜: 바는 월드 크기라 화면이 좁으면 같이 작아진다 — 499×892에서 높이 7.2px이던 바가
+// 360×640에서는 5.2px이다. 고정 22px을 그대로 들이대면 "같은 정도로 읽히는 화면"을
+// 좁은 기기에서만 떨어뜨린다(실측: 360×640에서 세로 16.6~20.5px로 4/7 조합 FAIL).
+// 아래 배수는 **원래 상수가 유도된 499×892에서 그대로 22px·4px이 되도록** 맞춘 값이라
+// 기준을 무르게 푼 게 아니라 뷰포트 독립으로 다시 쓴 것이다.
+const BAR_V_MUL = 3.05;  // × 바 높이 — 가로로 겹칠 때 다른 줄로 읽히는 데 필요한 세로 간격
+const BAR_H_MUL = 0.55;  // × 바 높이 — 가로로 갈렸다고 인정하는 최소 간격
 const JSON_OUT = process.argv.includes('--json');
 
 // 뷰포트는 앱 실측 기준 2종 + 좁은 기기 1종. `--vp 499x892` 로 하나만 돌려 튜닝을 빨리 돌린다
@@ -73,7 +79,7 @@ const paramsArg = (() => {
             null, { timeout: 30000 });
         await page.waitForTimeout(1200);
 
-        const out = await page.evaluate(({ BAR_H_GAP, BAR_V_GAP, SEQS, PARAMS }) => {
+        const out = await page.evaluate(({ BAR_H_MUL, BAR_V_MUL, SEQS, PARAMS }) => {
             // ── 시뮬레이션을 손에 쥔다: rAF·엔진 틱을 끊고 고정 스텝으로만 굴린다.
             const realUpdate = Scene3D.update.bind(Scene3D);
             Scene3D.update = () => { };
@@ -192,9 +198,15 @@ const paramsArg = (() => {
                             ? -(Math.min(A.x1, B.x1) - Math.max(A.x0, B.x0))   // 겹침량(음수)
                             : Math.max(A.x0, B.x0) - Math.min(A.x1, B.x1);
                         const vGap = Math.abs(A.y - B.y);
+                        // 기준선은 두 바의 평균 높이에 비례 — 화면이 좁아 바가 작아지면 기준도 같이 작아진다
+                        const barH = (A.h + B.h) / 2;
+                        const needV = barH * BAR_V_MUL, needH = barH * BAR_H_MUL;
                         // 판독 여유: 두 갈래 중 나은 쪽을 정규화(1.0 = 딱 기준선)해서 비교한다
-                        const score = Math.max(hGap / BAR_H_GAP, vGap / BAR_V_GAP);
-                        const p = { a: res[i].id, b: res[j].id, hGapPx: +hGap.toFixed(1), vGapPx: +vGap.toFixed(1), ok: score >= 1 };
+                        const score = Math.max(hGap / needH, vGap / needV);
+                        const p = {
+                            a: res[i].id, b: res[j].id, hGapPx: +hGap.toFixed(1), vGapPx: +vGap.toFixed(1),
+                            needVPx: +needV.toFixed(1), needHPx: +needH.toFixed(1), barHPx: +barH.toFixed(1), ok: score >= 1,
+                        };
                         barPairs.push(p);
                         if (!worstPair || score < worstPair.score) worstPair = { ...p, score: +score.toFixed(2) };
                     }
@@ -223,12 +235,28 @@ const paramsArg = (() => {
                 const cs = [];
                 for (const s of SEQS) {
                     const r = setupWave(s);
+                    // ⚠️ 측정 0마리를 그냥 두면 `Math.max()`가 **-Infinity**를 내고, 그 조합이 정렬 맨 뒤로
+                    //    밀려 **말없이 커버리지에서 빠진다**(실측: 첫 setupWave가 그렇게 통째로 누락됐다).
+                    //    빈 측정은 통과가 아니라 측정기 고장이므로 진단값을 달아 위로 올린다.
+                    if (!r.per.length) {
+                        cs.push({
+                            seq: s, kinds: '(측정 0마리)', worstHidden: null, empty: true,
+                            diag: { enemies: Combat.enemies.length, alive: Combat.enemies.filter(e => e.alive).length, phase: Combat.phase, wave: Combat.wave },
+                            barsOk: false, worstPair: null, off: 0, per: [],
+                        });
+                        continue;
+                    }
                     const worst = Math.max(...r.per.map(p => p.hiddenPct));
                     cs.push({ seq: s, kinds: r.per.map(p => p.kind).join('+'), worstHidden: worst, barsOk: r.barsOk, worstPair: r.worstPair, off: r.per.filter(p => !p.onScreen).length, per: r.per });
                 }
-                cs.sort((a, b) => b.worstHidden - a.worstHidden);
+                // 빈 측정을 맨 앞으로(가장 심각) → 그 뒤를 가림률 내림차순
+                cs.sort((a, b) => (b.empty ? 1 : 0) - (a.empty ? 1 : 0) || b.worstHidden - a.worstHidden);
                 return cs;
             };
+
+            // 첫 setupWave 한 번은 버린다 — 페이지가 자기 웨이브를 돌던 중에 끼어들면 첫 판이
+            // 정리 프레임과 겹쳐 0마리로 나온다. 이걸 안 버리면 SEQS[0] 조합이 매번 희생된다.
+            setupWave(SEQS[0]);
 
             // 파라미터 스윕(옵션): 세트를 갈아 끼우며 같은 조합들을 재고 표로 비교한다.
             // 실제 게이트는 파일에 박힌 기본값으로 도는 아래 combos 쪽이다.
@@ -267,14 +295,18 @@ const paramsArg = (() => {
             })();
 
             return { combos, sweep, calib, W, H, params: { pack: Combat.MELEE_PACK, gap: Combat.MELEE_GAP, lanes: Combat.MELEE_LANE_Z } };
-        }, { BAR_H_GAP, BAR_V_GAP, SEQS, PARAMS: paramsArg });
+        }, { BAR_H_MUL, BAR_V_MUL, SEQS, PARAMS: paramsArg });
 
         const { combos, sweep, calib, W, H, params } = out;
-        const worstHidden = combos[0].worstHidden;
+        const empties = combos.filter(c => c.empty);
+        const measured = combos.filter(c => !c.empty);
+        const worstHidden = measured.length ? measured[0].worstHidden : null;
         const offScreen = combos.reduce((n, c) => n + c.off, 0);
         const barsOk = combos.every(c => c.barsOk);
-        const ok = calib.ok && worstHidden <= MAX_HIDDEN && offScreen === 0 && barsOk && errors.length === 0;
-        if (!calib.ok) calibFailed++;
+        // 빈 측정이 하나라도 있으면 커버리지가 뚫린 것 — PASS로 세지 않고 캘리브레이션 실패로 올린다
+        const ok = calib.ok && !empties.length && measured.length === SEQS.length
+            && worstHidden <= MAX_HIDDEN && offScreen === 0 && barsOk && errors.length === 0;
+        if (!calib.ok || empties.length) calibFailed++;
         if (!ok) failed++;
 
         report.push({ vp: `${vp.width}x${vp.height}`, ok, worstHidden, offScreen, barsOk, calib, params, errors, combos });
@@ -285,18 +317,24 @@ const paramsArg = (() => {
             for (const sw of (sweep || [])) console.log(`  [스윕] PACK=${sw.params.pack} GAP=${sw.params.gap} LANES=[${sw.params.lanes}] → 최악가림=${sw.worstHidden}% 중앙=${sw.medHidden}% 화면밖=${sw.off} 바=${sw.barsOk ? 'ok' : 'NG'}`);
             console.log(`  캘리브레이션(전원 한 점 강제): ${calib.ok ? 'OK' : '실패'} worstHidden=${calib.worstHiddenPct}% 바판독=${calib.barsOk ? 'ok' : 'NG'}`);
             for (const c of combos) {
+                if (c.empty) {
+                    console.log(`  [seq ${c.seq}] ⚠️ 측정 0마리 — 커버리지 누락(측정기 고장). ` +
+                        `enemies=${c.diag.enemies} alive=${c.diag.alive} phase=${c.diag.phase} wave=${c.diag.wave}`);
+                    continue;
+                }
                 const wp = c.worstPair;
                 console.log(`  [seq ${c.seq}] ${c.kinds.padEnd(24)} 최악가림=${String(c.worstHidden).padStart(5)}% 화면밖=${c.off} ` +
-                    `바=${c.barsOk ? 'ok ' : 'NG '}(최악쌍 h=${wp ? wp.hGapPx : '-'}px v=${wp ? wp.vGapPx : '-'}px)`);
+                    `바=${c.barsOk ? 'ok ' : 'NG '}(최악쌍 h=${wp ? wp.hGapPx : '-'}/${wp ? wp.needHPx : '-'}px v=${wp ? wp.vGapPx : '-'}/${wp ? wp.needVPx : '-'}px, 바높이 ${wp ? wp.barHPx : '-'}px)`);
             }
-            const w = combos[0];
+            const w = measured[0] || combos[0];
             console.log(`  최악 조합 상세 (${w.kinds}):`);
             for (const p of w.per) {
                 console.log(`    #${p.id} ${p.kind.padEnd(9)} x=${String(p.x).padStart(6)} z=${String(p.z).padStart(6)} ` +
                     `가림=${String(p.hiddenPct).padStart(5)}%  중심=${String(p.centerPx).padStart(6)}px ${p.onScreen ? '' : '⚠️화면밖'} ` +
                     `bar=[${p.bar ? p.bar.x0.toFixed(0) + '~' + p.bar.x1.toFixed(0) + ' y' + p.bar.y.toFixed(0) : '-'}]`);
             }
-            console.log(`  판정: 최악 가림 ${worstHidden}% (기준 ≤${MAX_HIDDEN}%) / 바 판독 ${barsOk ? 'PASS' : 'FAIL'} / 화면밖 ${offScreen}마리 / 콘솔에러 ${errors.length}건`);
+            console.log(`  판정: 최악 가림 ${worstHidden}% (기준 ≤${MAX_HIDDEN}%) / 바 판독 ${barsOk ? 'PASS' : 'FAIL'}(세로 ${BAR_V_MUL}×바높이 / 가로 ${BAR_H_MUL}×) / 화면밖 ${offScreen}마리 / ` +
+                `측정 조합 ${measured.length}/${SEQS.length}${empties.length ? ` (빈 측정 ${empties.length}건)` : ''} / 콘솔에러 ${errors.length}건`);
             if (errors.length) errors.slice(0, 4).forEach(e => console.log('   ! ' + e));
         }
         await page.close();
