@@ -1524,9 +1524,10 @@ body {
 /* 원본 뒤로 버튼 36×29px(7.21×5.81%W) — 정사각이 아니라 라운드 사각이라 50% 반경을 쓰면 타원이 된다 */
 .chat-input-bar .btn.round {
     width: calc(var(--app-w) * .0721); height: calc(var(--app-w) * .0581);
-    border-radius: .35rem; font-size: 1.15rem; flex: none; box-shadow: 0 3px 0 #4c0507;
+    border-radius: .35rem; font-size: 1.02rem; flex: none; box-shadow: 0 3px 0 #4c0507;
+    align-self: flex-end; margin-bottom: 2px;
 }
-.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .47rem; padding: 0; }
+.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .30rem; padding: 0; }
 /* 원본 실측(499px 폭): 좌 여백 63px=12.63%W · 아바타 44px=8.82%W · 간격 4px=0.80%W ·
    말풍선 324px=64.93%W → 우끝 87.17%W. 합이 곧 우측 여백 12.82%W다. */
 .chat-row {
@@ -1550,11 +1551,11 @@ body {
 /* 원본은 태그·이름을 구분하지 않고 전부 같은 주황 rgb(255,136,15), 시간은 rgb(84,84,84) */
 .chat-tag { color: #ff880f; }
 .chat-name-line .muted { font-size: 1.15em; line-height: 1; }
-.chat-time { margin-left: auto; color: #545454; font-size: .85rem; }
+.chat-time { margin-left: auto; color: #545454; font-size: .92rem; }
 /* 원본 실측: 같은 문자열("how's it going")이 원본 102×14px vs 교정 전 클론 79×12px 로 타이포가 통째로
    작았다. 글자 잉크 높이 14px 기준으로 키우고, 안쪽 좌 패딩도 원본 9px 에 맞춘다(교정 전 12px). */
 .chat-bubble {
-    background: #cecece; color: #17181a; border-radius: .6rem; padding: .32rem .45rem .44rem; font-size: .90rem;
+    background: #cecece; color: #17181a; border-radius: .42rem; padding: .36rem .45rem .48rem; font-size: .90rem;
     display: block; width: 100%; word-break: break-word; /* 원본: 짧은 메시지도 고정폭 말풍선 */
 }
 .chat-share-card {
