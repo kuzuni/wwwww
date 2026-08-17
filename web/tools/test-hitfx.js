@@ -72,6 +72,19 @@ const path = require('path');
         step(300); // 사망 연출(1.05초) 종료 + enemyMap 정리까지
         ({ e, m } = mk(801)); // 이후 검사들이 쓸 개체를 같은 id로 되살린다
 
+        // 3-d) 크리(히트스톱 있음)도 **임팩트 프레임에** 숫자가 있고, 프리즈 동안엔 아크가 멈춰 있다
+        // (비평가 4차 ⓑ: 예전엔 프리즈가 끝난 +66ms에야 생성돼 숫자가 타격과 다른 사건으로 갈렸다)
+        Scene3D.fxLayer.innerHTML = '';
+        Combat.damageEnemy(e, Big.of(300), true, null);
+        const born = [...Scene3D.fxLayer.children];
+        ok(born.length > 0, '크리 숫자가 임팩트 프레임에 존재 (' + born.length + '개)');
+        ok(born.length > 0 && born[born.length - 1].style.animationPlayState === 'paused',
+            '프리즈 동안 아크 정지 — 월드는 멈췄는데 숫자만 날아가지 않는다');
+        step(12); // 프리즈(45ms = 5.4프레임)를 넘긴다
+        ok(born.length > 0 && born[born.length - 1].style.animationPlayState !== 'paused',
+            '프리즈가 풀리면 아크 재개');
+        step(60);
+
         // 4) 히트스톱이 반드시 풀린다 (연출이 영구 슬로모로 남지 않게)
         Combat.damageEnemy(e, Big.of(300), true, null);
         step(30);

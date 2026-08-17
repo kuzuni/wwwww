@@ -4822,18 +4822,26 @@ const Scene3D = {
         }
         // ⑤ HP 바 신호
         this.hitHpBar(m, sev);
-        // ⑥ 데미지 숫자 — 항상 대상 오른쪽 위로 비켜 띄워 HP바를 가리지 않게. 프리즈 중에는 띄우지 않는다
-        // (월드는 멈췄는데 DOM 숫자만 날아가면 시간축이 갈라진다 — 애니메이션 큐는 dt=0이라 자연히 대기).
+        // ⑥ 데미지 숫자 — 항상 대상 오른쪽 위로 비켜 띄워 HP바를 가리지 않게.
+        // ⚠️ 예전엔 프리즈가 끝난 뒤에야 **생성**해서, 크리처럼 히트스톱이 붙는 타격은 정작 임팩트
+        // 프레임에 숫자가 없고 +66ms에야 등장했다(비평가 4차 ⓑ). 숫자가 늦게 나오면 "얼마나 아팠나"가
+        // 타격과 다른 사건으로 갈린다. 지금은 **임팩트 프레임에 태우되 애니메이션만 프리즈 동안 멈춰
+        // 둔다** — 원래 우려('월드는 멈췄는데 DOM 숫자만 날아가 시간축이 갈라진다')는 등장이 아니라
+        // 이동이 문제였으므로, 정지한 채 떠 있으면 둘 다 만족한다.
         const cls = kind === 'skill' ? 'dmg-skill' : crit ? 'dmg-crit' : 'dmg';
         // 숫자는 HP바 위로 바 높이(0.135)의 2.2배 이상 띄운다 — 예전 고정 1.25는 큰 적에서 바와 겹쳐
         // 숫자가 바를 가리고 둘 다 못 읽혔다(비평가 2차 ⓔ). 크리는 항상 일반보다 한 슬롯 위.
         const numY = (m.barY || 1.1) * (m.baseScale || 1) + 0.135 * 2.2 + (crit ? 0.3 : 0);
         const numPos = pos.clone().add(new THREE.Vector3(0.45, numY + U.rand(0, 0.1), 0));
         const numOpt = { dx: U.rand(6, 26), rise: -(30 + sev * 18 + (crit ? 12 : 0)), scale: 1 + Math.min(0.3, sev * 0.9) };
-        // dur을 0에 가깝게 두면 '프리즈가 풀린 첫 프레임'에 정확히 뜬다(프리즈 중엔 dt=0이라 큐가 진행되지 않는다).
-        // freeze만큼을 dur로 주면 프리즈가 끝난 뒤 그 시간을 또 기다려 숫자가 두 배 늦는다.
-        if (freeze) this.addAnim(1e-4, () => {}, () => this.damageNumber(numPos, U.fmt(dmg), cls, numOpt));
-        else this.damageNumber(numPos, U.fmt(dmg), cls, numOpt);
+        const el = this.damageNumber(numPos, U.fmt(dmg), cls, numOpt);
+        if (freeze && el) {
+            // 프리즈 동안 CSS 아크를 정지. 재개는 **애니메이션 큐**에 맡긴다 — 큐는 dt로 도는데
+            // 히트스톱 중엔 dt=0이라, dur을 0에 가깝게 주면 '프리즈가 풀린 첫 프레임'에 정확히 풀린다
+            // (freeze만큼을 dur로 주면 프리즈가 끝난 뒤 그 시간을 또 기다려 두 배 늦는다).
+            el.style.animationPlayState = 'paused';
+            this.addAnim(1e-4, () => {}, () => { el.style.animationPlayState = ''; });
+        }
     },
 
     // 히트스톱: 짧게 전역 타임스케일을 0에 가깝게 눌렀다 되돌린다 (update가 dt에 곱해 쓴다)
@@ -5508,6 +5516,7 @@ const Scene3D = {
         }
         this.fxLayer.appendChild(el);
         setTimeout(() => el.remove(), 900);
+        return el; // 호출부가 프리즈 동안 아크를 멈춰 둘 수 있게 (hitEnemy ⑥)
     },
 
     project(v) {
