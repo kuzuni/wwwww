@@ -3526,6 +3526,10 @@ const Scene3D = {
         // ⚠️ 가죽색은 등급색(RARITY_HEX) 파생이 아니라 **고정 자연색**이어야 한다 — 등급 틴트가 전신을
         //    덮으면 안장이 몸통에 그대로 묻혀서 있으나 마나가 된다(에픽=초록 전신에서 실측 확인).
         const LEATHER = M(0x4e342e), TAN = M(0x8d6e63), IRON = M(0x9e9e9e);
+        // 같은 이유로 **재질 정체성이 뚜렷한 파츠**도 등급색을 벗긴다. 타이어는 고무(검정), 림·허브는 금속,
+        // 발굽은 각질 — 이걸 등급색으로 두면 에픽 자전거가 타이어까지 전신 초록이라 '자전거'가 아니라
+        // 초록 링 두 개로 읽힌다(실측 캡처에서 그대로 확인). 등급 틴트는 프레임·몸통 쪽에 남겨 둔다.
+        const RUBBER = M(0x212121), HOOF = M(0x3e2723);
         // sy: 안장 '윗면' = 영웅 골반이 얹히는 높이(= MOUNT_FORMS.saddle과 같은 값을 넣을 것)
         // halfW/halfH: 몸통 반폭·반높이(뱃대끈 크기), bodyY: 몸통 중심 높이
         // foot: [x, y, z] 등자 위치 — 탑승 포즈에서 발이 실제로 오는 자리(계산 근거는 아래 주석)
@@ -3619,7 +3623,17 @@ const Scene3D = {
             if (name === 'Bike') {
                 // ⚠️ 예전엔 바퀴 두 짝을 **좌우(x=±0.28)** 에 세워 놨다 — 자전거가 아니라 링 두 개 사이에
                 //    영웅이 떠 있는 꼴이라 "탄 것 같지 않다"의 주범이었다. 바퀴는 앞뒤(z=±0.30)에 둔다.
-                for (const s of [-1, 1]) { const w = to(0.17, 0.028, 0, 0.17, s * 0.30, dark); w.rotation.y = Math.PI / 2; g.userData['w' + s] = w; }
+                for (const s of [-1, 1]) {
+                    const w = to(0.17, 0.028, 0, 0.17, s * 0.30, RUBBER);   // 타이어 = 고무(등급색 금지)
+                    w.rotation.y = Math.PI / 2; g.userData['w' + s] = w;
+                    const rim = to(0.138, 0.012, 0, 0.17, s * 0.30, IRON);  // 림 — 타이어 안쪽 금속 테
+                    rim.rotation.y = Math.PI / 2;
+                    cy(0.028, 0.028, 0.05, 0, 0.17, s * 0.30, IRON).rotation.z = Math.PI / 2;  // 허브
+                    for (let k = 0; k < 4; k++) {                            // 스포크 — 링이 '빈 고리'로 안 읽히게
+                        const sp4 = bx(0.012, 0.27, 0.012, 0, 0.17, s * 0.30, IRON);
+                        sp4.rotation.z = k * Math.PI / 4;
+                    }
+                }
                 const BB = [0, 0.10, 0.02];              // 크랭크축(bottom bracket)
                 const HEAD = [0, 0.40, 0.26], SEAT = [0, 0.34, -0.07];
                 tube(BB, HEAD, 0.022);                    // 다운튜브
@@ -3634,10 +3648,11 @@ const Scene3D = {
                 // 페달: 탑승 포즈의 발 위치(로컬 y 0.10 / z 0.10)에 맞춰 놓아 발이 헛돌지 않게
                 for (const s of [-1, 1]) {
                     tube([0, 0.10, 0.02], [s * 0.085, 0.10, 0.10], 0.014, IRON);
-                    bx(0.07, 0.018, 0.09, s * 0.085, 0.093, 0.10, dark);
+                    bx(0.07, 0.018, 0.09, s * 0.085, 0.093, 0.10, RUBBER);   // 페달 밟는 면 = 고무
                 }
             } else {
-                const w = to(0.18, 0.05, 0, 0.18, 0, dark); w.rotation.y = Math.PI / 2; g.userData.wheel = w; // 굴러가는 면이 진행 방향을 보게
+                const w = to(0.18, 0.05, 0, 0.18, 0, RUBBER); w.rotation.y = Math.PI / 2; g.userData.wheel = w; // 굴러가는 면이 진행 방향을 보게 (타이어=고무)
+                to(0.142, 0.016, 0, 0.18, 0, IRON).rotation.y = Math.PI / 2;   // 림
                 sp(0.11, 0, 0.30, 0, mat, 1.05, 0.9, 1.05);
                 sp(0.05, 0, 0.36, 0.10, new THREE.MeshBasicMaterial({ color: 0x29e0ff }));
                 sp(0.10, 0, 0.335, -0.03, LEATHER, 0.55, 0.30, 1.15);   // 안장
@@ -3761,6 +3776,9 @@ const Scene3D = {
             g.userData.legs = [];
             for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
                 const leg = cy(0.05, 0.045, 0.24, sx * 0.13, 0.1, sz * 0.3, dark); // 몸통이 좁아진 만큼 안쪽으로
+                // 발굽 — 예전엔 원통이 그냥 잘려 끝나 '땅에 꽂힌 초록 파이프'로 읽혔다.
+                // 다리보다 살짝 넓고 어두운 각질을 물려 접지면을 만든다(발굽은 등급색 파생 금지).
+                cy(0.055, 0.052, 0.05, sx * 0.13, -0.005, sz * 0.3, HOOF);
                 g.userData.legs.push(leg);
             }
             // 사족 안장: 윗면 0.44(=MOUNT_FORMS.quad.saddle) / 등자는 탑승 포즈의 실제 발 자리에.
