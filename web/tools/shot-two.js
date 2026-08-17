@@ -16,6 +16,10 @@ const SC = require('./shot-screens-seed.js');
     await page.evaluate(SC.SEED_SRC);
     await page.reload({ waitUntil: 'load' });
     await page.waitForFunction(() => typeof UI !== 'undefined' && S.forgeLevel === 29, null, { timeout: 20000 });
+    // 캡처 중에는 토스트를 아예 막는다 — innerHTML 비우기만으로는 부족하다: 전투 틱이 clear 와
+    // screenshot 사이에 새 토스트를 띄워 원본에 없는 알림 pill 이 화면에 찍힌다(리그 캡처에서
+    // 시즌 종료 pill 위에 '첫 클리어' 토스트가 겹쳐 찍힌 사례). 채점용 캡처가 오염되면 안 된다.
+    await page.evaluate(() => { UI.toast = () => { }; });
     await page.waitForTimeout(2500);
     for (const arg of process.argv.slice(2)) {
         const i = arg.indexOf(':'); const name = arg.slice(0, i), src = arg.slice(i + 1);

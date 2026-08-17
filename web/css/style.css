@@ -945,7 +945,9 @@ body {
 
 /* ---- PvP 리그 (UI-SPEC 3~5번, 원본 shot-042149/042208/042228) ---- */
 /* ① 랭킹 화면 — 다른 완료 화면(흰 시트)과 달리 원본은 어두운 화면이라 sheet에 다크 변형 추가 */
-.modal-card.sheet.league-sheet { background: #05070f; color: #fff; }
+/* 원본 실측(shot-042149, 498×896): 시트 배경 rgb(14,17,27)=#0e111b — 행(#05060a)보다 '밝다'.
+   이전 값 #05070f 는 행보다 시트가 더 어두워 명암이 뒤집혀 있었다. */
+.modal-card.sheet.league-sheet { background: #0e111b; color: #fff; }
 .league-sheet h2, .league-sheet h3 { color: #fff; }
 .icon-circle.sm {
     width: 2rem; height: 2rem; border-radius: 50%; background: #161b22; border: 2px solid var(--rc, #444c56);
@@ -959,20 +961,26 @@ body {
     font-size: .8rem; font-weight: 700; color: #fff; margin: 0 auto .5rem; width: fit-content; cursor: pointer;
 }
 .league-season-bar b { color: var(--pp-green); }
-.league-list { display: flex; flex-direction: column; gap: .35rem; max-height: calc(var(--app-h) * .46); overflow-y: auto; margin: .3rem auto; width: 82%; } /* 원본 행 ≈77% W 인셋 (185) */
-/* 원본: 랭킹 행은 흰 카드(검정 순위/이름, 주황 전투력), 내 행만 파란 하이라이트 */
+/* 목록 높이 실측(원본 shot-042149): 첫 행 21.21%H → 마지막 행 하단 72.54%H. 이전 .46 은 하단이
+   66.43%H 에서 끝나 −6.11%p 짧았고, 아래의 회색 밴드·핀 행·도전 버튼이 통째로 ~5%p 위로 밀렸다. */
+.league-list { display: flex; flex-direction: column; gap: .6rem; max-height: calc(var(--app-h) * .521); overflow-y: auto; margin: .3rem auto; width: 82%; } /* 원본 행 ≈77% W 인셋 (185) */
+/* 원본 실측 재확인(2026-08-17): 랭킹 행은 **어두운 카드** rgb(5,6,10) + 흰 순위/이름이고, 내 행만 파란
+   하이라이트다. 이전 주석("흰 카드(검정 순위/이름)")은 오독이었다 — 두 x창(20~24%W, 44~50%W)과
+   좌측 여백 스캔 모두에서 행 내부가 rgb(5,6,10)으로 나온다.
+   행 높이도 실측: 원본 57px = 6.36%H(피치 7.47%H = 행+간격 10px). 이전 패딩(.32/.8rem)은 65px = 7.31%H
+   로 +0.95%p 높았고, 8행 누적으로 목록 하단이 더 벌어졌다 — 세로 패딩을 줄여 56px에 맞춘다. */
 .league-row {
     display: grid; grid-template-columns: 1.8rem 2.5rem 1fr auto; gap: .5rem; align-items: center; position: relative;
-    background: #fff; border: 2px solid #000; border-radius: .6rem; padding: .32rem .5rem .8rem; font-size: .78rem; /* 행 ≈6.7% H (185 재채점) */
+    background: #05060a; border: 2px solid #000; border-radius: .6rem; padding: .18rem .5rem .42rem; font-size: .78rem;
 }
 .league-row.me { background: var(--pp-blue); }
 .league-avatar {
     width: 2.5rem; height: 2.5rem; border-radius: .4rem; background: #fff; border: 2px solid #000;
     display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
 }
-.league-rank { font-weight: 900; font-size: 1.05rem; text-align: center; color: #17181a; }
+.league-rank { font-weight: 900; font-size: 1.05rem; text-align: center; color: #fff; }
 .league-row.me .league-rank { color: #fff; }
-.league-name { text-align: left; line-height: 1.3; color: #17181a; font-weight: 800; }
+.league-name { text-align: left; line-height: 1.3; color: #fff; font-weight: 800; }
 .league-row.me .league-name { color: #fff; }
 .league-name small { color: #f59e0b; font-weight: 900; }
 .league-score {
@@ -983,8 +991,14 @@ body {
 .league-row.me .league-server { color: #dce6ff; }
 /* 원본(042149): 핀 행+도전 버튼은 밝은 회색 풀블리드 밴드 위 — 스크롤 행 클리핑을 밴드가 가림 (185) */
 .league-foot {
-    margin: .3rem -.9rem -1.2rem; padding: .5rem .9rem 1.1rem; position: relative; z-index: 1;
-    background: #d6d6d6; border-top: 3px solid var(--pp-line);
+    /* 원본은 회색 밴드가 74.44%H 에서 시작해 **탭바 상단(91.74%H)까지 끊김 없이** 내려온다. 클론은
+       밴드가 86.96%H 에서 끝나고 그 아래 3.4%p 가 시트 어두운 색으로 남아 있었다.
+       바닥 패딩으로 칠해지는 박스만 탭바 아래까지 늘리고, 같은 양의 음수 margin-bottom 으로 그만큼을
+       흐름에서 빼 시트 콘텐츠 높이는 그대로 둔다(안 그러면 시트에 스크롤이 생겨 위쪽이 밀린다).
+       탭바는 불투명(z-index 30)이라 밴드는 탭바 상단에서 끝나 보인다. */
+    margin: .3rem -.9rem calc(-1.2rem - var(--tabbar-h)); padding: .5rem .9rem calc(1.1rem + var(--tabbar-h));
+    position: relative; z-index: 1;
+    background: #afafaf; border-top: 3px solid var(--pp-line); /* 원본 밴드 rgb(175,175,175) — 이전 #d6d6d6(214)은 너무 밝았다 */
 }
 .league-pinned { margin: 0 auto; width: 82%; }
 .league-actions { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; position: relative; justify-content: center; } /* 원본: 도전 중앙, ◀ 좌하단 분리 (185) */
