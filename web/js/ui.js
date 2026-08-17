@@ -2077,7 +2077,7 @@ const UI = {
 
         p.innerHTML = `
             <div class="sheet-head">
-                <span class="cur-pill egg">${IconGen.img('egg')} ${U.fmt(S.eggCurrency || 0)}</span>
+                <span class="cur-pill egg" title="깨진 알 — 펫 소환 화폐">${IconGen.img('eggCracked')} ${U.fmt(S.eggCurrency || 0)}</span>
                 <h2 class="sheet-title">펫</h2>
                 <span class="cur-pill gem">${IconGen.img('gem')} ${U.fmt(S.gems)}</span>
             </div>
@@ -2092,7 +2092,7 @@ const UI = {
                 ${Ascension.ready('pet')
                     ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('pet')">⭐ 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
                     : `<button class="btn big summon-btn ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">
-                    소환 x${Pets.summonCount(petSummonN)}<small class="summon-cost">${IconGen.img('egg')} <b>${Pets.summonCost(petSummonN)}</b></small></button>`}
+                    소환 x${Pets.summonCount(petSummonN)}<small class="summon-cost">${IconGen.img('eggCracked')} <b>${Pets.summonCost(petSummonN)}</b></small></button>`}
                 <div class="summon-info">
                     <button class="info-dot" onclick="UI.openSummonRates('pet')">i</button>
                     <b>Lv. ${petLvl}</b>
@@ -2152,7 +2152,7 @@ const UI = {
     onSummonPetEgg() {
         const count = this.summonMult('pet');
         const r = Pets.summon(count);
-        if (!r) { this.toast(Pets.eggSpace() < 1 ? `🥚 알 보관함이 가득 찼습니다 (${S.eggs.length}/${Pets.EGG_CAP})` : '🥚 알이 부족합니다 (펫 던전에서 획득)'); return; }
+        if (!r) { this.toast(Pets.eggSpace() < 1 ? `🥚 알 보관함이 가득 찼습니다 (${S.eggs.length}/${Pets.EGG_CAP})` : '🥚 깨진 알이 부족합니다 (펫 던전에서 획득)'); return; }
         // 보관함 여유가 배수보다 적어 줄어든 경우엔 몇 개만 나갔는지 알려준다(버튼이 죽지는 않는다)
         if (r.clamped) this.toast(`🥚 보관함 여유만큼 ${r.summoned}개만 소환했습니다 (${S.eggs.length}/${Pets.EGG_CAP})`);
         this.renderPets();
@@ -2446,7 +2446,7 @@ const UI = {
                     </div>
                     <button class="rates-i" onclick="UI.toast('소환 레벨이 오르면 높은 등급 확률이 올라갑니다')">i</button>
                     <div class="rate-list">${barsHtml}</div>
-                    <p class="rates-tip">${isMount ? '태엽으로' : isPet ? '알을' : '티켓을'} 소환하여 레벨 업하고 소환 확률을 높이세요!</p>
+                    <p class="rates-tip">${isMount ? '태엽으로' : isPet ? '깨진 알을' : '티켓을'} 소환하여 레벨 업하고 소환 확률을 높이세요!</p>
                     ${gaugeHtml}
                 </div>
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>
@@ -2717,7 +2717,7 @@ const UI = {
     },
 
     // ---- 진행 패스 (UI-SPEC 18번, 원본 shot-042705): 스테이지 도달 마일스톤. 무료만 실지급, 프리미엄은 잠금 표시(더미) ----
-    CURRENCY_ICON: { coins: 'coin', hammers: 'hammer', gems: 'gem', tickets: 'ticket', potions: 'potion', winders: 'winder', eggCurrency: 'egg' },
+    CURRENCY_ICON: { coins: 'coin', hammers: 'hammer', gems: 'gem', tickets: 'ticket', potions: 'potion', winders: 'winder', eggCurrency: 'eggCracked' },
     // 재화 키 → 캔버스 생성 아이콘 <img>. 알 수 없는 키는 빈 문자열로 떨어진다.
     curIcon(k) { return IconGen.img(this.CURRENCY_ICON[k]); },
     passRewardLines(reward) {
@@ -3651,7 +3651,7 @@ const UI = {
         { key: 'tickets', label: '🎫 티켓' },
         { key: 'winders', label: '⚙️ 태엽' },
         { key: 'potions', label: '🧪 물약' },
-        { key: 'eggCurrency', label: '🥚 알' },
+        { key: 'eggCurrency', label: '🥚 깨진 알' },
     ],
     renderDebug() {
         if (this.activeTab !== 'debug') return;

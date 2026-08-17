@@ -532,6 +532,50 @@ const IconGen = {
             ctx.lineWidth = S * 0.032;
             ctx.strokeStyle = G._shade(base, -0.72);
             ctx.stroke();
+
+            // ---- 균열(깨진 알) ----
+            // 게임에 '알'이 둘이라(부화하는 진짜 알 S.eggs / 펫 소환 화폐 S.eggCurrency) 같은 아이콘을
+            // 쓰면 헷갈린다 → 화폐만 이 균열을 얹어 한눈에 갈리게 한다(사용자 지시 2026-08-18).
+            // 껍질 밖으로 새지 않게 알 path로 클립한 뒤 그린다.
+            if (!o.cracked) return;
+            ctx.save();
+            path();
+            ctx.clip();
+            // 가로 지그재그 + 위/아래로 뻗는 곁가지. 알 폭(w) 파생이라 크기가 바뀌어도 비율이 유지된다.
+            const zig = (y0, amp, steps) => {
+                ctx.beginPath();
+                for (let i = 0; i <= steps; i++) {
+                    const x = cx - w * 1.1 + (w * 2.2) * (i / steps);
+                    i ? ctx.lineTo(x, y0 + (i % 2 ? amp : -amp)) : ctx.moveTo(x, y0 + amp);
+                }
+            };
+            const branch = (x0, y0, dx, dy) => {
+                ctx.beginPath();
+                ctx.moveTo(x0, y0);
+                ctx.lineTo(x0 + dx * 0.45, y0 + dy * 0.55);
+                ctx.lineTo(x0 + dx, y0 + dy);
+            };
+            const yMid = cy + hBot * 0.10;
+            // 균열 바로 아래에 밝은 선을 깔아 '갈라진 틈'의 두께감을 준다(그림자만 있으면 낙서로 보인다)
+            ctx.save();
+            ctx.lineWidth = S * 0.030;
+            ctx.strokeStyle = G._shade(base, 0.5);
+            ctx.translate(0, S * 0.016);
+            zig(yMid, S * 0.028, 7); ctx.stroke();
+            branch(cx + w * 0.30, yMid + S * 0.012, w * 0.34, -S * 0.20); ctx.stroke();
+            branch(cx - w * 0.44, yMid - S * 0.014, -w * 0.20, S * 0.17); ctx.stroke();
+            ctx.restore();
+            ctx.lineWidth = S * 0.036;
+            ctx.strokeStyle = G._shade(base, -0.74);
+            zig(yMid, S * 0.028, 7); ctx.stroke();
+            branch(cx + w * 0.30, yMid + S * 0.012, w * 0.34, -S * 0.20); ctx.stroke();
+            branch(cx - w * 0.44, yMid - S * 0.014, -w * 0.20, S * 0.17); ctx.stroke();
+            ctx.restore();
+        },
+
+        // ---- 깨진 알: 펫 소환 화폐 전용 (진짜 알 S.eggs 와 구분) ----
+        eggCracked(ctx, S, o) {
+            IconGen.draw.egg.call(this, ctx, S, Object.assign({}, o, { cracked: true }));
         },
 
         // ---- 티켓: 소환권 (노치 + 절취선 + 별) ----
