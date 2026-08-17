@@ -34,13 +34,14 @@ const OUT = process.argv[2] || __dirname;
             // 데미지 숫자(CSS 애니메이션)를 시뮬 시각에 맞춰 시크 후 정지 — 실시간 흐름과의 어긋남 제거.
             // 수명 관리도 시뮬 시각으로 옮긴다(원래는 900ms 실시간 setTimeout이라, 스크린샷 대기 동안 다 지워짐).
             // 피격 비네트: 애니메이션 pause+seek는 스크린샷 대기(수백 ms) 사이에 풀려 다 끝나 버리므로,
-            // 키프레임(dmgvignette 0→7%→38%→100%, 440ms)을 시뮬 시각으로 직접 계산해 인라인으로 못 박는다.
+            // 키프레임(dmgvignette 0→3%→38%→100%, 440ms)을 시뮬 시각으로 직접 계산해 인라인으로 못 박는다.
+            // ⚠️ 램프 상수는 css/style.css의 @keyframes dmgvignette와 한 쌍이다 — 한쪽만 바꾸면 프레임 라벨이 거짓말이 된다.
             const vig = document.getElementById('dmg-flash');
             if (vig.classList.contains('on')) {
                 if (vig.__born === undefined) vig.__born = Scene3D.__t;
                 const k = (Scene3D.__t - vig.__born) * 1000 / 440;
                 const peak = parseFloat(vig.style.getPropertyValue('--vig') || '1');
-                const op = k < 0.07 ? peak * k / 0.07 : k < 0.38 ? peak : k < 1 ? peak * (1 - (k - 0.38) / 0.62) : 0;
+                const op = k < 0.03 ? peak * k / 0.03 : k < 0.38 ? peak : k < 1 ? peak * (1 - (k - 0.38) / 0.62) : 0;
                 // CSS 애니메이션은 인라인 스타일을 이기므로 !important로 못 박아야 한다
                 vig.style.setProperty('opacity', op.toFixed(3), 'important');
             }
@@ -111,7 +112,11 @@ const OUT = process.argv[2] || __dirname;
     await swingThenHit(9999, true);
     await step(0.016); await shot('b1-kill+16ms');
     await step(0.08);  await shot('b2-kill+96ms');
-    await step(0.25);  await shot('b3-kill+346ms');
+    // 쓰러지는 구간(kDown ≈ 300ms) 안쪽 프레임 — 예전 세트는 +96ms(서 있음)에서 +346ms(다 누움)로 건너뛰어
+    // 낙하가 한 컷도 안 잡혔고, 비평가가 회차마다 "시체가 순간이동한다"를 지적했다(실제로는 낙하가 있다).
+    await step(0.084); await shot('b2b-kill+180ms');
+    await step(0.08);  await shot('b2c-kill+260ms');
+    await step(0.086); await shot('b3-kill+346ms');
     await step(0.5);   await shot('b4-kill+846ms');  // 밝은 파편이 다 꺼진 뒤 — 그을음 데칼만 남는 구간
 
     // ── C. 영웅 피격(붉은 비네트 + 움찔 + 영웅 HP바) ──

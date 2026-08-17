@@ -4743,7 +4743,25 @@ const Scene3D = {
         this.flashMesh(m, 0.28, 0.09); // 시신이 흰 덩어리로 뭉개지면 정작 파편이 안 보인다 — 짧고 옅게
         // 사망: 피격 경직 → 무릎 꺾임 → 뒤로(+x) 쓰러짐 → 착지 먼지 → 서서히 페이드아웃 (빙글 회전·순간 소멸 금지, 사용자 지시)
         // update 루프는 !e.alive를 건너뛰므로 이 애니메이션이 트랜스폼을 단독 소유한다.
-        if (m.hpBg && m.hpBg.parent) m.hpBg.parent.visible = false; // HP바는 시체와 함께 넘어가지 않게 즉시 숨김 (좀비 잔상 방지)
+        // HP바: 즉시 숨기면 "HP가 0이 되는 순간"이 화면에 한 프레임도 안 나온다 — 마지막 한 방의
+        // 결과가 바에 안 찍히고 바가 그냥 사라진다(비평가 3차 3번). 0까지 0.12초 훑어 내린 뒤 팝아웃한다.
+        // 시체를 따라 눕지는 않으므로(바는 scene 직속) 좀비 잔상 문제는 그대로 없다.
+        if (m.hpBg && m.hpBg.parent) {
+            const barG = m.hpBg.parent, hpFg = m.hpFg, gh = m.hpGhost;
+            const v0 = hpFg ? hpFg.scale.x : 0, s0 = barG.scale.x || 1;
+            m.barDying = true; // update의 driveHpBar가 이 바를 다시 건드리지 않게 (드레인을 덮어쓰면 계단이 생긴다)
+            this.addAnim(0.12, k => {
+                const v = Math.max(0.001, v0 * (1 - k));
+                if (hpFg) { hpFg.scale.x = v; hpFg.position.x = -0.4 * (1 - v); }
+                if (gh) gh.visible = true; // 잔상바는 남겨 둔다 — 방금 깎아낸 폭이 곧 마지막 한 방의 크기
+            }, () => {
+                // 팝아웃 — 0.16초에 걸쳐 살짝 부풀며 사라진다(툭 꺼지면 '버그로 사라졌다'로 읽힌다)
+                this.addAnim(0.16, k => {
+                    barG.scale.setScalar(s0 * (1 + 0.15 * k));
+                    [m.hpBg, hpFg, gh].forEach(o => { if (o) { o.material.transparent = true; o.material.opacity = 1 - k; } });
+                }, () => { barG.visible = false; });
+            });
+        }
         const mats = [];
         m.g.traverse(o => {
             if (!o.isMesh || !o.material) return;
@@ -4790,7 +4808,9 @@ const Scene3D = {
         });
     },
 
-    heroHit(sev) {
+    // dmg를 넘기면 영웅 머리 위에도 붉은 데미지 숫자를 띄운다(적과 같은 스포너·같은 슬롯 규칙).
+    // 예전엔 적만 숫자가 떠서 "내가 몇 대 맞아 얼마나 깎였는지"를 화면에서 읽을 방법이 HP바 길이뿐이었다(비평가 3차 6번).
+    heroHit(sev, dmg) {
         sev = U.clamp(sev || 0.12, 0, 1);
         const ox = this.heroG.position.x;
         // 뒤로(-x) 밀리며 상체가 젖혀지는 움찔 — 피해가 클수록 깊게
@@ -4814,6 +4834,15 @@ const Scene3D = {
         if (sev > 0.12) this.hitStop(0.035);
         this.shake(Math.min(0.22, 0.05 + sev * 0.6));
         UI.flashDamage(sev);
+        // 영웅 피해 숫자 — 적과 반대쪽(왼쪽)으로 흘려 적 숫자와 소유자가 헷갈리지 않게 한다.
+        // 높이는 영웅 HP바 위. 색·외곽선은 CSS의 .dmg-hero가 가진다.
+        if (dmg !== undefined && dmg !== null && this.heroG) {
+            // 영웅 바(heroHpG.y = 1.85) 위로 바 높이(0.135)의 2.2배 — 적 숫자와 같은 규칙
+            const barY = this.heroHpG ? this.heroHpG.position.y : 1.85;
+            const p = this.heroG.position.clone().add(new THREE.Vector3(-0.15, barY + 0.135 * 2.2, 0));
+            this.damageNumber(p, U.fmt(dmg), 'dmg-hero',
+                { dx: -U.rand(10, 30), rise: -(26 + sev * 14), scale: 1 + Math.min(0.25, sev * 0.8) });
+        }
     },
 
     // 영웅 사망 — 예전에는 Death 클립을 걸어도 **바로 다음 프레임에 update의 Idle/Walking 자동 전환이
@@ -5575,7 +5604,7 @@ const Scene3D = {
                 else m.g.scale.setScalar(b);
             }
             const ratio = U.clamp(Big.of(e.hp).ratioTo(e.maxHp), 0, 1); // hp는 Big — 비율만 Number로 뽑는다
-            this.driveHpBar(m, ratio, dt);
+            if (!m.barDying) this.driveHpBar(m, ratio, dt); // 처치 드레인 중인 바는 killEnemy의 애니메이션이 단독 소유
             // 바는 scene 직속이라 몸 위치를 직접 따라간다(변형은 상속하지 않는다).
             // 피격 셰이크는 바 고유 흔들림이므로 추적 위치에 더한다.
             if (m.hpG) m.hpG.position.set(

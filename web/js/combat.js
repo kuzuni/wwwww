@@ -300,7 +300,8 @@ const Combat = {
         this.hero.hp = this.hero.hp.sub(dmg);
         SFX.hit(false);
         // 최대 HP 대비 피해 비중을 넘겨 반동·비네트·바 흔들림 세기를 맞춘다
-        Scene3D.heroHit(Big.of(this.hero.maxHp).isZero() ? 0.12 : Big.of(dmg).ratioTo(this.hero.maxHp));
+        // dmg도 함께 넘긴다 — 영웅 머리 위에 붉은 피해 숫자를 띄워 "얼마나 맞았는지"가 바 길이 말고도 읽히게
+        Scene3D.heroHit(Big.of(this.hero.maxHp).isZero() ? 0.12 : Big.of(dmg).ratioTo(this.hero.maxHp), dmg);
         if (!this.hero.hp.isPos()) this.onDefeat();
     },
 
