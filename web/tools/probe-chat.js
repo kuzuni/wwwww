@@ -6,7 +6,7 @@
 //
 // 사용: PW_PATH=... node probe-chat.js <이미지.png> <y1,y2,...> [최소길이=6]
 //   각 y행에 대해 색이 바뀌는 x 경계를 %W와 px로 나열한다.
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const fs = require('fs'), path = require('path');
 
 const FILE = process.argv[2];

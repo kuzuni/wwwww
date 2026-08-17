@@ -9,7 +9,7 @@
 //  · 빨간 ✕를 화면 전체에서 찾으면 클론은 탭바의 빨간 버튼·체력바까지 한 덩어리로 묶인다
 //    → 카드 하단 근처 + 가로 중앙 부근으로 한정하고 가장 넓은 행 덩어리만 쓸 것.
 // 사용: PW_PATH=... node probe-settings.js
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path'), fs = require('fs');
 // 인자로 원본·클론 경로를 주면 같은 카드 문법을 쓰는 다른 화면(프로필 등)에도 그대로 쓸 수 있다.
 const A = process.argv[2] || path.resolve(__dirname, '../ref/screens/shot-042744.png');

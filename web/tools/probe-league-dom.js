@@ -1,7 +1,7 @@
 // 리그 화면 DOM 실측 — 비율 전수 검증 패스(TODO ②)에서 league(shot-042149)를 판정/교정할 때 쓴다.
 // 픽셀 스캔(probe-segments.js)이 '원본 몇 %H에 무엇이 있나'를 주고, 이 도구가 클론 쪽 목표값을 rect로 준다.
 // 사용: PW_PATH=... node probe-league-dom.js
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const SC = require('./shot-screens-seed.js');

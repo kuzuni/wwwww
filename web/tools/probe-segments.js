@@ -8,7 +8,7 @@
 //
 // 사용: PW_PATH=... node probe-segments.js <원본.png> <클론.png> [x시작=0.42] [x끝=0.52] [최소높이=6]
 //   x구간은 재고 싶은 요소가 지나가는 세로 띠를 고른다(예: 목록 줄무늬는 라벨과 토글 사이가 깨끗하다).
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const fs = require('fs');
 
 const segs = (page, file, x0, x1, minH) => page.evaluate(async ({ dataUrl, x0, x1, minH }) => {

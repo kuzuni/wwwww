@@ -5,7 +5,7 @@
 // 15~30초가 걸려 기본 30s 타임아웃에 걸린다. 팝업은 불투명 풀스크린 오버레이라 3D 화면이
 // 보이지 않으므로, 캡처 전에 Scene3D.update를 비워 루프를 멈춘다 — 한 장 18s → 0.15s.
 // 그 덕에 아래 '타임라인' 섹션에서 연출을 ms 단위로 세워 놓고 연속 프레임을 뽑을 수 있다.
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');

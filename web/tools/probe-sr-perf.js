@@ -1,7 +1,7 @@
 // 소환 결과 팝업 렌더 비용 측정 — 연출 구간에서 스크린샷 1장이 얼마나 걸리는지.
 // 무거운 레이어(스케일 셰이크·블러·블렌드)를 넣으면 swiftshader에서 캡처가 타임아웃한다.
 // 사용: PW_PATH=<playwright 경로> node probe-sr-perf.js
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const OUT = process.argv[2] || '/tmp/sr-perf';

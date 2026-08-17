@@ -1,6 +1,6 @@
 // 화면 2종만 다시 찍기 — 전수 검증 패스에서 한 화면 고치고 즉시 재대조할 때 쓴다(30화면 전체는 4분 걸린다).
 // 사용: PW_PATH=... node shot-two.js <이름:오프너소스> [...]
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path'), fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const OUT = path.join(__dirname, 'ref-cmp/clone');

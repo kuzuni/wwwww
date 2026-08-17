@@ -2,7 +2,7 @@
 // ⚠️ 팝업 열림 애니메이션(scale .7→1)이 헤드리스에서 스로틀링돼 rect 가 0.694배로 잡히는 함정이 있어
 //    (TODO 리그 메모) 기다리지 않고 animation/transition 을 무효화한 뒤 잰다.
 // 사용: PW_PATH=... node probe-dgd-dom.js
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const SC = require('./shot-screens-seed.js');

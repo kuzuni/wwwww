@@ -5,7 +5,7 @@
 // (세로 치수도 %W로 환산하면 화면비와 무관하게 원본 픽셀과 그대로 맞출 수 있다).
 //
 // 사용: PW_PATH=... node probe-chat-dom.js
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 

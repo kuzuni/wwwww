@@ -1,7 +1,7 @@
 // 전 UI 화면 캡처 — 원본 shot-*.png 대조용 (TODO ② '전 UI 비율 전수 검증 패스' 2차 재채점)
 // 사용: PW_PATH=<playwright 경로> node shot-screens.js [출력디렉터리]  — 기본 출력 web/tools/ref-cmp/clone/
 // 짝: compose-ref.js 가 이 출력과 web/ref/screens/shot-*.png 를 좌우 합성(ref-cmp/cmp/)해 비평가 채점용 이미지를 만든다
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');

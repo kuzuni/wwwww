@@ -7,7 +7,7 @@
 // 사용: PW_PATH=... node probe-box.js <이미지.png> <r,g,b> [허용오차=8] [y시작=0] [y끝=1] [최소면적=400]
 //   예) 흰 팝업 카드:  node probe-box.js ref/screens/shot-043244.png 255,255,255 10 0.5 0.95
 //   여러 덩어리가 잡히면 면적 큰 순으로 상위 5개를 찍는다 — 원하는 것을 골라 쓰면 된다.
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const fs = require('fs'), path = require('path');
 
 const FILE = process.argv[2];

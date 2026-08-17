@@ -3,7 +3,7 @@
 // 눈대중·합성 이미지 축소 판단 금지 규칙(TODO ⚠️ 채점 함정) 때문에 원본도 클론도 픽셀로 잰다.
 // 스캔 열/행을 요소마다 따로 잡는 이유: 화면 중앙 열은 버튼 두 개 사이 '틈'을 지나 버튼을 놓친다.
 // 사용: PW_PATH=... node probe-dungeon-detail.js [원본] [클론]
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const fs = require('fs'), path = require('path');
 
 const REF = process.argv[2] || path.resolve(__dirname, '../ref/screens/shot-042304.png');

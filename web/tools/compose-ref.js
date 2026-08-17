@@ -1,5 +1,5 @@
 // 원본|클론 좌우 합성 — 비평가 채점용. 같은 높이로 정규화 + 10% 눈금자
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path'), fs = require('fs');
 const REF = path.resolve(__dirname, '../ref/screens');
 const CLONE = path.join(__dirname, 'ref-cmp/clone');

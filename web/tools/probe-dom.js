@@ -10,7 +10,7 @@
 //     기다리는 대신 animation/transition 을 통째로 무효화한 뒤 잰다.
 //  ② #app 은 fitLayout 이 transform: scale 로 레터박스한다. getBoundingClientRect 는 '축소된 px',
 //     clientHeight 는 '레이아웃 px' 이라 섞으면 어긋난다 — 기준을 #app rect 하나로 통일한다.
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const SC = require('./shot-screens-seed.js');

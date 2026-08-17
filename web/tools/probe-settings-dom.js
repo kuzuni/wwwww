@@ -1,7 +1,7 @@
 // 설정 화면 DOM 실측 — 픽셀 스캔(probe-settings.js)과 짝. 픽셀 스캔이 테두리/둥근 모서리 때문에
 // 몇 px 덜 잡히는 만큼을 알아내고, CSS를 고칠 때 목표값을 rect로 직접 확인하는 용도.
 // 사용: PW_PATH=... node probe-settings-dom.js
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 

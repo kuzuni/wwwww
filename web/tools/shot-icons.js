@@ -1,6 +1,6 @@
 // IconGen 아이콘 시트 캡처 — 캔버스 생성 아이콘 품질 육안/비평가 채점용
 // 사용: PW_PATH=<playwright 경로> node shot-icons.js [출력파일]
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
 const OUT = process.argv[2] || path.join(__dirname, 'icons-sheet.png');

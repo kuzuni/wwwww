@@ -1,7 +1,7 @@
 // IconGen 적용 검증 — 재화 아이콘이 들어간 화면 캡처 + '프레임 대비 아이콘 채움률' / pill 높이 회귀 실측
 // 사용: PW_PATH=<playwright 경로> node probe-icons.js [출력디렉터리]
 // (부팅·시드 절차는 shot-screens.js 와 동일한 검증된 패턴을 따른다)
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');

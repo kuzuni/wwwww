@@ -2,7 +2,7 @@
 // probe-segments.js 는 '가로 밴드'만 주므로 x/폭(버튼 폭 등)을 못 잰다 — 이 도구가 그걸 채운다.
 // 클론 쪽 대응값은 probe-league-dom.js(DOM rect)로 재서 나란히 비교할 것.
 // 사용: PW_PATH=... node probe-league-px.js [이미지=ref/screens/shot-042149.png]
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const fs = require('fs'), path = require('path');
 
 const FILE = process.argv[2] || path.resolve(__dirname, '../ref/screens/shot-042149.png');

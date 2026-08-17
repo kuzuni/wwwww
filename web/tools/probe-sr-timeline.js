@@ -7,7 +7,7 @@
 //
 // 캡처는 shot-summon-result.js와 같은 방식(3D 루프 정지 + 애니메이션 currentTime 시크).
 // 픽셀 통계는 별도 빈 페이지에서 PNG를 캔버스로 디코드해 낸다(노드에 이미지 라이브러리 없음).
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 
