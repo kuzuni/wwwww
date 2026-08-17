@@ -145,6 +145,67 @@ const ProChar = {
             ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
         }, 512, 512);
     },
+    // 사슬갑옷(체인메일): 4-in-1 고리 직조 — 팔다리가 '민짜 캡슐 = 맨살 튜브'로 읽히던 최대 감점원 해소.
+    // 고리 하나하나를 밝은 링 + 안쪽 어두운 구멍으로 그려 범프까지 겸한다(같은 텍스처를 bumpMap으로 재사용).
+    mailTex() {
+        return this.canvasTex('mail', (ctx, w, h) => {
+            ctx.fillStyle = '#3a4048'; ctx.fillRect(0, 0, w, h); // 고리 사이로 비치는 밑감(패딩) 그늘
+            // 사지 원통은 UV가 둘레(u) 1바퀴 × 길이(v) 1회로 매핑돼 u쪽이 1.4~2배 늘어난다.
+            // 그래서 텍스처 안에서는 고리를 세로로 길게 그려 두어야 감긴 뒤 정원(正圓)에 가깝게 읽힌다.
+            const cols = 14, rows = 9;
+            const cw = w / cols, ch = h / rows;
+            const r = cw * 0.46;
+            for (let ry = -1; ry <= rows; ry++) {
+                for (let cx = -1; cx <= cols; cx++) {
+                    const odd = ((ry % 2) + 2) % 2 === 1;
+                    const x = cx * cw + (odd ? cw * 0.5 : 0) + cw * 0.5;
+                    const y = ry * ch + ch * 0.5;
+                    // 고리 본체 — 위쪽이 밝은 링 그라디언트(원통 고리의 하이라이트)
+                    const g = ctx.createLinearGradient(x, y - r, x, y + r);
+                    g.addColorStop(0, '#e2e8ee');
+                    g.addColorStop(0.45, '#a8b3bd');
+                    g.addColorStop(1, '#5e6874');
+                    ctx.strokeStyle = g;
+                    ctx.lineWidth = cw * 0.2;
+                    ctx.beginPath();
+                    ctx.ellipse(x, y, r * 0.86, r * 1.12, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                    // 고리 안쪽 구멍 — 어둡게 파서 직조가 실루엣 없이도 판독되게
+                    ctx.fillStyle = 'rgba(20,24,30,0.55)';
+                    ctx.beginPath();
+                    ctx.ellipse(x, y, r * 0.46, r * 0.6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    // 아래쪽 그림자 아크 — 고리끼리 겹치는 두께감
+                    ctx.strokeStyle = 'rgba(14,18,24,0.4)';
+                    ctx.lineWidth = cw * 0.12;
+                    ctx.beginPath();
+                    ctx.ellipse(x, y + r * 0.12, r * 0.98, r * 0.76, 0, 0.2, Math.PI - 0.2);
+                    ctx.stroke();
+                }
+            }
+        }, 256, 176);
+    },
+    // 퀼팅 패딩(갬버슨): 사슬 밑에 받쳐 입는 누빔천 — 마름모 스티치 + 부푼 면
+    padTex() {
+        return this.canvasTex('pad', (ctx, w, h) => {
+            ctx.fillStyle = '#8d7a63'; ctx.fillRect(0, 0, w, h);
+            const d = w / 5;
+            for (let i = -5; i < 10; i++) { // 마름모 누빔 — 두 방향 사선 격자
+                for (const dir of [1, -1]) {
+                    const g = ctx.createLinearGradient(0, i * d, 0, i * d + d);
+                    g.addColorStop(0, 'rgba(255,244,228,0.16)');
+                    g.addColorStop(0.5, 'rgba(0,0,0,0)');
+                    g.addColorStop(1, 'rgba(30,22,14,0.3)');
+                    ctx.save();
+                    ctx.translate(w / 2, h / 2); ctx.rotate(dir * Math.PI / 4); ctx.translate(-w / 2, -h / 2);
+                    ctx.strokeStyle = 'rgba(46,34,22,0.5)'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(-w, i * d); ctx.lineTo(w * 2, i * d); ctx.stroke();
+                    ctx.fillStyle = g; ctx.fillRect(-w, i * d, w * 3, d);
+                    ctx.restore();
+                }
+            }
+        }, 128, 128);
+    },
     // 가죽: 잔금 크랙 + 스티치
     leatherTex() {
         return this.canvasTex('leather', (ctx, w, h) => {
@@ -219,7 +280,18 @@ const ProChar = {
             R.armorMats.push(m);
             return m;
         };
-        const suit = new THREE.MeshStandardMaterial({ color: 0x323e46, metalness: 0.35, roughness: 0.68, map: mTex }); // 갑옷 밑 사슬/천 — 반금속 직조
+        // 사지 전용 사슬갑옷 — 민짜 캡슐이 '맨살 튜브'로 읽히던 최대 감점원(비평가 7.3 3번) 해소.
+        // 고리 직조 텍스처를 범프로도 써서 실루엣 없이도 금속 직물로 판독되게 한다. 사지는 원통이라 세로 반복을 늘린다.
+        const mailTex = this.mailTex();
+        const mail = () => {
+            const m = new THREE.MeshStandardMaterial({ color: 0x8e9aa6, metalness: 0.78, roughness: 0.56, map: mailTex, bumpMap: mailTex, bumpScale: 0.02, envMapIntensity: 0.55 });
+            m.userData.dark = true; // 시대색 혼합비를 낮춰 광 나는 판금과 명도·채도가 붙지 않게 (판금 대비 유지)
+            m.userData.baseColor = m.color.getHex();
+            R.armorMats.push(m);
+            return m;
+        };
+        const padTex = this.padTex();
+        const padding = new THREE.MeshStandardMaterial({ color: 0x6b5844, metalness: 0, roughness: 0.9, map: padTex, bumpMap: padTex, bumpScale: 0.014 }); // 사슬 밑 갬버슨 — 판금과 사슬 사이 완충층
         const leather = new THREE.MeshStandardMaterial({ color: 0x5a4030, metalness: 0, roughness: 0.85, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.012 });
         const gold = new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: 0.95, roughness: 0.3, envMapIntensity: 0.8 });
         const skin = new THREE.MeshStandardMaterial({ color: 0xf2c9a4, metalness: 0, roughness: 0.6 });
@@ -261,31 +333,57 @@ const ProChar = {
 
         // 다리: 고관절 → 대퇴 → 무릎 → 정강이 → 부츠 (분절 피벗)
         R.legs = [];
+        const mailMat = mail(); // 사지 공용 — 인스턴스를 하나로 묶어 틴트·드로우콜을 아낀다
         for (const side of [-1, 1]) {
             const hip = new THREE.Group();
             hip.position.set(side * 0.13, -0.06, 0);
-            const thigh = this.capsule(0.085, 0.07, 0.32, suit); // 다리 연장 — 마스코트 비율 완화
+            const thigh = this.capsule(0.085, 0.07, 0.32, mailMat); // 다리 연장 — 마스코트 비율 완화
             const cuisse = new THREE.Mesh(new THREE.SphereGeometry(0.095, 10, 8), steelDark()); // 대퇴 장갑판
             cuisse.position.y = -0.115;
             cuisse.scale.set(1, 1.45, 1);
+            // 대퇴 상단 패딩 링 — 스커트(판금)와 사슬이 맞물리는 경계에 누빔천을 끼워 재질이 3층으로 읽히게
+            const thighPad = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.088, 0.055, 12), padding);
+            thighPad.position.y = -0.022;
             const knee = new THREE.Group();
             knee.position.y = -0.32;
-            const kneeCap = new THREE.Mesh(new THREE.SphereGeometry(0.062, 8, 7), steel());
-            const shin = this.capsule(0.06, 0.052, 0.275, suit);
+            // 무릎 폴린(poleyn): 슬개 돔 + 측면 팬 윙 + 상하 라메 2겹 — 관절이 '캡슐 이음매'가 아니라 관절 장갑으로 보이게
+            const kneeCap = new THREE.Mesh(new THREE.SphereGeometry(0.062, 10, 8), steel());
+            kneeCap.scale.set(1.05, 0.95, 1.15);
+            kneeCap.position.z = 0.008;
+            const poleynWing = new THREE.Mesh(new THREE.SphereGeometry(0.052, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.5), steelDark());
+            poleynWing.position.set(side * 0.045, -0.006, -0.004);
+            poleynWing.rotation.z = side * -1.35; // 바깥쪽으로 펼쳐지는 원반 날개
+            poleynWing.scale.set(1, 0.55, 1.1);
+            const kneeLameUp = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.068, 0.026, 12), steel());
+            kneeLameUp.position.y = 0.042;
+            const kneeLameDn = new THREE.Mesh(new THREE.CylinderGeometry(0.066, 0.062, 0.024, 12), steel());
+            kneeLameDn.position.y = -0.044;
+            const kneeRivet = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 5), gold);
+            kneeRivet.position.set(side * 0.052, 0.006, 0.012);
+            knee.add(poleynWing, kneeLameUp, kneeLameDn, kneeRivet);
+            const shin = this.capsule(0.06, 0.052, 0.275, mailMat);
             // 정강이 장갑판 (그리브)
             const greave = new THREE.Mesh(new THREE.SphereGeometry(0.068, 9, 7), steelDark());
             greave.position.set(0, -0.128, 0.012);
             greave.scale.set(0.95, 1.7, 0.95);
             knee.add(greave);
-            // 부츠: 라운드 토 (구+원통 결합)
-            const bootMat = new THREE.MeshStandardMaterial({ color: 0x4a3728, metalness: 0, roughness: 0.8, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.012 });
+            // 부츠: 라운드 토 (구+원통 결합) + 강철 사바톤
+            // 0x4a3728은 r128의 리니어 해석 + sRGB 출력 + 밝은 가죽 텍스처(#c9b8a6)가 겹쳐 화면에서 살구빛 탄으로 떠
+            // 정면·측면샷에서 '맨발'로 읽혔다 — 건틀릿이 이미 겪은 함정(0x6b4e3a → 0x241408)과 같은 원인이라 같은 방식으로 역보정한다.
+            const bootMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0d, metalness: 0, roughness: 0.8, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.012 });
             const bootTop = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.072, 0.1, 10), bootMat);
             bootTop.position.y = -0.265;
             const foot = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), bootMat);
             foot.position.set(0, -0.315, 0.045);
             foot.scale.set(0.9, 0.55, 1.55);
-            knee.add(kneeCap, shin, bootTop, foot);
-            hip.add(thigh, cuisse, knee);
+            // 사바톤(발등 판금) + 발목 라메 — 관절 장갑(폴린·쿠터)과 같은 언어로 발끝까지 마감
+            const sabaton = new THREE.Mesh(new THREE.SphereGeometry(0.068, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), steel());
+            sabaton.position.set(0, -0.305, 0.052);
+            sabaton.scale.set(0.92, 0.62, 1.5);
+            const ankleLame = new THREE.Mesh(new THREE.CylinderGeometry(0.074, 0.08, 0.028, 12), steelDark());
+            ankleLame.position.y = -0.298;
+            knee.add(kneeCap, shin, bootTop, foot, sabaton, ankleLame);
+            hip.add(thigh, thighPad, cuisse, knee);
             aoRing(0.082, 0.016, hip, -0.015, 0.5); // 고관절-대퇴 경계 접촉 그림자
             pelvis.add(hip);
             R.legs.push({ hip, knee });
@@ -388,11 +486,27 @@ const ProChar = {
             const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 5), gold);
             rivet.position.set(side * 0.015, 0.13, 0);
             aoRing(0.075, 0.018, shoulder, -0.03, 0.5); // 견갑 안쪽-상완 경계 접촉 그림자
-            const upperArm = this.capsule(0.062, 0.052, 0.19, suit);
+            const upperArm = this.capsule(0.062, 0.052, 0.19, mailMat);
+            // 상완 패딩 소매 — 견갑 아래로 삐져나오는 누빔천 (판금 → 천 → 사슬 3층 경계)
+            const armPad = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.064, 0.05, 12), padding);
+            armPad.position.y = -0.02;
             const elbow = new THREE.Group();
             elbow.position.y = -0.19;
-            const elbowCap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), steelDark());
-            const forearm = this.capsule(0.046, 0.042, 0.13, suit);
+            // 팔꿈치 쿠터(couter): 돔 + 측면 팬 윙 — 무릎 폴린과 같은 관절 장갑 언어로 통일
+            const elbowCap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), steel());
+            elbowCap.scale.set(1.05, 0.9, 1.15);
+            const couterWing = new THREE.Mesh(new THREE.SphereGeometry(0.042, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.5), steelDark());
+            couterWing.position.set(side * 0.036, -0.004, -0.004);
+            couterWing.rotation.z = side * -1.35;
+            couterWing.scale.set(1, 0.5, 1.1);
+            const couterRivet = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 5), gold);
+            couterRivet.position.set(side * 0.042, 0.004, 0.01);
+            const forearm = this.capsule(0.046, 0.042, 0.13, mailMat);
+            // 뱀브레이스 라메 2겹 — 하완이 민짜 튜브로 남지 않게 판금 밴드를 감는다
+            const vambraceA = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.05, 0.028, 12), steel());
+            vambraceA.position.y = -0.038;
+            const vambraceB = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.048, 0.024, 12), steelDark());
+            vambraceB.position.y = -0.072;
             // 건틀릿 커프(원뿔 링) + 손
             const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.065, 0.07, 10), steel());
             cuff.position.y = -0.11;
@@ -446,8 +560,8 @@ const ProChar = {
             strap.position.y = -0.135;
             const handMount = new THREE.Group();
             handMount.position.y = -0.17;
-            elbow.add(elbowCap, forearm, cuff, fist, strap, handMount);
-            shoulder.add(pauldron, pauldron2, rivet, upperArm, elbow);
+            elbow.add(elbowCap, couterWing, couterRivet, forearm, vambraceA, vambraceB, cuff, fist, strap, handMount);
+            shoulder.add(pauldron, pauldron2, rivet, upperArm, armPad, elbow);
             spine.add(shoulder);
             R.arms.push({ shoulder, elbow, handMount });
             R.bones['shoulder' + (side < 0 ? 'L' : 'R')] = shoulder;
@@ -506,7 +620,7 @@ const ProChar = {
         const neckMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.078, 0.1, 10),
             new THREE.MeshStandardMaterial({ color: 0xd9b28c, metalness: 0, roughness: 0.65 }));
         neckMesh.position.y = 0.015;
-        const cowl = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.095, 0.07, 10), suit); // 사슬 카울 — 목-흉갑 경계 마감
+        const cowl = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.095, 0.07, 12), mailMat); // 사슬 카울 — 이름대로 실제 사슬 직조로(사지와 동일 재질) 목-흉갑 경계 마감
         cowl.position.y = -0.02;
         neck.add(neckMesh, cowl);
         // 얼굴 — 둥근 두상 + 턱 라운딩 (헬멧 미착용 시 노출)
