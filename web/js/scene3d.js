@@ -6098,6 +6098,7 @@ const Scene3D = {
     // 데미지 숫자가 아크 정점에서도 3D 캔버스 안에 남게 하는 상단 여유 — 최대 아크 높이(크리 -47.4px)에
     // 몇 px을 더한 값. 이보다 위에 스폰하면 정점이 상단 HUD로 넘어간다.
     DMG_RISE_HEADROOM: 56,
+    DMG_SIDE_PAD: 4,       // 좌우 여백(px) — 숫자가 게임 영역 모서리에 딱 붙지 않게
     damageNumber(worldPos, text, cls, opt) {
         if (this.fxLayer.children.length > 40) return; // 과부하 방지
         const pt = this.project(worldPos);
@@ -6140,6 +6141,25 @@ const Scene3D = {
             if (opt.scale !== undefined) el.style.setProperty('--pop', opt.scale.toFixed(2));
         }
         this.fxLayer.appendChild(el);
+        // 가로 화면 클램프 — 세로 헤드룸과 같은 대우를 좌우에도 준다. `.float-dmg` 는 translate(-50%)라
+        // style.left 이 **중심**이고, 아크가 스폰 후 `--dx` 만큼 더 흐르며(키프레임 100%에서 전량) 임팩트
+        // 프레임에서 pop·크리 배율로 폭이 최대 ~1.35배까지 커진다. 셋을 다 계산에 넣지 않으면(스폰 시점만
+        // 재면) 오른쪽 끝 적을 때린 숫자가 `#fx-layer{overflow:hidden}` 밖으로 흘러 통째로 안 보인다
+        // (QA 14차 실측: 표본 7.2%가 우측 이탈, 편향은 오른쪽뿐). offsetWidth 는 append 뒤에야 확정된다.
+        const fxW = this.fxLayer.clientWidth;
+        if (fxW > 0) {
+            const dx = (opt && opt.dx !== undefined) ? opt.dx : 0;
+            const pop = (opt && opt.scale !== undefined) ? opt.scale : 1;
+            const halfW = (el.offsetWidth / 2) * pop * 1.35; // 임팩트 프레임 최대 폭까지 감안
+            const pad = this.DMG_SIDE_PAD;
+            // left 는 아크가 다 흐른 뒤(±dx)에도 [pad, fxW-pad] 안에 머물러야 한다.
+            const leftMin = pad + halfW - Math.min(0, dx);
+            const leftMax = fxW - pad - halfW - Math.max(0, dx);
+            let lx = pt.x;
+            if (leftMin > leftMax) lx = fxW / 2;                       // 화면보다 넓으면 중앙
+            else lx = Math.max(leftMin, Math.min(leftMax, lx));
+            el.style.left = lx + 'px';
+        }
         // 화면 단위 최종 보증 — 숫자 **아래 모서리**가 HP바 위에 걸리지 않게 한 번 더 올린다.
         // `.float-dmg` 는 translate(-50%,-50%) 라 style.top 이 **중심**이다: 아래 모서리 = top + 높이/2.
         // 월드 오프셋만으로는 적 크기·원근에 따라 몇 px 부족한 경우가 남는다(실측: 숫자 22px 높이에
