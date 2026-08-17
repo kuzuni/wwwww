@@ -686,6 +686,12 @@ body {
 /* 원본(043224) 카드 하단은 86.90%H인데 `+.8rem`으로는 88.45%H로 1.55%p **낮게** 앉아 카드가 통째로 밀렸다.
    하단 앵커라 padding-bottom을 키워야 카드가 올라온다(줄이면 더 내려간다 — 방향을 헷갈리기 쉽다). */
 #craft-modal { align-items: flex-end; padding-bottom: calc(var(--tabbar-h) + 1.65rem); }
+/* 폭은 `.modal-card.wide`(74%)가 아니라 원본 실측대로 별도 지정한다 — gear-detail의 `.gd-card`와 같은 방식.
+   원본(shot-043224) 카드 흰 본체는 행 프로파일로 재면 x 16.53~83.86%W = **67.33%W**이고, 클론은 74%(DOM)라
+   PNG 실측 72.54%W → **+5.21%p 과대**였다(위 703행 주석의 '원본 73.9%'는 다른 기준으로 잰 값이라 맞지 않는다).
+   DOM 폭과 PNG 흰 본체 폭은 테두리·AA 때문에 1.46%p 차이가 난다(gd-card 70% → 68.54%W 실측으로 교정):
+   67.33 + 1.46 = 68.8%. */
+#craft-modal .modal-card.wide { width: 68.8%; }
 /* 기술 노드 팝업 액션 버튼 — 원본(shot-042605) 높이≈화면 7% 입체 블록 */
 .item-detail[data-tech-node] .btn { min-height: 3.6rem; font-size: 1rem; padding: .5rem .6rem; }
 /* 원본 팝업 인셋 실측(185 전수 패스): 일반 ≈69~76% W — 클론 82~94%는 과대. 시트(.sheet)는 풀스크린 유지 */
