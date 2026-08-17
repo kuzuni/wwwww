@@ -98,7 +98,7 @@ const Scene3D = {
         for (const child of [...this.heroG.children]) child.visible = false;
         this.heroG.add(rig.group);
         this.heroRig = rig;
-        this.setShadow(rig.group);
+        this.setShadow(rig.group, true);
         this.applyRimLight(rig.group);
         // 무기: 오른손 마운트 (legacy 좌표계와 동일 — 칼날 +y)
         rig.handR.add(this.weaponG);
@@ -209,9 +209,13 @@ const Scene3D = {
         }
     },
 
-    // 그룹 내 모든 메시가 그림자를 드리우게
-    setShadow(g) {
-        g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    // 그룹 내 모든 메시가 그림자를 드리우고 **받게**
+    // ⚠️ receiveShadow가 빠져 있던 게 "시체가 바닥에 닿았는데도 떠 보인다"의 1순위 원인이었다(비평가 실측):
+    //   나무 그늘 안에 누운 영웅의 머리 휘도 187 vs 그 아래 지면 27 — 7:1. 서 있을 땐 몸이 그늘 평면 위라
+    //   티가 안 나지만, 누우면 몸이 지면 그늘과 같은 평면을 차지해 '검은 구멍 위의 은색 덩어리'가 된다.
+    //   비용 때문에 **캐릭터(영웅·적·탈것·펫)에만** 켠다 — 배경 소품까지 켜면 저사양 폰에서 픽셀 비용이 는다.
+    setShadow(g, receive) {
+        g.traverse(o => { if (o.isMesh) { o.castShadow = true; if (receive) o.receiveShadow = true; } });
         return g;
     },
 
@@ -1788,7 +1792,7 @@ const Scene3D = {
 
         g.rotation.y = 0.55; // 적 방향(+x)으로 3/4 자세
         g.position.set(Combat.HERO_X, 0, 0);
-        this.setShadow(g);
+        this.setShadow(g, true);
         this.applyRimLight(g);
         // 접지 블롭 섀도우 — 디렉셔널 섀도맵(1024/24유닛)이 흐릿해 캐릭터가 떠 보이던 문제 보강
         this.ensureBlobRes();
@@ -3162,7 +3166,7 @@ const Scene3D = {
             g.userData.name = p.name;
             g.userData.phase = U.rand(0, Math.PI * 2);  // 개체별 위상차
             g.userData.speed = U.rand(0.85, 1.25);       // 개체별 속도차
-            this.setShadow(g);
+            this.setShadow(g, true);
             this.applyRimLight(g, this.PET_RIM_DARK); // 배경·탈것과 색이 겹쳐도 실루엣이 분리되게 컨투어 강화
             this.scene.add(g);
             this.petGroups.push(g);
@@ -3268,7 +3272,7 @@ const Scene3D = {
         g.userData.spotX = 0;
         g.userData.baseY = baseY;
         g.userData.phase = U.rand(0, Math.PI * 2);
-        this.setShadow(g);
+        this.setShadow(g, true);
         this.applyRimLight(g);
         this.scene.add(g);
         this.mountGroup = g;
@@ -3981,7 +3985,7 @@ const Scene3D = {
         const m = this.monsterMesh(e);
         m.g.position.set(e.x + this.worldX, 0, 0);
         m.g.rotation.y = -0.55; // 영웅 방향(-x)으로 3/4 자세
-        this.setShadow(m.g);
+        this.setShadow(m.g, true);
         this.applyRimLight(m.g);
         this.scene.add(m.g);
         // HP 바는 scene 직속(몸 변형 비상속) — 위치는 update가 매 프레임 추적
@@ -4637,6 +4641,7 @@ const Scene3D = {
         this._attacking = false;
         this.walking = false;
         this.heroPlay(['Death_A'], true);
+        this.hitStop(0.075);   // 사망 순간 한 박 멈춤 — 피격 충격이 흐물흐물 시작하지 않게
         this.shake(0.4);
         UI.flashDamage(1); // 화면 붉은 비네트 — 치명타 피격보다 진하게
         // 2단 붕괴에 맞춘 2단 접지 먼지 — 클립(dur 1.45)의 무릎 접지 t=0.38(≈0.55초), 몸통 접지 t=0.78(≈1.13초).
@@ -4652,8 +4657,8 @@ const Scene3D = {
             return p;
         };
         let knee = false, body = false;
-        this.addAnim(1.3, k => {
-            const t = k * 1.3;
+        this.addAnim(1.42, k => {
+            const t = k * 1.42;
             if (!knee && t >= 0.55) {   // 무릎이 먼저 꺾여 바닥에 닿는다 — 작게
                 knee = true;
                 const p = groundAt('kneeL');
@@ -4661,7 +4666,8 @@ const Scene3D = {
                 this.expandRing(p, new THREE.Color(0x9e8d84), 0.6);
                 this.shake(0.1);
             }
-            if (!body && t >= 1.13) {   // 몸통이 바닥에 부딪히는 순간 — 크게, 어깨·골반 두 점에서
+            if (!body && t >= 1.25) {   // 몸통이 바닥에 부딪히는 순간 — 크게, 어깨·골반 두 점에서
+                // ⚠️ 1.13초에 터뜨렸더니 실측상 몸이 아직 36px 위에서 낙하 중이라 먼지가 착지보다 120ms 빨랐다
                 body = true;
                 const sh = groundAt('shoulderL'), pv = groundAt('pelvis');
                 this.spawnSparks(sh.clone().add(new THREE.Vector3(0, 0.1, 0)), 11, 0xbcaaa4, { speed: 1.25 });
@@ -4678,28 +4684,44 @@ const Scene3D = {
     // 인상을 준다(비평가: 부츠 옆 지면과 1m 떨어진 지면의 휘도가 동일). 누우면 몸통 길이에 맞춘 타원으로
     // 늘리고 살짝 짙게, 기상하면 되돌린다. 리그 좌표(어깨~골반)에서 중심을 읽어 몸을 따라간다.
     corpseBlob(on) {
-        const b = this.heroBlob, rig = this.heroRig;
-        if (!b) return;
-        if (!on) { this._blobTo = { x: 0, z: 0, sx: 0.82, sy: 0.82, op: 0.17 }; }
-        else {
-            let cx = 0, cz = 0;
-            if (rig && rig.bones.pelvis && rig.bones.neck) {
-                const a = this.heroG.worldToLocal(rig.bones.pelvis.getWorldPosition(new THREE.Vector3()));
-                const c = this.heroG.worldToLocal(rig.bones.neck.getWorldPosition(new THREE.Vector3()));
-                cx = (a.x + c.x) / 2; cz = (a.z + c.z) / 2;
-            }
-            this._blobTo = { x: cx, z: cz, sx: 1.95, sy: 1.0, op: 0.28 };
+        const rig = this.heroRig;
+        if (!this.heroBlob) return;
+        // 접지 그림자 3개 — 어깨·골반·무릎. 예전엔 골반~목 **중점 하나**에 큰 타원을 깔았는데,
+        // 그러면 타원이 다리 쪽으로 몰려 부츠 밖까지 삐져나가고(비평가 실측: 몸통 중심에서 화면 140px 어긋남)
+        // 정작 사람이 접지를 확인하는 어깨·몸통 밑에는 명암 변화가 0이 된다. 실제로 바닥에 닿는 뼈마다
+        // 하나씩 깔아야 "몸이 바닥을 누르고 있다"로 읽힌다.
+        if (!this._corpseBlobs) {
+            this._corpseBlobs = ['shoulderL', 'pelvis', 'kneeR'].map(() => {
+                const m = new THREE.Mesh(this.blobGeo, this.blobShadowMat.clone());
+                m.rotation.x = -Math.PI / 2;
+                m.position.y = 0.028;
+                m.scale.set(1.35, 0.78, 1);
+                m.material.opacity = 0;
+                m.userData.sharedGeometry = true;
+                m.visible = false;
+                this.heroG.add(m);
+                return m;
+            });
         }
-        this._blobFrom = { x: b.position.x, z: b.position.z, sx: b.scale.x, sy: b.scale.y, op: b.material.opacity };
-        const f = this._blobFrom, o = this._blobTo;
-        this.addAnim(0.28, k => {
+        const blobs = this._corpseBlobs, bones = ['shoulderL', 'pelvis', 'kneeR'];
+        const base = this.heroBlob;
+        const fromOp = blobs.map(m => m.material.opacity), fromBase = base.material.opacity;
+        if (on) {
+            blobs.forEach((m, i) => {
+                const bn = rig && rig.bones[bones[i]];
+                if (bn) {
+                    const p = this.heroG.worldToLocal(bn.getWorldPosition(new THREE.Vector3()));
+                    m.position.x = p.x; m.position.z = p.z;
+                }
+                m.visible = true;
+            });
+        }
+        const toOp = on ? 0.5 : 0, toBase = on ? 0.06 : 0.17;   // 누우면 발밑 원형은 거의 지우고 시체 블롭으로 대체
+        this.addAnim(0.3, k => {
             const e = k * k * (3 - 2 * k);
-            b.position.x = f.x + (o.x - f.x) * e;
-            b.position.z = f.z + (o.z - f.z) * e;
-            b.scale.x = f.sx + (o.sx - f.sx) * e;
-            b.scale.y = f.sy + (o.sy - f.sy) * e;
-            b.material.opacity = f.op + (o.op - f.op) * e;
-        });
+            blobs.forEach((m, i) => { m.material.opacity = fromOp[i] + (toOp - fromOp[i]) * e; });
+            base.material.opacity = fromBase + (toBase - fromBase) * e;
+        }, () => { if (!on) blobs.forEach(m => { m.visible = false; }); });
     },
 
     // 기상 — 사망 포즈에서 일어서는 전환. 자동 전환 잠금은 클립 길이만큼만 유지한다
@@ -4708,10 +4730,16 @@ const Scene3D = {
         this.heroDead = false;
         this._heroReviveT = 0.85; // Revive 클립 길이 — 이 동안에도 Idle이 덮어쓰면 안 된다
         this.heroPlay(['Revive'], true);
-        this.corpseBlob(false);   // 늘려 놨던 시체 그림자를 발밑 원형으로 되돌린다
-        const hp = this.heroG ? this.heroG.position.clone() : new THREE.Vector3();
+        // ⚠️ 연출 위치는 heroG 원점(발밑)이 아니라 **아직 누워 있는 몸통**에 — 원점에 터뜨리면 시체에서
+        //    한 몸 길이 떨어진 빈 땅에서 빛이 피어난다(사망 먼지와 같은 실수).
+        const rig = this.heroRig;
+        const hp = (rig && rig.bones.pelvis)
+            ? (() => { const p = rig.bones.pelvis.getWorldPosition(new THREE.Vector3()); p.y = this.heroG.position.y; return p; })()
+            : (this.heroG ? this.heroG.position.clone() : new THREE.Vector3());
         this.expandRing(hp, new THREE.Color(0x9be7a0), 1.3);
-        this.spawnSparks(hp.clone().add(new THREE.Vector3(0, 0.5, 0)), 12, 0x69f0ae, { speed: 1.4 });
+        this.spawnSparks(hp.clone().add(new THREE.Vector3(0, 0.35, 0)), 12, 0x69f0ae, { speed: 1.4 });
+        // 시체 그림자는 몸이 실제로 일어서기 시작한 뒤에 거둔다 — 즉시 거두면 누운 몸만 남고 그림자가 먼저 사라진다
+        this.addAnim(0.38, () => { }, () => this.corpseBlob(false));
     },
 
     // ---- 보스 등장 워닝 연출 (사용자 지시: "워닝 워닝 워닝" 느낌으로 화려하게) ----
