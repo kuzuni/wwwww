@@ -24,6 +24,9 @@ const Scene3D = {
         this.renderer.toneMappingExposure = 1.08;
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.Fog(0xa8d8ea, 12, 30);
+        // 절차 텍스처 비등방 필터링 — 원통 사지의 그레이징 각도 에일리어싱(사슬 체커) 제거.
+        // envMap() 등이 이미 만든 텍스처에도 소급 적용되도록 렌더러 생성 직후에 호출한다.
+        ProChar.applyMaxAnisotropy(this.renderer);
         // PBR 환경광 — ProChar의 절차 하늘/지면 큐브맵을 PMREM으로 필터링해 MeshStandardMaterial 전역 공급.
         // 금속(높은 metalness)이 반사할 '세상'이 생겨 무광 플라스틱 인상이 사라지는 핵심 (비평가 6.0 1위 결함).
         try {

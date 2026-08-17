@@ -23,6 +23,9 @@ const ProChar = {
     // ---- 캔버스 생성 텍스처 (외부 에셋 금지 — 코드로 재질감 생성) ----
     // 밝기 중심 그레이스케일로 만들어 material.color 틴트(장비 시대색)와 곱해지게 한다.
     _texCache: {},
+    // 비등방 필터링 최대치. Scene3D.init이 렌더러 생성 직후 실제 GPU 상한으로 덮어쓴다
+    // (ProChar 텍스처가 렌더러보다 먼저 만들어지는 경우가 있어 기본값을 둔다).
+    maxAnisotropy: 8,
     canvasTex(key, draw, w, h) {
         if (this._texCache[key]) return this._texCache[key];
         const c = document.createElement('canvas');
@@ -30,8 +33,21 @@ const ProChar = {
         draw(c.getContext('2d'), c.width, c.height);
         const tex = new THREE.CanvasTexture(c);
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        // ⚠️ 기본 anisotropy는 1이다. 사지는 원통이라 화면에서 표면이 급격히 기울어(그레이징)
+        // u축 텍셀이 심하게 압축되는데, 등방 밉맵만으로는 그 방향을 구분하지 못해 고리 직조가
+        // 흑백 체커로 뭉개지고 카메라가 조금만 움직여도 지글거린다(비평가 A·B가 각각 지목).
+        // 실측: aniso 1에서 미세 카메라 이동에 명도가 12%p 이상 튀는 픽셀이 캐릭터 면적의 1.43%.
+        tex.anisotropy = this.maxAnisotropy;
         this._texCache[key] = tex;
         return tex;
+    },
+    // 렌더러가 준비된 뒤 이미 만들어진 텍스처까지 상한을 소급 적용
+    applyMaxAnisotropy(renderer) {
+        this.maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+        for (const k in this._texCache) {
+            const t = this._texCache[k];
+            if (t.anisotropy !== this.maxAnisotropy) { t.anisotropy = this.maxAnisotropy; t.needsUpdate = true; }
+        }
     },
     // 브러시드 메탈: 가로 스트릭 + 미세 노이즈 + 가장자리 AO 비네트
     metalTex() {
@@ -147,8 +163,14 @@ const ProChar = {
     },
     // 사슬갑옷(체인메일): 4-in-1 고리 직조 — 팔다리가 '민짜 캡슐 = 맨살 튜브'로 읽히던 최대 감점원 해소.
     // 고리 하나하나를 밝은 링 + 안쪽 어두운 구멍으로 그려 범프까지 겸한다(같은 텍스처를 bumpMap으로 재사용).
+    // 사슬 고리 타일 밀도. 실측(shot-mail-ab.js 근접샷): repeat 1이면 대퇴 둘레에 고리가
+    // 14개뿐이라 지름 3.8cm짜리 고리가 되어 '뽁뽁이/골프공'으로 읽힌다(비평가 A #5·B #2 공통 지목).
+    // 실제 사슬 고리는 8~10mm이므로 둘레당 40~50개가 맞다 → repeat 3(고리 42개, 지름 1.3cm)로 올린다.
+    // 텍스처를 다시 그리지 않고 repeat만 올리는 이유: 256×176 캔버스에 42열을 그리면 열당 6px로
+    // 고리 선이 뭉개진다. 타일을 반복하면 텍셀 밀도를 유지한 채 월드 스케일만 맞출 수 있다.
+    MAIL_REPEAT: 3,
     mailTex() {
-        return this.canvasTex('mail', (ctx, w, h) => {
+        const t = this.canvasTex('mail', (ctx, w, h) => {
             ctx.fillStyle = '#3a4048'; ctx.fillRect(0, 0, w, h); // 고리 사이로 비치는 밑감(패딩) 그늘
             // 사지 원통은 UV가 둘레(u) 1바퀴 × 길이(v) 1회로 매핑돼 u쪽이 1.4~2배 늘어난다.
             // 그래서 텍스처 안에서는 고리를 세로로 길게 그려 두어야 감긴 뒤 정원(正圓)에 가깝게 읽힌다.
@@ -184,6 +206,8 @@ const ProChar = {
                 }
             }
         }, 256, 176);
+        t.repeat.set(this.MAIL_REPEAT, this.MAIL_REPEAT);
+        return t;
     },
     // 퀼팅 패딩(갬버슨): 사슬 밑에 받쳐 입는 누빔천 — 마름모 스티치 + 부푼 면
     padTex() {
