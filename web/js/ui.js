@@ -1403,15 +1403,86 @@ const UI = {
     // 옮겨 인라인 SVG로 그린다 — 외부 에셋 금지 제약을 지키면서 어느 배율에서도 또렷하다.
     // 구성은 원본과 같은 4단: 오른쪽으로 뻗는 뿔 / 상판(윗면 밝은 면 + 앞면 그늘) / 좁고 어두운 허리 /
     // 상판보다 넓은 받침(밝은 테 + 몸통). 금속 질감·하이라이트 고도화는 폴리싱 단계 몫이다.
+    // ---- 모루 일러스트 ----
+    // 형태·비율은 원본 shot-042120을 `tools/probe-anvil-ref.js`로 실루엣 스캔해 맞췄다.
+    // 원본 실측(스캔창 180,668 기준): 실루엣 110×79(종횡비 1.39) / 상판 앞면 바닥 %H 43.6 /
+    // 목 %H 44.9~50, 폭 45%W, 중심 47%W / 받침 %H 51~100, 최대폭 91%W / 뿔은 상판 오른쪽에서
+    // 20%W 돌출하고 **끝이 둥글다**. 예전 도형은 목이 23%W(절반)에 중심 37%W(왼쪽으로 치우침),
+    // 받침 최대폭 73%W, 뿔이 뾰족한 삼각형이라 원본과 다른 물건이었다.
+    // ⚠️ viewBox(132×86)는 **그대로 둔다** — 버튼 박스 높이가 곧 모루 행 높이라 비율 검증 대상이다.
+    //    바뀐 것은 그 안에 그려지는 그림의 비율뿐(x 10~121, y 3~83 = 1.39).
     ANVIL_SVG: `<svg class="anvil-svg" viewBox="0 0 132 86" aria-hidden="true">
-            <g stroke="#1a100e" stroke-width="3" stroke-linejoin="round">
-                <path d="M96 12 L130 26 L96 36 Z" fill="#962f13"/>
-                <path d="M22 6 L108 6 L96 24 L10 24 Z" fill="#b2481f"/>
-                <path d="M10 24 L96 24 L96 42 L10 42 Z" fill="#822f16"/>
-                <path d="M10 36 L96 36 L96 42 L10 42 Z" fill="#6d2612" stroke="none"/>
-                <path d="M40 42 L68 42 L62 56 L46 56 Z" fill="#281a17"/>
-                <path d="M24 56 L88 56 L100 66 L12 66 Z" fill="#6d3027"/>
-                <path d="M12 66 L100 66 L94 80 L18 80 Z" fill="#4a201b"/>
+            <defs>
+                <linearGradient id="anv-top" x1="0" y1="0" x2=".55" y2="1">
+                    <stop offset="0" stop-color="#d2582a"/><stop offset=".46" stop-color="#b03f18"/>
+                    <stop offset="1" stop-color="#8d2a0b"/>
+                </linearGradient>
+                <linearGradient id="anv-front" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#7a3020"/><stop offset=".55" stop-color="#5a1e11"/>
+                    <stop offset="1" stop-color="#3d1209"/>
+                </linearGradient>
+                <linearGradient id="anv-horn" x1=".1" y1="0" x2=".9" y2="1">
+                    <stop offset="0" stop-color="#c04a1c"/><stop offset=".5" stop-color="#9a2f0d"/>
+                    <stop offset="1" stop-color="#661a03"/>
+                </linearGradient>
+                <!-- 받침은 세로 그라디언트 — 대각선으로 깔면 모서리 라운드와 맞물려 '플라스틱 캡슐'로 읽힌다.
+                     주철은 윗면 근처만 반사가 고이고 아래로 갈수록 고르게 어두워진다. -->
+                <linearGradient id="anv-base" x1="0" y1="0" x2=".12" y2="1">
+                    <stop offset="0" stop-color="#7e3626"/><stop offset=".22" stop-color="#6d2c1e"/>
+                    <stop offset=".72" stop-color="#4e1d13"/><stop offset="1" stop-color="#3a150d"/>
+                </linearGradient>
+                <!-- 주조 결 — 세로로 옅은 명암 줄을 몇 개 겹쳐 매끈한 면을 깬다 -->
+                <linearGradient id="anv-grain" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stop-color="#fff" stop-opacity=".07"/>
+                    <stop offset=".18" stop-color="#000" stop-opacity=".05"/>
+                    <stop offset=".37" stop-color="#fff" stop-opacity=".05"/>
+                    <stop offset=".55" stop-color="#000" stop-opacity=".06"/>
+                    <stop offset=".74" stop-color="#fff" stop-opacity=".04"/>
+                    <stop offset="1" stop-color="#000" stop-opacity=".07"/>
+                </linearGradient>
+                <linearGradient id="anv-recess" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#170a07"/><stop offset="1" stop-color="#311710"/>
+                </linearGradient>
+                <linearGradient id="anv-neck" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stop-color="#120c0b"/><stop offset=".42" stop-color="#2b1c18"/>
+                    <stop offset="1" stop-color="#0e0807"/>
+                </linearGradient>
+                <!-- 상판 윗면 스펙큘러 — 금속은 면 전체가 고르게 밝지 않고 한쪽에 광택이 고인다 -->
+                <linearGradient id="anv-spec" x1="0" y1="0" x2="1" y2=".6">
+                    <stop offset="0" stop-color="#fff" stop-opacity=".24"/>
+                    <stop offset=".42" stop-color="#fff" stop-opacity=".07"/>
+                    <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+                </linearGradient>
+            </defs>
+            <g stroke="#170d0b" stroke-width="3" stroke-linejoin="round">
+                <!-- 받침 (가장 뒤) -->
+                <path d="M20 44 L101 44 Q109 46 109 58 L109 74 Q109 83 100 83 L19 83 Q10 83 10 74 L10 58 Q10 46 20 44 Z" fill="url(#anv-base)"/>
+                <!-- 받침 음각 단 — 원본은 받침 윗면이 한 단 파여 있다 -->
+                <path d="M27 48 L94 48 Q100 49 100 55 L100 61 L27 61 Q21 60 21 54 Z" fill="url(#anv-recess)" stroke-width="2.4"/>
+                <!-- 목 -->
+                <path d="M38 38 L87 38 L85 45 L40 45 Z" fill="url(#anv-neck)"/>
+                <!-- 뿔 — 끝이 둥근 총알 형태 -->
+                <path d="M90 3 Q112 6 121 16 Q112 23 95 25 Z" fill="url(#anv-horn)"/>
+                <!-- 상판 앞면 -->
+                <path d="M12 26 L95 25 L95 39 L12 40 Z" fill="url(#anv-front)"/>
+                <!-- 상판 윗면 -->
+                <path d="M23 4 L90 3 L95 25 L12 26 Z" fill="url(#anv-top)"/>
+            </g>
+            <g stroke="none" pointer-events="none">
+                <!-- 윗면 광택 + 상단 베벨 엣지 -->
+                <path d="M23 4 L90 3 L95 25 L12 26 Z" fill="url(#anv-spec)"/>
+                <path d="M24.6 6 L88.6 5.1 L89.6 9.4 L25.4 10.2 Z" fill="#ffb083" opacity=".5"/>
+                <!-- 앞면 대각 음영 띠 — 원본 모루에도 같은 결이 있다 -->
+                <path d="M34 26.6 L42 26.5 L32 39.6 L24 39.7 Z" fill="#000" opacity=".16"/>
+                <path d="M66 26.2 L72 26.1 L62 39.3 L56 39.4 Z" fill="#000" opacity=".16"/>
+                <!-- 뿔 림라이트 -->
+                <path d="M92 5.6 Q110 8.4 117.6 15.6 Q112 12 92 8.6 Z" fill="#ff9a63" opacity=".55"/>
+                <!-- 받침 하이라이트 / 접지 그림자 -->
+                <path d="M22 46.4 L99 46.4 Q104 47 104.6 50.6 Q99 48.6 22 48.8 Z" fill="#c07a5e" opacity=".34"/>
+                <path d="M13 76 L106 76 Q104.6 81 99 81 L20 81 Q14.4 81 13 76 Z" fill="#000" opacity=".24"/>
+                <!-- 주조 결 + 좌측 반사 띠 — 광택 한 덩어리가 아니라 결 위에 얹힌 반사로 보이게 -->
+                <path d="M20 44 L101 44 Q109 46 109 58 L109 74 Q109 83 100 83 L19 83 Q10 83 10 74 L10 58 Q10 46 20 44 Z" fill="url(#anv-grain)"/>
+                <path d="M14.5 52 Q13.5 66 16.5 78 Q20 66 20 53 Z" fill="#e0a184" opacity=".18"/>
             </g>
         </svg>`,
 
