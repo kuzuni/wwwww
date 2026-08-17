@@ -82,31 +82,35 @@ const ITEM_NAMES = {
 // 투구/갑옷 이름별 3D 스타일 (ITEM_NAMES 배열과 인덱스 정렬)
 // 투구: plume(돔+깃) cone(고깔) tophat(실크햇) visor(풀헬름) fin(볏 투구) mask(가면/방독면)
 //       halo(후광) hair(머리카락/수염) crown(왕관) tech(메카) bubble(우주 헬멧)
+// ⚠️ 한 시대 안에서 같은 스타일을 두 번 쓰지 말 것 — 스타일이 곧 3D 프리뷰/썸네일 모양이라,
+// 겹치면 '모든 장비의 목록'에서 이름만 다르고 그림이 똑같은 장비가 나온다 (사용자 지적 "중복된 거 하지 말라 했던 거").
+// 이름과 모양을 맞추되(예: 깃털 모자=plume, 뱀의 화관=crown) 시대별로 전부 다른 실루엣이 되게 배정한다.
 const HELMET_STYLES = {
-    primitive:    ['hair', 'mask', 'mask', 'visor', 'plume'],
-    medieval:     ['visor', 'fin', 'fin', 'fin', 'cone'],
-    earlyModern:  ['visor', 'tophat', 'plume', 'cone', 'tophat'],
-    modern:       ['visor', 'visor', 'visor', 'tophat', 'tophat', 'tophat', 'hair'],
-    space:        ['bubble', 'bubble', 'mask', 'tech', 'tech'],
-    interstellar: ['tech', 'bubble', 'mask', 'tech', 'visor', 'bubble'],
+    primitive:    ['hair', 'mask', 'cone', 'visor', 'plume'],
+    medieval:     ['visor', 'fin', 'plume', 'crown', 'cone'],
+    earlyModern:  ['visor', 'crown', 'plume', 'cone', 'tophat'],
+    modern:       ['visor', 'bubble', 'fin', 'tophat', 'crown', 'plume', 'hair'],
+    space:        ['bubble', 'tech', 'mask', 'visor', 'fin'],
+    interstellar: ['tech', 'bubble', 'mask', 'fin', 'visor', 'crown'],
     multiverse:   ['tech', 'mask', 'visor', 'tophat', 'crown'],
-    quantum:      ['tech', 'visor', 'mask', 'hair', 'hair'],
-    underworld:   ['fin', 'crown', 'crown', 'visor', 'cone'],
-    divine:       ['halo', 'cone', 'crown', 'crown', 'hair'],
+    quantum:      ['tech', 'visor', 'mask', 'hair', 'plume'],
+    underworld:   ['fin', 'crown', 'mask', 'visor', 'cone'],
+    divine:       ['halo', 'cone', 'crown', 'plume', 'hair'],
 };
 // 갑옷: hide(가죽) plate(판금+견갑) vest(전술조끼) suit(슈트+백팩) robe(로브) cape(망토)
 // 시대당 5종 (원본 카탈로그 2~3종 + 자체 확충)
+// 헬멧과 같은 규칙 — 시대 안에서 스타일 중복 금지 (계열이 6종뿐이라 시대당 5개를 겹치지 않게 고른다)
 const ARMOR_STYLES = {
-    primitive:    ['hide', 'hide', 'plate', 'cape', 'vest'],
-    medieval:     ['plate', 'plate', 'vest', 'cape', 'robe'],
-    earlyModern:  ['robe', 'vest', 'robe', 'vest', 'cape'],
-    modern:       ['vest', 'vest', 'vest', 'cape', 'suit'],
-    space:        ['suit', 'plate', 'suit', 'suit', 'cape'],
+    primitive:    ['hide', 'robe', 'plate', 'cape', 'vest'],
+    medieval:     ['plate', 'suit', 'vest', 'cape', 'robe'],
+    earlyModern:  ['plate', 'robe', 'suit', 'vest', 'cape'],
+    modern:       ['vest', 'hide', 'plate', 'cape', 'suit'],
+    space:        ['suit', 'plate', 'vest', 'robe', 'cape'],
     interstellar: ['suit', 'plate', 'vest', 'robe', 'cape'],
-    multiverse:   ['suit', 'plate', 'robe', 'suit', 'cape'],
+    multiverse:   ['suit', 'plate', 'robe', 'vest', 'cape'],
     quantum:      ['plate', 'suit', 'robe', 'vest', 'cape'],
-    underworld:   ['plate', 'plate', 'cape', 'robe', 'vest'],
-    divine:       ['robe', 'plate', 'cape', 'vest', 'robe'],
+    underworld:   ['plate', 'suit', 'cape', 'robe', 'vest'],
+    divine:       ['robe', 'plate', 'cape', 'vest', 'suit'],
 };
 
 // 장신구류(외형 미반영 5부위): 부위당 3종 변형 — 이름/프리뷰 모델이 다름

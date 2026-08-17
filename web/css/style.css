@@ -383,6 +383,9 @@ body {
     border: 2px solid var(--pp-line); border-radius: .5rem;
     display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
 }
+.fl-face img { width: 100%; height: 100%; object-fit: contain; display: block; } /* 3D 스냅샷 썸네일 */
+/* 썸네일이 들어간 칸만 옅은 바탕 — 원시 시대 뼈·돌처럼 밝은 장비가 흰 배경에 묻혀 빈 칸으로 보였다 */
+.fl-face.has-thumb { background: linear-gradient(#f6f4ee, #ddd7c9); }
 .forge-item-cell small { font-size: .56rem; color: var(--pp-ink); font-weight: 800; }
 
 .substat-list { display: flex; flex-direction: column; gap: .2rem; margin: .4rem 0; max-height: calc(var(--app-h) * .4); overflow-y: auto; }

@@ -801,19 +801,25 @@ const UI = {
             const hex = this.ageHex(age);
             const ageP = Forge.ageProbsAt(S.forgeLevel)[age] || 0;
             const p = Forge.itemDropChance(age, 'weapon'); // 무기 변형은 모두 동일 확률
-            const cell = (onclick, icon, pct) => `
+            // 썸네일은 즉시 그리지 않는다 — 시대 10 × 부위별 이름 변형이면 200장이 넘고, 한 장마다
+            // 별도 WebGL 렌더+toDataURL이라 목록을 여는 순간 수 초간 얼어붙는다.
+            // 이모지를 먼저 깔고 화면에 들어온 셀만 3D 썸네일로 교체한다(hydrateForgeThumbs).
+            const cell = (onclick, icon, pct, td) => `
                 <button class="forge-item-cell" onclick="${onclick}">
-                    <span class="fl-face">${icon}</span>
+                    <span class="fl-face" data-slot="${td.slot}" data-age="${td.age}" data-ageidx="${td.ageIdx}" data-wtype="${td.wtype || ''}" data-nameidx="${td.nameIdx}">${icon}</span>
                     <small>${pct.toFixed(4)}%</small>
                 </button>`;
             // 무기는 그 시대에 등장하는 종류만 (원시에 총이 뜨면 안 됨 — 사용자 지시 2026-08-17)
+            const ageIdx = AGES.indexOf(age);
             const weaponCells = weaponsOfAge(age).map(wtype =>
-                cell(`UI.openForgeDetail('${age}','weapon','${wtype}')`, this.weaponEmoji(wtype), p)).join('');
+                cell(`UI.openForgeDetail('${age}','weapon','${wtype}')`, this.weaponEmoji(wtype), p,
+                     { slot: 'weapon', age, ageIdx, wtype, nameIdx: wtype })).join('');
             const otherCells = ['helmet', 'armor', 'gloves', 'necklace', 'ring', 'shoes', 'belt'].map(slot => {
                 const names = (slot === 'helmet' || slot === 'armor') ? ((ITEM_NAMES[age] && ITEM_NAMES[age][slot]) || []) : accNames(age, slot);
                 const sp = Forge.itemDropChance(age, slot);
                 const icon = slot === 'helmet' ? '🪖' : slot === 'armor' ? '👕' : (this.SLOT_EMOJI[slot] || '🎁');
-                return names.map((name, i) => cell(`UI.openForgeDetail('${age}','${slot}',${i})`, icon, sp)).join('');
+                return names.map((name, i) => cell(`UI.openForgeDetail('${age}','${slot}',${i})`, icon, sp,
+                                                  { slot, age, ageIdx, wtype: null, nameIdx: i })).join('');
             }).join('');
             return `<div class="forge-age-section">
                 <div class="fi-age-bar fl-head" style="--ac:${hex}">
@@ -832,6 +838,39 @@ const UI = {
                 </div>
                 <button class="x-btn" onclick="UI.openForgeInfo()">✕</button>
             </div>`;
+        this.hydrateForgeThumbs(this.els.forgeInfoModal);
+    },
+
+    // 화면에 들어온 장비 셀만 3D 스냅샷 썸네일로 교체 — 같은 부위 5개가 전부 같은 이모지로 반복되던 문제를
+    // 이름 변형별로 실제 다른 그림이 되게 한다 (썸네일은 Scene3D 쪽에서 키 단위로 캐시된다).
+    hydrateForgeThumbs(root) {
+        if (!root || typeof Scene3D === 'undefined' || !Scene3D.itemThumb) return;
+        const faces = [...root.querySelectorAll('.fl-face[data-slot]')];
+        if (!faces.length) return;
+        this._thumbJob = (this._thumbJob || 0) + 1;
+        const job = this._thumbJob;   // 목록을 다시 그리면 이전 작업은 스스로 멈춘다
+        const paint = (el) => {
+            const url = Scene3D.itemThumb({
+                slot: el.dataset.slot, age: el.dataset.age, ageIdx: Number(el.dataset.ageidx),
+                rarity: 'common', wtype: el.dataset.wtype || null,
+                nameIdx: el.dataset.slot === 'weapon' ? el.dataset.nameidx : Number(el.dataset.nameidx),
+            });
+            if (url) { el.innerHTML = `<img src="${url}" alt="">`; el.classList.add('has-thumb'); }
+        };
+        // 한 프레임에 몇 장씩만 굽는다 — 300장을 한 번에 렌더하면 목록을 여는 순간 수 초간 얼어붙고,
+        // IntersectionObserver 지연 로딩은 환경에 따라 콜백이 아예 안 오는 경우가 있어(헤드리스 실측) 쓰지 않는다.
+        let i = 0;
+        const CHUNK = 6;
+        const pump = () => {
+            if (job !== this._thumbJob) return;                       // 더 최신 렌더가 시작됨
+            if (root.classList && root.classList.contains('hidden')) return;  // 목록이 닫힘 — 남은 건 굽지 않는다
+            for (let n = 0; n < CHUNK && i < faces.length; n++, i++) paint(faces[i]);
+            if (i < faces.length) requestAnimationFrame(pump);
+        };
+        // 첫 묶음도 다음 프레임에 — 첫 itemThumb 호출이 썸네일 렌더러·PMREM 환경맵을 만드느라
+        // 유독 무거워서(소프트웨어 GL 실측 2.4초), 동기로 부르면 목록이 뜨는 순간을 그대로 붙잡는다.
+        // 이모지가 먼저 깔려 있으니 한두 프레임 늦게 채워도 빈 칸으로 보이지 않는다.
+        requestAnimationFrame(pump);
     },
     renderForgeDetailView() {
         const { age, slot, variant } = this._forgeItem;
