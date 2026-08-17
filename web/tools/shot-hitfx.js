@@ -101,6 +101,7 @@ const OUT = process.argv[2] || __dirname;
     await step(0.016); await shot('b1-kill+16ms');
     await step(0.08);  await shot('b2-kill+96ms');
     await step(0.25);  await shot('b3-kill+346ms');
+    await step(0.5);   await shot('b4-kill+846ms');  // 밝은 파편이 다 꺼진 뒤 — 그을음 데칼만 남는 구간
 
     // ── C. 영웅 피격(붉은 비네트 + 움찔 + 영웅 HP바) ──
     // 적을 죽이면 phase가 waveDelay로 바뀌어 damageHero가 조기 반환한다 — 다시 fight로 두고 블록도 배제

@@ -1798,7 +1798,7 @@ const Scene3D = {
         this.heroHpBg = hpBg;
         this.heroHpGhost = hpGhost;
         this.heroHpFg = hpFg;
-        this.heroBar = { hpFg, hpGhost, ghostV: 1 }; // 적과 같은 2단 바 상태(driveHpBar가 소유)
+        this.heroBar = { hpFg, hpGhost, hpBg, ghostV: 1 }; // 적과 같은 2단 바 상태(driveHpBar가 소유, 플래시는 트랙에)
         this.heroHpG.position.set(g.position.x, 1.85, g.position.z);
         this.scene.add(this.heroHpG);
     },
@@ -3463,7 +3463,7 @@ const Scene3D = {
         hpFg.position.set(0, barY, 0.01);
         hpG.add(hpBg, hpGhost, hpFg);
         g.add(hpG);
-        return { g, body, hpBg, hpGhost, hpFg, hpG, armR, armL, flashMats, kind, anim, baseScale: g.scale.x };
+        return { g, body, hpBg, hpGhost, hpFg, hpG, armR, armL, flashMats, kind, anim, baseScale: g.scale.x, topY, barY };
     },
 
     ensureBlobRes() {
@@ -3776,12 +3776,13 @@ const Scene3D = {
         const c = document.createElement('canvas'); c.width = c.height = 128;
         const x = c.getContext('2d'), R = 64;
         const g = x.createRadialGradient(R, R, 0, R, R, R);
-        g.addColorStop(0, 'rgba(255,255,255,1)');
-        g.addColorStop(0.16, 'rgba(255,255,255,.9)');
-        g.addColorStop(0.42, 'rgba(255,255,255,.28)');
-        g.addColorStop(1, 'rgba(255,255,255,0)');
+        // 감쇠 pow(1-r,3): 예전 스톱(.16→.9, .42→.28)은 반경 40%까지 거의 불투명해 가산 합성 뒤
+        // 플레어 원반이 적 하반신을 통째로 먹었다(비평가 2차 ⓐ). 3제곱이면 r=0.3에 이미 34%로 떨어져
+        // 코어만 남고 바깥은 빠르게 사라진다 — 같은 '밝기 예산'을 좁은 중심에 몰아준다.
+        for (let i = 0; i <= 10; i++) { const r = i / 10; g.addColorStop(r, `rgba(255,255,255,${Math.pow(1 - r, 3).toFixed(3)})`); }
         x.fillStyle = g; x.fillRect(0, 0, 128, 128);
-        // 십자 스파이크 — 점 하나보다 '맞은 지점'으로 읽힌다
+        // 십자 스파이크 — 점 하나보다 '맞은 지점'으로 읽힌다. 스파이크는 얇아 면적 기여가 작으므로
+        // 원반을 줄인 만큼 여기서 '뾰족함'을 유지한다(밝기를 넓게 퍼뜨리지 않고 방향으로 쓴다).
         x.globalCompositeOperation = 'lighter';
         for (const rot of [0, Math.PI / 2, Math.PI / 4, -Math.PI / 4]) {
             x.save(); x.translate(R, R); x.rotate(rot);
@@ -3798,9 +3799,11 @@ const Scene3D = {
     },
 
     // 타격 지점에 카메라를 향한 가산 쿼드를 번쩍인다. 전신을 하얗게 태우는 대신 "어디를 맞았는지"를 준다.
-    impactFlare(pos, colorHex, size, dur, spin) {
+    // peak: 가산 불투명도 상한 (기본 0.85). 피격 플레어는 0.55로 눌러 적 실루엣이 살아남게 한다.
+    impactFlare(pos, colorHex, size, dur, spin, peak) {
+        const pk = peak === undefined ? 0.85 : peak;
         const q = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({
-            map: this.flareTex(), color: colorHex, transparent: true,
+            map: this.flareTex(), color: colorHex, transparent: true, opacity: pk,
             blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false,
         }));
         q.position.copy(pos);
@@ -3811,7 +3814,7 @@ const Scene3D = {
         q.scale.setScalar(size * 0.9); // 첫 프레임부터 거의 최대 — 커지며 등장하면 정작 히트스톱으로 멈춘 임팩트 프레임이 빈다
         this.addAnim(dur, k => {
             q.scale.setScalar(size * (0.9 + 0.45 * k));
-            q.material.opacity = (1 - k) * (1 - k);
+            q.material.opacity = pk * (1 - k) * (1 - k);
         }, () => { this.disposeTree(q); this.scene.remove(q); });
     },
 
@@ -3910,7 +3913,14 @@ const Scene3D = {
         fg.position.x = -0.4 * (1 - ratio);
         const W = this._whiteC || (this._whiteC = new THREE.Color(0xffffff));
         o.hpFlash = Math.max(0, (o.hpFlash || 0) - dt * 7); // 흰 플래시 ≈0.14초
-        fg.material.color.setHex(ratio > 0.5 ? 0x2ebd6b : ratio > 0.2 ? 0xe8a800 : 0xd63a3a).lerp(W, o.hpFlash * 0.8);
+        // 채움은 항상 순수 체력색 — 예전엔 여기에 흰색을 섞어서 피격 순간(정작 제일 오래 보는 프레임)에
+        // 초록/노랑/빨강 색코딩이 통째로 날아갔다(비평가 2차 ⓓ). 플래시는 아래 트랙 테두리로 옮겼다.
+        fg.material.color.setHex(ratio > 0.5 ? 0x2ebd6b : ratio > 0.2 ? 0xe8a800 : 0xd63a3a);
+        // 트랙(채움보다 큰 어두운 판 = 테두리)만 흰색으로 밀어올린다 — 바 둘레가 번쩍이고 내용물은 읽힌다
+        if (o.hpBg) {
+            o.hpBg.material.color.setHex(0x0d1114).lerp(W, o.hpFlash * 0.9);
+            o.hpBg.material.opacity = 0.82 + o.hpFlash * 0.18;
+        }
         if (gh) {
             if (o.ghostV === undefined || ratio > o.ghostV) o.ghostV = ratio; // 회복·리스폰은 즉시 맞춤
             if (o.ghostV > ratio) {
@@ -3940,8 +3950,15 @@ const Scene3D = {
         this.rimFlash(m, crit ? 0.13 : 0.1);
         // ② 접촉점 — 영웅(-x)에서 들어온 타격이므로 몸통 왼쪽 앞면에 플레어 + 그 축으로 파편
         const hitPt = pos.clone().add(new THREE.Vector3(-0.3 * (m.baseScale || 1), 0.55 * (m.baseScale || 1), 0.12));
-        this.impactFlare(hitPt, crit ? 0xfff3d0 : 0xfff3c4, crit ? 0.95 : 0.72, crit ? 0.13 : 0.1, 0.3);
-        if (crit) this.impactFlare(hitPt, 0xff9330, 1.25, 0.16, -0.5); // 흰 코어 위에 주황 외곽을 엇갈려 겹침 — 블룸 뒤에도 층이 남게
+        // 플레어 지름 상한 = 적 실높이의 0.55배. 예전엔 고정 0.95~1.25유닛이라 키 0.85인 슬라임에서
+        // 플레어가 몸 전체보다 커져 하반신이 통째로 지워졌다(비평가 2차 ⓐ). 종·보스 스케일을 따라간다.
+        const eh = (m.topY || 1.1) * (m.baseScale || 1);
+        const fmax = eh * 0.55;
+        // 코어(순백)/중간(주황빛 살구)/외곽(진주황) 3층 — 한 색으로 겹치면 가산 합성에서 전부 순백으로
+        // 포화돼 '흰 원반'이 된다. 바깥층일수록 크고 어둡고 옅게 둬야 불꽃의 색 계조가 남는다.
+        this.impactFlare(hitPt, 0xffffff, Math.min(crit ? 0.62 : 0.5, fmax * 0.62), crit ? 0.12 : 0.09, 0.3, 0.55);
+        this.impactFlare(hitPt, 0xffb45a, Math.min(crit ? 0.95 : 0.74, fmax), crit ? 0.14 : 0.1, -0.24, crit ? 0.42 : 0.3);
+        if (crit) this.impactFlare(hitPt, 0xff7a2a, Math.min(1.25, fmax * 1.3), 0.17, -0.5, 0.3); // 외곽 잔광 — 블룸 뒤에도 색층이 남게
         this.spawnShards(hitPt, crit ? 8 : 4 + Math.round(sev * 4), crit ? 0xff8a3d : 0xffd54f,
             { dir: 0.35, spread: 0.6, speed: crit ? 1.35 : 1, scale: crit ? 1.25 : 1 });
         this.spawnSparks(hitPt, crit ? 10 : 4 + Math.round(sev * 5), crit ? 0xffab40 : 0xffee58, { speed: crit ? 1.9 : 1.4 });
@@ -3968,7 +3985,10 @@ const Scene3D = {
         // ⑥ 데미지 숫자 — 항상 대상 오른쪽 위로 비켜 띄워 HP바를 가리지 않게. 프리즈 중에는 띄우지 않는다
         // (월드는 멈췄는데 DOM 숫자만 날아가면 시간축이 갈라진다 — 애니메이션 큐는 dt=0이라 자연히 대기).
         const cls = kind === 'skill' ? 'dmg-skill' : crit ? 'dmg-crit' : 'dmg';
-        const numPos = pos.clone().add(new THREE.Vector3(0.45, 1.25 + U.rand(0, 0.12), 0));
+        // 숫자는 HP바 위로 바 높이(0.135)의 2.2배 이상 띄운다 — 예전 고정 1.25는 큰 적에서 바와 겹쳐
+        // 숫자가 바를 가리고 둘 다 못 읽혔다(비평가 2차 ⓔ). 크리는 항상 일반보다 한 슬롯 위.
+        const numY = (m.barY || 1.1) * (m.baseScale || 1) + 0.135 * 2.2 + (crit ? 0.3 : 0);
+        const numPos = pos.clone().add(new THREE.Vector3(0.45, numY + U.rand(0, 0.1), 0));
         const numOpt = { dx: U.rand(6, 26), rise: -(30 + sev * 18 + (crit ? 12 : 0)), scale: 1 + Math.min(0.3, sev * 0.9) };
         // dur을 0에 가깝게 두면 '프리즈가 풀린 첫 프레임'에 정확히 뜬다(프리즈 중엔 dt=0이라 큐가 진행되지 않는다).
         // freeze만큼을 dur로 주면 프리즈가 끝난 뒤 그 시간을 또 기다려 숫자가 두 배 늦는다.
@@ -3994,6 +4014,10 @@ const Scene3D = {
         this.spawnSparks(burst, isBoss ? 14 : 6, 0xffffff, { scale: 1.35, speed: 1.7 }); // 흰 코어
         this.flashLight(burst, isBoss ? 0xffab40 : 0xffcc80, isBoss ? 0.45 : 0.3);
         this.expandRing(new THREE.Vector3(m.g.position.x, 0, m.g.position.z), new THREE.Color(0xffab40), isBoss ? 1.8 : 1.0);
+        // 유일한 어두운 요소 — 밝은 파편이 다 꺼진 뒤에도 남아 "여기서 죽었다"를 표시한다
+        // 시체는 쓰러지며 +0.22 밀리므로 그 착지점에 맞춘다 — 죽은 자리와 그을음이 어긋나면 배경 얼룩으로 읽힌다
+        this.scorchDecal(new THREE.Vector3(m.g.position.x + 0.18, 0, m.g.position.z),
+            (isBoss ? 1.2 : 0.66) * (m.baseScale || 1), isBoss ? 2.4 : 1.8);
         this.hitStop(isBoss ? 0.07 : 0.045);
         this.rimFlash(m, 0.12);
         this.flashMesh(m, 0.28, 0.09); // 시신이 흰 덩어리로 뭉개지면 정작 파편이 안 보인다 — 짧고 옅게
@@ -4006,15 +4030,20 @@ const Scene3D = {
             (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => { mt.transparent = true; mats.push(mt); });
         });
         const baseY = m.g.position.y, sy0 = m.g.scale.y, ox = m.g.position.x, dur = isBoss ? 1.5 : 1.05;
+        // 쓰러지는 구간을 버스트 수명(≈250ms) 안으로 당긴다. 예전엔 낙하가 k=0.5(=525ms)까지 끌려
+        // 파편이 다 꺼진 +346ms에도 시체가 27° 기울어 서 있었다 — 폭발과 죽음이 다른 사건으로 보였다
+        // (비평가 2차 ⓒ). 포즈 순서(경직→무릎 꺾임→눕기→먼지→디졸브)는 그대로 두고 시간축만 압축한다.
+        const kHit = 0.05 / dur, kDown = (isBoss ? 0.42 : 0.3) / dur;
         let dusted = false;
         this.addAnim(dur, k => {
-            if (k < 0.1) {
-                m.g.position.x = ox + k * 1.2; // 피격 반동 — 뒤로 밀림
-            } else if (k < 0.5) {
-                const f = (k - 0.1) / 0.4;
+            if (k < kHit) {
+                m.g.position.x = ox + (k / kHit) * 0.06; // 피격 반동 — 뒤로 밀림
+            } else if (k < kDown) {
+                const f = (k - kHit) / (kDown - kHit);
                 // 무릎 꺾임(이족) 또는 몸통 주저앉음(무릎 없는 종) + 등부터 가속 낙하
                 if (m.anim && m.anim.bleg) m.anim.bleg.forEach(L => { L.knee.rotation.x = -0.15 - f * 1.5; L.hip.rotation.x = f * 0.5; });
                 else m.g.scale.y = sy0 * (1 - 0.22 * f);
+                m.g.position.x = ox + 0.06 + f * 0.16;
                 m.g.rotation.z = -f * f * 1.45;      // -z 회전 = +x(영웅 반대) 쪽으로 눕기
                 m.g.position.y = baseY * (1 - f);    // 비행체는 지면으로 내려앉음
             } else {
@@ -4025,7 +4054,11 @@ const Scene3D = {
                 }
                 m.g.rotation.z = -1.45;
                 m.g.position.y = 0;
-                const f = (k - 0.5) / 0.5;
+                m.g.position.x = ox + 0.22;
+                // 착지 후 잠깐(0.18s) 시체를 불투명하게 눕혀 둔다 — 닿자마자 녹기 시작하면 '쓰러졌다'가
+                // 지각되기 전에 사라져 순간 소멸처럼 보인다. 그 뒤 남은 시간 전부를 디졸브에 쓴다.
+                const kHold = kDown + 0.18 / dur;
+                const f = k < kHold ? 0 : (k - kHold) / (1 - kHold);
                 mats.forEach(mt => mt.opacity = 1 - f); // 디졸브
                 if (m.blob) m.blob.scale.setScalar(0.95 * (1 - f)); // 공유 재질인 블롭 섀도우는 스케일로만 축소
             }
@@ -4154,6 +4187,34 @@ const Scene3D = {
         this.expandRing(pos, color, 1.6);
         this.expandRing(pos, new THREE.Color(0xffffff), 0.9);
         this.flashLight(pos, color.getHex(), 0.35);
+    },
+
+    // 지면 그을음 데칼: 처치 버스트에 '어두운 값'을 하나 넣는다.
+    // 코어·파편·불티가 전부 크림화이트라 버스트가 한 덩어리 얼룩으로 뭉치던 문제(비평가 2차 ⓑ) —
+    // 밝은 요소만 겹쳐서는 대비가 생기지 않으므로, 밝은 것들이 사라진 뒤에도 남는 어두운 바닥을 깐다.
+    scorchTex() {
+        if (this._scorchTex) return this._scorchTex;
+        const c = document.createElement('canvas'); c.width = c.height = 64;
+        const x = c.getContext('2d'), R = 32;
+        const g = x.createRadialGradient(R, R, 0, R, R, R);
+        g.addColorStop(0, 'rgba(255,255,255,.95)');
+        g.addColorStop(0.55, 'rgba(255,255,255,.7)');   // 가장자리를 흐릿하게 — 딱딱한 원판은 스티커로 읽힌다
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+        this._scorchTex = new THREE.CanvasTexture(c);
+        return this._scorchTex;
+    },
+
+    scorchDecal(pos, radius, dur) {
+        const d = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2),
+            new THREE.MeshBasicMaterial({ map: this.scorchTex(), color: 0x3a1a0a, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+        d.rotation.x = -Math.PI / 2;
+        d.position.set(pos.x, 0.035, pos.z); // 지면(0)보다 살짝 위 — z-파이팅 방지, 블롭 섀도우(0.025)보다도 위
+        this.scene.add(d);
+        this.addAnim(dur, k => {
+            d.material.opacity = k < 0.08 ? 0.72 * (k / 0.08) : 0.72 * Math.pow(1 - (k - 0.08) / 0.92, 1.6);
+            d.scale.setScalar(0.72 + 0.28 * Math.min(1, k * 6)); // 터지며 넓어졌다 고정
+        }, () => { this.disposeTree(d); this.scene.remove(d); });
     },
 
     expandRing(pos, color, maxR) {
