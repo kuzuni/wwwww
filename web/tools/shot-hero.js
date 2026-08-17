@@ -164,7 +164,10 @@ const OUT = __dirname;
     await shot('hero-attack-mid.png');
     // 동결 해제 + 상태 복원 (이후 전신샷 오염 방지)
     await page.evaluate(() => {
+        for (const a of Scene3D.anims) { try { a.onDone && a.onDone(); } catch (err) {} } // 동결 플래시 라이트(dur 1e9) 제거 — 방치 시 이후 전신·손 샷이 웜 라이트로 씻김
         Scene3D.anims = [];
+        for (const p of Scene3D.particles) { if (p.isSprite) p.material.dispose(); else Scene3D.disposeTree(p); Scene3D.scene.remove(p); } // 동결 파편(수명 1e9) 소거
+        Scene3D.particles.length = 0;
         if (Scene3D._origUpdateTrail) { Scene3D.updateTrail = Scene3D._origUpdateTrail; delete Scene3D._origUpdateTrail; }
         Scene3D.heroAttack = () => {}; // 이후 전신·손 샷 동안 재공격 차단 유지
         Scene3D.trailStart = () => {}; // 공격 내부 setTimeout 체인이 trailStart를 직접 재호출해 뷰티샷에 링이 남는 문제 원천 차단

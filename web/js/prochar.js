@@ -397,8 +397,8 @@ const ProChar = {
             const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.065, 0.07, 10), steel());
             cuff.position.y = -0.11;
             // 주먹: 손바닥 블록 + 손가락 4지(기절·말절 2분절 컬) + 엄지 2분절 + 강철 너클 가드 — 근접샷에서 '손가락 없는 스텁' 오독 해소 (비평가 1번)
-            const gloveMat = new THREE.MeshStandardMaterial({ color: 0x6b4e3a, metalness: 0, roughness: 0.82, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.014 }); // 가죽 PBR — 범프로 근접 그레인 (비평가 7.1 5번)
-            const palmMat = new THREE.MeshStandardMaterial({ color: 0x7a5c46, metalness: 0, roughness: 0.8, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.014 });
+            const gloveMat = new THREE.MeshStandardMaterial({ color: 0x241408, metalness: 0, roughness: 0.82, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.014 }); // 가죽 PBR — 범프로 근접 그레인 (비평가 7.1 5번). r128 setHex는 리니어 해석 + sRGB 출력이라 헥스가 화면에서 2배쯤 떠 보임 — 0x6b4e3a는 베이지 = 피부색 오독 (비평가 7.4 4번), 시각 목표(#5c3d26)의 감마 역보정값 사용
+            const palmMat = new THREE.MeshStandardMaterial({ color: 0x2e1a0c, metalness: 0, roughness: 0.8, map: this.leatherTex(), bumpMap: this.leatherTex(), bumpScale: 0.014 });
             const fist = new THREE.Group();
             fist.position.y = -0.16;
             const palm = new THREE.Mesh(new THREE.SphereGeometry(0.052, 9, 8), palmMat);

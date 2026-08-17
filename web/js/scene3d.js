@@ -1715,7 +1715,7 @@ const Scene3D = {
             metalness: 0.92, roughness: 0.28, envMapIntensity: 0.85,
             emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.16 : 0
         });
-        const wood = new THREE.MeshStandardMaterial({ color: 0x5d4037, metalness: 0, roughness: 0.85 });
+        const wood = new THREE.MeshStandardMaterial({ color: 0x1f1109, metalness: 0, roughness: 0.85, map: ProChar.leatherTex() }); // 0x5d4037 민짜는 강광에서 베이지 원통 = 맨살 오독 (비평가 7.4 4번) — 가죽 감김 그레인
         const dark = new THREE.MeshStandardMaterial({ color: 0x37474f, metalness: 0.7, roughness: 0.5 });
         const box = (w, h, d, m, x, y, z, rz) => {
             const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
@@ -1881,7 +1881,7 @@ const Scene3D = {
     // weaponG의 자식으로 원점(파지점)에 두므로 Idle/걷기/공격 전 상태에서 자루-주먹 정렬이 자동 유지된다.
     makeGripWrap(shaftR, invScale) {
         const g = new THREE.Group();
-        const skin = new THREE.MeshStandardMaterial({ color: 0x7a5c46, metalness: 0, roughness: 0.8, map: ProChar.leatherTex() }); // 히어로 주먹과 동일 가죽 PBR
+        const skin = new THREE.MeshStandardMaterial({ color: 0x2e1a0c, metalness: 0, roughness: 0.8, map: ProChar.leatherTex() }); // 히어로 주먹(palmMat)과 동일 가죽 PBR — 0x7a5c46은 강광에서 베이지로 떠 맨손 오독 (비평가 7.4 4번)
         for (let i = 0; i < 3; i++) {
             const seg = new THREE.Mesh(new THREE.TorusGeometry(shaftR + 0.018, 0.021, 7, 14, Math.PI * 1.8), skin);
             seg.rotation.x = Math.PI / 2;    // 링 평면이 자루(로컬 y축)와 직교 — 손가락이 자루를 감는 방향
@@ -1923,13 +1923,8 @@ const Scene3D = {
         const w = S.equipment.weapon;
         this.wtypeId = w ? (w.wtype || 'sword') : 'club';
         this.weaponG.add(this.makeWeapon(this.wtypeId, w ? w.ageIdx : 0, w && w.rarity));
-        if (this.heroRig) { // 파지 랩 — 손가락이 자루를 감싸는 토러스 (무기가 팔 옆 '안테나'로 떠 보이던 문제)
-            const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.026, 6, 10),
-                new THREE.MeshLambertMaterial({ color: 0x7a5c46 }));
-            wrap.rotation.x = Math.PI / 2;
-            wrap.scale.z = 1.25;
-            this.weaponG.add(wrap);
-        }
+        // (구형 파지 랩 토러스 제거 — applyWeaponGrip의 makeGripWrap C자 랩과 중복이었고,
+        //  무텍스처 베이지 램버트 도넛이 근접샷에서 '맨손 스텁'으로 오독됨, 비평가 7.4 4번)
         const wtDef = WEAPON_TYPES[this.wtypeId];
         this.armRest = wtDef ? wtDef.restX : -0.25;
         this.armR.rotation.x = this.armRest;
