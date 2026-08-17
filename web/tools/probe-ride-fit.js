@@ -47,6 +47,27 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
             const lp = inner.worldToLocal(pelvis.clone());
             const lL = inner.worldToLocal(footL.clone());
             const lR = inner.worldToLocal(footR.clone());
+            // 안장에 실제로 닿는 면 = 스커트(태싯) 밑단. 골반 뼈로 재면 그 아래로 늘어진 천이
+            // 몸통에 박혀도 '+0.000 정합'으로 찍힌다(비평가 지적 ⓑ가 수치 통과 뒤에 숨어 있던 이유).
+            let seatY = Infinity;
+            for (const part of (rig.seatParts || [])) {
+                const geo = part.geometry; if (!geo) continue;
+                if (!geo.boundingBox) geo.computeBoundingBox();
+                const bb2 = geo.boundingBox;
+                for (let i = 0; i < 8; i++) {
+                    const v = V(i & 1 ? bb2.max.x : bb2.min.x, i & 2 ? bb2.max.y : bb2.min.y, i & 4 ? bb2.max.z : bb2.min.z);
+                    seatY = Math.min(seatY, inner.worldToLocal(part.localToWorld(v)).y);
+                }
+            }
+            // 무릎 굴곡 실측 — **상수를 그대로 되읽지 않고** 대퇴·정강이 두 선분의 사잇각을 잰다.
+            // 이 probe의 원래 구멍이 여기였다: "설정한 상수대로 적용됐는가"만 봐서 53°짜리 얕은
+            // 무릎이 계속 통과했다. 각도로 재면 상수를 잘못 잡는 순간 바로 걸린다.
+            const kneeAngle = (side) => {
+                const hip = rig.bones['hip' + side], knee = rig.bones['knee' + side];
+                const hp = wp(hip, V(0, 0, 0)), kp = wp(knee, V(0, 0, 0)), fp = wp(knee, V(0, -0.315, 0.045));
+                const a = hp.sub(kp).normalize(), b = fp.sub(kp).normalize();
+                return +(180 - Math.acos(Math.max(-1, Math.min(1, a.dot(b)))) * 180 / Math.PI).toFixed(1);
+            };
             const BARREL = { flat: 0.578, wheeled: 0.03, fly: 0.152, quad: 0.180 }[form]; // 로컬 반폭(코드 상수)
             out.push({
                 form, name,
@@ -55,6 +76,8 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
                 yawGapDeg: +(Math.abs(Scene3D.heroG.rotation.y - Scene3D.mountGroup.rotation.y) * 180 / Math.PI).toFixed(1),
                 saddleLocalY: Scene3D.riding.form.saddle,
                 pelvisLocalY: +lp.y.toFixed(3),
+                seatLocalY: isFinite(seatY) ? +seatY.toFixed(3) : null,
+                kneeDegL: kneeAngle('L'), kneeDegR: kneeAngle('R'),
                 barrelHalfW: BARREL,
                 footLlx: +lL.x.toFixed(3), footRlx: +lR.x.toFixed(3),
                 footLly: +lL.y.toFixed(3),
@@ -77,10 +100,22 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
             console.log(`  발판  발 y ${r.footLly} / 발판 윗면 ${r.saddleLocalY} → ${(r.footLly - r.saddleLocalY).toFixed(3)} ` +
                 `${Math.abs(r.footLly - r.saddleLocalY) < 0.05 ? 'OK(판 위에 섬)' : '⚠️ 판에서 뜸/파묻힘'}`);
         } else {
-            console.log(`  골반  로컬 y ${r.pelvisLocalY} / 안장 윗면 ${r.saddleLocalY} → ${dSaddle >= 0 ? '+' : ''}${dSaddle.toFixed(3)} ` +
-                `${Math.abs(dSaddle) < 0.03 ? 'OK(안장에 얹힘)' : dSaddle < 0 ? '⚠️ 안장 아래로 파묻힘' : '⚠️ 안장 위에 뜸'}`);
+            // 판정 기준은 골반이 아니라 **스커트 밑단**이다 — 골반은 그 위로 낙차만큼 떠 있는 게 정상.
+            const dSeat = r.seatLocalY == null ? null : r.seatLocalY - r.saddleLocalY;
+            console.log(`  접촉  스커트 밑단 ${r.seatLocalY} / 안장 윗면 ${r.saddleLocalY} → ${dSeat == null ? 'n/a' :
+                (dSeat >= 0 ? '+' : '') + dSeat.toFixed(3) + ' ' +
+                (Math.abs(dSeat) < 0.03 ? 'OK(안장에 얹힘)' : dSeat < 0 ? '⚠️ 안장 아래로 파묻힘' : '⚠️ 안장 위에 뜸')}`);
+            console.log(`  (참고) 골반 ${r.pelvisLocalY} → 안장 대비 ${dSaddle >= 0 ? '+' : ''}${dSaddle.toFixed(3)} (스커트 낙차만큼 떠 있는 게 정상)`);
             console.log(`  발 x  L ${r.footLlx} / R ${r.footRlx} (몸통 반폭 ${r.barrelHalfW}) → 여유 ${clear >= 0 ? '+' : ''}${clear.toFixed(3)} ` +
                 `${clear > 0.02 ? 'OK(다리가 몸통 밖)' : clear > 0 ? '△ 아슬아슬(각도 조금만 틀어도 묻힘)' : '⚠️ 다리가 몸통에 묻힘'} / 좌우 대칭차 ${Math.abs(Math.abs(r.footLlx) - Math.abs(r.footRlx)).toFixed(3)}`);
+        }
+        // 무릎 굴곡 — 앉는 계열은 95~110°가 하한선(이보다 얕으면 정강이가 수직으로 떨어져 '뒤에 서 있는' 실루엣).
+        // 자전거는 좌우 페달 위상이 반대라 **비대칭이 정답**이므로 한쪽만 깊으면 통과다.
+        if (!stands) {
+            const deep = Math.max(r.kneeDegL, r.kneeDegR), shallow = Math.min(r.kneeDegL, r.kneeDegR);
+            const pass = r.form === 'wheeled' ? (deep >= 95 && shallow >= 35) : (deep >= 95 && shallow >= 95);
+            console.log(`  무릎  굴곡 L ${r.kneeDegL}° / R ${r.kneeDegR}° → ${pass ? 'OK(다리가 몸통을 감쌈)' : '⚠️ 얕음 — 정강이가 수직으로 떨어진다'}` +
+                `${r.form === 'wheeled' ? ' (자전거는 좌우 비대칭이 정답)' : ''}`);
         }
         if (r.form === 'fly') console.log(`  고도  탈것 최하단 y ${r.mountBottomY} ${r.mountBottomY > 0.15 ? 'OK(떠 있음)' : '⚠️ 지면에 붙음'}`);
     }

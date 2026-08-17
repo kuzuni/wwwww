@@ -536,6 +536,10 @@ const ProChar = {
             pelvis.add(tassetStrap);
         }
         pelvis.add(skirt, skirtLine, hem, belt, buckle);
+        // 탑승 정합의 기준점 — 안장에 실제로 닿는 건 골반 뼈가 아니라 **스커트(태싯) 밑단**이다.
+        // 골반 기준으로 안장 높이를 역산하면 밑단(약 0.149 아래)이 그만큼 탈것 몸통을 파고든다
+        // (mount-ride 비평가 지적 ⓑ). scene3d.heroSeatDropY()가 이 두 파츠에서 낙차를 실측한다.
+        R.seatParts = [skirt, hem, skirtLine];
         aoRing(0.186, 0.02, pelvis, 0.005, 0.5); // 벨트 아래 접촉 그림자 (벨트 축소 0.2→0.176에 맞춰)
 
         // 다리: 고관절 → 대퇴 → 무릎 → 정강이 → 부츠 (분절 피벗)

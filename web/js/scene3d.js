@@ -2300,6 +2300,20 @@ const Scene3D = {
             this.heroRig.restPose = (this.ridePose || grip.pose)
                 ? Object.assign({}, grip.pose || null, this.ridePose || null)
                 : null;
+            // 자전거류는 **빈 손이 바를 잡아야** 한다("자전거인데 양손이 옆에 늘어져 있다" — 비평가 지적 ⓒ).
+            // 무기 든 손은 그대로 두고 반대쪽 팔만 앞·아래로 뻗는다. 어느 쪽이 빈 손인지는 무기마다
+            // 달라지므로(활계는 왼손 파지) 상수 포즈에 못 박고 여기서 합성한다.
+            // ⚠️ 계열이 아니라 **바가 실제로 있는 종**에만 적용한다 — 외바퀴 드로이드는 같은 wheeled인데
+            //    핸들바가 없어서, 계열로 걸면 허공을 잡는 팔이 된다.
+            const reach = this.riding && this.riding.form && this.riding.form.barReach
+                && this.mountGroup && this.mountGroup.userData.bar && this.riding.form.barReach;
+            if (reach) {
+                const free = grip.hand === 'L' ? 'R' : 'L';       // 무기 안 든 쪽
+                const rp = this.heroRig.restPose = Object.assign({}, this.heroRig.restPose);
+                rp['shoulder' + free] = { rx: reach.shoulder, rz: (free === 'L' ? 1 : -1) * (reach.shoulderZ || 0) };
+                rp['elbow' + free] = { rx: reach.elbow };
+                if (free === 'R') this.heroRig.restX = 0;         // 오른어깨 이중 가산 방지(무기 거치 rx와 충돌)
+            }
             // 공격 클립(once) 중에는 restPose가 통째로 꺼진다 — 그때도 하체만은 안장을 감고 있어야 하므로
             // 탑승 포즈를 따로 넘긴다(ProChar.update가 once 클립에서 이쪽만 가산한다).
             this.heroRig.ridePose = this.ridePose || null;
@@ -3672,8 +3686,23 @@ const Scene3D = {
                 tube(BB, [0, 0.17, -0.30], 0.017, dark);  // 체인스테이
                 tube(SEAT, [0, 0.17, -0.30], 0.017, dark);// 시트스테이
                 tube(HEAD, [0, 0.17, 0.30], 0.019, dark); // 앞포크
-                bx(0.30, 0.026, 0.026, 0, 0.45, 0.255, dark);           // 핸들바
-                for (const s of [-1, 1]) bx(0.05, 0.03, 0.03, s * 0.16, 0.45, 0.255, LEATHER); // 그립
+                // 핸들바는 **그룹으로 묶어** 둔다 — 자전거 핏이 그렇듯 스템 길이로 바를 라이더 손에
+                // 맞추는 게 정답이고(alignStirrups가 등자를 발에 맞추는 것과 같은 원칙), 손을 상수로
+                // 바에 맞히려 들면 포즈·배율이 곱해진 자리를 손으로 맞히는 셈이라 반드시 어긋난다.
+                const barG = new THREE.Group();
+                barG.position.set(0, 0.45, 0.255);
+                const bar = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.026, 0.026), dark);
+                barG.add(bar);
+                const gripsL = [];
+                for (const s of [-1, 1]) {
+                    const gp = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.03, 0.03), LEATHER);
+                    gp.position.x = s * 0.16;
+                    gp.userData.side = s;
+                    barG.add(gp); gripsL.push(gp);
+                }
+                g.add(barG);
+                const stem = tube(HEAD, [0, 0.45, 0.255], 0.016, dark);   // 헤드튜브 → 바 (길이는 매 배치마다 다시 잡는다)
+                g.userData.bar = { group: barG, grips: gripsL, stem, head: HEAD, rest: barG.position.clone() };
                 sp(0.10, 0, 0.335, -0.075, LEATHER, 0.55, 0.30, 1.25);  // 안장(=form.saddle 0.36 윗면)
                 // 페달: 탑승 포즈의 발 위치(로컬 y 0.10 / z 0.10)에 맞춰 놓아 발이 헛돌지 않게
                 for (const s of [-1, 1]) {
@@ -3908,29 +3937,47 @@ const Scene3D = {
     // saddle: 탈것 로컬 기준 안장(영웅 골반이 얹히는) 높이 — 스케일을 곱해 실제 탑승 높이가 된다.
     // hover:  탈것 자체가 지면에서 뜨는 높이(비행형만). pose: 탑승 시 다리 포즈(하체가 몸통을 감싸는 각).
     // ⚠️ saddle 값은 makeMountMesh의 실제 지오메트리 상단에서 뽑았다 — 모델을 바꾸면 여기도 같이 본다.
+    // ⚠️ **무릎 굴곡은 95~110°(rx −1.66~−1.92)가 하한선이다.** 이전 값(quad −0.92 = 53°)은 probe가
+    //    "설정한 상수대로 적용됨"만 확인해 통과로 읽혔지만, 화면에서는 정강이가 거의 수직으로 떨어져
+    //    **'탄 게 아니라 뒤에 서 있는' 실루엣**이었다(비평가 1순위 지적 ⓐ). 다리가 몸통을 감싸려면
+    //    고관절 굴곡 40~50°(0.70~0.87)·외전 28~35°(0.49~0.61)에 **무릎을 그 2배로 접어야** 한다.
     MOUNT_FORMS: {
         // 평판형: 발판 위에 '두 발로 선다' — 앉는 게 아니라 서는 유일한 계열
         // saddle = 발판 윗면의 로컬 높이(= 지오메트리에서 뽑은 값 0.05 + 0.34*0.42). 판 두께를 바꾸면 여기도 같이 본다.
         flat:    { saddle: 0.193, hover: 0.10, stand: true,
                    pose: { hipL: { rx: 0.06, rz: -0.13 }, hipR: { rx: 0.06, rz: 0.13 },
                            kneeL: { rx: -0.18 }, kneeR: { rx: -0.18 }, spine: { rx: 0.06 } } },
-        // 탈것형(자전거/외바퀴): 안장에 앉아 상체를 앞으로 숙이고 무릎을 깊게 접는다
+        // 탈것형(자전거/외바퀴): 안장에 앉아 상체를 앞으로 숙이고 무릎을 깊게 접는다.
+        // 페달은 좌우가 항상 반대 위상이라 **대칭 포즈 자체가 오답**이다 — 한쪽은 크랭크 위(깊게 접힘),
+        // 반대쪽은 아래(펴짐). 좌우 같은 각을 주면 '페달을 밟는' 게 아니라 '자전거 위에 쪼그린' 실루엣이 된다.
         wheeled: { saddle: 0.36, hover: 0,
-                   pose: { hipL: { rx: 0.92, rz: -0.16 }, hipR: { rx: 0.92, rz: 0.16 },
-                           kneeL: { rx: -1.15 }, kneeR: { rx: -1.15 }, spine: { rx: 0.2 } } },
+                   // barReach: 빈 손이 핸들바를 잡는 팔 각(어깨 앞으로·안쪽으로, 팔꿈치 살짝 굽힘).
+                   // 바는 이 손 위치로 따라온다(alignHandlebar) — 각을 바꿔도 바가 알아서 맞춰진다.
+                   barReach: { shoulder: -1.16, shoulderZ: 0.26, elbow: -0.30 },
+                   pose: { hipL: { rx: 1.02, rz: -0.26 }, hipR: { rx: 0.64, rz: 0.24 },
+                           kneeL: { rx: -1.72 }, kneeR: { rx: -0.86 }, spine: { rx: 0.2 } } },
         // 비행형: 공중에 뜬 몸통을 다리로 조이며 앉는다 (벌림은 사족형보다 좁게)
         // 비행형: 공중에 뜬 몸통을 다리로 조이며 앉는다.
         // ⚠️ bulk를 1.7까지 키우면 영웅이 '녹색 비행선 위의 점'이 된다 — 몸통을 좁게 다시 만든 뒤로는
         //    다리가 감쌀 수 있으므로 1.28이면 충분하다(실측: 영웅 실루엣이 프레임 안에 온전히 들어옴).
-        fly:     { saddle: 0.38, hover: 0.42, bulk: 1.28,
-                   pose: { hipL: { rx: 0.8, rz: -0.43 }, hipR: { rx: 0.8, rz: 0.43 },
-                           kneeL: { rx: -1.0 }, kneeR: { rx: -1.0 }, spine: { rx: 0.12 } } },
+        // hover 0.42는 화면에서 부양으로 안 읽혔다(비평가 지적 ⓓ) — 실측하면 배 밑이 0.77이라 수치상
+        // '떠 있음'인데도, 늘어진 다리가 지면까지 닿아 '서 있는 것' 으로 읽혔다. 다리를 접어 올린 위에
+        // 고도까지 올려(배 밑 ≈ 1.05 = 영웅 키의 0.6배) 그림자와 발끝 사이에 확실한 간격을 만든다.
+        fly:     { saddle: 0.38, hover: 0.56, bulk: 1.28,
+                   // 배럴이 사족형보다 좁아(0.152) 외전 33°(0.58)에 무릎 폴벡터만 열어도 발·무릎이
+                   // 동시에 밖으로 나온다(실측 +0.036 / +0.032, probe-ride-wrap fly).
+                   pose: { hipL: { rx: 0.86, rz: -0.58 }, hipR: { rx: 0.86, rz: 0.58 },
+                           kneeL: { rx: -1.78, rz: -0.30 }, kneeR: { rx: -1.78, rz: 0.30 }, spine: { rx: 0.12 } } },
         // 사족보행형: 배럴이 굵어 다리를 가장 크게 벌려 감싼다
         quad:    { saddle: 0.44, hover: 0,
                    // rz 0.42는 발이 배럴 밖으로 겨우 0.004(로컬)만 나와, 각도만 조금 틀어도 다리가
                    // 몸통에 스쳐 묻혔다 — 여유를 0.05대로 벌려 어느 각도에서도 다리가 읽히게 한다.
-                   pose: { hipL: { rx: 0.78, rz: -0.58 }, hipR: { rx: 0.78, rz: 0.58 },
-                           kneeL: { rx: -0.92 }, kneeR: { rx: -0.92 }, spine: { rx: 0.1 } } },
+                   // 무릎을 깊게 접으면 발이 **안쪽으로 말려** 배럴에 묻힌다(굴곡만 올린 판에서 여유 −0.042).
+                   // 감싸려면 굴곡·외전만으로는 부족하고 고관절 외회전(ry)과 **무릎 폴벡터를 배럴 바깥**으로
+                   // 여는 knee.rz가 같이 필요하다 — 세 축을 훑어(tools/probe-ride-wrap.js, 60조합) 발·무릎이
+                   // 동시에 배럴 밖으로 나오는 유일한 조합을 골랐다(발 +0.037 / 무릎 +0.020).
+                   pose: { hipL: { rx: 0.80, ry: -0.15, rz: -0.74 }, hipR: { rx: 0.80, ry: 0.15, rz: 0.74 },
+                           kneeL: { rx: -1.76, rz: -0.30 }, kneeR: { rx: -1.76, rz: 0.30 }, spine: { rx: 0.1 } } },
     },
     // 종 → 계열. **여기 없는 종은 사족형(quad)** 이고, makeMountMesh의 몸통 분기도 이 표 하나만 본다.
     MOUNT_FORM_OF: {
@@ -3957,6 +4004,34 @@ const Scene3D = {
             if (isFinite(y) && y > 0.6 && y < 1.0) return y;
         }
         return 0.774;
+    },
+
+    // 골반 뼈 → **안장에 실제로 닿는 면**(스커트/태싯 밑단)까지의 낙차.
+    // 안장 높이를 골반 기준으로 역산하면 그 아래로 늘어진 스커트가 통째로 탈것 몸통에 박힌다 —
+    // 비평가 지적 ⓑ('골반이 아니라 스커트가 몸통을 파고든다')의 원인이 정확히 이 누락이었다.
+    // 상수로 박지 않고 `prochar`가 표시해 둔 파츠(`R.seatParts`)의 실제 bbox 하단에서 잰다.
+    _seatDrop: null,
+    heroSeatDropY() {
+        const rig = this.heroRig;
+        if (!rig || !rig.seatParts || !rig.bones || !rig.bones.pelvis) return 0.149;
+        if (this._seatDrop != null) return this._seatDrop;   // 지오메트리는 안 변한다 — 한 번만 재고 캐시
+        const pelvis = rig.bones.pelvis;
+        pelvis.updateWorldMatrix(true, true);
+        let min = Infinity;
+        const v = new THREE.Vector3();
+        for (const part of rig.seatParts) {
+            const geo = part.geometry;
+            if (!geo) continue;
+            if (!geo.boundingBox) geo.computeBoundingBox();
+            const bb = geo.boundingBox;
+            // 파츠 로컬 8정점을 골반 로컬로 옮겨 최하단을 찾는다(회전한 hem 토러스까지 맞게 잡힌다)
+            for (let i = 0; i < 8; i++) {
+                v.set(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z);
+                min = Math.min(min, pelvis.worldToLocal(part.localToWorld(v)).y);
+            }
+        }
+        if (!isFinite(min) || min > -0.05 || min < -0.4) return 0.149;   // 오염값은 실측 기본값으로
+        return (this._seatDrop = -min);
     },
 
     // 탈것: 장착 중이면 영웅이 실제로 올라탄다 — 탈것은 영웅 발밑, 영웅은 안장 높이로 상승.
@@ -3986,23 +4061,35 @@ const Scene3D = {
         // 종마다 몸집이 달라도 자동으로 맞고, 모델을 손봐도 따라온다.
         let rideScale = 1, heroY = 0;
         const pelvisLocal = this.heroPelvisLocalY();
+        // ⚠️ 안장에 닿는 면은 골반 뼈가 아니라 **스커트 밑단**이다 — 이 낙차만큼 영웅을 더 올리지 않으면
+        //    골반은 정확히 안장에 얹혀도 스커트가 탈것 몸통에 박힌다(비평가 지적 ⓑ).
+        //    탈것 배율은 예전과 같은 식(골반 기준)으로 뽑아 몸집을 그대로 유지하고, **영웅만** 낙차만큼 올린다.
+        const seatLocal = pelvisLocal - this.heroSeatDropY();
         if (form.stand) {
             // 평판형: 발판 위에 두 발로 서므로 발이 곧 안장 — 크기는 원래대로 둔다
-            heroY = (form.hover + form.saddle) * sc;   // 발판 윗면 = 발 높이
+            heroY = (form.hover + form.saddle) * sc;   // 발판 윗면 = 발 높이 (스커트는 서 있는 자세라 무관)
         } else if (form.hover) {
             // 비행형: 지면에 발이 닿을 이유가 없다. 몸집만 키워 다리로 감쌀 수 있게 하고,
-            // 골반을 안장에 맞춰 영웅째로 공중에 띄운다 (발은 허공에 뜬 채가 정상).
+            // 안장에 스커트 밑단을 얹어 영웅째로 공중에 띄운다 (발은 허공에 뜬 채가 정상).
             rideScale = form.bulk || 1.7;
-            heroY = (form.hover + form.saddle) * sc * rideScale - pelvisLocal;
+            heroY = (form.hover + form.saddle) * sc * rideScale - seatLocal;
         } else {
             // 지상 탑승형(사족·탈것): 발이 지면을 살짝 띄운 높이에 오게 두고,
             // 그 자세의 골반 높이가 곧 필요한 안장 높이 — 거기에 맞춰 탈것을 키운다
-            heroY = this.RIDE_FOOT_CLEAR;
-            const needSaddle = heroY + pelvisLocal;
+            const needSaddle = this.RIDE_FOOT_CLEAR + pelvisLocal;
             rideScale = U.clamp(needSaddle / (form.saddle * sc), 1, 2.6);  // 과대·과소 확대 방지
+            // 클램프에 걸리면 실제 안장 높이가 needSaddle과 달라진다 — 상수가 아니라 **실제 안장 높이**에
+            // 스커트 밑단을 맞춘다(그래야 어떤 종에서도 파묻힘/뜸이 안 생긴다).
+            heroY = form.saddle * sc * rideScale - seatLocal;
         }
         mesh.scale.setScalar(sc * rideScale);
         g.userData.stirrups = mesh.userData.stirrups || null;   // 등자는 메시 안에 달렸다 — 그룹에서도 찾게 올려 둔다
+        // 날개·꼬리도 같은 이유로 올려 둔다 — 업데이트 루프는 그룹의 userData만 보므로, 안 올리면
+        // 애니메이션이 통째로 걸리지 않는다(드래곤 날개가 얼어 있던 원인).
+        g.userData.wings = mesh.userData.wings || null;
+        g.userData.tail = mesh.userData.tail || null;
+        g.userData.bar = mesh.userData.bar || null;      // 핸들바 — 영웅 손에 맞춰 스템을 늘인다
+        this._barFrames = 6;                             // 포즈가 안정된 뒤 몇 프레임 안에 한 번 맞추고 고정
         let baseY = form.hover * sc * rideScale;
         g.position.set(Combat.HERO_X + this.worldX, baseY, 0);   // 영웅 발밑(별도 자리 아님)
         // ── 접지 보정: 어떤 종도 지면 아래로 파고들지 않게 ──
@@ -4058,6 +4145,9 @@ const Scene3D = {
             g.userData.baseY = baseY;
             g.userData.phase = U.rand(0, Math.PI * 2);   // 개체별 위상차 — 무리가 한 몸처럼 까딱이지 않게
             g.userData.speed = U.rand(0.85, 1.2);
+            g.userData.name = name;                      // 계열 판정(비행형 부유 리듬)에 필요
+            g.userData.wings = mesh.userData.wings || null;   // 무리의 날개도 얼려 두지 않는다
+            g.userData.tail = mesh.userData.tail || null;
             this.setShadow(g, true);
             this.applyRimLight(g);
             this.scene.add(g);
@@ -4087,6 +4177,46 @@ const Scene3D = {
             st.userData.strap.scale.y = len;
             st.userData.strap.position.y = len / 2;
         }
+    },
+
+    // 핸들바를 영웅의 **비어 있는 손**으로 가져온다 — "자전거인데 양손이 옆에 늘어져 있다"(비평가 지적 ⓒ).
+    // 손을 바에 맞추려면 팔 IK가 필요하고, 그 IK는 무기 파지·공격 클립과 매 프레임 싸운다.
+    // 실제 자전거 핏이 스템 길이로 바를 라이더에게 맞추듯 **바를 손에** 가져오면 그 싸움이 통째로 없어진다.
+    // ⚠️ 매 프레임 따라가게 두면 공격 중 휘두르는 팔을 바가 쫓아다닌다 — 포즈가 안정된 직후 몇 프레임 안에
+    //    한 번 자리를 잡고 고정한다(탑승 중 팔 거치 자세는 정적이라 그 뒤로 어긋날 일이 없다).
+    _barFrames: 0,
+    _barV: null,
+    alignHandlebar() {
+        const g = this.mountGroup, rig = this.heroRig;
+        if (!g || !g.userData.bar || !rig || !this.heroG || this._attacking) return;
+        const bar = g.userData.bar, barG = bar.group;
+        if (!barG.parent) return;
+        // 무기를 안 든 쪽 손이 바를 잡는다 — 양손을 다 올리면 무기가 바를 뚫고 앞으로 튀어나온다.
+        const weaponHand = (this.gripOf(this.wtypeId) || {}).hand === 'L' ? 'L' : 'R';
+        const freeSide = weaponHand === 'L' ? 1 : -1;                  // +1 = 오른쪽(R)
+        const hand = freeSide < 0 ? rig.handL : rig.handR;
+        const gripMesh = bar.grips.find(m => m.userData.side === freeSide) || bar.grips[0];
+        if (!hand || !gripMesh) return;
+        if (!this._barV) this._barV = new THREE.Vector3();
+        this.heroG.updateWorldMatrix(true, true);
+        g.updateWorldMatrix(true, true);
+        // 손 위치를 바 그룹의 부모(=배율이 걸린 안쪽 메시 그룹) 로컬로 옮긴 뒤, 그립이 그 자리에 오도록
+        // 그룹째 평행이동한다(그립의 로컬 오프셋을 빼는 것 — 바 자체를 회전시키면 자전거가 뒤틀린다).
+        const target = barG.parent.worldToLocal(hand.getWorldPosition(this._barV));
+        target.sub(gripMesh.position);
+        // 스템이 늘어나는 범위에 상한을 둔다 — 손이 엉뚱한 자리(공격 잔여 포즈 등)일 때 바가 날아가지 않게
+        const rest = bar.rest;
+        target.x = U.clamp(target.x, rest.x - 0.16, rest.x + 0.16);
+        target.y = U.clamp(target.y, rest.y - 0.22, rest.y + 0.30);
+        target.z = U.clamp(target.z, rest.z - 0.24, rest.z + 0.20);
+        barG.position.copy(target);
+        // 스템(헤드튜브 → 바)을 새 자리에 맞춰 다시 겨눈다 — 안 하면 바가 프레임에서 떨어져 공중에 뜬다.
+        const A = new THREE.Vector3(bar.head[0], bar.head[1], bar.head[2]);
+        const d = new THREE.Vector3().subVectors(target, A);
+        const len = Math.max(0.02, d.length());
+        bar.stem.position.copy(A).addScaledVector(d, 0.5);
+        bar.stem.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+        bar.stem.scale.y = len / (bar.stem.geometry.parameters.height || 1);
     },
 
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
@@ -6572,8 +6702,17 @@ const Scene3D = {
                 mg.position.x = ud.home.x;
             }
             const walkBoost = this.walking ? 1.6 : 1;
-            const bob = Math.abs(Math.sin(t * 4)) * 0.05 * walkBoost;
+            // 비행형은 **땅을 차는 리듬이 아니다** — `abs(sin)`은 접지 반동(껑충)이라 날개 달린 탈것에
+            // 쓰면 지면에 튕기는 것으로 읽힌다(비평가 지적 ⓓ '비행형이 지면에 붙어 있다'의 절반이 이것).
+            // 부호가 살아 있는 사인으로 바꿔 위아래로 **떠 있는** 부유 리듬을 주고, 진폭도 크게 잡는다.
+            const flying = this.riding && this.riding.form && this.riding.form.hover > 0 && !this.riding.form.stand;
+            const bob = flying ? Math.sin(t * 1.9) * 0.13 * (this.walking ? 1.35 : 1)
+                               : Math.abs(Math.sin(t * 4)) * 0.05 * walkBoost;
             mg.position.y = (ud.baseY || 0) + bob;
+            // 탄 탈것도 살아 있어야 한다 — 지금까지 날개·꼬리 애니메이션은 **펫에만** 걸려 있어서
+            // 정작 올라탄 드래곤·벌·고래의 날개가 통째로 얼어 있었다(정지 화면이 '떠 있는 조형물'로 읽힌 이유).
+            if (ud.wings) for (const w of ud.wings) w.rotation.z = w.userData.s * (0.45 + Math.sin(t * 11) * 0.62);
+            if (ud.tail) ud.tail.rotation.z = Math.sin(t * 3.4) * 0.5;
             // ⚠️ 쓰러진 영웅은 **탑승 중이 아니다** — 안장에서 굴러떨어져 바닥에 눕는 연출이고
             //    Death 클립 자체가 groundPose(탑승 하체 포즈 미가산)다. 여기서 riding을 그대로 믿으면
             //    아래 `+= bob`이 사망 구간 내내 **누적**돼 시체가 하늘로 솟는다 —
@@ -6587,6 +6726,7 @@ const Scene3D = {
                 if (!this._attacking) this.heroG.position.y += bob;   // 영웅도 같은 바운스를 그대로 받는다
                 this.heroG.rotation.x = mg.rotation.x * 0.6;
                 this.alignStirrups();                                 // 등자를 실제 발 위치에 붙인다
+                if (this._barFrames > 0) { this._barFrames--; this.alignHandlebar(); }  // 핸들바를 빈 손으로 (자리 잡고 고정)
             }
         }
         // 따라오는 탈것 무리: 영웅 전진을 같이 따라가고, 개체별 위상·속도로 어긋나게 까딱인다
@@ -6595,7 +6735,11 @@ const Scene3D = {
             const t = this._clock * (ud.speed || 1) + (ud.phase || 0);
             ud.home.x = Combat.HERO_X + (ud.spotX || 0) + this.worldX;
             fg.position.x = ud.home.x;
-            fg.position.y = (ud.baseY || 0) + Math.abs(Math.sin(t * 4)) * 0.05 * (this.walking ? 1.6 : 1);
+            const fly = this.mountFormOf(ud.name || '').hover > 0 && !this.mountFormOf(ud.name || '').stand;
+            fg.position.y = (ud.baseY || 0) + (fly ? Math.sin(t * 1.9) * 0.11
+                                                   : Math.abs(Math.sin(t * 4)) * 0.05 * (this.walking ? 1.6 : 1));
+            if (ud.wings) for (const w of ud.wings) w.rotation.z = w.userData.s * (0.45 + Math.sin(t * 11) * 0.62);
+            if (ud.tail) ud.tail.rotation.z = Math.sin(t * 3.4) * 0.5;
         }
         // ===== 사망·기상 구간의 영웅 높이 — 이 구간만은 여기가 단독 주인이다 =====
         // 사용자 3회 재지적('죽을 때 하늘로 올라간다')의 원인은 Death 클립이 아니라 **주인 없는 y**였다:
