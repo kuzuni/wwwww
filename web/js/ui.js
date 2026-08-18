@@ -1095,8 +1095,9 @@ const UI = {
         const equipHtml = SLOTS.map(slot => this.equipCellHTML(slot)).join('');
         // 마지막 칸 = 항상 탈것 슬롯 (사용자 확정 — 알 부화 표시 금지, 부화 진행은 펫 화면 부화장에서만).
         // 장착 탈것 있으면 아이콘+Lv, 없으면 "탈것" 빈 슬롯. 클릭 시 항상 탈것 창.
-        // 장착 탈것은 여러 마리가 될 수 있다(제한 해제 2026-08-18) — 칸에는 타고 있는 1마리를 보여주고,
-        // 나머지는 개수 배지(+N)로 알린다. 클릭하면 탈것 창에서 전부 보인다.
+        // 장착은 **1마리**다(사용자 지시 2026-08-18 `mount-single-equip`) — 칸에는 그 1마리를 보여준다.
+        // +N 배지는 여러 마리를 장착할 수 있던 시절의 잔재라 이제 항상 0이지만, 표시 경로는 그대로 둔다
+        // (제한이 다시 바뀌어도 렌더가 따라오고, 지금은 어차피 아무것도 안 그린다).
         const riddenName = Mounts.ridden();
         const activeMount = riddenName ? S.mounts[riddenName] : null;
         const extraMounts = Math.max(0, (S.activeMounts || []).length - 1);
@@ -3788,7 +3789,7 @@ const UI = {
             return `<button class="sk-cell" onclick="UI.openPetDetail(${i})">
                 <span class="sk-orb">${UI.petFace(p.name, 'mt-inline')}<span class="sk-lv">Lv.${p.level}</span></span></button>`;
         }).join('');
-        // 장착 탈것 전부를 나열한다 — 펫과 같은 취급(제한 해제 2026-08-18)
+        // 장착 탈것을 나열한다 — 장착이 1마리라 사실상 1칸이다(`mount-single-equip`).
         const mountIconHtml = (S.activeMounts || []).filter(n => S.mounts[n]).map(n =>
             `<button class="sk-cell" onclick="UI.openMountUpgrade('${n}')">
             <span class="sk-orb">${UI.mountFace(n, 'mt-inline')}<span class="sk-lv">Lv.${S.mounts[n].level}</span></span></button>`).join('');

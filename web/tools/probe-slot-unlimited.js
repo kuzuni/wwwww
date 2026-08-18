@@ -1,4 +1,8 @@
-// 펫 칸·탈것 칸 제한 해제 — 실게임(브라우저) 검증. TODO `pet-mount-slot-unlimited`.
+// 펫 칸 제한 해제 + 탈것 무리 렌더 — 실게임(브라우저) 검증. TODO `pet-mount-slot-unlimited`.
+// ⚠️ **탈것 '장착'은 2026-08-18 사용자 지시(`mount-single-equip`)로 1마리로 되돌아갔다.**
+//    그래서 이 프로브의 탈것 파트는 `Mounts.equip` 을 쓰지 않고 `S.activeMounts` 를 **직접 세워서**
+//    여러 마리가 들어왔을 때의 **자리 배치·추종 렌더**만 본다(4번째 펫에서 죽던 `spots[i]` 회귀 그물).
+//    장착 규칙 자체는 `probe-mount-single.js`/`test-slot-unlimited.js` 가 따로 못박는다.
 // 사용: node tools/probe-slot-unlimited.js
 //
 // tools/test-slot-unlimited.js 가 순수 로직·기하를 재는 반면, 여기서는 **실제로 페이지를 띄워**
@@ -181,8 +185,9 @@ const check = (name, cond, detail) => {
     console.log('■ 타는 탈것 교체');
     check('setRidden이 탑승 대상을 바꾼다', out.swapRidden === out.swapTarget, [out.swapRidden, out.swapTarget]);
     check('3D 탑승도 그 탈것으로 바뀐다', out.swapRiding === true);
-    check('교체해도 장착 수는 그대로(8)', out.swapActiveCount === 8, out.swapActiveCount);
-    check('교체 후 무리는 7마리', out.swapFollowers === 7, out.swapFollowers);
+    // `setRidden` 은 단일 슬롯 교체다(`mount-single-equip`) — 교체하면 그 1마리만 남고 무리는 사라진다.
+    check('교체하면 장착은 그 1마리', out.swapActiveCount === 1, out.swapActiveCount);
+    check('교체 후 무리는 0마리(단일 슬롯)', out.swapFollowers === 0, out.swapFollowers);
 
     console.log('■ 전부 해제 / 구 API 호환');
     check('해제하면 무리가 사라진다', out.clearedFollowers === 0, out.clearedFollowers);

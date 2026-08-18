@@ -57,6 +57,9 @@ const sandbox = {
     skillRatesData: { 1: [1, 0, 0, 0, 0, 0] },
     eggDropRates: { '10-10': { common: 1 } },
     RARITY_KR: { common: '일반' }, PET_KR: {}, MOUNT_KR: {},
+    // icongen.js 는 이 하네스가 안 싣는데 state.js 의 defaultState() 가 이 상수를 쓴다 —
+    // 안 넣으면 `DEFAULT_AVATAR is not defined` 로 하네스가 통째로 죽는다(2026-08-18 실제로 그랬다).
+    DEFAULT_AVATAR: '🛡️',
 };
 sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
@@ -111,20 +114,26 @@ check('펫-e 합산은 마리 수에 비례', Math.abs(Pets.activeBonus().atk.n 
 sandbox.saveGame(); setS(store['forgeclone_save_v1']);
 check('펫-f 재로드해도 8마리 유지(구 slice(0,3) 회귀 검사)', S().activePets.length === 8, S().activePets.length);
 
-// ── ④ 무제한 장착: 탈것 + 스탯 합산 ─────────────────────────────────────────
-console.log('■ 탈것 장착 무제한 + 합산');
+// ── ④ 탈것: **장착은 1마리** + 스탯 합산 ────────────────────────────────────
+// ⚠️ 2026-08-18 사용자 지시(`mount-single-equip`)로 **탈것 장착만** 1마리로 되돌아갔다 —
+//    "개수 제한 없다는 건 인벤토리(보유) 얘기고, 장착은 1개". 보유(`S.mounts`)와 펫 출전은 그대로 무제한.
+console.log('■ 탈것 장착 1마리 + 합산');
 const mk = (r, lv) => ({ rarity: r, level: lv, dupes: 0, stars: 0, xp: 0, subs: [{ key: 'atk', value: 1 }] });
 setS(JSON.stringify({ version: 1, mounts: { A: mk('common', 1), B: mk('rare', 1), C: mk('epic', 1) }, activeMounts: [] }));
 Mounts.ensure();
-check('탈것-a 3마리 전부 장착된다', ['A', 'B', 'C'].every(n => Mounts.equip(n)) && S().activeMounts.length === 3, S().activeMounts);
-check('탈것-b 맨 앞이 타는 놈', Mounts.ridden() === 'A', Mounts.ridden());
+check('탈것-a 연달아 장착해도 1마리(마지막 것으로 교체)', ['A', 'B', 'C'].every(n => Mounts.equip(n)) && S().activeMounts.length === 1, S().activeMounts);
+check('탈것-b 그 1마리가 타는 놈', Mounts.ridden() === 'C', Mounts.ridden());
 const bonus = Mounts.activeBonus();
-check('탈것-c 합산 = 3마리 합 (100+200+300)', Math.abs(bonus.atk.n - 600) < 1e-9, bonus.atk.n);
-check('탈것-d 서브옵션도 전부 합쳐진다', bonus.subs.length === 3, bonus.subs.length);
-check('탈것-e setRidden으로 타는 놈 교체', Mounts.setRidden('C') && Mounts.ridden() === 'C', S().activeMounts);
-check('탈것-f 교체해도 장착 수는 그대로', S().activeMounts.length === 3, S().activeMounts);
-check('탈것-g 재클릭 해제', Mounts.equip('B') && S().activeMounts.indexOf('B') < 0 && S().activeMounts.length === 2, S().activeMounts);
-check('탈것-h 해제하면 합산에서도 빠진다', Math.abs(Mounts.activeBonus().atk.n - 400) < 1e-9, Mounts.activeBonus().atk.n);
+check('탈것-c 합산 = 장착한 1마리 몫 (epic 300)', Math.abs(bonus.atk.n - 300) < 1e-9, bonus.atk.n);
+check('탈것-d 서브옵션도 1마리 몫', bonus.subs.length === 1, bonus.subs.length);
+check('탈것-e setRidden 은 그 한 마리로 교체', Mounts.setRidden('A') && Mounts.ridden() === 'A' && S().activeMounts.length === 1, S().activeMounts);
+check('탈것-f 보유는 그대로 3종(장착 제한과 무관)', Object.keys(S().mounts).length === 3, Object.keys(S().mounts));
+check('탈것-g 재클릭 해제', Mounts.equip('A') && S().activeMounts.length === 0, S().activeMounts);
+check('탈것-h 해제하면 합산도 0', Math.abs(Mounts.activeBonus().atk.n - 0) < 1e-9, Mounts.activeBonus().atk.n);
+// 여러 마리가 장착된 **기존 세이브**는 ensure() 가 1마리로 줄인다(안 하면 제한을 넣어도 옛 목록이 남는다)
+S().activeMounts = ['A', 'B', 'C'];
+Mounts.ensure();
+check('탈것-i 옛 다중 장착 세이브를 ensure()가 1마리로', S().activeMounts.length === 1 && S().activeMounts[0] === 'A', S().activeMounts);
 // 흡수(업그레이드 재료)로 사라진 탈것은 장착 목록에서도 빠져야 한다
 Mounts.equip('B');
 Mounts.absorbMaterials('C', ['B']);

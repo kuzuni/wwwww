@@ -8,10 +8,15 @@ const Mounts = {
         if (S.winders === undefined) S.winders = 0;
         if (S.mountOpens === undefined) S.mountOpens = 0;
         if (!S.mounts) S.mounts = {};          // name → {rarity, level, dupes, subs}
-        // 장착 탈것은 배열이고 개수 제한이 없다 (사용자 지시 2026-08-18 "펫칸 제한없게 해라, 탈것도").
+        // 장착은 **1마리**다 (사용자 지시 2026-08-18 "탈것은 한 개만 장착 가능해야 하는데 여러 개 장착 가능하더라").
+        // ⚠️ 같은 날의 '제한 없음' 지시와 헷갈리지 말 것 — 그건 **보유(인벤토리)** 얘기이고, 보유는 계속 무제한이다.
+        //    자료 구조는 배열 그대로 두되(세이브 호환·`ridden()`/`setRidden` 경로가 배열 전제) **길이를 1로 못박는다.**
         // 구세이브(문자열 1개)는 loadGame의 migrateActiveMounts가 이관하지만, 세이브를 안 거치고
         // 직접 상태를 세우는 경로(검증 스크립트·새 게임)도 있어 여기서 한 번 더 방어한다.
         if (!Array.isArray(S.activeMounts)) S.activeMounts = [];
+        // 여러 마리를 장착해 둔 **기존 세이브**는 여기서 1마리로 줄인다 — 안 하면 제한을 넣어도
+        // 이미 장착된 목록이 그대로 남아 계속 합산 보정을 받는다(타고 있던 맨 앞 1마리를 남긴다).
+        if (S.activeMounts.length > 1) S.activeMounts = [S.activeMounts[0]];
         if (typeof installMountCompat === 'function') installMountCompat(S);
     },
 
@@ -130,8 +135,8 @@ const Mounts = {
                 owned.dupes++;
             } else {
                 S.mounts[name] = { rarity, level: 1, dupes: 0, stars: Ascension.count('mount'), xp: 0, subs: this.rollSubs() };
-                // 장착 중인 탈것이 하나도 없을 때만 자동 장착. 슬롯 제한은 없어졌지만 자동 장착까지
-                // 무제한으로 풀면 소환 한 번에 장면이 탈것으로 뒤덮인다 — 추가 장착은 사용자가 고른다.
+                // 장착 중인 탈것이 하나도 없을 때만 자동 장착 — 이미 타고 있으면 소환 결과가
+                // 멋대로 갈아타게 하지 않는다(장착은 1마리라 자동 장착은 곧 교체가 된다).
                 if (!S.activeMounts.length) this.equip(name);
             }
             results.push({ name, rarity, isNew, level: S.mounts[name].level });
@@ -145,35 +150,36 @@ const Mounts = {
         return { results };
     },
 
-    // 장착/해제 토글. 개수 제한 없음 — 몇 마리든 동시에 장착된다 (사용자 지시 2026-08-18).
-    // 목록 맨 앞이 '타고 있는' 탈것이라, 새로 장착한 탈것은 뒤에 붙어 따라다니는 쪽이 된다
-    // (장착할 때마다 영웅이 올라탄 탈것이 바뀌면 화면이 계속 튄다).
+    // 장착/해제 토글. **장착은 1마리** (사용자 지시 2026-08-18) — 보유(인벤토리)는 무제한 그대로다.
+    // 다른 탈것을 장착하면 **이전 것은 자동으로 해제**된다(슬롯이 하나뿐이라 '교체'가 곧 장착이다).
     equip(name) {
         this.ensure();
         if (!S.mounts[name]) return false;
         const pos = S.activeMounts.indexOf(name);
         if (pos >= 0) S.activeMounts.splice(pos, 1);   // 장착 중 재클릭 = 해제 (상세 팝업 [해제] 버튼)
-        else S.activeMounts.push(name);
+        else S.activeMounts = [name];                  // 새로 장착 = 단일 슬롯 교체 (push 아님)
         Combat.recalcHero();
         if (typeof Scene3D !== 'undefined' && Scene3D.refreshMount) Scene3D.refreshMount();
         saveGame();
         return true;
     },
 
-    // 타고 있는 탈것을 이 탈것으로 바꾼다(목록 맨 앞으로). 장착돼 있지 않으면 장착부터 한다.
+    // 타고 있는 탈것을 이 탈것으로 바꾼다. 슬롯이 하나뿐이라 `equip` 과 같은 결과지만,
+    // 호출부(상세 팝업의 '타기')가 '해제 토글'을 원하지 않으므로 별도로 남긴다.
     setRidden(name) {
         this.ensure();
         if (!S.mounts[name]) return false;
-        S.activeMounts = [name, ...S.activeMounts.filter(n => n !== name)];
+        S.activeMounts = [name];
         Combat.recalcHero();
         if (typeof Scene3D !== 'undefined' && Scene3D.refreshMount) Scene3D.refreshMount();
         saveGame();
         return true;
     },
 
-    // 장착 중인 **모든** 탈것의 합산 고정 공격력·체력 + 서브스탯 (없으면 전부 0).
-    // 탈것 1마리 = 같은 등급 장비 8부위 합이라는 등가 규칙은 그대로 두고 마리 수만 늘어난다
-    // — 슬롯 제한 해제가 사용자 지시라 밸런스 메모보다 우선한다(TODO pet-mount-slot-unlimited).
+    // 장착 탈것의 고정 공격력·체력 + 서브스탯 (없으면 전부 0).
+    // 장착은 1마리라 사실상 0~1회 도는 루프다(배열 구조는 세이브 호환으로 남겨 둔 것).
+    // 'ⓐ 탈것 1마리 = 같은 등급 장비 8부위 합' 등가 규칙은 원래 1마리 기준이라 이 제한과 맞는다 —
+    // 무제한 합산으로 부풀던 값이 정상으로 돌아온다(`web/BALANCE.md` 에는 탈것 항목이 없어 상충하는 기술 없음).
     activeBonus() {
         const b = { atk: Big.ZERO, hp: Big.ZERO, subs: [] };
         if (!Array.isArray(S.activeMounts)) return b;
