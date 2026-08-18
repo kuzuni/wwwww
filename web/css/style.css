@@ -2807,7 +2807,12 @@ body {
 .pet-tile { background: none; border: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .1rem; }
 .pet-tile .tile-face {
     position: relative; width: 100%; aspect-ratio: 1; border-radius: .5rem;
-    border: var(--ol3) solid var(--pp-line); background: var(--rc, #ccc);
+    border: var(--ol3) solid var(--pp-line);
+    /* 원본(shot-042356)의 타일 면은 **등급색 원색이 아니라 흰색을 섞어 밝힌 색**이다.
+       실측: 타일 면 #ff7777 vs 같은 원본의 소환확률 팝업(shot-042521) '궁극의' 막대 #ff1c1c
+       → R·G·B 세 채널 모두 정확히 **등급색 60% + 흰색 40%** 로 떨어진다(우연으로 보기 어렵다).
+       클론은 원색을 그대로 깔아 어두운 크리처가 배경에 묻혔다. 장비 셀도 이미 같은 방식(믹스 58%). */
+    background: color-mix(in srgb, var(--rc, #ccc) 60%, #fff);
     display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
     box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25);
 }
