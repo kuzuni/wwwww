@@ -1994,7 +1994,8 @@ body {
    카드가 −7.61%p 짧았다(마지막 행 margin-bottom .5rem 만으로는 모자란다). */
 .league-challenge-list { margin: 0 calc(var(--app-w) * -.0185); padding-bottom: 1.15rem; }
 .league-challenge-row {
-    display: flex; align-items: center; gap: .6rem; background: #cfcfcf; border: none;
+    /* 행 필 원본 실측 #cacaca (x250 세로 단면 y288~367 — 키라인 없이 흰 카드에서 바로 필로 전이) */
+    display: flex; align-items: center; gap: .6rem; background: #cacaca; border: none;
     border-radius: .7rem; padding: 0 .6rem; margin-bottom: .5rem;
     /* 원본 행 높이 21.56%CW(=78px)·피치 23.72%CW. 종전은 23.42%CW 로 두꺼워 다섯 행이 쌓이며
        마지막 행 하단이 +4.39%p 밀렸다. 높이를 못 박고 세로 패딩은 0 으로 둔다. */
@@ -2002,17 +2003,23 @@ body {
 }
 .league-challenge-row .btn.sm { flex: 0 0 26%; min-height: 2.9rem; font-size: .85rem; } /* 원본 도전 버튼 ≈21% 화면폭 (185 재채점) */
 .league-challenge-avatar {
-    width: 2.6rem; height: 2.6rem; border-radius: .4rem; background: #fff; border: var(--ol2) solid var(--pp-line);
+    /* 원본 타일 키라인은 굵은 순검정(y330 단면 x87~88 #262626·#000000 — probe-lc-dom 비고의 그 차이) */
+    width: 2.6rem; height: 2.6rem; border-radius: .4rem; background: #fff; border: var(--ol3) solid #000;
     display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex: none;
 }
 .league-challenge-name { flex: 1; text-align: left; font-weight: 900; font-size: .85rem; color: var(--pp-ink); line-height: 1.3; }
-.league-challenge-name small { color: #f59e0b; font-weight: 900; }
+/* 전투력 수치 = 원본 #ff880f + 검정 키라인(y338 단면: 획 #ff880f · 경계 #000000) — ⑭ 플레이어 정보의
+   전투력과 같은 잉크다. 종전 #f59e0b 민글자는 색도 다르고 회색 행 위에서 키라인 없이 떴다. */
+.league-challenge-name small { color: #ff880f; font-weight: 900; -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill; }
 .league-challenge-side { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
-.league-challenge-side .star { font-weight: 900; color: var(--pp-ink); font-size: .8rem; }
-.league-challenge-side .btn {
+.league-challenge-side .star { font-weight: 900; color: #000; font-size: .8rem; }   /* +N 글자는 원본 순검정 */
+/* 도전 버튼 원본 실측(x355 세로 단면): 면 **#afafaf 플랫**(그라디언트 아님) · 아래턱 #343434 ≈6px ·
+   위아래 검정 키라인 · 글자 검정 — '유색 버튼=흰 글자 / 실버 버튼=검정 글자' 규칙(⑬·던전 상세와 교차검증)과 일치.
+   ⚠️ 뒤쪽 공용 `.modal-card .btn`(pp-gray 면 + .22rem 턱)과 특이도가 같으면 뒤가 이긴다 — 세 클래스로 못박는다. */
+.modal-card .league-challenge-side .btn {
     padding: .3rem .75rem; font-size: .72rem; line-height: 1.25;
-    background: linear-gradient(180deg, #e3e3e3, #c2c2c2); color: #17181a; font-weight: 900;
-    border: var(--ol3) solid var(--pp-line); box-shadow: inset 0 -.2rem 0 #9c9c9c;
+    background: #afafaf; color: #000; font-weight: 900;
+    border: var(--ol3) solid var(--pp-line); box-shadow: inset 0 -.4rem 0 #343434;
 }
 
 /* ---- 진행 패스 (UI-SPEC 18번, 원본 shot-042705) — 어두운 남색 카드(다른 화면의 흰 시트와 다름, 스크린샷 우선) ---- */
