@@ -5333,11 +5333,16 @@ body {
     filter: drop-shadow(0 0 .3rem rgba(255,193,7,.95)) drop-shadow(0 1px 1px rgba(0,0,0,.55)); }
 .coin-fly-img .ico { width: 100%; height: 100%; display: block; }
 @keyframes coinFlyX { from { transform: translate(-50%, -50%); } to { transform: translate(calc(-50% + var(--dx)), -50%); } }
+/* ⚠️ opacity 를 **100% 키프레임에만** 두면 안 된다(사용자 지적 `sell-coin-land-visible`).
+   CSS 애니메이션은 어느 한 키프레임에만 있는 속성을 **바탕값(=1)에서 그 키프레임까지 전 구간
+   선형 보간**한다 — 즉 코인이 날아가는 내내 서서히 투명해져서, 정작 착지 시점(72%)에는
+   opacity 가 0.28 밖에 안 남아 "착지하는 게 안 보인다". 착지·바운스까지는 1로 못박고
+   **흡수되는 마지막 구간(84%→100%)에서만** 사라지게 한다. */
 @keyframes coinFlyY {
-    0%   { transform: translateY(0); animation-timing-function: cubic-bezier(.15,.7,.4,1); }   /* 솟구침 — 감속 */
-    45%  { transform: translateY(var(--rise)); animation-timing-function: cubic-bezier(.6,0,.85,.4); } /* 낙하 — 가속 */
-    72%  { transform: translateY(var(--drop)); animation-timing-function: cubic-bezier(.2,.7,.4,1); }  /* 착지 */
-    84%  { transform: translateY(calc(var(--drop) - .5rem)); animation-timing-function: cubic-bezier(.6,0,.9,.5); } /* 바운스 1회 */
+    0%   { transform: translateY(0); animation-timing-function: cubic-bezier(.15,.7,.4,1); opacity: 1; }   /* 솟구침 — 감속 */
+    45%  { transform: translateY(var(--rise)); animation-timing-function: cubic-bezier(.6,0,.85,.4); opacity: 1; } /* 낙하 — 가속 */
+    72%  { transform: translateY(var(--drop)); animation-timing-function: cubic-bezier(.2,.7,.4,1); opacity: 1; }  /* 착지 — 여기서 완전 불투명이어야 한다 */
+    84%  { transform: translateY(calc(var(--drop) - .5rem)); animation-timing-function: cubic-bezier(.6,0,.9,.5); opacity: 1; } /* 바운스 1회 */
     100% { transform: translateY(var(--drop)); opacity: 0; }                                   /* 흡수되듯 사라짐 */
 }
 @keyframes coinSpin { from { transform: rotateY(0); } to { transform: rotateY(360deg); } }
