@@ -2813,6 +2813,25 @@ body {
 }
 /* 팝업이 떠도 탭바는 항상 위·클릭 가능 (원본: 팝업 열림 상태에서 탭바 X로 닫음) */
 #tabbar { position: relative; z-index: 30; }
+
+/* ── 팝업 딤이 탭바까지 덮는 경우 (slug: modal-dim-tabbar) ─────────────────────────────
+   원본을 전수 실측하니 **팝업이 두 부류로 갈린다**(y=862 픽셀, 원본 29장):
+     ⓐ **탭 화면** — 탭바가 그대로 보인다(`#0e111b`, 해당 탭에 밝은 빨간 ✕):
+        메인 042120 · 던전 목록 042251 · 상점 042632 · 리그 목록 042149 · 제작 비교 043224 ·
+        장비 상세 043244 · 소환 시트들(042340·042356·042407·042546)
+     ⓑ **진짜 팝업** — 탭바까지 새까맣다(`#000000`~`#010203`):
+        042110·042208·042228·042304·042426·042449·042503·042521·042605·042705·042724·
+        042744·042831·042905·042931·042950·043117·043313
+   ⓑ 만 딤 위로 올린다. ⓐ 를 같이 덮으면 **탭바의 빨간 ✕ 가 유일한 닫기 어포던스인 화면들
+   (상점·던전 목록·채팅·탈것·제작 비교)이 통째로 갇힌다** — `probe-popup-close.js` 가 그 6개를
+   '탭바 ✕' 로 닫는다고 실제로 확인해 준다. 그래서 z-index 를 통째로 뒤집지 않고 id 로 가른다.
+   ⚠️ `#league-modal` 은 **한 요소가 세 얼굴**(목록 ⓐ / 보상·도전 ⓑ)이라 CSS 로 못 가른다 —
+      `openLeague()`/`openLeagueRewards()`/`openLeagueChallenge()` 가 `.dim-tabbar` 를 토글한다. */
+#offline-modal, #dungeon-detail-modal, #detail-modal, #pet-upgrade-modal, #pass-modal,
+#profile-modal, #forge-info-modal, #forge-item-modal, #autoforge-modal, #player-info-modal,
+.modal.dim-tabbar { z-index: 40; }
+/* 위 목록 중 서로 겹칠 수 있는 것들은 종전 상대 순서를 유지한다(`z-index: 22` 짝이던 것들). */
+#detail-modal, #forge-item-modal { z-index: 42; }
 /* 채팅은 원본(043500)처럼 진짜 풀스크린 — 탭바 위로 덮어 입력 바 노출, 닫기는 자체 빨간 ◀ */
 #chat-modal { z-index: 40; }
 

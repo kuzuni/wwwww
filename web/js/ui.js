@@ -823,8 +823,14 @@ const UI = {
         el.querySelectorAll('*').forEach(n => { if (n.scrollTop) n.scrollTop = 0; });
         // 겹쳐 열 때만 한 칸 올린다. 단독으로 열 때는 인라인 값을 비워 CSS 기본층으로 되돌려
         // (일반 20 / 세부정보 22 / 채팅 40 / 소환 결과 60) 값이 무한정 누적되지 않게 한다.
+        // 🚨 겹쳐 열 때 **무조건 `top + 1` 을 박으면 CSS 가 준 기본층을 깎아내린다.** 던전 상세는
+        //    딤이 탭바(z 30)를 덮어야 해서 CSS 가 40 을 주는데, 던전 목록(20) 위에 열리는 바람에
+        //    `21` 이 박혀 탭바 아래로 내려갔다(실측: `modal-dim-tabbar` 에서 이 화면만 실패했다).
+        //    기본층을 먼저 읽고 **더 높은 쪽**을 쓴다 — 기본층이 이미 위면 인라인을 비운다.
+        el.style.zIndex = '';
+        const base = parseInt(getComputedStyle(el).zIndex, 10) || 0;
         const top = this.topModalZ();
-        el.style.zIndex = top ? top + 1 : '';
+        el.style.zIndex = (top && top >= base) ? String(top + 1) : '';
         el.classList.remove('hidden');
         el.classList.add('opening');
         clearTimeout(el._openingT);
@@ -3345,6 +3351,10 @@ const UI = {
     openLeague() {
         League.ensure();
         this.renderLeagueBoard();
+        // 리그 **목록**은 원본에서 탭바가 그대로 보이는 탭 화면이다(042149 실측: y=870 이 #0e111b,
+        // PVP 탭에 빨간 ✕ 가 밝게 떠 있다). 반면 보상·도전 하위 화면은 탭바까지 딤에 덮인다
+        // (042208·042228: #010203). 같은 `#league-modal` 이 세 얼굴을 쓰므로 여기서 갈라 준다.
+        this.els.leagueModal.classList.remove('dim-tabbar');
         this.showModal(this.els.leagueModal);
     },
     closeLeague() { this.els.leagueModal.classList.add('hidden'); },
@@ -3370,7 +3380,7 @@ const UI = {
                 </div>
             </div>`;
     },
-    openLeagueRewards() { this.renderLeagueRewards(); },
+    openLeagueRewards() { this.els.leagueModal.classList.add('dim-tabbar'); this.renderLeagueRewards(); },
     renderLeagueRewards() {
         League.ensure();
         const myRank = League.myRank();
@@ -3410,7 +3420,7 @@ const UI = {
                 </div>
             </div>`);
     },
-    openLeagueChallenge() { this.renderLeagueChallenge(); },
+    openLeagueChallenge() { this.els.leagueModal.classList.add('dim-tabbar'); this.renderLeagueChallenge(); },
     renderLeagueChallenge() {
         const list = League.challengeList();
         const rowsHtml = list.map((b, i) => `
