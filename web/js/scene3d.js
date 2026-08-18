@@ -5650,6 +5650,11 @@ const Scene3D = {
         // 종 고유색 + 개체 지터 (챕터 무드 혼합은 채도를 죽여 배경 보호색화 — 폐지, 비평가 지적)
         const base = new THREE.Color(this.KIND_COLOR[kind]).offsetHSL(U.rand(-0.02, 0.02), U.rand(-0.03, 0.03), U.rand(-0.02, 0.02));
         const g = new THREE.Group();
+        // ⚠️ 이 목록은 **더 이상 피격 플래시의 대상이 아니다.** `lam()` 을 거친 재질만 담겨 몸의 절반이
+        //    빠져 있었고(박쥐 60메시 중 13 등), 무엇보다 화면 면적을 쥔 외곽선 셸이 통째로 없다 —
+        //    지금은 `Scene3D.flashTargets()` 가 서브트리를 직접 훑는다(그 함수의 실측 근거 주석 참고).
+        //    필드는 기존 probe 4종(probe-hitflash-delta·probe-flash-gl·test-hitfx·shot-hero)이 참조해
+        //    남겨 두지만, **여기에 재질을 더한다고 플래시가 달라지지 않는다.**
         const flashMats = [];
         const lam = (c2, map) => {
             const m = new THREE.MeshStandardMaterial({ color: c2, map: map || null, metalness: 0, roughness: 0.72 });
@@ -6884,30 +6889,88 @@ const Scene3D = {
         }
     },
 
-    // 전신 화이트 틴트. 원래 emissive를 보관했다 복구한다 — 예전 구현은 흰색을 덮어써서
-    // 발광 재질(보스 왕관·마법 시대 광원)이 한 번 맞으면 영영 죽었다. 연타는 seq로 최신 것만 살린다.
-    // 세기는 0.3을 넘기지 않는다 — 그 위로는 블룸과 겹쳐 적이 무형의 흰 덩어리가 되고(비평가 1위 결함),
-    // 실루엣과 함께 넉백·스케일 펀치·HP바까지 전부 삼켜 버린다. 밝기 예산은 impactFlare 쪽에 쓴다.
-    flashMesh(m, peak, dur) {
-        const mats = m.flashMats;
-        if (!mats || !mats.length) return;
+    // 몸 emissive 세기는 계속 0.3을 넘기지 않는다 — 그 위로는 블룸과 겹쳐 적이 무형의 흰 덩어리가 되고
+    // (비평가 1위 결함) 실루엣과 함께 넉백·스케일 펀치·HP바까지 전부 삼킨다. 이 예산 제약은 그대로 두고,
+    // 아래 flashMesh 가 **면적을 쥔 외곽선** 쪽에서 가독성을 번다.
+    // 플래시 대상 수집 — 개체당 한 번만 훑고 캐시한다.
+    // ⚠️ 예전엔 빌더가 만들며 모아 둔 `m.flashMats` 만 썼는데, 그 목록은 `lam()` 헬퍼를 거친 재질만
+    //    담아 **몸의 절반이 빠져 있었다**(실측: 박쥐 60메시 중 13 · 고블린 126중 40 · 골렘 88중 32 —
+    //    날개막 Lambert 계열이 통째로 누락). 여기서 서브트리를 직접 훑어 빠짐을 없앤다.
+    // 두 갈래로 나눈다:
+    //   lit  = 조명 받는 몸 재질(Standard·Lambert) → emissive 가산
+    //   out  = **인버티드 헐 외곽선 셸**(ProChar.addOutline 이 파츠마다 붙인 BackSide 검은 셸) → 색 승격
+    // 외곽선을 같이 태우는 게 이 함수의 핵심이다 — 아래 flashMesh 주석의 실측 근거 참고.
+    // ⚠️ 캐시는 **메시 수로 무효화**한다. 영웅은 장비를 갈 때마다 투구·무기 서브트리가 통째로 다시
+    //    만들어지고 외곽선 셸도 새 재질로 갈린다 — 루트 객체(heroG)는 그대로라 루트만 보고 캐시하면
+    //    새로 생긴 파츠가 영영 안 빛나고, 이미 dispose 된 옛 재질만 붙들게 된다. 세는 비용은 O(n) 이고
+    //    피격은 초당 1회 수준이라 무시할 수 있다(목록 구축은 indexOf 때문에 O(n²)라 그건 아낀다).
+    flashTargets(m) {
+        const root = m.g || m;
+        let n = 0;
+        root.traverse(o => { if (o.isMesh) n++; });
+        if (m._flashT && m._flashT.root === root && m._flashT.n === n) return m._flashT;
+        const lit = [], out = [];
+        root.traverse(o => {
+            if (!o.isMesh || !o.material) return;
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            for (const mat of mats) {
+                if (o.userData.isOutline) { if (out.indexOf(mat) < 0) out.push(mat); }
+                // 접촉 AO 링·림 셸은 emissive 가 없는 Basic 이라 여기서 자동으로 걸러진다
+                // (AO 링을 태우면 이음새가 사라져 '프리미티브 더미'가 도로 드러난다 — 빌더 주석 ⑵).
+                else if (mat.emissive && lit.indexOf(mat) < 0) lit.push(mat);
+            }
+        });
+        m._flashT = { root, n, lit, out };
+        return m._flashT;
+    },
+    // 전신 화이트 틴트 + **외곽선 점등**. 원래 emissive·외곽선 색을 보관했다 복구한다 — 예전 구현은
+    // 흰색을 덮어써서 발광 재질(보스 왕관·마법 시대 광원)이 한 번 맞으면 영영 죽었다.
+    // 연타는 seq로 최신 것만 살린다.
+    //
+    // 🚨 **왜 외곽선까지 태우는가 — 6차 채점 '일반 타격의 몸 플래시가 프레임에 안 남는다'의 실제 원인.**
+    // 게임 크기에서 적은 화면에서 ~50×55px 이고, 파츠마다 붙은 인버티드 헐 외곽선(뷰공간 고정 폭)이
+    // **그 픽셀의 대부분을 차지한다.** 그래서 몸 안쪽만 밝혀서는 평균이 안 움직인다 —
+    // `tools/probe-hitflash-ab.js`(렌더러에서 gl.readPixels 직독, 자 점검 통과) 실측:
+    //     적을 통째로 숨김 ............................. Δ0.190  (= 적이 차지한 전부)
+    //     몸 재질 17종 color=흰(외곽선 제외) ........... Δ0.023
+    //     몸 재질 17종 emissive 1.0 .................... Δ0.048
+    //     몸 재질 17종 emissive **10.0** ............... Δ0.072  ← 밝기를 33배 올려도 이 정도가 천장
+    //     **모든 재질 color=흰(외곽선 포함)** .......... Δ0.193  ← 적을 지운 것과 맞먹는다
+    // 즉 밝기를 아무리 올려도 안 되던 게 아니라 **면적을 안 건드리고 있었다.** 외곽선을 태우면
+    // 실루엣이 유지된 채 윤곽만 빛나 '흰 덩어리'(비평가 1위 결함)도 피한다 — 밝기 예산을 몸통이
+    // 아니라 테두리에 쓰는 것이다.
+    // ⚠️ 외곽선 원색은 `ProChar._syncOutline` 이 원 재질 albedo × OUTLINE.k 로 계산한다 — 복구는
+    //    보관해 둔 값으로 되돌리고, 그 사이 장비 교체로 갱신된 경우를 대비해 색만 되돌린다.
+    flashMesh(m, peak, dur, color) {
+        const t = this.flashTargets(m);
+        if ((!t.lit.length && !t.out.length)) return;
         m.flashSeq = (m.flashSeq || 0) + 1;
         const seq = m.flashSeq;
-        for (const mat of mats) {
-            if (!mat.emissive) continue;
+        const flashC = new THREE.Color(color === undefined ? 0xffffff : color);
+        for (const mat of t.lit) {
             if (!mat.userData._em0) mat.userData._em0 = { hex: mat.emissive.getHex(), i: mat.emissiveIntensity };
             mat.emissive.setHex(0xffffff);
             mat.emissiveIntensity = peak;
         }
+        // 외곽선은 가산이 아니라 **색 자체**를 올린다(Basic 이라 조명이 없다). peak 를 그대로 쓰면
+        // 0.2 에서 거의 안 보이므로 테두리 전용 계수를 따로 둔다 — 테두리는 원래 near-black 이라
+        // 같은 세기라도 상대 변화가 훨씬 크다.
+        const ok = Math.min(1, 0.35 + peak * 2.2);
+        for (const mat of t.out) {
+            if (!mat.userData._ol0) mat.userData._ol0 = mat.color.getHex();
+            mat.color.copy(new THREE.Color(mat.userData._ol0).lerp(flashC, ok));
+        }
         this.addAnim(dur, k => {
             if (m.flashSeq !== seq) return;
-            for (const mat of mats) { if (mat.emissive) mat.emissiveIntensity = peak * (1 - k); }
+            for (const mat of t.lit) mat.emissiveIntensity = peak * (1 - k);
+            for (const mat of t.out) mat.color.copy(new THREE.Color(mat.userData._ol0).lerp(flashC, ok * (1 - k)));
         }, () => {
             if (m.flashSeq !== seq) return;
-            for (const mat of mats) {
+            for (const mat of t.lit) {
                 const e0 = mat.userData._em0;
-                if (mat.emissive && e0) { mat.emissive.setHex(e0.hex); mat.emissiveIntensity = e0.i; }
+                if (e0) { mat.emissive.setHex(e0.hex); mat.emissiveIntensity = e0.i; }
             }
+            for (const mat of t.out) if (mat.userData._ol0 !== undefined) mat.color.setHex(mat.userData._ol0);
         });
     },
 
@@ -7030,7 +7093,8 @@ const Scene3D = {
         const sev = e && !Big.of(e.maxHp).isZero() ? U.clamp(Big.of(dmg).ratioTo(e.maxHp), 0, 1) : 0.15;
         const pos = m.g.position;
         // ① 옅은 틴트 + 외곽 림 셸 — 밝기가 아니라 윤곽으로 피격을 알린다(형태 유지가 우선)
-        this.flashMesh(m, crit ? 0.28 : 0.2, crit ? 0.14 : 0.1);
+        // 외곽선 점등 색으로 위계를 준다 — 일반은 청백, 크리는 주황(림 셸과 같은 색 언어).
+        this.flashMesh(m, crit ? 0.28 : 0.2, crit ? 0.14 : 0.1, crit ? 0xff9a4d : 0xdff2ff);
         // 일반 피격 림을 **순백에서 청백으로** 바꾼다 — 골렘·해골처럼 몸 albedo가 이미 near-white인 종에서
         // 흰 가산 림은 명도차가 10%도 안 나 "깜빡였는지조차 모르겠다"가 됐다(비평가 4차 2번).
         // 청백(0x9fe3ff)은 따뜻한 회백 몸/초원 배경 어느 쪽과도 색상이 갈려 같은 밝기에서도 분리된다.
@@ -7340,16 +7404,10 @@ const Scene3D = {
             this.heroG.position.x = ox - p * kb;
             this.heroG.rotation.z = p * (0.04 + Math.min(0.12, sev * 0.5));
         }, () => { this.heroG.position.x = Combat.HERO_X; this.heroG.rotation.z = 0; });
-        // 영웅 전신 화이트 틴트 — 적과 달리 flashMats 목록이 없어 피격 때마다 재질을 훑는다(피격 빈도 ~초당 1회, 비용 무시 가능)
-        if (!this._heroFlash || this._heroFlash.g !== this.heroG) {
-            const mats = [];
-            this.heroG.traverse(o => {
-                if (!o.isMesh || !o.material) return;
-                (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => { if (mt.emissive) mats.push(mt); });
-            });
-            this._heroFlash = { g: this.heroG, flashMats: mats };
-        }
-        this.flashMesh(this._heroFlash, 0.25, 0.12); // 전신 화이트아웃 금지 — 적과 같은 기준
+        // 영웅 전신 틴트 + 외곽선 점등. 대상 수집·캐시·무효화는 flashTargets 가 전부 한다
+        // (예전엔 여기서 emissive 재질만 따로 모았는데, 그 목록은 면적을 쥔 외곽선을 통째로 놓쳤다).
+        if (!this._heroFlash || this._heroFlash.g !== this.heroG) this._heroFlash = { g: this.heroG };
+        this.flashMesh(this._heroFlash, 0.25, 0.12, 0xffd9d9); // 몸통 화이트아웃 금지 — 적과 같은 기준(붉은 기 = 피해)
         this.hitHpBar(this.heroBar, sev);
         if (sev > 0.12) this.hitStop(0.035);
         this.shake(Math.min(0.22, 0.05 + sev * 0.6));
