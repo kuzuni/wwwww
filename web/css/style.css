@@ -1468,6 +1468,9 @@ body {
    원본에 대응 화면이 없어 던전 시트(흰 페이지 + 세로 목록)와 같은 규약을 따른다: 카드 폭은
    던전 배너와 같은 77.6%W, 다만 내용이 '아이콘 + 이름/진행바 + 보상/버튼' 3열이라 높이는
    내용에 맡긴다(던전처럼 aspect-ratio 로 묶으면 진행바가 눌린다). */
+/* 일괄수령 줄 (사용자 지시 2026-08-18 `quest-claim-all`) — 목록과 같은 폭(77.6%)으로 맞추고
+   오른쪽 끝에 붙인다. 행의 개별 [수령] 버튼과 같은 세로선 위에 서야 '같은 동작의 묶음'으로 읽힌다. */
+.qst-allbar { width: 77.6%; display: flex; justify-content: flex-end; margin: 0 auto .55rem; }
 .quest-list { display: flex; flex-direction: column; gap: .5rem; }
 .modal-card.sheet .quest-list { gap: .62rem; align-items: center; margin: 0 -.9rem; }
 .qst-row {

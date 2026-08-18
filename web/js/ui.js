@@ -3300,10 +3300,20 @@ const UI = {
             </div>`;
         }).join('') || '<span class="muted grid-empty">퀘스트를 불러오지 못했습니다</span>';
 
+        // 일괄수령 (사용자 지시 2026-08-18 `quest-claim-all`: "퀘스트 부분에 일괄수령 버튼도 만들라").
+        // 목록 **위**에 둔다 — 목록은 스크롤되므로 아래에 두면 완료가 여러 개일 때 버튼이 화면 밖으로
+        // 밀려 '일괄'의 의미가 없어진다. 수령 가능이 0개면 눌러도 할 일이 없으니 비활성으로 보여 준다
+        // (개별 [수령] 버튼이 이미 쓰는 `.disabled` 규약 그대로다).
+        const ready = Quests.readyCount();
+        const claimAllBtn = `<div class="qst-allbar">
+                <button class="btn sm ${ready ? 'primary' : 'disabled'}" onclick="UI.onClaimAllQuests()">일괄수령${ready ? ` (${ready})` : ''}</button>
+            </div>`;
+
         this.els.questModal.innerHTML = `
             <div class="modal-card sheet">
                 <h3 class="sheet-title">퀘스트</h3>
                 <p class="sheet-sub">수령하면 그 자리에 새 퀘스트가 올라옵니다</p>
+                ${claimAllBtn}
                 <div class="quest-list">${rows}</div>
                 <button class="league-back-btn sheet-back-btn" onclick="UI.closeQuests()">◀</button>
             </div>`;
@@ -3324,6 +3334,17 @@ const UI = {
         this.renderTopBar();
         this.renderEquipSheet();
         this.keepScroll(() => this.openQuests());   // 수령한 자리에 새 퀘스트가 즉시 올라온다
+    },
+    // 토스트는 **재화별 합계로 한 줄** (항목 ③) — 완료가 5개면 토스트 5개가 쌓이는 게 아니라
+    // "📜 3개 수령! 코인 +1,200 · 해머 +16" 한 줄이다.
+    onClaimAllQuests() {
+        const { n, gains } = Quests.claimAll();
+        if (!n) { this.toast('📜 수령할 수 있는 퀘스트가 없습니다'); return; }
+        const parts = Object.keys(gains).map(cur => `${Quests.CUR_KR[cur] || cur} +${U.fmt(gains[cur])}`);
+        this.toast(`📜 ${n}개 수령! ${parts.join(' · ')}`);
+        this.renderTopBar();
+        this.renderEquipSheet();
+        this.keepScroll(() => this.openQuests());
     },
 
     _dgDetailId: null, _dgDetailStage: 1,

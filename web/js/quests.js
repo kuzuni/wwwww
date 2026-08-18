@@ -139,6 +139,30 @@ const Quests = {
         return got;
     },
 
+    // 완료된 퀘스트를 한 번에 전부 수령 (사용자 지시 2026-08-18 `quest-claim-all`).
+    // 재화별 합계와 수령 건수를 돌려준다 — 토스트를 한 줄로 합쳐 띄우려는 것이라
+    // 개별 문구가 아니라 `{ n, gains: {재화: 합계} }` 형태다. 하나도 없으면 n=0.
+    //
+    // ⚠️ 지급·교체 규칙을 여기서 **다시 쓰지 않는다** — `claim(i)` 를 그대로 돌린다.
+    // 젬 방어 가드·questsCleared 누적·슬롯 교체가 전부 그 안에 있고, 수령 후 슬롯을
+    // 어떻게 할지(새 퀘스트로 교체할지, 진행도만 리셋해 같은 퀘스트를 반복할지)는
+    // `quest-fixed-repeat` 가 바꾸는 중이다. 위임해 두면 그 결정이 여기에도 자동으로 적용된다.
+    //
+    // 인덱스는 **큰 쪽부터** 돈다: `claim(i)` 은 새 퀘스트를 못 뽑으면 그 칸을 splice 해
+    // 뒤 인덱스를 당긴다. 내림차순이면 아직 안 본 칸(더 작은 인덱스)이 안 흔들린다.
+    claimAll() {
+        const idx = this.list().map((q, i) => (this.isDone(q) ? i : -1)).filter(i => i >= 0);
+        const gains = {};
+        let n = 0;
+        for (let k = idx.length - 1; k >= 0; k--) {
+            const got = this.claim(idx[k]);
+            if (!got) continue;
+            gains[got.cur] = (gains[got.cur] || 0) + got.amt;
+            n++;
+        }
+        return { n, gains };
+    },
+
     // 수령 대기 중인 퀘스트 수 — 탭 배지에 쓴다
     readyCount() { return this.list().filter(q => this.isDone(q)).length; },
 };
