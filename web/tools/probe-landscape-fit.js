@@ -23,7 +23,12 @@ const VIEWPORTS = [
     { w: 932, h: 430 }, { w: 844, h: 390 }, { w: 640, h: 360 }, { w: 568, h: 320 },
     { w: 320, h: 568 }, { w: 390, h: 844 },
 ];
-const FORGE_LEVELS = [1, 20, 35];
+// ⚠️ Lv.35 는 `Ascension.ready('forge')` 가 항상 참이라(`progress('forge').cur >= FORGE_LEVEL`)
+//    버튼이 [⭐승천/가능] 으로 그려진다 → **가장 긴 라벨인 '대장간/최고 레벨' 이 한 번도 안 재진다.**
+//    `35-maxed` 는 승천 대기만 꺼서 그 라벨을 강제로 그리는 조건이다(라벨 길이 하한 케이스).
+//    두 버튼에 걸린 `white-space:nowrap` 은 줄바꿈 대신 **글자를 상자 밖으로 밀어내므로**,
+//    제일 긴 라벨을 안 재면 그 이탈을 통째로 놓친다(줄 수는 2줄로 멀쩡해 보인다).
+const FORGE_LEVELS = [1, 20, 35, '35-maxed'];
 const EPS = 0.5;   // 서브픽셀 반올림 허용치
 
 const MEASURE = `() => {
@@ -112,7 +117,8 @@ const MEASURE = `() => {
 
         for (const lv of FORGE_LEVELS) {
             await page.evaluate((lv) => {
-                S.forgeLevel = lv;
+                if (lv === '35-maxed') { S.forgeLevel = 35; Ascension.ready = () => false; }
+                else S.forgeLevel = lv;
                 S.hammers = 1e6; S.coins = 1e12; S.gems = 1e6;
                 S.bestChapter = 9; S.bestStage = 9;   // 자동🔄 해금 (isUnlocked 는 best* 를 본다)
                 UI.renderEquipSheet(); UI.renderTopbar && UI.renderTopbar();
