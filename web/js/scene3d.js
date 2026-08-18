@@ -242,6 +242,25 @@ const Scene3D = {
         }
     },
 
+    // 버섯 갓 테두리 플랩 — 중심에서 멀수록 늦게 처진다(우산 살의 2차 모션).
+    // driveJelly 와 축이 다르다: 저쪽은 **높이**, 이쪽은 **중심에서의 반지름**이 지연 파라미터다.
+    driveCapFlap(m, clk, amp, id) {
+        const F = m.anim && m.anim.capFlap;
+        if (!F) return;
+        const attr = F.mesh.geometry.attributes.position, pa = attr.array, base = F.base;
+        const ph = clk * 7 + (id || 0);                  // hop 주기(clk*7)와 맞물려야 착지에 처진다
+        // t=0(꼭지)에서 0, 테두리에서 최대. t² 로 몰아 테두리만 펄럭이게 한다.
+        const flapAt = t => Math.sin(ph - t * F.lag) * amp * t * t;
+        for (let i = 0; i < pa.length; i += 3) {
+            const t = Math.hypot(base[i], base[i + 2]) / F.rMax;
+            pa[i] = base[i]; pa[i + 2] = base[i + 2];
+            pa[i + 1] = base[i + 1] + flapAt(t);
+        }
+        attr.needsUpdate = true;
+        F.mesh.geometry.computeVertexNormals();
+        for (const q of F.parts) q.o.position.y = q.y + flapAt(q.t);
+    },
+
     setShadow(g, receive) {
         // 인버티드 헐 아웃라인 셸은 제외 — 원 메시보다 살짝 부푼 뒷면 복제라, 그림자를 던지게 두면
         // 원 메시의 섀도맵을 한 텍셀씩 밀어 접지 그림자가 이중 윤곽으로 번진다.
@@ -5715,6 +5734,25 @@ const Scene3D = {
             aoRing(0.176, 0.045, 0, -0.045, 0, { flat: 0.42, op: 0.58, parent: capG }); // r 0.208 은 갓 그늘 밖으로 4px 삐져나왔다(probe) — 줄기(r≈0.16)에 붙인다
             aoRing(0.146, 0.028, 0, 0.02, 0, { flat: 0.35, op: 0.44 });   // 밑동 접지 — 줄기 라테는 y0.02 에서 r≈0.144 다(0.158 은 후프로 4px 삐져나왔다)
             anim.cap = capG; anim.hop = true;
+            // ── 갓 테두리 플랩 (진행 메모 ⓑ '버섯은 아직 통짜') ──
+            // 지금까지 갓은 `capG.rotation.z` 로 **통째로 기울기만** 했다 — 우산 살처럼 테두리가
+            // 늘어졌다 되돌아오는 2차 모션이 없어 '딱딱한 모자'로 읽혔다. 돔 정점을 중심에서
+            // 먼 순서로 **늦게** 처지게 해(반지름 비례 위상 지연) 테두리가 펄럭이게 한다.
+            // ⚠️ 돔만 흔들면 테두리 립·주름살이 제자리에 남아 갓이 두 조각으로 갈라진다 —
+            //    같은 반지름의 플랩량을 그 부속들의 y 에도 그대로 먹인다.
+            {
+                const dp = dome.geometry.attributes.position;
+                let rMax = 0;
+                for (let i = 0; i < dp.array.length; i += 3) {
+                    const r = Math.hypot(dp.array[i], dp.array[i + 2]);
+                    if (r > rMax) rMax = r;
+                }
+                anim.capFlap = {
+                    mesh: dome, base: Float32Array.from(dp.array), rMax: rMax || 1, lag: 1.6,
+                    parts: [{ o: lip, y: lip.position.y, t: 0.29 / (rMax || 1) },
+                            { o: frill, y: frill.position.y, t: 0.24 / (rMax || 1) }],
+                };
+            }
             body = capG; topY = 0.9;
         } else if (kind === 'wolf') {
             // 사족 맹수 리그 재작성(비평가 3위 결함 '미구현 늑대'): 흉곽→골반 테이퍼 몸통 + 목/쐐기 두상 + 가슴 러프 + 2관절 다리 + 3분절 꼬리
@@ -7645,9 +7683,10 @@ const Scene3D = {
                         m.g.rotation.x = Math.sin(clk * 11 + id) * 0.03;
                         if (m.anim.tail) m.anim.tail.rotation.z = Math.sin(clk * 9 + id) * 0.25; // 질주 중 꼬리 좌우 휘날림
                     } else if (m.anim && m.anim.hop) {
-                        // 버섯: 크게 총총 + 갓 출렁
+                        // 버섯: 크게 총총 + 갓 출렁 + **테두리 플랩**(우산 살 2차 모션)
                         m.g.position.y = Math.abs(Math.sin(clk * 7 + id)) * 0.17;
                         if (m.anim.cap) m.anim.cap.rotation.z = Math.sin(clk * 7 + id) * 0.13;
+                        this.driveCapFlap(m, clk, 0.035, id);
                     } else if (m.anim && m.anim.kind === 'slime') {
                         // 슬라임: 젤리 스쿼시 점프 — 몸통 스케일을 통째로 흔들지 않고 **정점 웨이브**로 민다.
                         // (강체 스케일은 '크기가 변하는 풍선'이라 젤리로 안 읽혔다 — driveJelly 주석 참조.)
@@ -7679,6 +7718,7 @@ const Scene3D = {
                     m.g.position.y = Math.max(0, Math.sin(clk * 6 + id) * 0.04);
                     m.g.rotation.z *= 0.9;
                     if (m.anim && m.anim.jelly) this.driveJelly(m, clk, 0.06, id); // 대기 중에도 젤리는 미세하게 흔들린다
+                    if (m.anim && m.anim.capFlap) this.driveCapFlap(m, clk, 0.012, id); // 대기 중 갓 테두리 미세 호흡
                     if (m.armL) m.armL.rotation.x *= 0.9;
                     if (m.anim.bleg) m.anim.bleg.forEach(L => { L.hip.rotation.x *= 0.85; L.knee.rotation.x *= 0.85; });
                     if (m.anim.barm) m.anim.barm.forEach(A => {
