@@ -9214,7 +9214,10 @@ const Scene3D = {
         if (this.fxLayer) {
             el = document.createElement('div');
             // CSS 파일이 아니라 인라인 + WAAPI로 간다 — 이 한 요소만의 페이드라 스킨 규칙에 낄 것이 없다.
-            el.style.cssText = 'position:absolute;inset:0;background:#05070c;opacity:1;pointer-events:none';
+            // z-index 14: 사망 암전(15)과 같은 '씬 레벨' 대역이고 **모든 팝업(20+) 아래**다.
+            // 예전엔 z 를 안 줘서 auto(=형제 순서)에 맡겼는데, 그러면 #fx-layer 가 나중에 스택 문맥을
+            // 갖게 되는 순간 서열이 바뀐다 — 사망 커버와 같은 이유로 값을 못 박는다(`death-overlay-zorder`).
+            el.style.cssText = 'position:absolute;inset:0;background:#05070c;opacity:1;pointer-events:none;z-index:14';
             this.fxLayer.appendChild(el);
         }
         try {
@@ -9242,8 +9245,11 @@ const Scene3D = {
         const T = this.DEATH_FADE;
         const total = T.delay + T.fadeIn + T.hold + T.fadeOut;
         const cover = document.createElement('div');
-        // z-index 15: 게임 영역 HUD(스테이지 라벨·이정표 3·오프라인 4·스킬바 4·루트피드 4) 위,
-        // 전투 토스트(30)·보스 경고(35) 아래. fx-layer는 스태킹 컨텍스트가 아니라 이 값이 형제들과 직접 겨룬다.
+        // z-index 15: 게임 영역 HUD(스테이지 라벨·이정표 3·오프라인 4·스킬바 4·루트피드 4)와 피격
+        // 비네트(#dmg-flash 12) 위, **모든 팝업 아래**(.modal 20 · 상세 22 · 채팅/대장간 40 · 소환결과 60).
+        // fx-layer는 스태킹 컨텍스트가 아니라 이 값이 #app 안 형제들과 직접 겨룬다.
+        // 🚨 **20 이상으로 올리지 말 것** — 사용자 재지적 2026-08-19 (`death-overlay-zorder`):
+        //    "죽었습니다 검은 화면이 … 다른 팝업들을 침범. 해결." 사망 연출은 씬/배경 레벨이다.
         cover.style.cssText = 'position:absolute;inset:0;background:#05070c;opacity:0;pointer-events:none;z-index:15;'
             + 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.55rem';
         const title = document.createElement('div');
