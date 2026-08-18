@@ -141,13 +141,14 @@ const Dungeons = {
         Quests.bump('keySpend');                     // 반복 퀘스트 '던전 열쇠 사용'(클리어 소모분)
         S.dungeons.best[id] = Math.max(S.dungeons.best[id], stage);
         const r = this.grantRewards(id, stage);
-        // 수령 연출(reward-claim-fx). ⚠️ dungeon-clear-reward-popup 작업이 이 흐름을
-        // '보상 팝업 → 클릭 → 이펙트 → 복귀'로 재배치할 때 이 호출을 팝업 클릭 시점으로 옮길 것
-        UI.rewardBurst(r);
-        UI.toast(`🏆 ${this.def(id).kr} ${stage}단계 클리어! ${this.rewardText(id, stage)}`);
+        // 토스트 대신 클리어 보상 팝업 (사용자 지시 — dungeon-clear-reward-popup).
+        // 지급은 지금 즉시(팝업 도중 새로고침해도 보상이 안 사라진다), 수령 연출(rewardBurst)만
+        // 팝업 [보상 수령] 클릭 시점 — reward-claim-fx 가 여기 두었던 rewardBurst 호출을 그 시점으로 옮겼다.
+        // 본대 복귀는 팝업 확인 → UI.onDungeonClearConfirm → Combat.finishDungeonClear 순서로 이어진다.
         saveGame();
         UI.renderTopBar();
         if (r.eggCurrency) UI.renderPets(); // 침공 알 화폐 보상이 열려 있는 펫 패널(🥚 pill·[소환] 버튼)에도 즉시 반영되도록
+        UI.showDungeonClear(this.def(id), stage, r);
     },
 
     // 던전 실패 — **상태와 안내만** 담당한다. 화면(라벨·3D 테마·던전 몹·음악)을 본대로 되돌리는

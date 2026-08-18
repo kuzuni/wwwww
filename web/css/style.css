@@ -3889,6 +3889,36 @@ body {
     text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff;
 }
 .dgd-btn.silver:active { box-shadow: none; }
+
+/* ===== 던전 클리어 보상 팝업 (dungeon-clear-reward-popup) =====
+   클리어 → 이 팝업 → [보상 수령] → 아이콘이 상단 재화 바로 날아가는 수령 연출 → 본대 복귀.
+   배경 탭 닫기 없음 — 닫는 경로가 버튼 하나여야 Combat.finishDungeonClear가 반드시 거쳐진다. */
+.dgclear-card { width: 72%; gap: .55rem; border-color: #ffd54f; }
+.dgclear-title {
+    font-size: 1.7rem; font-weight: 900; color: #ffd54f; letter-spacing: .06em;
+    text-shadow: 0 2px 0 #b8860b, 0 4px 10px rgba(0,0,0,.55);
+}
+.dgclear-sub { font-size: .95rem; font-weight: 700; color: #b0bec5; }
+.dgclear-sub .ico { width: 1.4em; height: 1.4em; margin: -.35em .3em -.35em 0; }
+.dgclear-rewards { display: flex; justify-content: center; gap: .6rem; margin: .45rem 0 .3rem; flex-wrap: wrap; }
+.dgc-cell {
+    display: flex; flex-direction: column; align-items: center; gap: .3rem;
+    background: #242b33; border: 2px solid #3a434e; border-radius: .7rem;
+    padding: .6rem .75rem; min-width: 4.3rem;
+    animation: dgc-pop .38s cubic-bezier(.34,1.56,.64,1) backwards; /* 칸이 통통 튀며 순서대로 등장 */
+}
+.dgc-cell:nth-child(2) { animation-delay: .09s; }
+.dgc-cell:nth-child(3) { animation-delay: .18s; }
+@keyframes dgc-pop { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
+.dgc-ico .ico { width: 2.1rem; height: 2.1rem; }
+.dgc-amt { font-weight: 800; font-size: .95rem; color: #ffe082; }
+.dgclear-btn { margin-top: .3rem; min-height: 3rem; font-size: 1.02rem; }
+/* [보상 수령] 후: 카드는 한 박자 뒤 가라앉고, 딤도 함께 걷혀 복귀할 화면이 미리 비친다.
+   날아가는 아이콘·착탄 박동은 공통 수령 연출(#reward-burst, reward-claim-fx)이 담당한다. */
+.dgclear-card.leaving { animation: dgclear-sink .45s ease-in .12s forwards; }
+@keyframes dgclear-sink { to { transform: scale(.9); opacity: 0; } }
+.modal.dgclear-out { transition: background .55s ease; background: rgba(0,0,0,0); }
+
 #panel-summon > .summon-sub { position: relative; } /* 분기 상세 ⓘ 절대배치 기준 */
 
 /* ===== 펫 상세 팝업 (shot-042449 원본 대조 재작업) =====

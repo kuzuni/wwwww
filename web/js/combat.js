@@ -180,8 +180,9 @@ const Combat = {
     // ---- 메인 틱 ----
     tick(dt) {
         // 걷기 상태: 전투 중이 아니거나 적이 없으면 행군 (무한맵 스크롤)
-        // 보스 경고 중에는 행군을 멈춘다 — 연출이 지목한 착지 지점(worldX 기준)이 흘러가면 안 된다
-        Scene3D.walking = this.phase !== 'bossWarn' && (this.phase !== 'fight' || !this.aliveEnemies().length);
+        // 보스 경고 중에는 행군을 멈춘다 — 연출이 지목한 착지 지점(worldX 기준)이 흘러가면 안 된다.
+        // 던전 클리어 팝업 대기 중에도 멈춘다 — 팝업 뒤에서 영웅이 하염없이 행군하면 '클리어하고 서 있다'로 안 읽힌다.
+        Scene3D.walking = this.phase !== 'bossWarn' && this.phase !== 'dungeonClear' && (this.phase !== 'fight' || !this.aliveEnemies().length);
         // 지연 큐
         for (let i = this.pending.length - 1; i >= 0; i--) {
             this.pending[i].t -= dt;
@@ -378,9 +379,13 @@ const Combat = {
 
     stageClear() {
         if (Dungeons.run) {
+            // 클리어 → 보상 팝업(Dungeons.onClear가 띄운다) → [보상 수령] 클릭 → 수령 연출 →
+            // finishDungeonClear()가 본대 복귀를 마저 돈다 (dungeon-clear-reward-popup, 사용자 지시).
+            // 예전의 stageDelay 2.2초 자동 진행은 팝업을 읽기도 전에 화면을 본대로 넘겨 버린다 —
+            // 'dungeonClear' 페이즈는 타이머가 없어 팝업을 닫을 때까지 전투 루프가 조용히 대기한다.
             Dungeons.onClear();
-            this.phase = 'stageDelay';
-            this.phaseTimer = 2.2;
+            this.phase = 'dungeonClear';
+            this.phaseTimer = 0;
             return;
         }
         const key = stageKey();
@@ -436,6 +441,16 @@ const Combat = {
         const toCamp = () => { Scene3D.setChapterTheme(S.chapter); UI.updateStageLabel(); UI.updateWavePips(0); };
         if (Scene3D.scene) Scene3D.sceneCut(toCamp);
         else toCamp();
+    },
+
+    // 던전 클리어 팝업의 [보상 수령] 연출이 끝난 뒤 본대 복귀의 나머지 절반 (dungeon-clear-reward-popup).
+    // 실패 경로(onDefeat)와 같은 규약 — leaveDungeon의 sceneCut 한 컷에 배경·라벨·pip이 같이 넘어간다.
+    // 호출 시점 전제: Dungeons.run은 이미 null (onClear가 비웠다).
+    finishDungeonClear() {
+        if (this.phase !== 'dungeonClear') return; // 팝업 더블클릭 등 뒤늦은/중복 호출 가드
+        this.leaveDungeon();
+        this.phase = 'stageDelay';
+        this.phaseTimer = 0.8; // 행군 한 박자 뒤 setupStage → 본대 스테이지 재시작
     },
 
     onDefeat() {

@@ -574,6 +574,7 @@ const UI = {
             petsPanel: $('panel-pets'), skillsPanel: $('panel-skills'), techPanel: $('panel-tech'),
             craftModal: $('craft-modal'), offlineModal: $('offline-modal'),
             dungeonModal: $('dungeon-modal'), dungeonDetailModal: $('dungeon-detail-modal'),
+            dungeonClearModal: $('dungeon-clear-modal'),
             mountModal: $('mount-modal'), mountUpgradeModal: $('mount-upgrade-modal'), ascendModal: $('ascend-modal'),
             stubModal: $('stub-modal'),
             forgeInfoModal: $('forge-info-modal'), forgeItemModal: $('forge-item-modal'),
@@ -3575,6 +3576,47 @@ const UI = {
     onEnterDungeon(id, stage) {
         if (Dungeons.enter(id, stage)) { this.closeDungeonDetail(); this.closeDungeons(); this.updateStageLabel(); this.renderTopBar(); }
         else this.renderDungeonDetail(); // 실패 사유 토스트 후 갱신
+    },
+
+    // ---- 던전 클리어 보상 팝업 (dungeon-clear-reward-popup, 사용자 지시 2026-08-18) ----
+    // 흐름: Combat.stageClear(phase='dungeonClear' 대기) → Dungeons.onClear → 여기(팝업) →
+    //       [보상 수령] 클릭 → 공통 수령 연출(rewardBurst) → Combat.finishDungeonClear(본대 복귀).
+    // 보상 자체는 onClear가 이미 지급·저장했다 — 팝업 도중 새로고침해도 보상이 안 사라지고,
+    // 그 경우 run=null 저장본으로 본대에서 정상 부팅한다(팝업만 안 뜬 채 복귀가 끝난 상태).
+    showDungeonClear(def, stage, rewards) {
+        const cells = Object.entries(rewards || {}).filter(([, v]) => Math.floor(Number(v) || 0) > 0).map(([k, v]) =>
+            `<div class="dgc-cell"><span class="dgc-ico">${this.curIcon(k) || IconGen.img('coin')}</span><span class="dgc-amt">+${U.fmt(v)}</span></div>`
+        ).join('');
+        this._dgclearRewards = rewards;   // [보상 수령] 클릭 시 rewardBurst 에 넘길 지급 목록
+        this._dgclearBusy = false;
+        this.els.dungeonClearModal.classList.remove('dgclear-out'); // 직전 판 수령 연출의 딤 페이드 잔상 제거
+        this.els.dungeonClearModal.innerHTML = `
+            <div class="modal-card dgclear-card">
+                <div class="dgclear-title">클리어!</div>
+                <div class="dgclear-sub">${this.dgIcon(def)} ${U.escapeHtml(def.kr)} ${stage}단계</div>
+                <div class="dgclear-rewards">${cells}</div>
+                <button class="btn primary dgclear-btn" onclick="UI.onDungeonClearConfirm()">보상 수령</button>
+            </div>`;
+        this.showModal(this.els.dungeonClearModal);
+        SFX.levelUp(); // 클리어 팬페어
+    },
+    onDungeonClearConfirm() {
+        if (this._dgclearBusy) return; // 연출 중 재클릭 방지 — finishDungeonClear가 두 번 불리면 안 된다
+        this._dgclearBusy = true;
+        const modal = this.els.dungeonClearModal;
+        const card = modal.querySelector('.dgclear-card');
+        // 수령 연출 = 공통 rewardBurst(reward-claim-fx) 한 벌 — 버튼에서 터져 상단 재화 바로 흡수된다.
+        // 수령 차임도 rewardBurst 가 울린다(여기서 또 울리면 이중 재생). #reward-burst 레이어는 모달
+        // 밖(#app 직속)이라 아래에서 팝업을 닫고 씬이 본대로 컷돼도 흡수 잔여 연출이 자연스럽게 이어진다.
+        this.rewardBurst(this._dgclearRewards, { from: modal.querySelector('.dgclear-btn') || card });
+        if (card) card.classList.add('leaving'); // 카드는 한 박자 뒤 가라앉는다 (CSS 딜레이)
+        modal.classList.add('dgclear-out');      // 딤도 함께 걷힌다 — 복귀할 화면이 미리 비치게
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('dgclear-out');
+            this._dgclearBusy = false;
+            Combat.finishDungeonClear();
+        }, 700); // 카드 침강(딜레이 .12s + .45s)이 끝난 직후 — 연출을 다 기다리면 복귀가 굼떠진다
     },
     onSweepDungeon(id) {
         // 소탕 성공 시 열쇠가 줄어드는데, 상세 팝업 뒤에 계속 열려 있는 던전 목록(🔑 개수 표시)도 함께 갱신해야 함
