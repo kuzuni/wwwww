@@ -3005,6 +3005,11 @@ body {
 /* ---- 스킬 화면 (UI-SPEC 8·11·14번): 5열 원형 아이콘 그리드 ---- */
 .sheet-head { display: flex; align-items: center; gap: .5rem; position: relative; }
 .sheet-head .sheet-title { flex: 1; }
+/* 상점(042632) 원본 실측: 재화 pill 이 화면 양끝이 아니라 **고정 열**에 앉는다 — 코인 pill 좌단
+   ~8.8%W(크라운 아이콘 x48=9.6%W), 젬 pill 좌단 68.4%W(아이콘 x342, 우단 x433=86.6%W).
+   클론은 시트 패딩만큼 양끝 밀착이라 우측이 ~10%p 벗어났다(채점 1라운드 A·B 공통 지적). */
+.shop-sheet .sheet-head { padding-left: calc(var(--app-w) * .088 - .55rem); }
+.shop-sheet .sheet-head .cur-pill.gem { position: absolute; left: calc(var(--app-w) * .684 - .55rem); }
 .cur-pill {
     background: #2b2b2b; color: #fff; border: var(--ol3) solid var(--pp-line); border-radius: 1rem;
     padding: .12rem .55rem; font-size: .78rem; font-weight: 800; white-space: nowrap;
