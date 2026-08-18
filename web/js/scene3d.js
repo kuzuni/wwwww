@@ -5926,11 +5926,17 @@ const Scene3D = {
             const skinM = lam(base, ProChar.hideTex());
             const skinD = lam(base.clone().offsetHSL(0, 0, -0.12), ProChar.hideTex());
             const clothM = lam(new THREE.Color(0x99442e), ProChar.leatherTex()); // 러스트 레드 — 초원 배경 보호색 탈피 악센트 (비평가 지적)
+            // 몸·머리·턱·배·관절·손발이 전부 완전구였다(ⓒ). 살이라 골렘의 각진 자가 아니라 유기 변형을 건다.
+            // ⚠️ seed 를 `base + s * k`(s = -1/1) 로 짓지 말 것 — 서로 다른 파츠가 같은 값에 떨어진다.
+            //    실측: 어깨(78-5)·팔꿈치(82-9)·손(86-13)이 셋 다 73 이 돼 개체차 0.0061 로 반려됐다.
+            //    ⚠️ 좌우를 base/base+1 로 붙여 두는 것도 부족했다(0.0113) — s0 = seed*2.3391 이라
+            //       인접 seed 는 위상이 비슷하다. 파츠마다 **7 이상 벌린** 값을 쓴다.
+            const oSp = (r, w, h, seed, amp) => this.sculptOrganic(new THREE.SphereGeometry(r, w, h), seed, { amp });
             // 분절 다리: 대퇴 → 무릎 → 정강이 → 발
             for (const s of [-1, 1]) {
                 const hip = new THREE.Group();
                 hip.position.set(s * 0.12, 0.42, 0);
-                const hJ = mk(new THREE.SphereGeometry(0.065, 8, 6), skinM); // 고관절 구 — 걷기 스윙 시 몸통-다리 이음새 은폐
+                const hJ = mk(oSp(0.065, 8, 6, s > 0 ? 60 : 67, 0.09), skinM); // 고관절 구 — 걷기 스윙 시 몸통-다리 이음새 은폐
                 hip.add(hJ);
                 const thigh = limb(0.062, 0.05, 0.18, skinM);
                 thigh.rotation.x = -0.3; // 웅크린 자세
@@ -5938,7 +5944,7 @@ const Scene3D = {
                 knee.position.set(0, -0.16, 0.06);
                 const shin = limb(0.045, 0.04, 0.17, skinD);
                 shin.rotation.x = 0.35;
-                const foot = mk(new THREE.SphereGeometry(0.055, 8, 6), skinM);
+                const foot = mk(oSp(0.055, 8, 6, s > 0 ? 74 : 81, 0.10), skinM);
                 foot.position.set(0, -0.17, 0.07); foot.scale.set(0.8, 0.5, 1.7);
                 knee.add(shin, foot);
                 hip.add(thigh, knee);
@@ -5948,9 +5954,9 @@ const Scene3D = {
                 g.add(hip);
             }
             // 서양배 몸통 (앞으로 굽음) + 로인클로스 + 로프 벨트
-            body = mk(new THREE.SphereGeometry(0.24, 12, 10), skinM);
+            body = mk(oSp(0.24, 12, 10, 88, 0.10), skinM);
             body.position.set(0, 0.62, 0.02); body.scale.set(1, 1.12, 0.92); body.rotation.x = 0.22;
-            const belly = mk(new THREE.SphereGeometry(0.17, 10, 8), light);
+            const belly = mk(oSp(0.17, 10, 8, 95, 0.09), light);
             belly.position.set(0, 0.55, 0.14); belly.scale.set(1, 1.1, 0.55);
             const cloth = mk(new THREE.CylinderGeometry(0.2, 0.26, 0.14, 10, 1, true), clothM);
             cloth.material.side = THREE.DoubleSide;
@@ -5982,12 +5988,12 @@ const Scene3D = {
             }
             g.add(body, belly, cloth, rope, strap, neckG);
             // 머리: 큰 두상 + 대형 뾰족귀(안쪽 어두운 이중판) + 매부리코 + 언더바이트 송곳니
-            const head = mk(new THREE.SphereGeometry(0.21, 12, 10), skinM);
+            const head = mk(oSp(0.21, 12, 10, 102, 0.07), skinM);   // 눈·귀가 상대 배치라 진폭을 낮게
             head.position.set(0, 0.95, 0.08); head.scale.set(1, 0.95, 0.95);
             // 턱 그룹 — 언더바이트를 앞으로 빼(두상 구에 파묻히던 문제) 송곳니를 턱에 직접 앵커 (비평가: 이빨 부유)
             const jawG = new THREE.Group();
             jawG.position.set(0, 0.845, 0.19);
-            const jaw = mk(new THREE.SphereGeometry(0.13, 10, 8), skinD);
+            const jaw = mk(oSp(0.13, 10, 8, 109, 0.09), skinD);
             jaw.scale.set(1.15, 0.55, 0.9);
             jawG.add(jaw);
             const mouthLine = mk(new THREE.SphereGeometry(0.055, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2e1c14 })); // 벌린 입 다크 심 — 입 위치 실종 지적 (비평가)
@@ -6023,18 +6029,18 @@ const Scene3D = {
             for (const s of [-1, 1]) {
                 const sh = new THREE.Group();
                 sh.position.set(s * 0.25, 0.78, 0.02);
-                const sJ = mk(new THREE.SphereGeometry(0.055, 8, 6), skinM); // 어깨 관절 구 — 팔 스윙 시 이음새 은폐
+                const sJ = mk(oSp(0.055, 8, 6, s > 0 ? 116 : 123, 0.09), skinM); // 어깨 관절 구 — 팔 스윙 시 이음새 은폐
                 sh.add(sJ);
                 const upper = limb(0.05, 0.042, 0.17, skinM);
                 upper.rotation.z = s * 0.25;
                 const elbow = new THREE.Group();
                 elbow.position.set(s * 0.05, -0.17, 0);
-                const eJ = mk(new THREE.SphereGeometry(0.042, 7, 5), skinM); // 팔꿈치 관절 구 — 굽힘 이음새 은폐
+                const eJ = mk(oSp(0.042, 7, 5, s > 0 ? 130 : 137, 0.09), skinM); // 팔꿈치 관절 구 — 굽힘 이음새 은폐
                 elbow.add(eJ);
                 const fore = limb(0.04, 0.036, 0.15, skinD);
                 const wristBand = mk(new THREE.CylinderGeometry(0.041, 0.041, 0.05, 8), clothM); // 손목 랩 악센트
                 wristBand.position.y = -0.12;
-                const hand = mk(new THREE.SphereGeometry(0.062, 8, 6), skinM); // 큼직한 주먹 — 국수 가락 팔 끝 오독 방지
+                const hand = mk(oSp(0.062, 8, 6, s > 0 ? 144 : 151, 0.11), skinM); // 큼직한 주먹 — 국수 가락 팔 끝 오독 방지
                 hand.position.y = -0.16; hand.scale.set(1, 0.85, 1.1);
                 elbow.add(fore, wristBand, hand);
                 if (s > 0) { // 가시 몽둥이 — 주먹 중심을 자루가 관통하도록 (손목 옆 부유 금지)
@@ -6290,6 +6296,8 @@ const Scene3D = {
             const skinM = lam(base, ProChar.hideTex());
             const skinD = lam(base.clone().offsetHSL(0, 0, -0.12), ProChar.hideTex());
             const boneM = new THREE.MeshLambertMaterial({ color: 0xf3ead6 });
+            // 몸·머리·배·관절·손이 전부 완전구였다(ⓒ). 살이라 유기 변형을 건다(뿔·발굽 Cone 은 뾰족함이 정답이라 그대로).
+            const oSp = (r, w, h, seed, amp) => this.sculptOrganic(new THREE.SphereGeometry(r, w, h), seed, { amp });
             // 디지타이그레이드 다리: 대퇴 → 역관절 정강이 → 발굽
             for (const s of [-1, 1]) {
                 const hip = new THREE.Group();
@@ -6308,13 +6316,13 @@ const Scene3D = {
                 g.add(hip);
             }
             // 몸통 캡슐 + 밝은 배 패치
-            body = mk(new THREE.SphereGeometry(0.15, 10, 8), skinM);
+            body = mk(oSp(0.15, 10, 8, 90, 0.10), skinM);
             body.position.y = 0.4; body.scale.set(1, 1.25, 0.9);
-            const belly = mk(new THREE.SphereGeometry(0.1, 8, 6), light);
+            const belly = mk(oSp(0.1, 8, 6, 93, 0.09), light);
             belly.position.set(0, 0.36, 0.09); belly.scale.set(1, 1.25, 0.5);
             g.add(body, belly);
             // 머리 + 곡선 2단 뿔 + 뾰족귀
-            const head = mk(new THREE.SphereGeometry(0.125, 10, 8), skinM);
+            const head = mk(oSp(0.125, 10, 8, 96, 0.07), skinM);   // 뿔·눈이 상대 배치라 진폭을 낮게
             head.position.y = 0.63;
             g.add(head);
             for (const s of [-1, 1]) {
@@ -6366,10 +6374,10 @@ const Scene3D = {
                 upper.rotation.z = s * 0.4;
                 const elbow = new THREE.Group();
                 elbow.position.set(s * 0.04, -0.1, 0);
-                const eJ = mk(new THREE.SphereGeometry(0.026, 7, 5), skinM); // 팔꿈치 관절 구 — 굽힘 이음새 은폐
+                const eJ = mk(oSp(0.026, 7, 5, 99 + s * 4, 0.09), skinM); // 팔꿈치 관절 구 — 굽힘 이음새 은폐
                 elbow.add(eJ);
                 const fore = limb(0.024, 0.02, 0.09, skinD);
-                const hand = mk(new THREE.SphereGeometry(0.036, 7, 5), skinM);
+                const hand = mk(oSp(0.036, 7, 5, 104 + s * 6, 0.11), skinM);
                 hand.position.y = -0.1;
                 elbow.add(fore, hand);
                 for (let ci = 0; ci < 3; ci++) { // 갈퀴 발톱 — '손 없는 캡슐' 오독 제거

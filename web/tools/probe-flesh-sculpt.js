@@ -1,4 +1,4 @@
-// 살·털 종 조형(ⓒ 유기 변형) 실측 — 사용: node probe-flesh-sculpt.js
+// 살·털 종 조형(ⓒ 유기 변형) 실측 — 사용: node probe-flesh-sculpt.js [종...]  (기본: 늑대·고블린·임프)
 // TODO '적 몬스터 퀄리티 업'(slug: enemy-quality) ⓒ 의 골렘 이후 분. 골렘은 `boulderGeo` 로 **각지게**
 // 깎았지만 늑대·고블린·임프는 살이라 같은 자를 대면 '수정 늑대'가 된다 — `Scene3D.sculptOrganic` 은
 // 저주파·저진폭으로 **부드럽게** 윤곽만 깬다. 그래서 게이트도 golem 쪽(probe-golem-bevel)과 다르다.
@@ -20,14 +20,14 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 const CV_MIN = 0.022;    // 완전구는 0. 유기 변형은 골렘(0.055)보다 약하게 거는 게 의도다.
 const SMOOTH_MAX = 34;   // 이웃 면 법선각 평균 상한(도) — 넘으면 결정처럼 각졌다는 뜻
 const DIFF_MIN = 0.015;  // 파츠 간 정규화 반경 RMS 차
+const KINDS = process.argv.slice(2).length ? process.argv.slice(2) : ['wolf', 'goblin', 'imp'];
 
-(async () => {
-    const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
+const runKind = async (browser, KIND) => {
     const page = await browser.newPage({ viewport: { width: 480, height: 854 } });
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-    await page.goto(INDEX + '?enemy=wolf', { waitUntil: 'load' });
+    await page.goto(INDEX + '?enemy=' + KIND, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.scene, null, { timeout: 60000 });
     await page.waitForTimeout(1200);
 
@@ -165,8 +165,9 @@ const DIFF_MIN = 0.015;  // 파츠 간 정규화 반경 RMS 차
         return out;
     });
 
+    await page.close();
     const fails = [];
-    console.log(`늑대 구 유래 덩어리 ${res.nSphere}개 · 공용 캡슐 캡 ${res.nCapsule}개(게이트 제외)`);
+    console.log(`\n[${KIND}] 구 유래 덩어리 ${res.nSphere}개 · 공용 캡슐 캡 ${res.nCapsule}개(게이트 제외)`);
 
     const cvs = res.masses.map(m => m.cv);
     const minCv = Math.min(...cvs);
@@ -191,7 +192,14 @@ const DIFF_MIN = 0.015;  // 파츠 간 정규화 반경 RMS 차
     if (errors.length) fails.push(`콘솔 에러 ${errors.length}건: ${errors.slice(0, 3).join(' | ')}`);
     console.log(`콘솔 에러 ${errors.length}건`);
 
+    return fails.map(f => `[${KIND}] ${f}`);
+};
+
+(async () => {
+    const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
+    let all = [];
+    for (const k of KINDS) all = all.concat(await runKind(browser, k));
     await browser.close();
-    if (fails.length) { console.log('\nFAIL:\n - ' + fails.join('\n - ')); process.exit(1); }
-    console.log('\n전부 PASS');
+    if (all.length) { console.log('\nFAIL:\n - ' + all.join('\n - ')); process.exit(1); }
+    console.log(`\n${KINDS.length}종 전부 PASS`);
 })();
