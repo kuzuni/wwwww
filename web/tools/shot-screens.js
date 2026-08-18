@@ -188,7 +188,7 @@ const SEED = () => {
             // screenshot 내부의 폰트 대기는 조절할 수 없으므로 document.fonts.ready 를 먼저 상한을 걸어 소화하고
             // (여기서 안 끝나도 렌더는 폴백 폰트로 정상), screenshot 자체 타임아웃도 올린다.
             await page.evaluate(() => Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))])).catch(() => { });
-            await page.screenshot({ path: path.join(OUT, name + '.png'), timeout: 60000 });
+            await page.screenshot({ path: path.join(OUT, name + '.png'), timeout: 180000 });   // 병렬 세션이 많으면 60s 도 터진다(pass 캡처 실패 사례)
             done.push(name + (ref ? '←' + ref : ''));
         } catch (e) {
             errors.push('SCREEN ' + name + ': ' + e.message);

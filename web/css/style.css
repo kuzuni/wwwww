@@ -1803,18 +1803,23 @@ body {
 }
 .pass-row { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; padding: 0 .1rem .2rem; }
 /* 원본(shot-042705): 트랙은 흰 배경, 미도달·프리미엄 칸=다크 남색, 도달한 무료 칸=흰 카드+회색 pill 보상 */
+/* 원본(shot-042705) 트랙 색 실측 — tools/probe-tone.js 로 뽑았다(눈대중 금지):
+   · 미도달 무료 칸 · 프리미엄 칸 = **#0e111b/#0b0e16** 어두운 남색 (클론 #171b2e 는 더 밝고 푸르다)
+   · 수령한 무료 칸 = 카드 **#afafaf** · 안쪽 보상 pill **#8c8c8c** (클론 #dcdcdc/#a8a8a8 은 45·28단계 밝다)
+   · 원본 트랙에는 **흰 칸이 하나도 없다** — 클론의 '도달했지만 미수령' 흰 칸은 원본 팔레트 밖이라
+     수령 칸과 같은 회색으로 맞추고, 구분은 원본대로 초록 ✓ 유무로만 준다. */
 .pass-cell {
-    position: relative; background: #171b2e; border: var(--ol3) solid var(--pp-line); border-radius: .6rem;
+    position: relative; background: #0e111b; border: var(--ol3) solid var(--pp-line); border-radius: .6rem;
     padding: .4rem .5rem; display: flex; flex-direction: column; gap: .18rem; font-size: .8rem; font-weight: 800;
     color: #fff; cursor: default; text-align: left;
 }
-.pass-cell.free.lit { background: #fff; color: var(--pp-ink); }
+.pass-cell.free.lit { background: #afafaf; color: var(--pp-ink); }
 .pass-cell.free.lit span:not(.pass-badge) {
-    background: #b9b9b9; border-radius: 1rem; padding: .1rem .6rem; font-weight: 900; width: 85%;
+    background: #8c8c8c; border-radius: 1rem; padding: .1rem .6rem; font-weight: 900; width: 85%;
 }
 .pass-cell.free.claimable { cursor: pointer; }
-.pass-cell.free.done { background: #dcdcdc; }
-.pass-cell.free.done span:not(.pass-badge) { background: #a8a8a8; }
+.pass-cell.free.done { background: #afafaf; }
+.pass-cell.free.done span:not(.pass-badge) { background: #8c8c8c; }
 .pass-cell.premium.lit { cursor: pointer; }
 .pass-badge {
     position: absolute; display: flex; align-items: center; justify-content: center;
