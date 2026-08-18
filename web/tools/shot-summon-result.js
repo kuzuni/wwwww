@@ -20,6 +20,20 @@ const SEED = `
 `;
 const FREEZE_3D = `Scene3D.update = function () {};`;
 
+// 뽑기 결과를 재현 가능하게 고정한다 — 예전에는 `S.summonCount = 5000`으로 확률만 올려 놓고
+// 실제 등급은 Math.random에 맡겼다. 그래서 같은 케이스가 실행할 때마다 다른 등급을 뽑아
+// **주역(전설↑) 단독 행·신화 착지 비트가 뜨는 회차와 안 뜨는 회차가 갈렸다** — 회차 간
+// 채점을 비교할 수 없고, '주역 행이 사라졌다'는 회귀 오판까지 났다(실제로 9차에서 났다).
+// mulberry32를 Math.random에 심어 케이스마다 고정 시드를 준다. 아래 시드는 탐색으로 고른 값:
+//   14 → x5가 [희귀한·서사시·전설·궁극의·신화] 등급 사다리 (금속/유리/보석 3재질 전부)
+//    9 → 탈것 x1 단독 신화        3 → x75 18종 전 등급 분포
+const RNG = seed => `(() => { let a = ${seed} >>> 0; Math.random = function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+}; })()`;
+
 // 연출을 절대 시각 T(ms)로 세운다 — 셀 등장은 클래스로, CSS 애니메이션은 currentTime으로.
 // 셀 애니메이션은 그 셀이 뜬 시각(_srDelays[i])이 원점이므로 그만큼 빼 준다.
 const SEEK = `(T => {
@@ -58,29 +72,29 @@ const SEEK = `(T => {
     }
 })`;
 
-// [이름, 소환 실행 소스, 연속 캡처할 시각(ms)]
+// [이름, 소환 실행 소스, 연속 캡처할 시각(ms), RNG 시드]
 const CASES = [
     ['skill-x5', `S.summonMult = {skill:5}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`,
-        [120, 380, 620, 900, 1400, 3400]],
-    ['pet-x5', `S.summonMult = {pet:5}; UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.onSummonPetEgg();`, [900, 3400]],
-    ['mount-x5', `S.summonMult = {mount:5}; UI.openMounts(); UI.onSummonMount();`, [900, 3400]],
-    ['skill-x1', `S.summonMult = {skill:1}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, [900, 3400]],
-    ['skill-x75', `S.summonMult = {skill:75}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, [900, 3400]],
-    // 고등급 광채/광선 확인 — 소환 레벨을 만렙으로 올려 전설 이상이 나오게 한다
-    ['skill-x5-hi', `S.summonCount = 5000; S.summonMult = {skill:5}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, [1400, 3400]],
-    ['mount-x1-hi', `S.mountOpens = 5000; S.summonMult = {mount:1}; UI.openMounts(); UI.onSummonMount();`, [1400, 3400]],
+        [120, 380, 620, 900, 1400, 3400], 7],
+    ['pet-x5', `S.summonMult = {pet:5}; UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.onSummonPetEgg();`, [900, 3400], 7],
+    ['mount-x5', `S.summonMult = {mount:5}; UI.openMounts(); UI.onSummonMount();`, [900, 3400], 7],
+    ['skill-x1', `S.summonMult = {skill:1}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, [900, 3400], 7],
+    ['skill-x75', `S.summonMult = {skill:75}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, [900, 3400], 7],
+    // 고등급 광채/광선 확인 — 소환 레벨을 만렙으로 올리고 시드를 고정해 매 회차 같은 등급이 나오게 한다
+    ['skill-x5-hi', `S.summonCount = 5000; S.summonMult = {skill:5}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, [1400, 3400], 14],
+    ['mount-x1-hi', `S.mountOpens = 5000; S.summonMult = {mount:1}; UI.openMounts(); UI.onSummonMount();`, [1400, 3400], 9],
 ];
 
-// 연속 프레임으로 훑을 케이스 — [이름, 소환 소스, 프레임 간격, 마지막 시각]
+// 연속 프레임으로 훑을 케이스 — [이름, 소환 소스, 프레임 간격, 마지막 시각, RNG 시드]
 const TIMELINES = [
-    ['tl-x5-hi', `S.summonCount = 5000; S.summonMult = {skill:5}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, 60, 2760],
-    ['tl-x75', `S.summonCount = 5000; S.summonMult = {skill:75}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, 90, 3060],
+    ['tl-x5-hi', `S.summonCount = 5000; S.summonMult = {skill:5}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, 60, 2760, 14],
+    ['tl-x75', `S.summonCount = 5000; S.summonMult = {skill:75}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, 90, 3060, 3],
 ];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
     const errors = [];
-    const newPage = async (tag) => {
+    const newPage = async (tag, seed) => {
         const page = await browser.newPage({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1 });
         page.on('pageerror', e => errors.push(`${tag} PAGEERROR ${e}`));
         page.on('console', m => { if (m.type() === 'error') errors.push(`${tag} CONSOLE ${m.text()}`); });
@@ -92,10 +106,12 @@ const TIMELINES = [
         return page;
     };
 
-    for (const [name, open, times] of CASES) {
-        const page = await newPage(name);
+    for (const [name, open, times, seed] of CASES) {
+        const page = await newPage(name, seed);
         const t0 = Date.now();
-        await page.evaluate(open);
+        // ⚠️ 시드 주입과 소환 실행은 **한 evaluate 안**에 있어야 한다 — 따로 부르면 그 사이
+        // 게임 루프(챗봇·전투 틱)가 난수를 먹어 같은 시드가 회차마다 다른 등급을 낸다.
+        await page.evaluate((seed ? RNG(seed) + ';' : '') + open);
         for (const t of times) {
             const wait = t - (Date.now() - t0);
             if (wait > 0) await page.waitForTimeout(wait);
@@ -116,6 +132,7 @@ const TIMELINES = [
                 cols: m.querySelector('.sr-body > .sr-grid').style.getPropertyValue('--cols'),
                 rows: Object.values(rows),
                 mats: [...new Set(cells.map(c => c.dataset.mat))],
+                tiers: cells.map(c => +c.dataset.tier), // 시드 고정 여부를 회차마다 눈으로 확인
                 okVisible: !!(ok && ok.offsetParent !== null),
                 okRect: ok ? ok.getBoundingClientRect().toJSON() : null,
                 appRect: document.getElementById('app').getBoundingClientRect().toJSON(),
@@ -131,11 +148,11 @@ const TIMELINES = [
 
     // 연속 프레임 — 연출을 ms 단위로 세워 놓고 훑는다. 실시간 캡처는 스크린샷 한 장이
     // 연출보다 오래 걸려 중간 프레임을 놓치므로 타임라인을 직접 감는다.
-    for (const [name, open, step, end] of TIMELINES) {
+    for (const [name, open, step, end, seed] of TIMELINES) {
         const dir = path.join(OUT, name);
         fs.mkdirSync(dir, { recursive: true });
-        const page = await newPage(name);
-        await page.evaluate(open);
+        const page = await newPage(name, seed);
+        await page.evaluate((seed ? RNG(seed) + ';' : '') + open);
         await page.evaluate(`UI.clearSummonTimers()`);
         for (let t = 0; t <= end; t += step) {
             await page.evaluate(`(${SEEK})(${t})`);
