@@ -44,7 +44,8 @@ async function recordTimeline(page, trigger, ms = 2200) {
                 t: Math.round(performance.now()),
                 striking: !!document.querySelector('.anvil-btn.striking'),
                 card: !!card,
-                cardBox: r ? { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) } : null,
+                // rect는 crpop 첫 프레임 scale(.62)이 섞이므로, 크기 판정용으로 변환 무관한 레이아웃 크기(lw/lh)도 같이 기록
+                cardBox: r ? { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), lw: card.offsetWidth, lh: card.offsetHeight } : null,
                 modal: !!(UI.els.craftModal && !UI.els.craftModal.classList.contains('hidden')),
             });
         }, 16);
@@ -112,7 +113,8 @@ async function recordTimeline(page, trigger, ms = 2200) {
             return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
         });
         if (b && anvil) {
-            ok(b.w > 40 && b.h > 20, `⑷ 카드 크기가 비정상 (${b.w}x${b.h})`);
+            // craft-card-slot-look(2026-08-18): 카드는 장비 슬롯 룩의 정사각(3.7rem)이다 — 레이아웃 크기로 판정
+            ok(b.lw > 40 && b.lh > 40 && Math.abs(b.lw - b.lh) <= 2, `⑷ 카드가 슬롯형 정사각이 아니다 (${b.lw}x${b.lh})`);
             ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= 430 && b.y + b.h <= 932, `⑷ 카드가 화면 밖 (${JSON.stringify(b)})`);
             ok(b.y + b.h <= anvil.y + anvil.h, `⑷ 카드가 모루 위쪽이 아니다 (card.bottom=${b.y + b.h}, anvil.bottom=${anvil.y + anvil.h})`);
         } else ok(false, '⑷ 카드/모루 박스를 못 읽었다');
