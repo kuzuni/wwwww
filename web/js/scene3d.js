@@ -7553,16 +7553,7 @@ const Scene3D = {
         } else if (fx === 'bolt') {
             targets.forEach(m => {
                 const p = m.g.position.clone();
-                const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.24, 7, 6), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 }));
-                bolt.position.set(p.x, 3.5, p.z);
-                const core = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.09, 7, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 }));
-                core.position.copy(bolt.position);
-                this.scene.add(bolt, core);
-                this.addAnim(0.3, k => {
-                    bolt.material.opacity = 1 - k;
-                    core.material.opacity = 1 - k;
-                    bolt.scale.x = bolt.scale.z = 1 + k * 1.5;
-                }, () => { this.disposeTree(bolt); this.disposeTree(core); this.scene.remove(bolt); this.scene.remove(core); });
+                this.lightningBolt(new THREE.Vector3(p.x, 6.2, p.z), new THREE.Vector3(p.x, p.y + 0.45, p.z), color, tier || 0);
                 this.explosion(p, color);
             });
         } else if (fx === 'slash') {
@@ -7583,6 +7574,62 @@ const Scene3D = {
             this.expandRing(this.heroG.position.clone(), color, 1.2);
             this.flashLight(this.heroG.position, color.getHex(), 0.4);
         }
+    },
+
+    // 지그재그 번개 볼트 (항목 ㉰: 번개류=지그재그 볼트 메시). 예전 bolt 는 하늘에서 내리꽂는
+    // 굵은 **곧은 원기둥**이라 '번개'가 아니라 '흰 기둥'으로 읽혔다 — 번개의 정체성은 **꺾인 경로**다.
+    // from→to 사이를 세그먼트로 나눠 가로로 지터를 준 폴리라인을 TubeGeometry 로 두껍혀,
+    // 청백 코어 + 색 글로우 2겹으로 만든다. 등급이 높으면 갈래(fork)가 붙는다. 번개는 **깜빡인다** —
+    // 밝기를 두어 번 튀겼다 사그라뜨려 정지한 빔과 구분한다.
+    lightningBolt(from, to, color, tier) {
+        // 꺾인 경로: 위에서 아래로 내려오며 가로 지터. 타깃 근처일수록 지터를 줄여 적에 수렴한다.
+        const segs = 9;
+        const pts = [];
+        for (let i = 0; i <= segs; i++) {
+            const t = i / segs;
+            const base = from.clone().lerp(to, t);
+            if (i > 0 && i < segs) {
+                const conv = 1 - t;                          // 위쪽일수록 크게, 타깃에선 0
+                base.x += U.rand(-0.55, 0.55) * conv;
+                base.z += U.rand(-0.28, 0.28) * conv;        // 카메라 깊이축은 얕게(옆에서 봤을 때 과하지 않게)
+            }
+            pts.push(base);
+        }
+        const curve = new THREE.CatmullRomCurve3(pts);
+        const tubeR = 0.05 + tier * 0.012;
+        const glow = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, tubeR * 2.4, 5, false),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        const bolt = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, tubeR, 5, false),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, toneMapped: false }));
+        const core = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, tubeR * 0.42, 4, false),
+            new THREE.MeshBasicMaterial({ color: 0xdff2ff, transparent: true, opacity: 1, toneMapped: false }));
+        const group = new THREE.Group();
+        group.add(glow, bolt, core);
+        // 갈래(fork): 중간 지점에서 짧게 튀어나간 곁가지 — 에픽 이상만, 등급 따라 1~3개
+        const forkN = tier >= 2 ? Math.min(3, tier - 1) : 0;
+        for (let f = 0; f < forkN; f++) {
+            const anchor = pts[3 + Math.floor(U.rand(0, segs - 4))];
+            const fpts = [anchor.clone()];
+            let cur = anchor.clone();
+            for (let j = 0; j < 3; j++) { cur = cur.clone().add(new THREE.Vector3(U.rand(-0.5, 0.5), U.rand(-0.7, -0.2), U.rand(-0.2, 0.2))); fpts.push(cur); }
+            const fc = new THREE.CatmullRomCurve3(fpts);
+            const fm = new THREE.Mesh(new THREE.TubeGeometry(fc, 16, tubeR * 0.6, 4, false),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+            group.add(fm);
+        }
+        this.scene.add(group);
+        this.flashLight(to, color.getHex(), 0.22);
+        // 깜빡임: 처음 120ms 는 밝기를 튀기고(스트로브), 이후 사그라든다
+        const mats = [];
+        group.traverse(o => { if (o.isMesh && o.material) mats.push(o.material); });
+        const op0 = mats.map(mt => mt.opacity);
+        this.addAnim(0.32, k => {
+            const t = k * 0.32;
+            let a;
+            if (t < 0.12) a = 0.55 + 0.45 * Math.abs(Math.sin(t * 90));  // 스트로브(약 3회 깜빡)
+            else a = Math.max(0, 1 - (t - 0.12) / 0.2);                  // 페이드
+            mats.forEach((mt, i) => mt.opacity = op0[i] * a);
+        }, () => { this.disposeTree(group); this.scene.remove(group); });
     },
 
     // 순간 광원 플래시 (연출 강화)
