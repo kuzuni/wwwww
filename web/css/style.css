@@ -140,11 +140,14 @@ body {
     position: absolute; z-index: 3; background: none; border: none; padding: 0; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; gap: .15rem;
 }
+/* 원본(shot-042120 8배)의 이정표는 **상자 없이 맵 위에 그림만 떠 있다** — 어두운 반투명 상자와
+   흰 테는 이모지(🎁❓⚔️)를 담으려고 둔 액자였다. 상자 크기(2.3rem)는 그대로 두고 배경·테·그림자만
+   뺐다(비율 영향 0). 대신 맵 위에서 실루엣이 죽지 않게 그림자를 그림 자체에 건다. */
 .waypoint-icon {
-    width: 2.3rem; height: 2.3rem; border-radius: .5rem; background: rgba(20,24,20,.55);
-    border: 2px solid rgba(255,255,255,.5); display: flex; align-items: center; justify-content: center;
-    font-size: 1.25rem; box-shadow: 0 .15rem 0 rgba(0,0,0,.3);
+    width: 2.3rem; height: 2.3rem; display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem; filter: drop-shadow(0 .08rem .1rem rgba(0,0,0,.38));
 }
+.waypoint-icon .ico { width: 100%; height: 100%; margin: 0; vertical-align: top; }
 .waypoint-time {
     background: rgba(0,0,0,.65); color: #ffd54f; font-size: .6rem; font-weight: 800;
     border-radius: .4rem; padding: 0 .35rem; white-space: nowrap;

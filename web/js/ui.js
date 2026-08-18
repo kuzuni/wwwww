@@ -511,6 +511,7 @@ const UI = {
 
     init() {
         this.installScrollKeeper(); // render* 전부를 스크롤 보존으로 감싼다 (init 최초 1회)
+        this.paintWaypointIcons();  // index.html 의 이모지 자리를 IconGen 아이콘으로 채운다
         const $ = id => document.getElementById(id);
         this.els = {
             topbar: $('topbar'), stageLabel: $('stage-label'), wavePips: $('wave-pips'),
@@ -4147,6 +4148,19 @@ const UI = {
         }
         const mt = document.getElementById('waypoint-mystery-time');
         if (mt) mt.textContent = U.fmtTime(this.msUntilDailyReset() / 1000);
+    },
+
+    // 맵 위 이정표 아이콘 — `index.html` 은 정적 파일이라 IconGen 을 못 부른다.
+    // 부팅 때 한 번 여기서 채운다(아이콘이 없으면 원래 이모지가 그대로 남는다).
+    // 원본(shot-042120 8배): 리그 = 회색 시상대 3단 + 주황 왕관 + 초록 시험관 /
+    // 미스터리 = 갈색 통나무 위 초록 덩어리 생물 + 머리 위 흰 `?` / 진행 패스 = 교차 검.
+    WP_ICON: { 'waypoint-league': 'wp_league', 'waypoint-mystery': 'wp_mystery', 'waypoint-pass': 'power' },
+    paintWaypointIcons() {
+        for (const id in this.WP_ICON) {
+            const box = document.querySelector('#' + id + ' .waypoint-icon');
+            const html = IconGen.img(this.WP_ICON[id]);
+            if (box && html) box.innerHTML = html;
+        }
     },
 
     // 매일 09:00 기준 다음 리셋까지 남은 ms — 미스터리 상자는 실제 배경 기능이 없어 기존 09:00 리셋(던전 열쇠 등)에 동기화한 자체 설계 카운트다운
