@@ -3380,7 +3380,15 @@ body {
    `margin:auto` 도 **콘텐츠 상자 기준**이라 둘 다 이걸 못 고친다 — 패딩 자체를 지워야 한다. */
 #panel-pets .summon-bar { position: relative; padding-left: 0; }
 #panel-pets .summon-bar > .x5-toggle { position: absolute; right: 67.4%; top: 50%; transform: translateY(-50%); }
-#panel-pets .summon-bar > .summon-info { position: absolute; left: 67.5%; top: 50%; transform: translateY(-50%); }
+/* ⓘ·Lv·게이지 열의 x — 사용자 지시 2026-08-19(slug: pet-popup-gauge-gap):
+   "펫 팝업 게이지 부분이 버튼이랑 딱 붙어 있는 게 별로. 스킬 부분은 띄어져 있더만, 그렇게."
+   실측(499px 폭): 소환 버튼 우단→이 열 좌단 간격이 **펫 11.8px vs 스킬 22.4px** 로 펫이 정확히 절반이라
+   게이지가 버튼에 얹힌 것처럼 보였다. 스킬 바와 **같은 앱 좌표**(68.67%W)로 못박아 간격을 맞춘다 —
+   두 패널은 #panel-summon 의 좌 패딩 .8rem 을 공유하므로 스킬 규칙의 식을 그대로 쓸 수 있다
+   (펫 버튼 28.37%W · 스킬 34.07%W 로 폭이 달라 `left` 를 눈으로 베끼면 간격이 안 맞는다 — 우연히 같은 값이 나온 게 아니라
+   '버튼 우단 64.19%W + 스킬과 같은 간격 4.49%W' 를 계산한 결과가 68.67%W 다).
+   ⚠️ 종전 67.5% 는 원본(042356)의 ≈12px 간격을 맞춘 값이다 — 원본보다 사용자 지시가 우선(최우선 규칙 1). */
+#panel-pets .summon-bar > .summon-info { position: absolute; left: calc(var(--app-w) * .6867 - .8rem); top: 50%; transform: translateY(-50%); }
 /* 스킬 바도 같은 함정 — bar padding-left 5.5%W 가 flex 중심을 오른쪽으로 밀어 버튼 중심이 52.1%W 였다
    (원본 042340: 버튼 중심 49.6%W · x5 토글 중심 29.3%W · info 열 중심 73.3%W — 채점 1라운드 실측).
    펫과 같은 처방: 토글·info 를 절대 배치로 원본 열에 못박고 버튼만 흐름에 남겨 auto 마진 중앙. */
