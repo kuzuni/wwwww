@@ -2213,7 +2213,19 @@ const UI = {
     // 스킬 컷인 + 화면 색 플래시
     skillCutin(def) {
         const el = document.getElementById('skill-cutin');
-        el.textContent = `${SKILL_ICONS[def.id] || '✦'} ${def.name}`;
+        // 스킬 18종은 `sk_*` 아이콘이 이미 있는데 여기만 이모지였다 — 오브에는 아이콘, 컷인에는
+        // 이모지가 떠서 같은 스킬이 두 얼굴이었다. ⚠️ 이 자리는 `textContent` 라 `<i>` 를 문자열로
+        // 넣으면 태그가 글자로 찍힌다 — 토스트와 같이 **아이콘만 노드로, 이름은 텍스트 노드로** 붙인다.
+        el.textContent = '';
+        const ico = IconGen.skill(def.id);
+        if (ico) {
+            const wrap = document.createElement('span');
+            wrap.innerHTML = ico;
+            if (wrap.firstChild) { wrap.firstChild.className += ' cutin-ico'; el.appendChild(wrap.firstChild); }
+        } else if (SKILL_ICONS[def.id]) {
+            el.appendChild(document.createTextNode(SKILL_ICONS[def.id] + ' '));
+        }
+        el.appendChild(document.createTextNode(def.name));
         el.style.color = def.color;
         el.classList.remove('play');
         void el.offsetWidth; // 애니메이션 재시작

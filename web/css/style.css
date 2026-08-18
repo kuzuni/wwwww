@@ -1215,6 +1215,14 @@ body {
     pointer-events: none; opacity: 0;
 }
 #skill-cutin.play { animation: cutin .8s ease-out forwards; }
+/* 컷인 앞 스킬 아이콘 — 글자와 같은 줄에 서고 한 칸 띄운다. (특이도를 `.ico.` 로 올리는 이유는
+   위 `.ico.stub-ico` 주석 참고 — `.ico` 규칙이 이 파일 아래쪽에 있어 한 클래스면 덮인다.)
+   ⚠️ 컷인은 `text-shadow` 로 글로우를 주는데 그건 글자에만 걸린다 — 아이콘은 `filter: drop-shadow`
+   로 같은 색 글로우를 따로 줘야 글자만 빛나고 아이콘은 죽어 보이는 어긋남이 안 생긴다. */
+.ico.cutin-ico {
+    width: 1.5em; height: 1.5em; margin: -.36em .3em -.36em 0;
+    filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 2px 4px rgba(0,0,0,.8));
+}
 @keyframes cutin {
     0% { opacity: 0; transform: translateX(-50%) scale(.3); }
     15% { opacity: 1; transform: translateX(-50%) scale(1.25); }
