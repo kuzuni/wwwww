@@ -21,7 +21,16 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    // ⚠️ waitForFunction 금지 — 페이지 안 폴링이 3D 렌더 한 프레임(15~30초)에 밀려 안 도는 컨테이너가
+    //    있다(2026-08-18 실측). 이 프로브도 그 20초 타임아웃에 실제로 걸려 **판정 자체를 못 냈다**
+    //    (2026-08-19: 기준선을 재려는데 TimeoutError 로 죽어 비교가 불가능했다). Node 쪽 evaluate
+    //    폴링만 프레임 사이로 끼어든다.
+    for (let w = 0; ; w++) {
+        const ready = await page.evaluate('typeof Scene3D !== "undefined" && !!Scene3D.heroG').catch(() => false);
+        if (ready) break;
+        if (w >= 120) throw new Error('게임 부팅 대기 60초 초과');
+        await new Promise(r => setTimeout(r, 500));
+    }
     await page.waitForTimeout(1500);
 
     const out = await page.evaluate((list) => {

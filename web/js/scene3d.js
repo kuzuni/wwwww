@@ -5384,7 +5384,24 @@ const Scene3D = {
         const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 12), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const to = (r, tr, x, y, z, m) => { const o = new THREE.Mesh(new THREE.TorusGeometry(r, tr, 8, 14), m || mat); o.position.set(x, y, z); g.add(o); return o; };
-        const eyes = (y, z, gap) => { for (const s of [-1, 1]) sp(0.026, s * (gap || 0.07), y, z, blk); };
+        // 만든 눈 두 개를 **돌려준다** — 머리 피벗(아래 `neckRig`)이 눈까지 같이 묶어야 하기 때문이다.
+        // 눈만 g 에 남으면 머리가 끄덕일 때 눈알만 허공에 붙박여 남는다.
+        const eyes = (y, z, gap) => [-1, 1].map(s => sp(0.026, s * (gap || 0.07), y, z, blk));
+        // ── 머리 피벗 (mount-animal-machine-dynamic) ──────────────────────────────
+        // 머리·뿔·귀(part:'head')와 굴레(bridle), 눈을 **한 그룹**으로 묶어 목 밑동을 축으로 끄덕이게 한다.
+        // ⚠️ 머리 메시만 돌리면 굴레·눈이 제자리에 남는다 — 모델 주석이 경고한 그 사고 그대로다.
+        //    그래서 위치 상수를 다시 적지 않고 **이미 만들어진 파츠를 표식으로 걷어** 옮긴다.
+        // ⚠️ 반드시 굴레(bridleRig)까지 만든 **뒤에** 부를 것. 먼저 부르면 굴레가 g 에 남는다.
+        const neckRig = (pivotY, pivotZ, extra) => {
+            const neck = new THREE.Group();
+            neck.position.set(0, pivotY, pivotZ);
+            const parts = g.children.filter(o => o.userData && (o.userData.part === 'head' || o.userData.bridle));
+            for (const o of (extra || [])) if (parts.indexOf(o) < 0) parts.push(o);
+            g.add(neck);
+            for (const o of parts) { o.position.sub(neck.position); neck.add(o); }
+            g.userData.head = neck;
+            return neck;
+        };
         // 머리·목 표식 — 탑승 시 **이 파츠가 영웅 다리를 가리면 결함**이다(몸통·안장이 먼 다리를 가리는 건
         // 실제로 말을 탄 사진에서도 그러니 정상). tools/probe-ride-clear.js가 이 표식으로 둘을 갈라 본다.
         const HEADPART = (o) => { o.userData.part = 'head'; return o; };
@@ -5589,20 +5606,36 @@ const Scene3D = {
                 }
             }
             g.userData.deck = g.children[0];
+            // 추진 노즐 — 부유 맥동(밝기)에 쓴다. 잎사귀 계열은 빈 배열이고, 그때는 판 자체의
+            // 부유 흔들림(아래 animateMountParts 의 pitch)만으로 살아 있게 한다.
+            g.userData.glow = g.children.filter(o => o.userData && o.userData.thruster);
+            g.userData.flat = true;
         } else if (formKey === 'wheeled') { // 탈것형: 자전거/외바퀴 드로이드 — 바퀴 + 프레임
             if (name === 'Bike') {
                 // ⚠️ 예전엔 바퀴 두 짝을 **좌우(x=±0.28)** 에 세워 놨다 — 자전거가 아니라 링 두 개 사이에
                 //    영웅이 떠 있는 꼴이라 "탄 것 같지 않다"의 주범이었다. 바퀴는 앞뒤(z=±0.30)에 둔다.
+                // ⚠️ 바퀴는 **그룹째로 돌린다** (mount-animal-machine-dynamic).
+                //    타이어·림은 회전 대칭이라 제자리에서 돌려 봐야 화면이 한 픽셀도 안 바뀐다 —
+                //    굴러가는 게 읽히는 건 오직 **스포크**다. 그래서 타이어·림·허브·스포크를 한
+                //    그룹에 담아 바퀴 축(로컬 x축) 둘레로 그룹을 돌린다.
+                g.userData.wheels = [];
                 for (const s of [-1, 1]) {
+                    const wg = new THREE.Group();
+                    wg.position.set(0, 0.17, s * 0.30);
+                    g.add(wg);
                     const w = to(0.17, 0.028, 0, 0.17, s * 0.30, RUBBER);   // 타이어 = 고무(등급색 금지)
-                    w.rotation.y = Math.PI / 2; g.userData['w' + s] = w;
+                    w.rotation.y = Math.PI / 2;
                     const rim = to(0.138, 0.012, 0, 0.17, s * 0.30, IRON);  // 림 — 타이어 안쪽 금속 테
                     rim.rotation.y = Math.PI / 2;
-                    cy(0.028, 0.028, 0.05, 0, 0.17, s * 0.30, IRON).rotation.z = Math.PI / 2;  // 허브
+                    const hub = cy(0.028, 0.028, 0.05, 0, 0.17, s * 0.30, IRON); hub.rotation.z = Math.PI / 2;
+                    const parts = [w, rim, hub];
                     for (let k = 0; k < 4; k++) {                            // 스포크 — 링이 '빈 고리'로 안 읽히게
                         const sp4 = bx(0.012, 0.27, 0.012, 0, 0.17, s * 0.30, IRON);
                         sp4.rotation.z = k * Math.PI / 4;
+                        parts.push(sp4);
                     }
+                    for (const o of parts) { o.position.sub(wg.position); wg.add(o); }
+                    g.userData.wheels.push(wg);
                 }
                 const BB = [0, 0.10, 0.02];              // 크랭크축(bottom bracket)
                 // ⚠️ 헤드튜브 높이는 **라이더 손 높이**가 정한다 — 예전 0.40은 영웅 손(실측 로컬 0.605)보다
@@ -5678,10 +5711,21 @@ const Scene3D = {
                 }
                 g.userData.cranks = { list: cranks, axis: [0, BB[1], BB[2]], r: CRANK_R };
             } else {
-                const w = to(0.18, 0.05, 0, 0.18, 0, RUBBER); w.rotation.y = Math.PI / 2; g.userData.wheel = w; // 굴러가는 면이 진행 방향을 보게 (타이어=고무)
-                to(0.142, 0.016, 0, 0.18, 0, IRON).rotation.y = Math.PI / 2;   // 림
+                // 외바퀴도 자전거와 같은 처방 — 타이어·림만으로는 회전이 안 읽혀서(회전 대칭)
+                // 대비색 스포크 3개를 넣고 **그룹째** 돌린다.
+                const wg = new THREE.Group(); wg.position.set(0, 0.18, 0); g.add(wg);
+                const w = to(0.18, 0.05, 0, 0.18, 0, RUBBER); w.rotation.y = Math.PI / 2; // 굴러가는 면이 진행 방향을 보게 (타이어=고무)
+                const rim = to(0.142, 0.016, 0, 0.18, 0, IRON); rim.rotation.y = Math.PI / 2;   // 림
+                const wparts = [w, rim];
+                for (let k = 0; k < 3; k++) {
+                    const sk = bx(0.014, 0.28, 0.014, 0, 0.18, 0, IRON);
+                    sk.rotation.z = k * Math.PI / 3;
+                    wparts.push(sk);
+                }
+                for (const o of wparts) { o.position.sub(wg.position); wg.add(o); }
+                g.userData.wheels = [wg];
                 sp(0.11, 0, 0.30, 0, mat, 1.05, 0.9, 1.05);
-                sp(0.05, 0, 0.36, 0.10, new THREE.MeshBasicMaterial({ color: 0x29e0ff }));
+                g.userData.glow = [sp(0.05, 0, 0.36, 0.10, new THREE.MeshBasicMaterial({ color: 0x29e0ff }))];
                 // 안장 — 자전거와 같은 판독 처방(근흑 가죽은 어두운 몸통 위에서 사라진다): 진홍 윗가죽
                 sp(0.10, 0, 0.335, -0.03, M(0xa62b3c), 0.55, 0.30, 1.15);
                 for (const s of [-1, 1]) bx(0.08, 0.02, 0.1, s * 0.115, 0.10, 0.09, dark); // 발판
@@ -5836,15 +5880,27 @@ const Scene3D = {
             const headY = longNeck ? (name === 'Dino' ? 0.34 : 0.30) : 0.32;
             const headZ = longNeck ? (name === 'Dino' ? 0.68 : 0.66) : 0.46;
             HEADPART(sp(0.13, 0, headY, headZ, light, 0.92, 0.88, 1.35)); // 머리
-            eyes(headY + 0.04, headZ + 0.10, 0.062);
+            const eyeMeshes = eyes(headY + 0.04, headZ + 0.10, 0.062);
             const tail = cy(0.03, 0.01, 0.24, 0, 0.24, -0.34, mat); tail.rotation.x = 1.3; g.userData.tail = tail;
+            // ── 다리: **고관절 피벗 그룹**에 매단다 (mount-animal-machine-dynamic) ────────────
+            // ⚠️ 다리 메시를 그대로 돌리면 안 된다 — 원통은 제 중심(y 0.1)을 축으로 도는 탓에
+            //    윗동강이 몸통을 뚫고 반대편으로 솟는다. 원통 **윗면**(0.1 + 0.24/2 = 0.22)에
+            //    피벗을 두고 그 그룹을 돌려야 '고관절에서 흔들리는 다리'가 된다.
+            // 걸음은 **트롯**(대각선 짝) — 대각선끼리 위상이 같아야 네발짐승 걸음으로 읽힌다.
+            // 같은 쪽 두 다리를 같이 내밀면 '깡충 뛰는 토끼'가 된다. 부호 sx*sz 가 곧 대각선 짝이다.
+            const HIP_Y = 0.22;
             g.userData.legs = [];
             for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-                const leg = cy(0.05, 0.045, 0.24, sx * 0.13, 0.1, sz * 0.3, dark); // 몸통이 좁아진 만큼 안쪽으로
+                const pivot = new THREE.Group();
+                pivot.position.set(sx * 0.13, HIP_Y, sz * 0.3);   // 몸통이 좁아진 만큼 안쪽으로
+                g.add(pivot);
+                const leg = cy(0.05, 0.045, 0.24, 0, 0.1 - HIP_Y, 0, dark);
                 // 발굽 — 예전엔 원통이 그냥 잘려 끝나 '땅에 꽂힌 초록 파이프'로 읽혔다.
                 // 다리보다 살짝 넓고 어두운 각질을 물려 접지면을 만든다(발굽은 등급색 파생 금지).
-                cy(0.055, 0.052, 0.05, sx * 0.13, -0.005, sz * 0.3, HOOF);
-                g.userData.legs.push(leg);
+                const hoof = cy(0.055, 0.052, 0.05, 0, -0.005 - HIP_Y, 0, HOOF);
+                pivot.add(leg, hoof);   // 헬퍼가 g 에 붙인 것을 피벗으로 옮긴다(three 의 add 가 재부모화한다)
+                pivot.userData.gait = sx * sz;
+                g.userData.legs.push(pivot);
             }
             // 사족 안장: 윗면 0.44(=MOUNT_FORMS.quad.saddle) / 등자는 탑승 포즈의 실제 발 자리에.
             // 발 자리 근거 — 골반이 안장(로컬 0.44)에 얹힌 상태에서 hip rx 0.78·knee -0.92로 접으면
@@ -5853,6 +5909,9 @@ const Scene3D = {
             saddleRig(0.44, 0.180, 0.209, 0.24, [0.19, 0.10, 0.10]);
             // 굴레·고삐 — 머리(headY/headZ)와 그 스케일(0.13 × 0.92/1.35)에서 그대로 잰다.
             bridleRig(headY, headZ, 0.13 * 0.92, 0.13 * 1.35);
+            // 머리 끄덕임의 축은 **목 밑동**이다(머리 중심이 아니라). 머리보다 조금 낮고 뒤 —
+            // 여기서 돌려야 주둥이가 위아래로 크게 그리고 뒤통수는 거의 안 움직인다.
+            neckRig(headY - 0.06, headZ - 0.20, eyeMeshes);
         }
         return g;
     },
@@ -6108,6 +6167,64 @@ const Scene3D = {
     // 탈것: 장착 중이면 영웅이 실제로 올라탄다 — 탈것은 영웅 발밑, 영웅은 안장 높이로 상승.
     // 장착 제한이 없어져(사용자 지시 2026-08-18) 여러 마리를 동시에 낄 수 있는데, 몸이 하나라
     // **탈 수 있는 건 맨 앞 한 마리**뿐이다. 나머지는 뒤쪽 호에 무리로 세운다(refreshMountFollowers).
+    // ===== 탈것 파츠 애니메이션 (mount-animal-machine-dynamic, 사용자 지시 2026-08-19) =====
+    // 사용자 원문: "탈것도 왠만하면 다 동물, 기계 같은 거로 해서 움직임 자체가 좀 동적인 거로 해줘.
+    // 지금 드래곤 부분 같은 게 그나마 맘에 듬." → **드래곤(날갯짓·꼬리)이 레퍼런스**이고, 그 수준의
+    // 움직임을 나머지 계열에도 준다. 예전엔 계열을 통틀어 위아래 바운스 하나뿐이라 말·공룡·자전거가
+    // 통짜로 떠다니는 조형물이었다(날개·꼬리 코드는 애초에 fly 종에만 붙어 있었다).
+    //   · quad  : 대각선 짝 트롯 + 머리 끄덕임·좌우 스캔 + 꼬리 2축
+    //   · wheeled: 바퀴 회전(스포크가 있어야 읽힌다) + 프레임 미세 진동
+    //   · flat  : 부유 피치 드리프트 + 추진 노즐 밝기 맥동
+    //   · fly   : 기존 날갯짓·꼬리(드래곤 기준선 유지) + 몸통 피치
+    // 🚨 **탄 탈것과 따라오는 무리가 반드시 이 한 함수를 같이 쓴다.** 예전에 날개 애니를 무리 쪽에만
+    //    넣어 정작 올라탄 드래곤 날개가 통째로 얼어 있던 사고가 있었다(주석이 그 흔적이다) —
+    //    분기해서 한쪽에만 넣지 말 것.
+    MOUNT_GAIT: 5.4,        // 걷는 중 걸음 사이클 각속도(rad/s)
+    MOUNT_IDLE_GAIT: 1.7,   // 서 있을 때 — 완전히 굳지 않게 체중 이동만
+    // 반환값 = 이 프레임에 그룹 rotation.x 에 **더할** 피치. 그룹 회전은 호출부가 소유한다
+    // (탄 상태에서는 그 값이 영웅에게도 그대로 전달돼야 해서 한 곳에서만 써야 한다).
+    animateMountParts(mg, t, moving, dt) {
+        const ud = mg.userData;
+        const w = moving ? this.MOUNT_GAIT : this.MOUNT_IDLE_GAIT;
+        const amp = moving ? 1 : 0.3;
+        if (ud.legs) for (const lg of ud.legs) {
+            // 대각선 짝(userData.gait 부호)끼리 같은 위상, 반대 짝은 반 사이클 어긋난다 = 트롯.
+            // 같은 쪽 두 다리를 같이 내밀면 네발짐승이 아니라 '깡충 뛰는 토끼'가 된다.
+            lg.rotation.x = Math.sin(t * w + (lg.userData.gait > 0 ? 0 : Math.PI)) * 0.62 * amp;
+        }
+        if (ud.head) {
+            // 끄덕임은 걸음의 **절반 주기** — 걸음마다 까딱이면 딸꾹질처럼 보인다.
+            ud.head.rotation.x = Math.sin(t * w * 0.5) * 0.11 * (moving ? 1 : 0.55);
+            ud.head.rotation.y = Math.sin(t * 0.9) * 0.09;   // 주변을 살피는 좌우 스캔 — 서 있어도 돈다
+        }
+        if (ud.wings) for (const wg of ud.wings) wg.rotation.z = wg.userData.s * (0.45 + Math.sin(t * 11) * 0.62);
+        if (ud.tail) {
+            ud.tail.rotation.z = Math.sin(t * 3.4) * 0.5;
+            ud.tail.rotation.y = Math.sin(t * 2.1) * 0.24;   // 좌우로도 흔들어 한 평면에 갇히지 않게
+        }
+        // 바퀴 — **누적 회전**이라 dt 로 굴린다(사인으로 흔들면 앞뒤로 덜덜 떠는 바퀴가 된다).
+        if (ud.wheels) { const spin = (moving ? 7.6 : 1.0) * dt; for (const wg of ud.wheels) wg.rotation.x -= spin; }
+        // 추진 노즐 맥동 — **밝기만** 흔든다(크기를 흔들면 노즐이 숨 쉬는 풍선이 된다).
+        // ⚠️ 재질이 두 종류다: Lambert(emissive 있음)와 Basic(없음). 기준값을 첫 프레임에 적어 두고
+        //    거기에 곱한다 — 매 프레임 현재값에 곱하면 밝기가 지수로 죽거나 폭주한다.
+        if (ud.glow) for (const o of ud.glow) {
+            const k = 0.72 + Math.sin(t * 6.2) * 0.28 * (moving ? 1 : 0.55);
+            const m = o.material;
+            if (m.emissiveIntensity !== undefined && m.emissive) {
+                if (o.userData.baseEmi === undefined) o.userData.baseEmi = m.emissiveIntensity;
+                m.emissiveIntensity = o.userData.baseEmi * k;
+            } else if (m.color) {
+                if (!o.userData.baseCol) o.userData.baseCol = m.color.clone();
+                m.color.copy(o.userData.baseCol).multiplyScalar(0.72 + k * 0.28);
+            }
+        }
+        // 계열별 몸통 피치
+        if (ud.flat) return Math.sin(t * 1.15) * 0.05 + (moving ? Math.sin(t * 3.1) * 0.03 : 0); // 부유 드리프트
+        if (ud.wings) return Math.sin(t * 1.6) * 0.06;                                           // 비행 몸통 피치
+        if (ud.wheels) return Math.sin(t * (moving ? 13 : 4)) * (moving ? 0.012 : 0.004);        // 프레임 진동
+        return Math.sin(t * w * 0.5 + 0.9) * 0.035 * amp;                                        // 네발 몸통 흔들림
+    },
+
     refreshMount() {
         if (this.mountGroup) { this.disposeTree(this.mountGroup); this.scene.remove(this.mountGroup); this.mountGroup = null; }
         this.rideY = 0; this.ridePose = null; this.riding = null;
@@ -6183,6 +6300,14 @@ const Scene3D = {
         // 애니메이션이 통째로 걸리지 않는다(드래곤 날개가 얼어 있던 원인).
         g.userData.wings = mesh.userData.wings || null;
         g.userData.tail = mesh.userData.tail || null;
+        // 다리·머리·바퀴·노즐도 같은 이유로 올려 둔다 (mount-animal-machine-dynamic) —
+        // 업데이트 루프는 **그룹의 userData만** 보므로, 여기 안 올리면 애니메이션이 통째로 안 걸린다
+        // (드래곤 날개가 얼어 있던 사고와 정확히 같은 함정이다. 파츠를 새로 만들면 이 줄도 같이 늘릴 것).
+        g.userData.legs = mesh.userData.legs || null;
+        g.userData.head = mesh.userData.head || null;
+        g.userData.wheels = mesh.userData.wheels || null;
+        g.userData.glow = mesh.userData.glow || null;
+        g.userData.flat = !!mesh.userData.flat;
         g.userData.bar = mesh.userData.bar || null;      // 핸들바 — 영웅 손에 맞춰 스템을 늘인다
         g.userData.rein = mesh.userData.rein || null;    // 고삐 — 영웅 손까지 끈을 늘인다(사족·비행형)
         g.userData.cranks = mesh.userData.cranks || null;   // 크랭크 — 영웅 발에 맞춰 위상을 푼다
@@ -6271,6 +6396,11 @@ const Scene3D = {
             g.userData.name = name;                      // 계열 판정(비행형 부유 리듬)에 필요
             g.userData.wings = mesh.userData.wings || null;   // 무리의 날개도 얼려 두지 않는다
             g.userData.tail = mesh.userData.tail || null;
+            g.userData.legs = mesh.userData.legs || null;     // 무리도 걷는다 — 탄 놈만 움직이면 더 이상하다
+            g.userData.head = mesh.userData.head || null;
+            g.userData.wheels = mesh.userData.wheels || null;
+            g.userData.glow = mesh.userData.glow || null;
+            g.userData.flat = !!mesh.userData.flat;
             this.setShadow(g, true);
             this.applyRimLight(g);
             this.scene.add(g);
@@ -10108,8 +10238,8 @@ const Scene3D = {
             mg.position.y = (ud.baseY || 0) + bob;
             // 탄 탈것도 살아 있어야 한다 — 지금까지 날개·꼬리 애니메이션은 **펫에만** 걸려 있어서
             // 정작 올라탄 드래곤·벌·고래의 날개가 통째로 얼어 있었다(정지 화면이 '떠 있는 조형물'로 읽힌 이유).
-            if (ud.wings) for (const w of ud.wings) w.rotation.z = w.userData.s * (0.45 + Math.sin(t * 11) * 0.62);
-            if (ud.tail) ud.tail.rotation.z = Math.sin(t * 3.4) * 0.5;
+            // 다리·머리·바퀴·노즐까지 한 함수에서 같이 돈다(mount-animal-machine-dynamic).
+            const partPitch = this.animateMountParts(mg, t, !!this.walking, dt);
             // ⚠️ 쓰러진 영웅은 **탑승 중이 아니다** — 안장에서 굴러떨어져 바닥에 눕는 연출이고
             //    Death 클립 자체가 groundPose(탑승 하체 포즈 미가산)다. 여기서 riding을 그대로 믿으면
             //    아래 `+= bob`이 사망 구간 내내 **누적**돼 시체가 하늘로 솟는다 —
@@ -10117,8 +10247,10 @@ const Scene3D = {
             //    (Death 클립은 멀쩡했다. 실측: 사망 후 1.8초에 y=3.9까지 올라가고 계속 상승).
             //    사망 구간의 영웅 y는 아래 heroGroundY()가 단독으로 소유한다.
             if (this.riding && !this.heroDead) {
-                // 달릴 때 앞뒤로 까딱이는 기울기 — 정지하면 0으로 수렴시켜 어정쩡한 기울임을 남기지 않는다
-                const lean = this.walking ? Math.sin(t * 4) * 0.07 : 0;
+                // 달릴 때 앞뒤로 까딱이는 기울기 + 계열별 몸통 피치(부유 드리프트·프레임 진동 등).
+                // ⚠️ 피치는 여기 한 곳에서만 쓴다 — 아래에서 영웅에게 그대로 전달되므로, 다른 데서
+                //    mg.rotation.x 를 또 건드리면 영웅과 탈것이 서로 다른 각으로 기울어 즉시 어긋난다.
+                const lean = (this.walking ? Math.sin(t * 4) * 0.07 : 0) + partPitch;
                 mg.rotation.x += (lean - mg.rotation.x) * Math.min(1, dt * 8);
                 if (!this._attacking) this.heroG.position.y += bob;   // 영웅도 같은 바운스를 그대로 받는다
                 this.heroG.rotation.x = mg.rotation.x * 0.6;
@@ -10126,6 +10258,10 @@ const Scene3D = {
                 this.alignHandlebar();                                // 핸들바를 빈 손 아래로 (공격 중엔 그 자리에 둔다)
                 this.alignReins();                                    // 고삐를 빈 손까지 (끈이라 공격 중에도 따라간다)
                 this.alignPedals();                                   // 크랭크 위상을 실제 발 위치에서 푼다
+            } else {
+                // 아직 안 탄(또는 쓰러진) 상태 — 영웅에게 전달할 일이 없으니 피치를 그룹에 바로 준다.
+                // 이 분기를 빼먹으면 '장착만 하고 안 탄' 탈것이 파츠만 움직이고 몸통은 굳어 보인다.
+                mg.rotation.x += (partPitch - mg.rotation.x) * Math.min(1, dt * 8);
             }
         }
         // 따라오는 탈것 무리: 영웅 전진을 같이 따라가고, 개체별 위상·속도로 어긋나게 까딱인다
@@ -10137,8 +10273,10 @@ const Scene3D = {
             const fly = this.mountFormOf(ud.name || '').hover > 0 && !this.mountFormOf(ud.name || '').stand;
             fg.position.y = (ud.baseY || 0) + (fly ? Math.sin(t * 1.9) * 0.11
                                                    : Math.abs(Math.sin(t * 4)) * 0.05 * (this.walking ? 1.6 : 1));
-            if (ud.wings) for (const w of ud.wings) w.rotation.z = w.userData.s * (0.45 + Math.sin(t * 11) * 0.62);
-            if (ud.tail) ud.tail.rotation.z = Math.sin(t * 3.4) * 0.5;
+            // 무리도 탄 놈과 **같은 함수**로 움직인다 — 한쪽에만 넣으면 뒤따르는 말들만 얼어 있다.
+            // 무리는 영웅이 안 얹혀 있으므로 피치를 그룹에 바로 준다(개체별 위상차 t 가 이미 섞여 있다).
+            const fPitch = this.animateMountParts(fg, t, !!this.walking, dt);
+            fg.rotation.x += (fPitch - fg.rotation.x) * Math.min(1, dt * 8);
         }
         // ===== 사망·기상 구간의 영웅 높이 — 이 구간만은 여기가 단독 주인이다 =====
         // 사용자 3회 재지적('죽을 때 하늘로 올라간다')의 원인은 Death 클립이 아니라 **주인 없는 y**였다:
