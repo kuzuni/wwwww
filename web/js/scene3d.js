@@ -1006,7 +1006,10 @@ const Scene3D = {
         this.hills = [mkRidge(this.hillMat, 95, 3.6, 11, -19), mkRidge(this.farHillMat, 120, 2.6, 14, -25)];
 
         // 소품 공유 매테리얼 (바이옴 재구성 시 지오메트리만 버리고 매테리얼은 재사용)
-        this.foliageMat = new THREE.MeshPhongMaterial({ color: 0x33691e, flatShading: true, shininess: 0 });
+        // vertexColors — 잎 지오메트리는 전부 sculptFoliage 를 거쳐 color 속성을 갖는다(makePine·makeRoundTree
+        // 둘뿐이고 둘 다 통과한다). ⚠️ 이 재질을 쓰는 새 메시를 만들 땐 반드시 color 속성을 붙일 것 —
+        // 속성 없이 vertexColors 재질을 쓰면 그 메시만 검게 찍힌다.
+        this.foliageMat = new THREE.MeshPhongMaterial({ color: 0x33691e, flatShading: true, shininess: 0, vertexColors: true });
         // 잎 명도 변주 2종 — 나무마다 밝기가 달라 "같은 모델 복붙" 인상과 밤 숲의 "한 덩어리 검은 벽" 문제를 동시에 완화
         this.foliageMatDark = this.foliageMat.clone();
         this.foliageMatLight = this.foliageMat.clone();
@@ -1526,6 +1529,59 @@ const Scene3D = {
         }
     },
 
+    // ---- 프롭 조형: '단순 도형 티' 제거 (TODO '맵 프롭 퀄리티 업' — 비대칭 변형 + 버텍스 컬러 음영) ----
+    // 침엽수는 **정원뿔 3개**, 활엽수는 **정십이면체 2개**였다. 어떤 라이팅을 걸어도 정다면체는 정다면체라
+    // 원경에서 '복붙한 도형'으로 읽힌다(장비 쪽에서 '박스는 어떤 라이팅을 걸어도 박스'로 이미 겪은 벽이다).
+    //  ⑴ **비대칭 변형** — 정점을 반경 방향으로 밀어 실루엣 자체를 울퉁불퉁하게 만든다. 수직 성분은
+    //     절반만 준다(키까지 들쭉날쭉하면 '녹아내린' 인상이 된다).
+    //  ⑵ **버텍스 컬러 음영** — 아래(가지에 가려 빛이 안 드는 안쪽)를 어둡게, 위(하늘 보는 면)를 밝게
+    //     구워 넣는다. 라이트를 안 늘리고 볼륨을 얻는 가장 싼 방법이다.
+    // ⚠️ 🚨 **위치 해시로 변위를 뽑는다 — 정점 인덱스로 뽑으면 면이 갈라진다.** flatShading 을 쓰려고
+    //    지오메트리를 비인덱스로 펴 두면 같은 모서리의 정점이 여러 벌 중복된다. 인덱스 기준 난수를 주면
+    //    그 사본들이 제각각 움직여 **메시에 구멍이 뚫린다.** 좌표를 반올림해 해시하면 같은 자리는 늘 같은 값을 받는다.
+    // ⚠️ **인스턴스마다 새로 구운 지오메트리에만 쓸 것** — 공유 지오메트리에 쓰면 모든 프롭이 같이 변형된다.
+    sculptFoliage(geo, opt) {
+        const o = opt || {};
+        const amp = o.amp === undefined ? 0.14 : o.amp;
+        // ⚠️ 시드를 `Math.random()` 에서 뽑지 말 것 — 전역 RNG 스트림을 **소비**해서, 시드를 고정해 찍는
+        //    대조 캡처(`shot-biomes.js`)의 프롭 배치가 이 함수 호출 수만큼 통째로 밀린다(전/후 비교 불가).
+        //    내부 카운터로 인스턴스마다 다른 시드를 준다 — 결정론적이고 스트림을 안 건드린다.
+        const seed = o.seed === undefined ? (this._sculptSeq = (this._sculptSeq || 0) + 1) * 97.13 : o.seed;
+        const g = geo.index ? geo.toNonIndexed() : geo;
+        if (geo.index) geo.dispose();
+        const pos = g.attributes.position;
+        g.computeBoundingBox();
+        const bb = g.boundingBox;
+        const yMin = bb.min.y, ySpan = Math.max(1e-4, bb.max.y - bb.min.y);
+        const rad = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * 0.5 || 1;
+        const hash = (x, y, z) => {
+            const n = Math.sin(Math.round(x * 240) * 12.9898 + Math.round(y * 240) * 78.233 + Math.round(z * 240) * 37.719 + seed) * 43758.5453;
+            return n - Math.floor(n);
+        };
+        const cols = new Float32Array(pos.count * 3);
+        const v = new THREE.Vector3();
+        for (let i = 0; i < pos.count; i++) {
+            v.fromBufferAttribute(pos, i);
+            const t = (hash(v.x, v.y, v.z) - 0.5) * 2;                    // -1..1
+            const t2 = (hash(v.z + 7.1, v.x - 3.3, v.y + 1.7) - 0.5) * 2;
+            const rl = Math.hypot(v.x, v.z);
+            if (rl > 1e-4) {                                              // 꼭짓점(축 위)은 반경 방향이 없다
+                v.x += (v.x / rl) * t * amp * rad;
+                v.z += (v.z / rl) * t * amp * rad;
+            }
+            v.y += t2 * amp * 0.5 * rad;
+            pos.setXYZ(i, v.x, v.y, v.z);
+            // 음영은 **변형 전 바운딩 박스** 기준 높이로 굽는다(변형 후 y로 재면 요철마다 명도가 튄다)
+            const k = Math.min(1, Math.max(0, (v.y - yMin) / ySpan));
+            const sh = 0.60 + 0.48 * Math.pow(k, 0.85);
+            cols[i * 3] = cols[i * 3 + 1] = cols[i * 3 + 2] = sh;
+        }
+        pos.needsUpdate = true;
+        g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+        g.computeVertexNormals();
+        return g;
+    },
+
     makePine(s, snow) {
         const g = new THREE.Group();
         g.userData.windSway = 0.030;   // 바람에 밑동부터 휘는 식물 (rocks·crystal 은 태그 없음 = 정지)
@@ -1534,7 +1590,7 @@ const Scene3D = {
         trunk.position.y = 0.25 * s;
         g.add(trunk);
         for (let i = 0; i < 3; i++) {
-            const cone = new THREE.Mesh(new THREE.ConeGeometry((0.55 - i * 0.13) * s, 0.62 * s, 7), fm);
+            const cone = new THREE.Mesh(this.sculptFoliage(new THREE.ConeGeometry((0.55 - i * 0.13) * s, 0.62 * s, 7), { amp: 0.16 }), fm);
             cone.position.y = (0.62 + i * 0.4) * s;
             g.add(cone);
             if (snow) { // 설원: 각 단 위에 눈 고깔을 얹음
@@ -1795,9 +1851,9 @@ const Scene3D = {
         const fm = this.foliageMats[Math.random() * 3 | 0]; // 나무별 잎 명도 변주
         const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * s, 0.12 * s, 0.6 * s, 7), this.trunkMat);
         trunk.position.y = 0.3 * s;
-        const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5 * s, 0), fm);
+        const crown = new THREE.Mesh(this.sculptFoliage(new THREE.DodecahedronGeometry(0.5 * s, 0), { amp: 0.15 }), fm);
         crown.position.y = 0.95 * s;
-        const crown2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32 * s, 0), fm);
+        const crown2 = new THREE.Mesh(this.sculptFoliage(new THREE.DodecahedronGeometry(0.32 * s, 0), { amp: 0.17 }), fm);
         crown2.position.set(0.28 * s, 0.75 * s, 0.1 * s);
         g.add(trunk, crown, crown2);
         return g;
