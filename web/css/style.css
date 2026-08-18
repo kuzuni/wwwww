@@ -2286,12 +2286,16 @@ body {
     font-weight: 900; font-size: .78rem; color: #ff880f; white-space: nowrap;
 }
 /* 원본 공유 배지는 17×14px(3.41×2.81%W) 각진 파란 칩이고 우끝이 시간 텍스트 우끝(89.78%W)과 정렬된다 */
+/* 원본(shot-043500) 실측: 배지 바깥 상자 x430..448 · y548..566 = **19×19 정사각**(3.81%W).
+   카드는 x111..433 · y552..646 이므로 카드 기준 오른쪽 -15px(-3.01%W) · 위 -4px(-0.80%W).
+   교정 전 클론은 17×14(가로 3.41 · 세로 2.81%W)라 **정사각이 아니었고 세로가 5px 짧았다**.
+   파랑칠·키라인·아래 베벨은 이제 IconGen('chatcam') 이 통째로 그린다 — 여기선 빈 프레임만. */
 .chat-share-cam {
-    position: absolute; top: calc(var(--app-w) * -.016); right: calc(var(--app-w) * -.025);
-    width: calc(var(--app-w) * .0341); height: calc(var(--app-w) * .0281); border-radius: .18rem;
-    background: var(--pp-blue); color: #fff; border: var(--ol1) solid #000; font-size: .6rem;
+    position: absolute; top: calc(var(--app-w) * -.008); right: calc(var(--app-w) * -.030);
+    width: calc(var(--app-w) * .0381); height: calc(var(--app-w) * .0381);
     display: flex; align-items: center; justify-content: center;
 }
+.chat-share-cam .ico { width: 100%; height: 100%; margin: 0; vertical-align: top; }
 /* 원본 실측: 밴드 높이 87px=17.43%W(카드가 흰색이 됐으므로 밴드는 자기 배경 #0e111b 를 직접 갖는다),
    좌 인셋 10px=2.00%W · 버튼→입력칸 간격 13px=2.60%W · 우 인셋 14px=2.81%W
    → 입력칸 좌 11.82%W · 폭 85.37%W 가 자동으로 따라온다. 세로 패딩 22px=4.41%W. */

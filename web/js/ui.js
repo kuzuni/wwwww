@@ -3420,7 +3420,7 @@ const UI = {
                             <small>${U.escapeHtml(loser.name)}</small>
                             <small>${IconGen.img('power')} ${U.fmt(loser.cp)}</small>
                         </div>
-                        <span class="chat-share-cam">📹</span>
+                        <span class="chat-share-cam">${IconGen.img('chatcam')}</span>
                     </div>
                 </div>
             </div>`;
