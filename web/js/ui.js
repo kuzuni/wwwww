@@ -3830,7 +3830,7 @@ const UI = {
                 <div class="shop-deals">${dealsHtml}</div>
                 <div class="shop-banner">보석</div>
                 <div class="shop-gems">${gemsHtml}</div>
-                <button class="league-back-btn sheet-back-btn" onclick="UI.switchTab(null)">◀</button>
+                <button class="league-back-btn sheet-back-btn" onclick="UI.closeShop()">◀</button>
             </div>`;
     },
     onClaimDeal(key, btn) {
