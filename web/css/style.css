@@ -3421,6 +3421,39 @@ body {
     display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
     box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25);
 }
+/* ===== 타일 면 AAA 스킨 (사용자 지시 2026-08-19, slug: ui-quality-up) =====
+   사용자 원문: "비례가 거의 맞는 거 같음. 이제 UI 퀄리티 올려야 할 거 같음. 지금 심플한 퀄리티니까
+   좀 더 올리셈." + "원신급으로."
+   펫·탈것·재료 그리드가 공유하는 **한 컴포넌트**라 여기 한 번 손대면 네 화면이 같이 올라간다.
+   원신의 등급 칸 언어를 그대로 옮겼다: ⓐ 좌상단 광택 ⓑ 위 림라이트 ⓒ 아래로 가는 그늘
+   ⓓ 아주 옅은 사선 결(민색 평면 방지) ⓔ **등급색으로 물든 바깥 광**(이 칸이 몇 등급인지 테 밖에서도 읽힌다).
+
+   ⚠️ **칠하는 속성만 건드린다** — background-image / box-shadow / filter / transition 뿐이고
+      width·height·border·border-radius·padding·font-size 는 한 줄도 안 바꿨다. 그래서 요소 박스가
+      그대로고(`tools/probe-tile-skin.js` 가 before/after 좌표로 확인 — 76개 박스 이동 0px),
+      비평가 게이트의 ±2%p 레이아웃 판정에 영향이 없다.
+   ⚠️ 바탕 **색값(color-mix 60%)은 유지**한다 — 원본 실측으로 맞춰 둔 값이다. 위에 얹는 그라디언트는
+      그 색을 **가운데 톤으로 두고** 위아래로만 벌려서 평균색이 안 밀리게 했다.
+   🚨 다음 세션의 톤 프로브가 '원본은 플랫인데 왜 그라디언트냐'며 이걸 되돌리지 말 것 —
+      원본보다 화려하게 만드는 게 이 항목의 지시다(최우선 규칙 1: 사용자 지시 > 원본). */
+.pet-tile .tile-face {
+    background-image:
+        radial-gradient(120% 88% at 26% 14%, rgba(255,255,255,.40) 0, rgba(255,255,255,0) 58%),
+        linear-gradient(180deg, rgba(255,255,255,.28) 0, rgba(255,255,255,0) 34%,
+                                rgba(0,0,0,.05) 62%, rgba(0,0,0,.20) 100%),
+        repeating-linear-gradient(45deg, rgba(255,255,255,.055) 0 2px, rgba(255,255,255,0) 2px 7px);
+    box-shadow:
+        inset 0 -.2rem 0 rgba(0,0,0,.25),                                       /* 원래 아래턱 — 유지 */
+        inset 0 .08rem 0 rgba(255,255,255,.55),                                 /* 위 림라이트 */
+        inset .07rem 0 0 rgba(255,255,255,.16),                                 /* 왼쪽 얇은 하이라이트 */
+        0 0 .5rem -.08rem color-mix(in srgb, var(--rc, #ccc) 60%, transparent), /* 등급색 광 */
+        0 .16rem .3rem rgba(0,0,0,.22);                                         /* 바깥 앰비언트 — 시트에서 뜬다 */
+    transition: transform .08s ease-out, filter .08s;
+}
+/* 눌리는 물건으로 — 칸이 살짝 내려앉고 밝아진다(원신의 칸 탭 피드백) */
+.pet-tile:active .tile-face { transform: translateY(.08rem); filter: brightness(1.07); }
+/* 🚨 알 타일은 배경·테·그림자가 전부 없는 '그림만' 칸이다 — 위 스킨이 새어 들어오면 빈 사각형이 생긴다.
+   반드시 위 규칙보다 **뒤에** 있어야 background/box-shadow 리셋이 이긴다(순서를 바꾸지 말 것). */
 .pet-tile.egg .tile-face { background: none; border: none; box-shadow: none; font-size: 2.1rem; filter: drop-shadow(0 .15rem .1rem rgba(0,0,0,.3)); }
 /* 🚨 `#panel-pets .sk-grid` 칸을 13.10%W → 10.20%W 로 줄인 교정(아래)에는 **알이 딸려 왔다**.
    알 아이콘은 칸 폭의 88% 라 칸이 줄면 같이 줄고, 게다가 IconGen 알은 128px 캔버스 안
@@ -3432,7 +3465,16 @@ body {
    ⚠️ 상자가 아니라 **잉크**로 채점할 것 — 상자로 재면 알이 1.5배 커 보인다(probe 에 '알 잉크폭' 신설). */
 #panel-pets .pet-tile.egg .tile-face .ico { width: 119%; height: 119%; }
 .pet-tile .tile-label { font-size: .6rem; font-weight: 800; color: var(--pp-ink); }
-.pet-tile.selected .tile-face { box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25), 0 0 0 .16rem var(--pp-blue); }
+/* 선택 표시는 **파란 링을 얹는 것**이지 스킨을 끄는 게 아니다 — box-shadow 는 통째로 덮어쓰는 속성이라
+   위 스킨 레이어를 여기서 다시 적어 주지 않으면 고른 칸만 납작해진다(스킨 패스 전에는 티가 안 났다). */
+.pet-tile.selected .tile-face {
+    box-shadow:
+        inset 0 -.2rem 0 rgba(0,0,0,.25),
+        inset 0 .08rem 0 rgba(255,255,255,.55),
+        inset .07rem 0 0 rgba(255,255,255,.16),
+        0 0 0 .16rem var(--pp-blue),
+        0 .16rem .3rem rgba(0,0,0,.22);
+}
 .sk-mini.square { border-radius: .4rem; }
 
 /* ---- 펫 업그레이드 팝업 (UI-SPEC 55번, 원본 shot-042503): 대상 카드 + 경험치 바 + 선택 슬롯 + 재료 그리드 ---- */
