@@ -3584,7 +3584,7 @@ const UI = {
         // 낱개 더미 → 자루 → 항아리로 커지는 3단이다 — IconGen 캔버스 아이콘으로 교체.
         // 특가 카드의 상품 일러(`shop_tech`/`shop_pet`/`shop_mount`)도 같은 이유로 IconGen 이다 —
         // 원본은 CSS 상자 + 이모지 명판이 아니라 거래마다 다른 '상자 + 앞 소품' 그림이다.
-        const GEM_ICONS = ['shop_gems1', 'shop_gems2', 'shop_gems3'];
+        const GEM_ICONS = ['shop_gems1', 'shop_gems2', 'shop_gems3', 'shop_gems4'];
         const dealsHtml = Shop.DEALS.map(d => {
             const claimed = Shop.claimed(d.key);
             const rewardRows = Object.entries(d.reward).map(([k, v]) =>

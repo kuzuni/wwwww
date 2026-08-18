@@ -13,6 +13,8 @@ const Shop = {
         { gems: 60, priceKR: '₩2,800' },
         { gems: 220, priceKR: '₩9,500' },
         { gems: 800, priceKR: '₩34,500' },
+        // 3,300개 ₩140,000 — 사용자 지시 2026-08-18 (shop-gem-pack-3300). 원본 3종엔 없는 클론 전용 4번째.
+        { gems: 3300, priceKR: '₩140,000' },
     ],
 
     ensure() {
