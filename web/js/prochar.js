@@ -4,6 +4,12 @@
 // 기존 Scene3D 인터페이스(weaponG 손 부착, helmetG 머리 부착, heroPlay 클립 이름) 호환.
 
 const ProChar = {
+    // ---- 전신 비례 (6차 비평가 ㉢ — `probe-hero-proportion.js` 가 지키는 값) ----
+    // 다리 +55%·머리 0.48배로 두신비를 4.25 → 6.93 으로 올리면 전신이 12% 길어진다. 그 길어진 만큼을
+    // 여기서 되돌려, **화면에서 차지하는 높이는 교정 전과 똑같이** 두고 비례만 바뀌게 한다.
+    BODY_SCALE: 0.869,
+    GROUND_Y: -0.053,   // 교정 전 발바닥 월드 y — 지면 블롭·그림자·발AO 가 여기 맞춰져 있다
+
     // ---- 이징 ----
     ease(t) { return t * t * (3 - 2 * t); },            // smoothstep — 관절 기본
     easeOut(t) { return 1 - (1 - t) * (1 - t); },       // 빠른 시작 (타격 스윙)
@@ -615,9 +621,26 @@ const ProChar = {
 
         const root = new THREE.Group();
 
+        // ---------- 비례 상수 (6차 비평가 ㉢ — 양쪽이 이 항목 '최대 결함'으로 지목) ----------
+        // 실측(`probe-hero-proportion.js` 신설): **4.25두신 · 다리 38.6%** — 비평가 B 의 4.2두신,
+        // A 의 37% 와 사실상 같은 값이 나왔다(지적은 오측정이 아니라 사실이었다).
+        // 처방은 '대퇴·정강이 +40% 연장 + 투구 0.74배 축소' 였다. 실제로 넣은 값은 **다리 +55% ·
+        // 머리 0.706배**(0.68→0.48) — 처방값 그대로는 6.26두신·다리 47.9% 에서 멈춰 원신 기준
+        // '다리 50%+' 를 못 넘겼다. 아래 두 ⚠️ 참조.
+        // ⚠️ 길이를 리터럴로 흩뿌리지 말 것 — 다리 장갑(쿠이스·가터·그리브)과 부츠가 전부 이 값에
+        //    매달려 있어, 한 군데만 바꾸면 판금이 사슬 위에서 떠 버린다. 배율로 함께 끌고 간다.
+        const THIGH_L0 = 0.32, SHIN_L0 = 0.275;              // 연장 전 값 (부속 위치의 기준 좌표계)
+        const THIGH_L = 0.496, SHIN_L = 0.426;               // +55%
+        const TS = THIGH_L / THIGH_L0, SS = SHIN_L / SHIN_L0;
+        // ⚠️ 처방의 '+40%' 를 그대로 넣어 보고 **실측으로 올려잡은 값이다** — +40%·머리 0.735배 조합은
+        //    6.26두신에서 멈춘다(다리 47.9%). 다리 50% 라는 원신 기준을 먼저 만족시키는 지점이 +55%다.
+        // ⚠️ 전신 높이는 **아래 BODY_SCALE 이 교정 전 값으로 되돌린다** — 다리만 늘이면 영웅이 통째로
+        //    12% 커져 적·카메라·탈것 안장 높이가 전부 따라 움직인다(비례 항목이 프레이밍 항목을 건드리게 된다).
+
         // ---------- 하체 ----------
         const pelvis = new THREE.Group();
-        pelvis.position.y = 0.615; // 다리 연장(대퇴 0.32·정강이 0.275)에 맞춰 상향 — 두상 축소만으론 '유아 마스코트' 비율 잔존 (비평가 지적)
+        // 연장분(대퇴 +0.128 · 정강이 +0.110)만큼 골반을 올려 접지면을 그대로 둔다.
+        pelvis.position.y = 0.615 + (THIGH_L - THIGH_L0) + (SHIN_L - SHIN_L0);
         root.add(pelvis);
         R.bones.pelvis = pelvis;
         // 골반 장갑(스커트 판) — 앞뒤 곡면 판 + 벨트
@@ -729,18 +752,18 @@ const ProChar = {
         for (const side of [-1, 1]) {
             const hip = new THREE.Group();
             hip.position.set(side * 0.13, -0.06, 0);
-            const thigh = this.capsule(0.085, 0.07, 0.32, mailMat); // 다리 연장 — 마스코트 비율 완화
+            const thigh = this.capsule(0.085, 0.07, THIGH_L, mailMat); // ㉢ 연장 — 반지름은 그대로라 길수록 가늘어 보인다(성인 비례)
             const cuisse = new THREE.Mesh(new THREE.SphereGeometry(0.095, 10, 8), steelDark()); // 대퇴 장갑판
-            cuisse.position.y = -0.115;
-            cuisse.scale.set(1, 1.45, 1);
+            cuisse.position.y = -0.115 * TS;
+            cuisse.scale.set(1, 1.45 * TS, 1);   // 커버 비율 유지 — 안 늘이면 대퇴 아래쪽이 맨사슬로 뜬다
             // 대퇴 상단 패딩 링 — 스커트(판금)와 사슬이 맞물리는 경계에 누빔천을 끼워 재질이 3층으로 읽히게
             const thighPad = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.088, 0.055, 12), padding);
-            thighPad.position.y = -0.022;
+            thighPad.position.y = -0.022 * TS;
             // 대퇴 가터 스트랩 — 사슬 위를 감는 니어블랙 띠 (금속 명도 덩어리를 가로로 끊는다)
             const garter = new THREE.Mesh(new THREE.CylinderGeometry(0.089, 0.086, 0.03, 12), deepHide);
-            garter.position.y = -0.2;
+            garter.position.y = -0.2 * TS;
             const knee = new THREE.Group();
-            knee.position.y = -0.32;
+            knee.position.y = -THIGH_L;
             // 무릎 폴린(poleyn): 슬개 돔 + 측면 팬 윙 + 상하 라메 2겹 — 관절이 '캡슐 이음매'가 아니라 관절 장갑으로 보이게
             const kneeCap = new THREE.Mesh(new THREE.SphereGeometry(0.062, 10, 8), steel());
             kneeCap.scale.set(1.05, 0.95, 1.15);
@@ -759,11 +782,11 @@ const ProChar = {
             const kneeGasket = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.056, 0.088, 12), deepGasket);
             kneeGasket.position.y = -0.002;
             knee.add(kneeGasket, poleynWing, kneeLameUp, kneeLameDn, kneeRivet);
-            const shin = this.capsule(0.06, 0.052, 0.275, mailMat);
+            const shin = this.capsule(0.06, 0.052, SHIN_L, mailMat);
             // 정강이 장갑판 (그리브)
             const greave = new THREE.Mesh(new THREE.SphereGeometry(0.068, 9, 7), steelDark());
-            greave.position.set(0, -0.128, 0.012);
-            greave.scale.set(0.95, 1.7, 0.95);
+            greave.position.set(0, -0.128 * SS, 0.012);
+            greave.scale.set(0.95, 1.7 * SS, 0.95);
             knee.add(greave);
             // 부츠: 라운드 토 (구+원통 결합) + 강철 사바톤
             // 0x4a3728은 r128의 리니어 해석 + sRGB 출력 + 밝은 가죽 텍스처(#c9b8a6)가 겹쳐 화면에서 살구빛 탄으로 떠
@@ -825,7 +848,22 @@ const ProChar = {
             footAO.rotation.x = Math.PI / 2;
             footAO.position.set(0, -0.352, 0.075);
             footAO.scale.set(1.05, 1.42, 0.34);       // z(상하 두께) 납작 · y(전후) 길게 — 발 형상 추종
-            knee.add(kneeCap, shin, bootTop, ankleNeck, midFoot, toe, sabaton, ankleLame, sole, heel, footAO);
+            // ㉢ 연장 후에도 **부츠 조형은 한 자도 건드리지 않는다** — 4꺾임 실루엣(발목·발등·발가락·굽)과
+            // 평바닥 밑창은 `probe-boot-profile.js` 가 지키는 확정 형상이라, 좌표를 개별로 다시 계산하면
+            // 그 판정이 통째로 무너진다. 그래서 **부츠 전체를 한 그룹으로 묶어 정강이 연장분만큼 내린다**
+            // (그룹 안 로컬 좌표는 그대로 → 형상·접지선 평탄도·발AO 링 위치 관계가 전부 보존된다).
+            // ⚠️ 내리기만 하면 **부츠가 사라진다** — 실제로 첫 판에서 그렇게 됐다(캡처로 확인). 다리가
+            // 55% 길어졌는데 발은 그대로라, 부츠가 다리에서 차지하는 세로 비중이 17% → 11% 로 떨어져
+            // 정강이가 '발 없는 막대'로 읽혔다. 발을 함께 키워 비중을 되돌린다(BOOT_S).
+            // 키우는 기준점은 **부츠 상단**(로컬 y −0.217 = bootTop 윗면)이다 — 여기를 고정해야
+            // 정강이 밑단과의 겹침(조형이 기대는 이음매)이 배율과 무관하게 유지된다. 밑창이 더 내려가는
+            // 만큼은 마지막 접지 보정(bbox 기반)이 알아서 흡수한다.
+            const BOOT_S = 1.28, BOOT_ANCHOR = -0.217;
+            const footG = new THREE.Group();
+            footG.scale.setScalar(BOOT_S);
+            footG.position.y = -(SHIN_L - SHIN_L0) + BOOT_ANCHOR * (1 - BOOT_S);
+            footG.add(bootTop, ankleNeck, midFoot, toe, sabaton, ankleLame, sole, heel, footAO);
+            knee.add(kneeCap, shin, footG);
             hip.add(thigh, thighPad, garter, cuisse, knee);
             aoRing(0.082, 0.016, hip, -0.015, 0.5); // 고관절-대퇴 경계 접촉 그림자
             pelvis.add(hip);
@@ -1250,7 +1288,11 @@ const ProChar = {
         R.bones.neck = neck;
         const headG = new THREE.Group();
         headG.position.y = 0.1;
-        headG.scale.setScalar(0.68); // 보블헤드 완화 4차 — 다리 연장과 병행해도 두신비 1:3 '아기 로봇' 지적 잔존 (0.78→0.73→0.68)
+        // 보블헤드 완화 5차 (6차 비평가 ㉢ 처방 '투구 0.74배'): 0.78→0.73→0.68→**0.50**.
+        // ⚠️ 더 줄이지 말 것 — 양쪽 비평가가 '되돌리지 말 것'으로 꼽은 두 가지(원거리 가독성 ·
+        //    투구 크레스트+바이저 슬릿의 정면성 신호)가 머리 면적에 직접 매달려 있다. 0.50 은
+        //    `probe-hero-proportion.js` 로 두신비 게이트를 넘기는 최소 축소폭이다.
+        headG.scale.setScalar(0.48);
         neck.add(headG);
         R.bones.head = headG;
         // 목 기둥 — 머리가 몸통 위에 떠 보이던 문제 (비평가: 목 연결부 부재)
@@ -1284,10 +1326,18 @@ const ProChar = {
         //     자체가 없다. 방향을 어떻게 잡든 이 항목만으로는 못 푼다.)
         // 처방에서 **살린 것 = 실제로 모자랐던 것**: ⑴ 단(段) 3개와 단 경계 테 ⑵ 목 구멍 안쪽 암부
         //    ⑶ 총 높이 ≈ 머리 높이(투구 포함 0.419)의 0.35 대역.
+        // ⚠️ ㉢ 비례 교정(머리 0.68→0.48)의 파생 — `probe-collar` ㉦② 가 잡았다. 칼라 높이(0.128)는
+        //    안 건드렸는데 **머리가 작아지자 비가 0.35 → 0.497 로 튀어** 칼라가 턱을 삼켰다(정면
+        //    캡처에서 목이 아예 안 보이고 '어깨에 얹은 머리'로 읽힌다). 높이를 0.77 배로 낮춘다.
+        // ⚠️ **줄이는 기준점은 밑단(y 0.432)이다.** 윗단을 고정하고 줄이면 밑단이 요크에서 떨어져
+        //    ⓔ '요크와 투구가 이음선으로 만난다' 를 그대로 되살린다 — 칼라가 애초에 그걸 메우려고
+        //    생긴 파츠다. 밑단을 붙여 두면 위로 드러나는 구간은 사슬 카울(0.445~0.565)이 받는다.
+        const CB = 0.432, CH = 0.77;                     // 밑단 기준 · 높이 배율
+        const cy = y => +(CB + (y - CB) * CH).toFixed(4);
         const COLLAR_LAMES = [   // [밑단r, 윗단r, 밑단y, 윗단y] — 위로 벌어진다(실측으로 채택한 방향)
-            [0.099, 0.095, 0.432, 0.472],
-            [0.101, 0.108, 0.470, 0.512],
-            [0.112, 0.121, 0.510, 0.560],
+            [0.099, 0.095, cy(0.432), cy(0.472)],
+            [0.101, 0.108, cy(0.470), cy(0.512)],
+            [0.112, 0.121, cy(0.510), cy(0.560)],
         ];
         const collarParts = [];
         for (const [rb, rt, y0, y1] of COLLAR_LAMES) {
@@ -1306,7 +1356,7 @@ const ProChar = {
         // 최상단 라메 **안쪽** 암부 (처방 "L 20대") — 목 구멍 안으로 니어블랙 원통을 한 단 더 세운다.
         // 안감(lameIn)은 라메 벽 바로 뒤라 정면에서 거의 안 보인다. 실제로 어두워야 하는 건 그 **안쪽 구멍**이다.
         const throat = new THREE.Mesh(new THREE.CylinderGeometry(0.112, 0.098, 0.09, 16, 1, true), deepLine);
-        throat.position.y = 0.512;
+        throat.position.y = cy(0.512);   // 목 구멍 암부도 칼라와 함께 내려온다(안 내리면 라메 위로 삐져나온다)
         spine.add(...collarParts, throat);
         // 얼굴 — 둥근 두상 + 턱 라운딩 (헬멧 미착용 시 노출)
         const skull = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 12), skin);
@@ -1378,9 +1428,22 @@ const ProChar = {
         headG.add(headMount);
         R.headMount = headMount;
 
-        root.position.y = 0.08; // 발바닥(pelvis 0.615 - 고관절 0.06 - 대퇴 0.32 - 정강이/부츠 0.315)이 y=0에 닿는 보정 — 연장분은 pelvis 상향으로 상쇄
+        root.position.y = 0.08; // 발바닥이 지면에 닿는 보정 — 다리 연장분은 pelvis 상향으로 상쇄돼 있다
         const outer = new THREE.Group();
         outer.add(root);
+        // ---- ㉢ 비례 교정의 마지막 한 수: 전신 높이 되돌리기 ----
+        // 다리를 +55% 늘이면 영웅이 통째로 12% 커진다. 그러면 **비례가 아니라 크기가 바뀐 것**이라
+        // 적과의 대비·카메라 프레이밍·탈것 안장 높이(`heroPelvisLocalY` 기반)까지 전부 끌려간다.
+        // 바깥 그룹에 역배율을 걸어 **화면에서 차지하는 높이는 교정 전과 같게** 두고, 바뀐 것이
+        // 오직 두신비·다리비뿐이게 만든다.
+        // 접지 보정 — 배율을 걸면 발바닥이 지면 위로 뜬다(그룹 원점이 발이 아니므로).
+        // 상수로 박지 않고 **실제 bbox 하단**에서 되돌린다(부츠·다리 길이를 또 손봐도 따라온다).
+        // ⚠️ bbox 는 배율을 **걸기 전에** 뜬다 — setFromObject 는 월드 기준이라, 배율을 먼저 걸면
+        //    outer 공간 값이 아니라 축소된 월드 값이 나와 보정이 좌표계를 섞는다.
+        root.updateWorldMatrix(true, true);
+        const footLocal = new THREE.Box3().setFromObject(root).min.y;
+        outer.scale.setScalar(this.BODY_SCALE);
+        root.position.y += this.GROUND_Y / this.BODY_SCALE - footLocal;
         R.group = outer;
         R.root = root;
 

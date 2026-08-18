@@ -33,6 +33,13 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         // ⚠️ 어깨 **그룹 전체**를 재면 안 된다 — 하완·손·방패·검이 다 딸려 들어와 '팔 벌린 폭'이 잡힌다
         //    (첫 판이 그랬다: 0.909, 실제 어깨 반경의 2배 이상). 재야 하는 것은 **견갑까지의 어깨 덩어리**다.
         //    견갑 그룹은 캡(LatheGeometry)을 가진 유일한 서브트리이므로 그것으로 찾아 AABB 를 뜬다.
+        // 🚨 **좌표계 함정(2026-08-18 ㉢ 비례 작업에서 실제로 터졌다)**: 어깨는 `Box3.setFromObject`
+        //    = **월드** 값인데, 아래 헴 반경은 `geometry.attributes.position` = **로컬 raw** 값이다.
+        //    둘의 비를 그냥 내면 리그에 배율이 걸리는 순간 비가 통째로 틀어진다 — `ProChar.BODY_SCALE`
+        //    0.869 가 들어오자 실제로는 0.588 인 비가 **0.677 로 읽혀 멀쩡한 조형이 ❌** 로 찍혔다.
+        //    (지오메트리는 하나도 안 바뀌었는데 판정만 뒤집힌 것이라, 그대로 믿었으면 헴을 잘못 줄였다.)
+        //    → 어깨 쪽을 리그 월드 배율로 나눠 **양쪽 다 로컬 raw 단위**로 맞춘다.
+        const rigScale = new THREE.Vector3().setFromMatrixScale(R.root.matrixWorld).x || 1;
         const bodyX = new THREE.Vector3(); R.root.getWorldPosition(bodyX);
         let shX = 0;
         for (const arm of (R.arms || [])) {
@@ -88,11 +95,11 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
             gapsB.push({ at: +(((cur.bot[1] + nxt.bot[0] + wrap) / 2) * 180 / Math.PI).toFixed(1), deg: +((nxt.bot[0] + wrap - cur.bot[1]) * 180 / Math.PI).toFixed(2) });
         }
         const hemR = Math.max(...plates.map(p => p.rBot));
-        return { shoulderR: +shX.toFixed(4), hemR: +hemR.toFixed(4), n: plates.length, gapsT, gapsB };
+        return { shoulderR: +(shX / rigScale).toFixed(4), hemR: +hemR.toFixed(4), rigScale: +rigScale.toFixed(4), n: plates.length, gapsT, gapsB };
     });
 
     const ratio = +(out.hemR / out.shoulderR).toFixed(3);
-    console.log(`어깨 반경 ${out.shoulderR} · 헴 반경 ${out.hemR} · 태싯 ${out.n}장`);
+    console.log(`어깨 반경 ${out.shoulderR} · 헴 반경 ${out.hemR} · 태싯 ${out.n}장 (둘 다 로컬 raw · 리그 월드 배율 ${out.rigScale})`);
     console.log(`상단 간극(°): ${out.gapsT.map(g => `${g.deg}@${g.at}`).join(' · ')}`);
     console.log(`하단 간극(°): ${out.gapsB.map(g => `${g.deg}@${g.at}`).join(' · ')}`);
     const ok = [];
