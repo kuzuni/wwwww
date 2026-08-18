@@ -4,10 +4,11 @@
 // 기존 Scene3D 인터페이스(weaponG 손 부착, helmetG 머리 부착, heroPlay 클립 이름) 호환.
 
 const ProChar = {
-    // ---- 전신 비례 (6차 비평가 ㉢ — `probe-hero-proportion.js` 가 지키는 값) ----
-    // 다리 +55%·머리 0.48배로 두신비를 4.25 → 6.93 으로 올리면 전신이 12% 길어진다. 그 길어진 만큼을
-    // 여기서 되돌려, **화면에서 차지하는 높이는 교정 전과 똑같이** 두고 비례만 바뀌게 한다.
-    BODY_SCALE: 0.869,
+    // ---- 전신 비례 (hero-chibi, 사용자 지시 2026-08-18 — `probe-hero-proportion.js` 가 지키는 값) ----
+    // 사용자 지시로 치비(두신비 2.5~3, 큰 머리·짧은 다리)로 전환 — 종전 성인 비례(6차 비평가 ㉢,
+    // 두신비 6.93)는 이 지시로 폐기됐다. 머리를 키우고 다리를 줄이면 전신 높이가 바뀌므로, 여기서
+    // 역배율을 걸어 **화면에서 차지하는 높이(1.785)는 그대로** 두고 비례만 바뀌게 한다.
+    BODY_SCALE: 0.98,
     GROUND_Y: -0.053,   // 교정 전 발바닥 월드 y — 지면 블롭·그림자·발AO 가 여기 맞춰져 있다
 
     // ---- 이징 ----
@@ -503,21 +504,16 @@ const ProChar = {
 
         const root = new THREE.Group();
 
-        // ---------- 비례 상수 (6차 비평가 ㉢ — 양쪽이 이 항목 '최대 결함'으로 지목) ----------
-        // 실측(`probe-hero-proportion.js` 신설): **4.25두신 · 다리 38.6%** — 비평가 B 의 4.2두신,
-        // A 의 37% 와 사실상 같은 값이 나왔다(지적은 오측정이 아니라 사실이었다).
-        // 처방은 '대퇴·정강이 +40% 연장 + 투구 0.74배 축소' 였다. 실제로 넣은 값은 **다리 +55% ·
-        // 머리 0.706배**(0.68→0.48) — 처방값 그대로는 6.26두신·다리 47.9% 에서 멈춰 원신 기준
-        // '다리 50%+' 를 못 넘겼다. 아래 두 ⚠️ 참조.
+        // ---------- 비례 상수 (hero-chibi, 사용자 지시 2026-08-18) ----------
+        // 사용자 지시 "주인공 캐릭터 쨋든 치비 형으로" — 종전 성인 비례(6차 비평가 ㉢, 다리 +55% ·
+        // 머리 0.48배 = 두신비 6.93)를 폐기하고 치비(두신비 2.5~3, 큰 머리·짧고 뭉툭한 다리)로 전환.
         // ⚠️ 길이를 리터럴로 흩뿌리지 말 것 — 다리 장갑(쿠이스·가터·그리브)과 부츠가 전부 이 값에
         //    매달려 있어, 한 군데만 바꾸면 판금이 사슬 위에서 떠 버린다. 배율로 함께 끌고 간다.
-        const THIGH_L0 = 0.32, SHIN_L0 = 0.275;              // 연장 전 값 (부속 위치의 기준 좌표계)
-        const THIGH_L = 0.496, SHIN_L = 0.426;               // +55%
+        const THIGH_L0 = 0.32, SHIN_L0 = 0.275;              // 조정 전 값 (부속 위치의 기준 좌표계)
+        const THIGH_L = 0.192, SHIN_L = 0.165;               // ×0.60 — 치비 짧은 다리
         const TS = THIGH_L / THIGH_L0, SS = SHIN_L / SHIN_L0;
-        // ⚠️ 처방의 '+40%' 를 그대로 넣어 보고 **실측으로 올려잡은 값이다** — +40%·머리 0.735배 조합은
-        //    6.26두신에서 멈춘다(다리 47.9%). 다리 50% 라는 원신 기준을 먼저 만족시키는 지점이 +55%다.
-        // ⚠️ 전신 높이는 **아래 BODY_SCALE 이 교정 전 값으로 되돌린다** — 다리만 늘이면 영웅이 통째로
-        //    12% 커져 적·카메라·탈것 안장 높이가 전부 따라 움직인다(비례 항목이 프레이밍 항목을 건드리게 된다).
+        // ⚠️ 전신 높이는 **위 BODY_SCALE 이 1.785 로 되돌린다** — 비례만 바꾸고 크기를 바꾸지 않아야
+        //    적 대비·카메라·탈것 안장 높이가 안 끌려간다(`probe-hero-proportion.js` 크기 불변 게이트).
 
         // ---------- 하체 ----------
         const pelvis = new THREE.Group();
@@ -1169,12 +1165,12 @@ const ProChar = {
         spine.add(neck);
         R.bones.neck = neck;
         const headG = new THREE.Group();
-        headG.position.y = 0.1;
-        // 보블헤드 완화 5차 (6차 비평가 ㉢ 처방 '투구 0.74배'): 0.78→0.73→0.68→**0.50**.
-        // ⚠️ 더 줄이지 말 것 — 양쪽 비평가가 '되돌리지 말 것'으로 꼽은 두 가지(원거리 가독성 ·
-        //    투구 크레스트+바이저 슬릿의 정면성 신호)가 머리 면적에 직접 매달려 있다. 0.50 은
-        //    `probe-hero-proportion.js` 로 두신비 게이트를 넘기는 최소 축소폭이다.
-        headG.scale.setScalar(0.48);
+        // hero-chibi(사용자 지시 2026-08-18): 머리를 크게(0.48 → 1.0) — 두신비 2.5~3 치비 비례.
+        // 종전 '보블헤드 완화'(0.78→0.48 축소 이력)는 성인 비례 ㉢ 기준이라 이 지시로 폐기.
+        // position.y 를 0.1 → 0.16 으로 올려 커진 머리의 턱이 고젯 칼라를 뚫지 않게 한다
+        // (치비 문법대로 목 없이 어깨 위에 얹힌 머리 — 턱이 칼라 상단에 살짝 얹히는 높이).
+        headG.position.y = 0.16;
+        headG.scale.setScalar(1.0);
         neck.add(headG);
         R.bones.head = headG;
         // 목 기둥 — 머리가 몸통 위에 떠 보이던 문제 (비평가: 목 연결부 부재)
@@ -1288,22 +1284,8 @@ const ProChar = {
         mouth.rotation.z = Math.PI + Math.PI * 0.2;
         mouth.rotation.x = -0.3;
         faceG.add(mouth);
-        // 머리카락 (헬멧 없을 때) — 스웹트 숏컷: 베이스 캡 + 납작한 사이드스윕 프린지 (뭉게뭉게 금지)
-        const hairG = new THREE.Group();
-        const hairMat = new THREE.MeshStandardMaterial({ color: 0x8f6a26, metalness: 0, roughness: 0.5 }); // 머릿결 광택 — 낮은 러프니스
-        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.202, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.6), hairMat);
-        cap.position.y = 0.088;
-        cap.rotation.x = -0.1;
-        cap.scale.set(1, 1.04, 1.02);
-        hairG.add(cap);
-        // 헤어라인 리지 — 이마 경계를 따라 얇은 토러스 아크 (튀어나온 뭉치 없이 하선만 정의)
-        const ridge = new THREE.Mesh(new THREE.TorusGeometry(0.175, 0.028, 7, 20, Math.PI * 1.25), hairMat);
-        ridge.position.set(0, 0.15, 0.012);
-        ridge.rotation.x = Math.PI / 2 - 0.32;
-        ridge.rotation.z = Math.PI * (0.5 - 0.625);
-        hairG.add(ridge);
-        headG.add(hairG);
-        R.hairMesh = hairG;
+        // 머리카락 없음 — 기본형은 대머리 치비 (사용자 지시 2026-08-18: "아무것도 장착 안 했을 때
+        // 대머리 치비 캐릭터가 기본형"). 투구는 종전대로 headMount 에 얹힌다.
         // 기존 헬멧 시스템 부착점 (Scene3D.helmetG가 여기 붙음 — 머리 중심 기준)
         const headMount = new THREE.Group();
         headMount.position.y = 0.08;
@@ -1699,8 +1681,7 @@ const ProChar = {
             if (a) R.shieldFaceMat.color.setHex(RARITY_HEX[a.rarity]).offsetHSL(0, -0.08, -0.14);
             else R.shieldFaceMat.color.setHex(0x3f5a74);
         }
-        // 헬멧 착용 시 머리카락 숨김 (기존 helmetG 시스템이 머리에 붙음)
-        if (R.hairMesh) R.hairMesh.visible = !equipment.helmet;
+        // 머리카락 없음 — 기본형 = 대머리 치비 (사용자 지시 2026-08-18). 투구만 headMount 로 얹힌다.
         // 풀커버 투구(visor/mask/tech)는 이목구비도 숨김 — 코/눈이 투구 밖으로 뚫고 나오던 문제 (비평가 1위 결함)
         if (R.faceMesh) {
             const hStyle = equipment.helmet ? itemStyleOf(equipment.helmet) : null;

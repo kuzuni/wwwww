@@ -100,10 +100,17 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         const Rr = Scene3D.renderer, gl = Rr.getContext();
         const w = Rr.domElement.width, h = Rr.domElement.height;
         const grab = () => { Rr.render(Scene3D.scene, Scene3D.camera); const b = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, b); return b; };
+        // hero-chibi(2026-08-18): 머리를 **숨기고** 차분한다 — 커진 치비 턱이 칼라 상단·목구멍
+        // 샘플점을 카메라 미세각에 따라 가렸다 안 가렸다 해서 기여 736↔435px, 목구멍 L 26↔225 로
+        // 런마다 튀었다(실측). 이 프로브의 목적은 '요크 뒤 매몰(죽은 지오메트리) 검출'이지 턱 가림
+        // 판정이 아니므로, 머리를 치우고 재면 목적을 유지한 채 결정적이 된다.
+        const headWas = R.bones.head.visible;
+        R.bones.head.visible = false;
         const on = grab();
         for (const o of collar) o.visible = false;
         const off = grab();
         for (const o of collar) o.visible = true;
+        R.bones.head.visible = headWas;
 
         let n = 0, yMin = 1e9, yMax = -1, xMin = 1e9, xMax = -1;
         for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -151,13 +158,19 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     //    판정해야 하는 것은 방향이 아니라 "단(段)이 실제로 있고 경계가 보이는가" 다.
     const t1 = out.tiers >= 3 && out.rims >= 3;
     console.log(`㉦① 라메 단수 ${out.tiers}단 · 단 경계 테 ${out.rims}개 (처방 3단) · 벌어지는 방향 ${out.flare}(판정 제외) ${t1 ? '✅' : '❌'}`); ok.push(t1);
-    const t2 = out.hRatio >= 0.28 && out.hRatio <= 0.45;
-    console.log(`㉦② 총 높이 ${out.collarH} / 머리 높이 ${out.headH} = ${out.hRatio} (처방 ≈0.35, 허용 0.28~0.45) ${t2 ? '✅' : '❌'}`); ok.push(t2);
+    // hero-chibi(사용자 지시 2026-08-18) 재캘리브레이션: 종전 허용 0.28~0.45 는 성인 비례 머리
+    // (scale 0.48, 높이 0.258) 기준의 처방 ≈0.35 였다. 치비 머리(scale 1.0, 높이 0.605)에서는
+    // 같은 칼라 절대 높이가 비율로 0.163 이 된다 — 치비는 목 없이 머리가 어깨에 얹히는 문법이라
+    // 칼라를 머리의 1/3 로 키우면 오히려 턱을 삼킨다. 절대 높이 유지를 전제로 대역을 낮춘다.
+    const t2 = out.hRatio >= 0.10 && out.hRatio <= 0.45;
+    console.log(`㉦② 총 높이 ${out.collarH} / 머리 높이 ${out.headH} = ${out.hRatio} (치비 허용 0.10~0.45) ${t2 ? '✅' : '❌'}`); ok.push(t2);
     const t3 = out.throatL != null && out.throatL < 45;
     console.log(`㉦③ 목 구멍 안쪽 최소 휘도 L ${out.throatL} (처방 L 20대 = 암부, 판정 <45) ${t3 ? '✅' : '❌'}`); ok.push(t3);
-    // ㉦④ 매몰 방지선 — 칼라를 손대면 조용히 요크 뒤로 들어가기 쉽다. 종전 기준선 992px 대비 하한을 둔다.
-    const t4 = out.contribPx >= 800;
-    console.log(`㉦④ 기여 픽셀 ${out.contribPx}px (기준선 992px · 하한 800px — 이하면 요크 뒤로 매몰된 것) ${t4 ? '✅' : '❌'}`); ok.push(t4);
+    // ㉦④ 매몰 방지선 — 칼라를 손대면 조용히 요크 뒤로 들어가기 쉽다.
+    // hero-chibi 재캘리브레이션: 머리 숨김 차분 기준 실측 777~781px (종전 성인 비례·머리 포함
+    // 기준선 992px 과 측정 조건이 다르니 비교하지 말 것). 하한은 실측의 약 3/4 — 이 밑이면 진짜 매몰.
+    const t4 = out.contribPx >= 590;
+    console.log(`㉦④ 기여 픽셀 ${out.contribPx}px (치비 기준선 ~780px · 하한 590px — 이하면 요크 뒤로 매몰) ${t4 ? '✅' : '❌'}`); ok.push(t4);
     console.log(ok.every(Boolean) ? '㉦ 전부 통과' : '㉦ 미통과 있음');
     console.log(errs.length ? 'ERRORS: ' + errs.join(' | ') : '(no console errors)');
     await browser.close();
