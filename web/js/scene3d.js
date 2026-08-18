@@ -3683,7 +3683,10 @@ const Scene3D = {
                     }
                 }
                 const BB = [0, 0.10, 0.02];              // 크랭크축(bottom bracket)
-                const HEAD = [0, 0.40, 0.26], SEAT = [0, 0.34, -0.07];
+                // ⚠️ 헤드튜브 높이는 **라이더 손 높이**가 정한다 — 예전 0.40은 영웅 손(실측 로컬 0.605)보다
+                //    한참 아래라, 바를 손에 맞추면 스템이 기둥처럼 늘어나 자전거가 아니라 '초록 장대'가 됐다.
+                //    안장 역산으로 자전거가 2.1배까지 커지는 만큼 앞부분도 같이 커져야 비율이 맞는다.
+                const HEAD = [0, 0.52, 0.26], SEAT = [0, 0.34, -0.07];
                 tube(BB, HEAD, 0.022);                    // 다운튜브
                 tube(BB, SEAT, 0.022);                    // 시트튜브
                 tube(SEAT, HEAD, 0.02);                   // 탑튜브
@@ -3694,7 +3697,7 @@ const Scene3D = {
                 // 맞추는 게 정답이고(alignStirrups가 등자를 발에 맞추는 것과 같은 원칙), 손을 상수로
                 // 바에 맞히려 들면 포즈·배율이 곱해진 자리를 손으로 맞히는 셈이라 반드시 어긋난다.
                 const barG = new THREE.Group();
-                barG.position.set(0, 0.45, 0.255);
+                barG.position.set(0, 0.60, 0.215);   // 실측한 영웅 손자리(0.605 / 0.208) 옆 — 스템이 짧게 남는다
                 const bar = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.026, 0.026), dark);
                 barG.add(bar);
                 const gripsL = [];
@@ -3706,7 +3709,7 @@ const Scene3D = {
                 }
                 g.add(barG);
                 const stem = tube(HEAD, [0, 0.45, 0.255], 0.016, dark);   // 헤드튜브 → 바 (길이는 매 배치마다 다시 잡는다)
-                g.userData.bar = { group: barG, grips: gripsL, stem, head: HEAD, rest: barG.position.clone() };
+                g.userData.bar = { group: barG, grips: gripsL, barMesh: bar, stem, head: HEAD, rest: barG.position.clone() };
                 sp(0.10, 0, 0.335, -0.075, LEATHER, 0.55, 0.30, 1.25);  // 안장(=form.saddle 0.36 윗면)
                 // 페달: 탑승 포즈의 발 위치(로컬 y 0.10 / z 0.10)에 맞춰 놓아 발이 헛돌지 않게
                 for (const s of [-1, 1]) {
@@ -3957,7 +3960,9 @@ const Scene3D = {
         wheeled: { saddle: 0.36, hover: 0,
                    // barReach: 빈 손이 핸들바를 잡는 팔 각(어깨 앞으로·안쪽으로, 팔꿈치 살짝 굽힘).
                    // 바는 이 손 위치로 따라온다(alignHandlebar) — 각을 바꿔도 바가 알아서 맞춰진다.
-                   barReach: { shoulder: -1.16, shoulderZ: 0.26, elbow: -0.30 },
+                   // 각은 실측으로 골랐다(tools/probe-ride-grip.js, 60조합) — 어깨를 더 돌리면 팔이
+                   // 위로 넘어가 손이 오히려 **뒤로** 처지고 바가 허리까지 끌려온다(통과 조합이 -1.2뿐).
+                   barReach: { shoulder: -1.2, shoulderZ: 0.1, elbow: -0.2 },
                    pose: { hipL: { rx: 1.02, rz: -0.26 }, hipR: { rx: 0.64, rz: 0.24 },
                            kneeL: { rx: -1.72 }, kneeR: { rx: -0.86 }, spine: { rx: 0.2 } } },
         // 비행형: 공중에 뜬 몸통을 다리로 조이며 앉는다 (벌림은 사족형보다 좁게)
@@ -4093,7 +4098,6 @@ const Scene3D = {
         g.userData.wings = mesh.userData.wings || null;
         g.userData.tail = mesh.userData.tail || null;
         g.userData.bar = mesh.userData.bar || null;      // 핸들바 — 영웅 손에 맞춰 스템을 늘인다
-        this._barFrames = 6;                             // 포즈가 안정된 뒤 몇 프레임 안에 한 번 맞추고 고정
         let baseY = form.hover * sc * rideScale;
         g.position.set(Combat.HERO_X + this.worldX, baseY, 0);   // 영웅 발밑(별도 자리 아님)
         // ── 접지 보정: 어떤 종도 지면 아래로 파고들지 않게 ──
@@ -4186,9 +4190,10 @@ const Scene3D = {
     // 핸들바를 영웅의 **비어 있는 손**으로 가져온다 — "자전거인데 양손이 옆에 늘어져 있다"(비평가 지적 ⓒ).
     // 손을 바에 맞추려면 팔 IK가 필요하고, 그 IK는 무기 파지·공격 클립과 매 프레임 싸운다.
     // 실제 자전거 핏이 스템 길이로 바를 라이더에게 맞추듯 **바를 손에** 가져오면 그 싸움이 통째로 없어진다.
-    // ⚠️ 매 프레임 따라가게 두면 공격 중 휘두르는 팔을 바가 쫓아다닌다 — 포즈가 안정된 직후 몇 프레임 안에
-    //    한 번 자리를 잡고 고정한다(탑승 중 팔 거치 자세는 정적이라 그 뒤로 어긋날 일이 없다).
-    _barFrames: 0,
+    // ⚠️ 공격 중에는 **멈춘다** — 안 그러면 휘두르는 팔을 바가 쫓아다닌다. 공격이 끝나면 팔이 같은 거치
+    //    자세로 돌아오므로 바도 원래 자리로 되돌아온다(거치 포즈는 정적이라 프레임 간 값이 동일).
+    //    ⚠️ 예전엔 '리프레시 직후 N프레임만 맞추고 고정'이었는데, 그 N프레임이 하필 공격 구간과 겹치면
+    //    창을 통째로 날려 **한 번도 안 맞은 채 고정**됐다(실측: _barFrames 6→0인데 바는 기준자리 그대로).
     _barV: null,
     alignHandlebar() {
         const g = this.mountGroup, rig = this.heroRig;
@@ -4199,21 +4204,26 @@ const Scene3D = {
         const weaponHand = (this.gripOf(this.wtypeId) || {}).hand === 'L' ? 'L' : 'R';
         const freeSide = weaponHand === 'L' ? 1 : -1;                  // +1 = 오른쪽(R)
         const hand = freeSide < 0 ? rig.handL : rig.handR;
-        const gripMesh = bar.grips.find(m => m.userData.side === freeSide) || bar.grips[0];
-        if (!hand || !gripMesh) return;
+        if (!hand) return;
         if (!this._barV) this._barV = new THREE.Vector3();
         this.heroG.updateWorldMatrix(true, true);
         g.updateWorldMatrix(true, true);
-        // 손 위치를 바 그룹의 부모(=배율이 걸린 안쪽 메시 그룹) 로컬로 옮긴 뒤, 그립이 그 자리에 오도록
-        // 그룹째 평행이동한다(그립의 로컬 오프셋을 빼는 것 — 바 자체를 회전시키면 자전거가 뒤틀린다).
+        // 손 위치를 바 그룹의 부모(=배율이 걸린 안쪽 메시 그룹) 로컬로 옮겨 기준으로 삼는다.
         const target = barG.parent.worldToLocal(hand.getWorldPosition(this._barV));
-        target.sub(gripMesh.position);
-        // 스템이 늘어나는 범위에 상한을 둔다 — 손이 엉뚱한 자리(공격 잔여 포즈 등)일 때 바가 날아가지 않게
+        // ⚠️ 바를 통째로 손으로 끌고 가면 **자전거가 비대칭**이 된다 — 반대쪽 그립이 아무도 안 잡는
+        //    허공으로 튀어나가고 바가 프레임 중심선을 벗어난다(첫 판 캡처에서 그대로 확인).
+        //    바는 중심선(x=0)에 두고 **높이·앞뒤(스템)만** 손에 맞춘 뒤, 그립을 바 위에서 옆으로 밀어
+        //    손 아래에 오게 한다(실제로도 그립 위치는 바 위에서 잡는 자리다).
         const rest = bar.rest;
-        target.x = U.clamp(target.x, rest.x - 0.16, rest.x + 0.16);
-        target.y = U.clamp(target.y, rest.y - 0.22, rest.y + 0.30);
-        target.z = U.clamp(target.z, rest.z - 0.24, rest.z + 0.20);
+        const handX = target.x;
+        target.x = rest.x;
+        target.y = U.clamp(target.y, rest.y - 0.22, rest.y + 0.34);
+        target.z = U.clamp(target.z, rest.z - 0.18, rest.z + 0.20);
         barG.position.copy(target);
+        // 그립은 좌우 대칭으로 — 잡는 손 쪽 x 를 그대로 쓰고 반대쪽은 거울로 둬 바가 한쪽으로 안 쏠린다
+        const gx = U.clamp(Math.abs(handX - rest.x), 0.10, 0.24);
+        for (const gp of bar.grips) gp.position.x = gp.userData.side * gx;
+        bar.barMesh.scale.x = (gx * 2 + 0.05) / 0.30;   // 바가 그립 밖으로 조금 더 나오게 (0.30 = 원래 폭)
         // 스템(헤드튜브 → 바)을 새 자리에 맞춰 다시 겨눈다 — 안 하면 바가 프레임에서 떨어져 공중에 뜬다.
         const A = new THREE.Vector3(bar.head[0], bar.head[1], bar.head[2]);
         const d = new THREE.Vector3().subVectors(target, A);
@@ -6741,7 +6751,7 @@ const Scene3D = {
                 if (!this._attacking) this.heroG.position.y += bob;   // 영웅도 같은 바운스를 그대로 받는다
                 this.heroG.rotation.x = mg.rotation.x * 0.6;
                 this.alignStirrups();                                 // 등자를 실제 발 위치에 붙인다
-                if (this._barFrames > 0) { this._barFrames--; this.alignHandlebar(); }  // 핸들바를 빈 손으로 (자리 잡고 고정)
+                this.alignHandlebar();                                // 핸들바를 빈 손 아래로 (공격 중엔 그 자리에 둔다)
             }
         }
         // 따라오는 탈것 무리: 영웅 전진을 같이 따라가고, 개체별 위상·속도로 어긋나게 까딱인다
