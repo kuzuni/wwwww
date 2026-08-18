@@ -1251,7 +1251,9 @@ body {
    아이콘도 원본의 1/2.6 크기였다 — 전 화면 공통 편차라 비율 검증에서 제일 먼저 잡을 항목.
    높이는 --tabbar-h 한 곳에서 관리한다(시트 좌하단 ◀·팝업 높이 상한이 같은 값을 참조). */
 #tabbar {
-    display: flex; background: #1c2128; border-top: var(--ol1) solid #30363d; z-index: 10;
+    /* 배경 — 원본 shot-042120 탭바 밴드 실측 rgb(14,17,27)(비평가 D 교차실측 일치). 이전 #1c2128
+       은 더 밝고 탁해 아이콘 채도가 죽어 보였다. */
+    display: flex; background: #0e111b; border-top: var(--ol1) solid #30363d; z-index: 10;
     height: var(--tabbar-h); flex: none;
 }
 #tabbar button {

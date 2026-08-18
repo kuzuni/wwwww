@@ -13,6 +13,7 @@
 // 종료코드 0=PASS / 1=측정 불통과 / 2=측정기 고장(캘리브레이션 실패)
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
+const { waitReady } = require('./wait-ready.js');
 const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const REF = path.resolve(__dirname, '../ref/screens/shot-042120.png');
@@ -97,7 +98,7 @@ const SCAN = function (data, W, y0, y1, cells) {
 
     // ---- ② 클론 실측 (라벨 숨김 = 원본과 같은 기준) ----
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 20000 });
+    await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined"');   // waitForFunction 은 3D 포화 구간에서 기아 타임아웃(wait-ready.js 헤더 ②)
     await page.evaluate(() => { if (typeof Scene3D !== 'undefined') Scene3D.update = function () { }; if (typeof Combat !== 'undefined') Combat.tick = function () { }; });
     await page.waitForTimeout(500);
     const dom = await page.evaluate(() => {
