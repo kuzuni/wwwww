@@ -1234,6 +1234,9 @@ body {
     opacity: 0; transform: translateY(-.5rem); transition: all .25s;
 }
 .toast.show { opacity: 1; transform: none; }
+/* 토스트 선두 아이콘 — 이모지가 있던 자리라 글자와 같은 줄에 서고 한 칸 띄어야 한다.
+   `.ico` 규칙이 이 파일 아래쪽(4765줄)에 있어 한 클래스면 특이도가 같아 덮인다 → `.ico.toast-ico`. */
+.ico.toast-ico { width: 1.25em; height: 1.25em; margin: -.3em .34em -.3em 0; }
 
 /* 스크롤바 */
 .panel::-webkit-scrollbar { width: 4px; }

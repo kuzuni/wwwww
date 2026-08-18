@@ -7,9 +7,12 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
 // 페이지 안에서 쓰는 헬퍼 — 매 evaluate마다 주입한다
+// ⚠️ 잠김 표시는 더 이상 🔒 **이모지가 아니다** — icon-gen 이 `IconGen.img('lock')` 으로 바꿔서
+// `textContent` 에는 아무것도 안 남는다(이 프로브가 그 뒤로 계속 FAIL 이었다). 아이콘 **노드**로 본다.
 const BTN_SRC = `(() => {
     const b = [...document.querySelectorAll('#equip-sheet button')].find(x => /자동/.test(x.textContent));
-    return b ? { txt: b.textContent.replace(/\\s+/g, ''), disabled: b.className.includes('disabled') } : null;
+    return b ? { txt: b.textContent.replace(/\\s+/g, ''), disabled: b.className.includes('disabled'),
+                 locked: !!b.querySelector('[class*="ico-lock"]') } : null;
 })()`;
 const btnState = page => page.evaluate(BTN_SRC);
 
@@ -36,7 +39,7 @@ const btnState = page => page.evaluate(BTN_SRC);
         UI.renderEquipSheet(); UI.tickSecond();
     });
     const before = await btnState(page);
-    ok(before && /🔒/.test(before.txt), `해금 전 버튼이 🔒가 아님: ${JSON.stringify(before)}`);
+    ok(before && before.locked, `해금 전 버튼에 자물쇠 아이콘이 없음: ${JSON.stringify(before)}`);
     ok(before && before.disabled, '해금 전 버튼에 disabled 클래스가 없음');
 
     // ② 실제 클리어 경로 — Combat.stageClear()가 도는 동안 renderEquipSheet는 불리지 않는다
@@ -46,7 +49,7 @@ const btnState = page => page.evaluate(BTN_SRC);
         Combat.stageClear();
     });
     const justAfter = await btnState(page);
-    ok(justAfter && /🔒/.test(justAfter.txt), `stageClear 직후에 이미 갱신됨(테스트 전제 확인용, 실패 아님): ${JSON.stringify(justAfter)}`);
+    ok(justAfter && justAfter.locked, `stageClear 직후에 이미 갱신됨(테스트 전제 확인용, 실패 아님): ${JSON.stringify(justAfter)}`);
 
     // ③ 1초 틱 뒤 — 자동 갱신 + 토스트
     await page.waitForTimeout(1400);
@@ -55,7 +58,7 @@ const btnState = page => page.evaluate(BTN_SRC);
         toast: [...document.querySelectorAll('.toast')].map(t => t.textContent).join('|'),
     })`);
     ok(after.unlocked, 'isUnlocked(autoForge)가 여전히 false');
-    ok(after.btn && /OFF/.test(after.btn.txt) && !/🔒/.test(after.btn.txt), `틱 후에도 잠김 표시: ${JSON.stringify(after.btn)}`);
+    ok(after.btn && /OFF/.test(after.btn.txt) && !after.btn.locked, `틱 후에도 잠김 표시: ${JSON.stringify(after.btn)}`);
     ok(after.btn && !after.btn.disabled, 'disabled 클래스가 남아 있음');
     ok(/해금/.test(after.toast), `해금 토스트 미출력: "${after.toast}"`);
 

@@ -895,10 +895,39 @@ const UI = {
         Scene3D.damageNumber(new THREE.Vector3(p.x, 1.8, p.z), text, cls);
     },
 
+    // 토스트 선두 이모지 → 코드 생성 아이콘. 호출부가 79곳이라 전부 고쳐 쓰는 대신
+    // **여기서 선두 한 글자만 갈아 끼운다** — 표에 없는 이모지는 글자 그대로 남으므로
+    // 아이콘을 새로 그릴 때마다 이 표에 한 줄 더하면 그 순간부터 전부 반영된다.
+    TOAST_ICON: {
+        '🪙': 'coin', '💎': 'gem', '🔨': 'hammer', '🛠': 'hammer', '⚒': 'hammer',
+        '🥚': 'egg', '🎫': 'ticket', '🎟': 'ticket', '🧪': 'potion', '⚙': 'winder',
+        '🔒': 'lock', '🗝': 'key', '🎁': 'gift', '🏆': 'trophy', '⭐': 'star', '⬆': 'uptri',
+    },
+
     toast(msg) {
         const el = document.createElement('div');
         el.className = 'toast';
-        el.textContent = msg;
+        // 문구를 훑어 **표에 있는 이모지를 전부** 아이콘 노드로 바꾼다. 선두만 바꾸면
+        // `🏆 1-1 첫 클리어! 🪙+60` 처럼 뒤에 붙는 재화 이모지가 그대로 남아 한 줄 안에서
+        // 아이콘과 이모지가 섞인다(실측으로 확인).
+        // ⚠️ innerHTML 로 통째로 바꾸면 안 된다 — 문구에는 닉네임·장비명이 그대로 들어온다.
+        //    아이콘만 노드로 만들고 **나머지는 전부 텍스트 노드**로 붙인다.
+        const cp = Array.from(String(msg));
+        let buf = '';
+        const flush = () => { if (buf) { el.appendChild(document.createTextNode(buf)); buf = ''; } };
+        for (let i = 0; i < cp.length;) {
+            // 이모지는 이형 선택자(U+FE0F)가 붙어 두 글자인 경우가 있다 — 두 글자를 먼저 본다.
+            const two = cp[i] + (cp[i + 1] || ''), one = cp[i];
+            const key = this.TOAST_ICON[two] ? two : (this.TOAST_ICON[one] ? one : '');
+            if (!key) { buf += cp[i]; i++; continue; }
+            flush();
+            const wrap = document.createElement('span');
+            wrap.innerHTML = IconGen.img(this.TOAST_ICON[key], 'toast-ico');
+            if (wrap.firstChild) el.appendChild(wrap.firstChild);
+            i += Array.from(key).length;
+            while (cp[i] === ' ') i++;      // 이모지 뒤 공백은 아이콘 마진이 대신한다
+        }
+        flush();
         this.els.toasts.appendChild(el);
         setTimeout(() => el.classList.add('show'), 10);
         setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2600);
