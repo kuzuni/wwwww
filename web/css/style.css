@@ -780,14 +780,19 @@ body {
     transform-box: view-box; transform-origin: 55px 14px;
     /* 스윙(0~720ms) 뒤 퇴장(720~880ms)을 따로 건다 — 오버레이가 900ms까지 사는 것은 3타 링·불티를
        끝까지 살리기 위해서지 망치를 공중에 세워 두려는 게 아니다. */
-    animation: afswing .72s linear forwards, afexit .16s cubic-bezier(.35,0,.75,.4) .72s forwards;
+    animation: afswing .72s linear forwards, afexit .18s cubic-bezier(.2,.62,.5,1) .72s forwards;
 }
 /* 3타의 되튐 + 퇴장을 한 번에 맡는다(160ms에 70° = 0.44°/ms — 타격 1.0°/ms 의 0.44배).
    0% 자세는 afswing 100% 와 **같아야** 720ms 경계에서 안 튄다. */
+/* ⚠️ 앞쪽을 더 몰았다 — 0→45% 가 72ms/38°(0.53°/ms)라 3타 직후가 1·2타 되튐(0.42/0.55)보다
+   굼떠 '지쳐 멈췄다'로 읽혔다. 가장 센 타격이 가장 느리게 튀면 위계가 거꾸로 읽힌다.
+   지금은 앞 33%(59ms)에 45°(0.76°/ms)를 뽑고 나머지 27°를 121ms 에 흘린다.
+   ⚠️ 수명이 .18s 라 delay .72 + .18 = 900ms 로 오버레이 수명과 정확히 맞물린다 — 더 늘리면
+   퇴장이 잘려 망치가 공중에서 사라진다(probe ⑥ 이 잡는다). */
 @keyframes afexit {
     0%   { transform: translate(1.2px, 4px)  rotate(8deg);   opacity: 1; }
-    45%  { transform: translate(4px, -26px)  rotate(-30deg); opacity: 1; }
-    100% { transform: translate(8px, -70px)  rotate(-64deg); opacity: 0; }
+    33%  { transform: translate(3.4px, -28px) rotate(-37deg); opacity: 1; }
+    100% { transform: translate(8px, -74px)  rotate(-64deg); opacity: 0; }
 }
 /* 거치 각(-20°)에 이 회전이 더해진다 — 타격 프레임을 +10~16°로 둬야 합이 -10°~-4°라 **타격면이
    상판과 거의 나란히** 닿는다(0°로 두면 -20° 기울어 머리 왼쪽 모서리로만 찍힌다).
