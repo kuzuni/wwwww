@@ -7165,8 +7165,107 @@ const Scene3D = {
     },
 
     // ---- 스킬 이펙트 ----
+    // POLISH.md 의 절대 기준은 **3박자 레이어링(캐스팅 플래시 → 발동 이펙트 → 적중 폭발)** 인데,
+    // 스킬 18종은 여태 **1박자**였다 — `skillEffect` 가 불리는 즉시 적 발밑에서 폭발이 터졌고
+    // 영웅 쪽에는 아무 예비 동작이 없었다. 그래서 아무리 세게 터뜨려도 '버튼을 누르니 이펙트가
+    // 튀어나온다'로 읽혔지(=예고 없는 팝), '힘을 모아 쏜다'로는 안 읽혔다.
+    // 여기서 **1박(시전)** 을 신설하고 기존 연출을 2·3박으로 뒤로 민다.
+    CAST_MS: 130,          // 시전 → 발동 간격. 피해는 Combat 이 0.2~0.25초에 넣으므로 적중이 항상 먼저다.
+    CAST_MS_METEOR: 0,     // 메테오/아포칼립스는 낙하 0.35초가 이미 2박이라 시전만 겹쳐 준다
+    // 시전 모트용 글로우 — makeGlowTexture 는 호출마다 새 텍스처를 만든다(스킬마다 굽지 않게 캐시)
+    castGlowTex() { return this._castGlow || (this._castGlow = this.makeGlowTexture()); },
+
+    // 1박: 시전. 영웅에게 **안으로 모이는** 운동을 만든다 — 기존 연출이 전부 '밖으로 퍼지는'
+    // 것뿐이라(expandRing·spawnSparks·explosion) 화면에 예비 동작이 존재하지 않았다.
+    // 수렴하는 룬 링 + 빨려드는 모트 + 부풀다 터지는 차지 코어 + 밝아지는 조명, 130ms.
+    skillCastBeat(color, fx) {
+        const support = fx === 'heal' || fx === 'aura';
+        const hero = this.heroG.position;
+        const chest = new THREE.Vector3(hero.x, hero.y + 1.05, hero.z);
+        const dur = 0.13;
+        const G = new THREE.Group();
+        this.scene.add(G);
+
+        // ⓐ 수렴 룬 링 2겹 — 넓게 깔렸다가 발밑으로 조여든다. 역방향 회전으로 '문양이 잠기는' 인상.
+        //    지원계는 위로 감아올리게(y 상승) 해서 공격계와 방향이 구분된다.
+        const rings = [];
+        // 반경 2.0/1.45 는 첫 캡처에서 영웅 키의 두 배를 덮어 '문양'이 아니라 '바닥에 깔린 흰 원'으로
+        // 읽혔다(연속 프레임 30~90ms 컷). 영웅 어깨폭의 3배쯤으로 조인다.
+        for (const [r0, tube, colr, spin] of [[1.4, 0.042, color, 1], [1.0, 0.026, new THREE.Color(0xffffff), -1.6]]) {
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(r0, tube, 6, 30),
+                new THREE.MeshBasicMaterial({ color: colr, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.set(hero.x, 0.14, hero.z);
+            ring.userData = { r0, spin };
+            G.add(ring); rings.push(ring);
+        }
+
+        // ⓑ 빨려드는 모트 — 영웅 둘레 반경 1.2 에서 가슴으로. 안쪽으로 **가속**해야 흡입으로 읽힌다.
+        const motes = [];
+        const n = this.particles.length > 200 ? 6 : 12;   // 붐빌 때 발생량 축소 (spawnSparks 와 같은 규칙)
+        for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2 + U.rand(-0.2, 0.2);
+            const rad = U.rand(0.85, 1.2);
+            const from = new THREE.Vector3(hero.x + Math.cos(a) * rad, hero.y + (support ? U.rand(0.0, 0.5) : U.rand(0.5, 1.8)), hero.z + Math.sin(a) * rad * 0.6);
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.castGlowTex(), color, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }));
+            sp.scale.setScalar(U.rand(0.16, 0.28));
+            sp.position.copy(from);
+            sp.userData = { from, s0: sp.scale.x };
+            G.add(sp); motes.push(sp);
+        }
+
+        // ⓒ 차지 코어 — 가슴에서 부풀다 마지막에 팍 터진다(2박으로 넘기는 손잡이).
+        const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.castGlowTex(), color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+        core.position.copy(chest);
+        core.scale.setScalar(0.01);
+        G.add(core);
+
+        // ⓓ 조명은 **올라가야** 한다 — flashLight 는 내려가는(터진 뒤) 곡선이라 시전엔 못 쓴다.
+        const light = new THREE.PointLight(color.getHex(), 0, 6);
+        light.position.set(chest.x, chest.y, chest.z + 0.4);
+        this.scene.add(light);
+
+        this.addAnim(dur, k => {
+            const ease = k * k;                       // 안으로 갈수록 빨라진다(흡입)
+            for (const r of rings) {
+                r.scale.setScalar(1 - 0.78 * ease);   // 반경 22% 까지 조여듦
+                r.rotation.z += r.userData.spin * 0.09;
+                r.material.opacity = Math.sin(k * Math.PI) * 0.72;  // 떴다 사라짐 — 끝에 링이 남으면 얼룩
+            }
+            for (const m of motes) {
+                m.position.lerpVectors(m.userData.from, chest, ease);
+                m.scale.setScalar(m.userData.s0 * (1 - 0.55 * k));
+                m.material.opacity = 0.95 * (1 - k * k * k);        // 도착 직전까지 살아 있어야 '빨려들었다'
+            }
+            const pop = k < 0.82 ? k / 0.82 : 1 + (k - 0.82) / 0.18 * 0.9;  // 부풀다 마지막 18% 에 터짐
+            core.scale.setScalar(0.05 + pop * (support ? 0.34 : 0.46));
+            core.material.opacity = k < 0.82 ? 0.35 + k * 0.75 : 1 - (k - 0.82) / 0.18;
+            light.intensity = 2.0 * ease;   // 2.6 은 지면 전체를 씻어 '화면이 밝아졌다'로 읽혔다
+        }, () => {
+            // ⚠️ `disposeTree` 는 `isMesh` 만 훑어 **Sprite 재질을 통째로 흘린다**(스킬마다 12장씩 샌다).
+            //    그렇다고 Sprite 의 geometry 를 해제하면 안 된다 — three r128 의 Sprite 는 모듈 전역
+            //    지오메트리 하나를 **모든 스프라이트가 공유**해서, 한 번 해제하면 이후 모든 스프라이트가
+            //    깨진다(불티·모트 전부). 그래서 메시는 지오메트리+재질, 스프라이트는 재질만 해제한다.
+            //    맵(castGlowTex)은 캐시라 건드리지 않는다.
+            G.traverse(o => {
+                if (o.isMesh && o.geometry) o.geometry.dispose();
+                if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
+            });
+            this.scene.remove(G); this.scene.remove(light);
+        });
+    },
+
     skillEffect(fx, colorHex, targetIds) {
         const color = new THREE.Color(colorHex);
+        this.skillCastBeat(color, fx);                     // 1박
+        const wait = fx === 'meteor' ? this.CAST_MS_METEOR : this.CAST_MS;
+        // 2·3박은 시전이 끝난 뒤. ⚠️ 타깃은 **그때 다시 조회**한다 — 130ms 사이에 죽어 disposeTree 된
+        // 메시를 붙들고 있으면 해제된 지오메트리를 참조한다.
+        if (wait > 0) { setTimeout(() => this.skillPayload(fx, color, targetIds), wait); return; }
+        this.skillPayload(fx, color, targetIds);
+    },
+
+    skillPayload(fx, color, targetIds) {
         const targets = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
         if (fx === 'meteor') {
             targets.forEach((m, i) => setTimeout(() => {
