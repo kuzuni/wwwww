@@ -47,8 +47,16 @@ body {
 .profile-info { display: flex; flex-direction: column; line-height: 1.2; }
 .profile-info .nickname { font-size: .78rem; font-weight: 700; }
 .profile-info .cp { font-size: .74rem; font-weight: 800; color: #ff8a65; }
-.currency-pills { display: flex; gap: .4rem; }
-.currency-pills .pill { background: #22272e; border-radius: 1rem; padding: .3rem .65rem; white-space: nowrap; font-weight: 700; }
+/* 원본(shot-042120) 실측: 코인 바 x299~384 · 젬 바 x395~480(우 인셋 19px = 3.81%W), 둘 다
+   **고정 폭 86px(17.23%W) × 높이 30px(3.36%H)** 이고 아이콘이 바 좌단에 붙고 숫자는 우측 정렬이다.
+   종전(내용 폭 pill + 좌 패딩 .65rem)은 아이콘 중심이 원본보다 +3.0%p 오른쪽에 찍혔다(probe-main-px).
+   상점 시트 헤더(.shop-sheet .cur-pill)와 같은 고정 바 규약 — 폭·인셋 값만 이 화면 실측치. */
+.currency-pills { display: flex; gap: .6rem; margin-right: calc(var(--app-w) * .0381 - .6rem); }
+.currency-pills .pill {
+    position: relative; background: #22272e; border-radius: 1rem; white-space: nowrap; font-weight: 700;
+    width: calc(var(--app-w) * .1723); height: calc(var(--app-h) * .0336); box-sizing: border-box;
+    display: inline-flex; align-items: center; justify-content: flex-end; padding: 0 .45rem 0 1.6rem;
+}
 .currency-pills .pill.coin { color: #ffd54f; }
 .currency-pills .pill.gem { color: #ff8a80; }
 /* 재화 pill 의 초록 `+` — 원본(shot-043224·042632 확대)은 pill 옆 원형 버튼이 아니라
@@ -76,13 +84,17 @@ body {
 #fx-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 
 #stage-label {
-    position: absolute; top: .6rem; left: 50%; transform: translateX(-50%);
+    /* 원본(042120) 제목 잉크 상단 = 7.62%H(y68). 클론은 상단바 띠(스킨 소관) 밑에서 시작해
+       top:.6rem 이면 잉크가 9.98%H(+2.36%p 초과, probe-main-px)로 처졌다 — 음수 top 으로 띠 바로
+       밑(잉크 ≈ 8.3%H, Δ+0.6%p)까지 올린다. 띠를 침범하지 않는 한도의 최상단이다. */
+    position: absolute; top: -.32rem; left: 50%; transform: translateX(-50%);
     font-size: 1.15rem; font-weight: 800; color: #fff;
     text-shadow: 0 1px 0 rgba(0,0,0,.8), 0 -1px 0 rgba(0,0,0,.55), 1px 0 0 rgba(0,0,0,.55), -1px 0 0 rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.65); /* 밝은 하늘 배경에서 씻겨 보이던 문제 (비평가 7.1 20번) — 외곽선형 그림자 */
 }
 /* 웨이브 진행 점: 원본처럼 점들을 선으로 이어 표시 (●─○) */
 #wave-pips {
-    position: absolute; top: 2.3rem; left: 50%; transform: translateX(-50%);
+    /* 제목을 올린 만큼 같이 올려 원본의 제목-점줄 간격(잉크 11px)을 유지한다 */
+    position: absolute; top: 1.8rem; left: 50%; transform: translateX(-50%);
     display: flex; align-items: center; gap: .3rem; padding: 0 .15rem;
 }
 #wave-pips::before {
@@ -689,15 +701,23 @@ body {
         var(--old) var(--old) 0 var(--olc), calc(var(--old) * -1) var(--old) 0 var(--olc),
         var(--old) calc(var(--old) * -1) 0 var(--olc), calc(var(--old) * -1) calc(var(--old) * -1) 0 var(--olc);
 }
-/* 모루 = 중앙 큰 제작 버튼, 좌측 ⓘ, 우측 대장간 버튼 2개 (UI-SPEC 1번) */
-.anvil-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .4rem; }
+/* 모루 = 중앙 큰 제작 버튼, 좌측 ⓘ, 우측 대장간 버튼 2개 (UI-SPEC 1번)
+   원본(042120) 실측(probe-main-px): ⓘ 중심 (14.33%W, 75.5%H) 지름 14px · 버튼 파랑 채움
+   y695~731 · 좌 x307 · 자동 버튼 x395~440(우 인셋 11.8%W). 종전 세로 중앙정렬은 버튼을 19px
+   위(−2.13%p), ⓘ 를 시트 왼끝(−9.92%p)에 뒀다 — 각 열을 상단 기준 + 실측 오프셋으로 박는다. */
+.anvil-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: .4rem; }
 .anvil-side { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
-.anvil-side.left { align-items: flex-start; }
-.anvil-side.right { align-items: stretch; }
+.anvil-side.left { align-items: flex-start; padding-top: calc(var(--app-h) * .0066); }
+.anvil-side.right { align-items: stretch; padding-top: calc(var(--app-h) * .0352); }
 .info-btn {
     width: 1.5rem; height: 1.5rem; border-radius: 50%; cursor: pointer;
     background: #22272e; border: var(--ol1) solid #444c56; color: #90a4ae; font-size: .8rem;
     display: flex; align-items: center; justify-content: center; padding: 0;
+}
+/* 장비 시트의 ⓘ 만 원본 실측 기하(지름 2.81%W · 좌단 12.9%W) — 다른 화면의 .info-btn 은 그대로 */
+#equip-sheet .anvil-side .info-btn {
+    width: calc(var(--app-w) * .0281); height: calc(var(--app-w) * .0281);
+    margin-left: calc(var(--app-w) * .109); font-size: .55rem;
 }
 /* 원본(shot-042120): 모루는 박스 없는 큰 일러스트 + 아래 해머 수량 */
 .anvil-btn { /* 원본(042120) 모루 ≈12% H (185 재채점) */
@@ -1225,7 +1245,11 @@ body {
 /* 해머 수량 원본 실측(y741 단면): 흰 획 + 검정 키라인(모루 어두운 받침 위에 얹힌 잉크) —
    민무늬 검정 글자였던 클론과 달리 어떤 바탕에서도 뜬다. */
 .anvil-btn small { font-size: .8rem; font-weight: 900; color: #fff; -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill; }
-.forge-actions { display: flex; gap: .3rem; }
+/* 원본(042120, probe-main-px): 버튼 블록 좌 x304(열 시작 −11px) · 우 x443(시트 우단 −45.9px),
+   자동 버튼은 **고정 폭**(채움 46px = 9.22%W + 테두리) — 종전 flex:1 균등분할은 자동을 +6.4%p
+   넓혀 우단이 시트 끝(97.2%W)까지 갔다. 대장간 버튼만 flex:1 로 남긴다. */
+.forge-actions { display: flex; gap: .3rem; margin-left: calc(var(--app-w) * -.0222); margin-right: calc(var(--app-w) * .092); }
+.forge-actions .btn:last-child { flex: none; width: calc(var(--app-w) * .0922 + 6.4px); }
 /* 두 버튼의 라벨은 마크업에서 `<br>` 로 줄을 직접 나눈다(`대장간<br>레벨 N`, `자동🔄<br>ON`) —
    자동 줄바꿈은 처음부터 의도가 아니었다. 앱이 작아지면 글자는 rem 으로 같이 줄지만 검정 테두리는
    3px 고정이라 안쪽 폭만 상대적으로 좁아져, 좁은 화면에서 `레벨/20`·`자/ㅌ/OF` 로 한 줄이 더 쪼개졌다
@@ -5648,6 +5672,9 @@ body {
 /* 고정 높이 pill 은 프레임 높이에 맞춘 rem 크기를 직접 준다 (루트 폰트가 화면 높이에 비례하므로 rem 도 반응형).
    좌우 대칭 음수 마진이라 vertical-align:middle 이 아이콘을 pill 중앙에 놓고, 마진 박스가 작아 pill 높이는 불변. */
 .currency-pills .pill .ico, .currency-pills .pill .pill-ico { width: 1.5rem; height: 1.5rem; margin: -.5rem .1rem -.5rem 0; }
+/* 상단바 고정 바 규약(probe-main-px): 아이콘은 바 **좌단**에 절대 배치 — 원본(042120) 아이콘 중심이
+   바 좌단 +13px 이다. 플로우에서 빼므로 위 음수 마진 줄은 이 상자에 더는 안 걸린다. */
+.currency-pills .pill .pill-ico { position: absolute; left: .05rem; top: 50%; transform: translateY(-50%); margin: 0; }
 .cur-pill .ico, .cur-pill .pill-ico { width: 1.42rem; height: 1.42rem; margin: -.46rem .1rem -.46rem 0; }
 /* 감싸는 상자가 크기를 갖고, 안쪽 아이콘·배지는 그 상자를 채운다.
    ⚠️ 위 두 줄(`.currency-pills .pill .ico` = 0-3-0)이 안쪽 `.ico` 에도 걸리므로
