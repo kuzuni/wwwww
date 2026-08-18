@@ -2,7 +2,7 @@
 // .cell-img 의 박스 크기만 재면 안 된다 — 3D 스냅샷 썸네일은 투명 여백을 품고 있어서
 // 박스가 커도 그림은 작을 수 있다. 그래서 이미지를 캔버스에 그려 **불투명 픽셀 바운딩 박스**를 잡고,
 // 그걸 셀 크기 대비 %로 환산한다(원본 PNG 쪽 실측치와 같은 자).
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const SC = require('./shot-screens-seed.js');

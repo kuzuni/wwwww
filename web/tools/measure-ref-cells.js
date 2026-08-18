@@ -5,7 +5,7 @@
 //   - Lv 텍스트·⭐ = 흰(또는 노랑) 코어 + 주변 3px 아웃라인 → 마스킹해서 제외
 //   - 나머지 = 아이콘 잉크 → bbox
 // 출력: 셀(테두리 포함) 대비 아이콘 폭·높이 %
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
 

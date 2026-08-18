@@ -1,6 +1,6 @@
 // 원본 스크린샷 일부를 잘라 확대 저장 (실측 눈확인용)
 // 사용: PW_PATH=... node crop-ref.js <png> <x> <y> <w> <h> <scale> <out.png>
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const fs = require('fs');
 const [png, x, y, w, h, scale, out] = process.argv.slice(2);
 (async () => {
