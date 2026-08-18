@@ -101,8 +101,8 @@ const FLASH_MIN = 0.06;  // 일반 타격 플래시의 몸 휘도 상승 하한(
 
         // ── ② 플래시 피크 측정 — update() 를 안 돌려 감쇠가 진행되지 않게 한다 ──
         const base = readMeanLum();
-        const sample = (peak, dur, color, label) => {
-            Scene3D.flashMesh(m, peak, dur, color);
+        const sample = (peak, dur, color, olK, label) => {
+            Scene3D.flashMesh(m, peak, dur, color, olK);
             const lit = readMean();
             // 원상복구 — ⚠️ **emissive 만 되돌리면 안 된다.** 외곽선 색을 안 되돌리면 밝아진 테두리가
             // 다음 표본의 기준선으로 새어 들어가 뒤 표본일수록 값이 부풀려진다(첫 판에서 실제로 그랬다).
@@ -115,9 +115,13 @@ const FLASH_MIN = 0.06;  // 일반 타격 플래시의 몸 휘도 상승 하한(
             for (const mat of t.out) if (mat.userData && mat.userData._ol0 !== undefined) mat.color.setHex(mat.userData._ol0);
             return { label, peak, delta: lit.lum - base, lit: lit.lum, warm: lit.r - lit.b };
         };
-        // 게임이 실제로 쓰는 값·색 그대로(hitEnemy: 일반 0.2/청백 · 크리 0.28/주황)
-        const rows = [sample(0.2, 0.1, 0xdff2ff, '일반(현행 0.2·청백)'), sample(0.28, 0.14, 0xff9a4d, '크리(현행 0.28·주황)'),
-        sample(0.6, 0.1, 0xffffff, '참고 0.6'), sample(1.2, 0.1, 0xffffff, '참고 1.2')];
+        // ⚠️ **게임이 실제로 부르는 인자 그대로** 넣는다(hitEnemy 의 flashMesh 호출과 1:1).
+        //    외곽선 세기(olK)를 안 넘기면 유도 기본값(0.35+peak×2.2=0.79)이 걸려 **게임보다 두 배 센
+        //    연출을 재게 된다** — 게이트가 실제와 다른 것을 지키는 셈이라 무의미하다.
+        const rows = [sample(0.2, 0.1, 0xcfe8ff, 0.38, '일반(현행 0.2·청백·olK0.38)'),
+        sample(0.28, 0.14, 0xff7a1a, 0.78, '크리(현행 0.28·주황·olK0.78)'),
+        sample(0.4, 0.09, 0xfff6e0, 1.0, '처치(현행 0.4·금백·olK1.0)'),
+        sample(1.2, 0.1, 0xffffff, 1.0, '참고 상한')];
         for (const s of rows) out.lines.push(`  · ${s.label}: 영역 평균휘도 ${base.toFixed(4)} → ${s.lit.toFixed(4)} (Δ${s.delta.toFixed(4)}) · 온기(R-B) ${s.warm.toFixed(4)}`);
         out.rows = rows;
         out.base = base;

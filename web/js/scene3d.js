@@ -7038,7 +7038,7 @@ const Scene3D = {
     // 아니라 테두리에 쓰는 것이다.
     // ⚠️ 외곽선 원색은 `ProChar._syncOutline` 이 원 재질 albedo × OUTLINE.k 로 계산한다 — 복구는
     //    보관해 둔 값으로 되돌리고, 그 사이 장비 교체로 갱신된 경우를 대비해 색만 되돌린다.
-    flashMesh(m, peak, dur, color) {
+    flashMesh(m, peak, dur, color, olK) {
         const t = this.flashTargets(m);
         if ((!t.lit.length && !t.out.length)) return;
         m.flashSeq = (m.flashSeq || 0) + 1;
@@ -7052,7 +7052,12 @@ const Scene3D = {
         // 외곽선은 가산이 아니라 **색 자체**를 올린다(Basic 이라 조명이 없다). peak 를 그대로 쓰면
         // 0.2 에서 거의 안 보이므로 테두리 전용 계수를 따로 둔다 — 테두리는 원래 near-black 이라
         // 같은 세기라도 상대 변화가 훨씬 크다.
-        const ok = Math.min(1, 0.35 + peak * 2.2);
+        // ⚠️ **이 계수는 호출부가 이벤트마다 직접 준다(olK).** peak 에서 유도하면 금방 포화해
+        //    크리(0.28)와 처치(0.28)가 **같은 밝기**로 붙는다 — 실측(`probe-hit-hierarchy.js`):
+        //    유도식(0.35+peak×2.2)에서 크리 0.966 · 처치 0.966 이라 접촉 프레임 휘도차가 0.0044,
+        //    온기차 0.0121 로 둘 다 판정 하한(0.02) 미달이었다. 6차 지적 '크리와 처치의 첫 100ms
+        //    미분화'가 여기서 나온다. 세 이벤트를 밝기 축에서도 벌리려면 계수를 따로 쥐어야 한다.
+        const ok = Math.min(1, olK === undefined ? 0.35 + peak * 2.2 : olK);
         for (const mat of t.out) {
             if (!mat.userData._ol0) mat.userData._ol0 = mat.color.getHex();
             mat.color.copy(new THREE.Color(mat.userData._ol0).lerp(flashC, ok));
@@ -7190,8 +7195,11 @@ const Scene3D = {
         const sev = e && !Big.of(e.maxHp).isZero() ? U.clamp(Big.of(dmg).ratioTo(e.maxHp), 0, 1) : 0.15;
         const pos = m.g.position;
         // ① 옅은 틴트 + 외곽 림 셸 — 밝기가 아니라 윤곽으로 피격을 알린다(형태 유지가 우선)
-        // 외곽선 점등 색으로 위계를 준다 — 일반은 청백, 크리는 주황(림 셸과 같은 색 언어).
-        this.flashMesh(m, crit ? 0.28 : 0.2, crit ? 0.14 : 0.1, crit ? 0xff9a4d : 0xdff2ff);
+        // 외곽선 점등으로 위계를 준다 — 색은 일반 청백 / 크리 주황(림 셸과 같은 색 언어),
+        // 세기는 일반 0.38 < 크리 0.78 < 처치 1.0(killEnemy). 색과 밝기 두 축을 같이 벌린다 —
+        // 외곽선은 원래 near-black 이라 0.6 만 돼도 거의 포화한다(실측: 0.62↔1.0 의 휘도차가 0.009뿐).
+        // 위계를 밝기로도 읽히게 하려면 **일반을 충분히 낮게** 깔아야 한다.
+        this.flashMesh(m, crit ? 0.28 : 0.2, crit ? 0.14 : 0.1, crit ? 0xff7a1a : 0xcfe8ff, crit ? 0.78 : 0.38);
         // 일반 피격 림을 **순백에서 청백으로** 바꾼다 — 골렘·해골처럼 몸 albedo가 이미 near-white인 종에서
         // 흰 가산 림은 명도차가 10%도 안 나 "깜빡였는지조차 모르겠다"가 됐다(비평가 4차 2번).
         // 청백(0x9fe3ff)은 따뜻한 회백 몸/초원 배경 어느 쪽과도 색상이 갈려 같은 밝기에서도 분리된다.
@@ -7335,7 +7343,10 @@ const Scene3D = {
             (isBoss ? 1.2 : 0.66) * (m.baseScale || 1), isBoss ? 2.4 : 1.8);
         this.hitStop(isBoss ? 0.07 : 0.045);
         this.rimFlash(m, 0.16, 0xffd28a, 1.3); // 세 이벤트 중 가장 두껍고 오래 — 처치가 페이오프임이 윤곽만으로 읽히게
-        this.flashMesh(m, 0.28, 0.09); // 시신이 흰 덩어리로 뭉개지면 정작 파편이 안 보인다 — 짧고 옅게
+        // 시신이 흰 덩어리로 뭉개지면 정작 파편이 안 보인다 — 몸 emissive 는 짧고 옅게 두고,
+        // 대신 **외곽선을 세 이벤트 중 가장 세게(1.0) · 가장 밝은 금백으로** 태워 처치가 페이오프임을
+        // 접촉 프레임 한 장에서 읽히게 한다(6차 지적 '크리와 처치의 첫 100ms 미분화').
+        this.flashMesh(m, 0.4, 0.09, 0xfff6e0, 1.0);
         // 사망: 피격 경직 → 무릎 꺾임 → 뒤로(+x) 쓰러짐 → 착지 먼지 → 서서히 페이드아웃 (빙글 회전·순간 소멸 금지, 사용자 지시)
         // update 루프는 !e.alive를 건너뛰므로 이 애니메이션이 트랜스폼을 단독 소유한다.
         // HP바: 즉시 숨기면 "HP가 0이 되는 순간"이 화면에 한 프레임도 안 나온다 — 마지막 한 방의
