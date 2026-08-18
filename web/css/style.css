@@ -735,13 +735,13 @@ body {
 @keyframes anvilbump {   /* 타격마다 모루가 눌렸다 되튄다 */
     0%, 23%, 34%, 56%, 67%, 89%, 100% { transform: translateY(0) scale(1, 1); }
     24%   { transform: translateY(2.4px) scale(1.025, .952); }
-    28%   { transform: translateY(2.4px) scale(1.025, .952); }   /* 망치와 같이 멈춘다 */
+    28.64% { transform: translateY(2.4px) scale(1.025, .952); }  /* 망치와 같이 멈춘다 */
     31%   { transform: translateY(-1.1px) scale(.99, 1.018); }
     57%   { transform: translateY(3.4px) scale(1.04, .932); }
-    61.6% { transform: translateY(3.4px) scale(1.04, .932); }
+    62.56% { transform: translateY(3.4px) scale(1.04, .932); }
     64%   { transform: translateY(-1.4px) scale(.988, 1.024); }
     90%   { transform: translateY(5px)   scale(1.06, .89); }     /* 마지막 타격이 가장 깊다 */
-    96.5% { transform: translateY(5px)   scale(1.06, .89); }
+    96.94% { transform: translateY(5px)   scale(1.06, .89); }
     99%   { transform: translateY(-2px)  scale(.98, 1.04); }
 }
 /* 화면 흔들림 — 항목 스펙의 '미세 화면 흔들림'을 여기서 판다.
@@ -756,13 +756,13 @@ body {
 #equip-sheet.shaking { animation: sheetshake .72s linear; }
 @keyframes sheetshake {
     0%, 21%, 33%, 54%, 66%, 87%, 100% { transform: translate(0, 0); }
-    24%   { transform: translate(.55px, 1.6px); }    /* 타격 = 아래로 꽂힌다 */
+    24%   { transform: translate(.5px, 1.6px); }     /* 타격 = 아래로 꽂힌다 */
     26.5% { transform: translate(-.45px, -.9px); }   /* 되튐 */
     29%   { transform: translate(.25px, .4px); }
-    57%   { transform: translate(.6px, 1.7px); }
+    57%   { transform: translate(.8px, 2.3px); }
     59.5% { transform: translate(-.5px, -1px); }
     62%   { transform: translate(.3px, .5px); }
-    90%   { transform: translate(1px, 3px); }        /* 3타가 가장 깊다 */
+    90%   { transform: translate(1.1px, 3.2px); }    /* 3타가 가장 깊다 */
     92.5% { transform: translate(-.8px, -1.7px); }
     95%   { transform: translate(.5px, 1px); }
     97%   { transform: translate(-.25px, -.45px); }
@@ -815,24 +815,28 @@ body {
    다르면 CSS 가 매트릭스 보간으로 떨어져 회전 경로가 미묘하게 틀어진다. */
 @keyframes afswing {     /* 들어올렸다 내리치기 ×3 — 마지막은 더 크게 감아 올린다 */
     /* 등장·퇴장은 알파가 아니라 모션으로 — 정지 상태에서 페이드하면 '무에서 나타나 녹아 사라진다' */
-    0%    { transform: translate(6px, -64px)   rotate(-58deg) scale(1, 1); opacity: 0; }
+    0%    { transform: translate(11px, -46px) rotate(-52deg) scale(1, 1); opacity: 0; }  /* 위가 아니라 옆에서 들어온다 */
     9%    { transform: translate(2.2px, -18px) rotate(-22deg) scale(1, 1); opacity: 1; }  /* 프레임 밖에서 들어온다 */
     19%   { transform: translate(1.2px, -8px)  rotate(-2deg) scale(1, 1); }    /* 72ms에 20° = 저속 */
     22%   { transform: translate(.31px, .12px) rotate(10.6deg) scale(1, 1.16); }   /* 접촉 직전 1프레임 스미어 */
-    24%   { transform: translate(-.28px, 5.53px) rotate(19deg) scale(1, 1); }  /* 36ms에 21° = 2.1배 가속 */
-    28%   { transform: translate(-.28px, 5.53px) rotate(19deg) scale(1, 1); }  /* 33ms 정지(2프레임) */
-    33%   { transform: translate(.8px, -6px)   rotate(4deg) scale(1, 1); }     /* 되튐 0.42°/ms = 타격의 0.72배 */
+    24%   { transform: translate(-.28px, 6.5px)  rotate(19deg) scale(1, 1); }   /* 1.0유닛 파고든다 */  /* 36ms에 21° = 2.1배 가속 */
+    28.64% { transform: translate(-.28px, 5.53px) rotate(19deg) scale(1, 1); } /* 33.4ms 정지(2프레임) */
+    34%   { transform: translate(.8px, -6px)   rotate(4deg) scale(1, 1); }     /* 되튐 0.42°/ms = 타격의 0.72배 */
     41%   { transform: translate(3px, -27px)   rotate(-34deg) scale(1, 1); }
     52%   { transform: translate(1.6px, -14px) rotate(-9deg) scale(1, 1); }
     55.5% { transform: translate(.17px, 1.28px) rotate(10.6deg) scale(1, 1.18); }
-    57%   { transform: translate(-.44px, 7.83px) rotate(19deg) scale(1, 1); }  /* 36ms에 28° */
-    61.6% { transform: translate(-.44px, 7.83px) rotate(19deg) scale(1, 1); }  /* 33ms 정지 */
-    65%   { transform: translate(1.2px, -7px)  rotate(3deg) scale(1, 1); }     /* 되튐 0.55°/ms = 0.71배 */
-    74%   { transform: translate(4.6px, -42px) rotate(-54deg) scale(1, 1); }   /* 3타 윈드업이 가장 크다 */
+    57%   { transform: translate(-.44px, 9.2px)  rotate(19deg) scale(1, 1); }  /* 36ms에 28°, 1.4유닛 관통 */
+    62.56% { transform: translate(-.44px, 7.83px) rotate(19deg) scale(1, 1); } /* 40ms 정지 */
+    66.5% { transform: translate(1.2px, -7px)  rotate(3deg) scale(1, 1); }     /* 되튐 0.55°/ms = 0.71배 */
+    74%   { transform: translate(5px, -52px)  rotate(-58deg) scale(1, 1); }   /* 3타 윈드업이 화면 최고점 */
     85%   { transform: translate(2.6px, -20px) rotate(-20deg) scale(1, 1); }
     88.5% { transform: translate(.32px, 2.51px) rotate(8deg) scale(1, 1.22); }      /* 3타가 가장 길게 늘어난다 */
-    90%   { transform: translate(-.66px, 12.16px) rotate(20deg) scale(1, 1); opacity: 1; }  /* 36ms에 40° */
-    96.5% { transform: translate(-.66px, 12.16px) rotate(20deg) scale(1, 1); opacity: 1; }  /* 47ms 정지(최장) */
+    /* ⚠️ 여기 회전을 26° 로 눕히자는 제안이 있었지만(3타만 자세를 다르게) 그러면 타격면이
+       상판과 6.7° 어긋나 **다시 모서리로 찍는다**(probe ⑩ 가 잡았다). 상판이 -0.85° 이므로
+       합각은 0° 근처를 벗어날 수 없다 — 3타의 차별화는 각도가 아니라 **관통 깊이**(2.0유닛)와
+       드웰 길이(50ms)로 판다. */
+    90%   { transform: translate(-.66px, 14.2px) rotate(20deg) scale(1, 1); opacity: 1; }  /* 2.0유닛 관통 */
+    96.94% { transform: translate(-.66px, 12.16px) rotate(20deg) scale(1, 1); opacity: 1; } /* 50ms 정지(최장) */
     100%  { transform: translate(1.2px, 4px)   rotate(8deg) scale(1, 1);  opacity: 1; }     /* 되튐은 afexit 이 잇는다 */
 }
 /* 타격 링 파동 — 타격 시각에 맞춰 각각 지연을 다르게 준다. 상판이 살짝 누워 보이므로 원이 아니라 타원. */
@@ -863,8 +867,8 @@ body {
     opacity: 0; animation: afflash .1s linear forwards;
 }
 .anvil-fx .af-flash.f0 { animation-delay: .167s; }
-.anvil-fx .af-flash.f1 { animation-delay: .405s; --affs: 1.2; }
-.anvil-fx .af-flash.f2 { animation-delay: .643s; --affs: 1.55; }
+.anvil-fx .af-flash.f1 { animation-delay: .405s; --affs: 1.28; }
+.anvil-fx .af-flash.f2 { animation-delay: .643s; --affs: 1.7; }
 @keyframes afflash {
     0%   { opacity: 1; transform: scale(calc(var(--affs, 1) * .55)); }
     30%  { opacity: 1; transform: scale(var(--affs, 1)); }
@@ -910,12 +914,14 @@ body {
     fill: #fffdf2; mix-blend-mode: screen;
     /* 원점은 도형 중심이 아니라 **타격점**이다 — fill-box 의 center 로 두면 위아래 비대칭 때문에
        중심이 접점보다 2.5유닛 위로 올라가 섬광이 상판에서 떠 보인다. */
-    transform-box: fill-box; transform-origin: 50% 57.4%;   /* 도형 높이 9.4 중 위 5.4 → 접촉점 */
+    /* 두 조각 각각의 **머리 쪽 끝**을 축으로 바깥으로 뻗는다 — 중심을 축으로 두면 커질 때
+       안쪽 끝이 머리 밑으로 파고들어 다시 흰 띠가 생긴다. 좌우를 따로 지정한다. */
+    transform-box: fill-box; transform-origin: 50% 55%;
     opacity: 0; animation: afstar .075s cubic-bezier(.1,.75,.3,1) forwards;
 }
 .anvil-fx .af-star.s0 { animation-delay: .166s; }
-.anvil-fx .af-star.s1 { animation-delay: .404s; --afss: 1.16; }
-.anvil-fx .af-star.s2 { animation-delay: .642s; --afss: 1.5; }
+.anvil-fx .af-star.s1 { animation-delay: .404s; --afss: 1.3; }
+.anvil-fx .af-star.s2 { animation-delay: .642s; --afss: 1.75; }
 @keyframes afstar {
     0%   { opacity: .95; transform: scale(calc(var(--afss, 1) * .25)); }
     45%  { opacity: .9;  transform: scale(var(--afss, 1)); }
@@ -951,7 +957,11 @@ body {
    ⚠️ 두께 1유닛(0.70px)은 서브픽셀이라 반투명 회백으로 뭉개졌고 글로우(2.8px)가 본체의 4배라
    네이티브에선 주황 번짐만 남았다 — 1.6유닛(1.1px) + 글로우 1.5px 로. */
 .anvil-fx .af-spark {
-    fill: #fffdf0; filter: drop-shadow(0 0 1.5px #ff7a00);
+    /* ⚠️ 흰 불티(#fffdf0)는 시트 배경(#f2f0ea) 대비 **명도비 1.12:1** 이라 배경 위에서 사실상
+       투명하다. 사거리를 늘려 상판 밖까지 내보낸 수정이 정작 불티 자신의 색을 지운 셈이었다
+       (네이티브 접촉 프레임에서 상판 위 불티 증거가 20픽셀뿐이었다). 심을 따뜻한 주황으로
+       내리고 **어두운 후광**을 씌운다 — 밝은 배경에서는 후광이, 주황 상판 위에서는 심이 판다. */
+    fill: #ffd257; filter: drop-shadow(0 0 1.1px rgba(72,16,0,.95)) drop-shadow(0 0 2.4px rgba(255,122,0,.75));
     transform-box: fill-box; transform-origin: 0% 50%;
     opacity: 0;
     animation: afspark var(--dur, .21s) cubic-bezier(0,.88,.24,1) forwards;

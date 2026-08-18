@@ -8,12 +8,15 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
+// ⚠️ 뷰포트는 **390×844** 여야 한다. 480 으로 찍으면 모루 버튼이 113px 로 나와
+//    실제 92px 보다 23% 큰 그림으로 '네이티브 판독성'을 판정하게 된다(실제로 그렇게
+//    판정해 왔다 — 비평가가 잡았다). probe-anvil-hammer 와 같은 뷰포트로 맞춘다.
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const STEP = 40, N = 24;
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
-    const page = await browser.newPage({ viewport: { width: 480, height: 854 }, deviceScaleFactor: 4 });
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 4 });
     const errors = [];
     page.on('pageerror', e => errors.push((e.stack || String(e)).split('\n').slice(0, 2).join(' | ')));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
