@@ -3660,3 +3660,158 @@ IconGen._genderSym = function (ctx, S, female) {
         });
     };
 })(IconGen);
+
+/* ===== 던전 배너 배경 일러스트 4종 (slug: icon-gen 슬라이스 — 사용자 항목 '이모지/저품질 아이콘을
+   코드 생성 아이콘으로 전면 교체' ④ 기타) =====
+   원본(shot-042251)의 던전 배너는 **한 장 그림**이다 — 망치 도둑=낮 하늘·초록 성벽·수풀, 유령
+   마을=밤하늘·달·묘비, 침략=노을 하늘·깃발 든 무리 실루엣, 좀비 러시=보라 하늘·고목·울타리.
+   클론은 갈색 그라디언트 한 겹뿐이라 이 화면 감점의 대부분이 여기서 났다(aaa-skin dungeon-detail 메모 🚨).
+   ⚠️ **주인공(망치·유령·알·좀비)은 그리지 않는다** — 그건 이미 배너 우측에 얹히는 `.dg-icon`
+   아이콘이 맡고 있고, 여기서 또 그리면 같은 물건이 둘이 된다. 이 그림은 **배경(하늘·지형·소품)만**.
+   외부 에셋 금지 제약대로 전부 캔버스 도형이고, 배치 난수는 고정 수열(LCG)이라 매번 같은 그림이다. */
+(function (G) {
+    const AR = 3.45;                                  // 배너 종횡비(원본 실측 3.45:1 — css .dg-banner 와 같은 값)
+    ['dg_hammer', 'dg_ghost', 'dg_invasion', 'dg_zombie'].forEach(n => { G.ASPECT[n] = AR; });
+
+    // 고정 수열 — Math.random 을 쓰면 새로고침마다 별·나무 자리가 튄다(캐시도 무의미해진다)
+    const rnd = (seed) => { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
+    const fill = (ctx, c, fn) => { ctx.beginPath(); fn(); ctx.closePath(); ctx.fillStyle = c; ctx.fill(); };
+    // 하늘: 위→아래 세로 그라디언트로 배너 전체를 덮는다
+    const sky = (ctx, W, H, top, bot) => {
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, top); g.addColorStop(1, bot);
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    };
+    // 좌측 스크림 — 흰 제목이 밝은 하늘 위에 놓이는 배너(낮·노을)에서 글자를 살린다(원본도 제목이 진하다)
+    const scrim = (ctx, W, H, a) => {
+        const g = ctx.createLinearGradient(0, 0, W * 0.62, 0);
+        g.addColorStop(0, `rgba(0,0,0,${a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    };
+    const ground = (ctx, W, H, y, c) => fill(ctx, c, () => { ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.lineTo(W, H); ctx.lineTo(0, H); });
+
+    /* 🔨 망치 도둑 — 낮 하늘 + 초록 성벽 실루엣 2겹 + 좌상단 수풀 + 잔디 바닥 */
+    G.draw.dg_hammer = function (ctx, S) {
+        const W = S * AR, H = S, R = rnd(11);
+        sky(ctx, W, H, '#a9dcf3', '#dff2ff');
+        // 뒤 성벽(연한 초록) — 톱니 흉벽을 얹은 상자 3동
+        const tower = (x, w, top, c) => {
+            fill(ctx, c, () => { ctx.moveTo(x, top); ctx.lineTo(x + w, top); ctx.lineTo(x + w, H); ctx.lineTo(x, H); });
+            for (let i = 0; i * (w / 5) < w - 1; i += 2)                   // 흉벽 톱니
+                fill(ctx, c, () => { ctx.rect(x + i * (w / 5), top - H * 0.075, w / 5, H * 0.08); });
+        };
+        tower(W * 0.30, W * 0.16, H * 0.40, '#7cc056');
+        tower(W * 0.52, W * 0.12, H * 0.30, '#7cc056');
+        tower(W * 0.70, W * 0.20, H * 0.44, '#7cc056');
+        tower(W * 0.40, W * 0.13, H * 0.52, '#4f9436');                   // 앞 성벽(진한 초록)
+        tower(W * 0.62, W * 0.17, H * 0.58, '#4f9436');
+        // 수풀 — 원본처럼 **가장자리에서 안으로 비어져 나오게**(위 모서리·좌우 끝). 제목 자리
+        // (x 3~35% · y 12~45%)를 덮으면 초록 알약이 글자 뒤에 깔린 것처럼 보인다 — 실측으로 확인해 뺐다.
+        for (let i = 0; i < 8; i++) {                                     // 위 모서리에서 내려오는 덩굴
+            const x = W * (0.02 + R() * 0.42), y = H * (-0.10 + R() * 0.10), r = H * (0.09 + R() * 0.08);
+            fill(ctx, i % 3 ? '#5aa83c' : '#3f8a2c', () => ctx.arc(x, y, r, 0, Math.PI * 2));
+        }
+        for (let i = 0; i < 6; i++) {                                     // 오른쪽 끝 나무 덤불
+            const x = W * (0.94 + R() * 0.10), y = H * (0.10 + R() * 0.70), r = H * (0.12 + R() * 0.10);
+            fill(ctx, i % 2 ? '#4f9436' : '#3f8a2c', () => ctx.arc(x, y, r, 0, Math.PI * 2));
+        }
+        ground(ctx, W, H, H * 0.80, '#59a53c');
+        ground(ctx, W, H, H * 0.90, '#3f8a2c');
+        for (let i = 0; i < 26; i++) {                                    // 풀포기
+            const x = R() * W, y = H * (0.82 + R() * 0.16), h = H * (0.05 + R() * 0.05);
+            fill(ctx, '#2f6b28', () => { ctx.moveTo(x, y); ctx.lineTo(x + H * 0.02, y - h); ctx.lineTo(x + H * 0.04, y); });
+        }
+        scrim(ctx, W, H, 0.26);
+    };
+
+    /* 👻 유령 마을 — 밤하늘 + 별 + 큰 달 + 언덕 + 묘비·마른 나무 */
+    G.draw.dg_ghost = function (ctx, S) {
+        const W = S * AR, H = S, R = rnd(23);
+        sky(ctx, W, H, '#1d2549', '#0b0f22');
+        for (let i = 0; i < 46; i++) {                                    // 별
+            const x = R() * W, y = R() * H * 0.72, r = H * (0.006 + R() * 0.012);
+            fill(ctx, `rgba(255,255,255,${0.35 + R() * 0.5})`, () => ctx.arc(x, y, r, 0, Math.PI * 2));
+        }
+        const mx = W * 0.58, my = H * 0.32, mr = H * 0.20;                // 달 + 헤일로
+        const g = ctx.createRadialGradient(mx, my, mr * 0.6, mx, my, mr * 2.4);
+        g.addColorStop(0, 'rgba(247,224,138,.42)'); g.addColorStop(1, 'rgba(247,224,138,0)');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        fill(ctx, '#f7e08a', () => ctx.arc(mx, my, mr, 0, Math.PI * 2));
+        fill(ctx, 'rgba(0,0,0,.07)', () => ctx.arc(mx - mr * 0.28, my + mr * 0.22, mr * 0.22, 0, Math.PI * 2));   // 크레이터
+        fill(ctx, 'rgba(0,0,0,.07)', () => ctx.arc(mx + mr * 0.30, my - mr * 0.18, mr * 0.15, 0, Math.PI * 2));
+        // 언덕 2겹
+        fill(ctx, '#151a34', () => { ctx.moveTo(0, H * 0.78); ctx.quadraticCurveTo(W * 0.30, H * 0.58, W * 0.62, H * 0.76); ctx.quadraticCurveTo(W * 0.85, H * 0.88, W, H * 0.72); ctx.lineTo(W, H); ctx.lineTo(0, H); });
+        fill(ctx, '#0c1024', () => { ctx.moveTo(0, H * 0.90); ctx.quadraticCurveTo(W * 0.45, H * 0.78, W, H * 0.92); ctx.lineTo(W, H); ctx.lineTo(0, H); });
+        for (let i = 0; i < 5; i++) {                                     // 묘비(둥근 머리 비석)
+            const x = W * (0.06 + i * 0.19 + R() * 0.03), y = H * (0.80 + R() * 0.06), w = H * 0.13, h = H * 0.20;
+            fill(ctx, '#2a3154', () => { ctx.moveTo(x, y + h); ctx.lineTo(x, y + w * 0.5); ctx.arc(x + w * 0.5, y + w * 0.5, w * 0.5, Math.PI, 0); ctx.lineTo(x + w, y + h); });
+        }
+    };
+
+    /* ⚔ 침략 — 노을 하늘 + 지평선 + 깃발 든 무리 실루엣(뒤 흐림 · 앞 진함) */
+    G.draw.dg_invasion = function (ctx, S) {
+        const W = S * AR, H = S, R = rnd(37);
+        sky(ctx, W, H, '#f3c48d', '#a5674a');
+        fill(ctx, 'rgba(255,236,190,.38)', () => ctx.arc(W * 0.60, H * 0.66, H * 0.20, 0, Math.PI * 2));   // 저무는 해(작게 — 크면 우측 아이콘과 덩어리가 겹쳐 읽힌다)
+        ground(ctx, W, H, H * 0.74, '#7a4c3a');
+        const horde = (baseY, c, n, sc) => {
+            for (let i = 0; i < n; i++) {
+                const x = W * (i / n) + R() * W * 0.02, hh = H * (0.16 + R() * 0.10) * sc, w = H * 0.09 * sc;
+                fill(ctx, c, () => ctx.arc(x, baseY - hh, w * 0.55, 0, Math.PI * 2));                       // 머리
+                fill(ctx, c, () => { ctx.moveTo(x - w * 0.6, baseY); ctx.lineTo(x - w * 0.45, baseY - hh); ctx.lineTo(x + w * 0.45, baseY - hh); ctx.lineTo(x + w * 0.6, baseY); });   // 몸통
+            }
+        };
+        horde(H * 0.80, '#4a2f26', 19, 0.85);                             // 뒤 열
+        for (let i = 0; i < 4; i++) {                                     // 깃대 + 삼각 깃발
+            const x = W * (0.12 + i * 0.24 + R() * 0.05), top = H * (0.16 + R() * 0.12);
+            fill(ctx, '#33221c', () => ctx.rect(x, top, H * 0.022, H * 0.72));
+            fill(ctx, '#33221c', () => { ctx.moveTo(x + H * 0.022, top); ctx.lineTo(x + H * 0.26, top + H * 0.07); ctx.lineTo(x + H * 0.022, top + H * 0.16); });
+        }
+        horde(H * 1.02, '#241612', 14, 1.35);                             // 앞 열(잘려 보이게 바닥 아래까지)
+        scrim(ctx, W, H, 0.30);
+    };
+
+    /* 🧟 좀비 러시 — 보라 하늘 + 고목 2그루 + 철망 울타리 + 드럼통 */
+    G.draw.dg_zombie = function (ctx, S) {
+        const W = S * AR, H = S, R = rnd(53);
+        sky(ctx, W, H, '#c49bdd', '#6f4c9b');
+        fill(ctx, 'rgba(255,255,255,.14)', () => ctx.arc(W * 0.30, H * 0.30, H * 0.26, 0, Math.PI * 2));   // 흐린 달무리
+        ground(ctx, W, H, H * 0.76, '#4a3563');
+        ground(ctx, W, H, H * 0.88, '#33224a');
+        const tree = (x, sc) => {                                          // 고목 — 줄기 + 갈라진 가지
+            const c = '#2a1d38', t = H * 0.05 * sc;
+            fill(ctx, c, () => { ctx.moveTo(x - t, H * 0.86); ctx.lineTo(x - t * 0.5, H * (0.86 - 0.52 * sc)); ctx.lineTo(x + t * 0.5, H * (0.86 - 0.52 * sc)); ctx.lineTo(x + t, H * 0.86); });
+            const arm = (dx, dy, len) => {
+                ctx.beginPath();
+                ctx.moveTo(x, H * (0.86 - 0.42 * sc));
+                ctx.quadraticCurveTo(x + dx * len * 0.6, H * (0.86 - (0.42 + dy * 0.5) * sc), x + dx * len, H * (0.86 - (0.42 + dy) * sc));
+                ctx.strokeStyle = c; ctx.lineWidth = t * 0.7; ctx.stroke();
+            };
+            arm(-1, 0.18, H * 0.20 * sc); arm(1, 0.22, H * 0.24 * sc); arm(-1, 0.34, H * 0.12 * sc); arm(1, 0.36, H * 0.14 * sc);
+        };
+        tree(W * 0.10, 1.05); tree(W * 0.86, 0.85);
+        for (let i = 0; i < 3; i++) {                                      // 흩어진 뼈
+            const x = W * (0.24 + i * 0.13 + R() * 0.04), y = H * (0.88 + R() * 0.06), l = H * 0.10;
+            fill(ctx, '#d9d2e6', () => ctx.rect(x, y, l, H * 0.022));
+            fill(ctx, '#d9d2e6', () => ctx.arc(x, y + H * 0.011, H * 0.022, 0, Math.PI * 2));
+            fill(ctx, '#d9d2e6', () => ctx.arc(x + l, y + H * 0.011, H * 0.022, 0, Math.PI * 2));
+        }
+        // 드럼통(원본 우중앙의 파란 통) — 배너 오른쪽 28%는 열쇠·[열기] 열이 덮으므로 그보다 왼쪽에 둔다
+        const bx = W * 0.55, by = H * 0.60, bw = H * 0.16, bh = H * 0.28;
+        fill(ctx, '#2f6fa8', () => ctx.rect(bx, by, bw, bh));
+        fill(ctx, '#1e4c78', () => ctx.rect(bx, by + bh * 0.30, bw, bh * 0.10));
+        fill(ctx, '#1e4c78', () => ctx.rect(bx, by + bh * 0.64, bw, bh * 0.10));
+        fill(ctx, '#4b8ec4', () => ctx.ellipse(bx + bw / 2, by, bw / 2, bh * 0.09, 0, 0, Math.PI * 2));
+        // 우측 철망 울타리 — 사선 격자 + 기둥
+        ctx.save();
+        ctx.strokeStyle = 'rgba(220,215,230,.35)'; ctx.lineWidth = H * 0.012;
+        for (let i = 0; i < 9; i++) {
+            ctx.beginPath(); ctx.moveTo(W * 0.88 + i * H * 0.06, H * 0.40); ctx.lineTo(W * 0.88 + i * H * 0.06 - H * 0.30, H * 0.94); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(W * 0.88 + i * H * 0.06 - H * 0.30, H * 0.40); ctx.lineTo(W * 0.88 + i * H * 0.06, H * 0.94); ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(200,195,212,.55)'; ctx.lineWidth = H * 0.024;
+        ctx.beginPath(); ctx.moveTo(W * 0.86, H * 0.38); ctx.lineTo(W * 0.86, H * 0.96); ctx.stroke();
+        ctx.restore();
+        scrim(ctx, W, H, 0.22);
+    };
+})(IconGen);

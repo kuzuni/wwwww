@@ -1662,6 +1662,10 @@ body {
     position: relative; border-radius: .7rem; overflow: hidden; padding: .6rem .7rem;
     display: flex; gap: .6rem; align-items: center; text-align: left;
     background: linear-gradient(120deg, var(--bg, #444c56), #161b22);
+    /* 배경 일러스트(IconGen `dg_*` 클래스가 background-image 로 얹는다)가 배너를 꽉 채우도록.
+       ⚠️ 위 shorthand 가 background-size 를 auto 로 되돌리므로 **반드시 뒤에** 따로 준다 —
+       안 그러면 그림이 원래 크기로 타일링된다. 그림이 없는 던전은 그대로 그라디언트만 보인다. */
+    background-size: cover; background-position: center; background-repeat: no-repeat;
     border: var(--ol1) solid #30363d;
 }
 .dg-banner.locked { opacity: .55; }

@@ -3708,6 +3708,14 @@ const UI = {
         const name = this.DG_ICON[d.id];
         return name && typeof IconGen !== 'undefined' && IconGen.url(name) ? IconGen.img(name) : d.icon;
     },
+    // 배너 배경 일러스트 — 원본(shot-042251)의 배너는 한 장 그림이라 갈색 그라디언트로는 재현이 안 된다.
+    // IconGen 이 던전마다 캔버스 배경(하늘·지형·소품)을 굽고, 주인공은 위 dgIcon 이 그대로 얹는다.
+    // 없는 던전 id 는 클래스가 비어 종전 그라디언트로 떨어진다.
+    DG_SCENE: { hammer: 'dg_hammer', ghost: 'dg_ghost', invasion: 'dg_invasion', zombie: 'dg_zombie' },
+    dgSceneCls(d) {
+        const name = this.DG_SCENE[d.id];
+        return name && typeof IconGen !== 'undefined' ? (IconGen.cls(name) || '') : '';
+    },
 
     // ---- 던전: 가로 배너 목록 + 상세(난이도 선택) 팝업 (UI-SPEC 6~7번) ----
     openDungeons() {
@@ -3717,7 +3725,7 @@ const UI = {
             const keys = S.dungeons.keys[d.id];
             const hex = '#' + d.theme.sky.toString(16).padStart(6, '0');
             // 원본 배치: 좌상단 아이콘+이름, 우측에 열쇠 수와 [열기] 버튼을 세로로
-            return `<div class="dg-banner ${ok ? '' : 'locked'}" style="--bg:${hex}">
+            return `<div class="dg-banner ${ok ? '' : 'locked'} ${this.dgSceneCls(d)}" style="--bg:${hex}">
                 <span class="dg-icon">${this.dgIcon(d)}</span>
                 <div class="dg-info">
                     <div class="item-name">${d.kr}</div>
