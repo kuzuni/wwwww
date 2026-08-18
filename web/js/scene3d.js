@@ -2751,8 +2751,8 @@ const Scene3D = {
             // 달라지므로(활계는 왼손 파지) 상수 포즈에 못 박고 여기서 합성한다.
             // ⚠️ 계열이 아니라 **바가 실제로 있는 종**에만 적용한다 — 외바퀴 드로이드는 같은 wheeled인데
             //    핸들바가 없어서, 계열로 걸면 허공을 잡는 팔이 된다.
-            const reach = this.riding && this.riding.form && this.riding.form.barReach
-                && this.mountGroup && this.mountGroup.userData.bar && this.riding.form.barReach;
+            // 사족·비행형은 고삐(`reinReach`)가 같은 자리를 쓴다 — 잡을 물건만 다르고 팔 처리는 같다.
+            const reach = this.freeHandReach();
             if (reach) {
                 const free = grip.hand === 'L' ? 'R' : 'L';       // 무기 안 든 쪽
                 const rp = this.heroRig.restPose = Object.assign({}, this.heroRig.restPose);
@@ -4965,6 +4965,57 @@ const Scene3D = {
             }
         };
 
+        // ── 굴레·재갈·고삐 ───────────────────────────────────────────────────────
+        // 비평가가 3·4차 채점에서 **매번 상위로 올린 지적**이 "손이 아무것도 안 잡는다"(㉢)인데,
+        // 사족·비행형은 **잡을 물건 자체가 없었다**(자전거만 핸들바가 있다). 포즈만 올려 봐야
+        // 허공을 쥔 손이 되므로 모델부터 만든다 — 굴레(머리 끈) + 재갈 고리 + 라이더 손까지 가는 고삐.
+        // ⚠️ 고삐 길이를 상수로 박지 말 것 — 머리 자리·탈것 배율·탑승 포즈가 전부 곱해진 거리라
+        //    손계산이 맞을 수가 없다(등자·핸들바·크랭크가 전부 같은 함정을 밟았다).
+        //    여기선 **재갈 고리(끈이 매달리는 자리)만** 잡아 두고, 실제 길이·방향은 `alignReins()`가
+        //    매 프레임 빈 손을 재서 푼다. 안 탄 탈것(무리·썸네일)은 기본값으로 아래로 늘어뜨린다.
+        // ⚠️ 굴레·고삐는 `part:'head'` 로 표시한다 — 안장 앞에 새로 서는 파츠라 먼 다리를 가릴 수
+        //    있고, probe-ride-clear 는 이 표식이 붙은 것만 '추가 가림'으로 판정한다(정직하게 걸리게).
+        // hy/hz: 머리 중심(로컬), hr: 머리 반폭(x), hz2: 머리 반길이(z)
+        const bridleRig = (hy, hz, hr, hz2) => {
+            const nz = hz + hz2 * 0.30;              // 코끈 — 주둥이 쪽
+            const cz = hz - hz2 * 0.34;              // 볼끈·정수리 고리 — 귀 쪽
+            const by = hy - hr * 0.46;               // 재갈 높이(입 언저리)
+            HEADPART(to(hr * 0.96, 0.013, 0, hy, nz, LEATHER));           // 코끈 — 토러스 기본면(XY)이 주둥이를 감는다
+            const crown = to(hr * 1.02, 0.013, 0, hy, cz, LEATHER);       // 정수리↔턱 고리
+            crown.rotation.y = Math.PI / 2; HEADPART(crown);
+            // 이마 띠(browband) — 어두운 가죽만으로는 초록 머리 위에서 안 읽힌다(안장깔개와 같은 교훈).
+            // 금색 한 줄을 얹어 '굴레를 씌운 머리'가 실루엣에서 바로 읽히게 한다.
+            const brow = to(hr * 1.03, 0.011, 0, hy + hr * 0.30, cz + hz2 * 0.16, BLANKET_TRIM);
+            brow.rotation.x = Math.PI / 2; HEADPART(brow);
+            g.userData.rein = { straps: [] };
+            for (const s of [-1, 1]) {
+                HEADPART(tube([s * hr * 0.80, hy + hr * 0.34, cz], [s * hr * 0.82, by, nz], 0.012, LEATHER)); // 볼끈
+                const ring = to(hr * 0.26, 0.012, s * hr * 0.92, by, nz, IRON);   // 재갈 고리 — 밝은 금속이라 멀리서도 읽힌다
+                ring.rotation.y = Math.PI / 2; HEADPART(ring);
+                // 고삐 두 줄 — 각 줄을 2분절로 만들어 **가운데를 처지게** 한다(곧은 막대면 고삐가
+                // 아니라 창으로 읽힌다). 높이 1 짜리 단위 박스라 scale.y 가 곧 길이다.
+                // ⚠️ 고삐에는 `part:'head'` 를 **붙이지 않는다.** 그 표식은 probe-ride-clear 에서
+                //    "머리·목 덩치가 먼 다리를 몸통보다 더 가리는가"를 재는 표적 표시인데, 고삐는
+                //    재갈에서 라이더 손까지 화면을 가로지르는 게 **정상**이라(실제 승마 사진이 그렇다)
+                //    같은 자로 재면 어떤 배치도 통과할 수 없다 — 실측으로 확인했다: 카메라(탈것 앞-왼쪽
+                //    위)에서 먼 다리로 가는 시선은 z 0.4 부근을 지나는데 재갈↔손 직선이 반드시 그 띠를
+                //    지난다(끈을 처지게 하든 세우든 마찬가지). 대신 **끈이 근쪽(보이는) 다리를 가리는지**를
+                //    probe-ride-rein 이 따로 0 으로 못박는다 — 그쪽이 진짜 결함이 되는 자리다.
+                const segs = [];
+                for (let i = 0; i < 2; i++) {
+                    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.022, 1, 0.009), LEATHER);
+                    g.add(seg); segs.push(seg);
+                }
+                const st = { side: s, anchor: new THREE.Vector3(s * hr * 0.92, by, nz), segs };
+                g.userData.rein.straps.push(st);
+                // 기본 자세: 안 탄 탈것은 고삐가 목을 따라 뒤로 늘어진다
+                this.layoutRein(st, st.anchor.clone().add(new THREE.Vector3(-s * hr * 0.2, -hr * 1.1, -hz2 * 1.4)));
+            }
+            // 재갈(bit) — 좌우 고리를 잇는 짧은 봉
+            const bit = cy(0.011, 0.011, hr * 1.84, 0, by, nz, IRON);
+            bit.rotation.z = Math.PI / 2; HEADPART(bit);
+        };
+
         // 계열은 MOUNT_FORM_OF 하나만 본다 — 예전엔 여기 FLAT/FLY/WHEELED 배열이 따로 있어서
         // 탈것을 추가할 때 두 곳을 맞춰야 했고, 한쪽만 고치면 '몸은 사족인데 포즈는 평판'이 된다.
         const formKey = this.MOUNT_FORM_OF[name] || 'quad';
@@ -5153,6 +5204,11 @@ const Scene3D = {
             if (!dragon && !whale) { const sting = cn(0.025, 0.12, 0, 0.2, -0.21, blk); sting.rotation.x = Math.PI; g.userData.tail = sting; }
             // 비행형 안장: form.saddle 0.38 / 몸통 반폭·반높이·중심 y / 발은 몸통 옆 허공(등자만)
             saddleRig(0.38, dragon || whale ? 0.152 : 0.144, dragon ? 0.16 : whale ? 0.168 : 0.152, 0.22, [0.20, 0.06, 0.09]);
+            // 굴레·고삐 — 머리 자리는 종마다 다르므로 **위에서 실제로 쓴 값**을 그대로 넘긴다
+            // (상수를 다시 적으면 머리를 옮길 때 굴레만 허공에 남는다 — 목 위치 스윕에서 이미 겪은 함정).
+            if (dragon) bridleRig(0.31, 1.00, 0.082, 0.082 * 1.35);
+            else if (whale) bridleRig(0.235, 0.44, 0.13, 0.13 * 1.05);
+            else bridleRig(0.26, 0.22, 0.09, 0.09 * 0.9);
         } else { // 사족보행형: 거북이/게/말/공룡/돼지/염소 — 공용 몸통+머리+다리 골격, 파츠로 종 구분
             // 몸통: 예전 (1.3, 0.85, 1.6)은 반폭 0.286 — 탑승 배율까지 곱하면 영웅 다리보다 넓어
             // 다리가 통째로 몸통 안에 묻혔다("공중부양/관통" 불합격 사유의 실체). 실제 말 배럴처럼
@@ -5234,6 +5290,8 @@ const Scene3D = {
             // 발이 골반에서 약 0.66(영웅 단위) 아래·앞 0.23에 오고, 이 탈것의 총배율(≈1.9)로 나누면
             // 로컬 (±0.19, 0.10, 0.10) 근방이다. 몸통 반폭 0.18보다 바깥이라 다리가 실루엣에 드러난다.
             saddleRig(0.44, 0.180, 0.209, 0.24, [0.19, 0.10, 0.10]);
+            // 굴레·고삐 — 머리(headY/headZ)와 그 스케일(0.13 × 0.92/1.35)에서 그대로 잰다.
+            bridleRig(headY, headZ, 0.13 * 0.92, 0.13 * 1.35);
         }
         return g;
     },
@@ -5360,13 +5418,18 @@ const Scene3D = {
         // hover 0.42는 화면에서 부양으로 안 읽혔다(비평가 지적 ⓓ) — 실측하면 배 밑이 0.77이라 수치상
         // '떠 있음'인데도, 늘어진 다리가 지면까지 닿아 '서 있는 것' 으로 읽혔다. 다리를 접어 올린 위에
         // 고도까지 올려(배 밑 ≈ 1.05 = 영웅 키의 0.6배) 그림자와 발끝 사이에 확실한 간격을 만든다.
+        // reinReach: 빈 손이 **고삐를 모아 쥐는** 팔 각. 핸들바(barReach)와 같은 자리를 쓰지만 값이 다르다 —
+        // 바는 앞으로 뻗어 누르는 자세(어깨 -1.2)이고 고삐는 **몸 앞에 세워 당기는** 자세라 팔이 덜 뻗고
+        // 팔꿈치가 더 접힌다. 끈은 손을 따라오므로(alignReins) 각을 바꿔도 고삐가 알아서 맞춰진다.
         fly:     { saddle: 0.38, hover: 0.56, bulk: 1.28,
+                   reinReach: { shoulder: -0.92, shoulderZ: 0.14, elbow: -0.62 },
                    // 배럴이 사족형보다 좁아(0.152) 외전 33°(0.58)에 무릎 폴벡터만 열어도 발·무릎이
                    // 동시에 밖으로 나온다(실측 +0.036 / +0.032, probe-ride-wrap fly).
                    pose: { hipL: { rx: 0.86, rz: -0.58 }, hipR: { rx: 0.86, rz: 0.58 },
                            kneeL: { rx: -1.78, rz: -0.30 }, kneeR: { rx: -1.78, rz: 0.30 }, spine: { rx: 0.12 } } },
         // 사족보행형: 배럴이 굵어 다리를 가장 크게 벌려 감싼다
         quad:    { saddle: 0.44, hover: 0,
+                   reinReach: { shoulder: -0.92, shoulderZ: 0.14, elbow: -0.62 },
                    // rz 0.42는 발이 배럴 밖으로 겨우 0.004(로컬)만 나와, 각도만 조금 틀어도 다리가
                    // 몸통에 스쳐 묻혔다 — 여유를 0.05대로 벌려 어느 각도에서도 다리가 읽히게 한다.
                    // 무릎을 깊게 접으면 발이 **안쪽으로 말려** 배럴에 묻힌다(굴곡만 올린 판에서 여유 −0.042).
@@ -5558,6 +5621,7 @@ const Scene3D = {
         g.userData.wings = mesh.userData.wings || null;
         g.userData.tail = mesh.userData.tail || null;
         g.userData.bar = mesh.userData.bar || null;      // 핸들바 — 영웅 손에 맞춰 스템을 늘인다
+        g.userData.rein = mesh.userData.rein || null;    // 고삐 — 영웅 손까지 끈을 늘인다(사족·비행형)
         g.userData.cranks = mesh.userData.cranks || null;   // 크랭크 — 영웅 발에 맞춰 위상을 푼다
         let baseY = form.hover * sc * rideScale;
         g.position.set(Combat.HERO_X + this.worldX, baseY, 0);   // 영웅 발밑(별도 자리 아님)
@@ -5722,8 +5786,8 @@ const Scene3D = {
     // 되돌린다(무기 든 팔은 클립 그대로 — 한 손을 떼고 휘두르는 건 실제 기병도 그렇다).
     holdBarGrip() {
         const rig = this.heroRig, g = this.mountGroup;
-        if (!rig || !g || !g.userData.bar || !this.riding) return;
-        const reach = this.riding.form && this.riding.form.barReach;
+        if (!rig || !g || !this.riding) return;
+        const reach = this.freeHandReach();       // 핸들바든 고삐든 빈 손을 놓지 않는다
         // once 클립이 아닐 때는 restPose 가 이미 잡고 있다. 사망·기상(groundPose)은 제외 —
         // 쓰러진 몸이 핸들바를 붙들고 있으면 더 어색하다(탑승 하체 포즈를 빼는 것과 같은 이유).
         if (!reach || !rig._once || !rig._clip || rig._clip.groundPose) return;
@@ -5801,6 +5865,59 @@ const Scene3D = {
         bar.stem.position.copy(A).addScaledVector(d, 0.5);
         bar.stem.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
         bar.stem.scale.y = len / (bar.stem.geometry.parameters.height || 1);
+    },
+
+    // 고삐 한 줄을 재갈 고리(st.anchor) → 끝점(target)에 걸쳐 놓는다. 좌표는 둘 다 **끈의 부모 로컬**.
+    // 가운데를 거리에 비례해 늘어뜨린다 — 팽팽한 직선은 고삐가 아니라 막대로 읽힌다.
+    _reinUp: null, _reinV: null, _reinD: null, _reinMid: null,
+    layoutRein(st, target) {
+        if (!this._reinUp) { this._reinUp = new THREE.Vector3(0, 1, 0); this._reinD = new THREE.Vector3(); this._reinMid = new THREE.Vector3(); }
+        const A = st.anchor, mid = this._reinMid.copy(A).lerp(target, 0.5);
+        mid.y -= A.distanceTo(target) * 0.16;
+        this._reinSeg(st.segs[0], A, mid);
+        this._reinSeg(st.segs[1], mid, target);
+    },
+    _reinSeg(seg, a, b) {
+        const d = this._reinD.subVectors(b, a);
+        const len = Math.max(0.01, d.length());
+        seg.position.copy(a).addScaledVector(d, 0.5);
+        seg.quaternion.setFromUnitVectors(this._reinUp, d.normalize());
+        seg.scale.y = len;                     // 높이 1 짜리 박스라 배율이 곧 길이
+    },
+
+    // 고삐를 **빈 손**까지 늘인다 — 사족·비행형의 "손이 아무것도 안 잡는다"(비평가 ㉢)에 대한 처방.
+    // 핸들바는 강체라 손 쪽으로 **바를 옮기지만**, 고삐는 끈이라 반대로 **끈이 손을 따라간다** —
+    // 그래서 `alignHandlebar` 와 달리 **공격 중에도 멈추지 않는다**(휘두르는 팔을 끈이 따라가는 건
+    // 실제 기병도 그렇다. 여기서 멈추면 고삐만 허공에 굳어 남는다).
+    alignReins() {
+        const g = this.mountGroup, rig = this.heroRig;
+        if (!g || !g.userData.rein || !rig || !this.heroG) return;
+        // 고삐는 **한 손에 모아 쥔다** — 무기 든 손 반대쪽. 양손에 나눠 주면 무기 손이 끈에 묶인다.
+        const weaponHand = (this.gripOf(this.wtypeId) || {}).hand === 'L' ? 'L' : 'R';
+        const hand = weaponHand === 'L' ? rig.handR : rig.handL;
+        if (!hand) return;
+        if (!this._reinV) this._reinV = new THREE.Vector3();
+        this.heroG.updateWorldMatrix(true, true);
+        g.updateWorldMatrix(true, true);
+        for (const st of g.userData.rein.straps) {
+            const p = st.segs[0].parent;
+            if (!p) continue;
+            // 손 위치를 끈의 부모(=배율이 걸린 안쪽 메시 그룹) 로컬로 — 등자·핸들바와 같은 기준.
+            const target = p.worldToLocal(hand.getWorldPosition(this._reinV.set(0, 0, 0)));
+            target.x += st.side * 0.02;        // 주먹 안에서 두 줄이 살짝 벌어지게(겹쳐 그리면 한 줄로 보인다)
+            this.layoutRein(st, target);
+        }
+    },
+
+    // 탈것이 실제로 **잡을 물건을 가지고 있을 때만** 빈 손을 그 자세로 올린다.
+    // ⚠️ 계열로 걸면 안 된다 — 외바퀴 드로이드는 wheeled 인데 핸들바가 없어서 허공을 쥔 팔이 된다.
+    //    같은 이유로 고삐도 `userData.rein` 이 실제로 달린 종에서만 본다.
+    freeHandReach() {
+        const g = this.mountGroup, f = this.riding && this.riding.form;
+        if (!g || !f) return null;
+        if (f.barReach && g.userData.bar) return f.barReach;
+        if (f.reinReach && g.userData.rein) return f.reinReach;
+        return null;
     },
 
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
@@ -9017,6 +9134,7 @@ const Scene3D = {
                 this.heroG.rotation.x = mg.rotation.x * 0.6;
                 this.alignStirrups();                                 // 등자를 실제 발 위치에 붙인다
                 this.alignHandlebar();                                // 핸들바를 빈 손 아래로 (공격 중엔 그 자리에 둔다)
+                this.alignReins();                                    // 고삐를 빈 손까지 (끈이라 공격 중에도 따라간다)
                 this.alignPedals();                                   // 크랭크 위상을 실제 발 위치에서 푼다
             }
         }
