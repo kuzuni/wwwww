@@ -1853,6 +1853,13 @@
       · 그 밖에 `🐴` 빈 탈것 칸 → `horse` · `🥚`/`🐾` 펫 업그레이드 대량 선택 → `egg`/`paw` · `🔒` 패스 프리미엄 잠금 → `lock`.
       · **남은 26종의 성격은 그대로**: `✕`(29화면)·`★☆`·`♂`·`✓` 는 **일부러 글자로 둔 것** · `mt-face` 는 3D 스트림 폴백 · 채팅 대사 속 이모지는 대상 아님 · **`fl-face` 플레이스홀더 16종이 UI 소관으로 유일하게 남았다**(위 정정 참조 — 다음 UI 세션 몫).
       · **회귀**: `probe-toast-icon`·`probe-debug-icons`·`probe-skill-cutin`·`probe-empty-slots`·`probe-stage-label-icon` **전부 PASS** · `probe-screens-errors` **31/31 콘솔 에러 0건**. 메인 화면 캡처로 오프라인 버튼·전리품 피드·빈 칸 8종이 전부 아이콘으로 뜨는 것 확인.
+    · **[이어서 05:0x] `fl-face` 플레이스홀더 착수 — 무기 아닌 7부위는 끝, 무기는 모양 17가지가 남았다.**
+      · **무기 53종은 모양 18가지로 모인다**(실측: club·axe·spear·dagger·sling·sword·mace·hammer·bow·crossbow·rapier·thrown·rifle·pistol·smg·cannon·staff·scythe). 그래서 `weaponEmoji()` 가 보는 **모양 표 하나만 채우면 53종이 전부 걸린다** — 53개를 그릴 필요가 없다. 진입점으로 `UI.WEAPON_SHAPE_ICON` 을 신설했고, 표에 없는 모양은 기존 이모지로 떨어진다(`TOAST_ICON` 과 같은 점진 교체 방식).
+      · **무기 아닌 7부위(투구·갑옷·장갑·목걸이·반지·신발·벨트)는 이번에 끝났다** — 빈 칸용으로 이미 그려 둔 `slot_*` 실루엣을 그대로 쓴다(같은 부위, 같은 그림).
+      · 🚨 **아이콘 이름 목록을 소스에서 긁으면 안 된다 — 이 세션이 실제로 당했다.** `함수명(ctx, S)` 패턴으로 긁어 `sword`·`axe`·`spear` 가 있는 줄 알고 표에 넣었는데, 그건 **등록된 아이콘이 아니라 그리기용 내부 헬퍼**였다. `IconGen.img('없는이름')` 은 **예외가 아니라 빈 문자열**을 돌려주고 호출부가 `img(...) || 이모지` 라 **조용히 이모지로 떨어져 아무도 모른다.** 목록은 반드시 **런타임에서 `Object.keys(IconGen.draw)`** 로 뽑을 것(현재 **132종**).
+      · **그래서 자를 하나 더 만들었다 — `tools/probe-icon-name-refs.js`**: UI 의 이름 표 5종(`TOAST_ICON` 33 · `WEAPON_SHAPE_ICON` · `TECH_ICON` 29 · `DG_ICON` 4 · `WP_ICON` 3)과 코드가 직접 부르는 상수 23개가 **레지스트리에 실제로 있고 그림도 나는지** 대조한다. **PASS.** 없는 이름을 하나 넣어 **FAIL 하는 것까지 A/B 확인**했다. 표를 새로 만들면 이 프로브에 한 줄 추가할 것.
+      · **다음 UI 세션이 이어갈 것**: 무기 모양 **17가지**(axe·bow·cannon·club·crossbow·dagger·mace·pistol·rapier·rifle·scythe·sling·smg·spear·staff·sword·thrown)를 그려 `WEAPON_SHAPE_ICON` 에 한 줄씩 더하면 된다. `tm_sword` 는 기술 트리용 **청동 원판 픽토그램**이라 무기 칸에 그대로 못 쓴다. 작은 크기(23px) 판독은 앞 메모의 함정 목록을 먼저 읽을 것.
+      · **회귀**: 위 프로브 7종 + `probe-popup-close` **전부 PASS** · `probe-screens-errors` **31/31 콘솔 에러 0건**. 화면 기준 생이모지 **32 → 21종**.
   - 진행 메모(UI 스트림, 2026-08-18 03:2x): **토스트 이모지 잔여 6종 정리 — 이제 전 파일 토스트에 이모지 0.** 신설 3종(`clipboard`·`save`·`research`) + 기존 재사용 2종(⚔→`tm_sword` · 🎉→`sparkle`)으로 표는 **33종**.
     · 🚨 **앞 커밋이 남긴 실제 버그를 잡았다 — 이형 선택자(U+FE0F).** 실제 문구는 `⚔️`·`⬆️`·`⚙️`·`⚒️` 처럼 **FE0F 가 붙어** 오는데(전수 7곳) 표 키는 맨 글자라, 한 글자 매칭 뒤 **FE0F 가 문구에 그대로 남아** 보이지 않는 문자가 섞이고 있었다. 매칭 후 FE0F 를 같이 건너뛰게 고쳤고, 검증기에 **⑸ FE0F 항목**을 새로 넣어 `ico=true · FE0F잔여=false` 를 못박았다. ⚠️ **FE0F 를 문구에서 통째로 지우는 방식은 쓰면 안 된다** — 표에 없는 이모지는 FE0F 가 사라지면 컬러가 아니라 흑백 글리프로 떨어질 수 있다.
     · **📋 는 토스트뿐 아니라 펫 상세의 공유 버튼 얼굴이기도 해서** 버튼 쪽도 `IconGen.img('clipboard')` 로 같이 바꿨다.

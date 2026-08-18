@@ -1404,7 +1404,11 @@ const UI = {
             const otherCells = ['helmet', 'armor', 'gloves', 'necklace', 'ring', 'shoes', 'belt'].map(slot => {
                 const names = (slot === 'helmet' || slot === 'armor') ? ((ITEM_NAMES[age] && ITEM_NAMES[age][slot]) || []) : accNames(age, slot);
                 const sp = Forge.itemDropChance(age, slot);
-                const icon = slot === 'helmet' ? '🪖' : slot === 'armor' ? '👕' : (this.SLOT_EMOJI[slot] || '🎁');
+                // 빈 장비 칸용으로 이미 그려 둔 `slot_*` 실루엣을 그대로 쓴다(같은 부위, 같은 그림).
+                // 이 셀은 3D 썸네일이 흘러들기 전까지 보이는 플레이스홀더인데, 하이드레이션이
+                // 뷰포트 지연이라 실제로는 화면 안에서도 대부분 이 그림이 오래 남는다.
+                const icon = IconGen.img('slot_' + slot)
+                    || (slot === 'helmet' ? '🪖' : slot === 'armor' ? '👕' : (this.SLOT_EMOJI[slot] || '🎁'));
                 return names.map((name, i) => cell(`UI.openForgeDetail('${age}','${slot}',${i})`, icon, sp,
                                                   { slot, age, ageIdx, wtype: null, nameIdx: i })).join('');
             }).join('');
@@ -2180,8 +2184,25 @@ const UI = {
         sword: '🗡', rapier: '🤺', dagger: '🔪', bow: '🏹', crossbow: '🏹', sling: '💫',
         pistol: '🔫', rifle: '🔫', smg: '🔫', cannon: '💥', staff: '🪄', thrown: '🪃',
     },
+    // 모양별 **코드 생성 아이콘**. 무기 53종은 모양 18가지로 모이므로 여기만 채우면 전부 걸린다.
+    // 아직 안 그린 모양은 위 이모지 표로 떨어진다 — `TOAST_ICON` 과 같은 방식이라, 아이콘을
+    // 하나 그릴 때마다 여기 한 줄 더하면 그 순간부터 전 화면에 반영된다.
+    //
+    // ⚠️ **이름은 반드시 `IconGen.draw` 에 실제로 있는 것만 쓸 것.** 소스에서 `함수명(ctx, S)` 를
+    //    긁으면 등록된 아이콘이 아니라 **그리기용 내부 헬퍼**(`sword`·`axe`·`spear`·`plate` 등)까지
+    //    같이 잡혀 '있는 줄 알았는데 없는' 이름이 나온다(실제로 이 표를 그렇게 썼다가 셋 다
+    //    빈 문자열이 돌아왔다 — 폴백 덕에 안 깨졌을 뿐이다). 목록은 **런타임에서**
+    //    `Object.keys(IconGen.draw)` 로 뽑을 것(현재 132종). `probe-weapon-shape-icon.js` 가 이 표의
+    //    이름이 실제로 그림을 내는지 매번 확인한다.
+    //
+    // 남은 17가지 — 무기 셀에 쓸 만한 그림이 아직 없다(`tm_sword` 는 기술 트리용 청동 원판 픽토그램
+    // 이라 무기 칸에 그대로 못 쓴다): axe · bow · cannon · club · crossbow · dagger · mace · pistol ·
+    // rapier · rifle · scythe · sling · smg · spear · staff · sword · thrown  (다음 UI 세션 몫)
+    WEAPON_SHAPE_ICON: { hammer: 'hammer' },
     weaponEmoji(wtype) {
         const shape = typeof weaponShape === 'function' ? weaponShape(wtype) : wtype;
+        const ico = this.WEAPON_SHAPE_ICON[shape] && IconGen.img(this.WEAPON_SHAPE_ICON[shape]);
+        if (ico) return ico;
         if (this.WEAPON_SHAPE_EMOJI[shape]) return this.WEAPON_SHAPE_EMOJI[shape];
         return (WEAPON_TYPES[wtype] && WEAPON_TYPES[wtype].kind === 'ranged') ? '🏹' : '🗡';
     },
