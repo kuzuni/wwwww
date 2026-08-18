@@ -2541,6 +2541,87 @@ const Scene3D = {
         return m;
     },
 
+    // ── 조형 헬퍼 3종 (비평가 지적 ㉯⑴ 대응) ────────────────────────────────────────
+    // "갑옷·장갑·신발·벨트가 프리미티브 상자 조합 — 박스는 어떤 라이팅을 걸어도 박스"가 6점 벽이었다.
+    // Box/Cylinder 조립으로는 가슴 곡률·허리 잘록·파울드론 벌어짐·부츠 목·발등 곡선·손가락이 안 나온다.
+    // ⑴ shellFromRings: 높이마다 타원 반경이 다른 단면 링을 쌓아 **실루엣 자체를 곡선으로** 만든다.
+    //    rings 는 **아래→위** 순서: [{ y, rx, rz, z? }] · seg = 둘레 분할.
+    //    opt.open = 위아래 캡 생략(관), opt.flat = 각진 음영(원시 계열의 깎아낸 느낌).
+    //    ⚠️ 감김 방향 주의 — 재질이 FrontSide 라 뒤집히면 통째로 안 보인다. 옆면은 (a,c,b)/(b,c,d),
+    //       아래 캡은 (중심,i,i+1), 위 캡은 (중심,i+1,i) 여야 법선이 바깥·아래·위를 향한다.
+    shellFromRings(rings, seg, mat, opt) {
+        const o = opt || {};
+        const n = Math.max(6, seg | 0), R = rings.length;
+        if (R < 2) return new THREE.Group();
+        const pos = [], idx = [];
+        for (let r = 0; r < R; r++) {
+            const ring = rings[r];
+            for (let i = 0; i < n; i++) {
+                const a = i / n * Math.PI * 2;
+                pos.push(ring.rx * Math.cos(a), ring.y, ring.rz * Math.sin(a) + (ring.z || 0));
+            }
+        }
+        for (let r = 0; r < R - 1; r++) {
+            for (let i = 0; i < n; i++) {
+                const a = r * n + i, b = r * n + (i + 1) % n, c = (r + 1) * n + i, d = (r + 1) * n + (i + 1) % n;
+                idx.push(a, c, b, b, c, d);
+            }
+        }
+        if (!o.open) {
+            const bot = rings[0], top = rings[R - 1], base = (R - 1) * n;
+            const bi = pos.length / 3; pos.push(0, bot.y, bot.z || 0);
+            const ti = bi + 1; pos.push(0, top.y, top.z || 0);
+            for (let i = 0; i < n; i++) {
+                idx.push(bi, i, (i + 1) % n);
+                idx.push(ti, base + (i + 1) % n, base + i);
+            }
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setIndex(idx);
+        if (o.flat) {
+            const g2 = geo.toNonIndexed();
+            g2.computeVertexNormals();
+            geo.dispose();
+            return new THREE.Mesh(g2, mat);
+        }
+        geo.computeVertexNormals();
+        return new THREE.Mesh(geo, mat);
+    },
+    // ⑵ 라운드 사각 단면 + 베벨 압출 — 판금 라멜라·너클판·인장판처럼 '두꺼운 판'에 Box 대신 쓴다.
+    //    모서리가 깎여 하이라이트가 한 줄로 흐르므로 96px 썸네일에서도 '판'으로 읽힌다.
+    roundedRectShape(w, h, r) {
+        const x = w / 2, y = h / 2, rr = Math.max(0.001, Math.min(r, x * 0.98, y * 0.98));
+        const s = new THREE.Shape();
+        s.moveTo(-x + rr, -y);
+        s.lineTo(x - rr, -y); s.quadraticCurveTo(x, -y, x, -y + rr);
+        s.lineTo(x, y - rr); s.quadraticCurveTo(x, y, x - rr, y);
+        s.lineTo(-x + rr, y); s.quadraticCurveTo(-x, y, -x, y - rr);
+        s.lineTo(-x, -y + rr); s.quadraticCurveTo(-x, -y, -x + rr, -y);
+        return s;
+    },
+    beveledSlab(w, h, d, r, mat) {
+        const bev = Math.min(d * 0.3, Math.min(w, h) * 0.15, 0.02);
+        const geo = new THREE.ExtrudeGeometry(
+            this.roundedRectShape(w - bev * 2, h - bev * 2, r === undefined ? Math.min(w, h) * 0.3 : r),
+            { depth: Math.max(0.001, d - bev * 2), bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 6 });
+        geo.translate(0, 0, -d / 2 + bev);
+        return new THREE.Mesh(geo, mat);
+    },
+    // ⑶ 캡슐 — 손가락·프롱·끈처럼 '끝이 둥근 기둥'. Cylinder 만 쓰면 잘린 관처럼 보인다.
+    capsuleMesh(r, len, mat, seg) {
+        const g = new THREE.Group();
+        const n = seg || 10;
+        g.add(new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, n), mat));
+        for (const s of [-1, 1]) {
+            const cap = new THREE.Mesh(new THREE.SphereGeometry(r, n, Math.max(4, n >> 1), 0, Math.PI * 2, 0, Math.PI / 2), mat);
+            cap.position.y = s * len / 2;
+            if (s < 0) cap.rotation.x = Math.PI;
+            g.add(cap);
+        }
+        return g;
+    },
+
     // 조립이 끝난 장비 그룹에 시대 디테일을 얹는다 — 바운딩 박스에서 '아랫단 밴드'를 잡아
     // 계열마다 다른 것을 두른다(리벳 링 / 발광 링 / 가죽끈+뼈구슬 / 황동 스터드 / 폴리머 벤트).
     // 스타일 11종·갑옷 6종이 제각각이라 좌표 상수로는 못 맞춘다 — 실제 크기에서 역산한다.
@@ -2552,8 +2633,12 @@ const Scene3D = {
         const ctr = bb.getCenter(new THREE.Vector3());
         // 원형이 아니라 **타원**으로 두른다 — 갑옷 몸통은 0.46×0.30 박스라 원 링을 두르면
         // 앞뒤로 6cm 떠서 '허공에 뜬 고리'가 된다(투구는 rx≈rz라 차이가 없다).
+        // ⚠️ 바운딩 박스 반경은 **가장 굵은 곳**이다 — 곡면 흉갑처럼 허리가 잘록한 몸통에 쓰면
+        //    가슴 반경으로 허리를 둘러 링이 4cm 떠 버린다. 부르는 쪽이 그 높이의 실제 반경을
+        //    안다면 o.rx/o.rz 로 직접 넘긴다(투구처럼 위아래가 고른 형상은 그대로 박스에서 역산).
         const sc = o.rScale || 0.94;
-        const rx = size.x * 0.5 * sc, rz = size.z * 0.5 * sc;
+        const rx = o.rx !== undefined ? o.rx : size.x * 0.5 * sc;
+        const rz = o.rz !== undefined ? o.rz : size.z * 0.5 * sc;
         const r = Math.max(rx, rz);
         if (!(Math.min(rx, rz) > 0.02)) return;
         const y = bb.min.y + size.y * (o.yFrac !== undefined ? o.yFrac : 0.24);
@@ -2863,22 +2948,70 @@ const Scene3D = {
         // 가죽·로브는 판금 재질을 쓰면 '철판 원피스'로 읽힌다 — 시대색은 유지한 채 금속기만 뺀다
         const soft = style === 'hide' || style === 'robe';
         const mat = soft ? this.tintOf(mats.body, -0.02, { metalness: 0.03, roughness: 0.9, envMapIntensity: 0.3 }) : mats.body;
-        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.5, 0.3), mat);
+        // ── 몸통: 0.46×0.5×0.3 상자 → **단면 링을 쌓은 곡면 흉갑** (비평가 지적 ㉯⑴) ──
+        // 아랫단이 벌어지고(플레어) 허리가 잘록해지며 가슴이 가장 두껍고 목으로 좁아진다.
+        // 폭·높이는 예전 상자와 맞춰 둔다(rx 0.238×2≈0.46) — 부속(견갑·망토)·시대 트림의 좌표가
+        // 이 치수를 전제로 잡혀 있어 크게 벗어나면 리벳이 허공에 뜬다.
+        const skirt = style === 'robe' ? 0.30 : style === 'hide' ? 0.245 : style === 'cape' ? 0.235 : 0.225;
+        const torso = this.shellFromRings([
+            { y: -0.27, rx: skirt, rz: skirt * 0.63 },   // 아랫단 플레어(로브는 치맛단처럼 크게)
+            { y: -0.19, rx: 0.192, rz: 0.120 },
+            { y: -0.07, rx: 0.178, rz: 0.113 },          // 허리 — 가장 잘록한 지점
+            { y: 0.05, rx: 0.214, rz: 0.145 },
+            { y: 0.15, rx: 0.238, rz: 0.160 },           // 가슴 — 가장 두껍다
+            { y: 0.23, rx: 0.222, rz: 0.138 },
+            { y: 0.29, rx: 0.168, rz: 0.106 },           // 목
+        ], soft ? 22 : 20, mat, { flat: this.ageGearKind(age) === 'primal' && !soft });
         g.add(torso);
         if (!soft) {
-            const chest = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.08), mat);
-            chest.position.set(0, 0.1, 0.16);
-            g.add(chest);
+            // 가슴 곡률 — 판금은 흉근 두 덩이 + 가운데 능선(키일)이 서야 '흉갑'으로 읽힌다.
+            // ⚠️ 구를 그대로 쓰면 두 개의 유방으로 읽힌다 — z를 0.26까지 눌러 **표면에서 살짝
+            //    부푼 면**으로 만들고 몸통 앞면(rz 0.16)에 반쯤 묻는다.
+            for (const s of [-1, 1]) {
+                const pec = new THREE.Mesh(new THREE.SphereGeometry(0.098, 14, 10), mat);
+                pec.scale.set(1.02, 0.66, 0.26);
+                pec.position.set(s * 0.082, 0.163, 0.137);
+                g.add(pec);
+            }
+            const keel = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 12), mat);
+            keel.scale.set(0.38, 2.5, 0.34);   // 세로로 길게 눌린 렌즈 = 가슴 한가운데 능선
+            keel.position.set(0, 0.105, 0.147);
+            g.add(keel);
         }
+        // 목깃(고젯) — 몸통 윗변을 링으로 마감해 '잘린 관' 인상을 없앤다
+        const gorget = new THREE.Mesh(new THREE.TorusGeometry(0.125, soft ? 0.026 : 0.032, 8, 20), soft ? mat : mats.dark);
+        gorget.position.y = 0.29;
+        gorget.rotation.x = Math.PI / 2;
+        gorget.scale.y = 0.68;   // 몸통 단면이 타원이라 링도 눕혀야 앞뒤로 뜨지 않는다
+        g.add(gorget);
         // 시대 디테일은 **몸통 기준으로** 두른다 — 견갑·망토까지 포함한 바운딩 박스로 재면
         // 반경이 0.44까지 커져 리벳이 가슴 앞 6cm 허공에 뜬다
-        this.addAgeTrim(g, mats, { yFrac: 0.16, rScale: 0.99 });
+        // 허리(y=-0.07, rx 0.178)에 두른다 — 곡면 몸통이라 반경을 직접 넘긴다(위 ⚠️ 참고)
+        this.addAgeTrim(g, mats, { yFrac: 0.34, rx: 0.187, rz: 0.122 });
         if (style === 'plate') {
-            for (const dx of [-0.3, 0.3]) {
-                const pad = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), mat);
-                pad.position.set(dx, 0.24, 0);
-                pad.scale.y = 0.75;
-                g.add(pad);
+            // 파울드론 — 구 하나가 아니라 **라멜라 3장이 겹쳐 바깥으로 벌어진다**.
+            // 구를 적도보다 조금 더(0.62π) 내려 자르면 테두리가 안쪽으로 말려 뚫린 면이 안 보인다.
+            for (const s of [-1, 1]) {
+                const pg = new THREE.Group();
+                for (let l = 0; l < 3; l++) {
+                    const lame = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.112 - l * 0.021, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.62),
+                        l ? this.tintOf(mat, -0.045) : mat);
+                    lame.scale.set(1, 0.62, 0.94);
+                    lame.position.y = -l * 0.038;
+                    pg.add(lame);
+                }
+                pg.position.set(s * 0.185, 0.216, 0);
+                pg.rotation.z = -s * 0.34;     // 어깨 밖으로 흘러내린다
+                g.add(pg);
+            }
+            // 파울드 — 허리 아래로 늘어진 판 3장(앞·좌·우)
+            for (const a of [-0.85, 0, 0.85]) {
+                const f = this.beveledSlab(0.115, 0.12, 0.035, 0.03, this.tintOf(mat, -0.03));
+                f.position.set(Math.sin(a) * 0.175, -0.24, Math.cos(a) * 0.125);
+                f.rotation.y = a;
+                f.rotation.x = 0.22;
+                g.add(f);
             }
         }
         const extras = this.makeArmorExtras(style, c, RARITY_HEX[rarity] || 0xffffff, mats);
@@ -2889,26 +3022,53 @@ const Scene3D = {
         //    vest 의 파우치는 2cm짜리라 96px 썸네일에서는 둘 다 '민짜 몸통 상자'로 찍힌다.
         //    부속 좌표를 옮기면 착용 중인 영웅 쪽 배치가 틀어지므로, **프리뷰에만** 위쪽 윤곽을
         //    깨는 표식을 더한다(몸통 윗변 y=0.25 위로 나와야 실루엣이 갈린다).
-        if (style === 'suit') {          // 슈트: 어깨 위로 솟은 산소통 2개 + 목깃
-            for (const dx of [-0.17, 0.17]) {
-                const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.3, 10), mat);
-                tank.position.set(dx, 0.36, -0.13);
-                g.add(tank);
-            }
-            const collar = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.035, 8, 16), mats.dark);
-            collar.position.set(0, 0.26, 0);
-            collar.rotation.x = Math.PI / 2;
-            g.add(collar);
-        } else if (style === 'vest') {   // 조끼: 어깨끈 2줄이 몸통 위로 넘어가고 앞섶이 V로 벌어진다
+        // ⚠️ 좌표는 **곡면 몸통 기준**으로 다시 잡혀 있다(예전 0.46×0.5 상자 기준 값을 그대로 두면
+        //    허리가 잘록해진 만큼 산소통·어깨끈이 몸통에서 떨어져 허공에 뜬다).
+        if (style === 'suit') {          // 슈트: 어깨 위로 솟은 산소통 2개 + 호스
             for (const s of [-1, 1]) {
-                const strap = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.34, 0.1), mats.dark);
-                strap.position.set(s * 0.15, 0.3, 0.06);
-                strap.rotation.z = s * 0.2;
+                const tank = this.shellFromRings([   // 위아래가 둥근 실린더 = 압력 탱크
+                    { y: -0.15, rx: 0.032, rz: 0.032 }, { y: -0.125, rx: 0.055, rz: 0.055 },
+                    { y: 0.125, rx: 0.055, rz: 0.055 }, { y: 0.15, rx: 0.032, rz: 0.032 },
+                ], 12, mat);
+                tank.position.set(s * 0.105, 0.27, -0.105);
+                g.add(tank);
+                const hose = this.capsuleMesh(0.015, 0.13, mats.dark, 8);
+                hose.position.set(s * 0.088, 0.35, -0.055);
+                hose.rotation.x = -0.8;
+                hose.rotation.z = s * 0.5;
+                g.add(hose);
+            }
+        } else if (style === 'vest') {   // 조끼: 어깨끈 2줄이 어깨를 넘어가고 앞섶이 V로 벌어진다
+            for (const s of [-1, 1]) {
+                // 어깨끈은 몸통 **위에 얹혀** 있어야 한다 — 앞으로 빼면 허공의 막대가 된다
+                const strap = this.beveledSlab(0.058, 0.2, 0.15, 0.026, mats.dark);
+                strap.position.set(s * 0.125, 0.225, 0);
+                strap.rotation.z = s * 0.26;
                 g.add(strap);
-                const lapel = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 0.05), mat);
-                lapel.position.set(s * 0.1, 0.1, 0.17);
-                lapel.rotation.z = -s * 0.34;
+                // 앞섶: 가슴 곡면에 붙어 V로 벌어지는 판(z는 몸통 앞면 rz 0.16 에 반쯤 묻힌다)
+                const lapel = this.beveledSlab(0.095, 0.25, 0.035, 0.03, mat);
+                lapel.position.set(s * 0.068, 0.095, 0.138);
+                lapel.rotation.z = -s * 0.28;
+                lapel.rotation.y = s * 0.16;
                 g.add(lapel);
+            }
+        } else if (style === 'hide') {
+            // 가죽: 민짜 덩어리로 읽히던 것을 **앞섶 교차 끈 + 어깨 모피**로 갈랐다
+            for (let i = 0; i < 4; i++) {
+                const y = 0.19 - i * 0.075;
+                for (const s of [-1, 1]) {
+                    const lace = this.capsuleMesh(0.011, 0.085, mats.dark, 6);
+                    lace.position.set(0, y, 0.152 - i * 0.006);
+                    lace.rotation.z = s * 0.72;
+                    g.add(lace);
+                }
+            }
+            for (let i = 0; i < 9; i++) {
+                const a = (i / 9) * Math.PI * 2;
+                const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6), this.tintOf(mat, 0.05, { roughness: 1 }));
+                tuft.scale.set(1, 0.7, 1);
+                tuft.position.set(Math.cos(a) * 0.163, 0.276, Math.sin(a) * 0.104);
+                g.add(tuft);
             }
         }
         return g;
@@ -2925,16 +3085,95 @@ const Scene3D = {
         const dark = mats.dark;
         const add = (mesh, x, y, z) => { mesh.position.set(x || 0, y || 0, z || 0); g.add(mesh); return mesh; };
         if (slot === 'gloves') {
-            if (variant === 0) { // 장갑: 손바닥 + 엄지
-                add(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.42, 0.14), mat), 0, 0.4);
-                add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.18, 0.13), mat), -0.22, 0.32);
-            } else if (variant === 1) { // 건틀릿: 판금 + 커프
-                add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, 0.16), mat), 0, 0.45);
-                add(new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.25, 0.18, 10), mat), 0, 0.18);
-                add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), gemMat), 0, 0.5, 0.1);
-            } else { // 핸드랩: 붕대 감기
-                add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat), 0, 0.42).scale.set(0.85, 1.1, 0.7);
-                for (let i = 0; i < 3; i++) add(new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.16), dark), 0, 0.28 + i * 0.14);
+            // ⚠️ 세 변형이 전부 **납작한 상자 한두 개**였다 — 손가락도 손등 곡률도 없어 96px 에서는
+            //    그냥 판때기였다(비평가 지적 ㉯⑴). 손 형태를 실제로 조립한다: 곡면 손등 + 손가락 5개.
+            if (variant === 0) { // 장갑: 손등 곡면 + 손가락 4개 + 벌어진 엄지 + 손목 커프
+                g.add(this.shellFromRings([
+                    { y: 0.17, rx: 0.105, rz: 0.052 },   // 손목
+                    { y: 0.26, rx: 0.128, rz: 0.060 },
+                    { y: 0.38, rx: 0.142, rz: 0.062 },   // 너클(가장 넓다)
+                    { y: 0.46, rx: 0.132, rz: 0.052 },
+                ], 16, mat));
+                [0.15, 0.175, 0.165, 0.132].forEach((len, i) => {   // 중지가 가장 길다
+                    const f = this.capsuleMesh(0.028, len, mat, 8);
+                    f.position.set(-0.089 + i * 0.06, 0.455 + len / 2, 0.002);
+                    f.rotation.z = (i - 1.5) * 0.055;
+                    g.add(f);
+                });
+                const th = this.capsuleMesh(0.032, 0.125, mat, 8);
+                th.position.set(-0.15, 0.33, 0.028);
+                th.rotation.z = 0.9;
+                g.add(th);
+                const cuff = this.shellFromRings([
+                    { y: 0.06, rx: 0.128, rz: 0.075 }, { y: 0.175, rx: 0.108, rz: 0.055 },
+                ], 16, dark);
+                g.add(cuff);
+            } else if (variant === 1) { // 건틀릿: 판금 손등 + 너클판 + 손가락 라멜라 + 나팔 커프
+                g.add(this.shellFromRings([
+                    { y: 0.20, rx: 0.108, rz: 0.055 }, { y: 0.30, rx: 0.130, rz: 0.062 },
+                    { y: 0.40, rx: 0.140, rz: 0.060 }, { y: 0.47, rx: 0.128, rz: 0.050 },
+                ], 16, mat));
+                const knuck = this.beveledSlab(0.25, 0.1, 0.05, 0.035, this.tintOf(mat, 0.03));
+                knuck.position.set(0, 0.42, 0.052);
+                knuck.rotation.x = -0.24;
+                g.add(knuck);
+                // ⚠️ 라멜라만 띄우면 **허공의 벽돌 격자**가 된다 — 손가락(캡슐)을 먼저 세우고
+                //    그 위에 판을 얹어야 '판금 손가락'으로 읽힌다.
+                [0.145, 0.168, 0.158, 0.128].forEach((len, i) => {
+                    const f = this.capsuleMesh(0.026, len, this.tintOf(mat, -0.06), 8);
+                    f.position.set(-0.087 + i * 0.058, 0.465 + len / 2, 0);
+                    f.rotation.z = (i - 1.5) * 0.05;
+                    g.add(f);
+                    for (let l = 0; l < 2; l++) {          // 손가락마다 판 2장이 겹쳐 내려온다
+                        const lame = this.beveledSlab(0.058, 0.07, 0.05, 0.022, l ? this.tintOf(mat, -0.03) : mat);
+                        lame.position.set(-0.087 + i * 0.058, 0.5 + l * 0.066, 0.014 - l * 0.006);
+                        lame.rotation.x = -0.14;
+                        lame.rotation.z = (i - 1.5) * 0.05;
+                        g.add(lame);
+                    }
+                });
+                const th = this.capsuleMesh(0.031, 0.115, mat, 8);
+                th.position.set(-0.148, 0.345, 0.026);
+                th.rotation.z = 0.9;
+                g.add(th);
+                // 나팔 커프 — 손목에서 팔뚝 쪽으로 벌어진다(건틀릿의 얼굴)
+                g.add(this.shellFromRings([
+                    { y: -0.02, rx: 0.175, rz: 0.128 }, { y: 0.06, rx: 0.140, rz: 0.098 },
+                    { y: 0.16, rx: 0.118, rz: 0.070 }, { y: 0.21, rx: 0.112, rz: 0.062 },
+                ], 16, mat));
+                add(new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), gemMat), 0, 0.42, 0.088);
+            } else { // 핸드랩: 쥔 주먹 + 비스듬히 감긴 붕대
+                // 손목까지 내려오는 한 덩이 — 붕대가 감길 몸통이 있어야 한다
+                const fist = this.shellFromRings([
+                    { y: 0.10, rx: 0.093, rz: 0.057 }, { y: 0.22, rx: 0.101, rz: 0.062 },
+                    { y: 0.31, rx: 0.132, rz: 0.082 }, { y: 0.43, rx: 0.146, rz: 0.090 },
+                    { y: 0.53, rx: 0.118, rz: 0.072 },
+                ], 16, mat);
+                g.add(fist);
+                for (let i = 0; i < 4; i++) {   // 너클 4개가 위쪽에 튀어나온다
+                    const kn = new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 8), mat);
+                    kn.scale.set(1, 0.8, 0.9);
+                    kn.position.set(-0.082 + i * 0.055, 0.515, 0.03);
+                    g.add(kn);
+                }
+                const th = this.capsuleMesh(0.033, 0.10, mat, 8);
+                th.position.set(-0.135, 0.375, 0.055);
+                th.rotation.z = 1.0; th.rotation.x = -0.3;
+                g.add(th);
+                // 붕대는 수평이 아니라 **비스듬히** 감겨야 감긴 티가 난다.
+                // ⚠️ 반경을 상수로 두면 손목 쪽 링이 몸통 밖 허공에 뜬다 — 그 높이의 실제 굵기에 맞춘다.
+                [[0.16, 0.098], [0.27, 0.119], [0.38, 0.142], [0.47, 0.137]].forEach(([y, r], i) => {
+                    const band = new THREE.Mesh(new THREE.TorusGeometry(r + 0.009, 0.017, 6, 18), dark);
+                    band.position.set(0, y, 0.004);
+                    band.rotation.x = Math.PI / 2 + 0.15;
+                    band.rotation.z = (i % 2 ? 1 : -1) * 0.09;
+                    band.scale.y = 0.62;       // 손 단면이 타원이라 링도 눌러야 옆으로 뜨지 않는다
+                    g.add(band);
+                });
+                const tail = this.beveledSlab(0.05, 0.1, 0.024, 0.018, dark);   // 늘어뜨린 붕대 끝
+                tail.position.set(0.086, 0.115, 0.045);
+                tail.rotation.z = -0.4;
+                g.add(tail);
             }
         } else if (slot === 'necklace') {
             // ⚠️ 세 변형이 **같은 고리 + 작은 펜던트**였던 탓에 썸네일 실루엣이 완전히 같았다
@@ -2983,40 +3222,192 @@ const Scene3D = {
                 gem.rotation.z = 0.4;
             }
         } else if (slot === 'shoes') {
-            const mk = (dx) => {
-                add(new THREE.Mesh(new THREE.BoxGeometry(0.14, variant === 2 ? 0.4 : variant === 1 ? 0.3 : 0.18, 0.16), mat), dx, variant === 2 ? 0.42 : 0.32);
-                add(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.3), variant === 0 ? mat : dark), dx, 0.18, 0.06);
-                // 목 높이만 다르면 작은 썸네일에서 구분이 안 된다 — 계열 표식을 실루엣에 남긴다
-                if (variant === 1) { // 부츠: 접힌 목단
-                    const cuff = add(new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.095, 0.09, 10), dark), dx, 0.45);
-                    void cuff;
-                } else if (variant === 2) { // 그리브: 무릎 판
-                    const knee = add(new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), mat), dx, 0.62, 0.02);
-                    knee.scale.set(1, 0.8, 0.85);
-                }
+            // ⚠️ 예전엔 '세로 상자 + 가로 상자' 두 개였다 — 밑창도 발등 곡선도 아치도 없어
+            //    썸네일에서 그냥 ㄴ자 블록 두 짝이었다(비평가 지적 ㉯⑴).
+            //    이제 ① 발자국 모양 밑창(뒤꿈치 넓고 아치 잘록, 발가락 둥글게)을 압출로 뽑고
+            //    ② 그 위에 **z 중심이 뒤로 물러나는 링**을 쌓아 발등에서 발목으로 넘어가는 곡선을 낸다.
+            const soleShape = () => {
+                const s = new THREE.Shape();
+                s.moveTo(-0.072, -0.128);
+                s.quadraticCurveTo(-0.094, -0.045, -0.060, 0.042);   // 안쪽 아치(잘록)
+                s.quadraticCurveTo(-0.086, 0.140, -0.028, 0.184);    // 볼 → 발가락
+                s.quadraticCurveTo(0.020, 0.203, 0.060, 0.158);
+                s.quadraticCurveTo(0.092, 0.058, 0.073, -0.020);
+                s.quadraticCurveTo(0.088, -0.112, 0.000, -0.146);    // 뒤꿈치
+                s.quadraticCurveTo(-0.058, -0.150, -0.072, -0.128);
+                return s;
             };
-            mk(-0.13); mk(0.13);
-            if (variant === 2) add(new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), gemMat), 0.13, 0.55, 0.08);
+            const mk = (dx, flip) => {
+                const boot = new THREE.Group();
+                const sole = new THREE.Mesh(new THREE.ExtrudeGeometry(soleShape(), {
+                    depth: 0.032, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.01, bevelSegments: 2, curveSegments: 10,
+                }), dark);
+                sole.rotation.x = -Math.PI / 2;   // 셰이프의 y가 월드 z(앞뒤)가 된다
+                sole.position.y = 0.012;
+                boot.add(sole);
+                const heel = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.056, 0.045, 12), this.tintOf(dark, -0.05));
+                heel.scale.z = 0.85;
+                heel.position.set(0, -0.012, -0.10);
+                boot.add(heel);
+                // 갑피 — z 오프셋이 뒤로 물러나며 발등에서 발목으로 넘어간다
+                const upper = [
+                    { y: 0.048, rx: 0.079, rz: 0.163, z: 0.016 },
+                    { y: 0.090, rx: 0.077, rz: 0.150, z: 0.004 },
+                    { y: 0.135, rx: 0.071, rz: 0.120, z: -0.020 },
+                    { y: 0.195, rx: 0.063, rz: 0.086, z: -0.048 },
+                    { y: 0.250, rx: 0.057, rz: 0.062, z: -0.060 },
+                ];
+                if (variant === 1) {          // 부츠: 목이 종아리까지 올라가고 위에서 살짝 벌어진다
+                    upper.push({ y: 0.36, rx: 0.061, rz: 0.064, z: -0.062 },
+                               { y: 0.47, rx: 0.070, rz: 0.073, z: -0.062 });
+                } else if (variant === 2) {   // 그리브: 정강이를 감싸고 무릎까지 곧게 선다
+                    upper.push({ y: 0.38, rx: 0.064, rz: 0.070, z: -0.062 },
+                               { y: 0.56, rx: 0.069, rz: 0.076, z: -0.060 });
+                }
+                boot.add(this.shellFromRings(upper, 18, mat));
+                // 발가락 캡 — 밑창 앞코를 덮어 '깎인 단면'을 없앤다
+                const toe = new THREE.Mesh(new THREE.SphereGeometry(0.077, 14, 10), variant === 0 ? this.tintOf(mat, -0.02) : mat);
+                toe.scale.set(1, 0.62, 1.15);
+                toe.position.set(0, 0.058, 0.115);
+                boot.add(toe);
+                if (variant === 0) {          // 구두: 발목 깃 + 혀 + 끈 3줄
+                    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.017, 6, 16), dark);
+                    collar.position.set(0, 0.252, -0.060);
+                    collar.rotation.x = Math.PI / 2;
+                    boot.add(collar);
+                    for (let i = 0; i < 3; i++) {
+                        const lace = this.capsuleMesh(0.0095, 0.07, dark, 6);
+                        lace.position.set(0, 0.14 + i * 0.042, 0.020 - i * 0.028);
+                        lace.rotation.z = Math.PI / 2;
+                        lace.rotation.y = 0.25;
+                        boot.add(lace);
+                    }
+                } else if (variant === 1) {   // 부츠: 접힌 목단 + 발목 버클 끈
+                    // 목단은 확실히 벌어져야 '접어 내린 부츠'로 읽힌다 — 몸통 rx 0.070 → 0.113
+                    const cuff = this.shellFromRings([
+                        { y: 0.425, rx: 0.073, rz: 0.076, z: -0.062 },
+                        { y: 0.495, rx: 0.113, rz: 0.117, z: -0.062 },
+                        { y: 0.545, rx: 0.101, rz: 0.105, z: -0.062 },
+                    ], 18, this.tintOf(mat, -0.07));
+                    boot.add(cuff);
+                    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.014, 6, 16), dark);
+                    strap.position.set(0, 0.27, -0.056);
+                    strap.rotation.x = Math.PI / 2;
+                    boot.add(strap);
+                    const buckle = this.beveledSlab(0.036, 0.032, 0.016, 0.008, gemMat);
+                    buckle.position.set(0, 0.27, 0.008);
+                    boot.add(buckle);
+                } else {                      // 그리브: 정강이 판 + 무릎 돔 + 고정 밴드 2줄
+                    // 정강이 판은 앞으로 튀어나와야 보인다 — 갑피(z 중심 -0.062, rz 0.07) 앞면 밖에 얹는다
+                    const shin = this.beveledSlab(0.094, 0.30, 0.034, 0.032, this.tintOf(mat, 0.03));
+                    shin.position.set(0, 0.40, 0.018);
+                    shin.rotation.x = -0.05;
+                    boot.add(shin);
+                    const knee = new THREE.Mesh(new THREE.SphereGeometry(0.082, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), mat);
+                    knee.scale.set(1, 0.8, 0.95);
+                    knee.position.set(0, 0.555, -0.045);
+                    boot.add(knee);
+                    for (const y of [0.31, 0.46]) {
+                        const band = new THREE.Mesh(new THREE.TorusGeometry(0.072, 0.013, 6, 16), dark);
+                        band.position.set(0, y, -0.058);
+                        band.rotation.x = Math.PI / 2;
+                        boot.add(band);
+                    }
+                }
+                boot.position.x = dx;
+                boot.scale.x = flip ? -1 : 1;   // 좌우 짝 — 아치가 안쪽으로 오게 뒤집는다
+                g.add(boot);
+                return boot;
+            };
+            mk(-0.115, true); mk(0.115, false);
+            if (variant === 2) add(new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 8), gemMat), 0.115, 0.555, 0.03);
         } else { // belt
             // 벨트가 가장 심했다 — 세 변형이 **같은 원통 띠**에 2cm짜리 버클만 달라, 시대마다
             // 서로 '같은 그림'으로 잡혔다(실측 색 차이 0.009~0.041, 실루엣 0.000).
-            if (variant === 0) { // 띠/끈: 얇은 띠 + 사각 버클 + 늘어진 꼬리
-                add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.085, 14), mat), 0, 0.45);
-                add(new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.14, 0.05), gemMat), 0, 0.45, 0.24);
-                add(new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.26, 0.035), dark), 0.02, 0.3, 0.25);
-            } else if (variant === 1) { // 전투/탄입대: 파우치가 둘러붙어 아랫단이 울퉁불퉁
-                add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.13, 14), mat), 0, 0.47);
-                for (const a of [-0.9, 0, 0.9]) {
-                    const p = add(new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.17, 0.1), dark),
-                                  Math.sin(a) * 0.23, 0.34, Math.cos(a) * 0.23);
-                    p.rotation.y = a;
+            // ⚠️ 세 변형 전부 **민짜 원통 + 상자 버클**이었다 — 96px 에서는 '옆에서 본 상자'로 찍혔다
+            //    (비평가 지적 ㉯⑴). 띠는 위아래 모서리를 굴린 곡면 밴드로, 버클은 **구멍 뚫린 테**로
+            //    바꾼다. 허리 단면(rx 0.245 / rz 0.16)은 곡면 흉갑 몸통과 같은 타원을 쓴다.
+            // 위아래가 살짝 좁아지는 곡면 띠 — h = 띠 폭
+            const strapBand = (yc, h, m, rx, rz) => this.shellFromRings([
+                { y: yc - h / 2, rx: rx * 0.955, rz: rz * 0.955 },
+                { y: yc - h / 2 + h * 0.16, rx: rx, rz: rz },
+                { y: yc + h / 2 - h * 0.16, rx: rx, rz: rz },
+                { y: yc + h / 2, rx: rx * 0.955, rz: rz * 0.955 },
+            ], 26, m);
+            // 구멍 뚫린 사각 버클 테 + 가운데 프롱 — 상자 하나로는 절대 '버클'로 안 읽힌다
+            const buckleFrame = (w, h, m) => {
+                const outer = this.roundedRectShape(w, h, Math.min(w, h) * 0.26);
+                outer.holes.push(new THREE.Path(this.roundedRectShape(w * 0.62, h * 0.56, Math.min(w, h) * 0.14).getPoints(20)));
+                return new THREE.Mesh(new THREE.ExtrudeGeometry(outer, {
+                    depth: 0.022, bevelEnabled: true, bevelThickness: 0.007, bevelSize: 0.007, bevelSegments: 1, curveSegments: 6,
+                }), m);
+            };
+            if (variant === 0) { // 띠/끈: 얇은 곡면 띠 + 구멍 버클 + 구멍 뚫린 꼬리
+                g.add(strapBand(0.45, 0.088, mat, 0.245, 0.16));
+                const bk = buckleFrame(0.135, 0.108, gemMat);
+                bk.position.set(0, 0.45, 0.155);
+                g.add(bk);
+                const prong = this.capsuleMesh(0.008, 0.09, gemMat, 6);   // 버클 가운데 침
+                prong.position.set(0, 0.45, 0.168);
+                g.add(prong);
+                const tail = this.beveledSlab(0.068, 0.25, 0.024, 0.022, dark);
+                tail.position.set(0.075, 0.325, 0.155);
+                tail.rotation.z = 0.16;
+                g.add(tail);
+                for (let i = 0; i < 3; i++) {   // 조임 구멍 — 가죽 벨트의 표식
+                    const hole = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.04, 8), this.tintOf(dark, -0.12));
+                    hole.rotation.x = Math.PI / 2;
+                    hole.position.set(0.085 + i * 0.006, 0.31 - i * 0.056, 0.155);
+                    g.add(hole);
                 }
-                add(new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.022, 8, 14), gemMat), 0, 0.47, 0.25);
-            } else { // 장식 새시: 폭 넓은 띠 + 한쪽으로 늘어뜨린 천자락
-                add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.255, 0.27, 14), mat), 0, 0.5);
-                const tail = add(new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.34, 0.045), mats.trim && mats.trim.isMeshBasicMaterial ? mat : (mats.trim || dark)), -0.17, 0.22, 0.2);
-                tail.rotation.z = 0.12;
-                add(new THREE.Mesh(new THREE.OctahedronGeometry(0.095, 0), gemMat), 0, 0.5, 0.26);
+            } else if (variant === 1) { // 전투/탄입대: 뚜껑 달린 파우치가 둘러붙는다
+                g.add(strapBand(0.47, 0.125, mat, 0.245, 0.16));
+                for (const a of [-0.95, 0, 0.95]) {
+                    const p = new THREE.Group();
+                    const body = this.beveledSlab(0.125, 0.15, 0.085, 0.03, dark);
+                    p.add(body);
+                    const flap = this.beveledSlab(0.135, 0.062, 0.05, 0.024, this.tintOf(dark, 0.05));  // 뚜껑
+                    flap.position.set(0, 0.062, 0.012);
+                    flap.rotation.x = -0.2;
+                    p.add(flap);
+                    const clasp = new THREE.Mesh(new THREE.SphereGeometry(0.017, 8, 6), gemMat);        // 잠금 단추
+                    clasp.position.set(0, 0.038, 0.05);
+                    p.add(clasp);
+                    p.position.set(Math.sin(a) * 0.238, 0.345, Math.cos(a) * 0.158);
+                    p.rotation.y = a;
+                    g.add(p);
+                }
+                const bk = buckleFrame(0.115, 0.115, gemMat);
+                bk.position.set(0, 0.47, 0.158);
+                g.add(bk);
+            } else { // 장식 새시: 주름 잡힌 넓은 띠 + 늘어뜨린 천자락
+                const cloth = mats.trim && mats.trim.isMeshBasicMaterial ? mat : (mats.trim || dark);
+                // 주름 — 반경이 오르내리는 링을 겹쳐 천이 접힌 느낌을 낸다(민짜 원통과 갈리는 지점)
+                const rings = [];
+                for (let i = 0; i <= 8; i++) {
+                    const t = i / 8;
+                    const w = 1 + Math.sin(t * Math.PI * 3) * 0.035 - Math.pow(t - 0.5, 2) * 0.12;
+                    rings.push({ y: 0.36 + t * 0.28, rx: 0.245 * w, rz: 0.162 * w });
+                }
+                g.add(this.shellFromRings(rings, 26, mat));
+                // 천자락은 직선 판이 아니라 **휘어져 내려온다** — 곡선을 따라 관을 뽑고 납작하게 누른다
+                const curve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(-0.16, 0.44, 0.115), new THREE.Vector3(-0.215, 0.30, 0.14),
+                    new THREE.Vector3(-0.185, 0.16, 0.125), new THREE.Vector3(-0.235, 0.02, 0.075),
+                ]);
+                const drape = new THREE.Mesh(new THREE.TubeGeometry(curve, 22, 0.05, 10, false), cloth);
+                drape.scale.z = 0.42;
+                g.add(drape);
+                const brooch = new THREE.Mesh(new THREE.OctahedronGeometry(0.075, 0), gemMat);
+                brooch.position.set(0, 0.5, 0.17);
+                brooch.rotation.z = 0.4;
+                g.add(brooch);
+                for (const s of [-1, 1]) {   // 브로치 물림쇠
+                    const claw = this.capsuleMesh(0.011, 0.07, mat, 6);
+                    claw.position.set(s * 0.055, 0.5, 0.16);
+                    claw.rotation.z = s * 0.5;
+                    g.add(claw);
+                }
             }
         }
         return g;
