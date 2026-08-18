@@ -3,9 +3,13 @@ const Pets = {
     BASE_HATCH_SLOTS: 3, // 원본 스크린샷 기준 부화장 기본 슬롯 3개 (UI-SPEC.md 53번 줄)
     MAX_HATCH_SLOTS_CAP: 5, // 젬 구매로 늘릴 수 있는 상한 (원본 상한 미확보 → 자체 설계)
     SLOT_GEM_COST: 400, // 원본 확인된 단가(◆400) — 이후 구매는 회당 누적 증가(자체 설계)
-    // ⚠️ 예전 `MAX_ACTIVE: 3` 하나가 세 가지 뜻으로 겹쳐 쓰였다 — 출전 상한 / 부화 시 자동 출전 수 /
-    //    밸런스 등가 나눗수. 사용자 지시("펫칸 제한없게 해라" 2026-08-18)로 **상한만** 없애야 하는데
-    //    한 상수라 나머지 둘까지 같이 흔들려서, 뜻대로 쪼갰다.
+    // ⚠️ 예전엔 `MAX_ACTIVE: 3` **하나가 세 뜻으로 겹쳐** 있었다 — 출전 상한 / 부화 시 자동 출전 수 /
+    //    밸런스 등가 나눗수. 그래서 "펫칸 제한없게 해라"(2026-08-18) 지시로 상한만 풀려는데 나머지 둘까지
+    //    같이 흔들렸고, 뜻대로 세 상수로 쪼갰다. 그 뒤 같은 날 **출전 상한은 3으로 되돌아왔다**
+    //    (`pet-equip-max3`: "제한 없다는 건 인벤토리 얘기고, 3개까지만 장착") — 쪼개 둔 덕에 상한만
+    //    되살리면 됐다. **셋은 값이 같아도 같은 개념이 아니다. 하나로 합치지 말 것.**
+    // ⚠️ **보유(인벤토리)는 무제한 그대로** — 상한은 출전(장착)에만 걸린다.
+    MAX_ACTIVE: 3,   // 동시에 출전(장착)할 수 있는 최대 마리 수
     AUTO_ACTIVE: 3,  // 부화로 새 펫이 나왔을 때 자동으로 출전시키는 최대 마리 수(그 뒤로는 사용자가 고름)
     POWER_DIV: 3,    // 밸런스 등가 나눗수 — 펫 1마리 = 같은 등급 장비 8부위 합의 1/3 (사용자 확정 2026-08-17)
     // 알 보관 상한. 예전 값 20은 공통 소환 배수(UI.SUMMON_MULTS 최대 x75)보다 작아서
@@ -125,7 +129,9 @@ const Pets = {
                     UI.toast(`🥚 ${PET_KR[def.name] || def.name} 중복 획득 (재료 ${existing.dupes})`);
                 } else {
                     S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, xp: 0, stars: Ascension.count('pet'), subs: this.rollSubs() });
-                    if (S.activePets.length < this.AUTO_ACTIVE) {
+                    // 자동 출전도 출전 상한을 넘길 수 없다 — 둘 다 3이라 지금은 같은 결과지만,
+                    // AUTO_ACTIVE 만 올리면 상한을 우회해 4마리가 나가 버린다(개념이 다른 두 값이다).
+                    if (S.activePets.length < Math.min(this.AUTO_ACTIVE, this.MAX_ACTIVE)) {
                         S.activePets.push(S.pets.length - 1);
                         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
                     }
@@ -226,11 +232,19 @@ const Pets = {
         return b;
     },
 
-    // 출전/해제 토글. 개수 제한 없음 (사용자 지시 2026-08-18) — 보유한 펫은 전부 동시에 출전할 수 있다.
+    // 출전/해제 토글. **출전은 MAX_ACTIVE(3)마리까지** (사용자 지시 2026-08-18 `pet-equip-max3`).
+    // 보유는 무제한이라 목록에는 몇 마리든 있고, 그중 3마리만 나간다. 해제는 언제나 허용.
+    // ⚠️ 상한에 걸린 것과 '그런 펫이 없다'를 호출부가 구분할 수 있어야 안내 문구가 갈린다 —
+    //    실패는 둘 다 false 로 두되, 호출부는 `canActivate()` 로 미리 물어보고 문구를 고른다
+    //    (반환값에 문자열 코드를 섞으면 `if (!toggleActive(i))` 로 쓰던 기존 호출부가 조용히 깨진다).
+    canActivate(petIdx) {
+        return !!S.pets[petIdx] && (S.activePets.indexOf(petIdx) >= 0 || S.activePets.length < this.MAX_ACTIVE);
+    },
     toggleActive(petIdx) {
         if (!S.pets[petIdx]) return false;
         const pos = S.activePets.indexOf(petIdx);
         if (pos >= 0) S.activePets.splice(pos, 1);
+        else if (S.activePets.length >= this.MAX_ACTIVE) return false;   // 상한 — 해제부터 하고 다시
         else S.activePets.push(petIdx);
         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
         Combat.recalcHero();

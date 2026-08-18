@@ -2828,7 +2828,9 @@ const UI = {
                         ${maxed
                             ? `<button class="btn primary petd-btn disabled">업그레이드<small>Lv.${Pets.MAX_LEVEL} 만렙</small></button>`
                             : `<button class="btn primary petd-btn" onclick="UI.closeDetail(); UI.openPetUpgrade(${i})">업그레이드</button>`}
-                        <button class="btn petd-btn ${active ? 'danger' : 'primary'}" onclick="UI.onTogglePet(${i}); UI.openPetDetail(${i})">${active ? '제거' : '장착'}</button>
+                        ${active || Pets.canActivate(i)
+                            ? `<button class="btn petd-btn ${active ? 'danger' : 'primary'}" onclick="UI.onTogglePet(${i}); UI.openPetDetail(${i})">${active ? '제거' : '장착'}</button>`
+                            : `<button class="btn petd-btn disabled" onclick="UI.onTogglePet(${i})">장착<small>${Pets.MAX_ACTIVE}마리 출전 중</small></button>`}
                     </div>
                 </div>
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>
@@ -2889,7 +2891,12 @@ const UI = {
         this.renderPets(); this.renderTopBar();
     },
     onTogglePet(i) {
-        // 출전 수 제한 없음 (사용자 지시 2026-08-18) — 실패는 '그 펫이 없다'뿐이라 문구도 그에 맞춘다
+        // 출전은 3마리까지(사용자 지시 2026-08-18 `pet-equip-max3`) — 보유는 무제한이라 목록에는 더 있다.
+        // 상한과 '그런 펫이 없다'는 안내 문구가 달라야 하므로 부르기 전에 `canActivate` 로 갈라 본다.
+        if (!Pets.canActivate(i) && S.pets[i]) {
+            this.toast(`🐾 펫은 ${Pets.MAX_ACTIVE}마리까지 출전할 수 있습니다 — 한 마리를 먼저 제거하세요`);
+            return;
+        }
         if (!Pets.toggleActive(i)) this.toast('해당 펫을 찾을 수 없습니다');
         this.renderPets();
     },

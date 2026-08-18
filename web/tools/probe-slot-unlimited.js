@@ -3,6 +3,9 @@
 //    그래서 이 프로브의 탈것 파트는 `Mounts.equip` 을 쓰지 않고 `S.activeMounts` 를 **직접 세워서**
 //    여러 마리가 들어왔을 때의 **자리 배치·추종 렌더**만 본다(4번째 펫에서 죽던 `spots[i]` 회귀 그물).
 //    장착 규칙 자체는 `probe-mount-single.js`/`test-slot-unlimited.js` 가 따로 못박는다.
+// ⚠️ **펫 '출전'도 2026-08-18 지시(`pet-equip-max3`)로 3마리 상한이 생겼다.** 여기서 12마리를 세우는 것도
+//    같은 이유로 `S.activePets` 직접 대입이다 — 이 프로브가 지키는 것은 상한이 아니라 **자리 배열이
+//    마리 수만큼 만들어지는가**(예전 3칸 하드코딩에서 4번째 펫이 `spots[i]` undefined 로 죽었다)이다.
 // 사용: node tools/probe-slot-unlimited.js
 //
 // tools/test-slot-unlimited.js 가 순수 로직·기하를 재는 반면, 여기서는 **실제로 페이지를 띄워**

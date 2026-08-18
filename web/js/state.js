@@ -58,7 +58,7 @@ function defaultState() {
         eggs: [{ rarity: 'common' }],   // 미부화 알: {rarity}
         hatching: [],                   // 부화 중: {rarity, endsAt} 최대 2슬롯
         pets: [],                       // {name, rarity, level, dupes}
-        activePets: [],                 // 출전 중인 pets 배열 인덱스. 개수 제한 없음 (사용자 지시 2026-08-18 "펫칸 제한없게 해라")
+        activePets: [],                 // 출전 중인 pets 배열 인덱스. **출전은 3마리까지**(`Pets.MAX_ACTIVE`, 사용자 지시 2026-08-18) — 보유는 무제한
         // 스킬 (시작 스킬: 강타)
         skills: { powerStrike: { level: 1, dupes: 0, stars: 0 } },
         equippedSkills: ['powerStrike'],
@@ -125,13 +125,16 @@ function pruneDanglingRefs() {
     S.pets = S.pets.filter(p => p && typeof p === 'object' && !Array.isArray(p));
     S.eggs = S.eggs.filter(e => e && typeof e === 'object' && !Array.isArray(e));
     S.hatching = S.hatching.filter(h => h && typeof h === 'object' && !Array.isArray(h));
-    // 출전 펫은 개수 상한이 없다(사용자 지시 2026-08-18) — 중복·범위 밖 인덱스만 걷어낸다
+    // 출전 펫: 중복·범위 밖 인덱스를 걷어내고 **상한(3)까지 자른다**(사용자 지시 2026-08-18 `pet-equip-max3`).
+    // ⚠️ 자르기가 없으면 4마리 이상 출전 중이던 **기존 세이브**가 상한을 그대로 우회한다(로드 경로가 유일한 관문).
+    //    상한 값은 `Pets.MAX_ACTIVE` 가 원본이지만 state.js 는 pets.js 보다 먼저 실행될 수 있어 방어적으로 읽는다.
     const seen = new Set();
+    const petCap = (typeof Pets !== 'undefined' && Pets.MAX_ACTIVE) || 3;
     S.activePets = S.activePets.filter(i => {
         if (!Number.isInteger(i) || i < 0 || i >= S.pets.length || seen.has(i)) return false;
         seen.add(i);
         return true;
-    });
+    }).slice(0, petCap);
     // 장착 탈것도 같은 갈래: 타입은 배열인데 없는 탈것 이름을 가리키면 3D·스탯 합산에서 터진다
     const seenMounts = new Set();
     S.activeMounts = S.activeMounts.filter(n => {

@@ -99,20 +99,28 @@ setS(JSON.stringify({
 }));
 check('참조-a 없는 이름·중복·비문자열 제거', JSON.stringify(S().activeMounts) === '["Bike"]', S().activeMounts);
 
-// ── ③ 무제한 장착: 펫 ───────────────────────────────────────────────────────
-console.log('■ 펫 출전 무제한');
+// ── ③ 펫: **출전은 3마리까지**, 보유는 무제한 ───────────────────────────────
+// ⚠️ 2026-08-18 사용자 지시(`pet-equip-max3`)로 출전 상한이 3으로 돌아왔다 —
+//    "제한 없다는 건 인벤토리 얘기고, 3개까지만 장착". 보유(S.pets)는 계속 무제한이다.
+console.log('■ 펫 출전 3마리 상한 + 보유 무제한');
 setS(JSON.stringify({ version: 1, pets: Array.from({ length: 9 }, (_, i) => ({ name: 'p' + i, rarity: 'common', level: 1, dupes: 0, xp: 0, subs: [] })) }));
-for (let i = 0; i < 9; i++) check(`펫-장착 ${i + 1}번째 성공`, Pets.toggleActive(i) === true, i);
-check('펫-a 9마리 전부 출전 중(예전 상한 3 없음)', S().activePets.length === 9, S().activePets.length);
-check('펫-b 재클릭은 해제', Pets.toggleActive(4) === true && S().activePets.indexOf(4) < 0, S().activePets);
+for (let i = 0; i < 3; i++) check(`펫-장착 ${i + 1}번째 성공`, Pets.toggleActive(i) === true, i);
+check('펫-a0 4번째는 상한에 막힌다', Pets.toggleActive(3) === false && S().activePets.length === 3, S().activePets);
+check('펫-a1 canActivate 가 상한을 미리 알려 준다', Pets.canActivate(3) === false && Pets.canActivate(0) === true);
+check('펫-a 보유는 9마리 그대로(상한은 출전에만)', S().pets.length === 9, S().pets.length);
+check('펫-b 재클릭은 해제(해제는 상한과 무관)', Pets.toggleActive(1) === true && S().activePets.indexOf(1) < 0, S().activePets);
+check('펫-b1 한 칸 비면 새 펫이 들어간다', Pets.toggleActive(3) === true && S().activePets.length === 3, S().activePets);
 check('펫-c 없는 펫은 실패', Pets.toggleActive(99) === false);
 // 마리당 기여도는 출전 수와 무관해야 한다(나눗수를 출전 수에 연동하면 늘릴수록 손해가 된다)
 const one = Pets.petPower(S().pets[0]).atk.n;
 check('펫-d 마리당 공격력이 출전 수에 흔들리지 않는다', Math.abs(one - 100 / Pets.POWER_DIV) < 1e-9, one);
 check('펫-e 합산은 마리 수에 비례', Math.abs(Pets.activeBonus().atk.n - one * S().activePets.length) < 1e-9, Pets.activeBonus().atk.n);
-// 저장/재로드 후에도 8마리가 유지돼야 한다(pruneDanglingRefs가 3으로 자르면 여기서 걸린다)
+// 재로드해도 3마리가 유지된다(상한 자르기가 멀쩡한 3마리를 더 깎으면 여기서 걸린다)
 sandbox.saveGame(); setS(store['forgeclone_save_v1']);
-check('펫-f 재로드해도 8마리 유지(구 slice(0,3) 회귀 검사)', S().activePets.length === 8, S().activePets.length);
+check('펫-f 재로드해도 3마리 유지', S().activePets.length === 3, S().activePets.length);
+// **4마리 이상 출전 중이던 기존 세이브**는 로드에서 3마리로 잘려야 한다(상한을 우회하는 유일한 구멍)
+setS(JSON.stringify({ version: 1, pets: Array.from({ length: 6 }, (_, i) => ({ name: 'q' + i, rarity: 'common', level: 1, dupes: 0, xp: 0, subs: [] })), activePets: [0, 1, 2, 3, 4] }));
+check('펫-g 옛 5마리 출전 세이브를 로드가 3마리로 자른다', S().activePets.length === 3 && S().activePets[0] === 0, S().activePets);
 
 // ── ④ 탈것: **장착은 1마리** + 스탯 합산 ────────────────────────────────────
 // ⚠️ 2026-08-18 사용자 지시(`mount-single-equip`)로 **탈것 장착만** 1마리로 되돌아갔다 —
