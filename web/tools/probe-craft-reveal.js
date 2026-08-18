@@ -80,9 +80,11 @@ async function recordTimeline(page, trigger, ms = 2200) {
 
     // ================= ⑴~⑷ 수동 제작 =================
     await page.evaluate(() => { UI.resolvePendingCraft(); });
-    // 3000ms: 망치질(0.72초)+카드(0.56초) 뒤 팝업이 SwiftShader 지터로 1.9~2.3초께 뜬다 —
-    // 2200ms 창은 경계에 걸려 간헐 실패했다(실측: 같은 코드로 1948ms 통과 / 2260ms께 미관측 실패)
-    const tl = await recordTimeline(page, () => { UI.onCraft(); }, 3000);
+    // ⚠️ 관측 창은 **망치질 길이에서 되풀어** 잡는다. 예전엔 3000ms 상수였는데(망치질 0.72초 기준),
+    //    망치질이 3초로 늘어난 뒤(anvil-anim-3s-juicy) 그 창 안에서는 카드가 아직 뜨지도 않아
+    //    "카드를 안 보여준다"는 **유령 실패**가 났다 — 프로브가 제 코드보다 낡은 전형(함정 ④).
+    const WIN = await page.evaluate(() => UI.ANVIL_FX_MS + UI.REVEAL_CARD_MS + 900);
+    const tl = await recordTimeline(page, () => { UI.onCraft(); }, WIN);
 
     const idx = p => tl.findIndex(p);
     const firstStrike = idx(r => r.striking);
@@ -149,7 +151,7 @@ async function recordTimeline(page, trigger, ms = 2200) {
         S.autoForge.stopOnTarget = true;
         S.autoForgeOn = true;
         UI.startAutoSeq();
-    }, 2600);
+    }, WIN);   // 자동 배치도 같은 이유로 클럭에서 되풀어 쓴다(2600ms 상수는 0.72초 망치질 시절 값)
     const aCard = tl2.findIndex(r => r.card);
     const aLastCard = tl2.map(r => r.card).lastIndexOf(true);
     const aModal = tl2.findIndex(r => r.modal);

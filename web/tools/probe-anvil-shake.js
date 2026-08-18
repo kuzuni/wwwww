@@ -9,7 +9,9 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
-const DUR = 720;
+// ⚠️ 클럭·타격 시각은 **페이지에서 읽는다**(부팅 뒤 대입). 상수로 베껴 두면 클럭이 바뀔 때
+//    엉뚱한 프레임을 재고 '흔들림이 0px' 이라는 유령 실패가 난다(TODO '함정 ④').
+let DUR = 3000, HITPCT = [20.667, 46.667, 81.333];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -19,6 +21,13 @@ const DUR = 720;
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof UI !== 'undefined' && UI.els && UI.els.craftModal, null, { timeout: 30000 });
+    // 생성원(UI)에서 클럭·타격 시각을 되풀어 온다
+    {
+        const clk = await page.evaluate(() => ({ dur: UI.ANVIL_FX_MS, hits: UI.ANVIL_HITS }));
+        DUR = clk.dur;
+        HITPCT = clk.hits.map(t => t / clk.dur * 100);
+        console.log(`(클럭 ${DUR}ms · 타격 ${clk.hits.join('/')}ms = ${HITPCT.map(p => p.toFixed(3)).join('/')}%)`);
+    }
     await page.evaluate(() => { if (typeof Combat !== 'undefined') Combat.tick = () => {}; if (typeof Scene3D !== 'undefined' && Scene3D.renderer) Scene3D.renderer.render = () => {}; });
     await page.evaluate(() => { UI.openSheet && UI.openSheet('equip'); });
     await page.waitForSelector('.anvil-btn .anvil-svg', { timeout: 20000 });
@@ -65,9 +74,9 @@ const DUR = 720;
     }, { pct, DUR, SEL });
 
     // ── ⑷ 진폭: 흔들림은 **시트 전체**가 움직여야 의미가 있다(모루만 움직이면 기존 anvilbump 와 같다) ──
-    const rest = await at(10);       // 타격 사이 정지 구간
+    const rest = await at((HITPCT[0] + HITPCT[1]) / 2);   // 1·2타 사이 정지 구간
     const amps = [];
-    for (const [name, pct, min] of [['hit1', 24, 0.8], ['hit2', 52.5, 0.8], ['hit3', 90, 1.6]]) {
+    for (const [name, pct, min] of [['hit1', HITPCT[0], 0.8], ['hit2', HITPCT[1], 0.8], ['hit3', HITPCT[2], 1.6]]) {
         const m = await at(pct);
         const dy = Math.abs(m.rect['#equip-sheet'][1] - rest.rect['#equip-sheet'][1]);
         const dx = Math.abs(m.rect['#equip-sheet'][0] - rest.rect['#equip-sheet'][0]);
@@ -81,7 +90,7 @@ const DUR = 720;
     say(maxAmp <= 4.5, `⑷ 최대 변위 ${maxAmp.toFixed(2)}px ≤ 4.5px (넘으면 흔들림이 아니라 레이아웃 붕괴로 읽힌다)`);
 
     // ── ⑵ 스크롤 밀림 ──
-    const hit3 = await at(90);
+    const hit3 = await at(HITPCT[2]);
     // ⚠️ 목록 전체를 비교하면 안 된다 — 연출 중에는 오버레이가 붙은 `.anvil-btn.striking` 같은
     //    컨테이너가 목록에 새로 나타나 **밀리지도 않았는데 FAIL** 이 난다. 값으로만 비교한다.
     const beforeTop = Object.fromEntries(base.scr), afterTop = Object.fromEntries(hit3.scr);

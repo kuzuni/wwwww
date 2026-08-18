@@ -1,8 +1,9 @@
-// 모루 타격 연속 프레임 — 0~920ms 를 40ms 간격 24컷으로 **결정론적으로** 찍는다(비평가 채점용).
+// 모루 타격 연속 프레임 — 연출 전 구간을 24컷으로 **결정론적으로** 찍는다(비평가 채점용).
+// ⚠️ 간격은 총 길이(UI.ANVIL_FX_MS)에서 되풀어 쓴다 — 40ms 상수를 두면 3초 확대 뒤 앞 1/3 만 찍힌다.
 // 자고 찍으면 소프트웨어 GL 에서 프레임 시각이 통째로 거짓이 되므로, 모든 애니메이션을 pause 한 뒤
 // currentTime 을 절대 시각으로 밀어 넣는다(afswing·afexit·anvilbump·sheetshake·링/섬광/불티가
 // 전부 같은 시각에 시작하므로 절대 ms 하나로 맞는다).
-// ⚠️ playAnvilStrike 의 900ms 제거 타이머는 반드시 걷을 것 — 안 걷으면 뒤쪽 컷이 찍힐 때
+// ⚠️ playAnvilStrike 의 종료 타이머는 반드시 걷을 것 — 안 걷으면 뒤쪽 컷이 찍힐 때
 //    오버레이가 이미 지워져 망치가 사라진 채 찍힌다(실제로 그렇게 찍힌 적이 있다).
 // 사용: node shot-anvil-seq.js  → tools/anvil-seq.png
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
@@ -12,7 +13,8 @@ const fs = require('fs');
 //    실제 92px 보다 23% 큰 그림으로 '네이티브 판독성'을 판정하게 된다(실제로 그렇게
 //    판정해 왔다 — 비평가가 잡았다). probe-anvil-hammer 와 같은 뷰포트로 맞춘다.
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
-const STEP = 40, N = 24;
+const N = 24;
+let STEP = 40;   // 부팅 뒤 총 길이에서 계산
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -30,6 +32,7 @@ const STEP = 40, N = 24;
         (UI._anvilTimers || []).forEach(clearTimeout); UI._anvilTimers = [];
     });
     await page.waitForSelector('.anvil-fx .af-hammer', { timeout: 15000 });
+    STEP = Math.round(await page.evaluate(() => UI.ANVIL_FX_MS) / (N - 1) / 5) * 5;   // 5ms 격자에 스냅
 
     // 크롭은 **정지 상태**의 모루 상자에서 따고 고정한다 — 프레임마다 다시 재면 흔들림만큼
     // 크롭이 같이 따라가 화면 흔들림이 캡처에서 사라진다(연출을 못 보게 만드는 자책골).

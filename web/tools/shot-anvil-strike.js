@@ -5,7 +5,10 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
-const STEP = 100, FRAMES = 10;  // 0 ~ 900ms (연출 총 길이 = UI.ANVIL_FX_MS)
+const FRAMES = 10;
+// ⚠️ 간격은 총 길이(UI.ANVIL_FX_MS)에서 되풀어 쓴다 — 100ms 상수는 900ms 시절 값이라
+//    3초 확대(anvil-anim-3s-juicy) 뒤에는 앞 1/3 만 찍힌다.
+let STEP = 100;
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -65,6 +68,7 @@ const STEP = 100, FRAMES = 10;  // 0 ~ 900ms (연출 총 길이 = UI.ANVIL_FX_MS
     //       돌아 **9프레임 중 7프레임이 퇴장 자세로 고정**됐다(실측: 서로 다른 transform이 3종뿐 →
     //       '망치가 안 움직인다'는 거짓 실패). currentTime을 물리면 각 애니메이션의 제 지연이 그대로 살아난다.
     await page.evaluate(() => { UI.els.craftModal.classList.add('hidden'); UI.clearPendingCraft(); });
+    STEP = Math.round(await page.evaluate(() => UI.ANVIL_FX_MS) / (FRAMES - 1) / 10) * 10;   // 10ms 격자에 스냅
     const shots = [], poses = [];
     for (let i = 0; i < FRAMES; i++) {
         poses.push(await page.evaluate((ms) => {

@@ -2002,7 +2002,11 @@ const UI = {
     //    해제·오버레이 제거를 **다시 한 시각으로 묶고** 그 시각을 900ms로 옮겼다(항목 스펙의 0.6~0.9초
     //    상한). 망치는 720ms에 스윙이 끝나므로 CSS `afexit`이 720~880ms에 화면 밖으로 빼낸다 —
     //    안 그러면 마지막 180ms 동안 공중에 얼어붙어 있다.
-    ANVIL_FX_MS: 900,
+    // 🚨 **3000ms 로 확대 (사용자 지시 2026-08-19: "망치 애니메이션 1초 만에 끝나는데 3초는 걸리게").**
+    //    ⚠️ 이 값은 CSS 키프레임의 **퍼센트가 전제하는 총 길이**다 — 퍼센트는 var 로 못 푼다.
+    //    바꾸려면 anvilbump·anvilbillet(+hot/glow/cool)·sheetshake·afswing 의 키를 전부 다시 풀고
+    //    afexit 의 지연(2510ms)까지 같이 옮겨야 한다. 아래 ANVIL_HITS 와 한 벌이다.
+    ANVIL_FX_MS: 3000,
     // 🚨 **등간격이면 메트로놈이다.** 예전 172.8 / 410.4 / 648ms 는 간격이 237.6 / 237.6ms 로
     //    완전히 같아, 비평가 두 명이 독립적으로 "박자기처럼 친다 — 크레셴도가 안 들린다"고 꼽았다.
     //    사람이 망치질을 하면 2타는 반동을 받아 빨리 붙고 3타는 크게 감아올리느라 늦는다.
@@ -2010,7 +2014,13 @@ const UI = {
     //    3타 윈드업에 붙였다(그래서 3타 정점이 74% → 71.38% 로 앞당겨지고 체공이 길어진다).
     //    ⚠️ 이 값은 혼자 못 움직인다 — afswing·anvilbump·anvilbillet·anvilbillethot/glow·sheetshake 의
     //    퍼센트와 링/섬광/잔열/그림자/코어의 절대 지연이 **한 마스터 클럭**이다. 한꺼번에 옮길 것.
-    ANVIL_HITS: [173, 378, 648],   // css afswing의 타격 프레임(24% / 52.5% / 90%)과 같은 시각
+    //    3초판의 타격 시각 — 간격 780 / 1040ms(1.33배)로 '2타는 반동으로 빨리 붙고 3타는 크게
+    //    감아올려 늦는다'는 위계를 그대로 옮겼다(900ms 판은 205 / 270ms).
+    //    ⚠️ 링·섬광·잔열·그림자·코어의 절대 지연은 이제 **이 배열에서 파생된다** — `startAnvilStrike`
+    //    가 `--h0/--h1/--h2` 로 내려보내고 CSS 가 `calc(var(--h0) - 8ms)` 식으로 받는다.
+    //    예전엔 CSS 에 21개의 지연을 손으로 적어 뒀고, 타격 시각을 옮길 때마다 그 21개를 같이
+    //    옮겨야 했다(주석이 "한꺼번에 옮길 것"이라고 경고할 만큼 실제로 어긋났다). 이제 한 곳이다.
+    ANVIL_HITS: [620, 1400, 2440],   // css afswing의 타격 프레임(20.667% / 46.667% / 81.333%)과 같은 시각
     // 타격점 = 모루 상판 윗면(ANVIL_SVG의 `M23 4 L90 3 L95 25 L12 26 Z`)의 중심.
     // 연출 오버레이는 모루와 **같은 viewBox(132×86)** 를 쓰므로 이 좌표 하나로 망치 머리·링·불티가
     // 전부 같은 지점에 맞는다 — 예전처럼 버튼 높이의 %(top:62%)로 찍으면 해머 카운터 줄까지
@@ -2316,13 +2326,19 @@ const UI = {
                 + ` Q${hx(h) + sx * 17} ${hy(h) - 1.4} ${hx(h) + sx * 12.8} ${hy(h) - 4}`
                 + ` L${hx(h) + sx * 12.8} ${hy(h) + 3.2}`
                 + ` Q${hx(h) + sx * 17} ${hy(h) + 1} ${hx(h) + sx * 26} ${hy(h)} Z"/>`).join('')).join('');
+        // 타격 시각·총 길이를 CSS 로 내려보낸다 — 링/섬광/잔열/그림자/코어의 지연이 전부 여기서 파생된다.
+        // ⚠️ `--afdur` 는 버튼에도 걸어야 한다(모루 침하·빌릿은 `.anvil-btn.striking` 의 자손이라
+        //    오버레이에 건 변수를 못 본다). 시트 흔들림도 마찬가지라 시트에 따로 건다.
+        this.ANVIL_HITS.forEach((t, h) => fx.style.setProperty(`--h${h}`, t + 'ms'));
+        fx.style.setProperty('--afdur', this.ANVIL_FX_MS + 'ms');
+        btn.style.setProperty('--afdur', this.ANVIL_FX_MS + 'ms');
         btn.appendChild(fx);
         btn.classList.add('striking');
         // 화면 흔들림은 **모루가 든 시트**를 흔들어야 보인다 — Scene3D.shake 는 시트 뒤 3D 씬만
         // 흔들어 제작 순간에는 아무도 못 본다(비평가 ⓐ). 3D 씬도 같이 흔들어 두면 시트 밖으로
         // 충격이 번지지만, 눈에 보이는 몫은 이 클래스가 판다. 타이밍은 CSS 마스터 클럭이 소유한다.
         const sheet = document.getElementById('equip-sheet');
-        if (sheet) sheet.classList.add('shaking');
+        if (sheet) { sheet.style.setProperty('--afdur', this.ANVIL_FX_MS + 'ms'); sheet.classList.add('shaking'); }
         this._anvilTimers = this.ANVIL_HITS.map((t, h) => setTimeout(() => {
             SFX.anvilHit(h === 2);
             if (typeof Scene3D !== 'undefined' && Scene3D.shake) Scene3D.shake(h === 2 ? 0.13 : 0.07); // 미세하게만

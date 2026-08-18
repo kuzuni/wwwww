@@ -17,17 +17,24 @@ const path = require('path');
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const OUT = process.argv[2] || '.';
+// 🚨 **타격 퍼센트를 어디에도 두 번 적지 않는다.** 예전엔 ⑫ ⑪ ⑮ 가 각자 `[24, 52.5, 90]` 을
+//    손으로 들고 있었다 — 3초 확대(anvil-anim-3s-juicy) 때 FRAMES 만 고치고 이것들을 안 고쳐서
+//    세 검사가 **엉뚱한 프레임을 재고 전부 FAIL** 을 냈다(TODO '함정 ④' 그대로). 한 곳에서 뽑는다.
+const hitPcts = () => FRAMES.filter(f => f.kind === 'hit').map(f => f.pct);
 
 const VP = { width: 390, height: 844 };
-const DUR = 720;
-// afswing 키프레임의 타격/윈드업 지점(%)
+// ⚠️ 총 길이는 **페이지에서 읽는다**(부팅 뒤 대입) — 3000ms 확대(anvil-anim-3s-juicy) 때
+//    여기 720 이 남아 있으면 프로브 전체가 낡은 클럭으로 재고 판정이 통째로 무효가 된다(함정 ④).
+let DUR = 3000;
+// afswing 키프레임의 타격/윈드업 지점(%). 타격 %는 `UI.ANVIL_HITS` 에서 되풀어 쓰고(부팅 뒤 갱신),
+// 윈드업 정점만 키프레임 상수다.
 const FRAMES = [
-    { name: 'wind1', pct: 8, kind: 'up' },      // 🚨 1타 예비동작 — 여기가 비어 있어 위계가 2단이었다
-    { name: 'hit1', pct: 24, kind: 'hit' },
-    { name: 'wind2', pct: 39.04, kind: 'up' },
-    { name: 'hit2', pct: 52.5, kind: 'hit' },   // 등간격(메트로놈)을 깨려고 57% 에서 당겼다
-    { name: 'wind3', pct: 71.38, kind: 'up' },
-    { name: 'hit3', pct: 90, kind: 'hit' },
+    { name: 'wind1', pct: 12.667, kind: 'up' },  // 🚨 1타 예비동작 — 여기가 비어 있어 위계가 2단이었다
+    { name: 'hit1', pct: 20.667, kind: 'hit' },
+    { name: 'wind2', pct: 37.333, kind: 'up' },
+    { name: 'hit2', pct: 46.667, kind: 'hit' },  // 등간격(메트로놈)을 깨려고 간격을 1.33배로 벌렸다
+    { name: 'wind3', pct: 67.333, kind: 'up' },
+    { name: 'hit3', pct: 81.333, kind: 'hit' },
 ];
 
 async function waitBooted(page, timeout = 25000) {
@@ -60,6 +67,13 @@ async function waitBooted(page, timeout = 25000) {
         UI.renderEquipSheet && UI.renderEquipSheet();
     });
     await page.waitForTimeout(300);
+    // 생성원(UI)에서 클럭을 되풀어 온다 — 상수를 손으로 베껴 두면 코드가 바뀐 뒤 유령 판정이 나온다
+    {
+        const clk = await page.evaluate(() => ({ dur: UI.ANVIL_FX_MS, hits: UI.ANVIL_HITS }));
+        DUR = clk.dur;
+        clk.hits.forEach((t, h) => { const f = FRAMES.find(x => x.name === 'hit' + (h + 1)); if (f) f.pct = t / clk.dur * 100; });
+        console.log(`(클럭 ${DUR}ms · 타격 ${clk.hits.join('/')}ms = ${clk.hits.map(t => (t / clk.dur * 100).toFixed(3)).join('/')}%)`);
+    }
     const hasBtn = await page.evaluate(() => !!document.querySelector('.anvil-btn .anvil-svg'));
     if (!hasBtn) { console.log('FAIL 모루 버튼(.anvil-btn .anvil-svg)을 찾지 못함'); await browser.close(); process.exit(1); }
 
@@ -79,7 +93,7 @@ async function waitBooted(page, timeout = 25000) {
 
     // 로컬(망치 프레임) 점 → 화면 좌표. 모루 상판 접점도 모루 SVG의 CTM으로 같이 뽑는다.
     const measureAt = async (pct) => page.evaluate((pct) => {
-        const DUR = 720;
+        const DUR = UI.ANVIL_FX_MS;   // ⚠️ 손으로 베끼지 말 것(함정 ④) — 생성원에서 읽는다
         // ⚠️ 두 가지를 같이 고쳐야 접점이 제대로 측정된다.
         //  ⑴ `.anvil-fx *` 만 멈추면 **모루(.anvil-svg)의 anvilbump 이 빠진다** — 접점 검사가
         //     '타격 프레임의 망치 vs 아무 위상의 모루'를 재게 되어 이격이 있어도 1px 대로 나온다.
@@ -237,7 +251,7 @@ async function waitBooted(page, timeout = 25000) {
     //    회전이 증발**했다 — 전부 수평 막대로 정렬돼 '재봉선'이 됐는데도 기하 검사는 전부
     //    통과했다(회전은 어느 검사 대상도 아니었다). 실제 렌더 행렬의 각도 분포를 본다.
     const spin = await page.evaluate(() => {
-        const DUR = 720;
+        const DUR = UI.ANVIL_FX_MS;   // ⚠️ 손으로 베끼지 말 것(함정 ④) — 생성원에서 읽는다
         document.querySelectorAll('.anvil-fx *').forEach(n => n.getAnimations().forEach(a => { a.pause(); a.currentTime = 700; }));
         const angs = [...document.querySelectorAll('.anvil-fx .af-spark')].map(n => {
             const m = new DOMMatrix(getComputedStyle(n).transform);
@@ -263,14 +277,16 @@ async function waitBooted(page, timeout = 25000) {
     });
     say(life.life >= life.lastEndMs,
         `⑥ 오버레이 수명 ${life.life}ms ≥ 마지막 자식 애니메이션 종료 ${life.lastEndMs}ms`);
-    say(life.life <= 900, `⑥ 총 템포 ${life.life}ms ≤ 900ms (항목 스펙 0.6~0.9초)`);
+    // 🚨 상한 900ms 는 **낡은 스펙**이다 — 사용자가 2026-08-19 에 "1초 만에 끝나는데 3초는 걸리게"로
+    //    직접 뒤집었다(anvil-anim-3s-juicy). 이제 3초 근방인지를 본다.
+    say(life.life >= 2800 && life.life <= 3200, `⑥ 총 템포 ${life.life}ms = 3초 근방 (사용자 지시 2026-08-19)`);
 
     // ⑫ 🚨 **이펙트가 실제 접점에서 터지는가.** 망치만 상판 침하를 따라가게 고쳤더니 빛·불티는
     //    cy=14 에 남아 3타에서 진짜 접점보다 8.5px 위 허공에서 터졌다(비평가 B 2차 1순위).
     //    '망치가 접점에 붙었다'(①)만으로는 못 잡는 결함이라 이펙트 원점을 따로 잰다.
-    for (const [h, pct] of [[0, 24], [1, 52.5], [2, 90]]) {
+    for (const [h, pct] of hitPcts().map((p, i) => [i, p])) {
         const m = await page.evaluate(({ pct, h }) => {
-            const DUR = 720;
+            const DUR = UI.ANVIL_FX_MS;   // ⚠️ 손으로 베끼지 말 것(함정 ④) — 생성원에서 읽는다
             UI.cancelAnvilStrike(); UI._anvilBusy = false;
             document.getElementById('equip-sheet').getBoundingClientRect();
             UI.playAnvilStrike(() => {});
@@ -304,7 +320,7 @@ async function waitBooted(page, timeout = 25000) {
     //    임계 아래라 안 잡히지만, 차이로 재면 배경 가정 자체가 필요 없다).
     const pxAt = async (pct) => {
         await page.evaluate((pct) => {
-            const DUR = 720;
+            const DUR = UI.ANVIL_FX_MS;   // ⚠️ 손으로 베끼지 말 것(함정 ④) — 생성원에서 읽는다
             UI.cancelAnvilStrike(); UI._anvilBusy = false;
             document.getElementById('equip-sheet').getBoundingClientRect();
             UI.playAnvilStrike(() => {});
@@ -343,7 +359,10 @@ async function waitBooted(page, timeout = 25000) {
         const buf = await page.screenshot({ clip: { x: b.x - 4, y: b.y - 4, width: b.width + 8, height: b.height + 8 } });
         return 'data:image/png;base64,' + buf.toString('base64');
     };
-    const tailA = await tailShot(760), tailB = await tailShot(840);
+    // ⚠️ 창을 **총 길이에서 되풀어** 잡는다 — 760/840ms 상수를 두면 클럭이 바뀔 때마다 엉뚱한
+    //    구간(3초판에서는 1·2타 사이의 조용한 자리)을 재고 '꼬리가 죽었다'는 유령 판정이 나온다.
+    const tail0 = Math.round(DUR * 0.845), tail1 = Math.round(DUR * 0.935);
+    const tailA = await tailShot(tail0), tailB = await tailShot(tail1);
     const tailDiff = await page.evaluate(async ([a, b]) => {
         const load = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; });
         const px = async (src) => { const im = await load(src); const c = document.createElement('canvas');
@@ -354,7 +373,7 @@ async function waitBooted(page, timeout = 25000) {
             if (Math.abs(A[i] - B[i]) > 6 || Math.abs(A[i + 1] - B[i + 1]) > 6 || Math.abs(A[i + 2] - B[i + 2]) > 6) d++;
         return d;
     }, [tailA, tailB]);
-    say(tailDiff >= 300, `⑬ 꼬리 구간(760→840ms) 변화 픽셀 ${tailDiff}개 (기준 ≥300 — 0이면 연출 끝자락이 정지 화면이다)`);
+    say(tailDiff >= 300, `⑬ 꼬리 구간(${tail0}→${tail1}ms) 변화 픽셀 ${tailDiff}개 (기준 ≥300 — 0이면 연출 끝자락이 정지 화면이다)`);
 
     // 🚨 예전에는 **3타만** 재서 '정지 → 접촉 +20' 이면 통과였다. 그 사이 1·2타는 근백색이
     //    0개·4개였는데도 검사는 초록이었다("1·2타 임팩트에 근백색이 10px·20px 뿐" — 비평가 A).
@@ -362,8 +381,11 @@ async function waitBooted(page, timeout = 25000) {
     //    ⚠️ '평균 휘도가 정지보다 높은가'로 재면 안 된다 — 접촉 프레임은 회색 망치 머리가
     //    주황 상판을 가장 많이 덮는 프레임이라 구조적으로 어두울 수밖에 없고, 그걸 상쇄하려면
     //    화면이 하얗게 날아갈 만큼 블룸을 키워야 한다. 사람이 보는 건 평균이 아니라 **번쩍임**이다.
-    const restPx = await pxAt(41.7);        // 타격 사이(300ms) — 망치는 화면에 있고 타격만 없다
-    const hitPxs = [await pxAt(24), await pxAt(52.5), await pxAt(90)];
+    // 타격 사이 기준 프레임 — 1·2타 정확히 가운데(망치는 화면에 있고 타격만 없다)
+    const restPct = (hitPcts()[0] + hitPcts()[1]) / 2;
+    const restPx = await pxAt(restPct);
+    const hitPxs = [];
+    for (const p of hitPcts()) hitPxs.push(await pxAt(p));
     hitPxs.forEach((v, h) => {
         say(v - restPx >= 5,
             `⑪ hit${h + 1}: 네이티브 92px 근백색 픽셀 +${v - restPx}개 (타격 사이 ${restPx} → 접촉 ${v}, 기준 +5 — 확대에서만 화려하면 소용없다)`);
@@ -376,8 +398,8 @@ async function waitBooted(page, timeout = 25000) {
     //    이건 눈으로 보면 '왜인지 물렁하다'로만 보여 회귀해도 못 잡으므로, **두 압축률의 비**로
     //    못 박는다. 빌릿(달군 쇠)이 모루(강철)보다 훨씬 많이 눌려야 한다.
     // ⑮ 같은 측정에서 3타 위계도 본다 — 압축이 타격마다 엄격히 깊어져야 '크레셴도'가 성립한다.
-    const squash = await page.evaluate(() => {
-        const DUR = 720;
+    const squash = await page.evaluate((HITP) => {
+        const DUR = UI.ANVIL_FX_MS;   // ⚠️ 손으로 베끼지 말 것(함정 ④) — 생성원에서 읽는다
         const at = (pct) => {
             UI.cancelAnvilStrike(); UI._anvilBusy = false;
             document.getElementById('equip-sheet').getBoundingClientRect();
@@ -397,7 +419,7 @@ async function waitBooted(page, timeout = 25000) {
             return { bil: Math.hypot(bb.x - bt.x, bb.y - bt.y), anv: Math.hypot(ab_.x - at_.x, ab_.y - at_.y) };
         };
         const rest = at(5);
-        return [24, 52.5, 90].map(p => {
+        return HITP.map(p => {
             const m = at(p);
             // 🚨 **절대 px 로 잰다. 비율이 아니다.** 예전 이 검사는 압축을 %로 재서
             //    '빌릿 32% vs 모루 11%' 로 통과했지만, 실제 화면에서는 같은 프레임에 모루가
@@ -406,7 +428,7 @@ async function waitBooted(page, timeout = 25000) {
             //    검사가 통과하는데 결함이 남아 있으면 그건 검사가 틀린 것이다.
             return { bil: rest.bil - m.bil, anv: rest.anv - m.anv };
         });
-    });
+    }, hitPcts());
     squash.forEach((m, h) => {
         say(m.bil > m.anv * 1.4,
             `⑭ hit${h + 1}: 빌릿이 모루보다 **많이 움직인다** — 빌릿 ${m.bil.toFixed(2)}px vs 모루 ${m.anv.toFixed(2)}px (기준 1.4배, 절대 px)`);
@@ -463,15 +485,22 @@ async function waitBooted(page, timeout = 25000) {
         const g = document.querySelector('.anvil-fx .af-hammer');
         const inner = g.querySelector('g');
         const ys = [];
-        for (let t = 0; t <= 720; t += 5) {
+        const DUR = UI.ANVIL_FX_MS;   // 페이지 컨텍스트라 Node 쪽 DUR 이 안 보인다 — 생성원에서 읽는다
+        for (let t = 0; t <= DUR; t += 5) {
             anims.forEach(a => { a.currentTime = Math.min(t, a.effect.getComputedTiming().endTime || t); });
             const p = inner.ownerSVGElement.createSVGPoint(); p.x = 0; p.y = 0.9;
             ys.push({ t, y: p.matrixTransform(inner.getScreenCTM()).y });
         }
+        // 🚨 **꼬리의 평탄 구간을 타격으로 세면 안 된다.** 3초판에서는 afexit 이 2690ms 에 끝나고
+        //    afswing 이 3000ms 까지 같은 자세를 붙잡으므로, 그 310ms 평탄 구간이 `y[i] >= 양옆`
+        //    조건을 만족해 **4번째 타격**으로 잡혔다(망치는 화면 밖 높이 −74 유닛에 있는데도).
+        //    타격은 '가장 깊이 내려간' 프레임이므로, 전체 깊이 범위의 위쪽 35% 안에 드는 극대만 센다.
+        const yMin = Math.min(...ys.map(v => v.y)), yMax = Math.max(...ys.map(v => v.y));
+        const deepEnough = yMax - (yMax - yMin) * 0.35;
         // 국소 최대(= 가장 깊이 내려간 프레임). 드웰 구간은 평평하므로 구간의 중앙을 잡는다.
         const peaks = [];
         for (let i = 1; i < ys.length - 1; i++) {
-            if (ys[i].y >= ys[i - 1].y && ys[i].y >= ys[i + 1].y) {
+            if (ys[i].y >= ys[i - 1].y && ys[i].y >= ys[i + 1].y && ys[i].y >= deepEnough) {
                 const last = peaks[peaks.length - 1];
                 if (last && ys[i].t - last.end <= 60) { last.end = ys[i].t; last.y = Math.max(last.y, ys[i].y); }
                 else peaks.push({ start: ys[i].t, end: ys[i].t, y: ys[i].y });
@@ -580,7 +609,7 @@ async function waitBooted(page, timeout = 25000) {
         (UI._anvilTimers || []).forEach(clearTimeout); UI._anvilTimers = [];
         document.getElementById('equip-sheet').getBoundingClientRect();
         document.querySelectorAll('#equip-sheet, #equip-sheet *').forEach(n =>
-            n.getAnimations().forEach(a => { a.pause(); a.currentTime = 860; }));
+            n.getAnimations().forEach(a => { a.pause(); a.currentTime = UI.ANVIL_FX_MS - 40; }));
         const b = document.querySelector('.anvil-btn .anv-billet').getBoundingClientRect();
         return { w: b.width, h: b.height, x: b.x, y: b.y };
     });
@@ -598,7 +627,7 @@ async function waitBooted(page, timeout = 25000) {
     //    9%에 이미 -18유닛까지 내려온 자리에서 알파를 켰다). 위계도 같이 본다: 예비동작이 1타에만
     //    없으면 크레셴도가 '없음 → 중 → 대'의 2단으로 읽힌다(비평가 A·B 공통).
     const winds = await page.evaluate(() => {
-        const DUR = 720;
+        const DUR = UI.ANVIL_FX_MS;   // ⚠️ 손으로 베끼지 말 것(함정 ④) — 생성원에서 읽는다
         UI.cancelAnvilStrike(); UI._anvilBusy = false;
         document.getElementById('equip-sheet').getBoundingClientRect();
         UI.playAnvilStrike(() => {});
