@@ -773,7 +773,13 @@ body {
 }
 .anvil-btn small { font-size: .8rem; font-weight: 900; color: var(--pp-ink); }
 .forge-actions { display: flex; gap: .3rem; }
-.forge-actions .btn { flex: 1; line-height: 1.15; padding: .25rem .2rem; font-size: .68rem; }
+/* 두 버튼의 라벨은 마크업에서 `<br>` 로 줄을 직접 나눈다(`대장간<br>레벨 N`, `자동🔄<br>ON`) —
+   자동 줄바꿈은 처음부터 의도가 아니었다. 앱이 작아지면 글자는 rem 으로 같이 줄지만 검정 테두리는
+   3px 고정이라 안쪽 폭만 상대적으로 좁아져, 좁은 화면에서 `레벨/20`·`자/ㅌ/OF` 로 한 줄이 더 쪼개졌다
+   (가로 모드 실측: 대장간 버튼 3줄, 자동 버튼 3줄). nowrap 으로 의도한 2줄을 고정한다 —
+   실측상 폭은 어느 뷰포트에서도 변하지 않고(499x892·390x844·932x430 전부 동일) 늘어난 줄만 사라진다.
+   min-width:0 은 nowrap 이 flex 항목의 min-content 를 키워 행을 넓히지 못하게 막는 안전핀이다. */
+.forge-actions .btn { flex: 1; min-width: 0; white-space: nowrap; line-height: 1.15; padding: .25rem .2rem; font-size: .68rem; }
 .forge-time { font-size: .62rem; font-weight: 700; color: #90a4ae; text-align: center; }
 
 .hatch-slot {

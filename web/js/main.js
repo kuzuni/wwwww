@@ -10,7 +10,11 @@
         if (w > vw) { w = vw; h = w * 16 / 9; }
         app.style.width = w + 'px';
         app.style.height = h + 'px';
-        document.documentElement.style.fontSize = Math.max(12, h / 844 * 16) + 'px';
+        // ⚠️ 여기에 하한(예전 `Math.max(12, …)`)을 두면 안 된다 — 레이아웃 폭은 전부 rem 기반이라
+        // 폰트만 축소를 멈추면 그림이 앱 상자보다 커져 `#app{overflow:hidden}` 에 잘려 나간다.
+        // 실측(QA 15차): 가로 932x430 은 비례값 8.15px 인데 하한 12px 이 걸려 47% 과대 → [자동🔄] 버튼이
+        // 오른쪽으로 4~39px 이탈하고 [대장간 레벨 N] 이 6줄로 쪼개졌다. 세로 320x568 도 같은 이유로 깨졌다.
+        document.documentElement.style.fontSize = (h / 844 * 16) + 'px';
         // 레터박스 때문에 #app 높이 ≠ 브라우저 뷰포트 높이다(9:16보다 세로로 긴 폰에서 h < vh).
         // 팝업 카드 높이를 vh로 잡으면 앱보다 큰 카드가 나와 하단 버튼이 탭바 밑으로 밀린다 —
         // 실제 앱 높이를 CSS 변수로 내려 팝업이 이 값을 기준으로 크기를 잡게 한다.
