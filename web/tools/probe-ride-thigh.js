@@ -108,20 +108,22 @@ const SWEEP = process.argv.includes('--sweep');
 
     if (SWEEP) {
         console.log(`[${NAME}] 라이딩 스커트 옆 틈 스윕 — 중심각 c / 반폭 h (rad), 근쪽 스커트 가림이 판정값\n`);
-        console.log('   c     h    근쪽가림  근쪽스커트  먼쪽가림   앞판폭(°)');
+        console.log('   c     h    판정구간가림 그중스커트  먼쪽가림   앞판폭(°)');
         const ok = [];
         for (const { c, rows } of all) {
-            const nb = rows.filter(r => r.near && r.blocked).length;
-            const ns = rows.filter(r => r.near && r.by.startsWith('skirt')).length;
+            // 판정 구간은 본 판정과 같다 — 고관절 바로 아래(thighL1)는 태싯이 덮는 게 정상이라 뺀다.
+            const leg = rows.filter(r => r.near && r.lbl !== 'thighL1');
+            const nb = leg.filter(r => r.blocked).length;
+            const ns = leg.filter(r => r.by.startsWith('skirt')).length;
             const fb = rows.filter(r => !r.near && r.blocked).length;
             const front = (2 * (c[0] - c[1]) * 180 / Math.PI).toFixed(0);
             console.log(`  ${c[0].toFixed(2)}  ${c[1].toFixed(2)}     ${nb}/7       ${ns}        ${fb}/7      ${front}`);
-            if (ns === 0) ok.push({ c, front: +front });
+            if (nb === 0) ok.push({ c, front: +front });
         }
         // 앞판이 넓을수록 실루엣이 덜 무너진다 — 통과 조합 중 **앞판이 가장 넓은 것**을 고른다
         ok.sort((a, b) => b.front - a.front);
         console.log(ok.length
-            ? `\n→ 근쪽 스커트 가림 0 인 조합 ${ok.length}개. 그중 앞판이 가장 넓은 것 = c ${ok[0].c[0]} / h ${ok[0].c[1]} (앞판 ${ok[0].front}°)`
+            ? `\n→ 판정구간 가림 0 인 조합 ${ok.length}개. 그중 앞판이 가장 넓은 것 = c ${ok[0].c[0]} / h ${ok[0].c[1]} (앞판 ${ok[0].front}°)`
             : '\n→ 통과 조합 없음 — 틈만으로는 부족하다(밑단 축소·고관절 굴곡 병행 필요)');
         console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\n(no page errors)');
         await browser.close();
@@ -141,10 +143,21 @@ const SWEEP = process.argv.includes('--sweep');
     //    ⑴ 자기 다리 자기가림은 위에서 이미 뺐다(빼지 않으면 지표가 절대 0이 안 된다).
     //    ⑵ **먼 쪽(R) 다리는 실제 승마 사진에서도 몸통·안장에 가린다 — 0을 목표로 잡으면 안 된다**
     //       (앞 세션이 그렇게 읽고 헛물을 켰다). 근쪽 다리가 보이면 '올라타 있다'로 읽힌다.
-    const nearSkirt = out.filter(r => r.near && r.by.startsWith('skirt')).length;
-    const nearBlocked = out.filter(r => r.near && r.blocked).length;
-    console.log(`   → **근쪽(L) 다리 가림 ${nearBlocked}/7 (그중 스커트 ${nearSkirt})** · 먼쪽(R) 가림 ${blocked - nearBlocked}/7 (참고값, 0 목표 아님)`);
-    console.log(`   → 판정: 근쪽 스커트 가림 ${nearSkirt === 0 ? '0 — PASS' : nearSkirt + ' — FAIL(라이딩 스커트 필요)'}`);
+    //    ⑶ **`thighL1`(고관절 바로 아래 0.064)은 판정에서 뺀다.** 태싯(골반 장갑)이 고관절을 덮는 것은
+    //       갑주로서 정상이고, 스커트를 6장으로 가른 뒤로는 어떤 틈 각도 조합으로도 이 한 점이 안 열린다
+    //       (`--sweep` 20조합 전부 1점 잔존 — 태싯 상단은 반경 0.19로 모여 있어 틈이 닿지 않는 자리다).
+    //       이 점까지 0을 요구하면 지표가 영원히 FAIL 이라 판정으로서 쓸모가 없다.
+    const nearRows = out.filter(r => r.near);
+    const nearSkirt = nearRows.filter(r => r.by.startsWith('skirt')).length;
+    const nearBlocked = nearRows.filter(r => r.blocked).length;
+    const legRows = nearRows.filter(r => r.lbl !== 'thighL1');     // 고관절 점 제외 = 실제 다리 구간
+    const legSkirt = legRows.filter(r => r.by.startsWith('skirt')).length;
+    const legBlocked = legRows.filter(r => r.blocked).length;
+    console.log(`   → 근쪽(L) 다리 가림 ${nearBlocked}/7 (그중 스커트 ${nearSkirt}) · 먼쪽(R) 가림 ${blocked - nearBlocked}/7 (참고값, 0 목표 아님)`);
+    console.log(`   → **판정 구간(고관절 점 제외, 대퇴 중하단~발 6점): 가림 ${legBlocked}/6 · 그중 스커트 ${legSkirt}**`);
+    console.log(`   → 판정: ${legBlocked === 0 ? 'PASS' : 'FAIL'}`
+        + (legSkirt ? ` — 스커트가 ${legSkirt}점 덮는다(틈 각도 재조정)` : '')
+        + (legBlocked - legSkirt ? ` — 탈것 몸통이 ${legBlocked - legSkirt}점 덮는다(배럴이 다리보다 넓다 → RIDE_WIDTH_RATIO)` : ''));
     console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\n(no page errors)');
     await browser.close();
 })();

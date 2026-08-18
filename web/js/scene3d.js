@@ -4624,7 +4624,19 @@ const Scene3D = {
         // 나머지(거북·게·말·공룡·멧돼지·돼지·염소·낙타·큰사슴·흑표범·양·장갑 코뿔소·기계 거미)는 quad
     },
     mountFormOf(name) { return this.MOUNT_FORMS[this.MOUNT_FORM_OF[name] || 'quad']; },
-    RIDE_FOOT_CLEAR: 0.06,   // 탑승 시 영웅 원점(발) 높이 — 발이 지면을 살짝 띄워 '끌리지' 않게
+    // 안장 윗면 높이 ÷ 영웅의 **서 있을 때 골반 높이**.
+    // ⚠️ 예전에는 `RIDE_FOOT_CLEAR 0.06 + 골반높이`, 즉 **앉은 채로 발이 지면에 거의 닿는** 높이를
+    //    안장으로 삼았다. 그러면 안장이 영웅이 서 있을 때의 골반 높이에 고정되고, 탈것 등이 그보다
+    //    높아질 수가 없다 — 비평가 2인이 독립적으로 "등 높이가 캐릭터 키의 38%(무릎 높이)라
+    //    말을 탄 게 아니라 큰 개를 깔고 앉은 것"이라고 지적한 결함의 **설계상 원인**이 이것이다.
+    //    실제 승마는 발이 등자에 걸려 **공중에** 있고 안장은 기수 골반보다 한참 높다(말 안장 ≈1.3m,
+    //    사람 골반 ≈0.9m → 약 1.45배). 그 비례를 그대로 쓴다. 영웅 키 대비로는 약 76%로,
+    //    비평가가 제시한 목표대(65~75%)에 든다.
+    RIDE_SEAT_RATIO: 1.45,
+    // 지상 탑승형의 **가로 배율 ÷ 세로 배율**. 1.0(균일)로 두면 안장을 올린 만큼 배럴도 두꺼워져
+    // 다리가 통째로 묻힌다(실측: 근쪽 다리 가림 0/7 → 6/7, 범인 6점이 전부 탈것 몸통).
+    // 0.74 = 발 접지 기준이던 예전 배럴 폭을 그대로 남기는 값 — 실제 말도 키에 비해 몸통이 좁다.
+    RIDE_WIDTH_RATIO: 0.74,
     // 탑승 포즈에서의 골반 로컬 높이 — 안장 높이를 역산하는 기준값.
     // 리그가 있으면 실측하고(포즈·장비가 바뀌어도 따라온다), 없으면 실측해 둔 기본값을 쓴다.
     heroPelvisLocalY() {
@@ -4644,73 +4656,39 @@ const Scene3D = {
 
     // ── 라이딩 스커트: 탑승 중에만 스커트 옆을 터서 앞판·뒤판으로 가른다 ──────────────────────
     // 근접 앵글에서 허벅지가 사라지는 범인은 탈것이 아니라 **영웅 자신의 스커트**다(probe-ride-thigh
-    // 실측: 근쪽 다리 7점 중 3점이 스커트, 탈것은 0). 통짜 원뿔이라 다리가 통째로 그 안에 들어가고,
+    // 실측: 근쪽 다리 7점 중 3점이 스커트, 탈것은 0). 다리가 통째로 스커트 안에 들어가 있어서
     // 고관절 각을 아무리 벌려도 안 고쳐진다 — 실제 기마 갑주가 그렇듯 **옆을 터야** 한다.
-    // ⚠️ 서 있을 때 실루엣은 1비트도 안 건드린다: 원본 지오메트리를 보관했다가 하차 때 그대로 되돌린다.
+    // ⚠️ 서 있을 때 실루엣은 1비트도 안 건드린다: 탑승 중에만 옆에 오는 태싯을 숨기고 하차 때 되돌린다.
     // 중심각 1.40(80°)·반폭 0.52(30°) = `probe-ride-thigh --sweep` 20조합 실측에서 **근쪽 다리 스커트
     // 가림 0을 내는 6조합 중 앞판이 가장 넓은 것**(앞판 101°·뒤판 140°). 틈을 더 벌리면 가림은 그대로
     // 0인데 앞판만 얇아져 실루엣이 무너진다 — 눈대중으로 키우지 말 것.
     RIDE_SKIRT: { gapCenter: 1.40, gapHalf: 0.52 },   // 옆 틈의 중심각(+Z=앞 기준)과 반폭, 라디안
 
-    // 비인덱스 지오메트리 여러 개를 attribute 단순 연결로 합친다(r128 classic 스크립트라
-    // BufferGeometryUtils 가 없다 — 회전체 조각 몇 개 붙이는 데 그걸 끌어올 이유도 없다).
-    _mergeGeos(list) {
-        const src = list.map(g => (g.index ? g.toNonIndexed() : g));
-        const out = new THREE.BufferGeometry();
-        for (const n of ['position', 'normal', 'uv']) {
-            if (!src[0].attributes[n]) continue;
-            const item = src[0].attributes[n].itemSize;
-            let total = 0;
-            for (const g of src) total += g.attributes[n].array.length;
-            const arr = new Float32Array(total);
-            let off = 0;
-            for (const g of src) { arr.set(g.attributes[n].array, off); off += g.attributes[n].array.length; }
-            out.setAttribute(n, new THREE.BufferAttribute(arr, item));
-        }
-        out.computeBoundingBox(); out.computeBoundingSphere();
-        for (let i = 0; i < list.length; i++) { if (src[i] !== list[i]) src[i].dispose(); list[i].dispose(); }
-        return out;
-    },
-
-    // 회전체(Cylinder/Torus) 지오메트리를 theta 구간 몇 개짜리 조각으로 다시 만든다.
-    // 치수를 손으로 안 옮기고 원본 `geometry.parameters` 에서 그대로 읽는다 — prochar 가 스커트
-    // 치수를 바꿔도 라이딩 버전이 따라온다(상수를 베껴 두면 반드시 어긋난다는 이 파일의 교훈).
-    _arcGeo(geo, arcs) {
-        const p = geo.parameters || {};
-        const seg = (base, len) => Math.max(3, Math.round((base || 12) * len / (Math.PI * 2)));
-        const parts = arcs.map(([t0, len]) => {
-            if (geo.type === 'TorusGeometry') {
-                const g = new THREE.TorusGeometry(p.radius, p.tube, p.radialSegments, seg(p.tubularSegments, len), len);
-                // 토러스 각 φ 와 실린더 theta 는 mesh.rotation.x=π/2 를 거치면 φ = π/2 − theta 관계다.
-                // 구간 [t0, t0+len] → φ 시작각 π/2 − t0 − len.
-                g.rotateZ(Math.PI / 2 - t0 - len);
-                return g;
-            }
-            return new THREE.CylinderGeometry(p.radiusTop, p.radiusBottom, p.height,
-                seg(p.radialSegments, len), p.heightSegments, p.openEnded, t0, len);
-        });
-        return this._mergeGeos(parts);
-    },
-
     rideSkirt(on) {
         const rig = this.heroRig;
-        if (!rig || !rig.seatParts) return;
-        const K = this.RIDE_SKIRT;
-        const key = on ? K.gapCenter.toFixed(3) + '/' + K.gapHalf.toFixed(3) : '';
+        if (!rig || !rig.seatParts || !rig.bones || !rig.bones.pelvis) return;
+        const K = this.RIDE_SKIRT, pelvis = rig.bones.pelvis;
+        pelvis.updateWorldMatrix(true, true);
         for (const part of rig.seatParts) {
             const ud = part.userData;
-            if (!ud.fullGeo) ud.fullGeo = part.geometry;
-            if (!on) { part.geometry = ud.fullGeo; continue; }
-            if (ud.rideKey !== key) {
-                if (ud.rideGeo) ud.rideGeo.dispose();
-                const c = K.gapCenter, h = K.gapHalf;
-                // 오른쪽 틈 [c−h, c+h] · 왼쪽 틈 [−c−h, −c+h] 를 비우고 남는 앞판·뒤판만 만든다
-                ud.rideGeo = this._arcGeo(ud.fullGeo, [[-(c - h), 2 * (c - h)], [c + h, 2 * (Math.PI - c - h)]]);
-                ud.rideKey = key;
+            if (ud.rideAz === undefined) {
+                // 파츠의 **방위각을 지오메트리 중심에서 실측**한다. 태싯 순서·개수를 상수로 가정하면
+                // prochar 가 분할을 바꾸는 순간 엉뚱한 판이 사라진다 — 실제로 이 세션 중에 스커트가
+                // 통짜 원뿔에서 태싯 6장으로 바뀌었고, 치수를 전제한 앞 판본은 그 자리에서 깨졌다.
+                const geo = part.geometry;
+                if (!geo) { ud.rideAz = null; continue; }
+                if (!geo.boundingBox) geo.computeBoundingBox();
+                const c = geo.boundingBox.getCenter(new THREE.Vector3());
+                const q = pelvis.worldToLocal(part.localToWorld(c));
+                // 중심이 축 위에 있으면 통짜 파츠(안감 원통)다 — **항상 남긴다**. 태싯을 걷어낸 자리로
+                // 보이는 것이 이 니어블랙 안감이라, 틈이 '배경이 뚫린 구멍'이 아니라 '판금 밑 그늘'이 된다.
+                ud.rideAz = Math.hypot(q.x, q.z) < 0.05 ? null : Math.atan2(q.x, q.z);
             }
-            part.geometry = ud.rideGeo;
+            if (ud.rideAz === null) continue;
+            // 좌우 대칭이므로 |방위각| 하나로 양쪽 틈을 같이 본다.
+            const inGap = Math.abs(Math.abs(ud.rideAz) - K.gapCenter) <= K.gapHalf;
+            part.visible = !(on && inGap);
         }
-        this._seatDrop = null;   // 밑단 낙차는 지오메트리에서 실측하는 값이라 캐시를 버린다
     },
 
     // 골반 뼈 → **안장에 실제로 닿는 면**(스커트/태싯 밑단)까지의 낙차.
@@ -4770,7 +4748,7 @@ const Scene3D = {
         // 원래 크기(펫 옆자리 연출용)로는 안장이 골반보다 한참 아래라, 영웅이 위에 '떠 있는' 것으로 읽혔다.
         // 손으로 맞춘 상수 대신 영웅 골반 높이에서 필요한 안장 높이를 풀어 탈것 배율을 정한다 —
         // 종마다 몸집이 달라도 자동으로 맞고, 모델을 손봐도 따라온다.
-        let rideScale = 1, heroY = 0;
+        let rideScale = 1, rideWide = 0, heroY = 0;   // rideWide = 가로(x·z) 배율(0 = 세로와 같음)
         const pelvisLocal = this.heroPelvisLocalY();
         // ⚠️ 안장에 닿는 면은 골반 뼈가 아니라 **스커트 밑단**이다 — 이 낙차만큼 영웅을 더 올리지 않으면
         //    골반은 정확히 안장에 얹혀도 스커트가 탈것 몸통에 박힌다(비평가 지적 ⓑ).
@@ -4785,15 +4763,26 @@ const Scene3D = {
             rideScale = form.bulk || 1.7;
             heroY = (form.hover + form.saddle) * sc * rideScale - seatLocal;
         } else {
-            // 지상 탑승형(사족·탈것): 발이 지면을 살짝 띄운 높이에 오게 두고,
-            // 그 자세의 골반 높이가 곧 필요한 안장 높이 — 거기에 맞춰 탈것을 키운다
-            const needSaddle = this.RIDE_FOOT_CLEAR + pelvisLocal;
-            rideScale = U.clamp(needSaddle / (form.saddle * sc), 1, 2.6);  // 과대·과소 확대 방지
+            // 지상 탑승형(사족·탈것): **발을 지면에서 떼고** 실제 승마 비례로 안장을 올린다.
+            // 발은 등자에 걸려 공중에 있는 게 정상이다 — 예전처럼 발 접지를 기준으로 삼으면
+            // 탈것이 영웅 무릎 높이를 못 넘는다(RIDE_SEAT_RATIO 주석 참조).
+            const needSaddle = pelvisLocal * this.RIDE_SEAT_RATIO;
+            rideScale = U.clamp(needSaddle / (form.saddle * sc), 1, 3.4);  // 과대·과소 확대 방지
             // 클램프에 걸리면 실제 안장 높이가 needSaddle과 달라진다 — 상수가 아니라 **실제 안장 높이**에
             // 스커트 밑단을 맞춘다(그래야 어떤 종에서도 파묻힘/뜸이 안 생긴다).
             heroY = form.saddle * sc * rideScale - seatLocal;
+            // ⚠️ **균일 배율로 키우면 배럴이 같이 두꺼워져 다리가 통째로 묻힌다.** 실측으로 확인했다:
+            //    안장을 승마 비례로 올린 직후 근쪽 다리 가림이 0/7 → 6/7 로 뒤집혔고, 그중 6점의 범인이
+            //    탈것 몸통이었다(그 전에는 0점). 영웅은 안 커지는데 배럴만 커지니 당연한 결과다.
+            //    실제 말이 그렇듯 **키는 키우되 폭은 그대로** 둔다 — 가로 배율을 세로와 분리한다.
+            //    0.74 = 예전(발 접지 기준) 배럴 폭을 그대로 유지하는 값이라, 다리 벌림 상수를 손대지
+            //    않고도 감싸기 여유(+0.038)가 보존된다.
+            rideWide = rideScale * this.RIDE_WIDTH_RATIO;
         }
-        mesh.scale.setScalar(sc * rideScale);
+        // 가로 배율을 따로 안 정한 계열(평판·비행형)은 예전처럼 균일 배율이다 — 세로만 키우면
+        // 드래곤이 종잇장이 된다.
+        const wide = rideWide || rideScale;
+        mesh.scale.set(sc * wide, sc * rideScale, sc * wide);
         g.userData.stirrups = mesh.userData.stirrups || null;   // 등자는 메시 안에 달렸다 — 그룹에서도 찾게 올려 둔다
         // 날개·꼬리도 같은 이유로 올려 둔다 — 업데이트 루프는 그룹의 userData만 보므로, 안 올리면
         // 애니메이션이 통째로 걸리지 않는다(드래곤 날개가 얼어 있던 원인).
