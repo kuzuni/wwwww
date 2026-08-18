@@ -2152,13 +2152,22 @@ body {
 .pinfo-preview .pip.done { background: var(--pp-green); }
 .pinfo-preview .pip.now { background: #fff; box-shadow: 0 0 6px #fff; }
 .pinfo-section-title { font-size: .74rem; color: var(--pp-muted); font-weight: 800; margin: .5rem 0 .3rem; }
-.pinfo-loadout-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+/* 원본 실측(shot-043313, 자 = 흰 카드 폭 CW): 장비 그리드와 오브 줄이 **같은 왼쪽 기준선**(10.19%CW)에서
+   시작한다. 클론은 그리드 14.88%CW · 오브 줄 4.96%CW 로 서로 어긋나 있었다(눈으로도 계단처럼 보였다).
+   `.equip-grid` 의 `padding: 0 10.94%` 는 **메인 화면 장비 시트**(앱 폭 전체)에 맞춘 값이라 이 좁은
+   카드 안에서는 과하다 — 메인 쪽은 이미 검증된 값이라 건드리지 말고 여기서만 덮는다. */
+.pinfo-gear { padding: 0 5.75%; }
+.pinfo-loadout-row { display: flex; gap: calc(var(--app-w) * .015); flex-wrap: wrap; padding: 0 5.75%; }
 /* .sk-orb는 width:100%(부모 .sk-cell 기준)라 **폭을 정해 주는 부모**가 있어야 한다.
    스킬 화면에서는 .sk-cell이 그리드 칸이라 폭이 잡히지만, 여기선 flex 아이템이라 폭이
    내용물에서 나온다 — 스킬 오브는 안이 <img>(CSS 크기 지정)라 순환이 되어 6×6px로
    찌부러졌고, 펫·탈것 오브만 이모지 글자 폭 덕에 멀쩡해 보였다(QA 11차).
    같은 줄의 세 종류가 같은 지름이 되도록 칸 폭을 명시한다. */
-.pinfo-loadout-row .sk-cell { width: calc(var(--app-h, 887px) * .054); flex: 0 0 auto; }
+/* 지름은 **원본 실측 8.58%CW = 앱 폭의 6.24%**(=31px). 종전 `앱높이 × .054`(=47.9px, 13.22%CW)는
+   +4.64%p 커서 여섯 칸이 한 줄에 안 들어갔고(6칸에 329px 필요 / 카드 안폭 327px), 줄이 5+2 로
+   쪼개지며 그 아래 옵션 목록까지 통째로 밀렸다. 원본은 여섯 개가 한 줄이다.
+   ⚠️ 이 값을 18px 밑으로 내리면 `probe-pinfo-loadout.js`(오브 찌부러짐 QA 11차)가 FAIL 한다. */
+.pinfo-loadout-row .sk-cell { width: calc(var(--app-w) * .0624); flex: 0 0 auto; }
 /* 옵션 합계: 카드가 화면을 넘지 않게 플렉스 제약 + 목록만 내부 스크롤(터치·얇은 스크롤바) — 항목 잘림 방지 (사용자 지시).
    %max-height는 높이 auto인 .idet-wrap 기준으론 무효라 래퍼에 먼저 제약을 건다 */
 #player-info-modal .idet-wrap { max-height: 76%; display: flex; flex-direction: column; } /* 원본(043313) ≈73% H (185 재채점) */

@@ -5,8 +5,8 @@
 //       폭이 정해지지 않은 flex 아이템이라 폭이 내용물에서 나온다 — 스킬은 안이 <img>라 순환.
 // 판정: ① 스킬 오브 지름이 펫/탈것 오브와 ±10% 이내 ② 렌더 지름 18px 이상(버그 시 6px)
 //       ③ 줄이 한 줄에 들어간다(같은 y) ④ 콘솔 에러 0건
-// ※ 플레이어 정보 카드는 `.modal-card.wide`가 scale(0.7)로 축소돼 있어 뷰포트 대비 %로는
-//   판정하지 않는다 — 같은 줄 안에서의 상대 크기와 렌더 절대 지름으로 본다.
+// ※ 이 도구는 **원본과의 비율**을 보지 않는다 — 같은 줄 안에서의 상대 크기와 렌더 절대 지름만 본다.
+//   원본 대비 비율은 `probe-pinfo-px.js`(자 = 흰 카드 폭) 담당이다. 둘을 같은 수치로 비교하지 말 것.
 // 사용: node probe-pinfo-loadout.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
@@ -24,6 +24,13 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push(`${w}x${h}: ${m.text()}`); });
         await page.goto(INDEX, { waitUntil: 'load' });
         await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 60000 });
+        // 🩺 2026-08-18: **애니메이션을 껐다.** 예전엔 카드 열림 애니(`cardpop` scale .7) 한복판에서 재고
+        //    "0.7배로 축소돼 나오니 뷰포트 대비 %로는 판정하지 않는다"고 주석으로 감수하고 있었는데,
+        //    그러면 **지름 하한 18px 이 실제로는 25.7px 을 요구하는 셈**이 된다. 실제로 오브를 원본
+        //    비율(앱 폭의 6.24%)로 맞추자 360x800 에서 22.5px → 재는 값 15.7px 이라 거짓 FAIL 이 났다.
+        //    이 저장소의 다른 프로브는 전부 애니를 무효화하고 재는 게 규약이다 — 여기도 맞춘다.
+        //    하한 18px 은 그대로 둔다(버그 상태는 6px 이라 여전히 넉넉히 걸린다).
+        await page.addStyleTag({ content: '*, *::before, *::after { animation: none !important; transition: none !important; }' });
 
         const r = await page.evaluate(() => {
             if (typeof Scene3D !== 'undefined') Scene3D.update = function () {};
