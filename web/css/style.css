@@ -508,15 +508,32 @@ body {
     gap: calc(var(--app-h) * .0069);   /* 원본 셀 바닥→% 글자 6px */
     cursor: pointer;
 }
+/* 셀 크롬(equip-design-dedupe (나), 3D 스트림 인계 2026-08-18): 접지 그림자·소프트 AO·비네트·
+   레어리티 프레임은 아이콘 PNG에 구우면 알파 bbox 계약(fit-ink 배율·probe-equip-framing/silhouette/
+   dedupe)이 통째로 깨진다(probe-thumb-plate-cost 실측: 28쌍 실루엣 IoU 0.416→1.000). 그래서 셀 CSS가
+   진다. 원본(shot-042905) 셀 면은 플랫 #e0e0e0 이므로 배치·기하는 그대로 두고 표면 레이어만 얹는다
+   (aaa-skin 규칙과 동일 — 배경 그라디언트·box-shadow 는 기하 무변). */
 .fl-face {
-    position: relative; width: 100%; aspect-ratio: 1; background: #e0e0e0;
+    position: relative; width: 100%; aspect-ratio: 1;
+    background:
+        radial-gradient(130% 105% at 50% 24%, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 52%),  /* 탑 라이트 */
+        radial-gradient(150% 150% at 50% 56%, rgba(0,0,0,0) 58%, rgba(0,0,0,.10) 100%),            /* 비네트 */
+        #e0e0e0;
     border: var(--ol2) solid var(--pp-line); border-radius: .5rem;
+    /* 안쪽 1줄 = 레어리티(시대색) 링 — 검정 키라인은 원본대로 두고 안쪽에서만 등급을 읽힌다.
+       --rc 없는 셀(다른 화면에서 재사용될 때)은 링이 투명으로 죽어 플랫으로 돌아간다. */
+    box-shadow:
+        inset 0 0 0 max(1px, .07rem) color-mix(in srgb, var(--rc, transparent) 55%, transparent),
+        inset 0 2px 3px rgba(255,255,255,.35),          /* 윗면 소프트 하이라이트 */
+        inset 0 -3px 4px rgba(0,0,0,.10);               /* 바닥 소프트 AO */
     display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
 }
-.fl-face img { width: 100%; height: 100%; object-fit: contain; display: block; } /* 3D 스냅샷 썸네일 */
-/* 원본 셀 면은 플랫 #e0e0e0 하나다 — 종전 웜 그라디언트(밝은 장비 대비용)는 이 면이 같은 문제를
-   원본 방식으로 해결하므로 걷어냈다(원본에 없는 것을 넣지 않는다). */
-.fl-face.has-thumb { background: #e0e0e0; }
+/* 3D 스냅샷 썸네일 — 접지 그림자는 PNG가 아니라 여기서 진다(플레이스홀더 .ico 는 IconGen plate 가
+   그림자를 자체 포함하므로 img 에만 건다). */
+.fl-face img {
+    width: 100%; height: 100%; object-fit: contain; display: block;
+    filter: drop-shadow(0 2px 1.5px rgba(0,0,0,.28));
+}
 /* 셀 하단 중앙 별 — 원본 별 13px(2.7%W) 주황 #ff8801 + 검정 키라인, 셀 아래 테두리에 걸친다
    (별 세로 11px 중 ~8px 이 테두리 위, ~3px 이 아래 — 장비 그리드 ⭐ 걸침과 같은 언어).
    위치가 좌하단으로 보이지만 실측은 셀 가로 **정중앙**(별 중심 x=120 = 셀 99~141 중심)이다. */

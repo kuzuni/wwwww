@@ -1452,9 +1452,12 @@ const UI = {
             // 썸네일은 즉시 그리지 않는다 — 시대 10 × 부위별 이름 변형이면 200장이 넘고, 한 장마다
             // 별도 WebGL 렌더+toDataURL이라 목록을 여는 순간 수 초간 얼어붙는다.
             // 이모지를 먼저 깔고 화면에 들어온 셀만 3D 썸네일로 교체한다(hydrateForgeThumbs).
+            // --rc = 시대색 — 셀 크롬(등급 안쪽 링, css .fl-face)이 읽는다. equip-design-dedupe (나)
+            // '레어리티 프레임'은 아이콘 PNG에 굽지 않고(알파 bbox 계약 붕괴 — probe-thumb-plate-cost 실측)
+            // 셀 CSS가 진다는 3D 스트림 인계에 따른 것.
             const cell = (onclick, icon, pct, td) => `
                 <button class="forge-item-cell" onclick="${onclick}">
-                    <span class="fl-face" data-slot="${td.slot}" data-age="${td.age}" data-ageidx="${td.ageIdx}" data-wtype="${td.wtype || ''}" data-nameidx="${td.nameIdx}">${icon}</span>
+                    <span class="fl-face" style="--rc:${hex}" data-slot="${td.slot}" data-age="${td.age}" data-ageidx="${td.ageIdx}" data-wtype="${td.wtype || ''}" data-nameidx="${td.nameIdx}">${icon}</span>
                     <small>${pct.toFixed(4)}%</small>
                 </button>`;
             // 무기는 그 시대에 등장하는 종류만 (원시에 총이 뜨면 안 됨 — 사용자 지시 2026-08-17)
