@@ -3460,6 +3460,32 @@ const UI = {
                     <button class="x-btn" onclick="UI.openLeague()">✕</button>
                 </div>
             </div>`);
+        this.fitLeagueRankLabels();
+    },
+    // 등수 칸은 **고정폭**이다 — 원본(shot-042208)은 배지 줄이든 글자 줄이든 보상 pill 왼쪽 끝이
+    // 전부 26.49%W 로 같아서, 긴 라벨에 맞춰 칸을 넓히면 그리드가 원본에서 통째로 밀린다(종전 3rem 이
+    // 그래서 +2.02%p 였다). 그렇다고 글자를 원본 크기(1.48rem)로 키우면 이번엔 `21위 이하` 같은 긴
+    // 라벨이 pill 을 파고든다(실측 잉크 109.6px vs 여유 60.4px).
+    // → 칸과 기본 글자 크기는 원본대로 두고, **넘치는 라벨만 들어갈 만큼 줄인다.**
+    // ⚠️ 문자열별 상수로 박지 말 것 — 라벨이 바뀌거나 다른 언어가 오면 그대로 다시 깨진다.
+    //    기본 크기는 CSS 가 단독 출처이고(여기서 숫자를 복제하지 않는다) 실제 잉크 폭을 재서 비율만 곱한다.
+    fitLeagueRankLabels() {
+        // ⚠️ 폰트 로드 **전** 프레임에서 잰 폭은 폴백 글꼴 값이라 못 믿는다(인계 메모 ㉠ 이 같은 함정으로
+        //    펫 화면 '18/18 통과'를 무효로 만들었다). 아직 로딩 중이면 끝난 뒤 한 번 더 맞춘다.
+        //    로드가 끝나면 status 가 'loaded' 라 재귀는 한 번에 멈춘다.
+        if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(() => this.fitLeagueRankLabels());
+        for (const el of this.els.leagueModal.querySelectorAll('.lgr-overlay .league-tier-rank.text')) {
+            el.style.fontSize = '';                       // 재렌더 때 줄어든 값이 누적되지 않게 먼저 되돌린다
+            const grid = el.nextElementSibling;
+            if (!grid) continue;
+            const cell = el.getBoundingClientRect(), gx = grid.getBoundingClientRect().left;
+            // 라벨은 칸 가운데 정렬이라 좌우로 같은 양이 삐져나온다 — 오른쪽 여유의 2배가 쓸 수 있는 폭이다.
+            // 1px 은 안전 여유다 — 비율만 곱하면 외곽선·자간 반올림이 남아 실측에서 0.3px 쯤 넘친다.
+            const room = (gx - (cell.left + cell.width / 2)) * 2 - 1;
+            const rg = document.createRange(); rg.selectNodeContents(el);
+            const ink = rg.getBoundingClientRect().width;
+            if (ink > room && room > 0) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * room / ink) + 'px';
+        }
     },
     openLeagueChallenge() { this.els.leagueModal.classList.add('dim-tabbar'); this.renderLeagueChallenge(); },
     renderLeagueChallenge() {

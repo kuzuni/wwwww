@@ -101,10 +101,19 @@ const scanLabel = async (page, file) => {
             const rank = row.querySelector('.league-tier-rank');
             const grid = row.querySelector('.league-tier-grid');
             const rr = rank.getBoundingClientRect(), gr = grid.getBoundingClientRect();
+            // 잉크 폭은 칸 폭이 아니라 **Range** 로 잰다 — 라벨은 고정폭 칸 밖으로 좌우 대칭으로 나온다.
+            let inkW = null, inkOver = null, fontPx = null;
+            if (!rank.classList.contains('badge')) {
+                const rg = document.createRange(); rg.selectNodeContents(rank);
+                inkW = +rg.getBoundingClientRect().width.toFixed(1);
+                fontPx = +parseFloat(getComputedStyle(rank).fontSize).toFixed(1);
+                inkOver = +((rr.left + rr.width / 2 + inkW / 2) - gr.left).toFixed(2);
+            }
             return {
                 text: rank.classList.contains('badge') ? '(배지)' : rank.textContent.trim(),
                 rankX: P(rr.left - app.left, app.width), rankW: P(rr.width, app.width),
                 gridX: P(gr.left - app.left, app.width), gridW: P(gr.width, app.width),
+                inkW, inkOver, fontPx,
             };
         });
     });
@@ -138,17 +147,22 @@ const scanLabel = async (page, file) => {
     });
     if (!textRows.some(r => r.text === '4-5')) fails.push(`원본과 같은 "4-5" 줄이 없다 — 실제 ${textRows.map(r => r.text).join(',')}`);
 
-    // ⚠️ 글자 **크기**는 이 도구의 통과 조건이 아니다 — 이 항목(league-tier-rank-label)은 문자열 교정이고,
-    //    타이포 비율은 league-rewards 화면을 하위 화면으로 들고 있는 `ui-ratio-audit` 소관이다(락 겹침 회피).
-    //    수치만 남겨 그 세션이 목표값으로 쓰게 한다. 세로 위치(y)는 이미 맞아 있으니 크기만 키우면 된다.
-    const sizeGap = (Math.abs(clone.w - ref.w) > 2 || Math.abs(clone.h - ref.h) > 2 || Math.abs(clone.x - ref.x) > 2);
-    if (sizeGap) {
-        console.log('\n⚠️ 크기 잔여(이 도구의 통과 조건 아님 · `ui-ratio-audit` 소관):');
-        console.log(`   원본 글자가 정확히 2배다 — 폭 ${ref.w}%W vs ${clone.w}%W · 높이 ${ref.h}%H vs ${clone.h}%H (원본 36x18px, 클론 17x9px).`);
-        console.log(`   x 가 +${(clone.x - ref.x).toFixed(2)}%p 인 것은 글자가 작아 고정폭 칸 안에서 가운데로 몰린 결과다 — 크기를 맞추면 같이 붙는다.`);
-        console.log('   현재 값: .league-tier-rank.text { font-size: .74rem } (css/style.css) — 잉크 높이가 font-size 에 선형이라 약 1.48rem 이 목표.');
-        console.log('   원본 글자는 흰 채움 + 검정 외곽선이다(배지 숫자 .lgr-rank-n 의 -webkit-text-stroke 처방과 같은 계열).');
+    // 글자 **크기**는 2026-08-18 `ui-ratio-audit` 세션이 교정하면서 **통과 조건으로 승격**했다
+    // (그전까지는 이 도구가 수치만 찍어 두고 판정은 미뤘다 — 종전 .74rem 은 잉크가 원본의 정확히 절반이었다).
+    // 원본 `4-5` 잉크 36x18px = 7.17%W·2.02%H, 흰 채움 + 검정 외곽선. 기준은 이 저장소 공통인 ±2%p.
+    for (const k of ['x', 'w', 'y', 'h']) {
+        const d = Math.abs(clone[k] - ref[k]);
+        if (d > 2) fails.push(`\`4-5\` 글자 ${k} 가 ±2%p 를 넘었다 — 원본 ${ref[k]} vs 클론 ${clone[k]} (Δ ${d.toFixed(2)}%p)`);
     }
+
+    // 🚨 크기를 키우면 **긴 라벨이 보상 pill 을 파고든다** — 이게 종전 칸 폭 3rem 의 진짜 이유였다.
+    //    칸을 넓혀 피하면 그리드가 원본에서 밀리므로(위 검사), 대신 `UI.fitLeagueRankLabels()` 가
+    //    넘치는 라벨만 줄인다. 그 장치가 살아 있는지를 여기서 계약으로 건다.
+    //    ⚠️ 칸 폭이 아니라 **잉크 폭**으로 재야 한다 — 라벨은 고정폭 칸 밖으로 좌우 대칭으로 삐져나온다.
+    const over = dom.filter(r => r.inkOver != null && r.inkOver > 0.5);
+    if (over.length) fails.push(`등수 라벨이 보상 그리드를 파고든다 — ${over.map(r => `"${r.text}" +${r.inkOver}px`).join(' · ')} (UI.fitLeagueRankLabels 가 안 돌았거나 여유 계산이 틀렸다)`);
+    console.log('\n등수 라벨 잉크가 그리드를 침범한 양(px, 0 이하가 정상):');
+    dom.filter(r => r.inkOver != null).forEach(r => console.log(`  ${r.text.padEnd(8)} ${String(r.inkOver).padStart(7)}   (글자 ${r.fontPx}px · 잉크 ${r.inkW}px)`));
 
     console.log('\n콘솔 에러:', errors.length, errors.slice(0, 3).join(' | '));
     if (fails.length || errors.length) {

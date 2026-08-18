@@ -1918,7 +1918,18 @@ body {
 }
 .league-reward-tier:first-child { background-image: none; }
 .league-tier-rank { font-size: 1.3rem; font-weight: 900; width: 2.4rem; text-align: center; flex: none; color: var(--pp-ink); white-space: nowrap; }
-.league-tier-rank.text { font-size: .74rem; width: 3rem; }
+/* 4위 이하 등수 라벨 — 원본(shot-042208) 실측: `4-5` 잉크 36x18px = 7.17%W·2.02%H 이고
+   **흰 채움 + 굵은 검정 외곽선**이다(위 배지 숫자 .lgr-rank-n 과 같은 처방). 종전 .74rem 은
+   잉크가 17x9px 로 **정확히 절반**이었다. 잉크 높이가 font-size 에 선형이라 2배인 1.48rem.
+   ⚠️ 칸 폭을 3rem 으로 넓혀 두면 그리드가 배지 줄(26.81%W)보다 2.02%p 오른쪽으로 밀린다 —
+      원본은 **7줄 전부 pill 왼쪽 끝이 26.49%W** 로 같다(원본 9개 pill 밴드 실측). 배지와 같은
+      2.4rem 으로 되돌린다. 원본도 `4-5` 잉크(7.17%W)가 이 칸(8.09%W)을 거의 꽉 채운다. */
+.league-tier-rank.text {
+    font-size: 1.48rem; width: 2.4rem; color: #fff;
+    /* 외곽선은 **em** 이다 — 긴 라벨은 `UI.fitLeagueRankLabels()` 가 font-size 를 줄여 칸에 맞추는데,
+       rem 으로 두면 줄어든 글자에 원래 두께의 테두리가 남아 글자가 검게 뭉친다. .16rem/1.48rem = .108em. */
+    -webkit-text-stroke: .108em #17181a; paint-order: stroke fill;
+}
 /* 1~3위 배지 — 아이콘 위에 흰 숫자를 겹친다. 숫자를 흐름에 두면 배지 옆에 붙어 칸이 넓어지므로
    배지만 흐름에 남기고 숫자는 absolute 로 덮는다(칸 폭 2.4rem 고정을 지킨다 = 비율 감사 통과선). */
 .league-tier-rank.badge { position: relative; display: flex; align-items: center; justify-content: center; height: 2.15rem; }
