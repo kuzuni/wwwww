@@ -56,6 +56,11 @@ const CASES = [
                 return { chips, cols, cardW: card.width, note: document.querySelector('.sellwarn-note').innerText.replace(/\s+/g, ' ') };
             }, { soldAge, keptAge });
 
+            // ⚠️ `.modal.opening .modal-card` 의 cardpop 이 .25s 동안 opacity 0→1 로 띄운다 —
+            // 곧바로 찍으면 카드가 반투명한 유령으로 찍혀 '딤이 카드를 씻어냈다'로 오독하게 된다
+            // (실제로 한 번 그렇게 찍혔다). 기하 실측은 getBoundingClientRect 라 영향이 없지만
+            // 캡처는 애니메이션이 끝난 뒤여야 한다.
+            await page.waitForTimeout(400);
             await page.screenshot({ path: `sellwarn-${width}-${tag}.png` });
             for (const c of m.chips) {
                 ok(!c.clipped, `${width}/${tag}: 칩 "${c.text}" 가 잘렸다`);
