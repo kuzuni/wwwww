@@ -89,4 +89,18 @@ const REF = {
     console.log(`\n최대 어긋남: ${worstK} ${worst > 0 ? '+' : ''}${worst}%p`);
     console.log(errors.length ? errors.slice(0, 8).join('\n') : '(콘솔 에러 없음)');
     await browser.close();
+
+    // 🚨 2026-08-18 UI 세션: 여기까지가 전부였다 — 줄마다 '← 불통과'를 찍으면서도 **exit 코드가 늘 0**
+    //    이라 스윕에서는 통과로 읽혔다(인계 메모 ㉡ 의 6화면 중 하나). 수치는 다 나와 있었으니 판정만 붙인다.
+    const fails = Object.entries(REF)
+        .map(([k, spec]) => [k.trim(), +(got[k] - spec.v).toFixed(2), spec.v, got[k]])
+        .filter(([, dv]) => Math.abs(dv) > 2);
+    console.log(`\n판정 대상 ${Object.keys(REF).length}요소 · 최대 편차 ${Math.abs(worst).toFixed(2)}%p (기준 ±2.00%p) · 콘솔 에러 ${errors.length}건`);
+    if (fails.length || errors.length) {
+        console.log(`\nFAIL ${fails.length + errors.length}건`);
+        fails.forEach(([k, dv, ref, cl]) => console.log(`  ✗ ${k} Δ${dv}%p (원본 ${ref.toFixed(2)} vs 클론 ${cl.toFixed(2)})`));
+        errors.slice(0, 3).forEach(e => console.log('  ✗ 콘솔: ' + e));
+        process.exit(1);
+    }
+    console.log('\nPASS — 전 요소 ±2%p 이내');
 })();

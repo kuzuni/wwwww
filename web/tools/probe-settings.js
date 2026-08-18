@@ -190,10 +190,29 @@ const pct = (v, tot) => (v / tot * 100).toFixed(2);
     };
     show('원본', a); show('클론', b);
     console.log('\n[차이 %p — 화면 대비, |Δ|>2 이면 불통과]');
+    // 🚨 2026-08-18 UI 세션: 여기까지가 이 도구의 전부였다 — '|Δ|>2 이면 불통과'라고 **적어 두기만 하고**
+    //    판정도 exit 코드도 없어서, 스윕에서 `exit 0` 을 통과로 읽으면 속는 6화면 중 하나였다(인계 메모 ㉡).
+    //    수치는 이미 다 나와 있었으니 마지막 판정 줄만 붙인다. 기준은 저장소 공통 ±2%p.
+    const fails = [];
+    let worst = 0, judged = 0;
     const cmp = (n, ra, rb) => {
-        if (!ra || !rb) return console.log(`  ${n}: 한쪽 미검출`);
-        const f = (v1, t1, v2, t2) => { const v = (v2 / t2 * 100 - v1 / t1 * 100); return (v.toFixed(2) + (Math.abs(v) > 2 ? '!' : ' ')).padStart(8); };
-        console.log(`  ${n.padEnd(8)} x${f(ra.x, a.W, rb.x, b.W)} y${f(ra.y, a.H, rb.y, b.H)} w${f(ra.w, a.W, rb.w, b.W)} h${f(ra.h, a.H, rb.h, b.H)}  가로세로비 ${(ra.w / ra.h).toFixed(2)}→${(rb.w / rb.h).toFixed(2)}`);
+        if (!ra || !rb) { fails.push(`${n}: 한쪽 미검출(측정 실패)`); return console.log(`  ${n}: 한쪽 미검출`); }
+        judged++;
+        const f = (k, v1, t1, v2, t2) => {
+            const v = (v2 / t2 * 100 - v1 / t1 * 100);
+            worst = Math.max(worst, Math.abs(v));
+            if (Math.abs(v) > 2) fails.push(`${n} ${k} Δ${v.toFixed(2)}%p (원본 ${(v1 / t1 * 100).toFixed(2)} vs 클론 ${(v2 / t2 * 100).toFixed(2)})`);
+            return (v.toFixed(2) + (Math.abs(v) > 2 ? '!' : ' ')).padStart(8);
+        };
+        console.log(`  ${n.padEnd(8)} x${f('x', ra.x, a.W, rb.x, b.W)} y${f('y', ra.y, a.H, rb.y, b.H)} w${f('w', ra.w, a.W, rb.w, b.W)} h${f('h', ra.h, a.H, rb.h, b.H)}  가로세로비 ${(ra.w / ra.h).toFixed(2)}→${(rb.w / rb.h).toFixed(2)}`);
     };
     cmp('카드', a.card, b.card); cmp('토글', a.toggle, b.toggle); cmp('버튼줄', a.btnrow, b.btnrow); cmp('✕', a.xbtn, b.xbtn);
+
+    console.log(`\n판정 대상 ${judged}요소(요소당 x·y·w·h) · 최대 편차 ${worst.toFixed(2)}%p (기준 ±2.00%p)`);
+    if (fails.length) {
+        console.log(`\nFAIL ${fails.length}건`);
+        fails.forEach(f => console.log('  ✗ ' + f));
+        process.exit(1);
+    }
+    console.log('\nPASS — 4요소 전부 ±2%p 이내');
 })();
