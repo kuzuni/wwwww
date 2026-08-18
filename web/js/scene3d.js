@@ -2932,7 +2932,11 @@ const Scene3D = {
 
     // 갑옷 스타일별 부속 (몸통 기준 좌표 — 영웅 몸통 y0.65)
     // mats: 시대 재질 세트(ageGearMats). 없으면 기존 램버트 폴백 — 호출부가 시대를 모를 때만.
-    makeArmorExtras(style, colorHex, rareHex, mats) {
+    // opt: 부속을 앉힐 몸통 앞뒤 깊이(프리뷰 전용). 인게임 영웅 몸통과 곡면 흉갑은 치수가 달라
+    // 상수 좌표를 그대로 쓰면 파우치·스트라이프·백팩이 1~3cm 떠 보인다(비평가 지적 '부유 부속').
+    // 4번째 인자까지만 넘기는 인게임 호출부는 종전 좌표를 그대로 쓴다.
+    makeArmorExtras(style, colorHex, rareHex, mats, opt) {
+        const o = opt || {};
         const g = new THREE.Group();
         const darker = new THREE.Color(colorHex).offsetHSL(0, 0, -0.12);
         // 부속도 본체와 같은 시대 재질이어야 한 벌로 읽힌다 (백팩만 매끈한 플라스틱으로 남던 문제)
@@ -2942,26 +2946,54 @@ const Scene3D = {
                            : new THREE.MeshLambertMaterial({ color: darker, side: THREE.DoubleSide });
         if (style === 'suit') {          // 백팩 + 발광 스트라이프
             const pack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, 0.14), body);
-            pack.position.set(0, 0.68, -0.24);
-            const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.32, 0.02),
-                new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.7 }));
-            stripe.position.set(-0.12, 0.65, 0.165);
+            pack.position.set(0, 0.68, o.packZ !== undefined ? o.packZ : -0.24);
+            // 스트라이프는 평면 판이 아니라 **몸통을 감는 얇은 호**여야 표면에 붙어 보인다
+            const stripe = new THREE.Mesh(
+                new THREE.CylinderGeometry(o.frontZ !== undefined ? o.frontZ : 0.17, o.frontZ !== undefined ? o.frontZ : 0.17,
+                    0.32, 10, 1, true, -0.62, 0.42),
+                new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.7, side: THREE.DoubleSide }));
+            stripe.position.set(0, 0.65, 0);
             g.add(pack, stripe);
-        } else if (style === 'vest') {   // 전술 파우치
+        } else if (style === 'vest') {   // 전술 파우치 — 벨트 루프로 몸통에 매달린다
+            const pz = o.frontZ !== undefined ? o.frontZ : 0.155;
+            const pm = mats ? mats.dark : new THREE.MeshLambertMaterial({ color: 0x37474f });
             for (const dx of [-0.11, 0.11]) {
-                const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.06), mats ? mats.dark : new THREE.MeshLambertMaterial({ color: 0x37474f }));
-                pouch.position.set(dx, 0.56, 0.17);
+                const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.06), pm);
+                pouch.position.set(dx, 0.56, pz - 0.012);
                 g.add(pouch);
+                // ⚠️ 파우치만 띄우면 '몸통 옆 허공의 상자'다 — 위로 넘어가는 루프를 반드시 같이 낸다
+                const loop = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.085, 0.055), pm);
+                loop.position.set(dx, 0.625, pz - 0.03);
+                g.add(loop);
             }
-        } else if (style === 'robe') {   // 로브 자락
-            const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.5, 10, 1, true), cloth);
+        } else if (style === 'robe') {   // 로브 자락 + 밑단 헴
+            const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.5, 12, 1, true), cloth);
             skirt.position.y = 0.32;
             g.add(skirt);
+            const hem = new THREE.Mesh(new THREE.TorusGeometry(0.355, 0.026, 6, 20), cloth);
+            hem.position.y = 0.075;
+            hem.rotation.x = Math.PI / 2;
+            g.add(hem);
         } else if (style === 'cape') {   // 망토
-            const cape = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.66, 0.04), cloth);
-            cape.position.set(0, 0.6, -0.2);
-            cape.rotation.x = 0.12;
+            // ⚠️ 예전엔 0.52×0.66×**0.04 평면 상자**였다 — 옆에서 보면 사라지고 라이팅에도
+            //    반응하지 않아 'UI 스티커'로 읽혔다(비평가 지적). 어깨를 감아 아래로 벌어지는
+            //    **열린 원뿔 호**로 바꿔 곡률과 부피를 준다.
+            const cz = o.backZ !== undefined ? o.backZ : -0.06;
+            const cape = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.34, 0.66, 14, 1, true, Math.PI * 0.62, Math.PI * 0.76), cloth);
+            cape.position.set(0, 0.6, cz);
+            cape.rotation.x = 0.1;
             g.add(cape);
+            const hem = new THREE.Mesh(new THREE.TorusGeometry(0.335, 0.024, 6, 22, Math.PI * 0.76), cloth);
+            hem.position.set(0, 0.275, cz);
+            hem.rotation.x = Math.PI / 2;
+            hem.rotation.z = -Math.PI * 0.62;   // 토러스 호의 시작각을 원뿔과 맞춘다
+            g.add(hem);
+            // 어깨 걸쇠 — 망토가 무엇에 매달렸는지 보여 준다(부유 인상 제거)
+            for (const dx of [-0.16, 0.16]) {
+                const clasp = new THREE.Mesh(new THREE.SphereGeometry(0.042, 10, 8), body);
+                clasp.position.set(dx, 0.9, cz + 0.09);
+                g.add(clasp);
+            }
         }
         return g;
     },
@@ -3040,7 +3072,8 @@ const Scene3D = {
                 g.add(f);
             }
         }
-        const extras = this.makeArmorExtras(style, c, RARITY_HEX[rarity] || 0xffffff, mats);
+        // 곡면 흉갑의 실제 앞뒤 깊이를 넘겨 부속을 표면에 앉힌다(상수 좌표면 1~3cm 뜬다)
+        const extras = this.makeArmorExtras(style, c, RARITY_HEX[rarity] || 0xffffff, mats, { frontZ: 0.128, backZ: -0.03, packZ: -0.185 });
         extras.position.y = -0.65; // 부속 좌표계를 프리뷰 몸통 기준으로 보정
         g.add(extras);
         // ⚠️ suit·vest 는 **프리뷰에서 서로 구분이 안 됐다** — 실측(probe-equip-dedupe)에서 남은
@@ -3196,10 +3229,15 @@ const Scene3D = {
                     band.scale.y = 0.62;       // 손 단면이 타원이라 링도 눌러야 옆으로 뜨지 않는다
                     g.add(band);
                 });
-                const tail = this.beveledSlab(0.05, 0.1, 0.024, 0.018, dark);   // 늘어뜨린 붕대 끝
-                tail.position.set(0.086, 0.115, 0.045);
-                tail.rotation.z = -0.4;
+                // 늘어뜨린 붕대 끝 — 손목 밴드(y 0.16) 안쪽에서 시작해야 '풀린 끝'으로 읽힌다.
+                // 떼어 놓으면 손 옆 허공의 캡슐이 된다(비평가 지적 '부유 부속').
+                const tail = this.beveledSlab(0.046, 0.115, 0.022, 0.016, dark);
+                tail.position.set(0.079, 0.125, 0.035);
+                tail.rotation.z = -0.28;
                 g.add(tail);
+                const knot = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), dark);  // 매듭 = 접점
+                knot.position.set(0.092, 0.168, 0.03);
+                g.add(knot);
             }
         } else if (slot === 'necklace') {
             // ⚠️ 세 변형이 **같은 고리 + 작은 펜던트**였던 탓에 썸네일 실루엣이 완전히 같았다
@@ -3325,18 +3363,22 @@ const Scene3D = {
                     boot.add(buckle);
                 } else {                      // 그리브: 정강이 판 + 무릎 돔 + 고정 밴드 2줄
                     // 정강이 판은 앞으로 튀어나와야 보인다 — 갑피(z 중심 -0.062, rz 0.07) 앞면 밖에 얹는다
+                    // ⚠️ 앞으로 너무 빼면 다리에서 떨어져 뜬다 — 갑피 앞면(z≈0.008)에 반쯤 파묻는다
                     const shin = this.beveledSlab(0.094, 0.30, 0.034, 0.032, this.tintOf(mat, 0.03));
-                    shin.position.set(0, 0.40, 0.018);
+                    shin.position.set(0, 0.40, -0.002);
                     shin.rotation.x = -0.05;
                     boot.add(shin);
                     const knee = new THREE.Mesh(new THREE.SphereGeometry(0.082, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), mat);
                     knee.scale.set(1, 0.8, 0.95);
                     knee.position.set(0, 0.555, -0.045);
                     boot.add(knee);
+                    // 밴드는 정강이 판(앞) 위까지 감아야 '고정 스트랩'으로 읽힌다 —
+                    // 갑피만 두르면 판 옆에서 끊긴 고리가 된다(비평가 지적).
                     for (const y of [0.31, 0.46]) {
-                        const band = new THREE.Mesh(new THREE.TorusGeometry(0.072, 0.013, 6, 16), dark);
-                        band.position.set(0, y, -0.058);
+                        const band = new THREE.Mesh(new THREE.TorusGeometry(0.079, 0.014, 6, 18), dark);
+                        band.position.set(0, y, -0.03);
                         band.rotation.x = Math.PI / 2;
+                        band.scale.y = 1.32;   // 앞뒤로 늘려 판까지 물린다
                         boot.add(band);
                     }
                 }
@@ -3346,7 +3388,8 @@ const Scene3D = {
                 return boot;
             };
             mk(-0.115, true); mk(0.115, false);
-            if (variant === 2) add(new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 8), gemMat), 0.115, 0.555, 0.03);
+            // 무릎 젬은 무릎 돔(y 0.555, z -0.045, r 0.082) **표면에** 박힌다 — 밖으로 빼면 뜬다
+            if (variant === 2) add(new THREE.Mesh(new THREE.SphereGeometry(0.034, 10, 8), gemMat), 0.115, 0.552, 0.012);
         } else { // belt
             // 벨트가 가장 심했다 — 세 변형이 **같은 원통 띠**에 2cm짜리 버클만 달라, 시대마다
             // 서로 '같은 그림'으로 잡혔다(실측 색 차이 0.009~0.041, 실루엣 0.000).
@@ -3399,7 +3442,13 @@ const Scene3D = {
                     const clasp = new THREE.Mesh(new THREE.SphereGeometry(0.017, 8, 6), gemMat);        // 잠금 단추
                     clasp.position.set(0, 0.038, 0.05);
                     p.add(clasp);
-                    p.position.set(Math.sin(a) * 0.238, 0.345, Math.cos(a) * 0.158);
+                    // ⚠️ 파우치만 아래에 놓으면 밴드에서 떨어져 **공중에 매달린 상자**가 된다
+                    //    (비평가 지적). 밴드를 넘어가는 루프를 같이 내고, 파우치 윗변을 밴드
+                    //    아랫변(y 0.4075) 위로 밀어 넣어 겹치게 한다.
+                    const loop = this.beveledSlab(0.05, 0.115, 0.06, 0.02, this.tintOf(dark, -0.04));
+                    loop.position.set(0, 0.115, -0.012);
+                    p.add(loop);
+                    p.position.set(Math.sin(a) * 0.236, 0.362, Math.cos(a) * 0.156);
                     p.rotation.y = a;
                     g.add(p);
                 }
@@ -3418,20 +3467,26 @@ const Scene3D = {
                 g.add(this.shellFromRings(rings, 26, mat));
                 // 천자락은 직선 판이 아니라 **휘어져 내려온다** — 곡선을 따라 관을 뽑고 납작하게 누른다
                 const curve = new THREE.CatmullRomCurve3([
-                    new THREE.Vector3(-0.16, 0.44, 0.115), new THREE.Vector3(-0.215, 0.30, 0.14),
+                    new THREE.Vector3(-0.145, 0.50, 0.075), new THREE.Vector3(-0.20, 0.32, 0.13),
                     new THREE.Vector3(-0.185, 0.16, 0.125), new THREE.Vector3(-0.235, 0.02, 0.075),
                 ]);
                 const drape = new THREE.Mesh(new THREE.TubeGeometry(curve, 22, 0.05, 10, false), cloth);
                 drape.scale.z = 0.42;
                 g.add(drape);
-                const brooch = new THREE.Mesh(new THREE.OctahedronGeometry(0.075, 0), gemMat);
-                brooch.position.set(0, 0.5, 0.17);
+                // ⚠️ 브로치·물림쇠를 띠 앞면(rz≈0.162)보다 앞에 두면 허공에 뜬 핀이 된다 —
+                //    받침판을 깔고 그 위에 앉혀 접점을 만든다(비평가 지적).
+                const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.088, 0.02, 16), this.tintOf(mat, -0.05));
+                plate.rotation.x = Math.PI / 2;
+                plate.position.set(0, 0.5, 0.156);
+                g.add(plate);
+                const brooch = new THREE.Mesh(new THREE.OctahedronGeometry(0.062, 0), gemMat);
+                brooch.position.set(0, 0.5, 0.172);
                 brooch.rotation.z = 0.4;
                 g.add(brooch);
-                for (const s of [-1, 1]) {   // 브로치 물림쇠
-                    const claw = this.capsuleMesh(0.011, 0.07, mat, 6);
-                    claw.position.set(s * 0.055, 0.5, 0.16);
-                    claw.rotation.z = s * 0.5;
+                for (const s of [-1, 1]) {   // 브로치 물림쇠 — 받침판 위에 눕는다
+                    const claw = this.capsuleMesh(0.010, 0.06, mat, 6);
+                    claw.position.set(s * 0.052, 0.5, 0.164);
+                    claw.rotation.z = s * 0.7;
                     g.add(claw);
                 }
             }
