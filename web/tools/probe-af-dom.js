@@ -24,12 +24,12 @@ const FILTER_ON = (process.argv[2] || 'on') !== 'off';
 //    두 컷(042950 · 043117)에서 카드·✕·[시작] 픽셀 크기가 셋 다 같고 중심만 달라 앱 폭 491 로 떨어진다.
 const TARGET = {
     // 앱 491x885 기준, 테두리 포함 바깥 상자
-    'card': { x: 11.41, w: 77.19, y: 7.01, bottom: 89.04 },
+    // 🚨 bottom 89.04(=y788) 는 ✕ 링 상단을 카드 바닥으로 읽은 화석이었다(2026-08-18 채점 1라운드
+    //    교차검증으로 정정). ✕가 안 지나는 좌변(x70) 스캔은 흰색이 y812(042950)/y825(043117)까지
+    //    이어진다 — 카드 높이는 두 컷 다 84.52%H, 하단 91.75%H(885 기준). 위 주석의 y811 교차검증과도
+    //    일치한다. 이 정정으로 '카드 높이 의도적 축소(.812)'도 철회됐다(style.css .af-card 주석 참조).
+    'card': { x: 11.41, w: 77.19, y: 7.01, bottom: 91.75, h: 84.52 },
 };
-// ⚠️ **높이(h)는 판정하지 않는다 — 의도된 편차다.** 카드를 원본 높이 그대로 두면 `[시작]` 아래 흰
-//    여백이 원본 22px 대신 51px 로 뜬다(폰트·버튼 높이 차). 그래서 카드 높이와 `.af-start` 여백을
-//    **같은 양(29.5px)씩** 줄여 내용물이 원본 자리에 오게 맞춘 상태다(style.css 주석에 근거 있음).
-//    대신 **카드 하단(bottom)** 을 재면 그 조정까지 포함한 결과를 원본과 직접 비교할 수 있다.
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -94,7 +94,7 @@ const TARGET = {
             parts.push(`Δ${k} ${d}`);
         }
         console.log(r.label.padEnd(16) + String(r.x).padStart(8) + String(r.w).padStart(8) + String(r.y).padStart(8) + String(r.h).padStart(8) + '   ' + parts.join('  ') + (bad ? '  ✗' : '  ✓'));
-        console.log(' '.repeat(16) + `(하단 ${r.bottom}%H · 높이 ${r.h}%H 는 의도된 편차라 미판정 — 위 주석 참조)`);
+        console.log(' '.repeat(16) + `(하단 ${r.bottom}%H · 높이 ${r.h}%H — 2026-08-18 정정 후 판정 대상)`);
     }
     await browser.close();
 
