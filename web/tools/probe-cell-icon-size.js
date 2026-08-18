@@ -11,6 +11,7 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const OUT = path.resolve(__dirname, '../ref/cell-icons.png');
+const { waitReady } = require('./wait-ready.js');
 
 const VIEWPORTS = [[430, 932], [499, 892], [360, 800], [412, 915]];
 
@@ -25,7 +26,9 @@ const VIEWPORTS = [[430, 932], [499, 892], [360, 800], [412, 915]];
         page.on('pageerror', e => errs.push(`${w}x${h}: ${e.message}`));
         page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push(`${w}x${h}: ${m.text()}`); });
         await page.goto(INDEX, { waitUntil: 'load' });
-        await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 20000 });
+        // waitForFunction 은 three.js+swiftshader 로 메인 스레드가 포화되면 내부 폴링이 못 돌아
+        // 멀쩡한 페이지에서도 타임아웃한다(wait-ready.js 헤더 ② — 이 프로브도 그걸로 2연속 죽었다).
+        await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined"');
         await page.evaluate(() => {
             if (typeof Scene3D !== 'undefined') Scene3D.update = function () {};
             Combat.tick = function () {};
@@ -89,8 +92,11 @@ const VIEWPORTS = [[430, 932], [499, 892], [360, 800], [412, 915]];
         });
         await page.close();
     }
-    // 원본 실측 기준값(위 헤더 참조)
-    const REF_LONG = 82.9, TOL = 2.0, MAX_LONG = 88.1;
+    // 기준값 — ⚠️ 의도된 원본 이탈(slot-item-size-down): 원본 실측은 82.9(최대 88.1, 위 헤더 참조)지만
+    // 사용자 지시 "슬롯에 장비가 너무 크게 되어 있음 약간만 줄여"(2026-08-18)로 UI.THUMB_INK 를
+    // 0.83 → 0.76 으로 내렸고, 목표치도 같은 비(76/82.9)로 함께 내렸다. 0.83 기준으로 되돌리려면
+    // 사용자 지시 철회가 먼저다 — 프로브만 되돌리면 그게 가짜 FAIL 의 출처가 된다.
+    const REF_LONG = 76.0, TOL = 2.0, MAX_LONG = 80.8;
     let bad = 0;
     for (const r of rows) {
         const okLong = Math.abs(r.inkLong - REF_LONG) <= TOL;
