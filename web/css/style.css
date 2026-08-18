@@ -1243,6 +1243,16 @@ body {
     display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
 }
 .league-emblem { text-align: center; font-size: 3.3rem; margin-top: -.1rem; } /* 원본 방패 실측 재보정 (185 재채점) */
+/* 문장은 코드 생성 아이콘(`leagueEmblem`). **블록 높이를 이모지가 쓰던 줄상자(45.5px = 2.71rem)로
+   고정**해 아래 제목·시즌바·목록이 한 픽셀도 안 밀리게 하고, 아이콘은 그보다 크게 그려 위아래로
+   넘긴다 — 원본 문장도 제목 위로 크게 뜨고, 넘치는 자리는 시트 배경이라 잘릴 것이 없다.
+   ⚠️ 높이를 안 고정하고 `.ico` 크기만 맞추려 하면 안 맞는다: `vertical-align: middle` 의 줄상자는
+   아이콘 높이에 비례하지 않아(66.6px 아이콘 → 48.8px 줄상자) 아래가 계속 밀렸다.
+   ⚠️ 3.87rem(65px) 은 **이모지의 실제 줄상자**다 — 카드 열림 애니(`cardpop` scale .7)가 끝나기 전에
+   재면 45.5px 로 잡혀(0.7배) 그 값을 박으면 아래가 통째로 2.19%p 올라간다. 모달 안 치수는
+   `.opening` 제거 + 애니 무효화 + 2.5초 대기 뒤에 잴 것. */
+.league-emblem { height: 3.87rem; }
+.league-emblem .ico { width: 4.7rem; height: 4.7rem; margin: -.415rem 0 0; vertical-align: top; }
 .league-title { text-align: center; font-weight: 900; font-size: 1.15rem; color: #fff; margin: -.2rem 0 .3rem; }
 .league-season-bar {
     display: flex; align-items: center; justify-content: center; gap: .4rem;

@@ -2834,7 +2834,7 @@ const UI = {
         const remain = (S.league.seasonEndsAt - U.now()) / 1000;
         this.els.leagueModal.innerHTML = `
             <div class="modal-card sheet league-sheet">
-                <div class="league-emblem">🛡️</div>
+                <div class="league-emblem">${IconGen.img('leagueEmblem')}</div>
                 <div class="league-title">플래티넘 리그</div>
                 <div class="league-season-bar" onclick="UI.openLeagueRewards()">${IconGen.img('gift')} <span>시즌 종료: <b>${U.fmtTime(remain)}</b></span></div>
                 <div class="league-list">${windowRows}</div>

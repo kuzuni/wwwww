@@ -1386,6 +1386,73 @@ const IconGen = {
             }
         },
 
+        // ---- 리그 문장 (원본 shot-042149 확대) ----
+        // 원본은 방패 하나가 아니라 **날개가 뒤로 뻗은 플래티넘 문장**이다: 검은 굵은 테 + 민트 방패면 +
+        // 위쪽 흰 띠 + 가운데 어두운 실루엣, 방패 뒤로 좌우 날개(짙은 청록 + 흰 줄무늬)와 물방울 장식.
+        // 종전 구현은 🛡️ 이모지 한 글자라 '단색 방패 하나'였다(비율 감사 ⑸ 지적).
+        leagueEmblem(ctx, S) {
+            const G = IconGen, cx = S * 0.5, ink = '#0d1a1a';
+            const wing = (dir) => {
+                ctx.beginPath();
+                ctx.moveTo(cx + dir * S * 0.14, S * 0.30);
+                ctx.lineTo(cx + dir * S * 0.49, S * 0.20);
+                ctx.lineTo(cx + dir * S * 0.44, S * 0.38);
+                ctx.lineTo(cx + dir * S * 0.49, S * 0.36);
+                ctx.lineTo(cx + dir * S * 0.40, S * 0.56);
+                ctx.lineTo(cx + dir * S * 0.16, S * 0.50);
+                ctx.closePath();
+                ctx.fillStyle = G._lin(ctx, cx, S * 0.2, cx + dir * S * 0.5, S * 0.56,
+                    [[0, '#2f6b66'], [1, '#16403d']]);
+                ctx.fill();
+                ctx.lineWidth = S * 0.055; ctx.strokeStyle = ink; ctx.stroke();
+                // 깃 줄무늬(밝은 선) — 원본에서 날개마다 두 줄이 밝게 뜬다
+                ctx.beginPath();
+                ctx.moveTo(cx + dir * S * 0.22, S * 0.31); ctx.lineTo(cx + dir * S * 0.43, S * 0.25);
+                ctx.moveTo(cx + dir * S * 0.23, S * 0.42); ctx.lineTo(cx + dir * S * 0.40, S * 0.37);
+                ctx.lineWidth = S * 0.035; ctx.strokeStyle = 'rgba(233,252,250,.92)'; ctx.stroke();
+                // 물방울 장식
+                ctx.beginPath();
+                ctx.moveTo(cx + dir * S * 0.30, S * 0.56);
+                ctx.lineTo(cx + dir * S * 0.35, S * 0.66);
+                ctx.lineTo(cx + dir * S * 0.25, S * 0.63);
+                ctx.closePath();
+                ctx.fillStyle = '#6fe0e0'; ctx.fill();
+                ctx.lineWidth = S * 0.03; ctx.strokeStyle = ink; ctx.stroke();
+            };
+            wing(-1); wing(1);
+            const shield = () => {
+                ctx.moveTo(cx - S * 0.21, S * 0.16);
+                ctx.lineTo(cx + S * 0.21, S * 0.16);
+                ctx.lineTo(cx + S * 0.21, S * 0.55);
+                ctx.quadraticCurveTo(cx + S * 0.19, S * 0.74, cx, S * 0.86);
+                ctx.quadraticCurveTo(cx - S * 0.19, S * 0.74, cx - S * 0.21, S * 0.55);
+                ctx.closePath();
+            };
+            ctx.beginPath(); shield();
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.16, 0, S * 0.86,
+                [[0, '#bdf0ea'], [0.45, '#7fd4cc'], [1, '#3f9d97']]);
+            ctx.fill();
+            G._innerShadow(ctx, shield, 'rgba(6,40,38,.5)', S * 0.05, 0, -S * 0.02);
+            // 위쪽 흰 띠
+            ctx.save(); ctx.beginPath(); shield(); ctx.clip();
+            ctx.fillStyle = '#f2fbfa';
+            ctx.fillRect(cx - S * 0.21, S * 0.16, S * 0.42, S * 0.10);
+            ctx.restore();
+            // 가운데 어두운 실루엣 (교차 검)
+            ctx.save(); ctx.beginPath(); shield(); ctx.clip();
+            ctx.strokeStyle = '#12302e'; ctx.lineCap = 'round';
+            ctx.lineWidth = S * 0.075;
+            ctx.beginPath();
+            ctx.moveTo(cx - S * 0.10, S * 0.66); ctx.lineTo(cx + S * 0.11, S * 0.35);
+            ctx.moveTo(cx + S * 0.10, S * 0.66); ctx.lineTo(cx - S * 0.11, S * 0.35);
+            ctx.stroke();
+            ctx.beginPath(); ctx.ellipse(cx, S * 0.50, S * 0.075, S * 0.115, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#12302e'; ctx.fill();
+            ctx.restore();
+            ctx.beginPath(); shield();
+            ctx.lineWidth = S * 0.062; ctx.strokeStyle = ink; ctx.stroke();
+        },
+
         // ---- 유령: 던전 '유령 마을' 배너 ----
         // 배너 배경이 밝은 회색이라 흰 유령이 묻힌다 — 푸른 그림자와 짙은 외곽선으로 실루엣을 세운다.
         ghost(ctx, S) {

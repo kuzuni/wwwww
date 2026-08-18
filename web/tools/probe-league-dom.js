@@ -13,10 +13,10 @@ const SC = require('./shot-screens-seed.js');
     page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && typeof Forge !== 'undefined', null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && typeof Forge !== 'undefined', null, { timeout: 150000 });
     await page.evaluate(SC.SEED_SRC);
     await page.reload({ waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && S.forgeLevel === 29, null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && S.forgeLevel === 29, null, { timeout: 150000 });
     // ⚠️ 팝업 열림 애니메이션(scale .7→1)을 아예 끈다. 헤드리스에서는 페이지가 쉬는 동안 CSS 애니메이션이
     //    스로틀링돼 1200ms를 기다려도 카드가 중간 프레임(scale≈.69)에 멈춰 있다 — 실제로 밟은 함정이다:
     //    rect 42px vs computed height 60.5px(=0.694배)로 어긋나 모든 %가 0.7배로 나온다.
