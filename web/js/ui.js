@@ -905,6 +905,7 @@ const UI = {
         '👑': 'crown', '💀': 'skull', '⚡': 'bolt', '📜': 'scroll', '🧩': 'shard',
         '💤': 'zzz', '🔓': 'unlock', '📌': 'pin', '📍': 'marker', '✨': 'sparkle',
         '👻': 'ghost', '🧟': 'zombie',   // 던전 입장·실패 토스트가 쓰는 얼굴(아이콘은 이미 있었다)
+        '⚔': 'tm_sword', '🎉': 'sparkle', '📋': 'clipboard', '💾': 'save', '🔬': 'research',
     },
 
     toast(msg) {
@@ -928,6 +929,9 @@ const UI = {
             wrap.innerHTML = IconGen.img(this.TOAST_ICON[key], 'toast-ico');
             if (wrap.firstChild) el.appendChild(wrap.firstChild);
             i += Array.from(key).length;
+            // ⚠️ 실제 문구는 `⚔️`·`⬆️`·`⚙️` 처럼 **이형 선택자(U+FE0F)가 붙어 있다.** 표 키는 맨 글자라
+            //    한 글자 매칭 뒤 U+FE0F 가 남아 보이지 않는 문자가 문구에 섞인다 — 같이 건너뛴다.
+            if (cp[i] === '\uFE0F') i++;
             while (cp[i] === ' ') i++;      // 이모지 뒤 공백은 아이콘 마진이 대신한다
         }
         flush();
@@ -2440,7 +2444,7 @@ const UI = {
         this.els.detailModal.innerHTML = `
             <div class="idet-wrap petd-wrap">
                 <div class="modal-card paper petd-card">
-                    <button class="petd-share" onclick="UI.toast('📋 공유는 데모 버전에서 지원하지 않습니다')">📋</button>
+                    <button class="petd-share" onclick="UI.toast('📋 공유는 데모 버전에서 지원하지 않습니다')">${IconGen.img('clipboard')}</button>
                     <div class="petd-head">
                         <div class="petd-tilecol">
                             <div class="petd-tile" style="--rc:${RARITY_CSS[pet.rarity]}">

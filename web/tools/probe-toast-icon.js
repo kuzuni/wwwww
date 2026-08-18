@@ -39,6 +39,13 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
         // ⑷ 문구 **중간**의 이모지도 바뀌는가 — 선두만 바꾸면 한 줄에 아이콘과 이모지가 섞인다
         const mid = shoot('🏆 1-1 첫 클리어! 🪙+60');
         out.mid = { icons: mid.html.split('<i ').length - 1, text: mid.text };
+        // ⑸ 이형 선택자(U+FE0F) — 실제 문구는 `⚔️`·`⬆️`·`⚙️` 처럼 FE0F 가 붙어 온다.
+        //    표 키는 맨 글자라, 안 건너뛰면 보이지 않는 문자가 문구에 남는다.
+        out.vs = ['\u2694\uFE0F 이미 던전에 진행 중입니다', '\u2B06\uFE0F 3회 업그레이드 완료',
+                  '\u2699\uFE0F 태엽이 부족합니다'].map(m => {
+            const g = shoot(m);
+            return { ico: !!g.ico, hasVS: /\uFE0F/.test(g.text), text: g.text };
+        });
         return out;
     });
 
@@ -46,6 +53,8 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     r.mapped.forEach(x => console.log('  ' + x));
     console.log('=== ⑵ 표에 없는 이모지 (글자 그대로 폴백) ===');
     r.unmapped.forEach(x => console.log('  ' + x));
+    console.log('=== ⑸ 이형 선택자(U+FE0F) ===');
+    r.vs.forEach(v => console.log(`  ico=${v.ico} FE0F잔여=${v.hasVS} text="${v.text}"`));
     console.log('=== ⑷ 문구 중간 이모지 ===');
     console.log(`  '🏆 1-1 첫 클리어! 🪙+60' → 아이콘 ${r.mid.icons}개(2 여야 한다) · 남은 텍스트 "${r.mid.text}"`);
     console.log('=== ⑶ 주입 방지 ===');
@@ -58,6 +67,8 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     if (r.inject.hasImgTag) bad.push('문구가 HTML 로 해석됐다');
     if (r.mid.icons !== 2) bad.push('문구 중간 이모지가 안 바뀐다(아이콘 ' + r.mid.icons + '개)');
     if (/[\u{1F300}-\u{1FAFF}]/u.test(r.mid.text)) bad.push('바뀐 뒤에도 텍스트에 이모지가 남아 있다');
+    if (r.vs.some(v => !v.ico)) bad.push('FE0F 붙은 이모지가 아이콘으로 안 바뀐다');
+    if (r.vs.some(v => v.hasVS)) bad.push('치환 후에도 U+FE0F 가 문구에 남아 있다');
     if (errs.length) bad.push('콘솔 에러 ' + errs.length + '건');
     console.log(bad.length ? '\nFAIL — ' + bad.join(' · ') : '\nPASS — 전건 통과 · 콘솔 에러 0건');
     await browser.close();

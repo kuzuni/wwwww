@@ -3161,3 +3161,84 @@ IconGen._genderSym = function (ctx, S, female) {
         plate(ctx, S, star4(0.775, 0.775, 0.215, 0.20), SPARK, { spec: false, lw: 0.040 });
     };
 })(IconGen);
+
+/* ============================================================================
+ * 토스트·버튼에 마지막으로 남아 있던 3종 (📋 클립보드 · 💾 저장 · 🔬 연구)
+ * 위 10종과 같은 `plate` 5단 입체를 쓴다. 이 파일 안에서 `plate` 은 그 IIFE 안에만
+ * 있으므로 여기서 다시 만든다 — 두 블록이 서로를 안 건드리도록 일부러 복사해 둔다.
+ * ============================================================================ */
+(function (G) {
+    const P2 = Math.PI * 2;
+    const sub = {
+        rr: (ctx, S, x, y, w, h, r) => () => G._rrSub(ctx, x * S, y * S, w * S, h * S, r * S),
+        ell: (ctx, S, x, y, rx, ry, rot) => () => { ctx.moveTo((x + rx) * S, y * S); ctx.ellipse(x * S, y * S, rx * S, ry * S, rot || 0, 0, P2); },
+        cir: (ctx, S, x, y, r) => () => { ctx.moveTo((x + r) * S, y * S); ctx.arc(x * S, y * S, r * S, 0, P2); },
+    };
+    const join = (...fns) => () => fns.forEach(f => f());
+    const closed = (ctx, S, pts) => () => { pts.forEach((p, i) => { const X = p[0] * S, Y = p[1] * S; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); };
+    const plate = (ctx, S, path, stops, opt) => {
+        const o = opt || {};
+        ctx.save();
+        ctx.globalAlpha = 0.36; ctx.fillStyle = '#000';
+        ctx.filter = `blur(${S * 0.020}px)`;
+        ctx.translate(0, S * 0.035);
+        ctx.beginPath(); path(); ctx.fill();
+        ctx.restore();
+        ctx.save();
+        ctx.beginPath(); path();
+        const g = ctx.createLinearGradient(0, S * (o.y0 === undefined ? 0.04 : o.y0), 0, S * (o.y1 === undefined ? 0.98 : o.y1));
+        stops.forEach(s => g.addColorStop(s[0], s[1]));
+        ctx.fillStyle = g; ctx.fill();
+        ctx.lineJoin = ctx.lineCap = 'round';
+        ctx.strokeStyle = o.line || 'rgba(16,14,11,.88)';
+        ctx.lineWidth = S * (o.lw === undefined ? 0.048 : o.lw);
+        ctx.stroke();
+        ctx.restore();
+        if (!o.flat) G._innerShadow(ctx, path, o.inner || 'rgba(0,0,0,.40)', S * 0.05, 0, S * 0.022);
+        if (o.spec !== false) {
+            ctx.save(); ctx.beginPath(); path(); ctx.clip();
+            const sx = (o.sx === undefined ? 0.33 : o.sx) * S, sy = (o.sy === undefined ? 0.24 : o.sy) * S;
+            ctx.fillStyle = G._rad(ctx, sx, sy, 0, sx, sy, S * 0.36, [[0, 'rgba(255,255,255,.52)'], [1, 'rgba(255,255,255,0)']]);
+            ctx.fillRect(0, 0, S * 2, S * 2);
+            ctx.restore();
+        }
+    };
+    const mark = (ctx, path, fill) => { ctx.save(); ctx.beginPath(); path(); ctx.fillStyle = fill; ctx.fill(); ctx.restore(); };
+    const STEEL = [[0, '#eef4fa'], [0.34, '#b9c5d1'], [0.70, '#7f8c99'], [1, '#48535e']];
+
+    /* 📋 클립보드 — 판 + 위 집게 + 흰 종이. 토스트뿐 아니라 펫 상세의 공유 버튼 얼굴이기도 하다. */
+    G.draw.clipboard = function (ctx, S) {
+        plate(ctx, S, sub.rr(ctx, S, 0.145, 0.115, 0.710, 0.800, 0.075),
+            [[0, '#e0b785'], [0.34, '#b98548'], [0.70, '#8a5c26'], [1, '#4c2f0d']], { sy: 0.26 });
+        mark(ctx, sub.rr(ctx, S, 0.235, 0.265, 0.530, 0.575, 0.030), '#fbf8f1');       // 종이
+        [0.375, 0.485, 0.595, 0.705].forEach((y, i) =>
+            mark(ctx, sub.rr(ctx, S, 0.305, y - 0.023, i === 3 ? 0.24 : 0.39, 0.046, 0.023), 'rgba(96,72,34,.5)'));
+        plate(ctx, S, sub.rr(ctx, S, 0.345, 0.045, 0.310, 0.185, 0.062), STEEL, { spec: false, lw: 0.042, y0: 0.02, y1: 0.24 });
+    };
+
+    /* 💾 저장(플로피) — 아래 흰 라벨 + 위 금속 셔터가 있어야 '디스켓'으로 읽힌다. */
+    G.draw.save = function (ctx, S) {
+        // 오른쪽 위 모서리만 잘린 실루엣 — 디스켓의 핵심 단서다.
+        plate(ctx, S, closed(ctx, S, [[0.105, 0.115], [0.760, 0.115], [0.895, 0.250], [0.895, 0.885], [0.105, 0.885]]),
+            [[0, '#7fb2e8'], [0.34, '#3a76c4'], [0.70, '#1f4d8c'], [1, '#0d2549']], { sx: 0.34, sy: 0.26 });
+        mark(ctx, sub.rr(ctx, S, 0.300, 0.115, 0.400, 0.290, 0.020), '#cdd7e2');        // 위 셔터
+        mark(ctx, sub.rr(ctx, S, 0.560, 0.155, 0.105, 0.215, 0.018), '#54606d');
+        mark(ctx, sub.rr(ctx, S, 0.235, 0.535, 0.530, 0.350, 0.024), '#f4f6f8');        // 아래 라벨
+        [0.640, 0.735].forEach(y => mark(ctx, sub.rr(ctx, S, 0.300, y - 0.021, 0.400, 0.042, 0.021), 'rgba(70,86,102,.45)'));
+    };
+
+    /* 🔬 연구 — ⚠️ 현미경으로 그렸더니 23px 에서 '받침 위의 굵은 사선 통' 이 남아 **나무망치**로 읽혔다.
+       작은 크기에서 '조사·연구'를 가장 확실하게 읽히는 실루엣은 **돋보기**다 — 둥근 렌즈 + 굵은 손잡이
+       둘뿐이라 뭉개져도 정체가 안 흔들린다. */
+    G.draw.research = function (ctx, S) {
+        // 손잡이(렌즈 뒤로 깔리게 먼저)
+        plate(ctx, S, closed(ctx, S, [[0.555, 0.600], [0.735, 0.455], [0.930, 0.760], [0.790, 0.900]]),
+            [[0, '#c8a06a'], [0.34, '#a06f36'], [0.70, '#734a18'], [1, '#3d2508']], { spec: false, lw: 0.046 });
+        // 테
+        plate(ctx, S, sub.cir(ctx, S, 0.415, 0.400, 0.335), STEEL, { spec: false, lw: 0.050, y0: 0.05, y1: 0.75 });
+        // 유리
+        plate(ctx, S, sub.cir(ctx, S, 0.415, 0.400, 0.230),
+            [[0, '#f2fbff'], [0.40, '#bfe6fb'], [0.78, '#7cc3e8'], [1, '#3d84ad']], { sx: 0.32, sy: 0.28, lw: 0.030 });
+        mark(ctx, sub.ell(ctx, S, 0.330, 0.310, 0.090, 0.055, -0.6), 'rgba(255,255,255,.75)');
+    };
+})(IconGen);
