@@ -1120,15 +1120,27 @@ const ProChar = {
             for (let fi = 0; fi < 4; fi++) { // 4지 — 손등 앞면에 나란히, 아래·안쪽으로 말아쥔 2분절
                 const fx = (fi - 1.5) * 0.0235;
                 const fw = fi === 3 ? 0.017 : 0.02; // 새끼손가락만 가늘게
-                const prox = new THREE.Mesh(new THREE.CylinderGeometry(fw * 0.52, fw * 0.56, 0.042, 6), gloveMat);
+                // ⚠️ 2026-08-18 6차 비평가 재지적 ㉥: "폭이 동일한 막대 5개(테이퍼 없음)".
+                //    실제로는 테이퍼가 **있었다**(밑 0.56fw → 끝 0.44fw = 21%). 다만 손가락이 화면에서
+                //    15px 남짓이라 21% = 3px 이고, 그건 눈으로 '같은 폭'과 구별되지 않는다.
+                //    → 지적을 '없다'가 아니라 '안 보인다'로 읽고 **35%(0.62 → 0.40)** 로 벌린다.
+                const prox = new THREE.Mesh(new THREE.CylinderGeometry(fw * 0.56, fw * 0.62, 0.042, 6), gloveMat);
                 prox.position.set(fx, -0.008, 0.045);
                 prox.rotation.x = -0.85; // 기절골 — 앞으로 뻗다 아래로 꺾임
-                const dist = new THREE.Mesh(new THREE.CylinderGeometry(fw * 0.44, fw * 0.5, 0.036, 6), gloveMat);
+                const dist = new THREE.Mesh(new THREE.CylinderGeometry(fw * 0.40, fw * 0.48, 0.036, 6), gloveMat);
                 dist.position.set(fx, -0.045, 0.052);
                 dist.rotation.x = -2.1; // 말절골 — 손바닥 쪽으로 말림
                 const joint = new THREE.Mesh(new THREE.SphereGeometry(fw * 0.56, 6, 5), gloveMat);
                 joint.position.set(fx, -0.028, 0.058); // 두 분절 사이 관절 볼록
-                fist.add(prox, dist, joint);
+                // 손끝 — 실린더 단면이 그대로 잘려 '막대를 자른 끝'으로 읽히던 것을 둥근 캡으로 마감
+                const tip = new THREE.Mesh(new THREE.SphereGeometry(fw * 0.40, 6, 5), gloveMat);
+                tip.position.set(fx, -0.061, 0.041);
+                // 너클 — 손등 가드 앞날을 따라 손가락마다 하나씩. 비평가가 '너클 없음'이라 한 자리다
+                // (가드 구체 하나로는 손가락 개수 단서가 안 생긴다). 밝은 스틸이라 니어블랙 장갑 위에서 읽힌다.
+                const knuck = new THREE.Mesh(new THREE.SphereGeometry(fw * 0.44, 6, 5), steel());
+                knuck.scale.set(1, 0.72, 0.9);
+                knuck.position.set(fx, 0.004, 0.040);
+                fist.add(prox, dist, joint, tip, knuck);
                 if (fi < 3) { // 손가락 사이 홈 — 얇은 다크 판이 분절 경계를 실루엣 안에서도 판독시킴
                     const crease = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.05, 0.045), creaseMat);
                     crease.position.set(fx + 0.0118, -0.026, 0.05);

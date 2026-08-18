@@ -2272,7 +2272,19 @@ const Scene3D = {
     // weaponG의 자식으로 원점(파지점)에 두므로 Idle/걷기/공격 전 상태에서 자루-주먹 정렬이 자동 유지된다.
     makeGripWrap(shaftR, invScale) {
         const g = new THREE.Group();
-        const skin = new THREE.MeshStandardMaterial({ color: 0x2e1a0c, metalness: 0, roughness: 0.8, map: ProChar.leatherTex() }); // 히어로 주먹(palmMat)과 동일 가죽 PBR — 0x7a5c46은 강광에서 베이지로 떠 맨손 오독 (비평가 7.4 4번)
+        // ⚠️ 2026-08-18 6차 비평가 재지적 ㉥(양쪽 지목): "오른손이 **모델 전체에서 채도 최고**라 시선이
+        //    얼굴이 아니라 손으로 간다 / 갈색 덩어리에 텍스처 낙서". 실측으로 확인됐다
+        //    (`probe-hand-focus.js`: 파지 랩 채도 **0.612** vs 머리 0.207 vs 영웅 전체 0.425).
+        //    원인은 두 가지고 **둘 다 주석이 주장하던 것과 달랐다**:
+        //    ⑴ 이 재질은 "히어로 주먹(palmMat)과 동일"이라고 적혀 있었지만 실제 palmMat 은
+        //       `deepMat({roughness:0.88, metalness:0.1})` = 니어블랙 0x04050a + **범프만**이다.
+        //       여기만 0x2e1a0c 라는 웜 브라운을 쓰고 있었다 — 같지 않았다.
+        //    ⑵ `map: leatherTex()` 는 **컬러 맵**이라 밝은 베이스(#c9b8a6)를 곱한다. R 배수가 B 배수보다
+        //       커서 곱할수록 주황으로 치우치고(=채도 상승), 텍스처의 랜덤 크랙이 색 얼룩('낙서')으로 뜬다.
+        //       `deepMat` 주석에 이미 "텍스처 맵은 밝은 베이스를 곱하므로 쓰지 않고 범프만 얹는다"고
+        //       적혀 있는데 이 경로만 그 규칙 밖에 있었다.
+        //    → 리그 주먹과 **진짜로** 같은 재질을 쓴다(= deepMat, 컬러 맵 없음).
+        const skin = ProChar.deepMat({ roughness: 0.86, metalness: 0.08 });
         for (let i = 0; i < 3; i++) {
             const seg = new THREE.Mesh(new THREE.TorusGeometry(shaftR + 0.018, 0.021, 7, 14, Math.PI * 1.8), skin);
             seg.rotation.x = Math.PI / 2;    // 링 평면이 자루(로컬 y축)와 직교 — 손가락이 자루를 감는 방향
@@ -2285,6 +2297,17 @@ const Scene3D = {
         const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.048, 8, 6), skin);
         knuckle.scale.set(1.2, 1.05, 0.95); knuckle.position.set(-(shaftR + 0.004), 0, 0);
         g.add(thumb, knuckle);
+        // 너클 가드 + 골드 리벳 — 리그 주먹(prochar.js `guard`/`gRivet`)과 같은 마감.
+        // 니어블랙으로 내리고 나면 이게 없으면 손이 '검은 덩어리'가 된다(리그 주먹이 읽히는 것도
+        // 가죽이 아니라 이 밝은 스틸 + 금 리벳 덕이다). 재질은 ProChar.TONE 을 빌드 시점에 읽어
+        // 갑옷 3톤과 값이 어긋나지 않게 한다.
+        const guardMat = new THREE.MeshStandardMaterial({ color: ProChar.TONE.steel, metalness: 0.85, roughness: 0.34, envMapIntensity: 0.32 });
+        const guard = new THREE.Mesh(new THREE.SphereGeometry(0.044, 9, 7), guardMat);
+        guard.scale.set(0.9, 1.15, 0.8);
+        guard.position.set(-(shaftR + 0.012), 0.004, 0);
+        const gRivet = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 5), new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: 0.95, roughness: 0.3, envMapIntensity: 0.8 }));
+        gRivet.position.set(-(shaftR + 0.042), 0.026, 0);
+        g.add(guard, gRivet);
         g.scale.setScalar(invScale); // weaponG 스케일 상쇄 — 활계 0.6 축소에도 주먹 크기 일정
         return g;
     },

@@ -1,14 +1,14 @@
 // 영웅 파츠 근접 샷 — 실루엣 꺾임을 육안 판독하기 위한 부위별 클로즈업.
 // 전신샷(shot-hero.js)에서는 견갑이 40px·발이 25px 남짓이라 라메 밴드 경계, 발가락 테이퍼,
 // 굽 블록 같은 '꺾임'이 통째로 뭉개진다 — 비평가 잔여 지적 ⓔ(견갑·목)·ⓖ(부츠) 판독 전용.
-// 사용: node shot-part.js [shoulder|foot|skirt] [sil] [zoom=N]   (기본 shoulder / sil = 평면 배경 실루엣 모드)
+// 사용: node shot-part.js [shoulder|foot|skirt|hand] [sil] [zoom=N]   (기본 shoulder / sil = 평면 배경 실루엣 모드)
 //
 // ⚠️ shot-hero.js 의 공격 컷(슬로모 90초 대기)은 이 컨테이너에서 상시 타임아웃이라 여기선 아예 안 찍는다
 //    — 이 스크립트는 정지 포즈 3각(정면/45°/측면) 근접만 찍고 끝낸다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 const OUT = __dirname;
-const PART = ['foot', 'skirt'].includes(process.argv[2]) ? process.argv[2] : 'shoulder';
+const PART = ['foot', 'skirt', 'hand'].includes(process.argv[2]) ? process.argv[2] : 'shoulder';
 // 실루엣 모드 — 지형·소품·안개를 끄고 평면 배경에 파츠만 렌더한다.
 // ⚠️ 부츠는 니어블랙(deepHide)인데다 캐릭터 자신의 그림자 안에 들어가 인게임 프레임에서는
 //    형태가 거의 안 읽힌다 — '둥근 포드'라는 지적도 결국 실루엣 판정이다. 발가락 테이퍼·굽 블록·
@@ -52,7 +52,9 @@ const ZOOM = (() => { const a = process.argv.find(s => s.startsWith('zoom=')); r
         //           한쪽 어깨를 조준하면 반대쪽이 프레임 밖으로 나가고, 오른팔은 검이 견갑을 가린다.
         // foot:     조준점 = 왼 무릎 아래 — 발목·발가락·굽이 한 프레임에 들어온다.
         // skirt: 조준점 = 골반 — 태싯 절개선·간극 V·헴 폭이 한 프레임에 들어온다.
-        const tgt = PART === 'foot'
+        // hand : 조준점 = 오른손 마운트 — 파지 랩·너클 가드·손가락 테이퍼 판독용(비평가 ㉥).
+        const tgt = PART === 'hand' ? (R.arms && R.arms[1] ? R.arms[1].handMount : null)
+            : PART === 'foot'
             ? (R.legs && R.legs[0] ? R.legs[0].knee : null)
             : PART === 'skirt' ? (R.bones && R.bones.pelvis)
             : (R.bones && R.bones.neck);
@@ -70,8 +72,8 @@ const ZOOM = (() => { const a = process.argv.find(s => s.startsWith('zoom=')); r
         fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), orbit);
         // ⚠️ 발은 카메라 높이가 중요하다 — 지면 높이에서 수평으로 보면 발 실루엣이 지면선과 겹쳐
         //    발가락·굽 꺾임이 통째로 안 읽힌다(두 번째 판이 그랬다). 거리의 0.45 만큼 띄워 내려다본다.
-        const dist = (PART === 'foot' ? 0.75 : PART === 'skirt' ? 1.05 : 2.1) / ZOOM;  // 발은 더 작으니 더 붙는다(2.1은 발이 25px)
-        Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * (PART === 'foot' ? 0.45 : PART === 'skirt' ? 0.30 : 0.12), 0)), look: c.clone() };
+        const dist = (PART === 'foot' ? 0.75 : PART === 'skirt' ? 1.05 : PART === 'hand' ? 0.5 : 2.1) / ZOOM;  // 발은 더 작으니 더 붙는다(2.1은 발이 25px)
+        Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * (PART === 'foot' ? 0.45 : PART === 'skirt' ? 0.30 : PART === 'hand' ? 0.20 : 0.12), 0)), look: c.clone() };
         Scene3D.camera.position.copy(Scene3D.camLock.pos);
         Scene3D.camera.lookAt(Scene3D.camLock.look);
     }, [orbit, PART, ZOOM]);
