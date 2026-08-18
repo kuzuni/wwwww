@@ -1236,7 +1236,7 @@ const UI = {
                 <div class="anvil-side right">
                     <div class="forge-actions">
                         ${forgeBtnHtml}
-                        <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.openAutoForge()">
+                        <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.onAutoForgeBtn()">
                             자동${IconGen.img('autoloop', 'auto-loop-ico')}<br>${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : IconGen.img('lock')}</button>
                     </div>
                     ${upgTimeHtml}
@@ -1728,6 +1728,20 @@ const UI = {
     },
 
     // ---- 자동 제련 팝업 (UI-SPEC 21~24번 ④) ----
+    // 메인 화면 [자동 ON/OFF] 버튼 — 꺼져 있으면 설정 팝업을 열고, **돌고 있으면 그 자리에서 끈다**
+    // (사용자 지시 2026-08-19 `auto-toggle-click-off`: "자동 OFF/자동 ON 버튼, 자동모드일 때 클릭하면
+    //  자동모드 끝난 거로 처리하기"). 종전에는 ON 이든 OFF 든 설정 팝업만 떠서, 끄려면 팝업을 열고
+    // [중지]를 한 번 더 눌러야 했다.
+    onAutoForgeBtn() {
+        if (!isUnlocked('autoForge')) { this.toast('🔒 스테이지 2-10 도달 시 해금됩니다'); return; }
+        if (!S.autoForgeOn) { this.openAutoForge(); return; }
+        // 진행 중 사이클도 같이 끊는다 — 망치질 연출·타이머를 걷고(cancelAnvilStrike) 시퀀스를 정지한다.
+        // 이미 뽑힌 장비(대기품·통과분 큐)는 해머를 쓴 결과물이라 정지해도 그대로 남아 선택을 받는다.
+        this.cancelAnvilStrike();
+        this.stopAutoSeq();          // S.autoForgeOn=false · 버튼 갱신 · 저장 · 남은 큐 배출까지 담당
+        this.closeAutoForge();
+        this.toast('⏹ 자동 제련을 종료했습니다');
+    },
     openAutoForge() {
         if (!isUnlocked('autoForge')) { this.toast('🔒 스테이지 2-10 도달 시 해금됩니다'); return; }
         this.renderAutoForge();
