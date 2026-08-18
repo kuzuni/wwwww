@@ -2244,9 +2244,16 @@ const UI = {
     renderGearDetail() {
         const slot = this._gearDetailSlot;
         if (!slot) return;
+        // 다른 팝업과 같은 골격(`.idet-wrap` + 카드 아래 빨간 ✕)을 쓴다 — 이 팝업만 ✕ 가 없어서
+        // 화면에 보이는 닫는 길이 하나도 없었다(배경 탭만 먹혔고 ESC 는 이 게임 어디서도 안 먹는다).
+        // ⚠️ `.idet-wrap` 은 카드 아래로 튀어나온 ✕ 까지 끌어안는다. 이 팝업은 하단 앵커라
+        //    그만큼 카드가 위로 뜬다 — style.css 의 `padding-bottom` 에서 그 몫을 빼 뒀다.
         this.els.gearDetailModal.innerHTML = `
-            <div class="modal-card wide gd-card">
-                <div class="cmp-wrap">${this.itemCardHTML(S.equipment[slot], '장착됨', null, false)}</div>
+            <div class="idet-wrap">
+                <div class="modal-card wide gd-card">
+                    <div class="cmp-wrap">${this.itemCardHTML(S.equipment[slot], '장착됨', null, false)}</div>
+                </div>
+                <button class="x-btn" onclick="UI.closeGearDetail()">✕</button>
             </div>`;
     },
         closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); this._gearDetailSlot = null; },

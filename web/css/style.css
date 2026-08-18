@@ -1148,7 +1148,11 @@ body {
 /* 원본 실측(shot-043244, 497×897): 흰 카드(‘장착됨’ 탭 포함) 바운딩 박스가 y 59.64%H → 하단 77.15%H.
    이전 값(탭바 높이 + .8rem)은 카드 하단이 88.45%H 로 **+11.30%p 아래**에 붙어 있었다(폭·높이는
    원본과 ±0.6%p 로 이미 맞았고 세로 위치만 어긋난 케이스). 바닥에서 띄우는 양을 실측값으로 지정한다. */
-#gear-detail-modal { align-items: flex-end; padding-bottom: calc(var(--app-h) * .223); }
+/* 2026-08-18: 이 팝업에도 다른 팝업과 같은 ✕ 를 달았다(`geardetail-no-close`). `.idet-wrap` 이
+   카드 아래로 반쯤 튀어나온 ✕ 까지 끌어안는데 여기는 **하단 앵커**라, 그대로 두면 그 몫(✕ 높이
+   3.4rem + margin-top −1.7rem = 1.7rem)만큼 카드가 통째로 위로 뜬다. 위에서 실측해 맞춰 둔
+   카드 하단 위치를 지키려고 padding-bottom 에서 같은 값을 뺀다(실측: 카드 하단 77.70%H 유지). */
+#gear-detail-modal { align-items: flex-end; padding-bottom: calc(var(--app-h) * .223 - 1.7rem); }
 #gear-detail-modal .gd-card { width: 70%; }
 /* 장비 비교 팝업은 원본(shot-043224)처럼 하단 앵커 (버튼줄이 화면 ~78%H) */
 /* 원본(043224) 카드 하단은 86.90%H인데 `+.8rem`으로는 88.45%H로 1.55%p **낮게** 앉아 카드가 통째로 밀렸다.
