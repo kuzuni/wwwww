@@ -5813,11 +5813,38 @@ const Scene3D = {
     // rate = 박자(rad/s) · bob = 상하 진폭 · bobPow = 체공 곡선(>1 이면 아래에 오래 머물러 **무겁게**,
     // <1 이면 위에 오래 떠 **가볍게**) · roll = 좌우 흔들 · hip = 다리 스윙 · arm = 팔 스윙 ·
     // lean = 전방 기울기(고블린의 굽은 등, 임프의 돌진 자세).
+    // 이족(golem·goblin·imp)만이 아니라 **네 발·비행·홉·젤리 종도 여기서 값을 뽑는다.** 예전엔 그쪽
+    // 분기마다 상수가 박혀 있어 ⑴ 한 곳에서 튜닝할 수 없고 ⑵ **보스가 되어도 박자가 안 변했다**(아래).
     ENEMY_GAIT: {
         golem: { rate: 4.2, bob: 0.05, bobPow: 1.9, roll: 0.055, hip: 0.34, arm: 0.40, lean: 0.02 },
         goblin: { rate: 10.5, bob: 0.05, bobPow: 1.0, roll: 0.035, hip: 0.88, arm: 0.72, lean: 0.10 },
         imp: { rate: 12.0, bob: 0.062, bobPow: 0.7, roll: 0.03, hip: 0.78, arm: 0.66, lean: 0.13 },
+        wolf: { rate: 11, bob: 0.05, bobPow: 1.0, legRate: 13, tailRate: 9, pitch: 0.03 },
+        bat: { rate: 5, bob: 0.1, bobPow: 1.0, hover: 0.12, wingRate: 16 },
+        mushroom: { rate: 7, bob: 0.17, bobPow: 1.0, capTilt: 0.13, capAmp: 0.035 },
+        slime: { rate: 6, bob: 0.12, bobPow: 1.0, jellyAmp: 0.16 },
         _default: { rate: 8, bob: 0.055, bobPow: 1.0, roll: 0.05, hip: 0.8, arm: 0.65, lean: 0 },
+    },
+    BOSS_SCALE: 1.9,
+    // 보스는 **같은 메시를 그대로 키운 것**이라(g.scale 1.9) 박자까지 같으면 '크기만 키운 장난감'으로
+    // 읽힌다 — 큰 짐승이 작은 짐승과 같은 보폭으로 종종거리는 게 정확히 그 인상이다.
+    // 진자처럼 보행 주기는 다리 길이의 제곱근에 비례하므로 **박자를 1/√배율(≈0.73)로 늦춘다.**
+    // 체공 곡선도 한 단계 무겁게(+0.35) 해서 착지에 무게를 싣고, 좌우 흔들은 키워 관성을 준다.
+    // ⚠️ 스윙 각(hip·arm)은 오히려 **줄인다** — 느려진 박자에 같은 각을 그대로 두면 팔다리가
+    //    허공을 휘젓는 인상이 된다(큰 개체일수록 관절 가동이 상대적으로 작다).
+    gaitOf(kind, isBoss) {
+        const G = this.ENEMY_GAIT[kind] || this.ENEMY_GAIT._default;
+        if (!isBoss) return G;
+        const k = 1 / Math.sqrt(this.BOSS_SCALE);
+        const o = {};
+        for (const key in G) o[key] = G[key];
+        for (const r of ['rate', 'legRate', 'tailRate', 'wingRate']) if (o[r]) o[r] = G[r] * k;
+        o.bob = G.bob * 1.15;
+        o.bobPow = G.bobPow + 0.35;
+        if (G.roll) o.roll = G.roll * 1.2;
+        if (G.hip) o.hip = G.hip * 0.9;
+        if (G.arm) o.arm = G.arm * 0.9;
+        return o;
     },
     monsterMesh(e) {
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
@@ -6633,7 +6660,7 @@ const Scene3D = {
             topY = 0.98;
         }
         if (e.isBoss) {
-            g.scale.setScalar(1.9);
+            g.scale.setScalar(this.BOSS_SCALE);
             const crown = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.26, 5), new THREE.MeshLambertMaterial({ color: 0xffd54f, emissive: 0xffd54f, emissiveIntensity: 0.4 }));
             crown.position.y = topY;
             g.add(crown);
@@ -8732,39 +8759,40 @@ const Scene3D = {
             const walking = e.x > Combat.stopXOf(e) + 0.05;
             if (m.g.userData.landed) {
                 const clk = this._clock, id = e.id;
+                // 종별 프로파일 — 보스면 배율에 맞춰 박자가 느려지고 무거워진다(gaitOf 주석 참조).
+                const G = this.gaitOf(m.anim && m.anim.kind, e.isBoss);
                 if (m.anim && m.anim.fly) {
                     // 박쥐류: 공중 부양 + 날개 퍼덕임
-                    m.g.position.y = 0.12 + Math.sin(clk * 5 + id) * 0.1;
-                    m.anim.wings.forEach(w => w.rotation.z = w.userData.s * (0.3 + Math.sin(clk * 16 + id) * 0.55));
+                    m.g.position.y = G.hover + Math.sin(clk * G.rate + id) * G.bob;
+                    m.anim.wings.forEach(w => w.rotation.z = w.userData.s * (0.3 + Math.sin(clk * G.wingRate + id) * 0.55));
                 } else if (walking) {
                     if (m.anim && m.anim.kind === 'wolf') {
                         // 늑대: 네 다리 질주
-                        m.g.position.y = Math.abs(Math.sin(clk * 11 + id)) * 0.05;
+                        m.g.position.y = Math.pow(Math.abs(Math.sin(clk * G.rate + id)), G.bobPow) * G.bob;
                         m.anim.legs.forEach((lg, j) => {
                             // 로터리 갤럽 위상: 앞발 쌍·뒷발 쌍이 살짝 어긋나 어느 프레임에도 4지 동시 접지가 없음 (비평가: 죽은 프레임 금지)
-                            const lp = clk * 13 + id + [0, 1.1, 3.25, 4.35][j];
+                            const lp = clk * G.legRate + id + [0, 1.1, 3.25, 4.35][j];
                             lg.rotation.x = Math.sin(lp) * 0.85;
                             const kn = m.anim.knees && m.anim.knees[j];
                             // 스윙 복귀 구간 무릎 접힘 — 앞다리는 뒤로, 뒷다리는 앞으로 (사족 관절 방향). 접힘각 상향 (사용자 재검수: 정지 프레임 판독)
                             if (kn) kn.rotation.x = kn.userData.rx0 + (kn.userData.front ? -1 : 1) * Math.max(0, Math.sin(lp + 1.3)) * 0.85;
                         });
-                        m.g.rotation.x = Math.sin(clk * 11 + id) * 0.03;
-                        if (m.anim.tail) m.anim.tail.rotation.z = Math.sin(clk * 9 + id) * 0.25; // 질주 중 꼬리 좌우 휘날림
+                        m.g.rotation.x = Math.sin(clk * G.rate + id) * G.pitch;
+                        if (m.anim.tail) m.anim.tail.rotation.z = Math.sin(clk * G.tailRate + id) * 0.25; // 질주 중 꼬리 좌우 휘날림
                     } else if (m.anim && m.anim.hop) {
                         // 버섯: 크게 총총 + 갓 출렁 + **테두리 플랩**(우산 살 2차 모션)
-                        m.g.position.y = Math.abs(Math.sin(clk * 7 + id)) * 0.17;
-                        if (m.anim.cap) m.anim.cap.rotation.z = Math.sin(clk * 7 + id) * 0.13;
-                        this.driveCapFlap(m, clk, 0.035, id);
+                        m.g.position.y = Math.pow(Math.abs(Math.sin(clk * G.rate + id)), G.bobPow) * G.bob;
+                        if (m.anim.cap) m.anim.cap.rotation.z = Math.sin(clk * G.rate + id) * G.capTilt;
+                        this.driveCapFlap(m, clk, G.capAmp, id);
                     } else if (m.anim && m.anim.kind === 'slime') {
                         // 슬라임: 젤리 스쿼시 점프 — 몸통 스케일을 통째로 흔들지 않고 **정점 웨이브**로 민다.
                         // (강체 스케일은 '크기가 변하는 풍선'이라 젤리로 안 읽혔다 — driveJelly 주석 참조.)
-                        m.g.position.y = Math.abs(Math.sin(clk * 6 + id)) * 0.12;
-                        this.driveJelly(m, clk, 0.16, id);
+                        m.g.position.y = Math.pow(Math.abs(Math.sin(clk * G.rate + id)), G.bobPow) * G.bob;
+                        this.driveJelly(m, clk, G.jellyAmp, id);
                     } else {
                         // 이족보행: 관절 걷기 — 고관절 스윙+무릎 굽힘, 어깨 스윙+팔꿈치 굽힘 (통짜 막대기 금지)
-                        // ⓓ: 박자·진폭을 **종별 프로파일**에서 뽑는다. 예전엔 셋 다 clk*8 고정이라
+                        // ⓓ: 박자·진폭을 **종별 프로파일**(위 G)에서 뽑는다. 예전엔 셋 다 clk*8 고정이라
                         //    골렘·고블린·임프의 걸음이 구분이 안 됐다(ENEMY_GAIT 주석 참조).
-                        const G = this.ENEMY_GAIT[m.anim.kind] || this.ENEMY_GAIT._default;
                         const ph = clk * G.rate + id; // 종마다 주기가 달라 연속 캡처 정수배 겹침도 자연히 갈린다
                         // bobPow — 골렘은 아래에 오래 머물러 '쿵' 하고 내려앉고, 임프는 위에 오래 떠 가볍다.
                         m.g.position.y = Math.pow(Math.abs(Math.sin(ph)), G.bobPow) * G.bob;

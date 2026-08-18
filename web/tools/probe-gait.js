@@ -20,7 +20,7 @@
 //  ④ 종끼리 실제로 다른가 — 위 셋이 종별로 갈리는지. 같으면 ⓓ 가 안 된 것이다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
-const KINDS = process.argv.slice(2).length ? process.argv.slice(2) : ['golem', 'goblin', 'imp'];
+const KINDS = process.argv.slice(2).length ? process.argv.slice(2) : ['golem', 'goblin', 'imp', 'wolf', 'mushroom', 'slime'];
 
 const N = 480;          // 8초분 @60fps
 const PERIOD_TOL = 0.12; // 실측 주기가 코드 기대치에서 벗어나도 되는 비율
@@ -55,7 +55,8 @@ const runKind = async (browser, KIND) => {
         e.x = Combat.stopXOf(e) + 5;             // walking = true 로 고정
         Scene3D.worldX = 0;
 
-        const gait = Scene3D.ENEMY_GAIT[m.anim.kind] || Scene3D.ENEMY_GAIT._default;  // 코드가 준 값을 읽는다
+        const gait = Scene3D.gaitOf(m.anim.kind, false);      // 코드가 준 값을 읽는다(일반 개체)
+        const bossGait = Scene3D.gaitOf(m.anim.kind, true);   // 같은 종의 보스 프로파일
 
         const ys = [], legs = [];
         for (let i = 0; i < N; i++) {
@@ -63,7 +64,7 @@ const runKind = async (browser, KIND) => {
             e.alive = true;
             Scene3D.update(1 / 60);
             ys.push(m.g.position.y);
-            const rig = m.anim.gleg || (m.anim.bleg && m.anim.bleg.map(L => L.hip));
+            const rig = m.anim.gleg || (m.anim.bleg && m.anim.bleg.map(L => L.hip)) || m.anim.legs;
             legs.push(rig ? rig.map(o => o.rotation.x) : []);
         }
 
@@ -75,7 +76,7 @@ const runKind = async (browser, KIND) => {
             swing.push(Math.max(...col) - Math.min(...col));
         }
 
-        return { kind: m.anim.kind, gait, ys, swing, nLeg };
+        return { kind: m.anim.kind, gait, bossGait, bossScale: Scene3D.BOSS_SCALE, ys, swing, nLeg };
     }, N);
 
     await page.close();
@@ -101,9 +102,14 @@ const runKind = async (browser, KIND) => {
 
     const minSwing = Math.min(...swing);
     console.log(`\n[${res.kind}] rate ${gait.rate} · bobPow ${gait.bobPow} · 다리 ${res.nLeg}개`);
-    if (!res.nLeg) fails.push('① 다리 리그가 없다 — anim.gleg/bleg 확인');
-    if (minSwing < 0.05) fails.push(`① 다리 스윙 진폭 최소 ${minSwing.toFixed(4)} rad — 다리가 안 움직인다`);
-    console.log(`① 다리 스윙 p-p ${swing.map(v => v.toFixed(3)).join(' / ')} rad ... ${res.nLeg && minSwing >= 0.05 ? 'PASS' : 'FAIL'}`);
+    // 슬라임·버섯은 다리가 없는 종이라 ① 을 면제한다(젤리 웨이브·홉이 그쪽의 고유 모션이다).
+    const LEGLESS = ['slime', 'mushroom'];
+    const legExempt = LEGLESS.includes(res.kind);
+    if (!legExempt) {
+        if (!res.nLeg) fails.push('① 다리 리그가 없다 — anim.gleg/bleg/legs 확인');
+        if (minSwing < 0.05) fails.push(`① 다리 스윙 진폭 최소 ${minSwing.toFixed(4)} rad — 다리가 안 움직인다`);
+    }
+    console.log(`① 다리 스윙 ${legExempt ? '해당 없음(다리 없는 종)' : swing.map(v => v.toFixed(3)).join(' / ') + ' rad'} ... ${legExempt || (res.nLeg && minSwing >= 0.05) ? 'PASS' : 'FAIL'}`);
 
     const err = expect ? Math.abs(period - expect) / expect : 1;
     if (err > PERIOD_TOL) fails.push(`② 실측 주기 ${period.toFixed(4)}s 가 코드 기대치 ${expect.toFixed(4)}s 에서 ${(err * 100).toFixed(1)}% 벗어남`);
@@ -124,6 +130,16 @@ const runKind = async (browser, KIND) => {
     if (!dirOk) fails.push(`③ bobPow ${gait.bobPow} 인데 중앙값 ${medN.toFixed(3)} 이 중립선 ${NEUTRAL.toFixed(3)} 의 반대쪽이다`);
     console.log(`③ 체공 곡선 중앙값 ${medN.toFixed(3)} vs 기대 ${expectMed.toFixed(3)} (중립선 ${NEUTRAL.toFixed(3)}, ${gait.bobPow > 1.15 ? '무겁게' : gait.bobPow < 0.85 ? '가볍게' : '중립'}) ... ${shapeOk ? 'PASS' : 'FAIL'}`);
     console.log(`   상하 진폭 ${(yMax - yMin).toFixed(4)} · 콘솔 에러 ${errors.length}건`);
+
+    // ⑤ 보스 프로파일 — 같은 메시를 1.9배로 키우는 만큼 박자가 1/√배율로 느려져야 한다.
+    //    ⚠️ 기대 계수를 프로브에 베끼지 않는다(함정 ④⑴) — `Scene3D.BOSS_SCALE` 을 코드에서 읽어 만든다.
+    const bg = res.bossGait, kExp = 1 / Math.sqrt(res.bossScale);
+    const kAct = bg.rate / gait.rate;
+    const kErr = Math.abs(kAct - kExp) / kExp;
+    const heavier = bg.bobPow > gait.bobPow;
+    if (kErr > 0.02) fails.push(`⑤ 보스 박자 계수 ${kAct.toFixed(4)} 가 1/√${res.bossScale} = ${kExp.toFixed(4)} 에서 벗어남`);
+    if (!heavier) fails.push(`⑤ 보스 bobPow ${bg.bobPow} 가 일반 ${gait.bobPow} 보다 무겁지 않다`);
+    console.log(`⑤ 보스 박자 ${gait.rate.toFixed(2)} → ${bg.rate.toFixed(2)} (계수 ${kAct.toFixed(4)} vs 기대 ${kExp.toFixed(4)}) · bobPow ${gait.bobPow} → ${bg.bobPow} ... ${kErr <= 0.02 && heavier ? 'PASS' : 'FAIL'}`);
 
     if (errors.length) fails.push(`콘솔 에러 ${errors.length}건: ${errors.slice(0, 2).join(' | ')}`);
     return { fails: fails.map(f => `[${res.kind}] ${f}`), sig: { kind: res.kind, period: +period.toFixed(4), medN: +medN.toFixed(3), amp: +(yMax - yMin).toFixed(4) } };
