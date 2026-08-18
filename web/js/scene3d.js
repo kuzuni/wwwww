@@ -217,7 +217,9 @@ const Scene3D = {
     //   티가 안 나지만, 누우면 몸이 지면 그늘과 같은 평면을 차지해 '검은 구멍 위의 은색 덩어리'가 된다.
     //   비용 때문에 **캐릭터(영웅·적·탈것·펫)에만** 켠다 — 배경 소품까지 켜면 저사양 폰에서 픽셀 비용이 는다.
     setShadow(g, receive) {
-        g.traverse(o => { if (o.isMesh) { o.castShadow = true; if (receive) o.receiveShadow = true; } });
+        // 인버티드 헐 아웃라인 셸은 제외 — 원 메시보다 살짝 부푼 뒷면 복제라, 그림자를 던지게 두면
+        // 원 메시의 섀도맵을 한 텍셀씩 밀어 접지 그림자가 이중 윤곽으로 번진다.
+        g.traverse(o => { if (o.isMesh && !o.userData.isOutline) { o.castShadow = true; if (receive) o.receiveShadow = true; } });
         return g;
     },
 
@@ -2396,6 +2398,13 @@ const Scene3D = {
             this.chestPlate.visible = style !== 'hide' && style !== 'robe';
             this.clearGroup(this.armorExtraG);
             this.armorExtraG.add(this.makeArmorExtras(style, c, ec, a ? this.ageGearMats(a.age, itemNameOf(a)) : null));
+        }
+        // 인버티드 헐 아웃라인 — 투구·무기는 리그와 달리 장비를 갈 때마다 통째로 다시 만들어지므로
+        // 여기서 매번 다시 씌운다. 안 씌우면 몸통만 테두리가 있고 머리·검은 없는 상태가 되어
+        // 오히려 '머리가 떠 있다'로 읽힌다(w=0.022 캡처에서 육안 확인).
+        if (this.heroRig) {
+            ProChar.addOutline(this.helmetG, 'helmet');
+            ProChar.addOutline(this.weaponG, 'weapon');
         }
         this.tintHero(); // 리그 파츠별 색 오버레이 동기화
         // 장비 교체 연출: 반짝 + 상승 파티클
@@ -5449,6 +5458,10 @@ const Scene3D = {
         m.g.rotation.y = -0.55; // 영웅 방향(-x)으로 3/4 자세
         this.setShadow(m.g, true);
         this.applyRimLight(m.g);
+        // 영웅과 같은 인버티드 헐 아웃라인 — 한쪽만 걸면 같은 화면에 렌더 스타일이 두 개가 되어
+        // 오히려 '적만 납작하다'로 읽힌다(hero-attack-mid 캡처에서 육안 확인).
+        // bucket=null: 적은 스폰/디스포즈를 반복하므로 레지스트리에 등록하지 않는다.
+        ProChar.addOutline(m.g, null);
         this.scene.add(m.g);
         // 적 바는 **적대 빨강**으로 못 박는다 — 영웅 바와 같은 초록/노랑/빨강 램프를 쓰면 둘이
         // 같은 색이라 피아 구분이 안 됐다(비평가 4차 ⓓ). 남은 체력은 어차피 **바 길이**가 말해 주므로
