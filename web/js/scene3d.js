@@ -6733,7 +6733,14 @@ const Scene3D = {
         const mats = [];
         m.g.traverse(o => {
             if (!o.isMesh || !o.material) return;
-            (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => { mt.transparent = true; mats.push(mt); });
+            // ⚠️ 원래 불투명이 **아니었던** 재질은 자기 불투명도를 기준으로 디졸브해야 한다.
+            // 예전엔 아래에서 `opacity = 1 - f` 로 통째로 덮어썼는데, 쓰러짐 구간에서는 f 가 0 이라
+            // 젤리 몸통(0.82)·정수리 광택(0.38)·막날개(0.76/0.85)·접촉 AO 링(0.42~0.58)이
+            // **죽는 첫 프레임에 불투명으로 팍 튀었다** — 관절 AO 가 '검은 테로 켜지는' 걸로 보인다.
+            (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => {
+                if (mt.userData.dissolveBase === undefined) mt.userData.dissolveBase = mt.transparent ? mt.opacity : 1;
+                mt.transparent = true; mats.push(mt);
+            });
         });
         // 진행 중이던 히트축 스쿼시를 먼저 접는다 — update 루프는 `!e.alive`를 건너뛰므로 여기서 안 끄면
         // 시체가 눌린 채(x 0.86 등) 영원히 굳고, 아래 `sy0`가 부푼 값을 기준으로 잡아 쓰러지는 시체 키가
@@ -6770,7 +6777,7 @@ const Scene3D = {
                 // 지각되기 전에 사라져 순간 소멸처럼 보인다. 그 뒤 남은 시간 전부를 디졸브에 쓴다.
                 const kHold = kDown + 0.18 / dur;
                 const f = k < kHold ? 0 : (k - kHold) / (1 - kHold);
-                mats.forEach(mt => mt.opacity = 1 - f); // 디졸브
+                mats.forEach(mt => mt.opacity = (mt.userData.dissolveBase !== undefined ? mt.userData.dissolveBase : 1) * (1 - f)); // 디졸브 (재질별 원래 불투명도 기준)
                 if (m.blob) m.blob.scale.setScalar(0.95 * (1 - f)); // 공유 재질인 블롭 섀도우는 스케일로만 축소
             }
         }, () => {
