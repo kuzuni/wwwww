@@ -112,11 +112,21 @@ const TIMELINES = [
         // ⚠️ 시드 주입과 소환 실행은 **한 evaluate 안**에 있어야 한다 — 따로 부르면 그 사이
         // 게임 루프(챗봇·전투 틱)가 난수를 먹어 같은 시드가 회차마다 다른 등급을 낸다.
         await page.evaluate((seed ? RNG(seed) + ';' : '') + open);
+        // 🚨 **정지 프레임의 파일명 시각은 근사값이다 — 채점에서 프레임 간 타이밍 비교에 쓰지 말 것.**
+        // swiftshader 에서 스크린샷 한 장이 150~220ms 걸리는데 프레임 간격이 그보다 좁으면
+        // (예: 120 → 380 = 260ms) 다음 캡처가 밀려 **실제 시각이 파일명보다 늦는다.**
+        // 10차 비평가 A ⓼ 가 "카테고리마다 연출 속도가 다르다(같은 t=900 에 skill 3개 vs mount 1개)"
+        // 라고 지적했는데, 세 kind 의 `_srDelays` 는 [480,730,980,1230,1480] 로 **완전히 동일**하고
+        // evaluate 반환 시각 차이도 32ms 뿐이었다 — 즉 연출이 아니라 **이 밀림이 원인**이다
+        // (스틸이 6장인 skill 만 뒤쪽 프레임이 크게 밀린다). 그래서 실제 경과를 같이 찍는다.
+        // 타이밍을 정확히 봐야 하면 아래 TIMELINES 의 시크 캡처를 쓸 것 — 그쪽은 결정론적이다.
+        const actual = [];
         for (const t of times) {
             const wait = t - (Date.now() - t0);
             if (wait > 0) await page.waitForTimeout(wait);
-            await page.screenshot({ path: path.join(OUT, `${name}-${t}.png`) });
+            actual.push(`${t}→${Date.now() - t0}`);
         }
+        console.log(`${name} 실시간 경과였다면(ms): ${actual.join(' · ')}`);
         // 상태 점검: 연출 종료 여부 + 셀 수 + 확인 버튼 노출 + 행 분포(고아 행 확인)
         const st = await page.evaluate(`(() => {
             const m = UI.els.summonResultModal;
@@ -144,6 +154,25 @@ const TIMELINES = [
         const closed = await page.evaluate(`UI.els.summonResultModal.classList.contains('hidden')`);
         console.log(`${name} closed-by-tap: ${closed}`);
         await page.close();
+
+        // 🚨 **스틸은 두 번째 패스에서 시크로 찍는다 — 실시간 캡처의 파일명 시각은 거짓이다.**
+        // swiftshader 에서 스크린샷 한 장이 150~220ms 인데 프레임 간격이 그보다 좁으면
+        // (120 → 380 = 260ms) 다음 캡처가 밀리고, **밀린 양이 그 케이스의 스틸 장수에 비례**한다.
+        // 실측: 스틸 6장인 `skill-x5` 는 `-900.png` 가 실제로 **1512ms**(612ms 늦음), 스틸 2장인
+        // `mount-x5` 는 **1134ms**(234ms). 10차 비평가 A ⓼ 가 "카테고리마다 연출 속도가 다르다
+        // (같은 t=900 에 skill 3개 vs mount 1개 안착)"고 지적한 것의 정체가 이것이다 — 세 kind 의
+        // `_srDelays` 는 [480,730,980,1230,1480] 로 **완전히 동일**하고 evaluate 반환 차이도 32ms 뿐이다.
+        // 즉 **연출은 같은데 파일명만 거짓말**을 하고 있었고, 회차마다 스틸로 타이밍을 비교한
+        // 채점이 전부 이 왜곡을 먹었다. 위 라인의 '실시간 경과였다면' 로그가 그 왜곡량이다.
+        const sp = await newPage(name + ':seek', seed);
+        await sp.evaluate((seed ? RNG(seed) + ';' : '') + open);
+        await sp.evaluate(`UI.clearSummonTimers()`);
+        for (const t of times) {
+            await sp.evaluate(`(${SEEK})(${t})`);
+            await sp.evaluate(`(${SEEK})(${t})`); // 클래스가 바뀌는 시각은 두 번 — 새 애니메이션은 첫 호출의 목록에 없다
+            await sp.screenshot({ path: path.join(OUT, `${name}-${t}.png`) });
+        }
+        await sp.close();
     }
 
     // 연속 프레임 — 연출을 ms 단위로 세워 놓고 훑는다. 실시간 캡처는 스크린샷 한 장이
