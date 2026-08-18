@@ -2397,8 +2397,11 @@ const UI = {
                 }
                 if (x1 >= 0) {
                     const fill = Math.max((x1 - x0 + 1) / w, (y1 - y0 + 1) / h);
-                    // 배율은 상한을 둔다 — 빈 캔버스에 가까운 썸네일이 나와도 화면을 뚫지 않게
-                    const k = Math.min(3.2, Math.max(1, this.THUMB_INK / Math.max(0.05, fill)));
+                    // 배율은 상한만 둔다 — 빈 캔버스에 가까운 썸네일이 나와도 화면을 뚫지 않게.
+                    // 하한 1을 두면 안 된다: 3D가 프레이밍을 꽉 채우게 바꾸면(fill>0.83) 축소가
+                    // 필요한데 1에 잘려 잉크가 90%대로 커진다(cell-icon-oversize 회귀의 원인 실측).
+                    // fill≤1 이라 k는 자연히 THUMB_INK(0.83) 아래로 안 내려간다 — 별도 하한 불필요.
+                    const k = Math.min(3.2, this.THUMB_INK / Math.max(0.05, fill));
                     // 잉크 중심을 프레임 중심으로: scale 먼저라 translate는 스케일 전 좌표계(요소 크기 %)
                     const ox = -((x0 + x1 + 1) / 2 / w - 0.5) * 100;
                     const oy = -((y0 + y1 + 1) / 2 / h - 0.5) * 100;

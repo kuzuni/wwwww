@@ -1,0 +1,19 @@
+#!/bin/sh
+# 회귀 목록 — 판정(exit 코드)을 제대로 내는 프로브를 여기 등재하고, 세션 시작/종료 때 돌린다.
+# 배경: probe-cell-icon-size.js 는 판정까지 완비된 프로브였는데 아무도 안 돌려서
+#       2026-08-17 통과(83.0%)가 +7%p 회귀(90%대)로 조용히 썩었다 (TODO cell-icon-oversize).
+# 규칙: ① 여기 넣는 프로브는 PASS/FAIL 판정과 exit 코드가 있어야 한다(측정 덤프는 넣지 말 것)
+#       ② 항목을 [x] 로 만들 때 그 판정기를 한 줄 추가할 것 ③ 전부 통과해야 exit 0.
+cd "$(dirname "$0")" || exit 1
+fail=0
+for p in \
+    probe-cell-icon-size.js \
+; do
+    echo "── $p"
+    node "$p" >/tmp/regress-out.txt 2>&1
+    code=$?
+    tail -3 /tmp/regress-out.txt
+    [ $code -ne 0 ] && { echo "❌ $p (exit $code)"; fail=1; }
+done
+[ $fail -eq 0 ] && echo "✅ 회귀 목록 전부 통과" || echo "❌ 회귀 발견 — 위 FAIL 프로브를 TODO에 등재할 것"
+exit $fail
