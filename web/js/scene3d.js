@@ -7535,7 +7535,10 @@ const Scene3D = {
                 }, () => { this.disposeTree(rock); this.scene.remove(rock); this.explosion(tp, color); this.shake(0.2); });
             }, i * 90));
         } else if (fx === 'explode' || fx === 'breath') {
-            targets.forEach((m, i) => setTimeout(() => this.explosion(m.g.position.clone(), color), i * 60));
+            targets.forEach((m, i) => setTimeout(() => {
+                this.explosion(m.g.position.clone(), color);
+                if (fx === 'explode') this.firePillar(m.g.position.clone(), color, tier || 0); // 화염류=치솟는 불기둥 (항목 ㉰)
+            }, i * 60));
         } else if (fx === 'ring') {
             this.expandRing(this.heroG.position.clone(), color, 5);
             this.expandRing(this.heroG.position.clone(), new THREE.Color(0xffffff), 3.5);
@@ -7630,6 +7633,42 @@ const Scene3D = {
             else a = Math.max(0, 1 - (t - 0.12) / 0.2);                  // 페이드
             mats.forEach((mt, i) => mt.opacity = op0[i] * a);
         }, () => { this.disposeTree(group); this.scene.remove(group); });
+    },
+
+    // 화염 스킬(fireball·supernova)의 치솟는 불기둥 (항목 ㉰: 화염류=파티클 불기둥+잔광).
+    // 예전 explode 는 사방으로 퍼지는 폭발뿐이라 '수평으로 터지는 것'이었고 '불'의 정체성(위로
+    // 치솟는 불꽃)이 없었다. 밑에서 위로 **자라며 흔들리는** 가산 화염 기둥 + 치솟는 불티로 세운다.
+    firePillar(pos, color, tier) {
+        const h = 1.4 + tier * 0.35, r = 0.34 + tier * 0.05;
+        // 3겹: 바깥 색 불꽃 → 안쪽 살구 → 흰 코어. 아래가 굵고 위가 가는 화염 실루엣(원뿔 역방향).
+        const cone = (rad, top, colHex, op) => {
+            const m = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.35, rad, h, 8, 1, true),
+                new THREE.MeshBasicMaterial({ color: colHex, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+            m.position.y = h / 2;
+            return m;
+        };
+        const grp = new THREE.Group();
+        grp.position.set(pos.x, pos.y, pos.z);
+        // 가산 합성은 겹칠수록 흰색으로 밀린다 — 흰 코어를 크게 주면 '불'이 아니라 '흰 원뿔'이 된다
+        // (첫 판 실측). 그래서 **색 껍질을 짙게, 흰 코어는 가늘고 옅게** 잡아 화염 색이 지배하게 한다.
+        grp.add(cone(r, h, color.getHex(), 0.85));      // 바깥 = 스킬 색 (지배색)
+        grp.add(cone(r * 0.58, h * 0.94, 0xff6a1f, 0.6)); // 중간 = 진한 주황
+        grp.add(cone(r * 0.24, h * 0.86, 0xffd98a, 0.5)); // 코어 = 가늘고 옅은 밝은 불
+        this.scene.add(grp);
+        // 치솟는 불티 — 기둥 둘레에서 위로 흐른다
+        for (let i = 0; i < Math.round(8 + tier * 4); i++) {
+            const a = U.rand(0, Math.PI * 2), rr = U.rand(0, r * 0.7);
+            this.riseParticle(pos.clone().add(new THREE.Vector3(Math.cos(a) * rr, U.rand(0, 0.3), Math.sin(a) * rr)), color);
+        }
+        // 자람(0.12s) → 일렁이며 유지 → 페이드. y 스케일로 치솟고, x/z 로 살짝 흔든다.
+        this.addAnim(0.42, k => {
+            const grow = Math.min(1, k / 0.28);                 // 0.12s 안에 다 자란다
+            const fade = k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5;
+            grp.scale.y = grow;
+            const flick = 1 + Math.sin(k * 40) * 0.08;
+            grp.scale.x = grp.scale.z = flick;
+            grp.children.forEach((c, i) => { c.material.opacity = [0.85, 0.6, 0.5][i] * fade * (0.85 + 0.15 * Math.sin(k * 55 + i)); });
+        }, () => { this.disposeTree(grp); this.scene.remove(grp); });
     },
 
     // 순간 광원 플래시 (연출 강화)
