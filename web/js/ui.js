@@ -288,7 +288,7 @@ const UI = {
                     <span class="sr-ray"></span>
                     <span class="sr-beam"></span>
                     <span class="sr-ghost"></span>
-                    <span class="sr-orb">${e.icon}</span>
+                    <span class="sr-orb"><i class="sr-ico">${e.icon}</i></span>
                     <span class="sr-spark"></span>
                     ${e.qty > 1 ? `<b class="sr-qty">×${e.qty}</b>` : ''}
                     ${e.extra ? `<b class="sr-dup">${e.extra}</b>` : ''}

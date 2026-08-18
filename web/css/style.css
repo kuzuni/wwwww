@@ -4523,6 +4523,30 @@ body {
                 inset -.1rem -.16rem .5rem rgba(255,255,255,.2), /* 반대편 바운스 림 */
                 0 .5rem .8rem -.15rem rgba(0,0,0,.7);
 }
+/* ===== 아이콘 조명 통합 (10차 비평가 B ⓺ [중간] "아이콘이 구체 조명을 안 받아 스티커로 읽힌다") =====
+   ⚠️ B 가 지적한 것은 **이모지라는 점이 아니라 조명 통합 부재**다(에셋 교체는 별도 항목이고
+   '외부 에셋 임베드 금지' 제약에도 걸린다). 글리프가 구체 위에 그냥 얹혀 있어서, 구체가
+   아무리 구면으로 보여도 아이콘만 평평한 인쇄물로 남았다. 처방 3겹(B 가 적은 그대로):
+     ⑴ 접지 그림자 — 글리프가 구체 표면 위에 '놓인' 두께를 만든다
+     ⑵ 약 4% 배럴 스케일 — 구면에 얹힌 것은 가운데가 미세하게 부푼다
+     ⑶ 구체 스페큘러를 **아이콘 위에** 한 겹 더(screen, α .35) — 유리 안에 든 것으로 읽힌다
+   ⚠️ `.sr-orb::after` 를 쓰면 안 된다 — 그 자리는 `.done` 아이들 스페큘러 스윕이 이미 쓰고
+      있고(`#summon-result-modal.done .sr-cell.on .sr-orb::after`), `::before` 는 보석 패싯이 쓴다.
+      그래서 아이콘을 `.sr-ico` 로 감싸고 그 위에 얹는다. */
+.sr-ico {
+    position: relative; display: block; font-style: normal;
+    filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .55));
+    transform: scale(1.04);
+}
+.sr-ico::after {
+    /* 구체 상단 좌측 하이라이트와 **같은 위치·같은 모양**이어야 한다 — 다른 데서 빛나면
+       '구체와 아이콘이 서로 다른 조명을 받는' 지금 상태가 그대로 남는다. */
+    content: ''; position: absolute; left: -60%; top: -60%; width: 220%; height: 220%;
+    pointer-events: none; mix-blend-mode: screen; opacity: .35;
+    background:
+        radial-gradient(16% 13% at 36% 19%, #fff, rgba(255,255,255,0) 72%),
+        radial-gradient(58% 52% at 50% 15%, rgba(255,255,255,.6), rgba(255,255,255,0) 64%);
+}
 /* 재질 정체성 — 여섯 등급이 '같은 구슬의 색놀이'로 보이던 문제. 색 위계와 별개로
    재질 자체를 셋으로 가른다: 하위=무광 금속 / 중위=유리 / 상위=보석.
    기본 .sr-orb 스택(유광 구체)은 metal이 이어받고, glass·gem이 각자 덮어쓴다. */
