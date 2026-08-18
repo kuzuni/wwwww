@@ -2542,13 +2542,15 @@ const UI = {
     },
     equipCellHTML(slot) {
         const it = S.equipment[slot];
-        if (!it) return `<div class="equip-cell empty">
+        // data-slot = 교체 연출(`equip-swap-throwout`)이 '어느 칸이 방금 갈렸는지' 집는 손잡이.
+        // 렌더가 innerHTML을 통째로 갈아끼우므로 인덱스로 세면 SLOTS 순서가 바뀔 때 어긋난다.
+        if (!it) return `<div class="equip-cell empty" data-slot="${slot}">
             <span class="cell-img emoji dim">${this.emptySlotFace(slot)}</span>
             <span class="slot-name">${SLOT_KR[slot]}</span>
         </div>`;
         // data-age = 시대 무늬(확률 정보 막대와 공유하는 --af-pat 규칙 + 무늬별 애니메이션).
         // 항성간 이상 다섯 시대만 무늬가 있고 앞 5개는 --af-pat 이 없어 아무것도 안 그린다.
-        return `<div class="equip-cell" data-age="${it.age}" style="--rc:${this.ageHex(it.age)}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
+        return `<div class="equip-cell" data-slot="${slot}" data-age="${it.age}" style="--rc:${this.ageHex(it.age)}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
             ${this.itemImgHTML(it, 'cell-img')}
             <span class="cell-lv">Lv. ${it.level}</span>
             ${it.stars ? `<span class="cell-star">${IconGen.img('star')}${it.stars > 1 ? it.stars : ''}</span>` : ''}
@@ -2734,6 +2736,171 @@ const UI = {
             </div>`;
     },
         closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); this._gearDetailSlot = null; },
+
+    // ---- 장비 교체 연출 (equip-swap-throwout, 사용자 지시 2026-08-19) ----
+    // 사용자 원문: "장비 교체될 때 예전 꺼는 회전하면서 바닥으로 나가떨어지는 느낌으로.
+    //              새로 교체된 거는 딸깍 하고 그 자리에 들어가게."
+    // 세 박자로 읽힌다 — ⑴ 옛 장비 타일이 칸에서 튕겨 나와 **회전하며** 바닥으로 떨어져 먼지를 내고,
+    // ⑵ 그동안 칸은 **빈 소켓**으로 비어 있다가(이게 없으면 새 장비가 처음부터 앉아 있어 '들어가는'
+    //    순간이 사라진다 — 렌더는 이미 끝나 있으니 눈으로 감춰 줘야 한다), ⑶ 새 장비가 오버슈트로
+    //    딸깍 앉는다.
+    // 궤적 문법은 coinBurst와 같다: x·y·회전을 **다른 요소에 나눠** 건다(한 요소에 합치면 직선이 된다).
+    // 날아가는 물건은 `.equip-cell` 클래스를 그대로 입힌 **복제 타일**이라 프레임·시대 무늬·Lv/별이
+    // 칸에 있던 그대로 날아간다 (`craft-card-slot-look`의 '슬롯 룩' 일관성).
+    // ⚠️ 레이어를 비교 팝업(.modal z-index 20) **위**(21)에 둔다. 장비 그리드 5칸 중 가운데 3칸은
+    //    실측상 팝업 카드(x 111~319 / y 401~621 @430x932)에 통째로 가려서, 시트(z-index 5) 안에서
+    //    연출하면 스왑 경로(팝업이 열린 채 두 카드가 맞바뀌는 주 경로)에서 아무것도 안 보인다.
+    //    딸깍도 같은 이유로 **복제 타일을 이 레이어에 띄우고 원본 칸은 그동안 감춘다**(겹쳐 그리지 않게).
+    EQSW_FLY_MS: 900,
+    EQSW_LAND_K: 0.58,      // @keyframes eqswY 에서 타일이 처음 바닥에 닿는 지점(= 58%). 먼지·착지음이 이 시각을 쓴다
+    EQSW_SNAP_MS: 340,      // @keyframes eqswSnap 길이 — css 와 같은 값이어야 한다
+    EQSW_SNAP_DELAY: 130,   // 옛 것이 먼저 튀어나가고, 그 뒤에 새 것이 들어앉는다
+    // 던져 낸 타일은 날아가면서 이만큼으로 **줄어든다**(멀어지는 물건의 원근 + '치워졌다'는 읽기).
+    // 연출용 장식이 아니라 **자리 문제의 해답**이다: 비교 팝업 카드가 실측 296px(430폭의 68.8%)라
+    // 좌우에 67px 씩밖에 안 남는데, 원래 크기(회전 AABB 66px)로는 어느 쪽에도 못 선다.
+    // 줄이면 AABB 가 36px 이 돼 카드 옆 어두운 띠에 여유 있게 눕는다. css `--sk` 로 넘어간다.
+    EQSW_SHRINK: 0.55,
+
+    // 렌더가 칸을 갈아끼우기 **전에** 옛 타일의 좌표·모습을 붙잡아 둔다.
+    // null 이면(칸이 화면에 없다) 호출부는 연출을 조용히 생략한다.
+    grabEquipSwapFx(slot) {
+        const host = document.getElementById('app');
+        const cell = document.querySelector(`#equip-sheet .equip-grid .equip-cell[data-slot="${slot}"]`);
+        const sheet = document.getElementById('equip-sheet');
+        if (!host || !cell || !sheet) return null;
+        const hb = host.getBoundingClientRect(), cb = cell.getBoundingClientRect();
+        if (!cb.width || !cb.height) return null;   // 다른 탭이라 시트가 접혀 있으면 생략
+        const sb = sheet.getBoundingClientRect();
+        // 열려 있는 팝업 카드의 가로 범위 — 던져 낸 타일이 **그 위에 누워 쉬지 않게** 피할 자리다.
+        // 주 경로(비교 팝업이 열린 채 두 카드가 맞바뀌는 스왑)에서 카드는 장비 그리드 한복판을
+        // 덮고 있고, 그냥 떨어뜨리면 타일이 [판매]/[장착] 버튼 위에 얹혀 '고장 난 화면'으로 읽힌다
+        // (실측: 착지 뒤 정지 구간이 378ms 라 그 그림이 한참 남는다).
+        let block = null;
+        const card = document.querySelector('.modal:not(.hidden) .modal-card');
+        if (card) {
+            const bb = card.getBoundingClientRect();
+            if (bb.width) block = { l: bb.left - hb.left, r: bb.right - hb.left };
+        }
+        return {
+            slot, block,
+            cx: cb.left - hb.left + cb.width / 2,
+            cy: cb.top - hb.top + cb.height / 2,
+            w: cb.width, h: cb.height,
+            hostW: hb.width, hostH: hb.height,
+            // 바닥 = 장비 시트의 아랫단. 앱 바닥까지 떨어뜨리면 탭바 위에 얹혀 '내비바에 낀 쓰레기'로
+            // 읽히고, 시트 안에서 멈추면 패널의 바닥에 떨어진 것으로 읽힌다.
+            floorY: sb.bottom - hb.top,
+            age: cell.getAttribute('data-age') || '',
+            rc: cell.style.getPropertyValue('--rc') || '#6b3538',
+            inner: cell.innerHTML,
+        };
+    },
+
+    playEquipSwapFx(fx) {
+        if (!fx) return;
+        const host = document.getElementById('app');
+        if (!host) return;
+        let layer = document.getElementById('equip-swap-fx');
+        if (!layer) { layer = document.createElement('div'); layer.id = 'equip-swap-fx'; host.appendChild(layer); }
+        // OS '움직임 줄이기'는 존중한다 — 던지지도 감추지도 않고 그냥 갈린 결과만 남긴다
+        // (css 쪽 `.equip-cell { animation: none !important }` 미디어쿼리와 같은 태도).
+        const calm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        if (calm) return;
+
+        const cell = document.querySelector(`#equip-sheet .equip-grid .equip-cell[data-slot="${fx.slot}"]`);
+
+        // ---- ⑴ 옛 장비 — 회전하며 바닥으로 ----
+        // 나가는 방향은 **화면 바깥쪽**이다(안쪽으로 던지면 다른 칸들 위를 가로질러 어수선하다).
+        // 단 착지점은 화면 안으로 물린다 — 가장자리 칸(무기/신발)은 벽이 가까워 그만큼 짧게 날아간다.
+        const dir = fx.cx < fx.hostW / 2 ? -1 : 1;
+        // 회전은 **한/두 바퀴 + 약간의 기울기**로 끝난다(`@keyframes eqswR` 이 착지 시점에 멈춘다).
+        // 바퀴 수를 정수로 잡는 이유는 두 가지다 — ⓐ 착지 뒤에도 계속 돌면 '바닥에 놓인 물건'이 아니라
+        // 공중에 떠 있는 것으로 읽히고, ⓑ 아무 각도로나 멈추면 45° 부근에서 타일의 **가로 폭이 √2배**로
+        // 부풀어(56.9→80.5px) 아래 자리 계산이 통째로 어긋난다. 남기는 기울기는 '툭 던져 놓은' 결의 몫.
+        const tilt = U.rand(8, 22);
+        const spin = dir * (360 * (U.rand(0, 1) < 0.5 ? 1 : 2) + tilt);
+        // 멈춘 타일의 **가로 반경**을 각도에서 직접 낸다: 기울인 사각형의 AABB 반폭 = (W·cosθ + H·sinθ)/2.
+        // ⚠️ 어림수(0.68w 등)로 잡으면 안 된다 — 기울기가 상한(22°)이고 착지 스쿼시가 겹친 프레임에서
+        //    딱 몇 px 모자라 카드를 스친다(실측으로 두 번 걸렸다). W·H 는 `@keyframes eqswSquash` 의
+        //    축별 최대 배율(가로 1.12 / 세로 1.05)을 물려 재고, 안티에일리어싱 몫으로 2px 더 준다.
+        const th = tilt * Math.PI / 180, sk = this.EQSW_SHRINK;
+        const reach = (fx.w * sk * 1.12 * Math.cos(th) + fx.h * sk * 1.05 * Math.sin(th)) / 2 + 2;
+        let landX = U.clamp(fx.cx + dir * fx.w * U.rand(1.5, 2.2), reach, fx.hostW - reach);
+        // 바닥에 눕는 자리 = 시트 아랫단에서 **줄어든 타일의 세로 반경**만큼 위
+        let drop = Math.max(fx.h * 1.1, fx.floorY - fx.cy - (fx.h * sk * (Math.cos(th) + Math.sin(th))) / 2);
+        let lands = true;
+        // 팝업 카드가 열려 있으면 착지점을 카드 **옆 빈 띠**로 옮긴다. 날아가는 도중 카드 위를
+        // 지나는 건 상관없다(움직이는 물건이라 궤적으로 읽힌다) — 문제는 **누워서 쉬는 자리**다.
+        if (fx.block && landX + reach > fx.block.l && landX - reach < fx.block.r) {
+            const bands = [
+                { lo: reach, hi: fx.block.l - reach, side: -1 },
+                { lo: fx.block.r + reach, hi: fx.hostW - reach, side: 1 },
+            ].filter(b => b.hi >= b.lo);
+            if (bands.length) {
+                // 날아가던 쪽 띠를 먼저 쓰고, 그쪽이 없으면 반대쪽
+                const band = bands.find(b => b.side === dir) || bands[0];
+                landX = U.clamp(landX, band.lo, band.hi);
+            } else {
+                // 좁은 화면(360폭 실측)은 카드가 좌우를 다 먹어 **비켜설 자리가 아예 없다**.
+                // 그럴 땐 바닥에 눕히지 않고 **화면 밖으로 떨어뜨린다** — 레이어가 잘라 준다.
+                // 억지로 카드 위에 눕히면 [판매]/[장착] 버튼을 가려 화면이 고장 나 보인다.
+                drop = fx.hostH - fx.cy + fx.h;
+                lands = false;
+            }
+        }
+        const dx = landX - fx.cx;
+        const rise = -U.rand(0.42, 0.64) * fx.h;
+
+        const el = document.createElement('div');
+        el.className = 'eqsw-fly';
+        el.style.cssText = `left:${fx.cx.toFixed(1)}px; top:${fx.cy.toFixed(1)}px;`
+            + ` --dx:${dx.toFixed(1)}px; --dur:${this.EQSW_FLY_MS}ms; --sk:${sk}`;
+        el.innerHTML = `<div class="eqsw-fly-y" style="--rise:${rise.toFixed(1)}px; --drop:${drop.toFixed(1)}px">`
+            + `<div class="eqsw-fly-r" style="--spin:${spin.toFixed(0)}deg">`
+            + `<div class="eqsw-fly-box equip-cell"${fx.age ? ` data-age="${fx.age}"` : ''}`
+            + ` style="--rc:${fx.rc}; width:${fx.w.toFixed(1)}px; height:${fx.h.toFixed(1)}px">${fx.inner}</div>`
+            + `</div></div>`;
+        layer.appendChild(el);
+        setTimeout(() => el.remove(), this.EQSW_FLY_MS + 160);
+        SFX.equipToss();
+
+        // 착지하는 그 순간 그 자리에서 먼지가 퍼진다 — '바닥에 닿았다'를 읽히게 하는 단서.
+        // 화면 밖으로 떨어뜨린 경우(위 `lands=false`)는 닿는 바닥이 없으니 먼지도 착지음도 없다.
+        if (lands) setTimeout(() => {
+            const d = document.createElement('div');
+            d.className = 'eqsw-dust';
+            d.style.cssText = `left:${(fx.cx + dx).toFixed(1)}px; top:${(fx.cy + drop + fx.h * sk * 0.46).toFixed(1)}px;`
+                + ` --dw:${(fx.w * sk * 1.6).toFixed(1)}px`;
+            layer.appendChild(d);
+            setTimeout(() => d.remove(), 520);
+            SFX.equipDrop();
+        }, this.EQSW_FLY_MS * this.EQSW_LAND_K);
+
+        if (!cell) return;
+
+        // ---- ⑵ 그동안 칸은 빈 소켓 ----
+        cell.classList.add('eqsw-hollow');
+
+        // ---- ⑶ 새 장비 — 딸깍 ----
+        setTimeout(() => {
+            // 칸이 그새 다시 그려졌으면(오토포지 틱 등) 붙잡아 둔 노드는 문서 밖이다 — 새로 집는다
+            const live = document.querySelector(`#equip-sheet .equip-grid .equip-cell[data-slot="${fx.slot}"]`) || cell;
+            const hb = host.getBoundingClientRect(), cb = live.getBoundingClientRect();
+            const done = () => { live.classList.remove('eqsw-hollow'); cell.classList.remove('eqsw-hollow'); };
+            if (!cb.width) { done(); return; }
+            const g = document.createElement('div');
+            g.className = 'eqsw-snap';
+            g.style.cssText = `left:${(cb.left - hb.left + cb.width / 2).toFixed(1)}px;`
+                + ` top:${(cb.top - hb.top + cb.height / 2).toFixed(1)}px; --snap-dur:${this.EQSW_SNAP_MS}ms`;
+            g.innerHTML = `<div class="eqsw-snap-box equip-cell"${live.getAttribute('data-age') ? ` data-age="${live.getAttribute('data-age')}"` : ''}`
+                + ` style="--rc:${live.style.getPropertyValue('--rc') || fx.rc}; width:${cb.width.toFixed(1)}px; height:${cb.height.toFixed(1)}px">`
+                + `${live.innerHTML}</div>`;
+            layer.appendChild(g);
+            SFX.equipSnap();
+            // 복제 타일이 제자리에 앉는 그 프레임에 원본 칸을 되살린다(둘이 겹치는 프레임이 없게)
+            setTimeout(() => { done(); g.remove(); }, this.EQSW_SNAP_MS);
+        }, this.EQSW_SNAP_DELAY);
+    },
 
     // ---- 판매 코인 분출 (사용자 지시: "모루에서 코인이 터지듯 튀어나오고, 착지 자리마다 금액이 떠오르게") ----
     // 궤적은 CSS 키프레임이 소유하고(연타로 여러 벌이 동시에 돌아도 서로 안 잘라먹는다),
@@ -3147,10 +3314,14 @@ const UI = {
         const swapBack = mode === 'equip' && !auto && !!prev;
         if (!swapBack) this.els.craftModal.classList.add('hidden');
         if (!item) return;
+        // 교체 연출(`equip-swap-throwout`)은 **렌더가 칸을 갈아끼우기 전에** 옛 타일을 붙잡아야 한다.
+        // 빈 부위에 처음 끼우는 건 '교체'가 아니라 던져 낼 옛 장비가 없으니 연출도 없다.
+        const swapFx = (mode === 'equip' && prev) ? this.grabEquipSwapFx(item.slot) : null;
         if (mode === 'equip') Forge.equip(item);
         else this.coinBurst(Forge.sell(item));
         this.renderTopBar();
         this.renderEquipSheet();
+        this.playEquipSwapFx(swapFx);
         if (swapBack) {
             prev._swapped = true;
             this.setPendingCraft(prev);   // saveGame 포함 — 스왑 도중 새로고침해도 옛 장비가 안 사라진다

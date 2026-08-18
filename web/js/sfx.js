@@ -254,6 +254,24 @@ const SFX = {
         this.thump(150, 55, strong ? 0.13 : 0.09, { gain: strong ? 0.3 : 0.2, jitter: 0.04 });
     },
 
+    // ---- 장비 교체 3박자 (equip-swap-throwout, 사용자 지시 2026-08-19) ----
+    // 화면 연출(`UI.playEquipSwapFx`)의 세 순간에 하나씩 붙는다: 던짐(0ms) → 딸깍(130ms) → 착지(558ms).
+    // 셋이 같은 대역이면 한 덩어리로 뭉개져 '세 번 일어난 일'로 안 들린다 — 대역을 갈라 둔다:
+    // 던짐은 중역 노이즈 스윕(공기), 딸깍은 고역 트랜지언트+짧은 금속 링, 착지는 저역 텀프(무게).
+    equipToss() {
+        this.noiseBurst(0.15, { type: 'bandpass', filterFreq: 1700, filterTo: 560, gain: 0.11, Q: 1.1 });
+    },
+    // '딸깍' — 물건이 홈에 걸려 멈추는 소리. 링은 짧게(0.09s) 끊어야 걸쇠지 종이 안 된다.
+    equipSnap() {
+        this.click({ freq: 5400, gain: 0.26 });
+        this.thump(440, 190, 0.05, { gain: 0.2, jitter: 0.03 });
+        this.ring(3050, 0.09, { gain: 0.07, delay: 0.008, rvb: 0.14 });
+    },
+    equipDrop() {
+        this.thump(132, 50, 0.14, { gain: 0.24, jitter: 0.06 });
+        this.noiseBurst(0.08, { gain: 0.13, filterFreq: 950, filterTo: 300 });
+    },
+
     craft() {
         this.click({ freq: 2600, gain: 0.14 });
         this.thump(260, 180, 0.06, { gain: 0.16, jitter: 0.05 });

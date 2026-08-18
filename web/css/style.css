@@ -6036,6 +6036,107 @@ body {
 /* 상점 젬 표기는 숫자와 같은 줄이라 살짝 크게 */
 .shop-gem-dia .ico { width: 1.5em; height: 1.5em; margin: -.3em .06em -.3em 0; }
 
+/* ---- 장비 교체 연출 (equip-swap-throwout, 사용자 지시 2026-08-19) ----
+   "예전 꺼는 회전하면서 바닥으로 나가떨어지는 느낌으로. 새로 교체된 거는 딸깍 하고 그 자리에 들어가게."
+   궤적은 coinBurst와 같은 축 분리 문법이다 — x(바깥으로, 공기 저항으로 감속)·y(살짝 솟았다 가속 낙하
+   +바운스)·회전을 **다른 요소에** 나눠 건다. 한 요소에 합치면 transform 이 합성돼 직선으로 보인다.
+   좌표는 매번 다르니 JS(`UI.playEquipSwapFx`)가 소유하고, 여기는 박자와 몸통만 갖는다.
+   ⚠️ z-index 21 = 비교 팝업(.modal 20) 위, 세부정보류 팝업(22) 아래. 장비 그리드 가운데 3칸이
+      팝업 카드에 가려 있어서(실측 430x932: 카드 x111~319·y401~621) 시트 안에서 연출하면
+      주 경로(팝업이 열린 채 맞바뀌는 스왑)에서 아무것도 안 보인다. */
+#equip-swap-fx { position: absolute; inset: 0; pointer-events: none; z-index: 21; overflow: hidden; }
+.eqsw-fly { position: absolute; will-change: transform; animation: eqswX var(--dur, 900ms) forwards; }
+.eqsw-fly-y { display: block; animation: eqswY var(--dur, 900ms) forwards; }
+.eqsw-fly-r { display: block; animation: eqswR var(--dur, 900ms) forwards; }
+/* 날아가는 타일은 `.equip-cell` 을 그대로 입어 프레임·해칭·시대 무늬·Lv/별이 칸에 있던 그대로다.
+   칸에서는 안 보이던 드롭섀도를 여기서만 얹는다 — 공중에 뜬 물건이라는 단서. */
+.eqsw-fly-box { animation: eqswSquash var(--dur, 900ms) forwards;
+    box-shadow: 0 .35rem .6rem rgba(0,0,0,.55); cursor: default; }
+/* 가로 이동도 **바닥에 닿는 58%에서 끝난다**(공기 저항으로 감속하다 착지와 함께 정지).
+   ⚠️ 끝까지(100%) 끌면 착지 뒤에도 378ms 동안 옆으로 스르륵 미끄러진다 — 물리적으로 틀릴 뿐
+   아니라, 그동안 타일이 아직 카드 위에 걸쳐 있어서 아래 착지 자리 계산이 통째로 헛일이 된다
+   (실측: 착지 자리를 다 비켜 놨는데도 정지 직전 프레임의 오른끝이 카드 안으로 6px 들어왔다). */
+@keyframes eqswX {
+    0%   { transform: translate(-50%, -50%); animation-timing-function: cubic-bezier(.12,.62,.35,1); }
+    58%  { transform: translate(calc(-50% + var(--dx)), -50%); }
+    100% { transform: translate(calc(-50% + var(--dx)), -50%); }
+}
+/* ⚠️ opacity 는 **착지·바운스까지 1로 못박고** 마지막 구간에서만 뺀다 — 어느 한 키프레임에만 두면
+   CSS가 바탕값 1에서 전 구간 선형 보간해 정작 착지 순간에 반쯤 투명해진다(coinFlyY 가 같은 함정을
+   밟았던 자리). 바닥에 '툭' 닿는 걸 보여 주는 게 이 연출의 요점이라 여기서 흐려지면 안 된다. */
+/* 바운스는 **두 번, 점점 작게**(감쇠) 튄다. 한 번만 튀면 '한 번 더 떨어진' 것으로 읽히고, 감쇠가
+   없으면 고무공이 된다 — 쇳덩이가 굴러 멈추는 그림은 큰 튐(.8rem) → 작은 튐(.26rem) → 정지다. */
+@keyframes eqswY {
+    0%   { transform: translateY(0); animation-timing-function: cubic-bezier(.1,.72,.36,1); opacity: 1; }  /* 튕겨 나옴 — 감속 */
+    26%  { transform: translateY(var(--rise)); animation-timing-function: cubic-bezier(.58,0,.86,.36); opacity: 1; } /* 낙하 — 가속 */
+    58%  { transform: translateY(var(--drop)); animation-timing-function: cubic-bezier(.15,.72,.4,1); opacity: 1; }  /* 착지 */
+    68%  { transform: translateY(calc(var(--drop) - .8rem)); animation-timing-function: cubic-bezier(.6,0,.9,.5); opacity: 1; }  /* 큰 튐 */
+    76%  { transform: translateY(var(--drop)); animation-timing-function: cubic-bezier(.15,.72,.4,1); opacity: 1; }
+    82%  { transform: translateY(calc(var(--drop) - .26rem)); animation-timing-function: cubic-bezier(.6,0,.9,.5); opacity: 1; } /* 작은 튐 */
+    87%  { transform: translateY(var(--drop)); opacity: 1; }
+    100% { transform: translateY(var(--drop)); opacity: 0; }   /* 바닥에 누운 채로 사라진다 */
+}
+/* 회전은 **바닥에 닿는 58%에서 멈춘다**. 끝까지 돌리면 착지 뒤에도 계속 돌아 '바닥에 놓인 물건'이
+   아니라 공중에 떠 있는 것으로 읽히고, 멈추는 각도도 매번 달라져(45° 부근이면 가로 폭이 √2배)
+   JS 가 잡아 둔 착지 자리 계산이 어긋난다. --spin 은 JS 가 '정수 바퀴 + 약간의 기울기'로 준다. */
+@keyframes eqswR {
+    0%   { transform: rotate(0); animation-timing-function: cubic-bezier(.1,.55,.45,1); }
+    58%  { transform: rotate(var(--spin, 540deg)); }
+    100% { transform: rotate(var(--spin, 540deg)); }
+}
+/* 이 요소가 **줄어듦 + 착지 스쿼시**를 함께 맡는다.
+   ⓐ 줄어듦(--sk): 던진 물건이 멀어지는 원근이자, 좁은 화면에서 카드 옆 띠에 설 자리를 만드는 수단이다
+      (JS `UI.EQSW_SHRINK` 가 주인 — 그 값으로 착지 자리까지 계산하므로 여기 기본값만 고쳐도 안 맞는다).
+   ⓑ 스쿼시: 착지 프레임에서만 납작해진다. 회전만으로는 '부딪혔다'가 아니라 '떠다닌다'로 읽힌다.
+   가로 과장은 1.12 까지 — 더 부풀리면 착지 자리 계산의 여유를 먹는다. */
+@keyframes eqswSquash {
+    0%       { transform: scale(1); }
+    54%      { transform: scale(var(--sk, .55)); }
+    60%      { transform: scale(calc(var(--sk, .55) * 1.12), calc(var(--sk, .55) * .84)); }
+    68%      { transform: scale(calc(var(--sk, .55) * .96), calc(var(--sk, .55) * 1.05)); }
+    78%, 100%{ transform: scale(var(--sk, .55)); }
+}
+/* 착지 먼지 — 바닥에 깔리는 납작한 타원 하나. 위로 피어오르면 연기가 되고, 옆으로 퍼져야 흙먼지다 */
+.eqsw-dust {
+    position: absolute; width: var(--dw, 5rem); height: calc(var(--dw, 5rem) * .34);
+    border-radius: 50%; animation: eqswDust .5s ease-out forwards;
+    background: radial-gradient(ellipse at 50% 62%, rgba(226,214,196,.5) 0, rgba(226,214,196,.22) 55%, rgba(226,214,196,0) 78%);
+}
+@keyframes eqswDust {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(.28, .5); }
+    18%  { opacity: .95; transform: translate(-50%, -50%) scale(.72, .86); }
+    100% { opacity: 0; transform: translate(-50%, -62%) scale(1.5, 1.1); }
+}
+/* 옛 장비가 날아간 뒤 새 장비가 앉기 전까지 칸은 **빈 소켓**이다. 프레임·해칭 바탕은 남기고
+   내용물(썸네일·Lv·별)과 시대 무늬만 감춘다 — 칸 자체를 숨기면 그리드에 구멍이 뚫려 보인다.
+   ⚠️ `display:none` 이 아니라 `visibility` 여야 한다. 레이아웃이 흔들리면 옆 칸들이 같이 밀린다. */
+.equip-cell.eqsw-hollow > * { visibility: hidden; }
+.equip-cell.eqsw-hollow::before { display: none; }
+.equip-cell.eqsw-hollow { box-shadow: inset 0 0 .5rem rgba(0,0,0,.55); filter: brightness(.72) saturate(.55); }
+/* 딸깍 — 위에서 떨어져 홈에 걸리며 한 번 오버슈트하고 멈춘다. 마지막 잔떨림(103%)이 '걸쇠'다.
+   ⚠️ 길이는 `UI.EQSW_SNAP_MS` 와 같은 값이어야 한다(짧으면 복제 타일이 애니 도중에 지워진다). */
+.eqsw-snap { position: absolute; }
+.eqsw-snap-box { animation: eqswSnap var(--snap-dur, 340ms) forwards; cursor: default; }
+@keyframes eqswSnap {
+    0%   { transform: translate(-50%, -50%) translateY(-42%) scale(.58); opacity: .25;
+           animation-timing-function: cubic-bezier(.5,0,.75,.4); }
+    46%  { transform: translate(-50%, -50%) translateY(0) scale(1.16); opacity: 1; filter: brightness(1.75);
+           animation-timing-function: cubic-bezier(.2,.9,.35,1); }
+    72%  { transform: translate(-50%, -50%) scale(.955); filter: brightness(1.12);
+           animation-timing-function: cubic-bezier(.3,.7,.4,1); }
+    88%  { transform: translate(-50%, -50%) scale(1.028); filter: brightness(1); }
+    100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+}
+/* 움직임을 줄여 달라는 OS 설정 — JS 쪽도 `prefers-reduced-motion` 이면 아예 던지지 않는다.
+   여기 규칙은 그 사이 이미 붙은 노드가 있어도 정지 상태로 두는 안전망이다. */
+@media (prefers-reduced-motion: reduce) {
+    .eqsw-fly, .eqsw-fly-y, .eqsw-fly-r, .eqsw-fly-box, .eqsw-dust, .eqsw-snap-box { animation: none !important; }
+    #equip-swap-fx { display: none; }
+    .equip-cell.eqsw-hollow > * { visibility: visible; }
+    .equip-cell.eqsw-hollow::before { display: block; }
+    .equip-cell.eqsw-hollow { box-shadow: none; filter: none; }
+}
+
 /* ---- 판매 코인 분출 (사용자 지시: 모루에서 코인이 터지듯 나오고 착지 자리마다 금액이 떠오른다) ----
    포물선은 x(등속)와 y(상승 감속 → 낙하 가속 → 바운스 1회)를 다른 요소에 나눠 걸어 만든다.
    한 요소에 둘 다 걸면 transform이 합성되면서 직선 이동으로 보인다. */
