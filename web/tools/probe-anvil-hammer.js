@@ -313,6 +313,36 @@ async function waitBooted(page, timeout = 25000) {
             return white;
         }, 'data:image/png;base64,' + buf.toString('base64'));
     };
+    // ⑬ **꼬리가 정지 화면이 아닌가.** 3타 뒤 720~900ms 는 망치가 이미 퇴장해 예전엔 픽셀이
+    //    통째로 안 변했다(연출의 20%가 정지 화면). 모루 잔진동으로 채웠는데, 이건 눈으로 보면
+    //    '왜인지 밋밋'으로만 보여 회귀해도 못 잡는다 — 연속 프레임 간 변화 픽셀 수로 못 박는다.
+    const tailShot = async (ms) => {
+        await page.evaluate((ms) => {
+            UI.cancelAnvilStrike(); UI._anvilBusy = false;
+            document.getElementById('equip-sheet').getBoundingClientRect();
+            UI.playAnvilStrike(() => {});
+            (UI._anvilTimers || []).forEach(clearTimeout); UI._anvilTimers = [];
+            document.getElementById('equip-sheet').getBoundingClientRect();
+            document.querySelectorAll('#equip-sheet, #equip-sheet *').forEach(n =>
+                n.getAnimations().forEach(a => { a.pause(); a.currentTime = ms; }));
+        }, ms);
+        const b = await page.locator('.anvil-btn').boundingBox();
+        const buf = await page.screenshot({ clip: { x: b.x - 4, y: b.y - 4, width: b.width + 8, height: b.height + 8 } });
+        return 'data:image/png;base64,' + buf.toString('base64');
+    };
+    const tailA = await tailShot(760), tailB = await tailShot(840);
+    const tailDiff = await page.evaluate(async ([a, b]) => {
+        const load = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; });
+        const px = async (src) => { const im = await load(src); const c = document.createElement('canvas');
+            c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+            return x.getImageData(0, 0, c.width, c.height).data; };
+        const A = await px(a), B = await px(b); let d = 0;
+        for (let i = 0; i < A.length; i += 4)
+            if (Math.abs(A[i] - B[i]) > 6 || Math.abs(A[i + 1] - B[i + 1]) > 6 || Math.abs(A[i + 2] - B[i + 2]) > 6) d++;
+        return d;
+    }, [tailA, tailB]);
+    say(tailDiff >= 300, `⑬ 꼬리 구간(760→840ms) 변화 픽셀 ${tailDiff}개 (기준 ≥300 — 0이면 연출 끝자락이 정지 화면이다)`);
+
     const restPx = await pxAt(45);          // 타격 사이 정지 구간
     const hitPx = await pxAt(90);           // 3타 접촉
     say(hitPx - restPx >= 20,

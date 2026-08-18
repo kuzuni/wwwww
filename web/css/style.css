@@ -722,7 +722,7 @@ body {
    **망치가 모루의 반동을 그대로 타고 내려갔다** — 상대변위 0, 즉 아무도 눌리지 않은 것과 같다.
    진폭도 1.4~2.6px로 지각 한계 미만이었다. 이제 눌림 뒤 1프레임 되튐까지 준다. */
 .anvil-btn.striking .anvil-svg {
-    animation: anvilbump .72s linear;
+    animation: anvilbump .88s linear;
     transform-box: view-box; transform-origin: 50% 92%;   /* 받침 접지면이 축 */
 }
 /* ⚠️ 압축 자세를 **망치의 드웰 내내 붙잡는다**. 예전엔 24% 에 눌렸다가 26.5% 에 벌써 되튀어,
@@ -732,17 +732,27 @@ body {
    원점이 50% 92%(=유닛 79.12)이므로 상판(y=14)의 하강량은
      drop = 79.12 + (14 − 79.12)·scaleY + translateY − 14
    → 1타 5.53 / 2타 7.83 / 3타 12.16 유닛. afswing 의 접촉 translate 가 이 값이다. */
-@keyframes anvilbump {   /* 타격마다 모루가 눌렸다 되튄다 */
-    0%, 23%, 34%, 56%, 67%, 89%, 100% { transform: translateY(0) scale(1, 1); }
-    24%   { transform: translateY(2.4px) scale(1.025, .952); }
-    28.64% { transform: translateY(2.4px) scale(1.025, .952); }  /* 망치와 같이 멈춘다 */
-    31%   { transform: translateY(-1.1px) scale(.99, 1.018); }
-    57%   { transform: translateY(3.4px) scale(1.04, .932); }
-    62.56% { transform: translateY(3.4px) scale(1.04, .932); }
-    64%   { transform: translateY(-1.4px) scale(.988, 1.024); }
-    90%   { transform: translateY(5px)   scale(1.06, .89); }     /* 마지막 타격이 가장 깊다 */
-    96.94% { transform: translateY(5px)   scale(1.06, .89); }
-    99%   { transform: translateY(-2px)  scale(.98, 1.04); }
+@keyframes anvilbump {   /* 타격마다 모루가 눌렸다 되튄다 + 3타 뒤 잔진동 */
+    /* ⚠️ 수명이 .88s 다(afswing 은 .72s). 세 타격의 **절대 시각은 그대로** 두려고 모든 키를
+       720/880 = 0.8182 배로 눌러 적었다 — 19.64% × 880ms = 172.8ms 로 예전 24% × 720ms 와 같다.
+       늘린 이유는 3타 뒤 720~900ms 가 **완전한 정지 화면**이었기 때문이다(연출의 20%).
+       망치는 이미 퇴장했으므로 그 구간을 채우는 건 모루의 잔진동뿐이다 — 무거운 쇳덩이가
+       한 번에 멈추지 않고 울다 잦아드는 그림이라 물리적으로도 맞다. */
+    0%, 18.82%, 27.82%, 45.82%, 54.82%, 72.82% { transform: translateY(0) scale(1, 1); }
+    19.64% { transform: translateY(2.4px) scale(1.025, .952); }
+    23.43% { transform: translateY(2.4px) scale(1.025, .952); }   /* 망치와 같이 멈춘다 */
+    25.36% { transform: translateY(-1.1px) scale(.99, 1.018); }
+    46.64% { transform: translateY(3.4px) scale(1.04, .932); }
+    51.19% { transform: translateY(3.4px) scale(1.04, .932); }
+    52.36% { transform: translateY(-1.4px) scale(.988, 1.024); }
+    73.64% { transform: translateY(5px)   scale(1.06, .89); }     /* 마지막 타격이 가장 깊다 */
+    79.31% { transform: translateY(5px)   scale(1.06, .89); }
+    81.5%  { transform: translateY(-2px)  scale(.98, 1.04); }
+    /* ↓ 잔진동 — 진폭이 절반씩 준다(2.0 → 1.0 → 0.45 → 0.18 → 0) */
+    86%    { transform: translateY(1px)    scale(1.014, .986); }
+    90.5%  { transform: translateY(-.45px) scale(.994, 1.008); }
+    95%    { transform: translateY(.18px)  scale(1.004, .996); }
+    100%   { transform: translateY(0)      scale(1, 1); }
 }
 /* 화면 흔들림 — 항목 스펙의 '미세 화면 흔들림'을 여기서 판다.
    ⚠️ `Scene3D.shake` 로는 이 연출에서 **아무도 흔들림을 못 본다**: 그건 시트 뒤 3D 씬만 흔드는데
