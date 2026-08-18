@@ -4688,7 +4688,8 @@ body {
     -webkit-mask-image: linear-gradient(rgba(0,0,0,0), #000 72%);
     mask-image: linear-gradient(rgba(0,0,0,0), #000 72%);
 }
-.sr-orbwrap { position: relative; z-index: 2; width: 100%; aspect-ratio: 1; border-radius: 50%; transform: scale(var(--sz)); }
+.sr-orbwrap { position: relative; z-index: 2; width: 100%; aspect-ratio: 1; border-radius: 50%;
+    transform: scale(calc(var(--sz) * var(--peersz, 1))); }
 /* ⚠️ 여기 있던 `.af-heat` 3규칙 + `@keyframes afheat` 사본을 걷어냈다(2026-08-18, anvil-ref ⓑ).
    모루 잔열 블록이 소환결과(`sr-*`) 섹션 한가운데에 **통째로 한 벌 더** 들어와 있었고,
    뒤에 오는 사본이 이겨서 위(963~978행)의 원본은 죽은 코드였다. 두 벌이 같은 값이라
@@ -4908,16 +4909,16 @@ body {
 .sr-cell[data-tier="5"] .sr-orb { filter: saturate(1.08); }
 /* 외부 광채는 래퍼에 걸어 본체 그라디언트 위에 얹히지 않게 한다 */
 .sr-orbwrap {
-    box-shadow: 0 0 calc(1.1rem * var(--glow)) var(--rc),
-                0 0 calc(2.3rem * var(--glow)) var(--rc);
+    box-shadow: 0 0 calc(1.1rem * var(--glow) * var(--peerk, 1)) var(--rc),
+                0 0 calc(2.3rem * var(--glow) * var(--peerk, 1)) var(--rc);
 }
 /* 펄스는 본체 밝기가 아니라 광채가 뛰게 — brightness를 올리면 노란 구체가 흰색으로
    클리핑돼 안의 아이콘이 지워진다 */
 /* 같은 등급이 여러 개면 같은 딜레이로 완벽히 동기 호흡해 기계적으로 보인다 — 셀 index로 위상 분산 */
 .sr-cell.hi.on .sr-orbwrap { animation: srpulse 1.6s ease-in-out infinite; animation-delay: calc(.45s + var(--i, 0) * .17s); }
 @keyframes srpulse {
-    0%, 100% { box-shadow: 0 0 calc(1.1rem * var(--glow)) var(--rc), 0 0 calc(2.3rem * var(--glow)) var(--rc); }
-    50%      { box-shadow: 0 0 calc(1.7rem * var(--glow)) var(--rc), 0 0 calc(3.4rem * var(--glow)) var(--rc); }
+    0%, 100% { box-shadow: 0 0 calc(1.1rem * var(--glow) * var(--peerk, 1)) var(--rc), 0 0 calc(2.3rem * var(--glow) * var(--peerk, 1)) var(--rc); }
+    50%      { box-shadow: 0 0 calc(1.7rem * var(--glow) * var(--peerk, 1)) var(--rc), 0 0 calc(3.4rem * var(--glow) * var(--peerk, 1)) var(--rc); }
 }
 /* 광선은 셀 폭을 크게 넘기면 옆 셀과 뭉개져 얼룩 띠가 된다 — 반경을 줄이고 가장자리를 감쇠 */
 .sr-ray {
@@ -4932,6 +4933,30 @@ body {
 /* 신화 전용 역회전 이중 링 — 최상위 등급만의 표식 */
 /* 신화 전용 테두리 링 — 래퍼 box-shadow는 광채/펄스가 쓰므로 outline으로 분리한다 */
 .sr-cell[data-tier="5"] .sr-orbwrap { outline: .12rem solid rgba(255,255,255,.34); outline-offset: .12rem; }
+
+/* ==== 동급(peer) — 주역이 아닌 최고 등급 셀 (10차 잔여 ⑥ / A ⓻) ====
+   지적 원문: "`tl-x75/t3060` 히어로 '신의 창' 159px vs 3행 5번째 '신성한 가호' 60px — 같은 신화인데
+   시각 무게가 2.6배". 원인은 `heroIdx = entries.length - 1` 이라 **최고 등급이 여러 셀이어도 마지막
+   하나만** 주역이 되고, 나머지는 아래 등급과 같은 평범한 셀이었다는 것이다.
+   실측(`probe-sr-peer.js`, 수정 전): 동급 구체가 바로 아래 등급의 **1.04배(mid) / 1.02배(herorow)** —
+   `--sz` 계단 말고는 아무 표식이 없었다.
+   ⚠️ **주역과 같게 만들면 안 된다.** 주역이 '더 큰 구슬'이 아니라 '다른 사건'으로 읽히는 것은
+      9차 A ⑴ [치명] 지적을 받고 만들어 낸 성과다 — 동급은 **아래 등급과 갈리는 데까지만** 올린다.
+   세 층으로 표식한다: 크기(--peersz) · 광채(--peerk, 정지와 펄스 양쪽) · 상시 테두리 + 착지 링. */
+.sr-cell.peer { --peersz: 1.13; --peerk: 1.34; --ringmax: 1.5; }
+/* 최고 등급 테두리를 동급에도 — 최고 등급이 신화가 아닐 때(전설·궁극의 판)도 표식이 남는다 */
+.sr-cell.peer .sr-orbwrap { outline: .11rem solid rgba(255,255,255,.32); outline-offset: .11rem; }
+/* 동급 착지 링 — 주역 충격파의 축소판. ⚠️ 주역 링은 `.hero` 비트(전원 착지 후)에 걸리지만
+   동급 링은 **자기 착지**(.on)에 붙는다. 비평가가 본 프레임은 안정 상태라 스쳐가는 링만으로는
+   부족해 위 테두리·광채가 정지 상태를 맡고, 이 링은 착지 순간의 무게를 맡는다.
+   `.sr-cell.peer::after` 는 비어 있다 — 셀 ::after 는 `.hero .heroic` 에서만 쓰인다. */
+.sr-cell.peer.on::after {
+    content: ''; position: absolute; left: 50%; top: 0; width: 100%; aspect-ratio: 1;
+    z-index: -1; pointer-events: none; mix-blend-mode: screen;
+    background: radial-gradient(closest-side, rgba(0,0,0,0) 60%, var(--rc) 76%,
+                rgba(255,255,255,.7) 84%, rgba(0,0,0,0) 95%);
+    animation: srheroring .58s cubic-bezier(.08,.72,.3,1) forwards;
+}
 
 /* ==== 주역(최고 등급) 전용 이벤트 비트 — UI.fireSummonHero가 .hero를 건다 ====
    같은 슬롯·같은 이징으로 등장하면 신화는 '더 큰 구슬'일 뿐이다. 나머지를 물리고(후퇴)
@@ -5112,10 +5137,16 @@ body {
    그 경로는 모든 애니메이션을 `pause()` 하므로 무한 루프인 아이들이 통째로 정지 프레임이 되고,
    `forwards`로 끝 프레임에 고정된 주역 비트와 겹쳐 **'주역이 죽어 있다'는 반대 결론**이 난다.
    실시간으로 재는 자는 `tools/probe-sr-idle-weight.js` 다. */
+/* ⚠️ **여기에도 `--peersz` 를 태워야 한다.** 키프레임이 같은 속성을 다시 쓰면 베이스 규칙의
+   값은 통째로 무시된다 — `.sr-orbwrap` 의 `scale(calc(var(--sz) * var(--peersz)))` 를 여기서
+   `scale(var(--sz))` 로 덮어쓰면 **아이들 구간에서만 동급 배수가 사라진다.** 그리고 아이들 구간이
+   바로 비평가가 채점한 안정 프레임(t3060)이라, 정지 화면에서는 고친 게 아무 효과가 없어 보인다.
+   실측으로 밟았다: 동급 래퍼 스케일이 열자마자 1.4238 인데 1.5초 뒤엔 1.2737 로 떨어졌다.
+   (`srpulse` 의 box-shadow 도 같은 이유로 `--peerk` 를 함께 넣었다.) */
 @keyframes srbreath {
-    0%, 100% { transform: translateY(0) scale(var(--sz)); }
+    0%, 100% { transform: translateY(0) scale(calc(var(--sz) * var(--peersz, 1))); }
     50%      { transform: translateY(calc(-.16rem * var(--idle, 1)))
-                          scale(calc(var(--sz) * (1 + .055 * var(--idle, 1)))); }
+                          scale(calc(var(--sz) * var(--peersz, 1) * (1 + .055 * var(--idle, 1)))); }
 }
 /* 상위 등급은 호흡 + 광채 펄스 둘 다 (서로 다른 속성이라 겹쳐도 안전) */
 #summon-result-modal.done .sr-cell.hi.on .sr-orbwrap {

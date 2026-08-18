@@ -280,8 +280,15 @@ const UI = {
             const hi = this.SR_HI_RARITIES.indexOf(e.rarity) >= 0;
             const rc = RARITY_CSS[e.rarity];
             const brk = (heroRow && i === heroIdx) ? '<div class="sr-break"></div>' : '';
+            // 10차 잔여 ⑥(A ⓻) — 최고 등급이 **여러 셀**일 때 마지막 하나만 주역이 되고 나머지
+            // 동급은 아래 등급과 똑같은 평범한 셀로 그려졌다("같은 신화가 159px vs 60px").
+            // 실측(`probe-sr-peer.js`)으로도 동급 구체가 바로 아래 등급의 **1.02~1.04배**뿐이라
+            // 사실상 구분이 없었다. 동급에 표식을 붙여 '최고 등급'임이 남게 한다.
+            // ⚠️ 주역만큼 키우지는 않는다 — 주역이 '다른 사건'으로 읽히는 건 9차 [치명] 지적을
+            //    받고 만들어 낸 성과다(크기 격차는 CSS 쪽 --peersz 로 절반만 좁힌다).
+            const peer = heroIdx >= 0 && i !== heroIdx && e.rarity === best;
             // data-tier로 등급별 세기(크기·광채·광선)를 계단화한다 — 6등급이 2상태로 붕괴하지 않게
-            return `${brk}<div class="sr-cell${hi ? ' hi' : ''}${i === heroIdx ? ' heroic' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
+            return `${brk}<div class="sr-cell${hi ? ' hi' : ''}${i === heroIdx ? ' heroic' : ''}${peer ? ' peer' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
                 data-mat="${this.srMaterial(e.rarity)}"
                 style="--i:${i};--rc:${rc};--rc-lite:${this.srShade(rc, .5)};--rc-deep:${this.srShade(rc, -.62)};${this.chipVars(e.rarity)}">
                 <div class="sr-orbwrap">
