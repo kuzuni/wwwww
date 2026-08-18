@@ -712,11 +712,38 @@ const UI = {
         if (item) delete item._swapped;
         return item;
     },
+    // 자동 제련 통과분 대기 큐 (autoforge-show-all-cards 3차 사양 2026-08-19).
+    // 카드 단계에서 필터를 통과한 장비는 **팝업을 띄우지 않고 여기 쌓였다가**, 사이클 카드가 다
+    // 지나간 뒤 하나씩 비교 팝업으로 처리된다. 대기품 슬롯(pendingCraft)이 1개뿐이라 큐는 별도
+    // 필드에 둔다 — 메모리에만 두면 연출 도중 새로고침에 통과분이 통째로 증발하므로(해머만 소모)
+    // 세이브(S.autoMatchQueue)에 같이 남기고 부팅 때 이어서 처리한다. 보류 '보관함' UI가 아니라
+    // 배치가 끝나면 비는 처리 대기열이다.
+    queueAutoMatch(item) {
+        if (this._pendingItem === item) this.clearPendingCraft();   // 대기품 1슬롯을 비우고 큐로 옮긴다
+        if (!Array.isArray(S.autoMatchQueue)) S.autoMatchQueue = [];
+        S.autoMatchQueue.push(item);
+        saveGame();   // 큐 적재와 해머 차감을 같은 저장에 묶는다
+    },
+    // 큐에서 하나 꺼내 비교 팝업으로 띄운다. 시퀀스가 돌지 않아도(새로고침 복원 등) 동작한다.
+    openNextAutoMatch() {
+        if (this._pendingItem) return false;             // 대기품이 있으면 그것부터 처리
+        const q = Array.isArray(S.autoMatchQueue) ? S.autoMatchQueue : (S.autoMatchQueue = []);
+        while (q.length) {
+            const item = q.shift();
+            if (!item || !item.slot) continue;           // 손상 세이브 방어
+            this.setPendingCraft(item);                  // saveGame 포함 — 큐에서 뺀 것과 대기품을 같은 저장에
+            this.showCraftModal(item);
+            this.renderEquipSheet();
+            return true;
+        }
+        saveGame();
+        return false;
+    },
     // 부팅 시 복원: 지난 세션이 선택하지 않고 떠난 제작품이 있으면 비교 팝업을 그대로 다시 띄운다.
     // (자동 판정으로 정리하지 않는 이유 — 선택은 사용자 몫이고, 강제 판정은 '내가 안 고른 장비가 팔렸다'가 된다)
     restorePendingCraft() {
         const item = S.pendingCraft;
-        if (!item || !item.slot) return;
+        if (!item || !item.slot) { this.openNextAutoMatch(); return; }   // 대기품이 없으면 큐에 남은 통과분부터
         this._pendingItem = item;
         this.showCraftModal(item);
     },
@@ -724,7 +751,15 @@ const UI = {
         // 판정 기준은 '팝업이 열려 있는가'가 아니라 '대기품이 있는가'다 — 모루 타격 연출(0.72초)
         // 동안에는 대기품은 이미 있는데 팝업이 아직 안 떠서, 모달 기준으로 보면 이 경로가 통째로
         // 새어 나갔다(탭을 옮겨도 정리되지 않고, 연출이 끝나면 엉뚱한 탭 위에 팝업이 떴다).
-        if (!this._pendingItem) return;
+        // 통과분 대기 큐도 같이 정리한다 — 큐에 쌓인 것도 '아직 안 고른 제작품'이라 그냥 두면
+        // 탭을 옮긴 뒤 엉뚱한 화면에서 팝업이 줄줄이 뜬다(대기품과 같은 기준으로 판정한다).
+        const queued = Array.isArray(S.autoMatchQueue) ? S.autoMatchQueue.splice(0) : [];
+        for (const q of queued) {
+            if (!q || !q.slot) continue;
+            const rq = Forge.autoResolve(q);
+            this.toast(rq.equipped ? `🛠 ${q.name} 자동 장착` : `🪙 ${q.name} 자동 판매 +${U.fmt(rq.gained)}`);
+        }
+        if (!this._pendingItem) { if (queued.length) { this.renderTopBar(); this.renderEquipSheet(); saveGame(); } return; }
         this.cancelAnvilStrike();
         const m = this.els.craftModal;
         if (m) m.classList.add('hidden');
@@ -1258,8 +1293,14 @@ const UI = {
     // 배치는 멈추지 않고 **망치가 다 없어질 때까지** 다음 망치질 사이클을 반복한다("1배치 후
     // 자동 OFF"가 사용자가 틀렸다고 한 그 동작). 정지 조건은 셋뿐 — 사용자가 토글을 끄거나,
     // 망치가 떨어지거나, stopOnTarget 팝업이 배치의 마지막이 되거나.
-    // 통과분(목표 필터)은 비교 팝업으로 사용자 선택을 받고, 처리하면 남은 사이클/망치로 이어 간다
-    // (autoforge-show-all-cards). 팝업이 떠 있는 동안에는 망치를 소비하지 않는다.
+    // ⚠️ **사이클은 두 단계다 (사용자 3차 재지적 2026-08-19 autoforge-show-all-cards 최종 사양)**:
+    //   ①단계 = 망치질 1회 뒤 사이클 N개를 **카드로 먼저 다 보여준다**. 이 동안 비교 팝업은
+    //           절대 뜨지 않는다 — 탈락분은 그 자리에서 자동 판정(판매/장착), 통과분(목표)은
+    //           팝업 대신 `queueAutoMatch`로 큐에 쌓고 카드만 보여주고 다음으로 넘어간다.
+    //   ②단계 = N장이 다 지나간 뒤 큐를 하나씩 꺼내 비교 팝업으로 처리한다(각 선택이 다음 큐
+    //           항목을 연다). 큐가 비면 다음 망치질 사이클로, 망치가 없으면 정지.
+    // 종전 구현은 '카드1→팝업→카드1→팝업' 교차라 사용자가 "카드를 10개 안 보여준다"고 세 번 지적했다.
+    // 팝업이 떠 있는 동안에는 망치를 소비하지 않는다.
     _autoSeq: null,
     startAutoSeq() {
         if (this._autoSeq) return;
@@ -1270,6 +1311,15 @@ const UI = {
         this._autoSeq = null;
         if (S.autoForgeOn) { S.autoForgeOn = false; this.renderEquipSheet(); saveGame(); }
         if (!this.els.autoForgeModal.classList.contains('hidden')) this.renderAutoForge();
+        // 정지해도 큐에 쌓인 통과분은 사용자가 아직 안 고른 제작품이다 — 여기서 팝업을 이어 연다.
+        // ⚠️ 이게 없으면 **마지막 망치를 쓴 순간** main.js 안전망 틱(`S.hammers < 1` → stopAutoSeq)이
+        //    시퀀스를 먼저 지워, 카드 10장을 다 보여주고도 팝업이 한 번도 안 뜬 채 끝난다(실측).
+        this.openNextAutoMatch();
+    },
+    // 카드 한 장이 끝난 뒤 다음 단계로. 시퀀스가 이미 정지됐어도(망치 소진 안전망 등) 큐는 마저 처리한다.
+    autoSeqAdvance() {
+        if (this._autoSeq) { this.autoSeqStep(); return; }
+        this.openNextAutoMatch();
     },
     autoSeqStep() {
         const seq = this._autoSeq;
@@ -1289,6 +1339,11 @@ const UI = {
             this.renderTopBar();
             this.renderEquipSheet();
         }
+        // ①단계 계속 — 사이클에 남은 카드가 있으면 **큐(②단계)보다 먼저** 카드를 마저 보여준다.
+        // 이 순서가 곧 사용자가 요구한 "카드 N장 다 보여준 뒤에 팝업"이다.
+        if (seq.inCycle > 0 && !seq.stopAfterPick && S.hammers >= 1) { this.autoSeqCard(); return; }
+        // ②단계 — 이번 사이클에서 큐에 쌓인 통과분을 하나씩 비교 팝업으로 처리한다.
+        if (this.openNextAutoMatch()) return;
         if (seq.stopAfterPick || S.hammers < 1) { this.stopAutoSeq(); return; }
         if (seq.inCycle <= 0) {
             // 새 사이클 — 망치질 애니 1회가 설정한 N개(남은 망치가 그보다 적으면 남은 만큼)를 소비한다.
@@ -1297,9 +1352,9 @@ const UI = {
             this.playAnvilStrike(() => { this._anvilBusy = false; this.autoSeqCard(); });
             return;
         }
-        this.autoSeqCard();
+        // 위 ①단계 분기가 사이클 잔량을 이미 다 처리하므로 여기로는 오지 않는다(방어적 종료).
     },
-    // 사이클 안의 한 개: 제작(망치 1 소비) → 카드 → 자동 판정/비교 팝업. 제작을 카드 직전에
+    // 사이클 안의 한 개: 제작(망치 1 소비) → 카드 → 자동 판정(탈락) 또는 큐 적재(통과). 제작을 카드 직전에
     // 하나씩 하는 이유는 대기품 슬롯이 1개(사용자 확정 2026-08-17)라서다 — 사이클치 N개를
     // 미리 뽑아 두면 연출 도중 새로고침에 뽑힌 장비가 통째로 증발한다.
     autoSeqCard() {
@@ -1324,18 +1379,19 @@ const UI = {
             const keep = Forge.passesAutoFilter(item);
             if (keep) {
                 // 필터(목표)를 통과하면 **자동 장착하지 않고 비교 팝업으로 사용자에게 선택을 넘긴다**
-                // (사용자 재지적 2026-08-18 autoforge-show-all-cards: "필터링 잘돼서 해당되면 비교팝업이
-                //  떠야 하는데 자동장착을 해버린다"). 먼저 리빌 카드로 뽑힌 것을 보여준 뒤 팝업을 띄운다.
-                // 팝업이 뜨면 배치는 사용자의 선택을 기다린다 — [장착]/[판매]/보류로 처리하면
-                // doResolveCraft·onCraftDimClick 이 autoSeqStep 을 다시 불러 **남은 망치로 이어 간다**
-                // (그래서 10개를 뽑으면 카드·팝업이 남은 예산만큼 계속 이어진다).
-                // stopOnTarget('목표 찾으면 제련 계속하기' 체크 해제)이면 이 팝업이 배치의 마지막이 되어
-                // 남은 망치는 쓰지 않는다(선택 후 autoSeqStep 이 stopAfterPick 을 보고 정지).
+                // (사용자 재지적 2026-08-18: "필터링 잘돼서 해당되면 비교팝업이 떠야 하는데 자동장착을
+                //  해버린다"). 다만 팝업은 **여기서 띄우지 않는다** — 3차 재지적(2026-08-19) 사양대로
+                // 리빌 카드만 보여주고 큐에 쌓아 두었다가, 사이클 카드 N장이 다 지나간 뒤(②단계)
+                // 몰아서 하나씩 처리한다. 그래야 "망치질 → 카드 10장 → 팝업 10개" 순서가 된다.
+                // stopOnTarget('목표 찾으면 제련 계속하기' 체크 해제)이면 이 통과분이 배치의 마지막이 되어
+                // 남은 망치는 쓰지 않는다(카드 단계를 여기서 끝내고 팝업으로 간 뒤 정지).
                 if (Forge.autoForgeConfig().stopOnTarget) seq.stopAfterPick = true;
                 this.showCraftReveal(item, () => {
                     this._anvilBusy = false;
                     if (this._pendingItem !== item) { this.autoSeqStep(); return; }
-                    this.showCraftModal(item);
+                    this.queueAutoMatch(item);   // 대기품 슬롯 → 큐 (팝업은 카드가 다 끝난 뒤)
+                    this.renderEquipSheet();
+                    this.autoSeqAdvance();
                 });
                 return;
             }
@@ -1344,14 +1400,14 @@ const UI = {
             this.showAutoDropCard(item, () => {
                 this._anvilBusy = false;
                 const it = this.clearPendingCraft();
-                if (!it) { this.autoSeqStep(); return; }
+                if (!it) { this.autoSeqAdvance(); return; }
                 const r = this.autoDispose(it);
                 if (r.equipped) this.toast(`🛠 ${it.name} 자동 장착`);
                 else this.coinBurst(r.gained);
                 this.renderTopBar();
                 this.renderEquipSheet();
                 saveGame();
-                this.autoSeqStep();
+                this.autoSeqAdvance();
             });
         }
     },
@@ -2984,7 +3040,9 @@ const UI = {
         } else {
             saveGame();
         }
-        this.autoSeqStep();   // 자동 시퀀스가 이 선택을 기다리고 있었다면 다음 제작으로
+        this.autoSeqStep();   // 자동 시퀀스가 이 선택을 기다리고 있었다면 다음 단계(카드/큐)로
+        // 시퀀스가 이미 끝났어도 큐에 남은 통과분(새로고침 복원분 포함)은 마저 팝업으로 처리한다
+        if (!this._autoSeq) this.openNextAutoMatch();
     },
 
     // ---- 펫 패널 ----

@@ -100,11 +100,12 @@ async function until(page, fnSrc, ms = 8000) {
         Forge.passesAutoFilter = () => (nth++ % 2 === 0);
         // 카드 노출 횟수는 카드 생성 단일 통로(buildCraftCard), 팝업 횟수는 showCraftModal 에서 센다
         window.__cards = 0;
+        window.__order = '';                    // 실제 노출 순서 (C=결과 카드, P=비교 팝업)
         const origCard = UI.buildCraftCard;
-        UI.buildCraftCard = function (item, cls) { window.__cards++; return origCard.call(this, item, cls); };
+        UI.buildCraftCard = function (item, cls) { window.__cards++; window.__order += 'C'; return origCard.call(this, item, cls); };
         let opens = 0;
         const origModal = UI.showCraftModal.bind(UI);
-        UI.showCraftModal = function (item) { opens++; return origModal(item); };
+        UI.showCraftModal = function (item) { opens++; window.__order += 'P'; return origModal(item); };
         S.autoForge.hammersPerBatch = 6; S.autoForge.stopOnTarget = false;
         S.hammers = 6;                          // 소진 정지 사양 — 사이클 6개 = 망치 6개로 정확히 소진
         S.autoForgeOn = false; UI._autoSeq = null;
@@ -117,13 +118,15 @@ async function until(page, fnSrc, ms = 8000) {
         }
         UI.buildCraftCard = origCard;
         UI.showCraftModal = origModal;
-        return { spent: h0 - S.hammers, cards: window.__cards, opens, on: S.autoForgeOn };
+        return { spent: h0 - S.hammers, cards: window.__cards, opens, on: S.autoForgeOn, order: window.__order };
     });
     ok(!flow.on, '⑶ 배치가 스스로 정지하지 않았다');
     ok(flow.opens === 3, `⑶ 통과분 3개가 비교 팝업으로 떠야 한다(자동장착 금지) — 팝업 ${flow.opens}회`);
     ok(flow.spent === 6, `⑸ 망치 6개를 다 써야 하는데 ${flow.spent}개 소모`);
     ok(flow.cards === 6, `⑸ 망치 6개 → 카드 6회여야 하는데 ${flow.cards}회 노출`);
-    console.log(`⑶⑸ 통과·탈락 혼합 배치: 통과분 팝업 ${flow.opens}회(처리 후 계속) · 해머 ${flow.spent}개 = 카드 ${flow.cards}회`);
+    ok(flow.order === 'CCCCCCPPP',
+        `⑸ 순서(3차 사양 2026-08-19) — 사이클 카드 6장을 다 보여준 뒤 통과분 팝업 3개가 와야 한다. 실측: ${flow.order}`);
+    console.log(`⑶⑸ 통과·탈락 혼합 배치: 통과분 팝업 ${flow.opens}회 · 해머 ${flow.spent}개 = 카드 ${flow.cards}회 · 순서 ${flow.order}`);
 
     // ---- ⑹-b '목표를 찾으면 정지' ON → 첫 통과분이 비교 팝업, 선택 후 정지 + 남은 예산 미소모 ----
     const stopCase = await page.evaluate(async () => {
@@ -200,6 +203,42 @@ async function until(page, fnSrc, ms = 8000) {
     ok(dRow < 0.05 && dSheet < 0.05 && Math.abs(geo.held.top - geo.normal.top) < 0.05,
         `보류 카드가 레이아웃을 밀었다 (행 ${dRow.toFixed(2)}%p · 시트 ${dSheet.toFixed(2)}%p)`);
     console.log(`⑻ 보류 카드 레이아웃: 모루 ${JSON.stringify(geo.normal)} vs 보류 ${JSON.stringify(geo.held)}`);
+
+    // ---- ⑼ 큐(통과분 대기열)는 새로고침을 견딘다 (3차 사양 2026-08-19) ----
+    //      카드 단계에서 통과분은 대기품 슬롯을 비우고 큐로 가므로, 메모리에만 두면 연출 도중
+    //      새로고침에 **해머만 먹고 통과분이 통째로 증발한다**. 세이브에 남아 부팅 때 이어서 떠야 한다.
+    await page.evaluate(() => {
+        S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
+        UI.els.craftModal.classList.add('hidden');
+        S.autoMatchQueue = [
+            Object.assign(Forge.rollItem(), { name: '큐테스트A', slot: 'ring' }),
+            Object.assign(Forge.rollItem(), { name: '큐테스트B', slot: 'belt' }),
+        ];
+        saveGame();
+    });
+    await page.reload({ waitUntil: 'load' });
+    await waitBooted(page);
+    await page.waitForTimeout(600);
+    const q1 = await page.evaluate(() => ({
+        modal: !UI.els.craftModal.classList.contains('hidden'),
+        pending: UI._pendingItem && UI._pendingItem.name,
+        left: (S.autoMatchQueue || []).length,
+    }));
+    ok(q1.modal && q1.pending === '큐테스트A' && q1.left === 1,
+        `⑼ 새로고침 후 큐의 첫 통과분이 비교 팝업으로 복원돼야 한다 ${JSON.stringify(q1)}`);
+    const q2 = await page.evaluate(async () => {
+        UI.doResolveCraft('sell');
+        await new Promise(r => setTimeout(r, 400));
+        return {
+            modal: !UI.els.craftModal.classList.contains('hidden'),
+            pending: UI._pendingItem && UI._pendingItem.name,
+            left: (S.autoMatchQueue || []).length,
+        };
+    });
+    ok(q2.modal && q2.pending === '큐테스트B' && q2.left === 0,
+        `⑼ 앞 통과분을 처리하면 큐의 다음 통과분이 이어서 떠야 한다 ${JSON.stringify(q2)}`);
+    await page.evaluate(async () => { UI.doResolveCraft('sell'); await new Promise(r => setTimeout(r, 200)); });
+    console.log(`⑼ 큐 세이브 복원: 새로고침 → ${q1.pending}(잔여 ${q1.left}) → 처리 → ${q2.pending}(잔여 ${q2.left})`);
 
     console.log(`실패 ${fails.length}건 / 콘솔 에러 ${errs.length}건`);
     fails.forEach(f => console.log('  FAIL ' + f));
