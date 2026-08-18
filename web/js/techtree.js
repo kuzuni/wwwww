@@ -213,11 +213,36 @@ const TechTree = {
         return b ? b.types.map(ty => this.nid(ty, tier)) : [];
     },
 
-    // ===== 해금 = 바로 위 단계의 '같은 타입' 노드가 1레벨 이상 (사용자 재정정 2026-08-17 4회차) =====
-    // 부모는 언제나 한 개(같은 타입 한 단계 위)이고, 1단계는 부모가 없어 항상 열려 있다.
+    // ===== 해금 = **바로 위 행에 그려진 노드 전부** 1레벨 이상 (사용자 재정정 2026-08-19) =====
+    // 사용자 원문: "노드 하나하나마다 위에 연결된 게 둘이면 둘 다 1 이상, 하나면 하나가 업글돼
+    // 있으면 업글 가능. 예: 방어구 마스터리 올리려면 바로 위 무기 마스터리 1 이상. 무기 마스터리 II는
+    // 탈것 소환비용 I·추가 탈것 확률 I 한 개씩 올렸어야."
+    // 🚨 종전 규칙('같은 타입 한 단계 위')은 **화면에 그려진 선과 달랐다** — 선(`UI.drawTechLinks`)은
+    // 이웃한 두 행을 fork/converge 로 잇는데 잠금은 세로 레일을 따랐다. 그래서 선을 따라가도 무엇이
+    // 무엇을 여는지 알 수 없었다(drawTechLinks 주석이 '선은 골격 전용'이라고 인정한 그 어긋남이다).
+    // 이제 부모 = `rows()` 상 **바로 앞 행의 ids 전부** 라, 선과 잠금이 한 규칙에서 나온다.
+    // 위 예시 검산(힘·탈것, 7타입): 1단계 행 = [무기][방어구·장비레벨][탈것피해·탈것체력][탈것소환비용·추가탈것]
+    //   · 방어구@1 의 앞 행 = [무기@1]                       → "무기 마스터리 1 이상" ✓
+    //   · 무기@2 의 앞 행  = [탈것소환비용@1, 추가탈것@1]     → "둘 다 한 개씩" ✓
+    // 트리 첫 행은 앞 행이 없어 항상 열려 있다.
+    _rowsCache: {},   // BRANCHES 는 상수라 분기당 한 번만 만들면 된다 (parentsOf 는 렌더마다 노드 수만큼 불린다)
+    rowsCached(branchId) {
+        if (!this._rowsCache[branchId]) this._rowsCache[branchId] = this.rows(branchId);
+        return this._rowsCache[branchId];
+    },
     parentsOf(id) {
-        const tier = this.tierOf(id);
-        return tier <= 1 ? [] : [this.nid(this.typeOf(id), tier - 1)];
+        const b = this.branchOf(id);
+        if (!b) return [];
+        const rows = this.rowsCached(b.id);
+        const i = rows.findIndex(r => r.ids.indexOf(id) >= 0);
+        if (i <= 0) return [];
+        const prev = rows[i - 1].ids, cur = rows[i].ids;
+        // 🔑 `UI.drawTechLinks` 가 **실제로 긋는 선**과 같은 규칙이라야 한다("위에 연결된 게" 가 사용자의 표현이다):
+        //   · 폭이 같은 두 행 → 열마다 세로 레일 한 가닥. 그러니 부모는 **같은 열 하나**뿐이다.
+        //   · 폭이 다른 두 행 → 가운데 가로 바로 fork/converge. 그러니 **위 행 전부**가 부모다.
+        // 무조건 '위 행 전부'로 두면 2행↔2행 구간에서 선이 2개인데 부모가 4쌍이 돼 화면과 어긋난다(실측 확인).
+        if (prev.length === cur.length) return [prev[cur.indexOf(id)]];
+        return prev.slice();
     },
     isUnlocked(id) { return this.parentsOf(id).every(p => this.level(p) >= 1); },
     // 해금 대기 중인 노드가 '무엇을 올려야 열리는지' — 아직 0레벨인 부모 노드 id 목록
@@ -315,18 +340,15 @@ const TechTree = {
         if (!this.canStart(id)) return false;
         S.potions -= this.nextCost(id);
         S.techResearch = { id, endsAt: U.now() + this.nextTime(id) * 1000 };
+        this._doneShown = false;   // 이번 연구의 '완료 대기' 갱신을 아직 안 했다는 표시 (tick 참조)
         saveGame();
         return true;
     },
 
-    // 진행 중인 연구를 취소하고 물약을 환불
-    cancel() {
-        if (!S.techResearch) return false;
-        S.potions += this.cost(S.techResearch.id, this.level(S.techResearch.id) + 1);
-        S.techResearch = null;
-        saveGame();
-        return true;
-    },
+    // 🚫 연구 취소 없음 (사용자 지시 2026-08-19: "연구 시작하면 취소 불가").
+    // 호출부는 UI 에서 전부 걷어냈지만, 옛 세이브의 매크로나 남은 참조가 화면을 죽이지 않게
+    // 함수는 남기고 **항상 거절**한다(환불도 없다). 시간을 줄이고 싶으면 젬 건너뛰기를 쓴다.
+    cancel() { return false; },
 
     gemSkipCost() {
         if (!S.techResearch) return 0;
@@ -343,19 +365,40 @@ const TechTree = {
         return true;
     },
 
+    // 연구 시간은 끝났지만 아직 [완료] 를 안 눌러 레벨이 안 오른 상태
+    // (사용자 지시 2026-08-19: "연구 완료돼도 완료 버튼 눌러야 완료돼서 다른 거 업글 가능").
+    // 이 상태에서도 S.techResearch 가 살아 있으므로 canStart 의 '동시 1건' 가드가 그대로 걸린다 —
+    // 즉 완료를 안 누르면 다음 연구를 못 건다. 그게 사용자가 요구한 동작이다.
+    isDone() { return !!S.techResearch && U.now() >= S.techResearch.endsAt; },
+
+    // [완료] 버튼이 부르는 곳 — 여기서만 레벨이 오른다.
+    claim() {
+        if (!this.isDone()) return false;
+        const id = S.techResearch.id;
+        S.tech[id] = this.level(id) + 1;
+        S.techResearch = null;
+        this._doneShown = false;
+        Quests.bump('techDone');                 // 반복 퀘스트 '기술 연구 완료'
+        SFX.levelUp();
+        UI.toast(`🔬 ${this.def(id).name} ${this.roman(this.tierOf(id))}단계 Lv.${this.level(id)} 연구 완료!`);
+        Combat.recalcHero();
+        saveGame();
+        UI.renderTechTree(); // 열려 있는 기술 트리 개요/분기 화면도 즉시 갱신 (자체 가드 있음)
+        if (UI.isTechNodeOpen(id)) UI.renderTechNodeModal();
+        return true;
+    },
+
+    // 🚨 여기서 레벨을 올리지 않는다 — 시간이 끝나면 '완료 대기'로 넘어갈 뿐이고, 실제 레벨업은
+    // claim() 이 한다. tick 은 매 초 돌므로 **넘어가는 순간 한 번만** 화면을 다시 그려 [완료] 버튼을
+    // 띄운다(매 틱 렌더하면 트리가 계속 새로 그려져 스크롤·연결선이 튄다).
+    _doneShown: false,
     tick() {
-        if (S.techResearch && U.now() >= S.techResearch.endsAt) {
-            const id = S.techResearch.id;
-            S.tech[id] = this.level(id) + 1;
-            S.techResearch = null;
-            Quests.bump('techDone');                 // 반복 퀘스트 '기술 연구 완료'
-            SFX.levelUp();
-            UI.toast(`🔬 ${this.def(id).name} ${this.roman(this.tierOf(id))}단계 Lv.${this.level(id)} 연구 완료!`);
-            Combat.recalcHero();
-            saveGame();
-            UI.renderTechTree(); // 열려 있는 기술 트리 개요/분기 화면도 즉시 갱신 (자체 가드 있음)
-            if (UI.isTechNodeOpen(id)) UI.renderTechNodeModal();
-        }
+        if (!this.isDone()) { this._doneShown = false; return; }
+        if (this._doneShown) return;
+        this._doneShown = true;
+        const id = S.techResearch.id;
+        UI.renderTechTree();
+        if (UI.isTechNodeOpen(id)) UI.renderTechNodeModal();
     },
 
     // 타입 총 레벨 = 그 타입의 5개 단계 노드 레벨 합 (사용자 재정정 ⑥: 보너스는 전 단계 합산)

@@ -4450,7 +4450,10 @@ const UI = {
             const pct = TechTree.branchProgress(b.id);
             const researching = S.techResearch && TechTree.branchOf(S.techResearch.id) === b;
             const timeHtml = researching
-                ? ` <small id="tech-b-time-${b.id}">(${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)})</small>` : '';
+                ? (TechTree.isDone()
+                    ? ' <small>(완료!)</small>'   // 수령 대기 — 분기에 들어가 [완료] 를 눌러야 레벨이 오른다
+                    : ` <small id="tech-b-time-${b.id}">(${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)})</small>`)
+                : '';
             return `<button class="tech-branch-card" onclick="UI.openTechBranch('${b.id}')">
                 <div class="tech-branch-head">${b.name}</div>
                 <div class="tech-branch-icon">${IconGen.img(this.TECH_BRANCH_ICON[b.id]) || b.icon}</div>
@@ -4468,7 +4471,8 @@ const UI = {
     },
     // 분기 상세: **단계가 가로 블록**인 5단계 트리 (사용자 재정정 2026-08-17 4회차).
     // 한 단계에 그 분기의 타입이 전부 놓이고(폭이 좁아 2개씩 흘려 쌓는다), 같은 타입이
-    // 5단계에 반복된다. 해금은 '바로 위 단계의 같은 타입 노드가 1레벨 이상'이다.
+    // 5단계에 반복된다. 해금은 **바로 위 행의 노드 전부가 1레벨 이상**이다(사용자 재정정 2026-08-19,
+    // `TechTree.parentsOf` 참조) — 그려진 선(drawTechLinks)과 정확히 같은 규칙이다.
     // 행 구성·단계 경계 판정은 TechTree.rows()/tierBreak()에서 그대로 받아 쓴다 —
     // 부모 판정과 같은 규칙에서 나와야 그려진 선과 잠금 상태가 어긋나지 않는다.
     renderTechBranchView() {
@@ -4479,11 +4483,16 @@ const UI = {
             const max = TechTree.isMax(id);
             const researching = TechTree.researchingId() === id;
             const open = TechTree.isUnlocked(id);
-            const cls = researching ? 'researching' : max ? 'done' : !open ? 'tlocked' : lv > 0 ? 'active' : 'locked';
+            // 연구 시간이 끝나면 카운트다운 대신 '완료!' 를 띄워 눌러야 할 노드임을 알린다
+            // (레벨업은 노드 팝업의 [완료] 버튼이 한다 — 사용자 지시 2026-08-19)
+            const ready = researching && TechTree.isDone();
+            const cls = ready ? 'researching ready' : researching ? 'researching' : max ? 'done' : !open ? 'tlocked' : lv > 0 ? 'active' : 'locked';
             const face = max ? IconGen.img('check') : !open ? IconGen.img('lock') : this.techIcon(id);
-            const badge = researching
-                ? `<small class="tech-tree-node-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
-                : `<small>${lv}/${TechTree.MAX_LEVEL}</small>`;
+            const badge = ready
+                ? '<small class="tech-tree-node-time">완료!</small>'
+                : researching
+                    ? `<small class="tech-tree-node-time" id="tech-n-time-${id}">${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)}</small>`
+                    : `<small>${lv}/${TechTree.MAX_LEVEL}</small>`;
             return `<div class="tech-tree-node-col">
                 <button class="tech-tree-node ${cls}" data-tid="${id}" onclick="UI.openTechNode('${id}')">${face}</button>
                 <div class="tech-tree-label">${badge}</div>
@@ -4634,14 +4643,20 @@ const UI = {
             const what = need.length > 1 ? `${need.join(' · ')}를 각각` : `${need[0] || '위 노드'}를`;
             actionHtml = `<button class="btn sm primary disabled">${IconGen.img('lock')} 잠김</button>
                 <p class="muted" style="text-align:center">${what} 1레벨 이상 올리면 열립니다</p>`;
+        } else if (researching && TechTree.isDone()) {
+            // 시간이 끝나도 레벨은 아직 안 올랐다 — 이 버튼을 눌러야 오른다 (사용자 지시 2026-08-19)
+            actionHtml = `<div class="idet-lead" style="text-align:center">연구 시간 종료 — 수령 대기</div>
+                <div class="upg-progress tech-prog"><div style="width:100%"></div><span>완료</span></div>
+                <button class="btn sm primary tn-claim" onclick="UI.onTechClaim()">완료 · Lv.${lv} → Lv.${lv + 1}</button>`;
         } else if (researching) {
             const remain = (S.techResearch.endsAt - U.now()) / 1000;
-            // 원본(042605): 남색 트랙+파란 채움 진행바, [건너뛰기/◆N] 실버 블록 + [취소] 빨간 블록 2단
-            actionHtml = `<div class="idet-lead" style="text-align:center">연구 진행 중</div>
+            // 원본(042605): 남색 트랙+파란 채움 진행바 + [건너뛰기/◆N] 실버 블록.
+            // 🚫 [취소] 는 없앴다 — 사용자 지시 2026-08-19 "연구 시작하면 취소 불가".
+            // 급하면 건너뛰기(젬)로 시간만 줄인다. 건너뛰어도 레벨은 [완료] 를 눌러야 오른다.
+            actionHtml = `<div class="idet-lead" style="text-align:center">연구 진행 중 <small class="muted">(취소 불가)</small></div>
                 <div class="upg-progress tech-prog"><div id="tech-node-fill" style="width:${U.clamp(1 - remain / TechTree.time(id, lv + 1), 0, 1) * 100}%"></div><span id="tech-node-time">${U.fmtTime(remain)}</span></div>
                 <div class="idet-btns tech-btns">
                     <button class="btn silver tn-skip" onclick="UI.onTechGemSkip()">건너뛰기<small>${IconGen.img('gem')} ${TechTree.gemSkipCost()}</small></button>
-                    <button class="btn danger tn-cancel" onclick="UI.onTechCancel()">취소</button>
                 </div>`;
         } else {
             const cost = TechTree.nextCost(id), time = TechTree.time(id, lv + 1);
@@ -4677,12 +4692,10 @@ const UI = {
         if (TechTree.gemSkip()) { this.renderTechNodeModal(); this.renderTechBranchView(); this.renderTopBar(); }
         else this.toast('💎 젬이 부족합니다');
     },
-    onTechCancel() {
-        TechTree.cancel();
-        this.renderTechNodeModal();
-        this.renderTechBranchView();
-        this.renderTopBar();
-        this.toast('🧪 연구를 취소하고 물약을 환불했습니다');
+    // 🚫 onTechCancel 은 폐기했다 — 사용자 지시 2026-08-19 "연구 시작하면 취소 불가".
+    // 대신 시간이 끝나면 이 [완료] 로만 레벨이 오르고, 그래야 다음 연구를 걸 수 있다.
+    onTechClaim() {
+        if (TechTree.claim()) { this.renderTechNodeModal(); this.renderTechTree(); this.renderTopBar(); }
     },
     // ---- 마운트 ----
     openMounts() {
@@ -5122,7 +5135,9 @@ const UI = {
         });
         // 기술 트리 연구 카운트다운 (개요 카드 / 분기 트리 노드 / 노드 팝업 진행바)
         // 노드 개편 등으로 없는 노드 id가 남아 있으면 branchOf가 undefined라 매 초 예외가 난다 — 가드
-        if (S.techResearch && TechTree.def(S.techResearch.id)) {
+        // 시간이 끝난 뒤(수령 대기)에는 카운트다운을 멈춘다 — 안 그러면 음수 시간이 계속 흐른다.
+        // 그 상태의 표시는 renderTechTree/renderTechNodeModal 이 '완료!' 로 이미 바꿔 놓았다.
+        if (S.techResearch && TechTree.def(S.techResearch.id) && !TechTree.isDone()) {
             const remain = (S.techResearch.endsAt - U.now()) / 1000;
             const branch = TechTree.branchOf(S.techResearch.id);
             const bTime = branch && document.getElementById('tech-b-time-' + branch.id);

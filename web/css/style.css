@@ -3498,6 +3498,20 @@ body {
 .tech-btns { display: flex; justify-content: center; gap: .8rem; margin-top: .5rem; }
 .tech-btns .btn { flex: 0 1 44%; min-height: 3.4rem; font-size: 1.05rem; font-weight: 900; line-height: 1.2; border-radius: .6rem; }
 .tn-skip small { display: block; font-size: .9rem; color: #c62828; font-weight: 900; }
+/* [취소] 를 걷어내(사용자 지시 2026-08-19 "연구 시작하면 취소 불가") 이 줄에 버튼이 하나만 남는다 —
+   44% 짜리 반쪽이 혼자 서면 잘려 보이므로 혼자일 때만 넓힌다(둘일 때의 44%+간격과 같은 폭). */
+.tech-btns .btn:only-child { flex: 0 1 60%; }
+/* 수령 대기 [완료] — 시간이 끝나도 이 버튼을 눌러야 실제 레벨이 오른다(사용자 지시 2026-08-19).
+   진행바가 100% 로 찬 바로 아래에 놓이므로 진행 중 버튼 행과 같은 간격을 준다. */
+.tn-claim { display: block; width: 60%; margin: 1.55rem auto 0; min-height: 3.4rem; font-size: 1.05rem; }
+/* 눌러야 할 노드라 트리에서 눈에 띄게 — 면 색은 원본 브론즈 그대로 두고 테만 초록으로 맥동시킨다
+   (원반을 칠하면 '13시 30분' 배지 노드도 브론즈라는 원본 규칙을 깬다 — 위 .researching 주석 참조). */
+.tech-tree-node.researching.ready { animation: tt-ready 1.1s ease-in-out infinite alternate; }
+@keyframes tt-ready {
+    from { box-shadow: 0 0 0 0 rgba(53,212,53,0); border-color: #7d3920; }
+    to   { box-shadow: 0 0 .5rem .12rem rgba(53,212,53,.55); border-color: var(--pp-green, #35d435); }
+}
+@media (prefers-reduced-motion: reduce) { .tech-tree-node.researching.ready { animation: none; border-color: var(--pp-green, #35d435); } }
 /* 원본(shot-042605) 연구 중 카드는 제목 아래가 **빈 흰 공간**이다 — 회색 설명 패널이 없다.
    클론은 그 패널이 들어가 진행바가 +4.47%p, 버튼 행이 +2.27%p 아래로 밀려 있었다(491×881 실측).
    패널을 지우면 카드가 짧아지므로(카드 높이는 이미 원본과 −0.04%p 로 맞아 있다) 지운 만큼을
