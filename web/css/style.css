@@ -3119,6 +3119,27 @@ body {
     background: #17181a; color: #fff; border-radius: .4rem; padding: 0 .2rem;
     font-size: .5rem; font-weight: 800; white-space: nowrap;
 }
+/* 장착 오브 표기 — 원본(042340 3행 장착 오브 3개, 4배 확대 실측): 오브 아트가 강하게 어두워지고
+   (아트 윤곽만 희미하게 남는 암도), 오브 **중심**에 오브보다 넓은 검정 타원이 앉는다 —
+   타원 폭 ≈148%(74px vs 오브 50px)·높이 ≈28%(14px)·중심 y = 오브 중심(294 vs 293). 흰 '장착됨'
+   글자 내장. Lv 라벨·별·조각 게이지는 정상 오브와 동일하게 유지된다. */
+/* 딤은 아이콘만이 아니라 **오브 면 전체**다(원본: 등급색 면·아트가 함께 어두워져 윤곽만 남는다).
+   부모 filter 는 타원·Lv 라벨까지 어둡게 하므로 오버레이로 깐다. */
+.sk-orb.equipped::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: rgba(0,0,0,.58); z-index: 1; pointer-events: none;
+}
+.sk-orb.equipped .sk-lv { z-index: 2; }
+.sk-eqplate {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    /* %는 오브 content-box 기준으로 풀려 테두리만큼 작아진다(실측 1.275배) — 그리드 오브가
+       고정폭 10.08%W 이므로 앱 폭 기준으로 못박는다: 148% → 14.92%W, 28% → 2.82%W */
+    width: calc(var(--app-w) * .1492); height: calc(var(--app-w) * .0282);
+    background: #0b0c0e; border-radius: 50%;
+    color: #fff; font-size: .58rem; font-weight: 900; white-space: nowrap;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2; pointer-events: none;
+}
 .sk-star { font-size: .55rem; line-height: 1; }
 .sk-shard {
     position: relative; width: 100%; height: calc(var(--app-h) * .0169); background: #17181a;
