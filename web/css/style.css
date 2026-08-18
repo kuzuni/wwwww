@@ -3510,6 +3510,22 @@ body {
     content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
     background: radial-gradient(122% 84% at 50% 44%, rgba(0,0,0,0) 40%, rgba(0,0,0,.58) 100%);
 }
+/* 🚨 **흡기 비네트는 별도 레이어의 opacity 로 올린다 — `background` 를 키프레임으로 흔들지 말 것.**
+   10차에서 실측으로 잡은 것: `@keyframes srvig` 가 `background: radial-gradient(...)` 를 애니메이션했는데
+   **이 브라우저에서 그 속성은 보간되지 않고 이산(discrete)으로 튄다.** 20ms 격자 실측 —
+   코너 휘도가 9.61 · 9.62 · 9.62 · 9.62 · 9.61 로 100ms 동안 **완전히 평평**하다가 t1330 에
+   한 프레임에 −2.70 점프, 다시 200ms 평평, t1530 에 −2.94 점프. 점프 시각이 4키프레임
+   (0/35/70/100%) 이산 보간의 50% 전환점과 정확히 일치한다. 즉 550ms 흡기가 실제로는
+   **3번의 하드컷**이었다. 6·9·10차 비평가가 회차마다 "홀드백이 죽어 있다 / 진입이 하드컷"으로
+   같은 자리를 짚은 진짜 원인이 이것이고, 앞 회차들은 이징(ease-in→linear)과 진폭을 의심해
+   그쪽만 고쳤다 — 둘 다 이 이산 점프의 하위 증상이었다.
+   그래서 조여드는 성분을 **opacity + transform**(항상 연속 보간되고 합성 단계에서 처리된다)로
+   옮겼다. 깊은 비네트를 `::before` 에 고정 그라디언트로 깔아 두고 그 불투명도만 0→1 로 올린다.
+   ⚠️ 되돌려서 `background` 키프레임으로 만들지 말 것 — 수치가 아무리 커도 화면에서는 계단이 된다. */
+.sr-wrap::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2; opacity: 0;
+    background: radial-gradient(82% 51% at 50% 44%, rgba(0,0,0,0) 12%, rgba(0,0,0,.90) 100%);
+}
 /* 타이틀은 천개(z 20)보다 위 — 천개 아치가 글자를 가로지르면 안 된다 */
 .sr-head { position: relative; z-index: 45; flex: 0 0 auto; padding-top: 2%; }
 .sr-body {
@@ -4196,13 +4212,17 @@ body {
    짚은 것도 이 때문이다. 가속감은 키프레임 간격 자체로 만들고(뒤로 갈수록 값 폭이 커진다)
    보간은 linear로 둬서 **어느 120ms 창에서도 값이 멈추지 않게** 한다. */
 #summon-result-modal.charging .sr-floor { animation: srfloorcharge .55s linear forwards; }
+/* ⚠️ 마지막 12%의 **수축**을 지우지 말 것 — A ⓷ 의 "지면 링을 안쪽으로 수축시킨 뒤 폭발"이다.
+   내내 부풀기만 하면 주역 등장이 '계속 커지던 것이 조금 더 커진 것'이 되어 사건으로 안 읽힌다.
+   끝에서 한 번 조여 두면 그 반동으로 터지는 것으로 읽힌다(밝기는 계속 오르므로 '꺼진다'가 아니다). */
 @keyframes srfloorcharge {
     0%   { transform: scale(1);     filter: brightness(1); }
-    20%  { transform: scale(1.012); filter: brightness(1.16); }
-    40%  { transform: scale(1.026); filter: brightness(1.4) saturate(1.04); }
-    60%  { transform: scale(1.04);  filter: brightness(1.66) saturate(1.08); }
-    80%  { transform: scale(1.056); filter: brightness(1.94) saturate(1.12); }
-    100% { transform: scale(1.078); filter: brightness(2.3) saturate(1.18); }
+    20%  { transform: scale(1.014); filter: brightness(1.16); }
+    40%  { transform: scale(1.03);  filter: brightness(1.4) saturate(1.04); }
+    60%  { transform: scale(1.05);  filter: brightness(1.7) saturate(1.08); }
+    80%  { transform: scale(1.072); filter: brightness(2.05) saturate(1.12); }
+    88%  { transform: scale(1.082); filter: brightness(2.2) saturate(1.15); }
+    100% { transform: scale(.965);  filter: brightness(2.6) saturate(1.22); }
 }
 #summon-result-modal.charging .sr-floor::after { animation: srtickup .55s steps(9) forwards; }
 @keyframes srtickup { 0% { opacity: .45; } 100% { opacity: 1; } }
@@ -4221,12 +4241,42 @@ body {
     90%  { opacity: .72; transform: translate(-50%, -50%) scale(1.06); filter: brightness(1.6); }
     100% { opacity: 1;   transform: translate(-50%, -50%) scale(1.46); filter: brightness(2.95); }
 }
-#summon-result-modal.charging .sr-wrap::after { animation: srvig .55s linear forwards; }
-@keyframes srvig {
-    0%   { background: radial-gradient(122% 84% at 50% 44%, rgba(0,0,0,0) 40%, rgba(0,0,0,.58) 100%); }
-    35%  { background: radial-gradient(114% 76% at 50% 44%, rgba(0,0,0,0) 33%, rgba(0,0,0,.66) 100%); }
-    70%  { background: radial-gradient(105% 69% at 50% 44%, rgba(0,0,0,0) 26%, rgba(0,0,0,.74) 100%); }
-    100% { background: radial-gradient(96% 62% at 50% 44%, rgba(0,0,0,0) 20%, rgba(0,0,0,.82) 100%); }
+/* ⚠️ 진폭을 낮추지 말 것 — 10차 비평가 A ⓷ · B ⓹ 가 **둘 다** 이 구간을 짚었다. 앞 회차에서
+   이징(ease-in → linear)을 고쳐 '멈춤'은 없앴지만 **진폭이 모자라 여전히 안 읽혔다**:
+   B 실측 코너 비네트 15.14 → 12.28(−19%)뿐, A 실측 전역 평균은 t0840~t1740 내내 31~33 에
+   갇혀 있었다. 그래서 조임 폭을 키웠다 — 안쪽 투명 반경 40%→**12%**, 바깥 알파 .58→**.90**.
+   화면 가장자리를 실제로 덮어야 '숨을 들이쉰다'가 지각된다. */
+#summon-result-modal.charging .sr-wrap::before { animation: srvig .55s linear forwards; }
+@keyframes srvig { /* opacity·transform 만 — 위 ::before 주석의 이산 보간 함정 참조 */
+    0%   { opacity: 0;   transform: scale(1.10); }
+    100% { opacity: 1;   transform: scale(1); }
+}
+/* ==== 정착한 조연 셀의 '들이쉼' — 주역이 오기 전 무대가 중심으로 수축한다 ====
+   B ⓹ 의 처방 ⑵("정착한 셀을 중심 방향으로 당기며 scale 0.96")를 그대로 구현한다.
+   방향 벡터를 새로 만들 필요가 없다 — `--dx/--dy` 는 `setSummonEjectPaths()` 가 심어 둔
+   **슬롯 → 광원** 벡터(srpop 이 이걸 거슬러 날아왔다)라, 그 일부만큼 되돌리면 셀들이
+   광원으로 다시 빨려드는 것으로 읽힌다. 사출의 역재생이라 인과가 저절로 맞는다.
+   ⚠️ srpop 의 끝 상태가 `translate(0,0) scale(1)` 이므로 0% 를 그대로 거기서 시작해야
+      한 프레임 튀지 않는다(같은 이유로 srrecede 도 scale(1) 에서 시작한다).
+   ⚠️ 보간은 linear — 이 구간의 램프를 ease-in 으로 두면 앞 절반이 정지 프레임이 된다는
+      교훈이 위 주석에 있다. 가속감은 키프레임 간격으로만 만든다. */
+#summon-result-modal.charging .sr-cell.on:not(.heroic) {
+    animation: srinhale .55s linear forwards;
+}
+/* 🚨 **모든 키프레임에 `opacity: 1` 이 있어야 한다 — 빼면 정착한 셀이 통째로 사라진다.**
+   `.sr-cell` 의 기본값이 `opacity: 0; transform: scale(.35)` 이고, 셀이 보이는 것은 오직
+   `srpop` 의 `forwards` 필 덕분이다. 이 규칙은 `animation` **단축 속성을 통째로 교체**하므로
+   srpop 이 제거되고 그 필도 같이 사라져, 흡기 550ms 동안 조연 셀 4개가 전부 투명해진다.
+   실제로 이 실수를 했고 `probe-sr-band` 가 잡았다(주역 판 4.85 → 3.7, 아이콘 줄 밝은 픽셀
+   7.7% → **0.0%**). 눈으로 캡처만 봤으면 '흡기라 어두워졌나 보다'로 넘길 뻔했다. */
+@keyframes srinhale {
+    0%   { opacity: 1; transform: translate(0, 0) scale(1); filter: none; }
+    40%  { opacity: 1; transform: translate(calc(var(--dx, 0) * .022), calc(var(--dy, 0) * .022)) scale(.988);
+           filter: saturate(.9) brightness(.93); }
+    75%  { opacity: 1; transform: translate(calc(var(--dx, 0) * .048), calc(var(--dy, 0) * .048)) scale(.974);
+           filter: saturate(.78) brightness(.86); }
+    100% { opacity: 1; transform: translate(calc(var(--dx, 0) * .085), calc(var(--dy, 0) * .085)) scale(.958);
+           filter: saturate(.66) brightness(.78); }
 }
 
 /* ==== 연출 종료 후 아이들 루프(.done) — 예전엔 t2400과 t2760이 완전히 같은 프레임이라
