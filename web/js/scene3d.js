@@ -13,6 +13,7 @@ const Scene3D = {
     petGroups: [],
     mountGroup: null,      // 영웅이 올라탄 탈것 (활성 목록의 맨 앞 1마리)
     mountFollowers: [],    // 장착은 했지만 타지 않은 나머지 탈것들 — 뒤쪽 호에서 따라온다
+    ridePhase: null,       // 검증 스크립트 훅: 숫자를 넣으면 탈것 부유 위상을 그 값으로 고정한다(null=난수)
     enemyMap: new Map(),     // id → {g, body, hpBg, hpFg, dead}
     particles: [],
     anims: [],               // {t, dur, fn(k), onDone}
@@ -5247,12 +5248,18 @@ const Scene3D = {
             } else if (name === 'Camel') {                 // 낙타: 등에 혹 둘 — 안장 앞뒤로 비켜 앉힌다
                 sp(0.115, 0, 0.40, -0.26, dark, 1.0, 1.15, 0.95);
                 sp(0.10, 0, 0.38, 0.16, dark, 0.95, 1.05, 0.9);
-            } else if (name === 'Elk') {                   // 큰사슴: 가지 뿔(머리 위 좌우로 뻗음)
+            } else if (name === 'Elk') {                   // 큰사슴: 가지 뿔 — 이마에서 **앞·바깥으로** 쓸어 나간다
+                // ⚠️ 예전엔 머리 **위로** 세웠다(빔 0.42→0.60, 팁 y 0.60). 그 높이가 하필 카메라
+                //    (탈것 앞-왼쪽 위)에서 **먼 다리로 가는 시선 띠**라, `probe-ride-clear` 가 라이더의
+                //    먼 대퇴 추가 가림 33% 를 상시로 잡았다(실측: 빔 중심 (−0.125,0.51,0.48)·팁
+                //    (−0.2,0.59,0.52) 가 범인). 이 리포지토리에서 머리·목으로 이미 두 번 검증된 처방이
+                //    같은 답을 준다 — **앞으로 빼면서 시선보다 낮게.** 큰사슴 뿔이 앞으로 쓸려 나가는
+                //    실루엣은 실제 무스/엘크에 가깝기도 하다.
                 for (const s of [-1, 1]) {
-                    const beam = tube([s * 0.05, 0.42, 0.44], [s * 0.20, 0.60, 0.52], 0.017, light);
+                    const beam = tube([s * 0.05, 0.40, 0.52], [s * 0.19, 0.47, 0.74], 0.017, light);
                     beam.userData.part = 'head';
                     for (let i = 0; i < 3; i++) {
-                        const tine = cn(0.014, 0.08, s * (0.11 + i * 0.045), 0.52 + i * 0.035, 0.46 + i * 0.03, light);
+                        const tine = cn(0.014, 0.08, s * (0.10 + i * 0.04), 0.45 + i * 0.02, 0.60 + i * 0.055, light);
                         tine.rotation.z = s * -0.5; tine.userData.part = 'head';
                     }
                 }
@@ -5645,7 +5652,11 @@ const Scene3D = {
         g.userData.home = g.position.clone();
         g.userData.spotX = 0;
         g.userData.baseY = baseY;
-        g.userData.phase = U.rand(0, Math.PI * 2);
+        // 부유·까딱임의 위상. **검증 스크립트가 고정할 수 있게** 훅을 둔다 — 난수로만 두면
+        // 프레임 자세가 매번 달라져 가림 판정(probe-ride-clear/thigh)이 실행마다 다른 답을 낸다.
+        // 실제로 2026-08-18 에 그 흔들림 때문에 '내 변경이 가림을 늘렸다'고 한 바퀴 오진했다.
+        // 게임에서는 늘 난수다(`ridePhase` 를 아무도 안 세운다).
+        g.userData.phase = this.ridePhase != null ? this.ridePhase : U.rand(0, Math.PI * 2);
         this.setShadow(g, true);
         this.applyRimLight(g);
         this.scene.add(g);

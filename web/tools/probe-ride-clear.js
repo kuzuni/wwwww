@@ -26,6 +26,10 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
 
     const out = await page.evaluate((list) => {
         Combat.tick = () => { };
+        // ⚠️ 탈것 부유 위상이 난수라 프레임 자세가 매번 달라지고, 그러면 **같은 코드가 실행마다 다른
+        //    가림 수치**를 낸다(2026-08-18: thighR 33% / shinR 25% / 둘 다가 번갈아 나왔고, 그 흔들림
+        //    때문에 멀쩡한 변경을 범인으로 오진했다). 엔진이 열어 둔 훅으로 고정하고 잰다.
+        Scene3D.ridePhase = 0;
         Scene3D.clearEnemies(); Combat.enemies = [];
         const V = (x, y, z) => new THREE.Vector3(x, y, z);
         const res = [];
