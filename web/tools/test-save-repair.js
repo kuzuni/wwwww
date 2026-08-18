@@ -17,6 +17,10 @@ const sandbox = {
         removeItem: k => { delete store[k]; },
     },
     location: { reload() {} },
+    // defaultState()가 참조하는 다른 파일의 전역 — 스텁이 없어 이 테스트는 첫 검사부터
+    // "DEFAULT_AVATAR is not defined"로 죽어 있었다(avatars.js·mounts.js 분리 이후 방치, 이번에 복구).
+    DEFAULT_AVATAR: '🙂',
+    installMountCompat: o => o,
     // 참조 무결성 검사용 실제 데이터 대역
     SKILL_DEFS: [{ id: 'powerStrike' }, { id: 'fireball' }],
     Skills: { MAX_ACTIVE: 3 },

@@ -991,15 +991,11 @@ const UI = {
             </div>`;
     },
 
-    // 챕터 기준 난이도 표기. 원본 실측 근거: shot-042705(진행 패스)의 마일스톤 라벨이
-    // '어려움 3-1'·'어려움 4-15' — 챕터 3·4 가 둘 다 '어려움'이다(상단바 '어려움 4-1'과도 일치).
-    // 챕터 1·2 와 상한 임계값은 원본 미확보라 자체 설계 유지(쉬움/보통 한 챕터씩).
-    difficultyLabel(chapter) {
-        if (chapter <= 1) return '쉬움';
-        if (chapter <= 2) return '보통';
-        if (chapter <= 8) return '어려움';
-        return '매우 어려움';
-    },
+    // 난이도·스테이지 표기 본체는 state.js(진행 도메인·DOM 무관)에 있다 — combat.js 의 사망 배너·토스트가
+    // UI 를 거치지 않고 같은 글자를 쓰게 하고, vm 로직 테스트가 스텁이 아니라 **진짜 규칙**을 검증할 수 있게
+    // 옮겼다(chapter-cycle-difficulty). 아래 둘은 기존 호출부를 위한 얇은 위임이다.
+    difficultyLabel(chapter, tier = 0) { return stageDifficultyLabel(chapter, tier); },
+    stageName(chapter, stage, tier) { return stageName(chapter, stage, tier); },
 
     // ---- 전투 HUD ----
     updateStageLabel() {
@@ -1024,7 +1020,7 @@ const UI = {
             // 되면서 그쪽에서 사라지므로, 글자판을 따로 남겨 둔다(`renderPlayerInfo` 가 읽는다).
             el.dataset.text = `${d.icon}${rest}`;
         } else {
-            el.textContent = `${this.difficultyLabel(S.chapter)} ${S.chapter}-${S.stage}`;
+            el.textContent = this.stageName();
             el.dataset.text = el.textContent;
         }
     },
@@ -4995,9 +4991,11 @@ const UI = {
             `<span class="prob-chip">${this.dgIcon(d)} ${S.dungeons ? (S.dungeons.keys[d.id] ?? '-') : '-'}/${Dungeons.MAX_KEYS}</span>`).join('');
         p.innerHTML = `
             <h2>${IconGen.img('tab_debug', 'lbl-ico')}디버그 <span class="muted">테스트 전용</span></h2>
-            <h3>스테이지 이동</h3>
+            <h3>스테이지 이동 <span class="muted">${this.stageName()}</span></h3>
             <div class="row">
-                <input type="number" id="dbg-chapter" value="${S.chapter}" min="1" max="${CHAPTER_THEMES.length}" style="width:4rem">
+                <select id="dbg-difficulty" style="width:7rem">${DIFFICULTY_NAMES.map((n, i) =>
+                    `<option value="${i}" ${i === S.difficulty ? 'selected' : ''}>${i === 0 ? '기본 순환' : n}</option>`).join('')}</select>
+                <input type="number" id="dbg-chapter" value="${S.chapter}" min="1" max="${CHAPTERS_PER_CYCLE}" style="width:4rem">
                 <span class="muted">-</span>
                 <input type="number" id="dbg-stage" value="${S.stage}" min="1" max="10" style="width:4rem">
                 <button class="btn primary sm" onclick="UI.onDebugGoStage()">이동</button>
@@ -5028,21 +5026,31 @@ const UI = {
         saveGame();
     },
     onDebugGoStage() {
-        const c = U.clamp(parseInt(document.getElementById('dbg-chapter').value) || 1, 1, CHAPTER_THEMES.length);
+        const t = U.clamp(parseInt(document.getElementById('dbg-difficulty').value) || 0, 0, MAX_DIFFICULTY);
+        const c = U.clamp(parseInt(document.getElementById('dbg-chapter').value) || 1, 1, CHAPTERS_PER_CYCLE);
         const s = U.clamp(parseInt(document.getElementById('dbg-stage').value) || 1, 1, 10);
-        S.chapter = c; S.stage = s;
-        if (c * 100 + s > S.bestChapter * 100 + S.bestStage) { S.bestChapter = c; S.bestStage = s; }
-        Dungeons.run = null;
-        Combat.setupStage();
-        this.updateStageLabel(); this.renderDebug(); saveGame();
-        this.toast(`📍 ${c}-${s}로 이동`);
+        this.debugSetStage(t, c, s);
+        this.toast(`📍 ${this.stageName()}로 이동`);
     },
+    // 스테이지 스텝은 사이클 경계를 실제 전진과 **같은 규칙**으로 넘는다 —
+    // 25-10 다음이 다음 티어의 1-1, 티어 1의 1-1 이전이 티어 0의 25-10 (chapter-cycle-difficulty 검증용).
     onDebugStageStep(dir) {
-        let c = S.chapter, s = S.stage + dir;
-        if (s < 1) { c = Math.max(1, c - 1); s = 10; }
-        if (s > 10) { c = Math.min(CHAPTER_THEMES.length, c + 1); s = 1; }
-        S.chapter = c; S.stage = s;
-        if (c * 100 + s > S.bestChapter * 100 + S.bestStage) { S.bestChapter = c; S.bestStage = s; }
+        let t = S.difficulty, c = S.chapter, s = S.stage + dir;
+        if (s < 1) {
+            if (c > 1) { c--; s = 10; }
+            else if (t > 0) { t--; c = CHAPTERS_PER_CYCLE; s = 10; }
+            else s = 1;
+        }
+        if (s > 10) {
+            if (c < CHAPTERS_PER_CYCLE) { c++; s = 1; }
+            else if (t < MAX_DIFFICULTY) { t++; c = 1; s = 1; }
+            else s = 10;
+        }
+        this.debugSetStage(t, c, s);
+    },
+    debugSetStage(t, c, s) {
+        S.difficulty = t; S.chapter = c; S.stage = s;
+        if (curRank() > bestRank()) { S.bestDifficulty = t; S.bestChapter = c; S.bestStage = s; }
         Dungeons.run = null;
         Combat.setupStage();
         this.updateStageLabel(); this.renderDebug(); saveGame();

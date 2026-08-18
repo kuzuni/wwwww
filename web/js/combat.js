@@ -58,7 +58,9 @@ const Combat = {
     // 몬스터 기본 HP (Big) — 영웅 스탯이 승천으로 커지면 몬스터도 같은 축에서 비교돼야 한다
     monsterBaseHp() {
         if (Dungeons.run) return Big.of(Dungeons.monsterHp(Dungeons.run.id, Dungeons.run.stage));
-        return Big.of(55).mul(Math.pow(5.6, S.chapter - 1)).mul(Big.of(1.19).pow(S.stage - 1));
+        // 챕터 축은 난이도 티어를 편 '절대 챕터'다 — 헬 1-1(=절대 76챕터)이 매우어려움 25-10보다 확실히 세다.
+        // 티어가 올라도 커브가 끊기지 않으므로 티어별 별도 배율 테이블이 필요 없다 (chapter-cycle-difficulty).
+        return Big.of(55).mul(Math.pow(5.6, curAbsChapter() - 1)).mul(Big.of(1.19).pow(S.stage - 1));
     },
 
     // 1장 초반 보스 완화 계수 (2026-08-17 QA 5차 버그)
@@ -69,7 +71,9 @@ const Combat = {
     // 어느 구간이든 즉사시키므로, 이 완화가 체감되는 건 맨몸 방치 플레이어뿐이다.
     // 실측(맨몸 클리어율): 1-1·1-2 100% → 1-3 45% → 1-4부터 벽. 방치만으로도 2~3칸은 전진한다.
     bossEase() {
-        if (Dungeons.run || S.chapter > 1) return 1;
+        // 완화는 '게임을 막 시작한 맨몸 영웅' 전용이라 기본 순환 1장에서만 걸린다 —
+        // 어려움 1-1(절대 26챕터)은 이미 장비를 갖춘 뒤라 완화 대상이 아니다.
+        if (Dungeons.run || curAbsChapter() > 1) return 1;
         return Math.min(1, 0.35 + 0.09 * (S.stage - 1));
     },
 
@@ -364,10 +368,11 @@ const Combat = {
     onKill(e) {
         S.kills++;
         if (Dungeons.run) return; // 던전은 클리어 시 일괄 보상
-        const coins = Math.ceil(3 * Math.pow(1.6, S.chapter - 1) * Math.pow(1.06, S.stage - 1)) * (e.isBoss ? 8 : 1);
+        const ac = curAbsChapter(); // 난이도 티어를 편 절대 챕터 — 보상도 적 스펙과 같은 축에서 오른다
+        const coins = Math.ceil(3 * Math.pow(1.6, ac - 1) * Math.pow(1.06, S.stage - 1)) * (e.isBoss ? 8 : 1);
         S.coins += coins;
         UI.floatLoot(`🪙 +${U.fmt(coins)}`);
-        const hammerAmt = 1 + Math.floor(S.chapter / 3);
+        const hammerAmt = 1 + Math.floor(ac / 3);
         if (e.isBoss) {
             S.hammers += hammerAmt * 8;
             UI.floatLoot(`🔨 +${hammerAmt * 8}`);
@@ -396,22 +401,29 @@ const Combat = {
         const firstClear = !S.clearedBosses[key];
         if (firstClear) {
             S.clearedBosses[key] = true;
-            const bonus = Math.ceil(60 * Math.pow(1.6, S.chapter - 1) * Math.pow(1.06, S.stage - 1)); // 일반 몹 코인의 ≈20배
+            const bonus = Math.ceil(60 * Math.pow(1.6, curAbsChapter() - 1) * Math.pow(1.06, S.stage - 1)); // 일반 몹 코인의 ≈20배
             S.coins += bonus;
             // 스테이지에서 벌어진 일이라 'combat' 레인 — 팝업이 떠 있으면 그 아래로 깔린다
-            UI.toast(`🏆 ${key} 첫 클리어! 🪙+${U.fmt(bonus)}`, 'combat');
+            // 키가 아니라 화면에 찍히는 라벨로 알린다(티어가 붙으면 키는 "d1:3-5" 꼴이라 사람이 읽을 문자열이 아니다)
+            UI.toast(`🏆 ${stageName()} 첫 클리어! 🪙+${U.fmt(bonus)}`, 'combat');
         }
 
-        // 무조건 전진
+        // 무조건 전진. 사이클 끝(25-10)에서는 난이도 티어를 올리고 1-1로 되감는다 (chapter-cycle-difficulty).
+        let tierUp = false;
         if (S.stage >= 10) {
-            // 챕터 상한은 **맵 종류 수**에 묶는다 — 맵을 25종으로 늘려 놓고 상한이 10이면
-            // 11~25 챕터의 맵을 게임에서 영영 못 본다(main-stage-25-maps).
-            // ⚠️ 25 를 넘긴 뒤의 난이도 티어 순환(어려움→매우어려움→헬)은 다음 항목
-            //    `chapter-cycle-difficulty` 소관 — 여기서는 상한만 연다.
-            if (S.chapter < CHAPTER_THEMES.length) { S.chapter++; S.stage = 1; }
+            // 챕터 상한 = 맵 종류 수(main-stage-25-maps). CHAPTERS_PER_CYCLE 가 CHAPTER_THEMES.length 를
+            // 그대로 받으므로 맵을 더 늘려도 두 값이 갈라지지 않는다 — 상한이 맵 수보다 작으면 그 위 챕터의
+            // 맵을 게임에서 영영 못 보고, 크면 없는 테마를 (chapter-1)%len 으로 되풀이하게 된다.
+            if (S.chapter < CHAPTERS_PER_CYCLE) { S.chapter++; S.stage = 1; }
+            else if (S.difficulty < MAX_DIFFICULTY) { S.difficulty++; S.chapter = 1; S.stage = 1; tierUp = true; }
+            // 헬 25-10이 종점 — 갈 곳이 없으면 그 스테이지를 계속 반복한다(옛 10-10 상한과 같은 규약)
         } else S.stage++;
-        if (S.chapter * 100 + S.stage > S.bestChapter * 100 + S.bestStage) {
-            S.bestChapter = S.chapter; S.bestStage = S.stage;
+        if (tierUp) {
+            // 배경이 1챕터 맵으로 되감기는 순간을 설명 없이 넘기면 "왜 처음으로 돌아갔지"로 읽힌다
+            UI.toast(`🔥 난이도 상승! ${stageName()}부터 다시 도전합니다`, 'combat');
+        }
+        if (curRank() > bestRank()) {
+            S.bestDifficulty = S.difficulty; S.bestChapter = S.chapter; S.bestStage = S.stage;
             if (!UI.els.passModal.classList.contains('hidden')) UI.renderPass(); // 열려 있는 진행 패스 팝업의 마일스톤 잠금 즉시 갱신
         }
         saveGame();
@@ -474,8 +486,8 @@ const Combat = {
             // 사망 연출: 암전 + 중앙 배너 (death-fade-popup, 사용자 지시 2026-08-18 — "토스트가 아니라
             // 눈에 확 띄는 알림"). 연출을 못 띄우는 환경(fxLayer 부재·WAAPI 미지원)에서만 옛 토스트로 강등
             // — 그 토스트는 사용자가 이름 대 이름으로 지목했던 알림이라 'combat' 레인(팝업 위 금지)을 지킨다.
-            if (!Scene3D.deathFade(back ? `${S.chapter}-${S.stage} 스테이지로 이동합니다` : '회복 후 다시 도전합니다'))
-                UI.toast(back ? `💀 쓰러졌다... ${S.chapter}-${S.stage}로 한 스테이지 후퇴!` : '💀 쓰러졌다... 회복 후 다시 도전!', 'combat');
+            if (!Scene3D.deathFade(back ? `${stageName()} 스테이지로 이동합니다` : '회복 후 다시 도전합니다'))
+                UI.toast(back ? `💀 쓰러졌다... ${stageName()}로 한 스테이지 후퇴!` : '💀 쓰러졌다... 회복 후 다시 도전!', 'combat');
             UI.renderTopBar();
             UI.updateStageLabel(); // 쓰러져 있는 2.4초 동안 라벨이 옛 스테이지를 가리키지 않게(setupStage 전에 먼저 갱신)
         }

@@ -26,7 +26,9 @@ const Pass = {
 
     stageValue(key) { const [c, s] = key.split('-').map(Number); return (c - 1) * 10 + s; },
     // 최고 도달 스테이지 기준 (현재 스테이지가 아님 — 던전 등으로 되돌아가도 마일스톤 유지)
-    reached(key) { return (S.bestChapter - 1) * 10 + S.bestStage >= this.stageValue(key); },
+    // ⚠️ bestChapter 가 아니라 **절대 챕터**로 잰다 — 난이도 티어가 오르면 챕터가 1로 되감기므로
+    //    (chapter-cycle-difficulty) 생 챕터로 재면 어려움 1-1 에서 마일스톤이 통째로 다시 잠긴다.
+    reached(key) { return (bestAbsChapter() - 1) * 10 + S.bestStage >= this.stageValue(key); },
     claimed(key) { return !!S.passClaimed[key]; },
     canClaim(key) { return this.reached(key) && !this.claimed(key); },
 

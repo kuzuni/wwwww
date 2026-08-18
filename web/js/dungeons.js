@@ -57,7 +57,9 @@ const Dungeons = {
 
     unlocked(id) {
         const [c, s] = this.def(id).unlock.split('-').map(Number);
-        return S.bestChapter * 100 + S.bestStage >= c * 100 + s;
+        // 해금 좌표는 기본 순환(티어 0)의 값이라 c 를 그대로 절대 챕터로 본다. 최고 기록 쪽은 티어를 편
+        // 절대 랭크로 재야 어려움 1-1 에서 던전이 도로 잠기지 않는다 (chapter-cycle-difficulty).
+        return bestRank() >= c * 100 + s;
     },
 
     // 단계 n 몬스터 HP: 해금 챕터 수준에서 시작해 단계당 ×1.35 (원본 커브 미확보 → 근사)

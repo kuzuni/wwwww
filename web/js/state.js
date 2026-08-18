@@ -4,6 +4,50 @@ const OFFLINE_CAP_SEC = 4 * 3600;   // 원본: 기본 4시간 캡
 const OFFLINE_COIN_PER_SEC = 1;     // 원본: 초당 코인 1
 const OFFLINE_HAMMER_PER_MIN = 1;   // 원본: 분당 해머 1
 
+// ===== 난이도 순환 (chapter-cycle-difficulty, 사용자 지시 2026-08-19) =====
+// "25챕터 넘어가서 26챕터 되어야 할 때 (어려움)1-1 이걸로 시작해서 맵 순환하게 하기. 어려움→매우어려움→헬."
+// 26챕터라는 별도 챕터가 있는 게 아니라, **맵 25종을 한 바퀴 돌면 난이도 티어를 한 칸 올리고
+// 챕터를 1로 되감는다** — 그 자리가 '어려움 1-1'이다. 맵(CHAPTER_THEMES)은 티어와 무관하게 재사용된다.
+// 사이클 길이 = **맵 종류 수**(gamedata.js CHAPTER_THEMES, main-stage-25-maps 로 25종). 상수를 따로 박으면
+// 맵을 더 늘렸을 때 두 값이 갈라져 ⓐ 상한이 작으면 그 위 챕터 맵을 영영 못 보고 ⓑ 크면 없는 테마를
+// (chapter-1)%len 으로 되풀이한다. vm 로직 테스트가 gamedata.js 없이 state.js만 태울 때를 위한 폴백이 25.
+const CHAPTERS_PER_CYCLE = (typeof CHAPTER_THEMES !== 'undefined' && CHAPTER_THEMES.length) || 25;
+// 인덱스 = S.difficulty. 0은 기본 순환(라벨을 챕터에서 뽑던 옛 규칙 그대로 — UI.difficultyLabel).
+// 1~3만 티어 이름을 그대로 접두로 쓴다. '헬'이 마지막이라 그 뒤로는 더 순환하지 않는다.
+const DIFFICULTY_NAMES = ['', '어려움', '매우 어려움', '헬'];
+const MAX_DIFFICULTY = DIFFICULTY_NAMES.length - 1;
+
+// 난이도 티어를 포함한 '절대 챕터' — 티어가 올라가도 적 스펙·보상 커브가 끊기지 않게
+// 챕터 축을 1..∞ 로 편다 (티어 0 챕터 1 = 1, 티어 1 챕터 1 = 26, 티어 3 챕터 25 = 100).
+// 적 HP·코인·해머는 전부 이 값을 지수로 쓰므로 티어가 오르면 스펙이 그대로 이어서 오른다.
+function absChapter(tier, chapter) { return U.clamp(tier || 0, 0, MAX_DIFFICULTY) * CHAPTERS_PER_CYCLE + chapter; }
+function curAbsChapter() { return absChapter(S.difficulty, S.chapter); }
+function bestAbsChapter() { return absChapter(S.bestDifficulty, S.bestChapter); }
+// 진행도 비교용 단조 랭크 — 옛 `chapter*100 + stage` 를 절대 챕터로 갈아끼운 것.
+// ⚠️ 티어가 생긴 뒤로 `S.chapter*100+S.stage` 직접 비교는 전부 틀린다(티어 1 의 1-1 이 티어 0 의 25-10 보다 작아진다).
+function progressRank(tier, chapter, stage) { return absChapter(tier, chapter) * 100 + stage; }
+function curRank() { return progressRank(S.difficulty, S.chapter, S.stage); }
+function bestRank() { return progressRank(S.bestDifficulty, S.bestChapter, S.bestStage); }
+
+// 챕터 기준 난이도 표기. 원본 실측 근거: shot-042705(진행 패스)의 마일스톤 라벨이
+// '어려움 3-1'·'어려움 4-15' — 챕터 3·4 가 둘 다 '어려움'이다(상단바 '어려움 4-1'과도 일치).
+// 챕터 1·2 와 상한 임계값은 원본 미확보라 자체 설계 유지(쉬움/보통 한 챕터씩).
+// 티어(chapter-cycle-difficulty)가 붙으면 **티어 이름이 곧 난이도 표기**다 — 사용자가 '어려움→매우어려움→헬'로
+// 못 박았으므로 챕터에서 뽑지 않는다. 티어 0(기본 순환)만 위 원본 근거대로 챕터에서 뽑는다.
+function stageDifficultyLabel(chapter, tier = 0) {
+    if (tier > 0) return DIFFICULTY_NAMES[U.clamp(tier, 1, MAX_DIFFICULTY)];
+    if (chapter <= 1) return '쉬움';
+    if (chapter <= 2) return '보통';
+    if (chapter <= 8) return '어려움';
+    return '매우 어려움';
+}
+
+// 사람이 읽는 스테이지 표기 "어려움 3-5". 상단 라벨·토스트·사망 배너가 전부 이걸 쓴다 —
+// 티어가 붙은 뒤로 `${S.chapter}-${S.stage}`만 찍으면 어느 순환인지 화면에서 사라진다.
+function stageName(chapter = S.chapter, stage = S.stage, tier = S.difficulty) {
+    return `${stageDifficultyLabel(chapter, tier)} ${chapter}-${stage}`;
+}
+
 let S = null;
 
 /* 캡처 하네스 지원: `let S` / `const UI` 같은 최상위 렉시컬 전역은 window 프로퍼티가 아니라서
@@ -24,8 +68,9 @@ function defaultState() {
         settingsDummy: { vibration: true, chatShow: true, chatDark: false, clanChatPreview: true }, // 설정 팝업 더미 토글 4종
         lastOfflineClaim: U.now(), // 오프라인 보상 마지막 수령 시각 (자동 모달 + 수동 버튼 공용)
         // 진행
-        chapter: 1, stage: 1,           // 현재 도전 스테이지
-        bestChapter: 1, bestStage: 1,
+        chapter: 1, stage: 1,           // 현재 도전 스테이지 (챕터는 사이클 안에서만 1~25)
+        difficulty: 0,                  // 난이도 티어(0=기본, 1=어려움, 2=매우 어려움, 3=헬) — 25챕터 완주마다 +1
+        bestChapter: 1, bestStage: 1, bestDifficulty: 0,
         kills: 0, totalCrafts: 0,
         clearedBosses: {},              // "1-5": true → 첫 클리어 보상용
         // 재화
@@ -146,6 +191,15 @@ function pruneDanglingRefs() {
         seenMounts.add(n);
         return true;
     });
+    // 진행 좌표 상한: ensureStateShape는 하한(0/1)만 보고 위쪽은 안 본다. 난이도 티어가 범위를 넘으면
+    // DIFFICULTY_NAMES 조회가 undefined 가 되어 스테이지 라벨이 "undefined 1-1"로 찍히고, 챕터가 25를
+    // 넘으면 그 사이클에 존재하지 않는 좌표라 다음 클리어에서 티어가 안 오른다(전진이 영원히 막힌다).
+    S.difficulty = U.clamp(Math.floor(S.difficulty), 0, MAX_DIFFICULTY);
+    S.bestDifficulty = U.clamp(Math.floor(S.bestDifficulty), 0, MAX_DIFFICULTY);
+    S.chapter = U.clamp(Math.floor(S.chapter), 1, CHAPTERS_PER_CYCLE);
+    S.bestChapter = U.clamp(Math.floor(S.bestChapter), 1, CHAPTERS_PER_CYCLE);
+    // 최고 기록이 현재 진행보다 뒤처져 있으면(구세이브·손상) 현재 좌표로 끌어올린다 — 해금·패스가 되감기지 않게
+    if (bestRank() < curRank()) { S.bestDifficulty = S.difficulty; S.bestChapter = S.chapter; S.bestStage = S.stage; }
     // 장비 슬롯은 STATE_SHAPE_KEYS 재귀가 '기본값이 null'이라 어떤 값이든 통과시킨다 —
     // 문자열·배열이 들어 있으면 장비 시트가 터지므로 여기서 null로 되돌린다.
     for (const slot of Object.keys(S.equipment)) {
@@ -271,14 +325,16 @@ function claimOfflineNow() {
     return r;
 }
 
-// 현재 스테이지 키 "1-3"
-function stageKey() { return `${S.chapter}-${S.stage}`; }
+// 현재 스테이지 키 "1-3" (난이도 티어가 붙으면 "d1:1-3")
+// ⚠️ 티어 0 은 옛 키와 **글자까지 동일**하게 남긴다 — 구세이브의 clearedBosses 첫 클리어 기록이 무효가 되면
+//    이미 깬 스테이지의 첫 클리어 보너스가 통째로 다시 지급된다. 티어별로는 첫 클리어가 다시 성립하는 게 맞다.
+function stageKey() { return S.difficulty > 0 ? `d${S.difficulty}:${S.chapter}-${S.stage}` : `${S.chapter}-${S.stage}`; }
 
 // 기능 해금 여부 (스테이지 도달 기준)
 function isUnlocked(key) {
     const def = UNLOCKS.find(u => u.key === key);
     if (!def) return true;
     const [c, s] = def.stage.split('-').map(Number);
-    const best = S.bestChapter * 100 + S.bestStage;
-    return best >= c * 100 + s;
+    // 해금 기준 스테이지는 전부 기본 순환(티어 0)의 좌표라 c 를 그대로 절대 챕터로 쓴다.
+    return bestRank() >= c * 100 + s;
 }
