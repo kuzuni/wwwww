@@ -2641,3 +2641,60 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.restore();
     };
 })(IconGen);
+
+/* ============================================================================
+ * 자동 반복 고리 · 채팅 말풍선 (원본 shot-042120 확대)
+ *
+ * ⓐ `autoloop` — [자동] 버튼 안. 원본은 **흰 원형 2화살 고리**(검정 외곽선)다. 클론은 🔄 이모지라
+ *    바로 옆의 코드 생성 자물쇠와 화풍이 갈렸다(파란 사각 배경이 통째로 얹혀 있었다).
+ * ⓑ `chatbubble` — 하단 채팅 미리보기. 원본은 **꼬리가 왼쪽 아래로 난 흰 말풍선 + 짙은 회색 점 3개**
+ *    이고 뒤에 카드가 없다. 클론은 💬 이모지(꼬리가 오른쪽 아래)를 흰 카드 안에 넣어 두 겹이었다.
+ *    ⚠️ 원본 미리보기 바는 회색이라 흰 말풍선이 그대로 읽히지만 클론 바는 크림색이다 —
+ *    그래서 클론 전역 화풍대로 **검정 키라인을 준다**(바 색은 이 항목 소관이 아니다).
+ * ============================================================================ */
+(function (G) {
+    const { K, ink, on, poly, rrect, circle } = G._sticker;
+
+    // 링 조각 + 끝 화살촉을 한 경로로 — 안팎 호를 잇고 화살촉 삼각형을 끼워 넣는다.
+    const arcArrow = (ctx, S, cx, cy, R, tw, a0, a1, fill, lw) => {
+        const X = (r, a) => [cx * S + Math.cos(a) * r * S, cy * S + Math.sin(a) * r * S];
+        const dir = a1 > a0 ? 1 : -1, head = 0.30 * dir;
+        ctx.save();
+        ctx.lineJoin = ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(...X(R + tw / 2, a0));
+        ctx.arc(cx * S, cy * S, (R + tw / 2) * S, a0, a1, dir < 0);
+        ctx.lineTo(...X(R + tw * 1.25, a1));
+        ctx.lineTo(...X(R, a1 + head));                  // 화살촉 끝
+        ctx.lineTo(...X(R - tw * 1.25, a1));
+        ctx.arc(cx * S, cy * S, (R - tw / 2) * S, a1, a0, dir > 0);
+        ctx.closePath();
+        ctx.strokeStyle = K; ctx.lineWidth = lw * S; ctx.stroke();
+        ctx.fillStyle = fill; ctx.fill();
+        ctx.restore();
+    };
+
+    G.draw.autoloop = function (ctx, S) {
+        const P = Math.PI, W = '#f4f4f6';
+        // ⚠️ 호 끝각 + 화살촉 각(0.30rad ≈ 0.095π)이 다음 호의 시작각을 넘으면 두 화살촉이
+        //    겹쳐 고리가 아니라 소용돌이 덩어리로 읽힌다(0.84π + head 0.40 에서 실제로 그랬다).
+        arcArrow(ctx, S, 0.5, 0.5, 0.305, 0.165, P * 0.14, P * 0.82, W, 0.078);
+        arcArrow(ctx, S, 0.5, 0.5, 0.305, 0.165, P * 1.14, P * 1.82, W, 0.078);
+    };
+
+    G.draw.chatbubble = function (ctx, S) {
+        const DOT = '#4a4a52';
+        // 몸통 + 왼쪽 아래 꼬리를 한 경로로(겹친 안쪽 키라인은 칠에 덮인다)
+        ctx.save();
+        ctx.lineJoin = ctx.lineCap = 'round';
+        ctx.beginPath();
+        G._rrSub(ctx, 0.085 * S, 0.185 * S, 0.83 * S, 0.505 * S, 0.145 * S);
+        poly(ctx, S, [[0.190, 0.605], [0.120, 0.945], [0.455, 0.680]])();
+        ctx.closePath();
+        ctx.strokeStyle = K; ctx.lineWidth = 0.078 * S; ctx.stroke();
+        ctx.fillStyle = '#f7f7f8'; ctx.fill();
+        ctx.restore();
+        [[0.295, 0.438], [0.500, 0.438], [0.705, 0.438]]
+            .forEach(d => on(ctx, circle(ctx, S, d[0], d[1], 0.077), DOT));
+    };
+})(IconGen);

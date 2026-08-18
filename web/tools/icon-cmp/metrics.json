@@ -1,0 +1,207 @@
+{
+  "rows": [
+    {
+      "frame": "pill.coin",
+      "icoH": 25.2,
+      "frameH": 25.1,
+      "fill": 100.6
+    },
+    {
+      "frame": "pill.coin",
+      "icoH": 16.1,
+      "frameH": 25.1,
+      "fill": 64.4
+    },
+    {
+      "frame": "pill.gem",
+      "icoH": 25.2,
+      "frameH": 25.1,
+      "fill": 100.6
+    },
+    {
+      "frame": "pill.gem",
+      "icoH": 16.1,
+      "frameH": 25.1,
+      "fill": 64.4
+    },
+    {
+      "frame": "small",
+      "icoH": 20.2,
+      "frameH": 14.1,
+      "fill": 142.8
+    },
+    {
+      "frame": "cur-pill.egg",
+      "icoH": 23.9,
+      "frameH": 25,
+      "fill": 95.4
+    },
+    {
+      "frame": "cur-pill.gem",
+      "icoH": 23.9,
+      "frameH": 25,
+      "fill": 95.4
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "tile-face",
+      "icoH": 57.5,
+      "frameH": 65.4,
+      "fill": 88
+    },
+    {
+      "frame": "summon-cost",
+      "icoH": 20.3,
+      "frameH": 15.8,
+      "fill": 129.1
+    },
+    {
+      "frame": "hatch-egg",
+      "icoH": 35.3,
+      "frameH": 36.1,
+      "fill": 97.8
+    }
+  ],
+  "pillHeights": [
+    25.06,
+    25.06
+  ],
+  "topbarH": null
+}

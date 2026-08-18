@@ -989,7 +989,7 @@ const UI = {
                     <div class="forge-actions">
                         ${forgeBtnHtml}
                         <button class="btn sm ${autoUnlocked ? (S.autoForgeOn ? 'on' : '') : 'disabled'}" onclick="UI.openAutoForge()">
-                            자동🔄<br>${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : IconGen.img('lock')}</button>
+                            자동${IconGen.img('autoloop', 'auto-loop-ico')}<br>${autoUnlocked ? (S.autoForgeOn ? 'ON' : 'OFF') : IconGen.img('lock')}</button>
                     </div>
                     ${upgTimeHtml}
                 </div>
@@ -3176,7 +3176,7 @@ const UI = {
             </div>`;
         const checkRow = (label) => `
             <div class="settings-row static" onclick="UI.toast('데모 버전에서는 지원하지 않습니다')">
-                <span>${label}</span><span class="settings-check">✔</span>
+                <span>${label}</span><span class="settings-check">${IconGen.img('check')}</span>
             </div>`;
         const staticRow = (label) => `<div class="settings-row static" onclick="UI.toast('데모 버전에서는 지원하지 않습니다')"><span>${label}</span></div>`;
         // 실동작 행 — '방' 탭을 없애면서(사용자 지시 2026-08-18) 갈 곳이 없어진 수동 저장·초기화를
@@ -3373,7 +3373,7 @@ const UI = {
         const name = last.type === 'share' ? last.myName : last.name;
         const msg = last.type === 'share' ? '전투 결과를 공유했습니다' : last.text;
         this.els.chatPreview.innerHTML = `
-            <span class="chat-preview-avatar">💬<span class="chat-preview-badge">99</span></span>
+            <span class="chat-preview-avatar">${IconGen.img('chatbubble')}<span class="chat-preview-badge">99</span></span>
             <span class="chat-preview-lines">
                 <span class="chat-preview-name">${U.escapeHtml(name)}</span>
                 <span class="chat-preview-msg">${U.escapeHtml(msg)}</span>

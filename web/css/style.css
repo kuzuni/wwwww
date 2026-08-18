@@ -1994,9 +1994,14 @@ body {
 }
 .chat-preview-avatar {
     position: relative; width: 1.9rem; height: 1.9rem; border-radius: .35rem; flex: none;
-    background: #fff; border: 2px solid var(--pp-line); font-size: 1rem;
-    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; display: flex; align-items: center; justify-content: center;
 }
+/* 원본(shot-042120 확대)은 말풍선 뒤에 **카드가 없다** — 흰 카드 + 검정 테는 이모지 💬 를
+   담으려고 둔 액자였다. 상자 크기(1.9rem)는 그대로 두고 배경·테만 뺐다(비율 영향 0). */
+.chat-preview-avatar .ico { width: 100%; height: 100%; margin: 0; vertical-align: top; }
+/* [자동] 버튼의 반복 고리 — 글자 옆 인라인이라 줄상자를 키우지 않게 음수 마진을 유지한다 */
+.auto-loop-ico { width: 1.15rem; height: 1.15rem; margin: -.32em .04em -.32em .08em; }
+.settings-check .ico { width: 1.15rem; height: 1.15rem; margin: -.32em 0; }
 .chat-preview-badge {
     position: absolute; top: -.42rem; right: -.42rem; background: var(--pp-red); color: #fff;
     font-size: .55rem; font-weight: 900; border-radius: .6rem; padding: .05rem .3rem; line-height: 1;
