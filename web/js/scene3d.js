@@ -1075,9 +1075,11 @@ const Scene3D = {
         this.charTrunkMat = new THREE.MeshLambertMaterial({ color: 0x30231d });
         this.charRockMat = new THREE.MeshPhongMaterial({ color: 0x2e2521, flatShading: true, shininess: 0, vertexColors: true });
         this.lavaCoreMat = new THREE.MeshBasicMaterial({ color: 0xff7043 });
+        // vertexColors — 이 재질을 쓰는 메시는 `crystalGeo()` 가 굽는 클러스터 하나뿐이다(파일 전체 확인함).
+        // ⚠️ 새 메시를 이 재질로 만들 땐 반드시 color 속성을 붙일 것(없으면 그 메시만 검게 찍힌다).
         this.crystalMat = new THREE.MeshPhongMaterial({
             color: 0x9575cd, emissive: 0x6a3fb5, emissiveIntensity: 0.5,
-            flatShading: true, shininess: 90, specular: 0xffffff,
+            flatShading: true, shininess: 90, specular: 0xffffff, vertexColors: true,
         });
         this.trees = [];
         this.rocks = [];
@@ -1880,18 +1882,101 @@ const Scene3D = {
         return g;
     },
 
+    // ---- 크리스탈 조형: 정오각뿔 3개 → 육방정 결정 클러스터 (TODO '맵 프롭 퀄리티 업' — 구조물·크리스탈 계열) ----
+    // 적용 전 `makeCrystal` 은 **ConeGeometry(r, h, 5) 3개**였다. 원뿔은 밑동에서 꼭짓점까지 한 번에
+    // 좁아져 원경에서 '고깔모자/죽창'으로 읽힌다 — 실제 수정은 **기둥(주상면)으로 곧게 오르다가 어깨에서
+    // 꺾여 뿔(추면)로 끝난다.** 그 어깨선이 없으면 어떤 발광을 걸어도 결정으로 안 보인다.
+    //  ⑴ **육방 기둥 + 종단 뿔** — 단면 반경을 면마다 지터(정육각형이면 그냥 또 다른 정다면체다),
+    //     어깨 높이도 면마다 다르게, 꼭짓점은 축에서 살짝 비켜 둔다(자연 결정의 종단은 대칭이 아니다).
+    //  ⑵ **클러스터를 메시 1개로 합쳐 굽는다** — 결정 6개(주상 3 + 밑동 파편 3)를 넣고도 드로우콜은
+    //     3 → 1 로 **준다.** r128 에는 BufferGeometryUtils 가 없으므로(lib 에 three.min.js 하나뿐)
+    //     삼각형 배열을 직접 쌓는다. 비인덱스 = flatShading 이 그대로 먹는다.
+    //  ⑶ **버텍스 컬러** — 높이 그라디언트(밑동 어둡게·끝 밝게) + **면마다 미세 변주**. 결정은 면마다 빛을
+    //     다르게 받아야 '깎인 것'으로 읽힌다. 종단면은 한 단 더 밝게(빛이 통과해 나가는 끝).
+    // ⚠️ **난수를 `U.rand`(전역 RNG)에서 뽑지 않는다** — `sculptFoliage` 와 같은 이유다. 소비량이 바뀌면
+    //    시드 고정 대조 캡처(`shot-biomes.js`)의 뒤쪽 프롭 배치가 통째로 밀린다. 내부 카운터를 쓴다.
+    //    (이번 교체로 마법 바이옴의 U.rand 소비량 자체가 줄어 magic 캡처의 배치는 한 번 어긋난다 — 예상된 것.)
+    crystalGeo(s) {
+        let n = (this._crystalSeq = (this._crystalSeq || 0) + 1) * 131.7;
+        const rnd = () => { n = Math.sin(n * 12.9898 + 78.233) * 43758.5453; n -= Math.floor(n); return n; };
+        const R = (a, b) => a + (b - a) * rnd();
+        const pos = [], col = [];
+        const push = (p, sh) => { pos.push(p.x, p.y, p.z); col.push(sh, sh, sh); };
+        const tri = (a, b, c, sa, sb, sc) => { push(a, sa); push(b, sb); push(c, sc); };
+        // 큰 것 하나가 지배하고 나머지가 받치는 구성 — 같은 키 3개는 '삼지창'으로 읽힌다.
+        // [높이계수, 반경계수, x, z]
+        const plan = [
+            [1.06, 0.116, 0.00, 0.00], [0.78, 0.093, -0.21, 0.11], [0.58, 0.081, 0.20, -0.15],
+            [0.30, 0.062, -0.27, -0.21], [0.24, 0.054, 0.29, 0.17], [0.18, 0.047, 0.06, 0.27],
+        ];
+        const SIDES = 6;
+        const m = new THREE.Matrix4(), e = new THREE.Euler();
+        const v = new THREE.Vector3();
+        let tall = 0;
+        const parts = [];   // 결정별 정점 구간 + 배치 행렬 — 합친 뒤에도 개체 단위로 잴 수 있게 남긴다(probe-crystal-sculpt)
+        for (let ci = 0; ci < plan.length; ci++) {
+            const vStart = pos.length / 3;
+            const [hk, rk, px, pz] = plan[ci];
+            const h = hk * R(0.95, 1.25) * s;
+            const rBase = rk * R(0.85, 1.2) * s;
+            // 파편일수록 크게 눕는다(밑동에서 사방으로 뻗어 나온 인상)
+            const tilt = ci < 3 ? R(0.03, 0.16) : R(0.22, 0.5);
+            const dir = R(0, Math.PI * 2);
+            e.set(Math.cos(dir) * tilt, R(0, Math.PI * 2), Math.sin(dir) * tilt);
+            m.makeRotationFromEuler(e);
+            m.setPosition(px * s, -0.04 * s, pz * s);   // 밑동을 지면 아래로 살짝 묻는다
+            const xf = p => p.applyMatrix4(m).clone();
+            // 면마다 다른 반경·어깨높이 — 여기서 정육각형을 깨야 결정으로 읽힌다
+            const rj = [], sy = [], fShade = [];
+            // ⚠️ 반경을 **균등 난수만**으로 흔들면 6면뿐이라 표본이 적어 가끔 거의 정육각형이 나온다
+            //    (첫 판 실측: 30개 중 최소 변동계수 0.058 — 게이트 0.06 미달). 석영의 주상면이 실제로
+            //    넓은 면/좁은 면이 교대로 나는 것을 그대로 쓴다 — 교대 패턴이 비대칭 하한을 보장한다.
+            //    교대 위상은 결정마다 뒤집는다(넓은 면이 어디서 시작하느냐 = 습성의 회전) — 위상까지 같으면
+            //    단면이 결정마다 거의 똑같아져 개체차가 게이트 밑으로 떨어진다(실측 0.0376 → 0.0980).
+            const flip = rnd() < 0.5 ? 1 : 0;
+            for (let j = 0; j < SIDES; j++) { rj.push(((j + flip) % 2 ? 1.16 : 0.86) * R(0.86, 1.17)); sy.push(R(0.88, 1.12)); fShade.push((rnd() - 0.5) * 0.10); }
+            const shoulder = h * R(0.58, 0.74);          // 기둥 → 뿔 전이 높이
+            const taper = R(0.80, 0.97);                 // 기둥은 살짝만 좁아진다(원뿔과 갈리는 지점)
+            const r0 = [], r1 = [], apex = xf(v.set(rBase * R(-0.25, 0.25), h, rBase * R(-0.25, 0.25)));
+            for (let j = 0; j < SIDES; j++) {
+                const ang = (j / SIDES) * Math.PI * 2;
+                const rb = rBase * rj[j];
+                r0.push(xf(v.set(Math.cos(ang) * rb, 0, Math.sin(ang) * rb)));
+                r1.push(xf(v.set(Math.cos(ang) * rb * taper, shoulder * sy[j], Math.sin(ang) * rb * taper)));
+            }
+            // 높이 그라디언트 + 면 변주 — vertexColors 는 albedo 에 곱해지므로 1.0 을 넘기지 않는다
+            const sh = (y, f) => Math.max(0.34, Math.min(1, 0.50 + 0.50 * Math.pow(Math.min(1, Math.max(0, y / h)), 0.8) + f));
+            const shoulderShade = j => sh(shoulder * sy[j], fShade[j]);
+            for (let j = 0; j < SIDES; j++) {
+                const k = (j + 1) % SIDES;
+                const f = fShade[j];
+                const b0 = sh(0, f), b1 = sh(0, fShade[k]);
+                // ⚠️ 감기 방향 — three.js 는 CCW 가 앞면이다. 각도 증가 순(r0[j]→r0[k])으로 감으면 법선이
+                //    **안쪽**을 봐서 옆면이 통째로 컬링돼 결정이 뚫려 보인다. 역순으로 감는다(밑면만 정순).
+                tri(r1[k], r0[k], r0[j], shoulderShade(k), b1, b0);              // 주상면 ⑴
+                tri(r1[j], r1[k], r0[j], shoulderShade(j), shoulderShade(k), b0); // 주상면 ⑵
+                const ft = Math.min(1, sh(h, f) + 0.08);                        // 종단면은 한 단 밝게
+                tri(apex, r1[k], r1[j], ft, shoulderShade(k), shoulderShade(j)); // 추면
+                if (j >= 2) tri(r0[0], r0[j], r0[k], b0 * 0.72, b0 * 0.72, b1 * 0.72); // 밑면(눕는 파편이 있어 막는다)
+            }
+            parts.push({ start: vStart, count: pos.length / 3 - vStart, h, rBase, shoulder, mat: m.elements.slice() });
+            tall = Math.max(tall, h);
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
+        geo.computeVertexNormals();
+        geo.userData.tall = tall;
+        geo.userData.parts = parts;
+        return geo;
+    },
+
     // 수정 결정(마법/심해) — 테마색으로 발광하는 크리스탈 클러스터 + 바닥 발광 링(접지 글로우) + 공중 할로
     makeCrystal(s) {
         const g = new THREE.Group();
-        let tall = 0;
-        for (let i = 0; i < 3; i++) {
-            const h = U.rand(0.6, 1.25) * s;
-            tall = Math.max(tall, h);
-            const c = new THREE.Mesh(new THREE.ConeGeometry(U.rand(0.09, 0.15) * s, h, 5), this.crystalMat);
-            c.position.set(U.rand(-0.2, 0.2) * s, h * 0.42, U.rand(-0.16, 0.16) * s);
-            c.rotation.set(U.rand(-0.28, 0.28), U.rand(0, 3), U.rand(-0.28, 0.28));
-            g.add(c);
-        }
+        const geo = this.crystalGeo(s);
+        const tall = geo.userData.tall;
+        g.add(new THREE.Mesh(geo, this.crystalMat));
         // 공중 할로 스프라이트 — 블룸 없는 파이프라인에서 "빛이 번지는" 인상을 만드는 가짜 글로우.
         // 지면 링만으론 발광이 지면 레이어에서 끝난다는 지적 → 결정 몸통 높이에 겹침
         if (!this.crystalHaloMat) {
