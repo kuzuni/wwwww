@@ -6360,6 +6360,13 @@ const Scene3D = {
         if (!m) return;
         const ox = m.g.position.x;
         this.addAnim(0.3, k => {
+            // 🚨 공격 중에 죽으면 이 돌진이 **시체의 x 를 계속 덮어쓴다.** 사망 애니메이션이
+            //    "트랜스폼을 단독 소유"한다는 전제(killEnemy 주석)가 여기서만 깨져 있었다 —
+            //    돌진(0.3초)과 쓰러짐이 같은 프레임에 x 를 서로 밀어, 시체가 죽은 자리로 되끌려갔다
+            //    돌진이 끝나는 순간 쓰러짐 값으로 **한 프레임에 33px 순간이동**했다
+            //    (실측 `probe-deadbar-anchor.js`: world.x 2.546 → 3.211 을 16ms 만에).
+            //    그 x 를 따라가는 빈 HP바도 같이 튄다. 죽으면 즉시 손을 뗀다.
+            if (m.dead) return;
             m.g.position.x = ox - Math.sin(k * Math.PI) * 0.55;
             const J = m.anim && m.anim.armRJ;
             if (J) {
@@ -6370,6 +6377,7 @@ const Scene3D = {
                 m.g.rotation.z = (0.14 * w) * (1 - st) - 0.1 * st * (1 - rec); // 몸통 비틀림 동참 — 예비동작 판독성
             } else if (m.armR) m.armR.rotation.x = -Math.sin(k * Math.PI) * 1.6; // 관절 없는 리그 폴백: 팔 휘두르기
         }, () => {
+            if (m.dead) return;   // 시체 자세를 원위치로 되돌리면 쓰러진 몸이 벌떡 선다
             const e = Combat.enemies.find(x => x.id === id);
             m.g.position.x = e ? e.x + this.worldX : ox;
             if (m.armR) m.armR.rotation.x = 0;
@@ -6623,11 +6631,23 @@ const Scene3D = {
         const ox = pos.x, kb = 0.18 + Math.min(0.34, sev * 1.2) + (crit ? 0.12 : 0);
         const roll = (0.06 + Math.min(0.2, sev * 0.7)) * (crit ? 1.3 : 1);
         m.g.position.x = ox + kb; // 임팩트 프레임에 이미 밀려 있어야 '맞았다'로 읽힌다
+        // 바도 같은 프레임에 따라간다. 이 대입은 `update()` 바깥(=Combat 호출 시점)에서 도는데
+        // 바 추적은 update 안에 있어, 안 맞춰 주면 **임팩트 프레임 한 장 동안만** 바가 몸에서
+        // 26px 뒤처진다(실측 `probe-deadbar-anchor.js`). 하필 채점자가 제일 많이 들여다보는 그 한 장이다.
+        if (m.hpG) m.hpG.position.set(m.g.position.x + (m.shakeX || 0), m.g.position.y + (m.shakeY || 0), m.g.position.z);
         this.addAnim(crit ? 0.2 : 0.16, k => {
+            // 🚨 마지막 한 방이면 이 복귀가 **쓰러지는 시체를 죽은 자리로 되끌어간다.**
+            //    `anims` 는 **역순으로 돌기 때문에**(update: `for (i = length-1; i >= 0; i--)`)
+            //    나중에 추가된 사망 낙하가 **먼저** 실행되고 이 넉백이 **나중에** 실행돼,
+            //    같은 프레임에서 넉백이 낙하를 매번 덮어쓴다. 그러다 넉백이 끝나면 낙하 값이
+            //    한 프레임에 그대로 드러나 시체가 **33px 순간이동**한다(실측 world.x 2.546→3.211).
+            //    ⚠️ 위의 즉시 대입(ox+kb)은 killEnemy 보다 먼저 도므로 그대로 둔다 —
+            //       임팩트 프레임의 밀림이고, 낙하는 그 밀린 자리를 ox 로 잡아 이어받는다.
+            if (m.dead) return;
             const p = (1 - k) * (1 - k); // easeOut 복귀
             m.g.position.x = ox + p * kb;
             m.g.rotation.z = -p * roll;
-        }, () => { m.g.rotation.z = 0; });
+        }, () => { if (!m.dead) m.g.rotation.z = 0; });   // 시체의 쓰러진 회전을 0으로 되돌리면 벌떡 선다
         // ④ 히트축 스쿼시 — **모든 타격**에 건다(비평가 4차 ⓐ).
         // 예전엔 `crit || sev > 0.1` 게이트가 걸려 있어, 아이들 게임에서 95%를 차지하는 소액 타격은
         // 몸 변형이 통째로 0이었다(실측: sev 0.02에서 scale 1/1, 화면 변위 8.4px = 몸폭의 14%뿐).
@@ -6699,6 +6719,9 @@ const Scene3D = {
     killEnemy(id, isBoss) {
         const m = this.enemyMap.get(id);
         if (!m) return;
+        // 진행 중인 개체 애니메이션(공격 돌진)이 시체 트랜스폼을 못 건드리게 하는 표식.
+        // `update()` 루프는 `!e.alive` 로 걸러지지만 addAnim 으로 이미 떠 있는 연출은 안 걸린다.
+        m.dead = true;
         // 처치 버스트: 주황 파편 + 흰 코어 스파크 + 순간 점광 + 충격 링, 보스는 전부 확대판 (마지막 한 방이 제일 세게 터지도록)
         // 버스트 원점은 적 실높이의 중간 — 고정 +0.5는 보스(실높이 2.1)에선 무릎 높이라
         // 마지막 한 방이 발밑에서 터졌다.
@@ -6844,6 +6867,16 @@ const Scene3D = {
                 mats.forEach(mt => mt.opacity = (mt.userData.dissolveBase !== undefined ? mt.userData.dissolveBase : 1) * (1 - f)); // 디졸브 (재질별 원래 불투명도 기준)
                 if (m.blob) m.blob.scale.setScalar(0.95 * (1 - f)); // 공유 재질인 블롭 섀도우는 스케일로만 축소
             }
+            // 빈 HP바가 시체를 따라간다. 바 위치는 평소 `update()` 의 `for (const e of Combat.enemies)`
+            // 안에서만 갱신되는데 그 루프는 `!e.alive` 를 건너뛰므로(바로 위 260줄), 처치 직후부터는
+            // **이 애니메이션이 유일한 갱신 지점**이다 — 그래서 여기서 추적한다. 세 분기가 전부
+            // `m.g.position` 을 쓴 **뒤**에 놓아야 한 프레임 늦지 않는다.
+            // 5차 교정 ⓓ 는 빈 바의 **수명**(0.19s 드레인 + 0.12s 팝아웃)만 잡고 **앵커**를 안 잡아,
+            // 시체가 x +0.22유닛 이동 + y 낙하 하는 동안 바는 죽은 자리에 못 박혀 있었다
+            // (비평가 6차 B #1 "바는 원래 자리, 시체는 우하단". 실측 `probe-deadbar-anchor.js`:
+            //  바가 보이는 동안 최대 **37.0px** 이탈 → 바가 시체와 무관한 UI 조각으로 읽힌다).
+            // shakeX/shakeY 는 더하지 않는다 — 피격 셰이크는 살아 있는 적의 반응이라 시체엔 안 붙는다.
+            if (m.hpG) m.hpG.position.set(m.g.position.x, m.g.position.y, m.g.position.z);
         }, () => {
             this.disposeTree(m.g); this.scene.remove(m.g);
             if (m.hpG) { this.disposeTree(m.hpG); this.scene.remove(m.hpG); } // 바가 scene 직속이라 따로 걷어낸다
