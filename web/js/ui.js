@@ -3095,7 +3095,7 @@ const UI = {
                     <div class="profile-title">상대 선택</div>
                     <p class="league-challenge-desc">도전 티켓은 매일 09:00에 보충됩니다!</p>
                     <div class="league-ticket-pill">${IconGen.img('ticket')} ${S.league.tickets}/${League.TICKET_MAX}</div>
-                    <div>${rowsHtml}</div>
+                    <div class="league-challenge-list">${rowsHtml}</div>
                 </div>
                 <button class="x-btn" onclick="UI.openLeague()">✕</button>
             </div>`;

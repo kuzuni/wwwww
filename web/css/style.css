@@ -1715,15 +1715,33 @@ body {
 .league-tier-grid span { background: #bdbdbd; border-radius: 1rem; padding: .12rem .55rem; white-space: nowrap; }
 
 /* ③ 상대 선택 팝업 — 흰 카드 */
-.league-challenge-desc { text-align: center; font-size: .82rem; font-weight: 700; color: var(--pp-ink); margin: 0 0 .4rem; }
+/* 부제 아래 여백 1.05rem — 원본은 알약 상단이 카드 위에서 28.84%CW 인데 .4rem 이면 25.90%CW 로
+   2.94%p 떠 있었다. 그 아래 첫 행·끝 행까지 통째로 같이 떠 있었다. */
+.league-challenge-desc { text-align: center; font-size: .82rem; font-weight: 700; color: var(--pp-ink); margin: 0 0 1.05rem; }
+/* 원본 실측(shot-042228, 자 = 흰 카드 폭 CW): 알약 **19.14%CW x 5.66%CW**, 상단 28.84%CW.
+   종전 클론은 22.31 x 7.71 로 넓고 두꺼웠다(+3.17 / +2.05%p) — 내용 폭·글자 줄상자에 끌려다닌 값이다.
+   카드는 앱 폭의 72.7% 이므로 %CW → %AW 는 ×0.727. 검증: tools/probe-lc-dom.js */
 .league-ticket-pill {
-    display: block; margin: 0 auto .7rem; width: fit-content; background: var(--pp-ink); color: #fff;
-    border-radius: .5rem; padding: .35rem 1rem; font-size: .9rem; font-weight: 900; text-align: center;
+    display: flex; align-items: center; justify-content: center; gap: .3rem;
+    margin: 0 auto 1.9rem; background: var(--pp-ink); color: #fff; border-radius: .5rem;
+    width: calc(var(--app-w) * .1392); height: calc(var(--app-w) * .0411); padding: 0;
+    font-size: .9rem; font-weight: 900; text-align: center;
 }
+/* 알약 높이를 못 박았으니 아이콘 줄상자가 그걸 밀어 올리면 안 된다 — 기본 1.45em 은 알약보다 크다 */
+.league-ticket-pill .ico { width: 1.15rem; height: 1.15rem; margin: 0; }
 /* 원본(shot-042228): 회색 채움 라운드 행, 이름/전투력은 아바타 우측 좌정렬, 전투력 주황 */
+/* 행 목록은 카드 안쪽 여백보다 **더 바깥까지** 나간다 — 원본 행 좌 인셋 2.43%CW(=9px) 인데
+   `.modal-card.wide` 패딩만 따르면 4.96%CW(=18px)라 행이 −5.07%p 좁아진다. 카드 패딩은 다른 화면과
+   공유하는 값이라 못 건드리니, 이 목록에만 음수 여백을 준다. */
+/* 아래 여백 1.15rem — 원본은 끝 행 아래로 5.66%CW(=21px) 가 남는데 클론은 0.55%CW(=2px) 뿐이라
+   카드가 −7.61%p 짧았다(마지막 행 margin-bottom .5rem 만으로는 모자란다). */
+.league-challenge-list { margin: 0 calc(var(--app-w) * -.0185); padding-bottom: 1.15rem; }
 .league-challenge-row {
     display: flex; align-items: center; gap: .6rem; background: #cfcfcf; border: none;
-    border-radius: .7rem; padding: .5rem .6rem; margin-bottom: .5rem;
+    border-radius: .7rem; padding: 0 .6rem; margin-bottom: .5rem;
+    /* 원본 행 높이 21.56%CW(=78px)·피치 23.72%CW. 종전은 23.42%CW 로 두꺼워 다섯 행이 쌓이며
+       마지막 행 하단이 +4.39%p 밀렸다. 높이를 못 박고 세로 패딩은 0 으로 둔다. */
+    height: calc(var(--app-w) * .1568); box-sizing: border-box;
 }
 .league-challenge-row .btn.sm { flex: 0 0 26%; min-height: 2.9rem; font-size: .85rem; } /* 원본 도전 버튼 ≈21% 화면폭 (185 재채점) */
 .league-challenge-avatar {
