@@ -914,10 +914,13 @@ const ProChar = {
         }
         const cuirass = new THREE.Mesh(cuirassGeo, steel());
         cuirass.scale.set(1.04, 1.08, CUIRASS_SZ); // 역삼각 실루엣 — 가슴 상향+좌우 확장, 앞뒤 눌림 (비평가: 실루엣 꺾임)
-        // 목 링
-        const gorget = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.032, 8, 14), steelDark());
+        // 목 링 — 고젯 라메 스택(아래 collar*)의 **맨 밑 테**. 스택이 흉갑에 얹히는 지점을 매듭짓는다.
+        // ⚠️ 위치·굵기는 스택 최하단(y 0.434, r 0.133)에서 역산한 값이다. 스택 치수를 바꾸면 같이 옮길 것 —
+        //    예전 값(y 0.45 · major 0.1 · tube 0.032)은 스택 한가운데를 뚫고 나온다.
+        //    스택 최하단은 y 0.432 · r 0.099 이므로 그 바로 밑에 같은 반경으로 앉힌다.
+        const gorget = new THREE.Mesh(new THREE.TorusGeometry(0.101, 0.021, 8, 16), steelDark());
         gorget.rotation.x = Math.PI / 2;
-        gorget.position.y = 0.45;
+        gorget.position.y = 0.428;
         // 가슴 문장 (등급 발광용)
         R.emblemMat = new THREE.MeshStandardMaterial({ color: 0x78909c, metalness: 0.6, roughness: 0.32 });
         const emblem = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), R.emblemMat);
@@ -1244,19 +1247,46 @@ const ProChar = {
         //    **판금**이 올라가 머리와 몸통 사이에 실제 높이를 가진 기둥을 만든다.
         // ⚠️ 몸통(spine)에 붙인다 — 실제 고젯은 흉갑에 얹히는 파츠라 고개를 돌려도 따라 돌지 않는다.
         //    neck 에 붙이면 칼라가 머리와 같이 회전해 '목도리'가 된다.
-        const collarPts = [];
-        for (const [r, y] of [[0.099, 0.432], [0.092, 0.468], [0.097, 0.502], [0.111, 0.533], [0.114, 0.547]])
-            collarPts.push(new THREE.Vector2(r, y));
-        const collar = new THREE.Mesh(new THREE.LatheGeometry(collarPts, 16), steel());
-        // 칼라 안감 — 위가 열린 셸이라 안쪽이 보인다. 니어블랙으로 채워야 목이 '뚫린 밝은 구멍'이 아니라
-        // 그늘로 읽힌다(gorgetIn 이 같은 일을 링 안쪽에서 하고 있고, 그 위를 이어받는다).
-        const collarIn = new THREE.Mesh(new THREE.LatheGeometry(
-            collarPts.map(v => new THREE.Vector2(v.x * 0.93, v.y)), 16), deepLine);
-        // 칼라 상단 림 — 견갑 라메와 같은 언어(밴드 밑단 밝은 테)로 칼라 끝을 매듭짓는다
-        const collarRim = new THREE.Mesh(new THREE.TorusGeometry(0.114, 0.008, 5, 18), steelDark());
-        collarRim.rotation.x = Math.PI / 2;
-        collarRim.position.y = 0.547;
-        spine.add(collar, collarIn, collarRim);
+        // ⚠️ 2026-08-18 6차 비평가 재지적 ㉦(양쪽 합의): 앞 세션이 칼라를 세워 기여 992px·기둥 16px 을
+        //    만들었는데도 양쪽이 여전히 "목이 없다 / 공 위의 막대"라고 했다. 진단이 명확하다 —
+        //    **"높이가 아니라 단(段)과 암부가 모자란다."** 처방: 3단 라메 스택(아래로 갈수록 넓어짐,
+        //    총 높이 ≈ 머리 높이의 0.35) + 최상단 라메 안쪽 L 20대 암부.
+        // ⚠️⚠️ **처방 중 '아래로 갈수록 넓어짐' 한 조각은 실측으로 기각했다 — 다음 세션은 다시 뒤집지 말 것.**
+        //    실제 고젯 라메가 밑단이 넓은 건 맞지만, 이 리그에서는 그 방향이 칼라를 통째로 죽인다.
+        //    아래로 넓어지는 스택은 **요크(가슴~견갑 내측 수평판) 안쪽으로 들어가** 실루엣을 못 만든다.
+        //    `probe-collar.js` 대응 비교(칼라만 껐다 켠 차분) 실측:
+        //      종전 위로 벌어지는 칼라 ......... 기여 992px
+        //      3단 + 아래로 넓어짐(0.413~0.560) . 기여 **10px** ← 사실상 완전 매몰
+        //      3단 + 위로 벌어짐(채택) ......... 아래 참조
+        //    즉 이 몸통에서 목을 만드는 건 '고젯다운 방향'이 아니라 **요크 위로 솟는 부분**이다.
+        //    (근본 원인은 ㉢ 비례 — 머리 밑면(spine y 0.514)과 몸통 윗면이 거의 붙어 목이 들어갈 세로 공간
+        //     자체가 없다. 방향을 어떻게 잡든 이 항목만으로는 못 푼다.)
+        // 처방에서 **살린 것 = 실제로 모자랐던 것**: ⑴ 단(段) 3개와 단 경계 테 ⑵ 목 구멍 안쪽 암부
+        //    ⑶ 총 높이 ≈ 머리 높이(투구 포함 0.419)의 0.35 대역.
+        const COLLAR_LAMES = [   // [밑단r, 윗단r, 밑단y, 윗단y] — 위로 벌어진다(실측으로 채택한 방향)
+            [0.099, 0.095, 0.432, 0.472],
+            [0.101, 0.108, 0.470, 0.512],
+            [0.112, 0.121, 0.510, 0.560],
+        ];
+        const collarParts = [];
+        for (const [rb, rt, y0, y1] of COLLAR_LAMES) {
+            const h = y1 - y0;
+            const lame = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 16, 1, true), steel());
+            lame.position.y = (y0 + y1) / 2;
+            // 라메 안감 — 셸이 열려 있어 안쪽이 보인다. 니어블랙이라야 목이 '뚫린 밝은 구멍'이 아니라 그늘이 된다.
+            const lameIn = new THREE.Mesh(new THREE.CylinderGeometry(rt * 0.93, rb * 0.93, h * 1.02, 16, 1, true), deepLine);
+            lameIn.position.y = lame.position.y;
+            // 밑단 테 — 단 경계를 눈에 보이게 만드는 실질 요소. 이게 없으면 3단이 매끈한 원뿔 하나로 뭉개진다.
+            const rim = new THREE.Mesh(new THREE.TorusGeometry(rt, 0.0075, 5, 18), steelDark());
+            rim.rotation.x = Math.PI / 2;
+            rim.position.y = y1;          // 위로 벌어지므로 단 경계는 **윗단**에 온다
+            collarParts.push(lame, lameIn, rim);
+        }
+        // 최상단 라메 **안쪽** 암부 (처방 "L 20대") — 목 구멍 안으로 니어블랙 원통을 한 단 더 세운다.
+        // 안감(lameIn)은 라메 벽 바로 뒤라 정면에서 거의 안 보인다. 실제로 어두워야 하는 건 그 **안쪽 구멍**이다.
+        const throat = new THREE.Mesh(new THREE.CylinderGeometry(0.112, 0.098, 0.09, 16, 1, true), deepLine);
+        throat.position.y = 0.512;
+        spine.add(...collarParts, throat);
         // 얼굴 — 둥근 두상 + 턱 라운딩 (헬멧 미착용 시 노출)
         const skull = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 12), skin);
         skull.position.y = 0.08;
