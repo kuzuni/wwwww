@@ -858,7 +858,7 @@ const UI = {
         const cp = Combat.combatPower();
         this.els.topbar.innerHTML = `
             <div class="profile-card" onclick="UI.openProfile()">
-                <span class="avatar">${S.avatarEmoji || DEFAULT_AVATAR}</span>
+                <span class="avatar">${IconGen.avatar(S.avatarEmoji)}</span>
                 <div class="profile-info">
                     <span class="nickname">${U.escapeHtml(S.nickname || '용사')}</span>
                     <span class="cp">${IconGen.img('power')} ${U.fmt(cp)}</span>
@@ -3143,7 +3143,7 @@ const UI = {
     leagueRow(e, rank) {
         return `<div class="league-row ${e.isMe ? 'me' : ''}">
             <span class="league-rank">${rank}</span>
-            <span class="league-avatar">${e.avatar}</span>
+            <span class="league-avatar">${IconGen.avatar(e.avatar)}</span>
             <span class="league-name">${U.escapeHtml(e.name)}<br><small>${IconGen.img('power')} ${U.fmt(e.cp)}</small></span>
             <span class="league-score">${IconGen.img('star')} ${U.fmt(e.score)}</span>
             <span class="league-server">${e.server === '나' ? '나' : '서버 ' + e.server}</span>
@@ -3226,7 +3226,7 @@ const UI = {
         const list = League.challengeList();
         const rowsHtml = list.map((b, i) => `
             <div class="league-challenge-row">
-                <span class="league-challenge-avatar">${b.avatar}</span>
+                <span class="league-challenge-avatar">${IconGen.avatar(b.avatar)}</span>
                 <span class="league-challenge-name">${U.escapeHtml(b.name)}<br><small>${IconGen.img('power')} ${U.fmt(b.cp)}</small></span>
                 <span class="league-challenge-side">
                     <span class="star">${IconGen.img('star')}+${b.starReward}</span>
@@ -3377,14 +3377,14 @@ const UI = {
     renderProfileView() {
         const avatarPicker = this._avatarPicking
             ? `<div class="avatar-pick-grid">${this.AVATAR_POOL.map(e =>
-                `<button class="avatar-pick-btn ${e === (S.avatarEmoji || DEFAULT_AVATAR) ? 'on' : ''}" onclick="UI.onPickAvatar('${e}')">${e}</button>`).join('')}</div>` : '';
+                `<button class="avatar-pick-btn ${e === (S.avatarEmoji || DEFAULT_AVATAR) ? 'on' : ''}" data-av="${e}" onclick="UI.onPickAvatar('${e}')">${IconGen.avatar(e)}</button>`).join('')}</div>` : '';
         this.els.profileModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card wide profile-sheet">
                     <div class="profile-title">프로필</div>
                     <div class="profile-top">
                         <div class="profile-avatar-box">
-                            <span class="profile-avatar-big">${S.avatarEmoji || DEFAULT_AVATAR}</span>
+                            <span class="profile-avatar-big">${IconGen.avatar(S.avatarEmoji)}</span>
                             <button class="profile-edit-btn" title="아바타 변경" onclick="UI.onToggleAvatarPick()">${IconGen.img('pencil')}</button>
                         </div>
                         <div class="profile-fields">
@@ -3536,7 +3536,7 @@ const UI = {
                 <div class="modal-card wide">
                     <div class="pinfo-header">
                         <div class="pinfo-id">
-                            <span class="avatar">${S.avatarEmoji || DEFAULT_AVATAR}</span>
+                            <span class="avatar">${IconGen.avatar(S.avatarEmoji)}</span>
                             <div class="pinfo-id-text">
                                 <span class="name">${U.escapeHtml(S.nickname || '용사')} <span class="muted">[무소속]</span></span>
                                 <span class="clan">${S.gender || '♂'} · 서버 1</span>
@@ -3592,17 +3592,17 @@ const UI = {
             const winner = m.win ? { name: m.myName, avatar: m.myAvatar, cp: m.myCp } : { name: m.oppName, avatar: m.oppAvatar, cp: m.oppCp };
             const loser = m.win ? { name: m.oppName, avatar: m.oppAvatar, cp: m.oppCp } : { name: m.myName, avatar: m.myAvatar, cp: m.myCp };
             return `<div class="chat-row">
-                <span class="chat-avatar">${m.myAvatar}</span>
+                <span class="chat-avatar">${IconGen.avatar(m.myAvatar)}</span>
                 <div class="chat-bubble-wrap">
                     <div class="chat-name-line"><span class="chat-name" style="color:${this.chatNameColor(m.myName)}">${m.tag ? `<span class="chat-tag">[${U.escapeHtml(m.tag)}]</span> ` : ''}${U.escapeHtml(m.myName)}</span>${this.chatNameIcons({ name: m.myName, gender: m.gender })}<span class="chat-time">${this.chatTime(m.at)}</span></div>
                     <div class="chat-share-card">
                         <div class="chat-share-side win">
-                            <span class="chat-share-avatar"><span class="icon-circle sm">${winner.avatar}</span><span class="chat-share-label">승리</span></span>
+                            <span class="chat-share-avatar"><span class="icon-circle sm">${IconGen.avatar(winner.avatar)}</span><span class="chat-share-label">승리</span></span>
                             <small>${U.escapeHtml(winner.name)}</small>
                             <small>${IconGen.img('power')} ${U.fmt(winner.cp)}</small>
                         </div>
                         <div class="chat-share-side lose">
-                            <span class="chat-share-avatar"><span class="icon-circle sm">${loser.avatar}</span></span>
+                            <span class="chat-share-avatar"><span class="icon-circle sm">${IconGen.avatar(loser.avatar)}</span></span>
                             <small>${U.escapeHtml(loser.name)}</small>
                             <small>${IconGen.img('power')} ${U.fmt(loser.cp)}</small>
                         </div>
@@ -3613,7 +3613,7 @@ const UI = {
         }
         const tagHtml = m.tag ? `<span class="chat-tag">[${U.escapeHtml(m.tag)}]</span> ` : '';
         return `<div class="chat-row ${m.mine ? 'mine' : ''}">
-            <span class="chat-avatar">${m.avatar}</span>
+            <span class="chat-avatar">${IconGen.avatar(m.avatar)}</span>
             <div class="chat-bubble-wrap">
                 <div class="chat-name-line">
                     <span class="chat-name" style="color:${m.mine ? '' : this.chatNameColor(m.name)}">${tagHtml}${U.escapeHtml(m.name)}</span>${this.chatNameIcons(m)}

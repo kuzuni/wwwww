@@ -34,10 +34,15 @@ body {
     background: #22272e; border: var(--ol1) solid #30363d; border-radius: 1rem;
     padding: .25rem .7rem .25rem .3rem;
 }
+/* 원본(shot-043224 5배) 상단바 아바타는 **어두운 원**이 아니라 리그·채팅과 같은 계열의
+   **흰 라운드 사각 타일 + 순검정 키라인**이고, 그 안에 도트 초상(그 캡처에서는 초록 티라노)이
+   들어간다. 실측 x18..60 · y12..54 = **43×43px = 8.62%W**(499px 기준). 원래 클론은 1.9rem 원형에
+   남색 면이라 아바타를 초상으로 바꾸면 초상이 어두운 원 안에 갇혀 안 보인다 — 프레임부터 맞춘다. */
 .profile-card .avatar {
-    width: 1.9rem; height: 1.9rem; border-radius: 50%; background: #161b22;
-    border: var(--ol1) solid #444c56; display: flex; align-items: center; justify-content: center;
-    font-size: 1.05rem; flex: none;
+    width: calc(var(--app-w) * .0862); height: calc(var(--app-w) * .0862);
+    border-radius: .4rem; background: #fff; border: var(--ol2) solid #000;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.05rem; flex: none; overflow: hidden;
 }
 .profile-info { display: flex; flex-direction: column; line-height: 1.2; }
 .profile-info .nickname { font-size: .78rem; font-weight: 700; }
@@ -2088,8 +2093,13 @@ body {
 .profile-sub { font-size: .78rem; font-weight: 700; text-align: center; color: var(--pp-muted); margin: -.3rem 0 .3rem; }
 .profile-top { display: flex; gap: .8rem; align-items: flex-start; }
 .profile-avatar-box { position: relative; flex: none; }
+/* 원본(shot-042724 4배)의 큰 아바타 칸은 **흰 면**이다(회색 패널이 아니다) — 안에 도트 초상이
+   들어가므로 회색이면 초상 배경만 어둡게 떠 다른 자리(리그·채팅의 흰 타일)와 화풍이 갈린다. */
 .profile-avatar-big {
-    width: 4.6rem; height: 4.6rem; border-radius: .5rem; background: var(--pp-panel);
+    /* 폭도 원본에 맞춘다 — 4.6rem 은 앱 폭의 15.5% 로 원본 **13.20%**(shot-042724 x97..163 = 65px,
+       세로 y211..274 = 64px)보다 2.3%p 크다. 초상이 들어가면 이 차이가 그대로 눈에 띈다. */
+    width: calc(var(--app-w) * .132); height: calc(var(--app-w) * .132);
+    border-radius: .5rem; background: #fff; overflow: hidden;
     border: var(--ol3) solid var(--pp-line); display: flex; align-items: center; justify-content: center; font-size: 2.4rem;
 }
 /* 원본(shot-042724 12배)의 편집 버튼은 **원이 아니라 라운드 사각**이다 — 파란 면 + 남색 아래턱
@@ -2138,8 +2148,9 @@ body {
 .profile-rank-row .btn { flex: 0 1 32%; } /* 원본 ≈22% W 컴팩트 중앙 (185) */
 .avatar-pick-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .3rem; margin: .5rem 0; }
 .avatar-pick-btn {
-    background: var(--pp-panel); border: var(--ol2) solid var(--pp-line); border-radius: .4rem; font-size: 1.3rem;
-    padding: .3rem 0; cursor: pointer;
+    background: #fff; border: var(--ol2) solid var(--pp-line); border-radius: .4rem; font-size: 1.3rem;
+    padding: 0; cursor: pointer; aspect-ratio: 1; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
 }
 .avatar-pick-btn.on { border-color: var(--pp-blue); background: #dbe9ff; }
 .profile-tabs {
@@ -2210,8 +2221,9 @@ body {
 /* ---- 플레이어 정보 팝업 (UI-SPEC 27번, 원본 shot-043313) ---- */
 .pinfo-header { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
 .pinfo-id { display: flex; align-items: center; gap: .5rem; }
+/* 원본(shot-043313 4배)도 같은 흰 타일이다. */
 .pinfo-id .avatar {
-    width: 2.8rem; height: 2.8rem; border-radius: .4rem; background: var(--pp-panel);
+    width: 2.8rem; height: 2.8rem; border-radius: .4rem; background: #fff; overflow: hidden;
     border: var(--ol2) solid var(--pp-line); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
 }
 .pinfo-id-text { display: flex; flex-direction: column; line-height: 1.35; }
@@ -4970,6 +4982,19 @@ body {
     background-size: contain; background-repeat: no-repeat; background-position: center;
     flex: none;
 }
+/* ---- 아바타 도트 초상 (IconGen.avatar — web/js/avatars.js) ----
+   원본 아바타는 32×32 격자에 딱 떨어지는 도트다. 44px 프레임에 128px 그림을 넣으면 브라우저가
+   **부드럽게 보간**해 격자가 뭉개지고 '저해상도 이모지'로 보인다 — 원본이 주는 인상과 정반대다.
+   `pixelated` 로 최근접 확대를 강제해 도트 경계를 살린다. 프레임(흰 면·검정 키라인·라운드)은
+   `.chat-avatar`·`.league-avatar` 등 각 자리의 CSS 가 이미 원본 비율로 그리므로 그림만 꽉 채운다. */
+.ico.av-ico {
+    width: 100%; height: 100%; margin: 0; vertical-align: top;
+    border-radius: inherit;
+    image-rendering: crisp-edges; image-rendering: pixelated;   /* 순서 주의 — 지원되는 곳에서 pixelated 가 이겨야 한다 */
+}
+/* 프로필 아바타 피커 — 버튼 안이 이모지 글자였을 때는 font-size 가 크기를 정했다.
+   초상으로 바뀌면 글자가 없어 버튼이 납작해지므로 칸을 정사각으로 못 박고 그림이 채우게 한다. */
+.avatar-pick-btn .ico.av-ico { width: 100%; height: 100%; }
 /* 고정 높이 pill 은 프레임 높이에 맞춘 rem 크기를 직접 준다 (루트 폰트가 화면 높이에 비례하므로 rem 도 반응형).
    좌우 대칭 음수 마진이라 vertical-align:middle 이 아이콘을 pill 중앙에 놓고, 마진 박스가 작아 pill 높이는 불변. */
 .currency-pills .pill .ico, .currency-pills .pill .pill-ico { width: 1.5rem; height: 1.5rem; margin: -.5rem .1rem -.5rem 0; }
