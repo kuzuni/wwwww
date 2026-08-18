@@ -24,6 +24,7 @@ const SHADE_MIN = 0.20;  // ③ 음영 기울기 하한
 const FACET_MIN = 0.012; // ④ 면 변주(밑동 링 색 sd) 하한
 const DIFF_MIN = 0.040;  // ⑥ 개체 간 반경 RMS 차 / 평균반경
 const SHOULDER_MIN = 0.72; // ⑧ 어깨 높이 / 전체 높이 — 종단 뿔이 28% 를 넘으면 중경에서 어깨가 소실된다
+// ⑨ 접지 델타는 게이트로 못 쓴다(아래 주석 참고) — 참고치로만 찍는다.
 const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면 '바늘'
 
 (async () => {
@@ -58,7 +59,9 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
                 for (let i = p.start; i < p.start + p.count; i++) {
                     v.fromBufferAttribute(pos, i).applyMatrix4(inv);
                     loc.push(v.x, v.y, v.z);
-                    ys.push(v.y); rs.push(Math.hypot(v.x, v.z)); cs.push(col.getX(i));
+                    ys.push(v.y); rs.push(Math.hypot(v.x, v.z));
+                    // ⚠️ 색은 채널마다 다른 틴트가 곱해져 있다 — R 하나만 읽으면 램프가 아니라 틴트를 잰다. 휘도로 본다.
+                    cs.push(0.2126 * col.getX(i) + 0.7152 * col.getY(i) + 0.0722 * col.getZ(i));
                 }
                 // ① 기둥성 — 특정 높이의 **표면 반경**. ⚠️ '그 높이대의 정점 평균'으로 재면 안 된다:
                 //    기둥은 밑동 링과 어깨 링 사이에 정점이 아예 없어 중간 높이 표본이 0개가 된다
@@ -226,10 +229,14 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
         //    FX 때문에 픽셀 수가 22k↔157k 로 널뛰었다. DOM 을 숨기고, 3D FX 는 늦게 스폰되므로
         //    **숨김 순회를 두 번** 돌린 직후에 찍는다.
         const hideAll = () => p2.evaluate(() => {
-            for (const sel of ['#topbar', '#equip-sheet', '#skill-bar', '#stage-label', '#wave-pips', '#chat-preview',
-                '#loot-feed', '#hero-hp-wrap', '.waypoint', '#offline-btn', '#tabbar', '#dmg-layer'])
-                document.querySelectorAll(sel).forEach(el => el.style.visibility = 'hidden');
-            if (Scene3D.fxLayer) Scene3D.fxLayer.style.visibility = 'hidden';
+            // ⚠️ **선택자 목록으로 숨기면 반드시 뭔가 남는다** — 보스 경고 배너·테마 페이드 판처럼
+            //    상황에 따라 뜨는 오버레이가 그때그때 다르게 섞여 픽셀 수가 25k↔137k 로 널뛴다.
+            //    `page.screenshot` 은 캔버스로 clip 해도 그 위에 겹친 DOM 을 같이 굽는다.
+            //    캔버스와 그 조상만 남기고 **전부** 숨긴다.
+            const cvs = document.querySelector('canvas');
+            document.querySelectorAll('body *').forEach(el => {
+                if (el !== cvs && !el.contains(cvs)) el.style.visibility = 'hidden';
+            });
             if (!Scene3D._keep) {
                 Scene3D._keep = [];
                 Scene3D.scene.traverse(o => { if (o.isMesh && o.material === Scene3D.crystalMat) Scene3D._keep.push(o); });
@@ -270,8 +277,33 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
                     if (B[i] > 250 && B[i + 1] > 250 && B[i + 2] > 250) clipN++;
                 } else if (((i / 4) / cv.width | 0) > cv.height * 0.72) gr.push(L(A, i));  // 지면 대역(전체 프레임에서)
             }
+            // ⑨ 접지 — 결정 밑동 **바로 아래** 지면이 옆쪽 기준 지면보다 어두워야 '얹힌 것'으로 읽힌다.
+            //    격리 프레임을 마스크로 써서 각 열의 최하단 크리스탈 픽셀을 찾고, 그 아래 4px 과
+            //    좌우 ±35px(마스크 밖) 지면을 전체 프레임에서 비교한다. 비평가가 쓴 것과 같은 자다.
+            const W = cv.width, H = cv.height;
+            const mask = new Uint8Array(W * H);
+            for (let i = 0; i < B.length; i += 4) if (L(B, i) > 20) mask[i / 4] = 1;
+            const deltas = [];
+            for (let x = 0; x < W; x++) {
+                let bot = -1;
+                for (let y = H - 1; y >= 0; y--) if (mask[y * W + x]) { bot = y; break; }
+                if (bot < 0 || bot + 6 >= H) continue;
+                const py = bot + 4;
+                const under = L(A, (py * W + x) * 4);
+                // ⚠️ 기준점을 가까이(±35px) 잡으면 **접지 암부 안**에서 표본을 뜨게 돼 델타가 늘 0 근처로 나온다.
+                //    데칼 반경이 결정 반경에 비례해 커졌으므로 기준은 확실히 바깥(±95px)에서 뜬다.
+                const ref = [];
+                for (const dx of [-95, 95, -130, 130]) {
+                    const nx = x + dx;
+                    if (nx < 0 || nx >= W || mask[py * W + nx]) continue;
+                    ref.push(L(A, (py * W + nx) * 4));
+                }
+                if (ref.length) deltas.push(under - ref.reduce((a2, b2) => a2 + b2, 0) / ref.length);
+            }
+            const contact = deltas.length ? deltas.reduce((a2, b2) => a2 + b2, 0) / deltas.length : 0;
             ls.sort((x, y) => x - y); gr.sort((x, y) => x - y);
             return ls.length ? {
+                contact, contactN: deltas.length,
                 n: ls.length, min: ls[0], p10: ls[Math.floor(ls.length * 0.1)],
                 mean: ls.reduce((x, y) => x + y, 0) / ls.length, max: ls[ls.length - 1],
                 clip: clipN, ground: gr.length ? gr[Math.floor(gr.length * 0.5)] : 0,
@@ -282,6 +314,11 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
     })();
     if (!val) fails.push('인게임 명도: 크리스탈 픽셀을 못 찾았다(껐다 켠 프레임이 동일)');
     else {
+        // ⚠️ 🚨 **⑨ 는 게이트가 아니라 참고치다 — 수렴하지 않았다.** 같은 코드에서 −12.5 ↔ +13.3 로 널뛴다.
+        //    기준점을 밑동에서 ±95~130px 떨어뜨려도 그 자리가 지면 그라디언트·자갈·영웅 그림자에 걸리고,
+        //    어느 결정이 화면에 드는지도 실행마다 달라 부호까지 바뀐다. **접지는 눈으로 판정할 것**
+        //    (`shot-biomes.js magic` 프레임에서 밑동 아래 어두운 웅덩이가 보이는지) — 데칼 자체는 확실히 그려진다.
+        console.log(`⑨ 접지(참고) 밑동 직하 − 측면 기준 지면 ${val.contact.toFixed(1)} (${val.contactN}열 — 실행 간 ±13 편차, 게이트 아님)`);
         console.log(`⑦ 인게임 명도  픽셀 ${val.n}  min ${val.min.toFixed(0)}  p10 ${val.p10.toFixed(0)}  평균 ${val.mean.toFixed(0)}  max ${val.max.toFixed(0)}  순백클립 ${val.clip}(${(val.clip / val.n * 100).toFixed(2)}%)  지면평균 ${val.ground.toFixed(0)}`);
         // 게이트: 어두운 면이 실제로 존재할 것(p10) · 평균이 지면 대비 과하게 뜨지 않을 것 · 순백 클립 없을 것
         if (val.p10 > 150) fails.push(`명도 하위 10% ${val.p10.toFixed(0)} > 150 — 어두운 면이 없다(발광이 조형을 씻는다)`);

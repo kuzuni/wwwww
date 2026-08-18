@@ -575,6 +575,43 @@ const Scene3D = {
         return new THREE.CanvasTexture(c);
     },
 
+    // 가운데가 빈 접지 글로우 — 크리스탈 전용. 꽉 찬 글로우를 밑동에 깔면 **접지 블롭 그림자를 통째로 덮어**
+    // 프롭이 지면에서 뜬다(비평가 ④ 실측: 밑동 직하 지면이 이격 지면보다 +9.9 만큼 **밝았다**).
+    // 안쪽을 비우면 그림자는 그림자대로 읽히고 빛은 바깥 고리에서 번진다.
+    makeRingGlowTexture() {
+        if (this._ringGlowTex) return this._ringGlowTex;
+        const size = 128;
+        const c = document.createElement('canvas');
+        c.width = c.height = size;
+        const ctx = c.getContext('2d');
+        const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+        grad.addColorStop(0, 'rgba(255,255,255,0)');
+        grad.addColorStop(0.60, 'rgba(255,255,255,0)');     // 밑동이 놓이는 안쪽은 완전히 비운다
+        grad.addColorStop(0.80, 'rgba(255,255,255,0.85)');   // 빛나는 고리는 접지 암부 **바깥**에 둔다
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, size, size);
+        return (this._ringGlowTex = new THREE.CanvasTexture(c));
+    },
+
+    // 접지 암부 텍스처 — **곱셈 합성용**이라 알파가 아니라 RGB 로 감쇠시킨다(가운데 어둡고 가장자리 흰색).
+    // ⚠️ 알파 블렌딩 판으로는 접지가 안 만들어진다: 같은 자리에 가산 글로우가 겹쳐 그리면 밝기가 되살아나
+    //    실측 델타가 −0.5~−3 에서 안 내려간다. 곱셈은 무엇이 밑에 있든 그 값을 **깎는다**.
+    makeContactTexture() {
+        if (this._contactTex) return this._contactTex;
+        const size = 128;
+        const c = document.createElement('canvas');
+        c.width = c.height = size;
+        const ctx = c.getContext('2d');
+        const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+        grad.addColorStop(0, 'rgb(56,46,84)');       // 가장 어두운 중심 — 여기에 밑동이 놓인다
+        grad.addColorStop(0.42, 'rgb(158,150,182)');
+        grad.addColorStop(1, 'rgb(255,255,255)');    // 가장자리는 곱해도 원본 그대로(경계선이 안 생긴다)
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, size, size);
+        return (this._contactTex = new THREE.CanvasTexture(c));
+    },
+
     // 산맥/구릉이 하늘과 만나는 지평선에 걸리는 얇은 반투명 안개 띠 — 실루엣의 딱딱한 경계선을 눅여줌.
     // 하나의 큰 세로 그라디언트 평면(위/아래 모두 투명으로 완전히 죽어 판 가장자리가 안 보임)만 사용.
     buildHaze() {
@@ -1906,12 +1943,21 @@ const Scene3D = {
         // 명도만 갈면 면들이 전부 같은 색의 무광 램프가 된다("면 간 hue 차 0" — 비평가 ③).
         // 그늘은 푸른 보라로, 빛 받는 쪽은 청록으로 **색온도까지** 갈라 준다. 두 틴트 모두 최대 성분이
         // 1.0 이라 vertexColors(=albedo 에 곱해짐)가 1 을 넘지 않는다.
-        // ⚠️ 빛 받는 쪽을 **따뜻한 쪽**(R↑B↓)으로 주면 청록 결정 끝이 분홍으로 뜬다(격리 캡처에서 확인).
-        //    시안 결정의 광부는 청록-연두 쪽이 맞다 — 그늘만 푸른 보라로 빼고 광부는 초록을 살짝 올린다.
+        // ⚠️ 🚨 **색상은 그늘의 R 을 올려서 만든다 — 광부의 R 을 올리면 안 된다.** 두 번 틀렸다:
+        //    ⑴ 광부에 R 을 넣었더니 청록 결정 끝이 **분홍**으로 떴다. ⑵ 되돌리며 그늘의 R 을 더 낮췄더니
+        //    (0.70) 어두운 절반의 R 이 3~21/255 로 짓눌려 **색상각이 전 구간 187° 로 고정**됐다
+        //    (비평가 실측 Δ2°) — R≈0 이면 색은 G–B 평면(시안축)에 못박혀 어떤 색상도 발생하지 않는다.
+        //    명도가 낮은 그늘에 R 을 넣으면 분홍이 아니라 **보라**로 읽힌다. 목표: 최암 ≥198° · 최명 ≤180°.
+        //    ⑶ 그래서 그늘 R 을 1.90 까지 올려 봤다 — **되돌렸다.** 이 알베도(0x1a7286, R=0.10)에서는
+        //    R 을 1.9 배 해도 0.19 라 색상은 거의 안 움직이는데(그늘의 색상은 emissive 가 지배한다),
+        //    **명암 대비만 무너진다**(음영 기울기 실측 0.639 → 0.280, 격리 캡처에서도 눈에 띄게 납작해졌다).
+        //    ⇒ **결론: 이 재질에서 버텍스 컬러만으로는 색상각을 못 만든다.** 색상을 갈고 싶으면 먼저
+        //    emissive 를 더 낮추고 몸통 albedo 자체를 푸른 쪽으로 옮겨야 한다(다음 세션 몫, TODO 메모 참조).
         const TC = [0.70, 0.80, 1.00], TL = [0.86, 1.00, 0.97];
         const push = (p, sh, k) => {
             pos.push(p.x, p.y, p.z);
-            for (let q = 0; q < 3; q++) col.push(sh * (TC[q] + (TL[q] - TC[q]) * k));
+            // 틴트 R 이 1 을 넘으므로 채널마다 1.0 으로 자른다 — vertexColors 는 albedo 에 곱해진다.
+            for (let q = 0; q < 3; q++) col.push(Math.min(1, sh * (TC[q] + (TL[q] - TC[q]) * k)));
         };
         const tri = (a, b, c, sa, sb, sc, ka, kb, kc) => { push(a, sa, ka); push(b, sb, kb); push(c, sc, kc); };
         // 큰 것 하나가 지배하고 나머지가 받치는 구성 — 같은 키 3개는 '삼지창'으로 읽힌다.
@@ -2003,6 +2049,21 @@ const Scene3D = {
         const geo = this.crystalGeo(s);
         const tall = geo.userData.tall;
         g.add(new THREE.Mesh(geo, this.crystalMat));
+        // 접지 암부 데칼 — 공용 블롭 그림자만으로는 결정이 '바닥에 꽂은 판지'로 읽힌다(비평가 ④:
+        // 밑동 직하 지면과 이격 지면의 명도차가 −4.4 뿐, 설득력 있는 접지는 −25~−40). 결정 전용으로
+        // 진한 암부를 한 장 더 깔되 **글로우 링 아래**에 둔다(링을 도넛으로 바꿔 안쪽을 비웠으니 살아난다).
+        if (!this.crystalContactMat) {
+            this.crystalContactMat = new THREE.MeshBasicMaterial({
+                map: this.makeContactTexture(), blending: THREE.MultiplyBlending, transparent: true, depthWrite: false,
+            });
+        }
+        const contact = new THREE.Mesh(this.blobGeo || (this.blobGeo = new THREE.PlaneGeometry(1, 1)), this.crystalContactMat);
+        contact.rotation.x = -Math.PI / 2;
+        contact.position.y = 0.038;
+        contact.scale.setScalar(1.75 * s);    // 클러스터가 ±0.3s 로 퍼지고 반경도 높이 비례로 굵어졌다 —
+        // 데칼을 상수로 두면 넓어진 밑동이 그림자 밖으로 삐져나온다(비평가 ④ 회귀의 원인).
+        contact.userData.sharedGeometry = true;
+        g.add(contact);
         // 공중 할로 스프라이트 — 블룸 없는 파이프라인에서 "빛이 번지는" 인상을 만드는 가짜 글로우.
         // 지면 링만으론 발광이 지면 레이어에서 끝난다는 지적 → 결정 몸통 높이에 겹침
         if (!this.crystalHaloMat) {
@@ -2017,15 +2078,15 @@ const Scene3D = {
         g.add(halo);
         if (!this.crystalGlowMat) {
             this.crystalGlowMat = new THREE.MeshBasicMaterial({
-                map: this.makeGlowTexture(), color: 0x26c6da, transparent: true, opacity: 0.8,
+                map: this.makeRingGlowTexture(), color: 0x26c6da, transparent: true, opacity: 0.8,
                 blending: THREE.AdditiveBlending, depthWrite: false,
             });
         }
         const glow = new THREE.Mesh(this.blobGeo || (this.blobGeo = new THREE.PlaneGeometry(1, 1)), this.crystalGlowMat);
         glow.rotation.x = -Math.PI / 2;
         glow.position.y = 0.05;
-        glow.scale.setScalar(1.25 * s); // 1.7 에서 축소 — 접지 블롭 그림자(반경 1.15s+0.5)를 통째로 덮어
-        // '밑동이 밝은' 상태를 만들고 있었다. 그림자가 링 밖으로 나오게 링을 그림자 안쪽으로 줄인다.
+        glow.scale.setScalar(2.1 * s); // 도넛 텍스처(안쪽 34% 가 빔)로 바꿨으니 폭은 되돌려도 밑동을 안 덮는다.
+        // 꽉 찬 글로우 시절엔 1.7 이 접지 그림자를 통째로 덮어 '밑동이 밝은' 상태를 만들고 있었다.
         glow.userData.sharedGeometry = true;
         g.add(glow);
         return g;
