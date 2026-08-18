@@ -2590,3 +2590,27 @@ IconGen._genderSym = function (ctx, S, female) {
             .forEach(w => winder(ctx, S, w[0], w[1], w[2], w[3]));
     };
 })(IconGen);
+
+/* ============================================================================
+ * 재화 pill 의 초록 `+` 배지 (원본 shot-043224·042632 6배 확대)
+ *
+ * 원본은 pill 옆에 놓인 **원형 버튼이 아니라**, 재화 아이콘의 오른쪽 아래에 걸치는
+ * **굵은 초록 십자(플러스) 스티커**다 — 검정 키라인 + 밝은 초록 면 + 위쪽 하이라이트.
+ * 클론은 주황/빨강 원 안에 얇은 `+` 글자를 pill **왼쪽 안**에 넣어, 모양도 자리도 달랐고
+ * 그만큼 pill 이 가로로 늘어나 있었다(코인 pill 106.8px = 21.4%W, 원본 ≈17.3%W).
+ * ============================================================================ */
+(function (G) {
+    const { K, ink, on, poly, rrect } = G._sticker;
+    G.draw.plus = function (ctx, S) {
+        const c = 0.5, a = 0.158, R = 0.425;   // 팔 반폭 · 반길이
+        const P = [[c - a, c - R], [c + a, c - R], [c + a, c - a], [c + R, c - a], [c + R, c + a], [c + a, c + a],
+                   [c + a, c + R], [c - a, c + R], [c - a, c + a], [c - R, c + a], [c - R, c - a], [c - a, c - a]];
+        ink(ctx, S, poly(ctx, S, P), '#3ad12f', 0.115);
+        // 위·왼쪽 면만 밝게 — 스티커 화법의 한 톤 음영(클립해서 십자 밖으로 안 샌다)
+        ctx.save(); ctx.beginPath(); poly(ctx, S, P)(); ctx.clip();
+        on(ctx, rrect(ctx, S, c - a, c - R, a * 2, 0.30, 0.02), '#7ef05c');
+        on(ctx, rrect(ctx, S, c - R, c - a, 0.28, a * 2, 0.02), '#7ef05c');
+        on(ctx, rrect(ctx, S, c - a, c + 0.20, a * 2, 0.22, 0.02), 'rgba(0,0,0,.16)');
+        ctx.restore();
+    };
+})(IconGen);

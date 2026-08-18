@@ -806,6 +806,17 @@ const UI = {
     },
 
     // ---- 상단바: 좌측 프로필 카드(아바타+닉네임+전투력), 우측 코인·젬 (UI-SPEC 1번) ----
+    // 재화 pill 아이콘 + 초록 `+` 배지. 원본(shot-043224·042632 확대)의 `+` 는 pill 옆 원형 버튼이
+    // 아니라 **재화 아이콘 오른쪽 아래에 걸치는 굵은 초록 십자 스티커**다 — 그래서 아이콘을 감싸는
+    // 상대 위치 상자를 두고 배지를 그 위에 절대 배치한다.
+    // ⚠️ 감싸는 상자는 `.ico` 가 쓰던 **음수 마진을 그대로 물려받는다**(CSS `.pill-ico`) —
+    //    안 그러면 인라인 줄상자가 아이콘 높이만큼 커져 pill 이 세로로 부푼다(인계 메모 ㉣).
+    curIcoPlus(kind) {
+        return `<span class="pill-ico">${IconGen.img(kind)}`
+            + `<button class="pill-plus" onclick="UI.openShop()" title="상점 열기" aria-label="상점 열기">`
+            + `${IconGen.img('plus')}</button></span>`;
+    },
+
     renderTopBar() {
         const cp = Combat.combatPower();
         this.els.topbar.innerHTML = `
@@ -817,8 +828,8 @@ const UI = {
                 </div>
             </div>
             <div class="currency-pills">
-                <span class="pill coin"><button class="pill-plus" onclick="UI.openShop()">+</button>${IconGen.img('coin')} ${U.fmt(S.coins)}</span>
-                <span class="pill gem"><button class="pill-plus" onclick="UI.openShop()">+</button>${IconGen.img('gem')} ${U.fmt(S.gems)}</span>
+                <span class="pill coin">${this.curIcoPlus('coin')} ${U.fmt(S.coins)}</span>
+                <span class="pill gem">${this.curIcoPlus('gem')} ${U.fmt(S.gems)}</span>
             </div>`;
     },
 
@@ -3068,9 +3079,9 @@ const UI = {
         this.els.shopModal.innerHTML = `
             <div class="modal-card sheet shop-sheet">
                 <div class="sheet-head">
-                    <span class="cur-pill coin">${IconGen.img('coin')} ${U.fmt(S.coins)}<i class="cur-plus">+</i></span>
+                    <span class="cur-pill coin">${this.curIcoPlus('coin')} ${U.fmt(S.coins)}</span>
                     <h2 class="sheet-title shop-title">상점</h2>
-                    <span class="cur-pill gem">${IconGen.img('gem')} ${U.fmt(S.gems)}<i class="cur-plus">+</i></span>
+                    <span class="cur-pill gem">${this.curIcoPlus('gem')} ${U.fmt(S.gems)}</span>
                 </div>
                 <div class="shop-banner">오늘의 특가</div>
                 <p class="shop-sub">일일 특가 3개 모두 구매하면 새로운 3개가 나와요!</p>

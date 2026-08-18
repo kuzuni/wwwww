@@ -38,9 +38,16 @@ body {
 .currency-pills .pill { background: #22272e; border-radius: 1rem; padding: .3rem .65rem; white-space: nowrap; font-weight: 700; }
 .currency-pills .pill.coin { color: #ffd54f; }
 .currency-pills .pill.gem { color: #ff8a80; }
-.pill-plus { width: 1.1rem; height: 1.1rem; border-radius: 50%; border: none; font-weight: 800; font-size: .75rem; line-height: 1; padding: 0; cursor: pointer; margin-right: .3rem; vertical-align: middle; }
-.pill.coin .pill-plus { background: #ffb300; color: #3e2600; }
-.pill.gem .pill-plus { background: #ff5252; color: #fff; }
+/* 재화 pill 의 초록 `+` — 원본(shot-043224·042632 확대)은 pill 옆 원형 버튼이 아니라
+   **재화 아이콘 오른쪽 아래에 걸치는 굵은 초록 십자 스티커**(IconGen `plus`)다.
+   종전처럼 pill 안에 인라인으로 넣으면 그만큼 pill 이 가로로 늘어난다(코인 pill 21.4%W → 원본 ≈17.3%W). */
+.pill-ico { position: relative; display: inline-block; vertical-align: middle; }
+
+.pill-plus {
+    position: absolute; right: -.30rem; bottom: -.32rem; width: .96rem; height: .96rem;
+    padding: 0; border: none; background: none; line-height: 0; cursor: pointer;
+}
+
 
 /* ---- 3D 전투 영역 ---- */
 #game-area { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
@@ -1765,13 +1772,6 @@ body {
 .art-emblem { /* IconGen 이 없을 때만 쓰이는 이모지 폴백 */
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     font-style: normal; font-size: 1.35rem;
-}
-/* 상점 헤더 재화 pill의 초록 + 버튼 (원본: pill 우측 끝) */
-.cur-plus {
-    display: inline-flex; align-items: center; justify-content: center; font-style: normal;
-    width: 1.05rem; height: 1.05rem; border-radius: 50%; margin-left: .3rem; vertical-align: -.12rem;
-    background: linear-gradient(180deg, #7fd94e, #4caf2e); color: #fff; border: 2px solid #1d5c10;
-    font-size: .8rem; font-weight: 900; line-height: 1; box-shadow: inset 0 .1rem 0 rgba(255,255,255,.35);
 }
 .shop-price-btn { font-size: .82rem; font-weight: 900; padding: .3rem .9rem; line-height: 1.15; }
 /* 특가 카드의 가격 버튼만 절대 배치 — 보석 카드의 같은 클래스는 세로 흐름을 그대로 쓴다 */
@@ -4493,8 +4493,15 @@ body {
 }
 /* 고정 높이 pill 은 프레임 높이에 맞춘 rem 크기를 직접 준다 (루트 폰트가 화면 높이에 비례하므로 rem 도 반응형).
    좌우 대칭 음수 마진이라 vertical-align:middle 이 아이콘을 pill 중앙에 놓고, 마진 박스가 작아 pill 높이는 불변. */
-.currency-pills .pill .ico { width: 1.5rem; height: 1.5rem; margin: -.5rem .1rem -.5rem 0; }
-.cur-pill .ico { width: 1.42rem; height: 1.42rem; margin: -.46rem .1rem -.46rem 0; }
+.currency-pills .pill .ico, .currency-pills .pill .pill-ico { width: 1.5rem; height: 1.5rem; margin: -.5rem .1rem -.5rem 0; }
+.cur-pill .ico, .cur-pill .pill-ico { width: 1.42rem; height: 1.42rem; margin: -.46rem .1rem -.46rem 0; }
+/* 감싸는 상자가 크기를 갖고, 안쪽 아이콘·배지는 그 상자를 채운다.
+   ⚠️ 위 두 줄(`.currency-pills .pill .ico` = 0-3-0)이 안쪽 `.ico` 에도 걸리므로
+   **더 높은 특이도**로 눌러야 한다 — 안 그러면 아이콘이 상자 안에서 또 1.5rem + 음수 마진을 먹는다. */
+.currency-pills .pill .pill-ico > .ico, .currency-pills .pill .pill-plus > .ico,
+.cur-pill .pill-ico > .ico, .cur-pill .pill-plus > .ico {
+    width: 100%; height: 100%; margin: 0; vertical-align: top;
+}
 /* 인라인 pill 은 rect 가 라인박스만 잡히므로, 실제로 칠해지는 높이(라인박스+세로 패딩) 기준으로 맞춘다 */
 .shop-reward-pill .ico { width: 1.05rem; height: 1.05rem; margin: -.3rem .12rem -.3rem 0; }
 .dgd-reward-pill .ico { width: 1.29rem; height: 1.29rem; margin: -.36rem .12rem -.36rem 0; }

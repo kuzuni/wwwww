@@ -61,7 +61,7 @@ const T = [
         if (!el || !a) return false;
         const r = el.getBoundingClientRect(), ar = a.getBoundingClientRect();
         return r.height > 100 && (r.top - ar.top) < ar.height * 0.5;
-    }, null, { timeout: 15000 });
+    }, null, { timeout: 150000 });   // 병렬 3D 세션이 도는 컨테이너는 부팅+시드에 67초가 걸린다 (인계 메모 하네스 ⑵)
     await page.waitForTimeout(250);
 
     const m = await page.evaluate(() => {
