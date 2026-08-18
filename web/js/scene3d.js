@@ -1813,14 +1813,24 @@ const Scene3D = {
         return g;
     },
 
-    // 바위 첨탑(바위산 주 소품 · 사막 부 소품) — 세로로 긴 암석을 쌓아올림
+    // 바위 첨탑(바위산 주 소품 · 사막 부 소품) — 세로로 긴 암석을 위로 갈수록 가늘게 쌓아 뾰족한 첨탑으로.
+    // 단마다 좌우로 누적해 쏠려(자연 기울기) 곧은 토템 인상을 없애고, 층별 웜/쿨 지층 톤 + 꼭대기 단은
+    // 더 높고 가늘게 세워 종단 실루엣을 뾰족하게 만든다. (기존: 세로로 늘린 rockGeo 2~3개를 곧게 쌓은 '둥근 덩어리 토템')
     makeRockSpire(s) {
         const g = new THREE.Group();
-        const n = 2 + (Math.random() * 2 | 0);
+        const n = 3 + (Math.random() * 2 | 0);                             // 3~4단
+        const lean = U.rand(-0.05, 0.05), leanD = U.rand(-0.04, 0.04);      // 자연 기울기(단마다 누적)
+        let leanX = 0, leanZ = 0;
         for (let i = 0; i < n; i++) {
-            const r = new THREE.Mesh(this.rockGeo(U.rand(0.24, 0.38) * s), this.stoneMat);
-            r.position.set(U.rand(-0.12, 0.12) * s, (0.28 + i * 0.42) * s, U.rand(-0.08, 0.08) * s);
-            r.scale.set(1 - i * 0.16, U.rand(1.4, 1.9), 1 - i * 0.16);
+            const t = i / (n - 1);                                          // 0(밑동)~1(꼭대기)
+            const geo = this.rockGeo(U.rand(0.24, 0.38) * s);
+            const warm = (i % 2 === 0);
+            this.bandTint(geo, warm ? 1.06 : 0.96, warm ? 1.0 : 0.99, warm ? 0.92 : 1.03);
+            const r = new THREE.Mesh(geo, this.stoneMat);
+            leanX += lean; leanZ += leanD;
+            r.position.set(leanX * s + U.rand(-0.06, 0.06) * s, (0.28 + i * 0.40) * s, leanZ * s + U.rand(-0.05, 0.05) * s);
+            const taper = 1 - t * 0.5;                                      // 위로 갈수록 가늘게
+            r.scale.set(taper, U.rand(1.4, 1.9) * (i === n - 1 ? 1.25 : 1), taper); // 꼭대기 단은 더 높게 세워 뾰족한 종단
             r.rotation.set(U.rand(0, 3), U.rand(0, 3), U.rand(-0.2, 0.2));
             g.add(r);
         }
