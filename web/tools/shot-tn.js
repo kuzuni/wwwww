@@ -36,7 +36,7 @@ const OUT = process.argv[2] || path.join(__dirname, 'ref-cmp/clone/tech-node.png
         return { branch, pick, name: (TechTree.def(pick) || {}).name, lv: TechTree.level(pick) };
     });
     await page.waitForTimeout(400);
-    await page.screenshot({ path: OUT });
+    await page.screenshot({ path: OUT, timeout: 120000 });   // swiftshader 에서 30s 기본값이 종종 터진다
     await browser.close();
     console.log(JSON.stringify(info));
     console.log(`저장: ${OUT} · 에러 ${errors.length}건${errors.length ? ' — ' + errors.slice(0, 3).join(' | ') : ''}`);

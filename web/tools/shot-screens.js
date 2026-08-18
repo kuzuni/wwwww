@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const { waitReady } = require('./wait-ready.js');
+const { PETS_STATE_SRC } = require('./shot-pets.js');
 const OUT = process.argv[2] || path.join(__dirname, 'ref-cmp/clone');
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -19,8 +20,11 @@ const SCREENS = [
     ['dungeons', '042251', `UI.openDungeons()`],
     ['dungeon-detail', '042304', `UI.openDungeons(); UI.openDungeonDetail('hammer')`],
     ['skills', '042340', `UI.switchTab('summon'); UI.switchSummonSub('skills')`],
-    ['pets', '042356', `UI.switchTab('summon'); UI.switchSummonSub('pets')`],
-    ['pets-2', '042445', `UI.switchTab('summon'); UI.switchSummonSub('pets')`],
+    // 원본 042356·042445 는 **같은 상태**다(펫 3 Lv.61/6/3 + 알 7 + 부화 3칸 8시 26분 · Lv.69).
+    // 기본 시드는 펫 8 + 알 12 라 그리드가 2행 더 쌓여 아래 판이 전부 밀린 채 대조된다 —
+    // 두 화면 모두 shot-pets.js 의 원본 상태 주입을 쓴다.
+    ['pets', '042356', PETS_STATE_SRC],
+    ['pets-2', '042445', PETS_STATE_SRC],
     ['tech-overview', '042407', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechOverview()`],
     // 원본 042426 은 **장착 안 한** 스킬(화살 Lv.61 · 조각 1/8)을 연 상태다 — [장착] 버튼과 활성
     // [업그레이드] 가 보인다. 인덱스 0~2 는 시드가 장착해 둔 스킬이라 열면 버튼이 [해제] 로 바뀌고
