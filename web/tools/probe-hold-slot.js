@@ -104,7 +104,7 @@ async function waitBooted(page, timeout = 20000) {
         // 오토포지 표준 판정(강하면 자동 장착)으로 가므로 코인이 안 들어온다.
         // 이 케이스가 보려는 건 '보류품이 자동 판매로 정리되는가'다.
         S.autoForge.keepAges = ['primitive'];
-        S.autoForge.hammersPerBatch = 1; S.autoForge.continueOnTarget = false;
+        S.autoForge.hammersPerBatch = 1; S.autoForge.stopOnTarget = false;
         S.autoForgeOn = false; UI._autoSeq = null;
         UI.onToggleAutoForge();                    // 자동제작 시작
         await new Promise(r => setTimeout(r, 600));

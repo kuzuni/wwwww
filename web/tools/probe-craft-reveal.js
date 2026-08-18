@@ -79,7 +79,9 @@ async function recordTimeline(page, trigger, ms = 2200) {
 
     // ================= ⑴~⑷ 수동 제작 =================
     await page.evaluate(() => { UI.resolvePendingCraft(); });
-    const tl = await recordTimeline(page, () => { UI.onCraft(); }, 2200);
+    // 3000ms: 망치질(0.72초)+카드(0.56초) 뒤 팝업이 SwiftShader 지터로 1.9~2.3초께 뜬다 —
+    // 2200ms 창은 경계에 걸려 간헐 실패했다(실측: 같은 코드로 1948ms 통과 / 2260ms께 미관측 실패)
+    const tl = await recordTimeline(page, () => { UI.onCraft(); }, 3000);
 
     const idx = p => tl.findIndex(p);
     const firstStrike = idx(r => r.striking);
@@ -140,7 +142,9 @@ async function recordTimeline(page, trigger, ms = 2200) {
     const tl2 = await recordTimeline(page, () => {
         Forge.passesAutoFilter = () => true;          // 전부 통과시켜 '통과분 → 카드 → 팝업'만 본다
         S.autoForge.hammersPerBatch = 2;
-        S.autoForge.continueOnTarget = true;
+        // 비교 팝업은 이제 '목표를 찾으면 정지' 모드에서만 뜬다(autoforge-show-all-cards) —
+        // 이 케이스가 보려는 '카드가 걷힌 뒤 팝업' 순서는 그 모드로 검증한다
+        S.autoForge.stopOnTarget = true;
         S.autoForgeOn = true;
         UI.startAutoSeq();
     }, 2600);

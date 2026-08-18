@@ -1,10 +1,10 @@
 // 자동 제련이 '기본 설정 그대로'도 자동으로 도는지 검증 (QA 9차 결함).
 // 기존 probe-autocraft-seq.js는 Forge.passesAutoFilter를 스텁으로 갈아끼워 재현되지 않던 구간이다 —
 // 여기서는 **실제 설정값**으로만 돌린다.
-//  ① 기본값(유지 시대 미체크·필터 OFF·계속하기 미체크·망치 N) → 손대지 않아도 망치 N개를 다 쓰고 정지,
+//  ① 기본값(유지 시대 미체크·필터 OFF·정지 미설정·망치 N) → 손대지 않아도 망치 N개를 다 쓰고 정지,
 //     그 사이 비교 팝업이 한 번도 뜨지 않는다(= 진짜 '자동')
 //  ② 기본값에서 장착품보다 강한 장비가 나오면 그냥 팔지 않고 자동 장착된다 (업그레이드 유실 금지)
-//  ③ 유지 시대를 켜면 예전 동작 그대로 — 목표가 뽑히면 비교 팝업이 뜨고 '계속하기' OFF면 거기서 멈춘다
+//  ③ 유지 시대 + '목표를 찾으면 정지'(stopOnTarget) ON → 목표가 뽑히는 순간 비교 팝업이 뜨고 거기서 멈춘다
 //  ④ 유지 시대를 켠 상태의 탈락품은 (자동 장착이 아니라) 판매된다 — 사용자 지시 우선
 // 사용: node probe-autoforge-default.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
@@ -46,7 +46,7 @@ async function until(page, fnSrc, ms = 30000) {
     // ---- ① 기본 설정 그대로 시작 ----
     const N = 6;
     const a = await page.evaluate(n => {
-        S.autoForge = { keepAges: [], filterOn: false, filterSubs: [], hammersPerBatch: n, continueOnTarget: false };
+        S.autoForge = { keepAges: [], filterOn: false, filterSubs: [], hammersPerBatch: n, stopOnTarget: false };
         S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
         UI.els.craftModal.classList.add('hidden');
         UI._probeCraftOpens = 0;
@@ -77,13 +77,34 @@ async function until(page, fnSrc, ms = 30000) {
     ok(b.filled > 0, '기본 설정 배치를 돌렸는데 장착된 장비가 하나도 없다 (업그레이드를 전부 팔아버렸다)');
     console.log(`② 기본 설정 자동 장착 — 배치 후 장착 슬롯 ${b.filled}개 (무기 ${b.weapon})`);
 
-    // ---- ③ 유지 시대를 켜면 목표는 비교 팝업으로 (계속하기 OFF → 거기서 정지) ----
+    // ---- ②-b 사용자 재현(autoforge-show-all-cards): 유지 시대를 켜 목표가 족족 뽑혀도,
+    //      정지 미설정(기본값)이면 배치가 팝업에서 멈추지 않고 망치 10개 = 카드 10회가 다 보인다 ----
+    const rb = await page.evaluate(async () => {
+        S.autoForge.keepAges = AGES.slice();     // 뽑는 족족 목표 — 재지적 당시 사용자 설정의 유력 경로
+        S.autoForge.stopOnTarget = false; S.autoForge.hammersPerBatch = 10;
+        S.hammers = 500; S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
+        UI.els.craftModal.classList.add('hidden');
+        UI._probeCraftOpens = 0;
+        window.__cards = 0;
+        const orig = UI.buildCraftCard;
+        UI.buildCraftCard = function (item, cls) { window.__cards++; return orig.call(this, item, cls); };
+        const h0 = S.hammers;
+        UI.onToggleAutoForge();
+        for (let i = 0; i < 900 && S.autoForgeOn; i++) await new Promise(r => setTimeout(r, 50));
+        UI.buildCraftCard = orig;
+        return { spent: h0 - S.hammers, cards: window.__cards, opens: UI._probeCraftOpens, on: S.autoForgeOn };
+    });
+    ok(!rb.on && rb.spent === 10 && rb.cards === 10 && rb.opens === 0,
+        `망치 10개면 카드 10회가 다 보여야 한다 (소모 ${rb.spent} · 카드 ${rb.cards} · 팝업 ${rb.opens}회 · 진행중 ${rb.on})`);
+    console.log(`②-b 유지 시대 ON + 기본값 — 망치 ${rb.spent}개 = 카드 ${rb.cards}회, 팝업 ${rb.opens}회`);
+
+    // ---- ③ 유지 시대 + '목표를 찾으면 정지' ON → 목표는 비교 팝업으로 (거기서 정지) ----
     const c = await page.evaluate(async () => {
         S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
         UI.els.craftModal.classList.add('hidden');
         UI._probeCraftOpens = 0;
         S.autoForge.keepAges = AGES.slice();     // 전 시대 유지 = 뽑는 족족 목표
-        S.autoForge.continueOnTarget = false;
+        S.autoForge.stopOnTarget = true;         // 정지 모드에서만 비교 팝업이 뜬다 (기본값은 카드 → 자동 판정으로 계속)
         S.autoForge.hammersPerBatch = 5;
         S.hammers = 500;
         UI.onToggleAutoForge();

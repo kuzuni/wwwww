@@ -49,7 +49,8 @@ function defaultState() {
             filterOn: false,             // 옵션 필터 켜짐 여부
             filterSubs: [],              // 필터 통과 조건 서브스탯 키 목록
             hammersPerBatch: 10,         // 1회 제련 사이클당 소모 망치 수 (1~22)
-            continueOnTarget: false,     // 체크 시 장착 성공해도 계속, 미체크면 장착 성공 시 정지
+            stopOnTarget: false,         // 켜면 목표 장비를 찾는 순간 배치 정지 + 비교 팝업. 기본은 예산 끝까지 계속
+                                         // (옛 필드 continueOnTarget은 forge.js autoForgeConfig()가 마이그레이션)
         },
         // 장비: slot → item | null
         equipment: { weapon: null, helmet: null, armor: null, gloves: null, necklace: null, ring: null, shoes: null, belt: null },

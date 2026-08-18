@@ -1,10 +1,12 @@
-// 자동 제작 순차 애니메이션 시퀀스 검증 (사용자 지시 2026-08-17, TODO ①~⑦)
+// 자동 제작 순차 애니메이션 시퀀스 검증 (사용자 지시 2026-08-17, TODO ①~⑦
+//  + 2026-08-18 재지적 autoforge-show-all-cards: 배치는 팝업에서 멈추지 않고 카드 N장이 다 보여야)
 //  ⑴ 자동제작 시작 시 설정 팝업이 닫힌다
 //  ⑵ 제작마다 망치질(.striking) 연출이 돈다
-//  ⑶ 필터 통과분은 비교 팝업으로 뜨고, 고르기 전에는 다음 제작으로 넘어가지 않는다
+//  ⑶ 기본값에서는 목표 통과분도 배치 도중 비교 팝업 없이 카드 → 자동 판정으로 흘러간다
 //  ⑷ 필터 탈락분은 카드가 잠깐 보였다가 코인 판매 연출(#coin-burst)이 난다
-//  ⑸ 여러 개가 통과하면 비교 팝업이 그 수만큼 순차로
-//  ⑹ '계속하기' ON + 예산 N → 해머 N개를 다 쓸 때까지 돌고 정지 / OFF면 첫 통과 선택 후 정지
+//  ⑸ 망치 N개 배치면 결과 카드가 정확히 N회 노출된다 (통과·탈락이 섞여도)
+//  ⑹ 예산 N → 해머 N개를 다 쓸 때까지 돌고 정지 / '목표를 찾으면 정지'(stopOnTarget) ON이면
+//     첫 통과분이 비교 팝업으로 뜨고 선택 후 정지, 남은 예산은 쓰지 않는다
 //  ⑺ 비교 팝업 딤 클릭 = 보류 → 모루 자리에 카드, 그 카드를 누르면 비교 팝업 재등장, 세이브 보존
 // 사용: node probe-autocraft-seq.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
@@ -56,7 +58,7 @@ async function until(page, fnSrc, ms = 8000) {
         UI.openAutoForge();
         const openedBefore = !UI.els.autoForgeModal.classList.contains('hidden');
         S.autoForge.hammersPerBatch = 3;
-        S.autoForge.continueOnTarget = true;
+        S.autoForge.stopOnTarget = false;
         Forge.passesAutoFilter = () => false;   // 전부 탈락시켜 코인 연출 경로만 본다
         // 🚨 탈락시키는 것만으로는 **판매되지 않는다** — 탈락분의 처리는 `UI.autoDispose`가 정하는데,
         //    목표(필터 대상)가 하나도 없으면 `Forge.autoResolve`로 넘어가 **빈 슬롯이면 자동 장착**한다.
@@ -88,56 +90,51 @@ async function until(page, fnSrc, ms = 8000) {
     ok(!after.seq, '정지 후에도 시퀀스가 남아 있다');
     console.log(`⑴⑵⑷⑹ 설정팝업 닫힘·망치질·탈락카드·코인연출 확인 · 해머 ${start.h0} → ${after.h}(예산 3 소진 후 정지)`);
 
-    // ---- ⑶⑸ 통과분은 비교 팝업으로 뜨고, 고르기 전에는 다음 제작이 없다 ----
-    const gate = await page.evaluate(async () => {
-        Forge.passesAutoFilter = () => true;    // 전부 통과시켜 비교 팝업 경로만 본다
-        S.autoForge.hammersPerBatch = 3; S.autoForge.continueOnTarget = true;
+    // ---- ⑶⑸ 배치 도중 비교 팝업 없음 + 망치 N개 → 카드 N회 노출 (autoforge-show-all-cards) ----
+    const flow = await page.evaluate(async () => {
+        // 통과·탈락을 번갈아 섞는다 — 통과분이 팝업으로 배치를 막으면 카드가 N장에서 끊긴다
+        let nth = 0;
+        Forge.passesAutoFilter = () => (nth++ % 2 === 0);
+        // 카드 노출 횟수는 카드 생성 단일 통로(buildCraftCard)에서 센다
+        window.__cards = 0;
+        const orig = UI.buildCraftCard;
+        UI.buildCraftCard = function (item, cls) { window.__cards++; return orig.call(this, item, cls); };
+        let modalSeen = false;
+        const watch = setInterval(() => { if (!UI.els.craftModal.classList.contains('hidden')) modalSeen = true; }, 50);
+        S.autoForge.hammersPerBatch = 6; S.autoForge.stopOnTarget = false;
         S.autoForgeOn = false; UI._autoSeq = null;
         const h0 = S.hammers;
         UI.onToggleAutoForge();
-        // 첫 비교 팝업이 뜰 때까지 기다린다
-        for (let i = 0; i < 200 && UI.els.craftModal.classList.contains('hidden'); i++) await new Promise(r => setTimeout(r, 50));
-        const openedAt = { h: S.hammers, modal: !UI.els.craftModal.classList.contains('hidden') };
-        // 고르지 않고 2초 기다려도 다음 제작이 시작되면 안 된다
-        await new Promise(r => setTimeout(r, 2000));
-        return { h0, openedAt, hAfterWait: S.hammers, stillOpen: !UI.els.craftModal.classList.contains('hidden') };
+        for (let i = 0; i < 600 && S.autoForgeOn; i++) await new Promise(r => setTimeout(r, 50));
+        clearInterval(watch);
+        UI.buildCraftCard = orig;
+        return { spent: h0 - S.hammers, cards: window.__cards, modalSeen, on: S.autoForgeOn };
     });
-    ok(gate.openedAt.modal, '필터 통과분이 비교 팝업으로 뜨지 않았다');
-    ok(gate.hAfterWait === gate.openedAt.h && gate.stillOpen,
-        `선택 대기 중에 다음 제작이 진행됐다 (해머 ${gate.openedAt.h} → ${gate.hAfterWait})`);
-    console.log(`⑶ 비교 팝업 대기 중 다음 제작 없음: 해머 ${gate.openedAt.h} 유지(2초 대기)`);
+    ok(!flow.on, '⑶ 배치가 스스로 정지하지 않았다');
+    ok(!flow.modalSeen, '⑶ 기본값인데 배치 도중 비교 팝업이 떠서 시퀀스를 막았다');
+    ok(flow.spent === 6, `⑸ 망치 6개를 다 써야 하는데 ${flow.spent}개 소모`);
+    ok(flow.cards === 6, `⑸ 망치 6개 → 카드 6회여야 하는데 ${flow.cards}회 노출`);
+    console.log(`⑶⑸ 통과·탈락 혼합 배치: 팝업 차단 없음 · 해머 ${flow.spent}개 = 카드 ${flow.cards}회`);
 
-    // 선택하면 다음 제작으로 이어지고, 예산만큼 팝업이 순차로 뜬다
-    const seqCount = await page.evaluate(async () => {
-        let picks = 0;
-        for (let n = 0; n < 6; n++) {
-            for (let i = 0; i < 200 && UI.els.craftModal.classList.contains('hidden'); i++) await new Promise(r => setTimeout(r, 50));
-            if (UI.els.craftModal.classList.contains('hidden')) break;
-            UI.resolveCraft('sell');            // 같은 등급 경고가 떠도 이 경로는 판매로 확정된다
-            if (!document.getElementById('detail-modal').classList.contains('hidden')) UI.onSellConfirm();
-            picks++;
-            if (!S.autoForgeOn) break;
-        }
-        return { picks, on: S.autoForgeOn };
-    });
-    ok(seqCount.picks >= 2, `비교 팝업이 순차로 뜨지 않았다 (선택 ${seqCount.picks}회)`);
-    console.log(`⑸ 비교 팝업 순차 선택 ${seqCount.picks}회 후 자동제작 ${seqCount.on ? '진행 중' : '정지'}`);
-
-    // ---- ⑹-b '계속하기' OFF면 첫 선택 후 정지 ----
-    const offCase = await page.evaluate(async () => {
+    // ---- ⑹-b '목표를 찾으면 정지' ON → 첫 통과분이 비교 팝업, 선택 후 정지 + 남은 예산 미소모 ----
+    const stopCase = await page.evaluate(async () => {
         S.hammers = 200; S.autoForgeOn = false; UI._autoSeq = null;
         UI.clearPendingCraft(); UI.els.craftModal.classList.add('hidden');
-        S.autoForge.continueOnTarget = false; S.autoForge.hammersPerBatch = 10;
+        S.autoForge.stopOnTarget = true; S.autoForge.hammersPerBatch = 10;
         Forge.passesAutoFilter = () => true;
+        const h0 = S.hammers;
         UI.onToggleAutoForge();
         for (let i = 0; i < 200 && UI.els.craftModal.classList.contains('hidden'); i++) await new Promise(r => setTimeout(r, 50));
-        UI.resolveCraft('sell');
+        const modal = !UI.els.craftModal.classList.contains('hidden');
+        UI.resolveCraft('sell');                // 같은 등급 경고가 떠도 이 경로는 판매로 확정된다
         if (!document.getElementById('detail-modal').classList.contains('hidden')) UI.onSellConfirm();
         await new Promise(r => setTimeout(r, 1500));
-        return { on: S.autoForgeOn, seq: !!UI._autoSeq };
+        return { modal, spent: h0 - S.hammers, on: S.autoForgeOn, seq: !!UI._autoSeq };
     });
-    ok(!offCase.on && !offCase.seq, "'계속하기' OFF인데 첫 선택 후에도 자동제작이 계속됐다");
-    console.log(`⑹-b 계속하기 OFF → 첫 선택 후 정지 ${!offCase.on}`);
+    ok(stopCase.modal, "'정지' ON인데 첫 통과분이 비교 팝업으로 뜨지 않았다");
+    ok(!stopCase.on && !stopCase.seq, "'정지' ON인데 첫 선택 후에도 자동제작이 계속됐다");
+    ok(stopCase.spent === 1, `'정지' ON이면 망치 1개만 써야 하는데 ${stopCase.spent}개 소모`);
+    console.log(`⑹-b 목표 정지 ON → 첫 통과 팝업·선택 후 정지 (해머 ${stopCase.spent}개 소모)`);
 
     // ---- ⑺ 딤 클릭 = 보류 → 모루 자리 카드 → 다시 열기 ----
     await page.evaluate(() => {

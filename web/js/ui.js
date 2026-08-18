@@ -1187,9 +1187,12 @@ const UI = {
 
     // ===== 자동 제작 순차 시퀀스 (사용자 지시 2026-08-17) =====
     // 예전 구현은 main.js의 3초 인터벌에서 배치로 즉시 처리해 아무 연출이 없었다. 이제 한 개씩,
-    // **망치질 → 뽑힌 것 보여주기 → (필터 통과=비교 팝업 대기 / 탈락=코인 판매 연출)** 순서로 돈다.
-    // 비교 팝업이 뜨면 사용자가 고를 때까지 다음 제작으로 넘어가지 않는다(고르면 doResolveCraft가,
-    // 보류하면 onCraftDimClick이 다음 스텝을 부른다). 예산·해머가 떨어지거나 토글이 꺼지면 정지.
+    // **망치질 → 뽑힌 것 카드로 보여주기 → 자동 판정(장착/판매)** 순서로 돌고, 배치는 팝업에서
+    // 멈추지 않는다 — 망치 N개면 결과 카드가 N번 다 보여야 한다(사용자 재지적 2026-08-18
+    // autoforge-show-all-cards: 종전에는 목표 통과분마다 비교 팝업이 선택을 기다려 카드가 1장에서
+    // 끊겼다). 비교 팝업은 '목표를 찾으면 정지'(stopOnTarget)를 켠 경우에만 뜨고, 그 카드가 배치의
+    // 마지막이 된다(고르면 doResolveCraft가, 보류하면 onCraftDimClick이 정지를 마무리한다).
+    // 예산·해머가 떨어지거나 토글이 꺼지면 정지.
     _autoSeq: null,
     startAutoSeq() {
         if (this._autoSeq) return;
@@ -1238,15 +1241,34 @@ const UI = {
             // 개별 장비 승천이 라인 승천으로 대체되면서 중복 장비는 일반 판매다(forge.js:isMatchingGear 메모).
             // 남겨 두면 중복이 뽑힐 때마다 배치가 팝업에서 멈추는 원인만 된다 — 목표 판정만 본다.
             const keep = Forge.passesAutoFilter(item);
-            if (keep) {
-                // ⑤ '계속하기'가 꺼져 있으면 이번 선택까지만 하고 멈춘다
-                if (!Forge.autoForgeConfig().continueOnTarget) seq.stopAfterPick = true;
-                // 통과분도 카드로 먼저 보여준 뒤 비교 팝업 (사용자 지시 2026-08-18 — 탈락분만
-                // 카드가 있고 통과분은 팝업이 즉발로 떠서 '뭐가 뽑혔는지' 순간이 없었다)
+            if (keep && Forge.autoForgeConfig().stopOnTarget) {
+                // '목표를 찾으면 정지'를 켠 경우에만 비교 팝업으로 선택을 넘긴다 —
+                // 이 카드가 배치의 마지막이고, 남은 망치 예산은 쓰지 않는다.
+                seq.stopAfterPick = true;
                 this.showCraftReveal(item, () => {
                     this._anvilBusy = false;
                     if (this._pendingItem !== item) { this.autoSeqStep(); return; }
                     this.showCraftModal(item);
+                });
+                return;
+            }
+            if (keep) {
+                // 기본값(정지 미설정): 배치 도중 비교 팝업을 띄우지 않는다 — 팝업이 선택을
+                // 기다리는 순간 카드가 1장에서 끊긴다(autoforge-show-all-cards의 원인).
+                // 목표품도 카드로 보여준 뒤 오토포지 표준 판정으로 흘려보낸다. autoDispose가
+                // 아니라 Forge.autoResolve 직행인 이유: 목표가 정의된 상태의 autoDispose는
+                // '탈락품 즉시 판매'라 정작 목표품이 장착 기회 없이 무조건 팔린다.
+                this.showCraftReveal(item, () => {
+                    this._anvilBusy = false;
+                    const it = this.clearPendingCraft();
+                    if (!it) { this.autoSeqStep(); return; }
+                    const r = Forge.autoResolve(it);
+                    if (r.equipped) this.toast(`🛠 ${it.name} 자동 장착`);
+                    else this.coinBurst(r.gained);
+                    this.renderTopBar();
+                    this.renderEquipSheet();
+                    saveGame();
+                    this.autoSeqStep();
                 });
                 return;
             }
@@ -1599,7 +1621,7 @@ const UI = {
                                 ${this._afDdOpen ? `<div class="af-dd-list">${Array.from({ length: this.hammerBatchMax() }, (_, n) => `<button class="${cfg.hammersPerBatch === n + 1 ? 'on' : ''}" onclick="UI.onPickHammers(${n + 1})">${n + 1}</button>`).join('')}</div>` : ''}
                             </div></div>
                         <div class="af-row"><span>목표 장비를 찾으면 제련 계속하기</span>
-                            <span class="af-check ${cfg.continueOnTarget ? 'on' : ''}" onclick="UI.onToggleContinueOnTarget()">${cfg.continueOnTarget ? '✓' : ''}</span></div>
+                            <span class="af-check ${cfg.stopOnTarget ? '' : 'on'}" onclick="UI.onToggleStopOnTarget()">${cfg.stopOnTarget ? '' : '✓'}</span></div>
                         <button class="btn primary af-start" onclick="UI.onToggleAutoForge()">${S.autoForgeOn ? '중지' : '시작'}</button>
                     </div>
                 </div>
@@ -1647,9 +1669,11 @@ const UI = {
         this._afDdOpen = false;
         saveGame(); this.renderAutoForge();
     },
-    onToggleContinueOnTarget() {
+    // 체크(기본) = 목표를 찾아도 예산 끝까지 계속 / 해제 = 목표를 찾는 순간 정지 + 비교 팝업.
+    // 저장 필드는 정지 쪽(stopOnTarget)이 참이다 — 기본값 false가 '계속'이 되도록.
+    onToggleStopOnTarget() {
         const cfg = Forge.autoForgeConfig();
-        cfg.continueOnTarget = !cfg.continueOnTarget;
+        cfg.stopOnTarget = !cfg.stopOnTarget;
         saveGame(); this.renderAutoForge();
     },
 

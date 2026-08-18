@@ -93,7 +93,7 @@ const SEED = () => {
     // 원본 042950 은 마지막 두 시대 + 치명타 확률·피해가 켜진 상태라 같은 상태로 맞춘다.
     S.autoForge.keepAges = ['underworld', 'divine'];
     S.autoForge.filterSubs = ['critCh', 'critDmg'];
-    S.autoForge.continueOnTarget = true;   // 원본 042950/043117 둘 다 이 체크가 켜져 있다
+    S.autoForge.stopOnTarget = false;      // '계속하기' 체크 표시 — 원본 042950/043117 둘 다 이 체크가 켜져 있다
     // 장비 8부위 풀장착
     for (const slot of Object.keys(S.equipment)) {
         let it = null;

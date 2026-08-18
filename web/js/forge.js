@@ -212,7 +212,14 @@ const Forge = {
 
     // ===== 자동 제련 설정 (UI-SPEC 21~24번 '자동 제련' 팝업) =====
     autoForgeConfig() {
-        if (!S.autoForge) S.autoForge = { keepAges: [], filterOn: false, filterSubs: [], hammersPerBatch: 10, continueOnTarget: false };
+        if (!S.autoForge) S.autoForge = { keepAges: [], filterOn: false, filterSubs: [], hammersPerBatch: 10, stopOnTarget: false };
+        // 옛 필드 마이그레이션: continueOnTarget(기본 false = 첫 목표에서 정지)은 기본 설정에서
+        // 배치를 카드 1장으로 끊어 "망치 10개인데 카드 1개"(autoforge-show-all-cards) 재지적을 낳았다.
+        // 새 기본은 '예산 끝까지 계속'이고, 정지는 stopOnTarget을 켠 경우에만 한다.
+        // 옛 값은 참/거짓 모두 '계속'으로 넘긴다 — 참은 원래 계속이었고, 거짓은 기본값이라
+        // 사용자가 고른 적 없는 상태다(정지를 원하면 팝업에서 다시 켜면 된다).
+        if ('continueOnTarget' in S.autoForge) { delete S.autoForge.continueOnTarget; S.autoForge.stopOnTarget = false; }
+        if (S.autoForge.stopOnTarget === undefined) S.autoForge.stopOnTarget = false;
         return S.autoForge;
     },
     // 유지 시대나 옵션 필터를 하나라도 켜 뒀는가 = '목표 장비'라는 개념이 정의돼 있는가.
