@@ -1774,7 +1774,8 @@ const UI = {
             <div class="idet-wrap">
                 <div class="modal-card paper item-detail">
                     <div class="idet-head">
-                        <div class="idet-icon">${thumb ? `<img src="${thumb}" alt="">` : icon}</div>
+                        <!-- --rc = 시대색: 목록과 같은 언어로 프레임에 등급색을 준다 (사용자 지시 2026-08-19 forge-list-frame-color) -->
+                        <div class="idet-icon" style="--rc:${this.ageHex(age)}">${thumb ? `<img src="${thumb}" alt="">` : icon}</div>
                         <div class="idet-title">
                             <div class="idet-name">[${AGE_KR[age]}] ${name}</div>
                             <div class="idet-main">${U.fmt(baseVal)} ${main === 'atk' ? '피해' : '체력'}</div>
