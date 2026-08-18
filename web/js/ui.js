@@ -2843,8 +2843,8 @@ const UI = {
             <div class="idet-wrap">
                 <div class="modal-card paper petup-card">
                     <div class="petup-panel">
-                    <div class="petup-head">
-                        <div class="petup-icon" style="--rc:${RARITY_CSS[target.rarity]}">
+                    <div class="petup-head" style="--rc:${RARITY_CSS[target.rarity]}">
+                        <div class="petup-icon">
                             ${UI.petFace(target.name, 'mt-inline')}
                             ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                             <span class="sk-lv">Lv.${target.level}</span>

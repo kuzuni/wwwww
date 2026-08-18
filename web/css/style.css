@@ -1174,7 +1174,11 @@ body {
 
 /* ---- 모달/토스트 ---- */
 .modal {
-    position: absolute; inset: 0; background: rgba(0,0,0,.72); z-index: 20; /* 원본 딤 강도 (185 재채점) */
+    /* 🚨 딤은 원본에서 사실상 불투명 검정이다 — .72 는 너무 옅었다(2026-08-18 ⑬ 세션 실측).
+       팝업 원본 5장(042503·042449·042304·042831·042208)의 탭바 행 y=862 을 전부 재 보면 배경이
+       #000000~#010203 이고, 042831 은 x30~300 전 구간이 **한 값(#010203)** 이라 내용이 남아 있지 않다.
+       역산: 클론 탭바 면 #1c2128 → 0 이 되려면 a>.988, 빨간 ✕ #e8362f → #010000 이 되려면 a≈.996. */
+    position: absolute; inset: 0; background: rgba(0,0,0,.985); z-index: 20;
     display: flex; align-items: center; justify-content: center;
 }
 .modal.hidden, .hidden { display: none !important; }
@@ -3009,11 +3013,11 @@ body {
 }
 /* 원본: 상단 대상 카드+경험치바+선택행은 회색 패널로 묶임, 경험치바는 검정 pill+파란 채움 */
 .petup-panel {
-    background: #c9c9c9; border: var(--ol3) solid var(--pp-line); border-radius: .7rem;
+    background: #b7b7b7; border: var(--ol3) solid var(--pp-line); border-radius: .7rem;
     padding: .6rem .6rem .55rem; margin-bottom: .7rem;
 }
 .petup-xpbar {
-    position: relative; height: 1.78rem; /* 원본 30px = 3.37%H */ background: #10131f; border: var(--ol3) solid var(--pp-line);
+    position: relative; height: 1.78rem; /* 원본 30px = 3.37%H */ background: #0d111b; border: var(--ol3) solid var(--pp-line);
     border-radius: .6rem; overflow: hidden; margin: .6rem 0 .5rem;
 }
 .petup-xpbar div { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--pp-blue); }
@@ -3805,6 +3809,53 @@ body {
 }
 /* 타일 위 Lv 글자도 원본은 흰 채움 + 검정 키라인이다(리본 글자 y=419 스캔이 #ffffff). */
 .petd-wrap .petd-tile .sk-lv { color: #fff; -webkit-text-stroke: 2.5px var(--pp-line); paint-order: stroke fill; }
+
+/* ---- ⑬ 펫 업그레이드 팝업 AAA 스킨 (원본 shot-042503 픽셀 실측 2026-08-18 · 배치는 손대지 않는다) ----
+   ① 레이아웃은 probe-petupgrade-dom.js 21요소 **초과 0건**(최대 +0.99%p)이라 한 줄도 안 건드렸다.
+   아래는 전부 원본 505×889 의 색 단면에서 뽑은 값이고, `.petup-*` 은 이 팝업 전용 클래스지만
+   `.x-btn`·`.idet-name`·`.idet-main` 은 공용이라 스코프를 걸었다(⑫ 가 `.petd-wrap` 으로 한 것과 같은 이유).
+   ㉠ 회색 패널 면 = x250 y109 **#b7b7b7** (클론 #c9c9c9 는 18단계 밝았다) — 위 .petup-panel 에 반영.
+   ㉡ 경험치 바 트랙 = x250 y203 **#0d111b** (클론 #10131f) — 위 .petup-xpbar 에 반영.
+      채움은 x105 y204~227 **#005dff** 로 `--pp-blue` 와 이미 같다. ⚠️ 아래 1px #001e52 를 베벨로
+      **오독하지 말 것** — 위쪽 y203 에도 같은 폭의 전이 픽셀이 있어 대칭이므로 안티에일리어싱이다.
+   ㉢ 바 글자 = 흰 채움 + 검정 키라인(y216 가로 단면에서 #ffffff 획 양옆이 #000000).
+   ㉣ 업그레이드(실버) 버튼 = 면 **#a3a3a3 단색** · 아래턱 **#323132** 6px · 검정 테두리(x370 세로 단면
+      y247 검정 → 249~281 면 → 282~287 턱 → 288 검정). 글자는 **검정 + 흰 외곽선**이다 —
+      y267 가로 단면에서 어두운 획이 3~4px, 흰 픽셀이 1~2px 라 흰 쪽이 외곽선이다(⑫ 의 파랑·빨강
+      버튼은 반대로 흰 획 + 검정 키라인이었다: **실버=검정글자/유색=흰글자** 가 원본의 규칙).
+      던전 상세(042304)에서 독립적으로 뽑은 `.dgd-btn.silver` 값과 정확히 같아 서로 교차검증된다. */
+.petup-xpbar span { -webkit-text-stroke: 2.5px var(--pp-line); paint-order: stroke fill; }
+.petup-selrow .btn.silver {
+    background: #a3a3a3;
+    box-shadow: inset 0 -.3rem 0 #323132;
+    color: #000;
+    text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff;
+}
+.petup-selrow .btn.silver:active { box-shadow: none; }
+/* 비활성 [업그레이드] — 공용 `.modal-card .btn.disabled` 의 `opacity:.75` 가 **면·아래턱·키라인을 통째로
+   흐리게** 만든다(캡처 실측: 면 #a3a3a3→#a8a8a8 · 턱 #323132→#3f3f41 · 검정 글자 → #2d2d2d).
+   원본에는 재료가 선택돼 있어 비활성 컷이 없으므로 조형을 지어내지 않고, 이미 같은 문제를 처리해 둔
+   `.skd-btn.silver.disabled` 의 처방을 그대로 따른다 — 불투명도를 되돌리고 글자만 회색으로 죽인다. */
+.petup-selrow .btn.silver.disabled {
+    opacity: 1; background: #b4b4b4; color: #6f6f6f;
+    box-shadow: inset 0 -.3rem 0 #3b3b3b;
+    text-shadow: -1.5px -1.5px 0 #e8e8e8, 1.5px -1.5px 0 #e8e8e8, -1.5px 1.5px 0 #e8e8e8, 1.5px 1.5px 0 #e8e8e8;
+}
+/* ㉤ ✕ = 면 **#f2191d** · 아래턱 **#4a0709** 5px(x250 세로 단면 y768~785 면 → y813~817 턱 → y818 검정) ·
+   글리프는 흰 획 + 검정 키라인(y791~795 #ffffff 뒤 y797~799 #000000). ⑫ 가 `.petd-wrap` 에서 뽑은 값과
+   같지만 그쪽 스코프는 이 팝업에 안 닿는다 — 전역 `--pp-red`(#e8362f)/`--pp-red-dk`(#a51710)는
+   화면마다 달라 건드리지 않고 여기에만 준다. */
+#pet-upgrade-modal .x-btn {
+    background: #f2191d; box-shadow: inset 0 -.28rem 0 #4a0709;
+    color: #fff; -webkit-text-stroke: 3px var(--pp-line); paint-order: stroke fill;
+}
+/* ㉥ 이름 줄 = 원본은 `[궁극의] 트렌트` 전체가 **등급 원색 + 검정 키라인**이다(x250 세로 단면 y123~133 이
+   #ff1c1c 이고 획 경계가 #050000·#090101). 클론은 --pp-ink 한 색이었다. ⑫ 와 같은 처방.
+   ㉦ 스탯 2줄은 **순검정**(x180 y145·y160·y168 이 전부 #000000) — --pp-ink(#17181a)보다 진하다.
+      '합칠 펫 선택' 라벨도 같다(x100 y266 #0b0b0b). */
+.petup-panel .idet-name { color: var(--rc, var(--pp-ink)); -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill; }
+.petup-panel .idet-main { color: #000; }
+.petup-sellabel { color: #000; }
 
 .petd-share {
     position: absolute; top: .55rem; right: .55rem; cursor: pointer;
