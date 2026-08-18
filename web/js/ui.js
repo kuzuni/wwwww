@@ -3981,7 +3981,9 @@ const UI = {
                 <span class="cur-pill gem">${IconGen.img('gem')} ${U.fmt(S.gems)}</span>
             </div>
             <div class="tech-branch-detail-pct">${pct.toFixed(1)}%</div>
-            <button class="fi-info-btn tech-branch-info" onclick="UI.openTechBonuses()">!</button>
+            <!-- 글리프는 원본(shot-042546)과 같은 소문자 i — 같은 .fi-info-btn 을 쓰는 대장간 정보 버튼(위 openForgeList)도 i 다.
+                 ⚠️ ! 로 되돌리지 말 것: 원본 우상단은 검정 원 안 흰 i 이고, 한 스타일이 화면마다 다른 글자를 쓰면 안 된다. -->
+            <button class="fi-info-btn tech-branch-info" onclick="UI.openTechBonuses()">i</button>
             <div class="tech-tree-col"><svg class="tech-tree-links" aria-hidden="true"></svg>${rowsHtml.join('')}</div>
             <button class="btn danger tech-tree-back" onclick="UI.openTechOverview()">◀</button>`;
         this.drawTechLinks();
