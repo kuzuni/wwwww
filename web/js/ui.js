@@ -3575,7 +3575,7 @@ const UI = {
 
         this.els.detailModal.innerHTML = `
             <div class="idet-wrap">
-                <div class="modal-card paper item-detail" data-tech-node="${id}">
+                <div class="modal-card paper item-detail${researching ? ' tn-researching' : ''}" data-tech-node="${id}">
                     <div class="idet-head">
                         <div class="idet-icon tn-bronze">${max ? IconGen.img('check') : !open ? IconGen.img('lock') : this.techIcon(id)}<span class="idet-star">${lv}/${TechTree.MAX_LEVEL}</span></div>
                         <div class="idet-title">
@@ -3583,9 +3583,9 @@ const UI = {
                             <div class="idet-main">+${U.fmt(TechTree.totalOf(id))}${unit} <small class="tn-gain">(${TechTree.gainNote()} +${U.fmt(def.per)}${unit} · 이 노드 +${U.fmt(TechTree.nodeTotal(id))}${unit})</small></div>
                         </div>
                     </div>
-                    <div class="idet-subs">
+                    ${researching ? '' : `<div class="idet-subs">
                         <div class="idet-lead">${def.desc}</div>
-                    </div>
+                    </div>`}
                     ${actionHtml}
                 </div>
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>

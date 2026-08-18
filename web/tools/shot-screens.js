@@ -31,7 +31,18 @@ const SCREENS = [
     // 원본 042546의 제목은 '스킬, 펫 & 기술'이다 — 대장간 분기(10노드)를 찍어 놓고 이 원본과 대조하면
     // 노드 수부터 달라 비율 비교가 무의미해진다. 원본과 같은 skillpet 분기(12노드)를 찍는다.
     ['tech-branch', '042546', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('skillpet')`],
-    ['tech-node', '042605', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('forge'); UI.openTechNode('forgeTimer')`],
+    // 원본 042605의 배경은 **skillpet 분기**(제목 '스킬, 펫 & 기술')이고 팝업 노드는 '추가 알 획득 기회 IV'
+    // = 우리 트리의 extraEgg 4단계, 레벨 1/5, 연구 진행 중이다. forge 분기/forgeTimer 로 찍으면 배경 노드 수와
+    // 제목부터 달라 비율 대조가 무의미해진다(tech-branch 를 원본 분기에 맞춘 것과 같은 이유).
+    ['tech-node', '042605', `(() => {
+        const id = TechTree.nid('extraEgg', 4);
+        S.tech = S.tech || {};
+        for (let t = 1; t < 4; t++) S.tech[TechTree.nid('extraEgg', t)] = 5;   // 부모 사슬 해금
+        S.tech[id] = 1;
+        S.techResearch = { id, endsAt: U.now() + (13 * 60 + 30) * 60e3 };      // 원본 '13시 30분'
+        UI.switchTab('summon'); UI.switchSummonSub('tech');
+        UI.openTechBranch('skillpet'); UI.openTechNode(id);
+    })()`],
     ['shop', '042632', `UI.openShop()`],
     ['pass', '042705', `UI.openPass()`],
     ['profile', '042724', `UI.openProfile()`],
