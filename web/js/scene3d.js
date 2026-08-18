@@ -4507,11 +4507,27 @@ const Scene3D = {
                 const stem = tube(HEAD, [0, 0.45, 0.255], 0.016, dark);   // 헤드튜브 → 바 (길이는 매 배치마다 다시 잡는다)
                 g.userData.bar = { group: barG, grips: gripsL, barMesh: bar, stem, head: HEAD, rest: barG.position.clone() };
                 sp(0.10, 0, 0.335, -0.075, LEATHER, 0.55, 0.30, 1.25);  // 안장(=form.saddle 0.36 윗면)
-                // 페달: 탑승 포즈의 발 위치(로컬 y 0.10 / z 0.10)에 맞춰 놓아 발이 헛돌지 않게
+                // ── 크랭크·페달 ──────────────────────────────────────────────────────────
+                // ⚠️ 예전엔 좌우 크랭크가 **같은 방향(둘 다 z +0.10)** 으로 박혀 있었다. 자전거 크랭크는
+                //    180° 반대여야 하고, 탑승 포즈도 그 전제로 좌우 비대칭(무릎 111°/61°)으로 잡혀 있다 —
+                //    같은 위상에 고정해 두니 **빈 페달 면이 그대로 노출**돼 비평가 2인이 독립적으로
+                //    "발이 페달에 없다"고 지적했다. 상수로 맞히려 들면 포즈·배율이 곱해진 자리를 손으로
+                //    맞히는 셈이라 반드시 어긋난다 — 등자와 같은 원칙으로 **매 프레임 발을 재서**
+                //    크랭크 위상을 푼다(`alignPedals`). 여기선 축(BB)에 매달린 회전 그룹만 만들어 둔다.
+                const CRANK_R = 0.085;                     // 크랭크 암 길이(로컬)
+                const cranks = [];
                 for (const s of [-1, 1]) {
-                    tube([0, 0.10, 0.02], [s * 0.085, 0.10, 0.10], 0.014, IRON);
-                    bx(0.07, 0.018, 0.09, s * 0.085, 0.093, 0.10, RUBBER);   // 페달 밟는 면 = 고무
+                    const ck = new THREE.Group();
+                    ck.position.set(s * 0.045, BB[1], BB[2]);   // 축 좌우로 살짝 벌려 체인링 자리를 남긴다
+                    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.016, CRANK_R, 0.02), IRON);
+                    arm.position.y = -CRANK_R / 2;             // 축에서 아래로 뻗은 암(회전 원점 = 축)
+                    const pedal = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.018, 0.09), RUBBER);
+                    pedal.position.y = -CRANK_R;
+                    ck.add(arm, pedal);
+                    g.add(ck);
+                    cranks.push({ side: s, group: ck, arm, pedal, r: CRANK_R });
                 }
+                g.userData.cranks = { list: cranks, axis: [0, BB[1], BB[2]], r: CRANK_R };
             } else {
                 const w = to(0.18, 0.05, 0, 0.18, 0, RUBBER); w.rotation.y = Math.PI / 2; g.userData.wheel = w; // 굴러가는 면이 진행 방향을 보게 (타이어=고무)
                 to(0.142, 0.016, 0, 0.18, 0, IRON).rotation.y = Math.PI / 2;   // 림
@@ -4753,7 +4769,7 @@ const Scene3D = {
         // 탈것형(자전거/외바퀴): 안장에 앉아 상체를 앞으로 숙이고 무릎을 깊게 접는다.
         // 페달은 좌우가 항상 반대 위상이라 **대칭 포즈 자체가 오답**이다 — 한쪽은 크랭크 위(깊게 접힘),
         // 반대쪽은 아래(펴짐). 좌우 같은 각을 주면 '페달을 밟는' 게 아니라 '자전거 위에 쪼그린' 실루엣이 된다.
-        wheeled: { saddle: 0.36, hover: 0,
+        wheeled: { saddle: 0.36, hover: 0, seatByLeg: true,   // 안장 높이를 다리 길이로 정한다(자전거 피팅)
                    // barReach: 빈 손이 핸들바를 잡는 팔 각(어깨 앞으로·안쪽으로, 팔꿈치 살짝 굽힘).
                    // 바는 이 손 위치로 따라온다(alignHandlebar) — 각을 바꿔도 바가 알아서 맞춰진다.
                    // 각은 실측으로 골랐다(tools/probe-ride-grip.js, 60조합) — 어깨를 더 돌리면 팔이
@@ -4805,6 +4821,7 @@ const Scene3D = {
     // 지상 탑승형의 **가로 배율 ÷ 세로 배율**. 1.0(균일)로 두면 안장을 올린 만큼 배럴도 두꺼워져
     // 다리가 통째로 묻힌다(실측: 근쪽 다리 가림 0/7 → 6/7, 범인 6점이 전부 탈것 몸통).
     // 0.74 = 발 접지 기준이던 예전 배럴 폭을 그대로 남기는 값 — 실제 말도 키에 비해 몸통이 좁다.
+    // (가로 x 에만 걸린다. 길이 z 까지 줄이면 몸통이 뭉툭해질 뿐 다리 가림에는 도움이 안 된다.)
     RIDE_WIDTH_RATIO: 0.74,
     // 탑승 포즈에서의 골반 로컬 높이 — 안장 높이를 역산하는 기준값.
     // 리그가 있으면 실측하고(포즈·장비가 바뀌어도 따라온다), 없으면 실측해 둔 기본값을 쓴다.
@@ -4935,7 +4952,11 @@ const Scene3D = {
             // 지상 탑승형(사족·탈것): **발을 지면에서 떼고** 실제 승마 비례로 안장을 올린다.
             // 발은 등자에 걸려 공중에 있는 게 정상이다 — 예전처럼 발 접지를 기준으로 삼으면
             // 탈것이 영웅 무릎 높이를 못 넘는다(RIDE_SEAT_RATIO 주석 참조).
-            const needSaddle = pelvisLocal * this.RIDE_SEAT_RATIO;
+            // ⚠️ **자전거는 이 규칙에서 뺀다.** 말 등 높이는 기수와 무관하지만 **자전거 안장 높이는
+            //    다리 길이가 정한다**(실제 바이크 피팅이 그렇다). 승마 비례를 자전거에 그대로 먹였더니
+            //    안장−크랭크축 거리가 0.546 → 0.728 로 벌어져 **다리 길이(0.635)보다 멀어졌다** —
+            //    발이 페달에 구조적으로 못 닿는다(probe-ride-pedal 로 확인). 예전 규칙을 그대로 쓴다.
+            const needSaddle = form.seatByLeg ? 0.06 + pelvisLocal : pelvisLocal * this.RIDE_SEAT_RATIO;
             rideScale = U.clamp(needSaddle / (form.saddle * sc), 1, 3.4);  // 과대·과소 확대 방지
             // 클램프에 걸리면 실제 안장 높이가 needSaddle과 달라진다 — 상수가 아니라 **실제 안장 높이**에
             // 스커트 밑단을 맞춘다(그래야 어떤 종에서도 파묻힘/뜸이 안 생긴다).
@@ -4946,18 +4967,22 @@ const Scene3D = {
             //    실제 말이 그렇듯 **키는 키우되 폭은 그대로** 둔다 — 가로 배율을 세로와 분리한다.
             //    0.74 = 예전(발 접지 기준) 배럴 폭을 그대로 유지하는 값이라, 다리 벌림 상수를 손대지
             //    않고도 감싸기 여유(+0.038)가 보존된다.
-            rideWide = rideScale * this.RIDE_WIDTH_RATIO;
+            // 폭 좁히기도 같은 이유로 자전거엔 안 건다 — 배럴 반폭이 0.03 이라 다리를 막지 않는다.
+            if (!form.seatByLeg) rideWide = rideScale * this.RIDE_WIDTH_RATIO;
         }
         // 가로 배율을 따로 안 정한 계열(평판·비행형)은 예전처럼 균일 배율이다 — 세로만 키우면
         // 드래곤이 종잇장이 된다.
+        // ⚠️ 좁히는 것은 **가로(x)뿐**이다. z 까지 같이 줄이면 몸통이 짧아져 말이 뭉툭해지고, 자전거는
+        //    휠베이스가 줄어 세발자전거 비례가 된다. 다리를 막는 것은 폭이지 길이가 아니다.
         const wide = rideWide || rideScale;
-        mesh.scale.set(sc * wide, sc * rideScale, sc * wide);
+        mesh.scale.set(sc * wide, sc * rideScale, sc * rideScale);
         g.userData.stirrups = mesh.userData.stirrups || null;   // 등자는 메시 안에 달렸다 — 그룹에서도 찾게 올려 둔다
         // 날개·꼬리도 같은 이유로 올려 둔다 — 업데이트 루프는 그룹의 userData만 보므로, 안 올리면
         // 애니메이션이 통째로 걸리지 않는다(드래곤 날개가 얼어 있던 원인).
         g.userData.wings = mesh.userData.wings || null;
         g.userData.tail = mesh.userData.tail || null;
         g.userData.bar = mesh.userData.bar || null;      // 핸들바 — 영웅 손에 맞춰 스템을 늘인다
+        g.userData.cranks = mesh.userData.cranks || null;   // 크랭크 — 영웅 발에 맞춰 위상을 푼다
         let baseY = form.hover * sc * rideScale;
         g.position.set(Combat.HERO_X + this.worldX, baseY, 0);   // 영웅 발밑(별도 자리 아님)
         // ── 접지 보정: 어떤 종도 지면 아래로 파고들지 않게 ──
@@ -5027,6 +5052,70 @@ const Scene3D = {
     // 손으로 맞히는 셈이라 반드시 어긋난다(안장 높이를 역산하기로 한 것과 같은 이유).
     // 매 프레임 호출해도 비용은 벡터 두 번 — 걷기 바운스·기울기에도 발에 딱 붙어 따라간다.
     _stirrupFoot: null,
+    // 자전거 크랭크 위상을 **영웅의 실제 발 위치**에서 푼다.
+    // 크랭크는 축에서 반지름 r 인 원 위에만 있을 수 있고 좌우가 정확히 180° 반대다 — 즉 자유도는
+    // 위상 하나뿐이다. 그래서 발을 페달로 끌고 오는 게 아니라 **두 발에 가장 가까운 위상 하나**를 찾는다.
+    // (알고리즘: 위상 36등분 조회. 닫힌 해도 있지만, 발이 원에서 벗어난 거리까지 함께 보려면 이쪽이 안전하고
+    //  프레임당 비용도 벡터 72번이라 등자 정렬과 같은 급이다.)
+    _pedalV: null,
+    alignPedals() {
+        const g = this.mountGroup, rig = this.heroRig;
+        const ck = g && g.userData.cranks;
+        if (!ck || !rig || !rig.bones || !rig.bones.kneeL || !this.heroG) return;
+        const V = this._pedalV || (this._pedalV = new THREE.Vector3());
+        this.heroG.updateWorldMatrix(true, true);
+        g.updateWorldMatrix(true, true);
+        const parent = ck.list[0].group.parent;
+        if (!parent) return;
+        // 발 두 짝을 크랭크와 같은 좌표계로 가져온다 (0,-0.315,0.045) = prochar 가 박아 둔 부츠 자리
+        const foot = {};
+        for (const side of ['L', 'R']) {
+            const knee = rig.bones['knee' + side];
+            if (!knee) return;
+            foot[side] = parent.worldToLocal(knee.localToWorld(V.set(0, -0.315, 0.045))).clone();
+        }
+        // ⚠️ **위상만으로는 양발이 동시에 안 닿는다.** 크랭크는 좌우가 180° 반대라, 두 발이 축을
+        //    사이에 두고 정확히 지름만큼 떨어져 있어야 비로소 둘 다 페달 위에 온다. 다리 각을 81조합
+        //    훑어도 전부 '한쪽만' 이었다(probe-ride-pedal --sweep) — 각으로 풀 문제가 아니다.
+        //    그래서 **크랭크를 발에 맞춘다**: 축을 두 발의 중점으로, 반지름을 두 발 간격의 절반으로.
+        //    핸들바를 손 위치로 끌어오는 `alignHandlebar` 와 같은 원칙이고, 자전거 피팅에서 실제로
+        //    조정하는 값(BB 높이·크랭크 길이)이기도 하다. 다만 프레임 튜브가 BB에 모여 있으므로
+        //    **원래 자리 근처로 클램프**한다 — 안 그러면 크랭크가 프레임에서 떨어져 나간다.
+        const fy = (foot.L.y + foot.R.y) / 2, fz = (foot.L.z + foot.R.z) / 2;
+        const cy = U.clamp(fy, ck.axis[1] - 0.06, ck.axis[1] + 0.06);
+        const cz = U.clamp(fz, ck.axis[2] - 0.06, ck.axis[2] + 0.06);
+        const r = U.clamp(Math.hypot(foot.L.y - foot.R.y, foot.L.z - foot.R.z) / 2, 0.06, 0.16);
+        let best = 0, bestD = Infinity;
+        for (let i = 0; i < 36; i++) {
+            const th = i * Math.PI / 18;
+            let d = 0;
+            for (const c of ck.list) {
+                const ph = th + (c.side < 0 ? 0 : Math.PI);       // 좌우 180° 반대
+                const py = cy - Math.cos(ph) * r;                 // 위상 0 = 페달이 가장 아래
+                const pz = cz - Math.sin(ph) * r;                 // Rx(θ)로 (0,−r,0) → (0,−r·cosθ,−r·sinθ)
+                const f = foot[c.side < 0 ? 'L' : 'R'];
+                d += Math.hypot(f.y - py, f.z - pz);
+            }
+            if (d < bestD) { bestD = d; best = th; }
+        }
+        for (const c of ck.list) {
+            const ph = best + (c.side < 0 ? 0 : Math.PI);
+            c.group.rotation.x = ph;
+            c.pedal.rotation.x = -ph;    // 페달 밟는 면은 실제 자전거처럼 항상 수평을 유지한다
+            // 크랭크를 축 좌우 어디에 다는지는 자전거마다 다르다(Q팩터) — 상수로 0.045 를 박아 두니
+            // 발이 밟는 면 **바깥으로 0.097** 밀려 있었다(실측). 발 x 를 따라가되 실제 자전거가 갖는
+            // 범위 안에서만 움직인다 — 무한정 따라가면 크랭크가 몸통 밖으로 벌어진다.
+            const fx = Math.abs(foot[c.side < 0 ? 'L' : 'R'].x);
+            c.group.position.x = c.side * U.clamp(fx, 0.04, 0.11);
+            c.group.position.y = cy;
+            c.group.position.z = cz;
+            // 암 길이·페달 자리도 새 반지름으로 — 안 맞추면 페달만 옮겨지고 암이 허공에 뜬다.
+            c.arm.scale.y = r / c.r;
+            c.arm.position.y = -r / 2;
+            c.pedal.position.y = -r;
+        }
+    },
+
     alignStirrups() {
         const g = this.mountGroup, rig = this.heroRig;
         if (!g || !g.userData.stirrups || !rig || !rig.bones || !rig.bones.kneeL || !this.heroG) return;
@@ -7668,6 +7757,7 @@ const Scene3D = {
                 this.heroG.rotation.x = mg.rotation.x * 0.6;
                 this.alignStirrups();                                 // 등자를 실제 발 위치에 붙인다
                 this.alignHandlebar();                                // 핸들바를 빈 손 아래로 (공격 중엔 그 자리에 둔다)
+                this.alignPedals();                                   // 크랭크 위상을 실제 발 위치에서 푼다
             }
         }
         // 따라오는 탈것 무리: 영웅 전진을 같이 따라가고, 개체별 위상·속도로 어긋나게 까딱인다
