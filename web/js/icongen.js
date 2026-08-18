@@ -2978,3 +2978,186 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.restore();
     };
 })(IconGen);
+
+/* ============================================================================
+ * 토스트에 남아 있던 이모지 10종 (👑 💀 ⚡ 📜 🧩 💤 🔓 📌 📍 ✨)
+ *
+ * 이 아이콘들은 토스트 한 줄 안에서 **코인·젬·해머 같은 재화 아이콘과 나란히 선다.**
+ * 그래서 탭바 계열의 납작한 스티커 화풍이 아니라 **재화 아이콘과 같은 입체 화풍**
+ * (접지 그림자 → 세로 그라디언트 → 안쪽 그림자 → 스펙큘러 → 어두운 테두리)으로 그린다.
+ * 10종을 각자 다 적으면 같은 코드가 열 번 반복되므로 그 5단을 `plate()` 한 곳에 모으고,
+ * 아이콘마다 **경로와 팔레트만** 적는다.
+ *
+ * ⚠️ `plate` 에 넘기는 경로 함수는 `_innerShadow` 규약대로 **서브패스만 추가**해야 한다
+ *    (안에서 `beginPath()` 를 부르면 안쪽 그림자가 경로를 잃는다).
+ * ============================================================================ */
+(function (G) {
+    const P2 = Math.PI * 2;
+    const sub = {   // 서브패스만 추가하는 경로 조각들
+        rr: (ctx, S, x, y, w, h, r) => () => G._rrSub(ctx, x * S, y * S, w * S, h * S, r * S),
+        ell: (ctx, S, x, y, rx, ry, rot) => () => { ctx.moveTo((x + rx) * S, y * S); ctx.ellipse(x * S, y * S, rx * S, ry * S, rot || 0, 0, P2); },
+        cir: (ctx, S, x, y, r) => () => { ctx.moveTo((x + r) * S, y * S); ctx.arc(x * S, y * S, r * S, 0, P2); },
+    };
+    // 여러 조각을 한 경로로 — 합집합 실루엣을 만들 때 쓴다.
+    const join = (...fns) => () => fns.forEach(f => f());
+    const closed = (ctx, S, pts) => () => { pts.forEach((p, i) => { const X = p[0] * S, Y = p[1] * S; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); };
+
+    // 재화 아이콘과 같은 5단 입체 — 접지 그림자 · 그라디언트 · 안쪽 그림자 · 스펙큘러 · 테두리
+    const plate = (ctx, S, path, stops, opt) => {
+        const o = opt || {};
+        ctx.save();                                   // ① 접지 그림자
+        ctx.globalAlpha = 0.36; ctx.fillStyle = '#000';
+        ctx.filter = `blur(${S * 0.020}px)`;
+        ctx.translate(0, S * 0.035);
+        ctx.beginPath(); path(); ctx.fill();
+        ctx.restore();
+        ctx.save();                                   // ② 본체 + ⑤ 테두리
+        ctx.beginPath(); path();
+        const g = ctx.createLinearGradient(0, S * (o.y0 === undefined ? 0.04 : o.y0), 0, S * (o.y1 === undefined ? 0.98 : o.y1));
+        stops.forEach(s => g.addColorStop(s[0], s[1]));
+        ctx.fillStyle = g; ctx.fill(o.eo ? 'evenodd' : 'nonzero');
+        ctx.lineJoin = ctx.lineCap = 'round';
+        ctx.strokeStyle = o.line || 'rgba(16,14,11,.88)';
+        ctx.lineWidth = S * (o.lw === undefined ? 0.048 : o.lw);
+        ctx.stroke();
+        ctx.restore();
+        if (!o.flat) G._innerShadow(ctx, path, o.inner || 'rgba(0,0,0,.40)', S * 0.05, 0, S * 0.022);
+        if (o.spec !== false) {                       // ④ 스펙큘러
+            ctx.save(); ctx.beginPath(); path(); ctx.clip();
+            const sx = (o.sx === undefined ? 0.33 : o.sx) * S, sy = (o.sy === undefined ? 0.24 : o.sy) * S;
+            ctx.fillStyle = G._rad(ctx, sx, sy, 0, sx, sy, S * 0.36,
+                [[0, 'rgba(255,255,255,.52)'], [1, 'rgba(255,255,255,0)']]);
+            ctx.fillRect(0, 0, S * 2, S * 2);
+            ctx.restore();
+        }
+    };
+    // 테두리 없이 위에 얹는 칠(구멍·문양)
+    const mark = (ctx, path, fill) => { ctx.save(); ctx.beginPath(); path(); ctx.fillStyle = fill; ctx.fill(); ctx.restore(); };
+
+    const GOLD = [[0, '#fff3c0'], [0.30, '#f6cd46'], [0.66, '#d79a12'], [1, '#8c5c04']];
+    const BONE = [[0, '#ffffff'], [0.38, '#eceadf'], [0.72, '#c9c5b4'], [1, '#8f8b7c']];
+    const STEEL = [[0, '#eef4fa'], [0.34, '#b9c5d1'], [0.70, '#7f8c99'], [1, '#48535e']];
+
+    /* 👑 왕관 — 이 게임의 코인 표기가 👑 라 재화 계열 금색을 그대로 쓴다. */
+    G.draw.crown = function (ctx, S) {
+        const spikes = closed(ctx, S, [[0.09, 0.72], [0.045, 0.24], [0.27, 0.47], [0.50, 0.14], [0.73, 0.47], [0.955, 0.24], [0.91, 0.72]]);
+        plate(ctx, S, join(spikes, sub.rr(ctx, S, 0.075, 0.665, 0.85, 0.215, 0.055)), GOLD, { sy: 0.30 });
+        [[0.045, 0.235], [0.50, 0.135], [0.955, 0.235]].forEach(p =>
+            plate(ctx, S, sub.cir(ctx, S, p[0], p[1], 0.085), GOLD, { spec: false, lw: 0.040 }));
+        mark(ctx, sub.cir(ctx, S, 0.50, 0.775, 0.075), '#e0344f');           // 가운데 보석
+        mark(ctx, sub.cir(ctx, S, 0.478, 0.752, 0.028), 'rgba(255,255,255,.7)');
+    };
+
+    /* 💀 해골 — 머리와 턱을 한 실루엣으로 합쳐 '두 덩어리'로 안 읽히게 한다. */
+    G.draw.skull = function (ctx, S) {
+        plate(ctx, S, join(sub.ell(ctx, S, 0.50, 0.42, 0.355, 0.345), sub.rr(ctx, S, 0.305, 0.545, 0.39, 0.345, 0.105)), BONE, { sy: 0.26 });
+        [[0.355, 0.435], [0.645, 0.435]].forEach(e => {
+            mark(ctx, sub.ell(ctx, S, e[0], e[1], 0.125, 0.135, 0.12 * (e[0] < 0.5 ? 1 : -1)), '#16171b');
+            mark(ctx, sub.ell(ctx, S, e[0] - 0.035, e[1] - 0.045, 0.036, 0.040), 'rgba(255,255,255,.25)');
+        });
+        mark(ctx, closed(ctx, S, [[0.50, 0.545], [0.565, 0.655], [0.435, 0.655]]), '#16171b');   // 코
+        [0.415, 0.50, 0.585].forEach(x => mark(ctx, sub.rr(ctx, S, x - 0.018, 0.735, 0.036, 0.145, 0.014), 'rgba(22,23,27,.72)'));
+    };
+
+    /* ⚡ 번개 — 획이 가늘면 축소 후 끊긴다. 허리를 두껍게 잡았다. */
+    G.draw.bolt = function (ctx, S) {
+        plate(ctx, S, closed(ctx, S, [[0.60, 0.03], [0.17, 0.575], [0.415, 0.575], [0.335, 0.97], [0.815, 0.395], [0.545, 0.395]]),
+            [[0, '#fff6c8'], [0.32, '#ffd23f'], [0.70, '#f5a207'], [1, '#a85c02']], { sx: 0.40, sy: 0.20 });
+    };
+
+    /* 📜 두루마리 — 세 번 헤맨 자리라 결론을 적어 둔다. ⚠️ ① 종이와 축의 폭이 비슷하면 **양철 깡통**.
+       ⚠️ ② 축을 나무색 + 가운데 구멍으로 하면 **실패(실감개)**. ⚠️ ③ 축을 **타원**으로 두면 색을 어떻게
+       바꿔도 위아래 원반이 실패 실루엣으로 읽힌다. **말린 끝을 원반이 아니라 둥근 막대(rrect)로**
+       그리고 종이보다 살짝만 넓게 빼면 그제서야 '말아 둔 양피지'가 된다. */
+    G.draw.scroll = function (ctx, S) {
+        const PAPER = [[0, '#fffaf0'], [0.40, '#f3e3c0'], [0.78, '#d9c294'], [1, '#a98f5e']];
+        const ROLL = [[0, '#f9eed8'], [0.36, '#e7d4aa'], [0.72, '#c4aa79'], [1, '#876c3a']];
+        plate(ctx, S, sub.rr(ctx, S, 0.205, 0.150, 0.590, 0.700, 0.028), PAPER, { sy: 0.30 });
+        [0.335, 0.445, 0.555, 0.665].forEach((y, i) =>
+            mark(ctx, sub.rr(ctx, S, 0.275, y - 0.024, i === 3 ? 0.22 : 0.42, 0.048, 0.024), 'rgba(96,72,34,.55)'));
+        [0.085, 0.775].forEach(y =>
+            plate(ctx, S, sub.rr(ctx, S, 0.130, y, 0.740, 0.140, 0.070), ROLL, { spec: false, lw: 0.044, y0: y, y1: y + 0.14 }));
+    };
+
+    /* 🧩 조각 — ⚠️ 사각형에 **작은 원을 따로 이어 붙이면** 그 원이 통째로 안쪽 그림자에 먹혀
+       검은 혹으로 뜬다(1차 렌더). 돌기와 홈을 **하나의 닫힌 윤곽**으로 그려야 그림자가 실루엣을 탄다. */
+    G.draw.shard = function (ctx, S) {
+        const l = 0.135 * S, r = 0.775 * S, t = 0.150 * S, b = 0.850 * S, my = 0.50 * S, k = 0.145 * S;
+        const piece = () => {
+            ctx.moveTo(l, t); ctx.lineTo(r, t);
+            ctx.lineTo(r, my - k);
+            ctx.arc(r, my, k, -Math.PI / 2, Math.PI / 2, false);     // 오른쪽 돌기(바깥으로)
+            ctx.lineTo(r, b); ctx.lineTo(l, b);
+            ctx.lineTo(l, my + k);
+            ctx.arc(l, my, k, Math.PI / 2, -Math.PI / 2, true);      // 왼쪽 홈(안으로 파임)
+            ctx.closePath();
+        };
+        plate(ctx, S, piece, [[0, '#c9f0ff'], [0.34, '#63c8f5'], [0.70, '#2b8fd0'], [1, '#134b78']], { sx: 0.38, sy: 0.28 });
+        mark(ctx, sub.cir(ctx, S, 0.345, 0.320, 0.072), 'rgba(255,255,255,.42)');
+    };
+
+    /* 💤 Zzz — ⚠️ Z 를 셋 넣으면 23px 에서 서로 엉켜 **지그재그 덩어리 하나**로 뭉갠다(1차 렌더).
+       큰 Z 하나 + 확실히 떨어뜨린 작은 Z 하나로 줄여 '졸음'만 읽히게 한다. */
+    G.draw.zzz = function (ctx, S) {
+        // Z 윤곽: 위 가로획 → 사선 → 아래 가로획을 한 바퀴 돈다(t = 획 두께).
+        const Z = (x, y, w, h, t) => closed(ctx, S, [
+            [x, y], [x + w, y], [x + w, y + t], [x + t * 0.9, y + h - t], [x + w, y + h - t],
+            [x + w, y + h], [x, y + h], [x, y + h - t], [x + w - t * 0.9, y + t], [x, y + t],
+        ]);
+        const BLUE = [[0, '#eaf6ff'], [0.36, '#a9d6f5'], [0.72, '#5f9ecf'], [1, '#2d5c85']];
+        plate(ctx, S, Z(0.055, 0.400, 0.545, 0.545, 0.150), BLUE, { spec: false, lw: 0.046 });
+        plate(ctx, S, Z(0.630, 0.055, 0.315, 0.315, 0.095), BLUE, { spec: false, lw: 0.040 });
+    };
+
+    /* 🔓 열린 자물쇠 — 기존 `lock` 과 같은 실루엣에 **고리를 왼쪽으로 젖힌** 것. */
+    G.draw.unlock = function (ctx, S) {
+        ctx.save();                                   // 고리(몸통 뒤)
+        ctx.beginPath();
+        ctx.arc(S * 0.285, S * 0.415, S * 0.195, Math.PI * 0.98, Math.PI * 2.02);
+        ctx.lineCap = 'round'; ctx.lineWidth = S * 0.155;
+        ctx.strokeStyle = 'rgba(16,14,11,.88)'; ctx.stroke();
+        ctx.lineWidth = S * 0.105;
+        ctx.strokeStyle = G._lin(ctx, S * 0.09, 0, S * 0.48, 0, [[0, '#8d99a5'], [0.35, '#e8eff5'], [0.7, '#8996a3'], [1, '#4a555f']]);
+        ctx.stroke();
+        ctx.restore();
+        plate(ctx, S, sub.rr(ctx, S, 0.235, 0.475, 0.63, 0.44, 0.10),
+            [[0, '#ffe89a'], [0.34, '#f2be2e'], [0.70, '#c98d0d'], [1, '#7d5303']], { y0: 0.44, y1: 0.94, sx: 0.42, sy: 0.58 });
+        mark(ctx, sub.cir(ctx, S, 0.55, 0.665, 0.072), 'rgba(58,38,4,.8)');   // 열쇠구멍
+        mark(ctx, closed(ctx, S, [[0.518, 0.665], [0.582, 0.665], [0.566, 0.815], [0.534, 0.815]]), 'rgba(58,38,4,.8)');
+    };
+
+    /* 📌 압정 — ⚠️ 머리를 동그랗게 두면 **풍선/막대사탕**으로 읽힌다(1차 렌더).
+       머리를 납작하게 눌러(rx 0.34 / ry 0.165) 목테를 넓게 드러내야 '눌러 박는 핀'이 된다. */
+    G.draw.pin = function (ctx, S) {
+        plate(ctx, S, sub.rr(ctx, S, 0.330, 0.470, 0.340, 0.175, 0.045), STEEL, { spec: false, lw: 0.040 });
+        plate(ctx, S, closed(ctx, S, [[0.455, 0.630], [0.545, 0.630], [0.50, 0.975]]), STEEL, { spec: false, lw: 0.034 });
+        plate(ctx, S, sub.ell(ctx, S, 0.50, 0.320, 0.340, 0.165),
+            [[0, '#ffd9d9'], [0.30, '#ef4d52'], [0.68, '#c31d2a'], [1, '#71080f']], { y0: 0.13, y1: 0.50, sx: 0.36, sy: 0.25 });
+    };
+
+    /* 📍 지도 핀 — 물방울 실루엣 + 흰 구멍. */
+    G.draw.marker = function (ctx, S) {
+        plate(ctx, S, closed(ctx, S, [[0.50, 0.975], [0.145, 0.475], [0.145, 0.345], [0.855, 0.345], [0.855, 0.475]]),
+            [[0, '#ffd0d4'], [0.30, '#f04452'], [0.68, '#bb1626'], [1, '#650710']], { spec: false, lw: 0.046 });
+        plate(ctx, S, sub.cir(ctx, S, 0.50, 0.365, 0.345),
+            [[0, '#ffd0d4'], [0.30, '#f04452'], [0.68, '#bb1626'], [1, '#650710']], { y0: 0.02, y1: 0.70, sx: 0.36, sy: 0.22 });
+        mark(ctx, sub.cir(ctx, S, 0.50, 0.365, 0.135), 'rgba(74,6,14,.92)');
+        mark(ctx, sub.cir(ctx, S, 0.50, 0.365, 0.098), '#ffe9ea');
+    };
+
+    /* ✨ 반짝임 — 큰 4각별 하나 + 작은 것 둘. 4각별은 꼭짓점 사이를 깊게 오목하게 판다. */
+    G.draw.sparkle = function (ctx, S) {
+        const star4 = (cx, cy, R, k) => () => {
+            for (let i = 0; i < 8; i++) {
+                const a = (i / 8) * P2 - Math.PI / 2, r = i % 2 ? R * k : R;
+                const X = (cx + Math.cos(a) * r) * S, Y = (cy + Math.sin(a) * r) * S;
+                i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y);
+            }
+            ctx.closePath();
+        };
+        const SPARK = [[0, '#ffffff'], [0.34, '#ffee9c'], [0.70, '#f7c525'], [1, '#a97403']];
+        plate(ctx, S, star4(0.415, 0.435, 0.415, 0.20), SPARK, { sx: 0.33, sy: 0.30 });
+        plate(ctx, S, star4(0.815, 0.185, 0.175, 0.20), SPARK, { spec: false, lw: 0.038 });
+        plate(ctx, S, star4(0.775, 0.775, 0.215, 0.20), SPARK, { spec: false, lw: 0.040 });
+    };
+})(IconGen);

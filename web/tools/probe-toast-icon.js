@@ -29,7 +29,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
             // 아이콘이 실제 그림을 갖는지(=draw 에 있는지) 확인 — img() 의 조용한 실패 차단
             if (!IconGen.draw[name]) out.missing.push(name);
         }
-        for (const emo of ['👑', '💀', '✨', '⚡', '📜', '📌', '🧩', '💤', '🔓', '📍']) {
+        for (const emo of ['🌀', '🛸', '⚛', '🔥', '🥋']) {   // 표에 없는 것들(폴백 확인용)
             const g = shoot(`${emo} 미매핑 문구`);
             out.unmapped.push(`${emo} ico=${!!g.ico} text="${g.text}"`);
         }

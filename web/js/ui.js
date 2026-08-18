@@ -902,6 +902,8 @@ const UI = {
         '🪙': 'coin', '💎': 'gem', '🔨': 'hammer', '🛠': 'hammer', '⚒': 'hammer',
         '🥚': 'egg', '🎫': 'ticket', '🎟': 'ticket', '🧪': 'potion', '⚙': 'winder',
         '🔒': 'lock', '🗝': 'key', '🎁': 'gift', '🏆': 'trophy', '⭐': 'star', '⬆': 'uptri',
+        '👑': 'crown', '💀': 'skull', '⚡': 'bolt', '📜': 'scroll', '🧩': 'shard',
+        '💤': 'zzz', '🔓': 'unlock', '📌': 'pin', '📍': 'marker', '✨': 'sparkle',
     },
 
     toast(msg) {
