@@ -110,7 +110,7 @@ async function waitBooted(page, timeout = 25000) {
         const face = map(inner, 0, 0.9);          // 타격면 중심
         // 타격면 **양 끝**과 상판 윗면 능선(23,4)-(90,3) — 면이 상판과 나란한지 재려면 중심만으로는
         // 부족하다(중심이 붙어 있어도 기울면 한쪽 모서리로 찍는다).
-        const faceLp = map(inner, -9.4, 0.9), faceRp = map(inner, 9.4, 0.9);
+        const faceLp = map(inner, -11.6, 0.9), faceRp = map(inner, 11.6, 0.9);
         const topA = (() => { const p = anv.createSVGPoint(); p.x = 23; p.y = 4; return p.matrixTransform(anv.getScreenCTM()); })();
         const topB = (() => { const p = anv.createSVGPoint(); p.x = 90; p.y = 3; return p.matrixTransform(anv.getScreenCTM()); })();
         const butt = map(inner, 53, -12.8);       // 손잡이 끝(그립 노브)
