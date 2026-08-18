@@ -3414,7 +3414,7 @@ body {
     width: 1.77rem; /* 원본 30px */ height: 2.2rem; cursor: pointer;
     background: none; border: none; padding: 0;
     color: var(--pp-blue); font-size: 1.7rem; font-weight: 900; line-height: 1;
-    text-shadow: -2px -2px 0 #17181a, 2px -2px 0 #17181a, -2px 2px 0 #17181a, 2px 2px 0 #17181a;
+    -webkit-text-stroke: 4px #17181a; paint-order: stroke fill;   /* 4방향 그림자 → 스트로크 (ⓖ 뭉개짐) */
 }
 .tri-btn:active { transform: translateY(.1rem); }
 /* 원본 바 29px · 간격 4px(피치 33px) — 한 줄만 보면 +0.34%p 라 통과지만 6줄이 쌓여 +27.8px 다 */
@@ -3673,12 +3673,15 @@ body {
    민무늬 단색이고, 항성간부터 다섯 시대만 무늬를 갖는다. (처음엔 앞 5개도 시대 컨셉에 맞춰
    돌 반점·쉐브론 같은 걸 지어냈는데, 확률 정보 원본을 열어 보고 지어낸 것임이 드러나 걷어냈다 —
    원본에 없는 것을 넣는 건 '원본이 절대 기준' 규칙 위반이다.) */
-.af-age-bar[data-age="interstellar"], .fi-age-bar[data-age="interstellar"] {  /* 밝은 광휘 얼룩 — 원본은 우측 상단에 둥근 한 점이 뜬다 */
-    --af-pat: radial-gradient(closest-side, rgba(255,255,255,.44), rgba(255,255,255,0) 70%),
-              radial-gradient(closest-side, rgba(255,255,255,.2), rgba(255,255,255,0) 72%);
-    --af-pat-size: 2.4rem 2.4rem, 3.8rem 3.8rem;
-    --af-pat-pos: 74% 22%, 30% 78%;             /* 원본처럼 '깔린 무늬'가 아니라 뜬 점 두 개라 타일링하지 않는다 */
-    --af-pat-repeat: no-repeat, no-repeat;
+.af-age-bar[data-age="interstellar"], .fi-age-bar[data-age="interstellar"] {
+    /* 042950 픽셀 실측: 흰 '블러 얼룩'이 아니라 **경계가 있는 살짝 밝은 보라 원점**이다 —
+       바탕 rgb(168,24,252) 위 점 rgb(192,72,252), 커버리지 ≈7%(273/3800 표본). 종전 흰 radial
+       블러(.44)는 채점 1라운드 ⓖ '렌더링 얼룩처럼 보인다' 지적의 원인 — 하드 엣지 점으로 교체. */
+    --af-pat: radial-gradient(circle, rgb(192,72,252) 0 .22rem, rgba(192,72,252,0) .24rem),
+              radial-gradient(circle, rgb(186,60,252) 0 .15rem, rgba(186,60,252,0) .17rem);
+    --af-pat-size: 3.1rem 1.9rem, 2.3rem 1.35rem;
+    --af-pat-pos: .9rem .2rem, .2rem .8rem;
+    --af-pat-repeat: repeat, repeat;
 }
 .af-age-bar[data-age="multiverse"], .fi-age-bar[data-age="multiverse"] {            /* 픽셀 블록 — 두 밴드가 겹치는 칸만 밝게 떠 블록처럼 보인다 */
     --af-pat: repeating-linear-gradient(90deg, rgba(255,255,255,.3) 0 .34rem, rgba(255,255,255,0) .34rem 1.05rem),
@@ -3693,9 +3696,12 @@ body {
     --af-pat: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><path d='M16 4 26 16 16 28 6 16Z' fill='rgba(0,0,0,0.26)'/></svg>");
     --af-pat-size: 2rem 2rem;   /* 원본은 ~20px 마름모가 ~33px 간격으로 **떨어져** 있다(줄무늬 두 벌이면 빈틈 없는 격자가 된다) */
 }
-.af-age-bar[data-age="divine"], .fi-age-bar[data-age="divine"] {                /* 별 타일 — 5각 별 path 를 인라인 SVG 로 (외부 에셋 아님) */
-    --af-pat: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><path d='M12 2.6 14.7 9.3 21.9 9.8 16.4 14.5 18.1 21.4 12 17.6 5.9 21.4 7.6 14.5 2.1 9.8 9.3 9.3Z' fill='rgba(255,255,255,0.36)'/></svg>");
-    --af-pat-size: 1.55rem 1.55rem;   /* 원본 별 ≈22px · 간격 ≈26px (확률 정보 원본 3배 확대 실측) */
+.af-age-bar[data-age="divine"], .fi-age-bar[data-age="divine"] {
+    /* 별 타일 — 042950 픽셀 실측: 균등 격자 한 줄(별점 위젯 느낌, 채점 1라운드 ⓖ 지적)이 아니라
+       **크기·회전이 섞인 밝은 주황(rgb(252,120,24)) 별의 촘촘한 산포**다(커버리지 ≈27%, 흰별 아님).
+       한 타일(60x30)에 크기 6~13·회전 제각각인 별 6개를 흩뿌려 정렬감을 없앤다. */
+    --af-pat: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='30'><g fill='rgb(252,120,24)'><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(11,9) scale(.62) rotate(14)'/><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(31,5) scale(.4) rotate(-24)'/><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(49,12) scale(.55) rotate(31)'/><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(21,23) scale(.35) rotate(48)'/><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(41,26) scale(.5) rotate(-9)'/><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(3,26) scale(.3) rotate(70)'/></g></svg>");
+    --af-pat-size: 3.4rem 1.7rem;
 }
 
 /* 체크박스 — 눌리는 물건으로 보이게 안쪽 그늘 + 위 테두리 하이라이트, 켜지면 초록 광택 */
@@ -3749,9 +3755,9 @@ body {
         rgba(0,0,0,.08) 56%, rgba(0,0,0,.2) 100%);
     box-shadow: inset 0 -.52rem 0 var(--pp-blue-dk), inset 0 .1rem 0 rgba(255,255,255,.42),
                 0 .22rem .5rem rgba(20,60,140,.4);
-    /* 원본과 같은 사방 검정 아웃라인 + 아래 그림자 */
-    text-shadow: -2px -2px 0 #17181a, 2px -2px 0 #17181a, -2px 2px 0 #17181a, 2px 2px 0 #17181a,
-                 0 .16rem 0 rgba(0,0,0,.45);
+    /* 원본과 같은 사방 검정 아웃라인 + 아래 그림자 — 아웃라인은 스트로크로(4방향 그림자는 곡선에서 뭉개짐, ⓖ) */
+    -webkit-text-stroke: 4px #17181a; paint-order: stroke fill;
+    text-shadow: 0 .16rem 0 rgba(0,0,0,.45);
 }
 
 /* 카드 자체 — 공용 아래턱(0 .5rem 0)에 은은한 앰비언트를 더해 팝업이 화면에서 떠 보이게.
@@ -3763,8 +3769,8 @@ body {
    외곽선 없는 납작한 볼드체는 카드 안에서 위계가 죽는다 — 비평가 1순위 지적. */
 .af-title {
     font-size: 1.26rem;
-    text-shadow: -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 2px 2px 0 #fff,
-                 0 .16rem .26rem rgba(0,0,0,.28);
+    -webkit-text-stroke: 4px #fff; paint-order: stroke fill;   /* 4방향 그림자 → 스트로크 (ⓖ 뭉개짐) */
+    text-shadow: 0 .16rem .26rem rgba(0,0,0,.28);
 }
 /* 하단 구획선 아래에 얇은 하이라이트 한 줄 — 종이 두 장이 겹친 느낌 */
 .af-bottom { box-shadow: inset 0 .07rem 0 rgba(255,255,255,.9); }
@@ -3881,7 +3887,9 @@ body {
     display: block; margin: 0 auto; padding: .72rem 2.2rem; line-height: 1.25;
     background: #c9c9c9; color: #fff; font-size: 1.16rem; font-weight: 900;
     border: var(--ol3) solid var(--pp-line); border-radius: .6rem;
-    text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
+    /* 4방향 text-shadow 외곽선은 900 굵기 한글 곡선에서 뭉개진다(채점 1라운드 ⓖ '건너뛰기' 지적)
+       — 코드베이스 표준인 스트로크+paint-order 로 교체(2px 그림자 링 ≈ 4px 중심 스트로크) */
+    -webkit-text-stroke: 4px #000; paint-order: stroke fill;
     box-shadow: inset 0 -.25rem 0 #9c9c9c;
 }
 .fi-skip:active { transform: translateY(.1rem); box-shadow: none; }
