@@ -873,7 +873,9 @@ const UI = {
         // 화면 가장자리 붉은 비네트 — 큰 피해일수록 진하게. 지속·감쇠는 CSS 키프레임이 소유한다
         // (JS 타이머+트랜지션 조합은 연타 시 서로 잘라먹고, 프레임 단위 검증도 불가능했다).
         const el = this.els.dmgFlash;
-        el.style.setProperty('--vig', Math.min(0.92, 0.45 + (sev || 0.12) * 1.5).toFixed(2)); // 1.0은 화면 전체가 붉게 잠긴다
+        // 피크 알파를 30% 낮춘다(0.92→0.64). 플래토를 31ms 로 줄여도 정점 자체가 진하면 한 프레임이
+        // 통째로 붉게 잠겨 그 프레임의 3D가 안 읽힌다(비평가 5차 B #5 권고). 1.0은 화면 전체가 붉게 잠긴다.
+        el.style.setProperty('--vig', Math.min(0.64, 0.32 + (sev || 0.12) * 1.05).toFixed(2));
         el.classList.remove('on');
         void el.offsetWidth; // 리플로우 강제 — 연타해도 애니메이션이 처음부터 다시 돈다
         el.classList.add('on');
