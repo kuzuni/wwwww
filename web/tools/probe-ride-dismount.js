@@ -49,6 +49,11 @@ const SEQ = [['fly', 'Mini Dragon'], ['quad', 'Brown Horse'], ['wheeled', 'Bike'
                 riding: !!Scene3D.riding,
                 mountInScene: !!Scene3D.mountGroup,
                 rideY: +(Scene3D.rideY || 0).toFixed(3),
+                // 라이딩 스커트(탑승 중 옆을 터서 앞판·뒤판으로 가르는 것)가 **하차 후 통짜로 되돌아오는지**.
+                // 안 되돌아오면 서 있는 영웅의 옆구리가 뚫린 채 남는다 — 눈으로는 잘 안 잡히는 회귀라
+                // 여기서 지오메트리 동일성으로 못 박는다.
+                skirtRestored: (Scene3D.heroRig && Scene3D.heroRig.seatParts || [])
+                    .every(m => !m.userData.fullGeo || m.geometry === m.userData.fullGeo),
             });
         }
         // ㉤ 비행형 → 지상형 직결 환승: 앞 탈것 높이가 남는지
@@ -81,6 +86,7 @@ const SEQ = [['fly', 'Mini Dragon'], ['quad', 'Brown Horse'], ['wheeled', 'Bike'
         if (r.ridePose) { f.push('✗ 탑승 포즈 잔존'); bad++; } else f.push('OK 포즈 해제');
         if (r.riding) { f.push('✗ riding 플래그 잔존'); bad++; }
         if (r.mountInScene) { f.push('✗ 유령 탈것 잔존'); bad++; } else f.push('OK 메시 제거');
+        if (!r.skirtRestored) { f.push('✗ 라이딩 스커트 잔존(옆이 뚫린 채)'); bad++; } else f.push('OK 스커트 복원');
         console.log(`[${r.form}] ${r.name.padEnd(14)} 탑승 y ${String(r.onY).padStart(6)} → 해제 즉시 ${String(r.offY0).padStart(6)} → 30프레임 후 ${String(r.offY).padStart(6)}  ${f.join(' / ')}`);
     }
 

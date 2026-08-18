@@ -4546,6 +4546,77 @@ const Scene3D = {
         return 0.774;
     },
 
+    // ── 라이딩 스커트: 탑승 중에만 스커트 옆을 터서 앞판·뒤판으로 가른다 ──────────────────────
+    // 근접 앵글에서 허벅지가 사라지는 범인은 탈것이 아니라 **영웅 자신의 스커트**다(probe-ride-thigh
+    // 실측: 근쪽 다리 7점 중 3점이 스커트, 탈것은 0). 통짜 원뿔이라 다리가 통째로 그 안에 들어가고,
+    // 고관절 각을 아무리 벌려도 안 고쳐진다 — 실제 기마 갑주가 그렇듯 **옆을 터야** 한다.
+    // ⚠️ 서 있을 때 실루엣은 1비트도 안 건드린다: 원본 지오메트리를 보관했다가 하차 때 그대로 되돌린다.
+    // 중심각 1.40(80°)·반폭 0.52(30°) = `probe-ride-thigh --sweep` 20조합 실측에서 **근쪽 다리 스커트
+    // 가림 0을 내는 6조합 중 앞판이 가장 넓은 것**(앞판 101°·뒤판 140°). 틈을 더 벌리면 가림은 그대로
+    // 0인데 앞판만 얇아져 실루엣이 무너진다 — 눈대중으로 키우지 말 것.
+    RIDE_SKIRT: { gapCenter: 1.40, gapHalf: 0.52 },   // 옆 틈의 중심각(+Z=앞 기준)과 반폭, 라디안
+
+    // 비인덱스 지오메트리 여러 개를 attribute 단순 연결로 합친다(r128 classic 스크립트라
+    // BufferGeometryUtils 가 없다 — 회전체 조각 몇 개 붙이는 데 그걸 끌어올 이유도 없다).
+    _mergeGeos(list) {
+        const src = list.map(g => (g.index ? g.toNonIndexed() : g));
+        const out = new THREE.BufferGeometry();
+        for (const n of ['position', 'normal', 'uv']) {
+            if (!src[0].attributes[n]) continue;
+            const item = src[0].attributes[n].itemSize;
+            let total = 0;
+            for (const g of src) total += g.attributes[n].array.length;
+            const arr = new Float32Array(total);
+            let off = 0;
+            for (const g of src) { arr.set(g.attributes[n].array, off); off += g.attributes[n].array.length; }
+            out.setAttribute(n, new THREE.BufferAttribute(arr, item));
+        }
+        out.computeBoundingBox(); out.computeBoundingSphere();
+        for (let i = 0; i < list.length; i++) { if (src[i] !== list[i]) src[i].dispose(); list[i].dispose(); }
+        return out;
+    },
+
+    // 회전체(Cylinder/Torus) 지오메트리를 theta 구간 몇 개짜리 조각으로 다시 만든다.
+    // 치수를 손으로 안 옮기고 원본 `geometry.parameters` 에서 그대로 읽는다 — prochar 가 스커트
+    // 치수를 바꿔도 라이딩 버전이 따라온다(상수를 베껴 두면 반드시 어긋난다는 이 파일의 교훈).
+    _arcGeo(geo, arcs) {
+        const p = geo.parameters || {};
+        const seg = (base, len) => Math.max(3, Math.round((base || 12) * len / (Math.PI * 2)));
+        const parts = arcs.map(([t0, len]) => {
+            if (geo.type === 'TorusGeometry') {
+                const g = new THREE.TorusGeometry(p.radius, p.tube, p.radialSegments, seg(p.tubularSegments, len), len);
+                // 토러스 각 φ 와 실린더 theta 는 mesh.rotation.x=π/2 를 거치면 φ = π/2 − theta 관계다.
+                // 구간 [t0, t0+len] → φ 시작각 π/2 − t0 − len.
+                g.rotateZ(Math.PI / 2 - t0 - len);
+                return g;
+            }
+            return new THREE.CylinderGeometry(p.radiusTop, p.radiusBottom, p.height,
+                seg(p.radialSegments, len), p.heightSegments, p.openEnded, t0, len);
+        });
+        return this._mergeGeos(parts);
+    },
+
+    rideSkirt(on) {
+        const rig = this.heroRig;
+        if (!rig || !rig.seatParts) return;
+        const K = this.RIDE_SKIRT;
+        const key = on ? K.gapCenter.toFixed(3) + '/' + K.gapHalf.toFixed(3) : '';
+        for (const part of rig.seatParts) {
+            const ud = part.userData;
+            if (!ud.fullGeo) ud.fullGeo = part.geometry;
+            if (!on) { part.geometry = ud.fullGeo; continue; }
+            if (ud.rideKey !== key) {
+                if (ud.rideGeo) ud.rideGeo.dispose();
+                const c = K.gapCenter, h = K.gapHalf;
+                // 오른쪽 틈 [c−h, c+h] · 왼쪽 틈 [−c−h, −c+h] 를 비우고 남는 앞판·뒤판만 만든다
+                ud.rideGeo = this._arcGeo(ud.fullGeo, [[-(c - h), 2 * (c - h)], [c + h, 2 * (Math.PI - c - h)]]);
+                ud.rideKey = key;
+            }
+            part.geometry = ud.rideGeo;
+        }
+        this._seatDrop = null;   // 밑단 낙차는 지오메트리에서 실측하는 값이라 캐시를 버린다
+    },
+
     // 골반 뼈 → **안장에 실제로 닿는 면**(스커트/태싯 밑단)까지의 낙차.
     // 안장 높이를 골반 기준으로 역산하면 그 아래로 늘어진 스커트가 통째로 탈것 몸통에 박힌다 —
     // 비평가 지적 ⓑ('골반이 아니라 스커트가 몸통을 파고든다')의 원인이 정확히 이 누락이었다.
@@ -4583,11 +4654,15 @@ const Scene3D = {
         this.refreshMountFollowers();
         const name = Mounts.ridden(), m = name && S.mounts[name];
         if (!m) {                                    // 해제: 지면 복귀 + 탑승 포즈·기울기 제거
+            this.rideSkirt(false);                   // 통짜 스커트 복귀 — 서 있는 실루엣은 원래대로
             if (this.heroG) { this.heroG.rotation.x = 0; this.heroG.position.y = 0; }
             this.applyWeaponGrip();
             if (this.petGroups.length) this.refreshPets();   // 펫 자리는 탈것 유무에 따라 달라진다
             return;
         }
+        // ⚠️ 안장 정합(heroSeatDropY)을 계산하기 **전에** 갈라야 한다 — 낙차를 스커트 지오메트리에서
+        //    실측하기 때문에 순서가 뒤바뀌면 통짜 기준 낙차로 안장을 맞추게 된다.
+        this.rideSkirt(true);
         const g = new THREE.Group();
         const mesh = this.makeMountMesh(name, m.rarity);
         const sc = 1.1 + RARITIES.indexOf(m.rarity) * 0.1;
