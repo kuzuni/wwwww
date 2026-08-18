@@ -180,7 +180,16 @@ const SCAN_REF = function (src) {
             html: cards.length ? '' : document.getElementById('panel-tech').innerHTML.slice(0, 600),
         };
     });
-    await page.screenshot({ path: path.resolve(__dirname, 'ref-cmp/clone/tech-overview.png') });
+    // ⚠️ 캡처는 **보조 산출물**이다 — 여기서 던지면 위에서 다 잰 수치를 인쇄도 못 하고 죽는다
+    //    (실제로 3D 씬이 도는 화면에서 30초 기본 타임아웃에 걸려 PASS 인데도 비정상 종료했다).
+    //    타임아웃을 늘리고 애니메이션을 멈추되, 그래도 실패하면 경고만 남기고 보고를 계속한다.
+    try {
+        const dir = path.resolve(__dirname, 'ref-cmp/clone');
+        fs.mkdirSync(dir, { recursive: true });
+        await page.screenshot({ path: path.join(dir, 'tech-overview.png'), timeout: 90000, animations: 'disabled' });
+    } catch (e) {
+        console.warn('⚠️ 클론 캡처 실패(수치 보고는 계속한다):', e.message.split('\n')[0]);
+    }
     await browser.close();
 
     // ---- 보고 ----
