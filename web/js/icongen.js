@@ -22,7 +22,7 @@ const IconGen = {
     // 세로:가로가 1:1 이 아닌 아이콘의 가로 배율(캔버스 폭 = SIZE × 이 값). 없으면 정사각.
     // 상점 특가 일러스트처럼 **프레임 자체가 가로로 긴** 자리는 정사각으로 그리면 contain 이
     // 세로에 맞춰 줄여 좌우가 텅 빈다 — 프레임 종횡비와 같은 값을 여기에 적어 꽉 채운다.
-    ASPECT: { shop_tech: 1.52, shop_pet: 1.52, shop_mount: 1.52 },
+    ASPECT: { shop_tech: 1.52, shop_pet: 1.52, shop_mount: 1.52, passsword: 0.553 },
     cache: {},
     _classes: {},
     _styleEl: null,
@@ -2696,5 +2696,56 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.restore();
         [[0.295, 0.438], [0.500, 0.438], [0.705, 0.438]]
             .forEach(d => on(ctx, circle(ctx, S, d[0], d[1], 0.077), DOT));
+    };
+})(IconGen);
+
+/* ============================================================================
+ * 진행 패스 머리의 큰 검 (원본 shot-042705 4배 확대 실측)
+ *
+ * 원본은 **아래를 향한 육중한 3/4 검**이다 — 위에서부터 둥근 회색 폼멜, 주황 감은 손잡이,
+ * 좌우로 넓은 십자 가드(왼쪽 밝은 회색 / 오른쪽 짙은 슬레이트), 그 아래 두 톤 칼날이
+ * 배너 뒤로 내려간다. **칼끝은 배너에 가려 안 보이므로 그리지 않고 아래 변까지 채운다.**
+ * 클론은 🗡️ 이모지를 -45° 돌려 쓴 것이라 가늘고 장식적이었고, 회전 탓에 바운딩 박스가
+ * 실제 그림보다 훨씬 커서 자리 잡기도 어려웠다(QA 4차 메모의 잘림 사고가 그 때문이다).
+ *
+ * 실측(원본 픽셀): 검 전체 y 29.5~142.5(113px) · x 208.75~271.25(62.5px) → **종횡비 0.553**.
+ *   폼멜 y 0~0.137 · 손잡이 0.125~0.490 · 가드 0.485~0.635(폭 100%) · 칼날 0.630~1.0(폭 60%).
+ *   좌우 두 톤 경계는 가드·칼날 모두 거의 정가운데다.
+ * ============================================================================ */
+(function (G) {
+    const { K, ink, on, poly, rrect, ell } = G._sticker;
+    G.draw.passsword = function (ctx, S) {
+        const W = ctx.canvas.width / S, cx = W / 2;      // 가로로 좁은 캔버스(ASPECT 0.553)
+        const GRIP = '#c96a24', GRIP_DK = '#8f430f', POMMEL = '#a8adb2';
+        const GUARD_L = '#d2d7db', GUARD_R = '#3b4a58';
+        const BLADE_L = '#c9d0d5', BLADE_R = '#7c96a2';
+        const hw = (f) => W * f / 2;                     // 폭 비율 → 반폭
+
+        on(ctx, ell(ctx, S, cx, 0.965, W * 0.42, 0.052), 'rgba(0,0,0,.42)');       // 접지 그림자
+
+        // 손잡이 → 폼멜 순서로 뒤에서 앞으로. 손잡이 아랫동은 가드가 덮는다.
+        ink(ctx, S, rrect(ctx, S, cx - hw(0.32), 0.115, W * 0.32, 0.395, W * 0.05), GRIP, 0.048);
+        ctx.save(); ctx.beginPath(); rrect(ctx, S, cx - hw(0.32), 0.115, W * 0.32, 0.395, W * 0.05)(); ctx.clip();
+        [0.13, 0.235, 0.34, 0.445].forEach(y =>                                    // 감은 자국(사선)
+            on(ctx, poly(ctx, S, [[cx - hw(1), y + 0.052], [cx + hw(1), y - 0.012],
+                                  [cx + hw(1), y + 0.026], [cx - hw(1), y + 0.090]]), GRIP_DK));
+        ctx.restore();
+        ink(ctx, S, rrect(ctx, S, cx - hw(0.48), 0.008, W * 0.48, 0.130, W * 0.13), POMMEL, 0.048);
+        on(ctx, rrect(ctx, S, cx - hw(0.40), 0.022, W * 0.22, 0.040, W * 0.06), 'rgba(255,255,255,.35)');
+
+        // 칼날 — 칼끝 없이 아래 변까지
+        const blade = rrect(ctx, S, cx - hw(0.60), 0.618, W * 0.60, 0.382, W * 0.03);
+        ink(ctx, S, blade, BLADE_L, 0.048);
+        ctx.save(); ctx.beginPath(); blade(); ctx.clip();
+        on(ctx, rrect(ctx, S, cx, 0.610, W * 0.32, 0.400, 0), BLADE_R);
+        ctx.restore();
+
+        // 십자 가드
+        const guard = rrect(ctx, S, W * 0.020, 0.482, W * 0.960, 0.155, W * 0.035);
+        ink(ctx, S, guard, GUARD_L, 0.048);
+        ctx.save(); ctx.beginPath(); guard(); ctx.clip();
+        on(ctx, rrect(ctx, S, cx, 0.470, W * 0.52, 0.180, 0), GUARD_R);
+        on(ctx, rrect(ctx, S, W * 0.020, 0.482, W * 0.960, 0.028, 0), 'rgba(255,255,255,.30)');
+        ctx.restore();
     };
 })(IconGen);

@@ -3038,7 +3038,7 @@ const UI = {
         this.els.passModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card wide pass-card">
-                    <div class="pass-sword">🗡️</div>
+                    <div class="pass-sword">${IconGen.img('passsword')}</div>
                     <div class="pass-banner">진행 패스</div>
                     <div class="pass-desc-row">
                         <!-- 원본(042705)은 "…보상을 받 / 으세요!"로 단어 중간에서 접힌다(2행 모두 가운데 정렬) -->

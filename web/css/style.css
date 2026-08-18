@@ -1642,9 +1642,15 @@ body {
        박스가 169px이라 상단 36px가 뷰포트 밖으로 잘려 폼멜이 사라지고, 검이 topbar 위에
        그려졌다(모달 z20 > topbar) — QA 4차 실측 [155,-36,169,169] vs topbar [1,0,478,58].
        칼끝 위치(≈15%)는 유지한 채 크기만 원본 비례로 줄여 폼멜을 화면 안으로 들였다. */
-    position: absolute; top: -3.55rem; left: 50%; transform: translateX(-50%) rotate(-45deg);
-    font-size: 4.8rem; line-height: 1; filter: drop-shadow(.18rem .25rem .18rem rgba(0,0,0,.55)); z-index: 1;
+    /* 2026-08-18(icon-gen): 🗡️ 이모지 → IconGen `passsword`. 이모지는 글리프가 우상향이라
+       -45° 회전이 필요했고, 그 탓에 바운딩 박스(169px)가 실제 그림보다 훨씬 커서 위가 잘렸다.
+       그린 검은 처음부터 아래를 향하므로 **회전을 빼고 실측 크기를 직접 준다** —
+       원본 검 y 29.5~142.5(113px = 6.72rem) · 폭 62.5px(3.72rem, 종횡비 0.553). */
+    position: absolute; top: -4.81rem; left: 50%; transform: translateX(-50%);
+    width: 3.72rem; height: 6.72rem; line-height: 0;
+    filter: drop-shadow(.14rem .18rem .16rem rgba(0,0,0,.45)); z-index: 1;
 }
+.pass-sword .ico { width: 100%; height: 100%; margin: 0; vertical-align: top; }
 /* ---- 리본: 카드 좌우를 넘는 풀블리드 ----
    원본 실측 — 밴드(밝은 채움) x 47~431 = 폭 78.89%W, 외곽(검정 3px 포함) 높이 41px.
    클론은 밴드가 73.55%밖에 안 돼 -5.34%p 좁았다. 카드 콘텐츠 폭(318px)에서 좌우로
