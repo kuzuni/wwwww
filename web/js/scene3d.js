@@ -4572,9 +4572,16 @@ const Scene3D = {
             //    "안장이라는 오브젝트가 애초에 존재하지 않는다"(1순위)고 읽었다. 스커트 밖으로 내보낸다.
             // 안장깔개(blanket)를 방석보다 한 겹 더 넓게 깔아 **초록 몸통 위에 대비색 띠**를 만든다 —
             // 양쪽 비평가가 공통으로 "초록 단색이라 형태 정보가 없다"고 지적한 그 대비 라인이다.
-            sp(0.15, 0, sy - 0.075, -0.01, BLANKET, 1.62, 0.16, 1.95);   // 안장깔개
-            sp(0.15, 0, sy - 0.068, -0.01, BLANKET_TRIM, 1.50, 0.15, 1.82); // 깔개 가장자리 띠(안쪽 밝은 면)
-            sp(0.15, 0, sy - 0.045, -0.01, LEATHER, 1.42, 0.30, 1.68);   // 안장 방석 (윗면이 sy에 닿게)
+            // ⚠️ **안장이 몸통보다 넓으면 안 된다.** 앞 세션이 방석을 영웅 스커트 밖(반폭 0.213)으로
+            //    내보냈는데, 비행형 배럴 반폭은 0.152 라 **깔개(0.243)가 몸통 실루엣 밖으로 삐져나왔다** —
+            //    비평가가 "안장이 몸통보다 넓다 = 사람을 태울 수 없는 크기"로 읽은 게 이것이다.
+            //    이제 탑승 중엔 스커트 옆이 열리므로(`rideSkirt`) 방석을 넓힐 이유도 사라졌다.
+            //    깔개는 실제 안장패드처럼 배럴보다 10%만 넘치게, 방석은 배럴 안쪽으로 들인다.
+            //    **가로(x)만 줄인다** — 길이(z)는 안장이 등을 덮는 면적이라 그대로 둔다.
+            const sw = Math.min(1, halfW * 1.10 / (0.15 * 1.62));
+            sp(0.15, 0, sy - 0.075, -0.01, BLANKET, 1.62 * sw, 0.16, 1.95);   // 안장깔개
+            sp(0.15, 0, sy - 0.068, -0.01, BLANKET_TRIM, 1.50 * sw, 0.15, 1.82); // 깔개 가장자리 띠(안쪽 밝은 면)
+            sp(0.15, 0, sy - 0.045, -0.01, LEATHER, 1.42 * sw, 0.30, 1.68);   // 안장 방석 (윗면이 sy에 닿게)
             sp(0.07, 0, sy - 0.02, 0.155, TAN, 0.9, 0.66, 0.5);          // 앞턱(pommel)
             sp(0.075, 0, sy - 0.015, -0.175, TAN, 0.95, 0.8, 0.5);       // 뒷턱(cantle) — 엉덩이가 걸리는 턱
             // 옆날개(flap)는 **영웅 허벅지보다 안쪽**에 있어야 한다 — 밖으로 나가면 다리를 앞에서 가린다
@@ -4717,13 +4724,21 @@ const Scene3D = {
                 for (const s of [-1, 1]) {
                     const ck = new THREE.Group();
                     ck.position.set(s * 0.045, BB[1], BB[2]);   // 축 좌우로 살짝 벌려 체인링 자리를 남긴다
-                    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.016, CRANK_R, 0.02), IRON);
+                    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.022, CRANK_R, 0.026), IRON);
                     arm.position.y = -CRANK_R / 2;             // 축에서 아래로 뻗은 암(회전 원점 = 축)
-                    const pedal = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.018, 0.09), RUBBER);
+                    // ⚠️ **실측으로 발이 페달을 밟고 있어도 화면에서 안 읽히면 없는 것과 같다.**
+                    //    페달을 검은 고무(0x212121)로 두니 감청색 부츠에 완전히 묻혀, 비평가 2인이
+                    //    독립적으로 "자전거에 페달·크랭크가 아예 없다"고 읽었다(probe-ride-pedal 은
+                    //    같은 프레임에서 양발 접촉 전부 통과였다 — 접촉과 판독은 다른 문제다).
+                    //    실제 페달처럼 **밝은 금속 케이지 + 어두운 밟는 면**으로 나누고, 케이지를
+                    //    부츠보다 넓게 잡아 밑창 양옆으로 삐져나오게 한다.
+                    const pedal = new THREE.Mesh(new THREE.BoxGeometry(0.115, 0.02, 0.115), IRON);
                     pedal.position.y = -CRANK_R;
-                    ck.add(arm, pedal);
+                    const tread = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.012, 0.085), RUBBER);
+                    tread.position.y = -CRANK_R + 0.014;       // 케이지 위에 얹힌 밟는 면
+                    ck.add(arm, pedal, tread);
                     g.add(ck);
-                    cranks.push({ side: s, group: ck, arm, pedal, r: CRANK_R });
+                    cranks.push({ side: s, group: ck, arm, pedal, tread, r: CRANK_R });
                 }
                 g.userData.cranks = { list: cranks, axis: [0, BB[1], BB[2]], r: CRANK_R };
             } else {
@@ -4771,8 +4786,13 @@ const Scene3D = {
             for (const s of [-1, 1]) {
                 // 날개를 크게 — 비행형이 '날고 있다'로 읽히려면 실루엣에서 몸통보다 넓어야 한다
                 // 고래는 날개가 아니라 **가슴지느러미**라 몸통 앞쪽·아래에 눕혀 단다
+                // ⚠️ 드래곤 날개 뿌리가 **안장 높이(y 0.36)에 안장 바로 옆(z −0.04)** 이라, 라이더의
+                //    허벅지·정강이를 정면으로 가로질렀다 — `probe-ride-clear` 가 이 자리를 짚었고
+                //    (걸린 지점 −0.30, 0.36, −0.04) 비평가도 "날개가 부츠를 관통한다"고 읽었다.
+                //    실제 드래곤 라이딩 그림이 그렇듯 **어깨 위·앞쪽**으로 올려 라이더 앞에 오게 한다
+                //    (몸통 z 반길이가 0.28 이라 0.26 이면 앞쪽 끝, 라이더는 그 뒤에 앉는다).
                 const wing = whale ? sp(0.15, s * 0.30, 0.19, 0.10, light, 1.7, 0.1, 0.85)
-                                   : dragon ? sp(0.16, s * 0.30, 0.36, -0.04, light, 1.5, 0.12, 1.0)
+                                   : dragon ? sp(0.16, s * 0.30, 0.46, -0.24, light, 1.5, 0.12, 1.0)
                                             : bx(0.34, 0.02, 0.17, s * 0.25, 0.34, -0.02, light);
                 wing.userData.s = s;
                 g.userData.wings.push(wing);
@@ -5337,6 +5357,7 @@ const Scene3D = {
             c.arm.scale.y = r / c.r;
             c.arm.position.y = -r / 2;
             c.pedal.position.y = -r;
+            if (c.tread) c.tread.position.y = -r + 0.014;
         }
     },
 

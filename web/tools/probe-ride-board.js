@@ -37,13 +37,16 @@ const NAME = process.argv[2] || 'Hover Board';
         const inner = g.children[0];
         const V = (x, y, z) => new THREE.Vector3(x, y, z);
         // 발판 치수 — 상수로 박지 않고 실제 bbox 에서 잰다(종마다 다르고 모델을 손봐도 따라온다).
-        // ⚠️ **단위를 섞지 말 것.** 처음엔 발판 bbox 를 월드로 재고 발 좌표는 탈것 로컬로 재서
-        //    비율이 배율(≈1.4배)만큼 틀렸다 — 스탠스 폭이 15%인데 11%로 보였다.
-        //    발판 치수도 발과 같은 **안쪽 메시 그룹 로컬**로 환산해 비교한다.
+        // ⚠️ **월드 AABB 를 worldToLocal 로 옮겨 로컬 범위로 쓰면 안 된다.** 탈것이 yaw 0.55 로
+        //    돌아가 있어 그 두 꼭짓점은 범위가 아니라 **대각선**이다 — 실제 데크가 1:1.4 인데
+        //    4.4:1(길이 1.57 / 폭 0.355)로 찍혀, 스탠스 비율 판정이 통째로 거짓이었다.
+        //    파츠의 지오메트리 bbox 는 이미 그 파츠 로컬이므로, 자기 scale·position 만 얹으면 된다.
         const deck = g.userData.deck || inner.children[0];
-        const bbW = new THREE.Box3().setFromObject(deck);
-        const lo = inner.worldToLocal(bbW.min.clone()), hi = inner.worldToLocal(bbW.max.clone());
-        const deckLen = Math.abs(hi.z - lo.z), deckW = Math.abs(hi.x - lo.x), deckTop = bbW.max.y;
+        if (!deck.geometry.boundingBox) deck.geometry.computeBoundingBox();
+        const gb = deck.geometry.boundingBox;
+        const deckLen = (gb.max.z - gb.min.z) * Math.abs(deck.scale.z);
+        const deckW = (gb.max.x - gb.min.x) * Math.abs(deck.scale.x);
+        const deckTop = new THREE.Box3().setFromObject(deck).max.y;   // 접지 비교용이라 이건 월드가 맞다
         const r = {};
         for (const side of ['L', 'R']) {
             const knee = rig.bones['knee' + side], hip = rig.bones['hip' + side];
