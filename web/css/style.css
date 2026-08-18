@@ -4315,8 +4315,8 @@ body {
 .sr-grid.herorow .sr-cell.heroic .sr-name {
     font-size: .92rem; width: auto; max-width: min(12rem, 66vw); padding: .16rem .68rem;
 }
-.sr-grid.herorow .sr-cell.heroic .sr-sub { font-size: .76rem; }
-.sr-grid.herorow .sr-cell.heroic .sr-sub .sr-rk { padding: .07rem .56rem; }
+.sr-grid.herorow .sr-cell.heroic .sr-sub { font-size: .94rem; }
+.sr-grid.herorow .sr-cell.heroic .sr-sub .sr-rk { padding: .1rem .62rem; }
 .sr-grid.herorow .sr-cell.heroic .sr-dup { font-size: .66rem; padding: .02rem .34rem; }
 .sr-grid.mid .sr-cell.heroic .sr-orbwrap { width: min(6.2rem, 30vw); }
 .sr-grid.dense .sr-cell.heroic .sr-orbwrap { width: min(5rem, 24vw); }
@@ -4328,7 +4328,7 @@ body {
     font-size: .82rem; width: auto; max-width: min(11rem, 62vw); padding: .14rem .6rem;
 }
 .sr-grid.mid .sr-cell.heroic .sr-sub, .sr-grid.dense .sr-cell.heroic .sr-sub {
-    font-size: .7rem;
+    font-size: .86rem;
 }
 .sr-grid.mid .sr-cell.heroic .sr-sub .sr-rk, .sr-grid.dense .sr-cell.heroic .sr-sub .sr-rk {
     padding: .06rem .5rem;
@@ -4561,14 +4561,18 @@ body {
 .sr-sub {
     position: relative; z-index: 3;   /* 사다리: 셀 안에서 orbwrap 2 → 이름표·칩 3 */
     display: flex; align-items: center; justify-content: center;
-    margin-top: .2rem; font-size: .62rem; font-weight: 900; letter-spacing: .02em;
+    /* 10차 A ⓺ [중간] "등급 칩 글자 잉크가 7px라 자모가 뭉개진다"(실측 폰트 6.94px·알약 9.5px).
+       칩 사다리를 통째로 +29% 올렸다. ⚠️ 키울 때 `probe-sr-labels.js`(칩 크기 균일·배지 비겹침)로
+       반드시 회귀를 볼 것 — 8차에 폭이 넘쳐 '일반'이 **글자 안에서** '일/반'으로 접힌 전례가 있다
+       (그래서 아래 nowrap 두 줄이 있는 것이고, 지우면 그 사고가 그대로 재발한다). */
+    margin-top: .2rem; font-size: .8rem; font-weight: 900; letter-spacing: .02em;
     line-height: 1.25;
     /* 칩이 셀 폭을 넘으면 줄바꿈이 아니라 **글자 안에서** 끊긴다("일 / 반") — 절대 접히지 않게 */
     flex-wrap: nowrap; white-space: nowrap; max-width: 100%;
 }
 .sr-sub .sr-rk {
     flex: 0 0 auto; white-space: nowrap;   /* 크기 고정 — 이웃 요소 때문에 줄어들지 않는다 */
-    padding: .05rem .38rem; border-radius: .45rem;
+    padding: .08rem .44rem; border-radius: .5rem;
     background: var(--cb, #d6d6d6); color: var(--cf, #070b18);
     box-shadow: 0 0 0 1px rgba(0,0,0,.45), 0 .08rem .22rem rgba(0,0,0,.5);
 }
@@ -4592,8 +4596,8 @@ body {
 .sr-grid.one .sr-sub .sr-rk { padding: .14rem .65rem; }
 .sr-grid.one .sr-dup { top: 10%; left: 9%; font-size: .74rem; padding: .04rem .4rem; }
 .sr-grid.mid .sr-name { font-size: .56rem; margin-top: .3rem; height: 2.4em; }
-.sr-grid.mid .sr-sub { font-size: .5rem; }
-.sr-grid.mid .sr-sub .sr-rk { padding: .03rem .22rem; }
+.sr-grid.mid .sr-sub { font-size: .62rem; }
+.sr-grid.mid .sr-sub .sr-rk { padding: .045rem .27rem; }
 /* mid 셀은 구체가 3.9rem 남짓이라 좌·우 배지가 폭을 나눠 쓴다 — 둘 다 줄이고 모서리로 더 붙인다
    (probe-sr-labels.js 가 두 상자의 교차를 재서 회귀를 막는다) */
 .sr-grid.mid .sr-dup { top: 3%; left: 2%; font-size: .62rem; padding: 0 .2rem; }
