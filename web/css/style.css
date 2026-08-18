@@ -381,7 +381,8 @@ body {
 .btn.disabled { opacity: .45; }
 .btn.sm { flex: 0 0 auto; padding: .3rem .6rem; font-size: .72rem; }
 #equip-sheet .btn.sm { padding: .36rem .7rem; font-size: .8rem; } /* 대장간/자동 버튼 — 원본 높이≈화면 5% */
-.sk-action-btn { min-height: 2rem; padding: .3rem 1rem; font-size: .82rem; } /* 원본(042340) ≈3.7% H (185) */
+/* 원본(042340)은 두 버튼이 **같은 폭 104px(20.97%W)** 이다 — 클론은 글자 폭이라 22.88% / 15.61% 로 갈렸다 */
+.sk-action-btn { min-height: 2rem; padding: .3rem 0; font-size: .78rem; width: calc(var(--app-w) * .2097); white-space: nowrap; }
 
 #panel-debug input[type=number] {
     background: #22272e; color: #eceff1; border: 1px solid #444c56; border-radius: .55rem;
@@ -2418,11 +2419,24 @@ body {
 .cur-pill.potion { background: #00897b; }
 .passive-banner {
     background: #c9c9c9; border: none; border-radius: 1rem;
-    padding: .28rem 1.2rem; font-size: .84rem; font-weight: 900; color: #17181a;
-    text-align: center; align-self: center; min-width: 78%;
+    /* 원본 x87 w319(64.31%W) · y53 h19(2.13%H) — 클론은 min-width:78% 라 73.79%W 로 넓고 28px 로 높았다 */
+    padding: 0 1.2rem; font-size: .8rem; font-weight: 900; color: #17181a;
+    width: calc(var(--app-w) * .6431); height: calc(var(--app-h) * .0213); box-sizing: border-box;
+    display: flex; align-items: center; justify-content: center; white-space: nowrap;
+    text-align: center; align-self: center; min-width: 0;
 }
-/* 원본(042340/042356) 실측: 오브/타일 지름 ≈12.5% W, 그리드 좌우 인셋 — 풀블리드 금지 (185 비평가) */
-.sk-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .75rem .8rem; padding: 0 12.5%; } /* 오브 ≈10.4% W (185 재채점) */
+/* ───── 원본 shot-042340 실측(앱 496x890, tools/probe-skills-ref.js) ─────
+   오브 지름 50px(10.08%W) · 열 피치 77px · 조각 게이지 폭 65px(13.10%W, **오브보다 넓다**)
+   1행 오브 상단 92px(10.34%H) · 행 피치 88px · 게이지 상단 151px · 게이지 높이 15px
+   → 그리드 칸 폭 = 게이지 폭(65px)이고 오브는 그 안에서 가운데 정렬된 50px 이다.
+     클론은 오브가 칸 폭을 그대로 먹어(width:100%) 60px 로 커져 있었고 게이지는 오브와 같은 폭이었다. */
+.sk-grid {
+    display: grid; grid-template-columns: repeat(5, calc(var(--app-w) * .1310));
+    column-gap: calc(var(--app-w) * .0242); row-gap: calc(var(--app-h) * .0169);
+    padding: 0; justify-content: center;
+}
+.sk-grid .sk-orb { width: calc(var(--app-w) * .1008); }
+.sk-grid .sk-cell { gap: calc(var(--app-h) * .0101); }   /* 오브 바닥 142 → 게이지 상단 151 */
 /* 빈 상태 문구는 타일이 아니라 안내문이다 — 5열 그리드 안에 그냥 넣으면 칸 하나(≈49px) 폭에
    갇혀 네 줄로 쪼개진 채 왼쪽에 붙는다. 한 행을 통째로 차지하게 해 가운데 한 줄로 읽히게 한다.
    (탈것·펫·스킬 세 화면이 공용 — 새 세이브의 탈것 화면이 이 상태로 시작한다) */
@@ -2456,7 +2470,7 @@ body {
 }
 .sk-star { font-size: .55rem; line-height: 1; }
 .sk-shard {
-    position: relative; width: 100%; height: .72rem; background: #17181a;
+    position: relative; width: 100%; height: calc(var(--app-h) * .0169); background: #17181a;
     border: 2px solid var(--pp-line); border-radius: .45rem; overflow: hidden;
 }
 .sk-shard i { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; }
@@ -2503,11 +2517,23 @@ body {
    회귀를 막으려고 이 패스에서는 **스킬 화면으로만 스코프**한다. 펫 차례에 같은 수치로 재검증할 것. */
 #panel-skills .equipped-row { padding: .28rem .5rem; margin-bottom: .32rem; }
 #panel-skills .equipped-row .sk-mini { width: 2.16rem; height: 2.16rem; }
-#panel-skills .sk-action-btn { min-height: 2.49rem; }
-#panel-skills .summon-bar { margin-top: 2.21rem; }
-.summon-bar { display: flex; align-items: center; justify-content: center; gap: .5rem; position: relative; }
-.summon-bar .back-btn { position: absolute; left: .3rem; } /* 원본: 좌측 끝 (185 재채점) */
-.summon-bar .btn.big { font-size: 1.05rem; padding: .3rem .6rem; min-height: 3.8rem; flex: 0 1 30%; } /* 소환 바 원본(shot-042356): 높이≈7% H, 폭≈28~35% W — 풀폭 금지. 스코프는 소환 바 기준 — 패널 스코프면 모달 소환 바(탈것)에 미적용 (QA 버그) */
+/* 원본 버튼 높이 43px(4.83%H) — min-height 만 주면 패딩·글자가 50px 로 밀어 올린다 */
+#panel-skills .sk-action-btn { min-height: 0; height: calc(var(--app-h) * .0483); }
+/* 원본에서 '장착됨 바~버튼' 묶음은 지금보다 19px 아래에 앉는다. 소환 바 y 는 이미 맞으므로
+   버튼~소환 바 사이를 그만큼 줄이면 위쪽 그리드 여백(flex:1)이 알아서 늘어 묶음이 내려온다. */
+#panel-skills .summon-bar { margin-top: 1.03rem; }
+/* 원본(042340)에서 ◀ 를 뺀 나머지 묶음(x5 pill·소환·info)은 **앱 중앙이 아니라 13px 오른쪽**에 앉는다
+   — ◀ 자리만큼 밀린 배치다. ◀ 는 절대 배치라 흐름에서 빠지므로 왼쪽 패딩으로 같은 양을 만든다. */
+.summon-bar { display: flex; align-items: center; justify-content: center; gap: .5rem; position: relative; padding-left: calc(var(--app-w) * .055); }
+/* 원본 info 열(ⓘ·Lv·게이지) 폭 46px(9.27%W) — 클론은 14.15%W 라 묶음이 통째로 왼쪽으로 밀려 있었다 */
+.summon-bar .summon-info { width: calc(var(--app-w) * .0927); }
+/* 원본 ◀ 은 35x29px(7.06%W x 3.26%H) 로 **정사각 원형 버튼이 아니다**(클론 2.4rem 정사각 = 38.4x38.4).
+   x=10px 는 앱 왼쪽 끝 기준이라 패널 좌우 패딩(.8rem)만큼 빼서 앉힌다. 세로는 소환 버튼 바닥에 맞춘다. */
+.summon-bar .back-btn {
+    position: absolute; left: calc(var(--app-w) * .0202 - .8rem); bottom: calc(var(--app-h) * .0022);
+    width: calc(var(--app-w) * .0706); height: calc(var(--app-h) * .0326);
+}
+.summon-bar .btn.big { font-size: 1.05rem; padding: .3rem .6rem; min-height: calc(var(--app-h) * .0764); flex: 0 0 calc(var(--app-w) * .3407); } /* 소환 바 원본(shot-042356): 높이≈7% H, 폭≈28~35% W — 풀폭 금지. 스코프는 소환 바 기준 — 패널 스코프면 모달 소환 바(탈것)에 미적용 (QA 버그) */
 .panel .btn.xs { font-size: .72rem; padding: .3rem .5rem; line-height: 1.1; }
 .panel .btn.xs.info { background: #fff; }
 .summon-prog {
@@ -3101,7 +3127,13 @@ body {
 .back-btn { width: 2.4rem; height: 2.4rem; border-radius: .6rem; padding: 0; flex: none; font-size: 1rem; }
 .summon-bar .btn.x5-toggle { /* 소환 바 공통 — 스킬(패널)·펫(패널)·탈것(모달) 세 곳 통일 (QA: 탈것 x1 늘어남·◀ 겹침) */
     background: #fff; border: 3px solid var(--pp-blue); color: var(--pp-blue);
-    border-radius: 1rem; font-weight: 900; padding: .3rem .8rem; flex: none; min-width: 0; box-shadow: none;
+    /* 원본 40x18px (8.06%W x 2.02%H) */
+    /* (아래 .summon-bar 패딩 주석 참조 — 이 pill 의 x 는 묶음 정렬로 정해진다) */
+    border-radius: 1rem; font-weight: 900; padding: 0; flex: none; box-shadow: none;
+    width: calc(var(--app-w) * .0806); height: calc(var(--app-h) * .0202);
+    min-width: 0; display: inline-flex; align-items: center; justify-content: center;
+    /* 원본은 세로 가운데가 아니라 **소환 버튼 바닥선에 맞춰** 앉는다(pill 700~717 · 버튼 653~720) */
+    align-self: flex-end; margin-bottom: calc(var(--app-h) * .0034);
 }
 .summon-bar .btn.x5-toggle.on { background: var(--pp-blue); color: #fff; border-color: var(--pp-line); }
 .summon-btn {
