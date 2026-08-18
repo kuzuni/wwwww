@@ -25,6 +25,11 @@ const VW = 499, VH = 892;
 // 원본 shot-042120 셀(67px)의 스캔라인 실측 — 잉크 경계에 붙은 검정 키라인이 3px 다(셀 폭의 4.5%).
 // 채점 기준은 이 값이고, 아래 원본 프로브 수치는 참고용이다(사유는 measure() 주석).
 const REF_KEYLINE = 3;
+// 사용자 지시 2026-08-19 `outline-halve-egg-none`: "장비·탈것·펫의 검정 아웃라인 강도 절반으로,
+// 펫 알 부분은 검정 아웃라인 빼기". 그래서 채점 목표는 원본 키라인의 **절반**(1.5px)이고,
+// 알 타일만 '테가 없어야 한다'로 반대 판정을 한다. (--slot-out css 토큰이 실제 노브다)
+const HALF_BAND = [1, 2.5];      // 절반 목표 1.5px ± — 실측: 장비 1 · 탈것 슬롯 1.5 · 펫/탈것 타일 2
+const NONE_MAX = [0.5, 20];      // 알 타일: 두께 ≤0.5px · 덮개 ≤20% 여야 '뺐다'로 본다
 
 // 원본 shot-042120 장비 그리드 셀 박스(measure-ref-cells.js 의 자동 검출 결과와 동일)
 const REF_CELLS = [
@@ -168,7 +173,7 @@ const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? 
     console.log(`  → 원본 기준: 두께 중앙값 ${refThick}px · 덮개 중앙값 ${refCover}%`);
     console.log('    (원본은 배경을 평탄화할 수 없어 행별 배경 기준으로 잰 참고치다. 아이콘 안쪽의 검정 본체가');
     console.log('     섞여 두께가 부풀고, 해칭·AA 때문에 덮개가 낮게 나온다 — 판정 기준으로 쓰지 않는다.');
-    console.log(`     화풍 목표치는 원본 스캔라인 실측 키라인 ${REF_KEYLINE}px 이다.)`);
+    console.log(`     화풍 목표치는 원본 스캔라인 실측 키라인 ${REF_KEYLINE}px 의 **절반**(1.5px)이다 — 사용자 지시 2026-08-19.)`);
 
     // ---- ② 클론 ----
     const page = await browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2 });
@@ -221,14 +226,14 @@ const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? 
     //  ⓑ 펫·알·탈것 타일: 아이콘 요소(`.mt-face`/`.ico`)를 쓰고 pad 로 바깥 여유를 준다.
     //     타일 상자를 쓰면 아이콘이 타일을 거의 채워 창 끝이 곧 테두리라 기준색을 못 세운다.
     const SURFACES = [
-        ['장비 셀', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.renderEquipSheet && UI.renderEquipSheet();`, '.equip-grid .equip-cell:not(.empty):not(.egg-cell)', 0],
-        ['탈것 슬롯', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.renderEquipSheet && UI.renderEquipSheet();`, '.equip-grid .equip-cell.egg-cell:not(.empty)', 0],
-        ['펫 타일', `UI.switchTab('summon'); UI.switchSummonSub('pets')`, '#panel-pets .pet-tile:not(.egg) .tile-face .mt-face', 5],
-        ['알 타일', `UI.switchTab('summon'); UI.switchSummonSub('pets')`, '#panel-pets .pet-tile.egg .tile-face .ico', 5],
-        ['탈것 타일', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.openMounts()`, '.mount-sheet .pet-tile .tile-face .mt-face', 5],
+        ['장비 셀', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.renderEquipSheet && UI.renderEquipSheet();`, '.equip-grid .equip-cell:not(.empty):not(.egg-cell)', 0, 'half'],
+        ['탈것 슬롯', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.renderEquipSheet && UI.renderEquipSheet();`, '.equip-grid .equip-cell.egg-cell:not(.empty)', 0, 'half'],
+        ['펫 타일', `UI.switchTab('summon'); UI.switchSummonSub('pets')`, '#panel-pets .pet-tile:not(.egg) .tile-face .mt-face', 5, 'half'],
+        ['알 타일', `UI.switchTab('summon'); UI.switchSummonSub('pets')`, '#panel-pets .pet-tile.egg .tile-face .ico', 5, 'none'],
+        ['탈것 타일', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.openMounts()`, '.mount-sheet .pet-tile .tile-face .mt-face', 5, 'half'],
     ];
     const summary = [];
-    for (const [label, opener, sel, pad] of SURFACES) {
+    for (const [label, opener, sel, pad, mode] of SURFACES) {
         await page.evaluate(opener);
         await page.waitForTimeout(1400);
         await page.evaluate(`
@@ -255,15 +260,20 @@ const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? 
         // 가진 그림이 섞여 있어(발톱 밑동·가면 그림자) 원본 중앙값이 화풍의 테 두께보다 크게 나온다.
         // 원본 스캔라인 실측으로 확인한 순수 키라인은 3px 이고, 우리 목표는 그 값이다.
         // 그래서 ⓐ 두께는 2~5px 대(원본 키라인 3px ±) ⓑ 덮개는 둘레 대부분에 테가 붙었는지로 본다.
-        if (!(t >= 2 && t <= 5)) fails.push(`${label}: 두께 ${t}px (목표 2~5px, 원본 키라인 ${REF_KEYLINE}px)`);
-        if (c < 80) fails.push(`${label}: 덮개 ${c}% (<80%)`);
+        if (mode === 'none') {
+            // 알 타일은 '테를 뺐는가'를 본다 — 두께·덮개가 둘 다 바닥이어야 한다(사용자 지시 2026-08-19)
+            if (!(t <= NONE_MAX[0] && c <= NONE_MAX[1])) fails.push(`${label}: 아웃라인이 남아 있다 (두께 ${t}px·덮개 ${c}% — 목표 ≤${NONE_MAX[0]}px·≤${NONE_MAX[1]}%)`);
+        } else {
+            if (!(t >= HALF_BAND[0] && t <= HALF_BAND[1])) fails.push(`${label}: 두께 ${t}px (목표 ${HALF_BAND[0]}~${HALF_BAND[1]}px = 원본 키라인 ${REF_KEYLINE}px 의 절반)`);
+            if (c < 80) fails.push(`${label}: 덮개 ${c}% (<80%)`);
+        }
     }
 
     console.log('\n===== 요약 =====');
     console.log(`  원본 장비 셀      두께 ${refThick}px · 덮개 ${refCover}%`);
     summary.forEach(([l, t, c]) => console.log(`  ${l.padEnd(12)} 두께 ${String(t).padStart(5)}px · 덮개 ${String(c).padStart(5)}%`));
     if (errs.length) { console.log('\n콘솔 에러 ' + errs.length + '건:'); errs.slice(0, 5).forEach(e => console.log('  ' + e)); fails.push('콘솔 에러 ' + errs.length + '건'); }
-    console.log(fails.length ? '\nFAIL ' + fails.length + '건:\n  ' + fails.join('\n  ') : '\nPASS — 슬롯 아이콘 전부 원본대 검정 아웃라인');
+    console.log(fails.length ? '\nFAIL ' + fails.length + '건:\n  ' + fails.join('\n  ') : '\nPASS — 슬롯 아이콘 아웃라인 절반(장비·탈것·펫) · 알 타일은 테 없음');
     await browser.close();
     process.exit(fails.length ? 2 : 0);
 })();

@@ -6123,16 +6123,20 @@ body {
    **뒤에** 걸려 테까지 같이 확대하므로, ui.js 가 심어 주는 `--fit-k` 로 나눠 화면상 두께를 고정한다
    (안 나누면 칸마다 테가 3배까지 벌어져 원본의 균일한 화풍이 깨진다). */
 :root {
-    --slot-out: max(2px, .165rem);       /* 원본 3px @499px 폭 — 루트 폰트가 높이 기준이라 rem 이 화면 크기를 따라간다 */
+    /* 두께 절반 (사용자 지시 2026-08-19 `outline-halve-egg-none`: "장비·탈것·펫의 검정 아웃라인 강도 절반으로").
+       종전 `max(2px, .165rem)`(원본 키라인 3px @499px 폭)의 정확히 1/2 — 바닥값도 같이 절반이라야
+       작은 화면에서만 상대적으로 굵어지는 일이 없다. 실측 두께 2.5~3px → 1~1.5px 대. */
+    --slot-out: max(1px, .0825rem);
     --slot-outc: #000;
 }
+/* ⚠️ **알(egg) 타일은 이 목록에 넣지 않는다** — 사용자 지시 2026-08-19 "펫 알 부분은 검정 아웃라인 빼기".
+   빠진 선택자: `.pet-tile.egg .tile-face .ico`(펫 그리드·업그레이드 재료), `.petd-tile.egg .ico`(알 상세),
+   `.hatch-cell .hatch-egg .ico`(부화장). 알 아이콘은 IconGen 이 이미 등급색 테를 그려 둬 검정 테가 겹치면
+   색이 죽는다. */
 .slot-ink,
 .equip-cell:not(.empty) .cell-img,
 .pet-tile .tile-face .mt-face,
-.pet-tile.egg .tile-face .ico,
 .petd-tile .mt-face,
-.petd-tile.egg .ico,
-.hatch-cell .hatch-egg .ico,
 .sk-mini .mt-face {
     --sw: calc(var(--slot-out) / var(--fit-k, 1));
     filter:
