@@ -5194,6 +5194,30 @@ const Scene3D = {
         }
     },
 
+    // 공격 중에도 **빈 손은 핸들바를 놓지 않게** 한다.
+    // 비평가 2인이 독립적으로 "공격 컷에서는 양쪽 그립이 둘 다 노출된 채(손 0개) 주행 중"이라고
+    // 지적했다. 원인: 공격은 once 클립이라 `restPose`(=바 파지 각이 실린 곳)가 통째로 꺼지고,
+    // 공격 클립이 **양팔의 어깨·팔꿈치를 전부 정의**한다(shoulderL 트랙이 클립마다 있다).
+    // `ridePose` 로 넘겨도 가산이라 클립 아크에 얹힐 뿐 고정이 안 된다 — **덮어써야** 한다.
+    // 그래서 prochar 의 합성 규칙은 건드리지 않고, `heroRig.update` 가 끝난 뒤 빈 팔 두 관절만
+    // 되돌린다(무기 든 팔은 클립 그대로 — 한 손을 떼고 휘두르는 건 실제 기병도 그렇다).
+    holdBarGrip() {
+        const rig = this.heroRig, g = this.mountGroup;
+        if (!rig || !g || !g.userData.bar || !this.riding) return;
+        const reach = this.riding.form && this.riding.form.barReach;
+        // once 클립이 아닐 때는 restPose 가 이미 잡고 있다. 사망·기상(groundPose)은 제외 —
+        // 쓰러진 몸이 핸들바를 붙들고 있으면 더 어색하다(탑승 하체 포즈를 빼는 것과 같은 이유).
+        if (!reach || !rig._once || !rig._clip || rig._clip.groundPose) return;
+        const free = (this.gripOf(this.wtypeId) || {}).hand === 'L' ? 'R' : 'L';
+        const sh = rig.bones['shoulder' + free], el = rig.bones['elbow' + free];
+        const bs = rig.base['shoulder' + free], be = rig.base['elbow' + free];
+        if (sh && bs) {
+            sh.rotation.x = bs.rx + reach.shoulder;
+            sh.rotation.z = bs.rz + (free === 'L' ? 1 : -1) * (reach.shoulderZ || 0);
+        }
+        if (el && be) el.rotation.x = be.rx + reach.elbow;
+    },
+
     alignStirrups() {
         const g = this.mountGroup, rig = this.heroRig;
         if (!g || !g.userData.stirrups || !rig || !rig.bones || !rig.bones.kneeL || !this.heroG) return;
@@ -7905,6 +7929,7 @@ const Scene3D = {
             // 프로시저럴 리그: 키프레임 갱신 + 상태 전환 (걷기/대기)
             if (this.heroRig) {
                 this.heroRig.update(dt);
+                this.holdBarGrip();   // 공격 클립이 바를 잡은 손까지 데려가지 않게 (rig.update 뒤여야 한다)
                 if (this._heroReviveT > 0) this._heroReviveT -= dt;
                 // 사망/기상 중에는 자동 전환을 잠근다 — 안 그러면 다음 프레임 Idle이 클립을 덮어쓴다
                 if (!this._attacking && !this.heroDead && !(this._heroReviveT > 0)) {
