@@ -790,7 +790,7 @@ body {
     opacity: 0; animation: afring .2s cubic-bezier(.1,.82,.28,1) forwards;
 }
 .anvil-fx .af-ring.h0 { animation-delay: .152s; --afr: 2.0; }
-.anvil-fx .af-ring.h1 { animation-delay: .390s; --afr: 2.6; }
+.anvil-fx .af-ring.h1 { animation-delay: .390s; --afr: 2.7; }
 .anvil-fx .af-ring.h2 { animation-delay: .628s; --afr: 4.0; }
 @keyframes afring {
     0%   { opacity: 1; transform: scale(1); }
@@ -806,7 +806,7 @@ body {
     opacity: 0; animation: afflash .1s linear forwards;
 }
 .anvil-fx .af-flash.f0 { animation-delay: .156s; }
-.anvil-fx .af-flash.f1 { animation-delay: .394s; }
+.anvil-fx .af-flash.f1 { animation-delay: .394s; --affs: 1.2; }
 .anvil-fx .af-flash.f2 { animation-delay: .632s; --affs: 1.55; }
 @keyframes afflash {
     0%   { opacity: 1; transform: scale(calc(var(--affs, 1) * .55)); }
@@ -823,7 +823,7 @@ body {
     opacity: 0; animation: afstar .075s cubic-bezier(.1,.75,.3,1) forwards;
 }
 .anvil-fx .af-star.s0 { animation-delay: .154s; }
-.anvil-fx .af-star.s1 { animation-delay: .392s; }
+.anvil-fx .af-star.s1 { animation-delay: .392s; --afss: 1.16; }
 .anvil-fx .af-star.s2 { animation-delay: .63s; --afss: 1.5; }
 @keyframes afstar {
     0%   { opacity: .95; transform: scale(calc(var(--afss, 1) * .25)); }

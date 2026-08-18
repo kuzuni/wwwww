@@ -159,6 +159,33 @@ async function waitBooted(page, timeout = 25000) {
     });
     const dangling = refs.filter(r => !r[1]).map(r => '#' + r[0]);
     say(dangling.length === 0, `⑦ url() 채움 ${refs.length}건 전부 실제 paint server 로 해결됨${dangling.length ? ' — 끊긴 참조: ' + dangling.join(', ') : ''}`);
+
+    // ⑧ 3타 위계는 **눈으로만 보면 회귀해도 안 잡힌다**('왜인지 밋밋'으로만 보인다). 링·플래시·
+    //    섬광의 배율과 불티 개수가 타격마다 **엄격히 증가**하는지를 수치로 못 박는다.
+    //    1·2타가 같으면 위계가 '약·약·강'의 2단이 되어 크레셴도로 읽히지 않는다.
+    const tiers = await page.evaluate(() => {
+        const num = (sel, prop, dflt) => {
+            const e = document.querySelector(sel); if (!e) return null;
+            const v = getComputedStyle(e).getPropertyValue(prop).trim();
+            return v ? parseFloat(v) : dflt;
+        };
+        const sparks = [0, 1, 2].map(h => {
+            // 불티는 클래스로 타격을 구분하지 않으므로 지연(--t)으로 묶는다
+            const t = [0.15, 0.39, 0.63][h];
+            return [...document.querySelectorAll('.anvil-fx .af-spark')]
+                .filter(n => Math.abs(parseFloat(n.style.getPropertyValue('--t')) - t) < 0.02).length;
+        });
+        return {
+            ring: [0, 1, 2].map(h => num(`.anvil-fx .af-ring.h${h}`, '--afr', 2.4)),
+            flash: [0, 1, 2].map(h => num(`.anvil-fx .af-flash.f${h}`, '--affs', 1)),
+            star: [0, 1, 2].map(h => num(`.anvil-fx .af-star.s${h}`, '--afss', 1)),
+            sparks,
+        };
+    });
+    for (const [name, v] of Object.entries(tiers)) {
+        const rising = v.every((x, i) => i === 0 || (x !== null && x > v[i - 1]));
+        say(rising, `⑧ 3타 위계 ${name}: ${v.join(' < ')} — 타격마다 엄격히 증가`);
+    }
     say(!!css.spark && css.spark.fill !== 'rgb(0, 0, 0)', `⑦ 불티 규칙 적용됨 — fill=${css.spark && css.spark.fill}`);
 
     // ⑥ 오버레이 수명 ≥ 가장 늦게 끝나는 자식 애니메이션. 예전엔 둘 다 720ms라 **3타(가장 강해야 할
