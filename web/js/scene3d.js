@@ -6,7 +6,9 @@ const Scene3D = {
     // 값은 **비율**이다 — 고정 오프셋(-0.20)을 쓰면 이미 어두운 챕터(9 용암 ground L 0.11, 7 마법 0.25)가
     // 니어블랙으로 붕괴한다. 현재 명도에 비례해 깎고(groundK) 절대 낙폭에 상한(groundMax)을 둔다.
     //   ch1 초원 L .48 → -.192 / ch6 설원 밤 L .78 → -.22(상한) / ch7 마법 L .25 → -.10 / ch9 용암 L .11 → -.044
-    VALUE: { groundK: 0.40, groundMax: 0.22, foliageK: 0.22, foliageMax: 0.12, satK: 0.35, farDesat: 0.26 },
+    // leafFloor/leafCool: 잎 색이 순흑으로 크러시되는 것을 막는 바닥값과, 바닥에 눌린 만큼 미는 색상량.
+    // (map-quality-up — 비평가 2인이 공통으로 '잎이 검은 덩어리'를 지적했고 실측으로 확인됐다.)
+    VALUE: { groundK: 0.40, groundMax: 0.22, foliageK: 0.22, foliageMax: 0.12, satK: 0.35, farDesat: 0.26, leafFloor: 0.13, leafCool: 0.06 },
     renderer: null, scene: null, camera: null,
     worldX: 0,               // 플레이어가 오른쪽으로 전진한 누적 거리 (무한 월드)
     heroG: null, weaponG: null, helmetG: null, bodyMesh: null,
@@ -850,134 +852,200 @@ const Scene3D = {
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#c2c2c2';
         ctx.fillRect(0, 0, size, size);
+        // 🚨 **타일 이음매 제거 (map-quality-up).** 이 텍스처는 지면에 12×6 으로 반복되는데, 도형을
+        //    한 번만 그리면 오른쪽 끝에서 잘린 얼룩이 왼쪽 끝에 이어지지 않아 **타일 경계마다 세로·가로
+        //    줄이 선다.** 실측(도구 `probe-ground-seam.js`): 수정 전 랩 경계의 화소 차가 내부 인접
+        //    화소 차의 **1.7~2.2배**(forest 21.4 vs 10.1 등 6개 바이옴 전부). 화면에서는 지면 한가운데를
+        //    가르는 곧은 세로선으로 보였다(ch3 하단에서 육안 확인).
+        // → 도형 파라미터를 **먼저 뽑아 둔 뒤** 3×3(±size) 로 9번 그린다. 경계를 넘은 부분이 반대편에
+        //   그대로 이어지므로 이음매가 사라진다. 화면 밖 8벌은 캔버스가 잘라내므로 결과 밀도는 그대로다.
+        // ⚠️ 파라미터를 먼저 뽑는 이유: 그리는 함수 안에서 `Math.random()` 을 쓰면 9번이 전부 **다른
+        //    도형**이 돼 이음매가 오히려 심해진다. 난수 호출 순서·횟수는 수정 전과 같게 유지했다
+        //    (시드 고정 대조 캡처의 프롭 배치가 밀리지 않게 — `sculptFoliage` 주석의 같은 함정).
+        const tile9 = (draw) => {
+            for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
+                ctx.save(); ctx.translate(ox * size, oy * size); draw(); ctx.restore();
+            }
+        };
         // 공용: 큰 색조 패치 (소재 기저의 명도/온도 변주)
         const patches = (n, alpha) => {
+            const list = [];
             for (let i = 0; i < n; i++) {
                 const x = Math.random() * size, y = Math.random() * size, r = 40 + Math.random() * 110;
                 const warm = Math.random() < 0.5;
                 const base = 130 + Math.random() * 85;
                 const cr = warm ? base + 28 : base - 16, cg = base, cb = warm ? base - 30 : base + 18;
-                ctx.fillStyle = `rgba(${cr | 0},${cg | 0},${cb | 0},${alpha + Math.random() * 0.2})`;
-                ctx.beginPath();
-                ctx.ellipse(x, y, r, r * (0.45 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2);
-                ctx.fill();
+                list.push({ x, y, r, ry: r * (0.45 + Math.random() * 0.5), rot: Math.random() * Math.PI,
+                    col: `rgba(${cr | 0},${cg | 0},${cb | 0},${alpha + Math.random() * 0.2})` });
             }
+            tile9(() => {
+                for (const p of list) {
+                    ctx.fillStyle = p.col;
+                    ctx.beginPath();
+                    ctx.ellipse(p.x, p.y, p.r, p.ry, p.rot, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
         };
-        // 랩어라운드 대응 짧은 스트로크 (풀결 등) — 타일 경계에서 끊긴 티가 안 나게 화면 밖은 그냥 잘림 허용(짧아서 무해)
+        // 짧은 스트로크(풀결 등) — 짧아도 경계에 걸치면 줄이 서므로 같이 랩어라운드로 그린다
         const strokes = (n, len, w, ang, spread, light, dark) => {
             ctx.lineCap = 'round';
+            const list = [];
             for (let i = 0; i < n; i++) {
                 const x = Math.random() * size, y = Math.random() * size;
                 const a = ang + (Math.random() - 0.5) * spread;
                 const l = len * (0.6 + Math.random() * 0.8);
                 const v = Math.random() < 0.5 ? light : dark;
-                ctx.strokeStyle = `rgba(${v},${v},${v},${0.22 + Math.random() * 0.26})`;
-                ctx.lineWidth = w * (0.7 + Math.random() * 0.6);
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
-                ctx.stroke();
+                list.push({ x, y, a, l, col: `rgba(${v},${v},${v},${0.22 + Math.random() * 0.26})`, w: w * (0.7 + Math.random() * 0.6) });
             }
+            tile9(() => {
+                for (const t of list) {
+                    ctx.strokeStyle = t.col;
+                    ctx.lineWidth = t.w;
+                    ctx.beginPath();
+                    ctx.moveTo(t.x, t.y);
+                    ctx.lineTo(t.x + Math.cos(t.a) * t.l, t.y + Math.sin(t.a) * t.l);
+                    ctx.stroke();
+                }
+            });
         };
         switch (kin) {
             case 'desert': { // 모래 리플 — 수평 사인 물결 밴드(밝은 크레스트 + 어두운 트로프 쌍)
                 patches(22, 0.16);
+                // 가로 랩어라운드: 사인 주기를 타일 폭의 정수배로 강제해 좌우 경계 이음매 제거.
+                // ⚠️ 세로(y)는 그렇게 못 한다 — 밴드가 위아래 경계를 넘나들므로 `tile9` 로 감싼다.
+                const ripples = [];
                 for (let y = -8; y < size + 8; y += 9 + Math.random() * 7) {
-                    // 가로 랩어라운드: 사인 주기를 타일 폭의 정수배로 강제해 반복 경계 이음매 제거
-                    const amp = 3 + Math.random() * 4, ph = Math.random() * 9, cyc = 10 + (Math.random() * 9 | 0);
-                    for (const [off, col, w] of [[2.6, 'rgba(96,88,74,0.34)', 3.2], [0, 'rgba(238,232,214,0.5)', 2.1]]) {
-                        ctx.strokeStyle = col;
-                        ctx.lineWidth = w;
-                        ctx.beginPath();
-                        for (let x = 0; x <= size; x += 7) {
-                            const yy = y + off + Math.sin((x / size) * cyc * Math.PI * 2 + ph) * amp;
-                            x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
-                        }
-                        ctx.stroke();
-                    }
+                    ripples.push({ y, amp: 3 + Math.random() * 4, ph: Math.random() * 9, cyc: 10 + (Math.random() * 9 | 0) });
                 }
+                tile9(() => {
+                    for (const rp of ripples) {
+                        for (const [off, col, w] of [[2.6, 'rgba(96,88,74,0.34)', 3.2], [0, 'rgba(238,232,214,0.5)', 2.1]]) {
+                            ctx.strokeStyle = col;
+                            ctx.lineWidth = w;
+                            ctx.beginPath();
+                            // ⚠️ 마지막 점을 **정확히 x=size** 로 찍는다. `x += 7` 은 512 에서 511 에 멈춰
+                            //    타일 경계에 1px 틈을 남기고, 그 틈이 반복돼 세로줄로 보인다(실측 비 1.27).
+                            const yAt = (x) => rp.y + off + Math.sin((x / size) * rp.cyc * Math.PI * 2 + rp.ph) * rp.amp;
+                            ctx.moveTo(0, yAt(0));
+                            for (let x = 7; x < size; x += 7) ctx.lineTo(x, yAt(x));
+                            ctx.lineTo(size, yAt(size));
+                            ctx.stroke();
+                        }
+                    }
+                });
                 break;
             }
             case 'rock': { // 암반 — 각진 판 조각 + 가는 균열선
                 patches(26, 0.18);
+                const plates = [];
                 for (let i = 0; i < 30; i++) { // 명도가 다른 각진 셰이드 판
                     const x = Math.random() * size, y = Math.random() * size, r = 26 + Math.random() * 60;
                     const v = 118 + Math.random() * 96 | 0;
-                    ctx.fillStyle = `rgba(${v},${v},${v + 6},${0.2 + Math.random() * 0.22})`;
-                    ctx.beginPath();
-                    const nv = 4 + (Math.random() * 3 | 0);
+                    const col = `rgba(${v},${v},${v + 6},${0.2 + Math.random() * 0.22})`;
+                    const nv = 4 + (Math.random() * 3 | 0), pts = [];
                     for (let k = 0; k < nv; k++) {
                         const a = (k / nv) * Math.PI * 2, rr = r * (0.6 + Math.random() * 0.5);
-                        const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
-                        k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                        pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
                     }
-                    ctx.closePath(); ctx.fill();
+                    plates.push({ col, pts });
                 }
+                const cracks = [];
                 for (let i = 0; i < 14; i++) { // 균열 폴리라인
-                    ctx.strokeStyle = `rgba(52,50,48,${0.3 + Math.random() * 0.25})`;
-                    ctx.lineWidth = 1.4 + Math.random() * 1.2;
+                    const col = `rgba(52,50,48,${0.3 + Math.random() * 0.25})`;
+                    const w = 1.4 + Math.random() * 1.2;
                     let x = Math.random() * size, y = Math.random() * size, a = Math.random() * Math.PI * 2;
-                    ctx.beginPath(); ctx.moveTo(x, y);
-                    for (let s = 0; s < 9; s++) {
+                    const pts = [[x, y]];
+                    for (let st = 0; st < 9; st++) {
                         a += (Math.random() - 0.5) * 1.1;
                         x += Math.cos(a) * 16; y += Math.sin(a) * 16;
-                        ctx.lineTo(x, y);
+                        pts.push([x, y]);
                     }
-                    ctx.stroke();
+                    cracks.push({ col, w, pts });
                 }
+                tile9(() => {
+                    for (const p of plates) {
+                        ctx.fillStyle = p.col;
+                        ctx.beginPath();
+                        p.pts.forEach(([px, py], k) => k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py));
+                        ctx.closePath(); ctx.fill();
+                    }
+                    for (const cr of cracks) {
+                        ctx.strokeStyle = cr.col; ctx.lineWidth = cr.w;
+                        ctx.beginPath();
+                        cr.pts.forEach(([px, py], k) => k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py));
+                        ctx.stroke();
+                    }
+                });
                 break;
             }
             case 'snow': { // 눈 — 부드러운 굴곡 음영 + 바람 스트릭 + 스파클 점
                 patches(14, 0.1);
                 strokes(90, 46, 2.4, -0.25, 0.18, 224, 156); // 바람에 쓸린 사선 결
+                const sparks = [];
                 for (let i = 0; i < 240; i++) { // 스파클(햇빛 반짝임 점)
-                    const x = Math.random() * size, y = Math.random() * size;
-                    ctx.fillStyle = `rgba(255,255,255,${0.5 + Math.random() * 0.5})`;
-                    ctx.fillRect(x, y, Math.random() < 0.8 ? 1.4 : 2.2, 1.4);
+                    sparks.push({ x: Math.random() * size, y: Math.random() * size,
+                        col: `rgba(255,255,255,${0.5 + Math.random() * 0.5})`, w: Math.random() < 0.8 ? 1.4 : 2.2 });
                 }
+                tile9(() => { for (const sp of sparks) { ctx.fillStyle = sp.col; ctx.fillRect(sp.x, sp.y, sp.w, 1.4); } });
                 break;
             }
             case 'lava': { // 현무암 자갈판 — 어두운 셀 + 밝은 재 틈. 크랙 emissiveMap과 별개의 식은 표면 결
                 patches(16, 0.14);
+                const cells = [];
                 for (let i = 0; i < 64; i++) {
                     const x = Math.random() * size, y = Math.random() * size, r = 14 + Math.random() * 34;
                     const v = 96 + Math.random() * 60 | 0;
-                    ctx.fillStyle = `rgba(${v},${v - 4},${v - 8},${0.3 + Math.random() * 0.28})`;
-                    ctx.beginPath();
-                    const nv = 5 + (Math.random() * 2 | 0);
+                    const col = `rgba(${v},${v - 4},${v - 8},${0.3 + Math.random() * 0.28})`;
+                    const nv = 5 + (Math.random() * 2 | 0), pts = [];
                     for (let k = 0; k < nv; k++) {
                         const a = (k / nv) * Math.PI * 2 + 0.3, rr = r * (0.68 + Math.random() * 0.4);
-                        const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
-                        k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                        pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
                     }
-                    ctx.closePath(); ctx.fill();
-                    ctx.strokeStyle = 'rgba(190,182,170,0.3)'; // 셀 가장자리 밝은 재 라인
-                    ctx.lineWidth = 1.6;
-                    ctx.stroke();
+                    cells.push({ col, pts });
                 }
+                tile9(() => {
+                    for (const ce of cells) {
+                        ctx.fillStyle = ce.col;
+                        ctx.beginPath();
+                        ce.pts.forEach(([px, py], k) => k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py));
+                        ctx.closePath(); ctx.fill();
+                        ctx.strokeStyle = 'rgba(190,182,170,0.3)'; // 셀 가장자리 밝은 재 라인
+                        ctx.lineWidth = 1.6;
+                        ctx.stroke();
+                    }
+                });
                 break;
             }
             case 'magic': { // 마법 — 큰 몽환 얼룩 + 마나 가루 점
                 patches(30, 0.22);
+                const motes = [];
                 for (let i = 0; i < 130; i++) {
                     const x = Math.random() * size, y = Math.random() * size;
                     const v = 190 + Math.random() * 65 | 0;
-                    ctx.fillStyle = `rgba(${v - 40},${v},${v},${0.25 + Math.random() * 0.4})`;
-                    ctx.fillRect(x, y, 1.6, 1.6);
+                    motes.push({ x, y, col: `rgba(${v - 40},${v},${v},${0.25 + Math.random() * 0.4})` });
                 }
+                tile9(() => { for (const m of motes) { ctx.fillStyle = m.col; ctx.fillRect(m.x, m.y, 1.6, 1.6); } });
                 break;
             }
             default: { // forest: 얼룩 + 풀결 스트로크(짧고 촘촘한 결이 "잔디 재질"을 말해줌)
                 patches(30, 0.18);
                 strokes(300, 11, 1.7, -Math.PI / 2, 0.9, 196, 122); // 700개/고대비는 '카펫 노이즈'로 읽힘 — 성기고 옅게
+                const tufts = [];
                 for (let i = 0; i < 160; i++) { // 풀포기 뭉침 얼룩
                     const x = Math.random() * size, y = Math.random() * size, r = 6 + Math.random() * 22;
                     const shade = 115 + Math.random() * 115;
-                    ctx.fillStyle = `rgba(${shade},${shade},${shade},${0.12 + Math.random() * 0.16})`;
-                    ctx.beginPath();
-                    ctx.ellipse(x, y, r, r * (0.5 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2);
-                    ctx.fill();
+                    tufts.push({ x, y, r, ry: r * (0.5 + Math.random() * 0.5), rot: Math.random() * Math.PI,
+                        col: `rgba(${shade},${shade},${shade},${0.12 + Math.random() * 0.16})` });
                 }
+                tile9(() => {
+                    for (const t of tufts) {
+                        ctx.fillStyle = t.col;
+                        ctx.beginPath();
+                        ctx.ellipse(t.x, t.y, t.r, t.ry, t.rot, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
             }
         }
         // 미세 스펙클 노이즈 (표면 거칠기 — 전 바이옴 공통)
@@ -1029,45 +1097,71 @@ const Scene3D = {
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#808080';
         ctx.fillRect(0, 0, size, size);
+        // 🚨 알베도와 **같은 이유로** 여기도 랩어라운드가 필요하다(map-quality-up). 높이맵이 경계에서
+        //    안 이어지면 소벨 변환 뒤 법선이 튀어, 색이 아니라 **조명이 타일 경계마다 줄을 긋는다.**
+        //    (소벨의 `at()` 은 이미 랩어라운드로 샘플링하지만, 그건 높이 **내용**이 이어져야 의미가 있다.)
+        const tile9 = (draw) => {
+            for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
+                ctx.save(); ctx.translate(ox * size, oy * size); draw(); ctx.restore();
+            }
+        };
         if (kin === 'desert') {
             // 리플 요철 — 알베도 물결과 같은 스케일의 수평 융기(가로로 길쭉한 타원 범프)
+            const bumps = [];
             for (let i = 0; i < 150; i++) {
-                const x = Math.random() * size, y = Math.random() * size;
-                const rx = 16 + Math.random() * 26, ry = 2.2 + Math.random() * 3;
-                const grad = ctx.createRadialGradient(x, y, 0, x, y, rx);
-                grad.addColorStop(0, Math.random() < 0.62 ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.36)');
-                grad.addColorStop(1, 'rgba(128,128,128,0)');
-                ctx.fillStyle = grad;
-                ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx);
-                ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill();
-                ctx.restore();
+                bumps.push({ x: Math.random() * size, y: Math.random() * size,
+                    rx: 16 + Math.random() * 26, ry: 2.2 + Math.random() * 3,
+                    up: Math.random() < 0.62 });
             }
+            tile9(() => {
+                for (const b of bumps) {
+                    const grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.rx);
+                    grad.addColorStop(0, b.up ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.36)');
+                    grad.addColorStop(1, 'rgba(128,128,128,0)');
+                    ctx.fillStyle = grad;
+                    ctx.save(); ctx.translate(b.x, b.y); ctx.scale(1, b.ry / b.rx);
+                    ctx.beginPath(); ctx.arc(0, 0, b.rx, 0, Math.PI * 2); ctx.fill();
+                    ctx.restore();
+                }
+            });
         } else if (kin === 'rock' || kin === 'lava') {
             // 판/자갈 요철 — 명도가 균일한 다각형 판(경계에서 급격한 법선 변화 = 각진 단차)
+            const plates = [];
             for (let i = 0; i < 70; i++) {
                 const x = Math.random() * size, y = Math.random() * size, r = 9 + Math.random() * 22;
                 const v = 92 + Math.random() * 88 | 0;
-                ctx.fillStyle = `rgb(${v},${v},${v})`;
-                ctx.beginPath();
-                const nv = 5 + (Math.random() * 2 | 0);
+                const nv = 5 + (Math.random() * 2 | 0), pts = [];
                 for (let k = 0; k < nv; k++) {
                     const a = (k / nv) * Math.PI * 2 + 0.4, rr = r * (0.66 + Math.random() * 0.4);
-                    const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
-                    k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                    pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
                 }
-                ctx.closePath(); ctx.fill();
+                plates.push({ col: `rgb(${v},${v},${v})`, pts });
             }
+            tile9(() => {
+                for (const p of plates) {
+                    ctx.fillStyle = p.col;
+                    ctx.beginPath();
+                    p.pts.forEach(([px, py], k) => k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py));
+                    ctx.closePath(); ctx.fill();
+                }
+            });
         } else {
             // 완만한 굴곡 (흙더미/풀 뭉치 규모) — 눈은 굴곡을 더 크고 부드럽게
             const soft = kin === 'snow';
+            const knolls = [];
             for (let i = 0; i < (soft ? 60 : 110); i++) {
-                const x = Math.random() * size, y = Math.random() * size, r = (soft ? 12 : 5) + Math.random() * (soft ? 34 : 20);
-                const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-                grad.addColorStop(0, Math.random() < 0.6 ? 'rgba(255,255,255,0.32)' : 'rgba(0,0,0,0.3)');
-                grad.addColorStop(1, 'rgba(128,128,128,0)');
-                ctx.fillStyle = grad;
-                ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+                knolls.push({ x: Math.random() * size, y: Math.random() * size,
+                    r: (soft ? 12 : 5) + Math.random() * (soft ? 34 : 20), up: Math.random() < 0.6 });
             }
+            tile9(() => {
+                for (const k of knolls) {
+                    const grad = ctx.createRadialGradient(k.x, k.y, 0, k.x, k.y, k.r);
+                    grad.addColorStop(0, k.up ? 'rgba(255,255,255,0.32)' : 'rgba(0,0,0,0.3)');
+                    grad.addColorStop(1, 'rgba(128,128,128,0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath(); ctx.arc(k.x, k.y, k.r, 0, Math.PI * 2); ctx.fill();
+                }
+            });
         }
         // 미세 거칠기
         const img = ctx.getImageData(0, 0, size, size);
@@ -9323,11 +9417,26 @@ const Scene3D = {
         this.mountainMat.color.copy(gC.clone().offsetHSL(0, 0.03 - V.farDesat * 0.35, -0.16).lerp(fogC, 0.22));
         this.hillMat.color.copy(gC.clone().offsetHSL(0, -V.farDesat * 0.7, 0).lerp(fogC, 0.75));
         this.farHillMat.color.copy(gC.clone().offsetHSL(0, -V.farDesat, 0).lerp(fogC, 0.9)); // 안개에 거의 잠긴 최원경
-        // 식생은 지면보다 한 단계 더 눌러 '어두운 덩어리'로 — 화면의 다크 엔드를 실제로 담당하는 레이어
-        this.foliageMat.color.copy(gC.clone().offsetHSL(-0.02, 0.08, -0.16 + dF));
-        this.foliageMatDark.color.copy(gC.clone().offsetHSL(-0.025, 0.09, -0.23 + dF)); // 뒤 나무용 어두운 변주
-        this.foliageMatLight.color.copy(gC.clone().offsetHSL(-0.015, 0.07, -0.09 + dF)); // 앞 나무용 밝은 변주
-        this.bushMat.color.copy(gC.clone().offsetHSL(-0.01, 0.05, -0.1 + dF));
+        // 식생은 지면보다 한 단계 더 눌러 '어두운 덩어리'로 — 화면의 다크 엔드를 실제로 담당하는 레이어.
+        // 🚨 **다만 순흑까지 가면 안 된다 (map-quality-up).** 실측: 초원에서 `foliageMat` 이 #060803,
+        //    `foliageMatDark` 는 명도가 음수로 내려가 **클램프 결과 #000000** 이었다. 비평가 2인이
+        //    독립적으로 "나무 서너 그루가 한 검은 덩어리로 뭉개져 실루엣이 사라진다"를 지적했고,
+        //    그 원인이 정확히 이것이다. **순흑은 다크 엔드가 아니라 정보의 소실**이다.
+        //    → 바닥값(`leafFloor`)을 두되, 바닥에 눌린 만큼 **청록 쪽으로 색상을 밀고 채도를 올린다.**
+        //      검정 대신 '보색 계열의 어두운 색'으로 그림자를 만드는 스타일라이즈드 처방이라,
+        //      명도는 그대로 낮게 유지하면서 잎끼리의 분리는 되살아난다.
+        const leaf = (dh, ds, dl) => {
+            const c = gC.clone().offsetHSL(dh, ds, dl);
+            const hsl = c.getHSL({ h: 0, s: 0, l: 0 });
+            if (hsl.l >= V.leafFloor) return c;
+            const k = U.clamp((V.leafFloor - hsl.l) / V.leafFloor, 0, 1);
+            c.setHSL((hsl.h + V.leafCool * k + 1) % 1, U.clamp(hsl.s + 0.18 * k, 0, 1), V.leafFloor);
+            return c;
+        };
+        this.foliageMat.color.copy(leaf(-0.02, 0.08, -0.16 + dF));
+        this.foliageMatDark.color.copy(leaf(-0.025, 0.09, -0.23 + dF)); // 뒤 나무용 어두운 변주
+        this.foliageMatLight.color.copy(leaf(-0.015, 0.07, -0.09 + dF)); // 앞 나무용 밝은 변주
+        this.bushMat.color.copy(leaf(-0.01, 0.05, -0.1 + dF));   // 덤불도 같은 바닥값 — 늪지에서 #040503(사실상 순흑)이었다
         this.hemi.color.setHex(t.sky);
         this.hemi.groundColor.copy(gC.clone().offsetHSL(0, 0, -0.1));
         // 바이옴 소품 교체 (같은 바이옴이면 그대로 유지)
