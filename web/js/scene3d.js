@@ -672,12 +672,178 @@ const Scene3D = {
         }
     },
 
+    // ==========================================================================
+    // 바이옴 확장 테이블 — 메인 스테이지 맵 25종 (main-stage-25-maps, 사용자 지시 2026-08-19)
+    // --------------------------------------------------------------------------
+    // ⚠️ **원본 6종(forest·desert·rock·snow·magic·lava)은 이 테이블에 넣지 않는다.**
+    //    항목이 없으면 `bkin()` 이 자기 이름을 그대로 돌려주고 아래 하드코딩 분기가 예전 경로를
+    //    100% 그대로 탄다 — 오래 튜닝된 6종의 룩을 한 픽셀도 안 건드리기 위한 설계다.
+    //    (검증: `node web/tools/shot-biomes.js` 를 변경 전/후로 찍어 6종이 동일한지 확인할 것.)
+    // 신설 15종은 `kin`(형질을 물려받는 원본 바이옴) + **덮어쓸 값만** 적는다:
+    //   kin      원본 바이옴 — 지면 텍스처/노멀 레시피, 식생(덤불·꽃) 유무, 잔돌 수, 조명 분기의 기준
+    //   tint     구운 지면 알베도에 얹는 HSL 시프트 [h, s, l] — 같은 레시피라도 소재가 달라 보이게
+    //   ridge    원경 능선 실루엣 'ridge' | 'mesa' | 'jagged' (생략 시 kin 규칙)
+    //   props    큰 소품 조합 { p:[[메서드, 스케일배율, 추가인자…], …], r:[…] } — 배열에서 균등 추첨
+    //   mid      중경 소품 배열 [[메서드, …], …] (사막 계열의 중경 채우기를 다른 바이옴에도)
+    //   scatter  지면 스캐터 { geo, r, color, n, flat, tint, basic, wind }
+    //   accent   5% 악센트 스캐터 { geo, r, color, n, basic, wind }
+    //   stone    잔돌 색 (생략 시 kin 규칙)
+    //   crystal  makeCrystal 재질 { color, emissive, intensity } — magic 외 바이옴도 결정을 쓸 수 있게
+    //   foliage  잎 재질 emissive { color, intensity } (성역의 금빛 발광 등)
+    //   emissive 지면 발광 { crack, intensity, glow, light } — lava kin 이라도 균열 색을 갈아끼우거나
+    //            null 로 꺼서 "주황 용암"에서 벗어나게 한다
+    //   fog      [near, far] 강제값
+    //   veg      2차 식생(덤불·꽃·양치) 허용 여부 강제 (생략 시 kin 규칙)
+    //   aurora   오로라 표시 여부 강제 (생략 시 kin 규칙 = snow + 밤)
+    BIOMES: {
+        // --- forest 계열 ---
+        marsh: { // 11 늪지 — 물먹은 이끼 바닥에 고사목과 거대 버섯. 초원의 밝은 초록을 탁하게 눌렀다
+            kin: 'forest', tint: [-0.04, -0.18, -0.06], ridge: 'ridge',
+            props: { p: [['makeDeadTree', 0.85], ['makeMushroom', 1.15]], r: [['makeMushroom', 0.8], ['makeBoulder', 0.7, false, true]] },
+            scatter: { geo: 'blade', r: 0.075, color: 0x5c6b3a, n: 210, flat: false, tint: 0.16, wind: true },
+            accent: { geo: 'octa', r: 0.032, color: 0x9ccc65, n: 40, basic: true, wind: true },
+            stone: 0x6f7560, fog: [10, 27],
+        },
+        bamboo: { // 12 대나무 숲 — 가늘고 높은 수직선이 화면을 채우는 유일한 맵
+            kin: 'forest', tint: [0.02, 0.06, 0.02], ridge: 'ridge',
+            props: { p: [['makeBamboo', 1.1]], r: [['makeBamboo', 0.75], ['makeRoundTree', 0.8]] },
+            scatter: { geo: 'blade', r: 0.07, color: 0x7cae4a, n: 240, flat: false, tint: 0.2, wind: true },
+            accent: { geo: 'cone', r: 0.034, color: 0xe8f4a8, n: 44, basic: true, wind: true },
+            stone: 0x8d9482,
+        },
+        autumn: { // 13 단풍 숲 — 활엽수 일색 + 낙엽 스캐터. 잎 재질이 아니라 프롭 구성으로 계절을 만든다
+            kin: 'forest', tint: [0.03, 0.1, 0.0], ridge: 'ridge',
+            props: { p: [['makeRoundTree', 1.05]], r: [['makeRoundTree', 0.8], ['makeBoulder', 0.7, false, true]] },
+            scatter: { geo: 'blade', r: 0.07, color: 0xa8632c, n: 220, flat: false, tint: 0.22, wind: true },
+            accent: { geo: 'octa', r: 0.036, color: 0xffb74d, n: 56, basic: true, wind: true },
+            stone: 0x8d8071,
+        },
+        // --- desert 계열 ---
+        salt: { // 14 소금 사막 — 갈라진 염판. 사막 리플 위에 채도를 완전히 뽑아 흰 평원으로
+            kin: 'desert', tint: [0, -0.62, 0.08], ridge: 'mesa',
+            props: { p: [['makeSlab', 1.15], ['makeStrata', 1.0]], r: [['makeSlab', 0.7], ['makeBoulder', 0.6]] },
+            mid: [['makeStrata', 2.2], ['makeStrata', 1.9], ['makeBones', 1.1], ['makeSlab', 1.6]],
+            scatter: { geo: 'slabchip', r: 0.06, color: 0xdfe3e6, n: 200, flat: true, tint: 0.07 },
+            accent: { geo: 'cone', r: 0.03, color: 0xffffff, n: 46, basic: true },
+            stone: 0xd6d9da,
+        },
+        canyon: { // 15 붉은 협곡 — 사암 지층 첨탑. 사막 리플을 붉게 물들이고 메사를 크게 세웠다
+            kin: 'desert', tint: [-0.05, 0.24, -0.08], ridge: 'mesa',
+            props: { p: [['makeRockSpire', 1.15], ['makeStrata', 1.1]], r: [['makeSlab', 0.8], ['makeStrata', 0.7]] },
+            mid: [['makeStrata', 2.4], ['makeRockSpire', 2.0], ['makeStrata', 2.1], ['makeDryShrub', 1.2]],
+            scatter: { geo: 'dodeca', r: 0.055, color: 0x9c4f2c, n: 190, flat: true, tint: 0.16 },
+            accent: { geo: 'dodeca', r: 0.04, color: 0x5d2f1c, n: 50 },
+            stone: 0x93513a,
+        },
+        // --- rock 계열 ---
+        badland: { // 16 황무지 — 암반에 마른 관목만 살아남은 땅
+            kin: 'rock', tint: [0.04, 0.1, 0.02], ridge: 'ridge',
+            props: { p: [['makeDryShrub', 1.5], ['makeSlab', 0.95]], r: [['makeBoulder', 0.7], ['makeDryShrub', 1.1]] },
+            mid: [['makeDryShrub', 1.6], ['makeStrata', 2.0], ['makeBones', 1.2], ['makeDryShrub', 1.3]],
+            scatter: { geo: 'dodeca', r: 0.055, color: 0x8a7a5c, n: 200, flat: true, tint: 0.17 },
+            accent: { geo: 'octa', r: 0.034, color: 0xc9a227, n: 40, basic: true, wind: true },
+            stone: 0x7d6f55,
+        },
+        ash: { // 17 화산재 평원 — 색이 거의 없는 회색 재. 고사목 실루엣만으로 버틴다
+            kin: 'rock', tint: [0, -0.55, -0.04], ridge: 'jagged',
+            props: { p: [['makeDeadTree', 1.0]], r: [['makeBoulder', 0.7], ['makeSlab', 0.7]] },
+            scatter: { geo: 'dodeca', r: 0.05, color: 0x6a6764, n: 190, flat: true, tint: 0.1 },
+            accent: { geo: 'dodeca', r: 0.038, color: 0x9e9a96, n: 44 },
+            stone: 0x5f5c59, fog: [12, 30],
+        },
+        // --- snow 계열 ---
+        glacier: { // 18 빙하 — 눈 위에 청빙 결정. crystal 재질을 얼음색으로 갈아끼운다
+            kin: 'snow', tint: [0.02, 0.16, -0.02], ridge: 'jagged',
+            props: { p: [['makeCrystal', 1.05]], r: [['makeBoulder', 0.7, true], ['makeCrystal', 0.7]] },
+            scatter: { geo: 'cone', r: 0.055, color: 0xbfe6ff, n: 180, flat: true, tint: 0.08, basic: true },
+            accent: { geo: 'octa', r: 0.036, color: 0xffffff, n: 44, basic: true },
+            stone: 0xbcd2e2, crystal: { color: 0x2a6f8e, emissive: 0x63d6f5, intensity: 0.26 },
+            aurora: true,
+        },
+        tundra: { // 19 툰드라 — 눈이 걷힌 갈색 이끼 지대. 침엽수는 남았지만 눈 고깔이 얇다
+            kin: 'snow', tint: [0.06, 0.1, -0.12], ridge: 'ridge',
+            props: { p: [['makePine', 1.0, true], ['makeDryShrub', 1.4]], r: [['makeBoulder', 0.66, true], ['makeDryShrub', 1.0]] },
+            scatter: { geo: 'blade', r: 0.06, color: 0x8a7c56, n: 200, flat: false, tint: 0.18, wind: true },
+            accent: { geo: 'cone', r: 0.03, color: 0xdfe8f0, n: 38, basic: true },
+            stone: 0x9aa2a8, veg: true,
+        },
+        // --- magic 계열 ---
+        amethyst: { // 20 수정 평원 — 자수정 군락. magic 의 시안을 보라 쪽으로 완전히 돌렸다
+            kin: 'magic', tint: [0.05, 0.14, -0.02], ridge: 'jagged',
+            props: { p: [['makeCrystal', 1.1]], r: [['makeCrystal', 0.72], ['makeBoulder', 0.7]] },
+            scatter: { geo: 'octa', r: 0.05, color: 0xb388ff, n: 130, flat: true, tint: 0.22, basic: true },
+            accent: { geo: 'dodeca', r: 0.045, color: 0x4a2a7a, n: 60 },
+            stone: 0x6a5a8a, crystal: { color: 0x53286b, emissive: 0xb861ff, intensity: 0.34 },
+            emissive: { light: 0xb861ff },
+        },
+        abyss: { // 23 심연 — 빛이 거의 없는 심해 바닥. 발광 버섯이 유일한 광원
+            kin: 'magic', tint: [-0.02, -0.1, -0.2], ridge: 'ridge',
+            props: { p: [['makeMushroom', 1.15], ['makeCrystal', 0.9]], r: [['makeMushroom', 0.75], ['makeBoulder', 0.7]] },
+            scatter: { geo: 'octa', r: 0.045, color: 0x2ee6c8, n: 120, flat: true, tint: 0.2, basic: true },
+            accent: { geo: 'dodeca', r: 0.042, color: 0x0d2a44, n: 58 },
+            stone: 0x2c4a60, crystal: { color: 0x10485c, emissive: 0x2ee6c8, intensity: 0.36 },
+            emissive: { light: 0x2ee6c8 }, fog: [9, 25], veg: false,
+            foliage: { color: 0x0e4a52, intensity: 0.3 },
+        },
+        sanctum: { // 24 성역 — 금빛 신전 지대. 잎까지 은은히 발광시켜 "빛 그 자체"로 읽히게
+            kin: 'magic', tint: [0.03, -0.25, 0.2], ridge: 'ridge',
+            props: { p: [['makeCrystal', 1.05], ['makeRoundTree', 0.95]], r: [['makeSlab', 0.75], ['makeRoundTree', 0.8]] },
+            scatter: { geo: 'blade', r: 0.065, color: 0xd9c88a, n: 200, flat: false, tint: 0.16, wind: true },
+            accent: { geo: 'octa', r: 0.036, color: 0xfff3b0, n: 56, basic: true, wind: true },
+            stone: 0xcfc09a, crystal: { color: 0x8a6a1e, emissive: 0xffd54f, intensity: 0.3 },
+            foliage: { color: 0x8a6a1e, intensity: 0.26 }, emissive: { light: 0xffd54f }, veg: true,
+        },
+        // --- lava 계열 ---
+        sulfur: { // 21 유황 지대 — 균열이 주황이 아니라 유황 노랑. 같은 현무암 레시피가 전혀 다르게 읽힌다
+            kin: 'lava', tint: [0.09, 0.34, 0.14], ridge: 'jagged',
+            props: { p: [['makeVolcanicRock', 1.0], ['makeRockSpire', 0.95]], r: [['makeBoulder', 0.7], ['makeSlab', 0.7]] },
+            scatter: { geo: 'dodeca', r: 0.05, color: 0x6e5c18, n: 160, flat: true, tint: 0.16 },
+            accent: { geo: 'dodeca', r: 0.04, color: 0xe8d44a, n: 48 },
+            stone: 0x7d6a22, emissive: { crack: 0xffd54f, intensity: 0.95, glow: 0xffc107, light: 0xffd54f },
+        },
+        obsidian: { // 22 흑요석 지대 — 식은 검은 유리. 발광을 **꺼서** lava kin 에서 완전히 빠져나온다
+            kin: 'lava', tint: [-0.02, -0.5, -0.16], ridge: 'jagged',
+            props: { p: [['makeRockSpire', 1.05], ['makeVolcanicRock', 0.9]], r: [['makeSlab', 0.75], ['makeBoulder', 0.66]] },
+            scatter: { geo: 'octa', r: 0.05, color: 0x2a2d38, n: 170, flat: true, tint: 0.12 },
+            accent: { geo: 'octa', r: 0.038, color: 0x7986cb, n: 46, basic: true },
+            stone: 0x4e5464, emissive: null, fog: [11, 28],
+        },
+        doomland: { // 25 종말의 땅 — 최종 챕터. 핏빛 균열 + 고사목 + 뼈. 화면에서 가장 어두운 지면
+            kin: 'lava', tint: [-0.02, 0.1, -0.06], ridge: 'jagged',
+            props: { p: [['makeDeadTree', 1.05], ['makeRockSpire', 0.95]], r: [['makeVolcanicRock', 0.7], ['makeBones', 1.2]] },
+            mid: [['makeBones', 1.6], ['makeDeadTree', 2.0], ['makeBones', 1.3], ['makeRockSpire', 1.9]],
+            scatter: { geo: 'dodeca', r: 0.05, color: 0x3a1c1c, n: 160, flat: true, tint: 0.14 },
+            accent: { geo: 'dodeca', r: 0.04, color: 0x7a1f12, n: 50 },
+            stone: 0x4a3230, emissive: { crack: 0xd50000, intensity: 1.25, glow: 0xff1744, light: 0xff5252 },
+        },
+    },
+
+    // 바이옴의 '형질 부모' — 신설 바이옴이 물려받는 원본 6종 중 하나. 원본은 자기 자신을 돌려준다.
+    // 하드코딩된 `biome === 'lava'` 류 분기를 전부 이 함수로 통과시켜, 신설 바이옴이 조용히
+    // forest 기본값으로 떨어지는 일이 없게 한다.
+    bkin(biome) {
+        const sp = this.BIOMES[biome];
+        return (sp && sp.kin) || biome;
+    },
+
+    // 스캐터/악센트 지오메트리 팩토리 — 테이블이 문자열로 고르게. 'blade' 는 풀 포기(tuftGeo).
+    scatterGeo(kind, r) {
+        switch (kind) {
+            case 'octa': return new THREE.OctahedronGeometry(r, 0);
+            case 'cone': return new THREE.ConeGeometry(r * 0.55, r * 1.9, 4);
+            case 'blade': return this.tuftGeo();
+            case 'slabchip': { const g = new THREE.DodecahedronGeometry(r, 0); g.scale(1.5, 0.3, 1.2); return g; } // 갈라진 염판 조각
+            default: return new THREE.DodecahedronGeometry(r, 0);
+        }
+    },
+
     // 절차적 잔디/지면 얼룩 텍스처 — 큰 규모 패치(마른 풀/흙 자국) + 작은 얼룩 + 미세 노이즈 3단 레이어.
     // 재질 color가 그 위에 곱해져 챕터별 톤은 그대로 유지되면서 표면 디테일만 더함.
     // 바이옴별 지면 알베도 텍스처 — "어느 챕터나 같은 얼룩 평면" 인상을 없애기 위해 소재가
     // 실제로 다르게 읽히는 패턴을 바이옴마다 그린다(풀결/모래 리플/암반 균열/눈 스파클/현무암 셀).
     // 재질 color가 곱해지므로 전부 중성 회조 기반으로 그리고, 대비는 과감하게(원거리에서도 살아남게).
     makeGroundTexture(biome) {
+        const kin = this.bkin(biome);      // 신설 바이옴은 원본 6종의 레시피를 물려받고 색만 틴트로 튼다
         const size = 512;
         const c = document.createElement('canvas');
         c.width = c.height = size;
@@ -713,7 +879,7 @@ const Scene3D = {
                 ctx.stroke();
             }
         };
-        switch (biome) {
+        switch (kin) {
             case 'desert': { // 모래 리플 — 수평 사인 물결 밴드(밝은 크레스트 + 어두운 트로프 쌍)
                 patches(22, 0.16);
                 for (let y = -8; y < size + 8; y += 9 + Math.random() * 7) {
@@ -816,7 +982,7 @@ const Scene3D = {
         }
         // 미세 스펙클 노이즈 (표면 거칠기 — 전 바이옴 공통)
         const img = ctx.getImageData(0, 0, size, size);
-        const speck = biome === 'snow' ? 14 : 30;
+        const speck = kin === 'snow' ? 14 : 30;
         for (let i = 0; i < img.data.length; i += 4) {
             const n = (Math.random() - 0.5) * speck;
             img.data[i] = U.clamp(img.data[i] + n, 0, 255);
@@ -824,23 +990,46 @@ const Scene3D = {
             img.data[i + 2] = U.clamp(img.data[i + 2] + n, 0, 255);
         }
         ctx.putImageData(img, 0, 0);
+        this.tintGround(ctx, size, biome);
         const tex = new THREE.CanvasTexture(c);
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         tex.repeat.set(12, 6);
         return tex;
     },
 
+    // 지면 알베도 틴트 — 신설 바이옴이 kin 의 레시피를 그대로 물려받아도 **소재가 달라 보이게** HSL 을 튼다.
+    // ⚠️ 재질 color(t.ground)가 이 위에 곱해지므로 틴트는 '색을 칠하는' 게 아니라 '기저 소재의 온도·채도·
+    //    명도를 옮기는' 용도다. 채도를 뽑으면(salt·ash·obsidian) 같은 리플/셀 패턴도 완전히 다른 재료로 읽힌다.
+    // 스펙 없는 원본 6종은 여기서 **즉시 빠져나가** 한 픽셀도 안 바뀐다.
+    tintGround(ctx, size, biome) {
+        const sp = this.BIOMES[biome];
+        if (!sp || !sp.tint) return;
+        const [dh, ds, dl] = sp.tint;
+        const img = ctx.getImageData(0, 0, size, size);
+        const d = img.data;
+        const col = new THREE.Color();
+        const hsl = { h: 0, s: 0, l: 0 };
+        for (let i = 0; i < d.length; i += 4) {
+            col.setRGB(d[i] / 255, d[i + 1] / 255, d[i + 2] / 255);
+            col.getHSL(hsl);
+            col.setHSL((hsl.h + dh + 1) % 1, U.clamp(hsl.s + ds, 0, 1), U.clamp(hsl.l + dl, 0, 1));
+            d[i] = col.r * 255; d[i + 1] = col.g * 255; d[i + 2] = col.b * 255;
+        }
+        ctx.putImageData(img, 0, 0);
+    },
+
     // 절차적 지면 노멀맵 — 범프 높이 캔버스를 소벨 필터로 법선으로 변환.
     // 색 얼룩과 달리 조명에 실제로 반응하는 요철이라, 어두운 챕터 색(용암 등)이 곱해져도
     // 표면 디테일이 죽지 않고 "칠해진 평면" 인상을 없애준다.
     makeGroundNormalMap(biome) {
+        const kin = this.bkin(biome);
         const size = 256;
         const c = document.createElement('canvas');
         c.width = c.height = size;
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#808080';
         ctx.fillRect(0, 0, size, size);
-        if (biome === 'desert') {
+        if (kin === 'desert') {
             // 리플 요철 — 알베도 물결과 같은 스케일의 수평 융기(가로로 길쭉한 타원 범프)
             for (let i = 0; i < 150; i++) {
                 const x = Math.random() * size, y = Math.random() * size;
@@ -853,7 +1042,7 @@ const Scene3D = {
                 ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
             }
-        } else if (biome === 'rock' || biome === 'lava') {
+        } else if (kin === 'rock' || kin === 'lava') {
             // 판/자갈 요철 — 명도가 균일한 다각형 판(경계에서 급격한 법선 변화 = 각진 단차)
             for (let i = 0; i < 70; i++) {
                 const x = Math.random() * size, y = Math.random() * size, r = 9 + Math.random() * 22;
@@ -870,7 +1059,7 @@ const Scene3D = {
             }
         } else {
             // 완만한 굴곡 (흙더미/풀 뭉치 규모) — 눈은 굴곡을 더 크고 부드럽게
-            const soft = biome === 'snow';
+            const soft = kin === 'snow';
             for (let i = 0; i < (soft ? 60 : 110); i++) {
                 const x = Math.random() * size, y = Math.random() * size, r = (soft ? 12 : 5) + Math.random() * (soft ? 34 : 20);
                 const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
@@ -882,7 +1071,7 @@ const Scene3D = {
         }
         // 미세 거칠기
         const img = ctx.getImageData(0, 0, size, size);
-        const rough = biome === 'snow' ? 16 : 34;
+        const rough = kin === 'snow' ? 16 : 34;
         for (let i = 0; i < img.data.length; i += 4) {
             const n = (Math.random() - 0.5) * rough;
             const v = U.clamp(img.data[i] + n, 0, 255);
@@ -1216,6 +1405,8 @@ const Scene3D = {
     // (색만 바뀌던 기존 방식에서 소재 자체가 바뀌는 방식으로 — 용암=죽은 나무·화산암, 설원=눈 덮인 소나무 등)
     buildProps(biome) {
         this._biome = biome;
+        const kin = this.bkin(biome);          // 하드코딩 분기(식생 유무·잔돌 수·발광)의 기준
+        const sp = this.BIOMES[biome] || {};   // 신설 바이옴의 덮어쓰기 값 (원본 6종은 빈 객체)
         // 바이옴 전용 지면 소재(알베도+노멀) 스왑 — 같은 얼룩 텍스처의 색만 바뀌던 인상 제거
         if (this.terrainMat) {
             const gt = this.groundTexFor(biome);
@@ -1232,7 +1423,7 @@ const Scene3D = {
         this.rocks = [];
         // 바이옴 시그니처 원경 실루엣 — 사막=메사, 용암/바위산=첨봉, 그 외=자연 능선
         if (this.mountains) {
-            const shape = biome === 'desert' ? 'mesa' : (biome === 'lava' || biome === 'rock') ? 'jagged' : 'ridge';
+            const shape = sp.ridge || (kin === 'desert' ? 'mesa' : (kin === 'lava' || kin === 'rock') ? 'jagged' : 'ridge');
             this.mountains[0].geometry.dispose();
             this.mountains[0].geometry = this.makeRidgeGeo(70, 5.4, 8, shape);
         }
@@ -1257,7 +1448,7 @@ const Scene3D = {
             t.position.set(x, this.heightAt(x, z), z);
             t.rotation.y = U.rand(0, Math.PI * 2);
             t.scale.multiplyScalar(U.rand(0.88, 1.14)); t.scale.y *= U.rand(0.94, 1.1); // 인스턴스 지터 — 동일 스케일 복붙 티 제거 (비평가 13번)
-            if (biome === 'magic' && kind === 'p' && z > -5) emissiveAnchors.push(t); // 근·중경 크리스탈만
+            if ((kin === 'magic' || sp.emissive) && kind === 'p' && z > -5) emissiveAnchors.push(t); // 근·중경 크리스탈만
             this.setShadow(t);
             const blob = new THREE.Mesh(this.blobGeo, this.blobShadowMat); // setShadow 이후에 붙여 castShadow 제외
             blob.rotation.x = -Math.PI / 2;
@@ -1290,13 +1481,15 @@ const Scene3D = {
             this.trees.push(hero);
         }
         // 용암: 크랙 주변에 깔리는 부가 발광 데칼 — emissiveMap 크랙과 악센트 라이트를 잇는 은은한 지면광
-        if (biome === 'lava') {
+        const em = sp.emissive !== undefined ? sp.emissive : (kin === 'lava' ? { crack: 0xff3d00, intensity: 1.15, glow: 0xff5722, light: 0xff5722 } : null);
+        if (kin === 'lava' && em && em.glow) {
             if (!this.lavaGlowMat) {
                 this.lavaGlowMat = new THREE.MeshBasicMaterial({
                     map: this.makeGlowTexture(), color: 0xff5722, transparent: true, opacity: 0.42,
                     blending: THREE.AdditiveBlending, depthWrite: false,
                 });
             }
+            this.lavaGlowMat.color.setHex(em.glow); // 유황=노랑, 종말=핏빛 — 같은 데칼이 바이옴 색을 따라간다
             for (let i = 0; i < 7; i++) {
                 const gl = new THREE.Mesh(this.blobGeo, this.lavaGlowMat);
                 gl.rotation.x = -Math.PI / 2;
@@ -1315,8 +1508,10 @@ const Scene3D = {
         // 악센트 포인트라이트 풀 배치 — 발광 소품의 자식으로 붙여 크리스탈/크랙 "주변"이 실제로 물들게.
         // (고정 라이트 1개는 소품 스크롤과 어긋나 라이트 블리드가 안 읽혔음 — 3회차 비평가 지적 반영)
         {
-            const conf = biome === 'magic' ? { color: 0x2fd8ee, intensity: 2.6, dist: 9, y: 1.0 }
-                : biome === 'lava' ? { color: 0xff5722, intensity: 2.4, dist: 9, y: 0.5 } : null;
+            const lightHex = em && em.light;
+            const conf = kin === 'magic' ? { color: lightHex || 0x2fd8ee, intensity: 2.6, dist: 9, y: 1.0 }
+                : kin === 'lava' ? (lightHex ? { color: lightHex, intensity: 2.4, dist: 9, y: 0.5 } : null)
+                : lightHex ? { color: lightHex, intensity: 2.2, dist: 9, y: 0.9 } : null;
             const n = emissiveAnchors.length;
             const picks = n ? [0, Math.floor(n / 2), n - 1] : []; // 몰리지 않게 앞·중간·끝에서 선택
             this.accents.forEach((pl, i) => {
@@ -1335,14 +1530,19 @@ const Scene3D = {
         }
         // 사막 중경 공백 채우기 — 소품 라인(z≈-3)과 원경 메사(z≈-12) 사이 빈 모래밭에
         // 암석층/마른 관목/뼈 클러스터를 깔아 화면 중단이 비어 보이던 문제 해소 (3회차 비평가 지적)
-        if (biome === 'desert') {
+        // (spec.mid 가 있으면 desert 가 아닌 바이옴도 같은 자리에 자기 소품을 깐다 — 협곡·황무지·종말)
+        if (kin === 'desert' || sp.mid) {
             const midSpots = [
                 [-8.2, -8.8, 2.1, 'strata'], [-2.2, -9.2, 2.4, 'strata'], [3.8, -8.4, 1.9, 'shrub'],
                 [8.6, -9, 2.2, 'strata'], [-5.2, -6.9, 1.25, 'shrub'], [0.6, -7.1, 1.05, 'bones'],
                 [6, -6.6, 1.15, 'shrub'], [-9.4, -6.2, 0.95, 'bones'],
             ];
-            for (const [x, z, s, kind] of midSpots) {
-                const p = kind === 'strata' ? this.makeStrata(s) : kind === 'shrub' ? this.makeDryShrub(s) : this.makeBones(s);
+            for (let mi = 0; mi < midSpots.length; mi++) {
+                const [x, z, s, kind] = midSpots[mi];
+                // sp.mid 는 [메서드, 스케일배율] 배열 — 자리 순서대로 순환시켜 결정적으로 배치한다
+                const mspec = sp.mid && sp.mid[mi % sp.mid.length];
+                const p = mspec ? this[mspec[0]](s * (mspec[1] === undefined ? 1 : mspec[1]))
+                    : kind === 'strata' ? this.makeStrata(s) : kind === 'shrub' ? this.makeDryShrub(s) : this.makeBones(s);
                 p.position.set(x, this.heightAt(x, z), z);
                 p.rotation.y = U.rand(0, Math.PI * 2);
                 this.setShadow(p);
@@ -1369,7 +1569,8 @@ const Scene3D = {
             return g;
         };
         // 덤불 (용암·사막·바위산은 생략 — 식생이 없는 소재)
-        if (!['lava', 'desert', 'rock'].includes(biome)) {
+        const hasVeg = sp.veg !== undefined ? sp.veg : !['lava', 'desert', 'rock'].includes(kin);
+        if (hasVeg) {
             for (let i = 0; i < 7; i++) {
                 const rad = U.rand(0.14, 0.28);
                 const b = new THREE.Mesh(new THREE.DodecahedronGeometry(rad, 0), this.bushMat);
@@ -1384,12 +1585,12 @@ const Scene3D = {
             }
         }
         // 잔돌 — 둥근 자갈/납작 판석 2형태 믹스 (단일 다면체 복붙 티 제거)
-        const stoneCount = ['lava', 'desert', 'rock'].includes(biome) ? 11 : 7;
+        const stoneCount = ['lava', 'desert', 'rock'].includes(kin) ? 11 : 7;
         for (let i = 0; i < stoneCount; i++) {
             const rad = U.rand(0.1, 0.3);
             const r = new THREE.Mesh(
                 this.rockGeo(rad),
-                biome === 'lava' ? this.charRockMat : this.stoneMat
+                kin === 'lava' ? this.charRockMat : this.stoneMat
             );
             if (Math.random() < 0.4) { r.scale.set(1.2, 0.35, 0.8); r.position.y = rad * 0.28; } // 판석형
             else r.position.y = rad * 0.6;
@@ -1402,7 +1603,7 @@ const Scene3D = {
             this.rocks.push(g);
         }
         // 꽃 무리 + 양치류 — 2차 식생 (나무·바위·풀 3종 반복의 단조로움 해소, 비평가 '환경 밀도' 지적)
-        if (!['lava', 'desert', 'rock', 'snow'].includes(biome)) {
+        if (hasVeg && !['snow'].includes(kin)) {
             const petalCols = [0xef6292, 0xfff176, 0xba68c8, 0xff8a65, 0xf5f5f5];
             this._flowerMats = this._flowerMats || petalCols.map(c => new THREE.MeshLambertMaterial({ color: c }));
             this._stemMat = this._stemMat || new THREE.MeshLambertMaterial({ color: 0x4a7332 });
@@ -1554,7 +1755,15 @@ const Scene3D = {
             this.scatter3.geometry.dispose(); // 재질은 scatter와 공유 — 지오메트리만 해제
             this.scatter3 = null;
         }
+        const sp = this.BIOMES[biome] || {};
+        const kin = this.bkin(biome);
         let geo, mat, n = 190, flat = true, tint = 0.12;
+        if (sp.scatter) {
+            const c = sp.scatter;
+            geo = this.scatterGeo(c.geo, c.r);
+            mat = c.basic ? new THREE.MeshBasicMaterial({ color: c.color }) : new THREE.MeshLambertMaterial({ color: c.color });
+            n = c.n; flat = c.flat; tint = c.tint;
+        } else
         switch (biome) {
             case 'desert':
                 geo = new THREE.DodecahedronGeometry(0.05, 0);
@@ -1614,7 +1823,8 @@ const Scene3D = {
         };
         // 바람은 **식물에만** 건다 — 자갈·얼음 조각이 흔들리면 '떠 있는 돌'이 된다.
         // (forest 풀 포기가 유일한 주 스캐터 식물이다. 나머지 바이옴 주 스캐터는 전부 광물이다.)
-        const windy = biome !== 'desert' && biome !== 'rock' && biome !== 'snow' && biome !== 'lava' && biome !== 'magic';
+        const windy = sp.scatter ? !!sp.scatter.wind
+            : (kin !== 'desert' && kin !== 'rock' && kin !== 'snow' && kin !== 'lava' && kin !== 'magic');
         if (windy) this.windShade(mat, 0.55);
         this.scatter = mk(geo, mat, n, flat, tint, -3.4, 3.2);
         // 근경 전용 디테일 레이어 — 카메라 앞 둔덕(z 3.2~5.6, 화면 최하단 40%)에 같은 소재를
@@ -1648,15 +1858,27 @@ const Scene3D = {
             desert: [new THREE.DodecahedronGeometry(0.04, 0), 0x8a5a3c, 50],
             lava: [new THREE.DodecahedronGeometry(0.04, 0), 0x6e625c, 50],
         }[biome] || [new THREE.OctahedronGeometry(0.035, 0), 0xfff3b0, 46];
-        const accMat = biome === 'forest' || biome === 'rock' || biome === 'snow'
-            ? new THREE.MeshBasicMaterial({ color: acc[1] }) // 들꽃/결정은 자체 발색으로 또렷하게
-            : new THREE.MeshLambertMaterial({ color: acc[1] });
+        const ac = sp.accent;
+        const accGeo = ac ? this.scatterGeo(ac.geo, ac.r) : acc[0];
+        const accHex = ac ? ac.color : acc[1];
+        const accN = ac ? ac.n : acc[2];
+        const accBasic = ac ? !!ac.basic : (biome === 'forest' || biome === 'rock' || biome === 'snow');
+        const accMat = accBasic
+            ? new THREE.MeshBasicMaterial({ color: accHex }) // 들꽃/결정은 자체 발색으로 또렷하게
+            : new THREE.MeshLambertMaterial({ color: accHex });
         // 악센트도 식물이면 같이 흔든다(초원 들꽃·바위산 골드 야생화). 얼음 결정·자갈·재는 제외.
-        if (biome === 'forest' || biome === 'rock') this.windShade(accMat, 0.42);
-        this.scatter2 = mk(acc[0], accMat, acc[2], true, 0.1, -3, 5.2);
+        if (ac ? !!ac.wind : (biome === 'forest' || biome === 'rock')) this.windShade(accMat, 0.42);
+        this.scatter2 = mk(accGeo, accMat, accN, true, 0.1, -3, 5.2);
     },
 
     makeProp(biome, kind, s) {
+        // 신설 바이옴은 테이블의 조합에서 균등 추첨한다. 원본 6종은 스펙이 없어 아래 스위치로 떨어진다.
+        const sp = this.BIOMES[biome];
+        if (sp && sp.props) {
+            const list = sp.props[kind] || sp.props.p;
+            const e = list[Math.random() * list.length | 0];
+            return this[e[0]](s * (e[1] === undefined ? 1 : e[1]), e[2], e[3]);
+        }
         switch (biome) {
             case 'desert': return kind === 'p' ? this.makeCactus(s)
                 : (Math.random() < 0.5 ? this.makeRockSpire(s * 0.8) : this.makeSlab(s * 0.8));
@@ -2172,6 +2394,149 @@ const Scene3D = {
         // 꽉 찬 글로우 시절엔 1.7 이 접지 그림자를 통째로 덮어 '밑동이 밝은' 상태를 만들고 있었다.
         glow.userData.sharedGeometry = true;
         g.add(glow);
+        return g;
+    },
+
+    // 여러 지오메트리를 한 덩어리로 — r128 `web/lib/` 에는 BufferGeometryUtils 가 없어서 직접 만든다.
+    // 왜 필요한가: 대나무 마디 링·버섯 반점처럼 **같은 재질의 작은 조각이 수십 개** 붙는 프롭은
+    // 메시 수 = 드로우콜이라 모바일에서 그대로 비용이 된다(첫 판 실측: 대나무 맵 프롭 메시 561개,
+    // 초원 83개의 6.8배). 조형을 포기하지 않고 드로우콜만 줄이려면 굽는 시점에 합치는 수밖에 없다.
+    // items: [[지오메트리, 행렬?], …]. 위치·법선·색만 옮긴다(이 프로젝트 프롭은 uv 를 안 쓴다).
+    // ⚠️ 넘긴 지오메트리는 여기서 **소유권을 가져가 dispose 한다** — 호출자가 재사용하면 안 된다.
+    mergeGeos(items) {
+        let total = 0;
+        const parts = items.map(([g, m]) => {
+            const ng = g.index ? g.toNonIndexed() : g;
+            if (ng !== g) g.dispose();
+            if (!ng.attributes.normal) ng.computeVertexNormals();
+            if (m) ng.applyMatrix4(m);
+            total += ng.attributes.position.count;
+            return ng;
+        });
+        const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3);
+        let o = 0;
+        for (const g of parts) {
+            const n = g.attributes.position.count;
+            pos.set(g.attributes.position.array.subarray(0, n * 3), o * 3);
+            nor.set(g.attributes.normal.array.subarray(0, n * 3), o * 3);
+            if (g.attributes.color) col.set(g.attributes.color.array.subarray(0, n * 3), o * 3);
+            else col.fill(1, o * 3, (o + n) * 3);   // 색 없는 조각은 흰색(=재질 색 그대로)으로 채운다
+            o += n;
+            g.dispose();
+        }
+        const out = new THREE.BufferGeometry();
+        out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+        out.setAttribute('color', new THREE.BufferAttribute(col, 3)); // vertexColors 재질도 그대로 받게 항상 붙인다
+        return out;
+    },
+
+    // 대나무 다발(12 대나무 숲) — 이 맵의 유일한 시그니처는 **가늘고 높은 수직선**이다.
+    // 원뿔·구 조합인 다른 나무들과 실루엣이 겹치지 않게, 굵기 변화 없는 긴 기둥 + 마디 링으로만 만든다.
+    // 마디(node)를 빼면 매끈한 원기둥이라 '파이프'로 읽힌다 — 링이 대나무를 대나무로 만드는 유일한 단서다.
+    makeBamboo(s) {
+        const g = new THREE.Group();
+        g.userData.windSway = 0.055;   // 가늘고 높아 가장 크게 흔들린다 (침엽수 0.030 대비)
+        if (!this.bambooMat) {
+            this.bambooMat = new THREE.MeshPhongMaterial({ color: 0x9ccc65, shininess: 12, flatShading: true });
+            // ⚠️ 잎은 **전용 재질**을 쓴다 — 공용 foliageMats 에 side 를 쓰면 게임 안 모든 나무의
+            //    양면 렌더가 같이 켜진다(공유 재질에 인스턴스 단위 속성을 쓰는 전형적 사고).
+            this.bambooLeafMat = new THREE.MeshLambertMaterial({ color: 0x8bc34a, side: THREE.DoubleSide });
+        }
+        const culms = 3 + (Math.random() * 3 | 0);
+        for (let i = 0; i < culms; i++) {
+            const h = U.rand(1.5, 2.5) * s;
+            const r = U.rand(0.028, 0.042) * s;
+            const a = (i / culms) * Math.PI * 2 + U.rand(-0.4, 0.4);
+            const rad = U.rand(0.05, 0.22) * s;
+            const culm = new THREE.Group();
+            // 마디를 **실루엣 안에** 넣는다 — 링 메시를 따로 얹으면 드로우콜이 마디 수만큼 불어나는 데다
+            // 옆에서 보면 기둥에 낀 반지로 읽힌다. 회전 프로파일의 반경을 마디 자리에서만 부풀리면
+            // 기둥과 마디가 한 메시이면서 윤곽선에 마디가 드러난다. 프로파일 점은 마디 근처에만 둔다
+            // (균등 분할하면 같은 실루엣에 폴리곤만 수십 배 든다).
+            const nodes = 3 + (Math.random() * 3 | 0);
+            const prof = [new THREE.Vector2(r, 0)];
+            for (let k = 1; k <= nodes; k++) {
+                const t = Math.pow(k / (nodes + 1), 0.82);   // 위로 갈수록 절간이 좁아지는 실제 분포
+                const rt = r * (1 - 0.14 * t);
+                prof.push(new THREE.Vector2(rt, (t - 0.018) * h));
+                prof.push(new THREE.Vector2(rt * 1.24, t * h));
+                prof.push(new THREE.Vector2(rt, (t + 0.018) * h));
+            }
+            prof.push(new THREE.Vector2(r * 0.84, h));
+            const pole = new THREE.Mesh(new THREE.LatheGeometry(prof, 6), this.bambooMat);
+            culm.add(pole);
+            // 잎 — 상단 1/3 에만. 판 4장을 한 지오메트리로 합쳐 드로우콜 1개로 끝낸다
+            const leafGeos = [];
+            for (let k = 0; k < 4; k++) {
+                const lw = U.rand(0.1, 0.2) * s, ll = U.rand(0.3, 0.5) * s;
+                const la = U.rand(0, Math.PI * 2);
+                const m = new THREE.Matrix4()
+                    .makeRotationFromEuler(new THREE.Euler(U.rand(-0.5, -0.15), la, U.rand(-0.4, 0.4)))
+                    .setPosition(Math.cos(la) * lw * 0.6, h * U.rand(0.66, 0.98), Math.sin(la) * lw * 0.6);
+                leafGeos.push([new THREE.PlaneGeometry(lw, ll), m]);
+            }
+            culm.add(new THREE.Mesh(this.mergeGeos(leafGeos), this.bambooLeafMat));
+            culm.position.set(Math.cos(a) * rad, 0, Math.sin(a) * rad);
+            culm.rotation.z = U.rand(-0.07, 0.07);
+            culm.rotation.x = U.rand(-0.07, 0.07);
+            g.add(culm);
+        }
+        return g;
+    },
+
+    // 거대 버섯(11 늪지 · 23 심연) — 갓 + 대 + 주름(gill) + 반점, 그리고 곁에 작은 개체 1~2.
+    // ⚠️ 갓을 **매끈한 반구**로 두면 어떤 라이팅에서도 '공을 반으로 자른 것'으로 읽힌다(장비 쪽에서
+    //    겪은 '박스는 어떤 라이팅에도 박스' 와 같은 벽). `sculptFoliage` 로 실루엣 자체를 울퉁불퉁하게 만든다.
+    makeMushroom(s) {
+        if (!this.gillMat) {
+            this.gillMat = new THREE.MeshLambertMaterial({ color: 0xe8dfc8, side: THREE.DoubleSide });
+            this.sporeMat = new THREE.MeshLambertMaterial({ color: 0xf5f0e0 });
+        }
+        const g = new THREE.Group();
+        g.userData.windSway = 0.016;   // 다육질이라 거의 안 흔들린다 — 나무만큼 흔들면 고무로 읽힌다
+        const one = (sc, fm) => {
+            const m = new THREE.Group();
+            const stemH = U.rand(0.45, 0.7) * sc;
+            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.075 * sc, 0.12 * sc, stemH, 8), this.trunkMat);
+            stem.position.y = stemH / 2;
+            stem.rotation.z = U.rand(-0.1, 0.1);
+            m.add(stem);
+            // 갓: 위쪽 반구를 눌러 만든 돔. 정점 변위로 가장자리를 물결지게
+            const capR = U.rand(0.34, 0.46) * sc;
+            const capGeo = this.sculptFoliage(
+                new THREE.SphereGeometry(capR, 12, 7, 0, Math.PI * 2, 0, Math.PI * 0.56), { amp: 0.13 });
+            const cap = new THREE.Mesh(capGeo, fm);
+            cap.scale.y = 0.72;
+            cap.position.y = stemH + capR * 0.06;
+            m.add(cap);
+            // 갓 아래 주름 — 밝은 원뿔면. 갓 그늘에 밝은 면이 하나 있어야 부피가 읽힌다
+            const gill = new THREE.Mesh(new THREE.ConeGeometry(capR * 0.94, capR * 0.34, 12, 1, true), this.gillMat);
+            gill.position.y = stemH - capR * 0.1;
+            m.add(gill);
+            // 반점 — 갓 윗면 납작한 원반. 개수만큼 메시를 늘리지 않게 한 덩어리로 합친다
+            const dots = [];
+            for (let i = 0; i < 3 + (Math.random() * 3 | 0); i++) {
+                const sr = U.rand(0.05, 0.095) * sc;
+                const a = U.rand(0, Math.PI * 2), rr = U.rand(0.15, 0.72) * capR;
+                const mm = new THREE.Matrix4().makeScale(1, 0.45, 1).setPosition(
+                    Math.cos(a) * rr,
+                    stemH + capR * 0.62 * Math.sqrt(Math.max(0, 1 - (rr / capR) ** 2)),
+                    Math.sin(a) * rr);
+                dots.push([new THREE.SphereGeometry(sr, 6, 4), mm]);
+            }
+            m.add(new THREE.Mesh(this.mergeGeos(dots), this.sporeMat));
+            return m;
+        };
+        const fm = this.foliageMats[Math.random() * 3 | 0];
+        g.add(one(s, fm));
+        for (let i = 0; i < 1 + (Math.random() * 2 | 0); i++) { // 곁 개체 — 단일 오브젝트 나열 인상 제거
+            const sub = one(s * U.rand(0.3, 0.55), fm);
+            const a = U.rand(0, Math.PI * 2), rr = U.rand(0.36, 0.62) * s;
+            sub.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
+            sub.rotation.y = U.rand(0, Math.PI * 2);
+            g.add(sub);
+        }
         return g;
     },
 
@@ -8956,6 +9321,8 @@ const Scene3D = {
         this.hemi.groundColor.copy(gC.clone().offsetHSL(0, 0, -0.1));
         // 바이옴 소품 교체 (같은 바이옴이면 그대로 유지)
         const biome = t.biome || 'forest';
+        const kin = this.bkin(biome);          // 신설 바이옴의 조명·안개·돌색 분기 기준
+        const sp = this.BIOMES[biome] || {};   // 덮어쓸 값 (원본 6종은 빈 객체 = 예전 경로 그대로)
         if (biome !== this._biome) this.buildProps(biome);
         // 챕터 색보정 + 밤 조명 무드 — 밤 챕터가 낮과 같은 광량이면 "흐린 낮"처럼 보이므로
         // 태양광을 절반 수준의 서늘한 달빛으로 낮추고 림라이트를 상대적으로 키워 실루엣 위주의 밤 화면을 만듦
@@ -8991,14 +9358,18 @@ const Scene3D = {
             // 채택값은 수정 전 대비 다크 엔드·중간값·하이라이트 **세 지표 모두** 개선한다.
             // env IBL은 원인이 아님을 분리 검증했다(envMapIntensity만 0.5로 낮추면 1.02%에 그침) —
             // 그래서 재질별 envMapIntensity는 손대지 않는다. 라이트 3개 + 노출 4개 값만의 변경.
-            this.sun.intensity = biome === 'lava' ? 0.54 : 1.00;
-            this.hemi.intensity = biome === 'lava' ? 0.22 : 0.15; // 채움광이 다크 엔드를 들어올리는 주범 — 함께 하향
+            // ⚠️ 용암 계열의 감광(0.54/0.22)은 **지면 균열이 스스로 빛나는 것을 전제**로 한 값이다.
+            //    발광을 끈 바이옴(흑요석)에 그대로 걸면 보정할 광원이 없어 화면이 통째로 검은 얼룩이 된다
+            //    (실측: 첫 판 흑요석은 첨탑 실루엣이 하늘과 붙어 형태가 안 읽혔다). 발광 유무로 가른다.
+            const lavaLit = kin === 'lava' && sp.emissive !== null;
+            this.sun.intensity = lavaLit ? 0.54 : 1.00;
+            this.hemi.intensity = lavaLit ? 0.22 : 0.15; // 채움광이 다크 엔드를 들어올리는 주범 — 함께 하향
             this.rim.intensity = 0.18;
             this.sun.color.copy(new THREE.Color(0xffedc4).lerp(new THREE.Color(t.sky), 0.15)); // 더 따뜻한 직사광
         }
         // ch7 마법: ch6에서 성공한 달 역광 공식이 어두운 보라 팔레트에서 안 읽힘 — 시안 림을 크게 키워
         // 크리스탈·암석 실루엣 윤곽이 배경에서 분리되게 (3회차 비평가 지적 반영)
-        if (biome === 'magic' && isNight) {
+        if (kin === 'magic' && isNight) {
             this.rim.intensity = 1.05;
             this.rim.color.setHex(0x7fdcff);
         } else {
@@ -9006,12 +9377,12 @@ const Scene3D = {
         }
         // 안개 심도: 낮은 원경을 조금 더 멀리까지 보이게(상단 화이트아웃 완화), 밤·용암은 짙게 유지.
         // 바위산은 안개를 더 얇게 — 원경 능선·하늘이 안개에 뭉개져 분리가 안 읽히던 문제 (3회차 비평가 지적)
-        this.scene.fog.near = isNight ? 11 : biome === 'rock' ? 15 : 13;
-        this.scene.fog.far = isNight || biome === 'lava' ? 30 : biome === 'rock' ? 42 : 35;
+        this.scene.fog.near = sp.fog ? sp.fog[0] : isNight ? 11 : kin === 'rock' ? 15 : 13;
+        this.scene.fog.far = sp.fog ? sp.fog[1] : isNight || kin === 'lava' ? 30 : kin === 'rock' ? 42 : 35;
         // 발광체 라이트 블리드(악센트 포인트라이트 3기)는 buildProps에서 발광 소품에 직접 부착·설정됨
         // 바이옴별 돌 색 (설원=서리 낀 밝은 회청, 사막=테라코타 악센트, 바위산=지면보다 두 단계 어둡게 — 명도 분리)
-        this.stoneMat.color.setHex(
-            biome === 'snow' ? 0xc9d8e6 : biome === 'desert' ? 0xb97f5e : biome === 'rock' ? 0x6a6055 : 0x90a4ae);
+        this.stoneMat.color.setHex(sp.stone !== undefined ? sp.stone :
+            kin === 'snow' ? 0xc9d8e6 : kin === 'desert' ? 0xb97f5e : kin === 'rock' ? 0x6a6055 : 0x90a4ae);
         // 바위산: 지면 탠과 색온도를 맞춘 웜 그레이 — "배치한 에셋" 티 제거 (쿨 그레이는 지면과 따로 놀았음)
         // 천체: 낮=해, 밤=달+별 (테마 celestial 필드로 명시, 기본 sun)
         const cel = t.celestial || 'sun';
@@ -9019,9 +9390,18 @@ const Scene3D = {
         this.sunDisc.visible = cel === 'sun';
         this.moonDisc.visible = cel === 'moon';
         this.stars.visible = cel === 'moon';
-        if (this.aurora) this.aurora.visible = biome === 'snow' && night; // 설원 밤 전용 오로라
+        if (this.aurora) this.aurora.visible = sp.aurora !== undefined ? (sp.aurora && night) : (kin === 'snow' && night); // 설원 밤 전용 오로라
         // 수정 결정은 테마 하늘색 계열로 발광 (마법=보라, 심해=청록이 자동 반영)
-        if (biome === 'magic') {
+        if (sp.crystal) {
+            // 신설 바이옴의 결정색(빙하=얼음, 수정평원=자수정, 심연=청록, 성역=금) — 위 magic 처방과 같은 구조
+            this.crystalMat.color.setHex(sp.crystal.color);
+            this.crystalMat.emissive.setHex(sp.crystal.emissive);
+            this.crystalMat.emissiveIntensity = sp.crystal.intensity;
+            // '빛나 보이는' 몫을 맡는 할로·접지 글로우도 같이 돌린다 — 안 돌리면 금빛 결정 주위만 시안으로 번져
+            // 색이 두 갈래로 찢어진다(가산 합성이라 특히 눈에 띈다).
+            if (this.crystalHaloMat) this.crystalHaloMat.color.setHex(sp.crystal.emissive);
+            if (this.crystalGlowMat) this.crystalGlowMat.color.setHex(sp.crystal.emissive);
+        } else if (kin === 'magic') {
             // 몸통은 테마색, 발광은 시안 악센트 — 단일 색상환(전부 보라/청록)에 보색 계열 포인트를 박음
             // 몸통을 어두운 청록으로 눌러 ACES에서 흰색으로 증발하지 않고 시안 발광 색이 유지되게
             // ⚠️ 발광 세기를 1.1 로 두면 **면이 안 보인다.** emissive 는 법선·버텍스컬러와 무관하게
@@ -9032,15 +9412,26 @@ const Scene3D = {
             this.crystalMat.color.setHex(0x1a7286);
             this.crystalMat.emissive.setHex(0x1cb8cf);
             this.crystalMat.emissiveIntensity = 0.34;
+            // 신설 바이옴에서 갈아끼운 할로·글로우 색을 되돌린다 — 안 되돌리면 amethyst 를 거쳐 온 뒤
+            // ch7 마법이 보라 할로를 그대로 물고 있게 된다(공유 재질의 전형적 잔상).
+            if (this.crystalHaloMat) this.crystalHaloMat.color.setHex(0x4dd9e8);
+            if (this.crystalGlowMat) this.crystalGlowMat.color.setHex(0x26c6da);
         }
         // 용암: 반구광 지면 반사색을 뜨거운 주황으로 — 소품 아랫면이 용암빛을 받는 느낌
-        if (biome === 'lava') this.hemi.groundColor.setHex(0x8a3d1a);
+        // 소품 아랫면이 지면의 열기를 받는 느낌 — 균열 색을 그대로 쓰면 반구광이 화면을 씻어내므로 45%로 눌러 쓴다
+        if (kin === 'lava' && sp.emissive !== null) {
+            const g = sp.emissive && sp.emissive.glow;
+            if (g) this.hemi.groundColor.copy(new THREE.Color(g).multiplyScalar(0.45));
+            else this.hemi.groundColor.setHex(0x8a3d1a);
+        }
         // 용암 바이옴: 지면 균열이 주황으로 발광
-        if (biome === 'lava') {
+        const tEm = sp.emissive !== undefined ? sp.emissive
+            : (kin === 'lava' ? { crack: 0xff3d00, intensity: 1.15 } : null);
+        if (kin === 'lava' && tEm && tEm.crack) {
             if (!this.crackTex) this.crackTex = this.makeCrackTexture();
             this.terrainMat.emissiveMap = this.crackTex;
-            this.terrainMat.emissive.setHex(0xff3d00);
-            this.terrainMat.emissiveIntensity = 1.15; // 어두운 현무암 지면 위 작열 크랙 대비 강화
+            this.terrainMat.emissive.setHex(tEm.crack);
+            this.terrainMat.emissiveIntensity = tEm.intensity; // 어두운 현무암 지면 위 작열 크랙 대비 강화
         } else {
             this.terrainMat.emissiveMap = null;
             this.terrainMat.emissive.setHex(0x000000);
@@ -9049,8 +9440,9 @@ const Scene3D = {
         this.terrainMat.needsUpdate = true; // emissiveMap 유무가 바뀌면 셰이더 재컴파일 필요
         // 마법 챕터: 무광 검정 실루엣으로 보이던 롤리팝 나무에 은은한 보라 발광을 얹어 "언릿 소품" 인상 제거
         for (const fm of this.foliageMats) {
-            fm.emissive.setHex(biome === 'magic' ? 0x4a2f8f : 0x000000);
-            fm.emissiveIntensity = biome === 'magic' ? 0.34 : 1;
+            const fe = sp.foliage || (kin === 'magic' ? { color: 0x4a2f8f, intensity: 0.34 } : null);
+            fm.emissive.setHex(fe ? fe.color : 0x000000);
+            fm.emissiveIntensity = fe ? fe.intensity : 1;
         }
         this.paintSky(t.sky, fogC.getHex(), night);
     },
@@ -9442,7 +9834,7 @@ const Scene3D = {
         }
         // 크리스탈 반짝임 — "반짝이는 크리스탈 같은 미세 애니메이션"(항목 원문). 발광 세기를
         // 느리게 맥동시키고 할로 스프라이트를 같이 호흡시킨다. 재질 공유라 1회 갱신으로 전부 걸린다.
-        if (this._biome === 'magic' && this.crystalMat) {
+        if (this.bkin(this._biome) === 'magic' && this.crystalMat) {
             const p = 0.5 + Math.sin(this._clock * 1.15) * 0.5;
             // ⚠️ 진폭(p-p)은 유지하되 **바닥값을 내렸다**(0.85~1.35 → 0.24~0.46). 옛 값은 조형·음영을
             //    통째로 씻어냈다(setTheme 쪽 주석 참고). probe-wind 의 발광 게이트는 p-p 0.10 이라 그대로 통과한다.

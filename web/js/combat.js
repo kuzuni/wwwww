@@ -404,7 +404,11 @@ const Combat = {
 
         // 무조건 전진
         if (S.stage >= 10) {
-            if (S.chapter < 10) { S.chapter++; S.stage = 1; }
+            // 챕터 상한은 **맵 종류 수**에 묶는다 — 맵을 25종으로 늘려 놓고 상한이 10이면
+            // 11~25 챕터의 맵을 게임에서 영영 못 본다(main-stage-25-maps).
+            // ⚠️ 25 를 넘긴 뒤의 난이도 티어 순환(어려움→매우어려움→헬)은 다음 항목
+            //    `chapter-cycle-difficulty` 소관 — 여기서는 상한만 연다.
+            if (S.chapter < CHAPTER_THEMES.length) { S.chapter++; S.stage = 1; }
         } else S.stage++;
         if (S.chapter * 100 + S.stage > S.bestChapter * 100 + S.bestStage) {
             S.bestChapter = S.chapter; S.bestStage = S.stage;

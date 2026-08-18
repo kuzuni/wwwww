@@ -539,4 +539,28 @@ const CHAPTER_THEMES = [
     { sky: 0x006064, fog: 0x00838f, ground: 0x00acc1, biome: 'magic', celestial: 'none' },  // 8 심해
     { sky: 0xbf360c, fog: 0xd84315, ground: 0x231a17, biome: 'lava' },                      // 9 용암 (어두운 현무암 + 작열 크랙 — 하늘 대비 지면을 깊게 누름)
     { sky: 0xffd54f, fog: 0xffe082, ground: 0xfff176, biome: 'forest' },                    // 10 천상
+    // ---- 11~25: 맵 25종 확장 (main-stage-25-maps, 사용자 지시 2026-08-19) ----
+    // 신설 바이옴 15종은 `Scene3D.BIOMES` 에 정의된다(kin = 형질을 물려받는 원본 바이옴 + 덮어쓸 값).
+    // 팔레트는 원본 10종과 겹치지 않게 색상환·명도를 흩었다 — 같은 kin 이라도 지면 틴트·프롭·스캐터가 달라
+    // "색만 바꾼 같은 맵"으로 읽히지 않게 한다.
+    { sky: 0x9aa88c, fog: 0xb4c0a4, ground: 0x53603c, biome: 'marsh' },                     // 11 늪지 (탁한 올리브 연무)
+    { sky: 0xcfe8b8, fog: 0xdff0c8, ground: 0x8aa63f, biome: 'bamboo' },                    // 12 대나무 숲
+    { sky: 0xf3b98a, fog: 0xf7d3ae, ground: 0xa8632c, biome: 'autumn' },                    // 13 단풍 숲
+    // 소금 평원은 게임에서 가장 밝은 맵이지만 **다크 엔드는 남겨야 한다** — 첫 판(지면 0xe4e8ea +
+    // 틴트 명도 +0.16)은 `probe-chapters` 에서 명도 0.18 이하 비율이 0.46% 뿐이라 값 구조가 무너졌다.
+    { sky: 0xdfe9f5, fog: 0xeef4fa, ground: 0xc9d0d4, biome: 'salt' },                      // 14 소금 사막
+    { sky: 0xe8a06a, fog: 0xf0c39a, ground: 0xa4522e, biome: 'canyon' },                    // 15 붉은 협곡
+    { sky: 0x9d9078, fog: 0xbdb29a, ground: 0x7a6a52, biome: 'badland' },                   // 16 황무지
+    { sky: 0x6e6a66, fog: 0x8b8783, ground: 0x4a4744, biome: 'ash' },                       // 17 화산재 평원
+    { sky: 0x8fc7e8, fog: 0xc2e2f2, ground: 0x9fc9de, biome: 'glacier' },                   // 18 빙하
+    // ⚠️ 툰드라 지면은 **채도를 너무 빼면 안 된다.** 잎 색은 `setTheme` 에서 지면 albedo 를 명도-0.16
+    //    + 채도 비례 하향으로 파생시키는데, 지면이 무채색에 가까우면 그 파생값이 니어블랙 중성색이 돼
+    //    침엽수가 밝은 하늘 앞에서 **검은 종이 오림**으로 읽힌다(첫 판 실측). 올리브 탠으로 채도를 남긴다.
+    { sky: 0xa9b7bf, fog: 0xc6d2d8, ground: 0x9a8f60, biome: 'tundra' },                    // 19 툰드라
+    { sky: 0x5a3f8c, fog: 0x7a5aa8, ground: 0x6b4a9c, biome: 'amethyst', celestial: 'moon' },// 20 수정 평원
+    { sky: 0xc9a227, fog: 0xd2b444, ground: 0x6d5a18, biome: 'sulfur' },                    // 21 유황 지대
+    { sky: 0x6b7383, fog: 0x8a94a6, ground: 0x1c1e26, biome: 'obsidian' },                   // 22 흑요석 지대 (밝은 하늘 × 니어블랙 지면 = 실루엣 대비)
+    { sky: 0x0b1b2e, fog: 0x14304a, ground: 0x0e2338, biome: 'abyss', celestial: 'none' },  // 23 심연
+    { sky: 0xffe9a8, fog: 0xf0dcae, ground: 0xb89a52, biome: 'sanctum' },                   // 24 성역 (첫 판은 지면까지 밝아 화면 전체가 화이트아웃이었다)
+    { sky: 0x7a1f12, fog: 0x9c3a22, ground: 0x2a1410, biome: 'doomland' },                  // 25 종말의 땅
 ];

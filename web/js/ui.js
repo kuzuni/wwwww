@@ -4945,7 +4945,7 @@ const UI = {
             <h2>${IconGen.img('tab_debug', 'lbl-ico')}디버그 <span class="muted">테스트 전용</span></h2>
             <h3>스테이지 이동</h3>
             <div class="row">
-                <input type="number" id="dbg-chapter" value="${S.chapter}" min="1" max="10" style="width:4rem">
+                <input type="number" id="dbg-chapter" value="${S.chapter}" min="1" max="${CHAPTER_THEMES.length}" style="width:4rem">
                 <span class="muted">-</span>
                 <input type="number" id="dbg-stage" value="${S.stage}" min="1" max="10" style="width:4rem">
                 <button class="btn primary sm" onclick="UI.onDebugGoStage()">이동</button>
@@ -4976,7 +4976,7 @@ const UI = {
         saveGame();
     },
     onDebugGoStage() {
-        const c = U.clamp(parseInt(document.getElementById('dbg-chapter').value) || 1, 1, 10);
+        const c = U.clamp(parseInt(document.getElementById('dbg-chapter').value) || 1, 1, CHAPTER_THEMES.length);
         const s = U.clamp(parseInt(document.getElementById('dbg-stage').value) || 1, 1, 10);
         S.chapter = c; S.stage = s;
         if (c * 100 + s > S.bestChapter * 100 + S.bestStage) { S.bestChapter = c; S.bestStage = s; }
@@ -4988,7 +4988,7 @@ const UI = {
     onDebugStageStep(dir) {
         let c = S.chapter, s = S.stage + dir;
         if (s < 1) { c = Math.max(1, c - 1); s = 10; }
-        if (s > 10) { c = Math.min(10, c + 1); s = 1; }
+        if (s > 10) { c = Math.min(CHAPTER_THEMES.length, c + 1); s = 1; }
         S.chapter = c; S.stage = s;
         if (c * 100 + s > S.bestChapter * 100 + S.bestStage) { S.bestChapter = c; S.bestStage = s; }
         Dungeons.run = null;
