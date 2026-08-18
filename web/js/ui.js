@@ -3561,8 +3561,9 @@ const UI = {
         const maxed = sk.level >= Skills.MAX_LEVEL;
         const need = Skills.shardsRequired(maxed ? Skills.MAX_LEVEL : sk.level);
         const pb = Skills.passiveOf ? Skills.passiveOf(id) : null;
-        const desc = d.type === 'heal' ? `체력을 ${Math.round(Skills.effHeal(id) * 100)}% 회복합니다.`
-            : d.type === 'buff' ? Object.entries(d.buff).map(([k, v]) => (k === 'atkPct' ? '공격력' : '공격 속도') + ` +${v}%`).join(', ') + ' 버프를 겁니다.'
+        // 버프 표기도 고정량으로 (buff-redesign-heal-atk-fixed) — %가 아니라 실제 수치와 지속시간을 적는다
+        const desc = d.type === 'heal' ? `${d.dur}초 동안 체력을 <b>${U.fmt(Skills.healAmt(id))}</b> 회복합니다.`
+            : d.type === 'buff' ? `${d.dur}초 동안 <b>공격력 +${U.fmt(Skills.buffAtk(id))}</b> 버프를 겁니다.`
             : `${d.type === 'aoe' ? '범위 안의 적 전체에게' : '적 하나에게'} 각각 <b>${U.fmt(Skills.dmg(id))}의 피해</b>를 줍니다.`;
         // 원본(shot-042426): 좌상단 원형 오브(Lv뱃지+별+검정 조각 게이지) + 우측 제목·설명,
         // 하단 "패시브:" 라벨+회색 pill, 대형 [업그레이드(실버)][장착(파랑)] 2분할 버튼

@@ -14,7 +14,10 @@ const Combat = {
 
     enemies: [],
     hero: { hp: Big.ONE, maxHp: Big.ONE, atkTimer: 0, stats: null }, // hp·maxHp는 Big (승천 배율로 Number 한계를 넘는다)
-    buffs: [],               // {buff:{atkPct|atkSpd}, until}
+    // 스킬 버프는 **HP 회복·공격력 업 둘뿐**이다 (사용자 지시 2026-08-19 buff-redesign-heal-atk-fixed).
+    // 공속(atkSpd) 버프는 폐기됐다 — 장비 서브스탯 atkSpd 는 별개 시스템이라 그대로 살아 있다.
+    buffs: [],               // 공격력 버프: {id, buff:{atkFlat: Big}, until} — 고정 가산이라 % 가 아니다
+    hots: [],                // 지속 회복: {id, per: Big(초당), remain: Big(남은 총량), until, acc: Big, accT} — 흘려 넣는다
     cooldowns: {},           // skillId → 남은 초
     pending: [],             // 지연 실행 큐 [{t, fn}]
     wave: 0,
@@ -198,6 +201,29 @@ const Combat = {
         this.buffs = this.buffs.filter(b => b.until > nowMs);
         if (this.buffs.length !== beforeBuffs) this.recalcHero();
 
+        // 지속 회복(HoT) — 회복 스킬은 일시불이 아니라 dur 초에 걸쳐 흘러든다 (buff-redesign-heal-atk-fixed).
+        // 회복량은 고정값이라 maxHp 를 안 보지만, 최대치 상한만은 지킨다.
+        for (let i = this.hots.length - 1; i >= 0; i--) {
+            const h = this.hots[i];
+            const done = h.until <= nowMs;
+            // 🚨 만료 틱에는 **남은 몫을 통째로** 넣는다. 탭이 멈췄다 풀리면 main.js의 로직 루프가 밀린 틱을
+            //    한 발화에서 while로 몰아 도는데(캐치업), 그 구간 동안 U.now()는 얼어 있어 모든 틱이 이미
+            //    만료 시각을 지난 상태로 들어온다. 이때 '한 틱치'만 넣고 지우면 **회복량 대부분이 증발한다**
+            //    (헤드리스 실측: 5초짜리 회복이 0.1초치만 들어가고 사라졌다). 총량 보장은 고정값 사양의 일부다.
+            const amt = done ? h.remain : h.per.mul(dt).min(h.remain);
+            h.remain = h.remain.sub(amt);
+            const before = this.hero.hp;
+            this.hero.hp = this.hero.hp.add(amt).min(this.hero.maxHp);
+            h.acc = h.acc.add(this.hero.hp.sub(before)); // 만피에 걸려 안 들어간 몫은 숫자로도 안 띄운다
+            h.accT += dt;
+            // 틱마다(0.1초) 숫자를 띄우면 초당 10개가 쏟아진다 — 0.5초로 뭉쳐서 한 줄씩
+            if (done || h.accT >= 0.5) {
+                if (h.acc.isPos()) UI.floatTextAtHero(`+${U.fmt(h.acc)}`, 'heal');
+                h.acc = Big.ZERO; h.accT = 0;
+            }
+            if (done) this.hots.splice(i, 1);
+        }
+
         // 방치형 규칙(사용자 지시 2026-08-17): 접속 중에도 미수집 오프라인 보상이 실시간으로 쌓인다.
         // 그래서 여기서 해머를 따로 지급하지도, lastOfflineClaim을 전진시키지도 않는다 —
         // 전에는 활성 지급 + 기준 시각 전진을 함께 해서 켜둔 동안 누적 게이지가 아예 자라지 않았다.
@@ -283,16 +309,21 @@ const Combat = {
         const d = Skills.def(id);
         const st = this.hero.stats;
         if (d.type === 'heal') {
-            if (this.hero.hp.ratioTo(this.hero.maxHp) > 0.75) { if (manual) UI.toast('체력이 충분합니다'); return false; } // 낭비 방지
-            const healAmt = this.hero.maxHp.mul(Skills.effHeal(id));
-            this.hero.hp = this.hero.hp.add(healAmt).min(this.hero.maxHp);
+            // ⚠️ '체력이 충분하면 안 씀' 게이트는 폐기됐다 (사용자 지시 2026-08-19: "피가 깎여있어야 발동되는 거
+            //    말고 그냥 쿨타임 풀리면 써지게"). 되살리지 말 것 — 되살리면 만피에서 회복 스킬이 영영 안 돈다.
+            // 회복은 즉시 일시불이 아니라 dur 초에 걸쳐 흘려 넣는다(HoT). 총량은 maxHp 비율이 아니라 고정량.
+            const total = Skills.healAmt(id);
+            const dur = d.dur || 1;
+            this.hots = this.hots.filter(h => h.id !== id); // 같은 스킬 재시전은 갱신(중첩 금지) — 버프와 같은 규약
+            this.hots.push({ id, per: total.div(dur), remain: total, until: U.now() + dur * 1000, acc: Big.ZERO, accT: 0 });
             Scene3D.skillEffect('heal', d.color, [], d);
             UI.skillCutin(d);
-            UI.floatTextAtHero(`+${U.fmt(healAmt)}`, 'heal');
         } else if (d.type === 'buff') {
             // 같은 스킬의 이전 버프를 먼저 제거 — 재사용 대기시간이 지속시간보다 짧아지면(스킬재사용대기시간 서브스탯) 무한 중첩 방지
             this.buffs = this.buffs.filter(b => b.id !== id);
-            this.buffs.push({ id, buff: d.buff, until: U.now() + d.dur * 1000 });
+            // 가산량은 **시전 시점에 굳힌다** — 정의(SKILL_DEFS)에는 % 가 없고, 레벨·승천이 걸린 Big 값이라
+            // 버프가 살아 있는 동안 heroStats 가 매번 다시 계산하지 않게 여기서 한 번만 뽑는다.
+            this.buffs.push({ id, buff: { atkFlat: Skills.buffAtk(id) }, until: U.now() + d.dur * 1000 });
             this.recalcHero();
             Scene3D.skillEffect('aura', d.color, [], d);
             UI.skillCutin(d);

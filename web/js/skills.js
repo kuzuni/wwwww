@@ -68,9 +68,18 @@ const Skills = {
         // 승천 배율이 곱해지면 Number 한계를 넘으므로 Big 반환 (전투 데미지도 Big으로 흐른다)
         return Ascension.starMult(sk && sk.stars).mul(SKILL_BASE_DMG[d.rarity] * (d.mult || 0) * this.levelMult(id));
     },
-    effHeal(id) {
+    // 버프 위력도 데미지와 **같은 규약**의 고정량이다 — 등급 기준치 × mult × 레벨 배율 × 승천 배율.
+    // 영웅의 maxHp·atk 에 비례하지 않는다 (사용자 지시 2026-08-19 buff-redesign-heal-atk-fixed: "고정값").
+    // 승천이 곱해지면 Number 한계를 넘으므로 둘 다 Big 반환.
+    healAmt(id) {   // 지속시간(d.dur) 동안 **총** 회복량
         const d = this.def(id);
-        return Math.min(1, (d.healPct || 0) * (1 + 0.1 * (this.level(id) - 1)));
+        const sk = S.skills[id];
+        return Ascension.starMult(sk && sk.stars).mul(SKILL_BASE_HEAL[d.rarity] * (d.mult || 0) * this.levelMult(id));
+    },
+    buffAtk(id) {   // 지속시간 동안 더해지는 **고정** 공격력
+        const d = this.def(id);
+        const sk = S.skills[id];
+        return Ascension.starMult(sk && sk.stars).mul(SKILL_BASE_BUFF_ATK[d.rarity] * (d.mult || 0) * this.levelMult(id));
     },
 
     // 레벨업에 필요한 조각 수 (레벨 오를수록 증가: 저레벨 2 → 고레벨 8)

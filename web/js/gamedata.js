@@ -399,31 +399,42 @@ const SUBSTATS = [
 ];
 
 // ===== 스킬 정의 (등급별 3종: 광역/단일/유틸) =====
-// type: aoe(광역) | single(단일) | heal(회복) | buff(버프)
+// type: aoe(광역) | single(단일) | heal(회복=지속 고정량 HoT) | buff(버프=고정 공격력 가산)
+// ⚠️ 버프 종류는 **HP 회복·공격력 업 둘뿐**이다 (사용자 지시 2026-08-19 buff-redesign-heal-atk-fixed:
+//    "버프는 hp회복, 공격력 업만 되게 하고 공속업 이딴 거 넣지 마셈"). 공속(atkSpd) 버프는 폐기됐고
+//    성역·시간 왜곡이 그 자리를 회복/공격력으로 대체했다 — 되살리지 말 것.
+//    heal·buff 는 `healPct`/`buff:{...}` 같은 **비율** 필드를 더 쓰지 않는다. 위력은 데미지 스킬과 같은
+//    규약(등급 기준치 × mult × 레벨 × 승천)으로 `Skills.healAmt`/`Skills.buffAtk` 가 계산한다.
+//    `dur` = 지속(초): heal 은 그 시간 동안 나눠 회복, buff 는 그 시간 동안 공격력 가산.
 const SKILL_DEFS = [
     { id: 'powerStrike', name: '강타',           rarity: 'common',    type: 'single', mult: 3.0,  cd: 6,  fx: 'slash',    color: '#cfd8dc' },
     { id: 'whirlwind',   name: '회오리 베기',     rarity: 'common',    type: 'aoe',    mult: 1.6,  cd: 9,  fx: 'ring',     color: '#b0bec5' },
-    { id: 'firstAid',    name: '응급 처치',       rarity: 'common',    type: 'heal',   healPct: 0.18, cd: 14, fx: 'heal',  color: '#a5d6a7' },
+    { id: 'firstAid',    name: '응급 처치',       rarity: 'common',    type: 'heal',   mult: 1.8,  dur: 4,  cd: 14, fx: 'heal', color: '#a5d6a7' },
     { id: 'fireball',    name: '화염구',          rarity: 'rare',      type: 'aoe',    mult: 2.4,  cd: 10, fx: 'explode',  color: '#ff8a65' },
     { id: 'pierceShot',  name: '관통 사격',       rarity: 'rare',      type: 'single', mult: 4.5,  cd: 7,  fx: 'beam',     color: '#81d4fa' },
-    { id: 'warCry',      name: '전투의 함성',     rarity: 'rare',      type: 'buff',   buff: { atkPct: 15 }, dur: 8, cd: 18, fx: 'aura', color: '#ffcc80' },
+    { id: 'warCry',      name: '전투의 함성',     rarity: 'rare',      type: 'buff',   mult: 1.5,  dur: 8,  cd: 18, fx: 'aura', color: '#ffcc80' },
     { id: 'meteor',      name: '메테오',          rarity: 'epic',      type: 'aoe',    mult: 4.0,  cd: 13, fx: 'meteor',   color: '#ff7043' },
     { id: 'lightning',   name: '낙뢰',            rarity: 'epic',      type: 'single', mult: 7.0,  cd: 9,  fx: 'bolt',     color: '#fff176' },
-    { id: 'blessing',    name: '축복',            rarity: 'epic',      type: 'heal',   healPct: 0.35, cd: 16, fx: 'heal',  color: '#80cbc4' },
+    { id: 'blessing',    name: '축복',            rarity: 'epic',      type: 'heal',   mult: 3.5,  dur: 5,  cd: 16, fx: 'heal', color: '#80cbc4' },
     { id: 'dragonBreath', name: '용의 숨결',      rarity: 'legendary', type: 'aoe',    mult: 6.5,  cd: 15, fx: 'breath',   color: '#ba68c8' },
     { id: 'execution',   name: '처형',            rarity: 'legendary', type: 'single', mult: 11.0, cd: 11, fx: 'slash',    color: '#e57373' },
-    { id: 'sanctuary',   name: '성역',            rarity: 'legendary', type: 'buff',   buff: { atkSpd: 30 }, dur: 8, cd: 20, fx: 'aura', color: '#ce93d8' },
+    { id: 'sanctuary',   name: '성역',            rarity: 'legendary', type: 'heal',   mult: 4.0,  dur: 6,  cd: 20, fx: 'aura', color: '#ce93d8' },
     { id: 'supernova',   name: '초신성',          rarity: 'ultimate',  type: 'aoe',    mult: 10.0, cd: 17, fx: 'explode',  color: '#ffb74d' },
     { id: 'voidLance',   name: '공허의 창',       rarity: 'ultimate',  type: 'single', mult: 18.0, cd: 12, fx: 'beam',     color: '#9575cd' },
-    { id: 'timeWarp',    name: '시간 왜곡',       rarity: 'ultimate',  type: 'buff',   buff: { atkSpd: 50 }, dur: 10, cd: 24, fx: 'aura', color: '#4dd0e1' },
+    { id: 'timeWarp',    name: '시간 왜곡',       rarity: 'ultimate',  type: 'buff',   mult: 2.0,  dur: 10, cd: 24, fx: 'aura', color: '#4dd0e1' },
     { id: 'apocalypse',  name: '아포칼립스',      rarity: 'mythic',    type: 'aoe',    mult: 18.0, cd: 20, fx: 'meteor',   color: '#ef5350' },
     { id: 'godspear',    name: '신의 창',         rarity: 'mythic',    type: 'single', mult: 32.0, cd: 14, fx: 'bolt',     color: '#ffd54f' },
-    { id: 'divineShield', name: '신성한 가호',    rarity: 'mythic',    type: 'heal',   healPct: 0.7, cd: 22, fx: 'heal',   color: '#fff59d' },
+    { id: 'divineShield', name: '신성한 가호',    rarity: 'mythic',    type: 'heal',   mult: 7.0,  dur: 6,  cd: 22, fx: 'heal', color: '#fff59d' },
 ];
 
 // 스킬 고정 데미지·패시브 등급별 기준치 (원본 개별 계수 미확보 → 자체 설계, BALANCE.md 참고)
 // 데미지 = 기준치 × 스킬의 mult(등급 내 상대 위력) × 레벨 배율. 패시브는 장착만 해도 상시 적용.
 const SKILL_BASE_DMG = { common: 40, rare: 200, epic: 1000, legendary: 5000, ultimate: 25000, mythic: 125000 };
+// 버프 위력 기준치 — 영웅 스탯(maxHp·atk)에 비례하지 않는 **고정량**이라, 게임이 이미 쓰는
+// '영웅 체력·공격력 축'인 SKILL_BASE_PASSIVE 의 4배를 등급 기준치로 잡았다(같은 가족 안에서 눈금을 맞춘 것).
+// 실제 값 = 기준치 × 스킬의 mult(등급 내 상대 위력) × 레벨 배율 × 승천 배율.
+const SKILL_BASE_HEAL = { common: 120, rare: 600, epic: 2800, legendary: 12000, ultimate: 60000, mythic: 280000 };
+const SKILL_BASE_BUFF_ATK = { common: 20, rare: 80, epic: 320, legendary: 1400, ultimate: 6000, mythic: 28000 };
 const SKILL_BASE_PASSIVE = {
     common:    { atk: 5,    hp: 30 },
     rare:      { atk: 20,   hp: 150 },

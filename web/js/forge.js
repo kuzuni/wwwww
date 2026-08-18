@@ -323,10 +323,12 @@ const Forge = {
         const bag = this.allSubsBag();
 
         // 전투 중 버프 반영 (스킬 버프는 서브스탯 풀과 별개의 임시 효과)
-        let buffAtkPct = 0, buffAtkSpd = 0;
+        // ⚠️ 버프는 **고정 공격력 가산 하나뿐**이다 (사용자 지시 2026-08-19 buff-redesign-heal-atk-fixed).
+        //    옛 `atkPct`(%)·`atkSpd`(공속) 버프는 폐기 — 여기에 공속 항을 되살리면 그 지시를 어기는 것이다.
+        //    아래 `bag.atkSpd`는 **장비 서브스탯**이라 별개 시스템이고 그대로 남는다.
+        let buffAtkFlat = Big.ZERO;
         for (const b of Combat.buffs) {
-            if (b.buff.atkPct) buffAtkPct += b.buff.atkPct;
-            if (b.buff.atkSpd) buffAtkSpd += b.buff.atkSpd;
+            if (b.buff && b.buff.atkFlat) buffAtkFlat = buffAtkFlat.add(b.buff.atkFlat);
         }
 
         // 합산은 Big — 승천한 장비/펫/탈것/스킬이 하나라도 섞이면 Number로는 담기지 않는다.
@@ -334,11 +336,12 @@ const Forge = {
         hp = hp.add(gearHp.mul(TechTree.gearHpMult())).add(pb.hp).add(mb.hp).add(sb.hp);
         return {
             // atk·hp만 Big. 나머지(확률·%·공속)는 승천과 무관하게 작은 값이라 Number 그대로 둔다.
-            atk: atk.mul(1 + (bag.dmgPct + buffAtkPct) / 100),
+            // 버프 가산은 서브스탯 % 배율 **뒤에** 더한다 — 고정값이라 장비 %에 휩쓸려 불어나면 '고정'이 아니다
+            atk: atk.mul(1 + bag.dmgPct / 100).add(buffAtkFlat),
             hp: hp.mul(1 + bag.hpPct / 100),
             critCh: Math.min(80, 5 + bag.critCh),
             critDmg: 100 + bag.critDmg,
-            attacksPerSec: 1.1 * (1 + (bag.atkSpd + buffAtkSpd) / 100),
+            attacksPerSec: 1.1 * (1 + bag.atkSpd / 100), // 버프 항 제거 — 공속 버프는 폐기됐고 장비 서브스탯만 남는다
             dblAtk: Math.min(50, bag.dblAtk),
             block: Math.min(80, bag.block),
             hpRegen: bag.hpRegen,
