@@ -108,6 +108,11 @@ async function waitBooted(page, timeout = 25000) {
         // 랜드마크는 HAMMER_SVG 의 로컬 좌표를 그대로 가리킨다 — 조형을 바꾸면 여기도 같이 옮길 것.
         // (2026-08-18 크로스핀 재조형 2차: 자루 노브 x 48.4→58, 핀 끝 y -31→-30.6, 평행 몸통 58%)
         const face = map(inner, 0, 0.9);          // 타격면 중심
+        // 타격면 **양 끝**과 상판 윗면 능선(23,4)-(90,3) — 면이 상판과 나란한지 재려면 중심만으로는
+        // 부족하다(중심이 붙어 있어도 기울면 한쪽 모서리로 찍는다).
+        const faceLp = map(inner, -9.4, 0.9), faceRp = map(inner, 9.4, 0.9);
+        const topA = (() => { const p = anv.createSVGPoint(); p.x = 23; p.y = 4; return p.matrixTransform(anv.getScreenCTM()); })();
+        const topB = (() => { const p = anv.createSVGPoint(); p.x = 90; p.y = 3; return p.matrixTransform(anv.getScreenCTM()); })();
         const butt = map(inner, 53, -12.8);       // 손잡이 끝(그립 노브)
         const peen = map(inner, 0, -30.6);        // 머리 반대편(크로스 핀) 끝
         const hitPt = (() => {                    // 모루 상판 접점 (viewBox 55,14)
@@ -121,6 +126,8 @@ async function waitBooted(page, timeout = 25000) {
         return {
             face: { x: face.x, y: face.y }, butt: { x: butt.x, y: butt.y }, peen: { x: peen.x, y: peen.y },
             hit: { x: hitPt.x, y: hitPt.y }, faceL: topFaceL.x, faceR: topFaceR.x,
+            faceLp: { x: faceLp.x, y: faceLp.y }, faceRp: { x: faceRp.x, y: faceRp.y },
+            topA: { x: topA.x, y: topA.y }, topB: { x: topB.x, y: topB.y },
             hammerW: hb.width, hammerH: hb.height, anvilW: ab.width, anvilH: ab.height,
         };
     }, pct);
@@ -145,6 +152,13 @@ async function waitBooted(page, timeout = 25000) {
             say(m.face.y > m.butt.y, `① ${f.name}: 머리가 손잡이 끝보다 아래 — face.y ${m.face.y.toFixed(1)} > butt.y ${m.butt.y.toFixed(1)}`);
             say(m.face.y > m.peen.y, `① ${f.name}: 타격면이 크로스 핀보다 아래(뒤집힘 아님) — ${m.face.y.toFixed(1)} > ${m.peen.y.toFixed(1)}`);
             say(m.face.x > m.faceL && m.face.x < m.faceR, `② ${f.name}: 타격면 x가 상판 폭 안 — ${m.face.x.toFixed(1)} ∈ (${m.faceL.toFixed(1)}, ${m.faceR.toFixed(1)})`);
+            // ⑩ 타격면이 상판과 **나란한가**. 중심 거리만 재면 면이 기울어 한쪽 모서리로 찍고 있어도
+            //    통과한다. 상판 윗면 능선의 기울기와 타격면 기울기의 차이를 각도로 낸다.
+            //    (모루 상판은 이 2.5D 투영에서 거의 수평이다 — 능선 (23,4)→(90,3) = -0.85°)
+            const degOf = (p, q) => Math.atan2(q.y - p.y, q.x - p.x) * 180 / Math.PI;
+            const skew = degOf(m.faceLp, m.faceRp) - degOf(m.topA, m.topB);
+            const lift = Math.abs(Math.hypot(m.faceRp.x - m.faceLp.x, m.faceRp.y - m.faceLp.y) * Math.sin(skew * Math.PI / 180));
+            say(Math.abs(skew) <= 4, `⑩ ${f.name}: 타격면이 상판과 나란함 — 기울기차 ${skew.toFixed(1)}° (허용 ±4°, 면 양끝 높이차 ${lift.toFixed(1)}px)`);
         } else {
             const lift = m.hit.y - m.face.y;
             say(lift >= m.anvilH * 0.12, `④ ${f.name}: 들어올림 ${lift.toFixed(1)}px (기준 ≥ 모루높이의 12% = ${(m.anvilH * 0.12).toFixed(1)}px)`);

@@ -774,9 +774,9 @@ body {
 /* 3타의 되튐 + 퇴장을 한 번에 맡는다(160ms에 70° = 0.44°/ms — 타격 1.0°/ms 의 0.44배).
    0% 자세는 afswing 100% 와 **같아야** 720ms 경계에서 안 튄다. */
 @keyframes afexit {
-    0%   { transform: translate(1px, 4px)    rotate(6deg);   opacity: 1; }
-    45%  { transform: translate(4px, -24px)  rotate(-32deg); opacity: 1; }
-    100% { transform: translate(8px, -66px)  rotate(-64deg); opacity: 0; }
+    0%   { transform: translate(1.2px, 4px)  rotate(8deg);   opacity: 1; }
+    45%  { transform: translate(4px, -26px)  rotate(-30deg); opacity: 1; }
+    100% { transform: translate(8px, -70px)  rotate(-64deg); opacity: 0; }
 }
 /* 거치 각(-20°)에 이 회전이 더해진다 — 타격 프레임을 +10~16°로 둬야 합이 -10°~-4°라 **타격면이
    상판과 거의 나란히** 닿는다(0°로 두면 -20° 기울어 머리 왼쪽 모서리로만 찍힌다).
@@ -798,22 +798,22 @@ body {
    ⚠️ afexit 의 0% 는 이 애니메이션의 100% 와 반드시 같은 자세여야 한다(720ms에 튀지 않게). */
 @keyframes afswing {     /* 들어올렸다 내리치기 ×3 — 마지막은 더 크게 감아 올린다 */
     /* 등장·퇴장은 알파가 아니라 모션으로 — 정지 상태에서 페이드하면 '무에서 나타나 녹아 사라진다' */
-    0%    { transform: translate(6px, -62px)   rotate(-56deg); opacity: 0; }
-    9%    { transform: translate(2.6px, -22px) rotate(-26deg); opacity: 1; }  /* 프레임 밖에서 들어온다 */
-    14%   { transform: translate(1.4px, -13px) rotate(-11deg); }   /* 36ms에 15° = 저속 체공 */
-    24%   { transform: translate(-.28px, 5.53px) rotate(10deg); }  /* 72ms에 21°, 낙하 18유닛 */
-    28%   { transform: translate(-.28px, 5.53px) rotate(10deg); }  /* 33ms 정지(2프레임) */
-    33%   { transform: translate(.5px, -4px)   rotate(2deg); }     /* 되튐 36ms에 8° = 타격의 0.55배 */
-    41%   { transform: translate(2px, -18px)   rotate(-22deg); }
-    52%   { transform: translate(1.2px, -13px) rotate(-9deg); }
-    57%   { transform: translate(-.44px, 7.83px) rotate(12deg); }  /* 36ms에 21°, 낙하 21유닛 */
-    61%   { transform: translate(-.44px, 7.83px) rotate(12deg); }  /* 29ms 정지 */
-    65%   { transform: translate(1px, -5px)    rotate(1deg); }     /* 되튐 29ms에 11° = 0.63배 */
-    74%   { transform: translate(4px, -31px)   rotate(-42deg); }   /* 3타 윈드업이 가장 크다 */
-    85%   { transform: translate(2.4px, -18px) rotate(-20deg); }
-    90%   { transform: translate(-.66px, 12.16px) rotate(16deg); opacity: 1; }  /* 36ms에 36°, 낙하 30유닛 */
-    96.5% { transform: translate(-.66px, 12.16px) rotate(16deg); opacity: 1; }  /* 47ms 정지(최장) */
-    100%  { transform: translate(1px, 4px)     rotate(6deg); opacity: 1; }      /* 되튐은 afexit 이 잇는다 */
+    0%    { transform: translate(6px, -64px)   rotate(-58deg); opacity: 0; }
+    9%    { transform: translate(2.2px, -18px) rotate(-22deg); opacity: 1; }  /* 프레임 밖에서 들어온다 */
+    19%   { transform: translate(1.2px, -8px)  rotate(-2deg); }    /* 72ms에 20° = 저속 */
+    24%   { transform: translate(-.28px, 5.53px) rotate(19deg); }  /* 36ms에 21° = 2.1배 가속 */
+    28%   { transform: translate(-.28px, 5.53px) rotate(19deg); }  /* 33ms 정지(2프레임) */
+    33%   { transform: translate(.8px, -6px)   rotate(4deg); }     /* 되튐 0.42°/ms = 타격의 0.72배 */
+    41%   { transform: translate(3px, -27px)   rotate(-34deg); }
+    52%   { transform: translate(1.6px, -14px) rotate(-9deg); }
+    57%   { transform: translate(-.44px, 7.83px) rotate(19deg); }  /* 36ms에 28° */
+    61%   { transform: translate(-.44px, 7.83px) rotate(19deg); }  /* 29ms 정지 */
+    65%   { transform: translate(1.2px, -7px)  rotate(3deg); }     /* 되튐 0.55°/ms = 0.71배 */
+    74%   { transform: translate(4.6px, -42px) rotate(-54deg); }   /* 3타 윈드업이 가장 크다 */
+    85%   { transform: translate(2.6px, -20px) rotate(-20deg); }
+    90%   { transform: translate(-.66px, 12.16px) rotate(20deg); opacity: 1; }  /* 36ms에 40° */
+    96.5% { transform: translate(-.66px, 12.16px) rotate(20deg); opacity: 1; }  /* 47ms 정지(최장) */
+    100%  { transform: translate(1.2px, 4px)   rotate(8deg);  opacity: 1; }     /* 되튐은 afexit 이 잇는다 */
 }
 /* 타격 링 파동 — 타격 시각에 맞춰 각각 지연을 다르게 준다. 상판이 살짝 누워 보이므로 원이 아니라 타원. */
 /* ⚠️ 지연은 타격(172.8 / 410.4 / 648ms)보다 **20ms 앞**에 둔다 — 60fps에서 접촉 프레임에 링의
@@ -850,13 +850,29 @@ body {
     30%  { opacity: 1; transform: scale(var(--affs, 1)); }
     100% { opacity: 0; transform: scale(calc(var(--affs, 1) * 1.9)); }
 }
+/* 접지 그림자 — 머리 밑에 어두운 타원이 하나도 없어 머리가 상판에 얹혀 있는지 그 앞에 떠 있는지
+   구분이 안 됐다(비평가: 접촉 3프레임 어디에도 접지 단서가 없다). 다가올 때 작고 옅게,
+   접촉 프레임에 가장 진하고 넓게 — 이 한 겹이 '닿았다'를 픽셀 몇 개로 판다. */
+.anvil-fx .af-shadow {
+    fill: #2a0d04;
+    transform-box: fill-box; transform-origin: center;
+    opacity: 0; animation: afshadow .13s cubic-bezier(.2,.7,.35,1) forwards;
+}
+.anvil-fx .af-shadow.d0 { animation-delay: .126s; }
+.anvil-fx .af-shadow.d1 { animation-delay: .364s; --afds: 1.12; }
+.anvil-fx .af-shadow.d2 { animation-delay: .602s; --afds: 1.3; }
+@keyframes afshadow {
+    0%   { opacity: .1;  transform: scale(calc(var(--afds, 1) * .5)); }
+    36%  { opacity: .42; transform: scale(var(--afds, 1)); }   /* 접촉 프레임 */
+    100% { opacity: 0;   transform: scale(calc(var(--afds, 1) * 1.25)); }
+}
 /* 4갈래 섬광 — 원형 광량만으로는 상판 얼룩과 구별이 안 된다. 축을 가진 별이 붙어야
    '어디를 때렸는지'와 '지금이 그 순간'이 같이 읽힌다. 수명은 플래시보다 짧게(3~4프레임). */
 .anvil-fx .af-star {
     fill: #fffdf2; mix-blend-mode: screen;
     /* 원점은 도형 중심이 아니라 **타격점**이다 — fill-box 의 center 로 두면 위아래 비대칭 때문에
        중심이 접점보다 2.5유닛 위로 올라가 섬광이 상판에서 떠 보인다. */
-    transform-box: fill-box; transform-origin: 50% 71.4%;
+    transform-box: fill-box; transform-origin: 50% 58.3%;   /* 도형 높이 7.2 중 위 4.2 → 접촉점 */
     opacity: 0; animation: afstar .075s cubic-bezier(.1,.75,.3,1) forwards;
 }
 .anvil-fx .af-star.s0 { animation-delay: .154s; }

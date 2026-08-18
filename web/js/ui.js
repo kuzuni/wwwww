@@ -1737,25 +1737,34 @@ const UI = {
                      타고 가장자리는 완전히 투명해지는 방사 그라디언트 + screen 합성으로 바꾼다. -->
                 <radialGradient id="hmr-flash" cx=".5" cy=".5" r=".5">
                     <stop offset="0" stop-color="#ffffff" stop-opacity="1"/>
-                    <stop offset=".3" stop-color="#fff3c4" stop-opacity=".9"/>
-                    <stop offset=".62" stop-color="#ffb84a" stop-opacity=".38"/>
+                    <stop offset=".42" stop-color="#fff3c4" stop-opacity=".9"/>
+                    <stop offset=".7" stop-color="#ffb84a" stop-opacity=".38"/>
                     <stop offset="1" stop-color="#ff8a1e" stop-opacity="0"/>
                 </radialGradient>
             </defs>`
             // 92px 버튼에서 임팩트를 가장 싸게 파는 수단이 2~5프레임 백색 플래시인데 그게 아예 없었다
-            + [0, 1, 2].map(h => `<ellipse class="af-flash f${h}" cx="${cx}" cy="${cy}" rx="13" ry="4.6"/>`).join('')
+            + [0, 1, 2].map(h => `<ellipse class="af-flash f${h}" cx="${cx}" cy="${cy}" rx="17" ry="5.4"/>`).join('')
+            // rx/ry는 `scale(1)`에서 곧바로 읽히는 크기로 잡는다 — 예전엔 scale(.35)로 시작해
+            // 첫 60~70ms 동안 스트로크가 0.27px라 **타격 프레임에 링이 아예 안 보였다**
+            + [0, 1, 2].map(h => `<ellipse class="af-ring h${h}" cx="${cx}" cy="${cy}" rx="7" ry="2.4"/>`).join('')
+            // 접지 그림자 — 머리 밑에 어두운 타원이 없으면 머리가 상판에 얹혀 있는지 앞에 떠
+            // 있는지 구분이 안 된다(비평가: 접지 단서가 한 프레임에도 없다).
+            + [0, 1, 2].map(h => `<ellipse class="af-shadow d${h}" cx="${cx}" cy="${cy + 2.2}" rx="9.5" ry="2.2"/>`).join('')
+            + sparks.join('') + this.HAMMER_SVG
+            // ⚠️ 섬광은 망치 **앞**에 그린다. 뒤에 두면 흰 코어가 통째로 머리(반폭 9.4)에
+            //    가려 밖으로 나오는 건 주황 스커트뿐이고, 그게 주황 상판에 얹혀 '얼룩'이 된다.
             // 섬광 — 92px에서 '때렸다'를 가장 적은 픽셀로 파는 도형이다. 원형 광량만으로는 상판 위
             // 얼룩과 구별이 안 되지만, 축을 가진 섬광은 **방향과 순간**을 같이 준다.
             // ⚠️ 상하 대칭 4갈래로 그렸더니 아래 갈래가 상판 앞면(어두운 면)까지 흘러내려
             //    **흰 천이 걸린 모양**으로 읽혔다(8배 캡처). 타격면은 상판 윗면이라 빛이 아래로
             //    뻗을 자리가 없다 — 위 8.5 / 아래 3.4 로 비대칭을 주고 가로(±28)를 지배적으로 둔다.
-            + [0, 1, 2].map(h => `<path class="af-star s${h}" d="M${cx - 28} ${cy}`
-                + ` Q${cx - 2.6} ${cy - 1.1} ${cx} ${cy - 8.5} Q${cx + 2.6} ${cy - 1.1} ${cx + 28} ${cy}`
-                + ` Q${cx + 2.6} ${cy + 0.9} ${cx} ${cy + 3.4} Q${cx - 2.6} ${cy + 0.9} ${cx - 28} ${cy} Z"/>`).join('')
-            // rx/ry는 `scale(1)`에서 곧바로 읽히는 크기로 잡는다 — 예전엔 scale(.35)로 시작해
-            // 첫 60~70ms 동안 스트로크가 0.27px라 **타격 프레임에 링이 아예 안 보였다**
-            + [0, 1, 2].map(h => `<ellipse class="af-ring h${h}" cx="${cx}" cy="${cy}" rx="7" ry="2.4"/>`).join('')
-            + sparks.join('') + this.HAMMER_SVG;
+            // ⚠️ 위 갈래를 크게(8.5) 두면 망치 앞에 그리는 순간 **머리를 흰색으로 덮어버린다**
+            //    (screen 합성이라 밝은 강철 위에서 완전히 하얘진다). 타격점 위쪽은 애초에 머리가
+            //    차지한 자리라 빛이 뻗을 데가 없다 — 접촉선을 따라 **옆으로 새어 나오는** 납작한
+            //    빛(위 4.2 / 아래 3.0 / 가로 ±26)이어야 머리 형태를 살린 채 '터졌다'가 읽힌다.
+            + [0, 1, 2].map(h => `<path class="af-star s${h}" d="M${cx - 26} ${cy}`
+                + ` Q${cx - 3.2} ${cy - 1.2} ${cx} ${cy - 4.2} Q${cx + 3.2} ${cy - 1.2} ${cx + 26} ${cy}`
+                + ` Q${cx + 3.2} ${cy + 1} ${cx} ${cy + 3} Q${cx - 3.2} ${cy + 1} ${cx - 26} ${cy} Z"/>`).join('');
         btn.appendChild(fx);
         btn.classList.add('striking');
         // 화면 흔들림은 **모루가 든 시트**를 흔들어야 보인다 — Scene3D.shake 는 시트 뒤 3D 씬만
