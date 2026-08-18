@@ -3590,14 +3590,29 @@ body {
    9차 A ⑵ [치명]의 두 절반이 각각 여기에 걸린다: ⓐ '정점이 화면을 못 먹는다'는 밝은 스톱이
    너무 좁았던 것(실측 고휘도 면적 2.08%) ⓑ '배수별 에너지 상승이 0'은 굴림 수가 연출에
    전혀 안 들어갔던 것(x1~x75 전부 ×1.00). 스톱 위치와 정점 배율을 둘 다 --sr-e 에 물린다. */
+/* 🚨 **박스는 반드시 정사각형이어야 한다 — `inset: 0`(직사각형)으로 되돌리지 말 것.**
+   10차 비평가 A ⓵ · B ⓵ 가 [치명]으로 함께 잡은 "빛 모임이 사각형으로 잘린다"의 원인이 그것이었다.
+   `inset: 0` 이면 박스가 `.sr-wrap` 과 같은 412×732 **직사각형**인데 배경은 원형 그라디언트다.
+   크기 키워드가 없는 `circle` 은 **farthest-corner** 로 풀려 반지름이 √(206²+366²) ≈ 420px 가 되고,
+   알파 0 스톱은 63%+ ≈ 265px 인데 박스는 가로로 **206px** 밖에 안 뻗는다 — 좌우 모서리에서
+   그라디언트가 **아직 밝은 채로 잘렸다**. 세로는 366px(반지름의 87%)라 0 스톱을 지나 부드럽게
+   사라져서, 두 비평가가 똑같이 관측한 "위아래는 부드러운데 좌우만 면도날"인 비대칭이 나왔다.
+   게다가 요소가 scale 로 자라므로 렌더된 반폭이 206×s 라 **절단선이 화면 안쪽에 생겨 바깥으로
+   행진했다**(실측: x75 t0300 에 x=99/313, t0420 에 x=76/336 — 중심 206 에 대해 정확히 대칭).
+   해법은 박스를 **높이 기준 정사각형**(세로가 항상 더 긴 폰 화면이라 가로를 덮는다)으로 만들고
+   `closest-side`(반지름 = 한 변의 절반 = 366)로 못 박아, 알파 0 스톱이 어느 모서리에도 안 닿게
+   하는 것이다. 스톱은 예전 기하를 그대로 보존하도록 **420/366 = 1.148 배**로 환산했다
+   (13.5→15.5 · 25→28.7 · 39→44.8 · 63→72.3, --sr-e 항도 같은 배율) — 최대 e=1 에서도
+   72.3+20.7 = **93% < 100%** 라 박스 안에서 알파가 0 이 된다. 검증: `tools/probe-sr-clip.js`. */
 .sr-charge {
-    position: absolute; inset: 0; pointer-events: none; z-index: 60;
-    background: radial-gradient(circle at 50% 50%,
+    position: absolute; left: 50%; top: 50%; height: 100%; aspect-ratio: 1; width: auto;
+    pointer-events: none; z-index: 60;
+    background: radial-gradient(circle closest-side at 50% 50%,
                 #fff 0%,
-                #f2f7ff calc(13.5% + 7% * var(--sr-e, 0)),
-                rgba(214,234,255,.95) calc(25% + 11% * var(--sr-e, 0)),
-                var(--pre-mid, rgba(150,190,255,.6)) calc(39% + 15% * var(--sr-e, 0)),
-                rgba(255,255,255,0) calc(63% + 18% * var(--sr-e, 0)));
+                #f2f7ff calc(15.5% + 8% * var(--sr-e, 0)),
+                rgba(214,234,255,.95) calc(28.7% + 12.6% * var(--sr-e, 0)),
+                var(--pre-mid, rgba(150,190,255,.6)) calc(44.8% + 17.2% * var(--sr-e, 0)),
+                rgba(255,255,255,0) calc(72.3% + 20.7% * var(--sr-e, 0)));
     animation: srcharge .48s cubic-bezier(.7,0,.9,.2) both,
                srchargeout .42s cubic-bezier(.1,.6,.3,1) .48s forwards;
 }
@@ -3605,17 +3620,21 @@ body {
    더 넓게 터진다. 키프레임 안에서도 var()는 쓸 수 있다. */
 /* 정점 배율 = 등급 예고(--pre-sc) × 굴림 에너지(1 + .42 * --sr-e). 두 축이 독립이라 곱한다 —
    신화가 하나 뜬 x1과 일반만 나온 x75가 서로 다른 이유로 커진다. */
+/* ⚠️ 박스가 정사각형이 되면서 좌표 원점을 좌상단이 아니라 중심에 두므로, 모든 키프레임의
+   transform 은 `translate(-50%,-50%)` 로 시작해야 한다 — 빼면 광원이 우하단으로 쏠린다.
+   **scale 값은 바꾸지 않았다**: 그라디언트의 로컬 알파 0 반경이 예전 0.63×420 = 265px 에서
+   지금 0.723×366 = 265px 로 **같은 절대 픽셀**이라, 같은 배율이 같은 크기를 낸다. */
 @keyframes srcharge { /* 모임 — 후반 가속(0.48s에 정점) */
-    0%   { opacity: .06; transform: scale(.1); }
+    0%   { opacity: .06; transform: translate(-50%,-50%) scale(.1); }
     /* 중간 마디의 밝기도 예고에 물린다 — 고등급 판은 정점 전부터 이미 달궈져 있어야
        '공개 전 예고'가 순수 빌드업 프레임(430ms)에서도 읽힌다 */
-    62%  { opacity: calc(.3 + .22 * var(--pre-k, 0)); transform: scale(calc(.3 * var(--pre-sc, 1) * (1 + .42 * var(--sr-e, 0)))); }
-    100% { opacity: 1;   transform: scale(calc(.72 * var(--pre-sc, 1) * (1 + .42 * var(--sr-e, 0)))); }
+    62%  { opacity: calc(.3 + .22 * var(--pre-k, 0)); transform: translate(-50%,-50%) scale(calc(.3 * var(--pre-sc, 1) * (1 + .42 * var(--sr-e, 0)))); }
+    100% { opacity: 1;   transform: translate(-50%,-50%) scale(calc(.72 * var(--pre-sc, 1) * (1 + .42 * var(--sr-e, 0)))); }
 }
 @keyframes srchargeout { /* 정점의 백색 오버슛 감쇠 — 이 구간 안에서 아이콘이 나온다 */
-    0%   { opacity: 1;   transform: scale(calc(.72 * var(--pre-sc, 1) * (1 + .42 * var(--sr-e, 0)))); }
-    22%  { opacity: .72; transform: scale(calc(1.1 * var(--pre-sc, 1) * (1 + .42 * var(--sr-e, 0)))); }
-    100% { opacity: 0;   transform: scale(calc(2.05 * var(--pre-sc, 1) * (1 + .3 * var(--sr-e, 0)))); }
+    0%   { opacity: 1;   transform: translate(-50%,-50%) scale(calc(.72 * var(--pre-sc, 1) * (1 + .42 * var(--sr-e, 0)))); }
+    22%  { opacity: .72; transform: translate(-50%,-50%) scale(calc(1.1 * var(--pre-sc, 1) * (1 + .42 * var(--sr-e, 0)))); }
+    100% { opacity: 0;   transform: translate(-50%,-50%) scale(calc(2.05 * var(--pre-sc, 1) * (1 + .3 * var(--sr-e, 0)))); }
 }
 /* 충격파도 빛이 터지는 정점(480ms)에 나가야 한다 — 0ms에 터지면 아무것도 없는 화면에서
    링만 먼저 퍼진다 */
