@@ -1327,18 +1327,32 @@ body {
    ⚠️ 3.87rem(65px) 은 **이모지의 실제 줄상자**다 — 카드 열림 애니(`cardpop` scale .7)가 끝나기 전에
    재면 45.5px 로 잡혀(0.7배) 그 값을 박으면 아래가 통째로 2.19%p 올라간다. 모달 안 치수는
    `.opening` 제거 + 애니 무효화 + 2.5초 대기 뒤에 잴 것. */
-.league-emblem { height: 3.87rem; }
-.league-emblem .ico { width: 4.7rem; height: 4.7rem; margin: -.415rem 0 0; vertical-align: top; }
-.league-title { text-align: center; font-weight: 900; font-size: 1.15rem; color: #fff; margin: -.2rem 0 .3rem; }
+/* 머리 블록 세로 배치는 원본(shot-042149, 앱 498x896) 실측 그대로 — tools/probe-league-header.js:
+   문장 잉크 y 34~101 · 제목 118~139 · 시즌 바 145~167 · 첫 행 상단 174.
+   클론은 문장이 26px 위, 제목이 31px 위, 시즌 바가 18px 위에 있었다(머리 블록이 통째로 떠 있었다). */
+.league-emblem { height: calc(var(--app-h) * .0759); margin-top: calc(var(--app-h) * .019); }
+/* 🚨 아이콘 상자 ≠ 잉크. `leagueEmblem` 캔버스는 세로로 **0.1325~0.885 구간에만** 그림이 있고
+   (위 13%·아래 11% 가 여백) 가로는 날개가 양 끝까지 찬다. 그래서 원본 잉크 102x68 을 내려면
+   상자를 **102x102(가로 20.48%W 기준 정사각)** 로 잡고 위로 끌어올려 잉크 상단이 34px 에 오게 한다.
+   상자 높이를 잉크 높이(7.59%H)로 잡았더니 날개까지 줄어 폭이 −6.99%p 였다. */
+.league-emblem .ico { width: calc(var(--app-w) * .2048); height: calc(var(--app-w) * .2048);
+    margin: calc(var(--app-h) * -.015) 0 0; vertical-align: top; }
+/* 제목 줄상자가 27px 이라 원본(22px)보다 5px 높았다 — 높이를 못 박아 아래 블록이 안 밀리게 한다 */
+.league-title { text-align: center; font-weight: 900; font-size: 1.15rem; line-height: 1; color: #fff;
+    height: calc(var(--app-h) * .0246); margin: calc(var(--app-h) * .0088) 0 0; }
 .league-season-bar {
     display: flex; align-items: center; justify-content: center; gap: .4rem;
-    background: #12172a; border: 2px solid #000; border-radius: 1rem; padding: .35rem .9rem;
-    font-size: .8rem; font-weight: 700; color: #fff; margin: 0 auto .5rem; width: fit-content; cursor: pointer;
+    background: #12172a; border: 2px solid #000; border-radius: 1rem; padding: 0 .9rem;
+    /* 원본 바는 229px(45.98%W) x 23px(2.57%H) — 클론은 내용 폭이라 36.02%W 로 좁고 34px 로 높았다 */
+    width: calc(var(--app-w) * .4598); height: calc(var(--app-h) * .0257); box-sizing: border-box;
+    font-size: .8rem; font-weight: 700; color: #fff; margin: calc(var(--app-h) * -.0103) auto 0; cursor: pointer;
 }
 .league-season-bar b { color: var(--pp-green); }
 /* 목록 높이 실측(원본 shot-042149): 첫 행 21.21%H → 마지막 행 하단 72.54%H. 이전 .46 은 하단이
    66.43%H 에서 끝나 −6.11%p 짧았고, 아래의 회색 밴드·핀 행·도전 버튼이 통째로 ~5%p 위로 밀렸다. */
-.league-list { display: flex; flex-direction: column; gap: .6rem; max-height: calc(var(--app-h) * .521); overflow-y: auto; margin: .3rem auto; width: 82%; } /* 원본 행 ≈77% W 인셋 (185) */
+/* 머리 블록을 원본 위치로 내리면서 목록이 그만큼 위로 붙었고, 그 바람에 회색 밴드가 2.10%p 올라갔다
+   (원본 밴드 상단 74.44%H — 왼쪽 가장자리 x=6 열 스캔에서 y=667 부터 rgb(175,175,175)). 목록 높이로 되돌린다. */
+.league-list { display: flex; flex-direction: column; gap: .6rem; max-height: calc(var(--app-h) * .542); overflow-y: auto; margin: -.2rem auto 0; width: 82%; } /* 원본 행 ≈77% W 인셋 (185) */
 /* 원본 실측 재확인(2026-08-17): 랭킹 행은 **어두운 카드** rgb(5,6,10) + 흰 순위/이름이고, 내 행만 파란
    하이라이트다. 이전 주석("흰 카드(검정 순위/이름)")은 오독이었다 — 두 x창(20~24%W, 44~50%W)과
    좌측 여백 스캔 모두에서 행 내부가 rgb(5,6,10)으로 나온다.
