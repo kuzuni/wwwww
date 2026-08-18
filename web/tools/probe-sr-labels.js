@@ -30,7 +30,9 @@ const LADDER = [
     ['.sr-canopy', 20],
     ['.sr-flash', 25],
     ['.sr-shock', 30],
+    ['.sr-dust', 35],
     ['.sr-grid', 40],
+    ['.sr-near', 42],
     ['.sr-head', 45], ['.sr-foot', 45],
     ['.sr-charge', 60], ['.sr-streaks', 60],
 ];

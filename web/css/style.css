@@ -3820,7 +3820,9 @@ body {
       20  천개(.sr-canopy)
       25  착지 섬광(.sr-flash — 가산이라 셀 아래여야 셀을 탁하게 죽이지 않는다)
       30  충격파·잔파(.sr-shock)
-      40  구체 그리드(.sr-grid) — 셀 안에서 다시 orbwrap 2 → 이름표/칩 3
+      35  중간 평면 먼지(.sr-dust)
+      40  구체 그리드(.sr-grid) — 셀 안에서 다시 셀 z(--i 계단) → orbwrap 2 → 이름표/칩 3
+      42  근평면 보케(.sr-near — 구체 앞은 지나되 아래 45(글자) 위로는 못 올라간다)
       45  타이틀(.sr-head)·하단 집계·버튼(.sr-foot)
       60  빛 모임(.sr-charge)·수렴 빛줄기(.sr-streaks) — 순수 광원이라 피사체 앞이 맞다
    ⚠️ `.sr-body`는 z-index:auto라 스택 컨텍스트를 만들지 않는다 — 그 자식(floor/canopy/grid)의
@@ -4012,6 +4014,45 @@ body {
     35%  { opacity: .85; }
     70%  { opacity: .45; }
     100% { opacity: 0;   transform: translateY(-2.6rem) scale(1.1); }
+}
+
+/* ===== 깊이 평면 2겹 (10차 비평가 잔여 ② [2인 일치] "전경(피사체 앞) 평면이 0겹") =====
+   지적: 구체 **앞을** 가로지르는 요소가 NEW 배지·이름판뿐이라 화면이 한 겹으로 납작하다.
+   위 빛가루(.sr-motes)는 z 1의 배경 평면이라 이 지적을 못 메운다 — 깊이는 피사체 **앞**에
+   무언가가 지날 때 생긴다. 그래서 사다리에 두 층을 새로 넣는다(위 z 표에도 등재):
+      35  중간 평면 먼지(.sr-dust) — 충격파 30과 구체 40 사이
+      42  근평면 보케(.sr-near)    — 구체 40 **위**, 타이틀·버튼 45 **아래**
+   ⚠️ 근평면을 45 위로 올리지 말 것 — 흐린 광점이 글자 위를 지나면 이미 세 회차 연속 지적된
+      라벨 가독성이 그대로 무너진다. '피사체 앞'이면 충분하고 'UI 앞'일 필요는 없다. */
+.sr-dust { position: absolute; inset: 0; z-index: 35; pointer-events: none; overflow: hidden; }
+.sr-dust i {
+    position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s);
+    border-radius: 50%; opacity: 0; background: rgba(206,226,255,.75);
+    animation: srdust var(--dur) linear var(--d) infinite;
+}
+/* 중간 평면은 **느리고 옆으로도 흐른다** — 근평면(수직 상승)과 방향이 같으면 두 겹이
+   한 겹으로 붙어 보여 깊이가 안 생긴다. 시차(parallax)는 속도와 방향 둘 다에서 온다. */
+@keyframes srdust {
+    0%   { opacity: 0;    transform: translate(0, 1.2rem); }
+    22%  { opacity: .38; }
+    78%  { opacity: .22; }
+    100% { opacity: 0;    transform: translate(.9rem, -3.4rem); }
+}
+.sr-near { position: absolute; inset: 0; z-index: 42; pointer-events: none; overflow: hidden; }
+.sr-near i {
+    position: absolute; left: var(--x); bottom: -2rem; width: var(--s); height: var(--s);
+    border-radius: 50%; opacity: 0; filter: blur(var(--bl));
+    /* 근평면은 초점 밖이라 **테두리가 없다** — 가장자리까지 부드럽게 죽는 보케여야
+       '카메라에 가까운 것'으로 읽힌다. 선명한 점을 blur 로만 흐리면 회색 얼룩이 된다. */
+    background: radial-gradient(circle, rgba(255,255,255,.95) 0%, rgba(190,220,255,.55) 45%, rgba(190,220,255,0) 78%);
+    animation: srnear var(--dur) linear var(--d) infinite;
+}
+@keyframes srnear {
+    0%   { opacity: 0;              transform: translate(0, 0) scale(.9); }
+    14%  { opacity: var(--a, .35); }
+    86%  { opacity: var(--a, .35); }
+    /* 가로 흐름을 조금 섞어 '카메라 앞을 스쳐 지난다'로 읽히게 — 수직만이면 배경 빛가루와 같은 운동이다 */
+    100% { opacity: 0;              transform: translate(-1.6rem, -46rem) scale(1.25); }
 }
 
 /* ===== 등급 예고 (9차 비평가 B ⑴ [치명] 처방 — "공개 전 등급 예고가 0") =====

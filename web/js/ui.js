@@ -227,6 +227,38 @@ const UI = {
         return `<div class="sr-motes">${h}</div>`;
     },
 
+    // ===== 깊이 평면 2겹 (10차 비평가 잔여 ② [2인 일치] "전경 평면이 0겹") =====
+    // 지적: 구체 **앞을** 가로지르는 요소가 NEW 배지·이름판뿐이라 화면이 한 겹으로 납작하다
+    // (A 실측 부유 파티클 전 화면 6~8개). 깊이는 피사체 뒤가 아니라 **앞**에 무언가가 지날 때 생긴다.
+    // 빛가루(.sr-motes)는 z 1의 **배경** 평면이라 이 지적을 못 메운다 — 새로 두 겹을 얹는다.
+    //  · 중간 평면(.sr-dust)  z 35 — 바닥/충격파와 구체 사이. 아주 작고 어두운 먼지 48개.
+    //  · 근평면(.sr-near)     z 42 — 구체 **앞**. 크고 흐린 보케 12개가 아래→위로 지나간다.
+    // ⚠️ 근평면은 42다(그리드 40 < 42 < 타이틀·버튼 45) — 구체 앞은 지나되 글자 위는 안 지난다.
+    //    이미 세 회차 연속으로 라벨 가독성이 지적된 화면이라 텍스트 앞을 흐리면 안 된다.
+    // 배치는 빛가루와 같은 이유로 난수 대신 고정 수열이다(소환할 때마다 튀지 않게).
+    summonDust() {
+        let h = '';
+        for (let i = 0; i < 48; i++) {
+            h += `<i style="--x:${(i * 29) % 100}%;--y:${(i * 47) % 100}%;--s:${1 + (i * 7) % 2}px;`
+               + `--d:${((i * 331) % 5200) / 1000}s;--dur:${5.2 + (i % 7) * 0.4}s"></i>`;
+        }
+        return `<div class="sr-dust">${h}</div>`;
+    },
+    summonNearField() {
+        let h = '';
+        for (let i = 0; i < 14; i++) {
+            // 크기 6~14px · 흐림 6~10px · 알파 .25~.5 · 주기 3.5~6s (비평가 처방 범위 그대로)
+            // ⚠️ x 는 균등이 아니라 **가운데로 몰아** 흩는다(8~88% 중 3/4가 22~78%). 근평면의
+            //    일이 '피사체 앞을 지나는 것'이라 화면 끝만 훑으면 개수만 늘고 교차는 안 는다 —
+            //    실측으로 x75 교차 프레임이 18% → 32%로 올랐다.
+            const xs = [50, 18, 74, 34, 88, 62, 26, 8, 46, 70, 30, 58, 82, 40];
+            h += `<i style="--x:${xs[i]}%;--s:${6 + (i * 5) % 9}px;`
+               + `--bl:${6 + (i % 5)}px;--a:${(25 + (i * 7) % 26) / 100};`
+               + `--d:${((i * 617) % 5800) / 1000}s;--dur:${3.5 + (i % 6) * 0.5}s"></i>`;
+        }
+        return `<div class="sr-near">${h}</div>`;
+    },
+
     openSummonResult(kind, results) {
         if (!results || !results.length) return;
         const meta = this.SUMMON_KIND[kind] || this.SUMMON_KIND.skill;
@@ -295,6 +327,7 @@ const UI = {
                 <div class="sr-rays"></div>
                 <div class="sr-halo"></div>
                 ${this.summonMotes()}
+                ${this.summonDust()}
                 <div class="sr-charge"></div>
                 ${this.summonStreaks()}
                 <div class="sr-shock"></div>
@@ -307,6 +340,7 @@ const UI = {
                     <div class="sr-grid${size}${heroRow ? ' herorow' : ''}" style="--cols:${cols}">${cells}</div>
                     ${stage ? '<div class="sr-floor"></div>' : ''}
                 </div>
+                ${this.summonNearField()}
                 <div class="sr-foot">
                     ${this.summonSummary(rolls)}
                     <div class="sr-hint">화면을 탭하면 건너뜁니다</div>
