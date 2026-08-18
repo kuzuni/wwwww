@@ -5306,13 +5306,39 @@ const Scene3D = {
         //    이음새가 통째로 사라져 '프리미티브 더미'가 도로 드러난다.
         //    ⑶ 링 반지름은 그 높이의 **실제 몸 반지름과 같거나 살짝 커야** 한다. 작으면 몸 안에
         //    파묻혀 아무것도 안 보이고(무비용 무효과), 너무 크면 실루엣 밖으로 튀어 '후프'가 된다.
-        const aoMat = new THREE.MeshBasicMaterial({ color: 0x0a0d12, transparent: true, opacity: 0.5, depthWrite: false });
+        // 감쇠 알파맵 — 균일 알파면 가까이서 '관절에 검은 테이프를 감은' 인상이 남는다.
+        // 튜브를 감는 방향(uv.y)을 따라 이음새선에서 최대 → 1/4바퀴에서 0 으로 죽여 크레비스처럼 풀리게 한다.
+        // ⚠️ 함정 2개(앞 세션이 실측으로 밟아 인계한 것, 여기서 그대로 지킨다):
+        //   ㉠ three 의 `alphaMap` 은 텍스처의 **색(회색조)** 을 읽고 알파 채널은 무시한다 —
+        //      `rgba(...,a)` 로 그리면 전 구간 불투명으로 읽혀 감쇠가 통째로 무시된다. 흑백으로 그릴 것.
+        //   ㉡ `TorusGeometry` 는 **uv.y=0 이 바깥 적도**(몸 밖으로 나오는, 실제로 보이는 쪽)다 —
+        //      감쇠를 가운데 진하게 그리면 정확히 반대로 걸린다. 0(과 1) 쪽이 진해야 한다.
+        //   → 알파맵을 물리면 유효 농도가 떨어지므로 기준 불투명도를 올리고(×1.5) radialSegments 를
+        //     6→10 으로 키운다(6이면 그라디언트가 계단 진다).
+        const aoFade = this._aoFadeTex || (this._aoFadeTex = (() => {
+            const cv = document.createElement('canvas');
+            cv.width = 4; cv.height = 64;
+            const cx = cv.getContext('2d');
+            const gd = cx.createLinearGradient(0, 0, 0, 64);
+            // v=0(바깥 적도)이 가장 진하고, v=0.25/0.75(옆구리)에서 0, v=0.5(안쪽 적도)에서 다시 진하다.
+            gd.addColorStop(0.0, '#ffffff');
+            gd.addColorStop(0.22, '#101010');
+            gd.addColorStop(0.5, '#8a8a8a');
+            gd.addColorStop(0.78, '#101010');
+            gd.addColorStop(1.0, '#ffffff');
+            cx.fillStyle = gd; cx.fillRect(0, 0, 4, 64);
+            const t = new THREE.CanvasTexture(cv);
+            t.wrapS = t.wrapT = THREE.RepeatWrapping;
+            return t;
+        })());
+        const aoMat = new THREE.MeshBasicMaterial({ color: 0x0a0d12, transparent: true, opacity: 0.75, depthWrite: false, alphaMap: aoFade });
         // opt: { flat=상하 납작(기본 .5) · ez=z반경/x반경(타원 몸통용) · op=불투명도 · parent }
         // 토러스는 로컬 XY면 → rotation.x=π/2 로 눕히면 **로컬 y가 월드 z, 로컬 z가 월드 y** 다.
         const aoRing = (r, tube, x, y, z, opt) => {
             const o = opt || {};
-            const m2 = o.op === undefined ? aoMat : new THREE.MeshBasicMaterial({ color: 0x0a0d12, transparent: true, opacity: o.op, depthWrite: false });
-            const ring = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 6, 16), m2);
+            const m2 = o.op === undefined ? aoMat
+                : new THREE.MeshBasicMaterial({ color: 0x0a0d12, transparent: true, opacity: o.op * 1.5, depthWrite: false, alphaMap: aoFade });
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 10, 16), m2);
             // axis:'z' = 부모의 z축을 감는다(꼬리·팔처럼 **누운** 파츠용). 기본은 눕혀서 수평 링.
             if (o.axis !== 'z') ring.rotation.x = Math.PI / 2;
             ring.position.set(x, y, z);
