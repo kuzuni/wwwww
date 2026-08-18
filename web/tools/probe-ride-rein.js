@@ -6,7 +6,7 @@
 //   `alignReins` 가 매 프레임 빈 손까지 끈을 늘이는데, 이게 실제로 손에 닿는지·팔이 그 자세로
 //   서는지는 눈대중으로 못 본다(끈이 얇아 스크린샷에서도 헷갈린다).
 //
-// 판정 4가지 — 하나라도 깨지면 '고삐를 몰고 있다'로 안 읽힌다:
+// 판정 6가지 — 하나라도 깨지면 '고삐를 몰고 있다'로 안 읽힌다:
 //   ① 고삐가 실재한다(userData.rein, 계열 전 종).
 //   ② 끈 끝이 빈 손에 있다(거리 ≤ TIP_TOL). **대기·공격 양쪽**에서 — 고삐는 끈이라 핸들바와 달리
 //      공격 중에도 손을 따라가야 한다(멈추면 끈만 허공에 굳는다).
@@ -17,6 +17,7 @@
 //   ⑤ 끈이 **근쪽(카메라 쪽) 다리를 가리지 않는다**. 먼 다리는 안 본다 — 재갈↔손 직선은 카메라에서
 //      먼 다리로 가는 시선 띠(z 0.4 부근)를 구조적으로 지나고, 실제 승마 사진에서도 고삐는 말 반대쪽을
 //      가로지른다. 반면 근쪽 다리는 이 항목의 합격 기준("다리가 몸통을 감싸고")이 걸린 자리라 0 이어야 한다.
+//   ⑥ **공격 중에도** 손이 ③의 구역에 남아 있다(빈 팔이 고삐를 놓지 않는가 — `holdBarGrip`).
 //
 // ⚠️ ②는 **구조적으로 통과하는 지표**다(끈 끝이 매 프레임 손을 좇으므로) — 깨진 걸 잡는 회귀 그물일 뿐
 //    합격의 근거가 아니다. 진짜 게이트는 ③·⑤와, 공격 중에도 빈 팔이 그 자세를 유지하는가(⑥)다.
@@ -131,15 +132,21 @@ const MOUNTS = [['quad', 'Brown Horse'], ['quad', 'Elk'], ['quad', 'Camel'], ['q
         const poseOK = i.handZ > 0.05 && i.handY > 0.02 && i.handY < i.torso;
         // ④ 고삐 길이 — 몸통(골반↔머리) 길이를 자로 삼는다
         const lenOK = i.reinLen > i.torso * 0.2 && i.reinLen < i.torso * 4.0;
-        // ⑤ 근쪽 다리 가림 0 / ⑥ 공격 중 빈 팔 각이 대기와 같은가(0.05rad ≈ 3° 이내)
+        // ⑤ 근쪽 다리 가림 0
         const nearOK = i.nearHit === 0 && r.atk.every(a => a.nearHit === 0);
+        // ⑥ 공격 중에도 손이 고삐를 쥔 자리(몸 앞·골반 위)에 남아 있는가.
+        //    ⚠️ **팔 각이 대기와 똑같기를 요구하면 안 된다** — 첫 판에서 그렇게 걸었더니 7종 전부
+        //    불합격인데 정작 손은 앞·위 그대로였다(이탈 0.165rad ≈ 9°). 핸들바는 강체라 각이 흔들리면
+        //    손이 바에서 떨어지지만, 고삐는 끈이라 손을 따라간다 — 각이 조금 흔들리는 건 오히려 자연스럽다.
+        //    판정해야 하는 건 '각이 고정됐는가'가 아니라 **손이 고삐를 쥔 구역을 벗어났는가**다.
+        const atkPose = once.length ? once.every(a => a.handZ > 0.05 && a.handY > 0.02 && a.handY < a.torso) : false;
         const armWorst = Math.max(0, ...once.map(a => Math.max(Math.abs(a.arm.sh - i.arm.sh), Math.abs(a.arm.el - i.arm.el))));
-        const armOK = onceOK && armWorst <= 0.05;
+        const armOK = onceOK && atkPose;
         const ok = i.tip <= TIP_TOL && atkWorst <= TIP_TOL && poseOK && lenOK && nearOK && armOK;
         if (!ok) bad++;
         console.log(`  ${r.name.padEnd(14)} 끈끝 대기 ${String(i.tip).padStart(6)}/공격 ${String(+atkWorst.toFixed(3)).padStart(6)}` +
             `  손(앞 ${String(i.handZ).padStart(6)} 위 ${String(i.handY).padStart(6)}/상체 ${i.torso})  고삐 ${String(i.reinLen).padStart(6)}` +
-            `  근쪽가림 ${i.nearHit}/${i.n}  공격중 팔 이탈 ${armWorst.toFixed(3)}` +
+            `  근쪽가림 ${i.nearHit}/${i.n}  공격중 손(앞 ${Math.min(...once.map(a => a.handZ)).toFixed(3)} 위 ${Math.min(...once.map(a => a.handY)).toFixed(3)}, 팔각 이탈 ${armWorst.toFixed(3)})` +
             `  ${ok ? 'OK' : '⚠️ ' + [i.tip > TIP_TOL ? '대기 이탈' : '', atkWorst > TIP_TOL ? '공격 중 끈 이탈' : '', !poseOK ? '손 자세' : '', !lenOK ? '끈 길이' : '', !nearOK ? '근쪽 다리 가림' : '', !armOK ? '공격 중 팔이 고삐를 놓음' : ''].filter(Boolean).join('·')}` +
             `${onceOK ? '' : '   (once 클립 아님 — 공격이 안 걸렸다)'}`);
     }

@@ -4973,25 +4973,38 @@ const Scene3D = {
         //    손계산이 맞을 수가 없다(등자·핸들바·크랭크가 전부 같은 함정을 밟았다).
         //    여기선 **재갈 고리(끈이 매달리는 자리)만** 잡아 두고, 실제 길이·방향은 `alignReins()`가
         //    매 프레임 빈 손을 재서 푼다. 안 탄 탈것(무리·썸네일)은 기본값으로 아래로 늘어뜨린다.
-        // ⚠️ 굴레·고삐는 `part:'head'` 로 표시한다 — 안장 앞에 새로 서는 파츠라 먼 다리를 가릴 수
-        //    있고, probe-ride-clear 는 이 표식이 붙은 것만 '추가 가림'으로 판정한다(정직하게 걸리게).
+        // ⚠️ **굴레는** `part:'head'` 로 표시한다 — 머리에 붙은 파츠라 먼 다리를 가릴 수 있고,
+        //    probe-ride-clear 는 이 표식이 붙은 것만 '추가 가림'으로 판정한다(정직하게 걸리게).
+        //    **고삐(끈)는 붙이지 않는다** — 이유는 아래 끈 만드는 자리의 주석 참조.
         // hy/hz: 머리 중심(로컬), hr: 머리 반폭(x), hz2: 머리 반길이(z)
         const bridleRig = (hy, hz, hr, hz2) => {
+            // 굴레 파츠에는 표식을 하나 더 남긴다 — 가림 판정에서 **뿔·머리 같은 원래 파츠와 굴레를
+            // 갈라 보려면** 소속을 알아야 한다(실제로 Elk 에서 '뿔이 범인인가 굴레가 범인인가'를
+            // 이 표식 없이 가리려다 한 바퀴 헤맸다). probe 가 이걸로 굴레만 껐다 켜며 잰다.
+            const BR = (o) => { o.userData.bridle = true; return HEADPART(o); };
             const nz = hz + hz2 * 0.30;              // 코끈 — 주둥이 쪽
             const cz = hz - hz2 * 0.34;              // 볼끈·정수리 고리 — 귀 쪽
             const by = hy - hr * 0.46;               // 재갈 높이(입 언저리)
-            HEADPART(to(hr * 0.96, 0.013, 0, hy, nz, LEATHER));           // 코끈 — 토러스 기본면(XY)이 주둥이를 감는다
+            BR(to(hr * 0.96, 0.013, 0, hy, nz, LEATHER));           // 코끈 — 토러스 기본면(XY)이 주둥이를 감는다
             const crown = to(hr * 1.02, 0.013, 0, hy, cz, LEATHER);       // 정수리↔턱 고리
-            crown.rotation.y = Math.PI / 2; HEADPART(crown);
-            // 이마 띠(browband) — 어두운 가죽만으로는 초록 머리 위에서 안 읽힌다(안장깔개와 같은 교훈).
-            // 금색 한 줄을 얹어 '굴레를 씌운 머리'가 실루엣에서 바로 읽히게 한다.
-            const brow = to(hr * 1.03, 0.011, 0, hy + hr * 0.30, cz + hz2 * 0.16, BLANKET_TRIM);
-            brow.rotation.x = Math.PI / 2; HEADPART(brow);
+            crown.rotation.y = Math.PI / 2; BR(crown);
+            // 금색 띠 — 어두운 가죽만으로는 초록 머리 위에서 안 읽힌다(안장깔개와 같은 교훈).
+            // 한 줄 얹어 '굴레를 씌운 머리'가 실루엣에서 바로 읽히게 한다.
+            // 자리는 이마(정수리)가 아니라 **주둥이 쪽**이다. 실제 굴레는 이마 띠가 맞지만 ⑴ 게임
+            // 카메라에서 실제로 보이는 면이 주둥이 쪽이고 ⑵ 정수리 높이는 뿔 달린 종(Elk 등)이 이미
+            // 쓰고 있어 여유가 없다.
+            // ⚠️ 처음엔 이마에 뒀다가 `probe-ride-clear` 의 Elk 먼 대퇴 가림이 늘어 옮겼는데,
+            //    **그 인과는 뒤에 실측으로 반증됐다** — 굴레만 껐다 켜고 재보니(userData.bridle 표식)
+            //    가림 파츠가 세 점 모두 그대로였고 범인은 **뿔(ConeGeometry/CylinderGeometry)** 이었다.
+            //    수치가 실행마다 달라진 건 `refreshMount` 가 부유 위상을 **난수**(`U.rand`)로 잡아
+            //    프레임 자세가 매번 다르기 때문이다. 이 자리는 위 ⑴⑵ 이유로 유지하되, **가림 수치가
+            //    실행마다 튀면 난수 위상부터 의심할 것**(probe-ride-clear 는 그래서 재현성이 없다).
+            BR(to(hr * 0.99, 0.011, 0, hy, nz - hz2 * 0.22, BLANKET_TRIM));
             g.userData.rein = { straps: [] };
             for (const s of [-1, 1]) {
-                HEADPART(tube([s * hr * 0.80, hy + hr * 0.34, cz], [s * hr * 0.82, by, nz], 0.012, LEATHER)); // 볼끈
+                BR(tube([s * hr * 0.80, hy + hr * 0.34, cz], [s * hr * 0.82, by, nz], 0.012, LEATHER)); // 볼끈
                 const ring = to(hr * 0.26, 0.012, s * hr * 0.92, by, nz, IRON);   // 재갈 고리 — 밝은 금속이라 멀리서도 읽힌다
-                ring.rotation.y = Math.PI / 2; HEADPART(ring);
+                ring.rotation.y = Math.PI / 2; BR(ring);
                 // 고삐 두 줄 — 각 줄을 2분절로 만들어 **가운데를 처지게** 한다(곧은 막대면 고삐가
                 // 아니라 창으로 읽힌다). 높이 1 짜리 단위 박스라 scale.y 가 곧 길이다.
                 // ⚠️ 고삐에는 `part:'head'` 를 **붙이지 않는다.** 그 표식은 probe-ride-clear 에서
@@ -5013,7 +5026,7 @@ const Scene3D = {
             }
             // 재갈(bit) — 좌우 고리를 잇는 짧은 봉
             const bit = cy(0.011, 0.011, hr * 1.84, 0, by, nz, IRON);
-            bit.rotation.z = Math.PI / 2; HEADPART(bit);
+            bit.rotation.z = Math.PI / 2; BR(bit);
         };
 
         // 계열은 MOUNT_FORM_OF 하나만 본다 — 예전엔 여기 FLAT/FLY/WHEELED 배열이 따로 있어서
