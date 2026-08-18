@@ -122,7 +122,9 @@ function defaultState() {
         summonCount: 0,                 // 소환 누적 → 소환 레벨 상승
         // 마운트
         mountOpens: 0,                  // 누적 소환 수 → 마운트 레벨 상승
-        mounts: {},                     // name → {rarity, count}
+        // 탈것 인벤 = **펫과 같은 개체 배열** (사용자 지시 2026-08-19: 같은 종류를 여러 개, 개체마다 옵션 차등, 합성 업글).
+        // ⚠️ 기본값의 **타입**이 곧 shape 검사 기준이다 — `{}` 로 두면 배열 세이브가 매번 초기화된다.
+        mounts: [],                     // [{name, rarity, level, xp, stars, subs}] — 장착은 이 배열의 인덱스로 가리킨다
         // 장착 중인 마운트 이름 목록. 개수 제한 없음 (사용자 지시 2026-08-18 "탈것도").
         // [0]이 영웅이 실제로 올라타는 탈것이고, 나머지는 3D에서 뒤쪽에 따라다닌다(Scene3D.refreshMount).
         activeMounts: [],
@@ -141,9 +143,25 @@ function defaultState() {
 function installMountCompat(st) {
     if (!st || Object.getOwnPropertyDescriptor(st, 'activeMount')?.get) return st;
     delete st.activeMount;
+    // ⚠️ 인벤이 개체 배열이 되면서(2026-08-19) `activeMounts` 는 **인덱스**를 담는다.
+    //    tools/ 검증 스크립트는 여전히 `S.activeMount = '이름'` 으로 장면을 세우므로, 이 층에서
+    //    이름 ↔ 인덱스를 옮겨 준다(읽기는 이름, 쓰기는 이름·인덱스 둘 다 받는다).
+    //    쓰기에서 그 이름의 개체가 아직 없으면 하나 만들어 준다 — 스크립트가 인벤을 안 세우고
+    //    바로 장착만 하는 경우가 있어서다(예전엔 맵이라 그래도 동작했다).
     Object.defineProperty(st, 'activeMount', {
-        get() { return this.activeMounts && this.activeMounts.length ? this.activeMounts[0] : null; },
-        set(v) { this.activeMounts = v ? [v] : []; },
+        get() {
+            const i = this.activeMounts && this.activeMounts.length ? this.activeMounts[0] : null;
+            const m = i === null || i === undefined ? null : (this.mounts || [])[i];
+            return m ? m.name : null;
+        },
+        set(v) {
+            if (!v) { this.activeMounts = []; return; }
+            if (Number.isInteger(v)) { this.activeMounts = [v]; return; }
+            if (!Array.isArray(this.mounts)) this.mounts = [];
+            let i = this.mounts.findIndex(m => m && m.name === v);
+            if (i < 0) { this.mounts.push({ name: v, rarity: 'common', level: 1, xp: 0, stars: 0, subs: [] }); i = this.mounts.length - 1; }
+            this.activeMounts = [i];
+        },
         enumerable: false, configurable: true,
     });
     return st;
@@ -190,13 +208,16 @@ function pruneDanglingRefs() {
         seen.add(i);
         return true;
     }).slice(0, petCap);
-    // 장착 탈것도 같은 갈래: 타입은 배열인데 없는 탈것 이름을 가리키면 3D·스탯 합산에서 터진다
+    // 장착 탈것도 같은 갈래. 인벤이 개체 배열이 되면서(2026-08-19) 장착 목록도 **인덱스**다 —
+    // 없는 개체를 가리키면 3D·스탯 합산에서 터진다. 이름이 남아 있는 구세이브는 Mounts.migrateInventory 가
+    // 인덱스로 옮기지만, 여기까지 문자열이 흘러오면 그냥 버린다(그 뒤 ensure 가 다시 정리한다).
     const seenMounts = new Set();
-    S.activeMounts = S.activeMounts.filter(n => {
-        if (typeof n !== 'string' || !S.mounts[n] || seenMounts.has(n)) return false;
-        seenMounts.add(n);
+    const mountCap = (typeof Mounts !== 'undefined' && Mounts.MAX_ACTIVE_MOUNTS) || 1;
+    S.activeMounts = S.activeMounts.filter(i => {
+        if (!Number.isInteger(i) || i < 0 || !Array.isArray(S.mounts) || i >= S.mounts.length || seenMounts.has(i)) return false;
+        seenMounts.add(i);
         return true;
-    });
+    }).slice(0, mountCap);
     // 진행 좌표 상한: ensureStateShape는 하한(0/1)만 보고 위쪽은 안 본다. 난이도 티어가 범위를 넘으면
     // DIFFICULTY_NAMES 조회가 undefined 가 되어 스테이지 라벨이 "undefined 1-1"로 찍히고, 챕터가 25를
     // 넘으면 그 사이클에 존재하지 않는 좌표라 다음 클리어에서 티어가 안 오른다(전진이 영원히 막힌다).
@@ -221,6 +242,10 @@ function pruneDanglingRefs() {
 function migrateActiveMounts() {
     const legacy = typeof S.activeMount === 'string' && S.activeMount ? S.activeMount : null;
     if (!Array.isArray(S.activeMounts)) S.activeMounts = legacy ? [legacy] : [];
+    // 🔑 인벤 구조 이관(맵 → 개체 배열)을 **여기서** 돌린다. ensureStateShape 의 activeMounts 검사가
+    //    이제 '정수 인덱스'만 통과시키므로, 그 전에 이름 배열을 인덱스로 옮겨 두지 않으면 구세이브의
+    //    장착 탈것이 조용히 벗겨진다(바로 위 ⚠️ 와 같은 갈래의 순서 함정이다).
+    if (typeof Mounts !== 'undefined' && Mounts.migrateInventory) Mounts.migrateInventory();
     installMountCompat(S);   // 데이터 프로퍼티였던 activeMount를 접근자로 교체(= 세이브에서 제거)
 }
 

@@ -6018,7 +6018,9 @@ const Scene3D = {
         if (this.mountGroup) { this.disposeTree(this.mountGroup); this.scene.remove(this.mountGroup); this.mountGroup = null; }
         this.rideY = 0; this.ridePose = null; this.riding = null;
         this.refreshMountFollowers();
-        const name = Mounts.ridden(), m = name && S.mounts[name];
+        // 탈것 인벤이 개체 배열이 되면서(2026-08-19) 같은 이름이 여럿일 수 있다 —
+        // 이름으로 되찾으면 엉뚱한 개체가 잡히므로 **타고 있는 개체**를 직접 받는다(메시 선택엔 이름만 쓴다).
+        const m = Mounts.riddenInst(), name = m && m.name;
         if (!m) {                                    // 해제: 지면 복귀 + 탑승 포즈·기울기 제거
             this.rideSkirt(false);                   // 통짜 스커트 복귀 — 서 있는 실루엣은 원래대로
             if (this.heroG) { this.heroG.rotation.x = 0; this.heroG.position.y = 0; }
@@ -6151,10 +6153,13 @@ const Scene3D = {
     refreshMountFollowers() {
         for (const fg of this.mountFollowers) { this.disposeTree(fg); this.scene.remove(fg); }
         this.mountFollowers = [];
-        const names = Array.isArray(S.activeMounts) ? S.activeMounts.slice(1) : [];
-        names.forEach((name, i) => {
-            const m = S.mounts[name];
+        // `S.activeMounts` 는 개체 **인덱스** 배열이다(2026-08-19 인벤 개편). 장착이 1마리로 못박혀
+        // 있어 이 목록은 사실상 항상 비지만, 구조는 그대로 두고 인덱스만 개체로 푼다.
+        const idxs = Array.isArray(S.activeMounts) ? S.activeMounts.slice(1) : [];
+        idxs.forEach((idx, i) => {
+            const m = Mounts.inst(idx);
             if (!m) return;
+            const name = m.name;
             const g = new THREE.Group();
             const sc = 1.1 + RARITIES.indexOf(m.rarity) * 0.1;
             const mesh = this.makeMountMesh(name, m.rarity);

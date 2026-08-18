@@ -8,7 +8,10 @@ const Pets = {
     //    같이 흔들렸고, 뜻대로 세 상수로 쪼갰다. 그 뒤 같은 날 **출전 상한은 3으로 되돌아왔다**
     //    (`pet-equip-max3`: "제한 없다는 건 인벤토리 얘기고, 3개까지만 장착") — 쪼개 둔 덕에 상한만
     //    되살리면 됐다. **셋은 값이 같아도 같은 개념이 아니다. 하나로 합치지 말 것.**
-    // ⚠️ **보유(인벤토리)는 무제한 그대로** — 상한은 출전(장착)에만 걸린다.
+    // ⚠️ 보유(인벤토리) 상한과 출전(장착) 상한은 **다른 개념**이다 — 아래 셋과 마찬가지로 합치지 말 것.
+    //    2026-08-19 사용자 지시로 보유는 '무제한'에서 **250**으로 바뀌었다("인벤토리 개수 250개가 최대로
+    //    해줘야 함 각각" — 펫 250 · 탈것 250). 출전 상한 3은 그대로다.
+    INV_CAP: 250,    // 보유(인벤토리) 상한
     MAX_ACTIVE: 3,   // 동시에 출전(장착)할 수 있는 최대 마리 수
     AUTO_ACTIVE: 3,  // 부화로 새 펫이 나왔을 때 자동으로 출전시키는 최대 마리 수(그 뒤로는 사용자가 고름)
     POWER_DIV: 3,    // 밸런스 등가 나눗수 — 펫 1마리 = 같은 등급 장비 8부위 합의 1/3 (사용자 확정 2026-08-17)
@@ -122,12 +125,17 @@ const Pets = {
             if (U.now() >= h.endsAt) {
                 S.hatching.splice(i, 1);
                 const def = U.choice(petStats[h.rarity]);
-                const existing = S.pets.find(p => p.name === def.name);
-                if (existing) {
-                    // 중복 → 합성/승천 재료(dupes)로만 적립. 레벨업은 '업그레이드' 팝업에서 경험치 흡수로만 진행
-                    existing.dupes++;
-                    UI.toast(`🥚 ${PET_KR[def.name] || def.name} 중복 획득 (재료 ${existing.dupes})`);
+                // 🔑 중복도 **개체 하나**로 들어온다 (사용자 지시 2026-08-19: "펫도 생쥐 같은 거 여러 개
+                //    있을 수 있게. 같은 생쥐여도 옵션 다 다를 수 있고, 그것들 다 합성해서 업글해야 함").
+                //    예전에는 `existing.dupes++` 로 숫자만 올려 같은 종류를 하나밖에 못 가졌다.
+                if (S.pets.length >= this.INV_CAP) {
+                    // 보유 상한(250)에 걸렸다 — 부화한 펫을 버리는 대신 **알로 되돌린다**(보관함에 자리가 있으면).
+                    const back = this.addEgg(h.rarity);
+                    UI.toast(back
+                        ? `🐾 펫 보관함이 가득 찼습니다 (${S.pets.length}/${this.INV_CAP}) — 알로 되돌렸습니다`
+                        : `🐾 펫 보관함이 가득 찼습니다 (${S.pets.length}/${this.INV_CAP})`);
                 } else {
+                    const already = S.pets.some(p => p.name === def.name);
                     S.pets.push({ name: def.name, rarity: h.rarity, level: 1, dupes: 0, xp: 0, stars: Ascension.count('pet'), subs: this.rollSubs() });
                     // 자동 출전도 출전 상한을 넘길 수 없다 — 둘 다 3이라 지금은 같은 결과지만,
                     // AUTO_ACTIVE 만 올리면 상한을 우회해 4마리가 나가 버린다(개념이 다른 두 값이다).
@@ -135,7 +143,9 @@ const Pets = {
                         S.activePets.push(S.pets.length - 1);
                         if (typeof Scene3D !== 'undefined') Scene3D.refreshPets();
                     }
-                    UI.toast(`🎉 새 펫: ${PET_KR[def.name] || def.name} (${RARITY_KR[h.rarity]})`);
+                    UI.toast(already
+                        ? `🥚 ${PET_KR[def.name] || def.name} 하나 더 획득 (${RARITY_KR[h.rarity]})`
+                        : `🎉 새 펫: ${PET_KR[def.name] || def.name} (${RARITY_KR[h.rarity]})`);
                 }
                 Combat.recalcHero();
                 Quests.bump('petHatch');             // 반복 퀘스트 '알 부화'
@@ -252,26 +262,51 @@ const Pets = {
         return true;
     },
 
-    // 합성: 같은 등급 여분 조각(dupes) 3개 → 상위 등급 랜덤 알. 레벨업·장착·승천된 펫 개체는 절대 소모하지 않음(조각만 소비)
+    // 합성: 같은 등급 **여분 3개** → 상위 등급 랜덤 알.
+    // 🔑 중복이 `dupes` 숫자가 아니라 실제 개체가 되면서(2026-08-19) '여분'의 정의도 개체로 옮겼다 —
+    //    여분 = 같은 등급 · **레벨 1 · 승천 0 · 출전 중 아님**인 개체. 예전 규칙("레벨업·장착·승천된
+    //    개체는 절대 소모하지 않음")은 그대로 지켜진다. 구세이브에 남은 `dupes` 숫자도 함께 세고 **먼저** 쓴다.
     canMerge(rarity) {
         const ri = RARITIES.indexOf(rarity);
         if (ri >= RARITIES.length - 1) return false;
         return this.dupesOfRarity(rarity) >= 3;
     },
 
+    // 소모해도 되는 여분 개체의 인덱스 목록
+    spareIdxsOfRarity(rarity) {
+        const out = [];
+        S.pets.forEach((p, i) => {
+            if (p.rarity !== rarity) return;
+            if ((p.level || 1) > 1 || (p.stars || 0) > 0) return;      // 키운 개체는 안 건드린다
+            if (S.activePets.indexOf(i) >= 0) return;                  // 출전 중도 안 건드린다
+            out.push(i);
+        });
+        return out;
+    },
+
     dupesOfRarity(rarity) {
-        return S.pets.filter(p => p.rarity === rarity).reduce((s, p) => s + p.dupes, 0);
+        const legacy = S.pets.filter(p => p.rarity === rarity).reduce((s, p) => s + (p.dupes || 0), 0);
+        return legacy + this.spareIdxsOfRarity(rarity).length;
     },
 
     merge(rarity) {
         if (!this.canMerge(rarity)) return false;
         if (S.eggs.length >= this.EGG_CAP) { UI.toast('🥚 알 보관함이 가득 차 합성할 수 없습니다'); return false; }
         let need = 3;
-        for (let i = 0; i < S.pets.length && need > 0; i++) {
+        for (let i = 0; i < S.pets.length && need > 0; i++) {   // ① 구세이브의 dupes 숫자부터 소진
             const p = S.pets[i];
-            if (p.rarity !== rarity || p.dupes <= 0) continue;
+            if (p.rarity !== rarity || !(p.dupes > 0)) continue;
             const useDupes = Math.min(p.dupes, need);
             p.dupes -= useDupes; need -= useDupes;
+        }
+        if (need > 0) {                                         // ② 그다음 여분 개체를 소모
+            // 뒤에서부터 지운다 — 앞에서 지우면 뒤 인덱스가 당겨져 엉뚱한 개체가 사라진다.
+            const spare = this.spareIdxsOfRarity(rarity).slice(-need).reverse();
+            for (const idx of spare) {
+                S.pets.splice(idx, 1);
+                S.activePets = S.activePets.filter(a => a !== idx).map(a => (a > idx ? a - 1 : a));
+                need--;
+            }
         }
         const next = RARITIES[RARITIES.indexOf(rarity) + 1];
         this.addEgg(next);

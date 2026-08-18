@@ -1249,8 +1249,9 @@ const UI = {
         // 장착은 **1마리**다(사용자 지시 2026-08-18 `mount-single-equip`) — 칸에는 그 1마리를 보여준다.
         // +N 배지는 여러 마리를 장착할 수 있던 시절의 잔재라 이제 항상 0이지만, 표시 경로는 그대로 둔다
         // (제한이 다시 바뀌어도 렌더가 따라오고, 지금은 어차피 아무것도 안 그린다).
-        const riddenName = Mounts.ridden();
-        const activeMount = riddenName ? S.mounts[riddenName] : null;
+        // 인벤이 개체 배열이 되면서(2026-08-19) 같은 이름이 여럿일 수 있다 — 이름이 아니라 **개체**를 받는다.
+        const activeMount = Mounts.riddenInst();
+        const riddenName = activeMount ? activeMount.name : null;
         const extraMounts = Math.max(0, (S.activeMounts || []).length - 1);
         const eggCellHtml = activeMount
             ? `<div class="equip-cell egg-cell" title="탈것: ${MOUNT_KR[riddenName] || riddenName}${extraMounts ? ` 외 ${extraMounts}마리` : ''}" onclick="UI.openMounts()">
@@ -1674,9 +1675,11 @@ const UI = {
     // 슬롯에 이모지(🐴)를 박아 두면 실제로 소환되는 탈것과 생김새가 전혀 달라 '다른 물건'으로 읽힌다.
     // 장비 썸네일과 같은 방식: 이모지를 먼저 깔고 다음 프레임에 3D 스냅샷으로 교체한다
     // (첫 썸네일 호출이 렌더러·PMREM 환경맵을 만드느라 유독 무거워 동기로 부르면 화면이 붙잡힌다).
-    mountFace(name, cls) {
-        const m = name && S.mounts[name];
-        return this.creatureFace('mount', name, m ? m.rarity : '', cls, MOUNT_ICONS[name] || '🐴');
+    // rarity 를 주면 그 개체의 등급을 쓰고, 안 주면 같은 이름의 아무 개체에서 찾는다 —
+    // 이름↔등급은 `mountNames` 에서 1:1이라 결과는 같지만, 개체를 쥐고 있는 호출부는 넘기는 게 명확하다.
+    mountFace(name, cls, rarity) {
+        const r = rarity || ((Array.isArray(S.mounts) ? S.mounts.find(m => m && m.name === name) : null) || {}).rarity || '';
+        return this.creatureFace('mount', name, r, cls, MOUNT_ICONS[name] || '🐴');
     },
     // ⚠️ 이미 구워 둔 썸네일이면 **이모지를 거치지 않고 바로 박는다.** 매번 이모지로 깔고
     //    하이드레이트를 기다리면, 그리는 도중에 또 다시 그려지는 화면에서는 앞 프레임의 작업이
@@ -3211,7 +3214,7 @@ const UI = {
         p.innerHTML = `
             <div class="sheet-head">
                 <span class="cur-pill egg" title="깨진 알 — 펫 소환 화폐">${IconGen.img('eggCracked')} ${U.fmt(S.eggCurrency || 0)}</span>
-                <h2 class="sheet-title">펫</h2>
+                <h2 class="sheet-title">펫 ${S.pets.length}/${Pets.INV_CAP}</h2>
                 <span class="cur-pill gem">${IconGen.img('gem')} ${U.fmt(S.gems)}</span>
             </div>
             <div class="grid-scroll"><div class="sk-grid">${gridHtml}</div>
@@ -4325,8 +4328,8 @@ const UI = {
 
         let gearHtml = SLOTS.map(slot => this.equipCellHTML(slot)).join('');
         // 원본(043313): 장비 2행 우측 와이드 파란 탈것 카드 (185 재채점)
-        const amName = Mounts.ridden();
-        const am = amName ? S.mounts[amName] : null;
+        const am = Mounts.riddenInst();
+        const amName = am ? am.name : null;
         const amExtra = Math.max(0, (S.activeMounts || []).length - 1);
         gearHtml += am
             ? `<div class="equip-cell egg-cell pinfo-mount-wide" onclick="UI.openMounts()">
@@ -4344,9 +4347,9 @@ const UI = {
                 <span class="sk-orb">${UI.petFace(p.name, 'mt-inline')}<span class="sk-lv">Lv.${p.level}</span></span></button>`;
         }).join('');
         // 장착 탈것을 나열한다 — 장착이 1마리라 사실상 1칸이다(`mount-single-equip`).
-        const mountIconHtml = (S.activeMounts || []).filter(n => S.mounts[n]).map(n =>
-            `<button class="sk-cell" onclick="UI.openMountUpgrade('${n}')">
-            <span class="sk-orb">${UI.mountFace(n, 'mt-inline')}<span class="sk-lv">Lv.${S.mounts[n].level}</span></span></button>`).join('');
+        const mountIconHtml = (S.activeMounts || []).map(i => ({ i, m: Mounts.inst(i) })).filter(x => x.m).map(({ i, m }) =>
+            `<button class="sk-cell" onclick="UI.openMountUpgrade(${i})">
+            <span class="sk-orb">${UI.mountFace(m.name, 'mt-inline', m.rarity)}<span class="sk-lv">Lv.${m.level}</span></span></button>`).join('');
 
         const subsHtml = SUBSTATS
             .map(([key, label]) => ({ key, label, value: +stats.subs[key].toFixed(1) }))
@@ -4806,12 +4809,14 @@ const UI = {
 
         // 원본 레이아웃 재작성 (사용자 지시): 펫/스킬 화면 동일 패턴 — 전체화면 흰 시트 + 중앙 제목 +
         // 태엽 pill + 사각 타일 그리드(내부 스크롤) + 하단 고정 공통 소환 바 + 빨간 X
-        const tiles = Object.entries(S.mounts).map(([name, m]) => {
-            const active = Mounts.isActive(name);
-            return `<button class="pet-tile" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.openMountDetail('${name}')">
+        // 🔑 같은 종류를 여러 개 갖고 있을 수 있으므로 타일은 **개체 인덱스**로 연다(이름으로 열면 첫 개체만 열린다).
+        const tiles = S.mounts.map((m, i) => {
+            const active = Mounts.isActive(i);
+            const name = m.name;
+            return `<button class="pet-tile" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.openMountDetail(${i})">
                 <span class="tile-face">
-                    ${UI.mountFace(name, 'mt-inline')}
-                    ${active ? `<span class="sk-ribbon">${Mounts.ridden() === name ? '탑승 중' : '장착됨'}</span>` : ''}
+                    ${UI.mountFace(name, 'mt-inline', m.rarity)}
+                    ${active ? `<span class="sk-ribbon">${Mounts.riddenIdx() === i ? '탑승 중' : '장착됨'}</span>` : ''}
                     <span class="sk-lv">Lv.${m.level}</span>
                 </span>
                 ${m.stars ? `<span class="sk-star">${IconGen.img('star')}${m.stars}</span>` : ''}
@@ -4820,7 +4825,7 @@ const UI = {
 
         this.els.mountModal.innerHTML = `
             <div class="modal-card sheet mount-sheet">
-                <div class="sheet-head"><h2 class="sheet-title">탈것</h2></div>
+                <div class="sheet-head"><h2 class="sheet-title">탈것 ${Mounts.count()}/${Mounts.INV_CAP}</h2></div>
                 <div class="mount-pill-row"><span class="cur-pill winder">${IconGen.img('winder')} ${U.fmt(S.winders || 0)}</span></div>
                 <div class="grid-scroll"><div class="sk-grid">${tiles}</div></div>
                 <div class="summon-bar">
@@ -4841,11 +4846,12 @@ const UI = {
         this.hydrateMountThumbs();   // 탈것 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },
     // 탈것 상세 팝업 — 펫 상세와 동일 패턴 (타일 클릭 진입, 장착/해제·업그레이드·승천)
-    openMountDetail(name) {
-        const m = S.mounts[name];
+    openMountDetail(idx) {
+        const m = Mounts.inst(idx);
         if (!m) return;
-        const active = Mounts.isActive(name);
-        const ridden = Mounts.ridden() === name;   // 장착 중 여러 마리 가운데 실제로 올라탄 1마리
+        const name = m.name;
+        const active = Mounts.isActive(idx);
+        const ridden = Mounts.riddenIdx() === idx;   // 같은 이름이 여럿이라 '이름 비교'로는 개체를 못 가린다
         const pw = Mounts.mountPower(m);
         const maxed = m.level >= Mounts.INDIV_MAX_LEVEL;
         const subsHtml = (m.subs || []).map(s => U.subText(s)).join('<br>');
@@ -4855,7 +4861,7 @@ const UI = {
                     <div class="petd-head">
                         <div class="petd-tilecol">
                             <div class="petd-tile" style="--rc:${RARITY_CSS[m.rarity]}">
-                                ${UI.mountFace(name, 'mt-inline')}
+                                ${UI.mountFace(name, 'mt-inline', m.rarity)}
                                 ${active ? `<span class="sk-ribbon">${ridden ? '탑승 중' : '장착됨'}</span>` : ''}
                                 <span class="sk-lv">Lv.${m.level}</span>
                             </div>
@@ -4864,15 +4870,17 @@ const UI = {
                         <div class="petd-body">
                             <div class="petd-name" style="color:${UI.inkRarity(RARITY_CSS[m.rarity])}">[${RARITY_KR[m.rarity]}] ${MOUNT_KR[name] || name}</div>
                             <div class="petd-stats">${U.fmt(pw.atk)} 피해<br>${U.fmt(pw.hp)} 체력</div>
-                            <div class="petd-subs">${subsHtml || '옵션 없음'}<br><span class="muted">중복(승천 재료) ${m.dupes}</span></div>
+                            <!-- 중복은 이제 숫자(dupes)가 아니라 **개체**다(2026-08-19 인벤 개편) —
+                                 같은 종류를 몇 개 갖고 있는지 알려 주는 게 그 자리를 대신한다. -->
+                            <div class="petd-subs">${subsHtml || '옵션 없음'}<br><span class="muted">같은 종류 보유 ${S.mounts.filter(x => x.name === name).length}개</span></div>
                         </div>
                     </div>
                     <div class="petd-btns">
                         ${maxed
                             ? `<button class="btn primary petd-btn disabled">업그레이드<small>Lv.${Mounts.INDIV_MAX_LEVEL} 만렙</small></button>`
-                            : `<button class="btn primary petd-btn" onclick="UI.closeDetail(); UI.openMountUpgrade('${name}')">업그레이드</button>`}
-                        ${active && !ridden ? `<button class="btn petd-btn primary" onclick="UI.onRideMount('${name}'); UI.openMountDetail('${name}')">타기</button>` : ''}
-                        <button class="btn petd-btn ${active ? 'danger' : 'primary'}" onclick="UI.onEquipMount('${name}'); UI.openMountDetail('${name}')">${active ? '해제' : '장착'}</button>
+                            : `<button class="btn primary petd-btn" onclick="UI.closeDetail(); UI.openMountUpgrade(${idx})">업그레이드</button>`}
+                        ${active && !ridden ? `<button class="btn petd-btn primary" onclick="UI.onRideMount(${idx}); UI.openMountDetail(${idx})">타기</button>` : ''}
+                        <button class="btn petd-btn ${active ? 'danger' : 'primary'}" onclick="UI.onEquipMount(${idx}); UI.openMountDetail(${idx})">${active ? '해제' : '장착'}</button>
                     </div>
                 </div>
                 <button class="x-btn" onclick="UI.closeDetail()">✕</button>
@@ -4884,43 +4892,51 @@ const UI = {
     onSummonMount() {
         const count = this.summonMult('mount');
         const r = Mounts.summon(count);
-        if (!r) { this.toast('⚙️ 태엽이 부족합니다 (스테이지 클리어로 획득)'); return; }
+        if (!r) {
+            this.toast(Mounts.space() < 1
+                ? `🐴 탈것 보관함이 가득 찼습니다 (${Mounts.count()}/${Mounts.INV_CAP})`
+                : '⚙️ 태엽이 부족합니다 (스테이지 클리어로 획득)');
+            return;
+        }
         this.keepScroll(() => this.openMounts()); this.renderTopBar(); this.renderEquipSheet();
         this.openSummonResult('mount', r.results); // 결과는 토스트 대신 전용 연출 팝업으로 보여준다
     },
-    onEquipMount(name) { if (Mounts.equip(name)) { this.keepScroll(() => this.openMounts()); this.renderEquipSheet(); } },
+    onEquipMount(idx) { if (Mounts.equip(idx)) { this.keepScroll(() => this.openMounts()); this.renderEquipSheet(); } },
     // 장착 탈것이 여러 마리일 때 '어느 놈에 올라탈지' 고르기 (몸은 하나라 탑승은 1마리뿐)
-    onRideMount(name) { if (Mounts.setRidden(name)) { this.keepScroll(() => this.openMounts()); this.renderEquipSheet(); } },
+    onRideMount(idx) { if (Mounts.setRidden(idx)) { this.keepScroll(() => this.openMounts()); this.renderEquipSheet(); } },
 
     // 마운트 업그레이드 팝업 (펫 업그레이드와 동일 방식): 다른 탈것을 재료로 흡수해 경험치로 레벨업
     _mountUpgradeTarget: null, _mountUpgradeMats: null,
-    openMountUpgrade(name) {
-        this._mountUpgradeTarget = name;
+    openMountUpgrade(idx) {
+        this._mountUpgradeTarget = idx;
         this._mountUpgradeMats = [];
         this.renderMountUpgrade();
         this.showModal(this.els.mountUpgradeModal);
     },
     closeMountUpgrade() { this.els.mountUpgradeModal.classList.add('hidden'); },
     renderMountUpgrade() {
-        const name = this._mountUpgradeTarget;
-        const target = S.mounts[name];
+        const idx = this._mountUpgradeTarget;
+        const target = Mounts.inst(idx);
         if (!target) { this.closeMountUpgrade(); return; }
+        const name = target.name;
         const sel = this._mountUpgradeMats;
         const need = Mounts.xpNeeded(target.level);
         const maxed = target.level >= Mounts.INDIV_MAX_LEVEL;
 
-        const matChips = Object.entries(S.mounts).filter(([n]) => n !== name).map(([n, m]) => `
-            <button class="mat-chip ${sel.includes(n) ? 'on' : ''} ${Mounts.isActive(n) ? 'active' : ''}" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.onToggleMountUpgradeMat('${n}')">
-                ${UI.mountFace(n, 'mt-inline')}<small>Lv.${m.level}${m.stars ? ` ${IconGen.img('star')}${m.stars}` : ''}</small>
+        // 🔑 재료도 **개체 인덱스**다 — 같은 이름이 여럿이라 이름으로 고르면 어느 개체가 사라질지 알 수 없다.
+        const matChips = S.mounts.map((m, i) => ({ m, i })).filter(x => x.i !== idx).map(({ m, i }) => `
+            <button class="mat-chip ${sel.includes(i) ? 'on' : ''} ${Mounts.isActive(i) ? 'active' : ''}" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.onToggleMountUpgradeMat(${i})">
+                ${UI.mountFace(m.name, 'mt-inline', m.rarity)}<small>Lv.${m.level}${m.stars ? ` ${IconGen.img('star')}${m.stars}` : ''}</small>
             </button>`).join('');
 
-        const previewXp = sel.reduce((s, n) => s + Mounts.xpValue(S.mounts[n].rarity) * Mounts.levelMult(S.mounts[n]), 0);
+        const previewXp = sel.map(i => Mounts.inst(i)).filter(Boolean)
+            .reduce((sum, m) => sum + Mounts.xpValue(m.rarity) * Mounts.levelMult(m), 0);
 
         this.els.mountUpgradeModal.innerHTML = `
             <div class="modal-card wide">
                 <h3>${MOUNT_KR[name] || name} 업그레이드</h3>
                 <div class="row">
-                    <span class="cell-img emoji" style="width:2.4rem;height:2.4rem;font-size:1.25rem;border-radius:50%;border-color:${RARITY_CSS[target.rarity]}">${UI.mountFace(name, 'mt-inline')}</span>
+                    <span class="cell-img emoji" style="width:2.4rem;height:2.4rem;font-size:1.25rem;border-radius:50%;border-color:${RARITY_CSS[target.rarity]}">${UI.mountFace(name, 'mt-inline', target.rarity)}</span>
                     <div>
                         <div class="item-name">Lv.${target.level}${target.stars ? ` ${IconGen.img('star')}${target.stars}` : ''}</div>
                         <div class="muted">${maxed ? '만렙' : `경험치 ${U.fmt(target.xp || 0)}/${U.fmt(need)}${previewXp ? ` (+${U.fmt(previewXp)} 예정)` : ''}`}</div>
@@ -4933,21 +4949,26 @@ const UI = {
             </div>`;
         this.hydrateMountThumbs();   // 탈것 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },
-    onToggleMountUpgradeMat(name) {
+    onToggleMountUpgradeMat(idx) {
         const sel = this._mountUpgradeMats;
-        const pos = sel.indexOf(name);
+        const pos = sel.indexOf(idx);
         if (pos >= 0) sel.splice(pos, 1);
-        else if (sel.length < 5) sel.push(name);
+        else if (sel.length < 5) sel.push(idx);
         this.renderMountUpgrade();
     },
     onConfirmMountUpgrade() {
-        const name = this._mountUpgradeTarget;
-        const target = S.mounts[name];
+        const idx = this._mountUpgradeTarget;
+        const target = Mounts.inst(idx);
         if (target && target.level >= Mounts.INDIV_MAX_LEVEL) { this.toast('만렙입니다 — 승천을 이용하세요'); return; }
         const sel = this._mountUpgradeMats;
-        if (!sel.length) return;
-        if (!Mounts.absorbMaterials(name, sel)) return;
-        this.toast(`✨ ${MOUNT_KR[name] || name} Lv.${S.mounts[name].level}!`);
+        if (!sel.length || !target) return;
+        const name = target.name;
+        // ⚠️ 재료를 지우면 뒤 인덱스가 당겨져 **대상 인덱스도 움직인다** — absorbMaterials 가 보정한 값을 받아
+        //    _mountUpgradeTarget 을 갱신하지 않으면 다음 렌더가 엉뚱한 개체를 연다.
+        const newIdx = idx - sel.filter(i => i < idx).length;
+        if (!Mounts.absorbMaterials(idx, sel)) return;
+        this._mountUpgradeTarget = newIdx;
+        this.toast(`✨ ${MOUNT_KR[name] || name} Lv.${(Mounts.inst(newIdx) || target).level}!`);
         this._mountUpgradeMats = [];
         this.renderMountUpgrade();
         this.keepScroll(() => this.openMounts()); // 재료로 소모된 마운트가 뒤에 깔린 목록에서도 즉시 사라지도록 (펫 플로우와 동일 패턴)
