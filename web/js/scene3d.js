@@ -1903,13 +1903,22 @@ const Scene3D = {
         const rnd = () => { n = Math.sin(n * 12.9898 + 78.233) * 43758.5453; n -= Math.floor(n); return n; };
         const R = (a, b) => a + (b - a) * rnd();
         const pos = [], col = [];
-        const push = (p, sh) => { pos.push(p.x, p.y, p.z); col.push(sh, sh, sh); };
-        const tri = (a, b, c, sa, sb, sc) => { push(a, sa); push(b, sb); push(c, sc); };
+        // 명도만 갈면 면들이 전부 같은 색의 무광 램프가 된다("면 간 hue 차 0" — 비평가 ③).
+        // 그늘은 푸른 보라로, 빛 받는 쪽은 청록으로 **색온도까지** 갈라 준다. 두 틴트 모두 최대 성분이
+        // 1.0 이라 vertexColors(=albedo 에 곱해짐)가 1 을 넘지 않는다.
+        // ⚠️ 빛 받는 쪽을 **따뜻한 쪽**(R↑B↓)으로 주면 청록 결정 끝이 분홍으로 뜬다(격리 캡처에서 확인).
+        //    시안 결정의 광부는 청록-연두 쪽이 맞다 — 그늘만 푸른 보라로 빼고 광부는 초록을 살짝 올린다.
+        const TC = [0.70, 0.80, 1.00], TL = [0.86, 1.00, 0.97];
+        const push = (p, sh, k) => {
+            pos.push(p.x, p.y, p.z);
+            for (let q = 0; q < 3; q++) col.push(sh * (TC[q] + (TL[q] - TC[q]) * k));
+        };
+        const tri = (a, b, c, sa, sb, sc, ka, kb, kc) => { push(a, sa, ka); push(b, sb, kb); push(c, sc, kc); };
         // 큰 것 하나가 지배하고 나머지가 받치는 구성 — 같은 키 3개는 '삼지창'으로 읽힌다.
-        // [높이계수, 반경계수, x, z]
+        // [높이계수, x, z]  ⚠️ 반경은 상수로 주지 않는다 — 아래에서 **높이에 비례**시킨다.
         const plan = [
-            [1.06, 0.116, 0.00, 0.00], [0.78, 0.093, -0.21, 0.11], [0.58, 0.081, 0.20, -0.15],
-            [0.30, 0.062, -0.27, -0.21], [0.24, 0.054, 0.29, 0.17], [0.18, 0.047, 0.06, 0.27],
+            [1.06, 0.00, 0.00], [0.78, -0.21, 0.11], [0.58, 0.20, -0.15],
+            [0.30, -0.27, -0.21], [0.24, 0.29, 0.17], [0.18, 0.06, 0.27],
         ];
         const SIDES = 6;
         const m = new THREE.Matrix4(), e = new THREE.Euler();
@@ -1918,9 +1927,12 @@ const Scene3D = {
         const parts = [];   // 결정별 정점 구간 + 배치 행렬 — 합친 뒤에도 개체 단위로 잴 수 있게 남긴다(probe-crystal-sculpt)
         for (let ci = 0; ci < plan.length; ci++) {
             const vStart = pos.length / 3;
-            const [hk, rk, px, pz] = plan[ci];
+            const [hk, px, pz] = plan[ci];
             const h = hk * R(0.95, 1.25) * s;
-            const rBase = rk * R(0.85, 1.2) * s;
+            // ⚠️ **반경을 높이에 종속시킨다.** 상수 반경(rk×s)으로 주면 키 작은 개체까지 전부 같은 굵기라
+            //    중경·원경에서 세장비가 무너져 '바늘'이 양산된다(비평가 ①: 중경 39~55px 개체가 다수).
+            //    비율을 규칙으로 못 박는다 — 주상 결정 r/h 0.150~0.185, 밑동 파편은 짧고 굵게 0.22~0.30.
+            const rBase = h * (ci < 3 ? R(0.150, 0.185) : R(0.22, 0.30));
             // 파편일수록 크게 눕는다(밑동에서 사방으로 뻗어 나온 인상). ⚠️ 주상 결정도 **반드시 눕힌다** —
             // 전부 수직이면 클러스터가 '울타리 말뚝'으로 읽힌다(비평가 ②: "중심 x가 50행 동안 154.0 고정").
             const tilt = ci < 3 ? R(0.06, 0.30) : R(0.22, 0.5);
@@ -1938,7 +1950,9 @@ const Scene3D = {
             //    단면이 결정마다 거의 똑같아져 개체차가 게이트 밑으로 떨어진다(실측 0.0376 → 0.0980).
             const flip = rnd() < 0.5 ? 1 : 0;
             for (let j = 0; j < SIDES; j++) { rj.push(((j + flip) % 2 ? 1.16 : 0.86) * R(0.86, 1.17)); sy.push(R(0.88, 1.12)); fShade.push((rnd() - 0.5) * 0.15); }
-            const shoulder = h * R(0.58, 0.74);          // 기둥 → 뿔 전이 높이
+            // 기둥 → 뿔 전이 높이. ⚠️ **종단 뿔은 전체 높이의 25% 를 넘지 않는다** — 0.58~0.74 로 두면
+            // 뿔이 실루엣의 26~42% 를 먹어 중경에서 어깨가 통째로 소실되고 다시 원뿔로 읽힌다.
+            const shoulder = h * R(0.76, 0.85);
             const taper = R(0.80, 0.97);                 // 기둥은 살짝만 좁아진다(원뿔과 갈리는 지점)
             const r0 = [], r1 = [], apex = xf(v.set(rBase * R(-0.25, 0.25), h, rBase * R(-0.25, 0.25)));
             for (let j = 0; j < SIDES; j++) {
@@ -1957,17 +1971,19 @@ const Scene3D = {
                 return Math.max(0.16, Math.min(1, (0.40 + 0.60 * Math.pow(k, 0.8)) * root + f));
             };
             const shoulderShade = j => sh(shoulder * sy[j], fShade[j]);
+            const kh = y => Math.min(1, Math.max(0, y / h));   // 색온도 보간용 정규화 높이
+            const kS = j => kh(shoulder * sy[j]);
             for (let j = 0; j < SIDES; j++) {
                 const k = (j + 1) % SIDES;
                 const f = fShade[j];
                 const b0 = sh(0, f), b1 = sh(0, fShade[k]);
                 // ⚠️ 감기 방향 — three.js 는 CCW 가 앞면이다. 각도 증가 순(r0[j]→r0[k])으로 감으면 법선이
                 //    **안쪽**을 봐서 옆면이 통째로 컬링돼 결정이 뚫려 보인다. 역순으로 감는다(밑면만 정순).
-                tri(r1[k], r0[k], r0[j], shoulderShade(k), b1, b0);              // 주상면 ⑴
-                tri(r1[j], r1[k], r0[j], shoulderShade(j), shoulderShade(k), b0); // 주상면 ⑵
+                tri(r1[k], r0[k], r0[j], shoulderShade(k), b1, b0, kS(k), 0, 0);              // 주상면 ⑴
+                tri(r1[j], r1[k], r0[j], shoulderShade(j), shoulderShade(k), b0, kS(j), kS(k), 0); // 주상면 ⑵
                 const ft = Math.min(1, sh(h, f) + 0.08);                        // 종단면은 한 단 밝게
-                tri(apex, r1[k], r1[j], ft, shoulderShade(k), shoulderShade(j)); // 추면
-                if (j >= 2) tri(r0[0], r0[j], r0[k], b0 * 0.72, b0 * 0.72, b1 * 0.72); // 밑면(눕는 파편이 있어 막는다)
+                tri(apex, r1[k], r1[j], ft, shoulderShade(k), shoulderShade(j), 1, kS(k), kS(j)); // 추면
+                if (j >= 2) tri(r0[0], r0[j], r0[k], b0 * 0.72, b0 * 0.72, b1 * 0.72, 0, 0, 0); // 밑면(눕는 파편이 있어 막는다)
             }
             parts.push({ start: vStart, count: pos.length / 3 - vStart, h, rBase, shoulder, mat: m.elements.slice() });
             tall = Math.max(tall, h);
@@ -8776,7 +8792,10 @@ const Scene3D = {
             const p = 0.5 + Math.sin(this._clock * 1.15) * 0.5;
             // ⚠️ 진폭(p-p)은 유지하되 **바닥값을 내렸다**(0.85~1.35 → 0.24~0.46). 옛 값은 조형·음영을
             //    통째로 씻어냈다(setTheme 쪽 주석 참고). probe-wind 의 발광 게이트는 p-p 0.10 이라 그대로 통과한다.
-            this.crystalMat.emissiveIntensity = 0.24 + p * 0.22;
+            // ⚠️ 진폭 여유를 둔다 — probe-wind 는 짧은 창에서 재느라 명목 p-p 의 약 47% 만 잡는다.
+            //    명목 0.22 로 뒀더니 실측 0.104 로 게이트(0.10) 코앞이었다. 진폭을 0.32 로 올리되
+            //    **바닥값을 같이 내려** 최대치(0.46)는 그대로 둔다 — 최대치를 올리면 순백 클리핑이 되돌아온다.
+            this.crystalMat.emissiveIntensity = 0.14 + p * 0.32;
             // 할로도 낮춘다 — 가산 합성이라 밝아진 결정 위에 얹히면 그 자리가 순백으로 클리핑된다(실측 364px).
             if (this.crystalHaloMat) this.crystalHaloMat.opacity = 0.22 + p * 0.18;
             // 접지 글로우는 **밑동을 밝힌다** — 세면 접지 블롭 그림자를 지워 프롭이 지면에서 떠 보인다

@@ -23,6 +23,8 @@ const CV_MIN = 0.06;     // ② 단면 반경 변동계수 하한 — 정육각�
 const SHADE_MIN = 0.20;  // ③ 음영 기울기 하한
 const FACET_MIN = 0.012; // ④ 면 변주(밑동 링 색 sd) 하한
 const DIFF_MIN = 0.040;  // ⑥ 개체 간 반경 RMS 차 / 평균반경
+const SHOULDER_MIN = 0.72; // ⑧ 어깨 높이 / 전체 높이 — 종단 뿔이 28% 를 넘으면 중경에서 어깨가 소실된다
+const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면 '바늘'
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -76,6 +78,11 @@ const DIFF_MIN = 0.040;  // ⑥ 개체 간 반경 RMS 차 / 평균반경
                     return hit.length ? hit.reduce((x, y2) => x + y2, 0) / hit.length : 0;
                 };
                 const lo = radiusAt(0.05 * p.h), mid = radiusAt(0.45 * p.h);
+                // ⑧ 비율 — 중경에서 '바늘'로 무너지지 않으려면 **주상부가 길고 뿔이 짧아야** 한다.
+                //    어깨 높이는 굽힌 정점의 y 중에서 밑동(0)도 꼭짓점(h)도 아닌 링의 평균으로 되뽑는다.
+                const midYs = ys.filter(y2 => y2 > p.h * 0.05 && y2 < p.h * 0.97);
+                const shoulderK = midYs.length ? (midYs.reduce((x, y2) => x + y2, 0) / midYs.length) / p.h : 0;
+                const slender = radiusAt(0.05 * p.h) / p.h;   // r/h — 작을수록 바늘
                 // ② 단면 비대칭 + ④ 면 변주 — 밑동 링(y ≈ 0) 정점들
                 const baseIdx = [];
                 for (let i = 0; i < ys.length; i++) if (Math.abs(ys[i]) < 1e-4 * p.h + 1e-5) baseIdx.push(i);
@@ -103,6 +110,7 @@ const DIFF_MIN = 0.040;  // ⑥ 개체 간 반경 RMS 차 / 평균반경
                     if (nx * cxm + nz * czm <= 0) inward++;
                 }
                 parts.push({
+                    shoulderK, slender,
                     col: lo ? mid / lo : 0, cv: mean(baseR) ? sd(baseR) / mean(baseR) : 0,
                     shade, facet: sd(baseC), inward, sideTris,
                     prof: baseIdx.map(i => rs[i]), verts: p.count,
@@ -150,6 +158,11 @@ const DIFF_MIN = 0.040;  // ⑥ 개체 간 반경 RMS 차 / 평균반경
     console.log(`④ 면 변주 min      ${fcMin.toFixed(4)} (게이트 ${FACET_MIN})`);
     console.log(`⑤ 안쪽 향한 기둥면  ${inward} / ${sideTris}`);
     console.log(`⑥ 개체 간 최소차    ${dMin.toFixed(4)} (${pairs}쌍, 게이트 ${DIFF_MIN})`);
+    const shK = Math.min.apply(null, all.map(p => p.shoulderK));
+    const slMin = Math.min.apply(null, all.map(p => p.slender));
+    console.log(`⑧ 어깨높이/전체 min ${shK.toFixed(3)} (게이트 ${SHOULDER_MIN} — 뿔이 ${((1 - SHOULDER_MIN) * 100).toFixed(0)}% 를 넘으면 원뿔로 읽힌다)  세장 r/h min ${slMin.toFixed(3)} (게이트 ${SLENDER_MIN})`);
+    if (shK < SHOULDER_MIN) fails.push(`어깨 높이 ${shK.toFixed(3)} < ${SHOULDER_MIN} — 종단 뿔이 실루엣을 너무 먹는다`);
+    if (slMin < SLENDER_MIN) fails.push(`세장비 r/h ${slMin.toFixed(3)} < ${SLENDER_MIN} — 중경에서 바늘로 무너진다`);
     console.log(`드로우콜 crystalMat 메시/클러스터 ${res.meshCount.join(',')} (교체 전 3)`);
 
     if (colMin < COL_MIN) fails.push(`기둥성 ${colMin.toFixed(3)} < ${COL_MIN} — 아직 원뿔이다(어깨선이 없다)`);
@@ -183,7 +196,7 @@ const DIFF_MIN = 0.040;  // ⑥ 개체 간 반경 RMS 차 / 평균반경
         //    엉뚱하게 튀고 크리스탈 픽셀 판정이 46% 로 부풀었다(실측, 첫 판이 그렇게 망가졌다).
         await p2.evaluate(() => {
             const pin = (o, k, v) => Object.defineProperty(o, k, { value: v, writable: false, configurable: true });
-            pin(Scene3D.crystalMat, 'emissiveIntensity', 0.35);   // 맥동 중앙값
+            pin(Scene3D.crystalMat, 'emissiveIntensity', 0.30);   // 맥동 중앙값
             if (Scene3D.crystalHaloMat) pin(Scene3D.crystalHaloMat, 'opacity', 0.31);
             if (Scene3D.crystalGlowMat) pin(Scene3D.crystalGlowMat, 'opacity', 0.49);
             // ⚠️ 🚨 **카메라를 못 박지 않으면 두 프레임 차분이 크리스탈이 아니라 시차를 잰다.**
@@ -201,27 +214,42 @@ const DIFF_MIN = 0.040;  // ⑥ 개체 간 반경 RMS 차 / 평균반경
         //    (실측 182,603px → camLock 후에도 100,648px). `probe-wind.js` 머리말의 함정 ㉠~㉢ 과 같은 계열이다.
         //    대신 **크리스탈만 남기고 전부 끈 프레임**을 따로 굽는다 — 조명·안개는 그대로라 크리스탈이
         //    화면에서 갖는 명도는 인게임과 동일하고, 검은 배경 대비로 픽셀 판정이 결정론적이 된다.
+        // ⚠️ 클립은 **캔버스 사각형만** — 페이지 전체를 찍으면 DOM HUD 가 픽셀 통계에 섞인다.
         const clip = await p2.evaluate(() => {
             const r = document.querySelector('canvas').getBoundingClientRect();
-            return { x: Math.max(0, r.x), y: Math.max(0, r.y), width: Math.round(r.width), height: Math.round(r.height) };
+            return { x: Math.max(0, Math.round(r.x)), y: Math.max(0, Math.round(r.y)), width: Math.round(r.width), height: Math.round(r.height) };
         });
         const full = await p2.screenshot({ timeout: 120000, clip });
-        await p2.evaluate(() => {
-            Scene3D._keep = [];
-            Scene3D.scene.traverse(o => { if (o.isMesh && o.material === Scene3D.crystalMat) Scene3D._keep.push(o); });
+        // ⚠️ 🚨 **DOM HUD 와 전투 FX 를 안 끄면 그것들이 '크리스탈 픽셀'로 잡힌다.** 첫 판은 클립 영역이
+        //    캔버스가 아니라 페이지 전체라 오프라인 배지·스테이지 라벨·데미지 숫자·타격 스파크·코인 토스트가
+        //    전부 들어왔다 — 순백 클리핑의 정체가 **크리스탈이 아니라 타격 스파크**였고, 매 프레임 달라지는
+        //    FX 때문에 픽셀 수가 22k↔157k 로 널뛰었다. DOM 을 숨기고, 3D FX 는 늦게 스폰되므로
+        //    **숨김 순회를 두 번** 돌린 직후에 찍는다.
+        const hideAll = () => p2.evaluate(() => {
+            for (const sel of ['#topbar', '#equip-sheet', '#skill-bar', '#stage-label', '#wave-pips', '#chat-preview',
+                '#loot-feed', '#hero-hp-wrap', '.waypoint', '#offline-btn', '#tabbar', '#dmg-layer'])
+                document.querySelectorAll(sel).forEach(el => el.style.visibility = 'hidden');
+            if (Scene3D.fxLayer) Scene3D.fxLayer.style.visibility = 'hidden';
+            if (!Scene3D._keep) {
+                Scene3D._keep = [];
+                Scene3D.scene.traverse(o => { if (o.isMesh && o.material === Scene3D.crystalMat) Scene3D._keep.push(o); });
+            }
             const keep = new Set();
             for (const m of Scene3D._keep) { let n = m; while (n) { keep.add(n); n = n.parent; } }
-            Scene3D._hidden = [];
+            Scene3D._hidden = Scene3D._hidden || [];
             Scene3D.scene.traverse(o => {
                 if ((o.isMesh || o.isSprite || o.isPoints || o.isLine) && !keep.has(o) && o.visible) {
                     o.visible = false; Scene3D._hidden.push(o);
                 }
             });
             Scene3D.renderer.setClearColor(0x000000);
-            if (Scene3D.scene.background) Scene3D.scene.background = null;
+            Scene3D.scene.background = null;
         });
-        await p2.waitForTimeout(250);
+        await hideAll();
+        await p2.waitForTimeout(300);
+        await hideAll();                       // 그 사이 스폰된 FX 까지 잡는다
         const only = await p2.screenshot({ timeout: 120000, clip });
+        if (process.env.CRYSTAL_DUMP) require('fs').writeFileSync(process.env.CRYSTAL_DUMP, only);
         await p2.evaluate(() => { for (const o of Scene3D._hidden) o.visible = true; });
         const stats = await p2.evaluate(async ([a, b]) => {
             const load = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; });
