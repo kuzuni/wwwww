@@ -2567,7 +2567,10 @@ const UI = {
     // translate가 합성되면서 직선으로 보인다. 착지 시각(비율)은 CSS 키프레임과 아래 상수가 같이 소유한다.
     COIN_FLY_MS: 780,
     COIN_LAND_K: 0.72,   // 키프레임에서 코인이 지면에 닿는 지점(= @keyframes coinFlyY의 72%)
-    COIN_TOTAL_BEAT: 150, // 마지막 코인 착지 후 총액이 뜨기까지의 한 박자(ms)
+    // 착지 금액 라벨의 수명(ms) — 사용자 지시 2026-08-19 `sell-coin-split-rising`: "수명 2초 정도".
+    // CSS `@keyframes coinAmt` 길이(`.coin-amt { animation-duration }`)와 **같은 값이어야 한다** —
+    // 여기가 짧으면 페이드가 끝나기 전에 노드가 사라져 뚝 끊기고, 길면 투명한 노드가 레이어에 쌓인다.
+    COIN_AMT_MS: 2000,
     coinBurst(total) {
         total = Math.floor(Number(total) || 0);
         if (total <= 0) return;
@@ -2585,7 +2588,12 @@ const UI = {
         }
         // 금액 규모로 3~10개 — 금액이 커질수록 많아지되 상한을 둔다(성능·가독성)
         const n = U.clamp(3 + Math.round(Math.log10(Math.max(1, total)) * 1.7), 3, 10);
-        const per = Math.floor(total / n);
+        // 착지 자리마다 뜨는 값은 **합÷개수로 전부 같은 값**이다 (사용자 지시 2026-08-19
+        // `sell-coin-split-rising`: "코인 10개면 합÷10 값으로 각자의 착지자리에서"). 예전엔 마지막
+        // 코인이 나머지를 흡수해 혼자 다른 값을 달았는데, 그건 화면 어딘가에 총액이 같이 떠서
+        // "쪼갠 값들의 합 = 총액"을 눈으로 맞출 수 있을 때만 의미가 있었다. 총액 표시를 없앤 지금은
+        // 한 개만 다른 숫자를 다는 게 오히려 '왜 얘만 다르지'로 읽힌다.
+        const per = Math.max(1, Math.round(total / n));
         const coinHtml = IconGen.img('coin');
         // ---- 착지 자리 배치 (QA 발견 버그 수정) ----
         // 예전엔 dx를 ±52~108px, drop을 26~58px 난수로 뿌렸다. 그러면 착지점이 **세로로 두 줄쯤 되는
@@ -2600,10 +2608,8 @@ const UI = {
         const row0 = 1.2 * rem;
         // i를 줄에 라운드로빈으로 뿌린다 — x가 이웃한 코인이 같은 줄에 서지 않게
         const colsIn = (r) => Math.ceil((n - r) / rows);
-        let lastLand = 0;   // 마지막 코인이 지면에 닿는 시각 — 총액은 이보다 뒤에만 뜬다
         for (let i = 0; i < n; i++) {
-            // 마지막 코인이 나머지를 흡수 — 착지 금액의 합이 총액과 정확히 같아야 한다
-            const amt = i === n - 1 ? total - per * (n - 1) : per;
+            const amt = per;
             const row = i % rows, col = Math.floor(i / rows), cols = colsIn(row);
             const span = colGap * (cols - 1) / 2;                        // 그 줄의 반폭
             const dx = (cols <= 1 ? 0 : -span + col * colGap) + U.rand(-0.15, 0.15) * rem;
@@ -2617,30 +2623,23 @@ const UI = {
                 + `<span class="coin-fly-img">${coinHtml}</span></span>`;
             layer.appendChild(el);
             setTimeout(() => el.remove(), this.COIN_FLY_MS + delay + 120);
-            // 착지하는 그 순간 그 자리에서 금액이 떠오른다(데미지 숫자와 같은 문법)
+            // 착지하는 그 순간 그 자리에서 금액이 떠오른다(데미지 숫자와 같은 문법 —
+            // 임팩트 팝 한 번 → 그 뒤로는 천천히 밀려 올라가며 페이드, 수명 COIN_AMT_MS).
             const landAt = delay + this.COIN_FLY_MS * this.COIN_LAND_K;
-            if (landAt > lastLand) lastLand = landAt;
             setTimeout(() => {
                 const t = document.createElement('span');
                 t.className = 'coin-amt';
                 t.textContent = '+' + U.fmt(amt);
-                t.style.cssText = `left:${(ox + dx).toFixed(1)}px; top:${(oy + drop).toFixed(1)}px`;
+                t.style.cssText = `left:${(ox + dx).toFixed(1)}px; top:${(oy + drop).toFixed(1)}px;`
+                    + ` --amt-dur:${this.COIN_AMT_MS}ms`;
                 layer.appendChild(t);
-                setTimeout(() => t.remove(), 760);
+                setTimeout(() => t.remove(), this.COIN_AMT_MS + 60);
             }, landAt);
         }
-        // 총 획득액은 모루 위에 크게 한 번 — 코인 개수만큼 나뉜 숫자만 보면 합계가 안 읽힌다.
-        // 단 **폭발 즉시 띄우면 안 된다**(사용자 지시 2026-08-17: "코인이 착지한 다음 가격이 떠오르게").
-        // 마지막 코인이 착지하고 한 박자(COIN_TOTAL_BEAT) 뒤에야 만들어 붙인다 — 그 전 프레임에는
-        // 화면 어디에도 금액 텍스트가 없다가, 착지 자리 `+금액`들이 먼저 솟고 그 뒤에 합계가 따라온다.
-        setTimeout(() => {
-            const sum = document.createElement('span');
-            sum.className = 'coin-total';
-            sum.innerHTML = `+${U.fmt(total)} ${coinHtml}`;
-            sum.style.cssText = `left:${ox}px; top:${(oy - 26)}px`;
-            layer.appendChild(sum);
-            setTimeout(() => sum.remove(), 1100);
-        }, lastLand + this.COIN_TOTAL_BEAT);
+        // ⚠️ 총액(`.coin-total`)은 **띄우지 않는다** — 사용자 지시 2026-08-19 `sell-coin-split-rising`:
+        // "판매할 때 전체 합산 코인이 보이면 안 되고, 코인 착지자리에 … 각자의 착지자리에서".
+        // 2026-08-17 지시("코인이 착지한 다음 가격이 떠오르게")를 총액 배지로 구현했던 걸 되돌린 것이라,
+        // 되살리지 말 것. 합계를 읽히게 하는 책임은 착지 자리 라벨 N개가 같이 진다.
         SFX.gacha('common'); // 동전 소리 대용 — 짧은 상승 스윕
     },
 

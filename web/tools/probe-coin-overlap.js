@@ -9,7 +9,7 @@
 // 판정: ① 어떤 프레임에서도 착지 금액끼리 '읽기를 방해하는' 겹침이 없다
 //          (교차 넓이가 작은 쪽 넓이의 OVERLAP_TOL 이상이면 겹침 1건)
 //       ② 라벨이 화면(app) 안에 들어온다 — 좌우/아래로 잘려나가지 않는다
-//       ③ 총액(.coin-total)도 착지 금액과 겹치지 않는다
+//       ③ 합산 표시(.coin-total)는 아예 없다 — 2026-08-19 `sell-coin-split-rising`으로 폐지된 연출
 //       ④ 콘솔 에러 0건
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
@@ -17,7 +17,10 @@ const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const OUT = path.resolve(__dirname, '../ref/shots');
 const TOTALS = [12345, 987654321];   // 코인 개수 상한(10개)이 나오는 금액 두 종
-const MARKS = [620, 700, 780, 860, 940, 1020, 1120];
+// ⚠️ 라벨 수명이 2초로 늘었다(`sell-coin-split-rising`) — 라벨이 오래 살수록 동시에 떠 있는 개수가
+// 늘고, 먼저 착지한 라벨이 더 높이 올라가 **윗줄을 침범할 수 있다.** 착지 구간만 재면 그 회귀를
+// 놓치므로 수명 끝(≈2.8초)까지 전 구간을 훑는다.
+const MARKS = [620, 700, 780, 860, 940, 1020, 1120, 1300, 1600, 1900, 2200, 2500, 2800];
 // 간격을 px 상수로 박으면 좁은 폭에서 도로 겹친다 — 실기 3종 폭에서 전부 잰다
 const VIEWPORTS = [{ width: 480, height: 854 }, { width: 430, height: 860 }, { width: 360, height: 640 }];
 const OVERLAP_TOL = 0.06;            // 작은 쪽 넓이의 6% 이상 겹치면 글자가 서로를 먹는다
@@ -76,7 +79,16 @@ function overlapRatio(a, b) {
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && document.querySelector('.anvil-btn'), null, { timeout: 20000 });
+    // ⚠️ waitForFunction 금지 — 페이지 안 폴링이 3D 렌더 한 프레임에 밀려 안 도는 컨테이너가 있다
+    //    (2026-08-18 실측). Node 쪽 evaluate 폴링만 프레임 사이로 끼어든다.
+    for (let w = 0; ; w++) {
+        const ready = await page.evaluate(
+            'typeof UI !== "undefined" && typeof S !== "undefined" && !!document.querySelector(".anvil-btn")'
+        ).catch(() => false);
+        if (ready) break;
+        if (w >= 120) throw new Error('게임 부팅 대기 60초 초과');
+        await new Promise(r => setTimeout(r, 500));
+    }
     await page.evaluate(({ install }) => { eval('(' + install + ')()'); }, { install: installVirtualClock.toString() });
 
     for (const TOTAL of TOTALS) {
@@ -109,17 +121,15 @@ function overlapRatio(a, b) {
                 if (r > worst) worst = r;
                 if (r >= OVERLAP_TOL) pairs++;
             }
-            let tWorst = 0;
-            for (const t of st.totals) for (const a of st.amts) tWorst = Math.max(tWorst, overlapRatio(t, a));
 
             // 화면 밖으로 잘린 라벨
             const clipped = st.amts.filter(a => a.left < st.app.left - 1 || a.right > st.app.right + 1 || a.bottom > st.app.bottom + 1).length;
 
             const tag = `${VP.width}px ${TOTAL} @${m}ms`;
-            report.push({ vw: VP.width, TOTAL, m, n: st.amts.length, pairs, worst: +worst.toFixed(3), tWorst: +tWorst.toFixed(3), clipped });
+            report.push({ vw: VP.width, TOTAL, m, n: st.amts.length, pairs, worst: +worst.toFixed(3), clipped });
             ok(pairs === 0, `[${tag}] 착지 금액 ${pairs}쌍이 겹친다 (최대 겹침률 ${(worst * 100).toFixed(1)}%)`);
             ok(clipped === 0, `[${tag}] 라벨 ${clipped}개가 화면 밖으로 잘렸다`);
-            ok(tWorst < OVERLAP_TOL, `[${tag}] 총액이 착지 금액과 겹친다 (${(tWorst * 100).toFixed(1)}%)`);
+            ok(st.totals.length === 0, `[${tag}] 폐지된 합산 코인 표시(.coin-total)가 ${st.totals.length}개 떴다`);
 
             if (TOTAL === TOTALS[0] && VP.width === 480) {
                 fs.mkdirSync(OUT, { recursive: true });
@@ -133,7 +143,7 @@ function overlapRatio(a, b) {
 
     ok(errors.length === 0, `콘솔 에러 ${errors.length}건: ${errors.slice(0, 3).join(' | ')}`);
 
-    for (const r of report) console.log(`${String(r.vw).padStart(4)}px ${String(r.TOTAL).padStart(10)} @${String(r.m).padStart(5)}ms  라벨 ${r.n}개 · 겹침 ${r.pairs}쌍 (최대 ${(r.worst * 100).toFixed(1)}%) · 총액겹침 ${(r.tWorst * 100).toFixed(1)}% · 잘림 ${r.clipped}`);
+    for (const r of report) console.log(`${String(r.vw).padStart(4)}px ${String(r.TOTAL).padStart(10)} @${String(r.m).padStart(5)}ms  라벨 ${r.n}개 · 겹침 ${r.pairs}쌍 (최대 ${(r.worst * 100).toFixed(1)}%) · 잘림 ${r.clipped}`);
     console.log('');
     if (fail.length) { console.log('FAIL\n - ' + fail.join('\n - ')); await browser.close(); process.exit(1); }
     console.log('PASS — 착지 금액이 서로 겹치지 않고 화면 안에 들어온다');

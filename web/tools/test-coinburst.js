@@ -1,8 +1,12 @@
 // 판매 코인 분출 회귀 검증 — 사용: node test-coinburst.js  (종료코드 0=전체 통과)
-// 검증 축: 코인 개수 스케일, **착지 금액 합계 = 총 판매액**(나머지 흡수), 모루 위에서 분출,
+// 검증 축: 코인 개수 스케일, **착지 금액 = 합÷개수로 전부 같은 값**, **합산 표시 없음**, 모루 위에서 분출,
 //          착지 텍스트가 코인이 내려온 자리에 뜨는가, 연타해도 큐가 안 깨지는가, 뒷정리.
+// ⚠️ 사양 변경 2026-08-19 (`sell-coin-split-rising`, 사용자 지시): 총액 배지(.coin-total)는 폐지됐고
+//    마지막 코인이 나머지를 흡수하던 분배도 없어졌다(착지 라벨은 전부 round(총액/개수)). 옛 축을 되살리지 말 것.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
+// 뒷정리 대기: 마지막 코인 delay(≈240ms) + 비행(780) + 라벨 수명(2000) + 여유
+const UI_CLEANUP_MS = 3800;
 
 (async () => {
     const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -11,7 +15,13 @@ const path = require('path');
     p.on('pageerror', e => errors.push(String(e)));
     p.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await p.goto('file://' + path.resolve(__dirname, '../index.html'), { waitUntil: 'load' });
-    await p.waitForFunction(() => typeof UI !== 'undefined' && UI.els && document.querySelector('.anvil-btn'), null, { timeout: 20000 });
+    // waitForFunction 은 3D 렌더에 밀려 안 도는 컨테이너가 있다(2026-08-18 실측) — Node 쪽 폴링으로 대기
+    for (let w = 0; ; w++) {
+        const ready = await p.evaluate('typeof UI !== "undefined" && !!UI.els && !!document.querySelector(".anvil-btn")').catch(() => false);
+        if (ready) break;
+        if (w >= 120) throw new Error('게임 부팅 대기 60초 초과');
+        await new Promise(r => setTimeout(r, 500));
+    }
     await p.evaluate(() => { Scene3D.renderFrame = () => {}; }); // 소프트웨어 GL 렌더가 rAF를 잡아먹지 않게
     await p.waitForTimeout(400);
 
@@ -34,21 +44,21 @@ const path = require('path');
                     return Math.abs((anvil.left - app.left + anvil.width / 2) - x) < 1
                         && y > anvil.top - app.top && y < anvil.bottom - app.top;
                 }),
-                totalText: (layer.querySelector('.coin-total') || {}).textContent || '',
+                totals: layer.querySelectorAll('.coin-total').length,
             };
         }, total);
         ok(r.n >= 3 && r.n <= 10, `코인 개수 3~10개 (${total}원 → ${r.n}개)`);
         ok(r.originsOnAnvil, `${total}원: 모든 코인이 모루 버튼에서 출발`);
-        ok(r.totalText.replace(/\s/g, '').startsWith('+'), `${total}원: 총 획득액 표시 (${r.totalText.trim()})`);
+        ok(r.totals === 0, `${total}원: 폐지된 합산 코인 표시가 없다 (${r.totals}개)`);
     }
 
-    // 착지 금액의 합 = 총액 (마지막 코인이 나머지를 흡수)
+    // 착지 금액은 자리마다 '합÷개수'로 같은 값
     const sums = await p.evaluate(async () => {
         const res = [];
         for (const t of [7, 103, 99999]) {
             document.getElementById('coin-burst').innerHTML = '';
             UI.coinBurst(t);
-            await new Promise(r => setTimeout(r, UI.COIN_FLY_MS + 400));
+            await new Promise(r => setTimeout(r, UI.COIN_FLY_MS + 400));   // 착지 직후 — 라벨 수명(2초) 안이라 전부 살아 있다
             const texts = [...document.querySelectorAll('#coin-burst .coin-amt')].map(e => e.textContent);
             res.push({ t, texts });
         }
@@ -59,18 +69,26 @@ const path = require('path');
         const raw = s.texts.map(x => parseInt(String(x).replace(/[^0-9]/g, ''), 10)).filter(v => !isNaN(v));
         ok(raw.length > 0, `${s.t}원: 착지 금액 텍스트가 뜬다 (${s.texts.join(',') || '없음'})`);
     }
-    // 합계 검증: 착지 텍스트 DOM은 수명이 짧아 전수 포착이 불안정하므로 분배 로직을 그대로 재현해 검증한다
-    const split = await p.evaluate(() => {
-        const check = (total) => {
-            const n = U.clamp(3 + Math.round(Math.log10(Math.max(1, total)) * 1.7), 3, 10);
-            const per = Math.floor(total / n);
-            let sum = 0;
-            for (let i = 0; i < n; i++) sum += (i === n - 1 ? total - per * (n - 1) : per);
-            return { total, n, sum };
-        };
-        return [7, 103, 99999, 240000, 1].map(check);
+    // 균일 분배 검증: 착지 라벨이 전부 같은 값(합÷개수)인지 — 실제 DOM 텍스트로 본다
+    const uniform = await p.evaluate(async () => {
+        const res = [];
+        for (const t of [7, 103, 99999, 240000, 1]) {
+            document.getElementById('coin-burst').innerHTML = '';
+            UI.coinBurst(t);
+            const n = document.querySelectorAll('#coin-burst .coin-fly').length;
+            await new Promise(r => setTimeout(r, UI.COIN_FLY_MS + 400));
+            const vals = [...document.querySelectorAll('#coin-burst .coin-amt')]
+                .map(e => parseInt(String(e.textContent).replace(/[^0-9]/g, ''), 10));
+            res.push({ total: t, n, want: Math.max(1, Math.round(t / n)), vals });
+        }
+        return res;
     });
-    for (const s of split) ok(s.sum === s.total, `분배 합계 = 총액 (${s.total}원 / ${s.n}개 → 합 ${s.sum})`);
+    for (const s of uniform) {
+        // U.fmt 축약(1.2K)이 걸리는 큰 금액은 자릿수가 잘리므로 '전부 같은 텍스트인가'만 본다
+        const same = s.vals.length > 0 && s.vals.every(v => v === s.vals[0]);
+        ok(same, `착지 금액이 자리마다 같은 값 (${s.total}원 / ${s.n}개 → ${[...new Set(s.vals)].join(',')})`);
+        if (s.total < 1000) ok(s.vals.every(v => v === s.want), `합÷개수 = ${s.want} (${s.total}원 / ${s.n}개 → ${[...new Set(s.vals)].join(',')})`);
+    }
 
     // 연타: 이전 연출이 도는 중에 다시 팔아도 큐가 깨지지 않고 둘 다 살아 있다
     const burst2 = await p.evaluate(async () => {
@@ -85,7 +103,7 @@ const path = require('path');
     ok(burst2.b > burst2.a, `연타 시 두 벌이 공존 (1회 ${burst2.a}개 → 2회 후 ${burst2.b}개)`);
 
     // 뒷정리: 연출이 끝나면 레이어가 비워진다(노드 누수 없음)
-    await p.waitForTimeout(2200);
+    await p.waitForTimeout(UI_CLEANUP_MS);
     const left = await p.evaluate(() => document.getElementById('coin-burst').childElementCount);
     ok(left === 0, `연출 종료 후 노드 정리 (잔존 ${left}개)`);
 

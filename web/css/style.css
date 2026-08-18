@@ -5734,33 +5734,28 @@ body {
 }
 @keyframes coinSpin { from { transform: rotateY(0); } to { transform: rotateY(360deg); } }
 
-/* 착지 자리에서 떠오르는 금액 — 데미지 숫자와 같은 문법(위로 뜨며 페이드), 색만 금색 */
+/* 착지 자리에서 떠오르는 금액 — 데미지 숫자와 같은 문법(위로 뜨며 페이드), 색만 금색.
+   ⚠️ 수명은 JS가 소유한다(`UI.COIN_AMT_MS` → `--amt-dur`, 기본 2s). 사용자 지시 2026-08-19
+   `sell-coin-split-rising`: "데미지 텍스트처럼 천천히 상승 … 수명 2초 정도". 여기 기본값과
+   `UI.COIN_AMT_MS`가 어긋나면 페이드 도중에 노드가 지워지거나 투명한 노드가 남는다. */
 .coin-amt {
     position: absolute; transform: translate(-50%, -50%);
     font-size: .82rem; font-weight: 900; color: #ffd54f; white-space: nowrap;
     text-shadow: 0 1px 0 var(--olc), 0 0 .4rem rgba(255,183,77,.9);
-    animation: coinAmt .72s ease-out forwards;
+    animation: coinAmt var(--amt-dur, 2s) forwards;
 }
+/* ⚠️ **상승 거리(-50% → -170%)는 늘리지 말 것.** 착지점 줄 간격(`UI.coinBurst`의 rowGap 2.4rem)이
+   '라벨 높이 + 떠오르는 거리'로 잡혀 있어서, 거리를 키우면 윗줄 라벨을 뚫고 올라가 겹침 버그가 재발한다.
+   '천천히'는 **거리가 아니라 시간**으로 준다 — 같은 거리를 .72s가 아니라 2s에 걸쳐 흐른다.
+   이징도 구간별로 나눈다: 착지 팝(0~7%)은 튕기고, 그 뒤 긴 상승(13~78%)은 linear 라야
+   데미지 텍스트처럼 '일정한 속도로 밀려 올라가는' 느낌이 난다(ease-out을 통짜로 걸면 앞에서
+   다 올라가 버리고 뒤 1.5초는 멈춘 것처럼 보인다). */
 @keyframes coinAmt {
-    0%   { opacity: 0; transform: translate(-50%, -35%) scale(.8); }
-    18%  { opacity: 1; transform: translate(-50%, -60%) scale(1.12); }
-    100% { opacity: 0; transform: translate(-50%, -170%) scale(1); }
-}
-/* 총 획득액 — 코인 개수만큼 쪼갠 숫자만 보면 합계가 안 읽힌다 */
-.coin-total {
-    position: absolute; transform: translate(-50%, -50%);
-    display: flex; align-items: center; gap: .25rem; white-space: nowrap;
-    font-size: 1.25rem; font-weight: 900; color: #ffd54f;
-    text-shadow: 0 2px 0 var(--olc), 0 0 .7rem rgba(255,183,77,.95);
-    animation: coinTotal 1.05s ease-out forwards;
-}
-.coin-total .ico { width: 1.1rem; height: 1.1rem; }
-@keyframes coinTotal {
-    0%   { opacity: 0; transform: translate(-50%, -30%) scale(.7); }
-    14%  { opacity: 1; transform: translate(-50%, -55%) scale(1.18); }
-    26%  { transform: translate(-50%, -58%) scale(1); }
-    72%  { opacity: 1; transform: translate(-50%, -85%) scale(1); }
-    100% { opacity: 0; transform: translate(-50%, -125%) scale(.96); }
+    0%   { opacity: 0; transform: translate(-50%, -35%) scale(.8);  animation-timing-function: cubic-bezier(.2,.9,.3,1); }
+    7%   { opacity: 1; transform: translate(-50%, -64%) scale(1.16); animation-timing-function: cubic-bezier(.4,0,.5,1); }
+    13%  { opacity: 1; transform: translate(-50%, -58%) scale(1);    animation-timing-function: linear; }
+    78%  { opacity: 1; transform: translate(-50%, -142%) scale(1);   animation-timing-function: linear; }
+    100% { opacity: 0; transform: translate(-50%, -170%) scale(.98); }
 }
 
 /* ---- 공통 수령 연출 (reward-claim-fx, 사용자 지시 2026-08-18) ----
