@@ -5408,3 +5408,28 @@ body {
         drop-shadow(0 calc(var(--sw) * -1) 0 var(--slot-outc))
         drop-shadow(0 2px 2px rgba(0,0,0,.35));
 }
+
+/* ---- ⑭ 플레이어 정보 팝업 AAA 스킨 (원본 shot-043313 픽셀 실측 2026-08-18 · 배치는 손대지 않는다) ----
+   ① 레이아웃은 `probe-pinfo-px.js` 7요소 **초과 0건**(최대 +0.55%p)이라 한 줄도 안 건드렸다.
+   원본 496×880 의 색 단면에서 뽑은 값만 쓰고, 공용 클래스는 `#player-info-modal` 로 가둔다.
+   ㉠ 전투력 = y188 가로 단면이 **#ff880f + 검정 키라인**(획 #ff880f, 음영 #c1670b·#a05509, 경계 #000000).
+      클론은 `--pp-ink` 라 **어두운 회색 숫자**였다 — 원본에서 가장 눈에 띄는 요소가 죽어 있었다.
+   ㉡ 이름·우측 스탯 = **순검정**(y150 이름 획 #000000 / y163 우측 획 #000000). `--pp-ink`(#17181a)보다 진하다.
+      우측 줄 끝 ⭐ 는 원본이 **#ff8900**(x395~401)이다 — IconGen 소관이라 색만 기록하고 두: 아이콘은 안 건드린다.
+   ㉢ 🚨 하단 옵션 목록은 **순검정이 아니라 #3a3a3a 회색**이다(y551 단면의 획 바닥값이 x132·142·147·156·163·
+      168·170·185·192·199 에서 전부 #3a3a3a 로 반복). 굵어 보여서 검정으로 오독하기 쉽다 — ⑫ 의 `.petd-subs`
+      와 같은 값이라, 본문 잉크에 위계를 두는 게 이 게임의 규칙이다(제목·수치=검정, 옵션 목록=#3a3a3a).
+   ㉣ ✕ = 면 **#f2191d** · 아래턱 **#4a0709**(y774~779) · 글리프 흰 획 + 검정 키라인(y752~757 #ffffff → y759 #000000).
+      ⑫ 펫 상세·⑬ 펫 업그레이드에 이어 **세 화면에서 독립적으로 같은 값**이 나왔다 — 사실상 이 게임의 전역
+      ✕ 언어다. 다만 알 상세·탈것 상세가 아직 원본 대조 전이라 전역 `.x-btn` 승격은 미루고 스코프를 유지한다
+      (다음 세션이 그 두 화면을 재면 셋을 묶어 전역으로 올릴 것). */
+#player-info-modal .pinfo-id-text .cp {
+    color: #ff880f; -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill;
+}
+#player-info-modal .pinfo-id-text .name,
+#player-info-modal .pinfo-right { color: #000; }
+#player-info-modal .pinfo-subs-list { color: #3a3a3a; }
+#player-info-modal .x-btn {
+    background: #f2191d; box-shadow: inset 0 -.28rem 0 #4a0709;
+    color: #fff; -webkit-text-stroke: 3px var(--pp-line); paint-order: stroke fill;
+}
