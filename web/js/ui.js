@@ -2487,13 +2487,17 @@ const UI = {
             <div class="modal-card wide" style="--rc:${this.ageHex(item.age)}">
                 <div class="cmp-wrap">
                     ${this.itemCardHTML(cur, '장착됨', cur ? (newIsHigher ? 'down' : 'up') : null, false)}
-                    ${this.itemCardHTML(item, newTag, cur ? (newIsHigher ? 'up' : 'down') : null, true)}
-                </div>
-                <div class="row">
-                    <button class="btn sell" onclick="UI.resolveCraft('sell')">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(item))}</small></button>
-                    <!-- '기존 보관'은 보관함 시절 문구다 — 보관함 폐기 후 밀려난 장비는 보관되지 않고 사라지므로
-                         그대로 두면 거짓 안내가 된다(사용자 확정 2026-08-17 "장착은 교체만"). -->
-                    <button class="btn equip" onclick="UI.resolveCraft('equip')">장착${cur ? `<small>${swapped ? '다시 장착' : '기존 교체'}</small>` : ''}</button>
+                    <!-- 원본(043224)은 회색 패널이 새 장비 카드만이 아니라 [판매]/[장착] 버튼까지 품고
+                         카드 하단 7px 앞까지 내려간다(픽셀 실측 x90~415 y548~769) — 버튼 행을 패널 안에 둔다. -->
+                    <div class="cmp-lower">
+                        ${this.itemCardHTML(item, newTag, cur ? (newIsHigher ? 'up' : 'down') : null, true)}
+                        <div class="row">
+                            <button class="btn sell" onclick="UI.resolveCraft('sell')">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(item))}</small></button>
+                            <!-- '기존 보관'은 보관함 시절 문구다 — 보관함 폐기 후 밀려난 장비는 보관되지 않고 사라지므로
+                                 그대로 두면 거짓 안내가 된다(사용자 확정 2026-08-17 "장착은 교체만"). -->
+                            <button class="btn equip" onclick="UI.resolveCraft('equip')">장착${cur ? `<small>${swapped ? '다시 장착' : '기존 교체'}</small>` : ''}</button>
+                        </div>
+                    </div>
                 </div>
             </div>`;
         this.showModal(this.els.craftModal);

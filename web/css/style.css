@@ -1383,6 +1383,12 @@ body {
 /* 원본은 새 장비 옵션 마지막 줄과 [판매][장착] 줄 사이를 5.27%H(47px) 비운다(클론 3.13%H) —
    '새로운!' 표기가 아이콘 아래 별도 줄로 앉을 자리이기도 하다. 회색 박스 아래 여백으로 만든다. */
 .cmp-card-wrap.new .cmp-card, .modal-card .cmp-card-wrap.new .cmp-card { background: #ececec; border: none; padding-bottom: 1.5rem; }
+/* 제작 비교 하부 회색 패널 — 원본 shot-043224 실측: 색 #bebebe(190,190,190) · 카드 좌우/하단에서
+   7px 인셋(x90~415, 하단 769 vs 카드 776) · [판매]/[장착] 버튼까지 품는다. 카드 패딩 1.1rem + 테두리
+   3px 이므로 -.85rem(≈13.6px) 음수 마진이 인셋 7px 을 만든다. 버튼 틈은 원본 28px(5.58%W). */
+.cmp-lower { background: #bebebe; border-radius: .7rem; margin: 0 -.85rem -.85rem; }
+.cmp-lower .cmp-card-wrap.new .cmp-card { background: transparent; }
+.cmp-lower .row { margin: .45rem .96rem 0; padding-bottom: 1.44rem; gap: 1.3rem; } /* 틈 = gap + 버튼 테두리 2×3px ≈ 원본 채움 간 28px */
 .cmp-newtag { display: block; margin-top: .55rem; color: var(--pp-red); font-weight: 900; font-size: .68rem; text-align: center; }
 /* 새 장비 카드: 랩 하단 앵커인 Lv 배지를 '새로운!' 줄 높이만큼 올려 아이콘 하단에 붙임 — 두 표기가 같은 y에 포개지던 QA 버그 (원본 043224: Lv는 아이콘 위, 새로운!은 그 아래 별도 줄) */
 .cmp-card-wrap.new .cmp-icon-wrap .sk-lv { bottom: 1.5rem; }
