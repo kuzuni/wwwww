@@ -1079,7 +1079,9 @@ const Scene3D = {
         // ⚠️ 새 메시를 이 재질로 만들 땐 반드시 color 속성을 붙일 것(없으면 그 메시만 검게 찍힌다).
         this.crystalMat = new THREE.MeshPhongMaterial({
             color: 0x9575cd, emissive: 0x6a3fb5, emissiveIntensity: 0.5,
-            flatShading: true, shininess: 90, specular: 0xffffff, vertexColors: true,
+            // 스페큘러를 순백에서 옅은 시안으로 — 하이라이트가 (255,255,255) 로 클리핑되면 그 자리는
+            // 면도 색도 사라진 흰 구멍이다(실측 클리핑 2.7%). 색 있는 결정의 반사는 원래 색을 띤다.
+            flatShading: true, shininess: 58, specular: 0x7cc2d4, vertexColors: true,
         });
         this.trees = [];
         this.rocks = [];
@@ -1919,8 +1921,9 @@ const Scene3D = {
             const [hk, rk, px, pz] = plan[ci];
             const h = hk * R(0.95, 1.25) * s;
             const rBase = rk * R(0.85, 1.2) * s;
-            // 파편일수록 크게 눕는다(밑동에서 사방으로 뻗어 나온 인상)
-            const tilt = ci < 3 ? R(0.03, 0.16) : R(0.22, 0.5);
+            // 파편일수록 크게 눕는다(밑동에서 사방으로 뻗어 나온 인상). ⚠️ 주상 결정도 **반드시 눕힌다** —
+            // 전부 수직이면 클러스터가 '울타리 말뚝'으로 읽힌다(비평가 ②: "중심 x가 50행 동안 154.0 고정").
+            const tilt = ci < 3 ? R(0.06, 0.30) : R(0.22, 0.5);
             const dir = R(0, Math.PI * 2);
             e.set(Math.cos(dir) * tilt, R(0, Math.PI * 2), Math.sin(dir) * tilt);
             m.makeRotationFromEuler(e);
@@ -1934,7 +1937,7 @@ const Scene3D = {
             //    교대 위상은 결정마다 뒤집는다(넓은 면이 어디서 시작하느냐 = 습성의 회전) — 위상까지 같으면
             //    단면이 결정마다 거의 똑같아져 개체차가 게이트 밑으로 떨어진다(실측 0.0376 → 0.0980).
             const flip = rnd() < 0.5 ? 1 : 0;
-            for (let j = 0; j < SIDES; j++) { rj.push(((j + flip) % 2 ? 1.16 : 0.86) * R(0.86, 1.17)); sy.push(R(0.88, 1.12)); fShade.push((rnd() - 0.5) * 0.10); }
+            for (let j = 0; j < SIDES; j++) { rj.push(((j + flip) % 2 ? 1.16 : 0.86) * R(0.86, 1.17)); sy.push(R(0.88, 1.12)); fShade.push((rnd() - 0.5) * 0.15); }
             const shoulder = h * R(0.58, 0.74);          // 기둥 → 뿔 전이 높이
             const taper = R(0.80, 0.97);                 // 기둥은 살짝만 좁아진다(원뿔과 갈리는 지점)
             const r0 = [], r1 = [], apex = xf(v.set(rBase * R(-0.25, 0.25), h, rBase * R(-0.25, 0.25)));
@@ -1944,8 +1947,15 @@ const Scene3D = {
                 r0.push(xf(v.set(Math.cos(ang) * rb, 0, Math.sin(ang) * rb)));
                 r1.push(xf(v.set(Math.cos(ang) * rb * taper, shoulder * sy[j], Math.sin(ang) * rb * taper)));
             }
-            // 높이 그라디언트 + 면 변주 — vertexColors 는 albedo 에 곱해지므로 1.0 을 넘기지 않는다
-            const sh = (y, f) => Math.max(0.34, Math.min(1, 0.50 + 0.50 * Math.pow(Math.min(1, Math.max(0, y / h)), 0.8) + f));
+            // 높이 그라디언트 × **루트 암부** + 면 변주 — vertexColors 는 albedo 에 곱해지므로 1.0 을 넘기지 않는다.
+            // 램프 하한을 0.50 → 0.22 로 내렸다: 첫 판은 폭이 좁아(0.50~1.00) 발광에 씻기면 면이 통째로
+            // 한 값으로 뭉갰다(비평가 ②: "70픽셀 내내 L=203 동일"). 밑동 28% 구간은 한 번 더 눌러
+            // 지면과 만나는 지점을 어둡게 — 접지는 접지 데칼보다 **밑동 자체의 암부**가 먼저 만든다.
+            const sh = (y, f) => {
+                const k = Math.min(1, Math.max(0, y / h));
+                const root = 0.55 + 0.45 * Math.min(1, k / 0.28);
+                return Math.max(0.16, Math.min(1, (0.40 + 0.60 * Math.pow(k, 0.8)) * root + f));
+            };
             const shoulderShade = j => sh(shoulder * sy[j], fShade[j]);
             for (let j = 0; j < SIDES; j++) {
                 const k = (j + 1) % SIDES;
@@ -1998,7 +2008,8 @@ const Scene3D = {
         const glow = new THREE.Mesh(this.blobGeo || (this.blobGeo = new THREE.PlaneGeometry(1, 1)), this.crystalGlowMat);
         glow.rotation.x = -Math.PI / 2;
         glow.position.y = 0.05;
-        glow.scale.setScalar(1.7 * s); // 발광이 주변 지면까지 넓게 물들도록 (라이트 블리드 인상)
+        glow.scale.setScalar(1.25 * s); // 1.7 에서 축소 — 접지 블롭 그림자(반경 1.15s+0.5)를 통째로 덮어
+        // '밑동이 밝은' 상태를 만들고 있었다. 그림자가 링 밖으로 나오게 링을 그림자 안쪽으로 줄인다.
         glow.userData.sharedGeometry = true;
         g.add(glow);
         return g;
@@ -8063,9 +8074,14 @@ const Scene3D = {
         if (biome === 'magic') {
             // 몸통은 테마색, 발광은 시안 악센트 — 단일 색상환(전부 보라/청록)에 보색 계열 포인트를 박음
             // 몸통을 어두운 청록으로 눌러 ACES에서 흰색으로 증발하지 않고 시안 발광 색이 유지되게
-            this.crystalMat.color.setHex(0x0e4b57);
+            // ⚠️ 발광 세기를 1.1 로 두면 **면이 안 보인다.** emissive 는 법선·버텍스컬러와 무관하게
+            //    모든 프래그먼트에 같은 값을 더하므로, 세기가 크면 조형·음영이 통째로 그 위에 잠긴다
+            //    (비평가 실측: 몸통 최암면 L 173 · 인게임 평균 225 · 최대 255 클리핑, 지면은 83).
+            //    발광은 0.3 대로 낮추고 '빛나 보이는' 몫은 할로 스프라이트·접지 글로우(가산 합성)가 맡는다.
+            //    대신 몸통 albedo 를 올려 어두워지는 만큼을 **조명 받는 색**으로 되돌린다.
+            this.crystalMat.color.setHex(0x1a7286);
             this.crystalMat.emissive.setHex(0x1cb8cf);
-            this.crystalMat.emissiveIntensity = 1.1;
+            this.crystalMat.emissiveIntensity = 0.34;
         }
         // 용암: 반구광 지면 반사색을 뜨거운 주황으로 — 소품 아랫면이 용암빛을 받는 느낌
         if (biome === 'lava') this.hemi.groundColor.setHex(0x8a3d1a);
@@ -8466,9 +8482,14 @@ const Scene3D = {
         // 느리게 맥동시키고 할로 스프라이트를 같이 호흡시킨다. 재질 공유라 1회 갱신으로 전부 걸린다.
         if (this._biome === 'magic' && this.crystalMat) {
             const p = 0.5 + Math.sin(this._clock * 1.15) * 0.5;
-            this.crystalMat.emissiveIntensity = 0.85 + p * 0.5;
-            if (this.crystalHaloMat) this.crystalHaloMat.opacity = 0.30 + p * 0.22;
-            if (this.crystalGlowMat) this.crystalGlowMat.opacity = 0.66 + p * 0.24;
+            // ⚠️ 진폭(p-p)은 유지하되 **바닥값을 내렸다**(0.85~1.35 → 0.24~0.46). 옛 값은 조형·음영을
+            //    통째로 씻어냈다(setTheme 쪽 주석 참고). probe-wind 의 발광 게이트는 p-p 0.10 이라 그대로 통과한다.
+            this.crystalMat.emissiveIntensity = 0.24 + p * 0.22;
+            // 할로도 낮춘다 — 가산 합성이라 밝아진 결정 위에 얹히면 그 자리가 순백으로 클리핑된다(실측 364px).
+            if (this.crystalHaloMat) this.crystalHaloMat.opacity = 0.22 + p * 0.18;
+            // 접지 글로우는 **밑동을 밝힌다** — 세면 접지 블롭 그림자를 지워 프롭이 지면에서 떠 보인다
+            // (비평가 ④: 밑동 직하 지면과 이격 지면의 명도차 0). 세기를 낮춰 그림자가 읽히게 둔다.
+            if (this.crystalGlowMat) this.crystalGlowMat.opacity = 0.40 + p * 0.18;
         }
         if (this.embers) {
             for (const e of this.embers) {

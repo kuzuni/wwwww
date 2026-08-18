@@ -160,6 +160,109 @@ const DIFF_MIN = 0.040;  // ⑥ 개체 간 반경 RMS 차 / 평균반경
     if (dMin < DIFF_MIN) fails.push(`개체 간 최소차 ${dMin.toFixed(4)} < ${DIFF_MIN} — 클러스터가 복붙이다`);
     if (res.meshCount.some(n => n !== 1)) fails.push(`클러스터당 crystalMat 메시가 1이 아니다(${res.meshCount.join(',')}) — 합쳐 굽는 의도가 깨졌다`);
 
+    // ⑦ 인게임 명도 — 조형을 아무리 깎아도 **발광에 씻기면 화면에서는 흰 덩어리**다.
+    // 크리스탈만 껐다 켠 같은 프레임을 비교해 크리스탈 픽셀만 골라 명도 분포를 낸다
+    // (probe-embers 와 같은 기법 — 시차·과도 구간에 오염되지 않는다).
+    const val = await (async () => {
+        await page.close();   // ⚠️ 소프트웨어 GL 이라 WebGL 페이지 둘을 동시에 띄우면 screenshot 이 타임아웃 난다
+        const p2 = await browser.newPage({ viewport: { width: 480, height: 854 } });
+        p2.on('pageerror', e => errors.push(String(e)));
+        p2.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+        await p2.goto(INDEX, { waitUntil: 'load' });
+        await p2.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
+        await p2.evaluate(() => {
+            if (typeof Combat !== 'undefined') Combat.update = () => {};
+            Scene3D.setTheme({ biome: 'magic', sky: 0x2e1a72, fog: 0x3a2384, ground: 0x352061, celestial: 'moon' });
+            Scene3D.setTheme = () => {}; Scene3D.setChapterTheme = () => {};
+        });
+        await p2.waitForTimeout(1400);   // ⚠️ 테마 전환 직후 수십 프레임은 페이드·그림자맵 워밍업 구간이다
+        // ⚠️ 🚨 **맥동 위상을 고정하지 않으면 이 지표는 매 실행 다른 값을 뱉는다.** 발광·할로·글로우가 전부
+        //    `_clock` 기반 사인이라 캡처 시점에 따라 크리스탈 평균 명도가 91↔117 로 흔들렸다(실측).
+        //    맥동이 쓰는 **세 값만** 읽기 전용으로 못 박는다(update 의 대입은 조용히 무시된다).
+        //    ⚠️ `_clock` 자체를 얼리지 말 것 — 노출·페이드까지 같이 멎어 지면 평균이 88 → 40 으로
+        //    엉뚱하게 튀고 크리스탈 픽셀 판정이 46% 로 부풀었다(실측, 첫 판이 그렇게 망가졌다).
+        await p2.evaluate(() => {
+            const pin = (o, k, v) => Object.defineProperty(o, k, { value: v, writable: false, configurable: true });
+            pin(Scene3D.crystalMat, 'emissiveIntensity', 0.35);   // 맥동 중앙값
+            if (Scene3D.crystalHaloMat) pin(Scene3D.crystalHaloMat, 'opacity', 0.31);
+            if (Scene3D.crystalGlowMat) pin(Scene3D.crystalGlowMat, 'opacity', 0.49);
+            // ⚠️ 🚨 **카메라를 못 박지 않으면 두 프레임 차분이 크리스탈이 아니라 시차를 잰다.**
+            //    인게임 카메라는 가만히 있어도 매 프레임 0.034 씩 움직여서, 배경 전체가 흘러
+            //    '크리스탈 픽셀'이 뷰포트의 95%(182,603px)로 부풀었다(실측). `camLock` 으로 세운다.
+            //    — 이건 `probe-wind.js` 머리말의 함정 ㉠ 과 같은 것이다. 같은 덫에 두 번 빠졌다.
+            Scene3D.camLock = { pos: new THREE.Vector3(0, 2.6, 6.2), look: new THREE.Vector3(0, 0.8, -3.2) };
+            // ⚠️ **월드 스크롤도 못 박는다** — 소품은 worldX 주기 26 으로 재배치되므로, 이걸 안 세우면
+            //    실행마다 화면에 든 크리스탈 수·거리가 달라 클리핑 비율이 0.73%↔3.45% 로 널뛴다(실측).
+            pin(Scene3D, 'worldX', 0);
+        });
+        await p2.waitForTimeout(400);
+        // ⚠️ 🚨 **두 프레임 차분으로 크리스탈 픽셀을 고르려던 시도는 버렸다.** 카메라를 못 박아도
+        //    안개·불씨·풀 셰이더·월드 스크롤이 계속 움직여 '바뀐 픽셀'이 뷰포트의 95% 로 나왔다
+        //    (실측 182,603px → camLock 후에도 100,648px). `probe-wind.js` 머리말의 함정 ㉠~㉢ 과 같은 계열이다.
+        //    대신 **크리스탈만 남기고 전부 끈 프레임**을 따로 굽는다 — 조명·안개는 그대로라 크리스탈이
+        //    화면에서 갖는 명도는 인게임과 동일하고, 검은 배경 대비로 픽셀 판정이 결정론적이 된다.
+        const clip = await p2.evaluate(() => {
+            const r = document.querySelector('canvas').getBoundingClientRect();
+            return { x: Math.max(0, r.x), y: Math.max(0, r.y), width: Math.round(r.width), height: Math.round(r.height) };
+        });
+        const full = await p2.screenshot({ timeout: 120000, clip });
+        await p2.evaluate(() => {
+            Scene3D._keep = [];
+            Scene3D.scene.traverse(o => { if (o.isMesh && o.material === Scene3D.crystalMat) Scene3D._keep.push(o); });
+            const keep = new Set();
+            for (const m of Scene3D._keep) { let n = m; while (n) { keep.add(n); n = n.parent; } }
+            Scene3D._hidden = [];
+            Scene3D.scene.traverse(o => {
+                if ((o.isMesh || o.isSprite || o.isPoints || o.isLine) && !keep.has(o) && o.visible) {
+                    o.visible = false; Scene3D._hidden.push(o);
+                }
+            });
+            Scene3D.renderer.setClearColor(0x000000);
+            if (Scene3D.scene.background) Scene3D.scene.background = null;
+        });
+        await p2.waitForTimeout(250);
+        const only = await p2.screenshot({ timeout: 120000, clip });
+        await p2.evaluate(() => { for (const o of Scene3D._hidden) o.visible = true; });
+        const stats = await p2.evaluate(async ([a, b]) => {
+            const load = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; });
+            const [ia, ib] = await Promise.all([load(a), load(b)]);
+            const cv = document.createElement('canvas'); cv.width = ia.width; cv.height = ia.height;
+            const cx = cv.getContext('2d');
+            cx.drawImage(ia, 0, 0); const A = cx.getImageData(0, 0, cv.width, cv.height).data;
+            cx.clearRect(0, 0, cv.width, cv.height);
+            cx.drawImage(ib, 0, 0); const B = cx.getImageData(0, 0, cv.width, cv.height).data;
+            const L = (d, i) => 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+            const ls = []; let clipN = 0;
+            const gr = [];
+            for (let i = 0; i < B.length; i += 4) {
+                if (L(B, i) > 20) {                                 // 크리스탈만 남긴 프레임의 비검정 픽셀
+                    //   ⚠️ 문턱을 6 으로 두면 검은 배경과 섞인 안티에일리어싱 가장자리(L 6~7)가 대량으로 들어와
+                    //      하위 10% 가 7 로 깔린다 — 몸통 명도가 아니라 외곽선을 재는 꼴이다.
+                    ls.push(L(B, i));
+                    if (B[i] > 250 && B[i + 1] > 250 && B[i + 2] > 250) clipN++;
+                } else if (((i / 4) / cv.width | 0) > cv.height * 0.72) gr.push(L(A, i));  // 지면 대역(전체 프레임에서)
+            }
+            ls.sort((x, y) => x - y); gr.sort((x, y) => x - y);
+            return ls.length ? {
+                n: ls.length, min: ls[0], p10: ls[Math.floor(ls.length * 0.1)],
+                mean: ls.reduce((x, y) => x + y, 0) / ls.length, max: ls[ls.length - 1],
+                clip: clipN, ground: gr.length ? gr[Math.floor(gr.length * 0.5)] : 0,
+            } : null;
+        }, ['data:image/png;base64,' + full.toString('base64'), 'data:image/png;base64,' + only.toString('base64')]);
+        await p2.close();
+        return stats;
+    })();
+    if (!val) fails.push('인게임 명도: 크리스탈 픽셀을 못 찾았다(껐다 켠 프레임이 동일)');
+    else {
+        console.log(`⑦ 인게임 명도  픽셀 ${val.n}  min ${val.min.toFixed(0)}  p10 ${val.p10.toFixed(0)}  평균 ${val.mean.toFixed(0)}  max ${val.max.toFixed(0)}  순백클립 ${val.clip}(${(val.clip / val.n * 100).toFixed(2)}%)  지면평균 ${val.ground.toFixed(0)}`);
+        // 게이트: 어두운 면이 실제로 존재할 것(p10) · 평균이 지면 대비 과하게 뜨지 않을 것 · 순백 클립 없을 것
+        if (val.p10 > 150) fails.push(`명도 하위 10% ${val.p10.toFixed(0)} > 150 — 어두운 면이 없다(발광이 조형을 씻는다)`);
+        if (val.mean > val.ground + 110) fails.push(`평균 명도 ${val.mean.toFixed(0)} 가 지면 ${val.ground.toFixed(0)} 보다 110 이상 높다 — 흰 덩어리로 뜬다`);
+        // 클리핑은 **비율**로 본다 — 끝단의 소량 클립은 의도한 반짝임이고, 씻긴 덩어리는 자릿수가 다르다.
+        // (절대 픽셀 수로 걸면 결정을 크게 키우기만 해도 반려된다.)
+        if (val.clip > val.n * 0.02) fails.push(`순백 클리핑 ${val.clip}px = 크리스탈 픽셀의 ${(val.clip / val.n * 100).toFixed(1)}% > 2% — 발광이 화이트로 증발한다`);
+    }
+
     console.log(`콘솔 에러 ${errors.length}`);
     if (errors.length) console.log(errors.slice(0, 4).join('\n'));
     console.log(fails.length ? '\n반려 —\n  ' + fails.join('\n  ') : '\nPASS');
