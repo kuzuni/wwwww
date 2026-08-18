@@ -2803,6 +2803,87 @@ const Scene3D = {
         'soft:polymer': { crev: 0.48, crevP: 1.62, wear: 0.08, wearP: 3.8, wearCol: 0xa6b1bd },  // 무광 기술섬유 — 광이 거의 없다
         'soft:alloy': { crev: 0.34, crevP: 1.25, wear: 0.38, wearP: 2.2, wearCol: 0xd8f2ff },  // 발광 섬유
     },
+
+    // ---- 이차 디테일 + 색 변주 (비평가 ⓒ⑶ "스티치·리벳 열·매듭·천 주름 같은 이차 디테일과
+    //      색 변주(같은 가죽 안 명도 3단)가 부족하다") ----
+    // ⚠️ **지오메트리로 박지 않는다.** 리벳 한 열을 메시로 넣으면 칸마다 수십~수백 폴리가 붙는 것도
+    //    문제지만, 진짜 문제는 **실루엣이 흔들린다**는 것이다 — 썸네일의 알파 박스가 곧 UI 스트림의
+    //    '잉크 비율' 계약이고(`fit-ink`·ui-ratio-audit 는 ±2%p 로 잰다), `probe-equip-framing`(크롭/채움)과
+    //    `probe-equip-silhouette`(96px 윤곽 분화)도 같은 알파를 본다. 표면 셰이더로 넣으면 실루엣이
+    //    한 픽셀도 안 움직이면서 안쪽 정보만 는다.
+    // 좌표는 **오브젝트 공간**(vAgePos)이다 — 자동 프레이밍이 모델을 옮기고 카메라가 도는데
+    // 뷰/월드 공간을 쓰면 무늬가 물체 위를 미끄러진다.
+    // 축은 법선의 지배 성분으로 골라 쓴다(싸구려 트라이플래너) — 한 평면에 고정하면 옆면·윗면에서
+    // 무늬가 길게 늘어져 '늘어난 텍스처'로 읽힌다.
+    //   mode  = 무늬 종류 · freq = 무늬 반복 밀도(오브젝트 단위당) · amp = 세기
+    //   vary  = 같은 재질 안 명도 3단 변주 폭 · vfreq = 그 패치 크기(작을수록 큰 얼룩)
+    // ⚠️ freq 를 올릴수록 96px 에서 **모아레로 뭉개진다**. 무늬 한 칸이 최종 이미지에서 6px 이상
+    //    남게 잡을 것(장비 몸통이 오브젝트 단위로 0.4~0.6, 썸네일에서 ~80px → freq 12 면 칸당 ≈7px).
+    AGE_DETAIL: {
+        primal: { mode: 'grain', freq: 24, amp: 0.22, vary: 0.050, vfreq: 20 },   // 돌·뼈: 팬 자국·기공
+        forged: { mode: 'rivet', freq: 11, amp: 0.30, vary: 0.040, vfreq: 20 },   // 판금: 리벳 열
+        brass: { mode: 'panel', freq: 13, amp: 0.22, vary: 0.040, vfreq: 20 },   // 황동: 각인 격자
+        polymer: { mode: 'panel', freq: 10, amp: 0.18, vary: 0.040, vfreq: 20 },   // 폴리머: 패널 심
+        alloy: { mode: 'panel', freq: 12, amp: 0.24, vary: 0.040, vfreq: 20, glow: 0x9fe8ff }, // 합금: 심에 냉광
+        soft: { mode: 'stitch', freq: 12, amp: 0.26, vary: 0.060, vfreq: 20 },   // 천·가죽: 바늘땀 + 주름
+        'soft:primal': { mode: 'stitch', freq: 11, amp: 0.44, vary: 0.070, vfreq: 20, grain: 0.95, grainF: 6.5 }, // 거친 생가죽 — 땀이 굵고 얼룩이 크다(현대 기술섬유와 거칠기가 갈려야 한다)
+        'soft:forged': { mode: 'stitch', freq: 12, amp: 0.26, vary: 0.060, vfreq: 20 }, // 모직
+        'soft:brass': { mode: 'stitch', freq: 13, amp: 0.24, vary: 0.055, vfreq: 20 }, // 왁스 캔버스
+        'soft:polymer': { mode: 'panel', freq: 11, amp: 0.05, vary: 0.030, vfreq: 20 }, // 무광 기술섬유: 바느질이 아니라 접합선 — 게다가 **매끈해야** 한다.
+        //   ⚠️ 0.20/0.085 로 주면 거친 생가죽(soft:primal)과 표면 거칠기가 같아져 `probe-age-shading` 의
+        //     원시↔현대 천 재질분리가 1.16 → 0.60 으로 내려앉는다(무늬를 넣다가 '색 스와프'를 되살린 꼴).
+        'soft:alloy': { mode: 'panel', freq: 12, amp: 0.22, vary: 0.045, vfreq: 20, glow: 0xd8f2ff },
+    },
+    // 계열별 무늬 GLSL — `uv2`(트라이플래너로 고른 2축)와 `dAmp` 가 이미 선언돼 있다고 보고 쓴다.
+    ageDetailGLSL(d, f) {
+        if (d.mode === 'grain') return [
+            // 기공·팬 자국: 격자 해시로 잘게 판다. 밝게 튀우지 않는다(돌·뼈는 파인 자국이 그늘이다).
+            '\tfloat dG = fract(sin(dot(floor(vAgePos * ' + f(d.freq) + ' * vec3(1.0, 1.73, 1.31) + vec3(0.37, 0.11, 0.73)), vec3(12.9898, 78.233, 37.719))) * 43758.5453);',
+            // ⚠️ **제로 평균**으로 준다(0.5 를 빼서 ±). 한쪽으로만 어둡게 하면 무늬를 넣을수록 평균
+            //    휘도가 통째로 내려가, 계열끼리 밝기가 붙어 `probe-age-shading` 의 재질분리가 무너진다
+            //    (원시 생가죽 실측: 136.8 → 129.8 로 내려가 Δ휘도가 5.0 → 1.9 로 죽었다).
+            '\tdiffuseColor.rgb *= 1.0 + dAmp * 0.9 * (dG - 0.5);',
+        ];
+        if (d.mode === 'rivet') return [
+            // 리벳: 도넛 그늘(테) + 볼록한 머리 하이라이트. 머리를 과하게 밝히면 순백으로 타므로
+            // ⚠️ 가산은 0.3배까지만 — probe-equip-clip 의 5% 게이트가 여기서 먼저 깨진다.
+            '\tvec2 rc = fract(uv2 * ' + f(d.freq) + ') - 0.5;',
+            '\tfloat rd = length(rc);',
+            '\tfloat rRim = smoothstep(0.36, 0.26, rd) - smoothstep(0.24, 0.15, rd);',
+            '\tfloat rHead = smoothstep(0.21, 0.05, rd);',
+            '\tdiffuseColor.rgb *= 1.0 - dAmp * rRim;',
+            '\tdiffuseColor.rgb += diffuseColor.rgb * dAmp * 0.30 * rHead;',
+        ];
+        if (d.mode === 'panel') {
+            const g = d.glow !== undefined ? new THREE.Color(d.glow) : null;
+            const out = [
+                // 패널 심: 셀 중심을 지나는 십자 홈. 얇게(0.06) 파야 96px 에서 선으로 읽힌다.
+                '\tvec2 pf = abs(fract(uv2 * ' + f(d.freq) + ') - 0.5);',
+                '\tfloat pSeam = 1.0 - smoothstep(0.0, 0.06, min(pf.x, pf.y));',
+                '\tdiffuseColor.rgb *= 1.0 - dAmp * pSeam;',
+            ];
+            if (g) out.push('\tdiffuseColor.rgb += vec3(' + f(g.r) + ', ' + f(g.g) + ', ' + f(g.b) + ') * dAmp * 0.45 * pSeam;');
+            return out;
+        }
+        // stitch: 바늘땀(가로 실선 + 점선 끊김) + 저주파 주름. 천은 이 둘이 같이 와야 '천'으로 읽힌다.
+        // grain 을 주면 결·기공 speckle 을 더 얹는다 — 생가죽처럼 **거칠기 자체가 정체성**인 천용.
+        // ⚠️ 이건 미관이 아니라 게이트 요구다: `probe-age-shading` 의 시대 쌍 '재질분리'는 두 천의
+        //    휘도SD 차로 재는데, 원시 생가죽(22.4)이 현대 기술섬유(24.8)보다 **오히려 매끈했다**.
+        //    바늘땀만 얹으면 24.3 으로 올라가 둘이 겹쳐 분리가 2.4 → 0.3 으로 무너진다(무늬를 넣다가
+        //    '색 스와프'를 되살리는 꼴). 생가죽을 확실히 거친 쪽으로 밀어 갈라 놓는다.
+        return [
+            '\tvec2 sq = uv2 * ' + f(d.freq) + ';',
+            '\tfloat sLine = smoothstep(0.13, 0.0, abs(fract(sq.y) - 0.5));',
+            '\tfloat sDash = step(0.42, fract(sq.x * 2.0));',
+            '\tfloat sSt = sLine * sDash;',
+            '\tdiffuseColor.rgb *= 1.0 - dAmp * 0.85 * sSt;',
+            '\tfloat sFold = sin(sq.x * 0.34 + sq.y * 0.13);',
+            '\tdiffuseColor.rgb *= 1.0 + dAmp * 0.22 * sFold;',
+        ].concat(d.grain ? [
+            '\tfloat sGrain = fract(sin(dot(floor(vAgePos * ' + f(d.freq * (d.grainF || 2.4)) + ' * vec3(1.0, 1.73, 1.31) + vec3(0.37, 0.11, 0.73)), vec3(12.9898, 78.233, 37.719))) * 43758.5453);',
+            '\tdiffuseColor.rgb *= 1.0 + dAmp * ' + f(d.grain * 2.0) + ' * (sGrain - 0.5);',
+        ] : []);
+    },
     ageShade(mat, kind) {
         const p = this.AGE_SHADE[kind] || (String(kind).indexOf('soft:') === 0 ? this.AGE_SHADE.soft : null);
         if (!mat || !p || !mat.isMeshStandardMaterial) return mat;
@@ -2810,16 +2891,30 @@ const Scene3D = {
         const f = n => n.toFixed(4);
         mat.userData = mat.userData || {};
         mat.userData.ageShade = kind;          // tintOf 가 파생 재질에 재적용하려고 남긴다
+        const d = this.AGE_DETAIL[kind] || (String(kind).indexOf('soft:') === 0 ? this.AGE_DETAIL.soft : null);
         mat.customProgramCacheKey = () => 'ageshade-' + kind;
         mat.onBeforeCompile = (sh) => {
-            sh.vertexShader = 'varying vec3 vAgeWN;\n' + sh.vertexShader.replace(
+            sh.vertexShader = 'varying vec3 vAgeWN;\nvarying vec3 vAgePos;\n' + sh.vertexShader.replace(
                 '#include <beginnormal_vertex>',
-                '#include <beginnormal_vertex>\n\tvAgeWN = normalize(mat3(modelMatrix) * objectNormal);');
+                '#include <beginnormal_vertex>\n\tvAgeWN = normalize(mat3(modelMatrix) * objectNormal);').replace(
+                // 오브젝트 공간 좌표 — begin_vertex 직후의 transformed 가 (스키닝·모프 전) 로컬 위치다.
+                '#include <begin_vertex>',
+                '#include <begin_vertex>\n\tvAgePos = transformed;');
             // diffuseColor 와 normal 이 **둘 다** 정해진 뒤라야 한다 — diffuse 계열 include 는 normal 보다
             // 앞이고, lights_physical_fragment 는 diffuseColor 를 material 로 옮기기 직전이라 여기가 유일한 자리다.
-            sh.fragmentShader = 'varying vec3 vAgeWN;\n' + sh.fragmentShader.replace(
+            const det = d ? [
+                '\t// ---- 색 변주: 같은 재질 안에서 명도 3단으로 갈라 "한 통 페인트"를 깬다 ----',
+                '\t// 오브젝트 공간 격자 해시 → -1/0/+1 세 단. 연속 노이즈로 하면 얼룩이 흐릿해 96px 에서 안 읽힌다.',
+                '\tfloat vHash = fract(sin(dot(floor(vAgePos * ' + f(d.vfreq) + ' * vec3(1.0, 1.73, 1.31) + vec3(0.37, 0.11, 0.73)), vec3(12.9898, 78.233, 37.719))) * 43758.5453);',
+                '\tdiffuseColor.rgb *= 1.0 + ' + f(d.vary) + ' * (floor(vHash * 3.0) - 1.0);',
+                '\t// ---- 이차 디테일: 축은 법선의 지배 성분으로 고른다(싸구려 트라이플래너) ----',
+                '\tvec3 dAN = abs(normalize(vAgeWN));',
+                '\tvec2 uv2 = (dAN.z >= dAN.x && dAN.z >= dAN.y) ? vAgePos.xy : ((dAN.x >= dAN.y) ? vAgePos.zy : vAgePos.xz);',
+                '\tfloat dAmp = ' + f(d.amp) + ';',
+            ].concat(this.ageDetailGLSL(d, f)) : [];
+            sh.fragmentShader = 'varying vec3 vAgeWN;\nvarying vec3 vAgePos;\n' + sh.fragmentShader.replace(
                 '#include <lights_physical_fragment>',
-                [
+                det.concat([
                     '\t// 크레비스 다크닝 — 하늘 가림 근사(아래를 보는 면 = 틈·처마 밑)',
                     '\tfloat ageSky = clamp(vAgeWN.y * 0.5 + 0.5, 0.0, 1.0);',
                     '\tdiffuseColor.rgb *= mix(' + f(p.crev) + ', 1.0, pow(ageSky, ' + f(p.crevP) + '));',
@@ -2827,7 +2922,7 @@ const Scene3D = {
                     '\tfloat ageFres = pow(clamp(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 0.0, 1.0), ' + f(p.wearP) + ');',
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(' + f(wc.r) + ', ' + f(wc.g) + ', ' + f(wc.b) + '), ageFres * ' + f(p.wear) + ');',
                     '#include <lights_physical_fragment>',
-                ].join('\n'));
+                ]).join('\n'));
         };
         return mat;
     },
@@ -2977,6 +3072,28 @@ const Scene3D = {
         //    파생 재질(파울드론 아랫장·파울드·커프…)만 시대 셰이딩이 빠져 한 모델 안에서 갈린다.
         if (base.userData && base.userData.ageShade) this.ageShade(m, base.userData.ageShade);
         return m;
+    },
+
+    // ---- 파트 단위 명도 3단 (비평가 ⓒ⑶ "같은 가죽 안 명도 3단") ----
+    // 셰이더 얼룩(AGE_DETAIL.vary)만으로는 이 요구가 안 채워진다 — 좌표가 **파트 로컬**이라
+    // 작은 파트(끈·버클·라멜라 한 장)는 통째로 한 단이 되고, 파트끼리는 서로 같은 값이다.
+    // 실측으로도 확인했다: vary 를 0.045→0.17 로 올리고 vfreq 를 7→20 으로 좁혀도 저주파 변주
+    // 지표(`probe-equip-detail.js` 의 lf, 8×8 블록 평균의 표준편차)는 ±1% 안에서 꿈쩍도 안 했다.
+    // 눈이 '3단'으로 읽는 건 파트 **사이**의 값 차이라, 여기서 파트마다 결정적으로 단을 준다.
+    // ⚠️ 재질은 파트끼리 공유된다 — mat 를 직접 건드리면 모델 전체가 같이 움직인다. tintOf 로
+    //    파생시켜 그 메시에만 물린다(tintOf 가 onBeforeCompile 재적용까지 한다).
+    // ⚠️ 순서 의존이라 **모델을 다 조립한 뒤 마지막에 한 번만** 부를 것. 중간에 부르고 파트를 더
+    //    붙이면 같은 파트가 다른 단을 받아 캐시 키가 같은데 그림이 달라진다.
+    tierizeParts(root, dl) {
+        if (!root) return root;
+        const step = dl === undefined ? 0.055 : dl;
+        let i = 0;
+        root.traverse(o => {
+            if (!o.isMesh || !o.material || !o.material.isMeshStandardMaterial) return;
+            const t = (i++ * 5 + 1) % 3 - 1;   // 0, -1, +1 이 고르게 도는 결정적 순열
+            if (t !== 0) o.material = this.tintOf(o.material, t * step);
+        });
+        return root;
     },
 
     // ── 조형 헬퍼 3종 (비평가 지적 ㉯⑴ 대응) ────────────────────────────────────────
@@ -4138,6 +4255,11 @@ const Scene3D = {
             //    길쭉한 '사신의 모자'·'마법사의 모자'는 고깔 끝이 잘리고, 장갑은 타일 한가운데
             //    작은 덩어리로 떠 있었다(탈것 썸네일이 같은 함정을 먼저 밟고 자동 프레이밍으로 고쳤다).
             //    배율·y오프셋은 자동 프레이밍이 흡수하므로 여기서 주지 않는다.
+            // 파트 단위 명도 3단 — 조립이 다 끝난 뒤 마지막에 한 번(위 tierizeParts 주석 참조).
+            // 썸네일 경로에서만 건다: makeArmorPreview·makeAccessoryPreview 는 어차피 여기서만 쓰지만
+            // makeHelmet·makeWeapon 은 **인게임 영웅과 공용**이라, 빌더 안에 넣으면 전장 모델까지
+            // 파트마다 값이 갈린다(그쪽은 이 항목의 요구가 아니고 cape·hero 회귀를 흔든다).
+            this.tierizeParts(model);
             const g = new THREE.Group();
             g.add(model);
             sc.add(g);
