@@ -4785,6 +4785,10 @@ body {
     background: linear-gradient(90deg, rgba(255,255,255,0), rgba(12,20,52,.85) 14%, rgba(12,20,52,.85) 86%, rgba(255,255,255,0));
     animation: srtitle .45s ease-out both;
 }
+/* 제목 앞 재화 아이콘 — 이모지(🎫🥚⚙️)를 생성 아이콘으로 바꾼 자리(`summon-result-image-unify`).
+   글줄 안에 섞여 흐르므로 `.ico` 기본 문법(음수 마진으로 글자 중심에 맞추기)을 그대로 쓰되,
+   1.6rem 제목에서 이모지가 차지하던 폭(≈1em)과 비슷하게 잡는다. */
+.ico.sr-title-ico { width: 1.05em; height: 1.05em; margin: -.28em .12em -.28em 0; }
 /* 헤어라인은 좌우로 사라지게(공중에서 뚝 끊기지 않게) */
 .sr-title::before, .sr-title::after {
     content: ''; position: absolute; left: 0; right: 0; height: 1px;
@@ -5005,6 +5009,21 @@ body {
     filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .55));
     transform: scale(1.04);
 }
+/* ---- 슬롯과 같은 그림 (사용자 지시 2026-08-19 `summon-result-image-unify`) ----
+   이제 `.sr-ico` 안에 오는 것은 이모지 글리프가 아니라 슬롯이 쓰는 실제 노드다
+   (스킬 `.ico.sk-ico` · 알 `.ico.sr-egg` · 탈것 `.mt-face.sr-mt` → 3D 썸네일 `<img>`).
+   `.ico` 기본값(1.45em·음수 마진)은 **글줄 안에 섞여 흐르는** 아이콘용이라 구체 한가운데
+   놓으면 마진만큼 위로 밀리고 크기도 제각각이 된다 — 구체 안에서는 1em 정사각으로 못 박는다
+   (`.sr-orb` 의 font-size 2.4rem 이 그대로 지름 기준이 된다).
+   ⚠️ 세 종류가 **같은 크기**여야 한다. 여기가 어긋나면 "스킬만 크다/탈것만 작다"로 다시 돌아온다. */
+.sr-ico > .ico, .sr-ico > .mt-face {
+    display: block; width: 1em; height: 1em; margin: 0; vertical-align: top;
+}
+.sr-ico > .mt-face { display: flex; align-items: center; justify-content: center; }
+.sr-ico > .mt-face > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* 썸네일이 아직 안 구워진 순간의 이모지 폴백만 글자 크기를 줄인다 — ⚠️ **상자(1em)는 그대로 둔다.**
+   `font-size` 를 상자에 걸면 `width:1em` 이 같이 줄어 탈것 셀만 20% 작아진다(실측). */
+.sr-ico > .mt-face:not(.has-thumb) { font-size: .8em; width: 1.25em; height: 1.25em; }
 .sr-ico::after {
     /* 구체 상단 좌측 하이라이트와 **같은 위치·같은 모양**이어야 한다 — 다른 데서 빛나면
        '구체와 아이콘이 서로 다른 조명을 받는' 지금 상태가 그대로 남는다. */

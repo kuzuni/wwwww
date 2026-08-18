@@ -28,10 +28,13 @@ const UI = {
     // 고등급은 등급색 광채+회전 광선) → ③ 최고 등급은 한 박자 늦게 홀드백 등장 + 화면 플래시
     // → ④ 등급별 집계 + [확인]. 탭하면 스킵(전부 즉시 표시), 완료 상태에서 탭하면 닫힘.
     // 대량 소환(x25/x75)은 같은 항목을 한 셀로 묶고 수량 배지를 달아 색점 나열이 되지 않게 한다.
+    // `ico` = 소환 재화 아이콘 키(IconGen). 예전엔 이모지(🎫🥚⚙️)를 박아 뒀는데, 같은 재화가
+    // 상단 재화 바·소환 버튼에서는 생성 아이콘으로 그려져 **한 화면 안에서 두 얼굴**이었다
+    // (사용자 지시 2026-08-19 `summon-result-image-unify`). 이모지는 IconGen 이 없을 때의 폴백으로만 남긴다.
     SUMMON_KIND: {
-        skill: { title: '스킬 소환', icon: '🎫' },
-        pet: { title: '펫 소환', icon: '🥚' },
-        mount: { title: '탈것 소환', icon: '⚙️' },
+        skill: { title: '스킬 소환', ico: 'ticket', icon: '🎫' },
+        pet: { title: '펫 소환', ico: 'egg', icon: '🥚' },
+        mount: { title: '탈것 소환', ico: 'winder', icon: '⚙️' },
     },
     SUMMON_DUP_LABEL: { skill: '조각', mount: '재료' }, // 중복분 적립 환산 표기 (펫은 알 단위라 없음)
     SR_HI_RARITIES: ['legendary', 'ultimate', 'mythic'], // 광채 강조 대상
@@ -47,19 +50,35 @@ const UI = {
     _srCells: null, _srEntries: null, _srDelays: null, _srStart: 0, _srIdx: 0,
     _srDone: false, _srHeroIdx: -1,
 
+    // ---- 소환 결과창 그림 = 슬롯의 그림 (사용자 지시 2026-08-19 `summon-result-image-unify`) ----
+    // 사용자 원문: "스킬·펫·탈것에 소환 결과창 이미지랑 실제 이미지가 다른 문제. 통일되게."
+    // 예전엔 이 팝업만 이모지(SKILL_ICONS 🎫·MOUNT_ICONS 🐴·알 🥚)를 박아서, 결과창에서 본 그림과
+    // 슬롯·인벤에 실제로 들어간 그림이 딴판이었다. **슬롯이 쓰는 렌더 소스를 그대로 부른다** —
+    //   · 스킬 : `IconGen.skill(id)`      (스킬 슬롯 `.sk-icon` 과 같은 `sk_*` 아이콘)
+    //   · 탈것 : `UI.mountFace(name)`      (탑승 슬롯과 같은 3D 썸네일 파이프라인)
+    //   · 알   : `IconGen.img('egg', tint=등급색)` (펫 화면 알 타일과 같은 등급색 알)
+    // ⚠️ 이 세 자리에 **다시 이모지를 넣지 말 것** — 그게 이 항목의 버그 그 자체다.
+    // ⚠️ 3D 썸네일은 첫 굽기가 무거워 이모지 폴백으로 먼저 깔릴 수 있다 —
+    //    `openSummonResult` 가 모달을 붙인 직후 `hydrateMountThumbs(m)` 로 굽는다.
+    srFace(kind, id, rarity) {
+        if (kind === 'skill') return (typeof IconGen !== 'undefined' && IconGen.skill(id)) || SKILL_ICONS[id] || '✨';
+        if (kind === 'mount') return this.mountFace(id, 'sr-mt');
+        return (typeof IconGen !== 'undefined' && IconGen.img('egg', 'sr-egg', { tint: RARITY_CSS[rarity] })) || '🥚';
+    },
+
     // 모듈별 소환 결과 배열을 팝업이 쓰는 공통 형태로 변환 (묶음 전, 굴림 1회 = 1개)
     summonEntries(kind, results) {
         if (kind === 'skill') return results.map(r => ({
-            key: 'sk:' + r.def.id, icon: SKILL_ICONS[r.def.id] || '✨',
+            key: 'sk:' + r.def.id, icon: this.srFace('skill', r.def.id, r.def.rarity),
             rarity: r.def.rarity, name: r.def.name, isNew: !!r.isNew,
         }));
         if (kind === 'mount') return results.map(r => ({
-            key: 'mt:' + r.name, icon: MOUNT_ICONS[r.name] || '🐴',
+            key: 'mt:' + r.name, icon: this.srFace('mount', r.name, r.rarity),
             rarity: r.rarity, name: MOUNT_KR[r.name] || r.name, isNew: !!r.isNew,
         }));
         // 펫은 알 단위 획득이라 신규/중복 개념이 없다 — 기술트리 보너스 알만 따로 묶는다
         return results.map(r => ({
-            key: 'eg:' + r.rarity + (r.extra ? ':x' : ''), icon: '🥚', rarity: r.rarity,
+            key: 'eg:' + r.rarity + (r.extra ? ':x' : ''), icon: this.srFace('egg', '', r.rarity), rarity: r.rarity,
             name: r.extra ? `보너스 ${RARITY_KR[r.rarity]} 알` : `${RARITY_KR[r.rarity]} 알`, isNew: false,
         }));
     },
@@ -379,7 +398,7 @@ const UI = {
                 <div class="sr-idle"><i></i><i></i></div>
                 <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-wipe" style="--rc:${RARITY_CSS[best]}"></div>
-                <div class="sr-head"><div class="sr-title">${meta.icon} ${meta.title} ×${rolls.length}</div></div>
+                <div class="sr-head"><div class="sr-title">${(typeof IconGen !== 'undefined' && IconGen.img(meta.ico, 'sr-title-ico')) || meta.icon} ${meta.title} ×${rolls.length}</div></div>
                 <div class="sr-body${stage ? ' stage' : ''}${stage && size === ' one' ? ' one' : ''}">
                     ${canopy ? `<div class="sr-canopy${canopyCompact ? ' compact' : ''}"><i></i><i></i><i></i><b></b></div>` : ''}
                     <div class="sr-grid${size}${heroRow ? ' herorow' : ''}" style="--cols:${cols}">${cells}</div>
@@ -445,6 +464,10 @@ const UI = {
         this.clearSummonTimers();
         this._srDone = false;
         SFX.summonCharge(best);
+        // 탈것 셀은 3D 썸네일 파이프라인이라 첫 굽기 전에는 이모지 폴백으로 깔려 있다 —
+        // 슬롯과 같은 그림이어야 하므로(`summon-result-image-unify`) 여기서 구워 넣는다.
+        // ⚠️ 바닥 반사 복제본(`fillSummonReflection`)보다 **먼저** 돌아야 복제본에도 그림이 실린다.
+        this.hydrateMountThumbs(m);
         // 바닥 반사 복제본(.sr-reflect 안)이 아니라 진짜 그리드의 셀만 잡는다
         this._srCells = m.querySelectorAll('.sr-body > .sr-grid > .sr-cell');
         this._srEntries = entries;
