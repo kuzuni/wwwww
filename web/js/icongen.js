@@ -3035,7 +3035,9 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.globalAlpha = 0.36; ctx.fillStyle = '#000';
         ctx.filter = `blur(${S * 0.020}px)`;
         ctx.translate(0, S * 0.035);
-        ctx.beginPath(); path(); ctx.fill();
+        // ⚠️ 구멍 뚫린 경로(반지 밴드·벨트 버클)는 **그림자도 같은 규칙으로 칠해야** 한다 —
+        //    안 그러면 구멍 뒤에 검은 원판이 남아 '까만 구멍'처럼 보인다(실측으로 확인).
+        ctx.beginPath(); path(); ctx.fill(o.eo ? 'evenodd' : 'nonzero');
         ctx.restore();
         ctx.save();                                   // ② 본체 + ⑤ 테두리
         ctx.beginPath(); path();
@@ -3047,7 +3049,9 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.lineWidth = S * (o.lw === undefined ? 0.048 : o.lw);
         ctx.stroke();
         ctx.restore();
-        if (!o.flat) G._innerShadow(ctx, path, o.inner || 'rgba(0,0,0,.40)', S * 0.05, 0, S * 0.022);
+        // ⚠️ `_innerShadow` 는 `clip()` 을 **nonzero 로** 걸어서 도넛의 구멍까지 클립 안에 넣는다 —
+        //    구멍이 검게 메워진다(반지 밴드에서 실측). 구멍 뚫린 경로(`eo`)는 안쪽 그림자를 건너뛴다.
+        if (!o.flat && !o.eo) G._innerShadow(ctx, path, o.inner || 'rgba(0,0,0,.40)', S * 0.05, 0, S * 0.022);
         if (o.spec !== false) {                       // ④ 스펙큘러
             ctx.save(); ctx.beginPath(); path(); ctx.clip();
             const sx = (o.sx === undefined ? 0.33 : o.sx) * S, sy = (o.sy === undefined ? 0.24 : o.sy) * S;
@@ -3208,7 +3212,9 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.globalAlpha = 0.36; ctx.fillStyle = '#000';
         ctx.filter = `blur(${S * 0.020}px)`;
         ctx.translate(0, S * 0.035);
-        ctx.beginPath(); path(); ctx.fill();
+        // ⚠️ 구멍 뚫린 경로(반지 밴드·벨트 버클)는 **그림자도 같은 규칙으로 칠해야** 한다 —
+        //    안 그러면 구멍 뒤에 검은 원판이 남아 '까만 구멍'처럼 보인다(실측으로 확인).
+        ctx.beginPath(); path(); ctx.fill(o.eo ? 'evenodd' : 'nonzero');
         ctx.restore();
         ctx.save();
         ctx.beginPath(); path();
@@ -3220,7 +3226,9 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.lineWidth = S * (o.lw === undefined ? 0.048 : o.lw);
         ctx.stroke();
         ctx.restore();
-        if (!o.flat) G._innerShadow(ctx, path, o.inner || 'rgba(0,0,0,.40)', S * 0.05, 0, S * 0.022);
+        // ⚠️ `_innerShadow` 는 `clip()` 을 **nonzero 로** 걸어서 도넛의 구멍까지 클립 안에 넣는다 —
+        //    구멍이 검게 메워진다(반지 밴드에서 실측). 구멍 뚫린 경로(`eo`)는 안쪽 그림자를 건너뛴다.
+        if (!o.flat && !o.eo) G._innerShadow(ctx, path, o.inner || 'rgba(0,0,0,.40)', S * 0.05, 0, S * 0.022);
         if (o.spec !== false) {
             ctx.save(); ctx.beginPath(); path(); ctx.clip();
             const sx = (o.sx === undefined ? 0.33 : o.sx) * S, sy = (o.sy === undefined ? 0.24 : o.sy) * S;
@@ -3266,5 +3274,106 @@ IconGen._genderSym = function (ctx, S, female) {
         plate(ctx, S, sub.cir(ctx, S, 0.415, 0.400, 0.230),
             [[0, '#f2fbff'], [0.40, '#bfe6fb'], [0.78, '#7cc3e8'], [1, '#3d84ad']], { sx: 0.32, sy: 0.28, lw: 0.030 });
         mark(ctx, sub.ell(ctx, S, 0.330, 0.310, 0.090, 0.055, -0.6), 'rgba(255,255,255,.75)');
+    };
+
+    /* ⚔ 빈 슬롯 실루엣 3종 (🗡 무기 · 🪖 투구 · 👕 갑옷)
+       ⚠️ **장착된 칸은 `Scene3D.itemThumb()` 3D 스냅샷이 그린다** — 이 셋은 아이템이 없을 때만
+       보이는 자리다(`EMPTY_SLOT_EMOJI`). 새 세이브로 처음 켠 화면이 바로 이 상태라 눈에 띄고,
+       `.dim` 으로 어둡게 깔리므로 **색보다 실루엣**이 또렷해야 한다 — 안쪽 장식은 최소로. */
+    G.draw.slot_weapon = function (ctx, S) {
+        plate(ctx, S, closed(ctx, S, [[0.50, 0.035], [0.605, 0.185], [0.605, 0.545], [0.395, 0.545], [0.395, 0.185]]),
+            [[0, '#f2f7fb'], [0.34, '#c3cedb'], [0.70, '#8592a1'], [1, '#49545f']], { sx: 0.40, sy: 0.20 });   // 칼날
+        plate(ctx, S, sub.rr(ctx, S, 0.180, 0.540, 0.640, 0.105, 0.050),
+            [[0, '#e8c98e'], [0.34, '#c2914a'], [0.72, '#8c6224'], [1, '#4e340f']], { spec: false, lw: 0.042, y0: 0.52, y1: 0.66 });  // 코등이
+        plate(ctx, S, sub.rr(ctx, S, 0.425, 0.640, 0.150, 0.245, 0.055),
+            [[0, '#d8b887'], [0.34, '#a8762f'], [0.72, '#77501a'], [1, '#3d2708']], { spec: false, lw: 0.040, y0: 0.62, y1: 0.90 });  // 손잡이
+        plate(ctx, S, sub.cir(ctx, S, 0.50, 0.910, 0.090),
+            [[0, '#f2f7fb'], [0.36, '#c3cedb'], [0.74, '#8592a1'], [1, '#49545f']], { spec: false, lw: 0.038, y0: 0.82, y1: 1.0 });   // 폼멜
+    };
+
+    G.draw.slot_helmet = function (ctx, S) {
+        const STEELB = [[0, '#eef4fa'], [0.32, '#b9c5d1'], [0.68, '#7f8c99'], [1, '#3f4954']];
+        // 돔 + 아래 챙을 한 실루엣으로 — 두 도형을 따로 두면 작은 크기에서 분리돼 보인다.
+        plate(ctx, S, join(
+            sub.ell(ctx, S, 0.50, 0.520, 0.375, 0.360),
+            sub.rr(ctx, S, 0.085, 0.560, 0.830, 0.190, 0.085)), STEELB, { sy: 0.28 });
+        // ⚠️ 눈가림 틈이 두꺼우면 **풀페이스 오토바이 헬멧**으로 읽힌다(1차 렌더) — 얇게 줄인다.
+        mark(ctx, sub.rr(ctx, S, 0.255, 0.435, 0.490, 0.070, 0.035), 'rgba(28,34,42,.80)');    // 눈가림 틈
+        mark(ctx, sub.rr(ctx, S, 0.460, 0.175, 0.080, 0.230, 0.040), 'rgba(28,34,42,.45)');    // 정수리 능선
+        mark(ctx, sub.rr(ctx, S, 0.105, 0.640, 0.790, 0.050, 0.025), 'rgba(28,34,42,.30)');    // 챙 그림자
+    };
+
+    G.draw.slot_armor = function (ctx, S) {
+        plate(ctx, S, closed(ctx, S, [
+            [0.500, 0.115], [0.760, 0.185], [0.930, 0.335], [0.845, 0.480], [0.780, 0.420],
+            [0.800, 0.905], [0.200, 0.905], [0.220, 0.420], [0.155, 0.480], [0.070, 0.335], [0.240, 0.185],
+        ]), [[0, '#eaf1f8'], [0.32, '#b3c0ce'], [0.68, '#788593'], [1, '#3b444f']], { sy: 0.26 });
+        // ⚠️ 세로 중앙선 + 마름모를 겹치면 **화살표**로 읽힌다(1차 렌더). 갑옷다움은 마름모가 아니라
+        //    **목선과 가슴판 분할**에서 나오므로 그 둘만 남긴다.
+        mark(ctx, sub.rr(ctx, S, 0.470, 0.360, 0.060, 0.500, 0.030), 'rgba(30,36,44,.50)');     // 가슴판 분할선
+        mark(ctx, sub.ell(ctx, S, 0.500, 0.170, 0.150, 0.085), 'rgba(30,36,44,.62)');           // 목선
+        mark(ctx, sub.rr(ctx, S, 0.230, 0.560, 0.540, 0.055, 0.028), 'rgba(30,36,44,.32)');     // 허리 이음선
+    };
+
+    /* 나머지 빈 슬롯 5종 — 장갑·목걸이·반지·신발·벨트. 위 셋과 같은 이유로 실루엣 우선. */
+    const IRON = [[0, '#eaf1f8'], [0.32, '#b3c0ce'], [0.68, '#788593'], [1, '#3b444f']];
+    const LEATHER = [[0, '#d8b887'], [0.32, '#a8762f'], [0.70, '#77501a'], [1, '#3a2507']];
+
+    G.draw.slot_gloves = function (ctx, S) {
+        // 손등 + 엄지를 한 실루엣으로(따로 두면 작은 크기에서 '두 덩어리'가 된다)
+        plate(ctx, S, join(
+            sub.rr(ctx, S, 0.245, 0.190, 0.520, 0.560, 0.130),
+            sub.rr(ctx, S, 0.075, 0.400, 0.245, 0.215, 0.105)), LEATHER, { sy: 0.26 });
+        plate(ctx, S, sub.rr(ctx, S, 0.205, 0.715, 0.600, 0.190, 0.070), IRON, { spec: false, lw: 0.042, y0: 0.68, y1: 0.94 });  // 손목 밴드
+        [0.360, 0.505, 0.650].forEach(x =>
+            mark(ctx, sub.rr(ctx, S, x - 0.032, 0.235, 0.064, 0.300, 0.032), 'rgba(50,32,10,.42)'));   // 손가락 골
+    };
+
+    G.draw.slot_necklace = function (ctx, S) {
+        // 사슬 = 열린 U. `plate` 은 채우기라 링을 그대로 쓰면 원판이 된다 → 굵은 U 를 스트로크로.
+        ctx.save();
+        ctx.beginPath();
+        // ⚠️ 호가 얕고 선이 굵으면 **V(체크표시)** 로 읽힌다(1차 렌더). 반원으로 넓히고 얇게 뽑는다.
+        ctx.arc(0.50 * S, 0.345 * S, 0.360 * S, Math.PI * 0.02, Math.PI * 0.98);
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 0.135 * S; ctx.strokeStyle = 'rgba(16,14,11,.88)'; ctx.stroke();
+        ctx.lineWidth = 0.072 * S;
+        ctx.strokeStyle = G._lin(ctx, 0.15 * S, 0, 0.85 * S, 0, [[0, '#8d99a5'], [0.35, '#e8eff5'], [0.7, '#8996a3'], [1, '#4a555f']]);
+        ctx.stroke();
+        ctx.restore();
+        plate(ctx, S, closed(ctx, S, [[0.500, 0.630], [0.650, 0.780], [0.500, 0.950], [0.350, 0.780]]),
+            [[0, '#cdefff'], [0.32, '#5fc2ef'], [0.68, '#2b7fb5'], [1, '#123f5f']], { y0: 0.60, y1: 0.97, sx: 0.42, sy: 0.68 });
+    };
+
+    G.draw.slot_ring = function (ctx, S) {
+        // 밴드는 도넛이라 evenodd 로 구멍을 낸다 — 안 그러면 원판이 된다.
+        const band = () => { sub.cir(ctx, S, 0.50, 0.605, 0.340)(); sub.cir(ctx, S, 0.50, 0.605, 0.195)(); };
+        plate(ctx, S, band, [[0, '#fff3c0'], [0.30, '#f6cd46'], [0.66, '#d79a12'], [1, '#8c5c04']],
+            { eo: true, y0: 0.26, y1: 0.96, spec: false, lw: 0.044 });
+        plate(ctx, S, closed(ctx, S, [[0.500, 0.055], [0.685, 0.225], [0.500, 0.400], [0.315, 0.225]]),
+            [[0, '#eaffff'], [0.30, '#8fe4f2'], [0.66, '#3897b8'], [1, '#134a63']], { y0: 0.02, y1: 0.42, sx: 0.40, sy: 0.14 });
+    };
+
+    G.draw.slot_shoes = function (ctx, S) {
+        // 부츠 = 목 + 발등 + 밑창을 한 윤곽으로(ㄴ 자). 세 조각으로 두면 관절이 끊겨 보인다.
+        plate(ctx, S, closed(ctx, S, [
+            [0.255, 0.075], [0.615, 0.075], [0.615, 0.560], [0.905, 0.640], [0.930, 0.845], [0.255, 0.845],
+        ]), LEATHER, { sy: 0.22 });
+        plate(ctx, S, sub.rr(ctx, S, 0.205, 0.830, 0.760, 0.115, 0.052), IRON, { spec: false, lw: 0.040, y0: 0.80, y1: 0.97 });  // 밑창
+        mark(ctx, sub.rr(ctx, S, 0.255, 0.290, 0.360, 0.070, 0.035), 'rgba(50,32,10,.45)');    // 목 접힘
+        mark(ctx, sub.rr(ctx, S, 0.255, 0.640, 0.360, 0.060, 0.030), 'rgba(50,32,10,.35)');    // 발등 이음
+    };
+
+    G.draw.slot_belt = function (ctx, S) {
+        plate(ctx, S, sub.rr(ctx, S, 0.030, 0.395, 0.940, 0.235, 0.055), LEATHER, { y0: 0.36, y1: 0.68, sx: 0.30, sy: 0.44 });
+        // 버클 = 사각 고리(evenodd 로 가운데를 비운다) + 혀
+        const buckle = () => {
+            G._rrSub(ctx, 0.335 * S, 0.320 * S, 0.330 * S, 0.385 * S, 0.070 * S);
+            G._rrSub(ctx, 0.415 * S, 0.400 * S, 0.170 * S, 0.225 * S, 0.040 * S);
+        };
+        plate(ctx, S, buckle, [[0, '#fff3c0'], [0.30, '#f6cd46'], [0.66, '#d79a12'], [1, '#8c5c04']],
+            { eo: true, y0: 0.29, y1: 0.74, spec: false, lw: 0.044 });
+        [0.115, 0.215, 0.815, 0.905].forEach(x =>
+            mark(ctx, sub.cir(ctx, S, x, 0.513, 0.042), 'rgba(46,29,8,.55)'));                  // 벨트 구멍
     };
 })(IconGen);

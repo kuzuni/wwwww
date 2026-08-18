@@ -2017,10 +2017,22 @@ const UI = {
     // 장비 그리드 공용 셀 (원본 shot-042120 정합): 정사각 고정 프레임 + 아이콘 상부 채움 + Lv 내부 하단 + ⭐는 하단 테두리 걸침.
     // 빈 슬롯도 동일 프레임 유지(찌그러짐 금지, 사용자 지시) — 흐린 부위 아이콘 실루엣 + 부위명.
     EMPTY_SLOT_EMOJI: { weapon: '🗡', helmet: '🪖', armor: '👕' },
+    // 빈 칸 실루엣 — 새 세이브로 처음 켠 화면이 바로 이 상태라 눈에 띈다.
+    // (장착된 칸은 `itemImgHTML()` 이 `Scene3D.itemThumb()` 3D 스냅샷으로 그린다.)
+    // 표에 없는 슬롯은 원래 이모지로 떨어지므로 슬롯이 늘어도 안 깨진다.
+    EMPTY_SLOT_ICON: {
+        weapon: 'slot_weapon', helmet: 'slot_helmet', armor: 'slot_armor',
+        gloves: 'slot_gloves', necklace: 'slot_necklace', ring: 'slot_ring',
+        shoes: 'slot_shoes', belt: 'slot_belt',
+    },
+    emptySlotFace(slot) {
+        const ico = this.EMPTY_SLOT_ICON[slot] && IconGen.img(this.EMPTY_SLOT_ICON[slot]);
+        return ico || this.EMPTY_SLOT_EMOJI[slot] || this.SLOT_EMOJI[slot] || '🎁';
+    },
     equipCellHTML(slot) {
         const it = S.equipment[slot];
         if (!it) return `<div class="equip-cell empty">
-            <span class="cell-img emoji dim">${this.EMPTY_SLOT_EMOJI[slot] || this.SLOT_EMOJI[slot] || '🎁'}</span>
+            <span class="cell-img emoji dim">${this.emptySlotFace(slot)}</span>
             <span class="slot-name">${SLOT_KR[slot]}</span>
         </div>`;
         return `<div class="equip-cell" style="--rc:${this.ageHex(it.age)}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">

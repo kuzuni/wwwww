@@ -556,6 +556,9 @@ body {
 .equip-cell.empty { cursor: default; }
 /* 빈 슬롯 실루엣도 '같은 비율감'으로 (TODO 지시) — 1.35rem 고정은 셀의 33%밖에 안 됐다 */
 .equip-cell.empty .cell-img.dim { filter: grayscale(1) opacity(.35); font-size: 72cqi; }
+/* 빈 칸 실루엣이 이모지에서 코드 생성 아이콘으로 바뀌었다. `.ico` 기본 1.45em 은 위 72cqi 글자
+   크기를 타고 칸 밖으로 넘친다 — 칸 기준으로 직접 잡는다(항목 ⑤ '프레임의 85~95%'). */
+.equip-cell.empty .cell-img.dim .ico { width: 88%; height: 88%; margin: 0; }
 .equip-cell.egg-cell.empty { cursor: pointer; } /* 탈것 창 진입점이라 빈 상태에도 클릭 가능 */
 .equip-cell .slot-name { position: absolute; bottom: .3rem; left: 0; right: 0; text-align: center; font-size: .58rem; font-weight: 800; color: #b9a8a8; }
 /* 밝은 하늘색 egg-cell 위에서 회색 라벨이 대비 1.5:1로 안 읽히던 QA 버그 — 흰 글자+검정 그림자 (185) */
