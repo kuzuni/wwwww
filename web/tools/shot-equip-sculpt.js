@@ -35,7 +35,10 @@ const ONLY = process.argv[3] || '';
         const AGE_ROWS = ['primitive', 'medieval'];
         const COLS = cells.length;
         const cv = document.createElement('canvas');
-        cv.width = S * COLS; cv.height = S * AGE_ROWS.length;
+        // 3번째 행 = **96px 다운샘플 판독성 행**. 비평가가 "다운샘플하면 갑옷 5칸이 같은 흰
+        // 항아리로 수렴한다"고 지적한 것을 눈으로 확인·반려하기 위한 줄이다(원본 96px 을
+        // 타일 가운데에 1:1로 놓고, 옆에 실루엣만 검게 칠한 판을 나란히 둔다).
+        cv.width = S * COLS; cv.height = S * (AGE_ROWS.length + 1);
         const ctx = cv.getContext('2d');
         ctx.fillStyle = '#20262f'; ctx.fillRect(0, 0, cv.width, cv.height);
         const jobs = [];
@@ -65,7 +68,26 @@ const ONLY = process.argv[3] || '';
                 void ageIdx;
                 jobs.push(new Promise(res => {
                     const im = new Image();
-                    im.onload = () => { ctx.drawImage(im, c * S, r * S, S, S); res(); };
+                    im.onload = () => {
+                        ctx.drawImage(im, c * S, r * S, S, S);
+                        if (r === AGE_ROWS.length - 1) {   // 마지막 시대 행으로 판독성 행을 만든다
+                            const y = AGE_ROWS.length * S;
+                            ctx.drawImage(im, c * S + 12, y + 40, 96, 96);          // 실제 표시 크기
+                            const t = document.createElement('canvas'); t.width = t.height = 96;
+                            const tc = t.getContext('2d', { willReadFrequently: true });
+                            tc.drawImage(im, 0, 0, 96, 96);
+                            const d2 = tc.getImageData(0, 0, 96, 96);
+                            for (let i = 0; i < d2.data.length; i += 4) {           // 실루엣만 남긴다
+                                const a = d2.data[i + 3];
+                                d2.data[i] = d2.data[i + 1] = d2.data[i + 2] = a > 24 ? 20 : 0;
+                                d2.data[i + 3] = a > 24 ? 255 : 0;
+                            }
+                            tc.putImageData(d2, 0, 0);
+                            ctx.fillStyle = '#8a97a8'; ctx.fillRect(c * S + 120, y + 40, 96, 96);
+                            ctx.drawImage(t, c * S + 120, y + 40, 96, 96);
+                        }
+                        res();
+                    };
                     im.onerror = () => res();
                     im.src = dataUrl;
                 }));
@@ -76,6 +98,8 @@ const ONLY = process.argv[3] || '';
             AGE_ROWS.forEach((age, r) => cells.forEach((cell, c) => {
                 ctx.fillText(`${age.slice(0, 4)} ${cell.label}`, c * S + 6, r * S + 18);
             }));
+            ctx.fillStyle = '#ffd54f';
+            cells.forEach((cell, c) => ctx.fillText(`96px ${cell.label}`, c * S + 6, AGE_ROWS.length * S + 24));
             return { url: cv.toDataURL(), errs };
         });
     }, ONLY);

@@ -3010,17 +3010,29 @@ const Scene3D = {
         // 아랫단이 벌어지고(플레어) 허리가 잘록해지며 가슴이 가장 두껍고 목으로 좁아진다.
         // 폭·높이는 예전 상자와 맞춰 둔다(rx 0.238×2≈0.46) — 부속(견갑·망토)·시대 트림의 좌표가
         // 이 치수를 전제로 잡혀 있어 크게 벗어나면 리벳이 허공에 뜬다.
-        const skirt = style === 'robe' ? 0.30 : style === 'hide' ? 0.245 : style === 'cape' ? 0.235 : 0.225;
+        // ⚠️ 스타일 6종이 **같은 토르소 하나**를 돌려 쓰면 96px 로 줄였을 때 plate·hide·vest·suit 가
+        //    전부 '같은 흰 항아리'로 수렴한다(비평가 2차 지적 '96px 판독성 실패'). 어깨폭·허리·
+        //    밑단·키를 스타일마다 갈라 **바깥 윤곽 자체를 변주**한다. 실루엣 확인은
+        //    `shot-equip-sculpt.js` 의 3번째 행(96px 다운샘플 + 실루엣 판)으로 한다.
+        const P = {                       // shoulder=가슴폭 배율 · waist=허리 배율 · skirt=밑단 반경 · top=키 배율
+            plate: { shoulder: 1.00, waist: 0.94, skirt: 0.225, top: 1.00 },
+            hide: { shoulder: 0.94, waist: 1.10, skirt: 0.250, top: 0.94 },   // 통짜 자루꼴, 낮다
+            robe: { shoulder: 0.88, waist: 0.92, skirt: 0.315, top: 1.08 },   // 좁은 어깨 + 큰 치맛단
+            cape: { shoulder: 1.00, waist: 0.96, skirt: 0.230, top: 1.00 },
+            vest: { shoulder: 1.05, waist: 0.98, skirt: 0.200, top: 0.84 },   // 짧게 잘린 조끼
+            suit: { shoulder: 1.03, waist: 1.04, skirt: 0.215, top: 1.02 },   // 통통한 여압복
+        }[style] || { shoulder: 1, waist: 1, skirt: 0.225, top: 1 };
         const torso = this.shellFromRings([
-            { y: -0.27, rx: skirt, rz: skirt * 0.63 },   // 아랫단 플레어(로브는 치맛단처럼 크게)
-            { y: -0.19, rx: 0.192, rz: 0.120 },
-            { y: -0.07, rx: 0.178, rz: 0.113 },          // 허리 — 가장 잘록한 지점
-            { y: 0.05, rx: 0.214, rz: 0.145 },
-            { y: 0.15, rx: 0.238, rz: 0.160 },           // 가슴 — 가장 두껍다
-            { y: 0.23, rx: 0.222, rz: 0.138 },
-            { y: 0.29, rx: 0.168, rz: 0.106 },           // 목
+            { y: -0.27, rx: P.skirt, rz: P.skirt * 0.63 },              // 아랫단 플레어
+            { y: -0.19, rx: 0.192 * P.waist, rz: 0.120 * P.waist },
+            { y: -0.07, rx: 0.178 * P.waist, rz: 0.113 * P.waist },     // 허리 — 가장 잘록한 지점
+            { y: 0.05, rx: 0.214 * P.shoulder, rz: 0.145 * P.shoulder },
+            { y: 0.15 * P.top, rx: 0.238 * P.shoulder, rz: 0.160 * P.shoulder },   // 가슴 — 가장 두껍다
+            { y: 0.23 * P.top, rx: 0.222 * P.shoulder, rz: 0.138 * P.shoulder },
+            { y: 0.29 * P.top, rx: 0.168, rz: 0.106 },                  // 목
         ], soft ? 22 : 20, mat, { flat: this.ageGearKind(age) === 'primal' && !soft });
         g.add(torso);
+        const neckY = 0.29 * P.top;
         if (!soft) {
             // 가슴 곡률 — 판금은 흉근 두 덩이 + 가운데 능선(키일)이 서야 '흉갑'으로 읽힌다.
             // ⚠️ 구를 그대로 쓰면 두 개의 유방으로 읽힌다 — z를 0.26까지 눌러 **표면에서 살짝
@@ -3038,7 +3050,7 @@ const Scene3D = {
         }
         // 목깃(고젯) — 몸통 윗변을 링으로 마감해 '잘린 관' 인상을 없앤다
         const gorget = new THREE.Mesh(new THREE.TorusGeometry(0.125, soft ? 0.026 : 0.032, 8, 20), soft ? mat : mats.dark);
-        gorget.position.y = 0.29;
+        gorget.position.y = neckY;
         gorget.rotation.x = Math.PI / 2;
         gorget.scale.y = 0.68;   // 몸통 단면이 타원이라 링도 눕혀야 앞뒤로 뜨지 않는다
         g.add(gorget);
@@ -3111,8 +3123,30 @@ const Scene3D = {
                 lapel.rotation.y = s * 0.16;
                 g.add(lapel);
             }
+        } else if (style === 'robe') {
+            // 로브: 목 뒤로 솟은 **후드**가 실루엣의 얼굴이다 — 없으면 96px 에서 그냥 종(鐘)이다
+            const hood = new THREE.Mesh(new THREE.SphereGeometry(0.155, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.68), mat);
+            hood.scale.set(1, 1.15, 0.85);
+            hood.position.set(0, neckY - 0.02, -0.075);
+            hood.rotation.x = -0.34;
+            g.add(hood);
+            const brim = new THREE.Mesh(new THREE.TorusGeometry(0.148, 0.026, 6, 20, Math.PI * 1.1), mat);
+            brim.position.set(0, neckY + 0.04, -0.055);
+            brim.rotation.x = Math.PI / 2 - 0.34;
+            brim.rotation.z = Math.PI * 0.95;
+            g.add(brim);
         } else if (style === 'hide') {
-            // 가죽: 민짜 덩어리로 읽히던 것을 **앞섶 교차 끈 + 어깨 모피**로 갈랐다
+            // 가죽: 민짜 덩어리로 읽히던 것을 **앞섶 교차 끈 + 어깨 모피 + 너덜한 밑단**으로 갈랐다.
+            // 밑단 술이 아래 윤곽을 톱니로 만들어 plate 의 매끈한 항아리와 96px 에서도 갈린다.
+            // 술은 촘촘해야 '너덜한 밑단'이지, 성기면 다리 여러 개로 보인다 — 18가닥을 붙여 두른다
+            for (let i = 0; i < 18; i++) {
+                const a = (i / 18) * Math.PI * 2;
+                const len = 0.052 + (i % 3) * 0.028;
+                const strip = this.beveledSlab(0.062, len, 0.03, 0.012, this.tintOf(mat, -0.04));
+                strip.position.set(Math.cos(a) * 0.236, -0.262 - len * 0.44, Math.sin(a) * 0.149);
+                strip.rotation.y = -a;
+                g.add(strip);
+            }
             for (let i = 0; i < 4; i++) {
                 const y = 0.19 - i * 0.075;
                 for (const s of [-1, 1]) {
