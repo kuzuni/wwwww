@@ -1020,7 +1020,23 @@ const UI = {
     // lane='combat' 이면 팝업 아래로 깔리는 전투/스테이지 알림 레인에 띄운다
     // (사용자 지시 2026-08-18 — "몇 스테이지로 돌아간다는 알림은 다른 팝업들 위로 뜨면 안 됨").
     // 기본 레인은 그대로 팝업 위다: 대개 그 팝업에서 누른 버튼의 응답이라 가려지면 안 된다.
+    // 수령 연출(reward-claim-fx)이 도는 동안에는 토스트를 잠깐 미룬다 — 수령이 촉발한 부수 토스트
+    // (해금·자동장착 등)가 연출·행 위로 미끄러져 들어와 화면을 덮는 걸 막는다(비평가 지적).
+    // 지운 게 아니라 미룬 것: 연출이 끝나면 순서대로, 각자의 레인 그대로 뜬다.
+    _toastHoldUntil: 0, _heldToasts: null,
     toast(msg, lane) {
+        if (performance.now() < this._toastHoldUntil) {
+            if (!this._heldToasts) {
+                this._heldToasts = [];
+                setTimeout(() => {
+                    const q = this._heldToasts || [];
+                    this._heldToasts = null;
+                    q.forEach(t => this.toast(t.msg, t.lane));
+                }, this._toastHoldUntil - performance.now() + 30);
+            }
+            this._heldToasts.push({ msg, lane });
+            return;
+        }
         const el = document.createElement('div');
         el.className = 'toast';
         this.paintIconText(el, msg, 'toast-ico');
@@ -2569,6 +2585,158 @@ const UI = {
         SFX.gacha('common'); // 동전 소리 대용 — 짧은 상승 스윕
     },
 
+    // ---- 공통 수령 연출 (reward-claim-fx, 사용자 지시 2026-08-18: "수령받을 때마다 이펙트") ----
+    // rewards = { coins, hammers, gems, tickets, potions, winders, eggCurrency … } 지급 재화 묶음.
+    // opts.from = 수령을 일으킨 버튼/칸 DOM 요소(연출 시작점). 없으면 화면 가운데 아래쪽.
+    // 아이콘이 시작점에서 방사형으로 튀어나왔다가(감속) 상단 바로 빨려 들어간다(가속) —
+    // 코인/젬은 제 pill 중심으로, pill이 없는 재화는 상단 바 중앙으로. 도착한 pill은 한 번 박동.
+    // 포물선은 coinBurst와 같은 축 분리 문법: 바깥 요소가 X, 안쪽 요소가 Y+크기를 맡는다
+    // (한 요소에 합치면 직선이 된다). 좌표가 매번 달라 키프레임은 WAAPI로 만든다.
+    RW_FLY_MS: 820,
+    rewardBurst(rewards, opts = {}) {
+        const entries = Object.entries(rewards || {})
+            .map(([k, v]) => [k, Math.floor(Number(v) || 0)])
+            .filter(([, v]) => v > 0);
+        if (!entries.length) return;
+        const host = document.getElementById('app');
+        if (!host) return;
+        const hb = host.getBoundingClientRect();
+        let sx = hb.width / 2, sy = hb.height * 0.58, srcTop = null;
+        if (opts.from && opts.from.getBoundingClientRect) {
+            const fb = opts.from.getBoundingClientRect();
+            if (fb.width || fb.height) {
+                sx = fb.left - hb.left + fb.width / 2; sy = fb.top - hb.top + fb.height / 2;
+                srcTop = fb.top - hb.top;   // '+획득량' 라벨은 버튼 위 빈 공간으로 — 버튼·토스트와 안 겹치게
+            }
+        }
+        let layer = document.getElementById('reward-burst');
+        if (!layer) { layer = document.createElement('div'); layer.id = 'reward-burst'; host.appendChild(layer); }
+        // 연출이 도는 동안(마지막 아이콘 도착까지) 토스트를 미룬다 — toast()가 이 시각을 본다
+        this._toastHoldUntil = performance.now() + entries.length * 90 + 7 * 44 + this.RW_FLY_MS + 120;
+
+        // 도착점 — 렌더 직후라 pill이 없을 수도 있으니 상단 바, 그마저 없으면 화면 위 가운데로 폴백.
+        // 박동 대상 요소는 좌표와 달리 **도착 시점에 다시 찾는다**(pulseEl) — 수령 직후 호출부가
+        // renderTopBar()로 상단 바를 다시 그리므로, 시작 시점에 잡아 둔 pill은 그때쯤 떼어진 노드다.
+        const pillSel = cur => cur === 'coins' ? '.currency-pills .pill.coin'
+            : cur === 'gems' ? '.currency-pills .pill.gem' : null;
+        const targetOf = cur => {
+            const sel = pillSel(cur);
+            const el = (sel && document.querySelector(sel)) || this.els.topbar;
+            const r = el && el.getBoundingClientRect();
+            const pulseEl = () => (sel && document.querySelector(sel)) || this.els.topbar;
+            if (!r || (!r.width && !r.height)) return { x: hb.width / 2, y: 10, pulseEl };
+            return { x: r.left - hb.left + r.width / 2, y: r.top - hb.top + r.height / 2, pulseEl };
+        };
+
+        // 임팩트 프레임: 글로우 + 퍼지는 링 (탭의 '맞았다' 순간). 중심은 버튼 중앙보다 살짝 위 —
+        // 흩어짐이 위쪽 편향이라 시각적 무게중심을 맞춘다
+        for (const cls of ['rw-glow', 'rw-ring']) {
+            const fx = document.createElement('span');
+            fx.className = cls;
+            fx.style.cssText = `left:${sx.toFixed(1)}px; top:${(sy - 10).toFixed(1)}px`;
+            layer.appendChild(fx);
+            setTimeout(() => fx.remove(), 640);
+        }
+        // 누른 자리 자체도 반응한다 — 탭한 표면이 무반응이면 연출이 붕 뜬다(비평가 지적 ⑥)
+        if (opts.from && opts.from.classList) {
+            opts.from.classList.add('rw-pulse');
+            setTimeout(() => opts.from.classList && opts.from.classList.remove('rw-pulse'), 420);
+        }
+
+        entries.forEach(([cur, amt], ci) => {
+            const icoKey = this.CURRENCY_ICON[cur] || 'coin';
+            const icoHtml = IconGen.img(icoKey) || IconGen.img('coin');
+            const t = targetOf(cur);
+            // 획득량이 클수록 아이콘이 많아지되 상한(성능·가독성) — coinBurst와 같은 로그 눈금
+            const n = U.clamp(2 + Math.round(Math.log10(Math.max(1, amt)) * 1.3), 2, 7);
+            for (let i = 0; i < n; i++) {
+                const delay = ci * 90 + i * 44 + U.rand(0, 22);
+                // 흩어짐 반경은 행 높이의 6할쯤(≈40px 이내) — 더 크면 어느 행의 보상인지 못 읽는다(비평가 지적)
+                const ang = U.rand(0, Math.PI * 2), rad = U.rand(18, 40);
+                // 흩어짐은 **항상 버튼 위쪽** — 아래로 퍼지면 다음 행 카운터 위에 앉아
+                // '옆 행이 재화를 뿜는' 오독이 된다(비평가 지적: 침범이 아니라 귀속 오류)
+                const rx = Math.cos(ang) * rad, ry = -Math.abs(Math.sin(ang)) * rad * 0.8 - 4;
+                const rot = U.rand(-160, 160);   // 흡수 중 회전 — 정지 스프라이트 순간이동 느낌 방지
+                const el = document.createElement('span');
+                el.className = 'rw-fly';
+                el.style.cssText = `left:${sx.toFixed(1)}px; top:${sy.toFixed(1)}px`;
+                const yEl = document.createElement('span');
+                yEl.style.display = 'inline-block';
+                yEl.innerHTML = icoHtml;
+                el.appendChild(yEl);
+                layer.appendChild(el);
+                el.animate([
+                    { transform: 'translateX(0px)', offset: 0, easing: 'cubic-bezier(.2,.8,.35,1)' },
+                    { transform: `translateX(${rx.toFixed(1)}px)`, offset: 0.34, easing: 'cubic-bezier(.6,0,.8,.4)' },
+                    { transform: `translateX(${(t.x - sx).toFixed(1)}px)`, offset: 1 },
+                ], { duration: this.RW_FLY_MS, delay, fill: 'both' });
+                // ⚠️ 두 번째 구간 이징에 음수 성분(cubic-bezier y<0)을 쓰면 안 된다 — '움찔' 예비동작이
+                // 버튼 아래로 처져 다음 행 위에 앉는다(비평가 실측: 첫 200ms 동안 행 경계 아래로 침범)
+                yEl.animate([
+                    { transform: 'translateY(0px) rotate(0deg) scale(.35)', opacity: .2, offset: 0, easing: 'cubic-bezier(.2,.9,.35,1.1)' },
+                    { transform: `translateY(${ry.toFixed(1)}px) rotate(${(rot * 0.3).toFixed(0)}deg) scale(1)`, opacity: 1, offset: 0.34, easing: 'cubic-bezier(.5,0,.75,.45)' },
+                    { transform: `translateY(${(t.y - sy).toFixed(1)}px) rotate(${rot.toFixed(0)}deg) scale(.62)`, opacity: 1, offset: 0.94 },
+                    { transform: `translateY(${(t.y - sy).toFixed(1)}px) rotate(${rot.toFixed(0)}deg) scale(.5)`, opacity: 0, offset: 1 },
+                ], { duration: this.RW_FLY_MS, delay, fill: 'both' });
+                setTimeout(() => el.remove(), delay + this.RW_FLY_MS + 60);
+                // 착지 박자: 잔불꽃 + 도착 지점의 누적 카운터가 아이콘이 닿을 때마다 뛰어오른다 —
+                // 상단 바가 시트에 가려져 있어도 '값이 여기 쌓이고 있다'가 눈에 보인다(도착 = 감정적 보상)
+                const per = Math.round(amt * (i + 1) / n);
+                setTimeout(() => {
+                    const sp = document.createElement('span');
+                    sp.className = 'rw-pop rw-pop-sm';
+                    sp.style.cssText = `left:${(t.x + U.rand(-8, 8)).toFixed(1)}px; top:${(t.y + U.rand(-6, 6)).toFixed(1)}px`;
+                    layer.appendChild(sp);
+                    setTimeout(() => sp.remove(), 320);
+                    let tick = layer.querySelector(`.rw-tick[data-cur="${cur}"]`);
+                    if (!tick) {
+                        tick = document.createElement('span');
+                        tick.className = 'rw-tick';
+                        tick.dataset.cur = cur;
+                        tick.style.cssText = `left:${t.x.toFixed(1)}px; top:${(Math.max(t.y, 20) + 22).toFixed(1)}px`;
+                        layer.appendChild(tick);
+                    }
+                    tick.innerHTML = `+${U.fmt(per)} ${icoHtml}`;
+                    tick.classList.remove('bump');
+                    void tick.offsetWidth;
+                    tick.classList.add('bump');
+                }, delay + this.RW_FLY_MS * 0.94);
+            }
+            // 도착 마침표는 그 재화의 **마지막** 아이콘이 들어오는 순간 한 번 — 먼저 터뜨리면
+            // 늦게 오는 아이콘이 마침표 뒤에 그냥 증발하는 것처럼 보인다(비평가 지적 ④)
+            const lastDelay = ci * 90 + (n - 1) * 44 + 22;
+            setTimeout(() => {
+                const pop = document.createElement('span');
+                pop.className = 'rw-pop';
+                pop.style.cssText = `left:${t.x.toFixed(1)}px; top:${t.y.toFixed(1)}px`;
+                layer.appendChild(pop);
+                setTimeout(() => pop.remove(), 380);
+                // 누적 카운터는 마지막 착지 한 박자 뒤에 정리
+                const tick = layer.querySelector(`.rw-tick[data-cur="${cur}"]`);
+                if (tick) { tick.classList.add('out'); setTimeout(() => tick.remove(), 460); }
+                const pu = t.pulseEl();
+                if (!pu) return;
+                pu.classList.remove('rw-pulse');
+                void pu.offsetWidth;               // 연속 수령에도 매번 박동하도록 애니메이션 리스타트
+                pu.classList.add('rw-pulse');
+                setTimeout(() => pu.classList.remove('rw-pulse'), 420);
+            }, lastDelay + this.RW_FLY_MS * 0.94 + 140);
+            // 재화별 '+획득량' — 버튼 상단 위 빈 공간으로 재화 수만큼 줄줄이 떠오른다
+            const lbl = document.createElement('span');
+            lbl.className = 'rw-amt';
+            lbl.innerHTML = `+${U.fmt(amt)} ${icoHtml}`;
+            // 버튼 위-왼쪽 대각으로 뺀다: 보상 카운터('17' 등)는 버튼과 같은 오른쪽 세로줄에 있어
+            // 같은 x로 띄우면 어느 높이에서든 부딪힌다. 왼쪽 이웃은 진행바/빈 공간이라 안전하다.
+            // 상승 폭은 짧게(css rwAmt ≈ -2rem) — 첫 행에서 시트 부제목까지 올라가 죽지 않게.
+            const lx = U.clamp(srcTop === null ? sx : sx - 64, 44, hb.width - 44);
+            const ly = (srcTop === null ? sy - 16 : srcTop - 42) - ci * 30;
+            lbl.style.cssText = `left:${lx.toFixed(1)}px; top:${ly.toFixed(1)}px; animation-delay:${ci * 110}ms`;
+            layer.appendChild(lbl);
+            setTimeout(() => lbl.remove(), 1050 + ci * 110);
+        });
+        SFX.gacha('rare');   // 수령 차임 — 판매 코인(common)보다 한 단 밝은 스윕
+    },
+
     // 스킬 컷인 + 화면 색 플래시
     skillCutin(def) {
         const el = document.getElementById('skill-cutin');
@@ -3295,7 +3463,7 @@ const UI = {
                 </div>
                 <div class="qst-right">
                     <span class="qst-reward">${IconGen.img(this.QUEST_CUR_ICON[q.rw.cur] || 'coin')} ${U.fmt(q.rw.amt)}</span>
-                    <button class="btn sm ${done ? 'primary' : 'disabled'}" onclick="UI.onClaimQuest(${i})">수령</button>
+                    <button class="btn sm ${done ? 'primary' : 'disabled'}" onclick="UI.onClaimQuest(${i}, this)">수령</button>
                 </div>
             </div>`;
         }).join('') || '<span class="muted grid-empty">퀘스트를 불러오지 못했습니다</span>';
@@ -3327,10 +3495,12 @@ const UI = {
         if (!this.els || !this.els.questModal || this.els.questModal.classList.contains('hidden')) return;
         this.keepScroll(() => this.openQuests());
     },
-    onClaimQuest(i) {
+    onClaimQuest(i, btn) {
         const got = Quests.claim(i);
         if (!got) return;
-        this.toast(`📜 ${got.text} 완료! ${Quests.CUR_KR[got.cur] || got.cur} +${U.fmt(got.amt)}`);
+        // 토스트 없음 — '+획득량' 라벨이 같은 정보를 같은 자리에서 말한다. 토스트를 겹치면
+        // 연출·행 제목을 다 덮는다(reward-claim-fx 비평가 지적 ①: 같은 정보 두 목소리 금지)
+        this.rewardBurst({ [got.cur]: got.amt }, { from: btn });
         this.renderTopBar();
         this.renderEquipSheet();
         this.keepScroll(() => this.openQuests());   // 수령한 자리에 새 퀘스트가 즉시 올라온다
@@ -3577,7 +3747,7 @@ const UI = {
             const freeCell = claimed
                 ? `<div class="pass-cell free lit done">${this.passRewardLines(m.free)}<span class="pass-badge check">✓</span></div>`
                 : reached
-                    ? `<button class="pass-cell free lit claimable" onclick="UI.onClaimPass('${m.stage}')">${this.passRewardLines(m.free)}</button>`
+                    ? `<button class="pass-cell free lit claimable" onclick="UI.onClaimPass('${m.stage}', this)">${this.passRewardLines(m.free)}</button>`
                     : `<div class="pass-cell free">${this.passRewardLines(m.free)}</div>`;
             // 프리미엄 칸도 무료 칸과 같은 도달 기준으로 밝기가 바뀐다(항상 잠김이지만 도달 전이면 카드 배경에 녹아듦, 원본 shot-042705)
             const premiumCell = `<div class="pass-cell premium ${reached ? 'lit' : ''}" onclick="UI.onPremiumPass()">${this.passRewardLines(m.premium)}<span class="pass-badge lock">${IconGen.img('lock')}</span></div>`;
@@ -3600,8 +3770,13 @@ const UI = {
                 <button class="x-btn" onclick="UI.closePass()">✕</button>
             </div>`;
     },
-    onClaimPass(key) {
-        if (Pass.claim(key)) { this.toast('🎁 진행 패스 보상 수령!'); this.renderPass(); this.renderTopBar(); }
+    onClaimPass(key, cell) {
+        const m = Pass.MILESTONES.find(x => x.stage === key);
+        if (Pass.claim(key)) {
+            // 토스트 없음 — 수령 연출('+획득량' 라벨·체크로 바뀌는 칸)이 이미 말한다(reward-claim-fx)
+            if (m) this.rewardBurst(m.free, { from: cell });
+            this.renderPass(); this.renderTopBar();
+        }
     },
     onPremiumPass() { this.toast('💎 프리미엄 패스는 데모 버전에서 지원하지 않습니다'); },
 
@@ -3658,9 +3833,13 @@ const UI = {
                 <button class="league-back-btn sheet-back-btn" onclick="UI.switchTab(null)">◀</button>
             </div>`;
     },
-    onClaimDeal(key) {
-        if (Shop.claimDeal(key)) { this.toast('🎁 특가 보상 수령!'); this.renderShop(); this.renderTopBar(); }
-        else this.toast('오늘은 이미 수령했습니다');
+    onClaimDeal(key, btn) {
+        const d = Shop.DEALS.find(x => x.key === key);
+        if (Shop.claimDeal(key)) {
+            // 젬은 claimDeal이 지급을 걸러내므로(보급 금지) 연출에서도 같이 뺀다 — 안 준 걸 준 것처럼 보이면 안 된다
+            if (d) { const r = Object.assign({}, d.reward); delete r.gems; this.rewardBurst(r, { from: btn }); }
+            this.renderShop(); this.renderTopBar();   // 토스트 없음 — 수령 연출이 이미 말한다(reward-claim-fx)
+        } else this.toast('오늘은 이미 수령했습니다');
     },
     onBuyGems() { this.toast('💎 데모 버전에서는 결제를 지원하지 않습니다'); },
 
@@ -4518,8 +4697,11 @@ const UI = {
     onCollectOffline() {
         const r = claimOfflineNow();
         if (!r) { this.toast('💤 아직 누적된 오프라인 보상이 없습니다'); this.closeOfflineModal(); return; }
+        // 수령 연출은 팝업을 닫기 전에 — 시작점([수집] 버튼)의 좌표는 호출 시점에 잡히고,
+        // 연출 레이어(z-70)는 닫히는 팝업 위에서 그대로 이어진다
+        this.rewardBurst({ coins: r.coins, hammers: r.hammers }, { from: this.els.offlineModal.querySelector('.offline-collect-btn') });
         this.closeOfflineModal();
-        this.toast(`👑 ${U.fmt(r.coins)} · 🔨 ${U.fmt(r.hammers)} 수집!`);
+        // 토스트 없음 — 수령 연출의 '+획득량' 라벨이 같은 정보를 말한다(reward-claim-fx)
         this.els.offlineBtn.classList.remove('ready');
         this.renderTopBar();
         this.renderEquipSheet(); // 해머 수가 제작 화면에도 바로 반영되게

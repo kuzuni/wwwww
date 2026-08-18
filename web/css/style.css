@@ -5423,6 +5423,107 @@ body {
     100% { opacity: 0; transform: translate(-50%, -125%) scale(.96); }
 }
 
+/* ---- 공통 수령 연출 (reward-claim-fx, 사용자 지시 2026-08-18) ----
+   수령(오프라인·패스·퀘스트·던전·특가) 순간 재화 아이콘이 수령 지점에서 터져 나와
+   상단 바(코인/젬은 제 pill, 나머지는 상단 바 중앙)로 빨려 들어간다. 궤적 좌표는
+   시작·도착점이 매번 달라 JS(WAAPI)가 소유하고, 여기는 몸통·글로우·pill 박동만 둔다.
+   채팅(40)·소환 결과(60) 팝업 위에서 수령해도 보여야 하는 '수령 확인' 연출이라 z-70 —
+   전투 연출(combat-fx-below-popups: 팝업 아래) 규칙과 반대인 게 의도다. */
+#reward-burst { position: absolute; inset: 0; pointer-events: none; z-index: 70; overflow: hidden; }
+/* 탭 순간의 임팩트 프레임 — 흰 종이 위에서도 보이게 진한 금색 + screen 블렌드, 80ms께 피크 */
+.rw-glow {
+    position: absolute; width: 9rem; height: 9rem; border-radius: 50%;
+    transform: translate(-50%, -50%) scale(.2); opacity: 0;
+    /* ⚠️ mix-blend-mode:screen 금지 — 흰 시트(퀘스트/패스) 위에서는 screen 합성이 흰색에 먹혀
+       임팩트가 통째로 안 보인다(실측). 알파 합성이 밝은 바탕·어두운 바탕 양쪽에서 보인다.
+       흰 종이 위에서도 읽히려면 심이 진해야 한다 — 채도 높은 주황금 심 + 빠른 소멸. */
+    background: radial-gradient(circle, rgba(255, 174, 20, 1) 0%, rgba(255, 150, 10, .9) 30%, rgba(255, 140, 0, .4) 56%, transparent 72%);
+    animation: rwGlow .4s cubic-bezier(.2, .8, .4, 1) forwards;
+}
+@keyframes rwGlow {
+    0%   { transform: translate(-50%, -50%) scale(.2); opacity: 0; }
+    14%  { opacity: 1; transform: translate(-50%, -50%) scale(.8); }
+    46%  { opacity: .95; transform: translate(-50%, -50%) scale(1.05); }   /* 심을 ~130ms 홀드 — 순간 소멸이면 없는 것과 같다 */
+    100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+}
+/* 임팩트를 한 겹 더 — 밖으로 퍼지는 금색 링 */
+.rw-ring {
+    position: absolute; width: 3rem; height: 3rem; border-radius: 50%;
+    border: .34rem solid rgba(255, 152, 20, 1);
+    transform: translate(-50%, -50%) scale(.3); opacity: 0;
+    animation: rwRing .42s cubic-bezier(.15, .7, .3, 1) forwards;
+}
+@keyframes rwRing {
+    0%   { transform: translate(-50%, -50%) scale(.3); opacity: 1; border-width: .4rem; }
+    100% { transform: translate(-50%, -50%) scale(2.1); opacity: 0; border-width: .08rem; }
+}
+/* margin으로 앵커를 아이콘 중심에 — transform은 궤적 애니메이션(WAAPI)이 전유하므로 여기 쓰면 안 된다.
+   이거 없이는 아이콘이 기준점의 우하단에 그려져 흩어짐 전체가 12px씩 처지고(행 경계 침범의 실원인),
+   도착점도 pill 중심에서 어긋난다. */
+.rw-fly { position: absolute; will-change: transform; margin: -.75rem 0 0 -.75rem; }
+/* 금빛 테 — 시트 밖 검은 밴드로 넘어가 축소돼도 점으로 안 죽고 반짝이로 읽힌다 */
+.rw-fly .ico { width: 1.5rem; height: 1.5rem; filter: drop-shadow(0 0 3px rgba(255, 200, 60, .9)) drop-shadow(0 2px 2px rgba(0, 0, 0, .3)); }
+/* 재화별 획득량 — 이 연출에서 제일 시끄러운 요소여야 한다(비평가 지적): 굵은 금색 + 두꺼운 윤곽,
+   튀어오르는 오버슈트, 줄(행) 위 빈 공간으로 띄운다(버튼·토스트와 안 겹치게 호출부가 행 상단 기준으로 놓는다) */
+.rw-amt {
+    position: absolute; transform: translate(-50%, 0); white-space: nowrap;
+    display: inline-flex; align-items: center; gap: .24rem;
+    font-size: 1.32rem; font-weight: 900; color: #ffd54f;
+    -webkit-text-stroke: 4px #2a2018; paint-order: stroke fill;
+    text-shadow: 0 2px 0 rgba(0, 0, 0, .35), 0 0 .8rem rgba(255, 183, 77, .9);
+    animation: rwAmt 1s ease-out both;
+}
+.rw-amt .ico { width: 1.25rem; height: 1.25rem; }
+@keyframes rwAmt {
+    0%   { opacity: 0; transform: translate(-50%, .6rem) scale(.4); }
+    12%  { opacity: 1; transform: translate(-50%, -.3rem) scale(1.35); }
+    24%  { transform: translate(-50%, -.45rem) scale(1); }
+    68%  { opacity: 1; transform: translate(-50%, -1.4rem) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -2rem) scale(.92); }
+}
+/* 도착 마침표 — 아이콘이 상단 바(가려져 있어도 그 자리)로 빨려 든 지점에서 작게 터진다.
+   시트가 상단 바를 덮은 화면에서도 '어디로 들어갔는지'가 이걸로 읽힌다(비평가 지적 ⑤) */
+.rw-pop {
+    position: absolute; width: 2.4rem; height: 2.4rem;
+    transform: translate(-50%, -50%) scale(.25) rotate(0deg); opacity: 0;
+    /* 흐릿한 블룸이 아니라 화풍(윤곽선 레트로)에 맞는 **또렷한 8각 별** — 금색 심 + 어두운 테 */
+    background: #ffd54f;
+    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+    filter: drop-shadow(0 0 2px #7a5410) drop-shadow(0 0 6px rgba(255, 190, 50, .8));
+    animation: rwPop .34s cubic-bezier(.2, .8, .4, 1) forwards;
+}
+@keyframes rwPop {
+    0%   { transform: translate(-50%, -50%) scale(.25) rotate(-40deg); opacity: 0; }
+    30%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) scale(1.25) rotate(28deg); opacity: 0; }
+}
+/* 아이콘 개별 착지 잔불꽃 — 최종 마침표보다 작고 짧다 */
+.rw-pop-sm { width: 1.3rem; height: 1.3rem; animation-duration: .26s; }
+/* 도착 지점 누적 카운터 — 아이콘이 닿을 때마다 값이 커지며 뛴다: '어디에 얼마가 쌓였나'의 실시간 답 */
+.rw-tick {
+    position: absolute; transform: translate(-50%, 0); white-space: nowrap;
+    display: inline-flex; align-items: center; gap: .2rem;
+    font-size: 1.05rem; font-weight: 900; color: #ffd54f;
+    -webkit-text-stroke: 3.5px #2a2018; paint-order: stroke fill;
+    text-shadow: 0 2px 0 rgba(0, 0, 0, .4), 0 0 .6rem rgba(255, 183, 77, .9);
+    transition: opacity .4s ease-out;
+}
+.rw-tick .ico { width: 1rem; height: 1rem; }
+.rw-tick.bump { animation: rwTickBump .24s cubic-bezier(.3, 1.5, .5, 1); }
+@keyframes rwTickBump {
+    0%   { transform: translate(-50%, 0) scale(1); }
+    40%  { transform: translate(-50%, -.12rem) scale(1.22); }
+    100% { transform: translate(-50%, 0) scale(1); }
+}
+.rw-tick.out { opacity: 0; }
+/* 아이콘이 빨려 들어간 pill(코인/젬)·상단 바가 한 번 박동 — '들어갔다'는 확인 */
+.rw-pulse { animation: rwPulse .38s cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes rwPulse {
+    0%   { transform: scale(1); filter: brightness(1); }
+    35%  { transform: scale(1.14); filter: brightness(1.55); }
+    100% { transform: scale(1); filter: brightness(1); }
+}
+
 /* ==== 탈것 아이콘 = 실제 3D 탈것 스냅샷 (사용자 지시 2026-08-18) ====
    `.mt-face`는 이모지로 먼저 깔렸다가 다음 프레임에 <img>로 교체된다(UI.hydrateMountThumbs).
    교체된 뒤에는 **이모지 기준 font-size가 아니라 프레임을 채우는 그림**이 돼야 하므로,

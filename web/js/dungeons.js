@@ -125,6 +125,7 @@ const Dungeons = {
         Quests.bump('keySpend');                     // 반복 퀘스트 '던전 열쇠 사용' — 소탕도 열쇠를 쓴다
         const st = S.dungeons.best[id];
         const r = this.grantRewards(id, st);
+        UI.rewardBurst(r);   // 수령 연출(reward-claim-fx) — 소탕은 팝업 없이 이펙트만
         UI.toast(`⚡ ${this.def(id).kr} ${st}단계 소탕 — ${this.rewardText(id, st)}`);
         saveGame();
         UI.renderTopBar();
@@ -140,6 +141,9 @@ const Dungeons = {
         Quests.bump('keySpend');                     // 반복 퀘스트 '던전 열쇠 사용'(클리어 소모분)
         S.dungeons.best[id] = Math.max(S.dungeons.best[id], stage);
         const r = this.grantRewards(id, stage);
+        // 수령 연출(reward-claim-fx). ⚠️ dungeon-clear-reward-popup 작업이 이 흐름을
+        // '보상 팝업 → 클릭 → 이펙트 → 복귀'로 재배치할 때 이 호출을 팝업 클릭 시점으로 옮길 것
+        UI.rewardBurst(r);
         UI.toast(`🏆 ${this.def(id).kr} ${stage}단계 클리어! ${this.rewardText(id, stage)}`);
         saveGame();
         UI.renderTopBar();
