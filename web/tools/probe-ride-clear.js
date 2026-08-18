@@ -42,6 +42,10 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
             S.mounts = {}; S.mounts[name] = { rarity: 'epic', count: 1, level: 1 };
             S.activeMount = name;
             Scene3D.refreshMount();
+            // ⚠️ 위상(ridePhase=0)만 고정해선 부족하다 — 바운스는 `_clock + phase` 의 함수라 `_clock` 이
+            //    로딩에 걸린 시간에 좌우돼 잔여 비결정성이 남는다(실측: 별고래가 실행에 따라
+            //    통과/실패를 오갔다). 판정 전에 시계도 0으로 못박는다.
+            Scene3D._clock = 0;
             for (let i = 0; i < 60; i++) Scene3D.update(1 / 60);
             Scene3D.heroG.updateWorldMatrix(true, true);
             Scene3D.mountGroup.updateWorldMatrix(true, true);
