@@ -1966,15 +1966,26 @@ const Scene3D = {
             [1.06, 0.00, 0.00], [0.78, -0.21, 0.11], [0.58, 0.20, -0.15],
             [0.30, -0.27, -0.21], [0.24, 0.29, 0.17], [0.18, 0.06, 0.27],
         ];
-        const SIDES = 6;
+        const KINK = 0.105;   // 6° — 쌍끼리 반대로 꺾어 한 '면'을 값이 다른 두 띠로 가른다.
+        // ⚠️ 3° 로는 두 반쪽의 명도차가 루마 4 미만이라 화면에서 한 면으로 뭉친다(최장 평탄 런 51px).
         const m = new THREE.Matrix4(), e = new THREE.Euler();
         const v = new THREE.Vector3();
         let tall = 0;
         const parts = [];   // 결정별 정점 구간 + 배치 행렬 — 합친 뒤에도 개체 단위로 잴 수 있게 남긴다(probe-crystal-sculpt)
+        // 🚨 **큰 자리(랜드마크 s=3.3)는 결정을 키우는 게 아니라 늘린다.** 한 기를 그대로 키우면
+        //    개체 하나가 거대해져 ⑴ 면 하나의 폭이 그대로 커지고(flatShading 이라 그 폭만큼 화면에서
+        //    민짜다 — 비평가 실측 평탄 런 42px, 중경은 13px) ⑵ 프레임 상단에 잘려 종단 뿔이 화면에
+        //    한 번도 안 나온다. **면을 더 쪼개는 것은 답이 아니다** — 54면쯤 가면 결정이 아니라 원기둥이다.
+        //    실제 수정 노두도 큰 결정 하나가 아니라 중간 결정 여러 기가 뭉친 모양이다.
+        const clumps = s > 2.2 ? [[0, 0, 0.62], [0.62, 0.34, 0.50], [-0.55, 0.46, 0.43], [0.16, -0.52, 0.38]]
+            : [[0, 0, 1]];
+        for (let ck = 0; ck < clumps.length; ck++) {
+        const [cx0, cz0, hs] = clumps[ck];
         for (let ci = 0; ci < plan.length; ci++) {
             const vStart = pos.length / 3;
-            const [hk, px, pz] = plan[ci];
-            const h = hk * R(0.95, 1.25) * s;
+            const [hk, px0, pz0] = plan[ci];
+            const px = px0 + cx0, pz = pz0 + cz0;
+            const h = hk * hs * R(0.95, 1.25) * s;
             // ⚠️ **반경을 높이에 종속시킨다.** 상수 반경(rk×s)으로 주면 키 작은 개체까지 전부 같은 굵기라
             //    중경·원경에서 세장비가 무너져 '바늘'이 양산된다(비평가 ①: 중경 39~55px 개체가 다수).
             //    비율을 규칙으로 못 박는다 — 주상 결정 r/h 0.150~0.185, 밑동 파편은 짧고 굵게 0.22~0.30.
@@ -1995,14 +2006,28 @@ const Scene3D = {
             //    교대 위상은 결정마다 뒤집는다(넓은 면이 어디서 시작하느냐 = 습성의 회전) — 위상까지 같으면
             //    단면이 결정마다 거의 똑같아져 개체차가 게이트 밑으로 떨어진다(실측 0.0376 → 0.0980).
             const flip = rnd() < 0.5 ? 1 : 0;
-            for (let j = 0; j < SIDES; j++) { rj.push(((j + flip) % 2 ? 1.16 : 0.86) * R(0.86, 1.17)); sy.push(R(0.88, 1.12)); fShade.push((rnd() - 0.5) * 0.15); }
+            // ⚠️ **면 수를 반경에 종속시킨다.** 반경을 높이 비례로 바꾼 뒤로 **가장 큰 개체가 가장 넓은
+            //    민짜 면**을 얻어 버렸다 — 비평가 실측: 평탄면 최장 가로 런이 중경 13px 인데 랜드마크
+            //    결정만 42px(한 행 41px 이 사실상 한 값). 굵을수록 더 쪼개야 같은 밀도로 읽힌다.
+            // ⚠️ flatShading 은 면 하나에 값 하나다 — 화면에서 '한 값으로 이어지는 가로 폭'은 곧
+            //    **면의 투영 폭**이다. 그래서 계단이 아니라 반경에 **연속으로** 비례시킨다(랜드마크 s=3.3 → 23면).
+            //    ⚠️ 반드시 **짝수**여야 한다 — 킹크가 쌍 단위라 홀수면 한 바퀴 도는 지점에서 패턴이 깨진다.
+            const SIDES = Math.max(6, Math.min(32, Math.round((6 + rBase * 36) / 2) * 2));
+            const pairMode = SIDES > 6;   // 8·12면은 **쌍**이 하나의 주상면 — 넓은/좁은 교대는 쌍 단위로 준다
+            for (let j = 0; j < SIDES; j++) {
+                const pi = pairMode ? (j >> 1) : j;
+                rj.push(((pi + flip) % 2 ? 1.16 : 0.86) * R(0.86, 1.17));
+                sy.push(R(0.88, 1.12)); fShade.push((rnd() - 0.5) * 0.15);
+            }
             // 기둥 → 뿔 전이 높이. ⚠️ **종단 뿔은 전체 높이의 25% 를 넘지 않는다** — 0.58~0.74 로 두면
             // 뿔이 실루엣의 26~42% 를 먹어 중경에서 어깨가 통째로 소실되고 다시 원뿔로 읽힌다.
             const shoulder = h * R(0.76, 0.85);
             const taper = R(0.80, 0.97);                 // 기둥은 살짝만 좁아진다(원뿔과 갈리는 지점)
             const r0 = [], r1 = [], apex = xf(v.set(rBase * R(-0.25, 0.25), h, rBase * R(-0.25, 0.25)));
             for (let j = 0; j < SIDES; j++) {
-                const ang = (j / SIDES) * Math.PI * 2;
+                // 쌍끼리 ±3° 킹크 — 두 반쪽이 살짝 다른 방향을 봐서 flatShading 이 값을 갈라 준다.
+                // 실루엣은 거의 안 바뀌고 면 안쪽에만 꺾임이 생긴다(넓은 판을 끊는 게 목적).
+                const ang = (j / SIDES) * Math.PI * 2 + (pairMode ? (j % 2 ? KINK : -KINK) : 0);
                 const rb = rBase * rj[j];
                 r0.push(xf(v.set(Math.cos(ang) * rb, 0, Math.sin(ang) * rb)));
                 r1.push(xf(v.set(Math.cos(ang) * rb * taper, shoulder * sy[j], Math.sin(ang) * rb * taper)));
@@ -2033,6 +2058,7 @@ const Scene3D = {
             }
             parts.push({ start: vStart, count: pos.length / 3 - vStart, h, rBase, shoulder, mat: m.elements.slice() });
             tall = Math.max(tall, h);
+        }
         }
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));

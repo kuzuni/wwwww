@@ -25,6 +25,12 @@ const FACET_MIN = 0.012; // ④ 면 변주(밑동 링 색 sd) 하한
 const DIFF_MIN = 0.040;  // ⑥ 개체 간 반경 RMS 차 / 평균반경
 const SHOULDER_MIN = 0.72; // ⑧ 어깨 높이 / 전체 높이 — 종단 뿔이 28% 를 넘으면 중경에서 어깨가 소실된다
 // ⑨ 접지 델타는 게이트로 못 쓴다(아래 주석 참고) — 참고치로만 찍는다.
+// ⑪ 주상면 하나의 폭(월드 유닛). flatShading 은 면 하나에 값 하나라, 이 폭이 곧 '민짜로 보이는 폭'이다.
+// **값의 근거**: 비평가가 육안으로 통과시킨 중경 결정(6면·r≈0.25)의 면 폭이 약 0.25, 반려한 랜드마크
+// 모노리스(s=3.3)가 약 0.63 이었다. 그 사이에서 여유를 두고 0.30 으로 잡는다.
+// ⚠️ 이 값을 더 조이지 말 것 — 면 폭을 0.15 로 낮추려면 작은 결정에도 30면이 필요해지고, 30면짜리
+//    주상체는 결정이 아니라 **원기둥**이다. 큰 자리는 면을 쪼갤 게 아니라 결정을 여러 기로 늘려야 한다.
+const FACEW_MAX = 0.30;
 const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면 '바늘'
 
 (async () => {
@@ -46,8 +52,11 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
             g.traverse(o => { if (o.isMesh && o.material === Scene3D.crystalMat) n++; });
             out.meshCount.push(n);
         }
-        for (let t = 0; t < 5; t++) {                 // 클러스터 5개
-            const geo = Scene3D.crystalGeo(1.2);
+        // ⚠️ **랜드마크 배율(3.3)도 반드시 표본에 넣는다** — 실패는 늘 거기서 났다(비평가: 중경 평탄 런
+        //    13px 인데 랜드마크만 42px). 일반 소품(1.2)만 재면 그 결함이 안 보인다.
+        const SCALES = [1.2, 1.2, 1.2, 1.2, 3.3];
+        for (let t = 0; t < SCALES.length; t++) {
+            const geo = Scene3D.crystalGeo(SCALES[t]);
             const pos = geo.attributes.position, col = geo.attributes.color;
             if (!col) { out.noColor++; continue; }
             const parts = [];
@@ -112,8 +121,28 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
                     sideTris++;
                     if (nx * cxm + nz * czm <= 0) inward++;
                 }
+                // ⑩ 면 투영 폭 — flatShading 은 면 하나에 값 하나라, 화면에서 '한 값으로 이어지는 가로 폭'은
+                //    곧 **면의 폭**이다. 굽힌 정점에서 이웃 밑동 정점 사이의 최대 거리로 되뽑는다(월드 단위).
+                //    ⚠️ 픽셀로 재려던 시도는 버렸다 — 프레임마다 노출·프레이밍이 흔들려 24↔57px 로 널뛴다.
+                let faceW = 0;
+                for (let a = 0; a < baseIdx.length; a++) for (let b2 = a + 1; b2 < baseIdx.length; b2++) {
+                    const ia = baseIdx[a] * 3, ib = baseIdx[b2] * 3;
+                    const d = Math.hypot(loc[ia] - loc[ib], loc[ia + 2] - loc[ib + 2]);
+                    if (d > 1e-6 && d < 0.9 * 2 * Math.max(...baseR) && d > faceW) {
+                        // 같은 면을 이루는 이웃 정점만: 링에서 가장 가까운 이웃 간 거리들의 최댓값을 쓴다
+                    }
+                }
+                {   // 링 정점을 각도순으로 정렬해 이웃 간 거리(=면 폭)의 최댓값
+                    const ring = baseIdx.map(i2 => ({ a: Math.atan2(loc[i2 * 3 + 2], loc[i2 * 3]), x: loc[i2 * 3], z: loc[i2 * 3 + 2] }))
+                        .sort((p1, p2) => p1.a - p2.a);
+                    const uniq = ring.filter((p1, i2) => i2 === 0 || Math.abs(p1.a - ring[i2 - 1].a) > 1e-6);
+                    for (let i2 = 0; i2 < uniq.length; i2++) {
+                        const n2 = uniq[(i2 + 1) % uniq.length];
+                        faceW = Math.max(faceW, Math.hypot(uniq[i2].x - n2.x, uniq[i2].z - n2.z));
+                    }
+                }
                 parts.push({
-                    shoulderK, slender,
+                    shoulderK, slender, faceW,
                     col: lo ? mid / lo : 0, cv: mean(baseR) ? sd(baseR) / mean(baseR) : 0,
                     shade, facet: sd(baseC), inward, sideTris,
                     prof: baseIdx.map(i => rs[i]), verts: p.count,
@@ -147,7 +176,8 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
     // ⑥ 개체차 — 클러스터 간 같은 순번끼리
     let dMin = Infinity, pairs = 0;
     for (let k = 0; k < 6; k++) {
-        const ps = res.clusters.map(c => c.parts[k]).filter(Boolean);
+        // ⚠️ 배율이 다른 클러스터끼리 비교하면 '크기 차이'를 개체차로 착각한다 — 1.2 배율끼리만 본다.
+        const ps = res.clusters.slice(0, 4).map(c => c.parts[k]).filter(Boolean);
         for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
             dMin = Math.min(dMin, rmsDiff(ps[i].prof, ps[j].prof)); pairs++;
         }
@@ -166,6 +196,9 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
     console.log(`⑧ 어깨높이/전체 min ${shK.toFixed(3)} (게이트 ${SHOULDER_MIN} — 뿔이 ${((1 - SHOULDER_MIN) * 100).toFixed(0)}% 를 넘으면 원뿔로 읽힌다)  세장 r/h min ${slMin.toFixed(3)} (게이트 ${SLENDER_MIN})`);
     if (shK < SHOULDER_MIN) fails.push(`어깨 높이 ${shK.toFixed(3)} < ${SHOULDER_MIN} — 종단 뿔이 실루엣을 너무 먹는다`);
     if (slMin < SLENDER_MIN) fails.push(`세장비 r/h ${slMin.toFixed(3)} < ${SLENDER_MIN} — 중경에서 바늘로 무너진다`);
+    const fwMax = Math.max.apply(null, all.map(p => p.faceW));
+    console.log(`⑪ 면 폭 max      ${fwMax.toFixed(3)} 월드유닛 (게이트 ${FACEW_MAX} 이하 — 면이 넓으면 그 폭만큼 화면에서 민짜다)`);
+    if (fwMax > FACEW_MAX) fails.push(`면 폭 ${fwMax.toFixed(3)} > ${FACEW_MAX} — 굵은 개체의 면을 더 쪼갤 것(SIDES 를 반경에 더 비례시킨다)`);
     console.log(`드로우콜 crystalMat 메시/클러스터 ${res.meshCount.join(',')} (교체 전 3)`);
 
     if (colMin < COL_MIN) fails.push(`기둥성 ${colMin.toFixed(3)} < ${COL_MIN} — 아직 원뿔이다(어깨선이 없다)`);
@@ -301,9 +334,26 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
                 if (ref.length) deltas.push(under - ref.reduce((a2, b2) => a2 + b2, 0) / ref.length);
             }
             const contact = deltas.length ? deltas.reduce((a2, b2) => a2 + b2, 0) / deltas.length : 0;
+            // ⑩ 평탄면 — 한 행 안에서 **루마가 ±2 안에 머무는 최장 가로 런**
+            //    ⚠️ 허용폭을 ±4 로 두면 **기울어진 면을 가로지르는 완만한 그라디언트가 계속 이어져** 붙는다
+            //    (면을 6 → 28 로 쪼개도 24~27px 에서 안 내려갔다). ±2 라야 '진짜 민짜 판'만 잡힌다.. 면을 아무리 갈라도
+            //    굵은 개체가 넓은 민짜 판을 하나 갖고 있으면 거기서 '판때기'로 읽힌다(비평가 ②:
+            //    중경 13px 인데 랜드마크만 42px). 격리 프레임에서 크리스탈 픽셀만 보고 잰다.
+            let flatRun = 0;
+            for (let y = 0; y < H; y++) {
+                let run = 0, base = -1;
+                for (let x = 0; x < W; x++) {
+                    const i = (y * W + x) * 4;
+                    if (!mask[y * W + x]) { run = 0; base = -1; continue; }
+                    const l = L(B, i);
+                    if (base >= 0 && Math.abs(l - base) <= 2) { run++; }
+                    else { base = l; run = 1; }
+                    if (run > flatRun) flatRun = run;
+                }
+            }
             ls.sort((x, y) => x - y); gr.sort((x, y) => x - y);
             return ls.length ? {
-                contact, contactN: deltas.length,
+                contact, contactN: deltas.length, flatRun,
                 n: ls.length, min: ls[0], p10: ls[Math.floor(ls.length * 0.1)],
                 mean: ls.reduce((x, y) => x + y, 0) / ls.length, max: ls[ls.length - 1],
                 clip: clipN, ground: gr.length ? gr[Math.floor(gr.length * 0.5)] : 0,
@@ -319,6 +369,7 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
         //    어느 결정이 화면에 드는지도 실행마다 달라 부호까지 바뀐다. **접지는 눈으로 판정할 것**
         //    (`shot-biomes.js magic` 프레임에서 밑동 아래 어두운 웅덩이가 보이는지) — 데칼 자체는 확실히 그려진다.
         console.log(`⑨ 접지(참고) 밑동 직하 − 측면 기준 지면 ${val.contact.toFixed(1)} (${val.contactN}열 — 실행 간 ±13 편차, 게이트 아님)`);
+        console.log(`⑩ 평탄면(참고) 격리 프레임 최장 가로 런 ${val.flatRun}px — 프레임 노출·프레이밍에 흔들려 게이트로는 못 쓴다(⑪ 로 대체)`);
         console.log(`⑦ 인게임 명도  픽셀 ${val.n}  min ${val.min.toFixed(0)}  p10 ${val.p10.toFixed(0)}  평균 ${val.mean.toFixed(0)}  max ${val.max.toFixed(0)}  순백클립 ${val.clip}(${(val.clip / val.n * 100).toFixed(2)}%)  지면평균 ${val.ground.toFixed(0)}`);
         // 게이트: 어두운 면이 실제로 존재할 것(p10) · 평균이 지면 대비 과하게 뜨지 않을 것 · 순백 클립 없을 것
         if (val.p10 > 150) fails.push(`명도 하위 10% ${val.p10.toFixed(0)} > 150 — 어두운 면이 없다(발광이 조형을 씻는다)`);
