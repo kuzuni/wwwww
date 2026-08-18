@@ -3202,6 +3202,26 @@ const Scene3D = {
                 capEnd.position.set(0, 0.04 + Math.sin(a) * crestR, Math.cos(a) * crestR);
                 g.add(capEnd);
             }
+            // ── A 단독 지적 P1 완화(가법) — 돔은 그대로 두고 바시넷 특징만 얹는다 ──
+            // ⚠️ 앞선 시도: 돔을 통째로 Lathe 프로파일로 바꿨더니 슬릿 캐비티가 뻥 뚫린 구멍으로 노출되고
+            //    뺨·브로우가 따로 노는 회귀가 났다(슬릿·눈·코가드가 구 반경 0.2855 에 앵커돼 있어서다).
+            //    → 돔을 건드리지 않고 **뺨 판 + 브로우 리지만 추가**해 '순수 구' 실루엣만 깬다.
+            //    슬릿 밴드(y 0.06)보다 아래·위로만 얹으므로 슬릿·눈·코가드와 겹치지 않는다.
+            // 뺨 판 — 하관 양옆(슬릿 아래)을 덮는 판금. 정면 실루엣에 얼굴 폭 → 턱 폭 좁아짐을 만든다.
+            for (const cx of [-1, 1]) {
+                const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.093, 8, 8, 0, Math.PI, 0, Math.PI * 0.85), this.tintOf(mat, -0.05));
+                cheek.position.set(cx * 0.176, -0.045, 0.145);
+                cheek.scale.set(0.52, 1.25, 0.98);
+                cheek.rotation.set(0.12, cx * -0.62, cx * 0.10);
+                g.add(cheek);
+            }
+            // 브로우 리지 — 눈 슬릿(y 0.06) 바로 위를 가로지르는 판금 능선. 매끈한 이마에 눈두덩 그늘을 만든다.
+            const brow = new THREE.Mesh(new THREE.TorusGeometry(0.243, 0.019, 6, 20, Math.PI * 0.62), this.tintOf(mat, 0.06));
+            brow.rotation.x = Math.PI / 2;
+            brow.rotation.z = Math.PI / 2 - Math.PI * 0.31;
+            brow.position.set(0, 0.118, 0.03);
+            brow.scale.set(1, 1, 0.86);
+            g.add(brow);
         } else if (style === 'fin') {       // 볏 투구 (로마/사무라이)
             const dome = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), mat);
             dome.position.y = 0.02;
