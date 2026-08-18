@@ -702,6 +702,29 @@ body {
     90%   { transform: translateY(5px)   scale(1.06, .89); }   /* 마지막 타격이 가장 깊다 */
     93%   { transform: translateY(-2px)  scale(.98, 1.04); }
 }
+/* 화면 흔들림 — 항목 스펙의 '미세 화면 흔들림'을 여기서 판다.
+   ⚠️ `Scene3D.shake` 로는 이 연출에서 **아무도 흔들림을 못 본다**: 그건 시트 뒤 3D 씬만 흔드는데
+   제작 순간 시선은 시트 위 모루에 있다(비평가 ⓐ). 그래서 모루가 든 `#equip-sheet` 자체를 흔든다.
+   ⚠️ 진폭은 위로 열어 두면 안 된다 — 3~4px 를 넘기면 '타격'이 아니라 '레이아웃이 튀었다'로 읽힌다.
+   1·2타 1.7px / 3타 3.0px 로 두고 `probe-anvil-shake.js` 가 상한 4.5px 를 지킨다.
+   ⚠️ translate 전용이다. scale 을 섞으면 시트 안 글자가 흐려지고 UI 밴드 실측이 통째로 흔들린다.
+   ⚠️ 시트에 fixed 자손이 생기면 transform 이 그 기준 상자를 뺏는다 — 지금은 0개이고(실측),
+   probe 의 ⑴번이 그걸 계속 지킨다. 자손에 fixed 를 새로 넣으려면 이 연출부터 다시 볼 것.
+   타이밍은 anvilbump·afswing 과 **같은 마스터 클럭(.72s linear)** 이라 세 연출이 한 프레임에 맞는다. */
+#equip-sheet.shaking { animation: sheetshake .72s linear; }
+@keyframes sheetshake {
+    0%, 21%, 33%, 54%, 66%, 87%, 100% { transform: translate(0, 0); }
+    24%   { transform: translate(.55px, 1.6px); }    /* 타격 = 아래로 꽂힌다 */
+    26.5% { transform: translate(-.45px, -.9px); }   /* 되튐 */
+    29%   { transform: translate(.25px, .4px); }
+    57%   { transform: translate(.6px, 1.7px); }
+    59.5% { transform: translate(-.5px, -1px); }
+    62%   { transform: translate(.3px, .5px); }
+    90%   { transform: translate(1px, 3px); }        /* 3타가 가장 깊다 */
+    92.5% { transform: translate(-.8px, -1.7px); }
+    95%   { transform: translate(.5px, 1px); }
+    97%   { transform: translate(-.25px, -.45px); }
+}
 /* 오버레이는 .anvil-svg와 **같은 박스·같은 viewBox(132×86)** 를 쓴다 — 그래야 망치 머리와 불티가
    상판 좌표(55,14)에 그대로 맞는다. 예전엔 span 오버레이가 버튼 전체 높이(모루 + 해머 카운터 줄)를
    기준으로 %를 잡아, top:62%가 상판이 아니라 받침 아래를 가리켰다. */

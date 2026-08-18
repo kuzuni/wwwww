@@ -1718,12 +1718,18 @@ const UI = {
             + sparks.join('') + this.HAMMER_SVG;
         btn.appendChild(fx);
         btn.classList.add('striking');
+        // 화면 흔들림은 **모루가 든 시트**를 흔들어야 보인다 — Scene3D.shake 는 시트 뒤 3D 씬만
+        // 흔들어 제작 순간에는 아무도 못 본다(비평가 ⓐ). 3D 씬도 같이 흔들어 두면 시트 밖으로
+        // 충격이 번지지만, 눈에 보이는 몫은 이 클래스가 판다. 타이밍은 CSS 마스터 클럭이 소유한다.
+        const sheet = document.getElementById('equip-sheet');
+        if (sheet) sheet.classList.add('shaking');
         this._anvilTimers = this.ANVIL_HITS.map((t, h) => setTimeout(() => {
             SFX.anvilHit(h === 2);
             if (typeof Scene3D !== 'undefined' && Scene3D.shake) Scene3D.shake(h === 2 ? 0.13 : 0.07); // 미세하게만
         }, t));
         this._anvilTimers.push(setTimeout(() => {
             fx.remove(); btn.classList.remove('striking');
+            if (sheet) sheet.classList.remove('shaking');
             done();
         }, this.ANVIL_FX_MS));
     },
@@ -1734,6 +1740,9 @@ const UI = {
         this._anvilBusy = false;
         const btn = document.querySelector('.anvil-btn');
         if (btn) btn.classList.remove('striking');
+        // 흔들림 클래스를 안 걷으면 시트가 **연출 도중 변위를 문 채** 남는다(탭 이동으로 끊었을 때)
+        const sheet = document.getElementById('equip-sheet');
+        if (sheet) sheet.classList.remove('shaking');
         document.querySelectorAll('.anvil-fx').forEach(n => n.remove());
         // 리빌 카드도 같이 걷는다 — 안 걷으면 탭을 옮긴 화면 위에 카드만 남아 떠 있다.
         // (남은 타이머의 done은 대기품이 이미 정리된 걸 보고 팝업을 띄우지 않는다)
