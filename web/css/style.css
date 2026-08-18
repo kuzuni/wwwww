@@ -673,6 +673,23 @@ body {
    보였다 — 원본은 셀 **전체가** 고르게 어두운 것이지 발치만 어두운 게 아니다. 우리 셀이 밝은 건
    아이콘이 셀을 꽉 채우기 때문이고, 그건 라벨이 아니라 썸네일 쪽 사정이다. 원본에 없는 장치로
    덮는 대신 글자 자체가 버티게 한다. */
+/* 장착 슬롯의 시대 무늬 층 (사용자 지시 2026-08-19, slug: grade-pattern-animation)
+   — "실제 그 등급들 장착해도 그 패턴 무늬가 장착 슬롯에서 애니메이션 효과 있어야 함".
+   확률 정보 팝업 막대와 **같은 --af-pat 변수·같은 keyframes** 를 쓴다(정의를 복제하지 않는다).
+   무늬가 있는 시대는 항성간 이상 다섯뿐이라 앞 5개 시대 셀은 --af-pat 이 없어 background-image:none
+   → 층이 있어도 아무것도 안 그린다(원본대로 민무늬).
+   ⚠️ 흐리기는 opacity 가 아니라 filter 로 준다 — opacity 는 반짝임 keyframes 가 쓰는 자리라
+   여기서 잡아 두면 애니메이션이 그 값을 통째로 덮어써 무늬가 원색으로 튄다.
+   ⚠️ z-index 0 + DOM 선행이라 같은 층인 .cell-img(장비 썸네일) **뒤에** 깔린다. */
+.equip-cell[data-age]::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    border-radius: inherit; overflow: hidden;
+    background-image: var(--af-pat, none);
+    background-size: var(--af-pat-size, auto);
+    background-position: var(--af-pat-pos, 0 0);
+    background-repeat: var(--af-pat-repeat, repeat);
+    filter: opacity(.55);   /* 썸네일이 주인공이라 무늬는 배경 결로만 (셀은 막대보다 훨씬 넓다) */
+}
 .equip-cell .cell-img { z-index: 0; }
 .equip-cell .cell-lv {
     position: absolute; bottom: .28rem; left: 0; right: 0; text-align: center; z-index: 2;
@@ -3697,7 +3714,7 @@ body {
    민무늬 단색이고, 항성간부터 다섯 시대만 무늬를 갖는다. (처음엔 앞 5개도 시대 컨셉에 맞춰
    돌 반점·쉐브론 같은 걸 지어냈는데, 확률 정보 원본을 열어 보고 지어낸 것임이 드러나 걷어냈다 —
    원본에 없는 것을 넣는 건 '원본이 절대 기준' 규칙 위반이다.) */
-.af-age-bar[data-age="interstellar"], .fi-age-bar[data-age="interstellar"] {
+.af-age-bar[data-age="interstellar"], .fi-age-bar[data-age="interstellar"], .equip-cell[data-age="interstellar"] {
     /* 042950 픽셀 실측: 흰 '블러 얼룩'이 아니라 **경계가 있는 살짝 밝은 보라 원점**이다 —
        바탕 rgb(168,24,252) 위 점 rgb(192,72,252), 커버리지 ≈7%(273/3800 표본). 종전 흰 radial
        블러(.44)는 채점 1라운드 ⓖ '렌더링 얼룩처럼 보인다' 지적의 원인 — 하드 엣지 점으로 교체. */
@@ -3707,25 +3724,95 @@ body {
     --af-pat-pos: .9rem .2rem, .2rem .8rem;
     --af-pat-repeat: repeat, repeat;
 }
-.af-age-bar[data-age="multiverse"], .fi-age-bar[data-age="multiverse"] {            /* 픽셀 블록 — 두 밴드가 겹치는 칸만 밝게 떠 블록처럼 보인다 */
+.af-age-bar[data-age="multiverse"], .fi-age-bar[data-age="multiverse"], .equip-cell[data-age="multiverse"] {            /* 픽셀 블록 — 두 밴드가 겹치는 칸만 밝게 떠 블록처럼 보인다 */
     --af-pat: repeating-linear-gradient(90deg, rgba(255,255,255,.3) 0 .34rem, rgba(255,255,255,0) .34rem 1.05rem),
               repeating-linear-gradient(0deg, rgba(255,255,255,.42) 0 .3rem, rgba(255,255,255,0) .3rem .85rem);
     --af-pat-size: auto, auto;
 }
-.af-age-bar[data-age="quantum"], .fi-age-bar[data-age="quantum"] {               /* 동심원 파문 */
-    --af-pat: repeating-radial-gradient(circle at 52% 50%, rgba(255,255,255,.23) 0 .17rem, rgba(255,255,255,0) .17rem .84rem);
+.af-age-bar[data-age="quantum"], .fi-age-bar[data-age="quantum"], .equip-cell[data-age="quantum"] {               /* 동심원 파문 */
+    /* 위상 --gp-q 를 모든 스톱에 같이 더한다 — 첫 스톱과 마지막 스톱의 간격(=반복 주기 .84rem)이
+       위상과 무관하게 고정이라, 링이 통째로 바깥으로 밀려나며 이음매 없이 순환한다.
+       (스톱을 0 에 고정한 채 뒤만 늘리면 주기가 같이 늘어나 링이 점점 성겨진다 — 그 함정을 피한 형태다.)
+       위상 0 = 원래 정적 무늬와 픽셀 동일: 투명 0→0, 흰 링 0→.17rem, 투명 .17→.84rem. */
+    --af-pat: repeating-radial-gradient(circle at 52% 50%,
+        rgba(255,255,255,0) var(--gp-q, 0rem),
+        rgba(255,255,255,.23) var(--gp-q, 0rem) calc(var(--gp-q, 0rem) + .17rem),
+        rgba(255,255,255,0) calc(var(--gp-q, 0rem) + .17rem) calc(var(--gp-q, 0rem) + .84rem));
     --af-pat-size: auto;   /* 원본 링: 굵기 ~3px · 간격 ~13px · 중심 52% (얇고 촘촘하면 막대 끝에서 세로 줄무늬가 된다) */
 }
-.af-age-bar[data-age="underworld"], .fi-age-bar[data-age="underworld"] {            /* 마름모 격자 */
+.af-age-bar[data-age="underworld"], .fi-age-bar[data-age="underworld"], .equip-cell[data-age="underworld"] {            /* 마름모 격자 */
     --af-pat: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><path d='M16 4 26 16 16 28 6 16Z' fill='rgba(0,0,0,0.26)'/></svg>");
     --af-pat-size: 2rem 2rem;   /* 원본은 ~20px 마름모가 ~33px 간격으로 **떨어져** 있다(줄무늬 두 벌이면 빈틈 없는 격자가 된다) */
 }
-.af-age-bar[data-age="divine"], .fi-age-bar[data-age="divine"] {
+.af-age-bar[data-age="divine"], .fi-age-bar[data-age="divine"], .equip-cell[data-age="divine"] {
     /* 별 타일 — 042950 픽셀 실측: 균등 격자 한 줄(별점 위젯 느낌, 채점 1라운드 ⓖ 지적)이 아니라
        **크기·회전이 섞인 밝은 주황(rgb(252,120,24)) 별의 촘촘한 산포**다(커버리지 ≈27%, 흰별 아님).
        한 타일(60x30)에 크기 6~13·회전 제각각인 별 6개를 흩뿌려 정렬감을 없앤다. */
     --af-pat: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='30'><g fill='rgb(252,120,24)'><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(11,9) scale(.62) rotate(14)'/><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(31,5) scale(.4) rotate(-24)'/><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(49,12) scale(.55) rotate(31)'/><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(21,23) scale(.35) rotate(48)'/><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(41,26) scale(.5) rotate(-9)'/><path d='M0 -9.4 2.7 -2.7 9.9 -2.2 4.4 2.5 6.1 9.4 0 5.6 -6.1 9.4 -4.4 2.5 -9.9 -2.2 -2.7 -2.7Z' transform='translate(3,26) scale(.3) rotate(70)'/></g></svg>");
     --af-pat-size: 3.4rem 1.7rem;
+}
+
+/* ===== 무늬 애니메이션 — 항성간 이상 다섯 시대 (사용자 지시 2026-08-19, slug: grade-pattern-animation) =====
+   사용자 원문: "항성간부터 그 위로는 등급에 패턴 무늬가 있는데, 그거 각각 패턴 모양에 맞게 패턴들이
+   움직이는 애니메이션 효과 있어야 함. 확률정보 팝업에서도 그렇고, 실제 그 등급들 장착해도 그 패턴
+   무늬가 장착 슬롯에서 애니메이션 효과 있어야 함."
+   👉 무늬 **모양별로 결이 다른 움직임**을 준다(전부 같은 방향으로 흐르면 '벽지 한 장'으로 읽힌다):
+     · 항성간 보라 점 = 별밭. 두 층이 **반대 방향**으로 흘러 시차(視差)가 생기고, 전체가 느리게 반짝인다.
+     · 다중 우주 픽셀 블록 = 두 밴드가 각자 x·y 로 **한 칸씩 계단 이동** → 겹치는 밝은 칸이 격자를 건너뛴다.
+     · 양자 동심원 = 중심에서 **바깥으로 퍼지는 파문**(아래 --gp-q 위상).
+     · 지하 세계 마름모 = 비늘이 **아래로 흘러내리며** 숨쉬듯 밝기가 오간다.
+     · 천상 별 = 아주 느린 표류 + 반짝임(별은 흐르는 게 아니라 빛나는 게 본체다).
+   🔑 모든 이동량은 **타일 한 주기와 정확히 같다** — 되돌아갈 때 튀지 않고 이음매 없이 순환한다.
+   🔑 무늬 자체(색·크기·커버리지)는 한 픽셀도 안 건드린다. 원본 대조로 맞춰 둔 값이라 움직임만 얹는다. */
+
+/* 양자 파문용 위상 — 커스텀 속성은 **등록해야만** <length> 로 보간된다(안 하면 값이 0↔.84 로 튄다).
+   · 미지원 브라우저: var(--gp-q, 0rem) 폴백이 걸려 원래의 정적 동심원 그대로 나온다
+     (폴백을 빼면 --af-pat 전체가 무효가 돼 무늬가 통째로 사라진다 — 반드시 남길 것).
+   · ⚠️ initial-value 는 **계산 독립적**이어야 한다. `0rem` 은 루트 폰트에 의존해 브라우저가 등록을
+     통째로 거절하는데 **콘솔 에러 하나 안 뜬다** — 조용히 무등록이 돼 파문만 멈춘다(이 함정에 실제로
+     한 번 빠졌고, 정지 캡처로는 못 잡아 check-grade-pattern-anim.js 가 잡아냈다). 반드시 `0px`.
+     keyframes 쪽 .84rem 은 이 제약을 안 받는다. */
+@property --gp-q { syntax: '<length>'; inherits: false; initial-value: 0px; }
+
+@keyframes gp-interstellar {   /* 큰 점 층 +3.1rem(→오른쪽) · 작은 점 층 −2.3rem(→왼쪽), 각각 딱 한 타일 */
+    from { background-position: .9rem .2rem, .2rem .8rem; }
+    to   { background-position: 4rem .2rem, -2.1rem .8rem; }
+}
+@keyframes gp-multiverse {     /* 세로 밴드는 x 로 1.05rem, 가로 밴드는 y 로 .85rem — 각각 한 주기 */
+    from { background-position: 0 0, 0 0; }
+    to   { background-position: 1.05rem 0, 0 .85rem; }
+}
+@keyframes gp-quantum { from { --gp-q: 0rem; } to { --gp-q: .84rem; } }   /* 링 간격 한 주기 = 파문 하나 */
+@keyframes gp-underworld { from { background-position: 0 0; } to { background-position: 0 2rem; } }
+@keyframes gp-divine { from { background-position: 0 0; } to { background-position: -3.4rem 0; } }
+@keyframes gp-twinkle { from { opacity: .62; } to { opacity: 1; } }
+@keyframes gp-breathe { from { opacity: .74; } to { opacity: 1; } }
+
+.af-age-bar[data-age="interstellar"]::before, .fi-age-bar[data-age="interstellar"]::before,
+.equip-cell[data-age="interstellar"]::before {
+    animation: gp-interstellar 12s linear infinite, gp-twinkle 2.8s ease-in-out infinite alternate;
+}
+.af-age-bar[data-age="multiverse"]::before, .fi-age-bar[data-age="multiverse"]::before,
+.equip-cell[data-age="multiverse"]::before {
+    animation: gp-multiverse 3.5s steps(7, end) infinite;
+}
+/* 양자만 애니메이션이 **막대/셀 본체**에 걸린다 — --af-pat 이 var(--gp-q) 를 품고 있고 커스텀 속성
+   치환은 그 값을 선언한 요소에서 일어나므로, ::before 에 걸면 위상이 반영되지 않는다. */
+.af-age-bar[data-age="quantum"], .fi-age-bar[data-age="quantum"], .equip-cell[data-age="quantum"] {
+    animation: gp-quantum 2.8s linear infinite;
+}
+.af-age-bar[data-age="underworld"]::before, .fi-age-bar[data-age="underworld"]::before,
+.equip-cell[data-age="underworld"]::before {
+    animation: gp-underworld 7s linear infinite, gp-breathe 3.6s ease-in-out infinite alternate;
+}
+.af-age-bar[data-age="divine"]::before, .fi-age-bar[data-age="divine"]::before,
+.equip-cell[data-age="divine"]::before {
+    animation: gp-divine 16s linear infinite, gp-twinkle 2.2s ease-in-out infinite alternate;
+}
+/* 움직임을 줄여 달라는 OS 설정은 존중한다(무늬는 그대로 남고 흐름만 멈춘다) */
+@media (prefers-reduced-motion: reduce) {
+    .af-age-bar::before, .fi-age-bar::before, .equip-cell::before,
+    .af-age-bar, .fi-age-bar, .equip-cell { animation: none !important; }
 }
 
 /* 체크박스 — 눌리는 물건으로 보이게 안쪽 그늘 + 위 테두리 하이라이트, 켜지면 초록 광택 */

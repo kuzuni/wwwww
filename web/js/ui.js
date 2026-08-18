@@ -2453,7 +2453,9 @@ const UI = {
             <span class="cell-img emoji dim">${this.emptySlotFace(slot)}</span>
             <span class="slot-name">${SLOT_KR[slot]}</span>
         </div>`;
-        return `<div class="equip-cell" style="--rc:${this.ageHex(it.age)}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
+        // data-age = 시대 무늬(확률 정보 막대와 공유하는 --af-pat 규칙 + 무늬별 애니메이션).
+        // 항성간 이상 다섯 시대만 무늬가 있고 앞 5개는 --af-pat 이 없어 아무것도 안 그린다.
+        return `<div class="equip-cell" data-age="${it.age}" style="--rc:${this.ageHex(it.age)}" title="${it.name}" onclick="UI.openGearDetail('${slot}')">
             ${this.itemImgHTML(it, 'cell-img')}
             <span class="cell-lv">Lv. ${it.level}</span>
             ${it.stars ? `<span class="cell-star">${IconGen.img('star')}${it.stars > 1 ? it.stars : ''}</span>` : ''}
