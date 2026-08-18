@@ -2914,7 +2914,7 @@ const UI = {
                         <div class="dgd-stage"><span>난이도</span><b>${stage}단계</b></div>
                         <button class="tri-btn" onclick="UI.onDungeonStageStep(1)" style="visibility:${stage >= best + 1 ? 'hidden' : 'visible'}">▶</button>
                     </div>
-                    <div class="dgd-reward-pill"><span class="dgd-reward-label">보상:</span>${Dungeons.rewardText(id, stage)}</div>
+                    <div class="dgd-reward-pill"><span class="dgd-reward-label">보상:</span>${Dungeons.rewardText(id, stage, '  ')}</div>
                     <div class="dgd-keys">${IconGen.img('key')} ${keys}/${Dungeons.MAX_KEYS}</div>
                     <div class="dgd-btns">
                         <button class="btn silver dgd-btn ${keys > 0 && best >= 1 ? '' : 'disabled'}" onclick="UI.onSweepDungeon('${id}')">이전 스테이지<br>소탕</button>

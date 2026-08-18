@@ -78,9 +78,11 @@ const Dungeons = {
         if (id === 'invasion') return { eggCurrency: n };
         return { potions: Math.ceil(n * TechTree.dungeonPotionMult()) };                        // '던전 물약 보너스'
     },
-    rewardText(id, stage) {
+    // sep — 원본(shot-042304) 상세 팝업의 보상 pill 은 두 보상 사이에 가운뎃점 없이 공백만 둔다.
+    // 토스트는 종전대로 ' · ' 를 쓰므로 기본값은 그대로 두고 pill 만 넘겨서 바꾼다.
+    rewardText(id, stage, sep = ' · ') {
         const r = this.rewards(id, stage);
-        if (r.hammers) return `🔨 ${U.fmt(r.hammers)} · 🪙 ${U.fmt(r.coins)}`;
+        if (r.hammers) return `🔨 ${U.fmt(r.hammers)}${sep}🪙 ${U.fmt(r.coins)}`;
         if (r.tickets) return `🎫 ${U.fmt(r.tickets)}`;
         if (r.eggCurrency) return `🥚 ${U.fmt(r.eggCurrency)}`;
         return `🧪 ${U.fmt(r.potions)}`;

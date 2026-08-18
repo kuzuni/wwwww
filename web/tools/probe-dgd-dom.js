@@ -43,13 +43,16 @@ const REF = {
     page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && typeof Forge !== 'undefined', null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && typeof Forge !== 'undefined', null, { timeout: 60000 });
     await page.evaluate(SC.SEED_SRC);
     await page.reload({ waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && S.forgeLevel === 29, null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && S.forgeLevel === 29, null, { timeout: 60000 });
     await page.addStyleTag({ content: '*, *::before, *::after { animation: none !important; transition: none !important; }' });
     await page.evaluate(() => { UI.toast = () => { }; UI.openDungeons(); UI.openDungeonDetail('hammer'); });
-    await page.waitForTimeout(400);
+    // 🚨 폰트가 붙기 전 프레임에서 재면 글자 폭이 달라 **같은 페이지인데 런마다 수치가 바뀐다**
+    //    (2026-08-18 펫 화면에서 통과 판정이 통째로 무효가 된 실제 사례). 반드시 기다린다.
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(1200);
     const got = await page.evaluate(() => {
         const app = document.getElementById('app').getBoundingClientRect();
         const q = s => document.querySelector(s);
