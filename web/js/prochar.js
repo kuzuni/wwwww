@@ -971,35 +971,61 @@ const ProChar = {
             pauldronG.position.set(side * 0.012, 0.012, 0);
             pauldronG.rotation.z = side * 0.3;  // 바깥으로 흘러내리는 견갑 각
             // 캡(최상단 라메) — 윗면 거의 수평 → 어깨 모서리에서 급강하. 이 꺾임이 '구가 아님'의 핵심.
+            // ⚠️ 2026-08-18 6차 비평가 재지적 ㉣(양쪽 합의)로 아래 밴드 구성을 뒤집었다.
+            //    A: "속이 비어 있는 원뿔 = 갓등, 밑면 캡이 없어 내부 면이 보인다" / B: "동일 반경 링 균등 적층 = 아코디언 호스".
+            //    직전 판은 밴드가 **아래로 갈수록 넓어졌다**(0.099 → 0.110 → 0.119). 그게 정확히 갓등이다 —
+            //    실제 스폴더의 라메는 어깨 캡이 가장 넓고 팔을 따라 **좁아지며** 내려간다.
+            //    처방 교집합대로 ① 반경비를 1.0 / 0.85 / 0.72 로 벌리고 ② 각 장을 바깥-아래로 14°씩 누적 회전시켜
+            //    동축 튜브가 아니라 삼각근을 타고 흘러내리는 판으로 만들고 ③ 밑면 캡을 닫는다.
+            const PR = 0.113;                       // 캡 최대 반경(=1.0 기준). 직전 최대 0.119 보다 좁다 — 실루엣 폭은 안 키운다.
             const capPts = [];
-            for (const [r, y] of [[0.005, 0.062], [0.038, 0.058], [0.068, 0.047], [0.089, 0.028], [0.097, 0.005], [0.099, -0.016]])
+            for (const [r, y] of [[0.005, 0.062], [0.043, 0.058], [0.077, 0.047], [0.101, 0.026], [0.110, 0.002], [PR, -0.020]])
                 capPts.push(new THREE.Vector2(r, y));
             const pCap = new THREE.Mesh(new THREE.LatheGeometry(capPts, 14), steel());
             const pCapLine = new THREE.Mesh(new THREE.LatheGeometry(
                 capPts.map(v => new THREE.Vector2(v.x * 0.95, v.y - 0.004)), 14), deepLine); // 캡 안감(두께)
             pauldronG.add(pCap, pCapLine);
-            // 라메 밴드 2겹 — [상단r, 하단r, 높이, y]. 아래로 갈수록 넓어져(원뿔대) 어깨가 '흘러내린다'.
-            // ⚠️ 반지름 상한은 **실루엣 폭**이 정한다 — 첫 판에서 0.117/0.129 로 잡았더니 근접샷에서
-            //    어깨가 '판금 선반'으로 읽혔다(구 문제를 반대편으로 넘긴 셈). 원래 반구가 0.105 였으므로
-            //    최대 0.119 = +13% 선에서 멈춘다. 라메 판독은 폭이 아니라 **밴드 경계 수**가 만든다.
-            for (const [rt, rb, hh, ly] of [[0.097, 0.110, 0.040, -0.035], [0.108, 0.119, 0.035, -0.069]]) {
+            // 라메 밴드 2겹 — 반경비 0.85 · 0.72, 각 장 14° 씩 바깥-아래 누적 회전.
+            // 회전을 누적시키려고 밴드를 **중첩 그룹 체인**으로 단다(부모 장의 기울기를 물려받아야
+            // '한 장씩 꺾여 흘러내리는' 판이 된다 — 형제로 달면 각도만 다른 링 3개가 되어 아코디언 그대로다).
+            const LAME_TILT = 0.245;                // ≈14° (처방 12~18°)
+            let node = pauldronG, lastR = PR, lastY = -0.020;
+            for (const [ratio, hh] of [[0.85, 0.042], [0.72, 0.036]]) {
+                const seg = new THREE.Group();
+                seg.position.y = lastY;
+                seg.rotation.z = side * LAME_TILT;
+                node.add(seg);
+                const rt = lastR * 0.98, rb = PR * ratio; // 위는 앞 장 밑단에 맞물리고 아래로 좁아진다
                 const band = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, hh, 14, 1, true), steel());
-                band.position.y = ly;
+                band.position.y = -hh / 2;
                 // 안감은 DoubleSide(deepLine)라 열린 밑단으로 올려다볼 때 어두운 속이 보인다 — 판금 두께
                 const bandIn = new THREE.Mesh(new THREE.CylinderGeometry(rt * 0.95, rb * 0.95, hh * 1.04, 14, 1, true), deepLine);
-                bandIn.position.y = ly;
+                bandIn.position.y = -hh / 2;
                 // 밑단 림 — 밴드 경계마다 밝은 금속 테. 구의 매끈한 그라디언트를 가로로 끊는 실질 요소.
                 const rim = new THREE.Mesh(new THREE.TorusGeometry(rb, 0.0075, 5, 16), steelDark());
                 rim.rotation.x = Math.PI / 2;
-                rim.position.y = ly - hh / 2;
-                pauldronG.add(band, bandIn, rim);
+                rim.position.y = -hh;
+                seg.add(band, bandIn, rim);
+                node = seg; lastR = rb; lastY = -hh;
             }
+            // 밑면 캡 (A 의 "밑면 캡이 없어 내부 면이 보인다") — 마지막 라메 밑단을 니어블랙 링으로 막는다.
+            // 원판이 아니라 **링**인 이유: 가운데로 상완이 지나가므로 원판이면 팔을 뚫고 나온 판으로 보인다.
+            // 안쪽 반경은 굵어진 상완(0.073)보다 살짝 크게 잡아 팔이 링을 관통하지 않게 한다.
+            const pFloor = new THREE.Mesh(new THREE.RingGeometry(0.079, lastR, 14), deepLine);
+            pFloor.rotation.x = Math.PI / 2;         // 아래를 향하게
+            pFloor.position.y = lastY - 0.001;
+            node.add(pFloor);
             const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.019, 6, 5), gold);
             rivet.position.set(side * 0.012, 0.080, 0); // 캡 꼭대기 리벳 (셸 상단 0.062 + 견갑 y 0.012 위)
             aoRing(0.075, 0.018, shoulder, -0.03, 0.5); // 견갑 안쪽-상완 경계 접촉 그림자
-            const upperArm = this.capsule(0.062, 0.052, 0.19, mailMat);
-            // 상완 패딩 소매 — 견갑 아래로 삐져나오는 누빔천 (판금 → 천 → 사슬 3층 경계)
-            const armPad = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.064, 0.05, 12), padding);
+            // 상완 굵기 — 처방 "상완을 견갑 지름의 0.6배 이상". 견갑 지름 2×0.113 = 0.226 → 상완 지름 ≥ 0.136.
+            // 0.062 → 0.073 (지름 0.146 = 견갑 지름의 0.646배). 이게 A 의 "오버행 21px > 상완 두께 18px",
+            // B 의 "가는 막대에 씌운 갓등" 을 동시에 푼다 — 오버행을 줄이는 쪽이 아니라 팔을 굵히는 쪽을 택한 건
+            // 견갑 폭을 줄이면 역삼각 실루엣(양쪽이 '되돌리지 말 것'으로 꼽은 것)이 같이 죽기 때문이다.
+            const upperArm = this.capsule(0.073, 0.060, 0.19, mailMat);
+            // 상완 패딩 소매 — 견갑 아래로 삐져나오는 누빔천 (판금 → 천 → 사슬 3층 경계).
+            // 상완을 0.062→0.073 으로 굵히면서 같이 키운다 — 안 키우면 사슬에 파묻혀 3층 경계가 사라진다.
+            const armPad = new THREE.Mesh(new THREE.CylinderGeometry(0.079, 0.075, 0.05, 12), padding);
             armPad.position.y = -0.02;
             const elbow = new THREE.Group();
             elbow.position.y = -0.19;

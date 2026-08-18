@@ -14,6 +14,9 @@ const PART = process.argv[2] === 'foot' ? 'foot' : 'shoulder';
 //    형태가 거의 안 읽힌다 — '둥근 포드'라는 지적도 결국 실루엣 판정이다. 발가락 테이퍼·굽 블록·
 //    발목 조임이 실제로 생겼는지는 이 모드로 봐야 판정이 된다.
 const SIL = process.argv.includes('sil');
+// 근접 배율 — 기본 프레이밍(견갑 dist 2.1)은 상반신 전체가 들어와 라메 밴드 경계가 60px 남짓이다.
+// 밴드 반경비·밑면 캡 같은 '한 장 단위' 판독은 그 크기로 안 되므로 배율만 따로 준다: zoom=2 → 거리 절반.
+const ZOOM = (() => { const a = process.argv.find(s => s.startsWith('zoom=')); return a ? Number(a.slice(5)) : 1; })();
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -43,7 +46,7 @@ const SIL = process.argv.includes('sil');
     });
 
     // 조준점을 파츠 월드 좌표로 잡고 바짝 붙는다 (바운딩 박스 중심이 아니라 — 그러면 항상 배가 잡힌다)
-    const aim = (orbit) => page.evaluate(([orbit, PART]) => {
+    const aim = (orbit) => page.evaluate(([orbit, PART, ZOOM]) => {
         const R = Scene3D.heroRig;
         // shoulder: 조준점 = 목(고젯 칼라) — 좌우 견갑이 대칭으로 들어오고 칼라 높이도 같이 판독된다.
         //           한쪽 어깨를 조준하면 반대쪽이 프레임 밖으로 나가고, 오른팔은 검이 견갑을 가린다.
@@ -65,11 +68,11 @@ const SIL = process.argv.includes('sil');
         fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), orbit);
         // ⚠️ 발은 카메라 높이가 중요하다 — 지면 높이에서 수평으로 보면 발 실루엣이 지면선과 겹쳐
         //    발가락·굽 꺾임이 통째로 안 읽힌다(두 번째 판이 그랬다). 거리의 0.45 만큼 띄워 내려다본다.
-        const dist = PART === 'foot' ? 0.75 : 2.1;  // 발은 더 작으니 더 붙는다(2.1은 발이 25px)
+        const dist = (PART === 'foot' ? 0.75 : 2.1) / ZOOM;  // 발은 더 작으니 더 붙는다(2.1은 발이 25px)
         Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(dist)).add(new THREE.Vector3(0, dist * (PART === 'foot' ? 0.45 : 0.12), 0)), look: c.clone() };
         Scene3D.camera.position.copy(Scene3D.camLock.pos);
         Scene3D.camera.lookAt(Scene3D.camLock.look);
-    }, [orbit, PART]);
+    }, [orbit, PART, ZOOM]);
 
     for (const [name, orbit] of [['front', 0], ['q45', -Math.PI / 4], ['side', -Math.PI / 2]]) { // 음수 = 방패쪽(왼팔) — 검이 견갑을 가리지 않는 각
         await aim(orbit);
