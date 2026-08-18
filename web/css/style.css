@@ -2779,6 +2779,11 @@ body {
 .af-age-name {
     flex: 1; text-align: left; font-weight: 900; font-size: .82rem; color: #000;
 }
+/* 시대 아이콘(코드 생성) — 원본 막대에서 아이콘은 막대 높이의 ~76%(29px 중 22px)다.
+   ⚠️ 위아래 음수 마진이 필수: `.ico` 기본 마진(-.32em)을 지우고 키우면 **막대 줄상자가 자라
+   막대 높이·피치가 통째로 밀린다**(자동 제련·확률 정보 두 화면이 이미 ±2%p 로 교정돼 있다).
+   좌우 대칭이 아니라 위아래만 음수라 글자 기준선은 그대로 두고 높이만 잡는다. */
+.af-age-name .ico, .fi-age-name .ico { width: 1.3rem; height: 1.3rem; margin: -.35rem .14rem -.35rem 0; vertical-align: middle; }
 .af-age-pct {
     font-weight: 900; font-size: .84rem; color: #000; padding-right: .28rem;   /* 원본은 % 숫자와 막대 오른쪽 모서리 사이가 ~2.5%W 뜬다 */
 }

@@ -1210,7 +1210,7 @@ const UI = {
             // data-age = 시대별 무늬(자동 제련과 공유하는 --af-pat 규칙) · 별은 마지막 시대만 빈 별 —
             // 둘 다 이 화면 원본(shot-042831)에서 읽은 규칙이다
             return `<div class="fi-age-bar" data-age="${age}" style="--ac:${hex}">
-                <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]}<span class="fi-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
+                <span class="fi-age-name">${this.ageIcon(age)} ${AGE_KR[age]}<span class="fi-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
                 <span class="fi-age-cur">${pct(curP[age] || 0)}</span>
                 <span class="fi-age-next">${info ? pct(nextP[age] || 0) : '—'}</span>
             </div>`;
@@ -1278,7 +1278,7 @@ const UI = {
             }).join('');
             return `<div class="forge-age-section">
                 <div class="fi-age-bar fl-head" data-age="${age}" style="--ac:${hex}">
-                    <span class="fi-age-name">${AGE_ICON[age]} ${AGE_KR[age]}<span class="fi-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
+                    <span class="fi-age-name">${this.ageIcon(age)} ${AGE_KR[age]}<span class="fi-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
                     <span class="fi-age-cur">${U.pctTrim(ageP)}</span>
                 </div>
                 <div class="forge-item-grid">${weaponCells}${otherCells}</div>
@@ -1429,7 +1429,7 @@ const UI = {
         const ageRows = AGES.filter(age => (probs[age] || 0) > 0).map(age => `
             <div class="af-age-bar" data-age="${age}" style="--ac:${this.ageHex(age)}" onclick="UI.onToggleKeepAge('${age}')">
                 <span class="af-check ${cfg.keepAges.includes(age) ? 'on' : ''}">${cfg.keepAges.includes(age) ? '✓' : ''}</span>
-                <span class="af-age-name">${AGE_ICON[age]} ${AGE_KR[age]}<span class="af-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
+                <span class="af-age-name">${this.ageIcon(age)} ${AGE_KR[age]}<span class="af-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
                 <span class="af-age-pct">${pct(probs[age] || 0)}</span>
             </div>`).join('');
         const subRows = SUBSTATS.map(([key, label]) => `
@@ -1749,6 +1749,12 @@ const UI = {
         if (this.WEAPON_SHAPE_EMOJI[shape]) return this.WEAPON_SHAPE_EMOJI[shape];
         return (WEAPON_TYPES[wtype] && WEAPON_TYPES[wtype].kind === 'ranged') ? '🏹' : '🗡';
     },
+    // 시대 아이콘 — 원본(shot-042831·042950 확대)은 범용 이모지가 아니라 **그 시대의 무기 실루엣**이다
+    // (원시=몽둥이 · 중세=검 · 근대 초기=나팔총 · 현대=권총 · 우주=블래스터 · 항성간=광선총 ·
+    //  다중 우주=포탈건 · 양자=원자 · 지하 세계=삼지창 · 신성한=황금 날개).
+    // 아이콘이 없으면 `AGE_ICON` 이모지로 떨어진다.
+    ageIcon(age) { return IconGen.img('age_' + age, 'age-ico') || AGE_ICON[age] || ''; },
+
     // 기술 트리 노드·가지 아이콘 — 원본(shot-042605)의 노드는 **청동 원판 위 픽토그램**이지 이모지가 아니다.
     // 여기 없는 id 는 `techtree.js` 의 이모지로 그대로 떨어지므로 노드가 추가돼도 안 깨진다.
     // ⚠️ 같은 가지에 나란히 놓이는 '피해/체력' 짝은 서로 다른 모티프를 준다(mount 는 말↔하트,

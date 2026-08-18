@@ -177,6 +177,31 @@ const IconGen = {
         ctx.beginPath(); base(); ctx.stroke();
         ctx.beginPath(); body(); ctx.stroke();
     },
+    // 시대 아이콘용 — 굵은 검정 테를 먼저 깔고 색면을 덮는 '실루엣 먼저' 렌더.
+    // 시대 막대는 바탕색이 10가지라 테가 없으면 밝은 막대(노랑·청록)에서 형태가 사라진다.
+    _ageStroke(ctx, S, pts, w, stops) {
+        const line = () => {
+            ctx.beginPath();
+            pts.forEach((p, i) => (i ? ctx.lineTo(p[0] * S, p[1] * S) : ctx.moveTo(p[0] * S, p[1] * S)));
+        };
+        line(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.lineWidth = (w + 0.055) * S; ctx.strokeStyle = '#17181a'; ctx.stroke();
+        line();
+        ctx.lineWidth = w * S;
+        ctx.strokeStyle = this._lin(ctx, pts[0][0] * S, pts[0][1] * S, pts[pts.length - 1][0] * S, pts[pts.length - 1][1] * S, stops);
+        ctx.stroke();
+    },
+    _agePoly(ctx, S, pts, stops) {
+        const path = () => {
+            ctx.beginPath();
+            pts.forEach((p, i) => (i ? ctx.lineTo(p[0] * S, p[1] * S) : ctx.moveTo(p[0] * S, p[1] * S)));
+            ctx.closePath();
+        };
+        path();
+        ctx.fillStyle = this._lin(ctx, 0, 0, 0, S, stops);
+        ctx.fill();
+        ctx.lineWidth = S * 0.055; ctx.strokeStyle = '#17181a'; ctx.lineJoin = 'round'; ctx.stroke();
+    },
     // #rrggbb 를 밝기 조정
     _shade(hex, amt) {
         const n = parseInt(hex.slice(1), 16);
@@ -1384,6 +1409,88 @@ const IconGen = {
             for (const [x, y] of [[0.32, 0.32], [0.5, 0.5], [0.68, 0.68], [0.68, 0.32], [0.32, 0.68]]) {
                 ctx.beginPath(); ctx.arc(x * S, y * S, S * 0.062, 0, Math.PI * 2); ctx.fill();
             }
+        },
+
+        // ---- 시대 아이콘 10종 (원본 shot-042831·042950 확대) ----
+        // 🚨 원본의 시대 아이콘은 범용 이모지가 아니라 **그 시대의 무기 실루엣**이 순서대로 놓인 것이다:
+        //    원시=나무 몽둥이 · 중세=검 · 근대 초기=나팔총 · 현대=권총 · 우주=블래스터 ·
+        //    항성간=광선총 · 다중 우주=포탈건 · 양자=원자 · 지하 세계=삼지창 · 신성한=황금 날개.
+        //    종전 매핑(🪨⚔️🏴‍☠️🔫🚀🛸🌀⚛️🔥✨)은 절반이 아예 다른 물건이었다.
+        // 시대 막대 위에 얹히므로 **바탕색이 매번 다르다** — 전부 굵은 검정 테로 실루엣을 먼저 세운다.
+        age_primitive(ctx, S) {                          // 나무 몽둥이
+            const G = IconGen;
+            G._ageStroke(ctx, S, [[0.16, 0.80], [0.62, 0.30]], 0.115,
+                [[0, '#a9773f'], [1, '#5d3a15']]);
+            G._ageStroke(ctx, S, [[0.58, 0.34], [0.86, 0.14]], 0.175,
+                [[0, '#b98a4e'], [1, '#6b4419']]);
+        },
+        age_medieval(ctx, S) {                           // 검 — 회청 날 + 주황 손잡이
+            const G = IconGen;
+            G._ageStroke(ctx, S, [[0.20, 0.84], [0.38, 0.66]], 0.13, [[0, '#d98b2b'], [1, '#8c4f0d']]);
+            G._ageStroke(ctx, S, [[0.28, 0.62], [0.46, 0.80]], 0.085, [[0, '#e0a44a'], [1, '#95580f']]);
+            G._ageStroke(ctx, S, [[0.36, 0.66], [0.84, 0.20]], 0.145, [[0, '#e9eef4'], [1, '#7f8a97']]);
+        },
+        age_earlyModern(ctx, S) {                        // 나팔총 — 개머리판 + 벌어진 총구
+            const G = IconGen;
+            G._ageStroke(ctx, S, [[0.14, 0.80], [0.40, 0.56]], 0.155, [[0, '#8a5c2c'], [1, '#4a2d0d']]);
+            G._ageStroke(ctx, S, [[0.36, 0.60], [0.80, 0.22]], 0.115, [[0, '#6c737b'], [1, '#31373d']]);
+            G._agePoly(ctx, S, [[0.74, 0.32], [0.92, 0.10], [0.98, 0.26], [0.84, 0.42]], [[0, '#8a929b'], [1, '#3d444b']]);
+        },
+        age_modern(ctx, S) {                             // 권총
+            const G = IconGen;
+            G._agePoly(ctx, S, [[0.12, 0.42], [0.86, 0.42], [0.86, 0.58], [0.44, 0.58], [0.34, 0.86], [0.14, 0.86], [0.22, 0.56], [0.12, 0.56]],
+                [[0, '#4b5158'], [1, '#171b1f']]);
+        },
+        age_space(ctx, S) {                              // 블래스터 — 흰 몸체 + 총열 홈
+            const G = IconGen;
+            G._agePoly(ctx, S, [[0.10, 0.36], [0.82, 0.24], [0.90, 0.42], [0.46, 0.54], [0.36, 0.84], [0.16, 0.82], [0.22, 0.50]],
+                [[0, '#f2f5f8'], [1, '#98a2ac']]);
+            G._ageStroke(ctx, S, [[0.44, 0.34], [0.72, 0.29]], 0.05, [[0, '#5c666f'], [1, '#5c666f']]);
+        },
+        age_interstellar(ctx, S) {                       // 광선총 — 둥근 발광부
+            const G = IconGen;
+            G._ageStroke(ctx, S, [[0.20, 0.82], [0.44, 0.56]], 0.15, [[0, '#e7ecf1'], [1, '#8d97a1']]);
+            G._ageStroke(ctx, S, [[0.40, 0.60], [0.74, 0.28]], 0.185, [[0, '#f4f7fa'], [1, '#9aa4ae']]);
+            ctx.beginPath(); ctx.arc(S * 0.80, S * 0.22, S * 0.115, 0, Math.PI * 2);
+            ctx.fillStyle = IconGen._lin(ctx, S * 0.7, S * 0.1, S * 0.9, S * 0.34, [[0, '#ffffff'], [1, '#aab4be']]);
+            ctx.fill(); ctx.lineWidth = S * 0.055; ctx.strokeStyle = '#17181a'; ctx.stroke();
+        },
+        age_multiverse(ctx, S) {                         // 포탈건 — 분홍 고리 + 회색 몸체
+            const G = IconGen;
+            G._agePoly(ctx, S, [[0.38, 0.34], [0.88, 0.34], [0.88, 0.66], [0.38, 0.66]], [[0, '#dfe5ea'], [1, '#8b959f']]);
+            ctx.beginPath(); ctx.ellipse(S * 0.30, S * 0.50, S * 0.10, S * 0.30, 0, 0, Math.PI * 2);
+            ctx.fillStyle = IconGen._lin(ctx, S * 0.2, 0, S * 0.4, S, [[0, '#ff5f8a'], [1, '#c01f4d']]);
+            ctx.fill(); ctx.lineWidth = S * 0.06; ctx.strokeStyle = '#17181a'; ctx.stroke();
+            ctx.lineWidth = S * 0.045; ctx.strokeStyle = '#3c454e';
+            for (const x of [0.52, 0.64, 0.76]) { ctx.beginPath(); ctx.moveTo(x * S, S * 0.40); ctx.lineTo(x * S, S * 0.60); ctx.stroke(); }
+        },
+        age_quantum(ctx, S) {                            // 원자 — 핵 + 궤도 3
+            const cx = S * 0.5, cy = S * 0.5;
+            ctx.lineWidth = S * 0.06; ctx.strokeStyle = '#17181a';
+            for (const a of [0, Math.PI / 3, -Math.PI / 3]) {
+                ctx.save(); ctx.translate(cx, cy); ctx.rotate(a);
+                ctx.beginPath(); ctx.ellipse(0, 0, S * 0.40, S * 0.17, 0, 0, Math.PI * 2); ctx.stroke();
+                ctx.restore();
+            }
+            ctx.beginPath(); ctx.arc(cx, cy, S * 0.115, 0, Math.PI * 2);
+            ctx.fillStyle = '#17181a'; ctx.fill();
+        },
+        age_underworld(ctx, S) {                         // 삼지창
+            const G = IconGen;
+            G._ageStroke(ctx, S, [[0.50, 0.92], [0.50, 0.34]], 0.10, [[0, '#e2e7ec'], [1, '#8d97a1']]);
+            G._ageStroke(ctx, S, [[0.20, 0.42], [0.80, 0.42]], 0.085, [[0, '#e2e7ec'], [1, '#8d97a1']]);
+            G._ageStroke(ctx, S, [[0.20, 0.42], [0.20, 0.16]], 0.085, [[0, '#eef2f6'], [1, '#95a0aa']]);
+            G._ageStroke(ctx, S, [[0.80, 0.42], [0.80, 0.16]], 0.085, [[0, '#eef2f6'], [1, '#95a0aa']]);
+            G._ageStroke(ctx, S, [[0.50, 0.34], [0.50, 0.08]], 0.085, [[0, '#eef2f6'], [1, '#95a0aa']]);
+        },
+        age_divine(ctx, S) {                             // 황금 날개 한 쌍
+            const G = IconGen;
+            const half = (dir) => G._agePoly(ctx, S, [
+                [0.5 + dir * 0.06, 0.30], [0.5 + dir * 0.46, 0.20], [0.5 + dir * 0.34, 0.42],
+                [0.5 + dir * 0.46, 0.40], [0.5 + dir * 0.30, 0.62], [0.5 + dir * 0.34, 0.60],
+                [0.5 + dir * 0.20, 0.78], [0.5 + dir * 0.06, 0.56],
+            ], [[0, '#ffd86a'], [0.5, '#f0a81c'], [1, '#9c6403']]);
+            half(-1); half(1);
         },
 
         // ---- 리그 문장 (원본 shot-042149 확대) ----
