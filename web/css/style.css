@@ -976,12 +976,15 @@ body {
        투명하다. 사거리를 늘려 상판 밖까지 내보낸 수정이 정작 불티 자신의 색을 지운 셈이었다
        (네이티브 접촉 프레임에서 상판 위 불티 증거가 20픽셀뿐이었다). 심을 따뜻한 주황으로
        내리고 **어두운 후광**을 씌운다 — 밝은 배경에서는 후광이, 주황 상판 위에서는 심이 판다. */
-    fill: #ffd257; filter: drop-shadow(0 0 1.1px rgba(72,16,0,.95)) drop-shadow(0 0 2.4px rgba(255,122,0,.75));
+    /* fill 은 JS 가 개체별로 인라인으로 준다(색온도 변주) — 여기서 지정하면 그걸 덮는다 */
+    filter: drop-shadow(0 0 1.1px rgba(72,16,0,.95)) drop-shadow(0 0 2.4px rgba(255,122,0,.75));
     transform-box: fill-box; transform-origin: 0% 50%;
     opacity: 0;
     animation: afspark var(--dur, .21s) cubic-bezier(0,.88,.24,1) forwards;
     animation-delay: var(--t, 0s);
 }
+/* ⚠️ 색이 끝까지 한 색이면 '날아가는 종잇조각'이다. 튄 쇳조각은 날면서 식으므로
+   **백열 → 황 → 적**으로 떨어져야 파편으로 읽힌다(비평가 B: 식어가는 색온도 램프가 없다). */
 @keyframes afspark {
     0%   { opacity: 1;  transform: rotate(var(--a, 0deg)) translate(0, 0) scaleX(.7); }
     55%  { opacity: .9; transform: rotate(var(--a, 0deg)) translate(calc(var(--u, 0px) * .55), calc(var(--v, 0px) * .3)) scaleX(1); }

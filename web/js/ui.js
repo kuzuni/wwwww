@@ -1731,7 +1731,13 @@ const UI = {
                 const g = 7;
                 const u = d + g * Math.sin(a), v = g * Math.cos(a);
                 const w = U.rand(4.4, 8.6);                      // 개체마다 길이가 달라야 복제품으로 안 읽힌다
-                sparks.push(`<rect class="af-spark" x="${hx(h).toFixed(2)}" y="${(hy(h) - 0.8).toFixed(2)}" width="${w.toFixed(1)}" height="1.6" rx="0.8"`
+                // 색온도 변주 — 한 색이면 '날아가는 종잇조각'이고, 멀리 가는 조각일수록 뜨겁다.
+                // ⚠️ 이걸 `@keyframes` 에서 `fill` 을 애니메이션해 만들면 안 된다 — 실측 결과
+                //    불티에 fill 애니메이션을 걸자 **같은 오버레이의 `mix-blend-mode: screen` 층
+                //    (플래시·섬광·코어)이 통째로 죽어** 네이티브 근백색 픽셀이 41 → 0 이 됐다
+                //    (probe ⑪ 가 잡았다). 합성 그룹이 갈라지는 것으로 보인다. 정적 색으로 변주한다.
+                const tint = d > 46 ? '#fffdf0' : d > 34 ? '#ffd257' : '#ff9a2e';
+                sparks.push(`<rect class="af-spark" fill="${tint}" x="${hx(h).toFixed(2)}" y="${(hy(h) - 0.8).toFixed(2)}" width="${w.toFixed(1)}" height="1.6" rx="0.8"`
                     + ` style="--a:${(a * 180 / Math.PI).toFixed(1)}deg;--u:${u.toFixed(1)}px;--v:${v.toFixed(1)}px;`
                     + `--t:${(this.ANVIL_HITS[h] / 1000 - 0.008).toFixed(3)}s;--dur:${U.rand(0.17, 0.25).toFixed(3)}s"/>`);
             }
