@@ -3000,7 +3000,9 @@ body {
 }
 .modal-card.sheet .dg-banner .dg-keys { color: #ffe082; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
 .modal-card.sheet .dg-banner .btn {
-    align-self: flex-end; min-width: 4.2rem;
+    /* 원본(shot-042251) [열기] 파랑 채움 폭 15.73%W — 종전 4.2rem(70px 상자=64px 채움)은
+       -2.9%p 좁았다(probe-dungeons-px). 채움 목표 + 테두리 2×3px 몫을 더한 값. */
+    align-self: flex-end; min-width: calc(var(--app-w) * .1573 + 6.6px);
 }
 .modal-card.sheet .dg-banner .dg-right {
     position: absolute; right: .7rem; top: 50%; transform: translateY(-50%);
