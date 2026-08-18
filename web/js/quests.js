@@ -47,7 +47,11 @@ const Quests = {
         // 구세이브·손상분 정리: 폐기된 행동 id나 형태가 깨진 항목은 버리고 새로 뽑는다
         // 보상 재화가 지금 DEFS 와 다르면(구세이브에 젬 보상이 박혀 있던 경우) 그 자리에서 다시 굴린다 —
         // 슬롯은 수령해야만 갈리므로, 마이그레이션을 안 하면 이미 뜬 젬 퀘스트가 계속 남아 젬을 준다.
+        // 이미 슬롯에 박힌 불가능 항목도 여기서 걸러 재추첨한다 — roll() 필터만 넣으면
+        // 만렙에 도달하는 순간 떠 있던 `코인 소비`·`대장간 강화 완료` 가 그대로 눌러앉는다.
+        // 단 **이미 깬 것은 남긴다**: 깨 놓고 수령 전에 만렙이 됐다고 보상을 뺏으면 안 된다.
         S.quests = S.quests.filter(q => q && this.def(q.id) && Number.isFinite(q.need) && q.need > 0)
+            .filter(q => this.available(this.def(q.id)) || (+q.prog || 0) >= q.need)
             .map(q => {
                 const def = this.def(q.id);
                 const rw = q.rw && q.rw.cur === this.curOf(def) ? q.rw : this.rollReward(def, q.need);
@@ -73,9 +77,21 @@ const Quests = {
         const k = need / def.need;
         return { cur: this.curOf(def), amt: Math.max(1, Math.round(def.rw.amt * k)) };
     },
+    // 지금 상태에서 **절대 못 깨는** 퀘스트는 뽑지도, 슬롯에 남기지도 않는다.
+    // 게임에서 코인이 나가는 지점은 대장간 강화 단 하나뿐이라(`S.coins -=` 는 forge.js:255 한 줄이 전부다)
+    // 대장간이 만렙(Lv.35)이면 `coinSpend`·`gearUpgrade` 는 진행도가 영원히 0이다. 3슬롯짜리 반복
+    // 퀘스트에 영구 미완료가 끼면(포기·재추첨 수단도 없다) 실질 슬롯이 1칸으로 줄어 시스템이 반쯤 죽는다.
+    // 만렙 이전에는 필터가 아무것도 걸러내지 않아 동작이 지금과 완전히 같다.
+    FORGE_LOCKED: ['coinSpend', 'gearUpgrade'],
+    available(def) {
+        if (this.FORGE_LOCKED.indexOf(def.id) < 0) return true;
+        if (typeof Forge === 'undefined') return true;      // 로드 순서 방어 — 모르면 막지 않는다
+        return !!Forge.upgradeInfo();                        // 만렙이면 null
+    },
     // 지금 떠 있는 것과 겹치지 않게 한 개 뽑는다
     roll(excludeIds) {
-        const pool = this.DEFS.filter(d => excludeIds.indexOf(d.id) < 0);
+        let pool = this.DEFS.filter(d => excludeIds.indexOf(d.id) < 0 && this.available(d));
+        if (!pool.length) pool = this.DEFS.filter(d => this.available(d));   // 중복 회피보다 '깰 수 있음'이 우선
         const def = U.choice(pool.length ? pool : this.DEFS);
         if (!def) return null;
         const need = this.needOf(def);
