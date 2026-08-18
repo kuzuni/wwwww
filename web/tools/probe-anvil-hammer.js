@@ -88,9 +88,11 @@ async function waitBooted(page, timeout = 25000) {
             const p = el.ownerSVGElement.createSVGPoint(); p.x = x; p.y = y;
             return p.matrixTransform(el.getScreenCTM());
         };
+        // 랜드마크는 HAMMER_SVG 의 로컬 좌표를 그대로 가리킨다 — 조형을 바꾸면 여기도 같이 옮길 것.
+        // (2026-08-18 크로스핀 재조형: 자루 노브 x 43.8→48.4, 핀 끝 y -25→-31)
         const face = map(inner, 0, 0.9);          // 타격면 중심
-        const butt = map(inner, 32.4, -13.4);     // 손잡이 끝(그립 butt)
-        const peen = map(inner, 0, -26.5);        // 머리 반대편(크로스 핀) 끝
+        const butt = map(inner, 44, -12.6);       // 손잡이 끝(그립 노브)
+        const peen = map(inner, 0, -31);          // 머리 반대편(크로스 핀) 끝
         const hitPt = (() => {                    // 모루 상판 접점 (viewBox 55,14)
             const p = anv.createSVGPoint(); p.x = 55; p.y = 14;
             return p.matrixTransform(anv.getScreenCTM());
