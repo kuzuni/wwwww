@@ -355,10 +355,20 @@ async function waitBooted(page, timeout = 25000) {
     }, [tailA, tailB]);
     say(tailDiff >= 300, `⑬ 꼬리 구간(760→840ms) 변화 픽셀 ${tailDiff}개 (기준 ≥300 — 0이면 연출 끝자락이 정지 화면이다)`);
 
-    const restPx = await pxAt(45);          // 타격 사이 정지 구간
-    const hitPx = await pxAt(90);           // 3타 접촉
-    say(hitPx - restPx >= 20,
-        `⑪ 네이티브 92px 접촉 프레임의 근백색 픽셀 +${hitPx - restPx}개 (정지 ${restPx} → 접촉 ${hitPx}, 기준 +20 — 확대에서만 화려하면 소용없다)`);
+    // 🚨 예전에는 **3타만** 재서 '정지 → 접촉 +20' 이면 통과였다. 그 사이 1·2타는 근백색이
+    //    0개·4개였는데도 검사는 초록이었다("1·2타 임팩트에 근백색이 10px·20px 뿐" — 비평가 A).
+    //    92px 아이콘에서 '쾅'을 파는 건 근백색 면적이므로 **세 타격을 각각** 재고, 위계까지 본다.
+    //    ⚠️ '평균 휘도가 정지보다 높은가'로 재면 안 된다 — 접촉 프레임은 회색 망치 머리가
+    //    주황 상판을 가장 많이 덮는 프레임이라 구조적으로 어두울 수밖에 없고, 그걸 상쇄하려면
+    //    화면이 하얗게 날아갈 만큼 블룸을 키워야 한다. 사람이 보는 건 평균이 아니라 **번쩍임**이다.
+    const restPx = await pxAt(41.7);        // 타격 사이(300ms) — 망치는 화면에 있고 타격만 없다
+    const hitPxs = [await pxAt(24), await pxAt(52.5), await pxAt(90)];
+    hitPxs.forEach((v, h) => {
+        say(v - restPx >= 5,
+            `⑪ hit${h + 1}: 네이티브 92px 근백색 픽셀 +${v - restPx}개 (타격 사이 ${restPx} → 접촉 ${v}, 기준 +5 — 확대에서만 화려하면 소용없다)`);
+    });
+    say(hitPxs[0] < hitPxs[1] && hitPxs[1] < hitPxs[2],
+        `⑪ 근백색 위계: ${hitPxs.join(' < ')} — 타격마다 엄격히 증가`);
 
     // ⑭ 🚨 **눌리는 건 빌릿이지 모루가 아니다.** 빌릿을 넣기 전에는 망치의 하중을 강철 모루가
     //    대신 먹어 상판이 세로로 11% 눌렸다 — 비평가 B 가 두 채점에서 모두 상위로 꼽은 '고무 모루'다.
@@ -380,23 +390,28 @@ async function waitBooted(page, timeout = 25000) {
             // 빌릿 높이 = 윗면(55,11) ~ 밑면(55,19.7) 의 화면 거리. CTM 으로 재야 모루 침하와
             // 빌릿 압축이 둘 다 들어간 **실제** 높이가 나온다(상수를 베끼면 자가 코드보다 낡는다).
             const map = (el, x, y) => { const p = anv.createSVGPoint(); p.x = x; p.y = y; return p.matrixTransform(el.getScreenCTM()); };
-            const bt = map(bil, 55, 11), bb = map(bil, 55, 19.7);
-            // 모루 상판 두께 = 윗면 능선(55,4) ~ 앞면 아랫변(55,39)
-            const at_ = map(anv, 55, 4), ab_ = map(anv, 55, 39);
+            const bt = map(bil, 55, 11), bb = map(bil, 55, 21.5);
+            // 모루 전체 높이 = 상판 윗면 능선(55,4) ~ 받침 바닥(55,83)
+            const at_ = map(anv, 55, 4), ab_ = map(anv, 55, 83);
             return { bil: Math.hypot(bb.x - bt.x, bb.y - bt.y), anv: Math.hypot(ab_.x - at_.x, ab_.y - at_.y) };
         };
         const rest = at(5);
         return [24, 52.5, 90].map(p => {
             const m = at(p);
-            return { bil: 1 - m.bil / rest.bil, anv: 1 - m.anv / rest.anv };
+            // 🚨 **절대 px 로 잰다. 비율이 아니다.** 예전 이 검사는 압축을 %로 재서
+            //    '빌릿 32% vs 모루 11%' 로 통과했지만, 실제 화면에서는 같은 프레임에 모루가
+            //    5.6px 내려가고 빌릿은 1.4px 만 줄었다 — 눈은 비율이 아니라 **더 많이 움직인 쪽**을
+            //    무른 물체로 읽으므로, 하중은 여전히 모루로 갔다(비평가 2인이 독립적으로 1순위).
+            //    검사가 통과하는데 결함이 남아 있으면 그건 검사가 틀린 것이다.
+            return { bil: rest.bil - m.bil, anv: rest.anv - m.anv };
         });
     });
     squash.forEach((m, h) => {
-        say(m.bil > m.anv * 1.5,
-            `⑭ hit${h + 1}: 빌릿이 모루보다 눌린다 — 빌릿 ${(m.bil * 100).toFixed(1)}% vs 모루 ${(m.anv * 100).toFixed(1)}% (기준 1.5배 — 뒤집히면 '고무 모루' 회귀)`);
+        say(m.bil > m.anv * 1.4,
+            `⑭ hit${h + 1}: 빌릿이 모루보다 **많이 움직인다** — 빌릿 ${m.bil.toFixed(2)}px vs 모루 ${m.anv.toFixed(2)}px (기준 1.4배, 절대 px)`);
     });
     say(squash[0].bil < squash[1].bil && squash[1].bil < squash[2].bil,
-        `⑮ 빌릿 압축 위계: ${squash.map(m => (m.bil * 100).toFixed(1) + '%').join(' < ')} — 타격마다 엄격히 깊어짐`);
+        `⑮ 빌릿 압축 위계: ${squash.map(m => m.bil.toFixed(2) + 'px').join(' < ')} — 타격마다 엄격히 깊어짐`);
 
     // ⑯ 🚨 **네이티브 92px 에서 빌릿이 실제로 보이는가.** 확대에서 아무리 그럴듯해도 92px 에서
     //    상판과 같은 주황이면 '상판에 찍힌 얼룩'이라 소재로 안 읽힌다(첫 시안이 정확히 그랬다).
