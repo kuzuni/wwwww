@@ -7,25 +7,32 @@
 //    갑옷이라 평상시에도 near-white 라 오검출이었다. 그래서 ⓑ도 **휘도가 아니라 무기 메시의
 //    월드 좌표를 투영**해 잰다(`probe-spark-anchor.js` 와 같은 방식).
 //
-// 재는 것: 공격 클립을 0.016초 서브스텝으로 돌리며 프레임마다
+// 재는 것: 공격 클립을 1/60초 서브스텝으로 돌리며 프레임마다
 //   ⒜ 무기 끝(weaponG 바운딩박스의 자루 반대쪽 끝)의 화면 좌표
 //   ⒝ 적 실루엣 bbox
 //   ⒞ 둘 사이 거리(겹치면 음수) — **한 프레임이라도 접촉하는가**
 //   ⒟ 그 프레임이 임팩트(데미지 적용) 시각과 얼마나 떨어져 있는가
 // 판정: 임팩트 ±80ms 안에 무기 끝이 적 bbox 에 닿는(거리 ≤ 0) 프레임이 하나도 없으면 지적이 맞다.
 //
-// 🚨🚨 **이 프로브는 아직 완성이 아니다 — 전제(스윙이 실제로 돌았는가)를 못 세웠다.**
-// 2026-08-18 3D 세션이 여기까지 만들어 놓고 인계한다. 지금 상태로 돌리면 **'측정 불가'로 끊긴다.**
-// 남은 숙제는 아래 두 가지이고, 그 전에는 ⓑ 에 대해 어떤 결론도 내지 말 것:
-//  ㉠ `S.heroAttack(e.id)` 를 불러도 `heroRig.state.clip` 이 undefined 로 읽히고 **적 HP 가 안 깎인다**
-//     (=임팩트 프레임을 못 짚는다). 무기 끝 이동폭도 60프레임 내내 x 167~196 뿐이라 대기 호흡 수준이다.
-//     `heroAttack` 이 실제로 스윙을 몰려면 어떤 전제(사거리·쿨다운·`Combat` 상태)가 필요한지 먼저 확인할 것.
-//  ㉡ 강제 호출과 **실전투가 동시에 돈다** — 측정 도중 적이 죽고 다음 적이 들어와 bbox 가 통째로
-//     점프한다(+351ms 에 291→169). 전투를 얼리고 스윙만 태우거나, 클립 진행을 수동 구동할 것.
-// ⚠️ 첫 판은 `heroPlay('attack')` 로 태웠는데 그런 이름의 클립이 없어 **아무 일도 안 일어난 채**
-//    '닿는 프레임 0개 → 지적이 맞다'는 판정을 냈다. 스윙을 안 시켜 놓고 낸 판정이다.
-//    그래서 아래에 **전제 검사**를 박았다 — 전제가 안 서면 수치를 인쇄하되 **판정은 내지 않는다**
-//    (`probe-techoverview-dom` 계열이 쓰는 '측정기 고장이면 exit 2' 규약과 같다).
+// ── 2026-08-18 세션: 인계된 전제 2건(㉠㉡)을 풀었다. 아래는 그때 밝혀진 함정이다. ──
+//  ㉠ **`heroRig.state.clip` 은 원래 없는 필드였다(프로브 쪽 버그).** ProChar 리그의 `R.state` 는
+//     *문자열*이고, **once 클립(공격 전부)은 설계상 `state=''` 로 둔다**(`prochar.js:play` — 루프
+//     클립 중복 재시작 방지용). 그래서 `state.clip` 은 영원히 undefined 였고, 앞 세션은 그걸
+//     "클립이 안 물렸다"는 증거로 읽었다. 실제 현재 클립은 `heroRig._clip` 이고, 이름은
+//     `ProChar.resolveClip(후보배열)` 로 얻는다. 공격 클립은 정상적으로 물린다(club→slam).
+//  ㉡ **스윙이 안 돈 진짜 원인은 헤드리스에서 rAF 가 사실상 안 도는 것.** Combat 은 별도 고정
+//     인터벌이라 계속 도는데 Scene3D.update 는 rAF 라, 2.5초 대기 뒤 `Scene3D.anims` 에 **연출
+//     121개가 밀려 있고**(전부 과거 공격의 런지 애니메이션) 적 메시는 논리 좌표에서 3.4 유닛
+//     떨어진 자리에 멈춰 있었다. 그 상태로 `heroAttack` 을 한 번 더 태우면 밀린 런지 122개가
+//     같은 `heroG.position.x` 를 서로 덮어써 톱니처럼 튀고(실측: -0.61→-1.35 반복), 무기 끝
+//     이동폭은 대기 호흡 수준(47px)으로 뭉개진다. **측정 전에 백로그를 비우고 좌표를 스냅**해야
+//     한 번의 스윙을 깨끗이 잴 수 있다.
+//  ㉢ 임팩트 시각은 HP 감소로 짚지 않는다 — 데미지는 `Combat.pending` 이 넣으므로 `Combat.update`
+//     를 같이 돌려야 하고, 그러면 실전투가 끼어들어 측정 도중 적이 죽고 표적이 바뀐다(앞 세션이
+//     본 bbox 158px 점프). 임팩트는 **해석적으로** 정한다: `combat.js` 가 `heroAttack` 직후
+//     `pending.push({t: wt.impact})` 로 예약하므로 임팩트 = 스윙 시작 + `WEAPON_TYPES[…].impact`.
+//
+// 전제가 안 서면 수치는 인쇄하되 **판정하지 않고 exit 2**(`probe-techoverview-dom` 계열 규약).
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
@@ -42,35 +49,54 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     await page.waitForTimeout(1200);
     await page.waitForFunction(() => Combat.enemies && Combat.enemies.some(e => e.alive), null, { timeout: 20000 });
 
+    // ⚠️ 측정 전체를 **한 번의 evaluate 안**에서 한다 — 페이지의 setInterval(Combat)·rAF 는 그
+    //    동기 블록 동안 끼어들 수 없으므로, 이것 자체가 ㉡ 의 "전투를 얼린다" 장치다.
     const out = await page.evaluate(() => {
         const S = Scene3D;
-        const step = (dt) => { S.update(dt); if (typeof Combat.update === 'function') Combat.update(dt); };
 
-        // 메시 정점을 월드로 옮겨 화면 bbox 를 낸다(휘도 판독 금지 — 위 주석 참조)
+        // 적 실루엣 = **메시 정점을 하나씩 월드로 옮겨 투영**한 화면 bbox.
+        // ⚠️ 월드 AABB 의 여덟 꼭짓점만 투영하면 안 된다(2026-08-18 세션이 그 판으로 한 번 쟀다):
+        //    AABB 는 z 깊이까지 감싸므로 투영 폭이 실루엣보다 넓어지고, 골렘처럼 큰 적은 좌변이
+        //    **영웅 자리(화면 x 167)보다 왼쪽인 153** 까지 뻗어 나온다. 그러면 무기가 파지점에
+        //    가만히 있어도 "적 bbox 안"이라 접촉이 공짜로 참이 된다 — 지적 ⓑ 를 절대 못 잡는 자다.
+        const V = new THREE.Vector3();
         const screenBox = (obj) => {
             if (!obj) return null;
-            const box = new THREE.Box3().setFromObject(obj);
-            if (box.isEmpty()) return null;
-            const pts = [];
-            for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
-                pts.push(S.project(new THREE.Vector3(x, y, z)));
-            }
-            return [Math.min(...pts.map(p => p.x)), Math.min(...pts.map(p => p.y)),
-                    Math.max(...pts.map(p => p.x)), Math.max(...pts.map(p => p.y))].map(v => +v.toFixed(1));
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, n = 0;
+            obj.updateWorldMatrix(true, true);
+            obj.traverse(o => {
+                const pos = o.isMesh && o.geometry && o.geometry.attributes && o.geometry.attributes.position;
+                if (!pos || o.visible === false) return;
+                const stride = Math.max(1, Math.floor(pos.count / 240)); // 큰 메시는 균등 샘플링
+                for (let i = 0; i < pos.count; i += stride) {
+                    V.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+                    const p = S.project(V);
+                    if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+                    if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+                    n++;
+                }
+            });
+            return n ? [x0, y0, x1, y1].map(v => +v.toFixed(1)) : null;
         };
-        // 무기 '끝' = weaponG 로컬 바운딩박스에서 파지점(원점)에서 가장 먼 꼭짓점
+        // 무기 '끝' = weaponG 정점 중 파지점에서 가장 먼 **실제 정점**(AABB 꼭짓점은 허공이라 금지)
         const weaponTip = () => {
             const w = S.weaponG;
             if (!w) return null;
-            const box = new THREE.Box3().setFromObject(w);
-            if (box.isEmpty()) return null;
+            w.updateWorldMatrix(true, true);
             const grip = w.getWorldPosition(new THREE.Vector3());
             let best = null, bestD = -1;
-            for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
-                const v = new THREE.Vector3(x, y, z), d = v.distanceTo(grip);
-                if (d > bestD) { bestD = d; best = v; }
-            }
-            return { world: best, screen: S.project(best), len: +bestD.toFixed(3) };
+            w.traverse(o => {
+                const pos = o.isMesh && o.geometry && o.geometry.attributes && o.geometry.attributes.position;
+                if (!pos || o.visible === false) return;
+                const stride = Math.max(1, Math.floor(pos.count / 240));
+                for (let i = 0; i < pos.count; i += stride) {
+                    V.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+                    const d = V.distanceTo(grip);
+                    if (d > bestD) { bestD = d; best = V.clone(); }
+                }
+            });
+            if (!best) return null;
+            return { screen: S.project(best), grip: S.project(grip), len: +bestD.toFixed(3) };
         };
         // 점 → 사각형 거리(안이면 음수 = 가장 가까운 변까지 파고든 깊이)
         const distToBox = (p, b) => {
@@ -84,37 +110,70 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
         };
 
         const e = Combat.enemies.find(x => x.alive);
-        const m = Scene3D.enemyMap.get(e.id);
-        const frames = [];
-        let impactT = null;
-        const hp0 = e.hp && e.hp.toNumber ? e.hp.toNumber() : null;
-        let lastHp = hp0;
+        const m = S.enemyMap.get(e.id);
 
-        // 🚨 **`heroPlay('attack')` 로 태우면 안 된다(첫 판에서 밟았다).** 그건 클립 이름 후보를
-        //    받는 저수준 API 라 'attack' 이라는 이름의 클립이 없어 아무 일도 안 일어났고,
-        //    무기 끝이 60프레임 내내 x 167~197 에서 거의 안 움직였는데도 프로브는 '닿는 프레임 0개'
-        //    라며 **지적이 맞다는 결론**을 냈다 — 스윙을 한 번도 안 시켜 놓고 낸 판정이다.
-        //    실제 스윙은 `Scene3D.heroAttack(targetId)` 가 팔 애니메이션까지 통째로 몬다.
-        S.heroAttack(e.id);
-        for (let i = 0; i < 60; i++) {
-            const t = +(i * 16.7).toFixed(0);
+        // ── ㉡ 정리: 밀린 연출 백로그를 비우고 좌표를 논리값에 스냅한다 ──
+        const backlog = S.anims.length;
+        S.anims.length = 0;
+        S._hitStop = 0;
+        S._attacking = false;
+        S._trailOn = false;
+        e.x = Combat.stopXOf(e);                 // 근접 정지선 = 실제로 때리는 그 자리
+        m.g.position.set(e.x + S.worldX, m.g.position.y, e.z || 0);
+        S.heroG.position.set(Combat.HERO_X + S.worldX, S.rideY || 0, 0);
+        S.heroG.rotation.set(0, 0.55, 0);
+        const snapGap = +(m.g.position.x - S.heroG.position.x).toFixed(3);
+
+        // ── ㉢ 임팩트 시각: combat.js 가 heroAttack 직후 pending.push({t: wt.impact}) 로 예약한다 ──
+        const wt = WEAPON_TYPES[S.wtypeId];
+        const impactT = wt ? Math.round(wt.impact * 1000) : null;
+        // ── ㉠ 클립: state 가 아니라 _clip / resolveClip 으로 확인한다 ──
+        const CLIP_MAP = { slash: ['1H_Melee_Attack_Slice_Diagonal'], chop: ['1H_Melee_Attack_Chop'], thrust: ['1H_Melee_Attack_Stab'],
+            slam: ['2H_Melee_Attack_Chop'], double: ['Dualwield_Melee_Attack_Slice'], bow: ['2H_Ranged_Shoot'],
+            gun: ['1H_Ranged_Shoot'], cast: ['Spellcast_Shoot'], throw: ['Throw'] };
+        const motion = wt ? wt.motion : 'slash';
+        const clipName = (typeof ProChar !== 'undefined' && S.heroRig) ? ProChar.resolveClip(CLIP_MAP[motion] || CLIP_MAP.slash) : '(리그 없음)';
+
+        const sample = (t) => {
             const tip = weaponTip(), ebox = screenBox(m.g);
-            const hp = e.hp && e.hp.toNumber ? e.hp.toNumber() : null;
-            if (impactT === null && hp !== null && lastHp !== null && hp < lastHp) impactT = t;
-            lastHp = hp;
-            frames.push({
+            return {
                 t,
                 tip: tip && { x: +tip.screen.x.toFixed(1), y: +tip.screen.y.toFixed(1), len: tip.len },
+                grip: tip && { x: +tip.grip.x.toFixed(1), y: +tip.grip.y.toFixed(1) },
                 enemy: ebox,
                 dist: tip && ebox ? +distToBox(tip.screen, ebox).toFixed(1) : null,
-            });
-            step(0.0167);
+            };
+        };
+
+        // ── 대조군: **때리지 않은 채로** 같은 길이를 돌려 대기 호흡의 무기 끝 이동폭을 잰다 ──
+        // 전제 검사의 임계값을 감으로 정하지 않기 위한 자체 교정치다. 앞 세션의 '≥120px' 은
+        // 근거 없는 어림수였고, 이번 실측(스윙 60px)에서 **정상 스윙을 측정 불가로 튕겼다**.
+        S.heroPlay(['Idle']);
+        const idle = [];
+        for (let i = 0; i < 48; i++) { idle.push(sample(Math.round(i * 1000 / 60))); S.update(1 / 60); }
+        const spanOf = (arr) => {
+            const xs = arr.filter(f => f.tip).map(f => f.tip.x), ys = arr.filter(f => f.tip).map(f => f.tip.y);
+            return xs.length ? +Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)).toFixed(1) : 0;
+        };
+        const idleTravel = spanOf(idle);
+        const idleReach = Math.max(...idle.filter(f => f.tip && f.grip).map(f => f.tip.x - f.grip.x));
+
+        S.heroG.position.set(Combat.HERO_X + S.worldX, S.rideY || 0, 0);
+        S.heroG.rotation.set(0, 0.55, 0);
+        S.heroAttack(e.id);
+        const clipLive = !!(S.heroRig && S.heroRig._clip);
+        const frames = [];
+        for (let i = 0; i < 48; i++) {           // 48프레임 = 800ms (스윙 0.36s + 여유)
+            frames.push(sample(Math.round(i * 1000 / 60)));
+            S.update(1 / 60);                    // ⚠️ Combat.update 는 부르지 않는다(㉢)
         }
-        return { frames, impactT, clip: S.heroRig && S.heroRig.state && S.heroRig.state.clip };
+        return { frames, idleTravel, idleReach: +idleReach.toFixed(1), swingTravel: spanOf(frames),
+                 impactT, clipName, clipLive, backlog, snapGap, wtypeId: S.wtypeId, motion };
     });
 
     console.log('== 임팩트 프레임 무기 접촉 실측 (지적 ⓑ / A #3 교차검증) ==');
-    console.log('  클립=%s  데미지 적용 시각=%s', out.clip, out.impactT === null ? '(구간 내 없음)' : '+' + out.impactT + 'ms');
+    console.log('  무기=%s(모션 %s)  클립=%s(물림 %s)  임팩트=+%sms  · 정리: 밀린 연출 %d개 비움 · 영웅↔적 간격 %s유닛',
+        out.wtypeId, out.motion, out.clipName, out.clipLive ? '✓' : '✗', out.impactT, out.backlog, out.snapGap);
     const touching = out.frames.filter(f => f.dist !== null && f.dist <= 0);
     const nearest = out.frames.filter(f => f.dist !== null).sort((a, b) => a.dist - b.dist)[0];
     for (const f of out.frames.filter((_, i) => i % 3 === 0)) {
@@ -130,31 +189,47 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     }
     console.log('  가장 가까웠던 프레임: +%sms 거리 %s px', nearest && nearest.t, nearest && nearest.dist.toFixed(1));
     // ── 전제 검사 — 스윙이 실제로 돌았는가. 안 돌았으면 판정하지 않는다 ──
-    const xs = out.frames.filter(f => f.tip).map(f => f.tip.x);
-    const ys = out.frames.filter(f => f.tip).map(f => f.tip.y);
-    const travel = xs.length ? Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) : 0;
+    // 임계값은 어림수가 아니라 **같은 실행의 대기 대조군**으로 잡는다(스윙 이동폭 ≥ 대기의 3배).
+    const travel = out.swingTravel, idleTravel = out.idleTravel;
+    const travelOk = travel >= Math.max(3 * idleTravel, 20);
     // 적 bbox 가 도중에 크게 점프하면 표적이 바뀐 것(적이 죽고 다음 적이 들어옴)
     let jump = 0;
     for (let i = 1; i < out.frames.length; i++) {
         const a = out.frames[i - 1].enemy, b = out.frames[i].enemy;
         if (a && b) jump = Math.max(jump, Math.abs(b[0] - a[0]));
     }
-    const preOk = out.impactT !== null && travel >= 120 && jump < 40;
-    console.log('\n  전제: 임팩트 시각 %s · 무기끝 이동폭 %spx(≥120 필요) · 표적 점프 %spx(<40 필요)',
+    const preOk = out.impactT !== null && out.clipLive && travelOk && jump < 40;
+    console.log('\n  전제: 임팩트 시각 %s · 공격 클립 %s · 무기끝 이동폭 %spx(대기 대조군 %spx의 %s배, ≥3배 필요) · 표적 점프 %spx(<40 필요)',
         out.impactT === null ? '없음(✗)' : '+' + out.impactT + 'ms(✓)',
-        travel.toFixed(0), jump.toFixed(0));
+        out.clipLive ? out.clipName + '(✓)' : '안 물림(✗)',
+        travel.toFixed(0), idleTravel.toFixed(0), (travel / Math.max(0.1, idleTravel)).toFixed(1), jump.toFixed(0));
     if (!preOk) {
         console.log('\n  ⚠️ 측정 불가 — 스윙 전제가 안 섰다. **이 실행으로는 ⓑ를 판정하지 않는다.**');
-        console.log('     (파일 머리의 남은 숙제 ㉠㉡ 를 먼저 해결할 것. 전제 없이 나온 "닿는 프레임 0개"는');
+        console.log('     (파일 머리의 함정 ㉠㉡㉢ 를 먼저 확인할 것. 전제 없이 나온 "닿는 프레임 0개"는');
         console.log('      스윙을 안 시켰다는 뜻이지 무기가 안 닿는다는 뜻이 아니다.)');
         console.log(errors.length ? 'CONSOLE ERRORS: ' + errors.join(' | ') : '(no console errors)');
         await browser.close();
         process.exit(2);
     }
-    const verdict = touching.length > 0;
-    console.log(`\n  판정: ${verdict ? 'PASS — 무기가 적에 닿는 프레임이 실재한다(지적 ⓑ는 오지적)' :
-        'FAIL — 스윙 전 구간에서 무기가 적에 안 닿는다(지적 ⓑ가 맞다)'}`);
+    // 임팩트 ±80ms 창 안에서만 본다 — 스윙 끝나고 팔이 늘어지며 스치는 건 타격 프레임이 아니다
+    const win = out.frames.filter(f => Math.abs(f.t - out.impactT) <= 80);
+    const winTouch = win.filter(f => f.dist !== null && f.dist <= 0);
+    const winNear = win.filter(f => f.dist !== null).sort((a, b) => a.dist - b.dist)[0];
+    console.log('  임팩트 창(+%d±80ms) %d프레임 중 접촉 %d프레임 · 창 내 최근접 +%sms %spx',
+        out.impactT, win.length, winTouch.length, winNear && winNear.t, winNear && winNear.dist.toFixed(1));
+    // ── 지적 ⓑ 의 문장 그대로를 재는 두 번째 잣대: "적 방향으로 뻗은 프레임이 세트에 없다" ──
+    // 적은 화면 오른쪽이므로 '뻗음' = 무기 끝이 파지점보다 오른쪽(+x)으로 나간 정도.
+    // 어깨 뒤 위에 세워 둔 대기 자세면 이 값이 대기 대조군을 못 넘는다.
+    const reach = win.filter(f => f.tip && f.grip).map(f => ({ t: f.t, r: +(f.tip.x - f.grip.x).toFixed(1) }));
+    const bestReach = reach.sort((a, b) => b.r - a.r)[0];
+    const reachOk = bestReach && bestReach.r > out.idleReach;
+    console.log('  창 내 무기 전방 도달: 최대 %spx(+%sms) vs 대기 자세 %spx → %s',
+        bestReach && bestReach.r, bestReach && bestReach.t, out.idleReach,
+        reachOk ? '적 쪽으로 뻗는다' : '대기 자세를 못 넘는다(어깨 뒤에 세워둔 채)');
+    const verdict = winTouch.length > 0 && reachOk;
+    console.log(`\n  판정: ${verdict ? 'PASS — 임팩트 프레임에 무기가 적 쪽으로 뻗어 닿는다(지적 ⓑ는 오지적)' :
+        'FAIL — 임팩트 프레임에 무기가 적에 안 닿거나 적 쪽으로 뻗지 않는다(지적 ⓑ가 맞다)'}`);
     console.log(errors.length ? 'CONSOLE ERRORS: ' + errors.join(' | ') : '(no console errors)');
     await browser.close();
-    process.exit(errors.length ? 1 : 0);
+    process.exit(verdict && !errors.length ? 0 : 1);
 })();
