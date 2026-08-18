@@ -28,6 +28,15 @@ const path = require('path');
     for (let i = 0; i < RUNS; i++) {
         // ① 본대 1-5, 던전 해금 상태를 만들고 유령 마을 8단계 입장
         await p.evaluate(() => {
+            // ⚠️ 전투 판정을 먼저 막고 입장한다. 안 막으면 아래 300ms 정착 대기 동안 던전이 **클리어**돼
+            //    (waves 는 1~3 랜덤이라 1웨이브가 뽑히면 보스 단판이고, 최고 기록 9-10 세팅의 영웅은
+            //    유령 마을 8단계를 그 안에 정리한다) Dungeons.run 이 null 이 된 채로 ② 단계에 들어가
+            //    `Dungeons.def(Dungeons.run.id)` 에서 통째로 터진다. 이 항목이 재는 건 '실패 후 복귀'라
+            //    판정 자체가 필요 없다 — 사망은 아래에서 Combat.onDefeat() 로 직접 태운다.
+            //    (같은 함정을 tools/shot-dungeon-fail.js 가 먼저 밟았다: damageHero 만 막으면 안 되고
+            //     damageEnemy 도 같이 막아야 한다.)
+            Combat.damageEnemy = () => {};
+            Combat.damageHero = () => {};
             S.chapter = 1; S.stage = 5; S.bestChapter = 9; S.bestStage = 10;
             Dungeons.ensure();
             S.dungeons.keys.ghost = 2;

@@ -419,9 +419,17 @@ const Combat = {
         this.enemies = []; // 던전 몹은 두고 나왔다 — 논리에서도 같이 지운다
         this.pending = []; // 그 몹들을 겨냥한 지연 큐도 함께(사라진 대상에 대한 뒤늦은 타격 연출 방지)
         Scene3D.clearEnemies();
-        Scene3D.setChapterTheme(S.chapter);
         SFX.setMusicMode('normal'); // 보스 웨이브에서 죽었어도 본대 배경에 보스곡이 남지 않게
-        UI.updateStageLabel();
+        // 배경·라벨·pip은 한 프레임에 갈린다 — 그 하드 컷을 sceneCut의 검은 커버가 덮는다
+        // (setTheme은 하늘·안개·지면·능선·식생·조명을 즉시 갈아끼우고 바이옴이 다르면 buildProps까지 돈다).
+        // ⚠️ 커버는 순수 장식이고 상태 변경은 sceneCut이 **동기로 즉시** 돌린다 — 연출 타이머에 실으면
+        //    백그라운드 탭에서 렌더 루프가 멈춘 동안 복귀가 통째로 밀려 이 결함이 그대로 되살아난다.
+        // pip을 0으로 리셋하는 이유: 본대는 5웨이브, 던전은 1~3이라 **개수부터** 다르다. 그냥 두면
+        // 본대 배경에 던전 pip 줄(1~3칸)이 남고, 던전에서 죽은 웨이브 번호를 5칸 줄에 옮겨 찍으면
+        // "5중 2웨이브"라는 없던 정보가 된다. 다음 웨이브 표시는 setupStage→nextWave가 찍는다.
+        const toCamp = () => { Scene3D.setChapterTheme(S.chapter); UI.updateStageLabel(); UI.updateWavePips(0); };
+        if (Scene3D.scene) Scene3D.sceneCut(toCamp);
+        else toCamp();
     },
 
     onDefeat() {

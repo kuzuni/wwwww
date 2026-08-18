@@ -7153,6 +7153,36 @@ const Scene3D = {
     },
 
     // ---- 테마/셰이크/애니메이션 ----
+    // 씬 컷 커버 — 배경이 한 프레임에 통째로 갈리는 자리(던전 실패 → 본대 즉시 복귀)를 덮는다.
+    // setTheme은 하늘·안개·지면·능선·식생·조명을 즉시 갈아끼우고 바이옴이 다르면 buildProps까지 돌아서,
+    // 커버 없이 부르면 '하드 컷 한 프레임'이 그대로 보인다(게다가 프롭 재생성 힉이 그 프레임에 얹힌다).
+    // ⚠️ 상태 변경(apply)은 이 함수가 **동기로 즉시** 돌린다. 연출 타이머(addAnim·setTimeout)에 실으면
+    //    탭이 백그라운드라 렌더 루프가 멈춰 있는 동안 복귀 자체가 밀린다 — 라벨이 옛 스테이지를 계속
+    //    가리키던 결함(dungeon-fail-stale-label)을 연출로 되살리는 꼴이다. 커버는 순수 장식이라,
+    //    사라지든 못 그려지든 게임 상태는 이미 바뀌어 있다.
+    SCENE_CUT_DUR: 420,
+    sceneCut(apply, dur) {
+        const ms = dur || this.SCENE_CUT_DUR;
+        let el = null;
+        if (this.fxLayer) {
+            el = document.createElement('div');
+            // CSS 파일이 아니라 인라인 + WAAPI로 간다 — 이 한 요소만의 페이드라 스킨 규칙에 낄 것이 없다.
+            el.style.cssText = 'position:absolute;inset:0;background:#05070c;opacity:1;pointer-events:none';
+            this.fxLayer.appendChild(el);
+        }
+        try {
+            if (apply) apply();
+        } finally {
+            if (el) {
+                if (el.animate) {
+                    // 검은 끝에서 빠르게 물러나는 감속 커브 — 새 배경이 '올라오는' 인상으로 읽히게
+                    const a = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms, easing: 'cubic-bezier(.3,0,.35,1)' });
+                    a.onfinish = () => el.remove();
+                    setTimeout(() => el.remove(), ms + 400); // onfinish 유실 대비 — 검은 판이 화면에 남는 일만은 없게
+                } else el.remove(); // WAAPI 미지원이면 연출만 잃는다(화면이 잠기는 쪽이 훨씬 큰 사고)
+            }
+        }
+    },
     setChapterTheme(chapter) {
         this.setTheme(CHAPTER_THEMES[(chapter - 1) % CHAPTER_THEMES.length]);
     },
