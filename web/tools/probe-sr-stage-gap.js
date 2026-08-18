@@ -47,7 +47,16 @@ const EMPTY_SD = 30 / 255;
         p.on('pageerror', e => errors.push(`${tag}: ${e}`));
         p.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errors.push(`${tag}: ${m.text()}`); });
         await p.goto(INDEX, { waitUntil: 'load' });
-        await p.waitForFunction(() => typeof UI !== 'undefined' && UI.els && UI.els.summonResultModal, null, { timeout: 20000 });
+        // ⚠️ waitForFunction 금지 — rAF 폴링도 setInterval 폴링도 swiftshader 헤드리스에서는
+        //    3D 렌더 한 프레임(15~30초)에 밀려 안 돈다(TODO '함정 ③'과 같은 뿌리). 게임이
+        //    멀쩡히 떠 있어도 20초 타임아웃으로 죽는다. Node 쪽에서 evaluate 로 폴링하면
+        //    프레임 사이로 끼어들어 바로 잡힌다.
+        for (let w = 0; ; w++) {
+            const ready = await p.evaluate(`typeof UI !== 'undefined' && !!(UI.els && UI.els.summonResultModal)`).catch(() => false);
+            if (ready) break;
+            if (w >= 120) throw new Error('게임 부팅 대기 60초 초과');
+            await new Promise(r => setTimeout(r, 500));
+        }
         await p.evaluate(`S.tickets=999999;S.gems=999999;S.eggCurrency=999999;S.winders=999999;S.bestChapter=20;S.bestStage=9;saveGame();`);
         await p.evaluate(`Scene3D.update = function () {};`);
         await p.evaluate(`(() => { ${RNG(seed)}; S.summonCount = ${cnt}; S.summonMult = {skill:${mult}};
@@ -104,10 +113,12 @@ const EMPTY_SD = 30 / 255;
         // ⓐ 구조 자 — 무대(천개·그리드·바닥·반사)가 팝업 본문 세로의 몇 %를 쓰는가.
         //    6~10셀 판은 예전에 그리드 하나뿐이라 19%였다(무대·천개가 임계 5에 걸려 안 붙었다).
         ok(info.fill >= 0.38, `[${tag}] 무대 세로 점유 ${(info.fill * 100).toFixed(0)}% (기준 ≥38%, 임계 확장 전 6셀 판 19%)`);
-        // ⓑ 픽셀 자(A 의 자) — **아직 못 넘는다. 이 FAIL 은 ⑤가 열려 있다는 표시다.**
-        //    무대·천개는 어두운 배경 위 얇은 선화라 std 30/255 문턱을 못 넘는다. 다음 세션이
-        //    할 일은 '무대를 붙이는 것'이 아니라(붙었다) **아래·위 밴드에 실제 휘도 변화를
-        //    만드는 것**이다 — 상세는 TODO 의 ⑤ 메모 참조.
+        // ⓑ 픽셀 자(A 의 자) — 2026-08-18 ⑤ 해결로 통과 상태가 됐다(66.7% → 25%).
+        //    통과를 만든 조합(하나라도 죽으면 여기가 다시 붉어진다): 6~10셀 srCols 다열화(3~5열)
+        //    + 무대 판 별가루(.sr-stars, done 에서만) + 천개 광 스필(.sr-canopy b) + 소환진
+        //    링/글로우 강화 + 바닥 반사 강화(blur 4px·op .88) + done 광선 마스크 88% 연장.
+        //    ⚠️ 얇은 선화(링·아치)나 은은한 분위기 레이어는 이 자를 원리적으로 못 움직인다
+        //    (A/B 실측: 행 std +5~13뿐) — 조정할 땐 콘텐츠급 밝기 요소를 만질 것.
         ok(res.ratio <= 0.30, `[${tag}] (⑤ 미해결) 정보 없는 행 ${(res.ratio * 100).toFixed(1)}% (A 실측 57% · 목표 ≤30%)`);
         await p.close();
     }

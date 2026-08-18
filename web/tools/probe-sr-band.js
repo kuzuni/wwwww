@@ -25,7 +25,14 @@ const SEED = `
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof Scene3D !== 'undefined', null, { timeout: 20000 });
+    // ⚠️ waitForFunction 금지 — 페이지 안 폴링(rAF·setInterval)은 swiftshader 헤드리스에서
+    //    3D 렌더 한 프레임(15~30초)에 밀려 안 돈다. Node 쪽 evaluate 폴링만 프레임 사이로 끼어든다.
+    for (let w = 0; ; w++) {
+        const ready = await page.evaluate(`typeof UI !== 'undefined' && typeof Scene3D !== 'undefined'`).catch(() => false);
+        if (ready) break;
+        if (w >= 120) throw new Error('게임 부팅 대기 60초 초과');
+        await new Promise(r => setTimeout(r, 500));
+    }
     await page.evaluate(SEED);
     await page.evaluate(() => { Scene3D.update = function () { }; });   // 3D 루프를 멈춰야 캡처가 빠르다
     await page.waitForTimeout(600);

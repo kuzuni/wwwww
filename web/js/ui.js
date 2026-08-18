@@ -193,9 +193,16 @@ const UI = {
 
     // 열 수 — 5열 고정이면 11개가 5/5/1이 돼 마지막 행에 한 개만 남는 고아 행이 생긴다.
     // 4~6열 중 마지막 행이 가장 덜 비는 값을 고른다(동률이면 5열에 가까운 쪽).
+    // 🚨 10차 잔여 ⑤ — **6~10셀 풀사이즈 판은 3~5열로 내려 두 줄 이상을 세운다.**
+    //    한 줄 6열은 셀이 .sr-cell 폭 공식에서 49px까지 쪼그라들고 그리드 세로 점유가
+    //    113px에 그쳐, 본문 587px 중 위 173px·아래 172px 밴드가 통째로 빈다(A 실측).
+    //    다열이면 셀이 5.6rem 상한까지 커지고 세로 점유가 행 수만큼 늘어 밴드가 실제
+    //    콘텐츠로 찬다. 후보를 작은 열부터 훑으므로 충전율 동률이면 더 적은 열(=더 큰
+    //    셀·더 많은 행)이 이긴다. 고아 행 회피 규칙은 그대로다(충전율 최대가 기준).
     srCols(n) {
-        let best = 5, bestFill = -1;
-        for (const c of [5, 4, 6]) {
+        const cand = n >= 6 && n <= 10 ? [3, 4, 5] : [5, 4, 6];
+        let best = cand[0], bestFill = -1;
+        for (const c of cand) {
             const fill = (n % c === 0 ? c : n % c) / c; // 마지막 행 충전율
             if (fill > bestFill + 1e-9) { bestFill = fill; best = c; }
         }
@@ -214,6 +221,30 @@ const UI = {
                + `--d:${((i * 53) % 120) / 1000}s"></i>`;
         }
         return `<div class="sr-streaks">${h}</div>`;
+    },
+
+    // 무대 판(≤10셀) 위·아래 밴드의 별가루 — 10차 잔여 ⑤의 마지막 조각. 무대·천개·반사를
+    // 다 세워도 타이틀~아치 밴드와 소환진 아래 밴드는 '넓고 어두운 면'이라 A 의 픽셀 자
+    // (30px 행 std ≥ 30/255)를 못 넘었다(실측: 광선·스필·기둥 같은 분위기 레이어는 행 std 에
+    // +5~13 밖에 못 보탠다). 콘텐츠급 밝기의 점 요소만이 그 자를 움직인다 — 마침 6·9차
+    // 비평가가 처방한 '상승 파티클/별가루'와 같은 언어라 장식이 아니라 처방 이행이다.
+    // 좌표는 .sr-body 기준 %로, 그리드가 쓰는 중앙(22~72%)을 피해 위 4~19%·아래 76~94%에만.
+    // 호흡 최저 불투명도를 .5 로 두어 어느 캡처 위상에서도 사라지지 않는다.
+    summonStageStars() {
+        // 20개·행 버킷당 2~3개가 필요하다 — 12개(행당 1개)로는 행 std 가 +2~7 밖에 안 올랐다
+        // (실측: 별 하나의 분산 기여는 제곱합으로 묻힌다). 위 밴드는 body 0~18%, 아래 76~94%
+        // 를 2%p 간격으로 고르게 덮어 30px 버킷마다 여러 개가 걸리게 한다.
+        let h = '';
+        for (let i = 0; i < 24; i++) {
+            const top = i < 12;                               // 앞 12개 = 위 밴드, 뒤 12개 = 아래
+            const x = 5 + (i * 43) % 90;                      // 5~95% 가로 산포(고정 수열)
+            // y 도 고정 수열로 — 등차로 두면 x 수열과 짝이 맞아 대각 사슬로 늘어선다(실캡처 확인)
+            const y = top ? 1 + (i * 7) % 17 : 76 + (i * 11) % 18;
+            const s = 9 + (i * 7) % 7;                        // 9~15px
+            h += `<i style="--x:${x}%;--y:${y.toFixed(1)}%;--s:${s}px;--d:${((i * 313) % 2600) / 1000}s;`
+               + `--dur:${(2.6 + (i % 4) * .7).toFixed(1)}s"></i>`;
+        }
+        return `<div class="sr-stars">${h}</div>`;
     },
 
     // 배경에 천천히 떠오르는 빛가루 — 정지 화면이 죽어 보이지 않게 하는 용도라 난수 대신
@@ -350,9 +381,10 @@ const UI = {
                 <div class="sr-wipe" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-head"><div class="sr-title">${meta.icon} ${meta.title} ×${rolls.length}</div></div>
                 <div class="sr-body${stage ? ' stage' : ''}${stage && size === ' one' ? ' one' : ''}">
-                    ${canopy ? `<div class="sr-canopy${canopyCompact ? ' compact' : ''}"><i></i><i></i><i></i></div>` : ''}
+                    ${canopy ? `<div class="sr-canopy${canopyCompact ? ' compact' : ''}"><i></i><i></i><i></i><b></b></div>` : ''}
                     <div class="sr-grid${size}${heroRow ? ' herorow' : ''}" style="--cols:${cols}">${cells}</div>
                     ${stage ? '<div class="sr-floor"></div>' : ''}
+                    ${stage ? this.summonStageStars() : ''}
                 </div>
                 ${this.summonNearField()}
                 <div class="sr-foot">
