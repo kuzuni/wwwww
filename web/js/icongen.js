@@ -1499,71 +1499,140 @@ const IconGen = {
             half(-1); half(1);
         },
 
-        // ---- 리그 문장 (원본 shot-042149 확대) ----
+        // ---- 리그 문장 (원본 shot-042149 확대 실측) ----
         // 원본은 방패 하나가 아니라 **날개가 뒤로 뻗은 플래티넘 문장**이다: 검은 굵은 테 + 민트 방패면 +
-        // 위쪽 흰 띠 + 가운데 어두운 실루엣, 방패 뒤로 좌우 날개(짙은 청록 + 흰 줄무늬)와 물방울 장식.
-        // 종전 구현은 🛡️ 이모지 한 글자라 '단색 방패 하나'였다(비율 감사 ⑸ 지적).
+        // 위쪽 흰 띠 + 가운데 검은 검 실루엣, 방패 뒤로 좌우 날개(짙은 청록 + 흰 깃줄)와 물방울 장식.
+        //
+        // 🎨 **원본의 아트 랭귀지는 "순검정 키라인 + 플랫 면"이다** — 그라디언트가 아니다.
+        //    원본 문장 영역(x194..295 y34..104)의 색 히스토그램에서 실제로 나오는 색은 넷뿐이다:
+        //      #000000(2184px 순검정 테) · rgb(52,196,188)(밝은 민트면 626px) ·
+        //      rgb(10,50,52)(짙은 청록 날개/패싯 363px) · #ffffff(흰 하이라이트 245px) + 시안 물방울.
+        //    종전 구현은 테를 `#0d1a1a` 로 줘서 시트 배경 rgb(14,17,27) 과 명도차가 거의 없었다 —
+        //    **문장 전체가 배경에 녹아** '어두운 얼룩'으로 읽혔다. 테는 반드시 순검정이어야 한다.
+        //
+        // 📐 **비율은 원본 픽셀 실측을 그대로 옮겼다.** 정규화 기준: 문장 잉크 상자 = 원본 102x71px.
+        //    캔버스 S 안에서 잉크가 x 0..1S, y TOP..BOT(=0.696S) 를 채우도록 좌표를 짰다.
+        //    행별 잉크 폭(원본, 반폭을 S 비율로 환산): f0.09 이하 0.283(방패만) → f0.24 0.428(윗깃 끝)
+        //    → f0.34 0.351(깃 사이 홈) → f0.55 0.490(아랫깃 끝, 최대) → f0.66 이후 다시 방패만.
+        //    ⚠️ 캔버스가 잉크를 자른다 — 테 두께의 절반까지 계산에 넣어야 좌우 끝이 안 잘린다.
         leagueEmblem(ctx, S) {
-            const G = IconGen, cx = S * 0.5, ink = '#0d1a1a';
+            const cx = S * 0.5;
+            const INK = '#000';                 // 순검정 키라인 (원본 실측)
+            const MINT = 'rgb(52,196,188)';     // 방패 밝은 면
+            const DEEP = 'rgb(10,50,52)';       // 날개 / 방패 하단 패싯
+            const AQUA = 'rgb(28,251,255)';     // 물방울
+            const TOP = 0.155, BOT = 0.851, HH = BOT - TOP;   // 잉크 세로 범위(캔버스 비율)
+            const yy = f => S * (TOP + f * HH);               // 원본 문장 세로 0..1 → 캔버스 y
+            const LW = S * 0.048;                             // 키라인 두께
+            const half = LW / 2;
+
+            // ── 날개: 한 쪽당 깃 2장. 바깥으로 갈수록 아래로 처지며 끝이 뾰족하다 ──────────
+            // pts 는 [중심에서의 x 반폭(S비율), 세로 f]. 바깥 끝은 키라인 절반만큼 당겨
+            // 테를 두른 뒤의 잉크가 실측 반폭(0.428 / 0.490)에 정확히 닿게 한다.
+            const feather = (dir, pts, streak) => {
+                ctx.beginPath();
+                pts.forEach((p, i) => {
+                    const x = cx + dir * S * p[0], y = yy(p[1]);
+                    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+                });
+                ctx.closePath();
+                ctx.fillStyle = DEEP; ctx.fill();
+                ctx.lineWidth = LW; ctx.strokeStyle = INK; ctx.lineJoin = 'round'; ctx.stroke();
+                // 깃 윗면을 따라 흐르는 흰 하이라이트 — 원본에서 깃마다 한 줄씩 밝게 뜬다
+                ctx.beginPath();
+                ctx.moveTo(cx + dir * S * streak[0], yy(streak[1]));
+                ctx.lineTo(cx + dir * S * streak[2], yy(streak[3]));
+                ctx.lineWidth = S * 0.030; ctx.strokeStyle = '#fff'; ctx.lineCap = 'round'; ctx.stroke();
+            };
             const wing = (dir) => {
-                ctx.beginPath();
-                ctx.moveTo(cx + dir * S * 0.14, S * 0.30);
-                ctx.lineTo(cx + dir * S * 0.49, S * 0.20);
-                ctx.lineTo(cx + dir * S * 0.44, S * 0.38);
-                ctx.lineTo(cx + dir * S * 0.49, S * 0.36);
-                ctx.lineTo(cx + dir * S * 0.40, S * 0.56);
-                ctx.lineTo(cx + dir * S * 0.16, S * 0.50);
-                ctx.closePath();
-                ctx.fillStyle = G._lin(ctx, cx, S * 0.2, cx + dir * S * 0.5, S * 0.56,
-                    [[0, '#2f6b66'], [1, '#16403d']]);
-                ctx.fill();
-                ctx.lineWidth = S * 0.055; ctx.strokeStyle = ink; ctx.stroke();
-                // 깃 줄무늬(밝은 선) — 원본에서 날개마다 두 줄이 밝게 뜬다
-                ctx.beginPath();
-                ctx.moveTo(cx + dir * S * 0.22, S * 0.31); ctx.lineTo(cx + dir * S * 0.43, S * 0.25);
-                ctx.moveTo(cx + dir * S * 0.23, S * 0.42); ctx.lineTo(cx + dir * S * 0.40, S * 0.37);
-                ctx.lineWidth = S * 0.035; ctx.strokeStyle = 'rgba(233,252,250,.92)'; ctx.stroke();
-                // 물방울 장식
-                ctx.beginPath();
-                ctx.moveTo(cx + dir * S * 0.30, S * 0.56);
-                ctx.lineTo(cx + dir * S * 0.35, S * 0.66);
-                ctx.lineTo(cx + dir * S * 0.25, S * 0.63);
-                ctx.closePath();
-                ctx.fillStyle = '#6fe0e0'; ctx.fill();
-                ctx.lineWidth = S * 0.03; ctx.strokeStyle = ink; ctx.stroke();
+                // 깃은 **두꺼운 쐐기**여야 한다 — 얇게 잡으면 0.048S 짜리 키라인이 속을 다 먹어
+                // 청록 면이 2~3px 만 남고 '날개'가 아니라 '빗금 두 줄'로 읽힌다(첫 판이 그랬다).
+                // 바깥 끝은 **뾰족한 쐐기**다 — 사각으로 끊으면 '날개'가 아니라 '막대'로 읽힌다.
+                // 위쪽 모서리(p1→p2)가 길고 아래 모서리(p3→p4)가 짧아 바깥으로 갈수록 처진다.
+                feather(dir, [
+                    [0.150, 0.005], [0.392, 0.130], [0.428 - half / S, 0.215], [0.368, 0.335], [0.150, 0.250],
+                ], [0.202, 0.085, 0.360, 0.198]);
+                feather(dir, [
+                    [0.160, 0.280], [0.448, 0.425], [0.490 - half / S, 0.520], [0.422, 0.672], [0.160, 0.565],
+                ], [0.215, 0.355, 0.418, 0.500]);
             };
             wing(-1); wing(1);
+
+            // ── 방패: 평평한 윗변 + 곧은 옆면 → f0.70 부터 뾰족하게 모인다 ────────────────
+            // 🔍 **원본 방패는 테가 두 겹이다.** y55 가로 단면(원본 x216..273, 방패 58px):
+            //     검정 3 · 짙은청록 5 · **검정 4** · 민트 34 · 검정 3 · 짙은청록 4 · 검정 4
+            //   즉 바깥 키라인 안에 짙은 청록 띠가 있고, 그 안쪽에 **민트 패널을 따로 두른 검은 선**이
+            //   한 겹 더 있다. 종전 구현은 이 안쪽 선이 없어 민트가 방패 폭을 그대로 채웠고(45px,
+            //   원본 33px 대비 +12px = 앱폭 2.4%p), 그걸 베벨만 두껍게 해서 맞추려 하니 이번엔
+            //   '짙은 액자에 갇힌 민트'로 보였다. 두 겹을 그대로 그리는 게 답이다.
+            const SW = 0.283 - half / S;      // 방패 반폭(테 포함 잉크가 0.283S 가 되게)
             const shield = () => {
-                ctx.moveTo(cx - S * 0.21, S * 0.16);
-                ctx.lineTo(cx + S * 0.21, S * 0.16);
-                ctx.lineTo(cx + S * 0.21, S * 0.55);
-                ctx.quadraticCurveTo(cx + S * 0.19, S * 0.74, cx, S * 0.86);
-                ctx.quadraticCurveTo(cx - S * 0.19, S * 0.74, cx - S * 0.21, S * 0.55);
+                ctx.moveTo(cx - S * SW, yy(0.030));
+                ctx.lineTo(cx + S * SW, yy(0.030));
+                ctx.lineTo(cx + S * SW, yy(0.700));
+                ctx.lineTo(cx, yy(0.975));
+                ctx.lineTo(cx - S * SW, yy(0.700));
                 ctx.closePath();
             };
             ctx.beginPath(); shield();
-            ctx.fillStyle = G._lin(ctx, 0, S * 0.16, 0, S * 0.86,
-                [[0, '#bdf0ea'], [0.45, '#7fd4cc'], [1, '#3f9d97']]);
-            ctx.fill();
-            G._innerShadow(ctx, shield, 'rgba(6,40,38,.5)', S * 0.05, 0, -S * 0.02);
-            // 위쪽 흰 띠
+            ctx.fillStyle = DEEP; ctx.fill();          // 방패 바탕 = 짙은 청록(베벨·하단 패싯)
+
             ctx.save(); ctx.beginPath(); shield(); ctx.clip();
-            ctx.fillStyle = '#f2fbfa';
-            ctx.fillRect(cx - S * 0.21, S * 0.16, S * 0.42, S * 0.10);
+            // 민트 패널 — 방패를 축소한 모양. 옆면은 f0.63 까지 곧고 아래는 V 로 모인다
+            // (원본: 민트가 옆에서 y81=f0.67 에 끊기고 가운데 V 끝이 y89=f0.79).
+            const MW = SW - 0.095;                     // 민트 반폭 → 폭 0.328S = 원본 34px
+            const panel = () => {
+                ctx.moveTo(cx - S * MW, yy(0.080));
+                ctx.lineTo(cx + S * MW, yy(0.080));
+                ctx.lineTo(cx + S * MW, yy(0.630));
+                ctx.lineTo(cx, yy(0.780));
+                ctx.lineTo(cx - S * MW, yy(0.630));
+                ctx.closePath();
+            };
+            ctx.beginPath(); panel();
+            ctx.fillStyle = MINT; ctx.fill();
+            ctx.lineWidth = S * 0.033 * 2; ctx.strokeStyle = INK; ctx.lineJoin = 'round'; ctx.stroke();
+            // 위쪽 흰 띠 — 원본 y38..47 로 10px, 문장 높이의 14.5%
+            ctx.save(); ctx.beginPath(); panel(); ctx.clip();
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(cx - S * MW, yy(0.080), S * MW * 2, S * HH * 0.145);
             ctx.restore();
-            // 가운데 어두운 실루엣 (교차 검)
-            ctx.save(); ctx.beginPath(); shield(); ctx.clip();
-            ctx.strokeStyle = '#12302e'; ctx.lineCap = 'round';
-            ctx.lineWidth = S * 0.075;
-            ctx.beginPath();
-            ctx.moveTo(cx - S * 0.10, S * 0.66); ctx.lineTo(cx + S * 0.11, S * 0.35);
-            ctx.moveTo(cx + S * 0.10, S * 0.66); ctx.lineTo(cx - S * 0.11, S * 0.35);
-            ctx.stroke();
-            ctx.beginPath(); ctx.ellipse(cx, S * 0.50, S * 0.075, S * 0.115, 0, 0, Math.PI * 2);
-            ctx.fillStyle = '#12302e'; ctx.fill();
+            // 물방울 — 원본에서 **베벨 골 안**, 방패 아래쪽 옆구리에 맺힌다(y78 단면 x222..224 시안).
+            // 패널보다 **뒤에** 그리면 패널이 안쪽 절반을 덮어 실오라기로 남는다 — 골 위에 얹는다.
+            for (const dir of [-1, 1]) {
+                const dx = cx + dir * S * (SW - 0.046);
+                ctx.beginPath();
+                ctx.moveTo(dx, yy(0.545));
+                ctx.lineTo(dx + S * 0.026, yy(0.700));
+                ctx.lineTo(dx, yy(0.775));
+                ctx.lineTo(dx - S * 0.026, yy(0.700));
+                ctx.closePath();
+                ctx.fillStyle = AQUA; ctx.fill();
+            }
+            // 가운데 검 실루엣 — 오른쪽 위를 향한 한 자루(원본은 교차 검이 아니다).
+            // 원본은 방패 면의 절반쯤을 차지하는 **작은** 실루엣이라 0.8배로 줄이고 살짝 위로 올렸다.
+            // ⚠️ 방패가 아니라 **민트 패널**로 클립해야 한다 — 방패로 클립하면 코등이가 베벨 골 위로
+            //    삐져나와 원본에 없는 '검이 액자를 뚫은' 그림이 된다(실제로 한 판 그렇게 나왔다).
+            ctx.beginPath(); panel(); ctx.clip();
+            ctx.translate(cx, yy(0.430));
+            ctx.rotate(0.42);
+            ctx.scale(0.80, 0.80);
+            ctx.fillStyle = INK;
+            ctx.beginPath();                                  // 칼날
+            ctx.moveTo(0, -S * 0.235);
+            ctx.lineTo(S * 0.058, -S * 0.135);
+            ctx.lineTo(S * 0.048, S * 0.030);
+            ctx.lineTo(-S * 0.048, S * 0.030);
+            ctx.lineTo(-S * 0.058, -S * 0.135);
+            ctx.closePath(); ctx.fill();
+            ctx.fillRect(-S * 0.115, S * 0.030, S * 0.230, S * 0.048);   // 코등이
+            ctx.fillRect(-S * 0.030, S * 0.078, S * 0.060, S * 0.105);   // 손잡이
+            ctx.beginPath();                                             // 자루끝
+            ctx.arc(0, S * 0.196, S * 0.042, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
+
             ctx.beginPath(); shield();
-            ctx.lineWidth = S * 0.062; ctx.strokeStyle = ink; ctx.stroke();
+            ctx.lineWidth = LW; ctx.strokeStyle = INK; ctx.lineJoin = 'round'; ctx.stroke();
         },
 
         // ---- 유령: 던전 '유령 마을' 배너 ----
