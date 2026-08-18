@@ -61,15 +61,25 @@ const REF_TILES = [
             ctx.drawImage(img, 0, 0);
             const d = ctx.getImageData(0, 0, c.width, c.height).data;
             const m = Math.round(Math.min(c.width, c.height) * inset);
-            let on = 0, all = 0, minX = 1e9, maxX = -1, minY = 1e9, maxY = -1;
+            let hues = 0;
+            let on = 0, all = 0, ink = 0, minX = 1e9, maxX = -1, minY = 1e9, maxY = -1;
+            const hueSet = new Set();
             for (let y = m; y < c.height - m; y++) for (let x = m; x < c.width - m; x++) {
                 const i = (y * c.width + x) * 4;
                 all++;
                 // 투명(클론) 또는 흰 배경(원본 타일 면)이 아니면 '그림'으로 센다.
                 const bg = d[i + 3] < 24 || (d[i] > 232 && d[i + 1] > 232 && d[i + 2] > 232);
-                if (!bg) { on++; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+                if (!bg) {
+                    on++;
+                    // 키라인 밀도 — 그림 화소 중 '거의 검정'의 비율. 원본 화풍이 검정을 얼마나 쓰는지의 지표.
+                    if (d[i] < 48 && d[i + 1] < 48 && d[i + 2] < 48) ink++;
+                    hueSet.add((d[i] >> 5) + ',' + (d[i + 1] >> 5) + ',' + (d[i + 2] >> 5));   // 색 수(32단계 양자화)
+                    if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+                }
             }
-            return { fill: on / all * 100, w: (maxX - minX + 1) / (c.width - 2 * m) * 100, h: (maxY - minY + 1) / (c.height - 2 * m) * 100 };
+            hues = hueSet.size;
+            return { fill: on / all * 100, w: (maxX - minX + 1) / (c.width - 2 * m) * 100, h: (maxY - minY + 1) / (c.height - 2 * m) * 100,
+                ink: ink / Math.max(1, on) * 100, hues };
         };
         // 원본은 오려낸 타일이라 키라인 2px(≈4.5%)을 안쪽으로 물려야 그림만 남는다. 클론은 그림만 담긴 캔버스라 0.
         const A = [], B = [];
@@ -87,6 +97,8 @@ const REF_TILES = [
     const worst = coverage.B.map((v, i) => ({ e: pool[i], ...v })).sort((a, b) => a.w - b.w).slice(0, 6);
     console.log('  폭이 가장 좁은 칸: ' + worst.map(v => `${v.e} ${v.w.toFixed(0)}%`).join(' · '));
     const shortest = coverage.B.map((v, i) => ({ e: pool[i], ...v })).sort((a, b) => a.h - b.h).slice(0, 6);
+    console.log(`키라인 밀도(그림 화소 중 거의-검정) — 원본 ${stat(coverage.A, 'ink')} / 클론 ${stat(coverage.B, 'ink')}`);
+    console.log(`색 수(32단계 양자화, 칸당 평균)   — 원본 ${avg(coverage.A.map(v => v.hues)).toFixed(1)} / 클론 ${avg(coverage.B.map(v => v.hues)).toFixed(1)}`);
     console.log('  높이가 가장 낮은 칸: ' + shortest.map(v => `${v.e} ${v.h.toFixed(0)}%`).join(' · '));
 
     const S = 96;

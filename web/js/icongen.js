@@ -49,6 +49,16 @@ const IconGen = {
     // 상점 특가 일러스트처럼 **프레임 자체가 가로로 긴** 자리는 정사각으로 그리면 contain 이
     // 세로에 맞춰 줄여 좌우가 텅 빈다 — 프레임 종횡비와 같은 값을 여기에 적어 꽉 채운다.
     ASPECT: { shop_tech: 1.52, shop_pet: 1.52, shop_mount: 1.52, passsword: 0.553, barrier: 1.39 },
+    /* 아이콘별 굽기 해상도 예외. 도트 아이콘(아바타 초상, `js/avatars.js`)은 **격자 칸수의 정수배**로
+       구워야 한다 — 기본 128px 에 40칸을 넣으면 3.2px/칸이라 칸마다 3px/4px 로 널뛰고, 화면에서
+       `image-rendering:pixelated` 로 40px 까지 줄일 때 그 불균일이 그대로 남아 키라인 굵기가 흔들린다.
+       160 = 40×4 로 구우면 40px 표시에서 정확히 4:1 이라 칸이 전부 같은 굵기로 떨어진다.
+       (아래 SIZES 는 이름 접두사로 걸어 24종을 일일이 안 적는다.) */
+    SIZES: { avatar_: 160 },
+    _sizeOf(name) {
+        for (const k in this.SIZES) if (name.indexOf(k) === 0) return this.SIZES[k];
+        return this.SIZE;
+    },
     cache: {},
     _classes: {},
     _styleEl: null,
@@ -60,7 +70,7 @@ const IconGen = {
         const fn = this.draw[name];
         if (!fn) return (this.cache[key] = '');
         // 2배 크기로 그린 뒤 축소(슈퍼샘플링) — 톱니·사선 엣지의 계단현상을 없앤다.
-        const S = this.SIZE, SS = this.SUPERSAMPLE, AR = this.ASPECT[name] || 1;
+        const S = this._sizeOf(name), SS = this.SUPERSAMPLE, AR = this.ASPECT[name] || 1;
         const big = document.createElement('canvas');
         big.height = S * SS;
         big.width = Math.round(S * SS * AR);
