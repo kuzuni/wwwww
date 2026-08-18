@@ -118,8 +118,12 @@ const SEED = () => {
     S.forgeUpgradeEndsAt = U.now() + 96 * 60e3;
     // 기술 연구 진행 중 (기술 노드 초록 배지)
     try { S.techResearch = { id: 'forgeTimer', endsAt: U.now() + 42 * 60e3 }; } catch (e) { }
-    // 던전 최고 기록
-    try { Dungeons.ensure(); for (const d of Dungeons.DEFS) { S.dungeons.best[d.id] = 19; S.dungeons.keys[d.id] = 2; } } catch (e) { }
+    // 던전 최고 기록 — 상세 팝업(042304)의 난이도가 원본과 **같은 값**으로 찍히도록 198 로 둔다.
+    // 원본은 `20-9`(= 챕터-스테이지 쌍, 챕터당 10단계 규약 → 선형 199단계)이고 팝업 기본값은 최고+1 이다.
+    // 옛 값 19 는 표기가 `N단계` 한 수뿐이던 시절 '20단계'로 숫자만 맞춰 보이게 한 것이라,
+    // 표기를 원본 꼴로 고친 지금 그대로 두면 `2-10` 이 찍혀 **상태가 다른 화면**을 대조하게 된다.
+    // ⚠️ 같은 SEED 사본이 shot-screens-seed.js 에도 있다 — 한쪽만 고치면 스크립트마다 다른 상태로 찍힌다.
+    try { Dungeons.ensure(); for (const d of Dungeons.DEFS) { S.dungeons.best[d.id] = 198; S.dungeons.keys[d.id] = 2; } } catch (e) { }
     saveGame();
 };
 

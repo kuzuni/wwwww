@@ -2906,6 +2906,19 @@ const UI = {
         this._dgDetailStage = U.clamp(this._dgDetailStage + delta, 1, best + 1);
         this.renderDungeonDetail();
     },
+    // 던전 도전 단계 표기 — 원본(shot-042304)의 난이도 블록은 `20-9` 두 수를 하이픈으로 잇는다.
+    // ⓐ(던전 자신의 난이도)냐 ⓑ(플레이어 최고 기록 bestChapter-bestStage)냐가 오래 미정이었는데,
+    // 원본을 보고 쓴 `ref/UI-SPEC.md` 38번이 이 두 수를 "◀▶ 좌우 화살표로 도전 단계 선택 —
+    // 최고클리어+1이 기본, 이하 선택 가능"으로 적어 뒀다 → ⓐ 다(플레이어 기록이면 ◀▶ 로 못 고른다).
+    // 우리 모델의 던전 단계는 정수 하나(`best+1`)라 표기할 때만 챕터-스테이지 쌍으로 환산한다.
+    // 챕터당 스테이지 10은 이 게임의 기존 규약이다 — combat.js 의 `S.stage >= 10` 에서 챕터가 오르고,
+    // pass.js 가 `(bestChapter-1)*10 + bestStage` 로 환산하며, dungeons.js 해금 조건도 `2-10` 꼴이다.
+    // ◀▶ 는 그대로 정수 ±1 이라 10 → `1-10`, 11 → `2-1` 로 증감이 앞뒤가 맞고,
+    // 입장·보상·소탕에 넘어가는 값은 환산 전 정수 그대로다(표기만 바꾼다).
+    dgStageText(n) {
+        const s = Math.max(1, Math.floor(n));
+        return `${Math.floor((s - 1) / 10) + 1}-${(s - 1) % 10 + 1}`;
+    },
     renderDungeonDetail() {
         const id = this._dgDetailId;
         const d = Dungeons.def(id);
@@ -2921,7 +2934,7 @@ const UI = {
                     <div class="dg-detail-hero" style="--bg:${hex}"><span class="dg-icon">${this.dgIcon(d)}</span><span class="dgd-title">${d.kr}</span></div>
                     <div class="dgd-stage-row">
                         <button class="tri-btn" onclick="UI.onDungeonStageStep(-1)" style="visibility:${stage <= 1 ? 'hidden' : 'visible'}">◀</button>
-                        <div class="dgd-stage"><span>난이도</span><b>${stage}단계</b></div>
+                        <div class="dgd-stage"><span>난이도</span><b>${this.dgStageText(stage)}</b></div>
                         <button class="tri-btn" onclick="UI.onDungeonStageStep(1)" style="visibility:${stage >= best + 1 ? 'hidden' : 'visible'}">▶</button>
                     </div>
                     <div class="dgd-reward-pill"><span class="dgd-reward-label">보상:</span>${Dungeons.rewardText(id, stage, '  ')}</div>
