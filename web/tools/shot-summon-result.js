@@ -99,7 +99,14 @@ const TIMELINES = [
         page.on('pageerror', e => errors.push(`${tag} PAGEERROR ${e}`));
         page.on('console', m => { if (m.type() === 'error') errors.push(`${tag} CONSOLE ${m.text()}`); });
         await page.goto(INDEX);
-        await page.waitForFunction('typeof UI !== "undefined" && UI.els');
+        // ⚠️ waitForFunction 금지 — 페이지 안 폴링이 3D 렌더 한 프레임(15~30초)에 밀려 안 도는
+        //    컨테이너가 있다(2026-08-18 실측). Node 쪽 evaluate 폴링만 프레임 사이로 끼어든다.
+        for (let w = 0; ; w++) {
+            const ready = await page.evaluate('typeof UI !== "undefined" && !!UI.els').catch(() => false);
+            if (ready) break;
+            if (w >= 120) throw new Error('게임 부팅 대기 60초 초과');
+            await new Promise(r => setTimeout(r, 500));
+        }
         await page.evaluate(SEED);
         await page.evaluate(FREEZE_3D);
         await page.waitForTimeout(200);
