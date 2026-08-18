@@ -1041,8 +1041,10 @@ const IconGen = {
         // ---- 열쇠: 던전 입장 열쇠 개수 표시 ----
         key(ctx, S) {
             const G = IconGen;
-            const gold = () => G._lin(ctx, 0, S * 0.2, 0, S * 0.85,
-                [[0, '#ffeba6'], [0.32, '#f4c034'], [0.7, '#cf920f'], [1, '#8d5c05']]);
+            // 원본(shot-042304 팝업 '0/2' 줄 잉크 히스토그램)은 금색이 아니라 **은회색**이다 —
+            // 채움 #b0b0b0(176,176,176) 중심 + 순검정 외곽선(최빈 잉크가 0,0,0). 무채색 그라디언트로 재현.
+            const silver = () => G._lin(ctx, 0, S * 0.2, 0, S * 0.85,
+                [[0, '#dcdcdc'], [0.32, '#bcbcbc'], [0.7, '#9c9c9c'], [1, '#6e6e6e']]);
             ctx.save();
             ctx.translate(S / 2, S / 2); ctx.rotate(-0.62); ctx.translate(-S / 2, -S / 2);
             const bx = S * 0.30, by = S * 0.26, bR = S * 0.155;   // 손잡이 고리
@@ -1061,16 +1063,16 @@ const IconGen = {
             ctx.restore();
 
             ctx.beginPath(); path();
-            ctx.fillStyle = gold();
+            ctx.fillStyle = silver();
             ctx.fill('evenodd');
             // 고리 구멍
             ctx.beginPath();
             ctx.arc(bx, by, bR * 0.44, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(50,30,2,.85)';
+            ctx.fillStyle = 'rgba(20,20,20,.85)';
             ctx.fill();
             ctx.beginPath(); path();
             ctx.lineWidth = S * 0.022;
-            ctx.strokeStyle = 'rgba(64,38,2,.78)';
+            ctx.strokeStyle = 'rgba(0,0,0,.88)';
             ctx.stroke();
             // 대 위쪽 하이라이트
             ctx.beginPath();
