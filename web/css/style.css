@@ -3221,26 +3221,43 @@ body {
 }
 .af-check.on { background: #17181a; color: #23c552; }
 .af-filter-row {
-    display: flex; align-items: center; justify-content: flex-end; gap: .5rem;
+    display: flex; align-items: center; justify-content: flex-end;
     font-size: .85rem; font-weight: 800; margin: .45rem 0;
-    /* 노브가 트랙 오른쪽으로 .82rem 튀어나오는데 .af-scroll 이 overflow-y:auto 라 가로도 잘린다
-       — 그만큼 안쪽으로 들여 노브 오른쪽 끝이 스크롤 영역 경계에 딱 맞게 한다 */
-    padding-right: .82rem;
+    /* 간격은 '라벨 글자 오른쪽 ↔ **노브** 왼쪽'이 원본과 같아야 한다(트랙 왼쪽이 아니다).
+       원본 OFF 는 노브가 트랙 왼쪽 밖으로 .846rem 나가 있고 글자와의 틈이 6px(=.363rem)이므로
+       flex gap(글자↔트랙)은 .846 + .363 = 1.209rem 이어야 눈에 보이는 틈이 원본과 맞는다.
+       (종전 .5rem 은 트랙 기준으로 잡아 노브가 '터' 글자를 파고들었다.) */
+    gap: 1.209rem;
+    /* 노브가 트랙 오른쪽으로 .786rem(= ON left 1.027 + 노브 1.631 − 트랙 1.873) 튀어나오는데
+       .af-scroll 이 overflow-y:auto 라 가로도 잘린다 — 그만큼 안쪽으로 들여
+       노브 오른쪽 끝이 스크롤 영역 경계에 딱 맞게 한다 */
+    padding-right: .786rem;
 }
-/* 원본 확대 실측(shot-042950 ON / shot-043117 OFF): 트랙은 30x19px 로 **좁고**, 파란 노브가
-   26.5px 짜리 큰 원이라 트랙 위아래로 넘치고 켜지면 트랙 오른쪽 끝 밖으로 13.5px 튀어나온다.
-   (트랙 42px + 노브 16px 이던 종전 값은 '평범한 스위치'라 원본의 인상이 안 났다 — 비평가 지적) */
+/* 원본 확대 실측 재측정(2026-08-18 UI 세션, shot-042950 ON / shot-043117 OFF, 앱 폭 491 기준):
+     트랙 31x21px (383~413 / 높이 21 — 두 컷 모두 21 로 일치)
+     노브 27px 정원 (두 컷 모두 27 — 트랙 위아래로 3px 씩 넘친다)
+     노브 위치  OFF 트랙 왼쪽 밖 -14px · ON 트랙 왼쪽 +17px(= 오른쪽 밖 13px) → **좌우 대칭**
+   종전 값(트랙 1.78x1.3 · 노브 1.57 · OFF -.55rem)은 **ON 만 맞고 OFF 가 틀렸다** — OFF 노브가
+   4.2px 밖에 안 나가 트랙이 7px 짜리 초승달로만 남았고(원본은 17px = .646rem 짜리 알약 토막),
+   그래서 '파란 구슬 + 검은 구슬이 겹친 모양'으로 읽혀 꺼짐/켜짐이 구분되지 않았다(QA 실측).
+   ⚠️ .knob 의 left 는 트랙의 **패딩 박스**(테두리 안쪽) 기준이라, 원본의 '테두리 바깥면 기준'
+      오프셋으로 맞추려면 테두리 두께만큼 빼야 한다 — 그래서 calc 로 var(--ol3) 를 뺀다.
+      (rem 상수로 박으면 --ol3 가 min() 이라 화면 크기별 테두리 두께 변화를 못 따라간다.)
+      남는 오차: 크로미움이 border-width 를 정수 CSS px 로 내림한다 — 390 폭에서 --ol3 는
+      2.955px 인데 실제 테두리는 2px 라 노브가 목표보다 0.94px(0.24%p) 더 왼쪽에 선다.
+      1px 미만이고 ±2%p 안이라 그대로 둔다(probe-af-toggle-knob.js 가 이 잔차를 찍는다).
+   (트랙 42px + 노브 16px 이던 그 이전 값은 '평범한 스위치'라 원본의 인상이 안 났다 — 비평가 지적) */
 .af-toggle {
-    width: 1.78rem; height: 1.3rem; flex: none; position: relative; cursor: pointer;
+    width: 1.873rem; height: 1.269rem; flex: none; position: relative; cursor: pointer;
     border: var(--ol3) solid var(--pp-line); border-radius: 1rem; background: #1e2a4a;
 }
 .af-toggle .knob {
-    position: absolute; top: 50%; left: -.55rem; width: 1.57rem; height: 1.57rem;
-    margin-top: -.785rem; border: var(--ol3) solid var(--pp-line);
+    position: absolute; top: 50%; left: calc(-.846rem - var(--ol3)); width: 1.631rem; height: 1.631rem;
+    margin-top: -.8155rem; border: var(--ol3) solid var(--pp-line);
     border-radius: 50%; background: var(--pp-blue); transition: left .15s;
 }
 .af-toggle.on { background: #35d435; }
-.af-toggle.on .knob { left: 1.03rem; }
+.af-toggle.on .knob { left: calc(1.027rem - var(--ol3)); }
 /* 원본 필터 행: 높이 29.5px 에 행 사이 **순백 간격 9px** 이라 알약 카드가 하나씩 떨어져 보인다.
    .3rem 패딩 + .3rem 간격(5px)이면 피치는 맞아도 행끼리 붙어 한 덩어리 리스트로 보였다(비평가 지적). */
 .af-sub-row {
