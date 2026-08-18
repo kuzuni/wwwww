@@ -59,10 +59,32 @@ const DIFF_MIN = 0.040; // 파츠 간 정규화 반경 RMS 차 (잎/바위 조�
         // 지오메트리를 갈아끼우면 굽힘이 통째로 틀어진다. 그래서 ① 게이트에서 제외한다.
         // 판별: 부모 그룹의 자식이 정확히 2개이고, 같은 재질의 Cylinder + Sphere 인가.
         const isCapsulePart = m => {
+            // ⚠️ 자식 수로 판별하지 말 것 — 분절 사지는 캡슐 그룹에 **다음 마디를 매달아** 키운다
+            //    (`upper.add(lower)`·`lower.add(paw)`). 늑대는 그래서 자식이 3개라 '정확히 2개' 조건이
+            //    통째로 빗나갔고 캡 8개가 게이트에 섞여 들어왔다(실측: 좌우 대칭 캡끼리 최소차 0.0000).
+            //    구조로 본다 — 같은 재질의 Cylinder 형제가 있으면 그건 캡슐의 반구 캡이다.
+            //    ⚠️ 반대로 '같은 재질 Cylinder 형제가 있으면 캡슐'로 느슨하게 보면 이번엔 **몸통이
+            //    통째로 제외된다** — 늑대는 `belly`·`neckW` 원기둥이 흉곽·골반과 같은 furM 을 물고
+            //    같은 그룹에 있다(실측: 측정 대상이 19개에서 7개로 줄었다).
+            //    캡슐의 캡은 기하학적으로 확정된다: 캡 반지름 = 원기둥 아래 반지름이고,
+            //    원기둥이 y=-len/2, 캡이 y=-len 이라 **캡의 y 는 정확히 원기둥 y 의 2배**다.
+            //    캡슐은 두 피스 다 게이트 밖이라 **양쪽 역할을 다 본다** — 캡만 걸러내면 원기둥 6개가
+            //    그대로 '프리미티브 잔존'으로 잡힌다(실측).
             const p = m.parent;
-            if (!p || !p.isGroup || p.children.length !== 2) return false;
-            const ts = p.children.map(c => c.isMesh ? c.geometry.type : '').sort().join('+');
-            return ts === 'CylinderGeometry+SphereGeometry' && p.children[0].material === p.children[1].material;
+            if (!p || !p.isGroup) return false;
+            const pair = (sph, cyl) => {
+                const r = sph.geometry.parameters && sph.geometry.parameters.radius;
+                const cp = cyl.geometry.parameters || {};
+                return r !== undefined && Math.abs(cp.radiusBottom - r) < 1e-9
+                    && Math.abs(sph.position.y - 2 * cyl.position.y) < 1e-9;
+            };
+            const t = m.geometry.type;
+            if (t !== 'SphereGeometry' && t !== 'CylinderGeometry') return false;
+            return p.children.some(c => {
+                if (c === m || !c.isMesh || c.material !== m.material) return false;
+                if (t === 'SphereGeometry') return c.geometry.type === 'CylinderGeometry' && pair(m, c);
+                return c.geometry.type === 'SphereGeometry' && pair(c, m);
+            });
         };
 
         g.traverse(m => {

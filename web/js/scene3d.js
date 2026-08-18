@@ -3215,6 +3215,44 @@ const Scene3D = {
         geo.computeVertexNormals();
         return geo;
     },
+    // ⑸ 유기물 덩어리 — 살·털 종의 구를 **부드럽게** 비대칭으로 만든다.
+    //    `boulderGeo` 와 목적은 같고(윤곽 깨기) 자는 정반대다: 골렘은 돌이라 각진 파셋이 정답이지만
+    //    늑대·고블린·임프는 살이라 같은 걸 걸면 '수정 늑대'가 된다. 그래서 ㉠ 진폭을 낮추고
+    //    ㉡ **주파수를 낮춰** 노이즈가 아니라 근육/털뭉치 수준의 넓은 굴곡만 남기고
+    //    ㉢ 법선을 부드럽게 다시 계산한다(플랫셰이딩으로 가지 않는다).
+    //    ⚠️ 이미 만들어진 지오메트리를 **제자리에서** 바꾼다 — 호출자가 정한 분할수와 mesh.scale
+    //       (늑대는 구를 타원체로 눌러 쓴다)을 그대로 살리려면 이 방식이어야 한다.
+    //    ⚠️ 변위는 여기서도 **좌표 해시**다. `SphereGeometry` 는 인덱스 지오메트리라 인덱스 해시가
+    //       안전해 보이지만, uv 이음새(u=0/u=1)와 극점에 **같은 좌표의 정점이 여러 벌** 있어
+    //       인덱스로 뽑으면 이음새가 그대로 찢어진다.
+    sculptOrganic(geo, seed, opt) {
+        const o = opt || {};
+        const p = geo.attributes.position;
+        const amp = o.amp === undefined ? 0.09 : o.amp;
+        const s0 = (seed || 0) * 2.3391 + 0.17;
+        // 반경 기준은 바운딩 구 — 호출자가 어떤 크기의 구를 넘겨도 같은 **상대** 진폭이 나온다.
+        geo.computeBoundingSphere();
+        const R = Math.max(1e-4, geo.boundingSphere.radius);
+        const q = v => Math.round(v / R * 256) / 256;
+        for (let i = 0; i < p.count; i++) {
+            const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+            const qx = q(x), qy = q(y), qz = q(z);
+            // ⚠️ 주파수를 더 낮추지 말 것 — 물체 지름에 한 주기가 채 안 들어가면 변위가 사실상
+            //    **균일 스케일 + 평행이동**에 수렴해 실루엣이 하나도 안 깨진다(반경 변동계수가 그대로다).
+            //    처음 2.3/1.7/1.29 로 뒀더니 같은 amp 인데 seed 에 따라 cv 가 0.0188~0.0542 로 요동쳤다 —
+            //    작아서가 아니라 물체가 사인의 단조 구간에 통째로 얹히는 seed 가 있어서였다.
+            //    지름에 대략 한 주기가 들어가는 지금 값이면 seed 와 무관하게 실제 굴곡이 남는다.
+            const k = Math.sin(qx * 3.1 + s0) * 0.40
+                + Math.sin(qy * 2.6 + s0 * 1.6) * 0.34
+                + Math.sin((qy + qz) * 2.1 + s0 * 0.6) * 0.26;
+            const f = 1 + k * amp;
+            p.setXYZ(i, x * f, y * f, z * f);
+        }
+        p.needsUpdate = true;
+        geo.computeVertexNormals();
+        geo.computeBoundingSphere();
+        return geo;
+    },
 
     // 조립이 끝난 장비 그룹에 시대 디테일을 얹는다 — 바운딩 박스에서 '아랫단 밴드'를 잡아
     // 계열마다 다른 것을 두른다(리벳 링 / 발광 링 / 가죽끈+뼈구슬 / 황동 스터드 / 폴리머 벤트).
@@ -6143,26 +6181,29 @@ const Scene3D = {
             const furM = lam(base, ProChar.hideTex());
             const furD = lam(base.clone().offsetHSL(0, 0.02, -0.22), ProChar.hideTex()); // 대비 강화 — 단색 클레이 오독 방지
             const furL = lam(base.clone().offsetHSL(0.01, -0.06, 0.27), ProChar.hideTex()); // 배·러프·꼬리끝 명확한 라이트 톤
-            body = mk(new THREE.SphereGeometry(0.19, 12, 9), furM);           // 흉곽 (앞이 크고)
+            // 몸 덩어리가 전부 **완전구를 눌러 만든 타원체**라 '회색 캡슐 조립'으로 읽혔다(ⓒ).
+            // 골렘처럼 각지게 깎으면 '수정 늑대'가 되므로 저주파·저진폭 유기 변형만 건다.
+            const oSp = (r, w, h, seed, amp) => this.sculptOrganic(new THREE.SphereGeometry(r, w, h), seed, { amp });
+            body = mk(oSp(0.19, 12, 9, 2, 0.10), furM);           // 흉곽 (앞이 크고)
             body.position.set(0, 0.42, 0.12); body.scale.set(0.9, 0.92, 1.25);
-            const hind = mk(new THREE.SphereGeometry(0.16, 11, 8), furM);     // 골반 (뒤가 작게)
+            const hind = mk(oSp(0.16, 11, 8, 3, 0.10), furM);     // 골반 (뒤가 작게)
             hind.position.set(0, 0.4, -0.22); hind.scale.set(0.82, 0.85, 1.1);
             const belly = mk(new THREE.CylinderGeometry(0.155, 0.13, 0.34, 10), furM); // 연결 몸통
             belly.rotation.x = Math.PI / 2; belly.position.set(0, 0.41, -0.05);
             belly.scale.set(0.9, 1, 0.92);
-            const ruff = mk(new THREE.SphereGeometry(0.15, 10, 8), furL);     // 앞가슴 밝은 러프 털
+            const ruff = mk(oSp(0.15, 10, 8, 4, 0.15), furL);     // 앞가슴 밝은 러프 털 — 털뭉치라 진폭을 크게
             ruff.position.set(0, 0.38, 0.26); ruff.scale.set(0.85, 0.8, 0.7);
             const neckW = mk(new THREE.CylinderGeometry(0.085, 0.105, 0.18, 9), furM);
             neckW.position.set(0, 0.52, 0.3); neckW.rotation.x = -0.7;
             g.add(body, hind, belly, ruff, neckW);
             const headW = new THREE.Group();                                   // 쐐기 두상 + 테이퍼 주둥이
             headW.position.set(0, 0.6, 0.38);
-            const skullW = mk(new THREE.SphereGeometry(0.105, 11, 8), furM);
+            const skullW = mk(oSp(0.105, 11, 8, 5, 0.06), furM);   // 눈이 상대 배치라 진폭을 낮게
             skullW.scale.set(1.24, 0.92, 1.05); // x 확폭 2차 — 1.12로도 3/4 각도에서 흰자+호박 홍채가 실루엣 밖 '유니콘 뿔'로 돌출 (비평가 7.1 14번)
             const muzzleM = lam(base.clone().offsetHSL(0.005, -0.04, 0.14), ProChar.hideTex()); // 주둥이 전용 중간 톤 — 순백 러프색은 '붙임 데칼'로 읽힘 (비평가)
             const snout = mk(new THREE.CylinderGeometry(0.048, 0.075, 0.16, 8), muzzleM);
             snout.rotation.x = Math.PI / 2; snout.position.set(0, -0.02, 0.14);
-            const bridge = mk(new THREE.SphereGeometry(0.045, 8, 6), furD); // 콧등 다크 스트라이프 — 밝은 주둥이와 톤 분리 (비평가: 주둥이가 두상에 뭉개짐)
+            const bridge = mk(oSp(0.045, 8, 6, 8, 0.07), furD); // 콧등 다크 스트라이프 — 밝은 주둥이와 톤 분리 (비평가: 주둥이가 두상에 뭉개짐)
             bridge.position.set(0, 0.03, 0.12); bridge.scale.set(0.8, 0.5, 2.1);
             headW.add(bridge);
             const noseW = mk(new THREE.SphereGeometry(0.028, 7, 6), new THREE.MeshBasicMaterial({ color: 0x1d2126 }));
@@ -6192,14 +6233,14 @@ const Scene3D = {
             }
             g.add(headW);
             eyes(0.645, 0.472, 0.072, 0.03, 'fierce', { iris: 0xe8b13c, glow: 0.25, tilt: -0.28, browColor: 0x3c414d }); // 흰자+호박 홍채 — 두상 안에 파묻어 배치(흰 뿔 오독 방지), 좌우 분리 유지
-            const backStripe = mk(new THREE.SphereGeometry(0.16, 10, 8), furD); // 등 다크 새들 — 목덜미→엉덩이 한 흐름으로 세그먼트 경계 은폐
+            const backStripe = mk(oSp(0.16, 10, 8, 6, 0.09), furD); // 등 다크 새들 — 목덜미→엉덩이 한 흐름으로 세그먼트 경계 은폐
             backStripe.position.set(0, 0.49, -0.03); backStripe.scale.set(0.78, 0.5, 2.45);
-            const bellyW = mk(new THREE.SphereGeometry(0.13, 10, 8), furL); // 밝은 아랫배 — 투톤 코트
+            const bellyW = mk(oSp(0.13, 10, 8, 7, 0.09), furL); // 밝은 아랫배 — 투톤 코트
             bellyW.position.set(0, 0.33, -0.02); bellyW.scale.set(0.8, 0.6, 1.6);
             g.add(bellyW);
             // 2관절 다리 4개: 어깨/고관절 피벗 → 상퇴 → 하퇴 → 발 (달리기 사이클은 기존 anim.legs 인터페이스)
             for (const [lx, lz, front] of [[-0.11, 0.22, 1], [0.11, 0.22, 1], [-0.1, -0.24, 0], [0.1, -0.24, 0]]) {
-                const haunch = mk(new THREE.SphereGeometry(front ? 0.072 : 0.088, 9, 7), furM); // 어깨/뒷다리 근육 덩어리 — 몸통-다리 이음새 은폐 ('로봇 다리' 오독 제거)
+                const haunch = mk(oSp(front ? 0.072 : 0.088, 9, 7, 10 + lx * 37 + lz * 11, 0.11), furM); // 어깨/뒷다리 근육 덩어리 — 몸통-다리 이음새 은폐 ('로봇 다리' 오독 제거)
                 haunch.position.set(lx * 0.95, front ? 0.41 : 0.4, lz + (front ? 0.015 : -0.02));
                 haunch.scale.set(0.75, 1.15, 1.2);
                 g.add(haunch);
@@ -6209,7 +6250,7 @@ const Scene3D = {
                 upper.rotation.x = front ? 0.12 : -0.2;
                 const lower = limb(0.034, 0.026, 0.17, furD);
                 lower.position.y = -0.18; lower.rotation.x = front ? -0.1 : 0.32;
-                const paw = mk(new THREE.SphereGeometry(0.045, 7, 6), furD); // 다크 삭스 발 — 색 분리
+                const paw = mk(oSp(0.045, 7, 6, 20 + lx * 29 + lz * 7, 0.08), furD); // 다크 삭스 발 — 색 분리
                 paw.position.set(0, -0.165, 0.025); paw.scale.set(1, 0.55, 1.35);
                 lower.add(paw);
                 upper.add(lower);
@@ -6235,7 +6276,7 @@ const Scene3D = {
                 const holder = new THREE.Group();
                 holder.position.set(0, 0, -0.068); // 분절 간격 축소+세그 연장 — '구슬 체인' 오독 방지 (비평가 13번)
                 holder.rotation.x = -0.26;
-                const seg = mk(new THREE.SphereGeometry(0.085 - ti * 0.011, 8, 6), ti === 2 ? furL : furD); // 두툼한 브러시 꼬리 — 질주 실루엣 방향성
+                const seg = mk(oSp(0.085 - ti * 0.011, 8, 6, 31 + ti * 13, 0.13), ti === 2 ? furL : furD); // 두툼한 브러시 꼬리 — 털이라 진폭 크게 — 질주 실루엣 방향성
                 seg.position.z = -0.045;
                 seg.scale.set(0.82, 0.82, 1.85);
                 holder.add(seg);
