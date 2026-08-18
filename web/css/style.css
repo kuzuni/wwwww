@@ -925,14 +925,23 @@ body {
    다르면 CSS 가 매트릭스 보간으로 떨어져 회전 경로가 미묘하게 틀어진다. */
 @keyframes afswing {     /* 들어올렸다 내리치기 ×3 — 마지막은 더 크게 감아 올린다 */
     /* 등장·퇴장은 알파가 아니라 모션으로 — 정지 상태에서 페이드하면 '무에서 나타나 녹아 사라진다' */
-    0%    { transform: translate(11px, -46px) rotate(-52deg) scale(1, 1); opacity: 0; }  /* 위가 아니라 옆에서 들어온다 */
-    9%    { transform: translate(2.2px, -18px) rotate(-22deg) scale(1, 1); opacity: 1; }  /* 프레임 밖에서 들어온다 */
-    19%   { transform: translate(1.2px, -8px)  rotate(-2deg) scale(1, 1); }    /* 72ms에 20° = 저속 */
+    /* 🚨 **1타에 예비동작이 없었다** — 두 비평가가 같이 꼽은 '위계가 없음→중→대의 2단' 의 원인이다.
+       예전엔 0% opacity 0 → 9%(65ms) 에 이미 -18유닛까지 내려온 자리에서 알파를 켰다. 즉 플레이어가
+       보는 1타의 윈드업은 **108ms·12px**이고 그나마 *이동 중에 나타난다* — "예비→타격"이 아니라
+       "이미 내려오는 망치가 튀어나온다"로 읽힌다. 3%(22ms)에 일찍 보이게 하고, 8%(58ms)에 진짜
+       정점(-26유닛)을 준 뒤 12% 에 한 박 머물렀다 내리친다. 정점 위계 26 / 36 / 52 유닛.
+       ⚠️ opacity 를 **정점보다 앞에서** 1 로 올릴 것 — probe ⑳ 이 정점의 opacity 를 본다.
+       올라가 있어도 투명하면 그건 예비동작이 아니다(예전 1타가 정확히 그랬다: 정점 opacity 0.89). */
+    0%    { transform: translate(12px, -44px) rotate(-50deg) scale(1, 1); opacity: 0; }  /* 위가 아니라 옆에서 들어온다 */
+    3%    { transform: translate(7px, -38px)  rotate(-42deg) scale(1, 1); opacity: 1; }  /* 여기서 이미 보인다 */
+    8%    { transform: translate(3.6px, -26px) rotate(-30deg) scale(1, 1); opacity: 1; }  /* 1타 윈드업 정점 */
+    12%   { transform: translate(2.6px, -21px) rotate(-23deg) scale(1, 1); }   /* 한 박 머문다(앤티시페이션) */
+    19%   { transform: translate(1.2px, -8px)  rotate(-2deg) scale(1, 1); }    /* 50ms에 21° = 저속 */
     22%   { transform: translate(.31px, .12px) rotate(10.6deg) scale(1, 1.16); }   /* 접촉 직전 1프레임 스미어 = 아직 안 눌린 빌릿 윗면(y=11) */
     24%   { transform: translate(-.07px, 3.08px) rotate(19deg) scale(1, 1); }    /* 0.5유닛 파고든다 */  /* 36ms에 21° = 2.1배 가속 */
     28.64% { transform: translate(-.07px, 2.58px) rotate(19deg) scale(1, 1); } /* 33.4ms 정지(2프레임) */
     33.15% { transform: translate(.8px, -6px)  rotate(4deg) scale(1, 1); }     /* 되튐 0.42°/ms = 타격의 0.72배 */
-    39.04% { transform: translate(3px, -27px)  rotate(-34deg) scale(1, 1); }   /* 2타 윈드업 정점 — 간격이 좁아진 만큼 ×0.841 압축 */
+    39.04% { transform: translate(3.4px, -36px) rotate(-40deg) scale(1, 1); }  /* 2타 윈드업 정점 — 1타를 올린 만큼 같이 올려 위계 26/36/52 유지 */
     48.29% { transform: translate(1.6px, -14px) rotate(-9deg) scale(1, 1); }
     51.24% { transform: translate(.17px, 1.28px) rotate(10.6deg) scale(1, 1.18); }
     52.5% { transform: translate(-.11px, 5.40px) rotate(19deg) scale(1, 1); }   /* 378ms — 36ms에 28°, 0.8유닛 관통 */

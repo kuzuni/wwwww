@@ -22,6 +22,7 @@ const VP = { width: 390, height: 844 };
 const DUR = 720;
 // afswing 키프레임의 타격/윈드업 지점(%)
 const FRAMES = [
+    { name: 'wind1', pct: 8, kind: 'up' },      // 🚨 1타 예비동작 — 여기가 비어 있어 위계가 2단이었다
     { name: 'hit1', pct: 24, kind: 'hit' },
     { name: 'wind2', pct: 39.04, kind: 'up' },
     { name: 'hit2', pct: 52.5, kind: 'hit' },   // 등간격(메트로놈)을 깨려고 57% 에서 당겼다
@@ -106,7 +107,7 @@ async function waitBooted(page, timeout = 25000) {
             return p.matrixTransform(el.getScreenCTM());
         };
         // 랜드마크는 HAMMER_SVG 의 로컬 좌표를 그대로 가리킨다 — 조형을 바꾸면 여기도 같이 옮길 것.
-        // (2026-08-18 크로스핀 재조형 2차: 자루 노브 x 48.4→58, 핀 끝 y -30.6→-31.6, 목 ±5.4 신설)
+        // (2026-08-18 크로스핀 재조형 3차: 핀 끝 y -31.6 → -36.2 — 핀:몸통 2.6:1 → 1.7:1)
         const face = map(inner, 0, 0.9);          // 타격면 중심
         // 타격면 **양 끝**과 상판 윗면 능선(23,4)-(90,3) — 면이 상판과 나란한지 재려면 중심만으로는
         // 부족하다(중심이 붙어 있어도 기울면 한쪽 모서리로 찍는다).
@@ -114,7 +115,7 @@ async function waitBooted(page, timeout = 25000) {
         const topA = (() => { const p = anv.createSVGPoint(); p.x = 23; p.y = 4; return p.matrixTransform(anv.getScreenCTM()); })();
         const topB = (() => { const p = anv.createSVGPoint(); p.x = 90; p.y = 3; return p.matrixTransform(anv.getScreenCTM()); })();
         const butt = map(inner, 53, -12.8);       // 손잡이 끝(그립 노브)
-        const peen = map(inner, 0, -31.6);        // 머리 반대편(크로스 핀) 끝
+        const peen = map(inner, 0, -36.2);        // 머리 반대편(크로스 핀) 끝
         // 🚨 접점은 상판이 아니라 **빌릿 윗면**이다(대장장이는 맨 모루면을 치지 않는다).
         //    좌표를 손으로 베껴 두면 안 된다 — 빌릿은 타격마다 눌리므로(anvilbillet) 윗면이
         //    프레임마다 다른 곳에 있다. `.anv-billet` 의 CTM 으로 매핑하면 **모루 침하 +
@@ -513,7 +514,7 @@ async function waitBooted(page, timeout = 25000) {
             return lo;
         };
         const prof = [];
-        for (let y = -31; y <= 0; y += 0.5) prof.push({ y, w: halfW(y) });
+        for (let y = -35.5; y <= 0; y += 0.5) prof.push({ y, w: halfW(y) });
         return prof;
     });
     if (!neck) { say(false, '⑱ 망치 머리 path(hmr-steel)를 찾지 못함'); }
@@ -521,7 +522,7 @@ async function waitBooted(page, timeout = 25000) {
         const face = Math.max(...neck.filter(p => p.y >= -3).map(p => p.w));       // 타격면
         const body = neck.filter(p => p.y >= -21 && p.y <= -8);                     // 몸통·아이
         const neckSeg = neck.filter(p => p.y >= -25 && p.y <= -21.5);               // 목
-        const peen = neck.filter(p => p.y >= -30.5 && p.y <= -25.5);                // 크로스핀
+        const peen = neck.filter(p => p.y >= -34.5 && p.y <= -25.5);                // 크로스핀
         const bodyMin = Math.min(...body.map(p => p.w));
         const neckMin = Math.min(...neckSeg.map(p => p.w));
         const peenMax = Math.max(...peen.map(p => p.w));
@@ -531,6 +532,15 @@ async function waitBooted(page, timeout = 25000) {
             `⑱ 목 위에서 핀이 다시 벌어짐 — 핀 ${peenMax.toFixed(1)} > 목 ${neckMin.toFixed(1)} ×1.4 (두 덩어리로 분절되는 유일한 단서)`);
         say(face > peenMax,
             `⑱ 타격면이 핀보다 넓음(뒤집힘 아님) — 타격면 ${face.toFixed(1)} > 핀 ${peenMax.toFixed(1)}`);
+        // 🚨 **핀이 짧으면 체스 폰이다.** 폭만 봐서는 "목은 있는데 그 위가 뭉툭한 혹"인 조형을
+        //    못 거른다 — 두 비평가가 독립적으로 실루엣을 '체스 폰 / 종'으로 읽은 상태가 정확히
+        //    그랬다(핀 9유닛 vs 몸통 23.5 = 2.6:1). 목 위/아래 **길이 비**를 따로 못 박는다.
+        const inked = neck.filter(p => p.w > 0.3).map(p => p.y);
+        const tipY = Math.min(...inked), faceY = Math.max(...inked);
+        const neckY = -23.5;
+        const peenLen = neckY - tipY, bodyLen = faceY - neckY;
+        say(bodyLen / peenLen <= 2.0,
+            `⑱ 핀이 몸통 대비 충분히 길다 — 몸통 ${bodyLen.toFixed(1)} : 핀 ${peenLen.toFixed(1)} = ${(bodyLen / peenLen).toFixed(2)}:1 (기준 ≤2.0)`);
     }
 
     // ⑲ 🚨 **연출이 끝난 자리에 처음과 다른 물건이 남는가.** 비평가 B 의 총평이 이것이었다 —
@@ -582,6 +592,40 @@ async function waitBooted(page, timeout = 25000) {
     say(lumAfter < lumBefore - 6,
         `⑲ 소재가 식었다 — 빌릿 평균 휘도 ${lumBefore.toFixed(1)} → ${lumAfter.toFixed(1)} (기준 −6 이상; 같으면 '아무 일도 없었다'로 읽힌다)`);
     await page.evaluate(() => { UI.cancelAnvilStrike(); UI._anvilBusy = false; });
+
+    // ⑳ 🚨 **1타 예비동작이 실제로 보이는가.** ④ 는 '들어올림 ≥ 모루 높이의 12%' 만 보므로,
+    //    망치가 **투명한 채로** 높이 올라가 있어도 통과한다 — 실제로 예전 1타가 그랬다(0% opacity 0,
+    //    9%에 이미 -18유닛까지 내려온 자리에서 알파를 켰다). 위계도 같이 본다: 예비동작이 1타에만
+    //    없으면 크레셴도가 '없음 → 중 → 대'의 2단으로 읽힌다(비평가 A·B 공통).
+    const winds = await page.evaluate(() => {
+        const DUR = 720;
+        UI.cancelAnvilStrike(); UI._anvilBusy = false;
+        document.getElementById('equip-sheet').getBoundingClientRect();
+        UI.playAnvilStrike(() => {});
+        (UI._anvilTimers || []).forEach(clearTimeout); UI._anvilTimers = [];
+        document.getElementById('equip-sheet').getBoundingClientRect();
+        const anims = [...document.querySelectorAll('#equip-sheet, #equip-sheet *')].flatMap(n => n.getAnimations());
+        anims.forEach(a => a.pause());
+        const g = document.querySelector('.anvil-fx .af-hammer');
+        const inner = g.querySelector('g');
+        const anv = document.querySelector('.anvil-btn .anvil-svg');
+        const bil = anv.querySelector('.anv-billet');
+        const at = (pct) => {
+            anims.forEach(a => { const t = DUR * pct / 100; a.currentTime = Math.min(t, a.effect.getComputedTiming().endTime || t); });
+            const p = inner.ownerSVGElement.createSVGPoint(); p.x = 0; p.y = 0.9;
+            const face = p.matrixTransform(inner.getScreenCTM());
+            const q = anv.createSVGPoint(); q.x = 55; q.y = 11;
+            const top = q.matrixTransform((bil || anv).getScreenCTM());
+            return { lift: top.y - face.y, op: +getComputedStyle(g).opacity };
+        };
+        return [8, 39.04, 71.38].map(at);   // 각 타격의 윈드업 정점
+    });
+    winds.forEach((w, h) => {
+        say(w.op >= 0.95,
+            `⑳ 윈드업${h + 1} 정점에서 망치가 **보인다** — opacity ${w.op.toFixed(2)} (기준 ≥0.95; 투명하면 올라가도 예비동작이 아니다)`);
+    });
+    say(winds[0].lift > 6 && winds[0].lift < winds[1].lift && winds[1].lift < winds[2].lift,
+        `⑳ 예비동작 위계: ${winds.map(w => w.lift.toFixed(1) + 'px').join(' < ')} — 1타에도 실재하고 타격마다 커짐`);
 
     say(errs.length === 0, `⑤ 콘솔/페이지 에러 ${errs.length}건${errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''}`);
     await browser.close();
