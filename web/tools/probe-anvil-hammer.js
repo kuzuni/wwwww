@@ -475,6 +475,49 @@ async function waitBooted(page, timeout = 25000) {
             `⑰ 박자가 등간격이 아님 — 간격 ${g1}/${g2}ms = ${ratio.toFixed(2)}배 (기준 ≥1.2 — 1.0 이면 메트로놈)`);
     }
 
+    // ⑱ 🚨 **머리에 잘록한 '목'이 있는가.** 위로 갈수록 단조 감소하는 테이퍼면 92px 에서 망치가
+    //    아니라 **총알·체스 폰**으로 읽힌다(비평가 A 가 꼽은 조형 결함). 목에서 한 번 조였다가
+    //    핀에서 다시 벌어져야 눈이 '머리 + 크로스핀'의 두 덩어리로 분절한다.
+    //    path 의 `d` 문자열을 파싱하지 않는다 — 조형을 곡선으로 다시 그리면 정점이 사라져 검사만
+    //    깨진다. `isPointInFill` 로 **실제 채움 영역**의 반폭을 y 마다 이분 탐색해 잰다.
+    const neck = await page.evaluate(() => {
+        UI.cancelAnvilStrike(); UI._anvilBusy = false;
+        UI.playAnvilStrike(() => {});
+        (UI._anvilTimers || []).forEach(clearTimeout); UI._anvilTimers = [];
+        const svg = document.querySelector('.anvil-fx');
+        // 머리 = af-hammer 안에서 hmr-steel 로 채운 path
+        const head = [...svg.querySelectorAll('.af-hammer path')]
+            .find(p => (p.getAttribute('fill') || '').includes('hmr-steel'));
+        if (!head) return null;
+        const halfW = (y) => {              // 로컬 좌표계 기준 반폭(오른쪽)
+            let lo = 0, hi = 20;
+            const pt = svg.createSVGPoint();
+            const inside = (x) => { pt.x = x; pt.y = y; return head.isPointInFill(pt); };
+            if (!inside(0)) return 0;
+            for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (inside(mid)) lo = mid; else hi = mid; }
+            return lo;
+        };
+        const prof = [];
+        for (let y = -31; y <= 0; y += 0.5) prof.push({ y, w: halfW(y) });
+        return prof;
+    });
+    if (!neck) { say(false, '⑱ 망치 머리 path(hmr-steel)를 찾지 못함'); }
+    else {
+        const face = Math.max(...neck.filter(p => p.y >= -3).map(p => p.w));       // 타격면
+        const body = neck.filter(p => p.y >= -21 && p.y <= -8);                     // 몸통·아이
+        const neckSeg = neck.filter(p => p.y >= -25 && p.y <= -21.5);               // 목
+        const peen = neck.filter(p => p.y >= -30.5 && p.y <= -25.5);                // 크로스핀
+        const bodyMin = Math.min(...body.map(p => p.w));
+        const neckMin = Math.min(...neckSeg.map(p => p.w));
+        const peenMax = Math.max(...peen.map(p => p.w));
+        say(neckMin < bodyMin * 0.8,
+            `⑱ 목이 몸통보다 잘록함 — 목 ${neckMin.toFixed(1)} < 몸통 최소 ${bodyMin.toFixed(1)} ×0.8 (단조 감소 테이퍼면 총알로 읽힌다)`);
+        say(peenMax > neckMin * 1.4,
+            `⑱ 목 위에서 핀이 다시 벌어짐 — 핀 ${peenMax.toFixed(1)} > 목 ${neckMin.toFixed(1)} ×1.4 (두 덩어리로 분절되는 유일한 단서)`);
+        say(face > peenMax,
+            `⑱ 타격면이 핀보다 넓음(뒤집힘 아님) — 타격면 ${face.toFixed(1)} > 핀 ${peenMax.toFixed(1)}`);
+    }
+
     say(errs.length === 0, `⑤ 콘솔/페이지 에러 ${errs.length}건${errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''}`);
     await browser.close();
     console.log(fail ? `\n실패 ${fail}건` : '\n전부 통과');
