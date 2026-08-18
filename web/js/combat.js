@@ -90,7 +90,7 @@ const Combat = {
         this.hero.hp = this.hero.maxHp; // 스테이지 시작 시 완전 회복
         this.downUntil = 0; this.riseUntil = 0;
         Scene3D.heroRevive(); // 사망 상태로 스테이지가 시작되지 않게(던전 입장 등으로 기상 예약이 지워진 경우 대비)
-        SFX.setMusicMode('normal'); // 이전 스테이지가 보스전 도중 중단됐을 경우를 대비한 방어적 리셋
+        SFX.setMusicMode(Dungeons.run ? 'dungeon' : 'normal'); // 화면별 곡 분화(audio-quality-up) + 보스전 중단 대비 방어적 리셋
         Scene3D.clearEnemies();
         if (Dungeons.run) Scene3D.setTheme(Dungeons.def(Dungeons.run.id).theme);
         else Scene3D.setChapterTheme(S.chapter);
@@ -337,7 +337,7 @@ const Combat = {
             this.onKill(e);
             Scene3D.killEnemy(e.id, e.isBoss);
             this.restackMelee(); // 남은 적이 빈 앞자리로 한 칸 당겨 선다 — 줄이 끊긴 채 남지 않게
-            if (e.isBoss) { Scene3D.shake(0.5); SFX.setMusicMode('normal'); }
+            if (e.isBoss) { Scene3D.shake(0.5); SFX.setMusicMode(Dungeons.run ? 'dungeon' : 'normal'); } // 던전 보스 처치 후엔 던전곡으로 복귀
             if (!this.aliveEnemies().length) {
                 if (this.wave >= this.totalWaves()) this.stageClear();
                 else { this.phase = 'waveDelay'; this.phaseTimer = 1.6; } // 행군 구간
