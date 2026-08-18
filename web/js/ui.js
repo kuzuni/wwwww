@@ -4432,11 +4432,20 @@ const UI = {
         { key: 'potions', ico: 'potion', kr: '물약' },
         { key: 'eggCurrency', ico: 'egg', kr: '깨진 알' },
     ],
+    // 표시 이름은 **여기 한 곳에서만** 꺼낸다. 버튼은 `c.kr` 을 직접 읽고 토스트는 `c.label` 을
+    // 읽는 식으로 갈라져 있어서, 데이터 필드가 `label` → `kr` 로 바뀌었을 때 버튼만 멀쩡하고
+    // 토스트에는 내부 키(`eggCurrency`)가 그대로 샜다(같은 버그가 두 번 났다).
+    // 라벨이 없으면 조용히 키로 떨어지지 말고 콘솔에 남긴다 — 안 그러면 또 못 보고 지나간다.
+    debugCurrencyLabel(key) {
+        const c = this.DEBUG_CURRENCIES.find(c => c.key === key);
+        if (!c || !c.kr) { console.warn(`[debug] 재화 '${key}' 의 한글 라벨(kr)이 없다 — DEBUG_CURRENCIES 를 확인할 것`); return key; }
+        return c.kr;
+    },
     renderDebug() {
         if (this.activeTab !== 'debug') return;
         const p = this.els.panels.debug;
         const curHtml = this.DEBUG_CURRENCIES.map(c =>
-            `<button class="btn sm" onclick="UI.onDebugAddCurrency('${c.key}')">${IconGen.img(c.ico, 'lbl-ico')}${c.kr} +100000</button>`).join('');
+            `<button class="btn sm" onclick="UI.onDebugAddCurrency('${c.key}')">${IconGen.img(c.ico, 'lbl-ico')}${this.debugCurrencyLabel(c.key)} +100000</button>`).join('');
         const keysHtml = Dungeons.DEFS.map(d =>
             `<span class="prob-chip">${this.dgIcon(d)} ${S.dungeons ? (S.dungeons.keys[d.id] ?? '-') : '-'}/${Dungeons.MAX_KEYS}</span>`).join('');
         p.innerHTML = `
@@ -4496,8 +4505,7 @@ const UI = {
     onDebugAddCurrency(key) {
         S[key] = (S[key] || 0) + 100000;
         this.renderTopBar(); this.updateAnvilCounter(); this.renderDebug(); saveGame();
-        const label = this.DEBUG_CURRENCIES.find(c => c.key === key)?.label || key;
-        this.toast(`${label} +100000`);
+        this.toast(`${this.debugCurrencyLabel(key)} +100000`);
     },
     onDebugForgeLevelUp() {
         S.forgeLevel = Math.min(35, S.forgeLevel + 1);

@@ -403,12 +403,17 @@
   - **원인**: `js/state.js:109` `STATE_SHAPE_KEYS = ['summonMult','autoForge','lineAscend','settingsDummy','equipment']` 에 **`dungeons`·`chat` 이 빠져 있어** `ensureStateShape()` 의 중첩 보정 대상이 아니다. 두 모듈의 `ensure()` 도 최상위만 확인한다.
   - **검증 범위(실측)**: 세이브의 중첩 객체 **22종**(`equipment`·`skills`·`pets`·`eggs`·`hatching`·`mounts`·`activeMounts`·`quests`·`tech`·`league`·`shop`·`passClaimed`·`rollLevel`·`clearedBosses` 등)을 각각 ⓐ `null` ⓑ 빈 객체/배열 ⓒ 하위 필드 `null` 로 바꿔 **56 케이스**를 부팅시킨 결과 **딱 이 5개만 실패**했다. 나머지 51개는 전부 정상 부팅하므로 **고칠 곳은 `dungeons`·`chat` 두 키뿐**이다.
   - **수정 방향(제안)**: `STATE_SHAPE_KEYS` 에 두 키를 넣거나, 두 모듈 `ensure()` 를 `if (!S.dungeons || typeof S.dungeons !== 'object') …; if (!S.dungeons.keys) S.dungeons.keys = {}; if (!S.dungeons.best) S.dungeons.best = {};` 꼴로 하위까지 보게 한다. 회귀 방지로 위 56케이스 프로브를 `tools/` 에 남길 것.
-- [ ] **디버그 탭 '재화 지급' 토스트에 한글 라벨 대신 내부 영문 키가 그대로 뜬다 — 2026-08-17에 [x] 된 같은 버그의 회귀 (slug: debug-currency-toast-kr)** (2026-08-18 QA 플레이 세션):
+- [x] **디버그 탭 '재화 지급' 토스트에 한글 라벨 대신 내부 영문 키가 그대로 뜬다 — 2026-08-17에 [x] 된 같은 버그의 회귀 (slug: debug-currency-toast-kr)** (2026-08-18 QA 플레이 세션):
   - **재현 절차**: ① `?tab=debug` 로 열거나 🐞디버그 탭을 연다 ② '재화 지급'의 아무 버튼이나 누른다(🧪 물약 +100000 / 🥚 깨진 알 +100000 …).
   - **기대 동작**: 버튼 라벨과 같은 한글 — `물약 +100000`, `깨진 알 +100000`.
   - **실제 동작**: `potions +100000`, `eggCurrency +100000` (7개 버튼 전부 동일: `hammers`/`coins`/`gems`/`tickets`/`winders`/`potions`/`eggCurrency`).
   - **원인**: `js/ui.js:4169` 가 `this.DEBUG_CURRENCIES.find(c => c.key === key)?.label || key` 로 **`label`** 을 찾는데, `DEBUG_CURRENCIES`(`js/ui.js:4096~4104`)의 필드명은 **`kr`** 다(`{ key:'potions', ico:'potion', kr:'물약' }`). `?.label` 이 항상 `undefined` → 폴백인 내부 상태 키가 그대로 노출된다. 버튼 라벨(`:4110`)은 `c.kr` 을 써서 멀쩡하다 — **한 함수 안에서 필드명이 갈렸다.**
   - **이력**: 이 섹션 아래쪽 `- [x] **디버그 탭 "재화 지급" 버튼을 누르면 토스트에 한글 라벨 대신 내부 변수명(영문 카멜케이스)이 그대로 노출됨**` 이 같은 버그다. 그때 `?.label` 로 고쳤는데 이후 데이터 쪽 필드가 `kr` 로 바뀌면서 되살아났다. **고칠 때 `kr` 한 이름으로 통일하고, 라벨 없는 키가 나오면 눈에 띄게(예: 콘솔 경고) 하도록 둘 것.**
+  - **[해결 2026-08-18 UI 스트림]** 지시대로 **이름을 한 곳으로 모으고** 조용한 폴백을 없앴다 — 필드를 `?.label` → `?.kr` 로 한 글자 바꾸는 건 **같은 버그가 세 번째로 나는 길**이다(두 자리가 각자 데이터를 읽는 구조가 그대로 남는다). 그래서 `UI.debugCurrencyLabel(key)` 헬퍼를 `DEBUG_CURRENCIES` 바로 아래 두고 **버튼(`renderDebug`)과 토스트(`onDebugAddCurrency`) 둘 다 이걸 부르게** 했다. 이제 표시 이름이 어느 필드에서 오든 두 자리가 갈라질 수 없다.
+    · **콘솔 경고**: 라벨 없는 키가 오면 `console.warn` 으로 남기고 키를 반환한다. 종전엔 `|| key` 가 조용히 삼켜서 **회귀를 두 번 다 못 보고 지나갔다**.
+    · **검증**: 신설 `tools/probe-debug-currency-toast.js` — 7개 버튼을 **실제로 클릭해** 토스트 문구를 읽는다. 판정은 '한글이 뜨는가'가 아니라 **버튼 라벨 == 토스트 라벨 == 기대값**이라, 표시 이름이 다시 갈라지면 그 순간 FAIL 이 난다. **7/7 PASS** + 미등록 키 폴백·경고 PASS. ⚠️ `--regress` 로 **고치기 전 코드(`?.label`)를 되살려 7/7 FAIL(exit 1)이 나는 것까지 확인**했다(`potions`·`eggCurrency` 등 항목이 보고한 그 문구 그대로 재현) — 통과만 찍어 보고 '프로브가 돈다'고 믿지 않았다.
+    · 🚨 **프로브 함정(실측으로 밟았다)**: 전투 루프가 계속 돌아 **`🏆 1-1 첫 클리어! 🪙+60` 같은 남의 토스트가 클릭 사이에 끼어든다** — 토스트 컨테이너를 비우고 `lastElementChild` 를 읽으면 '젬' 자리에 클리어 토스트가 잡혀 **가짜 FAIL** 이 난다. 클릭 **전후 자식 차분**에서 `+100000` 으로 끝나는 것만 고르도록 고쳤다. 그리고 토스트는 이모지가 아이콘 노드로 바뀌어 있어 비교는 **텍스트 노드만** 모아서 해야 한다(버튼도 아이콘이 앞에 붙어 같은 처리가 필요하다).
+    · **회귀**: `probe-debug-icons.js` PASS(디버그 탭 이모지 0 · 아이콘 전부 그림 있음) · `probe-screens-errors.js` **31/31 콘솔 에러 0건** · `node --check js/ui.js`.
 - [ ] **기술 트리 분기 화면의 정보 버튼 글리프가 `!` 다 — 원본과 대장간 정보 팝업은 모두 `i` (slug: tech-info-glyph)** (2026-08-18 QA 플레이 세션):
   - **재현 절차**: ① 소환 탭 → 기술 트리 서브탭 → 아무 분기(힘·탈것 / 대장간 / 스킬,펫&기술) 카드를 탭한다 ② 화면 우상단(젬 pill 아래)의 검정 원형 버튼을 본다.
   - **기대 동작**: 원본 `web/ref/screens/shot-042546.png` 의 같은 자리는 **검정 원 안 흰 소문자 `i`**(정보). 클론의 대장간 확률 정보 팝업 버튼(`js/ui.js:1291`)도 `i` 로 같은 `.fi-info-btn` 스타일을 쓴다.
