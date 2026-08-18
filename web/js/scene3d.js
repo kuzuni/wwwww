@@ -1016,12 +1016,12 @@ const Scene3D = {
         this.foliageMats = [this.foliageMat, this.foliageMatDark, this.foliageMatLight];
         this.trunkMat = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
         this.bushMat = new THREE.MeshPhongMaterial({ color: 0x4a7c2f, flatShading: true, shininess: 0 });
-        this.stoneMat = new THREE.MeshPhongMaterial({ color: 0x9a9083, flatShading: true, shininess: 0, map: ProChar.rockTex() }); // 웜 그레이 — 청회색 돌이 초원 위 '양/정체불명 덩어리'로 오독 (비평가 7.1 15번)
+        this.stoneMat = new THREE.MeshPhongMaterial({ color: 0x9a9083, flatShading: true, shininess: 0, map: ProChar.rockTex(), vertexColors: true }); // 웜 그레이 — 청회색 돌이 초원 위 '양/정체불명 덩어리'로 오독 (비평가 7.1 15번)
         this.mossMat = new THREE.MeshPhongMaterial({ color: 0x4f8578, flatShading: true, shininess: 0 }); // 바위산 청록 이끼(보색 악센트)
         this.snowMat = new THREE.MeshPhongMaterial({ color: 0xf4faff, flatShading: true, shininess: 35, specular: 0x9db8d4 });
         this.cactusMat = new THREE.MeshPhongMaterial({ color: 0x6da24f, flatShading: true, shininess: 0 }); // 웜 그린 — 웜 샌드 지면과 온도 통일
         this.charTrunkMat = new THREE.MeshLambertMaterial({ color: 0x30231d });
-        this.charRockMat = new THREE.MeshPhongMaterial({ color: 0x2e2521, flatShading: true, shininess: 0 });
+        this.charRockMat = new THREE.MeshPhongMaterial({ color: 0x2e2521, flatShading: true, shininess: 0, vertexColors: true });
         this.lavaCoreMat = new THREE.MeshBasicMaterial({ color: 0xff7043 });
         this.crystalMat = new THREE.MeshPhongMaterial({
             color: 0x9575cd, emissive: 0x6a3fb5, emissiveIntensity: 0.5,
@@ -1056,9 +1056,31 @@ const Scene3D = {
         const seedX = Math.random() * 10, seedY = Math.random() * 10;
         for (let i = 0; i < p.count; i++) {
             // 면이 공유하는 정점은 같은 변위를 받아야 면이 안 찢어짐 — 좌표 기반 의사난수
-            const kx = Math.sin(p.getX(i) * 51.7 + seedX) * 0.5 + Math.sin(p.getY(i) * 37.3 + seedY) * 0.5;
-            const s2 = 1 + kx * 0.22;
+            // ⚠️ 사인 2개로는 시드가 달라도 가끔 거의 같은 바위가 나온다(실측: 15쌍 중 최소 개체차
+            //    0.0363 으로 `probe-foliage-sculpt` 게이트 0.040 에 걸렸다). 서로 나눠떨어지지 않는
+            //    주파수의 항을 하나 더 얹어 시드 간 상관을 끊는다.
+            const kx = Math.sin(p.getX(i) * 51.7 + seedX) * 0.38
+                + Math.sin(p.getY(i) * 37.3 + seedY) * 0.38
+                + Math.sin((p.getX(i) + p.getZ(i)) * 23.9 + seedX * 2.7 + seedY) * 0.24;
+            const s2 = 1 + kx * 0.26;
             p.setXYZ(i, p.getX(i) * s2, p.getY(i) * (1 + Math.sin(p.getZ(i) * 43.1 + seedX) * 0.18), p.getZ(i) * s2);
+        }
+        // 버텍스 컬러 음영 — 잎(sculptFoliage)과 같은 이유로 바위에도 굽는다. 바위는 **접지물**이라
+        // 아래가 어두워야 땅에 얹힌 것으로 읽힌다(라이트를 안 늘리고 얻는 접지감).
+        // ⚠️ 잎보다 대비를 약하게 준다 — 바위는 면이 넓어 같은 기울기를 주면 아랫면이 새까맣게 죽는다.
+        // ⚠️ `stoneMat`·`charRockMat` 을 쓰는 메시는 **전부** 이 함수를 거친다(확인함) — 그래서 두 재질에
+        //    `vertexColors` 를 켜도 안전하다. 이 재질로 새 메시를 만들면 반드시 여기를 거칠 것.
+        {
+            geo.computeBoundingBox();
+            const bb = geo.boundingBox;
+            const yMin = bb.min.y, ySpan = Math.max(1e-4, bb.max.y - bb.min.y);
+            const cols = new Float32Array(p.count * 3);
+            for (let i = 0; i < p.count; i++) {
+                const k = Math.min(1, Math.max(0, (p.getY(i) - yMin) / ySpan));
+                const sh = 0.70 + 0.36 * Math.pow(k, 0.9);
+                cols[i * 3] = cols[i * 3 + 1] = cols[i * 3 + 2] = sh;
+            }
+            geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
         }
         geo.computeVertexNormals();
         return geo;

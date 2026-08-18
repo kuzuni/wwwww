@@ -16,7 +16,8 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
 const CV_MIN = 0.055;    // 반경 변동계수 하한 — 정다면체는 0에 가깝다
-const SHADE_MIN = 0.20;  // 버텍스 컬러 위아래 기울기 하한
+const SHADE_MIN = 0.20;      // 잎: 버텍스 컬러 위아래 기울기 하한
+const SHADE_MIN_ROCK = 0.14; // 바위: 면이 넓어 같은 기울기를 주면 아랫면이 죽는다 — 일부러 약하게
 const DIFF_MIN = 0.040;  // 개체 간 반경 RMS 차 / 평균반경 — 이보다 작으면 사실상 같은 메시
 
 (async () => {
@@ -59,6 +60,10 @@ const DIFF_MIN = 0.040;  // 개체 간 반경 RMS 차 / 평균반경 — 이보�
         };
         collect(() => Scene3D.makePine(1.2), 'pine');
         collect(() => Scene3D.makeRoundTree(1.2), 'roundTree');
+        // 바위 계열도 같은 게이트에 건다 — 비대칭은 `rockGeo` 가 예전부터 하고 있었고(정다면체가 아니다),
+        // 이번에 버텍스 컬러 음영만 더했다. 음영 대비는 잎보다 약하게 줬으므로 하한도 따로 본다.
+        collect(() => Scene3D.makeBoulder(1.0, false, false), 'boulder');
+        collect(() => Scene3D.makeRockSpire(1.0), 'rockSpire');
 
         // ④ 무결성(구멍 검사) — 변형 **전**에 같은 자리에 있던 정점들이 변형 **후**에도 한 점인가.
         // 비인덱스 지오메트리는 같은 모서리의 정점이 여러 벌 중복돼 있어서, 변위를 정점 인덱스로 뽑으면
@@ -116,9 +121,10 @@ const DIFF_MIN = 0.040;  // 개체 간 반경 RMS 차 / 평균반경 — 이보�
             pairs++;
         }
         if (!pairs) dMin = 0;
-        console.log(`${k.label.padEnd(10)} 잎메시 ${String(ms.length).padStart(2)}  반경변동계수 min ${cvMin.toFixed(4)}  음영기울기 min ${shMin.toFixed(3)}  개체간 최소차 ${dMin.toFixed(4)} (${pairs}쌍)`);
+        console.log(`${k.label.padEnd(10)} 메시 ${String(ms.length).padStart(2)}  반경변동계수 min ${cvMin.toFixed(4)}  음영기울기 min ${shMin.toFixed(3)}  개체간 최소차 ${dMin.toFixed(4)} (${pairs}쌍)`);
         if (cvMin < CV_MIN) fails.push(`${k.label}: 반경 변동계수 ${cvMin.toFixed(4)} < ${CV_MIN} — 아직 정다면체다`);
-        if (shMin < SHADE_MIN) fails.push(`${k.label}: 음영 기울기 ${shMin.toFixed(3)} < ${SHADE_MIN} — 버텍스 컬러가 평평하다`);
+        const shadeMin = (k.label === 'boulder' || k.label === 'rockSpire') ? SHADE_MIN_ROCK : SHADE_MIN;
+        if (shMin < shadeMin) fails.push(`${k.label}: 음영 기울기 ${shMin.toFixed(3)} < ${shadeMin} — 버텍스 컬러가 평평하다`);
         if (dMin < DIFF_MIN) fails.push(`${k.label}: 개체 간 최소차 ${dMin.toFixed(4)} < ${DIFF_MIN} — 나무가 복붙이다`);
     }
     const sm = res.seam || {};
