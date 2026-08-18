@@ -1707,7 +1707,11 @@ body {
 .tb-val { color: #1fa64a; font-weight: 900; white-space: nowrap; }
 /* 뒤로가기: 원본은 좌하단 고정 빨간 둥근 사각 — 스크롤 컨테이너 안에서 sticky로 고정 */
 .panel .btn.tech-tree-back {
-    position: sticky; bottom: .6rem; align-self: flex-start; margin: auto 0 .2rem .3rem;
+    /* bottom -.5rem — 원본(shot-042546) 뒤로 버튼 하단은 80.75%H 인데 종전 sticky 오프셋
+       .6rem + margin .2rem 이 버튼을 ~18px 더 띄워 상단이 -3.15%p 어긋났다(probe-techbranch-px).
+       bottom:0 으로도 -2.02%p 라 스크롤포트(#panel-tech)의 padding-bottom(.6rem) 몫까지 내린다
+       — 음수 sticky 지만 패딩 영역은 패딩 박스 안이라 클리핑되지 않는다(캡처로 확인). */
+    position: sticky; bottom: -.5rem; align-self: flex-start; margin: auto 0 0 .3rem;
     flex: none; width: 2.5rem; height: 2.5rem; min-height: 2.5rem; border-radius: .6rem; padding: 0; font-size: 1rem;
 }
 /* .fi-info-btn(top:.7rem, style.css 하단 선언)과 같은 특이도면 소스 순서에 덮이므로 복합 선택자로 승격 */
