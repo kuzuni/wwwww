@@ -3029,7 +3029,8 @@ const UI = {
             <div class="lgr-overlay">
                 <div class="idet-wrap">
                     <div class="modal-card wide lgr-card">
-                        <div class="league-reward-banner">${IconGen.img('trophy')} 플래티넘 리그 보상</div>
+                        <!-- 원본(shot-042208) 리본은 글자만 있다 — 트로피 아이콘은 클론이 덧붙인 것이라 뺀다 -->
+                        <div class="league-reward-banner">플래티넘 리그 보상</div>
                         <p class="league-reward-desc">현재 순위(${myRank})를 유지하면 시즌 종료 시<br>다음 보상을 받을 수 있습니다:</p>
                         <div class="league-reward-grid">${this.leagueRewardGrid(cur)}</div>
                         <div class="league-collect-pill">수집까지: <b>${U.fmtTime(remain)}</b></div>

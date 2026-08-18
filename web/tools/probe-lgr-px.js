@@ -55,7 +55,19 @@ const MEASURE = async ([src]) => {
     const R = {};
     // ---- ① 빨간 리본 (제비꼬리 포함) — 화면 위쪽 절반의 채도 높은 빨강 ----
     const isRed = p => p[0] > 150 && p[1] < 90 && p[2] < 90;
-    const rib = bbox(isRed, Math.round(H * 0.06), Math.round(H * 0.28));
+    // 🚨 전역 bbox 로 잡으면 안 된다 — 리본 **아래쪽 보상 아이콘의 붉은 화소 몇 개**가 같은 y 대역에
+    //    걸려 리본 아래끝이 y176 → y224 로 늘어난다(높이 +5.37%p 의 가짜 초과. 2026-08-18 실측).
+    //    리본은 행마다 앱 폭의 90% 가까이 빨강이 이어지는 판이므로 **빨강 밀도가 높은 행 대역**만 쓴다.
+    const ribRows = [];
+    for (let y = Math.round(H * 0.06); y < Math.round(H * 0.28); y++) {
+        let n = 0;
+        for (let x = ax0; x <= ax1; x++) if (isRed(at(x, y))) n++;
+        ribRows.push([y, n]);
+    }
+    const dense = ribRows.filter(([, n]) => n > AW * 0.3).map(([y]) => y);
+    const rib = dense.length
+        ? bbox(isRed, dense[0], dense[dense.length - 1] + 1)
+        : bbox(isRed, Math.round(H * 0.06), Math.round(H * 0.28));
     if (rib) {
         R['리본 좌'] = pw(rib.x0 - ax0); R['리본 우'] = pw(rib.x1 - ax0); R['리본 폭'] = pw(rib.x1 - rib.x0 + 1);
         R['리본 상단'] = ph(rib.y0); R['리본 높이'] = ph(rib.y1 - rib.y0 + 1);
