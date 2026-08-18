@@ -2614,3 +2614,30 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.restore();
     };
 })(IconGen);
+
+/* ============================================================================
+ * 연필 — 프로필 팝업의 편집 버튼 3곳 (원본 shot-042724 12배 확대)
+ *
+ * 원본: 파란 라운드 사각 버튼(아래턱 남색 + 검정 키라인) 안에 **흰 연필이 좌하→우상 대각**으로
+ * 누워 있다. 촉은 왼쪽 아래로 뾰족하고 심은 검정, 몸통 아래-오른쪽 면에 한 톤 회색 음영이 있다.
+ * 버튼 자체(파란 면·아래턱)는 CSS(`.profile-edit-btn`)가 그리므로 여기선 연필만 그린다.
+ * ============================================================================ */
+(function (G) {
+    const { ink, on, poly } = G._sticker;
+    G.draw.pencil = function (ctx, S) {
+        const BODY = '#f4f4f6', SHADE = '#b7bac2', LEAD = '#26262c';
+        const u = 0.7071, w = 0.118;                       // 45° 방향 단위 · 몸통 반폭
+        const P0 = [0.360, 0.640], P1 = [0.760, 0.240];    // 촉쪽 끝 · 지우개쪽 끝(중심선)
+        const n = [w * u, w * u];                          // 중심선에 직교하는 반폭 벡터
+        const A = [P0[0] + n[0], P0[1] + n[1]], B = [P1[0] + n[0], P1[1] + n[1]];
+        const C = [P1[0] - n[0], P1[1] - n[1]], D = [P0[0] - n[0], P0[1] - n[1]];
+        const tip = [P0[0] - 0.22 * u, P0[1] + 0.22 * u];
+        const shape = poly(ctx, S, [tip, A, B, C, D]);
+        ink(ctx, S, shape, BODY, 0.082);
+        ctx.save(); ctx.beginPath(); shape(); ctx.clip();
+        on(ctx, poly(ctx, S, [P0, P1, C, D]), SHADE);      // 아래-오른쪽 면
+        const q = [P0[0] - 0.13 * u, P0[1] + 0.13 * u];    // 촉(심) — 끝에서 조금 올라온 삼각형
+        on(ctx, poly(ctx, S, [tip, [q[0] + n[0], q[1] + n[1]], [q[0] - n[0], q[1] - n[1]]]), LEAD);
+        ctx.restore();
+    };
+})(IconGen);

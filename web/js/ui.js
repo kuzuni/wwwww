@@ -1865,6 +1865,13 @@ const UI = {
         </div>`;
     },
 
+    // 승천 라인 아이콘 — `Ascension.LINE_ICON` 의 이모지(⚒️🎫🥚⚙️) 대신 IconGen 아이콘을 쓴다.
+    // 없는 라인은 원래 이모지로 떨어지므로 라인이 늘어도 안 깨진다.
+    ASC_ICON: { forge: 'hammer', skill: 'ticket', pet: 'egg', mount: 'winder' },
+    ascIcon(line, cls) {
+        return IconGen.img(this.ASC_ICON[line], cls) || Ascension.LINE_ICON[line] || '';
+    },
+
     ageHex(age) { return '#' + AGE_COLORS[age].toString(16).padStart(6, '0'); },
 
     // ===== 3D 스냅샷 썸네일을 프레임에 꽉 채우기 =====
@@ -3120,18 +3127,18 @@ const UI = {
                     <div class="profile-top">
                         <div class="profile-avatar-box">
                             <span class="profile-avatar-big">${S.avatarEmoji || '🛡️'}</span>
-                            <button class="profile-edit-btn" onclick="UI.onToggleAvatarPick()">✏️</button>
+                            <button class="profile-edit-btn" title="아바타 변경" onclick="UI.onToggleAvatarPick()">${IconGen.img('pencil')}</button>
                         </div>
                         <div class="profile-fields">
                             <div class="profile-field-label">이름:</div>
                             <div class="profile-field-row">
                                 <span class="profile-field">${U.escapeHtml(S.nickname || '용사')}</span>
-                                <button class="profile-edit-btn" onclick="UI.onEditNickname()">✏️</button>
+                                <button class="profile-edit-btn" title="이름 변경" onclick="UI.onEditNickname()">${IconGen.img('pencil')}</button>
                             </div>
                             <div class="profile-field-label">성별:</div>
                             <div class="profile-field-row">
                                 <span class="profile-field">${S.gender || '♂'}</span>
-                                <button class="profile-edit-btn" onclick="UI.onToggleGender()">✏️</button>
+                                <button class="profile-edit-btn" title="성별 변경" onclick="UI.onToggleGender()">${IconGen.img('pencil')}</button>
                             </div>
                         </div>
                     </div>
@@ -3856,7 +3863,7 @@ const UI = {
             // 클래스만 붙은 죽은 <div>라, 개요를 보고도 승천할 방법이 없었다 — 라인별 진입 버튼(소환 화면
             // ⭐승천 가능·대장간 정보 팝업)을 못 찾으면 개요가 막다른 길이 된다. 여기서 네 라인을 한 번에 연다.
             return `<div class="asc-row ${rdy ? 'ready' : ''}"${rdy ? ` onclick="UI.openAscension('${l}')"` : ''}>
-                <span class="asc-name">${Ascension.LINE_ICON[l]} ${Ascension.LINE_KR[l]}</span>
+                <span class="asc-name">${this.ascIcon(l)} ${Ascension.LINE_KR[l]}</span>
                 <span class="asc-prog">${label}</span>
                 <span class="asc-cnt">${Ascension.count(l) ? `${IconGen.img('star')}${Ascension.count(l)}` : '—'}</span>
             </div>`;
@@ -3868,7 +3875,7 @@ const UI = {
             const resetKr = line === 'forge' ? '대장간 레벨이 1로 초기화' : '소환 레벨이 1로 초기화';
             bodyHtml = `
                 <div class="asc-focus">
-                    <div class="asc-focus-icon">${Ascension.LINE_ICON[line]}</div>
+                    <div class="asc-focus-icon">${this.ascIcon(line)}</div>
                     <div class="asc-focus-title">${Ascension.LINE_KR[line]} 승천</div>
                     <div class="asc-focus-cnt">현재 승천 ${Ascension.count(line)}회 → <b>${next}회</b></div>
                     <div class="asc-focus-eff">
