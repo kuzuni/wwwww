@@ -1678,16 +1678,17 @@ const UI = {
         const cx = this.ANVIL_HIT_X, cy = this.ANVIL_HIT_Y;
         const sparks = [];
         for (let h = 0; h < 3; h++) {
-            const n = h === 2 ? 16 : 10;                     // 마지막 타격이 가장 많이 튄다
+            const n = h === 2 ? 20 : 12;                     // 마지막 타격이 가장 많이 튄다
             for (let i = 0; i < n; i++) {
                 // 위쪽 반구로만 튀게 각도를 잡고(모루 아래로 파고드는 불티는 오독), 중력분을 더해 아래로 떨어뜨린다
                 const a = -Math.PI * (0.08 + 0.84 * (i + U.rand(0, 0.6)) / n);
                 // 상판 폭이 83유닛인데 예전 최대 이동이 21이라 불티가 **상판 밖으로 못 나가** 실루엣을
                 // 깨지 못했다. 밝은 배경까지 나가야 '튄다'로 읽힌다.
-                const d = U.rand(16, 34) * (h === 2 ? 1.7 : 1);   // viewBox 단위(상판 폭 83)
+                const d = U.rand(20, 40) * (h === 2 ? 1.8 : 1);   // viewBox 단위(상판 폭 83)
                 // 원형 점(지름 1.2 CSS px)은 92px 버튼에서 먼지 얼룩이다 — 진행 방향으로 누운 스트릭으로.
+                // 3.4×0.7유닛(2.4×0.5px)도 8배 캡처에서 여전히 티끌이라 5.6×1.0(3.9×0.7px)으로 키웠다.
                 const deg = (a * 180 / Math.PI).toFixed(1);
-                sparks.push(`<rect class="af-spark" x="${cx}" y="${(cy - 0.35).toFixed(2)}" width="3.4" height="0.7" rx="0.35"`
+                sparks.push(`<rect class="af-spark" x="${cx}" y="${(cy - 0.5).toFixed(2)}" width="5.6" height="1" rx="0.5"`
                     + ` transform="rotate(${deg} ${cx} ${cy})"`
                     + ` style="--dx:${(Math.cos(a) * d).toFixed(1)}px;--dy:${(Math.sin(a) * d + 7).toFixed(1)}px;--t:${(this.ANVIL_HITS[h] / 1000 - 0.02).toFixed(3)}s"/>`);
             }
@@ -1709,9 +1710,26 @@ const UI = {
                     <stop offset="0" stop-color="#5a3a2c"/><stop offset=".55" stop-color="#3f2619"/>
                     <stop offset="1" stop-color="#28160d"/>
                 </linearGradient>
+                <!-- 플래시는 **빛**이어야지 물감이면 안 된다. 단색 #fff6d8 를 opacity .95로 깔았더니
+                     주황 상판 위에 놓인 **크림색 원반**으로 읽혔다(8배 캡처에서 확인). 가운데만
+                     타고 가장자리는 완전히 투명해지는 방사 그라디언트 + screen 합성으로 바꾼다. -->
+                <radialGradient id="hmr-flash" cx=".5" cy=".5" r=".5">
+                    <stop offset="0" stop-color="#ffffff" stop-opacity="1"/>
+                    <stop offset=".3" stop-color="#fff3c4" stop-opacity=".9"/>
+                    <stop offset=".62" stop-color="#ffb84a" stop-opacity=".38"/>
+                    <stop offset="1" stop-color="#ff8a1e" stop-opacity="0"/>
+                </radialGradient>
             </defs>`
             // 92px 버튼에서 임팩트를 가장 싸게 파는 수단이 2~5프레임 백색 플래시인데 그게 아예 없었다
             + [0, 1, 2].map(h => `<ellipse class="af-flash f${h}" cx="${cx}" cy="${cy}" rx="13" ry="4.6"/>`).join('')
+            // 섬광 — 92px에서 '때렸다'를 가장 적은 픽셀로 파는 도형이다. 원형 광량만으로는 상판 위
+            // 얼룩과 구별이 안 되지만, 축을 가진 섬광은 **방향과 순간**을 같이 준다.
+            // ⚠️ 상하 대칭 4갈래로 그렸더니 아래 갈래가 상판 앞면(어두운 면)까지 흘러내려
+            //    **흰 천이 걸린 모양**으로 읽혔다(8배 캡처). 타격면은 상판 윗면이라 빛이 아래로
+            //    뻗을 자리가 없다 — 위 8.5 / 아래 3.4 로 비대칭을 주고 가로(±28)를 지배적으로 둔다.
+            + [0, 1, 2].map(h => `<path class="af-star s${h}" d="M${cx - 28} ${cy}`
+                + ` Q${cx - 2.6} ${cy - 1.1} ${cx} ${cy - 8.5} Q${cx + 2.6} ${cy - 1.1} ${cx + 28} ${cy}`
+                + ` Q${cx + 2.6} ${cy + 0.9} ${cx} ${cy + 3.4} Q${cx - 2.6} ${cy + 0.9} ${cx - 28} ${cy} Z"/>`).join('')
             // rx/ry는 `scale(1)`에서 곧바로 읽히는 크기로 잡는다 — 예전엔 scale(.35)로 시작해
             // 첫 60~70ms 동안 스트로크가 0.27px라 **타격 프레임에 링이 아예 안 보였다**
             + [0, 1, 2].map(h => `<ellipse class="af-ring h${h}" cx="${cx}" cy="${cy}" rx="7" ry="2.4"/>`).join('')

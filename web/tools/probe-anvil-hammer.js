@@ -145,6 +145,20 @@ async function waitBooted(page, timeout = 25000) {
     say(!!css.ring && css.ring.fill === 'none' && css.ring.stroke !== 'none',
         `⑦ 링 규칙 적용됨 — fill=${css.ring && css.ring.fill} stroke=${css.ring && css.ring.stroke} (기본값 fill:black/stroke:none이면 CSS가 깨진 것)`);
     say(!!css.flash && css.flash.fill !== 'rgb(0, 0, 0)', `⑦ 플래시 규칙 적용됨 — fill=${css.flash && css.flash.fill}`);
+    // ⚠️ fill 이 url(#...) 이면 '검지 않다'만으로는 부족하다 — **가리키는 그라디언트가 없어도**
+    //    이 검사는 통과하고 화면에서는 도형이 통째로 사라진다(paint server 미해결 = 안 그려짐).
+    //    id 오타·defs 누락을 잡으려면 참조가 실제로 걸리는지까지 봐야 한다.
+    const refs = await page.evaluate(() => {
+        const out = [];
+        document.querySelectorAll('.anvil-fx *').forEach(n => {
+            const f = getComputedStyle(n).fill || '';
+            const m = f.match(/^url\(["']?#([^"')]+)/);
+            if (m) out.push([m[1], !!(n.ownerSVGElement || document).querySelector(`#${CSS.escape(m[1])}`)]);
+        });
+        return out;
+    });
+    const dangling = refs.filter(r => !r[1]).map(r => '#' + r[0]);
+    say(dangling.length === 0, `⑦ url() 채움 ${refs.length}건 전부 실제 paint server 로 해결됨${dangling.length ? ' — 끊긴 참조: ' + dangling.join(', ') : ''}`);
     say(!!css.spark && css.spark.fill !== 'rgb(0, 0, 0)', `⑦ 불티 규칙 적용됨 — fill=${css.spark && css.spark.fill}`);
 
     // ⑥ 오버레이 수명 ≥ 가장 늦게 끝나는 자식 애니메이션. 예전엔 둘 다 720ms라 **3타(가장 강해야 할

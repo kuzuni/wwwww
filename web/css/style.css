@@ -777,7 +777,7 @@ body {
    같이 줄어, **타격 프레임에는 링이 아예 렌더되지 않고** 70ms 뒤에야 보였다(소리는 제때 나는데
    그림만 메아리로 오는 최악의 조합). `vector-effect`로 축소 시 스트로크가 죽는 것을 막는다. */
 .anvil-fx .af-ring {
-    fill: none; stroke: rgba(255,226,150,.98); stroke-width: 2.2;
+    fill: none; stroke: rgba(255,226,150,.98); stroke-width: 2.6;
     vector-effect: non-scaling-stroke;
     transform-box: fill-box; transform-origin: center;
     opacity: 0; animation: afring .2s cubic-bezier(.1,.82,.28,1) forwards;
@@ -789,33 +789,57 @@ body {
     0%   { opacity: 1; transform: scale(1); }
     100% { opacity: 0; transform: scale(var(--afr, 2.4)); }
 }
-/* 타격 플래시 — 92px에서 임팩트를 파는 가장 싼 수단(2~5프레임 백색). screen 합성이라 이웃을 죽이지 않는다 */
+/* 타격 플래시 — 92px에서 임팩트를 파는 가장 싼 수단(2~5프레임).
+   ⚠️ 단색 채움(#fff6d8, opacity .95)이면 **빛이 아니라 물감**이다 — 8배 캡처에서 주황 상판 위에
+   놓인 크림색 원반으로 읽혔다. 가운데만 타고 가장자리가 완전히 투명해지는 방사 그라디언트
+   (`#hmr-flash`)로 바꾸고 `screen` 합성을 실제로 건다(예전 주석은 screen 이라 적어 놓고 안 걸려 있었다). */
 .anvil-fx .af-flash {
-    fill: #fff6d8;
+    fill: url(#hmr-flash); mix-blend-mode: screen;
     transform-box: fill-box; transform-origin: center;
-    opacity: 0; animation: afflash .09s linear forwards;
+    opacity: 0; animation: afflash .1s linear forwards;
 }
 .anvil-fx .af-flash.f0 { animation-delay: .156s; }
 .anvil-fx .af-flash.f1 { animation-delay: .394s; }
 .anvil-fx .af-flash.f2 { animation-delay: .632s; --affs: 1.55; }
 @keyframes afflash {
-    0%   { opacity: .95; transform: scale(var(--affs, 1)); }
-    100% { opacity: 0;   transform: scale(calc(var(--affs, 1) * 1.6)); }
+    0%   { opacity: 1; transform: scale(calc(var(--affs, 1) * .55)); }
+    30%  { opacity: 1; transform: scale(var(--affs, 1)); }
+    100% { opacity: 0; transform: scale(calc(var(--affs, 1) * 1.9)); }
+}
+/* 4갈래 섬광 — 원형 광량만으로는 상판 얼룩과 구별이 안 된다. 축을 가진 별이 붙어야
+   '어디를 때렸는지'와 '지금이 그 순간'이 같이 읽힌다. 수명은 플래시보다 짧게(3~4프레임). */
+.anvil-fx .af-star {
+    fill: #fffdf2; mix-blend-mode: screen;
+    /* 원점은 도형 중심이 아니라 **타격점**이다 — fill-box 의 center 로 두면 위아래 비대칭 때문에
+       중심이 접점보다 2.5유닛 위로 올라가 섬광이 상판에서 떠 보인다. */
+    transform-box: fill-box; transform-origin: 50% 71.4%;
+    opacity: 0; animation: afstar .075s cubic-bezier(.1,.75,.3,1) forwards;
+}
+.anvil-fx .af-star.s0 { animation-delay: .154s; }
+.anvil-fx .af-star.s1 { animation-delay: .392s; }
+.anvil-fx .af-star.s2 { animation-delay: .63s; --afss: 1.5; }
+@keyframes afstar {
+    0%   { opacity: .95; transform: scale(calc(var(--afss, 1) * .25)); }
+    45%  { opacity: .9;  transform: scale(var(--afss, 1)); }
+    100% { opacity: 0;   transform: scale(calc(var(--afss, 1) * 1.35)); }
 }
 /* 불티 — 타격점에서 좌우로 튄다. 이동량(--dx/--dy: viewBox 단위)·지연(--t)은 JS가 인라인으로 준다
    (각도를 CSS cos()/sin()으로 풀면 구형 엔진에서 통째로 무효가 되므로 값으로 내려받는다) */
 /* 주황 상판(#d2582a~#b03f18) 위의 #ffd76a는 휘도 대비가 거의 없어 먼지 얼룩으로 읽혔다 → 근백색.
    중간 키프레임을 넣어 직선이 아니라 포물선으로 날리고, 균등 축소가 아니라 **진행 방향으로만**
    줄여 잔상처럼 가늘어지게 한다. */
+/* ⚠️ 이징을 앞으로 더 몰았다 — 불티는 **타격 프레임에 이미 머리 밖으로 나와 있어야** 보인다.
+   망치 머리 반폭이 10.6유닛이라 그 안에 있는 동안은 통째로 가려진다(예전 이징으로는 접촉
+   프레임에서 11유닛까지밖에 못 가 절반이 머리 뒤에 있었다). 첫 40ms에 거리의 60%를 뺀다. */
 .anvil-fx .af-spark {
-    fill: #fff4c8; filter: drop-shadow(0 0 2.4px #ff7a00);
+    fill: #fff4c8; filter: drop-shadow(0 0 2.8px #ff7a00);
     transform-box: fill-box; transform-origin: 0% 50%;
-    opacity: 0; animation: afspark .26s cubic-bezier(.05,.7,.3,1) forwards; animation-delay: var(--t, 0s);
+    opacity: 0; animation: afspark .26s cubic-bezier(0,.88,.24,1) forwards; animation-delay: var(--t, 0s);
 }
 @keyframes afspark {
-    0%   { opacity: 1;  transform: translate(0, 0) scaleX(1); }
-    55%  { opacity: .9; transform: translate(calc(var(--dx, 0) * .66), calc(var(--dy, 0) * .30)) scaleX(.8); }
-    100% { opacity: 0;  transform: translate(var(--dx, 0), var(--dy, 0)) scaleX(.25); }
+    0%   { opacity: 1;  transform: translate(0, 0) scaleX(.7); }
+    55%  { opacity: .9; transform: translate(calc(var(--dx, 0) * .66), calc(var(--dy, 0) * .30)) scaleX(1); }
+    100% { opacity: 0;  transform: translate(var(--dx, 0), var(--dy, 0)) scaleX(.22); }
 }
 .anvil-btn small { font-size: .8rem; font-weight: 900; color: var(--pp-ink); }
 .forge-actions { display: flex; gap: .3rem; }

@@ -7,9 +7,11 @@ const path = require('path');
 const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const DUR = 720;                       // afswing 길이
+// 위 줄 = 스윙 전체 자세, 아래 줄 = **3타 접촉 직후 4프레임**(60fps 한 프레임 = 2.3%).
+// 이펙트는 3~5프레임짜리라 100ms 간격 시트로는 통째로 빠진다 — 프레임 단위로 봐야 판정이 된다.
 const POSES = [                        // [라벨, afswing 진행률 %]
-    ['windup1 8%', 8], ['hit1 24%', 24], ['recoil 29%', 29],
-    ['windup3 74%', 74], ['hit3 90%', 90], ['dwell3 93%', 93],
+    ['windup3 74%', 74], ['hit1 24%', 24], ['hit3 +0f 90%', 90],
+    ['hit3 +1f', 92.3], ['hit3 +2f', 94.6], ['hit3 +3f', 96.9],
 ];
 
 (async () => {
