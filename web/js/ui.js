@@ -5183,15 +5183,12 @@ const UI = {
             const html = IconGen.img(this.WP_ICON[id]);
             if (box && html) box.innerHTML = html;
         }
-        // 오프라인 버튼의 💤 도 index.html 에 박힌 정적 이모지다(전 화면에 떠 있어서 제일 눈에 띈다).
-        // 정적 마크업에서는 IconGen 을 부를 수 없으니 부팅 때 여기서 갈아 끼운다. 라벨 <span> 은 살린다.
-        const ob = document.getElementById('offline-btn');
-        const zzz = IconGen.img('zzz');
-        if (ob && zzz) {
-            const label = ob.querySelector('span');
-            ob.innerHTML = zzz;
-            if (label) ob.appendChild(label);
-        }
+        // 오프라인 버튼의 상자도 index.html 에 박힌 정적 이모지 자리다(전 화면에 떠 있어서 제일 눈에 띈다).
+        // 정적 마크업에서는 IconGen 을 부를 수 없으니 부팅 때 여기서 갈아 끼운다.
+        // ⚠️ 버튼 innerHTML 을 통째로 갈면 zzz 연출 <span> 이 날아간다 — **.ob-chest 안만** 교체한다.
+        const chestBox = document.querySelector('#offline-btn .ob-chest');
+        const chest = IconGen.img('chest');
+        if (chestBox && chest) chestBox.innerHTML = chest;
     },
 
     // 게임이 만든 문구(보상 표기 등)를 innerHTML 자리에 넣을 때, 표에 있는 이모지만 아이콘으로 바꾼다.

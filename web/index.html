@@ -20,7 +20,12 @@
 
         <div id="stage-label"></div>
         <div id="wave-pips"></div>
-        <button id="offline-btn">💤<span>오프라인</span></button>
+        <!-- 오프라인 보상 = 상자 + 상자에서 올라오는 zzz (사용자 지시 2026-08-19).
+             '오프라인' 글자는 없앴고 상자 그림만 남는다 — 아이콘은 부팅 때 UI.paintStaticIcons 가 .ob-chest 에 채운다. -->
+        <button id="offline-btn" title="오프라인 보상" aria-label="오프라인 보상">
+            <span class="ob-zzz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>
+            <span class="ob-chest">💤</span>
+        </button>
 
         <!-- 맵 위 이정표 오브젝트 (UI-SPEC 1번): 리그 보상 상자 / 미스터리 상자 / 진행 패스 진입점 -->
         <!-- 리그 보상(시상대+왕관) 이정표는 삭제했다 — 사용자 지시 2026-08-19 "메인에 왼쪽에 랭킹 버튼 없애기".
