@@ -2756,6 +2756,15 @@ body {
     box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25);
 }
 .pet-tile.egg .tile-face { background: none; border: none; box-shadow: none; font-size: 2.1rem; filter: drop-shadow(0 .15rem .1rem rgba(0,0,0,.3)); }
+/* 🚨 `#panel-pets .sk-grid` 칸을 13.10%W → 10.20%W 로 줄인 교정(아래)에는 **알이 딸려 왔다**.
+   알 아이콘은 칸 폭의 88% 라 칸이 줄면 같이 줄고, 게다가 IconGen 알은 128px 캔버스 안
+   **가로 84px(65.6%)에만** 그려져 있어 **상자의 2/3만 잉크**다:
+     상자 88%(44px) → 실제 잉크 28.9px = **5.89%W** 인데 원본 알은 **39px = 7.96%W** (−2.07%p 불통과).
+   칸 축소를 잰 자는 `.pet-tile` **상자**만 봤기 때문에 이게 안 잡혔다 — 상자는 맞고 잉크가 틀렸다.
+   잉크가 원본과 같아지는 상자 폭은 39 / .656 = 59.4px = **칸의 119%** 다(칸 밖으로 4.7px 씩 나가지만
+   칸 사이 거터가 27px 이라 이웃을 안 건드린다 — 알 타일은 배경·테두리가 없어 넘쳐도 티가 안 난다).
+   ⚠️ 상자가 아니라 **잉크**로 채점할 것 — 상자로 재면 알이 1.5배 커 보인다(probe 에 '알 잉크폭' 신설). */
+#panel-pets .pet-tile.egg .tile-face .ico { width: 119%; height: 119%; }
 .pet-tile .tile-label { font-size: .6rem; font-weight: 800; color: var(--pp-ink); }
 .pet-tile.selected .tile-face { box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25), 0 0 0 .16rem var(--pp-blue); }
 .sk-mini.square { border-radius: .4rem; }

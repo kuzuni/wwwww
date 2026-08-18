@@ -222,6 +222,10 @@ const SCAN_REF = function (src) {
         return {
             app: { w: app.width, h: app.height },
             tiles: pick('#panel-pets .pet-tile').map(box),
+            // 🚨 카드 좌/폭은 **보이는 카드**(`.tile-face`)로 재야 원본 스캔(잉크)과 같은 것을 비교한다.
+            //    `.pet-tile` 은 `.sk-grid` 칸(13.10%W) 전체를 차지하는 **투명 상자**라 잉크보다 넓다
+            //    — 이걸 카드로 착각하면 카드를 칸 폭까지 부풀리는 쪽으로 '교정'하게 된다(실제로 그랬다).
+            faces: pick('#panel-pets .pet-tile .tile-face').map(box),
             equipped: one('#panel-pets .equipped-row'),
             summonBtn: one('#panel-pets .summon-btn'),
             x5: one('#panel-pets .summon-bar .x5-toggle'),
@@ -241,6 +245,28 @@ const SCAN_REF = function (src) {
             })(),
             tabbar: one('#tabbar'),
         };
+    });
+    // 🚨 알은 **상자로 재면 안 된다 — 상자의 2/3만 잉크다.** 알 타일 `.tile-face` 는 배경·테두리가
+    //    없어 상자 ≠ 잉크인데, 그 안 IconGen 알 아이콘도 128px 캔버스 중 가로 84px(65.6%)에만
+    //    그려져 있다. 아이콘의 배경 이미지를 디코드해 **알파 경계**로 상자 대비 잉크 비율을 낸다.
+    const eggInk = await page.evaluate(async () => {
+        const el = [...document.querySelectorAll('#panel-pets .pet-tile.egg .tile-face .ico')].filter(e => e.offsetParent !== null)[0];
+        if (!el) return null;
+        const m = (getComputedStyle(el).backgroundImage || '').match(/url\("?(data:image\/[^")]+)"?\)/);
+        if (!m) return null;
+        const im = new Image();
+        await new Promise(r => { im.onload = r; im.onerror = r; im.src = m[1]; });
+        if (!im.naturalWidth) return null;
+        const c = document.createElement('canvas');
+        c.width = im.naturalWidth; c.height = im.naturalHeight;
+        const cx = c.getContext('2d'); cx.drawImage(im, 0, 0);
+        const d = cx.getImageData(0, 0, c.width, c.height).data;
+        let l = 1e9, r = -1;
+        for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+            if (d[(y * c.width + x) * 4 + 3] > 16) { if (x < l) l = x; if (x > r) r = x; }
+        }
+        if (r < 0) return null;
+        return { ratio: (r - l + 1) / c.width, boxW: el.getBoundingClientRect().width };
     });
     await browser.close();
 
@@ -274,10 +300,14 @@ const SCAN_REF = function (src) {
     const rows = [];
     const add = (name, refV, cloneV) => rows.push({ name, refV, cloneV, d: cloneV - refV });
     const r1 = ref.tileRows[0], r2 = ref.tileRows[1];
-    add('타일 좌', rw(r1.cols[0][0] - RX), cw(clone.tiles[0].x));
-    add('타일 폭', rw(r1.cols[0][1] - r1.cols[0][0] + 1), cw(clone.tiles[0].w));
+    add('카드 좌', rw(r1.cols[0][0] - RX), cw(clone.faces[0].x));
+    add('카드 폭', rw(r1.cols[0][1] - r1.cols[0][0] + 1), cw(clone.faces[0].w));
+    // 알 타일(1행 4열)은 카드 배경 없이 알 그림만 있어 카드보다 좁다 — **잉크**로 따로 채점한다.
+    if (r1.cols.length >= 4 && eggInk) {
+        add('알 잉크폭', rw(r1.cols[3][1] - r1.cols[3][0] + 1), cw(eggInk.boxW * eggInk.ratio));
+    }
     add('열 피치', rw(r1.cols[1][0] - r1.cols[0][0]), cw(clone.tiles[1].x - clone.tiles[0].x));
-    add('1행 상단', rh(r1.band[0]), ch(clone.tiles[0].y));
+    add('1행 상단', rh(r1.band[0]), ch(clone.faces[0].y));
     add('행 피치', rh(r2.band[0] - r1.band[0]), ch(clone.tiles[5].y - clone.tiles[0].y));
     add('장착됨 좌', rw(ref.equipBox.l - RX), cw(clone.equipped.x));
     add('장착됨 폭', rw(ref.equipBox.w), cw(clone.equipped.w));
@@ -287,6 +317,11 @@ const SCAN_REF = function (src) {
     add('소환버튼 폭', rw(ref.summonBtn.w), cw(clone.summonBtn.w));
     add('소환버튼 상단', rh(ref.summonBtn.top), ch(clone.summonBtn.y));
     add('소환버튼 높이', rh(ref.summonBtn.bot - ref.summonBtn.top + 1), ch(clone.summonBtn.h));
+    // 🚨 좌·폭만 재면 **두 오차가 상쇄돼 통과처럼 보인다**(실제로 그랬다: 폭 +5.70%p 인데 좌 −0.20%p).
+    //    원본 버튼은 앱 정중앙이라 중심을 따로 채점해야 그 상쇄가 드러난다.
+    //    ⚠️ 단, 잘린 컷에서는 이 버튼 중심이 크롭 보정(xOff)의 **앵커 자신**이라 독립 측정이 아니다
+    //       — 그 컷의 판정 근거는 카드 좌·장착됨 좌 같은 나머지 x 항목이다.
+    add('소환버튼 중심', rw(ref.summonBtn.l - RX + ref.summonBtn.w / 2), cw(clone.summonBtn.x + clone.summonBtn.w / 2));
     if (ref.summonChunks.length >= 3 && clone.x5 && clone.info) {
         const c = ref.summonChunks.slice().sort((a, b) => a[0] - b[0]);
         add('x1 pill 좌', rw(c[0][0] - RX), cw(clone.x5.x));
