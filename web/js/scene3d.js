@@ -3048,6 +3048,45 @@ const Scene3D = {
         }
         return g;
     },
+    // ⑷ 캐릭터용 바위 덩어리 — 구를 깎아낸 불규칙 다면체. 골렘처럼 **몸 자체가 돌**인 파츠에 쓴다.
+    //    왜: 장비에서 '박스는 어떤 라이팅을 걸어도 박스'였던 것과 같은 벽이 적에도 있다 — 어깨 볼더·
+    //    주먹·머리·발이 전부 `SphereGeometry` 라, `flatShading` 으로 면을 갈라도 **실루엣이 완벽한 원**
+    //    이라 '눈사람'으로 읽힌다(골렘 주석이 스스로 '눈사람 금지'라고 적어 둔 바로 그것). 면 음영이
+    //    아니라 윤곽을 깨야 바위가 된다.
+    //    맵 프롭의 `rockGeo` 와 목적은 같지만 셋이 다르다:
+    //    ㉠ **시드가 결정론적**이다 — `rockGeo` 는 `Math.random()` 으로 시드를 뽑지만, 적 메시는
+    //       프로브가 같은 값을 다시 재야 하고(연출 검증 패턴) 전역 RNG 를 소비하면 시드 고정
+    //       캡처(`shot-biomes.js`)의 프롭 배치가 호출 수만큼 통째로 밀린다. 호출자가 준 seed 만 쓴다.
+    //    ㉡ **정점 컬러를 굽지 않는다** — 골렘 재질은 `vertexColors` 가 꺼져 있고, 켜면 색이 곱해져
+    //       스윕으로 채택한 명도가 통째로 내려간다. 여기서 바꾸는 건 실루엣뿐이다.
+    //    ㉢ 밑면을 눌러 **쪼개진 단면**을 남긴다 — 위는 풍화로 둥글고 아래는 각진 바위의 인상.
+    //    ⚠️ 변위는 반드시 **좌표 해시**로 뽑고, 좌표를 **반올림해서** 해시할 것. 정점 인덱스로 뽑으면
+    //       면이 공유하는 정점이 제각각 움직여 메시에 구멍이 뚫린다(잎 조형에서 이미 밟은 함정).
+    //       `IcosahedronGeometry` 는 비인덱스라 같은 모서리 정점이 여러 벌 있고, detail>0 이면 세분
+    //       보간이 면마다 미세하게 달라 **생좌표로 해시하면 그 오차만큼 갈라진다**.
+    boulderGeo(rad, seed, opt) {
+        const o = opt || {};
+        const geo = new THREE.IcosahedronGeometry(rad, o.detail === undefined ? 1 : o.detail);
+        const p = geo.attributes.position;
+        const s0 = (seed || 0) * 1.7137 + 0.31;
+        const amp = o.amp === undefined ? 0.26 : o.amp;
+        const flat = o.flatBottom === undefined ? 0.14 : o.flatBottom;
+        const q = v => Math.round(v / rad * 512) / 512;   // 같은 자리는 늘 같은 값을 받도록 양자화
+        for (let i = 0; i < p.count; i++) {
+            const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+            const qx = q(x), qy = q(y), qz = q(z);
+            // 서로 나눠떨어지지 않는 주파수 3개 — 2개면 시드가 달라도 가끔 거의 같은 덩어리가
+            // 나온다(`rockGeo` 가 실측으로 밟아 항을 하나 더 얹은 것과 같은 이유).
+            const k = Math.sin(qx * 4.7 + s0) * 0.38
+                + Math.sin(qy * 3.31 + s0 * 1.9) * 0.34
+                + Math.sin((qx + qz) * 2.63 + s0 * 0.7) * 0.28;
+            const cut = 1 + k * amp;
+            const dn = qy < 0 ? 1 + (-qy) * flat : 1;
+            p.setXYZ(i, x * cut, y * cut / dn, z * cut);
+        }
+        geo.computeVertexNormals();
+        return geo;
+    },
 
     // 조립이 끝난 장비 그룹에 시대 디테일을 얹는다 — 바운딩 박스에서 '아랫단 밴드'를 잡아
     // 계열마다 다른 것을 두른다(리벳 링 / 발광 링 / 가죽끈+뼈구슬 / 황동 스터드 / 폴리머 벤트).
@@ -5633,19 +5672,21 @@ const Scene3D = {
             for (const s of [-1, 1]) {
                 const sh = new THREE.Group();
                 sh.position.set(s * 0.38, 0.9, 0); // 몸통에 파묻히게 안쪽으로 — 어깨 볼더 공중부양 금지
-                const boulder = mk(new THREE.SphereGeometry(0.165, 10, 8), rockD);
+                // 어깨·팔꿈치·주먹·너클은 전부 완전구였다 — 좌우 시드를 갈라 비대칭까지 준다(바위는 대칭이 아니다)
+                const boulder = mk(this.boulderGeo(0.165, s > 0 ? 3 : 11, { amp: 0.3 }), rockD);
                 boulder.scale.set(1.05, 0.9, 0.9); boulder.position.x = -s * 0.02;
                 const upper = limb(0.085, 0.075, 0.3, rockM);
                 upper.rotation.z = s * 0.12;
                 const elbow = new THREE.Group();
                 elbow.position.y = -0.32;
-                const eJoint = mk(new THREE.SphereGeometry(0.082, 8, 6), rockM); // 팔꿈치 관절 바위 — 굽힘 시 이음새 은폐
+                const eJoint = mk(this.boulderGeo(0.082, s > 0 ? 5 : 13, { amp: 0.2 }), rockM); // 팔꿈치 관절 바위 — 굽힘 시 이음새 은폐
                 elbow.add(eJoint);
                 const fore = limb(0.088, 0.108, 0.26, rockD); // 하완이 상완보다 두꺼운 파괴자 실루엣
-                const fist = mk(new THREE.SphereGeometry(0.17, 10, 8), rockM);
+                const fist = mk(this.boulderGeo(0.17, s > 0 ? 7 : 17, { amp: 0.28 }), rockM);
                 fist.position.y = -0.32; fist.scale.set(1, 1.1, 1);
                 for (let k2 = 0; k2 < 3; k2++) { // 주먹 관절 돌기
-                    const knuckle = mk(new THREE.SphereGeometry(0.05, 7, 6), rockD);
+                    // 너클은 작아 detail 1 이면 조각이 안 읽힌다 — detail 0(정십이면체급 20정점)으로 각지게
+                    const knuckle = mk(this.boulderGeo(0.05, s * 100 + k2 * 3 + 2, { detail: 0, amp: 0.24 }), rockD);
                     knuckle.position.set((k2 - 1) * 0.08, -0.42, s * 0.065);
                     elbow.add(knuckle);
                 }
@@ -5656,24 +5697,30 @@ const Scene3D = {
                 if (s > 0) { armR = sh; anim.armRJ = { sh, elbow }; } else armL = sh;
             }
             // 골반 바위 — 몸통 하단과 다리 사이 공중 부양 갭 메움
-            const pelvisG = mk(new THREE.SphereGeometry(0.21, 10, 8), rockD);
+            const pelvisG = mk(this.boulderGeo(0.21, 23, { amp: 0.22 }), rockD);
             pelvisG.position.set(0, 0.37, 0); pelvisG.scale.set(1.15, 0.62, 0.9);
             g.add(pelvisG);
             // 짧은 기둥 다리 + 발 바위 — 상체 질량 대비 두껍게 (왜소 다리 금지)
             for (const s of [-1, 1]) {
                 const leg = limb(0.115, 0.1, 0.2, rockD);
                 leg.position.set(s * 0.17, 0.26, 0);
-                const foot = mk(new THREE.SphereGeometry(0.13, 9, 7), rockM);
+                // 발은 접지면이라 밑을 더 세게 눌러 평평한 단면을 남긴다 — 둥근 밑면은 땅에 안 얹힌 것처럼 뜬다
+                const foot = mk(this.boulderGeo(0.13, s > 0 ? 29 : 31, { amp: 0.2, flatBottom: 0.34 }), rockM);
                 foot.position.set(s * 0.18, 0.055, 0.04); foot.scale.set(1, 0.5, 1.35);
                 g.add(leg, foot);
             }
             // 머리: 어깨 사이에 파묻힌 낮은 바위 돔 + 목 바위 + 무거운 눈두덩 슬랩
-            const neckG = mk(new THREE.CylinderGeometry(0.11, 0.14, 0.12, 9), rockD);
+            // 목: 매끈한 원기둥이면 '돌 몸에 끼운 파이프'다 — 단면을 타원으로 눌러 앞뒤를 좁히고 flat 으로 깎아낸 면을 남긴다
+            const neckG = this.shellFromRings([
+                { y: -0.06, rx: 0.145, rz: 0.128 }, { y: -0.018, rx: 0.132, rz: 0.117 },
+                { y: 0.022, rx: 0.119, rz: 0.106 }, { y: 0.06, rx: 0.107, rz: 0.097 },
+            ], 9, rockD, { flat: true });
             neckG.position.set(0, 0.98, 0.04);
             g.add(neckG);
-            const head = mk(new THREE.SphereGeometry(0.17, 10, 8), rockM);
+            const head = mk(this.boulderGeo(0.17, 41, { amp: 0.24 }), rockM);
             head.position.set(0, 1.06, 0.05); head.scale.set(1.1, 0.82, 0.95);
-            const browSlab = mk(new THREE.BoxGeometry(0.3, 0.07, 0.14), rockD);
+            // 눈두덩은 판이라 Box 가 아니라 베벨 슬랩 — 모서리가 깎여 하이라이트가 한 줄로 흘러야 '바위 처마'로 읽힌다
+            const browSlab = this.beveledSlab(0.3, 0.07, 0.14, 0.022, rockD);
             browSlab.position.set(0, 1.14, 0.1); browSlab.rotation.x = 0.15;
             g.add(head, browSlab);
             // 목 바위(r 0.11~0.14) 밑 · 라테 몸통 밑단(r 0.17)과 골반 바위 경계 · 기둥 다리 소켓
