@@ -1190,6 +1190,20 @@ const Scene3D = {
         return geo;
     },
 
+    // 퇴적 지층 톤 밴딩 — 층 지오메트리의 색속성(rockGeo 가 구운 높이 음영)에 층별 틴트를 곱해
+    // 사암/이암이 번갈아 쌓인 지층처럼 읽히게 한다(단일 회색 판 인상 제거 — makeSlab·makeStrata 전용).
+    // ⚠️ 틴트는 albedo(stoneMat 0x9a9083)에 곱해지므로 1.0 부근으로 얕게만 준다 —
+    //    크리스탈 항목에서 R 을 크게 올렸다가 결정 끝이 분홍으로 뜬 함정과 같은 이유(색상만 크게 밀면 명암이 무너진다).
+    bandTint(geo, tr, tg, tb) {
+        const c = geo.attributes.color;
+        if (!c) return geo;
+        for (let i = 0; i < c.count; i++) {
+            c.setXYZ(i, Math.min(1, c.getX(i) * tr), Math.min(1, c.getY(i) * tg), Math.min(1, c.getZ(i) * tb));
+        }
+        c.needsUpdate = true;
+        return geo;
+    },
+
     groundTexFor(biome) {
         this._gtex = this._gtex || {};
         if (!this._gtex[biome]) {
@@ -1832,15 +1846,33 @@ const Scene3D = {
     },
 
     // 판형 슬라브 바위 — 납작하고 각진 판석을 비스듬히 겹쳐 세움 (다면체 1종 복붙 티 제거용 제2 바위 형태)
+    // 침식된 퇴적 노두 — 밑에서 위로 좁아지는 3~4층 판을 한쪽으로 쏠리게(언더컷) 쌓고,
+    // 층마다 웜/쿨 톤을 교번해 지층(사암↔이암)으로 읽히게 한다. 꼭대기엔 풍화 잔돌로 실루엣을 깬다.
+    // (기존: 세로로만 눌린 rockGeo 2~4개를 무작위 위치에 얹은 '회색 팬케이크 더미' — 지층·침식·개체차 부재)
     makeSlab(s) {
         const g = new THREE.Group();
-        const n = 2 + (Math.random() * 2 | 0);
+        const n = 3 + (Math.random() * 2 | 0);                              // 3~4층
+        const lean = U.rand(-0.06, 0.06), leanD = U.rand(-0.05, 0.05);      // 침식 언더컷 방향(층마다 누적)
+        let y = 0.06 * s, leanX = 0, leanZ = 0;
         for (let i = 0; i < n; i++) {
-            const p = new THREE.Mesh(this.rockGeo(U.rand(0.3, 0.42) * s), this.stoneMat);
-            p.scale.set(U.rand(0.9, 1.25), 0.28, U.rand(0.55, 0.8));         // 납작한 판
-            p.position.set(U.rand(-0.14, 0.14) * s, (0.1 + i * 0.14) * s, U.rand(-0.1, 0.1) * s);
-            p.rotation.set(U.rand(-0.16, 0.16), U.rand(0, 3), U.rand(0.12, 0.42) * (i % 2 ? 1 : -1)); // 비스듬한 적층
+            const t = i / (n - 1);                                          // 0(밑동)~1(꼭대기)
+            const geo = this.rockGeo(U.rand(0.32, 0.42) * s);
+            const warm = (i % 2 === 0);                                     // 지층 교번 — 아래로 갈수록 철분 밴 웜/암
+            this.bandTint(geo, (warm ? 1.07 : 0.96) - t * 0.05, (warm ? 1.01 : 0.99), (warm ? 0.90 : 1.03) + t * 0.03);
+            const w = (1.18 - t * 0.5) * U.rand(0.92, 1.08);               // 위로 좁아지는 테이퍼(메사/후두 축소판)
+            const p = new THREE.Mesh(geo, this.stoneMat);
+            p.scale.set(w, U.rand(0.24, 0.32), w * U.rand(0.6, 0.82));      // 납작한 판
+            leanX += lean; leanZ += leanD;
+            p.position.set(leanX * s + U.rand(-0.05, 0.05) * s, y, leanZ * s + U.rand(-0.05, 0.05) * s);
+            p.rotation.set(U.rand(-0.12, 0.12), U.rand(0, 3), U.rand(-0.1, 0.1));
             g.add(p);
+            y += (0.11 + 0.03 * (1 - t)) * s;                              // 아래층이 더 두껍게 쌓임
+        }
+        for (let i = 0; i < 2; i++) {                                       // 꼭대기 풍화 잔돌
+            const peb = new THREE.Mesh(this.rockGeo(U.rand(0.06, 0.11) * s), this.stoneMat);
+            peb.position.set(leanX * s + U.rand(-0.16, 0.16) * s, y - 0.02 * s, leanZ * s + U.rand(-0.14, 0.14) * s);
+            peb.rotation.set(U.rand(0, 3), U.rand(0, 3), U.rand(0, 3));
+            g.add(peb);
         }
         return g;
     },
@@ -1851,10 +1883,14 @@ const Scene3D = {
         const n = 3 + (Math.random() * 2 | 0);
         let y = 0.07 * s;
         for (let i = 0; i < n; i++) {
+            const t = i / Math.max(1, n - 1);
             const w = (1 - i * 0.16) * s;
-            const p = new THREE.Mesh(this.rockGeo(0.5), this.stoneMat);
+            const geo = this.rockGeo(0.5);
+            const warm = (i % 2 === 0);                                     // 사암/이암 지층 교번
+            this.bandTint(geo, warm ? 1.06 : 0.97, warm ? 1.0 : 0.99, warm ? 0.91 : 1.02);
+            const p = new THREE.Mesh(geo, this.stoneMat);
             p.scale.set(w * U.rand(0.95, 1.2), 0.16 * s, w * U.rand(0.55, 0.75));
-            p.position.set(U.rand(-0.06, 0.06) * s, y, U.rand(-0.05, 0.05) * s);
+            p.position.set(U.rand(-0.06, 0.06) * s + t * 0.08 * s, y, U.rand(-0.05, 0.05) * s); // 위층이 살짝 밀린 침식
             p.rotation.y = U.rand(-0.25, 0.25);
             g.add(p);
             y += 0.15 * s;
