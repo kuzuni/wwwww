@@ -5781,6 +5781,18 @@ const Scene3D = {
     // 종별 고유 팔레트 — 지형색 파생 금지 (전 종이 배경 보호색 연두 덩어리로 보이던 문제, 비평가 지적)
     // 종별 키 컬러 — 배경 대비 채도 2단계 상향 원칙 (연두 필드 보호색 금지, 비평가 지적)
     KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x156326, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x556279, imp: 0xc23a52 }, // 고블린 0x1f8038도 라이팅+ACES에 세이지로 씻겨 초원에 잠식 (비평가 7.1 10번) — 한 단계 더 어둡고 짙게
+    // ── 종별 보행 프로파일 (ⓓ 종별 고유 모션) ────────────────────────────────────────
+    // 예전엔 골렘·고블린·임프가 **완전히 같은 이족 사이클**을 돌았다(clk*8, 같은 진폭). 질량이
+    // 20배 차이 나는데 박자가 같으면 셋 다 '같은 인형이 크기만 다른 것'으로 읽힌다.
+    // rate = 박자(rad/s) · bob = 상하 진폭 · bobPow = 체공 곡선(>1 이면 아래에 오래 머물러 **무겁게**,
+    // <1 이면 위에 오래 떠 **가볍게**) · roll = 좌우 흔들 · hip = 다리 스윙 · arm = 팔 스윙 ·
+    // lean = 전방 기울기(고블린의 굽은 등, 임프의 돌진 자세).
+    ENEMY_GAIT: {
+        golem: { rate: 4.2, bob: 0.05, bobPow: 1.9, roll: 0.055, hip: 0.34, arm: 0.40, lean: 0.02 },
+        goblin: { rate: 10.5, bob: 0.05, bobPow: 1.0, roll: 0.035, hip: 0.88, arm: 0.72, lean: 0.10 },
+        imp: { rate: 12.0, bob: 0.062, bobPow: 0.7, roll: 0.03, hip: 0.78, arm: 0.66, lean: 0.13 },
+        _default: { rate: 8, bob: 0.055, bobPow: 1.0, roll: 0.05, hip: 0.8, arm: 0.65, lean: 0 },
+    },
     monsterMesh(e) {
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
         // 디버그: ?enemy=imp 로 특정 몬스터 강제
@@ -6058,8 +6070,14 @@ const Scene3D = {
                 leg.position.set(s * 0.17, 0.26, 0);
                 // 발은 접지면이라 밑을 더 세게 눌러 평평한 단면을 남긴다 — 둥근 밑면은 땅에 안 얹힌 것처럼 뜬다
                 const foot = mk(this.boulderGeo(0.13, s > 0 ? 29 : 31, { amp: 0.2, flatBottom: 0.34 }), rockM);
-                foot.position.set(s * 0.18, 0.055, 0.04); foot.scale.set(1, 0.5, 1.35);
-                g.add(leg, foot);
+                // ⓓ: 예전엔 다리·발이 **둘 다 g 에 고정**돼 골렘이 걸을 때 다리가 하나도 안 움직였다
+                //    (몸통만 위아래로 까딱여 '미끄러지는 석상'). `limb` 은 피벗이 위쪽 끝인 그룹이라
+                //    그대로 스윙시킬 수 있다 — 발을 다리에 매달아 같이 돌게 하고 anim 에 노출한다.
+                //    발 로컬 = 원래 g 좌표 − 다리 좌표.
+                foot.position.set(s * 0.01, -0.205, 0.04); foot.scale.set(1, 0.5, 1.35);
+                leg.add(foot);
+                (anim.gleg = anim.gleg || []).push(leg);
+                g.add(leg);
             }
             // 머리: 어깨 사이에 파묻힌 낮은 바위 돔 + 목 바위 + 무거운 눈두덩 슬랩
             // 목: 매끈한 원기둥이면 '돌 몸에 끼운 파이프'다 — 단면을 타원으로 눌러 앞뒤를 좁히고 flat 으로 깎아낸 면을 남긴다
@@ -8718,19 +8736,26 @@ const Scene3D = {
                         this.driveJelly(m, clk, 0.16, id);
                     } else {
                         // 이족보행: 관절 걷기 — 고관절 스윙+무릎 굽힘, 어깨 스윙+팔꿈치 굽힘 (통짜 막대기 금지)
-                        const ph = clk * 8 + id; // 주기 0.785s — 0.1s 연속 캡처 8프레임과 정수배 겹침 방지 (프레임 중복 오독)
-                        m.g.position.y = Math.abs(Math.sin(ph)) * (m.anim.bleg ? 0.045 : 0.07);
-                        m.g.rotation.z = Math.sin(ph) * (m.anim.bleg ? 0.03 : 0.08); // 롤 축소 — 다리 측면 벌어짐 오독 방지
+                        // ⓓ: 박자·진폭을 **종별 프로파일**에서 뽑는다. 예전엔 셋 다 clk*8 고정이라
+                        //    골렘·고블린·임프의 걸음이 구분이 안 됐다(ENEMY_GAIT 주석 참조).
+                        const G = this.ENEMY_GAIT[m.anim.kind] || this.ENEMY_GAIT._default;
+                        const ph = clk * G.rate + id; // 종마다 주기가 달라 연속 캡처 정수배 겹침도 자연히 갈린다
+                        // bobPow — 골렘은 아래에 오래 머물러 '쿵' 하고 내려앉고, 임프는 위에 오래 떠 가볍다.
+                        m.g.position.y = Math.pow(Math.abs(Math.sin(ph)), G.bobPow) * G.bob;
+                        m.g.rotation.z = Math.sin(ph) * G.roll; // 롤 축소 — 다리 측면 벌어짐 오독 방지
+                        m.g.rotation.x = G.lean;                // 굽은 등/돌진 자세는 종별 상수 기울기
+                        // 골렘 기둥 다리 — 무릎이 없어 통째로 스윙한다(짧고 두꺼워 큰 각은 부러져 보인다)
+                        if (m.anim.gleg) m.anim.gleg.forEach((lg, j) => { lg.rotation.x = Math.sin(ph + j * Math.PI) * G.hip; });
                         if (m.anim.bleg) m.anim.bleg.forEach((L, j) => {
                             const lp = ph + j * Math.PI;
                             // 2차 고조파 가산 — 전후 스윙 비대칭(전방 빠르게·후방 느리게)으로 반주기 미러 중복 프레임 제거
-                            L.hip.rotation.x = Math.sin(lp) * 0.8 + Math.sin(2 * lp) * 0.12;
+                            L.hip.rotation.x = Math.sin(lp) * G.hip + Math.sin(2 * lp) * 0.12;
                             // 코사인 벨 무릎: 스윙 다리가 몸 아래를 지날 때 최대 74° 접힘(발꿈치 차올림), 지지 구간은 미세 굽힘 — 정지 프레임 판독 (사용자 재검수)
                             L.knee.rotation.x = -0.15 - Math.pow(Math.max(0, Math.cos(lp - 0.35)), 1.4) * 1.15;
                         });
                         if (m.anim.barm) m.anim.barm.forEach((A, j) => {
                             const ap = ph + j * Math.PI + Math.PI; // 같은 쪽 다리와 역위상
-                            A.sh.rotation.x = Math.sin(ap) * 0.65;
+                            A.sh.rotation.x = Math.sin(ap) * G.arm;
                             A.elbow.rotation.x = -0.7 - Math.max(0, Math.sin(ap)) * 0.6; // 상시 굽힘 40°+ 앞 스윙 가산 최대 74° (비평가: 강체 튜브 팔 금지)
                         });
                         else if (m.armR) {
@@ -8741,6 +8766,7 @@ const Scene3D = {
                 } else {
                     m.g.position.y = Math.max(0, Math.sin(clk * 6 + id) * 0.04);
                     m.g.rotation.z *= 0.9;
+                    m.g.rotation.x *= 0.9;   // 보행 중 걸어 둔 종별 전방 기울기(G.lean)를 풀어 준다 — 안 그러면 멈춘 뒤에도 숙인 채로 굳는다
                     if (m.anim && m.anim.jelly) this.driveJelly(m, clk, 0.06, id); // 대기 중에도 젤리는 미세하게 흔들린다
                     if (m.anim && m.anim.capFlap) this.driveCapFlap(m, clk, 0.012, id); // 대기 중 갓 테두리 미세 호흡
                     if (m.armL) m.armL.rotation.x *= 0.9;
@@ -8749,6 +8775,7 @@ const Scene3D = {
                         A.sh.rotation.x *= 0.85;
                         A.elbow.rotation.x += (-0.22 - A.elbow.rotation.x) * 0.12; // 살짝 굽힌 자연 자세로 정착 — 차렷 막대기 방지
                     });
+                    if (m.anim.gleg) m.anim.gleg.forEach(lg => lg.rotation.x *= 0.85); // 골렘 기둥 다리 — 대기 시 제자리로
                     if (m.anim.knees) m.anim.knees.forEach(kn => kn.rotation.x += (kn.userData.rx0 - kn.rotation.x) * 0.15);
                     if (m.anim.kind === 'wolf') m.anim.legs.forEach(lg => lg.rotation.x *= 0.85);
                 }
