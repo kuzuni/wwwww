@@ -3312,7 +3312,7 @@ const UI = {
         this.els.questModal.innerHTML = `
             <div class="modal-card sheet">
                 <h3 class="sheet-title">퀘스트</h3>
-                <p class="sheet-sub">수령하면 그 자리에 새 퀘스트가 올라옵니다</p>
+                <p class="sheet-sub">모든 퀘스트는 수령해도 같은 내용으로 반복됩니다</p>
                 ${claimAllBtn}
                 <div class="quest-list">${rows}</div>
                 <button class="league-back-btn sheet-back-btn" onclick="UI.closeQuests()">◀</button>

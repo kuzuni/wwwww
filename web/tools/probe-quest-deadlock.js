@@ -1,16 +1,16 @@
-// 만렙 대장간에서 반복 퀘스트 슬롯이 영구 미완료로 막히는지 검증 — slug: quest-deadlock-maxforge
+// 만렙 대장간에서 반복 퀘스트에 영구 미완료 칸이 눌러앉는지 검증 — slug: quest-deadlock-maxforge
 //
 // 배경: 게임에서 코인이 나가는 지점은 대장간 강화 단 하나(`S.coins -=` 는 forge.js 한 줄이 전부)라
-//       Lv.35(만렙)에서는 `coinSpend`·`gearUpgrade` 의 진행도가 영원히 0이다. 3슬롯짜리 반복 퀘스트에
-//       이 둘이 끼면(포기·재추첨 버튼도 없다) 실질 슬롯이 1칸으로 줄어든다.
+//       Lv.35(만렙)에서는 `coinSpend`·`upgradeStart`·`gearUpgrade` 의 진행도가 영원히 0이다.
+//       고정 목록(quest-day1to5-full)에 영구 미완료가 끼면 죽은 칸이 눌러앉는다(포기 수단도 없다).
 //
-// 재는 것:
-//   ⑴ 만렙에서 200회 재추첨해도 두 퀘스트가 한 번도 안 뽑힌다 + 슬롯은 항상 3칸을 채운다
-//   ⑵ 만렙 도달 시점에 **이미 박혀 있던** 슬롯도 정리된다(roll 필터만으로는 안 빠진다)
+// 재는 것 (고정 배치 사양 — 랜덤 추첨이 없으므로 '뽑힘' 대신 '노출'을 잰다):
+//   ⑴ 만렙에서 ensure 를 반복해도 대장간 3종이 목록에 없다 + 나머지 전 항목은 그대로 노출된다
+//   ⑵ 만렙 도달 시점에 **이미 박혀 있던** 항목도 정리된다
 //   ⑶ 깨 놓고 수령 전에 만렙이 된 퀘스트는 **뺏기지 않는다**(수령 가능 상태로 남는다)
-//   ⑷ 만렙 이전에는 필터가 아무것도 안 걸러낸다 — 두 퀘스트가 정상적으로 뽑힌다(회귀 방지)
-//   ⑸ 승천으로 Lv.1 로 돌아가면 다시 뽑힌다
-//   ⑹ 만렙 상태에서 실제로 놀아도 막히지 않는다: 슬롯의 모든 퀘스트를 행동으로 깨서 20회 연속 수령
+//   ⑷ 만렙 이전에는 필터가 아무것도 안 걸러낸다 — 대장간 3종도 정상 노출된다(회귀 방지)
+//   ⑸ 승천으로 Lv.1 로 돌아가면 다시 노출된다
+//   ⑹ 만렙 상태에서 실제로 놀아도 막히지 않는다: 목록의 모든 퀘스트를 행동으로 깨서 20회 연속 수령
 //
 // ⚠️ 이 저장소의 Playwright 는 문자열 화살표 함수를 식으로 평가해 undefined 를 준다 —
 //    반드시 `page.evaluate('(' + FN + ')()')` 로 즉시호출할 것.
@@ -20,7 +20,7 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
 const ev = (page, body) => page.evaluate(`(() => { ${body} })()`);
-const LOCKED = ['coinSpend', 'gearUpgrade'];
+const LOCKED = ['coinSpend', 'upgradeStart', 'gearUpgrade'];
 
 (async () => {
     const browser = await chromium.launch({
@@ -38,20 +38,21 @@ const LOCKED = ['coinSpend', 'gearUpgrade'];
     const fails = [];
     const ok = (c, m) => { if (!c) fails.push(m); };
 
-    // ⑴ 만렙 재추첨 200회
+    // ⑴ 만렙 노출 목록 — ensure 반복에도 대장간 3종 제외 · 나머지 전부 노출
     const maxRoll = await ev(page, `
         S.forgeLevel = 35; S.forgeUpgradeEndsAt = 0; S.quests = []; S.questsCleared = 0;
         Quests.ensure();
         const seen = {}; let minSlots = 99;
-        for (let i = 0; i < 200; i++) {
+        for (let i = 0; i < 20; i++) {
             S.quests = []; Quests.ensure();
             minSlots = Math.min(minSlots, S.quests.length);
             for (const q of S.quests) seen[q.id] = (seen[q.id] || 0) + 1;
         }
-        return { seen, minSlots, ids: Object.keys(seen) };`);
-    for (const id of LOCKED) ok(!maxRoll.seen[id], `만렙인데 '${id}' 가 ${maxRoll.seen[id]}회 뽑혔다`);
-    ok(maxRoll.minSlots === 3, `만렙에서 슬롯이 ${maxRoll.minSlots}칸까지 줄었다(3칸이어야 한다)`);
-    console.log(`  ⑴ 만렙 200회 재추첨 — 뽑힌 종류 ${maxRoll.ids.length}종, 슬롯 최소 ${maxRoll.minSlots}칸, 막힌 2종 0회`);
+        return { seen, minSlots, ids: Object.keys(seen), defs: Quests.DEFS.length };`);
+    for (const id of LOCKED) ok(!maxRoll.seen[id], `만렙인데 '${id}' 가 ${maxRoll.seen[id]}회 노출됐다`);
+    ok(maxRoll.minSlots === maxRoll.defs - LOCKED.length,
+        `만렙 노출이 ${maxRoll.minSlots}칸이다(${maxRoll.defs - LOCKED.length}칸이어야 한다)`);
+    console.log(`  ⑴ 만렙 노출 — ${maxRoll.ids.length}종/${maxRoll.defs}종, 막힌 ${LOCKED.length}종 0회`);
 
     // ⑵ 이미 박혀 있던 슬롯 정리 (진행도 0)
     const stuck = await ev(page, `
@@ -60,9 +61,9 @@ const LOCKED = ['coinSpend', 'gearUpgrade'];
                     { id: 'gearUpgrade', need: 1, prog: 0, rw: { cur: 'hammers', amt: 10 } },
                     { id: 'craft', need: 10, prog: 2, rw: { cur: 'coins', amt: 400 } }];
         Quests.ensure();
-        return { ids: S.quests.map(q => q.id), craftProg: (S.quests.find(q => q.id === 'craft') || {}).prog };`);
+        return { ids: S.quests.map(q => q.id), defs: Quests.DEFS.length, craftProg: (S.quests.find(q => q.id === 'craft') || {}).prog };`);
     for (const id of LOCKED) ok(stuck.ids.indexOf(id) < 0, `만렙 도달 시 이미 박힌 '${id}' 가 안 빠졌다`);
-    ok(stuck.ids.length === 3, `정리 후 슬롯이 ${stuck.ids.length}칸이다`);
+    ok(stuck.ids.length === stuck.defs - LOCKED.length, `정리 후 목록이 ${stuck.ids.length}칸이다(${stuck.defs - LOCKED.length}칸이어야 한다)`);
     ok(stuck.craftProg === 2, `무관한 퀘스트의 진행도가 ${stuck.craftProg} 로 날아갔다`);
     console.log(`  ⑵ 박힌 슬롯 정리 → ${stuck.ids.join(', ')} (craft 진행도 ${stuck.craftProg} 보존)`);
 
@@ -79,14 +80,14 @@ const LOCKED = ['coinSpend', 'gearUpgrade'];
     ok(keepDone.hammers === 10, `수령 보상이 안 들어왔다(해머 ${keepDone.hammers})`);
     console.log(`  ⑶ 깬 퀘스트 보존 → 수령 성공, 해머 +${keepDone.hammers}`);
 
-    // ⑷ 만렙 이전 회귀 — 두 퀘스트가 정상적으로 뽑힌다
+    // ⑷ 만렙 이전 회귀 — 대장간 3종이 정상 노출된다
     const preMax = await ev(page, `
         S.forgeLevel = 20; S.forgeUpgradeEndsAt = 0; S.questsCleared = 0;
         const seen = {};
-        for (let i = 0; i < 200; i++) { S.quests = []; Quests.ensure(); for (const q of S.quests) seen[q.id] = (seen[q.id] || 0) + 1; }
+        for (let i = 0; i < 20; i++) { S.quests = []; Quests.ensure(); for (const q of S.quests) seen[q.id] = (seen[q.id] || 0) + 1; }
         return seen;`);
-    for (const id of LOCKED) ok(preMax[id] > 0, `만렙 이전(Lv.20)인데 '${id}' 가 한 번도 안 뽑혔다 — 필터가 과하다`);
-    console.log(`  ⑷ Lv.20 회귀 — coinSpend ${preMax.coinSpend}회 · gearUpgrade ${preMax.gearUpgrade}회 뽑힘`);
+    for (const id of LOCKED) ok(preMax[id] > 0, `만렙 이전(Lv.20)인데 '${id}' 가 노출되지 않는다 — 필터가 과하다`);
+    console.log(`  ⑷ Lv.20 회귀 — 대장간 3종 정상 노출`);
 
     // ⑸ 승천으로 Lv.1 복귀
     const afterAscend = await ev(page, `
@@ -94,11 +95,11 @@ const LOCKED = ['coinSpend', 'gearUpgrade'];
         const before = S.quests.map(q => q.id);
         Ascension.ensure(); Ascension.ascend('forge');
         const seen = {};
-        for (let i = 0; i < 120; i++) { S.quests = []; Quests.ensure(); for (const q of S.quests) seen[q.id] = (seen[q.id] || 0) + 1; }
+        for (let i = 0; i < 20; i++) { S.quests = []; Quests.ensure(); for (const q of S.quests) seen[q.id] = (seen[q.id] || 0) + 1; }
         return { forgeLevel: S.forgeLevel, seen, before };`);
     ok(afterAscend.forgeLevel === 1, `승천 후 대장간 레벨이 ${afterAscend.forgeLevel} 이다`);
-    for (const id of LOCKED) ok(afterAscend.seen[id] > 0, `승천으로 만렙이 풀렸는데 '${id}' 가 다시 안 뽑힌다`);
-    console.log(`  ⑸ 승천 후 Lv.${afterAscend.forgeLevel} — coinSpend ${afterAscend.seen.coinSpend}회 · gearUpgrade ${afterAscend.seen.gearUpgrade}회 복귀`);
+    for (const id of LOCKED) ok(afterAscend.seen[id] > 0, `승천으로 만렙이 풀렸는데 '${id}' 가 다시 노출되지 않는다`);
+    console.log(`  ⑸ 승천 후 Lv.${afterAscend.forgeLevel} — 대장간 3종 노출 복귀`);
 
     // ⑹ 만렙 실사용 — 슬롯의 퀘스트를 행동으로 깨서 20회 연속 수령
     const play = await ev(page, `
@@ -118,7 +119,7 @@ const LOCKED = ['coinSpend', 'gearUpgrade'];
 
     await browser.close();
     if (errs.length) { console.log('\n콘솔 에러:'); errs.slice(0, 8).forEach(e => console.log('  ' + e)); }
-    console.log('\n' + (fails.length || errs.length ? `FAIL ${fails.length + errs.length}건` : 'PASS — 만렙에서도 3슬롯 전부 달성 가능'));
+    console.log('\n' + (fails.length || errs.length ? `FAIL ${fails.length + errs.length}건` : 'PASS — 만렙에서도 노출 전 항목 달성 가능'));
     fails.forEach(f => console.log('  ✗ ' + f));
     errs.slice(0, 8).forEach(e => console.log('  ✗ 콘솔 ' + e));
     process.exit(fails.length || errs.length ? 1 : 0);

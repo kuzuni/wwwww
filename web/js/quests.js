@@ -1,18 +1,25 @@
 // ===== 단순 반복 퀘스트 (사용자 지시 2026-08-18 `quest-tab`) =====
 // 사용자 원문: "길드 행동 전투하는 거 빼고 1~5일차 것 내용들을 걍 반복 퀘스트로 넣고,
 //               하단 네비에 소환이랑 상점 사이에 퀘스트 부분 넣어라."
+// 재지적 (`quest-day1to5-full`): "퀘스트 3개밖에 없음. 그것도 수정해야 함."
+//   → 3슬롯 로테이션을 걷어내고 **행동 풀 전체를 고정 목록으로 상시 노출**한다.
+// 재지적 (`quest-fixed-repeat`): "완료할 때마다 바뀌던데, 그러지 말고 반복 퀘스트 느낌으로.
+//   펫합성 퀘스트는 계속 펫합성 퀘스트고 그런 느낌." → 수령해도 재추첨하지 않는다.
+//   같은 퀘스트가 **제자리에서 진행도 0으로** 다시 시작한다.
 //
 // ⚠️ 사양의 핵심 제약 (사용자 재확인) — **날짜·요일·일차(Day1~5) 개념을 절대 넣지 않는다.**
 //    그래서 이 파일에는 시계도, 날짜 키도, 로테이션 인덱스도 없다. 유일한 시간 의존은
 //    "언제 깨도 똑같다"를 보장하기 위해 **아무것도 시간에 안 묶는다**는 것뿐이다
 //    (던전 열쇠처럼 `resetDateKey()`를 쓰는 코드가 여기 들어오면 사양 위반이다).
 //
-// 구조: 항상 SLOTS(3)개가 노출되고, 하나를 수령하면 **그 자리만** 같은 풀에서 즉시 새로 뽑힌다.
+// 구조: DEFS 전 항목이 DEFS 순서 그대로 고정 노출된다(랜덤 추첨 없음). 수령하면 그 자리에
+//       **같은 행동** 퀘스트가 진행도 0으로 올라온다(요구치·보상은 누적 수령 tier 를 따라 상승).
 //       진행도는 각 행동 지점에서 `Quests.bump('<행동>', n)` 한 줄로 올라온다.
 const Quests = {
-    SLOTS: 3,
-
     // 행동 풀. 전투(자동 진행)는 사용자가 명시적으로 제외했다 — 스테이지·웨이브·킬 카운트는 넣지 않는다.
+    // 사용자 열거 풀(quest-tab 원문: 망치질·스킬 소환·기술 완성·코인 소비·장비 업그레이드 시작/완성·
+    // 던전 열쇠 사용·알 부화/펫 병합·탈것 소환/병합)을 전부 커버한다 — 병합이 없는 탈것은
+    // 흡수 강화(absorbMaterials)가 병합에 해당한다. sellGear·equipGear 는 열거에 없던 추가분(무해).
     // need: 기본 요구치, step: 누적 완료 수에 따라 늘어나는 몫(상한 STEP_CAP회까지),
     // rw: 보상 재화와 기본 지급량(요구치와 같은 비율로 커진다).
     // unit이 있으면 "코인 5,000 소비"처럼 개수가 아닌 양으로 읽힌다.
@@ -22,6 +29,8 @@ const Quests = {
         { id: 'sellGear',    icon: 'coin',    text: '장비 판매',        need: 8,    step: 2,    rw: { cur: 'hammers',     amt: 6 } },
         { id: 'equipGear',   icon: 'hammer',  text: '장비 장착',        need: 4,    step: 1,    rw: { cur: 'coins',       amt: 600 } },
         { id: 'coinSpend',   icon: 'coin',    text: '코인 소비',        need: 2000, step: 800,  rw: { cur: 'hammers',     amt: 10 }, unit: '' },
+        // '장비 업그레이드(시작/완성)' 중 시작 쪽 — 훅은 Forge.startUpgrade (quest-day1to5-full ⑴)
+        { id: 'upgradeStart',icon: 'coin',    text: '대장간 강화 시작',  need: 1,    step: 1,    rw: { cur: 'coins',       amt: 600 } },
         // ⚠️ 젬 보상 금지 — 젬은 '보급 없음, 상점 더미'가 사양이다(TODO '재화 개편' ①, ref/UI-SPEC.md 재화 표).
         //    이 두 줄이 2026-08-18까지 게임에 남은 마지막(그리고 상한 없는) 젬 수급처였다:
         //    수령하면 같은 풀에서 즉시 새로 뽑히므로 하루 상한이 없고, 보상량은 tier 에 비례해 커져
@@ -35,7 +44,14 @@ const Quests = {
         { id: 'petHatch',    icon: 'egg',     text: '알 부화',          need: 3,    step: 1,    rw: { cur: 'eggCurrency', amt: 15 } },
         { id: 'petMerge',    icon: 'egg',     text: '펫 합성',          need: 1,    step: 1,    rw: { cur: 'eggCurrency', amt: 25 } },
         { id: 'mountSummon', icon: 'winder',  text: '탈것 소환',        need: 3,    step: 1,    rw: { cur: 'winders',     amt: 60 } },
+        // '탈것 병합' — 탈것엔 등급 합성이 없어 흡수 강화(Mounts.absorbMaterials)가 병합이다.
+        // ⚠️ 보상 상한: 재료 1마리 = 태엽 50(WINDERS_PER_SUMMON, 기술로 할인돼도 ~35)이고 소환 퀘스트가
+        //    회당 태엽 20을 돌려주므로, 여기 보상이 15를 넘으면 '소환→흡수' 루프가 흑자가 된다. 10 고정.
+        { id: 'mountMerge',  icon: 'winder',  text: '탈것 흡수 강화',    need: 1,    step: 1,    rw: { cur: 'winders',     amt: 10 } },
         { id: 'dungeonClear',icon: 'potion',  text: '던전 완료',        need: 1,    step: 1,    rw: { cur: 'potions',     amt: 3 } },
+        // '던전 열쇠 사용' — 클리어 소모(dungeons.js onClear)와 소탕 소모(sweep) 양쪽에서 오른다.
+        //    열쇠는 하루 지급량이 정해져 있어 수급이 저절로 유계다.
+        { id: 'keySpend',    icon: 'key',     text: '던전 열쇠 사용',    need: 2,    step: 1,    rw: { cur: 'potions',     amt: 4 } },
     ],
     def(id) { return this.DEFS.find(d => d.id === id); },
 
@@ -44,25 +60,30 @@ const Quests = {
     ensure() {
         if (!Number.isFinite(S.questsCleared) || S.questsCleared < 0) S.questsCleared = 0;
         if (!Array.isArray(S.quests)) S.quests = [];
-        // 구세이브·손상분 정리: 폐기된 행동 id나 형태가 깨진 항목은 버리고 새로 뽑는다
-        // 보상 재화가 지금 DEFS 와 다르면(구세이브에 젬 보상이 박혀 있던 경우) 그 자리에서 다시 굴린다 —
-        // 슬롯은 수령해야만 갈리므로, 마이그레이션을 안 하면 이미 뜬 젬 퀘스트가 계속 남아 젬을 준다.
-        // 이미 슬롯에 박힌 불가능 항목도 여기서 걸러 재추첨한다 — roll() 필터만 넣으면
-        // 만렙에 도달하는 순간 떠 있던 `코인 소비`·`대장간 강화 완료` 가 그대로 눌러앉는다.
-        // 단 **이미 깬 것은 남긴다**: 깨 놓고 수령 전에 만렙이 됐다고 보상을 뺏으면 안 된다.
-        S.quests = S.quests.filter(q => q && this.def(q.id) && Number.isFinite(q.need) && q.need > 0)
-            .filter(q => this.available(this.def(q.id)) || (+q.prog || 0) >= q.need)
-            .map(q => {
-                const def = this.def(q.id);
-                const rw = q.rw && q.rw.cur === this.curOf(def) ? q.rw : this.rollReward(def, q.need);
-                return { id: q.id, need: q.need, prog: U.clamp(+q.prog || 0, 0, q.need), rw };
-            })
-            .slice(0, this.SLOTS);
-        while (S.quests.length < this.SLOTS) {
-            const q = this.roll(S.quests.map(x => x.id));
-            if (!q) break;                       // 풀이 슬롯보다 작은 극단 상황 방어
-            S.quests.push(q);
+        // 고정 배치: DEFS 순서 그대로 전 항목을 깐다 (quest-day1to5-full — 로테이션·랜덤 추첨 없음).
+        // 저장분은 id 로 찾아 진행도를 이어받는다 — 구세이브(3슬롯 로테이션분)도 이 경로로 흡수된다.
+        // 보상 재화가 지금 DEFS 와 다르면(구세이브에 젬 보상이 박혀 있던 경우) 그 자리에서 다시 만든다 —
+        // 마이그레이션을 안 하면 이미 뜬 젬 퀘스트가 계속 남아 젬을 준다.
+        // 지금 상태에서 절대 못 깨는 항목(만렙 대장간의 코인 소비 등, available 참조)은 목록에서 내리되,
+        // **이미 깬 것은 남긴다**: 깨 놓고 수령 전에 만렙이 됐다고 보상을 뺏으면 안 된다.
+        const saved = {};
+        for (const q of S.quests) {
+            if (!q || !this.def(q.id) || !Number.isFinite(q.need) || q.need <= 0) continue;
+            if (!saved[q.id]) saved[q.id] = q;
         }
+        const next = [];
+        for (const def of this.DEFS) {
+            const prev = saved[def.id];
+            const done = prev && (+prev.prog || 0) >= prev.need;
+            if (!this.available(def) && !done) continue;
+            if (prev) {
+                const rw = prev.rw && prev.rw.cur === this.curOf(def) ? prev.rw : this.rollReward(def, prev.need);
+                next.push({ id: def.id, need: prev.need, prog: U.clamp(+prev.prog || 0, 0, prev.need), rw });
+            } else {
+                next.push(this.fresh(def));
+            }
+        }
+        S.quests = next;
     },
 
     // 누적 완료 수에 따른 배수 — 0회면 1배, STEP_CAP회 이상이면 그 자리에서 멈춘다(무한 인플레 방지)
@@ -77,23 +98,19 @@ const Quests = {
         const k = need / def.need;
         return { cur: this.curOf(def), amt: Math.max(1, Math.round(def.rw.amt * k)) };
     },
-    // 지금 상태에서 **절대 못 깨는** 퀘스트는 뽑지도, 슬롯에 남기지도 않는다.
-    // 게임에서 코인이 나가는 지점은 대장간 강화 단 하나뿐이라(`S.coins -=` 는 forge.js:255 한 줄이 전부다)
-    // 대장간이 만렙(Lv.35)이면 `coinSpend`·`gearUpgrade` 는 진행도가 영원히 0이다. 3슬롯짜리 반복
-    // 퀘스트에 영구 미완료가 끼면(포기·재추첨 수단도 없다) 실질 슬롯이 1칸으로 줄어 시스템이 반쯤 죽는다.
-    // 만렙 이전에는 필터가 아무것도 걸러내지 않아 동작이 지금과 완전히 같다.
-    FORGE_LOCKED: ['coinSpend', 'gearUpgrade'],
+    // 지금 상태에서 **절대 못 깨는** 퀘스트는 목록에 올리지도, 남기지도 않는다.
+    // 게임에서 코인이 나가는 지점은 대장간 강화 단 하나뿐이라(`S.coins -=` 는 forge.js 한 줄이 전부다)
+    // 대장간이 만렙(Lv.35)이면 `coinSpend`·`upgradeStart`·`gearUpgrade` 는 진행도가 영원히 0이다.
+    // 고정 목록에 영구 미완료가 끼면(포기 수단도 없다) 죽은 칸이 눌러앉는다.
+    // 만렙 이전에는 필터가 아무것도 걸러내지 않아 전 항목이 그대로 노출된다.
+    FORGE_LOCKED: ['coinSpend', 'upgradeStart', 'gearUpgrade'],
     available(def) {
         if (this.FORGE_LOCKED.indexOf(def.id) < 0) return true;
         if (typeof Forge === 'undefined') return true;      // 로드 순서 방어 — 모르면 막지 않는다
         return !!Forge.upgradeInfo();                        // 만렙이면 null
     },
-    // 지금 떠 있는 것과 겹치지 않게 한 개 뽑는다
-    roll(excludeIds) {
-        let pool = this.DEFS.filter(d => excludeIds.indexOf(d.id) < 0 && this.available(d));
-        if (!pool.length) pool = this.DEFS.filter(d => this.available(d));   // 중복 회피보다 '깰 수 있음'이 우선
-        const def = U.choice(pool.length ? pool : this.DEFS);
-        if (!def) return null;
+    // 이 행동의 새(진행도 0) 퀘스트 — 요구치·보상은 현재 tier 기준
+    fresh(def) {
         const need = this.needOf(def);
         return { id: def.id, need, prog: 0, rw: this.rollReward(def, need) };
     },
@@ -122,19 +139,21 @@ const Quests = {
         const q = this.list()[i];
         return !!q && this.isDone(q);
     },
-    // 수령 → 보상 지급 → **그 슬롯만** 같은 풀에서 새 퀘스트로 교체(날짜 무관, 즉시)
+    // 수령 → 보상 지급 → **같은 퀘스트**가 제자리에서 진행도 0으로 다시 시작 (quest-fixed-repeat —
+    // 재추첨하지 않는다: 펫합성 자리는 계속 펫합성이다. 날짜 무관, 즉시)
     claim(i) {
         if (!this.canClaim(i)) return null;
         const q = S.quests[i];
+        const def = this.def(q.id);
         // 젬 방어 가드 — 상점(shop.js:36)과 같은 규칙을 여기에도 둔다. 슬롯에 젬 보상이 박힌 저장분이
         // ensure() 를 안 거치고 흘러들어와도(외부 주입·손댄 세이브) 젬 대신 대체 재화로 지급한다.
         // 화면 토스트도 이 값을 그대로 읽으므로 '준다고 말하고 안 주는' 어긋남이 생기지 않는다.
         const cur = this.curOf({ rw: q.rw });
-        const got = { cur, amt: q.rw.amt, text: this.def(q.id).text };
+        const got = { cur, amt: q.rw.amt, text: def.text };
         S[cur] = (S[cur] || 0) + q.rw.amt;
         S.questsCleared = (S.questsCleared || 0) + 1;
-        const fresh = this.roll(S.quests.filter((_, k) => k !== i).map(x => x.id));
-        if (fresh) S.quests[i] = fresh; else S.quests.splice(i, 1);
+        // 이 수령으로 못 깨는 상태가 됐으면(예: 방금 강화 완료 수령이 만렙 도달분이면) 자리가 내려간다
+        if (this.available(def)) S.quests[i] = this.fresh(def); else S.quests.splice(i, 1);
         if (typeof saveGame === 'function') saveGame();
         return got;
     },

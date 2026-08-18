@@ -261,6 +261,7 @@ const Forge = {
         const spent = this.upgradeCost(info);
         S.coins -= spent; // 업그레이드는 골드로 (해머는 제작 전용)
         Quests.bump('coinSpend', spent);        // 반복 퀘스트 '코인 소비' — 게임에서 코인이 나가는 유일한 지점
+        Quests.bump('upgradeStart');            // 반복 퀘스트 '대장간 강화 시작'
         S.forgeUpgradeEndsAt = U.now() + this.upgradeTime(info) * 1000;
         saveGame();
         return true;

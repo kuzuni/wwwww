@@ -54,19 +54,23 @@ const ev = (page, body) => page.evaluate(`(() => { ${body} })()`);
         return need.filter(n => !IconGen.img(n));`);
     ok(missing.length === 0, `보상 재화 아이콘 누락: ${missing.join(', ')}`);
 
-    // ⑵ 실게임 수령 (UI 버튼 경로) — 두 문제 퀘스트를 각각 0번 슬롯에 세운다
+    // ⑵ 실게임 수령 (UI 버튼 경로) — 두 문제 퀘스트를 완료 상태로 세운다.
+    //    ⚠️ 고정 배치(quest-day1to5-full) 이후 ensure() 가 목록을 DEFS 순서로 다시 깔므로
+    //    0번 슬롯에 꽂아도 제자리로 돌아간다 — 버튼은 **id 의 실제 인덱스**로 찾아야 한다.
     for (const id of ['gearUpgrade', 'techDone']) {
         const r = await ev(page, `
             const def = Quests.def('${id}');
             S.gems = 0; S.questsCleared = 0;
-            Quests.ensure();
-            S.quests[0] = { id: '${id}', need: 1, prog: 1, rw: { cur: def.rw.cur, amt: def.rw.amt } };
+            S.quests = []; Quests.ensure();
+            const idx = S.quests.findIndex(q => q.id === '${id}');
+            if (idx < 0) return { err: '고정 목록에 ${id} 가 없다' };
+            S.quests[idx] = { id: '${id}', need: 1, prog: 1, rw: { cur: def.rw.cur, amt: def.rw.amt } };
             const before = { gems: S.gems, cur: S[def.rw.cur] || 0 };
             // ⚠️ 토스트는 쌓인 채 남는다 — 지우지 않으면 **직전 퀘스트의 문구**를 읽어 검사가 통째로 헛돈다
             //    (이 프로브 첫 판이 techDone 자리에서 gearUpgrade 토스트를 읽었다).
             document.querySelectorAll('.toast').forEach(t => t.remove());
             UI.openQuests();
-            const btn = [...document.querySelectorAll('#quest-modal button')].find(b => /onClaimQuest\\(0\\)/.test(b.getAttribute('onclick') || ''));
+            const btn = [...document.querySelectorAll('#quest-modal button')].find(b => new RegExp('onClaimQuest\\\\(' + idx + '\\\\)').test(b.getAttribute('onclick') || ''));
             if (!btn) return { err: '수령 버튼을 못 찾았다' };
             btn.click();
             const toasts = [...document.querySelectorAll('.toast')].map(t => t.textContent.trim());
@@ -100,8 +104,10 @@ const ev = (page, body) => page.evaluate(`(() => { ${body} })()`);
         const keep = def.rw;
         def.rw = { cur: 'gems', amt: 8 };
         S.gems = 0;
-        S.quests[0] = { id: 'gearUpgrade', need: 1, prog: 1, rw: { cur: 'gems', amt: 8 } };
-        const got = Quests.claim(0);
+        S.quests = []; Quests.ensure();
+        const idx = S.quests.findIndex(q => q.id === 'gearUpgrade');
+        S.quests[idx] = { id: 'gearUpgrade', need: 1, prog: 1, rw: { cur: 'gems', amt: 8 } };
+        const got = Quests.claim(idx);
         const out = { gems: S.gems, got: got && got.cur };
         def.rw = keep;
         return out;`);

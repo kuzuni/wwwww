@@ -122,6 +122,7 @@ const Dungeons = {
         if (S.dungeons.best[id] < 1) { UI.toast('먼저 1단계를 클리어해야 소탕할 수 있습니다'); return false; }
         if (S.dungeons.keys[id] <= 0) { UI.toast('🗝 열쇠가 없습니다 (매일 09:00 리셋)'); return false; }
         S.dungeons.keys[id]--;
+        Quests.bump('keySpend');                     // 반복 퀘스트 '던전 열쇠 사용' — 소탕도 열쇠를 쓴다
         const st = S.dungeons.best[id];
         const r = this.grantRewards(id, st);
         UI.toast(`⚡ ${this.def(id).kr} ${st}단계 소탕 — ${this.rewardText(id, st)}`);
@@ -135,7 +136,8 @@ const Dungeons = {
         const { id, stage } = this.run;
         this.run = null;
         S.dungeons.keys[id] = Math.max(0, S.dungeons.keys[id] - 1); // 완료 시점 열쇠 소모
-        Quests.bump('dungeonClear');                 // 반복 퀘스트 '던전 완료'(= 열쇠 사용 지점)
+        Quests.bump('dungeonClear');                 // 반복 퀘스트 '던전 완료'
+        Quests.bump('keySpend');                     // 반복 퀘스트 '던전 열쇠 사용'(클리어 소모분)
         S.dungeons.best[id] = Math.max(S.dungeons.best[id], stage);
         const r = this.grantRewards(id, stage);
         UI.toast(`🏆 ${this.def(id).kr} ${stage}단계 클리어! ${this.rewardText(id, stage)}`);

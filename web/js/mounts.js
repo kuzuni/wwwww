@@ -96,15 +96,17 @@ const Mounts = {
     absorbMaterials(targetName, materialNames) {
         const target = S.mounts[targetName];
         if (!target) return false;
-        let totalXp = 0;
+        let totalXp = 0, consumed = 0;
         for (const name of materialNames) {
             if (name === targetName) continue;
             const m = S.mounts[name];
             if (!m) continue;
             totalXp += this.xpValue(m.rarity) * this.levelMult(m);
+            consumed++;
             delete S.mounts[name];
             S.activeMounts = S.activeMounts.filter(n => n !== name);
         }
+        if (consumed) Quests.bump('mountMerge');     // 반복 퀘스트 '탈것 흡수 강화' — 실제 재료가 소모된 흡수만 센다
         this.addXp(targetName, totalXp);
         Combat.recalcHero();
         if (typeof Scene3D !== 'undefined' && Scene3D.refreshMount) Scene3D.refreshMount();
