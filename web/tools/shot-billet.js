@@ -11,7 +11,7 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 // 정지 / 1타 접촉 / 1타 드웰 / 타격 사이 / 2타 접촉 / 3타 접촉 / 3타 드웰 / 꼬리
-const TIMES = [0, 173, 206, 320, 410, 648, 700, 860];
+const TIMES = [0, 173, 206, 300, 378, 648, 700, 860];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });

@@ -67,7 +67,7 @@ const DUR = 720;
     // ── ⑷ 진폭: 흔들림은 **시트 전체**가 움직여야 의미가 있다(모루만 움직이면 기존 anvilbump 와 같다) ──
     const rest = await at(10);       // 타격 사이 정지 구간
     const amps = [];
-    for (const [name, pct, min] of [['hit1', 24, 0.8], ['hit2', 57, 0.8], ['hit3', 90, 1.6]]) {
+    for (const [name, pct, min] of [['hit1', 24, 0.8], ['hit2', 52.5, 0.8], ['hit3', 90, 1.6]]) {
         const m = await at(pct);
         const dy = Math.abs(m.rect['#equip-sheet'][1] - rest.rect['#equip-sheet'][1]);
         const dx = Math.abs(m.rect['#equip-sheet'][0] - rest.rect['#equip-sheet'][0]);

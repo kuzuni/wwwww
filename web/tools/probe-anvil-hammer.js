@@ -23,9 +23,9 @@ const DUR = 720;
 // afswing 키프레임의 타격/윈드업 지점(%)
 const FRAMES = [
     { name: 'hit1', pct: 24, kind: 'hit' },
-    { name: 'wind2', pct: 41, kind: 'up' },
-    { name: 'hit2', pct: 57, kind: 'hit' },
-    { name: 'wind3', pct: 74, kind: 'up' },
+    { name: 'wind2', pct: 39.04, kind: 'up' },
+    { name: 'hit2', pct: 52.5, kind: 'hit' },   // 등간격(메트로놈)을 깨려고 57% 에서 당겼다
+    { name: 'wind3', pct: 71.38, kind: 'up' },
     { name: 'hit3', pct: 90, kind: 'hit' },
 ];
 
@@ -210,8 +210,12 @@ async function waitBooted(page, timeout = 25000) {
             return v ? parseFloat(v) : dflt;
         };
         const sparks = [0, 1, 2].map(h => {
-            // 불티는 클래스로 타격을 구분하지 않으므로 지연(--t)으로 묶는다
-            const t = [0.15, 0.39, 0.63][h];
+            // 불티는 클래스로 타격을 구분하지 않으므로 지연(--t)으로 묶는다.
+            // ⚠️ 예전엔 이 지연을 [0.15, 0.39, 0.63] 으로 **손으로 베껴** 뒀다. 2타를 410 → 378ms 로
+            //    당기자 --t 가 .370 이 되어 창(±0.02)을 벗어났고, 불티가 그대로인데도 '2타 0개'라는
+            //    유령 실패가 났다 — TODO '함정 ④(프로브가 자가 코드보다 낡으면 판정이 무효)' 그대로다.
+            //    이제 생성원(UI.ANVIL_HITS)에서 같은 식으로 되풀어 쓴다.
+            const t = UI.ANVIL_HITS[h] / 1000 - 0.008;
             return [...document.querySelectorAll('.anvil-fx .af-spark')]
                 .filter(n => Math.abs(parseFloat(n.style.getPropertyValue('--t')) - t) < 0.02).length;
         });
@@ -263,7 +267,7 @@ async function waitBooted(page, timeout = 25000) {
     // ⑫ 🚨 **이펙트가 실제 접점에서 터지는가.** 망치만 상판 침하를 따라가게 고쳤더니 빛·불티는
     //    cy=14 에 남아 3타에서 진짜 접점보다 8.5px 위 허공에서 터졌다(비평가 B 2차 1순위).
     //    '망치가 접점에 붙었다'(①)만으로는 못 잡는 결함이라 이펙트 원점을 따로 잰다.
-    for (const [h, pct] of [[0, 24], [1, 57], [2, 90]]) {
+    for (const [h, pct] of [[0, 24], [1, 52.5], [2, 90]]) {
         const m = await page.evaluate(({ pct, h }) => {
             const DUR = 720;
             UI.cancelAnvilStrike(); UI._anvilBusy = false;
@@ -382,7 +386,7 @@ async function waitBooted(page, timeout = 25000) {
             return { bil: Math.hypot(bb.x - bt.x, bb.y - bt.y), anv: Math.hypot(ab_.x - at_.x, ab_.y - at_.y) };
         };
         const rest = at(5);
-        return [24, 57, 90].map(p => {
+        return [24, 52.5, 90].map(p => {
             const m = at(p);
             return { bil: 1 - m.bil / rest.bil, anv: 1 - m.anv / rest.anv };
         });
@@ -424,6 +428,52 @@ async function waitBooted(page, timeout = 25000) {
     }, [withB, noB]);
     say(billetPx.n >= 120 && billetPx.strong >= 45,
         `⑯ 네이티브 92px 정지 프레임의 빌릿 기여 픽셀 ${billetPx.n}개(그중 뚜렷 ${billetPx.strong}개) — 기준 ≥120 / ≥45`);
+
+    // ⑰ 🚨 **박자가 등간격이면 메트로놈이다.** 예전 172.8/410.4/648ms 는 간격이 237.6/237.6ms 로
+    //    완벽히 같아 비평가 두 명이 독립적으로 "크레셴도가 안 들린다"고 꼽았다. 키프레임 텍스트를
+    //    읽어 판정하면 안 된다 — 퍼센트를 옮겨 놓고 JS 의 ANVIL_HITS 를 안 옮기면(또는 그 반대)
+    //    소리와 그림이 갈라지는데 텍스트 검사로는 둘 다 '고쳤다'로 보인다. 그래서 **망치 타격면의
+    //    화면 y 를 5ms 간격으로 훑어 실제로 가장 깊이 내려간 시각 3개**를 찾는다(자가 코드보다
+    //    낡을 수 없는 측정이다 — TODO '함정 ④').
+    const beat = await page.evaluate(() => {
+        UI.cancelAnvilStrike(); UI._anvilBusy = false;
+        document.getElementById('equip-sheet').getBoundingClientRect();
+        UI.playAnvilStrike(() => {});
+        (UI._anvilTimers || []).forEach(clearTimeout); UI._anvilTimers = [];
+        document.getElementById('equip-sheet').getBoundingClientRect();
+        const anims = [...document.querySelectorAll('#equip-sheet, #equip-sheet *')]
+            .flatMap(n => n.getAnimations());
+        anims.forEach(a => a.pause());
+        const g = document.querySelector('.anvil-fx .af-hammer');
+        const inner = g.querySelector('g');
+        const ys = [];
+        for (let t = 0; t <= 720; t += 5) {
+            anims.forEach(a => { a.currentTime = Math.min(t, a.effect.getComputedTiming().endTime || t); });
+            const p = inner.ownerSVGElement.createSVGPoint(); p.x = 0; p.y = 0.9;
+            ys.push({ t, y: p.matrixTransform(inner.getScreenCTM()).y });
+        }
+        // 국소 최대(= 가장 깊이 내려간 프레임). 드웰 구간은 평평하므로 구간의 중앙을 잡는다.
+        const peaks = [];
+        for (let i = 1; i < ys.length - 1; i++) {
+            if (ys[i].y >= ys[i - 1].y && ys[i].y >= ys[i + 1].y) {
+                const last = peaks[peaks.length - 1];
+                if (last && ys[i].t - last.end <= 60) { last.end = ys[i].t; last.y = Math.max(last.y, ys[i].y); }
+                else peaks.push({ start: ys[i].t, end: ys[i].t, y: ys[i].y });
+            }
+        }
+        return peaks.map(p => ({ t: p.start, y: p.y }));
+    });
+    const hits = await page.evaluate(() => UI.ANVIL_HITS);
+    say(beat.length === 3, `⑰ 실측 타격 프레임 ${beat.length}개 (기대 3개) — ${beat.map(b => Math.round(b.t) + 'ms').join(' / ')}`);
+    if (beat.length === 3) {
+        const drift = beat.map((b, i) => Math.abs(b.t - hits[i]));
+        say(Math.max(...drift) <= 25,
+            `⑰ 소리(ANVIL_HITS ${hits.join('/')}ms)와 그림(${beat.map(b => Math.round(b.t)).join('/')}ms)이 같은 시각 — 최대 어긋남 ${Math.max(...drift)}ms (허용 25ms)`);
+        const g1 = beat[1].t - beat[0].t, g2 = beat[2].t - beat[1].t;
+        const ratio = Math.max(g1, g2) / Math.min(g1, g2);
+        say(ratio >= 1.2,
+            `⑰ 박자가 등간격이 아님 — 간격 ${g1}/${g2}ms = ${ratio.toFixed(2)}배 (기준 ≥1.2 — 1.0 이면 메트로놈)`);
+    }
 
     say(errs.length === 0, `⑤ 콘솔/페이지 에러 ${errs.length}건${errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''}`);
     await browser.close();

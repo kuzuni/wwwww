@@ -741,13 +741,13 @@ body {
        늘린 이유는 3타 뒤 720~900ms 가 **완전한 정지 화면**이었기 때문이다(연출의 20%).
        망치는 이미 퇴장했으므로 그 구간을 채우는 건 모루의 잔진동뿐이다 — 무거운 쇳덩이가
        한 번에 멈추지 않고 울다 잦아드는 그림이라 물리적으로도 맞다. */
-    0%, 18.82%, 27.82%, 45.82%, 54.82%, 72.82% { transform: translateY(0) scale(1, 1); }
+    0%, 18.82%, 27.82%, 42.14%, 51.13%, 72.82% { transform: translateY(0) scale(1, 1); }
     19.64% { transform: translateY(2.4px) scale(1.025, .952); }
     23.43% { transform: translateY(2.4px) scale(1.025, .952); }   /* 망치와 같이 멈춘다 */
     25.36% { transform: translateY(-1.1px) scale(.99, 1.018); }
-    46.64% { transform: translateY(3.4px) scale(1.04, .932); }
-    51.19% { transform: translateY(3.4px) scale(1.04, .932); }
-    52.36% { transform: translateY(-1.4px) scale(.988, 1.024); }
+    42.95% { transform: translateY(3.4px) scale(1.04, .932); }   /* 378ms */
+    47.5%  { transform: translateY(3.4px) scale(1.04, .932); }
+    48.67% { transform: translateY(-1.4px) scale(.988, 1.024); }
     73.64% { transform: translateY(5px)   scale(1.06, .89); }     /* 마지막 타격이 가장 깊다 */
     79.31% { transform: translateY(5px)   scale(1.06, .89); }
     81.5%  { transform: translateY(-2px)  scale(.98, 1.04); }
@@ -772,11 +772,11 @@ body {
     19.64%          { transform: scale(1.05, .92); }
     23.43%          { transform: scale(1.05, .92); }   /* 망치·모루와 같이 멈춘다 */
     25.36%          { transform: scale(1.03, .95); }
-    27.82%, 45.82%  { transform: scale(1.03, .95); }
-    46.64%          { transform: scale(1.09, .85); }
-    51.19%          { transform: scale(1.09, .85); }
-    52.36%          { transform: scale(1.07, .88); }
-    54.82%, 72.82%  { transform: scale(1.07, .88); }
+    27.82%, 42.14%  { transform: scale(1.03, .95); }
+    42.95%          { transform: scale(1.09, .85); }
+    47.5%           { transform: scale(1.09, .85); }
+    48.67%          { transform: scale(1.07, .88); }
+    51.13%, 72.82%  { transform: scale(1.07, .88); }
     73.64%          { transform: scale(1.15, .76); }   /* 마지막이 가장 납작하다 */
     79.31%          { transform: scale(1.15, .76); }
     81.5%, 100%     { transform: scale(1.13, .79); }
@@ -790,9 +790,9 @@ body {
     0%, 18.82% { opacity: .12; }
     19.64%     { opacity: .72; }
     27%        { opacity: .4; }
-    45.82%     { opacity: .3; }
-    46.64%     { opacity: .8; }
-    54%        { opacity: .45; }
+    42.14%     { opacity: .3; }
+    42.95%     { opacity: .8; }
+    50.32%     { opacity: .45; }
     72.82%     { opacity: .34; }
     73.64%     { opacity: .85; }
     82%        { opacity: .55; }
@@ -804,9 +804,9 @@ body {
     0%, 18.82% { opacity: .5; }
     19.64%     { opacity: .88; }
     27%        { opacity: .6; }
-    45.82%     { opacity: .56; }
-    46.64%     { opacity: .95; }
-    54%        { opacity: .64; }
+    42.14%     { opacity: .56; }
+    42.95%     { opacity: .95; }
+    50.32%     { opacity: .64; }
     72.82%     { opacity: .6; }
     73.64%     { opacity: .92; }
     82%        { opacity: .7; }
@@ -829,13 +829,13 @@ body {
    타이밍은 anvilbump·afswing 과 **같은 마스터 클럭(.72s linear)** 이라 세 연출이 한 프레임에 맞는다. */
 #equip-sheet.shaking { animation: sheetshake .72s linear; }
 @keyframes sheetshake {
-    0%, 21%, 33%, 54%, 66%, 87%, 100% { transform: translate(0, 0); }
+    0%, 21%, 33%, 49.5%, 61.5%, 87%, 100% { transform: translate(0, 0); }
     24%   { transform: translate(.5px, 1.6px); }     /* 타격 = 아래로 꽂힌다 */
     26.5% { transform: translate(-.45px, -.9px); }   /* 되튐 */
     29%   { transform: translate(.25px, .4px); }
-    57%   { transform: translate(.8px, 2.3px); }
-    59.5% { transform: translate(-.5px, -1px); }
-    62%   { transform: translate(.3px, .5px); }
+    52.5% { transform: translate(.8px, 2.3px); }
+    55%   { transform: translate(-.5px, -1px); }
+    57.5% { transform: translate(.3px, .5px); }
     90%   { transform: translate(1.1px, 3.2px); }    /* 3타가 가장 깊다 */
     92.5% { transform: translate(-.8px, -1.7px); }
     95%   { transform: translate(.5px, 1px); }
@@ -910,16 +910,16 @@ body {
     22%   { transform: translate(.31px, .12px) rotate(10.6deg) scale(1, 1.16); }   /* 접촉 직전 1프레임 스미어 = 아직 안 눌린 빌릿 윗면(y=11) */
     24%   { transform: translate(-.28px, 7.30px)  rotate(19deg) scale(1, 1); }   /* 1.0유닛 파고든다 */  /* 36ms에 21° = 2.1배 가속 */
     28.64% { transform: translate(-.28px, 6.33px) rotate(19deg) scale(1, 1); } /* 33.4ms 정지(2프레임) */
-    34%   { transform: translate(.8px, -6px)   rotate(4deg) scale(1, 1); }     /* 되튐 0.42°/ms = 타격의 0.72배 */
-    41%   { transform: translate(3px, -27px)   rotate(-34deg) scale(1, 1); }
-    52%   { transform: translate(1.6px, -14px) rotate(-9deg) scale(1, 1); }
-    55.5% { transform: translate(.17px, 1.28px) rotate(10.6deg) scale(1, 1.18); }
-    57%   { transform: translate(-.44px, 10.62px) rotate(19deg) scale(1, 1); }  /* 36ms에 28°, 1.4유닛 관통 */
-    62.56% { transform: translate(-.44px, 9.25px) rotate(19deg) scale(1, 1); } /* 40ms 정지 */
-    66.5% { transform: translate(1.2px, -7px)  rotate(3deg) scale(1, 1); }     /* 되튐 0.55°/ms = 0.71배 */
-    74%   { transform: translate(5px, -52px)  rotate(-58deg) scale(1, 1); }   /* 3타 윈드업이 화면 최고점 */
-    85%   { transform: translate(2.6px, -20px) rotate(-20deg) scale(1, 1); }
-    88.5% { transform: translate(.32px, 2.51px) rotate(8deg) scale(1, 1.22); }      /* 3타가 가장 길게 늘어난다 */
+    33.15% { transform: translate(.8px, -6px)  rotate(4deg) scale(1, 1); }     /* 되튐 0.42°/ms = 타격의 0.72배 */
+    39.04% { transform: translate(3px, -27px)  rotate(-34deg) scale(1, 1); }   /* 2타 윈드업 정점 — 간격이 좁아진 만큼 ×0.841 압축 */
+    48.29% { transform: translate(1.6px, -14px) rotate(-9deg) scale(1, 1); }
+    51.24% { transform: translate(.17px, 1.28px) rotate(10.6deg) scale(1, 1.18); }
+    52.5% { transform: translate(-.44px, 10.62px) rotate(19deg) scale(1, 1); }  /* 378ms — 36ms에 28°, 1.4유닛 관통 */
+    58.06% { transform: translate(-.44px, 9.25px) rotate(19deg) scale(1, 1); } /* 40ms 정지 */
+    62.65% { transform: translate(1.2px, -7px) rotate(3deg) scale(1, 1); }     /* 되튐 0.55°/ms = 0.71배 */
+    71.38% { transform: translate(5px, -52px)  rotate(-58deg) scale(1, 1); }  /* 3타 윈드업이 화면 최고점 — 2타에서 아낀 32.4ms 가 여기로 왔다 */
+    84.18% { transform: translate(2.6px, -20px) rotate(-20deg) scale(1, 1); }
+    88.25% { transform: translate(.32px, 2.51px) rotate(8deg) scale(1, 1.22); }     /* 3타가 가장 길게 늘어난다 */
     /* ⚠️ 여기 회전을 26° 로 눕히자는 제안이 있었지만(3타만 자세를 다르게) 그러면 타격면이
        상판과 6.7° 어긋나 **다시 모서리로 찍는다**(probe ⑩ 가 잡았다). 상판이 -0.85° 이므로
        합각은 0° 근처를 벗어날 수 없다 — 3타의 차별화는 각도가 아니라 **관통 깊이**(2.0유닛)와
@@ -940,7 +940,7 @@ body {
     opacity: 0; animation: afring .2s cubic-bezier(.1,.82,.28,1) forwards;
 }
 .anvil-fx .af-ring.h0 { animation-delay: .165s; --afr: 2.0; }
-.anvil-fx .af-ring.h1 { animation-delay: .403s; --afr: 2.7; }
+.anvil-fx .af-ring.h1 { animation-delay: .371s; --afr: 2.7; }
 .anvil-fx .af-ring.h2 { animation-delay: .640s; --afr: 4.0; }
 @keyframes afring {
     0%   { opacity: 1; transform: scale(1); }
@@ -956,7 +956,7 @@ body {
     opacity: 0; animation: afflash .1s linear forwards;
 }
 .anvil-fx .af-flash.f0 { animation-delay: .167s; }
-.anvil-fx .af-flash.f1 { animation-delay: .405s; --affs: 1.28; }
+.anvil-fx .af-flash.f1 { animation-delay: .373s; --affs: 1.28; }
 .anvil-fx .af-flash.f2 { animation-delay: .643s; --affs: 1.7; }
 @keyframes afflash {
     0%   { opacity: 1; transform: scale(calc(var(--affs, 1) * .55)); }
@@ -974,7 +974,7 @@ body {
     opacity: 0; animation: afheat .27s cubic-bezier(.1,.4,.3,1) forwards;
 }
 .anvil-fx .af-heat.t0 { animation-delay: .17s; }
-.anvil-fx .af-heat.t1 { animation-delay: .41s; --afhs: 1.15; }
+.anvil-fx .af-heat.t1 { animation-delay: .378s; --afhs: 1.15; }
 .anvil-fx .af-heat.t2 { animation-delay: .63s; --afhs: 1.45; }
 @keyframes afheat {
     0%   { opacity: .95; transform: scale(calc(var(--afhs, 1) * .55)); }
@@ -990,7 +990,7 @@ body {
     opacity: 0; animation: afshadow .13s cubic-bezier(.2,.7,.35,1) forwards;
 }
 .anvil-fx .af-shadow.d0 { animation-delay: .150s; }
-.anvil-fx .af-shadow.d1 { animation-delay: .388s; --afds: 1.12; }
+.anvil-fx .af-shadow.d1 { animation-delay: .356s; --afds: 1.12; }
 .anvil-fx .af-shadow.d2 { animation-delay: .626s; --afds: 1.3; }
 @keyframes afshadow {
     0%   { opacity: .1;  transform: scale(calc(var(--afds, 1) * .5)); }
@@ -1009,7 +1009,7 @@ body {
     opacity: 0; animation: afstar .075s cubic-bezier(.1,.75,.3,1) forwards;
 }
 .anvil-fx .af-star.s0 { animation-delay: .166s; }
-.anvil-fx .af-star.s1 { animation-delay: .404s; --afss: 1.3; }
+.anvil-fx .af-star.s1 { animation-delay: .372s; --afss: 1.3; }
 .anvil-fx .af-star.s2 { animation-delay: .642s; --afss: 1.75; }
 @keyframes afstar {
     0%   { opacity: .95; transform: scale(calc(var(--afss, 1) * .25)); }
@@ -1025,7 +1025,7 @@ body {
     opacity: 0; animation: afcore .07s linear forwards;
 }
 .anvil-fx .af-core.c0 { animation-delay: .166s; }
-.anvil-fx .af-core.c1 { animation-delay: .404s; --afcs: 1.2; }
+.anvil-fx .af-core.c1 { animation-delay: .372s; --afcs: 1.2; }
 .anvil-fx .af-core.c2 { animation-delay: .642s;  --afcs: 1.55; }
 @keyframes afcore {
     0%   { opacity: 1; transform: scale(calc(var(--afcs, 1) * .6)); }
@@ -4300,24 +4300,11 @@ body {
     mask-image: linear-gradient(rgba(0,0,0,0), #000 72%);
 }
 .sr-orbwrap { position: relative; z-index: 2; width: 100%; aspect-ratio: 1; border-radius: 50%; transform: scale(var(--sz)); }
-/* 잔열 — 타격 직후 상판에 남아 서서히 식는다. 플래시(0.1s)·섬광(0.075s)·링(0.2s)이 전부
-   250ms 안에 사라져 타격 사이 구간의 상판이 **완전히 식은 그림**이었다(비평가: 대장간에서
-   두 타 사이는 가장 밝은 시간이다). 수명 270ms 로 다음 타격까지 다리를 놓고, 3타 잔열이
-   630+270 = 900ms 에 끝나 오버레이 수명과 정확히 맞물린다(그 앞 120ms 정지 화면도 이걸로 찬다).
-   ⚠️ 270ms 를 넘기면 3타 잔열이 오버레이보다 오래 살아 잘려 나간다 — probe ⑥ 이 그걸 잡는다. */
-.anvil-fx .af-heat {
-    fill: url(#hmr-heat); mix-blend-mode: screen;
-    transform-box: fill-box; transform-origin: center;
-    opacity: 0; animation: afheat .27s cubic-bezier(.1,.4,.3,1) forwards;
-}
-.anvil-fx .af-heat.t0 { animation-delay: .17s; }
-.anvil-fx .af-heat.t1 { animation-delay: .41s; --afhs: 1.15; }
-.anvil-fx .af-heat.t2 { animation-delay: .63s; --afhs: 1.45; }
-@keyframes afheat {
-    0%   { opacity: .95; transform: scale(calc(var(--afhs, 1) * .55)); }
-    22%  { opacity: .8;  transform: scale(var(--afhs, 1)); }
-    100% { opacity: 0;   transform: scale(calc(var(--afhs, 1) * 1.15)); }
-}
+/* ⚠️ 여기 있던 `.af-heat` 3규칙 + `@keyframes afheat` 사본을 걷어냈다(2026-08-18, anvil-ref ⓑ).
+   모루 잔열 블록이 소환결과(`sr-*`) 섹션 한가운데에 **통째로 한 벌 더** 들어와 있었고,
+   뒤에 오는 사본이 이겨서 위(963~978행)의 원본은 죽은 코드였다. 두 벌이 같은 값이라
+   화면에는 아무 증상이 없지만, 타이밍을 고치러 원본만 손대면 **수정이 조용히 무시된다** —
+   실제로 2타 지연 .41s → .378s 를 옮기다 발견했다. 잔열 규칙은 모루 섹션 한 곳에만 둔다. */
 /* 접지 그림자 — 구체 내부 그라디언트로는 읽히지 않아 구 밖에 눌린 타원으로 깐다 */
 .sr-orbwrap::before {
     content: ''; position: absolute; left: 13%; right: 13%; bottom: -6%; height: 13%;
