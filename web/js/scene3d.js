@@ -9453,6 +9453,256 @@ const Scene3D = {
         this.paintSky(t.sky, fogC.getHex(), night);
     },
 
+    // ==========================================================================
+    // 플레이어 정보 팝업 미니 씬 (player-info-scene-thumb, 사용자 지시 2026-08-19)
+    // --------------------------------------------------------------------------
+    // 사용자 원문: "플레이어랑 썸네일용 맵(잔디 맵)으로(현재 맵과 상관없이), 맵에서 플레이어가
+    //             움직이는 것처럼. 플레이어는 가운데 고정·이동모션, 맵은 흘러가는 느낌으로."
+    // 종전에는 **살아 있는 전장을 한 프레임 렌더해 `toDataURL` 로 찍은 정지 JPEG** 이었다 —
+    // 현재 챕터가 용암이면 용암이 찍히고, 움직이지도 않았다. 요구 세 가지를 전부 어긴다.
+    //
+    // ⚠️ 🚨 **본편 씬을 빌려 쓰면 안 된다 — 두 가지가 동시에 망가진다.**
+    //    ⑴ 잔디로 만들려고 `setTheme` 을 부르면 **전장이 같이 잔디가 된다**(팝업을 닫아도 안 돌아온다).
+    //    ⑵ `heroG` 를 이 씬에 `add` 하면 three.js 는 부모를 옮기므로 **전장에서 영웅이 사라진다.**
+    //    그래서 독립 씬 + `ProChar.createKnight()` 로 만든 **두 번째 기사**를 쓴다.
+    // ⚠️ 🚨 **프롭 재질은 전역 공유다.** `foliageMats`·`stoneMat`·`bushMat` 은 `setTheme` 이 챕터마다
+    //    덮어쓰므로, 그대로 쓰면 용암 챕터에서 잔디 맵의 나무가 검게 나온다("현재 맵과 상관없이"
+    //    지시를 재질이 뒤에서 어긴다). 프리뷰 전용 클론으로 바꿔 끼운다(`previewMat`).
+    // ⚠️ 렌더러는 **한 번만** 만들고 캔버스를 재부착한다 — 팝업은 열 때마다 innerHTML 을 새로 그리는데
+    //    그때마다 WebGLRenderer 를 만들면 컨텍스트가 쌓여 브라우저 상한(보통 16개)에서 전장이 죽는다.
+    PREVIEW_SPEED: 3.4,          // 유닛/초 — 맵이 흘러가는 속도
+    PREVIEW_TILE: 80 / 12,       // 지면 텍스처 한 타일의 월드 폭(플레인 80 × repeat 12)
+    // 팝업이 열려 있는 동안 **전장과 미니 씬 두 컨텍스트가 같이 그린다.** 미니 씬은 92×.. 짜리
+    // 작은 상자라 60fps 가 필요 없고, 30fps 로도 스크롤·걸음이 그대로 읽힌다 — 모바일에서
+    // 전장 프레임을 뺏지 않도록 상한을 둔다(누적 dt 는 그대로 넘겨 속도는 변하지 않는다).
+    PREVIEW_FPS: 30,
+
+    // 초원 낮 테마의 값 그레이드 — `setTheme` 의 계산을 그대로 옮긴 것이다.
+    // (setTheme 을 건드리면 전 챕터가 회귀 위험에 들어가므로 **읽기 전용 복제**로 둔다.
+    //  두 곳이 갈라지면 프리뷰만 색이 어긋나므로, setTheme 의 그레이드를 고치면 여기도 같이 볼 것.)
+    previewGrade(t) {
+        const V = Scene3D.VALUE;
+        const fogC = new THREE.Color(t.fog).lerp(new THREE.Color(t.sky), 0.3).offsetHSL(0, 0.09, 0.01);
+        const gHSL = new THREE.Color(t.ground).getHSL({ h: 0, s: 0, l: 0 });
+        const dL = -Math.min(V.groundMax, V.groundK * gHSL.l);
+        const dF = -Math.min(V.foliageMax, V.foliageK * gHSL.l);
+        const gC = new THREE.Color(t.ground).offsetHSL(0, V.satK * dL, dL);
+        return {
+            fog: fogC, ground: gC,
+            foliage: [gC.clone().offsetHSL(-0.02, 0.08, -0.16 + dF),
+                gC.clone().offsetHSL(-0.025, 0.09, -0.23 + dF),
+                gC.clone().offsetHSL(-0.015, 0.07, -0.09 + dF)],
+            bush: gC.clone().offsetHSL(-0.01, 0.05, -0.1 + dF),
+            mountain: gC.clone().offsetHSL(0, 0.03 - V.farDesat * 0.35, -0.16).lerp(fogC, 0.22),
+            hill: gC.clone().offsetHSL(0, -V.farDesat * 0.7, 0).lerp(fogC, 0.75),
+            farHill: gC.clone().offsetHSL(0, -V.farDesat, 0).lerp(fogC, 0.9),
+        };
+    },
+
+    // 공유 재질 → 프리뷰 전용 클론. 초원 색으로 고정해 현재 챕터의 테마를 안 탄다.
+    previewMat(orig, g) {
+        if (!this._pvMats) this._pvMats = new Map();
+        if (this._pvMats.has(orig)) return this._pvMats.get(orig);
+        const c = orig.clone();
+        const fi = this.foliageMats.indexOf(orig);
+        if (fi >= 0) {
+            c.color.copy(g.foliage[fi]);
+            c.emissive.setHex(0x000000); c.emissiveIntensity = 1;   // 마법 챕터의 보라 발광이 묻어오지 않게
+        } else if (orig === this.bushMat) c.color.copy(g.bush);
+        else if (orig === this.stoneMat) c.color.setHex(0x90a4ae);  // 초원 돌색(setTheme 의 기본 분기)
+        this._pvMats.set(orig, c);
+        return c;
+    },
+
+    // 프롭 하나를 프리뷰용으로 만든다 — 재질을 전부 클론으로 바꿔 끼운 뒤 돌려준다
+    previewProp(kind, s, g) {
+        const p = this.makeProp('forest', kind, s);
+        p.traverse(m => { if (m.isMesh && m.material) m.material = this.previewMat(m.material, g); });
+        return p;
+    },
+
+    previewBuild() {
+        const t = CHAPTER_THEMES[0];        // 항상 1챕터 잔디 — 현재 챕터와 무관 (사용자 지시 ①)
+        const g = this.previewGrade(t);
+        this._pvGrade = g;
+        const sc = new THREE.Scene();
+        sc.background = new THREE.Color(t.sky);
+        sc.fog = new THREE.Fog(g.fog.clone(), 13, 35);
+        // 조명 — `setTheme` 의 '초원 낮' 실측값. 생성자 초기값을 베끼면 채움광이 과해 프리뷰만 허옇게 뜬다
+        // (creatureThumb 쪽 `syncCreatureLights` 주석이 같은 함정을 이미 기록해 뒀다).
+        const hemi = new THREE.HemisphereLight(t.sky, g.ground.clone().offsetHSL(0, 0, -0.1).getHex(), 0.15);
+        const sun = new THREE.DirectionalLight(new THREE.Color(0xffedc4).lerp(new THREE.Color(t.sky), 0.15), 1.0);
+        sun.position.set(7, 5.2, 3.2);
+        const rim = new THREE.DirectionalLight(0xcfe4ff, 0.18);
+        rim.position.set(-5, 3.5, -7);
+        sc.add(hemi, sun, rim);
+        // ---- 지면: 텍스처 offset 을 굴려 '맵이 흘러간다'를 만든다 (사용자 지시 ③) ----
+        // ⚠️ 텍스처는 반드시 **clone** 할 것 — 본편과 같은 객체의 offset 을 굴리면 전장 지면이 같이 흐른다.
+        const gt = this.groundTexFor('forest');
+        const map = gt.map.clone(); map.needsUpdate = true;
+        const nrm = gt.normal.clone(); nrm.needsUpdate = true;
+        map.repeat.set(12, 6); nrm.repeat.set(12, 6);
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 40), new THREE.MeshPhongMaterial({
+            color: g.ground, shininess: 0, map, normalMap: nrm, normalScale: new THREE.Vector2(0.7, 0.7),
+        }));
+        ground.rotation.x = -Math.PI / 2;
+        sc.add(ground);
+        this._pvGroundTex = [map, nrm];
+        // ---- 원경 능선 3겹 (무조명 MeshBasic — 본편과 같은 구성) ----
+        this._pvRidges = [];
+        for (const [z, h, col, sp] of [[-26, 6.2, g.mountain, 0.10], [-19, 4.4, g.hill, 0.20], [-13, 3.0, g.farHill, 0.34]]) {
+            const m = new THREE.Mesh(this.makeRidgeGeo(120, h, 12, 'ridge'), new THREE.MeshBasicMaterial({ color: col, fog: true }));
+            m.position.set(0, 0, z);
+            m.userData.speed = sp;        // 시차(패럴랙스) — 멀수록 천천히 흘러야 깊이가 읽힌다
+            sc.add(m);
+            this._pvRidges.push(m);
+        }
+        // ---- 큰 소품: x 로 흘려보내고 화면 밖으로 나가면 반대편으로 되돌린다 ----
+        this._pvProps = [];
+        // ⚠️ 🚨 **소품을 카메라 쪽(z>0)에 두지 말 것.** 스크롤로 x 가 계속 바뀌므로 전경에 둔 소품은
+        //    언젠가 반드시 x≈0 을 지나가고, 그때 **주인공을 통째로 가린다**(주인공이 주제인 화면에서
+        //    치명적이다). 본편도 같은 이유로 전경 대역을 비웠다 — `buildProps` 의 펫 관통 주석 참조.
+        //    가까운 맛은 z 를 −1.6 까지 당긴 '영웅 뒤 근경'으로 낸다.
+        const spots = [
+            [-16, -6.5, 1.5, 'p'], [-9.5, -4.2, 1.1, 'p'], [-4, -7.2, 1.7, 'p'], [1.5, -4.6, 0.9, 'r'],
+            [7, -6.8, 1.6, 'p'], [12.5, -4.0, 1.0, 'r'], [17.5, -7.0, 1.5, 'p'], [-20, -4.4, 1.0, 'r'],
+            [-13, -1.9, 0.75, 'r'], [3.5, -2.3, 0.85, 'r'], [14, -1.7, 0.7, 'r'],   // 영웅 뒤 근경
+            [-6.5, -9.5, 1.9, 'p'], [9.5, -9.8, 2.0, 'p'], [20, -2.6, 0.9, 'r'],    // 중경 밀도
+        ];
+        for (const [x, z, sz, kind] of spots) {
+            const p = this.previewProp(kind, sz, g);
+            p.position.set(x, 0, z);
+            p.rotation.y = U.rand(0, Math.PI * 2);
+            sc.add(p);
+            this._pvProps.push(p);
+        }
+        // ---- 영웅: 가운데 고정 + 걷기 클립 (사용자 지시 ②) ----
+        const rig = ProChar.createKnight();
+        rig.group.position.set(0, 0, 0.4);
+        rig.group.rotation.y = 0.55;      // 전장에서 영웅이 서 있는 기본 각과 같게
+        sc.add(rig.group);
+        this._pvRig = rig;
+        this._pvScene = sc;
+        // 주인공이 주제이므로 본편보다 바짝 붙는다 — 세로 91px 짜리 상자에서 1.55유닛 기사가
+        // 높이의 절반쯤을 차지하게(멀면 '초록 판에 점 하나'가 된다).
+        this._pvCam = new THREE.PerspectiveCamera(42, 1, 0.1, 120);
+        this._pvCam.position.set(0.1, 1.95, 4.3);
+        this._pvCam.lookAt(0.05, 0.92, 0);
+        this.previewSyncHero();
+    },
+
+    // 장비를 프리뷰 기사에 반영 — 팝업을 열 때마다 부른다(장비를 바꾸고 다시 열면 그대로 보여야 한다)
+    previewSyncHero() {
+        const rig = this._pvRig;
+        if (!rig) return;
+        ProChar.tint(rig, S.equipment);
+        // 무기·투구는 본편과 같은 생성기로 **따로 한 벌** 만든다(본편 것을 옮기면 전장에서 사라진다)
+        for (const [mount, key] of [[rig.handR, '_pvWeapon'], [rig.headMount, '_pvHelmet']]) {
+            if (this[key]) { mount.remove(this[key]); this.disposeTree(this[key]); this[key] = null; }
+        }
+        const w = S.equipment.weapon;
+        const wg = new THREE.Group();
+        wg.add(this.makeWeapon(w ? (w.wtype || 'sword') : 'club', w ? w.ageIdx : 0, w && w.rarity));
+        wg.scale.setScalar(1.22);
+        rig.handR.add(wg);
+        this._pvWeapon = wg;
+        const h = S.equipment.helmet;
+        if (h) {
+            const hg = this.makeHelmet(h.age, h.rarity, itemStyleOf(h), itemNameOf(h));
+            rig.headMount.add(hg);
+            this._pvHelmet = hg;
+        }
+        ProChar.play(rig, ['Walking']);
+    },
+
+    disposeTree(o) {
+        o.traverse(m => { if (m.isMesh && m.geometry && !m.userData.sharedGeometry) m.geometry.dispose(); });
+    },
+
+    previewInit(container) {
+        if (!this._pvR) {
+            const r = new THREE.WebGLRenderer({ antialias: true });
+            r.outputEncoding = THREE.sRGBEncoding;              // 본편(init)과 동일한 색 파이프라인
+            r.toneMapping = THREE.ACESFilmicToneMapping;
+            r.toneMappingExposure = 1.02;                       // 초원 낮 노출
+            r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+            r.domElement.className = 'pinfo-scene-canvas';
+            this._pvR = r;
+            this.previewBuild();
+        }
+        if (this._pvR.domElement.parentNode !== container) container.appendChild(this._pvR.domElement);
+        this._pvHost = container;
+        this.previewResize();
+    },
+
+    // 🚨 **크기는 매 프레임 확인한다.** 팝업은 `showModal` 이 `hidden` 을 떼기 전까지 `display:none`
+    //    이라 `clientWidth/Height` 가 **0** 이다. 처음 한 번만 재면 렌더 버퍼가 2×2 로 굳고,
+    //    CSS 는 100%×100% 라 그 2×2 가 화면 크기로 늘어나 **하늘·지면이 뭉갠 그라디언트 4픽셀**만
+    //    보인다(실제로 그렇게 찍혔다 — 프로브의 상태 검사는 전부 통과하는데 그림만 뭉개져 있었다).
+    //    화면 회전·리사이즈도 같은 코드로 따라간다.
+    previewResize() {
+        const host = this._pvHost;
+        if (!host) return false;
+        const w = Math.round(host.clientWidth), h = Math.round(host.clientHeight);
+        if (w < 2 || h < 2) return false;                 // 아직 레이아웃 전 — 다음 프레임에 다시 본다
+        if (w === this._pvW && h === this._pvH) return true;
+        this._pvW = w; this._pvH = h;
+        this._pvR.setSize(w, h, false);
+        this._pvCam.aspect = w / h;
+        this._pvCam.updateProjectionMatrix();
+        return true;
+    },
+
+    previewTick(dt) {
+        if (!this.previewResize()) return;      // 레이아웃 전이면 그릴 것도 없다
+        const d = this.PREVIEW_SPEED * dt;
+        // 지면: 텍스처 offset 을 굴린다. +x 로 굴리면 무늬가 −x 로 흘러 '앞으로 나아간다'로 읽힌다.
+        for (const tex of this._pvGroundTex) tex.offset.x += d / this.PREVIEW_TILE;
+        for (const m of this._pvRidges) {   // 원경은 시차만큼만 — 같은 속도로 흘리면 종이 배경이 된다
+            m.position.x -= d * m.userData.speed;
+            if (m.position.x < -30) m.position.x += 60;
+        }
+        for (const p of this._pvProps) {
+            p.position.x -= d;
+            if (p.position.x < -22) p.position.x += 44;   // 화면 밖으로 나가면 반대편에서 다시 들어온다
+        }
+        ProChar.update(this._pvRig, dt);
+        this._pvR.render(this._pvScene, this._pvCam);
+    },
+
+    // 팝업이 열릴 때. 실패하면 false 를 돌려 호출자가 기존 정지 프리뷰로 폴백하게 한다.
+    previewStart(container) {
+        if (!container || typeof THREE === 'undefined' || typeof ProChar === 'undefined') return false;
+        try {
+            this.previewInit(container);
+            this.previewSyncHero();
+        } catch (e) { this.previewStop(); return false; }
+        this.previewStop();          // 중복 루프 방지 — 두 번 열면 rAF 가 두 개 돌아 속도가 2배가 된다
+        this._pvRun = true;
+        this._pvLast = 0;
+        this._pvW = this._pvH = 0;      // 다시 열면 크기를 다시 잰다(팝업이 닫혀 있는 동안 레이아웃이 바뀔 수 있다)
+        const minStep = 1000 / this.PREVIEW_FPS - 1;   // −1ms: 60Hz 에서 매번 한 프레임씩 밀려 25fps 가 되는 것 방지
+        const loop = (now) => {
+            if (!this._pvRun) return;
+            this._pvRAF = requestAnimationFrame(loop);
+            if (!this._pvLast) { this._pvLast = now; return; }
+            const ms = now - this._pvLast;
+            if (ms < minStep) return;                  // 프레임을 건너뛰되 _pvLast 는 안 옮긴다(시간이 쌓인다)
+            this._pvLast = now;
+            try { this.previewTick(Math.min(0.05, ms / 1000)); } catch (e) { this.previewStop(); }
+        };
+        this._pvRAF = requestAnimationFrame(loop);
+        return true;
+    },
+
+    // 팝업이 닫힐 때. 렌더러·씬은 살려 둔다(다시 열 때 WebGL 컨텍스트를 새로 안 만들려고).
+    previewStop() {
+        this._pvRun = false;
+        if (this._pvRAF) cancelAnimationFrame(this._pvRAF);
+        this._pvRAF = 0;
+        this._pvLast = 0;
+    },
+
     shake(mag) { this.shakeMag = Math.max(this.shakeMag, mag); },
 
     // HP바 아래 소유자 지시 삼각(캐럿). 근접 교전에서 적 바가 영웅 실루엣 위에 30% 걸쳐

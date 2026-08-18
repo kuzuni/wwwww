@@ -4231,21 +4231,27 @@ const UI = {
 
     // ---- 플레이어 정보 팝업 (메인 화면 왼쪽 하단 "!" 버튼, UI-SPEC 27번) ----
     openPlayerInfo() { this.renderPlayerInfo(); this.showModal(this.els.playerInfoModal); },
-    closePlayerInfo() { this.els.playerInfoModal.classList.add('hidden'); },
+    closePlayerInfo() {
+        this.els.playerInfoModal.classList.add('hidden');
+        // ⚠️ 팝업이 닫히면 미니 씬 rAF 를 반드시 끊는다 — 안 끊으면 안 보이는 씬이 계속 렌더돼
+        //    전장과 GPU 를 나눠 쓴다(모바일에서 그대로 프레임 손실이다).
+        if (typeof Scene3D !== 'undefined' && Scene3D.previewStop) Scene3D.previewStop();
+    },
     renderPlayerInfo() {
         const stats = Forge.heroStats();
         const cp = Combat.combatPower();
         const stars = Ascension.totalStars();
 
-        // 현재 전투 장면 미니 프리뷰: 원본은 실제 전투 화면 스냅샷 — 3D 캔버스를 같은 프레임에
-        // 강제 렌더한 직후 toDataURL로 캡처해 img로 넣는다(preserveDrawingBuffer 없이 동작).
-        // 캡처 실패(WebGL 미지원 등) 시 기존 근사 표기로 폴백.
+        // 미니 전투씬 프리뷰 — 사용자 지시(2026-08-19): **현재 챕터와 무관하게 잔디 맵**에서
+        // **플레이어가 가운데 고정으로 달리고 맵이 흘러간다**. 실제 구현은 `Scene3D.previewStart`
+        // 가 독립 씬으로 굽고(본편 씬을 건드리면 전장이 같이 바뀐다), 여기서는 빈 상자만 낸다.
+        // 종전에는 살아 있는 전장을 한 프레임 렌더해 toDataURL 로 찍은 **정지 JPEG** 이었다.
+        // WebGL 이 없거나 미니 씬이 실패하면 아래 폴백(스테이지 라벨 + 웨이브 핍)으로 떨어진다.
         let previewHtml;
-        try {
-            Scene3D.renderer.render(Scene3D.scene, Scene3D.camera);
-            const shot = Scene3D.renderer.domElement.toDataURL('image/jpeg', 0.6);
-            previewHtml = `<div class="pinfo-preview shot"><img src="${shot}" alt=""></div>`;
-        } catch (e) {
+        const canScene = typeof Scene3D !== 'undefined' && Scene3D.previewStart && typeof ProChar !== 'undefined';
+        if (canScene) {
+            previewHtml = '<div class="pinfo-preview scene" id="pinfo-scene"></div>';
+        } else {
             const waveHtml = Dungeons.run ? '' : Array.from({ length: Combat.totalWaves() }, (_, i) => i + 1).map(w =>
                 `<span class="pip ${w < Combat.wave ? 'done' : w === Combat.wave ? 'now' : ''}"></span>`).join('');
             // 던전 중에는 라벨 안 아이콘이 `<i>` 노드라 textContent 로는 빠진다 — 글자판을 쓴다.
@@ -4310,6 +4316,15 @@ const UI = {
                 <button class="x-btn" onclick="UI.closePlayerInfo()">✕</button>
             </div>`;
         this.hydrateMountThumbs();   // 탈것 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
+        // 미니 씬은 DOM 이 붙은 뒤에 시작한다 — 컨테이너의 clientWidth/Height 로 렌더 크기를 잡으므로
+        // innerHTML 대입 직후(레이아웃 전)에 부르면 0×0 으로 굳는다.
+        if (canScene) {
+            const host = document.getElementById('pinfo-scene');
+            if (!host || !Scene3D.previewStart(host)) {
+                // 미니 씬이 못 서면 상자를 비워 두지 말고 폴백 표기로 되돌린다(빈 초록 판이 남는 것 방지)
+                if (host) { host.classList.remove('scene'); host.innerHTML = `<span>🛡️</span><span>${U.escapeHtml(this.els.stageLabel.dataset.text || this.els.stageLabel.textContent)}</span>`; }
+            }
+        }
     },
 
     // ---- 채팅 화면 (UI-SPEC 28번, 원본 shot-043500): 하단 1줄 미리보기 + 탭하면 전체화면 채팅 ----
