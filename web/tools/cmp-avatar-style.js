@@ -63,6 +63,9 @@ const REF_TILES = [
             const m = Math.round(Math.min(c.width, c.height) * inset);
             let hues = 0;
             let on = 0, all = 0, ink = 0, minX = 1e9, maxX = -1, minY = 1e9, maxY = -1;
+            // 유채 평균 채도 + 살빛 세로 높이 — 라운드2 비평가 지적 ②③ 을 칸별로 겨냥하기 위한 값이다
+            // (평균만 보면 어느 칸을 고쳐야 하는지 알 수 없어 지난 라운드가 눈대중으로 손댔다).
+            let satSum = 0, satN = 0, skinMinY = 1e9, skinMaxY = -1;
             const hueSet = new Set();
             for (let y = m; y < c.height - m; y++) for (let x = m; x < c.width - m; x++) {
                 const i = (y * c.width + x) * 4;
@@ -74,12 +77,24 @@ const REF_TILES = [
                     // 키라인 밀도 — 그림 화소 중 '거의 검정'의 비율. 원본 화풍이 검정을 얼마나 쓰는지의 지표.
                     if (d[i] < 48 && d[i + 1] < 48 && d[i + 2] < 48) ink++;
                     hueSet.add((d[i] >> 5) + ',' + (d[i + 1] >> 5) + ',' + (d[i + 2] >> 5));   // 색 수(32단계 양자화)
+                    // HSV 채도. 무채(회/검/흰)는 화풍 판정에서 빼야 '유채 평균'이 뜻을 갖는다.
+                    const mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]);
+                    const sat = mx ? (mx - mn) / mx : 0;
+                    if (sat > 0.12) { satSum += sat; satN++; }
+                    // 살빛 — 원본 팔레트의 살(#ffa983 계열)과 그 그늘이 드는 대역. 붉은 기가 도는
+                    // 중간~밝은 색만 잡는다(머리카락·옷의 붉은 면과 겹치지 않게 폭을 좁게 잡았다).
+                    const isSkin = d[i] > 150 && d[i] > d[i + 1] + 24 && d[i + 1] > d[i + 2]
+                        && d[i + 1] > 90 && d[i + 2] > 40 && sat < 0.62;
+                    if (isSkin) { if (y < skinMinY) skinMinY = y; if (y > skinMaxY) skinMaxY = y; }
                     if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
                 }
             }
             hues = hueSet.size;
-            return { fill: on / all * 100, w: (maxX - minX + 1) / (c.width - 2 * m) * 100, h: (maxY - minY + 1) / (c.height - 2 * m) * 100,
-                ink: ink / Math.max(1, on) * 100, hues };
+            const side = c.height - 2 * m;
+            return { fill: on / all * 100, w: (maxX - minX + 1) / (c.width - 2 * m) * 100, h: (maxY - minY + 1) / side * 100,
+                ink: ink / Math.max(1, on) * 100, hues,
+                sat: satN ? satSum / satN : 0,
+                skinH: skinMaxY < 0 ? 0 : (skinMaxY - skinMinY + 1) / side * 100 };
         };
         // 원본은 오려낸 타일이라 키라인 2px(≈4.5%)을 안쪽으로 물려야 그림만 남는다. 클론은 그림만 담긴 캔버스라 0.
         const A = [], B = [];
@@ -100,6 +115,19 @@ const REF_TILES = [
     console.log(`키라인 밀도(그림 화소 중 거의-검정) — 원본 ${stat(coverage.A, 'ink')} / 클론 ${stat(coverage.B, 'ink')}`);
     console.log(`색 수(32단계 양자화, 칸당 평균)   — 원본 ${avg(coverage.A.map(v => v.hues)).toFixed(1)} / 클론 ${avg(coverage.B.map(v => v.hues)).toFixed(1)}`);
     console.log('  높이가 가장 낮은 칸: ' + shortest.map(v => `${v.e} ${v.h.toFixed(0)}%`).join(' · '));
+
+    // ── 라운드2 잔여 지적 ②③ 을 칸별로 겨냥하기 위한 표 (2026-08-18 3라운드에 추가) ──
+    // 평균만 찍으면 '어느 칸을 고칠지'가 안 나와 지난 라운드가 눈대중으로 손댔다. 하한을 벗어난
+    // 칸을 이름으로 지목한다. 기준은 원본 8칸을 같은 코드로 잰 값이다(하드코딩한 목표치가 아니다).
+    const refSat = avg(coverage.A.map(v => v.sat)), refSkin = avg(coverage.A.map(v => v.skinH));
+    const refSkinArr = coverage.A.map(v => v.skinH).filter(v => v > 0);
+    console.log(`유채 평균 채도                    — 원본 ${refSat.toFixed(2)} / 클론 ${avg(coverage.B.map(v => v.sat)).toFixed(2)}`);
+    const lowSat = coverage.B.map((v, i) => ({ e: pool[i], ...v })).filter(v => v.sat < refSat - 0.08)
+        .sort((a, b) => a.sat - b.sat);
+    console.log('  채도 하한 이탈: ' + (lowSat.length ? lowSat.map(v => `${v.e} ${v.sat.toFixed(2)}`).join(' · ') : '없음'));
+    console.log(`살빛 세로 높이(타일 대비)          — 원본 ${refSkin.toFixed(1)}% (살 있는 칸만 ${refSkinArr.length ? Math.min(...refSkinArr).toFixed(0) + '~' + Math.max(...refSkinArr).toFixed(0) : '—'}%) / 클론 ${avg(coverage.B.map(v => v.skinH)).toFixed(1)}%`);
+    const skinCells = coverage.B.map((v, i) => ({ e: pool[i], ...v })).filter(v => v.skinH > 0).sort((a, b) => a.skinH - b.skinH);
+    console.log('  살빛이 가장 낮은 칸: ' + skinCells.slice(0, 6).map(v => `${v.e} ${v.skinH.toFixed(0)}%`).join(' · '));
 
     const S = 96;
     const cell = u => `<img src="${u}" style="width:${S}px;height:${S}px;image-rendering:pixelated;display:block;background:#fff">`;
