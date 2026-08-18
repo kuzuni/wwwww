@@ -2048,7 +2048,9 @@ const Scene3D = {
         hpGhost.position.z = 0.005;
         const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: this.srgbC(0x2ebd6b), side: THREE.DoubleSide, toneMapped: false }));
         hpFg.position.z = 0.01;
-        this.heroHpG.add(hpBg, hpGhost, hpFg);
+        // 소유자 캐럿(초록) — 적 바와 겹쳐도 "초록 바 = 영웅"이 방향으로 확정된다 (바 로컬 y=0)
+        const heroPip = this.makeOwnerPip(0x2ebd6b, -0.135 / 2);
+        this.heroHpG.add(hpBg, hpGhost, hpFg, heroPip);
         this.heroHpBg = hpBg;
         this.heroHpGhost = hpGhost;
         this.heroHpFg = hpFg;
@@ -6078,9 +6080,11 @@ const Scene3D = {
         hpGhost.position.set(0, barY, 0.005);
         const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.09), new THREE.MeshBasicMaterial({ color: this.srgbC(0x2ebd6b), side: THREE.DoubleSide, toneMapped: false }));
         hpFg.position.set(0, barY, 0.01);
-        hpG.add(hpBg, hpGhost, hpFg);
+        // 소유자 캐럿(적대 빨강) — 근접에서 영웅 위에 걸쳐도 "빨간 바 = 적"이 방향으로 확정된다
+        const pip = this.makeOwnerPip(0xe5484d, barY - 0.135 / 2);
+        hpG.add(hpBg, hpGhost, hpFg, pip);
         hpG.scale.setScalar(gs); // scene 직속이라 예전에 상속받던 baseScale을 직접 건다
-        return { g, body, hpBg, hpGhost, hpFg, hpG, armR, armL, flashMats, kind, anim, baseScale: g.scale.x, topY, barY };
+        return { g, body, hpBg, hpGhost, hpFg, hpPip: pip, hpG, armR, armL, flashMats, kind, anim, baseScale: g.scale.x, topY, barY };
     },
 
     ensureBlobRes() {
@@ -6864,6 +6868,8 @@ const Scene3D = {
                 this.addAnim(0.12, k => {
                     barG.scale.setScalar(s0 * (1 + 0.15 * k));
                     [m.hpBg, hpFg, gh].forEach(o => { if (o) { o.material.transparent = true; o.material.opacity = 1 - k; } });
+                    // 소유자 캐럿(외곽+채움 두 삼각)도 같이 사그라든다 — 안 하면 바만 사라지고 캐럿이 남는다
+                    if (m.hpPip) m.hpPip.children.forEach(c => { if (c.material) { c.material.transparent = true; c.material.opacity = (c.material.userData._o0 !== undefined ? c.material.userData._o0 : (c.material.userData._o0 = c.material.opacity)) * (1 - k); } });
                 }, () => { barG.visible = false; });
             });
         }
@@ -7851,6 +7857,32 @@ const Scene3D = {
     },
 
     shake(mag) { this.shakeMag = Math.max(this.shakeMag, mag); },
+
+    // HP바 아래 소유자 지시 삼각(캐럿). 근접 교전에서 적 바가 영웅 실루엣 위에 30% 걸쳐
+    // "이 빨간 바가 누구 것이냐"가 안 읽혔다(비평가 6차 A #13·B #3, 실측 겹침 29.8%).
+    // 세로 간격을 벌리는 5차 방식은 종·거리마다 값이 달라 한 번에 안 맞는다(골렘 21.7px). 대신
+    // **바마다 자기 주인을 가리키는 아래 방향 캐럿**을 달아, 겹쳐도 색+방향으로 소유자가 확정되게 한다.
+    // 어두운 외곽 삼각 위에 채움색 삼각을 얹어 밝은 초원에서도 경계가 산다(바 트랙과 같은 처방).
+    makeOwnerPip(fillHex, barBottomY) {
+        const tri = (w, h, yTop, z, colorHex, opacity) => {
+            const g = new THREE.BufferGeometry();
+            // 아래를 가리키는 이등변 삼각: 위 좌·우 → 아래 꼭지
+            g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+                -w, yTop, 0, w, yTop, 0, 0, yTop - h, 0,
+            ]), 3));
+            g.setIndex([0, 1, 2]);
+            const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+                color: this.srgbC(colorHex), side: THREE.DoubleSide, transparent: true, opacity, toneMapped: false, depthWrite: false,
+            }));
+            m.position.z = z;
+            return m;
+        };
+        const grp = new THREE.Group();
+        const yTop = barBottomY + 0.012;                 // 바 바닥에 살짝 파고들어 틈이 안 보이게
+        grp.add(tri(0.075, 0.13, yTop, 0.011, 0x0d1114, 0.82)); // 어두운 외곽
+        grp.add(tri(0.05, 0.1, yTop - 0.006, 0.013, fillHex, 1)); // 채움색 캐럿
+        return grp;
+    },
 
     addAnim(dur, fn, onDone) { this.anims.push({ t: 0, dur, fn, onDone }); },
 
