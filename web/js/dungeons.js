@@ -31,7 +31,15 @@ const Dungeons = {
 
     // 저장 슬롯 보정 + 매일 09:00 열쇠 리셋
     ensure() {
-        if (!S.dungeons) S.dungeons = { keys: {}, best: {}, lastReset: '' };
+        // 하위 필드까지 실재를 본다 — 최상위만 보면 `dungeons:{}`·`keys:null` 세이브가 아래
+        // for 문에서 TypeError 를 내고, 이 호출은 boot()의 try/catch **밖**이라 부팅 전체가
+        // 영구 백지로 죽는다(save-null-nested-boot). `dungeons`는 defaultState()에 없는 지연
+        // 생성 키라 ensureStateShape()의 중첩 보정도 못 받는다 — 여기가 유일한 관문이다.
+        const bad = v => !v || typeof v !== 'object' || Array.isArray(v);
+        if (bad(S.dungeons)) S.dungeons = { keys: {}, best: {}, lastReset: '' };
+        if (bad(S.dungeons.keys)) S.dungeons.keys = {};
+        if (bad(S.dungeons.best)) S.dungeons.best = {};
+        if (typeof S.dungeons.lastReset !== 'string') S.dungeons.lastReset = '';
         if (S.potions === undefined) S.potions = 0;
         const today = this.resetDateKey();
         if (S.dungeons.lastReset !== today) {

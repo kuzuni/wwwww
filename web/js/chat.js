@@ -24,7 +24,12 @@ const Chat = {
     ],
 
     ensure() {
-        if (!S.chat) S.chat = { messages: [], lastBotAt: U.now() };
+        // 하위 필드까지 실재를 본다 — `chat:{}`·`messages:null` 세이브가 아래 `.length` 에서
+        // TypeError 로 부팅을 영구 백지로 죽인다(save-null-nested-boot). `chat`도 defaultState()
+        // 밖의 지연 생성 키라 ensureStateShape() 보정을 못 받는다 — Dungeons.ensure()와 동형.
+        if (!S.chat || typeof S.chat !== 'object' || Array.isArray(S.chat)) S.chat = { messages: [], lastBotAt: U.now() };
+        if (!Array.isArray(S.chat.messages)) S.chat.messages = [];
+        if (typeof S.chat.lastBotAt !== 'number' || !Number.isFinite(S.chat.lastBotAt)) S.chat.lastBotAt = U.now();
         if (!S.chat.messages.length) this.seed();
     },
 

@@ -464,7 +464,7 @@
   - **검증**: ⑴ 12건 전부 PASS(elW−트랙합 최대 0.1px, centerOff 최대 0.01px), **연속 2런 동일 수치**(랜덤 콘텐츠 함정 대비) ⑵ 신설 `--selftest`(스팬 규칙을 `grid-column:auto` 로 일부러 꺼 원래 버그를 재현) → **12건 전부 FAIL 검출**(elW 가 한 칸 폭 36~63px 로 붕괴) — 판정기가 살아 있음을 확인(인계 규칙 ㉣⑶) ⑶ 콘솔 에러 0건 ⑷ `tools/regress.sh` 에 등재해 다시 썩지 않게 함.
   - ⚠️ **알아둘 것**: `#panel-pets .sk-grid` 는 열 폭이 달라(10.20%W) 펫 화면 트랙 합이 마운트·스킬과 다르다(412 폭에서 300.9 vs 309.7) — 프로브가 화면별로 실제 계산된 트랙을 읽으므로 자동 반영된다. 앞으로 `.sk-grid` 열 규격을 바꿔도 이 프로브는 안 깨진다.
 
-- [ ] **세이브의 `dungeons`/`chat` **하위** 필드가 비면 게임이 백지 화면으로 부팅 불능이 되고 새로고침으로도 못 빠져나온다 (slug: save-null-nested-boot)** (2026-08-18 QA 플레이 세션 발견. 2026-08-17에 `ensureStateShape()`로 종결된 "필드가 빠진 세이브 → 부팅 사망"과 **같은 계열의 남은 구멍**이다 — 그때는 최상위 필드 누락만 막았다):
+- [x] **세이브의 `dungeons`/`chat` **하위** 필드가 비면 게임이 백지 화면으로 부팅 불능이 되고 새로고침으로도 못 빠져나온다 (slug: save-null-nested-boot)** (2026-08-18 QA 플레이 세션 발견. 2026-08-17에 `ensureStateShape()`로 종결된 "필드가 빠진 세이브 → 부팅 사망"과 **같은 계열의 남은 구멍**이다 — 그때는 최상위 필드 누락만 막았다):
   - **재현 절차**: ① 게임을 한 번 정상 부팅해 세이브를 만든다 ② 콘솔에서 `const o = JSON.parse(localStorage.forgeclone_save_v1); o.dungeons.keys = null; localStorage.forgeclone_save_v1 = JSON.stringify(o);` ③ 새로고침.
   - **기대 동작**: 다른 손상 케이스와 똑같이 기본값으로 메꿔 정상 부팅 (열쇠 2/2로 복구).
   - **실제 동작**: **화면이 통째로 백지**다 — `#topbar`·`#equip-sheet` 의 내용이 **빈 문자열**(길이 0), 3D 전투 영역도 없고 `Combat.phase === 'idle'`(전투 루프 자체가 시작 안 됨). 남는 건 아이콘 하이드레이션 전의 탭바뿐이다(첨부 재현 캡처와 동일). 콘솔에 `Uncaught TypeError: Cannot set properties of null (setting 'hammer')`. **세이브가 그대로라 새로고침해도 매번 같은 백지 → 사용자는 게임을 영구히 못 연다**(수동 복구 경로 없음: 초기화 버튼도 프로필 팝업 안에 있는데 UI가 안 그려진다).
@@ -473,6 +473,11 @@
   - **원인**: `js/state.js:109` `STATE_SHAPE_KEYS = ['summonMult','autoForge','lineAscend','settingsDummy','equipment']` 에 **`dungeons`·`chat` 이 빠져 있어** `ensureStateShape()` 의 중첩 보정 대상이 아니다. 두 모듈의 `ensure()` 도 최상위만 확인한다.
   - **검증 범위(실측)**: 세이브의 중첩 객체 **22종**(`equipment`·`skills`·`pets`·`eggs`·`hatching`·`mounts`·`activeMounts`·`quests`·`tech`·`league`·`shop`·`passClaimed`·`rollLevel`·`clearedBosses` 등)을 각각 ⓐ `null` ⓑ 빈 객체/배열 ⓒ 하위 필드 `null` 로 바꿔 **56 케이스**를 부팅시킨 결과 **딱 이 5개만 실패**했다. 나머지 51개는 전부 정상 부팅하므로 **고칠 곳은 `dungeons`·`chat` 두 키뿐**이다.
   - **수정 방향(제안)**: `STATE_SHAPE_KEYS` 에 두 키를 넣거나, 두 모듈 `ensure()` 를 `if (!S.dungeons || typeof S.dungeons !== 'object') …; if (!S.dungeons.keys) S.dungeons.keys = {}; if (!S.dungeons.best) S.dungeons.best = {};` 꼴로 하위까지 보게 한다. 회귀 방지로 위 56케이스 프로브를 `tools/` 에 남길 것.
+  - **[해결 2026-08-18 UI 스트림(도메인 외 무주공산 인수 — 직전 [UI종료] 인계 "다음 여유 세션이 잡을 것"에 따름)]** 두 모듈 `ensure()` 를 하위 필드까지 보게 강화했다 — `STATE_SHAPE_KEYS` 에 넣는 쪽은 **불가능**한 것을 확인하고 접었다: `dungeons`·`chat` 은 `defaultState()` 에 아예 없는 **지연 생성 키**라 `ensureStateShape()` 의 `for (Object.keys(d))` 루프가 방문 자체를 안 한다(키를 넣으려면 defaultState 구조를 바꿔야 해 지연 생성 의미가 깨진다). 모듈 관문 강화가 맞다.
+    · `js/dungeons.js` `ensure()`: `keys`/`best` 를 `!v || typeof v !== 'object' || Array.isArray(v)` 로 각각 검사해 `{}` 로 복구, `lastReset` 비문자열도 `''` 로. 이 호출이 boot() try/catch **밖**이라는 사실(=여기가 터지면 전부 죽는 구조)을 주석으로 박아 뒀다.
+    · `js/chat.js` `ensure()`: `messages` 비배열 → `[]`(이후 기존 `seed()` 가 자연 복구), `lastBotAt` 비유한수 → `U.now()`.
+    · **검증**: 신설 `tools/probe-save-nested-shape.js` — 정상 부팅 세이브의 **모든 중첩 객체 키**를 ⓐ null ⓑ 빈 값({}/[]) ⓒ 객체형 직계 하위 필드 null 로 바꿔 케이스마다 부팅시키고 ⑴ 에러 0 ⑵ `#topbar`·`#equip-sheet` 실렌더 ⑶ 던전 열쇠 4종 복구 ⑷ 채팅 시드 복구를 판정한다(`--quick` = QA 실측 사망 5케이스만, `--shard 1/3` = 전수 3등분 — 병렬 세션 컨테이너 압박으로 전수 백그라운드 실행이 죽을 때용). **고치기 전 코드에서 5케이스 전부 FAIL(백지 재현)** 을 먼저 확인하고 고쳤고, 고친 뒤 **전수 52/52 부팅 생존 PASS**(자동 열거 기준 52케이스 — QA 의 56과 수는 다르나 ⓒ 를 '객체형' 하위 필드에만 걸어서다) + `probe-screens-errors.js` **31/31 콘솔 에러 0건**.
+    · 🚨 **프로브 함정(실측으로 밟았다 — 첫 실행이 수정 전 코드에서 5/5 가짜 PASS 를 냈다)**: 손상 세이브를 심고 `reload()` 하면 **`beforeunload → saveGame` 이 아직 건강한 메모리 S 로 손상본을 도로 덮어쓴다.** 구 문서의 `localStorage.setItem` 을 인스턴스 프로퍼티로 무력화(새 문서엔 안 남는다)한 뒤 리로드해야 손상본이 부팅까지 살아남는다. 세이브 손상 재현 프로브를 다음에 또 만들면 반드시 이 처리를 넣을 것.
 - [x] **디버그 탭 '재화 지급' 토스트에 한글 라벨 대신 내부 영문 키가 그대로 뜬다 — 2026-08-17에 [x] 된 같은 버그의 회귀 (slug: debug-currency-toast-kr)** (2026-08-18 QA 플레이 세션):
   - **재현 절차**: ① `?tab=debug` 로 열거나 🐞디버그 탭을 연다 ② '재화 지급'의 아무 버튼이나 누른다(🧪 물약 +100000 / 🥚 깨진 알 +100000 …).
   - **기대 동작**: 버튼 라벨과 같은 한글 — `물약 +100000`, `깨진 알 +100000`.
