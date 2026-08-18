@@ -4074,6 +4074,23 @@ body {
 .sr-cell {
     position: relative; text-align: center; opacity: 0; transform: scale(.35);
     width: min(5.6rem, calc((100% - (var(--cols, 5) - 1) * .8rem - .4rem) / var(--cols, 5)));
+    /* 🚨 10차 비평가 잔여 ①[2인 일치] "등장 중 인접 셀이 겹친다"의 절반은 **깊이가 없어서**였다.
+       사출 경로는 전 셀을 같은 광원 한 점에서 꺼내므로 비행 중 이웃과 같은 자리를 지나는 것은
+       **구조적으로 불가피하고, 없애면 사출 연출 자체가 죽는다**(A ⑴ 치명 지적으로 어렵게 얻은 것).
+       고칠 것은 겹침의 유무가 아니라 **그 겹침이 '지나감'으로 읽히는가**다 — 나중에 뜨는 셀일수록
+       위에 오게 z를 --i 로 계단화하면, 교차가 융합이 아니라 앞뒤로 스쳐 지나가는 것이 된다.
+       ⚠️ 위 z 사다리표의 40(.sr-grid) **안쪽** 순서다 — 그리드가 스택 컨텍스트를 만들므로
+       이 값은 형제 셀끼리만 비교되고 바깥 층(충격파 30·타이틀 45)과는 섞이지 않는다. */
+    z-index: calc(1 + var(--i, 0));
+}
+/* 비행 중에는 이름표·등급칩을 **띄우지 않는다** — 라벨은 날아다니는 물체가 아니라 슬롯에 속한
+   설명이다. 예전엔 셀 opacity 하나로 같이 날아서, 광원 근처를 지날 때 이웃 라벨과 겹쳐
+   **한 덩어리로 융합**했다(B 실측: skill-x5-1400 의 4·5번 이름칩이 x265~347 연속 덩어리,
+   안정 상태는 각 60~62px·간격 16~17px). 착지(--pop 의 76% = 스프링 시작점)에서 꺼낸다. */
+.sr-cell.on .sr-name, .sr-cell.on .sr-sub { animation: srlabel var(--pop, .32s) linear forwards; }
+@keyframes srlabel {
+    0%, 68%  { opacity: 0; }
+    100%     { opacity: 1; }
 }
 .sr-grid.one .sr-cell { width: min(13rem, 58vw); }
 /* 상한 있는 --cols열 — 폭을 꽉 채우면 15셀이 3행에서 넘쳐 스크롤이 생긴다.
@@ -4114,10 +4131,15 @@ body {
        흐리게라도 보이는 게 인과에도 맞다 — 팝이 아니라 '빛에서 나온다'로 읽힌다. */
     0%   { animation-timing-function: cubic-bezier(.35,0,.65,.4);  /* 광원에서 밀려 나오는 가속 */
            opacity: .34; transform: translate(var(--dx, 0), var(--dy, .5rem)) scale(.3); }
+    /* ⚠️ 비행 중 스케일을 예전(.6/.82)보다 눌렀다(.44/.72) — 10차 잔여 ①의 나머지 절반이다.
+       광원에서 나온 직후가 슬롯 근처보다 **크게** 그려지면 이웃 셀 자리를 그만큼 더 파고들고
+       (실측 상호침투 -19.6px), 원근으로도 거꾸로다(멀리서 오는 것이 더 크다). 작게 출발해
+       슬롯에서 제 크기가 되면 침투 깊이가 줄면서 '다가온다'까지 같이 읽힌다.
+       경로 길이·타이밍은 건드리지 않았다 — 그쪽은 probe-sr-eject-visible 이 지키는 값이다. */
     30%  { animation-timing-function: linear;                       /* 비행 — 등속이라야 프레임에 남는다 */
-           opacity: 1; transform: translate(calc(var(--dx, 0) * .62), calc(var(--dy, 0) * .62)) scale(.6); }
+           opacity: 1; transform: translate(calc(var(--dx, 0) * .62), calc(var(--dy, 0) * .62)) scale(.44); }
     56%  { animation-timing-function: cubic-bezier(.3,.55,.55,1);    /* 슬롯으로 감속 */
-           opacity: 1; transform: translate(calc(var(--dx, 0) * .34), calc(var(--dy, 0) * .34)) scale(.82); }
+           opacity: 1; transform: translate(calc(var(--dx, 0) * .34), calc(var(--dy, 0) * .34)) scale(.72); }
     76%  { animation-timing-function: cubic-bezier(.18,1.6,.4,1);   /* 착지 스프링(오버슛 정리) */
            opacity: 1; transform: translate(0, 0) scale(calc(1 + .1 * var(--over, 1))); }
     100% { opacity: 1; transform: translate(0, 0) scale(1); }
