@@ -3019,7 +3019,17 @@ body {
 .modal-card.sheet {
     width: 100%; height: 100%; border: none; border-radius: 0; padding: 1rem .9rem 1.2rem;
     box-shadow: none; gap: .5rem; justify-content: flex-start; overflow-y: auto;
-    position: relative; /* sheet-back-btn 앵커 */
+    /* 🚨 여기에 `position: relative` 를 **다시 넣지 말 것** (사용자 지시 2026-08-19 `quest-arrow-fixed`:
+       "퀘스트 부분에 빨간 왼쪽 화살표 버튼은 같이 스크롤되면 안 됨").
+       이 시트는 `overflow-y:auto` 인 스크롤 컨테이너다. 여기에 relative 를 주면 자손인
+       `.sheet-back-btn`(position:absolute)이 **스크롤되는 콘텐츠 좌표계**에 앵커돼, 목록을 내리는
+       만큼 ◀ 도 같이 위로 딸려 올라간다(실측 499×892 퀘스트 시트: 스크롤 466px에 ◀ y 762.6 → 296.6).
+       relative 를 걷어내면 앵커가 바깥 `.modal`(position:absolute; inset:0)로 올라가는데,
+       시트가 `.modal` 을 100%×100% 로 채우므로 **박스가 완전히 같아 left/bottom 값은 그대로 유지**되고
+       `.modal` 은 스크롤하지 않으니 ◀ 만 고정된다. 시트 앵커에 매달린 절대배치 자손은 ◀ 하나뿐임을
+       전수 확인했다(`probe-sheet-abs-anchors.js`: 퀘스트·던전·상점 각 1건, 리그 0건).
+       기술 트리 패널의 같은 버튼은 `.modal-card.sheet` 밖이라 이 변경과 무관하다. */
+    position: static;
 }
 .sheet-title { font-size: 1.35rem; font-weight: 900; text-align: center; color: var(--pp-ink); }
 .sheet-sub {
