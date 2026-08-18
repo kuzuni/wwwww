@@ -216,6 +216,32 @@ const Scene3D = {
     //   나무 그늘 안에 누운 영웅의 머리 휘도 187 vs 그 아래 지면 27 — 7:1. 서 있을 땐 몸이 그늘 평면 위라
     //   티가 안 나지만, 누우면 몸이 지면 그늘과 같은 평면을 차지해 '검은 구멍 위의 은색 덩어리'가 된다.
     //   비용 때문에 **캐릭터(영웅·적·탈것·펫)에만** 켠다 — 배경 소품까지 켜면 저사양 폰에서 픽셀 비용이 는다.
+    // 슬라임 젤리 웨이브 — 높이에 비례한 위상 지연으로 스쿼시가 아래에서 위로 전파된다.
+    // amp=0 이면 원형으로 복원한다(정지 상태). 정점 ~250개짜리 라테라 매 프레임 돌려도 싸다.
+    driveJelly(m, clk, amp, id) {
+        const J = m.anim && m.anim.jelly;
+        if (!J) return;
+        const attr = J.mesh.geometry.attributes.position, pa = attr.array, base = J.base;
+        const ph = clk * 6 + (id || 0);   // 개체마다 위상을 어긋나게 (m 에는 id 가 없다 — 호출부가 넘긴다)
+        const at = t => {                       // 그 높이의 (세로배율, 가로배율)
+            const sq = 1 - Math.abs(Math.sin(ph - t * J.lag));
+            return [1 - sq * amp, 1 + sq * amp * 0.55];   // 가로 팽창으로 부피 근사 보존
+        };
+        for (let i = 0; i < pa.length; i += 3) {
+            const by = base[i + 1];
+            const [sy, sr] = at(by / J.h);
+            pa[i] = base[i] * sr;
+            pa[i + 1] = by * sy;
+            pa[i + 2] = base[i + 2] * sr;
+        }
+        attr.needsUpdate = true;
+        J.mesh.geometry.computeVertexNormals();
+        for (const f of J.follow) {
+            const [sy, sr] = at(f.y / J.h);
+            f.o.position.set(f.x * sr, f.y * sy, f.z * sr);
+        }
+    },
+
     setShadow(g, receive) {
         // 인버티드 헐 아웃라인 셸은 제외 — 원 메시보다 살짝 부푼 뒷면 복제라, 그림자를 던지게 두면
         // 원 메시의 섀도맵을 한 텍셀씩 밀어 접지 그림자가 이중 윤곽으로 번진다.
@@ -5349,6 +5375,24 @@ const Scene3D = {
             //    (probe-enemy-ao 실측). 접지 단서는 블롭 섀도가 이미 맡고 있다.
             //    슬라임에 필요한 건 AO 가 아니라 진행 메모 ⓑ의 **관절 분절**이다.
             anim.body = body; topY = 0.85;
+            // ── 젤리 웨이브 준비 (진행 메모 ⓑ '슬라임은 아직 통짜') ──
+            // 예전엔 `body.scale.y/x` 를 통째로 흔들었다 — 그건 젤리가 아니라 **크기가 변하는 풍선**이다.
+            // 실제 젤리는 바닥이 먼저 눌리고 그 눌림이 **위로 늦게 전파**된다. 그래서 정점마다
+            // 자기 높이에 비례하는 **위상 지연**을 줘서 스쿼시가 파도처럼 타고 오르게 한다(driveJelly).
+            // base = 원본 정점(매 프레임 여기서 다시 계산해야 오차가 누적되지 않는다).
+            {
+                const jp = body.geometry.attributes.position;
+                let hMax = 0;
+                for (let i = 1; i < jp.array.length; i += 3) if (jp.array[i] > hMax) hMax = jp.array[i];
+                // 몸통에 얹힌 나머지(핵·기포·광택·눈·입)도 같은 변형을 따라가야 한다 —
+                // 안 따라가면 몸이 눌릴 때 눈만 제자리에 남아 얼굴이 몸 밖으로 빠져나온다.
+                const follow = [];
+                for (const ch of g.children) {
+                    if (ch === body) continue;
+                    follow.push({ o: ch, x: ch.position.x, y: ch.position.y, z: ch.position.z });
+                }
+                anim.jelly = { mesh: body, base: Float32Array.from(jp.array), h: hMax || 1, lag: 1.15, follow };
+            }
         } else if (kind === 'golem') {
             // 바위 구축물: 역삼각 몸통 라테 + 마그마 코어 + 거대 주먹 분절 팔 (눈사람 금지)
             const rockM = lam(base.clone().offsetHSL(0, -0.12, -0.02), ProChar.rockTex());
@@ -7598,13 +7642,10 @@ const Scene3D = {
                         m.g.position.y = Math.abs(Math.sin(clk * 7 + id)) * 0.17;
                         if (m.anim.cap) m.anim.cap.rotation.z = Math.sin(clk * 7 + id) * 0.13;
                     } else if (m.anim && m.anim.kind === 'slime') {
-                        // 슬라임: 젤리 스쿼시 점프 (라테 몸통 기준 스케일 1, 스쿼시 시 가로 보존 팽창)
-                        const s2 = Math.abs(Math.sin(clk * 6 + id));
-                        m.g.position.y = s2 * 0.12;
-                        if (m.body) {
-                            m.body.scale.y = 1 - (1 - s2) * 0.14;
-                            m.body.scale.x = m.body.scale.z = 1 + (1 - s2) * 0.07;
-                        }
+                        // 슬라임: 젤리 스쿼시 점프 — 몸통 스케일을 통째로 흔들지 않고 **정점 웨이브**로 민다.
+                        // (강체 스케일은 '크기가 변하는 풍선'이라 젤리로 안 읽혔다 — driveJelly 주석 참조.)
+                        m.g.position.y = Math.abs(Math.sin(clk * 6 + id)) * 0.12;
+                        this.driveJelly(m, clk, 0.16, id);
                     } else {
                         // 이족보행: 관절 걷기 — 고관절 스윙+무릎 굽힘, 어깨 스윙+팔꿈치 굽힘 (통짜 막대기 금지)
                         const ph = clk * 8 + id; // 주기 0.785s — 0.1s 연속 캡처 8프레임과 정수배 겹침 방지 (프레임 중복 오독)
@@ -7630,6 +7671,7 @@ const Scene3D = {
                 } else {
                     m.g.position.y = Math.max(0, Math.sin(clk * 6 + id) * 0.04);
                     m.g.rotation.z *= 0.9;
+                    if (m.anim && m.anim.jelly) this.driveJelly(m, clk, 0.06, id); // 대기 중에도 젤리는 미세하게 흔들린다
                     if (m.armL) m.armL.rotation.x *= 0.9;
                     if (m.anim.bleg) m.anim.bleg.forEach(L => { L.hip.rotation.x *= 0.85; L.knee.rotation.x *= 0.85; });
                     if (m.anim.barm) m.anim.barm.forEach(A => {
