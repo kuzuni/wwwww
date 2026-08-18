@@ -33,7 +33,17 @@ const AGE_ICON = {
 const RARITIES = ['common', 'rare', 'epic', 'legendary', 'ultimate', 'mythic'];
 // 등급 이름·색은 원본 소환 확률 팝업 표기 그대로 (회/파/초/노/빨/보)
 const RARITY_KR = { common: '일반', rare: '희귀한', epic: '서사시', legendary: '전설', ultimate: '궁극의', mythic: '신화' };
-const RARITY_CSS = { common: '#d6d6d6', rare: '#29b6f6', epic: '#3ddc50', legendary: '#ffe93d', ultimate: '#ff3b30', mythic: '#b23dff' };
+// 원본 소환 확률 팝업(shot-042521)의 막대를 x=200 세로 스캔해 그대로 옮긴 값이다.
+// 6색이 전부 **한 채널이 0x1c** 로 떨어지는 규칙적인 팔레트라 눈대중이 아니라 실측이 맞다
+// (교체 전 클론값은 채널마다 10~30 어긋나 있었다: d6d6d6 / 29b6f6 / 3ddc50 / ffe93d / ff3b30 / b23dff).
+// ⚠️ 파생색(구체 그라디언트·흰 카드용 잉크·펫 타일 면)은 전부 이 값에서 **런타임 계산**되므로
+//    여기만 바꾸면 따라 움직인다 — 파생색을 따로 박아 두지 말 것.
+const RARITY_CSS = { common: '#e0e0e0', rare: '#1cafff', epic: '#1cff41', legendary: '#f8ff1c', ultimate: '#ff1c1c', mythic: '#aa1cff' };
+// 🚨 **이 표는 위 `RARITY_CSS` 와 지금 값이 다르다 — 의도된 미완이다.**
+// `RARITY_CSS` 는 2026-08-18 `rarity-css-exact` 에서 원본 실측값으로 교체했는데, 이 `RARITY_HEX` 는
+// `prochar.js`·`scene3d.js` 의 **three.js 재질색으로만** 쓰여 조명·이미시브가 얹힌 화면값이 달라진다.
+// UI 스트림이 3D 재질을 임의로 흔들지 않으려고 **일부러 안 맞췄다.** 3D 스트림이 판단해 맞출 것
+// (맞춘다면 emissive 가 함께 걸린 자리라 밝기 재확인이 필요하다 — TODO `rarity-css-exact` 메모 참조).
 const RARITY_HEX = { common: 0xd6d6d6, rare: 0x29b6f6, epic: 0x3ddc50, legendary: 0xffe93d, ultimate: 0xff3b30, mythic: 0xb23dff };
 const RARITY_MULT = { common: 1, rare: 1.5, epic: 2.2, legendary: 3.2, ultimate: 4.6, mythic: 6.5 };
 
