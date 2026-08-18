@@ -2233,13 +2233,20 @@ const UI = {
     //    긁으면 등록된 아이콘이 아니라 **그리기용 내부 헬퍼**(`sword`·`axe`·`spear`·`plate` 등)까지
     //    같이 잡혀 '있는 줄 알았는데 없는' 이름이 나온다(실제로 이 표를 그렇게 썼다가 셋 다
     //    빈 문자열이 돌아왔다 — 폴백 덕에 안 깨졌을 뿐이다). 목록은 **런타임에서**
-    //    `Object.keys(IconGen.draw)` 로 뽑을 것(현재 132종). `probe-weapon-shape-icon.js` 가 이 표의
+    //    `Object.keys(IconGen.draw)` 로 뽑을 것. `probe-icon-name-refs.js` 가 이 표의
     //    이름이 실제로 그림을 내는지 매번 확인한다.
     //
-    // 남은 17가지 — 무기 셀에 쓸 만한 그림이 아직 없다(`tm_sword` 는 기술 트리용 청동 원판 픽토그램
-    // 이라 무기 칸에 그대로 못 쓴다): axe · bow · cannon · club · crossbow · dagger · mace · pistol ·
-    // rapier · rifle · scythe · sling · smg · spear · staff · sword · thrown  (다음 UI 세션 몫)
-    WEAPON_SHAPE_ICON: { hammer: 'hammer' },
+    // 18모양 전부 채워졌다(2026-08-18 UI 세션) — hammer 는 재화 해머 아이콘 재사용, 나머지 17종은
+    // `icongen.js` 말미의 `wpn_*` 블록(slot_* 과 같은 `_plate` 화법). 위 이모지 표는 아이콘 로드
+    // 실패 시 폴백으로만 남는다.
+    WEAPON_SHAPE_ICON: {
+        hammer: 'hammer',
+        sword: 'wpn_sword', rapier: 'wpn_rapier', dagger: 'wpn_dagger', axe: 'wpn_axe',
+        thrown: 'wpn_thrown', mace: 'wpn_mace', club: 'wpn_club', spear: 'wpn_spear',
+        scythe: 'wpn_scythe', bow: 'wpn_bow', crossbow: 'wpn_crossbow', sling: 'wpn_sling',
+        pistol: 'wpn_pistol', rifle: 'wpn_rifle', smg: 'wpn_smg', cannon: 'wpn_cannon',
+        staff: 'wpn_staff',
+    },
     weaponEmoji(wtype) {
         const shape = typeof weaponShape === 'function' ? weaponShape(wtype) : wtype;
         const ico = this.WEAPON_SHAPE_ICON[shape] && IconGen.img(this.WEAPON_SHAPE_ICON[shape]);

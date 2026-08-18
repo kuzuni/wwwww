@@ -3388,3 +3388,241 @@ IconGen._genderSym = function (ctx, S, female) {
             mark(ctx, sub.cir(ctx, S, x, 0.513, 0.042), 'rgba(46,29,8,.55)'));                  // 벨트 구멍
     };
 })(IconGen);
+
+/* ============================================================================
+ * 무기 모양 17종 (icon-gen — `UI.WEAPON_SHAPE_ICON` 진입점용, wpn_*)
+ *
+ * '모든 장비의 목록' 무기 셀(.fl-face)과 장비 상세 폴백이 이모지(🏏🪓🌾…)로 남아 있던
+ * 마지막 자리다. 무기 53종은 `weaponShape()` 이 모양 18가지로 모으므로(hammer 는 기존
+ * 재화 아이콘 재사용) 여기 17종이면 전부 걸린다.
+ *
+ * 화법은 빈 슬롯 실루엣(slot_*)과 같은 `G._plate` 5단 입체 — 같은 격자에 나란히 앉는
+ * 그림이라 다른 화법(스티커/그라디언트)을 쓰면 그 칸만 붕 뜬다.
+ * ⚠️ 23px 판독 규칙(앞 세션 실측 함정): 내부 디테일 3개 이하 · 실루엣이 정체를 다
+ *    말해야 한다 · 얇은 선은 lw 0.03 아래로 내리지 말 것(축소에서 사라진다).
+ * 근접 무기는 세로로 그려 rot() 로 35° 눕힌다 — 칼끝이 오른쪽 위를 보게(3D 썸네일과
+ * 같은 방향). 총기·활은 가로 구도 그대로가 더 잘 읽힌다.
+ * ============================================================================ */
+(function (G) {
+    const P2 = Math.PI * 2;
+    const sub = {
+        rr: (ctx, S, x, y, w, h, r) => () => G._rrSub(ctx, x * S, y * S, w * S, h * S, r * S),
+        ell: (ctx, S, x, y, rx, ry, rot) => () => { ctx.moveTo((x + rx) * S, y * S); ctx.ellipse(x * S, y * S, rx * S, ry * S, rot || 0, 0, P2); },
+        cir: (ctx, S, x, y, r) => () => { ctx.moveTo((x + r) * S, y * S); ctx.arc(x * S, y * S, r * S, 0, P2); },
+    };
+    const closed = (ctx, S, pts) => () => { pts.forEach((p, i) => { const X = p[0] * S, Y = p[1] * S; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); };
+    const plate = G._plate;   // 공용 헬퍼(복사본 금지 — _plate 주석 참조)
+    const mark = (ctx, path, fill) => { ctx.save(); ctx.beginPath(); path(); ctx.fillStyle = fill; ctx.fill(); ctx.restore(); };
+    // 캔버스째 기울이기 — plate 가 path 를 여러 번 다시 그리므로 회전 안에서 plate 를 통째로 부른다
+    const rot = (ctx, S, a, fn) => { ctx.save(); ctx.translate(S * 0.5, S * 0.5); ctx.rotate(a); ctx.translate(-S * 0.5, -S * 0.5); fn(); ctx.restore(); };
+    const TILT = 0.62;   // 근접 무기 공통 기울기(≈35°)
+
+    const STEEL = [[0, '#eef4fa'], [0.34, '#b9c5d1'], [0.70, '#7f8c99'], [1, '#48535e']];
+    const WOOD = [[0, '#d8b887'], [0.34, '#a8762f'], [0.72, '#77501a'], [1, '#3d2708']];
+    const WOOD_PALE = [[0, '#e0b785'], [0.34, '#b98548'], [0.70, '#8a5c26'], [1, '#4c2f0d']];
+    const GOLD = [[0, '#ffe9a8'], [0.34, '#f0b842'], [0.72, '#b07f18'], [1, '#5e3f06']];
+    const GUN = [[0, '#9aa4ae'], [0.34, '#5a646e'], [0.70, '#3a434c'], [1, '#1d2329']];
+    const ENERGY = [[0, '#d9f6ff'], [0.40, '#7fdcff'], [0.78, '#28a7e0'], [1, '#0c5c8c']];
+
+    /* 🗡 검 — 긴 양날 + 코등이 + 손잡이 + 폼멜 (slot_weapon 과 같은 문법, 눕힌 판) */
+    G.draw.wpn_sword = function (ctx, S) {
+        rot(ctx, S, TILT, () => {
+            plate(ctx, S, closed(ctx, S, [[0.50, 0.02], [0.585, 0.15], [0.585, 0.56], [0.415, 0.56], [0.415, 0.15]]), STEEL, { sx: 0.42, sy: 0.18 });
+            plate(ctx, S, sub.rr(ctx, S, 0.30, 0.555, 0.40, 0.085, 0.042), GOLD, { spec: false, lw: 0.040, y0: 0.53, y1: 0.66 });
+            plate(ctx, S, sub.rr(ctx, S, 0.452, 0.635, 0.096, 0.215, 0.048), WOOD, { spec: false, lw: 0.038, y0: 0.62, y1: 0.87 });
+            plate(ctx, S, sub.cir(ctx, S, 0.50, 0.895, 0.062), GOLD, { spec: false, lw: 0.036, y0: 0.82, y1: 0.96 });
+        });
+    };
+
+    /* 🤺 레이피어 — 바늘 날 + 컵 가드. 날이 얇아 lw 를 내리되 0.03 밑으론 안 간다 */
+    G.draw.wpn_rapier = function (ctx, S) {
+        rot(ctx, S, TILT, () => {
+            plate(ctx, S, closed(ctx, S, [[0.50, 0.02], [0.545, 0.12], [0.53, 0.56], [0.47, 0.56], [0.455, 0.12]]), STEEL, { spec: false, lw: 0.034, sx: 0.46, sy: 0.14 });
+            plate(ctx, S, sub.ell(ctx, S, 0.50, 0.60, 0.145, 0.088), GOLD, { lw: 0.038, y0: 0.51, y1: 0.69, sx: 0.44, sy: 0.56 });
+            plate(ctx, S, sub.rr(ctx, S, 0.458, 0.685, 0.084, 0.185, 0.042), WOOD, { spec: false, lw: 0.036, y0: 0.66, y1: 0.88 });
+            plate(ctx, S, sub.cir(ctx, S, 0.50, 0.905, 0.052), GOLD, { spec: false, lw: 0.034, y0: 0.84, y1: 0.96 });
+        });
+    };
+
+    /* 🔪 단검 — 검보다 짧고 넓은 날. 실루엣 차이(날 길이 절반)가 정체를 가른다 */
+    G.draw.wpn_dagger = function (ctx, S) {
+        rot(ctx, S, TILT, () => {
+            plate(ctx, S, closed(ctx, S, [[0.50, 0.13], [0.615, 0.29], [0.575, 0.58], [0.425, 0.58], [0.385, 0.29]]), STEEL, { sx: 0.42, sy: 0.26 });
+            plate(ctx, S, sub.rr(ctx, S, 0.335, 0.575, 0.33, 0.075, 0.037), GOLD, { spec: false, lw: 0.038, y0: 0.55, y1: 0.66 });
+            plate(ctx, S, sub.rr(ctx, S, 0.452, 0.645, 0.096, 0.20, 0.048), WOOD, { spec: false, lw: 0.038, y0: 0.63, y1: 0.86 });
+        });
+    };
+
+    /* 🪓 도끼 — 자루 + 왼쪽 수염도끼 머리. ⚠️ 직선 poly 로 두르면 팔각 덩어리('막대사탕')로
+       읽힌다(1차 렌더에서 실제로 그랬다) — 날은 왼쪽 큰 호, 아랫변은 안으로 파인 수염(beard)
+       커브여야 도끼가 된다. */
+    const axeHead = (ctx, S, sc, ox, oy) => () => {
+        const X = (x) => (ox + x * sc) * S, Y = (y) => (oy + y * sc) * S;
+        ctx.moveTo(X(0.58), Y(0.175));                                   // 자루 물림(위) — 물림 띠는 좁게
+        ctx.quadraticCurveTo(X(0.34), Y(0.075), X(0.155), Y(0.045));     // 위 어깨 → 위 날끝(왼쪽으로 뾰족)
+        ctx.quadraticCurveTo(X(0.005), Y(0.28), X(0.145), Y(0.545));     // 왼쪽 큰 호(날) → 아래 날끝
+        ctx.quadraticCurveTo(X(0.33), Y(0.50), X(0.44), Y(0.415));       // 아래 어깨 안으로
+        ctx.quadraticCurveTo(X(0.50), Y(0.36), X(0.58), Y(0.345));       // 수염이 자루로 파고든다
+        ctx.closePath();
+    };
+    G.draw.wpn_axe = function (ctx, S) {
+        rot(ctx, S, TILT * 0.8, () => {
+            plate(ctx, S, sub.rr(ctx, S, 0.475, 0.13, 0.10, 0.76, 0.05), WOOD, { spec: false, lw: 0.040, y0: 0.12, y1: 0.90 });
+            plate(ctx, S, axeHead(ctx, S, 1, 0, 0), STEEL, { sx: 0.24, sy: 0.22 });
+        });
+    };
+
+    /* 🪃 투척 도끼 — 같은 수염도끼 머리를 작게 + 짧은 자루 + 더 눕힘. 도끼와 크기 위계로 갈린다 */
+    G.draw.wpn_thrown = function (ctx, S) {
+        rot(ctx, S, 1.05, () => {
+            plate(ctx, S, sub.rr(ctx, S, 0.468, 0.24, 0.094, 0.62, 0.047), WOOD_PALE, { spec: false, lw: 0.040, y0: 0.22, y1: 0.88 });
+            plate(ctx, S, axeHead(ctx, S, 0.78, 0.11, 0.10), STEEL, { sx: 0.26, sy: 0.24 });
+        });
+    };
+
+    /* 🔨 철퇴 — 자루 + 가시 박힌 쇠공. 가시 6개는 공 실루엣 밖으로 또렷이 */
+    G.draw.wpn_mace = function (ctx, S) {
+        rot(ctx, S, TILT, () => {
+            plate(ctx, S, sub.rr(ctx, S, 0.462, 0.36, 0.076, 0.54, 0.038), WOOD, { spec: false, lw: 0.038, y0: 0.34, y1: 0.90 });
+            const spikes = [];
+            for (let i = 0; i < 6; i++) {
+                const a = -Math.PI / 2 + i * (P2 / 6), cx = 0.50 + Math.cos(a) * 0.155, cy = 0.235 + Math.sin(a) * 0.155;
+                spikes.push(closed(ctx, S, [
+                    [cx + Math.cos(a) * 0.115, cy + Math.sin(a) * 0.115],
+                    [cx + Math.cos(a + 1.9) * 0.062, cy + Math.sin(a + 1.9) * 0.062],
+                    [cx + Math.cos(a - 1.9) * 0.062, cy + Math.sin(a - 1.9) * 0.062]]));
+            }
+            spikes.forEach(p => plate(ctx, S, p, STEEL, { spec: false, lw: 0.034, flat: true }));
+            plate(ctx, S, sub.cir(ctx, S, 0.50, 0.235, 0.165), STEEL, { sx: 0.44, sy: 0.16, lw: 0.044 });
+        });
+    };
+
+    /* 🏏 몽둥이 — 위가 굵은 나무 방망이 + 옹이 2개. ⚠️ 직선 poly 는 '관짝'이 된다 —
+       옆구리·머리를 전부 커브로. 디테일은 옹이 둘로 끝(23px 규칙) */
+    G.draw.wpn_club = function (ctx, S) {
+        rot(ctx, S, TILT, () => {
+            const body = () => {
+                ctx.moveTo(0.452 * S, 0.92 * S);
+                ctx.quadraticCurveTo(0.415 * S, 0.55 * S, 0.352 * S, 0.30 * S);
+                ctx.quadraticCurveTo(0.335 * S, 0.09 * S, 0.50 * S, 0.075 * S);
+                ctx.quadraticCurveTo(0.665 * S, 0.09 * S, 0.648 * S, 0.30 * S);
+                ctx.quadraticCurveTo(0.585 * S, 0.55 * S, 0.548 * S, 0.92 * S);
+                ctx.closePath();
+            };
+            plate(ctx, S, body, WOOD_PALE, { sx: 0.42, sy: 0.20, lw: 0.050 });
+            mark(ctx, sub.cir(ctx, S, 0.455, 0.24, 0.038), 'rgba(60,36,10,.55)');
+            mark(ctx, sub.cir(ctx, S, 0.565, 0.40, 0.031), 'rgba(60,36,10,.5)');
+        });
+    };
+
+    /* 🔱 창 — 긴 자루 + 잎날 + 물림쇠. 잎날 폭이 창끝 정체성이라 좁히지 말 것 */
+    G.draw.wpn_spear = function (ctx, S) {
+        rot(ctx, S, TILT, () => {
+            plate(ctx, S, sub.rr(ctx, S, 0.468, 0.30, 0.064, 0.62, 0.032), WOOD, { spec: false, lw: 0.036, y0: 0.28, y1: 0.92 });
+            plate(ctx, S, closed(ctx, S, [[0.50, 0.015], [0.615, 0.165], [0.50, 0.325], [0.385, 0.165]]), STEEL, { sx: 0.44, sy: 0.12 });
+            plate(ctx, S, sub.rr(ctx, S, 0.442, 0.315, 0.116, 0.062, 0.03), GOLD, { spec: false, lw: 0.034, y0: 0.30, y1: 0.39, flat: true });
+        });
+    };
+
+    /* 🌾 낫 — 자루 위 끝에서 왼쪽으로 크게 휘는 날. 곡선이라 poly 대신 커브 경로 */
+    G.draw.wpn_scythe = function (ctx, S) {
+        rot(ctx, S, TILT * 0.55, () => {
+            plate(ctx, S, sub.rr(ctx, S, 0.545, 0.20, 0.085, 0.71, 0.042), WOOD, { spec: false, lw: 0.040, y0: 0.18, y1: 0.92 });
+            const blade = () => {
+                ctx.moveTo(0.63 * S, 0.245 * S);
+                ctx.quadraticCurveTo(0.36 * S, 0.075 * S, 0.10 * S, 0.235 * S);   // 바깥 등
+                ctx.quadraticCurveTo(0.33 * S, 0.185 * S, 0.565 * S, 0.345 * S);  // 안쪽 날
+                ctx.closePath();
+            };
+            plate(ctx, S, blade, STEEL, { sx: 0.30, sy: 0.14, lw: 0.040 });
+        });
+    };
+
+    /* 🏹 활 — 왼쪽 활채(초승달) + 시위 + 화살. 화살이 없으면 23px 에서 'D'로 읽힌다.
+       ⚠️ 활채의 안팎 커브 간격이 좁으면 활채가 실선으로 사라진다(1차 렌더) — 폭을 확실히 벌린다 */
+    G.draw.wpn_bow = function (ctx, S) {
+        const limb = () => {
+            ctx.moveTo(0.36 * S, 0.055 * S);
+            ctx.quadraticCurveTo(0.015 * S, 0.50 * S, 0.36 * S, 0.945 * S);   // 바깥 등
+            ctx.quadraticCurveTo(0.245 * S, 0.50 * S, 0.36 * S, 0.055 * S);   // 안쪽 배
+            ctx.closePath();
+        };
+        mark(ctx, closed(ctx, S, [[0.345, 0.06], [0.375, 0.06], [0.375, 0.94], [0.345, 0.94]]), 'rgba(70,50,25,.9)');   // 시위(활채 뒤)
+        plate(ctx, S, limb, WOOD_PALE, { sx: 0.16, sy: 0.30, lw: 0.046 });
+        plate(ctx, S, closed(ctx, S, [[0.30, 0.468], [0.78, 0.468], [0.78, 0.532], [0.30, 0.532]]), WOOD, { spec: false, lw: 0.030, flat: true });   // 화살대
+        plate(ctx, S, closed(ctx, S, [[0.76, 0.40], [0.945, 0.50], [0.76, 0.60]]), STEEL, { spec: false, lw: 0.034, flat: true });                   // 화살촉
+    };
+
+    /* 🏹 석궁 — 세로 개머리 + 가로 활채 + V자 시위. 활과 축이 직각이라 안 헷갈린다 */
+    G.draw.wpn_crossbow = function (ctx, S) {
+        const limb = () => {
+            ctx.moveTo(0.075 * S, 0.30 * S);
+            ctx.quadraticCurveTo(0.50 * S, 0.02 * S, 0.925 * S, 0.30 * S);
+            ctx.quadraticCurveTo(0.50 * S, 0.135 * S, 0.075 * S, 0.30 * S);
+            ctx.closePath();
+        };
+        mark(ctx, closed(ctx, S, [[0.075, 0.285], [0.50, 0.53], [0.925, 0.285], [0.925, 0.325], [0.50, 0.575], [0.075, 0.325]]), 'rgba(240,240,235,.9)');   // 시위
+        plate(ctx, S, limb, WOOD_PALE, { sx: 0.30, sy: 0.10, lw: 0.044 });
+        plate(ctx, S, sub.rr(ctx, S, 0.45, 0.10, 0.10, 0.80, 0.05), WOOD, { spec: false, lw: 0.042, y0: 0.08, y1: 0.92 });
+        plate(ctx, S, closed(ctx, S, [[0.50, 0.015], [0.585, 0.135], [0.415, 0.135]]), STEEL, { spec: false, lw: 0.036, flat: true });   // 볼트 촉
+    };
+
+    /* 💫 투석구 — Y자 새총(가죽끈 투석구는 23px 에서 국수가 된다 — 실루엣 우선 규칙) */
+    G.draw.wpn_sling = function (ctx, S) {
+        const arm = (x0, y0, x1, y1, w) => {
+            const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, nx = -dy / L * w / 2, ny = dx / L * w / 2;
+            return closed(ctx, S, [[x0 + nx, y0 + ny], [x1 + nx, y1 + ny], [x1 - nx, y1 - ny], [x0 - nx, y0 - ny]]);
+        };
+        mark(ctx, arm(0.245, 0.215, 0.50, 0.44, 0.045), 'rgba(70,50,25,.9)');    // 밴드(프레임 뒤)
+        mark(ctx, arm(0.755, 0.215, 0.50, 0.44, 0.045), 'rgba(70,50,25,.9)');
+        plate(ctx, S, arm(0.50, 0.56, 0.265, 0.155, 0.115), WOOD_PALE, { spec: false, lw: 0.044 });
+        plate(ctx, S, arm(0.50, 0.56, 0.735, 0.155, 0.115), WOOD_PALE, { spec: false, lw: 0.044 });
+        plate(ctx, S, sub.rr(ctx, S, 0.443, 0.52, 0.114, 0.40, 0.055), WOOD, { spec: false, lw: 0.044, y0: 0.50, y1: 0.94 });
+        plate(ctx, S, sub.cir(ctx, S, 0.50, 0.415, 0.085), STEEL, { lw: 0.038, sx: 0.46, sy: 0.37, y0: 0.32, y1: 0.51 });   // 장전된 돌
+    };
+
+    /* 🔫 권총 — L자 실루엣이 전부다: 총열 + 뒤쪽 손잡이 + 방아쇠울 */
+    G.draw.wpn_pistol = function (ctx, S) {
+        plate(ctx, S, sub.rr(ctx, S, 0.10, 0.30, 0.72, 0.20, 0.05), GUN, { sx: 0.30, sy: 0.34 });
+        plate(ctx, S, closed(ctx, S, [[0.155, 0.48], [0.36, 0.48], [0.315, 0.86], [0.13, 0.86]]), WOOD, { spec: false, lw: 0.042, y0: 0.46, y1: 0.90 });
+        mark(ctx, sub.rr(ctx, S, 0.12, 0.255, 0.075, 0.055, 0.02), '#3a434c');   // 가늠쇠(뒤)
+        const guard = () => { ctx.moveTo(0.40 * S, 0.50 * S); ctx.quadraticCurveTo(0.52 * S, 0.72 * S, 0.40 * S, 0.72 * S); ctx.quadraticCurveTo(0.35 * S, 0.60 * S, 0.40 * S, 0.50 * S); ctx.closePath(); };
+        mark(ctx, guard, 'rgba(29,35,41,.95)');
+    };
+
+    /* 🔫 소총 — 긴 총열 + 뒤 개머리판. 길이가 권총과의 유일한 위계라 총열을 끝까지 뺀다 */
+    G.draw.wpn_rifle = function (ctx, S) {
+        rot(ctx, S, -0.22, () => {
+            plate(ctx, S, sub.rr(ctx, S, 0.035, 0.42, 0.62, 0.13, 0.035), GUN, { sx: 0.20, sy: 0.44 });
+            plate(ctx, S, closed(ctx, S, [[0.63, 0.40], [0.955, 0.47], [0.955, 0.68], [0.63, 0.575]]), WOOD, { spec: false, lw: 0.042, y0: 0.40, y1: 0.70 });
+            plate(ctx, S, closed(ctx, S, [[0.42, 0.55], [0.52, 0.55], [0.49, 0.73], [0.40, 0.73]]), WOOD, { spec: false, lw: 0.038, y0: 0.54, y1: 0.75, flat: true });   // 손잡이
+            mark(ctx, sub.rr(ctx, S, 0.055, 0.375, 0.06, 0.05, 0.018), '#3a434c');   // 가늠쇠
+        });
+    };
+
+    /* 🔫 기관단총 — 뭉툭한 몸통 + 아래로 꽂힌 탄창이 정체. 총열은 짧게 */
+    G.draw.wpn_smg = function (ctx, S) {
+        plate(ctx, S, sub.rr(ctx, S, 0.13, 0.335, 0.56, 0.215, 0.05), GUN, { sx: 0.26, sy: 0.36 });
+        plate(ctx, S, sub.rr(ctx, S, 0.68, 0.385, 0.235, 0.115, 0.04), GUN, { spec: false, lw: 0.040, y0: 0.37, y1: 0.51 });   // 총열
+        plate(ctx, S, closed(ctx, S, [[0.315, 0.545], [0.455, 0.545], [0.425, 0.895], [0.30, 0.895]]), GUN, { spec: false, lw: 0.040, y0: 0.53, y1: 0.92 });   // 탄창
+        plate(ctx, S, closed(ctx, S, [[0.535, 0.545], [0.665, 0.545], [0.625, 0.83], [0.51, 0.83]]), WOOD, { spec: false, lw: 0.038, y0: 0.53, y1: 0.86, flat: true });   // 손잡이
+    };
+
+    /* 💥 대포 — 포신 + 바퀴. 두 덩어리면 끝난다(23px 규칙의 모범 케이스) */
+    G.draw.wpn_cannon = function (ctx, S) {
+        plate(ctx, S, closed(ctx, S, [[0.16, 0.565], [0.745, 0.175], [0.875, 0.36], [0.295, 0.75]]), GUN, { sx: 0.30, sy: 0.30 });
+        plate(ctx, S, closed(ctx, S, [[0.72, 0.135], [0.90, 0.115], [0.955, 0.315], [0.83, 0.40]]), GUN, { spec: false, lw: 0.042, y0: 0.10, y1: 0.42 });   // 포구 플레어
+        plate(ctx, S, sub.cir(ctx, S, 0.38, 0.72, 0.185), WOOD, { lw: 0.046, y0: 0.52, y1: 0.92, sx: 0.30, sy: 0.60 });   // 바퀴
+        plate(ctx, S, sub.cir(ctx, S, 0.38, 0.72, 0.062), GOLD, { spec: false, lw: 0.034, y0: 0.65, y1: 0.79, flat: true });   // 바퀴 허브
+    };
+
+    /* 🪄 지팡이 — 긴 봉 + 끝의 발광 보주. 보주 글로우는 mark 한 겹으로만(과하면 번짐) */
+    G.draw.wpn_staff = function (ctx, S) {
+        rot(ctx, S, TILT * 0.75, () => {
+            plate(ctx, S, sub.rr(ctx, S, 0.455, 0.27, 0.09, 0.66, 0.045), WOOD, { spec: false, lw: 0.042, y0: 0.25, y1: 0.95 });
+            plate(ctx, S, closed(ctx, S, [[0.395, 0.315], [0.605, 0.315], [0.545, 0.20], [0.455, 0.20]]), GOLD, { spec: false, lw: 0.038, flat: true });   // 물림 소켓
+            mark(ctx, sub.cir(ctx, S, 0.50, 0.145, 0.205), 'rgba(127,220,255,.28)');   // 글로우
+            plate(ctx, S, sub.cir(ctx, S, 0.50, 0.145, 0.135), ENERGY, { sx: 0.44, sy: 0.09, lw: 0.040, y0: 0.01, y1: 0.28 });
+        });
+    };
+})(IconGen);
