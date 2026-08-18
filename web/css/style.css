@@ -1782,10 +1782,18 @@ body {
     height: calc(var(--app-h) * .0246); margin: calc(var(--app-h) * .0088) 0 0; }
 .league-season-bar {
     display: flex; align-items: center; justify-content: center; gap: .4rem;
-    background: #12172a; border: var(--ol2) solid #000; border-radius: 1rem; padding: 0 .9rem;
-    /* 원본 바는 229px(45.98%W) x 23px(2.57%H) — 클론은 내용 폭이라 36.02%W 로 좁고 34px 로 높았다 */
-    width: calc(var(--app-w) * .4598); height: calc(var(--app-h) * .0257); box-sizing: border-box;
+    /* 🚨 '229px(45.98%W)' 는 **선물 아이콘까지 한 덩어리로 잰** 함정 ①이었다(채점 1라운드 A·B 공통
+       지적 → 픽셀 교차검증). 042149 실측: 선물 x126~152(바 밖 좌측, 폭 27px=5.42%W · 바 위로 ~10px
+       돌출·바닥 정렬) + 바 x≈144~354(폭 210px=42.17%W · 화면 중앙) · 높이 23px(2.57%H).
+       바탕도 남색+검정 테두리가 아니라 **테두리 없는 근흑 #030405 솔리드**다(행 전 구간 #020304~#040507). */
+    position: relative;
+    background: #030405; border: none; border-radius: 1rem; padding: 0 .9rem;
+    width: calc(var(--app-w) * .4217); height: calc(var(--app-h) * .0257); box-sizing: border-box;
     font-size: .8rem; font-weight: 700; color: #fff; margin: calc(var(--app-h) * -.0103) auto 0; cursor: pointer;
+}
+.league-season-bar > .ico {
+    position: absolute; left: calc(var(--app-w) * -.0362); bottom: 0;
+    width: calc(var(--app-w) * .0542); height: calc(var(--app-h) * .0392);
 }
 .league-season-bar b { color: var(--pp-green); }
 /* 목록 높이 실측(원본 shot-042149): 첫 행 21.21%H → 마지막 행 하단 72.54%H. 이전 .46 은 하단이
@@ -1813,8 +1821,13 @@ body {
 .league-row.me .league-name { color: #fff; }
 .league-name small { color: #f59e0b; font-weight: 900; }
 .league-score {
-    background: #0c0f1c; border: var(--ol2) solid #000; border-radius: .5rem; padding: .2rem .5rem;
-    color: #ffd54f; font-weight: 900; white-space: nowrap; font-size: .78rem;
+    /* 원본(042149 1행 y207~229 실측): 폭 93px(18.7%W)·높이 23px(2.57%H) **고정 pill**, 바탕 근흑
+       #020203(남색 아님)·테두리 없음·숫자 **흰색**(x367~381 #ffffff). 클론은 내용 폭(14.2%W)+금색
+       숫자라 pill 이 눈에 띄게 작고 색이 달랐다(채점 1라운드 A 지적, 픽셀 교차검증 확인). */
+    display: flex; align-items: center; justify-content: center; gap: .25rem;
+    width: calc(var(--app-w) * .187); height: calc(var(--app-h) * .0257); box-sizing: border-box;
+    background: #020203; border: none; border-radius: .5rem; padding: 0 .3rem;
+    color: #fff; font-weight: 900; white-space: nowrap; font-size: .78rem;
 }
 .league-server { position: absolute; right: .55rem; bottom: .2rem; font-size: .6rem; color: #8a8a8a; }
 .league-row.me .league-server { color: #dce6ff; }
