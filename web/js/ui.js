@@ -749,6 +749,9 @@ const UI = {
     },
     // 큐에서 하나 꺼내 비교 팝업으로 띄운다. 시퀀스가 돌지 않아도(새로고침 복원 등) 동작한다.
     openNextAutoMatch() {
+        // 보류 모드(딤으로 전부 보류)면 팝업을 자동으로 열지 않는다 — 앞의 한 개만 모루 자리 카드로
+        // 올려 두고, 그 카드를 누를 때 비교 팝업이 뜬다 (autoforge-dim-hold-all 2026-08-19).
+        if (S.autoMatchHeld) { this.promoteHeldToSlot(); return false; }
         if (this._pendingItem) return false;             // 대기품이 있으면 그것부터 처리
         const q = Array.isArray(S.autoMatchQueue) ? S.autoMatchQueue : (S.autoMatchQueue = []);
         while (q.length) {
@@ -762,12 +765,37 @@ const UI = {
         saveGame();
         return false;
     },
+    // 보류 목록의 앞 한 개를 모루 자리(대기품 1슬롯)로 올린다. 팝업은 열지 않는다 —
+    // 보류는 '지금 안 고르겠다'는 의사표시라, 고르는 시점은 카드를 누를 때다.
+    // 큐가 비면 보류 모드도 끝난다(다음 자동 제련이 평소대로 팝업을 몰아 열 수 있게).
+    promoteHeldToSlot() {
+        if (this._pendingItem) return false;             // 모루 자리가 이미 찼다
+        const q = Array.isArray(S.autoMatchQueue) ? S.autoMatchQueue : (S.autoMatchQueue = []);
+        while (q.length) {
+            const item = q.shift();
+            if (!item || !item.slot) continue;           // 손상 세이브 방어
+            this.setPendingCraft(item);                  // saveGame 포함 — 큐에서 뺀 것과 대기품을 같은 저장에
+            this.renderEquipSheet();
+            return true;
+        }
+        S.autoMatchHeld = false;
+        saveGame();
+        return false;
+    },
+    // 보류 중인 개수 = 모루 자리 카드 1개 + 아직 카드로 올라오지 않은 나머지
+    heldCount() {
+        return (this._pendingItem ? 1 : 0) + (Array.isArray(S.autoMatchQueue) ? S.autoMatchQueue.length : 0);
+    },
     // 부팅 시 복원: 지난 세션이 선택하지 않고 떠난 제작품이 있으면 비교 팝업을 그대로 다시 띄운다.
     // (자동 판정으로 정리하지 않는 이유 — 선택은 사용자 몫이고, 강제 판정은 '내가 안 고른 장비가 팔렸다'가 된다)
     restorePendingCraft() {
         const item = S.pendingCraft;
         if (!item || !item.slot) { this.openNextAutoMatch(); return; }   // 대기품이 없으면 큐에 남은 통과분부터
         this._pendingItem = item;
+        // 보류 상태로 떠난 것 — 모루 자리 카드로만 두고 누를 때 연다. 팝업을 안 띄우는 대신
+        // **여기서 장비 시트를 다시 그려야** 한다: 부팅 렌더는 대기품을 세우기 전에 이미 끝나
+        // 모루 그림이 놓여 있어, 그냥 두면 보류품이 있는데 모루가 보이고 카드는 다음 렌더까지 안 나온다.
+        if (S.autoMatchHeld) { this.renderEquipSheet(); return; }
         this.showCraftModal(item);
     },
     resolvePendingCraft() {
@@ -776,6 +804,17 @@ const UI = {
         // 새어 나갔다(탭을 옮겨도 정리되지 않고, 연출이 끝나면 엉뚱한 탭 위에 팝업이 떴다).
         // 통과분 대기 큐도 같이 정리한다 — 큐에 쌓인 것도 '아직 안 고른 제작품'이라 그냥 두면
         // 탭을 옮긴 뒤 엉뚱한 화면에서 팝업이 줄줄이 뜬다(대기품과 같은 기준으로 판정한다).
+        // 보류 모드(딤으로 전부 보류)만은 예외다 (autoforge-dim-hold-all 2026-08-19): 보류의 뜻이
+        // '나중에 내가 고른다'인데 탭을 옮겼다고 팔아 버리면 사용자가 고를 기회를 통째로 잃는다.
+        // 아래 자동 판정이 원래 막으려던 것은 '엉뚱한 탭 위로 팝업이 새는 것'인데, 보류 모드는
+        // 애초에 팝업을 자동으로 열지 않으므로(openNextAutoMatch) 팝업만 접어 두면 샐 곳이 없다.
+        if (S.autoMatchHeld) {
+            this.cancelAnvilStrike();
+            const hm = this.els.craftModal;
+            if (hm) hm.classList.add('hidden');
+            saveGame();
+            return;
+        }
         const queued = Array.isArray(S.autoMatchQueue) ? S.autoMatchQueue.splice(0) : [];
         for (const q of queued) {
             if (!q || !q.slot) continue;
@@ -1249,8 +1288,12 @@ const UI = {
         if (!held) {
             return `<button class="anvil-btn" onclick="UI.onCraft()">${this.ANVIL_SVG}<small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}</small></button>`;
         }
+        // 딤으로 여러 개를 한꺼번에 보류하면(autoforge-dim-hold-all) 카드 자리는 하나뿐이라
+        // 앞의 한 개만 놓고 태그에 남은 개수를 적는다 — 하나 고르면 다음 보류품이 이 자리로 올라온다.
+        // (모루 행 높이는 원본 비율 검증 대상이라 목록을 새로 펼치지 않고 이 카드 안에서 센다)
+        const more = this.heldCount() - 1;
         return `<button class="anvil-btn held-slot" style="--rc:${this.ageHex(held.age)}" onclick="UI.onOpenHeld()">
-            <span class="held-tag">보류</span>
+            <span class="held-tag">보류${more > 0 ? ` ${more + 1}` : ''}</span>
             ${this.itemImgHTML(held, 'held-img')}
             <span class="held-name">${held.name}</span>
             <small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}</small>
@@ -1275,6 +1318,23 @@ const UI = {
         // [장착] 스왑 후에는 내려온 옛 장비가 대기품으로 남아 있으므로 아래 보류 경로를 탄다 —
         // 딤으로 접으면 그 옛 장비가 모루 자리 카드로 가고, 다시 눌러 팔거나 되장착할 수 있다.
         if (!this._pendingItem) return;
+        // 자동 제련 중(또는 통과분 큐가 남아 있는 중)이면 딤 = **이 1개만이 아니라 남은 것 전부 보류**
+        // 하고 자동 진행을 멈춘다 (사용자 지시 2026-08-19 autoforge-dim-hold-all).
+        // 종전 동작은 이 1개만 보류하고 `autoSeqStep()`으로 시퀀스를 이어 갔는데, 보류품이 필터를
+        // 통과한 것이라 그 자리에서 같은 팝업을 즉시 다시 띄웠다 — 딤을 눌러도 아무 일도 안 일어나는
+        // 것처럼 보였고(실측), 남은 통과분은 계속 줄줄이 떴다.
+        const q = Array.isArray(S.autoMatchQueue) ? S.autoMatchQueue : [];
+        if (this._autoSeq || S.autoForgeOn || q.length) {
+            S.autoMatchHeld = true;          // stopAutoSeq 안의 openNextAutoMatch보다 먼저 세울 것
+            const n = this.heldCount();
+            this.stopAutoSeq();              // 자동 진행 정지(_autoSeq가 없어도 autoForgeOn을 끈다)
+            saveGame();
+            this.renderEquipSheet();
+            this.toast(n > 1
+                ? `📌 남은 ${n}개 전부 보류 — 자동 제련을 멈췄습니다. 모루 자리 카드를 누르면 하나씩 다시 고릅니다`
+                : '📌 보류 — 자동 제련을 멈췄습니다. 모루 자리 카드를 누르면 다시 고를 수 있습니다');
+            return;
+        }
         this.toast('📌 보류 — 모루 자리의 카드를 누르면 다시 고를 수 있습니다');
         this.autoSeqStep();   // 자동 시퀀스 중이었다면 계속 진행 (보류는 시퀀스를 멈추지 않는다)
     },
@@ -1323,6 +1383,9 @@ const UI = {
     _autoSeq: null,
     startAutoSeq() {
         if (this._autoSeq) return;
+        // 자동 제련을 다시 켠 것은 '보류해 둔 것도 마저 처리하라'는 뜻이다 — 보류 모드를 풀어
+        // 큐가 평소대로 팝업으로 흘러가게 한다 (autoforge-dim-hold-all 2026-08-19).
+        S.autoMatchHeld = false;
         this._autoSeq = { inCycle: 0, stopAfterPick: false };
         this.autoSeqStep();
     },
