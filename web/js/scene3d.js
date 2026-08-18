@@ -5907,6 +5907,31 @@ const Scene3D = {
         if (el && be) el.rotation.x = be.rx + reach.elbow;
     },
 
+    // 탑승 중 공격 반동·버팀(㉱⑵ "공격 중 하체가 idle 그대로") — 공격(once) 클립은 어깨·팔꿈치·척추만
+    // 정의하고 하체는 ridePose 상수 그대로라, 상체만 휘두르고 하반신이 마네킹처럼 굳어 있었다.
+    // holdBarGrip과 같은 규약: prochar 합성 규칙은 건드리지 않고 rig.update 뒤에 **가산**한다.
+    // 버팀량은 상수 각이 아니라 **그 계열 ridePose 자신의 비율**로 준다 — 다리를 벌린 계열(quad)은
+    // 조임으로, 무릎을 깊게 접은 계열(wheeled)은 더 깊은 굽힘으로, 서 있는 계열(flat)은 무릎 크라우치로,
+    // 각자 자기 자세를 강화하는 방향이 된다(상수로 주면 비대칭 페달 포즈가 대칭으로 뭉개진다).
+    // 곡선: 클립 10%에서 시작해 45%(휘두름 임팩트 부근) 정점, 80% 복귀하는 사인 범프 —
+    // 클립이 끝나면 정확히 0이라 대기 포즈·안장 정합(probe-ride-fit)에는 아무 잔량도 안 남는다.
+    rideBrace() {
+        const rig = this.heroRig, pose = this.ridePose;
+        if (!rig || !this.riding || !pose || !rig._once || !rig._clip || rig._clip.groundPose) return;
+        const u = (Math.min(1, rig._t / (rig._clip.dur || 1)) - 0.1) / 0.7;
+        if (u <= 0 || u >= 1) return;
+        const b = Math.sin(Math.PI * u);
+        const B = rig.bones;
+        if (B.spine) B.spine.rotation.x += 0.13 * b;                    // 상체를 타격 쪽으로 눌러 힘을 싣는다
+        for (const s of ['L', 'R']) {
+            const hip = B['hip' + s], knee = B['knee' + s];
+            const hp = pose['hip' + s], kp = pose['knee' + s];
+            if (hip && hp && hp.rz) hip.rotation.z -= hp.rz * 0.18 * b;  // 벌린 다리를 몸통 쪽으로 조인다(버팀)
+            if (hip && hp && hp.rx) hip.rotation.x += hp.rx * 0.10 * b;  // 고관절을 살짝 더 감아쥔다
+            if (knee && kp && kp.rx) knee.rotation.x += kp.rx * 0.15 * b; // 무릎을 더 깊게 — flat은 크라우치가 된다
+        }
+    },
+
     alignStirrups() {
         const g = this.mountGroup, rig = this.heroRig;
         if (!g || !g.userData.stirrups || !rig || !rig.bones || !rig.bones.kneeL || !this.heroG) return;
@@ -9245,6 +9270,7 @@ const Scene3D = {
             if (this.heroRig) {
                 this.heroRig.update(dt);
                 this.holdBarGrip();   // 공격 클립이 바를 잡은 손까지 데려가지 않게 (rig.update 뒤여야 한다)
+                this.rideBrace();     // 탑승 중 공격이면 하체 버팀 가산 (같은 규약 — rig.update 뒤)
                 if (this._heroReviveT > 0) this._heroReviveT -= dt;
                 // 사망/기상 중에는 자동 전환을 잠근다 — 안 그러면 다음 프레임 Idle이 클립을 덮어쓴다
                 if (!this._attacking && !this.heroDead && !(this._heroReviveT > 0)) {
