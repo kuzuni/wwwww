@@ -1,8 +1,23 @@
 /* ===== 포지 클론 스타일 — 9:16 레터박스, rem 기반 스케일 ===== */
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; overflow: hidden; background: #0d1117; }
-/* 폰 브라우저의 강제 다크모드(자동 색 반전) 비활성화 — 화면 색은 게임이 직접 지정한다 */
-:root { color-scheme: only light; }
+/* 폰 브라우저의 강제 다크모드(자동 색 반전) 비활성화 — 화면 색은 게임이 직접 지정한다.
+   세 겹으로 건다(브라우저마다 존중하는 신호가 다르다 — tools/probe-force-dark.js 참조):
+   ① `only light` — 크롬 Auto Dark Theme 공식 옵트아웃. `only` 없는 `light` 는 옵트아웃이 아니다(실측).
+   ② prefers-color-scheme: dark 블록 — 삼성 인터넷·안드로이드 WebView(FORCE_DARK) 처럼 "사이트에 다크
+      테마가 없으면 알고리즘으로 반전한다"는 휴리스틱 브라우저용. 다크 테마를 **가지고 있되 라이트와
+      같은 색**으로 못박아, 반전 대신 우리 색을 쓰게 만든다(데스크톱 렌더는 값이 같아 변화 없음).
+   ③ forced-colors(고대비 모드) — 시스템 팔레트로 갈아끼우는 것 차단. */
+:root, html, body { color-scheme: only light; }
+@media (prefers-color-scheme: dark) {
+    :root, html, body { color-scheme: only light; }
+    html, body { background: #0d1117; color: #eceff1; }
+    #app { background: #161b22; }
+}
+@media (forced-colors: active) {
+    :root { forced-color-adjust: none; }
+    * { forced-color-adjust: none !important; }
+}
 /* art-outline-scale: 아웃라인 두께 토큰 — 기준(루트 16px)에선 원래 px, 앱이 작아지면 같은 비율로 얇아진다 */
 :root {
     --ol1: min(1px, calc(.0625rem + .49px));

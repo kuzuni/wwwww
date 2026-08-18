@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<!-- 폰 브라우저(크롬 Auto Dark, 삼성 인터넷 다크모드)가 색을 강제로 뒤집지 않도록 -->
-<meta name="color-scheme" content="light">
+<!-- 폰 브라우저(크롬 Auto Dark, 안드로이드 WebView FORCE_DARK, 삼성 인터넷 다크모드)가 색을 강제로 뒤집지 않도록.
+     ⚠️ `content="light"` 는 옵트아웃이 **아니다** — '라이트를 지원한다'는 선언일 뿐이라 크롬은 오히려
+     그런 페이지를 자동 반전 대상으로 삼는다(tools/probe-force-dark.js 실측: light 만 두면 #f5f5f5 → #222).
+     반전을 끄는 건 `only` 키워드다. CSS(:root color-scheme)와 함께 두 겹으로 건다. -->
+<meta name="color-scheme" content="only light">
 <title>포지 클론 — 방치형 대장간 RPG</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
