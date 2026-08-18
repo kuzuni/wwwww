@@ -30,8 +30,11 @@ const SCREENS = [
     // [업그레이드] 가 보인다. 인덱스 0~2 는 시드가 장착해 둔 스킬이라 열면 버튼이 [해제] 로 바뀌고
     // 업그레이드가 비활성으로 찍혀, 같은 팝업인데 내용이 달라진 채 대조하게 된다.
     ['skill-detail', '042426', `UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.openSkillDetail(Object.keys(S.skills)[3])`],
-    ['pet-detail', '042449', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetDetail(0)`],
-    ['pet-upgrade', '042503', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetUpgrade(0)`],
+    // 원본 042449/042503 의 대상은 **[궁극의] 트렌트 Lv.6**(그리드 Lv.61/6/3 의 가운데)다. 기본 시드로
+    // 열면 등급·이름·레벨이 다른 펫이 떠 등급색부터 어긋난다(⑫·⑬ 진행 메모 ⓑ의 시드 주입) —
+    // 펫 화면과 같은 원본 상태를 주입하고 index 1 을 연다. 042503 은 재료로 알 1개가 선택된 상태.
+    ['pet-detail', '042449', PETS_STATE_SRC + `; S.pets[1].name='Treant'; UI.openPetDetail(1)`],
+    ['pet-upgrade', '042503', PETS_STATE_SRC + `; S.pets[1].name='Treant'; UI.openPetUpgrade(1); UI._petUpgradeMats.eggs.push(0); UI.renderPetUpgrade()`],
     // 원본 042521은 **펫** 확률표다(레벨 69 · "달걀을(를) 소환하여") — 스킬로 열면 배경 그리드와 문구가 달라
     // 비율 말고 내용까지 어긋난 채로 대조하게 된다. tech-branch 를 원본 분기에 맞춘 것과 같은 이유.
     ['summon-rates', '042521', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openSummonRates('pet')`],
@@ -60,7 +63,21 @@ const SCREENS = [
         UI.openTechBranch('skillpet'); UI.openTechNode(id);
     })()`],
     ['shop', '042632', `UI.openShop()`],
-    ['pass', '042705', `UI.openPass()`],
+    // 원본 042705 는 트랙을 **스크롤한 상태**다: 어려움 3-x 두 줄(수령 ✓) + 4-x 두 줄(미도달)이 보인다.
+    // 시드 bestChapter=20 이면 전 구간 도달이라 미도달 칸(다크 남색)이 화면에 하나도 없다 — ⑧ 진행
+    // 메모 ⚠️ 의 상태 정합: 도달 경계를 원본(어려움 4-1)에 맞추고, 도달 줄은 전부 수령 처리, 트랙을
+    // 3-5 줄부터 보이게 스크롤한다. 렌더 직후 S 를 되돌려 뒤 화면(던전 등)에 안 새게 한다.
+    ['pass', '042705', `(() => {
+        const bc = S.bestChapter, bs = S.bestStage, pc = S.passClaimed;
+        S.bestChapter = 4; S.bestStage = 1;
+        S.passClaimed = { '1-5': true, '1-10': true, '2-5': true, '2-10': true, '3-5': true, '3-10': true };
+        UI.openPass();
+        S.bestChapter = bc; S.bestStage = bs; S.passClaimed = pc;
+        const track = document.querySelector('.pass-track');
+        const lab = [...track.querySelectorAll('.pass-milestone-label')].find(l => l.textContent.includes('3-5'));
+        // 라벨의 offsetParent 는 position:relative 인 .pass-track 자신이다 — offsetTop 이 이미 트랙 기준
+        if (lab) track.scrollTop = lab.offsetTop - 6;
+    })()`],
     ['profile', '042724', `UI.openProfile()`],
     ['settings', '042744', `UI.openProfile(); UI._profileView='settings'; UI.renderProfile()`],
     ['forge-info', '042831', `UI.openForgeInfo()`],

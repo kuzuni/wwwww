@@ -901,10 +901,12 @@ const UI = {
             </div>`;
     },
 
-    // 챕터 기준 난이도 표기 (원본 임계값 미확보 → 자체 설계 4단계 근사)
+    // 챕터 기준 난이도 표기. 원본 실측 근거: shot-042705(진행 패스)의 마일스톤 라벨이
+    // '어려움 3-1'·'어려움 4-15' — 챕터 3·4 가 둘 다 '어려움'이다(상단바 '어려움 4-1'과도 일치).
+    // 챕터 1·2 와 상한 임계값은 원본 미확보라 자체 설계 유지(쉬움/보통 한 챕터씩).
     difficultyLabel(chapter) {
-        if (chapter <= 2) return '쉬움';
-        if (chapter <= 5) return '보통';
+        if (chapter <= 1) return '쉬움';
+        if (chapter <= 2) return '보통';
         if (chapter <= 8) return '어려움';
         return '매우 어려움';
     },
