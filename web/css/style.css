@@ -1108,6 +1108,9 @@ body {
 /* 바리케이드는 가로로 긴 그림(ASPECT 1.39)이라 프레임도 같은 비율로 줘야 꽉 찬다 —
    정사각 프레임에 넣으면 `contain` 이 세로 빈칸까지 맞춰 그림만 작아진다. */
 .ico.stub-ico.wide { width: 1.88em; }
+/* 글자 앞에 서는 인라인 라벨 아이콘(디버그 탭 재화 버튼 등) — 이모지가 있던 자리라 한 칸 띄어야 한다.
+   `.ico` 기본 margin-right 는 .04em 이라 글자에 붙는다. (특이도는 `.ico.` 로 올린다 — 위 주석 참고) */
+.ico.lbl-ico { width: 1.3em; height: 1.3em; margin: -.3em .34em -.3em 0; }
 .big-stat { font-size: 1.05rem; font-weight: 800; color: #ffd54f; }
 .modal-card .sub { font-size: .78rem; color: #81d4fa; }
 

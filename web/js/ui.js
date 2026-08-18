@@ -904,6 +904,7 @@ const UI = {
         '🔒': 'lock', '🗝': 'key', '🎁': 'gift', '🏆': 'trophy', '⭐': 'star', '⬆': 'uptri',
         '👑': 'crown', '💀': 'skull', '⚡': 'bolt', '📜': 'scroll', '🧩': 'shard',
         '💤': 'zzz', '🔓': 'unlock', '📌': 'pin', '📍': 'marker', '✨': 'sparkle',
+        '👻': 'ghost', '🧟': 'zombie',   // 던전 입장·실패 토스트가 쓰는 얼굴(아이콘은 이미 있었다)
     },
 
     toast(msg) {
@@ -4075,24 +4076,25 @@ const UI = {
     },
 
     // ---- 디버그 탭 (출시용 아님, 테스트 전용 — 항상 노출) ----
+    // 라벨을 '이모지+글자' 한 덩어리로 두면 아이콘으로 못 바꾼다 — 아이콘 키와 글자를 나눠 둔다.
     DEBUG_CURRENCIES: [
-        { key: 'hammers', label: '🔨 해머' },
-        { key: 'coins', label: '🪙 코인' },
-        { key: 'gems', label: '💎 젬' },
-        { key: 'tickets', label: '🎫 티켓' },
-        { key: 'winders', label: '⚙️ 태엽' },
-        { key: 'potions', label: '🧪 물약' },
-        { key: 'eggCurrency', label: '🥚 깨진 알' },
+        { key: 'hammers', ico: 'hammer', kr: '해머' },
+        { key: 'coins', ico: 'coin', kr: '코인' },
+        { key: 'gems', ico: 'gem', kr: '젬' },
+        { key: 'tickets', ico: 'ticket', kr: '티켓' },
+        { key: 'winders', ico: 'winder', kr: '태엽' },
+        { key: 'potions', ico: 'potion', kr: '물약' },
+        { key: 'eggCurrency', ico: 'egg', kr: '깨진 알' },
     ],
     renderDebug() {
         if (this.activeTab !== 'debug') return;
         const p = this.els.panels.debug;
         const curHtml = this.DEBUG_CURRENCIES.map(c =>
-            `<button class="btn sm" onclick="UI.onDebugAddCurrency('${c.key}')">${c.label} +100000</button>`).join('');
+            `<button class="btn sm" onclick="UI.onDebugAddCurrency('${c.key}')">${IconGen.img(c.ico, 'lbl-ico')}${c.kr} +100000</button>`).join('');
         const keysHtml = Dungeons.DEFS.map(d =>
-            `<span class="prob-chip">${d.icon} ${S.dungeons ? (S.dungeons.keys[d.id] ?? '-') : '-'}/${Dungeons.MAX_KEYS}</span>`).join('');
+            `<span class="prob-chip">${this.dgIcon(d)} ${S.dungeons ? (S.dungeons.keys[d.id] ?? '-') : '-'}/${Dungeons.MAX_KEYS}</span>`).join('');
         p.innerHTML = `
-            <h2>🐞 디버그 <span class="muted">테스트 전용</span></h2>
+            <h2>${IconGen.img('tab_debug', 'lbl-ico')}디버그 <span class="muted">테스트 전용</span></h2>
             <h3>스테이지 이동</h3>
             <div class="row">
                 <input type="number" id="dbg-chapter" value="${S.chapter}" min="1" max="10" style="width:4rem">
@@ -4107,7 +4109,7 @@ const UI = {
             <h3>재화 지급</h3>
             <div class="row wrap">${curHtml}</div>
             <div class="row">
-                <button class="btn sm" onclick="UI.onDebugEggs()">🥚 신화 알 +5</button>
+                <button class="btn sm" onclick="UI.onDebugEggs()">${IconGen.img('egg', 'lbl-ico')}신화 알 +5</button>
             </div>
             <h3>대장간</h3>
             <div class="row">
