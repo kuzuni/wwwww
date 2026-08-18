@@ -5116,8 +5116,19 @@ body {
     box-shadow: 0 .12rem .3rem rgba(0,0,0,.6);
 }
 /* 대량 소환에서 가장 중요한 정보 — 가장 작은 글자가 되면 안 된다 */
+/* 🚨 10차 잔여 ⑨ — ×N 배지가 **이름칩 우측선을 넘고**(실측 최대 13.3px) **칩에 0.2px 까지 붙었다**.
+   원인은 배지 위치가 아니라 부모다: `.sr-orbwrap` 은 폭 100% 지만 `transform: scale(var(--sz))`
+   로 **최대 1.26배까지 커지고**, %인셋은 스케일 **전** 상자에 대해 풀리므로 화면에서는 그 인셋도
+   같이 1.26배 바깥으로 밀린다. 그래서 상위 등급 셀일수록 배지가 셀 밖으로 나갔다(등급이 높을수록
+   심해지는 것이 이 결함의 지문이다).
+   ⇒ 인셋을 **스케일로 나눠** 화면 기준 위치를 고정한다. 이름칩이 셀 폭의 92%(좌우 4% 인셋)이므로
+   화면상 배지 우변이 그 46% 선 안에 들어오는 값이 `50% - 46%/sz` 다(sz=1 → 4%, sz=1.26 → 13.5%).
+   세로도 같은 꼴로 띄워 칩 윗선과 여유를 남긴다. **상수 %로 되돌리지 말 것** — probe-sr-labels 가
+   여유 3px·우측 초과 0px 를 회귀 검사한다. */
 .sr-qty {
-    position: absolute; bottom: 8%; right: 7%; z-index: 2;
+    position: absolute; z-index: 2;
+    right: calc(50% - 45% / var(--sz, 1));   /* 46% 는 좁은 mid 셀에서 테두리 두께만큼 1px 남았다 */
+    bottom: calc(50% - 44% / var(--sz, 1));
     background: rgba(2,5,16,.9); color: #fff; border: var(--ol1) solid var(--rc);
     border-radius: .4rem; padding: 0 .3rem; font-size: .7rem; font-weight: 900;
     box-shadow: 0 .1rem .28rem rgba(0,0,0,.6);
@@ -5214,7 +5225,9 @@ body {
 /* mid 셀은 구체가 3.9rem 남짓이라 좌·우 배지가 폭을 나눠 쓴다 — 둘 다 줄이고 모서리로 더 붙인다
    (probe-sr-labels.js 가 두 상자의 교차를 재서 회귀를 막는다) */
 .sr-grid.mid .sr-dup { top: 3%; left: 2%; font-size: .62rem; padding: 0 .2rem; }
-.sr-grid.mid .sr-qty { bottom: 3%; right: 2%; }
+/* mid 판도 같은 식을 쓴다(예전 `bottom:3%; right:2%` 상수는 위 스케일 문제를 그대로 맞았다) —
+   셀이 작아 여유가 적으므로 세로만 조금 더 붙인다. */
+.sr-grid.mid .sr-qty { bottom: calc(50% - 45% / var(--sz, 1)); }
 .sr-grid.dense .sr-name, .sr-grid.dense .sr-sub { display: none; }
 
 /* ④ 하단: 등급별 집계 → 연출 중엔 스킵 안내, 끝나면 [확인] */

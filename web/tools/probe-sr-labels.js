@@ -134,6 +134,31 @@ const VIEWPORTS = [[412, 892], [360, 640]];
                     return { i, inter, out, heroic: c.classList.contains('heroic'), dupW: db && db.w, orbW: ob && ob.w };
                 }).filter(Boolean);
 
+                // ⒟ 10차 잔여 ⑨ — ×N 배지가 **이름칩과 세로로 붙거나 칩 오른쪽 선을 넘는가**.
+                //    B 실측: 배지 y=450~464 vs 칩 y=465~484 로 여유 **1px**, 배지 우측이 칩 우측선을 **7px 초과**.
+                //    배지는 구체에 속한 표식이라 칩 위로 겹치거나 칩 밖으로 나가면 '떠 있는 라벨'이 된다.
+                const qtyGap = cells.map((c, i) => {
+                    const qty = c.querySelector('.sr-qty'), nm = c.querySelector('.sr-name');
+                    if (!qty || !nm) return null;
+                    const qb = box(qty), nb = box(nm);
+                    return {
+                        i,
+                        gap: +(nb.y - (qb.y + qb.h)).toFixed(1),          // 배지 아래 ↔ 칩 위 (음수=겹침)
+                        over: +((qb.x + qb.w) - (nb.x + nb.w)).toFixed(1), // 배지 우측이 칩 우측선을 넘은 양
+                    };
+                }).filter(Boolean);
+
+                // ⒠ 10차 잔여 ⑨ — 그리드 좌우 여백 대칭. B: 좌 17px vs 우 6px(비대칭 11px).
+                // ⚠️ **transform 이 실린 상자로 재면 안 된다.** `.sr-cell` 은 등급별 `--sz`(최대 1.26)로
+                //    스케일되므로 `getBoundingClientRect` 로 재면 '등급이 높은 셀이 있는 쪽'이 항상 넓게
+                //    나온다 — 그건 레이아웃 비대칭이 아니라 **의도된 등급 크기 사다리**다(첫 판에서 그걸
+                //    비대칭으로 잡아 멀쩡한 여백을 고칠 뻔했다). 레이아웃만 보려면 offsetLeft/Width 다.
+                const margins = cells.length ? (() => {
+                    const l = Math.min(...cells.map(c => c.offsetLeft));
+                    const r = Math.max(...cells.map(c => c.offsetLeft + c.offsetWidth));
+                    return { left: +l.toFixed(1), right: +(grid.clientWidth - r).toFixed(1) };
+                })() : null;
+
                 // 폐기된 마크업이 남아 있지 않은지
                 const stale = {
                     ex: m.querySelectorAll('.sr-ex').length,
@@ -152,7 +177,7 @@ const VIEWPORTS = [[412, 892], [360, 640]];
                         };
                     }
                 }
-                return { cells: cells.length, size: grid.className, zs, chips, badges, stale, onePlate };
+                return { cells: cells.length, size: grid.className, zs, chips, badges, stale, onePlate, qtyGap, margins };
             }, LADDER);
 
             const tag = `${W}x${H} ${name}`;
@@ -188,6 +213,14 @@ const VIEWPORTS = [[412, 892], [360, 640]];
             // ⒞ 배지 겹침·이탈
             const hit = r.badges.filter(b => b.inter > 0);
             if (hit.length) fails.push(`${tag}: 적립 배지와 ×N 배지가 겹치는 셀 ${hit.length}개 (최대 교차 ${Math.max(...hit.map(b => b.inter))}px²)`);
+            // ⒟ ×N 배지 ↔ 이름칩 — 세로 여유 3px 미만이거나 칩 우측선을 넘으면 불합격
+            const tight = r.qtyGap.filter(q => q.gap < 3);
+            if (tight.length) fails.push(`${tag}: ×N 배지가 이름칩에 붙었다 — 셀 ${tight.length}개 (최소 여유 ${Math.min(...tight.map(q => q.gap))}px, 기준 3px)`);
+            const overs = r.qtyGap.filter(q => q.over > 0.5);
+            if (overs.length) fails.push(`${tag}: ×N 배지가 이름칩 우측선을 넘었다 — 셀 ${overs.length}개 (최대 ${Math.max(...overs.map(q => q.over))}px)`);
+            // ⒠ 그리드 좌우 여백 대칭 — 4px 넘게 어긋나면 판이 한쪽으로 쏠려 보인다
+            if (r.margins && Math.abs(r.margins.left - r.margins.right) > 4)
+                fails.push(`${tag}: 좌우 여백 비대칭 ${Math.abs(+(r.margins.left - r.margins.right).toFixed(1))}px (좌 ${r.margins.left} / 우 ${r.margins.right})`);
             const outs = r.badges.filter(b => b.out);
             if (outs.length) fails.push(`${tag}: 배지가 셀 상자를 벗어난 셀 ${outs.length}개`);
 
