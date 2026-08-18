@@ -1396,16 +1396,20 @@ body {
 /* 원본: 큰 브론즈 원(진행/완료), 미해금은 흰 원 — 이름 라벨 없음, N/5만 */
 .tech-tree-node {
     width: var(--tt-node); height: var(--tt-node); border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-size: calc(var(--tt-node) * .4); border: .3rem solid #6f4517; background: #c9925a; cursor: pointer;
+    font-size: calc(var(--tt-node) * .4); border: .3rem solid #7d3920; background: #c85c34; cursor: pointer;
     box-shadow: inset 0 -.3rem 0 rgba(0,0,0,.22);
     position: relative; z-index: 1; /* 원 뒤로 지나가는 세로선을 불투명하게 가린다 (원본 정합) */
 }
 .tech-tree-node.locked { background: #f4f2ee; border-color: #9c9c9c; box-shadow: inset 0 -.3rem 0 rgba(0,0,0,.08); }
 /* 아직 안 열린 단계의 노드 — 흰 원(미연구)과 구분되게 회색으로 눌러 둔다 */
 .tech-tree-node.tlocked { background: #d9d6d0; border-color: #8c8880; box-shadow: inset 0 -.3rem 0 rgba(0,0,0,.12); opacity: .72; }
-.tech-tree-node.active { background: #c9925a; }
+/* 원본(shot-042546) 실측 — 레벨이 오른 노드의 원반은 테 **#7d3920** · 면 **#c85c34** 이다
+   (x=172·x=248 세로 단면에서 같은 값이 반복된다). 클론 #c9925a 는 주황기가 빠진 탠색이었다. */
+.tech-tree-node.active { background: #c85c34; border-color: #7d3920; }
 .tech-tree-node.done { background: #a9793f; border-color: #5d3810; }
-.tech-tree-node.researching { background: var(--pp-green); border-color: #1d6b33; }
+/* 🚨 연구 중 노드를 통째로 초록으로 칠하면 안 된다 — 원본에서 '13시 30분' 배지가 달린 노드의
+   원반도 다른 레벨 노드와 **똑같은 브론즈**(테 #7d3920 · 면 #c85c34)다. 초록은 아래 시간 배지 뿐이다. */
+.tech-tree-node.researching { background: #c85c34; border-color: #7d3920; }
 /* 라벨 높이를 --tt-label로 고정한다 — 연구 중 타이머 배지가 붙어 행이 길어지면 세로선 오프셋이
    어긋나 그 행만 선이 끊긴다. 배지는 이 높이를 살짝 넘겨도 레이아웃을 밀지 않고 그려지기만 한다.
    (행 피치 = 노드 + 이 라벨 블록 + 세로선 구간이므로 이 값이 곧 피치 구성 요소다) */

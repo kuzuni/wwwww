@@ -37,7 +37,16 @@ const SCREENS = [
     ['summon-rates', '042521', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openSummonRates('pet')`],
     // 원본 042546의 제목은 '스킬, 펫 & 기술'이다 — 대장간 분기(10노드)를 찍어 놓고 이 원본과 대조하면
     // 노드 수부터 달라 비율 비교가 무의미해진다. 원본과 같은 skillpet 분기(12노드)를 찍는다.
-    ['tech-branch', '042546', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('skillpet')`],
+    // 원본 042546 은 앞쪽 노드 7개가 **1/5 로 올라간** 상태이고 7번째에 '13시 30분' 연구 배지가 달린다.
+    // 시드는 S.tech 가 비어 전부 0/5(회색)이라, 클론 캡처에는 원본의 브론즈 원반이 하나도 안 나온다
+    // — 색을 대조할 수가 없다. 원본과 같은 진행도로 맞춘다(펫·스킬 상세에서 쓴 상태 정합과 같은 계열).
+    ['tech-branch', '042546', `(() => {
+        const ids = TechTree.nodesOf('skillpet');
+        S.tech = S.tech || {};
+        for (let i = 0; i < 7; i++) S.tech[ids[i]] = 1;
+        S.techResearch = { id: ids[6], endsAt: U.now() + (13 * 60 + 30) * 60e3 };
+        UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechBranch('skillpet');
+    })()`],
     // 원본 042605의 배경은 **skillpet 분기**(제목 '스킬, 펫 & 기술')이고 팝업 노드는 '추가 알 획득 기회 IV'
     // = 우리 트리의 extraEgg 4단계, 레벨 1/5, 연구 진행 중이다. forge 분기/forgeTimer 로 찍으면 배경 노드 수와
     // 제목부터 달라 비율 대조가 무의미해진다(tech-branch 를 원본 분기에 맞춘 것과 같은 이유).
