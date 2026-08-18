@@ -17,10 +17,16 @@ const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const REF = path.resolve(__dirname, '../ref/screens/shot-042120.png');
 const VW = 499, VH = 892;
-const TABS = ['pvp', 'dungeon', 'summon', 'quest', 'shop'];   // 배포 탭바에 보이는 5개(디버그는 숨김)
+const TABS = ['pvp', 'dungeon', 'summon', 'quest', 'shop', 'debug'];   // 배포 탭바에 보이는 6개
 // 2026-08-18 `quest-tab`: 소환과 상점 사이에 퀘스트가 들어와 **보이는 탭이 4→5개**가 됐다.
 // 셀 분할 수를 안 고치면 4칸으로 5개를 재면서 이웃 아이콘 2개가 한 칸에 잡혀(실측 24.25%W)
 // 멀쩡한 아이콘이 '원본보다 +15%p 크다'로 뜬다 — 첫 실행에서 실제로 그렇게 오검출했다.
+// 🚨 2026-08-18 `nav-6th-keep-debug`: 디버그가 기본 노출로 바뀌어 **5→6개**다. 같은 함정이
+// 그대로 재발했다(고치기 전 실측: dungeon 19.24%W = 이웃 아이콘 둘이 한 칸에 잡힌 값).
+// 그래서 클론 셀 분할 수는 이제 **하드코딩하지 않고 실제 보이는 버튼 수**를 쓴다 — 탭이 또
+// 늘거나 줄어도 이 프로브가 멀쩡한 아이콘을 회귀로 오인하지 않는다.
+// ⚠️ 원본(shot-042120)은 5칸이고 **디버그 탭이 없다** — 디버그는 대응 원본이 없는 클론 전용
+// 칸이라 위치·모양 대조 대상이 아니고, 아래에서 '크기가 같은 급인가'만 본다(퀘스트와 같은 취급).
 
 // 이미지 데이터에서 셀별 잉크 bbox 를 낸다. bg 는 셀 테두리 픽셀의 최빈색으로 잡는다.
 // (인자에 쓰지 않는 H 를 두면 호출부에서 한 칸씩 밀려 cells=undefined 가 되고 스캔이 조용히
@@ -118,7 +124,7 @@ const SCAN = function (data, W, y0, y1, cells) {
     // 라벨을 숨기고 탭바만 캡처 → 원본과 동일한 잉크 스캔
     await page.addStyleTag({ content: '#tabbar button span{visibility:hidden!important}' });
     const clipShot = await page.screenshot({ clip: { x: 0, y: dom.band.y, width: VW, height: dom.band.h } });
-    const clone = await page.evaluate(async ([src, scanSrc]) => {
+    const clone = await page.evaluate(async ([src, scanSrc, n]) => {
         const img = new Image();
         await new Promise(r => { img.onload = r; img.src = src; });
         const c = document.createElement('canvas');
@@ -127,9 +133,9 @@ const SCAN = function (data, W, y0, y1, cells) {
         ctx.drawImage(img, 0, 0);
         const d = ctx.getImageData(0, 0, img.width, img.height).data;
         const scan = new Function('return ' + scanSrc)();
-        // 배포에서 보이는 탭 수로 셀을 나눈다(디버그 탭은 숨김이라 flex 셀도 없다)
-        return { W: img.width, H: img.height, cells: scan(d, img.width, 0, img.height, 5) };
-    }, ['data:image/png;base64,' + clipShot.toString('base64'), SCAN.toString()]);
+        // 배포에서 **실제로 보이는 탭 수**로 셀을 나눈다 — 하드코딩하면 탭이 늘 때마다 오검출한다
+        return { W: img.width, H: img.height, cells: scan(d, img.width, 0, img.height, n) };
+    }, ['data:image/png;base64,' + clipShot.toString('base64'), SCAN.toString(), dom.buttons.length]);
 
     // ---- ③ 캘리브레이션: 측정기가 정말 '탭바 내용'만 잡는가 ----
     // 버튼을 통째로 숨겨 잉크가 사라지는지 본다. 안 사라지면 스캔이 배경/테두리를 잉크로 잡고 있다.
@@ -137,7 +143,7 @@ const SCAN = function (data, W, y0, y1, cells) {
     //  따로 먹지 않는 경로가 있어 '측정기 고장'이 거짓으로 뜬다.)
     await page.addStyleTag({ content: '#tabbar button{visibility:hidden!important}' });
     const blankShot = await page.screenshot({ clip: { x: 0, y: dom.band.y, width: VW, height: dom.band.h } });
-    const blank = await page.evaluate(async ([src, scanSrc]) => {
+    const blank = await page.evaluate(async ([src, scanSrc, n]) => {
         const img = new Image();
         await new Promise(r => { img.onload = r; img.src = src; });
         const c = document.createElement('canvas');
@@ -146,8 +152,8 @@ const SCAN = function (data, W, y0, y1, cells) {
         ctx.drawImage(img, 0, 0);
         const d = ctx.getImageData(0, 0, img.width, img.height).data;
         const scan = new Function('return ' + scanSrc)();
-        return scan(d, img.width, 0, img.height, 5);
-    }, ['data:image/png;base64,' + blankShot.toString('base64'), SCAN.toString()]);
+        return scan(d, img.width, 0, img.height, n);
+    }, ['data:image/png;base64,' + blankShot.toString('base64'), SCAN.toString(), dom.buttons.length]);
     // ---- ④ ✕ 상태 왕복: refreshTabX 가 innerHTML 을 통째로 갈았다 되돌리는 경로 ----
     // 여기서 아이콘이 이모지로 되돌아가면 팝업을 한 번 열고 닫은 뒤부터 탭바가 이모지로 남는다.
     // refreshTabX 는 MutationObserver 로 불리므로 **비동기**다 — 클릭 직후 동기로 읽으면
@@ -168,8 +174,8 @@ const SCAN = function (data, W, y0, y1, cells) {
 
     // ---- 보고 ----
     const pctW = v => (v / VW) * 100, pctH = v => (v / VH) * 100;
-    if (!ref.cells || ref.cells.length !== 5 || !clone.cells || clone.cells.length !== 5) {
-        console.log(`=> 측정기 고장: 스캔이 칸을 못 냈다(원본 ${ref.cells ? ref.cells.length : 'null'}칸 / 클론 ${clone.cells ? clone.cells.length : 'null'}칸).`);
+    if (!ref.cells || ref.cells.length !== 5 || !clone.cells || clone.cells.length !== dom.buttons.length) {
+        console.log(`=> 측정기 고장: 스캔이 칸을 못 냈다(원본 ${ref.cells ? ref.cells.length : 'null'}칸 / 클론 ${clone.cells ? clone.cells.length : 'null'}칸, 버튼 ${dom.buttons.length}개).`);
         process.exit(2);
     }
     console.log(`원본 ${ref.W}×${ref.H} · 탭바 밴드 y ${ref.band[0]}~${ref.band[1]} (h ${ref.band[1] - ref.band[0]}px = ${pctH(ref.band[1] - ref.band[0]).toFixed(2)}%H)`);
@@ -180,6 +186,7 @@ const SCAN = function (data, W, y0, y1, cells) {
     // 원본 순서 [던전, 방, 소환, PVP, 상점]. '방'은 삭제됐지만 그 자리에 **퀘스트**가 들어와
     // 다시 5칸이 됐으므로, 신규 퀘스트 아이콘은 원본 1번 칸(방)을 **크기 기준으로만** 견준다
     // (모양은 대응 원본이 없는 신규 아이콘이라 잉크 bbox 치수만 같은 급인지 본다).
+    // 디버그는 원본에 없는 칸이라 refIdx 에 자리가 없다 — 아래에서 '원본 긴 변 평균'과만 견준다.
     const refIdx = { dungeon: 0, quest: 1, summon: 2, pvp: 3, shop: 4 };
     console.log('\n원본 5칸 잉크 bbox (%W×%H):');
     ref.cells.forEach((c, i) => console.log(`  [${i}] ${c ? `${pctW(c.w).toFixed(2)}×${pctH(c.h).toFixed(2)}  (${c.w}×${c.h}px)  ink=${c.ink}` : '없음'}`));
@@ -187,16 +194,27 @@ const SCAN = function (data, W, y0, y1, cells) {
     const refAvg = refLong.reduce((a, b) => a + b, 0) / refLong.length;
     console.log(`  → 원본 긴 변 평균 ${refAvg.toFixed(2)}% (최소 ${Math.min(...refLong).toFixed(2)} / 최대 ${Math.max(...refLong).toFixed(2)})`);
 
-    console.log('\n클론 5칸 (라벨 숨김 상태):');
+    console.log(`\n클론 ${clone.cells.length}칸 (라벨 숨김 상태):`);
     let fail = 0;
     clone.cells.forEach((c, i) => {
         const tab = dom.buttons[i] ? dom.buttons[i].tab : '?';
         const r = ref.cells[refIdx[tab]];
         if (!c) { console.log(`  [${i}] ${tab}: 잉크 없음 — 아이콘이 안 그려졌다  FAIL`); fail++; return; }
-        const dw = pctW(c.w) - (r ? pctW(r.w) : 0), dh = pctH(c.h) - (r ? pctH(r.h) : 0);
+        if (!r) {
+            // 대응 원본이 없는 클론 전용 칸(디버그) — 위치·모양은 견줄 대상이 없고,
+            // '혼자 크거나 작지 않은가'만 원본 긴 변 평균과 비교한다.
+            const long = Math.max(pctW(c.w), pctH(c.h));
+            const dl = long - refAvg;
+            const okN = Math.abs(dl) <= 2;
+            if (!okN) fail++;
+            console.log(`  [${i}] ${tab}: ${pctW(c.w).toFixed(2)}×${pctH(c.h).toFixed(2)}  vs 원본 대응 없음 — 긴 변 ${long.toFixed(2)}% vs 원본 평균 ${refAvg.toFixed(2)}%` +
+                `  Δ ${dl >= 0 ? '+' : ''}${dl.toFixed(2)}%p  ${okN ? 'OK' : 'FAIL'}`);
+            return;
+        }
+        const dw = pctW(c.w) - pctW(r.w), dh = pctH(c.h) - pctH(r.h);
         const ok = Math.abs(dw) <= 2 && Math.abs(dh) <= 2;
         if (!ok) fail++;
-        console.log(`  [${i}] ${tab}: ${pctW(c.w).toFixed(2)}×${pctH(c.h).toFixed(2)}  vs 원본 ${r ? `${pctW(r.w).toFixed(2)}×${pctH(r.h).toFixed(2)}` : '—'}` +
+        console.log(`  [${i}] ${tab}: ${pctW(c.w).toFixed(2)}×${pctH(c.h).toFixed(2)}  vs 원본 ${pctW(r.w).toFixed(2)}×${pctH(r.h).toFixed(2)}` +
             `  Δ ${dw >= 0 ? '+' : ''}${dw.toFixed(2)} / ${dh >= 0 ? '+' : ''}${dh.toFixed(2)}%p  ${ok ? 'OK' : 'FAIL'}`);
     });
 

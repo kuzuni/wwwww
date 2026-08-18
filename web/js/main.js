@@ -67,11 +67,11 @@
 
         // 디버그: ?tab=summon|pets|skills|debug 등으로 패널 바로 열기, ?debug=craft로 제작 모달 확인
         const params = new URLSearchParams(location.search);
-        // 디버그 탭은 ?debug=* 또는 ?tab=debug일 때만 노출 — 기본 노출은 PVP·던전·소환·상점 4탭 (사용자 지시 2026-08-18)
-        if (!params.get('debug') && params.get('tab') !== 'debug') {
-            const dbgBtn = document.querySelector('#tabbar button[data-tab="debug"]');
-            if (dbgBtn) dbgBtn.style.display = 'none';
-        }
+        // 🚨 디버그 탭은 **기본 노출**이다 — 하단 네비 6번째 칸 (사용자 지시 2026-08-18, `nav-6th-keep-debug`:
+        // "하단 네비에 6번째는 디버그로 냅두라"). 같은 날 앞선 지시("기본 노출은 4탭")로 여기서
+        // `display:none` 을 걸어 숨기고 있었는데, **뒤 지시가 그걸 번복**했다. 되돌리지 말 것 —
+        // 다시 숨기려면 사용자 지시가 한 번 더 있어야 한다.
+        // (`?tab=debug` 딥링크는 아래 switchTab 이 그대로 처리한다. 숨김 코드가 없어도 무해하다.)
         const dbgTab = params.get('tab');
         if (dbgTab) UI.switchTab(dbgTab);
         if (params.get('debug') === 'craft') { S.hammers += 10; UI.onCraft(); }

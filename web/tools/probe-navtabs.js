@@ -1,10 +1,13 @@
 // 하단 네비 탭 재구성 검증 (TODO '하단 네비 탭을 PVP·던전·소환·상점 순으로 + 방 탭 제거', 사용자 지시 2026-08-18)
 //
 // 판정 항목
-//   ① 보이는 탭이 정확히 5개, 라벨 순서가 PVP · 던전 · 소환 · 퀘스트 · 상점
+//   ① 보이는 탭이 정확히 6개, 라벨 순서가 PVP · 던전 · 소환 · 퀘스트 · 상점 · 디버그
 //      (2026-08-18 사용자 지시 `quest-tab`: "하단 네비에 소환이랑 상점 사이에 퀘스트 부분 넣어라"로
 //       기대값이 4개 → 5개로 바뀌었다. 기대값이 뒤집혔으니 검증기를 같이 고친 것 — 안 고치면
-//       다음 세션이 멀쩡한 코드를 회귀로 오인한다.)
+//       다음 세션이 멀쩡한 코드를 회귀로 오인한다.
+//       🚨 2026-08-18 `nav-6th-keep-debug` 로 **또 뒤집혀 5개 → 6개**다: "하단 네비에 6번째는
+//       디버그로 냅두라". 같은 날 앞선 '기본 4탭' 지시를 뒤 지시가 번복한 것이라, 디버그 탭은
+//       이제 숨김이 아니라 **기본 노출**이다. 아래 ③의 기대값도 같이 뒤집혔다.)
 //   ② data-tab="menu"('방') 버튼이 DOM에 아예 없음
 //   ③ 디버그 탭은 기본 숨김(display:none)이고 ?tab=debug 로는 다시 보임 — 훅 보존
 //   ④ 각 탭 클릭이 정상 동작: PVP=리그 팝업 · 던전=던전 팝업 · 소환=소환 시트 · 퀘스트=퀘스트 팝업 · 상점=상점 팝업
@@ -17,7 +20,7 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const path = require('path');
 
 const URL0 = 'file://' + path.resolve(__dirname, '..', 'index.html');
-const EXPECT = ['PVP', '던전', '소환', '퀘스트', '상점'];
+const EXPECT = ['PVP', '던전', '소환', '퀘스트', '상점', '디버그'];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -38,20 +41,20 @@ const EXPECT = ['PVP', '던전', '소환', '퀘스트', '상점'];
     const visible = await page.evaluate(() => [...document.querySelectorAll('#tabbar button')]
         .filter(b => getComputedStyle(b).display !== 'none')
         .map(b => ({ tab: b.dataset.tab, label: (b.querySelector('span') || {}).textContent })));
-    check('① 보이는 탭 5개 · 순서 PVP·던전·소환·퀘스트·상점',
-        visible.length === 5 && visible.every((v, i) => v.label === EXPECT[i]),
+    check('① 보이는 탭 6개 · 순서 PVP·던전·소환·퀘스트·상점·디버그',
+        visible.length === 6 && visible.every((v, i) => v.label === EXPECT[i]),
         visible.map(v => v.label).join('|'));
 
     // ② '방' 탭 부재
     const menuBtn = await page.evaluate(() => !!document.querySelector('#tabbar button[data-tab="menu"]') || !!document.getElementById('panel-menu'));
     check('② 방(menu) 탭·패널 부재', !menuBtn, menuBtn ? '아직 남아 있음' : '없음');
 
-    // ③ 디버그 탭 기본 숨김
-    const dbgHidden = await page.evaluate(() => {
+    // ③ 디버그 탭 **기본 노출** (사용자 지시 2026-08-18 `nav-6th-keep-debug` — 앞선 '기본 숨김' 번복)
+    const dbgDefaultShown = await page.evaluate(() => {
         const b = document.querySelector('#tabbar button[data-tab="debug"]');
-        return b ? getComputedStyle(b).display === 'none' : null;
+        return b ? getComputedStyle(b).display !== 'none' : null;
     });
-    check('③ 디버그 탭 기본 숨김', dbgHidden === true, String(dbgHidden));
+    check('③ 디버그 탭 기본 노출(6번째 칸)', dbgDefaultShown === true, String(dbgDefaultShown));
 
     // ④ 각 탭 동작
     const cases = [
