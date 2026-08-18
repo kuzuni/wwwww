@@ -6950,7 +6950,13 @@ const Scene3D = {
             this.addAnim(KILLBAR_T, k => {
                 if (hpFg) { hpFg.scale.x = 0.001; hpFg.position.x = -0.4; } // 스냅 유지 (driveHpBar가 못 건드리게)
                 const t = k * KILLBAR_T;
-                const fl = U.clamp(1 - t / 0.17, 0, 1);                // 프레임 흰 플래시 0.17초 (일반 0.14초보다 길게)
+                // 🚨 흰 플래시를 0.17 → **0.05초**(=3프레임)로 줄인다. HP바는 '밝은 면적'으로 읽히므로
+                //    full-width 흰 트랙이 0.17초 떠 있으면 **'가득 찬 흰 바'로 각인**된다 — 처치가 전하려는
+                //    '비웠다'의 정반대 신호다(비평가 6차 A #5 "흰 풀바". 실측 `probe-killbar-read.js`:
+                //    밝은폭 98%·저채도가 **112ms** 지속). 임팩트 프레임의 '맞았다' 플래시는 2~3프레임이면
+                //    충분하고, 그 뒤로는 **비운 어두운 트랙**이 드러나야 죽음이 읽힌다. 잔상바(살구, 손실
+                //    서사)는 그대로 두므로 '얼마를 잃었나'는 유지된다 — 흰색만 걷어낸다.
+                const fl = U.clamp(1 - t / 0.05, 0, 1);
                 if (m.hpBg) {
                     m.hpBg.material.color.copy(bgC0).lerp(whiteC, fl);
                     m.hpBg.material.opacity = 0.82 + fl * 0.18;
