@@ -19,10 +19,11 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 
-// ⚠️ 자 점검 하한이 probe-hitflash-ab(0.08)보다 낮은 이유: 여기서는 넉백으로 밀리는 몸을 담으려고
-// 사각형을 좌우로 넓히므로 **적이 차지하는 지분이 그만큼 희석된다**(같은 적, 같은 프레임에서
-// Δ0.17 → Δ0.064). 하한은 '이 영역에 적이 실제로 들어 있다'를 확인하는 선이지 연출 세기가 아니다.
-const SELFTEST_MIN = 0.045;
+// 자 점검은 휘도Δ가 아니라 **마스크 커버리지**로 본다(2026-08-18 `silhouette-after-outline` 개정,
+// probe-hitflash-ab 와 같은 이유 — 검은 아웃라인 삭제 후 적과 초원의 휘도가 실제로 겹쳐, 휘도 기준
+// 자 점검은 멀쩡한 코드에서 무조건 실패한다). 여기 사각형은 넉백 여유로 좌우 35%를 더 넓히므로
+// 적 지분이 희석된다 — 하한도 그만큼 낮다(실측 0.30, 좌표계가 틀리면 0.0x).
+const COVER_MIN = 0.20;
 const LUM_GAP = 0.020;   // 휘도로 갈리려면 이만큼
 const WARM_GAP = 0.020;   // 색으로 갈리려면 이만큼
 
@@ -32,23 +33,38 @@ const WARM_GAP = 0.020;   // 색으로 갈리려면 이만큼
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errors.push(m.text()); });
-    await page.goto(INDEX, { waitUntil: 'load' });
+    // 결정론적 월드 — 소품·풀 배치와 적 색 지터가 Math.random 에 걸려 있어 런마다 값이 흔들린다
+    await page.addInitScript(() => {
+        let s = 0x2f6e2b1;
+        Math.random = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    });
+    await page.goto(INDEX + '?enemy=goblin', { waitUntil: 'load' });
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 45000 });
     await page.waitForTimeout(1500);
 
-    const r = await page.evaluate(({ SELFTEST_MIN }) => {
+    const r = await page.evaluate(({ COVER_MIN }) => {
         const out = { lines: [], ok: true, rows: [] };
         const say = (c, m) => { out.lines.push((c ? 'PASS ' : 'FAIL ') + m); if (!c) out.ok = false; };
         Combat.tick = () => {};
         Scene3D.update = () => {};
-        if (!Combat.enemies.length) return { lines: ['FAIL 적이 없어 측정 불가'], ok: false, rows: [] };
-        const e = Combat.enemies[0];
-        const m = Scene3D.enemyMap.get(e.id);
+        // 라이브 구간의 적은 죽는 중일 수 있다(probe-hitflash-ab 주석 참고) — 걷어내고 새로 스폰
+        Scene3D.heroAttack = () => {};
+        Scene3D.clearEnemies();
+        const e = { id: 999, x: Combat.MELEE_X + 0.6, alive: true, hp: 100, maxHp: 100 };
+        Combat.enemies = [e];
+        Scene3D.spawnEnemy(e);
+        const m = Scene3D.enemyMap.get(999);
         if (!m) return { lines: ['FAIL enemyMap 에 3D 개체가 없다'], ok: false, rows: [] };
+        for (const a of Scene3D.anims) { try { a.fn && a.fn(1); a.onDone && a.onDone(); } catch (err) {} }
+        Scene3D.anims = [];
+        Scene3D.particles.slice().forEach(p => { if (p.parent) p.parent.remove(p); });
+        Scene3D.particles.length = 0;
+        m.g.userData.landed = true;
 
-        // 적을 화면 안 고정 위치로 (행군 중이면 사각형이 화면 밖으로 나가 전 항목이 Δ0 이 된다)
-        m.g.position.set(Scene3D.heroG.position.x + 1.7, m.g.position.y, 0);
+        // 적을 화면 안 고정 위치로 (스폰 x 는 화면 밖 — 사각형이 배경만 담으면 전 항목이 Δ0 이 된다)
+        m.g.position.set(Scene3D.heroG.position.x + 1.7, 0, 0);
         if (m.hpG) m.hpG.position.set(m.g.position.x, m.g.position.y, 0);
+        if (m.blob) m.blob.position.set(m.g.position.x, 0.03, m.g.position.z);
 
         // 화면 사각형 — 넉백으로 몸이 옆으로 밀리므로 좌우로 넉넉히 넓힌다(이벤트마다 밀림 폭이 다르다)
         const box = new THREE.Box3().setFromObject(m.g);
@@ -77,11 +93,26 @@ const WARM_GAP = 0.020;   // 색으로 갈리려면 이만큼
             return { lum: (0.2126 * sr + 0.7152 * sg + 0.0722 * sb) / n, warm: (sr - sb) / n };
         };
 
-        // 자 점검
-        const a = read(); m.g.visible = false; const b = read(); m.g.visible = true;
-        say(Math.abs(a.lum - b.lum) >= SELFTEST_MIN,
-            `자 점검: 적 숨김/표시 Δ${Math.abs(a.lum - b.lum).toFixed(4)} — 사각형 ${rw}×${rh}@(${rx},${ry})`);
-        if (Math.abs(a.lum - b.lum) < SELFTEST_MIN) return out;
+        // 자 점검 — 픽셀 단위 마스크 커버리지(휘도 겹침에 안 속는다, 상단 주석)
+        const grab = () => {
+            Scene3D.renderFrame();
+            const b2 = new Uint8Array(rw * rh * 4);
+            gl.readPixels(rx, ry, rw, rh, gl.RGBA, gl.UNSIGNED_BYTE, b2);
+            return b2;
+        };
+        const fgF = grab();
+        m.g.visible = false; if (m.blob) m.blob.visible = false;
+        const bgF = grab();
+        m.g.visible = true; if (m.blob) m.blob.visible = true;
+        let maskN = 0;
+        for (let p = 0; p < rw * rh; p++) {
+            const i = p * 4;
+            if (Math.abs(fgF[i] - bgF[i]) + Math.abs(fgF[i + 1] - bgF[i + 1]) + Math.abs(fgF[i + 2] - bgF[i + 2]) > 14) maskN++;
+        }
+        const cover = maskN / (rw * rh);
+        say(cover >= COVER_MIN,
+            `자 점검(커버리지): 적 숨김/표시로 달라진 픽셀 ${(cover * 100).toFixed(1)}% ≥ ${COVER_MIN * 100}% — 사각형 ${rw}×${rh}@(${rx},${ry})`);
+        if (cover < COVER_MIN) return out;
 
         const base = read();
         // 연출 상태를 원래대로 — flashMesh/rimFlash 가 남긴 것을 전부 되돌린다
@@ -90,14 +121,15 @@ const WARM_GAP = 0.020;   // 색으로 갈리려면 이만큼
             const t = Scene3D.flashTargets(m);
             for (const mt of t.lit) { const e0 = mt.userData._em0; if (e0) { mt.emissive.setHex(e0.hex); mt.emissiveIntensity = e0.i; } }
             for (const mt of t.out) if (mt.userData._ol0 !== undefined) mt.color.setHex(mt.userData._ol0);
-            if (m.rimShell) { m.rimSeq = (m.rimSeq || 0) + 1; m.rimShell.visible = false; }
+            m.rimSeq = (m.rimSeq || 0) + 1;
+            for (const sh of (m.rimShells || (m.rimShell ? [m.rimShell] : []))) sh.visible = false;
             Scene3D.anims = [];
         };
         // 게임이 실제로 부르는 조합 그대로 (hitEnemy / killEnemy 의 flashMesh·rimFlash 인자)
         const events = [
-            { k: '일반', flash: [0.2, 0.1, 0xcfe8ff, 0.38], rim: [0.1, 0x9fe3ff, 1.12] },
-            { k: '크리', flash: [0.28, 0.14, 0xff7a1a, 0.78], rim: [0.13, 0xff8a3d, 1.2] },
-            { k: '처치', flash: [0.4, 0.09, 0xfff6e0, 1.0], rim: [0.16, 0xffd28a, 1.3] },
+            { k: '일반', flash: [0.2, 0.1, 0xcfe8ff, 0.38], rim: [0.1, 0x9fe3ff, 1.15] },
+            { k: '크리', flash: [0.28, 0.14, 0xff7a1a, 0.78], rim: [0.13, 0xff8a3d, 1.26] },
+            { k: '처치', flash: [0.3, 0.09, 0xfff6e0, 1.0], rim: [0.16, 0xfff2d0, 1.45] },
         ];
         for (const ev of events) {
             reset();
@@ -110,7 +142,7 @@ const WARM_GAP = 0.020;   // 색으로 갈리려면 이만큼
         out.lines.push(`  기준 휘도 ${base.lum.toFixed(4)} · 온기 ${base.warm.toFixed(4)}`);
         for (const s of out.rows) out.lines.push(`  · ${s.k}: 휘도 Δ${s.lum.toFixed(4)} · 온기 ${s.warm.toFixed(4)}`);
         return out;
-    }, { SELFTEST_MIN });
+    }, { COVER_MIN });
 
     const lines = r.lines.slice();
     if (r.rows && r.rows.length === 3) {

@@ -306,12 +306,22 @@ const Scene3D = {
     // 주의: 주입 지점이 톤매핑 앞 **선형 공간**이라 sRGB 인코딩 후 크게 밝아진다.
     //   그래서 darkColor는 니어블랙, darkStrength도 0.88처럼 세게 필요하다(0.38은 육안 무변화).
     RIM: { color: 0xdcefff, strength: 0, power: 5.0, darkColor: 0x0a1119, darkStrength: 0.88, darkPower: 1.35 },
+    // 적 전용 오버라이드(`silhouette-after-outline`) — 검은 인버티드 헐이 사용자 지시로 삭제된 뒤
+    // 적(특히 고블린×초원)이 배경에 잠겼다. 아웃라인 복구는 금지라 **다크 컨투어를 적에게만** 더
+    // 세고 넓게 건다: 프레넬이라 실루엣 안쪽만 어두워져 면적을 안 늘린다(지시와 충돌 없음).
+    // 스윕 실측(tools/probe-enemy-sep-sweep.js, 고블린 rect 색거리·커버리지 기준) — darkPower 를
+    // 낮춰 띠를 넓히는 쪽이 darkStrength 를 올리는 쪽보다 이득이 크고, 0.7 아래는 몸 안쪽까지
+    // 어두워져 '전신 그을림'으로 읽히기 시작해 0.85/0.98 에서 멈췄다. 영웅은 비평가 튜닝을 거친
+    // 기존 값(위 RIM)을 그대로 쓴다 — 영웅 실루엣은 장비 배색이 이미 분리를 벌고 있다.
+    ENEMY_RIM: { darkStrength: 0.98, darkPower: 0.85 },
     _rimUniforms: [],
     // ⚠️ 펫에는 이 림이 **전혀 걸리지 않는다** — makePetMesh는 MeshLambert/MeshBasic만 쓰고
     //    아래 필터가 Standard/Phong이 아닌 재질을 건너뛰기 때문이다. 펫 실루엣을 림으로 분리하려는
     //    시도(다크 컨투어 강화)를 한 번 했다가 비평가 계측에서 '변화 0'으로 확인돼 되돌렸다.
     //    펫에 림을 걸려면 먼저 펫 재질을 Standard/Phong으로 올려야 한다.
-    applyRimLight(g) {
+    applyRimLight(g, look) {
+        // look = RIM 필드 부분 오버라이드(적 전용 ENEMY_RIM 등). 안 주면 기존 동작 그대로.
+        const L = look ? Object.assign({}, this.RIM, look) : this.RIM;
         g.traverse(o => {
             if (!o.isMesh || !o.material) return;
             for (const m of (Array.isArray(o.material) ? o.material : [o.material])) {
@@ -321,12 +331,12 @@ const Scene3D = {
                 if (m.userData.__rim) continue;          // 중복 주입 방지 (heroG/rig.group 2중 호출)
                 m.userData.__rim = true;
                 const u = {
-                    uRimColor: { value: new THREE.Color(this.RIM.color) },
-                    uRimStr: { value: this.RIM.strength },
-                    uRimPow: { value: this.RIM.power },
-                    uRimDark: { value: new THREE.Color(this.RIM.darkColor) },
-                    uRimDarkStr: { value: this.RIM.darkStrength },
-                    uRimDarkPow: { value: this.RIM.darkPower },
+                    uRimColor: { value: new THREE.Color(L.color) },
+                    uRimStr: { value: L.strength },
+                    uRimPow: { value: L.power },
+                    uRimDark: { value: new THREE.Color(L.darkColor) },
+                    uRimDarkStr: { value: L.darkStrength },
+                    uRimDarkPow: { value: L.darkPower },
                 };
                 this._rimUniforms.push(u);
                 const prev = m.onBeforeCompile;
@@ -5957,7 +5967,7 @@ const Scene3D = {
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
     // 종별 고유 팔레트 — 지형색 파생 금지 (전 종이 배경 보호색 연두 덩어리로 보이던 문제, 비평가 지적)
     // 종별 키 컬러 — 배경 대비 채도 2단계 상향 원칙 (연두 필드 보호색 금지, 비평가 지적)
-    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x156326, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x556279, imp: 0xc23a52 }, // 고블린 0x1f8038도 라이팅+ACES에 세이지로 씻겨 초원에 잠식 (비평가 7.1 10번) — 한 단계 더 어둡고 짙게
+    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x0a3a14, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x556279, imp: 0xc23a52 }, // 고블린 0x1f8038도 라이팅+ACES에 세이지로 씻겨 초원에 잠식 (비평가 7.1 10번) → 0x156326 → 아웃라인 삭제 후에도 초원과 명도가 붙어(비평가 5.5 2번 '명도가 안 갈라짐') 0x0a3a14 로 한 단계 더 — probe-enemy-sep-sweep 실측 sepR +11%, 라이팅이 들어와 화면에선 여전히 녹색으로 읽힌다
     // ── 종별 보행 프로파일 (ⓓ 종별 고유 모션) ────────────────────────────────────────
     // 예전엔 골렘·고블린·임프가 **완전히 같은 이족 사이클**을 돌았다(clk*8, 같은 진폭). 질량이
     // 20배 차이 나는데 박자가 같으면 셋 다 '같은 인형이 크기만 다른 것'으로 읽힌다.
@@ -6850,6 +6860,8 @@ const Scene3D = {
         });
         this.blobShadowFlyMat = this.blobShadowMat.clone();
         this.blobShadowFlyMat.opacity = 0.45; // 비행체 전용 — 실그림자를 끄므로 블롭이 유일한 접지 단서 (0.3은 샷에서 안 보여 '부유 스티커', 비평가 7.3 5번)
+        this.blobShadowFoeMat = this.blobShadowMat.clone();
+        this.blobShadowFoeMat.opacity = 0.26; // 지상 적 전용(`silhouette-after-outline` ⓒ) — 아웃라인 삭제 후 발밑 어둠이 배경 분리를 나눠 진다. 0.34는 실그림자와 이중 노출 오독(위 주석), 0.17은 초원 하이키에서 접지 단서가 안 남아 중간값
         this.blobGeo = new THREE.PlaneGeometry(1, 1);
     },
 
@@ -6858,7 +6870,7 @@ const Scene3D = {
         m.g.position.set(e.x + this.worldX, 0, 0);
         m.g.rotation.y = -0.55; // 영웅 방향(-x)으로 3/4 자세
         this.setShadow(m.g, true);
-        this.applyRimLight(m.g);
+        this.applyRimLight(m.g, this.ENEMY_RIM); // 적 전용 강화 컨투어 — ENEMY_RIM 주석 참고
         this.scene.add(m.g);
         // 적 바는 **적대 빨강**으로 못 박는다 — 영웅 바와 같은 초록/노랑/빨강 램프를 쓰면 둘이
         // 같은 색이라 피아 구분이 안 됐다(비평가 4차 ⓓ). 남은 체력은 어차피 **바 길이**가 말해 주므로
@@ -6882,7 +6894,7 @@ const Scene3D = {
         // 비행체는 태양 각도로 실그림자가 본체에서 멀리 이탈해 '따로 노는 얼룩'이 됨 (비평가 7.1 4번) — 실그림자 끄고 발밑 수직 블롭만
         const flying = m.kind === 'bat';
         if (flying) m.g.traverse(o => { if (o.isMesh) o.castShadow = false; });
-        const blob = new THREE.Mesh(this.blobGeo, flying ? this.blobShadowFlyMat : this.blobShadowMat);
+        const blob = new THREE.Mesh(this.blobGeo, flying ? this.blobShadowFlyMat : this.blobShadowFoeMat);
         blob.rotation.x = -Math.PI / 2;
         blob.position.set(e.x + this.worldX, 0.03, 0);
         blob.scale.setScalar(flying ? 0.85 : 0.72); // 실그림자 접지부 안 컨택트 AO — 비행체는 블롭이 유일한 접지 단서라 더 크게
@@ -7356,30 +7368,72 @@ const Scene3D = {
         });
     },
 
-    // 외곽 림 번쩍임: 몸통 지오메트리를 살짝 키운 BackSide 셸이라 실루엣 테두리만 빛난다.
-    // 전신을 하얗게 태우지 않고도 "맞았다"가 즉시 읽히는 신호 — 셸은 개체당 한 번만 만들어 재사용(드로우콜 1).
+    // 외곽 림 번쩍임: 지오메트리를 살짝 키운 BackSide 셸이라 실루엣 테두리만 빛난다.
+    // 전신을 하얗게 태우지 않고도 "맞았다"가 즉시 읽히는 신호 — 셸은 개체당 한 번만 만들어 재사용.
     // color/scale은 위계용 — 일반 피격은 흰 얇은 셸, 크리는 주황 두꺼운 셸, 처치는 가장 두껍다.
     // 접촉 프레임(+16ms) 한 장만 보고 "이건 크리다"가 읽혀야 한다(비평가 3차 2번: 세 이벤트의 접촉 프레임이 사실상 동일).
+    //
+    // 🚨 **왜 몸통 하나가 아니라 큰 파츠 여러 개인가**(`silhouette-after-outline` ⓓ): 검은 인버티드
+    // 헐 삭제 후 접촉 프레임의 면적을 쥐던 외곽선 점등이 사라졌고, 몸통 셸 하나로는 화면 몫이 안
+    // 나온다 — `probe-hitflash-ab` 실측(고블린): 몸통 셸만 = 일반 Δ0.0247·크리 온기차 0.0034 로
+    // 게이트(0.06/0.02) 반토막 미달, 참고 상한(흰 1.2)조차 Δ0.073. 고블린은 몸통이 전신의 일부라
+    // 머리·팔다리가 전부 무반응이었다. 큰 파츠 상위 6개에 셸을 두르면 조합 Δ0.0761·온기차 0.0417 로
+    // 게이트를 넘는다. **피격 순간에만 켜지므로 상시 아웃라인이 아니다** — 사용자 지시와 충돌 없음.
+    // 셸 6개는 같은 재질 하나를 공유해 감쇠는 opacity 한 번으로 끝난다(플래시 중에만 드로우콜 +6).
     rimFlash(m, dur, color, scale) {
-        if (!m.body || !m.body.geometry) return;
-        if (!m.rimShell) {
-            const sh = new THREE.Mesh(m.body.geometry, new THREE.MeshBasicMaterial({
-                color: 0xffffff, side: THREE.BackSide, transparent: true, depthWrite: false, toneMapped: false,
-            }));
-            sh.scale.setScalar(1.13);
-            sh.userData.sharedGeometry = true; // 몸통과 공유 — disposeTree가 원본 지오메트리를 지우지 않게
-            m.body.add(sh);
-            m.rimShell = sh;
+        if (!m.rimShells) {
+            // 큰 파츠 수집 — 월드 반경 상위 6개(+최소 반경: 최대의 30%). Basic 재질(접촉 AO 링·
+            // 글로우 스프라이트)과 투명 재질은 제외 — AO 링에 셸을 두르면 이음새 은폐가 깨진다.
+            const root = m.g || m;
+            root.updateWorldMatrix(true, true);
+            const cand = [];
+            const sv = new THREE.Vector3();
+            root.traverse(o => {
+                if (!o.isMesh || !o.geometry || !o.material) return;
+                if (o.userData.isOutline || o.material.isMeshBasicMaterial || o.material.transparent) return;
+                if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+                o.getWorldScale(sv);
+                const r = o.geometry.boundingSphere.radius * Math.max(Math.abs(sv.x), Math.abs(sv.y), Math.abs(sv.z));
+                cand.push({ o, r });
+            });
+            cand.sort((a, b) => b.r - a.r);
+            const minR = cand.length ? cand[0].r * 0.22 : 0;
+            // 균일 두께·균일 밝기 셸은 '2D 스티커'로 읽힌다(비평가 5.5 채점 3번) — 뷰공간 법선을
+            // 광원 방향(위-왼쪽, 태양과 같은 쪽)과 내적해 위/광원측은 진하고 아래/그늘측은 옅게.
+            // BackSide 라 실루엣 띠의 법선이 바깥-옆을 향하므로 이 내적이 둘레를 따라 자연히 흐른다.
+            const mat = new THREE.ShaderMaterial({
+                side: THREE.BackSide, transparent: true, depthWrite: false,
+                uniforms: { uC: { value: new THREE.Color(0xffffff) }, uA: { value: 1 } },
+                vertexShader: 'varying vec3 vN; void main(){ vN = normalMatrix * normal;'
+                    + ' gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+                // pow 2.2 로 그늘측(아래·오른쪽)을 사실상 소등 — 완만한 선형 가중(0.62+0.38d)은
+                // 다리 밑까지 등두께로 돌아 풀-아웃라인 스티커로 읽혔다(비평가 6.0 채점 3번).
+                fragmentShader: 'uniform vec3 uC; uniform float uA; varying vec3 vN;'
+                    + ' void main(){ float d = dot(normalize(vN), normalize(vec3(-0.3, 0.9, 0.0)));'
+                    + ' float w = 1.7 * pow(clamp(0.5 + 0.5 * d, 0.0, 1.0), 2.2);'
+                    + ' gl_FragColor = vec4(uC, uA * clamp(w, 0.0, 1.0)); }',
+            });
+            m.rimShells = [];
+            for (const c of cand.slice(0, 8)) {
+                if (c.r < minR) break;
+                const sh = new THREE.Mesh(c.o.geometry, mat);
+                sh.visible = false;
+                sh.userData.sharedGeometry = true; // 원본과 공유 — disposeTree가 원본 지오메트리를 지우지 않게
+                c.o.add(sh);
+                m.rimShells.push(sh);
+            }
+            if (!m.rimShells.length) return;
         }
-        const sh = m.rimShell;
-        sh.visible = true;
-        sh.material.color.setHex(color === undefined ? 0xffffff : color);
-        sh.scale.setScalar(scale || 1.13);
+        const mat = m.rimShells[0].material;
+        mat.uniforms.uC.value.setHex(color === undefined ? 0xffffff : color);
+        mat.uniforms.uA.value = 1;
+        for (const sh of m.rimShells) { sh.visible = true; sh.scale.setScalar(scale || 1.13); }
         m.rimSeq = (m.rimSeq || 0) + 1;
         const seq = m.rimSeq;
-        sh.material.opacity = 1;
-        this.addAnim(dur, k => { if (m.rimSeq === seq) sh.material.opacity = (1 - k) * (1 - k * 0.4); },
-            () => { if (m.rimSeq === seq) sh.visible = false; });
+        // 감쇠는 제곱 곡선 — 몸 플래시보다 셸이 먼저 죽어야 중반(60ms+)에 몸 둘레로 뿌연 번짐이
+        // 안 남는다(비평가 5.5 채점 4번 '배경 나무 위 스미어').
+        this.addAnim(dur, k => { if (m.rimSeq === seq) mat.uniforms.uA.value = (1 - k) * (1 - k); },
+            () => { if (m.rimSeq === seq) for (const sh of m.rimShells) sh.visible = false; });
     },
 
     // 크리 순간 화각을 살짝 좁혔다 푼다 — 카메라가 맞은 걸 같이 느낀다
@@ -7483,7 +7537,9 @@ const Scene3D = {
         // 일반 피격 림을 **순백에서 청백으로** 바꾼다 — 골렘·해골처럼 몸 albedo가 이미 near-white인 종에서
         // 흰 가산 림은 명도차가 10%도 안 나 "깜빡였는지조차 모르겠다"가 됐다(비평가 4차 2번).
         // 청백(0x9fe3ff)은 따뜻한 회백 몸/초원 배경 어느 쪽과도 색상이 갈려 같은 밝기에서도 분리된다.
-        this.rimFlash(m, crit ? 0.13 : 0.1, crit ? 0xff8a3d : 0x9fe3ff, crit ? 1.2 : 1.12);
+        // 셸 두께(scale)는 아웃라인 삭제 후 한 단계씩 올렸다(1.12/1.2/1.3 → 1.15/1.26/1.34) — 접촉
+        // 프레임의 면적을 검은 헐 대신 셸이 쥐어야 해서다. probe-hitflash-ab 게이트(Δ0.06/온기 0.02) 실측.
+        this.rimFlash(m, crit ? 0.13 : 0.1, crit ? 0xff8a3d : 0x9fe3ff, crit ? 1.26 : 1.15);
         // ② 접촉점 — 영웅(-x)에서 들어온 타격이므로 몸통 왼쪽 앞면에 플레어 + 그 축으로 파편
         // 접촉점 높이도 실높이 비례로 — 고정 0.55는 키 작은 슬라임에선 머리 위, 키 큰 골렘·보스에선
         // 무릎~허벅지에 맞아 "다리를 때렸다"로 읽혔다(연속 프레임 a4/a5 실측). 처치 버스트가 이미 쓰는
@@ -7622,11 +7678,17 @@ const Scene3D = {
         this.scorchDecal(new THREE.Vector3(m.g.position.x + 0.18, 0, m.g.position.z),
             (isBoss ? 1.2 : 0.66) * (m.baseScale || 1), isBoss ? 2.4 : 1.8);
         this.hitStop(isBoss ? 0.07 : 0.045);
-        this.rimFlash(m, 0.16, 0xffd28a, 1.3); // 세 이벤트 중 가장 두껍고 오래 — 처치가 페이오프임이 윤곽만으로 읽히게
+        // 세 이벤트 중 가장 두껍고 오래 — 처치가 페이오프임이 윤곽만으로 읽히게. 몸 emissive 를
+        // 0.3 으로 낮춘 몫(화이트아웃 방지)은 셸 두께(1.42)가 잇는다 — 두께는 몸 안을 안 태운다.
+        // 색은 크리(주황 0xff8a3d)와 갈리게 **더 희고 밝은 금백**(0xffe9b8) — probe-hit-hierarchy 의
+        // 크리↔처치 쌍이 휘도·온기 두 축을 함께 써야 0.02 게이트를 넘는다(실측 주석 그쪽 참고).
+        this.rimFlash(m, 0.16, 0xfff2d0, 1.45);
         // 시신이 흰 덩어리로 뭉개지면 정작 파편이 안 보인다 — 몸 emissive 는 짧고 옅게 두고,
         // 대신 **외곽선을 세 이벤트 중 가장 세게(1.0) · 가장 밝은 금백으로** 태워 처치가 페이오프임을
         // 접촉 프레임 한 장에서 읽히게 한다(6차 지적 '크리와 처치의 첫 100ms 미분화').
-        this.flashMesh(m, 0.4, 0.09, 0xfff6e0, 1.0);
+        // peak 0.4는 전신 알베도 화이트아웃('크림색 마시멜로', 비평가 5.5 채점 1번) — 0.3으로 낮춰
+        // 내부 음영을 남기고, 위계는 셸 두께(1.34, 세 이벤트 최대)와 파편·그을음이 잇는다.
+        this.flashMesh(m, 0.3, 0.09, 0xfff6e0, 1.0);
         // 사망: 피격 경직 → 무릎 꺾임 → 뒤로(+x) 쓰러짐 → 착지 먼지 → 서서히 페이드아웃 (빙글 회전·순간 소멸 금지, 사용자 지시)
         // update 루프는 !e.alive를 건너뛰므로 이 애니메이션이 트랜스폼을 단독 소유한다.
         // HP바: 즉시 숨기면 "HP가 0이 되는 순간"이 화면에 한 프레임도 안 나온다 — 마지막 한 방의

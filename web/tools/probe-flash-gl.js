@@ -195,7 +195,7 @@ const SELFCHECK_MIN_LUM = 0.02;     // 마스크 영역 평균 휘도 변화
             Scene3D.anims.length = 0;
             Scene3D.particles.slice().forEach(p => { if (p.parent) p.parent.remove(p); });
             Scene3D.particles.length = 0;
-            if (m.rimShell) m.rimShell.visible = false;
+            for (const sh of (m.rimShells || (m.rimShell ? [m.rimShell] : []))) sh.visible = false;
             for (const mat of (m.flashMats || [])) {
                 const e0 = mat.userData._em0;
                 if (mat.emissive && e0) { mat.emissive.setHex(e0.hex); mat.emissiveIntensity = e0.i; }
@@ -211,7 +211,7 @@ const SELFCHECK_MIN_LUM = 0.02;     // 마스크 영역 평균 휘도 변화
             reset();
             const base = { post: grabPost(), pre: grabPre() };
             origFlash(m, peak, spy.dur);
-            if (withRim && m.rimShell) m.rimShell.visible = true;
+            if (withRim) for (const sh of (m.rimShells || (m.rimShell ? [m.rimShell] : []))) sh.visible = true;
             const hit = { post: grabPost(), pre: grabPre() };
             const bp = stats(base.post), hp = stats(hit.post), bq = stats(base.pre), hq = stats(hit.pre);
             reset();
