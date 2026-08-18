@@ -4815,9 +4815,15 @@ const Scene3D = {
     MOUNT_FORMS: {
         // 평판형: 발판 위에 '두 발로 선다' — 앉는 게 아니라 서는 유일한 계열
         // saddle = 발판 윗면의 로컬 높이(= 지오메트리에서 뽑은 값 0.05 + 0.34*0.42). 판 두께를 바꾸면 여기도 같이 본다.
+        // 평판형: 발판 위에 **보드 스탠스**로 선다. 예전 포즈(hip rx 0.06 / knee -0.18)는 사실상
+        // 차렷이라 비평가 2인이 독립적으로 "보드를 타는 게 아니라 판때기 위에 서 있다"고 지적했다.
+        // ⚠️ 두 다리의 ry 는 **같은 부호**여야 한다 — 좌우 대칭으로 주면 발끝이 서로 반대를 보는
+        //    '오리 걸음'이 되지 보드 스탠스가 아니다(실제 보드도 두 발이 같은 쪽을 본다).
+        //    앞뒤 스탠스는 rx 차이로 만든다(three 의 XYZ 오일러에서 rx 가 가장 바깥이라 ry 를 줘도
+        //    rx 는 여전히 부모 프레임의 z 방향으로 발을 민다). 상체는 spine.ry 로 되돌려 진행 방향을 본다.
         flat:    { saddle: 0.193, hover: 0.10, stand: true,
-                   pose: { hipL: { rx: 0.06, rz: -0.13 }, hipR: { rx: 0.06, rz: 0.13 },
-                           kneeL: { rx: -0.18 }, kneeR: { rx: -0.18 }, spine: { rx: 0.06 } } },
+                   pose: { hipL: { rx: 0.50, ry: 1.34, rz: -0.10 }, hipR: { rx: -0.50, ry: 1.34, rz: 0.10 },
+                           kneeL: { rx: -0.34 }, kneeR: { rx: -0.34 }, spine: { rx: 0.10, ry: -0.62 } } },
         // 탈것형(자전거/외바퀴): 안장에 앉아 상체를 앞으로 숙이고 무릎을 깊게 접는다.
         // 페달은 좌우가 항상 반대 위상이라 **대칭 포즈 자체가 오답**이다 — 한쪽은 크랭크 위(깊게 접힘),
         // 반대쪽은 아래(펴짐). 좌우 같은 각을 주면 '페달을 밟는' 게 아니라 '자전거 위에 쪼그린' 실루엣이 된다.
@@ -5064,6 +5070,26 @@ const Scene3D = {
         // 공격이 끝날 때까지 남는다 — 비행형에서 지상형으로 갈아타면 한동안 공중에 뜬 채다. 즉시 스냅.
         if (this.heroG) this.heroG.position.y = heroY;
         this.applyWeaponGrip();                    // 무기 거치 자세와 탑승 포즈를 합성
+        // 평판형만: **포즈를 먹인 뒤 실제 발 높이를 재서** 영웅을 발판 위에 다시 앉힌다.
+        // 서 있는 계열은 '발 = 안장'이라 발 높이가 곧 정합인데, 보드 스탠스처럼 다리를 벌리고 접으면
+        // 발이 원점보다 올라간다 — 포즈 상수를 손볼 때마다 heroY 를 손으로 맞추는 건 반드시 어긋난다.
+        // (안장 역산·접지 보정과 같은 원칙: 상수를 믿지 말고 결과를 재서 되돌린다.)
+        if (form.stand && this.heroRig && this.heroRig.update) {
+            this.heroRig.update(1 / 60);           // restPose 를 실제 뼈에 반영시킨다
+            this.heroG.updateWorldMatrix(true, true);
+            const B = this.heroRig.bones;
+            let footY = Infinity;
+            for (const side of ['L', 'R']) {
+                const knee = B['knee' + side];
+                if (knee) footY = Math.min(footY, knee.localToWorld(new THREE.Vector3(0, -0.315, 0.045)).y);
+            }
+            const deckTop = baseY + form.saddle * sc * rideScale;
+            if (isFinite(footY) && Math.abs(deckTop - footY) < 0.6) {
+                heroY += deckTop - footY;
+                this.heroG.position.y = heroY;
+                this.rideY = heroY;
+            }
+        }
         if (this.petGroups.length) this.refreshPets();   // 탈것 풋프린트를 피해 펫 자리를 다시 잡는다
     },
 
