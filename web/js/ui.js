@@ -3286,10 +3286,12 @@ const UI = {
             const maxed = sk.level >= Skills.MAX_LEVEL;
             const need = Skills.shardsRequired(maxed ? Skills.MAX_LEVEL : sk.level);
             const ratio = U.clamp(sk.dupes / need, 0, 1) * 100;
+            // 원본(042340) 스킬 그리드에는 장착 표시가 없다 — 장착/미장착 오브 모두 검정 Lv 밴드+별뿐이고
+            // 장착 상태는 아래 '장착됨' 다크 플레이트가 전담한다(042340 1행 3배 확대 확인, 채점 1라운드).
+            // 리본은 펫 타일(042356 원본에 실재)에만 남긴다.
             return `<button class="sk-cell" onclick="UI.openSkillDetail('${d.id}')">
                 <span class="sk-orb" style="--rc:${RARITY_CSS[d.rarity]}">
                     ${IconGen.skill(d.id)}
-                    ${equipped ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${sk.level}</span>
                 </span>
                 ${sk.stars ? `<span class="sk-star">${IconGen.img('star')}${sk.stars}</span>` : ''}

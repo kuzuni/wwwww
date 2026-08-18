@@ -3132,7 +3132,10 @@ body {
     position: absolute; left: calc(var(--app-w) * .0202 - .8rem); bottom: calc(var(--app-h) * .0022);
     width: calc(var(--app-w) * .0706); height: calc(var(--app-h) * .0326);
 }
-.summon-bar .btn.big { font-size: 1.05rem; padding: .3rem .6rem; min-height: calc(var(--app-h) * .0764); flex: 0 0 calc(var(--app-w) * .3407); } /* 소환 바 원본(shot-042356): 높이≈7% H, 폭≈28~35% W — 풀폭 금지. 스코프는 소환 바 기준 — 패널 스코프면 모달 소환 바(탈것)에 미적용 (QA 버그) */
+/* 폭 .3407 은 오측정이었다 — 원본 실측은 펫 042356/042445 **139px=28.37%W**(앞 세션), 스킬 042340
+   **x177~315 = 139px=28.02%W**(2026-08-18 채점 1라운드 교차검증, 중심 49.6%W). 두 컷이 독립적으로
+   같은 값이라 공용값을 .2837 로 교정한다(탈것 바는 원본 컷이 없어 같은 값을 따라간다). */
+.summon-bar .btn.big { font-size: 1.05rem; padding: .3rem .6rem; min-height: calc(var(--app-h) * .0764); flex: 0 0 calc(var(--app-w) * .2837); } /* 소환 바 원본: 높이≈7%H — 풀폭 금지. 스코프는 소환 바 기준 — 패널 스코프면 모달 소환 바(탈것)에 미적용 (QA 버그) */
 .panel .btn.xs { font-size: .72rem; padding: .3rem .5rem; line-height: 1.1; }
 .panel .btn.xs.info { background: #fff; }
 .summon-prog {
@@ -3258,6 +3261,15 @@ body {
 #panel-pets .summon-bar { position: relative; padding-left: 0; }
 #panel-pets .summon-bar > .x5-toggle { position: absolute; right: 67.4%; top: 50%; transform: translateY(-50%); }
 #panel-pets .summon-bar > .summon-info { position: absolute; left: 67.5%; top: 50%; transform: translateY(-50%); }
+/* 스킬 바도 같은 함정 — bar padding-left 5.5%W 가 flex 중심을 오른쪽으로 밀어 버튼 중심이 52.1%W 였다
+   (원본 042340: 버튼 중심 49.6%W · x5 토글 중심 29.3%W · info 열 중심 73.3%W — 채점 1라운드 실측).
+   펫과 같은 처방: 토글·info 를 절대 배치로 원본 열에 못박고 버튼만 흐름에 남겨 auto 마진 중앙. */
+#panel-skills .summon-bar { padding-left: 0; }
+/* left 는 바(패널 패딩 안쪽) 기준이라 앱 좌표로 앉히려면 패널 좌 패딩 .8rem 을 빼야 한다(◀ 규칙과 동일).
+   토글 세로는 가운데가 아니라 **소환 버튼 바닥선**(원본 pill y700~717 — 위 공용 규칙과 같은 근거)이다. */
+#panel-skills .summon-bar > .x5-toggle { position: absolute; left: calc(var(--app-w) * .2527 - .8rem); bottom: calc(var(--app-h) * .0034); }
+#panel-skills .summon-bar > .summon-info { position: absolute; left: calc(var(--app-w) * .6867 - .8rem); top: 50%; transform: translateY(-50%); }
+#panel-skills .summon-bar > .summon-btn { margin-left: auto; margin-right: auto; }
 /* 🚨 공용 `.summon-bar .btn.big` 의 폭 34.07%W 는 주석이 출처로 적은 shot-042356 과 맞지 않는다 —
    042356·042445 두 컷에서 원본 버튼은 모두 x 폭 139px = **28.37%W** 였다(폰트 로드 후 실측).
    스킬·탈것 소환 바는 아직 미실측이라 공용값은 그대로 두고 펫만 바로잡는다. */
