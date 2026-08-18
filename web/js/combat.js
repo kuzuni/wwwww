@@ -405,10 +405,31 @@ const Combat = {
         this.phaseTimer = 2.2; // 행군 구간
     },
 
+    // 던전에서 튕겨 나온 순간 = 본대 복귀 순간. 실패 토스트가 "본대로 복귀합니다"라고 말하는
+    // 바로 그 프레임에 화면도 본대로 돌려놓는다.
+    // 왜 필요했나(2026-08-18 QA 17차): Dungeons.onFail()은 run=null + 토스트 + 저장만 했고,
+    // 라벨·3D 테마·던전 몹은 사망 연출이 다 끝난 setupStage 시점(다운 2.4s + 기상 0.85s +
+    // phaseTimer 0.8s)에야 정리됐다. 실측 4.5~6.2초 동안 "본대로 복귀합니다" 토스트 아래로
+    // 던전 이름 라벨 + 던전 하늘 + 나를 죽인 던전 몹이 그대로 서 있었다.
+    // ⚠️ 라벨만 당기면 안 된다 — 그러면 4초 동안 '본대 라벨 + 던전 배경'으로 어긋나기만 한다.
+    //    라벨·배경·몹·음악은 전부 같은 프레임에 넘어가야 한판이 끝난 것으로 읽힌다.
+    //    (일반 사망 분기가 쓰러진 순간 바로 라벨을 갱신하는 것과 같은 처리 — TODO 660~661번.)
+    // 호출 시점 전제: Dungeons.run 은 이미 null 이어야 한다(그래야 라벨·테마가 본대를 가리킨다).
+    leaveDungeon() {
+        this.enemies = []; // 던전 몹은 두고 나왔다 — 논리에서도 같이 지운다
+        this.pending = []; // 그 몹들을 겨냥한 지연 큐도 함께(사라진 대상에 대한 뒤늦은 타격 연출 방지)
+        Scene3D.clearEnemies();
+        Scene3D.setChapterTheme(S.chapter);
+        SFX.setMusicMode('normal'); // 보스 웨이브에서 죽었어도 본대 배경에 보스곡이 남지 않게
+        UI.updateStageLabel();
+    },
+
     onDefeat() {
         Scene3D.heroDown();
-        if (Dungeons.run) Dungeons.onFail(); // 던전 실패는 후퇴 대상이 아니다 — 던전은 자체 단계를 쓴다
-        else {
+        if (Dungeons.run) {
+            Dungeons.onFail(); // 던전 실패는 후퇴 대상이 아니다 — 던전은 자체 단계를 쓴다
+            this.leaveDungeon();
+        } else {
             // 사망 시 1스테이지 후퇴 (사용자 지시 2026-08-17). 챕터는 절대 안 깎인다 —
             // 하한은 그 챕터의 X-1이라 3-1에서 죽어도 2-10으로 넘어가지 않는다.
             // 최고 기록(bestChapter/bestStage)은 후퇴로 깎이지 않는다 — 진행 패스 마일스톤이 되감기면 안 된다.

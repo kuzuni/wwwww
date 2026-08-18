@@ -144,6 +144,10 @@ const Dungeons = {
         if (r.eggCurrency) UI.renderPets(); // 침공 알 화폐 보상이 열려 있는 펫 패널(🥚 pill·[소환] 버튼)에도 즉시 반영되도록
     },
 
+    // 던전 실패 — **상태와 안내만** 담당한다. 화면(라벨·3D 테마·던전 몹·음악)을 본대로 되돌리는
+    // 일은 호출자인 Combat.onDefeat()가 곧바로 부르는 Combat.leaveDungeon()이 한 프레임에 처리한다.
+    // ⚠️ 여기에 UI.updateStageLabel()만 따로 끼워 넣지 말 것 — 라벨만 먼저 돌아오면
+    //    "본대 라벨 + 던전 배경"으로 어긋난다(2026-08-18 QA 17차 지적의 원인).
     onFail() {
         const d = this.def(this.run.id);
         this.run = null;
