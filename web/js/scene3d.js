@@ -7005,18 +7005,28 @@ const Scene3D = {
         // 쓰러지는 구간을 버스트 수명(≈250ms) 안으로 당긴다. 예전엔 낙하가 k=0.5(=525ms)까지 끌려
         // 파편이 다 꺼진 +346ms에도 시체가 27° 기울어 서 있었다 — 폭발과 죽음이 다른 사건으로 보였다
         // (비평가 2차 ⓒ). 포즈 순서(경직→무릎 꺾임→눕기→먼지→디졸브)는 그대로 두고 시간축만 압축한다.
-        const kHit = 0.05 / dur, kDown = (isBoss ? 0.42 : 0.3) / dur;
+        // kHit(기울기 없이 뒤로 밀리기만 하는 반동 구간)을 0.05 → 0.025초로 줄인다 — 이 구간이 길수록
+        // 붕괴 시작이 그만큼 늦어 '결정타 첫 100ms'를 못 채운다(위 ⓓ). 짧은 반동 뒤 곧바로 무너진다.
+        const kHit = 0.025 / dur, kDown = (isBoss ? 0.42 : 0.3) / dur;
         let dusted = false;
         this.addAnim(dur, k => {
             if (k < kHit) {
                 m.g.position.x = ox + (k / kHit) * 0.06; // 피격 반동 — 뒤로 밀림
             } else if (k < kDown) {
                 const f = (k - kHit) / (kDown - kHit);
-                // 무릎 꺾임(이족) 또는 몸통 주저앉음(무릎 없는 종) + 등부터 가속 낙하
-                if (m.anim && m.anim.bleg) m.anim.bleg.forEach(L => { L.knee.rotation.x = -0.15 - f * 1.5; L.hip.rotation.x = f * 0.5; });
-                else m.g.scale.y = sy0 * (1 - 0.22 * f);
+                // 🚨 붕괴를 **앞으로 몰아** '결정타'가 첫 100ms 에 읽히게 한다. 예전엔 기울기가 ease-in
+                //    (`-f²`)이라 +96ms 에도 처치는 거의 서 있고(-2.7°) 크리 넉백은 이미 -19° 였다 —
+                //    즉 첫 100ms 에 **처치가 크리보다 덜 격렬**해 보여 결정타 쾌감이 +200ms 뒤로 밀렸다
+                //    (비평가 6차 B #8 "붕괴 시작이 +260ms". 실측 `probe-critkill-early.js`: 처치 기울기가
+                //    +160ms 에야 크리를 넘어선다). ease-out 을 섞어(`fe`) 앞을 세우되, 끝점(f=1 → 1.45)과
+                //    가속 인상은 유지한다. 이러면 +96ms 에 처치가 -22° 로 크리(-11°, 복귀 중)를 앞선다.
+                const fe = 0.6 * (1 - (1 - f) * (1 - f)) + 0.4 * f;   // 앞을 세운 붕괴 커브 (f=0→0, f=1→1)
+                // 무릎 꺾임(이족) 또는 몸통 주저앉음(무릎 없는 종) + 등부터 가속 낙하. 주저앉음도 같은
+                // 커브로 앞을 세운다 — 무릎 없는 종(골렘)은 이 압축이 첫 100ms 의 유일한 붕괴 신호다.
+                if (m.anim && m.anim.bleg) m.anim.bleg.forEach(L => { L.knee.rotation.x = -0.15 - fe * 1.5; L.hip.rotation.x = fe * 0.5; });
+                else m.g.scale.y = sy0 * (1 - 0.22 * fe);
                 m.g.position.x = ox + 0.06 + f * 0.16;
-                m.g.rotation.z = -f * f * 1.45;      // -z 회전 = +x(영웅 반대) 쪽으로 눕기
+                m.g.rotation.z = -fe * 1.45;          // -z 회전 = +x(영웅 반대) 쪽으로 눕기
                 m.g.position.y = baseY * (1 - f);    // 비행체는 지면으로 내려앉음
             } else {
                 if (!dusted) {
