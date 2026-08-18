@@ -23,10 +23,12 @@ const U = {
         // 바뀌어 "1e+22Qi"·"InfinityQi" 가 화면에 그대로 샌다. 그래서 여기서부터 fmtBig 에 넘긴다.
         if (!(abs < 1e15)) return fmtBig(Big.of(n));   // NaN 이 아닌 Infinity 도 이 가지로 들어온다
         const units = BIG_UNITS;
-        let u = -1, v = n;
-        while (Math.abs(v) >= 1000 && u < units.length - 1) { v /= 1000; u++; }
-        const body = Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
-        return bigTrimZeros(body) + units[u];
+        // 부호를 먼저 떼고 절댓값으로만 축약한다 — 자릿수 판정이 음수에서 뒤집히지 않게.
+        let u = -1, v = abs;
+        while (v >= 1000 && u < units.length - 1) { v /= 1000; u++; }
+        // 반올림이 가수를 1000 으로 올리면 단위를 한 칸 올린다(`1000k` 가 아니라 `1m`). 상세는 bigRenorm 주석.
+        const r = bigRenorm(v, u + 1);
+        return (n < 0 ? '-' : '') + bigTrimZeros(r.body) + bigUnitFor(r.tier);
     },
 
     // 소수점 보존 표기 (오프라인 보상 수급률·누적량 등 실수 표시용): 1.13, 8.87k, 149.05
@@ -38,9 +40,10 @@ const U = {
         if (!(abs < 1e15)) return fmtBig(Big.of(n), 2);   // fmt 와 같은 이유로 T 위는 Big 경로에 위임
         // fmtDec 는 '소수점 보존'이 목적이라 꼬리 0을 남긴다(fmtBig 의 decimals 명시 경로와 같은 규칙).
         const units = BIG_UNITS;
-        let u = -1, v = n;
-        while (Math.abs(v) >= 1000 && u < units.length - 1) { v /= 1000; u++; }
-        return v.toFixed(2) + units[u];
+        let u = -1, v = abs;
+        while (v >= 1000 && u < units.length - 1) { v /= 1000; u++; }
+        const r = bigRenorm(v, u + 1, 2);   // 반올림 후 재정규화 — `1000.00k` 가 아니라 `1.00m`
+        return (n < 0 ? '-' : '') + r.body + bigUnitFor(r.tier);
     },
 
     // 확률 표기: 소수 둘째 자리까지 반올림하되 꼬리 0 은 떨어낸다 — 원본은 `0%`·`12.5%`지 `0.00%`가 아니다

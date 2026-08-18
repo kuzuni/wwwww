@@ -179,6 +179,28 @@ function bigTrimZeros(s) {
     return s.indexOf('.') < 0 ? s : s.replace(/0+$/, '').replace(/\.$/, '');
 }
 
+// 반올림한 가수가 1000 이 되면 단위를 한 칸 올려 다시 적는다.
+//
+// 왜 필요한가: 축약은 **먼저 1000 으로 나누고 → 그 뒤 반올림**하는 순서다. 그래서 999.9999 처럼
+// 경계 바로 아래 값은 나누기 루프의 조건(`>= 1000`)을 통과하지 못한 채 단위가 한 칸 아래에
+// 멈추고, 그 뒤 `toFixed` 가 가수를 1000 으로 올려 버린다 → `1000k`. 접미사 체계의 목적이
+// "가수를 3자리 이하로 줄이는 것"이라 `1000k` 는 그 규칙을 스스로 깨는 표기다(원본도 `1m` 으로 넘긴다).
+// 실측 경계: 999500→1000k · 999500000→1000m · 999500000000→1000b · 9.999e17→1000aa.
+//
+// shown 은 **부호 없는** 가수([1,1000))를 받는다 — 자릿수 판정(`>= 100`)이 음수에서 뒤집히기 때문에
+// 호출부가 부호를 떼서 넘기고 결과에 다시 붙인다.
+// 단위표 끝(`bigUnitFor` 가 null)에서는 올릴 자리가 없으므로 그대로 둔다.
+function bigRenorm(shown, tier, decimals) {
+    const digits = v => decimals !== undefined ? decimals : (v >= 100 ? 0 : v >= 10 ? 1 : 2);
+    let body = shown.toFixed(digits(shown));
+    if (parseFloat(body) >= 1000 && bigUnitFor(tier + 1) !== null) {
+        tier += 1;
+        shown /= 1000;
+        body = shown.toFixed(digits(shown));
+    }
+    return { body, tier };
+}
+
 function bigUnitFor(tier) {
     // tier: 1=K, 2=M, 3=B, 4=T, 5=aa, 6=ab, …
     if (tier <= BIG_UNITS.length) return BIG_UNITS[tier - 1];
@@ -209,8 +231,9 @@ function fmtBig(v, decimals) {
     }
     // 가수를 3자리 묶음에 맞춰 되돌린다: 10^(e - 3*tier) 만큼 곱함 → [1,1000)
     const shown = a.m * Math.pow(10, a.e - tier * 3);
-    const d = decimals !== undefined ? decimals : (shown >= 100 ? 0 : shown >= 10 ? 1 : 2);
+    // 반올림이 가수를 1000 으로 올리면 단위를 한 칸 올린다(`1000aa` 가 아니라 `1ab`).
+    const r = bigRenorm(shown, tier, decimals);
     // decimals 를 명시한 호출(U.fmtDec 등)은 '자릿수 보존'이 목적이라 꼬리 0을 남긴다.
-    const body = decimals !== undefined ? shown.toFixed(d) : bigTrimZeros(shown.toFixed(d));
-    return (neg ? '-' : '') + body + unit;
+    const body = decimals !== undefined ? r.body : bigTrimZeros(r.body);
+    return (neg ? '-' : '') + body + bigUnitFor(r.tier);
 }
