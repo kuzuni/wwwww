@@ -3460,10 +3460,23 @@ const UI = {
             const row = mountSummonRates[U.clamp(lvl, 1, Mounts.MAX_LEVEL)];
             for (const k in row) if (k !== 'needed') rates[k] = row[k] * 100;
         } else rates = mod.rates(lvl);
+        // 별 = **그 라인의 승천 횟수**와 1:1 (사용자 재지적 2026-08-19 `ascend-star-count-fix`:
+        // "승천 0회면 별 0개, 1회면 1개, 2회면 2개"). 종전에는 등급 행마다 별을 무조건 한 개씩
+        // 그려서 승천을 한 번도 안 해도 별이 보였다 — 원본 소환 확률 팝업(UI-SPEC ⑧)에도 별은 없다.
+        // 승천은 라인 단위라 행(등급)마다 다르지 않고 전 행이 같은 개수다(이 팝업이 곧 그 라인의 표).
+        // ⚠️ 시대 막대의 ★(확률 정보·장비 목록·자동 제련의 `fi-age-star`/`af-age-star`)는 이것과 **다른
+        //    것**이다 — 원본에서 9개 시대는 채운 별, 신성한만 빈 별이라 승천 횟수(라인 공통값)일 수 없다.
+        //    그쪽은 원본 대조 프로브(probe-fl-head)가 위치·화소까지 맞춰 둔 원본 디자인 요소라 건드리지 않는다.
+        const ascLine = isPet ? 'pet' : isMount ? 'mount' : 'skill';
+        const ascN = Ascension.count(ascLine);
+        // 6개 이상은 행 폭을 넘기므로 다른 별 표시(cell-star·sk-star)와 같은 '별+숫자' 규약으로 접는다
+        const starHtml = ascN <= 0 ? ''
+            : ascN <= 5 ? ` <i class="rate-star">${IconGen.img('star').repeat(ascN)}</i>`
+                : ` <i class="rate-star">${IconGen.img('star')}${ascN}</i>`;
         // 0% 등급도 표시 — 확률표 열람이 목적이라 안 나오는 등급도 보여야 한다 (사용자 재지시 2026-08-17)
         const barsHtml = RARITIES.map(r => `
             <div class="rate-bar" style="--rc:${RARITY_CSS[r]}">
-                <span class="rate-name">${RARITY_KR[r]} <i class="rate-star">${IconGen.img('star')}</i></span>
+                <span class="rate-name">${RARITY_KR[r]}${starHtml}</span>
                 <span class="rate-pct">${(rates[r] || 0).toFixed(2)}%</span>
             </div>`).join('');
         const cnt = (isMount ? S.mountOpens : isPet ? S.petSummonCount : S.summonCount) || 0;
