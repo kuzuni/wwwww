@@ -17,7 +17,10 @@ const SC = require('./shot-screens-seed.js');
 const { PETS_STATE_SRC } = require('./shot-pets.js');
 
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
-const REF_PNG = path.resolve(__dirname, '../ref/screens/shot-042356.png');
+// 042445(pets-2)는 042356 과 **같은 화면·같은 상태**를 조금 다른 크기(490×876)로 찍은 컷이다 —
+// REF=042445 로 같은 프로브를 돌려 교차검증한다(한쪽만 맞는 우연을 거른다).
+const REF_ID = process.env.REF || '042356';
+const REF_PNG = path.resolve(__dirname, `../ref/screens/shot-${REF_ID}.png`);
 const TOL = 2.0;
 
 const SCAN_REF = function (src) {
@@ -179,6 +182,10 @@ const SCAN_REF = function (src) {
             content, detail: detail.map(x => ({ band: x.band, n: x.chunks.length, chunks: x.chunks.slice(0, 6) })),
             tileRows: tileRows.map(x => ({ band: x.band, chunks: x.chunks, cols: x.cols })),
             equipBox, summonBtn,
+            // 🚨 컷마다 **앱이 이미지 중심에 있지 않다**: 소환 버튼은 원본에서 정확히 앱 중앙인데
+            //    042356 은 중심 245(=490/2, 어긋남 0)인 반면 042445 는 239 로 6px 왼쪽이다.
+            //    보정하지 않으면 042445 의 모든 가로 수치가 −1.2%p 씩 통째로 밀려 가짜 FAIL 이 난다.
+            xOff: summonBtn ? ((summonBtn.l + summonBtn.r) / 2) - (appL + AW / 2) : 0,
             summonChunks: summonBand ? colsOfBand(summonBand.band) : [],
         });
     });
@@ -187,7 +194,8 @@ const SCAN_REF = function (src) {
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
     const errors = [];
-    const page = await browser.newPage({ viewport: { width: 490, height: 882 }, deviceScaleFactor: 1 });
+    const refDim = { '042356': [490, 882], '042445': [490, 876] }[REF_ID] || [490, 882];
+    const page = await browser.newPage({ viewport: { width: refDim[0], height: refDim[1] }, deviceScaleFactor: 1 });
     page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
@@ -202,7 +210,10 @@ const SCAN_REF = function (src) {
     const ref = await page.evaluate(([src, fnSrc]) => (new Function('return ' + fnSrc)())(src), [refSrc, SCAN_REF.toString()]);
 
     await page.evaluate(PETS_STATE_SRC);
-    await page.waitForTimeout(600);
+    // 🚨 폰트가 아직 안 붙은 프레임에서 재면 글자 폭이 달라져 **같은 페이지인데 런마다 수치가 바뀐다**
+    //    (042356 런과 042445 런에서 x1 pill 45.6→39.5px · 소환 정보 69.3→45.4px 로 갈렸다).
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(1200);
     const clone = await page.evaluate(() => {
         const app = document.getElementById('app').getBoundingClientRect();
         const pick = (sel) => [...document.querySelectorAll(sel)].filter(e => e.offsetParent !== null);
@@ -217,6 +228,17 @@ const SCAN_REF = function (src) {
             info: one('#panel-pets .summon-info'),
             hatchery: one('#panel-pets .hatchery'),
             subtabs: one('#summon-subtabs'),
+            bar: one('#panel-pets .summon-bar'),
+            cs: (() => {
+                const b = pick('#panel-pets .summon-bar')[0];
+                if (!b) return null;
+                const kids = [...b.children].map(e => {
+                    const c = getComputedStyle(e);
+                    return { cls: e.className, pos: c.position, ml: c.marginLeft, mr: c.marginRight, fb: c.flexBasis, w: e.getBoundingClientRect().width };
+                });
+                const bc = getComputedStyle(b);
+                return { kids, disp: bc.display, jc: bc.justifyContent, gap: bc.gap, pad: bc.paddingLeft + '/' + bc.paddingRight };
+            })(),
             tabbar: one('#tabbar'),
         };
     });
@@ -224,14 +246,17 @@ const SCAN_REF = function (src) {
 
     const AW = ref.AW, AH = ref.H;
     const rw = v => (v / AW) * 100, rh = v => (v / AH) * 100;
+    const RX = ref.appL + ref.xOff;   // 원본 x 기준점(크롭 어긋남 보정 포함)
     const cw = v => (v / clone.app.w) * 100, ch = v => (v / clone.app.h) * 100;
-    console.log(`원본 ${ref.W}×${ref.H} · 앱 x ${ref.appL}~${ref.appR}(폭 ${AW})`);
+    console.log(`원본 shot-${REF_ID} ${ref.W}×${ref.H} · 앱 x ${ref.appL}~${ref.appR}(폭 ${AW})`);
     console.log(`클론 앱 ${clone.app.w.toFixed(1)}×${clone.app.h.toFixed(1)} · 타일 ${clone.tiles.length}개`);
     console.log(`원본 밴드: 부화장 ${JSON.stringify(ref.hatch)} · 서브탭 ${JSON.stringify(ref.subtab)} · 탭바 ${JSON.stringify(ref.tabbar)}`);
     console.log(`원본 내용 밴드: ${JSON.stringify(ref.detail.map(x => [x.band, x.n]))}`);
     console.log(`원본 타일 행: ${JSON.stringify(ref.tileRows.map(x => [x.band, x.cols]))}`);
     console.log(`원본 장착됨 ${JSON.stringify(ref.equipBox)} · 소환버튼 ${JSON.stringify(ref.summonBtn)}`);
-    console.log(`원본 소환 바 열: ${JSON.stringify(ref.summonChunks)} · 클론 x1 ${JSON.stringify(clone.x5)} · 정보 ${JSON.stringify(clone.info)}`);
+    console.log(`원본 소환 바 열: ${JSON.stringify(ref.summonChunks)} · 앱중심 어긋남 ${ref.xOff.toFixed(1)}px`);
+    console.log(`클론 소환바 ${JSON.stringify(clone.bar)} · x1 ${JSON.stringify(clone.x5)} · 정보 ${JSON.stringify(clone.info)}`);
+    console.log(`클론 소환바 계산값 ${JSON.stringify(clone.cs)}`);
 
     const bad = [];
     if (!ref.hatch) bad.push('부화장 패널을 못 잡았다');
@@ -249,24 +274,24 @@ const SCAN_REF = function (src) {
     const rows = [];
     const add = (name, refV, cloneV) => rows.push({ name, refV, cloneV, d: cloneV - refV });
     const r1 = ref.tileRows[0], r2 = ref.tileRows[1];
-    add('타일 좌', rw(r1.cols[0][0] - ref.appL), cw(clone.tiles[0].x));
+    add('타일 좌', rw(r1.cols[0][0] - RX), cw(clone.tiles[0].x));
     add('타일 폭', rw(r1.cols[0][1] - r1.cols[0][0] + 1), cw(clone.tiles[0].w));
     add('열 피치', rw(r1.cols[1][0] - r1.cols[0][0]), cw(clone.tiles[1].x - clone.tiles[0].x));
     add('1행 상단', rh(r1.band[0]), ch(clone.tiles[0].y));
     add('행 피치', rh(r2.band[0] - r1.band[0]), ch(clone.tiles[5].y - clone.tiles[0].y));
-    add('장착됨 좌', rw(ref.equipBox.l - ref.appL), cw(clone.equipped.x));
+    add('장착됨 좌', rw(ref.equipBox.l - RX), cw(clone.equipped.x));
     add('장착됨 폭', rw(ref.equipBox.w), cw(clone.equipped.w));
     add('장착됨 상단', rh(ref.equipBox.top), ch(clone.equipped.y));
     add('장착됨 높이', rh(ref.equipBox.bot - ref.equipBox.top + 1), ch(clone.equipped.h));
-    add('소환버튼 좌', rw(ref.summonBtn.l - ref.appL), cw(clone.summonBtn.x));
+    add('소환버튼 좌', rw(ref.summonBtn.l - RX), cw(clone.summonBtn.x));
     add('소환버튼 폭', rw(ref.summonBtn.w), cw(clone.summonBtn.w));
     add('소환버튼 상단', rh(ref.summonBtn.top), ch(clone.summonBtn.y));
     add('소환버튼 높이', rh(ref.summonBtn.bot - ref.summonBtn.top + 1), ch(clone.summonBtn.h));
     if (ref.summonChunks.length >= 3 && clone.x5 && clone.info) {
         const c = ref.summonChunks.slice().sort((a, b) => a[0] - b[0]);
-        add('x1 pill 좌', rw(c[0][0] - ref.appL), cw(clone.x5.x));
+        add('x1 pill 좌', rw(c[0][0] - RX), cw(clone.x5.x));
         add('x1 pill 폭', rw(c[0][1] - c[0][0] + 1), cw(clone.x5.w));
-        add('소환정보 좌', rw(c[2][0] - ref.appL), cw(clone.info.x));
+        add('소환정보 좌', rw(c[2][0] - RX), cw(clone.info.x));
         add('소환정보 폭', rw(c[2][1] - c[2][0] + 1), cw(clone.info.w));
     }
     add('부화장 상단', rh(ref.hatch[0]), ch(clone.hatchery.y));

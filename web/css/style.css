@@ -2759,9 +2759,27 @@ body {
    가운데 정렬은 좌우 항목을 **흐름에서 빼야** 정확해진다 — 마진으로 밀면 pill 이 반대로 밀려난다
    (마진 M 을 주면 버튼은 +M/2, pill 은 −M/2 로 움직인다). 좌우 오프셋은 버튼 가장자리에서
    원본과 같은 간격(≈12px)을 두도록 잡았다. 스코프는 펫 화면만 — 스킬·탈것 소환 바는 아직 미실측이다. */
-#panel-pets .summon-bar { position: relative; }
+/* 🚨 공용 `.summon-bar` 에는 `padding-left: 5.5%W`(26.95px)가 있다 — 스킬·탈것 소환 바의 ◀ 자리다.
+   펫 화면의 ◀ 는 부화장 좌하단이라 이 패딩이 그냥 남아, 콘텐츠 상자가 통째로 오른쪽으로 밀려
+   버튼이 정확히 패딩의 절반(13.5px = 2.65%p)만큼 오른쪽에 앉았다. `justify-content:center` 도
+   `margin:auto` 도 **콘텐츠 상자 기준**이라 둘 다 이걸 못 고친다 — 패딩 자체를 지워야 한다. */
+#panel-pets .summon-bar { position: relative; padding-left: 0; }
 #panel-pets .summon-bar > .x5-toggle { position: absolute; right: 67.4%; top: 50%; transform: translateY(-50%); }
 #panel-pets .summon-bar > .summon-info { position: absolute; left: 67.5%; top: 50%; transform: translateY(-50%); }
+/* 🚨 공용 `.summon-bar .btn.big` 의 폭 34.07%W 는 주석이 출처로 적은 shot-042356 과 맞지 않는다 —
+   042356·042445 두 컷에서 원본 버튼은 모두 x 폭 139px = **28.37%W** 였다(폰트 로드 후 실측).
+   스킬·탈것 소환 바는 아직 미실측이라 공용값은 그대로 두고 펫만 바로잡는다. */
+#panel-pets .summon-bar .btn.big { flex-basis: calc(var(--app-w) * .2837); }
+/* 좌우를 흐름에서 빼도 `justify-content:center` 만으로는 버튼이 13.5px 오른쪽에 앉았다(38.57%W).
+   흐름에 남은 유일한 항목이라 auto 마진이 남는 공간을 정확히 반씩 먹어 확실하게 가운데로 온다. */
+#panel-pets .summon-bar > .summon-btn { margin-left: auto; margin-right: auto; }
+/* 펫 타일은 스킬 오브와 셀 규격이 다르다 — 공용 `.sk-grid` 셀 13.10%W 는 스킬용(오브 10.08%W 를
+   셀 안에 넣고 아래 게이지가 셀을 채운다). 펫 타일은 `.tile-face` 가 셀을 꽉 채워 13.10%W 로 그려지는데
+   원본은 **10.20%W** 다. 열 피치(원본 15.71%W)는 유지해야 하므로 셀을 줄인 만큼 열 간격을 늘린다. */
+#panel-pets .sk-grid {
+    grid-template-columns: repeat(5, calc(var(--app-w) * .1020));
+    column-gap: calc(var(--app-w) * .0551);
+}
 /* 부화장 원본(042356) ≈19% H — 대형 행잉 램프가 패널을 채움 */
 .hatchery {
     display: flex; align-items: center; gap: .5rem; margin: 0 -.8rem -.0rem;

@@ -249,7 +249,10 @@ const SCAN_REF = function (src) {
         UI.switchTab('summon'); UI.switchSummonSub('tech');
         UI.openTechBranch('skillpet'); UI.openTechNode(pick);
     });
-    await page.waitForTimeout(500);
+    // 🚨 폰트가 아직 안 붙은 프레임에서 재면 글자 폭이 달라져 **같은 페이지인데 런마다 수치가 바뀐다**
+    //    (펫 화면에서 x1 pill 45.6→39.5px 로 갈린 실제 사례 — 통과 판정이 통째로 무의미해진다).
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(1200);
     const clone = await page.evaluate(() => {
         const app = document.getElementById('app').getBoundingClientRect();
         const pick = (sel) => [...document.querySelectorAll(sel)].filter(e => e.offsetParent !== null);
