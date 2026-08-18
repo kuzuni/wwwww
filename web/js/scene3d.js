@@ -4959,10 +4959,14 @@ const Scene3D = {
                 // 자리는 스윕으로 잡았다(y를 0.08씩 훑어 '추가 가림 0'이 되는 구간을 찾음) — 시선이
                 // 먼 발을 스치는 띠가 좁아서, 그 띠보다 **확실히 위**로 올리고 앞으로 뺀 자리를 골랐다.
                 // 위아래 ±0.08 이웃도 전부 0이라 카메라가 조금 흔들려도 다시 가리지 않는다.
-                HEADPART(tube([0, 0.47, 0.32], [0, 0.39, 0.64], 0.05, mat));                         // 목
-                HEADPART(sp(0.082, 0, 0.37, 0.72, light, 1.0, 0.85, 1.35));                          // 머리
-                cn(0.042, 0.11, 0, 0.37, 0.85, light).rotation.x = Math.PI / 2;                      // 주둥이
-                for (const s of [-1, 1]) { const hn = cn(0.02, 0.09, s * 0.042, 0.44, 0.67, dark); hn.rotation.x = -0.7; } // 뿔
+                // ⚠️ 앞 세션 스윕값(base y0.47·tip y0.39)이 이후 라이더 안장 높이 변경으로 낡아
+                //    `probe-ride-clear` 가 다시 실패했다(머리/목이 먼 다리를 thighR 100%·shinR 75% 가림,
+                //    걸린 지점 z −0.05~−0.13). 목을 **더 앞·아래로 뻗어**(날개 접고 활강하는 실루엣)
+                //    카메라→먼다리 시선 위 띠에서 확실히 벗어나게 재스윕했다.
+                HEADPART(tube([0, 0.52, 0.46], [0, 0.34, 0.90], 0.05, mat));                         // 목(앞·아래로 활강)
+                HEADPART(sp(0.082, 0, 0.31, 1.00, light, 1.0, 0.85, 1.35));                          // 머리
+                cn(0.042, 0.11, 0, 0.31, 1.13, light).rotation.x = Math.PI / 2;                      // 주둥이
+                for (const s of [-1, 1]) { const hn = cn(0.02, 0.09, s * 0.042, 0.40, 0.95, dark); hn.rotation.x = -0.7; } // 뿔
                 for (let i = 0; i < 4; i++) cn(0.024, 0.06, 0, 0.36 - i * 0.012, 0.10 - i * 0.11, dark); // 등지느러미
                 const tail = cy(0.05, 0.012, 0.38, 0, 0.20, -0.36, mat); tail.rotation.x = -1.45; g.userData.tail = tail;
             } else {
@@ -4984,7 +4988,7 @@ const Scene3D = {
                 wing.userData.s = s;
                 g.userData.wings.push(wing);
             }
-            eyes(dragon ? 0.41 : whale ? 0.25 : 0.28, dragon ? 0.78 : whale ? 0.52 : 0.29, whale ? 0.09 : 0.05);
+            eyes(dragon ? 0.35 : whale ? 0.25 : 0.28, dragon ? 1.06 : whale ? 0.52 : 0.29, whale ? 0.09 : 0.05);
             if (!dragon && !whale) { const sting = cn(0.025, 0.12, 0, 0.2, -0.21, blk); sting.rotation.x = Math.PI; g.userData.tail = sting; }
             // 비행형 안장: form.saddle 0.38 / 몸통 반폭·반높이·중심 y / 발은 몸통 옆 허공(등자만)
             saddleRig(0.38, dragon || whale ? 0.152 : 0.144, dragon ? 0.16 : whale ? 0.168 : 0.152, 0.22, [0.20, 0.06, 0.09]);
