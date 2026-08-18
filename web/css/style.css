@@ -492,23 +492,41 @@ body {
 .forge-age-list { display: flex; flex-direction: column; gap: .6rem; max-height: calc(var(--app-h) * .55); overflow-y: auto; }
 .forge-age-section .age-tag { display: flex; align-items: center; gap: .3rem; margin-bottom: .3rem; }
 .forge-age-section .age-tag small { color: #90a4ae; font-weight: 400; }
+/* 원본 shot-042905 픽셀 실측(aaa-skin ⑮, 2026-08-18): 패널 #d6d6d6 · 셀 간격 19px(3.95%W) ·
+   셀 안 면 #e0e0e0(흰색이 아니다 — 밝은 원시 장비도 이 면 위에서 분리된다) · 셀 42px(8.73%W).
+   종전 gap .4rem(8px)은 원본의 절반이라 셀이 +2.1%p 크게 붙어 보였다. */
 .forge-item-grid {
-    display: grid; grid-template-columns: repeat(5, 1fr); gap: .45rem .4rem;
-    background: #d9d9d9; border-radius: .7rem; padding: .55rem .5rem;
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    gap: calc(var(--app-h) * .0126) calc(var(--app-w) * .0395);
+    background: #d6d6d6; border-radius: .7rem;
+    padding: calc(var(--app-w) * .0229) calc(var(--app-w) * .0249);
 }
-/* 원본(shot-042905): 회색 패널 안 흰 아이템 셀 + 좌하단 별 배지 + % 아래 표기 */
+/* 원본(shot-042905): 회색 채움 패널 위 #e0e0e0 셀 + 하단 중앙 별 배지 + 검정 % 표기 */
 .forge-item-cell {
     background: none; border: none; padding: 0;
-    display: flex; flex-direction: column; align-items: center; gap: .12rem; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center;
+    gap: calc(var(--app-h) * .0069);   /* 원본 셀 바닥→% 글자 6px */
+    cursor: pointer;
 }
 .fl-face {
-    position: relative; width: 100%; aspect-ratio: 1; background: #fff;
+    position: relative; width: 100%; aspect-ratio: 1; background: #e0e0e0;
     border: var(--ol2) solid var(--pp-line); border-radius: .5rem;
     display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
 }
 .fl-face img { width: 100%; height: 100%; object-fit: contain; display: block; } /* 3D 스냅샷 썸네일 */
-/* 썸네일이 들어간 칸만 옅은 바탕 — 원시 시대 뼈·돌처럼 밝은 장비가 흰 배경에 묻혀 빈 칸으로 보였다 */
-.fl-face.has-thumb { background: linear-gradient(#f6f4ee, #ddd7c9); }
+/* 원본 셀 면은 플랫 #e0e0e0 하나다 — 종전 웜 그라디언트(밝은 장비 대비용)는 이 면이 같은 문제를
+   원본 방식으로 해결하므로 걷어냈다(원본에 없는 것을 넣지 않는다). */
+.fl-face.has-thumb { background: #e0e0e0; }
+/* 셀 하단 중앙 별 — 원본 별 13px(2.7%W) 주황 #ff8801 + 검정 키라인, 셀 아래 테두리에 걸친다
+   (별 세로 11px 중 ~8px 이 테두리 위, ~3px 이 아래 — 장비 그리드 ⭐ 걸침과 같은 언어).
+   위치가 좌하단으로 보이지만 실측은 셀 가로 **정중앙**(별 중심 x=120 = 셀 99~141 중심)이다. */
+.fl-face::after {
+    content: '★'; position: absolute; left: 50%; bottom: 0;
+    transform: translate(-50%, 34%);
+    font-size: .86rem; line-height: 1; color: #ff8801;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    z-index: 1; pointer-events: none;
+}
 .forge-item-cell small { font-size: .56rem; color: var(--pp-ink); font-weight: 800; }
 
 .substat-list { display: flex; flex-direction: column; gap: .2rem; margin: .4rem 0; max-height: calc(var(--app-h) * .4); overflow-y: auto; }
@@ -4015,6 +4033,10 @@ body {
 .fl-card { width: 71%; /* 원본 shot-042905 71.3% · shot-042931 70.5% 실측 */ padding: .85rem .8rem .9rem; }
 .fl-head { margin-bottom: .4rem; }
 .fl-head .fi-age-cur { padding-right: .5rem; }
+/* 원본 % 글자는 회색 패널 위에 바로 앉은 검정 잉크다(단면 최암부 #0d0d0d) — 위 paper 공통 규칙이
+   셀 배경을 종이 흰색으로, 글자를 --pp-muted 로 끌고 가 '흰 띠 + 흐린 글자'가 됐던 자리(aaa-skin ⑮ 실측). */
+.fl-card .forge-item-cell { background: transparent; }
+.fl-card .forge-item-cell small { color: #000; }
 .skill-btn.empty { background: rgba(10,10,14,.75); border: var(--ol2) solid rgba(255,255,255,.18); pointer-events: none; }
 
 /* ===== 승천(라인 프레스티지) 팝업 — 사용자 확정 2026-08-17 ===== */
