@@ -2439,30 +2439,109 @@ const Scene3D = {
         const sub = (typeof substanceOf === 'function') ? substanceOf(name) : null;
         return sub ? this.substanceMats(base, sub, age) : base;
     },
+    // ---- 시대별 셰이딩 파이프라인 (비평가 2차 지적 ⓒ⑴) ────────────────────────────────
+    // 지적 원문: "두 시대가 지오메트리 100% 동일에 **흰색↔하늘색 색 스와프**뿐이다. 중세는
+    // metalness + 에지 웨어 마스크(모서리 밝게) + 크레비스 다크닝(AO 근사)을, 원시는 파트별 색 분리를."
+    // 지적은 사실이었다 — 원인이 둘 있었고 여기서 **둘 다** 잡는다.
+    //
+    // 원인 ①(색): `AGE_COLORS.primitive = 0xe0e0e0`(거의 흰색)·`medieval = 0x1cafff`(형광 하늘색)인데
+    //   base 색을 **시대색에서 재질색 쪽으로 32~52%만** 보간했다. 즉 화면에 남는 지배색이 시대색이라
+    //   원시는 흰 도자기, 중세는 하늘색 플라스틱으로 읽혔다. → 가중치를 뒤집어 **재질색이 지배**하고
+    //   시대색은 tint(AGE_TINT=0.16)로만 남긴다. 시대 정체성은 원래 설계대로 **trim·glow·디테일**이 진다
+    //   (항목 ② "시대마다 재질·실루엣 언어" — 시대색으로 전신을 물들이라는 요구가 아니다).
+    //
+    // 원인 ②(셰이딩): 다섯 계열이 PBR 파라미터만 다르고 **셰이더가 하나**였다. 파라미터만으로는
+    //   '닳은 모서리'도 '틈에 낀 그늘'도 안 나온다 — 둘 다 위치 의존이라 재질 상수로 표현이 안 된다.
+    //   → `ageShade()` 가 `onBeforeCompile` 로 계열마다 다른 항을 심는다.
+    //     · 크레비스 다크닝 = **하늘 가림 근사**. 월드 법선의 y로 위/아래를 갈라 아래를 보는 면을
+    //       어둡게 한다(파울드론 라멜라 밑·고젯 안쪽·벨트 아래·부츠 발등 그늘). 진짜 AO는 아니지만
+    //       조립 파츠 더미에서 '깊이'로 읽히는 그늘이 정확히 이 면들이다.
+    //     · 에지 웨어 = **시선에 스치는 각(프레넬)** 이 곧 실루엣 모서리다. 판금은 거기가 벗겨져
+    //       밝게 닳고, 황동은 광이 서고, 폴리머·합금은 거의 안 닳는다(계열마다 강도·색이 다르다).
+    //   ⚠️ `THREE.Material.copy()` 는 `onBeforeCompile` 을 복사하지 않는다 — `tintOf()` 로 파생시킨
+    //      재질은 주입이 통째로 빠져 **한 모델 안에서 셰이딩이 갈린다**. tintOf 가 재적용한다(아래).
+    //   ⚠️ `customProgramCacheKey` 를 안 주면 three 가 같은 파라미터의 **주입 없는 프로그램**을
+    //      재사용해 계열이 통째로 안 먹는다. 계열명을 키로 준다.
+    AGE_TINT: 0.16,
+    // 계열별 파라미터: crev=틈 그늘 깊이 · crevP=그늘이 번지는 범위 · wear=모서리 마모 강도
+    //                  wearP=마모가 모서리에 몰리는 정도(클수록 가장자리만) · wearCol=마모색
+    AGE_SHADE: {
+        primal: { crev: 0.38, crevP: 1.35, wear: 0.12, wearP: 3.4, wearCol: 0xd8cfb4 }, // 돌: 깊은 그늘, 모서리는 흙먼지로 살짝 밝게
+        forged: { crev: 0.46, crevP: 1.15, wear: 0.62, wearP: 2.4, wearCol: 0xf2f6fb }, // 단조 철: 벗겨진 모서리가 흰 강철로 번뜩인다
+        brass: { crev: 0.40, crevP: 1.30, wear: 0.50, wearP: 2.8, wearCol: 0xffe9b0 }, // 황동: 틈에 낀 녹청은 더 어둡고 모서리는 금빛
+        polymer: { crev: 0.50, crevP: 1.15, wear: 0.16, wearP: 4.2, wearCol: 0xb9c4cf }, // 무광 폴리머: 거의 안 닳는다
+        alloy: { crev: 0.50, crevP: 1.05, wear: 0.34, wearP: 3.2, wearCol: 0x9fe8ff }, // 합금: 모서리에 냉광 라인
+        // 천·가죽 계열(hide·robe)은 **계열이 아니라 스타일**로 갈린다 — 같은 중세라도 로브는 판금이
+        // 아니다. 실측에서 soft 스타일만 셰이딩 깊이가 안 올라가 별도 프로파일을 뒀다(깊이 1.69~1.85 정체).
+        // 천은 모서리가 '닳아 벗겨지는' 게 아니라 **결이 서는(sheen)** 것이라 프레넬을 넓게 준다.
+        // ⚠️ 천도 **시대마다 갈라야 한다.** 프로파일 하나로 묶었더니 근세↔현대 로브가 조형·셰이딩이
+        //    같고 색만 달라져 `probe-age-shading` 의 재질분리에서 0.68(기준 1.00)로 반려됐다 —
+        //    비평가가 친 '색 스와프'가 천 쪽에서 그대로 재현된 것이다. 시대별 천을 따로 정의한다.
+        soft: { crev: 0.32, crevP: 1.50, wear: 0.42, wearP: 2.0, wearCol: 0xf6f1e6 },   // 폴백
+        'soft:primal': { crev: 0.30, crevP: 1.55, wear: 0.30, wearP: 2.4, wearCol: 0xefe4cd },  // 거친 생가죽
+        'soft:forged': { crev: 0.36, crevP: 1.45, wear: 0.40, wearP: 2.1, wearCol: 0xf6f1e6 },  // 두꺼운 모직
+        'soft:brass': { crev: 0.30, crevP: 1.30, wear: 0.54, wearP: 1.8, wearCol: 0xffeccf },  // 왁스 먹인 캔버스 — 광이 넓게 선다
+        'soft:polymer': { crev: 0.48, crevP: 1.62, wear: 0.08, wearP: 3.8, wearCol: 0xa6b1bd },  // 무광 기술섬유 — 광이 거의 없다
+        'soft:alloy': { crev: 0.34, crevP: 1.25, wear: 0.38, wearP: 2.2, wearCol: 0xd8f2ff },  // 발광 섬유
+    },
+    ageShade(mat, kind) {
+        const p = this.AGE_SHADE[kind] || (String(kind).indexOf('soft:') === 0 ? this.AGE_SHADE.soft : null);
+        if (!mat || !p || !mat.isMeshStandardMaterial) return mat;
+        const wc = new THREE.Color(p.wearCol);
+        const f = n => n.toFixed(4);
+        mat.userData = mat.userData || {};
+        mat.userData.ageShade = kind;          // tintOf 가 파생 재질에 재적용하려고 남긴다
+        mat.customProgramCacheKey = () => 'ageshade-' + kind;
+        mat.onBeforeCompile = (sh) => {
+            sh.vertexShader = 'varying vec3 vAgeWN;\n' + sh.vertexShader.replace(
+                '#include <beginnormal_vertex>',
+                '#include <beginnormal_vertex>\n\tvAgeWN = normalize(mat3(modelMatrix) * objectNormal);');
+            // diffuseColor 와 normal 이 **둘 다** 정해진 뒤라야 한다 — diffuse 계열 include 는 normal 보다
+            // 앞이고, lights_physical_fragment 는 diffuseColor 를 material 로 옮기기 직전이라 여기가 유일한 자리다.
+            sh.fragmentShader = 'varying vec3 vAgeWN;\n' + sh.fragmentShader.replace(
+                '#include <lights_physical_fragment>',
+                [
+                    '\t// 크레비스 다크닝 — 하늘 가림 근사(아래를 보는 면 = 틈·처마 밑)',
+                    '\tfloat ageSky = clamp(vAgeWN.y * 0.5 + 0.5, 0.0, 1.0);',
+                    '\tdiffuseColor.rgb *= mix(' + f(p.crev) + ', 1.0, pow(ageSky, ' + f(p.crevP) + '));',
+                    '\t// 에지 웨어 — 시선에 스치는 각 = 실루엣 모서리. 거기가 벗겨져 닳는다.',
+                    '\tfloat ageFres = pow(clamp(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 0.0, 1.0), ' + f(p.wearP) + ');',
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(' + f(wc.r) + ', ' + f(wc.g) + ', ' + f(wc.b) + '), ageFres * ' + f(p.wear) + ');',
+                    '#include <lights_physical_fragment>',
+                ].join('\n'));
+        };
+        return mat;
+    },
     ageGearMatsBase(age) {
         const kind = this.ageGearKind(age);
         const c = new THREE.Color(AGE_COLORS[age] !== undefined ? AGE_COLORS[age] : 0xb0bec5);
-        const mix = (hex, t) => c.clone().lerp(new THREE.Color(hex), t);
-        const std = o => new THREE.MeshStandardMaterial(o);
+        // ⚠️ t 는 "시대색이 남는 비율"이다(예전엔 반대로 재질색이 남는 비율이라 시대색이 전신을 먹었다).
+        const mix = (hex, t) => new THREE.Color(hex).lerp(c, t === undefined ? this.AGE_TINT : t);
+        const std = o => this.ageShade(new THREE.MeshStandardMaterial(o), kind);
         if (kind === 'primal') {
             // 돌·뼈·가죽: 금속기 0. flatShading으로 깎아낸 면을 남기고 rockTex 입자로 '민짜 점토'를 막는다.
             const rock = ProChar.rockTex();
             return {
                 kind, glow: false,
-                body: std({ color: mix(0xded2b0, 0.52).offsetHSL(0, -0.08, 0.06), metalness: 0.02, roughness: 0.96,
+                // 파트별 색 분리(비평가 ⓒ⑴ "원시는 뼈=아이보리·가죽=탄 갈색·돌=회청색") —
+                // 예전엔 body 가 거의 흰색이라 셋이 한 덩어리로 뭉쳤다. 이제 몸이 **회청색 돌**로
+                // 내려앉아 가죽 끈(탄 갈색)·뼈 장식(아이보리)과 명도·색상이 모두 갈린다.
+                // ⚠️ rockTex 베이스가 #b9bcc0(≈0.73)이라 맵이 albedo 를 그만큼 깎는다 — color 는 그 몫만큼 올려 둔 값이다.
+                body: std({ color: mix(0x99a3b0), metalness: 0.02, roughness: 0.96,
                     map: rock, bumpMap: rock, bumpScale: 0.022, flatShading: true, envMapIntensity: 0.22 }),
-                dark: std({ color: 0x33220f, metalness: 0, roughness: 0.9,
+                dark: std({ color: 0x5a3a1c, metalness: 0, roughness: 0.9,   // 탄 갈색 가죽(맵 0.76 곱해져 ≈0x442c15)
                     map: ProChar.leatherTex(), bumpMap: ProChar.leatherTex(), bumpScale: 0.014 }),
-                trim: std({ color: 0x2a1a0c, metalness: 0, roughness: 0.92, map: ProChar.leatherTex() }), // 가죽 결속끈
-                bead: std({ color: 0xe8dfc4, metalness: 0.03, roughness: 0.62, flatShading: true }),      // 뼈·이빨 장식
+                trim: std({ color: 0x452a12, metalness: 0, roughness: 0.92, map: ProChar.leatherTex() }), // 가죽 결속끈
+                bead: std({ color: 0xeee5cb, metalness: 0.03, roughness: 0.62, flatShading: true }),      // 뼈·이빨 = 아이보리
             };
         }
         if (kind === 'forged') {
-            // 단조 철: 브러시드 결 + 리벳. 기존 룩(스틸 32% 혼합)이 이 계열이었으므로 톤은 그대로 이어받는다.
+            // 단조 철: 브러시드 결 + 리벳 + **에지 웨어**(ageShade 가 심는다).
+            // ⚠️ 예전 색은 시대색(0x1cafff 형광 하늘색)을 68% 남겨 '하늘색 도자기'로 읽혔다 — 비평가 ⓒ⑴ 의 정확한 지적.
             const metal = ProChar.metalTex();
             return {
                 kind, glow: false,
-                body: std({ color: mix(0xb8c4cf, 0.32).offsetHSL(0, -0.06, 0.06), metalness: 0.86, roughness: 0.42,
+                body: std({ color: mix(0x9ba4ae), metalness: 0.86, roughness: 0.42,
                     map: metal, bumpMap: metal, bumpScale: 0.014, envMapIntensity: 0.75 }),
                 dark: std({ color: 0x232a33, metalness: 0.62, roughness: 0.56 }),
                 trim: std({ color: 0x8c99a6, metalness: 0.92, roughness: 0.3, envMapIntensity: 0.9 }), // 리벳 대가리
@@ -2472,7 +2551,7 @@ const Scene3D = {
             // 근세: 황동 부속 + 무두질 가죽 (무기 blackpowder 계열과 같은 팔레트)
             return {
                 kind, glow: false,
-                body: std({ color: mix(0xb08d57, 0.42), metalness: 0.8, roughness: 0.34, envMapIntensity: 0.8 }),
+                body: std({ color: mix(0xb08d57), metalness: 0.8, roughness: 0.34, envMapIntensity: 0.8 }),
                 dark: std({ color: 0x2a2119, metalness: 0.2, roughness: 0.72, map: ProChar.leatherTex() }),
                 trim: std({ color: 0xd8b878, metalness: 0.92, roughness: 0.26, envMapIntensity: 0.95 }),
             };
@@ -2481,7 +2560,7 @@ const Scene3D = {
             // 현대: 무광 폴리머 패널 + 저광 금속 (무기 gunmetal과 짝)
             return {
                 kind, glow: false,
-                body: std({ color: mix(0x6b7480, 0.34), metalness: 0.34, roughness: 0.66, envMapIntensity: 0.5 }),
+                body: std({ color: mix(0x6b7480), metalness: 0.34, roughness: 0.66, envMapIntensity: 0.5 }),
                 dark: std({ color: 0x272d33, metalness: 0.5, roughness: 0.58 }),
                 trim: std({ color: 0x1c2126, metalness: 0.45, roughness: 0.5 }), // 벤트 슬랫
             };
@@ -2489,7 +2568,7 @@ const Scene3D = {
         // alloy — 우주 이후: 어두운 합금 셸 + 시대색 발광 라인 (무기 energy와 짝)
         return {
             kind, glow: true,
-            body: std({ color: mix(0x2b3340, 0.56), metalness: 0.9, roughness: 0.24, envMapIntensity: 0.95 }),
+            body: std({ color: mix(0x2b3340, 0.30), metalness: 0.9, roughness: 0.24, envMapIntensity: 0.95 }),
             dark: std({ color: 0x161b22, metalness: 0.7, roughness: 0.4 }),
             trim: new THREE.MeshBasicMaterial({ color: c.clone().offsetHSL(0, 0.1, 0.22) }), // 언릿 발광 라인
         };
@@ -2503,7 +2582,9 @@ const Scene3D = {
     substanceMats(base, sub, age) {
         const ac = new THREE.Color(AGE_COLORS[age] !== undefined ? AGE_COLORS[age] : 0xb0bec5);
         const tone = (hex, t) => new THREE.Color(hex).lerp(ac, t === undefined ? 0.22 : t);
-        const std = o => new THREE.MeshStandardMaterial(o);
+        // 물질로 갈아끼운 body 도 **시대 셰이딩은 그대로 탄다** — 안 그러면 이름 있는 장비만
+        // 에지 웨어·크레비스가 빠져 한 목록 안에서 셰이딩이 갈린다(시대 계열은 base.kind 가 안다).
+        const std = o => this.ageShade(new THREE.MeshStandardMaterial(o), base.kind);
         const rock = ProChar.rockTex(), leather = ProChar.leatherTex(), metal = ProChar.metalTex();
         let body = null, dark = null;
         switch (sub) {
@@ -2573,6 +2654,9 @@ const Scene3D = {
         const m = base.clone();
         m.color = base.color.clone().offsetHSL(0, 0, dl || 0);
         if (opt) Object.assign(m, opt);
+        // ⚠️ THREE.Material.copy() 는 onBeforeCompile 을 복사하지 않는다 — 재적용하지 않으면
+        //    파생 재질(파울드론 아랫장·파울드·커프…)만 시대 셰이딩이 빠져 한 모델 안에서 갈린다.
+        if (base.userData && base.userData.ageShade) this.ageShade(m, base.userData.ageShade);
         return m;
     },
 
@@ -3014,7 +3098,15 @@ const Scene3D = {
         style = style || 'plate';
         // 가죽·로브는 판금 재질을 쓰면 '철판 원피스'로 읽힌다 — 시대색은 유지한 채 금속기만 뺀다
         const soft = style === 'hide' || style === 'robe';
-        const mat = soft ? this.tintOf(mats.body, -0.02, { metalness: 0.03, roughness: 0.9, envMapIntensity: 0.3 }) : mats.body;
+        // 천·가죽은 시대 계열 셰이딩(판금의 에지 웨어)이 아니라 **천 프로파일**을 탄다 — 안 그러면
+        // 로브에 강철 모서리 반짝임이 얹힌다. tintOf 가 base 의 계열을 물려주므로 여기서 덮어쓴다.
+        // ⚠️ 명도차도 시대마다 줘야 한다 — 셰이딩 프로파일만 갈랐더니 근세(왁스 캔버스)와 현대(기술섬유)
+        //    로브의 평균 휘도가 171.7 vs 163.6 으로 붙어 재질분리 0.68 로 여전히 반려됐다.
+        //    천은 '시대별 소재'가 곧 밝기다: 생가죽은 그을리고, 모직은 중간, 캔버스는 볕에 바래 밝고,
+        //    기술섬유는 무광 흑회색, 발광 섬유는 어둡되 림이 산다.
+        const SOFT_DL = { primal: -0.06, forged: 0.01, brass: 0.06, polymer: -0.21, alloy: -0.10 };
+        const mat = soft ? this.ageShade(this.tintOf(mats.body, SOFT_DL[mats.kind] !== undefined ? SOFT_DL[mats.kind] : -0.02,
+            { metalness: 0.03, roughness: 0.9, envMapIntensity: 0.3 }), 'soft:' + mats.kind) : mats.body;
         // ── 몸통: 0.46×0.5×0.3 상자 → **단면 링을 쌓은 곡면 흉갑** (비평가 지적 ㉯⑴) ──
         // 아랫단이 벌어지고(플레어) 허리가 잘록해지며 가슴이 가장 두껍고 목으로 좁아진다.
         // 폭·높이는 예전 상자와 맞춰 둔다(rx 0.238×2≈0.46) — 부속(견갑·망토)·시대 트림의 좌표가
