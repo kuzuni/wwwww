@@ -9,8 +9,9 @@ const League = {
 
     NAME_POOL: ['loui', 'Sarah21', 'Robson', 'EN', 'Asteryth', 'BlandBuddy22667', 'moonzzanf', 'Kite', 'Draven',
         'Yumi', 'Torval', 'Pixelbee', 'Nova', 'Rax', 'Sable', 'Junho', 'Milkteeth', 'Orin', 'Zephyr', 'Quill'],
-    AVATAR_POOL: ['🧑‍🚀', '🦖', '🥷', '🧙', '🧛', '🧟', '🦸', '🧑‍🎤', '👽', '🤠',
-        '🧑‍🌾', '🧑‍🚒', '🧑‍✈️', '🧑‍🔬', '🧑‍🎨', '🥋', '🎃', '👑', '🐺', '🦊'],
+    // 아바타는 icongen.js 의 공용 AVATAR_POOL 한 벌을 쓴다(리그 봇 얼굴이 채팅 공유 카드로도
+    // 넘어가므로 화면별로 다른 목록을 두면 한 화면에 두 화풍이 섞인다).
+    get AVATAR_POOL() { return AVATAR_POOL; },
 
     ensure() {
         if (!S.league || !S.league.bots) this.startSeason();
@@ -68,7 +69,7 @@ const League = {
 
     // 나를 포함한 전체 랭킹(점수 내림차순)
     board() {
-        const me = { name: S.nickname || '용사', avatar: S.avatarEmoji || '🛡️', cp: Combat.combatPower(), score: S.league.score, server: '나', isMe: true };
+        const me = { name: S.nickname || '용사', avatar: S.avatarEmoji || DEFAULT_AVATAR, cp: Combat.combatPower(), score: S.league.score, server: '나', isMe: true };
         return [...S.league.bots, me].sort((a, b) => b.score - a.score);
     },
     myRank() { return this.board().findIndex(e => e.isMe) + 1; },

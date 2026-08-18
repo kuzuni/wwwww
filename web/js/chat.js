@@ -5,7 +5,8 @@ const Chat = {
     CLAN_TAGS: ['C', 'KO', 'FRY', 'MELK', 'LGBT', 'ZX', 'GG', 'EU', 'NA', ''],
     NAMES: ['Pirimid', 'Imax', 'Bearopotamus', 'Jennzee', 'MilkMessiah', 'Draven', 'Nova', 'Sable',
         'Kite', 'Zephyr', 'Torval', 'Rax', 'Orin', 'Quill', 'Yumi', 'moonzzanf', 'loui', 'Robson'],
-    AVATAR_POOL: ['🧑‍🚀', '🦖', '🥷', '🧙', '🧛', '🧟', '🦸', '👽', '🤠', '🐺', '🦊', '🐯'],
+    // 아바타는 icongen.js 의 공용 AVATAR_POOL 한 벌을 쓴다(공유 카드에 리그 봇 얼굴이 섞여 들어온다).
+    get AVATAR_POOL() { return AVATAR_POOL; },
     LINES: [
         'gg', 'anyone farming chapter 5?', '오늘 던전 열쇠 다 씀 ㅠㅠ', '누구 대장간 레벨 몇이에요?',
         'hello everyone, hope you all are good', 'good evening', 'lol nice pull', '방금 전설 떴다!!',
@@ -92,14 +93,14 @@ const Chat = {
     sendPlayer(text) {
         text = (text || '').trim();
         if (!text) return false;
-        this.push({ type: 'msg', name: S.nickname || '용사', avatar: S.avatarEmoji || '🛡️', gender: S.gender || '♂',
+        this.push({ type: 'msg', name: S.nickname || '용사', avatar: S.avatarEmoji || DEFAULT_AVATAR, gender: S.gender || '♂',
             tag: '', text: text.slice(0, 200), at: U.now(), mine: true });
         return true;
     },
 
     // 리그 도전 결과를 공유 카드로 자동 게시 (UI-SPEC 28번 "전투 공유 카드")
     shareLeagueResult(win, myCp, opp) {
-        this.push({ type: 'share', win, myName: S.nickname || '용사', myAvatar: S.avatarEmoji || '🛡️', myCp,
+        this.push({ type: 'share', win, myName: S.nickname || '용사', myAvatar: S.avatarEmoji || DEFAULT_AVATAR, myCp,
             oppName: opp.name, oppAvatar: opp.avatar, oppCp: opp.cp, at: U.now(), mine: true });
     },
 

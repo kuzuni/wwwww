@@ -824,7 +824,7 @@ const UI = {
         const cp = Combat.combatPower();
         this.els.topbar.innerHTML = `
             <div class="profile-card" onclick="UI.openProfile()">
-                <span class="avatar">${S.avatarEmoji || '🛡️'}</span>
+                <span class="avatar">${S.avatarEmoji || DEFAULT_AVATAR}</span>
                 <div class="profile-info">
                     <span class="nickname">${U.escapeHtml(S.nickname || '용사')}</span>
                     <span class="cp">${IconGen.img('power')} ${U.fmt(cp)}</span>
@@ -3236,7 +3236,9 @@ const UI = {
     onBuyGems() { this.toast('💎 데모 버전에서는 결제를 지원하지 않습니다'); },
 
     // ---- 프로필/설정 팝업 (UI-SPEC 19~20번): 프로필(이름·아바타 편집) / 설정(음악·사운드 실동작 토글) ----
-    AVATAR_POOL: ['🛡️', '🧙', '🥷', '🦸', '🧝', '🧛', '🐲', '🦖', '🐺', '🦊', '🐯', '👑'],
+    // 고를 수 있는 아바타 = icongen.js 의 공용 AVATAR_POOL 한 벌(24종). 예전에는 여기 12종만 있어
+    // 리그·채팅에서 마주치는 얼굴을 정작 내가 고를 수 없었다.
+    get AVATAR_POOL() { return AVATAR_POOL; },
     _profileView: 'profile', _avatarPicking: false,
     openProfile() { this._profileView = 'profile'; this._avatarPicking = false; this.renderProfile(); this.showModal(this.els.profileModal); },
     closeProfile() { this.els.profileModal.classList.add('hidden'); },
@@ -3248,14 +3250,14 @@ const UI = {
     renderProfileView() {
         const avatarPicker = this._avatarPicking
             ? `<div class="avatar-pick-grid">${this.AVATAR_POOL.map(e =>
-                `<button class="avatar-pick-btn ${e === (S.avatarEmoji || '🛡️') ? 'on' : ''}" onclick="UI.onPickAvatar('${e}')">${e}</button>`).join('')}</div>` : '';
+                `<button class="avatar-pick-btn ${e === (S.avatarEmoji || DEFAULT_AVATAR) ? 'on' : ''}" onclick="UI.onPickAvatar('${e}')">${e}</button>`).join('')}</div>` : '';
         this.els.profileModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card wide profile-sheet">
                     <div class="profile-title">프로필</div>
                     <div class="profile-top">
                         <div class="profile-avatar-box">
-                            <span class="profile-avatar-big">${S.avatarEmoji || '🛡️'}</span>
+                            <span class="profile-avatar-big">${S.avatarEmoji || DEFAULT_AVATAR}</span>
                             <button class="profile-edit-btn" title="아바타 변경" onclick="UI.onToggleAvatarPick()">${IconGen.img('pencil')}</button>
                         </div>
                         <div class="profile-fields">
@@ -3407,7 +3409,7 @@ const UI = {
                 <div class="modal-card wide">
                     <div class="pinfo-header">
                         <div class="pinfo-id">
-                            <span class="avatar">${S.avatarEmoji || '🛡️'}</span>
+                            <span class="avatar">${S.avatarEmoji || DEFAULT_AVATAR}</span>
                             <div class="pinfo-id-text">
                                 <span class="name">${U.escapeHtml(S.nickname || '용사')} <span class="muted">[무소속]</span></span>
                                 <span class="clan">${S.gender || '♂'} · 서버 1</span>
