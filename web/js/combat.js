@@ -319,11 +319,14 @@ const Combat = {
         dmg = Big.of(dmg);
         e.hp = e.hp.sub(dmg);
         SFX.hit(crit);
-        Scene3D.hitEnemy(e.id, dmg, crit, kind);
+        // 이 한 방이 처치타인지는 **여기서 이미 안다**(hp 를 깎은 뒤라 부호가 확정됐고, 아래 처치 분기와
+        // 같은 조건이다). 숫자 위계 3티어의 최상단을 세우려면 연출 쪽이 그걸 알아야 한다.
+        const kill = !e.hp.isPos();
+        Scene3D.hitEnemy(e.id, dmg, crit, kind, kill);
         // 서브스탯 '생명력 흡수': 영웅이 입힌 피해의 일부를 회복
         const st = this.hero.stats;
         if (st && st.lifesteal) this.hero.hp = this.hero.hp.add(dmg.mul(st.lifesteal / 100)).min(this.hero.maxHp);
-        if (!e.hp.isPos()) {
+        if (kill) {
             e.alive = false;
             this.onKill(e);
             Scene3D.killEnemy(e.id, e.isBoss);

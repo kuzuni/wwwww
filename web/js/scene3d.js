@@ -5992,7 +5992,7 @@ const Scene3D = {
         o.shakeY = s > 0.02 ? U.rand(-1, 1) * s * 0.025 : 0;
     },
 
-    hitEnemy(id, dmg, crit, kind) {
+    hitEnemy(id, dmg, crit, kind, kill) {
         const m = this.enemyMap.get(id);
         if (!m) return;
         const e = Combat.enemies.find(x => x.id === id);
@@ -6057,7 +6057,10 @@ const Scene3D = {
         // 타격과 다른 사건으로 갈린다. 지금은 **임팩트 프레임에 태우되 애니메이션만 프리즈 동안 멈춰
         // 둔다** — 원래 우려('월드는 멈췄는데 DOM 숫자만 날아가 시간축이 갈라진다')는 등장이 아니라
         // 이동이 문제였으므로, 정지한 채 떠 있으면 둘 다 만족한다.
-        const cls = kind === 'skill' ? 'dmg-skill' : crit ? 'dmg-crit' : 'dmg';
+        // 3티어: 일반(흰 1rem) < 크리(주황 1.15rem) < **처치(흰 코어+주황 글로우 1.3rem+오버슛)**.
+        // 처치타가 크리와 같은 클래스로 태어나면 '마지막 한 방'이 그냥 큰 크리로 읽힌다(비평가 5차 A #8·B #3).
+        // 처치는 크리·스킬보다 우선한다 — 한 프레임에 둘 다 참일 때 더 위 티어가 이겨야 위계가 안 뒤집힌다.
+        const cls = kill ? 'dmg-kill' : kind === 'skill' ? 'dmg-skill' : crit ? 'dmg-crit' : 'dmg';
         // 숫자는 HP바 위로 바 높이(0.135)의 2.2배 이상 띄운다 — 예전 고정 1.25는 큰 적에서 바와 겹쳐
         // 숫자가 바를 가리고 둘 다 못 읽혔다(비평가 2차 ⓔ). 크리는 항상 일반보다 한 슬롯 위.
         // ⚠️ 높이는 **바의 실제 월드 좌표**에서 뽑는다. 예전에는 `m.barY * m.baseScale` 로 근사했는데
@@ -6070,7 +6073,7 @@ const Scene3D = {
         if (m.hpBg) {
             m.hpBg.getWorldPosition(bw);
             const bs = m.barBase !== undefined ? m.barBase : (m.hpG ? m.hpG.scale.y : 1); // 펀치가 섞인 live scale 대신 기준값
-            numY = (bw.y - pos.y) + 0.135 * 0.5 * bs + 0.30 + (crit ? 0.3 : 0);
+            numY = (bw.y - pos.y) + 0.135 * 0.5 * bs + 0.30 + (crit ? 0.3 : 0) + (kill ? 0.22 : 0);
         } else {
             numY = (m.barY || 1.1) * (m.baseScale || 1) + 0.135 * 2.2 + (crit ? 0.3 : 0);
         }

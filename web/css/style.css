@@ -271,6 +271,14 @@ body {
 /* 크리 위계는 '크기'가 아니라 색·펀치로 준다 — 1.5rem은 화면 폭 1/3을 먹고 대상과 HP바를 가렸다 */
 .float-dmg.dmg-crit { color: #ff8a1e; font-size: 1.15rem; animation-name: dmgcrit;
     text-shadow: 0 0 9px rgba(255,109,0,.7), 0 2px 5px rgba(0,0,0,.6); }
+/* 처치타 = 세 번째 티어. 마지막 한 방이 크리와 **같은 42px 주황**이라 '적이 죽었다'가 숫자에서
+   전혀 안 읽혔다(비평가 5차 A #8 · B #3: 크리 `320` 과 처치 `10.00K` 가 동급). 위계 축을 색으로 한 번 더
+   벌리면 크리와 구분이 안 되므로(둘 다 주황이 상한이다) **코어 명도**로 준다 — 흰 코어에 주황 글로우를
+   두 겹 깔아 '흰 불꽃'으로 태우고, 스케일 오버슛으로 한 박자를 더 준다. 크기는 1.3배까지만 —
+   1.5rem 은 화면 폭 1/3을 먹어 대상과 HP바를 가린 전력이 있다(위 dmg-crit 주석). */
+.float-dmg.dmg-kill { color: #fff; font-size: 1.3rem; animation-name: dmgkill;
+    -webkit-text-stroke: 1px rgba(62,20,0,.95);
+    text-shadow: 0 0 5px rgba(255,244,214,.95), 0 0 15px rgba(255,138,30,.9), 0 0 30px rgba(255,87,34,.5), 0 2px 6px rgba(0,0,0,.6); }
 .float-dmg.dmg-skill { color: #82b1ff; font-size: 1.1rem; }
 /* 영웅이 맞은 피해 — 적 숫자(흰/주황)와 소유자가 헷갈리면 안 되므로 붉은 계열로 못 박고,
    흐름도 반대쪽(왼쪽)으로 흘린다. 크기는 일반 피해와 같게 둔다(내 피해가 적 피해보다 커 보이면 위계가 뒤집힌다).
@@ -306,6 +314,20 @@ body {
     26%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .62), calc(-50% + var(--rise))) scale(calc(var(--pop) * 1.05)) rotate(-3deg); }
     60%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .88), calc(-50% + var(--rise) * .76)) scale(var(--pop)) rotate(1deg); }
     100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--rise) * .66)) scale(calc(var(--pop) * .92)) rotate(0deg); }
+}
+
+/* 처치타 아크 — 크리보다 한 단계 더: 태어날 때부터 크고(1.28) 곧장 **오버슛(1.62)** 했다가
+   1.34 로 되튀는 2단 펀치. 크리(1.12→1.35)와 나란히 놓았을 때 '한 티어 위'가 정지 프레임에서도
+   읽히게 하는 게 목적이라, 색이 아니라 스케일·글로우 반경의 차이로 벌린다. */
+@keyframes dmgkill {
+    0%   { opacity: 1; transform: translate(-50%,-50%) scale(calc(var(--pop) * 1.28)) rotate(-6deg);
+           text-shadow: 0 0 4px #fff, 0 0 18px rgba(255,224,150,.98), 0 0 34px rgba(255,87,34,.7), 0 2px 6px rgba(0,0,0,.6); }
+    7%   { opacity: 1; transform: translate(calc(-50% + var(--dx) * .12), calc(-50% + var(--rise) * .26)) scale(calc(var(--pop) * 1.62)) rotate(3deg);
+           text-shadow: 0 0 7px #fff, 0 0 26px rgba(255,196,90,.95), 0 0 46px rgba(255,87,34,.6), 0 2px 6px rgba(0,0,0,.6); }
+    17%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .3), calc(-50% + var(--rise) * .52)) scale(calc(var(--pop) * 1.34)) rotate(-2deg); }
+    30%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .58), calc(-50% + var(--rise) * .86)) scale(calc(var(--pop) * 1.44)) rotate(1deg); }
+    62%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .88), calc(-50% + var(--rise) * .94)) scale(calc(var(--pop) * 1.2)); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--rise) * .8)) scale(calc(var(--pop) * 1.05)); }
 }
 
 /* ---- 스킬 슬롯 (전투 화면 우중단 — UI-SPEC 1번: 초록 자동 토글 + 검은 원형 버튼 3개) ---- */
