@@ -621,20 +621,71 @@ const ProChar = {
         root.add(pelvis);
         R.bones.pelvis = pelvis;
         // 골반 장갑(스커트 판) — 앞뒤 곡면 판 + 벨트
-        const skirtMat = steelDark();
-        skirtMat.side = THREE.DoubleSide;
         // 상단 0.205→0.19 / 밑단 0.295→0.30 — 흉갑 밑단을 0.163으로 조인 것에 맞춰 스커트 상단도
         // 함께 좁힌다. 안 좁히면 스커트 림이 잘록해진 허리보다 밖으로 튀어나와 허리 꺾임을 덮어버린다.
         // 상수로 뽑아 둔다 — 아래 태싯 스트랩이 스커트 원뿔면 위에 정확히 얹히도록 여기서 역산한다
-        const SK_TOP = 0.19, SK_BOT = 0.30, SK_H = 0.18, SK_Y = -0.045;
-        const skirt = new THREE.Mesh(new THREE.CylinderGeometry(SK_TOP, SK_BOT, SK_H, 14, 1, true), skirtMat); // 밑단 플레어 — 허리→밑단 벌어지는 실루엣 꺾임
-        skirt.position.y = SK_Y;
-        const hem = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.014, 6, 16), gold);
-        hem.rotation.x = Math.PI / 2;
-        hem.position.y = -0.135;
+        // ⚠️ 2026-08-18 6차 비평가 재지적 ㉤(양쪽 합의): "스커트가 완벽한 원형 헴을 가진 원뿔(= 갓등) +
+        //    헴이 어깨만큼 넓어 역삼각이 죽는다". 처방 두 가지를 그대로 넣는다.
+        //  ⑴ **헴 지름 ≤ 어깨 지름 × 0.62** — 어깨는 어깨폭 ±0.29 + 견갑 반경 0.113 = 지름 0.806.
+        //     0.806 × 0.62 = 0.500 → 헴 반경 상한 0.250. SK_BOT 0.30 → **0.248**(비 0.615).
+        //  ⑵ **헴을 개별 태싯으로 절개** — 통짜 원뿔은 어느 각도에서도 매끈한 원호 하나라 '갓등'을 못 벗는다.
+        //     6장으로 가르고, 간극을 **위 4° → 아래 7°** 로 벌려 틈 자체가 V 로 열리게 한다(처방 4~6° 대역).
+        //     전면 중앙(θ=0)은 간극을 2배로 줘 **중앙 V 노치**를 만든다.
+        const SK_TOP = 0.19, SK_BOT = 0.248, SK_H = 0.18, SK_Y = -0.045;
+        // 태싯 판 — CylinderGeometry 로는 못 만든다(theta 범위가 높이에 따라 변할 수 없어 간극이 V 로 안 열린다).
+        // 그래서 (theta, y) 격자를 직접 떠서 위/아래 theta 경계를 따로 받는 곡면 판을 만든다.
+        const tassetPlate = (rT, rB, h, yTop, aT0, aT1, aB0, aB1, mat) => {
+            const SEG_T = 6, SEG_Y = 2;
+            const pos = [], nor = [], idx = [];
+            const ny = (rB - rT) / h;   // 원뿔 측면 법선의 y 성분 (밑으로 벌어지면 법선이 위를 향한다)
+            for (let j = 0; j <= SEG_Y; j++) {
+                const v = j / SEG_Y;
+                const r = rT + (rB - rT) * v, y = yTop - h * v;
+                const t0 = aT0 + (aB0 - aT0) * v, t1 = aT1 + (aB1 - aT1) * v;
+                for (let i = 0; i <= SEG_T; i++) {
+                    const th = t0 + (t1 - t0) * (i / SEG_T);
+                    const s = Math.sin(th), c = Math.cos(th);
+                    pos.push(r * s, y, r * c);
+                    const n = new THREE.Vector3(s, ny, c).normalize();
+                    nor.push(n.x, n.y, n.z);
+                }
+            }
+            for (let j = 0; j < SEG_Y; j++) for (let i = 0; i < SEG_T; i++) {
+                const a = j * (SEG_T + 1) + i, b = a + 1, c2 = a + SEG_T + 1, d = c2 + 1;
+                idx.push(a, c2, b, b, c2, d);
+            }
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+            g.setIndex(idx);
+            return new THREE.Mesh(g, mat);
+        };
+        const D = Math.PI / 180;
+        const N_TASSET = 6, SEG_A = (Math.PI * 2) / N_TASSET;
+        const GAP_T = 4 * D, GAP_B = 7 * D;          // 간극: 위 4° → 아래 7° (틈이 V 로 열린다)
+        const NOTCH_T = 4 * D, NOTCH_B = 7 * D;      // 전면 중앙만 간극 2배 = V 노치
+        // 태싯 본체는 **FrontSide** 로 둔다 — DoubleSide 면 인버티드 헐 아웃라인 대상에서 빠져(재질 필터)
+        // 절개선이 테두리로 안 읽힌다. 안쪽은 바로 뒤의 니어블랙 안감(skirtLine, DoubleSide)이 받는다.
+        const tassetMat = steelDark();
+        const tassets = [], hemRims = [];
+        for (let k = 0; k < N_TASSET; k++) {
+            const cA = (k + 0.5) * SEG_A, b0 = cA - SEG_A / 2, b1 = cA + SEG_A / 2;
+            let g0T = GAP_T / 2, g1T = GAP_T / 2, g0B = GAP_B / 2, g1B = GAP_B / 2;
+            if (k === 0) { g0T += NOTCH_T / 2; g0B += NOTCH_B / 2; }               // b0 = θ0 = 정면 중앙
+            if (k === N_TASSET - 1) { g1T += NOTCH_T / 2; g1B += NOTCH_B / 2; }    // b1 = θ360 = 같은 자리
+            const aT0 = b0 + g0T, aT1 = b1 - g1T, aB0 = b0 + g0B, aB1 = b1 - g1B;
+            const t = tassetPlate(SK_TOP, SK_BOT, SK_H, SK_Y + SK_H / 2, aT0, aT1, aB0, aB1, tassetMat);
+            tassets.push(t);
+            // 밑단 금 테 — 통짜 토러스를 쓰면 갈라 놓은 태싯을 다시 한 줄로 이어 붙여 절개가 무의미해진다.
+            // 태싯마다 **자기 밑단 호**만 두른다(같은 theta 경계라 정렬이 어긋날 수 없다).
+            const rim = tassetPlate(SK_BOT + 0.004, SK_BOT + 0.004, 0.018, SK_Y - SK_H / 2 + 0.018, aB0, aB1, aB0, aB1, gold);
+            hemRims.push(rim);
+        }
         // 스커트 안감 — 판금 셸 바로 안쪽에 니어블랙 원통을 겹쳐 밑단 플레어 아래가 '빈 껍데기'가 아니라
         // 그늘진 두께로 읽히게. 실루엣 하단에 어두운 값 면적을 크게 확보하는 핵심 파츠다.
-        const skirtLine = new THREE.Mesh(new THREE.CylinderGeometry(0.182, 0.291, 0.178, 14, 1, true), deepLine);
+        // 절개 후에는 역할이 하나 더 생겼다 — **태싯 사이 간극으로 보이는 것이 이 안감**이라, 간극이
+        // '배경이 뚫려 보이는 구멍'이 아니라 '판금 밑 그늘'로 읽힌다. 밑단은 SK_BOT 축소에 맞춰 같이 줄인다.
+        const skirtLine = new THREE.Mesh(new THREE.CylinderGeometry(0.182, 0.240, 0.178, 14, 1, true), deepLine);
         skirtLine.position.y = -0.048;
         // 벨트 — 허리를 실제로 '조이는' 파츠. 폭을 흉갑 밑단(x 0.170)과 스커트 상단(0.19) 사이로 좁히고
         // 높이를 0.07→0.1로 늘려 스커트 상단(월드 0.615)부터 흉갑 밑단(0.715)까지 빈틈 없이 잇는다.
@@ -663,11 +714,13 @@ const ProChar = {
             tassetStrap.rotation.x = Math.atan2(zTop - zBot, STRAP_HALF * 2); // 원뿔 경사와 평행 (음수 = 위가 뒤로)
             pelvis.add(tassetStrap);
         }
-        pelvis.add(skirt, skirtLine, hem, belt, buckle);
+        pelvis.add(...tassets, ...hemRims, skirtLine, belt, buckle);
         // 탑승 정합의 기준점 — 안장에 실제로 닿는 건 골반 뼈가 아니라 **스커트(태싯) 밑단**이다.
         // 골반 기준으로 안장 높이를 역산하면 밑단(약 0.149 아래)이 그만큼 탈것 몸통을 파고든다
         // (mount-ride 비평가 지적 ⓑ). scene3d.heroSeatDropY()가 이 두 파츠에서 낙차를 실측한다.
-        R.seatParts = [skirt, hem, skirtLine];
+        // 태싯을 개별 메시로 가르면서 목록도 낱개로 넘긴다 — heroSeatDropY 는 `part.geometry` 가 있는 것만
+        // 세므로 그룹으로 묶어 넘기면 통째로 건너뛰어 낙차가 기본값 0.149 로 고정된다.
+        R.seatParts = [...tassets, ...hemRims, skirtLine];
         aoRing(0.186, 0.02, pelvis, 0.005, 0.5); // 벨트 아래 접촉 그림자 (벨트 축소 0.2→0.176에 맞춰)
 
         // 다리: 고관절 → 대퇴 → 무릎 → 정강이 → 부츠 (분절 피벗)
