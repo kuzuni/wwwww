@@ -714,14 +714,24 @@ body {
     animation: anvilbump .72s linear;
     transform-box: view-box; transform-origin: 50% 92%;   /* 받침 접지면이 축 */
 }
+/* ⚠️ 압축 자세를 **망치의 드웰 내내 붙잡는다**. 예전엔 24% 에 눌렸다가 26.5% 에 벌써 되튀어,
+   망치는 18ms 멈춰 있는데 모루는 0ms 멈췄다 — 접촉 중에는 둘이 같이 서 있어야 '맞물렸다'로 읽힌다.
+   ⚠️ 1·2타 압축이 완전히 같아(3px/.94) 위계가 2단이었다. 2.4/3.4/5px·.952/.932/.89 로 3단 램프.
+   ⚠️ 여기서 정한 압축량이 **망치가 따라 내려가야 할 깊이**를 결정한다(afswing 참조).
+   원점이 50% 92%(=유닛 79.12)이므로 상판(y=14)의 하강량은
+     drop = 79.12 + (14 − 79.12)·scaleY + translateY − 14
+   → 1타 5.53 / 2타 7.83 / 3타 12.16 유닛. afswing 의 접촉 translate 가 이 값이다. */
 @keyframes anvilbump {   /* 타격마다 모루가 눌렸다 되튄다 */
-    0%, 20%, 32%, 53%, 65%, 86%, 100% { transform: translateY(0) scale(1, 1); }
-    24%   { transform: translateY(3px)   scale(1.03, .94); }
-    26.5% { transform: translateY(-1.2px) scale(.99, 1.02); }
-    57%   { transform: translateY(3px)   scale(1.03, .94); }
-    59%   { transform: translateY(-1.2px) scale(.99, 1.02); }
-    90%   { transform: translateY(5px)   scale(1.06, .89); }   /* 마지막 타격이 가장 깊다 */
-    93%   { transform: translateY(-2px)  scale(.98, 1.04); }
+    0%, 20%, 34%, 53%, 67%, 86%, 100% { transform: translateY(0) scale(1, 1); }
+    24%   { transform: translateY(2.4px) scale(1.025, .952); }
+    28%   { transform: translateY(2.4px) scale(1.025, .952); }   /* 망치와 같이 멈춘다 */
+    31%   { transform: translateY(-1.1px) scale(.99, 1.018); }
+    57%   { transform: translateY(3.4px) scale(1.04, .932); }
+    61%   { transform: translateY(3.4px) scale(1.04, .932); }
+    64%   { transform: translateY(-1.4px) scale(.988, 1.024); }
+    90%   { transform: translateY(5px)   scale(1.06, .89); }     /* 마지막 타격이 가장 깊다 */
+    96.5% { transform: translateY(5px)   scale(1.06, .89); }
+    99%   { transform: translateY(-2px)  scale(.98, 1.04); }
 }
 /* 화면 흔들림 — 항목 스펙의 '미세 화면 흔들림'을 여기서 판다.
    ⚠️ `Scene3D.shake` 로는 이 연출에서 **아무도 흔들림을 못 본다**: 그건 시트 뒤 3D 씬만 흔드는데
@@ -761,9 +771,12 @@ body {
        끝까지 살리기 위해서지 망치를 공중에 세워 두려는 게 아니다. */
     animation: afswing .72s linear forwards, afexit .16s cubic-bezier(.35,0,.75,.4) .72s forwards;
 }
-@keyframes afexit {   /* 감아 올린 자세 그대로 화면 위로 빠진다 */
-    0%   { transform: translate(5px, -34px)  rotate(-46deg); opacity: 1; }
-    100% { transform: translate(8px, -62px)  rotate(-64deg); opacity: 0; }
+/* 3타의 되튐 + 퇴장을 한 번에 맡는다(160ms에 70° = 0.44°/ms — 타격 1.0°/ms 의 0.44배).
+   0% 자세는 afswing 100% 와 **같아야** 720ms 경계에서 안 튄다. */
+@keyframes afexit {
+    0%   { transform: translate(1px, 4px)    rotate(6deg);   opacity: 1; }
+    45%  { transform: translate(4px, -24px)  rotate(-32deg); opacity: 1; }
+    100% { transform: translate(8px, -66px)  rotate(-64deg); opacity: 0; }
 }
 /* 거치 각(-20°)에 이 회전이 더해진다 — 타격 프레임을 +10~16°로 둬야 합이 -10°~-4°라 **타격면이
    상판과 거의 나란히** 닿는다(0°로 두면 -20° 기울어 머리 왼쪽 모서리로만 찍힌다).
@@ -772,25 +785,35 @@ body {
    고정돼 '내리친다'가 아니라 '진자가 흔들린다'로 읽혔고, 접촉 dwell이 0프레임이라 '쾅'이 없었다.
    지금은 윈드업 뒤 79ms 저속 → 36ms 급가속 → 정지(dwell) → 되튐 순서다.
    위계: 윈드업 리프트 12→18→31유닛(2.6배), 최종 각속도 0.39→1.0°/ms(2.6배). */
+/* ⚠️ 접촉 프레임의 translateY 는 **모루 상판이 눌려 내려간 깊이와 같아야 한다**(anvilbump 참조:
+   5.53 / 7.83 / 12.16 유닛). 예전엔 .6 / .8 / 1.6 유닛뿐이라 모루만 내려가고 망치는 제자리여서
+   **접촉 프레임에 4.7 / 4.6 / 8.3px 의 틈이 벌어졌다**(상판 폭의 15%). 관객이 '닿았다'고 보는
+   프레임이 타격 2프레임 뒤로 밀려 소리와 그림이 어긋났다. x 값은 모루의 scaleX 로 접점이
+   왼쪽으로 밀리는 만큼(−0.28 / −0.44 / −0.66)을 따라간 것이다.
+   ⚠️ 드웰을 18 → 33 / 29 / 47ms(2·2·3프레임)로 늘렸다. 1.08프레임짜리 정지는 프레임 경계에
+   따라 접촉 자세가 아예 한 번만 렌더돼 '쾅'이 사라진다.
+   ⚠️ 되튐이 타격보다 **빨랐다**(각속도 1.13~1.23배) — 반발계수 >1 이라 '튕겼다'가 아니라
+   '손으로 잡아챘다'로 읽혔다. 달군 쇠는 에너지를 먹으니 되튐은 타격의 0.6배쯤이어야 한다.
+   3타는 되튐을 afswing 안에서 22ms에 62° 뽑던 것을 **afexit(160ms)에 넘겨** 0.44°/ms 로 낮췄다.
+   ⚠️ afexit 의 0% 는 이 애니메이션의 100% 와 반드시 같은 자세여야 한다(720ms에 튀지 않게). */
 @keyframes afswing {     /* 들어올렸다 내리치기 ×3 — 마지막은 더 크게 감아 올린다 */
     /* 등장·퇴장은 알파가 아니라 모션으로 — 정지 상태에서 페이드하면 '무에서 나타나 녹아 사라진다' */
-    0%    { transform: translate(6px, -46px)   rotate(-52deg); opacity: 0; }
-    4%    { transform: translate(4.4px, -33px) rotate(-38deg); opacity: 1; }
-    8%    { transform: translate(1px, -12px)   rotate(-14deg); }
-    19%   { transform: translate(.6px, -7px)   rotate(-4deg); }    /* 79ms에 10° = 저속 */
-    24%   { transform: translate(0, .6px)      rotate(10deg); }    /* 36ms에 14° = 3.1배 가속 */
-    26.5% { transform: translate(0, .6px)      rotate(10deg); }    /* 18ms 정지 */
-    29%   { transform: translate(.5px, -4px)   rotate(2deg); }     /* 되튐 */
+    0%    { transform: translate(6px, -62px)   rotate(-56deg); opacity: 0; }
+    9%    { transform: translate(2.6px, -22px) rotate(-26deg); opacity: 1; }  /* 프레임 밖에서 들어온다 */
+    14%   { transform: translate(1.4px, -13px) rotate(-11deg); }   /* 36ms에 15° = 저속 체공 */
+    24%   { transform: translate(-.28px, 5.53px) rotate(10deg); }  /* 72ms에 21°, 낙하 18유닛 */
+    28%   { transform: translate(-.28px, 5.53px) rotate(10deg); }  /* 33ms 정지(2프레임) */
+    33%   { transform: translate(.5px, -4px)   rotate(2deg); }     /* 되튐 36ms에 8° = 타격의 0.55배 */
     41%   { transform: translate(2px, -18px)   rotate(-22deg); }
-    52%   { transform: translate(1.2px, -11px) rotate(-9deg); }
-    57%   { transform: translate(0, .8px)      rotate(12deg); }
-    59.5% { transform: translate(0, .8px)      rotate(12deg); }    /* 18ms 정지 */
-    62%   { transform: translate(1px, -5px)    rotate(1deg); }
+    52%   { transform: translate(1.2px, -13px) rotate(-9deg); }
+    57%   { transform: translate(-.44px, 7.83px) rotate(12deg); }  /* 36ms에 21°, 낙하 21유닛 */
+    61%   { transform: translate(-.44px, 7.83px) rotate(12deg); }  /* 29ms 정지 */
+    65%   { transform: translate(1px, -5px)    rotate(1deg); }     /* 되튐 29ms에 11° = 0.63배 */
     74%   { transform: translate(4px, -31px)   rotate(-42deg); }   /* 3타 윈드업이 가장 크다 */
     85%   { transform: translate(2.4px, -18px) rotate(-20deg); }
-    90%   { transform: translate(0, 1.6px)     rotate(16deg); opacity: 1; }  /* 36ms에 36° */
-    93%   { transform: translate(0, 1.6px)     rotate(16deg); opacity: 1; }  /* 22ms 정지(최장) */
-    100%  { transform: translate(5px, -34px)   rotate(-46deg); opacity: 1; }
+    90%   { transform: translate(-.66px, 12.16px) rotate(16deg); opacity: 1; }  /* 36ms에 36°, 낙하 30유닛 */
+    96.5% { transform: translate(-.66px, 12.16px) rotate(16deg); opacity: 1; }  /* 47ms 정지(최장) */
+    100%  { transform: translate(1px, 4px)     rotate(6deg); opacity: 1; }      /* 되튐은 afexit 이 잇는다 */
 }
 /* 타격 링 파동 — 타격 시각에 맞춰 각각 지연을 다르게 준다. 상판이 살짝 누워 보이므로 원이 아니라 타원. */
 /* ⚠️ 지연은 타격(172.8 / 410.4 / 648ms)보다 **20ms 앞**에 둔다 — 60fps에서 접촉 프레임에 링의
@@ -849,18 +872,25 @@ body {
 /* 주황 상판(#d2582a~#b03f18) 위의 #ffd76a는 휘도 대비가 거의 없어 먼지 얼룩으로 읽혔다 → 근백색.
    중간 키프레임을 넣어 직선이 아니라 포물선으로 날리고, 균등 축소가 아니라 **진행 방향으로만**
    줄여 잔상처럼 가늘어지게 한다. */
-/* ⚠️ 이징을 앞으로 더 몰았다 — 불티는 **타격 프레임에 이미 머리 밖으로 나와 있어야** 보인다.
-   망치 머리 반폭이 10.6유닛이라 그 안에 있는 동안은 통째로 가려진다(예전 이징으로는 접촉
-   프레임에서 11유닛까지밖에 못 가 절반이 머리 뒤에 있었다). 첫 40ms에 거리의 60%를 뺀다. */
+/* 🚨 회전은 반드시 **키프레임 안**에 있어야 한다. `transform="rotate(...)"` 프레젠테이션 속성으로
+   주면 이 애니메이션의 `transform` 이 그것을 덮어 **연출이 시작되는 순간 회전이 증발**하고,
+   불티가 전부 수평 막대로 정렬돼 상판 뒷변의 '재봉선'이 된다(비평가 2인이 같은 그림을 지적).
+   ⚠️ 이동은 회전 뒤에 오므로 --u/--v 는 **회전 프레임 기준**이다(JS 가 풀어서 내려준다):
+   u = 발사 방향(등속), v = 중력(등가속). 그래서 중간 키가 u·.55 / v·.30 이면 정확한 포물선이다.
+   섞인 좌표(--dx/--dy)로 두면 중간점을 어떻게 잡아도 궤적이 현 아래로 처졌다 끝에 솟는다.
+   ⚠️ 두께 1유닛(0.70px)은 서브픽셀이라 반투명 회백으로 뭉개졌고 글로우(2.8px)가 본체의 4배라
+   네이티브에선 주황 번짐만 남았다 — 1.6유닛(1.1px) + 글로우 1.5px 로. */
 .anvil-fx .af-spark {
-    fill: #fff4c8; filter: drop-shadow(0 0 2.8px #ff7a00);
+    fill: #fffdf0; filter: drop-shadow(0 0 1.5px #ff7a00);
     transform-box: fill-box; transform-origin: 0% 50%;
-    opacity: 0; animation: afspark .26s cubic-bezier(0,.88,.24,1) forwards; animation-delay: var(--t, 0s);
+    opacity: 0;
+    animation: afspark var(--dur, .21s) cubic-bezier(0,.88,.24,1) forwards;
+    animation-delay: var(--t, 0s);
 }
 @keyframes afspark {
-    0%   { opacity: 1;  transform: translate(0, 0) scaleX(.7); }
-    55%  { opacity: .9; transform: translate(calc(var(--dx, 0) * .66), calc(var(--dy, 0) * .30)) scaleX(1); }
-    100% { opacity: 0;  transform: translate(var(--dx, 0), var(--dy, 0)) scaleX(.22); }
+    0%   { opacity: 1;  transform: rotate(var(--a, 0deg)) translate(0, 0) scaleX(.7); }
+    55%  { opacity: .9; transform: rotate(var(--a, 0deg)) translate(calc(var(--u, 0px) * .55), calc(var(--v, 0px) * .3)) scaleX(1); }
+    100% { opacity: 0;  transform: rotate(var(--a, 0deg)) translate(var(--u, 0px), var(--v, 0px)) scaleX(.22); }
 }
 .anvil-btn small { font-size: .8rem; font-weight: 900; color: var(--pp-ink); }
 .forge-actions { display: flex; gap: .3rem; }

@@ -79,8 +79,25 @@ async function waitBooted(page, timeout = 25000) {
     // 로컬(망치 프레임) 점 → 화면 좌표. 모루 상판 접점도 모루 SVG의 CTM으로 같이 뽑는다.
     const measureAt = async (pct) => page.evaluate((pct) => {
         const DUR = 720;
+        // ⚠️ 두 가지를 같이 고쳐야 접점이 제대로 측정된다.
+        //  ⑴ `.anvil-fx *` 만 멈추면 **모루(.anvil-svg)의 anvilbump 이 빠진다** — 접점 검사가
+        //     '타격 프레임의 망치 vs 아무 위상의 모루'를 재게 되어 이격이 있어도 1px 대로 나온다.
+        //  ⑵ 더 고약한 것: `anvilbump` 은 fill 이 없는 .72s 애니메이션이라 **측정 시점엔 이미 끝나
+        //     getAnimations() 에서 사라진다.** 그러면 currentTime 을 아무리 넣어도 모루는 정지
+        //     상태 그대로고, 측정값이 '연출을 언제 시작했는지'에 따라 달라진다(같은 코드에서
+        //     0.4px 과 4.5px 이 둘 다 나왔다 — 프로브가 흔들리고 있었다).
+        //     그래서 매 측정마다 연출을 **다시 걸어** 모든 애니메이션을 살아 있는 상태로 만든다.
+        //  ⑶ ⚠️ 그냥 cancel→play 로는 **재시작되지 않는다**. `.striking` 을 뗐다가 같은 태스크에서
+        //     다시 붙이면 스타일 재계산이 사이에 없어 브라우저는 클래스가 바뀐 적이 없는 것으로
+        //     보고 anvilbump 을 끝난 상태 그대로 둔다(고전적인 CSS 애니메이션 재시작 함정).
+        //     그래서 제거와 재부착 사이에 리플로우를 강제로 한 번 끼운다.
+        UI.cancelAnvilStrike(); UI._anvilBusy = false;
+        document.getElementById('equip-sheet').getBoundingClientRect();   // ← 이 한 줄이 재시작을 만든다
+        UI.playAnvilStrike(() => {});
+        (UI._anvilTimers || []).forEach(clearTimeout); UI._anvilTimers = [];
+        document.getElementById('equip-sheet').getBoundingClientRect();   // 스타일 해석 강제 → 애니메이션 생성
         const g = document.querySelector('.anvil-fx .af-hammer');
-        document.querySelectorAll('.anvil-fx *').forEach(n => n.getAnimations().forEach(a => { a.pause(); a.currentTime = DUR * pct / 100; }));
+        document.querySelectorAll('#equip-sheet, #equip-sheet *').forEach(n => n.getAnimations().forEach(a => { a.pause(); a.currentTime = DUR * pct / 100; }));
         const inner = g.querySelector('g');            // translate(55,14) rotate(-20) 배치 그룹
         const svg = document.querySelector('.anvil-fx');
         const anv = document.querySelector('.anvil-btn .anvil-svg');
@@ -89,10 +106,10 @@ async function waitBooted(page, timeout = 25000) {
             return p.matrixTransform(el.getScreenCTM());
         };
         // 랜드마크는 HAMMER_SVG 의 로컬 좌표를 그대로 가리킨다 — 조형을 바꾸면 여기도 같이 옮길 것.
-        // (2026-08-18 크로스핀 재조형: 자루 노브 x 43.8→48.4, 핀 끝 y -25→-31)
+        // (2026-08-18 크로스핀 재조형 2차: 자루 노브 x 48.4→58, 핀 끝 y -31→-30.6, 평행 몸통 58%)
         const face = map(inner, 0, 0.9);          // 타격면 중심
-        const butt = map(inner, 44, -12.6);       // 손잡이 끝(그립 노브)
-        const peen = map(inner, 0, -31);          // 머리 반대편(크로스 핀) 끝
+        const butt = map(inner, 53, -12.8);       // 손잡이 끝(그립 노브)
+        const peen = map(inner, 0, -30.6);        // 머리 반대편(크로스 핀) 끝
         const hitPt = (() => {                    // 모루 상판 접점 (viewBox 55,14)
             const p = anv.createSVGPoint(); p.x = 55; p.y = 14;
             return p.matrixTransform(anv.getScreenCTM());
@@ -114,7 +131,10 @@ async function waitBooted(page, timeout = 25000) {
     for (const f of FRAMES) {
         const m = await measureAt(f.pct);
         const d = Math.hypot(m.face.x - m.hit.x, m.face.y - m.hit.y);
-        const tol = m.anvilW * 0.07;   // 모루 폭의 7% 이내면 '접촉'으로 본다
+        // ⚠️ 7%(6.4px) 는 너무 헐거웠다 — 모루가 눌려 내려가는 동안 망치가 제자리에 남아 **4.7px
+        //    벌어진 채로도 통과**했다(비평가 두 명이 같은 이격을 1순위로 지목했다). 망치가 표면을
+        //    따라 내려가게 고친 지금 실측이 0.1~0.9px 이므로 2.5% 로 조인다.
+        const tol = m.anvilW * 0.025;
         if (!sizeReported) {
             sizeReported = true;
             const ratio = m.hammerW / m.anvilW;
@@ -186,6 +206,23 @@ async function waitBooted(page, timeout = 25000) {
         const rising = v.every((x, i) => i === 0 || (x !== null && x > v[i - 1]));
         say(rising, `⑧ 3타 위계 ${name}: ${v.join(' < ')} — 타격마다 엄격히 증가`);
     }
+
+    // ⑨ 🚨 불티가 실제로 **여러 방향으로** 날아가는가. 예전엔 회전을 `transform=` 프레젠테이션
+    //    속성으로 줬는데 같은 요소의 CSS 애니메이션이 transform 을 덮어 **연출 시작과 동시에
+    //    회전이 증발**했다 — 전부 수평 막대로 정렬돼 '재봉선'이 됐는데도 기하 검사는 전부
+    //    통과했다(회전은 어느 검사 대상도 아니었다). 실제 렌더 행렬의 각도 분포를 본다.
+    const spin = await page.evaluate(() => {
+        const DUR = 720;
+        document.querySelectorAll('.anvil-fx *').forEach(n => n.getAnimations().forEach(a => { a.pause(); a.currentTime = 700; }));
+        const angs = [...document.querySelectorAll('.anvil-fx .af-spark')].map(n => {
+            const m = new DOMMatrix(getComputedStyle(n).transform);
+            return Math.atan2(m.b, m.a) * 180 / Math.PI;
+        });
+        return angs;
+    });
+    const uniq = new Set(spin.map(a => Math.round(a / 6)));
+    say(spin.length > 0 && uniq.size >= 5,
+        `⑨ 불티 진행 각도 ${uniq.size}종 (표본 ${spin.length}개, 6° 구간 기준 ≥5 — 전부 같은 각이면 회전이 덮인 것)`);
     say(!!css.spark && css.spark.fill !== 'rgb(0, 0, 0)', `⑦ 불티 규칙 적용됨 — fill=${css.spark && css.spark.fill}`);
 
     // ⑥ 오버레이 수명 ≥ 가장 늦게 끝나는 자식 애니메이션. 예전엔 둘 다 720ms라 **3타(가장 강해야 할
