@@ -458,14 +458,20 @@ const Combat = {
         if (Dungeons.run) {
             Dungeons.onFail(); // 던전 실패는 후퇴 대상이 아니다 — 던전은 자체 단계를 쓴다
             this.leaveDungeon();
+            // 던전 사망에도 같은 사망 연출을 태운다(문구만 다름 — '스테이지 이동'이 아니라 본대 복귀).
+            // leaveDungeon의 sceneCut(420ms 하드컷 커버)이 배경 전환을 이미 가렸고, 그 뒤 암전이 온다.
+            Scene3D.deathFade('본대로 복귀합니다');
         } else {
             // 사망 시 1스테이지 후퇴 (사용자 지시 2026-08-17). 챕터는 절대 안 깎인다 —
             // 하한은 그 챕터의 X-1이라 3-1에서 죽어도 2-10으로 넘어가지 않는다.
             // 최고 기록(bestChapter/bestStage)은 후퇴로 깎이지 않는다 — 진행 패스 마일스톤이 되감기면 안 된다.
             const back = S.stage > 1;
             if (back) S.stage--;
-            // 사용자가 이름 대 이름으로 지목한 알림이다 — 팝업 위로 뜨면 안 된다('combat' 레인)
-            UI.toast(back ? `💀 쓰러졌다... ${S.chapter}-${S.stage}로 한 스테이지 후퇴!` : '💀 쓰러졌다... 회복 후 다시 도전!', 'combat');
+            // 사망 연출: 암전 + 중앙 배너 (death-fade-popup, 사용자 지시 2026-08-18 — "토스트가 아니라
+            // 눈에 확 띄는 알림"). 연출을 못 띄우는 환경(fxLayer 부재·WAAPI 미지원)에서만 옛 토스트로 강등
+            // — 그 토스트는 사용자가 이름 대 이름으로 지목했던 알림이라 'combat' 레인(팝업 위 금지)을 지킨다.
+            if (!Scene3D.deathFade(back ? `${S.chapter}-${S.stage} 스테이지로 이동합니다` : '회복 후 다시 도전합니다'))
+                UI.toast(back ? `💀 쓰러졌다... ${S.chapter}-${S.stage}로 한 스테이지 후퇴!` : '💀 쓰러졌다... 회복 후 다시 도전!', 'combat');
             UI.renderTopBar();
             UI.updateStageLabel(); // 쓰러져 있는 2.4초 동안 라벨이 옛 스테이지를 가리키지 않게(setupStage 전에 먼저 갱신)
         }

@@ -8778,6 +8778,53 @@ const Scene3D = {
             }
         }
     },
+    // 사망 연출 — 암전 커버 + 중앙 "죽었습니다 / …" 배너 (death-fade-popup, 사용자 지시 2026-08-18).
+    // sceneCut과 같은 규약: 이 오버레이는 **순수 장식**이고 게임 상태(후퇴·부활·재시작)는 Combat의
+    // 벽시계(downUntil/riseUntil)와 phaseTimer가 굴린다 — 오버레이가 유실돼도 진행은 이미 정상이다.
+    // 타이밍은 onDefeat의 벽시계에 맞춘 상수다: 사망 클립이 읽히는 0~delay 구간은 투명, 이후 암전,
+    // 부활(+2400ms)·기상(+3250ms)은 어둠 뒤에서 지나가고, 페이드-인이 끝날 때(+4100ms) 행군이 재개돼 있다.
+    // ⚠️ downUntil(2400)을 늘리면 hold도 같이 늘려야 어둠이 기상보다 먼저 걷히지 않는다.
+    DEATH_FADE: { delay: 900, fadeIn: 700, hold: 1800, fadeOut: 700 },
+    deathFade(sub) {
+        if (!this.fxLayer) return false;
+        const T = this.DEATH_FADE;
+        const total = T.delay + T.fadeIn + T.hold + T.fadeOut;
+        const cover = document.createElement('div');
+        // z-index 15: 게임 영역 HUD(스테이지 라벨·이정표 3·오프라인 4·스킬바 4·루트피드 4) 위,
+        // 전투 토스트(30)·보스 경고(35) 아래. fx-layer는 스태킹 컨텍스트가 아니라 이 값이 형제들과 직접 겨룬다.
+        cover.style.cssText = 'position:absolute;inset:0;background:#05070c;opacity:0;pointer-events:none;z-index:15;'
+            + 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.55rem';
+        const title = document.createElement('div');
+        title.textContent = '죽었습니다';
+        // letter-spacing 은 마지막 글자 뒤에도 붙어 시각 중심이 왼쪽으로 쏠린다 — padding-left 로 되민다
+        title.style.cssText = 'font-size:1.7rem;font-weight:900;color:#fff;letter-spacing:.32em;padding-left:.32em;'
+            + 'text-shadow:0 0 14px rgba(255,82,82,.55),0 2px 10px rgba(0,0,0,.9)';
+        const rule = document.createElement('div');
+        rule.style.cssText = 'width:11rem;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent)';
+        const subEl = document.createElement('div');
+        subEl.textContent = sub;
+        subEl.style.cssText = 'font-size:.95rem;font-weight:600;color:rgba(255,255,255,.78);letter-spacing:.06em';
+        cover.append(title, rule, subEl);
+        if (!cover.animate) return false; // WAAPI 미지원이면 호출부가 토스트로 강등한다 (검은 판 정지화면 방지)
+        this.fxLayer.appendChild(cover);
+        const off = ms => ms / total;
+        cover.animate([
+            { opacity: 0, offset: 0 },
+            { opacity: 0, offset: off(T.delay) },
+            { opacity: 1, offset: off(T.delay + T.fadeIn), easing: 'linear' },
+            { opacity: 1, offset: off(T.delay + T.fadeIn + T.hold) },
+            { opacity: 0, offset: 1 },
+        ], { duration: total, easing: 'cubic-bezier(.3,0,.35,1)' }).onfinish = () => cover.remove();
+        // 배너는 암전이 거의 끝난 뒤 아래에서 떠오른다 — 커버(부모)의 opacity에 곱해지므로 커버와 함께 사라진다
+        for (const el of [title, rule, subEl]) el.animate([
+            { opacity: 0, transform: 'translateY(.6rem)', offset: 0 },
+            { opacity: 0, transform: 'translateY(.6rem)', offset: off(T.delay + T.fadeIn * 0.55) },
+            { opacity: 1, transform: 'translateY(0)', offset: off(T.delay + T.fadeIn + 500), easing: 'cubic-bezier(.2,.7,.3,1)' },
+            { opacity: 1, transform: 'translateY(0)', offset: 1 },
+        ], { duration: total });
+        setTimeout(() => cover.remove(), total + 400); // onfinish 유실 대비 — 검은 판이 남는 일만은 없게
+        return true;
+    },
     setChapterTheme(chapter) {
         this.setTheme(CHAPTER_THEMES[(chapter - 1) % CHAPTER_THEMES.length]);
     },
