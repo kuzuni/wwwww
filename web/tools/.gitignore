@@ -1,5 +1,5 @@
-ref-cmp/
-summon-result/
-icon-cmp/
-icons-sheet.png
-egg-zoom.png
+# 비평가 채점용 스냅샷 사본 — 커밋하지 않는다.
+# 채점 중에 같은 경로로 캡처를 덮어써 구/신 프레임이 섞여 읽힌 사고가 있어서(TODO 의 mount-ride
+# 메모 참조) 채점 전에 캡처를 이 디렉터리로 복사해 고정한 뒤 비평가를 건다. 원본 캡처는
+# tools/ 아래에 그대로 커밋되므로 이 사본까지 저장소에 넣을 이유가 없다.
+snap-*/
