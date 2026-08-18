@@ -19,6 +19,8 @@
 // 게이트: 칸마다 hf 하한(= 이 커밋 실측값의 88%)과 명도 3단 존재. 하한은 회귀 방지선이지 목표선이
 // 아니다 — 무늬가 통째로 안 먹으면(three 가 주입 없는 프로그램을 재사용하는 customProgramCacheKey
 // 사고가 이 파일 이웃에서 실제로 있었다) 여기서 절반 아래로 떨어진다.
+// ⚠️ 초기 로드 대기를 45초로 잡는다 — 이 저장소는 병렬 세션이 여러 개 돌아 머신이 붐빌 때가 많고,
+// 소프트 렌더(swiftshader) 부팅이 20초를 넘겨 **멀쩡한 코드가 TimeoutError 로 반려**되는 일이 잦다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
@@ -46,7 +48,7 @@ const TIER_STEP = 0.055;    // Scene3D.tierizeParts 기본 단차
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.itemThumb, null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.itemThumb, null, { timeout: 45000 });
 
     const res = await page.evaluate(async (TIER_STEP) => {
         const S = 128;

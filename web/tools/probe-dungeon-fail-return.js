@@ -3,6 +3,8 @@
 // 실게임(index.html)을 띄워 실제로 던전에 입장한 뒤 hp를 0으로 만들어 Combat.onDefeat을 태운다.
 // 확인: Dungeons.run === null 이 된 첫 프레임에 ① 스테이지 라벨 ② 3D 씬 테마 ③ 웨이브 pip 개수가
 // 전부 본대 값이어야 한다(예전엔 셋 다 setupStage 시점 ≈ 4초 뒤에야 따라왔다).
+// ⚠️ 초기 로드 대기를 45초로 잡는다 — 이 저장소는 병렬 세션이 여러 개 돌아 머신이 붐빌 때가 많고,
+// 소프트 렌더(swiftshader) 부팅이 20초를 넘겨 **멀쩡한 코드가 TimeoutError 로 반려**되는 일이 잦다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 (async () => {
@@ -12,7 +14,7 @@ const path = require('path');
     p.on('pageerror', e => errors.push(String(e)));
     p.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errors.push(m.text()); });
     await p.goto('file://' + path.resolve(__dirname, '../index.html'), { waitUntil: 'load' });
-    await p.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    await p.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 45000 });
     await p.waitForTimeout(1200);
 
     const r = await p.evaluate(() => {

@@ -14,6 +14,8 @@
 // ③ 플래시는 **피크 프레임을 강제로** 잡는다. flashMesh 는 addAnim 으로 감쇠하는데, 렌더 루프의
 //    dt 는 `Math.min(0.1, …)` 라 소프트 렌더(프레임이 초 단위)에서는 **한 프레임에 0.1초가 지나
 //    플래시가 통째로 끝난다**. update() 를 돌리지 않고 flashMesh 직후에 renderFrame() 만 부른다.
+// ⚠️ 초기 로드 대기를 45초로 잡는다 — 이 저장소는 병렬 세션이 여러 개 돌아 머신이 붐빌 때가 많고,
+// 소프트 렌더(swiftshader) 부팅이 20초를 넘겨 **멀쩡한 코드가 TimeoutError 로 반려**되는 일이 잦다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
@@ -29,7 +31,7 @@ const FLASH_MIN = 0.06;  // 일반 타격 플래시의 몸 휘도 상승 하한(
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errors.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 45000 });
     await page.waitForTimeout(1500);
 
     const r = await page.evaluate(({ SELFTEST_MIN }) => {

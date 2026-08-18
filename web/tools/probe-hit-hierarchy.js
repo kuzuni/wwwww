@@ -13,6 +13,8 @@
 //   lum  = 영역 평균 휘도(얼마나 번쩍였나)
 //   warm = 평균 R-B (무슨 색으로 번쩍였나 — 청백/주황/금색의 위계)
 // 판정: 세 이벤트가 **쌍마다** 둘 중 한 축에서 최소 격차 이상 갈릴 것.
+// ⚠️ 초기 로드 대기를 45초로 잡는다 — 이 저장소는 병렬 세션이 여러 개 돌아 머신이 붐빌 때가 많고,
+// 소프트 렌더(swiftshader) 부팅이 20초를 넘겨 **멀쩡한 코드가 TimeoutError 로 반려**되는 일이 잦다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
@@ -31,7 +33,7 @@ const WARM_GAP = 0.020;   // 색으로 갈리려면 이만큼
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errors.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 45000 });
     await page.waitForTimeout(1500);
 
     const r = await page.evaluate(({ SELFTEST_MIN }) => {
