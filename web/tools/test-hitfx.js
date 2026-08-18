@@ -94,6 +94,33 @@ const path = require('path');
         Scene3D.fxLayer.innerHTML = '';
         step(60);
 
+        // 3-e2) 처치 숫자는 3티어 최상단이라 크고(1.3rem) 1.62배까지 오버슛한다 — 그 정점이
+        //       상단 HUD(3D 캔버스 위)를 넘지 않는지. 월드 Y 를 +0.22 더 띄운 것도 여기서 걸린다.
+        // ⚠️ 앞 항목들이 이미 이 적을 죽여 뒀다 — `damageEnemy` 는 `!e.alive` 면 즉시 반환하므로
+        //    hp 만 되돌리면 아무 일도 안 일어난다(첫 판에서 밟았다). 새 개체로 다시 세운다.
+        const k = mk(806); e = k.e; m = k.m;
+        Scene3D.fxLayer.innerHTML = '';
+        Combat.damageEnemy(e, Big.of(e.maxHp).mul(5), true, null);   // 크리 + 처치
+        const killEl = [...Scene3D.fxLayer.children].find(x => x.className.includes('dmg-kill'));
+        let killTop = null;
+        if (killEl) {
+            const tops2 = [];
+            for (let t = 0; t <= 0.55; t += 0.02) {   // CSS 아크를 시크해 정점을 찾는다
+                killEl.style.animationPlayState = 'paused';
+                killEl.style.animationDelay = (-t) + 's';
+                tops2.push(killEl.getBoundingClientRect().top);
+            }
+            killTop = Math.min(...tops2);
+        }
+        const canvasTop = document.querySelector('canvas').getBoundingClientRect().top;
+        ok(!!killEl, '처치타에 dmg-kill 티어가 붙음');
+        ok(killTop !== null && killTop >= canvasTop,
+            '처치 숫자 아크 정점이 HUD를 침범하지 않음 (정점 top ' + (killTop === null ? '?' : killTop.toFixed(1)) +
+            'px vs 캔버스 상단 ' + canvasTop.toFixed(1) + 'px)');
+        Scene3D.fxLayer.innerHTML = '';
+        step(60);
+        { const k2 = mk(807); e = k2.e; m = k2.m; }   // 뒤 항목들이 살아 있는 적을 전제로 한다
+
         // 3-f) 피아 구분: 만피에서 적 바는 빨강 계열, 영웅 바는 초록 계열 (비평가 4차 ⓓ)
         e.hp = Big.of(e.maxHp);
         Combat.hero.hp = Big.of(Combat.hero.maxHp);
