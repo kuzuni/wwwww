@@ -1278,6 +1278,7 @@ const Scene3D = {
                     cl.add(stem, head);
                 }
                 const g = grounded(cl, 0.5);
+                g.userData.windSway = 0.075;   // 줄기가 가늘어 나무보다 크게 흔들린다
                 const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.6, 1.7); } while (Math.abs(zz) < 0.9); return zz; })();
                 g.position.set(x, this.heightAt(x, z) + 0.02, z);
                 this.scene.add(g);
@@ -1296,6 +1297,7 @@ const Scene3D = {
                     fern.add(blade);
                 }
                 const g = grounded(fern, 0.6);
+                g.userData.windSway = 0.055;
                 const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.6, 1.7); } while (Math.abs(zz) < 0.9); return zz; })();
                 g.position.set(x, this.heightAt(x, z) + 0.02, z);
                 this.scene.add(g);
@@ -1304,6 +1306,18 @@ const Scene3D = {
         }
         // 무한맵 스크롤 대상 (걷는 동안 왼쪽으로 흘러가며 순환, 지형 높이 추적)
         this.scrollables = [...this.trees, ...this.rocks];
+        // 바람 대상 수집 — `userData.windSway` 를 단 그룹만. 랜드마크는 그룹 자체가 아니라 **자식**이
+        // 식물이라(hero = 주 소품 + 곁 소품) traverse 로 훑는다. 위상은 월드 x·z 에서 뽑아
+        // 이웃한 나무끼리 같은 박자로 흔들리지 않게 한다(전부 같은 위상이면 '한 덩어리'로 읽힌다).
+        this.windProps = [];
+        for (const o of this.scrollables) {
+            o.traverse(c => {
+                if (!c.userData || !c.userData.windSway) return;
+                c.userData.windPhase = (c.position.x + o.position.x) * 0.7 + (c.position.z + o.position.z) * 0.41;
+                c.userData.windBaseZ = c.rotation.z;
+                this.windProps.push(c);
+            });
+        }
         this.buildScatter(biome);
     },
 
@@ -1337,7 +1351,49 @@ const Scene3D = {
         return geo;
     },
 
+    // ---- 바람 (TODO '맵 프롭 퀄리티 업': "바람에 흔들리는 풀·나뭇잎 … 살아있는 맵으로") ----
+    // 지금까지 맵은 **완전히 정지**해 있었다(구름·불씨만 움직였다). 풀 한 포기도 안 흔들리는 게
+    // 저 항목이 말한 '단순 도형 티'의 절반이다.
+    //
+    // 풀은 InstancedMesh 1드로우콜이라 **CPU로 흔들 수 없다** — 인스턴스 190~240개의 행렬을 매 프레임
+    // 다시 쓰면 인스턴싱을 유지하라는 요구(성능)를 정면으로 어긴다. 그래서 정점 셰이더에서 민다.
+    //  · 위상은 **인스턴스마다 달라야** 한다(전부 같은 위상으로 흔들리면 '지면 전체가 한 덩어리로
+    //    미끄러지는' 인상이 된다). r128 InstancedMesh 는 정점 셰이더에 `instanceMatrix` 를 주므로
+    //    그 이동 성분(4번째 열)으로 위상을 만든다 — 인스턴스별 속성을 따로 안 넘겨도 된다.
+    //  · 밑동은 **땅에 박혀 있어야** 한다 — 변위를 로컬 높이(transformed.y)에 비례시키면 y=0 인
+    //    밑면은 안 움직이고 잎끝만 흔들린다. 통째로 미끄러지면 '떠 있는 스티커'로 읽힌다.
+    //  · 주파수 2개를 겹쳐 준다(1.6Hz + 2.9Hz). 사인 하나면 기계적으로 왔다갔다해 눈에 띈다.
+    // ⚠️ 시간 유니폼은 재질마다 따로 산다 — 컴파일된 uniforms 객체 참조를 `_windMats` 에 모아
+    //    update() 에서 한꺼번에 밀어 준다(재질을 새로 구울 때마다 등록해야 한다).
+    windShade(mat, amp) {
+        if (!mat) return mat;
+        this._windMats = this._windMats || [];
+        mat.onBeforeCompile = (sh) => {
+            sh.uniforms.uWindT = { value: 0 };
+            sh.uniforms.uWindAmp = { value: amp };
+            sh.vertexShader = 'uniform float uWindT;\nuniform float uWindAmp;\n' + sh.vertexShader.replace(
+                '#include <begin_vertex>',
+                [
+                    '#include <begin_vertex>',
+                    '\t#ifdef USE_INSTANCING',
+                    '\t\tfloat wph = instanceMatrix[3].x * 0.7 + instanceMatrix[3].z * 0.41;',
+                    '\t#else',
+                    '\t\tfloat wph = 0.0;',
+                    '\t#endif',
+                    '\tfloat wsw = sin(uWindT * 1.6 + wph) * 0.5 + sin(uWindT * 2.9 + wph * 1.7) * 0.25;',
+                    '\tfloat wup = max(0.0, transformed.y);',   // 밑동 고정 — 높이에 비례해서만 민다
+                    '\ttransformed.x += wsw * uWindAmp * wup;',
+                    '\ttransformed.z += wsw * uWindAmp * 0.42 * wup;',
+                ].join('\n'));
+            this._windMats.push(sh.uniforms.uWindT);
+        };
+        mat.customProgramCacheKey = () => 'wind-' + amp.toFixed(3);
+        return mat;
+    },
+
     buildScatter(biome) {
+        // 재질을 새로 굽는 자리 — 옛 재질의 유니폼 참조는 버린다(안 버리면 죽은 재질이 계속 쌓인다)
+        this._windMats = [];
         if (this.scatter) {
             this.ground.remove(this.scatter);
             this.scatter.geometry.dispose();
@@ -1413,6 +1469,10 @@ const Scene3D = {
             this.ground.add(im);
             return im;
         };
+        // 바람은 **식물에만** 건다 — 자갈·얼음 조각이 흔들리면 '떠 있는 돌'이 된다.
+        // (forest 풀 포기가 유일한 주 스캐터 식물이다. 나머지 바이옴 주 스캐터는 전부 광물이다.)
+        const windy = biome !== 'desert' && biome !== 'rock' && biome !== 'snow' && biome !== 'lava' && biome !== 'magic';
+        if (windy) this.windShade(mat, 0.55);
         this.scatter = mk(geo, mat, n, flat, tint, -3.4, 3.2);
         // 근경 전용 디테일 레이어 — 카메라 앞 둔덕(z 3.2~5.6, 화면 최하단 40%)에 같은 소재를
         // 더 크고 촘촘하게. 세로 화면 첫인상을 결정하는 근경이 "무텍스처 단색 평면"이던 결함 해소
@@ -1448,6 +1508,8 @@ const Scene3D = {
         const accMat = biome === 'forest' || biome === 'rock' || biome === 'snow'
             ? new THREE.MeshBasicMaterial({ color: acc[1] }) // 들꽃/결정은 자체 발색으로 또렷하게
             : new THREE.MeshLambertMaterial({ color: acc[1] });
+        // 악센트도 식물이면 같이 흔든다(초원 들꽃·바위산 골드 야생화). 얼음 결정·자갈·재는 제외.
+        if (biome === 'forest' || biome === 'rock') this.windShade(accMat, 0.42);
         this.scatter2 = mk(acc[0], accMat, acc[2], true, 0.1, -3, 5.2);
     },
 
@@ -1466,6 +1528,7 @@ const Scene3D = {
 
     makePine(s, snow) {
         const g = new THREE.Group();
+        g.userData.windSway = 0.030;   // 바람에 밑동부터 휘는 식물 (rocks·crystal 은 태그 없음 = 정지)
         const fm = this.foliageMats[Math.random() * 3 | 0]; // 나무별 잎 명도 변주
         const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * s, 0.13 * s, 0.5 * s, 7), this.trunkMat);
         trunk.position.y = 0.25 * s;
@@ -1486,6 +1549,7 @@ const Scene3D = {
     // 죽은 나무(용암) — 잎 없이 갈라진 검게 탄 가지. 2단 분기 + 부러진 우듬지로 "Y자 막대기" 인상 제거
     makeDeadTree(s) {
         const g = new THREE.Group();
+        g.userData.windSway = 0.020;   // 바람에 밑동부터 휘는 식물 (rocks·crystal 은 태그 없음 = 정지)
         const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * s, 0.14 * s, 0.9 * s, 6), this.charTrunkMat);
         trunk.position.y = 0.45 * s;
         trunk.rotation.z = U.rand(-0.09, 0.09);
@@ -1515,6 +1579,9 @@ const Scene3D = {
     // 선인장(사막) — 배흘림 몸통(라테) + 둥근 팔꿈치 관절 + 반구 꼭지. "직육면체 압출" 인상 제거
     makeCactus(s) {
         const g = new THREE.Group();
+        // ⚠️ 선인장은 **흔들지 않는다** — 다육 기둥은 굵고 뻣뻣해서 휘면 고무로 읽힌다.
+        //    (첫 판에서 0.010 을 줬다가 `probe-wind` 에서 사막이 광물 정지 기준을 넘겨 잡혔다.
+        //     지표가 옳았고 내 판단이 틀렸다 — 사막에서 움직여야 할 건 선인장이 아니라 없다.)
         // 몸통: 아래가 불룩한 배흘림 프로필 (수직 압출 원기둥 대신 유기적 실루엣)
         const prof = [[0.09, 0], [0.15, 0.14], [0.165, 0.4], [0.14, 0.7], [0.1, 0.94], [0.001, 1.02]];
         const body = new THREE.Mesh(
@@ -1724,6 +1791,7 @@ const Scene3D = {
 
     makeRoundTree(s) {
         const g = new THREE.Group();
+        g.userData.windSway = 0.034;   // 활엽수는 침엽수보다 크게 휜다
         const fm = this.foliageMats[Math.random() * 3 | 0]; // 나무별 잎 명도 변주
         const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * s, 0.12 * s, 0.6 * s, 7), this.trunkMat);
         trunk.position.y = 0.3 * s;
@@ -7554,6 +7622,27 @@ const Scene3D = {
                 if (cl.userData.baseX > 40) cl.userData.baseX = -40;
                 cl.position.x = cl.userData.baseX + this.worldX;
             }
+        }
+        // ── 바람 (TODO '맵 프롭 퀄리티 업') ──────────────────────────────────────────
+        // 풀은 정점 셰이더(windShade)에서, 나무·꽃·양치류는 여기서 밑동을 축으로 휜다.
+        // 그룹 원점이 곧 밑동이라 rotation.z 만 흔들면 '땅에 박힌 채 휘는' 그림이 나온다.
+        // 주파수 2개를 겹쳐 기계적인 왕복을 없앤다(풀 셰이더와 같은 1.6/2.9Hz — 같은 바람이어야 한다).
+        if (this._windMats) for (const u of this._windMats) u.value = this._clock;
+        if (this.windProps) {
+            const t1 = this._clock * 1.6, t2 = this._clock * 2.9;
+            for (const c of this.windProps) {
+                const ph = c.userData.windPhase, a2 = c.userData.windSway;
+                c.rotation.z = c.userData.windBaseZ
+                    + (Math.sin(t1 + ph) * 0.5 + Math.sin(t2 + ph * 1.7) * 0.25) * a2 * 2;
+            }
+        }
+        // 크리스탈 반짝임 — "반짝이는 크리스탈 같은 미세 애니메이션"(항목 원문). 발광 세기를
+        // 느리게 맥동시키고 할로 스프라이트를 같이 호흡시킨다. 재질 공유라 1회 갱신으로 전부 걸린다.
+        if (this._biome === 'magic' && this.crystalMat) {
+            const p = 0.5 + Math.sin(this._clock * 1.15) * 0.5;
+            this.crystalMat.emissiveIntensity = 0.85 + p * 0.5;
+            if (this.crystalHaloMat) this.crystalHaloMat.opacity = 0.30 + p * 0.22;
+            if (this.crystalGlowMat) this.crystalGlowMat.opacity = 0.66 + p * 0.24;
         }
         if (this.embers) {
             for (const e of this.embers) {
