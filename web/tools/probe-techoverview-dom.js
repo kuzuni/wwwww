@@ -10,8 +10,20 @@
 //      shot-042449 가 이미지 중심 244.5 vs 앱 중심 236 이라 정중앙 정렬 클론이 -1.8%p 벌점을 먹었다.
 //      그래서 여기서는 **탭바 밴드의 좌우 끝**으로 원본의 앱 폭을 먼저 찾고, 가로 %는 그 폭 기준으로 낸다.
 //
-// 재는 요소: 화면 제목 · 카드 4장(2×2)의 좌/우/상/하 + 폭/높이 + 열 피치·행 피치 ·
-//            카드 헤더 띠 높이 · 퍼센트 텍스트 y · ◀ 버튼 · 서브탭 바
+// 재는 요소: 카드(2열 그리드)의 좌/폭 + 열 피치 · 1·2행 카드 상단 + 행 피치 · 헤더 띠 높이 · 1행 카드 높이
+//
+// 🩺 **2026-08-18: 원본 스캔이 고장나 있던 것을 고쳤다(그전까지 이 화면은 exit 2 라 한 번도 못 쟀다).**
+//    앞 판은 '거짓 FAIL 6건'을 내고 스스로 exit 2 로 끊었는데, **레이아웃은 처음부터 멀쩡했고
+//    측정기만 틀렸다** — 고친 뒤 9요소 전부 ±2%p 통과(최대 +0.94). 고장 원인 둘 다 같은 부류였다:
+//    '흰 카드 위에 그림·글자가 얹혀 있는데 흰색이 끊기지 않는다고 가정한 것'.
+//      ⑴ **카드 좌우를 헤더 띠에서 잡았다** — 띠는 어두운 바탕 + 흰 글자라 글자가 어두운 구간을
+//         끊어 카드 하나가 반쪽 2개로 잡혔다(카드 폭 15.69%W ← 실제 33.20%W). 게다가 글자 구멍(~40px)이
+//         카드 사이 간격(24px)보다 넓어 **구간을 이어 붙이는 방식으로도 못 가른다**(붙이면 둘이 합쳐진다).
+//         → 띠 아래 **본문 흰 박스 행**을 쓴다. 좌우 검은 키라인이 카드 단위로 흰 구간을 끊어 준다.
+//      ⑵ **카드 하단을 중앙 열로 훑었다** — 가운데엔 일러스트와 퍼센트 글자가 있어 흰색이 곧바로 끊겨
+//         1행 카드 높이가 4.72%H 로 나왔다(실제 15.51%H). → **왼쪽 키라인 바로 안쪽 열**로 훑는다.
+//      ⑶ 본문 행도 고정 오프셋이면 안 된다 — 2행 카드는 띠 아래 +12px 이 펫 아이콘에 걸린다.
+//         → 띠 아래 2~26px 을 훑어 **2열 그리드 기하를 만족하는 첫 행**을 쓴다.
 //
 // 사용: node tools/probe-techoverview-dom.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
@@ -67,46 +79,60 @@ const SCAN_REF = function (src) {
             if (on && s < 0) s = y;
             if (!on && s >= 0) { if (y - s >= 4) bands.push([s, y - 1]); s = -1; }
         }
-        // 카드 4장의 가로 범위: 첫 헤더 띠 대역의 중간 행에서 어두운 구간 2개를 뽑는다
-        const colsOf = (yMid) => {
+        // 카드의 가로 범위 — 🚨 **헤더 띠 중간 행을 쓰면 안 된다.** 띠는 어두운 바탕 + 흰 글자라
+        //   글자가 어두운 구간을 끊어 카드 하나가 좌/우 반쪽 2개로 잡힌다. 게다가 **글자가 만드는
+        //   구멍(~40px)이 카드 사이 간격(24px)보다 넓어서**, 구간을 이어 붙이는 방식으로도 못 가른다
+        //   (붙이면 카드 둘이 하나로 합쳐진다). 앞 판이 여기서 '카드 폭 15.69%W'(실제 ≈33%W)를 냈다.
+        // → 대신 **띠 바로 아래 카드 본문(흰 박스) 행**을 훑는다. 카드마다 검은 키라인이 좌우에 있어
+        //   흰 구간이 카드 단위로 딱 끊긴다: 배경(좁음) · 카드1(넓음) · 카드사이(좁음) · 카드2(넓음) · 배경.
+        //   폭 20%AW 이상만 남기면 카드 둘만 남는다. 반환값은 키라인 1px 을 포함한 상자다.
+        // ⚠️ 본문 행을 **고정 오프셋으로 잡으면 안 된다** — 카드 안 일러스트가 흰 바탕을 끊는다.
+        //    2행 카드에서 실측: 띠 아래 +12px(y320)은 펫 아이콘에 걸려 카드1 이 92+64 두 토막이 되고,
+        //    +2px(y310)은 깨끗하다. 그래서 **띠 아래 몇 줄을 훑어 2열 기하를 만족하는 첫 행**을 쓴다.
+        const runsAt = (y) => {
             const out = [];
             let r = -1;
             for (let x = appL; x <= appR + 1; x++) {
-                const on = x <= appR && dark(at(x, yMid));
+                const on = x <= appR && white(at(x, y));
                 if (on && r < 0) r = x;
-                if (!on && r >= 0) { if (x - r > AW * 0.15) out.push([r, x - 1]); r = -1; }
+                if (!on && r >= 0) { if (x - r > AW * 0.20) out.push([r - 1, x]); r = -1; }
             }
             return out;
         };
-        // 카드 본문(흰 박스)의 아래 끝: 헤더 띠 아래로 내려가며 흰색이 끊기는 지점
-        const cardBottom = (yFrom, xMid) => {
-            for (let y = yFrom; y < H; y++) {
-                if (!white(at(xMid, y)) && !dark(at(xMid, y))) return y - 1;
-                if (dark(at(xMid, y)) && y > yFrom + 10) {
-                    // 키라인(카드 하단 테)을 만나면 그 아래가 바깥이다
-                    let k = y;
-                    while (k < H && dark(at(xMid, k))) k++;
-                    if (k < H && !white(at(xMid, k))) return k - 1;
-                }
+        const isGrid2 = (cols) => cols.length === 2 &&
+            cols.every(c => (c[1] - c[0] + 1) > AW * 0.25 && (c[1] - c[0] + 1) < AW * 0.42) &&
+            Math.abs((cols[0][1] - cols[0][0]) - (cols[1][1] - cols[1][0])) < AW * 0.03;
+        const colsOf = (band) => {
+            let last = [];
+            for (let dy = 2; dy <= 26; dy++) {
+                const y = band[1] + dy;
+                if (y >= H) break;
+                last = runsAt(y);
+                if (isGrid2(last)) return last;
             }
+            return last;
+        };
+        // 카드 본문(흰 박스)의 아래 끝 — ⚠️ **카드 중앙 열로 내려가면 안 된다.** 가운데는 일러스트와
+        //   퍼센트 글자가 있어 흰색이 곧바로 끊긴다(앞 판: 1행 카드 높이를 4.72%H 로 읽었다. 실제 ≈15%H).
+        //   카드 **왼쪽 키라인 바로 안쪽 열**은 위에서 아래까지 흰 여백이라 하단 키라인에서만 끊긴다.
+        const cardBottom = (yFrom, xIn) => {
+            for (let y = yFrom; y < H; y++) if (!white(at(xIn, y))) return y - 1;
             return H - 1;
         };
         // 🚨 어두운 가로 대역은 카드 헤더만이 아니다 — 상단바 재화 pill(y 20~40)과 하단 서브탭 바(y 759~793)도
         //    같은 조건에 걸린다(첫 판에서 bands[0]/[1] 이 pill 이라 카드 열 스캔이 통째로 빈 배열이었다).
         //    카드 헤더는 **그 대역 안에서 어두운 구간이 좌우 2덩어리(2열 그리드)** 라는 구조로 골라낸다.
-        const withCols = bands.map(b => {
-            const yMid = Math.round((b[0] + b[1]) / 2);
-            return { band: b, cols: colsOf(yMid) };
-        });
-        const cardBands = withCols.filter(x => x.cols.length === 2);
+        const withCols = bands.map(b => ({ band: b, cols: colsOf(b) }));
+        // 2열 그리드 기하를 만족하는 대역만 카드 헤더로 인정한다 — 하단 서브탭 바(3분할)와
+        // 상단바 재화 pill 은 아래 흰 본문이 없어 여기서 걸러진다.
+        const cardBands = withCols.filter(x => isGrid2(x.cols));
         resolve({
             W, H, appL, appR, AW,
             bands, allCols: withCols.map(x => ({ y: x.band, n: x.cols.length })),
             cardBands: cardBands.map(x => x.band),
             cols1: cardBands[0] ? cardBands[0].cols : [],
             cols2: cardBands[1] ? cardBands[1].cols : [],
-            cardBottoms: cardBands.slice(0, 2).map(x =>
-                cardBottom(x.band[1] + 2, Math.round((x.cols[0][0] + x.cols[0][1]) / 2))),
+            cardBottoms: cardBands.slice(0, 2).map(x => cardBottom(x.band[1] + 2, x.cols[0][0] + 4)),
         });
     });
 };
@@ -228,6 +254,10 @@ const SCAN_REF = function (src) {
         if (!ok) bad++;
         console.log(`  ${r.name.padEnd(14)} 원본 ${r.refV.toFixed(2).padStart(6)}  클론 ${r.cloneV.toFixed(2).padStart(6)}  Δ ${(r.d >= 0 ? '+' : '') + r.d.toFixed(2)}%p  ${ok ? 'OK' : 'FAIL'}`);
     }
+    // 🚨 게이트에 안 걸리지만 **매번 인쇄한다** — 통과 판정에 묻혀 사라지면 '전부 맞다'로 읽힌다.
+    //    원본은 카드가 4장(대장간·힘·스킬,펫&기술·ANIMALS)이고 클론은 3장이다. 비율(폭·피치·높이)은
+    //    2열 그리드라 3장으로도 성립하지만, **4번째 분기는 게임 데이터 문제**라 여기서 못 고친다.
+    console.log(`\n※ 비율 게이트 밖 차이: 카드 수 원본 4장(대장간·힘·스킬,펫&기술·ANIMALS) vs 클론 ${clone.cards.length}장 — 분기 데이터 소관.`);
     console.log(`\n콘솔/페이지 에러: ${errors.length}건${errors.length ? ' — ' + errors.slice(0, 3).join(' | ') : ''}`);
     console.log(`=> ${bad === 0 && errors.length === 0 ? 'PASS' : `불통과 ${bad}건`}`);
     process.exit(bad === 0 && errors.length === 0 ? 0 : 1);
