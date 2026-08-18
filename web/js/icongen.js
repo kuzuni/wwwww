@@ -160,6 +160,45 @@ const IconGen = {
         ctx.fill('evenodd');
         ctx.restore();
     },
+    // 아이콘 판(그림자→그라디언트 본체→테두리→안쪽 그림자→스펙큘러)을 한 번에 그리는 공용 헬퍼.
+    // ⚠️ 예전에는 이 함수가 아이콘 블록 두 곳에 **복사본**으로 있었고, 도넛 구멍 버그(evenodd) 수정이
+    //    한쪽에만 들어가 **정작 도넛을 그리는 쪽(slot_ring·slot_belt)은 안 고쳐진 채로 남았다**
+    //    — 반지가 구멍 없는 금 원판으로 나왔다(중심 알파 255 로 실측). 복사본을 두지 말 것.
+    // opt.eo=true 면 구멍 뚫린 경로(도넛)로 취급한다: 접지 그림자·본체를 evenodd 로 채우고,
+    // 안쪽 그림자는 건너뛴다(`_innerShadow` 가 clip 을 nonzero 로 걸어 구멍을 검게 메우기 때문).
+    _plate(ctx, S, path, stops, opt) {
+        const G = IconGen;
+        const o = opt || {};
+        ctx.save();                                   // ① 접지 그림자
+        ctx.globalAlpha = 0.36; ctx.fillStyle = '#000';
+        ctx.filter = `blur(${S * 0.020}px)`;
+        ctx.translate(0, S * 0.035);
+        // ⚠️ 구멍 뚫린 경로(반지 밴드·벨트 버클)는 **그림자도 같은 규칙으로 칠해야** 한다 —
+        //    안 그러면 구멍 뒤에 검은 원판이 남아 '까만 구멍'처럼 보인다(실측으로 확인).
+        ctx.beginPath(); path(); ctx.fill(o.eo ? 'evenodd' : 'nonzero');
+        ctx.restore();
+        ctx.save();                                   // ② 본체 + ⑤ 테두리
+        ctx.beginPath(); path();
+        const g = ctx.createLinearGradient(0, S * (o.y0 === undefined ? 0.04 : o.y0), 0, S * (o.y1 === undefined ? 0.98 : o.y1));
+        stops.forEach(s => g.addColorStop(s[0], s[1]));
+        ctx.fillStyle = g; ctx.fill(o.eo ? 'evenodd' : 'nonzero');
+        ctx.lineJoin = ctx.lineCap = 'round';
+        ctx.strokeStyle = o.line || 'rgba(16,14,11,.88)';
+        ctx.lineWidth = S * (o.lw === undefined ? 0.048 : o.lw);
+        ctx.stroke();
+        ctx.restore();
+        // ⚠️ `_innerShadow` 는 `clip()` 을 **nonzero 로** 걸어서 도넛의 구멍까지 클립 안에 넣는다 —
+        //    구멍이 검게 메워진다(반지 밴드에서 실측). 구멍 뚫린 경로(`eo`)는 안쪽 그림자를 건너뛴다.
+        if (!o.flat && !o.eo) G._innerShadow(ctx, path, o.inner || 'rgba(0,0,0,.40)', S * 0.05, 0, S * 0.022);
+        if (o.spec !== false) {                       // ④ 스펙큘러
+            ctx.save(); ctx.beginPath(); path(); ctx.clip();
+            const sx = (o.sx === undefined ? 0.33 : o.sx) * S, sy = (o.sy === undefined ? 0.24 : o.sy) * S;
+            ctx.fillStyle = G._rad(ctx, sx, sy, 0, sx, sy, S * 0.36,
+                [[0, 'rgba(255,255,255,.52)'], [1, 'rgba(255,255,255,0)']]);
+            ctx.fillRect(0, 0, S * 2, S * 2);
+            ctx.restore();
+        }
+    },
     // 결정론적 의사난수 (아이콘이 매번 같게 나오도록)
     _rng(seed) {
         let s = seed >>> 0 || 1;
@@ -3029,38 +3068,7 @@ IconGen._genderSym = function (ctx, S, female) {
     const closed = (ctx, S, pts) => () => { pts.forEach((p, i) => { const X = p[0] * S, Y = p[1] * S; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); };
 
     // 재화 아이콘과 같은 5단 입체 — 접지 그림자 · 그라디언트 · 안쪽 그림자 · 스펙큘러 · 테두리
-    const plate = (ctx, S, path, stops, opt) => {
-        const o = opt || {};
-        ctx.save();                                   // ① 접지 그림자
-        ctx.globalAlpha = 0.36; ctx.fillStyle = '#000';
-        ctx.filter = `blur(${S * 0.020}px)`;
-        ctx.translate(0, S * 0.035);
-        // ⚠️ 구멍 뚫린 경로(반지 밴드·벨트 버클)는 **그림자도 같은 규칙으로 칠해야** 한다 —
-        //    안 그러면 구멍 뒤에 검은 원판이 남아 '까만 구멍'처럼 보인다(실측으로 확인).
-        ctx.beginPath(); path(); ctx.fill(o.eo ? 'evenodd' : 'nonzero');
-        ctx.restore();
-        ctx.save();                                   // ② 본체 + ⑤ 테두리
-        ctx.beginPath(); path();
-        const g = ctx.createLinearGradient(0, S * (o.y0 === undefined ? 0.04 : o.y0), 0, S * (o.y1 === undefined ? 0.98 : o.y1));
-        stops.forEach(s => g.addColorStop(s[0], s[1]));
-        ctx.fillStyle = g; ctx.fill(o.eo ? 'evenodd' : 'nonzero');
-        ctx.lineJoin = ctx.lineCap = 'round';
-        ctx.strokeStyle = o.line || 'rgba(16,14,11,.88)';
-        ctx.lineWidth = S * (o.lw === undefined ? 0.048 : o.lw);
-        ctx.stroke();
-        ctx.restore();
-        // ⚠️ `_innerShadow` 는 `clip()` 을 **nonzero 로** 걸어서 도넛의 구멍까지 클립 안에 넣는다 —
-        //    구멍이 검게 메워진다(반지 밴드에서 실측). 구멍 뚫린 경로(`eo`)는 안쪽 그림자를 건너뛴다.
-        if (!o.flat && !o.eo) G._innerShadow(ctx, path, o.inner || 'rgba(0,0,0,.40)', S * 0.05, 0, S * 0.022);
-        if (o.spec !== false) {                       // ④ 스펙큘러
-            ctx.save(); ctx.beginPath(); path(); ctx.clip();
-            const sx = (o.sx === undefined ? 0.33 : o.sx) * S, sy = (o.sy === undefined ? 0.24 : o.sy) * S;
-            ctx.fillStyle = G._rad(ctx, sx, sy, 0, sx, sy, S * 0.36,
-                [[0, 'rgba(255,255,255,.52)'], [1, 'rgba(255,255,255,0)']]);
-            ctx.fillRect(0, 0, S * 2, S * 2);
-            ctx.restore();
-        }
-    };
+        const plate = G._plate;   // 공용 헬퍼(복사본 금지 — 위 _plate 주석 참조)
     // 테두리 없이 위에 얹는 칠(구멍·문양)
     const mark = (ctx, path, fill) => { ctx.save(); ctx.beginPath(); path(); ctx.fillStyle = fill; ctx.fill(); ctx.restore(); };
 
@@ -3206,37 +3214,7 @@ IconGen._genderSym = function (ctx, S, female) {
     };
     const join = (...fns) => () => fns.forEach(f => f());
     const closed = (ctx, S, pts) => () => { pts.forEach((p, i) => { const X = p[0] * S, Y = p[1] * S; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); };
-    const plate = (ctx, S, path, stops, opt) => {
-        const o = opt || {};
-        ctx.save();
-        ctx.globalAlpha = 0.36; ctx.fillStyle = '#000';
-        ctx.filter = `blur(${S * 0.020}px)`;
-        ctx.translate(0, S * 0.035);
-        // ⚠️ 구멍 뚫린 경로(반지 밴드·벨트 버클)는 **그림자도 같은 규칙으로 칠해야** 한다 —
-        //    안 그러면 구멍 뒤에 검은 원판이 남아 '까만 구멍'처럼 보인다(실측으로 확인).
-        ctx.beginPath(); path(); ctx.fill(o.eo ? 'evenodd' : 'nonzero');
-        ctx.restore();
-        ctx.save();
-        ctx.beginPath(); path();
-        const g = ctx.createLinearGradient(0, S * (o.y0 === undefined ? 0.04 : o.y0), 0, S * (o.y1 === undefined ? 0.98 : o.y1));
-        stops.forEach(s => g.addColorStop(s[0], s[1]));
-        ctx.fillStyle = g; ctx.fill();
-        ctx.lineJoin = ctx.lineCap = 'round';
-        ctx.strokeStyle = o.line || 'rgba(16,14,11,.88)';
-        ctx.lineWidth = S * (o.lw === undefined ? 0.048 : o.lw);
-        ctx.stroke();
-        ctx.restore();
-        // ⚠️ `_innerShadow` 는 `clip()` 을 **nonzero 로** 걸어서 도넛의 구멍까지 클립 안에 넣는다 —
-        //    구멍이 검게 메워진다(반지 밴드에서 실측). 구멍 뚫린 경로(`eo`)는 안쪽 그림자를 건너뛴다.
-        if (!o.flat && !o.eo) G._innerShadow(ctx, path, o.inner || 'rgba(0,0,0,.40)', S * 0.05, 0, S * 0.022);
-        if (o.spec !== false) {
-            ctx.save(); ctx.beginPath(); path(); ctx.clip();
-            const sx = (o.sx === undefined ? 0.33 : o.sx) * S, sy = (o.sy === undefined ? 0.24 : o.sy) * S;
-            ctx.fillStyle = G._rad(ctx, sx, sy, 0, sx, sy, S * 0.36, [[0, 'rgba(255,255,255,.52)'], [1, 'rgba(255,255,255,0)']]);
-            ctx.fillRect(0, 0, S * 2, S * 2);
-            ctx.restore();
-        }
-    };
+        const plate = G._plate;   // 공용 헬퍼(복사본 금지 — 위 _plate 주석 참조)
     const mark = (ctx, path, fill) => { ctx.save(); ctx.beginPath(); path(); ctx.fillStyle = fill; ctx.fill(); ctx.restore(); };
     const STEEL = [[0, '#eef4fa'], [0.34, '#b9c5d1'], [0.70, '#7f8c99'], [1, '#48535e']];
 

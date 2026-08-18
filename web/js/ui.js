@@ -891,10 +891,30 @@ const UI = {
 
     // ---- 전투 HUD ----
     updateStageLabel() {
+        const el = this.els.stageLabel;
         if (Dungeons.run) {
             const d = Dungeons.def(Dungeons.run.id);
-            this.els.stageLabel.textContent = `${d.icon} ${d.kr} ${Dungeons.run.stage}단계`;
-        } else this.els.stageLabel.textContent = `${this.difficultyLabel(S.chapter)} ${S.chapter}-${S.stage}`;
+            const rest = ` ${d.kr} ${Dungeons.run.stage}단계`;
+            // ⚠️ 여기는 `textContent` 자리다 — `IconGen.img()` 가 준 `<i>` 를 문자열로 넣으면
+            //    태그가 글자로 찍힌다(토스트·스킬 컷인이 이미 겪은 함정). 아이콘만 노드로 만들고
+            //    나머지는 텍스트 노드로 붙인다. 표에 없는 던전은 원래 이모지로 그대로 떨어진다.
+            el.textContent = '';
+            const html = this.dgIcon(d);
+            let node = null;
+            if (html !== d.icon) {
+                const t = document.createElement('template');
+                t.innerHTML = html;
+                node = t.content.firstElementChild;
+            }
+            el.appendChild(node || document.createTextNode(d.icon));
+            el.appendChild(document.createTextNode(rest));
+            // 플레이어 정보 팝업의 폴백 미리보기가 이 라벨을 **글자로** 가져간다 — 아이콘이 노드가
+            // 되면서 그쪽에서 사라지므로, 글자판을 따로 남겨 둔다(`renderPlayerInfo` 가 읽는다).
+            el.dataset.text = `${d.icon}${rest}`;
+        } else {
+            el.textContent = `${this.difficultyLabel(S.chapter)} ${S.chapter}-${S.stage}`;
+            el.dataset.text = el.textContent;
+        }
     },
     // pip 개수는 그 판의 총 웨이브 수를 따라간다 — 던전은 1~3, 메인은 5 (사용자 지시 2026-08-18).
     // 5개를 박아 두면 3웨이브 던전에서 "2개 남았는데 클리어"로 보인다.
@@ -3508,7 +3528,9 @@ const UI = {
         } catch (e) {
             const waveHtml = Dungeons.run ? '' : Array.from({ length: Combat.totalWaves() }, (_, i) => i + 1).map(w =>
                 `<span class="pip ${w < Combat.wave ? 'done' : w === Combat.wave ? 'now' : ''}"></span>`).join('');
-            previewHtml = `<div class="pinfo-preview"><span>🛡️</span><span>${this.els.stageLabel.textContent}</span>${waveHtml}</div>`;
+            // 던전 중에는 라벨 안 아이콘이 `<i>` 노드라 textContent 로는 빠진다 — 글자판을 쓴다.
+            const stageText = this.els.stageLabel.dataset.text || this.els.stageLabel.textContent;
+            previewHtml = `<div class="pinfo-preview"><span>🛡️</span><span>${U.escapeHtml(stageText)}</span>${waveHtml}</div>`;
         }
 
         let gearHtml = SLOTS.map(slot => this.equipCellHTML(slot)).join('');
