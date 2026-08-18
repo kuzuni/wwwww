@@ -22,7 +22,10 @@ const SCREENS = [
     ['pets', '042356', `UI.switchTab('summon'); UI.switchSummonSub('pets')`],
     ['pets-2', '042445', `UI.switchTab('summon'); UI.switchSummonSub('pets')`],
     ['tech-overview', '042407', `UI.switchTab('summon'); UI.switchSummonSub('tech'); UI.openTechOverview()`],
-    ['skill-detail', '042426', `UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.openSkillDetail(Object.keys(S.skills)[0])`],
+    // 원본 042426 은 **장착 안 한** 스킬(화살 Lv.61 · 조각 1/8)을 연 상태다 — [장착] 버튼과 활성
+    // [업그레이드] 가 보인다. 인덱스 0~2 는 시드가 장착해 둔 스킬이라 열면 버튼이 [해제] 로 바뀌고
+    // 업그레이드가 비활성으로 찍혀, 같은 팝업인데 내용이 달라진 채 대조하게 된다.
+    ['skill-detail', '042426', `UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.openSkillDetail(Object.keys(S.skills)[3])`],
     ['pet-detail', '042449', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetDetail(0)`],
     ['pet-upgrade', '042503', `UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetUpgrade(0)`],
     // 원본 042521은 **펫** 확률표다(레벨 69 · "달걀을(를) 소환하여") — 스킬로 열면 배경 그리드와 문구가 달라

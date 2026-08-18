@@ -29,6 +29,7 @@ const REF = {
     '카드 높이': { v: 38.21, unit: 'H' },
     '오브 좌': { v: 16.16, unit: 'W' },
     '오브 폭': { v: 10.10, unit: 'W' },
+    '패시브 라벨 좌': { v: 22.83, unit: 'W' },   // 원본 '패시브:' 글자 시작 113px — **왼쪽 정렬**이다
     '패시브 좌': { v: 20.81, unit: 'W' },
     '패시브 폭': { v: 57.98, unit: 'W' },
     '패시브 상단': { v: 56.58, unit: 'H' },
@@ -73,12 +74,14 @@ const REF = {
         const card = q('.skd-card').getBoundingClientRect();
         const orb = q('.sk-orb').getBoundingClientRect();
         const pass = q('.skd-passive').getBoundingClientRect();
+        const passLabel = q('.skd-passive-label').getBoundingClientRect();
         const btns = [...document.querySelectorAll('#detail-modal .skd-btn')].map(e => e.getBoundingClientRect());
         const x = q('.x-btn').getBoundingClientRect();
         return {
             '카드 좌': pw(card.left - app.left), '카드 우': pw(card.right - app.left), '카드 폭': pw(card.width),
             '카드 상단': ph(card.top - app.top), '카드 하단': ph(card.bottom - app.top), '카드 높이': ph(card.height),
             '오브 좌': pw(orb.left - app.left), '오브 폭': pw(orb.width),
+            '패시브 라벨 좌': pw(passLabel.left - app.left + parseFloat(getComputedStyle(q('.skd-passive-label')).paddingLeft)),
             '패시브 좌': pw(pass.left - app.left), '패시브 폭': pw(pass.width),
             '패시브 상단': ph(pass.top - app.top), '패시브 높이': ph(pass.height),
             '업글버튼 좌': pw(btns[0].left - app.left), '업글버튼 폭': pw(btns[0].width),
