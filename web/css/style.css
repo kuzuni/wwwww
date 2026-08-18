@@ -191,13 +191,22 @@ body {
    말라"). 예전엔 #app 직속이라 장비 시트·탭바까지 화면 전체를 덮는 게 **의도**였는데 그 전제가
    번복됐다. `inset:0` 이 이제 씬 기준이고 씬의 overflow:hidden 이 바깥으로 새는 걸 막는다.
    타이밍(scene3d 의 BOSS_WARN_DUR·사이렌 3회)은 손대지 않았다 — 범위만 바뀌었다. */
-#boss-warning { position: absolute; inset: 0; z-index: 35; pointer-events: none; overflow: hidden; }
+/* ⚠️ **z-index 는 16 이다 — 35 로 되돌리지 말 것** (사용자 지시 2026-08-19 `boss-warning-zorder-position`:
+   "보스 워닝 연출이 다른 팝업들 위로 침범하니까 그거 안 그렇게 되게 하고"). 예전엔 35(모달 20 **위**)로
+   두고 `#app:has(> .modal:not(.hidden))` 로만 19 까지 내렸는데, 그 조건부 강등은 두 군데서 샌다:
+   ⑴ `:has()` 미지원/부분지원 엔진에서는 규칙이 죽어 35 가 그대로 살고, ⑵ `#app` 직속 `.modal` 이
+   아닌 오버레이형 팝업은 셀렉터에 안 걸린다. `death-overlay-zorder` 와 **같은 결론**이다 —
+   연출은 씬/배경 대역이므로 조건부로 내리지 말고 처음부터 팝업 아래에 둔다.
+   서열: HUD(3~4) < 피격 비네트 12 < 씬컷 14 < 사망 암전 15 < **보스 경고 16** < 모든 팝업(20/22/40/60).
+   ⚠️ '탭바·장비 시트 위여야 한다'는 옛 근거는 무효 — 이 요소는 `#game-area` 안이고 그 컨테이너의
+   `overflow:hidden` 이 바깥으로 새는 걸 이미 막는다(2026-08-18 사용자 지시로 씬 안에 들어왔다). */
+#boss-warning { position: absolute; inset: 0; z-index: 16; pointer-events: none; overflow: hidden; }
 
-/* 팝업이 열려 있는 동안에는 경고를 .modal(20, 일부 22) **아래**로 내린다 (QA 9차).
-   35로 두면 WARNING 마퀴(430×52px)와 "보스 출현"(430×18px)이 팝업 카드 제목 줄 위에 그대로 겹쳐
-   글자가 판독 불가가 됐다 — pointer-events:none이라 조작은 살아 있지만 읽을 수가 없다.
-   팝업은 플레이어가 지금 읽고 있는 화면이므로 그쪽이 위, 경고는 카드 바깥 여백에서 계속 돈다. */
-#app:has(> .modal:not(.hidden)) #boss-warning { z-index: 19; }
+/* 팝업이 떠 있을 때 경고 자체 딤은 끈다 — 모달 딤(rgba(0,0,0,.5))과 겹쳐 화면이 통째로 검게 죽는다.
+   점멸·배너는 그대로 둬야 카드 옆 여백에서 "보스 온다"가 여전히 읽힌다.
+   ⚠️ 이건 **가독성 보정**일 뿐 침범 방지 장치가 아니다 — 침범은 위 z-index 16 이 무조건 막는다.
+   (예전의 `#app:has(…) #boss-warning { z-index: 19 }` 강등 규칙은 삭제했다. 기본값이 이미 16 이라
+   필요 없고, 남겨 두면 모달이 열렸을 때 오히려 16 → 19 로 **올린다**.) */
 /* 그때 경고 자체 딤은 끈다 — 모달 딤(rgba(0,0,0,.72))과 겹쳐 화면이 통째로 검게 죽는다.
    점멸·배너는 그대로 둬야 카드 옆 여백에서 "보스 온다"가 여전히 읽힌다. */
 #app:has(> .modal:not(.hidden)) #boss-warning .bw-dim { display: none; }
@@ -215,10 +224,17 @@ body {
     animation: bwflash .42s ease-out 3;
 }
 /* ⓒ 화면 가로를 통째로 가로지르는 경고 배너 — 위아래 사선 위험 표지 띠 + 흐르는 텍스트 */
+/* 배너·부제의 세로 자리는 **이 변수 하나가 소유한다** — 예전엔 `.bw-banner{top:18%}` 와
+   `.bw-sub{top:calc(18% + 2.5rem)}` 로 같은 값을 두 군데 적어 둬서, 한쪽만 옮기면 부제가
+   배너에서 떨어져 나간다. 한 값만 고치면 둘이 같이 움직이게 묶어 둔다.
+   ⚠️ 28% 다 (사용자 지시 2026-08-19 `boss-warning-zorder-position`: "보스 워닝 연출 위치가
+   너무 과하게 위로 올라가 있으니까 조금 적당히 내리셈"). 18% → 28%.
+   위아래 한계가 둘 다 있다: **38% 이상은 금지** — 배너가 보스가 솟는 자리를 덮어 "경고는
+   화려한데 정작 등장이 안 보이는" 프레임이 된다(옛 실측). **18% 로 되돌리는 것도 금지** —
+   그게 사용자가 '너무 위'라고 지적한 그 값이다. 28% 는 그 사이의 중간값이다. */
+#boss-warning { --bw-top: 28%; }
 .bw-banner {
-    /* 18% — 전투 라인(지면·적 실루엣·머리 위 HP바)보다 확실히 위. 38%로 두면 배너가 바로
-       보스가 솟는 자리를 덮어 "경고는 화려한데 정작 등장이 안 보이는" 프레임이 나온다(실측). */
-    position: absolute; left: 0; right: 0; top: 18%;
+    position: absolute; left: 0; right: 0; top: var(--bw-top);
     transform: translateY(-50%) scaleY(0); transform-origin: 50% 50%;
     background: linear-gradient(180deg, #1e0202, #5a0707 45%, #240303);
     box-shadow: 0 0 2.2rem rgba(255,46,38,.6), inset 0 0 1.5rem rgba(0,0,0,.8);
@@ -238,7 +254,7 @@ body {
 }
 /* ⓓ 한글 부제 — 배너가 영문 마퀴라 "무슨 일이 났는지"는 여기서 읽힌다 */
 .bw-sub {
-    position: absolute; left: 0; right: 0; top: calc(18% + 2.5rem); text-align: center;
+    position: absolute; left: 0; right: 0; top: calc(var(--bw-top) + 2.5rem); text-align: center;
     font-size: .95rem; font-weight: 900; letter-spacing: .55em; text-indent: .55em;
     color: #ffd54f; text-shadow: 0 0 .6rem rgba(255,23,68,.95), 0 2px 0 var(--olc); opacity: 0;
     animation: bwsub var(--bw-dur, 2s) ease-out forwards;

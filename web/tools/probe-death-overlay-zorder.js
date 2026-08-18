@@ -15,7 +15,9 @@
 //          팝업 최소 z(.modal = 20) 미만이다. (`:has()` 미지원 엔진·비-.modal 팝업 대비)
 //       ④ 픽셀: 팝업을 띄운 채 사망 암전을 **정점(불투명)** 에 세워도 팝업 카드 영역의
 //          스크린샷이 커버 없는 상태와 **바이트 단위로 동일**하다 (= 한 픽셀도 안 덮는다)
-//       ⑤ 콘솔 에러 0건 — 단, 카드 박스 안에 '비치는 여백'이 섞인 팝업은 ④를 건너뛴다(아래 참조)
+//       ⑤ 보스 경고 배너의 세로 위치가 게임 영역의 22~36% 안 (너무 위도, 보스 등장을 덮지도 않게)
+//          — 부제(.bw-sub)는 배너 바로 아래에 붙어 따라 내려온다
+//       ⑥ 콘솔 에러 0건 — 단, 카드 박스 안에 '비치는 여백'이 섞인 팝업은 ④를 건너뛴다(아래 참조)
 //
 // ⚠️ 픽셀 비교 함정 (2026-08-19 실측으로 밟았다): **팝업 자신이 움직이면** 두 캡처가 당연히
 //    달라져 '연출이 덮었다'로 오진한다 — 소환 결과창(빛가루·광선·아이들 애니), 대장간 정보,
@@ -81,6 +83,14 @@ const UNDARKEN_SCENE = `(() => {
     document.getElementById('game3d').style.visibility = '';
     document.getElementById('game-area').style.background = '';
 })()`;
+// 보스 경고도 정점(딤·플래시가 가장 진한 지점)에 세운다
+const PIN_BOSS = `(() => {
+    UI.bossWarning(2);
+    const el = UI.els.bossWarn;
+    const seek = e => { for (const a of e.getAnimations()) { a.currentTime = 700; a.pause(); } };
+    seek(el); for (const c of el.querySelectorAll('*')) seek(c);
+    return getComputedStyle(el).zIndex;
+})()`;
 // 팝업 자신의 애니메이션을 전부 정지 — 픽셀 비교의 전제(위 ⚠️)
 const FREEZE_ANIM = `(() => {
     let n = 0;
@@ -89,6 +99,7 @@ const FREEZE_ANIM = `(() => {
 })()`;
 const CLEAR_FX = `(() => {
     document.querySelectorAll('#fx-layer > *').forEach(e => e.remove());
+    UI.els.bossWarn.classList.add('hidden');
     const f = document.getElementById('dmg-flash');
     f.classList.remove('on'); f.style.opacity = '';
     for (const a of f.getAnimations()) a.cancel();
@@ -137,9 +148,23 @@ const CLEAR_FX = `(() => {
     }
 
     // ---------- ③ 팝업이 없을 때도 두 연출이 팝업 대역(20) 아래 ----------
-    const bare = { cover: await page.evaluate(PIN_DEATH), flash: await page.evaluate(PIN_FLASH) };
+    const bare = { cover: await page.evaluate(PIN_DEATH), flash: await page.evaluate(PIN_FLASH), boss: await page.evaluate(PIN_BOSS) };
     ok(+bare.cover < 20, `팝업이 없을 때 사망 커버 z=${bare.cover} — 20(.modal) 이상이면 조건부 강등에 의존하는 것`);
     ok(+bare.flash < 20, `팝업이 없을 때 피격 비네트 z=${bare.flash} — 20(.modal) 이상이면 조건부 강등에 의존하는 것`);
+    ok(+bare.boss < 20, `팝업이 없을 때 보스 경고 z=${bare.boss} — 20(.modal) 이상이면 조건부 강등에 의존하는 것`);
+
+    // ---------- ⑤ 보스 경고 배너 위치 (게임 영역 기준 %) ----------
+    const bw = await page.evaluate(`(() => {
+        const ga = document.getElementById('game-area').getBoundingClientRect();
+        const b = document.querySelector('#boss-warning .bw-banner').getBoundingClientRect();
+        const s = document.querySelector('#boss-warning .bw-sub').getBoundingClientRect();
+        const pct = y => +(((y - ga.top) / ga.height) * 100).toFixed(2);
+        return { bannerMid: pct(b.top + b.height / 2), bannerBottom: pct(b.bottom), subTop: pct(s.top), subMid: pct(s.top + s.height / 2) };
+    })()`);
+    ok(bw.bannerMid >= 22 && bw.bannerMid <= 36,
+        `보스 경고 배너 중심이 게임 영역 ${bw.bannerMid}% — 22~36% 밖(18%대면 '너무 위', 38%↑면 보스 등장을 덮는다)`);
+    ok(bw.subMid > bw.bannerMid, `부제가 배너 위에 있다 (배너 ${bw.bannerMid}% · 부제 ${bw.subMid}%)`);
+    ok(bw.subTop - bw.bannerBottom < 12, `부제가 배너에서 떨어졌다 (간격 ${(bw.subTop - bw.bannerBottom).toFixed(2)}%p) — --bw-top 을 한쪽만 옮긴 것`);
     await page.evaluate(CLEAR_FX);
     await page.close();
 
@@ -178,6 +203,7 @@ const CLEAR_FX = `(() => {
         // 사망 암전 + 피격 비네트를 둘 다 정점에 세운다
         const coverZ = await page.evaluate(PIN_DEATH);
         const flashZ = await page.evaluate(PIN_FLASH);
+        const bossZ = await page.evaluate(PIN_BOSS);
         const after = await page.screenshot({ clip: info.clip });
         // 되돌림 확인: 연출을 걷어내면 원래 그림으로 **정확히** 돌아와야 한다. 안 돌아오면 그 변화는
         // 연출이 아니라 팝업 자신의 표류(rAF 로 다시 그리는 게이지·타이머 — KILL_TIMERS 로도 못 잡는다)다.
@@ -189,11 +215,12 @@ const CLEAR_FX = `(() => {
 
         ok(+coverZ < +info.z, `[${id}] 사망 커버 z=${coverZ} 가 팝업 z=${info.z} 이상 — 팝업을 덮는다`);
         ok(+flashZ < +info.z, `[${id}] 피격 비네트 z=${flashZ} 가 팝업 z=${info.z} 이상 — 팝업을 덮는다`);
+        ok(+bossZ < +info.z, `[${id}] 보스 경고 z=${bossZ} 가 팝업 z=${info.z} 이상 — 팝업을 덮는다`);
         const same = before.equals(after);
         const judgeable = stable && !drift && !seeThrough;
         if (!judgeable) skipped.push(id + (seeThrough ? '(카드 박스에 비치는 여백 포함)' : drift ? '(rAF 표류)' : '(자체애니)'));
         if (judgeable) ok(same, `[${id}] 연출을 정점에 세우자 팝업 카드 픽셀이 바뀌었다 — 실제로 덮고 있다`);
-        rows.push({ id, z: info.z, coverZ, flashZ, px: !judgeable ? '판정불가' : (same ? '동일' : '변함') });
+        rows.push({ id, z: info.z, coverZ, flashZ, bossZ, px: !judgeable ? '판정불가' : (same ? '동일' : '변함') });
     }
 
     ok(errors.length === 0, `콘솔 에러 ${errors.length}건: ${errors.slice(0, 3).join(' | ')}`);
@@ -202,12 +229,13 @@ const CLEAR_FX = `(() => {
     ok(judged.length >= 5, `픽셀로 판정된 팝업이 ${judged.length}개뿐 — 최소 5개(서로 다른 z 대역)는 필요`);
     ok(new Set(judged.map(r => r.z)).size >= 2, `픽셀 판정이 한 z 대역에만 몰렸다 — ${judged.map(r => r.z).join(',')}`);
 
-    console.log(`팝업 없을 때: 사망커버 z=${bare.cover} · 피격 z=${bare.flash} (둘 다 20 미만이어야 조건부 강등에 안 기댄다)`);
-    for (const r of rows) console.log(`${r.id.padEnd(22)} 팝업 z=${String(r.z).padStart(3)} · 사망커버 ${r.coverZ} · 피격 ${r.flashZ} · 카드 픽셀 ${r.px}`);
+    console.log(`팝업 없을 때: 사망커버 z=${bare.cover} · 피격 z=${bare.flash} · 보스경고 z=${bare.boss} (전부 20 미만이어야 조건부 강등에 안 기댄다)`);
+    console.log(`보스 경고 배너 중심 ${bw.bannerMid}% · 부제 중심 ${bw.subMid}% (게임 영역 기준, 목표 22~36%)`);
+    for (const r of rows) console.log(`${r.id.padEnd(22)} 팝업 z=${String(r.z).padStart(3)} · 사망커버 ${r.coverZ} · 피격 ${r.flashZ} · 보스경고 ${r.bossZ} · 카드 픽셀 ${r.px}`);
     if (fail.length) { console.log('\nFAIL ' + fail.length + '건:'); fail.forEach(f => console.log(' ✗ ' + f)); }
     if (skipped.length) console.log(`픽셀 판정 건너뜀(괄호=사유): ${skipped.join(', ')} — 이 팝업들은 z 비교로만 검증됨`);
     if (fail.length) { /* 위에서 이미 출력 */ }
-    else console.log('\nPASS — 사망 암전·피격 비네트가 모든 팝업 아래, 판정 가능한 카드 픽셀 무침범');
+    else console.log('\nPASS — 사망 암전·피격 비네트·보스 경고가 모든 팝업 아래, 판정 가능한 카드 픽셀 무침범, 배너 위치 정상');
     await browser.close();
     process.exit(fail.length ? 1 : 0);
 })();
