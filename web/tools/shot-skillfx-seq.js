@@ -1,6 +1,10 @@
 // 스킬 3박자 연속 프레임 — 시전(1박) → 발동(2박) → 적중(3박) 을 결정론적으로 찍는다 (slug: skill-fx)
-// 사용: node shot-skillfx-seq.js [fx]     기본 explode. (slash|ring|explode|beam|bolt|meteor|heal|aura)
-// 산출: tools/skillfx-<fx>-seq.png (컨택트 시트) + 콘솔에 프레임별 '화면이 실제로 바뀌었는가' 실측
+// 사용: node shot-skillfx-seq.js [스킬id|fx]   기본 fireball. (스킬id 를 주면 그 스킬의 fx+등급으로 찍는다)
+// 산출: tools/skillfx-<이름>-seq.png (컨택트 시트) + 콘솔에 프레임별 '화면이 실제로 바뀌었는가' 실측
+//
+// 등급 위계 비교용: 같은 fx 를 쓰는 커먼/최상위 짝을 나란히 찍어 수치를 비교한다.
+//   powerStrike(커먼 slash) vs execution(레전더리 slash) · fireball(레어 explode) vs supernova(얼티밋 explode)
+//   · lightning(에픽 bolt) vs godspear(미식 bolt) · meteor(에픽) vs apocalypse(미식)
 //
 // ⚠️ 왜 자고 찍으면 안 되는가: 소프트웨어 GL 이라 rAF 가 420ms 에 1~3프레임밖에 안 돈다 —
 //    실시간으로 찍으면 130ms 짜리 시전 박자가 통째로 0~1컷으로 뭉개져 '연출이 없다'는 오판이 나온다.
@@ -11,9 +15,9 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
-const FX = process.argv[2] || 'explode';
+const ARG = process.argv[2] || 'fireball';
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
-const STEP_MS = 30, N = 18;      // 0~510ms — 시전 130 + 발동/적중 잔광까지 들어온다
+const STEP_MS = 30, N = 22;      // 0~630ms — 미식 시전 220ms + 발동/적중 잔광까지 들어온다
 const COLS = 6;
 
 (async () => {
@@ -58,19 +62,23 @@ const COLS = 6;
     const frames = [];
     const t0 = Date.now();
     for (let i = 0; i < N; i++) {
-        const png = await page.evaluate(({ i, STEP_MS, FX, r }) => {
+        const png = await page.evaluate(({ i, STEP_MS, ARG, r }) => {
             const dt = STEP_MS / 1000;
             if (i === 0) {
-                const col = new THREE.Color(SKILL_DEFS.find(d => d.fx === FX).color);
-                Scene3D.__castCol = col;
-                Scene3D.skillCastBeat(col, FX);              // 1박
+                // 인자가 스킬 id 면 그 def 로, fx 이름이면 그 fx 를 쓰는 첫 스킬로 (등급까지 같이 잡힌다)
+                const def = SKILL_DEFS.find(d => d.id === ARG) || SKILL_DEFS.find(d => d.fx === ARG);
+                Scene3D.__def = def; Scene3D.__fx = def.fx;
+                Scene3D.__tier = Scene3D.skillTier(def);
+                Scene3D.__castCol = new THREE.Color(def.color);
+                Scene3D.__wait = Scene3D.castMsFor(def.fx, Scene3D.__tier);
+                Scene3D.__beat = Scene3D.castBeatMs(Scene3D.__tier);   // 박자 길이 ≠ 2박 지연(메테오는 지연 0)
+                Scene3D.skillCastBeat(Scene3D.__castCol, def.fx, Scene3D.__tier);   // 1박
                 Scene3D.__fired = false;
             } else {
-                // CAST_MS 를 넘긴 첫 프레임에서 2·3박 — 실게임의 setTimeout 과 같은 간격
-                const wait = FX === 'meteor' ? Scene3D.CAST_MS_METEOR : Scene3D.CAST_MS;
-                if (!Scene3D.__fired && i * STEP_MS >= wait) {
+                // castMsFor 를 넘긴 첫 프레임에서 2·3박 — 실게임의 setTimeout 과 같은 간격
+                if (!Scene3D.__fired && i * STEP_MS >= Scene3D.__wait) {
                     Scene3D.__fired = true;
-                    Scene3D.skillPayload(FX, Scene3D.__castCol, [999]);   // 2·3박
+                    Scene3D.skillPayload(Scene3D.__fx, Scene3D.__castCol, [999], Scene3D.__tier);   // 2·3박
                 }
                 Scene3D.__realUpdate(dt);
             }
@@ -80,7 +88,7 @@ const COLS = 6;
             off.width = r.width; off.height = r.height;
             off.getContext('2d').drawImage(cv, 0, 0, r.width, r.height);
             return off.toDataURL('image/png');
-        }, { i, STEP_MS, FX, r: rect });
+        }, { i, STEP_MS, ARG, r: rect });
         frames.push(png);
     }
 
@@ -123,15 +131,19 @@ const COLS = 6;
         return c.toDataURL('image/png');
     }, { frames, COLS, STEP_MS });
 
-    const out = path.join(__dirname, `skillfx-${FX}-seq.png`);
+    const meta = await page.evaluate(() => ({ fx: Scene3D.__fx, tier: Scene3D.__tier, wait: Scene3D.__wait, beat: Scene3D.__beat, name: (Scene3D.__def || {}).name }));
+    const out = path.join(__dirname, `skillfx-${ARG}-seq.png`);
     fs.writeFileSync(out, Buffer.from(sheet.split(',')[1], 'base64'));
-    console.log(`${path.basename(out)}  (${N}컷 × ${STEP_MS}ms, 벽시계 ${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+    console.log(`${path.basename(out)}  ${meta.name}/${meta.fx} 등급단계 ${meta.tier} 시전박자 ${meta.beat}ms/2박지연 ${meta.wait}ms  (${N}컷 × ${STEP_MS}ms, 벽시계 ${((Date.now() - t0) / 1000).toFixed(1)}s)`);
     // 시전 구간 = 0 < t < CAST_MS 인 컷만. `ceil(130/30)+1` 로 자르면 150ms(=발동 직후) 컷이 딸려 들어와
     // 2박의 폭발을 1박 실적으로 세게 된다(첫 실행에서 그렇게 나왔다).
-    const cast = diffs.filter((d, i) => i > 0 && i * STEP_MS < 130);
+    // 시전 박자가 화면에 있었는지는 **박자 길이**로 잘라야 한다 — 2박 지연(meta.wait)으로 자르면
+    // 메테오는 0ms 라 구간이 비어 Math.max 가 -Infinity 가 되고 멀쩡한 연출이 FAIL 로 뜬다(실제로 그랬다).
+    const cast = diffs.filter((d, i) => i > 0 && i * STEP_MS < meta.beat);
     const castMax = Math.max(...cast.map(d => d.ch));
     console.log(`  프레임별 변화 화소 / 최대 휘도 상승: ` + diffs.map((d, i) => `${i * STEP_MS}:${d.ch}/${d.lift}`).join('  '));
-    console.log(`  시전 구간(0~130ms) 최대 변화 화소 = ${castMax}  → ${castMax > 500 ? 'OK (1박이 화면에 존재한다)' : 'FAIL (시전 박자가 화면에 안 나온다)'}`);
+    const peak = Math.max(...diffs.map(d => d.ch));
+    console.log(`  시전 구간(0~${meta.beat}ms) 최대 변화 화소 = ${castMax} · 전 구간 최대 = ${peak}  → ${castMax > 500 ? 'OK (1박이 화면에 존재한다)' : 'FAIL (시전 박자가 화면에 안 나온다)'}`);
     console.log(errors.length ? `  CONSOLE ERRORS: ${errors.join(' | ')}` : '  (no console errors)');
     await browser.close();
     process.exit(castMax > 500 && !errors.length ? 0 : 1);

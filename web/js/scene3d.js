@@ -7287,19 +7287,38 @@ const Scene3D = {
     // 영웅 쪽에는 아무 예비 동작이 없었다. 그래서 아무리 세게 터뜨려도 '버튼을 누르니 이펙트가
     // 튀어나온다'로 읽혔지(=예고 없는 팝), '힘을 모아 쏜다'로는 안 읽혔다.
     // 여기서 **1박(시전)** 을 신설하고 기존 연출을 2·3박으로 뒤로 민다.
-    CAST_MS: 130,          // 시전 → 발동 간격. 피해는 Combat 이 0.2~0.25초에 넣으므로 적중이 항상 먼저다.
+    CAST_MS: 130,          // 시전 → 발동 간격(등급 미상일 때의 기본값). 피해는 Combat 이 0.2~0.25초에 넣으므로 적중이 항상 먼저다.
     CAST_MS_METEOR: 0,     // 메테오/아포칼립스는 낙하 0.35초가 이미 2박이라 시전만 겹쳐 준다
+    // ---- 등급 위계 ----
+    // 스킬 18종은 fx 를 등급끼리 **공유**한다 — 강타(커먼 3배)와 처형(레전더리 11배)이 둘 다 'slash',
+    // 화염구(2.4배)와 초신성(10배)이 둘 다 'explode', 낙뢰(7배)와 신의 창(32배)이 둘 다 'bolt'다.
+    // 그래서 여태 **색만 다르고 그림이 완전히 같았다**(피해량은 10배인데 연출이 같으면 위계가 죽는다).
+    // 등급(0~5)을 연출 전 단계에 태워, 모으는 시간·모트 수·링 겹수·셰이크·히트스톱이 같이 커지게 한다.
+    // 특히 **시전 시간**에 태우는 게 값이 크다 — '오래 모을수록 센 것'은 설명 없이 읽히는 문법이다.
+    skillTier(def) {
+        if (!def || !def.rarity || typeof RARITIES === 'undefined') return 1;
+        const i = RARITIES.indexOf(def.rarity);
+        return i < 0 ? 1 : i;                      // common0 rare1 epic2 legendary3 ultimate4 mythic5
+    },
+    // ⚠️ **시전 박자의 길이**와 **2박을 미루는 시간**은 다른 값이다.
+    //    메테오/아포칼립스는 낙하 0.35초가 이미 2박이라 payload 를 미루지 않지만(지연 0),
+    //    시전 박자 자체는 다른 스킬과 똑같이 등급만큼 길어져야 한다 — 둘을 한 함수로 묶었더니
+    //    메테오만 시전이 등급을 안 타고, 검증기의 '시전 구간'도 0ms 로 잡혀 빈 구간이 됐다.
+    castBeatMs(tier) { return 90 + tier * 26; },                       // 커먼 90ms … 미식 220ms
+    castMsFor(fx, tier) { return fx === 'meteor' ? this.CAST_MS_METEOR : this.castBeatMs(tier); },
     // 시전 모트용 글로우 — makeGlowTexture 는 호출마다 새 텍스처를 만든다(스킬마다 굽지 않게 캐시)
     castGlowTex() { return this._castGlow || (this._castGlow = this.makeGlowTexture()); },
 
     // 1박: 시전. 영웅에게 **안으로 모이는** 운동을 만든다 — 기존 연출이 전부 '밖으로 퍼지는'
     // 것뿐이라(expandRing·spawnSparks·explosion) 화면에 예비 동작이 존재하지 않았다.
     // 수렴하는 룬 링 + 빨려드는 모트 + 부풀다 터지는 차지 코어 + 밝아지는 조명, 130ms.
-    skillCastBeat(color, fx) {
+    skillCastBeat(color, fx, tier) {
+        const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
+        const pw = t / 5;                                   // 0(커먼) ~ 1(미식)
         const support = fx === 'heal' || fx === 'aura';
         const hero = this.heroG.position;
         const chest = new THREE.Vector3(hero.x, hero.y + 1.05, hero.z);
-        const dur = 0.13;
+        const dur = this.castBeatMs(t) / 1000;             // 박자 길이는 fx 와 무관하게 등급만 탄다
         const G = new THREE.Group();
         this.scene.add(G);
 
@@ -7308,7 +7327,9 @@ const Scene3D = {
         const rings = [];
         // 반경 2.0/1.45 는 첫 캡처에서 영웅 키의 두 배를 덮어 '문양'이 아니라 '바닥에 깔린 흰 원'으로
         // 읽혔다(연속 프레임 30~90ms 컷). 영웅 어깨폭의 3배쯤으로 조인다.
-        for (const [r0, tube, colr, spin] of [[1.4, 0.042, color, 1], [1.0, 0.026, new THREE.Color(0xffffff), -1.6]]) {
+        const ringSpec = [[1.4, 0.042, color, 1], [1.0, 0.026, new THREE.Color(0xffffff), -1.6]];
+        if (t >= 3) ringSpec.push([1.85, 0.03, color, -0.7]);   // 레전더리 이상만 바깥 겹 하나 더
+        for (const [r0, tube, colr, spin] of ringSpec) {
             const ring = new THREE.Mesh(new THREE.TorusGeometry(r0, tube, 6, 30),
                 new THREE.MeshBasicMaterial({ color: colr, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
             ring.rotation.x = -Math.PI / 2;
@@ -7319,7 +7340,7 @@ const Scene3D = {
 
         // ⓑ 빨려드는 모트 — 영웅 둘레 반경 1.2 에서 가슴으로. 안쪽으로 **가속**해야 흡입으로 읽힌다.
         const motes = [];
-        const n = this.particles.length > 200 ? 6 : 12;   // 붐빌 때 발생량 축소 (spawnSparks 와 같은 규칙)
+        const n = (this.particles.length > 200 ? 4 : 8) + Math.round(pw * 14);   // 커먼 8 … 미식 22 (붐비면 절반)
         for (let i = 0; i < n; i++) {
             const a = (i / n) * Math.PI * 2 + U.rand(-0.2, 0.2);
             const rad = U.rand(0.85, 1.2);
@@ -7355,9 +7376,9 @@ const Scene3D = {
                 m.material.opacity = 0.95 * (1 - k * k * k);        // 도착 직전까지 살아 있어야 '빨려들었다'
             }
             const pop = k < 0.82 ? k / 0.82 : 1 + (k - 0.82) / 0.18 * 0.9;  // 부풀다 마지막 18% 에 터짐
-            core.scale.setScalar(0.05 + pop * (support ? 0.34 : 0.46));
+            core.scale.setScalar(0.05 + pop * (support ? 0.34 : 0.46) * (0.78 + pw * 0.62));
             core.material.opacity = k < 0.82 ? 0.35 + k * 0.75 : 1 - (k - 0.82) / 0.18;
-            light.intensity = 2.0 * ease;   // 2.6 은 지면 전체를 씻어 '화면이 밝아졌다'로 읽혔다
+            light.intensity = (1.5 + pw * 1.9) * ease;   // 2.6 고정은 지면 전체를 씻어 '화면이 밝아졌다'로 읽혔다
         }, () => {
             // ⚠️ `disposeTree` 는 `isMesh` 만 훑어 **Sprite 재질을 통째로 흘린다**(스킬마다 12장씩 샌다).
             //    그렇다고 Sprite 의 geometry 를 해제하면 안 된다 — three r128 의 Sprite 는 모듈 전역
@@ -7372,18 +7393,41 @@ const Scene3D = {
         });
     },
 
-    skillEffect(fx, colorHex, targetIds) {
+    skillEffect(fx, colorHex, targetIds, def) {
         const color = new THREE.Color(colorHex);
-        this.skillCastBeat(color, fx);                     // 1박
-        const wait = fx === 'meteor' ? this.CAST_MS_METEOR : this.CAST_MS;
-        // 2·3박은 시전이 끝난 뒤. ⚠️ 타깃은 **그때 다시 조회**한다 — 130ms 사이에 죽어 disposeTree 된
+        const tier = this.skillTier(def);
+        this.skillCastBeat(color, fx, tier);               // 1박
+        const wait = this.castMsFor(fx, tier);
+        // 2·3박은 시전이 끝난 뒤. ⚠️ 타깃은 **그때 다시 조회**한다 — 그 사이에 죽어 disposeTree 된
         // 메시를 붙들고 있으면 해제된 지오메트리를 참조한다.
-        if (wait > 0) { setTimeout(() => this.skillPayload(fx, color, targetIds), wait); return; }
-        this.skillPayload(fx, color, targetIds);
+        if (wait > 0) { setTimeout(() => this.skillPayload(fx, color, targetIds, tier), wait); return; }
+        this.skillPayload(fx, color, targetIds, tier);
     },
 
-    skillPayload(fx, color, targetIds) {
+    // 3박 뒤에 얹는 **무게** — 등급이 높을수록 충격파를 겹치고 화면을 세게 물린다.
+    // 기존 연출(explosion·spawnSparks)은 등급을 모르므로 위계가 전부 여기서 나온다.
+    // ⚠️ 타깃은 여기서 **다시 조회**한다 — 이 함수는 30ms(메테오는 340ms) 뒤에 불리므로,
+    //    호출 시점의 메시를 붙들고 있으면 그 사이 죽어 disposeTree 된 지오메트리를 참조한다
+    //    (2박에서 이미 한 번 밟은 함정이라 같은 규칙을 그대로 적용한다).
+    skillImpactWeight(fx, color, targetIds, tier) {
+        if (tier < 2) return;                              // 커먼·레어는 기본 연출 그대로 (위계의 바닥)
+        const pw = (tier - 2) / 3;                         // 0(에픽) ~ 1(미식)
+        const live = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
+        const anchors = live.length ? live.map(m => m.g.position.clone())
+            : [this.heroG.position.clone()];
+        for (const p of anchors.slice(0, 4)) {             // 다수 적일 때 상한 — 링이 화면을 덮지 않게
+            this.expandRing(p, color, 1.8 + pw * 1.6);
+            if (tier >= 4) setTimeout(() => this.expandRing(p, new THREE.Color(0xffffff), 1.2 + pw * 1.2), 55);
+            this.spawnSparks(p.clone().add(new THREE.Vector3(0, 0.55, 0)), Math.round(10 + pw * 22), color.getHex(), { speed: 1.1 + pw * 0.7 });
+        }
+        this.shake(0.18 + pw * 0.42);
+        // 히트스톱은 최상위 두 등급만 — 남발하면 '렉'으로 읽힌다(타격 히트스톱과 같은 규칙)
+        if (tier >= 4) this.hitStop(0.045 + pw * 0.035);
+    },
+
+    skillPayload(fx, color, targetIds, tier) {
         const targets = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
+        if (tier !== undefined) setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier), fx === 'meteor' ? 340 : 30);
         if (fx === 'meteor') {
             targets.forEach((m, i) => setTimeout(() => {
                 const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34, 0),

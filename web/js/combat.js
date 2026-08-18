@@ -281,7 +281,7 @@ const Combat = {
             if (this.hero.hp.ratioTo(this.hero.maxHp) > 0.75) { if (manual) UI.toast('체력이 충분합니다'); return false; } // 낭비 방지
             const healAmt = this.hero.maxHp.mul(Skills.effHeal(id));
             this.hero.hp = this.hero.hp.add(healAmt).min(this.hero.maxHp);
-            Scene3D.skillEffect('heal', d.color, []);
+            Scene3D.skillEffect('heal', d.color, [], d);
             UI.skillCutin(d);
             UI.floatTextAtHero(`+${U.fmt(healAmt)}`, 'heal');
         } else if (d.type === 'buff') {
@@ -289,7 +289,7 @@ const Combat = {
             this.buffs = this.buffs.filter(b => b.id !== id);
             this.buffs.push({ id, buff: d.buff, until: U.now() + d.dur * 1000 });
             this.recalcHero();
-            Scene3D.skillEffect('aura', d.color, []);
+            Scene3D.skillEffect('aura', d.color, [], d);
             UI.skillCutin(d);
         } else {
             const alive = this.aliveEnemies().filter(e => e.x < 3.2);
@@ -299,13 +299,13 @@ const Combat = {
             UI.skillCutin(d);
             UI.skillFlash(d.color);
             if (d.type === 'aoe') {
-                Scene3D.skillEffect(d.fx, d.color, alive.map(e => e.id));
+                Scene3D.skillEffect(d.fx, d.color, alive.map(e => e.id), d); // d 를 넘겨 등급 위계를 연출에 태운다
                 Scene3D.shake(0.35);
                 for (const e of alive) this.pending.push({ t: 0.25, fn: () => { if (e.alive) this.damageEnemy(e, dmg.mul(U.rand(0.9, 1.1)), false, 'skill'); } });
             } else {
                 const t = this.priorityTarget();
                 if (!t) return false;
-                Scene3D.skillEffect(d.fx, d.color, [t.id]);
+                Scene3D.skillEffect(d.fx, d.color, [t.id], d); // d 를 넘겨 등급 위계를 연출에 태운다
                 Scene3D.shake(0.22);
                 this.pending.push({ t: 0.2, fn: () => { if (t.alive) this.damageEnemy(t, dmg, true, 'skill'); } });
             }
