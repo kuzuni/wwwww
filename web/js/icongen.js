@@ -763,8 +763,10 @@ const IconGen = {
             ctx.restore();
 
             path();
+            // 원본(shot-042228) 티켓은 금색이 아니라 **파랑**이다 — 도전 버튼 안 실측 #4018ff·#2e16ad.
+            // 금색 팔레트를 파랑 계열로 바꿨다(구조·별·노치는 그대로).
             ctx.fillStyle = G._lin(ctx, 0, y, 0, y + h,
-                [[0, '#ffe9a8'], [0.28, '#f6c343'], [0.62, '#e09a12'], [1, '#a4650a']]);
+                [[0, '#b9c1ff'], [0.28, '#5d6bff'], [0.62, '#4018ff'], [1, '#200c96']]);
             ctx.fill('evenodd');
 
             ctx.save();
@@ -773,19 +775,19 @@ const IconGen = {
             // 상단 하이라이트 / 하단 턱
             ctx.fillStyle = 'rgba(255,255,255,.55)';
             ctx.fillRect(x, y, w, h * 0.10);
-            ctx.fillStyle = 'rgba(90,52,4,.35)';
+            ctx.fillStyle = 'rgba(10,6,80,.4)';
             ctx.fillRect(x, y + h * 0.88, w, h * 0.12);
             // 절취선
             ctx.setLineDash([S * 0.028, S * 0.026]);
             ctx.lineWidth = S * 0.016;
-            ctx.strokeStyle = 'rgba(120,70,6,.6)';
+            ctx.strokeStyle = 'rgba(18,10,110,.6)';
             ctx.beginPath();
             ctx.moveTo(nx, y + nr * 1.2);
             ctx.lineTo(nx, y + h - nr * 1.2);
             ctx.stroke();
             ctx.setLineDash([]);
             // 오른쪽 본권의 문자 라인 (정보 표기 느낌)
-            ctx.fillStyle = 'rgba(120,70,6,.32)';
+            ctx.fillStyle = 'rgba(18,10,110,.32)';
             ctx.fillRect(x + w * 0.46, y + h * 0.30, w * 0.42, h * 0.09);
             ctx.fillRect(x + w * 0.46, y + h * 0.50, w * 0.30, h * 0.09);
             ctx.restore();
@@ -800,15 +802,15 @@ const IconGen = {
                 i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
             }
             ctx.closePath();
-            ctx.fillStyle = G._lin(ctx, 0, sy - sr, 0, sy + sr, [[0, '#fffdf2'], [1, '#ffd977']]);
+            ctx.fillStyle = G._lin(ctx, 0, sy - sr, 0, sy + sr, [[0, '#ffffff'], [1, '#cdd4ff']]);
             ctx.fill();
             ctx.lineWidth = S * 0.014;
-            ctx.strokeStyle = 'rgba(120,70,6,.55)';
+            ctx.strokeStyle = 'rgba(18,10,110,.55)';
             ctx.stroke();
 
             path();
             ctx.lineWidth = S * 0.022;
-            ctx.strokeStyle = 'rgba(74,42,2,.75)';
+            ctx.strokeStyle = 'rgba(10,5,60,.8)';
             ctx.stroke();
             ctx.restore();
         },
