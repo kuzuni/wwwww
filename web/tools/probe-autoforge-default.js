@@ -43,31 +43,37 @@ async function until(page, fnSrc, ms = 30000) {
         UI.showCraftModal = function (item) { UI._probeCraftOpens++; return orig(item); };
     });
 
-    // ---- ① 기본 설정 그대로 시작 ----
-    const N = 6;
-    const a = await page.evaluate(n => {
+    // ---- ① 기본 설정 그대로 시작 (autoforge-hammer-per-cycle 2026-08-18: 배치 1회 후 정지가 아니라
+    //      망치질 1회 = 설정 N개 사이클을 **망치가 다 없어질 때까지** 반복해야 한다) ----
+    const N = 6, H0 = 13;                      // 13개 ÷ 사이클 6개 → 망치질 3회(6·6·1) 뒤 소진 정지
+    const a = await page.evaluate(([n, h0]) => {
         S.autoForge = { keepAges: [], filterOn: false, filterSubs: [], hammersPerBatch: n, stopOnTarget: false };
+        S.hammers = h0;
         S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
         UI.els.craftModal.classList.add('hidden');
         UI._probeCraftOpens = 0;
-        const h0 = S.hammers;
+        window.__strikes = 0;
+        if (!UI.__strikeOrig) UI.__strikeOrig = UI.playAnvilStrike;
+        UI.playAnvilStrike = function (done) { window.__strikes++; return UI.__strikeOrig.call(this, done); };
         UI.onToggleAutoForge();
         return { h0, on: S.autoForgeOn };
-    }, N);
+    }, [N, H0]);
     ok(a.on, '기본 설정에서 자동 제련이 켜지지 않았다');
-    const stopped = await until(page, `S.autoForgeOn === false`, 40000);
-    const a2 = await page.evaluate(() => ({ h: S.hammers, opens: UI._probeCraftOpens, seq: !!UI._autoSeq }));
-    ok(stopped, `기본 설정에서 배치가 끝나지 않았다 (해머 ${a.h0} → ${a2.h}, 비교 팝업 ${a2.opens}회)`);
-    ok(a.h0 - a2.h === N, `기본 설정 예산 ${N}개를 다 써야 하는데 ${a.h0 - a2.h}개 소모`);
+    const stopped = await until(page, `S.autoForgeOn === false`, 60000);
+    const a2 = await page.evaluate(() => ({ h: S.hammers, opens: UI._probeCraftOpens, seq: !!UI._autoSeq, strikes: window.__strikes }));
+    ok(stopped, `망치 소진까지 돌지 않았다 (해머 ${a.h0} → ${a2.h}, 비교 팝업 ${a2.opens}회)`);
+    ok(a2.h === 0, `망치가 다 없어질 때까지 계속 돌아야 하는데 ${a2.h}개를 남기고 멈췄다 (1배치 후 자동 OFF 회귀?)`);
+    ok(a2.strikes === Math.ceil(H0 / N), `망치질 1회 = ${N}개 사이클이어야 한다 (망치 ${H0}개면 망치질 ${Math.ceil(H0 / N)}회, 실측 ${a2.strikes}회)`);
     ok(a2.opens === 0, `기본 설정인데 비교 팝업이 ${a2.opens}회 떴다 (손이 가야 하면 '자동'이 아니다)`);
     ok(!a2.seq, '배치 종료 후에도 시퀀스가 남아 있다');
-    console.log(`① 기본 설정 무개입 배치 — 해머 ${a.h0} → ${a2.h} (예산 ${N} 소진), 비교 팝업 ${a2.opens}회, 정지=${!a2.on}`);
+    console.log(`① 기본 설정 무개입 — 해머 ${a.h0} → ${a2.h} (소진 정지), 망치질 ${a2.strikes}회(사이클 ${N}개씩), 비교 팝업 ${a2.opens}회, 정지=${!a2.on}`);
 
     // ---- ② 기본 설정에서 업그레이드는 자동 장착 ----
     const b = await page.evaluate(async () => {
         S.equipment.weapon = null;
         Combat.recalcHero();
         S.autoForge.hammersPerBatch = 3;
+        S.hammers = 9;                          // 소진 정지 사양이라 예산을 작게 (3개 사이클 ×3)
         S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
         UI.onToggleAutoForge();
         for (let i = 0; i < 800 && S.autoForgeOn; i++) await new Promise(r => setTimeout(r, 50));
@@ -84,7 +90,8 @@ async function until(page, fnSrc, ms = 30000) {
     const rb = await page.evaluate(async () => {
         S.autoForge.keepAges = AGES.slice();     // 뽑는 족족 목표 — 재지적 당시 사용자 설정의 유력 경로
         S.autoForge.stopOnTarget = false; S.autoForge.hammersPerBatch = 10;
-        S.hammers = 500; S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
+        S.hammers = 10;                          // 소진 정지 사양 — 망치 10개 = 카드 10회 = 팝업 10회 뒤 정지
+        S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
         UI.els.craftModal.classList.add('hidden');
         UI._probeCraftOpens = 0;
         window.__cards = 0;

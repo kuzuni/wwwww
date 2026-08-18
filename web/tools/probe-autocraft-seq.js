@@ -1,12 +1,13 @@
 // 자동 제작 순차 애니메이션 시퀀스 검증 (사용자 지시 2026-08-17, TODO ①~⑦
 //  + 2026-08-18 재지적 autoforge-show-all-cards: 배치는 팝업에서 멈추지 않고 카드 N장이 다 보여야)
 //  ⑴ 자동제작 시작 시 설정 팝업이 닫힌다
-//  ⑵ 제작마다 망치질(.striking) 연출이 돈다
+//  ⑵ 망치질(.striking) 연출이 돈다 — 사이클(설정 N개)마다 1회 (autoforge-hammer-per-cycle 2026-08-18)
 //  ⑶ 목표 통과분은 비교 팝업으로 뜨고(자동장착 금지), 사용자가 처리하면 배치가 남은 망치로 이어진다
 //  ⑷ 필터 탈락분은 카드가 잠깐 보였다가 코인 판매 연출(#coin-burst)이 난다
 //  ⑸ 망치 N개 배치면 결과 카드가 정확히 N회 노출된다 (통과·탈락이 섞여도)
-//  ⑹ 예산 N → 해머 N개를 다 쓸 때까지 돌고 정지 / '목표를 찾으면 정지'(stopOnTarget) ON이면
-//     첫 통과분이 비교 팝업으로 뜨고 선택 후 정지, 남은 예산은 쓰지 않는다
+//  ⑹ 배치 1회 후 멈추지 않고 **망치가 다 없어질 때까지** 사이클을 반복한 뒤 정지
+//     (autoforge-hammer-per-cycle 2026-08-18) / '목표를 찾으면 정지'(stopOnTarget) ON이면
+//     첫 통과분이 비교 팝업으로 뜨고 선택 후 정지, 남은 망치는 쓰지 않는다
 //  ⑺ 비교 팝업 딤 클릭 = 보류 → 모루 자리에 카드, 그 카드를 누르면 비교 팝업 재등장, 세이브 보존
 // 사용: node probe-autocraft-seq.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
@@ -67,7 +68,8 @@ async function until(page, fnSrc, ms = 8000) {
         //    (실측 교차검증: 장착 6건 뒤 7번째부터 gained 20으로 판매되고 #coin-burst에 코인 5개가 실제로 찍힌다.)
         //    이 프로브가 보려는 건 '탈락 → 판매 → 코인 연출' 경로이므로 목표가 있는 상태로 고정한다.
         Forge.hasAutoTarget = () => true;
-        const h0 = S.hammers;                   // 예산 소모는 '시작 직전' 값과 비교해야 한다
+        S.hammers = 5;                          // 소진 정지 사양(hammer-per-cycle) — 사이클 3+2 뒤 소진 정지
+        const h0 = S.hammers;                   // 소모는 '시작 직전' 값과 비교해야 한다
         UI.onToggleAutoForge();
         return { openedBefore, closedAfter: UI.els.autoForgeModal.classList.contains('hidden'), on: S.autoForgeOn, h0 };
     });
@@ -83,12 +85,12 @@ async function until(page, fnSrc, ms = 8000) {
     ok(await until(page, `!!document.getElementById('coin-burst') && document.getElementById('coin-burst').children.length > 0`, 6000),
         '판매 코인 연출(#coin-burst)이 나지 않았다');
 
-    // ---- ⑹ 예산 소진 후 정지 (계속하기 ON, 예산 3) ----
-    ok(await until(page, `S.autoForgeOn === false`, 15000), '예산을 다 써도 자동제작이 멈추지 않았다');
+    // ---- ⑹ 망치 소진까지 반복 후 정지 (사이클 3개씩, 망치 5 → 3+2) ----
+    ok(await until(page, `S.autoForgeOn === false`, 15000), '망치를 다 써도 자동제작이 멈추지 않았다');
     const after = await page.evaluate(() => ({ h: S.hammers, seq: !!UI._autoSeq }));
-    ok(start.h0 - after.h === 3, `예산 3개만 써야 하는데 ${start.h0 - after.h}개 소모`);
+    ok(after.h === 0, `망치가 다 없어질 때까지 계속 돌아야 하는데 ${after.h}개를 남기고 멈췄다 (1배치 후 자동 OFF 회귀?)`);
     ok(!after.seq, '정지 후에도 시퀀스가 남아 있다');
-    console.log(`⑴⑵⑷⑹ 설정팝업 닫힘·망치질·탈락카드·코인연출 확인 · 해머 ${start.h0} → ${after.h}(예산 3 소진 후 정지)`);
+    console.log(`⑴⑵⑷⑹ 설정팝업 닫힘·망치질·탈락카드·코인연출 확인 · 해머 ${start.h0} → ${after.h}(소진 후 정지)`);
 
     // ---- ⑶⑸ 목표 통과분은 비교 팝업으로(자동장착 금지), 처리하면 배치가 이어져 망치 N개 = 카드 N회 ----
     //      (autoforge-show-all-cards 재지적 2026-08-18: "해당되면 비교팝업이 떠야 하는데 자동장착을 해버린다")
@@ -104,6 +106,7 @@ async function until(page, fnSrc, ms = 8000) {
         const origModal = UI.showCraftModal.bind(UI);
         UI.showCraftModal = function (item) { opens++; return origModal(item); };
         S.autoForge.hammersPerBatch = 6; S.autoForge.stopOnTarget = false;
+        S.hammers = 6;                          // 소진 정지 사양 — 사이클 6개 = 망치 6개로 정확히 소진
         S.autoForgeOn = false; UI._autoSeq = null;
         const h0 = S.hammers;
         UI.onToggleAutoForge();

@@ -1219,18 +1219,19 @@ const UI = {
     },
 
     // ===== 자동 제작 순차 시퀀스 (사용자 지시 2026-08-17) =====
-    // 예전 구현은 main.js의 3초 인터벌에서 배치로 즉시 처리해 아무 연출이 없었다. 이제 한 개씩,
-    // **망치질 → 뽑힌 것 카드로 보여주기 → 자동 판정(장착/판매)** 순서로 돌고, 배치는 팝업에서
-    // 멈추지 않는다 — 망치 N개면 결과 카드가 N번 다 보여야 한다(사용자 재지적 2026-08-18
-    // autoforge-show-all-cards: 종전에는 목표 통과분마다 비교 팝업이 선택을 기다려 카드가 1장에서
-    // 끊겼다). 비교 팝업은 '목표를 찾으면 정지'(stopOnTarget)를 켠 경우에만 뜨고, 그 카드가 배치의
-    // 마지막이 된다(고르면 doResolveCraft가, 보류하면 onCraftDimClick이 정지를 마무리한다).
-    // 예산·해머가 떨어지거나 토글이 꺼지면 정지.
+    // 예전 구현은 main.js의 3초 인터벌에서 배치로 즉시 처리해 아무 연출이 없었다. 이제
+    // **망치질 애니 1회 = 설정한 N개짜리 사이클**로 돌고(사용자 지시 2026-08-18
+    // autoforge-hammer-per-cycle: "애니메이션 한 번 할 때마다 망치 N개씩"), 사이클 안에서는
+    // 한 개씩 **뽑힌 것 카드로 보여주기 → 자동 판정(장착/판매)** 이 이어진다. 사이클이 끝나도
+    // 배치는 멈추지 않고 **망치가 다 없어질 때까지** 다음 망치질 사이클을 반복한다("1배치 후
+    // 자동 OFF"가 사용자가 틀렸다고 한 그 동작). 정지 조건은 셋뿐 — 사용자가 토글을 끄거나,
+    // 망치가 떨어지거나, stopOnTarget 팝업이 배치의 마지막이 되거나.
+    // 통과분(목표 필터)은 비교 팝업으로 사용자 선택을 받고, 처리하면 남은 사이클/망치로 이어 간다
+    // (autoforge-show-all-cards). 팝업이 떠 있는 동안에는 망치를 소비하지 않는다.
     _autoSeq: null,
     startAutoSeq() {
         if (this._autoSeq) return;
-        const cfg = Forge.autoForgeConfig();
-        this._autoSeq = { left: Math.max(1, cfg.hammersPerBatch), stopAfterPick: false };
+        this._autoSeq = { inCycle: 0, stopAfterPick: false };
         this.autoSeqStep();
     },
     stopAutoSeq() {
@@ -1256,8 +1257,24 @@ const UI = {
             this.renderTopBar();
             this.renderEquipSheet();
         }
-        if (seq.stopAfterPick || seq.left <= 0 || S.hammers < 1) { this.stopAutoSeq(); return; }
-        seq.left--;
+        if (seq.stopAfterPick || S.hammers < 1) { this.stopAutoSeq(); return; }
+        if (seq.inCycle <= 0) {
+            // 새 사이클 — 망치질 애니 1회가 설정한 N개(남은 망치가 그보다 적으면 남은 만큼)를 소비한다.
+            seq.inCycle = Math.min(Math.max(1, Forge.autoForgeConfig().hammersPerBatch), S.hammers);
+            this._anvilBusy = true;
+            this.playAnvilStrike(() => { this._anvilBusy = false; this.autoSeqCard(); });
+            return;
+        }
+        this.autoSeqCard();
+    },
+    // 사이클 안의 한 개: 제작(망치 1 소비) → 카드 → 자동 판정/비교 팝업. 제작을 카드 직전에
+    // 하나씩 하는 이유는 대기품 슬롯이 1개(사용자 확정 2026-08-17)라서다 — 사이클치 N개를
+    // 미리 뽑아 두면 연출 도중 새로고침에 뽑힌 장비가 통째로 증발한다.
+    autoSeqCard() {
+        const seq = this._autoSeq;
+        if (!seq || !S.autoForgeOn) return;
+        if (S.hammers < 1) { this.stopAutoSeq(); return; }
+        seq.inCycle--;
         const item = Forge.craft(1)[0];
         if (!item) { this.stopAutoSeq(); return; }
         this.setPendingCraft(item);   // 연출 도중 새로고침해도 결과물이 남게 (수동 제작과 같은 규약)
@@ -1268,8 +1285,7 @@ const UI = {
         // (실측: 돌 반지 → 사냥꾼 허리띠로 교체되고 돌 반지는 코인으로도 회수되지 않음).
         // 통과분은 비교 팝업이 뜨는 순간부터 팝업 자신이 재클릭을 막으므로 거기서 푼다.
         this._anvilBusy = true;
-        this.playAnvilStrike(() => {
-            if (this._pendingItem !== item) { this._anvilBusy = false; return; }   // 연출 중 탭 이동 등으로 이미 정리됨
+        {
             // 예전엔 '장착 중인 것과 같은 장비 = 승천 재료'라 필터와 무관하게 팝업으로 보여줬지만,
             // 개별 장비 승천이 라인 승천으로 대체되면서 중복 장비는 일반 판매다(forge.js:isMatchingGear 메모).
             // 남겨 두면 중복이 뽑힐 때마다 배치가 팝업에서 멈추는 원인만 된다 — 목표 판정만 본다.
@@ -1305,7 +1321,7 @@ const UI = {
                 saveGame();
                 this.autoSeqStep();
             });
-        });
+        }
     },
     // '목표 아님'으로 판정된 장비의 처리. 반환은 Forge.autoResolve와 같은 { equipped, gained }.
     // 유지 시대·필터를 하나라도 켜 뒀으면 그건 명시적 의사표시라 탈락품을 그대로 판매한다
