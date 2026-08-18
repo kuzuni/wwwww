@@ -254,6 +254,36 @@ async function waitBooted(page, timeout = 25000) {
         `⑥ 오버레이 수명 ${life.life}ms ≥ 마지막 자식 애니메이션 종료 ${life.lastEndMs}ms`);
     say(life.life <= 900, `⑥ 총 템포 ${life.life}ms ≤ 900ms (항목 스펙 0.6~0.9초)`);
 
+    // ⑫ 🚨 **이펙트가 실제 접점에서 터지는가.** 망치만 상판 침하를 따라가게 고쳤더니 빛·불티는
+    //    cy=14 에 남아 3타에서 진짜 접점보다 8.5px 위 허공에서 터졌다(비평가 B 2차 1순위).
+    //    '망치가 접점에 붙었다'(①)만으로는 못 잡는 결함이라 이펙트 원점을 따로 잰다.
+    for (const [h, pct] of [[0, 24], [1, 57], [2, 90]]) {
+        const m = await page.evaluate(({ pct, h }) => {
+            const DUR = 720;
+            UI.cancelAnvilStrike(); UI._anvilBusy = false;
+            document.getElementById('equip-sheet').getBoundingClientRect();
+            UI.playAnvilStrike(() => {});
+            (UI._anvilTimers || []).forEach(clearTimeout); UI._anvilTimers = [];
+            document.getElementById('equip-sheet').getBoundingClientRect();
+            document.querySelectorAll('#equip-sheet, #equip-sheet *').forEach(n =>
+                n.getAnimations().forEach(a => { a.pause(); a.currentTime = DUR * pct / 100; }));
+            const anv = document.querySelector('.anvil-btn .anvil-svg');
+            const hp = (() => { const p = anv.createSVGPoint(); p.x = 55; p.y = 14; return p.matrixTransform(anv.getScreenCTM()); })();
+            const out = {};
+            for (const [key, sel] of [['ring', `.af-ring.h${h}`], ['core', `.af-core.c${h}`], ['flash', `.af-flash.f${h}`]]) {
+                const e = document.querySelector('.anvil-fx ' + sel);
+                if (!e) continue;
+                const p = e.ownerSVGElement.createSVGPoint();
+                p.x = parseFloat(e.getAttribute('cx')); p.y = parseFloat(e.getAttribute('cy'));
+                const q = p.matrixTransform(e.ownerSVGElement.getScreenCTM());
+                out[key] = Math.hypot(q.x - hp.x, q.y - hp.y);
+            }
+            return out;
+        }, { pct, h });
+        const worst = Math.max(...Object.values(m));
+        say(worst <= 1.5, `⑫ hit${h + 1}: 이펙트 원점이 실제 접점 위 — 최대 어긋남 ${worst.toFixed(2)}px (${Object.entries(m).map(([k, v]) => k + ' ' + v.toFixed(2)).join(', ')}, 허용 1.5px)`);
+    }
+
     // ⑪ 🚨 **네이티브 92px 에서 '때렸다'가 실제로 밝은 픽셀로 존재하는가.** 확대 캡처에서 아무리
     //    화려해도 네이티브에서 밝은 픽셀이 없으면 플레이어는 타격을 못 본다 — 1차 채점에서
     //    "근백색 픽셀 1개, 이펙트로 볼 수 있는 픽셀 26개(창백한 살구색)"로 지목당한 항목이다.

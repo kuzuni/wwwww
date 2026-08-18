@@ -733,12 +733,12 @@ body {
      drop = 79.12 + (14 − 79.12)·scaleY + translateY − 14
    → 1타 5.53 / 2타 7.83 / 3타 12.16 유닛. afswing 의 접촉 translate 가 이 값이다. */
 @keyframes anvilbump {   /* 타격마다 모루가 눌렸다 되튄다 */
-    0%, 20%, 34%, 53%, 67%, 86%, 100% { transform: translateY(0) scale(1, 1); }
+    0%, 23%, 34%, 56%, 67%, 89%, 100% { transform: translateY(0) scale(1, 1); }
     24%   { transform: translateY(2.4px) scale(1.025, .952); }
     28%   { transform: translateY(2.4px) scale(1.025, .952); }   /* 망치와 같이 멈춘다 */
     31%   { transform: translateY(-1.1px) scale(.99, 1.018); }
     57%   { transform: translateY(3.4px) scale(1.04, .932); }
-    61%   { transform: translateY(3.4px) scale(1.04, .932); }
+    61.6% { transform: translateY(3.4px) scale(1.04, .932); }
     64%   { transform: translateY(-1.4px) scale(.988, 1.024); }
     90%   { transform: translateY(5px)   scale(1.06, .89); }     /* 마지막 타격이 가장 깊다 */
     96.5% { transform: translateY(5px)   scale(1.06, .89); }
@@ -807,24 +807,33 @@ body {
    '손으로 잡아챘다'로 읽혔다. 달군 쇠는 에너지를 먹으니 되튐은 타격의 0.6배쯤이어야 한다.
    3타는 되튐을 afswing 안에서 22ms에 62° 뽑던 것을 **afexit(160ms)에 넘겨** 0.44°/ms 로 낮췄다.
    ⚠️ afexit 의 0% 는 이 애니메이션의 100% 와 반드시 같은 자세여야 한다(720ms에 튀지 않게). */
+/* ⚠️ 접촉 직전 1프레임에 **머리 축 방향으로 늘린다**(스미어). 92px·60fps 에서 최종 접근이
+   프레임당 6px 대라 눈이 궤적을 잇지 못하고 '내려놓았다'로 읽힌다 — 늘어난 한 프레임이
+   그 사이를 메워 속도를 판다. transform-origin 이 타격면(55,14)이라 scaleY 는 머리를
+   **뒤로** 늘린다(선단은 그대로, 꼬리가 끌린다 = 모션 블러의 도형판).
+   ⚠️ 그래서 **모든 키프레임의 함수 목록을 translate+rotate+scale 로 통일**했다 — 목록이
+   다르면 CSS 가 매트릭스 보간으로 떨어져 회전 경로가 미묘하게 틀어진다. */
 @keyframes afswing {     /* 들어올렸다 내리치기 ×3 — 마지막은 더 크게 감아 올린다 */
     /* 등장·퇴장은 알파가 아니라 모션으로 — 정지 상태에서 페이드하면 '무에서 나타나 녹아 사라진다' */
-    0%    { transform: translate(6px, -64px)   rotate(-58deg); opacity: 0; }
-    9%    { transform: translate(2.2px, -18px) rotate(-22deg); opacity: 1; }  /* 프레임 밖에서 들어온다 */
-    19%   { transform: translate(1.2px, -8px)  rotate(-2deg); }    /* 72ms에 20° = 저속 */
-    24%   { transform: translate(-.28px, 5.53px) rotate(19deg); }  /* 36ms에 21° = 2.1배 가속 */
-    28%   { transform: translate(-.28px, 5.53px) rotate(19deg); }  /* 33ms 정지(2프레임) */
-    33%   { transform: translate(.8px, -6px)   rotate(4deg); }     /* 되튐 0.42°/ms = 타격의 0.72배 */
-    41%   { transform: translate(3px, -27px)   rotate(-34deg); }
-    52%   { transform: translate(1.6px, -14px) rotate(-9deg); }
-    57%   { transform: translate(-.44px, 7.83px) rotate(19deg); }  /* 36ms에 28° */
-    61%   { transform: translate(-.44px, 7.83px) rotate(19deg); }  /* 29ms 정지 */
-    65%   { transform: translate(1.2px, -7px)  rotate(3deg); }     /* 되튐 0.55°/ms = 0.71배 */
-    74%   { transform: translate(4.6px, -42px) rotate(-54deg); }   /* 3타 윈드업이 가장 크다 */
-    85%   { transform: translate(2.6px, -20px) rotate(-20deg); }
-    90%   { transform: translate(-.66px, 12.16px) rotate(20deg); opacity: 1; }  /* 36ms에 40° */
-    96.5% { transform: translate(-.66px, 12.16px) rotate(20deg); opacity: 1; }  /* 47ms 정지(최장) */
-    100%  { transform: translate(1.2px, 4px)   rotate(8deg);  opacity: 1; }     /* 되튐은 afexit 이 잇는다 */
+    0%    { transform: translate(6px, -64px)   rotate(-58deg) scale(1, 1); opacity: 0; }
+    9%    { transform: translate(2.2px, -18px) rotate(-22deg) scale(1, 1); opacity: 1; }  /* 프레임 밖에서 들어온다 */
+    19%   { transform: translate(1.2px, -8px)  rotate(-2deg) scale(1, 1); }    /* 72ms에 20° = 저속 */
+    22%   { transform: translate(.31px, .12px) rotate(10.6deg) scale(1, 1.16); }   /* 접촉 직전 1프레임 스미어 */
+    24%   { transform: translate(-.28px, 5.53px) rotate(19deg) scale(1, 1); }  /* 36ms에 21° = 2.1배 가속 */
+    28%   { transform: translate(-.28px, 5.53px) rotate(19deg) scale(1, 1); }  /* 33ms 정지(2프레임) */
+    33%   { transform: translate(.8px, -6px)   rotate(4deg) scale(1, 1); }     /* 되튐 0.42°/ms = 타격의 0.72배 */
+    41%   { transform: translate(3px, -27px)   rotate(-34deg) scale(1, 1); }
+    52%   { transform: translate(1.6px, -14px) rotate(-9deg) scale(1, 1); }
+    55.5% { transform: translate(.17px, 1.28px) rotate(10.6deg) scale(1, 1.18); }
+    57%   { transform: translate(-.44px, 7.83px) rotate(19deg) scale(1, 1); }  /* 36ms에 28° */
+    61.6% { transform: translate(-.44px, 7.83px) rotate(19deg) scale(1, 1); }  /* 33ms 정지 */
+    65%   { transform: translate(1.2px, -7px)  rotate(3deg) scale(1, 1); }     /* 되튐 0.55°/ms = 0.71배 */
+    74%   { transform: translate(4.6px, -42px) rotate(-54deg) scale(1, 1); }   /* 3타 윈드업이 가장 크다 */
+    85%   { transform: translate(2.6px, -20px) rotate(-20deg) scale(1, 1); }
+    88.5% { transform: translate(.32px, 2.51px) rotate(8deg) scale(1, 1.22); }      /* 3타가 가장 길게 늘어난다 */
+    90%   { transform: translate(-.66px, 12.16px) rotate(20deg) scale(1, 1); opacity: 1; }  /* 36ms에 40° */
+    96.5% { transform: translate(-.66px, 12.16px) rotate(20deg) scale(1, 1); opacity: 1; }  /* 47ms 정지(최장) */
+    100%  { transform: translate(1.2px, 4px)   rotate(8deg) scale(1, 1);  opacity: 1; }     /* 되튐은 afexit 이 잇는다 */
 }
 /* 타격 링 파동 — 타격 시각에 맞춰 각각 지연을 다르게 준다. 상판이 살짝 누워 보이므로 원이 아니라 타원. */
 /* ⚠️ 지연은 타격(172.8 / 410.4 / 648ms)보다 **20ms 앞**에 둔다 — 60fps에서 접촉 프레임에 링의
@@ -837,9 +846,9 @@ body {
     transform-box: fill-box; transform-origin: center;
     opacity: 0; animation: afring .2s cubic-bezier(.1,.82,.28,1) forwards;
 }
-.anvil-fx .af-ring.h0 { animation-delay: .152s; --afr: 2.0; }
-.anvil-fx .af-ring.h1 { animation-delay: .390s; --afr: 2.7; }
-.anvil-fx .af-ring.h2 { animation-delay: .628s; --afr: 4.0; }
+.anvil-fx .af-ring.h0 { animation-delay: .165s; --afr: 2.0; }
+.anvil-fx .af-ring.h1 { animation-delay: .403s; --afr: 2.7; }
+.anvil-fx .af-ring.h2 { animation-delay: .640s; --afr: 4.0; }
 @keyframes afring {
     0%   { opacity: 1; transform: scale(1); }
     100% { opacity: 0; transform: scale(var(--afr, 2.4)); }
@@ -853,9 +862,9 @@ body {
     transform-box: fill-box; transform-origin: center;
     opacity: 0; animation: afflash .1s linear forwards;
 }
-.anvil-fx .af-flash.f0 { animation-delay: .156s; }
-.anvil-fx .af-flash.f1 { animation-delay: .394s; --affs: 1.2; }
-.anvil-fx .af-flash.f2 { animation-delay: .632s; --affs: 1.55; }
+.anvil-fx .af-flash.f0 { animation-delay: .167s; }
+.anvil-fx .af-flash.f1 { animation-delay: .405s; --affs: 1.2; }
+.anvil-fx .af-flash.f2 { animation-delay: .643s; --affs: 1.55; }
 @keyframes afflash {
     0%   { opacity: 1; transform: scale(calc(var(--affs, 1) * .55)); }
     30%  { opacity: 1; transform: scale(var(--affs, 1)); }
@@ -887,9 +896,9 @@ body {
     transform-box: fill-box; transform-origin: center;
     opacity: 0; animation: afshadow .13s cubic-bezier(.2,.7,.35,1) forwards;
 }
-.anvil-fx .af-shadow.d0 { animation-delay: .126s; }
-.anvil-fx .af-shadow.d1 { animation-delay: .364s; --afds: 1.12; }
-.anvil-fx .af-shadow.d2 { animation-delay: .602s; --afds: 1.3; }
+.anvil-fx .af-shadow.d0 { animation-delay: .150s; }
+.anvil-fx .af-shadow.d1 { animation-delay: .388s; --afds: 1.12; }
+.anvil-fx .af-shadow.d2 { animation-delay: .626s; --afds: 1.3; }
 @keyframes afshadow {
     0%   { opacity: .1;  transform: scale(calc(var(--afds, 1) * .5)); }
     36%  { opacity: .42; transform: scale(var(--afds, 1)); }   /* 접촉 프레임 */
@@ -904,9 +913,9 @@ body {
     transform-box: fill-box; transform-origin: 50% 57.4%;   /* 도형 높이 9.4 중 위 5.4 → 접촉점 */
     opacity: 0; animation: afstar .075s cubic-bezier(.1,.75,.3,1) forwards;
 }
-.anvil-fx .af-star.s0 { animation-delay: .154s; }
-.anvil-fx .af-star.s1 { animation-delay: .392s; --afss: 1.16; }
-.anvil-fx .af-star.s2 { animation-delay: .63s; --afss: 1.5; }
+.anvil-fx .af-star.s0 { animation-delay: .166s; }
+.anvil-fx .af-star.s1 { animation-delay: .404s; --afss: 1.16; }
+.anvil-fx .af-star.s2 { animation-delay: .642s; --afss: 1.5; }
 @keyframes afstar {
     0%   { opacity: .95; transform: scale(calc(var(--afss, 1) * .25)); }
     45%  { opacity: .9;  transform: scale(var(--afss, 1)); }
@@ -920,9 +929,9 @@ body {
     transform-box: fill-box; transform-origin: center;
     opacity: 0; animation: afcore .07s linear forwards;
 }
-.anvil-fx .af-core.c0 { animation-delay: .154s; }
-.anvil-fx .af-core.c1 { animation-delay: .392s; --afcs: 1.2; }
-.anvil-fx .af-core.c2 { animation-delay: .63s;  --afcs: 1.55; }
+.anvil-fx .af-core.c0 { animation-delay: .166s; }
+.anvil-fx .af-core.c1 { animation-delay: .404s; --afcs: 1.2; }
+.anvil-fx .af-core.c2 { animation-delay: .642s;  --afcs: 1.55; }
 @keyframes afcore {
     0%   { opacity: 1; transform: scale(calc(var(--afcs, 1) * .6)); }
     50%  { opacity: 1; transform: scale(var(--afcs, 1)); }

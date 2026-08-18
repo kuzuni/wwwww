@@ -1684,6 +1684,21 @@ const UI = {
         const btn = document.querySelector('.anvil-btn');
         if (!btn) { done(); return; }   // 장비 시트가 닫혀 있으면 연출을 건너뛰고 결과만 낸다
         const cx = this.ANVIL_HIT_X, cy = this.ANVIL_HIT_Y;
+        // 🚨 타격 순간의 **진짜 접점**은 (55,14)가 아니다. anvilbump 이 상판을 눌러 내리므로
+        //    접점은 타격마다 그만큼 아래·왼쪽으로 옮겨간다(망치는 이미 그 값을 따라 내려간다).
+        //    이걸 안 따라가면 빛과 불티가 **실제 접점보다 3타 기준 8.5px 위 허공에서** 터지고,
+        //    흰 섬광이 상판이 아니라 망치 머리 허리를 가로지른다(비평가 B 2차 1순위 —
+        //    망치만 침하를 따라가게 고치면서 내가 새로 만든 파손이다).
+        // ⚠️ 이 값은 **대수식이 아니라 실측**이다. `transform-origin: 50% 92%` 의 세로 퍼센트가
+        //    viewBox 높이(86)로 풀린다고 보고 계산하면 원점이 79.12 로 나오는데, 실제 렌더에서
+        //    역산한 원점은 ~100 이라 3타에서 2.2유닛이 어긋났다(그만큼 빛이 접점 위에서 터진다).
+        //    x 는 식과 일치하고 y 만 어긋나므로, y 는 정지 프레임 대비 접점 이동을 직접 재서 넣는다.
+        //    (재는 법: 상판 접점 (55,14) 을 anvil-svg 의 getScreenCTM 으로 매핑해 정지 프레임과 비교.
+        //     시트 흔들림은 FX·모루가 같이 타므로 상쇄되어 빼고 봐야 한다.)
+        //    probe-anvil-hammer ⑫ 가 이 값이 맞는지 매번 검증한다 — 키프레임을 손대면 같이 갱신할 것.
+        const SINK_Y = [6.57, 9.31, 14.34];
+        const SINK_X = [-0.28, -0.44, -0.66];
+        const hx = h => cx + SINK_X[h], hy = h => cy + SINK_Y[h];
         const sparks = [];
         for (let h = 0; h < 3; h++) {
             // 3타로 갈수록 세진다 — 1·2타가 똑같으면 위계가 '약·약·강'의 2단이 되어
@@ -1711,9 +1726,9 @@ const UI = {
                 const g = 7;
                 const u = d + g * Math.sin(a), v = g * Math.cos(a);
                 const w = U.rand(4.4, 8.6);                      // 개체마다 길이가 달라야 복제품으로 안 읽힌다
-                sparks.push(`<rect class="af-spark" x="${cx}" y="${(cy - 0.8).toFixed(2)}" width="${w.toFixed(1)}" height="1.6" rx="0.8"`
+                sparks.push(`<rect class="af-spark" x="${hx(h).toFixed(2)}" y="${(hy(h) - 0.8).toFixed(2)}" width="${w.toFixed(1)}" height="1.6" rx="0.8"`
                     + ` style="--a:${(a * 180 / Math.PI).toFixed(1)}deg;--u:${u.toFixed(1)}px;--v:${v.toFixed(1)}px;`
-                    + `--t:${(this.ANVIL_HITS[h] / 1000 - 0.032).toFixed(3)}s;--dur:${U.rand(0.17, 0.25).toFixed(3)}s"/>`);
+                    + `--t:${(this.ANVIL_HITS[h] / 1000 - 0.008).toFixed(3)}s;--dur:${U.rand(0.17, 0.25).toFixed(3)}s"/>`);
             }
         }
         const fx = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1752,15 +1767,15 @@ const UI = {
                 </radialGradient>
             </defs>`
             // 잔열은 가장 아래 — 상판에 눌어붙은 열이라 불티·망치보다 뒤다
-            + [0, 1, 2].map(h => `<ellipse class="af-heat t${h}" cx="${cx}" cy="${cy}" rx="15" ry="4.4"/>`).join('')
+            + [0, 1, 2].map(h => `<ellipse class="af-heat t${h}" cx="${hx(h)}" cy="${hy(h)}" rx="15" ry="4.4"/>`).join('')
             // 92px 버튼에서 임팩트를 가장 싸게 파는 수단이 2~5프레임 백색 플래시인데 그게 아예 없었다
-            + [0, 1, 2].map(h => `<ellipse class="af-flash f${h}" cx="${cx}" cy="${cy}" rx="17" ry="5.4"/>`).join('')
+            + [0, 1, 2].map(h => `<ellipse class="af-flash f${h}" cx="${hx(h)}" cy="${hy(h)}" rx="17" ry="5.4"/>`).join('')
             // rx/ry는 `scale(1)`에서 곧바로 읽히는 크기로 잡는다 — 예전엔 scale(.35)로 시작해
             // 첫 60~70ms 동안 스트로크가 0.27px라 **타격 프레임에 링이 아예 안 보였다**
-            + [0, 1, 2].map(h => `<ellipse class="af-ring h${h}" cx="${cx}" cy="${cy}" rx="7" ry="2.4"/>`).join('')
+            + [0, 1, 2].map(h => `<ellipse class="af-ring h${h}" cx="${hx(h)}" cy="${hy(h)}" rx="7" ry="2.4"/>`).join('')
             // 접지 그림자 — 머리 밑에 어두운 타원이 없으면 머리가 상판에 얹혀 있는지 앞에 떠
             // 있는지 구분이 안 된다(비평가: 접지 단서가 한 프레임에도 없다).
-            + [0, 1, 2].map(h => `<ellipse class="af-shadow d${h}" cx="${cx}" cy="${cy + 2.2}" rx="9.5" ry="2.2"/>`).join('')
+            + [0, 1, 2].map(h => `<ellipse class="af-shadow d${h}" cx="${hx(h)}" cy="${hy(h) + 2.4}" rx="13.5" ry="2.6"/>`).join('')
             + sparks.join('') + this.HAMMER_SVG
             // ⚠️ 섬광은 망치 **앞**에 그린다. 뒤에 두면 흰 코어가 통째로 머리(반폭 9.4)에
             //    가려 밖으로 나오는 건 주황 스커트뿐이고, 그게 주황 상판에 얹혀 '얼룩'이 된다.
@@ -1773,14 +1788,14 @@ const UI = {
             //    (screen 합성이라 밝은 강철 위에서 완전히 하얘진다). 타격점 위쪽은 애초에 머리가
             //    차지한 자리라 빛이 뻗을 데가 없다 — 접촉선을 따라 **옆으로 새어 나오는** 납작한
             //    빛(위 4.2 / 아래 3.0 / 가로 ±26)이어야 머리 형태를 살린 채 '터졌다'가 읽힌다.
-            + [0, 1, 2].map(h => `<path class="af-star s${h}" d="M${cx - 26} ${cy}`
-                + ` Q${cx - 4.6} ${cy - 1.8} ${cx} ${cy - 5.4} Q${cx + 4.6} ${cy - 1.8} ${cx + 26} ${cy}`
-                + ` Q${cx + 4.6} ${cy + 1.5} ${cx} ${cy + 4} Q${cx - 4.6} ${cy + 1.5} ${cx - 26} ${cy} Z"/>`).join('')
+            + [0, 1, 2].map(h => `<path class="af-star s${h}" d="M${hx(h) - 26} ${hy(h)}`
+                + ` Q${hx(h) - 4.6} ${hy(h) - 1.8} ${hx(h)} ${hy(h) - 5.4} Q${hx(h) + 4.6} ${hy(h) - 1.8} ${hx(h) + 26} ${hy(h)}`
+                + ` Q${hx(h) + 4.6} ${hy(h) + 1.5} ${hx(h)} ${hy(h) + 4} Q${hx(h) - 4.6} ${hy(h) + 1.5} ${hx(h) - 26} ${hy(h)} Z"/>`).join('')
             // ⚠️ 확대 캡처에서 아무리 화려해도 **네이티브 92px 에 밝은 픽셀이 없으면** 플레이어는
             //    타격을 못 본다(1차 채점: 근백색 픽셀 1개). 섬광은 끝으로 갈수록 가늘어져 정작
             //    타격점 주변의 순백 면적이 얼마 안 된다 — 접촉점에 **순백 코어**를 따로 얹는다.
             //    수명 3프레임, 망치 앞이라 머리에도 흰빛이 얹혀 '지금 맞았다'가 픽셀로 남는다.
-            + [0, 1, 2].map(h => `<ellipse class="af-core c${h}" cx="${cx}" cy="${cy}" rx="6.2" ry="2.6"/>`).join('');
+            + [0, 1, 2].map(h => `<ellipse class="af-core c${h}" cx="${hx(h)}" cy="${hy(h)}" rx="6.2" ry="2.6"/>`).join('');
         btn.appendChild(fx);
         btn.classList.add('striking');
         // 화면 흔들림은 **모루가 든 시트**를 흔들어야 보인다 — Scene3D.shake 는 시트 뒤 3D 씬만
