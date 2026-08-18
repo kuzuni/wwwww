@@ -115,9 +115,15 @@ async function waitBooted(page, timeout = 25000) {
         const topB = (() => { const p = anv.createSVGPoint(); p.x = 90; p.y = 3; return p.matrixTransform(anv.getScreenCTM()); })();
         const butt = map(inner, 53, -12.8);       // 손잡이 끝(그립 노브)
         const peen = map(inner, 0, -31.6);        // 머리 반대편(크로스 핀) 끝
-        const hitPt = (() => {                    // 모루 상판 접점 (viewBox 55,14)
-            const p = anv.createSVGPoint(); p.x = 55; p.y = 14;
-            return p.matrixTransform(anv.getScreenCTM());
+        // 🚨 접점은 상판이 아니라 **빌릿 윗면**이다(대장장이는 맨 모루면을 치지 않는다).
+        //    좌표를 손으로 베껴 두면 안 된다 — 빌릿은 타격마다 눌리므로(anvilbillet) 윗면이
+        //    프레임마다 다른 곳에 있다. `.anv-billet` 의 CTM 으로 매핑하면 **모루 침하 +
+        //    빌릿 압축이 둘 다 들어간 실제 위치**가 나온다(TODO '함정 ④ 프로브가 자가 코드보다
+        //    낡으면 판정 전부가 무효' — 상수를 베끼면 정확히 그 함정이다).
+        const bil = anv.querySelector('.anv-billet');
+        const hitPt = (() => {                    // 빌릿 윗면 접점 (로컬 55,11)
+            const p = anv.createSVGPoint(); p.x = 55; p.y = 11;
+            return p.matrixTransform((bil || anv).getScreenCTM());
         })();
         const topFaceL = (() => { const p = anv.createSVGPoint(); p.x = 12; p.y = 26; return p.matrixTransform(anv.getScreenCTM()); })();
         const topFaceR = (() => { const p = anv.createSVGPoint(); p.x = 95; p.y = 25; return p.matrixTransform(anv.getScreenCTM()); })();
@@ -268,7 +274,9 @@ async function waitBooted(page, timeout = 25000) {
             document.querySelectorAll('#equip-sheet, #equip-sheet *').forEach(n =>
                 n.getAnimations().forEach(a => { a.pause(); a.currentTime = DUR * pct / 100; }));
             const anv = document.querySelector('.anvil-btn .anvil-svg');
-            const hp = (() => { const p = anv.createSVGPoint(); p.x = 55; p.y = 14; return p.matrixTransform(anv.getScreenCTM()); })();
+            // ⑫ 도 ① 과 같은 기준점을 써야 한다 — 빌릿 윗면(눌림 포함)을 CTM 으로 직접 잡는다.
+            const bil = anv.querySelector('.anv-billet');
+            const hp = (() => { const p = anv.createSVGPoint(); p.x = 55; p.y = 11; return p.matrixTransform((bil || anv).getScreenCTM()); })();
             const out = {};
             for (const [key, sel] of [['ring', `.af-ring.h${h}`], ['core', `.af-core.c${h}`], ['flash', `.af-flash.f${h}`]]) {
                 const e = document.querySelector('.anvil-fx ' + sel);
@@ -347,6 +355,75 @@ async function waitBooted(page, timeout = 25000) {
     const hitPx = await pxAt(90);           // 3타 접촉
     say(hitPx - restPx >= 20,
         `⑪ 네이티브 92px 접촉 프레임의 근백색 픽셀 +${hitPx - restPx}개 (정지 ${restPx} → 접촉 ${hitPx}, 기준 +20 — 확대에서만 화려하면 소용없다)`);
+
+    // ⑭ 🚨 **눌리는 건 빌릿이지 모루가 아니다.** 빌릿을 넣기 전에는 망치의 하중을 강철 모루가
+    //    대신 먹어 상판이 세로로 11% 눌렸다 — 비평가 B 가 두 채점에서 모두 상위로 꼽은 '고무 모루'다.
+    //    이건 눈으로 보면 '왜인지 물렁하다'로만 보여 회귀해도 못 잡으므로, **두 압축률의 비**로
+    //    못 박는다. 빌릿(달군 쇠)이 모루(강철)보다 훨씬 많이 눌려야 한다.
+    // ⑮ 같은 측정에서 3타 위계도 본다 — 압축이 타격마다 엄격히 깊어져야 '크레셴도'가 성립한다.
+    const squash = await page.evaluate(() => {
+        const DUR = 720;
+        const at = (pct) => {
+            UI.cancelAnvilStrike(); UI._anvilBusy = false;
+            document.getElementById('equip-sheet').getBoundingClientRect();
+            UI.playAnvilStrike(() => {});
+            (UI._anvilTimers || []).forEach(clearTimeout); UI._anvilTimers = [];
+            document.getElementById('equip-sheet').getBoundingClientRect();
+            document.querySelectorAll('#equip-sheet, #equip-sheet *').forEach(n =>
+                n.getAnimations().forEach(a => { a.pause(); a.currentTime = DUR * pct / 100; }));
+            const anv = document.querySelector('.anvil-btn .anvil-svg');
+            const bil = anv.querySelector('.anv-billet');
+            // 빌릿 높이 = 윗면(55,11) ~ 밑면(55,19.7) 의 화면 거리. CTM 으로 재야 모루 침하와
+            // 빌릿 압축이 둘 다 들어간 **실제** 높이가 나온다(상수를 베끼면 자가 코드보다 낡는다).
+            const map = (el, x, y) => { const p = anv.createSVGPoint(); p.x = x; p.y = y; return p.matrixTransform(el.getScreenCTM()); };
+            const bt = map(bil, 55, 11), bb = map(bil, 55, 19.7);
+            // 모루 상판 두께 = 윗면 능선(55,4) ~ 앞면 아랫변(55,39)
+            const at_ = map(anv, 55, 4), ab_ = map(anv, 55, 39);
+            return { bil: Math.hypot(bb.x - bt.x, bb.y - bt.y), anv: Math.hypot(ab_.x - at_.x, ab_.y - at_.y) };
+        };
+        const rest = at(5);
+        return [24, 57, 90].map(p => {
+            const m = at(p);
+            return { bil: 1 - m.bil / rest.bil, anv: 1 - m.anv / rest.anv };
+        });
+    });
+    squash.forEach((m, h) => {
+        say(m.bil > m.anv * 1.5,
+            `⑭ hit${h + 1}: 빌릿이 모루보다 눌린다 — 빌릿 ${(m.bil * 100).toFixed(1)}% vs 모루 ${(m.anv * 100).toFixed(1)}% (기준 1.5배 — 뒤집히면 '고무 모루' 회귀)`);
+    });
+    say(squash[0].bil < squash[1].bil && squash[1].bil < squash[2].bil,
+        `⑮ 빌릿 압축 위계: ${squash.map(m => (m.bil * 100).toFixed(1) + '%').join(' < ')} — 타격마다 엄격히 깊어짐`);
+
+    // ⑯ 🚨 **네이티브 92px 에서 빌릿이 실제로 보이는가.** 확대에서 아무리 그럴듯해도 92px 에서
+    //    상판과 같은 주황이면 '상판에 찍힌 얼룩'이라 소재로 안 읽힌다(첫 시안이 정확히 그랬다).
+    //    빌릿을 지운 프레임과 차분해 기여 픽셀을 센다 — 색 임계값을 안 쓰므로 배경 가정이 없다.
+    const billetShot = async (hide) => {
+        await page.evaluate((hide) => {
+            UI.cancelAnvilStrike(); UI._anvilBusy = false;
+            const b = document.querySelector('.anvil-btn .anv-billet');
+            if (b) b.style.display = hide ? 'none' : '';
+        }, hide);
+        const bb = await page.locator('.anvil-btn').boundingBox();
+        const buf = await page.screenshot({ clip: { x: bb.x, y: bb.y, width: bb.width, height: bb.height } });
+        return 'data:image/png;base64,' + buf.toString('base64');
+    };
+    const withB = await billetShot(false), noB = await billetShot(true);
+    await page.evaluate(() => { const b = document.querySelector('.anvil-btn .anv-billet'); if (b) b.style.display = ''; });
+    const billetPx = await page.evaluate(async ([a, b]) => {
+        const load = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; });
+        const px = async (src) => { const im = await load(src); const c = document.createElement('canvas');
+            c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+            return x.getImageData(0, 0, c.width, c.height).data; };
+        const A = await px(a), B = await px(b); let n = 0, strong = 0;
+        for (let i = 0; i < A.length; i += 4) {
+            const d = Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2]);
+            if (d > 12) n++;
+            if (d > 90) strong++;   // '있는 듯 마는 듯'이 아니라 형태로 읽히는 몫
+        }
+        return { n, strong };
+    }, [withB, noB]);
+    say(billetPx.n >= 120 && billetPx.strong >= 45,
+        `⑯ 네이티브 92px 정지 프레임의 빌릿 기여 픽셀 ${billetPx.n}개(그중 뚜렷 ${billetPx.strong}개) — 기준 ≥120 / ≥45`);
 
     say(errs.length === 0, `⑤ 콘솔/페이지 에러 ${errs.length}건${errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''}`);
     await browser.close();

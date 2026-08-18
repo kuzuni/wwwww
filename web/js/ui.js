@@ -1618,6 +1618,26 @@ const UI = {
                     <stop offset=".42" stop-color="#fff" stop-opacity=".07"/>
                     <stop offset="1" stop-color="#fff" stop-opacity="0"/>
                 </linearGradient>
+                <!-- 빌릿(두들길 소재) — 위가 밝고 아래로 갈수록 식은 붉은색. 달군 쇠는 표면이
+                     제일 뜨겁고 모루에 닿은 밑면이 열을 뺏겨 가장 어둡다. -->
+                <linearGradient id="anv-billet" x1="0" y1="0" x2=".15" y2="1">
+                    <stop offset="0" stop-color="#fff6c8"/><stop offset=".26" stop-color="#ffce4e"/>
+                    <stop offset=".62" stop-color="#ff8a12"/><stop offset="1" stop-color="#c73406"/>
+                </linearGradient>
+                <!-- 백열 겹 — 타격 순간에만 opacity 로 켠다. ⚠️ fill 을 애니메이션하지 말 것
+                     (타격 오버레이에서 fill 애니메이션이 screen 합성 층을 통째로 죽인 전례). -->
+                <linearGradient id="anv-billethot" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#fff3c0"/>
+                    <stop offset="1" stop-color="#ffb03a" stop-opacity="0"/>
+                </linearGradient>
+                <!-- ⚠️ 가운데가 **희어야** 빛이다. 처음엔 #ffb43c 로 시작했는데 주황 상판 위에
+                     얹히자 3타 프레임에서 빛이 아니라 **베이지색 웅덩이**로 읽혔다(확대 실측) —
+                     플래시에서 이미 겪은 것과 같은 함정('빛이어야지 물감이면 안 된다'). -->
+                <radialGradient id="anv-billetglow" cx=".5" cy=".5" r=".5">
+                    <stop offset="0" stop-color="#fff2c8" stop-opacity=".8"/>
+                    <stop offset=".46" stop-color="#ff9a2e" stop-opacity=".42"/>
+                    <stop offset="1" stop-color="#ff5a00" stop-opacity="0"/>
+                </radialGradient>
             </defs>
             <g stroke="#170d0b" stroke-width="3" stroke-linejoin="round">
                 <!-- 받침 (가장 뒤) -->
@@ -1648,6 +1668,40 @@ const UI = {
                 <!-- 주조 결 + 좌측 반사 띠 — 광택 한 덩어리가 아니라 결 위에 얹힌 반사로 보이게 -->
                 <path d="M20 44 L101 44 Q109 46 109 58 L109 74 Q109 83 100 83 L19 83 Q10 83 10 74 L10 58 Q10 46 20 44 Z" fill="url(#anv-grain)"/>
                 <path d="M14.5 52 Q13.5 66 16.5 78 Q20 66 20 53 Z" fill="#e0a184" opacity=".18"/>
+                <!-- ===== 두들길 소재(빌릿) — 상판 위에 얹힌 달군 쇳덩이 =====
+                     대장장이는 **맨 모루면을 치지 않는다.** 이게 없으면 망치의 하중을 모루가 대신
+                     먹어 강철 모루가 세로로 11% 눌리는 '고무 모루' 그림이 된다(비평가 B 가 두 번의
+                     채점에서 모두 상위로 꼽은 결함 — "이 한 요소가 타격감·접촉 설득력·이펙트·
+                     3타 위계를 동시에 올린다").
+                     🚨 **접점이 상판(y=14)에서 빌릿 윗면(y=11)으로 올라간다.** 이 값은 혼자 못 움직인다 —
+                        ANVIL_HIT_Y · SINK_Y(FX 배치) · afswing 접촉 translate · afexit 0% ·
+                        .af-hammer transform-origin · HAMMER_SVG 배치 translate · probe-anvil-hammer 의
+                        ①⑫ 기준점이 **한 벌**이다. 하나만 고치면 망치가 허공을 치거나 불티가 딴 데서 튄다.
+                     기준점: 윗면 능선 (46.6,11.2)→(63.8,10.8) 이 x=55 에서 y=11.005 를 지난다.
+                        바닥(=압축 축) y=18.4, 즉 높이 7.4유닛. scaleY s 일 때 윗면 = 18.4 − 7.4s. -->
+                <g class="anv-billet">
+                    <!-- 달군 쇠가 상판에 흘리는 빛 웅덩이. 접지 그림자를 어둡게 그리면 안 된다 —
+                         빛을 내는 물체는 제 발밑을 어둡게 만들지 않는다.
+                         ⚠️ 크게 깔면 안 된다. 처음엔 rx 21 로 상판 폭의 절반을 덮었는데, 확대에서는
+                         멋있어도 네이티브 92px 에서는 **상판 윗면이 통째로 뿌옇게 떠서** 모루 형태가
+                         죽고 빌릿은 그 안에 묻혔다. 빌릿 실루엣에 바짝 붙인다. -->
+                    <ellipse class="ab-glow" cx="55" cy="16" rx="13.5" ry="4.2" fill="url(#anv-billetglow)" opacity=".5"/>
+                    <!-- 🚨 **키라인이 있어야 물체가 된다.** 처음엔 '빛나는 물체라 외곽선이 없어야
+                         한다'고 보고 stroke 를 안 줬는데, 네이티브 92px 에서 주황 상판 위의 주황
+                         덩어리는 **그림이 아니라 상판에 찍힌 얼룩**으로 읽혔다(망치 머리에서 이미
+                         겪은 것과 같은 교훈 — 실루엣만 stroke, 내부 분절은 선 없는 채움).
+                         검정 대신 **식은 쇠색(#4a1205)** 이라야 '차가운 테두리'가 아니라 열 경계다.
+                         🚨 색도 갈라야 한다. 몸통을 주황으로 두면 상판(주황)과 같은 색이라 형태가
+                         안 잡힌다 — 노란 단조 온도(#fff6c8 → #ffce4e)로 올려 상판과 색상환을 벌린다. -->
+                    <path class="ab-bar" d="M46.6 11.2 L63.8 10.8 Q67 10.75 67.1 13.6 L67.3 16.7 Q67.4 19.5 64.2 19.6 L47 20 Q43.8 20.05 43.7 17.2 L43.5 14.1 Q43.4 11.25 46.6 11.2 Z" fill="url(#anv-billet)" stroke="#4a1205" stroke-width="1.8" stroke-linejoin="round"/>
+                    <!-- 백열 겹 — 평소 .12(노란 단조열), 타격 프레임에만 켰다 식는다.
+                         ⚠️ 피크를 1 로 두면 몸통 그라디언트를 통째로 덮어 **흰 알약**이 된다(확대 실측). -->
+                    <path class="ab-hot" d="M46.6 11.2 L63.8 10.8 Q67 10.75 67.1 13.6 L67.3 16.7 Q67.4 19.5 64.2 19.6 L47 20 Q43.8 20.05 43.7 17.2 L43.5 14.1 Q43.4 11.25 46.6 11.2 Z" fill="url(#anv-billethot)" opacity=".12"/>
+                    <!-- 윗면 — 이 띠가 있어야 '막대'가 아니라 '상판 위에 누운 덩어리'로 읽힌다 -->
+                    <path class="ab-top" d="M47.2 11.5 L63.5 11.1 L64 13.4 L46.6 13.9 Z" fill="#fffce8" opacity=".55"/>
+                    <!-- 접합선 — 빌릿 밑면이 상판에 닿은 자리. 여기만 열을 뺏겨 어둡다 -->
+                    <path class="ab-seam" d="M45.6 18.6 L65.4 18.1 L65.6 19.5 L45.8 20 Z" fill="#5a1a07" opacity=".45"/>
+                </g>
             </g>
         </svg>`,
 
@@ -1669,7 +1723,11 @@ const UI = {
     // 전부 같은 지점에 맞는다 — 예전처럼 버튼 높이의 %(top:62%)로 찍으면 해머 카운터 줄까지
     // 포함된 높이라 실제 상판보다 한참 아래에 불티가 튀었다.
     ANVIL_HIT_X: 55,
-    ANVIL_HIT_Y: 14,
+    // 🚨 상판(14)이 아니라 **빌릿 윗면**이다. 대장장이는 맨 모루면을 치지 않는다 — 빌릿을 얹으면서
+    //    접점이 3유닛 올라갔다. 이 값과 아래 SINK_Y, css afswing 의 접촉 translate, `.af-hammer` 의
+    //    transform-origin, HAMMER_SVG 의 배치 translate 는 **한 벌로만 움직인다**(ANVIL_SVG 의
+    //    `.anv-billet` 주석 참조).
+    ANVIL_HIT_Y: 11,
     // 망치 그림(로컬 좌표: 원점 = 타격면 중심, +x = 손잡이 방향, +y = 모루 쪽).
     // 이 로컬 프레임을 `translate(타격점) rotate(-20)`으로 얹으면 **머리 타격면이 정확히 상판에 닿고**
     // 손잡이는 오른쪽 위로 뻗는다. 예전 🔨 이모지는 글리프마다 머리 위치가 달라(폰트 의존)
@@ -1685,7 +1743,7 @@ const UI = {
     //    좁아져 뭉툭한 쐐기(반폭 1.6)로 끝난다. 예전 머리는 위아래 폭이 같은 둥근 사각형이었다.
     //    scale 은 1.16 → 1.0 (머리를 키운 만큼 전체를 줄여 모루 대비 덩치는 그대로 둔다).
     HAMMER_SVG: `<g class="af-hammer">
-        <g transform="translate(55,14) rotate(-20)">
+        <g transform="translate(55,11) rotate(-20)">
             <g stroke="#14100e" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
                 <!-- 손잡이 (머리보다 먼저 = 아이를 통과해 머리 뒤로 들어간다). 끝은 손이 미끄러지지
                      않게 부푼 노브 — 일자 막대로 끝내면 '자루'가 아니라 '막대기'로 읽힌다. -->
@@ -1734,7 +1792,11 @@ const UI = {
         //    (재는 법: 상판 접점 (55,14) 을 anvil-svg 의 getScreenCTM 으로 매핑해 정지 프레임과 비교.
         //     시트 흔들림은 FX·모루가 같이 타므로 상쇄되어 빼고 봐야 한다.)
         //    probe-anvil-hammer ⑫ 가 이 값이 맞는지 매번 검증한다 — 키프레임을 손대면 같이 갱신할 것.
-        const SINK_Y = [6.57, 9.31, 14.34];
+        // ⚠️ 빌릿을 얹으면서 두 몫이 더해졌다: ⑴ 기준점이 상판(14) → 빌릿 윗면(11) 로 3유닛 올라갔고
+        //    ⑵ 빌릿이 타격마다 눌린다(scaleY .92/.85/.76, 바닥 y=19.7 기준 → 윗면 11.70/12.31/13.09).
+        //    즉 하강량 = (빌릿 압축) + (모루 침하). 실측 원점 ~100.4 로 풀면 7.35/10.70/16.69.
+        const SINK_Y = [7.35, 10.70, 16.69];
+        // x 는 모루 scaleX 만 판다 — 빌릿의 scaleX 는 축이 x=55(=접점 자신)라 접점을 밀지 않는다.
         const SINK_X = [-0.28, -0.44, -0.66];
         const hx = h => cx + SINK_X[h], hy = h => cy + SINK_Y[h];
         const sparks = [];

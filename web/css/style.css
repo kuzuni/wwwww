@@ -754,6 +754,67 @@ body {
     95%    { transform: translateY(.18px)  scale(1.004, .996); }
     100%   { transform: translateY(0)      scale(1, 1); }
 }
+/* ===== 빌릿(두들길 소재)이 눌린다 =====
+   🚨 이게 없으면 하중을 **모루가 대신 먹는다** — 강철 모루가 세로로 11% 눌리는 '고무 모루'
+   그림이었다(비평가 B 가 두 채점에서 모두 상위로 꼽았다). 눌리는 건 달군 쇠 쪽이어야 한다.
+   ⚠️ 클럭·키 퍼센트를 anvilbump 과 **똑같이** 둔다(19.64/23.43 · 46.64/51.19 · 73.64/79.31 =
+   타격·드웰). 하나라도 어긋나면 망치가 멈춰 있는 프레임에 빌릿만 되튀어 맞물림이 깨진다.
+   ⚠️ scaleY 는 afswing 의 접촉 translate 를 **결정한다**(바닥 19.7 기준 윗면 = 19.7 − 8.7·scaleY).
+   여기 값을 건드리면 afswing 6.33/9.25/14.35 와 JS 의 SINK_Y 를 같이 다시 풀 것.
+   ⚠️ 단조는 소성 변형이라 타격 사이에 **완전히 되돌아오지 않는다**(.92 → .95 로만 편다).
+   끝에서도 눌린 채로 두려고 forwards 다 — 되펴면 0.16초 동안 쇳덩이가 부푸는 그림이 된다.
+   `.striking` 이 걷히는 900ms 에 정지 상태로 돌아가는데, 그 순간은 리빌 카드가 시선을 가져간다. */
+@keyframes anvilbillet {
+    0%, 18.82%      { transform: scale(1, 1); }
+    19.64%          { transform: scale(1.05, .92); }
+    23.43%          { transform: scale(1.05, .92); }   /* 망치·모루와 같이 멈춘다 */
+    25.36%          { transform: scale(1.03, .95); }
+    27.82%, 45.82%  { transform: scale(1.03, .95); }
+    46.64%          { transform: scale(1.09, .85); }
+    51.19%          { transform: scale(1.09, .85); }
+    52.36%          { transform: scale(1.07, .88); }
+    54.82%, 72.82%  { transform: scale(1.07, .88); }
+    73.64%          { transform: scale(1.15, .76); }   /* 마지막이 가장 납작하다 */
+    79.31%          { transform: scale(1.15, .76); }
+    81.5%, 100%     { transform: scale(1.13, .79); }
+}
+/* 백열 → 주황. 타격 프레임에만 하얗게 타고 다음 타격까지 식는다.
+   ⚠️ `fill` 이 아니라 **`opacity`** 로 켠다 — 타격 오버레이에서 fill 애니메이션 하나가
+   같은 SVG 의 `mix-blend-mode: screen` 층을 통째로 죽인 전례가 있다(probe ⑪ 가 잡았다).
+   ⚠️ 피크는 1 이 아니라 .85 다 — 1 이면 백열 겹이 몸통 그라디언트를 통째로 덮어 '흰 알약'이 된다
+   (확대 실측). 식는 바닥값은 타격마다 올라간다(.12 → .3 → .34) — 두들길수록 열이 고인다. */
+@keyframes anvilbillethot {
+    0%, 18.82% { opacity: .12; }
+    19.64%     { opacity: .72; }
+    27%        { opacity: .4; }
+    45.82%     { opacity: .3; }
+    46.64%     { opacity: .8; }
+    54%        { opacity: .45; }
+    72.82%     { opacity: .34; }
+    73.64%     { opacity: .85; }
+    82%        { opacity: .55; }
+    100%       { opacity: .34; }
+}
+/* 빛 웅덩이도 같이 밝아진다 — 백열 겹만 켜지면 '흰 딱지'가 얹힌 것으로 읽힌다.
+   진폭은 절반쯤으로 둔다(상판 전체가 하얗게 뜨면 모루 형태가 죽는다). */
+@keyframes anvilbilletglow {
+    0%, 18.82% { opacity: .5; }
+    19.64%     { opacity: .88; }
+    27%        { opacity: .6; }
+    45.82%     { opacity: .56; }
+    46.64%     { opacity: .95; }
+    54%        { opacity: .64; }
+    72.82%     { opacity: .6; }
+    73.64%     { opacity: .92; }
+    82%        { opacity: .7; }
+    100%       { opacity: .56; }
+}
+/* ⚠️ 압축 축은 빌릿 **밑면**(y=18.4)이다. 가운데를 축으로 잡으면 눌리면서 밑면이 상판을
+   파고들어 '모루 속으로 가라앉는' 그림이 된다. transform-box 를 view-box 로 둬야
+   이 절대 좌표가 그대로 먹는다(fill-box 면 도형마다 다른 원점이 잡힌다). */
+.anvil-btn.striking .anv-billet { transform-box: view-box; transform-origin: 55px 19.7px; animation: anvilbillet .88s linear forwards; }
+.anvil-btn.striking .ab-hot     { animation: anvilbillethot .88s linear forwards; }
+.anvil-btn.striking .ab-glow    { animation: anvilbilletglow .88s linear forwards; }
 /* 화면 흔들림 — 항목 스펙의 '미세 화면 흔들림'을 여기서 판다.
    ⚠️ `Scene3D.shake` 로는 이 연출에서 **아무도 흔들림을 못 본다**: 그건 시트 뒤 3D 씬만 흔드는데
    제작 순간 시선은 시트 위 모루에 있다(비평가 ⓐ). 그래서 모루가 든 `#equip-sheet` 자체를 흔든다.
@@ -787,7 +848,9 @@ body {
 /* 망치는 타격면(로컬 원점 = viewBox 55,14)을 축으로 돈다 — 회전각이 0인 프레임이 곧 '머리가 상판에
    닿은' 자세다. 들어올릴 때는 손잡이가 서게 반시계(-)로 감고, 그만큼 머리를 위로 띄운다. */
 .anvil-fx .af-hammer {
-    transform-box: view-box; transform-origin: 55px 14px;
+    /* 🚨 원점은 상판(14)이 아니라 **빌릿 윗면(11)** 이다 — 맨 모루면을 치던 것을 소재를 치도록
+       고치면서 3유닛 올라갔다. ANVIL_HIT_Y·SINK_Y·afswing 접촉 translate 와 한 벌이다. */
+    transform-box: view-box; transform-origin: 55px 11px;
     /* 스윙(0~720ms) 뒤 퇴장(720~880ms)을 따로 건다 — 오버레이가 900ms까지 사는 것은 3타 링·불티를
        끝까지 살리기 위해서지 망치를 공중에 세워 두려는 게 아니다. */
     animation: afswing .72s linear forwards, afexit .18s cubic-bezier(.2,.62,.5,1) .72s forwards;
@@ -800,7 +863,7 @@ body {
    ⚠️ 수명이 .18s 라 delay .72 + .18 = 900ms 로 오버레이 수명과 정확히 맞물린다 — 더 늘리면
    퇴장이 잘려 망치가 공중에서 사라진다(probe ⑥ 이 잡는다). */
 @keyframes afexit {
-    0%   { transform: translate(1.2px, 4px)  rotate(8deg);   opacity: 1; }
+    0%   { transform: translate(1.2px, 6.19px) rotate(8deg);  opacity: 1; }
     33%  { transform: translate(3.4px, -28px) rotate(-37deg); opacity: 1; }
     100% { transform: translate(8px, -74px)  rotate(-64deg); opacity: 0; }
 }
@@ -811,8 +874,16 @@ body {
    고정돼 '내리친다'가 아니라 '진자가 흔들린다'로 읽혔고, 접촉 dwell이 0프레임이라 '쾅'이 없었다.
    지금은 윈드업 뒤 79ms 저속 → 36ms 급가속 → 정지(dwell) → 되튐 순서다.
    위계: 윈드업 리프트 12→18→31유닛(2.6배), 최종 각속도 0.39→1.0°/ms(2.6배). */
-/* ⚠️ 접촉 프레임의 translateY 는 **모루 상판이 눌려 내려간 깊이와 같아야 한다**(anvilbump 참조:
-   5.53 / 7.83 / 12.16 유닛). 예전엔 .6 / .8 / 1.6 유닛뿐이라 모루만 내려가고 망치는 제자리여서
+/* 🚨 **빌릿(두들길 소재)을 얹으면서 접점이 상판(y=14) → 빌릿 윗면(y=11) 으로 올라갔다.**
+   그래서 접촉 깊이는 이제 두 몫의 합이다:
+     ⑴ 빌릿 압축 — 바닥 y=19.7 기준 scaleY .92/.85/.76 → 윗면 11.70 / 12.31 / 13.09
+     ⑵ 모루 침하 — drop = 79.12 + (윗면 − 79.12)·scaleY + translateY  (anvilbump)
+   합쳐서 정지 y=11 대비 **6.33 / 9.25 / 14.35 유닛**(예전 5.53 / 7.83 / 12.16 은 맨 상판을 칠 때 값).
+   관통 오버슛(+0.97 / +1.37 / +2.04)과 되튐 폭(8.16)은 그대로 옮겼다.
+   ⚠️ 빌릿·모루·망치가 한 프레임에 맞물리는 건 **셋이 같은 마스터 클럭**이기 때문이다 —
+   anvilbillet 은 anvilbump 과 같은 .88s 이고 키 퍼센트도 같은 자리에 둔다. */
+/* ⚠️ 접촉 프레임의 translateY 는 **접점이 눌려 내려간 깊이와 같아야 한다**. 예전엔 .6 / .8 / 1.6
+   유닛뿐이라 모루만 내려가고 망치는 제자리여서
    **접촉 프레임에 4.7 / 4.6 / 8.3px 의 틈이 벌어졌다**(상판 폭의 15%). 관객이 '닿았다'고 보는
    프레임이 타격 2프레임 뒤로 밀려 소리와 그림이 어긋났다. x 값은 모루의 scaleX 로 접점이
    왼쪽으로 밀리는 만큼(−0.28 / −0.44 / −0.66)을 따라간 것이다.
@@ -833,15 +904,15 @@ body {
     0%    { transform: translate(11px, -46px) rotate(-52deg) scale(1, 1); opacity: 0; }  /* 위가 아니라 옆에서 들어온다 */
     9%    { transform: translate(2.2px, -18px) rotate(-22deg) scale(1, 1); opacity: 1; }  /* 프레임 밖에서 들어온다 */
     19%   { transform: translate(1.2px, -8px)  rotate(-2deg) scale(1, 1); }    /* 72ms에 20° = 저속 */
-    22%   { transform: translate(.31px, .12px) rotate(10.6deg) scale(1, 1.16); }   /* 접촉 직전 1프레임 스미어 */
-    24%   { transform: translate(-.28px, 6.5px)  rotate(19deg) scale(1, 1); }   /* 1.0유닛 파고든다 */  /* 36ms에 21° = 2.1배 가속 */
-    28.64% { transform: translate(-.28px, 5.53px) rotate(19deg) scale(1, 1); } /* 33.4ms 정지(2프레임) */
+    22%   { transform: translate(.31px, .12px) rotate(10.6deg) scale(1, 1.16); }   /* 접촉 직전 1프레임 스미어 = 아직 안 눌린 빌릿 윗면(y=11) */
+    24%   { transform: translate(-.28px, 7.30px)  rotate(19deg) scale(1, 1); }   /* 1.0유닛 파고든다 */  /* 36ms에 21° = 2.1배 가속 */
+    28.64% { transform: translate(-.28px, 6.33px) rotate(19deg) scale(1, 1); } /* 33.4ms 정지(2프레임) */
     34%   { transform: translate(.8px, -6px)   rotate(4deg) scale(1, 1); }     /* 되튐 0.42°/ms = 타격의 0.72배 */
     41%   { transform: translate(3px, -27px)   rotate(-34deg) scale(1, 1); }
     52%   { transform: translate(1.6px, -14px) rotate(-9deg) scale(1, 1); }
     55.5% { transform: translate(.17px, 1.28px) rotate(10.6deg) scale(1, 1.18); }
-    57%   { transform: translate(-.44px, 9.2px)  rotate(19deg) scale(1, 1); }  /* 36ms에 28°, 1.4유닛 관통 */
-    62.56% { transform: translate(-.44px, 7.83px) rotate(19deg) scale(1, 1); } /* 40ms 정지 */
+    57%   { transform: translate(-.44px, 10.62px) rotate(19deg) scale(1, 1); }  /* 36ms에 28°, 1.4유닛 관통 */
+    62.56% { transform: translate(-.44px, 9.25px) rotate(19deg) scale(1, 1); } /* 40ms 정지 */
     66.5% { transform: translate(1.2px, -7px)  rotate(3deg) scale(1, 1); }     /* 되튐 0.55°/ms = 0.71배 */
     74%   { transform: translate(5px, -52px)  rotate(-58deg) scale(1, 1); }   /* 3타 윈드업이 화면 최고점 */
     85%   { transform: translate(2.6px, -20px) rotate(-20deg) scale(1, 1); }
@@ -850,9 +921,9 @@ body {
        상판과 6.7° 어긋나 **다시 모서리로 찍는다**(probe ⑩ 가 잡았다). 상판이 -0.85° 이므로
        합각은 0° 근처를 벗어날 수 없다 — 3타의 차별화는 각도가 아니라 **관통 깊이**(2.0유닛)와
        드웰 길이(50ms)로 판다. */
-    90%   { transform: translate(-.66px, 14.2px) rotate(20deg) scale(1, 1); opacity: 1; }  /* 2.0유닛 관통 */
-    96.94% { transform: translate(-.66px, 12.16px) rotate(20deg) scale(1, 1); opacity: 1; } /* 50ms 정지(최장) */
-    100%  { transform: translate(1.2px, 4px)   rotate(8deg) scale(1, 1);  opacity: 1; }     /* 되튐은 afexit 이 잇는다 */
+    90%   { transform: translate(-.66px, 16.39px) rotate(20deg) scale(1, 1); opacity: 1; }  /* 2.0유닛 관통 */
+    96.94% { transform: translate(-.66px, 14.35px) rotate(20deg) scale(1, 1); opacity: 1; } /* 50ms 정지(최장) */
+    100%  { transform: translate(1.2px, 6.19px) rotate(8deg) scale(1, 1);  opacity: 1; }     /* 되튐은 afexit 이 잇는다 */
 }
 /* 타격 링 파동 — 타격 시각에 맞춰 각각 지연을 다르게 준다. 상판이 살짝 누워 보이므로 원이 아니라 타원. */
 /* ⚠️ 지연은 타격(172.8 / 410.4 / 648ms)보다 **20ms 앞**에 둔다 — 60fps에서 접촉 프레임에 링의
