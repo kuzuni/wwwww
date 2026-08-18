@@ -7548,10 +7548,9 @@ const Scene3D = {
             if (targets[0]) {
                 const from = this.heroG.position.clone().add(new THREE.Vector3(0.4, 1, 0));
                 const to = targets[0].g.position.clone().add(new THREE.Vector3(0, 0.6, 0));
-                this.beam(from, to, color);
-                this.beam(from, to, new THREE.Color(0xffffff)); // 코어
-                this.flashLight(to, color.getHex(), 0.3);
-                this.spawnSparks(to, 16, color.getHex());
+                // 화살류=발사체 트레일 (항목 ㉰): 예전 beam 은 즉시 화면을 가로지르는 원기둥(히트스캔)이라
+                // '쏘는 화살'이 아니라 '이미 연결된 선'으로 읽혔다. 실제로 날아가는 머리+꼬리로 바꾼다.
+                this.projectileBolt(from, to, color, tier || 0);
             }
         } else if (fx === 'bolt') {
             targets.forEach(m => {
@@ -7746,6 +7745,42 @@ const Scene3D = {
             under.material.opacity = 0.55 * a;
         }, () => {
             for (const r of [under, ring]) { this.disposeTree(r); this.scene.remove(r); }
+        });
+    },
+
+    // 실제로 날아가는 발사체 + 혜성 꼬리 (항목 ㉰: 화살류=발사체 트레일+적중 파편).
+    projectileBolt(from, to, color, tier) {
+        const delta = to.clone().sub(from), dist = delta.length();
+        const dir = delta.clone().normalize();
+        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); // 실린더/콘 축(+y)을 진행방향으로
+        const dur = 0.09 + tier * 0.004;               // 화살답게 빠르게
+        const tailLen = Math.min(dist * 0.55, 1.7 + tier * 0.15);
+        const headR = 0.08 + tier * 0.012;
+        // 머리(뾰족한 화살촉) — 흰 코어. 꼬리(혜성 tail) — 스킬 색 가산. 글로우 한 겹 더.
+        const head = new THREE.Mesh(new THREE.ConeGeometry(headR, 0.34, 6),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1, toneMapped: false }));
+        const tail = new THREE.Mesh(new THREE.CylinderGeometry(headR * 0.85, 0.015, 1, 6, 1, true),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        const glow = new THREE.Mesh(new THREE.CylinderGeometry(headR * 1.7, 0.03, 1, 6, 1, true),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        head.quaternion.copy(q); tail.quaternion.copy(q); glow.quaternion.copy(q);
+        this.scene.add(head, tail, glow);
+        const placeTail = (m, headPos, len) => {
+            m.position.copy(headPos).addScaledVector(dir, -len / 2 - 0.17); // 머리 뒤로 len 만큼
+            m.scale.y = Math.max(0.001, len);
+        };
+        this.addAnim(dur, k => {
+            const headPos = from.clone().addScaledVector(dir, dist * k + 0.17);
+            head.position.copy(headPos);
+            const len = tailLen * Math.min(1, k / 0.35);   // 처음엔 짧게 시작해 곧 최대 길이
+            placeTail(tail, headPos, len); placeTail(glow, headPos, len * 1.05);
+        }, () => {
+            this.disposeTree(head); this.disposeTree(tail); this.disposeTree(glow);
+            this.scene.remove(head); this.scene.remove(tail); this.scene.remove(glow);
+            // 적중 파편 + 플래시 — 진행 방향으로 튀는 파편(관통의 관성)
+            this.spawnShards(to, tier >= 2 ? 12 : 8, color.getHex(), { dir: Math.atan2(dir.y, dir.x), spread: 0.7, speed: 1.3 + tier * 0.15 });
+            this.spawnSparks(to, 10 + tier * 3, color.getHex(), { speed: 1.6 });
+            this.flashLight(to, color.getHex(), 0.26);
         });
     },
 
