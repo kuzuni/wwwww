@@ -2809,231 +2809,6 @@ const Scene3D = {
         }
     },
 
-    // ── 지오메트리 기반 크레비스/접촉 AO 를 버텍스 컬러로 굽는다 ────────────────────────
-    // 🔗 **`ageShade()`(위) 와 역할이 갈린다 — 둘이 겹치지 않게 나눠 뒀으니 한쪽을 손볼 땐 다른 쪽도 볼 것.**
-    //   · `ageShade` = **화면 공간·해석적**. 월드 법선 y 로 하늘 가림, 시선각(프레넬)로 실루엣 마모.
-    //     계열 색을 가르는 주력이고, 지오메트리를 안 보므로 공짜다.
-    //   · `bakeWear`(여기) = **지오메트리·구움**. 프레넬과 법선만으로는 **원리적으로 못 내는 두 가지**만 맡는다:
-    //       ⓐ 진짜 오목/볼록 — 이면각으로 잰다. 프레넬은 '실루엣에 가까운가'라 카메라가 돌면 같이 돌고,
-    //         평평한 판의 가장자리와 깊은 골을 구분하지 못한다.
-    //       ⓑ **다른 메시와의 접촉 그늘** — 견갑↔몸통, 손가락↔손등, 벨트↔허리처럼 두 파츠가 만나는 틈.
-    //         법선만 보는 항은 '공중에 뜬 판의 아랫면'과 '깊은 겨드랑이 틈'을 똑같이 칠한다.
-    //   ⚠️ 그래서 여기엔 **하늘 가림 항이 없다** — 넣으면 `ageShade.crev` 와 이중으로 곱해져 아랫면이
-    //      두 번 죽는다. 예전 판에는 있었고(가중치 0.28), 두 파이프라인을 합치면서 걷어냈다.
-    //      마찬가지로 웨어 강도도 `ageShade.wear` 가 프레넬로 이미 얹으므로 절반 아래로 낮춰 뒀다.
-    //
-    // 구현: r128 에 커스텀 셰이더를 새로 짜지 않고 지오메트리에서 곡률을 재 **버텍스 컬러로 구워** 넣는다
-    // (MeshStandardMaterial 은 vertexColors=true 면 diffuse 에 vColor 를 곱한다 — 1 초과면 밝아진다).
-    // 웨어는 볼록 모서리에만 얹고 **곱셈으로 목표색에 수렴**시킨다
-    // (vColor = worn/base 이므로 결과가 정확히 worn 이 된다 — 채널별 비라 탈색·변색도 같이 표현된다).
-    //
-    // ⚠️ 함정: ⑴ 재질은 그룹 단위로 새로 굽힌 인스턴스여야 한다(ageGearMats 가 매 호출 새로 만든다).
-    //    모듈 전역 캐시 재질에 vertexColors 를 켜면 색 속성이 없는 다른 메시가 **까맣게** 나온다.
-    //    그래서 이 함수는 그룹 안 **모든** 메시에 색 속성을 붙인 뒤에야 재질 플래그를 켠다.
-    //    ⑵ 발광 트림(MeshBasicMaterial, alloy)은 '이력'이 없어야 하므로 흰색(1,1,1)으로 채운다 —
-    //    건너뛰면 그 재질만 색 속성 없는 메시를 갖게 돼 ⑴의 검은 메시가 그대로 재현된다.
-    //    ⑶ 밝히는 항이라 하이라이트 클리핑(probe-equip-clip, 칸당 5%)에 직접 얹힌다 — wear 상한을
-    //    kind 별로 묶어 두고 값을 올릴 때는 그 프로브를 반드시 다시 돌릴 것.
-    WEAR_PROFILE: {
-        // ao=오목+접촉 그늘 총량 · wear=볼록 모서리 마모량 · worn=마모가 수렴할 색
-        // ⚠️ wear 는 `AGE_SHADE[kind].wear`(프레넬)와 **더해진다** — 그쪽이 주력이라 여기는 보조값이다.
-        //    올릴 땐 probe-equip-clip(칸당 5%)을 반드시 다시 돌릴 것.
-        primal:  { ao: 0.62, wear: 0.12, worn: 0xf2e8cf },  // 돌·뼈: 깎아낸 면이 살도록 그늘을 세게, 광택은 거의 없다
-        forged:  { ao: 0.52, wear: 0.28, worn: 0xe9f0f8 },  // 단조 철: 모서리가 벗겨져 흰 강철이 드러난다
-        brass:   { ao: 0.50, wear: 0.24, worn: 0xf6e2ad },  // 황동: 닳은 자리가 노랗게 광난다
-        polymer: { ao: 0.44, wear: 0.14, worn: 0xb9c3ce },  // 폴리머: 긁힌 자국 정도의 옅은 스커프
-        alloy:   { ao: 0.48, wear: 0.18, worn: 0xcbdaea },  // 합금: 차가운 하이라이트만 얇게
-    },
-    bakeWear(g, mats, opt) {
-        if (!g || !mats) return;
-        const prof = this.WEAR_PROFILE[mats.kind];
-        if (!prof) return;
-        const o = opt || {};
-        const aoAmt = o.ao !== undefined ? o.ao : prof.ao;
-        const wearAmt = o.wear !== undefined ? o.wear : prof.wear;
-        const worn = new THREE.Color(o.worn !== undefined ? o.worn : prof.worn);
-
-        const meshes = [];
-        g.traverse(n => { if (n.isMesh && n.geometry && n.geometry.attributes.position) meshes.push(n); });
-        if (!meshes.length) return;
-
-        // 접촉 AO 용 — 메시별 그룹 좌표계 박스(자기 자신은 제외하고 최단거리를 잰다)
-        g.updateMatrixWorld(true);
-        const inv = new THREE.Matrix4().copy(g.matrixWorld).invert();
-        const boxes = meshes.map(m => {
-            const b = new THREE.Box3().setFromObject(m);
-            return b.isEmpty() ? null : b.applyMatrix4(inv);
-        });
-        // 그룹 크기에 비례한 접촉 반경 — 절대 cm 로 두면 투구(0.6)와 반지(0.15)에서 뜻이 달라진다
-        const gb = new THREE.Box3().setFromObject(g).applyMatrix4(inv);
-        const contactR = Math.max(0.012, gb.getSize(new THREE.Vector3()).length() * 0.045);
-        // ⚠️ 성능: 정점마다 **모든** 메시 박스에 거리를 재면 O(정점×메시) 다. 원시 가죽 갑옷은
-        //    술 18가닥 때문에 메시 57·정점 19903 이라 그것만 1.1M 회가 되고, 실측 bakeWear 가
-        //    216ms 로 튀어 썸네일(프레임당 6장)이 얼어붙었다. 그래서 ⑴ 박스를 contactR 만큼
-        //    부풀려 **겹치는 메시만** 후보로 남기고 ⑵ 거리 계산을 평면 배열 + 제곱거리로 바꾼다.
-        const M = meshes.length;
-        const bmin = new Float64Array(M * 3), bmax = new Float64Array(M * 3);
-        for (let i = 0; i < M; i++) {
-            const b = boxes[i];
-            if (!b) { bmin[i * 3] = Infinity; continue; }
-            bmin[i * 3] = b.min.x; bmin[i * 3 + 1] = b.min.y; bmin[i * 3 + 2] = b.min.z;
-            bmax[i * 3] = b.max.x; bmax[i * 3 + 1] = b.max.y; bmax[i * 3 + 2] = b.max.z;
-        }
-        const grown = boxes.map(b => b ? b.clone().expandByScalar(contactR) : null);
-        const cand = [];
-        for (let i = 0; i < M; i++) {
-            const list = [];
-            if (grown[i]) for (let j = 0; j < M; j++) if (j !== i && grown[j] && grown[i].intersectsBox(grown[j])) list.push(j);
-            cand.push(list);
-        }
-        const cR2 = contactR * contactR;
-
-        const wornRatio = base => {                     // vColor = worn/base → 곱한 결과가 정확히 worn
-            const f = c => Math.min(3, Math.max(0.35, c));
-            return new THREE.Vector3(
-                f(worn.r / Math.max(0.05, base.r)),
-                f(worn.g / Math.max(0.05, base.g)),
-                f(worn.b / Math.max(0.05, base.b)));
-        };
-        const touched = [];
-        const p = new THREE.Vector3(), q = new THREE.Vector3(), gp = new THREE.Vector3();
-        const m2g = new THREE.Matrix4();
-
-        for (let mi = 0; mi < meshes.length; mi++) {
-            const mesh = meshes[mi], geo = mesh.geometry;
-            const pos = geo.attributes.position, N = pos.count;
-            const col = new Float32Array(N * 3);
-            const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-            // 발광 트림(이력 없음)·방어선 초과 메시는 흰색으로 채워만 둔다.
-            // ⚠️ 여기서 `continue` 로 색 속성을 안 붙이면 그 재질만 속성 없는 메시를 갖게 돼
-            //    아래에서 vertexColors 를 켜는 순간 통째로 검게 나온다(⚠️⑴⑵ 의 실체).
-            if (!mat || !mat.color || mat.isMeshBasicMaterial || N > 24000) {
-                col.fill(1);
-                geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-                if (mat) touched.push(mat);
-                continue;
-            }
-            if (!geo.attributes.normal) geo.computeVertexNormals();
-            // ⚠ 성능: BufferAttribute.getX() 는 호출당 함수 호출이라 정점 2만 개짜리 메시에서
-            //    이것만으로 수십 ms 가 샌다. 아래는 전부 **원시 배열 직접 접근**으로 돈다.
-            const pa = pos.array, na = geo.attributes.normal.array;
-
-            // ⓐ 위치 용접 — flatShading 지오메트리는 같은 자리에 정점이 3~6개씩 흩어져 있어
-            //    용접하지 않으면 이웃이 자기 삼각형 안에만 갇혀 곡률이 전부 0 으로 나온다.
-            //    양자화 격자는 **이 메시의 바운딩 박스**에서 뽑는다(고정 배율을 쓰면 큰 모델에서
-            //    숫자 키가 안전 정수 범위를 넘어 서로 다른 정점이 한 자리로 뭉친다).
-            geo.computeBoundingBox();
-            const bb0 = geo.boundingBox;
-            const ext = Math.max(bb0.max.x - bb0.min.x, bb0.max.y - bb0.min.y, bb0.max.z - bb0.min.z, 1e-6);
-            const qs = 8192 / ext, ox = bb0.min.x, oy = bb0.min.y, oz = bb0.min.z;
-            const wid = new Int32Array(N);
-            const wnx = new Float64Array(N), wny = new Float64Array(N), wnz = new Float64Array(N);
-            const wcav = new Float64Array(N), wcavN = new Int32Array(N);
-            const wedg = new Float64Array(N), wedgN = new Int32Array(N);
-            const wrep = new Int32Array(N);             // 용접 자리의 대표 정점(위치 조회용)
-            const wmap = new Map();
-            let W = 0;
-            for (let i = 0; i < N; i++) {
-                const i3 = i * 3;
-                const k = ((Math.round((pa[i3] - ox) * qs) * 8195) + Math.round((pa[i3 + 1] - oy) * qs)) * 8195
-                    + Math.round((pa[i3 + 2] - oz) * qs);
-                let w = wmap.get(k);
-                if (w === undefined) { w = W++; wmap.set(k, w); wrep[w] = i; }
-                wid[i] = w;
-                wnx[w] += na[i3]; wny[w] += na[i3 + 1]; wnz[w] += na[i3 + 2];
-            }
-
-            // ⓐ' 곡률은 **이면각(두 면 사이 꺾임)** 으로 잰다.
-            // ⚠️ 처음엔 '이웃 평균 - 정점' 을 법선에 투영하는 라플라시안으로 쟀는데, 평면 면의
-            //    가장자리 정점에서는 이웃이 전부 면 **안쪽**에 몰려 있고 용접된 법선은 이웃 면 쪽으로
-            //    기울어 있어 **오목한 자리가 볼록으로 뒤집혀 나왔다**(probe-bakewear ① 이 이걸 잡았다:
-            //    L 자 압출체의 안쪽 골 1.196 > 바깥 모서리 1.103). 이면각은 면 두 장만 보므로
-            //    면 안쪽 정점 분포에 흔들리지 않는다.
-            // 한 정점이 오목 모서리와 볼록 모서리를 동시에 물 수 있으므로(모서리의 끝점) 양·음을
-            // **상쇄시키지 않고 따로** 모은다 — 상쇄시키면 그런 자리가 통째로 평면으로 읽힌다.
-            const ia = geo.index ? geo.index.array : null;
-            const triN = ia ? ia.length : N;
-            const F = Math.floor(triN / 3);
-            const faceN = new Float64Array(F * 3), faceC = new Float64Array(F * 3);
-            for (let t = 0, f = 0; f < F; t += 3, f++) {
-                const a3 = (ia ? ia[t] : t) * 3, b3 = (ia ? ia[t + 1] : t + 1) * 3, c3 = (ia ? ia[t + 2] : t + 2) * 3;
-                const axx = pa[a3], ayy = pa[a3 + 1], azz = pa[a3 + 2];
-                const b1 = pa[b3] - axx, b2 = pa[b3 + 1] - ayy, b3v = pa[b3 + 2] - azz;
-                const c1 = pa[c3] - axx, c2 = pa[c3 + 1] - ayy, c3v = pa[c3 + 2] - azz;
-                const nx2 = b2 * c3v - b3v * c2, ny2 = b3v * c1 - b1 * c3v, nz2 = b1 * c2 - b2 * c1;
-                const l = Math.sqrt(nx2 * nx2 + ny2 * ny2 + nz2 * nz2) || 1;
-                const f3 = f * 3;
-                faceN[f3] = nx2 / l; faceN[f3 + 1] = ny2 / l; faceN[f3 + 2] = nz2 / l;
-                faceC[f3] = axx + (b1 + c1) / 3; faceC[f3 + 1] = ayy + (b2 + c2) / 3; faceC[f3 + 2] = azz + (b3v + c3v) / 3;
-            }
-            const edgeMap = new Map();
-            const addEdge = (u, v, f) => {
-                if (u === v) return;
-                const k = u < v ? u * 1048576 + v : v * 1048576 + u;
-                const prev = edgeMap.get(k);
-                if (prev === undefined) { edgeMap.set(k, f); return; }
-                const p3 = prev * 3, f3 = f * 3;
-                const dx2 = faceC[f3] - faceC[p3], dy2 = faceC[f3 + 1] - faceC[p3 + 1], dz2 = faceC[f3 + 2] - faceC[p3 + 2];
-                const dl = Math.sqrt(dx2 * dx2 + dy2 * dy2 + dz2 * dz2);
-                if (dl < 1e-7) return;
-                // 이웃 면의 무게중심이 내 면의 **뒤**에 있으면 볼록(모서리), **앞**이면 오목(골).
-                const conv = (dx2 * faceN[p3] + dy2 * faceN[p3 + 1] + dz2 * faceN[p3 + 2]) / dl;
-                const dot = faceN[p3] * faceN[f3] + faceN[p3 + 1] * faceN[f3 + 1] + faceN[p3 + 2] * faceN[f3 + 2];
-                const bend = 1 - Math.min(1, Math.max(-1, dot));          // 0=평면, 2=완전히 접힘
-                if (bend < 0.02) return;                                  // 평면 이음매는 건너뛴다
-                if (conv > 0) { wcav[u] += bend; wcavN[u]++; wcav[v] += bend; wcavN[v]++; }
-                else { wedg[u] += bend; wedgN[u]++; wedg[v] += bend; wedgN[v]++; }
-            };
-            for (let t = 0, f = 0; f < F; t += 3, f++) {
-                const a = wid[ia ? ia[t] : t], b = wid[ia ? ia[t + 1] : t + 1], c = wid[ia ? ia[t + 2] : t + 2];
-                addEdge(a, b, f); addEdge(b, c, f); addEdge(c, a, f);
-            }
-
-            const ratio = wornRatio(mat.color);
-            // 곡률은 메시 로컬에서 재도 되지만 **접촉거리는 그룹 좌표**라야 한다 — 로컬 좌표로 박스에
-            // 거리를 재면 부속이 옮겨 앉은 만큼 통째로 틀린 값이 나온다.
-            m2g.copy(inv).multiply(mesh.matrixWorld);
-            const myCand = cand[mi];
-            // 용접 자리마다 한 번만 계산하고(shade/wear), 그 값을 그 자리에 모인 정점 전부에 뿌린다.
-            const wR = new Float32Array(W), wG = new Float32Array(W), wB = new Float32Array(W);
-            for (let w = 0; w < W; w++) {
-                const i0 = wrep[w] * 3;
-                p.set(pa[i0], pa[i0 + 1], pa[i0 + 2]);
-                gp.copy(p).applyMatrix4(m2g);
-                // bend 는 0(평면)~2(완전히 접힘) — 직각(0.5π)이 1 이므로 그걸 만점으로 본다
-                const cav = wcavN[w] ? Math.min(1, wcav[w] / wcavN[w]) : 0;
-                const edge = wedgN[w] ? Math.min(1, wedg[w] / wedgN[w]) : 0;
-                // ⓑ 접촉 AO — 후보 메시 박스까지의 최단거리(제곱으로 재고 sqrt 는 한 번만)
-                let near2 = Infinity;
-                for (let ci = 0; ci < myCand.length; ci++) {
-                    const j3 = myCand[ci] * 3;
-                    const ddx = bmin[j3] - gp.x > 0 ? bmin[j3] - gp.x : (gp.x - bmax[j3] > 0 ? gp.x - bmax[j3] : 0);
-                    const ddy = bmin[j3 + 1] - gp.y > 0 ? bmin[j3 + 1] - gp.y : (gp.y - bmax[j3 + 1] > 0 ? gp.y - bmax[j3 + 1] : 0);
-                    const ddz = bmin[j3 + 2] - gp.z > 0 ? bmin[j3 + 2] - gp.z : (gp.z - bmax[j3 + 2] > 0 ? gp.z - bmax[j3 + 2] : 0);
-                    const d2 = ddx * ddx + ddy * ddy + ddz * ddz;
-                    if (d2 < near2) { near2 = d2; if (near2 <= 0) break; }
-                }
-                const contact = near2 >= cR2 ? 0 : 1 - Math.sqrt(near2) / contactR;
-                // ⚠️ 하늘 가림 항은 여기 없다 — ageShade 의 crev 가 이미 월드 법선 y 로 같은 일을 한다.
-                //    두 번 곱하면 아랫면이 두 번 죽는다(함수 머리 주석의 역할 분담 참조).
-                const shade = 1 - aoAmt * Math.min(1, 0.62 * cav + 0.52 * contact);
-                const wr = wearAmt * Math.pow(edge, 1.6) * (1 - contact * 0.7); // 낀 틈은 닳지 않는다
-                wR[w] = shade * (1 + (ratio.x - 1) * wr);
-                wG[w] = shade * (1 + (ratio.y - 1) * wr);
-                wB[w] = shade * (1 + (ratio.z - 1) * wr);
-            }
-            for (let i = 0; i < N; i++) {
-                const w = wid[i], i3 = i * 3;
-                col[i3] = wR[w]; col[i3 + 1] = wG[w]; col[i3 + 2] = wB[w];
-            }
-            geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-            if (mat) touched.push(mat);
-            if (Array.isArray(mesh.material)) for (const m of mesh.material) touched.push(m);
-        }
-        // 색 속성이 전부 붙은 **뒤에** 재질 플래그를 켠다(⚠️⑴)
-        for (const m of touched) { if (!m.vertexColors) { m.vertexColors = true; m.needsUpdate = true; } }
-    },
-
     // 투구: 이름별 스타일 11종
     makeHelmet(age, rarity, style, name) {
         const g = new THREE.Group();
@@ -3244,7 +3019,6 @@ const Scene3D = {
         }
         // 시대 디테일 — halo(빛 링만)·bubble(유리 돔)은 두를 표면이 없어 제외
         if (style !== 'halo' && style !== 'bubble') this.addAgeTrim(g, mats, { yFrac: 0.2 });
-        this.bakeWear(g, mats);  // 시대 표면 이력 — 트림(리벳·끈)을 두른 뒤라야 그 틈도 같이 어두워진다
         g.scale.setScalar(0.85); // 두상 밀착 피팅 — 헬멧이 머리보다 한 치수 커서 '풍선'으로 읽히던 문제 (비평가 3번 결함)
         return g;
     },
@@ -3491,7 +3265,6 @@ const Scene3D = {
                 g.add(tuft);
             }
         }
-        this.bakeWear(g, mats);  // 시대 표면 이력 — 부속(견갑·망토·백팩)까지 붙인 뒤라야 접촉 AO 가 그 틈을 잡는다
         return g;
     },
 
@@ -3853,7 +3626,6 @@ const Scene3D = {
                 }
             }
         }
-        this.bakeWear(g, mats);  // 시대 표면 이력 — 장신구는 부피가 작아 크레비스가 유일한 형태 단서다
         return g;
     },
 
