@@ -957,7 +957,9 @@ const UI = {
     floatLoot(text) {
         if (this.els.lootFeed.children.length > 6) this.els.lootFeed.firstChild.remove();
         const el = document.createElement('div');
-        el.textContent = text;
+        // `textContent` 자리였다 — 호출부가 `🪙 +3` 처럼 이모지를 실어 보내서 전 화면에 생이모지가
+        // 떠 있었다(전투 중 상시 노출이라 눈에 띄는 자리다). 토스트와 같은 노드 처리로 통일한다.
+        this.paintIconText(el, text, 'toast-ico');
         this.els.lootFeed.appendChild(el);
         setTimeout(() => el.remove(), 1600);
     },
@@ -979,14 +981,14 @@ const UI = {
         '⚔': 'tm_sword', '🎉': 'sparkle', '📋': 'clipboard', '💾': 'save', '🔬': 'research',
     },
 
-    toast(msg) {
-        const el = document.createElement('div');
-        el.className = 'toast';
-        // 문구를 훑어 **표에 있는 이모지를 전부** 아이콘 노드로 바꾼다. 선두만 바꾸면
-        // `🏆 1-1 첫 클리어! 🪙+60` 처럼 뒤에 붙는 재화 이모지가 그대로 남아 한 줄 안에서
-        // 아이콘과 이모지가 섞인다(실측으로 확인).
-        // ⚠️ innerHTML 로 통째로 바꾸면 안 된다 — 문구에는 닉네임·장비명이 그대로 들어온다.
-        //    아이콘만 노드로 만들고 **나머지는 전부 텍스트 노드**로 붙인다.
+    // 문구를 훑어 **표에 있는 이모지를 전부** 아이콘 노드로 바꿔 el 에 쌓는다. 선두만 바꾸면
+    // `🏆 1-1 첫 클리어! 🪙+60` 처럼 뒤에 붙는 재화 이모지가 그대로 남아 한 줄 안에서
+    // 아이콘과 이모지가 섞인다(실측으로 확인).
+    // ⚠️ innerHTML 로 통째로 바꾸면 안 된다 — 문구에는 닉네임·장비명이 그대로 들어온다.
+    //    아이콘만 노드로 만들고 **나머지는 전부 텍스트 노드**로 붙인다.
+    // (토스트 전용이었는데 전리품 피드도 같은 처리가 필요해 함수로 뺐다 — `🪙 +3` 이 생이모지로
+    //  떠 있었다. 앞으로 이런 자리가 또 나오면 이걸 부를 것. 복사하지 말 것.)
+    paintIconText(el, msg, cls) {
         const cp = Array.from(String(msg));
         let buf = '';
         const flush = () => { if (buf) { el.appendChild(document.createTextNode(buf)); buf = ''; } };
@@ -997,7 +999,7 @@ const UI = {
             if (!key) { buf += cp[i]; i++; continue; }
             flush();
             const wrap = document.createElement('span');
-            wrap.innerHTML = IconGen.img(this.TOAST_ICON[key], 'toast-ico');
+            wrap.innerHTML = IconGen.img(this.TOAST_ICON[key], cls);
             if (wrap.firstChild) el.appendChild(wrap.firstChild);
             i += Array.from(key).length;
             // ⚠️ 실제 문구는 `⚔️`·`⬆️`·`⚙️` 처럼 **이형 선택자(U+FE0F)가 붙어 있다.** 표 키는 맨 글자라
@@ -1006,6 +1008,13 @@ const UI = {
             while (cp[i] === ' ') i++;      // 이모지 뒤 공백은 아이콘 마진이 대신한다
         }
         flush();
+        return el;
+    },
+
+    toast(msg) {
+        const el = document.createElement('div');
+        el.className = 'toast';
+        this.paintIconText(el, msg, 'toast-ico');
         this.els.toasts.appendChild(el);
         setTimeout(() => el.classList.add('show'), 10);
         setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2600);
@@ -1085,7 +1094,7 @@ const UI = {
                 <span class="cell-lv">Lv.${activeMount.level}</span>
                 ${extraMounts ? `<span class="cell-count" style="${UI.MOUNT_COUNT_STYLE}">+${extraMounts}</span>` : ''}
             </div>`
-            : `<div class="equip-cell egg-cell empty" title="탈것" onclick="UI.openMounts()"><span class="mount-sil">🐴</span><span class="slot-name">탈것</span></div>`;
+            : `<div class="equip-cell egg-cell empty" title="탈것" onclick="UI.openMounts()"><span class="mount-sil">${IconGen.img('horse')}</span><span class="slot-name">탈것</span></div>`;
 
         // 모루가 중앙, 우측에 [대장간 레벨 N]·[자동🔄] 가로 배치, 좌측에 !(플레이어 정보, UI-SPEC 27번) — UI-SPEC 1번
         this.els.equipSheet.innerHTML = `
@@ -2817,11 +2826,11 @@ const UI = {
             let h = '';
             if (eggPool.length) {
                 const all = eggPool.every(i => sel.eggs.includes(i));
-                h += `<button class="petup-bulk ${all ? 'on' : ''}" style="--rc:${RARITY_CSS[r]}" title="${RARITY_KR[r]} 알 전체 ${all ? '해제' : '선택'}" onclick="UI.onBulkSelectMat('egg','${r}')"><span class="bulk-sil">🥚</span><span class="bulk-n">${eggPool.length}</span></button>`;
+                h += `<button class="petup-bulk ${all ? 'on' : ''}" style="--rc:${RARITY_CSS[r]}" title="${RARITY_KR[r]} 알 전체 ${all ? '해제' : '선택'}" onclick="UI.onBulkSelectMat('egg','${r}')"><span class="bulk-sil">${IconGen.img('egg')}</span><span class="bulk-n">${eggPool.length}</span></button>`;
             }
             if (petPool.length) {
                 const all = petPool.every(i => sel.pets.includes(i));
-                h += `<button class="petup-bulk ${all ? 'on' : ''}" style="--rc:${RARITY_CSS[r]}" title="${RARITY_KR[r]} 펫 전체 ${all ? '해제' : '선택'}" onclick="UI.onBulkSelectMat('pet','${r}')"><span class="bulk-sil">🐾</span><span class="bulk-n">${petPool.length}</span></button>`;
+                h += `<button class="petup-bulk ${all ? 'on' : ''}" style="--rc:${RARITY_CSS[r]}" title="${RARITY_KR[r]} 펫 전체 ${all ? '해제' : '선택'}" onclick="UI.onBulkSelectMat('pet','${r}')"><span class="bulk-sil">${IconGen.img('paw')}</span><span class="bulk-n">${petPool.length}</span></button>`;
             }
             return h;
         }).join('');
@@ -3233,7 +3242,7 @@ const UI = {
                         <div class="dgd-stage"><span>난이도</span><b>${this.dgStageText(stage)}</b></div>
                         <button class="tri-btn" onclick="UI.onDungeonStageStep(1)" style="visibility:${stage >= best + 1 ? 'hidden' : 'visible'}">▶</button>
                     </div>
-                    <div class="dgd-reward-pill"><span class="dgd-reward-label">보상:</span>${Dungeons.rewardText(id, stage, '  ')}</div>
+                    <div class="dgd-reward-pill"><span class="dgd-reward-label">보상:</span>${this.iconizeHTML(Dungeons.rewardText(id, stage, '  '))}</div>
                     <div class="dgd-keys">${IconGen.img('key')} ${keys}/${Dungeons.MAX_KEYS}</div>
                     <div class="dgd-btns">
                         <button class="btn silver dgd-btn ${keys > 0 && best >= 1 ? '' : 'disabled'}" onclick="UI.onSweepDungeon('${id}')">이전 스테이지<br>소탕</button>
@@ -3391,7 +3400,7 @@ const UI = {
                     ? `<button class="pass-cell free lit claimable" onclick="UI.onClaimPass('${m.stage}')">${this.passRewardLines(m.free)}</button>`
                     : `<div class="pass-cell free">${this.passRewardLines(m.free)}</div>`;
             // 프리미엄 칸도 무료 칸과 같은 도달 기준으로 밝기가 바뀐다(항상 잠김이지만 도달 전이면 카드 배경에 녹아듦, 원본 shot-042705)
-            const premiumCell = `<div class="pass-cell premium ${reached ? 'lit' : ''}" onclick="UI.onPremiumPass()">${this.passRewardLines(m.premium)}<span class="pass-badge lock">🔒</span></div>`;
+            const premiumCell = `<div class="pass-cell premium ${reached ? 'lit' : ''}" onclick="UI.onPremiumPass()">${this.passRewardLines(m.premium)}<span class="pass-badge lock">${IconGen.img('lock')}</span></div>`;
             return `<div class="pass-milestone-label">${this.difficultyLabel(c)} ${m.stage}</div>
                 <div class="pass-row">${freeCell}${premiumCell}</div>`;
         }).join('');
@@ -4506,6 +4515,36 @@ const UI = {
             const html = IconGen.img(this.WP_ICON[id]);
             if (box && html) box.innerHTML = html;
         }
+        // 오프라인 버튼의 💤 도 index.html 에 박힌 정적 이모지다(전 화면에 떠 있어서 제일 눈에 띈다).
+        // 정적 마크업에서는 IconGen 을 부를 수 없으니 부팅 때 여기서 갈아 끼운다. 라벨 <span> 은 살린다.
+        const ob = document.getElementById('offline-btn');
+        const zzz = IconGen.img('zzz');
+        if (ob && zzz) {
+            const label = ob.querySelector('span');
+            ob.innerHTML = zzz;
+            if (label) ob.appendChild(label);
+        }
+    },
+
+    // 게임이 만든 문구(보상 표기 등)를 innerHTML 자리에 넣을 때, 표에 있는 이모지만 아이콘으로 바꾼다.
+    // 토스트는 노드를 직접 쌓아 같은 일을 하는데(`toast`), 그쪽은 닉네임·장비명이 섞여 들어와
+    // innerHTML 을 못 쓴다. 여기는 반대로 **이미 innerHTML 로 들어가는 자리**라 문자열을 돌려준다 —
+    // 대신 이모지가 아닌 부분은 전부 escape 해서 문자열이 마크업으로 해석되지 않게 한다.
+    iconizeHTML(msg) {
+        const cp = Array.from(String(msg));
+        let out = '', buf = '';
+        const flush = () => { if (buf) { out += U.escapeHtml(buf); buf = ''; } };
+        for (let i = 0; i < cp.length;) {
+            const two = cp[i] + (cp[i + 1] || ''), one = cp[i];
+            const key = this.TOAST_ICON[two] ? two : (this.TOAST_ICON[one] ? one : '');
+            if (!key) { buf += cp[i]; i++; continue; }
+            flush();
+            out += IconGen.img(this.TOAST_ICON[key]);
+            i += Array.from(key).length;
+            if (cp[i] === '\uFE0F') i++;   // 이형 선택자가 남으면 보이지 않는 문자가 섞인다(토스트와 같은 처리)
+        }
+        flush();
+        return out;
     },
 
     // 매일 09:00 기준 다음 리셋까지 남은 ms — 미스터리 상자는 실제 배경 기능이 없어 기존 09:00 리셋(던전 열쇠 등)에 동기화한 자체 설계 카운트다운
