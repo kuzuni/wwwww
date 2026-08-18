@@ -816,7 +816,16 @@ const ProChar = {
             const sole = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.016, 14), deepGasket);
             sole.position.set(0, -0.3596, 0.088);      // 바닥 -0.3676 — 굽과 같은 높이 (접지 회귀 방지)
             sole.scale.set(1.02, 1, 1.40);
-            knee.add(kneeCap, shin, bootTop, ankleNeck, midFoot, toe, sabaton, ankleLame, sole, heel);
+            // 접지 접촉 암부(㉡) — 사바톤·발가락이 밝은 스틸이라 발이 지면에 '닿는' 자리에 그늘이 0이다
+            //    (`probe-contact-ao.js`: 부츠 접지 창 최소 L ~100). 지면 블롭(scene3d)은 소프트하고 발에서
+            //    떨어져 있어 접촉 단서가 못 된다. 발등·발가락 **밑면**을 감싸는 납작한 니어블랙 링을 얹어
+            //    갑피가 사바톤 밑으로 말려 들어가는 그늘을 직접 만든다(관절 aoRing 과 같은 언어, 무조명).
+            //    sole 바닥(-0.3676)보다 살짝 위(-0.352)에 둬 접지선을 가리지 않고 밑면만 어둡게 한다.
+            const footAO = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.03, 6, 16), aoMat);
+            footAO.rotation.x = Math.PI / 2;
+            footAO.position.set(0, -0.352, 0.075);
+            footAO.scale.set(1.05, 1.42, 0.34);       // z(상하 두께) 납작 · y(전후) 길게 — 발 형상 추종
+            knee.add(kneeCap, shin, bootTop, ankleNeck, midFoot, toe, sabaton, ankleLame, sole, heel, footAO);
             hip.add(thigh, thighPad, garter, cuisse, knee);
             aoRing(0.082, 0.016, hip, -0.015, 0.5); // 고관절-대퇴 경계 접촉 그림자
             pelvis.add(hip);
