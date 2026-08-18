@@ -7,21 +7,35 @@ const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 
 // shot-screens.js의 SCREENS에서 오프너만 추출해 그대로 쓴다 — 목록이 갈라지지 않게 소스를 파싱한다.
-// 🚨 오프너는 백틱 리터럴만이 아니라 **다른 모듈에서 가져온 상수**(예: `PETS_STATE_SRC`)일 수도 있다.
-//    백틱만 받던 종전 정규식은 그런 줄을 조용히 빼먹었다 — 실제로 pets·pets-2 두 화면이
-//    목록에서 사라져 31/31 이 29/29 가 됐고, **에러 검사가 안 되는 화면이 생긴 줄 아무도 몰랐다.**
-//    그래서 ⑴ 식별자 오프너도 받고 ⑵ `require` 로 실제 값을 꺼내 쓰고 ⑶ 못 풀면 죽는다.
+// 🚨 오프너는 백틱 리터럴만이 아니라 **다른 모듈에서 가져온 상수**(예: `PETS_STATE_SRC`)일 수도,
+//    **상수 + 백틱 연결식**(예: `PETS_STATE_SRC + \`; UI.openPetDetail(1)\``)일 수도 있다.
+//    백틱만 받던 종전 정규식은 상수 줄을 조용히 빼먹어 pets·pets-2 가 사라졌고(31→29),
+//    상수+식별자만 받던 다음 판은 연결식이 된 pet-detail·pet-upgrade 를 또 빼먹었다(2026-08-18,
+//    aaa-skin 세션이 오프너를 연결식으로 바꾼 날 재발) — **에러 검사가 안 되는 화면이 생긴 줄
+//    아무도 몰랐다.** 그래서 ⑴ 세 형태를 다 받고 ⑵ `require` 로 실제 값을 꺼내 쓰고 ⑶ 못 풀면
+//    죽고 ⑷ 맨 끝에서 소스의 전체 항목 수와 대조해 **하나라도 빠지면 죽는다**(형태가 또 늘어도
+//    조용히 못 썩게).
 const fs = require('fs');
 const SRC = fs.readFileSync(path.join(__dirname, 'shot-screens.js'), 'utf8');
-const SCREENS = [...SRC.matchAll(/^\s*\['([\w-]+)',\s*(?:'[\d]+'|null),\s*(`[^`]*`|[A-Z_][\w]*)\],/gm)].map(m => {
+const resolveIdent = (name) => {
+    const req = SRC.match(new RegExp(`const\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*=\\s*require\\('([^']+)'\\)`));
+    const val = req && require(req[1])[name];
+    if (typeof val !== 'string') throw new Error(`오프너 상수 ${name} 를 못 풀었다 — 화면이 조용히 빠진다`);
+    return val;
+};
+const SCREENS = [...SRC.matchAll(/^\s*\['([\w-]+)',\s*(?:'[\d]+'|null),\s*(`[^`]*`|[A-Z_][\w]*(?:\s*\+\s*`[^`]*`)?)\],/gm)].map(m => {
     const raw = m[2];
     if (raw[0] === '`') return [m[1], raw.slice(1, -1)];
-    // 식별자 → shot-screens.js 가 그 이름을 가져오는 모듈에서 값을 꺼낸다
-    const req = SRC.match(new RegExp(`const\\s*\\{[^}]*\\b${raw}\\b[^}]*\\}\\s*=\\s*require\\('([^']+)'\\)`));
-    const val = req && require(req[1])[raw];
-    if (typeof val !== 'string') throw new Error(`오프너 상수 ${raw} 를 못 풀었다 — 화면이 조용히 빠진다`);
-    return [m[1], val];
+    const plus = raw.match(/^([A-Z_][\w]*)\s*\+\s*`([^`]*)`$/s);
+    if (plus) return [m[1], resolveIdent(plus[1]) + plus[2]];
+    return [m[1], resolveIdent(raw)];
 });
+const ALL_N = [...SRC.matchAll(/^\s*\['([\w-]+)',/gm)].length;
+if (SCREENS.length !== ALL_N) {
+    const got = SCREENS.map(s => s[0]);
+    const missing = [...SRC.matchAll(/^\s*\['([\w-]+)',/gm)].map(m => m[1]).filter(n => !got.includes(n));
+    throw new Error(`shot-screens.js 항목 ${ALL_N}개 중 ${SCREENS.length}개만 파싱됨 — 빠진 화면: ${missing.join(', ')} (오프너 형태가 또 늘었다. 위 정규식을 넓힐 것)`);
+}
 
 (async () => {
     const browser = await chromium.launch({

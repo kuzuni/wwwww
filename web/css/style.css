@@ -4103,7 +4103,10 @@ body {
 /* 옵션 합계: 원본은 좌정렬 굵은 검정 */
 .pinfo-subs-list { text-align: left; font-weight: 900; color: var(--pp-ink); font-size: .88rem; line-height: 1.6; padding-left: .4rem; }
 .fl-card { width: 71%; /* 원본 shot-042905 71.3% · shot-042931 70.5% 실측 */ padding: .85rem .8rem .9rem; }
-.fl-head { margin-bottom: .4rem; }
+/* 제목 아래 여백 — 원본(shot-042905) 제목 잉크→시대 필 33px vs 클론 13px. 카드 상단→패널이
+   -9.19%CW(28px) 좁던 것의 몫 20px (probe-fl-body, 나머지 7px 은 아래 fl-head 몫). */
+.fl-card .fi-title { margin-bottom: 1.19rem; }
+.fl-head { margin-bottom: .82rem; }   /* 필→패널 원본 12px vs 클론 5px — +7px (probe-fl-body) */
 .fl-head .fi-age-cur { padding-right: .5rem; }
 /* 원본 % 글자는 회색 패널 위에 바로 앉은 검정 잉크다(단면 최암부 #0d0d0d) — 위 paper 공통 규칙이
    셀 배경을 종이 흰색으로, 글자를 --pp-muted 로 끌고 가 '흰 띠 + 흐린 글자'가 됐던 자리(aaa-skin ⑮ 실측). */
