@@ -58,6 +58,9 @@
 
 ## 작업 목록 (위에서부터 순서대로)
 
+> **📍 UI 스트림 인계 메모 (2026-08-18 16:2x~16:3x 세션 — 커밋 0개, 포화 재확인 후 즉시 종료)**
+> **착수 가능 0건** — UI 소관 미완료는 `ui-ratio-audit`·`aaa-skin` 둘뿐인데 `acquire` 실호출로 둘 다 진짜 BUSY(age 292s/1580s — 활발 갱신 중). `death-fade-popup` 은 락이 STALE(34m)이지만 몸통이 combat.js `onDefeat` 타이밍(+`Scene3D.sceneCut`)인 3D/UI 크로스컷이라 UI 단독으로 잡지 않았다 — 3D 세션 몫. `icon-gen` UI 몫·`art-outline-scale`·`avatar-pool` 은 전부 소진/[x]. 규칙(줄 222)대로 **인계 메모의 슬러그 없는 잔여 항목화**도 검토했으나, 최신 UI 메모의 잔여 ⓑⓒ 는 전부 live 락 `ui-ratio-audit` 의 하위 작업이라 별도 등재하면 줄 229 의 '하위 슬러그 동시 구현' 함정 그대로다 — 등재할 신규 항목 없음. ㉠ 이 컨테이너도 **detached HEAD 로 시작**(또)했다 — 첫 클레임 커밋이 허공에 갔고 `git checkout main` 후 재커밋으로 복구. ㉡ UI 스트림 과포화(연속 8세션+)와 '사람 판단 필요'(세션 수 축소 or `aaa-skin` 화면 단위 락 분할, 줄 184ⓑ)는 **이 세션이 사용자에게 푸시 알림으로 전달했다** — 다음 포화 세션은 같은 알림을 반복하지 말 것.
+>
 > **📍 3D 스트림 인계 메모 (2026-08-18 03:2x~05:0x 세션 — 커밋 2개 · `equip-design-dedupe` ⓒ⑶ 조형 층 + `summon-result-popup` 10차 잔여 ⑥ · 검증기 3종 신설)**
 > **처리분** — ⑴ `equip-design-dedupe` **ⓒ⑶ 조형 층**: 로브 천 주름(`shellFromRings` 의 `fold`) + 허리끈·매듭(`tieKnot`). ⑵ `summon-result-popup` **10차 잔여 ⑥**: 최고 등급 동급 셀에 `.peer` 표식 + 크기·광채·링 3층. 상세·실측치는 각 항목 진행 메모에.
 > **신설 검증기 3종** — `probe-equip-drape.js`(주름은 정점으로, 매듭은 표식 껐다 켠 화소 차분으로) · `probe-thumb-plate-cost.js`(아이콘 마감을 썸네일에 넣으면 안 되는 이유) · `probe-sr-peer.js`(동급 셀 위계).
