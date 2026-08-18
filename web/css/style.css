@@ -1609,10 +1609,11 @@ body {
     display: inline-block; background: var(--pp-ink); color: var(--pp-green);
     border-radius: .6rem; padding: .05rem .45rem; font-weight: 800; margin-top: .1rem;
 }
-/* ---- 고등급 판매 경고 팝업 (사용자 지시 2026-08-17, 등급 대조 추가 2026-08-18) ----
-   비교 팝업의 카드에는 등급이 어디에도 안 나오므로(이름색·테두리색이 양쪽 다 잉크색), 이 창이
-   **등급을 처음 보여주는 자리**다. 파는 것/남는 것을 좌우 대칭으로 놓고 가운데 '>'로 대소를 못
-   박는다 — 한쪽만 색칠하면 비교로 안 읽힌다는 게 이번 재지적의 요지였다. */
+/* ---- 상위 시대 판매 경고 팝업 (사용자 지시 2026-08-17, 비교 기준 시대로 확정 2026-08-18) ----
+   비교 팝업의 카드는 이름색·테두리색이 양쪽 다 잉크색이라 무엇이 더 좋은지 화면에 단서가 없다.
+   그래서 이 창이 **두 장비를 견주어 보여주는 유일한 자리**다. 파는 것/남는 것을 좌우 대칭으로
+   놓고 가운데 '>'로 대소를 못 박는다 — 한쪽만 색칠하면 비교로 안 읽힌다는 게 재지적의 요지였다.
+   칩에 들어가는 값은 rarity 가 아니라 **시대**다(사용자 확정: 장비의 등급 축은 AGE 하나뿐). */
 .sellwarn-card { width: 76%; padding: 1rem .9rem 1rem; gap: .7rem; }
 .sellwarn-title { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); text-align: center; }
 .sellwarn-body { display: flex; flex-direction: column; gap: .3rem; text-align: center; }
@@ -1623,8 +1624,9 @@ body {
 }
 .swc-tag { font-size: .68rem; font-weight: 800; color: var(--pp-muted); }
 .swc-tag.sell { color: var(--pp-red); }
-/* 등급 칩은 다른 화면(소환 결과·펫 재료)과 같은 규약 — 등급색 필 + 대비 4.5:1 전경 */
-.swc-rank {
+/* 시대 칩은 다른 칩(소환 결과·펫 재료)과 같은 규약 — 시대색 필 + 대비 4.5:1 전경.
+   '지하 세계'(4자+공백)가 가장 길다 — 두 칸이 반씩 나눠 갖는 폭이라 줄바꿈 없이 들어가야 한다. */
+.swc-age {
     background: var(--cb); color: var(--cf); border-radius: .45rem;
     padding: .1rem .5rem; font-size: .78rem; font-weight: 900; white-space: nowrap;
 }

@@ -2,8 +2,10 @@
 // 목적 둘:
 //  ⓐ 로직 버그 재현 — 비교 팝업이 보여준 '장착됨' 카드와 경고가 실제로 비교한 장비가 어긋나는가
 //     (팝업이 뜬 뒤 장비가 바뀌면 사용자는 화면에 없는 장비와 비교당한 셈이 된다)
-//  ⓑ 인지 차이 계측 — 경고가 뜬 순간 **화면에 등급이 보이는가**. 비교 카드는 `[시대] 이름`과 스탯만
-//     쓰고 카드 색은 시대색이라, 등급이 어디에도 없으면 사용자 눈엔 '같은 등급인데 경고'가 된다.
+//  ⓑ 인지 차이 계측 — 경고가 뜬 순간 **화면에 비교 축(시대)이 보이는가**. 비교 카드는 `[시대] 이름`과
+//     스탯만 쓰고 두 카드 이름색이 같아, 견줄 단서가 없으면 사용자 눈엔 '같은 등급인데 경고'가 된다.
+// ⚠️ 2026-08-18 갱신 — 판정 축이 rarity → **시대(AGES)** 로 바뀌었다(사용자 확정). 이 파일의 기대값도
+//    전부 시대 기준이다. rarity 로 되돌리지 말 것.
 // 사용: node probe-sell-warning-repro.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
@@ -26,7 +28,12 @@ const ROUNDS = 60;
     await page.evaluate(() => {
         if (typeof Scene3D !== 'undefined') Scene3D.update = function () {};
         Combat.tick = function () {};
-        S.hammers = 1e6; S.forgeLevel = 60; S.autoForgeOn = false;
+        // ⚠️ forgeLevel 은 forgeProbabilities 표에 있는 값이어야 한다(1~35). 범위를 넘기면
+        // `ageProbsAt`가 조용히 레벨 1(= 원시적 100%)로 떨어져 **시대가 한 종류만 나온다** —
+        // 예전 60은 그 함정에 걸려 있었고, rarity 기준일 땐 티가 안 났지만 시대 기준에선
+        // 경고가 한 건도 안 뜨는 무의미한 런이 된다. 30은 다중 우주 60·양자 36·지하 세계 4로
+        // 갈려서 '한 시대 뒤진 장비를 끼고 최신 시대를 뽑는' 실제 상황이 자연히 생긴다.
+        S.hammers = 1e6; S.forgeLevel = 30; S.autoForgeOn = false;
         UI.playAnvilStrike = function (done) { done(); };   // 연출 대기 없이 결과 팝업까지
     });
 
@@ -55,7 +62,7 @@ const ROUNDS = 60;
             if (warn) {
                 UI.resolveCraft('sell');
                 const m = document.getElementById('detail-modal');
-                const chips = [...m.querySelectorAll('.swc-rank')].map(c => ({
+                const chips = [...m.querySelectorAll('.swc-age')].map(c => ({
                     text: c.textContent.trim(), fill: getComputedStyle(c).backgroundColor,
                 }));
                 warnPopup = { text: m.innerText.replace(/\s+/g, ' ').trim(), chips };
@@ -88,28 +95,37 @@ const ROUNDS = 60;
     const mismatch = warned.filter(r => !r.sameObject);
     ok(mismatch.length === 0, `팝업이 보여준 장착품과 경고 비교 대상이 다른 케이스 ${mismatch.length}건`);
 
-    // ⓑ 경고는 항상 strictly 높은 등급일 때만
+    // ⓑ 경고는 항상 strictly 최신 **시대**일 때만 (2026-08-18 사용자 확정: 장비 비교 축은 AGE 하나)
+    const AGE_LIST = ['primitive', 'medieval', 'earlyModern', 'modern', 'space',
+                      'interstellar', 'multiverse', 'quantum', 'underworld', 'divine'];
+    const badRank = warned.filter(r => AGE_LIST.indexOf(r.sold.age) <= AGE_LIST.indexOf(r.warnKept.age));
+    ok(badRank.length === 0, `같은/이전 시대인데 경고가 뜬 케이스 ${badRank.length}건`);
+    // rarity 는 이제 판정에 관여하면 안 된다 — 경고 중 '파는 rarity 가 더 낮은' 케이스가 실제로
+    // 섞여 있어야 시대 기준으로 갈아탄 게 맞다(전부 rarity 순이면 우연히 옛 규칙과 같은 것이다)
     const RAR = ['common', 'rare', 'epic', 'legendary', 'ultimate', 'mythic'];
-    const badRank = warned.filter(r => RAR.indexOf(r.sold.rarity) <= RAR.indexOf(r.warnKept.rarity));
-    ok(badRank.length === 0, `같은/낮은 등급인데 경고가 뜬 케이스 ${badRank.length}건`);
+    const lowerRarityWarn = warned.filter(r => RAR.indexOf(r.sold.rarity) < RAR.indexOf(r.warnKept.rarity)).length;
+    console.log(`  경고 중 '파는 rarity 가 더 낮은' 케이스: ${lowerRarityWarn}/${warned.length} (0이어도 실패는 아님 — 시대만 보므로)`);
 
-    // ⓒ 인지 계측 (이번 수정의 본체) — 경고 창은 **파는 것과 남는 것의 등급을 나란히** 보여줘야 한다.
-    // 비교 팝업 카드에는 등급이 전혀 안 나오므로(이름색·테두리색이 양쪽 다 잉크색) 여기가 유일한 자리다.
-    const RAR_KR = { common: '일반', rare: '희귀한', epic: '서사시', legendary: '전설', ultimate: '궁극의', mythic: '신화' };
+    // ⓒ 인지 계측 (이번 수정의 본체) — 경고 창은 **파는 것과 남는 것의 시대를 나란히** 보여줘야 한다.
+    // 비교 팝업 카드에는 견줄 단서가 없으므로(이름색·테두리색이 양쪽 다 잉크색) 여기가 유일한 자리다.
+    const AGE_KR_MAP = {
+        primitive: '원시적', medieval: '중세의', earlyModern: '근대 초기', modern: '현대의', space: '우주',
+        interstellar: '항성간', multiverse: '다중 우주', quantum: '양자', underworld: '지하 세계', divine: '천상'
+    };
     let noCue = 0, badChip = 0;
     for (const r of warned) {
         const p = r.warnPopup;
         if (!p) { noCue++; continue; }
         const chips = p.chips.map(c => c.text);
-        // 두 등급명이 각각 칩으로 떠 있어야 하고, 필 색이 서로 달라야 '견줄 수 있다'
-        const hasBoth = chips.includes(RAR_KR[r.sold.rarity]) && chips.includes(RAR_KR[r.warnKept.rarity]);
+        // 두 시대명이 각각 칩으로 떠 있어야 하고, 필 색이 서로 달라야 '견줄 수 있다'
+        const hasBoth = chips.includes(AGE_KR_MAP[r.sold.age]) && chips.includes(AGE_KR_MAP[r.warnKept.age]);
         if (!hasBoth) noCue++;
         if (p.chips.length !== 2 || p.chips[0].fill === p.chips[1].fill) badChip++;
         if (!/파는 것/.test(p.text) || !/남는 것/.test(p.text)) noCue++;
     }
-    console.log(`  경고 케이스 중 등급 대조가 안 보이는 것: ${noCue}/${warned.length} · 칩 색이 안 갈리는 것: ${badChip}/${warned.length}`);
-    ok(noCue === 0, `경고 창에 '파는 것/남는 것' 등급 대조가 없는 케이스 ${noCue}/${warned.length}건 — 사용자에겐 '같은 등급인데 경고'로 보인다`);
-    ok(badChip === 0, `등급 칩이 2개가 아니거나 색이 같은 케이스 ${badChip}/${warned.length}건`);
+    console.log(`  경고 케이스 중 시대 대조가 안 보이는 것: ${noCue}/${warned.length} · 칩 색이 안 갈리는 것: ${badChip}/${warned.length}`);
+    ok(noCue === 0, `경고 창에 '파는 것/남는 것' 시대 대조가 없는 케이스 ${noCue}/${warned.length}건 — 사용자에겐 '같은 등급인데 경고'로 보인다`);
+    ok(badChip === 0, `시대 칩이 2개가 아니거나 색이 같은 케이스 ${badChip}/${warned.length}건`);
 
     // ⓓ 비교 팝업 카드 자체에는 여전히 등급 단서가 없다 — 이 사실을 기록으로 남겨 둔다(원본 준수)
     const cardCue = warned.filter(r => r.cards.length === 2 && r.cards[0].nameColor !== r.cards[1].nameColor).length;

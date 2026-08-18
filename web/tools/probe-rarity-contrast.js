@@ -1,4 +1,4 @@
-// 흰 '페이퍼' 카드 위 등급색 이름의 명암비 검증 (QA 11차).
+// 흰 '페이퍼' 카드 위 등급색/시대색 텍스트의 명암비 검증 (QA 11차, 판매 경고는 시대축으로 갱신 2026-08-18).
 // 증상: 펫·알·탈것 상세 팝업과 판매 경고 팝업의 `[전설] 이름` 줄이 흰 카드 위에서
 //       6등급 전부 WCAG AA(4.5:1) 미달 — 전설 1.24:1로 거의 백지 위 백지였다.
 // 판정: 실제로 렌더된 텍스트 색과 **뒤에 깔린 실제 배경색**으로 명암비를 계산해 4.5:1 이상.
@@ -66,14 +66,18 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
             UI.openMountDetail(mn);
             measure(`탈것 상세 ${RARITY_KR[r]}`, '.petd-name');
 
+        }
+        // 판매 경고 창은 rarity 를 더 이상 쓰지 않는다 — 칩이 **시대색** 필이라 10시대를 따로 돈다
+        // (`sell-warn-by-age`, 2026-08-18 사용자 확정). 위 rarity 루프와 축이 다르니 섞지 말 것.
+        // 특히 원시적(#e0e0e0)은 흰 종이 카드와 거의 같은 색이라, 필을 그대로 쓰면 백지 위 백지가 된다
+        // — chipFill 이 필을 어둡게 밀어 4.5:1을 맞추는지가 이 줄의 요지다.
+        for (const age of AGES) {
             document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
-            const sold = Object.assign(Forge.rollItem(), { rarity: r, name: '테스트 장비' });
-            const kept = Object.assign(Forge.rollItem(), { rarity: 'common', slot: sold.slot });
+            const sold = Object.assign(Forge.rollItem(), { age, name: '테스트 장비' });
+            const kept = Object.assign(Forge.rollItem(), { age: AGES[0], slot: sold.slot });
             UI.showSellConfirm({ sold, kept });
-            // 2026-08-18: 경고 창이 '파는 것 / 남는 것' 등급 칩 대조로 바뀌었다(`sell-warn-samerank`).
-            // 흰 글자를 흰 카드에 얹던 `.sellwarn-item`은 없어졌고, 이제 등급색 **필** 위의 전경색을 잰다
-            // (bgOf가 칩 자신의 배경을 먼저 집으므로 chipFill이 보장하는 그 대비가 그대로 측정된다).
-            measure(`판매 경고 ${RARITY_KR[r]}`, '.swc-rank');
+            // bgOf 가 칩 자신의 배경을 먼저 집으므로 chipFill 이 보장하는 그 대비가 그대로 측정된다
+            measure(`판매 경고 ${AGE_KR[age]}`, '.swc-age');
         }
         return out;
     });

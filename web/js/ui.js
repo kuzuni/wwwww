@@ -2560,32 +2560,39 @@ const UI = {
         el.classList.add('play');
     },
 
-    // ---- 고등급 판매 경고 (사용자 지시 2026-08-17, 재확인 2026-08-17) ----
-    // 비교 기준은 **오직 등급(RARITIES 인덱스)** 이다 — 시대(원시/중세…)·레벨·전투력 차이는 전부 무시.
-    // 파는 장비의 등급이 그 부위에 남을 장비보다 **strictly 높을 때만** 물어본다.
-    //   같은 등급이면 무경고(원시 일반↔천상 일반처럼 시대·레벨이 달라도 등급만 같으면 안 뜬다), 낮아도 무경고.
+    // ---- 상위 시대 판매 경고 (사용자 지시 2026-08-17, **비교 기준 확정 2026-08-18**) ----
+    // 비교 기준은 **오직 시대(AGES 인덱스)** 다 — rarity(일반/희귀한/서사시…)·레벨·전투력은 전부 무시.
+    //   사용자 확정: "장비는 AGE 가 등급이고, 일반/서사시 이런 건 펫·탈것·스킬의 등급이다.
+    //   장비는 그런 등급(rarity)을 안 쓰니 폐기해야 한다." → 그래서 이 경고 경로에서 rarity 는
+    //   판정에서도 표시에서도 완전히 빠졌다(`rarityRank`·`rarityChip` 폐기). 되살리지 말 것.
+    // 파는 장비의 시대가 그 부위에 남을 장비보다 **strictly 최신일 때만** 물어본다.
+    //   같은 시대면 무경고(원시적 신화↔원시적 일반처럼 rarity·레벨이 달라도 시대만 같으면 안 뜬다),
+    //   이전 시대면 무경고(중세의를 끼고 원시적을 파는 건 물어볼 것도 없다).
     //   [판매] → 새 장비가 팔리고 장착 중인 것이 남는다
     //   [장착] → 새 것을 끼고 **기존 장비는 그냥 사라진다**(판매 아님) — 파는 게 없으니 경고도 없다
-    // 빈 부위는 **비교할 등급 자체가 없으므로 경고하지 않는다**(사용자 재확인 — 빈 부위마다 매번
+    // 빈 부위는 **비교할 시대 자체가 없으므로 경고하지 않는다**(사용자 재확인 — 빈 부위마다 매번
     // 물어보면 잔소리가 된다. 전에는 -1로 쳐서 항상 물어봤다).
     // 자동 제련(main.js)의 자동 판매는 사용자가 건 필터가 이미 걸러낸 결과라 경고 대상이 아니다.
     //
-    // ⚠️ '같은 등급인데도 경고가 뜬다'(사용자 재지적 2026-08-18)의 정체 — **판정이 아니라 표시**였다.
-    // 실게임 60회 제작 재현(`tools/probe-sell-warning-repro.js`): 등급 오판정 0건·팝업이 보여준
-    // 장착품과 경고가 비교한 장비가 어긋난 케이스 0건. 대신 **경고 17건 전부가 화면에 등급 단서가
-    // 하나도 없는 상태에서 떴다** — 비교 팝업의 카드는 `[시대] 이름`과 스탯만 쓰고 이름색·테두리색이
-    // 양쪽 다 잉크색(rgb(23,24,26))이라, 희귀한 반지를 팔면서 일반 반지를 남기는 순간에도 두 카드가
-    // 똑같아 보인다. 게다가 장비는 **등급을 어디에서도 표시하지 않는 유일한 카테고리**다(펫·탈것·스킬
-    // 세부정보는 전부 `[등급] 이름`으로 띄운다). 그래서 사용자 눈에는 '같은 등급인데 경고'가 된다.
-    // → 판정은 그대로 두고, 경고 팝업이 **파는 것과 남는 것의 등급을 나란히** 보여주게 고쳤다.
-    rarityRank(item) { return item ? RARITIES.indexOf(item.rarity) : -1; },
+    // ⚠️ 이 항목은 두 번 열렸고, 두 번째에 **기준 자체가 틀렸다**는 게 밝혀졌다.
+    // 1차('같은 등급인데도 경고가 뜬다', 2026-08-18): 실게임 60회 재현
+    // (`tools/probe-sell-warning-repro.js`)에서 rarity 오판정 0건 → '판정이 아니라 표시' 문제로 보고
+    // 경고 팝업에 rarity 칩 두 개를 나란히 붙였다.
+    // 2차(사용자 재지적, 같은 날): "원시 장착하고 중세의 팔려고 하면 경고 안 뜨더라 / 여전히
+    // 희귀한·일반 중에 비교하게 돼 있다" → **1차 진단이 절반만 맞았다.** 표시도 문제였지만 진짜
+    // 원인은 **장비에 rarity 라는 축을 쓴 것 자체**였다. 사용자에게 장비의 등급은 시대다:
+    // 원시적 신화보다 중세의 일반이 세다(시대 배수). rarity 로 재면 '더 좋은 걸 파는' 순간을
+    // 정확히 놓친다 — 위 사용자 예시(원시적 장착 + 중세의 판매)가 바로 그 구멍이었다.
+    // → 판정·표시 둘 다 시대로 옮겼다. 칩은 시대색(`ageHex`) 필을 쓰고, 카드가 이미
+    //   `[시대] 이름`으로 쓰던 대괄호는 칩과 겹치므로 이 팝업의 이름줄에서는 뺀다.
+    ageRank(item) { return item ? AGES.indexOf(item.age) : -1; },
     sellWarning(mode) {
         if (mode === 'equip') return null; // 장착은 아무것도 팔지 않는다
         const item = this._pendingItem;
         if (!item) return null;
         const kept = S.equipment[item.slot];
         if (!kept) return null; // 빈 부위 — 비교 대상이 없다
-        if (this.rarityRank(item) <= this.rarityRank(kept)) return null;
+        if (this.ageRank(item) <= this.ageRank(kept)) return null;
         return { sold: item, kept };
     },
     resolveCraft(mode) {
@@ -2593,21 +2600,25 @@ const UI = {
         if (warn) { this._pendingCraftMode = mode; this.showSellConfirm(warn); return; }
         this.doResolveCraft(mode);
     },
-    // kept는 항상 있다 — sellWarning이 '남을 장비보다 등급이 높을 때'만 이걸 부르기 때문
+    // kept는 항상 있다 — sellWarning이 '남을 장비보다 시대가 최신일 때'만 이걸 부르기 때문
     //
     // 이 팝업은 **왜 경고가 떴는지를 그 자리에서 증명하는 화면**이다(사용자 재지적 2026-08-18).
-    // 전에는 파는 것만 등급색으로 쓰고 남는 것은 "장착 중인 일반 반지보다 높은 등급입니다"라는
-    // 문장 안에 묻어 뒀는데, 한국어에서 '일반'은 등급명이면서 동시에 '평범한'이라는 보통명사라
-    // 그 문장이 등급 비교로 읽히지 않았다. 이제 **파는 것 / 남는 것을 같은 형식의 등급 칩으로
-    // 나란히** 놓고 몇 단계 차이인지까지 적는다 — 양쪽을 눈으로 견줄 수 있어야 '같은 등급인데
-    // 왜 뜨냐'가 성립하지 않는다.
-    rarityChip(rarity) {
-        return `<span class="swc-rank" style="${this.chipVars(rarity)}">${RARITY_KR[rarity]}</span>`;
+    // 파는 것 / 남는 것을 같은 형식의 **시대 칩**으로 나란히 놓고 몇 시대 차이인지까지 적는다 —
+    // 양쪽을 눈으로 견줄 수 있어야 '같은 등급인데 왜 뜨냐'가 성립하지 않는다.
+    // 칩 색은 다른 시대 표기(확률 정보·자동 제련 막대)와 같은 `ageHex` 를 쓰되, 흰 종이 카드 위
+    // 명암비 4.5:1은 `chipFill` 이 맞춘다 — 원시적(#e0e0e0)처럼 종이와 거의 같은 색이 있어서
+    // 색을 그대로 글자에 쓰면 백지 위 백지가 된다(QA 11차에 rarity 칩이 겪은 함정 그대로다).
+    ageChipVars(age) {
+        const p = this.chipFill(this.ageHex(age));
+        return `--cb:${p.bg};--cf:${p.fg}`;
     },
-    // 카드에 적힌 것과 같은 표기(`[시대] 이름`)로 써야 방금 본 카드와 짝이 맞는다
-    itemLabel(it) { return `[${AGE_KR[it.age]}] ${it.name}`; },
+    ageChip(age) {
+        return `<span class="swc-age" style="${this.ageChipVars(age)}">${AGE_KR[age]}</span>`;
+    },
+    // 시대는 바로 위 칩이 이미 말하고 있다 — 카드의 `[시대] 이름` 중 대괄호를 여기서 되풀이하지 않는다
+    itemLabel(it) { return it.name; },
     showSellConfirm({ sold, kept }) {
-        const gap = this.rarityRank(sold) - this.rarityRank(kept);
+        const gap = this.ageRank(sold) - this.ageRank(kept);
         this.els.detailModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper sellwarn-card">
@@ -2615,17 +2626,17 @@ const UI = {
                     <div class="sellwarn-cmp">
                         <div class="swc-col">
                             <span class="swc-tag sell">파는 것</span>
-                            ${this.rarityChip(sold.rarity)}
+                            ${this.ageChip(sold.age)}
                             <span class="swc-name">${this.itemLabel(sold)}</span>
                         </div>
                         <span class="swc-gt">&gt;</span>
                         <div class="swc-col">
                             <span class="swc-tag">남는 것</span>
-                            ${this.rarityChip(kept.rarity)}
+                            ${this.ageChip(kept.age)}
                             <span class="swc-name">${this.itemLabel(kept)}</span>
                         </div>
                     </div>
-                    <p class="sellwarn-note">파는 쪽이 <b>${gap}단계</b> 높은 등급입니다.<br>등급이 같거나 낮으면 이 창은 뜨지 않습니다.</p>
+                    <p class="sellwarn-note">파는 쪽이 <b>${gap}시대</b> 더 최신입니다.<br>같거나 이전 시대면 이 창은 뜨지 않습니다.</p>
                     <div class="row">
                         <button class="btn sell" onclick="UI.onSellConfirm()">판매<small>${IconGen.img('coin')} +${U.fmt(Forge.sellPrice(sold))}</small></button>
                         <button class="btn" onclick="UI.onSellCancel()">취소</button>
