@@ -2621,7 +2621,9 @@ const UI = {
         if (opts.from && opts.from.getBoundingClientRect) {
             const fb = opts.from.getBoundingClientRect();
             if (fb.width || fb.height) {
-                sx = fb.left - hb.left + fb.width / 2; sy = fb.top - hb.top + fb.height / 2;
+                // 스폰점은 버튼 세로 상단 1/3 — 중앙에서 흩으면 수평 성분(sin≈0) 아이콘이 행 하단
+                // 경계를 스친다(reward-fx-polish ③: 위쪽 편향 강화 + 스폰점을 버튼 상단으로)
+                sx = fb.left - hb.left + fb.width / 2; sy = fb.top - hb.top + fb.height * 0.32;
                 srcTop = fb.top - hb.top;   // '+획득량' 라벨은 버튼 위 빈 공간으로 — 버튼·토스트와 안 겹치게
             }
         }
@@ -2629,6 +2631,15 @@ const UI = {
         if (!layer) { layer = document.createElement('div'); layer.id = 'reward-burst'; host.appendChild(layer); }
         // 연출이 도는 동안(마지막 아이콘 도착까지) 토스트를 미룬다 — toast()가 이 시각을 본다
         this._toastHoldUntil = performance.now() + entries.length * 90 + 7 * 44 + this.RW_FLY_MS + 120;
+        // 이미 떠 있던 토스트는 감광 — '+획득량' 라벨이 토스트 글자 위에 겹쳐 인쇄되던 충돌 제거
+        // (reward-fx-polish 비평가 재지적. 새 토스트는 위에서 미루고, 기존 것은 여기서 물러난다)
+        const toasts = document.getElementById('toasts');
+        if (toasts) {
+            toasts.classList.add('rw-dim');
+            clearTimeout(this._rwToastDimT);
+            this._rwToastDimT = setTimeout(() => toasts.classList.remove('rw-dim'),
+                Math.max(0, this._toastHoldUntil - performance.now()));
+        }
 
         // 도착점 — 렌더 직후라 pill이 없을 수도 있으니 상단 바, 그마저 없으면 화면 위 가운데로 폴백.
         // 박동 대상 요소는 좌표와 달리 **도착 시점에 다시 찾는다**(pulseEl) — 수령 직후 호출부가
@@ -2640,8 +2651,26 @@ const UI = {
             const el = (sel && document.querySelector(sel)) || this.els.topbar;
             const r = el && el.getBoundingClientRect();
             const pulseEl = () => (sel && document.querySelector(sel)) || this.els.topbar;
-            if (!r || (!r.width && !r.height)) return { x: hb.width / 2, y: 10, pulseEl };
-            return { x: r.left - hb.left + r.width / 2, y: r.top - hb.top + r.height / 2, pulseEl };
+            if (!r || (!r.width && !r.height)) return { x: hb.width / 2, y: 10, pulseEl, el: null };
+            return { x: r.left - hb.left + r.width / 2, y: r.top - hb.top + r.height / 2, pulseEl, el };
+        };
+        // 도착 pill이 시트/팝업에 가려져 있는가 — 가려진 화면(퀘스트 등)에서는 도착점을 **덮은 시트의
+        // 상단 가장자리**로 승격하고 '작은 재화 배지'를 고정 앵커로 세운다(reward-fx-polish ①).
+        // pill 좌표 그대로 두면 배지·별·카운터가 시트 제목/부제목 글줄 위에 떨어진다(비평가 재지적).
+        // #reward-burst 는 pointer-events:none 이라 elementFromPoint 에 안 잡힌다.
+        const promoteIfCovered = t => {
+            if (!t.el) { t.covered = true; return t; }
+            const hit = document.elementFromPoint(hb.left + t.x, hb.top + t.y);
+            if (hit && (hit === t.el || t.el.contains(hit) || hit.closest('#topbar'))) return t;
+            t.covered = true;
+            const card = hit && hit.closest('.modal-card');
+            if (card) {
+                const cr = card.getBoundingClientRect();
+                // 카드 상단 모서리 안쪽 — 제목은 가운데 정렬이라 우측 상단 구석이 빈 공간이다
+                t.y = Math.max(cr.top - hb.top + 18, 16);
+                t.x = U.clamp(t.x, cr.left - hb.left + 26, cr.right - hb.left - 26);
+            }
+            return t;
         };
 
         // 임팩트 프레임: 글로우 + 퍼지는 링 (탭의 '맞았다' 순간). 중심은 버튼 중앙보다 살짝 위 —
@@ -2656,22 +2685,34 @@ const UI = {
         // 누른 자리 자체도 반응한다 — 탭한 표면이 무반응이면 연출이 붕 뜬다(비평가 지적 ⑥)
         if (opts.from && opts.from.classList) {
             opts.from.classList.add('rw-pulse');
-            setTimeout(() => opts.from.classList && opts.from.classList.remove('rw-pulse'), 420);
+            setTimeout(() => opts.from.classList && opts.from.classList.remove('rw-pulse'), 500);
         }
 
         entries.forEach(([cur, amt], ci) => {
             const icoKey = this.CURRENCY_ICON[cur] || 'coin';
             const icoHtml = IconGen.img(icoKey) || IconGen.img('coin');
-            const t = targetOf(cur);
+            const t = promoteIfCovered(targetOf(cur));
             // 획득량이 클수록 아이콘이 많아지되 상한(성능·가독성) — coinBurst와 같은 로그 눈금
             const n = U.clamp(2 + Math.round(Math.log10(Math.max(1, amt)) * 1.3), 2, 7);
+            // 재화별 마지막 아이콘의 출발 시각 — 마침표·앵커 수명이 이 값 기준이라 루프보다 먼저 계산
+            const lastDelay = ci * 90 + (n - 1) * 44 + 22;
+            if (t.covered) {
+                const an = document.createElement('span');
+                an.className = 'rw-anchor';
+                an.innerHTML = icoHtml;
+                an.style.cssText = `left:${t.x.toFixed(1)}px; top:${t.y.toFixed(1)}px; animation-delay:${(ci * 90).toFixed(0)}ms`;
+                layer.appendChild(an);
+                setTimeout(() => { an.classList.add('out'); setTimeout(() => an.remove(), 340); },
+                    lastDelay + this.RW_FLY_MS + 460);
+            }
             for (let i = 0; i < n; i++) {
                 const delay = ci * 90 + i * 44 + U.rand(0, 22);
                 // 흩어짐 반경은 행 높이의 6할쯤(≈40px 이내) — 더 크면 어느 행의 보상인지 못 읽는다(비평가 지적)
                 const ang = U.rand(0, Math.PI * 2), rad = U.rand(18, 40);
                 // 흩어짐은 **항상 버튼 위쪽** — 아래로 퍼지면 다음 행 카운터 위에 앉아
                 // '옆 행이 재화를 뿜는' 오독이 된다(비평가 지적: 침범이 아니라 귀속 오류)
-                const rx = Math.cos(ang) * rad, ry = -Math.abs(Math.sin(ang)) * rad * 0.8 - 4;
+                // 최소 상승 -10px(reward-fx-polish ③) — 수평 성분 아이콘이 행 하단 경계를 스치지 않게
+                const rx = Math.cos(ang) * rad, ry = -Math.abs(Math.sin(ang)) * rad * 0.9 - 10;
                 const rot = U.rand(-160, 160);   // 흡수 중 회전 — 정지 스프라이트 순간이동 느낌 방지
                 const el = document.createElement('span');
                 el.className = 'rw-fly';
@@ -2709,7 +2750,10 @@ const UI = {
                         tick = document.createElement('span');
                         tick.className = 'rw-tick';
                         tick.dataset.cur = cur;
-                        tick.style.cssText = `left:${t.x.toFixed(1)}px; top:${(Math.max(t.y, 20) + 22).toFixed(1)}px`;
+                        // 가려진 화면(도착점이 시트 상단 가장자리로 승격된 경우)에서는 카운터를 앵커
+                        // **위**(시트 밖 어두운 밴드)로 — 아래(+22)로 두면 시트 부제목 글줄을 스친다
+                        const ty = t.covered ? Math.max(t.y - 30, 8) : Math.max(t.y, 20) + 22;
+                        tick.style.cssText = `left:${t.x.toFixed(1)}px; top:${ty.toFixed(1)}px`;
                         layer.appendChild(tick);
                     }
                     tick.innerHTML = `+${U.fmt(per)} ${icoHtml}`;
@@ -2720,7 +2764,6 @@ const UI = {
             }
             // 도착 마침표는 그 재화의 **마지막** 아이콘이 들어오는 순간 한 번 — 먼저 터뜨리면
             // 늦게 오는 아이콘이 마침표 뒤에 그냥 증발하는 것처럼 보인다(비평가 지적 ④)
-            const lastDelay = ci * 90 + (n - 1) * 44 + 22;
             setTimeout(() => {
                 const pop = document.createElement('span');
                 pop.className = 'rw-pop';
@@ -2729,13 +2772,13 @@ const UI = {
                 setTimeout(() => pop.remove(), 380);
                 // 누적 카운터는 마지막 착지 한 박자 뒤에 정리
                 const tick = layer.querySelector(`.rw-tick[data-cur="${cur}"]`);
-                if (tick) { tick.classList.add('out'); setTimeout(() => tick.remove(), 460); }
+                if (tick) { tick.classList.add('out'); setTimeout(() => tick.remove(), 300); }
                 const pu = t.pulseEl();
                 if (!pu) return;
                 pu.classList.remove('rw-pulse');
                 void pu.offsetWidth;               // 연속 수령에도 매번 박동하도록 애니메이션 리스타트
                 pu.classList.add('rw-pulse');
-                setTimeout(() => pu.classList.remove('rw-pulse'), 420);
+                setTimeout(() => pu.classList.remove('rw-pulse'), 500);
             }, lastDelay + this.RW_FLY_MS * 0.94 + 140);
             // 재화별 '+획득량' — 버튼 상단 위 빈 공간으로 재화 수만큼 줄줄이 떠오른다
             const lbl = document.createElement('span');
@@ -2746,9 +2789,11 @@ const UI = {
             // 상승 폭은 짧게(css rwAmt ≈ -2rem) — 첫 행에서 시트 부제목까지 올라가 죽지 않게.
             const lx = U.clamp(srcTop === null ? sx : sx - 64, 44, hb.width - 44);
             const ly = (srcTop === null ? sy - 16 : srcTop - 42) - ci * 30;
+            // 수명 660ms — 첫 아이콘 도착(ci*90 + 820*0.94 ≈ ci*90+771)보다 먼저 끝난다:
+            // 소스 '+획득량'과 도착 누적 카운터가 동시에 보이는 이중 표기 순간 제거(reward-fx-polish ④)
             lbl.style.cssText = `left:${lx.toFixed(1)}px; top:${ly.toFixed(1)}px; animation-delay:${ci * 110}ms`;
             layer.appendChild(lbl);
-            setTimeout(() => lbl.remove(), 1050 + ci * 110);
+            setTimeout(() => lbl.remove(), 720 + ci * 110);
         });
         SFX.gacha('rare');   // 수령 차임 — 판매 코인(common)보다 한 단 밝은 스윕
     },

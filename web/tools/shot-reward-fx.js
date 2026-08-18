@@ -25,7 +25,10 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
         S.quests[0].prog = S.quests[0].need;
         S.quests[0].rw = { cur: 'coins', amt: 1200 };   // 코인 → 상단 코인 pill 도착 경로가 보이게
         UI.openQuests();
-        await new Promise(r => setTimeout(r, 150));
+        // ⚠️ 150ms 로 두면 시트 오픈 애니메이션(.modal ~.3s)이 안 끝난 채 클릭돼 0ms 프레임이
+        // '반투명 시트 + 뒤 월드 이중노출'로 찍힌다 — 연출 결함이 아니라 캡처 함정이다
+        // (reward-fx-polish 비평가가 이걸 최대 감점으로 짚었다). 애니가 끝난 정상 상태에서 찍는다.
+        await new Promise(r => setTimeout(r, 500));
     });
     const stamps = [0, 90, 180, 320, 500, 700, 850, 1000];   // 850·1000: 도착 잔불꽃·마침표 구간
     await page.evaluate(() => document.querySelector('.qst-row.done .btn.primary').click());

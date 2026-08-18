@@ -5575,7 +5575,9 @@ body {
     font-size: 1.32rem; font-weight: 900; color: #ffd54f;
     -webkit-text-stroke: 4px #2a2018; paint-order: stroke fill;
     text-shadow: 0 2px 0 rgba(0, 0, 0, .35), 0 0 .8rem rgba(255, 183, 77, .9);
-    animation: rwAmt 1s ease-out both;
+    /* 수명 .66s — 첫 아이콘 도착(≈770ms)보다 먼저 사라져 도착 누적 카운터와의
+       이중 표기 순간이 없다(reward-fx-polish ④) */
+    animation: rwAmt .66s ease-out both;
 }
 .rw-amt .ico { width: 1.25rem; height: 1.25rem; }
 @keyframes rwAmt {
@@ -5588,21 +5590,42 @@ body {
 /* 도착 마침표 — 아이콘이 상단 바(가려져 있어도 그 자리)로 빨려 든 지점에서 작게 터진다.
    시트가 상단 바를 덮은 화면에서도 '어디로 들어갔는지'가 이걸로 읽힌다(비평가 지적 ⑤) */
 .rw-pop {
-    position: absolute; width: 2.4rem; height: 2.4rem;
+    position: absolute; width: 3.4rem; height: 3.4rem;
     transform: translate(-50%, -50%) scale(.25) rotate(0deg); opacity: 0;
-    /* 흐릿한 블룸이 아니라 화풍(윤곽선 레트로)에 맞는 **또렷한 8각 별** — 금색 심 + 어두운 테 */
+    /* 흐릿한 블룸이 아니라 화풍(윤곽선 레트로)에 맞는 **또렷한 8각 별** — 금색 심 + 어두운 테.
+       reward-fx-polish ②: 2.4rem·.34s 로는 스프라이트급 존재감이 없었다 — 크기 3.4rem, 홀드가
+       생기는 2피크 키프레임, 테 그림자 두께 보강. */
     background: #ffd54f;
     clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
-    filter: drop-shadow(0 0 2px #7a5410) drop-shadow(0 0 6px rgba(255, 190, 50, .8));
-    animation: rwPop .34s cubic-bezier(.2, .8, .4, 1) forwards;
+    filter: drop-shadow(0 0 3px #7a5410) drop-shadow(0 0 9px rgba(255, 190, 50, .9));
+    animation: rwPop .46s cubic-bezier(.2, .8, .4, 1) forwards;
 }
 @keyframes rwPop {
-    0%   { transform: translate(-50%, -50%) scale(.25) rotate(-40deg); opacity: 0; }
-    30%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
-    100% { transform: translate(-50%, -50%) scale(1.25) rotate(28deg); opacity: 0; }
+    0%   { transform: translate(-50%, -50%) scale(.2) rotate(-40deg); opacity: 0; }
+    24%  { opacity: 1; transform: translate(-50%, -50%) scale(1.12) rotate(0deg); }
+    52%  { opacity: 1; transform: translate(-50%, -50%) scale(.98) rotate(8deg); }   /* 피크 홀드 — 순간 소멸 방지 */
+    100% { transform: translate(-50%, -50%) scale(1.4) rotate(30deg); opacity: 0; }
 }
 /* 아이콘 개별 착지 잔불꽃 — 최종 마침표보다 작고 짧다 */
-.rw-pop-sm { width: 1.3rem; height: 1.3rem; animation-duration: .26s; }
+.rw-pop-sm { width: 1.5rem; height: 1.5rem; animation-duration: .28s; }
+/* 도착 고정 앵커(작은 재화 배지) — 시트가 상단 바를 덮은 화면에서 '어디로 들어갔는지'를 부제목
+   글줄이 아니라 이 배지가 받는다(reward-fx-polish ①). 가려진 pill 자리(z-70) 위에 연출이 도는
+   동안만 떠 있는 소켓 — pill 이 실제로 보이는 화면에는 안 만든다(호출부의 elementFromPoint 판정). */
+.rw-anchor {
+    position: absolute; transform: translate(-50%, -50%); width: 2.1rem; height: 2.1rem;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(26, 21, 13, .93); border: .16rem solid #ffd54f; border-radius: 999px;
+    box-shadow: 0 0 .55rem rgba(255, 190, 50, .6), 0 2px 4px rgba(0, 0, 0, .45);
+    animation: rwAnchorIn .32s cubic-bezier(.3, 1.5, .5, 1) both;
+    transition: opacity .32s ease-out;
+}
+.rw-anchor .ico { width: 1.2rem; height: 1.2rem; }
+.rw-anchor.out { opacity: 0; }
+@keyframes rwAnchorIn {
+    0%   { transform: translate(-50%, -50%) scale(.3); opacity: 0; }
+    60%  { transform: translate(-50%, -50%) scale(1.14); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
 /* 도착 지점 누적 카운터 — 아이콘이 닿을 때마다 값이 커지며 뛴다: '어디에 얼마가 쌓였나'의 실시간 답 */
 .rw-tick {
     position: absolute; transform: translate(-50%, 0); white-space: nowrap;
@@ -5610,9 +5633,13 @@ body {
     font-size: 1.05rem; font-weight: 900; color: #ffd54f;
     -webkit-text-stroke: 3.5px #2a2018; paint-order: stroke fill;
     text-shadow: 0 2px 0 rgba(0, 0, 0, .4), 0 0 .6rem rgba(255, 183, 77, .9);
-    transition: opacity .4s ease-out;
+    transition: opacity .25s ease-out;   /* 잔상 짧게 — 1000ms 프레임에 노란 얼룩이 남았다(reward-fx-polish) */
 }
 .rw-tick .ico { width: 1rem; height: 1rem; }
+/* 수령 연출 동안 떠 있던 토스트는 물러난다 — '+획득량' 라벨과 토스트 글자가 겹쳐 인쇄되던
+   충돌 제거(reward-fx-polish). 새 토스트는 UI.toast()의 _toastHoldUntil 이 따로 미룬다. */
+#toasts { transition: opacity .25s ease-out; }
+#toasts.rw-dim { opacity: .1; }
 .rw-tick.bump { animation: rwTickBump .24s cubic-bezier(.3, 1.5, .5, 1); }
 @keyframes rwTickBump {
     0%   { transform: translate(-50%, 0) scale(1); }
@@ -5621,10 +5648,11 @@ body {
 }
 .rw-tick.out { opacity: 0; }
 /* 아이콘이 빨려 들어간 pill(코인/젬)·상단 바가 한 번 박동 — '들어갔다'는 확인 */
-.rw-pulse { animation: rwPulse .38s cubic-bezier(.3, 1.4, .5, 1); }
+/* reward-fx-polish ⑤: 1.14/.38s 는 렌더에서 티가 안 났다 — 스케일·밝기 폭과 시간을 키운다 */
+.rw-pulse { animation: rwPulse .46s cubic-bezier(.3, 1.4, .5, 1); }
 @keyframes rwPulse {
     0%   { transform: scale(1); filter: brightness(1); }
-    35%  { transform: scale(1.14); filter: brightness(1.55); }
+    35%  { transform: scale(1.26); filter: brightness(1.85); }
     100% { transform: scale(1); filter: brightness(1); }
 }
 
