@@ -568,7 +568,7 @@ const UI = {
             topbar: $('topbar'), stageLabel: $('stage-label'), wavePips: $('wave-pips'),
             bossWarn: $('boss-warning'),
             dmgFlash: $('dmg-flash'), lootFeed: $('loot-feed'), skillBar: $('skill-bar'),
-            toasts: $('toasts'), offlineBtn: $('offline-btn'),
+            toasts: $('toasts'), toastsCombat: $('toasts-combat'), offlineBtn: $('offline-btn'),
             equipSheet: $('equip-sheet'),
             panels: { summon: $('panel-summon'), debug: $('panel-debug') },   // '방'(menu) 탭 제거 (사용자 지시 2026-08-18)
             petsPanel: $('panel-pets'), skillsPanel: $('panel-skills'), techPanel: $('panel-tech'),
@@ -1017,11 +1017,17 @@ const UI = {
         return el;
     },
 
-    toast(msg) {
+    // lane='combat' 이면 팝업 아래로 깔리는 전투/스테이지 알림 레인에 띄운다
+    // (사용자 지시 2026-08-18 — "몇 스테이지로 돌아간다는 알림은 다른 팝업들 위로 뜨면 안 됨").
+    // 기본 레인은 그대로 팝업 위다: 대개 그 팝업에서 누른 버튼의 응답이라 가려지면 안 된다.
+    toast(msg, lane) {
         const el = document.createElement('div');
         el.className = 'toast';
         this.paintIconText(el, msg, 'toast-ico');
-        this.els.toasts.appendChild(el);
+        const box = lane === 'combat'
+            ? (this.els.toastsCombat || document.getElementById('toasts-combat') || this.els.toasts)
+            : this.els.toasts;
+        box.appendChild(el);
         setTimeout(() => el.classList.add('show'), 10);
         setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2600);
     },

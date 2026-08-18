@@ -174,6 +174,10 @@ body {
    #app 직속 풀스크린이라 탭바(z-index 30) 위, 채팅(40) 아래에 깔린다. 전체 길이는 JS가 --bw-dur로 주고,
    점멸 박자(.42s)는 SFX.bossSiren의 사이렌 스윕 3회와 같은 값이다 — 소리와 그림이 같은 박에 터져야
    "워닝"으로 읽힌다(어긋나면 그냥 빨간 화면 깜빡임으로 보인다). */
+/* 🚨 **전투 씬(#game-area) 안**이다 (사용자 추가 지시 2026-08-18: "보스 연출 또한 UI 위로 뜨지
+   말라"). 예전엔 #app 직속이라 장비 시트·탭바까지 화면 전체를 덮는 게 **의도**였는데 그 전제가
+   번복됐다. `inset:0` 이 이제 씬 기준이고 씬의 overflow:hidden 이 바깥으로 새는 걸 막는다.
+   타이밍(scene3d 의 BOSS_WARN_DUR·사이렌 3회)은 손대지 않았다 — 범위만 바뀌었다. */
 #boss-warning { position: absolute; inset: 0; z-index: 35; pointer-events: none; overflow: hidden; }
 
 /* 팝업이 열려 있는 동안에는 경고를 .modal(20, 일부 22) **아래**로 내린다 (QA 9차).
@@ -248,9 +252,18 @@ body {
 
 /* 영웅 피격 비네트 — 세기(--vig)는 피해 비율에 따라 JS가 준다 (쥬시니스 패스) */
 #dmg-flash {
-    /* #app 직속 풀스크린 — 34는 탭바(10)·장비 시트 위, 보스 경고(35) 바로 아래다.
+    /* 🚨 **전투 씬(#game-area) 안**이다 (사용자 지시 2026-08-18로 번복 — 예전엔 #app 직속
+       풀스크린이었다). `inset:0` 이 이제 #game-area 를 기준으로 잡히고, #game-area 의
+       `overflow:hidden` 이 장비 시트·채팅·탭바 쪽으로 새는 걸 막는다.
+       34는 탭바(10)·장비 시트 위, 보스 경고(35) 바로 아래다(둘 다 같은 씬 안으로 내려왔지만
+       #game-area 는 스택 문맥을 만들지 않으므로 이 값들의 서열은 그대로 유지된다).
        모달이 떠 있을 때는 보스 경고와 같은 규칙으로 모달(20) 밑(19)으로 내린다. */
     position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 34;
+    /* 예전에 이걸 #app 직속으로 둔 이유가 '경계선에서 붉은 기가 직선으로 잘려 보인다'였다.
+       씬 안으로 들여왔으니 그 컷이 다시 생긴다 — 아래 18%를 투명으로 빼 **잘리는 대신 사라지게**
+       한다. 위/좌/우는 화면 가장자리라 원래 컷이 안 보인다. */
+    -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
     /* 밝은 낮 배경 위에서는 가장자리 붉은 가산만으로 신호가 안 된다 — 안쪽 32%까지 당기고
        어두운 적색을 섞어 '감광'까지 만든다(비평가 4번: c1~c3에서 비네트가 아예 관측 안 됨). */
     /* ⚠️ 중앙을 넉넉히 비운다 — 30%는 사실상 화면 전체가 붉게 물들어 3D 전투가 아니라 **앱 UI(장비 그리드·
@@ -266,7 +279,9 @@ body {
 /* ⚠️ 정점을 **오래 붙들면 안 된다**. 38%(=167ms)까지 유지하던 탓에 정점 플래토가 **155ms** 였고,
    그 구간에서는 코너 픽셀이 바이트 단위로 동일해 화면이 '붉게 물든 채 멈춘' 상태로 읽혔다
    (비평가 5차 B #5). 타격은 순간이므로 정점도 순간이어야 한다 — 10%(=44ms)에서 곧장 빠지게 해
-   플래토를 13~44ms **31ms** 로 줄인다. 풀스크린 커버리지 자체는 사용자 지시라 유지한다. */
+   플래토를 13~44ms **31ms** 로 줄인다.
+   ⚠️ 옛 주석은 "풀스크린 커버리지 자체는 사용자 지시라 유지한다"였다 — **2026-08-18 사용자가
+   번복했다**(전투씬 안에서만). 타이밍·세기 관련 위 결론들은 그대로 유효하고 범위만 바뀌었다. */
 @keyframes dmgvignette {
     0%   { opacity: 0; }
     3%   { opacity: var(--vig, 1); }
@@ -1413,11 +1428,16 @@ body {
 #skill-flash.play { animation: skflash .5s ease-out; }
 @keyframes skflash { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
 
-#toasts {
+#toasts, #toasts-combat {
     position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
     display: flex; flex-direction: column; gap: .3rem; z-index: 30; pointer-events: none;
     width: 88%; align-items: center;
 }
+/* 전투/스테이지 알림 레인만 팝업 아래로 (사용자 지시 2026-08-18: "몇 스테이지로 돌아간다는
+   알림 … 다른 팝업들 위로 뜨면 안 됨"). `#dmg-flash`·`#boss-warning` 과 같은 규칙·같은 값이다.
+   ⚠️ 자식 토스트에 z-index 를 걸어 봐야 소용없다 — `#toasts-combat` 이 z-index 30 으로
+   **스택 문맥을 만들어** 자식이 그 문맥 밖(모달 아래)으로 못 나간다. 그래서 컨테이너를 내린다. */
+#app:has(> .modal:not(.hidden)) #toasts-combat { z-index: 19; }
 .toast {
     background: rgba(28,33,40,.95); border: var(--ol1) solid #444c56; border-radius: 2rem;
     padding: .45rem 1rem; font-size: .8rem; font-weight: 700; text-align: center;

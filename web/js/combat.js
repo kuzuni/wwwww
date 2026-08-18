@@ -393,7 +393,8 @@ const Combat = {
             S.clearedBosses[key] = true;
             const bonus = Math.ceil(60 * Math.pow(1.6, S.chapter - 1) * Math.pow(1.06, S.stage - 1)); // 일반 몹 코인의 ≈20배
             S.coins += bonus;
-            UI.toast(`🏆 ${key} 첫 클리어! 🪙+${U.fmt(bonus)}`);
+            // 스테이지에서 벌어진 일이라 'combat' 레인 — 팝업이 떠 있으면 그 아래로 깔린다
+            UI.toast(`🏆 ${key} 첫 클리어! 🪙+${U.fmt(bonus)}`, 'combat');
         }
 
         // 무조건 전진
@@ -448,7 +449,8 @@ const Combat = {
             // 최고 기록(bestChapter/bestStage)은 후퇴로 깎이지 않는다 — 진행 패스 마일스톤이 되감기면 안 된다.
             const back = S.stage > 1;
             if (back) S.stage--;
-            UI.toast(back ? `💀 쓰러졌다... ${S.chapter}-${S.stage}로 한 스테이지 후퇴!` : '💀 쓰러졌다... 회복 후 다시 도전!');
+            // 사용자가 이름 대 이름으로 지목한 알림이다 — 팝업 위로 뜨면 안 된다('combat' 레인)
+            UI.toast(back ? `💀 쓰러졌다... ${S.chapter}-${S.stage}로 한 스테이지 후퇴!` : '💀 쓰러졌다... 회복 후 다시 도전!', 'combat');
             UI.renderTopBar();
             UI.updateStageLabel(); // 쓰러져 있는 2.4초 동안 라벨이 옛 스테이지를 가리키지 않게(setupStage 전에 먼저 갱신)
         }
