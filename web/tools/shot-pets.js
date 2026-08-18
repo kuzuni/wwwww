@@ -28,7 +28,9 @@ const PETS_STATE_SRC = `(() => {
     const tz = document.getElementById('toasts'); if (tz) tz.innerHTML = '';
     const names = (typeof Pets !== 'undefined' && Pets.LIST) ? Pets.LIST.map(d => d.name || d) : [];
     const nm = (i) => names.length ? names[i % names.length] : ('펫' + i);
-    // 원본 타일 3장은 살구빛 몸통에 붉은 계열 — ultimate(#ff3b30) 로 맞춘다. 알 7개도 같은 등급.
+    // 원본 타일 3장은 살구빛 몸통에 붉은 계열 — ultimate 로 맞춘다. 알 7개도 같은 등급.
+    // (등급색은 2026-08-18 rarity-css-exact 로 원본 실측값 #ff1c1c 로 교체됐다 — 예전 #ff3b30 아님.
+    //  타일 면은 여기에 CSS color-mix 로 흰색 40% 가 섞여 원본 실측 #ff7777 이 된다.)
     // ⚠️ dupes 는 0 이어야 한다 — 같은 등급 dupes 합이 3 이상이면 그리드 아래에 우리 쪽 기능인
     //    '궁극의 3 → 신화 알' 합치기 버튼 행이 생겨(원본에는 없다) 그 아래가 전부 밀린다.
     S.pets = [61, 6, 3].map((lv, i) => ({ name: nm(i), rarity: 'ultimate', level: lv, dupes: 0, stars: 1, subs: (typeof Pets.rollSubs === 'function' ? Pets.rollSubs() : []) }));
