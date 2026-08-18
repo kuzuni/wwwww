@@ -8,6 +8,7 @@ cd "$(dirname "$0")" || exit 1
 fail=0
 for p in \
     probe-cell-icon-size.js \
+    probe-grid-empty.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1

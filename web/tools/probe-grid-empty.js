@@ -1,9 +1,18 @@
 // 빈 상태 문구가 .sk-grid 타일 한 칸(≈49px)에 갇혀 4줄로 쪼개지던 버그의 검증 도구.
-// 탈것·펫·스킬 3화면을 각각 보유 0으로 만들고, 문구가 1~2줄로 그리드 폭 전체에
+// 탈것·펫·스킬 3화면을 각각 보유 0으로 만들고, 문구가 1~2줄로 그리드 트랙 전체에
 // 중앙 정렬되는지 getClientRects().length와 rect 대조로 잰다.
-// 사용: node probe-grid-empty.js
+// 사용: node probe-grid-empty.js            (판정)
+//       node probe-grid-empty.js --selftest (grid-column 스팬을 일부러 꺼서 FAIL이 실제로 나는지 확인)
+//
+// 🚨 스팬 기대치는 "그리드 박스 폭 − 패딩"이 아니라 **트랙 합**(열 폭 합 + gap 합)이다.
+//    이 도구가 만들어질 때 .sk-grid 는 유동 5열(1fr급) + 좌우 패딩이라 둘이 같았지만,
+//    스킬 화면 원본 실측 교정(shot-042340)으로 .sk-grid 가 고정폭 5열(13.10%W)
+//    + justify-content:center 가 되면서 그리드 박스(≈94%W)가 트랙 합(≈75%W)보다
+//    넓어졌다. 옛 기대치를 그대로 두면 멀쩡한 화면 12건이 전부 가짜 FAIL 로 찍힌다
+//    (slug: grid-empty-fail — 실제로 그렇게 썩어 있었다. UI 는 lines=1·중앙정렬로 정상이었다).
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
+const SELFTEST = process.argv.includes('--selftest');
 
 const VIEWPORTS = [
     { width: 412, height: 915 },
@@ -77,6 +86,13 @@ async function waitNoOpening(page, timeout = 5000) {
             await waitNoOpening(page);
             await page.waitForTimeout(250);
 
+            // --selftest: 스팬 규칙을 일부러 꺼서(빈 문구가 첫 칸 하나에 갇히는 원래 버그 재현)
+            // 이 판정기가 FAIL 을 실제로 내는지 확인한다. 기대: 12건 전부 FAIL + exit 1.
+            if (SELFTEST) {
+                await page.addStyleTag({ content: '.sk-grid .grid-empty { grid-column: auto !important; }' });
+                await page.waitForTimeout(50);
+            }
+
             const r = await page.evaluate((screenId) => {
                 // 화면에 실제로 붙어 있는(보이는) .grid-empty 하나를 고른다.
                 const cands = [...document.querySelectorAll('.sk-grid .grid-empty')]
@@ -86,18 +102,21 @@ async function waitNoOpening(page, timeout = 5000) {
                 const grid = el.closest('.sk-grid');
                 const er = el.getBoundingClientRect(), gr = grid.getBoundingClientRect();
                 const cs = getComputedStyle(grid);
-                // 그리드 콘텐츠 폭 = 전체 폭 - 좌우 패딩(.sk-grid는 padding 0 12.5%)
-                const padL = parseFloat(cs.paddingLeft), padR = parseFloat(cs.paddingRight);
-                const contentW = gr.width - padL - padR;
+                // 스팬 기대치 = 트랙 합(해결된 열 폭 합 + column-gap 합). 그리드 박스 폭은
+                // justify-content:center 때문에 트랙보다 넓으므로 기대치로 쓰면 안 된다(머리말 참조).
+                const cols = cs.gridTemplateColumns.split(' ').map(parseFloat).filter(n => !isNaN(n));
+                const gap = parseFloat(cs.columnGap) || 0;
+                const trackSpan = cols.reduce((a, b) => a + b, 0) + gap * (cols.length - 1);
                 return {
                     found: true,
                     lines: el.getClientRects().length,
                     elW: +er.width.toFixed(1),
                     elH: +er.height.toFixed(1),
                     gridW: +gr.width.toFixed(1),
-                    contentW: +contentW.toFixed(1),
-                    // 전 열을 차지하는가: 요소 폭이 그리드 콘텐츠 폭과 일치
-                    spansAllCols: Math.abs(er.width - contentW) <= 1,
+                    trackSpan: +trackSpan.toFixed(1),
+                    nCols: cols.length,
+                    // 전 열을 차지하는가: 요소 폭이 트랙 합과 일치
+                    spansAllCols: Math.abs(er.width - trackSpan) <= 1,
                     // 중앙 정렬: 요소 중심과 그리드 중심이 일치
                     centerOff: +((er.left + er.width / 2) - (gr.left + gr.width / 2)).toFixed(2),
                     textAlign: getComputedStyle(el).textAlign,
@@ -109,16 +128,22 @@ async function waitNoOpening(page, timeout = 5000) {
     }
     await browser.close();
 
-    console.log('viewport   screen  lines  elW     contentW  spansAll  centerOff  align');
+    console.log('viewport   screen  lines  elW     trackSpan  spansAll  centerOff  align');
     let pass = true;
     for (const r of rows) {
         if (!r.found) { console.log(`${r.vp}  ${r.screen}  — .grid-empty 없음 (FAIL)`); pass = false; continue; }
         const ok = r.lines <= 2 && r.spansAllCols && Math.abs(r.centerOff) <= 1 && r.textAlign === 'center';
         if (!ok) pass = false;
-        console.log(`${r.vp.padEnd(9)}  ${r.screen.padEnd(6)}  ${String(r.lines).padEnd(5)}  ${String(r.elW).padEnd(6)}  ${String(r.contentW).padEnd(8)}  ${String(r.spansAllCols).padEnd(8)}  ${String(r.centerOff).padEnd(9)}  ${r.textAlign}  ${ok ? '' : '<< FAIL'}`);
+        console.log(`${r.vp.padEnd(9)}  ${r.screen.padEnd(6)}  ${String(r.lines).padEnd(5)}  ${String(r.elW).padEnd(6)}  ${String(r.trackSpan).padEnd(9)}  ${String(r.spansAllCols).padEnd(8)}  ${String(r.centerOff).padEnd(9)}  ${r.textAlign}  ${ok ? '' : '<< FAIL'}`);
     }
     console.log(`\n콘솔 에러 ${errs.length}건`);
     errs.slice(0, 10).forEach(e => console.log('  ' + e));
+    if (SELFTEST) {
+        // 스팬 규칙을 껐으니 12건 전부 FAIL 이어야 판정기가 살아 있는 것이다.
+        const allFailed = rows.every(r => r.found && !r.spansAllCols);
+        console.log(allFailed ? '\nSELFTEST OK — 판정기가 스팬 붕괴를 전건 검출' : '\nSELFTEST FAIL — 스팬을 껐는데 통과가 나왔다(판정기 고장)');
+        process.exit(allFailed ? 0 : 1);
+    }
     console.log(pass && !errs.length ? '\nPASS' : '\nFAIL');
     process.exit(pass && !errs.length ? 0 : 1);
 })();
