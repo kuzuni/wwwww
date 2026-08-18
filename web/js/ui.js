@@ -3012,6 +3012,8 @@ const UI = {
     renderShop() {
         // 원본(042632)의 보석 패키지 그림은 금화·지갑 이모지가 아니라 '붉은 보석 묶음'이 양에 따라
         // 낱개 더미 → 자루 → 항아리로 커지는 3단이다 — IconGen 캔버스 아이콘으로 교체.
+        // 특가 카드의 상품 일러(`shop_tech`/`shop_pet`/`shop_mount`)도 같은 이유로 IconGen 이다 —
+        // 원본은 CSS 상자 + 이모지 명판이 아니라 거래마다 다른 '상자 + 앞 소품' 그림이다.
         const GEM_ICONS = ['shop_gems1', 'shop_gems2', 'shop_gems3'];
         const dealsHtml = Shop.DEALS.map(d => {
             const claimed = Shop.claimed(d.key);
@@ -3022,7 +3024,7 @@ const UI = {
                 <div class="shop-deal-body">
                     <div class="shop-deal-rewards">${rewardRows}</div>
                     <div class="shop-deal-right">
-                        <span class="shop-deal-art art-${d.key}"><i class="art-emblem">${d.icon}</i>${d.key === 'mount' ? '<i class="art-spill">⚙️⚙️⚙️</i>' : ''}</span>
+                        <span class="shop-deal-art">${IconGen.img('shop_' + d.key) || `<i class="art-emblem">${d.icon}</i>`}</span>
                         <button class="btn primary shop-price-btn ${claimed ? 'disabled' : ''}" onclick="UI.onClaimDeal('${d.key}')"
                             title="${claimed ? '오늘은 이미 수령했습니다' : '데모판은 결제 대신 하루 1회 무료 수령입니다'}">
                             ${claimed ? '수령 완료' : d.priceKR}</button>

@@ -19,6 +19,10 @@ const IconGen = {
     SIZE: 128,
     // 2배로 그린 뒤 축소해 계단현상을 없앤다(슈퍼샘플링 배율).
     SUPERSAMPLE: 2,
+    // 세로:가로가 1:1 이 아닌 아이콘의 가로 배율(캔버스 폭 = SIZE × 이 값). 없으면 정사각.
+    // 상점 특가 일러스트처럼 **프레임 자체가 가로로 긴** 자리는 정사각으로 그리면 contain 이
+    // 세로에 맞춰 줄여 좌우가 텅 빈다 — 프레임 종횡비와 같은 값을 여기에 적어 꽉 채운다.
+    ASPECT: { shop_tech: 1.52, shop_pet: 1.52, shop_mount: 1.52 },
     cache: {},
     _classes: {},
     _styleEl: null,
@@ -30,19 +34,21 @@ const IconGen = {
         const fn = this.draw[name];
         if (!fn) return (this.cache[key] = '');
         // 2배 크기로 그린 뒤 축소(슈퍼샘플링) — 톱니·사선 엣지의 계단현상을 없앤다.
-        const S = this.SIZE, SS = this.SUPERSAMPLE;
+        const S = this.SIZE, SS = this.SUPERSAMPLE, AR = this.ASPECT[name] || 1;
         const big = document.createElement('canvas');
-        big.width = big.height = S * SS;
+        big.height = S * SS;
+        big.width = Math.round(S * SS * AR);
         const bctx = big.getContext('2d');
         bctx.lineJoin = 'round';
         bctx.lineCap = 'round';
         try { fn.call(this, bctx, S * SS, opt || {}); } catch (e) { console.warn('[IconGen] draw fail', name, e); }
         const cv = document.createElement('canvas');
-        cv.width = cv.height = S;
+        cv.height = S;
+        cv.width = Math.round(S * AR);
         const ctx = cv.getContext('2d');
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(big, 0, 0, S, S);
+        ctx.drawImage(big, 0, 0, cv.width, cv.height);
         return (this.cache[key] = cv.toDataURL('image/png'));
     },
 
@@ -2408,5 +2414,179 @@ IconGen._genderSym = function (ctx, S, female) {
         // 앞줄로 쏟아진 보석
         [[0.240, 0.830, 0.076], [0.375, 0.860, 0.076], [0.510, 0.868, 0.076], [0.645, 0.848, 0.076]]
             .forEach(p => gemDot(ctx, S, p[0], p[1], p[2]));
+    };
+})(IconGen);
+
+/* ============================================================================
+ * 상점 '오늘의 특가' 3종 상품 일러스트 (원본 shot-042632 · 5배 확대 실측)
+ *
+ * 종전 클론은 `.shop-deal-art` 를 CSS 그라디언트 상자 + 회색 금속판 위 이모지(🔧🐾⚙️)로
+ * 그렸다. 원본을 확대해 보면 셋 다 **3/4 부감 나무 상자 + 상자 앞에 놓인 소품**이고,
+ * 상자 색·소품·앞면 표식이 거래 종류마다 다르다(인계 메모 ㉥ — "이모지를 아이콘으로"만
+ * 생각하면 틀린 그림을 그린다):
+ *   ① 기술 = 적갈색 목상자 + 앞면에 검은 렌치, 앞에 붉은 물약 2병
+ *   ② 펫   = 골판지 상자(윗면 접이선·앞면 공기구멍 2개) + 회색 발바닥 도장, 앞에 공 장난감·초록 링
+ *   ③ 탈것 = 짙은 초록 궤짝(가로 널판 + 말굽 표식) + 위로 넘치는 주황 태엽 더미, 앞에 흘린 태엽
+ *
+ * 실측(앱 폭 490 기준 — ⚠️ 이미지 폭 500 이 아니다, `probe-shop-art-ref.js` 머리말):
+ *   일러 바운딩 박스 x 307~418(22.9%W) · y 189~258(7.9%H) · 종횡비 1.52.
+ *   그래서 이 3종만 **가로로 긴 캔버스**(`IconGen.ASPECT` 1.52)에 그린다. 정사각으로 그리면
+ *   `.ico { background-size: contain }` 이 세로에 맞춰 줄여 프레임 좌우가 텅 빈다.
+ * 좌표계: 세로 1.0 을 단위로 쓰고 x 는 0~1.52 를 쓴다 — `_sticker` 헬퍼가 두 축 모두 S(세로
+ *   픽셀)를 곱하므로 별도 변환 없이 그대로 맞는다.
+ * ============================================================================ */
+(function (G) {
+    const { K, ink, inkEO, on, circle, ell, poly, rrect, bar } = G._sticker;
+
+    // 상자 공통 기하 (원본 5배 확대에서 딴 값을 위 좌표계로 환산)
+    const FX0 = 0.260, FX1 = 1.245;          // 앞면 좌·우
+    const DX = 0.232, DY = -0.185;           // 깊이 벡터(뒤·위)
+    const LW = 0.052;                        // 키라인 두께
+
+    // 3/4 부감 상자. 윗면 → 오른면 → 앞면 순서로 그린다(앞면이 마지막이라 모서리 키라인이
+    // 겹쳐 두꺼워지지 않는다). y0/y1 은 거래마다 다르다(탈것 궤짝은 낮고 넓다).
+    const crate = (ctx, S, c, y0, y1) => {
+        ink(ctx, S, poly(ctx, S, [[FX0, y0], [FX1, y0], [FX1 + DX, y0 + DY], [FX0 + DX, y0 + DY]]), c.top, LW);
+        ink(ctx, S, poly(ctx, S, [[FX1, y0], [FX1 + DX, y0 + DY], [FX1 + DX, y1 + DY], [FX1, y1]]), c.side, LW);
+        ink(ctx, S, rrect(ctx, S, FX0, y0, FX1 - FX0, y1 - y0, 0.028), c.front, LW);
+    };
+    // 앞면 안쪽에만 얹는 칠(널판 이음선·표식) — 클립해서 키라인을 넘지 않게 한다.
+    const onFront = (ctx, S, y0, y1, fn) => {
+        ctx.save();
+        ctx.beginPath(); rrect(ctx, S, FX0, y0, FX1 - FX0, y1 - y0, 0.028)(); ctx.clip();
+        fn();
+        ctx.restore();
+    };
+    const shadow = (ctx, S, x, rx) => on(ctx, ell(ctx, S, x, 0.905, rx, 0.062), 'rgba(0,0,0,.15)');
+
+    // ---- ① 기술 거래 — 적갈색 목상자 + 렌치, 앞에 물약 2병 ----
+    const TEAL = '#5ab6c8', GLASS_DK = '#2e7f92', LIQ = '#b01221', LIQ_DK = '#7d0a16', CORK = '#c39a2e';
+
+    // 물약: 목(뒤) → 병(앞) 순. 원본은 **유리 테가 청록, 속 액체가 검붉은색**이다.
+    const flask = (ctx, S, x, y, r, neck) => {
+        ink(ctx, S, rrect(ctx, S, x - r * 0.30, y - r - neck, r * 0.60, neck + r * 0.7, r * 0.16), TEAL, LW * 0.85);
+        ink(ctx, S, rrect(ctx, S, x - r * 0.38, y - r - neck - r * 0.34, r * 0.76, r * 0.40, r * 0.10), CORK, LW * 0.85);
+        ink(ctx, S, circle(ctx, S, x, y, r), TEAL, LW);
+        on(ctx, circle(ctx, S, x, y + r * 0.06, r * 0.74), LIQ);
+        on(ctx, ell(ctx, S, x + r * 0.34, y + r * 0.40, r * 0.44, r * 0.34), LIQ_DK);
+        on(ctx, circle(ctx, S, x - r * 0.34, y - r * 0.30, r * 0.17), 'rgba(255,255,255,.85)');
+        on(ctx, rrect(ctx, S, x - r * 0.22, y - r - neck * 0.85, r * 0.16, neck * 0.62, r * 0.08), 'rgba(255,255,255,.55)');
+    };
+
+    G.draw.shop_tech = function (ctx, S) {
+        const y0 = 0.250, y1 = 0.778;
+        shadow(ctx, S, 0.78, 0.52);
+        crate(ctx, S, { front: '#96604f', top: '#b07a66', side: '#6d4034' }, y0, y1);
+        onFront(ctx, S, y0, y1, () => {
+            on(ctx, rrect(ctx, S, FX0, y0, FX1 - FX0, 0.100, 0), 'rgba(255,255,255,.16)');          // 뚜껑 판(밝게)
+            on(ctx, rrect(ctx, S, FX0, y0 + 0.100, FX1 - FX0, 0.030, 0.012), 'rgba(0,0,0,.72)');    // 뚜껑 이음선
+            on(ctx, rrect(ctx, S, FX0 + 0.070, y0 + 0.130, 0.026, y1 - y0, 0), 'rgba(0,0,0,.52)');  // 왼쪽 기둥
+            on(ctx, rrect(ctx, S, FX1 - 0.096, y0 + 0.130, 0.026, y1 - y0, 0), 'rgba(0,0,0,.52)');  // 오른쪽 기둥
+            on(ctx, rrect(ctx, S, FX0, y1 - 0.070, FX1 - FX0, 0.070, 0), 'rgba(0,0,0,.16)');        // 아래턱 음영
+        });
+        // 윗면 널판 이음선
+        on(ctx, poly(ctx, S, [[FX0 + DX * 0.52, y0 + DY * 0.52], [FX1 + DX * 0.52, y0 + DY * 0.52],
+            [FX1 + DX * 0.52 + 0.012, y0 + DY * 0.52 + 0.026], [FX0 + DX * 0.52 + 0.012, y0 + DY * 0.52 + 0.026]]), 'rgba(0,0,0,.34)');
+
+        // 렌치 — 자루(둥근 꼬리)와 열린 C 머리를 **한 경로**로 그린다. ink()가 먼저 스트로크하고
+        // 그 위에 칠하므로 두 서브패스가 겹친 안쪽 키라인은 칠에 덮여 사라진다(윤곽만 남는다).
+        ctx.save();
+        ctx.translate(0.570 * S, 0.632 * S); ctx.rotate(-0.40);
+        ctx.lineJoin = ctx.lineCap = 'round';
+        ctx.beginPath();
+        G._rrSub(ctx, -0.075 * S, -0.038 * S, 0.415 * S, 0.076 * S, 0.038 * S); // 자루
+        ctx.moveTo(0.415 * S + 0.118 * S, 0);                                    // 열린 C 머리(오른쪽으로 벌어짐)
+        ctx.arc(0.415 * S, 0, 0.118 * S, 0.22 * Math.PI, 1.78 * Math.PI);
+        ctx.arc(0.415 * S, 0, 0.056 * S, 1.78 * Math.PI, 0.22 * Math.PI, true);
+        ctx.closePath();
+        ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 0.026 * S; ctx.stroke();
+        ctx.fillStyle = '#17171a'; ctx.fill();
+        ctx.restore();
+
+        flask(ctx, S, 0.145, 0.700, 0.138, 0.142);
+        flask(ctx, S, 0.312, 0.748, 0.116, 0.100);
+    };
+
+    // ---- ② 펫 거래 — 골판지 상자 + 발바닥 도장, 앞에 공·초록 링 ----
+    G.draw.shop_pet = function (ctx, S) {
+        const y0 = 0.250, y1 = 0.778;
+        shadow(ctx, S, 0.78, 0.52);
+        crate(ctx, S, { front: '#a5764a', top: '#bd8d5f', side: '#7b5533' }, y0, y1);
+        // 윗면 접이선 2줄(골판지 뚜껑) — 앞모서리에서 뒤로 간다
+        on(ctx, bar(ctx, S, FX0 + 0.30, y0, FX0 + 0.30 + DX, y0 + DY, 0.020), 'rgba(0,0,0,.30)');
+        on(ctx, bar(ctx, S, FX1 - 0.14, y0, FX1 - 0.14 + DX, y0 + DY, 0.020), 'rgba(0,0,0,.30)');
+        onFront(ctx, S, y0, y1, () => {
+            on(ctx, circle(ctx, S, 0.400, 0.400, 0.042), '#3a2415');    // 공기구멍
+            on(ctx, circle(ctx, S, 1.110, 0.400, 0.042), '#3a2415');
+        });
+        // 발바닥 도장 — 발가락 4개(바깥 2개가 아래로 처진 부채꼴) + 아래 넓은 패드.
+        // ⚠️ 1차 렌더에서 발가락을 작게(rx .036) 잡았더니 106px 프레임에서 '알약 4개'로 읽혔다 —
+        //    발가락은 패드 폭의 1/3 이상이어야 발바닥으로 읽힌다.
+        const PAW = '#c9c9c9';
+        [[0.678, 0.487, 0.046, 0.058], [0.792, 0.440, 0.048, 0.061],
+         [0.908, 0.440, 0.048, 0.061], [1.020, 0.487, 0.046, 0.058]]
+            .forEach(t => ink(ctx, S, ell(ctx, S, t[0], t[1], t[2], t[3]), PAW, LW * 0.62));
+        ink(ctx, S, ell(ctx, S, 0.850, 0.645, 0.148, 0.098), PAW, LW * 0.62);
+
+        // 소품: 뒤쪽 공 → 앞쪽 공 → 초록 링 순(뒤에서 앞으로).
+        // ⚠️ 1차 렌더는 흰 공 위에 새까만 원을 얹어 **눈알 두 개**로 읽혔다 — 검정 얼룩은
+        //    공의 위쪽 가장자리를 물고 지나가는 띠여야 하고, 아래엔 회색 음영이 있어야 공이 된다.
+        const ballTop = (x, y, r) => {
+            ctx.save(); ctx.beginPath(); circle(ctx, S, x, y, r)(); ctx.clip();
+            on(ctx, ell(ctx, S, x - r * 0.30, y - r * 0.86, r * 0.92, r * 0.62, -0.35), '#33333a');
+            on(ctx, ell(ctx, S, x + r * 0.30, y + r * 0.52, r * 0.85, r * 0.60), 'rgba(0,0,0,.16)');
+            ctx.restore();
+            on(ctx, circle(ctx, S, x - r * 0.34, y + r * 0.10, r * 0.20), 'rgba(255,255,255,.9)');
+        };
+        ink(ctx, S, circle(ctx, S, 0.300, 0.612, 0.112), '#e9e9ea', LW);
+        ballTop(0.300, 0.612, 0.112);
+        ink(ctx, S, circle(ctx, S, 0.162, 0.742, 0.140), '#e9e9ea', LW);
+        ballTop(0.162, 0.742, 0.140);
+        inkEO(ctx, S, () => { ell(ctx, S, 0.480, 0.808, 0.175, 0.086)(); ell(ctx, S, 0.480, 0.808, 0.094, 0.036)(); }, '#1c7a2a', LW);
+    };
+
+    // ---- ③ 탈것 거래 — 초록 궤짝 + 넘치는 태엽 ----
+    // 태엽 하나 = 주황 고리(도넛) + 노란 축. 더미로 쌓이면 원본처럼 '주황 뭉치에 노란 조각'으로 읽힌다.
+    const winder = (ctx, S, x, y, sc, rot) => {
+        ctx.save();
+        ctx.translate(x * S, y * S); ctx.rotate(rot); ctx.scale(sc * S, sc * S);
+        ctx.lineJoin = ctx.lineCap = 'round';
+        ctx.beginPath(); G._rrSub(ctx, 0.30, -0.15, 0.82, 0.30, 0.15);
+        ctx.strokeStyle = K; ctx.lineWidth = 0.22; ctx.stroke();
+        ctx.fillStyle = '#ffc21e'; ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, 0, 0.52, 0, Math.PI * 2);
+        ctx.arc(0, 0, 0.23, 0, Math.PI * 2, true);
+        ctx.strokeStyle = K; ctx.lineWidth = 0.22; ctx.stroke();
+        ctx.fillStyle = '#f4791f'; ctx.fill('evenodd');
+        ctx.restore();
+    };
+
+    G.draw.shop_mount = function (ctx, S) {
+        const y0 = 0.470, y1 = 0.815;
+        shadow(ctx, S, 0.76, 0.50);
+        crate(ctx, S, { front: '#2e6b31', top: '#3d8038', side: '#1d4a23' }, y0, y1);
+        onFront(ctx, S, y0, y1, () => {
+            on(ctx, rrect(ctx, S, FX0, y0 + 0.104, FX1 - FX0, 0.022, 0.009), 'rgba(0,0,0,.46)');   // 널판 이음선
+            on(ctx, rrect(ctx, S, FX0, y0 + 0.216, FX1 - FX0, 0.022, 0.009), 'rgba(0,0,0,.46)');
+            on(ctx, rrect(ctx, S, FX0, y1 - 0.055, FX1 - FX0, 0.055, 0), 'rgba(0,0,0,.16)');
+        });
+        // 말굽 표식 — 원본은 앞면 가운데 아래에 굵게 찍혀 있다(1차 렌더는 반지처럼 작았다)
+        ctx.save();
+        ctx.lineJoin = ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(0.752 * S, 0.712 * S, 0.098 * S, Math.PI * 1.06, Math.PI * 1.94);
+        ctx.strokeStyle = '#12331a'; ctx.lineWidth = 0.052 * S; ctx.stroke();
+        ctx.restore();
+        // 넘치는 태엽 더미 — **궤짝 윗면을 통째로 덮는다.** 원본에서 윗면 초록은 한 점도 안 보이고
+        // 태엽이 앞 모서리 위로 흘러넘친다. 1차 렌더는 더미를 상자보다 먼저 그려 윗면에 가려졌다.
+        [[0.300, 0.185], [0.500, 0.170], [0.700, 0.178], [0.900, 0.166], [1.095, 0.180], [1.270, 0.205],
+         [0.235, 0.290], [0.420, 0.272], [0.605, 0.264], [0.790, 0.262], [0.975, 0.268], [1.160, 0.282], [1.340, 0.305],
+         [0.300, 0.382], [0.480, 0.372], [0.660, 0.366], [0.840, 0.366], [1.020, 0.372], [1.200, 0.386], [1.375, 0.408],
+         [0.375, 0.458], [0.605, 0.452], [0.840, 0.452], [1.075, 0.458], [1.300, 0.478]]
+            .forEach((w, i) => winder(ctx, S, w[0], w[1], 0.132, ((i * 2.399) % 6.283) - 3.14));
+        // 앞으로 흘러나온 태엽
+        [[0.168, 0.792, 0.124, 0.6], [0.312, 0.856, 0.116, -1.2], [0.086, 0.898, 0.104, 2.1]]
+            .forEach(w => winder(ctx, S, w[0], w[1], w[2], w[3]));
     };
 })(IconGen);
