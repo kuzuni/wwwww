@@ -2613,7 +2613,12 @@ const UI = {
                             ${pet.stars ? `<span class="sk-star">${IconGen.img('star')}${pet.stars}</span>` : ''}
                         </div>
                         <div class="petd-body">
-                            <div class="petd-name" style="color:${UI.inkRarity(RARITY_CSS[pet.rarity])}">[${RARITY_KR[pet.rarity]}] ${PET_KR[pet.name] || pet.name}</div>
+                            <!-- 원본(042449)의 이름 줄은 등급 **원색** + 검정 키라인이다(css .petd-wrap .petd-name).
+                                 inkRarity() 는 흰 바탕 대비 4.5:1 을 맞추려 색을 어둡게 깎는데, 키라인이 그 역할을
+                                 대신하므로 여기서는 원색을 그대로 쓴다 — 깎으면 궁극 #ff1c1c 가 #b31414 로 죽는다.
+                                 알·탈것 상세(같은 .petd-name)는 .petd-wrap 밖이라 종전대로 inkRarity 를 쓴다.
+                                 ⚠️ 이 주석은 템플릿 리터럴 안이다 — 백틱을 쓰면 리터럴이 거기서 끊긴다(실제로 밟았다). -->
+                            <div class="petd-name" style="color:${RARITY_CSS[pet.rarity]}">[${RARITY_KR[pet.rarity]}] ${PET_KR[pet.name] || pet.name}</div>
                             <div class="petd-stats">${U.fmt(pw.atk)} 피해<br>${U.fmt(pw.hp)} 체력</div>
                             <div class="petd-subs">${subsHtml || '옵션 없음'}</div>
                         </div>

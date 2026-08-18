@@ -3735,6 +3735,44 @@ body {
 .petd-wrap .petd-stats { line-height: 1.0; margin-bottom: .1rem; }
 .petd-wrap .petd-subs { line-height: 1.19; }
 .petd-wrap .petd-name { margin-bottom: .05rem; }
+
+/* ---- ⑫ 펫 상세 팝업 AAA 스킨 (원본 shot-042449 픽셀 실측 2026-08-18 · 배치는 손대지 않는다) ----
+   원본 세로 스캔(490×886)에서 뽑은 값만 쓴다. 전부 `.petd-wrap` 스코프다 — `.petd-btn`·`.petd-tile`·
+   `.x-btn` 은 알 상세·탈것 상세와 공용이라 전역에 두면 아직 원본 대조를 안 한 두 화면이 끌려간다.
+   ㉠ 버튼 면·베벨: 업그레이드 x=150 → 면 #005dff 21px · 베벨 #001c4e 5px · 검정 테두리 2px.
+      제거 x=310 → 면 #f2191d · 베벨 #4a0709 5px. 클론은 전역 토큰(--pp-red #e8362f /
+      --pp-red-dk #a51710 / --pp-blue-dk #0049c9)을 그대로 써 **빨강이 흐리고 베벨이 너무 밝았다**.
+      전역 `--pp-red` 는 화면마다 다르므로(채팅은 #ff1017 로 이미 따로 준다) 토큰은 건드리지 않는다.
+   ㉡ 베벨 두께: 원본 5px(클론 .22rem=4px) → .28rem. inset 이라 박스 높이는 그대로다(비율 프로브 무영향). */
+.petd-wrap .petd-btn.primary { box-shadow: inset 0 -.28rem 0 #001c4e; }
+.petd-wrap .petd-btn.danger,
+.petd-wrap .x-btn { background: #f2191d; box-shadow: inset 0 -.28rem 0 #4a0709; }
+/* ㉢ 라벨·✕ 글리프의 검정 키라인. 원본 업그레이드 글자 세로 단면(x=150)은
+   `#000000 ×1 · #ffffff ×6 · #000000 ×1` 로 흰 획 양옆이 순검정이다 — 클론은 버튼 안 검정 픽셀이
+   0이라 글자가 면에 파묻혀 있었다. paint-order 로 획이 글리프 안쪽을 먹지 않게 한다. */
+.petd-wrap .petd-btn,
+.petd-wrap .x-btn { color: #fff; -webkit-text-stroke: 3px var(--pp-line); paint-order: stroke fill; }
+/* ㉣ 이름 줄: 원본은 `[궁극의] 트렌트` **전체**가 등급 원색(#ff1c1c = RARITY_CSS.ultimate) + 검정
+   키라인이다(y=400 스캔에서 채움 #ff1c1c, 획 경계 #000000). 클론은 inkRarity() 로 흰 바탕 대비를
+   맞추느라 어둡게 깐 플랫 글자였다 — 키라인이 대비를 대신하므로 원색을 그대로 쓴다(ui.js 동반 수정). */
+.petd-wrap .petd-name { -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill; }
+/* ㉤ 본문 잉크: 원본 스탯 2줄은 **순검정**(y=420 단면 #000000), 옵션 줄은 **#3a3a3a 회색**이다.
+   클론은 둘 다 --pp-ink(#17181a) 한 색이라 위계가 없었다. */
+.petd-wrap .petd-stats { color: #000; }
+.petd-wrap .petd-subs { color: #3a3a3a; }
+/* ㉥ 타일: 원본 테두리는 **검정 3px 이 아니라 등급색을 어둡게 한 1px 림**이다 —
+   좌변 y=400 이 `#663030 ×1` 뒤 바로 면 `#ff7777`. 그 면은 등급 원색이 아니라 **원색 60% + 흰색 40%**
+   (ultimate #ff1c1c → #ff7777 로 채널 셋이 정확히 일치, 펫 그리드 타일과 같은 규칙)이고,
+   림은 그 면의 40%(#ff7777 × .4 = #663030)다. 클론은 원색 면 + 검정 3px 테두리라 타일이
+   '검정 액자에 끼운 원색 판'으로 보였다. border-box 라 DOM 폭은 안 변한다(비율 프로브 무영향). */
+.petd-wrap .petd-tile {
+    --petd-face: color-mix(in srgb, var(--rc, #ccc) 60%, #fff);
+    background: var(--petd-face);
+    border: 1px solid color-mix(in srgb, var(--petd-face) 40%, #000);
+}
+/* 타일 위 Lv 글자도 원본은 흰 채움 + 검정 키라인이다(리본 글자 y=419 스캔이 #ffffff). */
+.petd-wrap .petd-tile .sk-lv { color: #fff; -webkit-text-stroke: 2.5px var(--pp-line); paint-order: stroke fill; }
+
 .petd-share {
     position: absolute; top: .55rem; right: .55rem; cursor: pointer;
     width: 1.7rem; height: 1.7rem; border: var(--ol2) solid var(--pp-line); border-radius: .4rem;
