@@ -3125,11 +3125,21 @@ const Scene3D = {
         const n = Math.max(6, seg | 0), R = rings.length;
         if (R < 2) return new THREE.Group();
         const pos = [], idx = [];
+        // opt.fold = 천 주름(비평가 ⓒ⑶). 둘레를 따라 반경을 오르내리게 해 **접힌 천**을 만든다.
+        //   ⚠️ `ageDetailGLSL` 의 stitch 프로파일이 이미 주름을 **칠하지만**(sFold), 칠한 주름은
+        //      실루엣이 없다 — 96px 로 줄이면 바깥 윤곽은 여전히 매끈한 종(鐘)이다. 조형 쪽 주름은
+        //      윤곽 자체를 오르내리게 해 그 층을 채운다(칠과 조형은 겹치는 게 아니라 포갠다).
+        //   ⚠️ 천은 위에서 매달려 아래로 갈수록 벌어진다 — 모든 링에 같은 진폭을 주면 목까지
+        //      자바라가 된다. 링마다 fw(주름 가중치)로 조절한다. 진폭은 반경 대비 비율이라
+        //      스타일마다 밑단이 커도 주름 깊이가 자동으로 따라간다.
+        const fold = o.fold || 0, foldN = Math.max(3, o.foldN || 9);
         for (let r = 0; r < R; r++) {
             const ring = rings[r];
+            const fw = fold * (ring.fw === undefined ? 1 : ring.fw);
             for (let i = 0; i < n; i++) {
                 const a = i / n * Math.PI * 2;
-                pos.push(ring.rx * Math.cos(a), ring.y, ring.rz * Math.sin(a) + (ring.z || 0));
+                const k = fw ? 1 + fw * Math.cos(a * foldN) : 1;
+                pos.push(ring.rx * k * Math.cos(a), ring.y, ring.rz * k * Math.sin(a) + (ring.z || 0));
             }
         }
         for (let r = 0; r < R - 1; r++) {
@@ -3190,6 +3200,30 @@ const Scene3D = {
             if (s < 0) cap.rotation.x = Math.PI;
             g.add(cap);
         }
+        return g;
+    },
+    // ⑸ 매듭 — 비평가 ⓒ⑶ 이 요구한 넷("스티치·리벳 열·**매듭**·천 주름") 중 유일하게 칠로는
+    //    못 내는 것이다. 스티치·리벳·주름은 표면 무늬라 `ageDetailGLSL` 이 셰이더로 심지만,
+    //    매듭은 **덩어리**다 — 끈이 만나는 자리가 부풀고 꼬리가 늘어져야 '묶였다'로 읽힌다.
+    //    납작한 구(매듭 몸통) + 짧은 원뿔 꼬리 2가닥으로, 가닥 굵기(r)에 비례해 짓는다.
+    tieKnot(mat, r, opt) {
+        const o = opt || {};
+        const g = new THREE.Group();
+        // 검증기용 표식 — `probe-equip-drape.js` 가 매듭만 껐다 켜서 **실제로 화면에 보이는지**를
+        // 픽셀 차분으로 잰다. 타입으로 찾으면 다른 연출이 같이 잡힌다(TODO 함정 ④⑵).
+        // 파츠가 몸 안에 파묻혀 0픽셀이어도 콘솔 에러도 캡처 이상도 안 난다(같은 문서의 ㉤⑵).
+        g.userData.knot = true;
+        const core = new THREE.Mesh(new THREE.SphereGeometry(r * 1.9, 8, 6), mat);
+        core.scale.set(1, 0.78, 0.85);
+        g.add(core);
+        for (const s of [-1, 1]) {
+            const tail = new THREE.Mesh(new THREE.ConeGeometry(r * 0.95, r * 4.2, 6), mat);
+            tail.position.set(s * r * 2.2, -r * 1.5, 0);
+            tail.rotation.z = s * 0.55 + Math.PI;   // 끝이 아래를 향해 늘어진다
+            g.add(tail);
+        }
+        if (o.ry) g.rotation.y = o.ry;
+        if (o.rz) g.rotation.z = o.rz;
         return g;
     },
     // ⑷ 캐릭터용 바위 덩어리 — 구를 깎아낸 불규칙 다면체. 골렘처럼 **몸 자체가 돌**인 파츠에 쓴다.
@@ -3672,15 +3706,33 @@ const Scene3D = {
             vest: { shoulder: 1.05, waist: 0.98, skirt: 0.200, top: 0.84 },   // 짧게 잘린 조끼
             suit: { shoulder: 1.03, waist: 1.04, skirt: 0.215, top: 1.02 },   // 통통한 여압복
         }[style] || { shoulder: 1, waist: 1, skirt: 0.225, top: 1 };
-        const torso = this.shellFromRings([
-            { y: -0.27, rx: P.skirt, rz: P.skirt * 0.63 },              // 아랫단 플레어
-            { y: -0.19, rx: 0.192 * P.waist, rz: 0.120 * P.waist },
-            { y: -0.07, rx: 0.178 * P.waist, rz: 0.113 * P.waist },     // 허리 — 가장 잘록한 지점
-            { y: 0.05, rx: 0.214 * P.shoulder, rz: 0.145 * P.shoulder },
-            { y: 0.15 * P.top, rx: 0.238 * P.shoulder, rz: 0.160 * P.shoulder },   // 가슴 — 가장 두껍다
-            { y: 0.23 * P.top, rx: 0.222 * P.shoulder, rz: 0.138 * P.shoulder },
-            { y: 0.29 * P.top, rx: 0.168, rz: 0.106 },                  // 목
-        ], soft ? 22 : 20, mat, { flat: this.ageGearKind(age) === 'primal' && !soft });
+        // 천 주름(비평가 ⓒ⑶) — 로브는 어깨에 걸린 천이라 밑으로 갈수록 주름이 깊어진다.
+        // fw 는 링별 주름 가중치(목 0 → 밑단 1). 판금은 0(주름진 강철은 찌그러진 강철이다).
+        // ⚠️ 셰이더가 칠하는 주름(`ageDetailGLSL` 의 sFold)과 겹치는 게 아니라 **포개는** 층이다 —
+        //    칠한 주름은 바깥 윤곽을 못 바꿔서 96px 로 줄이면 여전히 매끈한 종이다.
+        // ⚠️ **가죽(hide)에는 주름을 주지 않는다** — 물성으로도 맞지만(생가죽 갑옷은 늘어지지 않는다),
+        //    실측으로도 줘서는 안 된다: hide 에 0.032 를 걸었더니 `probe-age-shading` 의
+        //    `primal↔polymer(hide)` 재질분리가 **1.19 → 0.62** 로 무너져 반려됐다(기준 1.00).
+        //    그 지표의 승리 축이 ΔSD(휘도 표준편차 차 2.4)인데, 주름이 **두 시대 가죽 모두**의 SD 를
+        //    같이 올려 차이를 지워 버린다 = 비평가가 친 '색 스와프'를 되살리는 꼴이다.
+        //    (남의 회귀 기준선을 고쳐서 통과시키지 말 것 — 인계 메모 ㉢ 이 같은 함정을 기록해 뒀다.)
+        //    천 주름이 필요한 건 실제로 늘어지는 로브다. 가죽의 2차 디테일은 `ageDetailGLSL` 의
+        //    가죽 결·바늘땀이 이미 진다 — 조형 층을 덧대면 위 지표가 무너진다.
+        const FOLD = { robe: 0.055 }[style] || 0;
+        const RINGS = [
+            { y: -0.27, rx: P.skirt, rz: P.skirt * 0.63, fw: 1.0 },     // 아랫단 플레어
+            { y: -0.19, rx: 0.192 * P.waist, rz: 0.120 * P.waist, fw: 0.86 },
+            { y: -0.07, rx: 0.178 * P.waist, rz: 0.113 * P.waist, fw: 0.52 },  // 허리 — 가장 잘록한 지점
+            { y: 0.05, rx: 0.214 * P.shoulder, rz: 0.145 * P.shoulder, fw: 0.34 },
+            { y: 0.15 * P.top, rx: 0.238 * P.shoulder, rz: 0.160 * P.shoulder, fw: 0.22 },  // 가슴 — 가장 두껍다
+            { y: 0.23 * P.top, rx: 0.222 * P.shoulder, rz: 0.138 * P.shoulder, fw: 0.12 },
+            { y: 0.29 * P.top, rx: 0.168, rz: 0.106, fw: 0 },           // 목
+        ];
+        const torso = this.shellFromRings(RINGS, FOLD ? 30 : (soft ? 22 : 20), mat,
+            // foldN 11 = 로브 둘레의 주름 수. **홀수를 쓴다** — k = 1 + fold·cos(foldN·a) 에서
+            // 정면(a = π/2)의 값이 홀수면 cos(홀수·π/2) = 0 이라 골이 오지 않고, 짝수면 −1 이라
+            // 세로 홈이 정중선을 한가운데서 가른다('지퍼'로 읽힌다).
+            { flat: this.ageGearKind(age) === 'primal' && !soft, fold: FOLD, foldN: 11 });
         g.add(torso);
         const neckY = 0.29 * P.top;
         if (!soft) {
@@ -3708,6 +3760,28 @@ const Scene3D = {
         // 반경이 0.44까지 커져 리벳이 가슴 앞 6cm 허공에 뜬다
         // 허리(y=-0.07, rx 0.178)에 두른다 — 곡면 몸통이라 반경을 직접 넘긴다(위 ⚠️ 참고)
         this.addAgeTrim(g, mats, { yFrac: 0.34, rx: 0.187, rz: 0.122 });
+        // ⚠️ **가죽(hide)에는 아무것도 얹지 않는다.** 매듭 5개를 얹었더니 `probe-age-shading` 의
+        //    `primal↔polymer(hide)` 재질분리가 **1.19 → 0.70** 으로 무너져 반려됐다(기준 1.00).
+        //    그 지표의 승리 축이 ΔSD(두 시대 가죽의 휘도 표준편차 차 2.4)인데, 어두운 매듭이
+        //    **무광 기술섬유(polymer) 쪽 SD 를 더 크게 올려**(24.7 → 26.4) 차이를 지운다 —
+        //    비평가가 친 '색 스와프'를 되살리는 꼴이다. 주름(0.032)만 걸었을 때도 같은 결과였다.
+        //    남의 회귀 기준선을 고쳐서 통과시키지 말 것(인계 메모 ㉢). 가죽의 2차 디테일은
+        //    `ageDetailGLSL` 의 가죽 결·바늘땀이 이미 지고 있다 — 조형 층은 로브에만 얹는다.
+        if (FOLD) {
+            // 허리끈 + 매듭(비평가 ⓒ⑶ 의 '매듭') — 천은 어딘가에서 여며져야 '입는 옷'이다.
+            // 잘록한 허리(y=-0.07)를 한 바퀴 두르고 앞에 매듭을 얹는다. 링 반경은 상수로 베끼지
+            // 않고 RINGS 에서 그대로 읽는다 — 스타일 배율(P)이 바뀌면 끈이 몸통에서 떠 버린다.
+            const wr = RINGS[2];
+            const cordM = this.tintOf(mats.dark, -0.075);
+            const cord = new THREE.Mesh(new THREE.TorusGeometry(wr.rx * 1.02, 0.014, 6, 24), cordM);
+            cord.rotation.x = Math.PI / 2;
+            cord.position.y = wr.y;
+            cord.scale.y = (wr.rz / wr.rx) * 1.02;   // 몸통 단면이 타원이라 링도 눌러야 앞뒤로 안 뜬다
+            g.add(cord);
+            const wknot = this.tieKnot(cordM, 0.016);
+            wknot.position.set(0, wr.y - 0.002, wr.rz * 1.04);
+            g.add(wknot);
+        }
         if (style === 'plate') {
             // 파울드론 — 구 하나가 아니라 **라멜라 3장이 겹쳐 바깥으로 벌어진다**.
             // 구를 적도보다 조금 더(0.62π) 내려 자르면 테두리가 안쪽으로 말려 뚫린 면이 안 보인다.
