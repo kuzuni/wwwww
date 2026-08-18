@@ -219,7 +219,14 @@ const Scene3D = {
     setShadow(g, receive) {
         // 인버티드 헐 아웃라인 셸은 제외 — 원 메시보다 살짝 부푼 뒷면 복제라, 그림자를 던지게 두면
         // 원 메시의 섀도맵을 한 텍셀씩 밀어 접지 그림자가 이중 윤곽으로 번진다.
-        g.traverse(o => { if (o.isMesh && !o.userData.isOutline) { o.castShadow = true; if (receive) o.receiveShadow = true; } });
+        // 🚨 AO 링도 제외 — 이음새에 얹는 **반투명 그림자 데칼**이라 그림자를 던질 물체가 아니다.
+        //    섀도맵은 알파를 안 보므로 링이 **불투명 원반**으로 투영돼 지면에 큰 검은 자국을 남긴다
+        //    (실측 probe-enemy-ao: 고블린·임프에서 배경 화소 **17만 개**가 어두워졌다 — 화면 절반이다).
+        g.traverse(o => {
+            if (!o.isMesh || o.userData.isOutline) return;
+            if (o.userData.aoRing) { o.castShadow = false; o.receiveShadow = false; return; }
+            o.castShadow = true; if (receive) o.receiveShadow = true;
+        });
         return g;
     },
 
@@ -5218,6 +5225,32 @@ const Scene3D = {
         const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
         const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
+        // ── AO 링: 파츠 경계에 얹는 접촉 그림자 (진행 메모 ⓐ '영웅엔 있고 적엔 없다') ──
+        // 적은 구·원기둥을 **겹쳐 놓기만** 해서 목·허리·어깨 소켓·갓 밑에 이음새가 그대로 드러났다.
+        // 영웅 리그(`ProChar` 의 aoRing)가 쓰는 것과 같은 기법을 종별 이음새로 옮긴다.
+        // ⚠️ ⑴ 재질이 **transparent Basic** 이라 `ProChar.addOutline`·`applyRimLight` 가 자동으로
+        //    건너뛴다(둘 다 transparent / Standard·Phong 조건에서 제외) — 얇은 링에 검은 외곽선이
+        //    둘리거나 림라이트가 먹는 사고가 원천 차단된다. 재질 종류를 바꾸면 그 보호가 사라진다.
+        //    ⑵ **flashMats 에 넣지 않는다** — 피격 플래시에 그림자까지 하얘지면 때린 순간에만
+        //    이음새가 통째로 사라져 '프리미티브 더미'가 도로 드러난다.
+        //    ⑶ 링 반지름은 그 높이의 **실제 몸 반지름과 같거나 살짝 커야** 한다. 작으면 몸 안에
+        //    파묻혀 아무것도 안 보이고(무비용 무효과), 너무 크면 실루엣 밖으로 튀어 '후프'가 된다.
+        const aoMat = new THREE.MeshBasicMaterial({ color: 0x0a0d12, transparent: true, opacity: 0.5, depthWrite: false });
+        // opt: { flat=상하 납작(기본 .5) · ez=z반경/x반경(타원 몸통용) · op=불투명도 · parent }
+        // 토러스는 로컬 XY면 → rotation.x=π/2 로 눕히면 **로컬 y가 월드 z, 로컬 z가 월드 y** 다.
+        const aoRing = (r, tube, x, y, z, opt) => {
+            const o = opt || {};
+            const m2 = o.op === undefined ? aoMat : new THREE.MeshBasicMaterial({ color: 0x0a0d12, transparent: true, opacity: o.op, depthWrite: false });
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 6, 16), m2);
+            // axis:'z' = 부모의 z축을 감는다(꼬리·팔처럼 **누운** 파츠용). 기본은 눕혀서 수평 링.
+            if (o.axis !== 'z') ring.rotation.x = Math.PI / 2;
+            ring.position.set(x, y, z);
+            ring.scale.set(1, o.ez === undefined ? 1 : o.ez, o.flat === undefined ? 0.5 : o.flat);
+            ring.userData.noOutline = true;      // 보호막 이중화 — 재질을 바꿔도 외곽선은 안 둘리게
+            ring.userData.aoRing = true;         // probe-enemy-ao 가 껐다 켜서 실제 기여분을 잰다
+            (o.parent || g).add(ring);
+            return ring;
+        };
         // 몬스터 눈: 흰자+홍채+동공+하이라이트+성난 눈썹 (빨간 점 → 캐릭터 표정)
         // 종별 파라미터 눈 — 전 종 공용 '성난 스티커' 복붙 금지 (비평가 2위 결함)
         // style: round(순둥 왕눈)/angry(성난 흰자눈)/fierce(가늘게 뜬 맹수 흰자눈)/sleepy(반쯤 감김)/slit(발광 슬릿, 흰자 없음)
@@ -5310,6 +5343,11 @@ const Scene3D = {
             smMouth.position.set(0, 0.3, 0.43); smMouth.rotation.z = Math.PI + Math.PI * 0.075; // 아래로 벌린 입 아크 (스티커 박스 입 제거)
             g.add(smMouth);
             eyes(0.42, 0.4, 0.13, 0.045, 'angry', { iris: 0x1d4e63, browColor: 0x1e4552 }); // 점 눈 2개는 NPC로 읽힘 (비평가 7.1 13번) — 성난 눈썹으로 적대 표정
+            // 🚫 슬라임에는 AO 링을 두지 않는다 — **이음새가 없는 종**이다(라테 한 장 + 몸속 핵).
+            //    붙일 경계가 없어서 어디에 둬도 몸 안에 파묻힌다: 바닥 퍼짐부(r≈0.44)에 둘러 봤더니
+            //    바로 위 최대 둘레(y 0.07 에서 r 0.5)가 처마처럼 덮어 **화면 기여 0픽셀**이었다
+            //    (probe-enemy-ao 실측). 접지 단서는 블롭 섀도가 이미 맡고 있다.
+            //    슬라임에 필요한 건 AO 가 아니라 진행 메모 ⓑ의 **관절 분절**이다.
             anim.body = body; topY = 0.85;
         } else if (kind === 'golem') {
             // 바위 구축물: 역삼각 몸통 라테 + 마그마 코어 + 거대 주먹 분절 팔 (눈사람 금지)
@@ -5392,6 +5430,10 @@ const Scene3D = {
             const browSlab = mk(new THREE.BoxGeometry(0.3, 0.07, 0.14), rockD);
             browSlab.position.set(0, 1.14, 0.1); browSlab.rotation.x = 0.15;
             g.add(head, browSlab);
+            // 목 바위(r 0.11~0.14) 밑 · 라테 몸통 밑단(r 0.17)과 골반 바위 경계 · 기둥 다리 소켓
+            aoRing(0.142, 0.024, 0, 0.955, 0.04, { ez: 0.92 });
+            aoRing(0.19, 0.03, 0, 0.435, 0, { ez: 0.85, flat: 0.45 });
+            for (const s of [-1, 1]) aoRing(0.118, 0.02, s * 0.17, 0.345, 0, { flat: 0.5 });
             eyes(1.05, 0.21, 0.08, 0.045, 'slit', { iris: 0xff7d33, narrow: true });
             topY = 1.35;
         } else if (kind === 'goblin') {
@@ -5415,7 +5457,9 @@ const Scene3D = {
                 foot.position.set(0, -0.17, 0.07); foot.scale.set(0.8, 0.5, 1.7);
                 knee.add(shin, foot);
                 hip.add(thigh, knee);
-                (anim.bleg = anim.bleg || []).push({ hip, knee }); // 걷기 관절 굽힘용 피벗 노출
+                // 고관절 구(r 0.065) 둘레 — hip 그룹에 붙여 스윙을 따라가게 한다
+                aoRing(0.068, 0.016, 0, 0, 0, { flat: 0.5, parent: hip });
+            (anim.bleg = anim.bleg || []).push({ hip, knee }); // 걷기 관절 굽힘용 피벗 노출
                 g.add(hip);
             }
             // 서양배 몸통 (앞으로 굽음) + 로인클로스 + 로프 벨트
@@ -5470,6 +5514,9 @@ const Scene3D = {
                 tusk.rotation.x = -0.35; // 앞으로 벌어진 언더바이트 각
                 jawG.add(tusk);
             }
+            // 목: 두상(r 0.21) 밑 · 허리: 로프 벨트(r 0.205) 바로 아래 로인클로스 경계
+            aoRing(0.142, 0.026, 0, 0.85, 0.06, { flat: 0.5 });
+            aoRing(0.216, 0.028, 0, 0.462, 0, { flat: 0.45, op: 0.44 });
             g.add(head, jawG);
             for (const s of [-1, 1]) {
                 const ear = new THREE.Group();
@@ -5564,6 +5611,9 @@ const Scene3D = {
                 g.add(wing);
             }
             eyes(0.66, 0.165, 0.08, 0.042, 'angry', { iris: 0xffb547, glow: 0.12, tilt: 0.14, browColor: 0x3a3142 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
+            // 두상(r 0.2)과 털몸통(r 0.125) 사이 목 · 날개가 몸에 박히는 소켓
+            aoRing(0.138, 0.027, 0, 0.442, -0.01, { ez: 0.85, flat: 0.5, op: 0.58 }); // 0.132/0.022 는 기여가 하한에 걸칠 만큼 옅었다(probe 60~67px)
+            for (const s of [-1, 1]) aoRing(0.062, 0.016, s * 0.155, 0.63, 0, { flat: 0.6, op: 0.42 });
             anim.fly = true; topY = 1.0;
         } else if (kind === 'mushroom') {
             // 통통한 줄기 라테 + 갓 그룹(돔+테두리 립+반점+주름 프릴) + 밑동 발
@@ -5616,6 +5666,10 @@ const Scene3D = {
             const tooth = mk(new THREE.BoxGeometry(0.028, 0.02, 0.012), new THREE.MeshBasicMaterial({ color: 0xfff6e8 }));
             tooth.position.set(0, 0.185, 0.145);
             g.add(mMouth, tooth);
+            // 🍄 갓 밑 그늘 — 이 종에서 가장 큰 이음새다(주름살 r 0.28~0.2 가 줄기 r 0.16 에 얹힌다).
+            //    링은 capG 에 붙여 갓이 출렁일 때 그늘도 같이 움직이게 한다(따로 두면 갓만 흔들려 뜬다).
+            aoRing(0.176, 0.045, 0, -0.045, 0, { flat: 0.42, op: 0.58, parent: capG }); // r 0.208 은 갓 그늘 밖으로 4px 삐져나왔다(probe) — 줄기(r≈0.16)에 붙인다
+            aoRing(0.146, 0.028, 0, 0.02, 0, { flat: 0.35, op: 0.44 });   // 밑동 접지 — 줄기 라테는 y0.02 에서 r≈0.144 다(0.158 은 후프로 4px 삐져나왔다)
             anim.cap = capG; anim.hop = true;
             body = capG; topY = 0.9;
         } else if (kind === 'wolf') {
@@ -5695,6 +5749,11 @@ const Scene3D = {
                 upper.add(lower);
                 leg.add(upper);
                 lower.userData.rx0 = lower.rotation.x; lower.userData.front = front; // 질주 무릎 굽힘 기준 포즈
+                // 다리가 몸통 실루엣 **밖으로 나오는 높이**에 두르고, leg 그룹에 매달아 질주할 때 같이 움직이게.
+                // ⚠️ 처음엔 근육 덩어리 높이(y 0.375)에 뒀는데 **0픽셀**이었다(probe-enemy-ao) — 흉곽 구가
+                //    (r 0.19×0.9=0.171) 그 높이의 |x|=0.11 을 통째로 덮는다. 몸통 반폭이 0.088 로 줄어드는
+                //    y≈0.27(=leg 로컬 −0.09)이 다리가 실제로 드러나는 첫 높이다.
+                aoRing(0.052, 0.014, 0, -0.09, 0, { flat: 0.55, op: 0.46, parent: leg });
                 (anim.knees = anim.knees || []).push(lower);
                 anim.legs.push(leg);
                 g.add(leg);
@@ -5703,6 +5762,8 @@ const Scene3D = {
             const tailG = new THREE.Group();
             tailG.position.set(0, 0.46, -0.33);
             tailG.rotation.x = 0.55;
+            // 꼬리 밑동 — 엉덩이 구 안에 파묻히지 않도록 **꼬리 축을 감는** 링으로(axis:'z') tailG 에 매단다.
+            aoRing(0.072, 0.016, 0, 0, -0.03, { flat: 1, op: 0.46, axis: 'z', parent: tailG });
             let tPrev = tailG;
             for (let ti = 0; ti < 3; ti++) {
                 const holder = new THREE.Group();
@@ -5760,6 +5821,10 @@ const Scene3D = {
                 g.add(horn1, horn2, ear);
             }
             eyes(0.65, 0.105, 0.055, 0.034, 'angry', { iris: 0xffe14a, glow: 0.12, tilt: 0.22, browColor: 0x5c2338 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
+            // 목(두상 r 0.125 밑) · 허리(몸통 r 0.15×1.25 밑단과 골반 경계) · 날개 소켓
+            aoRing(0.088, 0.018, 0, 0.545, 0, { flat: 0.5 });
+            aoRing(0.118, 0.02, 0, 0.312, 0, { ez: 0.9, flat: 0.45, op: 0.44 });
+            for (const s of [-1, 1]) aoRing(0.048, 0.014, s * 0.125, 0.43, -0.1, { flat: 0.6, op: 0.42 });
             const grin = mk(new THREE.TorusGeometry(0.052, 0.013, 6, 10, Math.PI * 0.8), new THREE.MeshBasicMaterial({ color: 0x33141f })); // 씩 웃는 입
             grin.position.set(0, 0.585, 0.107); grin.rotation.z = Math.PI + Math.PI * 0.1;
             g.add(grin);
