@@ -2,7 +2,7 @@
 //  + 2026-08-18 재지적 autoforge-show-all-cards: 배치는 팝업에서 멈추지 않고 카드 N장이 다 보여야)
 //  ⑴ 자동제작 시작 시 설정 팝업이 닫힌다
 //  ⑵ 제작마다 망치질(.striking) 연출이 돈다
-//  ⑶ 기본값에서는 목표 통과분도 배치 도중 비교 팝업 없이 카드 → 자동 판정으로 흘러간다
+//  ⑶ 목표 통과분은 비교 팝업으로 뜨고(자동장착 금지), 사용자가 처리하면 배치가 남은 망치로 이어진다
 //  ⑷ 필터 탈락분은 카드가 잠깐 보였다가 코인 판매 연출(#coin-burst)이 난다
 //  ⑸ 망치 N개 배치면 결과 카드가 정확히 N회 노출된다 (통과·탈락이 섞여도)
 //  ⑹ 예산 N → 해머 N개를 다 쓸 때까지 돌고 정지 / '목표를 찾으면 정지'(stopOnTarget) ON이면
@@ -90,31 +90,37 @@ async function until(page, fnSrc, ms = 8000) {
     ok(!after.seq, '정지 후에도 시퀀스가 남아 있다');
     console.log(`⑴⑵⑷⑹ 설정팝업 닫힘·망치질·탈락카드·코인연출 확인 · 해머 ${start.h0} → ${after.h}(예산 3 소진 후 정지)`);
 
-    // ---- ⑶⑸ 배치 도중 비교 팝업 없음 + 망치 N개 → 카드 N회 노출 (autoforge-show-all-cards) ----
+    // ---- ⑶⑸ 목표 통과분은 비교 팝업으로(자동장착 금지), 처리하면 배치가 이어져 망치 N개 = 카드 N회 ----
+    //      (autoforge-show-all-cards 재지적 2026-08-18: "해당되면 비교팝업이 떠야 하는데 자동장착을 해버린다")
     const flow = await page.evaluate(async () => {
-        // 통과·탈락을 번갈아 섞는다 — 통과분이 팝업으로 배치를 막으면 카드가 N장에서 끊긴다
+        // 통과·탈락을 번갈아 섞는다 — 통과분(짝수 순번)은 팝업, 탈락분(홀수)은 카드→자동판매
         let nth = 0;
         Forge.passesAutoFilter = () => (nth++ % 2 === 0);
-        // 카드 노출 횟수는 카드 생성 단일 통로(buildCraftCard)에서 센다
+        // 카드 노출 횟수는 카드 생성 단일 통로(buildCraftCard), 팝업 횟수는 showCraftModal 에서 센다
         window.__cards = 0;
-        const orig = UI.buildCraftCard;
-        UI.buildCraftCard = function (item, cls) { window.__cards++; return orig.call(this, item, cls); };
-        let modalSeen = false;
-        const watch = setInterval(() => { if (!UI.els.craftModal.classList.contains('hidden')) modalSeen = true; }, 50);
+        const origCard = UI.buildCraftCard;
+        UI.buildCraftCard = function (item, cls) { window.__cards++; return origCard.call(this, item, cls); };
+        let opens = 0;
+        const origModal = UI.showCraftModal.bind(UI);
+        UI.showCraftModal = function (item) { opens++; return origModal(item); };
         S.autoForge.hammersPerBatch = 6; S.autoForge.stopOnTarget = false;
         S.autoForgeOn = false; UI._autoSeq = null;
         const h0 = S.hammers;
         UI.onToggleAutoForge();
-        for (let i = 0; i < 600 && S.autoForgeOn; i++) await new Promise(r => setTimeout(r, 50));
-        clearInterval(watch);
-        UI.buildCraftCard = orig;
-        return { spent: h0 - S.hammers, cards: window.__cards, modalSeen, on: S.autoForgeOn };
+        // 통과분이 뜨는 팝업을 사용자 대신 판매로 처리하면 남은 망치로 배치가 이어진다
+        for (let i = 0; i < 900 && S.autoForgeOn; i++) {
+            if (!UI.els.craftModal.classList.contains('hidden')) UI.doResolveCraft('sell');
+            await new Promise(r => setTimeout(r, 50));
+        }
+        UI.buildCraftCard = origCard;
+        UI.showCraftModal = origModal;
+        return { spent: h0 - S.hammers, cards: window.__cards, opens, on: S.autoForgeOn };
     });
     ok(!flow.on, '⑶ 배치가 스스로 정지하지 않았다');
-    ok(!flow.modalSeen, '⑶ 기본값인데 배치 도중 비교 팝업이 떠서 시퀀스를 막았다');
+    ok(flow.opens === 3, `⑶ 통과분 3개가 비교 팝업으로 떠야 한다(자동장착 금지) — 팝업 ${flow.opens}회`);
     ok(flow.spent === 6, `⑸ 망치 6개를 다 써야 하는데 ${flow.spent}개 소모`);
     ok(flow.cards === 6, `⑸ 망치 6개 → 카드 6회여야 하는데 ${flow.cards}회 노출`);
-    console.log(`⑶⑸ 통과·탈락 혼합 배치: 팝업 차단 없음 · 해머 ${flow.spent}개 = 카드 ${flow.cards}회`);
+    console.log(`⑶⑸ 통과·탈락 혼합 배치: 통과분 팝업 ${flow.opens}회(처리 후 계속) · 해머 ${flow.spent}개 = 카드 ${flow.cards}회`);
 
     // ---- ⑹-b '목표를 찾으면 정지' ON → 첫 통과분이 비교 팝업, 선택 후 정지 + 남은 예산 미소모 ----
     const stopCase = await page.evaluate(async () => {

@@ -142,8 +142,8 @@ async function recordTimeline(page, trigger, ms = 2200) {
     const tl2 = await recordTimeline(page, () => {
         Forge.passesAutoFilter = () => true;          // 전부 통과시켜 '통과분 → 카드 → 팝업'만 본다
         S.autoForge.hammersPerBatch = 2;
-        // 비교 팝업은 이제 '목표를 찾으면 정지' 모드에서만 뜬다(autoforge-show-all-cards) —
-        // 이 케이스가 보려는 '카드가 걷힌 뒤 팝업' 순서는 그 모드로 검증한다
+        // 통과분(목표)은 어느 모드든 비교 팝업으로 뜬다(autoforge-show-all-cards 재지적: 자동장착 금지).
+        // stopOnTarget ON 이면 그 팝업이 배치의 마지막이라, '카드가 걷힌 뒤 팝업' 순서를 안정적으로 본다.
         S.autoForge.stopOnTarget = true;
         S.autoForgeOn = true;
         UI.startAutoSeq();

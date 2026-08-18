@@ -725,18 +725,30 @@ body {
     font-size: .62rem; font-weight: 900; color: #fff; max-width: 100%;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* ---- 자동 제작에서 필터 탈락한 장비를 잠깐 보여주는 카드 (항목 ③ '무엇이 뽑혔는지는 항상 보여준다') ---- */
+/* ---- 제작 결과/탈락 장비를 잠깐 보여주는 카드 (항목 ③ '무엇이 뽑혔는지는 항상 보여준다') ----
+   사용자 지시 2026-08-18(craft-card-slot-look): 글씨(이름·스탯) 없이 **장비 슬롯과 똑같이**
+   프레임 + 장비 모양만 보인다 — .equip-cell 의 해칭 배경·시대색 테·라운드·잉크맞춤을 그대로 옮겼다. */
 .auto-drop-card {
     position: absolute; z-index: 25; transform: translate(-50%, -110%);
-    display: flex; align-items: center; gap: .4rem; padding: .3rem .5rem;
-    background: color-mix(in srgb, var(--rc, #6b3538) 26%, #17181a);
-    border: var(--ol2) solid color-mix(in srgb, var(--rc, #6b3538) 75%, #000); border-radius: .55rem;
+    width: 3.7rem; height: 3.7rem;
+    background:
+        repeating-linear-gradient(45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),
+        repeating-linear-gradient(-45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),
+        color-mix(in srgb, var(--rc, #6b3538) 58%, #17181a);
+    --cellb: round(down, var(--ol3), 1px);
+    border: var(--cellb) solid color-mix(in srgb, var(--rc, #6b3538) 80%, #000);
+    border-radius: .7rem; padding: .2rem;
     box-shadow: 0 .3rem .6rem rgba(0,0,0,.45); pointer-events: none;
+    container-type: inline-size;
     animation: adcpop .62s ease-out forwards;
 }
-.auto-drop-card .adc-img { width: 1.8rem; height: 1.8rem; margin: 0; flex: none; }
-.auto-drop-card .adc-name { font-size: .68rem; font-weight: 900; color: #fff; white-space: nowrap; }
-.auto-drop-card .adc-stat { font-size: .62rem; font-weight: 700; color: #ffd54f; white-space: nowrap; }
+/* 슬롯 .cell-img 와 동일: 테 두께만큼 밖으로 나가 프레임을 꽉 채우고, fit-ink 변환이 잉크를 맞춘다 */
+.auto-drop-card .adc-img {
+    position: absolute; left: calc(-1 * var(--cellb, 3px)); top: calc(-1 * var(--cellb, 3px));
+    width: calc(100% + 2 * var(--cellb, 3px)); height: calc(100% + 2 * var(--cellb, 3px));
+    margin: 0; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));
+}
+.auto-drop-card .adc-img.emoji { font-size: 76cqi; display: flex; align-items: center; justify-content: center; }
 @keyframes adcpop {   /* 뽑힌 순간 튀어나왔다가, 코인으로 터지기 직전에 모루 쪽으로 빨려 들어간다 */
     0%   { opacity: 0; transform: translate(-50%, -80%) scale(.7); }
     18%  { opacity: 1; transform: translate(-50%, -118%) scale(1.05); }

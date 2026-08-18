@@ -77,8 +77,10 @@ async function until(page, fnSrc, ms = 30000) {
     ok(b.filled > 0, '기본 설정 배치를 돌렸는데 장착된 장비가 하나도 없다 (업그레이드를 전부 팔아버렸다)');
     console.log(`② 기본 설정 자동 장착 — 배치 후 장착 슬롯 ${b.filled}개 (무기 ${b.weapon})`);
 
-    // ---- ②-b 사용자 재현(autoforge-show-all-cards): 유지 시대를 켜 목표가 족족 뽑혀도,
-    //      정지 미설정(기본값)이면 배치가 팝업에서 멈추지 않고 망치 10개 = 카드 10회가 다 보인다 ----
+    // ---- ②-b 사용자 재현(autoforge-show-all-cards 재지적 2026-08-18): 유지 시대를 켜 목표가 족족 뽑히면
+    //      **자동 장착하지 말고 비교 팝업으로 사용자 선택을 받아야 한다**("해당되면 비교팝업이 떠야 하는데
+    //      자동장착을 해버린다"). 정지 미설정(기본값)이면 사용자가 팝업을 처리할 때마다 남은 망치로 이어 가
+    //      망치 10개 = 카드 10회 · 팝업 10회 · 배치 완주가 된다(팝업에서 배치가 끝나지 않는다). ----
     const rb = await page.evaluate(async () => {
         S.autoForge.keepAges = AGES.slice();     // 뽑는 족족 목표 — 재지적 당시 사용자 설정의 유력 경로
         S.autoForge.stopOnTarget = false; S.autoForge.hammersPerBatch = 10;
@@ -90,13 +92,17 @@ async function until(page, fnSrc, ms = 30000) {
         UI.buildCraftCard = function (item, cls) { window.__cards++; return orig.call(this, item, cls); };
         const h0 = S.hammers;
         UI.onToggleAutoForge();
-        for (let i = 0; i < 900 && S.autoForgeOn; i++) await new Promise(r => setTimeout(r, 50));
+        // 목표가 뽑힐 때마다 팝업이 뜬다 — 사용자를 대신해 판매로 처리하면 배치가 다음 제작으로 이어진다.
+        for (let i = 0; i < 1400 && S.autoForgeOn; i++) {
+            if (!UI.els.craftModal.classList.contains('hidden')) UI.doResolveCraft('sell');
+            await new Promise(r => setTimeout(r, 50));
+        }
         UI.buildCraftCard = orig;
         return { spent: h0 - S.hammers, cards: window.__cards, opens: UI._probeCraftOpens, on: S.autoForgeOn };
     });
-    ok(!rb.on && rb.spent === 10 && rb.cards === 10 && rb.opens === 0,
-        `망치 10개면 카드 10회가 다 보여야 한다 (소모 ${rb.spent} · 카드 ${rb.cards} · 팝업 ${rb.opens}회 · 진행중 ${rb.on})`);
-    console.log(`②-b 유지 시대 ON + 기본값 — 망치 ${rb.spent}개 = 카드 ${rb.cards}회, 팝업 ${rb.opens}회`);
+    ok(!rb.on && rb.spent === 10 && rb.cards === 10 && rb.opens === 10,
+        `목표가 뽑히면 팝업으로 받고(자동장착 금지) 처리하면 이어져 망치 10개 = 카드 10회 = 팝업 10회여야 한다 (소모 ${rb.spent} · 카드 ${rb.cards} · 팝업 ${rb.opens}회 · 진행중 ${rb.on})`);
+    console.log(`②-b 유지 시대 ON + 기본값 — 망치 ${rb.spent}개 = 카드 ${rb.cards}회 = 비교 팝업 ${rb.opens}회 (자동장착 아님, 처리 후 계속)`);
 
     // ---- ③ 유지 시대 + '목표를 찾으면 정지' ON → 목표는 비교 팝업으로 (거기서 정지) ----
     const c = await page.evaluate(async () => {
