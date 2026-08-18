@@ -893,7 +893,7 @@ body {
     fill: #fffdf2; mix-blend-mode: screen;
     /* 원점은 도형 중심이 아니라 **타격점**이다 — fill-box 의 center 로 두면 위아래 비대칭 때문에
        중심이 접점보다 2.5유닛 위로 올라가 섬광이 상판에서 떠 보인다. */
-    transform-box: fill-box; transform-origin: 50% 58.3%;   /* 도형 높이 7.2 중 위 4.2 → 접촉점 */
+    transform-box: fill-box; transform-origin: 50% 57.4%;   /* 도형 높이 9.4 중 위 5.4 → 접촉점 */
     opacity: 0; animation: afstar .075s cubic-bezier(.1,.75,.3,1) forwards;
 }
 .anvil-fx .af-star.s0 { animation-delay: .154s; }
@@ -903,6 +903,22 @@ body {
     0%   { opacity: .95; transform: scale(calc(var(--afss, 1) * .25)); }
     45%  { opacity: .9;  transform: scale(var(--afss, 1)); }
     100% { opacity: 0;   transform: scale(calc(var(--afss, 1) * 1.35)); }
+}
+/* 순백 코어 — 네이티브 92px 에서 '때렸다'를 파는 마지막 수단. 섬광은 끝으로 갈수록 가늘어져
+   타격점 주변의 순백 면적이 얼마 안 되는데, 그게 없으면 접촉 프레임의 근백색 픽셀이 10개대로
+   떨어져 확대에서만 화려한 연출이 된다(probe ⑪ 이 그 수치를 지킨다). 수명 3프레임. */
+.anvil-fx .af-core {
+    fill: #ffffff; mix-blend-mode: screen;
+    transform-box: fill-box; transform-origin: center;
+    opacity: 0; animation: afcore .07s linear forwards;
+}
+.anvil-fx .af-core.c0 { animation-delay: .154s; }
+.anvil-fx .af-core.c1 { animation-delay: .392s; --afcs: 1.2; }
+.anvil-fx .af-core.c2 { animation-delay: .63s;  --afcs: 1.55; }
+@keyframes afcore {
+    0%   { opacity: 1; transform: scale(calc(var(--afcs, 1) * .6)); }
+    50%  { opacity: 1; transform: scale(var(--afcs, 1)); }
+    100% { opacity: 0; transform: scale(calc(var(--afcs, 1) * 1.3)); }
 }
 /* 불티 — 타격점에서 좌우로 튄다. 이동량(--dx/--dy: viewBox 단위)·지연(--t)은 JS가 인라인으로 준다
    (각도를 CSS cos()/sin()으로 풀면 구형 엔진에서 통째로 무효가 되므로 값으로 내려받는다) */

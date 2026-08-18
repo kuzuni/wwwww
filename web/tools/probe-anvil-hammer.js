@@ -254,6 +254,40 @@ async function waitBooted(page, timeout = 25000) {
         `⑥ 오버레이 수명 ${life.life}ms ≥ 마지막 자식 애니메이션 종료 ${life.lastEndMs}ms`);
     say(life.life <= 900, `⑥ 총 템포 ${life.life}ms ≤ 900ms (항목 스펙 0.6~0.9초)`);
 
+    // ⑪ 🚨 **네이티브 92px 에서 '때렸다'가 실제로 밝은 픽셀로 존재하는가.** 확대 캡처에서 아무리
+    //    화려해도 네이티브에서 밝은 픽셀이 없으면 플레이어는 타격을 못 본다 — 1차 채점에서
+    //    "근백색 픽셀 1개, 이펙트로 볼 수 있는 픽셀 26개(창백한 살구색)"로 지목당한 항목이다.
+    //    정지 프레임과 접촉 프레임을 같은 크롭으로 찍어 **차이**로 센다(배경 크림색 242,239,230 은
+    //    임계 아래라 안 잡히지만, 차이로 재면 배경 가정 자체가 필요 없다).
+    const pxAt = async (pct) => {
+        await page.evaluate((pct) => {
+            const DUR = 720;
+            UI.cancelAnvilStrike(); UI._anvilBusy = false;
+            document.getElementById('equip-sheet').getBoundingClientRect();
+            UI.playAnvilStrike(() => {});
+            (UI._anvilTimers || []).forEach(clearTimeout); UI._anvilTimers = [];
+            document.getElementById('equip-sheet').getBoundingClientRect();
+            document.querySelectorAll('#equip-sheet, #equip-sheet *').forEach(n =>
+                n.getAnimations().forEach(a => { a.pause(); a.currentTime = DUR * pct / 100; }));
+        }, pct);
+        const box = await page.locator('.anvil-btn').boundingBox();
+        const clip = { x: Math.max(0, box.x - 6), y: Math.max(0, box.y - 20), width: box.width + 12, height: box.height + 24 };
+        const buf = await page.screenshot({ clip });
+        return page.evaluate(async (src) => {
+            const img = await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; });
+            const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+            const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+            const d = x.getImageData(0, 0, c.width, c.height).data;
+            let white = 0;
+            for (let i = 0; i < d.length; i += 4) if (d[i] >= 246 && d[i + 1] >= 243 && d[i + 2] >= 234) white++;
+            return white;
+        }, 'data:image/png;base64,' + buf.toString('base64'));
+    };
+    const restPx = await pxAt(45);          // 타격 사이 정지 구간
+    const hitPx = await pxAt(90);           // 3타 접촉
+    say(hitPx - restPx >= 20,
+        `⑪ 네이티브 92px 접촉 프레임의 근백색 픽셀 +${hitPx - restPx}개 (정지 ${restPx} → 접촉 ${hitPx}, 기준 +20 — 확대에서만 화려하면 소용없다)`);
+
     say(errs.length === 0, `⑤ 콘솔/페이지 에러 ${errs.length}건${errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''}`);
     await browser.close();
     console.log(fail ? `\n실패 ${fail}건` : '\n전부 통과');
