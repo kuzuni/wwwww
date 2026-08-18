@@ -4193,6 +4193,45 @@ body {
     100% { filter: none; }
 }
 
+/* ===== 주역 원형 와이프 (10차 비평가 B ⓶ [치명] "x75 신화가 x5 신화보다 약하다") =====
+   대량 소환은 마지막 신화 셀이 `×5`로 묶여 `_srHoldback`(qty===1 요구)이 false 가 되고,
+   그 결과 `.flash` 가 통째로 안 걸렸다 — 가장 비싼 뽑기에 정점이 없는 위계 역전.
+   ⚠️ 그렇다고 x75에 전 화면 섬광을 그대로 쓰면 **위쪽 20셀이 같이 하얗게 떠 등급 구분이
+      무너진다**. 그래서 주역 셀 중심(--fx/--fy)에서 번지는 **가산 원형 와이프**로 간다:
+      정점(70ms)에는 반경이 아직 주역 근처라 위쪽 셀을 안 먹고, 그 뒤 400ms 동안 퍼지며 죽는다.
+   z 25 — `.sr-flash` 와 같은 층(셀 40 아래)이라 가산 합성이 셀을 탁하게 죽이지 않는다. */
+/* 🚨 **작은 원으로는 정점이 안 만들어진다(첫 판이 그렇게 실패했다).** 처음엔 주역 셀 위에
+   62vw 원반을 두고 scale .18 → .42(70ms) → 2.6 으로 키웠는데, 정점 순간의 면적이 화면의
+   1.2%뿐이라 전역 휘도가 **+20.6%밖에** 안 올랐고 그마저 정점(+70ms)이 아니라 원이 다 퍼진
+   **+320ms**에 찍혔다 — 즉 '사건'이 아니라 여전히 서서히 밝아지는 배경이었다.
+   전역 휘도를 움직이는 건 결국 **면적**이다. 그래서 화면을 덮되(inset 0) 방사 중심을 주역
+   셀에 두고, 감쇠를 가파르게 깎아 **주역 근처만 세게 밝히고 위쪽은 얇게** 스치게 한다.
+   확대는 주역 중심(transform-origin)에서 일어나 '와이프'로 읽힌다.
+   ⚠️ 그리고 `.flash` 와 달리 **srgridlift 를 같이 걸지 않는다** — 그리드 전체 brightness 가
+      x75의 위쪽 20셀을 하얗게 뭉개는 주범이다(포화 픽셀로 감시한다). */
+.sr-wipe {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 25;
+    mix-blend-mode: screen;
+    transform-origin: var(--fx, 50%) var(--fy, 50%); transform: scale(.55);
+    background: radial-gradient(circle at var(--fx, 50%) var(--fy, 50%),
+                #fff 0%, var(--rc, #fff) 24%, rgba(255,255,255,.34) 52%, rgba(255,255,255,0) 82%);
+}
+/* 정점을 **70ms 안에** 세운다 — B 가 x5에서 잰 "60ms에 +111%"와 같은 급의 단일 프레임 상승이
+   있어야 '사건'으로 읽힌다. 450ms에 걸쳐 +32%는 상승이 아니라 서서히 밝아지는 배경이다. */
+#summon-result-modal.wipe .sr-wipe { animation: srwipe .47s cubic-bezier(.2,.7,.35,1) forwards; }
+@keyframes srwipe {
+    0%   { opacity: 0;   transform: scale(.55); }
+    15%  { opacity: .98; transform: scale(1.12); }  /* ≈70ms — 정점 */
+    100% { opacity: 0;   transform: scale(2.2); }
+}
+/* ⚠️ 여기에 `.wipe .sr-cell.heroic { animation: ... }` 같은 규칙을 **얹지 말 것**.
+   주역 셀의 animation 은 이미 `#summon-result-modal.hero .sr-cell.heroic.on`(srheropop)이
+   갖고 있고, animation 은 단축 속성이라 다른 규칙이 이기면 그걸 통째로 **교체**한다 —
+   `srpop`/`srheropop` 의 forwards 필이 사라져 셀이 그대로 투명해진다(앞 세션이 `srinhale`
+   에서 같은 자책골을 냈다). 밝기가 더 필요하면 셀이 아니라 그 **자식**에 얹을 것.
+   지금은 필요 없다: 가산 와이프가 그리드 뒤에서 정점을 만들고, 주역 셀 자체의 비트
+   (srheropop · .sr-beam · srheroring)는 이미 따로 돌고 있다. */
+
 .sr-title {
     position: relative; z-index: 1;
     font-size: 1.6rem; font-weight: 900; letter-spacing: .07em; color: #fff;

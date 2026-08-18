@@ -334,6 +334,7 @@ const UI = {
                 <div class="sr-shock echo"></div>
                 <div class="sr-idle"><i></i><i></i></div>
                 <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
+                <div class="sr-wipe" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-head"><div class="sr-title">${meta.icon} ${meta.title} ×${rolls.length}</div></div>
                 <div class="sr-body${stage ? ' stage' : ''}${stage && size === ' one' ? ' one' : ''}">
                     ${canopy ? `<div class="sr-canopy${canopyCompact ? ' compact' : ''}"><i></i><i></i><i></i></div>` : ''}
@@ -488,6 +489,16 @@ const UI = {
         m.classList.remove('charging');
         m.classList.add('hero');
         if (this._srHoldback) m.classList.add('flash'); // 화면 훑는 섬광은 뜸들인 단독 등장일 때만
+        // 🚨 10차 비평가 B ⓶ [치명] "x75 신화가 x5 신화보다 약하다 — 위계 역전"(가장 비싼 뽑기가
+        //    가장 약한 순간이 된다). **원인은 여기 한 줄이었다**: `_srHoldback` 은
+        //    `마지막 항목의 qty === 1` 을 요구하는데, 대량 소환은 같은 항목을 한 셀로 묶어
+        //    마지막 신화 셀이 `×5` 가 된다 → holdback=false → **`.flash` 가 아예 안 걸린다.**
+        //    실측: x5-hi `holdback:true` → classes `hero flash`, x75 `holdback:false` → `hero` 뿐.
+        //    B 가 잰 "x5 60ms에 +111% vs x75 450ms에 걸쳐 +32%"의 정체가 이 클래스 유무다.
+        // 그래서 홀드백이 없는 주역에도 정점을 준다. 단 **전 화면 섬광은 쓰면 안 된다** —
+        // x75는 위쪽 20셀이 같이 하얗게 떠 등급 구분이 무너진다(9차에 이미 겪은 실패다).
+        // 대신 **주역 셀 중심에서 번지는 가산 원형 와이프**라 정점 순간에는 반경이 아직 작다.
+        else m.classList.add('wipe');
     },
 
     // 연출 종료 — 힌트를 감추고 [확인]을 띄운다

@@ -41,13 +41,17 @@ const SAMPLER = `(() => {
     const cells = [...grid.querySelectorAll(':scope > .sr-cell')];
     const box = el => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, w: r.width, cy: (r.top + r.bottom) / 2 }; };
     const zOf = c => +getComputedStyle(c).zIndex || 0;
-    // '아직 비행 중인가' — srpop **진행률 76% 미만**(= 슬롯에 닿기 전)인 셀.
-    // ⚠️ 'srpop 이 running 인가'로 재면 안 된다: 76~100% 는 이미 슬롯에 도착해 **착지 오버슛만
-    //    정리하는 구간**이라 스케일이 1을 넘고, 그걸 비행으로 세면 '앞으로 오는 쪽이 더 작다'가
-    //    구조적으로 위반된다(처음에 그렇게 재서 x5 가 2건 위반으로 나왔다 — 자가 틀린 것이었다).
+    // '아직 비행 중인가' — srpop **진행률 56% 미만**. 56% 는 keyframes 상 '슬롯으로 감속' 마디다.
+    // ⚠️ 경계를 두 번 잘못 잡았다(다음 세션이 되풀이하지 말 것):
+    //    ㉠ 'srpop 이 running 인가'로 재면 76~100% 의 **착지 오버슛 구간**(translate 0, scale > 1)이
+    //       비행으로 세어져 '앞으로 오는 쪽이 더 작다'가 구조적으로 위반된다.
+    //    ㉡ 0.76 으로 좁혀도 56~76% 는 이미 경로의 34% 지점에서 슬롯으로 내려앉으며 스케일이
+    //       .72 → 1.1x 로 커지는 구간이라 같은 위반이 산발적으로 났다(x75 에서 실행마다 0~1건).
+    //    원근 단서가 성립해야 하는 건 **실제로 이동 중인 구간**뿐이다 — 도착 후 커지는 것은
+    //    오히려 올바른 착지 팝이다. 그래서 감속 마디(56%)를 경계로 쓴다.
     const flyingOf = c => c.getAnimations().some(a =>
         a.animationName === 'srpop' && a.playState === 'running' &&
-        (a.effect.getComputedTiming().progress || 0) < 0.76);
+        (a.effect.getComputedTiming().progress || 0) < 0.56);
     // 🚨 가시성은 **셀 자체**로 판정해야 한다. .sr-cell 기본값이 opacity:0 이고 보이게 만드는
     //    것은 오직 .on + srpop 의 forwards 필인데, opacity 는 상속되는 값이 아니라 합성되는
     //    값이라 자식(.sr-orbwrap)의 computed opacity 는 부모가 0이어도 1이다. 자식만 보고 재면
