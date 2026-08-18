@@ -5616,7 +5616,10 @@ const Scene3D = {
                     this.heroG.position.x = U.lerp(fromX, tx, lunge * 0.85);
                 }, endAtk);
                 if (motion === 'slam') setTimeout(() => {
-                    this.expandRing(new THREE.Vector3(Math.min(tx + 0.5, this.worldX + 1.2), 0, 0), new THREE.Color(0xffcc80), 1.2);
+                    // 앵커는 **표적 발밑**(x·z 모두). 예전엔 `tx+0.5` 라는 영웅 돌진 좌표에 z=0 고정이라, 깊이 레인에
+                    // 선 적에게는 링이 발밑에서 비껴 떨어졌다(실측 17.3px). 표적이 없을 때만 옛 좌표로 떨어진다.
+                    this.expandRing(m ? new THREE.Vector3(m.g.position.x, 0, m.g.position.z)
+                        : new THREE.Vector3(Math.min(tx + 0.5, this.worldX + 1.2), 0, 0), new THREE.Color(0xffcc80), 0.52);
                     this.shake(0.15);
                 }, 210);
                 swooshAt(motion === 'double' ? 90 : 160);
@@ -5648,7 +5651,10 @@ const Scene3D = {
         } else if (motion === 'slam') {    // 해머: 내려찍기 + 지면 충격파
             this.addAnim(0.42, k => { dash(k); swingArm(k, 1.7, 2.5); }, resetArm);
             setTimeout(() => {
-                this.expandRing(new THREE.Vector3(Math.min(tx + 0.5, this.worldX + 1.2), 0, 0), new THREE.Color(0xffcc80), 1.2);
+                // 앵커는 **표적 발밑**(x·z 모두). 예전엔 `tx+0.5` 라는 영웅 돌진 좌표에 z=0 고정이라, 깊이 레인에
+                // 선 적에게는 링이 발밑에서 비껴 떨어졌다(실측 17.3px). 표적이 없을 때만 옛 좌표로 떨어진다.
+                this.expandRing(m ? new THREE.Vector3(m.g.position.x, 0, m.g.position.z)
+                    : new THREE.Vector3(Math.min(tx + 0.5, this.worldX + 1.2), 0, 0), new THREE.Color(0xffcc80), 0.52);
                 this.swoosh(wcolor);
                 this.shake(0.15);
             }, 210);
@@ -6600,18 +6606,31 @@ const Scene3D = {
     },
 
     expandRing(pos, color, maxR) {
+        // ⚠️ **정지한 링은 충격파가 아니라 지면 얼룩이다.** 앞선 교정(0.45→0.28초, 첫 25%에 다 퍼짐)은
+        // 크기만 줄였을 뿐 문제의 형태를 안 바꿨다 — 실측(`probe-shock-ring.js`)에서 링은 **+67ms 에
+        // 만개한 뒤 +267ms 까지 200ms 동안 지름이 100.5px 에 못박힌 채** 알파만 빠졌다. 수명의 3/4을
+        // 안 움직이고 서 있었던 셈이라, 비평가 A #4 가 본 '얼룩'은 크기보다 이 **정체 구간**이었다.
+        // 그래서 ⑴ 끝까지 계속 퍼지는 감속 곡선으로 바꾸고 ⑵ 수명을 0.17초로 줄인다.
+        const under = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.085, 6, 24),
+            new THREE.MeshBasicMaterial({ color: 0x2a1a0e, transparent: true, opacity: 0.5 }));
         const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.06, 6, 24),
             new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }));
-        ring.rotation.x = -Math.PI / 2;
-        ring.position.set(pos.x, 0.12, pos.z);
-        this.scene.add(ring);
-        // 0.45초는 접촉 후 146ms 프레임에도 링이 만개한 채 남아 '충격파'가 아니라 지면 얼룩으로 읽혔다
-        // (비평가 3차 부록). 0.28초로 줄이고, 처음 25% 안에 다 퍼지게 앞당겨 **퍼지는 동작**이 보이게 한다.
-        this.addAnim(0.28, k => {
-            const g = Math.min(1, k * 4);               // 0→1을 첫 25%(70ms)에 — 튀어나오며 퍼진다
-            ring.scale.setScalar(0.35 + g * maxR * 2);
-            ring.material.opacity = 0.95 * (1 - k) * (1 - k);
-        }, () => { this.disposeTree(ring); this.scene.remove(ring); });
+        // 밝은 초원·모랫길 위의 연주황 링은 밝기가 배경과 겹쳐 안 뜬다(A #4 '저대비'). 채도·밝기를
+        // 더 올리면 화이트아웃 쪽으로 가므로, 대신 **어두운 밑링**을 한 겹 깔아 명도 경계를 만든다
+        // (데미지 숫자 판독성을 색이 아니라 명도 경계로 푼 것과 같은 처방 — 비평가 4차 ⓒ).
+        for (const r of [under, ring]) { r.rotation.x = -Math.PI / 2; r.position.set(pos.x, 0.12, pos.z); this.scene.add(r); }
+        under.position.y = 0.118;
+        this.addAnim(0.17, k => {
+            const g = 1 - Math.pow(1 - k, 2.4);         // 앞이 빠르되 **끝까지 멈추지 않는다**
+            const s = 0.35 + g * maxR * 2;
+            ring.scale.setScalar(s);
+            under.scale.setScalar(s * 1.04);
+            const a = (1 - k) * (1 - k);
+            ring.material.opacity = 0.95 * a;
+            under.material.opacity = 0.55 * a;
+        }, () => {
+            for (const r of [under, ring]) { this.disposeTree(r); this.scene.remove(r); }
+        });
     },
 
     beam(from, to, color) {
