@@ -30,10 +30,10 @@
         ink: '#000000', ink2: '#20232b',
         skin: '#ffa983', skinDk: '#ff8457', skinSh: '#c96c46',      // 원본 실측 살빛
         skinT: '#e0a06f', skinTDk: '#b87a4a',                        // 볕에 탄 살
-        skinD: '#8a5a3a', skinDDk: '#5f3b24',                        // 어두운 살
+        skinDDk: '#5f3b24',                                          // 볕에 탄 얼굴의 입선
         skinP: '#f6dcd0', skinPDk: '#d9b3a3',                        // 창백한 살(뱀파이어)
         blush: '#ff5b67',
-        white: '#ffffff', bone: '#efe6d2', grey: '#c9cfd6', greyDk: '#7d8590',
+        white: '#ffffff', grey: '#c9cfd6', greyDk: '#7d8590',
         steel: '#b6c2cf', steelDk: '#5b6875', slate: '#39424f', navy: '#1b2440',
         red: '#cc4027', redLt: '#e46b52', redDk: '#8f1f10',
         orange: '#ff880f', orangeDk: '#c05a00',
@@ -72,8 +72,6 @@
             if (!(neg && pos)) put(g, i, j, c);
         }
     };
-    // 왼쪽 절반을 오른쪽으로 반사 — 얼굴은 대칭이라 절반만 그리면 된다.
-    const M = (g) => { for (let j = 0; j < N; j++) for (let i = 0; i < N / 2; i++) g[j][N - 1 - i] = g[j][i]; };
     /* 실루엣 바깥 1칸 키라인. 원본이 이렇게 두르고 있어서 흰 타일 위에서 형태가 딱 끊긴다.
        ⚠️ 스냅샷을 떠 놓고 검사해야 한다 — 칠하면서 검사하면 방금 두른 키라인이 다시 씨앗이 돼
        테두리가 2칸, 3칸으로 계속 번진다. */
