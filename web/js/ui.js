@@ -5165,19 +5165,18 @@ const UI = {
             if (popupTime) popupTime.textContent = U.fmtTime(remain);
         }
         // 맵 위 이정표 오브젝트 카운트다운 (UI-SPEC 1번)
-        if (S.league) {
-            const t = document.getElementById('waypoint-league-time');
-            if (t) t.textContent = U.fmtTime((S.league.seasonEndsAt - U.now()) / 1000);
-        }
+        // (리그 보상 이정표는 삭제됐다 — 사용자 지시 2026-08-19 "메인 왼쪽 랭킹 버튼 없애기".
+        //  시즌 남은 시간은 PVP 탭 리그 시트의 시즌 바가 그대로 보여준다.)
         const mt = document.getElementById('waypoint-mystery-time');
         if (mt) mt.textContent = U.fmtTime(this.msUntilDailyReset() / 1000);
     },
 
     // 맵 위 이정표 아이콘 — `index.html` 은 정적 파일이라 IconGen 을 못 부른다.
     // 부팅 때 한 번 여기서 채운다(아이콘이 없으면 원래 이모지가 그대로 남는다).
-    // 원본(shot-042120 8배): 리그 = 회색 시상대 3단 + 주황 왕관 + 초록 시험관 /
-    // 미스터리 = 갈색 통나무 위 초록 덩어리 생물 + 머리 위 흰 `?` / 진행 패스 = 교차 검.
-    WP_ICON: { 'waypoint-league': 'wp_league', 'waypoint-mystery': 'wp_mystery', 'waypoint-pass': 'power' },
+    // 원본(shot-042120 8배): 미스터리 = 갈색 통나무 위 초록 덩어리 생물 + 머리 위 흰 `?` /
+    // 진행 패스 = 교차 검. (리그 = 회색 시상대 3단 + 주황 왕관 이었는데, 그 '시상대+왕관'이
+    // 곧 랭킹 버튼으로 읽혀 사용자 지시 2026-08-19 로 메인에서 삭제했다 — `wp_league` 드로어도 함께 폐기.)
+    WP_ICON: { 'waypoint-mystery': 'wp_mystery', 'waypoint-pass': 'power' },
     paintWaypointIcons() {
         for (const id in this.WP_ICON) {
             const box = document.querySelector('#' + id + ' .waypoint-icon');
@@ -5221,11 +5220,6 @@ const UI = {
         const next = new Date(); next.setHours(9, 0, 0, 0);
         if (next <= new Date()) next.setDate(next.getDate() + 1);
         return next - Date.now();
-    },
-    onWaypointLeague() {
-        League.ensure();
-        this.renderLeagueRewards();
-        this.showModal(this.els.leagueModal);
     },
     onWaypointMystery() { this.openStub('미스터리 상자', '특별 이벤트 상자는 준비 중입니다.', 'wp_mystery'); },
 };

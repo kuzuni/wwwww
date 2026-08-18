@@ -23,9 +23,8 @@
         <button id="offline-btn">💤<span>오프라인</span></button>
 
         <!-- 맵 위 이정표 오브젝트 (UI-SPEC 1번): 리그 보상 상자 / 미스터리 상자 / 진행 패스 진입점 -->
-        <button id="waypoint-league" class="waypoint" title="플래티넘 리그 보상" onclick="UI.onWaypointLeague()">
-            <span class="waypoint-icon">🎁</span><span id="waypoint-league-time" class="waypoint-time"></span>
-        </button>
+        <!-- 리그 보상(시상대+왕관) 이정표는 삭제했다 — 사용자 지시 2026-08-19 "메인에 왼쪽에 랭킹 버튼 없애기".
+             리그 보상 팝업은 PVP 탭 → 리그 시트의 시즌 바(UI.openLeagueRewards)로 그대로 들어간다. -->
         <button id="waypoint-mystery" class="waypoint" title="미스터리 상자" onclick="UI.onWaypointMystery()">
             <span class="waypoint-icon">❓</span><span id="waypoint-mystery-time" class="waypoint-time"></span>
         </button>

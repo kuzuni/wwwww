@@ -177,7 +177,8 @@ body {
     background: rgba(0,0,0,.65); color: #ffd54f; font-size: .6rem; font-weight: 800;
     border-radius: .4rem; padding: 0 .35rem; white-space: nowrap;
 }
-#waypoint-league { top: 24%; left: 3%; }
+/* #waypoint-league(리그 보상=시상대+왕관)은 삭제됐다 — 사용자 지시 2026-08-19 "메인 왼쪽 랭킹 버튼 없애기".
+   남은 이정표는 오른쪽 둘뿐이라 왼쪽 배치 규칙도 같이 걷어낸다. */
 #waypoint-mystery { top: 21%; right: 3%; }
 #waypoint-pass { top: 36%; right: 4%; }
 #waypoint-pass .waypoint-icon { font-size: 1.4rem; }
