@@ -1741,7 +1741,17 @@ const UI = {
                     <stop offset=".7" stop-color="#ffb84a" stop-opacity=".38"/>
                     <stop offset="1" stop-color="#ff8a1e" stop-opacity="0"/>
                 </radialGradient>
+                <!-- 잔열 — 타격 직후 상판에 남아 식는 열. 이게 없으면 타격 사이(170~410·410~650ms)와
+                     3타 뒤 꼬리(720~900ms)가 **완전히 식은 정지 화면**이 된다. 대장간에서 두 타 사이는
+                     가장 밝은 시간인데 거기가 비어 있으면 세 번의 타격이 서로 무관한 사건으로 읽힌다. -->
+                <radialGradient id="hmr-heat" cx=".5" cy=".5" r=".5">
+                    <stop offset="0" stop-color="#ffd88a" stop-opacity=".85"/>
+                    <stop offset=".45" stop-color="#ff8c2a" stop-opacity=".5"/>
+                    <stop offset="1" stop-color="#ff5a00" stop-opacity="0"/>
+                </radialGradient>
             </defs>`
+            // 잔열은 가장 아래 — 상판에 눌어붙은 열이라 불티·망치보다 뒤다
+            + [0, 1, 2].map(h => `<ellipse class="af-heat t${h}" cx="${cx}" cy="${cy}" rx="15" ry="4.4"/>`).join('')
             // 92px 버튼에서 임팩트를 가장 싸게 파는 수단이 2~5프레임 백색 플래시인데 그게 아예 없었다
             + [0, 1, 2].map(h => `<ellipse class="af-flash f${h}" cx="${cx}" cy="${cy}" rx="17" ry="5.4"/>`).join('')
             // rx/ry는 `scale(1)`에서 곧바로 읽히는 크기로 잡는다 — 예전엔 scale(.35)로 시작해

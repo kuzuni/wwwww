@@ -850,6 +850,24 @@ body {
     30%  { opacity: 1; transform: scale(var(--affs, 1)); }
     100% { opacity: 0; transform: scale(calc(var(--affs, 1) * 1.9)); }
 }
+/* 잔열 — 타격 직후 상판에 남아 서서히 식는다. 플래시(0.1s)·섬광(0.075s)·링(0.2s)이 전부
+   250ms 안에 사라져 타격 사이 구간의 상판이 **완전히 식은 그림**이었다(비평가: 대장간에서
+   두 타 사이는 가장 밝은 시간이다). 수명 270ms 로 다음 타격까지 다리를 놓고, 3타 잔열이
+   630+270 = 900ms 에 끝나 오버레이 수명과 정확히 맞물린다(그 앞 120ms 정지 화면도 이걸로 찬다).
+   ⚠️ 270ms 를 넘기면 3타 잔열이 오버레이보다 오래 살아 잘려 나간다 — probe ⑥ 이 그걸 잡는다. */
+.anvil-fx .af-heat {
+    fill: url(#hmr-heat); mix-blend-mode: screen;
+    transform-box: fill-box; transform-origin: center;
+    opacity: 0; animation: afheat .27s cubic-bezier(.1,.4,.3,1) forwards;
+}
+.anvil-fx .af-heat.t0 { animation-delay: .17s; }
+.anvil-fx .af-heat.t1 { animation-delay: .41s; --afhs: 1.15; }
+.anvil-fx .af-heat.t2 { animation-delay: .63s; --afhs: 1.45; }
+@keyframes afheat {
+    0%   { opacity: .95; transform: scale(calc(var(--afhs, 1) * .55)); }
+    22%  { opacity: .8;  transform: scale(var(--afhs, 1)); }
+    100% { opacity: 0;   transform: scale(calc(var(--afhs, 1) * 1.15)); }
+}
 /* 접지 그림자 — 머리 밑에 어두운 타원이 하나도 없어 머리가 상판에 얹혀 있는지 그 앞에 떠 있는지
    구분이 안 됐다(비평가: 접촉 3프레임 어디에도 접지 단서가 없다). 다가올 때 작고 옅게,
    접촉 프레임에 가장 진하고 넓게 — 이 한 겹이 '닿았다'를 픽셀 몇 개로 판다. */
@@ -3977,6 +3995,24 @@ body {
     mask-image: linear-gradient(rgba(0,0,0,0), #000 72%);
 }
 .sr-orbwrap { position: relative; z-index: 2; width: 100%; aspect-ratio: 1; border-radius: 50%; transform: scale(var(--sz)); }
+/* 잔열 — 타격 직후 상판에 남아 서서히 식는다. 플래시(0.1s)·섬광(0.075s)·링(0.2s)이 전부
+   250ms 안에 사라져 타격 사이 구간의 상판이 **완전히 식은 그림**이었다(비평가: 대장간에서
+   두 타 사이는 가장 밝은 시간이다). 수명 270ms 로 다음 타격까지 다리를 놓고, 3타 잔열이
+   630+270 = 900ms 에 끝나 오버레이 수명과 정확히 맞물린다(그 앞 120ms 정지 화면도 이걸로 찬다).
+   ⚠️ 270ms 를 넘기면 3타 잔열이 오버레이보다 오래 살아 잘려 나간다 — probe ⑥ 이 그걸 잡는다. */
+.anvil-fx .af-heat {
+    fill: url(#hmr-heat); mix-blend-mode: screen;
+    transform-box: fill-box; transform-origin: center;
+    opacity: 0; animation: afheat .27s cubic-bezier(.1,.4,.3,1) forwards;
+}
+.anvil-fx .af-heat.t0 { animation-delay: .17s; }
+.anvil-fx .af-heat.t1 { animation-delay: .41s; --afhs: 1.15; }
+.anvil-fx .af-heat.t2 { animation-delay: .63s; --afhs: 1.45; }
+@keyframes afheat {
+    0%   { opacity: .95; transform: scale(calc(var(--afhs, 1) * .55)); }
+    22%  { opacity: .8;  transform: scale(var(--afhs, 1)); }
+    100% { opacity: 0;   transform: scale(calc(var(--afhs, 1) * 1.15)); }
+}
 /* 접지 그림자 — 구체 내부 그라디언트로는 읽히지 않아 구 밖에 눌린 타원으로 깐다 */
 .sr-orbwrap::before {
     content: ''; position: absolute; left: 13%; right: 13%; bottom: -6%; height: 13%;
