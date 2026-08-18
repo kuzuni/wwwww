@@ -362,7 +362,6 @@ const ProChar = {
             m.color.setHex(o[t]);
             m.needsUpdate = true;
         }
-        this.refreshOutline();
     },
     // 니어블랙 가죽/고무 — 텍스처 맵은 밝은 베이스(#c9b8a6)를 곱하므로 쓰지 않고, 범프만 얹어 질감을 남긴다.
     deepMat(o) {
@@ -391,132 +390,15 @@ const ProChar = {
         }
     },
 
-    // ---------- 값 구조 ㉠ 두 번째 갈래: 인버티드 헐 아웃라인 ----------
-    // 비평가 2인이 독립적으로 처방한 3갈래(하이라이트 클리핑 / 아웃라인 / 접촉 AO) 중 **아웃라인만 미착수**였다.
-    // ⚠️ 이미 있는 것과 헷갈리지 말 것: `Scene3D.applyRimLight` 의 '다크 컨투어'는 프레넬이라
-    //    **실루엣 안쪽 가장자리만** 어둡게 한다 — 캐릭터 면적이 늘지 않으므로 배경을 잠식하지 못한다.
-    //    인버티드 헐은 실루엣 **바깥**에 어두운 화소를 새로 만들어, 밝은 초원 배경을 그만큼 지운다.
-    //    둘은 상충하지 않고 (바깥 테두리 + 안쪽 감쇠) 겹쳐서 쓴다.
-    //
-    // 구현이 '스케일 1.02~1.03'(비평가 문구)이 아닌 이유 — 이 리그의 파츠는 캡슐·타원체를 **비균등 스케일**로
-    // 늘려 만든 것이라(부츠 0.9/0.55/1.55 등) 로컬 스케일 배수를 쓰면 굵은 축만 테두리가 두꺼워진다.
-    // 대신 **뷰 공간에서 법선 방향으로 일정량 밀어낸다**(normalMatrix 가 비균등 스케일을 정규화해 준다).
-    // 카메라 거리에 비례(-mvPosition.z)해 밀어 화면상 굵기를 일정하게 유지하되, 근접 컷/원거리에서
-    // 테두리가 폭주하지 않도록 거리 배수를 [0.6, 6.0] 으로 클램프한다.
-    //
-    // 재질을 ShaderMaterial 이 아니라 **MeshBasicMaterial + onBeforeCompile** 로 만드는 이유:
-    // 생 ShaderMaterial 은 톤매핑·sRGB 인코딩·포그를 전부 직접 넣어야 하고(빠뜨리면 테두리만 색공간이
-    // 달라져 회색으로 뜬다), r128 에서 그 청크 이름이 빌드마다 다르다. Basic 은 그걸 전부 공짜로 얻는다.
-    //   w  : 뷰공간 밀어내기 폭(카메라 1유닛 거리 기준)
-    //   k  : 테두리 색 = 원 재질 albedo × k (비평가 처방 '베이스×0.25' — 실측으로 재조정)
-    //   minR: 이 반지름보다 작은 파츠는 건너뛴다(리벳·눈동자 등 — 테두리가 디테일을 덮어 얼룩이 된다)
-    // 채택값의 근거 (`probe-outline.js` 대응 비교 — 카메라·포즈 고정, 셸 visible 만 토글):
-    //   OFF ........................ delta 25.2 · dark 26.5%
-    //   w=0.010 k=0.04 ............. 41.3 (+16.1) · 40.8%
-    //   w=0.014 k=0.04 ............. 46.0 (+20.8) · 44.6%
-    //   w=0.014 k=0.02 ............. 49.0 (+23.8) · 45.5%
-    //   w=0.018 k=0.02 ............. 52.4 (+27.2) · 48.6%
-    // 수치만 보면 두껍고 검을수록 이기지만 **w=0.018 부터 투구 바이저 슬릿·검 코등이 테두리에 먹힌다**
-    // (`shot-outline.js` 육안 판독). 굵기는 형태를 정의하는 선에서 멈추고 나머지 델타는 접촉 AO(㉡)로 번다.
-    OUTLINE: { w: 0.014, k: 0.03, minR: 0.02 },
-    _outlineMats: [],
-    _outlineMat(src) {
-        const m = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
-        const u = { uOutlineW: { value: this.OUTLINE.w } };
-        m.onBeforeCompile = (shader) => {
-            shader.uniforms.uOutlineW = u.uOutlineW;
-            shader.vertexShader = 'uniform float uOutlineW;\n' + shader.vertexShader.replace(
-                '#include <project_vertex>', [
-                    'vec4 mvPosition = modelViewMatrix * vec4( transformed, 1.0 );',
-                    'vec3 oN = normalize( normalMatrix * normal );',        // 비균등 스케일 정규화
-                    'mvPosition.xyz += oN * uOutlineW * clamp( -mvPosition.z, 0.6, 6.0 );',
-                    'gl_Position = projectionMatrix * mvPosition;',
-                ].join('\n'));
-        };
-        m.userData.src = src;
-        m.userData.u = u;
-        this._syncOutline(m);
-        return m;
-    },
-    _syncOutline(m) {
-        m.color.copy(m.userData.src.color).multiplyScalar(this.OUTLINE.k);
-        m.userData.u.uOutlineW.value = this.OUTLINE.w;
-    },
-    // 틴트(시대색)·톤 스윕으로 원 재질 색이 바뀌면 테두리 색도 따라가야 한다 — 안 그러면 장비 갈아입을 때
-    // 몸만 색이 변하고 테두리는 옛 색으로 남아 '색 번짐'으로 읽힌다.
-    refreshOutline() { for (const m of this._outlineMats) this._syncOutline(m); },
-    // 스윕 도구용 — probe 가 폭·농도를 갈아가며 델타를 잰다.
-    setOutline(o) { Object.assign(this.OUTLINE, o); this.refreshOutline(); },
-    // 주어진 서브트리의 자격 있는 메시마다 뒷면 셸을 **자식으로** 붙인다(자식이라 리그 애니메이션을 그대로 따라간다).
-    // bucket: 재생성되는 서브트리(투구·무기는 장비를 갈 때마다 통째로 다시 만들어진다)의 이름.
-    //   같은 bucket 으로 다시 부르면 이전 재질을 레지스트리에서 빼고 dispose 한다 —
-    //   안 그러면 장비를 갈아입을 때마다 죽은 재질이 쌓여 refreshOutline() 이 매번 더 느려진다.
-    // bucket 이 null 이면 **레지스트리에 등록하지 않는다** — 적처럼 스폰/디스포즈를 반복하는 대상용이다
-    //   (색이 틴트로 안 바뀌므로 refreshOutline 대상일 필요가 없고, 등록하면 죽은 재질이 무한히 쌓인다).
-    addOutline(rootObj, bucket) {
-        const track = bucket !== null;
-        bucket = bucket || 'rig';
-        const B = this._outlineB || (this._outlineB = {});
-        if (track) {
-            for (const m of B[bucket] || []) {
-                const i = this._outlineMats.indexOf(m);
-                if (i >= 0) this._outlineMats.splice(i, 1);
-                m.dispose();
-            }
-        }
-        const mine = track ? (B[bucket] = []) : [];
-        rootObj.updateWorldMatrix(true, true);
-        // 두 번 훑는다: ①에서 서브트리 전체의 '가장 큰 파츠'와 '자격 있는 것 중 가장 큰 파츠'를 같이 잰다.
-        const sv = new THREE.Vector3();
-        // 반지름은 **월드 스케일을 곱해서** 잰다 — 이 리그는 단위 프리미티브를 mesh.scale 로 늘여 만든 파츠가
-        // 많아(부츠 0.9/0.55/1.55 등) 지오메트리 반지름만 보면 실제 크기 순서가 뒤집힌다.
-        const radiusOf = (o) => {
-            const g = o.geometry;
-            if (!g || !g.attributes || !g.attributes.position) return 0;
-            if (!g.boundingSphere) g.computeBoundingSphere();
-            o.getWorldScale(sv);
-            return g.boundingSphere.radius * Math.max(sv.x, sv.y, sv.z);
-        };
-        const eligible = (o) => {
-            if (!o.isMesh || o.userData.isOutline || o.userData.noOutline) return false;
-            const mat = Array.isArray(o.material) ? o.material[0] : o.material;
-            if (!mat || mat.transparent || mat.side === THREE.DoubleSide) return false; // 망토·반투명 몸통·데칼 제외
-            if (!(mat.isMeshStandardMaterial || mat.isMeshPhongMaterial || mat.isMeshLambertMaterial)) return false;
-            const g = o.geometry;
-            return !!(g && g.attributes && g.attributes.normal); // 법선 없는 지오메트리는 밀 방향이 없다
-        };
-        let biggest = 0, biggestOk = 0;
-        rootObj.traverse(o => {
-            if (!o.isMesh || o.userData.isOutline) return;
-            const r = radiusOf(o);
-            if (r > biggest) biggest = r;
-            if (r > biggestOk && eligible(o)) biggestOk = r;
-        });
-        // ⚠️ 몸통이 반투명한 개체(슬라임 등)를 통째로 건너뛴다.
-        // 안 그러면 몸통은 테두리가 없는데 **눈알만** 굵은 검은 링을 두른 상태가 되어, 아웃라인이 없느니만
-        // 못한 그림이 된다(enemy-slime.png 에서 실제로 그렇게 나왔다). 판정: 서브트리에서 가장 큰 파츠가
-        // 자격 미달이면(= 몸통이 반투명) 그 개체는 아웃라인 대상이 아니다.
-        if (biggest > 0 && biggestOk < biggest * 0.6) return 0;
-        const targets = [];
-        rootObj.traverse(o => {
-            if (!eligible(o)) return;
-            if (radiusOf(o) < this.OUTLINE.minR) return;
-            targets.push(o);
-        });
-        for (const o of targets) {
-            const src = Array.isArray(o.material) ? o.material[0] : o.material;
-            const mat = this._outlineMat(src);
-            if (track) { this._outlineMats.push(mat); mine.push(mat); }
-            const sh = new THREE.Mesh(o.geometry, mat);
-            sh.userData.isOutline = true;
-            // 공유 지오메트리 표시를 그대로 물려받는다 — 안 물려주면 Scene3D.disposeTree 가 셸을 타고
-            // **템플릿 지오메트리를 해제**해 같은 지오메트리를 쓰는 다른 인스턴스가 통째로 사라진다.
-            if (o.userData.sharedGeometry) sh.userData.sharedGeometry = true;
-            sh.castShadow = false; sh.receiveShadow = false;
-            o.add(sh);
-        }
-        return targets.length;
-    },
+    // ---------- 인버티드 헐 아웃라인은 **삭제됐다** (사용자 지시 2026-08-18 `remove-3d-black-outline`) ----------
+    // "캐릭터들이랑 장비 검정색 아웃라인한 거 없애라." — 비평가가 값 구조 처방으로 넣었던 BackSide 검은 셸
+    // (`OUTLINE`/`addOutline`/`refreshOutline`/`setOutline`, 폭·농도 스윕 도구 `probe-outline.js`·`shot-outline.js`)을
+    // 생성 경로째 걷어냈다. **되살리지 말 것** — 사용자가 명시적으로 번복한 연출이다.
+    // ⚠️ 같이 알아둘 것: ⑴ 실루엣 분리는 `Scene3D.applyRimLight` 의 프레넬 '다크 컨투어'가 **남아 있다**
+    //    (그건 실루엣 안쪽만 어둡게 해 배경을 잠식하지 않으므로 이 지시의 대상이 아니다).
+    //    ⑵ 2D 슬롯 아이콘의 검정 아웃라인(`--slot-outc`, css)은 **사용자가 따로 요청한 것**이라 그대로 둔다.
+    //    ⑶ `userData.isOutline` 필터는 여러 probe·`applyRimLight` 에 남아 있지만 이제 매칭되는 오브젝트가
+    //       없어 무해하다(다른 스트림과 충돌을 줄이려 건드리지 않았다).
 
     // 그라디언트 환경 큐브맵 — 금속 반사가 '고무'가 아니라 '강철'로 읽히게 하는 핵심.
     // 저대비 민짜 그라디언트는 반사 '내용물'이 없어 금속이 새틴으로 뭉개짐(비평가 6.8) — 태양 핫스팟+어두운 지면으로 대비 확보
@@ -1452,10 +1334,6 @@ const ProChar = {
         for (const k in R.bones) R.base[k] = rec(R.bones[k]);
         R.base.root = rec(root);
 
-        // 인버티드 헐 아웃라인 — 베이스 포즈를 기록한 **뒤에** 붙인다(셸은 본이 아니라 메시의 자식이라
-        // R.bones/R.base 와 무관하지만, 순서를 바꾸면 traverse 대상이 늘어 의도치 않은 셸의 셸이 생긴다).
-        R.outlineCount = this.addOutline(root);
-
         R.update = (dt) => this.update(R, dt);
         R.play = (cands, once, timeScale, onDone) => this.play(R, cands, once, timeScale, onDone);
         return R;
@@ -1821,7 +1699,6 @@ const ProChar = {
             if (a) R.shieldFaceMat.color.setHex(RARITY_HEX[a.rarity]).offsetHSL(0, -0.08, -0.14);
             else R.shieldFaceMat.color.setHex(0x3f5a74);
         }
-        this.refreshOutline(); // 시대색이 바뀌었으니 테두리 색도 따라간다
         // 헬멧 착용 시 머리카락 숨김 (기존 helmetG 시스템이 머리에 붙음)
         if (R.hairMesh) R.hairMesh.visible = !equipment.helmet;
         // 풀커버 투구(visor/mask/tech)는 이목구비도 숨김 — 코/눈이 투구 밖으로 뚫고 나오던 문제 (비평가 1위 결함)

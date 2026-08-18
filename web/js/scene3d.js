@@ -2821,13 +2821,6 @@ const Scene3D = {
             this.clearGroup(this.armorExtraG);
             this.armorExtraG.add(this.makeArmorExtras(style, c, ec, a ? this.ageGearMats(a.age, itemNameOf(a)) : null));
         }
-        // 인버티드 헐 아웃라인 — 투구·무기는 리그와 달리 장비를 갈 때마다 통째로 다시 만들어지므로
-        // 여기서 매번 다시 씌운다. 안 씌우면 몸통만 테두리가 있고 머리·검은 없는 상태가 되어
-        // 오히려 '머리가 떠 있다'로 읽힌다(w=0.022 캡처에서 육안 확인).
-        if (this.heroRig) {
-            ProChar.addOutline(this.helmetG, 'helmet');
-            ProChar.addOutline(this.weaponG, 'weapon');
-        }
         this.tintHero(); // 리그 파츠별 색 오버레이 동기화
         // 장비 교체 연출: 반짝 + 상승 파티클
         if (withFlash) {
@@ -6016,7 +6009,7 @@ const Scene3D = {
         // ── AO 링: 파츠 경계에 얹는 접촉 그림자 (진행 메모 ⓐ '영웅엔 있고 적엔 없다') ──
         // 적은 구·원기둥을 **겹쳐 놓기만** 해서 목·허리·어깨 소켓·갓 밑에 이음새가 그대로 드러났다.
         // 영웅 리그(`ProChar` 의 aoRing)가 쓰는 것과 같은 기법을 종별 이음새로 옮긴다.
-        // ⚠️ ⑴ 재질이 **transparent Basic** 이라 `ProChar.addOutline`·`applyRimLight` 가 자동으로
+        // ⚠️ ⑴ 재질이 **transparent Basic** 이라 `applyRimLight` 가 자동으로
         //    건너뛴다(둘 다 transparent / Standard·Phong 조건에서 제외) — 얇은 링에 검은 외곽선이
         //    둘리거나 림라이트가 먹는 사고가 원천 차단된다. 재질 종류를 바꾸면 그 보호가 사라진다.
         //    ⑵ **flashMats 에 넣지 않는다** — 피격 플래시에 그림자까지 하얘지면 때린 순간에만
@@ -6838,10 +6831,6 @@ const Scene3D = {
         m.g.rotation.y = -0.55; // 영웅 방향(-x)으로 3/4 자세
         this.setShadow(m.g, true);
         this.applyRimLight(m.g);
-        // 영웅과 같은 인버티드 헐 아웃라인 — 한쪽만 걸면 같은 화면에 렌더 스타일이 두 개가 되어
-        // 오히려 '적만 납작하다'로 읽힌다(hero-attack-mid 캡처에서 육안 확인).
-        // bucket=null: 적은 스폰/디스포즈를 반복하므로 레지스트리에 등록하지 않는다.
-        ProChar.addOutline(m.g, null);
         this.scene.add(m.g);
         // 적 바는 **적대 빨강**으로 못 박는다 — 영웅 바와 같은 초록/노랑/빨강 램프를 쓰면 둘이
         // 같은 색이라 피아 구분이 안 됐다(비평가 4차 ⓓ). 남은 체력은 어차피 **바 길이**가 말해 주므로
@@ -7257,7 +7246,8 @@ const Scene3D = {
     //    날개막 Lambert 계열이 통째로 누락). 여기서 서브트리를 직접 훑어 빠짐을 없앤다.
     // 두 갈래로 나눈다:
     //   lit  = 조명 받는 몸 재질(Standard·Lambert) → emissive 가산
-    //   out  = **인버티드 헐 외곽선 셸**(ProChar.addOutline 이 파츠마다 붙인 BackSide 검은 셸) → 색 승격
+    //   out  = 인버티드 헐 외곽선 셸 → 색 승격. **아웃라인은 2026-08-18 사용자 지시로 삭제됐다**
+    //          (`remove-3d-black-outline`) — 이 분류는 이제 매칭되는 오브젝트가 없다(무해해서 남겨 둠).
     // 외곽선을 같이 태우는 게 이 함수의 핵심이다 — 아래 flashMesh 주석의 실측 근거 참고.
     // ⚠️ 캐시는 **메시 수로 무효화**한다. 영웅은 장비를 갈 때마다 투구·무기 서브트리가 통째로 다시
     //    만들어지고 외곽선 셸도 새 재질로 갈린다 — 루트 객체(heroG)는 그대로라 루트만 보고 캐시하면
