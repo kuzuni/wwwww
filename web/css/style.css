@@ -1193,7 +1193,9 @@ body {
     30%  { opacity: calc(var(--afms, 1) * .6); transform: translateY(-2px) scale(calc(var(--afms, 1) * .8)); }
     100% { opacity: 0;                        transform: translateY(-9px) scale(calc(var(--afms, 1) * 1.5)); }
 }
-.anvil-btn small { font-size: .8rem; font-weight: 900; color: var(--pp-ink); }
+/* 해머 수량 원본 실측(y741 단면): 흰 획 + 검정 키라인(모루 어두운 받침 위에 얹힌 잉크) —
+   민무늬 검정 글자였던 클론과 달리 어떤 바탕에서도 뜬다. */
+.anvil-btn small { font-size: .8rem; font-weight: 900; color: #fff; -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill; }
 .forge-actions { display: flex; gap: .3rem; }
 /* 두 버튼의 라벨은 마크업에서 `<br>` 로 줄을 직접 나눈다(`대장간<br>레벨 N`, `자동🔄<br>ON`) —
    자동 줄바꿈은 처음부터 의도가 아니었다. 앱이 작아지면 글자는 rem 으로 같이 줄지만 검정 테두리는
@@ -2786,12 +2788,17 @@ body {
 }
 
 /* ---- 장비 시트: 밝은 바탕 + 진한 장비 카드 ---- */
-#equip-sheet { background: var(--pp-sheet); border-top: var(--ol3) solid var(--pp-line); }
+/* 원본 shot-042120 실측(aaa-skin ⑰): 장비 시트 바탕은 웜 종이톤이 아니라 중성 **#e7e7e7**
+   (x30/x470 y540 · x30 y700 세 점 동일). --pp-sheet(#f2f0ea)는 승천 팝업 서브카드에만 남는다. */
+#equip-sheet { background: #e7e7e7; border-top: var(--ol3) solid var(--pp-line); }
 /* 장비 셀 룩은 .equip-cell 기본(원본 shot-042120 정합)이 담당 — 시트별 재정의 제거 */
 #equip-sheet .info-btn { background: var(--pp-paper); border: var(--ol2) solid var(--pp-line); color: var(--pp-ink); }
 #equip-sheet .anvil-btn { border: none; }
 #equip-sheet .forge-time { color: #6d6a63; }
-#chat-preview { background: var(--pp-sheet); color: #3c3a35; border-top: var(--ol2) solid var(--pp-line); }
+/* 채팅 미리보기 띠 원본 실측 **#8a8a8a**(y765~804 전 구간) — 시트보다 한 단 어두운 별도 면이다.
+   두 줄 잉크는 둘 다 진회흑(획 최암부 #1b1b1b, 1줄 y778 · 2줄 y788). */
+#chat-preview { background: #8a8a8a; color: #1b1b1b; border-top: var(--ol2) solid var(--pp-line); }
+#chat-preview .chat-preview-msg { color: #2e2e2e; }
 
 /* ---- 장비 상세 팝업 (원본 비율: 카드폭 82%, 아이콘 18%, 회색 패널 93%) ---- */
 /* .item-detail은 기술 노드 팝업(#detail-modal)과 장비 시대 상세(#forge-item-modal) 둘이 공유하는데
