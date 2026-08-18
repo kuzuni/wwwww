@@ -134,9 +134,12 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
 
             // ── ④ 자전거 핸들바 ↔ 영웅 몸 최단거리 ──────────────────────────────
             if (name === 'Bike') {
-                // 핸들바·그립은 y가 가장 높은 박스 3개(바 1 + 그립 2)
-                const bars = [];
-                Scene3D.mountGroup.traverse(o => {
+                // ⚠️ 예전엔 '로컬 y가 0.42보다 높은 박스'로 바를 찾았는데, 바가 **그룹 안으로 들어가면서**
+                //    로컬 y가 0이 돼 하나도 안 잡혔다(worst=null → 이 probe가 통째로 터졌다).
+                //    이제 씬이 표시해 둔 구조(userData.bar)를 먼저 쓰고, 없을 때만 옛 스캔으로 되돌아간다.
+                const barData = Scene3D.mountGroup.userData.bar;
+                const bars = barData ? [barData.barMesh].concat(barData.grips).filter(Boolean) : [];
+                if (!bars.length) Scene3D.mountGroup.traverse(o => {
                     if (o.isMesh && o.geometry.type === 'BoxGeometry' && o.position.y > 0.42) bars.push(o);
                 });
                 // 영웅 몸: 골반·무릎·발·몸통 을 점으로 두고 각 바 박스와의 거리
@@ -212,7 +215,8 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
             const t = c.torso;
             const ok = c.worst && c.worst.d > 0.02 && (!t || t.gap === null || t.gap > 0);
             if (!ok) bad++;
-            console.log(`  ④ 핸들바(${c.bars}개) ↔ 다리·골반 최단거리 ${c.worst.d} (${c.worst.pt}${c.worst.inside ? ', 관통' : ''})`
+            // worst 가 null 이면 '통과'가 아니라 **바를 못 찾은 것**이다 — 조용히 넘기지 말고 그렇게 찍는다
+            console.log(`  ④ 핸들바(${c.bars}개) ↔ 다리·골반 최단거리 ${c.worst ? c.worst.d : '측정 실패(바를 못 찾음)'} ${c.worst ? `(${c.worst.pt}${c.worst.inside ? ', 관통' : ''})` : ''}`
                         + (t ? ` / 흉갑(반지름 ${t.rad}) 표면 여유 ${t.gap === null ? '해당 높이 없음' : t.gap}` : '') + `  ${ok ? 'OK' : '✗'}`);
         }
     }

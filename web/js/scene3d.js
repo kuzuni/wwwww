@@ -2291,6 +2291,28 @@ const Scene3D = {
     gripOf(wtypeId) {
         return this.WEAPON_GRIP[wtypeId] || this.WEAPON_GRIP[weaponShape(wtypeId)] || this.WEAPON_GRIP.sword;
     },
+    // 방패를 등에 메기/내리기 — 핸들바를 잡은 손 위에 방패가 덮이면 파지가 화면에서 사라진다.
+    // 원래 자리(왼손 소켓)의 변환을 첫 호출 때 기억해 두고 되돌린다(장비 교체로 리그가 새로 만들어지면
+    // 기억도 같이 버린다 — 다른 리그의 좌표를 물려주면 방패가 엉뚱한 데 붙는다).
+    _shieldHome: null,
+    slingShield(on) {
+        const rig = this.heroRig, sh = rig && rig.shield;
+        if (!sh) return;
+        if (!this._shieldHome || this._shieldHome.rig !== rig) {
+            this._shieldHome = { rig, parent: sh.parent, pos: sh.position.clone(), rot: sh.rotation.clone() };
+        }
+        const home = this._shieldHome;
+        if (on) {
+            if (sh.parent !== rig.bones.spine) rig.bones.spine.add(sh);
+            sh.position.set(-0.02, 0.14, -0.20);     // 등 한가운데, 망토 위로 살짝 띄워 z-fighting 방지
+            sh.rotation.set(0.15, 0, 0.25);          // 등판에 비스듬히 걸친 각
+        } else if (sh.parent !== home.parent) {
+            home.parent.add(sh);
+            sh.position.copy(home.pos);
+            sh.rotation.copy(home.rot);
+        }
+    },
+
     applyWeaponGrip() {
         const grip = this.gripOf(this.wtypeId);
         if (this.heroRig) {
@@ -2314,6 +2336,10 @@ const Scene3D = {
                 rp['elbow' + free] = { rx: reach.elbow };
                 if (free === 'R') this.heroRig.restX = 0;         // 오른어깨 이중 가산 방지(무기 거치 rx와 충돌)
             }
+            // 🚨 방패가 **바를 잡은 손을 통째로 덮는다** — 그립을 손에 정확히 붙여 놔도 화면에서는
+            //    "손이 핸들바에 없다"로 읽힌다(비평가 2인이 독립적으로 같은 오독을 했고, 확대 크롭으로
+            //    실제 원인이 방패 가림임을 확인했다). 탑승 중에는 등에 멘다 — 실제 기병도 그렇게 한다.
+            this.slingShield(!!reach && grip.hand !== 'L');   // 방패는 왼팔에 달려 있다(활계는 이미 숨김)
             // 공격 클립(once) 중에는 restPose가 통째로 꺼진다 — 그때도 하체만은 안장을 감고 있어야 하므로
             // 탑승 포즈를 따로 넘긴다(ProChar.update가 once 클립에서 이쪽만 가산한다).
             this.heroRig.ridePose = this.ridePose || null;
@@ -3964,7 +3990,11 @@ const Scene3D = {
         // 높이만 맞춰 등짝에 얹어 놓으니 아무리 정합을 맞춰도 '올라탄' 게 아니라 '얹힌' 것으로 읽혔다.
         // ⚠️ 가죽색은 등급색(RARITY_HEX) 파생이 아니라 **고정 자연색**이어야 한다 — 등급 틴트가 전신을
         //    덮으면 안장이 몸통에 그대로 묻혀서 있으나 마나가 된다(에픽=초록 전신에서 실측 확인).
-        const LEATHER = M(0x4e342e), TAN = M(0x8d6e63), IRON = M(0x9e9e9e);
+        // ⚠️ TAN 0x8d6e63 은 **살색으로 읽힌다.** 앞턱·뒷턱이 스커트 밑단 아래로 살짝 나오는데,
+        //    초록 몸통 위의 베이지 구체 두 개라 비평가 2인이 독립적으로 "갑옷 밑에 맨살 프리미티브가
+        //    노출됐다 / 즉시 QA 리젝"으로 읽었다(확대 크롭으로 정체를 확인 — 실제로는 안장 부속이다).
+        //    가죽다운 진한 갈색으로 낮춰 초록 위에서 '어두운 마구'로 읽히게 한다.
+        const LEATHER = M(0x4e342e), TAN = M(0x5d4037), IRON = M(0x9e9e9e);
         // 같은 이유로 **재질 정체성이 뚜렷한 파츠**도 등급색을 벗긴다. 타이어는 고무(검정), 림·허브는 금속,
         // 발굽은 각질 — 이걸 등급색으로 두면 에픽 자전거가 타이어까지 전신 초록이라 '자전거'가 아니라
         // 초록 링 두 개로 읽힌다(실측 캡처에서 그대로 확인). 등급 틴트는 프레임·몸통 쪽에 남겨 둔다.
