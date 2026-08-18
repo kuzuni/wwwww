@@ -1086,6 +1086,15 @@ body {
 @keyframes cardpop { from { transform: scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
 .rarity-tag { font-size: .74rem; font-weight: 800; color: var(--rc, #90a4ae); }
 .modal-card h3 { font-size: 1.15rem; }
+/* 스텁 모달의 인라인 아이콘(제목 · '준비 중' 줄) — 이모지가 있던 자리라 글자와 같은 줄에
+   서고 뒤 텍스트와 한 칸 띄어야 한다. `.ico` 기본 1.45em 은 제목에서 글자보다 커 보인다.
+   ⚠️ **`.ico` 와 같은 한 클래스로 쓰면 안 된다** — `.ico` 규칙이 이 파일 훨씬 아래(4765줄)에
+   있어 특이도가 같으면 뒤가 이긴다(실측: width·height·margin 이 전부 `.ico` 값으로 덮여
+   `.stub-ico` 를 아무리 고쳐도 안 움직였다). `.ico.stub-ico` 로 특이도를 올려 순서와 무관하게 한다. */
+.ico.stub-ico { width: 1.35em; height: 1.35em; margin: -.32em .42em -.32em 0; }
+/* 바리케이드는 가로로 긴 그림(ASPECT 1.39)이라 프레임도 같은 비율로 줘야 꽉 찬다 —
+   정사각 프레임에 넣으면 `contain` 이 세로 빈칸까지 맞춰 그림만 작아진다. */
+.ico.stub-ico.wide { width: 1.88em; }
 .big-stat { font-size: 1.05rem; font-weight: 800; color: #ffd54f; }
 .modal-card .sub { font-size: .78rem; color: #81d4fa; }
 

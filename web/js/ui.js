@@ -780,12 +780,14 @@ const UI = {
         el._openingT = setTimeout(() => el.classList.remove('opening'), 300);
     },
 
-    openStub(title, desc) {
+    // 제목 아이콘은 **이름으로** 받는다 — 호출부가 `onclick` 속성 문자열이라 여기에 아이콘
+    // HTML 을 직접 끼우면 따옴표가 속성을 깨뜨린다(그래서 이모지를 쓰고 있었다).
+    openStub(title, desc, icon) {
         this.els.stubModal.innerHTML = `
             <div class="modal-card">
-                <h3>${title}</h3>
-                <p class="muted">${desc}</p>
-                <p class="muted">🚧 다음 업데이트에서 추가될 예정입니다.</p>
+                <h3>${icon ? IconGen.img(icon, 'stub-ico') : ''}${U.escapeHtml(title)}</h3>
+                <p class="muted">${U.escapeHtml(desc)}</p>
+                <p class="muted">${IconGen.img('barrier', 'stub-ico wide')}다음 업데이트에서 추가될 예정입니다.</p>
                 <button class="btn" onclick="UI.closeStub()">닫기</button>
             </div>`;
         this.showModal(this.els.stubModal);
@@ -3217,8 +3219,8 @@ const UI = {
                     ${avatarPicker}
                     <div class="profile-rank-label">서버 랭킹</div>
                     <div class="profile-rank-row">
-                        <button class="btn primary" onclick="UI.openStub('🏆 파워 랭킹', '서버 내 전투력 랭킹은 준비 중입니다.')">파워 랭킹</button>
-                        <button class="btn primary" onclick="UI.openStub('🛡 클랜 랭킹', '클랜 시스템은 준비 중입니다.')">클랜 랭킹</button>
+                        <button class="btn primary" onclick="UI.openStub('파워 랭킹', '서버 내 전투력 랭킹은 준비 중입니다.', 'trophy')">파워 랭킹</button>
+                        <button class="btn primary" onclick="UI.openStub('클랜 랭킹', '클랜 시스템은 준비 중입니다.', 'clanbadge')">클랜 랭킹</button>
                     </div>
                     <div class="profile-tabs">
                         <button class="${this._profileView === 'profile' ? 'on' : ''}" onclick="UI.switchProfileView('profile')">프로필</button>
@@ -4217,7 +4219,7 @@ const UI = {
         this.renderLeagueRewards();
         this.showModal(this.els.leagueModal);
     },
-    onWaypointMystery() { this.openStub('❓ 미스터리 상자', '특별 이벤트 상자는 준비 중입니다.'); },
+    onWaypointMystery() { this.openStub('미스터리 상자', '특별 이벤트 상자는 준비 중입니다.', 'wp_mystery'); },
 };
 
 /* 캡처 하네스 지원(state.js 주석 참고): 렉시컬 전역을 window에도 노출 — Playwright 격리 컨텍스트용 */
