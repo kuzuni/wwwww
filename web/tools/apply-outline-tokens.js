@@ -89,9 +89,12 @@ function revert(codeText) {
 let src = fs.readFileSync(CSS, 'utf8');
 
 if (MODE === 'revert') {
-    const out = spans(src).map(s => (s.code ? revert(s.text) : s.text)).join('');
+    let out = spans(src).map(s => (s.code ? revert(s.text) : s.text)).join('');
+    /* 선언만 되돌리고 `:root` 정의를 남기면 트리가 안 깨끗해진다(실측: 8줄이 남았다). 같이 지운다. */
+    const before = out.length;
+    out = out.replace(/\/\* art-outline-scale:[^*]*\*\/\n:root \{[^}]*\}\n/, '');
     fs.writeFileSync(CSS, out);
-    console.log('되돌림 완료 — var(--olN) → Npx');
+    console.log(`되돌림 완료 — var(--olN) → Npx${before === out.length ? ' (:root 블록 없음)' : ' + :root 토큰 블록 제거'}`);
     process.exit(0);
 }
 
