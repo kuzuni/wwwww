@@ -1786,6 +1786,10 @@ const UI = {
                     <path class="ab-hot" d="M45.6 11.2 L64.6 10.7 L67.4 13.4 L67.6 18.6 L64.8 21.3 L46.2 21.8 L43.4 19.1 L43.2 13.9 Z" fill="url(#anv-billethot)" opacity=".12"/>
                     <!-- 윗면 — 이 띠가 있어야 '막대'가 아니라 '상판 위에 누운 덩어리'로 읽힌다 -->
                     <path class="ab-top" d="M46.4 11.4 L64.2 11 L65.6 13.4 L45.4 13.9 Z" fill="#fffce8" opacity=".55"/>
+                    <!-- 냉각 겹 — 연출이 끝날수록 진해진다(css anvilbilletcool). 정지 상태에서는
+                         opacity 0 이라 보이지 않는다. 이게 없으면 세 번 두들긴 쇠가 처음과 똑같이
+                         뜨거워, 연출이 끝난 자리에 '처음과 다른 물건'이 남지 않는다(비평가 B). -->
+                    <path class="ab-cool" d="M45.6 11.2 L64.6 10.7 L67.4 13.4 L67.6 18.6 L64.8 21.3 L46.2 21.8 L43.4 19.1 L43.2 13.9 Z" fill="#8f2c08" opacity="0"/>
                     <!-- 접합선 — 빌릿 밑면이 상판에 닿은 자리. 여기만 열을 뺏겨 어둡다 -->
                     <path class="ab-seam" d="M44.6 20.1 L66.4 19.6 L65.4 21.4 L45.8 21.9 Z" fill="#5a1a07" opacity=".45"/>
                 </g>
@@ -1908,7 +1912,7 @@ const UI = {
         for (let h = 0; h < 3; h++) {
             // 3타로 갈수록 세진다 — 1·2타가 똑같으면 위계가 '약·약·강'의 2단이 되어
             // 크레셴도로 안 읽힌다(링만 3단이고 불티·플래시·섬광은 2단이었다).
-            const n = [10, 14, 20][h];
+            const n = [7, 11, 16][h];
             for (let i = 0; i < n; i++) {
                 // 위쪽 반구로만 튀게 각도를 잡고(모루 아래로 파고드는 불티는 오독), 중력분을 더해 아래로 떨어뜨린다
                 // ⚠️ 예전 범위 -0.08π~-0.92π 는 **손잡이가 뻗은 우상단(-20° 방향, 58유닛)** 과 겹치는데
@@ -1933,16 +1937,45 @@ const UI = {
                 //    (예전엔 둘이 섞여 있어 중간점을 어떻게 잡아도 궤적이 처졌다 솟았다.)
                 const g = 7;
                 const u = d + g * Math.sin(a), v = g * Math.cos(a);
-                const w = U.rand(4.4, 8.6);                      // 개체마다 길이가 달라야 복제품으로 안 읽힌다
+                const w = U.rand(7, 13.5);                       // 개체마다 길이가 달라야 복제품으로 안 읽힌다
                 // 색온도 변주 — 한 색이면 '날아가는 종잇조각'이고, 멀리 가는 조각일수록 뜨겁다.
                 // ⚠️ 이걸 `@keyframes` 에서 `fill` 을 애니메이션해 만들면 안 된다 — 실측 결과
                 //    불티에 fill 애니메이션을 걸자 **같은 오버레이의 `mix-blend-mode: screen` 층
                 //    (플래시·섬광·코어)이 통째로 죽어** 네이티브 근백색 픽셀이 41 → 0 이 됐다
                 //    (probe ⑪ 가 잡았다). 합성 그룹이 갈라지는 것으로 보인다. 정적 색으로 변주한다.
                 const tint = d > 46 ? '#fffdf0' : d > 34 ? '#ffd257' : '#ff9a2e';
-                sparks.push(`<rect class="af-spark" fill="${tint}" x="${hx(h).toFixed(2)}" y="${(hy(h) - 0.8).toFixed(2)}" width="${w.toFixed(1)}" height="1.6" rx="0.8"`
+                // 🚨 `rect rx .8` 은 8배 확대에서 **크림색 캡슐·쌀알**로 읽혔다(비평가 2인). 튄 쇳조각은
+                //    끝이 뾰족하고 꼬리가 끌린다 — 꼬리 폭 1.9 → 선단 0.25 로 좁아지는 쐐기로 바꾼다.
+                //    개수를 줄이고(10/14/20 → 7/11/16) 개체를 길게(4.4~8.6 → 7~13.5) 하면 같은 픽셀
+                //    예산에서 **속도**가 팔린다. 예전엔 개수만 많고 개체가 느려 '뿌렸다'로 보였다.
+                const sy = hy(h);
+                sparks.push(`<path class="af-spark" fill="${tint}"`
+                    + ` d="M${hx(h).toFixed(2)} ${(sy - 0.95).toFixed(2)} L${(hx(h) + w).toFixed(2)} ${(sy - 0.12).toFixed(2)}`
+                    + ` L${(hx(h) + w).toFixed(2)} ${(sy + 0.13).toFixed(2)} L${hx(h).toFixed(2)} ${(sy + 0.95).toFixed(2)} Z"`
                     + ` style="--a:${(a * 180 / Math.PI).toFixed(1)}deg;--u:${u.toFixed(1)}px;--v:${v.toFixed(1)}px;`
                     + `--t:${(this.ANVIL_HITS[h] / 1000 - 0.008).toFixed(3)}s;--dur:${U.rand(0.17, 0.25).toFixed(3)}s"/>`);
+            }
+        }
+        // 🚨 **분출물이 100% 밝았다** — 두 비평가가 같이 꼽았다. 달군 쇠를 치면 표면 산화막(흑피,
+        //    scale)이 깨져 **어두운** 조각이 함께 날고, 그게 있어야 '반짝임'이 아니라 '단조'로 읽힌다.
+        //    밝은 불티의 0.55배 사거리로 더 느리고 무겁게, 아래쪽 각까지 포함해 흩는다(흑피는
+        //    빛이 아니라 부스러기라 위로만 솟을 이유가 없다).
+        const scales = [];
+        for (let h = 0; h < 3; h++) {
+            const n = [2, 3, 5][h];
+            for (let i = 0; i < n; i++) {
+                const a = -Math.PI * (0.18 + 0.78 * (i + U.rand(0, 0.7)) / n);
+                const d = U.rand(16, 27) * [1, 1.24, 1.7][h];
+                const g = 11;                                   // 밝은 불티(7)보다 무겁게 떨어진다
+                const u = d + g * Math.sin(a), v = g * Math.cos(a);
+                const w = U.rand(2.2, 3.8);
+                // ⚠️ 수명은 타격마다 다르게 잡는다 — 무거운 조각이라 길게 두고 싶지만, 3타(652ms)에
+                //    0.42s 를 주면 1072ms 로 **오버레이 수명 900ms 를 넘겨 공중에서 잘린다**(probe ⑥).
+                //    앞 타격일수록 길게 주면 무게감을 잃지 않으면서 3타만 900ms 안에 맞는다.
+                scales.push(`<rect class="af-scale" fill="${d > 34 ? '#3a2418' : '#241408'}"`
+                    + ` x="${hx(h).toFixed(2)}" y="${(hy(h) - 0.9).toFixed(2)}" width="${w.toFixed(1)}" height="1.8" rx="0.5"`
+                    + ` style="--a:${(a * 180 / Math.PI).toFixed(1)}deg;--u:${u.toFixed(1)}px;--v:${v.toFixed(1)}px;`
+                    + `--t:${(this.ANVIL_HITS[h] / 1000 + 0.004).toFixed(3)}s;--dur:${(U.rand(-0.012, 0.012) + [0.34, 0.30, 0.23][h]).toFixed(3)}s"/>`);
             }
         }
         const fx = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1995,6 +2028,11 @@ const UI = {
                      정지 158.0 vs 접촉 152.9/153.4/154.1). 접점 근처만 밝혀서는 못 갚는다 —
                      머리 실루엣 **밖**의 넓은 면적을 조금씩 들어 올려야 한다. 원신의 타격이
                      화면 전체를 순간적으로 띄우는 것과 같은 처방이다. -->
+                <radialGradient id="hmr-smoke" cx=".5" cy=".55" r=".5">
+                    <stop offset="0" stop-color="#d8cec4" stop-opacity=".5"/>
+                    <stop offset=".55" stop-color="#a89c90" stop-opacity=".26"/>
+                    <stop offset="1" stop-color="#8a7f74" stop-opacity="0"/>
+                </radialGradient>
                 <radialGradient id="hmr-bloom" cx=".5" cy=".5" r=".5">
                     <stop offset="0" stop-color="#fff4d0" stop-opacity=".9"/>
                     <stop offset=".45" stop-color="#ffd89a" stop-opacity=".5"/>
@@ -2048,7 +2086,11 @@ const UI = {
             //    |x| > 12.8 구간이 머리 밖에 남아, 접촉선을 따라 좌우로 새어 나온 빛이 된다.
             //    (가운데는 어차피 머리가 덮으므로 거기 칠하는 픽셀은 전부 낭비였다.)
             + [0, 1, 2].map(h => `<ellipse class="af-core c${h}" cx="${hx(h)}" cy="${(hy(h) + 0.8).toFixed(2)}" rx="19" ry="2.2"/>`).join('')
-            + sparks.join('') + this.HAMMER_SVG
+            // 연기 — 타격마다 훅 오르고 꼬리(650~900ms)를 채운다. 지금까지 그 구간은 모루 잔진동에만
+            // 기대고 있었는데, 모루를 강체로 만들면서 그마저 사라졌다. 김이 오르는 건 물리적으로도
+            // 옳고 92px 에서 **면적**으로 읽히는 몇 안 되는 요소다. 망치 뒤에 둬 머리를 흐리지 않는다.
+            + [0, 1, 2].map(h => `<ellipse class="af-smoke m${h}" cx="${(hx(h) + 2).toFixed(2)}" cy="${(hy(h) - 3).toFixed(2)}" rx="7" ry="5"/>`).join('')
+            + scales.join('') + sparks.join('') + this.HAMMER_SVG
             // ⚠️ 섬광은 망치 **앞**에 그린다. 뒤에 두면 흰 코어가 통째로 머리(반폭 9.4)에
             //    가려 밖으로 나오는 건 주황 스커트뿐이고, 그게 주황 상판에 얹혀 '얼룩'이 된다.
             // 섬광 — 92px에서 '때렸다'를 가장 적은 픽셀로 파는 도형이다. 원형 광량만으로는 상판 위

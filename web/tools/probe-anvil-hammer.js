@@ -533,6 +533,56 @@ async function waitBooted(page, timeout = 25000) {
             `⑱ 타격면이 핀보다 넓음(뒤집힘 아님) — 타격면 ${face.toFixed(1)} > 핀 ${peenMax.toFixed(1)}`);
     }
 
+    // ⑲ 🚨 **연출이 끝난 자리에 처음과 다른 물건이 남는가.** 비평가 B 의 총평이 이것이었다 —
+    //    "3타가 끝난 자리에 처음과 다른 물건이 놓여 있어야 한다". 실측으로는 빌릿 심 휘도가
+    //    194.0(0ms) → 194.4(860ms) 로 **세 번 두들긴 쇠가 처음과 똑같이 뜨거웠고**, 모양도
+    //    균등 스케일 하나뿐이라 "막대가 조금 눌렸다"에서 멈췄다. 형태와 온도 **둘 다** 본다.
+    // ⚠️ `anvilbillet` 은 `forwards` 라, 앞 검사가 남긴 채움 상태가 정지 프레임 측정에 그대로
+    //    묻어 온다(실제로 '정지' 폭이 27.4px = 이미 1.36배 퍼진 값으로 찍혔다). 클래스를 떼는
+    //    것만으로는 부족해 **애니메이션을 명시적으로 cancel** 하고 스타일을 flush 한 뒤 잰다.
+    const before = await page.evaluate(() => {
+        UI.cancelAnvilStrike(); UI._anvilBusy = false;
+        const btn = document.querySelector('.anvil-btn');
+        btn.classList.remove('striking');
+        btn.querySelectorAll('*').forEach(n => n.getAnimations().forEach(a => a.cancel()));
+        btn.getBoundingClientRect();
+        const b = document.querySelector('.anvil-btn .anv-billet').getBoundingClientRect();
+        return { w: b.width, h: b.height, x: b.x, y: b.y };
+    });
+    await page.waitForTimeout(60);
+    const shotRect = async (r) => {
+        const buf = await page.screenshot({ clip: { x: Math.floor(r.x), y: Math.floor(r.y), width: Math.max(2, Math.ceil(r.w)), height: Math.max(2, Math.ceil(r.h)) } });
+        return page.evaluate(async (src) => {
+            const im = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; });
+            const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+            const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+            const q = g.getImageData(0, 0, c.width, c.height).data;
+            let sum = 0, n = 0;
+            for (let i = 0; i < q.length; i += 4) { sum += Math.max(q[i], q[i + 1], q[i + 2]); n++; }
+            return sum / n;
+        }, 'data:image/png;base64,' + buf.toString('base64'));
+    };
+    const lumBefore = await shotRect(before);
+    const after = await page.evaluate(() => {
+        UI.cancelAnvilStrike(); UI._anvilBusy = false;
+        document.getElementById('equip-sheet').getBoundingClientRect();
+        UI.playAnvilStrike(() => {});
+        (UI._anvilTimers || []).forEach(clearTimeout); UI._anvilTimers = [];
+        document.getElementById('equip-sheet').getBoundingClientRect();
+        document.querySelectorAll('#equip-sheet, #equip-sheet *').forEach(n =>
+            n.getAnimations().forEach(a => { a.pause(); a.currentTime = 860; }));
+        const b = document.querySelector('.anvil-btn .anv-billet').getBoundingClientRect();
+        return { w: b.width, h: b.height, x: b.x, y: b.y };
+    });
+    const lumAfter = await shotRect(after);
+    say(after.w > before.w * 1.15,
+        `⑲ 소재가 퍼졌다 — 폭 ${before.w.toFixed(1)}px → ${after.w.toFixed(1)}px (기준 ×1.15, 단조는 폭으로 흐른다)`);
+    say(after.h < before.h * 0.8,
+        `⑲ 소재가 납작해졌다 — 높이 ${before.h.toFixed(1)}px → ${after.h.toFixed(1)}px (기준 ×0.8)`);
+    say(lumAfter < lumBefore - 6,
+        `⑲ 소재가 식었다 — 빌릿 평균 휘도 ${lumBefore.toFixed(1)} → ${lumAfter.toFixed(1)} (기준 −6 이상; 같으면 '아무 일도 없었다'로 읽힌다)`);
+    await page.evaluate(() => { UI.cancelAnvilStrike(); UI._anvilBusy = false; });
+
     say(errs.length === 0, `⑤ 콘솔/페이지 에러 ${errs.length}건${errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''}`);
     await browser.close();
     console.log(fail ? `\n실패 ${fail}건` : '\n전부 통과');

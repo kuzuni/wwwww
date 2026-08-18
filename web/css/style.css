@@ -794,14 +794,14 @@ body {
 @keyframes anvilbillethot {
     0%, 18.82% { opacity: .12; }
     19.64%     { opacity: .88; }
-    27%        { opacity: .48; }
-    42.14%     { opacity: .36; }
+    27%        { opacity: .4; }
+    42.14%     { opacity: .22; }
     42.95%     { opacity: .94; }
-    50.32%     { opacity: .52; }
-    72.82%     { opacity: .4; }
+    50.32%     { opacity: .36; }
+    72.82%     { opacity: .16; }
     73.64%     { opacity: 1; }
-    82%        { opacity: .55; }
-    100%       { opacity: .34; }
+    82%        { opacity: .4; }
+    100%       { opacity: .08; }
 }
 /* 빛 웅덩이도 같이 밝아진다 — 백열 겹만 켜지면 '흰 딱지'가 얹힌 것으로 읽힌다.
    진폭은 절반쯤으로 둔다(상판 전체가 하얗게 뜨면 모루 형태가 죽는다). */
@@ -823,6 +823,22 @@ body {
 .anvil-btn.striking .anv-billet { transform-box: view-box; transform-origin: 55px 21.5px; animation: anvilbillet .88s linear forwards; }
 .anvil-btn.striking .ab-hot     { animation: anvilbillethot .88s linear forwards; }
 .anvil-btn.striking .ab-glow    { animation: anvilbilletglow .88s linear forwards; }
+/* 🚨 **세 번 두들긴 쇠가 처음과 똑같이 뜨거웠다** — 비평가 B 실측: 빌릿 심 휘도 194.0(0ms) →
+   194.4(860ms). 게다가 백열 바닥값이 .12 → .3 → .34 로 **올라가고** 있었다("두들길수록 열이
+   고인다"고 적어 뒀지만 열역학이 거꾸로다 — 모루와 공기에 뺏겨 식어야 한다). 바닥값을 내리고,
+   그 위에 식은 쇠색을 덮는 겹을 새로 깐다. 이게 있어야 연출이 끝난 자리에 **처음과 다른 물건**이
+   남는다(지금까지는 "막대가 조금 눌렸다"에서 멈췄다). 동시에 760~900ms 의 죽은 꼬리가
+   '식어가는 완성품'이라는 내용을 갖는다. */
+.anvil-btn.striking .ab-cool    { animation: anvilbilletcool .88s linear forwards; }
+@keyframes anvilbilletcool {
+    0%, 19.64% { opacity: 0; }
+    27%        { opacity: .12; }
+    42.95%     { opacity: .1; }
+    50.32%     { opacity: .26; }
+    73.64%     { opacity: .22; }
+    82%        { opacity: .46; }
+    100%       { opacity: .62; }
+}
 /* 화면 흔들림 — 항목 스펙의 '미세 화면 흔들림'을 여기서 판다.
    ⚠️ `Scene3D.shake` 로는 이 연출에서 **아무도 흔들림을 못 본다**: 그건 시트 뒤 3D 씬만 흔드는데
    제작 순간 시선은 시트 위 모루에 있다(비평가 ⓐ). 그래서 모루가 든 `#equip-sheet` 자체를 흔든다.
@@ -1101,6 +1117,35 @@ body {
     0%   { opacity: 1;  transform: rotate(var(--a, 0deg)) translate(0, 0) scaleX(.7); }
     55%  { opacity: .9; transform: rotate(var(--a, 0deg)) translate(calc(var(--u, 0px) * .55), calc(var(--v, 0px) * .3)) scaleX(1); }
     100% { opacity: 0;  transform: rotate(var(--a, 0deg)) translate(var(--u, 0px), var(--v, 0px)) scaleX(.22); }
+}
+/* 흑피(scale) 파편 — 밝은 불티와 같은 궤적 문법을 쓰되 **어둡고 무겁고 느리다**.
+   ⚠️ 후광(drop-shadow)을 주면 안 된다. 어두운 조각에 주황 후광을 씌우면 다시 '불티'가 된다 —
+   이 층의 존재 이유는 분출물이 전부 밝기만 하던 것을 깨는 것이다. */
+.anvil-fx .af-scale {
+    transform-box: fill-box; transform-origin: 0% 50%;
+    opacity: 0;
+    animation: afscale var(--dur, .34s) cubic-bezier(0,.7,.35,1) forwards;
+    animation-delay: var(--t, 0s);
+}
+@keyframes afscale {
+    0%   { opacity: .95; transform: rotate(var(--a, 0deg)) translate(0, 0) scale(.8); }
+    60%  { opacity: .8;  transform: rotate(var(--a, 0deg)) translate(calc(var(--u, 0px) * .62), calc(var(--v, 0px) * .34)) scale(1); }
+    100% { opacity: 0;   transform: rotate(var(--a, 0deg)) translate(var(--u, 0px), var(--v, 0px)) scale(.9); }
+}
+/* 연기 — 타격마다 훅 오르며 위로 퍼진다. 3타 연기(지연 .648 + .25s)가 900ms 에 끝나 오버레이
+   수명과 맞물린다(probe ⑥). ⚠️ 이보다 길게 두면 꼬리가 잘려 연기가 공중에서 사라진다. */
+.anvil-fx .af-smoke {
+    fill: url(#hmr-smoke);
+    transform-box: fill-box; transform-origin: 50% 100%;
+    opacity: 0; animation: afsmoke .25s ease-out forwards;
+}
+.anvil-fx .af-smoke.m0 { animation-delay: .173s; --afms: 1; }
+.anvil-fx .af-smoke.m1 { animation-delay: .378s; --afms: 1.2; }
+.anvil-fx .af-smoke.m2 { animation-delay: .648s; --afms: 1.5; }
+@keyframes afsmoke {
+    0%   { opacity: 0;                        transform: translateY(0) scale(calc(var(--afms, 1) * .35)); }
+    30%  { opacity: calc(var(--afms, 1) * .6); transform: translateY(-2px) scale(calc(var(--afms, 1) * .8)); }
+    100% { opacity: 0;                        transform: translateY(-9px) scale(calc(var(--afms, 1) * 1.5)); }
 }
 .anvil-btn small { font-size: .8rem; font-weight: 900; color: var(--pp-ink); }
 .forge-actions { display: flex; gap: .3rem; }
