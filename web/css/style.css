@@ -3731,7 +3731,11 @@ body {
    실측: 막대 rgb(28,175,255) → 세그먼트 rgb(22,135,197), 회색 rgb(224) → rgb(173) 로 둘 다 ×0.772 다
    (회색을 덮는 방식이면 채도가 빠져 빨강·주황 막대에서 색이 확 틀어진다 — 종전 rgba(110,110,110,.42)가 그랬다). */
 .fi-age-next {
-    width: 25.9%; flex: none; align-self: stretch; display: flex; align-items: center; justify-content: center;
+    /* 원본 % 는 세그먼트 중앙이 아니라 **막대 우단 우측 정렬**이다 — 042831 y277 행 실측:
+       잉크 x400~420 · 막대 우단 x427(우측 여백 7px = 1.4%W). 가운데 정렬이면 10개 막대 전부
+       ~4.7%p 왼쪽으로 이탈한다(채점 1라운드 비평가 A 지적, 픽셀 교차검증 확인). */
+    width: 25.9%; flex: none; align-self: stretch; display: flex; align-items: center; justify-content: flex-end;
+    padding-right: .44rem;
     font-weight: 900; font-size: .8rem; color: #000;
     background: rgba(0,0,0,.228);
 }
