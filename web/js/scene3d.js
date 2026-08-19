@@ -9105,7 +9105,7 @@ const Scene3D = {
         let n = 0;
         root.traverse(o => { if (o.isMesh) n++; });
         if (m._flashT && m._flashT.root === root && m._flashT.n === n) return m._flashT;
-        const lit = [], out = [];
+        const lit = [], out = [], litLum = [];
         root.traverse(o => {
             if (!o.isMesh || !o.material) return;
             const mats = Array.isArray(o.material) ? o.material : [o.material];
@@ -9113,10 +9113,16 @@ const Scene3D = {
                 if (o.userData.isOutline) { if (out.indexOf(mat) < 0) out.push(mat); }
                 // 접촉 AO 링·림 셸은 emissive 가 없는 Basic 이라 여기서 자동으로 걸러진다
                 // (AO 링을 태우면 이음새가 사라져 '프리미티브 더미'가 도로 드러난다 — 빌더 주석 ⑵).
-                else if (mat.emissive && lit.indexOf(mat) < 0) lit.push(mat);
+                else if (mat.emissive && lit.indexOf(mat) < 0) {
+                    lit.push(mat);
+                    // albedo 명도(0~1) — flashMesh 가 emissive 세기를 이 값에 비례시켜, 플래시 중에도
+                    // 어두운 파츠(부츠·크레비스)는 상대적으로 어둡게 남아 **형태가 보존**된다.
+                    const c = mat.color;
+                    litLum.push(U.clamp(0.299 * c.r + 0.587 * c.g + 0.114 * c.b, 0, 1));
+                }
             }
         });
-        m._flashT = { root, n, lit, out };
+        m._flashT = { root, n, lit, out, litLum };
         return m._flashT;
     },
     // 전신 화이트 틴트 + **외곽선 점등**. 원래 emissive·외곽선 색을 보관했다 복구한다 — 예전 구현은
@@ -9137,16 +9143,27 @@ const Scene3D = {
     // 아니라 테두리에 쓰는 것이다.
     // ⚠️ 외곽선 원색은 `ProChar._syncOutline` 이 원 재질 albedo × OUTLINE.k 로 계산한다 — 복구는
     //    보관해 둔 값으로 되돌리고, 그 사이 장비 교체로 갱신된 경우를 대비해 색만 되돌린다.
-    flashMesh(m, peak, dur, color, olK) {
+    // shapeK: 형태 보존 계수(0~1, 기본 0) — 1이면 emissive 를 재질 albedo 명도에 비례시켜 어두운
+    // 파츠가 어둡게 남는다. **처치 전용**: 일반·크리(peak≤0.28)는 화이트아웃이 없고 가시성 게이트
+    // (probe-hitflash-ab Δ0.06)가 빠듯해 감쇠를 걸면 미달한다(실측 Δ0.0761 → 0.0583 FAIL).
+    flashMesh(m, peak, dur, color, olK, shapeK) {
         const t = this.flashTargets(m);
         if ((!t.lit.length && !t.out.length)) return;
         m.flashSeq = (m.flashSeq || 0) + 1;
         const seq = m.flashSeq;
         const flashC = new THREE.Color(color === undefined ? 0xffffff : color);
-        for (const mat of t.lit) {
+        // 🚨 emissive 는 균일이 아니라 **재질 albedo 명도에 비례**시킨다 (hp-juicy 비평가 잔여
+        // '처치 코어 백열 클리핑'): 균일 백색 가산은 파츠 간 명도 차를 지워 몸이 '과노출 코어'로
+        // 뭉개진다. 밝은 갑주는 세게, 어두운 부츠·크레비스는 약하게 타면 총 밝기(위계 축)는 지키면서
+        // 내부 명암 구조가 살아남는다 — emissive 상한을 더 내리면 크리↔처치 위계 쌍이 무너지던
+        // 트레이드오프(probe-hit-hierarchy 0.02 게이트)를 '분포'로 푸는 처방이다.
+        const sk = shapeK || 0;
+        const emScale = i => 1 - sk * 0.65 * (1 - (t.litLum ? t.litLum[i] : 1));
+        for (let i = 0; i < t.lit.length; i++) {
+            const mat = t.lit[i];
             if (!mat.userData._em0) mat.userData._em0 = { hex: mat.emissive.getHex(), i: mat.emissiveIntensity };
             mat.emissive.setHex(0xffffff);
-            mat.emissiveIntensity = peak;
+            mat.emissiveIntensity = peak * emScale(i);
         }
         // 외곽선은 가산이 아니라 **색 자체**를 올린다(Basic 이라 조명이 없다). peak 를 그대로 쓰면
         // 0.2 에서 거의 안 보이므로 테두리 전용 계수를 따로 둔다 — 테두리는 원래 near-black 이라
@@ -9163,7 +9180,8 @@ const Scene3D = {
         }
         this.addAnim(dur, k => {
             if (m.flashSeq !== seq) return;
-            for (const mat of t.lit) mat.emissiveIntensity = peak * (1 - k);
+            for (let i = 0; i < t.lit.length; i++)
+                t.lit[i].emissiveIntensity = peak * emScale(i) * (1 - k);
             for (const mat of t.out) mat.color.copy(new THREE.Color(mat.userData._ol0).lerp(flashC, ok * (1 - k)));
         }, () => {
             if (m.flashSeq !== seq) return;
@@ -9499,7 +9517,7 @@ const Scene3D = {
         // 접촉 프레임 한 장에서 읽히게 한다(6차 지적 '크리와 처치의 첫 100ms 미분화').
         // peak 0.4는 전신 알베도 화이트아웃('크림색 마시멜로', 비평가 5.5 채점 1번) — 0.3으로 낮춰
         // 내부 음영을 남기고, 위계는 셸 두께(1.34, 세 이벤트 최대)와 파편·그을음이 잇는다.
-        this.flashMesh(m, 0.3, 0.09, 0xfff6e0, 1.0);
+        this.flashMesh(m, 0.3, 0.09, 0xfff6e0, 1.0, 1); // shapeK=1: 명도 비례 감쇠로 '과노출 코어' 방지(형태 보존)
         // 사망: 피격 경직 → 무릎 꺾임 → 뒤로(+x) 쓰러짐 → 착지 먼지 → 서서히 페이드아웃 (빙글 회전·순간 소멸 금지, 사용자 지시)
         // update 루프는 !e.alive를 건너뛰므로 이 애니메이션이 트랜스폼을 단독 소유한다.
         // HP바: 즉시 숨기면 "HP가 0이 되는 순간"이 화면에 한 프레임도 안 나온다 — 마지막 한 방의
