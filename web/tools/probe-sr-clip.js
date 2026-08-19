@@ -39,7 +39,10 @@ const CASES = [
     ['x5-hi', `S.summonCount = 5000; S.summonMult = {skill:5}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, 14],
     ['x75', `S.summonCount = 5000; S.summonMult = {skill:75}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, 3],
 ];
-const TIMES = [180, 240, 300, 360, 420, 470];
+// ⚠️ 표본 시각을 하드코딩하지 말 것 — 차징 창은 UI.SR_CHARGE_MS 로 끝난다(그 시각에 첫 셀이
+//    뜬다). summon-anim-halve(480→240ms)에서 옛 고정 시각(180~470)이 셀 등장 이후를 찍어
+//    셀 테두리의 세로 직선을 '절단'으로 오인했다. 정점 대비 비율로 페이지에서 유도한다.
+const TIME_FRACS = [0.375, 0.5, 0.625, 0.75, 0.875, 0.98];
 
 const SEEK = `(T => {
     const cells = [...UI._srCells], d = UI._srDelays;
@@ -71,7 +74,9 @@ const GATE = 40; // 같은 열에 정렬된 급변 행 수가 이 이상이면 �
         await page.evaluate(RNG(seed) + ';' + open);
         await page.evaluate(`UI.clearSummonTimers()`);
 
-        console.log(`[${name}]`);
+        const chargeMs = await page.evaluate('UI.SR_CHARGE_MS');
+        const TIMES = TIME_FRACS.map(f => Math.round(f * chargeMs));
+        console.log(`[${name}] (정점 ${chargeMs}ms 기준 표본 ${TIMES.join('/')})`);
         for (const T of TIMES) {
             await page.evaluate(`(${SEEK})(${T})`);
             // ⚠️ 이 환경엔 pngjs가 없다 — 스크린샷을 base64로 페이지에 넣고 캔버스로 디코드한다

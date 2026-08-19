@@ -38,14 +38,17 @@ const UI = {
     },
     SUMMON_DUP_LABEL: { skill: '조각', mount: '재료' }, // 중복분 적립 환산 표기 (펫은 알 단위라 없음)
     SR_HI_RARITIES: ['legendary', 'ultimate', 'mythic'], // 광채 강조 대상
-    SR_REVEAL_BUDGET: 2200, // 셀이 많을 때 전체 등장 연출이 넘지 않을 시간(ms)
-    SR_SLOW_STEP: 250,      // 10개 이하 소량 뽑기의 셀 간격 — 캐스케이드가 눈에 보이게 넉넉히
+    // ⚠️ 소환 결과 타임라인 5종은 2026-08-19 사용자 지시("뽑기 애니메이션 3초 같은데 절반으로")로
+    //    일괄 절반이다. 정점 동기 CSS(.sr-charge/.sr-shock/.sr-wrap 딜레이·.charging 5종·srstreak)와
+    //    SFX.summonCharge 길이도 같은 배율로 묶여 있다 — 한쪽만 되돌리면 빛 정점과 첫 셀이 어긋난다.
+    SR_REVEAL_BUDGET: 1100, // 셀이 많을 때 전체 등장 연출이 넘지 않을 시간(ms)
+    SR_SLOW_STEP: 125,      // 10개 이하 소량 뽑기의 셀 간격 — 캐스케이드가 눈에 보이는 하한
     // 빛 모임은 이 시각에 '최대 휘도'로 터진다 — 그 백색 오버슛이 감쇠하는 동안 첫 아이콘이
     // 꺼내진다(예전엔 120ms에 피크를 찍고 480ms엔 암전인데 아이콘이 540ms에 떠서, 빛과
     // 아이콘이 인과로 안 묶이고 '별개 애니메이션 두 개'로 읽혔다)
-    SR_CHARGE_MS: 480,      // 빛 모임 정점 시각(.sr-charge 애니메이션 길이와 맞춤)
-    SR_HOLDBACK_MS: 300,    // 최고 등급 1개를 마지막에 한 박자 늦게 띄우는 여유(정지 구간이 아니라 축적 구간)
-    SR_TAIL_MS: 300,        // 마지막 아이콘이 뜬 뒤 [확인]이 나오기까지의 여운
+    SR_CHARGE_MS: 240,      // 빛 모임 정점 시각(.sr-charge 애니메이션 길이와 맞춤)
+    SR_HOLDBACK_MS: 150,    // 최고 등급 1개를 마지막에 한 박자 늦게 띄우는 여유(정지 구간이 아니라 축적 구간)
+    SR_TAIL_MS: 150,        // 마지막 아이콘이 뜬 뒤 [확인]이 나오기까지의 여운
     _srTimers: [], _srRaf: 0,
     _srCells: null, _srEntries: null, _srDelays: null, _srStart: 0, _srIdx: 0,
     _srDone: false, _srHeroIdx: -1,
@@ -251,11 +254,11 @@ const UI = {
     summonStreaks() {
         let h = '';
         for (let i = 0; i < 14; i++) {
-            // 딜레이 폭은 짧게 — 셀 등장(SR_CHARGE_MS 480ms)까지 전부 사라져야
-            // 아이콘 줄 위에 흰 막대가 남지 않는다
+            // 딜레이 폭은 짧게 — 셀 등장(SR_CHARGE_MS 240ms)까지 전부 사라져야
+            // 아이콘 줄 위에 흰 막대가 남지 않는다 (srstreak .18s + 최대 딜레이 60ms = 240ms)
             h += `<i style="--a:${(i * 360 / 14 + (i % 3) * 7).toFixed(1)}deg;`
                + `--r:${(7.5 + (i * 17) % 6)}rem;--len:${(2.2 + (i % 4) * .8).toFixed(1)}rem;`
-               + `--d:${((i * 53) % 120) / 1000}s"></i>`;
+               + `--d:${((i * 53) % 60) / 1000}s"></i>`;
         }
         return `<div class="sr-streaks">${h}</div>`;
     },

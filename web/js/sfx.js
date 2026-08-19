@@ -378,11 +378,12 @@ const SFX = {
     },
 
     // 소환 결과 팝업 '빛 모임' 구간 — 상승 스윕 + 노이즈 라이저 + 서브 스웰. 최고 등급일수록 높고 길게.
+    // 길이는 UI.SR_CHARGE_MS(240ms) 정점에 맞춘 절반값(summon-anim-halve) — 시각 타임라인과 한 묶음.
     summonCharge(rarity) {
         const hi = rarity === 'legendary' || rarity === 'ultimate' || rarity === 'mythic';
-        this.tone(220, hi ? 0.42 : 0.3, { type: 'triangle', gain: 0.16, slideTo: hi ? 1760 : 880, rvb: 0.2 });
-        this.noiseBurst(hi ? 0.4 : 0.26, { type: 'bandpass', filterFreq: 500, filterTo: hi ? 5200 : 3000, Q: 2, gain: 0.09 });
-        this.thump(55, 110, hi ? 0.4 : 0.28, { gain: 0.14 }); // 역방향 스웰 느낌의 저역 받침
+        this.tone(220, hi ? 0.21 : 0.15, { type: 'triangle', gain: 0.16, slideTo: hi ? 1760 : 880, rvb: 0.2 });
+        this.noiseBurst(hi ? 0.2 : 0.13, { type: 'bandpass', filterFreq: 500, filterTo: hi ? 5200 : 3000, Q: 2, gain: 0.09 });
+        this.thump(55, 110, hi ? 0.2 : 0.14, { gain: 0.14 }); // 역방향 스웰 느낌의 저역 받침
     },
     // 아이콘 하나가 팝하는 순간 — 등급이 올라갈수록 음이 높아지고, 전설 이상은 5도 + 반짝임을 더 얹는다
     summonReveal(rarity) {

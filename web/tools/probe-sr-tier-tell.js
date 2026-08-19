@@ -39,8 +39,10 @@ const MAKE = (top) => `(() => {
     return 'ok';
 })()`;
 
-// 시각: 430 = 순수 빌드업(셀 0개), 620 = 비평가 B가 두 판을 비교한 바로 그 프레임
-const TIMES = [430, 620];
+// 시각: 첫째 = 순수 빌드업(셀 0개, 정점 UI.SR_CHARGE_MS 직전), 둘째 = 첫 셀만 뜬 프레임
+// (비평가 B가 두 판을 비교한 옛 430/620ms 를 summon-anim-halve 타임라인(정점 480→240ms)에
+//  맞춰 같은 비율로 환산 — 215 < 240 = 공개 전, 310 은 첫 셀(240)과 둘째 셀(365) 사이)
+const TIMES = [215, 310];
 const SEEK = `(T => {
     const m = UI.els.summonResultModal;
     const cells = [...UI._srCells], d = UI._srDelays;
@@ -187,11 +189,11 @@ const norm = (v) => Math.hypot(...v);
             }
         }
     }
-    // 빌드업 프레임(430ms)에는 셀이 하나도 떠 있으면 안 된다 — '공개 전'을 재고 있다는 전제
+    // 빌드업 프레임(TIMES[0])에는 셀이 하나도 떠 있으면 안 된다 — '공개 전'을 재고 있다는 전제
     for (const top of cases) {
         const r = runs[top]; if (!r) continue;
-        if (r.frames[430] && r.frames[430].onCells !== 0) {
-            fails.push(`${top} t430 에 셀이 ${r.frames[430].onCells}개 떠 있다 — 공개 전 프레임이 아니라 측정 전제가 깨졌다`);
+        if (r.frames[TIMES[0]] && r.frames[TIMES[0]].onCells !== 0) {
+            fails.push(`${top} t${TIMES[0]} 에 셀이 ${r.frames[TIMES[0]].onCells}개 떠 있다 — 공개 전 프레임이 아니라 측정 전제가 깨졌다`);
         }
     }
 

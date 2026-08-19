@@ -74,10 +74,15 @@ const CENTERS = `(() => {
     //    (실제로 왼쪽 두 셀만 '이동량 0.0px'로 나와 구현이 아니라 계측이 틀렸다).
     //    그래서 셀 추적을 먼저 시간순으로 돌고, 슬롯 위치는 맨 끝에서 잰다.
     const tracks = [];
+    const last = info.delays[info.delays.length - 1];
     for (let i = 0; i < info.delays.length; i++) {
         const track = [];
-        // 셀 등장 순간부터 20ms 간격으로 추적 — --pop 최대 .52s를 덮는다
-        for (let dt = 0; dt <= 540; dt += 20) {
+        // 셀 등장 순간부터 20ms 간격으로 추적 — --pop 최대 .52s를 덮는다.
+        // ⚠️ 비주역 셀의 추적 창이 주역 시각(last)을 넘으면 안 된다 — .hero가 켜졌다가
+        //    다음 셀 추적에서 되감기며 위 주석의 '정착 위치 0px' 함정이 그대로 재발한다
+        //    (summon-anim-halve 로 타임라인이 절반이 되자 실제로 셀 2·3이 0px로 찍혔다).
+        const cap = i === info.delays.length - 1 ? 540 : Math.min(540, last - info.delays[i] - 20);
+        for (let dt = 0; dt <= cap; dt += 20) {
             // 🚨 시크는 두 번 부른다 — 클래스가 바뀌며 **새로 만들어진** 애니메이션은 그 호출의
             //    getAnimations() 목록에 아직 없어서 currentTime을 못 받고, 직전 상태(정착 위치)에
             //    멈춘 채로 찍힌다. 두 번째 호출이 그 애니메이션들에 시각을 심는다.
