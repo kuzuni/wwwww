@@ -3675,6 +3675,11 @@ IconGen._genderSym = function (ctx, S, female) {
         cloud(W * 0.52, H * 0.08, W * 0.15, H * 0.045, '#e7d2ec');
         cloud(W * 0.63, H * 0.17, W * 0.08, H * 0.032, '#f4eaf6');
         cloud(W * 0.40, H * 0.23, W * 0.06, H * 0.028, '#eedcf2');
+        (() => {                                                          // 지평선 웜톤 — 하늘이 2단 그라디언트로 납작하지 않게(비평가 재채점)
+            const hz = ctx.createLinearGradient(0, H * 0.42, 0, H * 0.82);
+            hz.addColorStop(0, 'rgba(255,214,188,0)'); hz.addColorStop(1, 'rgba(255,214,188,.30)');
+            ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H);
+        })();
         // 마을 스카이라인 — 연속 폴리라인 한 장 + 회청 키라인. 뾰족 지붕·박공·망루가 섞인다.
         const town = (pts, fc, oc) => {
             ctx.beginPath(); ctx.moveTo(-H * 0.05, H * 1.2);
@@ -3760,7 +3765,9 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.save();
         ctx.beginPath(); rrect(ctx, S, -0.160, -0.255, 0.320, 0.510, 0.050)(); ctx.clip();
         on(ctx, rrect(ctx, S, 0.064, -0.255, 0.096, 0.510, 0), '#9aa84a');                // 위(빛 받는) 면 — local +x 가 회전 후 우상향
+        on(ctx, rrect(ctx, S, 0.126, -0.235, 0.026, 0.470, 0.013), 'rgba(255,255,255,.40)'); // 스펙큘러 라인(베벨 입체 — 비평가 재채점)
         on(ctx, rrect(ctx, S, -0.160, -0.255, 0.084, 0.510, 0), 'rgba(0,0,0,.24)');       // 아랫면 음영
+        on(ctx, rrect(ctx, S, -0.160, -0.255, 0.036, 0.510, 0), 'rgba(0,0,0,.20)');       // 아래 모서리 한 단 더
         on(ctx, rrect(ctx, S, -0.160, -0.078, 0.320, 0.030, 0), 'rgba(0,0,0,.30)');       // 자루 물림 테
         on(ctx, rrect(ctx, S, -0.160, 0.048, 0.320, 0.030, 0), 'rgba(0,0,0,.30)');
         ctx.restore();
@@ -3812,6 +3819,21 @@ IconGen._genderSym = function (ctx, S, female) {
         streak(W * 0.32, H * 0.31, W * 0.44, H * 0.042, '#080b18');       // 달을 가로지르는 줄(얇게 — 두꺼우면 '떠 있는 산맥'이 된다)
         streak(W * 0.22, H * 0.14, W * 0.26, H * 0.032, '#0a0e1e');
         streak(W * 0.48, H * 0.55, W * 0.24, H * 0.028, '#0a0e1e');
+        /* 박쥐 — 재채점 비평가 2인이 공통으로 '개별 박쥐 실루엣'을 요구했다(구름 줄만으로는 얼룩으로
+           읽힌다). 밝은 달 원반 위에 한 마리를 얹어 실루엣 대비를 보증하고, 나머지는 하늘에 흩는다. */
+        const bat = (bx, by, bw) => {
+            ctx.beginPath();
+            ctx.moveTo(bx - bw, by - bw * 0.30);
+            ctx.quadraticCurveTo(bx - bw * 0.62, by - bw * 0.02, bx - bw * 0.34, by - bw * 0.16);   // 왼 날개 두 굽이
+            ctx.quadraticCurveTo(bx - bw * 0.16, by - bw * 0.28, bx, by - bw * 0.04);
+            ctx.quadraticCurveTo(bx + bw * 0.16, by - bw * 0.28, bx + bw * 0.34, by - bw * 0.16);
+            ctx.quadraticCurveTo(bx + bw * 0.62, by - bw * 0.02, bx + bw, by - bw * 0.30);
+            ctx.quadraticCurveTo(bx + bw * 0.40, by + bw * 0.26, bx, by + bw * 0.22);
+            ctx.quadraticCurveTo(bx - bw * 0.40, by + bw * 0.26, bx - bw, by - bw * 0.30);
+            ctx.closePath(); ctx.fillStyle = '#05070f'; ctx.fill();
+        };
+        bat(W * 0.575, H * 0.245, H * 0.085);                             // 달 원반 위(실루엣 대비 최대)
+        bat(W * 0.40, H * 0.15, H * 0.060); bat(W * 0.48, H * 0.46, H * 0.052); bat(W * 0.68, H * 0.14, H * 0.058);
         // 언덕 2겹
         fill(ctx, '#151a34', () => { ctx.moveTo(0, H * 0.78); ctx.quadraticCurveTo(W * 0.30, H * 0.58, W * 0.62, H * 0.76); ctx.quadraticCurveTo(W * 0.85, H * 0.88, W, H * 0.72); ctx.lineTo(W, H); ctx.lineTo(0, H); });
         fill(ctx, '#0c1024', () => { ctx.moveTo(0, H * 0.90); ctx.quadraticCurveTo(W * 0.45, H * 0.78, W, H * 0.92); ctx.lineTo(W, H); ctx.lineTo(0, H); });
@@ -3868,6 +3890,11 @@ IconGen._genderSym = function (ctx, S, female) {
         cloud(W * 0.22, H * 0.12, W * 0.13, H * 0.045, '#fdf3da');
         cloud(W * 0.55, H * 0.08, W * 0.10, H * 0.038, '#fbecd0');
         cloud(W * 0.78, H * 0.16, W * 0.09, H * 0.035, '#fdf3da');
+        (() => {                                                          // 중단 장밋빛 띠 — 노을 다단 전환(비평가 재채점 '2단 그라디언트 납작')
+            const hz = ctx.createLinearGradient(0, H * 0.12, 0, H * 0.50);
+            hz.addColorStop(0, 'rgba(246,160,128,0)'); hz.addColorStop(1, 'rgba(246,160,128,.30)');
+            ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H);
+        })();
         // 뒤 열 — 연갈 띠, 위 가장자리가 투구 혹(반원 연쇄)
         (() => {
             ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, H * 0.48);
@@ -3901,14 +3928,14 @@ IconGen._genderSym = function (ctx, S, female) {
         const banner = (x, top, wd, ht, tilt, c) => {
             ctx.save(); ctx.translate(x, top); ctx.rotate(tilt);
             fill(ctx, c, () => ctx.rect(-H * 0.012, 0, H * 0.024, H * 1.05));
-            fill(ctx, c, () => {
+            fill(ctx, c, () => {                    // 천에는 곡률(펄럭임) — 직선 삼각형이면 정적으로 죽는다(비평가 재채점)
                 ctx.moveTo(0, H * 0.02);
-                ctx.lineTo(wd, H * 0.09);
-                ctx.lineTo(wd * 0.92, ht * 0.44);
-                ctx.lineTo(wd, ht * 0.70);
+                ctx.quadraticCurveTo(wd * 0.50, -H * 0.015, wd, H * 0.09);
+                ctx.quadraticCurveTo(wd * 0.85, ht * 0.26, wd * 0.92, ht * 0.44);
+                ctx.quadraticCurveTo(wd * 0.98, ht * 0.58, wd, ht * 0.70);
                 ctx.lineTo(wd * 0.62, ht * 0.86);   // 찢긴 자락(얕게)
                 ctx.lineTo(wd * 0.68, ht * 0.64);
-                ctx.lineTo(0, ht);
+                ctx.quadraticCurveTo(wd * 0.32, ht * 0.80, 0, ht);
             });
             ctx.restore();
         };
@@ -3971,9 +3998,11 @@ IconGen._genderSym = function (ctx, S, female) {
         })();
         /* 드럼통 — 원본은 **밴드가 층층인 원기둥**이다(파란 사각 블록이 아니라). 옆면을 살짝
            부풀리고 위 타원 + 곡률 따라 도는 어두운 밴드 + 세로 하이라이트 + 키라인.
-           자리 제약은 종전과 같다: 좀비(0.42~0.56W)와 우측 28% UI 열 사이를 피해 0.26W. */
+           자리는 원본대로 **오른쪽 고목 앞**(≈0.68W) — 왼쪽에 두면 소품이 좌측에 몰려 원본의
+           '중앙 캐릭터 + 좌우 소품' 프레이밍이 무너진다(비평가 재채점). 고목(0.66W)을 먼저
+           그리므로 드럼통이 그 앞에 서고, [열기] 열(0.73W~)에 일부 덮이는 것도 원본과 같다. */
         (() => {
-            const bx = W * 0.26, by = H * 0.60, bw = H * 0.16, bh = H * 0.28, ey = bh * 0.085;
+            const bx = W * 0.675, by = H * 0.60, bw = H * 0.16, bh = H * 0.28, ey = bh * 0.085;
             const body = () => {
                 ctx.moveTo(bx, by);
                 ctx.quadraticCurveTo(bx - bw * 0.055, by + bh * 0.5, bx, by + bh);
