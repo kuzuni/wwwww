@@ -23,14 +23,16 @@ const FLOOR = {
     crown:  0.95,   // 기준선 99.6%
     tophat: 0.90,   // 기준선 97.6%
     halo:   0.95,   // 기준선 99.5%
+    fin:    0.85,   // 선행 결함 수리(slug: helmet-fin-covers-eyes) 뒤 게이트로 승격.
+                    //   결함 상태 1.7% → 사발 앞 테두리를 눈 윗변 위(투구 로컬 y 0.074)로 올렸다.
 };
-// 🚨 판정에서 빼는 두 스타일 — 둘 다 **이 항목과 무관**하고, 넣으면 자가 무효한 FAIL 이 상시로 뜬다.
+// 🚨 판정에서 빼는 스타일 — **이 항목과 무관**하고, 넣으면 자가 무효한 FAIL 이 상시로 뜬다.
 //   · bubble = **판정기의 한계**. 투명 유리 돔 너머로 키 컬러가 물들어 임계값을 벗어난다(0.0%로 읽힌다).
 //     캡처(`face-helm-bubble.png`)로 확인하면 눈은 하나도 안 가린다. 색 판정으로는 못 재는 케이스다.
-//   · fin  = **선행 결함**. 돔이 눈높이까지 내려와 눈이 통째로 사라진다(기준선 2.7% → 개편 후 1.8%,
-//     즉 개편 전부터 그랬다). 몸통이 `makeHelmet` 이라 썸네일과 공용 = `equip-era-theming` 소관이라
-//     TODO 의 QA 버그로만 등재했다(slug: helmet-fin-covers-eyes).
-const SKIP = { bubble: '투명 돔이 키 컬러를 물들여 색으로는 못 잰다(캡처로 가림 없음 확인)', fin: '선행 결함 — 기준선에서도 2.7%(slug: helmet-fin-covers-eyes)' };
+//   · fin 은 **2026-08-19 에 SKIP 에서 빠져 FLOOR 로 올라갔다** — 선행 결함(돔 하나가 앞뒤를 다
+//     감당해 흰자 1.7%)이 `browedBowl` 교체로 수리됐다(slug: helmet-fin-covers-eyes). 다시 SKIP 으로
+//     내리지 말 것: 이 스타일은 이제 회귀 게이트다.
+const SKIP = { bubble: '투명 돔이 키 컬러를 물들여 색으로는 못 잰다(캡처로 가림 없음 확인)' };
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
