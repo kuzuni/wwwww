@@ -8098,3 +8098,26 @@ body {
 .btn.btn.danger.danger.disabled, .btn.btn.sell.sell.disabled {
     color: #7b7b7b; -webkit-text-stroke: 0; text-shadow: none;
 }
+
+/* ===== 소환 결과 [확인] 버튼이 금색을 잃고 갈색 글자만 남던 자리 (slug: sr-ok-gold-skin-lost) =====
+   (2026-08-19 QA 플레이 세션 등재 · 2026-08-20 UI 스트림 수정)
+   `.sr-ok`(6602행)는 `background:` **단축**으로 금색을 준다 — 단축은 `background-image` 를 같이
+   세우므로, 뒤쪽 AAA 버튼 스킨 4블록(7239·7601·7732·7871)의 `background-image` 가 그걸 그대로
+   덮는다. `color:#2a1c04` 는 그 블록들이 안 건드려 **금색만 사라지고 금색 전용 짙은 갈색 글자만
+   남는 조합**이 됐다 — 실측 명암비 **2.09:1**(큰 글자 최소선 3:1 미달), 6배 확대에서 '확인' 이
+   바탕 얼룩으로 읽혔다.
+   🚨 **등재 메모의 처방 중 `.btn.sr-ok`(0-2-0)로 올리는 쪽은 안 통한다** — 그 스킨 블록들의
+      선택자 `.btn.btn:not(.silver):not(.ascend-ready)` 는 `:not()` 인자가 특이도에 더해져
+      **0-4-0** 이다(같은 파일 8051행 주석이 그 값을 이미 못박아 뒀다). 0-2-0 은 못 이긴다.
+   🔧 그래서 이 파일이 같은 함정에서 쓰던 **정확히 같은 처방**을 따른다 — 클래스를 겹쳐 0-4-0 을
+      만들고(`.btn.btn.danger.danger`·`.btn.btn.summon-btn.summon-btn` 선례) **문서 맨 뒤**에 둬서
+      순서로도 이긴다. `background-color` 를 따로 주는 이유: 단축이 세우던 색까지 여기서 되찾아야
+      뒤에 또 `background-image` 만 덮는 블록이 생겨도 금색 면이 남는다.
+   ⚠️ `text-shadow: none` 은 장식이 아니다 — 7871 블록이 파란 CTA용 **남색 그림자**
+      (`rgba(4,18,52,.62)`)를 같이 얹어, 금색 위 갈색 글자에 남색 번짐이 겹쳐 더 탁해진다. */
+.btn.btn.sr-ok.sr-ok {
+    background-color: #ffc93c;
+    background-image: linear-gradient(#ffe89a 0%, #ffc93c 46%, #e8a015 100%);
+    color: #2a1c04;
+    text-shadow: none;
+}
