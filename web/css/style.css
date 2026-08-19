@@ -4021,7 +4021,9 @@ body {
 }
 .hatch-lamp {
     position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-    width: 2.4rem; height: .8rem; background: #23252b; border-radius: 0 0 .6rem .6rem;
+    /* 원본(042445) 램프 갓 실측 폭 6.33%W(31px) — 2.4rem 은 40px(8.24%W)이라 +1.9%p 넓었다.
+       비평가 A 의 '부화기 램프 그룹 우측 +2.6~3.1%p'(3라운드 연속) 의 뿌리가 여기다. */
+    width: calc(var(--app-w) * .0633); height: .8rem; background: #23252b; border-radius: 0 0 .6rem .6rem;
 }
 .hatch-lamp::before { content: ''; position: absolute; top: -.5rem; left: 50%; transform: translateX(-50%); width: .18rem; height: .5rem; background: #23252b; }
 .hatch-lamp::after { content: ''; position: absolute; bottom: -.28rem; left: 50%; transform: translateX(-50%); width: .5rem; height: .28rem; background: #ffe95c; border-radius: 0 0 .3rem .3rem; }
