@@ -2158,11 +2158,17 @@ body {
 .league-actions .league-back-btn { position: absolute; left: -.55rem; }
 /* 시트 화면 공통: 원본 좌하단 고정 빨간 ◀ (던전 목록·기술트리 개요 — 185 비평가 누락 지적) */
 .sheet-back-btn { position: absolute; left: .7rem; bottom: .7rem; z-index: 3; }
-/* 기술 트리 개요만 앵커가 다르다 — 이 버튼의 offsetParent 가 `#app`이 아니라 **`.summon-sub`**(앱
-   좌단에서 이미 13.5px 안쪽)이라, 같은 `left:.7rem` 이 화면에선 25.2px 이 된다. 원본은 빨강 면이
-   앱 좌단에서 13px(2.62%W)인데 클론은 28px(5.61%W)로 **+2.99%p 초과**였다(probe-techov-px.js).
-   컨테이너 인셋이 이미 원본 값과 거의 같으므로 여기서만 추가 인셋을 0 으로 둔다(→ +0.65%p). */
-#panel-tech .sheet-back-btn { left: 0; }
+/* 🚨 여기 있던 `#panel-tech .sheet-back-btn { left: 0 }` 는 **전제가 사라져 폐기했다**(2026-08-19,
+   ui-ratio-audit). 원래 근거는 "이 버튼의 offsetParent 가 `#app` 이 아니라 `.summon-sub` 이고,
+   그 상자가 앱 좌단에서 이미 13.5px 안쪽이라 `left:.7rem` 을 더 주면 25.2px 이 된다"는 것이었다.
+   그 뒤 부화장 전폭 블리드를 고치려고 `#panel-summon > .summon-sub` 에 **음수 마진 짝**
+   (`margin-left:-.8rem` + `padding-left:.8rem`, 3465행)이 붙으면서 그 상자의 패딩 박스가
+   **앱 좌단(x=0)까지 넓어졌다** — 절대배치 기준이 곧 `#app` 과 같아진 것이다. 그래서 `left:0` 은
+   이제 버튼을 화면 맨 왼쪽에 붙여 버리고, 빨강 면이 3px(0.60%W)에 앉아 원본 13px(2.62%W) 대비
+   **−2.02%p 초과**로 뒤집혔다(probe-techov-px.js). 실측: offsetParent `.summon-sub` rect [0, 499].
+   기준 상자가 `#app` 과 같아졌으니 공통 규칙(`.sheet-back-btn { left:.7rem }` = 10.3px → 빨강 면
+   13.3px = 2.67%W, Δ+0.05%p)이 그대로 맞는다. 예외를 고치는 게 아니라 없애는 게 답이다.
+   ⚠️ 분기 상세 화면의 ◀ 는 `.tech-tree-back` 이라 이 규칙과 무관하다(probe-techbranch-px 로 확인). */
 /* 전체화면 시트(.modal-card.sheet)는 탭바 아래까지 뷰포트 전체를 덮는데 #tabbar(z-index:30)가
    .modal(z-index:20) 위에 있어, bottom:.7rem이면 ◀가 탭바에 통째로 가려 보이지도 눌리지도 않았다
    (QA 4차 실측 480×850: 버튼 [12,798,40,40] vs 탭바 [1,795,478,55], elementFromPoint가 탭바 ✕로 잡힘).
