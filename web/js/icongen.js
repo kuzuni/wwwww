@@ -3808,7 +3808,7 @@ IconGen._genderSym = function (ctx, S, female) {
             [[H * 0.026, '#12300f'], [0, '#5d4030']].forEach(([pad, c]) => {   // 줄기 2획(키라인 언더레이 — R2 공통)
                 ctx.strokeStyle = c; ctx.lineCap = 'round';
                 ctx.lineWidth = H * 0.075 + pad * 2;
-                ctx.beginPath(); ctx.moveTo(tx + H * 0.10, H * 1.02); ctx.quadraticCurveTo(tx - H * 0.06, H * 0.62, tx - H * 0.02, H * 0.30); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(tx + H * 0.07, H * 0.86); ctx.quadraticCurveTo(tx - H * 0.05, H * 0.60, tx - H * 0.02, H * 0.30); ctx.stroke();
                 ctx.lineWidth = H * 0.045 + pad * 2;
                 ctx.beginPath(); ctx.moveTo(tx - H * 0.03, H * 0.52); ctx.quadraticCurveTo(tx - H * 0.22, H * 0.42, tx - H * 0.30, H * 0.28); ctx.stroke();
                 ctx.lineCap = 'butt';
@@ -3851,6 +3851,7 @@ IconGen._genderSym = function (ctx, S, female) {
         bush(W * 0.04, H * 0.98, 1.5, '#519f36', '#16391a');
         bush(W * 0.115, H * 1.05, 2.0, '#489733', '#16391a');
         bush(W * 0.30, H * 1.06, 1.0, '#519f36', '#16391a');
+        bush(W * 0.925, H * 1.00, 1.7, '#3f8f2c', '#16391a');   // R8-2 A13·B7: 우측 나무 밑동을 모서리 덤불이 물어 '가로등 기둥' 오독 해소(원본도 우하단이 어두운 잎 덩어리다)
         // 좌상단 늘어진 수풀 — 원본은 좌우 가장자리가 잎으로 채워져 프레임이 꽉 찬다(비평가 4차 '성김')
         for (let i = 0; i < 7; i++) {
             const x = W * (-0.015 + R() * 0.115), y = H * (-0.08 + R() * 0.32), r = H * (0.105 + R() * 0.085);
@@ -3888,8 +3889,7 @@ IconGen._genderSym = function (ctx, S, female) {
            **걷어내고 한 덩어리 주먹**으로 단순화(원본의 해법 — 작고 단순한 주먹). 감아쥔 그립은
            스캘럽이 아니라 얕은 손가락 골 2줄 + 엄지가 말한다. */
         ink(ctx, S, rrect(ctx, S, -0.132, -0.145, 0.264, 0.290, 0.095), '#dda269', 0.034);
-        [-0.052, 0.026].forEach(y =>                                                      // 손가락 골(자루와 직교, 2줄만)
-            on(ctx, rrect(ctx, S, -0.104, y, 0.204, 0.030, 0.015), 'rgba(0,0,0,.28)'));
+        on(ctx, rrect(ctx, S, -0.104, -0.020, 0.118, 0.028, 0.014), 'rgba(0,0,0,.28)');   // 손가락 골 — 한 줄, 왼 절반만(가로로 관통하면 '붕대'가 된다, R8 B8)
         ink(ctx, S, ell(ctx, S, 0.100, 0.092, 0.064, 0.084), '#eab27e', 0.034);           // 엄지(감아쥔 쪽, 한 단 밝게 + 굵은 키라인)
         on(ctx, ell(ctx, S, 0.082, 0.066, 0.026, 0.020), 'rgba(255,255,255,.28)');        // 엄지 손톱 쪽 광(그립 방향 명시)
         /* 손목(잔여 결함 ⓑ): 짙은 갈색(#a8683f)이면 주먹과의 경계가 '손목 밴드 장갑'으로 읽힌다
@@ -3897,11 +3897,11 @@ IconGen._genderSym = function (ctx, S, female) {
            9차 '절단된 주먹': 손목 아래로 **소매를 프레임 밖까지** 이어 '화면 밖에서 들어온 팔'로 —
            풀밭 한가운데서 뚝 끊기면 잘린 손이 떠 있는 그림이 된다. */
         ink(ctx, S, rrect(ctx, S, -0.102, 0.132, 0.204, 0.118, 0.048), '#cf9260', 0.028);
-        on(ctx, rrect(ctx, S, -0.102, 0.132, 0.204, 0.038, 0.019), 'rgba(0,0,0,.12)');    // 주먹 밑 접힘 음영 한 줄(경계는 명도로만)
+        /* (주먹 밑 접힘 가로선은 R8 B8 '가로 줄무늬 = 붕대'로 삭제 — 손목 경계는 실루엣 폭으로만) */
         /* R4 비평가 2인 공통 '보라 소매는 원본에 없는 발명(원본은 맨팔)': 소매를 팔뚝 살빛으로
            되돌린다. 9차 '절단된 주먹' 처방(프레임 밖까지 잇는다)은 형태 그대로 유지 — 색만 살로. */
         ink(ctx, S, rrect(ctx, S, -0.135, 0.238, 0.270, 0.700, 0.060), '#c88a58', 0.030); // 팔뚝(맨팔) — 프레임 하단 크롭 밖까지(0.86 축소분만큼 길이 보정)
-        on(ctx, rrect(ctx, S, -0.135, 0.620, 0.270, 0.318, 0.060), 'rgba(0,0,0,.14)');    // 팔뚝 하단 그늘(명암 한 단)
+        on(ctx, rrect(ctx, S, 0.045, 0.250, 0.092, 0.700, 0.046), 'rgba(0,0,0,.16)');     // 팔뚝 그늘 — 가로 띠가 아니라 **오른 가장자리 세로 한 단**(R8 B8)
         ctx.restore();
         ctx.save();                                                                       // 머리 — 자루 끝(우상단)
         // 머리 상자는 세로(local y)가 장축 = 자루와 직교하려면 회전각이 자루 기울기 그대로여야 한다.
@@ -4060,13 +4060,14 @@ IconGen._genderSym = function (ctx, S, female) {
             /* 2차 재채점 2인 공통 1순위: #10142b 는 하늘과 명도가 붙어 창문만 '허공에 뜬 주황 조각'이
                됐다 — 언덕(#151a34)보다 더 어두운 흑청으로 낮추고, 지붕을 키우고, 달 쪽(오른쪽)
                지붕선에 달빛 림라이트 한 줄을 얹어 '집 → 창' 소속을 명시한다. */
-            const hx = W * 0.30, hy = H * 0.625, hw = W * 0.105, hh = H * 0.175;
+            const hx = W * 0.285, hy = H * 0.640, hw = W * 0.147, hh = H * 0.245;   // R8-2 A12: 1.4배 — 종전 크기는 302px 에서 '주황 점 박힌 얼룩'이었다
             const house = () => {
                 ctx.moveTo(hx, hy); ctx.lineTo(hx, hy - hh * 0.55);
                 ctx.lineTo(hx + hw * 0.16, hy - hh * 0.55); ctx.lineTo(hx + hw * 0.44, hy - hh);   // 꺾인 박공(크게)
                 ctx.lineTo(hx + hw * 0.80, hy - hh * 0.58); ctx.lineTo(hx + hw, hy - hh * 0.60);
                 ctx.lineTo(hx + hw, hy); ctx.closePath();
             };
+            ctx.beginPath(); house(); ctx.strokeStyle = '#03050e'; ctx.lineWidth = H * 0.030; ctx.lineJoin = 'round'; ctx.stroke();   // 키라인(스트로크→채움 = 합집합 실루엣)
             fill(ctx, '#0a0d1d', house);
             fill(ctx, '#0a0d1d', () => ctx.rect(hx + hw * 0.64, hy - hh * 1.15, hw * 0.13, hh * 0.58));   // 굴뚝
             ctx.strokeStyle = 'rgba(210,215,235,.40)'; ctx.lineWidth = H * 0.008;                          // 달빛 림(달 쪽 지붕선)
@@ -4184,11 +4185,11 @@ IconGen._genderSym = function (ctx, S, female) {
             trunkStroke(t + H * 0.030, '#0a0614'); trunkStroke(t, '#241a12');   // 키라인 언더레이(R2 공통)
             const blobs = [];
             for (let i = 0; i < 5; i++)                                    // 작은 캐노피(좌측 나무와 같은 어두운 초록 계열)
-                blobs.push([x + H * (-0.16 + R() * 0.24), H * (0.525 + R() * 0.07), H * (0.05 + R() * 0.032), i % 2 ? '#16301f' : '#1c3a28']);
+                blobs.push([x + H * (-0.16 + R() * 0.24), H * (0.525 + R() * 0.07), H * (0.05 + R() * 0.032), i % 2 ? '#141f2c' : '#1a2838']);
             ctx.strokeStyle = '#04080e'; ctx.lineWidth = H * 0.032;
             blobs.forEach(([lx, ly, r]) => { ctx.beginPath(); ctx.arc(lx, ly, r, 0, Math.PI * 2); ctx.stroke(); });
             blobs.forEach(([lx, ly, r, c]) => fill(ctx, c, () => ctx.arc(lx, ly, r, 0, Math.PI * 2)));
-            fill(ctx, '#2a4f33', () => ctx.arc(x - H * 0.03, H * 0.525, H * 0.028, 0, Math.PI * 2));   // 달빛 림 혹 하나
+            fill(ctx, '#2c3d55', () => ctx.arc(x - H * 0.03, H * 0.525, H * 0.028, 0, Math.PI * 2));   // 달빛 림 혹 하나
         })();
         // 모서리 덤불 — 우하단(묘비 앞)·좌하단. 원본 네 모서리의 어두운 초록 덩어리.
         const dbush = (bx, by, s) => {
@@ -4196,7 +4197,7 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.arc(bx - H * 0.10 * s, by, H * 0.10 * s, 0, Math.PI * 2);
             ctx.arc(bx + H * 0.02 * s, by - H * 0.06 * s, H * 0.12 * s, 0, Math.PI * 2);
             ctx.arc(bx + H * 0.14 * s, by, H * 0.10 * s, 0, Math.PI * 2);
-            ctx.fillStyle = '#122417'; ctx.fill();
+            ctx.fillStyle = '#0e1826'; ctx.fill();   // R8-2 A11: 초록 채도를 걷고 밤(남청) 계열로 — 이 두 덩어리만 1행 팔레트처럼 튀었다
             ctx.save();                                                    // 달빛 셀 라이트 한 단(R3 B ⓓ) — 윗변만 밝혀 덩어리의 위아래를 가른다
             ctx.beginPath();
             ctx.arc(bx - H * 0.10 * s, by, H * 0.10 * s, 0, Math.PI * 2);
@@ -4303,6 +4304,8 @@ IconGen._genderSym = function (ctx, S, female) {
             }
             if (kind === 4)                                                // 볏 — 정수리 지느러미 한 장(키를 올려 실루엣 분화)
                 paths.push(() => { ctx.moveTo(x - r * 0.58, y - r * 0.72); ctx.quadraticCurveTo(x + r * 0.05, y - r * 2.15, x + r * 0.62, y - r * 0.72); ctx.closePath(); });
+            if (kind === 7)                                                // R8-2: 어깨 옆 둥근 방패 — 투구 일변도의 어휘를 깬다(A6 '실루엣 어휘 혼합')
+                paths.push(() => ctx.arc(x + r * 1.30, y + r * 1.35, r * 0.86, 0, Math.PI * 2));
             if (kind === 6)                                                // R4: 둥근 투구 돔 + 넓은 챙 — 전경 '삼각 융기=산맥' 오독(2인 공통) 해소용 기본 종
                 paths.push(() => ctx.rect(x - r * 1.02, y + r * 0.26, r * 2.04, r * 0.32));
             paths.push(() => {                                             // 어깨(넓고 낮게) + 목 노치
@@ -4333,14 +4336,14 @@ IconGen._genderSym = function (ctx, S, female) {
         const MIDC_HI = ['#544038', '#4b3830', '#5c463c', '#503c32'];   // R8 값게이트: 원본 중경 실측 #403030(L52) 대역
         const MIDC = ['#493229', '#402c25', '#503730', '#452f28'];      // R8-2: 중경은 원본 실측 #403030(L52) 자리로 되돌리고 근흑은 근경 전용으로 — 두 층이 같은 값이면 사다리가 없다      // R8 값게이트: 원본 전경 실측 #201010(L21) 직전 단         // 색·키·크기를 함께 흔들어 타일링 패턴을 깬다
         const pickKind = k =>                                              // 6종 혼합(ⓐ) — 뾰족·뿔은 드물게(9차 '삼각형 정체불명')
-            k < 0.28 ? 0 : k < 0.42 ? 1 : k < 0.62 ? 3 : k < 0.86 ? 4 : k < 0.96 ? 5 : 2;   // R6 A '중경 사각 블록': 챙(5) 빈도 축소
+            k < 0.24 ? 0 : k < 0.36 ? 1 : k < 0.54 ? 3 : k < 0.74 ? 4 : k < 0.86 ? 5 : k < 0.94 ? 7 : 2;   // R6 A '중경 사각 블록': 챙(5) 빈도 축소
         /* R1 비평가 2인 공통 '중경 군중 뭉개짐/외곽선 부재': 아래 밴드에 어두운 갈색 얇은 윤곽을
            둘러 인물 한 명 한 명이 분절되게 한다(검정이면 전경 열과 층이 안 갈리므로 톤 윤곽).
            밀도도 한 단 올린다(성겨서 '대군'의 압박감이 약하다는 공통 지적). */
         for (let i = 0; i < 10; i++)                                       // 위 밴드(밝게)
-            figure(W * (i / 10 - 0.004 + R() * 0.055), H * (0.468 + R() * 0.045), 1.00 + R() * 0.60, MIDC_HI[(R() * 4) | 0], pickKind(R()));
+            figure(W * (i / 10 - 0.004 + R() * 0.055), H * (0.462 + R() * 0.062), 0.82 + R() * 1.05, MIDC_HI[(R() * 4) | 0], pickKind(R()), 'rgba(152,118,96,.55)');
         for (let i = 0; i < 13; i++)                                       // 아래 밴드(기존 명도 + 톤 윤곽)
-            figure(W * (i / 13 - 0.004 + R() * 0.050), H * (0.505 + R() * 0.050), 1.10 + R() * 0.60, MIDC[(R() * 4) | 0], pickKind(R()), 'rgba(120,86,66,.60)');   // 근흑 채움 위 어두운 윤곽은 안 보인다 — 윤곽을 채움보다 **밝게** 뒤집어 분절을 살린다
+            figure(W * (i / 13 - 0.004 + R() * 0.050), H * (0.498 + R() * 0.068), 0.90 + R() * 1.10, MIDC[(R() * 4) | 0], pickKind(R()), 'rgba(120,86,66,.60)');   // 근흑 채움 위 어두운 윤곽은 안 보인다 — 윤곽을 채움보다 **밝게** 뒤집어 분절을 살린다
         // 창 — 군중 사이에서 올라오는 자루+창끝
         for (let i = 0; i < 6; i++) {
             const x = W * (0.06 + i * 0.17 + R() * 0.05), top = H * (0.18 + R() * 0.14);
