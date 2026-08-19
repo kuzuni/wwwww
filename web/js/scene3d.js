@@ -5908,14 +5908,17 @@ const Scene3D = {
         switch (name) {
             case 'Snail': { // 몸통 + 나선 껍데기 + 관절 더듬이눈
                 sp(0.13, 0, 0.09, 0.04, mat, 1.1, 0.7, 1.5);
-                sp(0.15, 0, 0.26, -0.08, light);
-                sp(0.09, 0, 0.26, -0.08, dark, 1.05, 1.05, 0.5);
                 for (const s of [-1, 1]) {
                     const st = pv(s * 0.05, 0.17, 0.2);     // 더듬이 뿌리 = 관절
                     into(st, () => { cy(0.012, 0.012, 0.14, 0, 0.07, 0, dark); sp(0.028, 0, 0.15, 0.01, blk); });
-                    jt(st, 'z', 0.24, s > 0 ? 0 : Math.PI, { f: 0.9, gain: 1.6 });   // 좌우로 더듬더듬
-                    jt(st, 'x', 0.16, s * 0.8, { f: 1.5, gain: 1.6 });
+                    // ⚠️ 진폭 하한(재오픈 2026-08-19): 종전 0.24/0.16·f 0.9 는 화면에서 ≤1px —
+                    //    25종 중 달팽이가 '통짜'로 재지적된 원인. 실게임 카메라 px 실측으로 정했다.
+                    jt(st, 'z', 0.55, s > 0 ? 0 : Math.PI, { f: 1.7, gain: 1.6 });   // 좌우로 더듬더듬
+                    jt(st, 'x', 0.34, s * 0.8, { f: 2.4, gain: 1.6 });
                 }
+                const shell = pv(0, 0.14, -0.08);            // 껍데기 뿌리 = 관절 (몸 위에서 일렁임)
+                into(shell, () => { sp(0.15, 0, 0.12, 0, light); sp(0.09, 0, 0.12, 0, dark, 1.05, 1.05, 0.5); });
+                jt(shell, 'z', 0.16, 0.6, { f: 1.1, gain: 1.5 });
                 break;
             }
             case 'Turtle': { // 등딱지 + 관절 목 + 노 젓는 네 다리
@@ -6066,9 +6069,9 @@ const Scene3D = {
                         sp(0.035, 0, 0.12, 0.02, dark);
                         sting = cn(0.028, 0.09, 0, 0.18, 0.06, blk); sting.rotation.x = 2.5;
                     });
-                    jt(t2, 'x', 0.28, 1.1, { f: 0.9 });
+                    jt(t2, 'x', 0.42, 1.1, { f: 1.4 });
                 });
-                jt(t1, 'x', 0.24, 0, { f: 0.9 });
+                jt(t1, 'x', 0.36, 0, { f: 1.4 });
                 g.userData.sting = sting;
                 g.userData.claws = [];
                 for (const s of [-1, 1]) {
@@ -6077,11 +6080,14 @@ const Scene3D = {
                         sp(0.055, s * 0.03, 0, 0.07, dark);
                         g.userData.claws.push(sp(0.04, s * 0.06, 0, 0.14, dark, 1, 0.7, 1.2));
                     });
-                    jt(arm, 'y', 0.22 * s, s > 0 ? 0 : Math.PI, { f: 1.2 });   // 집게팔 벌렸다 오므렸다
+                    jt(arm, 'y', 0.4 * s, s > 0 ? 0 : Math.PI, { f: 1.8 });   // 집게팔 벌렸다 오므렸다
                     for (let i = 0; i < 3; i++) {
                         const leg = limb(s * 0.12, 0.1, -0.04 + i * 0.07, 0.11, 0.01, 0.008, dark);
                         leg.rotation.z = s * 1.0;
-                        jt(leg, 'x', 0.42, i * 1.05 + (s > 0 ? Math.PI : 0), { f: 1.6, gain: 1.8 });   // 마디마다 시차
+                        // ⚠️ 다리가 z=±1.0 으로 눕혀져 있어 x 회전은 대부분 깊이축으로 사라진다(화면 ≤1.4px,
+                        //    재오픈 원인). 화면에 보이는 건 z 성분 — 노 젓듯 위아래로 젓는 축을 같이 준다.
+                        jt(leg, 'x', 0.55, i * 1.05 + (s > 0 ? Math.PI : 0), { f: 2.2, gain: 1.8 });   // 마디마다 시차
+                        jt(leg, 'z', s * 0.28, i * 1.05 + 0.7 + (s > 0 ? Math.PI : 0), { f: 2.2, gain: 1.8 });
                     }
                 }
                 eyes(0.16, 0.2, 0.05, 0.02);
@@ -6093,7 +6099,9 @@ const Scene3D = {
                 for (const s of [-1, 1]) for (let i = 0; i < 4; i++) {
                     const [hip, knee] = limb2(s * 0.09, 0.19, -0.1 + i * 0.07, 0.1, 0.09, 0.01, dark);
                     hip.rotation.z = s * 1.05;
+                    // 눕힌 다리의 x 회전은 깊이축으로 사라진다(전갈과 같은 함정) — z 성분을 같이 준다
                     jt(hip, 'x', 0.4, (i % 2 ? 0 : Math.PI) + (s > 0 ? Math.PI : 0), { f: 1.5, gain: 1.8 });
+                    jt(hip, 'z', s * 0.2, (i % 2 ? 0 : Math.PI) + (s > 0 ? Math.PI : 0) + 0.6, { f: 1.5, gain: 1.8 });
                     jt(knee, 'z', -s * 0.5, (i % 2 ? 0 : Math.PI) + (s > 0 ? Math.PI : 0) + 0.9, { f: 1.5, gain: 1.8, abs: true });
                 }
                 for (const s of [-1, 1]) { sp(0.022, s * 0.035, 0.21, 0.18, new THREE.MeshBasicMaterial({ color: 0xff1744 })); sp(0.014, s * 0.075, 0.19, 0.17, new THREE.MeshBasicMaterial({ color: 0xff1744 })); }
@@ -6207,14 +6215,17 @@ const Scene3D = {
                 cy(0.07, 0.1, 0.3, 0, 0.2, 0, wood);
                 const head = pv(0, 0.36, 0);
                 into(head, () => { sp(0.14, 0, 0.07, 0, mat); sp(0.08, 0.12, 0.01, 0.03, mat); eyes(0.03, 0.09, 0.045); });
-                jt(head, 'z', 0.1, 0, { f: 0.8 });                         // 우듬지처럼 천천히 흔들림
+                // ⚠️ 진폭 하한(재오픈 2026-08-19): 종전 head 0.1·팔 0.24(f0.9) 는 freq 1.2 와 곱해져
+                //    화면 ≤1.4px = 정지로 읽혔다. 바람에 크게 흔들리는 우듬지로 키운다.
+                jt(head, 'z', 0.34, 0, { f: 1.5 });                        // 우듬지처럼 흔들림
                 for (const s of [-1, 1]) {
                     const sh = pv(s * 0.06, 0.28, 0.02);
                     into(sh, () => cy(0.02, 0.025, 0.16, 0, -0.08, 0, wood));
                     sh.rotation.z = s * 2.05;                              // 위로 뻗은 가지 팔
-                    jt(sh, 'x', 0.24, s > 0 ? 0 : Math.PI, { f: 0.9, gain: 1.6 });
+                    jt(sh, 'x', 0.5, s > 0 ? 0 : Math.PI, { f: 1.5, gain: 1.6 });
+                    jt(sh, 'z', s * 0.2, s * 0.9, { f: 1.1, gain: 1.5 }); // 가지가 벌어졌다 오므라들기
                 }
-                for (const s of [-1, 1]) jt(limb(s * 0.05, 0.08, 0, 0.09, 0.03, 0.022, wood), 'x', 0.34, s > 0 ? 0 : Math.PI, { gain: 1.9 });
+                for (const s of [-1, 1]) jt(limb(s * 0.05, 0.08, 0, 0.09, 0.03, 0.022, wood), 'x', 0.6, s > 0 ? 0 : Math.PI, { f: 1.6, gain: 1.9 });
                 break;
             }
             case 'Enchanted Elk': { // 가지뿔 + 관절 목·네 다리
@@ -6254,8 +6265,8 @@ const Scene3D = {
                     cn(0.02, 0.18, 0, -0.09, 0, M(new THREE.Color(c).offsetHSL(0, 0, -0.1), { transparent: true, opacity: 0.7 }));
                     cy(0.09, 0.03, 0.14, 0, 0.04, 0, M(c, { transparent: true, opacity: 0.85 }));
                 });
-                jt(smoke, 'z', 0.2, 0, { f: 0.9, gain: 1.6 });             // 연기 하체가 나부낀다
-                jt(smoke, 'x', 0.12, 1.1, { f: 0.7, gain: 1.8 });
+                jt(smoke, 'z', 0.42, 0, { f: 1.3, gain: 1.6 });            // 연기 하체가 나부낀다
+                jt(smoke, 'x', 0.26, 1.1, { f: 1.0, gain: 1.8 });
                 sp(0.11, 0, 0.36, 0, mat);
                 const head = pv(0, 0.44, 0);
                 into(head, () => {
@@ -6263,12 +6274,14 @@ const Scene3D = {
                     sp(0.03, 0, 0.12, 0.07, M(0xffd54f, { emissive: 0xffd54f, emissiveIntensity: 0.6 }));
                     eyes(0.06, 0.08);
                 });
-                jt(head, 'y', 0.24, 0, { f: 0.8 });
+                jt(head, 'y', 0.45, 0, { f: 1.2 });
+                jt(head, 'x', 0.16, 0.7, { f: 0.9 });                      // 끄덕임도 섞어 y 회전의 깊이 소실을 보완
                 for (const s of [-1, 1]) {
                     const sh = pv(s * 0.09, 0.38, 0.01);
                     into(sh, () => { cy(0.022, 0.02, 0.1, 0, -0.05, 0, mat); sp(0.04, 0, -0.11, 0.03); });
                     sh.rotation.z = s * 0.5;
-                    jt(sh, 'x', 0.3, s > 0 ? 0 : Math.PI, { f: 1, gain: 1.5 });   // 팔짱 대신 느긋한 팔 흔들기
+                    jt(sh, 'x', 0.55, s > 0 ? 0 : Math.PI, { f: 1.5, gain: 1.5 });   // 팔짱 대신 느긋한 팔 흔들기
+                    jt(sh, 'z', s * 0.22, s * 1.3, { f: 1.1, gain: 1.5 });
                 }
                 break;
             }
@@ -6281,7 +6294,7 @@ const Scene3D = {
                     for (const s of [-1, 1]) cn(0.02, 0.06, s * 0.05, 0.21, -0.02, M(0xffffff));
                     eyes(0.14, 0.11);
                 });
-                jt(neck, 'x', 0.24, 0.5, { f: 1, gain: 1.6 });
+                jt(neck, 'x', 0.4, 0.5, { f: 1, gain: 1.6 });
                 g.userData.wings = [];
                 for (const s of [-1, 1]) {
                     const sh = pv(s * 0.08, 0.28, -0.05);
@@ -6295,7 +6308,7 @@ const Scene3D = {
                 tail.rotation.x = -0.9;
                 g.userData.tail = tail;
                 let i = 0;
-                for (const s of [-1, 1]) jt(limb(s * 0.06, 0.13, 0.02, 0.13, 0.022, 0.016, dark), 'x', 0.46, (i++) * Math.PI, { gain: 1.8 });
+                for (const s of [-1, 1]) jt(limb(s * 0.06, 0.13, 0.02, 0.13, 0.022, 0.016, dark), 'x', 0.62, (i++) * Math.PI, { gain: 1.8 });
                 break;
             }
             default: {

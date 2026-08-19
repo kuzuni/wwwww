@@ -99,6 +99,48 @@ const WEB = path.resolve(__dirname, '..');
         };
         const idle = spread(false);
         const walk = spread(true);
+
+        // ---- ⑦ 화면 px 가시성 (재오픈 2026-08-19: 월드 이동폭만 보면 '눈에 정지'를 놓친다) ----
+        // 월드 지표는 25종 PASS 였는데 사용자는 "관절 안 움직이는 거 아직 있음" — 실측하니
+        // Snail ≤1px·Treant ≤1.4px·Scorpion 다리 ≤1.4px 등 화면에서는 정지였다(눕힌 다리의
+        // x 회전이 깊이축으로 사라지는 함정 포함). 그래서 **실게임 카메라로 투영한 px** 을 게이트로 잰다.
+        // 3마리씩 실전 배치로 세워 카메라 거리·스케일을 실제와 맞춘다(25마리 동시는 바깥 호로 밀린다).
+        const canvas = Scene3D.renderer.domElement;
+        const W = canvas.clientWidth || canvas.width, H = canvas.clientHeight || canvas.height;
+        const toPx = (v) => { const p = v.clone().project(Scene3D.camera); return { x: (p.x * 0.5 + 0.5) * W, y: (-p.y * 0.5 + 0.5) * H }; };
+        out.px = [];
+        for (let base = 0; base < names.length; base += 3) {
+            const batch = names.slice(base, base + 3);
+            S.pets = batch.map(n => ({ name: n, rarity: 'common', level: 1, dupes: 0, xp: 0, stars: 0, subs: [] }));
+            S.activePets = batch.map((_, i) => i);
+            Scene3D.refreshPets();
+            Scene3D.anims.length = 0;
+            Scene3D.walking = false;
+            const per = Scene3D.petGroups.map(pg => (pg.userData.joints || []).map(() => ({ mnx: 1e9, mny: 1e9, mxx: -1e9, mxy: -1e9 })));
+            for (let f = 0; f < 150; f++) {           // 대기 2.5초 — 느린 종도 한 사이클을 채운다
+                Scene3D.update(1 / 60);
+                Scene3D.petGroups.forEach((pg, i) => {
+                    const org = new THREE.Vector3();
+                    pg.getWorldPosition(org);
+                    const opx = toPx(org);            // 몸통 원점 px — 그룹 바운스를 화면에서도 뺀다
+                    (pg.userData.joints || []).forEach((j, k) => {
+                        j.o.updateMatrixWorld(true);
+                        const p = toPx(new THREE.Vector3(0, -0.1, 0).applyMatrix4(j.o.matrixWorld));
+                        const r = per[i][k];
+                        r.mnx = Math.min(r.mnx, p.x - opx.x); r.mxx = Math.max(r.mxx, p.x - opx.x);
+                        r.mny = Math.min(r.mny, p.y - opx.y); r.mxy = Math.max(r.mxy, p.y - opx.y);
+                    });
+                });
+            }
+            Scene3D.petGroups.forEach((pg, i) => {
+                const spans = per[i].map(r => Math.hypot(r.mxx - r.mnx, r.mxy - r.mny));
+                out.px.push({
+                    name: pg.userData.name,
+                    max: +Math.max(...spans).toFixed(1),
+                    frozenRatio: +(spans.filter(s => s < 1.5).length / spans.length).toFixed(2),
+                });
+            });
+        }
         // idle = 그 종에서 가장 크게 움직인 관절, growth = **관절별로 재서** 가장 많이 늘어난 폭.
         // ⚠️ growth 를 '종별 최대끼리 빼기'로 재면 안 된다 — Electry 의 등속 회전 코일처럼
         //    gain 을 안 받는 관절이 최대를 차지하면 다리·날개가 커져도 차이가 0으로 보인다.
@@ -132,6 +174,14 @@ const WEB = path.resolve(__dirname, '..');
         console.log(`  ${m.name.padEnd(15)} idle ${m.idle.toFixed(4)}  walk ${m.walk.toFixed(4)}  Δ최대 ${m.growth.toFixed(4)}${tag}`);
         if (m.idle < 0.008) bad(`${m.name}: 대기 중 관절이 사실상 안 움직임 (${m.idle.toFixed(4)})`);
         if (m.growth < 0.004) bad(`${m.name}: 이동 중 진폭이 커지는 관절이 없음 (Δ최대 ${m.growth.toFixed(4)})`);
+    }
+
+    console.log('⑦ 화면 px 가시성 (실게임 카메라, 대기 2.5초, 몸통 상대)');
+    for (const m of res.px) {
+        const tag = m.max < 3 ? ' ← 눈에 정지' : m.frozenRatio > 0.6 ? ' ← 관절 다수 정지' : '';
+        console.log(`  ${m.name.padEnd(15)} max ${String(m.max).padStart(5)}px  <1.5px 비율 ${Math.round(m.frozenRatio * 100)}%${tag}`);
+        if (m.max < 3) bad(`${m.name}: 대기 중 화면 이동폭 최대 ${m.max}px — 육안 정지 (하한 3px)`);
+        if (m.frozenRatio > 0.6) bad(`${m.name}: 관절 ${Math.round(m.frozenRatio * 100)}% 가 화면 1.5px 미만`);
     }
 
     console.log('⑥ 콘솔 에러: ' + errors.length);
