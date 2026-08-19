@@ -8,6 +8,8 @@ cd "$(dirname "$0")" || exit 1
 fail=0
 for p in \
     probe-cell-icon-size.js \
+    test-voxel.js \
+    probe-voxel-build.js \
     probe-grid-empty.js \
     test-death-timeline.js \
     probe-death-remnant.js \
