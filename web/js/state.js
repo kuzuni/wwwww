@@ -237,7 +237,18 @@ function pruneDanglingRefs() {
     // 문자열·배열이 들어 있으면 장비 시트가 터지므로 여기서 null로 되돌린다.
     for (const slot of Object.keys(S.equipment)) {
         const it = S.equipment[slot];
-        if (it !== null && (typeof it !== 'object' || Array.isArray(it))) S.equipment[slot] = null;
+        if (it !== null && (typeof it !== 'object' || Array.isArray(it))) { S.equipment[slot] = null; continue; }
+        // 타입만 보던 그물을 **객체이면서 시대 키가 표에 없는 경우**가 그대로 빠져나갔다
+        // (2026-08-19 QA 18차 save-bad-age-kills-ui — `UI.ageHex` 가 죽어 장비 시트·모루가 통째로 증발).
+        // ⚠️ **슬롯을 null 로 버리지 않는다** — 시대 이름이 한 번 바뀐 것뿐인데 사용자가 끼고 있던
+        //    장비를 통째로 빼앗는 셈이 된다. `ageIdx` 가 성하면 그걸로 되살리고, 그마저 아니면
+        //    첫 시대로 떨어뜨린다(장비는 남고 색만 기본이 된다). 조용히 고치지 않고 짖는다.
+        if (it && typeof AGES !== 'undefined' && !AGES.includes(it.age)) {
+            const byIdx = Number.isInteger(it.ageIdx) && it.ageIdx >= 0 && it.ageIdx < AGES.length ? AGES[it.ageIdx] : null;
+            console.error('[state] 장착 장비의 시대 키가 표에 없다 — 보정한다:', slot, it.age, '→', byIdx || AGES[0]);
+            it.age = byIdx || AGES[0];
+            it.ageIdx = AGES.indexOf(it.age);
+        }
     }
 }
 

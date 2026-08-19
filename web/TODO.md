@@ -550,7 +550,7 @@
 > - **⚠️ 가드 운영**: 이 세션도 `[UI종료]` 마커를 보고 규칙대로 시작했는데 병행 UI 세션과 같은 항목이 겹쳤다. 시작 전 `git log`에서 **마커뿐 아니라 최근 커밋 제목**을 읽고, 착수 직전 TODO의 해당 줄이 이미 [x]인지 다시 확인할 것.
 
 ### 🐛 QA 발견 버그
-- [ ] **장착 장비의 `age` 값이 `AGE_COLORS` 에 없으면 `UI.init()` 이 통째로 죽어 장비 시트·모루가 화면에서 사라진다 (slug: save-bad-age-kills-ui)** (2026-08-19 QA 18차 플레이 세션 등재, 고치지 않고 등재만. **비채점·비평가 불필요** — 부팅이 죽고 안 죽고가 명확하다)
+- [x] **장착 장비의 `age` 값이 `AGE_COLORS` 에 없으면 `UI.init()` 이 통째로 죽어 장비 시트·모루가 화면에서 사라진다 (slug: save-bad-age-kills-ui)** (2026-08-19 QA 18차 플레이 세션 등재, 고치지 않고 등재만. **비채점·비평가 불필요** — 부팅이 죽고 안 죽고가 명확하다)
   - **재현 절차**: ① `localStorage['forgeclone_save_v1']` 에 `{"version":1,"equipment":{"weapon":{"name":"헌 검","slot":"weapon","age":"nope","ageIdx":0,"rarity":"common","level":1,"main":"atk","value":10,"subs":[]}}}` 를 넣는다(⚠️ 심은 뒤 `reload()` 하면 떠나는 페이지의 자동 저장이 덮어쓴다 — **Playwright `addInitScript` 로 심고 `goto`** 할 것. 1034행 완료 항목의 계측 함정 ⓐ 와 같은 자리다) ② `web/index.html` 을 연다 ③ 화면 하단과 콘솔을 본다.
   - **기대**: 모르는 `age` 는 기본 색으로 떨어뜨리고 나머지 화면은 정상 부팅한다 — **같은 계열의 `rarity` 는 이미 그렇게 동작한다**(대조군 실측: `rarity:"uncommon"` 인 장비를 물려도 정상 부팅·`eqCells 9`. `srRgb` 에 가드가 들어가 있어서다 — `probe-creature-framing-crash` 항목이 그때 넣었다).
   - **실제**: `UI.init() 실패 — 나머지 부팅은 계속한다 TypeError: Cannot read properties of undefined (reading 'toString')` 한 줄만 남고 **장비 시트와 모루가 통째로 안 그려진다**. 실측(430×932): `.equip-cell` **9 → 0개**, `.anvil-btn` **있음 → 없음**, `#app` 하위 노드 **267 → 129개**. 화면은 전투 3D 위에 **빈 흰 띠**만 남고 그 아래 탭바가 붙는다(스크린샷으로 확인 — 제작·장착·판매로 가는 길이 화면에 하나도 없다). 전투는 돌지만 게임을 진행할 수단이 없다.
@@ -558,6 +558,13 @@
   - **왜 실전에서도 날 수 있나**: `AGES`/`AGE_COLORS` 는 이미 한 번 통째로 교체된 적이 있다(4039행 항목 — 10색 전부 교체). 시대 키 이름이 한 번만 바뀌거나 하나 빠져도 그 시대 장비를 낀 **모든 기존 세이브**가 이 상태가 된다. 저장 중단·용량 초과로 반쯤 쓰인 세이브도 같은 경로다.
   - **수정 방향**: ⓐ `ageHex` 에 `srRgb` 와 **같은 처방** — 표에 없으면 회색으로 떨어뜨리고 `console.error` 를 낸다(조용히 삼키면 `probe-screens-errors` 의 '콘솔 에러 0건' 판정에 안 걸려 다음에도 못 본다. 그 논지가 `probe-creature-framing-crash` 항목에 그대로 적혀 있다). ⓑ `pruneDanglingRefs()` 의 장비 슬롯 검사에 `AGES.includes(it.age)` 를 더해 애초에 끊는다. 둘 다 하는 편이 낫다(ⓐ 는 다른 진입점도 막고, ⓑ 는 세이브를 실제로 고친다).
   - **검증**: 위 세이브로 부팅해 `.equip-cell` 9개·`.anvil-btn` 존재·`pageerror` 0건. 음성 대조로 가드를 빼면 `eqCells 0` 이 재현돼야 한다.
+  - ✅ **완료 (2026-08-19 UI 스트림, 판정기 `tools/probe-save-corrupt-boot.js` 신설)** — 등재 메모의 ⓐⓑ 둘 다 넣었다.
+    - ⓐ **`UI.ageHex` 가드**: 표에 없으면 회색(`#808080`)으로 떨어뜨리고 **`console.error` 로 짖는다** — `srRgb` 와 같은 처방이고, 조용히 삼키면 `probe-screens-errors` 의 '콘솔 에러 0건' 판정에 안 걸려 다음에도 못 본다는 그 논지 그대로다.
+    - ⓑ **`pruneDanglingRefs` 가 세이브를 실제로 고친다.** ⚠️ **다만 메모의 처방(`AGES.includes` 아니면 슬롯을 null)과 하나 다르게 갔다** — 시대 이름이 한 번 바뀐 것뿐인데 **사용자가 끼고 있던 장비를 통째로 빼앗는** 셈이라, 버리는 대신 **되살린다**: `ageIdx` 가 성하면 그 시대로, 아니면 첫 시대로 보정하고 `ageIdx` 도 맞춰 다시 적는다(여기서도 `console.error` 로 짖는다). 장비는 남고 색만 기본이 된다. 타입 검사(객체 아님/배열)는 종전대로 null 이다.
+    - **판정기 신설 `probe-save-corrupt-boot.js`** — 세이브를 **`addInitScript` 로** 심고(등재 메모가 경고한 그 함정: `goto` 뒤에 심고 `reload` 하면 떠나는 페이지의 자동 저장이 덮어쓴다) `waitBootDone` 으로 부팅 완주를 기다린 뒤 `.equip-cell` 9칸·모루 존재·`pageerror` 0·**장비가 안 버려졌는가**·시대 키가 표 안인가를 잰다. 성한 세이브 **대조군**도 같은 잣대로 같이 돌린다(자가 헐거워서 나는 공짜 PASS 방지).
+    - **음성 대조(규칙 ㉡)**: 가드 둘을 다 빼면 **등재된 증상이 그대로 재현**된다 — `장비칸 9→0` · `모루 있음→없음` · `#app 노드 261→124`(등재 실측 267→129 와 같은 자리). 대조군은 그대로 PASS 라 자가 아니라 제품이 갈린 것임도 같이 확인된다.
+    - **회귀**: `probe-screens-errors` **31/31 콘솔 에러 0건**(새 `console.error` 가 평시엔 안 짖는다는 확인이기도 하다) · `probe-autoforge-default` · `probe-hold-deck` PASS · `node --check`.
+    - 📌 **곁다리로 `probe-hold-deck` 의 간헐 결함을 고쳤다**(내가 이번 세션에 만든 자다): 띠를 세는 구간을 '오른쪽 38%'로 잡아 뒀는데 **장비 이름이 길면 가운데 정렬된 글자가 그 구간까지 뻗어** 한 장짜리 카드에서도 밝은 띠가 1줄 잡혔다(뽑히는 이름이 회차마다 달라 간헐로만 났다). 이제 구간을 **더미 두께에서 역산**한다(`--dg × 두께 + 2px`) — 글자가 절대 닿지 않는 폭이다. 3회 연속 PASS 확인.
 - [ ] **장착 장비에 `subs` 필드가 없으면 `boot()` 가 끊겨 전투가 시작조차 안 된다 — 스테이지 라벨이 빈칸이고 적이 0마리 (slug: save-item-no-subs-kills-boot)** (2026-08-19 QA 18차 등재, 등재만. 비채점)
   - **재현 절차**: 위와 같은 방법으로 `{"version":1,"equipment":{"weapon":{"name":"헌 검","slot":"weapon","age":"primitive","ageIdx":0,"rarity":"common","level":1,"main":"atk","value":10}}}` (**`subs` 키만 없다**) 를 심고 부팅한다.
   - **기대**: `subs` 가 없으면 빈 배열로 보고 정상 부팅한다.

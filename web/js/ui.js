@@ -2917,7 +2917,21 @@ const UI = {
         return IconGen.img(this.ASC_ICON[line], cls) || Ascension.LINE_ICON[line] || '';
     },
 
-    ageHex(age) { return '#' + AGE_COLORS[age].toString(16).padStart(6, '0'); },
+    // ⚠️ **표에 없는 시대 키 하나가 UI 전체를 날리던 자리다** (2026-08-19 QA 18차, save-bad-age-kills-ui):
+    //    가드가 없어 `AGE_COLORS[age]` 가 undefined 면 `.toString` 에서 죽고, 이 함수를 부르는
+    //    `equipCellHTML` 이 `UI.init()` 안이라 **장비 시트와 모루가 통째로 안 그려졌다**(실측 `.equip-cell` 9→0).
+    //    `AGES`/`AGE_COLORS` 는 이미 한 번 통째로 교체된 적이 있어(키 하나만 바뀌어도) 실전에서도 난다.
+    //    처방은 `srRgb` 와 같다 — 회색으로 떨어뜨리되 **조용히 삼키지 않고** `console.error` 를 낸다.
+    //    (삼키면 `probe-screens-errors` 의 '콘솔 에러 0건' 판정에 안 걸려 다음에도 못 본다.)
+    AGE_HEX_FALLBACK: '#808080',
+    ageHex(age) {
+        const c = AGE_COLORS[age];
+        if (typeof c !== 'number' || !Number.isFinite(c)) {
+            console.error('[UI.ageHex] 시대표에 없는 시대 키다(손상 세이브?):', age);
+            return this.AGE_HEX_FALLBACK;
+        }
+        return '#' + c.toString(16).padStart(6, '0');
+    },
 
     // ===== 3D 스냅샷 썸네일을 프레임에 꽉 채우기 =====
     // Scene3D.itemThumb은 96×96 캔버스를 **고정 카메라**로 찍는다. 장비마다 실루엣이 달라

@@ -104,6 +104,7 @@ const VIEWPORTS = [{ width: 430, height: 932 }, { width: 360, height: 640 }];
                 count: UI.heldCount(),
                 tag: (e.querySelector('.held-tag') || {}).textContent,
                 x: r.x, y: r.y, w: r.width, h: r.height,
+                rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
             };
         }, exp.n);
         await page.waitForTimeout(200);
@@ -128,7 +129,13 @@ const VIEWPORTS = [{ width: 430, height: 932 }, { width: 360, height: 640 }];
         // 경계만 세면 그 층과 무관하게 '줄무늬가 실제로 그려졌는가'만 잰다.
         const shot = await page.screenshot({ clip: { x: st.x, y: st.y, width: st.w, height: st.h } });
         const row = await decode(shot);
-        const from = Math.round(row.length * 0.62);    // 오른쪽만 본다(가운데엔 아이템 그림·이름이 있다)
+        // ⚠️ **띠를 셀 구간은 더미 두께에서 역산한다** — 처음엔 '오른쪽 38%'로 잡았는데, 장비 이름이
+        //    길면 가운데 정렬된 글자가 그 구간까지 뻗어 **한 장짜리 카드에서도 밝은 띠가 1줄 잡혔다**
+        //    (뽑히는 이름이 회차마다 달라 간헐로만 났다). 더미는 항상 오른쪽 끝 `--dg × 두께` 안에
+        //    있으므로 그 폭 + 여유 2px 만 본다 — 글자가 절대 닿지 않는 구간이다(카드 패딩 .25rem).
+        const dgPx = 0.21 * st.rem * SCALE;                       // --dg: .21rem (기기 화소)
+        const bandPx = Math.round(dgPx * exp.depth + 2 * SCALE);
+        const from = Math.max(0, row.length - bandPx);
         const lum = row.slice(from).map(([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b);
         const lo = Math.min(...lum), hi = Math.max(...lum);
         // 밝은 띠 = 카드 한 장의 단면. 명암차가 없으면(단일 카드) 띠도 0이다.
