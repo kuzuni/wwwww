@@ -129,6 +129,82 @@ const ok = (c, m) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${m}`); if (!c) fail
         ok(last.lights === 0, `[${r.rar}] 연출 뒤 조명이 사라진다 (남은 ${last.lights}개)`);
     }
 
+    // ================= 운석 세례 (meteor) =================
+    // 같은 4축으로 잰다. 여기서 '예고'는 **조준 링이 착탄보다 먼저 지면에 뜨는가**다.
+    console.log('\n════ 운석 세례 ════');
+    const mrows = [];
+    for (const rarity of ['epic', 'mythic']) {
+        const r = await p.evaluate(async (rar) => {
+            Scene3D.clearEnemies();
+            const e = { id: 7700 + rar.length, x: Combat.MELEE_X, alive: true, hp: Big.of(1e9), maxHp: Big.of(1e9) };
+            Combat.enemies = [e]; Scene3D.spawnEnemy(e);
+            for (const a of Scene3D.anims) { try { a.fn(1); a.onDone && a.onDone(); } catch (x) {} }
+            Scene3D.anims = [];
+            const m = Scene3D.enemyMap.get(e.id);
+            m.g.position.set(e.x + Scene3D.worldX, 0, 0);
+            const def = SKILL_DEFS.find(s => s.fx === 'meteor' && s.rarity === rar) || { rarity: rar, fx: 'meteor', color: '#ff7043' };
+            const tier = Scene3D.skillTier(def);
+            const t0 = performance.now();
+            const frames = [], impacts = [];
+            // 착탄은 explosion 호출로 잡는다 — 씬 스캔으로는 폭발 파티클과 구분이 안 된다
+            const origEx = Scene3D.explosion.bind(Scene3D);
+            Scene3D.explosion = (pos, col) => { impacts.push({ t: performance.now() - t0, x: pos.x, z: pos.z }); return origEx(pos, col); };
+            Scene3D.skillEffect('meteor', def.color, [e.id], def);
+            const enemyPos = m.g.position.clone();
+            await new Promise(res => {
+                const iv = setInterval(() => {
+                    Scene3D.update(1 / 60);
+                    let tells = 0, rocks = 0, scorch = 0;
+                    Scene3D.scene.traverse(o => {
+                        if (!o.userData) return;
+                        if (o.userData.meteorTell) tells++;
+                        if (o.userData.meteorRock) rocks++;
+                        if (o.userData.meteorScorch) scorch++;
+                    });
+                    frames.push({ t: performance.now() - t0, tells, rocks, scorch });
+                    if (performance.now() - t0 > 3400) { clearInterval(iv); res(); }
+                }, 16);
+            });
+            Scene3D.explosion = origEx;
+            return { rar, tier, frames, impacts, enemy: { x: enemyPos.x, z: enemyPos.z }, want: Scene3D.meteorCount(tier),
+                tellMs: Scene3D.METEOR_TELL_MS };
+        }, rarity);
+        mrows.push(r);
+        await p.waitForTimeout(300);
+    }
+
+    for (const r of mrows) {
+        console.log(`\n── meteor ${r.rar} (tier ${r.tier}) ──`);
+        const firstImpact = r.impacts.length ? r.impacts[0].t : Infinity;
+        const firstTell = (r.frames.find(f => f.tells > 0) || {}).t;
+        const maxRocks = Math.max(0, ...r.frames.map(f => f.rocks));
+        console.log(`   조준 링 ${firstTell === undefined ? '없음' : firstTell.toFixed(0) + 'ms'} · 첫 착탄 ${firstImpact.toFixed(0)}ms · 착탄 ${r.impacts.length}회 · 동시 최대 운석 ${maxRocks}개`);
+        console.log(`   착탄 시각: ${r.impacts.map(i => i.t.toFixed(0)).join(', ')}ms`);
+
+        ok(firstTell !== undefined && firstTell < firstImpact - 100,
+            `[meteor ${r.rar}] 조준 링이 착탄보다 먼저 뜬다 (링 ${firstTell === undefined ? 'n/a' : firstTell.toFixed(0)}ms < 착탄 ${firstImpact.toFixed(0)}ms - 100)`);
+        ok(r.impacts.length === r.want, `[meteor ${r.rar}] 운석 ${r.impacts.length}발 (코드값 ${r.want}발)`);
+        if (r.impacts.length >= 2) {
+            const spread = r.impacts[r.impacts.length - 1].t - r.impacts[0].t;
+            ok(spread > 300, `[meteor ${r.rar}] 시간축에 퍼진다 (첫~끝 ${spread.toFixed(0)}ms >300 — 우수수 쏟아진다)`);
+            const gaps = r.impacts.slice(1).map((s, i) => s.t - r.impacts[i].t);
+            ok(Math.min(...gaps) > 25, `[meteor ${r.rar}] 착탄이 겹치지 않는다 (최소 간격 ${Math.min(...gaps).toFixed(0)}ms)`);
+        }
+        ok(maxRocks >= 2, `[meteor ${r.rar}] 하늘에 운석이 동시에 여러 개 (최대 ${maxRocks}개 ≥2)`);
+        const far = r.impacts.filter(i => Math.hypot(i.x - r.enemy.x, i.z - r.enemy.z) > 2.2);
+        ok(far.length === 0, `[meteor ${r.rar}] 착탄이 적 주변 2.2유닛 안 (이탈 ${far.length}/${r.impacts.length})`);
+        // 첫 발·마지막 발은 적 바로 위 (조준됐다 / 마무리)
+        const centered = [r.impacts[0], r.impacts[r.impacts.length - 1]]
+            .filter(i => i && Math.hypot(i.x - r.enemy.x, i.z - r.enemy.z) < 0.55).length;
+        ok(centered === 2, `[meteor ${r.rar}] 첫 발·마지막 발은 적 바로 위 (${centered}/2)`);
+        const last = r.frames[r.frames.length - 1];
+        ok(last.tells === 0 && last.rocks === 0 && last.scorch === 0,
+            `[meteor ${r.rar}] 연출 뒤 잔존 0 (링 ${last.tells} · 운석 ${last.rocks} · 그을음 ${last.scorch})`);
+        ok(Math.max(...r.frames.map(f => f.scorch)) > 0, `[meteor ${r.rar}] 착탄 자리에 그을음이 남는다`);
+    }
+    const mcounts = mrows.map(r => r.impacts.length);
+    ok(mcounts[mcounts.length - 1] > mcounts[0], `운석 등급 사다리 — ${mcounts.join(' → ')}발`);
+
     // ⑵-b 등급 사다리 — 높을수록 발수가 많다(단조 비감소, 양 끝은 실제로 늘어야 한다)
     const counts = rows.map(r => r.strikes.length);
     ok(counts.every((c, i) => i === 0 || c >= counts[i - 1]) && counts[counts.length - 1] > counts[0],

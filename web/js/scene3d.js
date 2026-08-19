@@ -9494,22 +9494,9 @@ const Scene3D = {
         const targets = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
         if (tier !== undefined) setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier), fx === 'meteor' ? 340 : 30);
         if (fx === 'meteor') {
-            targets.forEach((m, i) => setTimeout(() => {
-                const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34, 0),
-                    new THREE.MeshBasicMaterial({ color }));
-                const tp = m.g.position.clone();
-                const start = new THREE.Vector3(tp.x + 1.8, 6.5, 0);
-                rock.position.copy(start);
-                this.scene.add(rock);
-                this.addAnim(0.35, k => {
-                    rock.position.lerpVectors(start, tp, k * k);
-                    rock.rotation.x += 0.3; rock.rotation.z += 0.2;
-                    if (Math.random() < 0.7) { // 불꼬리
-                        const trail = rock.position.clone();
-                        this.riseParticle(trail, new THREE.Color(0xff7043));
-                    }
-                }, () => { this.disposeTree(rock); this.scene.remove(rock); this.explosion(tp, color); this.shake(0.2); });
-            }, i * 90));
+            // 운석 세례 (skill-fx-exaggerated). 예전엔 **타깃당 돌멩이 1개**라 적이 하나면 1발이었다 —
+            // 광역기인데 화면에는 돌 하나가 떨어지고 끝나서 '운석'이 아니라 '던진 돌'로 읽혔다.
+            this.meteorStorm(targetIds, color, tier || 0);
         } else if (fx === 'explode' || fx === 'breath') {
             targets.forEach((m, i) => setTimeout(() => {
                 this.explosion(m.g.position.clone(), color);
@@ -9751,6 +9738,103 @@ const Scene3D = {
             this.scene.remove(h.G);
             this.scene.remove(h.light);
         });
+    },
+
+    // ---- 스킬 전용 미니 연출 ②: 운석 세례 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----
+    // 사용자 원문: "하늘에서 운석 존나 여러 개 떨어져서 콰과과과광 이런 느낌".
+    //
+    // 여태 `meteor` 는 **타깃당 돌멩이 1개**였다(적이 하나면 말 그대로 1발). 메테오·아포칼립스가
+    // 광역기인데 화면에는 돌 하나가 떨어지고 끝나니 '운석'이 아니라 '던진 돌'로 읽혔다.
+    // 여기서 **한 번의 스킬이 운석 여러 발을 시차로 쏟아붓는** 장면으로 바꾼다.
+    //
+    // 장면 4단 — 먹구름 낙뢰와 같은 문법이다(예고 오브젝트 → 발동 → 연쇄 → 여운):
+    //   예고: 착탄 자리마다 지면에 **조준 링**이 먼저 깔린다(어디에 떨어질지 보인다 = 무서움)
+    //   낙하: 링마다 운석이 불꼬리를 끌고 떨어진다(시차)
+    //   착탄: 폭발 + 충격링 + 불티 + 흔들림. **마지막 한 발은 크게** — 연타가 물러지지 않게 닫는다
+    //   여운: 그을음 자국이 남았다 서서히 지워진다
+    //
+    // ⚠️ 조준 링은 **착탄보다 먼저** 떠 있어야 예고다. 링을 띄우고 `METEOR_TELL_MS` 뒤에 낙하를
+    //    시작한다 — 낙하 자체(0.35s)를 예고로 치면 '떨어지는 걸 봤다'일 뿐 '올 걸 알았다'가 아니다.
+    METEOR_TELL_MS: 200,      // 조준 링이 먼저 떠 있는 시간
+    METEOR_FALL_S: 0.34,      // 낙하 시간(초)
+    meteorCount(tier) { return 4 + Math.min(5, Math.max(0, tier | 0)); },   // 에픽 6발 … 미식 9발
+    meteorStorm(targetIds, color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 2 : tier));
+        const pw = t / 5;
+        const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
+        const base = live.length ? live.map(m => m.g.position.clone()) : [this.heroG.position.clone()];
+        const n = this.meteorCount(t);
+        // 착탄 자리 — 타깃들을 돌아가며 그 주변에 흩는다. 첫 발과 **마지막 발은 정확히 적 위**로
+        // (첫 발은 '조준됐다', 마지막 발은 '마무리'를 읽히게 한다). 가운데 발들만 흩어져 난타가 된다.
+        const spots = [];
+        for (let i = 0; i < n; i++) {
+            const c = base[i % base.length];
+            const edge = (i === 0 || i === n - 1) ? 0 : (0.85 + pw * 0.6);
+            spots.push(new THREE.Vector3(c.x + U.rand(-edge, edge), 0, c.z + U.rand(-edge, edge) * 0.55));
+        }
+        SFX.stormRumble(0.5);
+        for (let i = 0; i < n; i++) {
+            const spot = spots[i];
+            const last = i === n - 1;
+            const big = last ? 1.7 : 1;                       // 마지막 한 발이 가장 크다
+            const at = i * (108 - pw * 26);                   // 등급이 높을수록 촘촘하게 쏟아진다
+            // ⓐ 조준 링 — 지면에 먼저 깔린다
+            setTimeout(() => {
+                const r0 = (0.5 + pw * 0.25) * big;
+                const ring = new THREE.Mesh(new THREE.RingGeometry(r0 * 0.72, r0, 22),
+                    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+                ring.userData.meteorTell = true;
+                ring.rotation.x = -Math.PI / 2;
+                ring.position.set(spot.x, 0.03, spot.z);
+                this.scene.add(ring);
+                // 링은 **조여들며** 진해진다 — 커졌다 사라지면 착탄이 아니라 폭발 잔상으로 읽힌다
+                this.addAnim(this.METEOR_TELL_MS / 1000, k => {
+                    ring.scale.setScalar(1.9 - 0.9 * k);
+                    ring.material.opacity = 0.25 + 0.6 * k;
+                }, () => { ring.geometry.dispose(); ring.material.dispose(); this.scene.remove(ring); });
+            }, at);
+            // ⓑ 낙하 → ⓒ 착탄
+            setTimeout(() => {
+                const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3 * big, 0),
+                    new THREE.MeshBasicMaterial({ color, toneMapped: false }));
+                rock.userData.meteorRock = true;
+                // 비스듬히 떨어져야 '하늘에서 온 것'이 된다(수직 낙하는 '위에서 놓았다'로 읽힌다)
+                const start = new THREE.Vector3(spot.x + 1.6 + U.rand(-0.4, 0.4), 6.6, spot.z - 0.6);
+                rock.position.copy(start);
+                this.scene.add(rock);
+                const hot = new THREE.Color(0xff7043);
+                this.addAnim(this.METEOR_FALL_S, k => {
+                    rock.position.lerpVectors(start, spot, k * k);   // 가속 낙하
+                    rock.rotation.x += 0.34; rock.rotation.z += 0.22;
+                    if (Math.random() < 0.8) this.riseParticle(rock.position.clone(), hot);
+                }, () => {
+                    rock.geometry.dispose(); rock.material.dispose(); this.scene.remove(rock);
+                    this.explosion(spot.clone(), color);
+                    this.expandRing(new THREE.Vector3(spot.x, 0.02, spot.z), color, (1.2 + pw * 0.9) * big);
+                    this.spawnSparks(spot.clone().add(new THREE.Vector3(0, 0.4, 0)),
+                        Math.round((12 + pw * 18) * big), color.getHex(), { speed: (1.2 + pw * 0.6) * big });
+                    this.shake((0.18 + pw * 0.2) * big);
+                    this.flashLight(spot.clone(), color.getHex(), 0.18 * big);
+                    SFX.stormStrike(i);
+                    // 마지막 한 발만 화면을 물린다 — 매 발 물면 연타가 렉으로 읽힌다(타격 히트스톱과 같은 규칙)
+                    if (last && t >= 2) this.hitStop(0.04 + pw * 0.04);
+                    this.meteorScorch(spot, big);
+                });
+            }, at + this.METEOR_TELL_MS);
+        }
+    },
+    // 여운 — 착탄 자리에 남는 그을음. 폭발만 있고 흔적이 없으면 '지나간 일'이 안 남는다.
+    meteorScorch(spot, big) {
+        const r = (0.42 + 0.2 * (big - 1)) * 1.3;
+        const m = new THREE.Mesh(new THREE.CircleGeometry(r, 18),
+            new THREE.MeshBasicMaterial({ color: 0x241a14, transparent: true, opacity: 0.62, depthWrite: false }));
+        m.userData.meteorScorch = true;
+        m.rotation.x = -Math.PI / 2;
+        m.position.set(spot.x, 0.025, spot.z);
+        this.scene.add(m);
+        this.addAnim(1.5, k => { m.material.opacity = 0.62 * (1 - k * k); },
+            () => { m.geometry.dispose(); m.material.dispose(); this.scene.remove(m); });
     },
 
     // 지그재그 번개 볼트 (항목 ㉰: 번개류=지그재그 볼트 메시). 예전 bolt 는 하늘에서 내리꽂는
