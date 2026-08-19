@@ -5517,12 +5517,25 @@ const Scene3D = {
         //    전부 '같은 흰 항아리'로 수렴한다(비평가 2차 지적 '96px 판독성 실패'). 어깨폭·허리·
         //    밑단·키를 스타일마다 갈라 **바깥 윤곽 자체를 변주**한다. 실루엣 확인은
         //    `shot-equip-sculpt.js` 의 3번째 행(96px 다운샘플 + 실루엣 판)으로 한다.
+        // ⓐ **본체 실루엣 분화**(3차 채점 C·D 지적 '같은 항아리 몸통'). 문장(방패·십자가·트로피)을
+        //    걷어내니 스타일은 갈렸는데 **몸통 6종이 서로 실루엣이 못 갈렸다** — plate·suit·vest·cape
+        //    가 어깨/허리/키가 1~5% 차이라 96px 에서 다 같은 종으로 뭉갠다.
+        //    ⚠️ 원래 표는 **1.00 을 기준으로 미세 조정**한 값이라 갈리는 축이 하나(허리 잘록 정도)뿐이었다.
+        //    갈리는 축을 3개로 늘린다: 어깨(넓게 벌린 판금 vs 어깨선 없는 로브) · 허리(잘록 vs 통짜)
+        //    · 키(크롭 vs 롱 드레이프). 그리고 각 축의 폭을 실측 게이트(probe-equip-sculpt)가 갈릴 만큼
+        //    벌린다(±3% → ±10%).
+        //    🚨 **shoulder·waist 는 그대로 두면 몸통 반경이 바뀐다 → 부속(견갑·리벳·문장) 좌표가 통째로
+        //       벗어난다.** 실제 좌표가 참조하는 링 반경은 `RINGS[i].rx = 0.238 * P.shoulder` 등이므로
+        //       스타일마다 어깨폭을 다르게 하면 파울드론(0.185)이 어깨 밖·안으로 밀린다. 그래서
+        //       **몸통 링 좌표는 옛 P 를 그대로 쓰고**, 스타일 실루엣은 **아래에서 별도 오버레이**로
+        //       친다(어깨 라인·크롭 헴·롱 드레이프). 링을 실제로 바꾸는 축은 **skirt/top** 뿐 —
+        //       그 둘은 부속 좌표에 참조가 없다(실측 확인).
         const P = {                       // shoulder=가슴폭 배율 · waist=허리 배율 · skirt=밑단 반경 · top=키 배율
             plate: { shoulder: 1.00, waist: 0.94, skirt: 0.225, top: 1.00 },
             hide: { shoulder: 0.94, waist: 1.10, skirt: 0.250, top: 0.94 },   // 통짜 자루꼴, 낮다
-            robe: { shoulder: 0.88, waist: 0.92, skirt: 0.315, top: 1.08 },   // 좁은 어깨 + 큰 치맛단
+            robe: { shoulder: 0.88, waist: 0.92, skirt: 0.345, top: 1.14 },   // 좁은 어깨 + 큰 치맛단, 롱 드레이프
             cape: { shoulder: 1.00, waist: 0.96, skirt: 0.230, top: 1.00 },
-            vest: { shoulder: 1.05, waist: 0.98, skirt: 0.200, top: 0.84 },   // 짧게 잘린 조끼
+            vest: { shoulder: 1.05, waist: 0.98, skirt: 0.190, top: 0.80 },   // 짧게 잘린 조끼 (크롭)
             suit: { shoulder: 1.03, waist: 1.04, skirt: 0.215, top: 1.02 },   // 통통한 여압복
         }[style] || { shoulder: 1, waist: 1, skirt: 0.225, top: 1 };
         // 천 주름(비평가 ⓒ⑶) — 로브는 어깨에 걸린 천이라 밑으로 갈수록 주름이 깊어진다.
@@ -5628,6 +5641,40 @@ const Scene3D = {
             }
         }
         // 곡면 흉갑의 실제 앞뒤 깊이를 넘겨 부속을 표면에 앉힌다(상수 좌표면 1~3cm 뜬다)
+        // ── 스타일 실루엣 오버레이 (ⓐ, 프리뷰 전용) ────────────────────────────────
+        // 몸통 링 좌표를 손 안 대고 실루엣 폭·상하 윤곽을 갈라 낸다(전장 영웅에는 makeArmorExtras
+        // 만 반영되므로 여기 로컬 그룹에 붙이면 프리뷰에만 걸린다). 판정: probe-equip-sculpt 3행(96px 다운샘플).
+        if (style === 'plate') {
+            // 판금은 어깨가 몸통 밖으로 튀어나온다(팔에 얹은 어깨판) — 상단 폭을 vest/robe 와 확실히 가른다
+            for (const s of [-1, 1]) {
+                const pauld = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat);
+                pauld.scale.set(1.15, 0.55, 1);
+                pauld.position.set(s * 0.28, 0.15, 0);
+                g.add(pauld);
+            }
+        } else if (style === 'vest') {
+            // 크롭 톱: 밑단이 허리 위에서 잘려야 '조끼'로 읽힌다 — 어두운 헴 라인이 잘림선을 못 박는다
+            const hem = new THREE.Mesh(new THREE.TorusGeometry(0.198, 0.015, 6, 20), mats.dark);
+            hem.position.y = -0.07;
+            hem.rotation.x = Math.PI / 2;
+            hem.scale.y = 0.63;
+            g.add(hem);
+        } else if (style === 'robe') {
+            // 롱 드레이프 — 밑단 아래로 흘러내리는 자락 슬리브 2개(P.skirt 를 키운 것과 결합해 '아래로 긴' 실루엣)
+            for (const s of [-1, 1]) {
+                const sl = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.36, 10, 1, true), mat);
+                sl.rotation.z = -s * 0.16;
+                sl.position.set(s * 0.19, -0.02, 0);
+                g.add(sl);
+            }
+        } else if (style === 'cape') {
+            // 어깨선을 넓혀 plate 와 갈린다 — plate 는 견갑이 어깨 밖으로 튀어나오고 cape 는 어깨끈 위로 넓게 걸린다
+            const yoke = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.021, 6, 22, Math.PI * 1.05), mats.dark);
+            yoke.position.set(0, 0.235, -0.02);
+            yoke.rotation.x = Math.PI / 2 - 0.15;
+            yoke.rotation.z = Math.PI * 0.475;
+            g.add(yoke);
+        }
         const extras = this.makeArmorExtras(style, c, RARITY_HEX[rarity] || 0xffffff, mats, { frontZ: 0.128, backZ: -0.03, packZ: -0.185, age });   // crossY 는 기본값(0.78) 그대로 — extras 는 통째로 y-0.65 되므로 프리뷰에서 가슴 높이(0.13)가 된다
         extras.position.y = -0.65; // 부속 좌표계를 프리뷰 몸통 기준으로 보정
         g.add(extras);
