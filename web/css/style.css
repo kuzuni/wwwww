@@ -208,12 +208,14 @@ body {
 .offline-top {
     background: #0e111b; color: #fff;
     padding: 1.3rem .9rem 1.1rem; text-align: center; flex: 0 0 42.80%; /* 원본 헤더 23.27%H / 카드 콘텐츠 54.37%H */
-    display: flex; flex-direction: column; justify-content: center;
+    /* 원본은 제목이 헤더 상단에 붙는다(제목 잉크 25.84%H·요율 행 34.56%H 실측) — center 는 제목을
+       +2.52%p 내려 보냈다(전수 검증 채점 1차 2인 공통, 픽셀 교차검증). 위 정렬 + 요율 행 여백으로 재현. */
+    display: flex; flex-direction: column; justify-content: flex-start;
 }
 .offline-title { font-size: 1.2rem; font-weight: 900; margin-bottom: .15rem; }
 .offline-sub { font-size: .82rem; font-weight: 700; color: #ccc; }
 .offline-sub b { color: var(--pp-green); font-weight: 900; }
-.offline-rates { display: flex; justify-content: center; gap: 2.4rem; margin-top: .9rem; }
+.offline-rates { display: flex; justify-content: center; gap: 2.4rem; margin-top: 1.65rem; } /* flex-start 전환분 보상(+.75rem) — 요율 행 34.5%H 유지 */
 .offline-rate { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
 .offline-rate-icon {
     width: 2.6rem; height: 2.6rem; border-radius: 50%; font-size: 1.4rem;
