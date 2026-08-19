@@ -1887,16 +1887,19 @@ IconGen._genderSym = function (ctx, S, female) {
            표시 37.6px 에서 1.4px 라 글로우에 묻혔다.
            ⚠️ **여기서 두께는 `ink()` 규약과 다르다** — `ink()` 는 칠하기 **전에** 그어 바깥 절반만
            남지만(보이는 띠 = lw/2), 여기는 칠한 **뒤에** 그어 **띠 전체가 보인다**(보이는 띠 = lw).
-           원본 비(번개 글리프 테 2px / 글리프 세로 30px ≈ 6.7%)를 그대로 옮기면 lw = 0.067 인데,
-           🚨 **그 값은 못 쓴다 — 실제로 넣어 보고 되돌렸다.** 모티프 경로들이 lw 0.038 을 전제로
-           그려져 있어서, 검·창·공허의창처럼 **가는 부재(자루 폭 0.06)** 는 테가 양쪽에서 0.0335 씩
-           먹어 들어와 **속살이 안 남고 검은 막대기**가 된다(18종 한 판 렌더로 확인 — 검은 날이
-           통째로, 창은 흰 촉만 남은 성냥개비가 됐다). 색을 검정으로 바꾸는 것만으로도 대비가
-           크게 올라가므로, 두께는 가는 부재가 버티는 **0.045** 로 잡는다(표시 37.6px 에서 1.7px).
-           원본 비를 그대로 쓰려면 먼저 모티프 경로의 자루·날 폭부터 키워야 한다 — 별건이다. */
+           원본 비(번개 글리프 테 2px / 글리프 세로 30px ≈ 6.7%) = lw 0.067.
+           🚨 **이 값은 모티프 경로를 먼저 살찌운 뒤에야 쓸 수 있다.** 종전 경로들은 lw 0.038 을
+           전제로 그려져 자루 폭이 0.06 밖에 안 됐고, 테가 양쪽에서 0.0335 씩 먹어 들어와
+           **속살이 안 남고 검은 막대기**가 됐다(한 번 넣었다 되돌린 이력이 있다 — 검은 날이
+           통째로, 창은 흰 촉만 남은 성냥개비). 2026-08-19 UI 스트림에서 **가는 부재를 전부
+           ≥0.12 로 키우고**(검 자루·날받이, 도끼 자루, 창 대·목받이, 모래시계 판·목, 화살 깃,
+           메가폰 물부리, 운석 꼬리, 번개 윗변) 원본 비 0.067 로 올렸다.
+           ⚠️ **이 값을 다시 올리거나 모티프를 가늘게 되돌리기 전에 `tools/probe-emblem-core.js` 를
+              돌릴 것** — 경계 검정 비율(`probe-icon-keyline`)은 테를 두껍게 할수록 **좋아지기만 해서**
+              '테가 그림을 다 먹었다'를 절대 못 잡는다. 속살 검사기가 그 반대 방향 지표다. */
         ctx.beginPath(); pathFn(ctx, S);
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-        ctx.lineWidth = S * 0.045;
+        ctx.lineWidth = S * 0.067;
         ctx.strokeStyle = '#000';
         ctx.stroke();
         // ④ 상단 하이라이트(클립)
@@ -1911,23 +1914,26 @@ IconGen._genderSym = function (ctx, S, female) {
     // ---- 모티프 경로(정규화 0..1 좌표, beginPath 없이 서브패스만) ----
     const P = {
         sword(ctx, S) {                                  // 강타 — 위로 선 검
-            ctx.moveTo(x(.5, S), y(.07, S)); ctx.lineTo(x(.575, S), y(.30, S));
-            ctx.lineTo(x(.55, S), y(.60, S)); ctx.lineTo(x(.45, S), y(.60, S));
-            ctx.lineTo(x(.425, S), y(.30, S)); ctx.closePath();
-            ctx.moveTo(x(.28, S), y(.595, S)); ctx.lineTo(x(.72, S), y(.595, S));
-            ctx.lineTo(x(.72, S), y(.665, S)); ctx.lineTo(x(.28, S), y(.665, S)); ctx.closePath();
-            ctx.moveTo(x(.47, S), y(.665, S)); ctx.lineTo(x(.53, S), y(.665, S));
-            ctx.lineTo(x(.53, S), y(.855, S)); ctx.lineTo(x(.47, S), y(.855, S)); ctx.closePath();
-            ctx.moveTo(x(.5, S) + S * .055, y(.905, S)); ctx.arc(x(.5, S), y(.905, S), S * .055, 0, Math.PI * 2);
+            // 부재 폭은 전부 ≥.12 — 키라인 .067 이 양쪽에서 .0335 씩 먹고도 속살이 남아야 한다
+            // (종전 자루 .06·날받이 .07 은 테만 두르면 통째로 검은 막대기가 됐다. probe-emblem-core.js 참조)
+            ctx.moveTo(x(.5, S), y(.05, S)); ctx.lineTo(x(.625, S), y(.30, S));
+            ctx.lineTo(x(.59, S), y(.575, S)); ctx.lineTo(x(.41, S), y(.575, S));
+            ctx.lineTo(x(.375, S), y(.30, S)); ctx.closePath();
+            ctx.moveTo(x(.24, S), y(.575, S)); ctx.lineTo(x(.76, S), y(.575, S));
+            ctx.lineTo(x(.76, S), y(.715, S)); ctx.lineTo(x(.24, S), y(.715, S)); ctx.closePath();
+            ctx.moveTo(x(.425, S), y(.715, S)); ctx.lineTo(x(.575, S), y(.715, S));
+            ctx.lineTo(x(.575, S), y(.85, S)); ctx.lineTo(x(.425, S), y(.85, S)); ctx.closePath();
+            ctx.moveTo(x(.5, S) + S * .09, y(.87, S)); ctx.arc(x(.5, S), y(.87, S), S * .09, 0, Math.PI * 2);
         },
         axe(ctx, S) {                                    // 처형 — 전투 도끼
-            ctx.moveTo(x(.455, S), y(.30, S)); ctx.lineTo(x(.545, S), y(.30, S));
-            ctx.lineTo(x(.545, S), y(.92, S)); ctx.lineTo(x(.455, S), y(.92, S)); ctx.closePath();
-            ctx.moveTo(x(.19, S), y(.36, S));
-            ctx.quadraticCurveTo(x(.5, S), y(.02, S), x(.81, S), y(.36, S));
-            ctx.quadraticCurveTo(x(.62, S), y(.31, S), x(.56, S), y(.42, S));
-            ctx.quadraticCurveTo(x(.5, S), y(.31, S), x(.44, S), y(.42, S));
-            ctx.quadraticCurveTo(x(.38, S), y(.31, S), x(.19, S), y(.36, S)); ctx.closePath();
+            ctx.moveTo(x(.4225, S), y(.30, S)); ctx.lineTo(x(.5775, S), y(.30, S));
+            ctx.lineTo(x(.5775, S), y(.92, S)); ctx.lineTo(x(.4225, S), y(.92, S)); ctx.closePath();
+            // 날은 초승달이라 뿔이 0 으로 수렴한다 — 안쪽 곡선만 아래로 내려 몸통을 두껍게 했다.
+            // ⚠️ **쌍날(안쪽에 V 홈 두 개)로 되돌리지 말 것** — 홈을 파면 96px 에서 날이 통째로
+            //    검정에 먹혀 '자루에 붙은 검은 사각형'으로 읽힌다(2026-08-19 실측, 한 번 밟았다).
+            ctx.moveTo(x(.13, S), y(.40, S));
+            ctx.quadraticCurveTo(x(.5, S), y(.00, S), x(.87, S), y(.40, S));
+            ctx.quadraticCurveTo(x(.5, S), y(.50, S), x(.13, S), y(.40, S)); ctx.closePath();   // 안쪽 곡선 — 날 두께 .095 → .25
         },
         whirl(ctx, S) {                                  // 회오리 베기 — 소용돌이 2엽
             const cx = .5 * S, cy = .5 * S, ro = .40 * S, ri = .18 * S;
@@ -1965,17 +1971,21 @@ IconGen._genderSym = function (ctx, S, female) {
             tongue(.72, .30, .16, .5);
         },
         arrow(ctx, S) {                                  // 관통 사격 — 화살
-            ctx.moveTo(x(.5, S), y(.07, S)); ctx.lineTo(x(.69, S), y(.34, S)); ctx.lineTo(x(.565, S), y(.34, S));
-            ctx.lineTo(x(.565, S), y(.80, S)); ctx.lineTo(x(.435, S), y(.80, S)); ctx.lineTo(x(.435, S), y(.34, S));
-            ctx.lineTo(x(.31, S), y(.34, S)); ctx.closePath();
-            ctx.moveTo(x(.435, S), y(.70, S)); ctx.lineTo(x(.29, S), y(.92, S)); ctx.lineTo(x(.375, S), y(.70, S)); ctx.closePath();
-            ctx.moveTo(x(.565, S), y(.70, S)); ctx.lineTo(x(.71, S), y(.92, S)); ctx.lineTo(x(.625, S), y(.70, S)); ctx.closePath();
+            // 자루 .16 · 촉 폭 .44. 깃은 종전 밑변 .06 짜리 뾰족 삼각이라 테를 두르면 통째로 사라졌다
+            // → 밑변 .17 의 통통한 사각 깃으로 바꿨다(속살 26.5% → 회복).
+            ctx.moveTo(x(.5, S), y(.06, S)); ctx.lineTo(x(.72, S), y(.35, S)); ctx.lineTo(x(.58, S), y(.35, S));
+            ctx.lineTo(x(.58, S), y(.80, S)); ctx.lineTo(x(.42, S), y(.80, S)); ctx.lineTo(x(.42, S), y(.35, S));
+            ctx.lineTo(x(.28, S), y(.35, S)); ctx.closePath();
+            ctx.moveTo(x(.42, S), y(.66, S)); ctx.lineTo(x(.42, S), y(.83, S));
+            ctx.lineTo(x(.24, S), y(.95, S)); ctx.lineTo(x(.25, S), y(.76, S)); ctx.closePath();
+            ctx.moveTo(x(.58, S), y(.66, S)); ctx.lineTo(x(.58, S), y(.83, S));
+            ctx.lineTo(x(.76, S), y(.95, S)); ctx.lineTo(x(.75, S), y(.76, S)); ctx.closePath();
         },
         horn(ctx, S) {                                   // 전투의 함성 — 메가폰 + 음파
             ctx.moveTo(x(.20, S), y(.40, S)); ctx.lineTo(x(.60, S), y(.18, S));
             ctx.lineTo(x(.60, S), y(.82, S)); ctx.lineTo(x(.20, S), y(.60, S)); ctx.closePath();
-            ctx.moveTo(x(.12, S), y(.43, S)); ctx.lineTo(x(.20, S), y(.40, S));
-            ctx.lineTo(x(.20, S), y(.60, S)); ctx.lineTo(x(.12, S), y(.57, S)); ctx.closePath();
+            ctx.moveTo(x(.08, S), y(.425, S)); ctx.lineTo(x(.20, S), y(.40, S));      // 물부리 폭 .08 → .12
+            ctx.lineTo(x(.20, S), y(.60, S)); ctx.lineTo(x(.08, S), y(.575, S)); ctx.closePath();
             ctx.moveTo(x(.70, S), y(.30, S)); ctx.lineTo(x(.86, S), y(.24, S)); ctx.lineTo(x(.80, S), y(.40, S)); ctx.closePath();
             ctx.moveTo(x(.70, S), y(.70, S)); ctx.lineTo(x(.86, S), y(.76, S)); ctx.lineTo(x(.80, S), y(.60, S)); ctx.closePath();
         },
@@ -1987,14 +1997,14 @@ IconGen._genderSym = function (ctx, S, female) {
                 ctx.lineTo(x(sx - len, S), y(sy - len, S));
                 ctx.lineTo(x(sx - len + w, S), y(sy - len + w * 1.6, S)); ctx.closePath();
             };
-            streak(cx - .12, cy - .10, .30, .07);
-            streak(cx - .16, cy + .04, .24, .06);
-            streak(cx - .02, cy - .17, .22, .06);
+            streak(cx - .12, cy - .10, .30, .12);      // 꼬리 폭 .06~.07 은 테에 먹힌다 → .11~.12
+            streak(cx - .16, cy + .04, .24, .11);
+            streak(cx - .02, cy - .17, .22, .11);
         },
         bolt(ctx, S) {                                   // 낙뢰 — 번개
-            ctx.moveTo(x(.58, S), y(.05, S)); ctx.lineTo(x(.30, S), y(.52, S)); ctx.lineTo(x(.47, S), y(.52, S));
-            ctx.lineTo(x(.36, S), y(.95, S)); ctx.lineTo(x(.72, S), y(.40, S)); ctx.lineTo(x(.53, S), y(.40, S));
-            ctx.lineTo(x(.66, S), y(.05, S)); ctx.closePath();
+            ctx.moveTo(x(.56, S), y(.04, S)); ctx.lineTo(x(.28, S), y(.53, S)); ctx.lineTo(x(.47, S), y(.53, S));
+            ctx.lineTo(x(.34, S), y(.96, S)); ctx.lineTo(x(.74, S), y(.39, S)); ctx.lineTo(x(.53, S), y(.39, S));
+            ctx.lineTo(x(.68, S), y(.04, S)); ctx.closePath();   // 윗변 .08 → .12
         },
         sparkle(ctx, S) {                                // 축복 — 4각 반짝임
             const cx = .5, cy = .48, R = .44, c = .11;
@@ -2025,7 +2035,7 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.moveTo(x(.70, S), y(.76, S)); ctx.lineTo(x(.5, S), y(.66, S)); ctx.lineTo(x(.58, S), y(.90, S)); ctx.closePath();
         },
         burst(ctx, S) {                                  // 초신성 — 8각 폭발
-            const cx = .5 * S, cy = .5 * S, R = .47 * S, r = .17 * S, N = 8;
+            const cx = .5 * S, cy = .5 * S, R = .47 * S, r = .235 * S, N = 8;   // r .17 → .235: 갈래가 테에 먹히던 것
             for (let i = 0; i < N * 2; i++) {
                 const a = (i / (N * 2)) * Math.PI * 2 - Math.PI / 2, rr = i % 2 ? r : R;
                 const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
@@ -2034,24 +2044,27 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.closePath();
         },
         spear(ctx, S) {                                  // 공허의 창 / 신의 창 — 창(세로)
-            ctx.moveTo(x(.5, S), y(.05, S));
-            ctx.quadraticCurveTo(x(.64, S), y(.20, S), x(.565, S), y(.37, S));
-            ctx.lineTo(x(.435, S), y(.37, S));
-            ctx.quadraticCurveTo(x(.36, S), y(.20, S), x(.5, S), y(.05, S)); ctx.closePath();
-            ctx.moveTo(x(.41, S), y(.36, S)); ctx.lineTo(x(.59, S), y(.36, S));
-            ctx.lineTo(x(.565, S), y(.44, S)); ctx.lineTo(x(.435, S), y(.44, S)); ctx.closePath();
-            ctx.moveTo(x(.47, S), y(.42, S)); ctx.lineTo(x(.53, S), y(.42, S));
-            ctx.lineTo(x(.53, S), y(.95, S)); ctx.lineTo(x(.47, S), y(.95, S)); ctx.closePath();
+            // 종전 대(.06)·목받이(.08) 가 이 파일에서 가장 가는 부재였다 — 키라인 .045 에서도
+            // 속살이 28%(sk_voidLance)까지 떨어져 '흰 촉만 남은 성냥개비'로 읽혔다. 대 .13 · 목받이 .12.
+            ctx.moveTo(x(.5, S), y(.04, S)); ctx.lineTo(x(.645, S), y(.22, S));
+            ctx.lineTo(x(.575, S), y(.36, S)); ctx.lineTo(x(.425, S), y(.36, S));
+            ctx.lineTo(x(.355, S), y(.22, S)); ctx.closePath();   // 곡선 촉은 96px 에서 '총알'로 읽혔다 → 각진 창날
+            ctx.moveTo(x(.37, S), y(.34, S)); ctx.lineTo(x(.63, S), y(.34, S));
+            ctx.lineTo(x(.59, S), y(.48, S)); ctx.lineTo(x(.41, S), y(.48, S)); ctx.closePath();
+            ctx.moveTo(x(.42, S), y(.46, S)); ctx.lineTo(x(.58, S), y(.46, S));
+            ctx.lineTo(x(.58, S), y(.95, S)); ctx.lineTo(x(.42, S), y(.95, S)); ctx.closePath();
         },
         hourglass(ctx, S) {                              // 시간 왜곡 — 모래시계
-            ctx.moveTo(x(.24, S), y(.11, S)); ctx.lineTo(x(.76, S), y(.11, S));
-            ctx.lineTo(x(.76, S), y(.19, S)); ctx.lineTo(x(.24, S), y(.19, S)); ctx.closePath();
-            ctx.moveTo(x(.24, S), y(.81, S)); ctx.lineTo(x(.76, S), y(.81, S));
-            ctx.lineTo(x(.76, S), y(.89, S)); ctx.lineTo(x(.24, S), y(.89, S)); ctx.closePath();
-            ctx.moveTo(x(.30, S), y(.19, S)); ctx.lineTo(x(.70, S), y(.19, S));
-            ctx.lineTo(x(.525, S), y(.50, S)); ctx.lineTo(x(.475, S), y(.50, S)); ctx.closePath();
-            ctx.moveTo(x(.475, S), y(.50, S)); ctx.lineTo(x(.525, S), y(.50, S));
-            ctx.lineTo(x(.70, S), y(.81, S)); ctx.lineTo(x(.30, S), y(.81, S)); ctx.closePath();
+            // 판(.08)·목(.05) 둘 다 테에 먹히던 자리 → .12 로. 목을 넓히면 '모래 떨어지는 잘록함'이
+            // 줄지만, 목이 검게 막히는 쪽이 훨씬 나쁘다(속살 검사기로 확인).
+            ctx.moveTo(x(.24, S), y(.10, S)); ctx.lineTo(x(.76, S), y(.10, S));
+            ctx.lineTo(x(.76, S), y(.22, S)); ctx.lineTo(x(.24, S), y(.22, S)); ctx.closePath();
+            ctx.moveTo(x(.24, S), y(.78, S)); ctx.lineTo(x(.76, S), y(.78, S));
+            ctx.lineTo(x(.76, S), y(.90, S)); ctx.lineTo(x(.24, S), y(.90, S)); ctx.closePath();
+            ctx.moveTo(x(.30, S), y(.21, S)); ctx.lineTo(x(.70, S), y(.21, S));
+            ctx.lineTo(x(.56, S), y(.50, S)); ctx.lineTo(x(.44, S), y(.50, S)); ctx.closePath();
+            ctx.moveTo(x(.44, S), y(.50, S)); ctx.lineTo(x(.56, S), y(.50, S));
+            ctx.lineTo(x(.70, S), y(.79, S)); ctx.lineTo(x(.30, S), y(.79, S)); ctx.closePath();
         },
     };
 
