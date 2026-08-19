@@ -4398,8 +4398,15 @@ const UI = {
                     : `<div class="pass-cell free">${this.passRewardLines(m.free)}</div>`;
             // 프리미엄 칸도 무료 칸과 같은 도달 기준으로 밝기가 바뀐다(항상 잠김이지만 도달 전이면 카드 배경에 녹아듦, 원본 shot-042705)
             const premiumCell = `<div class="pass-cell premium ${reached ? 'lit' : ''}" onclick="UI.onPremiumPass()">${this.passRewardLines(m.premium)}<span class="pass-badge lock">${IconGen.img('lock')}</span></div>`;
-            return `<div class="pass-milestone-label">${this.difficultyLabel(c)} ${m.stage}</div>
-                <div class="pass-row">${freeCell}${premiumCell}</div>`;
+            /* 마일스톤 하나를 `.pass-seg` 로 감싸는 이유 = **중앙 레일이 진행도를 보여야 한다**
+               (원본 shot-042705: 도달한 구간은 파랑 #341cff, 미도달 구간은 죽은 색으로 끊긴다).
+               레일을 `.pass-track` 배경 한 겹으로 깔면 트랙 전체가 한 색이라 그 정보가 안 나온다 —
+               구간마다 배경 줄무늬를 따로 깔아야 색이 갈린다. `reached` 는 필 색도 같이 가른다
+               (원본에서 미도달 필은 검정이다). */
+            return `<div class="pass-seg ${reached ? 'reached' : ''}">
+                <div class="pass-milestone-label">${this.difficultyLabel(c)} ${m.stage}</div>
+                <div class="pass-row">${freeCell}${premiumCell}</div>
+            </div>`;
         }).join('');
         this.els.passModal.innerHTML = `
             <div class="idet-wrap">

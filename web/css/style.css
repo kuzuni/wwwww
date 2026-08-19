@@ -2398,14 +2398,43 @@ body {
        ::before(absolute top:0/bottom:0)는 스크롤 패딩 박스 높이까지만 덮어서, 프로브가 3-5로
        스크롤하면 레일이 위로 지나가 흰 통로만 남았다(픽셀 (249,400)=흰색 사고). 배경 gradient +
        attachment:local 은 스크롤 내용 전체를 따라 내려간다. */
-    background: linear-gradient(90deg, transparent calc(50% - 5.5px), #341cff calc(50% - 5.5px) calc(50% + 5.5px), transparent calc(50% + 5.5px)) #fff;
+    /* 🔁 레일을 트랙 한 겹으로 깔면 위아래가 전부 한 색이라 **진행도가 안 보인다**(aaa-skin ⑧ 확정
+       결함: "원본은 미달성 구간이 죽은 색으로 끊기는데 클론은 균일한 파랑이라 '여기까지 왔다'는
+       정보가 사라졌다"). 이제 레일은 `.pass-seg` 가 구간마다 제 색으로 깐다 — 트랙에 남기는 건
+       **마지막 구간 아래(패딩 영역)** 를 메우는 죽은 색뿐이다. */
+    background: linear-gradient(90deg, transparent calc(50% - 5.5px), #0f121c calc(50% - 5.5px) calc(50% + 5.5px), transparent calc(50% + 5.5px)) #fff;
     background-attachment: local; background-repeat: no-repeat;
 }
+/* 마일스톤 한 구간 = 필 + 보상 행. 여기에 레일 줄무늬를 깔아 **도달 여부로 색이 갈리게** 한다.
+   🚨 `display: flow-root` 는 장식이 아니다 — 없으면 자식(`.pass-milestone-label`)의 위 마진이
+      부모 밖으로 **빠져나가**(margin collapsing) 구간 사이에 레일이 끊긴 흰 틈이 생긴다.
+      지금 형제들끼리는 마진이 안 겹치므로(행에 마진이 없다) flow-root 를 켜도 배치는 안 움직인다. */
+/* 🚨 `position: relative` 를 주면 안 된다 — 레일은 배경이라 필요도 없는데, 이게 붙는 순간
+   `.pass-milestone-label` 의 offsetParent 가 트랙에서 이 구간으로 바뀌어 `lab.offsetTop` 이
+   구간 안 좌표(≈9px)가 된다. `probe-pass-px.js`·`shot-pass.js` 가 그 값으로 트랙을 스크롤하므로
+   **원하는 마일스톤이 아니라 맨 위가 잡힌다**(실제로 밟았다 — 3-5 로 못 가고 1-5 가 찍혔다). */
+.pass-seg {
+    display: flow-root;
+    background: linear-gradient(90deg, transparent calc(50% - 5.5px), #0f121c calc(50% - 5.5px) calc(50% + 5.5px), transparent calc(50% + 5.5px));
+}
+.pass-seg.reached {
+    background: linear-gradient(90deg, transparent calc(50% - 5.5px), #341cff calc(50% - 5.5px) calc(50% + 5.5px), transparent calc(50% + 5.5px));
+}
+/* 원본(shot-042705) 필 실측: 폭 ≈100.7px(29.7%TW) · 높이 ≈18.3px(5.4%TW) → **납작한 고정 폭 pill**.
+   클론은 `display:table` 이라 폭이 글자 길이를 따라갔고(행마다 다르다) 세로 패딩이 두꺼워
+   종횡비가 3.11:1 로 원본(4.75:1 대)보다 뭉툭했다. 폭을 앱 폭 비율로 못박고 세로를 눌러 맞춘다.
+   🚨 미도달 구간의 필은 원본에서 **검정**이다 — 파랑은 '여기까지 왔다'의 신호라 도달분만 준다. */
 .pass-milestone-label {
     position: relative; z-index: 1; text-align: center; font-size: .7rem; font-weight: 800; color: #fff;
-    background: #2c3684; border: var(--ol2) solid var(--pp-line); border-radius: 1rem;
-    display: table; margin: .55rem auto .3rem; padding: .2rem .8rem;
+    background: #0f121c; border: var(--ol2) solid var(--pp-line); border-radius: 1rem;
+    display: block; box-sizing: border-box; width: calc(var(--app-w) * .206);
+    /* 필을 납작하게 누른 만큼 **행 피치가 6px 짧아져** `probe-pass-px` 의 '보상 행 피치'가
+       −3.3%TW 로 튀었다(허용 ±2.8). 원본 실측 간격으로 마진을 다시 잡는다:
+       카드 아래→필 위 ≈13.3px · 필 아래→다음 카드 위 ≈16.5px (`.pass-row` 의 아래 패딩 .2rem 이
+       위쪽 몫에 이미 3.2px 들어가 있으므로 margin-top 은 .63rem). */
+    margin: .63rem auto 1.03rem; padding: .1rem 0; line-height: 1;
 }
+.pass-seg.reached .pass-milestone-label { background: #2c3684; }
 /* 원본(shot-042705) 보상 박스 기하(탭줄 폭 %TW): 좌 박스 좌 1.18 · 폭 45.13 · 중앙 통로 7.37.
    종전(트랙 패딩 .9rem + 행 패딩 .1rem + gap .5rem)은 인셋 16px·통로 9px 로 원본(4px·25px)과
    어긋났다 — margin -.64rem 로 인셋 4px, gap 1.6rem 로 통로 25.6px. */
@@ -2421,10 +2450,15 @@ body {
     padding: .4rem .5rem; display: flex; flex-direction: column; gap: .18rem; font-size: .8rem; font-weight: 800;
     color: #fff; cursor: default; text-align: left;
 }
-.pass-cell.free.lit { background: #afafaf; color: var(--pp-ink); }
-.pass-cell.free.lit span:not(.pass-badge) {
-    background: #8c8c8c; border-radius: 1rem; padding: .1rem .6rem; font-weight: 900; width: 85%;
+/* 🚨 보상 줄 pill 은 **모든 칸**에 준다. 종전엔 수령한 무료 칸에만 줘서, pill 이 있는 행만
+   세로로 8px 높았다 — 원본은 4행이 전부 같은 높이다(클론 자기 안에서의 불일치라 원본 대조
+   없이도 결함이다). 원본 확대에서도 어두운 칸·프리미엄 칸 뒤에 한 단 밝은 pill 이 깔려 있다. */
+.pass-cell span:not(.pass-badge) {
+    background: #1b2032; border-radius: 1rem; padding: .1rem .6rem; font-weight: 900; width: 85%;
+    box-sizing: border-box;
 }
+.pass-cell.free.lit { background: #afafaf; color: var(--pp-ink); }
+.pass-cell.free.lit span:not(.pass-badge) { background: #8c8c8c; }
 .pass-cell.free.claimable { cursor: pointer; }
 .pass-cell.free.done { background: #afafaf; }
 .pass-cell.free.done span:not(.pass-badge) { background: #8c8c8c; }
@@ -2437,6 +2471,28 @@ body {
     background: var(--pp-green); color: #fff; border: var(--ol2) solid var(--pp-line); font-size: .85rem; font-weight: 900;
 }
 .pass-badge.lock { top: .3rem; right: .35rem; font-size: 1rem; filter: drop-shadow(0 1px 0 #000); }
+
+/* 말풍선 꼬리 (aaa-skin ⑧ 확정 결함: "원본은 카드 안쪽 하단에 중앙 레일을 가리키는 삼각 꼬리가
+   실루엣의 일부인데 클론은 8장 전부 없다"). 무료 칸은 오른쪽 아래로, 프리미엄 칸은 왼쪽 아래로
+   — 둘 다 가운데 레일을 향한다.
+   구현: `::before` 가 한 치수 큰 **검정 삼각**(키라인), `::after` 가 그 위의 **면**이다. 면은
+   `background: inherit` 로 카드 배경을 그대로 물려받아 `.free.lit`(회색)·미도달(남색) 변형을
+   따로 안 적어도 따라온다.
+   🚨 삼각의 수직변은 카드 **테두리 바깥선**에 맞춘다(키라인만 --ol3 만큼 더 나간다) — 안 그러면
+      꼬리가 카드에서 한 픽셀 떠 보인다.
+   🚨 꼬리는 폭이 좁아 `probe-pass-px` 의 보상 박스 밴드 검출('런 폭 > 패널 65%')에 안 걸린다 —
+      원본도 같은 코드로 재므로 양쪽 다 카드 높이에 꼬리가 안 포함된다(실측으로 확인). */
+.pass-cell::before, .pass-cell::after {
+    content: ''; position: absolute; top: 100%; pointer-events: none;
+}
+.pass-cell::before { width: calc(1.05rem + 3px); height: calc(.72rem + 3px); background: var(--pp-line); }
+.pass-cell::after { width: 1.05rem; height: .72rem; background: inherit; }
+/* 무료(왼쪽) 칸 — 수직변이 오른쪽, 꼭짓점이 오른쪽 아래 */
+.pass-cell.free::before { right: calc(-1 * var(--ol3)); clip-path: polygon(100% 0, 100% 100%, 0 0); }
+.pass-cell.free::after { right: 0; clip-path: polygon(100% 0, 100% 100%, 0 0); }
+/* 프리미엄(오른쪽) 칸 — 거울상 */
+.pass-cell.premium::before { left: calc(-1 * var(--ol3)); clip-path: polygon(0 0, 0 100%, 100% 0); }
+.pass-cell.premium::after { left: 0; clip-path: polygon(0 0, 0 100%, 100% 0); }
 
 /* ---- 상점 탭 (shot-042632 원본 대조 재작업: 다크 마룬 배경 + 금색 리본 + 깃발 태그 카드) ---- */
 /* 상점은 뷰포트 전체를 덮는 스크롤 시트인데 #tabbar(z-index:30)가 .modal(z-index:20) 위에 떠 있어,
