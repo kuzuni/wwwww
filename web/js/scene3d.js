@@ -12973,6 +12973,30 @@ const Scene3D = {
         //      깎은 프로파일이 접지선을 그대로 유지한다. 파츠를 피벗에 달 때만 center 를 쓸 것.
         const VS = 0.05;   // 적 공용 복셀 한 변(월드). 슬라임 전신이 13칸 = 0.65
         const vx = (voxels, o) => Voxel.build(voxels, Object.assign({ size: VS, jitter: 0.05, ao: 0.9, center: false }, o || {}));
+        // 월드 반지름 → 칸. 🚨 **0.5 로 클램프한다** — `Voxel.taper`/`ellipse` 는 반지름이 0.5 미만이면
+        //   층을 통째로 버려서(칸 중심 판정) **빈 메시**가 나온다. 임프 하완(r 0.024 = 0.48칸)처럼
+        //   한 칸짜리 파츠가 조용히 사라지는 사고가 정확히 여기서 난다.
+        const gv = (r) => Math.max(0.5, r / VS);
+        // 피벗이 위쪽 끝인 분절 사지 — `limb`(캡슐)의 voxel 대응.
+        //   `taper` 는 y0 부터 위로 쌓이므로, 위(rTop)가 꼭대기에 오도록 뒤집어 넣고 통째로 내린다.
+        const vlimb = (rTop, rBot, len, m) => {
+            const grp = new THREE.Group();
+            const h = Math.max(1, Math.round(len / VS));
+            const mesh = vx(Voxel.taper(gv(rBot), gv(rTop), h), { material: m, color: 0xffffff });
+            mesh.position.y = -(h - 1) * VS;
+            grp.add(mesh);
+            return grp;
+        };
+        // voxel 전용 재질 — 🚨 공용 `mat`/`dark`/`light` 를 쓰면 ⑴ `vertexColors` 가 없어 색변화·AO 가
+        //   조용히 무시되고 ⑵ `bodyTex` 노이즈가 표면에 깔려 화풍 ⓒ 를 깬다. 종 안에서 이걸로 새로 만든다.
+        //   ⚠️ 색은 `vBase`(맵 보정 되돌린 값)를 기준으로 쓸 것 — 아래 참조.
+        const vmat = (c, o) => new THREE.MeshStandardMaterial(Object.assign({
+            color: c, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.8,
+        }, o || {}));
+        // 빌더 머리에서 `if (bodyTex) base.offsetHSL(0, 0.02, 0.055)` 로 **맵이 albedo 를 ≈0.88 배
+        //   죽이는 만큼 미리 올려 둔** 보정이 걸려 있다. voxel 파츠는 맵을 안 쓰므로 그 보정만 남아
+        //   종이 통째로 밝아진다 — 되돌린 값을 기준색으로 쓴다.
+        const vBase = bodyTex ? base.clone().offsetHSL(0, -0.02, -0.055) : base.clone();
         const limb = (rTop, rBot, len, m) => ProChar.capsule(rTop, rBot, len, m, 9); // 분절 사지 — 피벗=위쪽 끝
         const sp = (r, x, y, z, m, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 11, 9), m || mat); o.position.set(x, y, z); if (sx) o.scale.set(sx, sy, sz); g.add(o); return o; };
         const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); g.add(o); return o; };
@@ -13298,17 +13322,6 @@ const Scene3D = {
             //    바꾸면 같은 세계의 벽돌 크기가 달라져(슬라임 13칸 vs 골렘 27칸이 같은 벽돌이라는
             //    사실이 화풍의 일관성 그 자체다) 오히려 화풍이 깨진다. → **격자는 공용으로 두고
             //    작은 디테일은 한 칸으로 키운다**(마인크래프트의 용암 광맥이 그렇게 생겼다).
-            const gv = (r) => r / VS;                        // 월드 반지름 → 칸
-            // 피벗이 위쪽 끝인 분절 사지 — `limb`(캡슐)의 voxel 대응.
-            //   `taper` 는 y0 부터 위로 쌓이므로, 위(rTop)가 꼭대기에 오도록 뒤집어 넣고 통째로 내린다.
-            const vlimb = (rTop, rBot, len, m) => {
-                const grp = new THREE.Group();
-                const h = Math.max(1, Math.round(len / VS));
-                const mesh = vx(Voxel.taper(gv(rBot), gv(rTop), h), { material: m, color: 0xffffff });
-                mesh.position.y = -(h - 1) * VS;
-                grp.add(mesh);
-                return grp;
-            };
             const vrock = (r, seed, o) => vx(Voxel.rock(gv(r), seed, o || {}), { material: (o && o.mat) || rockM, color: 0xffffff, center: true });
             // 역삼각 몸통 — 종전 라테 프로파일을 칸 단위로 그대로 넘긴다(실루엣 불변).
             const prof = [[0.17, 0], [0.3, 0.1], [0.36, 0.3], [0.33, 0.46], [0.2, 0.56]];
@@ -13577,19 +13590,13 @@ const Scene3D = {
             //    ⚠️ 부위 목록·비례·애니 훅(`anim.wings`·`anim.fly`)·AO 링 자리는 그대로 옮긴다.
             //    ⚠️ 재질은 전부 **Standard/Basic** 이다 — `MeshLambertMaterial` + `vertexColors` 는
             //       이 씬에서 새까맣게 렌더된다(버섯 반점에서 실측으로 확인한 지뢰).
-            const gv = (r) => r / VS;
             // 🚨 **공용 `mat`/`dark`/`light` 를 그대로 쓰면 안 된다 — 두 가지가 동시에 어긋난다.**
             //    ⑴ `vertexColors` 가 없어서 큐브별 색변화와 이음새 AO 가 **통째로 무시**된다
             //       (플래그가 없으면 조용히 무시된다 — 첫 판이 민짜 단색 판으로 나온 원인이다).
             //    ⑵ 종별 `bodyTex`(furTex)를 물고 있어 **표면에 털 노이즈**가 깔린다 —
             //       화풍 ⓒ 의 '텍스처 파일 없음 · 면당 플랫 색' 위반이다.
-            //    → 종 안에서 voxel 전용 재질을 새로 만든다(색은 그대로 물려받는다).
-            //    ⚠️ 색까지 같이 되돌려야 한다 — 빌더 머리에서 `if (bodyTex) base.offsetHSL(0, 0.02, 0.055)`
-            //       로 **맵이 albedo 를 ≈0.88 배 죽이는 만큼 미리 올려 둔** 보정이 걸려 있다. 맵을 빼면
-            //       그 보정만 남아 종이 통째로 밝게 뜬다(첫 판에서 막날개가 연보라로 나온 원인의 절반).
-            const vBase = base.clone().offsetHSL(0, -0.02, -0.055);   // 맵 보정 되돌림
-            const vm = (c) => new THREE.MeshStandardMaterial({ color: c, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.8 });
-            const batM = vm(vBase.clone()), batD = vm(vBase.clone().offsetHSL(0, 0, -0.13)), batL = vm(vBase.clone().offsetHSL(0, 0, 0.1));
+            //    → 빌더 공용 `vmat()`/`vBase` 로 새로 만든다(둘 다 이 파일 위쪽 voxel 헬퍼 묶음에 있다).
+            const batM = vmat(vBase.clone()), batD = vmat(vBase.clone().offsetHSL(0, 0, -0.13)), batL = vmat(vBase.clone().offsetHSL(0, 0, 0.1));
             const vput = (voxels, m, x, y, z, o) => {
                 const mesh = vx(voxels, Object.assign({ material: m, color: 0xffffff, center: true }, o || {}));
                 mesh.position.set(x, y, z);
@@ -13680,7 +13687,6 @@ const Scene3D = {
             //    칸이 격자에서 밀려나 **면이 축정렬을 잃는다** = 화풍 위반이다.
             const stemM = lam(base.clone().offsetHSL(0.015, -0.16, 0.24)); // 웜 크림 줄기 — 무채색 회백 미완성 오독 제거
             stemM.vertexColors = true; stemM.flatShading = true;
-            const gv = (r) => r / VS;
             const stemProf = [[0.15, 0], [0.12, 0.1], [0.1, 0.22], [0.13, 0.32], [0.16, 0.38]];
             const stem = vx(Voxel.revolve(stemProf.map(p => [gv(p[0]), gv(p[1])])), { material: stemM, color: 0xffffff });
             g.add(stem);
@@ -13906,73 +13912,102 @@ const Scene3D = {
             anim.tail = tailG;
             topY = 0.95;
         } else { // imp: 작은 악마 — 분절 사지 + 박쥐 막날개 + 화살촉 꼬리 + 곡선 뿔
-            const skinM = lam(base, ProChar.hideTex());
-            const skinD = lam(base.clone().offsetHSL(0, 0, -0.12), ProChar.hideTex());
-            const boneM = new THREE.MeshLambertMaterial({ color: 0xf3ead6 });
-            // 몸·머리·배·관절·손이 전부 완전구였다(ⓒ). 살이라 유기 변형을 건다(뿔·발굽 Cone 은 뾰족함이 정답이라 그대로).
-            const oSp = (r, w, h, seed, amp) => this.sculptOrganic(new THREE.SphereGeometry(r, w, h), seed, { amp });
+            // 🧊 **voxel 전환 5종째** (화풍 확정 2026-08-20). 부위·비례·애니 훅(`anim.bleg`/`barm`/
+            //    `wings`/`armRJ`)·AO 링 자리는 그대로 옮긴다.
+            // 🚨 **임프는 이 저장소에서 가장 작은 종이다(전신 0.98 = 20칸).** 하완 반지름 0.024 는
+            //    **0.48칸** — `Voxel.taper` 는 반지름 0.5 미만 층을 통째로 버리므로 그대로 넘기면
+            //    **빈 메시**가 나온다(콘솔 에러도 안 난다). 빌더 공용 `gv()` 가 0.5 로 클램프해 준다.
+            //    ⚠️ 여기서 격자를 잘게 바꾸고 싶어지는데, 그러면 '모든 종이 같은 벽돌'이라는 화풍
+            //       일관성이 깨진다. 작은 종은 **칸 수가 적은 게 정답**이다(크로시로드 닭이 그렇다).
+            const skinM = vmat(vBase.clone());
+            const skinD = vmat(vBase.clone().offsetHSL(0, 0, -0.12));
+            const skinL = vmat(vBase.clone().offsetHSL(0, 0, 0.1));
+            const boneM = vmat(new THREE.Color(0xf3ead6), { roughness: 0.6 });
             // 디지타이그레이드 다리: 대퇴 → 역관절 정강이 → 발굽
             for (const s of [-1, 1]) {
                 const hip = new THREE.Group();
                 hip.position.set(s * 0.075, 0.3, 0);
-                const thigh = limb(0.042, 0.035, 0.12, skinM);
+                const thigh = vlimb(0.042, 0.035, 0.12, skinM);
                 thigh.rotation.x = -0.35;
                 const knee = new THREE.Group();
                 knee.position.set(0, -0.11, 0.04);
-                const shin = limb(0.03, 0.026, 0.13, skinD);
+                const shin = vlimb(0.03, 0.026, 0.13, skinD);
                 shin.rotation.x = 0.5;
-                const hoof = mk(new THREE.ConeGeometry(0.035, 0.07, 6), skinD);
+                const hoof = vx(Voxel.taper(gv(0.035), 0.5, 2), { material: skinD, color: 0xffffff, center: true });
                 hoof.position.set(0, -0.13, 0.05); hoof.rotation.x = Math.PI;
                 knee.add(shin, hoof);
                 hip.add(thigh, knee);
                 (anim.bleg = anim.bleg || []).push({ hip, knee }); // 걷기 관절 굽힘용 피벗 노출
                 g.add(hip);
             }
-            // 몸통 캡슐 + 밝은 배 패치
-            body = mk(oSp(0.15, 10, 8, 90, 0.10), skinM);
-            body.position.y = 0.4; body.scale.set(1, 1.25, 0.9);
-            const belly = mk(oSp(0.1, 8, 6, 93, 0.09), light);
-            belly.position.set(0, 0.36, 0.09); belly.scale.set(1, 1.25, 0.5);
+            // 몸통 + 밝은 배 패치
+            body = vx(Voxel.ellipsoid(gv(0.15), gv(0.1875), gv(0.135)), { material: skinM, color: 0xffffff, center: true });
+            body.position.y = 0.4;
+            const belly = vx(Voxel.ellipsoid(gv(0.1), gv(0.125), gv(0.05)), { material: skinL, color: 0xffffff, center: true });
+            belly.position.set(0, 0.36, 0.09);
             g.add(body, belly);
             // 머리 + 곡선 2단 뿔 + 뾰족귀
-            const head = mk(oSp(0.125, 10, 8, 96, 0.07), skinM);   // 뿔·눈이 상대 배치라 진폭을 낮게
+            const head = vx(Voxel.ellipsoid(gv(0.125), gv(0.125), gv(0.125)), { material: skinM, color: 0xffffff, center: true });
             head.position.y = 0.63;
             g.add(head);
             for (const s of [-1, 1]) {
-                const horn1 = mk(new THREE.ConeGeometry(0.03, 0.1, 6), boneM);
-                horn1.position.set(s * 0.07, 0.75, 0); horn1.rotation.z = s * -0.4;
-                const horn2 = mk(new THREE.ConeGeometry(0.02, 0.08, 6), boneM);
-                horn2.position.set(s * 0.115, 0.82, 0); horn2.rotation.z = s * -0.85;
-                const ear = mk(new THREE.ConeGeometry(0.03, 0.09, 5), skinD);
+                // ⚠️ 뿔·귀는 **층 수가 곧 형태**다(박쥐 귀에서 실측) — 밑변 2칸 이상 · 3층 이상이라야
+                //    계단이 좁아지는 게 보여 '뾰족하다'로 읽힌다. 종전 원뿔 치수를 그대로 칸으로
+                //    나누면 3칸 남짓이라 '작은 블록'으로 뭉갠다.
+                // ⚠️ **첫 판은 뿔이 너무 굵었다** — `taper(1.6, …)` 는 밑변 5칸(0.25)이라 종전 원뿔
+                //    지름 0.06 의 4배다. 캡처에서 흰 사슴뿔 두 쌍이 머리를 덮었다. 밑변 3칸(0.15)이
+                //    '계단이 좁아지는 게 보이는' 최소치이자 이 두상에 맞는 상한이다.
+                const horn1 = vx(Voxel.taper(1.0, 0.5, 3), { material: boneM, color: 0xffffff, center: true });
+                horn1.position.set(s * 0.07, 0.77, 0); horn1.rotation.z = s * -0.4;
+                const horn2 = vx(Voxel.taper(1.0, 0.5, 2), { material: boneM, color: 0xffffff, center: true });
+                horn2.position.set(s * 0.115, 0.84, 0); horn2.rotation.z = s * -0.85;
+                const ear = vx(Voxel.taper(1.0, 0.5, 3), { material: skinD, color: 0xffffff, center: true });
                 ear.position.set(s * 0.125, 0.66, -0.01); ear.rotation.z = s * -1.75;
                 ear.scale.z = 0.5;
                 g.add(horn1, horn2, ear);
             }
             eyes(0.65, 0.105, 0.055, 0.034, 'angry', { iris: 0xffe14a, glow: 0.12, tilt: 0.12, browColor: 0x5c2338 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
-            // 목(두상 r 0.125 밑) · 허리(몸통 r 0.15×1.25 밑단과 골반 경계) · 날개 소켓
+            // 목(두상 밑) · 허리(몸통 밑단과 골반 경계) · 날개 소켓
+            // 🚨 **복셀 전환 뒤 반경을 다시 잰다** — 복셀 회전체는 축이 가장 뚱뚱하고 대각이 가장 얇아
+            //    매끈 시절 반경이 대각에서 샌다. ⚠️ 새면 **튜브를 굵히지 말 것**(TorusGeometry 의 바깥
+            //    반경 = r + tube 라 더 나간다) — 반경을 줄이고 `op` 로 진하기를 되찾는다(박쥐 실측).
             aoRing(0.088, 0.018, 0, 0.545, 0, { flat: 0.5 });
             aoRing(0.118, 0.02, 0, 0.312, 0, { ez: 0.9, flat: 0.45, op: 0.44 });
             for (const s of [-1, 1]) aoRing(0.048, 0.014, s * 0.125, 0.43, -0.1, { flat: 0.6, op: 0.42 });
-            const grin = mk(new THREE.TorusGeometry(0.052, 0.013, 6, 10, Math.PI * 0.8), new THREE.MeshBasicMaterial({ color: 0x33141f })); // 씩 웃는 입
-            grin.position.set(0, 0.585, 0.107); grin.rotation.z = Math.PI + Math.PI * 0.1;
+            // 씩 웃는 입 — 토러스 아크 → 계단 U(슬라임 입과 같은 언어)
+            const grin = vx(Voxel.merge(
+                Voxel.at(Voxel.box(2, 1, 1), 1, 0, 0),
+                Voxel.at(Voxel.box(1, 1, 1), 0, 1, 0),
+                Voxel.at(Voxel.box(1, 1, 1), 3, 1, 0)),
+                { material: new THREE.MeshBasicMaterial({ color: 0x33141f, vertexColors: true }), color: 0xffffff, center: true, ao: 0, jitter: 0 });
+            grin.position.set(0, 0.578, 0.115); grin.scale.set(0.75, 0.75, 0.3);
             g.add(grin);
-            for (const s of [-1, 1]) { // 언더바이트 송곳니
-                const impFang = mk(new THREE.ConeGeometry(0.013, 0.035, 5), boneM);
-                impFang.position.set(s * 0.035, 0.585, 0.115);
+            for (const s of [-1, 1]) { // 언더바이트 송곳니 — 한 칸 큐브(두상 앞면 밖으로)
+                const impFang = vx(Voxel.box(1, 1, 1), { material: boneM, color: 0xffffff, center: true, ao: 0, jitter: 0 });
+                impFang.position.set(s * 0.035, 0.6, 0.128); impFang.scale.set(0.45, 0.8, 0.45);
                 g.add(impFang);
             }
-            // 박쥐 막날개: 본 콘 2개 + 삼각 멤브레인
+            // 박쥐 막날개: 본 2개 + 계단 스캘럽 멤브레인 (박쥐와 같은 언어)
             for (const s of [-1, 1]) {
                 const wing = new THREE.Group();
-                wing.position.set(s * 0.11, 0.5, -0.09);
-                const bone1 = mk(new THREE.CylinderGeometry(0.012, 0.009, 0.2, 5), skinD);
-                bone1.position.set(s * 0.09, 0.05, 0); bone1.rotation.z = s * 1.1;
-                const bone2 = mk(new THREE.CylinderGeometry(0.009, 0.006, 0.16, 5), skinD);
-                bone2.position.set(s * 0.2, 0.02, 0); bone2.rotation.z = s * 1.9;
-                const mem = mk(wingGeo(0.42, 0.3), new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0.02, 0.08, -0.04), side: THREE.DoubleSide, transparent: true, opacity: 0.85 })); // 반투명 막 — 판자 오독 제거, 몸 대비 과소(비행 설득력) 확대 (비평가 6.8 8번)
-                mem.scale.x = s;
+                const memb = [];
+                const COLS = [[1, -1], [2, -2], [2, -3], [2, -2], [2, -3], [1, -2], [1, -3], [0, -1]];
+                for (let cx2 = 0; cx2 < COLS.length; cx2++)
+                    for (let cy2 = COLS[cx2][1]; cy2 <= COLS[cx2][0]; cy2++)
+                        memb.push({ x: s * cx2, y: cy2, z: 0 });
+                const mem = vx(memb, {
+                    material: vmat(vBase.clone().offsetHSL(0.02, 0.08, -0.2), {
+                        // ⚠️ `envMapIntensity: 0` — 종전 막은 Lambert(환경맵 없음)였다. Standard 로 갈면
+                        //    반사가 얹혀 얇은 막이 몸통보다 밝게 뜬다(박쥐에서 실측).
+                        side: THREE.DoubleSide, transparent: true, opacity: 0.85, roughness: 0.9, envMapIntensity: 0,
+                    }), color: 0xffffff, center: false,
+                }); // 반투명 막 — 판자 오독 제거, 몸 대비 과소(비행 설득력) 확대 (비평가 6.8 8번)
                 mem.position.y = 0.08;
-                wing.add(bone1, bone2, mem);
+                const bone1 = vx(Voxel.box(5, 1, 1), { material: skinD, color: 0xffffff, center: false });
+                bone1.position.set(s < 0 ? -4 * VS : 0, 0.08 + 2 * VS, 0.006);
+                const bone2 = vx(Voxel.box(4, 1, 1), { material: skinD, color: 0xffffff, center: false });
+                bone2.position.set(s < 0 ? -3 * VS : 0, 0.08 - 1 * VS, 0.006);
+                wing.add(mem, bone1, bone2);
                 wing.position.set(s * 0.135, 0.42, -0.13); // 소켓을 등 뒤·바깥으로 — 날개 평면이 몸통을 관통·교차하던 문제
                 wing.rotation.set(0.32, s * -0.25, s * 0.55); // 펼침각 완화 + 뒤로 젖힘
                 wing.userData.s = s;
@@ -13983,20 +14018,20 @@ const Scene3D = {
             for (const s of [-1, 1]) {
                 const sh = new THREE.Group();
                 sh.position.set(s * 0.14, 0.5, 0.01);
-                const upper = limb(0.03, 0.026, 0.1, skinM);
+                const upper = vlimb(0.03, 0.026, 0.1, skinM);
                 upper.rotation.z = s * 0.4;
                 const elbow = new THREE.Group();
                 elbow.position.set(s * 0.04, -0.1, 0);
-                const eJ = mk(oSp(0.026, 7, 5, 99 + s * 4, 0.09), skinM); // 팔꿈치 관절 구 — 굽힘 이음새 은폐
+                const eJ = vx(Voxel.ellipsoid(gv(0.026), gv(0.026), gv(0.026)), { material: skinM, color: 0xffffff, center: true }); // 팔꿈치 관절 — 굽힘 이음새 은폐
                 elbow.add(eJ);
-                const fore = limb(0.024, 0.02, 0.09, skinD);
-                const hand = mk(oSp(0.036, 7, 5, 104 + s * 6, 0.11), skinM);
+                const fore = vlimb(0.024, 0.02, 0.09, skinD);
+                const hand = vx(Voxel.ellipsoid(gv(0.036), gv(0.036), gv(0.036)), { material: skinM, color: 0xffffff, center: true });
                 hand.position.y = -0.1;
                 elbow.add(fore, hand);
                 for (let ci = 0; ci < 3; ci++) { // 갈퀴 발톱 — '손 없는 캡슐' 오독 제거
-                    const claw = mk(new THREE.ConeGeometry(0.011, 0.038, 4), boneM);
-                    claw.position.set((ci - 1) * 0.02, -0.135, 0.012);
-                    claw.rotation.x = Math.PI - 0.35;
+                    const claw = vx(Voxel.box(1, 1, 1), { material: boneM, color: 0xffffff, center: true, ao: 0, jitter: 0 });
+                    claw.position.set((ci - 1) * 0.025, -0.14, 0.012);
+                    claw.scale.set(0.4, 0.8, 0.4);
                     elbow.add(claw);
                 }
                 sh.add(upper, elbow);
@@ -14009,13 +14044,13 @@ const Scene3D = {
             tailG.position.set(0, 0.3, -0.12);
             let px2 = 0, py2 = 0, pz2 = 0, ang2 = -0.6;
             for (let k2 = 0; k2 < 3; k2++) {
-                const seg = mk(new THREE.CylinderGeometry(0.016 - k2 * 0.003, 0.013 - k2 * 0.003, 0.12, 5), skinD);
+                const seg = vx(Voxel.taper(gv(0.013 - k2 * 0.003), gv(0.016 - k2 * 0.003), 2), { material: skinD, color: 0xffffff, center: true });
                 seg.position.set(px2, py2 - Math.cos(ang2) * 0.05, pz2 - Math.sin(-ang2) * 0.05);
                 seg.rotation.x = ang2;
                 tailG.add(seg);
                 py2 -= Math.cos(ang2) * 0.1; pz2 -= Math.sin(-ang2) * 0.1; ang2 -= 0.55;
             }
-            const tip2 = mk(new THREE.ConeGeometry(0.035, 0.08, 4), skinD);
+            const tip2 = vx(Voxel.taper(1.6, 0.5, 2), { material: skinD, color: 0xffffff, center: true });
             tip2.position.set(px2, py2 + 0.02, pz2 - 0.06);
             tip2.rotation.x = ang2 + 0.4; tip2.scale.z = 0.4;
             tailG.add(tip2);
