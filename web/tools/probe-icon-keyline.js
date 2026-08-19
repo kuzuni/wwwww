@@ -70,7 +70,13 @@ const AT = 28;   // 재는 크기 — 재화 pill(24px)·탭바(53px) 사이의 
     // `dg_*` 는 아이콘이 아니라 **던전 배너의 배경 일러스트**(하늘·성벽·묘비 — ASPECT 3.45)다.
     // 풍경에 검정 테를 두르면 오히려 원본과 멀어지므로 화풍 검사에서 뺀다.
     const SCENERY = n => n.indexOf('dg_') === 0;
-    const bad = rows.filter(r => !r.err && !SCENERY(r.name) && r.edge >= 20 && r.pct < MIN).sort((a, b) => a.pct - b.pct);
+    // 🥚 알(egg·eggCracked)은 **일부러 검정 테가 없다** — 사용자 지시 2026-08-19 `outline-halve-egg-none`
+    //    "펫 알 부분은 검정 아웃라인 빼기". 이 검사는 '테가 있나'를 보는데 알은 테가 없는 게 사양이라
+    //    술어를 뒤집어 예외로 둔다(그 전엔 `OUTLINE.egg` 로 테를 둘러 통과시켜, 알 테를 빼라는 지시와
+    //    정면 충돌했다 — slug `egg-outline-baked-in`). 알의 밝은 배경 실루엣은 몸통 자체의 그늘 림
+    //    키라인(`_shadeFloor` 색, 순검정 아님)이 지킨다.
+    const SKIN_NO_OUTLINE = n => n === 'egg' || n === 'eggCracked';
+    const bad = rows.filter(r => !r.err && !SCENERY(r.name) && !SKIN_NO_OUTLINE(r.name) && r.edge >= 20 && r.pct < MIN).sort((a, b) => a.pct - b.pct);
     const broken = rows.filter(r => !SCENERY(r.name) && (r.err || r.edge < 20));
     console.log(`아이콘 ${rows.filter(r => !SCENERY(r.name)).length}종(배너 일러스트 dg_* 제외) · 표시 ${AT}px 로 줄인 뒤 실루엣 경계의 '거의 검정' 비율 (임계 ${MIN}%)\n`);
     console.log(`키라인 없음/약함 ${bad.length}종:`);
