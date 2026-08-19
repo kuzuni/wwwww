@@ -1057,6 +1057,70 @@ const Scene3D = {
         }
     },
 
+    // ---- 지면 스캐터 좌표 샘플러: 깊이 가중 + 군집 ----
+    // `map-quality-up` 잔여 결함 ㉮("지면이 단색 카펫 + 균일 난수 산포. 근경>중경>원경 밀도 역전 +
+    // 군집 스캐터가 필요" — 비평가 2인이 3라운드 내내 공통 1~2위)의 처방. 실측 근거는 둘 다
+    // `tools/probe-scatter-depth.js` 가 게이트로 잡고 있다(추측 아님).
+    //
+    // ⑴ **깊이 가중** — 균일 난수는 *월드* 밀도가 일정하다. 그런데 화면 밀도는 거리²에 grazing 압축
+    //    (1/cosθ)까지 곱해 커지므로, 균일하게 뿌리면 **원경이 빽빽하고 근경이 휑한 역전**이 난다.
+    //    실측(수정 전): 화면 하단 1/3 이 중단 1/3 의 **0.44~1.00배**였다 — 앞 세션들이 "하단 40%
+    //    빈 지면"으로 부르던 것의 정체이고, `scatter3` 근경 레이어를 얹고도 안 풀린 이유다.
+    //    w(z) ∝ d(z)^-depthPow 로 역가중해 근경 쪽에 개수를 몰아준다(총 개수는 불변 = 드로우콜·성능 동일).
+    //    ⚠️ 거리는 **실제 `this.camera` 위치**에서 잰다 — 카메라 상수를 손으로 베끼면 카메라가 바뀐 뒤
+    //       옛 값으로 가중하는 유령 결과가 난다(TODO 함정 ④).
+    // ⑵ **군집** — 완전 난수는 Clark–Evans R≈1.0(실측 0.95~1.04)으로 '기계적으로 흩뿌린 자갈밭'이 된다.
+    //    씨앗을 깊이 가중으로 뿌리고 나머지를 그 주위 가우시안으로 모아 덤불 무리를 만든다.
+    // ⚠️ x 는 가중하지 않는다 — 카메라가 x 로 패닝하므로(worldX) x 를 카메라 쪽으로 몰면
+    //    패닝했을 때 화면 밖에서 밀도가 무너진다. 깊이(z)만 가중하는 게 맞다.
+    scatterSpots(cnt, zMin, zMax, o) {
+        o = o || {};
+        const P = o.depthPow === undefined ? 3.0 : o.depthPow;
+        const xMin = o.xMin === undefined ? -28 : o.xMin;
+        const xMax = o.xMax === undefined ? 28 : o.xMax;
+        const cam = this.camera;
+        const cx = cam ? cam.position.x : 0.15;
+        const cy = cam ? cam.position.y : 3.7;
+        const cz = cam ? cam.position.z : 8.2;
+        // 깊이 역-CDF (32분할). 균등 난수 u 를 w(z) 분포의 z 로 바꾼다.
+        const B = 32, cdf = new Float32Array(B + 1);
+        for (let i = 0; i < B; i++) {
+            const z = zMin + (i + 0.5) / B * (zMax - zMin);
+            const dz = cz - z, dy = cy - this.heightAt(cx, z);
+            cdf[i + 1] = cdf[i] + Math.pow(Math.max(0.5, Math.sqrt(dz * dz + dy * dy)), -P);
+        }
+        for (let i = 1; i <= B; i++) cdf[i] /= cdf[B];
+        const pickZ = () => {
+            const u = Math.random();
+            let k = 0;
+            while (k < B - 1 && cdf[k + 1] < u) k++;
+            return zMin + (k + Math.random()) / B * (zMax - zMin);
+        };
+        // 3개 균등난수 합 → 가우시안 근사(±1 대부분, 꼬리 있음)
+        const g = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+        const seeds = Math.max(2, Math.round(cnt * (o.seedFrac === undefined ? 0.3 : o.seedFrac)));
+        const rx = o.clumpR === undefined ? 1.15 : o.clumpR;   // 군집 반경(월드 x)
+        const rz = rx * (o.clumpZ === undefined ? 0.4 : o.clumpZ); // z 는 화면 깊이라 더 좁게
+        const sx = [], sz = [], out = [];
+        for (let i = 0; i < cnt; i++) {
+            let x, z;
+            if (i < seeds || !sx.length) {
+                x = U.rand(xMin, xMax); z = pickZ();
+                sx.push(x); sz.push(z);
+            } else {
+                const k = Math.random() * sx.length | 0;
+                x = sx[k] + g() * rx;
+                z = sz[k] + g() * rz;
+                // 경계 밖은 반사 — 클램프하면 가장자리에 일렬로 쌓여 '벽'이 생긴다
+                if (x < xMin) x = xMin + (xMin - x); else if (x > xMax) x = xMax - (x - xMax);
+                if (z < zMin) z = zMin + (zMin - z); else if (z > zMax) z = zMax - (z - zMax);
+                x = U.clamp(x, xMin, xMax); z = U.clamp(z, zMin, zMax);
+            }
+            out.push([x, z]);
+        }
+        return out;
+    },
+
     // 절차적 잔디/지면 얼룩 텍스처 — 큰 규모 패치(마른 풀/흙 자국) + 작은 얼룩 + 미세 노이즈 3단 레이어.
     // 재질 color가 그 위에 곱해져 챕터별 톤은 그대로 유지되면서 표면 디테일만 더함.
     // 바이옴별 지면 알베도 텍스처 — "어느 챕터나 같은 얼룩 평면" 인상을 없애기 위해 소재가
@@ -2142,16 +2206,19 @@ const Scene3D = {
                 tint = 0.2;
         }
         // 화면 하단(카메라 앞 둔덕 z 2.2~3.4)까지 스캐터를 확장 — "하단 40% 빈 지면" 구도 결함 완화
-        const mk = (geo2, mat2, cnt, flat2, tint2, zMin, zMax) => {
+        const mk = (geo2, mat2, cnt, flat2, tint2, zMin, zMax, so) => {
             const im = new THREE.InstancedMesh(geo2, mat2, cnt);
             const dummy = new THREE.Object3D();
             const col = new THREE.Color();
+            const spots = this.scatterSpots(cnt, zMin, zMax, so);
+            const sLo = so && so.scaleLo !== undefined ? so.scaleLo : 0.7;
+            const sHi = so && so.scaleHi !== undefined ? so.scaleHi : 1.6;
             for (let i = 0; i < cnt; i++) {
-                let x = U.rand(-28, 28), z = U.rand(zMin, zMax);
+                let x = spots[i][0], z = spots[i][1];
                 if (Math.abs(z) < 0.55) z = 0.55 * Math.sign(z || 1) + z; // 스캐터도 전투 라인 살짝 비켜감
                 dummy.position.set(x, this.heightAt(x, z) + 0.02, z);
                 dummy.rotation.y = U.rand(0, Math.PI * 2);
-                const sc = U.rand(0.7, 1.6);
+                const sc = U.rand(sLo, sHi);
                 dummy.scale.set(sc, sc * (flat2 ? U.rand(0.45, 0.75) : U.rand(0.8, 1.4)), sc);
                 dummy.updateMatrix();
                 im.setMatrixAt(i, dummy.matrix);
@@ -2169,28 +2236,22 @@ const Scene3D = {
         const windy = sp.scatter ? !!sp.scatter.wind
             : (kin !== 'desert' && kin !== 'rock' && kin !== 'snow' && kin !== 'lava' && kin !== 'magic');
         if (windy) this.windShade(mat, 0.55);
-        this.scatter = mk(geo, mat, n, flat, tint, -3.4, 3.2);
-        // 근경 전용 디테일 레이어 — 카메라 앞 둔덕(z 3.2~5.6, 화면 최하단 40%)에 같은 소재를
-        // 더 크고 촘촘하게. 세로 화면 첫인상을 결정하는 근경이 "무텍스처 단색 평면"이던 결함 해소
-        this.scatter3 = (() => {
-            const im = new THREE.InstancedMesh(geo, mat, n);
-            const dummy = new THREE.Object3D();
-            const col = new THREE.Color();
-            for (let i = 0; i < n; i++) {
-                const x = U.rand(-28, 28), z = U.rand(3.2, 5.6);
-                dummy.position.set(x, this.heightAt(x, z) + 0.02, z);
-                dummy.rotation.y = U.rand(0, Math.PI * 2);
-                const sc = U.rand(1.1, 2.4); // 근경은 원근상 더 커야 자연스럽다
-                dummy.scale.set(sc, sc * (flat ? U.rand(0.45, 0.75) : U.rand(0.8, 1.4)), sc);
-                dummy.updateMatrix();
-                im.setMatrixAt(i, dummy.matrix);
-                col.copy(mat.color).offsetHSL(U.rand(-0.015, 0.015), U.rand(-0.04, 0.04), U.rand(-tint, tint));
-                im.setColorAt(i, col);
-            }
-            im.receiveShadow = false; // 상동 — instanceColor InstancedMesh는 그림자 수신 금지
-            this.ground.add(im);
-            return im;
-        })();
+        // 🚨 **뒤끝을 z −3.4 → −9 로 늘렸다.** 종전 주 스캐터는 z −3.4 에서 뚝 끊겼는데 지면 플레인은
+        //    z −45 까지 깔려 있고 `fog.near` 가 12(= z −3.8 부근)라, **안개가 먹기도 전에 스캐터가
+        //    사라진 맨 지면 띠**가 화면 상단 1/3 을 통째로 차지했다(실측: 원경띠 인스턴스 **전 챕터 0개**).
+        //    "단색 카펫"이라는 지적의 절반이 이것이다. z −9 는 카메라에서 17.5 유닛 = 안개 30% 지점이라
+        //    거기서부터는 안개가 자연스럽게 이어받는다.
+        // ⚠️ 지수 배분: **근경 위계는 `scatter3` 의 개수로 벌고, 주 스캐터는 지수를 낮게(1.75) 둔다.**
+        //    주 스캐터 지수를 2.5까지 올려 위계를 만들면 원경띠가 같이 굶어(실측 원경 156~180개, 게이트 미달)
+        //    "카펫" 결함이 뒤쪽에서 되살아난다. 근/중은 근경 레이어로, 중/원은 이 지수로 따로 잡는 게 맞다.
+        this.scatter = mk(geo, mat, n, flat, tint, -9, 3.2, { depthPow: 1.75, clumpR: 2.0, seedFrac: 0.42 });
+        // 근경 전용 디테일 레이어 — 카메라 앞 둔덕에 같은 소재를 더 크고 촘촘하게.
+        // 세로 화면 첫인상을 결정하는 근경이 "무텍스처 단색 평면"이던 결함 해소.
+        // 🚨 **뒤끝을 z 5.6 → 5.0 으로 당겼다.** 지면이 화면 바닥(ndc.y −1)과 만나는 곳이 실측 z 4.97 이라
+        //    z 5.0 너머에 뿌린 몫(종전 배치의 약 1/4)은 **한 번도 화면에 안 들어왔다** — 근경을 채우라고
+        //    만든 레이어가 정작 프레임 밖에 예산을 버리고 있었다.
+        this.scatter3 = mk(geo, mat, Math.round(n * 1.9), flat, tint, 3.2, 5.0,
+            { depthPow: 2.0, clumpR: 1.5, seedFrac: 0.42, scaleLo: 1.1, scaleHi: 2.4 }); // 근경은 원근상 더 커야 자연스럽다
         // 보조 악센트 스캐터 — 5% 악센트 색 규칙(단색 팔레트 지적 반영): 초원=들꽃, 설원=얼음 결정,
         // 바위산=골드 야생화, 마법=보라 자갈, 사막=적갈 자갈, 용암=재 조각
         const acc = {
@@ -2211,7 +2272,10 @@ const Scene3D = {
             : new THREE.MeshLambertMaterial({ color: accHex });
         // 악센트도 식물이면 같이 흔든다(초원 들꽃·바위산 골드 야생화). 얼음 결정·자갈·재는 제외.
         if (ac ? !!ac.wind : (biome === 'forest' || biome === 'rock')) this.windShade(accMat, 0.42);
-        this.scatter2 = mk(accGeo, accMat, accN, true, 0.1, -3, 5.2);
+        // 악센트도 같은 깊이 가중·군집을 탄다. 뒤끝 −3 → −7(주 스캐터를 따라 원경까지),
+        // 앞끝 5.2 → 5.0(프레임 밖 낭비 제거). 악센트는 '드문드문 핀 꽃'이라 군집을 더 세게 준다.
+        this.scatter2 = mk(accGeo, accMat, accN, true, 0.1, -7, 5.0,
+            { depthPow: 1.75, clumpR: 1.6, seedFrac: 0.3 });
     },
 
     makeProp(biome, kind, s) {
