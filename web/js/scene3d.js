@@ -10637,8 +10637,11 @@ const Scene3D = {
                 const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3 * big, 0),
                     new THREE.MeshBasicMaterial({ color, toneMapped: false }));
                 rock.userData.meteorRock = true;
-                // 비스듬히 떨어져야 '하늘에서 온 것'이 된다(수직 낙하는 '위에서 놓았다'로 읽힌다)
-                const start = new THREE.Vector3(spot.x + 1.6 + U.rand(-0.4, 0.4), 6.6, spot.z - 0.6);
+                // 비스듬히 떨어져야 '하늘에서 온 것'이 된다(수직 낙하는 '위에서 놓았다'로 읽힌다).
+                // ⚠️ 사선의 부호 = **주인공 쪽(왼쪽, 낮은 x)에서** 적 쪽으로 (skill-fx-origin-hero-side,
+                //    사용자 지시 "주인공 방향에서 안 떨어지고 역방향으로 떨어지던데 그런 거 ㄴㄴ").
+                //    종전 +1.6 은 적 뒤편 하늘에서 날아와 '적이 맞은 게 아니라 주인공이 쏜 게 아닌' 그림이었다.
+                const start = new THREE.Vector3(spot.x - (1.6 + U.rand(-0.4, 0.4)), 6.6, spot.z - 0.6);
                 rock.position.copy(start);
                 this.scene.add(rock);
                 const hot = new THREE.Color(0xff7043);
