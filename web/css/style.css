@@ -5349,6 +5349,34 @@ body {
     background: radial-gradient(closest-side, rgba(0,0,0,0) 62%, var(--rc) 78%, rgba(0,0,0,0) 92%);
 }
 .sr-cell.on .sr-orbwrap::after { animation: srring .55s ease-out forwards; }
+/* ===== 셀별 광원 재점화 (.sr-relights / .sr-relight) — 11차 비평가 A 1순위 [높음] =====
+   A 실측(광원 ±20px 평균 휘도): 2~4번 셀이 사출되는 t0840~t1740 내내 **45.1~55.2** 로,
+   시작 프레임 baseline 53.3 보다도 낮다. 인과(빛→아이템)가 첫 셀과 주역에만 걸려 있어
+   나머지는 '꺼진 광원에서 튀어나오는 물체'로 읽힌다.
+   ⇒ 셀이 뜰 때마다 **광원 자리(= .sr-wrap 중심)** 에 그 셀 등급색으로 짧은 플래시를 켠다.
+   ⚠️ 이 층을 `.sr-cell` 안에 넣으면 안 된다 — 래퍼 scale·비행 transform·`opacity:0` 이 전부
+      곱해져 광원에 서지도, 제 밝기로 켜지지도 않는다(실측 baseline 대비 1.04~1.19x 로 헛돌았다).
+      `.sr-wrap` 직속이라야 광원 좌표가 그냥 '가운데'가 된다.
+   ⚠️ 가산(screen)이라야 이웃을 **밝힌다** — 알파 오버레이로 덮으면 오히려 탁하게 죽여
+      등급색 구분이 무너진다(6차에 `.sr-flash` 가 그 함정을 밟았다).
+   ⚠️ 시각은 인라인 `animation-delay` 가 준다(UI.fillSummonRelights). 시크 재현이 저절로 맞는다 —
+      CSS 애니메이션의 currentTime 은 delay 를 포함한다. */
+.sr-relights { position: absolute; inset: 0; pointer-events: none; z-index: 26; }
+.sr-relight {
+    position: absolute; left: 50%; top: 50%; border-radius: 50%;
+    width: min(9rem, 38vw); height: min(9rem, 38vw);
+    background: radial-gradient(closest-side, var(--rc-lite, #fff) 0%, var(--rc) 30%, rgba(0,0,0,0) 70%);
+    opacity: 0; mix-blend-mode: screen; filter: blur(3px);
+    transform: translate(-50%, -50%) scale(.3);
+    animation: srrelight .34s cubic-bezier(.1,.9,.3,1) both;
+}
+@keyframes srrelight {
+    0%   { opacity: 0;                             transform: translate(-50%,-50%) scale(.28); }
+    24%  { opacity: calc(.55 + .42 * var(--glow)); transform: translate(-50%,-50%) scale(1); }
+    100% { opacity: 0;                             transform: translate(-50%,-50%) scale(1.46); }
+}
+/* 반사 복제본에서는 안 돈다 — `.sr-reflect *` 가 애니메이션을 끈다(원본과 위상이 어긋나면 두 겹으로 떨린다) */
+
 /* 잔상(모션 스트레치) — 팝이 아래에서 올라오는데 궤적이 없으면 '순간이동 후 튕김'으로 보인다.
    본체 뒤에 세로로 늘어난 흐린 복제를 깔아 이동 흔적을 남긴다 */
 .sr-ghost {

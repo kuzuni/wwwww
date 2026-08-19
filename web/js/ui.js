@@ -414,6 +414,7 @@ const UI = {
                 ${this.summonStreaks()}
                 <div class="sr-shock"></div>
                 <div class="sr-shock echo"></div>
+                <div class="sr-relights"></div>
                 <div class="sr-idle"><i></i><i></i></div>
                 <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-wipe" style="--rc:${RARITY_CSS[best]}"></div>
@@ -500,6 +501,7 @@ const UI = {
         }
         this._srHoldback = holdback;
         this._srHeroIdx = heroIdx;
+        this.fillSummonRelights(m, entries);
         this._srStart = performance.now();
         this._srIdx = 0;
         this._srRaf = requestAnimationFrame(() => this.tickSummonResult());
@@ -523,11 +525,40 @@ const UI = {
         this._srCells.forEach(c => {
             const o = c.querySelector('.sr-orbwrap') || c;
             const r = o.getBoundingClientRect();
-            const dx = (ox - (r.left + r.width / 2)) * this.SR_EJECT / rem;
-            const dy = (oy - (r.top + r.height / 2)) * this.SR_EJECT / rem;
-            c.style.setProperty('--dx', dx.toFixed(3) + 'rem');
-            c.style.setProperty('--dy', dy.toFixed(3) + 'rem');
+            const fx = (ox - (r.left + r.width / 2)) / rem;      // 광원까지의 **전체** 벡터
+            const fy = (oy - (r.top + r.height / 2)) / rem;
+            c.style.setProperty('--dx', (fx * this.SR_EJECT).toFixed(3) + 'rem');
+            c.style.setProperty('--dy', (fy * this.SR_EJECT).toFixed(3) + 'rem');
+            // 재점화 플래시는 **경로 시작점이 아니라 광원 자체**에 서야 한다 — --dx/--dy 는
+            // 경로의 62%(SR_EJECT)라 거기에 세우면 광원이 아니라 셀 근처에서 반짝인다.
+            c.style.setProperty('--ox', fx.toFixed(3) + 'rem');
+            c.style.setProperty('--oy', fy.toFixed(3) + 'rem');
         });
+    },
+
+    // 셀별 광원 재점화 — 11차 비평가 A 1순위 [높음] "2~5번째 아이템은 꺼진 광원에서 나온다".
+    // A 실측(광원 ±20px 평균 휘도): 2~4번 셀이 사출되는 900ms 내내 45.1~55.2 로, **시작 프레임의
+    // baseline 53.3 보다도 낮았다.** 인과(빛→아이템)가 첫 셀과 주역에만 걸려 있던 것이다.
+    // ⇒ 셀이 뜰 때마다 광원 자리에 그 셀의 등급색으로 짧은 플래시를 한 번 켠다.
+    //
+    // 🚨 **셀 안에 넣으면 안 된다(한 번 그렇게 넣었다가 실측 1.04~1.19x 로 헛돌았다).** 이유 셋:
+    //   ⑴ `.sr-orbwrap` 이 `scale(--sz * --peersz)` 라 rem 오프셋이 같이 배율을 먹어 광원을 지나친다
+    //   ⑵ 셀은 `srpop` 으로 광원→슬롯을 **날아가는 중**이라 플래시가 광원에 안 머문다
+    //   ⑶ `.sr-cell` 기본 `opacity: 0` 이 곱해져 등장 초반에는 플래시까지 투명하다
+    // 그래서 **`.sr-wrap` 직속**(광원 = wrap 중심)에 셀 수만큼 깔고 `animation-delay` 로 시각을 준다.
+    // 시크 재현도 이쪽이 맞다 — CSS 애니메이션의 currentTime 은 delay 를 포함하므로,
+    // 프로브/캡처 하네스가 `a.currentTime = T` 를 넣으면 지연이 저절로 반영된다.
+    fillSummonRelights(m, entries) {
+        const host = m.querySelector('.sr-relights');
+        if (!host || !this._srDelays) return;
+        host.innerHTML = this._srDelays.map((d, i) => {
+            const e = entries[i];
+            if (!e) return '';
+            const rc = RARITY_CSS[e.rarity] || '#fff';
+            const tier = RARITIES.indexOf(e.rarity);
+            return `<span class="sr-relight" style="--rc:${rc};--rc-lite:${this.srHilite(rc, tier)};`
+                + `--glow:${(0.16 + tier * 0.13).toFixed(2)};animation-delay:${d}ms"></span>`;
+        }).join('');
     },
 
     // 등장 캐스케이드 — 아이콘마다 setTimeout을 걸면 3D 렌더 루프에 밀려 대량 소환이 몇 초씩 끌린다.
