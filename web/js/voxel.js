@@ -333,6 +333,69 @@
             return out;
         },
 
+        // 채워진 타원체. r* 는 반지름(복셀 수, 실수 가능).
+        //   판정은 복셀 **중심**에서 한다 — 모서리로 하면 반지름 1 짜리가 3×3×3 으로 부푼다.
+        ellipsoid: function (rx, ry, rz, color) {
+            var out = [];
+            var ix = Math.floor(rx), iy = Math.floor(ry), iz = Math.floor(rz);
+            for (var x = -ix; x <= ix; x++) for (var y = -iy; y <= iy; y++) for (var z = -iz; z <= iz; z++) {
+                var dx = x / (rx || 1), dy = y / (ry || 1), dz = z / (rz || 1);
+                if (dx * dx + dy * dy + dz * dz <= 1.0001) out.push({ x: x, y: y, z: z, c: color });
+            }
+            return out;
+        },
+        // 회전체 — `prof` = [[r, y], ...] 를 y 로 정렬해 선형 보간하며 채운다.
+        //   `LatheGeometry` 를 쓰던 파츠(슬라임 물방울·골렘 몸통·버섯 갓)를 **같은 프로파일
+        //   숫자 그대로** 큐브로 옮기기 위한 것이다 — 실루엣을 다시 디자인하지 않아도 된다.
+        //   y 는 0 부터 시작하는 '바닥 기준' 좌표를 그대로 받는다(회전축 = y).
+        revolve: function (prof, color) {
+            var p = prof.slice().sort(function (a, b) { return a[1] - b[1]; });
+            var y0 = Math.round(p[0][1]), y1 = Math.round(p[p.length - 1][1]);
+            var out = [];
+            for (var y = y0; y <= y1; y++) {
+                // 이 높이의 반지름 — 프로파일 구간을 찾아 선형 보간.
+                var r = 0;
+                for (var i = 0; i < p.length - 1; i++) {
+                    var a = p[i], b = p[i + 1];
+                    if (y >= a[1] && y <= b[1]) {
+                        var t = (b[1] === a[1]) ? 0 : (y - a[1]) / (b[1] - a[1]);
+                        r = a[0] + (b[0] - a[0]) * t;
+                        break;
+                    }
+                }
+                if (y <= p[0][1]) r = p[0][0];
+                if (y >= p[p.length - 1][1]) r = p[p.length - 1][0];
+                var ir = Math.floor(r);
+                for (var x = -ir; x <= ir; x++) for (var z = -ir; z <= ir; z++)
+                    if (x * x + z * z <= r * r + 0.0001) out.push({ x: x, y: y, z: z, c: color });
+            }
+            return out;
+        },
+        // 겉껍질만 남긴다 — 6이웃 중 하나라도 비어 있는 복셀만.
+        //   🚨 **위의 `shell(rings, …)` 과 헷갈리지 말 것 — 이름이 비슷하지만 하는 일이 다르다.**
+        //      `shell` 은 링 목록으로 **회전체를 만들면서** 반경 방향으로만 속을 판다(위·아래가
+        //      뚫린 관이 된다). `hollow` 는 **이미 만든 덩어리**에서 겉 한 겹만 남기므로
+        //      정수리·바닥까지 닫힌다. 젤리처럼 위에서 속이 보이면 안 되는 파츠는 이쪽이다.
+        //      (두 함수는 2026-08-19 에 두 세션이 동시에 넣은 것이라 이름이 겹쳤다 — 합칠 때
+        //       뒤엣것을 `hollow` 로 고쳤다. 다시 `shell` 로 되돌리지 말 것.)
+        //   🚨 **반투명 파츠(젤리 슬라임 등)에는 이게 필수다.** 속을 꽉 채우면 안쪽 면이
+        //      전부 제거돼(ⓑ) 겉면 한 겹만 남고, 그러면 반투명 너머로 보여야 할 **속 파츠가
+        //      가려지는 게 아니라 '두께가 없어' 유리막처럼 보인다.** 껍질로 만들면 안쪽 면이
+        //      살아나 두께가 읽히고 핵·기포가 그 안에 잠긴 것으로 읽힌다.
+        //   불투명 파츠에 걸어도 결과 메시는 같고(안 보이는 면은 어차피 제거된다) 복셀 수만
+        //   준다 — 다만 AO 는 달라진다(속이 비면 안쪽 코너가 안 막혀 이음새가 밝아진다).
+        hollow: function (voxels) {
+            var occ = occupancy(voxels), out = [];
+            for (var i = 0; i < voxels.length; i++) {
+                var v = voxels[i], open = false;
+                for (var f = 0; f < FACES.length; f++) {
+                    var n = FACES[f].n;
+                    if (!occ[key(v.x + n[0], v.y + n[1], v.z + n[2])]) { open = true; break; }
+                }
+                if (open) out.push(v);
+            }
+            return out;
+        },
         // 복셀 목록 → THREE.Mesh. 브라우저 전용(THREE 필요).
         // opts: { size 복셀 한 변의 월드 길이, color 기본색, jitter 색변화 폭(0~0.15),
         //         ao 이음새 강도(0~1), material 재질 오버라이드, center 중심 정렬 여부 }

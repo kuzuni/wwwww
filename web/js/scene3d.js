@@ -12106,6 +12106,15 @@ const Scene3D = {
         const dark = lam(base.clone().offsetHSL(0, 0, -0.13), bodyTex);
         const light = lam(base.clone().offsetHSL(0, 0, 0.1), bodyTex);
         const mk = (geo, m) => new THREE.Mesh(geo, m); // 그룹 조립용 (g에 자동 추가 안 함)
+        // 🧊 voxel 파츠 — 화풍 확정(2026-08-20: Voxel + 치비)에 따라 적 조형을 큐브로 옮기는 통로.
+        //   ⚠️ **재질은 반드시 `vertexColors: true`** 여야 한다. `Voxel.build` 는 큐브별 색변화와
+        //      이음새 AO 를 **정점 색에 구워** 넣으므로, 그 플래그가 없으면 AO 도 색변화도
+        //      통째로 사라지고 단색 덩어리가 나온다(그러면 큐브를 쌓은 의미가 없다).
+        //      재질 색은 정점 색에 **곱해지므로** 종 키 컬러(base)를 그대로 물려도 된다.
+        //   ⚠️ `center: false` 로 두면 복셀 좌표가 곧 로컬 좌표(× size)다 — 바닥 기준(y=0)으로
+        //      깎은 프로파일이 접지선을 그대로 유지한다. 파츠를 피벗에 달 때만 center 를 쓸 것.
+        const VS = 0.05;   // 적 공용 복셀 한 변(월드). 슬라임 전신이 13칸 = 0.65
+        const vx = (voxels, o) => Voxel.build(voxels, Object.assign({ size: VS, jitter: 0.05, ao: 0.9, center: false }, o || {}));
         const limb = (rTop, rBot, len, m) => ProChar.capsule(rTop, rBot, len, m, 9); // 분절 사지 — 피벗=위쪽 끝
         const sp = (r, x, y, z, m, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 11, 9), m || mat); o.position.set(x, y, z); if (sx) o.scale.set(sx, sy, sz); g.add(o); return o; };
         const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); g.add(o); return o; };
@@ -12336,27 +12345,58 @@ const Scene3D = {
         let body = null, armR = null, armL = null, topY = 1.1;
 
         if (kind === 'slime') {
-            // 광택 젤리: 고분할 스무스 돔 + Phong 스펙큘러 + 반투명 너머 비치는 내부 핵 (저분할 '바위 덩어리' 오독 제거, 비평가 지적)
-            const jelly = new THREE.MeshStandardMaterial({ color: base, transparent: true, opacity: 0.82, metalness: 0, roughness: 0.12, envMapIntensity: 1.2 }); // 젖은 젤리 — 환경 반사로 광택
-            // 물방울 라테: 바닥 퍼짐→돔이 한 곡면 — 몸통 구+스커트 토러스 2피스는 '접시 위 슬라임'으로 읽힘 (비평가 12번)
-            const slProf = [[0.001, 0], [0.42, 0.012], [0.5, 0.07], [0.485, 0.18], [0.44, 0.3], [0.38, 0.42], [0.27, 0.54], [0.13, 0.62], [0.001, 0.65]];
-            body = mk(new THREE.LatheGeometry(slProf.map(([r, y]) => new THREE.Vector2(r, y)), 26), jelly);
+            // 🧊 **voxel 전환 1종째** (화풍 확정 2026-08-20). 종전은 26분할 라테 물방울 + 구 핵/기포 —
+            //    매끈한 회전체라 확정 화풍(축정렬 큐브 적층)과 정반대였다.
+            //    ⚠️ **실루엣은 다시 디자인하지 않았다.** 비평가 지적("몸통 구 + 스커트 토러스 2피스는
+            //    '접시 위 슬라임'으로 읽힌다")을 풀어 낸 것이 저 물방울 프로파일이라, **같은 프로파일
+            //    숫자를 복셀 단위로 나눠 `Voxel.revolve` 에 그대로 넘긴다**. 화풍만 바뀌고 형태는 남는다.
+            const jelly = new THREE.MeshStandardMaterial({ color: base, transparent: true, opacity: 0.82, metalness: 0, roughness: 0.12, envMapIntensity: 1.2, vertexColors: true, flatShading: true }); // 젖은 젤리 — 환경 반사로 광택
+            // 원본 라테 프로파일(월드) → 복셀 칸. 높이 0.65 = 13칸 · 최대 반지름 0.5 = 10칸.
+            // 🚨 **맨 아래 꼭지점(r 0.001)은 버린다.** 원본은 y 0 → 0.012 사이에서 r 이 0 → 0.42 로
+            //    튀는 '거의 평평한 바닥판'인데, 복셀은 한 칸(0.05)보다 얇은 테이퍼를 표현할 수 없어
+            //    그대로 옮기면 **바닥이 한 칸짜리 뾰족점**이 되어 슬라임이 점 위에 선다.
+            //    복셀에서 그 구간의 올바른 번역은 '폭 17칸짜리 납작한 바닥판'이다.
+            const slProf = [[0.42, 0.012], [0.5, 0.07], [0.485, 0.18], [0.44, 0.3], [0.38, 0.42], [0.27, 0.54], [0.13, 0.62], [0.06, 0.65]];
+            const slV = slProf.map(([r, y]) => [r / VS, y / VS]);
+            slV[0][1] = 0;   // 바닥판을 y=0 에 앉힌다(접지선 유지)
+            // 🚨 **`shell` 이 반투명 파츠에서는 필수다.** 속을 꽉 채우면 안쪽 면이 전부 제거돼
+            //    겉 한 겹만 남고, 반투명 재질에서 그건 '젤리'가 아니라 **두께 없는 유리막**으로 읽힌다.
+            //    껍질로 만들면 안쪽 면이 살아나 두께가 생기고 핵·기포가 그 안에 잠긴 것으로 보인다.
+            body = vx(Voxel.hollow(Voxel.revolve(slV)), { material: jelly, color: 0xffffff });
             g.add(body);
-            const core = mk(new THREE.SphereGeometry(0.15, 14, 10), lam(base.clone().offsetHSL(0.02, 0.18, -0.2))); // 몸속 핵
+            // 몸속 핵 — 반지름 0.15 = 3칸. 파츠라 center:true(피벗 = 덩어리 한복판).
+            const core = vx(Voxel.ellipsoid(3, 3, 3), { material: lam(base.clone().offsetHSL(0.02, 0.18, -0.2)), color: 0xffffff, center: true });
+            core.material.vertexColors = true; core.material.flatShading = true;
             core.position.set(0, 0.3, -0.04);
             g.add(core);
-            for (const [bx2, by2, br] of [[0.22, 0.24, 0.05], [-0.18, 0.38, 0.04]]) { // 내부 기포
-                const bub = mk(new THREE.SphereGeometry(br, 8, 6), lam(base.clone().offsetHSL(0, -0.05, 0.16)));
+            const bubMat = lam(base.clone().offsetHSL(0, -0.05, 0.16));
+            bubMat.vertexColors = true; bubMat.flatShading = true;
+            for (const [bx2, by2, br] of [[0.22, 0.24, 1], [-0.18, 0.38, 1]]) { // 내부 기포 — 1칸 반지름(3칸 큐브)
+                const bub = vx(Voxel.ellipsoid(br, br, br), { material: bubMat, color: 0xffffff, center: true, ao: 0 });
                 bub.position.set(bx2, by2, 0.1);
                 g.add(bub);
             }
-            const gloss = mk(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshBasicMaterial({ color: 0xf2fcff, transparent: true, opacity: 0.38 })); // 정수리 광택 하이라이트 — 은은하게 (불투명 얼룩 데칼 오독 방지)
-            gloss.position.set(-0.16, 0.55, 0.18); gloss.scale.set(1.5, 0.5, 1);
-            gloss.lookAt(-0.6, 1.6, 0.9);
+            // 정수리 광택 — 종전은 반투명 구를 눌러 만든 소프트 하이라이트였다. voxel 월드에서
+            // 소프트 그라디언트는 그 자체로 이물이라, **밝은 큐브 계단 3칸**으로 바꾼다
+            // (마인크래프트/크로시로드의 하이라이트가 언제나 '밝은 블록'이지 번짐이 아닌 것과 같다).
+            const gloss = vx(Voxel.merge(Voxel.box(2, 1, 2, 0xf2fcff), Voxel.at(Voxel.box(1, 1, 1, 0xffffff), 2, 0, 1)),
+                { material: new THREE.MeshBasicMaterial({ color: 0xf2fcff, transparent: true, opacity: 0.72, vertexColors: true }), center: true, ao: 0, jitter: 0 });
+            gloss.position.set(-0.15, 0.56, 0.15);
             g.add(gloss);
-            sp(0.14, 0.14, 0.63, 0, jelly);
-            const smMouth = mk(new THREE.TorusGeometry(0.05, 0.014, 6, 10, Math.PI * 0.85), new THREE.MeshBasicMaterial({ color: 0x274048 }));
-            smMouth.position.set(0, 0.3, 0.43); smMouth.rotation.z = Math.PI + Math.PI * 0.075; // 아래로 벌린 입 아크 (스티커 박스 입 제거)
+            // 정수리 물방울 봉우리 — 종전 `sp()` 구 하나. 복셀에서는 2칸 반지름 덩어리.
+            const knob = vx(Voxel.ellipsoid(2, 2, 2), { material: jelly, color: 0xffffff, center: true });
+            knob.position.set(0.14, 0.63, 0);
+            g.add(knob);
+            // 아래로 벌린 입 — 종전 토러스 아크. 복셀에서 곡선은 **계단 3칸**이 정답이다
+            // (얇은 튜브를 큐브로 옮기면 지름 1칸짜리 점선이 되어 입으로 안 읽힌다).
+            // ⚠️ 폭은 **눈 간격(0.26)보다 좁게** 잡는다 — 큐브로 옮기면서 시원하게 키우고 싶어지는데,
+            //    눈보다 넓은 입은 슬라임이 아니라 '입만 큰 인형'이 된다. 4칸 = 0.20.
+            const smMouth = vx(Voxel.merge(
+                Voxel.at(Voxel.box(2, 1, 1, 0x274048), 1, 0, 0),   // 아랫변(가운데 2칸)
+                Voxel.at(Voxel.box(1, 1, 1, 0x274048), 0, 1, 0),   // 왼쪽 끝이 한 칸 위로
+                Voxel.at(Voxel.box(1, 1, 1, 0x274048), 3, 1, 0)),  // 오른쪽 끝이 한 칸 위로
+                { material: new THREE.MeshBasicMaterial({ color: 0x274048, vertexColors: true }), center: true, ao: 0, jitter: 0 });
+            smMouth.position.set(0, 0.29, 0.43);
             g.add(smMouth);
             eyes(0.42, 0.4, 0.13, 0.045, 'angry', { iris: 0x1d4e63, browColor: 0x1e4552 }); // 점 눈 2개는 NPC로 읽힘 (비평가 7.1 13번) — 성난 눈썹으로 적대 표정
             // 🚫 슬라임에는 AO 링을 두지 않는다 — **이음새가 없는 종**이다(라테 한 장 + 몸속 핵).

@@ -114,5 +114,71 @@ eq('8×8×8 은 384면(제거 없으면 3072)', Voxel.faces(Voxel.box(8, 8, 8), 
     ok('모든 면이 법선축에 대해 평평하다', flat);
 }
 
+// ── ⑤ 회전체 프리미티브 (ellipsoid · revolve · hollow) ──────────────────────
+// 적·펫·탈것의 파츠는 거의 전부 회전체라, 이 셋이 큐브 전환의 실제 작업 표면이다.
+{
+    // 타원체는 **중심 판정**이라 반지름 r 이면 지름이 2r+1 칸이다(모서리 판정이면 부풀어 오른다).
+    const e2 = Voxel.ellipsoid(2, 2, 2);
+    const xs = e2.map(v => v.x);
+    eq('ellipsoid(2,2,2) 의 x 폭은 5칸', Math.max(...xs) - Math.min(...xs) + 1, 5);
+    ok('ellipsoid 는 구 방정식 밖을 안 담는다',
+        e2.every(v => (v.x * v.x + v.y * v.y + v.z * v.z) / 4 <= 1.0001));
+    // 축마다 다른 반지름이 실제로 다른 폭을 낸다(한 축만 보고 만들면 조용히 구가 된다).
+    {
+        const e = Voxel.ellipsoid(4, 1, 2);
+        const w = a => Math.max(...e.map(v => v[a])) - Math.min(...e.map(v => v[a])) + 1;
+        ok('ellipsoid 축별 반지름이 독립이다', w('x') === 9 && w('y') === 3 && w('z') === 5,
+            `${w('x')}×${w('y')}×${w('z')}`);
+    }
+
+    // 회전체 — 원기둥 프로파일이면 층마다 같은 단면이 나와야 한다.
+    {
+        const cyl = Voxel.revolve([[2, 0], [2, 3]]);
+        const layer = y => cyl.filter(v => v.y === y).length;
+        ok('revolve 는 프로파일 y 범위를 다 채운다',
+            Math.min(...cyl.map(v => v.y)) === 0 && Math.max(...cyl.map(v => v.y)) === 3);
+        ok('일정 반지름 프로파일은 층 단면이 같다', layer(0) === layer(3) && layer(0) > 1, `${layer(0)} vs ${layer(3)}`);
+        // 원뿔 프로파일이면 위로 갈수록 단면이 줄어야 한다 — 안 그러면 보간이 안 걸린 것이다.
+        const cone = Voxel.revolve([[4, 0], [0, 4]]);
+        const cl = [0, 1, 2, 3].map(y => cone.filter(v => v.y === y).length);
+        ok('테이퍼 프로파일은 층 단면이 단조 감소한다', cl[0] > cl[1] && cl[1] > cl[2] && cl[2] >= cl[3], cl.join(' > '));
+    }
+
+    // 겉껍질 — 3×3×3 이면 가운데 한 칸만 빠져 26칸.
+    {
+        const solid = Voxel.box(3, 3, 3);
+        eq('hollow(3×3×3) 은 26칸', Voxel.hollow(solid).length, 26);
+        // 5×5×5 껍질은 속이 비어 **안쪽 면**이 새로 생긴다 — 반투명 파츠에 두께를 주는 근거.
+        const s5 = Voxel.hollow(Voxel.box(5, 5, 5));
+        ok('hollow 는 안쪽 면을 만들어 두께를 준다',
+            Voxel.faces(s5, {}).length > Voxel.faces(Voxel.box(5, 5, 5), {}).length,
+            `${Voxel.faces(s5, {}).length} > ${Voxel.faces(Voxel.box(5, 5, 5), {}).length}`);
+        // 🚨 **`shell` 과 `hollow` 는 이름만 비슷하고 하는 일이 다르다** — 2026-08-19 에 두 세션이
+        //    동시에 넣어 이름이 겹쳤던 자리다. `shell` 은 링으로 회전체를 만들며 **반경 방향으로만**
+        //    속을 파서 위·아래가 뚫린 관이 되고, `hollow` 는 이미 만든 덩어리의 겉 한 겹만 남겨
+        //    정수리·바닥까지 닫는다. 이 차이가 사라지면 젤리 슬라임 속이 위에서 뚫려 보인다.
+        const tube = Voxel.shell([{ y: 0, rx: 3 }, { y: 4, rx: 3 }], undefined, { t: 1 });
+        const top = Math.max(...tube.map(v => v.y));
+        ok('shell 은 위가 뚫린 관이다(가운데 칸이 없다)',
+            !tube.some(v => v.y === top && v.x === 0 && v.z === 0));
+        const cap = Voxel.hollow(Voxel.revolve([[3, 0], [3, 4]]));
+        const capTop = Math.max(...cap.map(v => v.y));
+        ok('hollow 는 정수리를 닫는다(가운데 칸이 있다)',
+            cap.some(v => v.y === capTop && v.x === 0 && v.z === 0));
+    }
+
+    // 조립 — `at` 은 원본을 안 건드리고, `merge` 는 **단순 이어붙이기**다(중복 제거 아님).
+    {
+        const src = [{ x: 0, y: 0, z: 0, c: 0x111111 }];
+        const mv = Voxel.at(src, 1, 2, 3);
+        ok('at 은 원본을 안 건드린다', src[0].x === 0 && mv[0].x === 1 && mv[0].y === 2 && mv[0].z === 3);
+        // ⚠️ 겹친 칸은 그대로 두 번 담긴다 — `faces` 는 점유 집합으로 가려진 면을 지우므로
+        //    형태는 멀쩡하지만 **같은 자리에 면이 두 장** 나와 z-파이팅이 난다.
+        //    덩어리를 겹쳐 쌓을 계획이면 겹치지 않게 깎을 것.
+        eq('merge 는 단순 이어붙이기다(중복을 안 지운다)',
+            Voxel.merge(Voxel.box(2, 2, 2), Voxel.box(2, 2, 2)).length, 16);
+    }
+}
+
 console.log(fail ? `\n❌ ${fail}건 실패` : '\n✅ 전부 통과');
 process.exit(fail ? 1 : 0);
