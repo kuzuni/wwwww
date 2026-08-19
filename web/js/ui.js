@@ -5424,20 +5424,36 @@ const UI = {
                 <div class="modal-card offline-card">
                     <div class="offline-top">
                         <div class="offline-title">오프라인 보상</div>
-                        <div class="offline-sub">수집 시간: <b>${U.fmtTime(o.counted)}</b>${o.elapsed > o.counted ? ' (최대)' : ''}</div>
+                        <div class="offline-sub">수집 시간: <b id="offline-counted">${U.fmtTime(o.counted)}</b><span id="offline-max">${o.elapsed > o.counted ? ' (최대)' : ''}</span></div>
                         <div class="offline-rates">
                             <div class="offline-rate"><span class="offline-rate-icon coin">${IconGen.img('coin')}</span><b>${U.fmtDec(o.coinRate)}/초</b></div>
                             <div class="offline-rate"><span class="offline-rate-icon hammer">${IconGen.img('hammer')}</span><b>${U.fmtDec(o.hammerRate)}/분</b></div>
                         </div>
                     </div>
                     <div class="offline-bottom">
-                        <div class="offline-total">${IconGen.img('coin')} ${U.fmt(o.coins)} &nbsp; ${IconGen.img('hammer')} ${U.fmt(o.hammers)}</div>
+                        <div class="offline-total">${IconGen.img('coin')} <span id="offline-coins">${U.fmt(o.coins)}</span> &nbsp; ${IconGen.img('hammer')} <span id="offline-hammers">${U.fmt(o.hammers)}</span></div>
                         <button class="btn primary offline-collect-btn" onclick="UI.onCollectOffline()">수집<span class="offline-collect-dot"></span></button>
                     </div>
                 </div>
                 <button class="x-btn" onclick="UI.closeOfflineModal()">${IconGen.img('xmark')}</button>
             </div>`;
         this.showModal(this.els.offlineModal);
+    },
+    // 켜둔 채로도 누적이 자라므로 매 초 갱신하되, **팝업 전체를 다시 그리지 않고 숫자 span 만** 바꾼다
+    // (slug: offline-collect-tick-rerender). 종전엔 tickSecond 가 showOffline 을 다시 불러 [수집]
+    // 버튼 노드까지 매초 새로 만들었고, 그 사이 눌린 클릭이 옛 노드로 가 ~1.7% 씩 씹혔다 —
+    // updateAnvilCounter 와 같은 '숫자만 텍스트 갱신' 처방. 팝업이 아직 안 그려졌으면(id 없음)
+    // 최초 1회만 showOffline 으로 채운다.
+    updateOfflineValues(o) {
+        const counted = document.getElementById('offline-counted');
+        if (!counted) { this.showOffline(o); return; }
+        counted.textContent = U.fmtTime(o.counted);
+        const max = document.getElementById('offline-max');
+        if (max) max.textContent = o.elapsed > o.counted ? ' (최대)' : '';
+        const coins = document.getElementById('offline-coins');
+        if (coins) coins.textContent = U.fmt(o.coins);
+        const hammers = document.getElementById('offline-hammers');
+        if (hammers) hammers.textContent = U.fmt(o.hammers);
     },
     // X로 닫기 = 단순 닫힘. 보상은 그대로 남아 버튼으로 언제든 다시 열 수 있다 (사용자 지시 2026-08-17)
     closeOfflineModal() { this.els.offlineModal.classList.add('hidden'); },
@@ -5603,7 +5619,7 @@ const UI = {
         // 켜둔 채로도 누적이 자라므로, 열려 있는 오프라인 팝업의 수치를 매 초 갱신한다 (사용자 지시 2026-08-17)
         if (!this.els.offlineModal.classList.contains('hidden')) {
             const p = pendingOffline();
-            if (p) this.showOffline(p);
+            if (p) this.updateOfflineValues(p);   // 숫자 span 만 갱신 — 버튼 노드를 매초 갈지 않는다(offline-collect-tick-rerender)
         }
         // 대장간 업그레이드 카운트다운 (장비 시트 버튼 + 확률 정보 팝업 진행바)
         if (S.forgeUpgradeEndsAt) {

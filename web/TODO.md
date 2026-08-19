@@ -516,7 +516,8 @@
   - ⚠️ **주의**: 그 CSS 주석은 이 별을 "원본 별 13px(2.7%W) 주황 #ff8801"로 **원본 실측 근거**를 달아 두었다. 사용자 확정 사양이 원본 디자인보다 우선한다는 것이 `age-bar-star-ascension` 의 결론이었으므로 셀 별도 같은 규약(승천 0=없음, N회=N개, 6+는 '★+숫자' 접기)으로 맞추는 쪽이 앞뒤가 맞지만, **막대(`ageStars()`)와 셀(CSS `::after`)은 구현 층이 달라** 한 줄로 안 끝난다 — 셀 별을 JS 렌더(`renderForgeListView` 의 셀 마크업)로 내리거나, 래퍼에 `data-asc` 를 걸고 CSS 를 그 값에 반응시키는 식이 필요하다.
   - **파급**: 같은 `.fl-face` 를 쓰는 화면이 이 팝업뿐인지 확인할 것(`grep -n "fl-face" web/js/ui.js web/css/style.css` → 현재는 `ui.js:1690` 셀 마크업과 `ui.js:1781` 썸네일 하이드레이션 두 곳뿐).
 
-- [ ] **오프라인 보상 팝업의 [수집] 버튼이 간헐적으로 씹힌다 — 매초 팝업 전체를 `innerHTML` 로 다시 그려 버튼 노드가 통째로 교체된다 (slug: offline-collect-tick-rerender)** (2026-08-19 QA 플레이 세션 발견, 코드는 안 건드림 — 규칙 3)
+- [x] **오프라인 보상 팝업의 [수집] 버튼이 간헐적으로 씹힌다 — 매초 팝업 전체를 `innerHTML` 로 다시 그려 버튼 노드가 통째로 교체된다 (slug: offline-collect-tick-rerender)** (2026-08-19 QA 플레이 세션 발견, 코드는 안 건드림 — 규칙 3)
+  - ✅ **완료(2026-08-19 UI 스트림)**: 메모의 처방 그대로 `updateAnvilCounter` 방식으로 고쳤다. `showOffline` 의 변하는 값(수집 시간·(최대)·코인·해머)에 `id`(`offline-counted`·`offline-max`·`offline-coins`·`offline-hammers`)를 주고, 신설 `updateOfflineValues(o)` 가 **그 span 텍스트만** 갱신한다. `tickSecond` 는 열린 팝업에서 `showOffline`(전체 innerHTML 재생성) 대신 `updateOfflineValues` 를 부른다 — 팝업이 아직 안 그려졌으면(id 없음) 최초 1회만 `showOffline` 으로 채우는 폴백 포함. 버튼 노드가 살아 있어 `mousedown`↔`mouseup` 노드 불일치가 사라진다. **판정기 `tools/probe-offline-collect-tick.js` 신설** — 팝업 열고 tickSecond 8회 돌린 뒤 ① [수집] 버튼 노드 재생성 **0회**(=== 로 동일 노드 확인) ② 그런데도 숫자는 갱신(2분→4분40초·코인120→280·해머2→4) ③ 사이사이 tick 을 낀 반복 클릭 40회 **유실 0** 을 검사. **PASS** · `probe-screens-errors` 31/31 콘솔 에러 0 · 팝업 렌더 육안 확인.
   - **재현**: ① 오프라인 보상 팝업을 연다(전투 화면 좌상단 상자 버튼 `#offline-btn`, 또는 `UI.showOffline(pendingOffline())`) ② [수집] 을 사람 속도로(누르고 ~0.1초 뒤 떼기) 반복해서 누른다.
   - **기대**: 누를 때마다 수집이 실행된다.
   - **실제**: 약 60회에 1회꼴로 **아무 일도 안 일어난다**(토스트도 없고 팝업도 안 닫힘). 사용자에게는 '가끔 안 눌리는 버튼'으로 보인다.

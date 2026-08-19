@@ -45,6 +45,7 @@ PROBES=(
     probe-grid-empty.js         # 빈 상태 문구 스팬
     probe-xmark-dom.js          # 닫기 ✕ 캔버스 아이콘 계약(폭/높이/색, icon-gen)
     probe-autoforge-toast.js    # 자동 제련 처리 토스트 0건(autoforge-toast-suppress)
+    probe-offline-collect-tick.js  # 오프라인 [수집] 버튼 재렌더 유실 0(offline-collect-tick-rerender)
 )
 
 if [ "$#" -gt 0 ]; then
