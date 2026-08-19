@@ -224,6 +224,11 @@ const SEED = () => {
             await page.waitForTimeout(120);
             await page.evaluate(new Function(src));
             await page.waitForTimeout(650); // 열림 애니메이션(300ms) + 렌더 여유
+            // 🚨 병렬 세션으로 컨테이너가 눌리면 650ms 가 열림 애니 한복판일 수 있다 — 카드가 scale 중이라
+            //    캡처마다 카드 상단이 12.8~14.5%H 로 흔들렸다(player-info 실측, 채점 편차의 숨은 원인).
+            //    probe 규약과 같게 opening 클래스를 떼어 최종 상태로 스냅시킨다.
+            await page.evaluate(() => document.querySelectorAll('.modal, .modal-card').forEach(m => m.classList.remove('opening')));
+            await page.waitForTimeout(150);
             await page.evaluate(() => { const t = document.getElementById('toasts'); if (t) t.innerHTML = ''; });
             // 첫 화면(main)이 'waiting for fonts to load'에서 30초 타임아웃으로 통째로 빠지던 것 해소 —
             // screenshot 내부의 폰트 대기는 조절할 수 없으므로 document.fonts.ready 를 먼저 상한을 걸어 소화하고
