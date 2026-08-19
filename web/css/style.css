@@ -6427,3 +6427,48 @@ body {
     background: #f2191d; box-shadow: inset 0 -.28rem 0 #4a0709;
     color: #fff; -webkit-text-stroke: 3px var(--pp-line); paint-order: stroke fill;
 }
+
+/* ===== 시트 바탕 · 장비 셀 AAA 스킨 (사용자 지시 2026-08-19, slug: ui-quality-up — 2차 슬라이스) =====
+   1차(타일 면)의 인계 메모가 지목한 "남은 진짜 평면" 두 개다: 전체화면 시트의 **흰 여백**과 **장비 셀**.
+   같은 화법(좌상단 광택 · 위 림라이트 · 아래로 가는 그늘 · 아주 옅은 사선 결)을 그대로 옮겼다.
+
+   ⚠️ **칠하는 속성만 건드린다** — background-image / box-shadow / transition / filter 뿐이고
+      width·height·border·padding·font-size 는 한 줄도 안 바꿨다(`tools/probe-sheet-skin.js` 가 좌표로 확인).
+   ⚠️ 바탕 **색값은 유지**한다 — 시트는 `--pp-paper`(#fff) 위에 그라디언트만 얹었고(배경색 선언 없음),
+      장비 셀도 `color-mix(--rc 58%, #17181a)` 배경색을 그대로 두고 이미지 층만 다시 쌓았다.
+   🚨 장비 셀은 원래 background **단축**으로 다이아 크로스해치 2겹을 깔고 있었다 — 여기서
+      background-image 를 다시 쓰면 그 2겹이 통째로 날아간다. 그래서 아래 층 쌓기에 **크로스해치를
+      그대로 포함**했다(순서: 광택 → 명암 → 크로스해치 2겹). 지우지 말 것.
+   🚨 어두운 제 배경을 가진 시트(.league-sheet #0e111b · .shop-sheet #200219)는 :not() 으로 뺀다 —
+      안 그러면 흰 그라디언트가 그 위에 얹혀 바탕이 회색으로 뜬다(1차 인계 메모의 경고).
+   🚨 원본은 이 면들이 플랫이다. 톤 프로브가 '원본과 다르다'고 잡아도 감점이 아니라 이 항목의 지시다
+      (최우선 규칙 1: 사용자 지시 > 원본 — 사용자 원문 '지금 심플한 퀄리티니까 좀 더 올리셈' + '원신급으로'). */
+.modal-card.sheet:not(.league-sheet):not(.shop-sheet) {
+    background-image:
+        repeating-linear-gradient(45deg, rgba(23,24,26,.016) 0 2px, rgba(23,24,26,0) 2px 9px), /* 종이 결 */
+        radial-gradient(124% 42% at 50% -4%, rgba(255,255,255,.92) 0, rgba(255,255,255,0) 72%), /* 위쪽 광원 */
+        linear-gradient(180deg, #fff 0, #fafafb 52%, #f1f0f3 100%);                             /* 아래로 가는 그늘 */
+    /* 아래 가장자리 안쪽 그늘 — 시트가 탭바 위로 얹힌 '판'으로 읽힌다 */
+    box-shadow: inset 0 -1rem 1.1rem -1rem rgba(23,24,26,.13);
+}
+/* 장비 셀(메인 하단 8부위 그리드) — 탈것 셀(.egg-cell)은 이미 광택 처방이 따로 있어 뺀다 */
+.equip-cell:not(.egg-cell) {
+    background-image:
+        radial-gradient(118% 86% at 26% 12%, rgba(255,255,255,.30) 0, rgba(255,255,255,0) 56%),  /* 좌상단 광택 */
+        linear-gradient(180deg, rgba(255,255,255,.16) 0, rgba(255,255,255,0) 32%,
+                                rgba(0,0,0,.06) 64%, rgba(0,0,0,.22) 100%),                      /* 위→아래 명암 */
+        repeating-linear-gradient(45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),           /* 원래 크로스해치 */
+        repeating-linear-gradient(-45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px);
+    box-shadow:
+        inset 0 .07rem 0 rgba(255,255,255,.34),                                        /* 위 림라이트 */
+        inset 0 -.14rem .1rem rgba(0,0,0,.28),                                         /* 아래 안쪽 그늘 */
+        0 0 .42rem -.1rem color-mix(in srgb, var(--rc, #6b3538) 55%, transparent),     /* 시대색 광 */
+        0 .12rem .26rem rgba(0,0,0,.24);                                               /* 바깥 앰비언트 */
+    transition: transform .08s ease-out, filter .08s;
+}
+/* 빈 슬롯은 '있는 물건'처럼 빛나면 안 된다 — 시대색 광·앰비언트를 빼고 안쪽 음영만 남긴다 */
+.equip-cell.empty {
+    box-shadow: inset 0 .07rem 0 rgba(255,255,255,.20), inset 0 -.12rem .1rem rgba(0,0,0,.26);
+}
+/* 눌리는 물건으로 — 칸이 살짝 내려앉고 밝아진다(타일 면과 같은 탭 피드백) */
+.equip-cell:not(.egg-cell):not(.empty):active { transform: translateY(.08rem); filter: brightness(1.07); }
