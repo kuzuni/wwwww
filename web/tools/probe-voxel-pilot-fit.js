@@ -78,13 +78,30 @@ const HOLLOW = ['stirrup', 'girth', 'rein'];
             }
             if (!touches) detached.push(parts[i].name);
         }
-        return { n: parts.length, names: parts.map(p => p.name), overlaps: overlaps, detached: detached };
+        // 🧊 **치비 비례 실측** — 채점이 세 판 연속 막혀 있는 축이 이것인데(3·4점), 지금까지
+        //    "머리가 작다/크다"가 전부 눈대중이었다. 수로 남긴다: 세션마다 같은 자를 대야
+        //    '키웠다'가 진짜 키운 건지 알 수 있다. ⚠️ **여기에 게이트를 걸지 말 것** — 이 파일이
+        //    실루엣 IoU 에서 이미 겪었다(지표는 PASS 인데 사람 점수는 제자리). 수는 참고값이다.
+        const px = (n) => parts.find(p => p.name === n);
+        const dim = (b) => ({ w: b.max.x - b.min.x, h: b.max.y - b.min.y, d: b.max.z - b.min.z });
+        const hd = px('head'), sh = px('shell');
+        const chibi = (hd && sh) ? {
+            headW: +(dim(hd.b).w / VS).toFixed(1), bodyW: +(dim(sh.b).w / VS).toFixed(1),
+            ratio: +(dim(hd.b).w / dim(sh.b).w).toFixed(2),
+            // 머리가 등딱지보다 얼마나 솟았나(칸) — '큰 머리'를 폭이 아니라 높이로 만드는 축이다.
+            headAbove: +((hd.b.max.y - sh.b.max.y) / VS).toFixed(1),
+            legH: px('leg0') ? +(dim(px('leg0').b).h / VS).toFixed(1) : null,
+            totalH: +(Math.max(...parts.map(p => p.b.max.y)) / VS).toFixed(1),
+        } : null;
+        return { n: parts.length, names: parts.map(p => p.name), overlaps: overlaps, detached: detached, chibi: chibi };
     }, HOLLOW);
 
     await browser.close();
     const bad = out.overlaps.length + out.detached.length;
     console.log(`시험판 파츠 ${out.n}개 — ${out.names.join(' ')}`);
     console.log(`  겹침(z-fighting 후보) ${out.overlaps.length}건 · 따로 노는 조각 ${out.detached.length}건 · 콘솔 에러 ${errors.length}건`);
+    if (out.chibi) console.log(`  치비 비례(참고값·게이트 아님): 머리폭 ${out.chibi.headW}칸 / 몸폭 ${out.chibi.bodyW}칸`
+        + ` = ${out.chibi.ratio} · 머리가 등딱지 위로 ${out.chibi.headAbove}칸 · 다리 ${out.chibi.legH}칸 / 전체 ${out.chibi.totalH}칸`);
     out.overlaps.forEach(o => console.log(`  ! 겹침 ${o.a} ↔ ${o.b} — 칸 단위 ${o.d.join(' × ')}`));
     out.detached.forEach(d => console.log(`  ! 따로 논다: ${d}`));
     errors.slice(0, 4).forEach(e => console.log('  ! ' + String(e).slice(0, 200)));
