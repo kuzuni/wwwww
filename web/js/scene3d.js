@@ -11431,17 +11431,18 @@ const Scene3D = {
         //    '떠 있는 부품'과 같은 사고인데, 복셀에서는 **칸이 면으로 닿는지**를 세면 끝난다.
         //    → 방석 가장자리에서 고리까지를 **한 칸씩 걸어 내려가며** 채운다. x·y 를 번갈아 밟아
         //    대각선으로만 닿는 칸이 안 생기게 한다(대각 접촉은 화면에서 '끊긴 것'으로 읽힌다).
+        // 🚨 **2판 폐기 — 끈을 방석 가장자리에서 내리면 몸 옆면에 '45° 갈색 계단'이 생긴다.**
+        //    x·y 를 번갈아 밟아 칸은 다 이어졌는데(1판의 '끊김'은 고쳐졌다), 재채점에서 비평가가
+        //    *"안장 스커트가 등딱지 옆면을 완벽한 갈색 계단으로 타고 내려온다 — 웨딩케이크 계단이
+        //    갈색으로 재도색돼 그대로 남았다"* 고 읽었다. **몸이 넓은 종(등딱지 반폭 8칸 vs 방석
+        //    4.6칸)에서는 그 사선이 반드시 길어진다** — 계단을 짧게 만드는 게 아니라 **시작점을
+        //    옮겨야** 한다. 끈을 몸 옆면(테두리)에서 곧게 내리면 사선이 아예 안 생긴다.
+        //    (실제 마구도 등자 가죽은 안장에서 나오지만, 넓은 몸에서는 그 구간이 **몸에 가려** 안
+        //     보이는 게 정상이다 — 화면에 그리지 않는 쪽이 오히려 실제에 가깝다.)
         const stirrup = (s) => {
             const out = [];
-            let cx = Math.round(o.rx), cy = o.seatY;            // 시작 = 방석 가장자리
-            const x1 = o.stirrupX, y1 = o.stirrupY + 2;         // 끝 = 고리 바로 위
-            out.push({ x: s * cx, y: cy, z: 0, c: LEATHER });
-            let guard = 0;
-            while ((cx !== x1 || cy !== y1) && guard++ < 64) {
-                if (cx !== x1) { cx += Math.sign(x1 - cx); out.push({ x: s * cx, y: cy, z: 0, c: LEATHER }); }
-                if (cy !== y1) { cy += Math.sign(y1 - cy); out.push({ x: s * cx, y: cy, z: 0, c: LEATHER }); }
-            }
-            return V.merge(out, V.at(ringXY(1, IRON), s * x1, o.stirrupY, 0));
+            for (let y = o.stirrupY + 2; y <= o.strapTopY; y++) out.push({ x: s * o.stirrupX, y: y, z: 0, c: LEATHER });
+            return V.merge(out, V.at(ringXY(1, IRON), s * o.stirrupX, o.stirrupY, 0));
         };
         return { seat: seat, girth: girth, stirrupL: stirrup(-1), stirrupR: stirrup(1) };
     },
@@ -11548,12 +11549,12 @@ const Scene3D = {
         const tack = this.voxelTackVox({
             seatY: 10, rx: 4.6, rz: 5.8,
             girthY: 6, girthRx: 8.1, girthRz: 9.7,     // 등딱지 y6 층(7.6/9.5) 바깥을 감는다
-            stirrupX: 9, stirrupY: 4,      // 고리는 등딱지 옆면 **밖**(y5 층 반폭 7.9)에 걸려야 발이 걸린다
+            stirrupX: 8, stirrupY: 3, strapTopY: 5,   // 끈은 등딱지 테두리(y4~5)에서 곧게 내려 고리로 — 사선 금지
         });
         part(tack.seat, 0, 0, 0);
         part(tack.girth, 0, 0, 0);
         // 등자는 좌우 **각자 피벗**에 — 라이브에서는 `alignStirrups` 가 매 프레임 발까지 늘인다.
-        g.userData.stirrups = [part(tack.stirrupL, -9, 4, 0), part(tack.stirrupR, 9, 4, 0)];
+        g.userData.stirrups = [part(tack.stirrupL, -8, 3, 0), part(tack.stirrupR, 8, 3, 0)];
 
         g.userData.voxelPilot = true;
         return g;
