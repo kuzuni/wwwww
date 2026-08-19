@@ -7864,105 +7864,95 @@ const Scene3D = {
             // 무릎 젬은 무릎 돔(y 0.555, z -0.045, r 0.082) **표면에** 박힌다 — 밖으로 빼면 뜬다
             if (variant === 2) add(new THREE.Mesh(new THREE.SphereGeometry(0.034, 10, 8), gemMat), 0.115, 0.552, 0.012);
         } else { // belt
+            // 🧊 **voxel 전환 3차분 (equip-voxelize ⓑ).**
             // 벨트가 가장 심했다 — 세 변형이 **같은 원통 띠**에 2cm짜리 버클만 달라, 시대마다
-            // 서로 '같은 그림'으로 잡혔다(실측 색 차이 0.009~0.041, 실루엣 0.000).
-            // ⚠️ 세 변형 전부 **민짜 원통 + 상자 버클**이었다 — 96px 에서는 '옆에서 본 상자'로 찍혔다
-            //    (비평가 지적 ㉯⑴). 띠는 위아래 모서리를 굴린 곡면 밴드로, 버클은 **구멍 뚫린 테**로
-            //    바꾼다. 허리 단면(rx 0.245 / rz 0.16)은 곡면 흉갑 몸통과 같은 타원을 쓴다.
-            // 위아래가 살짝 좁아지는 곡면 띠 — h = 띠 폭
-            const strapBand = (yc, h, m, rx, rz) => this.shellFromRings([
-                { y: yc - h / 2, rx: rx * 0.955, rz: rz * 0.955 },
-                { y: yc - h / 2 + h * 0.16, rx: rx, rz: rz },
-                { y: yc + h / 2 - h * 0.16, rx: rx, rz: rz },
-                { y: yc + h / 2, rx: rx * 0.955, rz: rz * 0.955 },
-            ], 26, m);
-            // 구멍 뚫린 사각 버클 테 + 가운데 프롱 — 상자 하나로는 절대 '버클'로 안 읽힌다
-            const buckleFrame = (w, h, m) => {
-                const outer = this.roundedRectShape(w, h, Math.min(w, h) * 0.26);
-                outer.holes.push(new THREE.Path(this.roundedRectShape(w * 0.62, h * 0.56, Math.min(w, h) * 0.14).getPoints(20)));
-                return new THREE.Mesh(new THREE.ExtrudeGeometry(outer, {
-                    depth: 0.022, bevelEnabled: true, bevelThickness: 0.007, bevelSize: 0.007, bevelSegments: 1, curveSegments: 6,
-                }), m);
-            };
-            if (variant === 0) { // 띠/끈: 얇은 곡면 띠 + 구멍 버클 + 구멍 뚫린 꼬리
-                g.add(strapBand(0.45, 0.088, mat, 0.245, 0.16));
-                const bk = buckleFrame(0.135, 0.108, gemMat);
-                bk.position.set(0, 0.45, 0.155);
-                g.add(bk);
-                const prong = this.capsuleMesh(0.008, 0.09, gemMat, 6);   // 버클 가운데 침
-                prong.position.set(0, 0.45, 0.168);
-                g.add(prong);
-                const tail = this.beveledSlab(0.068, 0.25, 0.024, 0.022, dark);
-                tail.position.set(0.075, 0.325, 0.155);
-                tail.rotation.z = 0.16;
-                g.add(tail);
-                for (let i = 0; i < 3; i++) {   // 조임 구멍 — 가죽 벨트의 표식
-                    const hole = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.04, 8), this.tintOf(dark, -0.12));
-                    hole.rotation.x = Math.PI / 2;
-                    hole.position.set(0.085 + i * 0.006, 0.31 - i * 0.056, 0.155);
-                    g.add(hole);
+            // 서로 '같은 그림'으로 잡혔다(실측 색 차이 0.009~0.041, 실루엣 0.000). 앞 세션이
+            // 띠/버클/파우치/새시로 갈라 놓은 **구성과 비례는 그대로 옮기고** 조형만 큐브로 바꾼다.
+            // 허리 단면(rx 0.245 / rz 0.16 → 10.2 / 6.7칸)은 곡면 흉갑 몸통과 같은 타원을 쓴다.
+            const AS = 0.024;
+            const V = Voxel;
+            const cBody = mat.color.getHex(), cDark = dark.color.getHex();
+            const cCloth = ((mats.trim && !mats.trim.isMeshBasicMaterial) ? mats.trim : dark).color.getHex();
+            const body = [], glow = [];
+            const RX = 10.2, RZ = 6.7;
+            // 위아래 가장자리만 한 칸 좁아지는 띠 — h = 띠 폭(칸). 속은 t 만큼만 남긴다(원통 아님).
+            const strapBand = (yc, h, c, rx, rz) => V.shell([
+                { y: yc - Math.round(h / 2), rx: rx * 0.93, rz: rz * 0.93, t: 1.6 },
+                { y: yc - Math.round(h / 2) + 1, rx: rx, rz: rz, t: 1.6 },
+                { y: yc + Math.round(h / 2) - 1, rx: rx, rz: rz, t: 1.6 },
+                { y: yc + Math.round(h / 2) + 1, rx: rx * 0.93, rz: rz * 0.93, t: 1.6 },
+            ], c);
+            // 🧊 **구멍 뚫린 사각 버클 테** — 상자 하나로는 절대 '버클'로 안 읽힌다(앞 세션 결론).
+            //    `Voxel.ring` 은 타원이라 못 쓴다. 사각 테는 이 자리에서 직접 찍는 게 가장 짧다.
+            const rectRing = (w, h, d, t, c) => {
+                const out = [], hx = (w - 1) / 2, hy = (h - 1) / 2;
+                for (let xi = 0; xi < w; xi++) for (let yi = 0; yi < h; yi++) {
+                    if (xi >= t && xi < w - t && yi >= t && yi < h - t) continue;
+                    for (let z = 0; z < d; z++) out.push({ x: Math.round(xi - hx), y: Math.round(yi - hy), z: z, c: c });
                 }
+                return out;
+            };
+            // 꺾은선을 따라 내려오는 띠 — `TubeGeometry` 곡선의 voxel 대응.
+            //   ⚠️ 곡선을 **매끈하게 근사하려 들면 안 된다**. 층마다 한 칸씩 x·z 를 옮기는
+            //      계단이 곧 천의 접힘이고, 그게 이 화풍에서 '휘어져 내려온다'로 읽힌다.
+            const strip = (pts, w, d, c) => {
+                const out = [];
+                for (let s = 0; s < pts.length - 1; s++) {
+                    const a = pts[s], b = pts[s + 1], n = Math.abs(b[1] - a[1]);
+                    for (let i = 0; i < n; i++) {
+                        const k = i / n;
+                        out.push(...V.at(V.box(w, 1, d, c),
+                            Math.round(a[0] + (b[0] - a[0]) * k) - (w >> 1),
+                            Math.round(a[1] + (b[1] - a[1]) * k),
+                            Math.round(a[2] + (b[2] - a[2]) * k)));
+                    }
+                }
+                return out;
+            };
+            if (variant === 0) { // 띠/끈: 얇은 띠 + 구멍 버클 + 구멍 뚫린 꼬리
+                body.push(...strapBand(19, 4, cBody, RX, RZ));
+                glow.push(...V.at(rectRing(7, 5, 2, 1), 0, 19, RZ - 1));
+                glow.push(...V.at(V.box(1, 4, 1), 0, 17, RZ + 1));            // 버클 가운데 침
+                // 꼬리는 버클 옆에서 시작해 살짝 비스듬히 내려온다(계단 — 예전 `rotation.z = 0.16`).
+                body.push(...strip([[4, 18, RZ - 1], [3, 9, RZ - 1]], 3, 1, cDark));
+                for (let i = 0; i < 3; i++)   // 조임 구멍 — 가죽 벨트의 표식
+                    body.push(...V.at(V.box(1, 1, 1, cDark), 4, 16 - i * 2, RZ));
             } else if (variant === 1) { // 전투/탄입대: 뚜껑 달린 파우치가 둘러붙는다
-                g.add(strapBand(0.47, 0.125, mat, 0.245, 0.16));
-                for (const a of [-0.95, 0, 0.95]) {
-                    const p = new THREE.Group();
-                    const body = this.beveledSlab(0.125, 0.15, 0.085, 0.03, dark);
-                    p.add(body);
-                    const flap = this.beveledSlab(0.135, 0.062, 0.05, 0.024, this.tintOf(dark, 0.05));  // 뚜껑
-                    flap.position.set(0, 0.062, 0.012);
-                    flap.rotation.x = -0.2;
-                    p.add(flap);
-                    const clasp = new THREE.Mesh(new THREE.SphereGeometry(0.017, 8, 6), gemMat);        // 잠금 단추
-                    clasp.position.set(0, 0.038, 0.05);
-                    p.add(clasp);
+                body.push(...strapBand(20, 5, cBody, RX, RZ));
+                // ⚠️ 예전 코드는 파우치를 `rotation.y = a` 로 허리를 따라 돌려 붙였다 — 임의 각도라
+                //    면이 비스듬해진다. 세 자리에 **축정렬 그대로** 놓는다(정면 하나, 좌우 하나씩).
+                for (const [px, pz] of [[-8, 4], [0, 7], [8, 4]]) {
+                    body.push(...V.at(V.slab(5, 6, 4, cDark, 1), px, 11, pz));
+                    body.push(...V.at(V.slab(6, 3, 3, cDark, 1), px, 16, pz + 1));   // 뚜껑
                     // ⚠️ 파우치만 아래에 놓으면 밴드에서 떨어져 **공중에 매달린 상자**가 된다
                     //    (비평가 지적). 밴드를 넘어가는 루프를 같이 내고, 파우치 윗변을 밴드
-                    //    아랫변(y 0.4075) 위로 밀어 넣어 겹치게 한다.
-                    const loop = this.beveledSlab(0.05, 0.115, 0.06, 0.02, this.tintOf(dark, -0.04));
-                    loop.position.set(0, 0.115, -0.012);
-                    p.add(loop);
-                    p.position.set(Math.sin(a) * 0.236, 0.362, Math.cos(a) * 0.156);
-                    p.rotation.y = a;
-                    g.add(p);
+                    //    아랫변 위로 밀어 넣어 겹치게 한다.
+                    body.push(...V.at(V.slab(2, 6, 3, cDark, 0), px, 15, pz - 1));
+                    glow.push(...V.at(V.box(2, 2, 2), px - 1, 16, pz + 3));          // 잠금 단추
                 }
-                const bk = buckleFrame(0.115, 0.115, gemMat);
-                bk.position.set(0, 0.47, 0.158);
-                g.add(bk);
+                glow.push(...V.at(rectRing(6, 6, 2, 1), 0, 20, RZ + 1));
             } else { // 장식 새시: 주름 잡힌 넓은 띠 + 늘어뜨린 천자락
-                const cloth = mats.trim && mats.trim.isMeshBasicMaterial ? mat : (mats.trim || dark);
-                // 주름 — 반경이 오르내리는 링을 겹쳐 천이 접힌 느낌을 낸다(민짜 원통과 갈리는 지점)
+                // 주름 — 반경이 오르내리는 링을 겹쳐 천이 접힌 느낌을 낸다(민짜 원통과 갈리는 지점).
+                //   큐브로 바꾸면 이 오르내림이 **한 칸짜리 단**으로 떨어져 오히려 또렷해진다.
                 const rings = [];
                 for (let i = 0; i <= 8; i++) {
                     const t = i / 8;
-                    const w = 1 + Math.sin(t * Math.PI * 3) * 0.035 - Math.pow(t - 0.5, 2) * 0.12;
-                    rings.push({ y: 0.36 + t * 0.28, rx: 0.245 * w, rz: 0.162 * w });
+                    const w = 1 + Math.sin(t * Math.PI * 3) * 0.055 - Math.pow(t - 0.5, 2) * 0.12;
+                    rings.push({ y: Math.round(15 + t * 12), rx: RX * w, rz: RZ * w, t: 1.6 });
                 }
-                g.add(this.shellFromRings(rings, 26, mat));
-                // 천자락은 직선 판이 아니라 **휘어져 내려온다** — 곡선을 따라 관을 뽑고 납작하게 누른다
-                const curve = new THREE.CatmullRomCurve3([
-                    new THREE.Vector3(-0.145, 0.50, 0.075), new THREE.Vector3(-0.20, 0.32, 0.13),
-                    new THREE.Vector3(-0.185, 0.16, 0.125), new THREE.Vector3(-0.235, 0.02, 0.075),
-                ]);
-                const drape = new THREE.Mesh(new THREE.TubeGeometry(curve, 22, 0.05, 10, false), cloth);
-                drape.scale.z = 0.42;
-                g.add(drape);
-                // ⚠️ 브로치·물림쇠를 띠 앞면(rz≈0.162)보다 앞에 두면 허공에 뜬 핀이 된다 —
+                body.push(...V.shell(rings, cBody));
+                body.push(...strip([[-6, 21, 3], [-8, 13, 5], [-8, 7, 5], [-10, 1, 3]], 3, 2, cCloth));
+                // ⚠️ 브로치·물림쇠를 띠 앞면보다 앞에 두면 허공에 뜬 핀이 된다 —
                 //    받침판을 깔고 그 위에 앉혀 접점을 만든다(비평가 지적).
-                const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.088, 0.02, 16), this.tintOf(mat, -0.05));
-                plate.rotation.x = Math.PI / 2;
-                plate.position.set(0, 0.5, 0.156);
-                g.add(plate);
-                const brooch = new THREE.Mesh(new THREE.OctahedronGeometry(0.062, 0), gemMat);
-                brooch.position.set(0, 0.5, 0.172);
-                brooch.rotation.z = 0.4;
-                g.add(brooch);
-                for (const s of [-1, 1]) {   // 브로치 물림쇠 — 받침판 위에 눕는다
-                    const claw = this.capsuleMesh(0.010, 0.06, mat, 6);
-                    claw.position.set(s * 0.052, 0.5, 0.164);
-                    claw.rotation.z = s * 0.7;
-                    g.add(claw);
-                }
+                body.push(...V.at(V.rotX(V.disc(3.7, 2, cBody), 1), 0, 21, RZ - 1));
+                glow.push(...V.at(V.gem(3), 0, 21, RZ + 2));
+                for (const s of [-1, 1]) for (let i = 0; i < 3; i++)   // 물림쇠 — 받침판 위에 눕는다
+                    body.push(...V.at(V.box(1, 1, 2, cBody), s * (2 + i), 21 - i, RZ));
             }
+            g.add(this.voxPart(body, AS, mat, { color: cBody }));
+            if (glow.length) g.add(this.voxPart(glow, AS, mat, {
+                color: rc, emissive: rc, emissiveIntensity: 0.7, metalness: 0, roughness: 0.5,
+            }));
         }
         return g;
     },
