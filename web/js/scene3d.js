@@ -5308,6 +5308,58 @@ const Scene3D = {
             rim.rotation.x = Math.PI / 2;
             rim.position.y = -0.16;
             g.add(bub, rim);
+        } else if (style === 'skull') {
+            // ── 짐승 두개골 투구 (equip-era-theming ④, 원시 '해골 투구') ────────────────
+            // 🚨 **되돌려서 `visor` 로 쓰지 말 것.** 원시 4번 칸 '해골 투구'는 style `visor`,
+            //    즉 **중세 기사 풀헬름**(돔+뺨가드+눈 슬릿)이었다 — 재질만 뼈고 조형은 기사 투구라
+            //    사용자 지적 '전부 중세 같은 디자인임'의 투구 쪽 실물이다. 사람이 쓰라고 만든
+            //    **매끈한 반구**가 아니라, **짐승 머리뼈를 뒤집어쓴 것**이라야 원시로 읽힌다:
+            //    앞으로 뻗은 주둥이 · 파인 눈구멍 · 광대활 · 이빨. 이 넷이 두개골의 서명이다.
+            const cavity = new THREE.MeshBasicMaterial({ color: 0x0a0d10 });
+            const cran = new THREE.Mesh(new THREE.SphereGeometry(0.235, 14, 10), mat);
+            cran.scale.set(0.98, 0.94, 1.04);
+            cran.position.set(0, 0.045, -0.045);
+            g.add(cran);
+            // 주둥이 — 앞으로 뻗어 가늘어진다. 이게 없으면 그냥 사람 머리통이다.
+            const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.135, 0.30, 8), mat);
+            snout.rotation.x = Math.PI / 2 + 0.16;   // 앞으로 눕히고 코끝을 살짝 내린다
+            snout.position.set(0, -0.055, 0.175);
+            snout.scale.set(1, 1, 0.80);             // 위아래로 눌러 '부리'가 아니라 '주둥이'로
+            g.add(snout);
+            // 눈구멍 — 깊게 파인 검은 공동. 두개골의 얼굴은 여기서 결정된다.
+            for (const s of [-1, 1]) {
+                const socket = new THREE.Mesh(new THREE.SphereGeometry(0.072, 10, 8), cavity);
+                socket.scale.set(1, 0.84, 0.62);
+                socket.position.set(s * 0.115, 0.015, 0.148);
+                g.add(socket);
+                const brow = new THREE.Mesh(new THREE.TorusGeometry(0.072, 0.019, 6, 14, Math.PI * 1.15), mat);
+                brow.position.set(s * 0.115, 0.015, 0.156);
+                brow.rotation.z = -s * 0.30 + Math.PI * 0.10;
+                brow.scale.z = 0.55;
+                g.add(brow);
+                // 광대활 — 눈구멍 뒤로 빠지는 뼈 다리. 두개골이 '속이 빈 것'으로 읽히게 한다.
+                const zyg = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.036, 0.155), mat);
+                zyg.position.set(s * 0.178, -0.030, 0.058);
+                zyg.rotation.y = -s * 0.34;
+                g.add(zyg);
+            }
+            // 비강 — 눈 사이 아래의 역삼각 구멍
+            {
+                const nas = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.072, 3), cavity);
+                nas.rotation.x = Math.PI / 2 + 0.16;
+                nas.rotation.z = Math.PI;
+                nas.position.set(0, -0.048, 0.212);
+                g.add(nas);
+            }
+            // 위턱 이빨 — 주둥이 밑선을 따라. 송곳니 2개가 길다.
+            for (let i = -2; i <= 2; i++) {
+                const big = Math.abs(i) === 1;
+                const t = new THREE.Mesh(new THREE.ConeGeometry(big ? 0.024 : 0.018, big ? 0.098 : 0.058, 6), mat);
+                t.position.set(i * 0.048, -0.145 + Math.abs(i) * 0.012, 0.235 - Math.abs(i) * 0.030);
+                t.rotation.x = Math.PI;       // 아래로 뾰족하게
+                t.rotation.z = i * 0.10;
+                g.add(t);
+            }
         }
         // 시대 디테일 — halo(빛 링만)·bubble(유리 돔)은 두를 표면이 없어 제외
         // ⚠️ fin 은 앞이 열린 사발이라 bbox 아랫단(yFrac 0.2 = 로컬 y −0.035)이 **눈높이**다.
@@ -5326,13 +5378,15 @@ const Scene3D = {
         // 원시 투구: 뼈·깃털 기호 (사용자 지시 '원시→진짜 원시 같아야 함' — 갑옷 이빨 목걸이와 한 벌).
         // 스타일은 시대 공용이라 지오메트리를 고치면 다른 시대까지 움직인다 — 천상 후광처럼 **시대 분기 가산**만 한다.
         if (age === 'primitive') {
-            if (style === 'visor' || style === 'mask' || style === 'cone') {
+            if (style === 'visor' || style === 'mask' || style === 'cone' || style === 'skull') {
                 // 해골 투구·가면·전투 페인트: 좌우 뼈 뿔 — 88px 에서도 시대가 실루엣으로 읽힌다.
                 // ⚠️ 가면은 돔(r 0.25)이 좁아 뿔을 0.26 에 두면 전부 노출돼 화면 질량이 커지고,
                 //    3/4 썸네일 카메라에서 중심오차 4.7%(기준 4%)로 걸렸다(A/B 실측 — 뿔을 끄면 0건).
                 //    비녀·visor 처럼 밑동을 셸에 묻어 질량을 줄인다.
+                // skull 은 두개골 자체가 얼굴이라 뿔을 뒤통수 쪽(z 오프셋)에서 뻗게 해
+                // 주둥이·눈구멍과 경쟁하지 않게 한다.
                 this.addPrimalHorns(g, style === 'cone' ? 0.30 : style === 'mask' ? 0.20 : 0.26,
-                    style === 'cone' ? 0.14 : style === 'mask' ? 0.05 : 0.10,
+                    style === 'cone' ? 0.14 : style === 'mask' ? 0.05 : style === 'skull' ? 0.14 : 0.10,
                     style === 'mask' ? 0.85 : 0);
                 if (style === 'cone') {
                     // '전투 페인트'인데 페인트가 없었다(3차 채점 C·D 공통 라벨-렌더 불일치) —

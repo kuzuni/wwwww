@@ -1895,7 +1895,9 @@ const ProChar = {
         // 풀커버 투구(visor/mask/tech)는 이목구비도 숨김 — 코/눈이 투구 밖으로 뚫고 나오던 문제 (비평가 1위 결함)
         if (R.faceMesh) {
             const hStyle = equipment.helmet ? itemStyleOf(equipment.helmet) : null;
-            R.faceMesh.visible = !(hStyle === 'visor' || hStyle === 'mask' || hStyle === 'tech');
+            // skull(짐승 두개골, equip-era-theming ④)도 얼굴을 덮는다 — 눈구멍·주둥이가
+            // 정확히 얼굴 높이라, 얼굴을 켜 두면 두개골 속에서 사람 눈이 튀어나온다.
+            R.faceMesh.visible = !(hStyle === 'visor' || hStyle === 'mask' || hStyle === 'tech' || hStyle === 'skull');
         }
     },
 };

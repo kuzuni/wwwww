@@ -107,11 +107,14 @@ const ITEM_NAMES = {
 // 투구/갑옷 이름별 3D 스타일 (ITEM_NAMES 배열과 인덱스 정렬)
 // 투구: plume(돔+깃) cone(고깔) tophat(실크햇) visor(풀헬름) fin(볏 투구) mask(가면/방독면)
 //       halo(후광) hair(머리카락/수염) crown(왕관) tech(메카) bubble(우주 헬멧)
+//       skull(짐승 두개골 — 주둥이·눈구멍·광대활·이빨, 원시 전용)
+// 🚨 갑옷 표와 같은 규칙 — 시대에 안 맞는 조형을 배정하지 말 것(equip-era-theming).
+//    원시 '해골 투구'가 `visor`(중세 기사 풀헬름)였다 → `skull` 로 교체했다.
 // ⚠️ 한 시대 안에서 같은 스타일을 두 번 쓰지 말 것 — 스타일이 곧 3D 프리뷰/썸네일 모양이라,
 // 겹치면 '모든 장비의 목록'에서 이름만 다르고 그림이 똑같은 장비가 나온다 (사용자 지적 "중복된 거 하지 말라 했던 거").
 // 이름과 모양을 맞추되(예: 깃털 모자=plume, 뱀의 화관=crown) 시대별로 전부 다른 실루엣이 되게 배정한다.
 const HELMET_STYLES = {
-    primitive:    ['hair', 'mask', 'cone', 'visor', 'plume'],
+    primitive:    ['hair', 'mask', 'cone', 'skull', 'plume'],   // 수염·가면·전투 페인트·해골 투구·깃털 장식 (visor=기사 풀헬름 제거)
     medieval:     ['visor', 'fin', 'plume', 'crown', 'cone'],
     earlyModern:  ['visor', 'crown', 'plume', 'cone', 'tophat'],
     modern:       ['visor', 'bubble', 'fin', 'tophat', 'crown', 'plume', 'hair'],
