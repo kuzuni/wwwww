@@ -779,6 +779,7 @@ const UI = {
         'mount-modal', 'mount-upgrade-modal', 'profile-modal', 'player-info-modal',
         'chat-modal', 'forge-info-modal', 'forge-item-modal', 'autoforge-modal'],
     closeAllTabSurfaces() {
+        this.dismissCraftBatch();   // 팝업으로 넘어가는 경로도 같다 — 카드판을 새 팝업 위에 남기지 않는다
         // 제작 비교 팝업만은 그냥 숨기면 제작한 장비가 사라진다 — 자동 판정으로 정리한 뒤 닫는다
         this.resolvePendingCraft();
         for (const id of [...Object.keys(this.MODAL_TAB), ...this.EXTRA_TAB_SURFACES]) {
@@ -916,6 +917,7 @@ const UI = {
 
     switchTab(tab) {
         this.activeTab = tab;
+        this.dismissCraftBatch();   // 자동 제련 카드판이 떠 있었다면 새 화면을 덮기 전에 걷는다
         document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         for (const [k, p] of Object.entries(this.els.panels)) p.classList.toggle('open', k === tab);
         if (tab === 'summon') this.switchSummonSub(this._summonSub || 'skills'); // 원본 서브탭 순서상 스킬이 첫 탭
@@ -1711,9 +1713,27 @@ const UI = {
     // ⚠️ 장마다 등장 시차를 주지 않는다 — 아무리 짧아도 그게 사용자가 물린 '순차로 뜬다'의 정체다.
     //    전부 같은 애니메이션을 같은 시각에 시작한다(카드판 전체가 한 번에 뜬다).
     CRAFT_BATCH_MS: 1600,
+    // 카드판을 펴도 되는 화면 = **모루가 보이는 기본 화면**(하단 시트도 팝업도 안 열린 상태).
+    // 자동 제련은 다른 탭·팝업을 보는 동안에도 계속 도는데, 카드판은 `#app` 직속 오버레이라
+    // `#game-area` 격리 밖이다 — 탭 패널(z 8)·팝업(z 20·22)을 그대로 덮고 `pointer-events:auto`
+    // 라 그 화면의 조작까지 먹었다(QA 실측: 소환 화면 12초 중 35% 구간에서 [소환 x1] 클릭이
+    // 카드판에 가로막혔고, 퀘스트 팝업은 9점 히트테스트 9/9 가 가려졌다).
+    // ⚠️ **z 를 낮추는 처방은 안 된다** — 8 아래로 내리면 대장간 화면에서도 안 보인다(카드판을
+    //    보여 주는 게 `autoforge-cards-at-once` 지시의 본체다). 그래서 화면 조건으로 가른다.
+    // ⚠️ 카드판을 `#game-area` 안으로 옮기는 처방도 안 된다 — 모루(`#equip-sheet`)는 `#game-area`
+    //    의 **형제**라(index.html), 격리 대역 안으로 넣으면 카드가 모루 위가 아니라 전투 화면에
+    //    갇혀 잘린다.
+    forgeScreenVisible() {
+        if (this.activeTab) return false;                       // 소환·방·디버그 등 하단 시트가 열려 있다
+        return !document.querySelector('.modal:not(.hidden)');   // 던전·퀘스트·상점·리그·오프라인 등 팝업
+    },
     showCraftBatch(items, done) {
         const host = document.getElementById('app');
         if (!host || !items || !items.length) { done(); return; }
+        // 남의 화면을 보는 중이면 **카드 없이 조용히 넘긴다**(`autoforge-toast-suppress` 와 같은 규약).
+        // ⚠️ 안 보여 줄 때도 `done()` 은 반드시 부른다 — 이 콜백이 `drainAutoBatch()` 로 이어져 뽑은
+        //    장비를 판매/큐로 흘리는 유일한 경로다. 여기서 끊으면 해머만 나가고 결과물이 증발한다.
+        if (!this.forgeScreenVisible()) { done(); return; }
         const wrap = document.createElement('div');
         wrap.className = 'craft-batch';
         // 열 수는 장수로 정한다 — 10장이면 4열(3행)이 430px 폭에 들어간다(실측 shot-autoforge-batch).
@@ -1728,6 +1748,14 @@ const UI = {
         const finish = () => { if (done1) return; done1 = true; clearTimeout(t); wrap.remove(); done(); };
         wrap.addEventListener('click', finish);        // 눌러서 바로 넘기기 (기다리기 싫은 사용자용)
         const t = setTimeout(finish, this.CRAFT_BATCH_MS);
+    },
+    // 카드판이 **떠 있는 도중에** 화면이 바뀌면 즉시 걷는다 — 화면 조건 검사(`forgeScreenVisible`)는
+    // 펼 때 한 번뿐이라, 이게 없으면 남은 `CRAFT_BATCH_MS`(1.6초) 동안 새 화면을 그대로 덮는다.
+    // DOM 만 걷고 타이머는 그대로 둔다 — 남은 타이머의 `finish` 가 `done()` 을 불러 `drainAutoBatch()`
+    // 로 결과물을 흘려보내는 유일한 경로이기 때문이다(여기서 같이 끊으면 해머만 나가고 증발한다).
+    // 리빌 카드가 `cancelAnvilStrike` 에서 같은 방식으로 처리되는 것과 같은 규약이다.
+    dismissCraftBatch() {
+        document.querySelectorAll('.craft-batch').forEach(n => n.remove());
     },
 
     // ---- 대장간 팝업 3종 (UI-SPEC 21~24번): ① 확률 정보 ② 전체 장비 목록 ③ 장비 상세 ----
@@ -2700,6 +2728,7 @@ const UI = {
         // 리빌 카드도 같이 걷는다 — 안 걷으면 탭을 옮긴 화면 위에 카드만 남아 떠 있다.
         // (남은 타이머의 done은 대기품이 이미 정리된 걸 보고 팝업을 띄우지 않는다)
         document.querySelectorAll('.auto-drop-card.craft-reveal').forEach(n => n.remove());
+        this.dismissCraftBatch();   // 배치 카드판도 같은 이유로 — 연출을 끊는 자리면 이것도 남기지 않는다
     },
     onCraft() {
         if (this._anvilBusy) return;   // 연출 중 재클릭 무시 — 연타로 해머만 녹는 걸 막는다

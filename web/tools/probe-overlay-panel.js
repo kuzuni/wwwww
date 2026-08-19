@@ -109,8 +109,13 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
                 const x = rect.left + rect.width * (0.06 + 0.88 * ix / 3);
                 const y = rect.top + rect.height * (0.06 + 0.88 * iy / 5);
                 const t = document.elementFromPoint(x, y);
-                if (t && (t.closest('#boss-warning') || t.closest('#fx-layer'))) {
-                    bad++; if (!sample) sample = t.closest('#boss-warning') ? 'boss-warning' : 'fx-layer';
+                // 침입자 목록에 `.craft-batch`(자동 제련 결과 카드판)도 넣는다 — `autoforge-batch-overlay`
+                // 등재 메모의 요청. 이 자는 `#game-area` 격리 밖 **`#app` 직속 동적 오버레이**라
+                // 사망 암전·보스 경고와 뿌리가 다르고(그래서 `overlay-covers-panel` 의 z 격리가 안 잡았다),
+                // 지금은 `UI.forgeScreenVisible()` 화면 조건으로 막혀 있다. 여기 등록해 두면 그 조건이
+                // 어느 날 무너져도 같은 스윕이 잡는다.
+                if (t && (t.closest('#boss-warning') || t.closest('#fx-layer') || t.closest('.craft-batch'))) {
+                    bad++; if (!sample) sample = t.closest('#boss-warning') ? 'boss-warning' : t.closest('.craft-batch') ? 'craft-batch' : 'fx-layer';
                 }
             }
             return { bad, sample };
