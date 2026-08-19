@@ -51,9 +51,19 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     s = await snap();
     check('④ ✕ → 리그 시트로 복귀(오버레이 제거)', s.sheet && !s.overlay, s);
 
-    await page.evaluate(() => { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); UI.onWaypointLeague(); });
+    // 🚨 **⑤ 는 계약이 뒤집힌 자리다** (2026-08-19 사용자 지시 "메인에 왼쪽에 랭킹 버튼 없애기"):
+    //    맵 위 리그 보상 이정표가 **삭제**돼 `UI.onWaypointLeague` 는 더 이상 없다. 그런데 이 자가
+    //    그 함수를 그대로 부르고 있어서 `TypeError` 로 죽었고, **그 뒤 ⑥⑦⑧ 이 아예 안 돌았다**
+    //    (리그 팝업 감사의 절반이 통째로 빠져 있었다 — red-probes-league).
+    //    검사를 지우는 대신 **삭제된 상태를 못 박는다**: 진입점이 되살아나면 여기서 걸린다.
+    const gone = await page.evaluate(() => ({
+        api: typeof UI.onWaypointLeague === 'undefined',
+        dom: !document.getElementById('waypoint-league'),
+    }));
+    check('⑤ 삭제된 리그 이정표 진입점이 되살아나지 않았다(사용자 지시 2026-08-19)', gone.api && gone.dom, gone);
+    await page.evaluate(() => { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); UI.openLeague(); UI.openLeagueRewards(); });
     s = await snap();
-    check('⑤ 웨이포인트 진입도 시트를 깔고 연다', s.sheet && s.overlay, s);
+    check('⑤-b 남은 진입점(시트 → 시즌 바)은 시트를 깔고 연다', s.sheet && s.overlay, s);
 
     await page.evaluate(() => { UI.openLeagueRewards(); UI.openLeagueRewards(); });
     s = await snap();
