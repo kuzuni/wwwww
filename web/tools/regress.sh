@@ -15,6 +15,7 @@ for p in \
     probe-icon-cross-screen.js \
     probe-skillfx-timeline.js \
     probe-tools-wait-guard.js \
+    probe-fire-color.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1

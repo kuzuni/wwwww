@@ -16208,20 +16208,31 @@ const Scene3D = {
     // 치솟는 불꽃)이 없었다. 밑에서 위로 **자라며 흔들리는** 가산 화염 기둥 + 치솟는 불티로 세운다.
     firePillar(pos, color, tier) {
         const h = 1.4 + tier * 0.35, r = 0.34 + tier * 0.05;
-        // 3겹: 바깥 색 불꽃 → 안쪽 살구 → 흰 코어. 아래가 굵고 위가 가는 화염 실루엣(원뿔 역방향).
-        const cone = (rad, top, colHex, op) => {
+        // 3겹: 바깥 색 불꽃 → 안쪽 진주황 → 흰 코어. 아래가 굵고 위가 가는 화염 실루엣(원뿔 역방향).
+        // 세로 알파 그라디언트(`bossWarnTex`)를 물려 **밑동은 진하고 끝은 흩어지게** 한다 —
+        // 균일 알파면 어떤 색을 줘도 '원뿔 판'으로 읽힌다.
+        const cone = (rad, top, colHex, op, additive) => {
             const m = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.35, rad, h, 8, 1, true),
-                new THREE.MeshBasicMaterial({ color: colHex, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+                new THREE.MeshBasicMaterial({
+                    color: colHex, map: this.bossWarnTex(), transparent: true, opacity: op,
+                    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+                    depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
+                }));
             m.position.y = h / 2;
             return m;
         };
         const grp = new THREE.Group();
         grp.position.set(pos.x, pos.y, pos.z);
-        // 가산 합성은 겹칠수록 흰색으로 밀린다 — 흰 코어를 크게 주면 '불'이 아니라 '흰 원뿔'이 된다
-        // (첫 판 실측). 그래서 **색 껍질을 짙게, 흰 코어는 가늘고 옅게** 잡아 화염 색이 지배하게 한다.
-        grp.add(cone(r, h, color.getHex(), 0.85));      // 바깥 = 스킬 색 (지배색)
-        grp.add(cone(r * 0.58, h * 0.94, 0xff6a1f, 0.6)); // 중간 = 진한 주황
-        grp.add(cone(r * 0.24, h * 0.86, 0xffd98a, 0.5)); // 코어 = 가늘고 옅은 밝은 불
+        // 🚨 **지배색 껍질은 가산 합성이면 안 된다** (2026-08-19 실측 — 비평가 2인 일치 지적 '불이 한
+        //    픽셀도 없다 / 흰 원뿔 더미'의 진짜 원인). 예전엔 3겹이 전부 가산 + DoubleSide 라 한 화소에
+        //    앞뒤 면이 6번 더해졌고, 배경이 밝은 초원(휘도 0.55~0.75)이라 **세 채널이 전부 1.0 으로
+        //    클리핑**됐다 — 색값을 아무리 진하게 넣어도 흰색이 된다. `probe-fire-color.js` 로 불기둥만
+        //    분리해 재니 **순백비 73~87% · 온기(R−B) 0.009~0.041** 이었다.
+        //    가산은 '더한다'라서 배경을 못 이긴다 — 지배색은 **알파 합성으로 배경을 덮어써야** 한다.
+        //    백열은 가장 가는 코어 한 겹에만 남긴다(그게 진짜 뜨거운 자리다).
+        grp.add(cone(r, h, color.getHex(), 0.82, false));       // 바깥 = 스킬 색 (지배색, 알파 합성)
+        grp.add(cone(r * 0.62, h * 0.94, 0xff4d0f, 0.72, false)); // 중간 = 진한 주황 (알파 합성)
+        grp.add(cone(r * 0.26, h * 0.86, 0xffd98a, 0.55, true));  // 코어 = 가늘고 밝은 백열 (가산)
         this.scene.add(grp);
         // 치솟는 불티 — 기둥 둘레에서 위로 흐른다
         for (let i = 0; i < Math.round(8 + tier * 4); i++) {
@@ -16235,7 +16246,7 @@ const Scene3D = {
             grp.scale.y = grow;
             const flick = 1 + Math.sin(k * 40) * 0.08;
             grp.scale.x = grp.scale.z = flick;
-            grp.children.forEach((c, i) => { c.material.opacity = [0.85, 0.6, 0.5][i] * fade * (0.85 + 0.15 * Math.sin(k * 55 + i)); });
+            grp.children.forEach((c, i) => { c.material.opacity = [0.82, 0.72, 0.55][i] * fade * (0.85 + 0.15 * Math.sin(k * 55 + i)); });
         }, () => { this.disposeTree(grp); this.scene.remove(grp); });
     },
 
