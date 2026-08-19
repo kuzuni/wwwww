@@ -348,6 +348,6 @@ const SCAN_REF = function (src) {
         console.log(`  ${r.name.padEnd(12)} 원본 ${r.refV.toFixed(2).padStart(6)}  클론 ${r.cloneV.toFixed(2).padStart(6)}  Δ ${(r.d >= 0 ? '+' : '') + r.d.toFixed(2)}%p  ${ok ? 'OK' : 'FAIL'}`);
     }
     console.log(`\n콘솔/페이지 에러: ${errors.length}건${errors.length ? ' — ' + errors.slice(0, 3).join(' | ') : ''}`);
-    console.log(`=> ${fails === 0 && errors.length === 0 ? 'PASS' : `불통과 ${fails}건`}`);
+    console.log(`=> 판정: ${fails === 0 && errors.length === 0 ? 'PASS' : `FAIL — 불통과 ${fails}건`}`);
     process.exit(fails === 0 && errors.length === 0 ? 0 : 1);
 })();

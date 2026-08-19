@@ -170,6 +170,6 @@ const SCAN = (async (src) => {
     }
     if (clone.slotBuy) console.log(`\n[미판정 참고] [슬롯 +1] 클론 좌 ${cw(clone.slotBuy.x).toFixed(2)}%W 폭 ${cw(clone.slotBuy.w).toFixed(2)}%W 상단 ${ch(clone.slotBuy.y).toFixed(2)}%H — 원본은 흰 글자 + ◆ 알약 2단이라 같은 상자가 아니다(머리말)`);
     console.log(`\n콘솔/페이지 에러: ${errors.length}건${errors.length ? ' — ' + errors.slice(0, 3).join(' | ') : ''}`);
-    console.log(`=> ${fails === 0 && errors.length === 0 ? 'PASS' : `불통과 ${fails}건`}`);
+    console.log(`=> 판정: ${fails === 0 && errors.length === 0 ? 'PASS' : `FAIL — 불통과 ${fails}건`}`);
     process.exit(fails === 0 && errors.length === 0 ? 0 : 1);
 })();
