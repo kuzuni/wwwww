@@ -2462,6 +2462,46 @@ const Scene3D = {
                 this.rocks.push(g);
             }
         }
+        // ── 중경 앵커 (map-quality-up 채점 ④ '중경 공백') ──────────────────────────────
+        // 왜: 비평가 2인이 원경 다음으로 공통 지목했고 수치로도 확인됐다 — `probe-nearfield-mass`
+        //   6챕터에서 **중경 띠만** 점유 6.0~14.1% · 최대요소 1387~3208px² 인데, 같은 화면의 근경은
+        //   14~104% / 12759~19347px², 원경은 9.7~29.6% / 3308~24427px² 다. 앞뒤엔 덩치가 있고
+        //   **가운데만 비어** 원근이 두 층으로 끊긴다("근경 빽빽 → 중경 0 → 원경 판").
+        // 어디: 중경 띠 = **월드 z −4 ~ −7.5**. 짐작이 아니라 투영해서 쟀다(화면 y: z−4 → 0.811,
+        //   z−6 → 0.733, z−8 → 0.638, 지평선 0.510. 그 자가 지평선 아래를 화면 y 로 3등분한다).
+        // 🚨 **근경 앵커와 달리 높이 캡이 필요 없다 — 이 대역은 파티보다 뒤다.** 영웅 z 0 · 펫 z 1.1~2.0 ·
+        //   적 z 0~1 이 전부 **앞**이라 여기 소품은 구조적으로 그들을 가릴 수 없다(근경 앵커가 z 하한과
+        //   높이 캡을 한 벌로 묶어야 했던 이유가 여긴 없다). 대신 **원경 능선을 먹지 않게** 위를 눌러
+        //   둔다 — 능선 3겹이 이제 실제로 보이므로(RIDGE_LAYERS) 중경이 그걸 덮으면 방금 만든 층이 죽는다.
+        {
+            // 🚨 **띠는 소품의 '발 위치'가 아니라 '화소 위치'로 갈린다 — 여기서 한 번 빗나갔다.**
+            //   처음엔 z −7.2~−4.2 에 높이 1.85 로 놓았는데 중경 수치가 거의 안 움직이고 대신
+            //   **원경 점유가 24.6→31.2% 로 뛰었다.** 소품 화소는 접지점보다 **위**에 쌓이므로 몸통이
+            //   한 띠 위로 올라가 버린 것이다. 그래서 접지 z 를 당기고(−4.6~−3.0) 높이를 눌러
+            //   (1.25) 화소가 중경 띠(화면 y 0.673~0.837)에 모이게 한다.
+            //   투영 실측: z−3 → 0.850 · z−4 → 0.811 · z−6 → 0.733 · z−8 → 0.638 (지평선 0.510).
+            const HCAP = 1.25;
+            const midMaker = {
+                desert: (s) => (Math.random() < 0.5 ? this.makeSlab(s * 0.8) : this.makeBoulder(s * 1.1, false, false)),
+                rock: (s) => (Math.random() < 0.5 ? this.makeRockCluster(s * 1.05, true) : this.makeBoulder(s * 1.2, false, true)),
+                lava: (s) => this.makeVolcanicRock(s * 1.25),
+                magic: (s) => this.makeCrystal(s * 1.3),
+                snow: (s) => this.makeBoulder(s * 1.15, true),
+            }[kin] || ((s) => this.makeBoulder(s * 1.05, false, true));
+            for (let i = 0; i < 7; i++) {
+                const t = midMaker(U.rand(1.25, 1.9));   // 눌린 높이만큼 발자국을 키워 면적을 번다
+                const box = new THREE.Box3().setFromObject(t);
+                const h = box.max.y - box.min.y;
+                if (h > HCAP) t.scale.y *= HCAP / h;   // 만든 뒤 실제 박스를 재서 누른다(근경 앵커와 같은 이유)
+                t.rotation.y = U.rand(0, Math.PI * 2);
+                this.setShadow(t);
+                const g = grounded(t, 0.5);   // 접지 블롭은 setShadow 뒤 (캐스터에서 빠지게)
+                const x = U.rand(-9.5, 9.5), z = U.rand(-4.6, -3.0);
+                g.position.set(x, this.heightAt(x, z) + 0.02, z);
+                this.scene.add(g);
+                this.rocks.push(g);
+            }
+        }
         // 무한맵 스크롤 대상 (걷는 동안 왼쪽으로 흘러가며 순환, 지형 높이 추적)
         this.scrollables = [...this.trees, ...this.rocks];
         // 바람 대상 수집 — `userData.windSway` 를 단 그룹만. 랜드마크는 그룹 자체가 아니라 **자식**이
