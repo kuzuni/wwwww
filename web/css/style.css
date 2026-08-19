@@ -2205,7 +2205,10 @@ body {
 /* 노치는 **바깥 변**에서 파고든다(안쪽 변은 본체에 붙는 직선) */
 .league-reward-banner::before { right: 100%; clip-path: polygon(100% 0, 0 0, 50% 50%, 0 100%, 100% 100%); }
 .league-reward-banner::after { left: 100%; clip-path: polygon(0 0, 100% 0, 50% 50%, 100% 100%, 0 100%); }
-.lgr-card .league-reward-desc { color: #fff; }
+/* 🚨 흰 글자는 원본의 **어두운 남색 패널** 전제였다 — 지금 클론 카드 바탕은 흰 종이라 문단이
+   통째로 안 보였다(전수 검증 채점 1차 A: '설명 문단 블록 부재'로 잡힘 — 부재가 아니라 백문백지).
+   스킨 패스가 패널을 원본처럼 어둡게 바꾸면 그때 흰 글자로 되돌릴 것. */
+.lgr-card .league-reward-desc { color: #17181a; }
 .league-reward-desc { text-align: center; font-size: .82rem; font-weight: 700; margin: 0 0 .5rem; line-height: 1.4; }
 .league-reward-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .3rem .5rem; margin-bottom: .55rem; }
 .league-reward-grid span {

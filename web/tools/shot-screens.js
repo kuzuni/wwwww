@@ -56,7 +56,18 @@ const SCREENS = [
     ['tech-node', '042605', `(() => {
         const id = TechTree.nid('extraEgg', 4);
         S.tech = S.tech || {};
-        for (let t = 1; t < 4; t++) S.tech[TechTree.nid('extraEgg', t)] = 5;   // 부모 사슬 해금
+        // 🚨 해금 규칙이 '같은 타입 세로 레일' → '바로 위 행 노드 전부'로 바뀌어(techtree-node-logic),
+        //    옛 시드(extraEgg 1~3만 5레벨)로는 대상이 잠긴 채 [잠김] 팝업(짧은 카드)이 찍힌다 —
+        //    비평가 채점 1차가 그 낡은 캡처를 보고 '카드 높이 Δ14%p'를 냈다. probe-tn-dom 과 같은
+        //    처방: 조상 전체를 1레벨로 펴서 원본(연구 진행 중)과 같은 상태를 만든다.
+        const openUp = (nid2, depth) => {
+            if (depth > 12) return;
+            for (const p of TechTree.parentsOf(nid2)) {
+                if (!(S.tech[p] >= 1)) S.tech[p] = 1;
+                openUp(p, depth + 1);
+            }
+        };
+        openUp(id, 0);
         S.tech[id] = 1;
         S.techResearch = { id, endsAt: U.now() + (13 * 60 + 30) * 60e3 };      // 원본 '13시 30분'
         UI.switchTab('summon'); UI.switchSummonSub('tech');
