@@ -44,7 +44,7 @@ const PITCH_TARGET = 3.75;
     page.on('pageerror', e => errs.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined" && typeof Forge !== "undefined"', { label: '스크립트 로드' });
+    await waitReady(page, 'typeof UI !== "undefined" && UI.els && UI.els.craftModal && typeof S !== "undefined" && typeof Forge !== "undefined"', { label: '스크립트 로드' });
     await page.evaluate(() => {
         // 원본과 같은 상태: 대장간 Lv.29 · 업그레이드 진행 중(하단 진행바 + [건너뛰기])
         S.chapter = 4; S.stage = 1; S.bestChapter = 20; S.bestStage = 9;

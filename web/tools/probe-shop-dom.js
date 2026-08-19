@@ -46,7 +46,7 @@ const T = [
     page.on('pageerror', e => errs.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined" && typeof Shop !== "undefined"', { label: '스크립트 로드' });
+    await waitReady(page, 'typeof UI !== "undefined" && UI.els && UI.els.craftModal && typeof S !== "undefined" && typeof Shop !== "undefined"', { label: '스크립트 로드' });
     await page.evaluate(() => { S.coins = 782000; S.gems = 62; UI.toast = () => { }; UI.onTabClick('shop'); });
     await page.waitForTimeout(500);
     await page.evaluate(() => document.querySelectorAll('.modal.opening').forEach(m => m.classList.remove('opening')));

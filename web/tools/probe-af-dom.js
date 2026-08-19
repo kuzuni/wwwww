@@ -38,7 +38,7 @@ const TARGET = {
     page.on('console', msg => msg.type() === 'error' && errors.push(msg.text()));
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined"', { label: '스크립트 로드' });
+    await waitReady(page, 'typeof UI !== "undefined" && UI.els && UI.els.craftModal && typeof S !== "undefined"', { label: '스크립트 로드' });
     await page.evaluate((on) => {
         S.chapter = 4; S.stage = 1; S.bestChapter = 20; S.bestStage = 9; S.forgeLevel = 29;
         S.autoForge.filterOn = on; S.autoForge.hammersPerBatch = 22;

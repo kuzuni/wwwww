@@ -15,7 +15,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     page.on('pageerror', e => errs.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
     await page.goto(INDEX);
-    await page.waitForFunction('typeof UI !== "undefined"');
+    await page.waitForFunction('typeof UI !== "undefined" && UI.els && UI.els.craftModal');
     await page.evaluate(() => { UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); });
     await page.waitForTimeout(300);
 

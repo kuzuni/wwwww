@@ -85,7 +85,7 @@ const SCAN = (async (src) => {
     page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof League !== 'undefined', null, { timeout: 90000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && UI.els && UI.els.craftModal && typeof League !== 'undefined', null, { timeout: 90000 });
     await page.evaluate(SC.SEED_SRC);
     await page.reload({ waitUntil: 'load' });
     await page.waitForFunction(() => typeof UI !== 'undefined' && S.forgeLevel === 29, null, { timeout: 90000 });

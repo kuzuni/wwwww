@@ -26,7 +26,7 @@ function starCount(txt) {
     page.on('console', msg => msg.type() === 'error' && errors.push(msg.text()));
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined" && typeof Ascension !== "undefined"', { label: '스크립트 로드' });
+    await waitReady(page, 'typeof UI !== "undefined" && UI.els && UI.els.craftModal && typeof S !== "undefined" && typeof Ascension !== "undefined"', { label: '스크립트 로드' });
 
     // 승천 횟수를 n 으로 세팅하고 '모든 장비의 목록' 을 연 뒤 셀의 별 출처를 전수 조사한다.
     const collect = (n) => page.evaluate((ascN) => {

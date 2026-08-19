@@ -19,7 +19,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     page.on('pageerror', e => errs.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
     await page.goto(INDEX);
-    await page.waitForFunction('typeof UI !== "undefined" && typeof pendingOffline === "function"');
+    await page.waitForFunction('typeof UI !== "undefined" && UI.els && UI.els.craftModal && typeof pendingOffline === "function"');
 
     // 오프라인이 상한 아래로 쌓인 상태(2분)에서 팝업을 연다 — 매초 숫자가 자라는 걸 보려면 상한 밑이어야 한다.
     const res = await page.evaluate(() => {

@@ -144,7 +144,7 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
     page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof Forge !== 'undefined', null, { timeout: 60000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && UI.els && UI.els.craftModal && typeof Forge !== 'undefined', null, { timeout: 60000 });
     await page.evaluate(SC.SEED_SRC);
     await page.reload({ waitUntil: 'load' });
     await page.waitForFunction(() => typeof UI !== 'undefined' && S.forgeLevel === 29, null, { timeout: 60000 });

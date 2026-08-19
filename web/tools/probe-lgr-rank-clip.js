@@ -24,7 +24,7 @@ const MARGIN = 2;   // 외곽선·반올림 안전 마진(px)
         page.on('pageerror', e => allErrs.push(String(e)));
         page.on('console', m => { if (m.type() === 'error') allErrs.push(m.text()); });
         await page.goto(INDEX);
-        await page.waitForFunction('typeof UI !== "undefined"');
+        await page.waitForFunction('typeof UI !== "undefined" && UI.els && UI.els.craftModal');
         await page.evaluate(() => { UI.openLeague(); UI.openLeagueRewards(); });
         await page.waitForTimeout(500);
         const rows = await page.evaluate(() => {

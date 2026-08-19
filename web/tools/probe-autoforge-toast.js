@@ -20,7 +20,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     page.on('pageerror', e => errs.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
     await page.goto(INDEX);
-    await page.waitForFunction('typeof UI !== "undefined" && typeof Forge !== "undefined"');
+    await page.waitForFunction('typeof UI !== "undefined" && UI.els && UI.els.craftModal && typeof Forge !== "undefined"');
 
     await page.evaluate(() => {
         // 자동 제련 해금 + 망치 넉넉히 + 무필터
