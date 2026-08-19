@@ -11258,7 +11258,28 @@ const Scene3D = {
             //    (실측 `probe-deadbar-anchor.js`: world.x 2.546 → 3.211 을 16ms 만에).
             //    그 x 를 따라가는 빈 HP바도 같이 튄다. 죽으면 즉시 손을 뗀다.
             if (m.dead) return;
-            m.g.position.x = ox - Math.sin(k * Math.PI) * 0.55;
+            // ── 1930s 카툰 돌진 타이밍 (`cute-art-direction` ⓔ) ───────────────────────────
+            // 종전 `-sin(kπ)·0.55` 는 **완전 대칭**이라 나가는 속도와 돌아오는 속도가 같았다 —
+            // 예비동작도 여운도 없는 '왕복 진자'다. 카툰은 ⓐ 먼저 **뒤로 당겼다가**(anticipation)
+            // ⓑ 급가속으로 튀어나가고 ⓒ 목표를 지나쳤다 돌아온다(follow-through/오버슈트).
+            // ⚠️ 스케일은 여기서 직접 쓰지 않는다 — `m._atkSq` 만 남기고 합성은 update 의
+            //    한 곳(히트×보행×공격)에서 곱한다. 여기서 scale 을 쓰면 그 합성이 다음 프레임에
+            //    통째로 덮어써 공격 스쿼시가 한 프레임씩 깜빡인다.
+            let dx;
+            if (k < 0.42) {                                  // ⓐ 코일 — 뒤로 당기며 몸이 눌린다
+                const t = k / 0.42;
+                dx = 0.14 * (1 - (1 - t) * (1 - t));
+                m._atkSq = -0.13 * t;
+            } else if (k < 0.64) {                           // ⓑ 스냅 — 튀어나가며 늘어난다
+                const t = (k - 0.42) / 0.22;
+                dx = 0.14 - 0.69 * (1 - Math.pow(1 - t, 3));
+                m._atkSq = -0.13 + 0.29 * (1 - Math.pow(1 - t, 2));
+            } else {                                         // ⓒ 여운 — 오버슈트하며 제자리로
+                const t = (k - 0.64) / 0.36;
+                dx = -0.55 * (1 - ProChar.easeBack(t));
+                m._atkSq = 0.16 * (1 - t) * Math.cos(t * Math.PI * 1.6);
+            }
+            m.g.position.x = ox + dx;
             const J = m.anim && m.anim.armRJ;
             if (J) {
                 // 2관절 연쇄: 어깨를 후상방으로 당기며 팔꿈치 깊게 굽힘(와인드업) → 전방 스냅하며 폄(타격) → 복귀 (비평가: 통짜 전방 돌출 금지)
@@ -11268,6 +11289,7 @@ const Scene3D = {
                 m.g.rotation.z = (0.14 * w) * (1 - st) - 0.1 * st * (1 - rec); // 몸통 비틀림 동참 — 예비동작 판독성
             } else if (m.armR) m.armR.rotation.x = -Math.sin(k * Math.PI) * 1.6; // 관절 없는 리그 폴백: 팔 휘두르기
         }, () => {
+            m._atkSq = 0;         // 시체든 아니든 공격 스쿼시는 반드시 접는다(안 접으면 눌린 채 굳는다)
             if (m.dead) return;   // 시체 자세를 원위치로 되돌리면 쓰러진 몸이 벌떡 선다
             const e = Combat.enemies.find(x => x.id === id);
             m.g.position.x = e ? e.x + this.worldX : ox;
@@ -12062,6 +12084,7 @@ const Scene3D = {
         // 시체가 눌린 채(x 0.86 등) 영원히 굳고, 아래 `sy0`가 부푼 값을 기준으로 잡아 쓰러지는 시체 키가
         // 마지막 한 방의 세기에 따라 달라진다. 예전엔 크리·큰 피해만 펀치를 걸어 잘 안 드러났다.
         m.punchT = 0;
+        m._atkSq = 0; m._gaitSq = 0;   // 같은 이유로 공격 코일·보행 스쿼시도 접는다(합성값이 sy0 에 섞이면 시체 키가 달라진다)
         m.g.scale.setScalar(m.baseScale || 1);
         const baseY = m.g.position.y, sy0 = m.g.scale.y, ox = m.g.position.x, dur = isBoss ? 1.5 : 1.05;
         // 쓰러지는 구간을 버스트 수명(≈250ms) 안으로 당긴다. 예전엔 낙하가 k=0.5(=525ms)까지 끌려
@@ -15942,9 +15965,12 @@ const Scene3D = {
                 if (m.punchT > 0) punchA = a;
             }
             if (m.g.userData.landed && !m._scaleLocked) {
-                const b = m.baseScale || 1, a = punchA, s = m._gaitSq || 0;
+                const b = m.baseScale || 1, a = punchA;
+                // 공격 코일/스냅이 도는 동안은 **그쪽이 세로 축을 독점한다** — 대기 스쿼시(진폭의 55%)와
+                // 더하면 코일 깊이가 위상에 따라 들쭉날쭉해져 예비동작이 프레임마다 다른 크기로 읽힌다.
+                const s = m._atkSq ? m._atkSq : (m._gaitSq || 0);
                 // 히트: 세로 0.92·깊이 0.14 배분은 부피 보존(-1 + 0.92 + 0.14 ≈ 0)에서 나온 값이다.
-                // 보행: s > 0 = 늘어남(세로 ↑ 가로 ↓), s < 0 = 눌림. 가로/깊이에 −s/2 씩 나눠 같은 원리로 보존한다.
+                // 보행/공격: s > 0 = 늘어남(세로 ↑ 가로 ↓), s < 0 = 눌림. 가로/깊이에 −s/2 씩 나눠 같은 원리로 보존한다.
                 // 두 변형은 **곱해서** 겹친다 — 더하면 피격 중 보행 스쿼시가 히트 압축을 상쇄해 버린다.
                 m.g.scale.set(
                     b * (1 - a) * (1 - s * 0.5),
