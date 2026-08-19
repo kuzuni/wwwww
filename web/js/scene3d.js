@@ -10652,6 +10652,8 @@ const Scene3D = {
         // 외곽선은 원래 near-black 이라 0.6 만 돼도 거의 포화한다(실측: 0.62↔1.0 의 휘도차가 0.009뿐).
         // 위계를 밝기로도 읽히게 하려면 **일반을 충분히 낮게** 깔아야 한다.
         this.flashMesh(m, crit ? 0.28 : 0.2, crit ? 0.14 : 0.1, crit ? 0xff7a1a : 0xcfe8ff, crit ? 0.78 : 0.38);
+        // 무기 궤적도 같은 사다리로 물들인다(㉲) — 처치는 killEnemy 가 한 단 더 올린다.
+        this.trailImpact(crit ? 'crit' : 'normal');
         // 일반 피격 림을 **순백에서 청백으로** 바꾼다 — 골렘·해골처럼 몸 albedo가 이미 near-white인 종에서
         // 흰 가산 림은 명도차가 10%도 안 나 "깜빡였는지조차 모르겠다"가 됐다(비평가 4차 2번).
         // 청백(0x9fe3ff)은 따뜻한 회백 몸/초원 배경 어느 쪽과도 색상이 갈려 같은 밝기에서도 분리된다.
@@ -10763,6 +10765,7 @@ const Scene3D = {
         // 안 빼 준 채 남는다 — 그러면 시체가 **팔을 뒤로 젖힌 뒤틀린 포즈로 굳는다.**
         this.undoFlinch(m);
         m.flinchT = 0;
+        this.trailImpact('kill');   // 트레일 위계 최상단 — 금백(㉲)
         // 처치 버스트: 주황 파편 + 흰 코어 스파크 + 순간 점광 + 충격 링, 보스는 전부 확대판 (마지막 한 방이 제일 세게 터지도록)
         // 버스트 원점은 적 실높이의 중간 — 고정 +0.5는 보스(실높이 2.1)에선 무릎 높이라
         // 마지막 한 방이 발밑에서 터졌다.
@@ -13332,6 +13335,33 @@ const Scene3D = {
     // ---- 무기 궤적 트레일 (근접 스윙 판독성 — 삼각 스트립 리본, 수명 0.15s 테이퍼) ----
     // 무기 계열별 날 끝 y (weaponG 로컬) — 궤적을 날 끝에서 뽑기 위한 길이표
     TRAIL_TIP: { sword: 0.95, axe: 0.85, spear: 1.25, hammer: 0.8, dagger: 0.55, club: 0.6, mace: 0.75, rapier: 1.05, scythe: 1.15 },
+    // 임팩트 티어별 트레일 — 7차 지적 ㉲ "140 과 10k 가 같은 트레일". 트레일은 **스윙 시작**에
+    // 무기 시대색으로 켜지는데, 그 시점엔 이번 타격이 얼마짜리인지 아직 정해지지 않았다(피해는
+    // 0.16초 뒤 접촉에서 굴린다). 그래서 스윙 색만으로는 위계를 줄 수가 없었다.
+    // → 접촉 순간에 **남은 리본을 소급해서** 티어 색·세기로 갈아탄다. 리본 수명이 0.22초라
+    //    접촉 뒤로도 충분히 보이고, 눈에는 '칼이 지나간 자국이 뒤늦게 확 달아오르는' 것으로 읽힌다.
+    // 색 언어는 `flashMesh`·데미지 숫자와 **같은 사다리**를 쓴다(일반 청백 < 크리 주황 < 처치 금백) —
+    // 한 화면에서 몸 플래시·숫자·트레일이 따로 놀면 위계가 세 갈래로 흩어진다.
+    TRAIL_TIER: {
+        normal: { c: 0xcfe8ff, gain: 1.0, core: 0.35 },
+        crit: { c: 0xff7a1a, gain: 1.3, core: 0.62 },
+        kill: { c: 0xfff6e0, gain: 1.5, core: 0.9 },
+    },
+    // 접촉 순간 호출 — 남은 트레일을 티어 색·세기로 물들이고 수명 동안 원래대로 흘려보낸다.
+    trailImpact(tier) {
+        if (!this.trailMat) return;
+        const T = this.TRAIL_TIER[tier] || this.TRAIL_TIER.normal;
+        const u = this.trailMat.uniforms;
+        u.uColor.value.setHex(T.c);
+        u.uGain.value = T.gain;
+        u.uCore.value = T.core;
+        // 증폭만 되돌린다(색은 다음 `trailStart` 가 무기색으로 되돌린다) — 안 흘리면 리본이
+        // 꺼질 때까지 같은 세기로 남아 '스윙이 안 끝난' 것처럼 보인다.
+        this.addAnim(0.22, k => {
+            u.uGain.value = T.gain + (1 - T.gain) * k;
+            u.uCore.value = T.core + (0.35 - T.core) * k;
+        });
+    },
     trailStart(colorHex) {
         if (!this.trailMesh) {
             const geo = new THREE.BufferGeometry();
@@ -13340,13 +13370,15 @@ const Scene3D = {
             // 가산 블렌딩은 풀 아크에서 겹침이 순백 삼각형으로 폭주 (비평가 7.1 1번 화이트아웃의 실체) —
             // 노멀 블렌딩 + 나이별 알파 페이드 + 신선한 구간만 백색 코어로 '읽히는 곡선' 리본
             this.trailMat = new THREE.ShaderMaterial({
-                uniforms: { uColor: { value: new THREE.Color(0xffffff) } },
+                // uGain = 임팩트 순간 티어별 알파 증폭 · uCore = 날끝 흰 코어 세기.
+                // 둘 다 trailStart 가 스윙마다 기본값으로 되돌리므로 티어 색이 다음 스윙에 새지 않는다.
+                uniforms: { uColor: { value: new THREE.Color(0xffffff) }, uGain: { value: 1 }, uCore: { value: 0.35 } },
                 vertexShader: 'attribute float aFade; varying float vFade;\n' +
                     'void main(){ vFade = aFade; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-                fragmentShader: 'uniform vec3 uColor; varying float vFade;\n' +
+                fragmentShader: 'uniform vec3 uColor; uniform float uGain; uniform float uCore; varying float vFade;\n' +
                     'void main(){ float f = clamp(vFade, 0.0, 1.0);\n' +
-                    '  vec3 col = mix(uColor, vec3(1.0), pow(f, 4.0) * 0.35);\n' + // 날 끝 최신 구간만 얇은 흰 코어
-                    '  gl_FragColor = vec4(col, pow(f, 1.6) * 0.72); }',
+                    '  vec3 col = mix(uColor, vec3(1.0), pow(f, 4.0) * uCore);\n' + // 날 끝 최신 구간만 얇은 흰 코어
+                    '  gl_FragColor = vec4(col, clamp(pow(f, 1.6) * 0.72 * uGain, 0.0, 1.0)); }',
                 transparent: true, depthWrite: false, side: THREE.DoubleSide,
             });
             this.trailMesh = new THREE.Mesh(geo, this.trailMat);
@@ -13354,6 +13386,8 @@ const Scene3D = {
             this.scene.add(this.trailMesh);
         }
         this.trailMat.uniforms.uColor.value.setHex(colorHex).offsetHSL(0, 0.35, -0.04); // 채도 상향·명도 소폭 하향 — 밝은 배경 위 washy 방지
+        this.trailMat.uniforms.uGain.value = 1;      // 지난 스윙의 임팩트 증폭을 되돌린다(안 되돌리면 한 번 크리를 낸 뒤 모든 스윙이 크리처럼 보인다)
+        this.trailMat.uniforms.uCore.value = 0.35;
         this.trailPts = this.trailPts || [];
         this._trailPrevLocal = null;
         this._trailOn = true;
