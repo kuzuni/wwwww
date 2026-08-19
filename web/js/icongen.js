@@ -740,8 +740,12 @@ const IconGen = {
             ctx.translate(S / 2, S / 2);
             ctx.rotate(-0.14);
             ctx.translate(-S / 2, -S / 2);
-            const x = S * 0.08, y = S * 0.26, w = S * 0.84, h = S * 0.48, r = S * 0.06;
-            const nr = S * 0.075, nx = x + w * 0.34;
+            /* 노치는 **크게**. `dungeon-row-quality` 잔여 결함 ⓔ: 26px 프레임(던전 배너 보상 슬롯)에서
+               종전 nr = S*0.075 는 라운드 모서리에 묻혀 실루엣이 그냥 둥근 사각형이었고, 아이콘이
+               '카드/봉투'로 읽혔다. 티켓을 티켓으로 만드는 건 **허리가 잘록한 실루엣** 하나뿐이라
+               위아래 반원을 키워 몸통 높이의 절반씩 베어 낸다(잔여 허리 ≈ 0.25h). */
+            const x = S * 0.08, y = S * 0.25, w = S * 0.84, h = S * 0.50, r = S * 0.06;
+            const nr = S * 0.125, nx = x + w * 0.36;
 
             // 티켓 본체 = 라운드 사각형 − 위아래 노치
             const path = () => {
@@ -777,10 +781,13 @@ const IconGen = {
             ctx.fillRect(x, y, w, h * 0.10);
             ctx.fillStyle = 'rgba(10,6,80,.4)';
             ctx.fillRect(x, y + h * 0.88, w, h * 0.12);
-            // 절취선
-            ctx.setLineDash([S * 0.028, S * 0.026]);
-            ctx.lineWidth = S * 0.016;
-            ctx.strokeStyle = 'rgba(18,10,110,.6)';
+            // 스텁(왼쪽 조각)을 한 단 어둡게 — 절취선 하나로는 두 조각이 안 갈린다
+            ctx.fillStyle = 'rgba(12,6,80,.34)';
+            ctx.fillRect(x, y, nx - x, h);
+            // 절취선 — 파랑 위 어두운 점선은 26px 에서 사라진다. 밝은 점선으로 뒤집고 굵힌다.
+            ctx.setLineDash([S * 0.040, S * 0.032]);
+            ctx.lineWidth = S * 0.026;
+            ctx.strokeStyle = 'rgba(232,236,255,.88)';
             ctx.beginPath();
             ctx.moveTo(nx, y + nr * 1.2);
             ctx.lineTo(nx, y + h - nr * 1.2);
@@ -793,7 +800,8 @@ const IconGen = {
             ctx.restore();
 
             // 왼쪽 스텁의 별
-            const sx = x + w * 0.17, sy = y + h * 0.5, sr = S * 0.10;
+            // 별은 작게 — 종전 크기는 노치보다 눈에 먼저 들어와 '별 붙은 카드'로 읽히게 했다
+            const sx = x + w * 0.18, sy = y + h * 0.5, sr = S * 0.082;
             ctx.beginPath();
             for (let i = 0; i < 10; i++) {
                 const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
@@ -809,8 +817,9 @@ const IconGen = {
             ctx.stroke();
 
             path();
-            ctx.lineWidth = S * 0.022;
-            ctx.strokeStyle = 'rgba(10,5,60,.8)';
+            // 바깥 키라인 — 노치 곡선이 배경과 갈리려면 이 선이 두꺼워야 한다(작은 프레임일수록)
+            ctx.lineWidth = S * 0.032;
+            ctx.strokeStyle = 'rgba(8,4,44,.92)';
             ctx.stroke();
             ctx.restore();
         },
