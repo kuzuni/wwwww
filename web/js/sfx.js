@@ -276,6 +276,15 @@ const SFX = {
         this.tone(1500 * k, 0.1, { type: 'square', gain: 0.1, slideTo: 400, jitter: 0.06 });
     },
 
+    // 참격 — 쇠가 공기를 가르는 소리. 스윕 노이즈(가르기) + 짧은 금속 링(날). 벨 때마다 음이
+    // 올라가 '연타가 쌓인다'가 들리게 한다(운석·낙뢰와 달리 여기선 올라가는 쪽이 맞다).
+    slashArc(i, tier) {
+        const k = 1 + Math.min(4, i || 0) * 0.09;
+        this.click({ freq: 6200 * k, gain: 0.2 });
+        this.noiseBurst(0.1, { type: 'bandpass', filterFreq: 3200 * k, filterTo: 1100, gain: 0.2, Q: 1.4 });
+        this.ring(2600 * k, 0.11, { gain: 0.07 + (tier || 0) * 0.008, delay: 0.006, rvb: 0.18 });
+    },
+
     // ---- 장비 교체 3박자 (equip-swap-throwout, 사용자 지시 2026-08-19) ----
     // 화면 연출(`UI.playEquipSwapFx`)의 세 순간에 하나씩 붙는다: 던짐(0ms) → 딸깍(130ms) → 착지(558ms).
     // 셋이 같은 대역이면 한 덩어리로 뭉개져 '세 번 일어난 일'로 안 들린다 — 대역을 갈라 둔다:

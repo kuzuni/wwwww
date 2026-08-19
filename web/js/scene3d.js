@@ -9520,11 +9520,9 @@ const Scene3D = {
             // 예전엔 여기서 볼트 1발 + 폭발 1회로 끝나 '따' 하고 닫혔다.
             this.stormCloudStrike(scene, targetIds, color, tier || 0);
         } else if (fx === 'slash') {
-            targets.forEach(m => {
-                const p = m.g.position.clone().add(new THREE.Vector3(0, 0.7, 0));
-                this.spawnSparks(p, 22, color.getHex());
-                this.flashLight(p, color.getHex(), 0.2);
-            });
+            // 참격 세례 (skill-fx-exaggerated). 예전엔 **불티 22개 + 조명 한 번**이 전부라
+            // 화면에 그려지는 물건이 하나도 없었다 — 18종 중 가장 빈약한 자리였다.
+            this.slashArcs(targetIds, color, tier || 0);
         } else if (fx === 'heal') {
             for (let i = 0; i < 20; i++) {
                 const p = this.heroG.position.clone().add(new THREE.Vector3(U.rand(-0.5, 0.5), U.rand(0, 0.5), U.rand(-0.4, 0.4)));
@@ -9835,6 +9833,73 @@ const Scene3D = {
         this.scene.add(m);
         this.addAnim(1.5, k => { m.material.opacity = 0.62 * (1 - k * k); },
             () => { m.geometry.dispose(); m.material.dispose(); this.scene.remove(m); });
+    },
+
+    // ---- 스킬 전용 미니 연출 ③: 참격 세례 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----
+    // `slash`(강타·처형)는 **18종 중 가장 빈약했다** — 불티 22개와 조명 한 번이 전부라 화면에
+    // 그려지는 물건이 하나도 없었다(다른 fx 는 최소한 폭발·빔·볼트 메시라도 있다).
+    // 그런데 강타는 **커먼**이라 초반 플레이어가 가장 많이 누르는 스킬 중 하나다 — 사용자가 말한
+    // "연출이 대체로 약하다"의 체감 대부분이 이 대역에서 나온다.
+    //
+    // 장면 4단: 조준 섬광(적 위에 가는 빛줄기) → 참격이 **엇갈려** 지나간다(등급만큼 여러 번) →
+    //           벨 때마다 불티·충격링·흔들림 → 벤 자국이 잠깐 남았다 지워진다.
+    // ⚠️ 초승달은 **카메라를 향해** 세워야 '벴다'로 읽힌다. 월드 축에 고정하면 옆에서 본 얇은
+    //    판이 돼 프레임에 따라 사라진다 — `lookAt(camera)` 로 매번 카메라에 맞춘다.
+    slashArcs(targetIds, color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
+        const pw = t / 5;
+        const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
+        const spots = (live.length ? live.map(m => m.g.position.clone()) : [this.heroG.position.clone()]).slice(0, 3);
+        const n = 2 + Math.min(3, t);                 // 커먼 2번 … 레전더리 이상 5번
+        for (const c of spots) {
+            const at = c.clone().add(new THREE.Vector3(0, 0.72, 0));
+            // 조준 섬광 — 베기 직전 짧게. 이게 없으면 첫 참격이 예고 없이 튀어나온다.
+            this.flashLight(at, 0xffffff, 0.1);
+            for (let i = 0; i < n; i++) {
+                setTimeout(() => {
+                    const R = (0.85 + pw * 0.5) * (i === n - 1 ? 1.25 : 1);   // 마지막 한 번이 가장 크다
+                    // 초승달 = 부분 링(RingGeometry 의 thetaLength). 안쪽을 두껍게 해 날의 배가 생긴다.
+                    const g = new THREE.RingGeometry(R * 0.74, R, 26, 1, -0.62, 1.24);
+                    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0,
+                        side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+                    const arc = new THREE.Mesh(g, mat);
+                    arc.userData.slashArc = true;
+                    // 흰 코어를 겹쳐 날을 세운다 — 색 하나면 '색 띠'로, 코어가 있으면 '날'로 읽힌다
+                    const core = new THREE.Mesh(new THREE.RingGeometry(R * 0.86, R * 0.96, 26, 1, -0.5, 1.0),
+                        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0,
+                            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+                    const G = new THREE.Group();
+                    G.add(arc, core);
+                    G.position.copy(at);
+                    // 번갈아 반대 방향으로 — 같은 각으로 반복하면 한 번 벤 것이 깜빡이는 걸로 보인다
+                    const dir = i % 2 ? -1 : 1;
+                    const tilt = dir * (0.7 + U.rand(-0.25, 0.25));
+                    if (this.camera) G.lookAt(this.camera.position);
+                    G.rotateZ(tilt);
+                    this.scene.add(G);
+                    const swing = 0.9 + pw * 0.5;
+                    this.addAnim(0.17, k => {
+                        // 날이 **지나간다** — 호를 따라 미끄러지며 커지고, 뒤로 갈수록 옅어진다
+                        const e = 1 - Math.pow(1 - k, 2);
+                        G.scale.setScalar(0.5 + e * 1.25);
+                        const slide = (-0.5 + e) * swing;
+                        G.position.set(at.x + Math.cos(tilt + Math.PI / 2) * slide * dir, at.y + Math.sin(tilt + Math.PI / 2) * slide, at.z);
+                        const a = k < 0.28 ? k / 0.28 : 1 - (k - 0.28) / 0.72;
+                        mat.opacity = a * 0.95;
+                        core.material.opacity = a;
+                    }, () => {
+                        G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+                        this.scene.remove(G);
+                    });
+                    // 벤 순간의 반응 — 불티는 날이 지나가는 축과 **직교**로 튀어야 '잘렸다'가 된다
+                    this.spawnSparks(at.clone(), Math.round(10 + pw * 14), color.getHex(), { speed: 1.2 + pw * 0.8 });
+                    this.expandRing(new THREE.Vector3(at.x, 0.02, at.z), color, 0.7 + pw * 0.6);
+                    this.shake(0.14 + pw * 0.18);
+                    SFX.slashArc(i, t);
+                }, i * (82 - pw * 16));
+            }
+        }
     },
 
     // 지그재그 번개 볼트 (항목 ㉰: 번개류=지그재그 볼트 메시). 예전 bolt 는 하늘에서 내리꽂는

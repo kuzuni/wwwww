@@ -205,6 +205,64 @@ const ok = (c, m) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${m}`); if (!c) fail
     const mcounts = mrows.map(r => r.impacts.length);
     ok(mcounts[mcounts.length - 1] > mcounts[0], `운석 등급 사다리 — ${mcounts.join(' → ')}발`);
 
+    // ================= 참격 세례 (slash) =================
+    // 여기서 '연출이 존재하는가'는 곧 **화면에 그려지는 물건이 있는가**다 — 예전 slash 는
+    // 불티와 조명뿐이라 메시가 0개였다. 그래서 첫 단언이 '참격 메시가 실재한다'이다.
+    console.log('\n════ 참격 세례 ════');
+    const srows = [];
+    for (const rarity of ['common', 'legendary']) {
+        const r = await p.evaluate(async (rar) => {
+            Scene3D.clearEnemies();
+            const e = { id: 7800 + rar.length, x: Combat.MELEE_X, alive: true, hp: Big.of(1e9), maxHp: Big.of(1e9) };
+            Combat.enemies = [e]; Scene3D.spawnEnemy(e);
+            for (const a of Scene3D.anims) { try { a.fn(1); a.onDone && a.onDone(); } catch (x) {} }
+            Scene3D.anims = [];
+            const m = Scene3D.enemyMap.get(e.id);
+            m.g.position.set(e.x + Scene3D.worldX, 0, 0);
+            const def = SKILL_DEFS.find(s => s.fx === 'slash' && s.rarity === rar) || { rarity: rar, fx: 'slash', color: '#cfd8dc' };
+            const tier = Scene3D.skillTier(def);
+            const t0 = performance.now();
+            const frames = [], born = [];
+            // 참격은 0.17초만 살아 동시 카운트로는 총 횟수를 못 센다 — 씬 추가를 훅으로 잡는다
+            const origAdd = Scene3D.scene.add.bind(Scene3D.scene);
+            Scene3D.scene.add = (o) => { if (o && o.children && o.children.some(c => c.userData && c.userData.slashArc)) born.push({ t: performance.now() - t0 }); return origAdd(o); };
+            Scene3D.skillEffect('slash', def.color, [e.id], def);
+            const ep = m.g.position.clone();
+            await new Promise(res => {
+                const iv = setInterval(() => {
+                    Scene3D.update(1 / 60);
+                    let arcs = 0, maxD = 0;
+                    Scene3D.scene.traverse(o => {
+                        if (o.userData && o.userData.slashArc) {
+                            arcs++;
+                            const wp = new THREE.Vector3(); o.getWorldPosition(wp);
+                            maxD = Math.max(maxD, Math.hypot(wp.x - ep.x, wp.z - ep.z));
+                        }
+                    });
+                    frames.push({ t: performance.now() - t0, arcs, maxD: +maxD.toFixed(2) });
+                    if (performance.now() - t0 > 1600) { clearInterval(iv); res(); }
+                }, 16);
+            });
+            Scene3D.scene.add = origAdd;
+            return { rar, tier, frames, born, want: 2 + Math.min(3, tier) };
+        }, rarity);
+        srows.push(r);
+        await p.waitForTimeout(250);
+    }
+    for (const r of srows) {
+        console.log(`\n── slash ${r.rar} (tier ${r.tier}) ──`);
+        const maxArcs = Math.max(0, ...r.frames.map(f => f.arcs));
+        const spread = r.born.length >= 2 ? r.born[r.born.length - 1].t - r.born[0].t : 0;
+        console.log(`   참격 ${r.born.length}회 · 동시 최대 ${maxArcs}개 · 첫~끝 ${spread.toFixed(0)}ms · 시각 ${r.born.map(b => b.t.toFixed(0)).join(', ')}ms`);
+        ok(maxArcs > 0, `[slash ${r.rar}] 참격 메시가 실제로 화면에 있다 (동시 최대 ${maxArcs}개 >0 — 예전엔 메시가 0개였다)`);
+        ok(r.born.length === r.want, `[slash ${r.rar}] 참격 ${r.born.length}회 (코드값 ${r.want}회)`);
+        if (r.born.length >= 2) ok(spread > 60, `[slash ${r.rar}] 엇갈려 지나간다 (첫~끝 ${spread.toFixed(0)}ms >60)`);
+        const near = Math.max(0, ...r.frames.filter(f => f.arcs > 0).map(f => f.maxD));
+        ok(near < 2.0, `[slash ${r.rar}] 참격이 적을 벤다 (적 중심에서 최대 ${near.toFixed(2)}유닛 <2.0)`);
+        ok(r.frames[r.frames.length - 1].arcs === 0, `[slash ${r.rar}] 연출 뒤 잔존 0 (${r.frames[r.frames.length - 1].arcs}개)`);
+    }
+    ok(srows[1].born.length > srows[0].born.length, `참격 등급 사다리 — ${srows.map(r => r.born.length).join(' → ')}회`);
+
     // ⑵-b 등급 사다리 — 높을수록 발수가 많다(단조 비감소, 양 끝은 실제로 늘어야 한다)
     const counts = rows.map(r => r.strikes.length);
     ok(counts.every((c, i) => i === 0 || c >= counts[i - 1]) && counts[counts.length - 1] > counts[0],
