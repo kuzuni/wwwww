@@ -11177,6 +11177,64 @@ const Scene3D = {
     //    원인이었다. voxel 은 칸마다 색을 줄 수 있어(`Voxel.recolor`) 무늬가 면 위에 구워진다 —
     //    **얹은 판이 아니니 뚫을 것도 없다.** 이 항목이 다섯 번 밟은 '안장깔개 밑' 함정이
     //    화풍 전환만으로 통째로 사라지는 자리라, 방향 판정에서 같이 봐 달라고 적어 둔다.
+    // 🧊 **공용 마구 파츠 세트** (`mount-species-recognizable` ⓒ, 2026-08-20).
+    // 왜 공용인가: 채점에서 비평가 2인이 독립적으로 같은 말을 했다 — *"마구가 통째로 없어
+    //   '탈것'으로 안 읽힌다. 등에 상자를 얹은 야생 거북이다"* / *"안장을 종별로 다시 만들지 말고
+    //   **규격 파츠 1세트**를 만들어 29종에 얹어라. 지금 안장은 재사용 불가한 일회용 조형이다."*
+    //   그래서 종 빌더가 부르는 **한 곳**에 둔다. 종마다 손으로 안장을 그리면 29종이 제각각이 되고,
+    //   그게 매끈판에서 실제로 벌어진 일이다(굴레가 종별로 달라진 게 아니라 **전 종이 같아서** 문제였고,
+    //   반대로 안장은 종별 상수가 흩어져 `saddleRig` 에 몸통 치수가 박히는 사고가 났다).
+    // 규약: **칸(cell) 좌표만 다룬다.** 월드 변환·피벗은 호출부(`part`)가 한다 — 여기서 월드 단위를
+    //   섞으면 종마다 칸 크기가 달라졌을 때 마구만 어긋난다(비평가가 '셀 크기가 섞였다'고 읽은 그 증상).
+    // 입력은 **탈것이 재서 넘기는 치수**다: seatY(방석이 놓이는 칸 = 윗면이 안장 높이가 되는 칸) ·
+    //   rx/rz(방석 반지름) · girthY/girthRx/girthRz(뱃대끈이 몸을 감는 높이·반지름) · stirrupX/stirrupY.
+    // 반환은 **파츠별로 갈라서** 준다 — 등자는 `alignStirrups` 가 매 프레임 발까지 늘이는 부품이라
+    //   반드시 자기 피벗에 달려야 하고, 방석·뱃대끈은 몸에 고정이다. 한 덩어리로 주면 그 구분이 사라진다.
+    voxelTackVox(o) {
+        const V = Voxel;
+        const LEATHER = 0x2b1a0c, TRIM = 0xc9a227, IRON = 0x9e9e9e, BLANKET = 0x6d1f2c;
+        // XY 평면의 한 칸 두께 사각 고리 — 등자·재갈 고리용. `Voxel.ring` 은 **눕힌(XZ) 링**이라
+        // 등자로 쓰면 발이 통과하는 구멍이 위를 보고 누워 버린다(고리는 세워져야 발이 걸린다).
+        const ringXY = (r, color) => {
+            const out = [];
+            for (let x = -r; x <= r; x++) for (let y = -r; y <= r; y++)
+                if (Math.abs(x) === r || Math.abs(y) === r) out.push({ x: x, y: y, z: 0, c: color });
+            return out;
+        };
+        const cz = Math.max(1, Math.round(o.rz * 0.7));
+        // 방석 — 바깥 한 줄만 금색(테두리 문턱 0.82). 앞턱·뒷턱은 **한 층만** —
+        // 두 층으로 세우면 안장이 아니라 '의자 등받이'가 된다(시험판 1판에서 캡처로 확인).
+        const seat = V.merge(
+            V.recolor(V.ellipse(o.rx, o.rz, 1, { y0: o.seatY, color: LEATHER }),
+                v => ((v.x / o.rx) ** 2 + (v.z / o.rz) ** 2 > 0.82) ? TRIM : undefined),
+            V.at(V.slab(5, 1, 1, LEATHER), 0, o.seatY + 1, cz),
+            V.at(V.slab(5, 1, 1, LEATHER), 0, o.seatY + 1, -cz));
+        // 뱃대끈(girth) — 몸통을 한 바퀴 감는 링. **'탈것'이라는 정보의 절반은 이 띠가 진다**:
+        // 안장만 있으면 '등에 얹은 상자'이고, 몸을 감는 띠가 보여야 '채운 마구'로 읽힌다.
+        // 대비색(진홍)으로 두는 건 안장깔개와 같은 이유 — 등급색 파생이면 몸 위에서 대비가 0이다.
+        const girth = V.ellipse(o.girthRx, o.girthRz, 1,
+            { y0: o.girthY, rix: o.girthRx - 1.2, riz: o.girthRz - 1.2, color: BLANKET });
+        // 등자 — **계단 끈 + 세운 쇠고리.** 좌우를 따로 돌려준다(각각 자기 피벗에 달릴 부품이라서).
+        // 🚨 **1판 폐기 — 끈과 고리가 안 닿아 있었다.** 곧은 끈(3칸)에 고리를 −4 칸에 달았더니
+        //    사이에 **빈 칸이 하나** 생겨 캡처에서 '허공에 뜬 흰 액자'였다. 이 파일이 반복해 밟은
+        //    '떠 있는 부품'과 같은 사고인데, 복셀에서는 **칸이 면으로 닿는지**를 세면 끝난다.
+        //    → 방석 가장자리에서 고리까지를 **한 칸씩 걸어 내려가며** 채운다. x·y 를 번갈아 밟아
+        //    대각선으로만 닿는 칸이 안 생기게 한다(대각 접촉은 화면에서 '끊긴 것'으로 읽힌다).
+        const stirrup = (s) => {
+            const out = [];
+            let cx = Math.round(o.rx), cy = o.seatY;            // 시작 = 방석 가장자리
+            const x1 = o.stirrupX, y1 = o.stirrupY + 2;         // 끝 = 고리 바로 위
+            out.push({ x: s * cx, y: cy, z: 0, c: LEATHER });
+            let guard = 0;
+            while ((cx !== x1 || cy !== y1) && guard++ < 64) {
+                if (cx !== x1) { cx += Math.sign(x1 - cx); out.push({ x: s * cx, y: cy, z: 0, c: LEATHER }); }
+                if (cy !== y1) { cy += Math.sign(y1 - cy); out.push({ x: s * cx, y: cy, z: 0, c: LEATHER }); }
+            }
+            return V.merge(out, V.at(ringXY(1, IRON), s * x1, o.stirrupY, 0));
+        };
+        return { seat: seat, girth: girth, stirrupL: stirrup(-1), stirrupR: stirrup(1) };
+    },
+
     makeMountVoxelPilot(name, rarity) {
         const g = new THREE.Group();
         const c = RARITY_HEX[rarity] || 0xbdbdbd;
@@ -11259,16 +11317,19 @@ const Scene3D = {
         // ⑷ 꼬리 — 머리와 **크기가 비슷하면 앞뒤가 안 갈린다**(비평가 지적: 옆에서 양방향 생물).
         //    머리(폭 7)의 절반 이하로 줄인다.
         g.userData.tail = part(V.at(V.slab(3, 2, 3, SKIN_D), 0, 4, -11), 0, 5, -10);
-        // ⑸ 안장 — 방석 윗면이 정확히 0.44 에 오는 한 층(규약 ⑵). 앞턱·뒷턱은 그 위로 한 층.
-        //    ⚠️ 금색 테두리 문턱 0.55 는 방석의 절반 이상을 금으로 칠해 '금색 의자'였고, 앞턱·뒷턱을
-        //       2층으로 세웠더니 '의자 등받이'였다(1판 캡처). 테두리는 바깥 한 줄만, 턱은 한 층만.
-        //    📌 **마구(등자·고삐·벨트)는 일부러 안 넣었다** — 비평가 2인이 "안장을 종별로 만들지 말고
-        //       **공용 파츠 1세트**로 만들어 29종에 얹으라"고 했다. 여기서 일회용으로 지으면 그 지적을
-        //       그대로 반복하는 것이라, 공용 마구 모듈은 다음 세션의 선행 과제로 남긴다.
-        const seat = V.ellipse(4.6, 5.8, 1, { y0: 10, color: LEATHER });
-        part(V.merge(V.recolor(seat, v => ((v.x / 4.6) ** 2 + (v.z / 5.8) ** 2 > 0.82) ? TRIM : undefined),
-                     V.at(V.slab(5, 1, 1, LEATHER), 0, 11, 4),
-                     V.at(V.slab(5, 1, 1, LEATHER), 0, 11, -4)), 0, 0, 0);
+        // ⑸ 마구 — **공용 세트**(`voxelTackVox`)를 얹는다. 종별로 안장을 다시 그리지 않는다는 게
+        //    채점 지적 ④ 의 요구다. 이 시험판이 그 세트의 **첫 소비자**이고, 여기서 넘기는 치수
+        //    (방석 칸·뱃대끈 높이·등자 자리)가 곧 종 빌더가 재서 넘길 값이다.
+        //    ⚠️ 방석 칸 `seatY: 10` → 윗면 11×0.04 = **0.44** = `MOUNT_FORMS.quad.saddle`(규약 ⑵).
+        const tack = this.voxelTackVox({
+            seatY: 10, rx: 4.6, rz: 5.8,
+            girthY: 6, girthRx: 8.1, girthRz: 9.7,     // 등딱지 y6 층(7.6/9.5) 바깥을 감는다
+            stirrupX: 9, stirrupY: 4,      // 고리는 등딱지 옆면 **밖**(y5 층 반폭 7.9)에 걸려야 발이 걸린다
+        });
+        part(tack.seat, 0, 0, 0);
+        part(tack.girth, 0, 0, 0);
+        // 등자는 좌우 **각자 피벗**에 — 라이브에서는 `alignStirrups` 가 매 프레임 발까지 늘인다.
+        g.userData.stirrups = [part(tack.stirrupL, -9, 4, 0), part(tack.stirrupR, 9, 4, 0)];
 
         g.userData.voxelPilot = true;
         return g;
