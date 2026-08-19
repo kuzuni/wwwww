@@ -3733,6 +3733,13 @@ IconGen._genderSym = function (ctx, S, female) {
         [0.76, 0.60], [0.76, 0.48], [0.80, 0.42], [0.84, 0.48], [0.84, 0.60],
         [0.90, 0.60], [0.90, 0.50], [0.95, 0.46], [1.02, 0.50]],
             '#b3c4c6', '#8298a8');   /* 10차 2인 공통: 원경 열은 아예 한색(청회) — 근경 초록과 색상군까지 갈라 3층을 세운다 */
+        /* 근청회 열 지붕 2톤 + 창(R2 A2·B2 공통 '회색 스카이라인 = 담장/무대 배경막' — 지붕·벽
+           분리와 창이 없으면 건물 판정이 안 선다. 초록 열과 같은 처방을 이 열에도 적용). */
+        [[0.03, 0.055, 0.08, 0.46, 0.40], [0.155, 0.185, 0.215, 0.34, 0.28], [0.30, 0.335, 0.37, 0.44, 0.38],
+        [0.475, 0.505, 0.535, 0.30, 0.24], [0.63, 0.665, 0.70, 0.42, 0.36], [0.76, 0.80, 0.84, 0.48, 0.42]].forEach(([lx, px, rx2, by, py]) =>
+            fill(ctx, '#93a7ad', () => { ctx.moveTo(W * lx, H * by); ctx.lineTo(W * px, H * py); ctx.lineTo(W * rx2, H * by); }));
+        [[0.048, 0.50], [0.178, 0.42], [0.328, 0.50], [0.498, 0.37], [0.655, 0.48], [0.792, 0.52]].forEach(([wx, wy]) =>
+            fill(ctx, '#8298a8', () => ctx.rect(W * wx, H * wy, W * 0.014, H * 0.032)));
         town([[-0.02, 0.74], [0.04, 0.74], [0.04, 0.60], [0.08, 0.54], [0.12, 0.60], [0.12, 0.74],
         [0.20, 0.74], [0.20, 0.62], [0.245, 0.56], [0.29, 0.62], [0.29, 0.74],
         [0.38, 0.74], [0.38, 0.64], [0.43, 0.58], [0.48, 0.64], [0.48, 0.74],
@@ -3821,11 +3828,10 @@ IconGen._genderSym = function (ctx, S, female) {
                남는다 — 채움 먼저 하면 원 3개의 안쪽 경계가 보여 벤다이어그램이 된다(2차 재채점). */
             ctx.beginPath(); p(); ctx.strokeStyle = oc; ctx.lineWidth = H * 0.036; ctx.stroke();
             ctx.beginPath(); p(); ctx.fillStyle = fc; ctx.fill();
-            /* 전경 소품 2톤 셀셰이딩(R3 B — 원본 화법): 아랫단 그늘 한 장 + 윗면 빛 한 줄.
-               클립 안이라 실루엣을 안 넘고, 저알파 얼룩이 아니라 하드엣지 밴드 2장뿐이다. */
-            ctx.save(); ctx.beginPath(); p(); ctx.clip();
-            ctx.fillStyle = 'rgba(0,0,0,.20)'; ctx.fillRect(bx - H * 0.30 * s, by + H * 0.005 * s, H * 0.60 * s, H * 0.24 * s);
-            ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(bx - H * 0.30 * s, by - H * 0.21 * s, H * 0.60 * s, H * 0.065 * s);
+            ctx.save();                                                    // 셀 그늘 한 단(R3 B ⓓ '전경 소품 2톤 — 원본 화법'): 아래 절반 하드에지 그늘
+            ctx.beginPath(); p(); ctx.clip();
+            ctx.fillStyle = 'rgba(0,0,0,.16)';
+            ctx.fillRect(bx - H * 0.30 * s, by - H * 0.015 * s, H * 0.60 * s, H * 0.30 * s);
             ctx.restore();
         };
         /* 키라인 통일(3차 재채점 교집합 ⓔ — '주먹·망치만 키라인이라 조형 언어가 갈린다'):
@@ -3891,22 +3897,26 @@ IconGen._genderSym = function (ctx, S, female) {
         /* R1 비평가 2인 공통 '망치 머리 은색 = 원본 아이덴티티 손실': 원본 실측은 어두운 올리브+
            금색 계열이다 — 어두운 올리브 2톤. 마을 초록(#71a94c·#4c7a3a)보다 두 단 어두운
            올리브라 실루엣이 붙지 않고, 머리가 걸리는 배경도 대부분 하늘이다. 금은 쐐기 못이 맡는다. */
-        /* R3 A·B 교집합 ⓐ — '내부 밴드 2면으로는 부족, 실루엣 자체가 사선 평행육면체여야':
-           클립 안 밝은 띠(가짜 윗면)를 폐기하고 **윗면 평행사변형 + 끝면 평행사변형을 실루엣에
-           붙인다**. local +x = 자루 진행 방향(회전 후 우상향) = 윗면 쪽, 깊이 벡터 v=(0.100,-0.082)
-           (화면에서 위쪽으로 물러나는 사선). 정면(바탕 올리브)·윗면(밝은 올리브)·끝면(중간 톤)
-           세 채움의 하드 에지가 면 경계 — 그라디언트 밴드 금지 규약은 그대로다. */
-        const FR = [[-0.185, -0.255], [0.115, -0.255], [0.115, 0.255], [-0.185, 0.255]];  // 정면(A·B·C·D)
-        const VX = 0.100, VY = -0.082;                                                    // 깊이 벡터
-        const uni = poly(ctx, S, [[-0.185, 0.255], [0.115, 0.255],                        // 합집합 실루엣(D→C→C'→B'→A'→A)
-        [0.115 + VX, 0.255 + VY], [0.115 + VX, -0.255 + VY], [-0.185 + VX, -0.255 + VY], [-0.185, -0.255]]);
-        ink(ctx, S, uni, '#5f6434', 0.032);                                               // 정면 바탕 + 근흑 키라인
-        on(ctx, poly(ctx, S, [FR[1], FR[2], [0.115 + VX, 0.255 + VY], [0.115 + VX, -0.255 + VY]]), '#828a49');   // 윗면(빛면)
-        on(ctx, poly(ctx, S, [FR[0], FR[1], [0.115 + VX, -0.255 + VY], [-0.185 + VX, -0.255 + VY]]), '#6d7340'); // 끝면(중간 톤 — 타격면 쪽)
-        on(ctx, bar(ctx, S, 0.115, -0.255, 0.115, 0.255, 0.016), 'rgba(0,0,0,.40)');      // 정면-윗면 하드 에지
-        on(ctx, bar(ctx, S, -0.185, -0.255, 0.115, -0.255, 0.014), 'rgba(0,0,0,.30)');    // 정면-끝면 하드 에지
-        ink(ctx, S, ell(ctx, S, 0.005, -0.175, 0.040, 0.034), '#c9a24e', 0.024);          // 쐐기 못(정면)
-        on(ctx, ell(ctx, S, -0.007, -0.183, 0.016, 0.013), 'rgba(255,255,255,.55)');      // 못 하이라이트
+        /* R3 A·B 교집합 ⓐ '2면 하드에지로는 부족 — 헤드 실루엣 자체에 윗면이 필요': 정면 사각형
+           **안**에 명도 밴드를 긋는 걸로는 면이 안 갈린다 — 실루엣 밖으로 **윗면 평행사변형**을
+           붙여 사선 평행육면체를 만든다. 회전 프레임의 local 좌표에서, 회전(SWING≈-0.83rad) 후
+           화면 위쪽이 되는 오프셋은 local (+0.55,-0.45) 방향이다(스크린 up 을 역회전한 값).
+           차례: 윗면 먼저(키라인 포함) → 정면(키라인이 두 면의 공유 모서리에 하드 에지를 남긴다).
+           ⚠️ 하이라이트 띠·물림 테·결 줄을 겹치면 '타탄 격자'(6차) — 면 분리는 색으로만. */
+        ink(ctx, S, poly(ctx, S, [[0.150, -0.235], [0.238, -0.307], [0.238, 0.163], [0.150, 0.235]]), '#828a48', 0.032);   // 윗면(빛면 — 한 단 밝은 올리브)
+        ink(ctx, S, rrect(ctx, S, -0.160, -0.255, 0.320, 0.510, 0.050), '#5f6434', 0.032);                                 // 정면
+        ctx.save();
+        ctx.beginPath(); rrect(ctx, S, -0.160, -0.255, 0.320, 0.510, 0.050)(); ctx.clip();
+        /* 금속 밴드 2줄(이번 런 A·B 공통 '궤짝/두부 블록' — 은색 전환은 채택 금지라 재질 단서를
+           밴드로 세운다): 양 타격면 끝의 다크골드 물림 테. 장축과 직교 방향 하나뿐이라 세로
+           광택선이 없는 지금은 타탄 함정(6차)과 무관하다. */
+        [-0.255, 0.203].forEach(y => {
+            on(ctx, rrect(ctx, S, -0.160, y, 0.320, 0.052, 0), '#8f7439');
+            on(ctx, rrect(ctx, S, -0.160, y + (y < 0 ? 0.052 : -0.014), 0.320, 0.014, 0), 'rgba(0,0,0,.35)');   // 밴드 안쪽 에지
+        });
+        ctx.restore();
+        ink(ctx, S, ell(ctx, S, 0.052, -0.190, 0.040, 0.034), '#c9a24e', 0.024);          // 쐐기 못
+        on(ctx, ell(ctx, S, 0.040, -0.198, 0.016, 0.013), 'rgba(255,255,255,.55)');       // 못 하이라이트
         ctx.restore();
     };
 
@@ -3979,30 +3989,55 @@ IconGen._genderSym = function (ctx, S, female) {
            달을 지나는 구성). 조각이 짧으면 혹 반복이 두세 개뿐이라 패턴으로 읽힐 틈이 없다. */
         streak(W * 0.355, H * 0.300, W * 0.160, H * 0.040, '#080b18');    // 달 왼 가장자리에 걸치는 조각
         streak(W * 0.590, H * 0.345, W * 0.120, H * 0.034, '#080b18');    // 달 오른 아래 조각(y를 어긋냄)
-        /* 박쥐 — R3 교집합 ⓒ: 스캘럽 2개+귀 2개 스탬프는 달 위에서도 '날개 4장 겹침 얼룩'으로
-           자체 오독됐다 — **날개 2장 활공 실루엣**으로 단순화한다. 넓게 편 뾰족 날개 두 장 +
-           몸통 혹 + 작은 머리 혹뿐(귀·스캘럽 없음). 밝은 달 원반 위 대비가 판독의 핵심이라
-           마릿수·자리(달 위/달 가장자리/원경)는 유지, 기울기 변주로 도장 반복만 깬다. */
+        /* 박쥐 — '개별 박쥐 실루엣'(비평가 2~4차 공통). ⚠️ 얕은 갈매기 곡선은 '물결 스크리블'로
+           읽힌다(4차에서 확인) — 날개를 위로 활짝 편 윤곽 + 아래 가장자리 스캘럽 2개 + 몸통·귀가
+           있어야 박쥐가 된다. 밝은 달 원반 위 한 마리가 실루엣 대비의 핵심. */
         const bat = (bx, by, bw, rot) => {
-            ctx.save();
-            ctx.translate(bx, by); ctx.rotate(rot || 0);
+            ctx.save();                                                    // R1 공통 '같은 스탬프 반복 + 나방 오독': 마리마다 기울여 비행 자세를 갈라 도장 반복을 깬다
+            ctx.translate(bx, by); ctx.rotate(rot || 0); ctx.translate(-bx, -by);
             ctx.beginPath();
-            ctx.moveTo(-bw * 1.18, -bw * 0.44);                            // 왼 날개 끝(위로 들려 뾰족)
-            ctx.quadraticCurveTo(-bw * 0.60, bw * 0.08, -bw * 0.16, bw * 0.16);   // 왼 날개 아랫변(완만 한 곡선)
-            ctx.quadraticCurveTo(0, bw * 0.32, bw * 0.16, bw * 0.16);      // 몸통 아래 혹 하나
-            ctx.quadraticCurveTo(bw * 0.60, bw * 0.08, bw * 1.18, -bw * 0.44);    // 오른 날개 아랫변
-            ctx.quadraticCurveTo(bw * 0.52, -bw * 0.14, bw * 0.08, -bw * 0.10);   // 오른 날개 윗변(얕게 파임)
-            ctx.quadraticCurveTo(0, -bw * 0.26, -bw * 0.08, -bw * 0.10);   // 작은 머리 혹
-            ctx.quadraticCurveTo(-bw * 0.52, -bw * 0.14, -bw * 1.18, -bw * 0.44);
+            ctx.moveTo(bx - bw * 1.06, by - bw * 0.86);                                      // 왼 날개 끝(더 높고 뾰족하게 — 대칭 원호 날개는 나방으로 읽힌다)
+            ctx.quadraticCurveTo(bx - bw * 0.72, by + bw * 0.10, bx - bw * 0.52, by + bw * 0.16);
+            ctx.quadraticCurveTo(bx - bw * 0.40, by - bw * 0.06, bx - bw * 0.28, by + bw * 0.16);   // 스캘럽 1
+            ctx.quadraticCurveTo(bx - bw * 0.16, by - bw * 0.04, bx - bw * 0.10, by + bw * 0.14);   // 스캘럽 2
+            ctx.lineTo(bx - bw * 0.10, by - bw * 0.16);                                      // 몸통 왼쪽
+            ctx.lineTo(bx - bw * 0.14, by - bw * 0.34);                                      // 왼 귀
+            ctx.lineTo(bx - bw * 0.04, by - bw * 0.22);
+            ctx.lineTo(bx + bw * 0.04, by - bw * 0.22);
+            ctx.lineTo(bx + bw * 0.14, by - bw * 0.34);                                      // 오른 귀
+            ctx.lineTo(bx + bw * 0.10, by - bw * 0.16);
+            ctx.lineTo(bx + bw * 0.10, by + bw * 0.14);
+            ctx.quadraticCurveTo(bx + bw * 0.16, by - bw * 0.04, bx + bw * 0.28, by + bw * 0.16);
+            ctx.quadraticCurveTo(bx + bw * 0.40, by - bw * 0.06, bx + bw * 0.52, by + bw * 0.16);
+            ctx.quadraticCurveTo(bx + bw * 0.72, by + bw * 0.10, bx + bw * 1.06, by - bw * 0.86);   // 오른 날개 끝(뾰족)
+            ctx.quadraticCurveTo(bx + bw * 0.34, by - bw * 0.38, bx, by - bw * 0.16);        // 날개 윗변(깊게 파인다 — 박쥐 막날개)
+            ctx.quadraticCurveTo(bx - bw * 0.34, by - bw * 0.38, bx - bw * 1.06, by - bw * 0.86);
             ctx.closePath(); ctx.fillStyle = '#05070f'; ctx.fill();
             ctx.restore();
         };
-        bat(W * 0.575, H * 0.205, H * 0.115, -0.06);                      // 달 원반 위쪽(활공 — 실루엣 대비의 핵심)
-        /* ⚠️ 달 왼 가장자리 자리(0.522, 0.455)는 앞 구름 조각(0.590, 0.345)의 왼 꼬리와 정확히
-           겹쳐 '한 덩어리 검은 얼룩'이 된다(캡처 확인 — R2 '구름 띠와 융합'의 재판) — 조각들
-           아래 빈 하늘로 내린다. 달 원반 하단에 걸쳐 오클루전은 유지. */
-        bat(W * 0.505, H * 0.545, H * 0.080, 0.24);
-        bat(W * 0.68, H * 0.13, H * 0.058, -0.18);                        // 원경 작은 한 마리(크기·기울기 변주)
+        /* 달 위 1마리(R3 A·B 교집합 ⓒ): 구름과 분리해도 상세 박쥐(스캘럽 2단+귀)는 자체 오독
+           ('날개 4장 겹침 얼룩') — 달 원반 위는 **날개 2장 활공 실루엣**으로 단순화한다. 앞전은
+           매끈한 한 획, 뒷전만 스캘럽 — 부속(귀·몸통 디테일)을 걷어야 원반 위에서 한 번에 읽힌다. */
+        (() => {
+            /* ⚠️ 자리는 달 원반 우상 사분면(구름 스트릭 2조각이 안 지나는 영역) — 좌중앙(0.565W,
+               0.225H)에 두면 윗 스트릭 꼬리와 날개가 붙어 '검은 엉킴'이 된다(이번 런 캡처 확인). */
+            const bx = W * 0.605, by = H * 0.195, bw = H * 0.120;
+            fill(ctx, '#05070f', () => {
+                ctx.moveTo(bx - bw, by - bw * 0.34);                                            // 왼 날개 끝(뾰족)
+                ctx.quadraticCurveTo(bx - bw * 0.45, by - bw * 0.04, bx - bw * 0.10, by - bw * 0.08);   // 앞전(매끈)
+                ctx.quadraticCurveTo(bx, by - bw * 0.20, bx + bw * 0.10, by - bw * 0.08);       // 몸통 혹 하나
+                ctx.quadraticCurveTo(bx + bw * 0.45, by - bw * 0.04, bx + bw, by - bw * 0.34);  // 오른 날개 끝(뾰족)
+                ctx.quadraticCurveTo(bx + bw * 0.52, by + bw * 0.14, bx + bw * 0.28, by + bw * 0.08);   // 뒷전 스캘럽
+                ctx.quadraticCurveTo(bx + bw * 0.10, by + bw * 0.24, bx, by + bw * 0.13);
+                ctx.quadraticCurveTo(bx - bw * 0.10, by + bw * 0.24, bx - bw * 0.28, by + bw * 0.08);
+                ctx.quadraticCurveTo(bx - bw * 0.52, by + bw * 0.14, bx - bw, by - bw * 0.34);
+                ctx.closePath();
+            });
+        })();
+        /* R2 A2 '달 주변 박쥐·스트릭이 한 덩어리 클러터': 달 왼 가장자리 오클루전 박쥐를 좌상단
+           빈 하늘로 이동 — 달 위엔 활공 실루엣 1마리만 남겨 실루엣 간 간격을 확보한다. */
+        bat(W * 0.285, H * 0.065, H * 0.075, 0.28);
+        bat(W * 0.72, H * 0.105, H * 0.055, -0.22);                       // (R1 공통 — 마릿수 줄이고 크기·기울기 변주: 4→3 · 활공 실루엣과 간격을 벌려 우상단 밀집 방지)
         // 언덕 2겹
         fill(ctx, '#151a34', () => { ctx.moveTo(0, H * 0.78); ctx.quadraticCurveTo(W * 0.30, H * 0.58, W * 0.62, H * 0.76); ctx.quadraticCurveTo(W * 0.85, H * 0.88, W, H * 0.72); ctx.lineTo(W, H); ctx.lineTo(0, H); });
         /* 폐가 실루엣(9차 — 묘지뿐이라 '유령 **마을**'이 성립 안 함): 언덕 능선 위 좌중앙에
@@ -4030,20 +4065,29 @@ IconGen._genderSym = function (ctx, S, female) {
            달빛 실루엣의 눈·입. 블록 머리말의 '달·묘비가 주인공이라 따로 안 얹는다' 전제는 비평가
            2쌍 연속 같은 지적이라 뒤집는다. 좌반부 휘도(title-ink 하한 26)는 밝아지는 쪽이라 안전. */
         (() => {
-            const gx = W * 0.455, gy = H * 0.565, r = H * 0.088, gc = 'rgba(235,240,255,.85)';
-            fill(ctx, gc, () => {
+            /* R2 A2·B2 공통 '유령이 작고 회색이라 조연': 1.35배 확대 + 순백 + 묘비와 같은 근흑
+               키라인(스트로크→채움 합집합) — 밤 무드의 다른 전경 소품 문법과 통일. */
+            const gx = W * 0.470, gy = H * 0.560, r = H * 0.118, gc = '#f4f7ff';
+            const body = () => {
                 ctx.arc(gx, gy, r, Math.PI, 0);                                                   // 머리 돔
                 ctx.lineTo(gx + r, gy + r * 1.15);
                 ctx.arc(gx + r * 0.66, gy + r * 1.15, r * 0.34, 0, Math.PI);                      // 물결 자락(오른→왼)
                 ctx.arc(gx, gy + r * 1.15, r * 0.34, 0, Math.PI);
                 ctx.arc(gx - r * 0.66, gy + r * 1.15, r * 0.34, 0, Math.PI);
                 ctx.closePath();
-            });
-            fill(ctx, gc, () => ctx.ellipse(gx - r * 1.12, gy + r * 0.32, r * 0.44, r * 0.24, -0.5, 0, Math.PI * 2));   // 팔
-            fill(ctx, gc, () => ctx.ellipse(gx + r * 1.12, gy + r * 0.26, r * 0.44, r * 0.24, 0.5, 0, Math.PI * 2));
-            fill(ctx, 'rgba(20,26,52,.85)', () => ctx.arc(gx - r * 0.32, gy + r * 0.02, r * 0.14, 0, Math.PI * 2));     // 눈
-            fill(ctx, 'rgba(20,26,52,.85)', () => ctx.arc(gx + r * 0.32, gy + r * 0.02, r * 0.14, 0, Math.PI * 2));
-            fill(ctx, 'rgba(20,26,52,.72)', () => ctx.ellipse(gx, gy + r * 0.44, r * 0.15, r * 0.21, 0, 0, Math.PI * 2));   // 놀란 입
+            };
+            const armL = () => ctx.ellipse(gx - r * 1.10, gy + r * 0.32, r * 0.44, r * 0.24, -0.5, 0, Math.PI * 2);
+            const armR = () => ctx.ellipse(gx + r * 1.10, gy + r * 0.26, r * 0.44, r * 0.24, 0.5, 0, Math.PI * 2);
+            [body, armL, armR].forEach(p => { ctx.beginPath(); p(); ctx.strokeStyle = '#05071a'; ctx.lineWidth = H * 0.028; ctx.lineJoin = 'round'; ctx.stroke(); });
+            [body, armL, armR].forEach(p => fill(ctx, gc, p));
+            ctx.save();                                                                           // 자락 쪽 셀 그늘 한 단(전경 소품 2톤 문법)
+            ctx.beginPath(); body(); ctx.clip();
+            ctx.fillStyle = 'rgba(90,105,160,.28)';
+            ctx.fillRect(gx - r * 1.1, gy + r * 0.78, r * 2.2, r * 0.85);
+            ctx.restore();
+            fill(ctx, '#141a34', () => ctx.arc(gx - r * 0.32, gy + r * 0.02, r * 0.14, 0, Math.PI * 2));     // 눈
+            fill(ctx, '#141a34', () => ctx.arc(gx + r * 0.32, gy + r * 0.02, r * 0.14, 0, Math.PI * 2));
+            fill(ctx, 'rgba(20,26,52,.80)', () => ctx.ellipse(gx, gy + r * 0.44, r * 0.15, r * 0.21, 0, 0, Math.PI * 2));   // 놀란 입
         })();
         /* 묘비 — 원본은 우하단에 **큰 것 둘**(회청 판 + 해골·RIP 각인)이고 [열기]가 일부를 덮는다.
            다섯 개를 고루 늘어놓던 종전 배치는 원본과 다르고 작아서 '바닥 혹'으로 읽혔다. */
@@ -4119,15 +4163,19 @@ IconGen._genderSym = function (ctx, S, female) {
         })();
         // 모서리 덤불 — 우하단(묘비 앞)·좌하단. 원본 네 모서리의 어두운 초록 덩어리.
         const dbush = (bx, by, s) => {
-            const p = () => {
-                ctx.arc(bx - H * 0.10 * s, by, H * 0.10 * s, 0, Math.PI * 2);
-                ctx.arc(bx + H * 0.02 * s, by - H * 0.06 * s, H * 0.12 * s, 0, Math.PI * 2);
-                ctx.arc(bx + H * 0.14 * s, by, H * 0.10 * s, 0, Math.PI * 2);
-            };
-            ctx.beginPath(); p(); ctx.fillStyle = '#122417'; ctx.fill();
-            /* 전경 소품 2톤 셀셰이딩(R3 B): 달빛 윗면 림 한 줄 — 밤 무드라 그늘 대신 림만 얹는다 */
-            ctx.save(); ctx.beginPath(); p(); ctx.clip();
-            ctx.fillStyle = 'rgba(150,175,215,.16)'; ctx.fillRect(bx - H * 0.26 * s, by - H * 0.19 * s, H * 0.52 * s, H * 0.055 * s);
+            ctx.beginPath();
+            ctx.arc(bx - H * 0.10 * s, by, H * 0.10 * s, 0, Math.PI * 2);
+            ctx.arc(bx + H * 0.02 * s, by - H * 0.06 * s, H * 0.12 * s, 0, Math.PI * 2);
+            ctx.arc(bx + H * 0.14 * s, by, H * 0.10 * s, 0, Math.PI * 2);
+            ctx.fillStyle = '#122417'; ctx.fill();
+            ctx.save();                                                    // 달빛 셀 라이트 한 단(R3 B ⓓ) — 윗변만 밝혀 덩어리의 위아래를 가른다
+            ctx.beginPath();
+            ctx.arc(bx - H * 0.10 * s, by, H * 0.10 * s, 0, Math.PI * 2);
+            ctx.arc(bx + H * 0.02 * s, by - H * 0.06 * s, H * 0.12 * s, 0, Math.PI * 2);
+            ctx.arc(bx + H * 0.14 * s, by, H * 0.10 * s, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.fillStyle = 'rgba(120,140,190,.16)';
+            ctx.fillRect(bx - H * 0.24 * s, by - H * 0.20 * s, H * 0.48 * s, H * 0.115 * s);
             ctx.restore();
         };
         dbush(W * 0.03, H * 1.00, 1.1); dbush(W * 0.97, H * 1.02, 1.3);
@@ -4173,6 +4221,13 @@ IconGen._genderSym = function (ctx, S, female) {
             let x = 0;
             while (x < W) { const r = H * (0.028 + R() * 0.022); ctx.arc(x + r, H * (0.395 + R() * 0.016), r, Math.PI, 0); x += r * (1.7 + R() * 0.7); }
             ctx.lineTo(W, H); ctx.closePath(); ctx.fillStyle = '#cdb094'; ctx.fill();
+            /* 원경 창끝 시그니처(R2 A2 '원경 군중 = 자갈밭/거품' — 머리 혹만으론 사람 판정이
+               안 선다): 띠 위로 솟는 가는 창 8자루. 띠보다 한 단 어두운 톤이라 원경 층은 유지. */
+            for (let i = 0; i < 8; i++) {
+                const px = W * (0.05 + i * 0.118 + R() * 0.04), top = H * (0.285 + R() * 0.05);
+                fill(ctx, '#b3937a', () => ctx.rect(px, top, H * 0.009, H * 0.115));
+                fill(ctx, '#b3937a', () => { ctx.moveTo(px - H * 0.013, top); ctx.lineTo(px + H * 0.004, top - H * 0.048); ctx.lineTo(px + H * 0.021, top); ctx.closePath(); });
+            }
         })();
         /* 인물 한 명 — 머리(kind 0=둥근 투구 1=뾰족 투구 2=뿔 투구) + 어깨. oc 를 주면 검정
            키라인을 두른다(앞 열 — 윤곽 없는 균일 반원 반복은 '스캘럽 무늬'로 읽힌다, 비평가 6차).
@@ -4184,29 +4239,29 @@ IconGen._genderSym = function (ctx, S, female) {
         const figure = (x, y, s, c, kind, oc, wf, ow) => {
             const r = H * 0.055 * s, w = wf || 1.9;
             const paths = [];
-            /* R3 B ⓓ '자갈밭 — pickKind 6종이 실루엣 단계에서 안 갈린다': 부속을 키운다 —
-               뾰족 투구 더 높게, 후드 꼬리 더 길게, 챙 더 넓게, 볏 더 크게, 뿔 한 단 크게
-               (⚠️ 뿔은 '고양이 귀' 함정이 있어 각도만 낮고 길게 — 위로 세우지 않는다). */
-            if (kind === 1) paths.push(() => { ctx.moveTo(x - r, y + r * 0.5); ctx.lineTo(x, y - r * 1.50); ctx.lineTo(x + r, y + r * 0.5); ctx.closePath(); });
-            else if (kind === 3) paths.push(() => {                        // 후드 — 정수리가 뒤로 흘러 처진 두건
+            /* R3 B ⓓ '자갈밭 — pickKind 6종이 실루엣 단계에서 안 갈린다': 부속(꼭지·챙·볏·뿔)을
+               키워 흑색 실루엣만으로 종이 갈리게 한다. ⚠️ 뿔은 4차 '고양이 귀' 함정 — 길이만 늘이고
+               빈도(8%)는 유지. */
+            if (kind === 1) paths.push(() => { ctx.moveTo(x - r, y + r * 0.5); ctx.lineTo(x, y - r * 1.45); ctx.lineTo(x + r, y + r * 0.5); ctx.closePath(); });
+            else if (kind === 3) paths.push(() => {                        // 후드 — 정수리가 뒤로 흘러 처진 두건(꼭지를 길게)
                 ctx.moveTo(x - r, y + r * 0.6);
                 ctx.quadraticCurveTo(x - r * 0.95, y - r * 0.85, x + r * 0.10, y - r * 1.02);
-                ctx.quadraticCurveTo(x + r * 1.05, y - r * 1.22, x + r * 1.58, y - r * 0.50);   // 처진 꼭지(더 길게)
-                ctx.quadraticCurveTo(x + r * 1.06, y - r * 0.26, x + r * 0.96, y + r * 0.25);
+                ctx.quadraticCurveTo(x + r * 1.05, y - r * 1.22, x + r * 1.58, y - r * 0.50);   // 처진 꼭지(더 길게 늘어뜨림)
+                ctx.quadraticCurveTo(x + r * 1.08, y - r * 0.30, x + r * 0.96, y + r * 0.25);
                 ctx.quadraticCurveTo(x + r * 0.85, y + r * 0.6, x + r * 0.7, y + r * 0.6);
                 ctx.closePath();
             });
             else if (kind === 5) {                                         // 챙 투구 — 사다리꼴 + 넓은 챙(챙을 더 넓고 두껍게)
                 paths.push(() => { ctx.moveTo(x - r * 0.78, y + r * 0.35); ctx.lineTo(x - r * 0.58, y - r * 0.88); ctx.lineTo(x + r * 0.58, y - r * 0.88); ctx.lineTo(x + r * 0.78, y + r * 0.35); ctx.closePath(); });
-                paths.push(() => ctx.rect(x - r * 1.38, y + r * 0.20, r * 2.76, r * 0.36));
+                paths.push(() => ctx.rect(x - r * 1.40, y + r * 0.18, r * 2.80, r * 0.38));
             }
             else paths.push(() => ctx.arc(x, y, r, 0, Math.PI * 2));       // 0·2·4 는 둥근 기본머리
-            if (kind === 2) {                                              // 양쪽 뿔 — 옆으로 눕혀 길게(위로 세우면 '고양이 귀' — 캡처로 재확인)
-                paths.push(() => { ctx.moveTo(x - r * 0.55, y + r * 0.1); ctx.lineTo(x - r * 1.60, y - r * 0.72); ctx.lineTo(x - r * 0.20, y - r * 0.80); ctx.closePath(); });
-                paths.push(() => { ctx.moveTo(x + r * 0.55, y + r * 0.1); ctx.lineTo(x + r * 1.60, y - r * 0.72); ctx.lineTo(x + r * 0.20, y - r * 0.80); ctx.closePath(); });
+            if (kind === 2) {                                              // 양쪽 뿔 — 빈도는 낮게 유지, 길이는 실루엣이 갈리게
+                paths.push(() => { ctx.moveTo(x - r * 0.7, y - r * 0.2); ctx.lineTo(x - r * 1.38, y - r * 1.22); ctx.lineTo(x - r * 0.15, y - r * 0.85); ctx.closePath(); });
+                paths.push(() => { ctx.moveTo(x + r * 0.7, y - r * 0.2); ctx.lineTo(x + r * 1.38, y - r * 1.22); ctx.lineTo(x + r * 0.15, y - r * 0.85); ctx.closePath(); });
             }
-            if (kind === 4)                                                // 볏 — 정수리 지느러미 한 장(크게)
-                paths.push(() => { ctx.moveTo(x - r * 0.60, y - r * 0.68); ctx.quadraticCurveTo(x + r * 0.05, y - r * 2.15, x + r * 0.70, y - r * 0.68); ctx.closePath(); });
+            if (kind === 4)                                                // 볏 — 정수리 지느러미 한 장(키를 올려 실루엣 분화)
+                paths.push(() => { ctx.moveTo(x - r * 0.58, y - r * 0.72); ctx.quadraticCurveTo(x + r * 0.05, y - r * 2.15, x + r * 0.62, y - r * 0.72); ctx.closePath(); });
             paths.push(() => { ctx.moveTo(x - r * w, y + r * 3.2); ctx.quadraticCurveTo(x - r * (w - 0.2), y + r * 0.7, x, y + r * 0.75); ctx.quadraticCurveTo(x + r * (w - 0.2), y + r * 0.7, x + r * w, y + r * 3.2); ctx.closePath(); });   // 어깨(넓고 낮게)
             if (oc) {
                 ctx.strokeStyle = oc; ctx.lineWidth = ow || H * 0.016; ctx.lineJoin = 'round';
@@ -4279,24 +4334,58 @@ IconGen._genderSym = function (ctx, S, female) {
         for (let i = 0; i < 13; i++) {
             figure(W * (i / 13 + 0.015 + R() * 0.025), H * (0.875 + R() * 0.08), 1.75 + R() * 0.8, i % 4 ? '#2b1a12' : '#38251a', [1, 2, 4, 5][(R() * 4) | 0], '#050302', 1.6 + R() * 0.7, H * 0.026);   // 머리가 하단 크롭에 잘리면 삼각 톱니로 읽힌다 — 0.875H · R2 공통: 전경 키라인 굵기 통일
         }
-        /* 근경 주역 1기(이번 런 A·B 공통 '초점 부재 — 균일 텍스처는 배너가 아니라 배경 타일'):
-           좌중앙에 1.5배+ 스케일의 볏 투구 장수 + 치켜든 검. 사람 단서(투구 볏·팔뚝·검 가드)를
-           실루엣 단계에서 명시한다. 우측 28% UI 열은 피한다(≤0.66W). */
+        /* 근경 주역 1기(R1 A·B 공통 '초점 부재' → R2 A2·B2 공통 '주역이 배경에 묻힘 + 이 행만
+           무키라인'): 다른 행 주인공 문법으로 **승격** — 근흑 키라인 + 채움 명도 분리 + 노을
+           림라이트 셀 한 단. 투구 챙·볏, 어깨 갑주 펄드런 혹 2개, 검 가드로 사람 단서를 명시.
+           우측 28% UI 열은 피한다(≤0.66W). */
         (() => {
-            const c = '#140b07';
-            figure(W * 0.335, H * 0.800, 3.3, c, 4, '#050302', 1.9, H * 0.030);            // 몸통+볏 투구(앞 열보다 크게·근흑)
-            fill(ctx, c, () => {                                                            // 오른팔 — 어깨에서 우상으로 뻗는 팔뚝
-                ctx.moveTo(W * 0.335 + H * 0.10, H * 0.905);
-                ctx.lineTo(W * 0.335 + H * 0.30, H * 0.640);
-                ctx.lineTo(W * 0.335 + H * 0.385, H * 0.680);
-                ctx.lineTo(W * 0.335 + H * 0.175, H * 0.960);
+            const x0 = W * 0.335, FC = '#2e1b0e';
+            const paths = [];
+            paths.push(() => {                                                              // 몸통 — 펄드런 혹 2개 + 목 골
+                ctx.moveTo(x0 - H * 0.205, H * 1.03);
+                ctx.lineTo(x0 - H * 0.19, H * 0.86);
+                ctx.quadraticCurveTo(x0 - H * 0.185, H * 0.775, x0 - H * 0.10, H * 0.775);
+                ctx.quadraticCurveTo(x0 - H * 0.045, H * 0.775, x0 - H * 0.04, H * 0.815);
+                ctx.lineTo(x0 + H * 0.04, H * 0.815);
+                ctx.quadraticCurveTo(x0 + H * 0.05, H * 0.775, x0 + H * 0.105, H * 0.775);
+                ctx.quadraticCurveTo(x0 + H * 0.19, H * 0.775, x0 + H * 0.195, H * 0.87);
+                ctx.lineTo(x0 + H * 0.21, H * 1.03);
                 ctx.closePath();
             });
-            const sx = W * 0.335 + H * 0.345, sy = H * 0.660;                               // 주먹 위 검(칼끝 위로)
-            fill(ctx, c, () => ctx.arc(sx, sy, H * 0.052, 0, Math.PI * 2));                 // 주먹
-            fill(ctx, c, () => ctx.rect(sx - H * 0.020, H * 0.335, H * 0.040, H * 0.310));  // 칼몸
-            fill(ctx, c, () => { ctx.moveTo(sx - H * 0.020, H * 0.335); ctx.lineTo(sx, H * 0.255); ctx.lineTo(sx + H * 0.020, H * 0.335); ctx.closePath(); });   // 칼끝
-            fill(ctx, c, () => ctx.rect(sx - H * 0.075, H * 0.600, H * 0.150, H * 0.034));  // 가드(가로바 — '검' 판독의 핵심)
+            paths.push(() => ctx.arc(x0, H * 0.705, H * 0.082, 0, Math.PI * 2));            // 머리
+            paths.push(() => {                                                              // 투구 돔 + 챙
+                ctx.moveTo(x0 - H * 0.115, H * 0.705);
+                ctx.quadraticCurveTo(x0 - H * 0.105, H * 0.585, x0, H * 0.578);
+                ctx.quadraticCurveTo(x0 + H * 0.105, H * 0.585, x0 + H * 0.115, H * 0.705);
+                ctx.lineTo(x0 + H * 0.135, H * 0.705); ctx.lineTo(x0 + H * 0.135, H * 0.737);
+                ctx.lineTo(x0 - H * 0.135, H * 0.737); ctx.lineTo(x0 - H * 0.135, H * 0.705);
+                ctx.closePath();
+            });
+            paths.push(() => {                                                              // 볏(정수리 지느러미)
+                ctx.moveTo(x0 - H * 0.045, H * 0.588);
+                ctx.quadraticCurveTo(x0 + H * 0.005, H * 0.455, x0 + H * 0.078, H * 0.588);
+                ctx.closePath();
+            });
+            paths.push(() => {                                                              // 오른팔(검 쪽으로)
+                ctx.moveTo(x0 + H * 0.10, H * 0.905);
+                ctx.lineTo(x0 + H * 0.30, H * 0.640);
+                ctx.lineTo(x0 + H * 0.385, H * 0.680);
+                ctx.lineTo(x0 + H * 0.175, H * 0.960);
+                ctx.closePath();
+            });
+            const sx = x0 + H * 0.345;
+            paths.push(() => ctx.arc(sx, H * 0.660, H * 0.055, 0, Math.PI * 2));            // 주먹
+            paths.push(() => ctx.rect(sx - H * 0.021, H * 0.335, H * 0.042, H * 0.292));    // 칼몸
+            paths.push(() => { ctx.moveTo(sx - H * 0.021, H * 0.335); ctx.lineTo(sx, H * 0.250); ctx.lineTo(sx + H * 0.021, H * 0.335); ctx.closePath(); });   // 칼끝
+            paths.push(() => ctx.rect(sx - H * 0.078, H * 0.598, H * 0.156, H * 0.036));    // 가드(가로바 — '검' 판독의 핵심)
+            ctx.lineJoin = 'round';
+            paths.forEach(p => { ctx.beginPath(); p(); ctx.strokeStyle = '#000'; ctx.lineWidth = H * 0.028; ctx.stroke(); });   // 합집합 키라인
+            paths.forEach(p => { ctx.beginPath(); p(); ctx.fillStyle = FC; ctx.fill(); });
+            ctx.save();                                                                     // 노을 림라이트(셀 한 단 — 왼 가장자리)
+            ctx.beginPath(); paths[0](); ctx.clip();
+            ctx.fillStyle = 'rgba(244,146,100,.28)';
+            ctx.fillRect(x0 - H * 0.20, H * 0.775, H * 0.045, H * 0.26);
+            ctx.restore();
         })();
         /* 근경 무기 실루엣(3차 재채점 교집합 ⓔ): 앞 열 머리 위로 솟는 도끼·검·미늘창 3자루 —
            창 6자루는 중경 몫이라 가늘어서, 근경엔 '무장한 무리'를 세우는 굵은 실루엣이 없었다.
@@ -4349,57 +4438,43 @@ IconGen._genderSym = function (ctx, S, female) {
         // 구불한 어두운 길 — 원본 앞바닥의 진한 띠
         fill(ctx, '#3a2a52', () => { ctx.moveTo(0, H * 0.84); ctx.quadraticCurveTo(W * 0.35, H * 0.76, W * 0.60, H * 0.84); ctx.quadraticCurveTo(W * 0.80, H * 0.90, W, H * 0.84); ctx.lineTo(W, H); ctx.lineTo(0, H); });
         ground(ctx, W, H, H * 0.92, '#33224a');
-        const tree = (x, sc, f) => {                                       // 고목 — 줄기 + 테이퍼 가지(R3 교집합 ⓑ) · f=-1 이면 좌우 미러
-            f = f || 1;                                                    // 우측 고목은 긴 가지를 **왼쪽(빈 들판)**으로 — 오른쪽으로 뻗으면 UI 열(0.70W~)을 침범한다(ⓑ 사양)
-            /* R3 A·B 공통 2연속 '끝이 둥근 매끈 Y자 = 산호/사슴뿔': 라운드캡 스트로크 원통을
-               버리고 **밑동 굵게 → 끝 한 점(뾰족)으로 좁아지는 채움 쐐기**로 가지를 다시 그린다.
-               가지마다 굵기·길이·처짐이 다르고, 본가지 끝에는 아래로 **처진 잔가지**를 단다.
-               키라인은 같은 경로 스트로크 → 채움 2패스(합집합 키라인 화법). */
-            const c = '#2a1d38', oc = '#0f0920', t = H * 0.06 * sc;
-            const trunk = () => { ctx.moveTo(x - t, H * 0.86); ctx.lineTo(x - t * 0.45, H * (0.86 - 0.52 * sc)); ctx.lineTo(x + t * 0.45, H * (0.86 - 0.52 * sc)); ctx.lineTo(x + t, H * 0.86); ctx.closePath(); };
-            // 테이퍼 가지 경로: 밑동(x0,y0) 폭 w0 → 끝(x1,y1)은 한 점. 곡률은 컨트롤(cx,cy)로.
-            const limbP = (x0, y0, cx2, cy2, x1, y1, w0) => () => {
+        const tree = (x, sc) => {
+            /* R3 A·B 교집합 ⓑ(2연속 지적) '끝이 둥근 매끈 Y자 = 산호/사슴뿔': 라운드캡 스트로크
+               화법 자체가 원인이다 — 가지를 **테이퍼 폴리곤**(밑동 폭 → 끝 한 점 뾰족)으로 다시
+               그린다. 처진 잔가지 2개 + 밑동→끝 굵기 변화 + 꼭대기 스파이크로 '고목의 앙상함'을
+               세우고, 키라인은 스트로크→채움 2패스 합집합(덤불 화법)으로 통일한다. */
+            const c = '#2a1d38', oc = '#0f0920', u = H * sc, B = H * 0.86;
+            const P = [];
+            const tap = (x0, y0, cx2, cy2, x1, y1, w0) => {                // 테이퍼 가지: 양 변이 끝 한 점에서 만난다
                 const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1;
                 const nx = -dy / L * w0 / 2, ny = dx / L * w0 / 2;
-                ctx.moveTo(x0 + nx, y0 + ny);
-                ctx.quadraticCurveTo(cx2 + nx * 0.4, cy2 + ny * 0.4, x1, y1);
-                ctx.quadraticCurveTo(cx2 - nx * 0.4, cy2 - ny * 0.4, x0 - nx, y0 - ny);
-                ctx.closePath();
+                P.push(() => {
+                    ctx.moveTo(x0 + nx, y0 + ny);
+                    ctx.quadraticCurveTo(cx2 + nx * 0.45, cy2 + ny * 0.45, x1, y1);
+                    ctx.quadraticCurveTo(cx2 - nx * 0.45, cy2 - ny * 0.45, x0 - nx, y0 - ny);
+                    ctx.closePath();
+                });
             };
-            const yy = k => H * (0.86 - k * sc);                           // 줄기 기준 높이
-            const u = H * sc;
-            const limbs = [
-                // 본가지 좌 — 굵고 길게, 중간이 처졌다 끝이 들린다
-                limbP(x - f * t * 0.2, yy(0.40), x - f * u * 0.15, yy(0.40), x - f * u * 0.26, yy(0.63), t * 0.95),
-                // 본가지 우 — 좌보다 가늘고 더 높이, 처짐 곡률 반대
-                limbP(x + f * t * 0.2, yy(0.44), x + f * u * 0.16, yy(0.42), x + f * u * 0.28, yy(0.68), t * 0.78),
-                // 위 잔가지 한 쌍(가늘게)
-                limbP(x - f * t * 0.1, yy(0.48), x - f * u * 0.09, yy(0.60), x - f * u * 0.14, yy(0.80), t * 0.45),
-                limbP(x + f * t * 0.1, yy(0.50), x + f * u * 0.07, yy(0.64), x + f * u * 0.11, yy(0.84), t * 0.38),
-                // 꼭대기 스파이크(고사한 우듬지 — 살짝 비틀림)
-                limbP(x, yy(0.51), x + f * u * 0.02, yy(0.66), x + f * u * 0.045, yy(0.90), t * 0.55),
-                // 아래 처진 가지(밑동에서 낮게 나와 끝이 땅으로 처진다)
-                limbP(x - f * t * 0.5, yy(0.24), x - f * u * 0.13, yy(0.24), x - f * u * 0.19, yy(0.16), t * 0.50),
-                // 본가지 끝 처진 잔가지(droop) — 본가지 끝 근처에서 아래로 꺾여 내려온다
-                limbP(x - f * u * 0.235, yy(0.60), x - f * u * 0.29, yy(0.57), x - f * u * 0.315, yy(0.47), t * 0.30),
-                limbP(x + f * u * 0.255, yy(0.65), x + f * u * 0.31, yy(0.61), x + f * u * 0.335, yy(0.52), t * 0.28),
-                // 본가지 끝 위 잔가지(뾰족 이지선다 — 갈라짐)
-                limbP(x - f * u * 0.245, yy(0.615), x - f * u * 0.30, yy(0.66), x - f * u * 0.345, yy(0.72), t * 0.26),
-                limbP(x + f * u * 0.265, yy(0.665), x + f * u * 0.32, yy(0.71), x + f * u * 0.36, yy(0.76), t * 0.24),
-            ];
+            tap(x, B, x - u * 0.05, B - u * 0.30, x + u * 0.025, B - u * 0.56, u * 0.115);            // 줄기(S자 뒤틀림·위로 갈수록 가늘게·꼭대기 뾰족)
+            tap(x - u * 0.015, B - u * 0.30, x - u * 0.16, B - u * 0.34, x - u * 0.30, B - u * 0.50, u * 0.055);   // 왼 큰 가지
+            tap(x + u * 0.015, B - u * 0.40, x + u * 0.13, B - u * 0.50, x + u * 0.27, B - u * 0.56, u * 0.050);   // 오른 큰 가지
+            tap(x + u * 0.02, B - u * 0.18, x + u * 0.10, B - u * 0.22, x + u * 0.17, B - u * 0.30, u * 0.034);    // 아래 작은 가지
+            tap(x - u * 0.005, B - u * 0.50, x - u * 0.06, B - u * 0.58, x - u * 0.09, B - u * 0.645, u * 0.030);  // 꼭대기 곁스파이크
+            tap(x - u * 0.17, B - u * 0.40, x - u * 0.225, B - u * 0.36, x - u * 0.245, B - u * 0.275, u * 0.024); // 처진 잔가지(왼 가지 중간에서 아래로)
+            tap(x + u * 0.16, B - u * 0.505, x + u * 0.21, B - u * 0.47, x + u * 0.23, B - u * 0.39, u * 0.022);   // 처진 잔가지(오른 가지 중간에서 아래로)
             ctx.lineJoin = 'round';
-            ctx.strokeStyle = oc; ctx.lineWidth = H * 0.020 * (0.7 + 0.3 * sc);
-            limbs.forEach(p => { ctx.beginPath(); p(); ctx.stroke(); });   // 가지 키라인 언더레이
-            ctx.beginPath(); trunk(); ctx.lineWidth = H * 0.024; ctx.stroke();   // 줄기 키라인
-            limbs.forEach(p => fill(ctx, c, p));                           // 채움이 안쪽 획을 덮는다
-            fill(ctx, c, trunk);
-            /* 전경 소품 셀셰이딩 한 단(R3 B — ⓓ와 한 벌): 줄기 왼 가장자리 달빛 림 한 줄 */
-            fill(ctx, '#3d2d50', () => { ctx.moveTo(x - t * 0.92, H * 0.86); ctx.lineTo(x - t * 0.42, yy(0.50)); ctx.lineTo(x - t * 0.24, yy(0.50)); ctx.lineTo(x - t * 0.70, H * 0.86); ctx.closePath(); });
-            fill(ctx, oc, () => ctx.ellipse(x + f * t * 0.15, H * (0.86 - 0.26 * sc), t * 0.22, t * 0.34, 0.2 * f, 0, Math.PI * 2));   // 옹이
+            P.forEach(p => { ctx.beginPath(); p(); ctx.strokeStyle = oc; ctx.lineWidth = H * 0.024; ctx.stroke(); });   // 합집합 키라인
+            P.forEach(p => { ctx.beginPath(); p(); ctx.fillStyle = c; ctx.fill(); });
+            fill(ctx, oc, () => ctx.ellipse(x + u * 0.015, B - u * 0.26, u * 0.026, u * 0.040, 0.2, 0, Math.PI * 2));   // 옹이
+            ctx.save();                                                    // 셀 라이트 한 단(R3 B ⓓ '전경 소품 2톤') — 줄기 왼 가장자리
+            ctx.beginPath(); P[0](); ctx.clip();
+            ctx.strokeStyle = '#3d2c54'; ctx.lineWidth = u * 0.030;
+            ctx.beginPath(); ctx.moveTo(x - u * 0.038, B); ctx.quadraticCurveTo(x - u * 0.085, B - u * 0.30, x + u * 0.005, B - u * 0.54); ctx.stroke();
+            ctx.restore();
         };
         // 오른쪽 고목은 x 0.70W 안쪽으로 — 0.86W 에 두면 가지가 열쇠 필과 [열기] 를 관통해
         // '검은 긁힘'으로 얹힌다(잔여 결함 ⓑ). 우측 28% 열은 UI 몫이라 키 큰 소품을 안 넣는다.
-        tree(W * 0.10, 1.05); tree(W * 0.66, 0.85, -1);                    // 우측 고목은 미러(긴 가지가 왼쪽으로 — UI 열 침범 방지)
+        tree(W * 0.10, 1.05); tree(W * 0.66, 0.85);
         /* 해골+갈비뼈 그리기 — 원본 좌하단의 그 잔해. 흩어진 막대 뼈 셋보다 '좀비 던전'을 한눈에
            세운다. ⚠️ 호출은 철망 **뒤가 아니라 앞**(R1 B '해골이 철망 메쉬에 덮여 바래 사실상 안
            보인다') — 정의만 여기 두고 철망 다음에 부른다. */
@@ -4458,7 +4533,6 @@ IconGen._genderSym = function (ctx, S, female) {
             /* (세로 흰 하이라이트는 뺐다 — 이번 런 B '광택 렌더링이 플랫 실루엣 소품들과 재질
                문법이 따로 논다': 플랫 2톤(바탕+오른쪽 그늘 한 장)으로 강등) */
             fill(ctx, 'rgba(0,0,0,.22)', () => ctx.rect(bx + bw * 0.78, by, bw * 0.22, bh + ey * 2));       // 오른쪽 음영
-            fill(ctx, 'rgba(0,0,0,.16)', () => ctx.rect(bx, by + bh * 0.74, bw, bh * 0.34));                // 하단 접지 그늘(R3 B — 전경 소품 셀 한 단)
             ctx.restore();
             fill(ctx, '#6479a6', () => ctx.ellipse(bx + bw / 2, by, bw / 2, ey, 0, 0, Math.PI * 2));        // 윗면
             ctx.beginPath(); ctx.ellipse(bx + bw / 2, by, bw / 2, ey, 0, 0, Math.PI * 2);
@@ -4469,7 +4543,7 @@ IconGen._genderSym = function (ctx, S, female) {
            열쇠 필이 정확히 덮는 자리라, 격자가 버튼 위·아래로만 조각나 '깨진 무늬'로 보였다.
            낮게(y 0.52~0.90H) 깔아 지평선 소품으로 읽히게 한다. */
         ctx.save();
-        ctx.beginPath(); ctx.rect(0, H * 0.50, W * 0.22, H * 0.46); ctx.clip();
+        ctx.beginPath(); ctx.rect(0, H * 0.50, W * 0.22, H * 0.435); ctx.clip();   // 하단은 레일(0.935H)까지만 — 밑으로 삐진 크로스해치 조각이 '글리프 노이즈'로 읽혔다(R2 A2)
         ctx.strokeStyle = 'rgba(222,217,233,.62)'; ctx.lineWidth = H * 0.019;   // 메쉬를 굵고 진하게 — 얇으면 재질감이 죽는다(비평가 3차) · R1 B '철망이 주제부보다 도드라짐' — 구조(레일·포스트)는 진하게, 메쉬는 다시 낮춤
         for (let i = -4; i < 9; i++) {
             ctx.beginPath(); ctx.moveTo(i * H * 0.07, H * 0.50); ctx.lineTo(i * H * 0.07 + H * 0.40, H * 0.96); ctx.stroke();
@@ -4518,14 +4592,13 @@ IconGen._genderSym = function (ctx, S, female) {
            좀비가 된다. 좌표는 세로 1.0 정규계(x 0~3.45). */
         /* 팔-몸통 명도 분리(3차 재채점 교집합 ⓐ — '팔·어깨 경계 모호'): 위팔을 몸통(#41823f)보다
            한 단 어둡게 내려 실루엣이 겹쳐도 경계가 명도로 갈리게 한다. 아래팔은 밝게 유지(빛 방향). */
+        /* (위팔 검정 띠·아래팔 흰 띠는 걷었다 — R2 A2 '팔·몸통의 면(facet) 그라데이션이 로우폴리
+           문법이라 타 행과 이질': 팔은 명도 갈린 플랫 두 톤이면 충분하다) */
         ink(ctx, S, bar(ctx, S, 1.512, 0.760, 1.404, 0.470, 0.104), '#2f632f', 0.030);            // 왼 위팔(몸통보다 어둡게)
-        on(ctx, bar(ctx, S, 1.532, 0.768, 1.428, 0.488, 0.034), 'rgba(0,0,0,.20)');               // 위팔 아랫면 음영(단일톤 방지 — 비평가 B)
         ink(ctx, S, bar(ctx, S, 1.404, 0.490, 1.508, 0.290, 0.098), '#4a8f47', 0.030);            // 왼 아래팔(위로)
-        on(ctx, bar(ctx, S, 1.394, 0.478, 1.484, 0.306, 0.028), 'rgba(255,255,255,.18)');         // 아래팔 빛면
         /* 오른팔은 **내린다** — 양팔 만세는 원본(한 팔만 뼈를 들고 다른 팔은 내린 뒷모습)과 달리
            '귀여운 만세 로봇'으로 읽힌다(비평가 6차 2인 공통). */
         ink(ctx, S, bar(ctx, S, 1.858, 0.700, 1.948, 0.905, 0.100), '#2f632f', 0.030);            // 오른 위팔(아래로, 몸통보다 어둡게)
-        on(ctx, bar(ctx, S, 1.876, 0.712, 1.958, 0.895, 0.032), 'rgba(0,0,0,.20)');
         ink(ctx, S, bar(ctx, S, 1.948, 0.895, 1.988, 1.060, 0.092), '#3d7a3b', 0.030);            // 오른 아래팔(그늘 쪽이라 왼쪽보다 어둡게)
         /* 팔꿈치 융합 패치(R2 — R1 A '직선 원통 3마디 + 볼조인트 = 레고 팔'): 관절 이음매의 검정
            키라인 세그먼트 경계를 같은 팔 색 원반으로 덮어 한 줄기 팔로 잇는다(키라인은 바깥
@@ -4535,17 +4608,26 @@ IconGen._genderSym = function (ctx, S, female) {
         /* 몸통(비평가 9차 2인 공통 '레고/로봇 프리미티브'): 좌우 대칭 사다리꼴을 버린다 —
            오른어깨를 낮게 떨어뜨리고(뼈 든 왼쪽으로 무게가 쏠린 좀비 자세), 아랫단은
            너덜너덜한 옷자락 지그재그. 뒷모습 규약(6차 — 정면 점눈은 '귀여운 로봇')은 유지. */
-        const torso = poly(ctx, S, [[1.440, 1.02], [1.478, 0.972], [1.452, 0.905], [1.492, 0.585],
-        [1.872, 0.625], [1.916, 0.930], [1.892, 0.968], [1.924, 1.02],
-        [1.862, 0.978], [1.802, 1.02], [1.744, 0.972], [1.664, 1.02], [1.596, 0.975], [1.528, 1.02]]);
+        /* 몸통(R2 A2·B2 공통 '각진 사각 파츠 + 면 셰이딩 = 로우폴리/선인장'): 좌우 옆구리를
+           곡선으로 라운딩하고 왼쪽 지그재그를 걷어 실루엣을 부드럽게 — 톱니는 옷단(하단)에만
+           남긴다(B2 처방 그대로). */
+        const torso = () => {
+            ctx.moveTo(1.452 * S, 1.02 * S);
+            ctx.quadraticCurveTo(1.434 * S, 0.80 * S, 1.492 * S, 0.585 * S);                      // 왼 옆구리(곡선)
+            ctx.lineTo(1.872 * S, 0.625 * S);                                                     // 어깨선
+            ctx.quadraticCurveTo(1.934 * S, 0.83 * S, 1.916 * S, 1.02 * S);                       // 오른 옆구리(곡선)
+            ctx.lineTo(1.862 * S, 0.978 * S); ctx.lineTo(1.802 * S, 1.02 * S);                    // 너덜 옷자락(톱니는 옷단에만)
+            ctx.lineTo(1.744 * S, 0.972 * S); ctx.lineTo(1.664 * S, 1.02 * S);
+            ctx.lineTo(1.596 * S, 0.975 * S); ctx.lineTo(1.528 * S, 1.02 * S);
+            ctx.closePath();
+        };
         ink(ctx, S, torso, '#41823f', 0.032);
         ctx.save();
         ctx.beginPath(); torso(); ctx.clip();
-        /* 몸통 내부 = 셀 음영 한 톤(3차 재채점 교집합 ⓐ — 가슴 하이라이트·썩은 얼룩·목 그림자가
-           3배 확대에서 '무작위 반점'으로 읽혔다): 빛은 왼쪽 — 왼 림라이트 하나 + 오른쪽 셀 그늘
-           **한 장**(어깨선에서 사선으로 꺾이는 하드엣지)만 남긴다. 저알파 얼룩 금지. */
+        /* 몸통 내부 = 셀 음영 한 톤: 왼 림라이트 + 오른쪽 세로 그늘 밴드 하나(사선 하드엣지
+           슬래시는 R2 A2 '면 그라데이션' 지적으로 세로 밴드로 교체 — 머리 음영과 같은 문법). */
         on(ctx, rrect(ctx, S, 1.508, 0.600, 0.036, 0.440, 0.018), '#6fae5c');                     // 왼 가장자리 림라이트(볼륨 — 비평가 4차)
-        on(ctx, poly(ctx, S, [[1.760, 0.585], [1.930, 0.585], [1.930, 1.03], [1.700, 1.03], [1.796, 0.800]]), 'rgba(0,0,0,.22)');   // 오른쪽 셀 그늘(사선 하드엣지 한 장)
+        on(ctx, rrect(ctx, S, 1.806, 0.585, 0.130, 0.445, 0), 'rgba(0,0,0,.20)');                 // 오른쪽 셀 그늘 밴드
         on(ctx, rrect(ctx, S, 1.618, 0.585, 0.030, 0.440, 0), 'rgba(0,0,0,.16)');                 // 찢어진 옷자락 이음
         ctx.restore();
         /* 찢긴 소매 캡(R2 — R1 A '어깨 구체'): 팔이 몸통에 볼조인트로 꽂힌 것처럼 보이던 어깨
