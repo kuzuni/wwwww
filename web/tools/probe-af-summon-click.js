@@ -10,6 +10,7 @@
 //   기본 12초(판정기와 동일). 인자를 키우면 자동 제련이 더 오래 돌아 진행 팝업이 뜰 창이 커진다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
+const { waitUiReady } = require('./wait-ready.js');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const SOAK_MS = Math.round((parseFloat(process.argv[2]) || 12) * 1000);
 
@@ -20,7 +21,9 @@ const SOAK_MS = Math.round((parseFloat(process.argv[2]) || 12) * 1000);
     page.on('pageerror', e => errors.push('PAGEERROR ' + e));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForTimeout(2500);
+    // 고정 대기가 아니라 `UI.els` 가 실제로 찬 뒤에 만진다 — 이 프로브가 재는 부하 구간에서는
+    // 부팅도 같이 늦어지므로 상수 대기는 정확히 여기서 먼저 배신한다(`probe-tools-wait-guard` 게이트).
+    await waitUiReady(page);
 
     await page.evaluate(() => {
         UI.cancelAnvilStrike(); UI._autoSeq = null;
