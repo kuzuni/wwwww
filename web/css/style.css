@@ -6997,3 +6997,107 @@ body {
 .league-back-btn::before { filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
 /* ⑨ 시트 헤더 위계 — 헤더 아래 부드러운 구분 그늘 한 겹 */
 .sheet-head { box-shadow: 0 .12rem .16rem -.08rem rgba(23,24,26,.18); }
+
+/* ===== 11차 슬라이스 — 비평가 라운드 3(76·66/100) 결함 반영 (slug: ui-quality-up) =====
+   합의 결함: ① 채팅 바 민짜(라운드 1부터 3연속 지적 — 10차 글래스가 밝은 회색 위라 안 읽힘)
+   ② 탈것 셀(.egg-cell) 플랫(9차 스킨에서 제외돼 있었다) ③ 퀘스트 카드·시트 결이 너무 옅음
+   ④ 시트/팝업 헤더 무위계 ⑤ 타일 내부 벽·썸네일 접지 그림자 부재 ⑥ 시대 바 원색
+   ⑦ 던전 잠금 '열기' 모호. 전부 칠 속성만 — 단 ①은 **원본 실측색(#8a8a8a) 위에 어두운 반투명
+   층을 얹어 다크 글래스로 톤을 바꾼다**(최우선 규칙 1: 사용자 지시 '원신급' > 원본 톤 —
+   비평가 2인이 3라운드 연속 같은 처방을 냈다). 글자색도 밝게 뒤집는다(안 그러면 안 읽힌다). */
+
+/* ① 채팅 바 — 다크 글래스로 전환(바탕 선언은 그대로, 층으로 덮는다) */
+#chat-preview {
+    background-image:
+        linear-gradient(180deg, rgba(255,255,255,.14) 0 1px, rgba(255,255,255,0) 1px),
+        linear-gradient(180deg, rgba(16,19,26,.62) 0, rgba(16,19,26,.74) 100%);
+    box-shadow: inset 0 -.06rem .12rem rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.05);
+}
+.chat-preview-name { color: #eef1f5; text-shadow: 0 1px 1px rgba(0,0,0,.5); }
+.chat-preview-msg { color: #aab3c0; }
+/* ② 탈것 셀 — 다른 7칸과 같은 광택 문법(색·크기 불변, 층만) */
+.equip-cell.egg-cell {
+    background-image:
+        radial-gradient(118% 86% at 26% 12%, rgba(255,255,255,.34) 0, rgba(255,255,255,0) 56%),
+        linear-gradient(180deg, rgba(255,255,255,.22) 0, rgba(255,255,255,0) 36%,
+                                rgba(0,0,0,.08) 66%, rgba(0,0,0,.24) 100%);
+    box-shadow:
+        inset 0 .07rem 0 rgba(255,255,255,.45),
+        inset 0 -.14rem .1rem rgba(0,0,0,.26),
+        inset 0 0 0 1px rgba(255,255,255,.16),
+        0 .12rem .26rem rgba(0,0,0,.24);
+}
+.equip-cell.egg-cell:active { transform: translateY(.08rem); filter: brightness(1.07); }
+/* ③ 퀘스트 카드·시트 결 증폭 — 카드에 광택 밴드 엣지(버튼 문법), 시트 결 대비 상향 */
+.qst-row {
+    background-image:
+        repeating-linear-gradient(45deg, rgba(23,24,26,.030) 0 2px, rgba(23,24,26,0) 2px 9px),
+        linear-gradient(180deg, rgba(255,255,255,.95) 0, rgba(255,255,255,.35) 26%,
+                                rgba(255,255,255,0) 32%,
+                                rgba(23,24,26,.06) 70%, rgba(23,24,26,.14) 100%);
+}
+.modal-card.sheet:not(.league-sheet):not(.shop-sheet) {
+    /* 🚨 시트 **하단**은 밝게 유지할 것 — probe-dungeons-px 가 '전폭 nonWhite(min<238) 행 연속
+       구간'을 밴드로 잡는데, 하단 그늘을 .20/1.2rem 으로 올리고 바닥색을 #eae9ee(236)로 내렸더니
+       시트 하단이 탭바와 한 밴드로 붙어 앱 폭 검사가 통째로 무효(exit 2)가 났다(11차 실측).
+       바닥색은 min≥238 인 #f1f0f3, 그늘은 2차 검증값(-1rem 1.1rem -1rem .13)까지만. */
+    /* 🚨 결은 **흰 줄**로 그린다(어두운 줄 금지) — 어두운 결(alpha≥.02)이 하부 그라디언트 위에서
+       min<238 이 되면 probe-dungeons-px 의 카드 bbox 가 시트 여백의 결 픽셀까지 늘어나
+       카드 좌/우가 ±11%p 로 터진다(11차 실측). 흰 줄 + 바탕 241 이상 조합은 전 행이
+       white-ish 로 남아 밴드/bbox 판정을 오염시키지 않으면서 결은 그대로 보인다. */
+    background-image:
+        linear-gradient(180deg, rgba(255,255,255,.9) 0 2px, rgba(255,255,255,0) 2px),
+        /* ④ 헤더 밴드 — 상단 3.1rem 을 옅게 눌러 헤더 층을 분리(칠만으로 위계) + 헤어라인 */
+        linear-gradient(180deg, rgba(23,24,26,.045) 0 3.1rem, rgba(23,24,26,.11) 3.1rem calc(3.1rem + 1px), rgba(23,24,26,0) calc(3.1rem + 1px)),
+        repeating-linear-gradient(45deg, rgba(255,255,255,.60) 0 2px, rgba(255,255,255,0) 2px 9px),
+        radial-gradient(124% 42% at 50% -4%, rgba(255,255,255,.92) 0, rgba(255,255,255,0) 72%),
+        linear-gradient(180deg, #fdfcfe 0, #f7f6f9 52%, #f2f1f4 100%);
+    box-shadow: inset 0 -1rem 1.1rem -1rem rgba(23,24,26,.13);
+}
+/* ④ 팝업 카드 헤더 밴드 — 같은 처방(상단 2.6rem) */
+.modal-card:not(.sheet):not(.pass-card) {
+    background-image:
+        linear-gradient(180deg, rgba(23,24,26,.04) 0 2.6rem, rgba(23,24,26,.10) 2.6rem calc(2.6rem + 1px), rgba(23,24,26,0) calc(2.6rem + 1px)),
+        repeating-linear-gradient(45deg, rgba(23,24,26,.028) 0 2px, rgba(23,24,26,0) 2px 9px),
+        radial-gradient(120% 55% at 50% -8%, rgba(255,255,255,.95) 0, rgba(255,255,255,0) 74%),
+        linear-gradient(180deg, #fff 0, #fafafb 46%, #edecf0 100%);
+}
+/* ⑤ 타일 — 내부 벽(밝은 링 + 한 톤 어두운 플레이트 링) + 썸네일 접지 타원 그림자 */
+.pet-tile .tile-face {
+    background-image:
+        radial-gradient(120% 88% at 26% 14%, rgba(255,255,255,.40) 0, rgba(255,255,255,0) 58%),
+        linear-gradient(180deg, rgba(255,255,255,.28) 0, rgba(255,255,255,0) 34%,
+                                rgba(0,0,0,.05) 62%, rgba(0,0,0,.20) 100%),
+        radial-gradient(44% 13% at 50% 84%, rgba(0,0,0,.20) 0, rgba(0,0,0,0) 100%),
+        repeating-linear-gradient(45deg, rgba(255,255,255,.055) 0 2px, rgba(255,255,255,0) 2px 7px);
+    box-shadow:
+        inset 0 -.2rem 0 rgba(0,0,0,.25),
+        inset 0 .08rem 0 rgba(255,255,255,.55),
+        inset .07rem 0 0 rgba(255,255,255,.16),
+        inset 0 0 0 1px rgba(255,255,255,.20),
+        inset 0 0 0 3px rgba(0,0,0,.08),
+        0 0 .5rem -.08rem color-mix(in srgb, var(--rc, #ccc) 60%, transparent),
+        0 .16rem .3rem rgba(0,0,0,.22);
+}
+/* ⑥ 시대 바 — 광택 inset 증폭(원색 완화, 패턴 불변) */
+.fi-age-bar[data-age], .af-age-bar[data-age] {
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.42),
+        inset 0 .6rem .5rem -.3rem rgba(255,255,255,.30),
+        inset 0 -.6rem .5rem -.3rem rgba(0,0,0,.28),
+        inset 0 0 0 1px rgba(0,0,0,.18);
+}
+/* ⑦ 던전 잠금 '열기' — 배너 일러스트 위에서 '유령'으로 읽히던 회백을 확실한 비활성 칩으로.
+   🚨 background **단축 금지** — 5차 광택(background-image)을 지워 probe-sheet-skin 버튼 검사가
+   깨진다(실측). background-color 로만 어둡게 한다. */
+.modal-card.sheet .dg-banner .btn.disabled {
+    background-color: #878e96; color: #3d434a;
+    box-shadow: inset 0 -.22rem 0 #666d75, inset 0 .28rem .3rem -.18rem rgba(0,0,0,.35);
+}
+/* 재화 알약 홈 대비 소폭 상향 */
+.currency-pills .pill {
+    box-shadow:
+        inset 0 .12rem .2rem rgba(0,0,0,.60),
+        inset 0 -.06rem 0 rgba(255,255,255,.15),
+        inset 0 0 0 1px rgba(0,0,0,.35);
+}

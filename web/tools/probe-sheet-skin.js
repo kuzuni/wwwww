@@ -43,6 +43,10 @@ const KILL_SKIN = `
 /* 7차 슬라이스 — 게이지 트랙·채움 */
 .upg-progress, .summon-gauge, .qst-bar { box-shadow: none !important; }
 #upg-fill, #tech-node-fill, .tech-prog #tech-node-fill, .summon-gauge i { background-image: none !important; }
+/* 11차 슬라이스 — 비평가 라운드 3 반영분(탈것 셀·채팅 다크 글래스·헤더 밴드·던전 잠금 칩) */
+.equip-cell.egg-cell { background-image: none !important; box-shadow: none !important; }
+.chat-preview-name, .chat-preview-msg { text-shadow: none !important; }
+.modal-card.sheet .dg-banner .btn.disabled { background: var(--pp-gray) !important; box-shadow: inset 0 -.22rem 0 var(--pp-gray-dk) !important; }
 /* 10차 슬라이스 — 비평가 라운드 2 반영분(게이지 트랙 이미지·내 순위 행·채팅 바·서브탭 활성·시대 바·헤더) */
 .upg-progress, .summon-gauge, .qst-bar { background-image: none !important; }
 .league-row.me { background-image: none !important; box-shadow: none !important; }
