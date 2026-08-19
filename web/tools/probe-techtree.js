@@ -1,7 +1,10 @@
 // 기술 트리 검증 — 구조는 '타입 × 5단계 격자' (사용자 재정정 2026-08-17 4회차)
 //  ① 한 분기에서 각 타입이 5번(단계마다) 나타난다 — 노드 수 = 타입 수 × 5
-//  ② 해금: '무기 마스터리 1단계' 1레벨 → '무기 마스터리 2단계' 즉시 열림.
-//     다른 타입의 2단계는 그 타입 1단계가 0이면 잠긴 채여야 한다(단계 통째 완료 아님)
+//  ② 해금: 선으로 이어진 **그래프 부모(TechTree.parentsOf)가 전부 1레벨 이상**이면 열린다
+//     (사용자 재정정 2026-08-17 — '같은 타입 한 단계 위'는 폐기된 규칙이다. 부모는 화면에
+//      그려지는 레일에서 뽑으므로 같은 타입 위 단계가 아닐 수 있다: weaponMastery@2 의 부모는
+//      weaponMastery@1 이 아니라 mountCost@1·extraMount@1 이다). 여기서는 스모크 수준만 보고,
+//      전 노드 전수 검증은 probe-techtree-unlock.js 가 한다.
 //  ③ 노드당 상한 5, 라벨 N/5
 //  ④ 보너스는 그 타입의 5단계 노드 레벨 합산
 //  ⑤ 단계가 높을수록 비용·시간이 비싸다
@@ -118,31 +121,50 @@ const GEOM = () => {
             console.log(`  ${branch}: 타입 ${meta.types} × ${meta.tiers}단계 = 노드 ${g.nodes.length} · 연결선 ${g.lines.length} · 태그 ${g.tags.join('')}`);
         }
 
-        // ② 해금 — 같은 타입 위 단계 1레벨이면 열리고, 다른 타입은 그대로 잠긴다
+        // ② 해금 — 그래프 부모가 전부 1레벨 이상이면 열리고, 이어지지 않은 노드는 그대로 잠긴다.
+        //    ⚠️ 노드 id 를 손으로 박지 말 것 — 레일이 바뀌면 그 순간 프로브만 낡아 상시 FAIL 이 된다
+        //    (2026-08-19 techtree-probe-stale 이 정확히 그 사고였다). 대상은 전부 parentsOf 로 뽑는다.
         await openBranch(page, 'power');
         const lock = await page.evaluate(() => {
             S.potions = 1e9;
-            for (const k in S.tech) S.tech[k] = 0;
-            const A = 'weaponMastery', B = 'armorMastery';
+            // NODES 키는 **타입**(weaponMastery)이고 실제 노드 id 는 'weaponMastery@2' 다 — 노드 id 로 지운다.
+            const ALL = [].concat(...TechTree.BRANCHES.map(b => TechTree.nodesOf(b.id)));
+            const zero = () => { for (const id of ALL) S.tech[id] = 0; };
+
+            const flat = [].concat(...TechTree.rows('power').map(r => r.ids));
+            const root = flat.find(id => TechTree.parentsOf(id).length === 0);
+            const single = flat.find(id => TechTree.parentsOf(id).length === 1);          // 부모 1개
+            const dual = flat.find(id => TechTree.parentsOf(id).length === 2);            // 부모 2개
+            const far = [...flat].reverse().find(id => TechTree.parentsOf(id).length > 0); // 맨 끝(미연결 대조군)
+            if (!root || !single || !dual || !far) return { missing: { root, single, dual, far } };
+            const sp = TechTree.parentsOf(single)[0], dp = TechTree.parentsOf(dual);
+
+            zero();
             const before = {
-                a1: TechTree.isUnlocked(TechTree.nid(A, 1)),
-                a2: TechTree.isUnlocked(TechTree.nid(A, 2)),
-                b2: TechTree.isUnlocked(TechTree.nid(B, 2)),
+                root: TechTree.isUnlocked(root),
+                single: TechTree.isUnlocked(single),
+                dual: TechTree.isUnlocked(dual),
+                far: TechTree.isUnlocked(far),
             };
-            S.tech[TechTree.nid(A, 1)] = 1;      // 딱 1레벨만 (만렙 아님)
-            const after = {
-                a2: TechTree.isUnlocked(TechTree.nid(A, 2)),
-                a3: TechTree.isUnlocked(TechTree.nid(A, 3)),
-                b2: TechTree.isUnlocked(TechTree.nid(B, 2)),
-                canStartA2: TechTree.canStart(TechTree.nid(A, 2)),
-            };
-            return { before, after };
+            zero(); S.tech[sp] = 1;                       // 딱 1레벨만 (만렙 아님)
+            const opened = { open: TechTree.isUnlocked(single), canStart: TechTree.canStart(single), far: TechTree.isUnlocked(far) };
+            zero(); S.tech[dp[0]] = 1;
+            const half = TechTree.isUnlocked(dual);       // 2부모 중 한쪽만 → 잠김이어야
+            zero(); dp.forEach(p => { S.tech[p] = 1; });
+            const both = TechTree.isUnlocked(dual);       // 양쪽 다 → 열림이어야
+            zero();
+            return { root, single, sp, dual, dp, far, before, opened, half, both };
         });
-        ok(lock.before.a1 && !lock.before.a2 && !lock.before.b2, '초기 상태에서 2단계가 이미 열려 있다');
-        ok(lock.after.a2 && lock.after.canStartA2, '같은 타입 1단계를 1레벨 찍었는데 2단계가 안 열렸다');
-        ok(!lock.after.a3, '2단계가 0레벨인데 3단계가 열렸다');
-        ok(!lock.after.b2, '다른 타입의 1단계가 0레벨인데 그 타입 2단계가 열렸다');
-        console.log(`  해금: 무기1↑1렙 → 무기2 열림 ${lock.after.a2} · 무기3 잠김 ${!lock.after.a3} · 방어구2 잠김 ${!lock.after.b2}`);
+        ok(!lock.missing, `power 분기에서 검사 대상 노드를 못 찾았다 ${JSON.stringify(lock.missing || {})}`);
+        if (!lock.missing) {
+            ok(lock.before.root, `부모 없는 첫 노드 ${lock.root} 가 처음부터 잠겨 있다`);
+            ok(!lock.before.single && !lock.before.dual && !lock.before.far, '부모가 전부 0레벨인데 열려 있는 노드가 있다');
+            ok(lock.opened.open && lock.opened.canStart, `부모 ${lock.sp} 를 1레벨 찍었는데 ${lock.single} 이 안 열렸다`);
+            ok(!lock.opened.far, `선으로 안 이어진 ${lock.far} 이 같이 열렸다`);
+            ok(!lock.half, `2부모 ${lock.dual} 이 한쪽(${lock.dp[0]})만 1레벨인데 열렸다`);
+            ok(lock.both, `2부모 ${lock.dual} 이 부모(${lock.dp.join('+')}) 전부 1레벨인데 안 열렸다`);
+            console.log(`  해금: ${lock.sp}↑1렙 → ${lock.single} 열림 ${lock.opened.open} · 미연결 ${lock.far} 잠김 ${!lock.opened.far} · 2부모 ${lock.dual} 한쪽 잠김 ${!lock.half}/양쪽 열림 ${lock.both}`);
+        }
 
         // ③ 상한 5 ④ 보너스 5단계 합산 ⑤ 단계가 오를수록 비용·시간 증가
         const calc = await page.evaluate(() => {
