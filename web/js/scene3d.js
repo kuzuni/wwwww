@@ -7763,106 +7763,84 @@ const Scene3D = {
             //    썸네일에서 그냥 ㄴ자 블록 두 짝이었다(비평가 지적 ㉯⑴).
             //    이제 ① 발자국 모양 밑창(뒤꿈치 넓고 아치 잘록, 발가락 둥글게)을 압출로 뽑고
             //    ② 그 위에 **z 중심이 뒤로 물러나는 링**을 쌓아 발등에서 발목으로 넘어가는 곡선을 낸다.
-            const soleShape = () => {
-                const s = new THREE.Shape();
-                s.moveTo(-0.072, -0.128);
-                s.quadraticCurveTo(-0.094, -0.045, -0.060, 0.042);   // 안쪽 아치(잘록)
-                s.quadraticCurveTo(-0.086, 0.140, -0.028, 0.184);    // 볼 → 발가락
-                s.quadraticCurveTo(0.020, 0.203, 0.060, 0.158);
-                s.quadraticCurveTo(0.092, 0.058, 0.073, -0.020);
-                s.quadraticCurveTo(0.088, -0.112, 0.000, -0.146);    // 뒤꿈치
-                s.quadraticCurveTo(-0.058, -0.150, -0.072, -0.128);
-                return s;
+            // 🧊 **voxel 전환 4차분 (equip-voxelize ⓑ)** — 장신구 슬롯의 마지막.
+            const AS = 0.024;
+            const V = Voxel;
+            const cBody = mat.color.getHex(), cDark = dark.color.getHex();
+            const cSole = new THREE.Color(cDark).offsetHSL(0, 0, -0.05).getHex();
+            // 🚨 **밑창은 헬퍼로 만들지 않고 칸 마스크로 손수 찍는다.** 원래는 `ExtrudeGeometry` 로
+            //    뽑은 발자국 곡선인데, 그 곡선을 타원 헬퍼로 근사하려 들면 발이 **다시 매끈한
+            //    타원**이 되어 아치도 뒤꿈치도 사라진다(그게 앞 세션이 고친 결함 그 자체다).
+            //    발자국은 층이 하나뿐이라 칸으로 적는 비용이 싸고, 적은 그대로가 곧 실루엣이다.
+            //    z 는 앞뒤(+z 가 발가락), 한 줄이 z 한 칸 · [xmin, xmax] 는 그 줄의 x 범위.
+            const SOLE = [   // z=-6(뒤꿈치 끝) … z=8(발가락 끝)
+                [-1, 1], [-3, 3], [-4, 4], [-4, 4], [-4, 4], [-3, 3],
+                [-2, 3], [-2, 3],           // 아치 — 안쪽(−x)이 잘록하게 파인다
+                [-3, 4], [-3, 4], [-4, 4],  // 볼(가장 넓다)
+                [-4, 3], [-3, 3], [-2, 2], [-1, 1],
+            ];
+            const sole = (c) => {
+                const out = [];
+                SOLE.forEach(([x0, x1], i) => {
+                    for (let x = x0; x <= x1; x++) for (let y = 0; y < 2; y++)
+                        out.push({ x: x, y: y, z: i - 6, c: c });
+                });
+                return out;
             };
             const mk = (dx, flip) => {
-                const boot = new THREE.Group();
-                const sole = new THREE.Mesh(new THREE.ExtrudeGeometry(soleShape(), {
-                    depth: 0.032, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.01, bevelSegments: 2, curveSegments: 10,
-                }), dark);
-                sole.rotation.x = -Math.PI / 2;   // 셰이프의 y가 월드 z(앞뒤)가 된다
-                sole.position.y = 0.012;
-                boot.add(sole);
-                const heel = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.056, 0.045, 12), this.tintOf(dark, -0.05));
-                heel.scale.z = 0.85;
-                heel.position.set(0, -0.012, -0.10);
-                boot.add(heel);
-                // 갑피 — z 오프셋이 뒤로 물러나며 발등에서 발목으로 넘어간다
+                let vox = [], gl = [];
+                vox.push(...sole(cSole));
+                vox.push(...V.at(V.ellipse(2.6, 2.2, 2, { color: cSole }), 0, -2, -4));   // 뒤꿈치 굽
+                // 갑피 — z 중심이 뒤로 물러나며 발등에서 발목으로 넘어간다(`shell` 의 ⓧ 가 그것이다)
                 const upper = [
-                    { y: 0.048, rx: 0.079, rz: 0.163, z: 0.016 },
-                    { y: 0.090, rx: 0.077, rz: 0.150, z: 0.004 },
-                    { y: 0.135, rx: 0.071, rz: 0.120, z: -0.020 },
-                    { y: 0.195, rx: 0.063, rz: 0.086, z: -0.048 },
-                    { y: 0.250, rx: 0.057, rz: 0.062, z: -0.060 },
+                    { y: 2, rx: 3.3, rz: 6.8, z: 1 },
+                    { y: 4, rx: 3.2, rz: 6.2, z: 0 },
+                    { y: 6, rx: 3.0, rz: 5.0, z: -1 },
+                    { y: 8, rx: 2.6, rz: 3.6, z: -2 },
+                    { y: 10, rx: 2.4, rz: 2.6, z: -2 },
                 ];
-                if (variant === 1) {          // 부츠: 목이 종아리까지 올라가고 위에서 살짝 벌어진다
-                    upper.push({ y: 0.36, rx: 0.061, rz: 0.064, z: -0.062 },
-                               { y: 0.47, rx: 0.070, rz: 0.073, z: -0.062 });
-                } else if (variant === 2) {   // 그리브: 정강이를 감싸고 무릎까지 곧게 선다
-                    upper.push({ y: 0.38, rx: 0.064, rz: 0.070, z: -0.062 },
-                               { y: 0.56, rx: 0.069, rz: 0.076, z: -0.060 });
-                }
-                boot.add(this.shellFromRings(upper, 18, mat));
+                if (variant === 1) upper.push({ y: 15, rx: 2.5, rz: 2.7, z: -3 }, { y: 20, rx: 2.9, rz: 3.0, z: -3 });
+                else if (variant === 2) upper.push({ y: 16, rx: 2.7, rz: 2.9, z: -3 }, { y: 24, rx: 2.9, rz: 3.2, z: -3 });
+                else upper.push({ y: 11, rx: 2.4, rz: 2.6, z: -2 });   // 구두는 발목에서 끝난다
+                vox.push(...V.shell(upper, cBody));
                 // 발가락 캡 — 밑창 앞코를 덮어 '깎인 단면'을 없앤다
-                const toe = new THREE.Mesh(new THREE.SphereGeometry(0.077, 14, 10), variant === 0 ? this.tintOf(mat, -0.02) : mat);
-                toe.scale.set(1, 0.62, 1.15);
-                toe.position.set(0, 0.058, 0.115);
-                boot.add(toe);
-                if (variant === 0) {          // 구두: 발목 깃 + 혀 + 끈 3줄
-                    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.017, 6, 16), dark);
-                    collar.position.set(0, 0.252, -0.060);
-                    collar.rotation.x = Math.PI / 2;
-                    boot.add(collar);
-                    for (let i = 0; i < 3; i++) {
-                        const lace = this.capsuleMesh(0.0095, 0.07, dark, 6);
-                        lace.position.set(0, 0.14 + i * 0.042, 0.020 - i * 0.028);
-                        lace.rotation.z = Math.PI / 2;
-                        lace.rotation.y = 0.25;
-                        boot.add(lace);
-                    }
+                vox.push(...V.at(V.ellipse(3.2, 3.6, 2, { color: cBody }), 0, 2, 5));
+                vox.push(...V.at(V.ellipse(2.4, 2.6, 1, { color: cBody }), 0, 4, 5));
+                if (variant === 0) {          // 구두: 발목 깃 + 끈 3줄
+                    vox.push(...V.at(V.ellipse(3.0, 3.0, 2, { rix: 1.8, riz: 1.8, color: cDark }), 0, 10, -2));
+                    for (let i = 0; i < 3; i++)   // 끈은 발등을 가로지르는 가로 막대다
+                        vox.push(...V.at(V.box(5, 1, 1, cDark), -2, 6 + i * 2, 1 - i));
                 } else if (variant === 1) {   // 부츠: 접힌 목단 + 발목 버클 끈
-                    // 목단은 확실히 벌어져야 '접어 내린 부츠'로 읽힌다 — 몸통 rx 0.070 → 0.113
-                    const cuff = this.shellFromRings([
-                        { y: 0.425, rx: 0.073, rz: 0.076, z: -0.062 },
-                        { y: 0.495, rx: 0.113, rz: 0.117, z: -0.062 },
-                        { y: 0.545, rx: 0.101, rz: 0.105, z: -0.062 },
-                    ], 18, this.tintOf(mat, -0.07));
-                    boot.add(cuff);
-                    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.014, 6, 16), dark);
-                    strap.position.set(0, 0.27, -0.056);
-                    strap.rotation.x = Math.PI / 2;
-                    boot.add(strap);
-                    const buckle = this.beveledSlab(0.036, 0.032, 0.016, 0.008, gemMat);
-                    buckle.position.set(0, 0.27, 0.008);
-                    boot.add(buckle);
+                    // 목단은 확실히 벌어져야 '접어 내린 부츠'로 읽힌다 — 몸통 rx 3.0 → 4.7
+                    vox.push(...V.shell([
+                        { y: 18, rx: 3.0, rz: 3.2, z: -3 },
+                        { y: 21, rx: 4.7, rz: 4.9, z: -3 },
+                        { y: 23, rx: 4.2, rz: 4.4, z: -3 },
+                    ], cDark));
+                    vox.push(...V.at(V.ellipse(3.4, 3.4, 2, { rix: 2.2, riz: 2.2, color: cDark }), 0, 11, -2));
+                    gl.push(...V.at(V.box(2, 2, 2), -1, 11, 1));
                 } else {                      // 그리브: 정강이 판 + 무릎 돔 + 고정 밴드 2줄
-                    // 정강이 판은 앞으로 튀어나와야 보인다 — 갑피(z 중심 -0.062, rz 0.07) 앞면 밖에 얹는다
-                    // ⚠️ 앞으로 너무 빼면 다리에서 떨어져 뜬다 — 갑피 앞면(z≈0.008)에 반쯤 파묻는다
-                    const shin = this.beveledSlab(0.094, 0.30, 0.034, 0.032, this.tintOf(mat, 0.03));
-                    shin.position.set(0, 0.40, -0.002);
-                    shin.rotation.x = -0.05;
-                    boot.add(shin);
-                    const knee = new THREE.Mesh(new THREE.SphereGeometry(0.082, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), mat);
-                    knee.scale.set(1, 0.8, 0.95);
-                    knee.position.set(0, 0.555, -0.045);
-                    boot.add(knee);
+                    // 정강이 판은 앞으로 튀어나와야 보인다 — 갑피 앞면 밖에 얹되 반쯤 파묻는다
+                    vox.push(...V.at(V.slab(4, 12, 2, cBody, 1), 0, 11, 0));
+                    vox.push(...V.at(V.dome(3.4, 3, cBody), 0, 22, -2));
                     // 밴드는 정강이 판(앞) 위까지 감아야 '고정 스트랩'으로 읽힌다 —
                     // 갑피만 두르면 판 옆에서 끊긴 고리가 된다(비평가 지적).
-                    for (const y of [0.31, 0.46]) {
-                        const band = new THREE.Mesh(new THREE.TorusGeometry(0.079, 0.014, 6, 18), dark);
-                        band.position.set(0, y, -0.03);
-                        band.rotation.x = Math.PI / 2;
-                        band.scale.y = 1.32;   // 앞뒤로 늘려 판까지 물린다
-                        boot.add(band);
-                    }
+                    for (const y of [13, 19])
+                        vox.push(...V.at(V.ellipse(3.5, 4.6, 1, { rix: 2.3, riz: 3.4, color: cDark }), 0, y, -1));
                 }
-                boot.position.x = dx;
-                boot.scale.x = flip ? -1 : 1;   // 좌우 짝 — 아치가 안쪽으로 오게 뒤집는다
-                g.add(boot);
-                return boot;
+                // 좌우 짝 — 아치가 안쪽으로 오게 뒤집는다. `scale.x = -1` 은 면 감김을 뒤집으므로
+                //   메시가 아니라 **복셀 좌표**에서 거울을 친다(`mirrorX` 는 그다음 자리를 그대로 지킨다).
+                if (flip) { vox = V.mirrorX(vox); gl = V.mirrorX(gl); }
+                return [V.at(vox, dx, 0, 0), V.at(gl, dx, 0, 0)];
             };
-            mk(-0.115, true); mk(0.115, false);
-            // 무릎 젬은 무릎 돔(y 0.555, z -0.045, r 0.082) **표면에** 박힌다 — 밖으로 빼면 뜬다
-            if (variant === 2) add(new THREE.Mesh(new THREE.SphereGeometry(0.034, 10, 8), gemMat), 0.115, 0.552, 0.012);
+            const [lv, lg] = mk(-5, true), [rv, rg] = mk(5, false);
+            const body = V.merge(lv, rv), glow = V.merge(lg, rg);
+            // 무릎 젬은 무릎 돔 **표면에** 박힌다 — 밖으로 빼면 뜬다
+            if (variant === 2) glow.push(...V.at(V.ball(2), 5, 23, 0));
+            g.add(this.voxPart(body, AS, mat, { color: cBody }));
+            if (glow.length) g.add(this.voxPart(glow, AS, mat, {
+                color: rc, emissive: rc, emissiveIntensity: 0.7, metalness: 0, roughness: 0.5,
+            }));
         } else { // belt
             // 🧊 **voxel 전환 3차분 (equip-voxelize ⓑ).**
             // 벨트가 가장 심했다 — 세 변형이 **같은 원통 띠**에 2cm짜리 버클만 달라, 시대마다

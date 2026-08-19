@@ -249,6 +249,14 @@ const rowR = (vox, y) => {
     eq('shell 마지막 층(y=5)은 끝값 직전', rowR(s, 5) <= 3, true);
     ok('shell 은 끝 y 를 포함하지 않는다(다음 구간이 이어받는다)', rowR(s, 6) === -1);
     ok('shell 은 단조 감소', [0, 1, 2, 3, 4, 5].map(y => rowR(s, y)).every((r, i, a) => i === 0 || r <= a[i - 1]));
+    // ⓧ 층별 중심 이동 — 신발 갑피가 위로 갈수록 뒤로 물러나는 그 형태. 굵기만으로는 못 낸다.
+    const off = V.shell([{ y: 0, rx: 3, z: 0 }, { y: 4, rx: 3, z: -4 }], 0);
+    const zc = y => { const v = off.filter(p => p.y === y).map(p => p.z); return (Math.min(...v) + Math.max(...v)) / 2; };
+    eq('shell 밑층 z 중심', zc(0), 0);
+    eq('shell 윗층 z 중심(보간)', zc(3), -3);
+    ok('중심이 움직여도 굵기는 그대로', rowR(off, 0) === rowR(off, 3), `${rowR(off, 0)} vs ${rowR(off, 3)}`);
+    const offx = V.shell([{ y: 0, rx: 2, x: 5 }, { y: 2, rx: 2, x: 5 }], 0);
+    ok('x 중심 이동도 된다', Math.min(...offx.map(p => p.x)) === 3 && Math.max(...offx.map(p => p.x)) === 7);
 }
 
 console.log(fail ? `\n❌ ${fail}건 실패` : '\n✅ 전부 통과');

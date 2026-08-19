@@ -299,23 +299,32 @@
             return out;
         },
         // 링 목록을 선형 보간해 쌓는다 — 기존 `shellFromRings`(매끈 회전체)의 voxel 대응.
-        //   rings = [{y, rx, rz, t?}] · y 는 **칸 번호**다. 부위마다 단면을 재서 옮겨 적으면
+        //   rings = [{y, rx, rz, t?, x?, z?}] · y 는 **칸 번호**다. 부위마다 단면을 재서 옮겨 적으면
         //   비례를 그대로 유지한 채 조형만 큐브로 바뀐다(인계 메모: 비례는 그대로 옮겨 쓸 것).
+        //   ⓧ **`x`/`z` 는 그 층 단면의 중심 이동**이다(기본 0). 굵기만으로는 못 내는 형태가 있다 —
+        //     신발 갑피는 위로 갈수록 단면이 **뒤로 물러나며** 발등에서 발목으로 넘어가고, 그
+        //     물러남이 없으면 발등이 통짜 원기둥이 된다. 중심이 층마다 움직이는 것 역시
+        //     보간 대상이라 링에 같이 적는 게 맞다(호출부에서 층별로 `at` 을 부르면 보간이 끊긴다).
         shell: function (rings, color, opts) {
             opts = opts || {};
             var out = [];
+            var lerp = function (a, b, k) { return a + (b - a) * k; };
+            var f = function (r, key, dflt) { return r[key] === undefined ? dflt : r[key]; };
             for (var i = 0; i < rings.length - 1; i++) {
                 var a = rings[i], b = rings[i + 1];
                 var y0 = Math.round(a.y), y1 = Math.round(b.y);
                 for (var y = y0; y < y1; y++) {
                     var k = (y1 === y0) ? 0 : (y - y0) / (y1 - y0);
-                    var rx = a.rx + (b.rx - a.rx) * k;
-                    var rz = (a.rz === undefined ? a.rx : a.rz) + ((b.rz === undefined ? b.rx : b.rz) - (a.rz === undefined ? a.rx : a.rz)) * k;
+                    var rx = lerp(a.rx, b.rx, k);
+                    var rz = lerp(f(a, 'rz', a.rx), f(b, 'rz', b.rx), k);
+                    var cx = Math.round(lerp(f(a, 'x', 0), f(b, 'x', 0), k));
+                    var cz = Math.round(lerp(f(a, 'z', 0), f(b, 'z', 0), k));
                     var t = (a.t === undefined ? opts.t : a.t);
-                    out = out.concat(this.ellipse(rx, rz, 1, {
+                    var lay = this.ellipse(rx, rz, 1, {
                         y0: y, color: color,
                         rix: t > 0 ? rx - t : 0, riz: t > 0 ? rz - t : 0,
-                    }));
+                    });
+                    out = out.concat((cx || cz) ? this.at(lay, cx, 0, cz) : lay);
                 }
             }
             return out;
