@@ -75,8 +75,9 @@ const RLAG = 5;           // 자기 어깨 제외 반경
 const DMAX = 200;         // 훑을 최대 lag. 타일 반주기(256) 아래로 둬 타일 자체 주기를 안 집는다.
 //   150 이면 사막의 3p(=192)가 범위 밖이라 지속성을 2p 하나로만 판단하게 된다 — 3배까지 보려고 200.
 const WALL = 0.10;        // 참고선. 이론값이 아니라 실측으로 잡았다:
-//   수정 전 텍스처 desert 0.183(되풀이 벡터 128px 수평) / 나머지 5바이옴 전부 0.010 이하 — 18배 차.
+//   수정 전 텍스처 desert 0.194(되풀이 벡터 128px 수평) / 나머지 5바이옴 전부 0.024 이하 — 8배 차.
 //   합성 대조 grating 0.827 · noise 0.000 · scatter 0.000. 양쪽 여유가 커서 0.10 에서 잘랐다.
+//   (수정 후 desert 0.000. 시드를 고정하므로 이 수치들은 실행마다 그대로 재현된다.)
 const RW = 320, RH = 192, BANDFRAC = +(process.env.BANDFRAC || 0.38);   // RENDER=1 전용
 
 // ── 페이지 안: 잴 그림 한 장을 휘도 배열로 만들어 돌려준다 ───────────────────────
@@ -130,6 +131,12 @@ const INPAGE = `(theme, opt) => {
         }
     } else {
         // ── 텍스처 자체 ─────────────────────────────────────────────────────────
+        // 🚨 **재기 직전에 난수 시드를 다시 고정한다.** makeGroundTexture 는 Math.random 을 쓰는데,
+        //    페이지 초기화가 이미 스트림을 임의 지점까지 밀어 놨고 그 지점은 실행마다 다르다. 안 잡으면
+        //    **게이트가 매 실행 다른 텍스처를 재게 되고** 전/후 대조도 성립하지 않는다(실측: 같은 코드로
+        //    두 번 돌린 texdump 6장이 전부 달랐다).
+        let ts = 0x2f6e2b1 >>> 0;
+        Math.random = () => { ts ^= ts << 13; ts >>>= 0; ts ^= ts >>> 17; ts ^= ts << 5; ts >>>= 0; return ts / 4294967296; };
         const tex = Scene3D.makeGroundTexture(theme.biome);
         const cv = tex.image; N = M = cv.width;
         const d = cv.getContext('2d').getImageData(0, 0, N, M).data;

@@ -1200,19 +1200,58 @@ const Scene3D = {
                 for (let y = -8; y < size + 8; y += 9 + Math.random() * 7) {
                     ripples.push({ y, amp: 3 + Math.random() * 4, ph: Math.random() * 9, cyc: 10 + (Math.random() * 9 | 0) });
                 }
+                // 🚨 **전역 위상 잠금 해체 (map-quality-up 갭 ⑵).** 마루를 밴드마다 **단일 정수 주기
+                //    사인 하나**로 그리면, 주기가 정수(10~18)라 **x 를 512/k 만큼 밀면 cyc 가 k 의
+                //    배수인 밴드들이 통째로 제자리에 겹친다.** 그게 화면을 벽지로 만든 원인이고,
+                //    신설 `probe-ground-phase.js` 가 그걸 수치로 잡았다: 되풀이 벡터 **128px 수평**,
+                //    결맞음 coh 0.183 (나머지 5바이옴은 전부 0.010 이하 — 사막만 격자였다).
+                //    ⚠️ 정수 주기 자체는 못 버린다 — 좌우 랩 이음매를 없애는 게 그 제약이다
+                //    (`probe-ground-tile-seam.js` 게이트). 그래서 **정수 주기를 유지한 채** 마루 하나를
+                //    주기가 다른 배음 3개의 합으로 만든다. 세 주기가 밴드마다 다르므로 어떤 512/k
+                //    이동도 세 배음을 동시에 맞추지 못한다 — 랩은 그대로, 전역 정합만 깨진다.
+                //    ⚠️ 배음 파라미터는 **밴드 자신의 값에서 파생한 지역 난수기**로 뽑는다. `Math.random`
+                //    을 더 부르면 이후 프롭 배치의 난수 스트림이 밀려 시드 고정 대조 캡처가 어긋난다
+                //    (이 함수 상단 주석의 같은 함정).
+                for (const rp of ripples) {
+                    let s = (Math.imul(rp.cyc, 2654435761) ^ Math.imul((rp.ph * 1e6) | 0, 2246822519)
+                        ^ Math.imul((rp.y * 1e3) | 0, 3266489917)) >>> 0;
+                    const rnd = () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
+                    rp.harm = [
+                        { c: 2 + (rnd() * 4 | 0), a: 0.5 + rnd() * 0.45, p: rnd() * 9 },    // 큰 사행
+                        { c: rp.cyc, a: 0.42 + rnd() * 0.3, p: rp.ph },                     // 기존 주기(질감 유지)
+                        { c: 19 + (rnd() * 15 | 0), a: 0.1 + rnd() * 0.14, p: rnd() * 9 },  // 잔결
+                    ];
+                    // 진폭 포락 — 마루가 **폭 전체를 균일한 세기로 가로지르는 것**도 벽지의 표식이다.
+                    // 실제 모래 마루는 생겼다 사라진다. 구간마다 세기를 눕히고 일부는 아예 끊는다.
+                    rp.env = { c: 1 + (rnd() * 3 | 0), p: rnd() * 9, cut: 0.3 + rnd() * 0.32 };
+                }
                 tile9(() => {
                     for (const rp of ripples) {
-                        for (const [off, col, w] of [[2.6, 'rgba(96,88,74,0.34)', 3.2], [0, 'rgba(238,232,214,0.5)', 2.1]]) {
-                            ctx.strokeStyle = col;
+                        // 랩 유지: yAt·envAt 은 x 에 대해 주기 `size` 로 정확히 주기적이다(전부 정수 주기).
+                        const yAt = (x) => {
+                            let d = 0;
+                            for (const h of rp.harm) d += h.a * Math.sin((x / size) * h.c * Math.PI * 2 + h.p);
+                            return rp.y + d * rp.amp * 0.8;
+                        };
+                        const envAt = (x) => {
+                            const e = (Math.sin((x / size) * rp.env.c * Math.PI * 2 + rp.env.p) + 1) / 2;
+                            return Math.max(0, e - rp.env.cut) / (1 - rp.env.cut);
+                        };
+                        for (const [off, rgb, w, a0] of [[2.6, '96,88,74', 3.2, 0.34], [0, '238,232,214', 2.1, 0.5]]) {
                             ctx.lineWidth = w;
-                            ctx.beginPath();
+                            // 세기가 x 를 따라 변하므로 한 번에 못 긋는다 — 짧은 구간마다 알파를 바꿔 잇는다.
                             // ⚠️ 마지막 점을 **정확히 x=size** 로 찍는다. `x += 7` 은 512 에서 511 에 멈춰
                             //    타일 경계에 1px 틈을 남기고, 그 틈이 반복돼 세로줄로 보인다(실측 비 1.27).
-                            const yAt = (x) => rp.y + off + Math.sin((x / size) * rp.cyc * Math.PI * 2 + rp.ph) * rp.amp;
-                            ctx.moveTo(0, yAt(0));
-                            for (let x = 7; x < size; x += 7) ctx.lineTo(x, yAt(x));
-                            ctx.lineTo(size, yAt(size));
-                            ctx.stroke();
+                            for (let x = 0; x < size; x += 7) {
+                                const x2 = Math.min(x + 7, size);
+                                const k = envAt((x + x2) / 2);
+                                if (k <= 0.02) continue;                 // 끊긴 구간
+                                ctx.strokeStyle = `rgba(${rgb},${(a0 * k).toFixed(3)})`;
+                                ctx.beginPath();
+                                ctx.moveTo(x, yAt(x) + off);
+                                ctx.lineTo(x2, yAt(x2) + off);
+                                ctx.stroke();
+                            }
                         }
                     }
                 });
