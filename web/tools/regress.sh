@@ -28,6 +28,7 @@ for p in \
     probe-league-emblem.js \
     check-sr-ok-gold.js \
     check-autobatch-nan-coins.js \
+    probe-icon-light-frame.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1

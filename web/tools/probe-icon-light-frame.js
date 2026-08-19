@@ -51,7 +51,23 @@ const lumOf = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
     const found = [];
     for (const sc of SCREENS) {
         try { await page.evaluate(`(${sc.open.toString()})()`); } catch (e) { continue; }
+        // 🚨 **dataURL 아이콘은 디코드 전에 찍힌다**(이 저장소가 `probe-tabbar` 에서 이미 밟은 함정).
+        //    450ms 로는 화면을 막 바꾼 직후의 아이콘이 **빈 칸으로** 찍혀 '대비 0'인 유령 불통과가
+        //    난다 — 같은 요소(같은 좌표)가 `main` 에서 Δ215.8 인데 `skills` 에서 Δ31·잉크 0% 로
+        //    갈렸다. 배경 이미지가 **전부 디코드될 때까지** 기다린 뒤 찍는다.
         await page.waitForTimeout(450);
+        await page.evaluate(async () => {
+            const urls = new Set();
+            for (const el of document.querySelectorAll('.ico')) {
+                const m = (getComputedStyle(el).backgroundImage || '').match(/url\("(data:[^"]+)"\)/);
+                if (m) urls.add(m[1]);
+            }
+            await Promise.all([...urls].map(u => new Promise(ok => {
+                const im = new Image(); im.onload = im.onerror = ok; im.src = u;
+            })));
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        });
+        await page.waitForTimeout(200);
         // 밝은 프레임 위 아이콘 후보를 DOM 에서 고른다
         const cands = await page.evaluate((LIGHT) => {
             const parse = (c) => { const m = (c || '').match(/(\d+(?:\.\d+)?)/g); return m && m.length >= 3 ? [+m[0], +m[1], +m[2], m.length > 3 ? +m[3] : 1] : null; };
@@ -143,7 +159,7 @@ const lumOf = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
         cands.forEach((c, i) => {
             const m = metrics[i];
             if (!m) return;
-            found.push({ screen: sc.key, name: c.name, hostCls: c.hostCls, bgL: c.bgL, d: +m.dev.toFixed(1), strongPct: m.strongPct, inkPct: m.inkPct, w: +c.w.toFixed(1) });
+            found.push({ screen: sc.key, name: c.name, hostCls: c.hostCls, bgL: c.bgL, d: +m.dev.toFixed(1), strongPct: m.strongPct, inkPct: m.inkPct, w: +c.w.toFixed(1), x: +c.x.toFixed(1), y: +c.y.toFixed(1) });
         });
     }
     await browser.close();
@@ -153,18 +169,23 @@ const lumOf = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
         console.log(`콘솔 에러 ${errors.length}건`);
         process.exit(errors.length ? 1 : 0);
     }
-    // 같은 (화면·이름·프레임) 중복은 접는다
+    // 같은 (화면·이름·프레임) 중복은 접는다.
+    // 🚨 **크기를 키에 넣는다(2026-08-19 교차검증에서 고친 자리).** 같은 클래스가 한 화면에 **여러
+    //    크기로** 있을 수 있는데(글자 크기를 따라가는 `em` 아이콘이라 `<small>` 안이면 작아진다),
+    //    크기를 빼고 접으면 **DOM 순서상 첫 인스턴스 하나만 남고** 나머지는 조용히 사라진다.
+    //    앞 세션이 '판정기 9.7px ↔ 손 크롭 13.8px' 로 헤맨 원인이 정확히 이것이다 — 둘은 **다른 물건**
+    //    이었는데 표에는 한 줄로만 보였다. 좌표도 같이 찍어 **그 인스턴스를 다시 찾을 수 있게** 한다.
     const seen = new Set(), rows = [];
-    for (const f of found) { const k = `${f.screen}|${f.name}|${f.hostCls}`; if (seen.has(k)) continue; seen.add(k); rows.push(f); }
+    for (const f of found) { const k = `${f.screen}|${f.name}|${f.hostCls}|${Math.round(f.w)}`; if (seen.has(k)) continue; seen.add(k); rows.push(f); }
     rows.sort((a, b) => a.d - b.d);
 
     console.log(`밝은 프레임(휘도 ≥${LIGHT}) 위 아이콘 ${found.length}개 / 자리 ${rows.length}곳 · 목표 |Δ| ≥${TARGET}`);
     console.log(`Δ = 프레임 휘도에서 벗어난 정도의 **상위 25% 평균**(방향 무시 — 밝은 아이콘도 또렷하면 통과)`);
     console.log(`강한% = |편차| ≥40 인 화소 비율 (아이콘이 프레임에서 확실히 떨어져 나온 몫)\n`);
-    console.log(`     Δ   바탕L   강한%  잉크%   폭    화면      아이콘 / 프레임`);
+    console.log(`     Δ   바탕L   강한%  잉크%   폭     x,y        화면      아이콘 / 프레임`);
     for (const r of rows) {
         const mark = r.d < TARGET ? '❌' : '  ';
-        console.log(`${mark}${String(r.d).padStart(6)} ${String(r.bgL).padStart(6)} ${String(r.strongPct).padStart(6)} ${String(r.inkPct).padStart(6)} ${String(r.w).padStart(6)}   ${r.screen.padEnd(8)} ${r.name} / ${r.hostCls}`);
+        console.log(`${mark}${String(r.d).padStart(6)} ${String(r.bgL).padStart(6)} ${String(r.strongPct).padStart(6)} ${String(r.inkPct).padStart(6)} ${String(r.w).padStart(6)}  ${(r.x + ',' + r.y).padStart(13)}  ${r.screen.padEnd(8)} ${r.name} / ${r.hostCls}`);
     }
     const bad = rows.filter(r => r.d < TARGET);
     const avg = rows.reduce((a, b) => a + b.d, 0) / rows.length;
