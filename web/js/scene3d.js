@@ -46,33 +46,43 @@ const Scene3D = {
     fxLayer: null, container: null,
     _clock: 0,
 
+    // ---- GL 컨텍스트 생존 관리 (mobile-combat-scene-blank) ----
+    // 모바일 크롬은 탭을 백그라운드로 보내거나 GPU 메모리가 쪼들리면 WebGL 컨텍스트를 **버린다.**
+    // 예전엔 이 저장소에 로스/복구 리스너가 **한 줄도 없어서**(grep 0건) 한 번 잃으면 전장이 영영
+    // 검정으로 남았다 — 사용자 신고("어느 순간 다시 접속해 보니 전투씬이 안 보임")와 증상·트리거가
+    // 정확히 일치한다. 아래 세 겹으로 막는다:
+    //   ⑴ 생성 실패     → 예외를 밖으로 던지지 않는다(던지면 boot() 가 끊겨 Combat·틱 루프까지 죽는다).
+    //   ⑵ 로스트        → preventDefault 로 복구 이벤트를 받아 내고, 돌아오면 PMREM 을 다시 굽는다.
+    //   ⑶ 복구가 안 오면 → 캔버스를 갈아 끼우고 렌더러를 새로 만든다(씬 그래프는 그대로 재업로드된다).
+    glFailed: false,      // 컨텍스트를 아예 못 만들었다 — 전장만 포기하고 게임 로직은 계속 돈다
+    ctxLost: false,       // 로스트 상태 — 복구될 때까지 렌더를 건너뛴다
+    _ctxLostAt: 0,
+    _ctxBound: false,
+    CTX_RECOVER_MS: 8000, // 이 시간 안에 webglcontextrestored 가 안 오면 강제 재생성으로 넘어간다
+
     init(canvas, fxLayer, container) {
         this.fxLayer = fxLayer;
         this.container = container;
-        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-        // 셰이더 컴파일마다 링크 상태·인포로그를 동기 조회하는 디버그 체크를 끈다 (startup-lag-loading).
-        // 이 조회는 GPU 파이프라인을 강제로 세우는 동기 지점이라, 프로그램이 수십 개 컴파일되는
-        // 부팅·첫 연출 구간의 스톨을 그대로 키운다(CPU 프로파일 실측: 제거 후 창의 27%가 getProgramInfoLog).
-        // 셰이더가 깨지면 어차피 그리기가 실패해 화면·probe-screens-errors 로 드러난다.
-        this.renderer.debug.checkShaderErrors = false;
-        this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
-        this.renderer.shadowMap.enabled = true;               // 그림자 (사실감)
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        this.renderer.outputEncoding = THREE.sRGBEncoding;    // GLB 텍스처 색 보정
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping; // 필름톤 대비/채도 롤오프로 밋밋한 조명 보완
-        this.renderer.toneMappingExposure = 1.08;
+        this.renderer = this.createMainRenderer(canvas);
+        if (this.renderer) {
+            this.bindContextEvents(this.renderer.domElement);
+            this.applyRendererParams();
+        } else {
+            // 🚨 여기서 throw 하면 boot() 가 이 줄에서 끊겨 **Combat.start()·논리 틱·자동저장이 통째로
+            //    등록되지 않는다** (= UI 만 멀쩡하고 전장은 검은 채 게임이 멈춘 화면 — 사용자 신고와
+            //    같은 그림). 씬 그래프는 GL 없이도 전부 만들 수 있으므로, 렌더만 접고 끝까지 짓는다.
+            //    그래야 Combat/UI 가 부르는 spawnEnemy·hitEnemy·heroAttack 이 전부 정상 동작한다.
+            this.glFailed = true;
+            this.showGLFallback('3D 전장을 열지 못했습니다 — 브라우저 하드웨어 가속을 켠 뒤 새로고침해 주세요');
+        }
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.Fog(0xa8d8ea, 12, 30);
-        // 절차 텍스처 비등방 필터링 — 원통 사지의 그레이징 각도 에일리어싱(사슬 체커) 제거.
-        // envMap() 등이 이미 만든 텍스처에도 소급 적용되도록 렌더러 생성 직후에 호출한다.
-        ProChar.applyMaxAnisotropy(this.renderer);
-        // PBR 환경광 — ProChar의 절차 하늘/지면 큐브맵을 PMREM으로 필터링해 MeshStandardMaterial 전역 공급.
-        // 금속(높은 metalness)이 반사할 '세상'이 생겨 무광 플라스틱 인상이 사라지는 핵심 (비평가 6.0 1위 결함).
-        try {
-            const pmrem = new THREE.PMREMGenerator(this.renderer);
-            this.scene.environment = pmrem.fromCubemap(ProChar.envMap()).texture;
-            pmrem.dispose();
-        } catch (e) { /* PMREM 실패 시 라이트만으로 렌더 (구형 기기 폴백) */ }
+        if (this.renderer) {
+            // 절차 텍스처 비등방 필터링 — 원통 사지의 그레이징 각도 에일리어싱(사슬 체커) 제거.
+            // envMap() 등이 이미 만든 텍스처에도 소급 적용되도록 렌더러 생성 직후에 호출한다.
+            ProChar.applyMaxAnisotropy(this.renderer);
+            this.bakeEnvironment();
+        }
 
         this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
         this.camera.position.set(0.15, 3.7, 8.2);
@@ -129,6 +139,173 @@ const Scene3D = {
         this.refreshPets();
         this.refreshMount();
         this.resize();
+    },
+
+    // ---- 메인 렌더러 생성: 실패해도 예외를 밖으로 내보내지 않는다 ----
+    // 모바일 GPU 메모리 압박에서는 MSAA 버퍼 요구만 거절당하는 경우가 있어, antialias 를 뺀 저전력
+    // 옵션으로 한 번 더 두드린다. 둘 다 실패하면 null 을 돌려주고 호출부가 폴백을 띄운다.
+    createMainRenderer(canvas) {
+        const tries = [{ canvas, antialias: true }, { canvas, antialias: false, powerPreference: 'low-power' }];
+        for (const opts of tries) {
+            try {
+                const r = new THREE.WebGLRenderer(opts);
+                const gl = r.getContext();
+                if (gl && !gl.isContextLost()) return r;
+                try { r.dispose(); } catch (e) { /* 버릴 렌더러다 */ }
+            } catch (e) {
+                console.warn('WebGLRenderer 생성 실패 (antialias=' + opts.antialias + ')', e);
+            }
+        }
+        return null;
+    },
+
+    // 렌더러 파라미터 — 생성 직후와 **강제 재생성 직후** 둘 다 같은 값을 먹여야 한다.
+    // (한쪽에만 있으면 복구된 전장만 색·그림자가 어긋난다.)
+    applyRendererParams() {
+        const r = this.renderer;
+        // 셰이더 컴파일마다 링크 상태·인포로그를 동기 조회하는 디버그 체크를 끈다 (startup-lag-loading).
+        // 이 조회는 GPU 파이프라인을 강제로 세우는 동기 지점이라, 프로그램이 수십 개 컴파일되는
+        // 부팅·첫 연출 구간의 스톨을 그대로 키운다(CPU 프로파일 실측: 제거 후 창의 27%가 getProgramInfoLog).
+        // 셰이더가 깨지면 어차피 그리기가 실패해 화면·probe-screens-errors 로 드러난다.
+        r.debug.checkShaderErrors = false;
+        r.setPixelRatio(Math.min(2, window.devicePixelRatio));
+        r.shadowMap.enabled = true;               // 그림자 (사실감)
+        r.shadowMap.type = THREE.PCFSoftShadowMap;
+        r.outputEncoding = THREE.sRGBEncoding;    // 재질 텍스처 색 보정
+        r.toneMapping = THREE.ACESFilmicToneMapping; // 필름톤 대비/채도 롤오프로 밋밋한 조명 보완
+        // ⚠️ 노출은 `setTheme` 이 챕터마다 소유한다 — 재생성 때 1.08 로 덮으면 밤/용암 챕터가 밝아진다.
+        //    최초 생성 때만 초기값을 준다.
+        if (r.toneMappingExposure === 1) r.toneMappingExposure = this._exposure || 1.08;
+    },
+
+    // PBR 환경광 — ProChar의 절차 하늘/지면 큐브맵을 PMREM으로 필터링해 MeshStandardMaterial 전역 공급.
+    // 금속(높은 metalness)이 반사할 '세상'이 생겨 무광 플라스틱 인상이 사라지는 핵심 (비평가 6.0 1위 결함).
+    // 🚨 컨텍스트가 돌아온 뒤에는 **반드시 다시 구워야 한다.** three 는 CPU 쪽 이미지가 있는 텍스처는
+    //    스스로 재업로드하지만, 이건 렌더 타깃에서 구운 결과물이라 원본이 없다 — 안 구우면 금속이
+    //    반사할 세상이 검정으로 남는다(복구는 됐는데 갑옷만 새까만 그림).
+    bakeEnvironment() {
+        if (!this.renderer || !this.scene) return;
+        try {
+            const pmrem = new THREE.PMREMGenerator(this.renderer);
+            this.scene.environment = pmrem.fromCubemap(ProChar.envMap()).texture;
+            pmrem.dispose();
+        } catch (e) { /* PMREM 실패 시 라이트만으로 렌더 (구형 기기 폴백) */ }
+    },
+
+    // ---- 컨텍스트 로스/복구 리스너 ----
+    bindContextEvents(canvas) {
+        if (!canvas || this._ctxBound) return;
+        this._ctxBound = true;
+        // 🚨 **버려진 캔버스의 이벤트를 무시한다.** `hardRecover()` 로 캔버스를 갈아 끼우면 죽은 쪽의
+        //    `webglcontextlost` 가 **교체 이후에 뒤늦게** 도착한다(브라우저가 비동기로 쏜다). 그걸 그대로
+        //    받으면 방금 살려 낸 새 렌더러가 로스트로 표시돼 renderFrame 이 영원히 건너뛰고 —
+        //    복구했는데도 화면은 검정으로 남는다(probe-ctx-loss ⑷ 가 실제로 이 상태를 잡아냈다).
+        const mine = () => this.renderer && this.renderer.domElement === canvas;
+        canvas.addEventListener('webglcontextlost', (e) => {
+            // 🚨 preventDefault 를 부르지 않으면 브라우저는 **복구 이벤트를 아예 쏘지 않는다** — 그게
+            //    "한 번 검어지면 영영 검정"의 직접 원인이다. three r128 도 자기 핸들러에서 부르지만,
+            //    리스너 등록 순서에 기대지 않고 여기서도 부른다(둘 다 불러도 무해하다).
+            e.preventDefault();
+            if (!mine()) return;                 // 이미 교체된 캔버스의 뒷북 — 새 렌더러를 죽이지 않는다
+            this.ctxLost = true;
+            this._ctxLostAt = this.nowMs();
+            console.warn('WebGL 컨텍스트 로스트 — 복구 대기');
+        }, false);
+        canvas.addEventListener('webglcontextrestored', () => {
+            if (!mine()) return;                 // 버려진 캔버스가 뒤늦게 살아난 것 — 무시한다
+            console.warn('WebGL 컨텍스트 복구 — 렌더 상태 재구성');
+            this.ctxLost = false;
+            this._ctxLostAt = 0;
+            try { this.onContextRestored(); } catch (e) { console.error('컨텍스트 복구 처리 실패', e); }
+        }, false);
+    },
+
+    nowMs() { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); },
+
+    // 렌더러가 아직 살아 있는가 — 썸네일·프리뷰용 보조 렌더러는 화면에 안 붙어 있어서 로스를
+    // 눈으로 알아챌 수 없다(죽은 채로 굽으면 빈 PNG 가 캐시에 박힌다). 쓰기 직전에 물어 본다.
+    glAlive(r) {
+        if (!r) return false;
+        try { const gl = r.getContext(); return !!gl && !gl.isContextLost(); } catch (e) { return false; }
+    },
+
+    // 죽은 보조 렌더러를 버린다(다음 init 호출이 새로 만든다).
+    dropDeadAux(key) {
+        const r = this[key];
+        if (!r || this.glAlive(r)) return false;
+        try { r.dispose(); } catch (e) { /* 이미 죽었다 */ }
+        this[key] = null;
+        return true;
+    },
+
+    // three 가 GL 상태·텍스처 업로드를 되살린 **뒤에** 우리가 챙겨야 할 것들.
+    onContextRestored() {
+        if (!this.renderer) return;
+        try { ProChar.applyMaxAnisotropy(this.renderer); } catch (e) { /* 능력치 재조회 실패는 화질 문제일 뿐 */ }
+        this.bakeEnvironment();
+        this._pvW = this._pvH = 0;   // 프리뷰 렌더 버퍼 크기 캐시 무효화 — 다음 틱에 다시 잰다
+        this.resize();
+        this.hideGLFallback();
+    },
+
+    // ---- 복구 이벤트가 끝내 안 올 때: 캔버스를 갈아 끼우고 렌더러를 새로 만든다 ----
+    // 잃은 컨텍스트는 같은 캔버스에서 되살아나지 않으므로 **캔버스 자체를 교체**한다. 씬 그래프·재질·
+    // 지오메트리는 그대로 재사용한다 — three 의 GPU 핸들 캐시(properties)는 렌더러마다 따로라, 새
+    // 렌더러가 첫 프레임에 전부 다시 업로드한다. 그래서 진행 상황을 하나도 잃지 않는다(리로드 금지).
+    hardRecover() {
+        const old = this.renderer && this.renderer.domElement;
+        if (!old || !old.parentNode) return false;
+        const canvas = document.createElement('canvas');
+        canvas.id = old.id;
+        canvas.className = old.className;
+        if (old.getAttribute('style')) canvas.setAttribute('style', old.getAttribute('style'));
+        const exposure = this.renderer.toneMappingExposure;   // setTheme 이 정한 챕터 노출을 보존한다
+        old.parentNode.replaceChild(canvas, old);
+        try { this.renderer.dispose(); } catch (e) { /* 이미 죽은 컨텍스트다 */ }
+        const r = this.createMainRenderer(canvas);
+        if (!r) {                                    // 아직도 못 만든다 — 캔버스를 되돌리고 다음 기회를 본다
+            canvas.parentNode.replaceChild(old, canvas);
+            this._ctxLostAt = this.nowMs();          // 타이머를 물려 CTX_RECOVER_MS 뒤 재시도
+            return false;
+        }
+        this.renderer = r;
+        this._ctxBound = false;
+        this.bindContextEvents(canvas);
+        this.applyRendererParams();
+        this.renderer.toneMappingExposure = exposure;
+        this.ctxLost = false;
+        this._ctxLostAt = 0;
+        this.onContextRestored();
+        console.warn('WebGL 렌더러 강제 재생성 완료 — 전장 복구');
+        return true;
+    },
+
+    // 로스트 상태에서 매 프레임 불린다. 복구 이벤트를 기다리다가 기한이 지나면 강제 재생성.
+    watchContextLoss() {
+        if (typeof document !== 'undefined' && document.hidden) return;  // 안 보이는 동안은 기다리지 않는다
+        if (this.nowMs() - this._ctxLostAt < this.CTX_RECOVER_MS) return;
+        this.hardRecover();
+    },
+
+    // 컨텍스트를 아예 못 만든 기기용 안내 — 검은 사각형만 남기지 않는다.
+    showGLFallback(msg) {
+        try {
+            if (!this.container || this._glFallbackEl) return;
+            const el = document.createElement('div');
+            el.className = 'gl-fallback';
+            el.textContent = msg;
+            el.setAttribute('style', 'position:absolute;inset:0;display:flex;align-items:center;' +
+                'justify-content:center;text-align:center;padding:1rem;font-size:.78rem;line-height:1.6;' +
+                'color:#d8e4f0;background:#12161d;z-index:3;pointer-events:none;');
+            this.container.appendChild(el);
+            this._glFallbackEl = el;
+        } catch (e) { /* 안내조차 못 붙이면 조용히 넘어간다 */ }
+    },
+
+    hideGLFallback() {
+        const el = this._glFallbackEl;
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+        this._glFallbackEl = null;
     },
 
     // ---- 프로시저럴 영웅 설치 (무기 손 부착·투구 머리 부착·틴트·클립명 인터페이스) ----
@@ -229,6 +406,7 @@ const Scene3D = {
     // CDN 금지 제약으로 EffectComposer 없이 r128 코어만으로 구현 (비평가 6.9 권고 1순위 — 전 샷 공통 +α).
     // 모바일은 풀스크린 3패스 비용이 커서 비활성(그림자 해상도와 동일한 UA 분기).
     initPost() {
+        if (!this.renderer) { this.postOn = false; return; }              // GL 생성 실패 기기
         if (/Mobi|Android/i.test(navigator.userAgent)) { this.postOn = false; return; }
         this.postOn = true;
         const pars = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat };
@@ -284,6 +462,7 @@ const Scene3D = {
     },
 
     renderFrame() {
+        if (!this.renderer || this.ctxLost) return;   // 죽은 컨텍스트에 그리면 GL 에러만 쌓인다
         this.updateShadeSun();
         if (!this.postOn || !this._rtScene) { this.renderer.render(this.scene, this.camera); return; }
         const r = this.renderer;
@@ -347,6 +526,7 @@ const Scene3D = {
     },
 
     resize() {
+        if (!this.renderer || !this.container || !this.camera) return;   // GL 없이 부팅한 기기·복구 중
         const w = this.container.clientWidth, h = this.container.clientHeight;
         if (!w || !h) return;
         this.renderer.setSize(w, h, false);
@@ -1800,7 +1980,8 @@ const Scene3D = {
             const ptex = new THREE.CanvasTexture(pc);
             ptex.wrapS = THREE.RepeatWrapping;
             ptex.repeat.set(2, 1);
-            ptex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); // 저각 시점 밉 뭉개짐 방지 — 근경 가장자리 선명도
+            // GL 을 못 얻은 기기에서도 씬 그래프는 끝까지 지어야 하므로 렌더러 유무를 확인한다 (mobile-combat-scene-blank)
+            if (this.renderer) ptex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); // 저각 시점 밉 뭉개짐 방지 — 근경 가장자리 선명도
             const pathGeo = new THREE.PlaneGeometry(60, 2.66, 1, 1); // 1.7 → 2.66: 늘린 폭은 전부 위아래 페더링 몫이라 길 코어 폭은 그대로다
             pathGeo.rotateX(-Math.PI / 2);
             this.pathMesh = new THREE.Mesh(pathGeo, new THREE.MeshLambertMaterial({
@@ -7223,6 +7404,7 @@ const Scene3D = {
     _thumbCache: {},
     // 오프스크린 썸네일 렌더러 — 장비/탈것이 공유한다(GL 컨텍스트를 여러 개 만들면 금방 한도에 걸린다)
     itemThumbInit() {
+        this.dropDeadAux('_thumbR');   // 컨텍스트를 잃은 렌더러로 구우면 빈 PNG 가 캐시에 박힌다
         if (this._thumbR) return;
         this._thumbR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
         this._thumbR.setSize(96, 96);
@@ -7550,6 +7732,7 @@ const Scene3D = {
     // Δ채널 48). 슬롯 아이콘의 합격 조건이 "전장의 그놈과 같은 색"이라 본편과 같은 색
     // 파이프라인·같은 조명이 필수다. 탈것·펫 재질은 Lambert/Basic뿐이라 PMREM은 필요 없다.
     creatureThumbInit() {
+        this.dropDeadAux('_creatureR');   // 위 itemThumbInit 과 같은 이유
         if (!this._creatureR) {
             const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
             r.setSize(160, 160);
@@ -16675,7 +16858,7 @@ const Scene3D = {
         this.setTheme(CHAPTER_THEMES[(chapter - 1) % CHAPTER_THEMES.length]);
     },
     setTheme(t) {
-        this.renderer.setClearColor(t.sky);
+        if (this.renderer) this.renderer.setClearColor(t.sky);   // GL 없이 부팅한 기기 (mobile-combat-scene-blank)
         // 안개색 보정 — 원본 팔레트의 안개는 회백 베일처럼 채도를 씻어냈음. 하늘색 쪽으로 당기고
         // 낮엔 채도를 살짝 올려 "색이 있는 대기"로 (원경이 밝은 실루엣 레이어로 분리돼 보이게)
         const isNightPre = (t.celestial || 'sun') === 'moon';
@@ -16805,7 +16988,7 @@ const Scene3D = {
         // "올린 노출이 광량 감소분을 먹어치웠다"며 hero-walk 프레임의 27.9%가 명도 0.85를 넘는다고
         // 지적했고, 실측으로 확인됐다(명도 0.85 초과 비율: 수정 전 2.16% → 노출 1.10에서 2.75%로 **악화**).
         // 노출만 1.02로 내리면 같은 광량에서 1.53%로 원래보다도 좋아지고 다크 엔드는 오히려 늘어난다.
-        this.renderer.toneMappingExposure = isNight ? 0.82 : 1.02;
+        if (this.renderer) this.renderer.toneMappingExposure = isNight ? 0.82 : 1.02;
         if (isNight) {
             this.sun.intensity = 0.55;
             this.hemi.intensity = 0.36;
@@ -17098,6 +17281,15 @@ const Scene3D = {
     },
 
     previewInit(container) {
+        // 컨텍스트를 잃은 렌더러는 캔버스째 버린다 — 안 버리면 팝업이 검은 사각형으로 열린다.
+        // 씬(`_pvScene`)·리그는 GL 과 무관하므로 그대로 재사용한다(다시 지으면 프롭이 중복된다).
+        if (this._pvR && !this.glAlive(this._pvR)) {
+            const dead = this._pvR.domElement;
+            if (dead && dead.parentNode) dead.parentNode.removeChild(dead);
+            try { this._pvR.dispose(); } catch (e) { /* 이미 죽었다 */ }
+            this._pvR = null;
+            this._pvW = this._pvH = 0;      // 새 렌더러에 크기를 다시 먹인다
+        }
         if (!this._pvR) {
             const r = new THREE.WebGLRenderer({ antialias: true });
             r.outputEncoding = THREE.sRGBEncoding;              // 본편(init)과 동일한 색 파이프라인
@@ -17106,7 +17298,7 @@ const Scene3D = {
             r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
             r.domElement.className = 'pinfo-scene-canvas';
             this._pvR = r;
-            this.previewBuild();
+            if (!this._pvScene) this.previewBuild();
         }
         if (this._pvR.domElement.parentNode !== container) container.appendChild(this._pvR.domElement);
         this._pvHost = container;
@@ -17272,6 +17464,17 @@ const Scene3D = {
     },
 
     update(dt) {
+        if (this.glFailed || !this.renderer) return;          // 전장 없이 게임만 도는 기기
+        if (this.ctxLost) { this.watchContextLoss(); return; } // 복구 대기 — 씬은 그 프레임에 멈춘다
+        // 로스 이벤트를 놓친 경우 대비(리스너가 붙기 전에 잃거나, 일부 기기가 이벤트를 안 쏜다):
+        // 30프레임(≈0.5초)마다 컨텍스트 상태를 직접 물어 본다. isContextLost() 는 플래그 조회라 싸다.
+        if ((this._ctxPollN = (this._ctxPollN || 0) + 1) % 30 === 0) {
+            const gl = this.renderer.getContext && this.renderer.getContext();
+            if (gl && gl.isContextLost && gl.isContextLost()) {
+                if (!this.ctxLost) { this.ctxLost = true; this._ctxLostAt = this.nowMs(); console.warn('WebGL 컨텍스트 로스트 감지(이벤트 없음)'); }
+                return;
+            }
+        }
         // 🚨 히트스톱(dt=0 정지)은 여기 있었고 **제거됐다 — 되살리지 말 것** (사용자 지시 2026-08-19,
         // skill-cast-lag-optimize: 씬만 얼고 CSS 는 도니 '렉'으로 읽혔다). dt 는 어떤 연출도 얼리지 않는다.
         this._clock += dt;

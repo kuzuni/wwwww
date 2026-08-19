@@ -70,11 +70,18 @@
         await blYield();
 
         blSet(42, '전장 짓는 중…');
-        Scene3D.init(
-            document.getElementById('game3d'),
-            document.getElementById('fx-layer'),
-            document.getElementById('game-area')
-        );
+        // 🚨 UI.init 과 같은 이유로 한 겹 끊는다 (mobile-combat-scene-blank). 여기서 예외가 새면
+        //    boot() 가 이 줄에서 끝나 **Combat.start()·논리 틱·rAF 루프·자동저장이 통째로 등록되지
+        //    않는다** — 화면은 "UI 는 멀쩡한데 전장만 검정"이 되고 게임 진행도 멈춘다(사용자 신고와
+        //    같은 그림). Scene3D 는 GL 을 못 얻어도 씬 그래프를 끝까지 지어 두므로, 여기서 끊어도
+        //    Combat 이 부르는 spawnEnemy·hitEnemy 는 전부 정상 동작한다.
+        try {
+            Scene3D.init(
+                document.getElementById('game3d'),
+                document.getElementById('fx-layer'),
+                document.getElementById('game-area')
+            );
+        } catch (e) { console.error('Scene3D.init() 실패 — 나머지 부팅은 계속한다', e); }
         fitLayout();
         window.addEventListener('resize', fitLayout);
         await blYield();
@@ -177,12 +184,22 @@
         }, LOGIC_TICK_MS);
 
         // 렌더: rAF
+        // 🚨 `update()` 의 예외가 **루프를 죽이지 못하게** 한다 (mobile-combat-scene-blank).
+        //    예전 구조는 `Scene3D.update(dt); requestAnimationFrame(frame);` 라, update 가 한 번만
+        //    던져도 다음 프레임이 예약되지 않아 화면이 그 프레임에 영구히 멈춘다(부팅 직후면 검정).
+        //    한 기기에서만 터지는 예외 하나가 전장을 통째로 못 쓰게 만드는 건 과한 대가다.
         let renderLast = performance.now();
+        let frameErrs = 0;
         function frame(t) {
             const dt = Math.min(0.1, (t - renderLast) / 1000);
             renderLast = t;
-            Scene3D.update(dt);
-            requestAnimationFrame(frame);
+            requestAnimationFrame(frame);   // 먼저 예약 — 아래가 어떻게 터지든 루프는 산다
+            try {
+                Scene3D.update(dt);
+            } catch (e) {
+                // 매 프레임 같은 예외를 콘솔에 쏟으면 그 자체가 렉이 된다 — 앞 5회만 남긴다.
+                if (++frameErrs <= 5) console.error('Scene3D.update() 예외 — 렌더 루프는 계속한다', e);
+            }
         }
         requestAnimationFrame(frame);
 
