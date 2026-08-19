@@ -2203,6 +2203,47 @@ const Scene3D = {
                 this.rocks.push(g);
             }
         }
+        // ── 근경 전경 앵커 (map-quality-up 갭 ⑶) ────────────────────────────────────────
+        // 왜: 신설 `probe-nearfield-mass.js` 로 근경 띠의 **화면 점유 면적**을 재 보니 식생이 있는
+        //   초원·밤숲은 점유 79%·최대 요소 5000px² 인데, 식생이 없는 사막·바위산·마법·용암은
+        //   점유 3.6~7.1%·최대 요소 357~592px² 였다. 근경 레이어(`scatter3`)의 지오메트리가 반경
+        //   0.045~0.06 짜리 잔자갈이라 원근 배율을 최대 2.4 까지 줘도 지름 20px 를 못 넘긴다.
+        //   비평가 2인이 라운드마다 "근경=중경 동일 스케일, 펠트 카펫"이라 한 것의 실체가 이것이다.
+        //   개수는 이미 충분하다(`probe-scatter-depth` 근/중 1.2~2.4 통과) — 모자란 건 **덩치**다.
+        // 무엇: 바이옴에 맞는 **낮고 넓은 큰 돌덩이**를 카메라 바로 앞에 몇 개 놓아 시선의 앵커로 쓴다.
+        //
+        // 🚨 **높이를 반드시 캡으로 누른다 — 여기가 이미 한 번 사고가 난 자리다.** 예전에 전경
+        //   z=+2.6/+2.8 에 소품을 뒀다가 **펫 파티를 관통**했다(실측 `probe-pet-occlusion.js` 거북이
+        //   최악 27.1%, 비평가 독립 판독 29%와 일치). 그래서 그 대역은 통째로 비워 뒀다.
+        //   x 를 피하는 걸로는 못 막는다 — 소품은 월드 고정이고 지면이 순환하므로 **어떤 x 에 둬도
+        //   결국 파티 위를 지나간다.** 막을 수 있는 축은 **높이**뿐이다: 펫은 z 1.1~2.0 에 서고 그
+        //   발밑이 화면 아래에서 31% 지점인데, z 3.95 이후에 높이 0.62 이하로 두면 화면 아래
+        //   6~17% 띠에만 걸려 파티 실루엣과 안 겹친다. 그래서 z 하한과 높이 캡이 **한 벌**이다 —
+        //   둘 중 하나만 바꾸면 가림이 되살아난다. 바꿀 일이 있으면 `probe-pet-occlusion` 을 돌릴 것.
+        {
+            const HCAP = 0.62;                 // 월드 높이 상한(위 🚨 — z 하한과 한 벌이다)
+            const foreMaker = {
+                desert: (s) => (Math.random() < 0.5 ? this.makeSlab(s * 0.62) : this.makeBoulder(s * 0.95, false, false)),
+                rock: (s) => (Math.random() < 0.5 ? this.makeRockCluster(s * 0.85, true) : this.makeBoulder(s, false, true)),
+                lava: (s) => this.makeVolcanicRock(s * 1.05),
+                magic: (s) => this.makeCrystal(s * 1.05),   // 크리스탈은 뾰족·가늘어 같은 s 로도 발자국이 작다 — 키워서 캡으로 눕힌다
+                snow: (s) => this.makeBoulder(s * 0.95, true),
+            }[kin] || ((s) => this.makeBoulder(s * 0.85, false, true));
+            for (let i = 0; i < 6; i++) {
+                const t = foreMaker(U.rand(0.82, 1.24));
+                // 캡: 만든 뒤 실제 박스를 재서 누른다(프롭마다 자연 높이가 달라 상수로는 못 맞춘다).
+                const box = new THREE.Box3().setFromObject(t);
+                const h = box.max.y - box.min.y;
+                if (h > HCAP) t.scale.y *= HCAP / h;
+                t.rotation.y = U.rand(0, Math.PI * 2);
+                this.setShadow(t);
+                const g = grounded(t, 0.5);    // 접지 블롭은 setShadow 뒤에 붙어야 캐스터에서 빠진다
+                const x = U.rand(-9, 9), z = U.rand(3.95, 4.85);
+                g.position.set(x, this.heightAt(x, z) + 0.02, z);
+                this.scene.add(g);
+                this.rocks.push(g);
+            }
+        }
         // 무한맵 스크롤 대상 (걷는 동안 왼쪽으로 흘러가며 순환, 지형 높이 추적)
         this.scrollables = [...this.trees, ...this.rocks];
         // 바람 대상 수집 — `userData.windSway` 를 단 그룹만. 랜드마크는 그룹 자체가 아니라 **자식**이

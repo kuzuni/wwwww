@@ -27,7 +27,7 @@
 //   들었는지 운'이 값을 지배한다(선행 자가 같은 코드로 챕터마다 0.16~2.07 로 튀었다). 지면은 주기
 //   30 으로 순환하므로 한 주기를 13자리로 패닝하며 합산한다. 빌드 난수 노이즈는 3회 재빌드로 눌렀다.
 //
-// 사용: node probe-nearfield-mass.js            # 출력의 판정 줄로 읽는다(아직 게이트 아님)
+// 사용: node probe-nearfield-mass.js            # 게이트. 근경 세 지표 중 하나라도 미달이면 종료코드 1
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
@@ -50,6 +50,12 @@ const REBUILDS = 3, PANS = 13, PERIOD = 30;
         const r = await page.evaluate(([chapter, VW, VH, BIG_PX, REBUILDS, PANS, PERIOD]) => {
             const acc = [0, 1, 2].map(() => ({ area: 0, max: 0, big: 0, n: 0 }));
             for (let rep = 0; rep < REBUILDS; rep++) {
+                // 🚨 **재빌드마다 시드를 고정한다 — 안 하면 게이트로 못 쓴다.** 배치가 전부 Math.random
+                //    이라 같은 코드로 두 번 돌려도 근경 점유가 66.9→73.9→85.9 로 흔들렸다(수정 여부와
+                //    무관한 흔들림이 개선폭만큼 커질 수 있다). rep 마다 **다른** 고정 시드를 줘서
+                //    3벌 평균이라는 원래 취지는 지키면서 실행 간 재현성을 얻는다.
+                let rs = (0x9e3779b9 ^ Math.imul(rep + 1, 0x85ebca6b)) >>> 0;
+                Math.random = () => { rs ^= rs << 13; rs >>>= 0; rs ^= rs >>> 17; rs ^= rs << 5; rs >>>= 0; return rs / 4294967296; };
                 Scene3D.setChapterTheme(chapter);
                 const cam = Scene3D.camera;
                 Scene3D.scene.updateMatrixWorld(true);
@@ -79,10 +85,28 @@ const REBUILDS = 3, PANS = 13, PERIOD = 30;
                         items.push([v.x, v.y, v.z, br * s]);
                     }
                 }
-                // 큰 프롭(나무·바위·선인장·크리스탈 …) — 인스턴싱이 아니라 개별 그룹이다.
-                for (const o of (Scene3D.trees || [])) {
+                // 개별 그룹 프롭 — 인스턴싱이 아니다.
+                // 🚨 **`trees` 만 훑으면 안 된다.** 큰 랜드마크만 거기 있고 **덤불·잔돌·꽃·양치류·근경
+                //    앵커는 전부 `rocks`** 에 들어간다(`grounded()` 로 감싼 별도 그룹). 처음에 `trees` 만
+                //    훑었다가 근경 앵커 6개를 새로 넣고도 수치가 **1px 도 안 움직여서** 알았다.
+                //    (같은 사각지대를 `probe-prop-blob` 도 한 번 밟았다 — 그때도 작은 소품이 통째로 빠졌다.)
+                const boxNoBlob = (root) => {
+                    // 🚨 **접지 블롭을 빼고 잰다.** 소품은 `grounded()` 로 감싸며 발밑에 소프트 그림자
+                    //    원판을 다는데, 그게 실루엣 반경의 1.9배라 `Box3.setFromObject` 를 그냥 쓰면
+                    //    **박스를 블롭이 지배한다**(면적이 3.6배 부풀어 오른다). 블롭은 납작한 그림자
+                    //    데칼이지 시선을 잡는 덩치가 아니다 — 이 자가 재려는 건 후자다.
+                    const b = new THREE.Box3();
+                    root.traverse(c => {
+                        if (!c.isMesh || (c.userData && c.userData.sharedGeometry)) return;
+                        c.updateWorldMatrix(false, false);
+                        if (!c.geometry.boundingBox) c.geometry.computeBoundingBox();
+                        b.union(c.geometry.boundingBox.clone().applyMatrix4(c.matrixWorld));
+                    });
+                    return b;
+                };
+                for (const o of [...(Scene3D.trees || []), ...(Scene3D.rocks || [])]) {
                     if (!o || !o.visible) continue;
-                    const box = new THREE.Box3().setFromObject(o);
+                    const box = boxNoBlob(o);
                     if (box.isEmpty()) continue;
                     const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
                     items.push([c.x, c.y, c.z, Math.max(sz.x, sz.y, sz.z) / 2]);
@@ -150,7 +174,25 @@ const REBUILDS = 3, PANS = 13, PERIOD = 30;
     }
     const avg = nearBig.reduce((s, v) => s + v, 0) / (nearBig.length || 1);
     console.log(`근경 '큰것몫' 평균 ${avg.toFixed(1)}%  (챕터별 ${nearBig.map(v => v.toFixed(0)).join('/')})`);
+
+    // ── 판정 ────────────────────────────────────────────────────────────────────
+    // 참고선은 이론값이 아니라 **전/후 실측의 양쪽 끝**에서 잡았다(시드 고정 A/B, 근경 띠 기준):
+    //   점유%      수정 전 최악 2.9  → 수정 후 최악 12.1   → 선 10
+    //   최대요소   수정 전 최악 317  → 수정 후 최악 11269  → 선 3000
+    //   큰것몫%    수정 전 최악 0.0  → 수정 후 최악 61.1   → 선 40
+    // 세 지표를 **함께** 걸어야 한다. 점유%만 걸면 **잔자갈을 더 뿌려서** 통과할 수 있고(그게 바로
+    // 이 결함을 만든 방식이다), 최대요소만 걸면 큰 것 하나 놓고 나머지를 카펫으로 둬도 통과한다.
+    const FLOOR = { cover: 10, max: 3000, big: 40 };
+    const fails = [];
+    for (const r of rows) {
+        const a = r.acc[0], cover = 100 * a.area / bandPx, big = a.area > 0 ? 100 * a.big / a.area : 0;
+        if (cover < FLOOR.cover) fails.push(`ch${r.ch} 점유 ${cover.toFixed(1)}% < ${FLOOR.cover}`);
+        if (a.max < FLOOR.max) fails.push(`ch${r.ch} 최대요소 ${a.max.toFixed(0)} < ${FLOOR.max}`);
+        if (big < FLOOR.big) fails.push(`ch${r.ch} 큰것몫 ${big.toFixed(1)}% < ${FLOOR.big}`);
+    }
+    console.log(`\n참고선 근경 점유≥${FLOOR.cover}% · 최대요소≥${FLOOR.max}px² · 큰것몫≥${FLOOR.big}%`);
+    if (fails.length) console.log('❌ 미달: ' + fails.join(' / '));
+    else console.log('✅ 전 챕터 통과 — 근경에 시선을 잡는 덩치가 있다');
     console.log(`콘솔 에러 ${errs.length}건${errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''}`);
-    console.log('⚠️ 아직 게이트가 아니다 — 육안 정답(캡처)과 대조해 참고선을 정한 뒤에 종료코드를 붙일 것.');
-    process.exit(0);
+    process.exit(fails.length || errs.length ? 1 : 0);
 })();
