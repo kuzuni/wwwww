@@ -16893,7 +16893,9 @@ const Scene3D = {
         const k = kind + ':' + a + ':' + b + ':' + c + ':' + d;
         let g = this._fxGeoCache[k];
         if (!g) {
-            g = kind === 'torus' ? new THREE.TorusGeometry(a, b, c, d) : new THREE.SphereGeometry(a, b, c);
+            g = kind === 'torus' ? new THREE.TorusGeometry(a, b, c, d)
+                : kind === 'box' ? new THREE.BoxGeometry(a, b, c)
+                : new THREE.SphereGeometry(a, b, c);
             this._fxGeoCache[k] = g;
         }
         return g;
@@ -17254,7 +17256,12 @@ const Scene3D = {
         this._shardTex = new THREE.CanvasTexture(c);
         return this._shardTex;
     },
-    // 발광 파티클: 가산 블렌딩 빌보드 (박스 파편이 '깨진 텍스처'로 보이던 문제 교체)
+    // 청키 큐브 파티클 (화풍 확정 2026-08-20 = voxel + 치비 — "스킬 이펙트 = **청키 큐브 파티클** +
+    // 블록 투사체 + 볼드 플랫 섬광, **부드러운 사실 VFX 아님**"). 예전엔 가산 블렌딩 **빌보드 스프라이트**
+    // (소프트 글로우 원반)였는데 그건 확정 화풍이 명시적으로 배제한 그것이라, 큐브 조형과 따로 놀았다.
+    // 🚨 되돌리지 말 것 — 그 전에는 '박스 파편'을 썼다가 '깨진 텍스처로 보인다'며 스프라이트로 갈아탄
+    //    이력이 있다. 그때 문제는 **박스가 아니라 텍스처를 입힌 박스**였다. 지금은 면당 플랫 색
+    //    (`MeshBasicMaterial`, 텍스처 없음)이라 같은 함정이 아니다.
     // opt.solid=true면 일반 블렌딩 — 가산은 밝은 초원 배경 위에서 하얗게 씻겨 버스트가 안 읽히므로,
     // 색이 살아남아야 하는 파편(처치·크리)은 불투명 쪽으로 섞어 쓴다. opt.scale/speed로 덩치·비산 속도 배율.
     spawnSparks(pos, count, colorHex, opt) {
@@ -17265,15 +17272,25 @@ const Scene3D = {
         const n = this.particles.length;
         if (n > 320) return;
         if (n > 180) count = Math.max(1, Math.round(count * 0.45));
+        const base = new THREE.Color(colorHex), hsl = base.getHSL({ h: 0, s: 0, l: 0 });
         for (let i = 0; i < count; i++) {
-            const p = new THREE.Sprite(new THREE.SpriteMaterial({
-                map: this.sparkTex(), color: colorHex, transparent: true,
-                blending: o.solid ? THREE.NormalBlending : THREE.AdditiveBlending, depthWrite: false,
-                opacity: o.solid ? 0.95 : 1,
-            }));
+            // **큐브별 미세 색변화** (화풍 블록 ⓒ) — 같은 색 큐브 여러 개가 겹치면 한 덩어리로 뭉쳐
+            // 개수가 안 읽힌다. 명도만 흔든다(색상까지 흔들면 스킬 속성색이 무너진다).
+            const c = new THREE.Color().setHSL(hsl.h, hsl.s, U.clamp(hsl.l * U.rand(0.80, 1.20), 0.05, 0.97));
+            const e = U.rand(0.09, 0.19) * sc;      // 큐브 한 변 — 스프라이트(0.16~0.34)는 소프트 falloff 라
+            const p = new THREE.Mesh(this.fxGeo('box', 1, 1, 1),   // 실효 코어가 더 작았다. 꽉 찬 큐브는 이 폭이 같은 덩치다.
+                new THREE.MeshBasicMaterial({
+                    color: c, transparent: true,
+                    blending: o.solid ? THREE.NormalBlending : THREE.AdditiveBlending, depthWrite: false,
+                    opacity: o.solid ? 0.95 : 1,
+                }));
+            p.userData.sharedGeometry = true;   // 공유 지오 — 파티클 청소가 dispose 를 건너뛴다
             p.position.copy(pos);
-            p.userData.baseScale = U.rand(0.16, 0.34) * sc;
-            p.scale.setScalar(p.userData.baseScale);
+            p.userData.baseScale = e;
+            p.scale.setScalar(e);
+            // 축정렬 큐브가 늘 같은 각으로 날면 '카드'처럼 보인다 — 초기 각·텀블을 3축 다 흔든다
+            p.rotation.set(U.rand(0, 6.28), U.rand(0, 6.28), U.rand(0, 6.28));
+            p.userData.tumble = new THREE.Vector3(U.rand(-8, 8), U.rand(-8, 8), U.rand(-8, 8));
             p.userData.vel = new THREE.Vector3(U.rand(-2.5, 2.5) * sp, U.rand(1.5, 4.5) * sp, U.rand(-1.5, 1.5) * sp);
             p.userData.life = U.rand(0.35, 0.7);
             p.userData.age = 0;
@@ -18522,10 +18539,15 @@ const Scene3D = {
             }
             p.position.addScaledVector(p.userData.vel, dt);
             if (!p.userData.noGravity) p.userData.vel.y -= 9 * dt;
-            if (p.userData.spin) p.rotation.z += p.userData.spin * dt; // 파편 쿼드 텀블링
+            const tb = p.userData.tumble;
+            if (tb) {                                              // 큐브 파티클 — 3축 텀블
+                p.rotation.x += tb.x * dt; p.rotation.y += tb.y * dt; p.rotation.z += tb.z * dt;
+            } else if (p.userData.spin) p.rotation.z += p.userData.spin * dt; // 파편 쿼드 텀블링
             const lifeK = 1 - p.userData.age / p.userData.life;
             p.material.opacity = lifeK;
-            if (p.isSprite && p.userData.baseScale) p.scale.setScalar(p.userData.baseScale * (0.4 + 0.6 * lifeK));
+            // ⚠️ 예전엔 `p.isSprite &&` 조건이 붙어 있어 **메시 파티클은 수축을 못 받았다** — 큐브로
+            //    바꾼 뒤 이걸 그대로 두면 큐브가 끝까지 같은 덩치로 남아 '사라지는' 게 아니라 '꺼진다'.
+            if (p.userData.baseScale) p.scale.setScalar(p.userData.baseScale * (0.4 + 0.6 * lifeK));
         }
         // 안개 드리프트 (카메라 주변 순환) + 원경 산맥은 카메라를 따라감
         for (const mist of this.mists) {
