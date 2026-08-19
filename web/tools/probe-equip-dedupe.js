@@ -4,6 +4,7 @@
 // 판정: 시대 안 중복 0쌍이면 사용자 지적("같은 슬롯 장비 5개가 전부 똑같은 아이콘")이 해소된 것.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
+const { waitReady } = require('./wait-ready.js');
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -12,7 +13,7 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.itemThumb, null, { timeout: 20000 });
+    await waitReady(page, "typeof Scene3D !== \"undefined\" && Scene3D.itemThumb");   // ⚠️ waitForFunction 은 이 컨테이너에서 안 돈다(wait-ready.js 헤더)
 
     const data = await page.evaluate(() => {
         const rows = [];

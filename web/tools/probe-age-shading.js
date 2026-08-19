@@ -21,6 +21,7 @@
 //     원시는 돌·가죽·뼈 3계열이 보여야 하므로 3 이상.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
+const { waitReady } = require('./wait-ready.js');
 
 // 회귀 기준선 — [ⓒ⑴ 적용 전 cv, 하한]. 하한 = 적용 후 실측 − 0.008.
 // 열 명세: cv = 휘도SD/평균휘도. 10칸 **전부** 적용 전보다 올랐다(depth 로는 primal/hide 만 내려가
@@ -43,7 +44,7 @@ const SEP_SD = 2.0, SEP_DEPTH = 0.35, SEP_MEAN = 12.0;
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.itemThumb, null, { timeout: 20000 });
+    await waitReady(page, "typeof Scene3D !== 'undefined' && Scene3D.itemThumb");   // ⚠️ waitForFunction 은 이 컨테이너에서 안 돈다(wait-ready.js 헤더)
 
     const res = await page.evaluate(async () => {
         Scene3D.itemThumb({ slot: 'armor', age: 'medieval', ageIdx: 1, rarity: 'rare', nameIdx: 0 });

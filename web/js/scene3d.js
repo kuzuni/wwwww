@@ -3777,7 +3777,10 @@ const Scene3D = {
     //    남게 잡을 것(장비 몸통이 오브젝트 단위로 0.4~0.6, 썸네일에서 ~80px → freq 12 면 칸당 ≈7px).
     AGE_DETAIL: {
         primal: { mode: 'grain', freq: 24, amp: 0.22, vary: 0.050, vfreq: 20 },   // 돌·뼈: 팬 자국·기공
-        forged: { mode: 'rivet', freq: 11, amp: 0.30, vary: 0.040, vfreq: 20 },   // 판금: 리벳 열
+        // 판금: 리벳 **열**. ⚠️ freq 11 + 전면 그리드였던 종전 값을 되돌리지 말 것 — 표면 전체에
+        //    큰 도넛이 균일하게 깔려 중세 투구·갑옷 10종이 통째로 **물방울 무늬(뽁뽁이)** 로 읽혔다
+        //    ('중세→진짜 중세(기사)' 사용자 지시와 정반대). 리벳은 판을 잇는 **줄(seam)** 에만 박힌다.
+        forged: { mode: 'rivet', freq: 20, amp: 0.30, vary: 0.040, vfreq: 20, rivetRow: 3 },
         brass: { mode: 'panel', freq: 13, amp: 0.22, vary: 0.040, vfreq: 20 },   // 황동: 각인 격자
         polymer: { mode: 'panel', freq: 10, amp: 0.18, vary: 0.040, vfreq: 20 },   // 폴리머: 패널 심
         alloy: { mode: 'panel', freq: 12, amp: 0.24, vary: 0.040, vfreq: 20, glow: 0x9fe8ff }, // 합금: 심에 냉광
@@ -3803,11 +3806,17 @@ const Scene3D = {
         if (d.mode === 'rivet') return [
             // 리벳: 도넛 그늘(테) + 볼록한 머리 하이라이트. 머리를 과하게 밝히면 순백으로 타므로
             // ⚠️ 가산은 0.3배까지만 — probe-equip-clip 의 5% 게이트가 여기서 먼저 깨진다.
-            '\tvec2 rc = fract(uv2 * ' + f(d.freq) + ') - 0.5;',
+            // rivetRow = N 이면 **N 줄 걸러 한 줄**에만 리벳이 서고, 그 줄을 따라 접합 이음선이 간다.
+            // 이게 '균일 그리드 = 물방울 무늬'와 '리벳 박은 판금'을 가르는 유일한 차이다.
+            '\tvec2 ruv = uv2 * ' + f(d.freq) + ';',
+            '\tfloat rRow = ' + (d.rivetRow ? '1.0 - step(0.5, mod(floor(ruv.y), ' + f(d.rivetRow) + '))' : '1.0') + ';',
+            '\tvec2 rc = fract(ruv) - 0.5;',
             '\tfloat rd = length(rc);',
-            '\tfloat rRim = smoothstep(0.36, 0.26, rd) - smoothstep(0.24, 0.15, rd);',
-            '\tfloat rHead = smoothstep(0.21, 0.05, rd);',
-            '\tdiffuseColor.rgb *= 1.0 - dAmp * rRim;',
+            '\tfloat rRim = (smoothstep(0.36, 0.26, rd) - smoothstep(0.24, 0.15, rd)) * rRow;',
+            '\tfloat rHead = smoothstep(0.21, 0.05, rd) * rRow;',
+            // 이음선: 리벳 중심 높이를 따라 가는 그늘 한 줄 (리벳이 무엇을 붙잡고 있는지 보여 준다)
+            '\tfloat rSeam = (1.0 - smoothstep(0.03, 0.13, abs(rc.y))) * rRow;',
+            '\tdiffuseColor.rgb *= 1.0 - dAmp * (rRim + rSeam * 0.45);',
             '\tdiffuseColor.rgb += diffuseColor.rgb * dAmp * 0.30 * rHead;',
         ];
         if (d.mode === 'panel') {
