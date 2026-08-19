@@ -94,7 +94,13 @@ const OUT = process.argv[2] || __dirname;
     // 영웅이 실제로 칼을 휘두른 뒤 그 임팩트 시점에 피해가 들어가게 — 스윙 없는 캡처는 '동상이 맞는' 그림이 된다
     const swingThenHit = async (amount, crit) => {
         await page.evaluate(() => Scene3D.heroAttack(901));
-        await step(0.16); // 검 impact 0.16s
+        // 🚨 0.16 은 틀린 값이었다(실측). `heroAttack` 스윙에서 무기 끝이 적 bbox 에 실제로 닿는 구간은
+        //    **0.117~0.142s** 이고, 0.158s 에는 이미 0.11유닛 물러나 있다. 0.16 에 피해를 넣으면
+        //    **무기가 지나간 뒤에** 이펙트·숫자가 뜨고, 다음 캡처(+66ms)에는 스윙이 다른 국면에 있어
+        //    비평가 2인이 독립적으로 "이펙트가 무기 접촉보다 ~50ms 먼저 터진다"고 읽었다(8차 A#3·B#②).
+        //    게임 자체는 멀쩡하다 — `probe-weapon-contact` 는 임팩트 프레임에 무기가 닿는 것을 통과시킨다.
+        //    접촉 구간 한가운데인 0.13 으로 맞춘다.
+        await step(0.13); // 검 impact — 실측 접촉 구간(0.117~0.142s)의 중앙
         await page.evaluate(([a, c]) => Combat.damageEnemy(Combat.enemies[0], Big.of(a), c, null), [amount, crit]);
     };
     await swingThenHit(140, false); // 최대 HP의 14%

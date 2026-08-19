@@ -44,7 +44,7 @@ const LEAK_MAX = 0.05;       // ⓖ 수명 뒤 허용 잔여(rad) — 가산 층
         let s = 0x2f6e2b1;
         Math.random = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
     });
-    await page.goto(INDEX + '?enemy=goblin', { waitUntil: 'load' });
+    await page.goto(INDEX + '?enemy=' + (process.env.PROBE_ENEMY || 'goblin'), { waitUntil: 'load' });
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 45000 });
     await page.waitForTimeout(1500);
 
