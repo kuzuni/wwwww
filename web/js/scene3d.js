@@ -8703,29 +8703,35 @@ const Scene3D = {
             //    ⓑ 거기서 손가락 둘이 나와 ⓒ **밖·위로 치켜든** 자세인 것이다. 원뿔 금지 — 각진 쐐기로.
             g.userData.claws = [];
             for (const s of [-1, 1]) {
-                tube([s * 0.18, 0.26, 0.08], [s * 0.40, 0.34, 0.20], 0.050, mat);      // 위팔 — 밖·위로
-                tube([s * 0.40, 0.34, 0.20], [s * 0.47, 0.27, 0.30], 0.044, mat);      // 아래팔
+                // 🚨 **2판 폐기 — 이전 집게는 '옆으로 삐져나온 흰 널빤지'로 읽혔다**(비평가 2인이 게를
+                //    '조립 안 된 엉킨 막대기'로 본 주범). 원인 셋: ⓐ 팔이 가늘어(0.050→0.044) 손과
+                //    **굵기가 끊겼다** ⓑ 손바닥이 납작한 박스(0.075×0.105×0.13)라 옆에서 널빤지다
+                //    ⓒ 손가락이 몸색·흰색 **두 색으로 갈려** 손과 따로 노는 조각처럼 보였다.
+                //    → 팔을 굵게 이어 붙이고, 손바닥을 **덩어리진 집게 밑동**으로 키우고, 손가락은
+                //    손바닥과 **같은 몸색**으로 통일하되 안쪽 물리는 면만 각질색으로 남긴다.
+                tube([s * 0.17, 0.25, 0.06], [s * 0.38, 0.33, 0.20], 0.058, mat);      // 위팔 — 밖·위로(굵게)
+                tube([s * 0.38, 0.33, 0.20], [s * 0.46, 0.27, 0.32], 0.056, mat);      // 아래팔(손과 굵기 이음)
                 const hand = new THREE.Group();
-                hand.position.set(s * 0.47, 0.27, 0.30);
-                hand.rotation.y = -s * 0.34;      // 집게를 안쪽(가슴 앞)으로 튼다 — 실제 게가 그 자세다
+                hand.position.set(s * 0.46, 0.27, 0.32);
+                hand.rotation.y = -s * 0.40;      // 집게를 안쪽(가슴 앞)으로 튼다 — 실제 게가 그 자세다
                 g.add(hand);
-                // ⚠️ 손바닥을 `light`(등급색 +0.18 명도)로 두면 에픽 초록에서 **창백한 널빤지**로 타서
-                //    집게가 아니라 '옆구리에 붙인 판때기'가 된다(실측 1판). 몸색으로 두고 **손가락만**
-                //    각질 흰색으로 남겨야 벌어진 V 가 그림의 정보가 된다.
-                const palm = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.105, 0.13), mat);
-                palm.position.set(0, 0, 0.04);
-                // 손가락은 **끝으로 갈수록 얇아지는 각기둥**(원뿔이면 가시, 원통이면 막대다).
-                const finger = (len, r0, r1) => new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, len, 4), CHITIN);
-                const lo = finger(0.17, 0.036, 0.013);
-                lo.rotation.x = Math.PI / 2; lo.position.set(0, -0.030, 0.150);
+                // 손바닥(propodus) — 게 집게의 상징인 **불룩한 밑동**. 박스 대신 눌린 구로 덩어리감을 준다.
+                const palm = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), mat);
+                palm.scale.set(0.95, 1.15, 1.35); palm.position.set(0, 0, 0.05);
+                // 손가락 — 손바닥과 **같은 몸색**(끝만 각질). 끝으로 갈수록 얇아지는 각기둥.
+                const finger = (len, r0, r1, m) => new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, len, 5), m || mat);
+                const lo = finger(0.19, 0.046, 0.016);
+                lo.rotation.x = Math.PI / 2; lo.position.set(0, -0.034, 0.170);
+                lo.add((() => { const t = finger(0.05, 0.018, 0.008, CHITIN); t.rotation.x = 0; t.position.y = 0.10; return t; })()); // 각질 손톱
                 const jawPivot = new THREE.Group();                                    // 움직이는 손가락은 **뿌리**에서 열린다
-                jawPivot.position.set(0, 0.030, 0.07);
+                jawPivot.position.set(0, 0.034, 0.08);
                 // 🚨 **기본 자세가 '벌어짐'이어야 한다.** 0(닫힘)으로 지어 두면 정지 프레임(썸네일·
                 //    슬롯 아이콘)에서 손가락 둘이 한 덩어리로 붙어 **벙어리장갑**으로 읽힌다 — 실측으로
                 //    한 판 날렸다. 애니메이션은 이 기본각에서 **더 벌리는 쪽으로만** 더한다.
                 jawPivot.rotation.x = -CLAW_REST;
-                const up = finger(0.17, 0.034, 0.012);
-                up.rotation.x = Math.PI / 2; up.position.set(0, 0.010, 0.085);
+                const up = finger(0.19, 0.044, 0.014);
+                up.rotation.x = Math.PI / 2; up.position.set(0, 0.010, 0.095);
+                up.add((() => { const t = finger(0.05, 0.016, 0.008, CHITIN); t.rotation.x = 0; t.position.y = 0.105; return t; })());
                 jawPivot.add(up);
                 hand.add(palm, lo, jawPivot);
                 jawPivot.userData.s = s;
@@ -9719,7 +9725,15 @@ const Scene3D = {
                     cy(0.022, 0.022, 0.02, sx * 0.13, 0.36, bz, IRON).rotation.x = 0;
             } else sp(0.22, 0, CRAB ? 0.21 : 0.24, 0, bodyMat, bs[0], bs[1], bs[2]);
             if (name === 'Turtle') turtleShell();
+            // 🚨 `eyeMeshes` 를 **여기서 선언**한다. 예전엔 아래 `if(!CRAB)` 안에서 선언 없이
+            //    `eyeMeshes = …` 로 대입해 **암묵 전역**이 됐고(비엄격 모드), 게는 그 블록을 건너뛰므로
+            //    neckRig 에 넘길 값이 이 호출에서는 없었다 — 시트 도구는 앞 탈것이 남긴 전역을 우연히
+            //    물려받아 '돌아간 것처럼' 보였지만, 탈것 하나만 새로 그리는 `refreshMount`(프로브·
+            //    인게임 장착) 경로에서는 `ReferenceError: eyeMeshes is not defined` 로 터진다.
+            //    게는 눈이 `crabBody()` 안에 있으니 그 반환값을 넘긴다.
+            let eyeMeshes = null;
             const crabEyes = CRAB ? crabBody() : null;
+            if (CRAB) eyeMeshes = crabEyes;
             // ⚠️ 목·머리는 **기갑(withers, z 0.30) 에서 앞으로 뻗어 나가야** 한다. 예전엔 목이 (0, 0.44, 0.22)
             //    즉 안장 바로 앞·위에 굵게 서 있고 머리가 z 0.34에 얹혀서, 카메라에서 보면 그 둘이
             //    **반대쪽(먼) 다리를 통째로 가렸다**(실측: 먼 허벅지·정강이 가림률 100%). 말은 목이 앞으로
@@ -10171,7 +10185,7 @@ const Scene3D = {
                     HEADPART(bx(0.15, 0.05, 0.03, 0, headY + 0.035, headZ + 0.085, M(0xff5252, { emissive: 0xd50000, emissiveIntensity: 0.8 }))); // 바이저
                     for (const s of [-1, 1]) HEADPART(tube([s * 0.06, headY + 0.085, headZ - 0.02], [s * 0.10, headY + 0.175, headZ - 0.06], 0.010, IRON)); // 안테나
                 } else HEADPART(sp(0.13, 0, headY, headZ, headMat, hs[0], hs[1], hs[2])); // 머리
-                eyeMeshes = eyes(headY + 0.04, headZ + 0.10, 0.062);
+                eyeMeshes = eyes(headY + 0.04, headZ + 0.10, 0.062);   // 위 `let eyeMeshes` 에 대입(전역 누수 방지)
                 // 돼지 꼬리는 **말린 나선**이다 — 곧은 원뿔 하나면 다른 종과 똑같아진다.
                 let tail;
                 if (g.userData.pigTail) {
@@ -10196,10 +10210,13 @@ const Scene3D = {
                     //    구슬을 이어 곡선으로 만든다(원통 하나로는 직선이라 꼬리로 안 읽힌다).
                     // ⚠️ 구슬을 **아래로** 늘어뜨리면 땅에 닿아 '진주 목걸이'가 된다(1판 실측 — 9개 ×
                     //    0.045 면 y 0.26 에서 지면을 뚫는다). 생쥐 꼬리는 **뒤로 길게 뻗다가 끝만 들린다.**
+                    // 🚨 **구슬 간격(0.052)이 지름(0.046)보다 넓어 꼬리가 점선으로 끊겼다**(비평가 2인이
+                    //    '점선으로 끊긴 꼬리'로 지목). 간격을 지름 아래(0.036)로 좁혀 구슬이 겹치게 하고,
+                    //    길이를 지키려 14마디로 늘린다 — 이제 이어진 곡선 한 줄로 읽힌다.
                     tail = new THREE.Group(); tail.position.set(0, 0.27, -0.36); g.add(tail);
-                    for (let i = 0; i < 10; i++) {
-                        const seg = new THREE.Mesh(new THREE.SphereGeometry(0.023 - i * 0.0016, 6, 5), M(0xd9b7a8));
-                        seg.position.set(0, -0.055 + Math.sin(i * 0.30) * 0.075, -0.052 * i);
+                    for (let i = 0; i < 14; i++) {
+                        const seg = new THREE.Mesh(new THREE.SphereGeometry(0.024 - i * 0.0012, 6, 5), M(0xd9b7a8));
+                        seg.position.set(0, -0.055 + Math.sin(i * 0.22) * 0.075, -0.036 * i);
                         tail.add(seg);
                     }
                 } else if (PANTHER) {
