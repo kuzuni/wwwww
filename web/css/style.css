@@ -7192,3 +7192,112 @@ body {
                                               rgba(255,255,255,0) 82%, rgba(255,255,255,.28) 100%);
     box-shadow: inset 0 .1rem .18rem rgba(0,0,0,.10), inset 0 0 0 1px rgba(0,0,0,.06);
 }
+
+/* ===== 13차 슬라이스 — 비평가 라운드 5(54·43/100) **2인 교집합** 결함만 (slug: ui-quality-up) =====
+   R5 는 12차까지의 결과를 처음 채점한 라운드다(9~11차 인계 메모의 ⑵ 목록은 12차에서 소진됐다).
+   두 비평가가 **각자 독립적으로 같은 요소를 같은 말로** 지적한 것만 골랐다 — 인계 메모 ⑴의 지시
+   ("비평가 분산이 크다 → 2인 교집합만 고칠 것") 그대로다. 교집합 4건:
+     ① 파란 CTA 버튼이 전부 민짜 단색      (A 결함[3] · B 결함[2])  ← 두 라운드 연속(R1 도 같은 자리)
+     ② 상점 흰 상품 카드 3장이 무입체 흰 사각 (A 결함[2] · B 결함[3])
+     ③ 확률 정보 시대 막대가 원색 무보정   (A 결함[7] · B 결함[7])
+     ④ 시트 본문의 큰 흰 평면이 '재질 없는 종이' (A 결함[1] · B 결함[1]·[5])
+   교집합 밖(A 는 탭바 아이콘 통일, B 는 타이포 시스템)은 이번에 손대지 않는다.
+   ⚠️ 전부 칠 속성(background-image/box-shadow)만 — 크기·테 두께·라운드·패딩·글자 크기 불변.
+   📌 인계 메모 ⑶("지금 층은 LLM 비평가에게 안 읽히는 저알파가 많다 — 다음은 1.5~2배에서 시작")을
+      ①에 그대로 적용했다(위 광 .30→.52 ≈1.7배). */
+
+/* ① CTA 버튼 — 5·9차 광택을 1.7배로 올리고 **좌우 측벽**을 더한다.
+   🚨 6838행 블록의 금기를 그대로 지킨다: **box-shadow 금지**(--pp-blue-dk 아래턱과 :active 눌림이
+      그 블록 소유다) · `.silver`/`.ascend-ready` 제외 · 선택자는 0-3-0 문맥 3종을 같이 적는다
+      (`.modal-card .btn.primary` 계열의 background **단축**이 0-3-0 이라 `.btn.btn` 한 겹은 진다).
+      동점이면 뒤에 온 이 블록이 이긴다 — 그래서 여기서 값만 갈아 끼운다.
+   측벽은 90deg 층 한 겹이다: 왼쪽 1px 흰 림 + 오른쪽 1px 검정 림 → 단색 면이 '모서리가 둥근 키'로
+   읽힌다(두 비평가가 공통으로 요구한 '물리적으로 눌리는 물건'의 최소 단서). */
+.btn.btn:not(.silver):not(.ascend-ready),
+.modal-card .btn.btn:not(.silver):not(.ascend-ready),
+.panel .btn.btn:not(.silver):not(.ascend-ready),
+#equip-sheet .btn.btn:not(.silver):not(.ascend-ready) {
+    background-image:
+        linear-gradient(180deg, rgba(255,255,255,.82) 0 1px, rgba(255,255,255,0) 1px),   /* 위 림라이트 */
+        linear-gradient(90deg, rgba(255,255,255,.22) 0 1px, rgba(255,255,255,0) 1px      /* 왼쪽 측벽 */
+                             calc(100% - 1px), rgba(0,0,0,.20) calc(100% - 1px)),        /* 오른쪽 측벽 */
+        linear-gradient(180deg, rgba(255,255,255,.52) 0, rgba(255,255,255,.22) 38%,
+                                rgba(255,255,255,0) 46%,                                  /* ← 광택 밴드 엣지 */
+                                rgba(0,0,0,.10) 70%, rgba(0,0,0,.30) 100%);              /* 아래 그늘 */
+}
+
+/* ② 상점 상품 카드 — 흰 종이 사각형에 '떠 있는 판'의 세 단서를 준다: 위 림 → 아래 그늘 램프(면),
+   바깥 캐스트 그림자(부양), 안쪽 아래 그늘(두께). 회색 재화 알약은 반대로 **파인 홈**으로 눌러
+   카드 면과 위계를 벌린다(두 비평가 공통 처방).
+   🚨 `background: var(--pp-paper)` 는 **단축**이라 image 를 none 으로 되돌린다 — 같은 특이도(0-1-0)
+      라도 이 블록이 소스 뒤라 이긴다. 색값(--pp-paper)·테(--ol3)·라운드·패딩은 건드리지 않는다.
+   🚨 카드 기하는 `probe-shop-layout`·`probe-shop-ref` 가 DOM rect 로 재므로 칠은 무해하지만,
+      **바깥 그림자는 알파 .3 이하 + 번짐 .3rem 이하**로 묶어 두었다(어두운 마룬 시트 위에서
+      번짐이 커지면 이웃 카드 사이 여백이 한 덩어리로 읽힌다). */
+.shop-deal-card, .shop-gem-card {
+    background-image:
+        linear-gradient(180deg, rgba(255,255,255,.95) 0 2px, rgba(255,255,255,0) 2px),
+        radial-gradient(118% 62% at 50% -6%, rgba(255,255,255,.9) 0, rgba(255,255,255,0) 70%),
+        linear-gradient(180deg, #fffefb 0, #f8f6f1 54%, #efece4 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.95),          /* 위 안쪽 림 */
+        inset 0 -.16rem .2rem -.06rem rgba(88,74,52,.16),  /* 아래 안쪽 그늘 = 판 두께 */
+        0 .16rem .3rem -.06rem rgba(0,0,0,.30);       /* 캐스트 그림자 = 부양 */
+}
+.shop-reward-pill {
+    background-image: linear-gradient(180deg, rgba(0,0,0,.16) 0, rgba(0,0,0,.03) 40%,
+                                              rgba(255,255,255,.10) 82%, rgba(255,255,255,.34) 100%);
+    box-shadow: inset 0 .1rem .16rem rgba(0,0,0,.26), inset 0 -1px 0 rgba(255,255,255,.42),
+                inset 0 0 0 1px rgba(0,0,0,.14);
+}
+
+/* ③ 시대 막대 원색 완화 — 10·11차는 box-shadow inset 만 얹었는데, 100% 채도 면 위에서는 그 층이
+   면 자체의 채도를 못 누른다(두 비평가가 각각 '생 원색'·'네온 민짜'로 같은 지적).
+   여기서는 **면 위에 톤 램프를 직접 깐다**: 위 34% 흰 → 가운데 원색 → 아래 26% 검정.
+   원색은 등급 신호라 **색상(hue)은 한 도도 안 돌린다** — 위아래만 눌러 '광택 있는 캔디'로 만든다.
+   🚨 무늬는 `::before`(--af-pat) 소유라 여기 background-image 를 써도 안전하다 —
+      다만 `.equip-cell[data-age]` 는 이 선택자에 넣지 말 것(장비 셀은 2차 슬라이스가 제 면을 갖는다).
+   🚨 `.fi-age-next`(다음 레벨 세그먼트)는 rgba(0,0,0,.228) 반투명이라 이 램프가 그대로 비쳐
+      원본의 '×0.772 곱하기' 관계가 유지된다(불투명 층을 얹으면 그 관계가 깨진다 — 4396행 실측 주석). */
+.fi-age-bar[data-age], .af-age-bar[data-age] {
+    background-image:
+        linear-gradient(180deg, rgba(255,255,255,.34) 0, rgba(255,255,255,.11) 34%,
+                                rgba(255,255,255,0) 46%,
+                                rgba(0,0,0,.06) 70%, rgba(0,0,0,.26) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.50),
+        inset 0 .6rem .5rem -.3rem rgba(255,255,255,.26),
+        inset 0 -.6rem .5rem -.3rem rgba(0,0,0,.30),
+        inset 0 0 0 1px rgba(0,0,0,.34);              /* 홈 테두리 링 — '트랙에 앉은 막대'로 */
+}
+
+/* ④ 시트 본문 평면 — 두 비평가가 각각 1번 결함으로 올린 자리(스킬·펫 그리드 아래의 흰 여백,
+   던전 마지막 행 아래 ~200px). 처방도 둘이 같았다: **차가운 흰색 → 따뜻한 종이**.
+   11차의 톤(#fdfcfe→#f2f1f4)은 중성 회백이라 '브라우저 흰 페이지'로 읽혔다.
+   🚨 **11차의 min≥238 규약은 그대로 지킨다** — probe-dungeons-px 는 '전폭 min<238 행 연속 구간'을
+      밴드로 잡으므로, 따뜻하게 만들 때 **가장 낮은 채널(파랑)이 238 밑으로 내려가면 안 된다**.
+      그래서 아이보리를 파랑 채널 238 바닥에 맞춰 잡았다: 바닥 #f8f4ee = rgb(248,244,238).
+      (더 진한 파치먼트(#e6e0d4·#ece7de)를 두 비평가가 제안했지만 파랑 채널이 212·222라 규약 위반이다 —
+      **같은 방향으로 규약 안에서 갈 수 있는 최대치**를 쓴 것이다. 다음 세션이 더 진하게 가려면
+      probe-dungeons-px 의 밴드 판정 축부터 바꿔야 한다.)
+   🚨 결은 11차대로 **흰 줄**만(어두운 결은 카드 bbox 를 ±11%p 오염). 헤더 밴드 층도 그대로 둔다. */
+.modal-card.sheet:not(.league-sheet):not(.shop-sheet) {
+    background-image:
+        linear-gradient(180deg, rgba(255,255,255,.9) 0 2px, rgba(255,255,255,0) 2px),
+        linear-gradient(180deg, rgba(23,24,26,.045) 0 3.1rem, rgba(23,24,26,.11) 3.1rem calc(3.1rem + 1px), rgba(23,24,26,0) calc(3.1rem + 1px)),
+        /* 결 = **밝히는 방향으로만** 그린다(어두운 결은 카드 bbox 오염 — 11차 실측). 바탕이 아이보리로
+           내려온 덕에 순백 줄이 이제 실제로 대비를 만든다: 45°/-45° 두 벌을 서로 다른 주기로 겹쳐
+           '종이 올'을 낸다(한 벌만이면 프린트 줄무늬로 읽힌다 — 장비 사슬 격자와 같은 교훈). */
+        repeating-linear-gradient(45deg, rgba(255,255,255,.95) 0 2px, rgba(255,255,255,0) 2px 8px),
+        repeating-linear-gradient(-45deg, rgba(255,255,255,.55) 0 1px, rgba(255,255,255,0) 1px 6px),
+        radial-gradient(124% 42% at 50% -4%, rgba(255,255,255,.92) 0, rgba(255,255,255,0) 72%),
+        linear-gradient(180deg, #fffdf7 0, #fcf8f2 52%, #f8f4ee 100%);
+}
+/* 가운데 정렬 팝업 카드도 같은 종이 톤으로 — 시트만 따뜻해지면 팝업이 혼자 차갑게 뜬다 */
+.modal-card:not(.sheet):not(.pass-card) {
+    background-image:
+        linear-gradient(180deg, rgba(23,24,26,.04) 0 2.6rem, rgba(23,24,26,.10) 2.6rem calc(2.6rem + 1px), rgba(23,24,26,0) calc(2.6rem + 1px)),
+        repeating-linear-gradient(45deg, rgba(23,24,26,.028) 0 2px, rgba(23,24,26,0) 2px 9px),
+        radial-gradient(120% 55% at 50% -8%, rgba(255,255,255,.95) 0, rgba(255,255,255,0) 74%),
+        linear-gradient(180deg, #fffefa 0, #fbf8f2 46%, #f3efe7 100%);
+}
