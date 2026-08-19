@@ -3083,7 +3083,7 @@ const Scene3D = {
             // 1차 채점 A·B 공통: 신의 창이 밝은 배경에 융해(상아 날 + 밝은 자루 = 다크 앵커 0).
             // 발광은 그대로 두고(⚠️ 0.42 로 되돌리면 흰 막대 — 위 경고) **알베도만** 한 단 눌렀다:
             // 날은 상아→깊은 금, 자루는 밝은 모래→어두운 청동 나무. 금 vs 그늘의 명도폭이 생긴다.
-            mat      = std({ color: 0xf0bf45, metalness: 0.95, roughness: 0.2, emissive: 0xffb020, emissiveIntensity: 0.16 });
+            mat      = std({ color: 0xd9a12e, metalness: 0.95, roughness: 0.24, emissive: 0xffb020, emissiveIntensity: 0.16 });
             bladeMat = std({ color: 0xe6cd8a, metalness: 0.9, roughness: 0.18, envMapIntensity: 1.0, emissive: 0xffd98a, emissiveIntensity: 0.16 });
             wood     = std({ color: 0x8a6a38, metalness: 0.06, roughness: 0.6 });
             dark     = std({ color: 0x9a731c, metalness: 0.9, roughness: 0.32 });
@@ -3528,7 +3528,7 @@ const Scene3D = {
         // 파지점 위 라틴 십자가 · 무기 머리 뒤 후광 고리 + 방사 광선.
         // ⚠️ 세로대와 가로대를 같은 길이로 두면 더하기 기호로 읽힌다 — 가로대는 세로대 위쪽 1/3 지점.
         if (matKind === 'holy') {
-            const holyLit = new THREE.MeshLambertMaterial({ color: 0xfff2cc, emissive: 0xffc247, emissiveIntensity: 0.85 });
+            const holyLit = this.divineLitMat(); // 방어구 후광과 같은 재질 — 램버트 크림 0.85 는 '균일 크림 판' 함정(divineLitMat 주석)
             const cross = new THREE.Group();
             { const v = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.2, 0.026), mat); cross.add(v);
               const h = new THREE.Mesh(new THREE.BoxGeometry(0.125, 0.034, 0.026), mat); h.position.y = 0.045; cross.add(h);
@@ -3810,7 +3810,9 @@ const Scene3D = {
     // 무기와 같은 시대 구획을 부위 장비에도 적용해, 부위를 넘나들어도 한 세트로 읽히게 한다.
     ageGearKind(age) {
         const i = Math.max(0, AGES.indexOf(age));
-        return i === 0 ? 'primal' : i === 1 ? 'forged' : i === 2 ? 'brass' : i === 3 ? 'polymer' : 'alloy';
+        // 천상(마지막 시대)은 alloy 를 물려받으면 시안 발광 라인·시안 에지 웨어가 금 위에 얹혀
+        // '체커보드 프린트'로 오독된다(2차 채점 A·B) — 전용 holy 계열로 가른다.
+        return i === 0 ? 'primal' : i === 1 ? 'forged' : i === 2 ? 'brass' : i === 3 ? 'polymer' : i === AGES.length - 1 ? 'holy' : 'alloy';
     },
 
     // 시대별 재질 세트 — body(주 표면) / dark(부속·스트랩) / trim(시대 디테일) / glow 여부.
@@ -3855,6 +3857,7 @@ const Scene3D = {
         brass: { crev: 0.40, crevP: 1.30, wear: 0.50, wearP: 2.8, wearCol: 0xffe9b0 }, // 황동: 틈에 낀 녹청은 더 어둡고 모서리는 금빛
         polymer: { crev: 0.50, crevP: 1.15, wear: 0.16, wearP: 4.2, wearCol: 0xb9c4cf }, // 무광 폴리머: 거의 안 닳는다
         alloy: { crev: 0.50, crevP: 1.05, wear: 0.34, wearP: 3.2, wearCol: 0x9fe8ff }, // 합금: 모서리에 냉광 라인
+        holy: { crev: 0.42, crevP: 1.20, wear: 0.55, wearP: 2.3, wearCol: 0xfff1c2 }, // 천상 금: 모서리에 따뜻한 백금광 — 시안(알로이) 웨어가 금 위에 얹히던 것을 가른다
         // 천·가죽 계열(hide·robe)은 **계열이 아니라 스타일**로 갈린다 — 같은 중세라도 로브는 판금이
         // 아니다. 실측에서 soft 스타일만 셰이딩 깊이가 안 올라가 별도 프로파일을 뒀다(깊이 1.69~1.85 정체).
         // 천은 모서리가 '닳아 벗겨지는' 게 아니라 **결이 서는(sheen)** 것이라 프레넬을 넓게 준다.
@@ -3867,6 +3870,7 @@ const Scene3D = {
         'soft:brass': { crev: 0.30, crevP: 1.30, wear: 0.54, wearP: 1.8, wearCol: 0xffeccf },  // 왁스 먹인 캔버스 — 광이 넓게 선다
         'soft:polymer': { crev: 0.48, crevP: 1.62, wear: 0.08, wearP: 3.8, wearCol: 0xa6b1bd },  // 무광 기술섬유 — 광이 거의 없다
         'soft:alloy': { crev: 0.34, crevP: 1.25, wear: 0.38, wearP: 2.2, wearCol: 0xd8f2ff },  // 발광 섬유
+        'soft:holy': { crev: 0.30, crevP: 1.30, wear: 0.56, wearP: 1.8, wearCol: 0xfff6dc },  // 성의(聖衣) 실크 — 결이 넓게 선다
     },
 
     // ---- 이차 디테일 + 색 변주 (비평가 ⓒ⑶ "스티치·리벳 열·매듭·천 주름 같은 이차 디테일과
@@ -3893,6 +3897,7 @@ const Scene3D = {
         brass: { mode: 'panel', freq: 13, amp: 0.22, vary: 0.040, vfreq: 20 },   // 황동: 각인 격자
         polymer: { mode: 'panel', freq: 10, amp: 0.18, vary: 0.040, vfreq: 20 },   // 폴리머: 패널 심
         alloy: { mode: 'panel', freq: 12, amp: 0.24, vary: 0.040, vfreq: 20, glow: 0x9fe8ff }, // 합금: 심에 냉광
+        holy: { mode: 'panel', freq: 8, amp: 0.16, vary: 0.035, vfreq: 20 },   // 천상 금: 성판 각인 심 — 냉광 없음(시안 글로우가 '체커보드' 오독의 몸통)
         // 사슬(물질 'chain' 전용 — 계열 키가 아니라 **무늬 키**로만 쓰인다, ageShade 3번째 인자):
         // 종전엔 chain 몸통이 계열(forged)의 리벳 무늬를 그대로 물어 '동그라미 한 줄 프린트'로
         // 읽혔다(1차 채점 B). 사슬은 리벳이 아니라 **엇갈린 고리들이 맞물린 직물**이다 — 행마다
@@ -3906,6 +3911,7 @@ const Scene3D = {
         //   ⚠️ 0.20/0.085 로 주면 거친 생가죽(soft:primal)과 표면 거칠기가 같아져 `probe-age-shading` 의
         //     원시↔현대 천 재질분리가 1.16 → 0.60 으로 내려앉는다(무늬를 넣다가 '색 스와프'를 되살린 꼴).
         'soft:alloy': { mode: 'panel', freq: 12, amp: 0.22, vary: 0.045, vfreq: 20, glow: 0xd8f2ff },
+        'soft:holy': { mode: 'stitch', freq: 11, amp: 0.20, vary: 0.045, vfreq: 20 },  // 성의: 고운 실크 땀
     },
     // 계열별 무늬 GLSL — `uv2`(트라이플래너로 고른 2축)와 `dAmp` 가 이미 선언돼 있다고 보고 쓴다.
     ageDetailGLSL(d, f) {
@@ -4076,6 +4082,19 @@ const Scene3D = {
                 trim: std({ color: 0x1c2126, metalness: 0.45, roughness: 0.5 }), // 벤트 슬랫
             };
         }
+        if (kind === 'holy') {
+            // 천상: 짙은 앰버 금 + 상아 백 2톤 (무기 holy 계열과 짝).
+            // ⚠️ 밝은 금 알베도(0xf2c94c 대역)를 되살리지 말 것 — 금속 알베도는 반사의 틴트라,
+            //    밝으면 환경맵 하늘 반사가 전면에 균일하게 깔려 '무광 버터'로 읽힌다(2차 채점 A·B 공통).
+            //    짙은 앰버라야 골이 어둡게 가라앉고 태양 핫스팟 하이라이트와 명도폭이 벌어져 금이 된다.
+            return {
+                kind, glow: false,
+                body: std({ color: mix(0xc8921e, 0.08), metalness: 0.93, roughness: 0.30, envMapIntensity: 1.0 }),
+                dark: std({ color: 0x6e4a12, metalness: 0.85, roughness: 0.44 }),           // 깊은 청동 그늘
+                trim: std({ color: 0xf3e8d0, metalness: 0.22, roughness: 0.5, envMapIntensity: 0.6 }), // 상아 백 새시 — 금과 2톤 분리
+                bead: std({ color: 0xffe9a8, metalness: 0.9, roughness: 0.22, emissive: 0xffc247, emissiveIntensity: 0.28 }), // 성광 보석
+            };
+        }
         // alloy — 우주 이후: 어두운 합금 셸 + 시대색 발광 라인 (무기 energy와 짝)
         return {
             kind, glow: true,
@@ -4129,7 +4148,9 @@ const Scene3D = {
                 body = std({ color: tone(0xdae1e8, 0.14), metalness: 0.96, roughness: 0.17, envMapIntensity: 1.0 });
                 break;
             case 'gold':
-                body = std({ color: tone(0xf2c94c, 0.16), metalness: 0.95, roughness: 0.2, envMapIntensity: 1.0 });
+                // ⚠️ 밝은 금(0xf2c94c)을 되살리지 말 것 — 금속 알베도가 밝으면 환경 반사가 전면에
+                //    깔려 '무광 버터'가 된다(2차 채점). 짙은 앰버 + 태양 핫스팟 대비가 금의 서명.
+                body = std({ color: tone(0xc8921e, 0.12), metalness: 0.95, roughness: 0.26, envMapIntensity: 1.0 });
                 break;
             case 'fabric': // 로브·망토·모자: 무광 천, 반사 거의 없음
                 body = std({ color: tone(0xb6b0a6, 0.42), metalness: 0, roughness: 0.97, envMapIntensity: 0.15 });
@@ -4449,6 +4470,10 @@ const Scene3D = {
                 const stud = new THREE.Mesh(new THREE.SphereGeometry(Math.min(0.024, r * 0.1), 7, 5), mats.trim);
                 put(stud, Math.cos(a) * rx, y + size.y * 0.1, Math.sin(a) * rz);
             }
+        } else if (mats.kind === 'holy') {                  // 상아 새시 밴드 + 정면 성광 보석 — 금·백 2톤의 서명
+            put(ellipseRing(Math.min(0.016, r * 0.07), 20, mats.trim), 0, y, 0);
+            const gem = new THREE.Mesh(new THREE.SphereGeometry(Math.min(0.024, r * 0.1), 8, 6), mats.bead || mats.trim);
+            put(gem, 0, y + size.y * 0.08, rz * 0.99);
         } else if (mats.kind === 'polymer') {               // 정면 벤트 슬랫 3줄
             for (let i = 0; i < 3; i++) {
                 const slat = new THREE.Mesh(new THREE.BoxGeometry(Math.min(0.16, rx * 1.1), 0.016, 0.014), mats.trim);
@@ -4819,8 +4844,12 @@ const Scene3D = {
     // 금색 재질만으로는 '노랗게 칠한 금속'이라 시대가 색으로만 읽혔다 — 무기·투구·갑옷이
     // **같은 두 기호**(후광·십자가)를 쓰게 해서 한 벌로 묶는다. 여기 한 곳만 고치면 셋이 같이 움직인다.
     divineLitMat() {
-        if (!this._divineLit) this._divineLit = new THREE.MeshLambertMaterial({
-            color: 0xfff2cc, emissive: 0xffc247, emissiveIntensity: 0.85
+        // ⚠️ 램버트 크림(0xfff2cc)+발광 0.85 로 되돌리지 말 것 — 전면이 휘도 227~239 로 눌려
+        //    내부 음영폭 12짜리 '균일 크림 판'이 됐다(probe-thumb-env 실측, 2차 채점 'halo=빈 칸').
+        //    스탠다드 금속 금 + 절제된 발광이라야 윗호가 빛나고 아랫호가 가라앉는 고리가 된다.
+        if (!this._divineLit) this._divineLit = new THREE.MeshStandardMaterial({
+            color: 0xe0ae38, metalness: 0.9, roughness: 0.3, envMapIntensity: 1.0,
+            emissive: 0xffc247, emissiveIntensity: 0.32
         });
         return this._divineLit;
     },
@@ -5038,7 +5067,7 @@ const Scene3D = {
         //    로브의 평균 휘도가 171.7 vs 163.6 으로 붙어 재질분리 0.68 로 여전히 반려됐다.
         //    천은 '시대별 소재'가 곧 밝기다: 생가죽은 그을리고, 모직은 중간, 캔버스는 볕에 바래 밝고,
         //    기술섬유는 무광 흑회색, 발광 섬유는 어둡되 림이 산다.
-        const SOFT_DL = { primal: -0.06, forged: 0.01, brass: 0.06, polymer: -0.21, alloy: -0.10 };
+        const SOFT_DL = { primal: -0.06, forged: 0.01, brass: 0.06, polymer: -0.21, alloy: -0.10, holy: 0.10 };
         const mat = soft ? this.ageShade(this.tintOf(mats.body, SOFT_DL[mats.kind] !== undefined ? SOFT_DL[mats.kind] : -0.02,
             { metalness: 0.03, roughness: 0.9, envMapIntensity: 0.3 }), 'soft:' + mats.kind) : mats.body;
         // ── 몸통: 0.46×0.5×0.3 상자 → **단면 링을 쌓은 곡면 흉갑** (비평가 지적 ㉯⑴) ──
