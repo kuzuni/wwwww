@@ -667,8 +667,12 @@ body {
 }
 /* 셀 하단 중앙 별 — 원본 별 13px(2.7%W) 주황 #ff8801 + 검정 키라인, 셀 아래 테두리에 걸친다
    (별 세로 11px 중 ~8px 이 테두리 위, ~3px 이 아래 — 장비 그리드 ⭐ 걸침과 같은 언어).
-   위치가 좌하단으로 보이지만 실측은 셀 가로 **정중앙**(별 중심 x=120 = 셀 99~141 중심)이다. */
-.fl-face::after {
+   위치가 좌하단으로 보이지만 실측은 셀 가로 **정중앙**(별 중심 x=120 = 셀 99~141 중심)이다.
+   ⚠️ 승천 별 규약(age-bar-star-ascension): 이 별도 **장비 라인 승천 횟수**에 연동한다 —
+   승천 0이면 별이 없어야 한다(사용자 재지적 2026-08-20 "승천 안 했는데 셀마다 별이 뜬다").
+   컨테이너 `.fl-asc`(Ascension.count('forge')>0 일 때만 붙음)가 없으면 이 ::after 는 안 그려진다.
+   시대 막대 ★(fi-age-star=ageStars)·rate-star·cell-star 와 같은 소스(승천 카운트). */
+.fl-asc .fl-face::after {
     content: '★'; position: absolute; left: 50%; bottom: 0;
     transform: translate(-50%, 34%);
     font-size: .86rem; line-height: 1; color: #ff8801;

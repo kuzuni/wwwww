@@ -1715,9 +1715,12 @@ const UI = {
             </div>`;
         }).join('');
 
+        // 셀 하단 ★(.fl-face::after)은 승천 별이다 — 장비 라인 승천 0이면 안 뜬다(age-bar-star-ascension).
+        // 승천했을 때만 컨테이너에 fl-asc 를 붙여 CSS `.fl-asc .fl-face::after` 를 켠다.
+        const forgeAsc = Ascension.count('forge') > 0 ? ' fl-asc' : '';
         this.els.forgeInfoModal.innerHTML = `
             <div class="idet-wrap">
-                <div class="modal-card paper fl-card">
+                <div class="modal-card paper fl-card${forgeAsc}">
                     <h3 class="fi-title">모든 장비의 목록</h3>
                     <div class="forge-age-list">${sections}</div>
                 </div>
