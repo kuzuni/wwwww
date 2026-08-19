@@ -3,7 +3,8 @@
 // 승천 횟수 = 이후 그 라인에서 새로 획득하는 아이템에 찍히는 별 개수.
 //   · 장비  — 대장간 Lv.35 → 대장간 정보 팝업 [승천] → 대장간 레벨 초기화, 이후 제작 장비가 ⭐N
 //   · 스킬/펫/탈것 — 소환 레벨 만렙 → 소환 버튼이 승천 안내로 전환 → [승천] → 소환 레벨 초기화, 이후 소환물이 ⭐N
-// 별 배율(STAR_MULT)과 이미 보유한 아이템의 별은 그대로 유지된다 (소급 회수 없음).
+// ⚠️ 승천하면 그 라인의 **기존 보유 아이템은 전부 사라진다** (ascend-wipe-line-items, 사용자 지시
+// 2026-08-19) — 다른 라인의 아이템·별은 건드리지 않는다. 별 배율(STAR_MULT) 규칙 자체는 유지.
 const Ascension = {
     // 별 1개당 능력치 배율 (원본 규칙 ⑤, 사용자 확정 2026-08-17).
     // 요구 조건: "승천1 원시장비 > 승천0 디바인 100레벨 장비". 승천0에서 가장 약한 장비와 가장 센
@@ -56,7 +57,9 @@ const Ascension = {
         return p.cur >= p.max;
     },
 
-    // 라인 승천 — 지표를 초기화하고 승천 횟수를 1 올린다. 성공 시 true
+    // 라인 승천 — 지표를 초기화하고 **그 라인의 기존 보유 아이템을 전부 지운 뒤** 승천 횟수를 1 올린다.
+    // (ascend-wipe-line-items, 사용자 지시 2026-08-19: "승천했으면 기존에 있었던 거 각각 다 사라져야 함"
+    //  — 깨끗한 프레스티지. 승천 전 별 0개 아이템과 승천 후 별 N개 아이템이 섞이지 않는다.) 성공 시 true
     ascend(line) {
         this.ensure();
         if (!this.ready(line)) return false;
@@ -64,14 +67,27 @@ const Ascension = {
             S.forgeLevel = 1;
             S.forgeUpgradeEndsAt = null; // 진행 중이던 대장간 업그레이드는 프레스티지와 함께 취소
             Forge.resetRollLevels();     // 전 시대 뽑기 레벨 1로 리셋 — 승천 후에도 원시부터 1레벨 (원본 규칙 ④)
+            for (const slot of SLOTS) S.equipment[slot] = null; // 착용 장비 8슬롯 전부 소멸 (인벤 없음 — 착용분이 보유 전부)
+            if (typeof Scene3D !== 'undefined' && Scene3D.refreshHeroEquip) Scene3D.refreshHeroEquip();
         } else if (line === 'skill') {
             S.summonCount = 0;
+            S.skills = {};          // 초기 상태(powerStrike)로도 안 돌린다 — 첫 화면과 같은 '빈 손'이 아니라 소환으로 다시 채우는 게 프레스티지
+            S.equippedSkills = [];
         } else if (line === 'pet') {
             S.petSummonCount = 0;
+            S.pets = [];
+            S.activePets = [];
+            // 알(S.eggs)·부화 중(S.hatching)은 남긴다 — 펫 별은 **부화 시점**의 Ascension.count 로 찍히므로
+            // (pets.js hatch) 남은 알은 승천 후 부화해도 ⭐N 으로 나와 '이후 획득물' 규칙과 정합한다.
+            if (typeof Scene3D !== 'undefined' && Scene3D.refreshPets) Scene3D.refreshPets();
         } else if (line === 'mount') {
             S.mountOpens = 0;
+            S.mounts = [];          // 개체 배열(mount-inventory-like-pet-250 정합) — 통째로 비움
+            S.activeMounts = [];    // 인덱스 배열이라 mounts 를 비우면 반드시 같이 비워야 한다 (유령 인덱스 방지)
+            if (typeof Scene3D !== 'undefined' && Scene3D.refreshMount) Scene3D.refreshMount();
         }
         S.lineAscend[line] = (S.lineAscend[line] || 0) + 1;
+        if (typeof Combat !== 'undefined' && Combat.recalcHero) Combat.recalcHero(); // 장비·스킬·펫·탈것 어느 라인이든 스탯 기여가 사라졌다
         saveGame();
         return true;
     },

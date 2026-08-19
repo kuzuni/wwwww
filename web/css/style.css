@@ -4776,6 +4776,8 @@ body {
 .asc-focus-title { font-weight: 900; font-size: 1.05rem; margin-top: .2rem; }
 .asc-focus-cnt { font-size: .86rem; margin: .25rem 0 .4rem; }
 .asc-focus-eff { font-size: .76rem; text-align: left; line-height: 1.5; opacity: .9; }
+/* 승천 인벤 소멸 경고(ascend-wipe-line-items) — 되돌릴 수 없는 손실이라 줄 전체를 경고색으로 */
+.asc-wipe-warn { color: #ff6b5e; }
 .asc-btns { display: flex; gap: .5rem; margin-top: .7rem; }
 .asc-btns .btn { flex: 1; min-height: 2.9rem; }
 /* 소환 바: 승천 가능 상태의 소환 버튼 (초록 강조) */
