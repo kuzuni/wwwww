@@ -8581,21 +8581,56 @@ const Scene3D = {
                 g.userData.tail = tail;
                 break;
             }
-            case 'Cerberus': { // 관절 목 셋 + 네 다리
-                sp(0.15, 0, 0.24, -0.02, mat, 1.25, 0.95, 1.2);
+            case 'Cerberus': { // 목 셋 + 네 다리 — 머리마다 주둥이·귀·붉은 눈
+                // 🚨 종전 판은 머리 셋이 **목 없이 등에 반쯤 파묻힌 혹**이었다(머리 y 0.32 ·
+                //    반지름 0.08 인데 몸통 윗면이 0.3825 라 절반이 몸 속이다). 블라인드 판독에서
+                //    비평가 2인이 독립적으로 **스테고사우루스 골판**이라 답했고, 한 명은
+                //    "얼굴이 없어 머리와 꼬리 구분이 안 돼 방향조차 헷갈린다"고 했다.
+                //    머리 셋이 케르베로스의 전부인데 그게 등 혹이면 종이 통째로 사라진다.
+                //    → **목을 세워 앞가슴에서 내밀고**, 머리마다 주둥이·코·귀·눈·송곳니를 붙인다.
+                const HEAD_Y = 0.315;
+                torso(0.15, 0, 0.24, -0.03, mat, 1.22, 0.95, 1.18);
+                sp(0.115, 0, 0.255, 0.115, mat, 1.06, 0.92, 0.86);        // 앞가슴 — 목 셋의 밑동
                 g.userData.heads = [];
-                for (const dx of [-0.13, 0, 0.13]) {
-                    const neck = pv(dx, 0.32, 0.04 + (dx === 0 ? 0.04 : 0));
+                const RED = new THREE.MeshBasicMaterial({ color: 0xff1744 });
+                const TOOTH = M(0xf3ece0);
+                for (const dx of [-1, 0, 1]) {
+                    const neck = pv(dx * 0.100, HEAD_Y, 0.118);
+                    // 앞으로 숙이고 바깥으로 벌어진다. Euler XYZ 라 Rz(벌림)가 먼저, Rx(숙임)가 나중.
+                    neck.rotation.set(0.26, 0, -dx * 0.60);
+                    neck.userData.baseY = HEAD_Y;
                     into(neck, () => {
-                        sp(0.08, 0, 0, 0.04);
-                        for (const s of [-1, 1]) cn(0.025, 0.05, s * 0.05, 0.09, 0.01);
-                        for (const s of [-1, 1]) sp(0.018, s * 0.035, 0.02, 0.11, new THREE.MeshBasicMaterial({ color: 0xff1744 }));
+                        cy(0.038, 0.050, 0.125, 0, 0.062, 0, dark);        // 목
+                        const head = pv(0, 0.132, 0.012);
+                        into(head, () => {
+                            sp(0.070, 0, 0, 0, mat, 1.0, 0.95, 1.05);      // 두상
+                            sp(0.040, 0, -0.020, 0.062, dark, 0.86, 0.72, 1.30);   // 주둥이
+                            sp(0.017, 0, -0.024, 0.104, blk);              // 코
+                            for (const s of [-1, 1]) {                     // 귀 — 뒤로 눕힌 삼각
+                                const ear = cn(0.028, 0.064, s * 0.046, 0.058, -0.018, dark);
+                                ear.rotation.set(-0.42, 0, s * 0.34);
+                            }
+                            for (const s of [-1, 1]) {                     // 지옥견의 붉은 눈
+                                const e = sp(0.016, s * 0.031, 0.016, 0.056, RED);
+                                e.scale.z = 0.6;
+                            }
+                            for (const s of [-1, 1]) {                     // 아래로 뻗은 송곳니
+                                const f = cn(0.008, 0.028, s * 0.016, -0.042, 0.084, TOOTH);
+                                f.rotation.x = Math.PI;
+                            }
+                        });
+                        jt(head, 'x', 0.16, dx * 2.1, { f: 1.5, gain: 1.4 });
                     });
-                    jt(neck, 'x', 0.22, dx * 8, { f: 1.1, gain: 1.6 });    // 머리 셋이 서로 시차를 두고
-                    jt(neck, 'y', 0.18, dx * 8 + 1.2, { f: 0.7 });
+                    jt(neck, 'x', 0.20, dx * 2.6, { f: 1.1, gain: 1.6 });   // 머리 셋이 서로 시차를 두고
+                    jt(neck, 'y', 0.16, dx * 2.6 + 1.2, { f: 0.7 });
                     g.userData.heads.push(neck);
                 }
                 quad(0.1, 0.09, -0.11, 0.19, 0.11, 0.024, dark, { amp: 0.48, lo: 0.08 });
+                // 꼬리 — '앞뒤가 어디인지 모르겠다'는 지적에 답하는 축. 뒤를 명시한다.
+                const ctl = pv(0, 0.275, -0.180);
+                into(ctl, () => cy(0.026, 0.013, 0.140, 0, 0.066, -0.018, dark));
+                ctl.rotation.x = -0.80;
+                g.userData.tail = ctl;
                 break;
             }
             case 'Kitsune': { // 여우 주둥이 + 큰 삼각 귀 + 부채꼴로 펼친 복슬 꼬리 셋(흰 꼬리끝)
@@ -18064,7 +18099,10 @@ const Scene3D = {
             //    지금은 마디 6개가 피벗 사슬로 이미 등 위로 아치를 그리므로, 침을 2.5 나 더 돌리면
             //    끝이 뒤로 접혀 꼬리 속으로 파묻힌다. 여기서는 **끝마디 흔들림만** 얹는다.
             if (ud.sting) ud.sting.rotation.x = Math.sin(t * 3.2) * 0.35;
-            if (ud.heads) ud.heads.forEach((h, j) => h.position.y = 0.32 + Math.sin(t * 5 + j * 2.1) * 0.05);
+            // ⚠️ 기준 높이를 상수로 박지 말 것 — 목을 세우면서 밑동 y 가 바뀌었는데 여기가
+            //    0.32 로 고정이라 매 프레임 제자리로 끌어내려 목이 가슴에서 뽑힌다.
+            //    빌더가 `userData.baseY` 에 자기 밑동을 적어 두고 그 위에서만 흔든다.
+            if (ud.heads) ud.heads.forEach((h, j) => h.position.y = (h.userData.baseY !== undefined ? h.userData.baseY : 0.32) + Math.sin(t * 5 + j * 2.1) * 0.028);
             if (ud.ghostMat) ud.ghostMat.opacity = 0.4 + Math.sin(t * 2.5) * 0.2;
             // 관절 리그 (pet-articulated-joints): 종별 리그가 심어 둔 피벗을 한 루프로 돌린다.
             // 위상은 몸통 바운스와 같은 시계(t)·같은 주파수(mo.freq)를 쓰므로 걸음과 바운스가 안 어긋난다.

@@ -27,12 +27,14 @@ const ARG = process.argv.slice(2);
     await page.goto('file://' + path.resolve(__dirname, '../index.html'), { waitUntil: 'load' });
     await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.petThumb && typeof PET_KR !== "undefined"');
 
-    const n = await page.evaluate((argNames) => {
+    const n = await page.evaluate(({ argNames, OPT }) => {
         const names = argNames.length ? argNames : Object.keys(PET_KR);
+        // 채점용 무명판 — 항목 지시("이름 가리고 그림만 보고 종을 맞히는지")를 그대로 재는 판.
+        // 이름을 지우고 번호만 남긴다. NONAME=1 · CELL=<px> 로 켠다.
         Scene3D.petThumb('Cat', 0);                   // 렌더러 1회 초기화(조명 동기화 포함)
         // 셀 크기는 종 수에 따라 — 8종 넘게 늘어놓으면 한 장에 다 들어가지만 개별 판독이 안 되고,
         // 2~4종만 보는 수정 루프에서는 크게 봐야 조형이 보인다.
-        const CELL = names.length <= 2 ? 520 : names.length <= 4 ? 380 : 240;
+        const CELL = OPT.cell || (names.length <= 2 ? 520 : names.length <= 4 ? 380 : 240);
         Scene3D._creatureR.setSize(CELL, CELL);
         const shot = (name, ry) => {
             Scene3D.creatureThumbInit();
@@ -53,16 +55,16 @@ const ARG = process.argv.slice(2);
             const w = names.length <= 2 ? CELL : Math.round(CELL * 0.51);
             return `<div style="width:${w * 2 + 6}px;margin:3px;background:#20242b;border-radius:10px;padding:4px">
                 <div style="display:flex"><img src="${a}" style="width:${w}px;height:${w}px"><img src="${b}" style="width:${w}px;height:${w}px"></div>
-                <div style="font:11px sans-serif;color:#9fb0c0;text-align:center">${PET_KR[nm] || nm} / ${nm}</div></div>`;
+                <div style="font:12px sans-serif;color:#9fb0c0;text-align:center">${OPT.noName ? '#' + (names.indexOf(nm) + 1) : (PET_KR[nm] || nm) + ' / ' + nm}</div></div>`;
         }).join('');
         // ⚠️ body 를 갈아엎기 전에 게임 타이머를 먼저 끊는다 — 사라진 노드를 UI 주기 갱신이 잡아
         //    가짜 콘솔 에러를 뱉으면 진짜 회귀가 덮인다(shot-era-gear-zoom 과 같은 함정).
         for (let i = 1; i < 5000; i++) { clearInterval(i); clearTimeout(i); }
-        document.body.innerHTML = `<div id="sheet" style="background:#11141a;padding:6px;width:${names.length <= 2 ? 1090 : names.length <= 4 ? 1150 : 1046}px;display:flex;flex-wrap:wrap">${cells}</div>`;
+        document.body.innerHTML = `<div id="sheet" style="background:#11141a;padding:6px;width:${OPT.cell ? (Math.round(OPT.cell * 0.51) * 2 + 20) * Math.min(names.length, 3) + 12 : names.length <= 2 ? 1090 : names.length <= 4 ? 1150 : 1046}px;display:flex;flex-wrap:wrap">${cells}</div>`;
         return names.length;
-    }, ARG);
+    }, { argNames: ARG, OPT: { noName: !!process.env.NONAME, cell: Number(process.env.CELL) || 0 } });
 
-    await page.locator('#sheet').screenshot({ path: path.join(__dirname, 'pet-species.png') });
+    await page.locator('#sheet').screenshot({ path: process.env.OUT || path.join(__dirname, 'pet-species.png') });
     await browser.close();
     console.log(`→ tools/pet-species.png · ${n}종 · 콘솔 에러 ${errors.length}건`);
     errors.slice(0, 6).forEach(e => console.log('  ! ' + String(e).slice(0, 240)));
