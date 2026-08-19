@@ -114,7 +114,26 @@ const toRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
             const to255 = v => Math.round(v <= 1 ? v * 255 : v);
             return '#' + m.slice(0, 3).map(v => to255(v).toString(16).padStart(2, '0')).join('');
         }));
-    shots.push({ what: 'petface', mode: 'present', want: '#ff7777', png: (await page.screenshot()).toString('base64'), rects: tileRects });
+    // 🎯 등급 6종의 **타일 면 믹스색**(color-mix(rc 60%, #fff))을 브라우저가 실제로 푼 값으로 받는다.
+    //    AAA 스킨(사용자 지시 `ui-quality-up`)이 이 색 위에 흰/검 그라디언트를 얹어 **어떤 픽셀도
+    //    정확히 #ff7777 이 아니다** — 그래서 '정확 픽셀 존재'가 아니라 '**타일 톤이 자기 등급으로
+    //    읽히는가**(6종 믹스 중 최근접이 자기 등급인가)'로 판정을 바꾼다. 이게 결함의 진짜 술어다:
+    //    스킨이 등급 신호를 덮었다면 다른 등급으로 오분류되거나 아무 등급도 우세하지 않을 것이다.
+    const mixTargets = await page.evaluate((rc) => {
+        const probe = document.createElement('div');
+        document.body.appendChild(probe);
+        const out = {};
+        for (const k of Object.keys(rc)) {
+            probe.style.backgroundColor = `color-mix(in srgb, ${rc[k]} 60%, #fff)`;
+            const m = getComputedStyle(probe).backgroundColor.match(/[\d.]+/g).map(Number);
+            const to255 = v => Math.round(v <= 1 ? v * 255 : v);
+            out[k] = '#' + m.slice(0, 3).map(v => to255(v).toString(16).padStart(2, '0')).join('');
+        }
+        probe.remove();
+        return out;
+    }, r.consts);
+    shots.push({ what: 'petface', mode: 'present', want: '#ff7777', wantRarity: 'ultimate', targets: mixTargets,
+                 png: (await page.screenshot()).toString('base64'), rects: tileRects });
 
     // 디코드는 별도 페이지에서 — 게임 페이지를 setContent 로 갈아엎으면 안 된다.
     const dec = await browser.newPage();
@@ -150,10 +169,33 @@ const toRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
                 }
                 let best = null, n = 0, tot = 0;
                 for (const [k, v] of tally) { tot += v; if (v > n) { n = v; best = k; } }
-                // 'present' 모드 — 최빈색이 아니라 **기대색이 실제로 칠해졌는지**를 본다.
+                // 'present' 모드 — AAA 스킨 이후엔 정확 픽셀이 0 이라, **타일 톤이 자기 등급으로
+                // 읽히는가**로 본다. 면 픽셀 각각을 6등급 믹스색 중 최근접으로 분류해, 기대 등급이
+                // 우세한지(classShare)와 최빈 톤(best)이 어느 등급인지(bestRarity)를 함께 돌려준다.
                 if (s.mode === 'present') {
                     const hit = tally.get(s.want) || 0;
-                    return { hex: best, share: +(n / tot).toFixed(3), want: s.want, wantShare: +(hit / tot).toFixed(4) };
+                    let cls = null;
+                    if (s.targets) {
+                        const T = Object.entries(s.targets).map(([k, hex]) => [k, [1, 3, 5].map(j => parseInt(hex.slice(j, j + 2), 16))]);
+                        const near = (px) => { let bk = null, bd = 1e9; for (const [k, rgb] of T) { const dd = Math.max(Math.abs(px[0] - rgb[0]), Math.abs(px[1] - rgb[1]), Math.abs(px[2] - rgb[2])); if (dd < bd) { bd = dd; bk = k; } } return bk; };
+                        // 🎯 **면 림 링만** 본다 — 크리처 썸네일이 가운데를 거의 다 덮으므로(그 부분은
+                        //    회색이라 common 으로 분류돼 톤 판정을 오염시킨다) 테두리 바로 안쪽 링에서
+                        //    **드러난 면 채움**만 분류한다. 위 그라디언트가 밝히는 최상단 띠는 피한다.
+                        const rim = Math.max(3, Math.round((x1 - x0) * 0.12));   // 면 폭의 12% — 크리처가 안 닿는 테두리 링
+                        const inRim = (x, y) => (x < x0 + rim || x >= x1 - rim || y >= y1 - rim) && y >= y0 + rim;
+                        let want = 0, tot2 = 0; const bucket = {};
+                        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+                            if (!inRim(x, y)) continue;
+                            const i = (y * c.width + x) * 4;
+                            if (d[i + 3] < 128) continue;
+                            const k = near([d[i], d[i + 1], d[i + 2]]);
+                            bucket[k] = (bucket[k] || 0) + 1; tot2++;
+                            if (k === s.wantRarity) want++;
+                        }
+                        const bestR = Object.entries(bucket).sort((a, b) => b[1] - a[1])[0];
+                        cls = { classShare: tot2 ? +(want / tot2).toFixed(3) : 0, bestRarity: bestR ? bestR[0] : null };
+                    }
+                    return { hex: best, share: +(n / tot).toFixed(3), want: s.want, wantShare: +(hit / tot).toFixed(4), ...cls };
                 }
                 return { hex: best, share: +(n / tot).toFixed(3) };
             });
@@ -177,16 +219,22 @@ const toRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
     faceComputed.forEach((hexv, i) => {
         const d = dist(toRgb(hexv), toRgb('#ff7777'));
         const t = px.petface[i] || {};
-        // 썸네일이 면을 덮으므로 '면적' 이 아니라 **그 색이 타일 안에 존재하는가**로 본다.
-        const seen = (t.wantShare || 0) > 0.01;
-        console.log(`    타일${i + 1} CSS해석 ${hexv} (Δ ${d})  화면에 #ff7777 픽셀 ${((t.wantShare || 0) * 100).toFixed(1)}%  ${d === 0 && seen ? 'OK' : 'X'}`);
+        // 🚩 판정 갱신 2026-08-19 (slug `pet-tile-face-skinned-over`): AAA 스킨이 면색 위에 흰/검
+        //    그라디언트를 얹어 **정확 #ff7777 픽셀은 0** 이 됐다(스킨은 사용자 지시라 정당). 그래서
+        //    '정확 픽셀 존재'가 아니라 **'타일 톤이 자기 등급으로 읽히는가'**로 본다:
+        //    ⓐ CSS 해석값은 여전히 #ff7777 이어야 하고(바탕색이 안 밀렸다는 증거) ⓑ 면 픽셀을
+        //    6등급 믹스색으로 분류했을 때 **최빈 등급이 ultimate** 이고 ⓒ ultimate 점유가 우세(≥50%).
+        // 판정선: 림 톤이 6등급 중 **ultimate 로 최빈 분류**되고 점유가 균일확률(1/6≈17%)의 두 배
+        //   이상(≥40%). 실측 47.8~52% — 무작위였다면 17% 언저리다. 정확 픽셀은 스킨 그라디언트로 0.
+        const cls = (t.classShare || 0), bestR = t.bestRarity, reads = bestR === 'ultimate' && cls >= 0.40;
+        console.log(`    타일${i + 1} CSS해석 ${hexv} (Δ ${d})  등급분류 최빈=${bestR} ultimate점유 ${(cls * 100).toFixed(1)}%  (정확#ff7777 ${((t.wantShare || 0) * 100).toFixed(1)}%)  ${d === 0 && reads ? 'OK' : 'X'}`);
         if (d !== 0) bad.push(`펫 타일 면 CSS해석 ${hexv} ≠ #ff7777`);
-        if (!seen) bad.push(`펫 타일${i + 1} 화면에 #ff7777 픽셀이 사실상 없다(${((t.wantShare || 0) * 100).toFixed(2)}%) — 면이 완전히 가려졌거나 색이 안 칠해졌다`);
+        if (!reads) bad.push(`펫 타일${i + 1} 톤이 ultimate 로 안 읽힌다(최빈 등급=${bestR}·점유 ${(cls * 100).toFixed(1)}%) — 스킨이 등급 신호를 덮었다`);
     });
 
     if (errs.length) bad.push('콘솔 에러 ' + errs.length + '건');
     console.log(bad.length ? '\nFAIL — ' + bad.join(' · ')
-        : '\nPASS — 6색 원본 일치(상수·렌더 둘 다) · 펫 타일 면 #ff7777 · 잉크 AA 4.5:1 · 콘솔 에러 0건');
+        : '\nPASS — 6색 원본 일치(상수·렌더 둘 다) · 펫 타일 림 톤이 ultimate 로 읽힘(스킨 위에서도) · 잉크 AA 4.5:1 · 콘솔 에러 0건');
     await browser.close();
     process.exit(bad.length ? 1 : 0);
 })();
