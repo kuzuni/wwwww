@@ -9801,15 +9801,13 @@ const Scene3D = {
             // 화면에 그려지는 물건이 하나도 없었다 — 18종 중 가장 빈약한 자리였다.
             this.slashArcs(targetIds, color, tier || 0);
         } else if (fx === 'heal') {
-            for (let i = 0; i < 20; i++) {
-                const p = this.heroG.position.clone().add(new THREE.Vector3(U.rand(-0.5, 0.5), U.rand(0, 0.5), U.rand(-0.4, 0.4)));
-                this.riseParticle(p, color);
-            }
-            this.expandRing(this.heroG.position.clone(), color, 1.5);
+            // 빛기둥 강림 (skill-fx-exaggerated). 예전엔 파티클 20개 + 링 하나라 `aura` 와 구분이 안 됐다.
+            this.healPillar(color, tier || 0);
             this.flashLight(this.heroG.position, color.getHex(), 0.4);
         } else if (fx === 'aura') {
-            this.expandRing(this.heroG.position.clone(), color, 2.2);
-            this.expandRing(this.heroG.position.clone(), color, 1.2);
+            // 룬 서클 (skill-fx-exaggerated). 회복은 위에서 내려오고 버프는 **아래에서 올라온다** —
+            // 이 축 차이가 색·파티클보다 확실하게 둘을 갈라 준다(스킬 색은 6종이 제각각이라 단서가 못 된다).
+            this.auraCircle(color, tier || 0);
             this.flashLight(this.heroG.position, color.getHex(), 0.4);
         }
     },
@@ -10327,6 +10325,153 @@ const Scene3D = {
                 });
             }, at + this.MAW_TELL_MS);
         });
+    },
+
+    // ---- 스킬 전용 미니 연출 ⑥: 지원계 분화 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----
+    // `heal`(응급처치·축복·신성한 가호)과 `aura`(전투의 함성·성역·시간 왜곡) — **6종이 한 그림**이었다.
+    // 둘 다 '파티클 상승 + 링 1~2개'뿐이라 회복인지 버프인지조차 화면에서 구분이 안 됐다.
+    // 공격계에 장면을 붙이면서 지원계만 놔두면 스킬 3분의 1이 여전히 밋밋하다.
+    //   heal → **빛기둥 강림**: 위에서 빛 원반이 내려앉고 기둥이 꽂히며 회복 알갱이가 솟는다.
+    //   aura → **룬 서클**: 발밑에 문양이 그려지고 가장자리에서 빛기둥이 솟아 서서히 돈다.
+    // 축이 반대다 — 회복은 **위에서 내려오고**, 버프는 **아래에서 올라온다**. 이 방향 차이만으로도
+    // 둘이 구분된다(색·파티클로 구분하려 들면 스킬 색이 제각각이라 실패한다).
+    healPillar(color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
+        const pw = t / 5;
+        const hero = this.heroG.position.clone();
+        const G = new THREE.Group();
+        G.userData.healFx = true;
+        this.scene.add(G);
+        const R = 0.62 + pw * 0.3;
+        // ⓐ 강림 원반 — 머리 위에서 내려앉는다. 얇은 링 2겹(안쪽은 흰 코어)
+        const disc = new THREE.Mesh(new THREE.RingGeometry(R * 0.55, R, 26),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        disc.rotation.x = -Math.PI / 2;
+        const disc2 = new THREE.Mesh(new THREE.RingGeometry(R * 0.22, R * 0.42, 20),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        disc2.rotation.x = -Math.PI / 2;
+        // ⓑ 빛기둥 — 원반에서 아래로 꽂힌다(위가 열린 원통, 옆면만)
+        // 🚨 **여기서 가산 합성을 쓰면 안 된다.** 배경이 한낮 하늘·초원이라 이미 밝아서, 가산은
+        //    밝은 데 밝은 걸 더해 **거의 아무 차이도 못 만든다**(첫 캡처에서 기둥이 통째로 안 보였다.
+        //    같은 화면에서 `aura` 의 서클은 **지면**(어두운 흙) 위라 잘 보였다 — 배경 밝기의 문제다).
+        //    기둥은 **일반 합성 + 흰 쪽으로 민 색**으로 '반투명한 빛의 축'을 세우고, 가산은
+        //    그 안쪽 가는 코어에만 남긴다.
+        const pale = color.clone().lerp(new THREE.Color(0xffffff), 0.55);
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.82, R * 0.62, 1, 14, 1, true),
+            new THREE.MeshBasicMaterial({ color: pale, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
+        const colCore = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.3, R * 0.2, 1, 10, 1, true),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        G.add(disc, disc2, col, colCore);
+        const light = new THREE.PointLight(color.getHex(), 0, 6);
+        light.userData.healLight = true;
+        light.position.set(hero.x, hero.y + 1.4, hero.z);
+        this.scene.add(light);
+        const topY = hero.y + 3.0, footY = hero.y + 0.06;
+        const dur = 0.5 + pw * 0.18;
+        this.addAnim(dur, k => {
+            // 원반이 내려온다 → 기둥이 그 뒤를 따라 바닥까지 자란다
+            const drop = Math.min(1, k / 0.42), e = 1 - Math.pow(1 - drop, 3);
+            const dy = topY - (topY - hero.y - 1.55) * e;
+            disc.position.set(hero.x, dy, hero.z);
+            disc2.position.set(hero.x, dy + 0.01, hero.z);
+            const op = k < 0.75 ? 1 : 1 - (k - 0.75) / 0.25;
+            disc.material.opacity = 0.85 * op * e;
+            disc2.material.opacity = 0.95 * op * e;
+            disc.rotation.z += 0.03; disc2.rotation.z -= 0.05;
+            const h = Math.max(0.001, dy - footY);
+            col.scale.y = h;
+            col.position.set(hero.x, footY + h / 2, hero.z);
+            col.material.opacity = 0.52 * op * e;
+            colCore.scale.y = h;
+            colCore.position.set(hero.x, footY + h / 2, hero.z);
+            colCore.material.opacity = 0.6 * op * e;
+            light.intensity = (1.1 + pw * 1.0) * op * e;
+            light.position.y = dy;
+            // 회복 알갱이 — 기둥 안에서 **위로** 솟는다(피해 파티클과 반대 방향 = 회복의 문법)
+            if (Math.random() < 0.55) {
+                this.riseParticle(new THREE.Vector3(hero.x + U.rand(-R, R), footY + U.rand(0, 0.4), hero.z + U.rand(-R, R) * 0.6), color);
+            }
+        }, () => {
+            G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+            this.scene.remove(G); this.scene.remove(light);
+        });
+        this.expandRing(new THREE.Vector3(hero.x, 0.02, hero.z), color, 1.1 + pw * 0.6);
+        SFX.healDescend(t);
+    },
+    auraCircle(color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
+        const pw = t / 5;
+        const hero = this.heroG.position.clone();
+        const G = new THREE.Group();
+        G.userData.auraFx = true;
+        G.position.set(hero.x, 0.04, hero.z);
+        this.scene.add(G);
+        const R = 1.0 + pw * 0.45;
+        // ⓐ 룬 서클 — 바깥 테 + 안쪽 테 + 사이를 잇는 짧은 살(문양처럼 읽히게)
+        const rim = new THREE.Mesh(new THREE.RingGeometry(R * 0.93, R, 40),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        rim.rotation.x = -Math.PI / 2;
+        const inner = new THREE.Mesh(new THREE.RingGeometry(R * 0.5, R * 0.56, 30),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        inner.rotation.x = -Math.PI / 2;
+        const spokes = new THREE.Group();
+        const spokeN = 6 + Math.round(pw * 4);
+        for (let i = 0; i < spokeN; i++) {
+            const a = (i / spokeN) * Math.PI * 2;
+            const sp = new THREE.Mesh(new THREE.RingGeometry(R * 0.6, R * 0.9, 4, 1, a - 0.06, 0.12),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+            sp.rotation.x = -Math.PI / 2;
+            spokes.add(sp);
+        }
+        // ⓑ 가장자리 빛기둥 — 서클에서 **위로** 솟는다(회복의 하강과 반대 축)
+        const pillars = [];
+        const pn = 4 + Math.round(pw * 2);
+        for (let i = 0; i < pn; i++) {
+            const a = (i / pn) * Math.PI * 2;
+            const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 1, 6, 1, true),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+            pl.position.set(Math.cos(a) * R * 0.86, 0, Math.sin(a) * R * 0.86);
+            pl.userData.h = 1.1 + U.rand(-0.25, 0.35) + pw * 0.6;
+            pillars.push(pl); G.add(pl);
+        }
+        G.add(rim, inner, spokes);
+        const light = new THREE.PointLight(color.getHex(), 0, 6);
+        light.userData.auraLight = true;
+        light.position.set(hero.x, 0.7, hero.z);
+        this.scene.add(light);
+        const dur = 0.6 + pw * 0.25;
+        this.addAnim(dur, k => {
+            const draw = Math.min(1, k / 0.3);                 // 서클이 그려지는 구간
+            const op = k < 0.72 ? 1 : 1 - (k - 0.72) / 0.28;
+            rim.material.opacity = 0.85 * draw * op;
+            inner.material.opacity = 0.7 * draw * op;
+            rim.scale.setScalar(0.55 + draw * 0.45);
+            inner.scale.setScalar(0.55 + draw * 0.45);
+            spokes.children.forEach((sp, i) => {
+                const d = Math.max(0, Math.min(1, (draw - i / spokes.children.length * 0.5) * 2));
+                sp.material.opacity = 0.8 * d * op;
+            });
+            G.rotation.y += 0.012;                             // 서서히 돈다 — '유지되는 힘'
+            // 빛기둥은 서클이 다 그려진 뒤 솟는다
+            const rise = Math.max(0, Math.min(1, (k - 0.26) / 0.34));
+            for (const pl of pillars) {
+                const h = pl.userData.h * (1 - Math.pow(1 - rise, 2));
+                pl.scale.y = Math.max(0.001, h);
+                pl.position.y = h / 2;
+                pl.material.opacity = 0.6 * rise * op;
+            }
+            light.intensity = (1.0 + pw * 1.0) * draw * op;
+            if (Math.random() < 0.5) {
+                const a = U.rand(0, Math.PI * 2);
+                this.riseParticle(new THREE.Vector3(hero.x + Math.cos(a) * R * 0.8, 0.05, hero.z + Math.sin(a) * R * 0.8), color);
+            }
+        }, () => {
+            G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+            this.scene.remove(G); this.scene.remove(light);
+        });
+        SFX.auraRise(t);
     },
 
     // 지그재그 번개 볼트 (항목 ㉰: 번개류=지그재그 볼트 메시). 예전 bolt 는 하늘에서 내리꽂는

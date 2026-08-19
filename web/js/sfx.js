@@ -308,6 +308,21 @@ const SFX = {
         this.thump(150, 40, 0.22, { gain: 0.36 + (tier || 0) * 0.01, jitter: 0.05 });
     },
 
+    // 회복 강림 — **내려오는** 소리. 높은 데서 시작해 아래로 훑고 따뜻한 화음이 깔린다.
+    healDescend(tier) {
+        const g = 0.1 + (tier || 0) * 0.008;
+        this.tone(1400, 0.34, { type: 'sine', gain: g, slideTo: 620, jitter: 0.02, rvb: 0.4 });
+        this.tone(1050, 0.4, { type: 'triangle', gain: g * 0.8, slideTo: 520, jitter: 0.02, rvb: 0.45 });
+        this.sparkle(1500, { n: 4, gain: 0.05, delay: 0.1 });
+    },
+    // 버프 서클 — **올라가는** 소리. 회복과 방향을 반대로 둬야 귀로도 둘이 갈린다.
+    auraRise(tier) {
+        const g = 0.1 + (tier || 0) * 0.008;
+        this.tone(320, 0.42, { type: 'triangle', gain: g, slideTo: 780, jitter: 0.03, rvb: 0.35 });
+        this.tone(480, 0.36, { type: 'sine', gain: g * 0.7, slideTo: 1170, jitter: 0.03, rvb: 0.4, delay: 0.05 });
+        this.noiseBurst(0.3, { type: 'bandpass', filterFreq: 500, filterTo: 1800, gain: 0.06, Q: 1.2 });
+    },
+
     // ---- 장비 교체 3박자 (equip-swap-throwout, 사용자 지시 2026-08-19) ----
     // 화면 연출(`UI.playEquipSwapFx`)의 세 순간에 하나씩 붙는다: 던짐(0ms) → 딸깍(130ms) → 착지(558ms).
     // 셋이 같은 대역이면 한 덩어리로 뭉개져 '세 번 일어난 일'로 안 들린다 — 대역을 갈라 둔다:

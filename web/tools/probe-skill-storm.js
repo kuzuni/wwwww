@@ -376,6 +376,60 @@ const ok = (c, m) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${m}`); if (!c) fail
         ok(last.head === 0 && last.tell === 0, `[breath] 연출 뒤 잔존 0 (아가리 ${last.head} · 흙더미 ${last.tell})`);
     }
 
+    // ================= 지원계 분화 (heal / aura) =================
+    // 여기서 판정할 것은 '화려한가'가 아니라 **둘이 서로 다른 그림인가**다.
+    // 핵심 축은 방향이다 — 회복은 위에서 내려오고(강림 원반의 y 가 **감소**), 버프는 아래에서
+    // 올라온다(빛기둥 높이가 **증가**). 그리고 둘이 만드는 메시가 서로 달라야 한다.
+    console.log('\n════ 지원계 분화 (heal / aura) ════');
+    const sup = await p.evaluate(async () => {
+        const run = async (fx) => {
+            Scene3D.clearEnemies();
+            const def = SKILL_DEFS.find(s => s.fx === fx) || { rarity: 'epic', fx, color: '#a5d6a7' };
+            const tier = Scene3D.skillTier(def);
+            const t0 = performance.now();
+            const frames = [];
+            Scene3D.skillEffect(fx, def.color, [], def);
+            await new Promise(res => {
+                const iv = setInterval(() => {
+                    Scene3D.update(1 / 60);
+                    let heal = 0, aura = 0, discY = null, pillarH = 0;
+                    Scene3D.scene.traverse(o => {
+                        if (!o.userData) return;
+                        if (o.userData.healFx) { heal++; const d = o.children[0]; if (d) discY = +d.position.y.toFixed(3); }
+                        if (o.userData.auraFx) {
+                            aura++;
+                            for (const c of o.children) if (c.userData && c.userData.h) pillarH = Math.max(pillarH, +c.scale.y.toFixed(3));
+                        }
+                    });
+                    frames.push({ t: performance.now() - t0, heal, aura, discY, pillarH });
+                    if (performance.now() - t0 > 1500) { clearInterval(iv); res(); }
+                }, 16);
+            });
+            return { fx, tier, frames };
+        };
+        const h = await run('heal');
+        const a = await run('aura');
+        return { h, a };
+    });
+    {
+        const hf = sup.h.frames, af = sup.a.frames;
+        const discs = hf.filter(x => x.discY !== null).map(x => x.discY);
+        const pills = af.map(x => x.pillarH).filter(x => x > 0);
+        console.log(`   heal: 그룹 최대 ${Math.max(...hf.map(x => x.heal))} · 강림 원반 y ${discs.length ? discs[0].toFixed(2) + ' → ' + Math.min(...discs).toFixed(2) : 'n/a'}`);
+        console.log(`   aura: 그룹 최대 ${Math.max(...af.map(x => x.aura))} · 빛기둥 높이 ${pills.length ? Math.min(...pills).toFixed(2) + ' → ' + Math.max(...pills).toFixed(2) : 'n/a'}`);
+        ok(Math.max(...hf.map(x => x.heal)) > 0, `[heal] 전용 연출이 실재한다`);
+        ok(Math.max(...af.map(x => x.aura)) > 0, `[aura] 전용 연출이 실재한다`);
+        // 서로 다른 그림 — heal 은 aura 오브젝트를 만들지 않고, 그 반대도 마찬가지
+        ok(Math.max(...hf.map(x => x.aura)) === 0 && Math.max(...af.map(x => x.heal)) === 0,
+            `heal 과 aura 가 서로 다른 오브젝트를 만든다 (6종이 한 그림이던 것을 갈랐다)`);
+        ok(discs.length > 2 && discs[0] - Math.min(...discs) > 0.5,
+            `[heal] 위에서 **내려온다** (원반 y ${discs.length ? discs[0].toFixed(2) : 'n/a'} → ${discs.length ? Math.min(...discs).toFixed(2) : 'n/a'})`);
+        ok(pills.length > 2 && Math.max(...pills) - Math.min(...pills) > 0.4,
+            `[aura] 아래에서 **올라온다** (빛기둥 ${pills.length ? Math.min(...pills).toFixed(2) : 'n/a'} → ${pills.length ? Math.max(...pills).toFixed(2) : 'n/a'})`);
+        ok(hf[hf.length - 1].heal === 0, `[heal] 연출 뒤 잔존 0`);
+        ok(af[af.length - 1].aura === 0, `[aura] 연출 뒤 잔존 0`);
+    }
+
     // ⑵-b 등급 사다리 — 높을수록 발수가 많다(단조 비감소, 양 끝은 실제로 늘어야 한다)
     const counts = rows.map(r => r.strikes.length);
     ok(counts.every((c, i) => i === 0 || c >= counts[i - 1]) && counts[counts.length - 1] > counts[0],
