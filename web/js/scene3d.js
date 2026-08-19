@@ -12920,13 +12920,26 @@ const Scene3D = {
     },
 
     // ---- 데미지 숫자 (DOM 오버레이) ----
-    // 데미지 숫자가 아크 정점에서도 3D 캔버스 안에 남게 하는 상단 여유 — 최대 아크 높이(크리 -47.4px)에
-    // 몇 px을 더한 값. 이보다 위에 스폰하면 정점이 상단 HUD로 넘어간다.
-    DMG_RISE_HEADROOM: 56,
+    // 데미지 숫자가 아크 **정점**에서도 3D 캔버스 안에 남게 하는 상단 여유(fxLayer 로컬 y).
+    // 🚨 예전엔 `DMG_RISE_HEADROOM: 56` 하나로 눌렀는데 두 군데가 틀렸다(7차 지적 ㉯ 의 정체):
+    //   ⑴ **아크 높이가 숫자마다 다르다.** rise 는 `-(30 + sev*18 + (crit?12:0))` 라 30~60px 로 벌어지는데
+    //      고정 상수는 그중 하나만 감당한다 — 실측(`probe-dmgnum-travel`)에서 크리 연타(rise 47.4)만
+    //      정점 65.5px 로 캔버스 상단 68.9px 를 **넘어 HUD 를 침범**했다(나머지 4건은 통과).
+    //   ⑵ **기준선이 캔버스 상단이 아니었다.** 56 은 '아크 47.4 + 여유 8.6' 으로 잡힌 값인데, fxLayer
+    //      로컬 원점은 캔버스 상단이 아니라 그보다 **위**(실측: 캔버스 상단이 로컬 y≈18)라 8.6 은
+    //      애초에 캔버스 밖이었다. 여유가 아니라 이미 침범 상태였던 셈이다.
+    // → 상수는 '캔버스 상단까지의 로컬 여백'만 뜻하게 두고, 바닥은 **그 숫자 자신의 rise 를 더해** 만든다.
+    DMG_TOP_MARGIN: 20,
+    // 아크 인자가 없는 호출(ui.js 등)이 쓸 기본 상승량 — rise 기본값과 한 쌍이다.
+    DMG_RISE_DEFAULT: 30,
     DMG_SIDE_PAD: 4,       // 좌우 여백(px) — 숫자가 게임 영역 모서리에 딱 붙지 않게
     damageNumber(worldPos, text, cls, opt) {
         if (this.fxLayer.children.length > 40) return; // 과부하 방지
         const pt = this.project(worldPos);
+        // 이 숫자의 아크 정점이 캔버스를 안 넘게 하는 **개별 바닥**. 고정 상수로는 rise 가 큰 크리를
+        // 못 막는다(위 DMG_TOP_MARGIN 주석의 실측). 아래 세 군데가 전부 이 값을 기준으로 삼는다.
+        const riseAbs = Math.abs(opt && opt.rise !== undefined ? opt.rise : this.DMG_RISE_DEFAULT);
+        const topFloor = this.DMG_TOP_MARGIN + riseAbs;
         // 슬롯 회피 — 아직 살아 있는 숫자와 같은 자리에 스폰되면 위 칸으로 밀어 올린다.
         // 연타(일반→크리)에서 두 숫자가 같은 픽셀에 겹쳐 서로를 읽을 수 없게 되던 결함(연속 프레임 a5 실측:
         // 흰 '140' 위에 주황 '320'이 포개져 위계가 아니라 얼룩으로 보였다). 월드 오프셋(크리 +0.3)만으로는
@@ -12945,7 +12958,7 @@ const Scene3D = {
             // 3D 캔버스 위(=상단 재화 바)로 넘어가, 숫자가 HUD에 겹쳐 "앱 UI가 피해를 입은 것처럼"
             // 보인다(비평가 4차 ⓑ가 실제로 잡은 조건 — 실측 연타 5발에서 최고점 top 58.2px vs
             // HUD 하단 58.3px). 캔버스를 벗어나게 되면 더 올리지 않고 겹침을 감수한다.
-            if (ty - 28 < this.DMG_RISE_HEADROOM) break;
+            if (ty - 28 < topFloor) break;
             ty -= 28;
         }
         // ⚠️ 슬롯 y가 캔버스 안이라고 끝이 아니다 — 숫자는 그 자리에서 **아크로 더 올라간다**.
@@ -12953,7 +12966,7 @@ const Scene3D = {
         //    캔버스 상단 58.3을 넘어 상단 재화 바를 침범했다(아크 실이동 31~45px). 슬롯 상한만
         //    보던 기존 가드가 아크 높이를 계산에 안 넣어서 생긴 구멍이다. 정점 기준으로 바닥을 깐다.
         //    (아크 자체는 권고치 46px 안이라 손대지 않는다 — 깎으면 멀쩡한 연출만 죽는다.)
-        ty = Math.max(ty, this.DMG_RISE_HEADROOM);
+        ty = Math.max(ty, topFloor);
         const el = document.createElement('div');
         el.className = 'float-dmg ' + cls;
         el.textContent = text;
@@ -12991,7 +13004,7 @@ const Scene3D = {
         // 클리어런스가 19px뿐이라 바를 걸쳤다). offsetHeight 는 append 뒤에야 확정되므로 여기서 잰다.
         if (opt && opt.clearY !== undefined) {
             const maxTop = opt.clearY - el.offsetHeight / 2;
-            if (ty > maxTop) { ty = Math.max(this.DMG_RISE_HEADROOM, maxTop); el.style.top = ty + 'px'; }
+            if (ty > maxTop) { ty = Math.max(topFloor, maxTop); el.style.top = ty + 'px'; }
         }
         setTimeout(() => el.remove(), 900);
         return el; // 호출부가 프리즈 동안 아크를 멈춰 둘 수 있게 (hitEnemy ⑥)
