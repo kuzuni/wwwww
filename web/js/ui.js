@@ -3871,9 +3871,23 @@ const UI = {
     // 효과음/수동 저장/초기화=프로필 ▸ 설정.
     renderMenu() {},
 
-    // 던전 배너 얼굴 — 이모지(🔨👻🥚🧟) 대신 IconGen 아이콘을 쓴다.
-    // 매핑을 dungeons.js 가 아니라 여기 두는 건 그 파일이 던전 규칙(해금·보상·열쇠) 소유라
-    // 화면 표현만 바꾸자고 건드릴 이유가 없어서다. 없는 id 는 원래 이모지로 떨어진다.
+    // 던전 행 제목 왼쪽의 **보상 재화** 아이콘 (사용자 지시 2026-08-19 `dungeon-row-quality`:
+    // "제목 왼쪽엔 재화 뭐 주는지 그려져 있어야 — 해머도둑 왼쪽엔 해머, 유령마을 왼쪽은 스킬 티켓").
+    // `DEFS[].reward` 는 사람이 읽는 한국어 문장('깨진 알 (펫 소환용)')이라 문자열 파싱으로 아이콘을
+    // 고르면 문구만 다듬어도 조용히 깨진다 → id 로 못박는다. 매핑을 dungeons.js 가 아니라 여기 두는 건
+    // 그 파일이 던전 규칙(해금·보상·열쇠) 소유라 화면 표현만 바꾸자고 건드릴 이유가 없어서다.
+    // 값은 **배열**이다 — 해머 도둑의 보상이 '해머 · 코인' 둘이라 하나만 그리면 지시의 절반이 빠진다
+    // (비평가 A 지적). 여러 개면 동전처럼 겹쳐 쌓는다(`.dg-rw .dg-rw-ico + .dg-rw-ico`).
+    DG_REWARD_ICON: { hammer: ['hammer', 'coin'], ghost: ['ticket'], invasion: ['eggCracked'], zombie: ['potion'] },
+    dgRewardIcon(d) {
+        const names = this.DG_REWARD_ICON[d.id];
+        if (!names || typeof IconGen === 'undefined') return '';
+        const html = names.filter(n => IconGen.url(n)).map(n => IconGen.img(n, 'dg-rw-ico')).join('');
+        return html ? `<span class="dg-rw">${html}</span>` : '';
+    },
+    // 던전 얼굴(🔨👻🥚🧟 대신 IconGen 아이콘). **던전 목록 행에서는 안 쓴다** — 같은 지시의
+    // "기존 덩어리 같이 생긴 아이콘은 없애기"로 행에서만 뺐고, 상세 헤더·클리어 팝업·확률 칩처럼
+    // 그 던전을 한 글자로 가리켜야 하는 자리에는 그대로 필요하다. 없는 id 는 원래 이모지로 떨어진다.
     DG_ICON: { hammer: 'hammer', ghost: 'ghost', invasion: 'egg', zombie: 'zombie' },
     dgIcon(d) {
         const name = this.DG_ICON[d.id];
@@ -3895,11 +3909,14 @@ const UI = {
             const ok = Dungeons.unlocked(d.id);
             const keys = S.dungeons.keys[d.id];
             const hex = '#' + d.theme.sky.toString(16).padStart(6, '0');
-            // 원본 배치: 좌상단 아이콘+이름, 우측에 열쇠 수와 [열기] 버튼을 세로로
+            // 원본 배치: 좌상단 이름, 우측에 열쇠 수와 [열기] 버튼을 세로로.
+            // 배경 일러스트는 `dgSceneCls(d)`(icon-gen 슬라이스, 원본 shot-042251 대조)가 배너에 직접 깐다.
+            // 그 위에 제목 왼쪽 보상 재화 슬롯이 붙고, 가운데 떠 있던 `.dg-icon` 덩어리는 뺐다
+            // (사용자 지시 2026-08-19 `dungeon-row-quality`: "기존 덩어리 같이 생긴 아이콘은 없애기").
+            // `--bg` 는 일러스트가 아직 안 구워졌을 때의 폴백 그라디언트로 남겨 둔다.
             return `<div class="dg-banner ${ok ? '' : 'locked'} ${this.dgSceneCls(d)}" style="--bg:${hex}">
-                <span class="dg-icon">${this.dgIcon(d)}</span>
                 <div class="dg-info">
-                    <div class="item-name">${d.kr}</div>
+                    <div class="item-name">${this.dgRewardIcon(d)}${d.kr}</div>
                     ${ok ? '' : `<span class="dg-lock">${IconGen.img('lock')} ${d.unlock} 도달 시 해금</span>`}
                 </div>
                 <div class="dg-right">

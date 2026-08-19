@@ -63,14 +63,28 @@ const MEASURE = (async (srcs) => {
         // [열기] 버튼: 1번 카드 안 파랑 bbox. ⚠️ b>180 짜리 느슨한 파랑은 **남색 카드 위 흰 제목
         // 글자의 AA 픽셀**(96,118,184)까지 걸어 버튼 폭이 +48%p 로 터진다(밟았다) — b>210 로 조인다.
         const blue = p => p[2] > 210 && p[0] < 110 && p[1] < 150;
+        /* ⚠️ 한 픽셀이라도 걸리면 bbox 가 거기까지 늘어난다 — 임계를 조이는 것만으로는 못 막는다.
+           2026-08-19 실측: 제목 글자의 **서브픽셀 AA 프린지** 한 점(x157, rgb(91,149,211) — b 가 겨우
+           211, g 가 겨우 149)이 통과해 버튼 폭이 15.73%W → 53.71%W(+37.98%p)로 터졌다. 배경 아트를
+           바꾸면 글자가 1px 밀리는 것만으로 재발한다.
+           [열기] 는 폭 60px 이 넘는 **꽉 찬 파랑 덩어리**이므로, 가로로 RUN 개 이상 연속인 구간만
+           센다. 1~2px 짜리 프린지·점은 이 조건에서 전부 떨어진다. */
+        const RUN = 6;
         let open1 = null;
         if (cards.length) {
             const cd = cards[0];
-            for (let y = cd.top; y <= cd.bot; y++) for (let x = cd.minX; x < cd.maxX; x++) {
-                if (blue(at(x, y))) {
-                    if (!open1) open1 = { x1: x, x2: x, y1: y, y2: y };
-                    open1.x1 = Math.min(open1.x1, x); open1.x2 = Math.max(open1.x2, x + 1);
-                    open1.y1 = Math.min(open1.y1, y); open1.y2 = Math.max(open1.y2, y + 1);
+            for (let y = cd.top; y <= cd.bot; y++) {
+                let run = 0;
+                for (let x = cd.minX; x <= cd.maxX; x++) {
+                    const isBlue = x < cd.maxX && blue(at(x, y));
+                    if (isBlue) { run++; continue; }
+                    if (run >= RUN) {
+                        const x1 = x - run, x2 = x;
+                        if (!open1) open1 = { x1, x2, y1: y, y2: y };
+                        open1.x1 = Math.min(open1.x1, x1); open1.x2 = Math.max(open1.x2, x2);
+                        open1.y1 = Math.min(open1.y1, y); open1.y2 = Math.max(open1.y2, y + 1);
+                    }
+                    run = 0;
                 }
             }
         }
