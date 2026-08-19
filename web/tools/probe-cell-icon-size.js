@@ -29,6 +29,12 @@ const VIEWPORTS = [[430, 932], [499, 892], [360, 800], [412, 915]];
         // waitForFunction 은 three.js+swiftshader 로 메인 스레드가 포화되면 내부 폴링이 못 돌아
         // 멀쩡한 페이지에서도 타임아웃한다(wait-ready.js 헤더 ② — 이 프로브도 그걸로 2연속 죽었다).
         await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined"');
+        // 🚨 `UI` 가 정의됐다고 **화면이 준비된 건 아니다.** `UI.init()` 이 `els` 를 채우기 전에
+        //    `renderEquipSheet()` 를 부르면 `this.els.equipSheet` 가 undefined 라 통째로 터진다
+        //    ("Cannot set properties of undefined (setting 'innerHTML')" — 2026-08-19 실측으로
+        //    이 프로브가 4뷰포트 전부 못 돌고 죽어 있었다. **게임 결함이 아니라 프로브 경합이다**;
+        //    `probe-grid-empty` 가 같은 꼴로 죽어 있던 것과 같은 계열이다). 실제로 쓸 핸들을 기다린다.
+        await waitReady(page, 'UI.els && UI.els.equipSheet', { label: 'UI.els 채워짐' });
         await page.evaluate(() => {
             if (typeof Scene3D !== 'undefined') Scene3D.update = function () {};
             Combat.tick = function () {};
