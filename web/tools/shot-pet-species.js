@@ -1,0 +1,69 @@
+// 펫 종 판독 시트 (`pet-species-recognizable`).
+// 판정 질문이 "이름 안 보고 그림만 봐도 무슨 동물/기계인지 맞힐 수 있는가" 라서,
+// 인게임 480px 스샷(탈것이 화면의 12% 남짓)으로는 **판정 자체가 불가능**하다.
+// `petThumb` 과 같은 렌더러·같은 조명에 태우되 240px 로 크게, 그리고
+// **게임 앵글(요각 0.55) + 옆모습(요각 1.57)** 두 장을 나란히 찍는다 —
+// 종 실루엣은 옆모습에서 갈리고(전갈 꼬리·타조 목), 게임에서 실제로 보이는 건 3/4 각이다.
+//
+// ⚠️ `creatureThumb` 을 그냥 부르면 요각이 0.55 로 박혀 있고 캐시 키에 요각이 없다.
+//    그래서 같은 내부(_creatureR/_creatureCam/thumbFrameToFit)를 직접 태운다 —
+//    조명·인코딩·프레이밍이 전부 본편과 같은 경로여야 색·크기 판정이 유효하다.
+//
+// 🚨 펫은 탈것과 달리 **몸집 자체가 종마다 제각각**이라(달팽이 0.3 유닛, 그리핀 1.2 유닛)
+//    `thumbFrameToFit` 이 매번 꽉 채워 찍는다 — 시트에서 크기 비교는 무의미하고, **형태만** 본다.
+//
+// 사용: node shot-pet-species.js [종...]   → tools/pet-species.png
+const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const path = require('path');
+const { waitReady } = require('./wait-ready.js');
+const ARG = process.argv.slice(2);
+
+(async () => {
+    const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
+    const page = await browser.newPage({ viewport: { width: 1160, height: 1500 } });
+    const errors = [];
+    page.on('pageerror', e => errors.push(String(e)));
+    page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    await page.goto('file://' + path.resolve(__dirname, '../index.html'), { waitUntil: 'load' });
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.petThumb && typeof PET_KR !== "undefined"');
+
+    const n = await page.evaluate((argNames) => {
+        const names = argNames.length ? argNames : Object.keys(PET_KR);
+        Scene3D.petThumb('Cat', 0);                   // 렌더러 1회 초기화(조명 동기화 포함)
+        // 셀 크기는 종 수에 따라 — 8종 넘게 늘어놓으면 한 장에 다 들어가지만 개별 판독이 안 되고,
+        // 2~4종만 보는 수정 루프에서는 크게 봐야 조형이 보인다.
+        const CELL = names.length <= 2 ? 520 : names.length <= 4 ? 380 : 240;
+        Scene3D._creatureR.setSize(CELL, CELL);
+        const shot = (name, ry) => {
+            Scene3D.creatureThumbInit();
+            const sc = Scene3D._creatureScene;
+            Scene3D.clearGroup(sc);
+            sc.add(Scene3D._creatureHemi, Scene3D._creatureSun, Scene3D._creatureRim);
+            const g = new THREE.Group();
+            g.rotation.y = ry;
+            g.add(Scene3D.makePetMesh(name));
+            sc.add(g);
+            Scene3D.thumbFrameToFit(Scene3D._creatureCam, g, new THREE.Vector3(0, 3.7 - 0.9, 8.2).normalize(), 1.04);
+            Scene3D._creatureR.render(sc, Scene3D._creatureCam);
+            return Scene3D._creatureR.domElement.toDataURL();
+        };
+        const cells = names.map(nm => {
+            const a = shot(nm, 0.55), b = shot(nm, Math.PI / 2);
+            // ⚠️ 이름은 **그림 아래**에 작게 — 판정자가 이름을 먼저 읽으면 '게라고 하니 게로 보인다'가 된다.
+            const w = names.length <= 2 ? CELL : Math.round(CELL * 0.51);
+            return `<div style="width:${w * 2 + 6}px;margin:3px;background:#20242b;border-radius:10px;padding:4px">
+                <div style="display:flex"><img src="${a}" style="width:${w}px;height:${w}px"><img src="${b}" style="width:${w}px;height:${w}px"></div>
+                <div style="font:11px sans-serif;color:#9fb0c0;text-align:center">${PET_KR[nm] || nm} / ${nm}</div></div>`;
+        }).join('');
+        // ⚠️ body 를 갈아엎기 전에 게임 타이머를 먼저 끊는다 — 사라진 노드를 UI 주기 갱신이 잡아
+        //    가짜 콘솔 에러를 뱉으면 진짜 회귀가 덮인다(shot-era-gear-zoom 과 같은 함정).
+        for (let i = 1; i < 5000; i++) { clearInterval(i); clearTimeout(i); }
+        document.body.innerHTML = `<div id="sheet" style="background:#11141a;padding:6px;width:${names.length <= 2 ? 1090 : names.length <= 4 ? 1150 : 1046}px;display:flex;flex-wrap:wrap">${cells}</div>`;
+        return names.length;
+    }, ARG);
+
+    await page.locator('#sheet').screenshot({ path: path.join(__dirname, 'pet-species.png') });
+    await browser.close();
+    console.log(`→ tools/pet-species.png · ${n}종 · 콘솔 에러 ${errors.length}건`);
+    errors.slice(0, 6).forEach(e => console.log('  ! ' + String(e).slice(0, 240)));
+})();
