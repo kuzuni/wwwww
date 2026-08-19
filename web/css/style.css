@@ -1813,14 +1813,24 @@ body {
     background: var(--pp-ink); color: #fff; font-weight: 800; font-size: .82rem;
     padding: .45rem .3rem; text-align: center; border-bottom: var(--ol3) solid var(--pp-line);
 }
-.tech-branch-icon { font-size: 2.3rem; text-align: center; padding: 1rem 0 .5rem; }
-/* 코드 생성 아이콘은 `.ico`(1.45em) 기본 크기로는 프레임에 조그맣게 떠 있다 — '아이콘 크기 확대' ⑤의
-   85~95% 기준에 맞춰 프레임 기준 rem 으로 직접 준다. margin 0 은 `.ico` 의 세로 정렬용 음수 마진 상쇄용.
-   ⚠️ **2.4rem 은 임의 값이 아니라 이모지가 차지하던 줄상자 높이에 맞춰 실측으로 좁힌 값**이다 — 2.9rem 으로 두면
-   카드가 4.1px 자라 이미 교정해 둔 tech-overview 의 카드 높이가 15.76→16.22%H, 행 피치가
-   18.56→19.02%H 로 밀린다(`probe-techoverview-dom.js` 로 실측). 아이콘 크기는 이 화면에선
-   카드 높이를 곧장 바꾸므로 키우려면 카드 비율을 다시 재야 한다. */
-.tech-branch-icon .ico { width: 2.4rem; height: 2.4rem; margin: 0; vertical-align: middle; }
+/* 아이콘 확대 2차(icon-gen 비평가 2인 공통 5위: "글리프가 카드의 25~30%뿐 — 플레이스홀더").
+   🚨 이 화면 아이콘은 카드 높이를 곧장 바꾼다(probe-techoverview-dom 실측 카드 15.76%H 계약) —
+   그래서 **세로 예산 3.9rem 을 고정한 채** 패딩을 줄여 아이콘에 몰아준다:
+   종전 1rem + 2.4rem + .5rem = 3.9rem → 지금 .5rem + 3.4rem + 0 = 3.9rem (카드 높이 불변, 프로브로 확인).
+   뒤에 카테고리색 원판(::before, --bc 는 ui.js renderTechOverview 가 준다)을 깔아 '빈 서류'가 아니라
+   '노드 버튼'으로 읽히게 한다 — 원판은 절대 위치라 기하에 영향이 없다. */
+.tech-branch-icon { font-size: 2.3rem; text-align: center; padding: .5rem 0 0; position: relative; }
+.tech-branch-icon::before {
+    content: ''; position: absolute; left: 50%; top: 2.2rem; transform: translate(-50%, -50%);
+    width: 3.7rem; height: 3.7rem; border-radius: 50%;
+    background:
+        radial-gradient(90% 90% at 32% 22%, rgba(255,255,255,.5) 0, rgba(255,255,255,0) 55%),
+        linear-gradient(180deg, rgba(255,255,255,.18) 0, rgba(0,0,0,.16) 100%),
+        color-mix(in srgb, var(--bc, #9aa2ad) 78%, #fff);
+    border: var(--ol2) solid color-mix(in srgb, var(--bc, #9aa2ad) 45%, #000);
+    box-shadow: inset 0 -.18rem .12rem rgba(0,0,0,.18), 0 .12rem .2rem rgba(0,0,0,.2);
+}
+.tech-branch-icon .ico { width: 3.4rem; height: 3.4rem; margin: 0; vertical-align: middle; position: relative; z-index: 1; }
 /* 노드 원판은 테두리가 두꺼워 안쪽 지름이 작다 — 원본(shot-042605)도 픽토그램이 원판의 ~70%다 */
 .tech-tree-node .ico { width: 72%; height: 72%; margin: 0; }
 .tech-branch-pct { font-weight: 800; font-size: .9rem; text-align: center; padding-bottom: .6rem; color: var(--pp-ink); }

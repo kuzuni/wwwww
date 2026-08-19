@@ -2503,16 +2503,22 @@ IconGen._genderSym = function (ctx, S, female) {
  * 화풍은 탭바와 같은 스티커형(두꺼운 순검정 키라인 + 평면 채색 + 한 톤 음영).
  * ============================================================================ */
 (function (G) {
-    const { K, ink, on, circle, ell, rrect } = G._sticker;
+    const { K, ink, on, circle, ell, rrect, poly } = G._sticker;
     const RED = '#ef204d', PINK = '#ff9dba', WOOD = '#79342d', WOOD_DK = '#4d1f1a';
 
-    // 낱개 보석 — 원본은 각진 보석이 아니라 **동그란 도넛형**이다(링 + 밝은 속 + 키라인).
+    // 낱개 보석 — **재화 젬(draw.gem)과 같은 각진 다이아 조형**으로 통일.
+    // (원본 실측은 동그란 도넛형이었지만 icon-gen 비평가 2인이 공통 지적: 원형 알갱이는
+    //  '산딸기 클러스터'로 읽히고, 상단바 재화 젬(각진 마름모)과 조형 언어가 갈린다.
+    //  규칙 1 — 그래픽 퀄은 사용자 지시(AAA)가 원본을 이긴다. 마름모 비율·안쪽면 파생색은
+    //  draw.gem 과 같은 식: 안쪽 0.42배, 색은 겉색을 _shade(+0.52)로 밝게 민 값.)
     const gemDot = (ctx, S, x, y, r) => {
         // ⚠️ 키라인 두께는 **보석 반지름에 비례**해야 한다 — 고정 두께로 두면 낱개가 작은 ②③에서
         // 검정이 알을 통째로 먹어 '어두운 덩어리'로 읽힌다(1차 렌더에서 실제로 그랬다).
-        ink(ctx, S, circle(ctx, S, x, y, r), RED, r * 0.34);
-        ink(ctx, S, circle(ctx, S, x, y, r * 0.50), PINK, r * 0.22);
-        on(ctx, circle(ctx, S, x - r * 0.32, y - r * 0.36, r * 0.17), 'rgba(255,255,255,.8)');
+        const rhomb = (rx, ry) => poly(ctx, S, [[x, y - ry], [x + rx, y], [x, y + ry], [x - rx, y]]);
+        ink(ctx, S, rhomb(r * 0.94, r * 1.02), RED, r * 0.34);
+        ink(ctx, S, rhomb(r * 0.40, r * 0.43), G._shade(RED, 0.52), r * 0.20);
+        // 좌상단 파셋 스펙큘러 — 원 하이라이트 점 대신 삼각 파셋(각진 보석의 광)
+        on(ctx, poly(ctx, S, [[x - r * 0.52, y - r * 0.28], [x - r * 0.06, y - r * 0.78], [x - r * 0.02, y - r * 0.30]]), 'rgba(255,255,255,.75)');
     };
     const ground = (ctx, S, x, y, rx, ry) => on(ctx, ell(ctx, S, x, y, rx, ry), 'rgba(0,0,0,.13)');
 

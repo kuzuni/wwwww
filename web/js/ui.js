@@ -4874,7 +4874,7 @@ const UI = {
                     ? ' <small>(완료!)</small>'   // 수령 대기 — 분기에 들어가 [완료] 를 눌러야 레벨이 오른다
                     : ` <small id="tech-b-time-${b.id}">(${U.fmtTime((S.techResearch.endsAt - U.now()) / 1000)})</small>`)
                 : '';
-            return `<button class="tech-branch-card" onclick="UI.openTechBranch('${b.id}')">
+            return `<button class="tech-branch-card" style="--bc:${{ power: '#e2574c', forge: '#4f86d8', skillpet: '#58b368' }[b.id] || '#9aa2ad'}" onclick="UI.openTechBranch('${b.id}')">
                 <div class="tech-branch-head">${b.name}</div>
                 <div class="tech-branch-icon">${IconGen.img(this.TECH_BRANCH_ICON[b.id]) || b.icon}</div>
                 <div class="tech-branch-pct ${researching ? 'researching' : ''}">${pct.toFixed(1)}%${timeHtml}</div>
