@@ -1631,7 +1631,7 @@ const UI = {
             // data-age = 시대별 무늬(자동 제련과 공유하는 --af-pat 규칙) · 별은 마지막 시대만 빈 별 —
             // 둘 다 이 화면 원본(shot-042831)에서 읽은 규칙이다
             return `<div class="fi-age-bar" data-age="${age}" style="--ac:${hex}">
-                <span class="fi-age-name">${this.ageIcon(age)} ${AGE_KR[age]}<span class="fi-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
+                <span class="fi-age-name">${this.ageIcon(age)} ${AGE_KR[age]}<span class="fi-age-star">${this.ageStars()}</span></span>
                 <span class="fi-age-cur">${pct(curP[age] || 0)}</span>
                 <span class="fi-age-next">${info ? pct(nextP[age] || 0) : '—'}</span>
             </div>`;
@@ -1708,7 +1708,7 @@ const UI = {
             }).join('');
             return `<div class="forge-age-section">
                 <div class="fi-age-bar fl-head" data-age="${age}" style="--ac:${hex}">
-                    <span class="fi-age-name">${this.ageIcon(age)} ${AGE_KR[age]}<span class="fi-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
+                    <span class="fi-age-name">${this.ageIcon(age)} ${AGE_KR[age]}<span class="fi-age-star">${this.ageStars()}</span></span>
                     <span class="fi-age-cur">${U.pctTrim(ageP)}</span>
                 </div>
                 <div class="forge-item-grid">${weaponCells}${otherCells}</div>
@@ -1883,7 +1883,7 @@ const UI = {
         const ageRows = AGES.filter(age => (probs[age] || 0) > 0).map(age => `
             <div class="af-age-bar" data-age="${age}" style="--ac:${this.ageHex(age)}" onclick="UI.onToggleKeepAge('${age}')">
                 <span class="af-check ${cfg.keepAges.includes(age) ? 'on' : ''}">${cfg.keepAges.includes(age) ? '✓' : ''}</span>
-                <span class="af-age-name">${this.ageIcon(age)} ${AGE_KR[age]}<span class="af-age-star">${age === 'divine' ? '☆' : '★'}</span></span>
+                <span class="af-age-name">${this.ageIcon(age)} ${AGE_KR[age]}<span class="af-age-star">${this.ageStars()}</span></span>
                 <span class="af-age-pct">${pct(probs[age] || 0)}</span>
             </div>`).join('');
         const subRows = SUBSTATS.map(([key, label]) => `
@@ -2613,6 +2613,17 @@ const UI = {
     //  다중 우주=포탈건 · 양자=원자 · 지하 세계=삼지창 · 신성한=황금 날개).
     // 아이콘이 없으면 `AGE_ICON` 이모지로 떨어진다.
     ageIcon(age) { return IconGen.img('age_' + age, 'age-ico') || AGE_ICON[age] || ''; },
+    // 시대(등급) 막대 뒤 ★ = **장비 라인 승천 횟수**와 1:1 (사용자 확정 2026-08-19 age-bar-star-ascension:
+    // "승천 안 했으면 별 0개, N회면 N개"). 세 화면(확률 정보·모든 장비 목록·자동 제련)의 시대 막대가
+    // 공유한다. 승천은 라인 단위라 전 시대 막대가 같은 개수다. 6개 이상은 막대 폭을 넘기므로
+    // rate-star(소환 확률 별)·cell-star 와 같은 '★+숫자' 접기 규약을 쓴다.
+    // ⚠️ 원본(shot-042831)은 시대별 고정 별(9시대 채운 별·신성한 빈 별)이었으나, 사용자가 이를 **승천 별로
+    //    인식·확정**해 원본 디자인보다 이 사양이 우선한다(원본 대조 probe-fl-head 의 별 게이트도 이에 맞춰 해제).
+    //    ⭐ 이모지가 아니라 텍스트 글리프(★)라 아이콘 AAA 교체 대상이 아니다.
+    ageStars() {
+        const n = Ascension.count('forge');
+        return n <= 0 ? '' : n <= 5 ? '★'.repeat(n) : `★${n}`;
+    },
 
     // 기술 트리 노드·가지 아이콘 — 원본(shot-042605)의 노드는 **청동 원판 위 픽토그램**이지 이모지가 아니다.
     // 여기 없는 id 는 `techtree.js` 의 이모지로 그대로 떨어지므로 노드가 추가돼도 안 깨진다.

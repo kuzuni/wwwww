@@ -4149,16 +4149,16 @@ body {
 }
 /* 글자·체크는 두 오버레이 위로 */
 .af-age-bar > * { position: relative; z-index: 1; }
-/* 시대 이름 뒤 별 — 원본은 시대마다 이름 뒤에 주황 별이 붙고 마지막 시대('신성한')만 빈 별이다.
-   `shot-042950`·`shot-043117`(자동 제련)과 `shot-042831`(확률 정보, 10시대 전부 보임) 세 장에서
-   같은 규칙이라 **시대에 고정된 표기**로 보고 상수로 넣었다. 플레이어 상태(보유 여부 등)에
-   따라 차는 표시일 가능성도 배제는 못 하니, 대응하는 상태를 찾으면 그때 연결할 것.
-   ⚠️ ⭐ 이모지가 아니라 텍스트 글리프(★/☆)다 — 아이콘 AAA 교체 항목의 대상이 되지 않게. */
+/* 시대 이름 뒤 별 = 장비 라인 승천 횟수(age-bar-star-ascension, 사용자 확정 2026-08-19). 승천 0이면
+   UI.ageStars()가 빈 문자열을 내므로 별이 없다. 전 시대 막대가 같은 개수라 시대별 특례는 없다.
+   ⚠️ ⭐ 이모지가 아니라 텍스트 글리프(★)라 아이콘 AAA 교체 항목의 대상이 되지 않게.
+   (원본 shot-042831/042950/043117 은 시대별 고정 별이었으나, 사용자가 이를 승천 별로 인식·확정해
+    원본 디자인보다 이 사양이 우선한다 — 확률 정보의 fi-age-star 와 동일 규약.) */
 .af-age-star {
     margin-left: .22rem; color: #ffb300; font-size: .88rem; letter-spacing: 0;
     text-shadow: -1px -1px 0 #17181a, 1px -1px 0 #17181a, -1px 1px 0 #17181a, 1px 1px 0 #17181a;
 }
-.af-age-bar[data-age="divine"] .af-age-star { color: #000; text-shadow: none; }   /* 빈 별은 검정 윤곽 (원본 확대 확인) */
+.af-age-star:empty { margin-left: 0; }
 
 /* 시대별 무늬 — 전부 원본에서 읽은 것이다. 🚨 **앞 5개 시대(원시~우주)는 원본에서 무늬가 없다**:
    `shot-042831`(확률 정보)은 10시대를 한 화면에 보여주는데 원시적·중세의·근대 초기·현대의·우주는
@@ -4431,13 +4431,14 @@ body {
 .fi-age-bar { box-shadow: inset 0 .08rem 0 rgba(255,255,255,.3), inset 0 -.1rem 0 rgba(0,0,0,.2), 0 .1rem 0 rgba(0,0,0,.22); }
 /* 다음 레벨 세그먼트는 무늬·광택 위에 얹혀야 어두운 면이 제 색으로 보인다 */
 .fi-age-next { z-index: 2; }
-/* 시대 이름 뒤 별 — 자동 제련과 같은 규칙(마지막 시대만 빈 별). 원본 8배 확대로 '우주'까지 채운 별임을 확인했다. */
+/* 시대 이름 뒤 별 = 장비 라인 승천 횟수(age-bar-star-ascension). 승천 0이면 UI.ageStars()가 빈 문자열을
+   내므로 별 자체가 없다. 전 시대 막대가 같은 개수(라인 공통값)라 시대별 특례는 없다. margin-left 는
+   비어 있을 때 무해하다. */
 .fi-age-star {
     margin-left: .22rem; color: #ffb300; font-size: .88rem;
     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
 }
-/* 마지막 시대는 빈 별(☆ 글리프) — 원본은 검정 윤곽만 있고 속은 막대 주황이 그대로 비친다 */
-.fi-age-bar[data-age="divine"] .fi-age-star { color: #000; text-shadow: none; }
+.fi-age-star:empty { margin-left: 0; }
 
 .fi-upg-label { text-align: center; font-size: .79rem; font-weight: 900; margin: 2.05rem 0 .4rem; }
 .fi-prog { margin: 0 .66rem; height: 1.79rem; }   /* 원본 진행바 3.41%H(30px) — 공용 .rates-prog(1.4rem)보다 두껍다 */

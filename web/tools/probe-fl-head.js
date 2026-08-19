@@ -1,6 +1,9 @@
 // '모든 장비의 목록' 시대 헤더 막대(.fl-head) 원본-클론 대조 — slug: gearlist-age-header
 //
-// 재는 것: 첫 시대(원시적) 헤더 막대의 ⑴ 상자 ⑵ 시대명 뒤 주황 별의 위치·크기 ⑶ 우측 확률 잉크.
+// 재는 것: 첫 시대(원시적) 헤더 막대의 ⑴ 상자 ⑵ 시대명 잉크 폭 ⑶ 우측 확률 잉크.
+// ⚠️ 시대명 뒤 ★ 은 2026-08-19(age-bar-star-ascension)부터 **장비 라인 승천 횟수**에 연동돼 원본의
+//    고정 별과 갈라진다 — 별 기하(위치·크기)는 전부 참고치(*)로만 출력하고 게이트에서 뺐다.
+//    기본 상태(승천 0)의 클론엔 별이 없으므로(sn<12) 이 값들은 null 이 되며 실패로 치지 않는다.
 //
 // 🚨 프레임을 '흰 카드 폭'으로 잡는 이유 — 원본 이미지 폭이 앱 폭과 다른 사례가 이 저장소에서 4번 나왔고
 //    (TODO 인계 메모 ㉠), 이 컷도 앱이 좌우로 잘려 있어 이미지 폭으로 나누면 통째로 어긋난다.
@@ -90,8 +93,12 @@ const scan = `(img) => {
     //    찾으면 안 된다 — 원본의 나무 몽둥이 아이콘은 어두워서 잉크 임계에 걸리고(x93 부터), 클론의 밝은
     //    아이콘은 안 걸린다. 그러면 '아이콘 자리 폭'이 원본 0.6% / 클론 6.9% 로 갈려 유령 편차가 뜬다.
     //    그래서 잉크 열을 **덩어리로 끊어** 별 바로 왼쪽 덩어리만 시대명으로 삼는다.
+    // 별이 있으면 별 왼쪽까지, 없으면(승천 0 = age-bar-star-ascension 신사양) 막대 좌측 50%까지만 훑는다.
+    // (오른쪽 절반엔 확률 % 잉크가 있어 여기까지 넓히면 그 덩어리를 시대명으로 오인한다 — 확률 잉크 스캔은
+    //  아래에서 bar.w*0.55 부터 시작하므로 시대명은 좌측 절반 안에 있다.)
+    const nameRight = sn >= 12 ? sx0 : bar.x0 + Math.round(bar.w * 0.5);
     const inkCol = [];
-    for (let x = bar.x0; x < (sn >= 12 ? sx0 : bar.x1); x++) {
+    for (let x = bar.x0; x < nameRight; x++) {
         let hit = false;
         for (let y = bar.t; y <= bot; y++) { const [r, g, b] = at(x, y); if (isInk(r, g, b)) { hit = true; break; } }
         inkCol.push(hit ? x : -1);
@@ -120,11 +127,14 @@ const scan = `(img) => {
             '막대 높이': pc(barH),
             '시대명 잉크 폭': nameG ? pc(nameEnd - nameStart + 1) : null,
             '시대명 시작 x (막대좌 기준)*': nameG ? pc(nameStart - bar.x0) : null,
+            // 시대 막대 별은 이제 **장비 라인 승천 횟수**에 연동된다(age-bar-star-ascension, 사용자 확정
+            // 2026-08-19) — 원본의 시대별 고정 별과 갈라지므로 별 기하는 전부 참고치(*)로 강등, 게이트에서 뺀다.
+            // 기본 상태(승천 0)의 클론엔 별이 없어 sn<12 → null 이 되며, 참고치라 MISS 로도 실패하지 않는다.
             '별 왼쪽 x (막대좌 기준)*': sn < 12 ? null : pc(sx0 - bar.x0),
-            '이름 끝 → 별 간격': (sn < 12 || nameEnd < 0) ? null : pc(sx0 - nameEnd - 1),
-            '별 폭': sn < 12 ? null : pc(sx1 - sx0 + 1),
-            '별 높이': sn < 12 ? null : pc(sy1 - sy0 + 1),
-            '별 중심 y (막대상단 기준)': sn < 12 ? null : pc((sy0 + sy1) / 2 - bar.t),
+            '이름 끝 → 별 간격*': (sn < 12 || nameEnd < 0) ? null : pc(sx0 - nameEnd - 1),
+            '별 폭*': sn < 12 ? null : pc(sx1 - sx0 + 1),
+            '별 높이*': sn < 12 ? null : pc(sy1 - sy0 + 1),
+            '별 중심 y (막대상단 기준)*': sn < 12 ? null : pc((sy0 + sy1) / 2 - bar.t),
             '확률 잉크 폭': pn < 8 ? null : pc(px1 - px0 + 1),
             '확률 잉크 우측 여백': pn < 8 ? null : pc(bar.x1 - px1)
         },
@@ -155,15 +165,15 @@ const scan = `(img) => {
     let fail = 0, miss = 0;
     for (const k of Object.keys(ref.m)) {
         const a = ref.m[k], b = clone.m[k];
+        // 이름 끝에 * 가 붙은 값은 **참고치**다 — 시대 아이콘 글리프 폭(AGE_ICON, icon-gen 소관)이나
+        // 승천 연동 별(age-bar-star-ascension)처럼 이 레이아웃 항목이 정하지 않는 값이라 게이트에서 뺀다.
+        const info = k.endsWith('*');
         if (a == null || b == null) {
-            miss++;
-            console.log(`  MISS ${k.padEnd(24)} 원본 ${a} / 클론 ${b}`);
+            if (!info) miss++;   // 참고치가 null(승천 0이라 별 없음 등)인 건 결함이 아니다
+            console.log(`  ${info ? 'miss' : 'MISS'} ${k.padEnd(24)} 원본 ${a} / 클론 ${b}`);
             continue;
         }
         const dd = +(b - a).toFixed(2), ok = Math.abs(dd) <= TOL;
-        // 이름 끝에 * 가 붙은 값은 **참고치**다 — 이 항목(별·확률 표기)이 정하는 값이 아니라 앞선
-        // 시대 아이콘 글리프 폭(AGE_ICON, icon-gen 항목 소관)에 끌려다니는 값이라 게이트에 넣지 않는다.
-        const info = k.endsWith('*');
         if (!ok && !info) fail++;
         console.log(`  ${info ? (ok ? '·ok ' : '·참고') : (ok ? 'ok  ' : 'FAIL')} ${k.padEnd(26)} 원본 ${String(a).padStart(6)} → 클론 ${String(b).padStart(6)}  Δ${dd > 0 ? '+' : ''}${dd}%p`);
     }
