@@ -6904,3 +6904,75 @@ body {
                                               rgba(255,255,255,.12) 40%, rgba(255,255,255,0) 46%,
                                               rgba(0,0,0,.08) 74%, rgba(0,0,0,.24) 100%);
 }
+
+/* ===== 10차 슬라이스 — 비평가 라운드 2(74·68/100) 결함 반영 (slug: ui-quality-up) =====
+   라운드 2 합의 결함: ① 파란 면(서브탭 활성·리그 내 순위 행) 플랫 ② 게이지 트랙이 근흑 면이라
+   9차의 검정 inset 이 안 보임 ③ 채팅 바 민짜 ④ 탭바 활성 플레이트 부재 ⑤ 시대 바 원색 무보정
+   ⑥ 스포트라이트 원뿔 종이공작 ⑦ 슬롯 라벨 저대비 ⑧ 뒤로가기 ◀ 스티커 ⑨ 시트 헤더 무위계.
+   ⚠️ 전부 칠 속성(background-image/box-shadow/text-shadow/filter)만 — 색값·크기·배치 불변.
+   🚨 `.league-row.me` 에는 **아래를 어둡게 하는 층·파란 바깥 광을 절대 넣지 말 것** —
+      probe-league-verdict 가 파란 연결 성분 bbox 로 행 높이를 재므로 둘 다 판정을 오염시킨다
+      (7차 메모와 같은 함정). 위쪽 흰 광·안쪽 림만 허용. */
+
+/* ① 파란 면 — 서브탭 활성 세그먼트(배경 단축이 이미지를 지우므로 같은 선택자로 이미지만 재선언) */
+#summon-subtabs.subtab-strip button.active {
+    background-image:
+        linear-gradient(180deg, rgba(255,255,255,.50) 0 1px, rgba(255,255,255,0) 1px),
+        linear-gradient(180deg, rgba(255,255,255,.26) 0, rgba(255,255,255,.10) 40%,
+                                rgba(255,255,255,0) 46%, rgba(0,0,0,.06) 72%, rgba(0,0,0,.16) 100%);
+}
+/* ① 파란 면 — 리그 내 순위 행: 위 광만 세게(아래 어둠·바깥 광 금지 — 위 머리말) */
+.league-row.me {
+    background-image:
+        repeating-linear-gradient(45deg, rgba(255,255,255,.016) 0 2px, rgba(255,255,255,0) 2px 9px),
+        linear-gradient(180deg, rgba(255,255,255,.30) 0, rgba(255,255,255,.08) 34%, rgba(255,255,255,0) 58%);
+    box-shadow:
+        inset 0 .08rem 0 rgba(255,255,255,.38),
+        inset 0 0 0 1px rgba(255,255,255,.18);
+}
+/* ② 게이지 트랙 — 근흑 면에서는 검정 inset 이 안 보인다: 위는 더 검게, 아래는 밝은 립으로
+   '파인 홈'의 명암차를 이미지 층으로 직접 그린다(0% 상태에서도 홈이 읽히게). */
+.upg-progress, .summon-gauge, .qst-bar {
+    background-image:
+        linear-gradient(180deg, rgba(0,0,0,.62) 0, rgba(0,0,0,.18) 34%, rgba(0,0,0,0) 58%,
+                                rgba(255,255,255,.10) 88%, rgba(255,255,255,.16) 100%);
+    box-shadow:
+        inset 0 .13rem .22rem rgba(0,0,0,.62),
+        inset 0 -1px 0 rgba(255,255,255,.22),
+        inset 0 0 0 1px rgba(0,0,0,.40);
+}
+/* ③ 채팅 바 — 다크 글래스: 위 헤어라인 림 + 아래로 가는 그늘(색값 불변, 층만) */
+#chat-preview {
+    background-image:
+        linear-gradient(180deg, rgba(255,255,255,.20) 0 1px, rgba(255,255,255,0) 1px),
+        linear-gradient(180deg, rgba(255,255,255,.06) 0, rgba(255,255,255,0) 40%,
+                                rgba(0,0,0,.14) 72%, rgba(0,0,0,.30) 100%);
+    box-shadow: inset 0 -.06rem .12rem rgba(0,0,0,.25);
+}
+/* ④ 탭바 활성 — 아이콘 뒤 라운드 플레이트(경계 있는 타원) + 하단 언더글로우 */
+#tabbar button.active {
+    background-image:
+        radial-gradient(ellipse 74% 62% at 50% 42%, rgba(255,213,79,.15) 0 58%, rgba(255,213,79,.04) 62%, rgba(255,213,79,0) 74%),
+        radial-gradient(86% 46% at 50% 100%, rgba(255,213,79,.22) 0, rgba(255,213,79,0) 72%);
+}
+/* ⑤ 시대 바 — 원색 무보정 완화: 위 광택 밴드 + 아래 그늘 inset(패턴은 background 단축이 갖고
+   있어 건드리지 않고 그림자만 얹는다 — 종전 위 림 .3 은 이 스택의 첫 층으로 유지). */
+.fi-age-bar[data-age], .af-age-bar[data-age] {
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.30),
+        inset 0 .5rem .45rem -.3rem rgba(255,255,255,.22),
+        inset 0 -.5rem .45rem -.3rem rgba(0,0,0,.22),
+        inset 0 0 0 1px rgba(0,0,0,.14);
+}
+/* ⑥ 스포트라이트 — 원뿔 가장자리 블러 + 바닥 착지점 라디얼 글로우(원뿔·셀 배치 불변) */
+.hatch-cone { filter: blur(1.2px); }
+.hatch-cell {
+    background-image: radial-gradient(46% 10% at 50% 86%, rgba(255,235,80,.28) 0, rgba(255,235,80,0) 100%);
+}
+/* ⑦ 슬롯 라벨 — 저대비 분홍 글자에 다크 아웃라인 스크림(색값 불변) */
+.equip-cell .slot-name { text-shadow: 0 1px 2px rgba(0,0,0,.65), 0 0 2px rgba(0,0,0,.45); }
+/* ⑧ 뒤로가기 ◀ — 글리프에 명암(위 하이라이트·아래 그림자), 컨테이너 광택은 5차 버튼 규격이 이미 적용 */
+.back-btn, .sheet-back-btn, .hatch-back { text-shadow: 0 1px 0 rgba(255,255,255,.30), 0 -1px 1px rgba(0,0,0,.35); }
+.league-back-btn::before { filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
+/* ⑨ 시트 헤더 위계 — 헤더 아래 부드러운 구분 그늘 한 겹 */
+.sheet-head { box-shadow: 0 .12rem .16rem -.08rem rgba(23,24,26,.18); }
