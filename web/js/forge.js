@@ -190,6 +190,16 @@ const Forge = {
 
     sell(item) {
         const price = this.sellPrice(item);
+        // 🚨 **지급 직전 마지막 방어선** (autobatch-partial-item-nan-coins).
+        //    `sellPrice` 는 `item.level`·`item.rarity` 를 읽는데, 손상 세이브에서 온 반쪽 항목은
+        //    둘 다 없어 NaN 을 낸다. 그대로 더하면 `S.coins` 가 **영구히** NaN 이 되고
+        //    (이후 모든 `S.coins += …` 가 NaN 을 물고 간다) 화면·저장 어디에도 티가 안 난다.
+        //    호출부(`UI.isForgeShaped`)에서 이미 거르지만, 판매 경로는 자동 제련 말고도
+        //    보관 덱·일괄 판매 등 여럿이라 **지급하는 자리에서 한 번 더** 본다.
+        if (!Number.isFinite(price)) {
+            console.error('Forge.sell: 판매가가 유한하지 않아 지급을 건너뛴다 —', JSON.stringify(item), 'price=' + price);
+            return 0;
+        }
         S.coins += price;
         Quests.bump('sellGear');                // 반복 퀘스트 '장비 판매'
         return price;

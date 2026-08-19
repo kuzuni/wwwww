@@ -23,6 +23,7 @@ for p in \
     check-autoforge-purge-held.js \
     check-autoforge-batch-overlay.js \
     check-sr-ok-gold.js \
+    check-autobatch-nan-coins.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1

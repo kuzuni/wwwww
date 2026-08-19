@@ -1650,6 +1650,26 @@ const UI = {
         if (sold) { this.coinBurst(gained); this.renderTopBar(); }
         return { kept, lastSold };
     },
+    // 자동 경로로 흘려보내도 되는 '제작물의 최소 형태'인가 (손상 세이브 방어).
+    // 🚨 **`slot` 만 보면 안 된다 (autobatch-partial-item-nan-coins, 2026-08-19 QA 18차 실측).**
+    //    종전 가드가 `!it || !it.slot` 이라 `{"slot":"weapon"}` 같은 반쪽 항목이 그대로 통과해
+    //    `Forge.autoResolve → sell → sellPrice` 로 갔고, `level`·`rarity` 가 없어
+    //    `Math.floor(20 * Math.pow(1.01, NaN) * undefined * …)` = NaN → **`S.coins += NaN`** 이 됐다.
+    //    조용한 게 더 나빴다: `U.fmt(NaN)` 이 `0` 을 돌려줘 화면엔 '코인 0' 으로 멀쩡히 찍히고,
+    //    세이브에는 `null` 로 직렬화돼(NaN → JSON null) 새로고침하면 기본값 500 으로 되돌아간다
+    //    = 모은 코인이 통째로 증발한다.
+    // 그래서 **판매·필터·썸네일이 실제로 읽는 필드를 전부** 본다 — 판매가는 `level`·`rarity` 를,
+    // 자동 필터는 `age`·`subs` 를, 카드/슬롯 그림은 `age`·`slot` 을 읽는다. 하나라도 빠지면
+    // 그 항목은 '제작물'이 아니라 손상된 잔해다.
+    isForgeShaped(it) {
+        return !!it && typeof it === 'object' && !Array.isArray(it)
+            && SLOTS.includes(it.slot)
+            && AGES.includes(it.age)
+            && RARITIES.includes(it.rarity)
+            && Number.isFinite(it.level)
+            && Number.isFinite(it.value)
+            && Array.isArray(it.subs);
+    },
     // 배치 결과를 규약대로 흘려보낸다 — 카드가 걷힌 뒤, 그리고 부팅/탭전환 복원에서도 같은 규칙.
     // **`S.autoBatch` 를 비우는 곳은 여기 하나뿐이다**(경로가 둘이면 한쪽만 고쳐지는 사고가 난다).
     drainAutoBatch() {
@@ -1658,7 +1678,13 @@ const UI = {
         if (!batch.length) return 0;
         let gained = 0, sold = 0;
         for (const it of batch) {
-            if (!it || !it.slot) continue;              // 손상 세이브 방어
+            // 손상 세이브 방어 — **조용히 넘기지 말고 짖는다.** 조용하면 `probe-screens-errors` 의
+            // '콘솔 에러 0건' 판정에 안 걸려 다음에도 이 결함이 안 보인다
+            // (`probe-creature-framing-crash` 항목에 적힌 그 논지 그대로).
+            if (!this.isForgeShaped(it)) {
+                console.error('drainAutoBatch: 제작물의 최소 형태가 아닌 autoBatch 항목을 버렸다 —', JSON.stringify(it));
+                continue;
+            }
             if (Forge.passesAutoFilter(it)) {
                 // 목표 통과분은 자동 장착하지 않고 비교 팝업 큐로 넘긴다(사용자 재지적 2026-08-18).
                 if (Forge.autoForgeConfig().stopOnTarget && this._autoSeq) this._autoSeq.stopAfterPick = true;
