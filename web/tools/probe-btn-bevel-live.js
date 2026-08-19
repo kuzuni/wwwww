@@ -33,9 +33,12 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const REF = {
     blue: { face: [0, 93, 255], lip: [0, 28, 78] },
     red:  { face: [255, 16, 23], lip: [78, 5, 7] },
+    // 회색 — census 상위값(면 163,163,163 ×19열 · 턱 50,49,50 ×18열). 확률 정보 [건너뛰기] 만
+    // 한 단 밝은 변형(175/53)이라 그 화면은 목표를 따로 준다.
+    gray: { face: [163, 163, 163], lip: [50, 49, 50] },
 };
 const lum = p => .299 * p[0] + .587 * p[1] + .114 * p[2];
-const GAP = { blue: lum(REF.blue.face) - lum(REF.blue.lip), red: lum(REF.red.face) - lum(REF.red.lip) };
+const GAP = Object.fromEntries(Object.entries(REF).map(([k, v]) => [k, lum(v.face) - lum(v.lip)]));
 
 // 대상 — 화면·선택자·기대 색상. 클론에서 실제로 눌리는 액션 버튼만 고른다.
 // `ink` 는 그 버튼과 **같은 상태의 원본 창**이다(shot-043224 제작 비교). 버튼 안쪽 창의
@@ -46,6 +49,12 @@ const TARGETS = [
     { screen: '제작 비교', open: null, sel: '#craft-modal .btn.sell', kind: 'red',
       ink: { file: 'shot-043224.png', win: [105, 688, 133, 56] } },
     { screen: '펫 상세', open: `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetDetail(0)`, sel: '.petd-btn.primary', kind: 'blue' },
+    { screen: '던전 상세', open: `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.openDungeons(); UI.openDungeonDetail('hammer')`, sel: '.dgd-btns .btn', kind: 'gray' },
+    // 확률 정보 [건너뛰기] 만 한 단 밝은 회색 변형이다 — census 로 그 화면에서 직접 뽑은 값을 쓴다
+    // (shot-042831 x=180 열 스캔: 면 rgb(175,175,175) · 턱 rgb(53,53,53)). 공용 163/50 을 그대로
+    // 들이대면 목표가 8 만큼 어긋난 채로 재게 된다.
+    { screen: '확률 정보', open: `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.openForgeInfo()`, sel: '.fi-card .fi-skip', kind: 'gray',
+      ref: { face: [175, 175, 175], lip: [53, 53, 53] } },
 ];
 
 // 창 안 어두운/흰 화소 비율 — 원본 PNG 와 클론 캡처에 같은 코드를 태운다.
@@ -77,9 +86,13 @@ const SCAN_SRC = `(async (a) => {
     //    밝기 문턱을 쓰면 턱이 면으로 먹히고(실측: 턱 0,73,201 이 면 술어를 통과했다) 자가
     //    '턱 없음'을 낸다. 그래서 색상만 보는 **느슨한** 술어로 기둥(면+턱)을 통째로 잡고,
     //    기둥 안에서 **가장 큰 명도 낙차**를 찾아 그 아래를 턱으로 본다.
+    // 회색은 색상으로 못 가르므로 **무채색 + 넉넉한 밝기대**로 기둥을 잡는다(면과 턱을 모두 포함).
+    const spread = (p) => Math.max(p[0],p[1],p[2]) - Math.min(p[0],p[1],p[2]);
     const colored = a.kind === 'blue'
         ? (p) => p[2] > 40 && p[2] - p[0] > 25 && p[2] - p[1] > 12
-        : (p) => p[0] > 40 && p[0] - p[1] > 25 && p[0] - p[2] > 25;
+        : a.kind === 'red'
+        ? (p) => p[0] > 40 && p[0] - p[1] > 25 && p[0] - p[2] > 25
+        : (p) => spread(p) <= 14 && p[0] >= 30 && p[0] <= 215;
     let best = null;
     for (let x = Math.round(a.x + a.w * .06); x < a.x + a.w * .94; x += 3) {
         let y = Math.round(a.y); const bot = Math.round(a.y + a.h + 4);
@@ -99,7 +112,11 @@ const SCAN_SRC = `(async (a) => {
         if (dd > drop) { drop = dd; cut = j; }
     }
     if (cut < 0) return { x: best.x, len: best.len, faceLast: at(best.x, best.y1 - 1), lip: null, lipN: 0, drop: 0 };
-    const faceLast = at(best.x, cut);
+    // ⚠️ 낙차가 **일어나는 줄**은 면이 아니라 면↔턱 **혼합 줄**이다(원본 건너뛰기 열: 175 → **123** → 53).
+    //    그걸 면으로 쓰면 순색끼리 잰 기준 명도차(175↔53 = 122)와 애초에 비교가 안 된다 — 실측으로
+    //    멀쩡한 교정이 78.0 으로 떨어져 가짜 불통과가 났다. 두 줄 위의 **순수 면**을 쓴다.
+    const faceRow = Math.max(best.y0, cut - 2);
+    const faceLast = at(best.x, faceRow);
     const lipRows = [];
     for (let j = cut + 1; j < best.y1; j++) lipRows.push(at(best.x, j));
     // 턱 대표색 = 낙차 바로 아래 줄들의 최빈색
@@ -150,11 +167,12 @@ const SCAN_SRC = `(async (a) => {
         fs.unlinkSync(shot);
         if (!r) { console.log(`FAIL ${t.screen} ${t.sel} — 버튼 면 기둥을 못 잡았다(자 고장 — 색 술어를 볼 것)`); await browser.close(); process.exit(2); }
         const gap = r.lip ? lum(r.faceLast) - lum(r.lip) : null;
-        const need = GAP[t.kind] * .7;
+        const refGap = t.ref ? lum(t.ref.face) - lum(t.ref.lip) : GAP[t.kind];
+        const need = refGap * .7;
         rows.push({ t, r, gap, need });
         console.log(`[${t.screen} ${t.kind}] ${t.sel}`);
         console.log(`    면 마지막 줄 ${r.faceLast.join(',').padEnd(14)} 턱 ${(r.lip ? r.lip.join(',') : '없음').padEnd(14)} 턱 두께 ${r.lipN}px`);
-        console.log(`    턱↔면 명도차 ${gap === null ? '—' : gap.toFixed(1)}  (원본 ${GAP[t.kind].toFixed(1)} · 필요 ≥ ${need.toFixed(1)})`);
+        console.log(`    턱↔면 명도차 ${gap === null ? '—' : gap.toFixed(1)}  (원본 ${refGap.toFixed(1)} · 필요 ≥ ${need.toFixed(1)})`);
         if (!r.lip || r.lipN < 2) fails.push(`${t.screen} ${t.kind} — 아래턱 띠가 없다(${r.lipN}px)`);
         else if (gap < need) fails.push(`${t.screen} ${t.kind} — 아래턱이 면과 안 갈린다: 명도차 ${gap.toFixed(1)} < ${need.toFixed(1)}`);
 

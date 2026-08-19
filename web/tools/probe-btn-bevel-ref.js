@@ -15,7 +15,9 @@
 //    '면'이 통째로 어두워진다(이 저장소가 반복해 밟은 '자가 부스러기를 문다' 계열).
 // ⚠️ 기둥 최소 길이를 두어 글자 안티에일리어싱·아이콘의 파란 점을 거른다.
 //
-// 사용: node tools/probe-btn-bevel-ref.js [blue|red]
+// 사용: node tools/probe-btn-bevel-ref.js [blue|red|gray]
+// ⚠️ gray 는 무채색이라 회색 **패널·카드·바탕**도 술어를 통과한다 — 기둥 아래에 '더 어두운
+//    무채색 띠'가 붙어 있어야만 세므로 대부분 걸러지지만, 집계는 상위 몇 개만 볼 것.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
@@ -31,13 +33,19 @@ const SRC = `(async (a) => {
     const d = g.getImageData(0, 0, c.width, c.height).data, W = c.width, H = c.height;
     const at = (x, y) => { const k = (y * W + x) * 4; return [d[k], d[k+1], d[k+2]]; };
     // 면 술어 — 파랑: B 가 R·G 를 크게 앞선다 / 빨강: R 이 G·B 를 크게 앞선다. 둘 다 충분히 밝을 것.
+    // 'gray' — 무채색(채널 산포 ≤6)이고 밝기 140~205 인 면. 흰 카드(≥214)·검정 테(≤40)는 빠진다.
+    const spread = (p) => Math.max(p[0],p[1],p[2]) - Math.min(p[0],p[1],p[2]);
     const isFace = a.kind === 'blue'
         ? (p) => p[2] > 150 && p[2] - p[0] > 90 && p[2] - p[1] > 60
-        : (p) => p[0] > 150 && p[0] - p[1] > 90 && p[0] - p[2] > 90;
+        : a.kind === 'red'
+        ? (p) => p[0] > 150 && p[0] - p[1] > 90 && p[0] - p[2] > 90
+        : (p) => spread(p) <= 6 && p[0] >= 140 && p[0] <= 205;
     // 턱 술어 — 같은 색상인데 어두운 것(면보다 확실히 어둡고, 검정도 아님)
     const isLip = a.kind === 'blue'
         ? (p) => p[2] > 24 && p[2] < 150 && p[2] - p[0] > 20
-        : (p) => p[0] > 24 && p[0] < 150 && p[0] - p[1] > 20;
+        : a.kind === 'red'
+        ? (p) => p[0] > 24 && p[0] < 150 && p[0] - p[1] > 20
+        : (p) => spread(p) <= 6 && p[0] >= 30 && p[0] <= 110;
 
     const out = [];
     for (let x = 4; x < W - 4; x += 7) {          // 7px 간격으로 열을 훑는다
