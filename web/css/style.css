@@ -2682,10 +2682,11 @@ body {
 /* 플레이어 정보 카드 — 원본(shot-043313) 흰 카드 잉크 373/496 = 75.20%W 인데 공용 .wide 74%는
    테두리를 빼면 72.75%W 라 −2.46%p 로 유일하게 ±2%p 를 넘겼다(전수 검증 채점 1차, 픽셀 교차검증).
    공용 74%를 건드리면 league-challenge 등 CW 캘리브레이션이 통째로 흔들리므로 이 카드만 승격. */
-.modal-card.wide.pinfo-card { width: 76.5%; height: calc(var(--app-h) * .690); }
-/* ↑ 높이 69%H = 원본 카드 흰 잉크 14.09~82.39%H 실측(+테두리 몫). 종전엔 내용물이 높이를 정해
-   카드가 위로 1.5%p 떠 있었고(흰 12.56~79.93), 아래 세 처방과 함께 내부 앵커가 전부 원본에 붙는다.
-   (전수 검증 채점 2차 — 2인 공통 '중단 콘텐츠 상향 쏠림' Δ3~6%p, 픽셀 교차검증) */
+.modal-card.wide.pinfo-card { width: 76.5%; height: calc(var(--app-h) * .712); }
+/* ↑ 높이 71.2%H = 원본 카드 top 14.09%H + 하단(✕ 중심 85.34%H = 반걸침 규칙상 카드 아랫변).
+   ⚠️ '카드 흰 잉크 하단 82.39'는 카드 끝이 아니라 **✕가 흰 run 을 끊는 지점**이다(✕ 잉크 상단
+   82.84와 일치) — 이걸 카드 하단으로 읽으면 69%H 로 2.2%p 짧아진다(채점 3차 2인이 잡았다).
+   (채점 2차 '중단 콘텐츠 상향 쏠림' Δ3~6%p 는 아래 세 처방과 함께 해소, 전부 픽셀 교차검증) */
 /* 원본은 [프로필][설정] 줄 아래로 카드 바닥까지 55px(6.2%H)의 흰 여백이 남는다 —
    카드 패딩 1.1rem만으로는 13px뿐이라 버튼줄이 바닥에 붙어 있었다. */
 .profile-sheet .profile-tabs { margin-top: auto; margin-bottom: 2.2rem; }
@@ -3300,9 +3301,10 @@ body {
     margin-top: -1.7rem; position: relative; z-index: 2;
 }
 .x-btn:active { transform: translateY(.12rem); box-shadow: none; }
-/* 플레이어 정보만 ✕가 카드에 안 걸친다 — 원본(043313) ✕ 잉크 82.84~87.84%H = 카드(흰 잉크 하단
-   82.39%H) **바로 아래 분리**. 공용 -1.7rem 걸침을 이 팝업에서만 해제(채점 2차 카드 하단 −3%p 의 진범). */
-#player-info-modal .x-btn { margin-top: .1rem; }
+/* (2026-08-19 정정) 플레이어 정보 ✕도 공용 규칙대로 카드에 반걸침이 맞다 — '흰 잉크 하단 82.39 =
+   카드 하단'이 오독이었다(✕가 흰 run 을 끊은 자리). 원본 ✕ 중심 85.34%H = 카드 아랫변. 해제 규칙 철회,
+   대신 래퍼를 살짝 내려 카드 top 14.09%H 를 맞춘다. */
+#player-info-modal .idet-wrap { margin-top: .68rem; }
 
 /* ---- 탭바: 팝업이 열린 탭은 빨간 원형 X로 (UI-SPEC 공통 레이아웃) ---- */
 #tabbar button.tab-x { color: #fff; justify-content: center; padding: .3rem 0; }
@@ -3781,7 +3783,9 @@ body {
    버튼이 정확히 패딩의 절반(13.5px = 2.65%p)만큼 오른쪽에 앉았다. `justify-content:center` 도
    `margin:auto` 도 **콘텐츠 상자 기준**이라 둘 다 이걸 못 고친다 — 패딩 자체를 지워야 한다. */
 #panel-pets .summon-bar { position: relative; padding-left: 0; }
-#panel-pets .summon-bar > .x5-toggle { position: absolute; right: 67.4%; top: 50%; transform: translateY(-50%); }
+/* 세로는 원본(042356)이 **소환 버튼 하단 정렬**(x1 잉크 59.98~62.47%H = 버튼 아랫변) — 가운데 정렬은
+   3%p 위였다(전수 검증 채점 2·3차 2인 공통). 버튼이 바 높이를 정하므로 bottom 기준으로 붙인다. */
+#panel-pets .summon-bar > .x5-toggle { position: absolute; right: 67.4%; top: auto; bottom: .22rem; transform: none; }
 /* ⓘ·Lv·게이지 열의 x — 사용자 지시 2026-08-19(slug: pet-popup-gauge-gap):
    "펫 팝업 게이지 부분이 버튼이랑 딱 붙어 있는 게 별로. 스킬 부분은 띄어져 있더만, 그렇게."
    실측(499px 폭): 소환 버튼 우단→이 열 좌단 간격이 **펫 11.8px vs 스킬 22.4px** 로 펫이 정확히 절반이라

@@ -171,10 +171,13 @@ const SEED = () => {
     page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined" && typeof Forge !== "undefined"', { label: '스크립트 로드' });
+    // 🚨 시드는 Mounts.equip → Scene3D.refreshMount 를 타므로 **씬 초기화까지** 기다려야 한다 —
+    //    느린 컨테이너에서 스크립트 로드 직후 시드가 refreshMount 안에서 TypeError 로 죽는다
+    //    (probe-main-px 의 UI.els 레이스와 같은 계열, 이 세션에서 4회 재현).
+    await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined" && typeof Forge !== "undefined" && UI.els && !!UI.els.equipSheet && typeof Scene3D !== "undefined" && !!Scene3D.scene', { label: '스크립트 로드' });
     await page.evaluate(SEED);
     await page.reload({ waitUntil: 'load' });
-    await waitReady(page, 'typeof UI !== "undefined" && S && S.forgeLevel === 29', { label: '시드 상태 로드' });
+    await waitReady(page, 'typeof UI !== "undefined" && S && S.forgeLevel === 29 && UI.els && !!UI.els.equipSheet && typeof Scene3D !== "undefined" && !!Scene3D.scene', { label: '시드 상태 로드' });
     // 캡처 중에는 토스트를 아예 막는다 — innerHTML 비우기만으로는 부족하다: 전투 틱이 clear 와
     // screenshot 사이에 새 토스트를 띄워 원본에 없는 알림 pill 이 화면에 찍힌다(리그 캡처에서
     // 시즌 종료 pill 위에 '첫 클리어' 토스트가 겹쳐 찍힌 사례). 채점용 캡처가 오염되면 안 된다.
