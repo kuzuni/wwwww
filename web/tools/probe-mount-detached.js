@@ -18,9 +18,10 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const path = require('path');
 const { waitReady } = require('./wait-ready.js');
 
+// 인자가 없으면 **로스터 전종**을 본다 — 1판에서 '결함이 보고된 종'만 목록에 박아 뒀는데,
+// 그러면 새로 추가된 종이 영영 이 검사를 안 받는다(로스터가 25→29 로 는 항목이 바로 옆에 있다).
+// 종 목록은 `MOUNT_KR` 에서 페이지가 직접 읽는다.
 const ARG = process.argv.slice(2);
-const DEFAULT = ['Bike', 'Star Whale', 'Mini Dragon', 'Giant Bee', 'Clockwork Mouse', 'Pterosaur',
-                 'One-Wheel Droid', 'Dump Truck', 'Cleaning Robot', 'Hover Board', 'Hover Disk'];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -29,9 +30,10 @@ const DEFAULT = ['Bike', 'Star Whale', 'Mini Dragon', 'Giant Bee', 'Clockwork Mo
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto('file://' + path.resolve(__dirname, '../index.html'), { waitUntil: 'load' });
-    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.makeMountMesh');
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.makeMountMesh && typeof MOUNT_KR !== "undefined"');
 
-    const out = await page.evaluate((names) => {
+    const out = await page.evaluate((argNames) => {
+        const names = argNames.length ? argNames : Object.keys(MOUNT_KR);
         const rows = [];
         for (const name of names) {
             const mesh = Scene3D.makeMountMesh(name, 'epic');
@@ -78,7 +80,7 @@ const DEFAULT = ['Bike', 'Star Whale', 'Mini Dragon', 'Giant Bee', 'Clockwork Mo
             Scene3D.disposeTree(mesh);
         }
         return rows;
-    }, ARG.length ? ARG : DEFAULT);
+    }, ARG);
 
     await browser.close();
     let bad = 0;
