@@ -112,11 +112,60 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
     //    (다크 밴드를 색으로 직접 잡으면 시트 #0e111b 와 채널 차가 ~16뿐이라 마스크가 오염된다.)
     await page.addStyleTag({ content: '.league-foot { background: #afafaf !important; background-image: none !important; }' });
     await page.evaluate(() => document.querySelectorAll('.modal').forEach(m => m.classList.remove('opening')));
+    // 🚨 팝업이 **실제로 떠서 자리를 잡을 때까지** 기다린다 — 고정 대기(500ms)만 두면 병렬 세션이
+    //    붙어 컨테이너가 눌릴 때 아직 안 뜬 화면을 찍고, 아래 색-덩어리 탐색이 엉뚱한 걸 집어
+    //    **가짜 불통과**가 나온다(실측: 한가할 때 6/6 통과인 코드가 전수 스윕 중 1/3 불통과).
+    //    geardetail 과 같은 사고·같은 처방이다.
+    await page.waitForFunction(() => {
+        const m = document.getElementById('league-modal');
+        if (!m || m.classList.contains('hidden')) return false;
+        return m.getBoundingClientRect().height > 0 && !!m.querySelector('.league-foot');
+    }, null, { timeout: 30000 });
     await page.waitForTimeout(500);
-    const shot = await page.screenshot({ timeout: 180000 });
 
-    const [ref, clone] = await page.evaluate(MEASURE, [dataUrl(REF_PNG), 'data:image/png;base64,' + shot.toString('base64')]);
-    if (ref.err || clone.err) { console.log('측정 실패:', ref.err || '', clone.err || ''); await browser.close(); process.exit(2); }
+    // 🚨 자기검증(probe-techoverview·probe-tabbar 규약) — 잡은 덩어리가 이 화면의 기하인지 먼저 본다.
+    //    ⓐ 종전에는 덩어리가 없으면 아래 표 루프 첫 바퀴에서 `break` 만 했다 — 그러면 ng 가 빈 채로
+    //       빠져나와 **`판정: 통과` + exit 0** 이 찍혔다(= 아무것도 못 쟀는데 초록).
+    //    ⓑ 마스크가 덜 칠해진 프레임을 찍으면 엉뚱한 덩어리를 집어 **가짜 불통과**가 난다.
+    const bad = m => {
+        const miss = ['band', 'pinned', 'cta', 'back'].filter(k => !m[k]);
+        if (miss.length) return `못 찾은 덩어리: ${miss.join(', ')} (파랑/빨강/회색 마스크 실패)`;
+        // 하단 밴드는 화면 아래쪽 가로 띠다 — 원본 실측 y667/897 ≈ 74%H 기준의 헐거운 울타리라
+        // ±2%p 판정을 대신하지 않는다(진짜 어긋남은 그대로 아래 판정에서 걸린다).
+        const bt = m.band.top / m.H * 100, bh = (m.band.bottom - m.band.top) / m.H * 100;
+        if (!(bt >= 55 && bt <= 90 && bh >= 3 && bh <= 30))
+            return `하단 밴드 기하가 아니다: 상단 ${bt.toFixed(2)}%H(기대 55~90) · 높이 ${bh.toFixed(2)}%H(기대 3~30)`;
+        return null;
+    };
+
+    // 🚨 캡처를 **자기검증에 통과할 때까지 다시 찍는다**(최대 4회). 왜 필요한가:
+    //    DOM 은 매 런 똑같이 멀쩡한데(모달 열림·`.league-foot` 계산색 `rgb(175,175,175)`·rect 동일)
+    //    **캡처된 픽셀만 런마다 다르다** — 회색 마스크가 아직 다 칠해지지 않은 프레임이 찍히면
+    //    밴드가 19px 짜리 조각으로 잡힌다(실측: 같은 코드가 6/6 통과했다가 스윕 중 1/3 불통과,
+    //    진단해 보니 상태는 전부 정상이고 그림만 달랐다). 즉 페이지가 아니라 **페인트 타이밍**이
+    //    문제이므로, 상태를 더 기다리는 대신 **그림이 쓸 만해질 때까지 다시 찍는 것**이 맞는 처방이다.
+    let ref, clone, why = null;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+        const shot = await page.screenshot({ timeout: 180000 });
+        [ref, clone] = await page.evaluate(MEASURE, [dataUrl(REF_PNG), 'data:image/png;base64,' + shot.toString('base64')]);
+        if (ref.err || clone.err) { console.log('측정 실패:', ref.err || '', clone.err || ''); await browser.close(); process.exit(2); }
+        const rb = bad(ref); if (rb) { console.log(`측정기 고장 — 원본 ${rb}`); await browser.close(); process.exit(2); }
+        why = bad(clone);
+        if (!why) { if (attempt > 1) console.log(`(캡처 ${attempt}회째에 자기검증 통과 — 앞선 ${attempt - 1}회는 오염된 프레임)`); break; }
+        // 그냥 다시 찍기만 하면 **같은 오염 프레임이 그대로 나온다**(합성 레이어가 캐시돼 있다).
+        // 레이어를 한 번 무효화해 강제로 다시 칠하게 한 뒤 찍는다.
+        await page.evaluate(() => {
+            const m = document.getElementById('league-modal');
+            if (m) { m.style.transform = 'translateZ(0)'; void m.offsetHeight; m.style.transform = ''; void m.offsetHeight; }
+        });
+        await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+        await page.waitForTimeout(700);
+    }
+    if (why) {
+        console.log(`측정기 고장 — 클론 ${why}`);
+        console.log('  → 4회 다시 찍어도 회색 마스크가 안 칠해졌다. 수치는 믿지 말고 재실행할 것.');
+        await browser.close(); process.exit(2);
+    }
 
     const pct = (m, v, u) => +(v / (u === 'W' ? m.W : m.H) * 100).toFixed(2);
     const ROWS = [
