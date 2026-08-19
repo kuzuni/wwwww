@@ -104,4 +104,8 @@ const T = [
     console.log('');
     console.log(fail ? `판정: FAIL — ±2%p 초과 요소 ${fail}건` : '판정: PASS — 전 요소 ±2%p 이내');
     console.log(errs.length ? '콘솔 에러: ' + errs.join(' / ') : '콘솔 에러 0건');
+    // 🚨 이 도구는 판정문만 찍고 **exit 코드를 안 냈다**(2026-08-19 비율 스윕에서 발견).
+    //    인계 메모 ㉡ 이 짚은 "`exit 0` = 통과가 아니다"의 실물이다 — 자동 스윕에 넣으면
+    //    ±2%p 를 넘겨도 초록으로 찍힌다. 판정을 종료 코드로도 내보낸다.
+    process.exit(fail || errs.length ? 1 : 0);
 })();

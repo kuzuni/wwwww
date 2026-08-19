@@ -17,14 +17,26 @@ const fs = require('fs');
 const REF = path.resolve(__dirname, '../ref/screens/shot-042407.png');
 const CLONE = path.resolve(__dirname, 'ref-cmp/clone/tech-overview.png');
 const TOL = 2;   // ±2%p (TODO 상단 UI 규칙)
+// --selftest: 클론 쪽 **카드 밴드만** 30px 아래로 밀어 놓고 잰다. '통과만 찍어 보고 믿지 않는다'
+// (인계 규칙 ㉣⑶)를 이 화면에서도 지키기 위한 것이다 — 스캐너가 진짜 픽셀에서 어긋남을 잡아내는지
+// 확인한다. 30px = 3.37%H — 클론이 이미 최대 0.33%p 낮게 앉아 있어 20px(2.24%H) 로는 한 지표가 1.91%p 로 문턱 아래에 남는다(실측). 밀어 넣는 양은 **문턱 + 기존 편차**보다 넉넉해야 한다: 카드 행 4지표가 FAIL 로 뒤집혀야 정상이다.
+// (이미지 전체를 밀면 앱 좌우 끝·탭바가 같이 밀려 상대 좌표가 그대로라 아무것도 안 잡힌다.)
+const SELFTEST = process.argv.includes('--selftest');
 
-const MEASURE = async ([src]) => {
+const MEASURE = async ([src, shiftCards]) => {
         const img = new Image();
         await new Promise(r => { img.onload = r; img.src = src; });
         const c = document.createElement('canvas');
         c.width = img.width; c.height = img.height;
         const g = c.getContext('2d', { willReadFrequently: true });
         g.drawImage(img, 0, 0);
+        if (shiftCards) {
+            // 카드가 사는 대역만 오려서 아래로 옮긴다(뒤로 버튼·서브탭·탭바는 제자리).
+            const y0 = Math.round(c.height * 0.08), bh = Math.round(c.height * 0.5);
+            const band = g.getImageData(0, y0, c.width, bh);
+            g.fillStyle = '#fff'; g.fillRect(0, y0, c.width, bh);
+            g.putImageData(band, 0, y0 + shiftCards);
+        }
         const W = c.width, H = c.height, D = g.getImageData(0, 0, W, H).data;
         const at = (x, y) => { const i = (y * W + x) * 4; return [D[i], D[i + 1], D[i + 2]]; };
         const lum = (x, y) => { const p = at(x, y); return (0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]) / 255; };
@@ -151,9 +163,10 @@ const MEASURE = async ([src]) => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
     const page = await browser.newPage();
     await page.setContent('<body style="margin:0">');
-    const run = async f => page.evaluate(MEASURE, ['data:image/png;base64,' + fs.readFileSync(f).toString('base64')]);
+    const run = async (f, shift) => page.evaluate(MEASURE, ['data:image/png;base64,' + fs.readFileSync(f).toString('base64'), shift || 0]);
     const ref = await run(REF);
-    const clone = await run(CLONE);
+    const clone = await run(CLONE, SELFTEST ? 30 : 0);
+    if (SELFTEST) console.log('[selftest] 클론 카드 밴드를 30px(3.37%H) 아래로 밀어 잰다 — 카드 행 지표가 FAIL 로 뒤집혀야 판정기가 살아 있는 것이다.');
 
     for (const [label, o] of [['원본 shot-042407', ref], ['클론 tech-overview', clone]]) {
         console.log(`\n${label} ${o.size.join('×')} · 앱 ${o.app.join('~')}`);
@@ -175,5 +188,14 @@ const MEASURE = async ([src]) => {
     console.log(`\n최대 편차 ${worst > 0 ? '+' : ''}${worst}%p · 초과 ${ng.length}건${ng.length ? ':\n  ' + ng.join('\n  ') : ''}`);
     console.log(ng.length ? 'FAIL' : 'PASS — 전 요소 ±' + TOL + '%p 이내');
     await browser.close();
+    if (SELFTEST) {
+        // 카드 행 지표(상단·하단 × 2행)가 전부 넘어야 스캐너가 실제로 판별하는 것이다.
+        const need = ['카드1행 상단', '카드1행 하단', '카드2행 상단', '카드2행 하단'];
+        const caught = need.filter(k => ng.some(s => s.startsWith(k)));
+        console.log(caught.length === need.length
+            ? `\nSELFTEST OK — 밀어 놓은 카드 행 ${caught.length}/4 지표를 전건 검출`
+            : `\nSELFTEST FAIL — 30px 를 밀었는데 ${caught.length}/4 만 잡혔다(판정기 고장)`);
+        process.exit(caught.length === need.length ? 0 : 1);
+    }
     process.exit(ng.length ? 1 : 0);
 })();
