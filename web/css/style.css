@@ -5888,8 +5888,13 @@ body {
    여유 3px·우측 초과 0px 를 회귀 검사한다. */
 .sr-qty {
     position: absolute; z-index: 2;
-    right: calc(50% - 45% / var(--sz, 1));   /* 46% 는 좁은 mid 셀에서 테두리 두께만큼 1px 남았다 */
-    bottom: calc(50% - 44% / var(--sz, 1));
+    /* 🚨 나눗셈에 `--peersz` 까지 태워야 한다 — `.sr-orbwrap` 의 실제 화면 배율은
+       `--sz * --peersz` 인데(5304행) 여기서 `--sz` 만 나누면 동급 표식이 붙은 `.peer` 셀에서
+       배지가 딱 그 13% 만큼 밖으로 밀린다. probe-sr-labels 가 412×892 mount-x75 에서
+       **셀 2개·최대 5.5px 초과**로 잡았고, 0.45×1.13=0.508 > 0.46(칩 우변)로 수치가 정확히 맞는다.
+       46% 는 좁은 mid 셀에서 테두리 두께만큼 1px 남았다. */
+    right: calc(50% - 45% / (var(--sz, 1) * var(--peersz, 1)));
+    bottom: calc(50% - 44% / (var(--sz, 1) * var(--peersz, 1)));
     background: rgba(2,5,16,.9); color: #fff; border: var(--ol1) solid var(--rc);
     border-radius: .4rem; padding: 0 .3rem; font-size: .7rem; font-weight: 900;
     box-shadow: 0 .1rem .28rem rgba(0,0,0,.6);
@@ -5988,7 +5993,7 @@ body {
 .sr-grid.mid .sr-dup { top: 3%; left: 2%; font-size: .62rem; padding: 0 .2rem; }
 /* mid 판도 같은 식을 쓴다(예전 `bottom:3%; right:2%` 상수는 위 스케일 문제를 그대로 맞았다) —
    셀이 작아 여유가 적으므로 세로만 조금 더 붙인다. */
-.sr-grid.mid .sr-qty { bottom: calc(50% - 45% / var(--sz, 1)); }
+.sr-grid.mid .sr-qty { bottom: calc(50% - 45% / (var(--sz, 1) * var(--peersz, 1))); }
 .sr-grid.dense .sr-name, .sr-grid.dense .sr-sub { display: none; }
 
 /* ④ 하단: 등급별 집계 → 연출 중엔 스킵 안내, 끝나면 [확인] */
