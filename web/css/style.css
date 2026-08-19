@@ -6716,3 +6716,24 @@ body {
         inset 0 .09rem .14rem rgba(0,0,0,.42),          /* 위 안쪽 그늘 = 파인 홈 */
         inset 0 -.06rem 0 rgba(255,255,255,.09);        /* 아래 가장자리 반사 */
 }
+
+/* ===== 게이지 표면 AAA 스킨 (slug: ui-quality-up — 7차 슬라이스) =====
+   밴드까지 올리고 남은 평면 — **게이지**다. 트랙도 채움도 단색이라 '칠한 사각형'으로 읽힌다.
+   트랙은 **파인 홈**(위 안쪽 그늘 + 아래 가장자리 반사), 채움은 **광택 있는 액체**(위 광 → 아래 그늘)로.
+
+   ⚠️ **칠하는 속성만**: background-image / box-shadow. 높이·라운드·overflow 는 그대로다.
+   🚨 트랙의 inset 그늘은 **채움 뒤로 가려진다** — 그게 맞다. 빈 구간에서만 홈이 보이고 찬 구간은
+      채움 광택이 덮는다(채움이 absolute 자식이라 자연히 그렇게 쌓인다).
+   🚨 **제 그라디언트가 이미 있는 채움은 안 건드린다** — 퀘스트 바(`.qst-bar i`)는 파랑/초록 두 벌이
+      상태 신호(수령 대기=초록)라, 여기에 층을 얹으면 그 신호가 덮인다. 트랙만 홈으로 만든다.
+   🚨 `.tech-prog #tech-node-fill`(1-1-0)이 `background:` 단축으로 파랑을 주므로, `#tech-node-fill`
+      한 겹(1-0-0)으로 적으면 기술 노드 진행바에서만 광택이 사라진다 — 그 선택자를 같이 적었다. */
+.upg-progress, .summon-gauge, .qst-bar {
+    box-shadow:
+        inset 0 .1rem .16rem rgba(0,0,0,.5),        /* 위 안쪽 그늘 = 파인 홈 */
+        inset 0 -.05rem 0 rgba(255,255,255,.08);    /* 아래 가장자리 반사 */
+}
+#upg-fill, #tech-node-fill, .tech-prog #tech-node-fill, .summon-gauge i {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.36) 0, rgba(255,255,255,.12) 44%,
+                                              rgba(0,0,0,.06) 72%, rgba(0,0,0,.20) 100%);
+}

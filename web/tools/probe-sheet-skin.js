@@ -40,6 +40,9 @@ const KILL_SKIN = `
 /* 6차 슬라이스 — 상단바·탭바·재화 바 밴드 */
 #topbar, #tabbar { background-image: none !important; box-shadow: none !important; }
 .currency-pills .pill { background-image: none !important; box-shadow: none !important; }
+/* 7차 슬라이스 — 게이지 트랙·채움 */
+.upg-progress, .summon-gauge, .qst-bar { box-shadow: none !important; }
+#upg-fill, #tech-node-fill, .tech-prog #tech-node-fill, .summon-gauge i { background-image: none !important; }
 `;
 
 (async () => {
@@ -63,9 +66,11 @@ const KILL_SKIN = `
         // 판정 대상이라 여기서 1px 이라도 움직이면 그 화면 판정이 통째로 무효가 된다.
         ['frame-bands', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces();`,
             '#topbar, #tabbar, #tabbar button, .currency-pills .pill, .profile-card'],
-        ['quests', `UI.openQuests && UI.openQuests()`, '#quest-modal .modal-card.sheet, #quest-modal .qst-row'],
+        ['quests', `UI.openQuests && UI.openQuests()`,
+            '#quest-modal .modal-card.sheet, #quest-modal .qst-row, #quest-modal .qst-bar, #quest-modal .qst-bar i'],
         ['dungeons', `UI.openDungeons()`, '#dungeon-modal .modal-card.sheet, #dungeon-modal .dg-banner'],
-        ['pets', `UI.switchTab('summon'); UI.switchSummonSub('pets')`, '#panel-pets .sk-grid, #panel-pets .pet-tile'],
+        ['pets', `UI.switchTab('summon'); UI.switchSummonSub('pets')`,
+            '#panel-pets .sk-grid, #panel-pets .pet-tile, #panel-pets .summon-gauge, #panel-pets .summon-gauge i'],
         // 3차 슬라이스 — 가운데 정렬 팝업 카드(.modal-card:not(.sheet)) 바탕
         ['player-info', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.openPlayerInfo()`,
             '#player-info-modal .modal-card, #player-info-modal .modal-card .equip-cell, #player-info-modal .modal-card .btn'],
