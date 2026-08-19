@@ -52,7 +52,10 @@ if [ "$#" -gt 0 ]; then
 fi
 
 pass=0; fail=0; dead=0
-declare -a FAILED DEAD
+# ⚠️ `declare -a FAILED` 만 하면 배열이 **아직 안 만들어진다** — 전부 통과해서 한 번도 안 담기면
+#    `set -u` 아래에서 아래 `${#FAILED[@]}` 가 'unbound variable' 로 터진다(전 화면 초록인 런에서만
+#    에러가 찍히는 뒤집힌 증상이라 오래 안 잡혔다). 빈 배열로 초기화해 둔다.
+declare -a FAILED=() DEAD=()
 for p in "${PROBES[@]}"; do
     [ -f "$p" ] || { echo "SKIP  $p (없음)"; continue; }
     out="$(timeout "$TIMEOUT" node "$p" 2>&1)"; rc=$?

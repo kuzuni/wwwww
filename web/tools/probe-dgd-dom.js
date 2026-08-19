@@ -43,7 +43,9 @@ const REF = {
     page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && typeof Forge !== 'undefined', null, { timeout: 60000 });
+    // 항상 `UI.els` 까지 확인한다 — `UI`는 선언되자마자 보이지만 `els` 는 `UI.init()` 안에서야 대입된다(ui.js:678~).
+    // 그 틈에 화면을 열면 `this.els.panels`·`this.els.mountModal` 에서 그대로 터진다(probe-grid-empty 에서 실제로 밟았다).
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && !!UI.els && typeof Forge !== 'undefined', null, { timeout: 60000 });
     await page.evaluate(SC.SEED_SRC);
     await page.reload({ waitUntil: 'load' });
     await page.waitForFunction(() => typeof UI !== 'undefined' && S.forgeLevel === 29, null, { timeout: 60000 });

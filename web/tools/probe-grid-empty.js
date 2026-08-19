@@ -32,10 +32,20 @@ const SCREENS = [
 // page.waitForFunction의 술어는 이 렉시컬 전역을 못 보고 타임아웃 나는 경우가 있어
 // (같은 술어가 어떤 실행에서는 통과하고 어떤 실행에서는 15초를 다 쓴다) 신뢰할 수 없다.
 // page.evaluate는 항상 보이므로 evaluate 폴링으로 부팅을 기다린다.
+// 🚨 `typeof UI !== 'undefined'` 만으로는 **부족하다** (2026-08-19 실측, ui-ratio-audit).
+//    `UI.els` 는 선언이 아니라 `UI.init()` 안에서 대입된다(ui.js:678~). 스크립트가 평가되는 순간
+//    `UI`·`S` 는 이미 있지만 `UI.els` 는 아직 undefined 라, 그 틈에 화면을 열면 그대로 터진다:
+//      · `UI.openMounts()`  → `this.els.mountModal.innerHTML` → "Cannot set properties of undefined"
+//      · `UI.switchSummonSub()` → `switchTab` 의 `Object.entries(this.els.panels)`
+//        → "Cannot convert undefined or null to object"
+//    두 번 연속 돌렸을 때 **서로 다른 지점에서** 죽은 게 경합이라는 증거다(코드는 그대로였다).
+//    병렬 세션으로 컨테이너가 눌리면 이 틈이 벌어져 재현율이 올라간다. 그래서 `UI.init()` 이
+//    끝났다는 표식(`els.panels`·`els.mountModal`)까지 확인하고 나서 진행한다.
 async function waitBooted(page, timeout = 20000) {
     const t0 = Date.now();
     for (;;) {
-        const ready = await page.evaluate(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && !!S)
+        const ready = await page.evaluate(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && !!S
+            && !!UI.els && !!UI.els.panels && !!UI.els.mountModal)
             .catch(() => false);
         if (ready) return;
         if (Date.now() - t0 > timeout) throw new Error('부팅 대기 시간 초과 (UI/S 미정의)');

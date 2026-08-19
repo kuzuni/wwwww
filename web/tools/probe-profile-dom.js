@@ -31,7 +31,9 @@ const TARGET = {   // 원본 %H (496×893 스크린샷 기준)
     page.on('console', msg => msg.type() === 'error' && errors.push(msg.text()));
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 60000 });
+    // 항상 `UI.els` 까지 확인한다 — `UI`는 선언되자마자 보이지만 `els` 는 `UI.init()` 안에서야 대입된다(ui.js:678~).
+    // 그 틈에 화면을 열면 `this.els.panels`·`this.els.mountModal` 에서 그대로 터진다(probe-grid-empty 에서 실제로 밟았다).
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && !!UI.els, null, { timeout: 60000 });
     await page.waitForTimeout(400);
     await page.evaluate(() => { if (typeof Scene3D !== 'undefined') Scene3D.update = function () {}; UI.openProfile(); });
     await page.evaluate(() => document.fonts.ready);   // ⚠️ 폰트 전 프레임 실측 금지(인계 메모 ㉠)
