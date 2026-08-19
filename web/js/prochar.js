@@ -1277,42 +1277,97 @@ const ProChar = {
         const faceG = new THREE.Group();
         headG.add(faceG);
         R.faceMesh = faceG;
-        // 눈 — 흰자+홍채+하이라이트 3겹, 얼굴 중앙 높이(스컬 중심선)에 정확히 배치
-        for (const dx of [-0.078, 0.078]) {
-            const sclera = new THREE.Mesh(new THREE.SphereGeometry(0.046, 10, 8), new THREE.MeshBasicMaterial({ color: 0xf7f4ee }));
-            sclera.position.set(dx, 0.072, 0.152);
-            sclera.scale.set(1, 1.2, 0.4);
-            const iris = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2d4a66 }));
-            iris.position.set(dx, 0.068, 0.178);
-            iris.scale.set(1, 1.2, 0.5);
-            const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 5), new THREE.MeshBasicMaterial({ color: 0x10151c }));
-            pupil.position.set(dx, 0.068, 0.192);
-            const hl = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-            hl.position.set(dx + 0.012, 0.082, 0.196);
-            faceG.add(sclera, iris, pupil, hl);
+        // ===== 이목구비 — 1930년대 러버호스 카툰 화풍 (`cute-art-direction` 사용자 확정 2026-08-19) =====
+        // 사용자 원문: "1930년대 미국 카툰 스타일로 귀엽게" — 파이컷/큰 원형 눈 + 검은 점 동공, 넓은 미소.
+        // 종전은 흰자+파란 홍채+글로시 하이라이트의 '캐주얼 3D 마스코트' 눈이었다(미키/컵헤드 계열이 아님).
+        //
+        // 🔑 **이목구비를 전부 '평평한 판'으로 짠 이유** — 파이컷은 원판에서 부채꼴 하나를 도려낸 2D 도형이라
+        //    구(球) 프리미티브로는 안 나온다(SphereGeometry 의 phi 절단은 오렌지 조각이지 파이컷이 아니다).
+        //    그래서 눈 한 짝을 **접선 평면에 놓인 판 그룹**으로 만들고 흰자·파이 쐐기·동공·글린트를 그 안에서
+        //    z 로만 쌓는다 — 판끼리는 완전 평행이라 z-파이팅이 원천적으로 없다. 1930s 카툰 얼굴이 원래
+        //    '두상 위에 그려진 그림'이라 화풍상으로도 이쪽이 맞다.
+        // 🔑 **판의 기울기는 눈대중이 아니라 두상 타원체의 접평면 각이다.** 스컬은 반지름 0.19 에
+        //    scale(0.95, 1.05, 0.95) 라 반축이 (0.1805, 0.1995, 0.1805)·중심 y=0.08 이고, 눈 중심
+        //    (±0.082, 0.082) 에서의 법선이 +z 와 이루는 각이 0.47rad·그 자리 표면 z 가 0.161 이다. 이 각으로 눌러 놓으면 판 가장자리가
+        //    두상에서 뜨는 양이 w²/2R ≈ 0.0087 밖에 안 된다(w=반폭 0.056, R≈0.18). 각을 바꾸면 이 값이
+        //    급격히 커져 **눈이 얼굴에서 떠 보이므로**, 눈 위치를 옮기면 이 각도 같이 다시 풀 것.
+        // 🚨 **크기·높이는 투구 가림률로 잡은 값이다 — 눈대중으로 키우지 말 것.** 눈을 키우고 올리면
+        //    챙이 낮은 투구가 흰자를 덮는다. `probe-face-eye-sweep.js` 로 한 세션 안에서 7조합을 재 보면
+        //    (y, 세로배율) = (0.095, 1.22) 에서 cone 76%·plume 60% 까지 떨어지고 (0.082, 1.16) 에서
+        //    cone 88%·plume 72% 로 회복한다. 회귀 게이트는 `probe-face-helmet-clear.js`.
+        const EYE_R = 0.056;                 // 눈 판 반지름 (종전 구형 흰자 0.046 대비 +22%)
+        const EYE_SY = 1.16;                 // 흰자 세로배율
+        const EYE_Y = 0.082, EYE_X = 0.082;  // 눈 중심 (두상 로컬)
+        const EYE_Z = 0.161, EYE_TILT = 0.47;// 접평면 원점 z · 접선 기울기(rad)
+        const PIE = Math.PI * 0.30;          // 도려낸 부채꼴 각
+        const inkMat = new THREE.MeshBasicMaterial({ color: 0x121316 });     // 동공·파이 쐐기 공용 잉크색
+        for (const dx of [-EYE_X, EYE_X]) {
+            const sgn = dx < 0 ? -1 : 1;     // +1 = 화면 오른쪽 눈
+            const eye = new THREE.Group();
+            eye.position.set(dx, EYE_Y, EYE_Z);
+            eye.rotation.y = sgn * EYE_TILT;
+            faceG.add(eye);
+            // 흰자 — 세로로 긴 큰 원판에서 **부채꼴 하나를 진짜로 빼고 그린다**(thetaLength = 2π−PIE).
+            //   🚨 처음엔 온전한 원판 위에 잉크색 쐐기를 덮었는데, 쐐기가 동공과 같은 색이라 둘이 한 덩어리로
+            //      뭉쳐 **'파이컷'이 아니라 그냥 큰 검은 홍채**로 읽혔다(실측 캡처 face-front). 도형을 실제로
+            //      도려내 **피부가 그 사이로 비치게** 해야 파이 조각이 빠진 게 보인다.
+            //   쐐기 위치는 **바깥쪽 위** — 안쪽(코 쪽)에 두면 두 눈의 빈 자리가 코 양옆에서 마주 봐 얼굴
+            //   가운데가 뚫린 것처럼 읽힌다. 왼눈 바깥은 −x(=π), 오른눈 바깥은 +x(=0), 거기서 위로 튼다.
+            const wc = dx < 0 ? Math.PI - 0.42 : 0.42;
+            const sclera = new THREE.Mesh(new THREE.CircleGeometry(EYE_R, 30, wc + PIE / 2, Math.PI * 2 - PIE), new THREE.MeshBasicMaterial({ color: 0xffffff }));   // 순백 — 피부(크림)와 대비가 있어야 도려낸 자리가 보인다
+            sclera.scale.set(1, EYE_SY, 1);
+            sclera.userData.pieEye = true;   // 투구 가림 판정기(`probe-face-helmet-clear.js`)가 이 태그로 흰자만 집는다
+            eye.add(sclera);
+            // 동공 — 검은 '점'(사용자 지시 원문). 홍채 없이 점 하나라 파이 조각의 빈 자리가 안 묻힌다.
+            const pupil = new THREE.Mesh(new THREE.CircleGeometry(EYE_R * 0.30, 18), inkMat);
+            pupil.scale.set(1, 1.18, 1);
+            pupil.position.set(-sgn * EYE_R * 0.14, -EYE_R * 0.06, 0.0032);
+            eye.add(pupil);
+            // 글린트 — 아주 작은 흰 점 하나만. 1930s 카툰은 3D 글로시 하이라이트를 쓰지 않는다.
+            const glint = new THREE.Mesh(new THREE.CircleGeometry(EYE_R * 0.09, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+            glint.position.set(-sgn * EYE_R * 0.24, EYE_R * 0.10, 0.0048);
+            eye.add(glint);
             // 볼터치 — 반투명 분홍 (캐주얼 3D 표정 온기)
             const blush = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf29a8a, transparent: true, opacity: 0.38 }));
-            blush.position.set(dx * 1.35, 0.008, 0.148);
+            blush.position.set(dx * 1.28, -0.006, 0.144);
             blush.scale.set(1.2, 0.7, 0.35);
             faceG.add(blush);
-            // 눈썹 — 살짝 기울인 가는 캡슐 (결의 있는 인상)
-            const brow = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.06, 6), new THREE.MeshLambertMaterial({ color: 0x6e4e1a })); // r128엔 CapsuleGeometry 없음
-            brow.position.set(dx, 0.128, 0.168);
-            brow.rotation.z = Math.PI / 2 + (dx < 0 ? -0.16 : 0.16);
-            brow.rotation.y = (dx < 0 ? -1 : 1) * 0.35;
+            // 눈썹 — 눈 위로 올린 가는 아크. 커진 눈에 밀려 종전 y(0.128)는 흰자 안이라 못 쓴다.
+            const brow = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.062, 6), new THREE.MeshLambertMaterial({ color: 0x33281a })); // r128엔 CapsuleGeometry 없음. 잉크 갈색 — 종전 0x6e4e1a 는 이 조명에서 '금색 막대'로 읽혔다
+            brow.position.set(dx, 0.170, 0.144);
+            brow.rotation.z = Math.PI / 2 + sgn * 0.16;
+            brow.rotation.y = sgn * 0.42;
             faceG.add(brow);
         }
-        // 코 — 작은 라운드 범프
-        const nose = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), skin);
-        nose.position.set(0, 0.045, 0.19);
-        nose.scale.set(0.8, 1, 0.85);
+        // 코 — 러버호스 벌브(버튼) 코. 종전 r0.028 은 '작은 범프'라 화풍 신호가 안 났다.
+        //   ⚠️ 눈 판 안쪽 가장자리가 x=0.082−0.056·cos(0.47)=0.032 라 코 반폭도 그 안에 둔다(겹치면
+        //   벌브가 흰자 아래를 파고든다). y 도 눈 아래로 내린다.
+        const nose = new THREE.Mesh(new THREE.SphereGeometry(0.031, 12, 9), skin);
+        nose.position.set(0, 0.028, 0.192);
+        nose.scale.set(1, 0.92, 1);
         faceG.add(nose);
-        // 입 — 옅은 미소 라인 (얇은 토러스 하단 아크, 절제된 톤)
-        const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.0045, 5, 10, Math.PI * 0.6), new THREE.MeshBasicMaterial({ color: 0xb5786a }));
-        mouth.position.set(0, -0.028, 0.172);
-        mouth.rotation.z = Math.PI + Math.PI * 0.2;
-        mouth.rotation.x = -0.3;
-        faceG.add(mouth);
+        // 입 — 넓은 미소(사용자 지시 "넓은 미소"). 반원 구강 + 아랫니 띠 + 잉크 입술선 3겹.
+        //   종전은 폭 0.032 의 옅은 아크라 얼굴 대비 1/6 도 안 됐다. 1930s 카툰 입은 얼굴 폭의 절반 이상이다.
+        const MOUTH_W = 0.078;
+        const mouthG = new THREE.Group();
+        mouthG.position.set(0, -0.030, 0.153);
+        mouthG.rotation.x = 0.18;            // 턱 곡면을 따라 살짝 아래를 보게
+        faceG.add(mouthG);
+        const maw = new THREE.Mesh(new THREE.CircleGeometry(MOUTH_W, 24, Math.PI, Math.PI), new THREE.MeshBasicMaterial({ color: 0x5a1f24 }));
+        maw.scale.set(1, 0.62, 1);
+        mouthG.add(maw);
+        // 윗니 띠 — 입술선 바로 아래에 붙는 얇은 흰 띠. **아래쪽에 깔면 '혀'로 읽힌다**(실측 캡처에서
+        //   분홍 덩어리가 턱 쪽에 고여 그렇게 보였다). 1930s 카툰 웃음은 윗니가 위에 붙어 있다.
+        const teeth = new THREE.Mesh(new THREE.CircleGeometry(MOUTH_W * 0.94, 22, Math.PI, Math.PI), new THREE.MeshBasicMaterial({ color: 0xf7f2e6 }));
+        teeth.scale.set(1, 0.17, 1);
+        teeth.position.set(0, 0, 0.0016);
+        mouthG.add(teeth);
+        // 입술선 — 구강 테두리를 잉크로 둘러 미소 곡선이 얼굴에서 또렷하게 끊긴다.
+        const lip = new THREE.Mesh(new THREE.TorusGeometry(MOUTH_W, 0.0055, 6, 22, Math.PI), inkMat);
+        lip.rotation.z = Math.PI;
+        lip.scale.set(1, 0.62, 1);
+        lip.position.z = 0.0026;
+        mouthG.add(lip);
         // 머리카락 없음 — 기본형은 대머리 치비 (사용자 지시 2026-08-18: "아무것도 장착 안 했을 때
         // 대머리 치비 캐릭터가 기본형"). 투구는 종전대로 headMount 에 얹힌다.
         // 기존 헬멧 시스템 부착점 (Scene3D.helmetG가 여기 붙음 — 머리 중심 기준)
