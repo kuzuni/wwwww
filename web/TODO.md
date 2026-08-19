@@ -572,13 +572,19 @@
     - **음성 대조(규칙 ㉡)**: 가드 둘을 다 빼면 **등재된 증상이 그대로 재현**된다 — `장비칸 9→0` · `모루 있음→없음` · `#app 노드 261→124`(등재 실측 267→129 와 같은 자리). 대조군은 그대로 PASS 라 자가 아니라 제품이 갈린 것임도 같이 확인된다.
     - **회귀**: `probe-screens-errors` **31/31 콘솔 에러 0건**(새 `console.error` 가 평시엔 안 짖는다는 확인이기도 하다) · `probe-autoforge-default` · `probe-hold-deck` PASS · `node --check`.
     - 📌 **곁다리로 `probe-hold-deck` 의 간헐 결함을 고쳤다**(내가 이번 세션에 만든 자다): 띠를 세는 구간을 '오른쪽 38%'로 잡아 뒀는데 **장비 이름이 길면 가운데 정렬된 글자가 그 구간까지 뻗어** 한 장짜리 카드에서도 밝은 띠가 1줄 잡혔다(뽑히는 이름이 회차마다 달라 간헐로만 났다). 이제 구간을 **더미 두께에서 역산**한다(`--dg × 두께 + 2px`) — 글자가 절대 닿지 않는 폭이다. 3회 연속 PASS 확인.
-- [ ] **장착 장비에 `subs` 필드가 없으면 `boot()` 가 끊겨 전투가 시작조차 안 된다 — 스테이지 라벨이 빈칸이고 적이 0마리 (slug: save-item-no-subs-kills-boot)** (2026-08-19 QA 18차 등재, 등재만. 비채점)
+- [x] **장착 장비에 `subs` 필드가 없으면 `boot()` 가 끊겨 전투가 시작조차 안 된다 — 스테이지 라벨이 빈칸이고 적이 0마리 (slug: save-item-no-subs-kills-boot)** (2026-08-19 QA 18차 등재, 등재만. 비채점)
   - **재현 절차**: 위와 같은 방법으로 `{"version":1,"equipment":{"weapon":{"name":"헌 검","slot":"weapon","age":"primitive","ageIdx":0,"rarity":"common","level":1,"main":"atk","value":10}}}` (**`subs` 키만 없다**) 를 심고 부팅한다.
   - **기대**: `subs` 가 없으면 빈 배열로 보고 정상 부팅한다.
   - **실제**: `boot() 실패 TypeError: it.subs is not iterable (cannot read property undefined)` — `forge.js:303 allSubsBag` → `forge.js:322 heroStats` → `combat.js:61 recalcHero` → `combat.js:52 Combat.start` → `main.js:83`. **`Combat.start()` 가 그 자리에서 끊겨 전투가 시작되지 않는다**: 실측 `Combat.enemies.length` **2 → 0**, `#stage-label` **"쉬움 1-1" → 빈 문자열**. 앞 항목과 달리 UI(장비 시트·모루)는 멀쩡히 그려져 있어서 **화면만 보면 정상인데 적이 영원히 안 나온다** — 오진하기 더 쉬운 쪽이다.
   - **⚠️ 앞 항목과 별건이다**: `age` 만 이상하면 UI 가 죽고 전투는 살고, `subs` 만 없으면 UI 는 살고 전투가 죽는다. 실측으로 갈라 확인했다(A1: eqCells 0 · enemies 2 / A2: eqCells 9 · enemies 0). 한쪽만 고치면 다른 쪽이 그대로 남는다.
   - **수정 방향**: `Forge.allSubsBag` 이 `it.subs` 를 `Array.isArray(it.subs) ? it.subs : []` 로 받거나, `pruneDanglingRefs()` 의 장비 슬롯 검사에서 `subs` 를 배열로 정규화할 것. 후자가 `S` 를 실제로 고쳐 재발을 막는다. 겸사겸사 `main.js` 의 `Combat.start()` 도 `UI.init()` 처럼 try/catch 로 격리하면(1034행 항목이 `UI.init()` 에 이미 한 처방) 렌더 한 곳의 사고가 전투·틱·자동저장을 통째로 못 막는다.
   - **검증**: 위 세이브로 부팅해 `Combat.enemies.length ≥ 1` · `#stage-label` 비어 있지 않음 · `pageerror` 0건.
+  - ✅ **완료 (2026-08-19 UI 스트림, `probe-save-corrupt-boot.js` 에 ② 로 편입 — 앞 항목과 한 자에서 갈라 잰다)** — 메모가 적은 세 겹을 다 넣었다.
+    - ⓐ **`Forge.allSubsBag`** 이 `...(Array.isArray(it.subs) ? it.subs : [])` 로 받는다. 세이브만 고치면 될 것 같지만 이 함수는 **세이브를 안 거친 임시 아이템**(제작 중·비교 팝업 대상)도 받으므로 여기도 막는다.
+    - ⓑ **`pruneDanglingRefs`** 가 장착 장비의 `subs` 를 배열로 정규화해 **세이브를 실제로 고친다**(짖으면서).
+    - ⓒ **`main.js` 의 `Combat.start()` 를 `UI.init()` 처럼 try/catch 로 격리**했다 — 종전에는 렌더/스탯 한 곳의 사고가 **논리 틱·자동 저장·디버그 진입까지 통째로** 등록되지 않게 만들었다. 조용히 삼키지 않고 콘솔에 남긴다.
+    - **음성 대조(규칙 ㉡)**: ⓐⓑ 를 되돌리면 **`적 0마리` · `subs배열 false` 가 그대로 재현**된다(①·③ 사례는 그대로 PASS — 두 결함이 서로 별건이라는 등재 실측이 판정기 안에서도 확인된다). ⓒ 덕분에 `pageerror` 는 0 이고 스테이지 라벨도 살아 있다 — 즉 격리가 증상의 절반을 이미 지운다.
+    - **회귀**: `probe-screens-errors` **31/31 콘솔 에러 0건** · `probe-equip-popup` · `probe-hold-slot` PASS · `node --check`(forge·state·main).
 - [x] **`S.autoBatch` 에 온전치 않은 항목이 남아 있으면 부팅 복원에서 `S.coins` 가 NaN 으로 영구 오염되는데 콘솔은 조용하다 (slug: autobatch-partial-item-nan-coins)** (2026-08-19 QA 18차 등재, 등재만. 비채점)
   - **재현 절차**: 같은 방법으로 `{"version":1,"autoBatch":[{"slot":"weapon"}]}` 를 심고 부팅 → 상단바 코인과 `S.coins` 를 본다.
   - **기대**: 못 쓰는 항목은 버리고 코인은 그대로. (그 줄에 이미 `// 손상 세이브 방어` 주석이 붙어 있다 — 의도는 분명히 그것이다.)

@@ -243,6 +243,13 @@ function pruneDanglingRefs() {
         // ⚠️ **슬롯을 null 로 버리지 않는다** — 시대 이름이 한 번 바뀐 것뿐인데 사용자가 끼고 있던
         //    장비를 통째로 빼앗는 셈이 된다. `ageIdx` 가 성하면 그걸로 되살리고, 그마저 아니면
         //    첫 시대로 떨어뜨린다(장비는 남고 색만 기본이 된다). 조용히 고치지 않고 짖는다.
+        // `subs` 가 배열이 아니면(구세이브·반쯤 쓰인 세이브) `Forge.allSubsBag` 의 전개에서 죽는다 —
+        // 그 한 줄이 `Combat.start()` 를 끊어 전투가 통째로 안 돈다(save-item-no-subs-kills-boot).
+        // 여기서 배열로 정규화해 **세이브를 실제로 고친다**.
+        if (it && !Array.isArray(it.subs)) {
+            console.error('[state] 장착 장비의 subs 가 배열이 아니다 — 빈 배열로 보정한다:', slot, it.subs);
+            it.subs = [];
+        }
         if (it && typeof AGES !== 'undefined' && !AGES.includes(it.age)) {
             const byIdx = Number.isInteger(it.ageIdx) && it.ageIdx >= 0 && it.ageIdx < AGES.length ? AGES[it.ageIdx] : null;
             console.error('[state] 장착 장비의 시대 키가 표에 없다 — 보정한다:', slot, it.age, '→', byIdx || AGES[0]);

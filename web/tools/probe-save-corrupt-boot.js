@@ -6,7 +6,11 @@
 // 재는 것(각 사례는 세이브를 심고 부팅한 뒤 화면·상태를 실측한다):
 //  ① save-bad-age-kills-ui — 장착 장비의 `age` 가 `AGE_COLORS` 에 없다
 //     → 장비 시트(.equip-cell 9칸)와 모루가 **그대로 있어야** 한다(종전엔 0칸으로 증발했다).
-//  ② 대조군 — 성한 세이브도 같은 잣대로 통과하는가(자가 헐거워서 나는 공짜 PASS 방지).
+//  ② save-item-no-subs-kills-boot — 장착 장비에 `subs` 키가 아예 없다
+//     → `Combat.start()` 가 끊기지 않아야 한다: 적 ≥1마리 · 스테이지 라벨이 비어 있지 않음.
+//     ⚠️ ① 과 **별건**이다(등재 실측): age 만 이상하면 UI 가 죽고 전투는 살고, subs 만 없으면
+//        UI 는 살고 전투가 죽는다. 한쪽만 고치면 다른 쪽이 그대로 남으므로 둘 다 잰다.
+//  ③ 대조군 — 성한 세이브도 같은 잣대로 통과하는가(자가 헐거워서 나는 공짜 PASS 방지).
 //
 // ⚠️ **세이브는 `addInitScript` 로 심는다** — `goto` 뒤에 심고 `reload()` 하면 **떠나는 페이지의
 //    자동 저장이 덮어써서** 심은 값이 사라진다(TODO 1034행 항목이 남긴 계측 함정 ⓐ 와 같은 자리).
@@ -29,7 +33,13 @@ const CASES = [
         expectAgeRepaired: true,
     },
     {
-        id: '② 대조군 — 성한 세이브',
+        id: '② subs 키가 없다 (save-item-no-subs-kills-boot)',
+        // `subs` 만 뺀다 — 시대는 성하다(①과 갈라 재려는 것이 이 사례의 전부다)
+        save: { version: 1, equipment: { weapon: { name: '헌 검', slot: 'weapon', age: 'primitive', ageIdx: 0, rarity: 'common', level: 1, main: 'atk', value: 10 } } },
+        expectAgeRepaired: false,
+    },
+    {
+        id: '③ 대조군 — 성한 세이브',
         save: { version: 1, equipment: { weapon: Object.assign({}, GOOD_ITEM) } },
         expectAgeRepaired: false,
     },
@@ -59,18 +69,25 @@ const CASES = [
             weaponAge: (S.equipment && S.equipment.weapon || {}).age,
             weaponKept: !!(S.equipment && S.equipment.weapon),
             agesHas: typeof AGES !== 'undefined' && AGES.includes((S.equipment && S.equipment.weapon || {}).age),
+            enemies: (typeof Combat !== 'undefined' && Combat.enemies || []).length,
+            stageLabel: (document.getElementById('stage-label') || {}).textContent || '',
+            subsIsArray: Array.isArray((S.equipment && S.equipment.weapon || {}).subs),
         }));
 
         ok(st.eqCells === 9, `${c.id} — 장비 칸이 9개여야 하는데 ${st.eqCells}개다(UI.init 이 죽었다)`);
+        // 전투 축 — UI 가 멀쩡해도 `Combat.start()` 가 끊기면 적이 영원히 안 나온다(오진하기 쉬운 쪽)
+        ok(st.enemies >= 1, `${c.id} — 적이 ${st.enemies}마리다(Combat.start 가 끊겼다)`);
+        ok(st.stageLabel.trim().length > 0, `${c.id} — 스테이지 라벨이 비었다("${st.stageLabel}")`);
+        ok(st.subsIsArray, `${c.id} — 장비의 subs 가 배열로 보정되지 않았다`);
         ok(st.anvil, `${c.id} — 모루 버튼이 화면에 없다`);
         ok(!perrs.length, `${c.id} — pageerror ${perrs.length}건: ${perrs.slice(0, 2).join(' | ')}`);
         // 장비를 **버리지 않고** 시대만 고친다(사용자가 끼고 있던 장비를 빼앗지 않는다)
         ok(st.weaponKept, `${c.id} — 장착 장비가 통째로 사라졌다(시대 키만 이상했을 뿐이다)`);
         ok(st.agesHas, `${c.id} — 보정 뒤에도 시대 키가 표에 없다 (${st.weaponAge})`);
         if (c.expectAgeRepaired) ok(st.weaponAge !== 'nope', `${c.id} — 시대 키가 안 고쳐졌다 (${st.weaponAge})`);
-        else ok(st.weaponAge === 'primitive', `${c.id} — 성한 세이브의 시대 키가 바뀌었다 (${st.weaponAge})`);
+        else ok(st.weaponAge === 'primitive', `${c.id} — 시대가 성한 세이브인데 시대 키가 바뀌었다 (${st.weaponAge})`);
 
-        console.log(`${c.id} — 장비칸 ${st.eqCells} · 모루 ${st.anvil ? '있음' : '없음'} · #app 노드 ${st.appNodes} · weapon.age=${st.weaponAge} · pageerror ${perrs.length}`);
+        console.log(`${c.id}\n    장비칸 ${st.eqCells} · 모루 ${st.anvil ? '있음' : '없음'} · #app 노드 ${st.appNodes} · weapon.age=${st.weaponAge} · subs배열 ${st.subsIsArray} · 적 ${st.enemies}마리 · 라벨 "${st.stageLabel}" · pageerror ${perrs.length}`);
         await page.close();
     }
 

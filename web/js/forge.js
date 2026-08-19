@@ -310,7 +310,13 @@ const Forge = {
         const gearSubs = [];
         for (const slot of SLOTS) {
             const it = S.equipment[slot];
-            if (it) gearSubs.push(...it.subs);
+            // ⚠️ `subs` 가 없는 장비 하나가 `boot()` 를 끊어 **전투가 시작조차 안 되던** 자리다
+            //    (2026-08-19 QA 18차 save-item-no-subs-kills-boot — `it.subs is not iterable` →
+            //     heroStats → recalcHero → Combat.start → main.js). UI 는 멀쩡히 그려져서
+            //     '화면은 정상인데 적이 영원히 안 나오는' 오진하기 쉬운 그림이 됐다.
+            //    세이브 자체는 `pruneDanglingRefs` 가 배열로 정규화하지만, 여기도 막는다 —
+            //    이 함수는 세이브를 안 거친 임시 아이템(제작 중·비교 팝업 대상)도 받는다.
+            if (it) gearSubs.push(...(Array.isArray(it.subs) ? it.subs : []));
         }
         return U.sumSubs(gearSubs, Pets.activeBonus().subs, Mounts.activeBonus().subs);
     },
