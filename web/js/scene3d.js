@@ -3481,8 +3481,17 @@ const Scene3D = {
                 // 중세 석궁: 틸러(개머리 달린 몸통) + **휘어진 프로드** + 당겨진 V자 시위 + 회전 너트
                 // + 방아쇠 + 발 거는 등자 + 장전된 볼트. 종전의 '판때기 두 장 십자 교차'는
                 // 썸네일에서 나무 십자가로 읽혔다 (사용자 지시 '중세→중세기사 무기').
-                box(0.085, 0.62, 0.085, wood, 0, 0.17);                 // 틸러
-                { const butt = box(0.1, 0.17, 0.11, wood, 0, -0.18); butt.rotation.x = 0.16; }
+                // ⚠️ **틸러를 균일 폭 통짜 기둥으로 되돌리지 말 것** — 3차 채점 C 가 '토템', D 가
+                //    '닻'으로 읽은 몸통이 이것이다(지적 ⓔ). 위에서 본 석궁이 기둥으로 안 읽히는
+                //    이유는 **폭이 길이를 따라 변하기** 때문이다: 앞은 프로드를 무는 넓은 목,
+                //    가운데는 손이 쥐는 잘록한 손목, 뒤는 어깨에 대는 넓은 개머리판.
+                box(0.085, 0.44, 0.085, wood, 0, 0.26);                 // 틸러 앞부분(프로드·너트·볼트가 붙는 구간)
+                { const wrist = box(0.052, 0.17, 0.072, wood, 0, 0.005); wrist.rotation.x = 0.05; }  // 손목(그립) — 가장 잘록
+                { const comb = box(0.068, 0.10, 0.078, wood, 0, -0.115); comb.rotation.x = 0.12; }   // 콤(뺨 대는 등선)
+                { const butt = this.beveledSlab(0.148, 0.175, 0.105, 0.022, wood);                   // 개머리판 — 바깥으로 벌어진다
+                  butt.position.set(0, -0.245, 0.012); butt.rotation.x = 0.2; g.add(butt); }
+                { const plate = new THREE.Mesh(new THREE.BoxGeometry(0.152, 0.028, 0.112), dark);    // 개머리 끝 쇠판
+                  plate.position.set(0, -0.325, 0.028); plate.rotation.x = 0.2; g.add(plate); }
                 // ⚠️ 프로드는 **납작해야** 한다 — r 0.33·스윕 0.72π 는 끝이 130° 말려 올라가
                 //    1차 채점 A 가 '사슴뿔 달린 지팡이'로 읽었다. 같은 폭(반현 0.298)을 유지한 채
                 //    r 0.486·스윕 0.42π 로 펴서 끝 들림을 0.19 → 0.10 으로 눌렀다(시위 좌표도 연동).
@@ -3503,7 +3512,14 @@ const Scene3D = {
                   bolt.position.set(0, 0.4, 0.055); g.add(bolt); }
                 { const bhead = new THREE.Mesh(new THREE.ConeGeometry(0.023, 0.07, 4), mat);
                   bhead.position.set(0, 0.6, 0.055); g.add(bhead); }
-                { const trig = box(0.022, 0.12, 0.03, dark, 0, 0.09, 0.05); trig.rotation.x = -0.3; }
+                // 방아쇠 + **방아쇠울** — 울(고리)은 석궁·총의 서명이다. 막대 하나만 두면 위에서
+                // 본 실루엣에 아무것도 안 남지만, 고리는 어느 각도에서도 뚫린 구멍으로 읽힌다.
+                { const trig = box(0.022, 0.115, 0.03, dark, 0, 0.075, 0.062); trig.rotation.x = -0.34; }
+                { const guard = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.012, 6, 16, Math.PI * 1.15), dark);
+                  guard.position.set(0, 0.05, 0.085);
+                  guard.rotation.y = Math.PI / 2;      // 고리 평면이 틸러를 따라 선다(옆에서 보면 U자)
+                  guard.rotation.x = Math.PI * 0.52;
+                  g.add(guard); }
                 // 등자는 **틸러 앞끝에 물려** 앞으로 뻗어야 발을 거는 고리로 읽힌다 —
                 // xy 평면에 세워 두면 프로드와 같은 방향이라 '뿔 하나 더'가 된다(실측).
                 { const stirrup = new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.014, 6, 14), mat);
@@ -6103,7 +6119,16 @@ const Scene3D = {
     // ⚠️ makeWeapon 이 아니라 여기 두는 이유: 전장 영웅은 활을 **쏘는** 중이라 화살이 따로 날아가고
     //    (`spawnProjectile`), 손·시위 정렬이 이 회전을 전제로 잡혀 있지 않다.
     weaponThumbBowPose(model, wtypeId) {
-        if (!model || weaponShape(wtypeId) !== 'bow') return null;
+        if (!model) return null;
+        // 석궁도 같은 병이다(지적 ⓔ '토템'·'닻') — 프로드는 x, 틸러는 y 라 정면 카메라에서 T 자
+        // 납작판이 되고, 개머리·방아쇠울이 전부 z 방향이라 **한 픽셀도 안 보인다.** 조형을 보강해도
+        // 각도가 그대로면 소용없다. 활보다 조금 덜 틀어 프로드 좌우 대칭은 남긴다.
+        if (weaponShape(wtypeId) === 'crossbow') {
+            model.rotation.set(-0.62, 0, 0);
+            model.updateMatrixWorld(true);
+            return { arrow: 0, crossbow: true };
+        }
+        if (weaponShape(wtypeId) !== 'bow') return null;
         const std = o => new THREE.MeshStandardMaterial(o);
         // 화살은 활 재질을 따라가지 않는다 — 시대별 활 색과 같은 톤이면 획이 안 읽힌다(무채 목재+강철).
         const shaftM = std({ color: 0x8a6a45, metalness: 0.05, roughness: 0.78 });

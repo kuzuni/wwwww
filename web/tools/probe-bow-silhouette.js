@@ -90,6 +90,48 @@ const CURVE_GATE = 6.0, REFLEX_GATE = 0.015;
                 ratio: d1 > 1e-5 ? +(d2 / d1).toFixed(2) : -1, reflex: +reflex.toFixed(4),
                 arrow: pose ? pose.arrow : 0, yaw: +Math.abs(pm.rotation.y).toFixed(2) });
         }
+        // ── 석궁(지적 ⓔ '토템'·'닻') ──────────────────────────────────────────────
+        // 위에서 본 석궁이 기둥으로 안 읽히는 이유는 **폭이 길이를 따라 변하기** 때문이다:
+        // 앞은 프로드를 무는 넓은 목, 가운데는 쥐는 잘록한 손목, 뒤는 넓은 개머리판.
+        {
+            const m = Scene3D.makeWeapon('crossbow', 1, 'legendary');
+            m.updateMatrixWorld(true);
+            const vv = new THREE.Vector3();
+            const N = 30, band = Array.from({ length: N }, () => 0);
+            let yMin = 1e9, yMax = -1e9, guard = 0;
+            const pts = [];
+            for (const ch of m.children) {
+                if (!ch.isMesh || !ch.geometry) continue;
+                // 프로드·시위·볼트·등자는 몸통이 아니다 — 틸러 축(|x| 작고 z 가 몸통 근처) 파츠만 잰다
+                const pos = ch.geometry.attributes.position;
+                if (ch.geometry.type === 'TorusGeometry' && ch.position.y < 0.3 && ch.position.y > -0.1) guard++;
+                if (ch.geometry.type === 'TorusGeometry') continue;
+                // 🚨 **가는 부속(방아쇠·볼트)을 빼지 않으면 이 지표는 아무것도 안 잰다.** 실측: 옛 코드가
+                //    폭변주 4.55(신 코드 3.62)로 더 높게 나왔다 — 최소폭을 잡은 게 개머리 손목이 아니라
+                //    방아쇠 막대(반폭 0.011)였기 때문이다. 몸통(개머리·손목·틸러)만 남긴다.
+                let mx = 0;
+                for (let i = 0; i < pos.count; i++) mx = Math.max(mx, Math.abs(pos.getX(i) + ch.position.x));
+                if (mx < 0.02 || mx > 0.2) continue;
+                for (let i = 0; i < pos.count; i++) {
+                    vv.fromBufferAttribute(pos, i).applyMatrix4(ch.matrix);
+                    if (Math.abs(vv.x) > 0.2) continue;      // 프로드 팔 제외
+                    pts.push([vv.x, vv.y]);
+                    if (vv.y < yMin) yMin = vv.y;
+                    if (vv.y > yMax) yMax = vv.y;
+                }
+            }
+            for (const [x, y] of pts) {
+                const i = Math.min(N - 1, Math.floor((y - yMin) / (yMax - yMin) * N));
+                if (Math.abs(x) > band[i]) band[i] = Math.abs(x);
+            }
+            // 아래 60% 구간(손목~개머리)에서 최대/최소 폭 비 — 균일 기둥이면 1.0 에 붙는다
+            const lo = band.slice(0, Math.floor(N * 0.6)).filter(v => v > 0);
+            const wide = Math.max(...lo), narrow = Math.min(...lo);
+            const pm = Scene3D.makeWeapon('crossbow', 1, 'legendary');
+            const pose = Scene3D.weaponThumbBowPose(pm, 'crossbow');
+            out.push({ w: 'crossbow', kind: 'xbow', taper: +(wide / narrow).toFixed(2), guard,
+                tilt: +Math.max(Math.abs(pm.rotation.x), Math.abs(pm.rotation.y)).toFixed(2), posed: !!pose });
+        }
         return out;
     }, BOWS);
 
@@ -98,6 +140,16 @@ const CURVE_GATE = 6.0, REFLEX_GATE = 0.015;
     console.log('wtype        d1      d2      d2/d1   리커브   화살 요각  판정');
     for (const r of res) {
         if (r.err) { fail.push(r.w + ': ' + r.err); console.log(r.w.padEnd(13) + r.err); continue; }
+        if (r.kind === 'xbow') {
+            const bad = [];
+            if (!(r.taper >= 2.0)) bad.push('개머리 폭 변주 ' + r.taper + ' < 2.0(균일 기둥 = 토템 오독)');
+            if (!(r.guard >= 1)) bad.push('방아쇠울 없음');
+            if (!(r.tilt >= 0.3)) bad.push('썸네일 기울기 ' + r.tilt + ' < 0.3(정면이라 T자 납작판)');
+            if (bad.length) fail.push(r.w + ': ' + bad.join(' · '));
+            console.log('crossbow     폭변주 ' + String(r.taper).padEnd(7) + '방아쇠울 ' + String(r.guard).padEnd(4)
+                + '기울기 ' + String(r.tilt).padEnd(6) + (bad.length ? '❌ ' + bad.join(' · ') : '✅'));
+            continue;
+        }
         const bad = [];
         if (!(r.ratio >= CURVE_GATE)) bad.push('곡률변주 ' + r.ratio + ' < ' + CURVE_GATE + '(반원에 가깝다)');
         if (!(r.reflex >= REFLEX_GATE)) bad.push('리커브 ' + r.reflex + ' < ' + REFLEX_GATE);
