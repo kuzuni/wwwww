@@ -13,6 +13,22 @@
 //    (이 항목 작업 중 실측: PNG 28px 인 막대가 DOM 20.3px 로 잡혔다). 반드시 캡처 PNG 를 잰다.
 // ⚠️ 주황 별을 색으로 잡으면 아래 아이템 셀의 ⭐ 배지가 같이 걸린다 — 헤더 막대 행 범위로 먼저 자른다.
 //
+// 🔧 2026-08-19 수리(slug: probe-fl-head-broken) — `FAIL 헤더 막대를 못 찾았다` 로 죽던 것을 고쳤다.
+//    **화면이 아니라 판정기가 낡았다**는 등재 메모의 추정이 맞았다. AAA 스킨이 들어오며 클론 쪽 그림이
+//    셋 다 바뀌었는데 판정기는 '순백 카드 + 평평한 회색 막대' 시절 임계를 그대로 쓰고 있었다:
+//    ⓐ **카드 바탕이 순백이 아니다** — 따뜻한 미색(246,245,243)에 대각 줄무늬(240,239,236)가 깔려서
+//       옛 판정(`모든 채널 > 246`)에 걸리는 행이 카드 맨 윗 2줄뿐이었다. 그래서 `cardBot` 이 146 에서
+//       멈췄고(원본은 257) 막대가 있는 y=215 는 **카드 범위 밖**이라 아예 검색되지 않았다. ← 죽은 직접 원인.
+//    ⓑ **그 미색 바탕이 옛 회색 판정(190~244)에 그대로 걸린다** — ⓐ 만 고치면 이번엔 제목 밑 구분선
+//       (y=189, 카드 폭 전체)을 막대로 오인한다. 그래서 '카드 바탕보다 어두운 띠 + 최소 두께' 로 바꿨다.
+//    ⓒ **막대가 평평하지 않고 금속 그라디언트다** — 위 214 → 아래 59 로 떨어진다. 옛 방식(중앙 열에서
+//       회색이 이어지는 만큼)은 높이를 17px 로 짧게 읽고, 옛 잉크 임계(<90)는 막대 **바닥 띠를 통째로**
+//       확률 잉크로 집어삼킨다. 그래서 높이는 띠 범위로 재고, 잉크 스캔은 '바탕이 아직 밝은 행' 으로 자른다.
+//    ⚠️ 이 수리로 **막대 폭 기준이 바뀌었다**: 옛 코드는 띠의 **첫 행** 폭을 썼는데 그 행은 라운드 모서리
+//       안쪽이라 좁다(원본 305px = 90.5%). 카드 폭에 이미 적용돼 있던 같은 논거대로 **띠에서 가장 넓은 행**
+//       으로 바꿨다(원본 311px = 92.28%). 원본·클론에 같이 적용되므로 Δ 비교는 그대로 성립하지만,
+//       **2026-08-19 이전 기록의 '막대 폭 90.5%' 와는 직접 비교하지 말 것**(같은 막대의 다른 자다).
+//
 // 사용: PW_PATH=<playwright> node probe-fl-head.js [원본png] [클론png]
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const fs = require('fs');
@@ -39,41 +55,75 @@ const scan = `(img) => {
         return { w: bR, x0: bS, x1: bS + bR - 1 };
     };
 
-    // ── 1) 흰 카드 상자 ────────────────────────────────────────────────
-    // ⚠️ '흰 화소가 처음 길게 이어지는 행'을 카드 폭으로 쓰면 안 된다 — 그 행은 **라운드 모서리 안쪽**이라
+    // ── 1) 카드 상자 ──────────────────────────────────────────────────
+    // ⚠️ '카드 바탕이 처음 길게 이어지는 행'을 카드 폭으로 쓰면 안 된다 — 그 행은 **라운드 모서리 안쪽**이라
     //    카드보다 좁다(이 항목 작업 중 실측: 원본 331 / 클론 319 로 각각 18·35px 좁게 읽혔다).
     //    카드가 걸린 행 전체에서 **가장 넓은 행**을 골라야 진짜 카드 폭이 나온다.
-    const isWhite = (r, g, b) => r > 246 && g > 246 && b > 246;
+    // ⚠️ '순백'으로 잡지 말 것 — 클론 카드는 따뜻한 미색에 대각 줄무늬가 깔려 있어 옛 판정
+    //    ('모든 채널 > 246')에는 맨 윗 2줄만 걸렸다(위 헤더 🔧 ⓐ). 밝고 거의 무채색이면 카드 바탕으로 본다.
+    const isCardBg = (r, g, b) => r >= 238 && g >= 236 && b >= 230 && Math.max(r, g, b) - Math.min(r, g, b) <= 16;
     let cardTop = -1, cardBot = -1, cardW = 0, cardL = 0;
     for (let y = 0; y < H; y++) {
-        const rr = rowRun(y, isWhite);
+        const rr = rowRun(y, isCardBg);
         if (rr.w > W * 0.5) {
             if (cardTop < 0) cardTop = y;
             cardBot = y;
             if (rr.w > cardW) { cardW = rr.w; cardL = rr.x0; }
         } else if (cardTop >= 0 && y - cardBot > 60) break;   // 카드 아래 다른 흰 덩어리로 넘어가기 전에 끊는다
     }
-    if (cardTop < 0) return { err: '흰 카드를 못 찾았다' };
+    if (cardTop < 0) return { err: '카드를 못 찾았다' };
 
     // ── 2) 첫 시대 헤더 막대 ──────────────────────────────────────────
-    // 흰 카드 위에 얹힌 옅은 회색 면(원시적 시대색). 카드 안쪽만 보고, 카드 폭의 80% 이상 덮는 첫 행.
-    const isGrey = (r, g, b) => r >= 190 && r <= 244 && Math.abs(r - g) < 12 && Math.abs(g - b) < 12;
-    let bar = null;
+    // 카드 위에 얹힌 면(원시적 시대색). **고정 회색 구간으로 잡지 않는다** — 클론 카드 바탕(미색)이
+    // 옛 회색 임계(190~244)에 그대로 걸리기 때문(위 헤더 🔧 ⓑ). 대신 '카드 바탕보다 확실히 어두운,
+    // 카드 폭 80% 이상을 덮는, 일정 두께 이상의 가로 띠' 로 정의한다 — 제목 밑 1px 구분선은 두께에서 걸러진다.
+    const lum = (r, g, b) => (r * 299 + g * 587 + b * 114) / 1000;
+    const rowMed = y => {
+        const a = [];
+        for (let x = cardL + 8; x < cardL + cardW - 8; x++) { const [r, g, b] = at(x, y); a.push(lum(r, g, b)); }
+        a.sort((p, q) => p - q);
+        return a[a.length >> 1];
+    };
+    // 카드 바탕 밝기 기준선 = 행 중앙값들의 상위 사분위(막대·구분선 행에 끌려 내려가지 않게)
+    const meds = []; for (let y = cardTop; y <= cardBot; y++) meds.push(rowMed(y));
+    meds.sort((p, q) => p - q);
+    const bgLum = meds[Math.min(meds.length - 1, Math.floor(meds.length * 0.75))];
+    // 막대 채움 = 바탕보다 10 이상 어둡고(=면), 글자만큼 어둡지는 않고(≥30), 거의 무채색.
+    const isBarFill = (r, g, b) => { const l = lum(r, g, b); return l >= 30 && l <= bgLum - 10 && Math.max(r, g, b) - Math.min(r, g, b) <= 20; };
+    const MINH = Math.max(6, Math.round(cardW * 0.02));   // 원본·클론 막대는 29~30px, 제목 밑 구분선은 1px
+    let bar = null, bot = -1;
     for (let y = cardTop; y <= cardBot; y++) {
-        const rr = rowRun(y, isGrey);
-        if (rr.w > cardW * 0.8) { bar = { t: y, x0: rr.x0, x1: rr.x1, w: rr.w }; break; }
+        const rr = rowRun(y, isBarFill);
+        if (rr.w <= cardW * 0.8) continue;
+        // 띠 아래로 확장. 글자가 있는 행은 채움이 끊기므로 계속 조건은 40% 로 느슨하게 본다.
+        let end = y, widest = rr;
+        while (end + 1 <= cardBot) {
+            const nr = rowRun(end + 1, isBarFill);
+            if (nr.w <= cardW * 0.4) break;
+            end++;
+            if (nr.w > widest.w) widest = nr;
+        }
+        if (end - y + 1 >= MINH) { bar = { t: y, x0: widest.x0, x1: widest.x1, w: widest.w }; bot = end; break; }
+        y = end;   // 너무 얇은 띠(구분선)는 버리고 그 아래부터 다시 본다
     }
     if (!bar) return { err: '헤더 막대를 못 찾았다' };
-    // 세로 범위: 막대 중앙 열에서 아래로 회색이 이어지는 만큼 (막대 아래 드롭섀도는 제외됨 — 임계 밖)
-    const bcx = Math.round((bar.x0 + bar.x1) / 2);
-    let bot = bar.t;
-    while (bot < H - 1) { const [r, g, b] = at(bcx, bot + 1); if (!isGrey(r, g, b)) break; bot++; }
     const barH = bot - bar.t + 1;
+
+    // 잉크 스캔 행 범위 — 막대 안에서 **바탕이 아직 밝은** 행만 쓴다. 클론 막대는 아래로 갈수록 어두워지는
+    // 금속 그라디언트라(바닥 행 휘도 59) 잉크 임계(<90)에 막대 바닥이 통째로 걸린다(위 헤더 🔧 ⓒ).
+    const lightRow = y => {
+        let n = 0, c = 0;
+        for (let x = bar.x0; x <= bar.x1; x++) { const [r, g, b] = at(x, y); if (lum(r, g, b) >= 150) n++; c++; }
+        return n / c >= 0.6;
+    };
+    let inkT = bar.t, inkB = bot;
+    while (inkB > inkT && !lightRow(inkB)) inkB--;
+    while (inkT < inkB && !lightRow(inkT)) inkT++;
 
     // ── 3) 막대 안 주황 별 ────────────────────────────────────────────
     const isOrange = (r, g, b) => r > 195 && g > 105 && g < 210 && b < 100 && (r - b) > 110;
     let sx0 = 1e9, sx1 = -1, sy0 = 1e9, sy1 = -1, sn = 0;
-    for (let y = bar.t; y <= bot; y++) for (let x = bar.x0; x <= bar.x1; x++) {
+    for (let y = inkT; y <= inkB; y++) for (let x = bar.x0; x <= bar.x1; x++) {
         const [r, g, b] = at(x, y);
         if (isOrange(r, g, b)) { sn++; if (x < sx0) sx0 = x; if (x > sx1) sx1 = x; if (y < sy0) sy0 = y; if (y > sy1) sy1 = y; }
     }
@@ -81,7 +131,7 @@ const scan = `(img) => {
     // ── 4) 우측 확률 잉크 ('0%' vs '0.00%' 는 잉크 폭이 확연히 다르다) ──
     const isInk = (r, g, b) => r < 90 && g < 90 && b < 90;
     let px0 = 1e9, px1 = -1, pn = 0;
-    for (let y = bar.t; y <= bot; y++) for (let x = bar.x0 + Math.round(bar.w * 0.55); x <= bar.x1; x++) {
+    for (let y = inkT; y <= inkB; y++) for (let x = bar.x0 + Math.round(bar.w * 0.55); x <= bar.x1; x++) {
         const [r, g, b] = at(x, y);
         if (isInk(r, g, b)) { pn++; if (x < px0) px0 = x; if (x > px1) px1 = x; }
     }
@@ -100,7 +150,7 @@ const scan = `(img) => {
     const inkCol = [];
     for (let x = bar.x0; x < nameRight; x++) {
         let hit = false;
-        for (let y = bar.t; y <= bot; y++) { const [r, g, b] = at(x, y); if (isInk(r, g, b)) { hit = true; break; } }
+        for (let y = inkT; y <= inkB; y++) { const [r, g, b] = at(x, y); if (isInk(r, g, b)) { hit = true; break; } }
         inkCol.push(hit ? x : -1);
     }
     const groups = [];
