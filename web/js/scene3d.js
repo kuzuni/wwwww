@@ -9033,7 +9033,9 @@ const Scene3D = {
                 //    → 깔개 밖(엉덩이 뒤 z ≤ −0.30)과 **머리 위**로 옮긴다.
                 const IVORY = M(0xe8ddc4);                 // 뿔 — 등급색 벗김(각질은 흰 회색이 아니다)
                 // 코뿔 — 코뿔소의 이름이자 유일한 상투. 0.045×0.16 은 이 크기에서 '작은 돌기'다.
-                const horn = cn(0.062, 0.26, 0, 0.345, headFrontZ - 0.03, IVORY); horn.rotation.x = -0.30;
+                // ⚠️ 뿔을 **뒤로** 눕히면(rotation.x −0.30) 주둥이를 따라 누운 고깔이 돼 "뿔인지 주둥이인지
+                //    부러진 부품인지 모르겠다"가 된다(비평가 B 지적). 코뿔소 뿔은 코끝에서 **위·앞으로** 선다.
+                const horn = cn(0.062, 0.26, 0, 0.360, headFrontZ - 0.04, IVORY); horn.rotation.x = 0.30;
                 horn.userData.part = 'head';
                 const horn2 = cn(0.040, 0.13, 0, 0.395, headFrontZ - 0.155, IVORY); horn2.rotation.x = -0.22;
                 horn2.userData.part = 'head';               // 뒷뿔 — 코뿔소는 뿔이 둘이다(하나면 유니콘 쪽)
