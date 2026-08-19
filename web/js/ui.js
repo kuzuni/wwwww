@@ -1372,13 +1372,27 @@ const UI = {
         // 딤으로 여러 개를 한꺼번에 보류하면(autoforge-dim-hold-all) 카드 자리는 하나뿐이라
         // 앞의 한 개만 놓고 태그에 남은 개수를 적는다 — 하나 고르면 다음 보류품이 이 자리로 올라온다.
         // (모루 행 높이는 원본 비율 검증 대상이라 목록을 새로 펼치지 않고 이 카드 안에서 센다)
-        const more = this.heldCount() - 1;
-        return `<button class="anvil-btn held-slot" style="--rc:${this.ageHex(held.age)}" onclick="UI.onOpenHeld()">
+        // 사용자 지시 2026-08-20(autoforge-cards-at-once 재오픈): 여러 개 보류 중이면 **한 장이 아니라
+        // 겹쳐 쌓인 더미**로 보여야 한다 — 개수만큼 두께가 늘어나는 덱을 카드 뒤에 깐다(deckDepth).
+        const n = this.heldCount();
+        const more = n - 1;
+        const depth = this.heldDeckDepth(n);
+        return `<button class="anvil-btn held-slot${depth ? ` deck deck-${depth}` : ''}" style="--rc:${this.ageHex(held.age)}" onclick="UI.onOpenHeld()">
             <span class="held-tag">보류${more > 0 ? ` ${more + 1}` : ''}</span>
             ${this.itemImgHTML(held, 'held-img')}
             <span class="held-name">${held.name}</span>
             <small id="anvil-hammers">${IconGen.img('hammer')} ${U.fmt(S.hammers)}</small>
         </button>`;
+    },
+    // 보류 더미의 '두께'(뒤에 깔리는 카드 에지 겹 수). 개수에 로그처럼 붙여 22개와 3개가 다르게
+    // 보이되, 더미 폭이 모루 칸을 넘지 않게 5겹에서 멈춘다(폭을 넘기면 모루 행 비율이 흔들린다).
+    // 0 = 더미 아님(한 장 또는 없음) — 사용자 스펙 그대로 1개는 단일 카드다.
+    heldDeckDepth(n) {
+        if (n >= 15) return 5;
+        if (n >= 6) return 4;
+        if (n >= 3) return 3;
+        if (n >= 2) return 2;
+        return 0;
     },
     // 보류 중인 제작품 = 비교 팝업이 닫혀 있는 대기품 (팝업이 열려 있으면 모루 자리는 그대로 둔다)
     heldItem() {

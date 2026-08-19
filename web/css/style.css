@@ -905,6 +905,59 @@ body {
     font-size: .62rem; font-weight: 900; color: #fff; max-width: 100%;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* ---- 보류 더미 (사용자 지시 2026-08-20, autoforge-cards-at-once 재오픈) ----
+   여러 개를 보류 중이면 카드 한 장이 아니라 **겹쳐 쌓인 덱**으로 보여야 한다("에지가 여러 겹 보이는
+   세로 줄무늬"). 두께는 상자 밖으로 절대 안 나간다 — 맨 위 카드 앞면(::before)을 더미 두께(--dw)만큼
+   왼쪽으로 좁히고 그 오른쪽을 에지로 채우므로, 버튼 상자(7rem × 5.45rem = 원본 비율 검증 대상)는
+   한 화소도 안 움직인다. 에지는 앞면의 box-shadow 로 그린다(먼저 적은 그림자가 위에 깔린다):
+   겹마다 `채움(--dg*i - 1px)` → `테두리선(--dg*i)` 순으로 적어 겹당 '채움 + 1px 선'이 보이게 한다. */
+.anvil-btn.held-slot.deck {
+    --dg: .21rem;                                                   /* 에지 한 겹 두께 */
+    /* 옆에서 본 카드 더미 = 밝은 카드 단면 + 그 사이 어두운 틈. 두 색 다 시대색(--rc)에 물들이되
+       한쪽은 흰색, 한쪽은 검정 쪽으로 강하게 끌어 둔다 — 시대색이 어두운 남색이든 밝은 금색이든
+       단면과 틈의 대비가 남는다(처음엔 둘 다 --rc 근처로 섞어서 어두운 시대색에서 줄이 사라졌다). */
+    --dedge: color-mix(in srgb, var(--rc, #6b3538) 55%, #dfe4ec);
+    --dgap: color-mix(in srgb, var(--rc, #6b3538) 15%, #05060a);
+    background: none; border-color: transparent;                    /* 앞면은 ::before 가 그린다 */
+    padding-right: calc(.25rem + var(--dw));                        /* 좁아진 앞면 안에서 내용이 가운데 */
+}
+/* ⚠️ 앞면에 테두리를 주지 않는다 — `#equip-sheet .anvil-btn { border: none }`(id 선택자라 이깁니다)
+   때문에 **한 장짜리 보류 카드는 지금도 테두리가 없다**. 여기만 테두리를 그리면 1장과 더미의
+   생김새가 갈린다(실측으로 걸린 자리다). 겹 사이의 밝은 선이 테두리 몫을 대신한다. */
+.anvil-btn.held-slot.deck::before {
+    content: ''; position: absolute; z-index: 0; inset: 0 var(--dw) 0 0;
+    background: color-mix(in srgb, var(--rc, #6b3538) 30%, #17181a);
+    border-radius: .7rem;
+}
+/* 앞면이 위치 지정 요소라 그냥 두면 글자·그림 위로 올라온다 — 내용만 한 층 올린다(태그는 이미 절대배치). */
+.anvil-btn.held-slot.deck > *:not(.held-tag) { position: relative; z-index: 1; }
+.anvil-btn.held-slot.deck .held-tag { z-index: 2; }
+.anvil-btn.held-slot.deck-2 { --dw: calc(var(--dg) * 2); }
+.anvil-btn.held-slot.deck-3 { --dw: calc(var(--dg) * 3); }
+.anvil-btn.held-slot.deck-4 { --dw: calc(var(--dg) * 4); }
+.anvil-btn.held-slot.deck-5 { --dw: calc(var(--dg) * 5); }
+.anvil-btn.held-slot.deck-2::before {
+    box-shadow: calc(var(--dg) * 1 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 1) 0 0 0 var(--dgap),
+                calc(var(--dg) * 2 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 2) 0 0 0 var(--dgap);
+}
+.anvil-btn.held-slot.deck-3::before {
+    box-shadow: calc(var(--dg) * 1 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 1) 0 0 0 var(--dgap),
+                calc(var(--dg) * 2 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 2) 0 0 0 var(--dgap),
+                calc(var(--dg) * 3 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 3) 0 0 0 var(--dgap);
+}
+.anvil-btn.held-slot.deck-4::before {
+    box-shadow: calc(var(--dg) * 1 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 1) 0 0 0 var(--dgap),
+                calc(var(--dg) * 2 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 2) 0 0 0 var(--dgap),
+                calc(var(--dg) * 3 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 3) 0 0 0 var(--dgap),
+                calc(var(--dg) * 4 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 4) 0 0 0 var(--dgap);
+}
+.anvil-btn.held-slot.deck-5::before {
+    box-shadow: calc(var(--dg) * 1 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 1) 0 0 0 var(--dgap),
+                calc(var(--dg) * 2 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 2) 0 0 0 var(--dgap),
+                calc(var(--dg) * 3 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 3) 0 0 0 var(--dgap),
+                calc(var(--dg) * 4 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 4) 0 0 0 var(--dgap),
+                calc(var(--dg) * 5 - 1px) 0 0 0 var(--dedge), calc(var(--dg) * 5) 0 0 0 var(--dgap);
+}
 /* ---- 제작 결과/탈락 장비를 잠깐 보여주는 카드 (항목 ③ '무엇이 뽑혔는지는 항상 보여준다') ----
    사용자 지시 2026-08-18(craft-card-slot-look): 글씨(이름·스탯) 없이 **장비 슬롯과 똑같이**
    프레임 + 장비 모양만 보인다 — .equip-cell 의 해칭 배경·시대색 테·라운드·잉크맞춤을 그대로 옮겼다. */
