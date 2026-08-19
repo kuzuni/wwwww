@@ -4021,12 +4021,24 @@ body {
 }
 .hatch-lamp {
     position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-    /* 원본(042445) 램프 갓 실측 폭 6.33%W(31px) — 2.4rem 은 40px(8.24%W)이라 +1.9%p 넓었다.
-       비평가 A 의 '부화기 램프 그룹 우측 +2.6~3.1%p'(3라운드 연속) 의 뿌리가 여기다. */
-    width: calc(var(--app-w) * .0633); height: .8rem; background: #23252b; border-radius: 0 0 .6rem .6rem;
+    /* 🚨 원본 램프는 **돔형 갓 + 그 아래 또렷한 노란 전구**라 '전등'으로 읽힌다. 클론은 갓이
+       `border-radius: 0 0 .6rem .6rem`(=**아래쪽**이 둥근 납작한 라운드 사각)이라 돔이 아니었고,
+       전구도 반쪽 알약이라 사실상 안 보여 **어두운 얼룩**으로만 읽혔다(확대 크롭 확인).
+       원본 실측(042445, 밴드 y573 기준 · 앱 폭 490):
+         · 갓  y586~603(높이 18px = 3.67%W) · 바닥 폭 24px(**4.90%W**) · 꼭대기 폭 7px → 반타원 돔
+         · 전구 y606~611(높이 6px = 1.22%W) · 폭 10px(2.04%W) · 갓 바닥에서 2px(0.41%W) 띄고 가운데
+       ⚠️ 종전 값 2.4rem(40px = 8.24%W)은 **원본의 1.6배**였다 — 비평가 A 가 3라운드 연속 낸
+          '램프 그룹 우측 +2.6~3.1%p' 의 뿌리다(콘은 오히려 왼쪽이라 그쪽이 아니었다). */
+    width: calc(var(--app-w) * .049); height: calc(var(--app-w) * .0367);
+    background: #23252b; border-radius: 50% 50% .1rem .1rem / 100% 100% .1rem .1rem;
 }
 .hatch-lamp::before { content: ''; position: absolute; top: -.5rem; left: 50%; transform: translateX(-50%); width: .18rem; height: .5rem; background: #23252b; }
-.hatch-lamp::after { content: ''; position: absolute; bottom: -.28rem; left: 50%; transform: translateX(-50%); width: .5rem; height: .28rem; background: #ffe95c; border-radius: 0 0 .3rem .3rem; }
+/* 전구 — 원본은 갓 밑에 또렷이 떠 있는 노란 덩어리다(반쪽 알약이 아니라 가로로 넓은 타원). */
+.hatch-lamp::after {
+    content: ''; position: absolute; bottom: calc(var(--app-w) * -.0163); left: 50%; transform: translateX(-50%);
+    width: calc(var(--app-w) * .0204); height: calc(var(--app-w) * .0122);
+    background: #ffe95c; border-radius: 50%;
+}
 .hatch-cone {
     position: absolute; top: .7rem; left: 50%; transform: translateX(-50%);
     width: calc(var(--app-w) * .1265); height: 5.4rem; pointer-events: none;   /* 원본 빛기둥 폭 12.65%W */
@@ -4049,7 +4061,12 @@ body {
 /* 젬 스킵 필을 흐름에서 빼 칸 우상단 오버레이로 — 원본(042445) 칸은 타이머가 맨 아래(79.3%H)인데
    필이 타이머 밑 흐름에 있으면 타이머가 76.0%H 로 3%p 위로 밀린다(전수 검증 채점 2차 2인 공통,
    픽셀 교차검증). 기능(QA 차수들이 실측하는 '젬 스킵')은 그대로 살린다. */
-.hatch-cell > .btn.xs { position: absolute; top: -.1rem; right: -.55rem; z-index: 2; padding: .1rem .3rem; }
+/* 🚨 이 젬 스킵 알약은 **원본에 없는 우리 기능**이라 비율 제약은 없지만, 종전 크기(폭 ≈60px)로는
+   가운데 램프 갓을 **가로로 덮어** 원본의 '전등' 실루엣을 지웠다(확대 크롭 확인). 갓은 셀 가운데
+   폭 4.90%W(≈24px)를 쓰므로, 알약이 셀 오른쪽에서 그 자리를 침범하지 않을 만큼 줄인다.
+   기능(QA 차수들이 실측하는 '젬 스킵')은 그대로다 — 크기만 줄였다. */
+.hatch-cell > .btn.xs { position: absolute; top: -.35rem; right: -.5rem; z-index: 2; padding: .04rem .2rem; font-size: .56rem; line-height: 1.1; }
+.hatch-cell > .btn.xs .ico { width: .62rem; height: .62rem; margin: 0 .08rem 0 0; vertical-align: -.08rem; }
 .hatch-cell .hatch-time { margin-top: .55rem; }
 /* 원본(042445) [슬롯 +1] 은 **한 덩어리 버튼이 아니다** — 밴드 위에 그냥 얹힌 흰 글자 `슬롯 +1` 과
    그 아래 **은색 알약(젬 아이콘 + 빨간 숫자)** 두 조각이다(확대 크롭·픽셀 맵 확인). 클론은 둘을 한
