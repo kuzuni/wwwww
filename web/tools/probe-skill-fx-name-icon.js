@@ -14,21 +14,35 @@ const path = require('path');
 const R = (f) => fs.readFileSync(path.resolve(__dirname, '..', f), 'utf8');
 
 // fx → 허용 모티프. 여러 스킬이 나눠 쓰는 fx(heal·aura·beam)는 그 안에서 갈라 쓰는 걸 허용한다.
+/* fx → 허용 모티프.
+   🚨 **2026-08-19 현행화(icon-gen)**: 이 표는 fx 가 **스킬마다 하나씩으로 갈라진** 뒤로 낡아
+   있었다 — `firstaid`·`warcry`·`voidrift`·`timewarp`·`wardshield` 다섯이 표에 없어 **5건 불통과가
+   상시로 떠 있었다**(모티프는 전부 멀쩡했다. 낡은 건 자다). 종전엔 `heal`·`aura`·`beam` 하나를
+   여러 스킬이 나눠 썼는데, 3D 스트림의 연출 분리(`skill-unique-signature`)가 끝나면서 스킬마다
+   제 fx 를 갖게 됐다 — 그래서 아래 '**fx 공유 묶음**' 출력이 지금은 **비어 있는 게 정상**이다.
+   ⚠️ 새 fx 를 만들면 여기 한 줄을 같이 등재할 것. 안 하면 이 게이트가 통째로 빨개져서
+      **진짜 어긋남이 묻힌다**(그게 이번에 실제로 일어난 일이다). */
 const ALLOW = {
     slash: ['slashx'],            // 참격이 엇갈려 여러 번 (slashArcs)
     ring: ['whirl'],              // 회오리 소용돌이 (whirlwindVortex)
-    heal: ['cross', 'sparkle', 'halo'],   // 빛기둥 강림 — 회복 계열 3종
+    firstaid: ['cross'],          // 응급 처치 — 회복 십자
+    heal: ['cross', 'sparkle', 'halo'],   // 빛기둥 강림 — 회복 계열(축복)
     explode: ['flame'],           // 투척 불덩이 + 폭발 (fireStorm)
     beam: ['arrows', 'spear'],    // 화살 세례 (arrowVolley) — 마지막 한 발만 굵다
-    aura: ['horn', 'shield', 'hourglass'],// 룬 서클 — 버프/성역 계열 3종
+    warcry: ['horn'],             // 전투의 함성 — 메가폰 + 음파
+    aura: ['horn', 'shield', 'hourglass'],// 룬 서클 — 버프/성역 계열
     meteor: ['meteor'],           // 운석 세례 (meteorStorm)
     bolt: ['bolt'],               // 먹구름 낙뢰 (stormCloudStrike)
     breath: ['maw'],              // 지중 습격 거대 아가리 (dragonMaw)
     guillotine: ['cleaver'],      // 처형 칼날 낙하 (guillotineDrop)
     nova: ['burst'],              // 수축 후 대폭발 (supernovaBlast)
+    voidrift: ['spear'],          // 공허의 창 — 균열에서 뻗는 창
+    timewarp: ['hourglass'],      // 시간 왜곡 — 모래시계
     dragonfire: ['dragon'],       // 화염룡 강림 (dragonfireBreath)
     spear: ['spear'],             // 하늘이 열리고 황금 창 (godSpearDrop)
+    wardshield: ['halo', 'shield'],// 신성한 가호 — 후광 링 + 날개
 };
+
 
 const gd = R('js/gamedata.js');
 const ig = R('js/icongen.js');
