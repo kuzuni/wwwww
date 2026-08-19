@@ -11671,14 +11671,36 @@ const Scene3D = {
                 if (Math.abs(z) === r || Math.abs(y) === r) out.push({ x: 0, y: y, z: z, c: color });
             return out;
         };
+        // 한 칸씩 **면으로** 이어 걷는 선 — 고삐처럼 '두 점을 잇는 부품'의 공용 도구.
+        // 🚨 **대각으로 건너뛰지 않는다.** 대각 접촉은 화면에서 '끊긴 점선'으로 읽힌다 — 이 파일이
+        //    등자 1판에서 실제로 겪었고, 그때 세운 규칙(x·y 를 번갈아 밟는다)을 여기서 도구로 굳힌다.
+        // ⚠️ **경유점을 호출부가 준다(자동 최단경로 금지).** 시작·끝만 주고 축 순서를 고정해 걸으면
+        //    선이 **몸을 관통한다** — 거북에서 실측했다: 볼에서 안장으로 z 부터 걸으면 y9 에서
+        //    관(r 5.4)의 z ±3 칸을 지나 파츠가 겹친다(= 비평가가 짚은 z-fighting 과 같은 사고).
+        //    고삐는 '몸 위로 넘겨서' 가는 부품이라 그 넘김을 사람이 지정해야 한다.
+        const walkPath = (pts, color) => {
+            const out = [{ x: pts[0][0], y: pts[0][1], z: pts[0][2], c: color }];
+            for (let i = 1; i < pts.length; i++) {
+                let [x, y, z] = [out[out.length - 1].x, out[out.length - 1].y, out[out.length - 1].z];
+                const [tx, ty, tz] = pts[i];
+                while (x !== tx || y !== ty || z !== tz) {
+                    if (z !== tz) z += Math.sign(tz - z);
+                    else if (y !== ty) y += Math.sign(ty - y);
+                    else x += Math.sign(tx - x);
+                    out.push({ x: x, y: y, z: z, c: color });
+                }
+            }
+            return out;
+        };
         const cz = Math.max(1, Math.round(o.rz * 0.7));
         // 방석 — 바깥 한 줄만 금색(테두리 문턱 0.82). 앞턱·뒷턱은 **한 층만** —
         // 두 층으로 세우면 안장이 아니라 '의자 등받이'가 된다(시험판 1판에서 캡처로 확인).
         const seat = V.merge(
             V.recolor(V.ellipse(o.rx, o.rz, 1, { y0: o.seatY, color: LEATHER }),
                 // ⚠️ 문턱 0.82 → 0.92. 재채점: *"크림색 테두리가 가죽 스티치가 아니라 파이
-                //    크러스트다."* 바깥 한 줄만 남기면 스티치, 두 줄이면 크러스트다.
-                v => ((v.x / o.rx) ** 2 + (v.z / o.rz) ** 2 > 0.92) ? TRIM : undefined),
+                //    크러스트다."* 바깥 한 줄만 남기면 스티치, 두 줄이면 크러스트다. 0.92 는 줄이
+                //    통째로 사라져(캡처) 0.88 로 되돌렸다 — 방석이 다시 '민짜 갈색 욕조'였다.
+                v => ((v.x / o.rx) ** 2 + (v.z / o.rz) ** 2 > 0.88) ? TRIM : undefined),
             V.at(V.slab(5, 1, 1, LEATHER), 0, o.seatY + 1, cz),
             V.at(V.slab(5, 1, 1, LEATHER), 0, o.seatY + 1, -cz));
         // 뱃대끈(girth) — 몸통을 한 바퀴 감는 링. **'탈것'이라는 정보의 절반은 이 띠가 진다**:
@@ -11714,7 +11736,16 @@ const Scene3D = {
             for (let y = o.stirrupY + 2; y <= o.strapTopY; y++) out.push({ x: s * o.stirrupX, y: y, z: 0, c: LEATHER });
             return V.merge(out, V.at(ringYZ(1, IRON), s * o.stirrupX, o.stirrupY, 0));
         };
-        return { seat: seat, girth: girth, stirrupL: stirrup(-1), stirrupR: stirrup(1) };
+        // 🚨 **고삐 — 재채점이 '머리에 굴레·고삐가 아예 없다'로 짚은 자리(인계 순서 ③).**
+        //    없으면 *"등에 상자를 얹은 야생 거북"* 이고, 있으면 '조종 가능한 탈것'이 된다.
+        // ⚠️ **볼 버클에서 시작해 안장 앞턱에 끝난다.** 두 끝이 다 부품에 물려야 '끈'이고, 한쪽이
+        //    허공에서 끝나면 그 순간 이 파일이 여섯 번 밟은 **'떠 있는 부품'** 이다.
+        //    (가운데가 공중에 뜨는 건 정상이다 — 고삐는 원래 몸에서 떨어져 걸린다.)
+        const rein = (s) => walkPath(o.reinPath.map(p => [s * p[0], p[1], p[2]]), LEATHER);
+        return {
+            seat: seat, girth: girth, stirrupL: stirrup(-1), stirrupR: stirrup(1),
+            reinL: o.reinPath ? rein(-1) : [], reinR: o.reinPath ? rein(1) : [],   // 경유점을 안 주면 줄 없음
+        };
     },
 
     makeMountVoxelPilot(name, rarity) {
@@ -11872,6 +11903,15 @@ const Scene3D = {
             //    검은 면이 크니 썸네일에서도 눈이 안 사라진다.
             if (Math.abs(v.x) === 3 && v.z >= 12 && v.z <= 14 && v.y >= 8 && v.y <= 10)
                 return (v.z === 14 && v.y === 10) ? 0xf4f6f8 : EYE;   // 하이라이트는 앞·위 한 칸
+            // 🐢 **머리 굴레 — 띠가 아니라 '머리를 넘어가는 한 줄'.** 재채점: *"머리에 굴레·고삐가
+            //    아예 없다."* 그런데 매끈판이 이미 **주둥이 없는 종에 목띠를 두르면 훌라후프**로
+            //    한 판 폐기했고, 거북은 `MOUNT_HARNESS_OF` 에 없어 `harness` 갈래(볼끈·고리만)다.
+            //    → 머리 **뒷줄(z 11) 한 칸**만 관·볼로 넘긴다. 얹은 파츠가 아니라 색이라 뚫을 것도
+            //    없고(이 항목이 안장깔개에서 다섯 번 밟은 함정), 실제 굴레의 정수리끈이 이 자리다.
+            //    '그은 줄무늬'로 안 읽히게 하는 건 **볼에 박은 쇠 버클 한 칸**이 진다(뱃대끈과 같은 해법).
+            //    ⚠️ 정수리 한 줄 + **볼 한 칸씩**이면 족하다. 볼을 y8~10 세 칸 다 칠했더니 캡처에서
+            //       머리를 감싼 **두꺼운 갈색 밴드**가 되어 눈보다 굴레가 커졌다.
+            if (v.z === 11 && (v.y === 10 || (Math.abs(v.x) === 3 && v.y === 9))) return LEATHER;
             if (Math.abs(v.x) === 3 && v.y === 7 && v.z >= 11 && v.z <= 14) return CHEEK;  // 뺨 줄무늬
             if (v.z === 15 && v.y === 6 && Math.abs(v.x) <= 2) return SKIN_D;   // 입선 한 줄
             if (v.z === 15 && v.y === 8 && Math.abs(v.x) === 1) return SKIN_D;  // 콧구멍 두 칸
@@ -11882,7 +11922,9 @@ const Scene3D = {
         });
         //    ⚠️ 각질 부리는 **recolor 뒤에** 붙인다 — 앞면 색 구획(입선·콧구멍)이 부리 칸을 같이
         //    칠해 **부리가 통째로 사라지는** 사고를 2판에서 실제로 겪었다.
-        headV = V.merge(headV, V.at(V.slab(5, 1, 1, BEAK), 0, 7, 16));      // 부리 — 입선 바로 위 한 칸
+        headV = V.merge(headV, V.at(V.slab(5, 1, 1, BEAK), 0, 7, 16),       // 부리 — 입선 바로 위 한 칸
+            //  볼 버클 — 머리 옆면(|x| 3)에서 한 칸 도드라진다. 고삐가 여기서 나간다.
+            { x: 4, y: 9, z: 11, c: 0x9e9e9e }, { x: -4, y: 9, z: 11, c: 0x9e9e9e });
         g.userData.head = part(headV, 0, 5, 9);                             // 피벗 = 목 밑동
         // ⑷ 꼬리 — 머리와 **크기가 비슷하면 앞뒤가 안 갈린다**(비평가 지적: 옆에서 양방향 생물).
         // 🚨 **'떠 있는 선반' 종결(재채점 지적)**: 2판 꼬리는 z −12~−10 인데 등딱지 뒤끝이 z −8 이라
@@ -11903,11 +11945,21 @@ const Scene3D = {
             seatY: CY.seat, rx: 3.8, rz: 4.6,
             girthY: CY.deckB, girthRx: 8.0, girthRz: 8.4, buckleX: 9,   // 벽(7.4) 밖 · 테두리(8.0) 와 나란히
             stirrupX: 9, stirrupY: 2, strapTopY: 5,   // 끈은 등딱지 테두리(y4~5) 바로 밖에서 곧게 — 사선 금지
+            //  🚨 **긴 고삐는 폐기했다(캡처로 잡았다).** 볼에서 안장 앞턱까지 y11 로 넘겼더니
+            //     좌우 두 줄이 몸 위를 활처럼 건너 **'짐칸 롤바'** 가 됐다 — 탈것이 아니라 수레로
+            //     읽힌다. 원인은 굵기가 아니라 **길이와 높이**다: 안 탄 탈것의 고삐는 잡아 주는
+            //     손이 없어 반드시 허공에 걸리고, 이 항목은 매끈판에서 같은 사고를 이미 겪었다
+            //     (*"고삐가 지면까지 늘어져 있었다"* — 진행 메모 ⑬). 라이브에서 고삐는 손 위치를
+            //     따라가는 **동적 부품**이라, 서 있는 썸네일이 져야 할 몫은 **굴레와 앵커**까지다.
+            //     → 볼 버클(= 고삐 앵커)만 남기고 줄은 안 그린다. 큐브 판을 게임 경로에 물릴 때
+            //       `bridleRig` 의 앵커 계약에 이 버클을 물릴 것.
         });
         part(tack.seat, 0, 0, 0);
         part(tack.girth, 0, 0, 0);
         // 등자는 좌우 **각자 피벗**에 — 라이브에서는 `alignStirrups` 가 매 프레임 발까지 늘인다.
         g.userData.stirrups = [part(tack.stirrupL, -9, CY.deckA, 0), part(tack.stirrupR, 9, CY.deckA, 0)];
+        //  고삐 줄은 이 판에 없다(위 `reinPath` 주석 참조) — 앵커는 머리의 볼 버클이 진다.
+        //  라이브에서 줄을 붙일 땐 등자와 같은 계열로 **자기 피벗**에 달 것(손을 따라 늘어난다).
 
         g.userData.voxelPilot = true;
         return g;
