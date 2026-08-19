@@ -3690,6 +3690,8 @@ IconGen._genderSym = function (ctx, S, female) {
         cloud(W * 0.52, H * 0.08, W * 0.12, H * 0.042, '#e7d2ec');
         cloud(W * 0.63, H * 0.17, W * 0.06, H * 0.030, '#f4eaf6');
         cloud(W * 0.40, H * 0.23, W * 0.05, H * 0.026, '#eedcf2');
+        cloud(W * 0.72, H * 0.10, W * 0.07, H * 0.032, '#ddeee0');        // 연둣빛 보조 구름 — 분홍 단색이면 팔레트가 얇다(비평가 7차)
+        cloud(W * 0.07, H * 0.07, W * 0.05, H * 0.026, '#ddeee0');
         (() => {                                                          // 지평선 웜톤 — 하늘이 2단 그라디언트로 납작하지 않게(비평가 재채점)
             const hz = ctx.createLinearGradient(0, H * 0.42, 0, H * 0.82);
             hz.addColorStop(0, 'rgba(255,214,188,0)'); hz.addColorStop(1, 'rgba(255,214,188,.30)');
@@ -3783,8 +3785,7 @@ IconGen._genderSym = function (ctx, S, female) {
         const SWING = Math.atan2(0.345 - 0.905, 2.075 - 1.560);                           // 자루 기울기 ≈ -0.83rad
         ink(ctx, S, bar(ctx, S, 1.560, 0.905, 2.075, 0.345, 0.088), '#c08b41', 0.030);    // 자루(좌하→우상)
         on(ctx, bar(ctx, S, 1.586, 0.845, 2.052, 0.390, 0.026), 'rgba(255,255,255,.30)'); // 자루 광택
-        on(ctx, bar(ctx, S, 1.612, 0.902, 2.066, 0.408, 0.012), 'rgba(90,55,15,.35)');    // 나무 결(비평가 5차)
-        on(ctx, bar(ctx, S, 1.578, 0.868, 1.760, 0.672, 0.010), 'rgba(90,55,15,.30)');
+        // (5차에 넣던 나무 결 2줄은 뺐다 — 광택선·머리 밴드와 교차해 '누빔 체크'로 읽혔다, 비평가 7차)
         ctx.save();                                                                       // 주먹 — 자루 중간을 감아쥔다
         // 수직 자루(θ=-π/2) 코드의 무회전이 기준이므로, 임의 기울기에선 θ+π/2 만큼 돌린다.
         ctx.translate(1.705 * S, 0.735 * S); ctx.rotate(SWING + Math.PI / 2);
@@ -3810,7 +3811,7 @@ IconGen._genderSym = function (ctx, S, female) {
            물림 테 하나만 남긴다. */
         on(ctx, rrect(ctx, S, 0.064, -0.255, 0.096, 0.510, 0), '#9aa84a');                // 위(빛 받는) 면 — local +x 가 회전 후 우상향
         on(ctx, rrect(ctx, S, -0.160, -0.255, 0.084, 0.510, 0), 'rgba(0,0,0,.24)');       // 아랫면 음영
-        on(ctx, rrect(ctx, S, -0.160, -0.032, 0.320, 0.064, 0), 'rgba(0,0,0,.26)');       // 자루 물림 테(하나만)
+        // (물림 테도 뺐다 — 밴드가 광택·빛면과 교차하는 순간 다시 체크 무늬가 된다. 2톤 베벨이 끝, 비평가 7차)
         ctx.restore();
         ink(ctx, S, ell(ctx, S, 0.052, -0.190, 0.040, 0.034), '#c9a24e', 0.024);          // 쐐기 못
         on(ctx, ell(ctx, S, 0.040, -0.198, 0.016, 0.013), 'rgba(255,255,255,.55)');       // 못 하이라이트
@@ -3926,13 +3927,16 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.lineWidth = t * 0.55;
             ctx.beginPath(); ctx.moveTo(x - H * 0.01, H * 0.42); ctx.quadraticCurveTo(x + H * 0.16, H * 0.34, x + H * 0.24, H * 0.24); ctx.stroke();
             ctx.lineCap = 'butt';
-            for (let i = 0; i < 7; i++) {                                  // 잎 덩어리(밤이라 거의 검은 초록)
-                const lx = x + H * (-0.20 + R() * 0.44), ly = H * (-0.06 + R() * 0.26), r = H * (0.11 + R() * 0.07);
-                fill(ctx, i % 2 ? '#101f16' : '#152a1c', () => ctx.arc(lx, ly, r, 0, Math.PI * 2));
+            /* ⚠️ 잎을 너무 검게(#101f16) 깔면 남색 하늘과 명도차가 없어 '잎 없는 마른 줄기'로
+               읽힌다(비평가 7차) — 한 단 밝은 초록으로 캐노피 덩어리를 세운다. 좌반부 평균 휘도
+               하한(26)은 밝아지는 쪽이라 안전하다. */
+            for (let i = 0; i < 9; i++) {                                  // 잎 덩어리
+                const lx = x + H * (-0.22 + R() * 0.50), ly = H * (-0.08 + R() * 0.30), r = H * (0.12 + R() * 0.08);
+                fill(ctx, i % 2 ? '#1c3a26' : '#224630', () => ctx.arc(lx, ly, r, 0, Math.PI * 2));
             }
-            for (let i = 0; i < 4; i++) {                                  // 달빛 림 혹
-                const lx = x + H * (-0.14 + R() * 0.36), ly = H * (-0.04 + R() * 0.18), r = H * (0.035 + R() * 0.025);
-                fill(ctx, '#23402a', () => ctx.arc(lx, ly, r, 0, Math.PI * 2));
+            for (let i = 0; i < 5; i++) {                                  // 달빛 림 혹
+                const lx = x + H * (-0.16 + R() * 0.40), ly = H * (-0.05 + R() * 0.20), r = H * (0.038 + R() * 0.028);
+                fill(ctx, '#33603c', () => ctx.arc(lx, ly, r, 0, Math.PI * 2));
             }
         })();
         // 모서리 덤불 — 우하단(묘비 앞)·좌하단. 원본 네 모서리의 어두운 초록 덩어리.
@@ -3958,10 +3962,26 @@ IconGen._genderSym = function (ctx, S, female) {
         cloud(W * 0.22, H * 0.12, W * 0.13, H * 0.045, '#fdf3da');
         cloud(W * 0.55, H * 0.08, W * 0.10, H * 0.038, '#fbecd0');
         cloud(W * 0.78, H * 0.16, W * 0.09, H * 0.035, '#fdf3da');
+        fill(ctx, 'rgba(255,244,220,.45)', () => ctx.ellipse(W * 0.36, H * 0.20, W * 0.16, H * 0.016, 0, 0, Math.PI * 2));   // 얇은 구름 결 — 노을 깊이(비평가 7차)
+        fill(ctx, 'rgba(255,238,206,.35)', () => ctx.ellipse(W * 0.62, H * 0.30, W * 0.13, H * 0.013, 0, 0, Math.PI * 2));
         (() => {                                                          // 중단 장밋빛 띠 — 노을 다단 전환(비평가 재채점 '2단 그라디언트 납작')
             const hz = ctx.createLinearGradient(0, H * 0.12, 0, H * 0.50);
             hz.addColorStop(0, 'rgba(244,146,100,0)'); hz.addColorStop(1, 'rgba(244,146,100,.38)');   // 새벽 주황-핑크를 진하게(비평가 3차 '워시아웃')
             ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H);
+        })();
+        /* 우상단 성곽 실루엣 — 원본은 우측 모서리에 성벽/망루가 걸쳐 '포위된 도시' 서사를 세운다
+           (비평가 7차 — 빈 하늘이면 구도가 허전하다). 군중·깃발 뒤, 하늘 앞. */
+        (() => {
+            const c = '#a8907c';
+            fill(ctx, c, () => {
+                ctx.moveTo(W * 0.74, H * 0.42); ctx.lineTo(W * 0.74, H * 0.24); ctx.lineTo(W * 0.78, H * 0.24);
+                ctx.lineTo(W * 0.78, H * 0.16); ctx.lineTo(W * 0.815, H * 0.16); ctx.lineTo(W * 0.815, H * 0.24);
+                ctx.lineTo(W * 0.86, H * 0.24); ctx.lineTo(W * 0.86, H * 0.10); ctx.lineTo(W * 0.90, H * 0.10);
+                ctx.lineTo(W * 0.90, H * 0.24); ctx.lineTo(W * 0.95, H * 0.24); ctx.lineTo(W * 0.95, H * 0.18);
+                ctx.lineTo(W * 1.01, H * 0.18); ctx.lineTo(W * 1.01, H * 0.42); ctx.closePath();
+            });
+            for (let i = 0; i < 5; i++)                                     // 총안(어두운 창)
+                fill(ctx, 'rgba(70,50,38,.55)', () => ctx.rect(W * (0.765 + i * 0.05), H * 0.29, W * 0.013, H * 0.07));
         })();
         /* 뒤 열 — 연갈 띠, 위 가장자리가 투구 혹(반원 연쇄). ⚠️ 0.48H 에서 시작하면 하늘이 행의
            절반을 먹어 '인파의 바다'(원본)가 얇은 띠로 죽는다(비평가 6차) — 0.40H 까지 올린다. */
@@ -3996,9 +4016,9 @@ IconGen._genderSym = function (ctx, S, female) {
         /* 중간 열 — 뒤(#cdb094)와 앞(#241612) 사이의 **명도 중간층**이라 밝은 모브 계열이어야
            대기원근 3단이 선다(비평가 4차 '단일 톤 플랫 매스'). 뿔 투구는 1/8 로 드물게. */
         const MIDC = ['#9b7b6b', '#8d6c5e', '#a5847a', '#93745f'];         // 색·키·크기를 함께 흔들어 타일링 패턴을 깬다
-        for (let i = 0; i < 22; i++) {
+        for (let i = 0; i < 30; i++) {                                     // 30명 — 몸이 절반씩 겹쳐야 사이로 하늘이 안 샌다(비평가 7차 '점점이')
             const k = R();
-            figure(W * (i / 22 + 0.010 + R() * 0.02), H * (0.545 + R() * 0.085), 0.72 + R() * 0.55, MIDC[(R() * 4) | 0], k < 0.5 ? 0 : (k < 0.875 ? 1 : 2));
+            figure(W * (i / 30 + 0.008 + R() * 0.018), H * (0.545 + R() * 0.085), 0.72 + R() * 0.55, MIDC[(R() * 4) | 0], k < 0.5 ? 0 : (k < 0.875 ? 1 : 2));
         }
         // 창 — 군중 사이에서 올라오는 자루+창끝
         for (let i = 0; i < 6; i++) {
@@ -4051,11 +4071,16 @@ IconGen._genderSym = function (ctx, S, female) {
     G.draw.dg_zombie = function (ctx, S) {
         const W = S * AR, H = S, R = rnd(53);
         sky(ctx, W, H, '#c49bdd', '#6f4c9b');
-        fill(ctx, 'rgba(255,255,255,.14)', () => ctx.arc(W * 0.30, H * 0.30, H * 0.26, 0, Math.PI * 2));   // 흐린 달무리
-        // 연분홍 구름 줄 — 원본 4행 하늘의 가로 스트릭
-        fill(ctx, '#e3c9ec', () => ctx.ellipse(W * 0.20, H * 0.16, W * 0.11, H * 0.040, 0, 0, Math.PI * 2));
-        fill(ctx, '#d9bce6', () => ctx.ellipse(W * 0.52, H * 0.10, W * 0.09, H * 0.034, 0, 0, Math.PI * 2));
-        fill(ctx, '#e3c9ec', () => ctx.ellipse(W * 0.42, H * 0.26, W * 0.06, H * 0.026, 0, 0, Math.PI * 2));
+        /* 구름 = 납작한 **가로 밴드**(끝 둥근 막대). 종전의 큰 달무리 원 + 타원 구름은 '정체불명의
+           흰 얼룩이 떠 있다'로 읽혔다(비평가 7차) — 원본 4행 하늘도 수평 구름 밴드다. */
+        const band = (bx, by, bw, bh2, c) => fill(ctx, c, () => {
+            ctx.moveTo(bx, by); ctx.arc(bx, by + bh2 / 2, bh2 / 2, Math.PI * 1.5, Math.PI * 0.5, true);
+            ctx.lineTo(bx + bw, by + bh2); ctx.arc(bx + bw, by + bh2 / 2, bh2 / 2, Math.PI * 0.5, Math.PI * 1.5, true);
+            ctx.closePath();
+        });
+        band(W * 0.10, H * 0.13, W * 0.20, H * 0.048, '#dcc2e8');
+        band(W * 0.44, H * 0.08, W * 0.15, H * 0.040, '#d4b6e2');
+        band(W * 0.34, H * 0.24, W * 0.11, H * 0.036, '#dcc2e8');
         ground(ctx, W, H, H * 0.76, '#4a3563');
         // 구불한 어두운 길 — 원본 앞바닥의 진한 띠
         fill(ctx, '#3a2a52', () => { ctx.moveTo(0, H * 0.84); ctx.quadraticCurveTo(W * 0.35, H * 0.76, W * 0.60, H * 0.84); ctx.quadraticCurveTo(W * 0.80, H * 0.90, W, H * 0.84); ctx.lineTo(W, H); ctx.lineTo(0, H); });
@@ -4088,6 +4113,7 @@ IconGen._genderSym = function (ctx, S, female) {
             /* ⚠️ 해골이 작고 갈비 획이 가늘면 '해골 옆 거미'로 읽힌다(1차 시안) — 두개골을 키우고
                갈비는 두껍게, 척추선으로 잇는다. */
             const sx = W * 0.145, sy = H * 0.82, r = H * 0.088;
+            fill(ctx, 'rgba(15,10,28,.40)', () => ctx.ellipse(sx + r * 1.4, sy + r * 1.35, r * 2.6, r * 0.42, 0, 0, Math.PI * 2));   // 바닥 그림자 — '철망에 붙은 표지판'이 아니라 바닥에 놓인 소품(비평가 7차)
             ctx.strokeStyle = '#d9d2e6'; ctx.lineWidth = H * 0.030; ctx.lineCap = 'round';
             ctx.beginPath(); ctx.moveTo(sx + r * 1.0, sy + r * 0.55); ctx.lineTo(sx + r * 3.3, sy + r * 0.62); ctx.stroke();   // 척추
             [1.5, 2.15, 2.8].forEach(k => {                                                       // 갈비 아치(위로 솟은 반원)
