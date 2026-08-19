@@ -1749,8 +1749,14 @@ body {
     position: relative; height: .95rem; border-radius: .48rem; overflow: hidden;
     background: #17181a; border: var(--ol2) solid var(--pp-line);
 }
-.qst-bar i { display: block; height: 100%; background: linear-gradient(180deg, #4fc3f7, #0288d1); }
-.qst-row.done .qst-bar i { background: linear-gradient(180deg, #81e884, #2e9e31); }
+/* 채움 광택(9차, 비평가 라운드 1) — 파랑/초록 두 벌은 상태 신호(수령 대기=초록)라 공용 층으로 덮지
+   않고(8차 메모의 함정), **상태별 규칙 안에서** 광택 선·밴드를 넣는다. 색상환은 그대로다. */
+.qst-bar i { display: block; height: 100%; background:
+    linear-gradient(180deg, rgba(255,255,255,.5) 0 1px, rgba(255,255,255,0) 1px),
+    linear-gradient(180deg, #8fd9ff 0, #4fc3f7 38%, #0288d1 100%); }
+.qst-row.done .qst-bar i { background:
+    linear-gradient(180deg, rgba(255,255,255,.5) 0 1px, rgba(255,255,255,0) 1px),
+    linear-gradient(180deg, #aef2b0 0, #81e884 38%, #2e9e31 100%); }
 .qst-bar em {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     font-size: .62rem; font-weight: 900; font-style: normal; color: #fff;
@@ -2048,6 +2054,11 @@ body {
     margin: .3rem -.9rem calc(-1.2rem - var(--tabbar-h)); padding: .5rem .9rem calc(1.1rem + var(--tabbar-h));
     position: relative; z-index: 1;
     background: #afafaf; border-top: var(--ol3) solid var(--pp-line); /* 원본 밴드 rgb(175,175,175) — 이전 #d6d6d6(214)은 너무 밝았다 */
+    /* 9차(비평가 B 결함[8]): 회색 밴드가 다크 리스트와 단절 — **바탕색 #afafaf 는 원본 픽셀 실측값이라
+       유지**하고(probe-league-dom 이 footBg 를 잰다), 위 림 + 아래로 가는 그늘만 얹어 '받침판'으로 잇는다. */
+    background-image: linear-gradient(180deg, rgba(255,255,255,.40) 0 1px, rgba(255,255,255,.12) 8%,
+                                              rgba(255,255,255,0) 30%, rgba(0,0,0,.10) 100%);
+    box-shadow: 0 -.14rem .34rem rgba(0,0,0,.30);   /* 리스트 쪽으로 떨어지는 그림자 — 밴드가 위에 얹힌 판 */
 }
 .league-pinned { margin: 0 auto; width: 82%; }
 .league-actions { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; position: relative; justify-content: center; } /* 원본: 도전 중앙, ◀ 좌하단 분리 (185) */
@@ -3061,7 +3072,11 @@ body {
 }
 .modal-card .btn.equip, .panel .btn.equip { background: var(--pp-blue); color: #fff; box-shadow: inset 0 -.22rem 0 var(--pp-blue-dk); }
 .modal-card .btn.disabled, .panel .btn.disabled, #equip-sheet .btn.disabled {
-    background: var(--pp-gray); color: #7b7b7b; box-shadow: inset 0 -.22rem 0 var(--pp-gray-dk); opacity: .75;
+    /* opacity .75 → 1 (9차, 비평가 라운드 1): 던전 배너 위 '열기'가 반투명해 배경 일러스트가 비쳐
+       "렌더링 덜 된 버튼"으로 채점됐다(비평가 A 결함[3]). 비활성은 이미 회색 면 + 죽인 글자색
+       (#7b7b7b)이 말하고 있으므로 투명도는 걷는다 — `.skd-btn.silver.disabled`(4441행 부근)·
+       `.petup-selrow .btn.silver.disabled` 가 같은 이유로 먼저 걷어낸 전례를 따른다. */
+    background: var(--pp-gray); color: #7b7b7b; box-shadow: inset 0 -.22rem 0 var(--pp-gray-dk); opacity: 1;
 }
 .modal-card .btn:active, .panel .btn:active, #equip-sheet .btn:active { transform: translateY(.1rem); box-shadow: none; }
 /* 팝업 하단 액션 버튼 확대 — 원본(shot-043224 실측: 높이≈화면 6.9%, 판매/장착 2분할 큰 입체 버튼) */
@@ -3439,6 +3454,10 @@ body {
     position: absolute; top: -.2rem; left: 50%; transform: translateX(-50%);
     background: #17181a; color: #fff; border-radius: .4rem; padding: 0 .2rem;
     font-size: .5rem; font-weight: 800; white-space: nowrap;
+    /* 9차(비평가 B 결함[7]): 민짜 검정 스티커 → 위 광·림 + 아래 그늘 + 낙하 그림자 한 겹.
+       색·크기·위치는 그대로(칠 속성만). */
+    background-image: linear-gradient(180deg, rgba(255,255,255,.22) 0, rgba(255,255,255,0) 48%, rgba(0,0,0,.28) 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 .1rem .18rem rgba(0,0,0,.35);
 }
 /* 장착 오브 표기 — 원본(042340 3행 장착 오브 3개, 4배 확대 실측): 오브 아트가 강하게 어두워지고
    (아트 윤곽만 희미하게 남는 암도), 오브 **중심**에 오브보다 넓은 검정 타원이 앉는다 —
@@ -3590,6 +3609,7 @@ body {
         inset 0 -.2rem 0 rgba(0,0,0,.25),                                       /* 원래 아래턱 — 유지 */
         inset 0 .08rem 0 rgba(255,255,255,.55),                                 /* 위 림라이트 */
         inset .07rem 0 0 rgba(255,255,255,.16),                                 /* 왼쪽 얇은 하이라이트 */
+        inset 0 0 0 1px rgba(255,255,255,.14),                                  /* 내부 림 링(9차, 비평가 A 결함[6]) */
         0 0 .5rem -.08rem color-mix(in srgb, var(--rc, #ccc) 60%, transparent), /* 등급색 광 */
         0 .16rem .3rem rgba(0,0,0,.22);                                         /* 바깥 앰비언트 — 시트에서 뜬다 */
     transition: transform .08s ease-out, filter .08s;
@@ -6657,17 +6677,21 @@ body {
    🚨 원본은 이 면들이 플랫이다. 톤 프로브가 '원본과 다르다'고 잡아도 감점이 아니라 이 항목의 지시다
       (최우선 규칙 1: 사용자 지시 > 원본 — 사용자 원문 '지금 심플한 퀄리티니까 좀 더 올리셈' + '원신급으로'). */
 .modal-card.sheet:not(.league-sheet):not(.shop-sheet) {
+    /* 9차(비평가 라운드 1): 결 .016 은 실화면에서 식별 불가로 채점됐다(비평가 B 결함[6]·[11] —
+       "미완성 흰 판"). 결·그늘을 한 단계 올리고 상단 엣지 림을 넣는다. */
     background-image:
-        repeating-linear-gradient(45deg, rgba(23,24,26,.016) 0 2px, rgba(23,24,26,0) 2px 9px), /* 종이 결 */
+        linear-gradient(180deg, rgba(255,255,255,.9) 0 2px, rgba(255,255,255,0) 2px),           /* 상단 엣지 림 */
+        repeating-linear-gradient(45deg, rgba(23,24,26,.026) 0 2px, rgba(23,24,26,0) 2px 9px),  /* 종이 결 */
         radial-gradient(124% 42% at 50% -4%, rgba(255,255,255,.92) 0, rgba(255,255,255,0) 72%), /* 위쪽 광원 */
-        linear-gradient(180deg, #fff 0, #fafafb 52%, #f1f0f3 100%);                             /* 아래로 가는 그늘 */
+        linear-gradient(180deg, #fff 0, #f9f8fa 52%, #edecf0 100%);                             /* 아래로 가는 그늘 */
     /* 아래 가장자리 안쪽 그늘 — 시트가 탭바 위로 얹힌 '판'으로 읽힌다 */
-    box-shadow: inset 0 -1rem 1.1rem -1rem rgba(23,24,26,.13);
+    box-shadow: inset 0 -1rem 1.1rem -1rem rgba(23,24,26,.16);
 }
 /* 장비 셀(메인 하단 8부위 그리드) — 탈것 셀(.egg-cell)은 이미 광택 처방이 따로 있어 뺀다 */
 .equip-cell:not(.egg-cell) {
     background-image:
         radial-gradient(118% 86% at 26% 12%, rgba(255,255,255,.30) 0, rgba(255,255,255,0) 56%),  /* 좌상단 광택 */
+        radial-gradient(62% 54% at 50% 46%, rgba(255,255,255,.11) 0, rgba(255,255,255,0) 72%),   /* 아이콘 백플레이트(9차, 비평가 A 결함[9] — 다크 온 다크 침몰 완화) */
         linear-gradient(180deg, rgba(255,255,255,.16) 0, rgba(255,255,255,0) 32%,
                                 rgba(0,0,0,.06) 64%, rgba(0,0,0,.22) 100%),                      /* 위→아래 명암 */
         repeating-linear-gradient(45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),           /* 원래 크로스해치 */
@@ -6718,13 +6742,16 @@ body {
    🚨 수령 대기 행(.qst-row.done)은 초록 배경(#f2fff2)이 신호다 — 배경**색**은 안 건드리고
       같은 이미지 층만 얹히므로 초록기가 유지된다(그 규칙이 아래에 있어 색은 그대로 이긴다). */
 .qst-row {
+    /* 9차(비평가 라운드 1): 종전 알파(결 .014·그늘 .075)는 "순수 흰색 단층"으로 채점됐다
+       (비평가 B 결함[2]). 흰 카드가 회색이 되지 않는 선에서 결·그늘 대비를 한 단계 올린다. */
     background-image:
-        repeating-linear-gradient(45deg, rgba(23,24,26,.014) 0 2px, rgba(23,24,26,0) 2px 9px), /* 종이 결 */
-        linear-gradient(180deg, rgba(255,255,255,.95) 0, rgba(255,255,255,0) 38%,
-                                rgba(23,24,26,.035) 78%, rgba(23,24,26,.075) 100%);            /* 위 광 → 아래 그늘 */
+        repeating-linear-gradient(45deg, rgba(23,24,26,.030) 0 2px, rgba(23,24,26,0) 2px 9px), /* 종이 결 */
+        linear-gradient(180deg, rgba(255,255,255,.95) 0, rgba(255,255,255,0) 34%,
+                                rgba(23,24,26,.055) 72%, rgba(23,24,26,.115) 100%);            /* 위 광 → 아래 그늘 */
     box-shadow:
         0 .25rem 0 rgba(0,0,0,.3),                     /* 원래 아래턱 — 유지 */
-        inset 0 .08rem 0 rgba(255,255,255,.95);        /* 위 림라이트 */
+        inset 0 .08rem 0 rgba(255,255,255,.95),        /* 위 림라이트 */
+        inset 0 -.5rem .5rem -.5rem rgba(23,24,26,.10);/* 아래 안쪽 그늘 — 카드가 종이 한 장에서 판이 되게 */
 }
 
 /* ===== 버튼 표면 AAA 스킨 (slug: ui-quality-up — 5차 슬라이스) =====
@@ -6756,11 +6783,15 @@ body {
 .modal-card .btn.btn:not(.silver):not(.ascend-ready),
 .panel .btn.btn:not(.silver):not(.ascend-ready),
 #equip-sheet .btn.btn:not(.silver):not(.ascend-ready) {
+    /* 🚨 9차(비평가 라운드 1 66·62점 반영): 종전 값(위 광 .22 radial + 명암 .10/.18)은 실화면에서
+       "광택 없는 평면"으로 채점됐다(비평가 A 결함[1]·B 결함[4] — 파란 CTA 전부 단색으로 읽힘).
+       원신식 캔디 버튼은 **상단 광택 밴드의 경계선이 보여야** 한다 — 위 45% 를 뚜렷이 밝히고
+       46% 에서 끊어 밴드 엣지를 만든다. 값은 전부 반투명이라 파랑/빨강/회색 어느 면에도 얹힌다. */
     background-image:
-        linear-gradient(180deg, rgba(255,255,255,.55) 0 1px, rgba(255,255,255,0) 1px),           /* 위 림라이트(머리카락 선) */
-        radial-gradient(122% 76% at 50% -12%, rgba(255,255,255,.22) 0, rgba(255,255,255,0) 60%), /* 위 광원 */
-        linear-gradient(180deg, rgba(255,255,255,.10) 0, rgba(255,255,255,0) 36%,
-                                rgba(0,0,0,.07) 70%, rgba(0,0,0,.18) 100%);                      /* 위→아래 명암 */
+        linear-gradient(180deg, rgba(255,255,255,.60) 0 1px, rgba(255,255,255,0) 1px),           /* 위 림라이트(머리카락 선) */
+        linear-gradient(180deg, rgba(255,255,255,.30) 0, rgba(255,255,255,.12) 40%,
+                                rgba(255,255,255,0) 46%,                                          /* ← 광택 밴드 엣지 */
+                                rgba(0,0,0,.06) 72%, rgba(0,0,0,.17) 100%);                      /* 아래 그늘 */
 }
 
 /* ===== 리그 랭킹 행 AAA 스킨 (slug: ui-quality-up — 7차 슬라이스) =====
@@ -6813,28 +6844,40 @@ body {
       일치), 상단바 `#1c2128`·재화 바 `#22272e` 도 마찬가지로 이미 맞춰 둔 값이다. 여기서는 그 색
       **위에** 반투명 층만 얹는다(톤 프로브가 '원본과 다르다'고 잡아도 그건 이 항목의 지시다 —
       2차 슬라이스 머리말의 같은 단서). */
+/* 🚨 9차(비평가 라운드 1 반영): 종전 알파(.05~.10)는 frame-bands 클로즈업에서 "재질 없는 검은
+   사각형"으로 채점됐다(비평가 A 결함[2]·[8]). 바탕색은 그대로 두고 층의 대비만 올린다. */
 #topbar {
     background-image:
-        linear-gradient(180deg, rgba(255,255,255,.10) 0 1px, rgba(255,255,255,0) 1px),   /* 위 림라이트 */
-        linear-gradient(180deg, rgba(255,255,255,.05) 0, rgba(255,255,255,0) 42%,
-                                rgba(0,0,0,.16) 100%);                                   /* 아래로 가는 그늘 */
-    box-shadow: 0 .16rem .3rem rgba(0,0,0,.28);   /* 밴드가 전투 화면 위에 얹힌 판으로 읽히게 */
+        linear-gradient(180deg, rgba(255,255,255,.16) 0 1px, rgba(255,255,255,0) 1px),   /* 위 림라이트 */
+        linear-gradient(180deg, rgba(255,255,255,.09) 0, rgba(255,255,255,.02) 40%,
+                                rgba(0,0,0,.10) 68%, rgba(0,0,0,.26) 100%);              /* 아래로 가는 그늘 */
+    box-shadow: 0 .18rem .4rem rgba(0,0,0,.34);   /* 밴드가 전투 화면 위에 얹힌 판으로 읽히게 */
 }
 #tabbar {
+    /* ⚠️ 이 그라디언트는 probe-tabbar 의 잉크 판정을 깨뜨릴 수 있어, 그 프로브가 **캡처 시에만
+       탭바 칠 층을 끈다**(라벨 숨김과 같은 기준 맞추기 — 2026-08-19 9차에서 summon 아이콘
+       유령 축소로 실측). 칠 회귀는 probe-sheet-skin frame-bands 화면이 지킨다. */
     background-image:
-        linear-gradient(0deg, rgba(255,255,255,.05) 0 1px, rgba(255,255,255,0) 1px),     /* 아래 가장자리 광 */
-        linear-gradient(180deg, rgba(255,255,255,.07) 0, rgba(255,255,255,0) 38%,
-                                rgba(0,0,0,.20) 100%);                                   /* 위 광 → 아래 그늘 */
-    box-shadow: inset 0 .07rem 0 rgba(255,255,255,.10);   /* 위 림라이트(테두리 선 위에 얹힌다) */
+        linear-gradient(0deg, rgba(255,255,255,.08) 0 1px, rgba(255,255,255,0) 1px),     /* 아래 가장자리 광 */
+        linear-gradient(180deg, rgba(255,255,255,.11) 0, rgba(255,255,255,.02) 34%,
+                                rgba(0,0,0,.12) 66%, rgba(0,0,0,.28) 100%);              /* 위 광 → 아래 그늘 */
+    box-shadow: inset 0 .07rem 0 rgba(255,255,255,.14);   /* 위 림라이트(테두리 선 위에 얹힌다) */
+}
+/* 활성 탭 언더글로우(비평가 A 결함[2] — 활성 탭에 글자색 외 처리가 없다).
+   base `#tabbar button`(1-0-1)의 background:none 단축이 이미지를 지우므로 여기(1-1-1)가 이긴다.
+   글자색(#ffd54f)과 같은 계열의 반투명 광이라 탭바 실측 톤을 안 민다. */
+#tabbar button.active {
+    background-image: radial-gradient(86% 58% at 50% 100%, rgba(255,213,79,.20) 0, rgba(255,213,79,0) 72%);
 }
 /* 재화 바(코인·젬) — 안쪽으로 파인 홈처럼. 숫자·아이콘 자리는 그대로다. */
 .currency-pills .pill {
     background-image:
-        linear-gradient(180deg, rgba(0,0,0,.22) 0, rgba(0,0,0,0) 46%,
-                                rgba(255,255,255,.07) 100%);
+        linear-gradient(180deg, rgba(0,0,0,.30) 0, rgba(0,0,0,0) 46%,
+                                rgba(255,255,255,.10) 100%);
     box-shadow:
-        inset 0 .09rem .14rem rgba(0,0,0,.42),          /* 위 안쪽 그늘 = 파인 홈 */
-        inset 0 -.06rem 0 rgba(255,255,255,.09);        /* 아래 가장자리 반사 */
+        inset 0 .11rem .18rem rgba(0,0,0,.52),          /* 위 안쪽 그늘 = 파인 홈 */
+        inset 0 -.06rem 0 rgba(255,255,255,.13),        /* 아래 가장자리 반사 */
+        inset 0 0 0 1px rgba(0,0,0,.30);                /* 홈 테두리 링 */
 }
 
 /* ===== 게이지 표면 AAA 스킨 (slug: ui-quality-up — 7차 슬라이스) =====
@@ -6848,12 +6891,16 @@ body {
       상태 신호(수령 대기=초록)라, 여기에 층을 얹으면 그 신호가 덮인다. 트랙만 홈으로 만든다.
    🚨 `.tech-prog #tech-node-fill`(1-1-0)이 `background:` 단축으로 파랑을 주므로, `#tech-node-fill`
       한 겹(1-0-0)으로 적으면 기술 노드 진행바에서만 광택이 사라진다 — 그 선택자를 같이 적었다. */
+/* 🚨 9차(비평가 라운드 1 반영): 종전 값은 "검은 알약 민짜"로 채점됐다(비평가 A 결함[4]·B 결함[3]).
+   트랙 홈을 깊게 파고, 채움엔 광택 밴드 엣지(46%)를 만든다 — 버튼 9차와 같은 문법. */
 .upg-progress, .summon-gauge, .qst-bar {
     box-shadow:
-        inset 0 .1rem .16rem rgba(0,0,0,.5),        /* 위 안쪽 그늘 = 파인 홈 */
-        inset 0 -.05rem 0 rgba(255,255,255,.08);    /* 아래 가장자리 반사 */
+        inset 0 .13rem .22rem rgba(0,0,0,.62),      /* 위 안쪽 그늘 = 파인 홈 */
+        inset 0 -.06rem 0 rgba(255,255,255,.12),    /* 아래 가장자리 반사 */
+        inset 0 0 0 1px rgba(0,0,0,.35);            /* 홈 테두리 링 — 0% 상태에서도 파인 면으로 읽히게 */
 }
 #upg-fill, #tech-node-fill, .tech-prog #tech-node-fill, .summon-gauge i {
-    background-image: linear-gradient(180deg, rgba(255,255,255,.36) 0, rgba(255,255,255,.12) 44%,
-                                              rgba(0,0,0,.06) 72%, rgba(0,0,0,.20) 100%);
+    background-image: linear-gradient(180deg, rgba(255,255,255,.55) 0 1px, rgba(255,255,255,.32) 1px,
+                                              rgba(255,255,255,.12) 40%, rgba(255,255,255,0) 46%,
+                                              rgba(0,0,0,.08) 74%, rgba(0,0,0,.24) 100%);
 }

@@ -43,6 +43,12 @@ const KILL_SKIN = `
 /* 7차 슬라이스 — 게이지 트랙·채움 */
 .upg-progress, .summon-gauge, .qst-bar { box-shadow: none !important; }
 #upg-fill, #tech-node-fill, .tech-prog #tech-node-fill, .summon-gauge i { background-image: none !important; }
+/* 9차 슬라이스 — 비평가 라운드 1 반영분(활성 탭 글로우·배지·리그 하단 밴드·퀘스트 채움 광택) */
+#tabbar button.active { background-image: none !important; }
+.sk-ribbon { background-image: none !important; box-shadow: none !important; }
+.league-foot { background-image: none !important; box-shadow: none !important; }
+.qst-bar i { background: linear-gradient(180deg, #4fc3f7, #0288d1) !important; }
+.qst-row.done .qst-bar i { background: linear-gradient(180deg, #81e884, #2e9e31) !important; }
 `;
 
 (async () => {
@@ -69,7 +75,10 @@ const KILL_SKIN = `
         ['quests', `UI.openQuests && UI.openQuests()`,
             '#quest-modal .modal-card.sheet, #quest-modal .qst-row, #quest-modal .qst-bar, #quest-modal .qst-bar i'],
         ['dungeons', `UI.openDungeons()`, '#dungeon-modal .modal-card.sheet, #dungeon-modal .dg-banner'],
-        ['pets', `UI.switchTab('summon'); UI.switchSummonSub('pets')`,
+        // 🚨 앞 화면(dungeons)이 연 모달을 반드시 닫고 시작할 것 — 탭 전환은 모달을 안 닫아서,
+        //    안 닫으면 던전 시트가 위에 덮인 채 캡처돼 "펫 캡처가 던전 중복"이 된다
+        //    (2026-08-19 비평가 2인이 실제로 잡은 증거 결함 — 펫 화면이 통째로 미검증이었다).
+        ['pets', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.switchTab('summon'); UI.switchSummonSub('pets')`,
             '#panel-pets .sk-grid, #panel-pets .pet-tile, #panel-pets .summon-gauge, #panel-pets .summon-gauge i'],
         // 3차 슬라이스 — 가운데 정렬 팝업 카드(.modal-card:not(.sheet)) 바탕
         ['player-info', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.openPlayerInfo()`,
@@ -105,6 +114,12 @@ const KILL_SKIN = `
         await page.screenshot({ path: path.resolve(__dirname, `sheet-skin-${label}.png`), timeout: 180000 });
 
         if (!withSkin.length) { console.log(`  FAIL ${label}: 요소를 못 찾음(${sel})`); fail++; continue; }
+        // 화면 고유성 가드 — 패널 화면(#panel-…) 캡처인데 열린 모달이 위에 덮여 있으면 그 캡처는
+        // 파일명과 다른 화면이다(비평가가 잡은 '펫 캡처=던전 중복' 재발 방지).
+        if (/#panel-/.test(sel)) {
+            const covered = await page.evaluate(() => [...document.querySelectorAll('.modal:not(.hidden)')].map(m => m.id).join(','));
+            if (covered) { console.log(`  FAIL ${label}: 패널 캡처 위에 모달이 덮여 있음(${covered})`); fail++; continue; }
+        }
         if (withSkin.length !== without.length) { console.log(`  FAIL ${label}: 요소 수 ${without.length} → ${withSkin.length}`); fail++; continue; }
         // 무리 전체가 같이 밀리는 것(스크롤)은 레이아웃 변화가 아니다 — 첫 요소 기준 상대 좌표로 비교한다.
         const norm = arr => arr.map(b => [b[0] - arr[0][0], b[1] - arr[0][1], b[2], b[3]]);

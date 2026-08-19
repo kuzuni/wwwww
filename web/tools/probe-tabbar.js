@@ -123,7 +123,13 @@ const SCAN = function (data, W, y0, y1, cells) {
         };
     });
     // 라벨을 숨기고 탭바만 캡처 → 원본과 동일한 잉크 스캔
-    await page.addStyleTag({ content: '#tabbar button span{visibility:hidden!important}' });
+    // 🚨 탭바 **칠 층(그라디언트·글로우)도 캡처에서만 끈다** (2026-08-19, ui-quality-up 9차 실측):
+    // 스킨의 세로 그라디언트 총 진폭이 잉크 임계(합 40)를 넘으면 셀 최빈색이 상/하단 행 색으로
+    // 잡히고, 중간 행 전체가 '잉크'가 돼 구조선 필터(80% 규칙)에 걸려 **아이콘 행까지 통째로
+    // 버려진다**(summon 9.82→5.21%W 유령 축소). 이 프로브의 판정 대상은 아이콘 잉크 기하이지
+    // 밴드 칠이 아니므로, 라벨 숨김과 같은 '기준 맞추기'다. 밴드 칠 자체의 회귀는 probe-sheet-skin
+    // (frame-bands 화면)이 지킨다.
+    await page.addStyleTag({ content: '#tabbar button span{visibility:hidden!important} #tabbar{background-image:none!important;box-shadow:none!important} #tabbar button.active{background-image:none!important}' });
     const clipShot = await page.screenshot({ clip: { x: 0, y: dom.band.y, width: VW, height: dom.band.h } });
     const clone = await page.evaluate(async ([src, scanSrc, n]) => {
         const img = new Image();
