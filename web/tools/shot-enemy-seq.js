@@ -56,8 +56,28 @@ const N = +(process.argv[3] || 8);
             look: new THREE.Vector3(c.x, Math.max(0.05, c.y * 0.86), c.z),   // 접지선이 프레임에 들어와야 홀드가 읽힌다
         };
         const G = Scene3D.gaitOf(m.anim && m.anim.kind, false);
-        window.__poseAt = (t) => { Scene3D._clock = t; Scene3D.update(0); };
-        return 2 * Math.PI / G.rate;   // 한 보행 사이클(홉 2회)
+        // 🚨 **핀 고정** — `Scene3D._clock` 만 찍고 두면 스크린샷 전에 rAF 가 `_clock += dt` 로 밀어
+        //    다른 위상이 찍힌다. update 를 감싸 매 프레임 핀 시각으로 되돌린 뒤 dt=0 으로 돌린다.
+        //    (update 를 통째로 얼리면 렌더도 멈춘다 — main.js rAF 는 update 안에서 렌더한다.)
+        const ORIG = Scene3D.update.bind(Scene3D);
+        window.__pinClk = null;
+        Scene3D.update = (dt) => { if (window.__pinClk != null) { Scene3D._clock = window.__pinClk; ORIG(0); } else ORIG(dt); };
+        window.__poseAt = (t) => { window.__pinClk = t; Scene3D._clock = t; Scene3D.update(0); };
+        // 🚨 **위상 정렬 표본** — 균등 표본은 카툰 홉을 못 찍는다. 스쿼시는 접지(주기의 11%) 부근에만
+        //    몰려 있고 체공 38%는 중립이라, 6장을 균등하게 뽑으면 **전부 중립 구간**에 걸릴 수 있다
+        //    (실측: 균등 6표본 sy 폭 0.083 = 눌린 프레임이 한 장도 없음 / 위상 정렬 5표본 0.171).
+        //    1차 비평가 2인이 '버섯이 안 뛴다'고 본 것이 이 표본 문제다.
+        //    hopU = (clk·rate + id)/π 이므로 원하는 hopU 를 만드는 clk 을 역산한다.
+        const gc = Math.min(0.34, Math.max(0.05, 0.11 * G.bobPow));
+        const HOP_U = [0.005, gc * 0.55, gc + 0.08, gc + (1 - gc) * 0.47, gc + (1 - gc) * 0.80, gc + (1 - gc) * 0.97];
+        const period = 2 * Math.PI / G.rate;
+        window.__phaseTimes = HOP_U.map(u => {
+            let clk = (u * Math.PI - e.id) / G.rate;
+            while (clk < 0) clk += period * 8;
+            return clk;
+        });
+        window.__phaseLabels = ['접지', '접지끝', '이륙', '정점', '낙하', '착지직전'];
+        return period;   // 한 보행 사이클(홉 2회)
     }, KIND);
     await page.evaluate(() => {
         for (const sel of ['#topbar', '#equip-sheet', '#skill-bar', '#stage-label', '#wave-pips', '#chat-preview', '#loot-feed', '#hero-hp-wrap', '.waypoint', '#offline-btn'])
@@ -70,14 +90,25 @@ const N = +(process.argv[3] || 8);
         const r = document.querySelector('canvas').getBoundingClientRect();
         return { x: Math.max(0, r.x), y: Math.max(0, r.y), width: r.width, height: r.height };
     });
-    for (let i = 0; i < N; i++) {
-        const u = i / N;
-        await page.evaluate((t) => window.__poseAt(t), period * u);
+    // 기본은 **위상 정렬 표본**(접지→이륙→정점→낙하→착지직전). `EVEN=1` 이면 옛 균등 표본으로 돈다
+    //    — 균등 표본은 '같은 코드인데 왜 안 움직여 보이나'를 재현할 때만 쓸 것.
+    const times = process.env.EVEN ? Array.from({ length: N }, (_, i) => period * i / N)
+        : await page.evaluate(() => window.__phaseTimes);
+    const labels = process.env.EVEN ? times.map((_, i) => `u${i}`)
+        : await page.evaluate(() => window.__phaseLabels);
+    for (let i = 0; i < times.length; i++) {
+        await page.evaluate((t) => window.__poseAt(t), times[i]);
         await page.waitForTimeout(80);
-        await page.evaluate((t) => window.__poseAt(t), period * u);  // 대기 중 rAF 가 한 번 흘렸을 수 있으니 다시 찍는다
-        const name = `enemyseq-${KIND}-${String(Math.round(u * 100)).padStart(3, '0')}.png`;
+        await page.evaluate((t) => window.__poseAt(t), times[i]);  // 핀이 있어도 한 번 더 찍는다(무해)
+        const tag = String(i).padStart(2, '0');
+        const name = `enemyseq-${KIND}-${tag}-${labels[i]}.png`;
         await page.screenshot({ path: OUT + '/' + name, clip: rect });
-        console.log('saved ' + name);
+        // 실제로 그 위상이 걸렸는지 자백시킨다 — 스케일·높이를 같이 찍는다
+        const st = await page.evaluate(() => {
+            const mm = Scene3D.enemyMap.get(999); const b = mm.baseScale || 1;
+            return { sy: +(mm.g.scale.y / b).toFixed(3), y: +mm.g.position.y.toFixed(3) };
+        });
+        console.log(`saved ${name}  (sy ${st.sy} · y ${st.y})`);
     }
     console.log(errors.length ? ('콘솔 에러 ' + errors.length + '건: ' + errors.slice(0, 3).join(' | ')) : '(no console errors)');
     await browser.close();

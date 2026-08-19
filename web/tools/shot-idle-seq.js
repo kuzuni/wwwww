@@ -41,8 +41,21 @@ const N = +(process.argv[2] || 6);
         Scene3D.heroG.getWorldDirection(fwd);
         fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.35);
         Scene3D.camLock = { pos: c.clone().add(fwd.multiplyScalar(d)).add(new THREE.Vector3(0, d * 0.30, 0)), look: c.clone() };
-        // rAF 가 _t 를 밀지 못하게 고정 — 프레임마다 우리가 직접 찍는다
-        window.__poseAt = (u) => { R._t = R._clip.dur * u; R.update(0); };
+        // 🚨 rAF 가 _t 를 밀지 못하게 **핀 고정**(2026-08-19 — `shot-walk-seq.js` 와 같은 수리).
+        //    종전처럼 찍기만 하면 스크린샷 직전에 rAF 가 `heroRig.update(dt)` 로 _t 를 밀어 다른 위상이
+        //    저장된다. 대기는 진폭이 작아 눈에 잘 안 띄지만, '4프레임이 다 같아 보인다'의 일부는 이것이다.
+        //    (걷기 쪽은 같은 함정이 **클립 자체를 Idle 로** 바꿔 놨다 — 그쪽 머리말 참조.)
+        Scene3D.heroPlay = () => {};
+        R.play('Idle');
+        const ORIG = Scene3D.update.bind(Scene3D);
+        window.__pin = null;
+        Scene3D.update = (dt) => {
+            if (window.__pin != null) { R._t = R._clip.dur * window.__pin; ORIG(0); } else ORIG(dt);
+            // update 는 매 프레임 `heroHpG.visible = !heroDead` 로 바를 되살린다 — 캡처에서 머리 위
+            // 초록 바가 계속 찍히던 원인이다. 셋업의 visible=false 로는 못 막으므로 여기서 다시 끈다.
+            if (Scene3D.heroHpG) Scene3D.heroHpG.visible = false;
+        };
+        window.__poseAt = (u) => { window.__pin = u; R._t = R._clip.dur * u; R.update(0); };
     });
     await page.waitForTimeout(600);
 
