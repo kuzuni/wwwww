@@ -11585,6 +11585,16 @@ const Scene3D = {
         this.bushMat.color.copy(leaf(-0.01, 0.05, -0.1 + dF));   // 덤불도 같은 바닥값 — 늪지에서 #040503(사실상 순흑)이었다
         this.hemi.color.setHex(t.sky);
         this.hemi.groundColor.copy(gC.clone().offsetHSL(0, 0, -0.1));
+        // 흙길 데칼을 바이옴 흙색으로 (map-quality-up, 비평가 2인 공통 1위 지적) — 데칼 캔버스는
+        // 고정 황토 톤이라, 마법(보라)·설원(청야)·용암(암갈) 같은 유색 바이옴에서 "씬 색과 무관한
+        // 회베이지 가로 띠 = 오버레이 버그"로 읽혔다. 재질 곱셈 틴트로 색상만 바이옴 지면 팔레트
+        // (gC 색상·채도)로 끌어오고 명도 결(다짐 자국·자갈)은 텍스처가 그대로 쥔다. 초원·사막처럼
+        // 원래 흙색과 가까운 바이옴은 틴트가 거의 백색이라 종전 그림을 해치지 않는다.
+        if (this.pathMesh) {
+            const g = gC.getHSL({ h: 0, s: 0, l: 0 });
+            const bTint = new THREE.Color().setHSL(g.h, U.clamp(g.s, 0, 0.7), 0.7);
+            this.pathMesh.material.color.copy(new THREE.Color(0xffffff).lerp(bTint, 0.62));
+        }
         // 바이옴 소품 교체 (같은 바이옴이면 그대로 유지)
         const biome = t.biome || 'forest';
         const kin = this.bkin(biome);          // 신설 바이옴의 조명·안개·돌색 분기 기준
