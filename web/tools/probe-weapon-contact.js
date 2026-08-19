@@ -79,11 +79,16 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
             return n ? [x0, y0, x1, y1].map(v => +v.toFixed(1)) : null;
         };
         // 무기 '끝' = weaponG 정점 중 파지점에서 가장 먼 **실제 정점**(AABB 꼭짓점은 허공이라 금지)
+        // + 접촉 판정용 '헤드 영역' = 파지에서 먼 25% 정점 전부. ⚠️ 접촉을 최원점 하나로 재면 안 된다 —
+        //   weapon-size-2x(2026-08-19) 로 무기가 2배가 되자 **최원점의 호가 적 bbox 를 감싸고 돌아**
+        //   헤드 부피가 시각적으로 적을 관통하는 프레임에서도 최원점은 0.5~4px 바깥을 지났다(유령 FAIL).
+        //   원 지적 ⓑ(무기가 어깨 뒤)는 헤드 영역 전체가 적에서 멀므로 이 자로도 그대로 잡힌다.
         const weaponTip = () => {
             const w = S.weaponG;
             if (!w) return null;
             w.updateWorldMatrix(true, true);
             const grip = w.getWorldPosition(new THREE.Vector3());
+            const pts = [];
             let best = null, bestD = -1;
             w.traverse(o => {
                 const pos = o.isMesh && o.geometry && o.geometry.attributes && o.geometry.attributes.position;
@@ -93,10 +98,12 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
                     V.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
                     const d = V.distanceTo(grip);
                     if (d > bestD) { bestD = d; best = V.clone(); }
+                    pts.push({ d, v: V.clone() });
                 }
             });
             if (!best) return null;
-            return { screen: S.project(best), grip: S.project(grip), len: +bestD.toFixed(3) };
+            return { screen: S.project(best), grip: S.project(grip), len: +bestD.toFixed(3),
+                head: pts.filter(p => p.d >= bestD * 0.75).map(p => S.project(p.v)) };
         };
         // 점 → 사각형 거리(안이면 음수 = 가장 가까운 변까지 파고든 깊이)
         const distToBox = (p, b) => {
@@ -141,7 +148,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
                 tip: tip && { x: +tip.screen.x.toFixed(1), y: +tip.screen.y.toFixed(1), len: tip.len },
                 grip: tip && { x: +tip.grip.x.toFixed(1), y: +tip.grip.y.toFixed(1) },
                 enemy: ebox,
-                dist: tip && ebox ? +distToBox(tip.screen, ebox).toFixed(1) : null,
+                dist: tip && ebox ? +Math.min(...tip.head.map(p => distToBox(p, ebox))).toFixed(1) : null,
             };
         };
 

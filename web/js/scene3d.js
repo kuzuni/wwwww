@@ -144,7 +144,7 @@ const Scene3D = {
         this.weaponG.visible = true;
         this.weaponG.position.set(0, 0, 0);
         this.weaponG.rotation.set(0, 0, 0);
-        this.weaponG.scale.setScalar(1.22); // 무기 존재감 20% 업 (비평가 지적)
+        this.weaponG.scale.setScalar(2.44); // 무기 2배(weapon-size-2x 사용자 지시 2026-08-19) — 종전 1.22(존재감 업)의 ×2. 프리뷰(previewSyncHero)·applyWeaponGrip 과 세 곳이 한 세트
         // 투구: 머리 마운트 (legacy helmetG 로컬 좌표 = 머리 중심 기준이라 그대로 이식)
         rig.headMount.add(this.helmetG);
         this.helmetG.visible = true;
@@ -3727,9 +3727,12 @@ const Scene3D = {
         const gp = grip.pos || [0, 0, 0];
         this.weaponG.position.set(gp[0], gp[1], gp[2]);
         this.weaponG.rotation.set(grip.rot[0], grip.rot[1], grip.rot[2]);
-        const sc = 1.22 * (grip.scale || 1);
+        const sc = 2.44 * (grip.scale || 1); // 기본 2.44 = weapon-size-2x(사용자 지시 2026-08-19, 종전 1.22 의 ×2)
         this.weaponG.scale.setScalar(sc); // 기본 존재감 스케일 × 무기별 보정 (활계 과대 축소)
-        if (this.heroRig) this.weaponG.add(this.makeGripWrap(grip.shaftR || 0.033, 1 / sc)); // 파지점 C자 랩 주먹 (refreshHeroEquip의 clearGroup이 수명 관리)
+        // ⚠️ 파지 랩에는 **월드 자루 반경**(shaftR × sc)을 넘긴다 — 랩은 1/sc 역스케일로 손 크기를
+        //    지키므로, 로컬 반경을 그대로 주면 무기 배율이 오를 때 자루가 주먹 링보다 굵어져 뚫고 나온다
+        //    (2배 상향에서 실제로 0.080 > 0.051 로 뚫렸다). 링 = 월드 자루 + 0.018 여유.
+        if (this.heroRig) this.weaponG.add(this.makeGripWrap((grip.shaftR || 0.033) * sc, 1 / sc)); // 파지점 C자 랩 주먹 (refreshHeroEquip의 clearGroup이 수명 관리)
         this._gripRot = grip.rot;
         this._gripPos = gp;
     },
@@ -8828,6 +8831,10 @@ const Scene3D = {
     heroAttack(targetId) {
         const m = this.enemyMap.get(targetId);
         const W = this.worldX;
+        // ⚠️ weapon-size-2x(2026-08-19) 때 이 정지 거리(0.6)를 0.32/1.15 로 흔들어 봤지만 원복했다 —
+        //    2배 무기는 **최원점(끝점) 호가 적 bbox 를 감싸고 돌아** 끝점 기준 접촉이 성립하지 않는
+        //    기하 문제라, 정지 거리로는 못 고친다(1.15 는 근접 적에게 tx 가 fromX 뒤로 가 돌진이 후진).
+        //    접촉 판정은 프로브의 자를 '헤드 영역(파지에서 먼 25% 정점) 최근접'으로 교정해 해소했다.
         const tx = Math.min(m ? m.g.position.x - 0.6 : Combat.MELEE_X + W, 0.7 + W); // 돌진 거리 제한
         const fromX = Combat.HERO_X + W;
         const wt = WEAPON_TYPES[this.wtypeId];
@@ -12225,7 +12232,7 @@ const Scene3D = {
         const w = S.equipment.weapon;
         const wg = new THREE.Group();
         wg.add(this.makeWeapon(w ? (w.wtype || 'sword') : 'club', w ? w.ageIdx : 0, w && w.rarity));
-        wg.scale.setScalar(1.22);
+        wg.scale.setScalar(2.44); // weapon-size-2x — 본편(147·applyWeaponGrip)과 같은 배율
         rig.handR.add(wg);
         this._pvWeapon = wg;
         const h = S.equipment.helmet;

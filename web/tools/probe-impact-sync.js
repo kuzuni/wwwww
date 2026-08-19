@@ -46,11 +46,17 @@ const REPS = [['slash', 'sword'], ['chop', 'axe'], ['thrust', 'spear'], ['double
             });
             return n ? [x0, y0, x1, y1] : null;
         };
+        // '무기 끝' = 파지에서 먼 25% 정점(헤드 영역) 전부. ⚠️ 최원점 하나만 쓰면 안 된다 —
+        // weapon-size-2x(2026-08-19) 로 무기가 2배가 되자 **최원점의 호가 적 bbox 를 감싸고 돌아**
+        // 헤드 부피가 시각적으로 적을 관통하는 프레임에서도 최원점은 0.5~4px 바깥을 지났다
+        // (chop/slam '접촉 프레임 없음' 유령 FAIL). 접촉해야 하는 건 점이 아니라 업무 끝단 영역이다.
+        // 원 지적 ⓑ(무기가 어깨 뒤에 서 있다)는 헤드 영역 전체가 적에서 멀므로 이 자로도 잡힌다.
         const weaponTip = () => {
             const w = D.weaponG;
             w.updateWorldMatrix(true, true);
             const grip = w.getWorldPosition(new THREE.Vector3());
-            let best = null, bestD = -1;
+            const pts = [];
+            let bestD = -1;
             w.traverse(o => {
                 const pos = o.isMesh && o.geometry && o.geometry.attributes && o.geometry.attributes.position;
                 if (!pos || o.visible === false) return;
@@ -58,10 +64,12 @@ const REPS = [['slash', 'sword'], ['chop', 'axe'], ['thrust', 'spear'], ['double
                 for (let i = 0; i < pos.count; i += stride) {
                     V.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
                     const d = V.distanceTo(grip);
-                    if (d > bestD) { bestD = d; best = V.clone(); }
+                    if (d > bestD) bestD = d;
+                    pts.push({ d, v: V.clone() });
                 }
             });
-            return best && D.project(best);
+            if (!pts.length) return null;
+            return pts.filter(p => p.d >= bestD * 0.75).map(p => D.project(p.v));
         };
         const distToBox = (p, b) => {
             const dx = Math.max(b[0] - p.x, 0, p.x - b[2]);
@@ -92,8 +100,8 @@ const REPS = [['slash', 'sword'], ['chop', 'axe'], ['thrust', 'spear'], ['double
             for (let i = 0; i < 48; i++) {
                 const t = Math.round(i * 1000 / 60);
                 const tip = weaponTip(), ebox = projAll(m.g);
-                if (tip && ebox) {
-                    const d = distToBox(tip, ebox);
+                if (tip && tip.length && ebox) {
+                    const d = Math.min(...tip.map(p => distToBox(p, ebox)));
                     if (d <= 0) touch.push(t);
                     if (d < nearest.d) nearest = { t, d: +d.toFixed(1) };
                 }

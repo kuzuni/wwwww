@@ -295,7 +295,7 @@ const WEAPON_TYPES = {
     club:       { kr: '몽둥이',       kind: 'melee',  impact: 0.12, motion: 'slam',   restX: -0.25, shape: 'club',     mat: 'stone' },
     stoneAxe:   { kr: '돌도끼',       kind: 'melee',  impact: 0.10, motion: 'chop',   restX: -0.25, shape: 'axe',      mat: 'stone' },
     stoneSpear: { kr: '돌창',         kind: 'melee',  impact: 0.13, motion: 'thrust', restX: -0.6,  shape: 'spear',    mat: 'stone' },
-    boneDagger: { kr: '뼈 단검',      kind: 'melee',  impact: 0.13, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'bone' },
+    boneDagger: { kr: '뼈 단검',      kind: 'melee',  impact: 0.07, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'bone' },
     sling:      { kr: '투석구',       kind: 'ranged', impact: 0.30, motion: 'throw',  restX: -0.45, shape: 'sling',    mat: 'bone' },
     // ── 중세: 단조 강철 ──
     sword:      { kr: '검',           kind: 'melee',  impact: 0.08, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'steel' },
@@ -308,12 +308,12 @@ const WEAPON_TYPES = {
     // ── 근세: 흑색화약·레이피어 ──
     sabre:      { kr: '사브르',       kind: 'melee',  impact: 0.07, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'steel' },
     rapier:     { kr: '레이피어',     kind: 'melee',  impact: 0.12, motion: 'thrust', restX: -0.3,  shape: 'rapier',   mat: 'steel' },
-    dagger:     { kr: '단검',         kind: 'melee',  impact: 0.13, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'steel' },
+    dagger:     { kr: '단검',         kind: 'melee',  impact: 0.07, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'steel' },
     thrown:     { kr: '투척 도끼',    kind: 'ranged', impact: 0.32, motion: 'throw',  restX: -0.45, shape: 'thrown',   mat: 'steel' },
     musket:     { kr: '머스킷',       kind: 'ranged', impact: 0.26, motion: 'gun',    restX: -1.45, shape: 'rifle',    mat: 'blackpowder' },
     flintlock:  { kr: '플린트락',     kind: 'ranged', impact: 0.22, motion: 'gun',    restX: -1.45, shape: 'pistol',   mat: 'blackpowder' },
     // ── 현대: 화기 ──
-    combatKnife:{ kr: '전투 나이프',  kind: 'melee',  impact: 0.12, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'gunmetal' },
+    combatKnife:{ kr: '전투 나이프',  kind: 'melee',  impact: 0.07, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'gunmetal' },
     pistol:     { kr: '권총',         kind: 'ranged', impact: 0.16, motion: 'gun',    restX: -1.45, shape: 'pistol',   mat: 'gunmetal' },
     gun:        { kr: '소총',         kind: 'ranged', impact: 0.20, motion: 'gun',    restX: -1.45, shape: 'rifle',    mat: 'gunmetal' },
     shotgun:    { kr: '산탄총',       kind: 'ranged', impact: 0.24, motion: 'gun',    restX: -1.45, shape: 'rifle',    mat: 'gunmetal' },
@@ -332,13 +332,13 @@ const WEAPON_TYPES = {
     arcThrower: { kr: '아크 방사기',  kind: 'ranged', impact: 0.34, motion: 'cast',   restX: -0.55, shape: 'staff',    mat: 'energy' },
     // ── 다중우주 ──
     realityBlade:{ kr: '현실 절단검', kind: 'melee',  impact: 0.07, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'energy' },
-    glitchDagger:{ kr: '글리치 단검', kind: 'melee',  impact: 0.12, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'energy' },
+    glitchDagger:{ kr: '글리치 단검', kind: 'melee',  impact: 0.07, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'energy' },
     riftLauncher:{ kr: '균열 발사기', kind: 'ranged', impact: 0.30, motion: 'gun',    restX: -1.45, shape: 'cannon',   mat: 'energy' },
     staff:      { kr: '마법 지팡이',  kind: 'ranged', impact: 0.36, motion: 'cast',   restX: -0.55, shape: 'staff',    mat: 'energy' },
     echoBow:    { kr: '메아리 활',    kind: 'ranged', impact: 0.32, motion: 'bow',    restX: -1.35, shape: 'bow',      mat: 'energy' },
     // ── 양자 ──
     waveBlade:  { kr: '파동검',       kind: 'melee',  impact: 0.07, motion: 'slash',  restX: -0.25, shape: 'sword',    mat: 'energy' },
-    tunnelDagger:{ kr: '터널링 단검', kind: 'melee',  impact: 0.12, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'energy' },
+    tunnelDagger:{ kr: '터널링 단검', kind: 'melee',  impact: 0.07, motion: 'double', restX: -0.25, shape: 'dagger',   mat: 'energy' },
     collapseHammer:{ kr: '붕괴 망치', kind: 'melee',  impact: 0.14, motion: 'slam',   restX: -0.25, shape: 'hammer',   mat: 'energy' },
     quantumRifle:{ kr: '양자 소총',   kind: 'ranged', impact: 0.20, motion: 'gun',    restX: -1.45, shape: 'rifle',    mat: 'energy' },
     entangleStaff:{ kr: '얽힘의 지팡이', kind: 'ranged', impact: 0.36, motion: 'cast', restX: -0.55, shape: 'staff',   mat: 'energy' },
