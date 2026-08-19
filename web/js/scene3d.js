@@ -7299,7 +7299,43 @@ const Scene3D = {
         const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); CUR.add(o); return o; };
         const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), m || mat); o.position.set(x, y, z); CUR.add(o); return o; };
         const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 7), m || mat); o.position.set(x, y, z); CUR.add(o); return o; };
-        const eyes = (y, z, gap, r) => { for (const s of [-1, 1]) sp(r || 0.028, s * (gap || 0.06), y, z, blk); };
+        // ===== 파이컷 흰자 눈 — 영웅(prochar.js)·적(makeEnemyMesh)과 **같은 화풍** (`pet-species-recognizable`, 2026-08-19) =====
+        // 종전은 `blk` 구 두 개가 전부라, **25종 전부 얼굴이 없었다**(주둥이·코를 받은 종도 눈만은 회색 점 두 개).
+        // 판독 시트에서 곰·판다·그리핀·유니콘·구미호가 '점 두 개 박힌 달걀'로 안 갈리던 둘째 원인이고,
+        // 체형을 가른 종(고양잇과)에서도 얼굴만은 여전히 무표정이었다. 종 조형과 **직교하는 축**이라
+        // 헬퍼 하나를 올리면 **호출부 20곳이 시그니처 그대로 한꺼번에** 올라간다.
+        // 구현은 적 쪽 `eyes()` 의 규약을 그대로 따른다 —
+        //   🔑 phi 절단 쐐기는 극축을 감으므로 **극축을 +z 로 눕혀야**(mesh.rotation.x = π/2) 정면에서 파이로 보인다.
+        //   ⚠️ 회전은 **메시**에, 납작 스케일은 **부모 그룹**에 — 한 오브젝트에 둘 다 걸면 스케일이 회전 전 축에 먹는다.
+        //   🚨 동공 z 는 **눌린 흰자 앞면 밖**(er·0.56)이어야 한다 — 안쪽에 두면 흰자에 묻혀 잿빛 얼룩이 된다.
+        // 크기 배수는 적(1.5)보다 작은 **1.15** 다 — 펫 두상은 반지름 0.055(타조·거북)까지 내려가서,
+        // 1.5 를 쓰면 두 눈이 두상 폭을 넘어 서로 겹친다(코를 놓을 자리가 사라진다).
+        const eyes = (y, z, gap, r, opt) => {
+            const o = opt || {}, er = (r || 0.028) * 1.15;
+            return [-1, 1].map(s => {
+                const eg = new THREE.Group();
+                eg.position.set(s * (gap || 0.06), y, z);
+                eg.rotation.z = s * (o.tilt || 0);
+                const PIE = Math.PI * 0.30;                    // 도려낸 부채꼴 각 (영웅·적과 같은 값)
+                const wc = s > 0 ? 0.42 : Math.PI - 0.42;      // 쐐기 중심 = 바깥쪽 위
+                const scG = new THREE.Group();
+                scG.scale.set(1, o.tall || 0.92, 0.55);
+                const sc = new THREE.Mesh(new THREE.SphereGeometry(er, 14, 10, wc + PIE / 2 - Math.PI, Math.PI * 2 - PIE),
+                    // 음영은 남기되 바닥값을 emissive 로 깐다 — 그늘에 들어가는 종(트렌트 수관 밑)에서 흰자가 통째로 죽는다.
+                    new THREE.MeshLambertMaterial({ color: 0xfff6e8, emissive: 0x9a958c }));
+                sc.rotation.x = Math.PI / 2;
+                sc.userData.pieEye = true;   // 캡처·판정 도구가 이 태그로 흰자를 집는다(영웅·적과 같은 규약)
+                scG.add(sc);
+                const pu = new THREE.Mesh(new THREE.SphereGeometry(er * 0.38, 8, 6), new THREE.MeshBasicMaterial({ color: 0x141013 }));
+                pu.scale.set(1, 1.15, 0.42);
+                pu.position.set(-s * er * 0.12, -er * 0.05, er * 0.56);
+                const hl = new THREE.Mesh(new THREE.SphereGeometry(er * 0.12, 5, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                hl.position.set(-s * er * 0.26, er * 0.20, er * 0.60);
+                eg.add(scG, pu, hl);
+                CUR.add(eg);
+                return eg;
+            });
+        };
         // 관절 피벗: 회전축이 **관절 위치**에 오도록 빈 Group 을 세운다
         const pv = (x, y, z) => { const o = new THREE.Group(); o.position.set(x, y, z); CUR.add(o); return o; };
         // node 아래에 파츠를 붙이는 스코프(콜백이 값을 주면 그걸, 아니면 node 를 돌려준다)
@@ -7501,7 +7537,11 @@ const Scene3D = {
                             w.rotation.z = s * (1.28 - i * 0.13); w.rotation.x = 0.12 + i * 0.1;
                         }
                     }
-                    eyes(P.hr * 1.08, P.hr * 0.92, P.hr * 0.46, saber ? 0.026 : 0.024);
+                    // 🚨 눈이 두상 **속**에 있었다(`probe-pet-eyes`: 고양이·호랑이·검치호·유령호랑이 4종 0개 보임).
+                    //    두상은 반지름 P.hr·중심 (0, P.hr·0.95, 0.03) 인데 눈 중심까지가 0.084(호랑이 실측)로
+                    //    반지름 0.106 에 한참 못 미쳤다 — 검은 점 시절엔 티가 안 났고 흰자로 올리자 드러났다.
+                    //    표면점 역산: nx=0.46·ny=0.13 → nz=√(1−0.46²−0.13²)=0.878. 0.84 는 거기서 살짝 눌러 앉힌 값.
+                    eyes(P.hr * 1.08, 0.03 + P.hr * 0.84, P.hr * 0.46, saber ? 0.026 : 0.024);
                 });
                 jt(neck, 'x', 0.16, 0.6, { f: 0.9, gain: 1.6 });          // 머리 끄덕
                 // 꼬리: 고양이는 길고 곧게 세우고, 호랑이는 굵고 고리무늬, **검치호는 짧은 몽당꼬리**
@@ -7591,7 +7631,9 @@ const Scene3D = {
                     //    두상과 이어 붙인다(곰 주둥이는 길지만 두상에서 완만히 이어진다).
                     sp(0.056, 0, 0.05, 0.108, SNOUT, 0.94, 0.8, 1.25);               // 앞으로 뻗은 주둥이
                     sp(0.026, 0, 0.072, 0.163, blk, 1.2, 0.85, 0.8);                 // 코
-                    eyes(0.118, 0.098, 0.05, 0.021);
+                    // 🚨 눈이 두상 속(중심까지 0.102 < 반지름 0.118) — 표면점 역산으로 꺼낸다
+                    //    (nx=0.424·ny=0.364 → nz=0.829; 0.79 는 살짝 눌러 앉힌 값). `probe-pet-eyes` 참조.
+                    eyes(0.118, 0.02 + 0.118 * 0.79, 0.05, 0.021);
                 });
                 jt(neck, 'x', 0.14, 0.4, { f: 0.9, gain: 1.6 });
                 const tail = pv(0, 0.24, -0.19);
@@ -7777,7 +7819,9 @@ const Scene3D = {
                 const wood = M(0x6d4c41);
                 cy(0.07, 0.1, 0.3, 0, 0.2, 0, wood);
                 const head = pv(0, 0.36, 0);
-                into(head, () => { sp(0.14, 0, 0.07, 0, mat); sp(0.08, 0.12, 0.01, 0.03, mat); eyes(0.03, 0.09, 0.045); });
+                // 🚨 눈이 수관 속(중심까지 0.108 < 반지름 0.14) — 표면점 역산으로 꺼낸다
+                //    (nx=0.321·ny=−0.286 → nz=0.903; 0.86 은 살짝 눌러 앉힌 값). `probe-pet-eyes` 참조.
+                into(head, () => { sp(0.14, 0, 0.07, 0, mat); sp(0.08, 0.12, 0.01, 0.03, mat); eyes(0.03, 0.14 * 0.86, 0.045); });
                 // ⚠️ 진폭 하한(재오픈 2026-08-19): 종전 head 0.1·팔 0.24(f0.9) 는 freq 1.2 와 곱해져
                 //    화면 ≤1.4px = 정지로 읽혔다. 바람에 크게 흔들리는 우듬지로 키운다.
                 jt(head, 'z', 0.34, 0, { f: 1.5 });                        // 우듬지처럼 흔들림
