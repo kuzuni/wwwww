@@ -100,6 +100,20 @@ const SCAN = function (data, W, y0, y1, cells) {
     await page.goto(INDEX, { waitUntil: 'load' });
     await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined"');   // waitForFunction 은 3D 포화 구간에서 기아 타임아웃(wait-ready.js 헤더 ②)
     await page.evaluate(() => { if (typeof Scene3D !== 'undefined') Scene3D.update = function () { }; if (typeof Combat !== 'undefined') Combat.tick = function () { }; });
+    /* 🚨 **모달을 전부 닫고 재야 한다 — 안 그러면 같은 코드가 런마다 다른 값을 낸다.**
+       (2026-08-19 icon-gen 실측) 부팅 직후 오프라인 보상·자동 제련 모달이 **비동기로** 뜨는데,
+       모달이 열리면 `UI.refreshTabX()` 가 그 탭의 innerHTML 을 **빨간 ✕ 로 통째로 갈아** 버린다.
+       그 칸의 잉크는 아이콘이 아니라 ✕ 원반이라 bbox 가 41px → 60px 로 벌어지고(quest 8.22↔12.02%W),
+       ✕ 가 어느 칸에 붙느냐는 그때 뜬 모달에 달려 있어 **엉뚱한 칸이 FAIL 로 튄다**(debug 9.02↔5.81%W).
+       코드를 한 줄도 안 고치고 두 번 돌려 서로 다른 값이 나오는 것으로 확인했다 —
+       **여기서 나온 FAIL 을 아이콘 탓으로 읽지 말 것.** `shot-screens.js` 와 같은 처방으로 닫는다. */
+    await page.evaluate(() => {
+        try { UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); } catch (e) { }
+        try { UI.switchTab && UI.switchTab(null); } catch (e) { }
+        document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+        try { UI.refreshTabX && UI.refreshTabX(); } catch (e) { }   // ✕ 로 갈린 탭을 아이콘으로 되돌린다
+        const t = document.getElementById('toasts'); if (t) t.innerHTML = '';
+    });
     await page.waitForTimeout(500);
     const dom = await page.evaluate(() => {
         const bar = document.getElementById('tabbar');
@@ -122,6 +136,30 @@ const SCAN = function (data, W, y0, y1, cells) {
             }),
         };
     });
+    /* 🚨 **아이콘 그림이 실제로 디코드된 뒤에 찍는다.** `.tab-ico` 는 dataURL 배경 이미지라
+       생성은 동기지만 **디코드·페인트는 비동기**다. 안 기다리면 어떤 런에서는 반쯤 그려진 상태를
+       재서 잉크가 작게 잡힌다(같은 코드로 debug 9.42 ↔ 5.81%W, quest 9.02 ↔ 8.22%W 로 갈렸다 —
+       모달 잔류를 없앤 뒤에도 남아 있던 **두 번째** 비결정 원인이다). 배경 URL 을 직접 디코드해
+       기다린 뒤 두 프레임을 넘긴다. */
+    /* 🚨 **닫기와 ✕ 검사는 '캡처 직전'이어야 한다.** 부팅 직후 한 번 닫는 것만으로는 모자라다 —
+       오프라인 보상·자동 제련 모달은 **타이머로 뒤늦게** 뜨고, 그러면 `refreshTabX` 가 그 시점에
+       탭을 다시 ✕ 로 갈아 버린다(앞에서 닫아 둔 뒤에도 4런 중 1런이 quest 12.02%W 로 튀었다).
+       그래서 여기서 다시 닫고, **찍기 직전 상태**로 ✕ 를 확인한다. */
+    await page.evaluate(() => {
+        try { UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); } catch (e) { }
+        try { UI.switchTab && UI.switchTab(null); } catch (e) { }
+        document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+        try { UI.refreshTabX && UI.refreshTabX(); } catch (e) { }
+        const t = document.getElementById('toasts'); if (t) t.innerHTML = '';
+    });
+    await page.waitForTimeout(250);
+    await page.evaluate(async () => {
+        const urls = [...document.querySelectorAll('#tabbar .tab-ico, #tabbar .ico')]
+            .map(el => (getComputedStyle(el).backgroundImage.match(/url\("(.+)"\)/) || [])[1])
+            .filter(Boolean);
+        await Promise.all(urls.map(u => new Promise(r => { const i = new Image(); i.onload = i.onerror = r; i.src = u; })));
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    });
     // 라벨을 숨기고 탭바만 캡처 → 원본과 동일한 잉크 스캔
     // 🚨 탭바 **칠 층(그라디언트·글로우)도 캡처에서만 끈다** (2026-08-19, ui-quality-up 9차 실측):
     // 스킨의 세로 그라디언트 총 진폭이 잉크 임계(합 40)를 넘으면 셀 최빈색이 상/하단 행 색으로
@@ -130,6 +168,13 @@ const SCAN = function (data, W, y0, y1, cells) {
     // 밴드 칠이 아니므로, 라벨 숨김과 같은 '기준 맞추기'다. 밴드 칠 자체의 회귀는 probe-sheet-skin
     // (frame-bands 화면)이 지킨다.
     await page.addStyleTag({ content: '#tabbar button span{visibility:hidden!important} #tabbar{background-image:none!important;box-shadow:none!important} #tabbar button.active{background-image:none!important}' });
+    // ✕ 가 남아 있으면 재는 대상이 아이콘이 아니다 — 값을 인쇄하지 말고 측정기 고장으로 끊는다.
+    const stuckX = await page.evaluate(() => [...document.querySelectorAll('#tabbar button.tab-x')].map(b => b.dataset.tab));
+    if (stuckX.length) {
+        console.log(`=> 측정기 고장: 캡처 직전 탭바에 ✕ 상태가 남아 있다(${stuckX.join(',')}) — 모달이 다시 떴다. 아이콘 기하를 재는 조건이 아니다.`);
+        await browser.close();
+        process.exit(2);
+    }
     const clipShot = await page.screenshot({ clip: { x: 0, y: dom.band.y, width: VW, height: dom.band.h } });
     const clone = await page.evaluate(async ([src, scanSrc, n]) => {
         const img = new Image();
