@@ -198,7 +198,10 @@ const LUM_DROP_MAX = 0.20;       // 옛 그림 대비 평균 휘도가 이보다
         }
     }
     const badCommon = ok.filter(c => c.cor.sat > 40);
-    if (badCommon.length) fails.push(`common 칸 ${badCommon.length}개 귀퉁이에 채색 프레임`);
+    // ⚠️ 개수만 찍으면 어느 칸인지 몰라 손을 못 댄다 — 2026-08-19 3D 세션이 이 문구 하나를 들고
+    //    35칸을 따로 재현해 가며 범인을 찾았다. 칸 이름·채도·색을 같이 남긴다.
+    if (badCommon.length) fails.push(`common 칸 ${badCommon.length}개 귀퉁이에 채색 프레임: `
+        + badCommon.map(c => `${c.age}/${c.slot}#${c.nameIdx}(채도 ${c.cor.sat} rgb ${c.cor.rgb && c.cor.rgb.join(',')})`).join(' · '));
 
     console.log(`\n콘솔 에러: ${errors.length}`, errors.slice(0, 5));
     if (errors.length) fails.push('콘솔 에러 ' + errors.length);

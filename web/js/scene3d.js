@@ -7230,6 +7230,51 @@ const Scene3D = {
     },
 
     // 장신구 프리뷰 3D 모델 (부위당 3종 변형)
+    // ---- 장비 복셀 조형 공용 (equip-voxelize) ----
+    // 시대 재질에서 **색만** 가져오고 맵·광택은 버린다. 화풍 ⓒ 가 "면당 플랫 색 + 큐브별 미세
+    // 색변화 · 텍스처 파일 없음" 이라, `ageGearMats` 가 물려 주는 rockTex/metalTex/leatherTex 와
+    // 브러시드 결을 그대로 두면 **큐브 위에 자갈 노이즈가 얹힌다** — 비평가가 화풍 정합 2/10 의
+    // 근거로 짚은 "표면의 자갈 노이즈·쿼드 격자선"이 정확히 그것이다.
+    // ⚠️ 색은 재질이 아니라 **정점 색**이 나른다(`Voxel.build` 가 굽는다). 그래서 재질의 color 는
+    //    흰색이어야 한다 — 여기에 시대색을 또 넣으면 색이 두 번 곱해져 통째로 어두워진다.
+    // ⚠️ 재질은 캐시한다. 썸네일은 아이템마다 불리는데(장비 목록 한 화면에 수십 개) 호출마다
+    //    새 재질을 만들면 GL 프로그램이 그만큼 컴파일된다.
+    _voxMatCache: {},
+    voxMat(src, opts) {
+        opts = opts || {};
+        // 금속기는 남기되 매트 쪽으로 당긴다 — voxel 월드는 매트다(화풍 ⓕ㉯ 와 같은 이유).
+        const metal = opts.metalness !== undefined ? opts.metalness
+            : Math.min(0.55, (src && src.metalness) || 0);
+        const rough = opts.roughness !== undefined ? opts.roughness
+            : Math.max(0.55, (src && src.roughness) || 0.85);
+        const emi = opts.emissive === undefined ? 0 : opts.emissive;
+        const ei = opts.emissiveIntensity === undefined ? 0.55 : opts.emissiveIntensity;
+        const key = `${metal.toFixed(2)}|${rough.toFixed(2)}|${emi.toString(16)}|${ei.toFixed(2)}`;
+        let m = this._voxMatCache[key];
+        if (!m) {
+            m = this._voxMatCache[key] = new THREE.MeshStandardMaterial({
+                color: 0xffffff, vertexColors: true, flatShading: true,
+                metalness: metal, roughness: rough,
+                emissive: emi, emissiveIntensity: emi ? ei : 0,
+                envMapIntensity: 0.35,
+            });
+        }
+        return m;
+    },
+    // 복셀 목록 하나 → 메시 하나. **색이 정점에 실리므로 한 재질로 여러 색을 낸다** — 장신구
+    // 하나가 몸통·가죽·리벳 색을 다 써도 드로우콜은 1이다(발광 보석만 따로 굽는다).
+    voxPart(voxels, size, src, opts) {
+        opts = opts || {};
+        const mesh = Voxel.build(voxels, {
+            size, color: opts.color === undefined ? 0xcccccc : opts.color,
+            jitter: opts.jitter === undefined ? 0.055 : opts.jitter,
+            ao: opts.ao === undefined ? 1 : opts.ao,
+            material: this.voxMat(src, opts),
+            center: false,        // 격자 좌표가 곧 월드 좌표(×size) — 부품 배치를 칸 단위로 센다
+        });
+        return mesh;
+    },
+
     makeAccessoryPreview(slot, variant, age, rarity, name) {
         const g = new THREE.Group();
         const rc = RARITY_HEX[rarity] || 0xffd54f;
@@ -7335,52 +7380,105 @@ const Scene3D = {
                 knot.position.set(0.092, 0.168, 0.03);
                 g.add(knot);
             }
-        } else if (slot === 'necklace') {
-            // ⚠️ 세 변형이 **같은 고리 + 작은 펜던트**였던 탓에 썸네일 실루엣이 완전히 같았다
-            // (실측 probe-equip-dedupe: 실루엣 차이 0.000, 색 차이 0.002~0.011 — 눈으로는 같은 그림).
-            // 목줄 형태 자체를 바꾼다: 닫힌 고리(초커) / V자 끈 / 세로 체인.
-            if (variant === 0) { // 목걸이: 굵은 초커 고리 + 큼직한 구슬 펜던트
-                const chain = add(new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.045, 8, 22), mat), 0, 0.52);
-                chain.rotation.x = 0.35;
-                for (const dx of [-0.19, 0.19]) add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), mats.bead || mat), dx, 0.5, 0.06);
-                add(new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), gemMat), 0, 0.24, 0.04);
-            } else if (variant === 1) { // 아뮬렛: V자로 내려오는 두 가닥 끈 + 넓은 원판
-                for (const s of [-1, 1]) {
-                    const cord = add(new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.42, 6), mat), s * 0.11, 0.5, 0.02);
-                    cord.rotation.z = s * 0.42;
+        } else if (slot === 'necklace' || slot === 'ring') {
+            // 🧊 **여기가 voxel 전환 1차분이다 (equip-voxelize ⓑ).** 목걸이·반지를 고른 이유:
+            //   ⑴ 비평가가 이름까지 집어 지적한 것이 '우주 반지 = 토러스 + 팔면체'다
+            //   ⑵ 썸네일 전용이라 인게임 영웅과 코드를 안 나눈다(`makeHelmet`·`makeWeapon` 은 공용).
+            // 조형 규칙: 축정렬 큐브만 쓴다. 기울임(`rotation.z = 0.4` 류)은 **면을 비스듬하게
+            //   만들어 그 순간 voxel 이 아니게 되므로** 쓰지 않는다 — 비스듬함이 필요하면
+            //   계단으로 깎는다(아래 V자 끈이 그 예다).
+            // 격자 한 칸 = AS 월드 단위. 전 부품을 칸 단위 정수 좌표로 쌓아 **한 덩어리로 굽고**,
+            //   발광하는 보석만 따로 굽는다(재질이 달라야 하므로 메시가 갈린다) — 드로우콜 2.
+            const AS = 0.024;
+            const U = w => Math.round(w / AS);          // 월드 길이 → 칸 수(기존 비례를 그대로 옮긴다)
+            const cBody = mat.color.getHex();
+            const cDark = dark.color.getHex();
+            const cBead = ((mats.bead || mat).color).getHex();
+            const body = [];                             // 매트 파츠(한 메시)
+            const glow = [];                             // 발광 보석(따로 굽는다)
+            const V = Voxel;
+            // 세로로 선 고리 — 헬퍼는 +y 로 쌓으므로 rotX 로 한 번 세운다(90° 라 격자가 안 깨진다).
+            const upRing = (rOut, t, w, c) => V.at(V.rotX(V.ring(rOut, t, w, c), 1), 0, 0, -Math.floor(w / 2));
+            if (slot === 'necklace') {
+                // ⚠️ 세 변형이 **같은 고리 + 작은 펜던트**였던 탓에 썸네일 실루엣이 완전히 같았다
+                // (실측 probe-equip-dedupe: 실루엣 차이 0.000). 목줄 형태 자체를 가른다:
+                // 닫힌 고리(초커) / V자 끈 / 세로 체인.
+                if (variant === 0) {        // 목걸이: 굵은 초커 고리 + 구슬 2 + 큼직한 펜던트
+                    body.push(...V.at(upRing(12, 4, 4, cBody), 0, U(0.52), 0));
+                    // ⚠️ 구슬을 x ±8 에 두면 고리 **안쪽 구멍 가장자리**에 박혀 안 보인다(첫 판이
+                    //    그랬다). 고리가 가장 넓은 자리(x = ±rOut, 같은 높이)에 얹어야 밖으로 읽힌다.
+                    for (const dx of [-10, 10]) body.push(...V.at(V.ball(2, cBead), dx, U(0.52), U(0.05)));
+                    glow.push(...V.at(V.ball(5), 0, U(0.24), U(0.04)));
+                } else if (variant === 1) { // 아뮬렛: V자로 내려오는 두 가닥 끈 + 넓은 원판
+                    // 🚨 끈의 기울기는 **계단**으로 낸다. 예전 코드의 `rotation.z = ±0.42` 를 그대로
+                    //    두면 원기둥이 비스듬히 눕고, 그 면은 어느 축과도 안 맞아 voxel 이 깨진다.
+                    for (const s of [-1, 1]) {
+                        for (let i = 0; i < U(0.42); i++) {
+                            const y = U(0.71) - i;
+                            const x = s * (U(0.02) + Math.round(i * 0.42));   // 한 층 내려갈 때 0.42칸 벌어진다
+                            body.push(...V.at(V.box(2, 1, 2, cBody), x, y, U(0.02)));
+                        }
+                    }
+                    glow.push(...V.at(V.rotX(V.disc(U(0.17), U(0.05)), 1), 0, U(0.27), U(0.04)));
+                    body.push(...V.at(upRing(U(0.198), U(0.056), U(0.06), cBody), 0, U(0.27), U(0.04)));
+                } else {                    // 펜던트: 사슬 고리가 세로로 이어지고 끝에 물방울
+                    for (let i = 0; i < 5; i++) {
+                        // 고리는 한 칸 걸러 90° 눕는다 — 실제 사슬이 그렇게 물린다.
+                        const lk = V.ring(3, 1, 2, cBody);
+                        body.push(...V.at(i % 2 ? V.rotZ(V.rotX(lk, 1), 1) : V.rotX(lk, 1), 0, U(0.72) - i * U(0.078), U(0.02)));
+                    }
+                    // 물방울 = 아래로 뾰족한 테이퍼(원뿔 대체). 밑이 좁고 위가 넓다.
+                    glow.push(...V.at(V.taper(0.7, U(0.1), U(0.26)), 0, U(0.06), U(0.02)));
                 }
-                const disc = add(new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 16), gemMat), 0, 0.27, 0.04);
-                disc.rotation.x = Math.PI / 2;
-                const rim = add(new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.028, 8, 20), mat), 0, 0.27, 0.04);
-                rim.rotation.x = 0;
-                void rim;
-            } else { // 펜던트: 눈에 보이는 사슬 고리가 세로로 이어지고 끝에 물방울
-                for (let i = 0; i < 5; i++) {
-                    const lk = add(new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.014, 6, 12), mat), 0, 0.72 - i * 0.078, 0.02);
-                    lk.rotation.y = i % 2 ? Math.PI / 2 : 0;
+            } else {
+                // 반지도 같은 문제였다(밴드 공유 + 좁쌀만 한 보석). 밴드 굵기·머리 형태를 가른다.
+                // 🚨 **머리 장식은 밴드 '꼭대기 칸'에서 역산해 얹는다.** 첫 판은 예전 코드의 월드 y 를
+                //    그대로 칸으로 옮겼는데, 그 값들은 매끈한 토러스에 **반쯤 파묻힌 채** 겨우 삐져
+                //    나오던 자리라 큐브로 바꾸니 장식이 통째로 밴드 속에 묻혔다(96px 에서 파란 좁쌀
+                //    하나로 찍혔다 — 컨택트 시트 1차판에서 확인). 밴드 반지름이 변형마다 다르므로
+                //    장식 높이는 반드시 `yc + rOut` 에서 세야 한다. 상수로 두면 변형 하나를 고칠 때
+                //    나머지가 조용히 어긋난다.
+                // ⚠️ 밴드 굵기 t 를 셋 다 굵게 두면 실루엣이 같은 도넛으로 수렴한다 — 그게 이 항목이
+                //    고치려는 '지각 중복' 그 자체다. 굵게(4)/보통(3)/얇게(2)로 벌려 둔다.
+                const yc = U(0.42);
+                if (variant === 0) {        // 고리/반지: 두껍고 민짜인 굵은 밴드 + 낮은 계단 돔
+                    const rO = 12;
+                    body.push(...V.at(upRing(rO, 5, 7, cBody), 0, yc, 0));
+                    glow.push(...V.at(V.dome(7, 5), 0, yc + rO - 2, 0));
+                } else if (variant === 1) { // 인장 반지: 넓적한 사각 인장판이 머리에 얹힌다
+                    // ⚠️ **밴드를 작게, 판을 크게.** 밴드를 v0 와 비슷한 크기로 두면 96px 실루엣이
+                    //    둘 다 '도넛 + 작은 혹'으로 수렴한다(1차판에서 실제로 그랬다) — 지각 중복
+                    //    자체다. 인장 반지의 얼굴은 밴드가 아니라 **넓적한 인장판**이므로,
+                    //    판이 실루엣을 지배하도록 반지름을 12 → 8 로 줄이고 판을 21칸 폭으로 키웠다.
+                    // 🚨 판 폭에 상한이 있다: **판이 21칸이면 모델 경계상자가 정사각이 되고,
+                    //    썸네일 프레이밍이 그걸 꽉 채우면서 네 귀퉁이까지 칠해진다.** 그러면
+                    //    `probe-equip-finish` ④ 의 'common 칸 귀퉁이 채색' 판정이 깨진다(등급
+                    //    프레임과 구분이 안 되므로). 실측: 폭 21 → space/ring#1 귀퉁이 채도 47
+                    //    (기준 40). 원형인 v0/v2 는 같은 폭이어도 귀퉁이가 비어 안 걸린다 —
+                    //    **네모난 조형에만 걸리는 함정**이라 판 폭을 세로(21)보다 확실히 짧게 둔다.
+                    const rO = 8;
+                    body.push(...V.at(upRing(rO, 3, 6, cBody), 0, yc, 0));
+                    body.push(...V.at(V.slab(15, 5, 10, cBody, 3), 0, yc + rO - 1, 0));
+                    glow.push(...V.at(V.slab(9, 1, 6, undefined, 2), 0, yc + rO + 4, 0));
+                } else {                    // 보석 반지: 얇은 밴드 + 발톱 물림쇠 + 높이 세운 큐브 보석
+                    const rO = 11;
+                    body.push(...V.at(upRing(rO, 2, 4, cBody), 0, yc, 0));
+                    // 🚨 물림쇠는 **보석 실루엣 밖으로** 나가야 보인다. 1차판은 x ±2~3 에 뒀는데
+                    //    큐브 보석(|x|+|y|+|z| ≤ 6)이 그 자리를 통째로 덮어 보석이 공중에 뜬 것처럼
+                    //    찍혔다. 보석의 그 높이 반폭(6 − |Δy|)보다 바깥으로 벌려 잡게 한다.
+                    //    벌어짐은 계단으로 낸다(예전 `rotation.z = ±0.22` 대체).
+                    const gy = yc + rO + 6;
+                    for (const s of [-1, 1]) for (let i = 0; i < 7; i++) {
+                        const y = yc + rO - 2 + i;
+                        body.push(...V.at(V.box(2, 1, 3, cDark), s * (3 + Math.round(i * 0.5)) - 1, y, -1));
+                    }
+                    glow.push(...V.at(V.gem(6), 0, gy, 0));
                 }
-                const drop = add(new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.26, 8), gemMat), 0, 0.19, 0.02);
-                drop.rotation.x = Math.PI;
             }
-        } else if (slot === 'ring') {
-            // 반지도 같은 문제였다(밴드 공유 + 좁쌀만 한 보석). 밴드 굵기·머리 형태를 통째로 가른다.
-            if (variant === 0) { // 고리/반지: 두껍고 민짜인 굵은 밴드 + 낮은 돔
-                add(new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.075, 10, 24), mat), 0, 0.42);
-                const dome = add(new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), gemMat), 0, 0.63);
-                void dome;
-            } else if (variant === 1) { // 인장 반지: 넓적한 사각 인장판이 머리에 얹힌다
-                add(new THREE.Mesh(new THREE.TorusGeometry(0.185, 0.045, 10, 22), mat), 0, 0.42);
-                add(new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.07, 0.2), mat), 0, 0.63);
-                add(new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.03, 0.12), gemMat), 0, 0.675);
-            } else { // 보석 반지: 얇은 밴드 + 발톱 물림쇠에 높이 세운 보석
-                add(new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.028, 10, 24), mat), 0, 0.42);
-                for (const s of [-1, 1]) {
-                    const pr = add(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, 0.2, 6), mat), s * 0.06, 0.56);
-                    pr.rotation.z = s * 0.22;
-                }
-                const gem = add(new THREE.Mesh(new THREE.OctahedronGeometry(0.135, 0), gemMat), 0, 0.75);
-                gem.rotation.z = 0.4;
-            }
+            g.add(this.voxPart(body, AS, mat, { color: cBody }));
+            if (glow.length) g.add(this.voxPart(glow, AS, mat, {
+                color: rc, emissive: rc, emissiveIntensity: 0.7, metalness: 0, roughness: 0.5,
+            }));
         } else if (slot === 'shoes') {
             // ⚠️ 예전엔 '세로 상자 + 가로 상자' 두 개였다 — 밑창도 발등 곡선도 아치도 없어
             //    썸네일에서 그냥 ㄴ자 블록 두 짝이었다(비평가 지적 ㉯⑴).

@@ -108,6 +108,12 @@ const rowR = (vox, y) => {
     ok('보석은 45° 계단(맨해튼 거리)', g.every(v => Math.abs(v.x) + Math.abs(v.y) + Math.abs(v.z) <= 3));
     ok('보석 꼭짓점 6개가 다 있다', [[3, 0, 0], [-3, 0, 0], [0, 3, 0], [0, -3, 0], [0, 0, 3], [0, 0, -3]]
         .every(([x, y, z]) => has(g, x, y, z)));
+    const b = V.ball(4);
+    ok('구는 반지름 안에만 있다', b.every(v => v.x * v.x + v.y * v.y + v.z * v.z <= 16 + 1e-6));
+    ok('구는 6방향 극점이 다 있다', [[4, 0, 0], [-4, 0, 0], [0, 4, 0], [0, -4, 0], [0, 0, 4], [0, 0, -4]]
+        .every(([x, y, z]) => has(b, x, y, z)));
+    ok('구가 보석보다 통통하다(같은 r 에서 칸이 많다)', b.length > V.gem(4).length,
+        `구 ${b.length} vs 보석 ${V.gem(4).length}`);
     const s = V.slab(7, 1, 5, 0, 2);
     ok('베벨 판은 모서리 칸이 없다', !has(s, 3, 0, 2) && !has(s, -3, 0, -2));
     ok('베벨 판은 변 한복판이 남는다', has(s, 3, 0, 0) && has(s, 0, 0, 2));
@@ -165,6 +171,14 @@ const rowR = (vox, y) => {
     // 이미 껍질인 덩어리에 다시 걸어도 안 깎인다 — 두 번 걸려 파츠가 사라지는 사고 방지.
     eq('hollow 는 껍질에 다시 걸어도 그대로', V.hollow(V.hollow(solid)).length, 152);
     eq('hollow([]) 는 빈 목록', V.hollow([]).length, 0);
+    // 그 '느는 면'이 정확히 어디인지까지 못 박는다 — 개수만 맞고 엉뚱한 자리면 두께가 아니다.
+    //   6³ 의 겉 한 겹만 남으면 공동은 1..4 의 4³ 이고, 그 벽면은 법선축 좌표 0.5 / 4.5 에
+    //   놓인다(바깥 면은 −0.5 / 5.5). 그 평면 위의 면이 딱 4³ 표면 96개여야 한다.
+    ok('늘어난 96면은 전부 공동 안쪽 벽이다(두께가 읽히는 자리)',
+        V.faces(V.hollow(solid), {}).filter(f => {
+            const ax = f.n.findIndex(v => v !== 0), p = f.corners[0][ax];
+            return p === 0.5 || p === 4.5;
+        }).length === 96);
 }
 
 // ── ⑨ 🚨 화풍 정합의 기계적 판정 — 모든 헬퍼의 면 법선이 6방향뿐인가 ────────
@@ -173,7 +187,7 @@ const rowR = (vox, y) => {
     const shapes = {
         '원판': V.disc(4, 2), '큐브 링': V.ring(6, 2, 2), '계단형 돔': V.dome(5, 5),
         '테이퍼': V.taper(5, 1, 6), '라멜라': V.lamella(3, { rx: 4, h: 2, step: 1, drx: 0.6 }),
-        '큐브 보석': V.gem(3), '베벨 판': V.slab(9, 2, 7, 0, 3),
+        '큐브 보석': V.gem(3), '계단형 구': V.ball(4), '베벨 판': V.slab(9, 2, 7, 0, 3),
         '링 적층': V.shell([{ y: 0, rx: 5, rz: 3 }, { y: 4, rx: 3, rz: 2, t: 1 }], 0),
     };
     let bad = 0;
@@ -182,9 +196,41 @@ const rowR = (vox, y) => {
         const off = f.filter(x => !AXIS.has(x.n.join(',')));
         if (off.length || !f.length) { bad++; console.log(`   ↳ ${k}: 면 ${f.length}, 비축정렬 ${off.length}`); }
     }
-    ok('8종 헬퍼가 전부 축정렬 면만 만든다(= voxel 로 읽힌다)', bad === 0, `위반 ${bad}종`);
+    ok('9종 헬퍼가 전부 축정렬 면만 만든다(= voxel 로 읽힌다)', bad === 0, `위반 ${bad}종`);
     // 밀도: '조잡한 대형 블록 금지'를 수치로 — 반지름 6 짜리 링이 20칸 미만이면 너무 성기다.
     ok('링 밀도가 충분하다', V.ring(6, 2, 1).length >= 40, `${V.ring(6, 2, 1).length}칸`);
+}
+
+// ── ⑫ 90° 회전 — 거울이 아니라 회전인가(감김이 안 뒤집히는가) ───────────────
+// 🚨 축 맞바꾸기 `(x,y,z)→(x,z,y)` 로 대신하면 행렬식이 −1 이라 면이 전부 안쪽을 향한다.
+//    화면에서 통째로 사라지는 종류의 버그인데 node 로는 안 보이므로, 여기서 행렬식을 잰다.
+{
+    const det = (fn) => {
+        // 기저 세 칸을 각각 돌린 뒤 삼중곱을 잰다. 회전이면 +1, 거울이면 −1.
+        const m = [[1, 0, 0], [0, 1, 0], [0, 0, 1]].map(([x, y, z]) => {
+            const r = fn([{ x, y, z }], 1)[0];
+            return [r.x, r.y, r.z];
+        });
+        return m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+    };
+    eq('rotX 는 회전이다(행렬식 +1)', det(V.rotX.bind(V)), 1);
+    eq('rotY 는 회전이다(행렬식 +1)', det(V.rotY.bind(V)), 1);
+    eq('rotZ 는 회전이다(행렬식 +1)', det(V.rotZ.bind(V)), 1);
+    // 네 번 돌리면 제자리.
+    const src = V.taper(4, 1, 5, 3);
+    const four = V.rotX(src, 4);
+    const sig = a => a.map(v => `${v.x},${v.y},${v.z},${v.c}`).sort().join(';');
+    ok('rotX 4회는 제자리', sig(four) === sig(src));
+    ok('rotX 는 원본을 안 고친다', sig(V.rotX(src, 1)) !== sig(src) && sig(src) === sig(V.taper(4, 1, 5, 3)));
+    // 세워 놓기: +y 로 쌓던 테이퍼가 rotX 한 번에 +z 로 쌓인다(반지 밴드가 이 변환을 쓴다).
+    const up = V.rotX(V.taper(4, 4, 6, 0), 1);
+    eq('rotX 뒤 적층 축이 z 로 간다', Math.max(...up.map(v => v.z)), 5);
+    eq('rotX 뒤 y 폭은 단면 폭이 된다', Math.max(...up.map(v => v.y)), 4);
+    eq('회전해도 칸 수는 같다', up.length, V.taper(4, 4, 6, 0).length);
+    eq('회전해도 면 수는 같다', V.faces(up, {}).length, V.faces(V.taper(4, 4, 6, 0), {}).length);
+    eq('회전해도 색은 따라간다', V.rotZ(V.box(2, 2, 2, 42), 1)[0].c, 42);
 }
 
 // ── ⑩ 음성 대조 — 잘못된 인자에 빈 목록을 준다(예외로 죽지 않는다) ──────────

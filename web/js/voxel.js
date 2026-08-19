@@ -115,6 +115,21 @@
         return 1 + ((h % 1000) / 1000 - 0.5) * 2 * amt;
     }
 
+    // 90° 회전 k 번 적용. k 를 4 로 나눈 나머지만 쓰므로 k=4 는 제자리다.
+    function rot(voxels, k, step) {
+        var n = ((k === undefined ? 1 : k) % 4 + 4) % 4;
+        var cur = voxels;
+        for (var t = 0; t < n; t++) {
+            var out = [];
+            for (var i = 0; i < cur.length; i++) {
+                var v = cur[i], p = step(v);
+                out.push({ x: p[0], y: p[1], z: p[2], c: v.c });
+            }
+            cur = out;
+        }
+        return cur === voxels ? voxels.slice() : cur;
+    }
+
     var Voxel = {
         FACES: FACES,
         faces: faces,
@@ -161,6 +176,19 @@
             }
             return out;
         },
+        // 90° 단위 회전 — 아래 단면 헬퍼는 전부 **+y 로 쌓는다**. 정면을 보고 서는 조형(반지
+        //   밴드·목걸이 고리)은 그 축이 z 라, 세워 놓으려면 이걸 통과시킨다.
+        //   k 는 반시계 90° 횟수(음수도 된다).
+        // 🚨 **축 맞바꾸기로 대신하지 말 것.** `(x,y,z) → (x,z,y)` 는 회전이 아니라 거울이라
+        //    행렬식이 −1 이고, 그러면 면의 감김이 뒤집혀 **전부 안쪽을 향한다**(화면에서 사라진다).
+        //    아래 셋은 전부 행렬식 +1 이고 `test-voxel-shapes.js` ⑫ 가 그걸 잰다.
+        //    ⚠️ 임의 각도 회전은 여기 두지 않는다 — 격자가 깨져 면이 비스듬해지면 그 순간
+        //       voxel 로 안 읽힌다(그게 화풍 정합 2/10 의 원인이었다). 기울임이 필요하면
+        //       조형 자체를 계단으로 깎을 것.
+        rotX: function (voxels, k) { return rot(voxels, k, function (v) { return [v.x, -v.z, v.y]; }); },
+        rotY: function (voxels, k) { return rot(voxels, k, function (v) { return [v.z, v.y, -v.x]; }); },
+        rotZ: function (voxels, k) { return rot(voxels, k, function (v) { return [-v.y, v.x, v.z]; }); },
+
         // 색을 다시 칠한다. fn(v) 가 undefined 를 주면 그 칸의 색은 그대로 둔다.
         recolor: function (voxels, fn) {
             var out = [];
@@ -312,6 +340,15 @@
                     rix: opts.t > 0 ? px - opts.t : 0, riz: opts.t > 0 ? pz - opts.t : 0,
                 }));
             }
+            return out;
+        },
+        // 계단형 구 — `SphereGeometry` 대체. 구슬·펜던트·너클처럼 '덩어리 하나'가 필요한 자리.
+        //   ⚠️ 반지름이 2 미만이면 구가 아니라 그냥 큐브로 보인다. 작은 알은 `gem`(45° 계단)이
+        //      낫다 — 같은 칸 수에서 모서리가 살아 '깎은 보석'으로 읽힌다.
+        ball: function (r, color) {
+            var out = [], m = Math.floor(r), rr = r * r;
+            for (var x = -m; x <= m; x++) for (var y = -m; y <= m; y++) for (var z = -m; z <= m; z++)
+                if (x * x + y * y + z * z <= rr + 1e-6) out.push({ x: x, y: y, z: z, c: color });
             return out;
         },
         // 🧊 **큐브 보석** — 팔면체 대체. |x|+|y|+|z| ≤ r 이라 계단이 45° 로 떨어진다.
