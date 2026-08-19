@@ -34,6 +34,9 @@ const KILL_SKIN = `
 .qst-row { background-image: none !important; box-shadow: 0 .25rem 0 rgba(0,0,0,.3) !important; }
 /* 5차 슬라이스 — 버튼 면 광택(background-image 하나만 쓰므로 그것만 되돌린다) */
 .btn.btn:not(.silver):not(.ascend-ready) { background-image: none !important; }
+/* 6차 슬라이스 — 상단바·탭바·재화 바 밴드 */
+#topbar, #tabbar { background-image: none !important; box-shadow: none !important; }
+.currency-pills .pill { background-image: none !important; box-shadow: none !important; }
 `;
 
 (async () => {
@@ -53,6 +56,10 @@ const KILL_SKIN = `
 
     const SCREENS = [
         ['main-equip', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces();`, '.equip-cell, .equip-grid'],
+        // 6차 슬라이스 — 늘 떠 있는 세 밴드(상단바·탭바·재화 바). 탭바 밴드 높이는 probe-tabbar 의
+        // 판정 대상이라 여기서 1px 이라도 움직이면 그 화면 판정이 통째로 무효가 된다.
+        ['frame-bands', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces();`,
+            '#topbar, #tabbar, #tabbar button, .currency-pills .pill, .profile-card'],
         ['quests', `UI.openQuests && UI.openQuests()`, '#quest-modal .modal-card.sheet, #quest-modal .qst-row'],
         ['dungeons', `UI.openDungeons()`, '#dungeon-modal .modal-card.sheet, #dungeon-modal .dg-banner'],
         ['pets', `UI.switchTab('summon'); UI.switchSummonSub('pets')`, '#panel-pets .sk-grid, #panel-pets .pet-tile'],
