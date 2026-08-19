@@ -1926,14 +1926,21 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.moveTo(x(.5, S) + S * .09, y(.87, S)); ctx.arc(x(.5, S), y(.87, S), S * .09, 0, Math.PI * 2);
         },
         axe(ctx, S) {                                    // 처형 — 전투 도끼
-            ctx.moveTo(x(.4225, S), y(.30, S)); ctx.lineTo(x(.5775, S), y(.30, S));
-            ctx.lineTo(x(.5775, S), y(.92, S)); ctx.lineTo(x(.4225, S), y(.92, S)); ctx.closePath();
-            // 날은 초승달이라 뿔이 0 으로 수렴한다 — 안쪽 곡선만 아래로 내려 몸통을 두껍게 했다.
-            // ⚠️ **쌍날(안쪽에 V 홈 두 개)로 되돌리지 말 것** — 홈을 파면 96px 에서 날이 통째로
-            //    검정에 먹혀 '자루에 붙은 검은 사각형'으로 읽힌다(2026-08-19 실측, 한 번 밟았다).
-            ctx.moveTo(x(.13, S), y(.40, S));
-            ctx.quadraticCurveTo(x(.5, S), y(.00, S), x(.87, S), y(.40, S));
-            ctx.quadraticCurveTo(x(.5, S), y(.50, S), x(.13, S), y(.40, S)); ctx.closePath();   // 안쪽 곡선 — 날 두께 .095 → .25
+            // 🚨 **날과 자루를 별개 서브패스로 그리지 말 것** — `emblem()` 은 경로 전체에 획을 긋기
+            //    때문에 겹친 자루의 윗변이 **날 한가운데 검은 사각형**으로 남는다. 그 사각형 때문에
+            //    도끼가 '버섯/망치'로 읽혔다(2026-08-19 UI 스트림 실측 — 그 전부터 있던 결함).
+            //    그래서 자루와 날을 **하나의 닫힌 윤곽**으로 합쳐 그린다. 내부 획이 아예 없다.
+            // ⚠️ 안쪽에 V 홈을 판 쌍날로 되돌리지도 말 것 — 홈은 96px 에서 통째로 검정에 먹힌다.
+            // 밑면은 **오목**해야 도끼로 읽힌다 — 직선으로 이으면 자루에 얹힌 나무망치가 된다
+            //   (2026-08-19 실측: 밑면을 곧게 그은 판은 96px 에서 T 자 해머로 보였다).
+            ctx.moveTo(x(.4225, S), y(.92, S));
+            ctx.lineTo(x(.4225, S), y(.42, S));                          // 자루 왼쪽 → 날 목
+            ctx.quadraticCurveTo(x(.27, S), y(.40, S), x(.09, S), y(.54, S));   // 오목한 밑면 — 뿔이 처진다
+            ctx.lineTo(x(.07, S), y(.34, S));                            // 왼쪽 뿔 — 두께 .20
+            ctx.quadraticCurveTo(x(.5, S), y(-.08, S), x(.93, S), y(.34, S));   // 등 곡선
+            ctx.lineTo(x(.91, S), y(.54, S));                            // 오른쪽 뿔
+            ctx.quadraticCurveTo(x(.73, S), y(.40, S), x(.5775, S), y(.42, S));
+            ctx.lineTo(x(.5775, S), y(.92, S)); ctx.closePath();
         },
         whirl(ctx, S) {                                  // 회오리 베기 — 소용돌이 2엽
             const cx = .5 * S, cy = .5 * S, ro = .40 * S, ri = .18 * S;
