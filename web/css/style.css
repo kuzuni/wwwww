@@ -3359,6 +3359,7 @@ body {
 .sheet-sub {
     font-size: .8rem; font-weight: 700; line-height: 1.4; text-align: center;
     color: #4a4a4a; margin-bottom: .5rem; padding: 0 .6rem;
+    word-break: keep-all;   /* R7 A: "던전\n을" 어절 쪼개짐 방지 */
 }
 /* 원본(042251)의 설명문은 화면폭 ≈65%로 좁게 물려 두 줄이 균형 있게 접힌다. 클론은 거의 전폭이라
    마지막 글자 하나("다")만 둘째 줄로 떨어지는 고아 줄이 생기고, 그만큼 헤더가 낮아져 첫 카드가
@@ -3415,7 +3416,7 @@ body {
 }
 .modal-card.sheet .dg-banner .dg-keys { font-size: .82rem; }
 /* 열쇠 아이콘은 숫자보다 한 뼘 커야 훑을 때 잡힌다(비평가 7차 — 원본 열쇠가 더 굵고 크다) */
-.modal-card.sheet .dg-banner .dg-keys .ico { width: 1.3em; height: 1.3em; }
+.modal-card.sheet .dg-banner .dg-keys .ico { width: 1.65em; height: 1.65em; }   /* R7 비평가 2인 공통 '열쇠가 카운터 절반 크기' — 카운터와 동급 시각 무게로 */
 .modal-card.sheet .dg-banner .dg-lock { font-size: .72rem; font-weight: 700; color: #ffcdd2; }
 
 /* ---- 하단 시트 → 원본은 전체화면 흰 페이지 + 서브탭이 맨 아래 (UI-SPEC 8~16번) ---- */
