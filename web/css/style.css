@@ -2551,6 +2551,7 @@ body {
     top: 50%; right: .4rem; transform: translateY(-50%); width: 1.45rem; height: 1.45rem; border-radius: 50%;
     background: var(--pp-green); color: #fff; border: var(--ol2) solid var(--pp-line); font-size: .85rem; font-weight: 900;
 }
+.pass-badge.check .ico { width: 62%; height: 62%; margin: 0; }   /* 체크는 캔버스 아이콘(IconGen.draw.check) */
 .pass-badge.lock { top: .3rem; right: .35rem; font-size: 1rem; filter: drop-shadow(0 1px 0 #000); }
 
 /* 말풍선 꼬리 (aaa-skin ⑧ 확정 결함: "원본은 카드 안쪽 하단에 중앙 레일을 가리키는 삼각 꼬리가
@@ -2838,6 +2839,8 @@ body {
 .pinfo-id-text { display: flex; flex-direction: column; line-height: 1.35; }
 .pinfo-id-text .name { font-weight: 900; font-size: .9rem; color: var(--pp-ink); }
 .pinfo-id-text .clan { font-size: .7rem; color: var(--pp-muted); font-weight: 700; }
+.pinfo-id-text .clan .ico { width: 1.05em; height: 1.05em; margin: -.2em .05em -.2em 0; }   /* 성별 = 캔버스 아이콘 */
+.profile-field .ico { width: 1.15em; height: 1.15em; margin: -.2em 0; }   /* 성별 = 캔버스 아이콘(IconGen.gender_*) */
 .pinfo-id-text .cp { font-size: .8rem; font-weight: 800; color: var(--pp-ink); }
 .pinfo-right { text-align: right; font-size: .76rem; font-weight: 700; color: var(--pp-ink); line-height: 1.55; }
 .pinfo-preview {
@@ -3336,13 +3339,24 @@ body {
 #forge-item-modal .idet-subs .substat-row { font-size: .84rem; line-height: 1.21; letter-spacing: -.01em; color: #3a3a3a; }
 .idet-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; }
 /* 원본 공통: 팝업 하단 중앙의 빨간 원형 X — 팝업 아래에 떠 있지 않고 하단 테두리에 절반 걸침 (185 전수 패스) */
+/* ✕ 언어를 전역으로 승격 (2026-08-19, slug icon-gen — 아래 ㉣ 가 남긴 숙제를 닫는다).
+   `tools/probe-xmark-ref.js` 로 **원본 30장 중 닫기 버튼이 있는 25장 전수**를 재니 세 값이
+   완전히 일치했다(편차 0): 면 **#f2191d**×25 · 아래턱 **#4a0709**×25 · 빨간 원반 지름 51px.
+   ⑫ 펫 상세·⑬ 펫 업그레이드·⑭ 플레이어 정보가 각자 세로 단면으로 뽑아 스코프에 가둬 뒀던 값이
+   바로 이것이다 — '알 상세·탈것 상세가 미실측'이라 미뤄 뒀던 승격 조건이 이제 충족됐다.
+   ⚠️ 전역 `--pp-red`(#e8362f)/`--pp-red-dk`(#a51710)는 **건드리지 않는다** — 소환 버튼·채팅 등
+      다른 자리의 빨강은 화면마다 달라서 토큰을 옮기면 그쪽이 끌려간다. 여기만 리터럴로 준다. */
 .x-btn {
     width: 3.4rem; height: 3.4rem; border-radius: 50%; cursor: pointer;
-    background: var(--pp-red); color: #fff; border: var(--ol3) solid var(--pp-line);
-    font-size: 1.5rem; font-weight: 900; line-height: 1; padding: 0;
-    box-shadow: inset 0 -.28rem 0 var(--pp-red-dk);
+    background: #f2191d; border: var(--ol3) solid var(--pp-line);
+    padding: 0; box-shadow: inset 0 -.28rem 0 #4a0709;
     margin-top: -1.7rem; position: relative; z-index: 2;
+    display: flex; align-items: center; justify-content: center;
 }
+/* ✕ 표시는 폰트 글리프가 아니라 캔버스 아이콘이다(IconGen.draw.xmark).
+   크기 계약: 원본에서 **검정 테까지 포함한 표시 전체 17px / 버튼 바깥 지름 57px = 0.298**.
+   속살 바운딩이 캔버스의 0.55 라(테 자리를 남겼다) 표시 배율은 **45%** — 실측으로 맞춘 값이다. */
+.x-btn .ico { width: 42%; height: 42%; margin: 0; }
 .x-btn:active { transform: translateY(.12rem); box-shadow: none; }
 /* (2026-08-19 정정) 플레이어 정보 ✕도 공용 규칙대로 카드에 반걸침이 맞다 — '흰 잉크 하단 82.39 =
    카드 하단'이 오독이었다(✕가 흰 run 을 끊은 자리). 원본 ✕ 중심 85.34%H = 카드 아랫변. 해제 규칙 철회,
@@ -3353,11 +3367,11 @@ body {
 #tabbar button.tab-x { color: #fff; justify-content: center; padding: .3rem 0; }
 .tab-x-mark {
     width: 2.6rem; height: 2.6rem; border-radius: 50%;
-    background: var(--pp-red); border: var(--ol3) solid var(--pp-line); color: #fff;
-    font-size: 1.25rem; font-weight: 900; line-height: 1;
+    background: #f2191d; border: var(--ol3) solid var(--pp-line);
     display: flex; align-items: center; justify-content: center;
-    box-shadow: inset 0 -.22rem 0 var(--pp-red-dk);
+    box-shadow: inset 0 -.22rem 0 #4a0709;
 }
+.tab-x-mark .ico { width: 42%; height: 42%; margin: 0; }   /* .x-btn 과 같은 계약 */
 /* 팝업이 떠도 탭바는 항상 위·클릭 가능 (원본: 팝업 열림 상태에서 탭바 X로 닫음) */
 #tabbar { position: relative; z-index: 30; }
 
@@ -3826,6 +3840,7 @@ body {
     font-size: 1.4rem; font-weight: 900; color: #fff; background: rgba(33,150,243,.45);
     border-radius: .3rem; text-shadow: 0 1px 2px rgba(0,0,0,.5);
 }
+.pet-tile .tile-check .ico { width: 42%; height: 42%; margin: 0; }   /* 선택 체크 = 캔버스 아이콘 */
 .pet-tile.egg .tile-check { background: rgba(33,150,243,.28); border-radius: .5rem; }
 .pet-tile.mat-locked .tile-face { opacity: .5; }
 .petup-divider { height: 2px; background: #dcdcdc; margin: 0 0 .55rem; }
@@ -4091,6 +4106,7 @@ body {
     font-size: .95rem; font-weight: 900; color: #fff; line-height: 1;
 }
 .af-check.on { background: #17181a; color: #23c552; }
+.af-check .ico { width: 74%; height: 74%; margin: 0; }   /* 초록 체크 = 캔버스 아이콘(tint #23c552) */
 .af-filter-row {
     display: flex; align-items: center; justify-content: flex-end;
     font-size: .85rem; font-weight: 800; margin: .45rem 0;
@@ -4739,13 +4755,15 @@ body {
       전역 `--pp-red` 는 화면마다 다르므로(채팅은 #ff1017 로 이미 따로 준다) 토큰은 건드리지 않는다.
    ㉡ 베벨 두께: 원본 5px(클론 .22rem=4px) → .28rem. inset 이라 박스 높이는 그대로다(비율 프로브 무영향). */
 .petd-wrap .petd-btn.primary { box-shadow: inset 0 -.28rem 0 #001c4e; }
-.petd-wrap .petd-btn.danger,
-.petd-wrap .x-btn { background: #f2191d; box-shadow: inset 0 -.28rem 0 #4a0709; }
+/* (2026-08-19 icon-gen) `.x-btn` 는 여기서 뺐다 — 전역 `.x-btn` 이 원본 25장 전수 실측으로
+   같은 값(#f2191d / #4a0709)을 갖게 승격됐다. 남은 건 `.petd-btn.danger` 뿐이다. */
+.petd-wrap .petd-btn.danger { background: #f2191d; box-shadow: inset 0 -.28rem 0 #4a0709; }
 /* ㉢ 라벨·✕ 글리프의 검정 키라인. 원본 업그레이드 글자 세로 단면(x=150)은
    `#000000 ×1 · #ffffff ×6 · #000000 ×1` 로 흰 획 양옆이 순검정이다 — 클론은 버튼 안 검정 픽셀이
    0이라 글자가 면에 파묻혀 있었다. paint-order 로 획이 글리프 안쪽을 먹지 않게 한다. */
-.petd-wrap .petd-btn,
-.petd-wrap .x-btn { color: #fff; -webkit-text-stroke: 3px var(--pp-line); paint-order: stroke fill; }
+/* (2026-08-19 icon-gen) `.x-btn` 제외 — ✕ 는 텍스트 글리프가 아니라 캔버스 아이콘이 됐고,
+   검정 키라인은 그림 안에 그려진다(`IconGen.draw.xmark`). text-stroke 는 닿지도 않는다. */
+.petd-wrap .petd-btn { color: #fff; -webkit-text-stroke: 3px var(--pp-line); paint-order: stroke fill; }
 /* ㉣ 이름 줄: 원본은 `[궁극의] 트렌트` **전체**가 등급 원색(#ff1c1c = RARITY_CSS.ultimate) + 검정
    키라인이다(y=400 스캔에서 채움 #ff1c1c, 획 경계 #000000). 클론은 inkRarity() 로 흰 바탕 대비를
    맞추느라 어둡게 깐 플랫 글자였다 — 키라인이 대비를 대신하므로 원색을 그대로 쓴다(ui.js 동반 수정). */
@@ -4802,10 +4820,8 @@ body {
    글리프는 흰 획 + 검정 키라인(y791~795 #ffffff 뒤 y797~799 #000000). ⑫ 가 `.petd-wrap` 에서 뽑은 값과
    같지만 그쪽 스코프는 이 팝업에 안 닿는다 — 전역 `--pp-red`(#e8362f)/`--pp-red-dk`(#a51710)는
    화면마다 달라 건드리지 않고 여기에만 준다. */
-#pet-upgrade-modal .x-btn {
-    background: #f2191d; box-shadow: inset 0 -.28rem 0 #4a0709;
-    color: #fff; -webkit-text-stroke: 3px var(--pp-line); paint-order: stroke fill;
-}
+/* (2026-08-19 icon-gen) 이 블록은 전역 `.x-btn` 승격으로 사라졌다 — 같은 값을 두 곳에 두면
+   한쪽만 고쳐지는 사고가 난다. 위 ㉤ 의 실측 근거는 승격 주석(전역 `.x-btn`)이 이어받는다. */
 /* ㉥ 이름 줄 = 원본은 `[궁극의] 트렌트` 전체가 **등급 원색 + 검정 키라인**이다(x250 세로 단면 y123~133 이
    #ff1c1c 이고 획 경계가 #050000·#090101). 클론은 --pp-ink 한 색이었다. ⑫ 와 같은 처방.
    ㉦ 스탯 2줄은 **순검정**(x180 y145·y160·y168 이 전부 #000000) — --pp-ink(#17181a)보다 진하다.
@@ -6817,10 +6833,9 @@ body {
 #player-info-modal .pinfo-id-text .name,
 #player-info-modal .pinfo-right { color: #000; }
 #player-info-modal .pinfo-subs-list { color: #3a3a3a; }
-#player-info-modal .x-btn {
-    background: #f2191d; box-shadow: inset 0 -.28rem 0 #4a0709;
-    color: #fff; -webkit-text-stroke: 3px var(--pp-line); paint-order: stroke fill;
-}
+/* (2026-08-19 icon-gen) 이 블록도 전역 `.x-btn` 승격으로 사라졌다 — ㉣ 가 "다음 세션이 그 두
+   화면을 재면 셋을 묶어 전역으로 올릴 것"으로 남긴 숙제를, 두 화면이 아니라 **원본 25장 전수**를
+   재서 닫았다(`tools/probe-xmark-ref.js`). */
 
 /* ===== 시트 바탕 · 장비 셀 AAA 스킨 (사용자 지시 2026-08-19, slug: ui-quality-up — 2차 슬라이스) =====
    1차(타일 면)의 인계 메모가 지목한 "남은 진짜 평면" 두 개다: 전체화면 시트의 **흰 여백**과 **장비 셀**.

@@ -43,6 +43,7 @@ PROBES=(
     probe-tn-dom.js             # tech-node   042605
     probe-cell-icon-size.js     # 메인 장비 칸 아이콘 채움
     probe-grid-empty.js         # 빈 상태 문구 스팬
+    probe-xmark-dom.js          # 닫기 ✕ 캔버스 아이콘 계약(폭/높이/색, icon-gen)
 )
 
 if [ "$#" -gt 0 ]; then

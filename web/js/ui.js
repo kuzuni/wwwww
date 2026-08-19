@@ -921,7 +921,7 @@ const UI = {
             const isX = !!xTab && b.dataset.tab === xTab;
             b.classList.toggle('tab-x', isX);
             if (isX && !b.dataset.label) b.dataset.label = b.innerHTML;
-            if (isX) b.innerHTML = '<span class="tab-x-mark">✕</span>';
+            if (isX) b.innerHTML = '<span class="tab-x-mark">' + IconGen.img('xmark') + '</span>';
             else if (b.dataset.label) { b.innerHTML = b.dataset.label; delete b.dataset.label; }
         });
     },
@@ -1668,7 +1668,7 @@ const UI = {
                     <div class="fi-rows">${rows}</div>
                     ${actionHtml}
                 </div>
-                <button class="x-btn" onclick="UI.closeForgeInfo()">✕</button>
+                <button class="x-btn" onclick="UI.closeForgeInfo()">${IconGen.img('xmark')}</button>
             </div>`;
     },
     // 원본(shot-042905): 시대색 헤더 막대 + 회색 패널 안 흰 아이템 셀(별 배지, % 아래 표기), 닫기=빨간 X(확률 정보로 복귀)
@@ -1724,7 +1724,7 @@ const UI = {
                     <h3 class="fi-title">모든 장비의 목록</h3>
                     <div class="forge-age-list">${sections}</div>
                 </div>
-                <button class="x-btn" onclick="UI.openForgeInfo()">✕</button>
+                <button class="x-btn" onclick="UI.openForgeInfo()">${IconGen.img('xmark')}</button>
             </div>`;
         this.hydrateForgeThumbs(this.els.forgeInfoModal);
     },
@@ -1851,7 +1851,7 @@ const UI = {
                         ${subsListHtml}
                     </div>
                 </div>
-                <button class="x-btn" title="닫기" onclick="UI.closeForgeItemDetail()">✕</button>
+                <button class="x-btn" title="닫기" onclick="UI.closeForgeItemDetail()">${IconGen.img('xmark')}</button>
             </div>`;
     },
 
@@ -1885,13 +1885,13 @@ const UI = {
         // 자동 제련만 0% 시대를 숨긴다 — 여긴 '뽑을 수 있는 시대'를 고르는 화면이라 못 뽑는 시대가 있으면 안 된다 (사용자 재지시 2026-08-17)
         const ageRows = AGES.filter(age => (probs[age] || 0) > 0).map(age => `
             <div class="af-age-bar" data-age="${age}" style="--ac:${this.ageHex(age)}" onclick="UI.onToggleKeepAge('${age}')">
-                <span class="af-check ${cfg.keepAges.includes(age) ? 'on' : ''}">${cfg.keepAges.includes(age) ? '✓' : ''}</span>
+                <span class="af-check ${cfg.keepAges.includes(age) ? 'on' : ''}">${cfg.keepAges.includes(age) ? IconGen.img('check', null, { tint: '#23c552' }) : ''}</span>
                 <span class="af-age-name">${this.ageIcon(age)} ${AGE_KR[age]}<span class="af-age-star">${this.ageStars()}</span></span>
                 <span class="af-age-pct">${pct(probs[age] || 0)}</span>
             </div>`).join('');
         const subRows = SUBSTATS.map(([key, label]) => `
             <div class="af-sub-row" onclick="UI.onToggleFilterSub('${key}')">
-                <span class="af-check ${cfg.filterSubs.includes(key) ? 'on' : ''}">${cfg.filterSubs.includes(key) ? '✓' : ''}</span>
+                <span class="af-check ${cfg.filterSubs.includes(key) ? 'on' : ''}">${cfg.filterSubs.includes(key) ? IconGen.img('check', null, { tint: '#23c552' }) : ''}</span>
                 <span>${label}</span>
             </div>`).join('');
 
@@ -1914,11 +1914,11 @@ const UI = {
                                 ${this._afDdOpen ? `<div class="af-dd-list">${Array.from({ length: this.hammerBatchMax() }, (_, n) => `<button class="${cfg.hammersPerBatch === n + 1 ? 'on' : ''}" onclick="UI.onPickHammers(${n + 1})">${n + 1}</button>`).join('')}</div>` : ''}
                             </div></div>
                         <div class="af-row"><span>목표 장비를 찾으면 제련 계속하기</span>
-                            <span class="af-check ${cfg.stopOnTarget ? '' : 'on'}" onclick="UI.onToggleStopOnTarget()">${cfg.stopOnTarget ? '' : '✓'}</span></div>
+                            <span class="af-check ${cfg.stopOnTarget ? '' : 'on'}" onclick="UI.onToggleStopOnTarget()">${cfg.stopOnTarget ? '' : IconGen.img('check', null, { tint: '#23c552' })}</span></div>
                         <button class="btn primary af-start" onclick="UI.onToggleAutoForge()">${S.autoForgeOn ? '중지' : '시작'}</button>
                     </div>
                 </div>
-                <button class="x-btn" onclick="UI.closeAutoForge()">✕</button>
+                <button class="x-btn" onclick="UI.closeAutoForge()">${IconGen.img('xmark')}</button>
             </div>`;
         // 망치 수 목록은 6칸 창에 22개가 들어가는 스크롤 목록이다. 새로 그리면 scrollTop이 0이라
         // 기본값 10이 선택돼 있어도 1~6만 보여 "지금 몇인지"도 "22까지 있다"는 것도 알 수 없다.
@@ -2870,7 +2870,7 @@ const UI = {
                 <div class="modal-card wide gd-card">
                     <div class="cmp-wrap">${this.itemCardHTML(S.equipment[slot], '장착됨', null, false)}</div>
                 </div>
-                <button class="x-btn" onclick="UI.closeGearDetail()">✕</button>
+                <button class="x-btn" onclick="UI.closeGearDetail()">${IconGen.img('xmark')}</button>
             </div>`;
     },
         closeGearDetail() { this.els.gearDetailModal.classList.add('hidden'); this._gearDetailSlot = null; },
@@ -3596,7 +3596,7 @@ const UI = {
                             : `<button class="btn petd-btn disabled" onclick="UI.onTogglePet(${i})">장착<small>${Pets.MAX_ACTIVE}마리 출전 중</small></button>`}
                     </div>
                 </div>
-                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+                <button class="x-btn" onclick="UI.closeDetail()">${IconGen.img('xmark')}</button>
             </div>`;
         this.showModal(this.els.detailModal);
         this.hydrateMountThumbs();   // 펫 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
@@ -3635,7 +3635,7 @@ const UI = {
                         <button class="btn primary petd-btn ${slotsFull ? 'disabled' : ''}" onclick="UI.onStartHatch(${i})">부화</button>
                     </div>
                 </div>
-                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+                <button class="x-btn" onclick="UI.closeDetail()">${IconGen.img('xmark')}</button>
             </div>`;
         this.showModal(this.els.detailModal);
     },
@@ -3694,13 +3694,13 @@ const UI = {
                     ${UI.petFace(p.name, 'mt-inline', p.stars)}
                     ${locked ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${p.level}</span>
-                    ${on ? '<span class="tile-check">✓</span>' : ''}
+                    ${on ? `<span class="tile-check">${IconGen.img('check')}</span>` : ''}
                 </span>
             </button>`;
         }).join('');
         const eggTiles = S.eggs.map((e, i) => `
             <button class="pet-tile egg ${sel.eggs.includes(i) ? 'selected' : ''}" style="--rc:${RARITY_CSS[e.rarity]}" onclick="UI.onToggleUpgradeMat('egg', ${i})">
-                <span class="tile-face">${IconGen.img('egg', null, { tint: RARITY_CSS[e.rarity] })}${sel.eggs.includes(i) ? '<span class="tile-check">✓</span>' : ''}</span>
+                <span class="tile-face">${IconGen.img('egg', null, { tint: RARITY_CSS[e.rarity] })}${sel.eggs.includes(i) ? `<span class="tile-check">${IconGen.img('check')}</span>` : ''}</span>
                 <span class="tile-label">알</span>
             </button>`).join('');
         const tilesHtml = petTiles + eggTiles || '<span class="muted mat-empty">재료로 쓸 펫/알이 없습니다</span>';
@@ -3750,7 +3750,7 @@ const UI = {
                     <div class="petup-divider"></div>
                     <div class="mat-grid pet-grid">${tilesHtml}</div>
                 </div>
-                <button class="x-btn" onclick="UI.closePetUpgrade()">✕</button>
+                <button class="x-btn" onclick="UI.closePetUpgrade()">${IconGen.img('xmark')}</button>
             </div>`;
         this.hydrateMountThumbs();   // 펫 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },
@@ -3925,7 +3925,7 @@ const UI = {
                     <p class="rates-tip">${isMount ? '태엽으로' : isPet ? '깨진 알을' : '티켓을'} 소환하여 레벨 업하고 소환 확률을 높이세요!</p>
                     ${gaugeHtml}
                 </div>
-                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+                <button class="x-btn" onclick="UI.closeDetail()">${IconGen.img('xmark')}</button>
             </div>`;
     },
 
@@ -3967,7 +3967,7 @@ const UI = {
                         <button class="btn primary skd-btn" onclick="UI.onToggleSkill('${id}'); UI.openSkillDetail('${id}')">${equipped ? '해제' : '장착'}</button>
                     </div>
                 </div>
-                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+                <button class="x-btn" onclick="UI.closeDetail()">${IconGen.img('xmark')}</button>
             </div>`;
         this.showModal(this.els.detailModal);
     },
@@ -4217,7 +4217,7 @@ const UI = {
                         <button class="btn silver dgd-btn ${keys > 0 ? '' : 'disabled'}" onclick="UI.onEnterDungeon('${id}', ${stage})">입장</button>
                     </div>
                 </div>
-                <button class="x-btn" onclick="UI.closeDungeonDetail()">✕</button>
+                <button class="x-btn" onclick="UI.closeDungeonDetail()">${IconGen.img('xmark')}</button>
             </div>`;
     },
     onEnterDungeon(id, stage) {
@@ -4352,7 +4352,7 @@ const UI = {
                         <div class="league-collect-pill">수집까지: <b>${U.fmtTime(remain)}</b></div>
                         <div class="league-reward-table">${rowsHtml}</div>
                     </div>
-                    <button class="x-btn" onclick="UI.openLeague()">✕</button>
+                    <button class="x-btn" onclick="UI.openLeague()">${IconGen.img('xmark')}</button>
                 </div>
             </div>`);
         this.fitLeagueRankLabels();
@@ -4402,7 +4402,7 @@ const UI = {
                     <div class="league-ticket-pill">${IconGen.img('ticket')} ${S.league.tickets}/${League.TICKET_MAX}</div>
                     <div class="league-challenge-list">${rowsHtml}</div>
                 </div>
-                <button class="x-btn" onclick="UI.openLeague()">✕</button>
+                <button class="x-btn" onclick="UI.openLeague()">${IconGen.img('xmark')}</button>
             </div>`;
     },
     onChallenge(idx) {
@@ -4434,7 +4434,7 @@ const UI = {
             const reached = Pass.reached(m.stage);
             const claimed = Pass.claimed(m.stage);
             const freeCell = claimed
-                ? `<div class="pass-cell free lit done">${this.passRewardLines(m.free)}<span class="pass-badge check">✓</span></div>`
+                ? `<div class="pass-cell free lit done">${this.passRewardLines(m.free)}<span class="pass-badge check">${IconGen.img('check')}</span></div>`
                 : reached
                     ? `<button class="pass-cell free lit claimable" onclick="UI.onClaimPass('${m.stage}', this)">${this.passRewardLines(m.free)}</button>`
                     : `<div class="pass-cell free">${this.passRewardLines(m.free)}</div>`;
@@ -4463,7 +4463,7 @@ const UI = {
                     <div class="pass-header-row"><span>무료</span><span>프리미엄</span></div>
                     <div class="pass-track">${rowsHtml}</div>
                 </div>
-                <button class="x-btn" onclick="UI.closePass()">✕</button>
+                <button class="x-btn" onclick="UI.closePass()">${IconGen.img('xmark')}</button>
             </div>`;
     },
     onClaimPass(key, cell) {
@@ -4572,7 +4572,7 @@ const UI = {
                             </div>
                             <div class="profile-field-label">성별:</div>
                             <div class="profile-field-row">
-                                <span class="profile-field">${S.gender || '♂'}</span>
+                                <span class="profile-field">${IconGen.img(S.gender === '♀' ? 'gender_f' : 'gender_m')}</span>
                                 <button class="profile-edit-btn" title="성별 변경" onclick="UI.onToggleGender()">${IconGen.img('pencil')}</button>
                             </div>
                         </div>
@@ -4588,7 +4588,7 @@ const UI = {
                         <button class="${this._profileView === 'settings' ? 'on' : ''}" onclick="UI.switchProfileView('settings')">설정</button>
                     </div>
                 </div>
-                <button class="x-btn" onclick="UI.closeProfile()">✕</button>
+                <button class="x-btn" onclick="UI.closeProfile()">${IconGen.img('xmark')}</button>
             </div>`;
     },
     onToggleAvatarPick() { this._avatarPicking = !this._avatarPicking; this.renderProfileView(); },
@@ -4643,7 +4643,7 @@ const UI = {
                         <button class="${this._profileView === 'settings' ? 'on' : ''}" onclick="UI.switchProfileView('settings')">설정</button>
                     </div>
                 </div>
-                <button class="x-btn" onclick="UI.closeProfile()">✕</button>
+                <button class="x-btn" onclick="UI.closeProfile()">${IconGen.img('xmark')}</button>
             </div>`;
     },
     onToggleSettingsDummy(key) { S.settingsDummy[key] = !S.settingsDummy[key]; saveGame(); this.renderSettingsView(); },
@@ -4724,7 +4724,7 @@ const UI = {
                             <span class="avatar">${IconGen.avatar(S.avatarEmoji)}</span>
                             <div class="pinfo-id-text">
                                 <span class="name">${U.escapeHtml(S.nickname || '용사')} <span class="muted">[무소속]</span></span>
-                                <span class="clan">${S.gender || '♂'} · 서버 1</span>
+                                <span class="clan">${IconGen.img(S.gender === '♀' ? 'gender_f' : 'gender_m')} · 서버 1</span>
                                 <span class="cp">${IconGen.img('power')} ${U.fmt(cp)}</span>
                             </div>
                         </div>
@@ -4739,7 +4739,7 @@ const UI = {
                     <div class="pinfo-loadout-row">${skillIconsHtml}${(petIconsHtml + mountIconHtml) || '<span class="muted">출전 중인 펫 없음</span>'}</div>
                     <div class="pinfo-subs-list">${subsHtml}</div>
                 </div>
-                <button class="x-btn" onclick="UI.closePlayerInfo()">✕</button>
+                <button class="x-btn" onclick="UI.closePlayerInfo()">${IconGen.img('xmark')}</button>
             </div>`;
         this.hydrateMountThumbs();   // 탈것 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
         // 미니 씬은 DOM 이 붙은 뒤에 시작한다 — 컨테이너의 clientWidth/Height 로 렌더 크기를 잡으므로
@@ -5071,7 +5071,7 @@ const UI = {
                     <h3 class="tb-title">총 보너스</h3>
                     <div class="tb-list">${listHtml}</div>
                 </div>
-                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+                <button class="x-btn" onclick="UI.closeDetail()">${IconGen.img('xmark')}</button>
             </div>`;
     },
 
@@ -5141,7 +5141,7 @@ const UI = {
                     </div>`}
                     ${actionHtml}
                 </div>
-                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+                <button class="x-btn" onclick="UI.closeDetail()">${IconGen.img('xmark')}</button>
             </div>`;
     },
     onTechStart(id) {
@@ -5245,7 +5245,7 @@ const UI = {
                         <button class="btn petd-btn ${active ? 'danger' : 'primary'}" onclick="UI.onEquipMount(${idx}); UI.openMountDetail(${idx})">${active ? '해제' : '장착'}</button>
                     </div>
                 </div>
-                <button class="x-btn" onclick="UI.closeDetail()">✕</button>
+                <button class="x-btn" onclick="UI.closeDetail()">${IconGen.img('xmark')}</button>
             </div>`;
         this.showModal(this.els.detailModal);
         this.hydrateMountThumbs();   // 탈것 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
@@ -5388,7 +5388,7 @@ const UI = {
                     ${rowsHtml}
                     ${bodyHtml}
                 </div>
-                <button class="x-btn" onclick="UI.closeAscension()">✕</button>
+                <button class="x-btn" onclick="UI.closeAscension()">${IconGen.img('xmark')}</button>
             </div>`;
         this.showModal(this.els.ascendModal);
     },
@@ -5424,7 +5424,7 @@ const UI = {
                         <button class="btn primary offline-collect-btn" onclick="UI.onCollectOffline()">수집<span class="offline-collect-dot"></span></button>
                     </div>
                 </div>
-                <button class="x-btn" onclick="UI.closeOfflineModal()">✕</button>
+                <button class="x-btn" onclick="UI.closeOfflineModal()">${IconGen.img('xmark')}</button>
             </div>`;
         this.showModal(this.els.offlineModal);
     },
