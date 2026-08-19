@@ -1,4 +1,4 @@
-// 시트 바탕 · 장비 셀 · 팝업 카드 스킨 패스 검증 — `ui-quality-up` 2·3차 슬라이스.
+// 시트 바탕 · 장비 셀 · 팝업 카드 · 퀘스트 행 스킨 패스 검증 — `ui-quality-up` 2·3·4차 슬라이스.
 // 짝: css/style.css 말미 '시트 바탕 · 장비 셀 AAA 스킨' + '일반 팝업 카드 바탕 AAA 스킨' 블록(같이 고칠 것).
 //
 // 스킨 패스의 절대 조건은 1차(probe-tile-skin.js)와 같다: **레이아웃이 한 픽셀도 안 움직여야 한다.**
@@ -31,6 +31,7 @@ const KILL_SKIN = `
 }
 .equip-cell.empty { box-shadow: none !important; }
 .modal-card:not(.sheet) { background-image: none !important; box-shadow: 0 .5rem 0 rgba(0,0,0,.25) !important; }
+.qst-row { background-image: none !important; box-shadow: 0 .25rem 0 rgba(0,0,0,.3) !important; }
 `;
 
 (async () => {
