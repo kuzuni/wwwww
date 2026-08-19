@@ -10312,6 +10312,10 @@ const Scene3D = {
         m.punchT = m.punchDur = crit ? 0.30 : 0.24;
         m.punchHold = crit ? 0.075 : 0.055; // 최대 압축 유지 — 이 뒤부터 elastic 복귀(비평가 권고 "60ms 후")
         m.punchAmp = (0.07 + Math.min(0.07, sev * 0.28)) * (crit ? 1.55 : 1);
+        // ④-b 플린치 포즈 — 스쿼시(균일 스케일)만으로는 '포즈'가 안 바뀐다(driveFlinch 주석의 실측).
+        // 관절이 실제로 튀어야 "움찔했다"로 읽힌다. 수명은 스쿼시보다 길게 둬 여운이 뒤에 남는다.
+        m.flinchT = m.flinchDur = crit ? 0.34 : 0.26;
+        m.flinchAmp = (0.55 + Math.min(0.45, sev * 1.8)) * (crit ? 1.45 : 1);
         // 히트스톱은 제거됐다(파일 상단 '타격감' 주석 — 사용자 지시). 크리의 '한 박자'는 카메라가 맡는다.
         // ⚠️ 셰이크 세기는 **다른 이벤트와의 상대값**으로 잡아야 한다 — 0.07은 화면 6.7px라
         // 무기 스윙이 이미 부르는 shake(0.15)(=15px)에 `Math.max`로 통째로 먹혀 크리에서만
@@ -10359,6 +10363,11 @@ const Scene3D = {
         // 진행 중인 개체 애니메이션(공격 돌진)이 시체 트랜스폼을 못 건드리게 하는 표식.
         // `update()` 루프는 `!e.alive` 로 걸러지지만 addAnim 으로 이미 떠 있는 연출은 안 걸린다.
         m.dead = true;
+        // 🚨 플린치 가산분을 **여기서** 되돌린다. update 루프는 `!e.alive` 로 죽은 개체를 건너뛰므로
+        // (그리고 driveFlinch 도 `m.dead` 로 조기 반환하므로) 마지막 프레임의 오프셋이 아무도
+        // 안 빼 준 채 남는다 — 그러면 시체가 **팔을 뒤로 젖힌 뒤틀린 포즈로 굳는다.**
+        this.undoFlinch(m);
+        m.flinchT = 0;
         // 처치 버스트: 주황 파편 + 흰 코어 스파크 + 순간 점광 + 충격 링, 보스는 전부 확대판 (마지막 한 방이 제일 세게 터지도록)
         // 버스트 원점은 적 실높이의 중간 — 고정 +0.5는 보스(실높이 2.1)에선 무릎 높이라
         // 마지막 한 방이 발밑에서 터졌다.
@@ -13573,6 +13582,66 @@ const Scene3D = {
 
     addAnim(dur, fn, onDone) { this.anims.push({ t: 0, dur, fn, onDone }); },
 
+    // ── 피격 플린치 포즈 (hp-juicy 7차 잔여 ㉮) ──────────────────────────────────────────────
+    // 🚨 이 층이 왜 필요한가 — 7차 비평가의 "일반 타격은 a0→a1 포즈가 같아 보인다"를 실측한 결과다
+    // (`tools/probe-flinch-visibility.js`). 스쿼시(`punchAmp`)는 **분명히 돌고 있었다**: 같은 프레임
+    // A/B 로 스쿼시만 껐다 켜면 몸통 투영 폭이 44.8→42.2px(-5.9%), 실루엣 폭이 25.1→24.1px(-4.2%)로
+    // 확실히 움직인다. 즉 지적의 전제('연출이 없다')는 틀렸고 **캡처 아티팩트도 아니었다**
+    // (`shot-hitfx.js` 는 수동 스텝으로 시간을 통제하므로 +16ms 프레임을 정확히 잡는다).
+    // 진짜 원인은 셋째였다 — **스쿼시는 그룹 전체의 균일 스케일이라 '포즈'가 아니다.** 몸이 통째로
+    // 2px 눌렸다 펴질 뿐 팔·다리·꼬리는 맞기 전과 **한 각도도 다르지 않다.** 그래서 '움찔했다'가
+    // 아니라 '같은 조각상이 살짝 찌그러졌다'로 읽힌다. 크기 변화는 카메라가 같이 움직이면 더 안 읽힌다.
+    // → 처방은 진폭을 키우는 게 아니라 **관절이 실제로 튀는 포즈 층**을 얹는 것이다.
+    // 1930년대 러버호스 카툰 지시(TODO 애니메이션 항목)의 예비동작 없는 즉발 스냅 → 여운 →
+    // 반대쪽 오버슈트를 그대로 쓴다: 타격은 예고 없이 들어오므로 **anticipation 은 두지 않는다.**
+    driveFlinch(m, dt) {
+        if (!(m.flinchT > 0) || m.dead) return;
+        m.flinchT = Math.max(0, m.flinchT - dt);
+        const v = 1 - m.flinchT / m.flinchDur;             // 0 → 1
+        // 스냅 구간을 6%(≈16ms)로 둔다 — **접촉 프레임이 곧 정점**이 되게 하려는 것이다.
+        // 비평가·캡처가 읽는 프레임이 +16ms 라 정점이 그 뒤에 오면 그 한 장에는 38% 밖에 안 담긴다.
+        const RISE = 0.06;                                  // 즉발 스냅 구간(예고 없이 꺾인다)
+        let w;
+        if (v < RISE) w = v / RISE;
+        else {
+            const u = (v - RISE) / (1 - RISE);
+            // 감쇠 진동 — 되돌아오며 반대쪽으로 한 번 넘긴다(러버호스 여운/오버슈트).
+            w = Math.exp(-3.6 * u) * Math.cos(u * Math.PI * 2.4);
+        }
+        const a = (m.flinchAmp || 0) * w;
+        if (!a) return;
+        const off = [];
+        const add = (o, ax, val) => { if (o && val) { o.rotation[ax] += val; off.push({ o, ax, v: val }); } };
+        const A = m.anim || {};
+        // ⓐ 상체 — 히트축(-x, 영웅 쪽)에서 맞았으니 뒤로 젖혀지고 살짝 비틀린다.
+        //    회전은 기저 포즈가 매 프레임 **절대 대입**하는 값 위에 얹는다(그래서 누적되지 않는다).
+        add(m.g, 'x', -a * 0.20);
+        add(m.g, 'y', a * 0.15);
+        // ⓑ 팔 — 충격에 뒤로 날아갔다 따라온다(follow-through). 관절 리그가 있으면 어깨·팔꿈치 둘 다.
+        if (A.barm) A.barm.forEach((arm, j) => {
+            add(arm.sh, 'x', a * 0.85);
+            add(arm.sh, 'z', (j === 0 ? 1 : -1) * a * 0.34);   // 바깥으로 벌어짐
+            add(arm.elbow, 'x', a * 0.45);
+        });
+        else { add(m.armR, 'x', a * 0.8); add(m.armL, 'x', a * 0.8); }
+        if (A.armRJ && !A.barm) { add(A.armRJ.sh, 'x', a * 0.8); add(A.armRJ.elbow, 'x', a * 0.45); }
+        // ⓒ 다리 — 버티느라 무릎이 접히고 골반이 밀린다(밀려나는 발이 없으면 상체만 떠 보인다).
+        if (A.bleg) A.bleg.forEach(L => { add(L.hip, 'x', -a * 0.28); add(L.knee, 'x', -Math.abs(a) * 0.40); });
+        if (A.gleg) A.gleg.forEach(lg => add(lg, 'x', -a * 0.26));           // 골렘 기둥 다리(무릎 없음)
+        if (A.kind === 'wolf' && A.legs) A.legs.forEach(lg => add(lg, 'x', -a * 0.34));
+        // ⓓ 종별 부속 — 2차 모션(꼬리·날개·갓)이 뒤따라 출렁여야 '한 덩어리'로 안 읽힌다.
+        if (A.tail) add(A.tail, 'z', a * 0.62);
+        if (A.wings) A.wings.forEach(wg => add(wg, 'z', (wg.userData.s || 1) * a * 0.5));
+        if (A.cap) add(A.cap, 'z', a * 0.30);
+        m._flinchOff = off;
+    },
+    // 지난 프레임의 플린치 가산분을 정확히 되돌린다(기저 포즈 계산 전에 부른다).
+    undoFlinch(m) {
+        if (!m._flinchOff) return;
+        for (const d of m._flinchOff) d.o.rotation[d.ax] -= d.v;
+        m._flinchOff = null;
+    },
+
     update(dt) {
         // 🚨 히트스톱(dt=0 정지)은 여기 있었고 **제거됐다 — 되살리지 말 것** (사용자 지시 2026-08-19,
         // skill-cast-lag-optimize: 씬만 얼고 CSS 는 도니 '렉'으로 읽혔다). dt 는 어떤 연출도 얼리지 않는다.
@@ -13581,6 +13650,10 @@ const Scene3D = {
         for (const e of Combat.enemies) {
             const m = this.enemyMap.get(e.id);
             if (!m || !e.alive) continue;
+            // 플린치 가산분 되돌리기 — 기저 포즈(걷기·대기)가 계산되기 **전에** 지난 프레임의 오프셋을
+            // 뺀다. 대기 분기가 팔다리를 `*= 0.85` 로 감쇠하므로, 안 빼고 매 프레임 더하면 가산분이
+            // 감쇠에 갈려 진폭이 종잡을 수 없게 된다(더한 값을 남이 곱셈으로 깎는 꼴).
+            this.undoFlinch(m);
             m.g.position.x += ((e.x + this.worldX) - m.g.position.x) * Math.min(1, dt * 12);
             // 깊이 레인(z)도 같은 계수로 따라간다 — 앞자리가 비어 대열이 다시 짜이면 옆으로
             // 미끄러지듯 자리를 옮긴다(순간이동 금지). HP바·블롭 섀도우는 이 z를 그대로 추적한다.
@@ -13829,6 +13902,12 @@ const Scene3D = {
             const k = Math.min(1, a.t / a.dur);
             a.fn(k);
             if (k >= 1) { if (a.onDone) a.onDone(); this.anims.splice(i, 1); }
+        }
+        // 플린치 포즈는 **큐 뒤에** 얹는다 — 넉백 애니(`rotation.z` 절대 대입)가 큐 안에 있어서,
+        // 앞에서 더하면 같은 프레임에 통째로 덮어써진다(실제로 이 순서 때문에 한 번 사라졌다).
+        for (const e of Combat.enemies) {
+            const m = this.enemyMap.get(e.id);
+            if (m && e.alive) this.driveFlinch(m, dt);
         }
         // 탈것: 영웅이 올라타 있으므로 탈것이 곧 이동체다 — 영웅 발밑에 붙어 같은 리듬으로 흔들린다.
         // 걷기 중 바운스·기울기는 '탈것이 달리는 것'이고 영웅은 그 위에 얹혀 같은 오프셋을 받는다
