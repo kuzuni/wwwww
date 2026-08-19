@@ -4012,7 +4012,15 @@ body {
 .hatch-cell.empty { color: #8b96b5; font-size: .65rem; justify-content: flex-end; min-height: 8.6rem; }
 .hatch-hint { position: relative; z-index: 1; }
 .hatch-cell .hatch-egg { position: relative; z-index: 1; font-size: 1.7rem; margin-top: .5rem; filter: drop-shadow(0 .15rem .12rem rgba(0,0,0,.45)); }
-.hatch-cell .hatch-time { position: relative; z-index: 1; font-size: .62rem; font-weight: 900; color: #fff; white-space: nowrap; }
+/* 원본(042356·042445) 타이머 글자는 **검정 외곽선을 두른 굵은 흰 글자**이고 클론보다 확실히 크다
+   — 비평가 2인 교집합 지적(폭 −2.74~−3.05%p · "글자가 작다"). 두 원본을 같은 픽셀 코드로 재니
+   흰 코어 잉크가 **높이 13px(2.65%W) · 폭 52~54px(10.6~10.9%W)** 로 일치했고(042356 52 / 042445 53.3),
+   클론은 40px(8.02%W) × 9px(1.80%W) 였다. 외곽선은 바탕(휘도 39) 보다 어두운 휘도 0~8 의 1px 테로,
+   글리프 안쪽 여백에도 들어간다 → `paint-order: stroke fill` 로 흰 코어를 안 먹는 2px 스트로크. */
+.hatch-cell .hatch-time {
+    position: relative; z-index: 1; font-size: .87rem; font-weight: 900; color: #fff; white-space: nowrap;
+    -webkit-text-stroke: var(--ol3) #17181a; paint-order: stroke fill;
+}
 /* 젬 스킵 필을 흐름에서 빼 칸 우상단 오버레이로 — 원본(042445) 칸은 타이머가 맨 아래(79.3%H)인데
    필이 타이머 밑 흐름에 있으면 타이머가 76.0%H 로 3%p 위로 밀린다(전수 검증 채점 2차 2인 공통,
    픽셀 교차검증). 기능(QA 차수들이 실측하는 '젬 스킵')은 그대로 살린다. */
