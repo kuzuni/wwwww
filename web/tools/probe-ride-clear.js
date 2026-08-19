@@ -17,7 +17,8 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
     // 게는 `mount-species-recognizable` 로 **몸통 폭이 배럴의 두 배(등딱지 반폭 0.36)** 가 됐고
     // 눈자루가 안장 앞에 선다 — 이 검사의 표적 그 자체라 반드시 넣는다.
     // (당나귀는 아래 줄에 이미 있다 — 같은 항목에서 긴 목 계열로 옮겼으니 그 항목이 그대로 표적이다.)
-    ['quad', 'Crab'],
+    // 거북도 같은 항목 ② 에서 **돔이 안장 높이까지 올라왔다** — 안장을 삼키면 그게 곧 결함이라 넣는다.
+    ['quad', 'Crab'], ['quad', 'Turtle'],
     ['fly', 'Star Whale'], ['flat', 'Hover Disk'],
     // 로스터 교체(2026-08-19 mount-animal-machine-dynamic ①)로 들어온 종 중 **안장 앞에 뭔가 서는** 셋.
     // 당나귀=긴 귀, 알파카=긴 목, 태엽 딱정벌레=더듬이 — 전부 이 검사의 표적 형상이라 빠지면 안 된다.
