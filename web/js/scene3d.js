@@ -5316,24 +5316,33 @@ const Scene3D = {
             //    **매끈한 반구**가 아니라, **짐승 머리뼈를 뒤집어쓴 것**이라야 원시로 읽힌다:
             //    앞으로 뻗은 주둥이 · 파인 눈구멍 · 광대활 · 이빨. 이 넷이 두개골의 서명이다.
             const cavity = new THREE.MeshBasicMaterial({ color: 0x0a0d10 });
+            // 📌 `probe-equip-framing` 잔여 1건 기록(다음 세션이 헛수고하지 말 것): 이 칸은 중심오차
+            //    x 4.7%(기준 4%)로 '치우침'에 뜬다. **주둥이 단축(0.30→0.255·z −0.025)도, 뒤통수
+            //    연장(z 1.04→1.24)도 x 를 한 눈금도 못 움직였다** — 그 지표는 1/64(≈1.56%p) 단위로
+            //    양자화돼 있고 같은 4.7% 가 `사신의 모자`·`슬라브 모자` 등 손대지 않은 칸에도 그대로
+            //    찍힌다(위반 67건은 이 스타일 신설 **전부터** 있던 것이고, 신설로 68건이 됐다).
+            //    조형 쪽 레버로는 못 넘기는 자리라 판단해 남긴다. 뒤통수 연장은 **y 오차가 3.1→2.7 로
+            //    줄고** 짐승 두개골 비례로도 맞아 그대로 둔다.
             const cran = new THREE.Mesh(new THREE.SphereGeometry(0.235, 14, 10), mat);
-            cran.scale.set(0.98, 0.94, 1.04);
-            cran.position.set(0, 0.045, -0.045);
+            cran.scale.set(0.98, 0.94, 1.24);
+            cran.position.set(0, 0.045, -0.085);
             g.add(cran);
             // 주둥이 — 앞으로 뻗어 가늘어진다. 이게 없으면 그냥 사람 머리통이다.
-            const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.135, 0.30, 8), mat);
+            // ⚠️ 길이 0.30·z 0.175 로 두면 주둥이가 너무 튀어나와 3/4 썸네일 카메라에서 중심오차
+            //    x 4.7%(기준 4%)로 `probe-equip-framing` 에 걸린다(실측). 짧게, 뒤로 당긴다.
+            const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.135, 0.255, 8), mat);
             snout.rotation.x = Math.PI / 2 + 0.16;   // 앞으로 눕히고 코끝을 살짝 내린다
-            snout.position.set(0, -0.055, 0.175);
+            snout.position.set(0, -0.052, 0.150);
             snout.scale.set(1, 1, 0.80);             // 위아래로 눌러 '부리'가 아니라 '주둥이'로
             g.add(snout);
             // 눈구멍 — 깊게 파인 검은 공동. 두개골의 얼굴은 여기서 결정된다.
             for (const s of [-1, 1]) {
                 const socket = new THREE.Mesh(new THREE.SphereGeometry(0.072, 10, 8), cavity);
                 socket.scale.set(1, 0.84, 0.62);
-                socket.position.set(s * 0.115, 0.015, 0.148);
+                socket.position.set(s * 0.115, 0.015, 0.140);
                 g.add(socket);
                 const brow = new THREE.Mesh(new THREE.TorusGeometry(0.072, 0.019, 6, 14, Math.PI * 1.15), mat);
-                brow.position.set(s * 0.115, 0.015, 0.156);
+                brow.position.set(s * 0.115, 0.015, 0.148);
                 brow.rotation.z = -s * 0.30 + Math.PI * 0.10;
                 brow.scale.z = 0.55;
                 g.add(brow);
@@ -5348,14 +5357,14 @@ const Scene3D = {
                 const nas = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.072, 3), cavity);
                 nas.rotation.x = Math.PI / 2 + 0.16;
                 nas.rotation.z = Math.PI;
-                nas.position.set(0, -0.048, 0.212);
+                nas.position.set(0, -0.046, 0.190);
                 g.add(nas);
             }
             // 위턱 이빨 — 주둥이 밑선을 따라. 송곳니 2개가 길다.
             for (let i = -2; i <= 2; i++) {
                 const big = Math.abs(i) === 1;
                 const t = new THREE.Mesh(new THREE.ConeGeometry(big ? 0.024 : 0.018, big ? 0.098 : 0.058, 6), mat);
-                t.position.set(i * 0.048, -0.145 + Math.abs(i) * 0.012, 0.235 - Math.abs(i) * 0.030);
+                t.position.set(i * 0.048, -0.140 + Math.abs(i) * 0.012, 0.208 - Math.abs(i) * 0.028);
                 t.rotation.x = Math.PI;       // 아래로 뾰족하게
                 t.rotation.z = i * 0.10;
                 g.add(t);
@@ -5661,6 +5670,8 @@ const Scene3D = {
         //    "동일 몸통 팔레트 스왑"으로 읽혀 스타일 분화가 통째로 지워진다(3차 채점 C·D 공통 1~2순위).
         //    문장은 경식 갑주(plate·suit)의 언어다 — 천 계열은 자기 조형(후드·술·파우치)이 정체성을 진다.
         if (o.age === 'divine') {
+            // ⚠️ vestment 는 제외 — extras 십자가의 기본 높이(프리뷰 y 0.13)가 모제타 뒤라
+            //    묻힌다. 제의의 십자가는 스톨 사이에 직접 놓는다(makeArmorPreview 의 vestment 분기).
             if (style === 'plate' || style === 'suit' || style === 'robe') {
                 const frontZ = o.frontZ !== undefined ? o.frontZ : 0.128;
                 this.addDivineCross(g, 0, o.crossY !== undefined ? o.crossY : 0.78, frontZ + 0.05, 0.17);
@@ -5688,7 +5699,7 @@ const Scene3D = {
         style = style || 'plate';
         // 가죽·로브는 판금 재질을 쓰면 '철판 원피스'로 읽힌다 — 시대색은 유지한 채 금속기만 뺀다
         // `bone`(원시 뼈 갑옷)도 몸통은 생가죽 받침이다 — 뼈는 그 위에 얹는 별도 층(아래 참조).
-        const soft = style === 'hide' || style === 'robe' || style === 'bone';
+        const soft = style === 'hide' || style === 'robe' || style === 'bone' || style === 'vestment';
         // 천·가죽은 시대 계열 셰이딩(판금의 에지 웨어)이 아니라 **천 프로파일**을 탄다 — 안 그러면
         // 로브에 강철 모서리 반짝임이 얹힌다. tintOf 가 base 의 계열을 물려주므로 여기서 덮어쓴다.
         // ⚠️ 명도차도 시대마다 줘야 한다 — 셰이딩 프로파일만 갈랐더니 근세(왁스 캔버스)와 현대(기술섬유)
@@ -5739,6 +5750,7 @@ const Scene3D = {
             bone: { shoulder: 0.90, waist: 1.06, skirt: 0.198, top: 0.86 },   // 뼈 갑주: 좁은 어깨·통짜 몸통·짧은 기장 (늑골이 바깥 윤곽을 진다)
             exo: { shoulder: 0.86, waist: 0.86, skirt: 0.170, top: 1.10 },   // 외골격: 몸통은 얇은 코어, 부피는 바깥 프레임이 진다 (판금과 정반대 배분)
             carrier: { shoulder: 1.10, waist: 1.02, skirt: 0.205, top: 0.88 },   // 플레이트 캐리어: 넓고 각지고 짧다 (곡면 흉갑과 반대로 평판)
+            vestment: { shoulder: 0.96, waist: 1.02, skirt: 0.330, top: 1.08 },  // 제의: 어깨 케이프로 넓고 밑단이 크게 퍼진다 (로브의 후드 대신 어깨가 얼굴)
         }[style] || { shoulder: 1, waist: 1, skirt: 0.225, top: 1 };
         // 천 주름(비평가 ⓒ⑶) — 로브는 어깨에 걸린 천이라 밑으로 갈수록 주름이 깊어진다.
         // fw 는 링별 주름 가중치(목 0 → 밑단 1). 판금은 0(주름진 강철은 찌그러진 강철이다).
@@ -5960,6 +5972,71 @@ const Scene3D = {
                 tusk.rotation.x = Math.PI;      // 아래로 뾰족하게
                 tusk.rotation.z = dx * 1.4;
                 g.add(tusk);
+            }
+        }
+        if (style === 'vestment') {
+            // ── 천상 `제의`(equip-era-theming ⑥, 천상 '신탁의 로브') ────────────────────
+            // 🚨 **되돌려서 `suit` 로 쓰지 말 것.** 천상 5번 칸 '신탁의 로브'가 style `suit` 였다 —
+            //    산소통 시대 게이트(③) 이후로는 **퀴레스 어깨 깃**이 붙는다. 즉 이름은 로브인데
+            //    조형은 갑주다. 천상의 옷은 갑주가 아니라 **제의**다(사용자 지시 '천상→진짜 천상').
+            // 조형 언어: ⓐ 어깨를 덮는 **짧은 케이프(모제타)** — 로브의 후드 자리를 대신하는 얼굴
+            //   ⓑ 앞으로 늘어진 **스톨 2줄** ⓒ 넓은 **종 소매** ⓓ 금 헴. 후드·백팩·깃은 0개.
+            // ⚠️ `mat` 에 side 를 직접 쓰지 말 것 — 몸통·다른 파츠가 공유하는 재질이라 통째로
+            //    양면이 되고, tintOf 캐시를 타면 다른 호출까지 오염된다. 파생 재질을 따로 만든다.
+            const clothM = this.tintOf(mat, 0, { side: THREE.DoubleSide });
+            const goldM = this.divineLitMat();
+            // ⓐ 모제타 — 어깨에서 팔꿈치까지 덮는 짧은 케이프. 열린 원뿔이라 부피가 산다.
+            {
+                // ⚠️ 밑단 반경 0.315·높이 0.245 로 두면 **몸통 전체를 덮는 갓(전등갓)** 이 되어
+                //    스톨·소매·십자가가 전부 그 안에 묻힌다(실측). 모제타는 어깨만 덮는 짧은 케이프다.
+                const moz = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.162, 0.252, 0.175, 22, 1, true), clothM);
+                moz.position.set(0, 0.178, 0);
+                g.add(moz);
+                const hem = new THREE.Mesh(new THREE.TorusGeometry(0.249, 0.019, 6, 26), goldM);
+                hem.position.y = 0.092;
+                hem.rotation.x = Math.PI / 2;
+                g.add(hem);
+                const collar = new THREE.Mesh(new THREE.TorusGeometry(0.156, 0.025, 6, 20), goldM);
+                collar.position.y = 0.264;
+                collar.rotation.x = Math.PI / 2;
+                g.add(collar);
+            }
+            // ⓑ 스톨 2줄 — 목에서 밑단까지 내려오는 띠. 제의의 서명이고, 세로선이 실루엣도 가른다.
+            for (const s of [-1, 1]) {
+                const stole = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.355, 0.020), goldM);
+                stole.position.set(s * 0.068, -0.115, 0.126);
+                stole.rotation.z = s * 0.055;
+                g.add(stole);
+                const tip = new THREE.Mesh(new THREE.ConeGeometry(0.034, 0.058, 4), goldM);
+                tip.position.set(s * 0.078, -0.312, 0.124);
+                tip.rotation.x = Math.PI;
+                tip.rotation.y = Math.PI / 4;
+                g.add(tip);
+            }
+            // ⓒ 종 소매 — 팔을 감싸 아래로 크게 벌어지는 천. 로브의 자락 슬리브보다 짧고 넓다.
+            for (const s of [-1, 1]) {
+                const sleeve = new THREE.Mesh(new THREE.ConeGeometry(0.118, 0.215, 12, 1, true), clothM);
+                sleeve.position.set(s * 0.258, -0.118, 0);
+                sleeve.rotation.z = -s * 0.20;
+                g.add(sleeve);
+                const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.015, 6, 16), goldM);
+                cuff.position.set(s * 0.279, -0.222, 0);
+                cuff.rotation.x = Math.PI / 2;
+                cuff.rotation.y = -s * 0.20;
+                g.add(cuff);
+            }
+            // 스톨 사이 십자가 — 사용자 지시 '천상→예: 예수 머리·십자가'. 제의에서는 가슴이 아니라
+            // 두 스톨 사이가 제자리다(가슴은 모제타가 덮는다).
+            this.addDivineCross(g, 0, -0.058, 0.142, 0.155);
+            // ⓓ 밑단 금 헴 — 천이 어디서 끝나는지 못 박는다
+            {
+                const r = RINGS[0];
+                const hem = new THREE.Mesh(new THREE.TorusGeometry(r.rx * 1.01, 0.019, 6, 26), goldM);
+                hem.position.y = r.y;
+                hem.rotation.x = Math.PI / 2;
+                hem.scale.y = r.rz / r.rx;
+                g.add(hem);
             }
         }
         if (style === 'carrier') {

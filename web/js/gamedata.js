@@ -129,6 +129,7 @@ const HELMET_STYLES = {
 //       bone(뼈 갑주 — 늑골 아치+견갑골 판+가죽끈, 원시 전용)
 //       exo(외골격 — 어깨 짐벌 링+옆구리 액추에이터+동력 코어, 우주 이후 전용)
 //       carrier(플레이트 캐리어 — 평판 하드플레이트+MOLLE 웨빙+어깨 요크+커머번드, 현대 전용)
+//       vestment(제의 — 어깨 케이프(모제타)+스톨 2줄+종 소매+금 헴, 천상 전용)
 // 시대당 5종 (원본 카탈로그 2~3종 + 자체 확충)
 // 헬멧과 같은 규칙 — 시대 안에서 스타일 중복 금지 (계열이 8종뿐이라 시대당 5개를 겹치지 않게 고른다)
 // 🚨 **시대에 안 맞는 조형을 배정하지 말 것 (equip-era-theming, 사용자 지시 2026-08-19).**
@@ -149,7 +150,7 @@ const ARMOR_STYLES = {
     multiverse:   ['suit', 'plate', 'robe', 'vest', 'cape'],
     quantum:      ['exo', 'suit', 'robe', 'vest', 'cape'],     // 델타 아머·오비터 슈트·파동 로브·입자 조끼·양자 망토
     underworld:   ['plate', 'suit', 'cape', 'robe', 'vest'],
-    divine:       ['robe', 'plate', 'cape', 'vest', 'suit'],
+    divine:       ['robe', 'plate', 'cape', 'vest', 'vestment'], // 홀리 가운·팔라딘 아머·대천사 망토·성광 조끼·신탁의 로브 (suit=기밀복/퀴레스 제거)
 };
 
 // 장신구류(외형 미반영 5부위): 부위당 3종 변형 — 이름/프리뷰 모델이 다름
