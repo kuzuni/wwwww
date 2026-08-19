@@ -11886,9 +11886,16 @@ const Scene3D = {
             capG.rotation.x = -0.16; // 갓을 뒤로 젖혀 게임 카메라(전방 상단)에서 얼굴 가시성 확보 (비평가 지적)
             const capM = lam(new THREE.Color(0xc9402e), ProChar.hideTex()); // 절대 지정 시그니처 레드 갓 — 파생색은 태양광에 살구색으로 씻김 (비평가 지적)
             capM.side = THREE.DoubleSide; // 열린 반구 그림자 구멍 방지 — 단면 셸은 그림자 맵에 초승달 구멍('소용돌이 그림자' 아티팩트)을 냄
-            const dome = mk(new THREE.SphereGeometry(0.32, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), capM);
+            // ⓒ **갓 실루엣 깨기** — 이 종에서 마지막까지 남아 있던 완전 프리미티브다(앞 세션들이
+            //    '갓 돔이 이 종의 실루엣 대부분'이라 일부러 미뤄 둔 자리). 골렘에서 얻은 결론이
+            //    그대로 적용된다: **깨야 하는 건 면 음영이 아니라 실루엣**이다 — 구는 어떤
+            //    플랫셰이딩을 걸어도 윤곽이 완전한 원이라 '플라스틱 우산'으로 읽힌다.
+            //    각지게 깎는 `boulderGeo` 는 돌의 자라 버섯에 걸면 '수정 버섯'이 된다 → 살·갓에는
+            //    저진폭 유기 변형(`sculptOrganic`)이 정답(늑대에서 세운 규약 그대로).
+            const domeGeo = this.sculptOrganic(new THREE.SphereGeometry(0.32, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), 21, { amp: 0.11 });
+            const dome = mk(domeGeo, capM);
             dome.scale.set(1, 0.82, 1);
-            const lip = mk(new THREE.TorusGeometry(0.29, 0.05, 8, 16), lam(base.clone().offsetHSL(0, 0.15, -0.16), ProChar.hideTex()));
+            const lip = mk(this.sculptOrganic(new THREE.TorusGeometry(0.29, 0.05, 8, 16), 22, { amp: 0.08 }), lam(base.clone().offsetHSL(0, 0.15, -0.16), ProChar.hideTex()));
             lip.rotation.x = Math.PI / 2; lip.position.y = 0.015;
             const frill = mk(new THREE.CylinderGeometry(0.28, 0.2, 0.06, 12, 1, true), light); // 갓 아래 주름살
             frill.material.side = THREE.DoubleSide;
@@ -11896,10 +11903,27 @@ const Scene3D = {
             capG.add(dome, lip, frill);
             const spotM = new THREE.MeshLambertMaterial({ color: 0xfff8ec });
             // 흰 반점을 갓 '상단' 곡면에 구면좌표로 앵커 — 정면 하단 배치가 몸통 반점으로 오독됨 (비평가 지적)
+            // 🚨 반점 반경을 **상수 0.32 로 두면 안 된다** — 갓을 유기 변형한 순간 그 값은 더 이상
+            //    표면이 아니라, 오목한 쪽에서는 반점이 갓 **속으로 파묻히고** 볼록한 쪽에서는
+            //    허공에 뜬다(이 저장소가 호랑이 줄무늬·멧돼지 갈기에서 반복해 밟은 그 함정이다).
+            //    그래서 방향마다 **변형된 갓의 실제 반경을 표본으로 뽑아** 거기에 얹는다.
+            const dpos = domeGeo.attributes.position;
+            const domeR = (dx, dy, dz) => {
+                let best = -2, bestR = 0.32;
+                for (let i = 0; i < dpos.count; i++) {
+                    const vx = dpos.getX(i), vy = dpos.getY(i), vz = dpos.getZ(i);
+                    const len = Math.hypot(vx, vy, vz);
+                    if (len < 1e-6) continue;
+                    const d = (vx * dx + vy * dy + vz * dz) / len;
+                    if (d > best) { best = d; bestR = len; }
+                }
+                return bestR;
+            };
             for (const [th, ph, sr] of [[0.3, 1.4, 0.055], [0.55, 2.35, 0.05], [0.52, 0.55, 0.045], [0.85, 1.85, 0.048], [0.82, 0.6, 0.038], [0.62, -2.0, 0.04]]) {
                 const spot = mk(new THREE.SphereGeometry(sr, 8, 6), spotM);
-                const rr = 0.32 * 0.97; // 살짝 파묻음
-                const sx2 = Math.sin(th) * Math.cos(ph) * rr, sz2 = Math.sin(th) * Math.sin(ph) * rr, sy2 = Math.cos(th) * rr * 0.82;
+                const ux = Math.sin(th) * Math.cos(ph), uy = Math.cos(th), uz = Math.sin(th) * Math.sin(ph);
+                const rr = domeR(ux, uy, uz) * 0.97; // 살짝 파묻음
+                const sx2 = ux * rr, sz2 = uz * rr, sy2 = uy * rr * 0.82;
                 spot.position.set(sx2, sy2, sz2);
                 spot.scale.z = 0.45;
                 spot.lookAt(sx2 * 2, sy2 * 2.4, sz2 * 2); // 갓 법선 방향으로 눕힘
