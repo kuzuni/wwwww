@@ -3893,6 +3893,11 @@ const Scene3D = {
         brass: { mode: 'panel', freq: 13, amp: 0.22, vary: 0.040, vfreq: 20 },   // 황동: 각인 격자
         polymer: { mode: 'panel', freq: 10, amp: 0.18, vary: 0.040, vfreq: 20 },   // 폴리머: 패널 심
         alloy: { mode: 'panel', freq: 12, amp: 0.24, vary: 0.040, vfreq: 20, glow: 0x9fe8ff }, // 합금: 심에 냉광
+        // 사슬(물질 'chain' 전용 — 계열 키가 아니라 **무늬 키**로만 쓰인다, ageShade 3번째 인자):
+        // 종전엔 chain 몸통이 계열(forged)의 리벳 무늬를 그대로 물어 '동그라미 한 줄 프린트'로
+        // 읽혔다(1차 채점 B). 사슬은 리벳이 아니라 **엇갈린 고리들이 맞물린 직물**이다 — 행마다
+        // 반 칸 어긋난 고리 + 고리 사이 틈 그늘 + 고리 윗호 하이라이트가 메일의 서명.
+        chain: { mode: 'mail', freq: 16, amp: 0.50, vary: 0.035, vfreq: 20 },
         soft: { mode: 'stitch', freq: 12, amp: 0.26, vary: 0.060, vfreq: 20 },   // 천·가죽: 바늘땀 + 주름
         'soft:primal': { mode: 'stitch', freq: 11, amp: 0.44, vary: 0.070, vfreq: 20, grain: 0.95, grainF: 6.5 }, // 거친 생가죽 — 땀이 굵고 얼룩이 크다(현대 기술섬유와 거칠기가 갈려야 한다)
         'soft:forged': { mode: 'stitch', freq: 12, amp: 0.26, vary: 0.060, vfreq: 20 }, // 모직
@@ -3928,6 +3933,22 @@ const Scene3D = {
             '\tdiffuseColor.rgb *= 1.0 - dAmp * (rRim + rSeam * 0.45);',
             '\tdiffuseColor.rgb += diffuseColor.rgb * dAmp * 0.30 * rHead;',
         ];
+        if (d.mode === 'mail') return [
+            // 메일(사슬 갑옷): 행마다 반 칸 어긋난 고리 격자. 고리 안 구멍은 밑감 그늘로 꺼지고
+            // 고리 자체는 윗호가 빛을 받아 밝고 아랫호가 어둡다 — 이 두 값 대비가 '금속 고리 직물'을
+            // 만든다. 리벳(rivet)과 달리 **전면에 깔리는 게 맞다** — 사슬은 무늬가 아니라 재질 자체다.
+            '\tvec2 muv = uv2 * ' + f(d.freq) + ';',
+            '\tmuv.x += mod(floor(muv.y), 2.0) * 0.5;',
+            '\tvec2 mc = fract(muv) - 0.5;',
+            '\tfloat md = length(mc);',
+            '\tfloat mRing = smoothstep(0.50, 0.40, md) - smoothstep(0.32, 0.22, md);',
+            '\tfloat mHole = smoothstep(0.28, 0.08, md);',
+            '\tfloat mArc = clamp(-mc.y / max(md, 1e-4), 0.0, 1.0);',
+            '\tdiffuseColor.rgb *= 1.0 - dAmp * 0.72 * mHole;',
+            // 고리: 윗호 가산(0.55)·아랫호 감산(0.30) — 제로 평균에 가깝게(grain 모드의 교훈:
+            // 한쪽으로만 밀면 평균 휘도가 내려가 probe-age-shading 의 재질분리가 무너진다)
+            '\tdiffuseColor.rgb *= 1.0 + dAmp * mRing * (mArc * 0.85 - 0.30);',
+        ];
         if (d.mode === 'panel') {
             const g = d.glow !== undefined ? new THREE.Color(d.glow) : null;
             const out = [
@@ -3958,15 +3979,17 @@ const Scene3D = {
             '\tdiffuseColor.rgb *= 1.0 + dAmp * ' + f(d.grain * 2.0) + ' * (sGrain - 0.5);',
         ] : []);
     },
-    ageShade(mat, kind) {
+    // dkey — 무늬만 계열과 다르게 갈 때(물질 전용 무늬, 예: 사슬 'chain'). 셰이딩 프로파일은 계열 것.
+    ageShade(mat, kind, dkey) {
         const p = this.AGE_SHADE[kind] || (String(kind).indexOf('soft:') === 0 ? this.AGE_SHADE.soft : null);
         if (!mat || !p || !mat.isMeshStandardMaterial) return mat;
         const wc = new THREE.Color(p.wearCol);
         const f = n => n.toFixed(4);
         mat.userData = mat.userData || {};
         mat.userData.ageShade = kind;          // tintOf 가 파생 재질에 재적용하려고 남긴다
-        const d = this.AGE_DETAIL[kind] || (String(kind).indexOf('soft:') === 0 ? this.AGE_DETAIL.soft : null);
-        mat.customProgramCacheKey = () => 'ageshade-' + kind;
+        mat.userData.ageShadeDetail = dkey || null;
+        const d = this.AGE_DETAIL[dkey || kind] || (String(kind).indexOf('soft:') === 0 ? this.AGE_DETAIL.soft : null);
+        mat.customProgramCacheKey = () => 'ageshade-' + kind + (dkey ? '-' + dkey : '');
         mat.onBeforeCompile = (sh) => {
             sh.vertexShader = 'varying vec3 vAgeWN;\nvarying vec3 vAgePos;\n' + sh.vertexShader.replace(
                 '#include <beginnormal_vertex>',
@@ -4072,7 +4095,8 @@ const Scene3D = {
         const tone = (hex, t) => new THREE.Color(hex).lerp(ac, t === undefined ? 0.22 : t);
         // 물질로 갈아끼운 body 도 **시대 셰이딩은 그대로 탄다** — 안 그러면 이름 있는 장비만
         // 에지 웨어·크레비스가 빠져 한 목록 안에서 셰이딩이 갈린다(시대 계열은 base.kind 가 안다).
-        const std = o => this.ageShade(new THREE.MeshStandardMaterial(o), base.kind);
+        // 두 번째 인자 = 물질 전용 무늬 키(선택) — 계열 무늬가 물질과 어긋날 때만 준다(사슬).
+        const std = (o, dkey) => this.ageShade(new THREE.MeshStandardMaterial(o), base.kind, dkey);
         const rock = ProChar.rockTex(), leather = ProChar.leatherTex(), metal = ProChar.metalTex();
         let body = null, dark = null;
         switch (sub) {
@@ -4088,8 +4112,11 @@ const Scene3D = {
             case 'leather':
                 body = std({ color: tone(0x8a5a33), map: leather, bumpMap: leather, bumpScale: 0.018, metalness: 0.03, roughness: 0.87, envMapIntensity: 0.25 });
                 break;
-            case 'chain': // 사슬: 잔 고리가 빛을 흩어 판금보다 거칠고 어둡다
-                body = std({ color: tone(0x9aa4ae), map: metal, bumpMap: metal, bumpScale: 0.03, metalness: 0.88, roughness: 0.62, envMapIntensity: 0.6 });
+            case 'chain': // 사슬: 잔 고리가 빛을 흩어 판금보다 거칠고 어둡다.
+                // 무늬는 계열 것(forged=리벳)이 아니라 사슬 전용 'chain'(메일 고리) — 리벳을 그대로
+                // 물리면 '동그라미 한 줄 프린트'로 읽힌다(1차 채점 B). metal 범프는 뺀다(고리 무늬와
+                // 브러시드 결이 겹치면 96px 에서 모아레 노이즈가 된다).
+                body = std({ color: tone(0x7e8792), metalness: 0.86, roughness: 0.58, envMapIntensity: 0.55 }, 'chain');
                 dark = std({ color: 0x2b323a, metalness: 0.7, roughness: 0.66 });
                 break;
             case 'plate':
@@ -4144,7 +4171,7 @@ const Scene3D = {
         if (opt) Object.assign(m, opt);
         // ⚠️ THREE.Material.copy() 는 onBeforeCompile 을 복사하지 않는다 — 재적용하지 않으면
         //    파생 재질(파울드론 아랫장·파울드·커프…)만 시대 셰이딩이 빠져 한 모델 안에서 갈린다.
-        if (base.userData && base.userData.ageShade) this.ageShade(m, base.userData.ageShade);
+        if (base.userData && base.userData.ageShade) this.ageShade(m, base.userData.ageShade, base.userData.ageShadeDetail);
         return m;
     },
 
