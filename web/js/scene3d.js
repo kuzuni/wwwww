@@ -3902,7 +3902,7 @@ const Scene3D = {
         // 종전엔 chain 몸통이 계열(forged)의 리벳 무늬를 그대로 물어 '동그라미 한 줄 프린트'로
         // 읽혔다(1차 채점 B). 사슬은 리벳이 아니라 **엇갈린 고리들이 맞물린 직물**이다 — 행마다
         // 반 칸 어긋난 고리 + 고리 사이 틈 그늘 + 고리 윗호 하이라이트가 메일의 서명.
-        chain: { mode: 'mail', freq: 16, amp: 0.50, vary: 0.035, vfreq: 20 },
+        chain: { mode: 'mail', freq: 13, amp: 0.50, vary: 0.035, vfreq: 20 },
         soft: { mode: 'stitch', freq: 12, amp: 0.26, vary: 0.060, vfreq: 20 },   // 천·가죽: 바늘땀 + 주름
         'soft:primal': { mode: 'stitch', freq: 11, amp: 0.44, vary: 0.070, vfreq: 20, grain: 0.95, grainF: 6.5 }, // 거친 생가죽 — 땀이 굵고 얼룩이 크다(현대 기술섬유와 거칠기가 갈려야 한다)
         'soft:forged': { mode: 'stitch', freq: 12, amp: 0.26, vary: 0.060, vfreq: 20 }, // 모직
@@ -3943,17 +3943,29 @@ const Scene3D = {
             // 메일(사슬 갑옷): 행마다 반 칸 어긋난 고리 격자. 고리 안 구멍은 밑감 그늘로 꺼지고
             // 고리 자체는 윗호가 빛을 받아 밝고 아랫호가 어둡다 — 이 두 값 대비가 '금속 고리 직물'을
             // 만든다. 리벳(rivet)과 달리 **전면에 깔리는 게 맞다** — 사슬은 무늬가 아니라 재질 자체다.
+            // ⚠️ 고리를 격자당 한 개(반지름 < 반 칸)로 두지 말 것 — 고리끼리 안 닿아 '프린트된
+            //    물방울 점 나열'로 읽힌다(2차 채점 A·B 공통 "파자마 무늬"). 실제 메일은 고리가
+            //    이웃 고리에 **맞물린다** — 반 칸 대각 오프셋의 두 번째 격자를 겹쳐, 고리 지름을
+            //    격자 간격까지 키워 서로 걸리게 한다(대각 중심거리 0.707 < 지름 1.0).
             '\tvec2 muv = uv2 * ' + f(d.freq) + ';',
             '\tmuv.x += mod(floor(muv.y), 2.0) * 0.5;',
             '\tvec2 mc = fract(muv) - 0.5;',
             '\tfloat md = length(mc);',
-            '\tfloat mRing = smoothstep(0.50, 0.40, md) - smoothstep(0.32, 0.22, md);',
-            '\tfloat mHole = smoothstep(0.28, 0.08, md);',
+            '\tvec2 mc2 = fract(muv + vec2(0.5, 0.5)) - 0.5;',
+            '\tfloat md2 = length(mc2);',
+            '\tfloat mRing = smoothstep(0.56, 0.46, md) - smoothstep(0.38, 0.28, md);',
+            '\tfloat mRing2 = smoothstep(0.56, 0.46, md2) - smoothstep(0.38, 0.28, md2);',
             '\tfloat mArc = clamp(-mc.y / max(md, 1e-4), 0.0, 1.0);',
+            '\tfloat mArc2 = clamp(-mc2.y / max(md2, 1e-4), 0.0, 1.0);',
+            // 틈 그늘: 두 격자 어느 고리에도 안 덮인 자리만 꺼진다 — 한 격자만 보면 고리 사이가
+            // 전부 구멍이라 점무늬가 더 심해진다
+            '\tfloat mHole = smoothstep(0.30, 0.10, md) * (1.0 - mRing2);',
             '\tdiffuseColor.rgb *= 1.0 - dAmp * 0.72 * mHole;',
-            // 고리: 윗호 가산(0.55)·아랫호 감산(0.30) — 제로 평균에 가깝게(grain 모드의 교훈:
-            // 한쪽으로만 밀면 평균 휘도가 내려가 probe-age-shading 의 재질분리가 무너진다)
-            '\tdiffuseColor.rgb *= 1.0 + dAmp * mRing * (mArc * 0.85 - 0.30);',
+            // 고리: 윗호 가산·아랫호 감산 — 제로 평균에 가깝게(grain 모드의 교훈: 한쪽으로만 밀면
+            // 평균 휘도가 내려가 probe-age-shading 의 재질분리가 무너진다). 겹침 부위는 마스크가
+            // 강한 쪽 고리가 이긴다(max 로 합치면 아랫호 감산이 빈 격자의 0에 지워진다 — 함정).
+            '\tfloat mSh = (mRing >= mRing2) ? mRing * (mArc * 0.85 - 0.30) : mRing2 * (mArc2 * 0.85 - 0.30);',
+            '\tdiffuseColor.rgb *= 1.0 + dAmp * mSh;',
         ];
         if (d.mode === 'panel') {
             const g = d.glow !== undefined ? new THREE.Color(d.glow) : null;
@@ -4956,11 +4968,16 @@ const Scene3D = {
         };
         const rimM = mats ? this.tintOf(mats.dark, -0.04) : new THREE.MeshLambertMaterial({ color: 0x3a4652 });
         const base = new THREE.Mesh(new THREE.ExtrudeGeometry(shieldShape(1), { depth: h * 0.1, bevelEnabled: false }), rimM);
+        // 문장 필드는 유채색이어야 문장이다 — 무채색 등급(일반 0xd6d6d6)을 그대로 쓰면 '회색 사각
+        // 스티커'로 읽힌다(2차 채점 A·B 공통). 채도가 없는 등급색만 문장 아주르(짙은 파랑)로 폴백하고,
+        // 유채 등급색(레어 파랑·에픽 초록…)은 등급 정보 그대로 둔다.
+        const rHSL = new THREE.Color(rareHex).getHSL({ h: 0, s: 0, l: 0 });
+        const fieldHex = rHSL.s < 0.25 ? 0x2456a8 : rareHex;
         const field = new THREE.Mesh(new THREE.ExtrudeGeometry(shieldShape(0.78), { depth: h * 0.05, bevelEnabled: false }),
-            new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.22 }));
+            new THREE.MeshLambertMaterial({ color: fieldHex, emissive: fieldHex, emissiveIntensity: 0.22 }));
         field.position.z = h * 0.1;
-        // 페스는 필드와 명도가 갈려야 문장이다 — 밝은 필드(일반=흰색)엔 어두운 강철, 어두운 필드엔 은빛
-        const fessC = new THREE.Color(rareHex).getHSL({ h: 0, s: 0, l: 0 }).l > 0.55 ? 0x39424d : 0xe8e6df;
+        // 페스는 필드와 명도가 갈려야 문장이다 — 밝은 필드엔 어두운 강철, 어두운 필드(아주르)엔 은빛
+        const fessC = new THREE.Color(fieldHex).getHSL({ h: 0, s: 0, l: 0 }).l > 0.55 ? 0x39424d : 0xe8e6df;
         const fess = new THREE.Mesh(new THREE.BoxGeometry(w * 0.62, h * 0.15, h * 0.03),
             new THREE.MeshLambertMaterial({ color: fessC }));
         fess.position.set(0, h * 0.06, h * 0.155);
