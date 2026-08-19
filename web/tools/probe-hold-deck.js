@@ -14,7 +14,7 @@
 //
 // 사용: node probe-hold-deck.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
-const { waitReady } = require('./wait-ready.js');
+const { waitReady, waitBootDone } = require('./wait-ready.js');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const SCALE = 3;
@@ -47,7 +47,17 @@ const VIEWPORTS = [{ width: 430, height: 932 }, { width: 360, height: 640 }];
     page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push(m.text()); });
 
     await page.goto(INDEX, { waitUntil: 'load' });
-    await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined" && typeof Forge !== "undefined"', { timeout: 180000 });
+    // 🚨 `typeof UI !== 'undefined'` 만으로는 모자라다 — `UI.init()` 이 `els` 를 채우기 전에 돌아와,
+    //    아래 `UI.els.craftModal` 을 만지는 순간 프로브가 통째로 터진다(`probe-tools-wait-guard` 가
+    //    이 도구 하나를 '무방비'로 지목해 `regress.sh` 전체를 상시 exit 1 로 만들던 자리다).
+    //    ⚠️ **여기서는 `waitUiReady` 가 아니라 `waitBootDone` 이 맞다.** 이건 화소 프로브라 모루 행의
+    //    rect 가 최종값이어야 하는데, `UI.init()` 은 `boot()` 사슬의 24% 지점이다 — 그때 재면 아직
+    //    자리를 잡는 중인 화면을 잰다. 게다가 조건이 일찍 참이 돼 폴링이 멈추면 헤드리스에서 남은
+    //    부팅이 rAF 양보에서 그대로 굳는다(`wait-ready.js` 머리말의 실측표). 부팅 끝까지 폴링을
+    //    이어 두 문제를 한꺼번에 없앤다.
+    await waitBootDone(page, { timeout: 180000 });
+    // `Forge` 는 별도로 확인한다 — 아래에서 `S.forgeLevel` 을 세우고 제작 경로를 태운다.
+    await waitReady(page, 'typeof Forge !== "undefined"', { timeout: 60000 });
     await page.evaluate(() => {
         if (typeof Scene3D !== 'undefined') Scene3D.update = function () {};
         Combat.tick = function () {};

@@ -19,6 +19,10 @@ for p in \
     probe-blade-exit.js \
     probe-nova-beat.js \
     probe-halo-spin.js \
+    probe-hold-deck.js \
+    check-autoforge-purge-held.js \
+    check-autoforge-batch-overlay.js \
+    check-sr-ok-gold.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1
