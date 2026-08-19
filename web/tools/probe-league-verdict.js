@@ -106,6 +106,11 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
     await page.evaluate(() => UI.openLeague());
     // 헤드리스에서 팝업 등장 애니메이션이 중간 프레임(scale≈.69)에 얼어붙는다 — 전부 끈다.
     await page.addStyleTag({ content: '*, *::before, *::after { animation: none !important; transition: none !important; }' });
+    // 🚨 하단 밴드는 12차(ui-quality-up)에서 **의도적으로 다크(#1a1f2b) 전환**됐다(사용자 지시>원본 톤,
+    //    채팅 바와 같은 판례). 이 프로브는 기하만 판정하므로, probe-tabbar 가 캡처 시에만 탭바 칠을
+    //    끄는 것과 같은 기준으로 **캡처 시에만 밴드를 원본 회색으로 되돌려** 회색 마스크를 살린다.
+    //    (다크 밴드를 색으로 직접 잡으면 시트 #0e111b 와 채널 차가 ~16뿐이라 마스크가 오염된다.)
+    await page.addStyleTag({ content: '.league-foot { background: #afafaf !important; background-image: none !important; }' });
     await page.evaluate(() => document.querySelectorAll('.modal').forEach(m => m.classList.remove('opening')));
     await page.waitForTimeout(500);
     const shot = await page.screenshot({ timeout: 180000 });

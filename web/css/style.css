@@ -2080,12 +2080,15 @@ body {
        탭바는 불투명(z-index 30)이라 밴드는 탭바 상단에서 끝나 보인다. */
     margin: .3rem -.9rem calc(-1.2rem - var(--tabbar-h)); padding: .5rem .9rem calc(1.1rem + var(--tabbar-h));
     position: relative; z-index: 1;
-    background: #afafaf; border-top: var(--ol3) solid var(--pp-line); /* 원본 밴드 rgb(175,175,175) — 이전 #d6d6d6(214)은 너무 밝았다 */
-    /* 9차(비평가 B 결함[8]): 회색 밴드가 다크 리스트와 단절 — **바탕색 #afafaf 는 원본 픽셀 실측값이라
-       유지**하고(probe-league-dom 이 footBg 를 잰다), 위 림 + 아래로 가는 그늘만 얹어 '받침판'으로 잇는다. */
-    background-image: linear-gradient(180deg, rgba(255,255,255,.40) 0 1px, rgba(255,255,255,.12) 8%,
-                                              rgba(255,255,255,0) 30%, rgba(0,0,0,.10) 100%);
-    box-shadow: 0 -.14rem .34rem rgba(0,0,0,.30);   /* 리스트 쪽으로 떨어지는 그림자 — 밴드가 위에 얹힌 판 */
+    border-top: var(--ol3) solid var(--pp-line);
+    /* 12차(게이트 재도전 준비): 원본 실측 #afafaf 회색 밴드가 다크 리스트(#0e111b)와 단절 —
+       4라운드 연속 교집합 결함이라 인계 결정(사용자 지시>원본 톤, 채팅 바와 같은 판례)대로
+       **다크 전환**한다. 시트보다 반 단계 밝은 #1a1f2b = '위에 얹힌 받침판'으로 읽히는 최소 명도차.
+       probe-league-dom 의 footBg 덤프값이 rgb(26,31,43)으로 바뀐다(판정 아님, 실측 덤프). */
+    background: #1a1f2b;
+    background-image: linear-gradient(180deg, rgba(255,255,255,.16) 0 1px, rgba(255,255,255,.05) 8%,
+                                              rgba(255,255,255,0) 30%, rgba(0,0,0,.22) 100%);
+    box-shadow: 0 -.14rem .34rem rgba(0,0,0,.40);   /* 리스트 쪽으로 떨어지는 그림자 — 밴드가 위에 얹힌 판 */
 }
 .league-pinned { margin: 0 auto; width: 82%; }
 .league-actions { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; position: relative; justify-content: center; } /* 원본: 도전 중앙, ◀ 좌하단 분리 (185) */
