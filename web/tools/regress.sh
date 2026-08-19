@@ -25,6 +25,7 @@ for p in \
     probe-hold-deck.js \
     check-autoforge-purge-held.js \
     check-autoforge-batch-overlay.js \
+    probe-league-emblem.js \
     check-sr-ok-gold.js \
     check-autobatch-nan-coins.js \
 ; do

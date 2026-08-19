@@ -42,19 +42,34 @@ const MEASURE = async ([src]) => {
     const dist = (p, q) => Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]);
     const bad = m => ({ err: m });
 
-    // ── ⑵ 앱 좌우 끝: 하단 회색 발판(밝은 회색 대역)의 최장 가로 구간 ────────────────
-    let appL = -1, appR = -1;
-    for (let y = Math.round(H * 0.72); y < Math.round(H * 0.93); y++) {
-        let run = 0, best = 0, bs = 0, s = 0;
-        for (let x = 0; x < W; x++) {
+    // ── ⑵ 앱 좌우 끝: 화면 아래쪽에서 **전폭을 채우는 최장 균일색 가로 구간** ────────────
+    // 🚨 **색으로 찾지 말 것** (2026-08-19 `league-footer-band-dark` 로 규명). 종전 규칙은
+    //    '밝은 회색(무채색 130~215)' 이었는데, 클론의 발판 띠(`.league-foot`)는 **의도적으로
+    //    다크로 전환**돼 있다 — `css/style.css` 의 `.league-foot` 주석에 근거가 적혀 있다:
+    //    "원본 실측 #afafaf 회색 밴드가 다크 리스트(#0e111b)와 단절 — 4라운드 연속 교집합
+    //    결함이라 인계 결정(사용자 지시>원본 톤)대로 다크 전환한다"(`#1a1f2b`). 즉 **띠가
+    //    어두운 건 회귀가 아니라 확정된 스킨**이라 되돌릴 수 없고, 그 색에 기대던 이 자가
+    //    통째로 `측정기 고장 (CLONE)` 으로 죽어 문장 잉크 감사가 **아예 안 돌고 있었다.**
+    // → 잰다는 건 '띠가 무슨 색인가'가 아니라 '앱이 좌우 어디서 끝나는가'다. 그래서 색 조건을
+    //    버리고 **아래쪽 대역에서 한 색으로 이어지는 가장 긴 가로 구간**을 쓴다(띠든 시트
+    //    배경이든 앱을 가로로 꽉 채우는 면이면 된다). 원본의 '앱 밖 여백'(우측 x496..497)은
+    //    앱 안과 색이 달라 구간에서 저절로 떨어져 나간다 — 함정 ⑵ 가 막으려던 그 자리다.
+    //    실측: 원본 x0..495(AW 496 · 폭 498 중 우측 2열이 앱 밖) · 클론 x0..498(AW 499, 여백 없음).
+    // ⚠️ 첫 행이 아니라 **최댓값**을 고른다 — 첫 행으로 끊으면 띠 위에 얹힌 요소(핀 행·버튼)가
+    //    걸친 행을 잡아 앱보다 좁게 잰다.
+    let appL = -1, appR = -1, appRowY = -1, bestAll = 0;
+    for (let y = Math.round(H * 0.70); y < Math.round(H * 0.95); y++) {
+        let best = 0, bs = 0, run = 1, s = 0, ref = at(0, y);
+        for (let x = 1; x < W; x++) {
             const p = at(x, y);
-            const gray = Math.abs(p[0] - p[1]) < 12 && Math.abs(p[1] - p[2]) < 12 && p[0] > 130 && p[0] < 215;
-            if (gray) { if (run === 0) s = x; run++; if (run > best) { best = run; bs = s; } }
-            else run = 0;
+            const near = Math.abs(p[0] - ref[0]) <= 6 && Math.abs(p[1] - ref[1]) <= 6 && Math.abs(p[2] - ref[2]) <= 6;
+            if (near) run++;
+            else { if (run > best) { best = run; bs = s; } run = 1; s = x; ref = p; }
         }
-        if (best > W * 0.9) { appL = bs; appR = bs + best - 1; break; }
+        if (run > best) { best = run; bs = s; }
+        if (best > bestAll) { bestAll = best; appL = bs; appR = bs + best - 1; appRowY = y; }
     }
-    if (appL < 0) return bad('앱 좌우 끝(회색 발판)을 못 찾음');
+    if (appL < 0 || bestAll <= W * 0.9) return bad(`앱 좌우 끝을 못 찾음(최장 균일 구간 ${bestAll}/${W}px)`);
     const AW = appR - appL + 1;
 
     // ── ⑴ 앱 상단: 시트 배경색이 8행 연속으로 전폭을 채우는 첫 행 ────────────────────
@@ -111,7 +126,14 @@ const MEASURE = async ([src]) => {
     for (let y = ey1 + 2; y < appT + Math.round(AH * 0.30); y++) if (rowInk(y).n > 0) { below = y; break; }
     if (!below) return bad('문장 아래에 제목 잉크가 없음 — 문장이 제목까지 삼켰을 수 있다');
 
-    return { size: [W, H], app: { l: appL, r: appR, t: appT, w: AW, h: AH }, sheetBg: sheetBg.join(','), emblem };
+    // `appRow` = 좌우 끝을 잡은 행(과 그 색). 자를 다시 의심할 때 **어디를 보고 앱 폭을 정했는지**가
+    // 로그에 남아 있어야 한다 — 종전엔 '회색 발판' 이라는 전제가 코드에만 있고 출력엔 없어서, 띠 색이
+    // 바뀌자 `측정기 고장` 한 줄만 남고 원인을 매번 다시 캐야 했다.
+    return {
+        size: [W, H], app: { l: appL, r: appR, t: appT, w: AW, h: AH },
+        appRow: { y: appRowY, run: bestAll, c: at(appL + Math.floor(AW / 2), appRowY).join(',') },
+        sheetBg: sheetBg.join(','), emblem,
+    };
 };
 
 (async () => {
