@@ -420,17 +420,21 @@ const SUBSTATS = [
 //    single 11 · aoe 12 · heal 13 · buff 14. 등급마다 single/aoe 가 하나씩 + heal|buff 가 하나라
 //    이 배정은 등급별 평균을 12.0~12.33 으로 평평하게 만든다(단조 증가 없음 = 등급 차등 아님).
 //    새 스킬을 넣을 때도 이 표에서 type 값을 그대로 가져올 것. 검증기: `tools/test-skill-cooldown.js`.
+// ⚠️ **이름 규약 — 이름·아이콘·연출 3가지가 같은 것을 가리켜야 한다** (사용자 지시 2026-08-19
+//    `skill-name-icon-match-fx`: "스킬 이펙트에 어울리는 이름과 스킬 아이콘으로 바꾸고").
+//    fx 를 갈아 놓고 이름을 안 고치면 **연출은 세례인데 이름은 한 발**(옛 '강타'·'관통 사격')이 된다.
+//    새 스킬을 넣거나 fx 를 바꿀 땐 `IconGen` 의 `SK` 모티프까지 **한 벌로** 갱신할 것.
 const SKILL_DEFS = [
-    { id: 'powerStrike', name: '강타',           rarity: 'common',    type: 'single', mult: 3.0,  cd: 11, fx: 'slash',    color: '#cfd8dc' },
+    { id: 'powerStrike', name: '연속 참격',       rarity: 'common',    type: 'single', mult: 3.0,  cd: 11, fx: 'slash',    color: '#cfd8dc' },
     { id: 'whirlwind',   name: '회오리 베기',     rarity: 'common',    type: 'aoe',    mult: 1.6,  cd: 12, fx: 'ring',     color: '#b0bec5' },
     { id: 'firstAid',    name: '응급 처치',       rarity: 'common',    type: 'heal',   mult: 1.8,  dur: 4,  cd: 13, fx: 'heal', color: '#a5d6a7' },
     { id: 'fireball',    name: '화염구',          rarity: 'rare',      type: 'aoe',    mult: 2.4,  cd: 12, fx: 'explode',  color: '#ff8a65' },
-    { id: 'pierceShot',  name: '관통 사격',       rarity: 'rare',      type: 'single', mult: 4.5,  cd: 11, fx: 'beam',     color: '#81d4fa' },
+    { id: 'pierceShot',  name: '화살 세례',       rarity: 'rare',      type: 'single', mult: 4.5,  cd: 11, fx: 'beam',     color: '#81d4fa' },
     { id: 'warCry',      name: '전투의 함성',     rarity: 'rare',      type: 'buff',   mult: 1.5,  dur: 8,  cd: 14, fx: 'aura', color: '#ffcc80' },
     { id: 'meteor',      name: '메테오',          rarity: 'epic',      type: 'aoe',    mult: 4.0,  cd: 12, fx: 'meteor',   color: '#ff7043' },
     { id: 'lightning',   name: '낙뢰',            rarity: 'epic',      type: 'single', mult: 7.0,  cd: 11, fx: 'bolt',     color: '#fff176' },
     { id: 'blessing',    name: '축복',            rarity: 'epic',      type: 'heal',   mult: 3.5,  dur: 5,  cd: 13, fx: 'heal', color: '#80cbc4' },
-    { id: 'dragonBreath', name: '용의 숨결',      rarity: 'legendary', type: 'aoe',    mult: 6.5,  cd: 12, fx: 'breath',   color: '#ba68c8' },
+    { id: 'dragonBreath', name: '용의 아가리',    rarity: 'legendary', type: 'aoe',    mult: 6.5,  cd: 12, fx: 'breath',   color: '#ba68c8' },
     // ⚠️ fx 'guillotine' — 강타와 fx 를 공유하던 것을 분리 (skill-unique-signature): 교차 참격이 아니라
     //    거대한 처형 칼날이 내리찍히는 전용 연출.
     { id: 'execution',   name: '처형',            rarity: 'legendary', type: 'single', mult: 11.0, cd: 11, fx: 'guillotine', color: '#e57373' },
@@ -442,7 +446,7 @@ const SKILL_DEFS = [
     { id: 'timeWarp',    name: '시간 왜곡',       rarity: 'ultimate',  type: 'buff',   mult: 2.0,  dur: 10, cd: 14, fx: 'aura', color: '#4dd0e1' },
     // ⚠️ fx 'dragonfire' — 메테오와 fx 를 공유하던 것을 분리 (skill-unique-signature, 사용자 지목 쌍:
     //    "아포칼립스랑 메테오라는 스킬 너무 똑같음. 거대한 용이 나와서 불을 뿜는 스킬로 바꾸든지").
-    { id: 'apocalypse',  name: '아포칼립스',      rarity: 'mythic',    type: 'aoe',    mult: 18.0, cd: 12, fx: 'dragonfire', color: '#ef5350' },
+    { id: 'apocalypse',  name: '종말의 화룡',     rarity: 'mythic',    type: 'aoe',    mult: 18.0, cd: 12, fx: 'dragonfire', color: '#ef5350' },
     // ⚠️ fx 'spear' — 낙뢰와 fx 를 공유하던 것을 분리 (skill-unique-signature): 먹구름 번개가 아니라
     //    하늘이 열리고 거대한 황금 창이 내리꽂히는 전용 연출.
     { id: 'godspear',    name: '신의 창',         rarity: 'mythic',    type: 'single', mult: 32.0, cd: 11, fx: 'spear',    color: '#ffd54f' },

@@ -2157,6 +2157,82 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.moveTo(x(.42, S), y(.46, S)); ctx.lineTo(x(.58, S), y(.46, S));
             ctx.lineTo(x(.58, S), y(.95, S)); ctx.lineTo(x(.42, S), y(.95, S)); ctx.closePath();
         },
+        /* ---- 연출(fx)에 맞춘 모티프 5종 (`skill-name-icon-match-fx`, 사용자 지시 2026-08-19) ----
+           "스킬 이펙트에 어울리는 이름과 스킬 아이콘으로 바꾸고." 아래 5개는 **연출이 이미 전용으로
+           갈려 있는데 아이콘만 옛 공유 연출 시절 그림**이라 이름·아이콘만 봐선 뭐가 나오는지
+           알 수 없던 자리다. 부재 폭은 여기서도 ≥.12 규약을 지킨다(키라인 .067 이 양쪽 .0335). */
+        slashx(ctx, S) {                                 // 연속 참격 — 엇갈린 초승달 2줄 (fx slashArcs)
+            // 검 한 자루로는 '참격이 여러 번 지나간다'가 안 읽힌다. 초승달 띠는 **가운데가 두껍고
+            // 끝이 뾰족**해야 벤 자국이다 — 굵기가 일정한 호는 갈고리로 읽힌다(3D 쪽 함정 기록과 같은 결).
+            const arc = (x0, y0, x1, y1, cxO, cyO, cxI, cyI) => {
+                ctx.moveTo(x(x0, S), y(y0, S));
+                ctx.quadraticCurveTo(x(cxO, S), y(cyO, S), x(x1, S), y(y1, S));
+                ctx.quadraticCurveTo(x(cxI, S), y(cyI, S), x(x0, S), y(y0, S));
+                ctx.closePath();
+            };
+            arc(.05, .56, .83, .07, .33, .02, .55, .47);   // 위를 지나간 참격 (중앙 두께 .25)
+            arc(.17, .95, .95, .46, .45, .41, .67, .86);   // 엇갈려 한 번 더 (교차시키면 겹친 테가 그림을 먹는다)
+        },
+        arrows(ctx, S) {                                 // 화살 세례 — 3발 (fx arrowVolley)
+            // 연출은 4~7발이 다다다닥 날아간다. 한 발짜리 화살은 '관통 사격' 시절 그림이다.
+            const shaft = (cx, top, len, w, hw, hh) => {
+                ctx.moveTo(x(cx, S), y(top, S));
+                ctx.lineTo(x(cx + hw, S), y(top + hh, S)); ctx.lineTo(x(cx + w / 2, S), y(top + hh, S));
+                ctx.lineTo(x(cx + w / 2, S), y(top + len, S)); ctx.lineTo(x(cx - w / 2, S), y(top + len, S));
+                ctx.lineTo(x(cx - w / 2, S), y(top + hh, S)); ctx.lineTo(x(cx - hw, S), y(top + hh, S));
+                ctx.closePath();
+            };
+            shaft(.50, .03, .78, .16, .17, .26);           // 가운데 한 발이 굵고 길다(연출의 마지막 한 발)
+            shaft(.175, .19, .66, .13, .155, .22);
+            shaft(.825, .19, .66, .13, .155, .22);
+        },
+        maw(ctx, S) {                                    // 용의 아가리 — 벌어진 턱 (fx dragonMaw)
+            // 연출은 발밑에서 **거대 아가리가 솟아 덥석 문다**. 두 가지가 '아가리'를 만든다:
+            //  ⓐ 이빨 선이 **아치**여야 한다 — 곧은 가로선 두 개는 38px 에서 모래시계로 읽힌다(첫 판이 그랬다).
+            //  ⓑ 이빨은 굵게(밑변 ≥.18) · 아랫니는 윗니 **사이**로 물린다.
+            ctx.moveTo(x(.04, S), y(.03, S)); ctx.lineTo(x(.96, S), y(.03, S)); ctx.lineTo(x(.96, S), y(.33, S));
+            ctx.lineTo(x(.80, S), y(.24, S)); ctx.lineTo(x(.70, S), y(.47, S)); ctx.lineTo(x(.61, S), y(.18, S));
+            ctx.lineTo(x(.50, S), y(.45, S)); ctx.lineTo(x(.39, S), y(.18, S)); ctx.lineTo(x(.30, S), y(.47, S));
+            ctx.lineTo(x(.20, S), y(.24, S)); ctx.lineTo(x(.04, S), y(.33, S)); ctx.closePath();
+            ctx.moveTo(x(.08, S), y(.97, S)); ctx.lineTo(x(.92, S), y(.97, S)); ctx.lineTo(x(.92, S), y(.71, S));
+            ctx.lineTo(x(.75, S), y(.80, S)); ctx.lineTo(x(.63, S), y(.57, S)); ctx.lineTo(x(.50, S), y(.82, S));
+            ctx.lineTo(x(.37, S), y(.57, S)); ctx.lineTo(x(.25, S), y(.80, S)); ctx.lineTo(x(.08, S), y(.71, S));
+            ctx.closePath();
+        },
+        cleaver(ctx, S) {                                // 처형 — 처형대 칼날 (fx guillotineDrop)
+            // 도끼가 아니라 **거대한 칼날이 수직으로 떨어져 자른다**. 38px 에서 '떨어지는 칼날'을
+            // 만드는 건 날 모양이 아니라 **양옆 기둥(처형대 프레임)** 이다 — 날만 그리면 깃발,
+            // 날+속도선은 흩어진 블록으로 읽혔다(두 판 폐기). 날은 기둥에 **닿지 않게** 띄운다
+            // (맞붙이면 두 윤곽선이 겹쳐 이음매가 검은 줄로 남는다).
+            const post = (x0) => {
+                ctx.moveTo(x(x0, S), y(.03, S)); ctx.lineTo(x(x0 + .115, S), y(.03, S));
+                ctx.lineTo(x(x0 + .115, S), y(.97, S)); ctx.lineTo(x(x0, S), y(.97, S)); ctx.closePath();
+            };
+            post(.015); post(.87);
+            ctx.moveTo(x(.175, S), y(.10, S)); ctx.lineTo(x(.825, S), y(.10, S));  // 날 — 아래변이 비스듬한 판
+            ctx.lineTo(x(.825, S), y(.52, S)); ctx.lineTo(x(.175, S), y(.80, S)); ctx.closePath();
+        },
+        dragon(ctx, S) {                                 // 종말의 화룡 — 뿔·송곳니 용 머리 (fx dragonfireBreath)
+            // 아포칼립스의 연출은 **거대 화염룡이 수평으로 쓸어 가는 브레스**다(운석이 아니다 —
+            // 사용자 지목 '메테오와 똑같다'의 잔재가 아이콘에만 남아 있었다).
+            // ⚠️ 38px 에서 용으로 읽히는 최소 단위 = **뒤로 뻗은 뿔 2개 + 크게 벌린 턱 + 송곳니**.
+            //    불길까지 그리면 머리와 엉겨 덩어리가 되고(첫 판 '신발'), 뿔이 하나면 새 머리로
+            //    읽힌다(둘째 판 '오리'). 뿔은 둘, 서로 다른 각도로.
+            ctx.moveTo(x(.10, S), y(.52, S));
+            ctx.lineTo(x(.12, S), y(.30, S));
+            ctx.lineTo(x(.00, S), y(.13, S)); ctx.lineTo(x(.21, S), y(.25, S));   // 뿔 ①
+            ctx.lineTo(x(.17, S), y(.02, S)); ctx.lineTo(x(.37, S), y(.21, S));   // 뿔 ②
+            ctx.quadraticCurveTo(x(.50, S), y(.16, S), x(.60, S), y(.28, S));     // 이마 → 콧등
+            ctx.lineTo(x(.99, S), y(.36, S));                                     // 위턱 끝
+            ctx.lineTo(x(.80, S), y(.40, S)); ctx.lineTo(x(.72, S), y(.55, S));   // 송곳니(하나만 크게 — 둘로 쪼개면 38px 에서 뭉친다)
+            ctx.lineTo(x(.62, S), y(.40, S));
+            ctx.lineTo(x(.44, S), y(.46, S));                                     // 입 안쪽 끝(크게 벌린다)
+            ctx.lineTo(x(.95, S), y(.66, S)); ctx.lineTo(x(.84, S), y(.75, S));   // 아래턱
+            ctx.lineTo(x(.44, S), y(.70, S));
+            ctx.quadraticCurveTo(x(.16, S), y(.66, S), x(.10, S), y(.52, S)); ctx.closePath();
+            const eye = .058 * S;                                                 // 눈 — 역방향 호로 구멍(halo 와 같은 문법)
+            ctx.moveTo(x(.33, S) + eye, y(.36, S)); ctx.arc(x(.33, S), y(.36, S), eye, 0, Math.PI * 2, true);
+        },
         hourglass(ctx, S) {                              // 시간 왜곡 — 모래시계
             // 판(.08)·목(.05) 둘 다 테에 먹히던 자리 → .12 로. 목을 넓히면 '모래 떨어지는 잘록함'이
             // 줄지만, 목이 검게 막히는 쪽이 훨씬 나쁘다(속살 검사기로 확인).
@@ -2172,13 +2248,18 @@ IconGen._genderSym = function (ctx, S, female) {
     };
 
     // 스킬 id → [모티프, 회전(rad, 선택), 글로우세기(선택)]
+    // ⚠️ 모티프는 **그 스킬의 fx 가 화면에 그리는 것**과 맞아야 한다 (`skill-name-icon-match-fx`,
+    //    사용자 지시 2026-08-19 — "스킬 이펙트에 어울리는 이름과 스킬 아이콘으로"). fx 를 갈아 놓고
+    //    아이콘을 안 고치면 아포칼립스처럼 **연출은 화염룡인데 아이콘은 운석**인 자리가 남는다.
+    //    5자리를 fx 기준으로 교체: powerStrike sword→slashx(참격 세례) · pierceShot arrow→arrows(화살 세례)
+    //    · dragonBreath flame3→maw(지중 아가리) · execution axe→cleaver(처형 칼날) · apocalypse meteor→dragon(화염룡).
     const SK = {
-        powerStrike: ['sword'], whirlwind: ['whirl'], firstAid: ['cross'],
-        fireball: ['flame'], pierceShot: ['arrow'], warCry: ['horn'],
+        powerStrike: ['slashx'], whirlwind: ['whirl'], firstAid: ['cross'],
+        fireball: ['flame'], pierceShot: ['arrows'], warCry: ['horn'],
         meteor: ['meteor'], lightning: ['bolt', 0, 0.15], blessing: ['sparkle', 0, 0.16],
-        dragonBreath: ['flame3'], execution: ['axe'], sanctuary: ['shield'],
+        dragonBreath: ['maw'], execution: ['cleaver'], sanctuary: ['shield'],
         supernova: ['burst', 0, 0.15], voidLance: ['spear', Math.PI * 0.25], timeWarp: ['hourglass'],
-        apocalypse: ['meteor', 0, 0.16], godspear: ['spear', 0, 0.16], divineShield: ['halo', 0, 0.15],
+        apocalypse: ['dragon', 0, 0.16], godspear: ['spear', 0, 0.16], divineShield: ['halo', 0, 0.15],
     };
     // 색은 그리는 시점에 SKILL_DEFS 에서 조회한다(스크립트 로드 순서 무관하게 지연 조회).
     const FALLBACK = { powerStrike: '#cfd8dc', whirlwind: '#b0bec5', firstAid: '#a5d6a7', fireball: '#ff8a65', pierceShot: '#81d4fa', warCry: '#ffcc80', meteor: '#ff7043', lightning: '#fff176', blessing: '#80cbc4', dragonBreath: '#ba68c8', execution: '#e57373', sanctuary: '#ce93d8', supernova: '#ffb74d', voidLance: '#9575cd', timeWarp: '#4dd0e1', apocalypse: '#ef5350', godspear: '#ffd54f', divineShield: '#fff59d' };
