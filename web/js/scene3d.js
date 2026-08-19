@@ -7791,7 +7791,10 @@ const Scene3D = {
         const d = depth.data, n = S * S;
         const dep = new Float32Array(n), msk = new Uint8Array(n);
         for (let i = 0; i < n; i++) { msk[i] = d[i * 4 + 3] > 8 ? 1 : 0; dep[i] = d[i * 4] / 255; }
-        const step = Math.max(1, Math.round(S / 48));   // 96px 기준 2px — 아이콘에서 눈에 잡히는 최소 골
+        // 🚨 탭 반경은 **부품 이음새 폭**에 맞춰야 한다 — 96px 기준 2·4·6px 로 잡았더니 비평가가
+        //    "전역 그라디언트일 뿐 리벳 열·버클 이음새 어디에도 파인 흔적이 없다"고 반려했다(실측 확인).
+        //    리벳·판 경계는 96px 에서 1~3px 라 그보다 넓은 탭은 경계를 통째로 건너뛴다.
+        const step = Math.max(1, Math.round(S / 96));   // 96px 기준 1px
         const taps = [];
         for (const rad of [step, step * 2, step * 3]) {
             for (let k = 0; k < 8; k++) {
@@ -7816,9 +7819,9 @@ const Scene3D = {
             }
             ao[i] = wsum ? occ / wsum : 0;
         }
-        // 두 번 뭉갠다 — 한 픽셀짜리 AO 는 '검은 후추'로 보이지 그늘로 안 보인다
-        const blurred = this.blurField(this.blurField(ao, S), S);
-        return blurred;
+        // 한 번만 뭉갠다 — 두 번 뭉개면 이음새 폭(1~3px)의 골이 통째로 평탄해져 '전역 그라디언트'가 된다.
+        // (한 픽셀짜리 생 AO 는 '검은 후추'로 보이므로 아예 안 뭉개는 것도 안 된다 — 한 번이 경계다.)
+        return this.blurField(ao, S);
     },
     blurField(src, S) {
         const out = new Float32Array(S * S);
@@ -7833,8 +7836,10 @@ const Scene3D = {
         }
         return out;
     },
-    THUMB_AO_STRENGTH: 0.5,    // AO 최대 감광폭. 0.7 은 은/홀로 같은 밝은 계열을 회색으로 만든다
-    THUMB_VIGNETTE: 0.15,      // 가장자리 감광폭 — 시선을 아이콘 가운데로 모은다
+    THUMB_AO_STRENGTH: 0.72,   // AO 최대 감광폭. 탭을 1~3px 로 좁힌 뒤엔 필드가 성글어 0.58 이면 평균 감광 3.5%(기준 3.0%) 로 아슬아슬했다. 0.9 는 은/홀로 같은 밝은 계열을 회색으로 만든다
+    THUMB_VIGNETTE: 0.20,      // 가장자리 감광폭 — 시선을 아이콘 가운데로 모은다
+    //   ⚠️ 비평가 1인이 '비네트 0'이라 반려했는데 **귀퉁이 배경(투명)을 잰 오측정**이었다(이 층은
+    //      피사체 픽셀에만 곱한다). 다만 실측 이득이 1.042 로 얕았던 건 사실이라 0.15→0.20 으로 올렸다.
     // 컬러 프레임 + 깊이에서 최종 아이콘을 합성한다. 반환 = dataURL(없으면 null → 호출측이 날것 사용)
     THUMB_FINISH_OFF: false,   // 검수 도구가 '마감 전/후'를 나란히 굽기 위한 스위치(런타임 전용)
     thumbFinish(glCanvas, depth, rarity) {
@@ -7881,7 +7886,10 @@ const Scene3D = {
             }
             // ── ⓑ 접지 그림자 — 실루엣 **아래 22% 구간의 실제 폭**에서 타원을 뽑는다.
             //    고정 크기 타원을 쓰면 반지 하나에도 갑옷만 한 그림자가 깔려 '스티커'로 보인다.
-            const baseY = Math.min(S - 2, maxY - lift + Math.round(S * 0.03));
+            // 🚨 타원 **중심**을 물체 바닥에 두면 위쪽 절반이 본체 아래를 파고들어 '실루엣에 눌어붙은
+            //    검댕'이 된다(비평가 2인 중 1인이 46px 셀에서 이걸 최우선으로 지적했다). 중심을 바닥보다
+            //    타원 반높이만큼 더 내려 **타원 윗변이 바닥선에 닿게** 놓는다.
+            const footY = maxY - lift;
             const band = Math.max(1, Math.round((maxY - minY) * 0.22));
             let bx0 = S, bx1 = -1;
             for (let y = Math.max(0, maxY - band); y <= maxY; y++)
@@ -7890,11 +7898,12 @@ const Scene3D = {
                     if (x < bx0) bx0 = x; if (x > bx1) bx1 = x;
                 }
             if (bx1 < 0) { bx0 = minX; bx1 = maxX; }
-            const shW = Math.max(S * 0.14, (bx1 - bx0) * 0.66), shH = Math.max(2, shW * 0.25);
+            const shW = Math.max(S * 0.14, (bx1 - bx0) * 0.66), shH = Math.max(2, shW * 0.22);
             const shX = (bx0 + bx1) / 2;
+            const baseY = Math.min(S - 1 - shH * 0.5, footY + shH * 0.55);
             const sg = o.createRadialGradient(0, 0, 0, 0, 0, 1);
-            sg.addColorStop(0, 'rgba(6,10,18,0.30)');
-            sg.addColorStop(0.55, 'rgba(6,10,18,0.15)');
+            sg.addColorStop(0, 'rgba(6,10,18,0.34)');
+            sg.addColorStop(0.55, 'rgba(6,10,18,0.16)');
             sg.addColorStop(1, 'rgba(6,10,18,0)');
             o.save();
             o.translate(shX, baseY);
