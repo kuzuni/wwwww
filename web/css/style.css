@@ -1727,8 +1727,9 @@ body {
     background-size: 100%; background-position: center; background-repeat: no-repeat;
     filter: drop-shadow(0 .10em .16em rgba(0,0,0,.55));
 }
-.dg-rw .dg-rw-ico + .dg-rw-ico {   /* 부 재화 — 같은 슬롯 우하단에 작게 얹는다(폭은 안 늘어난다). 크면 슬롯이 번잡해진다(비평가 3차) */
-    inset: auto -.18em -.13em auto; width: .78em; height: .78em;
+.dg-rw .dg-rw-ico + .dg-rw-ico {   /* 부 재화 — 슬롯 우하단 바깥쪽으로 뺀다(폭은 안 늘어난다 — absolute 오버플로).
+       주 아이콘과 겹치면 '도끼 위 호박'처럼 두 글리프가 충돌해 읽힌다(비평가 4차). */
+    inset: auto -.30em -.18em auto; width: .72em; height: .72em;
 }
 .dg-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; font-size: .8rem; }
 .dg-keys { font-size: .75rem; font-weight: 800; color: #ffd54f; }

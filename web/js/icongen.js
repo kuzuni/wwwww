@@ -3735,8 +3735,19 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.beginPath(); p(); ctx.fillStyle = fc; ctx.fill();
             ctx.beginPath(); p(); ctx.strokeStyle = oc; ctx.lineWidth = H * 0.018; ctx.stroke();
         };
-        bush(W * 0.04, H * 0.98, 1.2, '#3f8a2c', '#245c1e');
-        bush(W * 0.30, H * 1.04, 0.9, '#3f8a2c', '#245c1e');
+        bush(W * 0.04, H * 0.98, 1.5, '#3f8a2c', '#245c1e');
+        bush(W * 0.30, H * 1.06, 1.0, '#3f8a2c', '#245c1e');
+        // 좌상단 늘어진 수풀 — 원본은 좌우 가장자리가 잎으로 채워져 프레임이 꽉 찬다(비평가 4차 '성김')
+        for (let i = 0; i < 6; i++) {
+            const x = W * (-0.015 + R() * 0.10), y = H * (-0.12 + R() * 0.34), r = H * (0.10 + R() * 0.08);
+            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fillStyle = i % 2 ? '#2f7a2f' : '#256c28'; ctx.fill();
+            ctx.strokeStyle = '#1c4f1c'; ctx.lineWidth = H * 0.016; ctx.stroke();
+        }
+        for (let i = 0; i < 3; i++) {
+            const x = W * (0.005 + R() * 0.06), y = H * (-0.06 + R() * 0.22), r = H * (0.035 + R() * 0.025);
+            fill(ctx, '#79c257', () => ctx.arc(x, y, r, 0, Math.PI * 2));
+        }
 
         /* 주인공 — **대각선으로 휘두르는 망치 + 자루를 감아쥔 주먹** (비평가 A·B 공통 1순위).
            종전엔 자루가 수직(-0.16rad)이고 주먹이 자루 '아래 끝'에 붙어 '막대 위에 망치가 박힌
@@ -3798,8 +3809,13 @@ IconGen._genderSym = function (ctx, S, female) {
         g.addColorStop(0, 'rgba(247,228,160,.30)'); g.addColorStop(1, 'rgba(247,228,160,0)');
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
         fill(ctx, '#f2e2ae', () => ctx.arc(mx, my, mr, 0, Math.PI * 2));
-        ctx.save();                                                        // 소용돌이 무늬(원본 달의 'S' 마킹)
+        ctx.save();
         ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.clip();
+        // 우하단 크레센트 음영 먼저(비평가 4차 '매끈한 원') — 소용돌이는 그 위에 얹는다
+        ctx.fillStyle = 'rgba(150,120,60,.18)'; ctx.fillRect(mx - mr, my - mr, mr * 2, mr * 2);
+        ctx.beginPath(); ctx.arc(mx - mr * 0.12, my - mr * 0.12, mr * 0.92, 0, Math.PI * 2);
+        ctx.fillStyle = '#f2e2ae'; ctx.fill();
+        // 소용돌이 무늬(원본 달의 'S' 마킹)
         ctx.strokeStyle = 'rgba(120,100,55,.30)'; ctx.lineWidth = mr * 0.30; ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(mx + mr * 0.52, my - mr * 0.38);
@@ -3824,22 +3840,32 @@ IconGen._genderSym = function (ctx, S, female) {
         streak(W * 0.32, H * 0.31, W * 0.44, H * 0.042, '#080b18');       // 달을 가로지르는 줄(얇게 — 두꺼우면 '떠 있는 산맥'이 된다)
         streak(W * 0.22, H * 0.14, W * 0.26, H * 0.032, '#0a0e1e');
         streak(W * 0.48, H * 0.55, W * 0.24, H * 0.028, '#0a0e1e');
-        /* 박쥐 — 재채점 비평가 2인이 공통으로 '개별 박쥐 실루엣'을 요구했다(구름 줄만으로는 얼룩으로
-           읽힌다). 밝은 달 원반 위에 한 마리를 얹어 실루엣 대비를 보증하고, 나머지는 하늘에 흩는다. */
+        /* 박쥐 — '개별 박쥐 실루엣'(비평가 2~4차 공통). ⚠️ 얕은 갈매기 곡선은 '물결 스크리블'로
+           읽힌다(4차에서 확인) — 날개를 위로 활짝 편 윤곽 + 아래 가장자리 스캘럽 2개 + 몸통·귀가
+           있어야 박쥐가 된다. 밝은 달 원반 위 한 마리가 실루엣 대비의 핵심. */
         const bat = (bx, by, bw) => {
             ctx.beginPath();
-            ctx.moveTo(bx - bw, by - bw * 0.30);
-            ctx.quadraticCurveTo(bx - bw * 0.62, by - bw * 0.02, bx - bw * 0.34, by - bw * 0.16);   // 왼 날개 두 굽이
-            ctx.quadraticCurveTo(bx - bw * 0.16, by - bw * 0.28, bx, by - bw * 0.04);
-            ctx.quadraticCurveTo(bx + bw * 0.16, by - bw * 0.28, bx + bw * 0.34, by - bw * 0.16);
-            ctx.quadraticCurveTo(bx + bw * 0.62, by - bw * 0.02, bx + bw, by - bw * 0.30);
-            ctx.quadraticCurveTo(bx + bw * 0.40, by + bw * 0.26, bx, by + bw * 0.22);
-            ctx.quadraticCurveTo(bx - bw * 0.40, by + bw * 0.26, bx - bw, by - bw * 0.30);
+            ctx.moveTo(bx - bw, by - bw * 0.62);                                             // 왼 날개 끝(위로)
+            ctx.quadraticCurveTo(bx - bw * 0.72, by + bw * 0.10, bx - bw * 0.52, by + bw * 0.16);
+            ctx.quadraticCurveTo(bx - bw * 0.40, by - bw * 0.06, bx - bw * 0.28, by + bw * 0.16);   // 스캘럽 1
+            ctx.quadraticCurveTo(bx - bw * 0.16, by - bw * 0.04, bx - bw * 0.10, by + bw * 0.14);   // 스캘럽 2
+            ctx.lineTo(bx - bw * 0.10, by - bw * 0.16);                                      // 몸통 왼쪽
+            ctx.lineTo(bx - bw * 0.14, by - bw * 0.34);                                      // 왼 귀
+            ctx.lineTo(bx - bw * 0.04, by - bw * 0.22);
+            ctx.lineTo(bx + bw * 0.04, by - bw * 0.22);
+            ctx.lineTo(bx + bw * 0.14, by - bw * 0.34);                                      // 오른 귀
+            ctx.lineTo(bx + bw * 0.10, by - bw * 0.16);
+            ctx.lineTo(bx + bw * 0.10, by + bw * 0.14);
+            ctx.quadraticCurveTo(bx + bw * 0.16, by - bw * 0.04, bx + bw * 0.28, by + bw * 0.16);
+            ctx.quadraticCurveTo(bx + bw * 0.40, by - bw * 0.06, bx + bw * 0.52, by + bw * 0.16);
+            ctx.quadraticCurveTo(bx + bw * 0.72, by + bw * 0.10, bx + bw, by - bw * 0.62);   // 오른 날개 끝
+            ctx.quadraticCurveTo(bx + bw * 0.30, by - bw * 0.30, bx, by - bw * 0.16);        // 날개 윗변(안으로 파인다)
+            ctx.quadraticCurveTo(bx - bw * 0.30, by - bw * 0.30, bx - bw, by - bw * 0.62);
             ctx.closePath(); ctx.fillStyle = '#05070f'; ctx.fill();
         };
-        bat(W * 0.575, H * 0.245, H * 0.085);                             // 달 원반 위(실루엣 대비 최대)
-        bat(W * 0.527, H * 0.395, H * 0.070);                             // 달 왼 가장자리에 걸쳐 원반을 파먹는다(오클루전 — 비평가 3차)
-        bat(W * 0.40, H * 0.15, H * 0.060); bat(W * 0.48, H * 0.52, H * 0.052); bat(W * 0.68, H * 0.14, H * 0.058);
+        bat(W * 0.578, H * 0.30, H * 0.115);                              // 달 원반 위(실루엣 대비 최대)
+        bat(W * 0.522, H * 0.44, H * 0.085);                              // 달 왼 가장자리에 걸쳐 원반을 파먹는다(오클루전)
+        bat(W * 0.40, H * 0.14, H * 0.075); bat(W * 0.68, H * 0.13, H * 0.070);
         // 언덕 2겹
         fill(ctx, '#151a34', () => { ctx.moveTo(0, H * 0.78); ctx.quadraticCurveTo(W * 0.30, H * 0.58, W * 0.62, H * 0.76); ctx.quadraticCurveTo(W * 0.85, H * 0.88, W, H * 0.72); ctx.lineTo(W, H); ctx.lineTo(0, H); });
         fill(ctx, '#0c1024', () => { ctx.moveTo(0, H * 0.90); ctx.quadraticCurveTo(W * 0.45, H * 0.78, W, H * 0.92); ctx.lineTo(W, H); ctx.lineTo(0, H); });
@@ -3853,8 +3879,13 @@ IconGen._genderSym = function (ctx, S, female) {
             fill(ctx, 'rgba(10,13,30,.55)', () => ctx.rect(x + w * 0.24, y + w * 0.92, w * 0.52, h * 0.085));               // RIP 줄 각인
             fill(ctx, 'rgba(255,255,255,.10)', () => ctx.rect(x + w * 0.10, y + w * 0.30, w * 0.10, h * 0.55));             // 왼쪽 세로 하이라이트
         };
+        stone(W * 0.475, H * 0.70, H * 0.17, H * 0.30);                    // 셋째(작게, 앞 언덕 너머) — 바닥 허전함 보완(비평가 4차)
         stone(W * 0.585, H * 0.62, H * 0.22, H * 0.40);
         stone(W * 0.72, H * 0.56, H * 0.26, H * 0.48);
+        for (let i = 0; i < 18; i++) {                                     // 앞 언덕 풀 실루엣 — 지면이 무지 단색으로 끊기지 않게
+            const x = W * (0.02 + R() * 0.92), y = H * (0.90 + R() * 0.05), h = H * (0.035 + R() * 0.035);
+            fill(ctx, '#060913', () => { ctx.moveTo(x, y); ctx.lineTo(x + H * 0.014, y - h); ctx.lineTo(x + H * 0.028, y); });
+        }
         // 좌측 고목 — 원본은 **잎 달린** 큰 나무다(마른 가지가 아니라). 줄기 갈색 + 아주 어두운 잎 덩어리.
         (() => {
             const x = W * 0.115, top = H * 0.10, t = H * 0.055;
@@ -3915,15 +3946,19 @@ IconGen._genderSym = function (ctx, S, female) {
             const r = H * 0.055 * s;
             if (kind === 1) fill(ctx, c, () => { ctx.moveTo(x - r, y + r * 0.5); ctx.lineTo(x, y - r * 1.15); ctx.lineTo(x + r, y + r * 0.5); });
             else fill(ctx, c, () => ctx.arc(x, y, r, 0, Math.PI * 2));
-            if (kind === 2) {                                              // 양쪽 뿔
-                fill(ctx, c, () => { ctx.moveTo(x - r * 0.8, y - r * 0.1); ctx.lineTo(x - r * 1.5, y - r * 1.2); ctx.lineTo(x - r * 0.2, y - r * 0.8); });
-                fill(ctx, c, () => { ctx.moveTo(x + r * 0.8, y - r * 0.1); ctx.lineTo(x + r * 1.5, y - r * 1.2); ctx.lineTo(x + r * 0.2, y - r * 0.8); });
+            if (kind === 2) {                                              // 양쪽 뿔 — 크고 잦으면 '고양이 귀'로 읽힌다(비평가 4차): 짧게
+                fill(ctx, c, () => { ctx.moveTo(x - r * 0.7, y - r * 0.2); ctx.lineTo(x - r * 1.15, y - r * 1.0); ctx.lineTo(x - r * 0.15, y - r * 0.85); });
+                fill(ctx, c, () => { ctx.moveTo(x + r * 0.7, y - r * 0.2); ctx.lineTo(x + r * 1.15, y - r * 1.0); ctx.lineTo(x + r * 0.15, y - r * 0.85); });
             }
             fill(ctx, c, () => { ctx.moveTo(x - r * 1.9, y + r * 3.2); ctx.quadraticCurveTo(x - r * 1.7, y + r * 0.7, x, y + r * 0.75); ctx.quadraticCurveTo(x + r * 1.7, y + r * 0.7, x + r * 1.9, y + r * 3.2); ctx.closePath(); });   // 어깨(넓고 낮게)
         };
-        const MIDC = ['#8a6a5a', '#7c5c4e', '#94756a', '#82655b'];         // 색·키·크기를 함께 흔들어 타일링 패턴을 깬다(비평가 3차)
-        for (let i = 0; i < 22; i++)                                       // 중간 열 — 몸은 겹치고 머리 혹만 갈린다
-            figure(W * (i / 22 + 0.010 + R() * 0.02), H * (0.575 + R() * 0.085), 0.72 + R() * 0.55, MIDC[(R() * 4) | 0], (R() * 3) | 0);
+        /* 중간 열 — 뒤(#cdb094)와 앞(#241612) 사이의 **명도 중간층**이라 밝은 모브 계열이어야
+           대기원근 3단이 선다(비평가 4차 '단일 톤 플랫 매스'). 뿔 투구는 1/8 로 드물게. */
+        const MIDC = ['#9b7b6b', '#8d6c5e', '#a5847a', '#93745f'];         // 색·키·크기를 함께 흔들어 타일링 패턴을 깬다
+        for (let i = 0; i < 22; i++) {
+            const k = R();
+            figure(W * (i / 22 + 0.010 + R() * 0.02), H * (0.575 + R() * 0.085), 0.72 + R() * 0.55, MIDC[(R() * 4) | 0], k < 0.5 ? 0 : (k < 0.875 ? 1 : 2));
+        }
         // 창 — 군중 사이에서 올라오는 자루+창끝
         for (let i = 0; i < 6; i++) {
             const x = W * (0.06 + i * 0.17 + R() * 0.05), top = H * (0.18 + R() * 0.14);
@@ -3955,8 +3990,10 @@ IconGen._genderSym = function (ctx, S, female) {
             hz.addColorStop(0, 'rgba(242,196,156,0)'); hz.addColorStop(1, 'rgba(242,196,156,.30)');
             ctx.fillStyle = hz; ctx.fillRect(0, H * 0.40, W, H * 0.45);
         })();
-        for (let i = 0; i < 13; i++)                                       // 앞 열 — 몸이 이어진 암갈 덩어리에서 머리 혹이 갈린다
-            figure(W * (i / 13 + 0.015 + R() * 0.025), H * (0.915 + R() * 0.10), 1.75 + R() * 0.8, i % 4 ? '#241612' : '#2e1d16', (R() * 3) | 0);
+        for (let i = 0; i < 13; i++) {                                     // 앞 열 — 몸이 이어진 암갈 덩어리에서 머리 혹이 갈린다
+            const k = R();
+            figure(W * (i / 13 + 0.015 + R() * 0.025), H * (0.875 + R() * 0.08), 1.75 + R() * 0.8, i % 4 ? '#241612' : '#2e1d16', k < 0.55 ? 0 : (k < 0.9 ? 1 : 2));   // 머리가 하단 크롭에 잘리면 삼각 톱니로 읽힌다 — 0.875H
+        }
     };
 
     /* 🧟 좀비 러시 — 보라 하늘 + 고목 2그루 + 철망 울타리 + 드럼통 */
@@ -4071,6 +4108,8 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.save();
         ctx.beginPath(); torso(); ctx.clip();
         on(ctx, rrect(ctx, S, 1.500, 0.600, 0.090, 0.440, 0.040), 'rgba(255,255,255,.14)');       // 왼쪽 하이라이트
+        on(ctx, rrect(ctx, S, 1.508, 0.600, 0.036, 0.440, 0.018), '#6fae5c');                     // 왼 가장자리 림라이트(볼륨 — 비평가 4차)
+        on(ctx, ell(ctx, S, 1.640, 0.680, 0.085, 0.055, -0.2), 'rgba(255,255,255,.12)');          // 가슴 하이라이트
         on(ctx, rrect(ctx, S, 1.800, 0.585, 0.140, 0.450, 0), 'rgba(0,0,0,.20)');                 // 오른쪽 음영
         on(ctx, ell(ctx, S, 1.682, 0.615, 0.150, 0.052), 'rgba(0,0,0,.24)');                      // 목 아래 드리운 그림자
         on(ctx, ell(ctx, S, 1.700, 0.760, 0.062, 0.044, 0.3), 'rgba(0,0,0,.22)');                 // 썩은 얼룩
