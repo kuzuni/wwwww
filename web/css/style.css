@@ -6535,10 +6535,27 @@ body {
    ⚠️ 수명은 JS가 소유한다(`UI.COIN_AMT_MS` → `--amt-dur`, 기본 2s). 사용자 지시 2026-08-19
    `sell-coin-split-rising`: "데미지 텍스트처럼 천천히 상승 … 수명 2초 정도". 여기 기본값과
    `UI.COIN_AMT_MS`가 어긋나면 페이드 도중에 노드가 지워지거나 투명한 노드가 남는다. */
+/* 색 (사용자 지시 2026-08-20, slug `coin-amt-yellow-black`): **이너=노랑 · 아웃라인=검정.**
+   🚨 종전 `text-shadow: 0 1px 0 var(--olc), …` 은 **한 겹도 안 그려지고 있었다** — `--olc` 는
+      `.equip-cell .cell-lv/.cell-star` 에서만 정의된 지역 변수라 여기서는 미정의고, 그러면 그
+      선언 전체가 계산 시점에 무효가 되어 `unset`(=상속)으로 떨어진다. 즉 금액 텍스트는 외곽선도
+      글로우도 **없는 맨 글자**로 초원 위에 떠 있었다(사용자가 검정 외곽선을 요구한 이유).
+   → 셀 라벨이 쓰는 8방향 링 문법을 그대로 가져온다(정의를 복제하지 말고 같은 언어를 쓴다).
+      변수는 **여기서 검정으로 지역 정의**한다 — 다시 남의 스코프 변수를 참조하면 같은 사고가 난다.
+   ⚠️ 주황 글로우(`0 0 .4rem rgba(255,183,77,.9)`)는 **뺐다.** 지시가 '아웃라인=검정'인데 난색
+      헤일로가 글자 둘레에 남으면 외곽이 검정으로 안 읽힌다. 밝은 초원에서의 대비는 글로우가
+      아니라 이 검정 링이 맡는다(데미지 숫자가 이미 같은 처방이다 — `.float-dmg` 의 text-stroke).
+   ⚠️ 링 두께를 키우지 말 것 — `.82rem` 글자라 굵히면 획 사이 속공간이 메워져 숫자가 뭉갠다. */
 .coin-amt {
     position: absolute; transform: translate(-50%, -50%);
+    --ol: max(1.4px, .075rem); --old: calc(var(--ol) * .82); --olc: rgba(0, 0, 0, .92);
     font-size: .82rem; font-weight: 900; color: #ffd54f; white-space: nowrap;
-    text-shadow: 0 1px 0 var(--olc), 0 0 .4rem rgba(255,183,77,.9);
+    text-shadow:
+        var(--ol) 0 0 var(--olc), calc(var(--ol) * -1) 0 0 var(--olc),
+        0 var(--ol) 0 var(--olc), 0 calc(var(--ol) * -1) 0 var(--olc),
+        var(--old) var(--old) 0 var(--olc), calc(var(--old) * -1) var(--old) 0 var(--olc),
+        var(--old) calc(var(--old) * -1) 0 var(--olc), calc(var(--old) * -1) calc(var(--old) * -1) 0 var(--olc),
+        0 2px 4px rgba(0, 0, 0, .55);
     animation: coinAmt var(--amt-dur, 2s) forwards;
 }
 /* ⚠️ **상승 거리(-50% → -170%)는 늘리지 말 것.** 착지점 줄 간격(`UI.coinBurst`의 rowGap 2.4rem)이
