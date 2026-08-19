@@ -92,6 +92,9 @@
         //    저장·디버그 진입까지 전부 등록되지 않았다(화면만 멀쩡하고 게임이 멈춘 그림).
         //    조용히 삼키지는 않는다 — 콘솔에 남겨 프로브의 '콘솔 에러 0건' 판정에 걸리게 한다.
         try { Combat.start(); } catch (e) { console.error('Combat.start() 실패 — 나머지 부팅은 계속한다', e); }
+        // 진행 중이던 던전을 이어 연다(dungeon-run-lost-on-reload). `Combat.start()` 뒤여야 한다 —
+        // 안에서 `Combat.setupStage()` 를 던전 모드로 다시 태우기 때문이다.
+        try { Dungeons.restoreRun(); } catch (e) { console.error('Dungeons.restoreRun() 실패 — 나머지 부팅은 계속한다', e); }
         League.ensure(); // 전투력 계산이 끝난 뒤 봇 생성 (combatPower 참조)
         UI.renderTopBar(); // UI.init()에서 먼저 그린 상단바(전투력 0)를 실제 계산치로 갱신
         UI.updateStageLabel();

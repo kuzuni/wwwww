@@ -73,6 +73,10 @@ function defaultState() {
         lastOfflineClaim: U.now(), // 오프라인 보상 마지막 수령 시각 (자동 모달 + 수동 버튼 공용)
         // 진행
         chapter: 1, stage: 1,           // 현재 도전 스테이지 (챕터는 사이클 안에서만 1~25)
+        // 진행 중인 던전 {id, stage, waves} — `Dungeons.run` 의 접근자가 이 칸을 읽고 쓴다.
+        // 세이브에 있어야 새로고침을 견딘다(2026-08-19 dungeon-run-lost-on-reload). 기본값이 null 이라
+        // 형태 검사는 통과만 시키므로, 실제 유효성은 `Dungeons.restoreRun()` 이 부팅 때 본다.
+        dungeonRun: null,
         difficulty: 0,                  // 난이도 티어(0=기본, 1=어려움, 2=매우 어려움, 3=헬) — 25챕터 완주마다 +1
         bestChapter: 1, bestStage: 1, bestDifficulty: 0,
         kills: 0, totalCrafts: 0,

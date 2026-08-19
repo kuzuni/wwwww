@@ -1,7 +1,15 @@
 // ===== 던전 4종: 열쇠 2/2 매일 09:00 리셋, 완료 시 소모, 최고 클리어 단계 소탕 (원본: BALANCE.md) =====
 const Dungeons = {
     MAX_KEYS: 2,
-    run: null, // 진행 중이면 {id, stage, waves}
+    // 진행 중이면 {id, stage, waves}. 🚨 **모듈 필드가 아니라 세이브(`S.dungeonRun`)에 산다**
+    // (2026-08-19 QA 18차 dungeon-run-lost-on-reload): 종전엔 이 객체의 평범한 필드라
+    // `saveGame()`(=`JSON.stringify(S)`)에 애초에 안 담겼고, 그래서 `enter()` 가 바로 아래에서
+    // `saveGame()` 을 부르는데도 **새로고침하면 진행 중이던 던전이 아무 안내 없이 사라졌다**
+    // (열쇠는 클리어 시점 소모라 재화 손실은 없었지만, 다른 진행 상태는 전부 새로고침을 견딘다).
+    // 접근자로 감싸 둔 이유는 `this.run` 을 읽고 쓰는 자리가 여럿이라 그대로 두려는 것이다 —
+    // 읽기/쓰기 규약은 종전과 똑같고, 저장 대상만 `S` 로 옮겼다.
+    get run() { return (typeof S !== 'undefined' && S && S.dungeonRun) || null; },
+    set run(v) { if (typeof S !== 'undefined' && S) S.dungeonRun = v || null; },
 
     // 던전 한 판의 웨이브 수 — 1~3 (사용자 지시 2026-08-18 "던전은 웨이브 수 1~3개로 해줘").
     // 메인 스테이지의 5웨이브는 그대로 두고 던전만 짧게 간다. 마지막 웨이브가 보스라
@@ -128,6 +136,34 @@ const Dungeons = {
         saveGame();
         Combat.hero.hp = Combat.hero.maxHp;
         Combat.setupStage();
+        return true;
+    },
+
+    // 부팅 복원 — 세이브에 남은 진행을 이어서 연다. 웨이브 진행분은 남기지 않으므로 **그 단계의
+    // 1웨이브부터** 다시 시작한다(열쇠는 클리어 때만 나가므로 손해가 없다).
+    // 손상/구버전 진행 상태는 조용히 버리지 않고 **안내 한 줄을 띄운 뒤** 본대로 돌려보낸다 —
+    // 이 항목이 고치려던 게 '조용히 사라지는 것' 그 자체다.
+    restoreRun() {
+        this.ensure();
+        const r = S.dungeonRun;
+        if (!r || typeof r !== 'object' || Array.isArray(r)) { S.dungeonRun = null; return false; }
+        const def = this.def(r.id);
+        const best = (S.dungeons.best && S.dungeons.best[r.id]) || 0;
+        const stage = Math.floor(r.stage);
+        if (!def || !Number.isInteger(stage) || stage < 1 || stage > best + 1) {
+            S.dungeonRun = null;
+            saveGame();
+            UI.toast('🚪 진행 중이던 던전에서 나와 본대로 복귀했습니다');
+            return false;
+        }
+        // 웨이브 수는 입장 때 굳힌 값을 그대로 잇는다(없으면 폴백) — 매번 다시 뽑으면 pip 개수와
+        // 클리어 판정이 같은 판 안에서 어긋난다는 위 규약 그대로다.
+        const waves = Number.isFinite(r.waves) ? U.clamp(Math.floor(r.waves), this.MIN_WAVES, this.MAX_WAVES) : this.DEFAULT_WAVES;
+        S.dungeonRun = { id: r.id, stage, waves };
+        saveGame();
+        Combat.hero.hp = Combat.hero.maxHp;
+        Combat.setupStage();
+        UI.toast(`${def.icon} ${def.kr} ${stage}단계를 이어서 진행합니다`);
         return true;
     },
 
