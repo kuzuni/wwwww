@@ -7016,6 +7016,19 @@ body {
 /* 아이콘이 빨려 들어간 pill(코인/젬)·상단 바가 한 번 박동 — '들어갔다'는 확인 */
 /* reward-fx-polish ⑤: 1.14/.38s 는 렌더에서 티가 안 났다 — 스케일·밝기 폭과 시간을 키운다 */
 .rw-pulse { animation: rwPulse .46s cubic-bezier(.3, 1.4, .5, 1); }
+/* 🚨 **상단 바(밴드)에는 크기가 변하는 박동을 걸 수 없다** (2026-08-19 QA 19차 topbar-pulse-overflow):
+   밴드는 앱 폭 전체를 차지해서 `scale(1.26)` 이면 좌우가 `#app{overflow:hidden}` 에 **반드시 잘리고**
+   (430px → 541.8px · 좌우 각 55.9px 이탈) 아래로는 전투 화면을 덮어 스테이지 라벨을 가린다.
+   코인·젬 pill 은 작은 알약이라 1.26배로도 안 잘리고, 그 값은 `reward-fx-polish ⑤` 가
+   "1.14/.38s 는 렌더에서 티가 안 났다"며 **일부러 키운 것**이라 그대로 둔다 — 그래서 클래스를 나눈다.
+   ⚠️ 밴드 쪽은 `filter` 만 쓴다: `#topbar` 는 자기 `box-shadow`(밴드 그늘)를 갖고 있어서
+      키프레임에서 box-shadow 를 건드리면 애니메이션 동안 그 그늘이 통째로 사라진다. */
+.rw-pulse-band { animation: rwPulseBand .46s cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes rwPulseBand {
+    0%   { filter: brightness(1); }
+    35%  { filter: brightness(1.85); }
+    100% { filter: brightness(1); }
+}
 @keyframes rwPulse {
     0%   { transform: scale(1); filter: brightness(1); }
     35%  { transform: scale(1.26); filter: brightness(1.85); }

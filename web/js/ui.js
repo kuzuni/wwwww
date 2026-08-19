@@ -3525,10 +3525,15 @@ const UI = {
                 if (tick) { tick.classList.add('out'); setTimeout(() => tick.remove(), 300); }
                 const pu = t.pulseEl();
                 if (!pu) return;
-                pu.classList.remove('rw-pulse');
+                // ⚠️ **상단 바 폴백일 때는 크기가 안 변하는 박동을 쓴다** (topbar-pulse-overflow):
+                //    코인·젬이 아닌 재화는 도착 pill 이 없어 `pulseEl` 이 상단 바로 폴백하는데,
+                //    상단 바는 앱 폭 전체를 차지하는 밴드라 `scale(1.26)` 이면 좌우가 잘린다.
+                //    (pill 이 있는 재화는 종전 `.rw-pulse` 그대로 — 그쪽은 정상이고 값도 의도된 것이다.)
+                const cls = pu === this.els.topbar ? 'rw-pulse-band' : 'rw-pulse';
+                pu.classList.remove('rw-pulse', 'rw-pulse-band');
                 void pu.offsetWidth;               // 연속 수령에도 매번 박동하도록 애니메이션 리스타트
-                pu.classList.add('rw-pulse');
-                setTimeout(() => pu.classList.remove('rw-pulse'), 500);
+                pu.classList.add(cls);
+                setTimeout(() => pu.classList.remove(cls), 500);
             }, lastDelay + this.RW_FLY_MS * 0.94 + 140);
             // 재화별 '+획득량' — 버튼 상단 위 빈 공간으로 재화 수만큼 줄줄이 떠오른다
             const lbl = document.createElement('span');
