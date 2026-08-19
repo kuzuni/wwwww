@@ -3144,9 +3144,18 @@ body {
 .chat-share-side small:last-child { color: #ff880f; }   /* 원본 전투력 수치는 주황 */
 .chat-share-side.lose { background: #cecece; }          /* 원본은 말풍선과 같은 회색이라 목록에 녹아든다 */
 .chat-share-avatar { position: relative; display: flex; }
+/* 원본(shot-043500) 실측 — `승리` 는 아바타 타일 **안**이 아니라 타일 하단 모서리에 **걸터앉는다**.
+   판 기준 오프셋으로 타일은 +7 에서 44px 이라 하단 모서리가 50 인데, 원본 주황 잉크는 46..57 로
+   모서리를 위 4px·아래 7px 물고 있다(클론은 40..51 = 사실상 전부 타일 안쪽이라 -.008 → -.020).
+   🚨 그리고 원본 글리프에는 **1px 검정 링**이 돌아 있다. 원본 스크린샷만 보면 이게 안 보이는데,
+   원본 아바타가 검은 실루엣이라 링 없이도 대비가 나기 때문이다 — 클론 아바타는 흰·하늘·살구색
+   도트라 링이 없으면 주황 글자가 그림에 그대로 녹는다. `--ol2`(2px) 스트로크의 바깥 절반이 그 1px 이고
+   `paint-order: stroke fill` 이 주황 코어를 안 먹는다(`.league-challenge-name small`·`.shop-gem-amt` 와 같은 규약).
+   ⚠️ font-size 는 건드리지 말 것 — 주황 잉크 23×12 는 이미 원본과 같다. */
 .chat-share-label {
-    position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--app-w) * -.008);
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--app-w) * -.020);
     font-weight: 900; font-size: .78rem; color: #ff880f; white-space: nowrap;
+    -webkit-text-stroke: var(--ol2) #17181a; paint-order: stroke fill;
 }
 /* 원본 공유 배지는 17×14px(3.41×2.81%W) 각진 파란 칩이고 우끝이 시간 텍스트 우끝(89.78%W)과 정렬된다 */
 /* 원본(shot-043500) 실측: 배지 바깥 상자 x430..448 · y548..566 = **19×19 정사각**(3.81%W).

@@ -53,6 +53,7 @@ PROBES=(
     probe-offline-collect-tick.js  # 오프라인 [수집] 버튼 재렌더 유실 0(offline-collect-tick-rerender)
     probe-eggcell-label-shadow.js  # 탈것 셀 라벨 외곽선(eggcell-slotname-noshadow)
     probe-lgr-rank-clip.js      # 리그 보상 등수 라벨 pill 침범 0(lgr-rank-label-overflow)
+    probe-chat-win-badge.js     # 채팅 전투 공유 `승리` 배지 위치 + 검정 키라인(chat-win-badge)
 )
 
 if [ "$#" -gt 0 ]; then
