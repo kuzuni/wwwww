@@ -4678,6 +4678,76 @@ const Scene3D = {
         return cross;
     },
 
+    // ── 원시(primitive)·중세(medieval) 공통 문장 — 천상(후광·십자가)과 같은 문법 ──────
+    // 시대를 색·재질만으로 두면 88px 썸네일에서 '갈색 항아리 / 파란 항아리'로 내려앉는다.
+    // 원시 = 가죽끈에 꿴 이빨 트로피(사냥꾼), 중세 = 가슴 문장 방패(기사) — 한 곳만 고치면
+    // 프리뷰·인게임 영웅이 같이 움직인다(makeArmorExtras 가 양쪽 공용이라서다).
+    primalBoneMat() {
+        if (!this._primalBone) this._primalBone = new THREE.MeshLambertMaterial({ color: 0xe6dcc3 });
+        return this._primalBone;
+    },
+    primalCordMat() {
+        if (!this._primalCord) this._primalCord = new THREE.MeshLambertMaterial({ color: 0x5b4228 });
+        return this._primalCord;
+    },
+    // 이빨 트로피 목걸이 — 가슴을 가로질러 늘어진 가죽끈 + 아래로 매달린 이빨 5개(가운데가 크다).
+    // ⚠️ 끈 끝을 허공에 두지 말 것 — 이 항목 무기 메모의 함정 ⓒ(떠 있는 부속은 다른 물건이 된다).
+    //    끈을 몸통 타원 표면(zf 기준)을 따라 옆구리까지 감아 끝이 실루엣 뒤로 사라지게 한다.
+    addPrimalTrophy(g, yTop, zf) {
+        const grp = new THREE.Group();
+        const surf = (x) => zf * Math.sqrt(Math.max(0.12, 1 - (x / 0.235) * (x / 0.235)));
+        const pts = [];
+        for (let i = 0; i <= 12; i++) {
+            const u = i / 6 - 1;                       // -1(왼 어깨) … 1(오른 어깨)
+            const x = u * 0.19;
+            pts.push(new THREE.Vector3(x, yTop - 0.12 * (1 - u * u), surf(x) + 0.045));
+        }
+        const cord = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 20, 0.012, 5), this.primalCordMat());
+        grp.add(cord);
+        for (let i = -2; i <= 2; i++) {
+            const u = i * 0.3, x = u * 0.19;
+            const len = 0.1 - Math.abs(i) * 0.018;
+            const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.023 - Math.abs(i) * 0.003, len, 5), this.primalBoneMat());
+            tooth.rotation.x = Math.PI;                // 이빨 끝이 아래로 (송곳니를 거꾸로 꿴다)
+            tooth.rotation.z = -u * 0.5;               // 바깥 이빨은 끈 접선을 따라 살짝 벌어진다
+            tooth.position.set(x, yTop - 0.12 * (1 - u * u) - len * 0.55, surf(x) + 0.05);
+            grp.add(tooth);
+        }
+        g.add(grp);
+        return grp;
+    },
+    // 중세 문장 방패 — 히터 실드(위 직선·아래 뾰족)에 등급색 필드 + 은빛 가로 밴드(페스).
+    // 십자가는 천상의 기호라 쓰지 않는다. 필드가 등급색이라 등급 위계도 같이 실어 나른다.
+    addHeraldShield(g, x, y, z, h, rareHex, mats) {
+        const grp = new THREE.Group();
+        const w = h * 0.8;
+        const shieldShape = (s) => {
+            const hw = w * 0.5 * s, hh = h * 0.5 * s;
+            const sh = new THREE.Shape();
+            sh.moveTo(-hw, hh);
+            sh.lineTo(hw, hh);
+            sh.quadraticCurveTo(hw, hh * 0.1, hw * 0.72, -hh * 0.35);
+            sh.quadraticCurveTo(hw * 0.38, -hh * 0.82, 0, -hh);
+            sh.quadraticCurveTo(-hw * 0.38, -hh * 0.82, -hw * 0.72, -hh * 0.35);
+            sh.quadraticCurveTo(-hw, hh * 0.1, -hw, hh);
+            return sh;
+        };
+        const rimM = mats ? this.tintOf(mats.dark, -0.04) : new THREE.MeshLambertMaterial({ color: 0x3a4652 });
+        const base = new THREE.Mesh(new THREE.ExtrudeGeometry(shieldShape(1), { depth: h * 0.1, bevelEnabled: false }), rimM);
+        const field = new THREE.Mesh(new THREE.ExtrudeGeometry(shieldShape(0.78), { depth: h * 0.05, bevelEnabled: false }),
+            new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.22 }));
+        field.position.z = h * 0.1;
+        // 페스는 필드와 명도가 갈려야 문장이다 — 밝은 필드(일반=흰색)엔 어두운 강철, 어두운 필드엔 은빛
+        const fessC = new THREE.Color(rareHex).getHSL({ h: 0, s: 0, l: 0 }).l > 0.55 ? 0x39424d : 0xe8e6df;
+        const fess = new THREE.Mesh(new THREE.BoxGeometry(w * 0.62, h * 0.15, h * 0.03),
+            new THREE.MeshLambertMaterial({ color: fessC }));
+        fess.position.set(0, h * 0.06, h * 0.155);
+        grp.add(base, field, fess);
+        grp.position.set(x, y, z);
+        g.add(grp);
+        return grp;
+    },
+
     // 갑옷 스타일별 부속 (몸통 기준 좌표 — 영웅 몸통 y0.65)
     // mats: 시대 재질 세트(ageGearMats). 없으면 기존 램버트 폴백 — 호출부가 시대를 모를 때만.
     // opt: 부속을 앉힐 몸통 앞뒤 깊이(프리뷰 전용). 인게임 영웅 몸통과 곡면 흉갑은 치수가 달라
@@ -4750,6 +4820,11 @@ const Scene3D = {
         if (o.age === 'divine') {
             const frontZ = o.frontZ !== undefined ? o.frontZ : 0.128;
             this.addDivineCross(g, 0, o.crossY !== undefined ? o.crossY : 0.78, frontZ + 0.05, 0.17);
+        } else if (o.age === 'primitive') {          // 원시 — 이빨 트로피 목걸이 (십자가와 같은 자리 규약)
+            this.addPrimalTrophy(g, 0.89, o.frontZ !== undefined ? o.frontZ : 0.128);
+        } else if (o.age === 'medieval') {           // 중세 — 가슴 문장 방패
+            const frontZ = o.frontZ !== undefined ? o.frontZ : 0.128;
+            this.addHeraldShield(g, 0, 0.77, frontZ + 0.02, 0.19, rareHex, mats);
         }
         return g;
     },
