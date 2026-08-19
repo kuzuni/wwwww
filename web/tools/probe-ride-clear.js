@@ -32,6 +32,14 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
     // 당나귀=긴 귀, 알파카=긴 목, 태엽 딱정벌레=더듬이 — 전부 이 검사의 표적 형상이라 빠지면 안 된다.
     ['quad', 'Donkey'], ['quad', 'Alpaca'], ['quad', 'Clockwork Beetle']];
 
+// 종 이름을 인자로 주면 그 종만 본다 — 전체 20종은 이 소프트웨어 렌더 컨테이너에서 20분+ 걸려,
+// 한 종을 고치고 확인하는 루프가 통째로 막힌다(2026-08-20 실측: 한 판 돌리는 데 25분).
+// ⚠️ **커밋 전 최종 확인은 반드시 인자 없이 전종으로** 할 것 — 한 종만 보고 넘어가면 다른 종에
+//    난 회귀를 못 잡는다. 인자는 고치는 도중의 빠른 되먹임용이다.
+const ONLY = process.argv.slice(2);
+const TARGETS = ONLY.length ? MOUNTS.filter(([, n]) => ONLY.includes(n)) : MOUNTS;
+if (ONLY.length && !TARGETS.length) { console.log('그런 종이 목록에 없다: ' + ONLY.join(', ')); process.exit(3); }
+
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
     const page = await browser.newPage({ viewport: { width: 480, height: 854 } });
@@ -218,7 +226,7 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
             res.push(r);
         }
         return res;
-    }, MOUNTS);
+    }, TARGETS);
 
     const near = (a, b) => Math.abs(a - b) < 0.05;
     let bad = 0;
