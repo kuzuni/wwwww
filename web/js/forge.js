@@ -1,5 +1,9 @@
 // ===== 대장간: 제작(뽑기), 장비, 판매, 업그레이드 =====
 const Forge = {
+    // 대장간 만렙. 상한을 여러 곳에 손으로 적어 두면 만렙이 바뀔 때 한 줄이 남는다 —
+    // 손상 세이브 클램프(`state.js pruneDanglingRefs`)도 이 값을 읽어 쓴다
+    // (2026-08-19 QA 18차 state-stage-forge-no-upper-clamp).
+    MAX_LEVEL: 35,
     // 장비 티어 기본치: 시대가 오를수록 ×6
     TIER_BASE_ATK: 12,
     TIER_BASE_HP: 70,
@@ -252,7 +256,7 @@ const Forge = {
     // ===== 대장간 업그레이드 (원본 비용/시간 테이블, 실시간 타이머) =====
     upgradeInfo() {
         const next = S.forgeLevel + 1;
-        if (next > 35) return null;
+        if (next > this.MAX_LEVEL) return null;
         return forgeUpgrades[next];
     },
 
@@ -293,7 +297,7 @@ const Forge = {
 
     tickUpgrade() {
         if (S.forgeUpgradeEndsAt && U.now() >= S.forgeUpgradeEndsAt) {
-            S.forgeLevel = Math.min(35, S.forgeLevel + 1);
+            S.forgeLevel = Math.min(this.MAX_LEVEL, S.forgeLevel + 1);
             S.forgeUpgradeEndsAt = null;
             Quests.bump('gearUpgrade');          // 반복 퀘스트 '대장간 강화 완료'
             SFX.levelUp();

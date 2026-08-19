@@ -623,13 +623,20 @@
   - **왜 `gained` 가 아니라 `sell()` 에서 막았나** (등재 메모는 "지급 직전 `Number.isFinite(gained)`" 라고 적었다): `drainAutoBatch` 의 `gained` 는 **이미 지급이 끝난 뒤에 합산되는 값**이다(`Forge.sell` 안에서 `S.coins += price` 가 먼저 일어난다). 거기서 검사해 봐야 `coinBurst` 연출만 고쳐지고 `S.coins` 오염은 그대로다. 진짜 지급 직전은 `sell()` 안이고, 그 자리를 막으면 **자동 제련 말고 보관 덱·일괄 판매 등 다른 판매 경로도 같이** 지켜진다.
   - **신설 판정기 `tools/check-autobatch-nan-coins.js`** (`regress.sh` 등재). 5항목: ① 반쪽 세이브로 부팅해도 `S.coins` 가 유한하고 기본값 500 그대로 ② 거른 항목을 `console.error` 로 짖는다 ③ `S.autoBatch` 가 비워진다 ④ **대조군** — 온전한 제작물은 정상 판매돼 코인이 늘어난다(500 → 520; 가드를 넓히다 멀쩡한 항목까지 버리면 자동 제련이 조용히 망가진다) ⑤ 대조군 `pageerror`·`console.error` 0건. **음성 대조 실측**: 수정 전 코드로 돌리면 `coins=NaN` 으로 ①②가 FAIL 하고 ③④⑤는 그대로 통과한다(= 이 판정기가 이 결함만 정확히 집는다). 수정 후 **9/9 OK**.
   - **회귀 확인**: `check-autoforge-purge-held.js` · `check-autoforge-batch-overlay.js` 둘 다 재실행 ALL PASS (자동 제련 정상 경로는 그대로다).
-- [ ] **손상 세이브 보정에 `stage`·`bestStage`(상한 10)와 `forgeLevel`(상한 35)의 **상한** 클램프가 없다 — 라벨이 "어려움 3-99999" 로 찍히고 확률표가 "레벨 9999 ▶ 최고" 인데 원시적 100% 로 뒤집힌다 (slug: state-stage-forge-no-upper-clamp)** (2026-08-19 QA 18차 등재, 등재만. 비채점)
+- [x] **손상 세이브 보정에 `stage`·`bestStage`(상한 10)와 `forgeLevel`(상한 35)의 **상한** 클램프가 없다 — 라벨이 "어려움 3-99999" 로 찍히고 확률표가 "레벨 9999 ▶ 최고" 인데 원시적 100% 로 뒤집힌다 (slug: state-stage-forge-no-upper-clamp)** (2026-08-19 QA 18차 등재, 등재만. 비채점)
   - **재현 절차**: ⑴ `{"version":1,"chapter":3,"stage":99999,"bestChapter":3,"bestStage":99999}` 를 심고 부팅 → 상단 스테이지 라벨·패스·던전 해금을 본다. ⑵ `{"version":1,"forgeLevel":9999,"coins":1e18}` 를 심고 부팅 → 모루 옆 [승천 가능]/[대장간] → 확률 정보 팝업을 연다.
   - **기대**: `S.difficulty`·`S.chapter` 와 **같은 규약**으로 상한까지 클램프된다. `state.js:pruneDanglingRefs()` 는 바로 그 자리에서 `difficulty`(0~3)·`chapter`/`bestChapter`(1~25)를 클램프하며 *"진행 좌표 상한: ensureStateShape는 하한(0/1)만 보고 위쪽은 안 본다"* 라고 이유까지 적어 뒀는데, **`stage`/`bestStage`(1~10)와 `forgeLevel`(1~35)만 빠졌다**(1670행 항목 ⑦ 이 티어·챕터만 넣은 그 시점의 누락).
   - **실제 ⑴**: 상단 라벨이 **"어려움 3-99999"**. 게다가 `bestStage` 가 절대 진행도에 그대로 곱해져 **패스 마일스톤 16종과 던전 4종이 전부 해금 상태**가 된다(실측: `Pass.reached` 앞 6개 전부 true, `Dungeons.unlocked` 4종 전부 true). 다음 스테이지 클리어에서 좌표 자체는 `0/4-1` 로 자가 치유되지만 **부풀려진 `bestStage` 는 내려오지 않는다**(`bestRank() < curRank()` 일 때만 끌어올리는 단방향 보정이라 아래로는 안 깎인다).
   - **실제 ⑵**: 확률 정보 팝업이 **"레벨 9999 ▶ 최고"** 인데 막대는 **원시적 100% · 나머지 9시대 0%** 다(스크린샷으로 확인). 만렙을 한참 넘겼는데 확률표가 최하 시대로 뒤집힌다 — 레벨로 표를 조회하는 자리가 범위 밖으로 나간 결과다. 승천 안내는 그대로 "대장간 Lv.35 도달" 을 띄운다.
   - **수정 방향**: `pruneDanglingRefs()` 의 좌표 클램프 블록에 `S.stage`/`S.bestStage` 를 `U.clamp(…, 1, 10)`, `S.forgeLevel` 을 `U.clamp(…, 1, 35)` 로 한 줄씩 더한다(상한 상수는 `Forge` 쪽 만렙 값을 읽어 쓸 것 — 35 를 또 손으로 적으면 만렙이 바뀔 때 이 줄만 남는다).
   - **검증**: 위 두 세이브로 부팅해 `S.stage ≤ 10` · `S.bestStage ≤ 10` · `S.forgeLevel ≤ 35`, 라벨이 `쉬움/어려움 N-M (M ≤ 10)` 형태, 확률표 최고 시대가 100% 근처.
+  - ✅ **완료 (2026-08-19 UI 스트림, `probe-save-corrupt-boot.js` 에 ③ 으로 편입)** — 메모의 처방 그대로, **상수를 새로 손으로 적지 않고 이름을 붙여** 넣었다.
+    - **`Forge.MAX_LEVEL: 35` 신설** — `forge.js` 안에서 만렙을 손으로 적던 두 곳(`upgradeInfo` 의 `next > 35`, `tickUpgrade` 의 `Math.min(35, …)`)도 이 값을 읽게 바꿨다. 클램프가 세 번째 사본이 되면 만렙이 바뀔 때 이 줄만 남는다는 메모의 지적을 그대로 따른 것이다.
+    - **`STAGES_PER_CHAPTER = 10` 신설**(`state.js`, `CHAPTERS_PER_CYCLE` 옆) — `combat.js` 가 되감을 때 쓰던 `S.stage >= 10` 도 이 상수를 읽는다.
+    - **클램프 3줄**을 `pruneDanglingRefs` 의 좌표 블록에, **`bestRank() < curRank()` 보정보다 먼저** 넣었다(그 보정이 클램프된 값을 보게). `forgeLevel` 상한은 `Forge` 에서 읽되 state.js 가 먼저 실행되는 vm 테스트를 위해 방어적으로 읽는다.
+    - **음성 대조(규칙 ㉡)**: 클램프 3줄을 빼면 `S.stage=99999` · `S.bestStage=99999` · `S.forgeLevel=9999` 와 **확률표가 레벨 1 표로 되돌아감**이 그대로 재현된다. 나머지 세 사례는 PASS 라 자가 아니라 제품이 갈린 것도 같이 확인된다.
+    - 📌 **판정기에 '확률표 되돌아감' 축을 따로 넣었다** — `Forge.ageProbsAt(level)` 은 없는 레벨이면 **조용히 1레벨 표를 돌려준다**. 그래서 등재 실측의 "레벨 9999 ▶ 최고인데 원시적 100%" 가 났다. 레벨 값만 재면 이 축이 안 걸리므로 `ageProbsAt(S.forgeLevel) === ageProbsAt(1)` 인지 직접 본다.
+    - **회귀**: `probe-chapter-cycle-live`(티어 순환·재로드 좌표 유지) · `probe-chapters` · `probe-screens-errors` **31/31 콘솔 0** · `node --check`(forge·state·combat).
 - [ ] **던전 진행 중 새로고침하면 아무 안내 없이 본대 스테이지로 돌아온다 — 진행 중이던 던전이 조용히 사라진다 (slug: dungeon-run-lost-on-reload)** (2026-08-19 QA 18차 등재, 등재만. 비채점 · 낮은 심각도 — 재화 손실은 없다)
   - **재현 절차**: ① 던전 탭 → 망치 도둑 → [입장] ② 상단 라벨이 "망치 도둑 1단계" 인지 확인 ③ 브라우저를 새로고침한다 ④ 상단 라벨과 `Dungeons.run` 을 본다.
   - **기대**: 던전 진행이 복원되거나, 최소한 **"던전에서 나왔습니다" 같은 안내 한 줄**은 뜬다. `Dungeons.enter()` 는 `this.run` 을 세운 **직후 `saveGame()` 을 부른다** — 지속시키려는 의도가 코드에 그대로 있다.

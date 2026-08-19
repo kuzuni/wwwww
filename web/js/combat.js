@@ -482,7 +482,7 @@ const Combat = {
 
         // 무조건 전진. 사이클 끝(25-10)에서는 난이도 티어를 올리고 1-1로 되감는다 (chapter-cycle-difficulty).
         let tierUp = false;
-        if (S.stage >= 10) {
+        if (S.stage >= STAGES_PER_CHAPTER) {
             // 챕터 상한 = 맵 종류 수(main-stage-25-maps). CHAPTERS_PER_CYCLE 가 CHAPTER_THEMES.length 를
             // 그대로 받으므로 맵을 더 늘려도 두 값이 갈라지지 않는다 — 상한이 맵 수보다 작으면 그 위 챕터의
             // 맵을 게임에서 영영 못 보고, 크면 없는 테마를 (chapter-1)%len 으로 되풀이하게 된다.

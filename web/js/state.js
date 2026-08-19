@@ -16,6 +16,10 @@ const CHAPTERS_PER_CYCLE = (typeof CHAPTER_THEMES !== 'undefined' && CHAPTER_THE
 // 1~3만 티어 이름을 그대로 접두로 쓴다. '헬'이 마지막이라 그 뒤로는 더 순환하지 않는다.
 const DIFFICULTY_NAMES = ['', '어려움', '매우 어려움', '헬'];
 const MAX_DIFFICULTY = DIFFICULTY_NAMES.length - 1;
+// 챕터 하나의 스테이지 수. `combat.js` 가 `S.stage >= 10` 으로 되감던 그 10 이고, 손상 세이브
+// 클램프도 이 값을 쓴다 (2026-08-19 QA 18차 state-stage-forge-no-upper-clamp — 상한이 없어
+// `stage: 99999` 가 그대로 살아 라벨이 "어려움 3-99999" 로 찍히고 패스·던전이 전부 해금됐다).
+const STAGES_PER_CHAPTER = 10;
 
 // 난이도 티어를 포함한 '절대 챕터' — 티어가 올라가도 적 스펙·보상 커브가 끊기지 않게
 // 챕터 축을 1..∞ 로 편다 (티어 0 챕터 1 = 1, 티어 1 챕터 1 = 26, 티어 3 챕터 25 = 100).
@@ -231,6 +235,16 @@ function pruneDanglingRefs() {
     S.bestDifficulty = U.clamp(Math.floor(S.bestDifficulty), 0, MAX_DIFFICULTY);
     S.chapter = U.clamp(Math.floor(S.chapter), 1, CHAPTERS_PER_CYCLE);
     S.bestChapter = U.clamp(Math.floor(S.bestChapter), 1, CHAPTERS_PER_CYCLE);
+    // 스테이지·대장간 레벨도 같은 규약 — 위 티어·챕터만 넣던 시점의 누락이다.
+    // ⚠️ `bestStage` 를 안 깎으면 절대 진행도가 부풀려진 채 **내려오지 않는다**(아래 보정은
+    //    `bestRank() < curRank()` 일 때만 끌어올리는 단방향이라 위로만 움직인다) — 그래서
+    //    패스 마일스톤 16종과 던전 4종이 통째로 해금된 채 남는다.
+    S.stage = U.clamp(Math.floor(S.stage), 1, STAGES_PER_CHAPTER);
+    S.bestStage = U.clamp(Math.floor(S.bestStage), 1, STAGES_PER_CHAPTER);
+    // 만렙 값은 `Forge` 에서 읽는다 — 여기 35 를 또 적으면 만렙이 바뀔 때 이 줄만 남는다.
+    // (state.js 가 forge.js 보다 먼저 실행되는 vm 테스트를 위해 방어적으로 읽는다.)
+    const forgeMax = (typeof Forge !== 'undefined' && Forge.MAX_LEVEL) || 35;
+    S.forgeLevel = U.clamp(Math.floor(S.forgeLevel), 1, forgeMax);
     // 최고 기록이 현재 진행보다 뒤처져 있으면(구세이브·손상) 현재 좌표로 끌어올린다 — 해금·패스가 되감기지 않게
     if (bestRank() < curRank()) { S.bestDifficulty = S.difficulty; S.bestChapter = S.chapter; S.bestStage = S.stage; }
     // 장비 슬롯은 STATE_SHAPE_KEYS 재귀가 '기본값이 null'이라 어떤 값이든 통과시킨다 —
