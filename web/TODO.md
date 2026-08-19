@@ -58,6 +58,8 @@
 
 ## 작업 목록 (위에서부터 순서대로)
 
+> 🚨🚨🚨 **UI 루틴 최우선 (2026-08-19, 사용자 3회 재재촉) — 다른 것보다 `age-bar-star-ascension` 을 먼저 잡을 것.** '모든 장비의 목록' 팝업(+확률정보·자동제련)에서 **장비 승천 안 했는데도 시대 막대에 ★이 뜬다 → 승천 0이면 별 0개**여야 한다. 상세·코드는 아래 `age-bar-star-ascension` 항목(`fi-age-star`/`af-age-star` 을 `Ascension.count('forge')` 와 연동, `probe-fl-head.js` 별 대조 갱신). 이거 먼저 처리하고 커밋할 것.
+
 > **📍 UI 스트림 인계 메모 (2026-08-18 16:2x~16:3x 세션 — 커밋 0개, 포화 재확인 후 즉시 종료)**
 > **착수 가능 0건** — UI 소관 미완료는 `ui-ratio-audit`·`aaa-skin` 둘뿐인데 `acquire` 실호출로 둘 다 진짜 BUSY(age 292s/1580s — 활발 갱신 중). `death-fade-popup` 은 락이 STALE(34m)이지만 몸통이 combat.js `onDefeat` 타이밍(+`Scene3D.sceneCut`)인 3D/UI 크로스컷이라 UI 단독으로 잡지 않았다 — 3D 세션 몫. `icon-gen` UI 몫·`art-outline-scale`·`avatar-pool` 은 전부 소진/[x]. 규칙(줄 222)대로 **인계 메모의 슬러그 없는 잔여 항목화**도 검토했으나, 최신 UI 메모의 잔여 ⓑⓒ 는 전부 live 락 `ui-ratio-audit` 의 하위 작업이라 별도 등재하면 줄 229 의 '하위 슬러그 동시 구현' 함정 그대로다 — 등재할 신규 항목 없음. ㉠ 이 컨테이너도 **detached HEAD 로 시작**(또)했다 — 첫 클레임 커밋이 허공에 갔고 `git checkout main` 후 재커밋으로 복구. ㉡ UI 스트림 과포화(연속 8세션+)와 '사람 판단 필요'(세션 수 축소 or `aaa-skin` 화면 단위 락 분할, 줄 184ⓑ)는 **이 세션이 사용자에게 푸시 알림으로 전달했다** — 다음 포화 세션은 같은 알림을 반복하지 말 것.
 >
