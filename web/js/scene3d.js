@@ -4613,12 +4613,33 @@ const Scene3D = {
             glow.rotation.x = -0.22;
             g.add(glow);
         } else if (style === 'hair') {      // 머리카락/수염/비니
-            const cap = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), mat);
-            cap.position.y = 0.04;
-            cap.scale.y = 0.85;
-            const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat);
-            tuft.position.set(0.1, 0.24, 0.05);
-            g.add(cap, tuft);
+            if (age === 'primitive') {
+                // 수염(원시 분기): 돌 텍스처 캡 + 방울 = '흰 반죽 덩어리, 판독 불가'(1차 채점 A·B).
+                // 털가죽 캡(탄 갈색) + 턱을 감는 수염 술 7가닥 + 콧수염 호 — '수염 난 원시인 머리'로 읽게 한다.
+                const fur = this.tintOf(mats.dark, 0.06);
+                const cap = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), fur);
+                cap.position.y = 0.04;
+                cap.scale.y = 0.85;
+                g.add(cap);
+                for (let i = -3; i <= 3; i++) {          // 턱 아래 U자 호를 따라 아래로 늘어지는 술
+                    const a = i * 0.3;
+                    const len = 0.2 - Math.abs(i) * 0.022;
+                    const strand = new THREE.Mesh(new THREE.ConeGeometry(0.05 - Math.abs(i) * 0.004, len, 6), fur);
+                    strand.rotation.x = Math.PI;
+                    strand.position.set(Math.sin(a) * 0.21, -0.09 - len * 0.35 + Math.abs(i) * 0.022, Math.cos(a) * 0.19);
+                    g.add(strand);
+                }
+                const stache = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.022, 6, 10, Math.PI), fur);
+                stache.position.set(0, -0.045, 0.225);   // 위로 아치, 양끝이 아래 = 콧수염
+                g.add(stache);
+            } else {
+                const cap = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), mat);
+                cap.position.y = 0.04;
+                cap.scale.y = 0.85;
+                const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat);
+                tuft.position.set(0.1, 0.24, 0.05);
+                g.add(cap, tuft);
+            }
         } else if (style === 'crown') {     // 왕관/화관
             const band = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.12, 12), mat);
             band.position.y = 0.16;
