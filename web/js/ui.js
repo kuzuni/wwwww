@@ -1593,16 +1593,24 @@ const UI = {
         //  계속 뽑고, 10개 됐을 때 비교 팝업 보여주기 시작").
         // ⚠️ 목표가 없으면(기본값) `passesAutoFilter` 가 무엇도 통과시키지 않으므로 채우기를
         //    걸면 망치를 전부 태우고도 0개로 끝난다 — 그래서 `hasAutoTarget()` 로 잠근다.
-        const items = (!cfg.stopOnTarget && Forge.hasAutoTarget())
-            ? this.craftUntilMatches(n)
-            : Forge.craft(n);
-        if (!items.length) { this.stopAutoSeq(); return; }
+        let items, shown;
+        if (!cfg.stopOnTarget && Forge.hasAutoTarget()) {
+            const r = this.craftUntilMatches(n);
+            items = r.kept;
+            // 한 개도 안 걸린 배치라도 **뽑힌 건 보여준다** — 필터가 빡빡하면 통과분이 0인 사이클이
+            // 흔한데, 그때 화면에 아무것도 안 뜨면 망치만 조용히 줄어든다("뭐 뽑았는지 보여줘"가
+            // 이 계열 지시의 뿌리다). 그 경우엔 마지막으로 뽑아 판 것들을 카드판에 올린다.
+            shown = items.length ? items : r.lastSold;
+        } else {
+            items = shown = Forge.craft(n);
+        }
+        if (!shown.length) { this.stopAutoSeq(); return; }   // 한 개도 못 뽑았다(망치 소진 등)
         S.autoBatch = items;
         saveGame();                  // 해머 차감과 배치 적재를 같은 저장에 — 여기서 죽어도 둘 다 남는다
         this.renderTopBar();
         // 카드가 걷힐 때까지 모루를 잠근다 — 그 사이 수동 제작이 끼어들면 대기품이 덮인다(종전과 같은 이유).
         this._anvilBusy = true;
-        this.showCraftBatch(items, () => {
+        this.showCraftBatch(shown, () => {
             this._anvilBusy = false;
             this.drainAutoBatch();
             this.autoSeqAdvance();
@@ -1620,16 +1628,19 @@ const UI = {
     //    필터에서 상한이 없으면 화면이 몇 초씩 멈춘다. 상한에 걸리면 모은 만큼으로 진행하고,
     //    다음 사이클이 이어서 채운다(자동 제련은 계속 도니 결과적으로 같은 자리에 온다).
     FILL_CRAFT_CAP: 600,
+    // 반환 `{ kept, lastSold }` — `lastSold` 는 **통과분이 0인 사이클에서 카드판에 올릴** 최근 탈락분이다
+    // (이미 팔린 것이라 `S.autoBatch` 에는 안 들어간다 — 보여 주기 전용).
     craftUntilMatches(target) {
         const kept = [];
-        let gained = 0, sold = 0, crafted = 0;
+        let gained = 0, sold = 0, crafted = 0, lastSold = [];
         while (kept.length < target && S.hammers >= 1 && crafted < this.FILL_CRAFT_CAP) {
             const chunk = Forge.craft(Math.min(target - kept.length, S.hammers, this.FILL_CRAFT_CAP - crafted));
             if (!chunk.length) break;                 // 무료 제련 등으로도 더 못 뽑는 상태
             crafted += chunk.length;
+            lastSold = [];
             for (const it of chunk) {
                 if (Forge.passesAutoFilter(it)) kept.push(it);
-                else { gained += Forge.autoResolve(it).gained || 0; sold++; }
+                else { gained += Forge.autoResolve(it).gained || 0; sold++; lastSold.push(it); }
             }
             S.autoBatch = kept.slice();               // 통과분 적재와 판매액을 같은 저장에
             saveGame();
@@ -1637,7 +1648,7 @@ const UI = {
         // 판매 코인 연출은 배치당 한 번으로 합친다(장당 터뜨리면 화면이 코인으로 덮인다).
         // 처리 토스트는 생략 규약 그대로 — autoforge-toast-suppress.
         if (sold) { this.coinBurst(gained); this.renderTopBar(); }
-        return kept;
+        return { kept, lastSold };
     },
     // 배치 결과를 규약대로 흘려보낸다 — 카드가 걷힌 뒤, 그리고 부팅/탭전환 복원에서도 같은 규칙.
     // **`S.autoBatch` 를 비우는 곳은 여기 하나뿐이다**(경로가 둘이면 한쪽만 고쳐지는 사고가 난다).

@@ -93,6 +93,18 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     ok(b.cards === 2, `② 7회 중 통과분은 2개(3·6번째)다 — 카드 ${b.cards}장`);
     console.log(`② 예산 우선 — 제작 ${b.crafted}회 · 카드 ${b.cards}장 · 팝업 ${b.opens}회`);
 
+    // ⑥ 통과가 하나도 없는 배치라도 **뽑힌 건 보여준다** — 필터가 빡빡하면 통과 0인 사이클이 흔한데
+    //    그때 카드판이 아예 안 뜨면 망치만 조용히 줄어든다(이 계열 지시의 뿌리가 "뭐 뽑았는지 보여줘").
+    //    통과율 0 + 망치 5 → 5회 뽑고 전부 팔지만 카드판에는 마지막으로 뽑은 것들이 오른다.
+    const e = await page.evaluate(async () => {
+        Forge.passesAutoFilter = () => false;
+        return null;
+    }).then(() => run(base, 5));
+    ok(e.crafted === 5 && e.cards > 0,
+        `⑥ 통과 0인 배치에서도 카드판이 떠야 한다 — 제작 ${e.crafted}회 · 카드 ${e.cards}장`);
+    console.log(`⑥ 통과 0 — 제작 ${e.crafted}회 · 카드 ${e.cards}장(마지막 뽑은 것)`);
+    await page.evaluate(() => { Forge.passesAutoFilter = (it) => !!(it && it.__pass); });
+
     // ③ '정지' 모드는 채우지 않는다 — 배치 수(5)만큼만 제작
     const c = await run({ ...base, stopOnTarget: true }, 500);
     ok(c.crafted === 5, `③ 정지 모드에서는 배치 수 5회만 제작해야 한다(채우기 금지) — ${c.crafted}회`);

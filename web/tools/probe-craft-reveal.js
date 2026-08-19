@@ -6,6 +6,11 @@
 //  ⑶ 카드가 걷힌 **뒤에** 비교 팝업이 뜬다 (순서 역전·동시 노출 금지)
 //  ⑷ 카드는 화면 안, 모루 버튼 위쪽에 뜬다(보이지 않는 곳에 그리면 '보여줌'이 아니다)
 //  ⑸ 자동 제작 통과분도 같은 순서(카드 → 팝업)를 탄다
+//     ⚠️ **2026-08-20 사양 변경 반영(red-probes-4 ⑵)**: 자동 경로의 카드는 `autoforge-cards-at-once`
+//        지시로 **카드판(`.craft-batch`, N장 동시)** 이 됐다. 종전 이 판정기는 한 장짜리
+//        `.auto-drop-card.craft-reveal` 만 찾아서 **사양대로 도는 코드를 FAIL 로 찍고 있었다**
+//        (코드 회귀가 아니라 자가 낡은 것 — 같은 HEAD 에서 `probe-autoforge-batch` 는 PASS 한다).
+//        순서 계약('카드가 걷힌 뒤 팝업')은 그대로 살려 둔다.
 //  ⑹ 카드가 떠 있는 동안 모루를 다시 눌러도 대기품이 덮어써지지 않는다(해머만 녹는 사고 방지)
 //  ⑺ 콘솔 에러 0건
 // 사용: node probe-craft-reveal.js
@@ -45,6 +50,10 @@ async function recordTimeline(page, trigger, ms = 2200) {
                 t: Math.round(performance.now()),
                 striking: !!document.querySelector('.anvil-btn.striking'),
                 card: !!card,
+                // 자동 경로의 '결과 보여주기'는 2026-08-20 `autoforge-cards-at-once` 로 **카드판**이 됐다 —
+                // 한 장짜리 리빌 카드(`.auto-drop-card`)가 아니라 `.craft-batch` 에 N장이 한꺼번에 뜬다.
+                // 수동 경로는 그대로 리빌 카드라 두 축을 따로 기록한다(⑸ 만 카드판을 본다).
+                batch: !!document.querySelector('.craft-batch'),
                 // rect는 crpop 첫 프레임 scale(.62)이 섞이므로, 크기 판정용으로 변환 무관한 레이아웃 크기(lw/lh)도 같이 기록
                 cardBox: r ? { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), lw: card.offsetWidth, lh: card.offsetHeight } : null,
                 modal: !!(UI.els.craftModal && !UI.els.craftModal.classList.contains('hidden')),
@@ -162,10 +171,12 @@ async function recordTimeline(page, trigger, ms = 2200) {
         S.autoForgeOn = true;
         UI.startAutoSeq();
     }, WIN);   // 자동 배치도 같은 이유로 클럭에서 되풀어 쓴다(2600ms 상수는 0.72초 망치질 시절 값)
-    const aCard = tl2.findIndex(r => r.card);
-    const aLastCard = tl2.map(r => r.card).lastIndexOf(true);
+    // ⑸ 는 카드판(.craft-batch)이 정답이다 — 한 장짜리 리빌 카드로도 보여 줄 수는 있으니 둘 다 인정한다.
+    const shown = tl2.map(r => r.card || r.batch);
+    const aCard = shown.indexOf(true);
+    const aLastCard = shown.lastIndexOf(true);
     const aModal = tl2.findIndex(r => r.modal);
-    ok(aCard >= 0, '⑸ 자동 제작 통과분에 리빌 카드가 없다');
+    ok(aCard >= 0, '⑸ 자동 제작 통과분에 결과 카드(카드판 .craft-batch 또는 리빌 카드)가 없다');
     ok(aModal >= 0, '⑸ 자동 제작 통과분에 비교 팝업이 안 떴다');
     if (aCard >= 0 && aModal >= 0) {
         ok(aCard < aModal, `⑸ 자동 통과분에서 팝업이 카드보다 먼저 떴다 (카드 ${aCard}, 팝업 ${aModal})`);

@@ -86,8 +86,11 @@ async function until(page, fnSrc, ms = 8000) {
     ok(await until(page, `document.querySelector('.anvil-btn.striking') !== null`, 3000),
         '망치질 연출(.striking)이 관측되지 않았다');
     // ---- ⑷ 탈락분: 카드 노출 + 코인 연출 ----
-    ok(await until(page, `document.querySelector('.auto-drop-card') !== null`, 4000),
-        '필터 탈락 장비 카드(.auto-drop-card)가 뜨지 않았다');
+    // 🚨 **2026-08-20 `autoforge-cards-at-once` 로 자동 경로의 카드가 카드판이 됐다** — 한 장짜리
+    //    `.auto-drop-card` 가 아니라 `.craft-batch` 에 N장이 한꺼번에 뜬다. 둘 다 인정한다
+    //    ('뽑힌 걸 보여준다'가 계약이고, 몇 장씩 보여주는가는 그 뒤 지시로 갈린 표현이다).
+    ok(await until(page, `document.querySelector('.auto-drop-card, .craft-batch') !== null`, 4000),
+        '필터 탈락 장비 카드(.auto-drop-card / .craft-batch)가 뜨지 않았다');
     ok(await until(page, `!!document.getElementById('coin-burst') && document.getElementById('coin-burst').children.length > 0`, 6000),
         '판매 코인 연출(#coin-burst)이 나지 않았다');
 
@@ -100,20 +103,34 @@ async function until(page, fnSrc, ms = 8000) {
 
     // ---- ⑶⑸ 목표 통과분은 비교 팝업으로(자동장착 금지), 처리하면 배치가 이어져 망치 N개 = 카드 N회 ----
     //      (autoforge-show-all-cards 재지적 2026-08-18: "해당되면 비교팝업이 떠야 하는데 자동장착을 해버린다")
+    //      ⚠️ **두 번 뒤집힌 자리다 — 지금 계약은 아래가 최종**:
+    //        · `autoforge-cards-at-once`(2026-08-20): 카드를 1장씩 흘리지 않고 **카드판 한 판에
+    //          N장 동시**. 그래서 카드 수는 `buildCraftCard` **호출 횟수**가 아니라 **카드판이 편 장수**다
+    //          (`showCraftBatch` 로 센다 — `probe-autoforge-default` ②-b 와 같은 방식).
+    //        · `autoforge-fill-matches-to-batch`(2026-08-20): '계속하기' + 목표가 있으면 배치의 뜻이
+    //          '망치 N개'가 아니라 **'통과분 N개'** 다. 탈락분은 그 자리에서 팔리고 **카드판에는
+    //          통과분만** 오른다. 그래서 망치 6개·통과율 1/2 이면 카드는 6장이 아니라 **3장**이다.
+    //      🚨 **필터 스텁은 호출 횟수로 세면 안 된다** — 채우기 루프와 `drainAutoBatch` 가 같은 장비를
+    //        두 번 판정하는데, 호출 횟수 스텁은 그때 답이 뒤집혀 통과분이 팔린다(실측으로 팝업이
+    //        3→2 로 줄었다). 아이템에 표식을 박고 판정은 그 표식만 본다.
     const flow = await page.evaluate(async () => {
-        // 통과·탈락을 번갈아 섞는다 — 통과분(짝수 순번)은 팝업, 탈락분(홀수)은 카드→자동판매
+        // 통과·탈락을 번갈아 섞는다 — 뽑는 순간 표식을 박아 재판정에도 답이 흔들리지 않게 한다.
+        const roll = Forge.rollItem.bind(Forge);
         let nth = 0;
-        Forge.passesAutoFilter = () => (nth++ % 2 === 0);
-        // 카드 노출 횟수는 카드 생성 단일 통로(buildCraftCard), 팝업 횟수는 showCraftModal 에서 센다
+        Forge.rollItem = function () { const it = roll(); it.__pass = (nth++ % 2 === 0); return it; };
+        Forge.passesAutoFilter = (it) => !!(it && it.__pass);
         window.__cards = 0;
-        window.__order = '';                    // 실제 노출 순서 (C=결과 카드, P=비교 팝업)
-        const origCard = UI.buildCraftCard;
-        UI.buildCraftCard = function (item, cls) { window.__cards++; window.__order += 'C'; return origCard.call(this, item, cls); };
+        window.__order = '';                    // 실제 노출 순서 (C=결과 카드 1장, P=비교 팝업)
+        const origBatch = UI.showCraftBatch.bind(UI);
+        UI.showCraftBatch = function (items, done) {
+            window.__cards += items.length; window.__order += 'C'.repeat(items.length);
+            return origBatch(items, done);
+        };
         let opens = 0;
         const origModal = UI.showCraftModal.bind(UI);
         UI.showCraftModal = function (item) { opens++; window.__order += 'P'; return origModal(item); };
         S.autoForge.hammersPerBatch = 6; S.autoForge.stopOnTarget = false;
-        S.hammers = 6;                          // 소진 정지 사양 — 사이클 6개 = 망치 6개로 정확히 소진
+        S.hammers = 6;                          // 소진 정지 사양 — 망치 6개로 정확히 소진
         S.autoForgeOn = false; UI._autoSeq = null;
         const h0 = S.hammers;
         UI.onToggleAutoForge();
@@ -122,17 +139,18 @@ async function until(page, fnSrc, ms = 8000) {
             if (!UI.els.craftModal.classList.contains('hidden')) UI.doResolveCraft('sell');
             await new Promise(r => setTimeout(r, 50));
         }
-        UI.buildCraftCard = origCard;
+        UI.showCraftBatch = origBatch;
         UI.showCraftModal = origModal;
+        Forge.rollItem = roll;
         return { spent: h0 - S.hammers, cards: window.__cards, opens, on: S.autoForgeOn, order: window.__order };
     });
     ok(!flow.on, '⑶ 배치가 스스로 정지하지 않았다');
     ok(flow.opens === 3, `⑶ 통과분 3개가 비교 팝업으로 떠야 한다(자동장착 금지) — 팝업 ${flow.opens}회`);
     ok(flow.spent === 6, `⑸ 망치 6개를 다 써야 하는데 ${flow.spent}개 소모`);
-    ok(flow.cards === 6, `⑸ 망치 6개 → 카드 6회여야 하는데 ${flow.cards}회 노출`);
-    ok(flow.order === 'CCCCCCPPP',
-        `⑸ 순서(3차 사양 2026-08-19) — 사이클 카드 6장을 다 보여준 뒤 통과분 팝업 3개가 와야 한다. 실측: ${flow.order}`);
-    console.log(`⑶⑸ 통과·탈락 혼합 배치: 통과분 팝업 ${flow.opens}회 · 해머 ${flow.spent}개 = 카드 ${flow.cards}회 · 순서 ${flow.order}`);
+    ok(flow.cards === 3, `⑸ 통과율 1/2 · 망치 6개 → 카드판에 통과분 3장이 떠야 한다 — ${flow.cards}장`);
+    ok(flow.order === 'CCCPPP',
+        `⑸ 순서 — 카드판이 통과분 3장을 한 번에 편 뒤에야 팝업 3개가 와야 한다. 실측: ${flow.order}`);
+    console.log(`⑶⑸ 통과·탈락 혼합 배치: 통과분 팝업 ${flow.opens}회 · 해머 ${flow.spent}개 · 카드판 ${flow.cards}장 · 순서 ${flow.order}`);
 
     // ---- ⑹-b '목표를 찾으면 정지' ON → 첫 통과분이 비교 팝업, 선택 후 정지 + 남은 예산 미소모 ----
     const stopCase = await page.evaluate(async () => {
@@ -144,15 +162,26 @@ async function until(page, fnSrc, ms = 8000) {
         UI.onToggleAutoForge();
         for (let i = 0; i < 200 && UI.els.craftModal.classList.contains('hidden'); i++) await new Promise(r => setTimeout(r, 50));
         const modal = !UI.els.craftModal.classList.contains('hidden');
-        UI.resolveCraft('sell');                // 같은 등급 경고가 떠도 이 경로는 판매로 확정된다
-        if (!document.getElementById('detail-modal').classList.contains('hidden')) UI.onSellConfirm();
-        await new Promise(r => setTimeout(r, 1500));
+        // 🚨 **배치 하나의 통과분을 다 처리해야 정지한다** — 배치화 이전엔 첫 선택 = 즉시 정지였지만
+        //    지금은 배치 10개가 전부 통과분이라 팝업이 10번 온다(`stopAfterPick` 은 '이 배치를 끝내고
+        //    정지'라는 뜻이다). 한 번만 고르고 재면 '아직 안 멈췄다'가 나오는 게 당연하다.
+        for (let i = 0; i < 200 && (S.autoForgeOn || !UI.els.craftModal.classList.contains('hidden')); i++) {
+            if (!UI.els.craftModal.classList.contains('hidden')) {
+                UI.resolveCraft('sell');        // 같은 등급 경고가 떠도 이 경로는 판매로 확정된다
+                if (!document.getElementById('detail-modal').classList.contains('hidden')) UI.onSellConfirm();
+            }
+            await new Promise(r => setTimeout(r, 50));
+        }
+        await new Promise(r => setTimeout(r, 500));
         return { modal, spent: h0 - S.hammers, on: S.autoForgeOn, seq: !!UI._autoSeq };
     });
     ok(stopCase.modal, "'정지' ON인데 첫 통과분이 비교 팝업으로 뜨지 않았다");
-    ok(!stopCase.on && !stopCase.seq, "'정지' ON인데 첫 선택 후에도 자동제작이 계속됐다");
-    ok(stopCase.spent === 1, `'정지' ON이면 망치 1개만 써야 하는데 ${stopCase.spent}개 소모`);
-    console.log(`⑹-b 목표 정지 ON → 첫 통과 팝업·선택 후 정지 (해머 ${stopCase.spent}개 소모)`);
+    ok(!stopCase.on && !stopCase.seq, "'정지' ON인데 배치의 통과분을 다 처리한 뒤에도 자동제작이 계속됐다");
+    // 🚨 **'망치 1개만'은 배치화(2026-08-19 `autoforge-cards-at-once` 1차) 이전 계약이다** —
+    //    지금은 한 배치가 원자적이라 `hammersPerBatch` 만큼 먼저 쓰고, 그 배치의 통과분을 다 처리한
+    //    뒤에 정지한다(같은 계약을 `probe-autoforge-default` ③ 도 쓴다). 배치 크기를 넘겨 쓰면 결함.
+    ok(stopCase.spent === 10, `'정지' ON이면 배치 하나(망치 10개)까지만 써야 하는데 ${stopCase.spent}개 소모`);
+    console.log(`⑹-b 목표 정지 ON → 첫 통과 팝업·선택 후 정지 (해머 ${stopCase.spent}개 = 배치 1회분 소모)`);
 
     // ---- ⑺ 딤 클릭 = 보류 → 모루 자리 카드 → 다시 열기 ----
     await page.evaluate(() => {
@@ -216,6 +245,10 @@ async function until(page, fnSrc, ms = 8000) {
     await page.evaluate(() => {
         S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
         UI.els.craftModal.classList.add('hidden');
+        // 🚨 앞 ⑺(딤 클릭 = 보류)이 `S.autoMatchHeld` 를 켜 두고 간다 — 보류 모드에서는 복원이
+        //    **팝업을 안 여는 게 사양**(모루 자리 카드로만 올린다, autoforge-dim-hold-all)이라
+        //    그대로 두면 이 검사가 정상 동작을 '유실'로 찍는다. 여기서 재는 건 평시 경로다.
+        S.autoMatchHeld = false;
         S.autoMatchQueue = [
             Object.assign(Forge.rollItem(), { name: '큐테스트A', slot: 'ring' }),
             Object.assign(Forge.rollItem(), { name: '큐테스트B', slot: 'belt' }),
@@ -223,6 +256,11 @@ async function until(page, fnSrc, ms = 8000) {
         saveGame();
     });
     await page.reload({ waitUntil: 'load' });
+    // 🚨 `waitBooted`(UI·S 가 있는가)만으로는 이르다 — 큐 복원은 `main.js` 의 `boot()` **끝**에서
+    //    `restorePendingCraft()` 가 하는데, 그 앞에 셰이더 워밍업이 있어 이 환경에선 수 초가 걸린다.
+    //    600ms 만 기다리던 종전 코드는 **아직 복원이 안 돈 시점을 재고 '유실'로 찍고 있었다**
+    //    (red-probes-4 ⑴ 의 마지막 두 건 — 제품 결함이 아니라 대기 부족).
+    await waitBootDone(page);
     await waitBooted(page);
     await page.waitForTimeout(600);
     const q1 = await page.evaluate(() => ({

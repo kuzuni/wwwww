@@ -1,8 +1,14 @@
 // 제작 비교 팝업(판매/장착 강제 선택)이 뜬 채로 새로고침하면 제작품이 장착도 판매도
 // 되지 않고 사라지던 버그의 회귀 검증 도구.
 // 전투 수입 간섭을 없애려고 Combat.tick을 무력화한 뒤 세 경로를 잰다:
-//   (A) 탭 전환      — UI.onTabClick('summon')으로 팝업을 접는다 → autoResolve로 장착돼야 한다
+//   (A) 탭 전환      — UI.onTabClick('summon')으로 팝업을 접는다 → autoResolve 로 **처리**돼야 한다
 //                     ('방' 탭은 2026-08-18 사용자 지시로 삭제 — 남은 시트 탭인 소환으로 옮겼다)
+//                     🚨 **2026-08-20 사양 뒤집힘(red-probes-4 ⑸)**: 종전 이 자리는 '장착돼야 한다'
+//                        였는데, 사용자 지시 `autoforge-no-auto-equip`("자동장착 되면 안 됨. 절대로")
+//                        으로 `Forge.autoResolve` 의 장착 가지가 **삭제**돼 이제 언제나 판매다.
+//                        즉 이 판정기는 **사양대로 파는 코드를 '유실'로 찍고 있었다**(자가 낡은 것).
+//                        이 항목이 원래 막으려던 것은 '해머만 빠지고 아무 데도 안 남는 것'이므로,
+//                        판매도 살아남은 형태로 인정하되 **판매액을 실제로 받았는지 실측**한다.
 //   (B) 새로고침      — 팝업이 뜬 채로 F5 → 제작품이 살아 있어야 한다
 //   (C) 직접 선택 후 새로고침 — [장착]을 고른 뒤 F5 → 정확히 1개만 남아야 한다(복제 금지)
 // (B)의 '살아 있다'는 두 형태를 모두 인정한다 — 부팅 시 자동 판정으로 장착되거나(구현 A),
@@ -31,6 +37,8 @@ const SNAP = () => ({
     equippedCount: Object.values(S.equipment || {}).filter(Boolean).length,
     equippedName: (Object.values(S.equipment || {}).filter(Boolean)[0] || {}).name || null,
     pending: UI._pendingItem ? UI._pendingItem.name : null,
+    // 판매로 처리된 경우를 코인 증가로 확인하려면 '얼마여야 하는가'를 처리 전에 재 둬야 한다.
+    pendingSell: UI._pendingItem ? Number(String(Forge.sellPrice(UI._pendingItem))) || 0 : 0,
     savedPending: S.pendingCraft ? S.pendingCraft.name : null,
     craftOpen: !document.getElementById('craft-modal').classList.contains('hidden'),
 });
@@ -101,14 +109,18 @@ const SNAP = () => ({
         // 제작품이 살아남은 형태 두 가지 — 장착됐거나(자동 판정), 팝업이 복원돼 아직 고를 수 있거나.
         const equipped = after.equippedName === mid.pending && after.equippedCount === 1;
         const restored = after.pending === mid.pending && after.craftOpen;
+        // 판매로 처리됨 — 대기품이 어디에도 안 남고 판매액만큼 코인이 늘었다(자동 장착 삭제 이후의 정상 경로).
+        const sold = !after.pending && !after.savedPending && mid.pendingSell > 0
+            && (after.coins - mid.coins) >= mid.pendingSell;
         let ok, how;
         if (mode === 'C-직접선택후새로고침') {
             // 이미 사용자가 고른 뒤라 복원되면 안 된다 — 정확히 1개 장착, 대기품 흔적 없음.
             ok = hammerSpent > 0 && equipped && !after.pending && !after.savedPending;
             how = equipped ? '장착 1개(복제 없음)' : '유실 또는 복제';
         } else {
-            ok = hammerSpent > 0 && (equipped || restored);
-            how = equipped ? '자동 판정으로 장착' : restored ? '비교 팝업 복원(선택권 유지)' : '유실';
+            ok = hammerSpent > 0 && (equipped || restored || sold);
+            how = equipped ? '자동 판정으로 장착' : restored ? '비교 팝업 복원(선택권 유지)'
+                : sold ? `자동 판정으로 판매(+${after.coins - mid.coins}, 최소 ${mid.pendingSell})` : '유실';
         }
         if (!ok) fail++;
         console.log(`\n== ${mode} == ${ok ? 'OK' : 'FAIL'} — ${how}`);

@@ -166,28 +166,58 @@ const report = (label, bad, extra, raw) => {
         }
     }
 
-    // ---------- ② 제작 비교 팝업에서 장착 (닫히는 게 정상) ----------
+    // ---------- ② 제작 비교 팝업에서 장착 ----------
+    // 🚨 **자리가 비어 있으면 [장착]은 팝업을 닫는 게 사양이다** (`doResolveCraft` 예외 ⑴ —
+    //    내려올 옛 장비가 없으면 맞바꿀 게 없다). 종전 이 판정기는 `S.equipment = {}` 로
+    //    **빈 자리를 만들어 놓고 '유지'를 요구**해서, 사양대로 닫는 코드를 계속 FAIL 로 찍었다
+    //    (red-probes-4 ⑶ — 자가 낡은 게 아니라 처음부터 전제가 어긋나 있었다).
+    //    그래서 두 갈래를 **갈라서** 잰다: ②-a 자리가 차 있으면 유지(스왑), ②-b 비어 있으면 닫힘.
+    const openCraftPopup = async (p) => p.evaluate(async () => {
+        S.hammers = 500; S.equipment = {};
+        for (let i = 0; i < 20; i++) {
+            UI.onCraft();
+            await new Promise(r => setTimeout(r, 120));
+            if (!document.getElementById('craft-modal').classList.contains('hidden')) return true;
+        }
+        return false;
+    });
+
+    // ②-a 자리가 차 있을 때 = 맞바꿈이라 팝업이 **유지**된다 (사용자 지시 2026-08-18
+    //     "새거 장착했다가 예전꺼 장착했다가 판매할 수 있게").
     {
-        const p = await newPage('②');
-        const opened = await p.evaluate(async () => {
-            S.hammers = 500; S.equipment = {};
-            for (let i = 0; i < 20; i++) {
-                UI.onCraft();
-                await new Promise(r => setTimeout(r, 120));
-                if (!document.getElementById('craft-modal').classList.contains('hidden')) return true;
-            }
-            return false;
-        });
-        if (!opened) { console.log('\n== ②제작비교팝업 == 팝업이 뜨지 않아 측정 불가'); fail++; }
+        const p = await newPage('②a');
+        const opened = await openCraftPopup(p);
+        if (!opened) { console.log('\n== ②a제작비교팝업 == 팝업이 뜨지 않아 측정 불가'); fail++; }
         else {
+            // 대기품과 **같은 부위**에 옛 장비를 채워 스왑 경로를 만든다(빈 자리면 닫힘이 정상이라
+            // 유지를 요구할 수 없다). 이 한 줄이 이 검사의 전제 그 자체다.
+            await p.evaluate(() => { const it = UI._pendingItem; const prev = Forge.rollItem(); prev.slot = it.slot; S.equipment[it.slot] = prev; });
             await SETTLE(p, 'craft-modal');
             await p.evaluate(ARM, 'craft-modal');
             await p.click('#craft-modal .btn.equip');
             await p.waitForTimeout(700);
             const r = await p.evaluate(DISARM);
-            // 사용자 지시 2026-08-18로 뒤집힌 항목: [장착]은 팝업을 **닫지 않는다**
-            // (닫히는 경로는 [판매]와 딤 클릭 둘뿐). 그래서 '유지' 판정으로 본다.
-            report('②제작비교팝업 장착(유지 정상)', judgeStaysOpen(r), `rAF표본=${r.frames.length}`, r);
+            report('②a제작비교팝업 장착·자리 참(유지 정상)', judgeStaysOpen(r), `rAF표본=${r.frames.length}`, r);
+        }
+        await p.close();
+    }
+
+    // ②-b 자리가 비어 있을 때 = 맞바꿀 옛 장비가 없으니 **닫힌다**. '닫혔다 다시 뜸'만 결함이다.
+    {
+        const p = await newPage('②b');
+        const opened = await openCraftPopup(p);
+        if (!opened) { console.log('\n== ②b제작비교팝업 == 팝업이 뜨지 않아 측정 불가'); fail++; }
+        else {
+            await p.evaluate(() => { S.equipment[UI._pendingItem.slot] = null; });
+            await SETTLE(p, 'craft-modal');
+            await p.evaluate(ARM, 'craft-modal');
+            await p.click('#craft-modal .btn.equip');
+            await p.waitForTimeout(700);
+            const r = await p.evaluate(DISARM);
+            const bad = judgeClosesOnce(r);
+            const closed = await p.evaluate(() => document.getElementById('craft-modal').classList.contains('hidden'));
+            if (!closed) bad.push('빈 자리에 장착했는데 팝업이 안 닫혔다');
+            report('②b제작비교팝업 장착·빈 자리(닫힘 정상)', bad, `rAF표본=${r.frames.length}`, r);
         }
         await p.close();
     }
