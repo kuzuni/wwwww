@@ -19,8 +19,17 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(INDEX + '?enemy=golem', { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 20000 });
-    await page.waitForFunction(() => Combat.enemies && Combat.enemies.some(e => e.alive && Scene3D.enemyMap.get(e.id)), null, { timeout: 20000 });
+    // ⚠️ waitForFunction 금지 — 페이지 안 폴링이 3D 렌더 프레임에 밀려 안 도는 컨테이너가 있다.
+    //    게다가 '적이 살아 있다'를 밖에서 기다리면 **기다림과 evaluate 사이에 그 적이 죽어** 안에서
+    //    `e` 가 undefined 가 된다(2026-08-19 실측: `Cannot read properties of undefined (reading 'id')`
+    //    로 이 프로브가 통째로 죽어 있었다). 부팅만 밖에서 폴링하고, **적 확보는 evaluate 안에서
+    //    전투를 먼저 멈춘 뒤** 한다.
+    for (let w = 0; ; w++) {
+        const ready = await page.evaluate('typeof Scene3D !== "undefined" && !!Scene3D.heroG && typeof Combat !== "undefined"').catch(() => false);
+        if (ready) break;
+        if (w > 900) throw new Error('부팅 대기 초과');
+        await page.waitForTimeout(200);
+    }
 
     const out = await page.evaluate(() => {
         Combat.tick = () => { };
@@ -52,7 +61,14 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
             return { box: [x0, y0, x1, y1].map(v => +v.toFixed(1)), n: list.length, cx: +((x0 + x1) / 2).toFixed(1), cy: +((y0 + y1) / 2).toFixed(1) };
         };
 
-        const e = Combat.enemies.find(x => x.alive && Scene3D.enemyMap.get(x.id));
+        // 전투를 이미 멈춘 뒤라 여기서 확보한 적은 측정 내내 살아 있다.
+        // 살아 있는 적이 없으면(웨이브 사이 등) 하나 만들어 세운다 — 밖에서 기다리는 것보다 결정적이다.
+        let e = Combat.enemies.find(x => x.alive && Scene3D.enemyMap.get(x.id));
+        if (!e) {
+            Combat.setupStage();
+            e = Combat.enemies.find(x => x.alive && Scene3D.enemyMap.get(x.id));
+        }
+        if (!e) return { err: '살아 있는 적을 못 세웠다' };
         const m = Scene3D.enemyMap.get(e.id);
         const before = new Set(Scene3D.particles);
         Combat.damageEnemy(e, Big.of(140), false, null);

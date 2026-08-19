@@ -8809,6 +8809,67 @@ const Scene3D = {
         }, () => { this.disposeTree(q); this.scene.remove(q); });
     },
 
+    // ── 접점 임팩트 밀도 (hp-juicy ② — 비평가 6차 잔여 지적) ──────────────────────────
+    // 지적: "접점이 둥근 플레어 몇 겹뿐이라 **부딪힌 순간의 밀도**가 없다 — 방사형 스파이크와
+    //        플레어 링을 얹고 크리는 1.5배로." 지금 있는 건 원형 플레어 3층 + 파편/스파크뿐이라
+    //        **접점에서 뻗어 나가는 선**과 **퍼지는 테**가 통째로 없었다.
+    // ⚠️ 크기는 전부 호출부가 준 `size`(= 적 실높이 비례 `fmax`)에 묶는다 — 고정 유닛으로 두면
+    //    키 0.85 슬라임에서 스파이크가 몸보다 길어져 하반신이 지워진다(플레어가 이미 밟은 함정).
+    // ⚠️ 카메라를 향하게(`lookAt`) 세운다. 월드 XY 평면에 두면 카메라가 내려다보는 이 게임에서
+    //    스파이크가 납작하게 눌려 '선'이 아니라 '얼룩'이 된다.
+    impactSpikes(pos, count, colorHex, size, dur, crit) {
+        const n = Math.max(3, Math.round(count));
+        const base = U.rand(0, Math.PI);            // 매 타격 각도를 돌린다 — 고정하면 같은 별 도장이 반복된다
+        for (let i = 0; i < n; i++) {
+            const ang = base + (i / n) * Math.PI * 2 + U.rand(-0.18, 0.18);
+            const len = size * U.rand(0.55, 1.0);
+            const q = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({
+                map: this.flareTex(), color: colorHex, transparent: true, opacity: crit ? 0.95 : 0.8,
+                blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false,
+            }));
+            q.position.copy(pos);
+            q.lookAt(this.camera.position);
+            q.rotateZ(ang);
+            // ⚠️ 표식을 남긴다 — 판정기가 **타입(PlaneGeometry)으로 찾으면** 같은 프레임의 플레어 3층·
+            //    파편까지 같이 잡혀 수치가 통째로 오염된다(실제로 첫 판정이 6개 대신 14개를 셌다).
+            q.userData.impactSpike = true;
+            const w = size * (crit ? 0.16 : 0.12);
+            // ⚠️ 첫 프레임 값을 여기서 박아 둔다. 안 그러면 애니메이션이 처음 도는 프레임까지
+            //    scale 이 기본값 (1,1,1) 로 남아, 판정기가 t0 을 '길이 1.0'으로 읽고 **줄어드는 것처럼**
+            //    보인다(실제로 첫 판정이 1.000 → 0.628 로 나왔다). impactFlare 도 같은 이유로 미리 박는다.
+            q.scale.set(w, len * 0.35, 1);
+            this.scene.add(q);
+            this.addAnim(dur, k => {
+                // 뻗었다가 뿌리부터 사라진다 — 길이는 계속 자라고(감속) 폭은 줄어 '선'으로 남는다
+                const g = 1 - Math.pow(1 - k, 2.2);
+                q.scale.set(w * (1 - 0.55 * k), len * (0.35 + 0.9 * g), 1);
+                q.position.copy(pos).addScaledVector(
+                    new THREE.Vector3().setFromMatrixColumn(q.matrix, 1).normalize(), len * (0.2 + 0.5 * g));
+                q.material.opacity = (crit ? 0.95 : 0.8) * (1 - k) * (1 - k);
+            }, () => { this.disposeTree(q); this.scene.remove(q); });
+        }
+    },
+
+    // 접점에서 퍼지는 **카메라를 향한** 얇은 테 — `expandRing` 은 지면에 눕는 충격파라 역할이 다르다
+    // (그건 발밑, 이건 맞은 자리). 둘을 같이 쓰면 '바닥이 울리고 몸이 튄다'가 한 프레임에 읽힌다.
+    impactRing(pos, colorHex, size, dur, crit) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, crit ? 0.07 : 0.05, 6, 20),
+            new THREE.MeshBasicMaterial({
+                color: colorHex, transparent: true, opacity: crit ? 0.95 : 0.75,
+                blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false,
+            }));
+        ring.position.copy(pos);
+        ring.lookAt(this.camera.position);
+        ring.scale.setScalar(size * 0.25);
+        ring.userData.impactRing = true;   // 지면 충격파(expandRing)의 토러스와 갈라 보기 위한 표식
+        this.scene.add(ring);
+        this.addAnim(dur, k => {
+            const g = 1 - Math.pow(1 - k, 2.6);     // 끝까지 퍼진다 — 멈춰 서면 테가 아니라 얼룩이다(expandRing 교훈)
+            ring.scale.setScalar(size * (0.25 + g * (crit ? 1.5 : 1.05)));
+            ring.material.opacity = (crit ? 0.95 : 0.75) * (1 - k) * (1 - k);
+        }, () => { this.disposeTree(ring); this.scene.remove(ring); });
+    },
+
     // 스윙 축으로 날아가는 길쭉한 파편 쿼드 — 점 스프라이트와 달리 개체로 읽혀 버스트의 뼈대가 된다
     spawnShards(pos, count, colorHex, opt) {
         const o = opt || {};
@@ -9108,6 +9169,10 @@ const Scene3D = {
         this.impactFlare(hitPt, 0xffffff, Math.min(crit ? 0.62 : 0.5, fmax * 0.62), crit ? 0.12 : 0.09, 0.3, 0.55);
         this.impactFlare(hitPt, 0xffb45a, Math.min(crit ? 0.95 : 0.74, fmax), crit ? 0.14 : 0.1, -0.24, crit ? 0.42 : 0.3);
         if (crit) this.impactFlare(hitPt, 0xff7a2a, Math.min(1.25, fmax * 1.3), 0.17, -0.5, 0.3); // 외곽 잔광 — 블룸 뒤에도 색층이 남게
+        // 방사형 스파이크 + 접점 링 (hp-juicy ② '접점 임팩트 밀도', 크리는 1.5배).
+        // 색은 위 플레어·림과 같은 언어(일반 청백 / 크리 주황) — 여기만 다른 색을 쓰면 층이 따로 논다.
+        this.impactSpikes(hitPt, crit ? 9 : 6, crit ? 0xffb15a : 0xdff2ff, fmax * (crit ? 1.5 : 1), crit ? 0.15 : 0.11, crit);
+        this.impactRing(hitPt, crit ? 0xff9a4d : 0xcfe8ff, fmax * (crit ? 1.5 : 1), crit ? 0.16 : 0.12, crit);
         this.spawnShards(hitPt, crit ? 8 : 4 + Math.round(sev * 4), crit ? 0xff8a3d : 0xffd54f,
             { dir: 0.35, spread: 0.6, speed: crit ? 1.35 : 1, scale: crit ? 1.25 : 1 });
         this.spawnSparks(hitPt, crit ? 10 : 4 + Math.round(sev * 5), crit ? 0xffab40 : 0xffee58, { speed: crit ? 1.9 : 1.4 });
