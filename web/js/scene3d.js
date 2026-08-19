@@ -3303,17 +3303,20 @@ const Scene3D = {
                 // 썸네일에서 나무 십자가로 읽혔다 (사용자 지시 '중세→중세기사 무기').
                 box(0.085, 0.62, 0.085, wood, 0, 0.17);                 // 틸러
                 { const butt = box(0.1, 0.17, 0.11, wood, 0, -0.18); butt.rotation.x = 0.16; }
-                { const prod = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.036, 6, 18, Math.PI * 0.72), mat);
-                  prod.rotation.z = -Math.PI * 0.86;       // 호의 배가 뒤(-y), 양 끝이 앞(+y)으로 젖혀짐
-                  prod.position.y = 0.75; prod.scale.z = 0.5; g.add(prod); }
+                // ⚠️ 프로드는 **납작해야** 한다 — r 0.33·스윕 0.72π 는 끝이 130° 말려 올라가
+                //    1차 채점 A 가 '사슴뿔 달린 지팡이'로 읽었다. 같은 폭(반현 0.298)을 유지한 채
+                //    r 0.486·스윕 0.42π 로 펴서 끝 들림을 0.19 → 0.10 으로 눌렀다(시위 좌표도 연동).
+                { const prod = new THREE.Mesh(new THREE.TorusGeometry(0.486, 0.036, 6, 18, Math.PI * 0.42), mat);
+                  prod.rotation.z = -Math.PI * 0.71;       // 호의 배가 뒤(-y), 양 끝이 앞(+y)으로 살짝 젖혀짐
+                  prod.position.y = 0.936; prod.scale.z = 0.5; g.add(prod); }
                 { const lath = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.075, 0.1), dark);
                   lath.position.y = 0.45; g.add(lath); }   // 프로드를 무는 결속 블록 (활대가 허공에 뜨면 안 됨)
                 { const nut = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.07, 8), dark);
                   nut.rotation.x = Math.PI / 2; nut.position.y = 0.2; g.add(nut); }
-                for (const sx of [-0.298, 0.298]) {        // 너트까지 당겨진 시위 두 가닥
-                    const str = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.508, 5), dark);
-                    str.position.set(sx / 2, 0.41, 0);
-                    str.rotation.z = -Math.atan2(sx, 0.41);
+                for (const sx of [-0.298, 0.298]) {        // 너트까지 당겨진 시위 두 가닥 (프로드 끝 y 0.552 → 너트 y 0.2)
+                    const str = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.461, 5), dark);
+                    str.position.set(sx / 2, 0.376, 0);
+                    str.rotation.z = -Math.atan2(sx, 0.352);
                     g.add(str);
                 }
                 { const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.34, 6), wood);
