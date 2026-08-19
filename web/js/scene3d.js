@@ -3343,20 +3343,38 @@ const Scene3D = {
                 }
                 break;
             case 'bow': {
-                const arc = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.028, 6, 16, Math.PI), mat);
-                arc.rotation.z = -Math.PI / 2;
-                g.add(arc);
-                box(0.012, 0.84, 0.012, dark, -0.01, 0); // 시위
-                // 라이저(가죽 감은 손잡이)·화살 선반·뿔 노크 — 매끈한 반원 호 하나는 '색칠한 괄호'로
+                // 🚨 **완전한 반원 호(TorusGeometry sweep π)를 되돌리지 말 것** — 곡률이 어디서나
+                //    같은 반원 + 지름을 가로지르는 직선 시위는 3차 채점 C·D 가 나란히 **알파벳 'D'**
+                //    로 읽었다(지적 ⓒ). 실제 활이 D 로 안 읽히는 이유는 두 가지다:
+                //    ⑴ 곡률이 변한다 — 라이저 부근은 뻣뻣해서 거의 곧고, 중간 림이 휘고,
+                //    ⑵ 끝이 **시위 선을 넘어 뒤로 젖혀진다**(리커브 팁). 그래서 실루엣이 반원이 아니라
+                //       가운데가 잘록한 활꼴 + 갈고리 두 개가 된다.
+                //    여기에 림 테이퍼(뿌리 굵고 끝 가늘게)까지 얹어야 '색칠한 괄호'에서 벗어난다.
+                const STR_X = -0.012, TIP_Y = 0.475;      // 시위 선 · 팁 높이
+                for (const s of [1, -1]) {                 // 위·아래 림 (대칭)
+                    const limb = this.taperedTube([
+                        [0.40, s * 0.055], [0.395, s * 0.165],  // 라이저 부근 — 거의 곧다(뻣뻣한 구간)
+                        [0.335, s * 0.295], [0.175, s * 0.375], // 휘는 구간
+                        [0.02, s * 0.395],                      // 시위 선을 **가로지른다**
+                        [-0.06, s * 0.425],                     // 시위 뒤로 넘어간 리커브 배
+                        [-0.02, s * TIP_Y],                     // 다시 앞으로 꺾여 시위에서 끝나는 팁
+                    ], 0.036, 0.013, mat, 22, 6);
+                    g.add(limb);
+                }
+                // 시위는 **팁과 팁 사이**만 잇는다. 림이 시위 선을 넘었다 돌아오므로 바깥 윤곽에
+                // 노치가 생겨 반원+현(=D)으로 닫히지 않는다.
+                { const str = new THREE.Mesh(new THREE.BoxGeometry(0.012, TIP_Y * 2, 0.012), dark);
+                  str.position.x = STR_X; g.add(str); }
+                // 라이저(가죽 감은 손잡이)·화살 선반·뿔 노크 — 매끈한 호 하나는 '색칠한 괄호'로
                 // 읽혔다. 활 계열 전체(중세 활·메아리·망령·세라핌)에 공통으로 준다.
                 { const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.2, 8), wood);
                   grip.position.x = 0.4; g.add(grip); }
                 { const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.042, 0.05), dark);
                   shelf.position.set(0.355, 0.085, 0); g.add(shelf); }
-                for (const ny of [0.42, -0.42]) {          // 뿔 노크(시위 거는 홈)
-                    const nock = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.09, 5), dark);
-                    nock.position.y = ny + (ny > 0 ? 0.038 : -0.038);
-                    nock.rotation.z = ny > 0 ? 0 : Math.PI;
+                for (const s of [1, -1]) {                 // 뿔 노크(시위 거는 홈) — 젖혀진 팁 끝에 붙인다
+                    const nock = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.075, 5), dark);
+                    nock.position.set(-0.016, s * (TIP_Y + 0.026), 0);
+                    nock.rotation.z = s > 0 ? -0.2 : Math.PI + 0.2;
                     g.add(nock);
                 }
                 break;
@@ -4383,6 +4401,29 @@ const Scene3D = {
             g.add(cap);
         }
         return g;
+    },
+    // ⑷ 테이퍼 튜브 — 곡선 경로를 따라 가며 **굵기가 변하는** 관. 활 림처럼 '뿌리는 굵고 끝은
+    //    가늘게' 가 실루엣의 정체성인 부위에 쓴다. `TubeGeometry` 는 반경이 상수라 그것만으로는
+    //    어디를 잘라도 같은 굵기 = 관(파이프)으로 읽힌다.
+    //    ⚠️ 링 중심을 커브에서 다시 받아 오는 게 핵심 — 정점을 원점 기준으로 줄이면 관이
+    //       가늘어지는 게 아니라 **경로째 원점으로 빨려 들어간다**.
+    taperedTube(pts, r0, r1, mat, tub, rad) {
+        const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2] || 0)));
+        const T = tub || 24, R = rad || 6;
+        const geo = new THREE.TubeGeometry(curve, T, Math.max(r0, r1), R);
+        const pos = geo.attributes.position;
+        const c = new THREE.Vector3(), v = new THREE.Vector3();
+        for (let i = 0; i <= T; i++) {
+            curve.getPointAt(i / T, c);
+            const k = (r0 + (r1 - r0) * (i / T)) / Math.max(r0, r1);
+            for (let j = 0; j <= R; j++) {
+                const idx = i * (R + 1) + j;
+                v.fromBufferAttribute(pos, idx).sub(c).multiplyScalar(k).add(c);
+                pos.setXYZ(idx, v.x, v.y, v.z);
+            }
+        }
+        geo.computeVertexNormals();
+        return new THREE.Mesh(geo, mat);
     },
     // ⑸ 매듭 — 비평가 ⓒ⑶ 이 요구한 넷("스티치·리벳 열·**매듭**·천 주름") 중 유일하게 칠로는
     //    못 내는 것이다. 스티치·리벳·주름은 표면 무늬라 `ageDetailGLSL` 이 셰이더로 심지만,
@@ -5951,6 +5992,49 @@ const Scene3D = {
         return { k: k, parts: parts.length, rMin: shaft.rMin, len: L };
     },
 
+    // ── 활 아이콘 포즈 (썸네일 전용) ────────────────────────────────────────────
+    // 🚨 **리커브 조형만으로는 'D' 오독이 안 없어진다 — 실측으로 확인했다.** 림 곡률을 변주하고
+    //    팁을 시위 뒤로 젖혀 판정기(probe-bow-slihouette)의 두 게이트를 통과시켰는데도, 96px
+    //    확대 캡처에서는 여전히 알파벳 D 로 읽혔다(오히려 라이저 부근 직선 구간이 D 의 세로획을
+    //    더 또렷하게 만들었다). 지표가 움직여도 판독이 안 바뀌는 전형적인 함정이다.
+    //    원인은 조형이 아니라 **자세**다: 활은 평면 물체인데 썸네일 카메라가 그 평면을 정면으로
+    //    보므로, 어떤 곡선을 그려도 '닫힌 납작한 윤곽 + 세로 직선(시위)' = 글자가 된다.
+    // 처방 두 겹(둘 다 실제 활 아이콘의 관례다):
+    //    ⑴ **화살을 메긴다** — 시위에서 라이저를 가로질러 앞으로 뻗는 가로 획이 닫힌 윤곽을 깬다.
+    //    ⑵ **평면을 정면에서 튼다** — y 회전으로 두 림이 깊이 방향으로 갈려 입체로 읽힌다.
+    // ⚠️ makeWeapon 이 아니라 여기 두는 이유: 전장 영웅은 활을 **쏘는** 중이라 화살이 따로 날아가고
+    //    (`spawnProjectile`), 손·시위 정렬이 이 회전을 전제로 잡혀 있지 않다.
+    weaponThumbBowPose(model, wtypeId) {
+        if (!model || weaponShape(wtypeId) !== 'bow') return null;
+        const std = o => new THREE.MeshStandardMaterial(o);
+        // 화살은 활 재질을 따라가지 않는다 — 시대별 활 색과 같은 톤이면 획이 안 읽힌다(무채 목재+강철).
+        const shaftM = std({ color: 0x8a6a45, metalness: 0.05, roughness: 0.78 });
+        const headM = std({ color: 0xc2ccd4, metalness: 0.85, roughness: 0.3 });
+        const fletchM = std({ color: 0xd8dde2, metalness: 0.02, roughness: 0.9, side: THREE.DoubleSide });
+        const ay = 0.085;                    // 화살 선반(shelf) 높이 — 화살이 선반에 얹혀야 한다
+        const x0 = -0.012, x1 = 0.66;        // 시위 → 앞으로 뻗은 끝
+        const arrow = new THREE.Group();
+        const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, x1 - x0, 6), shaftM);
+        sh.rotation.z = Math.PI / 2;
+        sh.position.set((x0 + x1) / 2, ay, 0);
+        arrow.add(sh);
+        const head = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.11, 4), headM);
+        head.rotation.z = -Math.PI / 2;
+        head.position.set(x1 + 0.055, ay, 0);
+        arrow.add(head);
+        for (const rz of [0, Math.PI / 2]) { // 깃 2장(십자) — 오늬 쪽에서 획의 끝을 맺는다
+            const f = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.055), fletchM);
+            f.position.set(x0 + 0.085, ay, 0);
+            f.rotation.x = rz;
+            arrow.add(f);
+        }
+        model.add(arrow);
+        // 정면을 벗어난 3/4 자세 — 두 림이 깊이로 갈려 '납작한 글자'가 아니라 물건으로 읽힌다.
+        model.rotation.y = -0.62;
+        model.updateMatrixWorld(true);
+        return { arrow: arrow.children.length };
+    },
+
     itemThumb(item) {
         if (!item) return null;
         const aTier = this.ascendTier(item.stars); // 승천 티어별 디자인 분화 — 키에 안 넣으면 별이 달라도 같은 썸네일이 재사용된다
@@ -5965,6 +6049,7 @@ const Scene3D = {
             if (item.slot === 'weapon') {
                 model = this.makeWeapon(item.wtype || 'sword', item.ageIdx, item.rarity);
                 this.weaponThumbBulk(model, item.wtype || 'sword');   // 자루 과장 — 썸네일 경로에서만 (위 주석 참조)
+                this.weaponThumbBowPose(model, item.wtype || 'sword'); // 활 'D' 오독 — 메긴 화살 + 3/4 자세
             } else if (item.slot === 'helmet') {
                 model = this.makeHelmet(item.age, item.rarity, itemStyleOf(item), itemNameOf(item));
             } else if (item.slot === 'armor') {
