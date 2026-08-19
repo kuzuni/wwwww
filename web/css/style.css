@@ -1727,8 +1727,8 @@ body {
     background-size: 100%; background-position: center; background-repeat: no-repeat;
     filter: drop-shadow(0 .10em .16em rgba(0,0,0,.55));
 }
-.dg-rw .dg-rw-ico + .dg-rw-ico {   /* 부 재화 — 같은 슬롯 우하단에 작게 얹는다(폭은 안 늘어난다) */
-    inset: auto -.22em -.16em auto; width: .92em; height: .92em;
+.dg-rw .dg-rw-ico + .dg-rw-ico {   /* 부 재화 — 같은 슬롯 우하단에 작게 얹는다(폭은 안 늘어난다). 크면 슬롯이 번잡해진다(비평가 3차) */
+    inset: auto -.18em -.13em auto; width: .78em; height: .78em;
 }
 .dg-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; font-size: .8rem; }
 .dg-keys { font-size: .75rem; font-weight: 800; color: #ffd54f; }

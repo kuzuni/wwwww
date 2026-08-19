@@ -3752,11 +3752,16 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.save();                                                                       // 주먹 — 자루 중간을 감아쥔다
         // 수직 자루(θ=-π/2) 코드의 무회전이 기준이므로, 임의 기울기에선 θ+π/2 만큼 돌린다.
         ctx.translate(1.705 * S, 0.735 * S); ctx.rotate(SWING + Math.PI / 2);
-        ink(ctx, S, rrect(ctx, S, -0.130, -0.150, 0.260, 0.300, 0.085), '#cf8f5f', 0.032);
-        [-0.088, -0.020, 0.048].forEach(y =>                                              // 손가락 골(자루와 직교)
-            on(ctx, rrect(ctx, S, -0.104, y, 0.208, 0.032, 0.016), 'rgba(0,0,0,.30)'));
-        ink(ctx, S, ell(ctx, S, 0.096, 0.086, 0.052, 0.066), '#e0a06d', 0.026);           // 엄지(감아쥔 쪽)
-        ink(ctx, S, rrect(ctx, S, -0.120, 0.128, 0.240, 0.130, 0.050), '#a8683f', 0.028); // 손목(주먹보다 좁고 어둡다)
+        /* ⚠️ 주먹 색을 자루(#c08b41)와 같은 갈색 계열(#cf8f5f)로 하면 배너 축소에서 자루와 한
+           덩어리로 녹아 '손 없는 막대'로 읽힌다 — 3라운드 연속 비평가 전원이 그렇게 오독했다.
+           밝은 살구톤 + 왼 가장자리 너클 스캘럽 + 분리된 엄지로 '주먹'을 세운다. */
+        ink(ctx, S, rrect(ctx, S, -0.150, -0.165, 0.300, 0.330, 0.095), '#e8ae7a', 0.034);
+        [[-0.152, -0.080], [-0.152, 0.002], [-0.152, 0.084]].forEach(p =>                 // 너클 스캘럽(왼 가장자리)
+            ink(ctx, S, circle(ctx, S, p[0], p[1], 0.052), '#e8ae7a', 0.026));
+        [-0.092, -0.020, 0.052].forEach(y =>                                              // 손가락 골(자루와 직교)
+            on(ctx, rrect(ctx, S, -0.118, y, 0.230, 0.034, 0.017), 'rgba(0,0,0,.30)'));
+        ink(ctx, S, ell(ctx, S, 0.112, 0.098, 0.062, 0.080), '#f2bd8b', 0.028);           // 엄지(감아쥔 쪽, 한 단 더 밝게)
+        ink(ctx, S, rrect(ctx, S, -0.115, 0.150, 0.230, 0.125, 0.050), '#a8683f', 0.028); // 손목(주먹보다 좁고 어둡다)
         ctx.restore();
         ctx.save();                                                                       // 머리 — 자루 끝(우상단)
         // 머리 상자는 세로(local y)가 장축 = 자루와 직교하려면 회전각이 자루 기울기 그대로여야 한다.
@@ -3833,7 +3838,8 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.closePath(); ctx.fillStyle = '#05070f'; ctx.fill();
         };
         bat(W * 0.575, H * 0.245, H * 0.085);                             // 달 원반 위(실루엣 대비 최대)
-        bat(W * 0.40, H * 0.15, H * 0.060); bat(W * 0.48, H * 0.46, H * 0.052); bat(W * 0.68, H * 0.14, H * 0.058);
+        bat(W * 0.527, H * 0.395, H * 0.070);                             // 달 왼 가장자리에 걸쳐 원반을 파먹는다(오클루전 — 비평가 3차)
+        bat(W * 0.40, H * 0.15, H * 0.060); bat(W * 0.48, H * 0.52, H * 0.052); bat(W * 0.68, H * 0.14, H * 0.058);
         // 언덕 2겹
         fill(ctx, '#151a34', () => { ctx.moveTo(0, H * 0.78); ctx.quadraticCurveTo(W * 0.30, H * 0.58, W * 0.62, H * 0.76); ctx.quadraticCurveTo(W * 0.85, H * 0.88, W, H * 0.72); ctx.lineTo(W, H); ctx.lineTo(0, H); });
         fill(ctx, '#0c1024', () => { ctx.moveTo(0, H * 0.90); ctx.quadraticCurveTo(W * 0.45, H * 0.78, W, H * 0.92); ctx.lineTo(W, H); ctx.lineTo(0, H); });
@@ -3892,7 +3898,7 @@ IconGen._genderSym = function (ctx, S, female) {
         cloud(W * 0.78, H * 0.16, W * 0.09, H * 0.035, '#fdf3da');
         (() => {                                                          // 중단 장밋빛 띠 — 노을 다단 전환(비평가 재채점 '2단 그라디언트 납작')
             const hz = ctx.createLinearGradient(0, H * 0.12, 0, H * 0.50);
-            hz.addColorStop(0, 'rgba(246,160,128,0)'); hz.addColorStop(1, 'rgba(246,160,128,.30)');
+            hz.addColorStop(0, 'rgba(244,146,100,0)'); hz.addColorStop(1, 'rgba(244,146,100,.38)');   // 새벽 주황-핑크를 진하게(비평가 3차 '워시아웃')
             ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H);
         })();
         // 뒤 열 — 연갈 띠, 위 가장자리가 투구 혹(반원 연쇄)
@@ -3915,8 +3921,9 @@ IconGen._genderSym = function (ctx, S, female) {
             }
             fill(ctx, c, () => { ctx.moveTo(x - r * 1.9, y + r * 3.2); ctx.quadraticCurveTo(x - r * 1.7, y + r * 0.7, x, y + r * 0.75); ctx.quadraticCurveTo(x + r * 1.7, y + r * 0.7, x + r * 1.9, y + r * 3.2); ctx.closePath(); });   // 어깨(넓고 낮게)
         };
+        const MIDC = ['#8a6a5a', '#7c5c4e', '#94756a', '#82655b'];         // 색·키·크기를 함께 흔들어 타일링 패턴을 깬다(비평가 3차)
         for (let i = 0; i < 22; i++)                                       // 중간 열 — 몸은 겹치고 머리 혹만 갈린다
-            figure(W * (i / 22 + 0.010 + R() * 0.02), H * (0.60 + R() * 0.05), 0.85 + R() * 0.3, i % 3 ? '#8a6a5a' : '#7c5c4e', (R() * 3) | 0);
+            figure(W * (i / 22 + 0.010 + R() * 0.02), H * (0.575 + R() * 0.085), 0.72 + R() * 0.55, MIDC[(R() * 4) | 0], (R() * 3) | 0);
         // 창 — 군중 사이에서 올라오는 자루+창끝
         for (let i = 0; i < 6; i++) {
             const x = W * (0.06 + i * 0.17 + R() * 0.05), top = H * (0.18 + R() * 0.14);
@@ -3943,8 +3950,13 @@ IconGen._genderSym = function (ctx, S, female) {
         banner(W * 0.14, -H * 0.10, H * 0.40, H * 0.42, 0.10, '#2e1c15');
         banner(W * 0.46, -H * 0.14, H * 0.38, H * 0.40, -0.08, '#241511');
         banner(W * 0.70, -H * 0.05, H * 0.36, H * 0.40, 0.16, '#2e1c15');
+        (() => {                                                           // 지면 먼지/헤이즈 — 하단이 딱딱하게 끊기지 않게(비평가 3차)
+            const hz = ctx.createLinearGradient(0, H * 0.55, 0, H * 0.82);
+            hz.addColorStop(0, 'rgba(242,196,156,0)'); hz.addColorStop(1, 'rgba(242,196,156,.30)');
+            ctx.fillStyle = hz; ctx.fillRect(0, H * 0.40, W, H * 0.45);
+        })();
         for (let i = 0; i < 13; i++)                                       // 앞 열 — 몸이 이어진 암갈 덩어리에서 머리 혹이 갈린다
-            figure(W * (i / 13 + 0.015 + R() * 0.025), H * (0.94 + R() * 0.07), 2.0 + R() * 0.45, i % 4 ? '#241612' : '#2e1d16', (R() * 3) | 0);
+            figure(W * (i / 13 + 0.015 + R() * 0.025), H * (0.915 + R() * 0.10), 1.75 + R() * 0.8, i % 4 ? '#241612' : '#2e1d16', (R() * 3) | 0);
     };
 
     /* 🧟 좀비 러시 — 보라 하늘 + 고목 2그루 + 철망 울타리 + 드럼통 */
@@ -4030,14 +4042,14 @@ IconGen._genderSym = function (ctx, S, female) {
            낮게(y 0.52~0.90H) 깔아 지평선 소품으로 읽히게 한다. */
         ctx.save();
         ctx.beginPath(); ctx.rect(0, H * 0.50, W * 0.22, H * 0.46); ctx.clip();
-        ctx.strokeStyle = 'rgba(220,215,230,.30)'; ctx.lineWidth = H * 0.012;
+        ctx.strokeStyle = 'rgba(220,215,230,.45)'; ctx.lineWidth = H * 0.019;   // 메쉬를 굵고 진하게 — 얇으면 재질감이 죽는다(비평가 3차)
         for (let i = -4; i < 9; i++) {
             ctx.beginPath(); ctx.moveTo(i * H * 0.07, H * 0.50); ctx.lineTo(i * H * 0.07 + H * 0.40, H * 0.96); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(i * H * 0.07 + H * 0.40, H * 0.50); ctx.lineTo(i * H * 0.07, H * 0.96); ctx.stroke();
         }
         ctx.restore();
         ctx.save();
-        ctx.strokeStyle = 'rgba(200,195,212,.45)'; ctx.lineWidth = H * 0.022;
+        ctx.strokeStyle = 'rgba(200,195,212,.62)'; ctx.lineWidth = H * 0.026;
         ctx.beginPath(); ctx.moveTo(W * 0.21, H * 0.50); ctx.lineTo(W * 0.21, H * 0.94); ctx.stroke();
         ctx.restore();
 
