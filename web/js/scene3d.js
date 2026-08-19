@@ -4706,10 +4706,16 @@ const Scene3D = {
                 stache.position.set(0, -0.045, 0.225);   // 위로 아치, 양끝이 아래 = 콧수염
                 g.add(stache);
             } else {
-                const cap = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), mat);
+                // 천상 '성스러운 백발'이 시대 금 재질(mat)을 물면 금 돔이 돼 이름을 배반한다
+                // (3차 채점 C·D 공통 라벨-렌더 불일치) — 백발은 상아 백 무광. 뒤에 서는 금 후광이
+                // (divine 공통 가산) 색 대비까지 만들어 준다. 타 시대는 종전 그대로.
+                const hairM = age === 'divine'
+                    ? this.ageShade(new THREE.MeshStandardMaterial({ color: 0xe9e3d4, metalness: 0.04, roughness: 0.82, envMapIntensity: 0.3 }), 'soft:holy')
+                    : mat;
+                const cap = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM);
                 cap.position.y = 0.04;
                 cap.scale.y = 0.85;
-                const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat);
+                const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), hairM);
                 tuft.position.set(0.1, 0.24, 0.05);
                 g.add(cap, tuft);
             }
@@ -4828,6 +4834,29 @@ const Scene3D = {
                 this.addPrimalHorns(g, style === 'cone' ? 0.30 : style === 'mask' ? 0.20 : 0.26,
                     style === 'cone' ? 0.14 : style === 'mask' ? 0.05 : 0.10,
                     style === 'mask' ? 0.85 : 0);
+                if (style === 'cone') {
+                    // '전투 페인트'인데 페인트가 없었다(3차 채점 C·D 공통 라벨-렌더 불일치) —
+                    // 황토 안료 링 2줄 + 밑단 세로 칠 자국. 원뿔(r0.26 h0.55, y0.34, z틸트 0.12)의
+                    // **자식으로** 붙여 틸트·좌표를 상수로 다시 적지 않는다(굴레 headY 규약과 같은 이유).
+                    const cone = g.children.find(o => o.geometry && o.geometry.type === 'ConeGeometry');
+                    if (cone) {
+                        const paint = this.ageShade(new THREE.MeshStandardMaterial({ color: 0xa63c1e, metalness: 0, roughness: 0.92 }), 'primal');
+                        for (const [ly, lr] of [[-0.14, 0.20], [-0.01, 0.14]]) {
+                            const ring = new THREE.Mesh(new THREE.TorusGeometry(lr, 0.02, 6, 14), paint);
+                            ring.rotation.x = Math.PI / 2;
+                            ring.position.y = ly;
+                            cone.add(ring);
+                        }
+                        for (let i = -1; i <= 1; i++) {   // 밑단에서 흘러내린 세로 칠 자국 3줄
+                            const a = i * 0.5;
+                            const drip = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.09, 0.012), paint);
+                            drip.position.set(Math.sin(a) * 0.235, -0.225, Math.cos(a) * 0.235);
+                            drip.rotation.y = a;
+                            drip.rotation.x = -0.42;      // 원뿔 표면 기울기를 따라 눕힌다
+                            cone.add(drip);
+                        }
+                    }
+                }
             } else if (style === 'hair') {
                 // 수염(털가죽 모자): 뼈 비녀 — 사선으로 꽂힌 뼈 막대 + 양끝 마디.
                 // ⚠️ 캡(r 0.25)이 y 0.16 에서 반폭 0.206 이라, 막대 0.42 로는 양끝이 표면에 묻힌다(실측) —
@@ -5059,14 +5088,23 @@ const Scene3D = {
         // ⚠️ makeArmorPreview 가 아니라 **여기**에 둔다 — 프리뷰 전용에 두면 썸네일만 성스럽고
         //    실제로 입은 영웅 가슴에는 아무것도 안 붙는다(이 파일의 '부속은 프리뷰 전용' 관례는
         //    좌표가 틀어지는 부속에 대한 것이고, 십자가는 앞면 중앙이라 양쪽 다 같은 자리다).
+        // ⚠️ 시대 문장을 5스타일 전부에 찍지 말 것 — 같은 자리 같은 데칼이 다섯 번 반복되면
+        //    "동일 몸통 팔레트 스왑"으로 읽혀 스타일 분화가 통째로 지워진다(3차 채점 C·D 공통 1~2순위).
+        //    문장은 경식 갑주(plate·suit)의 언어다 — 천 계열은 자기 조형(후드·술·파우치)이 정체성을 진다.
         if (o.age === 'divine') {
-            const frontZ = o.frontZ !== undefined ? o.frontZ : 0.128;
-            this.addDivineCross(g, 0, o.crossY !== undefined ? o.crossY : 0.78, frontZ + 0.05, 0.17);
+            if (style === 'plate' || style === 'suit' || style === 'robe') {
+                const frontZ = o.frontZ !== undefined ? o.frontZ : 0.128;
+                this.addDivineCross(g, 0, o.crossY !== undefined ? o.crossY : 0.78, frontZ + 0.05, 0.17);
+            }
         } else if (o.age === 'primitive') {          // 원시 — 이빨 트로피 목걸이 (십자가와 같은 자리 규약)
-            this.addPrimalTrophy(g, 0.89, o.frontZ !== undefined ? o.frontZ : 0.128);
-        } else if (o.age === 'medieval') {           // 중세 — 가슴 문장 방패
-            const frontZ = o.frontZ !== undefined ? o.frontZ : 0.128;
-            this.addHeraldShield(g, 0, 0.77, frontZ + 0.02, 0.19, rareHex, mats);
+            if (style === 'hide' || style === 'vest' || style === 'plate') {
+                this.addPrimalTrophy(g, 0.89, o.frontZ !== undefined ? o.frontZ : 0.128);
+            }
+        } else if (o.age === 'medieval') {           // 중세 — 가슴 문장 방패 (경식 갑주만)
+            if (style === 'plate' || style === 'suit') {
+                const frontZ = o.frontZ !== undefined ? o.frontZ : 0.128;
+                this.addHeraldShield(g, 0, 0.77, frontZ + 0.02, 0.19, rareHex, mats);
+            }
         }
         return g;
     },
