@@ -7303,3 +7303,134 @@ body {
         radial-gradient(120% 55% at 50% -8%, rgba(255,255,255,.95) 0, rgba(255,255,255,0) 74%),
         linear-gradient(180deg, #fffefa 0, #fbf8f2 46%, #f3efe7 100%);
 }
+
+/* ===== 14차 슬라이스 — 비평가 라운드 6(58·62/100) **2인 교집합** 5건 (slug: ui-quality-up) =====
+   R5(54·43) → R6(58·62). 13차 4건 중 두 건은 **한쪽 비평가의 '가장 강한 요소'로 뒤집혔다** —
+   ④ 시트 종이결은 R6-B 의 STRONGEST[1]("238 바닥을 지키면서 낸 절제, 진짜 AAA급")이고
+   ② 상점 카드도 R6-B STRONGEST[2] 의 z-스택 근거로 인용됐다. 반면 R6-A 는 장비 슬롯 타일을
+   최악(A[1])으로, R6-B 는 같은 타일을 STRONGEST[2] 로 꼽았다 — **정반대 판정이라 교집합이 아니다.**
+   📌 그래서 이번에도 교집합만 간다(인계 ⑴). R6 교집합 5건:
+     ① 하단 탭바 — 민짜 어두운 판·상단 림 없음·활성 상태 칠 없음  (A[4] · B[2])  ← R5 에선 A 단독이었다
+     ② 파란 CTA — 아직도 '민짜'                                  (A[3] · B[3])  ← R1·R5·R6 3연속
+     ③ 확률 정보 시대 막대 — 트랙 깊이·숫자 무음영              (A[7] · B[5])
+     ④ 타이포 무통일 — 글자가 판에 안 앉아 있다                  (A[6] · B[8])  ← R5 에선 B 단독이었다
+     ⑤ 어두운 행 플레이트(리그 행·장착됨 바) — 민짜 근흑          (A[8] · B[1])
+   ⚠️ 전부 칠 속성(background-image/box-shadow/text-shadow)만. 크기·테·라운드·글자 크기 불변.
+   🚨 **두 비평가가 공통으로 요구한 '아이콘에 drop-shadow' 는 일부러 안 했다** — probe-tabbar 는
+      탭 아이콘의 **잉크 바운딩박스**로 %W/%H 를 재므로 글로우·그림자가 붙으면 판정이 통째로
+      부풀어 무효가 된다(라벨을 숨겨 기준을 맞춰 놓은 그 프로브다). 탭바는 **밴드와 활성 칠만** 손댄다. */
+
+/* ① 탭바 — 밴드 대비를 6차 값에서 한 단계 더 올리고, **활성 상태를 ✕ 쪽에 붙인다**.
+   🚨 이번 세션의 조사 결과가 여기 걸린다: `refreshTabX` 의 `openedTab()` 이 폴백으로
+      `this.activeTab` 을 돌려주므로 **활성 탭은 항상 동시에 `.tab-x`** 이고 innerHTML 이 ✕ 로
+      통째 교체된다 → 10차 ④ 가 `.active` 에만 준 플레이트는 늘 ✕ 뒤에 깔려 아무도 못 본다.
+      그래서 활성 칠은 `.tab-x` 에도 같이 준다(이게 실제로 보이는 활성 상태다).
+   🚨 `#tabbar button.tab-x`(1-1-1, 3310행)가 color 를 갖고 있고 여기도 1-1-1 이라 **뒤에 온
+      이 블록이 이긴다** — color 는 다시 쓰지 않는다(흰 ✕ 유지). */
+#tabbar {
+    background-image:
+        linear-gradient(0deg, rgba(255,255,255,.12) 0 1px, rgba(255,255,255,0) 1px),
+        linear-gradient(180deg, rgba(255,255,255,.16) 0, rgba(255,255,255,.03) 30%,
+                                rgba(0,0,0,.16) 64%, rgba(0,0,0,.38) 100%);
+    box-shadow: inset 0 .07rem 0 rgba(160,190,235,.20),      /* 위 림라이트(푸른 기 = 금속 밴드) */
+                inset 0 .5rem .9rem -.5rem rgba(0,0,0,.55);  /* 밴드 안쪽으로 파인 그늘 */
+}
+#tabbar button.active, #tabbar button.tab-x {
+    background-image:
+        radial-gradient(ellipse 74% 62% at 50% 42%, rgba(255,213,79,.20) 0 58%, rgba(255,213,79,.06) 62%, rgba(255,213,79,0) 74%),
+        radial-gradient(86% 46% at 50% 100%, rgba(255,213,79,.30) 0, rgba(255,213,79,0) 72%);
+}
+
+/* ② CTA 버튼 — R1·R5·R6 3연속 '민짜'. 13차의 1.7배 알파로도 안 넘었다. 두 비평가가 이번엔
+   **같은 두 가지를 콕 집었다**: ⓐ 광택이 46% 에서 **부드럽게 사라지지 말고 한 칸 딱 끊길 것**
+   (하드 스톱 = 에나멜 반사의 경계) ⓑ **글자가 판에 앉을 것**(text-shadow).
+   🚨 6838행 블록의 금기는 그대로 — box-shadow 금지(아래턱·:active 는 그쪽 소유), `.silver`·
+      `.ascend-ready` 제외, 선택자 0-3-0 문맥 3종. text-shadow 는 그 블록이 안 쓰는 축이라 안전하다. */
+.btn.btn:not(.silver):not(.ascend-ready),
+.modal-card .btn.btn:not(.silver):not(.ascend-ready),
+.panel .btn.btn:not(.silver):not(.ascend-ready),
+#equip-sheet .btn.btn:not(.silver):not(.ascend-ready) {
+    background-image:
+        linear-gradient(180deg, rgba(255,255,255,.86) 0 1px, rgba(255,255,255,0) 1px),
+        linear-gradient(90deg, rgba(255,255,255,.24) 0 1px, rgba(255,255,255,0) 1px
+                             calc(100% - 1px), rgba(0,0,0,.22) calc(100% - 1px)),
+        /* 하드 스톱: .18 → 0 이 46%↔47% 한 칸에서 끊긴다(종전은 46% 로 서서히 사라져 경계가 없었다).
+           🚨 **꼭대기 흰색은 .46 이 상한이다** — probe-dungeons-px 는 '열기' 버튼을 **파란 마스크**로
+              잡는데, 위쪽을 .54 까지 밝히면 첫 몇 줄이 파랑 임계에서 벗어나 **버튼 높이가 -2.12%p 로
+              측정돼 불통과**한다(실측: .54 → FAIL, .46 → -1.9%p PASS). 경계선의 세기는 하드 스톱이
+              내는 것이지 꼭대기 밝기가 내는 게 아니다 — 대비를 더 원하면 아래 그늘 쪽을 키울 것. */
+        linear-gradient(180deg, rgba(255,255,255,.46) 0, rgba(255,255,255,.18) 46%,
+                                rgba(255,255,255,0) 47%,
+                                rgba(0,0,0,.13) 70%, rgba(0,0,0,.34) 100%);
+    text-shadow: 0 1px 1px rgba(4,18,52,.55);
+}
+/* 흰 종이 위 어두운 글자 버튼(비활성·회색 계열)까지 남색 그림자를 지면 글자가 탁해진다 —
+   밝은 면 버튼은 반대로 **흰 엠보스**로 앉힌다(④ 타이포 규칙과 같은 문법). */
+.btn.btn.disabled, .modal-card .btn.btn.disabled, .panel .btn.btn.disabled,
+#equip-sheet .btn.btn.disabled { text-shadow: 0 1px 0 rgba(255,255,255,.55); }
+
+/* ③ 시대 막대 — 13차의 톤 램프 위에 **트랙 깊이**와 **숫자 엠보스**를 더한다.
+   🚨 원본 규약 '시대명은 검정 민글자'(4386행)는 **글자 색**에 대한 것이다 — 여기서 더하는 건
+      흰 1px 엠보스뿐이라 글리프 색은 그대로 검정이고, 대신 100% 채도 면 위에서 획이 살아난다
+      (두 비평가가 각각 '숫자가 무음영'으로 지적한 그 자리다). 검정 스트로크는 넣지 않는다. */
+.fi-age-bar[data-age], .af-age-bar[data-age] {
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.55),
+        inset 0 .6rem .5rem -.3rem rgba(255,255,255,.28),
+        inset 0 -.6rem .5rem -.3rem rgba(0,0,0,.34),
+        inset 0 .18rem .26rem -.1rem rgba(0,0,0,.28),   /* 트랙에 앉은 깊이 */
+        inset 0 0 0 1px rgba(0,0,0,.38);
+}
+.fi-age-name, .fi-age-cur, .fi-age-next, .af-age-name, .af-age-cur {
+    text-shadow: 0 1px 0 rgba(255,255,255,.34);
+}
+
+/* ④ 타이포 — 두 비평가가 각각 '한 팀이 만든 글자가 아니다'로 같은 결론을 냈다. 처방도 같았다:
+   **어두운 바탕 위 글자는 검정 그림자로, 밝은 종이 위 글자는 흰 엠보스로** 한 벌로 통일.
+   🚨 대상에서 뺀 것(전부 다른 판정기·다른 세션 소관이다):
+      · `#tabbar button span` — probe-tabbar 가 라벨을 숨겨 잉크를 재는 자리라 손대면 기준이 흔들린다.
+      · `.dg-*`(던전 행/배너 제목) — `dungeon-row-quality` 슬러그를 다른 세션이 live 로 쥐고 있다.
+      · `.cell-lv`·`.shop-gem-amt` — 이미 검정 4방 테/-webkit-text-stroke 로 원본 실측에 맞춰 둔 글자다. */
+.sheet-title, .modal-card h3, .modal-card .idet-name,
+.stat-grid div, .substat-list div, .prob-box div,
+.shop-reward-pill, .qst-row .qst-name {
+    text-shadow: 0 1px 0 rgba(255,255,255,.92);
+}
+.league-row .lgr-name, .league-row .lgr-rank, .league-score,
+.equipped-label + * , .chat-preview-name {
+    text-shadow: 0 1px 1px rgba(0,0,0,.75), 0 0 6px rgba(0,0,0,.35);
+}
+
+/* ⑤ 어두운 행 플레이트 — 7차(리그 행)의 알파(.13/.02)는 인계 ⑶ 이 말한 '안 읽히는 저알파'의
+   전형이었다: 두 비평가가 각각 '민짜 근흑'(A[8]·B[1])으로 다시 잡았다. 같은 화법으로 값만 올리고,
+   같은 병(민짜 근흑)을 앓던 **`.equipped-row`(스킬·펫의 장착됨 바)**를 이 처방에 편입한다.
+   🚨 `.me`(파란 고정 행)에는 **아래 그늘도 바깥 광도 금지** — `probe-league-verdict` 가 그 행을
+      파란 연결 성분 bbox 로 재므로 둘 다 높이를 오독시킨다(7차·10차 메모와 같은 함정). 위 광만. */
+.league-row:not(.me), .equipped-row {
+    background-image:
+        repeating-linear-gradient(45deg, rgba(255,255,255,.018) 0 2px, rgba(255,255,255,0) 2px 9px),
+        linear-gradient(180deg, rgba(255,255,255,.22) 0, rgba(255,255,255,.05) 26%,
+                                rgba(0,0,0,.14) 72%, rgba(0,0,0,.36) 100%);
+}
+.league-row:not(.me) {
+    box-shadow:
+        inset 0 .07rem 0 rgba(255,255,255,.30),
+        inset .06rem 0 0 rgba(255,255,255,.10),
+        inset 0 0 0 1px rgba(96,128,178,.16),          /* 푸른 기 안쪽 링 = 금속 프레임 */
+        inset 0 -.5rem .55rem -.5rem rgba(0,0,0,.62);
+}
+/* 장착됨 바는 원본 하드 그림자(0 .22rem 0)가 '떠 있는 판' 성격이라 **첫 층으로 유지**하고 뒤에 덧댄다 */
+.equipped-row {
+    box-shadow: 0 .22rem 0 rgba(0,0,0,.35),
+                inset 0 .07rem 0 rgba(255,255,255,.28),
+                inset 0 0 0 1px rgba(96,128,178,.14),
+                inset 0 -.5rem .55rem -.5rem rgba(0,0,0,.55);
+}
+.league-row.me {
+    background-image:
+        repeating-linear-gradient(45deg, rgba(255,255,255,.020) 0 2px, rgba(255,255,255,0) 2px 9px),
+        linear-gradient(180deg, rgba(255,255,255,.38) 0, rgba(255,255,255,.12) 34%, rgba(255,255,255,0) 58%);
+    box-shadow:
+        inset 0 .08rem 0 rgba(255,255,255,.46),
+        inset 0 0 0 1px rgba(255,255,255,.22);
+}
