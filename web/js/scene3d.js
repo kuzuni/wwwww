@@ -124,6 +124,54 @@ const Scene3D = {
         if (this.heroRig) ProChar.tint(this.heroRig, S.equipment);
     },
 
+    // ---- 인게임 영웅 전용 명도 그레이딩 (prochar-aaa ㉠ "캐릭터가 배경과 값으로 분리되지 않는다") ----
+    // 비평가 2인이 독립적으로 1~2순위로 올린 결함이고, `probe-hero-value.js` 가 델타 ≥45 로 게이트를 건다.
+    // ⚠️ 여기까지 오는 데 헛다리를 두 번 짚었다(항목 메모에 기록됨) — 라이트 하향은 능선이 MeshBasic
+    //    무조명이라 화면 중간값을 오히려 올렸고, HSL 틴트 albedo 는 측정 노이즈 안이었다.
+    //    그래서 이번엔 **어디가 밝은지부터 쟀다**: `probe-hero-value-parts.js`(신설) 부위별 분해가
+    //    치비 전환 뒤의 범인을 정확히 지목한다 —
+    //      투구 3195px 평균 L 140.8(밝은화소 54%) · 검 1523px 평균 L 169.6(77%)
+    //      vs 다리 1217px L 67.6 · 방패 942px L 80.9  (배경 L 116.5, 영웅 전체 L 104 → 델타 12.5)
+    //    즉 판금 몸통은 이미 앞 세션이 내려놨고, **남은 밝은 덩어리는 장비(투구·무기) 두 개**다.
+    //    머리를 1.30배로 키운 뒤(hero-chibi) 투구가 화면에서 차지하는 면적이 커져 더 그렇다.
+    //
+    // 🚨 **왜 `ageGearMatsBase` 를 안 내리고 여기서 내리는가** — 그 재질 세트는 **장비 썸네일과 공용**이다.
+    //    거기를 내리면 제작·목록·비교 팝업의 아이콘 306개가 통째로 어두워지고, UI 스트림의 잉크비율
+    //    계약(`fit-ink`·`ui-ratio-audit` ±2%p)과 `probe-equip-framing`/`probe-equip-silhouette` 이 같이
+    //    흔들린다. 인게임 영웅에 붙는 **인스턴스에만** 물리면 썸네일은 한 픽셀도 안 움직인다.
+    //    (`makeHelmet`/`makeWeapon` 은 호출마다 새 모델을 만들고, 썸네일 쪽은 별도 호출이다.)
+    // ⚠️ `tintOf` 로 파생시킨다 — 재질은 파트끼리 공유되므로 `o.material` 을 직접 만지면 같은 재질을
+    //    쓰는 썸네일 모델까지 따라 어두워진다. tintOf 는 clone 이라 안전하고, `onBeforeCompile`
+    //    (시대 셰이딩) 재적용까지 해 준다.
+    // ⚠️ 발광 파츠는 건너뛴다 — 등급 젬·에너지 날·바이저 슬릿 눈은 **의도된 최고 휘도 포인트**이고,
+    //    두 비평가가 '되돌리지 말 것'으로 꼽은 신호다(시안 젬·정면성). 여기서 같이 내리면 그걸 깬다.
+    // ⚠️ **멱등이어야 한다.** 투구·무기는 `refreshHeroEquip` 이 부를 때마다 새로 조립되지만 방패는
+    //    리그에 한 번 붙고 안 바뀐다 — 가드가 없으면 장비를 갈아 끼울 때마다 방패가 한 단씩 더
+    //    어두워져 결국 검은 판이 된다(장비 교체 연출은 150ms 뒤 refreshHeroEquip 을 한 번 더 부른다).
+    //    파생 재질에 `userData.heroGraded` 를 남겨 두 번 걸리지 않게 한다.
+    // 값 선택 근거 — `probe-hero-grade-sweep.js`(신설)가 실제 코드 경로(`refreshHeroEquip` 재호출)로
+    // 8조합을 한 세션 안에서 잰 표. albedo(dl) 단독은 거의 안 움직이고(델타 5.7 → 8.8) env 단독이
+    // 두 배 이상 먹는다(→ 14.5) — 앞 세션이 남긴 "metalness 0.85 금속은 env 반사가 화면값을 지배한다"가
+    // 여기서도 재현됐다. 다만 **둘을 같이 내려야** 계속 내려간다(-0.34/0.22 지점).
+    HERO_VALUE_GRADE: { dl: -0.34, env: 0.22 },
+    gradeHeroGearValue(root) {
+        if (!root) return root;
+        const g = this.HERO_VALUE_GRADE;
+        if (!g || (!g.dl && g.env === 1)) return root;
+        root.traverse(o => {
+            if (!o.isMesh || !o.material || !o.material.isMeshStandardMaterial) return;
+            const m = o.material;
+            if (m.userData && m.userData.heroGraded) return;
+            const em = m.emissive;
+            if (em && m.emissiveIntensity > 0 && (em.r + em.g + em.b) > 0.01) return;  // 발광 포인트 보존
+            const env = m.envMapIntensity === undefined ? 1 : m.envMapIntensity;
+            const d = this.tintOf(m, g.dl, { envMapIntensity: env * g.env });
+            d.userData = Object.assign({}, d.userData, { heroGraded: true });
+            o.material = d;
+        });
+        return root;
+    },
+
     heroPlay(cands, once, timeScale) {
         if (this.heroRig) this.heroRig.play(cands, once, timeScale);
     },
@@ -3311,7 +3359,7 @@ const Scene3D = {
         this.clearGroup(this.weaponG);
         const w = S.equipment.weapon;
         this.wtypeId = w ? (w.wtype || 'sword') : 'club';
-        this.weaponG.add(this.makeWeapon(this.wtypeId, w ? w.ageIdx : 0, w && w.rarity));
+        this.weaponG.add(this.gradeHeroGearValue(this.makeWeapon(this.wtypeId, w ? w.ageIdx : 0, w && w.rarity)));
         // (구형 파지 랩 토러스 제거 — applyWeaponGrip의 makeGripWrap C자 랩과 중복이었고,
         //  무텍스처 베이지 램버트 도넛이 근접샷에서 '맨손 스텁'으로 오독됨, 비평가 7.4 4번)
         const wtDef = WEAPON_TYPES[this.wtypeId];
@@ -3323,7 +3371,7 @@ const Scene3D = {
         // 투구: 이름별 스타일 모델
         this.clearGroup(this.helmetG);
         const h = S.equipment.helmet;
-        if (h) this.helmetG.add(this.makeHelmet(h.age, h.rarity, itemStyleOf(h), itemNameOf(h)));
+        if (h) this.helmetG.add(this.gradeHeroGearValue(this.makeHelmet(h.age, h.rarity, itemStyleOf(h), itemNameOf(h))));
         // 갑옷 → 색 + 이름별 스타일 (견갑/흉갑 유무, 부속 장착)
         const a = S.equipment.armor;
         const c = a ? AGE_COLORS[a.age] : 0xb0bec5;
@@ -3346,6 +3394,12 @@ const Scene3D = {
             this.clearGroup(this.armorExtraG);
             this.armorExtraG.add(this.makeArmorExtras(style, c, ec, a ? this.ageGearMats(a.age, itemNameOf(a)) : null));
         }
+        // ⚠️ **방패는 일부러 그레이딩에 안 태운다 — 되돌리지 말 것.** 리그 소속이라 썸네일과 무관해
+        //    기술적으로는 걸 수 있고 실제로 걸어 봤는데(전량·절반 둘 다), 방패는 그레이딩 전에도
+        //    L 81 로 이미 비평가 처방 대역(70~85) 안이다. 여기에 투구·검과 같은 폭을 걸면 근접샷에서
+        //    **금 테두리만 남고 판이 통째로 검게 죽는다**(델타 이득은 12845화소 중 953화소분 ≈ 1.5뿐).
+        //    부위별 실측(`probe-hero-value-parts.js`)이 '이미 어두운 파츠'와 '밝은 덩어리'를 갈라 준다 —
+        //    밝은 덩어리(투구 141·검 170)만 내리는 게 이 그레이딩의 취지다.
         this.tintHero(); // 리그 파츠별 색 오버레이 동기화
         // 장비 교체 연출: 반짝 + 상승 파티클
         if (withFlash) {
