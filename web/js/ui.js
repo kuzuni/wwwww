@@ -871,8 +871,9 @@ const UI = {
         const queued = Array.isArray(S.autoMatchQueue) ? S.autoMatchQueue.splice(0) : [];
         for (const q of queued) {
             if (!q || !q.slot) continue;
-            const rq = Forge.autoResolve(q);
-            this.toast(rq.equipped ? `🛠 ${q.name} 자동 장착` : `🪙 ${q.name} 자동 판매 +${U.fmt(rq.gained)}`);
+            Forge.autoResolve(q);
+            // 자동 제련이 스스로 처리한 결과 토스트는 생략(사용자 지시 autoforge-toast-suppress).
+            // 밀린 큐가 한 틱에 몰려 풀리면 이 배치가 토스트를 무더기로 쌓던 원인 자리였다.
         }
         if (!this._pendingItem) { if (queued.length) { this.renderTopBar(); this.renderEquipSheet(); saveGame(); } return; }
         this.cancelAnvilStrike();
@@ -880,8 +881,7 @@ const UI = {
         if (m) m.classList.add('hidden');
         const item = this.clearPendingCraft();
         if (!item) { saveGame(); return; }
-        const r = Forge.autoResolve(item);
-        this.toast(r.equipped ? `🛠 ${item.name} 자동 장착` : `🪙 ${item.name} 자동 판매 +${U.fmt(r.gained)}`);
+        Forge.autoResolve(item);   // 처리 토스트 생략(autoforge-toast-suppress)
         this.renderTopBar();
         this.renderEquipSheet();
         saveGame();
@@ -1470,8 +1470,8 @@ const UI = {
             if (keep) { this.showCraftModal(held); this.renderEquipSheet(); return; }
             this.clearPendingCraft();
             const r = this.autoDispose(held);
-            if (r.equipped) this.toast(`🛠 보류품 ${held.name} 자동 장착`);
-            else { this.coinBurst(r.gained); this.toast(`🪙 보류품 ${held.name} 자동 판매 (필터 제외)`); }
+            // 처리 토스트 생략(autoforge-toast-suppress) — 판매 코인 연출(coinBurst)만 남긴다.
+            if (!r.equipped) this.coinBurst(r.gained);
             this.renderTopBar();
             this.renderEquipSheet();
         }
@@ -1538,8 +1538,7 @@ const UI = {
                 const it = this.clearPendingCraft();
                 if (!it) { this.autoSeqAdvance(); return; }
                 const r = this.autoDispose(it);
-                if (r.equipped) this.toast(`🛠 ${it.name} 자동 장착`);
-                else this.coinBurst(r.gained);
+                if (!r.equipped) this.coinBurst(r.gained);   // 처리 토스트 생략(autoforge-toast-suppress)
                 this.renderTopBar();
                 this.renderEquipSheet();
                 saveGame();
