@@ -9398,25 +9398,59 @@ const Scene3D = {
             const nz = hz + hz2 * 0.30;              // 코끈 — 주둥이 쪽
             const cz = hz - hz2 * 0.34;              // 볼끈·정수리 고리 — 귀 쪽
             const by = hy - hr * 0.46;               // 재갈 높이(입 언저리)
-            BR(to(hr * 0.96, 0.013, 0, hy, nz, LEATHER));           // 코끈 — 토러스 기본면(XY)이 주둥이를 감는다
-            const crown = to(hr * 1.02, 0.013, 0, hy, cz, LEATHER);       // 정수리↔턱 고리
-            crown.rotation.y = Math.PI / 2; BR(crown);
-            // 금색 띠 — 어두운 가죽만으로는 초록 머리 위에서 안 읽힌다(안장깔개와 같은 교훈).
-            // 한 줄 얹어 '굴레를 씌운 머리'가 실루엣에서 바로 읽히게 한다.
-            // 자리는 이마(정수리)가 아니라 **주둥이 쪽**이다. 실제 굴레는 이마 띠가 맞지만 ⑴ 게임
-            // 카메라에서 실제로 보이는 면이 주둥이 쪽이고 ⑵ 정수리 높이는 뿔 달린 종(Elk 등)이 이미
-            // 쓰고 있어 여유가 없다.
-            // ⚠️ 처음엔 이마에 뒀다가 `probe-ride-clear` 의 Elk 먼 대퇴 가림이 늘어 옮겼는데,
-            //    **그 인과는 뒤에 실측으로 반증됐다** — 굴레만 껐다 켜고 재보니(userData.bridle 표식)
-            //    가림 파츠가 세 점 모두 그대로였고 범인은 **뿔(ConeGeometry/CylinderGeometry)** 이었다.
-            //    수치가 실행마다 달라진 건 `refreshMount` 가 부유 위상을 **난수**(`U.rand`)로 잡아
-            //    프레임 자세가 매번 다르기 때문이다. 이 자리는 위 ⑴⑵ 이유로 유지하되, **가림 수치가
-            //    실행마다 튀면 난수 위상부터 의심할 것**(probe-ride-clear 는 그래서 재현성이 없다).
-            BR(to(hr * 0.99, 0.011, 0, hy, nz - hz2 * 0.22, BLANKET_TRIM));
+            // ── 종별 마구 (mount-species-recognizable ⓐ, 2026-08-20) ──────────────
+            // 🚨 **말 굴레는 말상 주둥이를 가진 종에만 씌운다.** 여태 29종 전부가 같은 굴레였다 —
+            //    게·거북·태엽 생쥐·기계 거미까지 **재갈을 물고** 있었고, 채점 비평가 2인이 그걸
+            //    2순위로 지목했다("종 정체성을 오히려 깎는다"). 재갈·코끈은 **긴 주둥이가 있어야**
+            //    성립하는 물건이라, 주둥이가 없는 종에 씌우면 머리 앞에 뜬 가죽 고리 뭉치가 된다.
+            // 세 갈래: `bridle`(말상 = 코끈·정수리 고리·금띠·재갈 전부) / `harness`(주둥이 없는 생물 =
+            //    **볼끈·고리·고삐만** — 얼굴에 얹는 건 아무것도 없다) / `mech`(기계 = 얇은 금속 밴드 +
+            //    케이블 볼끈·고삐 + 조종 축. 가죽을 벗긴다).
+            // ⚠️ **고삐 앵커는 세 갈래가 전부 같은 자리를 쓴다** — 볼끈·재갈 고리 좌표를 그대로 둔다.
+            //    앵커를 옮기면 `probe-ride-rein`/`probe-ride-grip`/`alignReins` 실측이 통째로 다시다.
+            //    즉 여기서 끄는 건 **메시뿐**이고 라이더 계약은 한 줄도 안 건드린다.
+            const KIND = this.MOUNT_HARNESS_OF[name] || 'harness';
+            const MECH = KIND === 'mech';
+            // 케이블 = 기계용 고삐·스트럿. 가죽(0x2b1a0c)을 기계에 두면 '재갈 물린 로봇'이 그대로 남는다.
+            const CABLE = M(0x3a3f45);
+            const STRAP = MECH ? CABLE : LEATHER;
+            // 🚨 **1판 폐기 — 목띠를 토러스로 두르지 말 것.** 굵기 0.019 · 반지름 hr×1.06 으로
+            //    두 줄(가죽 + 금색) 둘렀더니 520px 캡처에서 게는 **몸통을 감은 훌라후프**, 기계
+            //    거미는 **청록 훌라후프**였다. 원인은 굵기가 아니라 **자리**다 — 주둥이가 없는 종은
+            //    머리 반폭 hr 가 곧 몸통 앞면 폭이라, 그 자리의 링은 목이 아니라 **몸을** 감는다.
+            //    (말상 종에서 코끈이 되는 이유가 거기에 주둥이가 있어서다.) 이 종들에는 링을 아예
+            //    안 넣는다 — 마구가 필요하다는 신호는 **안장**이 이미 지고 있고, 채점의 지적도
+            //    '마구가 없다'가 아니라 '말 굴레가 종 정체성을 깎는다'였다. **덜 얹는 게 정답이다.**
+            if (MECH) {
+                // 기계만 예외 — 금속 밴드 한 줄. 몸 앞면을 감아도 '기계 부속'으로 읽히고,
+                // 가죽 마구가 사라진 자리에 기계 정체성을 대신 세운다. 대비색 링은 빼고 얇게.
+                BR(to(hr * 1.02, 0.011, 0, hy, cz, IRON));
+            }
+            if (KIND === 'bridle') {
+                BR(to(hr * 0.96, 0.013, 0, hy, nz, LEATHER));           // 코끈 — 토러스 기본면(XY)이 주둥이를 감는다
+                const crown = to(hr * 1.02, 0.013, 0, hy, cz, LEATHER);       // 정수리↔턱 고리
+                crown.rotation.y = Math.PI / 2; BR(crown);
+                // 금색 띠 — 어두운 가죽만으로는 초록 머리 위에서 안 읽힌다(안장깔개와 같은 교훈).
+                // 한 줄 얹어 '굴레를 씌운 머리'가 실루엣에서 바로 읽히게 한다.
+                // 자리는 이마(정수리)가 아니라 **주둥이 쪽**이다. 실제 굴레는 이마 띠가 맞지만 ⑴ 게임
+                // 카메라에서 실제로 보이는 면이 주둥이 쪽이고 ⑵ 정수리 높이는 뿔 달린 종(Elk 등)이 이미
+                // 쓰고 있어 여유가 없다.
+                // ⚠️ 처음엔 이마에 뒀다가 `probe-ride-clear` 의 Elk 먼 대퇴 가림이 늘어 옮겼는데,
+                //    **그 인과는 뒤에 실측으로 반증됐다** — 굴레만 껐다 켜고 재보니(userData.bridle 표식)
+                //    가림 파츠가 세 점 모두 그대로였고 범인은 **뿔(ConeGeometry/CylinderGeometry)** 이었다.
+                //    수치가 실행마다 달라진 건 `refreshMount` 가 부유 위상을 **난수**(`U.rand`)로 잡아
+                //    프레임 자세가 매번 다르기 때문이다. 이 자리는 위 ⑴⑵ 이유로 유지하되, **가림 수치가
+                //    실행마다 튀면 난수 위상부터 의심할 것**(probe-ride-clear 는 그래서 재현성이 없다).
+                BR(to(hr * 0.99, 0.011, 0, hy, nz - hz2 * 0.22, BLANKET_TRIM));
+            }
             g.userData.rein = { straps: [] };
             for (const s of [-1, 1]) {
-                BR(tube([s * hr * 0.80, hy + hr * 0.34, cz], [s * hr * 0.82, by, nz], 0.012, LEATHER)); // 볼끈
-                const ring = to(hr * 0.26, 0.012, s * hr * 0.92, by, nz, IRON);   // 재갈 고리 — 밝은 금속이라 멀리서도 읽힌다
+                // 볼끈 — 목띠(또는 정수리 고리)에서 앞·아래로 내려와 고삐 고리를 물어 준다.
+                // ⚠️ 기계도 **같은 `tube`** 로 긋는다(굵기·색만 바꾼다). 여기를 박스+회전으로 다시
+                //    적으면 끝점 계산을 손으로 하게 돼 이 파일이 이미 여러 번 겪은 '떠 있는 부품'이
+                //    난다 — `tube` 는 두 끝점을 받아 반드시 이어 준다.
+                BR(tube([s * hr * 0.80, hy + hr * 0.34, cz], [s * hr * 0.82, by, nz], MECH ? 0.017 : 0.012, STRAP));
+                const ring = to(hr * 0.26, 0.012, s * hr * 0.92, by, nz, IRON);   // 고삐 고리 — 밝은 금속이라 멀리서도 읽힌다
                 ring.rotation.y = Math.PI / 2; BR(ring);
                 // 고삐 두 줄 — 각 줄을 2분절로 만들어 **가운데를 처지게** 한다(곧은 막대면 고삐가
                 // 아니라 창으로 읽힌다). 높이 1 짜리 단위 박스라 scale.y 가 곧 길이다.
@@ -9429,17 +9463,30 @@ const Scene3D = {
                 //    probe-ride-rein 이 따로 0 으로 못박는다 — 그쪽이 진짜 결함이 되는 자리다.
                 const segs = [];
                 for (let i = 0; i < 2; i++) {
-                    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.022, 1, 0.009), LEATHER);
+                    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.022, 1, 0.009), STRAP);
                     g.add(seg); segs.push(seg);
                 }
                 const st = { side: s, anchor: new THREE.Vector3(s * hr * 0.92, by, nz), segs };
                 g.userData.rein.straps.push(st);
-                // 기본 자세: 안 탄 탈것은 고삐가 목을 따라 뒤로 늘어진다
-                this.layoutRein(st, st.anchor.clone().add(new THREE.Vector3(-s * hr * 0.2, -hr * 1.1, -hz2 * 1.4)));
+                // 기본 자세: 안 탄 탈것은 고삐가 목을 따라 뒤로 늘어진다.
+                // ⚠️ 늘어지는 깊이(−hr×1.1)는 **말상 종 기준**이다 — 머리가 목 위에 높이 있으니
+                //    그만큼 처져도 끈이 목을 따라간다. 주둥이 없는 종(게·거북)은 머리가 곧 몸 앞면이라
+                //    같은 깊이로 처지면 끈 끝이 **거의 지면까지 내려가** 520px 캡처에서 '몸 밑에 늘어진
+                //    갈색 밧줄'이 된다(채점이 게를 '엉킨 막대기'로 읽은 그림에 이게 섞여 있었다).
+                //    낮은 머리에는 얕게 — 이건 조형이 아니라 **정지 프레임 판독**의 문제다.
+                const sag = KIND === 'bridle' ? 1.1 : 0.5;
+                this.layoutRein(st, st.anchor.clone().add(new THREE.Vector3(-s * hr * 0.2, -hr * sag, -hz2 * 1.4)));
             }
-            // 재갈(bit) — 좌우 고리를 잇는 짧은 봉
-            const bit = cy(0.011, 0.011, hr * 1.84, 0, by, nz, IRON);
-            bit.rotation.z = Math.PI / 2; BR(bit);
+            // 재갈(bit) — 좌우 고리를 잇는 짧은 봉. **말상 종에만** 넣는다: 재갈은 입에 물리는
+            // 물건이라 주둥이가 없는 종(게·거북·벌·고래)에서는 얼굴을 가로지르는 쇠막대가 된다.
+            // 기계는 대신 좌우 고리를 잇는 **조종 축**을 케이블 색으로 둔다(같은 자리, 다른 정체).
+            if (KIND === 'bridle') {
+                const bit = cy(0.011, 0.011, hr * 1.84, 0, by, nz, IRON);
+                bit.rotation.z = Math.PI / 2; BR(bit);
+            } else if (MECH) {
+                const axle = cy(0.013, 0.013, hr * 1.84, 0, by, nz, CABLE);
+                axle.rotation.z = Math.PI / 2; BR(axle);
+            }
         };
 
         // 계열은 MOUNT_FORM_OF 하나만 본다 — 예전엔 여기 FLAT/FLY/WHEELED 배열이 따로 있어서
@@ -11128,6 +11175,19 @@ const Scene3D = {
         // 나머지는 전부 quad — 조랑말·당나귀·알파카·태엽 생쥐·태엽 딱정벌레·양·거북·게·말·공룡·
         // 멧돼지·돼지·염소·낙타·큰사슴·흑표범·장갑 코뿔소·기계 거미.
         // ⚠️ 나뭇잎·연잎·뗏목 5종의 'flat' 항목은 로스터 교체로 지웠다(mount-animal-machine-dynamic ①).
+    },
+    // 종 → 마구 갈래 (mount-species-recognizable ⓐ, 2026-08-20). **기본값은 `harness`** —
+    // 여기 없는 종은 말 굴레를 안 쓴다. 기본을 굴레로 두면 종이 늘 때마다 또 재갈 물린 게가 나온다.
+    //  · `bridle`  = 말상 주둥이 + 사람이 실제로 재갈을 물리는 종(말·당나귀·조랑말·낙타·알파카·염소·큰사슴).
+    //  · `harness` = 주둥이가 없거나 재갈이 성립 안 하는 생물 — 게·거북·벌·고래·드래곤·익룡·표범·
+    //                코뿔소·공룡·돼지·멧돼지·양. 얼굴에는 **아무것도 안 얹고** 볼끈·고리·고삐만 남긴다.
+    //  · `mech`    = 태엽·기계류. 얇은 금속 밴드 + 케이블 고삐 + 조종 축(가죽을 기계에 두면 '재갈 물린 로봇').
+    // ⚠️ 평판(호버)·바퀴(자전거·트럭·청소로봇)·이족 계열은 애초에 `bridleRig` 를 안 부른다 —
+    //    그쪽은 조종 손잡이(`barReach`/`userData.bar`)를 쓴다. 여기 적어도 아무 일도 안 일어난다.
+    MOUNT_HARNESS_OF: {
+        'Pony': 'bridle', 'Donkey': 'bridle', 'Brown Horse': 'bridle', 'Camel': 'bridle',
+        'Alpaca': 'bridle', 'Goat': 'bridle', 'Elk': 'bridle',
+        'Clockwork Mouse': 'mech', 'Clockwork Beetle': 'mech', 'Mech Spider': 'mech',
     },
     mountFormOf(name) { return this.MOUNT_FORMS[this.MOUNT_FORM_OF[name] || 'quad']; },
     // 안장 윗면 높이 ÷ 영웅의 **서 있을 때 골반 높이**.
