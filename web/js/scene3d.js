@@ -8530,6 +8530,29 @@ const Scene3D = {
                 //    반축(x 0.391 · z 0.459) 안이라 실루엣은 '돔 꼭대기가 평평해진' 정도만 바뀐다.
                 //    ⚠️ 윗면 y 를 옮기면 `probe-ride-fit` 의 발판 기준(0.193)과 어긋나므로 건드리지 말 것.
                 plate = cy(0.33, 0.33, 0.03, 0, 0.178, 0, mat);
+                for (let i = 0; i < 10; i++) {            // 상판 테두리 방사 홈 — '터빈/디스크' 표식
+                    const a = i / 10 * Math.PI * 2;
+                    bx(0.055, 0.012, 0.02, Math.sin(a) * 0.27, 0.195, Math.cos(a) * 0.27, dark).rotation.y = -a;
+                }
+                cy(0.10, 0.10, 0.02, 0, 0.20, 0, M(0x29e0ff, { emissive: 0x0aa0c0, emissiveIntensity: 0.7 })); // 중앙 코어등
+            }
+            // 🚨 **호버 계열의 '뜬다'를 형태로 못 박는다** (채점 결함 ⓑ — 비평가 2인 공통 "초록 판때기").
+            //    지금까지 발판 하나만 있어 '탈것'이 아니라 잔디에 깔린 데칼로 읽혔다. 두 가지를 얹는다:
+            //    ⑴ **아래로 뿜는 배기 광막** — 판 밑에서 지면으로 퍼지는 청록 원뿔. '떠 있다'의 직접
+            //       신호다(호버바이크의 스커트 글로우와 같은 언어). ⑵ **아래 테두리 노즐 링** — 판이
+            //       공중에 어떻게 떠 있는지(추진기)를 보여 준다. 둘 다 발판(y 0.15~0.19)보다 **아래**라
+            //       라이더·발 판정과 무관하다(`probe-ride-board` 는 deck 윗면만 본다).
+            if (hover) {
+                const JET = M(0x29e0ff, { emissive: 0x1ec8e8, emissiveIntensity: 0.9, transparent: true, opacity: 0.55 });
+                const skirt = cn(0.42, 0.26, 0, -0.11, 0, JET); skirt.rotation.x = Math.PI;   // 아래로 퍼지는 배기 광막
+                skirt.userData.thruster = true;
+                const ringN = name === 'Hover Board' ? 4 : 6, rr = name === 'Hover Board' ? 0.30 : 0.28;
+                for (let i = 0; i < ringN; i++) {
+                    const a = (i + 0.5) / ringN * Math.PI * 2;
+                    const noz = cy(0.05, 0.07, 0.06, Math.sin(a) * rr, -0.01, Math.cos(a) * rr,
+                        M(0x0aa0c0, { emissive: 0x0aa0c0, emissiveIntensity: 0.8 }));
+                    noz.userData.thruster = true;
+                }
             }
             // 🚨 **발을 딛는 면**을 가리킨다 — 계측 훅이라 렌더에는 안 쓴다(읽는 곳은 `probe-ride-board`).
             //    예전엔 무조건 `g.children[0]`(= 위의 눌린 타원체 선체)을 가리켰는데, 호버보드는 그 위에
