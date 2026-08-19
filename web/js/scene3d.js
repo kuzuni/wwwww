@@ -1527,19 +1527,23 @@ const Scene3D = {
         this.foliageMatDark = this.foliageMat.clone();
         this.foliageMatLight = this.foliageMat.clone();
         this.foliageMats = [this.foliageMat, this.foliageMatDark, this.foliageMatLight];
-        this.trunkMat = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+        // ⚠️ Lambert → Phong(shininess 0). 룩은 사실상 같지만(정점 라이팅 → 프래그먼트 라이팅이라
+        //    오히려 부드럽다) **Lambert 는 프래그먼트에 `normal` 이 없어 암부 색 보정을 못 받는다.**
+        //    줄기가 순검정으로 남으면 용암 챕터의 고사목이 '배경에 붙인 검은 스티커'로 읽힌다(비평가 지적).
+        this.trunkMat = new THREE.MeshPhongMaterial({ color: 0x5d4037, shininess: 0 });
         this.bushMat = new THREE.MeshPhongMaterial({ color: 0x4a7c2f, flatShading: true, shininess: 0 });
         this.stoneMat = new THREE.MeshPhongMaterial({ color: 0x9a9083, flatShading: true, shininess: 0, map: ProChar.rockTex(), vertexColors: true }); // 웜 그레이 — 청회색 돌이 초원 위 '양/정체불명 덩어리'로 오독 (비평가 7.1 15번)
         this.mossMat = new THREE.MeshPhongMaterial({ color: 0x4f8578, flatShading: true, shininess: 0 }); // 바위산 청록 이끼(보색 악센트)
         this.snowMat = new THREE.MeshPhongMaterial({ color: 0xf4faff, flatShading: true, shininess: 35, specular: 0x9db8d4 });
         this.cactusMat = new THREE.MeshPhongMaterial({ color: 0x6da24f, flatShading: true, shininess: 0 }); // 웜 그린 — 웜 샌드 지면과 온도 통일
-        this.charTrunkMat = new THREE.MeshLambertMaterial({ color: 0x30231d });
+        this.charTrunkMat = new THREE.MeshPhongMaterial({ color: 0x30231d, shininess: 0 });   // 상동 — 고사목이 암부 색 보정을 받게
         this.charRockMat = new THREE.MeshPhongMaterial({ color: 0x2e2521, flatShading: true, shininess: 0, vertexColors: true });
         this.lavaCoreMat = new THREE.MeshBasicMaterial({ color: 0xff7043 });
         // 암부 색 보정을 **공유 소품 재질에 한 번** 심는다(재질 단위라 이 재질을 쓰는 모든 소품에 걸린다).
         // 발광체(lavaCore·crystal)와 무조명 능선(MeshBasic)은 제외 — 애초에 암부가 없다.
-        this.applyShadeLift([this.foliageMat, this.foliageMatDark, this.foliageMatLight,
-            this.bushMat, this.stoneMat, this.mossMat, this.cactusMat, this.charRockMat, this.terrainMat]);
+        this.applyShadeLift([this.foliageMat, this.foliageMatDark, this.foliageMatLight, this.trunkMat,
+            this.bushMat, this.stoneMat, this.mossMat, this.cactusMat, this.charTrunkMat, this.charRockMat,
+            this.terrainMat]);
         // vertexColors — 이 재질을 쓰는 메시는 `crystalGeo()` 가 굽는 클러스터 하나뿐이다(파일 전체 확인함).
         // ⚠️ 새 메시를 이 재질로 만들 땐 반드시 color 속성을 붙일 것(없으면 그 메시만 검게 찍힌다).
         this.crystalMat = new THREE.MeshPhongMaterial({
@@ -9964,13 +9968,26 @@ const Scene3D = {
         //    → 바닥값(`leafFloor`)을 두되, 바닥에 눌린 만큼 **청록 쪽으로 색상을 밀고 채도를 올린다.**
         //      검정 대신 '보색 계열의 어두운 색'으로 그림자를 만드는 스타일라이즈드 처방이라,
         //      명도는 그대로 낮게 유지하면서 잎끼리의 분리는 되살아난다.
+        // ⚠️ 🚨 **HSL 계산을 `Color` 밖에서 한다 — 안에서 하면 색상이 증발한다.**
+        //    `offsetHSL` 은 내부적으로 `setHSL` 을 부르고 거기서 명도가 0 으로 **클램프**된다.
+        //    그 뒤 `getHSL()` 로 다시 읽으면 순검정은 채도·색상이 전부 0 이라(max==min) **초록이었다는
+        //    사실 자체가 사라진다.** 첫 판이 그렇게 만들어서, 바닥값을 올릴 때 h=0(주황)로 복원돼
+        //    `foliageMatDark` 가 **#271f1b 갈색**이 됐다 — 화면에 갈색 침엽수가 섞여 나왔다(실측).
+        //    그래서 오프셋을 숫자로 먼저 더하고, **클램프되기 전에** 바닥값을 적용한다.
         const leaf = (dh, ds, dl) => {
-            const c = gC.clone().offsetHSL(dh, ds, dl);
-            const hsl = c.getHSL({ h: 0, s: 0, l: 0 });
-            if (hsl.l >= V.leafFloor) return c;
-            const k = U.clamp((V.leafFloor - hsl.l) / V.leafFloor, 0, 1);
-            c.setHSL((hsl.h + V.leafCool * k + 1) % 1, U.clamp(hsl.s + 0.18 * k, 0, 1), V.leafFloor);
-            return c;
+            const b = gC.getHSL({ h: 0, s: 0, l: 0 });
+            let h = b.h + dh, sat = U.clamp(b.s + ds, 0, 1), l = b.l + dl;
+            if (l < V.leafFloor) {
+                const k = U.clamp((V.leafFloor - l) / V.leafFloor, 0, 1);
+                h += V.leafCool * k;                       // 눌린 만큼 청록 쪽으로
+                sat = U.clamp(sat + 0.18 * k, 0, 1);
+                // ⚠️ 바닥을 **하드 클램프하면 안 된다** — 세 변주(기본/어두운/밝은)가 전부 같은 값이 돼
+                //    "나무마다 잎 명도가 다르다"는 원래 설계가 사라진다(실측: 셋 다 #1a350c 근방).
+                //    바닥 근처로 **압축**하되 순서는 보존한다: l=floor 이면 floor, 더 어두울수록
+                //    floor*0.55 로 점근한다(0 이하로는 절대 안 내려간다).
+                l = V.leafFloor * (0.55 + 0.45 / (1 + (V.leafFloor - l) / V.leafFloor));
+            }
+            return new THREE.Color().setHSL((h % 1 + 1) % 1, sat, l);
         };
         this.foliageMat.color.copy(leaf(-0.02, 0.08, -0.16 + dF));
         this.foliageMatDark.color.copy(leaf(-0.025, 0.09, -0.23 + dF)); // 뒤 나무용 어두운 변주
