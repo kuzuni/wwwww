@@ -34,6 +34,9 @@ const KILL_SKIN = `
 .qst-row { background-image: none !important; box-shadow: 0 .25rem 0 rgba(0,0,0,.3) !important; }
 /* 5차 슬라이스 — 버튼 면 광택(background-image 하나만 쓰므로 그것만 되돌린다) */
 .btn.btn:not(.silver):not(.ascend-ready) { background-image: none !important; }
+/* 7차 슬라이스 — 리그 랭킹 행·점수 pill */
+.league-row, .league-row:not(.me) { background-image: none !important; box-shadow: none !important; }
+.league-score { background-image: none !important; box-shadow: none !important; }
 /* 6차 슬라이스 — 상단바·탭바·재화 바 밴드 */
 #topbar, #tabbar { background-image: none !important; box-shadow: none !important; }
 .currency-pills .pill { background-image: none !important; box-shadow: none !important; }
@@ -68,6 +71,9 @@ const KILL_SKIN = `
             '#player-info-modal .modal-card, #player-info-modal .modal-card .equip-cell, #player-info-modal .modal-card .btn'],
         ['forge-info', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.openForgeInfo()`,
             '.modal:not(.hidden) .modal-card:not(.sheet), .modal:not(.hidden) .modal-card:not(.sheet) .btn'],
+        // 7차 슬라이스 — 리그 랭킹 행(.league-row)·점수 pill(.league-score)
+        ['league', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.openLeague && UI.openLeague()`,
+            '.league-row, .league-avatar, .league-score, .league-list'],
     ];
     const boxesOf = sel => page.evaluate(s => {
         const R = e => { const r = e.getBoundingClientRect(); return [+r.left.toFixed(2), +r.top.toFixed(2), +r.width.toFixed(2), +r.height.toFixed(2)]; };
