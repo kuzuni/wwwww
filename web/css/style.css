@@ -670,10 +670,14 @@ body {
    위치가 좌하단으로 보이지만 실측은 셀 가로 **정중앙**(별 중심 x=120 = 셀 99~141 중심)이다.
    ⚠️ 승천 별 규약(age-bar-star-ascension): 이 별도 **장비 라인 승천 횟수**에 연동한다 —
    승천 0이면 별이 없어야 한다(사용자 재지적 2026-08-20 "승천 안 했는데 셀마다 별이 뜬다").
-   컨테이너 `.fl-asc`(Ascension.count('forge')>0 일 때만 붙음)가 없으면 이 ::after 는 안 그려진다.
-   시대 막대 ★(fi-age-star=ageStars)·rate-star·cell-star 와 같은 소스(승천 카운트). */
-.fl-asc .fl-face::after {
-    content: '★'; position: absolute; left: 50%; bottom: 0;
+   글자를 여기 리터럴로 두지 않는다 — `content:'★'` 은 **개수를 모른다**(승천 3회·7회에도 셀당 1개였다).
+   대신 ui.js `renderForgeListView` 가 셀에 실어 주는 `data-asc`(=`UI.ageStars()`)를 그대로 찍는다:
+   승천 0='' → `:not([data-asc=""])` 에서 걸려 ::after 자체가 안 만들어진다 · N회='★'×N · 6+='★N' 접기.
+   시대 막대 ★(fi-age-star=ageStars)·rate-star·cell-star 와 **같은 소스·같은 규약**(승천 카운트).
+   ⚠️ 셀 자식이 아니라 셀 자신의 의사요소여야 한다 — `hydrateForgeThumbs` 가 썸네일을 채울 때
+   셀 innerHTML 을 통째로 갈아 끼우므로 자식으로 넣은 별은 지워진다. */
+.fl-face[data-asc]:not([data-asc=""])::after {
+    content: attr(data-asc); position: absolute; left: 50%; bottom: 0;
     transform: translate(-50%, 34%);
     font-size: .86rem; line-height: 1; color: #ff8801;
     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;

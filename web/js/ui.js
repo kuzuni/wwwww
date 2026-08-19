@@ -1672,6 +1672,13 @@ const UI = {
     },
     // 원본(shot-042905): 시대색 헤더 막대 + 회색 패널 안 흰 아이템 셀(별 배지, % 아래 표기), 닫기=빨간 X(확률 정보로 복귀)
     renderForgeListView() {
+        // 셀 하단 ★ = 장비 라인 승천 횟수 (age-bar-star-ascension 사용자 확정 사양). 시대 막대와 **같은
+        // 소스·같은 접기 규약**을 쓰려고 `ageStars()` 를 그대로 부른다 — 승천 0='' · N회='★'×N · 6+='★N'.
+        // ⚠️ 별을 셀 **자식 노드**로 넣으면 안 된다: `hydrateForgeThumbs` 가 썸네일을 채울 때
+        //    `el.innerHTML = '<img …>'` 로 셀 내용을 통째로 갈아 끼워 별이 같이 지워진다(실측).
+        //    그래서 `data-asc` **속성**에 실어 CSS `content: attr(data-asc)` 가 그리게 한다 —
+        //    속성은 innerHTML 교체에도 살아남고, 의사요소는 자식이 아니라 셀 자신에 붙는다.
+        const ascStars = this.ageStars(3);   // 셀 폭 한계 — 4개부터 '★N' 접기(위 ageStars 주석의 실측)
         const sections = AGES.map(age => {   // 0% 시대도 표시 — 확률 정보 팝업 계열 (사용자 재지시 2026-08-17)
             const hex = this.ageHex(age);
             const ageP = Forge.ageProbsAt(S.forgeLevel)[age] || 0;
@@ -1686,7 +1693,7 @@ const UI = {
             // 셀 CSS가 진다는 3D 스트림 인계에 따른 것.
             const cell = (onclick, icon, pct, td) => `
                 <button class="forge-item-cell" onclick="${onclick}">
-                    <span class="fl-face equip-cell" style="--rc:${hex}" data-slot="${td.slot}" data-age="${td.age}" data-ageidx="${td.ageIdx}" data-wtype="${td.wtype || ''}" data-nameidx="${td.nameIdx}">${icon}</span>
+                    <span class="fl-face equip-cell" style="--rc:${hex}" data-asc="${ascStars}" data-slot="${td.slot}" data-age="${td.age}" data-ageidx="${td.ageIdx}" data-wtype="${td.wtype || ''}" data-nameidx="${td.nameIdx}">${icon}</span>
                     <small>${pct.toFixed(4)}%</small>
                 </button>`;
             // 무기는 그 시대에 등장하는 종류만 (원시에 총이 뜨면 안 됨 — 사용자 지시 2026-08-17)
@@ -1714,12 +1721,13 @@ const UI = {
             </div>`;
         }).join('');
 
-        // 셀 하단 ★(.fl-face::after)은 승천 별이다 — 장비 라인 승천 0이면 안 뜬다(age-bar-star-ascension).
-        // 승천했을 때만 컨테이너에 fl-asc 를 붙여 CSS `.fl-asc .fl-face::after` 를 켠다.
-        const forgeAsc = Ascension.count('forge') > 0 ? ' fl-asc' : '';
+        // 셀 하단 ★은 이제 셀 자신의 `data-asc`(위 ascStars)가 켜고 **개수까지** 정한다.
+        // 예전엔 카드에 `.fl-asc` 를 붙여 '있다/없다'만 게이트했는데 그 방식은 개수를 모른다 —
+        // CSS `content:'★'` 이 리터럴 한 글자라 승천 3회·7회에도 셀당 별이 1개였다(실측 FAIL).
+        // 게이트가 두 층이면 한쪽만 고쳐지는 사고가 재발하므로 `.fl-asc` 는 통째로 걷었다.
         this.els.forgeInfoModal.innerHTML = `
             <div class="idet-wrap">
-                <div class="modal-card paper fl-card${forgeAsc}">
+                <div class="modal-card paper fl-card">
                     <h3 class="fi-title">모든 장비의 목록</h3>
                     <div class="forge-age-list">${sections}</div>
                 </div>
@@ -2629,9 +2637,13 @@ const UI = {
     // ⚠️ 원본(shot-042831)은 시대별 고정 별(9시대 채운 별·신성한 빈 별)이었으나, 사용자가 이를 **승천 별로
     //    인식·확정**해 원본 디자인보다 이 사양이 우선한다(원본 대조 probe-fl-head 의 별 게이트도 이에 맞춰 해제).
     //    ⭐ 이모지가 아니라 텍스트 글리프(★)라 아이콘 AAA 교체 대상이 아니다.
-    ageStars() {
+    // `foldAt` = 글리프를 그대로 늘어놓는 최대 개수(그 위는 '★N' 으로 접는다). 기본 5 = 시대 막대 폭 기준.
+    // ⚠️ 접기 규약은 '예뻐서'가 아니라 **폭 한계** 때문에 있다 — 그래서 폭이 다른 자리는 자기 한계를 준다.
+    //    장비 목록 셀은 막대보다 훨씬 좁아(실측 37.4px) 5개(62.3px)면 옆 칸을 침범한다 → 셀은 foldAt=3.
+    //    (실측 shot-fl-cell-star: ★★★=37.4px 로 딱 차고, ★N 은 19.4px 로 늘 여유가 있다.)
+    ageStars(foldAt = 5) {
         const n = Ascension.count('forge');
-        return n <= 0 ? '' : n <= 5 ? '★'.repeat(n) : `★${n}`;
+        return n <= 0 ? '' : n <= foldAt ? '★'.repeat(n) : `★${n}`;
     },
 
     // 기술 트리 노드·가지 아이콘 — 원본(shot-042605)의 노드는 **청동 원판 위 픽토그램**이지 이모지가 아니다.
