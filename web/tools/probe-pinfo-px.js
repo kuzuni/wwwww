@@ -167,12 +167,27 @@ const SCAN = async ([src]) => {
     const orbW = orbCols[0][1] - orbCols[0][0] + 1;
     if (orbW < CW * 0.03) return bad(`오브 지름이 비정상적으로 작음 (${orbW}px)`);
 
+    // ── 장비 2행 **탈것 셀**(밝은 시안 span-2) 폭 (인계 ⓑ) ────────────────────
+    // 비평가가 '장비 2행 파란 대형 타일 폭 Δ7' 을 냈다. 원본에도 span-2(정상 칸 2개 폭)인지가
+    // 먼저라 밝은 시안 채움의 가로 범위를 잰다 — 시안은 이 카드에서 이 셀에만 있어 색으로 잡아도
+    // 다른 요소에 안 걸린다(오브 빨강·타일 갈색·바탕 흰색과 구분됨). 장비 그리드와 오브 줄 사이
+    // 밴드에서 시안 화소가 가장 넓은 행을 쓴다.
+    const cyan = p => p[2] > 180 && p[1] > 150 && p[0] < 170 && (p[2] - p[0]) > 30;
+    let mtL = -1, mtR = -1;
+    for (let y = gear.y1 + 1; y < orb.y0; y++) {
+        let l = -1, r = -1;
+        for (let x = cl; x <= cr; x++) if (cyan(at(x, y))) { if (l < 0) l = x; r = x; }
+        if (l >= 0 && r - l > mtR - mtL) { mtL = l; mtR = r; }
+    }
+    const mountW = mtL >= 0 ? mtR - mtL + 1 : null;   // null 이면 시안 셀 없음(상태 다름) — 판정 제외
+
     return {
         size: [W, H], card: { l: cl, t: ct, r: cr, b: cb, w: CW },
         gearBand: `${gear.y0}..${gear.y1}`, orbBand: `${orb.y0}..${orb.y1}`, orbN: orbCols.length,
         px: {
             gearW, gearPitch: gearCols[1][0] - gearCols[0][0], gearLeft: gearCols[0][0] - cl,
             orbW, orbPitch: orbCols[1][0] - orbCols[0][0], orbLeft: orbLeft - cl, orbTop: orb.y0 - ct,
+            mountW,
         },
     };
 };
@@ -195,7 +210,10 @@ const DOM = () => {
     // 오브 = 로드아웃 줄의 각 칸 안 .sk-orb (없으면 칸 자체 — 펫/탈것 칸 구조가 달라질 때 대비)
     const orbs = [...document.querySelectorAll('.pinfo-loadout-row .sk-cell')].filter(vis)
         .map(c => R(c.querySelector('.sk-orb') || c)).sort((a, b) => a.x - b.x);
-    return { card: { w: cr.width, h: cr.height }, cellN: cells.length, row1, orbs };
+    // 장비 2행 탈것 셀 = span-2 넓은 칸 (인계 ⓑ)
+    const mountEl = document.querySelector('.equip-grid.pinfo-gear .pinfo-mount-wide');
+    const mount = vis(mountEl) ? R(mountEl) : null;
+    return { card: { w: cr.width, h: cr.height }, cellN: cells.length, row1, orbs, mount };
 };
 
 (async () => {
@@ -251,6 +269,9 @@ const DOM = () => {
         ['오브 좌 인셋', rp(ref.px.orbLeft), cp(ob[0].x)],
         ['오브 줄 상단', rp(ref.px.orbTop), cp(Math.min(...ob.map(o => o.y)))],
     ];
+    // 탈것 셀(span-2 시안 칸) — 원본 시안이 잡히고 클론에 .pinfo-mount-wide 가 있을 때만 판정(인계 ⓑ)
+    if (ref.px.mountW != null && clone.mount) rows.push(['탈것 셀 폭(span2)', rp(ref.px.mountW), cp(clone.mount.w)]);
+    else console.log(`\n[미판정 참고] 탈것 셀 — 원본 시안 ${ref.px.mountW == null ? '없음(상태 다름)' : rp(ref.px.mountW).toFixed(2) + '%CW'} · 클론 ${clone.mount ? cp(clone.mount.w).toFixed(2) + '%CW' : '.pinfo-mount-wide 없음'}`);
     console.log('\n단위 = 카드 폭 대비 % (가로세로 공통)');
     console.log('요소                 원본     클론      Δ%p   판정(게이트 ±2%p)');
     let fail = 0;
