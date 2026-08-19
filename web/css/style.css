@@ -762,8 +762,12 @@ body {
 .equip-cell.egg-cell.empty { cursor: pointer; } /* 탈것 창 진입점이라 빈 상태에도 클릭 가능 */
 /* 12차: 라벨도 판독 확보 대상(A/B 공통) — #b9a8a8→#d8caca 반 단계, 스크림은 10차 ⑦ text-shadow 가 이미 있다 */
 .equip-cell .slot-name { position: absolute; bottom: .3rem; left: 0; right: 0; text-align: center; font-size: .58rem; font-weight: 800; color: #d8caca; }
-/* 밝은 하늘색 egg-cell 위에서 회색 라벨이 대비 1.5:1로 안 읽히던 QA 버그 — 흰 글자+검정 그림자 (185) */
-.equip-cell.egg-cell .slot-name { color: #fff; text-shadow: 0 1px 0 var(--olc), 0 0 3px rgba(0,0,0,.55); font-size: .72rem; }
+/* 밝은 하늘색 egg-cell 위에서 회색 라벨이 대비 1.5:1로 안 읽히던 QA 버그 — 흰 글자+검정 그림자 (185).
+   ⚠️ (2026-08-19 eggcell-slotname-noshadow) `var(--olc)` 는 형제 `.cell-lv/.cell-star` 에만 정의된
+   지역 변수라 `.slot-name` 에선 미정의고, 그러면 **text-shadow 선언 전체가 무효(computed=none)** 라
+   흰 라벨의 검정 외곽선이 통째로 사라졌었다(`.coin-amt` 와 같은 사고). 남의 스코프 변수를 참조하지
+   말고 **리터럴 검정**을 쓴다(= --olc 가 뜻하던 rgba(0,0,0,.86)). */
+.equip-cell.egg-cell .slot-name { color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.86), 0 0 3px rgba(0,0,0,.55); font-size: .72rem; }
 /* 아이콘이 셀을 꽉 채우게 커진 뒤 `Lv. NNN`이 밝은 아이콘 위에서 씻겨나가던 QA 버그.
    원인은 `0 1px 0 #000` — **아래 한 줄뿐이라 좌우·위쪽 대비가 0**이었다(원본은 글자 사방에 검정 테).
    실측(probe-lv-outline.js, 글자 둘레 3px 띠의 어두운 픽셀 비율): 수정 전 **7~10%** · 원본 61.9%.
