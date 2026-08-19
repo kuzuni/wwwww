@@ -10368,7 +10368,7 @@ const Scene3D = {
     skillPayload(fx, color, targetIds, tier, scene) {
         const targets = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
         if (tier !== undefined) setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier),
-            fx === 'meteor' ? 340 : fx === 'dragonfire' ? this.DRAGONFIRE_IMPACT_MS : 30);
+            fx === 'meteor' ? 340 : fx === 'dragonfire' ? this.DRAGONFIRE_IMPACT_MS : fx === 'spear' ? this.GODSPEAR_IMPACT_MS : 30);
         if (fx === 'dragonfire') {
             // 아포칼립스 — 거대 화염룡 강림 (skill-unique-signature). 메테오와 fx 를 공유하던
             // 사용자 지목 쌍을 완전 분리: 하늘 낙하(운석)가 아니라 **주인공 뒤에서 솟은 용이
@@ -10400,6 +10400,10 @@ const Scene3D = {
             // 화살 세례 (skill-fx-exaggerated) — 한 발이 아니라 여러 발이 다다다닥.
             // 화살 조형(projectileBolt)은 그대로 재사용한다: 좋았던 건 물건이 아니라 발수였다.
             this.arrowVolley(targetIds, color, tier || 0);
+        } else if (fx === 'spear') {
+            // 신의 창 — 하늘이 열리고 거대한 황금 창이 내리꽂힌다 (skill-unique-signature).
+            // 낙뢰(먹구름+지그재그 볼트)와 fx 를 공유하던 것을 분리.
+            this.godSpearDrop(targetIds, color, tier || 0);
         } else if (fx === 'bolt') {
             // 1박에 세운 먹구름에서 낙뢰가 연달아 꽂힌다 (skill-fx-exaggerated).
             // 예전엔 여기서 볼트 1발 + 폭발 1회로 끝나 '따' 하고 닫혔다.
@@ -11111,6 +11115,130 @@ const Scene3D = {
                         light.set(light.get() * 0.88);
                     }, dispose);
                 });
+            });
+        });
+    },
+
+    // ---- 스킬 전용 연출: 신의 창 — 하늘이 열리고 거대한 황금 창이 내리꽂힌다 (skill-unique-signature) ----
+    // 낙뢰(먹구름 + 지그재그 볼트)와 fx('bolt')를 공유해 색만 노랄 뿐 같은 그림이었다.
+    // 장면 4단: 개천(적 상공에 회전하는 황금 광륜 + 사선 광선) → 강림 예고(광륜 아래 거대한 창이
+    //          결정화되어 겨눔) → 관통(수직 급강하 — 적을 꿰고 지면까지 꽂힘, 금빛 폭발 + 방사 광선)
+    //          → 여운(창이 박힌 채 빛기둥, 위로 반짝이며 소멸).
+    // 먹구름·번개 지그재그가 전혀 없다 — 신성 기하(광륜·직선 창·방사광)로만 구성.
+    // ⚠️ 라이트는 fxLight 풀만. 재질은 가산 + toneMapped:false (밝은 하늘 위 요소라 가산이 맞다 —
+    //    healPillar 의 '기둥은 일반 합성' 함정은 **지면 근처 수직면** 얘기고, 광륜은 하늘 배경이라 문제없다).
+    GODSPEAR_IMPACT_MS: 500,     // 관통 착탄 시각 — skillImpactWeight 지연과 동기 (개천 350 + 낙하 150)
+    godSpearDrop(targetIds, color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
+        const pw = t / 5;
+        const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
+        const spot = live.length ? live[0].g.position.clone() : this.heroG.position.clone().add(new THREE.Vector3(2.4, 0, 0));
+        const gold = color.clone().lerp(new THREE.Color(0xffd54f), 0.5);
+        const G = new THREE.Group();
+        G.userData.godspearFx = true;
+        this.scene.add(G);
+        const add = (mesh) => { G.add(mesh); return mesh; };
+        const mat = (col, op) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op,
+            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+        // ⓐ 개천 — 적 상공의 회전 광륜 2겹 + 사선 광선 6가닥.
+        // ⚠️ 광륜을 수평으로 눕히면 카메라(y3.7)가 아래에서 올려봐 **모서리선**이 된다(캡처 실측) —
+        //    카메라를 향해 세워야 '하늘이 열린 원'으로 읽힌다. 높이도 5.6은 화면 밖 태양과 겹친다.
+        const skyY = 4.15;
+        const halo = add(new THREE.Mesh(new THREE.RingGeometry(0.9, 1.5 + pw * 0.5, 28), mat(gold, 0)));
+        halo.position.set(spot.x, skyY, spot.z);
+        if (this.camera) halo.lookAt(this.camera.position);
+        const halo2 = add(new THREE.Mesh(new THREE.RingGeometry(0.45, 0.7, 22), mat(0xffffff, 0)));
+        halo2.position.set(spot.x, skyY, spot.z + 0.05);
+        if (this.camera) halo2.lookAt(this.camera.position);
+        const rays = [];
+        for (let i = 0; i < 6; i++) {
+            const ray = add(new THREE.Mesh(new THREE.PlaneGeometry(0.16, 2.6), mat(gold, 0)));
+            const a = (i / 6) * Math.PI * 2;
+            ray.position.set(spot.x + Math.cos(a) * 1.0, skyY - 0.9, spot.z + Math.sin(a) * 0.3);
+            ray.rotation.set(0, 0, Math.cos(a) * 0.5);
+            rays.push(ray);
+        }
+        // 창 — 자루(긴 원기둥) + 창촉(2단 콘) + 십자 코등이 + 자루 끝 보주. 길이 ~3.4.
+        const spear = new THREE.Group();
+        // ⚠️ 가는 흰 창은 밝은 하늘에 통째로 소실된다(캡처 실측) — 굵기를 키우고 채도 있는 금으로.
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 2.4, 8),
+            new THREE.MeshBasicMaterial({ color: 0xffb300, toneMapped: false }));
+        shaft.position.y = 1.55;
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.85, 8),
+            new THREE.MeshBasicMaterial({ color: 0xfff3c4, toneMapped: false }));
+        tip.rotation.x = Math.PI; tip.position.y = 0;
+        const collar = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.4, 8),
+            new THREE.MeshBasicMaterial({ color: gold, toneMapped: false }));
+        collar.rotation.x = Math.PI; collar.position.y = 0.5;
+        const guard = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.12, 0.12),
+            new THREE.MeshBasicMaterial({ color: gold, toneMapped: false }));
+        guard.position.y = 0.74;
+        const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6),
+            new THREE.MeshBasicMaterial({ color: gold, toneMapped: false }));
+        pommel.position.y = 2.8;
+        const aura = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 3.0, 8, 1, true), mat(gold, 0.4));
+        aura.position.y = 1.5;
+        spear.add(shaft, tip, collar, guard, pommel, aura);
+        spear.position.set(spot.x, skyY - 0.6, spot.z);
+        spear.scale.setScalar(1.15 + pw * 0.35);
+        G.add(spear);
+        const light = this.fxLight(gold.getHex(), 8, 'godspearLight');
+        light.pos(spot.x, skyY - 1, spot.z);
+        SFX.auraRise(t);
+        const dispose = () => {
+            G.traverse(o => {
+                if (o.isMesh && o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
+                if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
+            });
+            this.scene.remove(G); light.release();
+        };
+        // ⓐ+ⓑ 개천·겨눔 0.35s — 광륜이 열리고 창이 결정화된다
+        this.addAnim(0.35, k => {
+            const e = 1 - Math.pow(1 - k, 3);
+            halo.material.opacity = e * 0.85;
+            halo.scale.setScalar(0.5 + e * 0.5);
+            halo.rotation.z += 0.06;
+            halo2.material.opacity = e * 0.9;
+            halo2.rotation.z -= 0.09;
+            for (const r of rays) r.material.opacity = e * 0.4;
+            spear.position.y = skyY - 0.6 - e * 0.35;       // 미세 하강 = 겨눔
+            for (const m of [shaft, tip, collar, guard, pommel]) m.material.opacity = 1;
+            light.set(e * (0.9 + pw * 0.8));
+        }, () => {
+            // ⓒ 관통 0.15s — 수직 급강하. 창촉이 지면에 꽂히는 깊이까지.
+            const fromY = spear.position.y, toY = 1.55;      // spear 원점=창촉이라 y1.55 면 촉이 지면 관통
+            this.addAnim(0.15, k => {
+                spear.position.y = fromY + (toY - fromY) * k * k;
+                aura.material.opacity = 0.4 + k * 0.4;
+            }, () => {
+                // 착탄 — 금빛 폭발 + 지면 방사 광선 + 링
+                const hit = new THREE.Vector3(spot.x, 0.5, spot.z);
+                this.explosion(hit, gold);
+                this.expandRing(new THREE.Vector3(spot.x, 0.02, spot.z), gold, 2.0 + pw * 1.2);
+                this.spawnSparks(hit, Math.round(20 + pw * 22), gold.getHex(), { speed: 1.6 + pw * 0.8 });
+                this.firePillar(new THREE.Vector3(spot.x, 0, spot.z), gold, Math.max(2, t - 1)); // 금빛 빛기둥 — 지면 착탄이 밝은 초원에서도 읽히게
+                this.shake(0.34 + pw * 0.3);
+                this.flashLight(hit, gold.getHex(), 0.3);
+                SFX.stormStrike(0);
+                // ⓓ 여운 0.55s — 광륜은 닫히고, 박힌 창이 빛기둥으로 타올랐다 위로 소멸
+                this.addAnim(0.55, k => {
+                    halo.material.opacity = 0.85 * (1 - k);
+                    halo2.material.opacity = 0.9 * (1 - k);
+                    halo.scale.setScalar(1 - k * 0.4);
+                    for (const r of rays) r.material.opacity = 0.4 * (1 - k);
+                    aura.material.opacity = 0.8 * (1 - k);
+                    aura.scale.x = aura.scale.z = 1 + k * 1.6;
+                    if (k > 0.45) {
+                        const f = (k - 0.45) / 0.55;         // 창 본체가 위로 미끄러지며 소멸
+                        spear.position.y = 1.55 + f * 2.2;
+                        for (const m of [shaft, tip, collar, guard, pommel]) {
+                            m.material.transparent = true; m.material.opacity = 1 - f;
+                        }
+                        if (Math.random() < 0.5) this.riseParticle(new THREE.Vector3(spot.x + U.rand(-0.2, 0.2), 0.8 + f * 2, spot.z), gold);
+                    }
+                    light.set(light.get() * 0.92);
+                }, dispose);
             });
         });
     },

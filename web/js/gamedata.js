@@ -439,7 +439,9 @@ const SKILL_DEFS = [
     // ⚠️ fx 'dragonfire' — 메테오와 fx 를 공유하던 것을 분리 (skill-unique-signature, 사용자 지목 쌍:
     //    "아포칼립스랑 메테오라는 스킬 너무 똑같음. 거대한 용이 나와서 불을 뿜는 스킬로 바꾸든지").
     { id: 'apocalypse',  name: '아포칼립스',      rarity: 'mythic',    type: 'aoe',    mult: 18.0, cd: 12, fx: 'dragonfire', color: '#ef5350' },
-    { id: 'godspear',    name: '신의 창',         rarity: 'mythic',    type: 'single', mult: 32.0, cd: 11, fx: 'bolt',     color: '#ffd54f' },
+    // ⚠️ fx 'spear' — 낙뢰와 fx 를 공유하던 것을 분리 (skill-unique-signature): 먹구름 번개가 아니라
+    //    하늘이 열리고 거대한 황금 창이 내리꽂히는 전용 연출.
+    { id: 'godspear',    name: '신의 창',         rarity: 'mythic',    type: 'single', mult: 32.0, cd: 11, fx: 'spear',    color: '#ffd54f' },
     { id: 'divineShield', name: '신성한 가호',    rarity: 'mythic',    type: 'heal',   mult: 7.0,  dur: 6,  cd: 13, fx: 'heal', color: '#fff59d' },
 ];
 
