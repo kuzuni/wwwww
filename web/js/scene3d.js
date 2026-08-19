@@ -10368,7 +10368,8 @@ const Scene3D = {
     skillPayload(fx, color, targetIds, tier, scene) {
         const targets = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
         if (tier !== undefined) setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier),
-            fx === 'meteor' ? 340 : fx === 'dragonfire' ? this.DRAGONFIRE_IMPACT_MS : fx === 'spear' ? this.GODSPEAR_IMPACT_MS : 30);
+            fx === 'meteor' ? 340 : fx === 'dragonfire' ? this.DRAGONFIRE_IMPACT_MS : fx === 'spear' ? this.GODSPEAR_IMPACT_MS
+                : fx === 'nova' ? this.NOVA_IMPACT_MS : 30);
         if (fx === 'dragonfire') {
             // 아포칼립스 — 거대 화염룡 강림 (skill-unique-signature). 메테오와 fx 를 공유하던
             // 사용자 지목 쌍을 완전 분리: 하늘 낙하(운석)가 아니라 **주인공 뒤에서 솟은 용이
@@ -10382,6 +10383,10 @@ const Scene3D = {
             // 지중 습격 — 거대 아가리 (skill-fx-exaggerated, 사용자 예 ⓓ).
             // 예전엔 `explode` 와 **같은 코드**(폭발 한 번)라 레전더리 광역기인데 화염구와 구분이 안 됐다.
             this.dragonMaw(targetIds, color, tier || 0);
+        } else if (fx === 'nova') {
+            // 초신성 — 빨려 들어가 붕괴했다가 한 번에 터진다 (skill-unique-signature).
+            // 화염구(투척 불덩이+확산 고리)와 fx 를 공유하던 것을 분리.
+            this.supernovaBlast(targetIds, color, tier || 0);
         } else if (fx === 'explode') {
             // 화염 폭풍 (skill-fx-exaggerated). 스킬 이름이 **화염구**인데 정작 날아가는 불덩이가
             // 없어서 적 발밑에서 갑자기 터졌다 — 던지고, 터지고, 불의 고리가 바깥으로 퍼지게 바꿨다.
@@ -11114,6 +11119,114 @@ const Scene3D = {
                         for (const w of wings) w.rotation.z = 0.35 + c * 1.0;
                         light.set(light.get() * 0.88);
                     }, dispose);
+                });
+            });
+        });
+    },
+
+    // ---- 스킬 전용 연출: 초신성 — 빨려 들어가 붕괴했다가 한 번에 터진다 (skill-unique-signature) ----
+    // 화염구와 fx('explode')를 공유해 색만 다를 뿐 '던지고 터지는' 같은 그림이었다.
+    // 장면 4단: 흡입(적진 상공의 코어로 빛 알갱이가 **빨려 들어가고** 조임 링이 수축 — 기존 연출이
+    //          전부 밖으로 퍼지는 운동이라 역방향 운동 자체가 시그니처다) → 붕괴(코어가 점으로 조였다
+    //          — 정적 한 박자) → 폭발(거대 구각 2겹 + 수평 파동 + 전 적 동시 타격) → 여운(잔광·잉걸).
+    // 화염구(투척 포물선 + 불의 고리 확산)와 운동 문법이 정반대다.
+    NOVA_IMPACT_MS: 560,       // 폭발 시각(흡입 420 + 붕괴 140) — skillImpactWeight 지연과 동기
+    supernovaBlast(targetIds, color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 4 : tier));
+        const pw = t / 5;
+        const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
+        const C = new THREE.Vector3();
+        if (live.length) { for (const m of live) C.add(m.g.position); C.divideScalar(live.length); }
+        else C.copy(this.heroG.position).add(new THREE.Vector3(2.4, 0, 0));
+        C.y = 1.7;                                          // 적진 상공 — 지면보다 높아야 '천체'로 읽힌다
+        const G = new THREE.Group();
+        G.userData.novaFx = true;
+        this.scene.add(G);
+        const mat = (col, op, blend) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op,
+            side: THREE.DoubleSide, depthWrite: false, blending: blend === false ? THREE.NormalBlending : THREE.AdditiveBlending, toneMapped: false });
+        // 코어 — 흰 심 + 색 글로우
+        const core = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), mat(0xffffff, 0.95));
+        core.position.copy(C);
+        const glow = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), mat(color, 0.55));
+        glow.position.copy(C);
+        G.add(core, glow);
+        // 조임 링 — 확장 링의 정반대 운동(수축) + 흡입 알갱이 12~20개
+        const inRing = new THREE.Mesh(new THREE.RingGeometry(0.82, 1.0, 26), mat(color, 0));
+        inRing.position.copy(C);
+        if (this.camera) inRing.lookAt(this.camera.position);
+        G.add(inRing);
+        const motes = [];
+        const nMote = 12 + Math.round(pw * 8);
+        for (let i = 0; i < nMote; i++) {
+            const m = new THREE.Mesh(new THREE.SphereGeometry(0.05 + Math.random() * 0.04, 6, 5), mat(i % 3 ? color : 0xffffff, 0.9));
+            const a = Math.random() * Math.PI * 2, r = 1.6 + Math.random() * 1.3;
+            m.userData.from = new THREE.Vector3(C.x + Math.cos(a) * r, C.y + U.rand(-0.9, 1.1), C.z + Math.sin(a) * r * 0.6);
+            m.userData.d = Math.random() * 0.35;            // 개체별 출발 지연 — 한 번에 안 움직이게
+            m.position.copy(m.userData.from);
+            G.add(m); motes.push(m);
+        }
+        const light = this.fxLight(color.getHex(), 9, 'novaLight');
+        light.pos(C.x, C.y, C.z);
+        SFX.auraRise(t);
+        const dispose = () => {
+            G.traverse(o => {
+                if (o.isMesh && o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
+                if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
+            });
+            this.scene.remove(G); light.release();
+        };
+        // ⓐ 흡입 0.42s — 알갱이가 코어로 빨려 들고 링이 조인다, 코어가 자란다
+        this.addAnim(0.42, k => {
+            for (const m of motes) {
+                const kk = Math.max(0, Math.min(1, (k - m.userData.d) / (1 - m.userData.d)));
+                m.position.lerpVectors(m.userData.from, C, kk * kk);   // 가속 흡입
+                m.material.opacity = 0.9 * (1 - kk * 0.85);
+                m.scale.setScalar(1 - kk * 0.6);
+            }
+            inRing.material.opacity = Math.min(1, k / 0.25) * 0.8;
+            inRing.scale.setScalar(1.9 - k * 1.55);                    // 수축 — expandRing 의 정반대
+            // ⚠️ 코어를 크게 불리면 가산 2겹이 합쳐져 '흰 풍선'이 된다(캡처 실측) — 심은 작게 뜨겁게,
+            //    커지는 건 폭발 단계 몫.
+            core.scale.setScalar(1 + k * 1.4);
+            glow.scale.setScalar(1 + k * 1.8);
+            glow.material.opacity = 0.35 + k * 0.1;
+            light.set(0.5 + k * (0.9 + pw * 0.8));
+        }, () => {
+            // ⓑ 붕괴 0.14s — 커진 코어가 점으로 **조인다**(정적 한 박자 = 폭발 직전의 숨)
+            this.addAnim(0.14, k => {
+                const s = Math.max(0.06, 1 - k);
+                core.scale.setScalar(2.4 * s);
+                glow.scale.setScalar(2.8 * s * s);
+                inRing.material.opacity = 0.8 * (1 - k);
+                inRing.scale.setScalar(0.35 * (1 - k) + 0.05);
+                light.set(light.get() * 0.85);
+            }, () => {
+                // ⓒ 폭발 — 구각 2겹 + 수평 파동 + 전 적 동시 타격
+                for (const m of motes) m.visible = false;
+                inRing.visible = false;
+                SFX.stormStrike(0);
+                this.shake(0.4 + pw * 0.35);
+                this.flashLight(C.clone(), color.getHex(), 0.4);
+                const R = 2.6 + pw * 1.6;
+                this.expandRing(new THREE.Vector3(C.x, 0.02, C.z), color, R * 1.4);
+                setTimeout(() => this.expandRing(new THREE.Vector3(C.x, 0.02, C.z), new THREE.Color(0xffffff), R), 60);
+                for (const m of live) {
+                    if (!this.enemyMap.get(m.id)) continue;   // 그 사이 죽었으면 건너뜀
+                    this.explosion(m.g.position.clone(), color);
+                }
+                this.spawnSparks(C.clone(), Math.round(24 + pw * 26), color.getHex(), { speed: 1.8 + pw * 1.0 });
+                this.addAnim(0.5, k => {
+                    const e = 1 - Math.pow(1 - k, 3);
+                    core.scale.setScalar(0.2 + e * R * 5.5);           // 구각으로 팽창 (r0.16 기준 배율)
+                    core.material.opacity = 0.95 * (1 - e);
+                    glow.scale.setScalar(0.2 + e * R * 4.6);
+                    glow.material.opacity = 0.8 * (1 - e * 0.9);
+                    light.set((1.6 + pw * 1.2) * (1 - e * 0.8));
+                    if (Math.random() < 0.6) this.riseParticle(new THREE.Vector3(C.x + U.rand(-R, R) * 0.5, 0.1, C.z + U.rand(-R, R) * 0.3), color);
+                }, () => {
+                    // ⓓ 여운 0.4s — 잔광이 스러진다
+                    this.addAnim(0.4, k => { light.set(light.get() * 0.9); glow.material.opacity = Math.max(0, glow.material.opacity - 0.04); }, dispose);
                 });
             });
         });

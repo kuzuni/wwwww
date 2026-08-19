@@ -433,7 +433,9 @@ const SKILL_DEFS = [
     { id: 'dragonBreath', name: '용의 숨결',      rarity: 'legendary', type: 'aoe',    mult: 6.5,  cd: 12, fx: 'breath',   color: '#ba68c8' },
     { id: 'execution',   name: '처형',            rarity: 'legendary', type: 'single', mult: 11.0, cd: 11, fx: 'slash',    color: '#e57373' },
     { id: 'sanctuary',   name: '성역',            rarity: 'legendary', type: 'heal',   mult: 4.0,  dur: 6,  cd: 13, fx: 'aura', color: '#ce93d8' },
-    { id: 'supernova',   name: '초신성',          rarity: 'ultimate',  type: 'aoe',    mult: 10.0, cd: 12, fx: 'explode',  color: '#ffb74d' },
+    // ⚠️ fx 'nova' — 화염구와 fx 를 공유하던 것을 분리 (skill-unique-signature): 투척 불덩이가 아니라
+    //    허공에 빛이 **빨려 들어가 붕괴했다가** 한 번에 터지는 초신성 전용 연출.
+    { id: 'supernova',   name: '초신성',          rarity: 'ultimate',  type: 'aoe',    mult: 10.0, cd: 12, fx: 'nova',     color: '#ffb74d' },
     { id: 'voidLance',   name: '공허의 창',       rarity: 'ultimate',  type: 'single', mult: 18.0, cd: 11, fx: 'beam',     color: '#9575cd' },
     { id: 'timeWarp',    name: '시간 왜곡',       rarity: 'ultimate',  type: 'buff',   mult: 2.0,  dur: 10, cd: 14, fx: 'aura', color: '#4dd0e1' },
     // ⚠️ fx 'dragonfire' — 메테오와 fx 를 공유하던 것을 분리 (skill-unique-signature, 사용자 지목 쌍:
