@@ -10369,7 +10369,7 @@ const Scene3D = {
         const targets = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
         if (tier !== undefined) setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier),
             fx === 'meteor' ? 340 : fx === 'dragonfire' ? this.DRAGONFIRE_IMPACT_MS : fx === 'spear' ? this.GODSPEAR_IMPACT_MS
-                : fx === 'nova' ? this.NOVA_IMPACT_MS : 30);
+                : fx === 'nova' ? this.NOVA_IMPACT_MS : fx === 'guillotine' ? this.GUILLOTINE_IMPACT_MS : 30);
         if (fx === 'dragonfire') {
             // 아포칼립스 — 거대 화염룡 강림 (skill-unique-signature). 메테오와 fx 를 공유하던
             // 사용자 지목 쌍을 완전 분리: 하늘 낙하(운석)가 아니라 **주인공 뒤에서 솟은 용이
@@ -10413,6 +10413,10 @@ const Scene3D = {
             // 1박에 세운 먹구름에서 낙뢰가 연달아 꽂힌다 (skill-fx-exaggerated).
             // 예전엔 여기서 볼트 1발 + 폭발 1회로 끝나 '따' 하고 닫혔다.
             this.stormCloudStrike(scene, targetIds, color, tier || 0);
+        } else if (fx === 'guillotine') {
+            // 처형 — 거대한 처형 칼날이 내리찍힌다 (skill-unique-signature).
+            // 강타(교차 참격)와 fx 를 공유하던 것을 분리.
+            this.guillotineDrop(targetIds, color, tier || 0);
         } else if (fx === 'slash') {
             // 참격 세례 (skill-fx-exaggerated). 예전엔 **불티 22개 + 조명 한 번**이 전부라
             // 화면에 그려지는 물건이 하나도 없었다 — 18종 중 가장 빈약한 자리였다.
@@ -11118,6 +11122,120 @@ const Scene3D = {
                         G.position.y = -0.3 - c * 4.0;
                         for (const w of wings) w.rotation.z = 0.35 + c * 1.0;
                         light.set(light.get() * 0.88);
+                    }, dispose);
+                });
+            });
+        });
+    },
+
+    // ---- 스킬 전용 연출: 처형 — 거대한 처형 칼날이 내리찍힌다 (skill-unique-signature) ----
+    // 강타와 fx('slash')를 공유해 색만 다를 뿐 같은 교차 참격이었다. 처형은 **단 한 번의 압도적인
+    // 내리찍기**로 분리: 참격 세례(작은 초승달 여러 번)와 횟수·방향·규모가 전부 다르다.
+    // 장면 4단: 선고(적 발밑에 어두운 처형 원 + 상공에 거대한 칼날이 그림자처럼 결정화) →
+    //          낙하(수직 급강하, 속도선) → 절단(붉은 섬광 + 지면 균열 링 + 파편, 칼날이 박힌 채 멈춤)
+    //          → 퇴장(칼날이 어둠으로 스러짐).
+    // ⚠️ 칼날은 카메라를 향해 세운다(slashArcs 와 같은 함정 — 월드 축 고정이면 얇은 판이 사라진다).
+    GUILLOTINE_IMPACT_MS: 430,   // 절단 시각(선고 300 + 낙하 130) — skillImpactWeight 지연과 동기
+    guillotineDrop(targetIds, color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 3 : tier));
+        const pw = t / 5;
+        const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
+        const spot = live.length ? live[0].g.position.clone() : this.heroG.position.clone().add(new THREE.Vector3(2.4, 0, 0));
+        const G = new THREE.Group();
+        G.userData.guillotineFx = true;
+        this.scene.add(G);
+        // 선고 원 — 적 발밑의 어두운 원 + 붉은 테. 밝은 초원이라 '어두운 값'이 대비를 만든다(scorch 문법).
+        const doom = new THREE.Mesh(new THREE.CircleGeometry(0.62 + pw * 0.2, 22),
+            new THREE.MeshBasicMaterial({ color: 0x1a0d10, transparent: true, opacity: 0, depthWrite: false }));
+        doom.rotation.x = -Math.PI / 2;
+        doom.position.set(spot.x, 0.03, spot.z);
+        const rim = new THREE.Mesh(new THREE.RingGeometry(0.6 + pw * 0.2, 0.72 + pw * 0.22, 24),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        rim.rotation.x = -Math.PI / 2;
+        rim.position.set(spot.x, 0.035, spot.z);
+        G.add(doom, rim);
+        // 칼날 — 거대한 처형도(폭 1.7): 근흑 몸 + 아랫날 흰 스트립 + 윗등 붉은 스트립.
+        // sRGB 인코딩이 어두운 헥스를 들어 올리므로 몸은 근흑(0x0a0608)까지 내린다(dragonfire 함정).
+        const blade = new THREE.Group();
+        const W = 1.5 + pw * 0.5, H = 1.0 + pw * 0.3;
+        // 몸판 = 기요틴 프로필(빗각 날) — 평평한 사각형은 '검은 판자'로 읽힌다(캡처 실측).
+        // 아랫변을 왼쪽 아래로 빗겨 처형도의 사선 날을 만든다.
+        const prof = new THREE.Shape();
+        prof.moveTo(-W / 2, 0);
+        prof.lineTo(W / 2, 0.12);
+        prof.lineTo(W / 2, -H * 0.55);
+        prof.lineTo(-W / 2, -H);
+        prof.closePath();
+        const body = new THREE.Mesh(new THREE.ShapeGeometry(prof),
+            new THREE.MeshBasicMaterial({ color: 0x0a0608, transparent: true, opacity: 0, side: THREE.DoubleSide }));
+        // 사선 날 스트립 — 빗각을 따라 흰 날을 세운다
+        const eLen = Math.hypot(W, H * 0.45), eAng = Math.atan2(H * 0.45, W);
+        const edge = new THREE.Mesh(new THREE.PlaneGeometry(eLen, 0.09),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, toneMapped: false }));
+        edge.position.set(0, -H * 0.78 + 0.02, 0.01);
+        edge.rotation.z = eAng;
+        const back = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.94, 0.08),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        back.position.y = 0.1;
+        // 손잡이 고리 — 위쪽 중앙. '판'이 아니라 '기구'로 읽히는 마지막 한 조각.
+        const grip = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.045, 6, 14),
+            new THREE.MeshBasicMaterial({ color: 0x241418, transparent: true, opacity: 0 }));
+        grip.position.y = 0.28;
+        blade.add(body, edge, back, grip);
+        const topY = 3.4 + pw * 0.5;
+        blade.position.set(spot.x, topY, spot.z);
+        if (this.camera) blade.lookAt(this.camera.position);   // 카메라를 향해 세운 판 — 항상 보인다
+        G.add(blade);
+        const light = this.fxLight(color.getHex(), 7, 'guillotineLight');
+        light.pos(spot.x, 1.6, spot.z);
+        const dispose = () => {
+            G.traverse(o => {
+                if (o.isMesh && o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
+                if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
+            });
+            this.scene.remove(G); light.release();
+        };
+        // ⓐ 선고 0.3s — 처형 원이 물들고 칼날이 결정화된다
+        this.addAnim(0.3, k => {
+            const e = 1 - Math.pow(1 - k, 2);
+            doom.material.opacity = e * 0.55;
+            rim.material.opacity = e * 0.85;
+            rim.scale.setScalar(1.25 - e * 0.25);           // 살짝 조이며 자리를 못박는다
+            body.material.opacity = e * 0.92;
+            edge.material.opacity = e;
+            back.material.opacity = e * 0.8;
+            grip.material.opacity = e * 0.92;
+            blade.rotation.z = Math.sin(k * 9) * 0.03;      // 결정화 중 미세 진동 — 정지 판 방지
+            light.set(e * (0.6 + pw * 0.5));
+        }, () => {
+            SFX.slashArc(0, t);
+            // ⓑ 낙하 0.13s — 수직 급강하 (가속)
+            const toY = H - 0.12;                            // 날 원점=윗변이라, 빗날 끝이 지면을 살짝 파고드는 높이
+            this.addAnim(0.13, k => {
+                blade.position.y = topY + (toY - topY) * k * k;
+            }, () => {
+                // ⓒ 절단 — 붉은 섬광 + 균열 링 + 파편. 칼날은 박힌 채 한 박자 멈춘다.
+                const hit = new THREE.Vector3(spot.x, 0.6, spot.z);
+                this.explosion(hit, color);
+                this.expandRing(new THREE.Vector3(spot.x, 0.02, spot.z), color, 1.7 + pw * 1.0);
+                this.spawnShards(hit, Math.round(12 + pw * 10), color.getHex(), { spread: 0.9, speed: 1.5 + pw * 0.6 });
+                this.spawnSparks(hit, Math.round(14 + pw * 14), color.getHex(), { speed: 1.5 });
+                this.meteorScorch(spot, 1.1 + pw * 0.4);
+                this.shake(0.36 + pw * 0.3);
+                this.flashLight(hit, color.getHex(), 0.26);
+                SFX.stormStrike(1);
+                this.addAnim(0.22, k => {                     // 박힌 채 여운 — 날만 뜨겁게 명멸
+                    edge.material.opacity = 0.7 + Math.sin(k * 26) * 0.3;
+                    light.set((1.2 + pw * 0.8) * (1 - k * 0.5));
+                }, () => {
+                    // ⓓ 퇴장 0.3s — 어둠으로 스러진다
+                    this.addAnim(0.3, k => {
+                        for (const m of [body, edge, back, grip]) m.material.opacity *= (1 - k * 0.25);
+                        doom.material.opacity = 0.55 * (1 - k);
+                        rim.material.opacity = 0.85 * (1 - k);
+                        blade.position.y += 0.01;             // 미세 부상 — '거둬 간다'
+                        light.set(light.get() * 0.9);
                     }, dispose);
                 });
             });

@@ -431,7 +431,9 @@ const SKILL_DEFS = [
     { id: 'lightning',   name: '낙뢰',            rarity: 'epic',      type: 'single', mult: 7.0,  cd: 11, fx: 'bolt',     color: '#fff176' },
     { id: 'blessing',    name: '축복',            rarity: 'epic',      type: 'heal',   mult: 3.5,  dur: 5,  cd: 13, fx: 'heal', color: '#80cbc4' },
     { id: 'dragonBreath', name: '용의 숨결',      rarity: 'legendary', type: 'aoe',    mult: 6.5,  cd: 12, fx: 'breath',   color: '#ba68c8' },
-    { id: 'execution',   name: '처형',            rarity: 'legendary', type: 'single', mult: 11.0, cd: 11, fx: 'slash',    color: '#e57373' },
+    // ⚠️ fx 'guillotine' — 강타와 fx 를 공유하던 것을 분리 (skill-unique-signature): 교차 참격이 아니라
+    //    거대한 처형 칼날이 내리찍히는 전용 연출.
+    { id: 'execution',   name: '처형',            rarity: 'legendary', type: 'single', mult: 11.0, cd: 11, fx: 'guillotine', color: '#e57373' },
     { id: 'sanctuary',   name: '성역',            rarity: 'legendary', type: 'heal',   mult: 4.0,  dur: 6,  cd: 13, fx: 'aura', color: '#ce93d8' },
     // ⚠️ fx 'nova' — 화염구와 fx 를 공유하던 것을 분리 (skill-unique-signature): 투척 불덩이가 아니라
     //    허공에 빛이 **빨려 들어가 붕괴했다가** 한 번에 터지는 초신성 전용 연출.
