@@ -93,7 +93,12 @@ const MEASURE = (async (srcs) => {
         }
         let panelB = 214, pbc = 0;
         for (const [k, v] of bcnt) if (v > pbc) { pbc = v; panelB = k; }
-        const fill = (x, y) => { const p = at(x, y); return chroma(p) <= 12 && bright(p) >= panelB + 5 && bright(p) <= 250; };
+        // 🚨 타일을 '패널보다 밝은 **무채색**'으로 잡던 규칙은 `forge-list-frame-color`(2026-08-19,
+        //    프레임·면을 실제 등급색으로 칠함) 이후로 클론에서 깨진다 — 유채색이 된 타일이 조건에서
+        //    빠져 **30개 중 5개**만 잡히고, 그 5개의 간격이 열 피치로 읽혀 +18%CW 짜리 유령 FAIL 이 났다
+        //    (함정 ㉣ '자가 코드보다 낡은 프로브'). 색에 기대지 말고 **'패널 바탕이 아닌 덩어리'** 로
+        //    잡는다 — 원본(회색 타일)과 클론(등급색 타일)에 같은 코드가 그대로 성립한다.
+        const fill = (x, y) => { const p = at(x, y); return bright(p) >= panelB + 5 && bright(p) <= 252; };
         const raw = comps(fill, panel.x1, panel.y1, panel.x2, panel.y2).filter(t => t.n > 150);
         const mode = arr => { const m = new Map(); let bv = null, bc2 = 0; for (const v of arr) { const n = (m.get(v) || 0) + 1; m.set(v, n); if (n > bc2) { bc2 = n; bv = v; } } return bv; };
         const wm = mode(raw.map(t => t.x2 + 1 - t.x1)), hm = mode(raw.map(t => t.y2 + 1 - t.y1));
@@ -163,14 +168,48 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
     await page.waitForTimeout(500);
     const shot = await page.screenshot({ timeout: 180000 });
 
-    const [ref, clone] = await page.evaluate(MEASURE,
-        [dataUrl(REF_PNG), 'data:image/png;base64,' + shot.toString('base64')]);
+    const [ref] = await page.evaluate(MEASURE, [dataUrl(REF_PNG)]);
+    // 🚨 **클론은 픽셀 스캔을 쓰지 않는다(2026-08-19 교체).** 타일을 '패널보다 밝은 무채색'으로 잡던
+    //    규칙이 `forge-list-frame-color`(같은 날, 셀 프레임·면을 실제 등급색으로 칠함) 이후로 클론에서
+    //    깨졌다 — 유채색이 된 타일이 조건에서 빠져 **30개 중 5개**만 잡히고 그 5개의 간격이 열 피치로
+    //    읽혀 `열 피치 +18.29 · 1타일 좌 +17.91 · 1타일 상단 +20.78%CW` 짜리 **유령 FAIL 3건**이 났다
+    //    (함정 ㉣ '자가 코드보다 낡은 프로브'). 색을 안 보는 술어도 두 가지 시도했지만
+    //    ⑴ '패널 바탕이 아닌 덩어리'는 **원본** 쪽이 무너지고(23→14장, 타일 높이 8px)
+    //    ⑵ '패널보다 밝은(색 무시)'은 클론이 그대로 5장이다 — 등급색 면이 패널 회색보다 밝지 않다.
+    //    한 술어로 두 그림을 다 잡을 수 없으니, **클론만 DOM rect** 로 옮긴다(probe-tn-dom·
+    //    probe-affilter-dom 과 같은 규약: 원본 PNG 스캔 + 클론 DOM). 클론은 살아 있는 페이지라
+    //    rect 가 스캔보다 정확하고, 등급색이 또 바뀌어도 안 깨진다. 자(단위)는 그대로 흰 카드 폭이다.
+    const clone = await page.evaluate(() => {
+        const R = e => { const r = e.getBoundingClientRect(); return { x1: r.left, x2: r.right - 1, y1: r.top, y2: r.bottom - 1 }; };
+        const card = document.querySelector('#forge-info-modal .fl-card') || document.querySelector('.fl-card');
+        const grid = document.querySelector('.forge-item-grid');
+        const x = document.querySelector('#forge-info-modal .x-btn');
+        if (!card || !grid) return { err: '클론 카드/그리드 셀렉터 실패' };
+        const cardB = R(card), gridB = R(grid);
+        // 타일 = 원본에서 재는 '회색 정사각 채움'과 같은 것 = 셀 안의 면(.fl-face). 아래 % 글자는 뺀다.
+        const faces = [...grid.querySelectorAll('.fl-face')].map(R).sort((a, b) => (a.y1 - b.y1) || (a.x1 - b.x1));
+        if (!faces.length) return { err: '클론 타일(.fl-face) 없음' };
+        const row1 = faces.filter(t => Math.abs(t.y1 - faces[0].y1) <= 4).sort((a, b) => a.x1 - b.x1);
+        const col1 = faces.filter(t => Math.abs(t.x1 - row1[0].x1) <= 4).sort((a, b) => a.y1 - b.y1);
+        const med = arr => arr.length ? arr.slice().sort((a, b) => a - b)[arr.length >> 1] : null;
+        return {
+            W: window.innerWidth, H: window.innerHeight,
+            card: cardB, cw: cardB.x2 + 1 - cardB.x1,
+            panel: gridB,
+            tileW: med(faces.map(t => t.x2 + 1 - t.x1)), tileH: med(faces.map(t => t.y2 + 1 - t.y1)),
+            colPitch: row1.length >= 2 ? med(row1.slice(1).map((t, i) => t.x1 - row1[i].x1)) : null,
+            rowPitch: col1.length >= 2 ? med(col1.slice(1).map((t, i) => t.y1 - col1[i].y1)) : null,
+            t0: { x: row1[0].x1, y: row1[0].y1 },
+            row1N: row1.length, tileN: faces.length,
+            xbtn: x ? R(x) : null,
+        };
+    });
     if (ref.err || clone.err) {
         console.log('측정 실패:', ref.err || '', clone.err || '');
         await browser.close();
         process.exit(2);
     }
-    console.log(`\n장비 목록 본문(shot-042905) — 원본 ${ref.W}×${ref.H} 카드폭 ${ref.cw} vs 클론 ${clone.W}×${clone.H} 카드폭 ${clone.cw} · 같은 픽셀 코드`);
+    console.log(`\n장비 목록 본문(shot-042905) — 원본 ${ref.W}×${ref.H} 카드폭 ${ref.cw} vs 클론 ${clone.W}×${clone.H} 카드폭 ${clone.cw} · 원본=PNG 스캔 / 클론=DOM rect`);
     console.log(`원본 타일 ${ref.tileN}(1행 ${ref.row1N}) · 클론 타일 ${clone.tileN}(1행 ${clone.row1N}) — 개수는 내용 차이라 미판정(머리말)\n`);
     const pctCW = (m, v) => +(v / m.cw * 100).toFixed(2);
     const ROWS = [
