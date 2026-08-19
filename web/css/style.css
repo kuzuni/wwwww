@@ -956,6 +956,46 @@ body {
     0%        { transform: translateX(-130%); }
     58%, 100% { transform: translateX(150%); }
 }
+/* ---- 배치 카드판 (사용자 지시 2026-08-20 autoforge-cards-at-once) ----
+   망치 N개를 쓰면 카드 N장이 **한 번에** 뜬다. 종전 1장씩 순차 노출을 폐기한 자리다.
+   ⚠️ 카드마다 animation-delay 를 주지 말 것 — 그 시차가 곧 사용자가 물린 '1초에 1개씩'이다.
+   카드판 전체가 하나의 애니메이션으로 함께 떠오른다. 카드 몸통은 .auto-drop-card 와 같은
+   룩(해칭 배경·시대색 테·라운드)이되 위치가 모루 고정이 아니라 화면 중앙 그리드다. */
+.craft-batch {
+    position: absolute; inset: 0; z-index: 26; display: flex;
+    align-items: center; justify-content: center; pointer-events: auto;
+    background: rgba(0,0,0,.42); animation: cbfade .18s ease-out;
+}
+.craft-batch .cb-grid {
+    display: grid; grid-template-columns: repeat(var(--cbc, 4), 1fr);
+    gap: .5rem; padding: .8rem; max-width: 92%;
+    animation: cbpop .34s cubic-bezier(.18,.9,.28,1.06) forwards;
+}
+.craft-batch .cb-card {
+    position: relative; width: 3.7rem; height: 3.7rem;
+    background:
+        repeating-linear-gradient(45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),
+        repeating-linear-gradient(-45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),
+        color-mix(in srgb, var(--rc, #6b3538) 58%, #17181a);
+    --cellb: round(down, var(--ol3), 1px);
+    border: var(--cellb) solid color-mix(in srgb, var(--rc, #6b3538) 80%, #000);
+    border-radius: .7rem; padding: .2rem;
+    box-shadow: 0 .3rem .6rem rgba(0,0,0,.45);
+    container-type: inline-size;
+}
+/* 슬롯/모루 카드와 동일한 잉크 맞춤 — .adc-img 규칙을 그대로 물려받게 같은 선택자를 쓴다 */
+.craft-batch .cb-card .adc-img {
+    position: absolute; left: calc(-1 * var(--cellb, 3px)); top: calc(-1 * var(--cellb, 3px));
+    width: calc(100% + 2 * var(--cellb, 3px)); height: calc(100% + 2 * var(--cellb, 3px));
+    margin: 0; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));
+}
+.craft-batch .cb-card .adc-img.emoji { font-size: 76cqi; display: flex; align-items: center; justify-content: center; }
+@keyframes cbfade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cbpop {
+    0%   { opacity: 0; transform: scale(.74); }
+    62%  { opacity: 1; transform: scale(1.04); }
+    100% { opacity: 1; transform: scale(1); }
+}
 /* 모루 그림은 버튼 폭을 꽉 채운다. font-size(4.4rem)는 그대로 두는데, 타격 연출의 망치·링·불꽃이
    전부 em 단위로 이 값을 기준 삼기 때문이다 — 크기만 SVG로 넘기고 기준 글자 크기는 건드리지 않는다.
    높이는 viewBox 비율(132:86 = 원본 실측 1.41:1)대로 따라와 이모지 때(≈4.4rem)와 거의 같다. */

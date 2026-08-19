@@ -42,7 +42,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
         UI.setPendingCraft(made[0]);              // 첫 장 = 지금 팝업에 떠 있는 것
         for (let i = 1; i < made.length; i++) S.autoMatchQueue.push(made[i]);
         S.autoForgeOn = true;
-        UI._autoSeq = { inCycle: 4, stopAfterPick: false };   // 아직 카드가 남은 사이클 한복판
+        UI._autoSeq = { stopAfterPick: false };   // 자동 시퀀스 한복판 (배치화 후 inCycle 없음)
         UI.showCraftModal(made[0]);
         UI.renderEquipSheet();
         return { names: made.map(m => m.name), queue: S.autoMatchQueue.length };

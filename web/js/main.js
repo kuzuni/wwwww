@@ -210,7 +210,12 @@
             // 망치가 떨어져도 **아직 처리 안 한 통과분 큐가 남아 있으면 시퀀스를 죽이지 않는다**
             // (autoforge-show-all-cards 3차 사양: 카드 N장 뒤에 팝업 N개). 여기서 먼저 죽이면
             // 카드를 다 보여준 뒤 팝업이 한 번도 안 뜨고 배치가 끝난다(실측 확인).
-            if (S.hammers < 1 && !(Array.isArray(S.autoMatchQueue) && S.autoMatchQueue.length)) { UI.stopAutoSeq(); return; }
+            // ⚠️ **펴 놓은 카드판(S.autoBatch)도 같은 이유로 지켜야 한다** (autoforge-cards-at-once
+            //    2026-08-20): 배치는 망치를 **먼저 다 쓰고** 카드를 펴므로, 카드가 떠 있는 동안은
+            //    `hammers=0` 인데 통과분은 아직 큐로 안 갔다 — 이 줄이 그 창을 못 보면 카드판 한복판에서
+            //    시퀀스를 죽여 **팝업이 한 번도 안 뜬다**(실측: 순서가 PPPCCCCCCCCCC 로 뒤집혔다).
+            const batchUp = Array.isArray(S.autoBatch) && S.autoBatch.length;
+            if (S.hammers < 1 && !(Array.isArray(S.autoMatchQueue) && S.autoMatchQueue.length) && !batchUp) { UI.stopAutoSeq(); return; }
             if (!UI._autoSeq) UI.startAutoSeq(); else UI.autoSeqStep();
             // 열려 있는 플레이어 정보/장비 세부정보 팝업도 함께 갱신 — 안 그러면 오토포지 중 스탯이 멈춰 보임
             if (!UI.els.playerInfoModal.classList.contains('hidden')) UI.renderPlayerInfo();

@@ -842,6 +842,10 @@ const UI = {
     // 부팅 시 복원: 지난 세션이 선택하지 않고 떠난 제작품이 있으면 비교 팝업을 그대로 다시 띄운다.
     // (자동 판정으로 정리하지 않는 이유 — 선택은 사용자 몫이고, 강제 판정은 '내가 안 고른 장비가 팔렸다'가 된다)
     restorePendingCraft() {
+        // 카드판이 떠 있는 동안 새로고침·탭종료로 떠난 배치를 먼저 정리한다 — 해머는 이미 나갔으므로
+        // 그냥 두면 그 장비가 통째로 증발한다(이 항목의 지속성 난점 그 자체). 카드는 이미 지나간
+        // 연출이라 다시 띄우지 않고, 결과만 평소 규약대로 흘려보낸다(통과분은 큐 → 아래에서 팝업).
+        this.drainAutoBatch();
         const item = S.pendingCraft;
         if (!item || !item.slot) { this.openNextAutoMatch(); return; }   // 대기품이 없으면 큐에 남은 통과분부터
         this._pendingItem = item;
@@ -861,6 +865,9 @@ const UI = {
         // '나중에 내가 고른다'인데 탭을 옮겼다고 팔아 버리면 사용자가 고를 기회를 통째로 잃는다.
         // 아래 자동 판정이 원래 막으려던 것은 '엉뚱한 탭 위로 팝업이 새는 것'인데, 보류 모드는
         // 애초에 팝업을 자동으로 열지 않으므로(openNextAutoMatch) 팝업만 접어 두면 샐 곳이 없다.
+        // 카드판이 떠 있는 중에 탭을 옮겼다면 그 배치도 '아직 처리 안 된 제작품'이다 — 대기품·큐와
+        // 같은 기준으로 먼저 흘려보낸다(통과분은 큐로 들어가 아래 큐 처리에 그대로 얹힌다).
+        this.drainAutoBatch();
         if (S.autoMatchHeld) {
             this.cancelAnvilStrike();
             const hm = this.els.craftModal;
@@ -1440,7 +1447,7 @@ const UI = {
         // 자동 제련을 다시 켠 것은 '보류해 둔 것도 마저 처리하라'는 뜻이다 — 보류 모드를 풀어
         // 큐가 평소대로 팝업으로 흘러가게 한다 (autoforge-dim-hold-all 2026-08-19).
         S.autoMatchHeld = false;
-        this._autoSeq = { inCycle: 0, stopAfterPick: false };
+        this._autoSeq = { stopAfterPick: false };   // 사이클 잔량(inCycle)은 배치화로 없어졌다
         this.autoSeqStep();
     },
     stopAutoSeq() {
@@ -1475,76 +1482,64 @@ const UI = {
             this.renderTopBar();
             this.renderEquipSheet();
         }
-        // ①단계 계속 — 사이클에 남은 카드가 있으면 **큐(②단계)보다 먼저** 카드를 마저 보여준다.
-        // 이 순서가 곧 사용자가 요구한 "카드 N장 다 보여준 뒤에 팝업"이다.
-        if (seq.inCycle > 0 && !seq.stopAfterPick && S.hammers >= 1) { this.autoSeqCard(); return; }
-        // ②단계 — 이번 사이클에서 큐에 쌓인 통과분을 하나씩 비교 팝업으로 처리한다.
+        // ②단계 — 지난 배치에서 큐에 쌓인 통과분을 하나씩 비교 팝업으로 처리한다.
         if (this.openNextAutoMatch()) return;
         if (seq.stopAfterPick || S.hammers < 1) { this.stopAutoSeq(); return; }
-        if (seq.inCycle <= 0) {
-            // 새 사이클 — 망치질 애니 1회가 설정한 N개(남은 망치가 그보다 적으면 남은 만큼)를 소비한다.
-            seq.inCycle = Math.min(Math.max(1, Forge.autoForgeConfig().hammersPerBatch), S.hammers);
-            this._anvilBusy = true;
-            this.playAnvilStrike(() => { this._anvilBusy = false; this.autoSeqCard(); });
-            return;
-        }
-        // 위 ①단계 분기가 사이클 잔량을 이미 다 처리하므로 여기로는 오지 않는다(방어적 종료).
+        // ①단계 — 새 배치. 망치질 애니 1회 뒤 N개를 **한꺼번에** 제작해 카드 N장을 동시에 편다.
+        // (사용자 지시 2026-08-20 autoforge-cards-at-once: "10개 망치 썼으면 카드 10개 한 번에".
+        //  종전에는 여기서 사이클 잔량을 세어 `autoSeqCard()` 로 1장씩 흘렸다 — 그 순차가 지시로 폐기됐다.)
+        this._anvilBusy = true;
+        this.playAnvilStrike(() => { this._anvilBusy = false; this.autoSeqBatch(); });
     },
-    // 사이클 안의 한 개: 제작(망치 1 소비) → 카드 → 자동 판정(탈락) 또는 큐 적재(통과). 제작을 카드 직전에
-    // 하나씩 하는 이유는 대기품 슬롯이 1개(사용자 확정 2026-08-17)라서다 — 사이클치 N개를
-    // 미리 뽑아 두면 연출 도중 새로고침에 뽑힌 장비가 통째로 증발한다.
-    autoSeqCard() {
+    // 한 배치: 망치 N개를 **한 번에** 소비해 N개를 제작하고, N장을 한 화면에 동시에 보여준 뒤
+    // 규약대로 흘려보낸다(통과분 → 비교 팝업 큐, 탈락분 → 자동 판정).
+    // 🔑 **지속성이 이 항목의 핵심 난점이었다**: 대기품 슬롯(`S.pendingCraft`)은 1개뿐이라
+    //    N개를 미리 뽑으면 연출 도중 새로고침에 통째로 증발한다(그래서 종전엔 1개씩 뽑았다).
+    //    그래서 배치 전용 지속 배열 `S.autoBatch` 를 두고 **제작과 같은 저장에 묶어** 적재한다 —
+    //    카드가 떠 있는 동안 죽어도 해머와 장비가 같이 남고, 부팅 때 `drainAutoBatch` 가 이어 처리한다.
+    autoSeqBatch() {
         const seq = this._autoSeq;
         if (!seq || !S.autoForgeOn) return;
         if (S.hammers < 1) { this.stopAutoSeq(); return; }
-        seq.inCycle--;
-        const item = Forge.craft(1)[0];
-        if (!item) { this.stopAutoSeq(); return; }
-        this.setPendingCraft(item);   // 연출 도중 새로고침해도 결과물이 남게 (수동 제작과 같은 규약)
+        const n = Math.min(Math.max(1, Forge.autoForgeConfig().hammersPerBatch), S.hammers);
+        const items = Forge.craft(n);
+        if (!items.length) { this.stopAutoSeq(); return; }
+        S.autoBatch = items;
+        saveGame();                  // 해머 차감과 배치 적재를 같은 저장에 — 여기서 죽어도 둘 다 남는다
         this.renderTopBar();
-        // _anvilBusy는 망치질만이 아니라 **'제작 한 벌'이 끝날 때까지** 잡는다. 타격이 끝난 뒤
-        // 탈락 카드 노출(0.62초) 동안 풀어 두면, 그 사이 모루를 다시 누른 수동 제작이
-        // setPendingCraft로 대기품을 덮어써 **앞 장비가 해머만 먹고 판매도 안 된 채 사라졌다**
-        // (실측: 돌 반지 → 사냥꾼 허리띠로 교체되고 돌 반지는 코인으로도 회수되지 않음).
-        // 통과분은 비교 팝업이 뜨는 순간부터 팝업 자신이 재클릭을 막으므로 거기서 푼다.
+        // 카드가 걷힐 때까지 모루를 잠근다 — 그 사이 수동 제작이 끼어들면 대기품이 덮인다(종전과 같은 이유).
         this._anvilBusy = true;
-        {
-            // 예전엔 '장착 중인 것과 같은 장비 = 승천 재료'라 필터와 무관하게 팝업으로 보여줬지만,
-            // 개별 장비 승천이 라인 승천으로 대체되면서 중복 장비는 일반 판매다(forge.js:isMatchingGear 메모).
-            // 남겨 두면 중복이 뽑힐 때마다 배치가 팝업에서 멈추는 원인만 된다 — 목표 판정만 본다.
-            const keep = Forge.passesAutoFilter(item);
-            if (keep) {
-                // 필터(목표)를 통과하면 **자동 장착하지 않고 비교 팝업으로 사용자에게 선택을 넘긴다**
-                // (사용자 재지적 2026-08-18: "필터링 잘돼서 해당되면 비교팝업이 떠야 하는데 자동장착을
-                //  해버린다"). 다만 팝업은 **여기서 띄우지 않는다** — 3차 재지적(2026-08-19) 사양대로
-                // 리빌 카드만 보여주고 큐에 쌓아 두었다가, 사이클 카드 N장이 다 지나간 뒤(②단계)
-                // 몰아서 하나씩 처리한다. 그래야 "망치질 → 카드 10장 → 팝업 10개" 순서가 된다.
-                // stopOnTarget('목표 찾으면 제련 계속하기' 체크 해제)이면 이 통과분이 배치의 마지막이 되어
-                // 남은 망치는 쓰지 않는다(카드 단계를 여기서 끝내고 팝업으로 간 뒤 정지).
-                if (Forge.autoForgeConfig().stopOnTarget) seq.stopAfterPick = true;
-                this.showCraftReveal(item, () => {
-                    this._anvilBusy = false;
-                    if (this._pendingItem !== item) { this.autoSeqStep(); return; }
-                    this.queueAutoMatch(item);   // 대기품 슬롯 → 큐 (팝업은 카드가 다 끝난 뒤)
-                    this.renderEquipSheet();
-                    this.autoSeqAdvance();
-                });
-                return;
-            }
-            // 탈락(필터 제외 또는 목표 미설정) — 무엇이 나왔는지 카드로 잠깐 보여준 뒤 자동 판정한다.
-            // 목표를 하나라도 켰으면 판매(autoDispose), 아무 목표도 없으면 강한 건 장착·나머지 판매.
-            this.showAutoDropCard(item, () => {
-                this._anvilBusy = false;
-                const it = this.clearPendingCraft();
-                if (!it) { this.autoSeqAdvance(); return; }
+        this.showCraftBatch(items, () => {
+            this._anvilBusy = false;
+            this.drainAutoBatch();
+            this.autoSeqAdvance();
+        });
+    },
+    // 배치 결과를 규약대로 흘려보낸다 — 카드가 걷힌 뒤, 그리고 부팅/탭전환 복원에서도 같은 규칙.
+    // **`S.autoBatch` 를 비우는 곳은 여기 하나뿐이다**(경로가 둘이면 한쪽만 고쳐지는 사고가 난다).
+    drainAutoBatch() {
+        const batch = Array.isArray(S.autoBatch) ? S.autoBatch.splice(0) : [];
+        S.autoBatch = null;
+        if (!batch.length) return 0;
+        let gained = 0, sold = 0;
+        for (const it of batch) {
+            if (!it || !it.slot) continue;              // 손상 세이브 방어
+            if (Forge.passesAutoFilter(it)) {
+                // 목표 통과분은 자동 장착하지 않고 비교 팝업 큐로 넘긴다(사용자 재지적 2026-08-18).
+                if (Forge.autoForgeConfig().stopOnTarget && this._autoSeq) this._autoSeq.stopAfterPick = true;
+                this.queueAutoMatch(it);               // saveGame 포함
+            } else {
                 const r = this.autoDispose(it);
-                if (!r.equipped) this.coinBurst(r.gained);   // 처리 토스트 생략(autoforge-toast-suppress)
-                this.renderTopBar();
-                this.renderEquipSheet();
-                saveGame();
-                this.autoSeqAdvance();
-            });
+                if (!r.equipped) { gained += r.gained || 0; sold++; }
+            }
         }
+        // 코인 연출은 배치당 한 번으로 합친다 — 장당 터뜨리면 10장에서 화면이 코인으로 덮인다.
+        // (처리 토스트는 생략 규약 그대로 — autoforge-toast-suppress)
+        if (sold) this.coinBurst(gained);
+        this.renderTopBar();
+        this.renderEquipSheet();
+        saveGame();
+        return batch.length;
     },
     // '목표 아님'으로 판정된 장비의 처리. 반환은 Forge.autoResolve와 같은 { equipped, gained }.
     // 유지 시대·필터를 하나라도 켜 뒀으면 그건 명시적 의사표시라 탈락품을 그대로 판매한다
@@ -1592,6 +1587,29 @@ const UI = {
         if (!el) { done(); return; }
         SFX.craftReveal(AGES.indexOf(item.age));
         setTimeout(() => { el.remove(); done(); }, this.REVEAL_CARD_MS);
+    },
+    // 배치 카드판 — 망치 N개로 뽑은 N장을 **한 화면에 동시에** 편다 (사용자 지시 autoforge-cards-at-once:
+    // "10개 망치 썼으면 카드 10개 한 번에 보여달라니까. 1초에 1개씩 10개 보여주고 지랄이냐").
+    // ⚠️ 장마다 등장 시차를 주지 않는다 — 아무리 짧아도 그게 사용자가 물린 '순차로 뜬다'의 정체다.
+    //    전부 같은 애니메이션을 같은 시각에 시작한다(카드판 전체가 한 번에 뜬다).
+    CRAFT_BATCH_MS: 1600,
+    showCraftBatch(items, done) {
+        const host = document.getElementById('app');
+        if (!host || !items || !items.length) { done(); return; }
+        const wrap = document.createElement('div');
+        wrap.className = 'craft-batch';
+        // 열 수는 장수로 정한다 — 10장이면 4열(3행)이 430px 폭에 들어간다(실측 shot-autoforge-batch).
+        wrap.style.setProperty('--cbc', items.length <= 4 ? items.length : items.length <= 9 ? 3 : 4);
+        wrap.innerHTML = `<div class="cb-grid">${items.map(it =>
+            `<div class="cb-card" style="--rc:${this.ageHex(it.age)}">${this.itemImgHTML(it, 'adc-img cell-img')}</div>`
+        ).join('')}</div>`;
+        host.appendChild(wrap);
+        this.fitThumbs(wrap);
+        SFX.craftReveal(AGES.indexOf(items[0].age));
+        let done1 = false;
+        const finish = () => { if (done1) return; done1 = true; clearTimeout(t); wrap.remove(); done(); };
+        wrap.addEventListener('click', finish);        // 눌러서 바로 넘기기 (기다리기 싫은 사용자용)
+        const t = setTimeout(finish, this.CRAFT_BATCH_MS);
     },
 
     // ---- 대장간 팝업 3종 (UI-SPEC 21~24번): ① 확률 정보 ② 전체 장비 목록 ③ 장비 상세 ----

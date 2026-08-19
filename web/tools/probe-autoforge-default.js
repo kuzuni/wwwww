@@ -87,7 +87,11 @@ async function until(page, fnSrc, ms = 30000) {
     //      목표가 족족 뽑히면 **자동 장착하지 말고 비교 팝업으로 사용자 선택을 받아야 한다**("해당되면
     //      비교팝업이 떠야 하는데 자동장착을 해버린다"). 정지 미설정(기본값)이면 망치 10개 = 카드 10회 ·
     //      팝업 10회 · 배치 완주가 된다. **순서는 3차 재지적이 최종**: 카드 10장을 먼저 다 보여준 뒤에야
-    //      팝업이 시작돼야 한다(카드↔팝업 교차 = 사용자가 세 번 틀렸다고 한 그 동작). ----
+    //      팝업이 시작돼야 한다(카드↔팝업 교차 = 사용자가 세 번 틀렸다고 한 그 동작).
+    //      ⚠️ **4차(autoforge-cards-at-once 2026-08-20)로 '카드 10장'의 뜻이 바뀌었다**: 종전엔
+    //      `buildCraftCard` 10회(1장씩 순차)였지만 이제 카드판 1개에 10장이 **동시에** 뜬다.
+    //      그래서 카드 수는 호출 횟수가 아니라 **카드판이 편 장수**로 센다. '카드가 다 나온 뒤 팝업'
+    //      이라는 순서 계약 자체는 그대로 살아 있다(C 10개 뒤 P 10개). ----
     const rb = await page.evaluate(async () => {
         S.autoForge.keepAges = AGES.slice();     // 뽑는 족족 목표 — 재지적 당시 사용자 설정의 유력 경로
         S.autoForge.stopOnTarget = false; S.autoForge.hammersPerBatch = 10;
@@ -97,8 +101,9 @@ async function until(page, fnSrc, ms = 30000) {
         UI._probeCraftOpens = 0;
         window.__cards = 0;
         window.__order = '';                     // 카드/팝업이 실제로 난 순서 (C=카드, P=팝업)
-        const orig = UI.buildCraftCard;
-        UI.buildCraftCard = function (item, cls) { window.__cards++; window.__order += 'C'; return orig.call(this, item, cls); };
+        const orig = UI.showCraftBatch;
+        // 카드판 한 번 = 그 안의 장수만큼 카드가 '동시에' 났다 — 순서 문자열에도 그만큼 C 를 적는다.
+        UI.showCraftBatch = function (items, done) { window.__cards += items.length; window.__order += 'C'.repeat(items.length); return orig.call(this, items, done); };
         const origModal = UI.showCraftModal;
         UI.showCraftModal = function (item) { window.__order += 'P'; return origModal.call(this, item); };
         const h0 = S.hammers;
@@ -108,15 +113,15 @@ async function until(page, fnSrc, ms = 30000) {
             if (!UI.els.craftModal.classList.contains('hidden')) UI.doResolveCraft('sell');
             await new Promise(r => setTimeout(r, 50));
         }
-        UI.buildCraftCard = orig;
+        UI.showCraftBatch = orig;
         UI.showCraftModal = origModal;
         return { spent: h0 - S.hammers, cards: window.__cards, opens: UI._probeCraftOpens, on: S.autoForgeOn, order: window.__order };
     });
     ok(!rb.on && rb.spent === 10 && rb.cards === 10 && rb.opens === 10,
-        `목표가 뽑히면 팝업으로 받고(자동장착 금지) 처리하면 이어져 망치 10개 = 카드 10회 = 팝업 10회여야 한다 (소모 ${rb.spent} · 카드 ${rb.cards} · 팝업 ${rb.opens}회 · 진행중 ${rb.on})`);
+        `목표가 뽑히면 팝업으로 받고(자동장착 금지) 처리하면 이어져 망치 10개 = 카드 10장 = 팝업 10회여야 한다 (소모 ${rb.spent} · 카드 ${rb.cards}장 · 팝업 ${rb.opens}회 · 진행중 ${rb.on})`);
     ok(rb.order === 'C'.repeat(10) + 'P'.repeat(10),
-        `②-b 순서(3차 사양) — 카드 10장을 다 보여준 **뒤에** 팝업 10개가 와야 한다. 실측 순서: ${rb.order}`);
-    console.log(`②-b 유지 시대 ON + 기본값 — 망치 ${rb.spent}개 = 카드 ${rb.cards}회 = 비교 팝업 ${rb.opens}회 · 순서 ${rb.order}`);
+        `②-b 순서 — 카드 10장을 (한 번에) 다 보여준 **뒤에** 팝업 10개가 와야 한다. 실측 순서: ${rb.order}`);
+    console.log(`②-b 유지 시대 ON + 기본값 — 망치 ${rb.spent}개 = 카드 ${rb.cards}장(동시) = 비교 팝업 ${rb.opens}회 · 순서 ${rb.order}`);
 
     // ---- ③ 유지 시대 + '목표를 찾으면 정지' ON → 목표는 비교 팝업으로 (거기서 정지) ----
     const c = await page.evaluate(async () => {
