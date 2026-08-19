@@ -176,7 +176,7 @@ body {
 .ob-zzz i {
     position: absolute; left: 0; bottom: 0; font-style: normal;
     font-size: .78rem; font-weight: 900; color: #eaf6ff;
-    -webkit-text-stroke: 2.5px #17181a; paint-order: stroke fill;
+    -webkit-text-stroke: 2.5px #000; paint-order: stroke fill;
     opacity: 0; animation: ob-zzz 2.7s ease-out infinite;
 }
 .ob-zzz i:nth-child(2) { animation-delay: .9s; }
@@ -516,7 +516,7 @@ body {
 /* 장착 슬롯: 스킬 화면 오브와 동일 문법 — 등급색 배경+어두운 외곽+내부 하이라이트, 빈 슬롯만 검정 (사용자 지시) */
 .skill-btn {
     position: relative; width: 2.9rem; height: 2.9rem; border-radius: 50%;
-    border: var(--ol3) solid #17181a; background: var(--rc, #11151a); color: #eceff1;
+    border: var(--ol3) solid #000; background: var(--rc, #11151a); color: #eceff1;
     font-weight: 700; cursor: pointer; overflow: hidden; padding: 0;
     display: flex; align-items: center; justify-content: center;
     box-shadow: inset 0 -.2rem 0 rgba(0,0,0,.25);
@@ -748,7 +748,7 @@ body {
 }
 /* 원본(shot-042120)의 하늘색 2칸 탈것 셀 — 색·배치는 원본 유지, 민무늬 플랫은 '목업 버튼'으로 읽혀(비평가 7.1 8번) 광택 그라디언트+엣지 하이라이트로 입체화 */
 .equip-cell.egg-cell {
-    grid-column: span 2; aspect-ratio: auto; border-color: #17181a;
+    grid-column: span 2; aspect-ratio: auto; border-color: #000;
     background:
         linear-gradient(180deg, rgba(255,255,255,.32) 0, rgba(255,255,255,.1) 26%, rgba(0,0,0,0) 55%, rgba(0,0,0,.14) 100%),
         radial-gradient(120% 90% at 50% 108%, rgba(2,60,105,.28) 0, rgba(2,60,105,0) 60%),
@@ -898,7 +898,7 @@ body {
 .anvil-btn.held-slot .held-tag {
     position: absolute; top: -.5rem; left: 50%; transform: translateX(-50%);
     background: #f0a020; color: #17181a; font-size: .6rem; font-weight: 900;
-    border-radius: .5rem; padding: 0 .35rem; border: var(--ol2) solid #17181a;
+    border-radius: .5rem; padding: 0 .35rem; border: var(--ol2) solid #000;
 }
 .anvil-btn.held-slot .held-img { width: 2.1rem; height: 2.1rem; margin: 0; }
 .anvil-btn.held-slot .held-name {
@@ -2443,7 +2443,7 @@ body {
     font-size: 1.48rem; width: 2.4rem; color: #fff;
     /* 외곽선은 **em** 이다 — 긴 라벨은 `UI.fitLeagueRankLabels()` 가 font-size 를 줄여 칸에 맞추는데,
        rem 으로 두면 줄어든 글자에 원래 두께의 테두리가 남아 글자가 검게 뭉친다. .16rem/1.48rem = .108em. */
-    -webkit-text-stroke: .108em #17181a; paint-order: stroke fill;
+    -webkit-text-stroke: .108em #000; paint-order: stroke fill;
 }
 /* 1~3위 배지 — 아이콘 위에 흰 숫자를 겹친다. 숫자를 흐름에 두면 배지 옆에 붙어 칸이 넓어지므로
    배지만 흐름에 남기고 숫자는 absolute 로 덮는다(칸 폭 2.4rem 고정을 지킨다 = 비율 감사 통과선). */
@@ -2454,7 +2454,7 @@ body {
     position: absolute; left: 0; right: 0; top: 55%; transform: translateY(-50%);
     font-size: 1.22rem; font-weight: 900; color: #fff; line-height: 1;
     /* 원본 숫자는 흰 글자에 검정 외곽선 — 배지 색이 어두워도 밝아도 읽힌다 */
-    -webkit-text-stroke: .16rem #17181a; paint-order: stroke fill;
+    -webkit-text-stroke: .16rem #000; paint-order: stroke fill;
 }
 .league-tier-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .22rem .45rem; flex: 1; font-size: .74rem; font-weight: 800; color: var(--pp-ink); }
 /* 흰 표 안의 보상 pill — 원본 실측 **#bdbdbd**(클론 #d9d9d9 는 28단계 밝아 흰 바탕에 거의 묻혔다). */
@@ -3220,7 +3220,7 @@ body {
 .chat-share-label {
     position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--app-w) * -.020);
     font-weight: 900; font-size: .78rem; color: #ff880f; white-space: nowrap;
-    -webkit-text-stroke: var(--ol2) #17181a; paint-order: stroke fill;
+    -webkit-text-stroke: var(--ol2) #000; paint-order: stroke fill;
 }
 /* 원본 공유 배지는 17×14px(3.41×2.81%W) 각진 파란 칩이고 우끝이 시간 텍스트 우끝(89.78%W)과 정렬된다 */
 /* 원본(shot-043500) 실측: 배지 바깥 상자 x430..448 · y548..566 = **19×19 정사각**(3.81%W).
@@ -3264,7 +3264,19 @@ body {
 :root {
     --pp-paper: #fff;          /* 팝업 바탕 */
     --pp-ink: #17181a;         /* 본문 글자 */
-    --pp-line: #17181a;        /* 외곽선 (원본은 굵은 검정) */
+    /* 외곽선 — **순검정**. 주석은 처음부터 "원본은 굵은 검정"이라 적어 뒀는데 값은 #17181a(23,24,26)
+       였다. 2026-08-19 UI 스트림이 `tools/probe-keyline-ink-ref.js`(신설) 로 원본 30장 + 클론 31장의
+       '밝은 바탕 위 가로 어두운 선' 잉크를 census 해서 확정: **원본은 rgb(0,0,0)이 최빈(147개)이고
+       순검정(최대채널 ≤8) 비율 49.8%, 클론은 rgb(23,24,26)이 378개로 순검정 2.0%.** 두 집합에
+       공통으로 있는 회색 잉크 rgb(50,49,50)/rgb(53,53,53)이 대조군 역할을 해서(원본 102 ↔ 클론 71)
+       측정기가 같은 모집단을 본다는 것까지 확인했다. 화풍 ⓕ-㉱('청키한 검정 테두리')와도 같은 방향.
+       ⚠️ 본문 글자 `--pp-ink` 는 안 건드렸다 — 이 census 는 **선**만 쟀지 글자 잉크는 안 쟀다.
+       ⚠️ 토큰을 안 쓰고 `#17181a` 를 직접 박아 둔 **외곽선 10군데**(글자 text-stroke 7 + border 3)도
+       같이 순검정으로 돌렸다. 근거는 이 census 가 아니라(글자 획은 12%W 문턱에 안 걸려 안 잡힌다)
+       **공통 ⓐ-3 메모의 원본 실측** — "원본 [판매]/[장착] 글자는 흰 코어를 **순검정**이 빙 두른 꼴"
+       (shot-043224 확대). 그 자리들의 주석도 전부 '검정 외곽선'이라 적혀 있었는데 값만 어긋나 있었다.
+       배경으로 쓰는 `background: #17181a` 는 선이 아니므로 그대로 뒀다. */
+    --pp-line: #000;
     --pp-panel: #efefef;       /* 팝업 안 회색 패널 */
     --pp-muted: #8a8a8a;       /* 보조 글자 */
     --tabbar-h: 5rem;          /* 하단 탭바 높이 = 원본 실측 9.42~9.57%H (앱 높이 52.75rem 기준 5rem = 9.48%) */
@@ -4151,7 +4163,7 @@ body {
    글리프 안쪽 여백에도 들어간다 → `paint-order: stroke fill` 로 흰 코어를 안 먹는 2px 스트로크. */
 .hatch-cell .hatch-time {
     position: relative; z-index: 1; font-size: .87rem; font-weight: 900; color: #fff; white-space: nowrap;
-    -webkit-text-stroke: var(--ol3) #17181a; paint-order: stroke fill;
+    -webkit-text-stroke: var(--ol3) #000; paint-order: stroke fill;
 }
 /* 젬 스킵 필을 흐름에서 빼 칸 우상단 오버레이로 — 원본(042445) 칸은 타이머가 맨 아래(79.3%H)인데
    필이 타이머 밑 흐름에 있으면 타이머가 76.0%H 로 3%p 위로 밀린다(전수 검증 채점 2차 2인 공통,
@@ -4184,7 +4196,7 @@ body {
 /* 흰 글자는 밴드 위에 바로 얹힌다 — 상자·테두리 없음. 타이머와 같은 검정 테 규약. */
 .slot-buy-label {
     font-size: .87rem; font-weight: 900; color: #fff; white-space: nowrap; line-height: 1;
-    -webkit-text-stroke: var(--ol3) #17181a; paint-order: stroke fill;
+    -webkit-text-stroke: var(--ol3) #000; paint-order: stroke fill;
 }
 .hatchery .slot-buy {
     flex: none; display: flex; align-items: center; justify-content: center;
@@ -4641,7 +4653,7 @@ body {
     box-shadow: inset 0 -.52rem 0 var(--pp-blue-dk), inset 0 .1rem 0 rgba(255,255,255,.42),
                 0 .22rem .5rem rgba(20,60,140,.4);
     /* 원본과 같은 사방 검정 아웃라인 + 아래 그림자 — 아웃라인은 스트로크로(4방향 그림자는 곡선에서 뭉개짐, ⓖ) */
-    -webkit-text-stroke: 4px #17181a; paint-order: stroke fill;
+    -webkit-text-stroke: 4px #000; paint-order: stroke fill;
     text-shadow: 0 .16rem 0 rgba(0,0,0,.45);
 }
 
