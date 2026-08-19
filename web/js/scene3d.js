@@ -12966,7 +12966,12 @@ const Scene3D = {
                 g.add(flank);
             }
             // 이끼 패치 — 납작한 큐브 판(구를 눌러 만들던 것). 바위 위에 얹힌 이끼는 원래 판이다.
-            const mossM = new THREE.MeshLambertMaterial({ color: 0x5e7d3a, vertexColors: true, flatShading: true });
+            // 🚨 **`MeshLambertMaterial` 에 `vertexColors` 를 걸면 이 씬에서 새까맣게 렌더된다(실측).**
+            //    버섯 반점(흰 큐브)이 검은 슬래브로 나오던 것이 이것이었다 — Lambert → Standard 로
+            //    바꾸자 그 자리에서 흰색이 됐다(다른 변경 없음). 종전 코드가 Lambert 를 쓴 건
+            //    `vertexColors` 가 없던 시절이라 문제가 없었던 것이고, voxel 전환은 정점 색이 필수다.
+            //    → **voxel 파츠의 재질은 `MeshStandardMaterial`(또는 무조명 `MeshBasicMaterial`)로 통일한다.**
+            const mossM = new THREE.MeshStandardMaterial({ color: 0x5e7d3a, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.9 });
             for (const [mx, my, mz, mr] of [[-0.14, 0.95, 0.1, 2], [0.2, 0.52, 0.2, 1.6], [0.05, 1.13, -0.05, 1.7]]) {
                 const moss = vx(Voxel.ellipse(mr, mr, 1, {}), { material: mossM, color: 0xffffff, center: true, ao: 0.5 });
                 moss.position.set(mx, my, mz);
@@ -13241,96 +13246,94 @@ const Scene3D = {
             for (const s of [-1, 1]) aoRing(0.099, 0.026, s * 0.155, 0.63, 0, { flat: 0.6, op: 0.42 });
             anim.fly = true; topY = 1.0;
         } else if (kind === 'mushroom') {
-            // 통통한 줄기 라테 + 갓 그룹(돔+테두리 립+반점+주름 프릴) + 밑동 발
-            const stemM = lam(base.clone().offsetHSL(0.015, -0.16, 0.24), ProChar.hideTex()); // 웜 크림 줄기 — 무채색 회백 미완성 오독 제거
+            // 🧊 **voxel 전환 3종째** (화풍 확정 2026-08-20). 통통한 줄기 + 갓 그룹 + 밑동 발.
+            //    ⚠️ 부위 목록·비례·애니 훅(`capFlap`)·AO 자리는 그대로 옮긴다.
+            // 🚨 **`sculptOrganic`(저진폭 유기 변형)을 통째로 뺐다 — 되돌리지 말 것.** 그건
+            //    '완전구 실루엣을 깨라'(ⓒ)는 지적의 **매끈 조형 시절 해법**이다. 복셀 계단은
+            //    구를 애초에 안 만들므로 같은 문제를 구조적으로 없앤다. 유기 변형을 다시 걸면
+            //    칸이 격자에서 밀려나 **면이 축정렬을 잃는다** = 화풍 위반이다.
+            const stemM = lam(base.clone().offsetHSL(0.015, -0.16, 0.24)); // 웜 크림 줄기 — 무채색 회백 미완성 오독 제거
+            stemM.vertexColors = true; stemM.flatShading = true;
+            const gv = (r) => r / VS;
             const stemProf = [[0.15, 0], [0.12, 0.1], [0.1, 0.22], [0.13, 0.32], [0.16, 0.38]];
-            const stem = mk(new THREE.LatheGeometry(stemProf.map(p => new THREE.Vector2(p[0], p[1])), 10), stemM);
+            const stem = vx(Voxel.revolve(stemProf.map(p => [gv(p[0]), gv(p[1])])), { material: stemM, color: 0xffffff });
             g.add(stem);
-            for (const s of [-1, 1]) { // 밑동 스터비 발
-                const foot = mk(new THREE.SphereGeometry(0.06, 8, 6), stemM);
-                foot.position.set(s * 0.09, 0.03, 0.1); foot.scale.set(0.9, 0.5, 1.4);
+            for (const s of [-1, 1]) { // 밑동 스터비 발 — 눌린 구 → 납작한 큐브 패드
+                const foot = vx(Voxel.ellipsoid(1.2, 0.6, 1.8), { material: stemM, color: 0xffffff, center: true });
+                foot.position.set(s * 0.09, 0.03, 0.1);
                 g.add(foot);
             }
             const capG = new THREE.Group(); // 갓 전체가 한 그룹으로 출렁임
             capG.position.y = 0.44;
             capG.rotation.x = -0.16; // 갓을 뒤로 젖혀 게임 카메라(전방 상단)에서 얼굴 가시성 확보 (비평가 지적)
-            const capM = lam(new THREE.Color(0xc9402e), ProChar.hideTex()); // 절대 지정 시그니처 레드 갓 — 파생색은 태양광에 살구색으로 씻김 (비평가 지적)
-            capM.side = THREE.DoubleSide; // 열린 반구 그림자 구멍 방지 — 단면 셸은 그림자 맵에 초승달 구멍('소용돌이 그림자' 아티팩트)을 냄
-            // ⓒ **갓 실루엣 깨기** — 이 종에서 마지막까지 남아 있던 완전 프리미티브다(앞 세션들이
-            //    '갓 돔이 이 종의 실루엣 대부분'이라 일부러 미뤄 둔 자리). 골렘에서 얻은 결론이
-            //    그대로 적용된다: **깨야 하는 건 면 음영이 아니라 실루엣**이다 — 구는 어떤
-            //    플랫셰이딩을 걸어도 윤곽이 완전한 원이라 '플라스틱 우산'으로 읽힌다.
-            //    각지게 깎는 `boulderGeo` 는 돌의 자라 버섯에 걸면 '수정 버섯'이 된다 → 살·갓에는
-            //    저진폭 유기 변형(`sculptOrganic`)이 정답(늑대에서 세운 규약 그대로).
-            const domeGeo = this.sculptOrganic(new THREE.SphereGeometry(0.32, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), 21, { amp: 0.11 });
-            const dome = mk(domeGeo, capM);
-            dome.scale.set(1, 0.82, 1);
-            const lip = mk(this.sculptOrganic(new THREE.TorusGeometry(0.29, 0.05, 8, 16), 22, { amp: 0.08 }), lam(base.clone().offsetHSL(0, 0.15, -0.16), ProChar.hideTex()));
-            lip.rotation.x = Math.PI / 2; lip.position.y = 0.015;
-            const frill = mk(new THREE.CylinderGeometry(0.28, 0.2, 0.06, 12, 1, true), light); // 갓 아래 주름살
-            frill.material.side = THREE.DoubleSide;
+            const capM = lam(new THREE.Color(0xc9402e)); // 절대 지정 시그니처 레드 갓 — 파생색은 태양광에 살구색으로 씻김 (비평가 지적)
+            capM.vertexColors = true; capM.flatShading = true;
+            // 계단형 돔 — 반구 대체. 꼭대기가 납작하게 남는데 **버섯 갓은 원래 그렇다**(반구가 아니다).
+            const domeVox = Voxel.dome(gv(0.32), 5);
+            const dome = vx(domeVox, { material: capM, color: 0xffffff });
+            const lipM = lam(base.clone().offsetHSL(0, 0.15, -0.16));
+            lipM.vertexColors = true; lipM.flatShading = true;
+            const lip = vx(Voxel.ring(gv(0.34), 2, 2), { material: lipM, color: 0xffffff, center: true });
+            lip.position.y = 0.015;
+            const frillM = light.clone(); frillM.vertexColors = true; frillM.flatShading = true;
+            const frill = vx(Voxel.taper(gv(0.2), gv(0.28), 1, undefined, { t: 1 }), { material: frillM, color: 0xffffff, center: true }); // 갓 아래 주름살
             frill.position.y = -0.02;
             capG.add(dome, lip, frill);
-            const spotM = new THREE.MeshLambertMaterial({ color: 0xfff8ec });
-            // 흰 반점을 갓 '상단' 곡면에 구면좌표로 앵커 — 정면 하단 배치가 몸통 반점으로 오독됨 (비평가 지적)
-            // 🚨 반점 반경을 **상수 0.32 로 두면 안 된다** — 갓을 유기 변형한 순간 그 값은 더 이상
-            //    표면이 아니라, 오목한 쪽에서는 반점이 갓 **속으로 파묻히고** 볼록한 쪽에서는
-            //    허공에 뜬다(이 저장소가 호랑이 줄무늬·멧돼지 갈기에서 반복해 밟은 그 함정이다).
-            //    그래서 방향마다 **변형된 갓의 실제 반경을 표본으로 뽑아** 거기에 얹는다.
-            const dpos = domeGeo.attributes.position;
-            const domeR = (dx, dy, dz) => {
-                let best = -2, bestR = 0.32;
-                for (let i = 0; i < dpos.count; i++) {
-                    const vx = dpos.getX(i), vy = dpos.getY(i), vz = dpos.getZ(i);
-                    const len = Math.hypot(vx, vy, vz);
-                    if (len < 1e-6) continue;
-                    const d = (vx * dx + vy * dy + vz * dz) / len;
-                    if (d > best) { best = d; bestR = len; }
-                }
-                return bestR;
-            };
-            for (const [th, ph, sr] of [[0.3, 1.4, 0.055], [0.55, 2.35, 0.05], [0.52, 0.55, 0.045], [0.85, 1.85, 0.048], [0.82, 0.6, 0.038], [0.62, -2.0, 0.04]]) {
-                const spot = mk(new THREE.SphereGeometry(sr, 8, 6), spotM);
-                const ux = Math.sin(th) * Math.cos(ph), uy = Math.cos(th), uz = Math.sin(th) * Math.sin(ph);
-                const rr = domeR(ux, uy, uz) * 0.97; // 살짝 파묻음
-                const sx2 = ux * rr, sz2 = uz * rr, sy2 = uy * rr * 0.82;
-                spot.position.set(sx2, sy2, sz2);
-                spot.scale.z = 0.45;
-                spot.lookAt(sx2 * 2, sy2 * 2.4, sz2 * 2); // 갓 법선 방향으로 눕힘
+            const spotM = new THREE.MeshStandardMaterial({ color: 0xfff8ec, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.8 });
+            // 흰 반점 — 갓 '상단'에 얹는다(정면 하단 배치는 몸통 반점으로 오독됨, 비평가 지적).
+            // 🚨 **복셀에서 '표면에 얹는다'의 정의는 "그 열(column)의 맨 위 칸 바로 위"다 — 방향
+            //    벡터로 반지름을 재던 종전 방식은 여기서 무너진다.** 매끈 갓은 구라 원점에서 표면까지의
+            //    거리가 어느 방향이나 비슷했지만, 계단 돔은 **테두리 0.32 vs 정수리 0.22** 로 크게 갈린다.
+            //    그 거리를 반지름으로 쓰면 위쪽 방향의 반점들이 전부 안쪽으로 당겨져 **정수리에 한
+            //    덩이로 뭉친다**(실측: 캡처에서 갓 위에 슬래브 하나가 얹힌 그림이 나왔다 — 수치
+            //    게이트는 전부 통과였다). 상수 반경 함정(호랑이 줄무늬)의 복셀판이고, 답은 더 간단하다:
+            //    **복셀 목록에서 열별 최고 칸을 뽑아 그 위에 큐브를 얹는다.** 뜰 수도 파묻힐 수도 없다.
+            // ⚠️ 반점은 **한 칸짜리 흰 큐브**다(마인크래프트 버섯이 그렇다). 매끈한 구를 얹으면
+            //    갓만 큐브고 반점은 아닌 조형이 된다.
+            const colTop = {};
+            for (const v of domeVox) {
+                const k = v.x + ',' + v.z;
+                if (colTop[k] === undefined || v.y > colTop[k]) colTop[k] = v.y;
+            }
+            for (const [cxi, czi] of [[-4, 2], [3, 3], [1, -4], [-3, -3], [5, 0], [0, 5]]) {
+                const t = colTop[cxi + ',' + czi];
+                if (t === undefined) continue;   // 갓 밖 열 — 얹을 자리가 없다
+                const spot = vx(Voxel.box(1, 1, 1), { material: spotM, color: 0xffffff, center: true, ao: 0, jitter: 0 });
+                spot.position.set(cxi * VS, (t + 1) * VS, czi * VS);
+                // 🚨 판정기(`probe-enemy-cap-silhouette` ⑵)가 반점을 **`geometry.type === 'SphereGeometry'`**
+                //    로 찾고 있었다 — 복셀은 BufferGeometry 라 그대로 두면 **0개를 찾아 `every` 가
+                //    빈 배열에 참을 주고 게이트가 조용히 통과**한다. 표식을 심어 그 구멍을 막는다.
+                spot.userData.capSpot = true;
                 capG.add(spot);
             }
             g.add(capG);
             for (const s of [-1, 1]) { // 스터비 팔 — 공격 모션 상상 가능한 실루엣 (비평가: 소품 버섯 오독)
-                const armS = mk(new THREE.SphereGeometry(0.055, 8, 6), stemM);
-                armS.position.set(s * 0.17, 0.26, 0.05); armS.scale.set(1.5, 0.7, 0.8);
+                const armS = vx(Voxel.ellipsoid(2, 1, 1), { material: stemM, color: 0xffffff, center: true });
+                armS.position.set(s * 0.17, 0.26, 0.05);
                 armS.rotation.z = s * -0.5;
                 g.add(armS);
                 if (s > 0) armR = armS; else armL = armS;
             }
             // 성난 왕눈 + 벌린 입 — 갓 그늘 아래 파묻힌 '얼굴 없는 소품' 탈피 (비평가 1위 결함)
-            // 홍채 축소+무광+딥 크림슨, 흰자 비중 확대, 눈썹 진하게 — '주황 단추' 오독 재설계 (비평가 지적)
             eyes(0.3, 0.135, 0.08, 0.048, 'angry', { iris: 0xb0301f, irisScale: 0.85, glow: 0.3, tilt: 0.09, browColor: 0x33201a, blushK: 0.68 });
-            const mMouth = mk(new THREE.SphereGeometry(0.042, 8, 6), new THREE.MeshBasicMaterial({ color: 0x3a2420 }));
-            mMouth.position.set(0, 0.165, 0.118); mMouth.scale.set(1.2, 0.8, 0.4); // 벌린 아우성 입
-            const tooth = mk(new THREE.BoxGeometry(0.028, 0.02, 0.012), new THREE.MeshBasicMaterial({ color: 0xfff6e8 }));
-            tooth.position.set(0, 0.185, 0.145);
+            const mMouth = vx(Voxel.box(2, 1, 1), { material: new THREE.MeshBasicMaterial({ color: 0x3a2420, vertexColors: true }), color: 0xffffff, center: true, ao: 0, jitter: 0 });
+            mMouth.position.set(0, 0.165, 0.118); mMouth.scale.z = 0.4; // 벌린 아우성 입
+            const tooth = vx(Voxel.box(1, 1, 1), { material: new THREE.MeshBasicMaterial({ color: 0xfff6e8, vertexColors: true }), color: 0xffffff, center: true, ao: 0, jitter: 0 });
+            tooth.position.set(0, 0.185, 0.145); tooth.scale.set(0.6, 0.45, 0.3);
             g.add(mMouth, tooth);
-            // 🍄 갓 밑 그늘 — 이 종에서 가장 큰 이음새다(주름살 r 0.28~0.2 가 줄기 r 0.16 에 얹힌다).
-            //    링은 capG 에 붙여 갓이 출렁일 때 그늘도 같이 움직이게 한다(따로 두면 갓만 흔들려 뜬다).
-            // 🚨 종전 링(r 0.176, parent capG)은 **두 겹으로 틀렸다**: ⑴ world y≈0.395 로 줄기 꼭대기
-            //    (0.38) **위 허공**에 떠 있었고, ⑵ 줄기가 라테라 애초에 링으로는 못 푸는 자리였다
-            //    (위 aoSkirt 주석 참조 — 실측 유출 1.00배 153px / 0.70배까지 줄여도 64px).
+            // 🍄 갓 밑 그늘 — 이 종에서 가장 큰 이음새다(주름살이 줄기 위에 얹힌다).
             //    스커트는 줄기 프로파일(같은 세그먼트 10) 위를 3% 띄워 따라가므로 유출이 구조적으로 0 이다.
-            //    프로파일 점은 stemProf 선분 위에서 뽑았다 — y0.16 은 (0.12,0.1)~(0.1,0.22) 의 중점이라 r 0.11.
-            aoSkirt([[0.11, 0.16], [0.10, 0.22], [0.13, 0.32], [0.16, 0.38]], { op: 0.62, seg: 10 });
-            aoRing(0.128, 0.025, 0, 0.02, 0, { flat: 0.35, op: 0.44 });   // 밑동 접지 — 0.146/0.028 은 유출 50px 이었다(실측 0.88배에서 0, 기여 113px)
+            // 🚨 **복셀 줄기 위에 매끈한 원형 스커트를 두면 대각 방향으로 샌다(실측 2px).**
+            //    복셀 회전체는 축 방향이 가장 뚱뚱하고(칸 바깥면 = (n+0.5)칸) **대각이 가장 얇다**
+            //    — 원은 그 사이를 지나므로 대각에서 실루엣 밖으로 튀어나온다. 반경을 대각의
+            //    최소 외곽까지 내린다(×0.9). `probe-enemy-ao` 의 '후프 유출 0' 이 이 선을 지킨다.
+            aoSkirt([[0.099, 0.16], [0.09, 0.22], [0.117, 0.32], [0.144, 0.38]], { op: 0.62, seg: 10 });
+            aoRing(0.128, 0.025, 0, 0.02, 0, { flat: 0.35, op: 0.44 });   // 밑동 접지
             anim.cap = capG; anim.hop = true;
-            // ── 갓 테두리 플랩 (진행 메모 ⓑ '버섯은 아직 통짜') ──
-            // 지금까지 갓은 `capG.rotation.z` 로 **통째로 기울기만** 했다 — 우산 살처럼 테두리가
-            // 늘어졌다 되돌아오는 2차 모션이 없어 '딱딱한 모자'로 읽혔다. 돔 정점을 중심에서
-            // 먼 순서로 **늦게** 처지게 해(반지름 비례 위상 지연) 테두리가 펄럭이게 한다.
+            // ── 갓 테두리 플랩 — 돔 정점을 중심에서 먼 순서로 늦게 처지게 한다(우산 살 2차 모션).
             // ⚠️ 돔만 흔들면 테두리 립·주름살이 제자리에 남아 갓이 두 조각으로 갈라진다 —
             //    같은 반지름의 플랩량을 그 부속들의 y 에도 그대로 먹인다.
+            // ✅ 복셀 메시도 비인덱스 `position` 속성이라 이 변형이 그대로 먹는다(슬라임 젤리와 같다).
             {
                 const dp = dome.geometry.attributes.position;
                 let rMax = 0;
