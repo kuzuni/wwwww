@@ -1579,11 +1579,30 @@ body {
    장착 카드가 원본보다 4.4%p 위로 뜬다. 두 카드는 각자 안쪽 패딩(.4rem/.9rem)으로 이미 벌어져 있으므로 0. */
 .cmp-wrap { display: flex; flex-direction: column; gap: 0; margin-top: .5rem; }
 .cmp-card-wrap { position: relative; }
+/* '장착됨' 배너 — 원본은 **카드 좌단 밖으로 걸쳐 나온 깃발**이고, 오른쪽 끝이 `<` 로 파인다.
+   두 원본을 같은 픽셀 코드로 재니 값이 서로 맞는다(그래서 화면별 예외 없이 공용 규칙으로 둔다):
+     · gear-detail 043244(497×897): 배너 x72~173 = **20.32%W** · y542~565 = **2.68%H** ·
+       카드 흰 본체 좌단 80 → **8px(1.61%W) 내밈**
+     · craft-compare 043224(502×893): 배너 x77~179 = **20.32%W** · y402~426 = **2.69%H** ·
+       카드 흰 본체 좌단 83 → **6px(1.20%W) 내밈**
+   클론은 `left:.6rem`(래퍼 안쪽)이라 **카드보다 28px 안으로 들어가** 있었고 폭도 13.63%W 로
+   **−6.7%p** 였다(내용폭 상자라 글자가 작을수록 더 좁아진다). 비평가 A 가 pets·pets-2·gear-detail
+   **세 화면에서 같은 지적**을 냈고, 위 두 원본 실측이 그걸 뒷받침한다.
+   ⚠️ 앵커는 `.cmp-card-wrap`(래퍼)인데 목표는 **바깥 카드 좌단** 기준이다. 래퍼는 두 화면 모두
+      `.modal-card`(padding 1.1rem + --ol2 테)의 같은 자리에 앉으므로(실측 카드 상자에서 22.2px),
+      `left` 하나로 두 화면이 같이 맞는다 — 22.2 + 7(내밈) ≈ 2rem.
+   ⚠️ 폭은 래퍼 대비 %로 주면 안 된다 — 두 화면의 카드 폭이 달라(61.4%W vs 68.8%W) 같은 %가
+      다른 px 이 된다. 원본이 둘 다 **앱 폭의 20.3%** 이므로 `--app-w` 로 고정한다.
+   ⚠️ 내용폭이 아니라 고정 폭이 되므로 글자는 가운데 정렬로 둔다(원본도 깃발 안에서 왼쪽에
+      치우쳐 있지만, `<` 파임 몫을 오른쪽에 비워 두면 시각 중심이 원본과 같아진다). */
 .cmp-ribbon {
-    position: absolute; top: -1.05rem; left: .6rem; z-index: 1;
+    position: absolute; top: -1.05rem; left: -1.52rem; z-index: 1;
+    width: calc(var(--app-w) * .203); box-sizing: border-box; text-align: center;
     background: var(--pp-paper); border: var(--ol2) solid var(--pp-line); border-bottom: none;
-    padding: .22rem .95rem .22rem .6rem; font-weight: 800; font-size: .76rem; color: var(--pp-ink);
-    clip-path: polygon(0 0, 100% 0, 82% 100%, 0% 100%);
+    padding: .15rem 1.5rem .15rem .5rem; font-weight: 800; font-size: .92rem; color: var(--pp-ink);
+    /* 오른쪽 `<` 파임 — 이전 값(0 0, 100% 0, 82% 100%, 0 100%)은 아래쪽만 비스듬히 깎아
+       원본의 오목한 노치가 아니라 그냥 사다리꼴이었다(확대 크롭으로 확인). */
+    clip-path: polygon(0 0, 100% 0, 88% 50%, 100% 100%, 0 100%);
 }
 .cmp-ribbon.new { color: var(--pp-red); }
 /* 원본(043224): 장착 장비는 박스 없이, 새 장비만 연회색 박스 + 아이콘 아래 빨간 '새로운!' (185 재채점) */
