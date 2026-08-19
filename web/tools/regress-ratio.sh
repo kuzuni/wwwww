@@ -70,8 +70,24 @@ declare -a FAILED=() DEAD=()
 for p in "${PROBES[@]}"; do
     [ -f "$p" ] || { echo "SKIP  $p (없음)"; continue; }
     out="$(timeout "$TIMEOUT" node "$p" 2>&1)"; rc=$?
-    # 판정 줄만 뽑는다(마지막 PASS/FAIL 줄. '판정: FAIL — …' 꼴도 잡는다).
-    verdict="$(printf '%s\n' "$out" | grep -oE '(^|판정: )(PASS|FAIL)' | tail -1)"
+    # 판정 줄만 뽑는다(마지막 것). 🚨 **판정문 방언이 5가지다** — 옛 정규식은 `(^|판정: )(PASS|FAIL)`
+    #    뿐이라 나머지 4가지를 **전부 못 읽고 '판정문 없음 — 측정 덤프일 수 있다'로 흘려보냈다**
+    #    (2026-08-19 전수 실행 실측: 29종 중 **12종**이 멀쩡한 판정기인데 덤프 취급이었다).
+    #    그 경고는 '이 도구는 못 믿는다'는 뜻이라, 진짜 덤프와 구별이 안 되면 경고가 무의미해진다.
+    #    ⓐ `판정: 통과/불통과`(probe-main-px·techbranch-px·geardetail-px·league-verdict)
+    #    ⓑ `=> PASS` / `=> 불통과 N건`(probe-lgr-dom·tn-dom)
+    #    ⓒ `✅ PASS` / `❌ FAIL`(probe-fi-dom)
+    #    ⓓ `결과: PASS` / `결과: FAIL N건`(probe-xmark-dom·autoforge-toast·offline-collect-tick·
+    #       eggcell-label-shadow·lgr-rank-clip)
+    #    도구 12개를 고치는 대신 **읽는 쪽 한 곳**을 넓힌다 — 판정문 문구를 바꾸면 그 문구를 따로
+    #    긁어 쓰는 다른 스크립트가 조용히 깨질 수 있고, 방언은 앞으로도 또 생긴다.
+    verdict="$(printf '%s\n' "$out" | grep -oE '(^|판정: |결과: |=> |✅ |❌ )(PASS|FAIL|불통과|통과)' | tail -1)"
+    # 한국어 판정을 PASS/FAIL 로 정규화한다(아래 FAIL 검사가 영문만 보므로).
+    # ⚠️ `불통과` 가 `통과` 를 포함하므로 **반드시 불통과를 먼저** 볼 것.
+    case "$verdict" in
+        *불통과) verdict='판정: FAIL' ;;
+        *통과)   verdict='판정: PASS' ;;
+    esac
     worst="$(printf '%s\n' "$out" | grep -oE '최대 편차 [+-]?[0-9.]+%p' | tail -1)"
     # 🚨 종료 코드만 믿지 않는다 — `probe-shop-dom` 은 판정문을 찍으면서 exit 코드를 안 내
     #    ±2%p 를 넘겨도 초록으로 찍히고 있었다(2026-08-19 실측, 그 자리에서 고쳤다).
