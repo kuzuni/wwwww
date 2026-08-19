@@ -76,15 +76,17 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
             };
         };
 
+        // 하이라이트 압축 파라미터 — keep(손대지 않는 HSL 명도 바닥) · compress(그 위를 끌어내리는 비율)
+        // · env(envMapIntensity 배수, 밝기 가중). 고정 오프셋 방식은 어두운 파츠를 검게 죽여 폐기했다.
         const combos = [
-            { dl: 0, env: 1 },        // 그레이딩 없음 = 기준선
-            { dl: -0.10, env: 1 },    // albedo 만
-            { dl: 0, env: 0.40 },     // env 만
-            { dl: -0.10, env: 0.60 },
-            { dl: -0.17, env: 0.42 },
-            { dl: -0.24, env: 0.32 },
-            { dl: -0.30, env: 0.25 },
-            { dl: -0.38, env: 0.18 },
+            { keep: 1.00, compress: 1, env: 1 },        // 그레이딩 없음 = 기준선(keep 을 올려 전부 제외)
+            { keep: 0.26, compress: 0.70, env: 1 },     // albedo 압축만
+            { keep: 0.26, compress: 1.00, env: 0.30 },  // env 만
+            { keep: 0.26, compress: 0.55, env: 0.35 },
+            { keep: 0.26, compress: 0.42, env: 0.22 },
+            { keep: 0.26, compress: 0.30, env: 0.18 },
+            { keep: 0.22, compress: 0.24, env: 0.14 },
+            { keep: 0.30, compress: 0.24, env: 0.14 },
         ];
         const rows = [];
         for (const g of combos) {
@@ -92,15 +94,15 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
             Scene3D.refreshHeroEquip(false);
             Scene3D.heroG.updateMatrixWorld(true);
             const r = measure();
-            rows.push(Object.assign({ dl: g.dl, env: g.env }, r || { px: 0 }));
+            rows.push(Object.assign({ keep: g.keep, compress: g.compress, env: g.env }, r || { px: 0 }));
         }
         return rows;
     });
 
     console.log('--- 영웅 장비 명도 그레이딩 스윕 (투구·무기 인스턴스만) ---');
-    console.log('   dl    env    화소   영웅L   배경L   델타   p95   L<45     클리핑');
+    console.log('  keep  compr  env    화소   영웅L   배경L   델타   p95   L<45     클리핑');
     for (const r of out) {
-        console.log('  ' + String(r.dl).padStart(5) + '  ' + String(r.env).padStart(4) + '  ' + String(r.px).padStart(6)
+        console.log('  ' + String(r.keep).padStart(4) + '  ' + String(r.compress).padStart(5) + '  ' + String(r.env).padStart(4) + '  ' + String(r.px).padStart(6)
             + '  ' + String(r.hero).padStart(6) + '  ' + String(r.bg).padStart(6) + '  ' + String(r.delta).padStart(5)
             + '  ' + String(r.p95).padStart(5) + '  ' + String(r.darkPct).padStart(5) + '%  ' + r.clipPct + '%'
             + (r.delta >= 45 ? '  ← 게이트 통과' : ''));

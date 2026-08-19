@@ -150,22 +150,37 @@ const Scene3D = {
     //    어두워져 결국 검은 판이 된다(장비 교체 연출은 150ms 뒤 refreshHeroEquip 을 한 번 더 부른다).
     //    파생 재질에 `userData.heroGraded` 를 남겨 두 번 걸리지 않게 한다.
     // 값 선택 근거 — `probe-hero-grade-sweep.js`(신설)가 실제 코드 경로(`refreshHeroEquip` 재호출)로
-    // 8조합을 한 세션 안에서 잰 표. albedo(dl) 단독은 거의 안 움직이고(델타 5.7 → 8.8) env 단독이
+    // 8조합을 한 세션 안에서 잰 표. albedo 단독은 거의 안 움직이고(델타 5.7 → 8.8) env 단독이
     // 두 배 이상 먹는다(→ 14.5) — 앞 세션이 남긴 "metalness 0.85 금속은 env 반사가 화면값을 지배한다"가
-    // 여기서도 재현됐다. 다만 **둘을 같이 내려야** 계속 내려간다(-0.34/0.22 지점).
-    HERO_VALUE_GRADE: { dl: -0.34, env: 0.22 },
+    // 여기서도 재현됐다. 다만 **둘을 같이 내려야** 계속 내려간다.
+    //
+    // 🚨 **고정 오프셋(모든 재질에 같은 −dl)으로 하지 말 것 — 한 번 그렇게 짰다가 되돌렸다.**
+    //    −0.34 를 전 재질에 균일하게 걸었더니 델타는 40.9 로 좋았는데, **원래 어두웠던 파츠가
+    //    통째로 검게 죽었다** — 근접샷(`hero-hand.png`)에서 검 코등이·자루가 형태 없는 검은 막대로
+    //    읽혔다. 방패를 제외한 이유와 같은 현상이고, 제외로는 파츠 단위까지 못 막는다.
+    //    → **하이라이트 압축**으로 바꾼다. `keep`(HSL 명도 바닥) 아래는 손대지 않고, 그 위만
+    //      `keep + (L − keep) × compress` 로 끌어내린다. 밝은 덩어리(투구 L 141·검신 L 170)는 크게
+    //      내려오고 이미 어두운 코등이·자루·스트랩은 제자리에 남아 형태를 유지한다.
+    //    env 감쇠는 `keep` **위의 재질에만** 건다(밝기 비례 가중을 한 번 넣어 봤다가 뺐다 — 화면값을
+    //    지배하는 게 env 라, 가중을 걸면 albedo L 0.5 대 재질의 env 가 0.75배밖에 안 줄어 영웅 평균이
+    //    97.2 → 87.7 에서 멈췄다. keep 아래 파츠는 어차피 통째로 제외되므로 형태는 그쪽이 지킨다).
+    HERO_VALUE_GRADE: { keep: 0.26, compress: 0.30, env: 0.18 },
     gradeHeroGearValue(root) {
         if (!root) return root;
         const g = this.HERO_VALUE_GRADE;
-        if (!g || (!g.dl && g.env === 1)) return root;
+        if (!g) return root;
+        const hsl = { h: 0, s: 0, l: 0 };
         root.traverse(o => {
             if (!o.isMesh || !o.material || !o.material.isMeshStandardMaterial) return;
             const m = o.material;
             if (m.userData && m.userData.heroGraded) return;
             const em = m.emissive;
             if (em && m.emissiveIntensity > 0 && (em.r + em.g + em.b) > 0.01) return;  // 발광 포인트 보존
+            m.color.getHSL(hsl);
+            if (hsl.l <= g.keep) return;                       // 이미 어두운 파츠 — 건드리면 형태가 사라진다
+            const dl = (g.keep + (hsl.l - g.keep) * g.compress) - hsl.l;   // 음수
             const env = m.envMapIntensity === undefined ? 1 : m.envMapIntensity;
-            const d = this.tintOf(m, g.dl, { envMapIntensity: env * g.env });
+            const d = this.tintOf(m, dl, { envMapIntensity: env * g.env });
             d.userData = Object.assign({}, d.userData, { heroGraded: true });
             o.material = d;
         });
