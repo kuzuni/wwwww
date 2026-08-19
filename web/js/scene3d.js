@@ -11245,7 +11245,7 @@ const Scene3D = {
         //    대비가 커서 계단면이 썸네일에서 지글거리는 노이즈로 뭉갠다."* 무늬는 대비가 아니라
         //    **판 크기**로 읽히므로(홈 간격 8) 대비를 낮춰도 갑판은 안 사라진다.
         const SHELL_D = H(0.05, -0.18), SHELL_L = H(0.02, 0.00);
-        const SKIN = H(0, 0), SKIN_D = H(0, -0.12);
+        const SKIN = H(0, 0), SKIN_D = H(0, -0.12), SKIN_L = H(0, 0.07);
         const RIM = 0x4a3b28, PLASTRON = 0xd8cdb0, BEAK = 0xcbbb9a, EYE = 0x1b1f24;
         const LEATHER = 0x2b1a0c, TRIM = 0xc9a227;
         const FOOT = 0xd8cdb0;
@@ -11280,8 +11280,13 @@ const Scene3D = {
         //    (채점 지적 ④ "발 없는 사각기둥 = 탁자 다리").
         g.userData.legs = [];
         for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+            // ⚠️ **면 분할(색 구획)이 없으면 큰 민짜 슬래브로 보이고, 그러면 잘게 계단진 등딱지
+            //    옆에서 '셀 크기가 다르다'로 읽힌다** — 비평가가 "복셀 셀 크기가 3종 섞였다"고 읽은
+            //    진짜 원인이 이것이다(격자는 VS 0.04 단일이다). 무릎 한 줄만 어둡게 둘러도 다리가
+            //    한 덩어리에서 두 마디로 갈린다. **격자를 바꾸는 게 아니라 색을 나누는 게 답이다.**
             const leg = V.merge(V.at(V.slab(5, 1, 5, FOOT), sx * 4, 0, sz * 6),
-                                V.at(V.slab(3, 4, 3, SKIN_D), sx * 4, 1, sz * 6));
+                                V.recolor(V.at(V.slab(3, 4, 3, SKIN_D), sx * 4, 1, sz * 6),
+                                    v => v.y === 3 ? SKIN : undefined));
             g.userData.legs.push(part(leg, sx * 4, 4, sz * 6));      // 피벗 = 다리 윗끝(고관절)
         }
         // ⑵ 등딱지 + 배딱지 — 한 파츠(몸통). 배딱지는 한 층짜리 타원판이라 밑에서 봐도 거북이다.
@@ -11308,9 +11313,17 @@ const Scene3D = {
                             V.at(V.slab(7, 4, 5, SKIN), 0, 6, 14),          // 머리 — 치비라 넓고 높게
                             V.at(V.slab(3, 1, 3, BEAK), 0, 6, 17));         // 각질 부리
         headV = V.recolor(headV, v => {
-            if (v.z !== 16 || v.y < 8) return undefined;                    // 앞면 윗줄만
-            const ax = Math.abs(v.x);
-            if (ax === 2 || ax === 3) return (ax === 2 && v.y === 8) ? EYE : 0xf4f6f8;
+            if (v.z === 16 && v.y >= 8) {                                   // 앞면 윗줄 = 눈자리
+                const ax = Math.abs(v.x);
+                if (ax === 2 || ax === 3) return (ax === 2 && v.y === 8) ? EYE : 0xf4f6f8;
+            }
+            // 면 분할 — 정수리 한 줄을 밝게, 턱 한 줄을 어둡게. 다리와 같은 이유(위 주석)로
+            // 민짜 박스를 두 면으로 갈라 '저해상도 레고 머리'로 읽히는 걸 막는다.
+            if (v.y === 9 && v.z >= 12) return SKIN_L;
+            //    ⚠️ 턱 줄의 z 상한을 **부리 앞(16)** 에서 끊는다 — 안 끊으면 각질 부리(z 16~18)까지
+            //    같이 칠해져 **부리가 통째로 사라진다**(1판에서 실제로 사라졌다). 색 구획을 넣을 땐
+            //    그 줄에 다른 재질의 파츠가 걸치는지 먼저 볼 것.
+            if (v.y === 6 && v.z >= 12 && v.z <= 16) return SKIN_D;
             return undefined;
         });
         g.userData.head = part(headV, 0, 5, 11);                            // 피벗 = 목 밑동
