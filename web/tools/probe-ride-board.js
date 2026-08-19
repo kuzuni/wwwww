@@ -12,6 +12,7 @@
 //   ④ 그러고도 **두 발이 발판 위**에 있다 — 접지 y 오차와 발판 밖 이탈이 없을 것.
 //      (③④를 같이 걸어야 "굽히기만 하고 발이 판 밖으로 나가는" 해로 도망가지 않는다.)
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitReady } = require('./wait-ready.js');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const NAME = process.argv[2] || 'Hover Board';
@@ -22,7 +23,10 @@ const NAME = process.argv[2] || 'Hover Board';
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
+    // ⚠️ page.waitForFunction 금지 — 페이지 안 폴링(raf/타이머)이 three.js + swiftshader 소프트웨어
+    //    렌더로 포화된 메인 스레드에 밀려 아예 안 도는 컨테이너가 있다. 같은 시점에 page.evaluate 는
+    //    정상 응답하므로 폴링을 노드 쪽에서 돌린다(wait-ready.js 주석 ②). 판정 조건은 불변.
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.heroG', { timeout: 60000, label: '3D 부팅' });
     await page.waitForTimeout(1500);
 
     const out = await page.evaluate((name) => {

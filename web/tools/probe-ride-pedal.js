@@ -10,6 +10,7 @@
 //   ⚠️ 0을 요구하면 안 된다 — 크랭크는 반지름이 고정된 원 위에만 있을 수 있어서, 발이 그 원에서
 //   벗어난 만큼은 구조적으로 남는다. 사람 눈이 '닿았다'로 읽는 범위(부츠 두께 정도)를 기준으로 잡는다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitReady } = require('./wait-ready.js');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const SWEEP = process.argv.includes('--sweep');   // 오른다리 hip/knee 각을 훑어 페달에 닿는 조합을 고른다
@@ -21,7 +22,10 @@ const TOL = 0.06;   // 월드 단위, **수직 간격**만. 부츠 밑면과 페
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
+    // ⚠️ page.waitForFunction 금지 — 페이지 안 폴링(raf/타이머)이 three.js + swiftshader 소프트웨어
+    //    렌더로 포화된 메인 스레드에 밀려 아예 안 도는 컨테이너가 있다. 같은 시점에 page.evaluate 는
+    //    정상 응답하므로 폴링을 노드 쪽에서 돌린다(wait-ready.js 주석 ②). 판정 조건은 불변.
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.heroG', { timeout: 60000, label: '3D 부팅' });
     await page.waitForTimeout(1500);
 
     const out = await page.evaluate((sweep) => {

@@ -22,6 +22,7 @@
 // ⚠️ ②는 **구조적으로 통과하는 지표**다(끈 끝이 매 프레임 손을 좇으므로) — 깨진 걸 잡는 회귀 그물일 뿐
 //    합격의 근거가 아니다. 진짜 게이트는 ③·⑤와, 공격 중에도 빈 팔이 그 자세를 유지하는가(⑥)다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitReady } = require('./wait-ready.js');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const TIP_TOL = 0.18;    // 월드 단위 — 주먹 반경 + 끈 반폭 여유
@@ -34,7 +35,10 @@ const MOUNTS = [['quad', 'Brown Horse'], ['quad', 'Elk'], ['quad', 'Camel'], ['q
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
+    // ⚠️ page.waitForFunction 금지 — 페이지 안 폴링(raf/타이머)이 three.js + swiftshader 소프트웨어
+    //    렌더로 포화된 메인 스레드에 밀려 아예 안 도는 컨테이너가 있다. 같은 시점에 page.evaluate 는
+    //    정상 응답하므로 폴링을 노드 쪽에서 돌린다(wait-ready.js 주석 ②). 판정 조건은 불변.
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.heroG', { timeout: 60000, label: '3D 부팅' });
     await page.waitForTimeout(1500);
 
     const out = await page.evaluate((list) => {

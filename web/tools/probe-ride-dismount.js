@@ -7,6 +7,7 @@
 //   ㉣ 해제 후 탈것 메시가 씬에서 실제로 사라졌는가 (남으면 유령 탈것)
 //   ㉤ 계열을 갈아탈 때 앞 탈것의 높이가 이월되지 않는가 (비행형 → 지상형에서 공중부양이 남던 자리)
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitReady } = require('./wait-ready.js');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const TOL = 0.001;
@@ -18,7 +19,10 @@ const SEQ = [['fly', 'Mini Dragon'], ['quad', 'Brown Horse'], ['wheeled', 'Bike'
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
+    // ⚠️ page.waitForFunction 금지 — 페이지 안 폴링(raf/타이머)이 three.js + swiftshader 소프트웨어
+    //    렌더로 포화된 메인 스레드에 밀려 아예 안 도는 컨테이너가 있다. 같은 시점에 page.evaluate 는
+    //    정상 응답하므로 폴링을 노드 쪽에서 돌린다(wait-ready.js 주석 ②). 판정 조건은 불변.
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.heroG', { timeout: 60000, label: '3D 부팅' });
     await page.waitForTimeout(1500);
 
     const rows = await page.evaluate((SEQ) => {

@@ -9,6 +9,7 @@
 // 판정: 빈 손(무기 안 든 쪽) ↔ 그 쪽 그립 거리가 **대기·공격 양쪽 모두** 임계 이내.
 //   무기 든 손은 판정하지 않는다 — 한 손을 떼고 휘두르는 건 실제 기병도 그렇다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitReady } = require('./wait-ready.js');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const TOL = 0.20;   // 월드 단위. 그립 반길이(≈0.07)+주먹 반경 여유. 이보다 멀면 '허공을 쥔' 것으로 읽힌다.
@@ -19,7 +20,10 @@ const TOL = 0.20;   // 월드 단위. 그립 반길이(≈0.07)+주먹 반경 �
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
+    // ⚠️ page.waitForFunction 금지 — 페이지 안 폴링(raf/타이머)이 three.js + swiftshader 소프트웨어
+    //    렌더로 포화된 메인 스레드에 밀려 아예 안 도는 컨테이너가 있다. 같은 시점에 page.evaluate 는
+    //    정상 응답하므로 폴링을 노드 쪽에서 돌린다(wait-ready.js 주석 ②). 판정 조건은 불변.
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.heroG', { timeout: 60000, label: '3D 부팅' });
     await page.waitForTimeout(1500);
 
     const out = await page.evaluate(() => {

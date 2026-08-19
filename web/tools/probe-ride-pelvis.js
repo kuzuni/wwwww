@@ -12,6 +12,7 @@
 //             있어서 같은 방식으로 조용히 폴백(0.149)으로 떨어질 수 있다. 참고값으로 같이 찍는다.
 // 사용: node probe-ride-pelvis.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitReady } = require('./wait-ready.js');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
 (async () => {
@@ -21,7 +22,10 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     page.on('pageerror', e => errs.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroRig && typeof ProChar !== 'undefined', null, { timeout: 60000 });
+    // ⚠️ page.waitForFunction 금지 — 페이지 안 폴링(raf/타이머)이 three.js + swiftshader 소프트웨어
+    //    렌더로 포화된 메인 스레드에 밀려 아예 안 도는 컨테이너가 있다. 같은 시점에 page.evaluate 는
+    //    정상 응답하므로 폴링을 노드 쪽에서 돌린다(wait-ready.js 주석 ②). 판정 조건은 불변.
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.heroRig && typeof ProChar !== "undefined"', { timeout: 60000, label: '3D 부팅' });
 
     const out = await page.evaluate(() => {
         const raw = () => {

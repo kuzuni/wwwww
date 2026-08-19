@@ -13,6 +13,7 @@
 // ⚠️ 페이지의 자체 rAF 루프가 계속 돌아 프레임마다 조명·포즈가 달라진다. 한 프레임만 재면 같은
 //    코드가 PASS/FAIL 을 오간다(실측으로 확인). **여러 프레임을 재서 최악값**으로 판정한다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitReady } = require('./wait-ready.js');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const NAME = process.argv[2] || 'Brown Horse';
@@ -26,7 +27,10 @@ const DYS = [-0.02, -0.07, -0.12];
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
+    // ⚠️ page.waitForFunction 금지 — 페이지 안 폴링(raf/타이머)이 three.js + swiftshader 소프트웨어
+    //    렌더로 포화된 메인 스레드에 밀려 아예 안 도는 컨테이너가 있다. 같은 시점에 page.evaluate 는
+    //    정상 응답하므로 폴링을 노드 쪽에서 돌린다(wait-ready.js 주석 ②). 판정 조건은 불변.
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.heroG', { timeout: 60000, label: '3D 부팅' });
     await page.waitForTimeout(1500);
 
     // 셋업: 탈것을 태우고 shot-ride-pets 의 near 앵글과 같은 카메라를 세운다(camLock 훅).

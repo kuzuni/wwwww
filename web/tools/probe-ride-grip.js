@@ -5,6 +5,7 @@
 //    남아 **바가 허리까지 끌려와 몸통을 관통**했다(캡처로 확인).
 // 판정: 손이 바 기준자리(로컬 z 0.255 / y 0.45)보다 **앞(+z)** 이고, 시트튜브(z −0.07)보다 훨씬 앞일 것.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitReady } = require('./wait-ready.js');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const REST = { y: 0.60, z: 0.215 };   // makeMountMesh 의 바 기준자리(로컬) — 여기를 바꾸면 같이 고칠 것
@@ -15,7 +16,10 @@ const REST = { y: 0.60, z: 0.215 };   // makeMountMesh 의 바 기준자리(로�
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
+    // ⚠️ page.waitForFunction 금지 — 페이지 안 폴링(raf/타이머)이 three.js + swiftshader 소프트웨어
+    //    렌더로 포화된 메인 스레드에 밀려 아예 안 도는 컨테이너가 있다. 같은 시점에 page.evaluate 는
+    //    정상 응답하므로 폴링을 노드 쪽에서 돌린다(wait-ready.js 주석 ②). 판정 조건은 불변.
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.heroG', { timeout: 60000, label: '3D 부팅' });
     await page.waitForTimeout(1500);
 
     const rows = await page.evaluate(() => {

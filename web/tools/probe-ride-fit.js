@@ -3,6 +3,7 @@
 // 재는 것: ① 영웅 yaw vs 탈것 yaw(‘90° 어긋남’ 주장 검증) ② 골반이 몸통 윗면 위인가 아래인가(파묻힘)
 //          ③ 두 부츠의 x가 몸통 반폭 밖인가(다리 노출) ④ 탈것 최하단 y(비행형이 실제로 떠 있는가)
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitReady } = require('./wait-ready.js');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Dragon'], ['quad', 'Brown Horse'],
@@ -17,15 +18,10 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    // ⚠️ waitForFunction 금지 — 페이지 안 폴링이 3D 렌더 한 프레임에 밀려 안 도는 컨테이너가 있다.
-    //    이 프로브도 그 20초 타임아웃에 걸려 **판정 자체를 못 내고 있었다**(2026-08-19 실측 — 옆의
-    //    probe-ride-clear 는 이미 같은 이유로 고쳐져 있었는데 이쪽만 남아 있었다). Node 쪽 폴링으로.
-    for (let w = 0; ; w++) {
-        const ready = await page.evaluate('typeof Scene3D !== "undefined" && !!Scene3D.heroG').catch(() => false);
-        if (ready) break;
-        if (w > 900) throw new Error('부팅 대기 초과');
-        await page.waitForTimeout(200);
-    }
+    // ⚠️ page.waitForFunction 금지 — 페이지 안 폴링(raf/타이머)이 three.js + swiftshader 소프트웨어
+    //    렌더로 포화된 메인 스레드에 밀려 아예 안 도는 컨테이너가 있다. 같은 시점에 page.evaluate 는
+    //    정상 응답하므로 폴링을 노드 쪽에서 돌린다(wait-ready.js 주석 ②). 판정 조건은 불변.
+    await waitReady(page, 'typeof Scene3D !== "undefined" && !!Scene3D.heroG', { timeout: 180000, label: '3D 부팅' });
     await page.waitForTimeout(1500);
 
     const rows = await page.evaluate((list) => {
