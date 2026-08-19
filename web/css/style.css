@@ -79,8 +79,13 @@ body {
    종전처럼 pill 안에 인라인으로 넣으면 그만큼 pill 이 가로로 늘어난다(코인 pill 21.4%W → 원본 ≈17.3%W). */
 .pill-ico { position: relative; display: inline-block; vertical-align: middle; }
 
+/* 크기·자리는 원본 실측에서 역산했다(shot-042120 코인 pill 14배): 십자 폭 12.8px / 원판 지름
+   26px = **0.49배**, 중심은 원판 중심에서 (+0.51, +0.33)×지름. 아이콘이 1.5rem 이므로
+   0.49×1.5 ≈ .74rem 이고, 그 비를 맞추면 right/bottom 이 아래 값이 된다.
+   ⚠️ 종전 .96rem 은 아이콘의 **0.64배**라 원본보다 30% 크고 너무 아래로 내려와 있었다 —
+      배지가 재화 아이콘을 덮어 코인 원판 아래쪽이 잘려 보였다(확대 대조로 확인). */
 .pill-plus {
-    position: absolute; right: -.30rem; bottom: -.32rem; width: .96rem; height: .96rem;
+    position: absolute; right: -.38rem; bottom: -.11rem; width: .74rem; height: .74rem;
     padding: 0; border: none; background: none; line-height: 0; cursor: pointer;
 }
 

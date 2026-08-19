@@ -291,228 +291,55 @@ const IconGen = {
     },
 
     draw: {
-        // ---- 코인: 금화 동전 (테두리 세레이션 + 왕관 음각 + 광택) ----
+        /* ---- 코인: 주황 원판 + 금빛 왕관 (원본 상단바 실측 2026-08-19) ----
+           🚨 **종전 그림은 '사실적인 금화'였다 — 원본과 화풍이 다르다.** 원본 상단바(shot-042120)
+           재화 pill 을 14배로 떠서 재면 코인은 **평평한 주황 원판 `rgb(255,136,15)` + 굵은 순검정
+           키라인 + 그 안의 금빛 왕관 `rgb(255,180,69)`** 이 전부다. 그라디언트도, 세레이션(밀링)
+           톱니도, 광택 스펙큘러도 **없다.** 종전 구현은 방사 그라디언트 4겹 + 톱니 26개 + 음각
+           내부 그림자 + 엠보싱 왕관 + 스펙큘러 2겹이었는데, **표시 크기가 26px 라 그게 전부 뭉개져**
+           '테 없는 노란 원'으로만 보였다(원본-클론 나란히 캡처로 확인 — 왕관이 아예 안 보였다).
+           ⚠️ **키라인이 탭바보다 두꺼운 건 의도다**: 원본 실측으로 키라인/지름 = 2px/26px ≈ 7.7%
+           라, 탭바 아이콘(53px 에 2px ≈ 3.8%)의 두 배다. 작게 쓰는 아이콘일수록 테를 두껍게
+           잡아야 배경에서 떨어진다 — 여기서 탭바 값을 그대로 쓰면 테가 1px 로 사라진다. */
         coin(ctx, S) {
-            const G = IconGen, cx = S / 2, cy = S / 2, R = S * 0.465;
-
-            // 접지 그림자
-            ctx.save();
-            ctx.globalAlpha = 0.35;
-            ctx.fillStyle = '#000';
-            ctx.beginPath();
-            ctx.ellipse(cx, cy + R * 0.94, R * 0.72, R * 0.16, 0, 0, Math.PI * 2);
-            ctx.filter = `blur(${S * 0.016}px)`;
-            ctx.fill();
+            const { ink, on, circle, poly } = IconGen._sticker;
+            const ORANGE = '#ff880f', ORANGE_DK = '#d96b05', GOLD = '#ffb445', GOLD_DK = '#b9822e';
+            // 키라인 폭은 원본 비(검정 띠 2px / 원판 지름 26px = 7.7%)에서 역산했다:
+            // 스트로크는 경로 중심에 걸려 **바깥 절반만** 남으므로 lw/2 가 곧 띠 폭이다 →
+            // (lw/2)/(2r+lw) = 0.077 을 r=0.415 로 풀면 lw ≈ 0.155(바깥 지름 0.985 = 프레임 꽉 참).
+            ink(ctx, S, circle(ctx, S, 0.5, 0.5, 0.415), ORANGE, 0.155);
+            ctx.save(); ctx.beginPath(); circle(ctx, S, 0.5, 0.5, 0.415)(); ctx.clip();
+            on(ctx, circle(ctx, S, 0.5, 1.02, 0.415), ORANGE_DK);       // 아래 그림자(2톤 규약)
             ctx.restore();
-
-            // ① 세레이션(밀링) 테두리 — 톱니 40개
-            const N = 26, rOut = R, rIn = R * 0.93;   // 밀링 피치를 굵게 — 40개는 14px에서 뭉개져 링이 흐려진다
-            ctx.beginPath();
-            for (let i = 0; i < N * 2; i++) {
-                const a = (i / (N * 2)) * Math.PI * 2 - Math.PI / 2;
-                const r = i % 2 ? rIn : rOut;
-                const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
-                i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-            }
-            ctx.closePath();
-            ctx.fillStyle = G._lin(ctx, cx - R, cy - R, cx + R, cy + R,
-                [[0, '#ffe9a3'], [0.45, '#d99414'], [1, '#7a4a06']]);
-            ctx.fill();
-
-            // ② 본체 디스크
-            const disc = () => { ctx.beginPath(); ctx.arc(cx, cy, rIn, 0, Math.PI * 2); };
-            disc();
-            ctx.fillStyle = G._rad(ctx, cx - R * 0.35, cy - R * 0.4, R * 0.1, cx, cy, rIn * 1.15,
-                [[0, '#fff6cf'], [0.3, '#ffd75e'], [0.68, '#e8a412'], [1, '#a2650a']]);
-            ctx.fill();
-
-            // ③ 테두리 링 베벨 (위쪽 밝게 / 아래쪽 어둡게)
-            ctx.save();
-            ctx.lineWidth = S * 0.045;
-            ctx.beginPath();
-            ctx.arc(cx, cy, rIn - ctx.lineWidth / 2, 0, Math.PI * 2);
-            ctx.strokeStyle = G._lin(ctx, cx, cy - R, cx, cy + R,
-                [[0, 'rgba(255,255,255,.72)'], [0.5, 'rgba(255,220,130,.18)'], [1, 'rgba(120,68,4,.62)']]);
-            ctx.stroke();
+            // 왕관 — 원본 실측 폭 0.437·높이 0.344, 원판 중심에서 살짝 위(-0.015).
+            // 바깥 첨두 2개 + 가운데 첨두 1개 + 아래 띠. 이 실루엣이 코인의 정체라 색보다 먼저 읽힌다.
+            const cw = 0.437, ch = 0.344, bx = 0.5 - cw / 2, by = 0.485 - ch / 2;
+            const crown = poly(ctx, S, [
+                [bx, by + ch * 0.28], [bx + cw * 0.22, by + ch * 0.72], [bx + cw * 0.5, by],
+                [bx + cw * 0.78, by + ch * 0.72], [bx + cw, by + ch * 0.28],
+                [bx + cw * 0.92, by + ch], [bx + cw * 0.08, by + ch],
+            ]);
+            ink(ctx, S, crown, GOLD, 0.105);   // 왕관 테도 같은 비로 — 0.072 는 24px 표시에서 0.9px 라 사라진다
+            ctx.save(); ctx.beginPath(); crown(); ctx.clip();
+            on(ctx, poly(ctx, S, [[bx, by + ch * 0.74], [bx + cw, by + ch * 0.74], [bx + cw, by + ch], [bx, by + ch]]), GOLD_DK);  // 띠 그늘
             ctx.restore();
-
-            // ④ 안쪽 면(음각) — 살짝 파인 느낌
-            const face = () => ctx.arc(cx, cy, rIn * 0.78, 0, Math.PI * 2);
-            ctx.beginPath();
-            face();
-            ctx.fillStyle = G._rad(ctx, cx - R * 0.2, cy - R * 0.25, R * 0.05, cx, cy, rIn * 0.9,
-                [[0, '#ffe98f'], [1, '#d18f0d']]);
-            ctx.fill();
-            G._innerShadow(ctx, face, 'rgba(96,56,4,.7)', S * 0.045, 0, S * 0.02);
-            // 음각 경계의 얇은 하이라이트(아래쪽에 빛이 고이는 느낌)
-            ctx.beginPath();
-            ctx.arc(cx, cy, rIn * 0.78, Math.PI * 0.12, Math.PI * 0.88);
-            ctx.lineWidth = S * 0.014;
-            ctx.strokeStyle = 'rgba(255,240,190,.45)';
-            ctx.stroke();
-
-            // ⑤ 왕관 문양 음각 (이 게임의 코인 표기가 👑 이므로 정체성 유지)
-            const cw = S * 0.44, ch = S * 0.30, bx = cx - cw / 2, by = cy - ch * 0.46;
-            const crown = () => {
-                ctx.beginPath();
-                ctx.moveTo(bx, by + ch * 0.28);
-                ctx.lineTo(bx + cw * 0.22, by + ch * 0.72);
-                ctx.lineTo(bx + cw * 0.5, by);
-                ctx.lineTo(bx + cw * 0.78, by + ch * 0.72);
-                ctx.lineTo(bx + cw, by + ch * 0.28);
-                ctx.lineTo(bx + cw * 0.9, by + ch * 1.02);
-                ctx.lineTo(bx + cw * 0.1, by + ch * 1.02);
-                ctx.closePath();
-            };
-            // 엠보싱: 아래쪽에 어두운 판 + 위쪽에 밝은 판을 겹쳐 '찍어낸 부조'로 보이게 한다.
-            // (선 각인만으로는 14px에서 왕관이 통째로 소멸한다)
-            ctx.save();
-            ctx.translate(0, S * 0.018);
-            crown();
-            ctx.fillStyle = 'rgba(104,58,3,.85)';
-            ctx.fill();
-            ctx.restore();
-            ctx.save();
-            ctx.translate(0, -S * 0.008);
-            crown();
-            ctx.fillStyle = G._lin(ctx, cx, by, cx, by + ch, [[0, '#fffdf2'], [1, '#ffca3a']]);
-            ctx.fill();
-            ctx.restore();
-            // 왕관 보석 3알 — 각각 실제 첨두 꼭짓점 위에 얹는다
-            // (셋을 같은 y에 두면 가운데 알이 중앙 첨두에서 아래로 밀려 비대칭으로 보인다)
-            [[0.0, ch * 0.28], [0.5, 0], [1.0, ch * 0.28]].forEach(([fx, fy]) => {
-                ctx.beginPath();
-                ctx.arc(bx + cw * fx, by + fy - S * 0.012, S * 0.026, 0, Math.PI * 2);
-                ctx.fillStyle = '#fffdf0';
-                ctx.fill();
-                ctx.lineWidth = S * 0.008;
-                ctx.strokeStyle = 'rgba(104,58,3,.5)';
-                ctx.stroke();
-            });
-
-            // ⑥ 스펙큘러 — 좌상단 넓은 광택 + 우하단 림라이트
-            ctx.save();
-            disc();
-            ctx.clip();
-            ctx.beginPath();
-            ctx.ellipse(cx - R * 0.36, cy - R * 0.44, R * 0.44, R * 0.24, -0.6, 0, Math.PI * 2);
-            ctx.fillStyle = G._rad(ctx, cx - R * 0.36, cy - R * 0.44, 0, cx - R * 0.36, cy - R * 0.44, R * 0.44,
-                [[0, 'rgba(255,255,255,.85)'], [1, 'rgba(255,255,255,0)']]);
-            ctx.fill();
-            ctx.lineWidth = S * 0.03;
-            ctx.beginPath();
-            ctx.arc(cx, cy, rIn * 0.98, Math.PI * 0.15, Math.PI * 0.6);
-            ctx.strokeStyle = 'rgba(255,247,214,.5)';
-            ctx.stroke();
-            ctx.restore();
-
-            // ⑦ 외곽선
-            ctx.beginPath();
-            ctx.arc(cx, cy, R * 0.995, 0, Math.PI * 2);
-            ctx.lineWidth = S * 0.022;
-            ctx.strokeStyle = 'rgba(62,34,2,.75)';
-            ctx.stroke();
         },
 
-        // ---- 젬: 컷 보석 (파셋 면 + 굴절 하이라이트) ----
+        /* ---- 젬: 마름모 두 겹 (원본 상단바 실측 2026-08-19) ----
+           🚨 원본의 젬은 **컷 보석이 아니라 마름모**다: 진홍 마름모 `rgb(239,32,77)` + 순검정
+           키라인 + 그 안에 **연분홍 마름모 `rgb(255,157,186)`** 한 겹, 끝. 종전 구현은 파빌리온·
+           크라운 파셋 8면 + 거들 라인 + 굴절 스트릭 + 반짝임 2개짜리 '진짜 보석'이었는데,
+           26px 에서는 파셋이 전부 뭉개져 **테 없는 빨간 얼룩**이 됐다(코인과 같은 병).
+           `o.tint` 는 계속 받는다 — 색만 갈아 끼우면 등급색 젬으로 그대로 쓸 수 있다. */
         gem(ctx, S, o) {
             const G = IconGen;
-            const base = o.tint || '#e5352b';
-            const TIP = [0.50, 0.93], TL = [0.30, 0.24], TR = [0.70, 0.24];
-            const GL = [0.08, 0.46], GR = [0.92, 0.46];
-            const body = [TL, TR, GR, TIP, GL];
-
-            // 아래쪽 광채(보석이 빛을 흘리는 느낌)
-            ctx.save();
-            ctx.globalAlpha = 0.45;
-            ctx.fillStyle = G._rad(ctx, 0.5 * S, 0.55 * S, 0, 0.5 * S, 0.55 * S, 0.52 * S,
-                [[0, G._shade(base, 0.35)], [1, 'rgba(0,0,0,0)']]);
-            ctx.fillRect(0, 0, S, S);
-            ctx.restore();
-
-            // 본체
-            G._poly(ctx, body, S);
-            ctx.fillStyle = G._lin(ctx, 0.2 * S, 0.2 * S, 0.8 * S, 0.9 * S,
-                [[0, G._shade(base, 0.42)], [0.45, base], [1, G._shade(base, -0.55)]]);
-            ctx.fill();
-
-            ctx.save();
-            G._poly(ctx, body, S);
-            ctx.clip();
-
-            // 파빌리온(아래) 파셋 — 거들 위 5점에서 팁으로 모임
-            const gy = 0.46;
-            const pav = [[0.08, 0.30, 0.10], [0.30, 0.50, -0.20], [0.50, 0.70, 0.22], [0.70, 0.92, -0.30]];
-            pav.forEach(([x0, x1, a]) => {
-                G._poly(ctx, [[x0, gy], [x1, gy], TIP], S);
-                ctx.fillStyle = a > 0 ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${-a})`;
-                ctx.fill();
-            });
-
-            // 크라운(위) 파셋
-            G._poly(ctx, [GL, [0.30, gy], TL], S);
-            ctx.fillStyle = 'rgba(0,0,0,.16)';
-            ctx.fill();
-            G._poly(ctx, [[0.70, gy], GR, TR], S);
-            ctx.fillStyle = 'rgba(255,255,255,.26)';
-            ctx.fill();
-            // 테이블(맨 위 평면) — 가장 밝게
-            G._poly(ctx, [TL, TR, [0.70, gy], [0.30, gy]], S);
-            ctx.fillStyle = G._lin(ctx, 0, 0.24 * S, 0, gy * S,
-                [[0, 'rgba(255,255,255,.60)'], [1, 'rgba(255,255,255,.10)']]);
-            ctx.fill();
-
-            // 거들 라인
-            ctx.beginPath();
-            ctx.moveTo(GL[0] * S, gy * S);
-            ctx.lineTo(GR[0] * S, gy * S);
-            ctx.lineWidth = S * 0.022;
-            ctx.strokeStyle = 'rgba(255,255,255,.42)';
-            ctx.stroke();
-
-            // 굴절 하이라이트 — 테이블 위 사선 스트릭
-            ctx.beginPath();
-            ctx.moveTo(0.34 * S, 0.28 * S);
-            ctx.lineTo(0.52 * S, 0.28 * S);
-            ctx.lineTo(0.44 * S, 0.42 * S);
-            ctx.lineTo(0.32 * S, 0.42 * S);
-            ctx.closePath();
-            ctx.fillStyle = 'rgba(255,255,255,.72)';
-            ctx.fill();
-            ctx.restore();
-
-            // 외곽선 — 색조에서 파생시킨다(고정 적갈색을 쓰면 청색 젬에 루비 테두리가 남는다).
-            // 밝은 배경(회색 pill·흰 카드)에서도 실루엣이 살도록 충분히 어둡게.
-            G._poly(ctx, body, S);
-            ctx.lineWidth = S * 0.032;
-            ctx.strokeStyle = G._shade(base, -0.78);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(TL[0] * S, TL[1] * S);
-            ctx.lineTo(TR[0] * S, TR[1] * S);
-            ctx.lineWidth = S * 0.024;
-            ctx.strokeStyle = 'rgba(255,255,255,.8)';
-            ctx.stroke();
-
-            // 반짝임 — 실루엣 밖으로 삐져나오지 않게 본체로 클립한다
-            ctx.save();
-            G._poly(ctx, body, S);
-            ctx.clip();
-            const spark = (x, y, r, a) => {
-                ctx.save();
-                ctx.globalAlpha = a;
-                ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x + r * .18, y - r * .18, x + r, y);
-                ctx.quadraticCurveTo(x + r * .18, y + r * .18, x, y + r);
-                ctx.quadraticCurveTo(x - r * .18, y + r * .18, x - r, y);
-                ctx.quadraticCurveTo(x - r * .18, y - r * .18, x, y - r);
-                ctx.fill();
-                ctx.restore();
-            };
-            spark(0.70 * S, 0.36 * S, S * 0.095, 0.95);
-            spark(0.32 * S, 0.62 * S, S * 0.05, 0.6);
-            ctx.restore();
+            const { ink, poly } = G._sticker;
+            const base = (o && o.tint) || '#ef204d';
+            const rhomb = (rx, ry) => poly(ctx, S, [[0.5, 0.5 - ry], [0.5 + rx, 0.5], [0.5, 0.5 + ry], [0.5 - rx, 0.5]]);
+            ink(ctx, S, rhomb(0.400, 0.410), base, 0.150);
+            // 안쪽 면은 tint 에서 파생시킨다(고정 분홍을 쓰면 파란 젬 안에 분홍 심이 남는다).
+            // 원본 실측 비: 안쪽 마름모가 바깥의 0.42 배, 색은 바깥을 밝게 민 값(239,32,77 → 255,157,186).
+            ink(ctx, S, rhomb(0.168, 0.172), G._shade(base, 0.52), 0.110);
         },
 
         // ---- 해머: 단조 금속 헤드 + 나무 자루 ----
@@ -2840,15 +2667,20 @@ IconGen._genderSym = function (ctx, S, female) {
 (function (G) {
     const { K, ink, on, poly, rrect } = G._sticker;
     G.draw.plus = function (ctx, S) {
-        const c = 0.5, a = 0.158, R = 0.425;   // 팔 반폭 · 반길이
+        /* 이 배지는 화면에서 **12px 안팎**으로 뜬다 — 아이콘 중 가장 작다. 그래서 키라인 비율이
+           코인·젬보다도 커야 한다(원본 실측: 검정 띠 2px / 십자 폭 12.8px ≈ 15.6%). 종전 값
+           `lw 0.115` 은 12px 표시에서 **0.7px** 이라 축소 보간에 통째로 녹아, 확대 대조에서
+           '테 없는 흐린 초록 십자'로 보였다. 띠를 넣을 자리를 만들려고 십자 자체를 줄였다
+           (반길이 0.425 → 0.360 · 반폭 0.158 → 0.125): 안 줄이면 바깥 지름이 1 을 넘어 잘린다.
+           채움도 원본 실측색으로 바꿨다 — 원본은 `rgb(4,255,0)` 순초록이고 종전 `#3ad12f` 는
+           한참 어두웠다(작게 뜨는 배지라 이 채도 차가 그대로 '흐리다'로 읽힌다). */
+        const c = 0.5, a = 0.125, R = 0.360;   // 팔 반폭 · 반길이
         const P = [[c - a, c - R], [c + a, c - R], [c + a, c - a], [c + R, c - a], [c + R, c + a], [c + a, c + a],
                    [c + a, c + R], [c - a, c + R], [c - a, c + a], [c - R, c + a], [c - R, c - a], [c - a, c - a]];
-        ink(ctx, S, poly(ctx, S, P), '#3ad12f', 0.115);
-        // 위·왼쪽 면만 밝게 — 스티커 화법의 한 톤 음영(클립해서 십자 밖으로 안 샌다)
+        ink(ctx, S, poly(ctx, S, P), '#04ff00', 0.240);
+        // 아래 팔만 한 톤 어둡게 — 스티커 화법의 2톤(클립해서 십자 밖으로 안 샌다)
         ctx.save(); ctx.beginPath(); poly(ctx, S, P)(); ctx.clip();
-        on(ctx, rrect(ctx, S, c - a, c - R, a * 2, 0.30, 0.02), '#7ef05c');
-        on(ctx, rrect(ctx, S, c - R, c - a, 0.28, a * 2, 0.02), '#7ef05c');
-        on(ctx, rrect(ctx, S, c - a, c + 0.20, a * 2, 0.22, 0.02), 'rgba(0,0,0,.16)');
+        on(ctx, rrect(ctx, S, c - a, c + 0.13, a * 2, 0.30, 0.02), '#00c400');
         ctx.restore();
     };
 })(IconGen);
