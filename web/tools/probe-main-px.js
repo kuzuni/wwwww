@@ -199,7 +199,10 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
     await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined" && typeof Forge !== "undefined"', { label: '스크립트 로드' });
     await page.evaluate(SC.SEED_SRC);
     await page.reload({ waitUntil: 'load' });
-    await waitReady(page, 'typeof UI !== "undefined" && S && S.forgeLevel === 29', { label: '시드 상태 로드' });
+    // 🚨 S.forgeLevel 만 기다리면 안 된다 — S 는 스크립트 파싱 시점에 복원되지만 UI.els 는
+    //    UI.init(DOMContentLoaded) 이 채운다. 그 사이에 아래 renderEquipSheet 를 부르면
+    //    els.equipSheet 가 undefined 로 죽는다(느린 컨테이너에서 3회 중 2회 재현).
+    await waitReady(page, 'typeof UI !== "undefined" && S && S.forgeLevel === 29 && UI.els && !!UI.els.equipSheet', { label: '시드 상태 로드' });
     // 캡처 오염원 무력화 — shot-screens.js 전체 목록
     await page.evaluate(() => {
         if (window.Scene3D) Scene3D.update = function () { };
@@ -211,6 +214,11 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
         UI.autoSeqStep = () => { };
         UI.clearPendingCraft(); UI.renderEquipSheet();
         UI.coinBurst = () => { };
+        // 전리품 피드(#loot-feed) — 스킬 바 dark-ink 창(x>0.6W, y0.46~0.575H) 바로 위에 떠서
+        // 어두운 코인 토스트가 union 을 위로 늘린다(실측: 스킬 바 DOM 상단은 원본과 동일한
+        // 48.99%H 인데 피드가 y419 에 떠 '스킬 바 상단 −3.03%p' 가짜 FAIL). 전투 상태 소관 오염원.
+        UI.floatLoot = () => { };
+        if (UI.els && UI.els.lootFeed) UI.els.lootFeed.innerHTML = '';
     });
     await page.waitForTimeout(800);
     await page.evaluate(() => {
@@ -222,8 +230,32 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
     await page.addStyleTag({ content: '*, *::before, *::after { animation: none !important; transition: none !important; }' });
     await page.evaluate(() => Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))])).catch(() => { });
     await page.waitForTimeout(400);
-    // ① 캔버스 켠 캡처 — 스킬 바(어두운 잉크 술어가 3D 배경 위에서만 성립) 전용
-    const shotVis = await page.screenshot({ timeout: 180000 });
+    // ① 스킬 바 전용 캡처 — 캔버스를 숨기고 **밝은 베일**을 HUD 뒤에 깐다.
+    // 🚨 종전에는 '어두운 잉크 술어가 3D 배경 위에서만 성립한다'며 캔버스를 켠 채 찍었지만,
+    //    그 전제(밝은 초원 필드)가 깨졌다 — 챕터 테마가 어두운 바이옴(4챕터 흐린 침엽수림)이면
+    //    창 오른쪽 절반이 통째로 '어두운 잉크'가 돼 union 이 측정 창 상단(0.46H)까지 번지고
+    //    '스킬 바 상단 −3.03%p' 가짜 FAIL 이 난다(실측: n=9354 단일 성분이 x299~498·y410~498 을
+    //    덮었다. 스킬 바 DOM 상단은 원본과 동일한 48.99%H). 헤드리스에서 rAF 가 안 돌아 캔버스가
+    //    검정으로 남을 때도 같은 증상이다. 테마·렌더 상태에 안 딸리게, 캔버스 자리를 밝은
+    //    단색으로 채워 창 안의 어두운 잉크 = 스킬 바뿐이게 만든다(원본 PNG 쪽은 밝은 필드라
+    //    같은 술어가 원래 성립한다).
+    //    구현: 캔버스를 숨기면 그 뒤는 `#app` 근흑(rgb 22,27,34)이 그대로 보인다(별도 베일을
+    //    body 에 깔아도 #app 이 트리상 뒤라 그 위에 칠해진다 — 밟았다). #app 배경 자체를 잠시
+    //    밝은 초록으로 바꿔 찍고 되돌린다. HUD 는 전부 #app 안쪽 위층이라 기하가 안 변한다.
+    const shotVis = await (async () => {
+        await page.evaluate(() => {
+            const g = document.getElementById('game3d'); if (g) g.style.visibility = 'hidden';
+            const app = document.getElementById('app');
+            if (app) { app.dataset.probeBg = app.style.background || ''; app.style.background = '#2fae5f'; }
+        });
+        const s = await page.screenshot({ timeout: 180000 });
+        await page.evaluate(() => {
+            const app = document.getElementById('app');
+            if (app) { app.style.background = app.dataset.probeBg || ''; delete app.dataset.probeBg; }
+            const g = document.getElementById('game3d'); if (g) g.style.visibility = '';
+        });
+        return s;
+    })();
     // ② 픽셀 실측 본 캡처(머리말 🚨): 3D 캔버스·이펙트·오프라인 배지를 숨긴다 — 전부 측정
     //    대상 밖이고, 캔버스의 밝은 픽셀(눈밭)이 흰 잉크 술어를 오염시킨다. HUD 기하는 안 변한다.
     await page.evaluate(() => {

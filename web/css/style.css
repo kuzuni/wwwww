@@ -7038,11 +7038,15 @@ body {
 .chat-preview-name { color: #eef1f5; text-shadow: 0 1px 1px rgba(0,0,0,.5); }
 .chat-preview-msg { color: #aab3c0; }
 /* ② 탈것 셀 — 다른 7칸과 같은 광택 문법(색·크기 불변, 층만) */
+/* 🚨 하늘색 바탕은 위 728행 규칙이 background: **단축**의 그라디언트 층으로 갖고 있다 — 여기서
+   background-image 를 다시 쓰면 그 층이 통째로 사라져 셀이 흰 시트색이 된다(probe-main-px
+   '특수 칸' 3건 FAIL 로 실측). 마지막 층에 같은 파랑을 반드시 포함할 것. */
 .equip-cell.egg-cell {
     background-image:
         radial-gradient(118% 86% at 26% 12%, rgba(255,255,255,.34) 0, rgba(255,255,255,0) 56%),
         linear-gradient(180deg, rgba(255,255,255,.22) 0, rgba(255,255,255,0) 36%,
-                                rgba(0,0,0,.08) 66%, rgba(0,0,0,.24) 100%);
+                                rgba(0,0,0,.08) 66%, rgba(0,0,0,.24) 100%),
+        linear-gradient(180deg, #6cc6f7 0%, #4fb2ee 55%, #3ea0e0 100%);
     box-shadow:
         inset 0 .07rem 0 rgba(255,255,255,.45),
         inset 0 -.14rem .1rem rgba(0,0,0,.26),
