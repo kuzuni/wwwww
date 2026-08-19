@@ -3740,7 +3740,9 @@ const Scene3D = {
         this.clearGroup(this.weaponG);
         const w = S.equipment.weapon;
         this.wtypeId = w ? (w.wtype || 'sword') : 'club';
-        this.weaponG.add(this.gradeHeroGearValue(this.makeWeapon(this.wtypeId, w ? w.ageIdx : 0, w && w.rarity)));
+        const wModel = this.makeWeapon(this.wtypeId, w ? w.ageIdx : 0, w && w.rarity);
+        if (w) this.applyAscendDecor(wModel, w.stars, 'equip'); // 승천 데코 — 시대 테마 위에 누적 (ascend-design-tiers)
+        this.weaponG.add(this.gradeHeroGearValue(wModel));
         // (구형 파지 랩 토러스 제거 — applyWeaponGrip의 makeGripWrap C자 랩과 중복이었고,
         //  무텍스처 베이지 램버트 도넛이 근접샷에서 '맨손 스텁'으로 오독됨, 비평가 7.4 4번)
         const wtDef = WEAPON_TYPES[this.wtypeId];
@@ -3752,7 +3754,11 @@ const Scene3D = {
         // 투구: 이름별 스타일 모델
         this.clearGroup(this.helmetG);
         const h = S.equipment.helmet;
-        if (h) this.helmetG.add(this.gradeHeroGearValue(this.makeHelmet(h.age, h.rarity, itemStyleOf(h), itemNameOf(h))));
+        if (h) {
+            const hModel = this.makeHelmet(h.age, h.rarity, itemStyleOf(h), itemNameOf(h));
+            this.applyAscendDecor(hModel, h.stars, 'equip'); // 승천 데코 (ascend-design-tiers)
+            this.helmetG.add(this.gradeHeroGearValue(hModel));
+        }
         // 갑옷 → 색 + 이름별 스타일 (견갑/흉갑 유무, 부속 장착)
         const a = S.equipment.armor;
         const c = a ? AGE_COLORS[a.age] : 0xb0bec5;
@@ -5675,7 +5681,8 @@ const Scene3D = {
     },
     itemThumb(item) {
         if (!item) return null;
-        const key = item.slot + ':' + (item.wtype || '') + ':' + item.age + ':' + item.rarity + ':' + (item.nameIdx !== undefined ? item.nameIdx : '');
+        const aTier = this.ascendTier(item.stars); // 승천 티어별 디자인 분화 — 키에 안 넣으면 별이 달라도 같은 썸네일이 재사용된다
+        const key = item.slot + ':' + (item.wtype || '') + ':' + item.age + ':' + item.rarity + ':' + (item.nameIdx !== undefined ? item.nameIdx : '') + ':a' + aTier;
         if (this._thumbCache[key]) return this._thumbCache[key];
         try {
             this.itemThumbInit();
@@ -5702,6 +5709,7 @@ const Scene3D = {
             // 썸네일 경로에서만 건다: makeArmorPreview·makeAccessoryPreview 는 어차피 여기서만 쓰지만
             // makeHelmet·makeWeapon 은 **인게임 영웅과 공용**이라, 빌더 안에 넣으면 전장 모델까지
             // 파트마다 값이 갈린다(그쪽은 이 항목의 요구가 아니고 cape·hero 회귀를 흔든다).
+            this.applyAscendDecor(model, aTier, 'equip'); // 승천 데코 (ascend-design-tiers) — 명도 3단 처리에 같이 태운다
             this.tierizeParts(model);
             const g = new THREE.Group();
             g.add(model);
@@ -5719,21 +5727,27 @@ const Scene3D = {
     // 슬롯에 이모지(🐴 등)를 박아 두면 실제 3D 탈것과 생김새가 전혀 달라 '다른 물건'으로 읽힌다.
     // 장비 썸네일과 같은 오프스크린 렌더러에 태우되, 탈것은 종마다 몸집·형태가 크게 달라
     // 고정 카메라로는 잘리거나 좁쌀만 하게 찍힌다 — **바운딩 박스로 매번 프레이밍을 역산**한다.
-    mountThumb(name, rarity) {
-        return this.creatureThumb('mount', name, () => this.makeMountMesh(name, rarity || 'common'), rarity);
+    mountThumb(name, rarity, stars) {
+        const aTier = this.ascendTier(stars);
+        return this.creatureThumb('mount', name,
+            () => this.applyAscendDecor(this.makeMountMesh(name, rarity || 'common'), aTier, 'mount'), rarity, aTier);
     },
     // 펫도 같은 문제(슬롯 이모지 🐾 ≠ 실제 3D 펫) — 탈것과 완전히 같은 파이프라인에 태운다.
-    petThumb(name) {
-        return this.creatureThumb('pet', name, () => this.makePetMesh(name));
+    petThumb(name, stars) {
+        const aTier = this.ascendTier(stars);
+        return this.creatureThumb('pet', name,
+            () => this.applyAscendDecor(this.makePetMesh(name), aTier, 'pet'), '', aTier);
     },
     // 탈것·펫 공용 — 실제 게임 모델을 슬롯 아이콘 각도로 찍는다.
     // 종마다 몸집·형태가 크게 달라 고정 카메라로는 잘리거나 좁쌀만 하게 찍히므로
     // **바운딩 박스로 매번 프레이밍을 역산**하는 게 핵심이다.
     // 이미 구워 둔 썸네일이 있으면 돌려준다(굽지는 않는다) — UI가 다시 그릴 때 이모지를 거치지 않고
     // 곧바로 <img>를 낼 수 있게 하는 조회용. 키 형식을 UI에 흘리지 않으려고 여기 둔다.
-    creatureThumbCached(kind, name, rarity) {
+    creatureThumbCached(kind, name, rarity, stars) {
         if (!name || !this._thumbCache) return null;
-        return this._thumbCache[kind + ':' + name + ':' + (rarity || '') + '@' + this.creatureThemeKey()] || null;
+        // 키 형식은 creatureThumb 과 반드시 동일해야 한다 — ':a티어' 가 빠지면 캐시가 항상 미스라
+        // 모든 셀이 이모지 폴백→재하이드레이트를 탄다 (ascend-design-tiers 에서 티어 축 추가).
+        return this._thumbCache[kind + ':' + name + ':' + (rarity || '') + ':a' + this.ascendTier(stars) + '@' + this.creatureThemeKey()] || null;
     },
     // ---- 생물(탈것·펫) 썸네일 전용 렌더러 ----
     // 장비 썸네일 렌더러(_thumbR)를 같이 쓰면 색이 전장과 어긋난다: 그쪽은 기본 인코딩(Linear·
@@ -5792,9 +5806,9 @@ const Scene3D = {
                 n(this.sun && this.sun.intensity), n(this.rim && this.rim.intensity),
                 this.sun ? this.sun.color.getHexString() : '-'].join('|');
     },
-    creatureThumb(kind, name, build, rarity) {
+    creatureThumb(kind, name, build, rarity, aTier) {
         if (!name) return null;
-        const key = kind + ':' + name + ':' + (rarity || '') + '@' + this.creatureThemeKey();
+        const key = kind + ':' + name + ':' + (rarity || '') + ':a' + (aTier || 0) + '@' + this.creatureThemeKey();
         if (this._thumbCache[key]) return this._thumbCache[key];
         try {
             this.creatureThumbInit();
@@ -6930,6 +6944,102 @@ const Scene3D = {
         return [0, arc.zBase === undefined ? arc.rz0 : arc.zBase - arc.rz0];   // 도달 불가(64행 = 수백 마리)
     },
 
+    // ===== 승천 디자인 티어 (ascend-design-tiers, 사용자 지시 2026-08-19) =====
+    // 아이템의 별(stars = 승천 횟수)이 디자인을 6단계로 바꾼다: tier = stars % 6 — 5승천까지 변하고
+    // 6승천이면 0승천 디자인으로 **순환**(사용자 원문 "그 이후는 0승천이었던 걸로"). 등급(시대/레어리티)
+    // 축과는 독립 — 등급 디자인 위에 승천 데코가 **누적**으로 얹힌다(갑옷생쥐 → 가시갑옷생쥐 …).
+    ascendTier(stars) { return (((stars || 0) % 6) + 6) % 6; },
+
+    // 티어별 속성 모티프 — 스킬 연출 색 변주와 데코 발광색이 공유한다.
+    // 사용자 예시(화살 → 불화살 → 얼음화살)의 속성 순환: 1 불 · 2 얼음 · 3 뇌전 · 4 신성 · 5 심연.
+    ASCEND_MOTIF: [null,
+        { name: 'fire', color: 0xff7a2a },
+        { name: 'ice', color: 0x9fd8ff },
+        { name: 'storm', color: 0xc9a0ff },
+        { name: 'holy', color: 0xffe9a8 },
+        { name: 'abyss', color: 0x8a4dff }],
+
+    // 누적 데코 — tier n 이면 1..n 레이어를 전부 얹는다. 대상 치수가 종·무기마다 달라
+    // 바운딩 박스로 앵커를 역산한다 (썸네일 자동 프레이밍과 같은 이유).
+    // ⚠️ 반드시 **스케일·배치 전의 원본 메시**에 부를 것 — bbox 를 로컬 좌표로 쓰므로
+    //    부모 변환이 이미 걸려 있으면 데코가 어긋난다 (refreshPets 는 scale 전에 부른다).
+    // 골격 구현(비채점 몫): 밴드·가시·룬 링·금장·왕관의 공통 사다리. 종별 맞춤 파츠(갑옷생쥐의
+    // '생쥐에 맞는' 갑옷 등)와 스킬별 모티프 연출 심화는 채점 라운드 몫 — 레이어 구조는 이대로 유지.
+    applyAscendDecor(root, tier, kind) {
+        tier = this.ascendTier(tier);
+        if (!tier || !root) return root;
+        const box = new THREE.Box3().setFromObject(root);
+        if (box.isEmpty() || !isFinite(box.min.x)) return root;
+        const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
+        const r = Math.max(size.x, size.z) * 0.5;
+        const motif = this.ASCEND_MOTIF[Math.min(tier, 5)];
+        const deco = new THREE.Group();
+        deco.userData.ascendDecorRoot = tier;
+        const mark = (m, layer) => { m.userData.ascendDecor = layer; deco.add(m); };
+        const bandY = box.min.y + size.y * 0.55;
+        // L1 갑주 밴드(금속 칼라) — '갑옷–'
+        { const t = new THREE.Mesh(new THREE.TorusGeometry(r * 0.95, Math.max(0.02, r * 0.1), 6, 20),
+            new THREE.MeshLambertMaterial({ color: 0x8b95a3 }));
+          t.rotation.x = Math.PI / 2; t.position.set(center.x, bandY, center.z); mark(t, 1); }
+        // L2 가시 — '가시갑옷–' (밴드 바깥으로 눕혀 뻗는다)
+        if (tier >= 2) {
+            const mat = new THREE.MeshLambertMaterial({ color: 0xcfd6df });
+            for (let i = 0; i < 6; i++) {
+                const a = i / 6 * Math.PI * 2;
+                const s = new THREE.Mesh(new THREE.ConeGeometry(Math.max(0.015, r * 0.09), Math.max(0.05, r * 0.3), 5), mat);
+                s.position.set(center.x + Math.cos(a) * r * 1.0, bandY, center.z + Math.sin(a) * r * 1.0);
+                s.rotation.z = -Math.PI / 2; s.rotation.y = -a; // 원뿔 축(+y)을 바깥 방사 방향으로
+                mark(s, 2);
+            }
+        }
+        // L3 룬 링 — 발밑 모티프색 문양 고리
+        if (tier >= 3) {
+            const ring = new THREE.Mesh(new THREE.RingGeometry(r * 1.08, r * 1.34, 24),
+                new THREE.MeshBasicMaterial({ color: motif.color, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
+            ring.rotation.x = -Math.PI / 2; ring.position.set(center.x, box.min.y + 0.02, center.z);
+            mark(ring, 3);
+        }
+        // L4 금장 스터드 — 어깨선 발광 장식
+        if (tier >= 4) {
+            const mat = new THREE.MeshLambertMaterial({ color: 0xffd54f, emissive: new THREE.Color(0xffb300), emissiveIntensity: 0.5 });
+            for (let i = 0; i < 4; i++) {
+                const a = i / 4 * Math.PI * 2 + 0.4;
+                const s = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.02, r * 0.09), 6, 5), mat);
+                s.position.set(center.x + Math.cos(a) * r * 0.82, box.min.y + size.y * 0.8, center.z + Math.sin(a) * r * 0.82);
+                mark(s, 4);
+            }
+        }
+        // L5 왕관 — 정수리 금관 (5승천 정점)
+        if (tier >= 5) {
+            const mat = new THREE.MeshLambertMaterial({ color: 0xffd54f, emissive: new THREE.Color(0xffca28), emissiveIntensity: 0.35 });
+            const cr = Math.max(0.05, r * 0.34);
+            const crown = new THREE.Group();
+            crown.add(new THREE.Mesh(new THREE.CylinderGeometry(cr, cr * 1.05, cr * 0.5, 10, 1, true), mat));
+            for (let i = 0; i < 5; i++) {
+                const a = i / 5 * Math.PI * 2;
+                const p = new THREE.Mesh(new THREE.ConeGeometry(cr * 0.2, cr * 0.6, 4), mat);
+                p.position.set(Math.cos(a) * cr, cr * 0.5, Math.sin(a) * cr);
+                crown.add(p);
+            }
+            crown.position.set(center.x, box.max.y + cr * 0.35, center.z);
+            crown.traverse(o => { o.userData.ascendDecor = 5; });
+            deco.add(crown);
+        }
+        root.add(deco);
+        return root;
+    },
+
+    // 스킬 연출용: 정의 색을 티어 모티프 색으로 절반쯤 끌어 스킬이 '불화살/얼음화살'로 갈린다.
+    ascendSkillTier(def) {
+        const sk = def && def.id && typeof S !== 'undefined' && S.skills && S.skills[def.id];
+        return this.ascendTier(sk && sk.stars);
+    },
+    ascendSkillColor(colorHex, def) {
+        const m = this.ASCEND_MOTIF[this.ascendSkillTier(def)];
+        if (!m) return colorHex;
+        return new THREE.Color(colorHex).lerp(new THREE.Color(m.color), 0.55).getHex();
+    },
+
     refreshPets() {
         for (const pg of this.petGroups) { this.disposeTree(pg); this.scene.remove(pg); }
         this.petGroups = [];
@@ -6946,6 +7056,7 @@ const Scene3D = {
             if (!p) return;
             const g = new THREE.Group();
             const mesh = this.makePetMesh(p.name);
+            this.applyAscendDecor(mesh, p.stars, 'pet'); // 승천 데코는 스케일 전 원본 치수 기준 (ascend-design-tiers)
             // 등급이 높을수록 큼직하게
             mesh.scale.setScalar(0.85 + RARITIES.indexOf(p.rarity) * 0.14);
             g.add(mesh);
@@ -7250,6 +7361,7 @@ const Scene3D = {
         this.rideSkirt(true);
         const g = new THREE.Group();
         const mesh = this.makeMountMesh(name, m.rarity);
+        this.applyAscendDecor(mesh, m.stars, 'mount'); // 승천 데코 — 스케일 전 (ascend-design-tiers)
         const sc = 1.1 + RARITIES.indexOf(m.rarity) * 0.1;
         mesh.scale.setScalar(sc);
         g.add(mesh);
@@ -7389,6 +7501,7 @@ const Scene3D = {
             const g = new THREE.Group();
             const sc = 1.1 + RARITIES.indexOf(m.rarity) * 0.1;
             const mesh = this.makeMountMesh(name, m.rarity);
+            this.applyAscendDecor(mesh, m.stars, 'mount'); // 승천 데코 — 스케일 전 (ascend-design-tiers)
             mesh.scale.setScalar(sc);
             g.add(mesh);
             g.rotation.y = 0.55;                     // 영웅과 같은 3/4 방향
@@ -10123,6 +10236,9 @@ const Scene3D = {
     },
 
     skillEffect(fx, colorHex, targetIds, def) {
+        // 승천 티어 속성 변주 (ascend-design-tiers): 같은 스킬도 별 개수에 따라 불/얼음/뇌전/신성/심연
+        // 색으로 갈린다 — '화살 → 불화살 → 얼음화살'의 골격. 모티프별 전용 연출은 채점 라운드 몫.
+        colorHex = this.ascendSkillColor(colorHex, def);
         const color = new THREE.Color(colorHex);
         const tier = this.skillTier(def);
         this.skillCastBeat(color, fx, tier);               // 1박
