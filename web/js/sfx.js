@@ -254,6 +254,28 @@ const SFX = {
         this.thump(150, 55, strong ? 0.13 : 0.09, { gain: strong ? 0.3 : 0.2, jitter: 0.04 });
     },
 
+    // ---- 먹구름 낙뢰 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----
+    // 사용자 원문: "적들 머리 위에 구름 뭉게뭉게 생겼다가 번개로 바바박".
+    // 세 박자에 하나씩 붙는다: 구름이 모이는 저역 우르릉(rumble) → 충전 지지직(crackle) → 낙뢰(strike).
+    // 낙뢰는 **트랜지언트가 전부**다 — 하얀 노이즈를 아주 짧게 때린 뒤 저역 텀프로 받아야
+    // '쩌적-쿵' 으로 들린다. 여러 발이 연달아 떨어지므로 발마다 피치를 흔들어 기계 반복을 피한다.
+    stormRumble(dur) {
+        this.noiseBurst(Math.max(0.2, dur || 0.35), { filterFreq: 260, filterTo: 90, gain: 0.1, rvb: 0.3 });
+        this.tone(46, Math.max(0.25, dur || 0.35), { type: 'sine', gain: 0.16, jitter: 0.05, rvb: 0.35 });
+    },
+    stormCrackle() {
+        this.noiseBurst(0.07, { type: 'highpass', filterFreq: 4200, gain: 0.1 });
+        this.tone(2400, 0.05, { type: 'square', gain: 0.05, slideTo: 3600, jitter: 0.08 });
+    },
+    // i = 몇 번째 낙뢰인지(0부터). 뒤로 갈수록 살짝 낮고 굵게 — 연타가 '쌓이는' 인상을 만든다.
+    stormStrike(i) {
+        const k = 1 - Math.min(4, i || 0) * 0.06;
+        this.click({ freq: 7000 * k, gain: 0.3 });
+        this.noiseBurst(0.16, { gain: 0.34, filterFreq: 7000 * k, filterTo: 900, rvb: 0.22 });
+        this.thump(180 * k, 44, 0.2, { gain: 0.34, jitter: 0.07 });
+        this.tone(1500 * k, 0.1, { type: 'square', gain: 0.1, slideTo: 400, jitter: 0.06 });
+    },
+
     // ---- 장비 교체 3박자 (equip-swap-throwout, 사용자 지시 2026-08-19) ----
     // 화면 연출(`UI.playEquipSwapFx`)의 세 순간에 하나씩 붙는다: 던짐(0ms) → 딸깍(130ms) → 착지(558ms).
     // 셋이 같은 대역이면 한 덩어리로 뭉개져 '세 번 일어난 일'로 안 들린다 — 대역을 갈라 둔다:

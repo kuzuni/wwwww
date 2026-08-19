@@ -9136,7 +9136,17 @@ const Scene3D = {
     //    시전 박자 자체는 다른 스킬과 똑같이 등급만큼 길어져야 한다 — 둘을 한 함수로 묶었더니
     //    메테오만 시전이 등급을 안 타고, 검증기의 '시전 구간'도 0ms 로 잡혀 빈 구간이 됐다.
     castBeatMs(tier) { return 90 + tier * 26; },                       // 커먼 90ms … 미식 220ms
-    castMsFor(fx, tier) { return fx === 'meteor' ? this.CAST_MS_METEOR : this.castBeatMs(tier); },
+    // ⚠️ 번개류는 **시전 박자에 하한을 둔다**. 이 대기 시간이 곧 먹구름이 뭉게뭉게 부푸는 시간이라,
+    //    커먼(90ms)에서는 구름이 뜨자마자 번개가 쳐서 '예고'가 눈에 안 걸린다(실측: 첫 낙뢰 전
+    //    표본이 5프레임뿐이고 그중 4프레임이 이미 최대 불투명). 초반 플레이어가 가장 많이 보는
+    //    대역이 바로 커먼·레어라, 여기서 장면이 성립하지 않으면 항목 전체가 실패한다.
+    //    190ms 는 피해 판정(Combat 0.2~0.25초)보다 여전히 앞이라 '맞고 나서 번개'가 되지 않는다.
+    STORM_GATHER_MIN_MS: 190,
+    castMsFor(fx, tier) {
+        if (fx === 'meteor') return this.CAST_MS_METEOR;
+        if (fx === 'bolt') return Math.max(this.STORM_GATHER_MIN_MS, this.castBeatMs(tier));
+        return this.castBeatMs(tier);
+    },
     // 시전 모트용 글로우 — makeGlowTexture 는 호출마다 새 텍스처를 만든다(스킬마다 굽지 않게 캐시)
     castGlowTex() { return this._castGlow || (this._castGlow = this.makeGlowTexture()); },
 
@@ -9228,11 +9238,15 @@ const Scene3D = {
         const color = new THREE.Color(colorHex);
         const tier = this.skillTier(def);
         this.skillCastBeat(color, fx, tier);               // 1박
+        // 스킬 고유의 '예고 오브젝트'는 **1박과 같은 시각**에 세운다 (skill-fx-exaggerated).
+        // 번개류는 먹구름 — 페이로드에서 만들면 다 부풀기도 전에 번개가 쳐서 예고가 성립하지 않는다.
+        // 핸들은 전역에 두지 않고 페이로드로 넘긴다(스킬이 겹쳐도 서로의 구름을 안 지운다).
+        const scene = fx === 'bolt' ? this.stormCloudGather(targetIds, color, tier) : null;
         const wait = this.castMsFor(fx, tier);
         // 2·3박은 시전이 끝난 뒤. ⚠️ 타깃은 **그때 다시 조회**한다 — 그 사이에 죽어 disposeTree 된
         // 메시를 붙들고 있으면 해제된 지오메트리를 참조한다.
-        if (wait > 0) { setTimeout(() => this.skillPayload(fx, color, targetIds, tier), wait); return; }
-        this.skillPayload(fx, color, targetIds, tier);
+        if (wait > 0) { setTimeout(() => this.skillPayload(fx, color, targetIds, tier, scene), wait); return; }
+        this.skillPayload(fx, color, targetIds, tier, scene);
     },
 
     // 3박 뒤에 얹는 **무게** — 등급이 높을수록 충격파를 겹치고 화면을 세게 물린다.
@@ -9303,7 +9317,7 @@ const Scene3D = {
         }
     },
 
-    skillPayload(fx, color, targetIds, tier) {
+    skillPayload(fx, color, targetIds, tier, scene) {
         const targets = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
         if (tier !== undefined) setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier), fx === 'meteor' ? 340 : 30);
         if (fx === 'meteor') {
@@ -9342,11 +9356,9 @@ const Scene3D = {
                 this.projectileBolt(from, to, color, tier || 0);
             }
         } else if (fx === 'bolt') {
-            targets.forEach(m => {
-                const p = m.g.position.clone();
-                this.lightningBolt(new THREE.Vector3(p.x, 6.2, p.z), new THREE.Vector3(p.x, p.y + 0.45, p.z), color, tier || 0);
-                this.explosion(p, color);
-            });
+            // 1박에 세운 먹구름에서 낙뢰가 연달아 꽂힌다 (skill-fx-exaggerated).
+            // 예전엔 여기서 볼트 1발 + 폭발 1회로 끝나 '따' 하고 닫혔다.
+            this.stormCloudStrike(scene, targetIds, color, tier || 0);
         } else if (fx === 'slash') {
             targets.forEach(m => {
                 const p = m.g.position.clone().add(new THREE.Vector3(0, 0.7, 0));
@@ -9365,6 +9377,207 @@ const Scene3D = {
             this.expandRing(this.heroG.position.clone(), color, 1.2);
             this.flashLight(this.heroG.position, color.getHex(), 0.4);
         }
+    },
+
+    // ---- 스킬 전용 미니 연출 ①: 먹구름 낙뢰 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----
+    // 사용자 원문: "적들 머리 위에 구름 뭉게뭉게 생겼다가 번개로 바바박 한다던가 그런 거."
+    // 그리고 방향 보정: "매번 다단 히트일 필요는 없음 … 연출이 좀 구체적이었으면 좋겠다는 거임."
+    //
+    // 여태 `bolt` 는 **볼트 1발 + 폭발 1회**였다. 그림은 나쁘지 않았지만 '따' 하고 끝나서
+    // *무슨 일이 일어난 건지*가 안 읽혔다. 여기서 bolt 에 **장면**을 준다:
+    //   예고: 적 머리 위에 먹구름이 뭉게뭉게 부풀어 오른다(+ 발밑에 그림자가 깔린다)
+    //   충전: 구름 속이 안에서 두어 번 번쩍이고 지지직거린다
+    //   발동: 낙뢰가 **바바박** 연달아 꽂힌다(등급만큼 발수가 늘고, 발마다 자리가 흔들린다)
+    //   여운: 구름이 흩어지며 연기가 오른다
+    //
+    // ⚠️ **구름은 1박(시전)에 만든다.** 페이로드에서 만들면 구름이 다 부풀기도 전에 번개가 쳐서
+    //    '예고'가 성립하지 않는다. `skillEffect` 가 `skillCastBeat` 와 **같은 시각**에 구름을 띄우고,
+    //    핸들을 `skillPayload` 로 넘겨 그 구름에서 번개가 나가게 한다. 시전 박자(90~220ms)가
+    //    그대로 구름이 부푸는 시간이 된다 — 등급이 높을수록 더 오래 뭉게뭉게한다.
+    // ⚠️ 핸들을 **전역에 두지 않는다**. 스킬 두 개가 겹치면 서로의 구름을 지운다 — 인자로 넘긴다.
+    // ⚠️ 타깃은 죽을 수 있다. 구름은 **생성 시점 좌표에 고정**하고(적을 따라다니면 넉백 때
+    //    구름이 미끄러진다), 낙뢰는 매 발 `enemyMap` 을 다시 조회해 살아 있으면 그 자리로,
+    //    없으면 구름 아래 지면으로 꽂는다. 어느 쪽이든 번개가 허공에서 끊기지 않는다.
+    STORM_CLOUD_Y: 3.15,          // 구름 높이(월드) — 적 머리 위, 카메라 프레임 안
+    STORM_MAX_CLOUDS: 3,          // 다수 적일 때 상한(구름이 화면을 덮지 않게)
+    // ⚠️ **하한은 3발이다.** 2발은 간격을 벌려도 '따다' 수준이라 사용자가 지적한 단타 인상이 남는다
+    //    (실측: 커먼 2발이면 첫~끝 95ms — 한 박자 안에 다 끝난다). 그리고 커먼·레어야말로 초반
+    //    플레이어가 가장 많이 보는 대역이라, 여기서 장면이 성립하지 않으면 항목 전체가 실패한다.
+    stormBolts(tier) { return 3 + Math.min(4, Math.max(0, tier | 0)); },   // 커먼 3발 … 궁극 이상 7발
+    stormCloudGather(targetIds, color, tier) {
+        if (!this.scene) return null;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
+        const pw = t / 5;
+        const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
+        const spots = (live.length ? live.map(m => m.g.position.clone()) : [this.heroG.position.clone()])
+            .slice(0, this.STORM_MAX_CLOUDS);
+        const G = new THREE.Group();
+        this.scene.add(G);
+        const clouds = [];
+        for (const p of spots) {
+            const cg = new THREE.Group();
+            cg.position.set(p.x, this.STORM_CLOUD_Y, p.z);
+            // 뭉게뭉게 = **덩이 여러 개가 시차를 두고 부푸는 것**이다. 한 덩이를 키우면 풍선이 된다.
+            // 저폴리 구를 눌러(세로 0.6) 겹쳐 놓고, 덩이마다 부푸는 시각을 어긋내 뭉실거리게 한다.
+            const puffN = 6 + Math.round(pw * 4);
+            const puffs = [];
+            for (let i = 0; i < puffN; i++) {
+                const a = (i / puffN) * Math.PI * 2 + U.rand(-0.35, 0.35);
+                const rad = i === 0 ? 0 : U.rand(0.34, 0.78) * (0.9 + pw * 0.5);
+                const r = (i === 0 ? 0.56 : U.rand(0.3, 0.48)) * (0.92 + pw * 0.36);
+                // 먹구름은 **스킬 색이 아니라 어두운 회청색**이어야 '구름'으로 읽힌다.
+                // 스킬 색은 아래 글로우와 번개가 쥔다(색을 구름에 칠하면 색 솜뭉치가 된다).
+                // 🚨 **Lambert 를 쓰면 안 된다.** 이 씬은 한낮 초원이라 키라이트가 세고 톤매핑까지
+                //    걸려 있어서, 어두운 색을 줘도 조명이 통째로 씻어 **흰 솜뭉치**가 된다(첫 캡처
+                //    실측: 하늘이 흰 덩어리로 덮여 '먹구름'이 아니라 수증기 폭발로 읽혔다).
+                //    Basic(무광)으로 두면 씬 조명과 무관하게 내가 정한 어둠이 그대로 나온다.
+                //    입체감은 조명 대신 **덩이 높이에 따른 명도 차**로 준다 — 위는 밝고 아래는 어둡게.
+                const yOff = U.rand(-0.12, 0.18);
+                const lift = (yOff + 0.12) / 0.3;                     // 0(아래) ~ 1(위)
+                const shade = new THREE.Color(0x1e222c).lerp(new THREE.Color(0x4a5364), lift * 0.85 + U.rand(0, 0.12))
+                    .lerp(color, 0.07);
+                const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0),
+                    new THREE.MeshBasicMaterial({ color: shade, transparent: true, opacity: 0 }));
+                puff.position.set(Math.cos(a) * rad, yOff, Math.sin(a) * rad * 0.55);
+                puff.rotation.set(U.rand(0, 3), U.rand(0, 3), U.rand(0, 3));
+                // ⚠️ 표식을 반드시 남길 것. 프로브가 `IcosahedronGeometry` 타입으로 구름을 세면
+                //    **적 몸통의 저폴리 파츠가 같이 잡힌다**(임프 실측 18개) — 그러면 '연출 뒤에도
+                //    구름이 18개 남았다'는 유령 실패가 나고, 불투명도 최댓값도 적 재질(1.0)이 덮어
+                //    '부풀어 오르지 않는다'로 잘못 읽힌다. 실제로 이 프로브가 그 함정에 걸렸다.
+                puff.userData = { stormPuff: true, s: 1, d: i / puffN * 0.55, spin: U.rand(-0.5, 0.5) };
+                cg.add(puff); puffs.push(puff);
+            }
+            // 구름 배쪽 글로우 — 여기만 스킬 색이다. 충전 구간에 이게 깜빡여 '차오른다'가 읽힌다.
+            const belly = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: this.castGlowTex(), color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+            belly.userData.stormBelly = true;
+            // 배쪽 글로우는 **작고 옅게**. 가산 합성이라 크게 주면 구름을 통째로 흰색으로 밀어
+            // 먹구름이 사라진다(첫 캡처의 흰 덩어리 절반이 이 스프라이트였다).
+            // 평상시엔 '속에서 뭔가 차오른다' 정도만, 낙뢰 순간에만 1.0 으로 튄다.
+            belly.scale.setScalar(0.85 + pw * 0.45);
+            belly.position.set(0, -0.28, 0.1);
+            cg.add(belly);
+            G.add(cg);
+            clouds.push({ cg, puffs, belly, at: p.clone() });
+        }
+        if (!clouds.length) { this.scene.remove(G); return null; }
+        // 구름 아래를 비추는 빛 — 지면에 그늘/반사를 만들어 '위에 뭔가 생겼다'를 지면에서도 읽게 한다
+        const light = new THREE.PointLight(color.getHex(), 0, 7);
+        light.userData.stormLight = true;
+        light.position.set(clouds[0].at.x, this.STORM_CLOUD_Y - 0.5, clouds[0].at.z);
+        this.scene.add(light);
+        const handle = { G, clouds, light, color, done: false };
+        SFX.stormRumble(0.34 + pw * 0.2);
+        // 부풀기 — **페이로드를 기다리는 시간과 정확히 같은 길이**여야 한다(`castMsFor('bolt', t)`).
+        // 짧으면 구름이 다 부푼 뒤 멍하니 떠 있고, 길면 아직 부푸는 중에 번개가 친다.
+        const grow = this.castMsFor('bolt', t) / 1000;
+        this.addAnim(grow, k => {
+            for (const c of handle.clouds) {
+                for (const p of c.puffs) {
+                    const kk = Math.max(0, Math.min(1, (k - p.userData.d) / (1 - p.userData.d)));
+                    const e = 1 - Math.pow(1 - kk, 3);              // 빠르게 부풀다 눌러앉음
+                    p.scale.setScalar(0.12 + e * 0.92);
+                    p.material.opacity = e * 0.95;
+                    p.rotation.y += p.userData.spin * 0.02;
+                }
+                c.belly.material.opacity = k * k * 0.3;
+            }
+            handle.light.intensity = k * (0.3 + pw * 0.45);   // 지면을 씻지 않을 만큼만
+        });
+        // 낙뢰가 영영 안 오는 경우(스킬이 끊기거나 씬이 갈릴 때)의 안전망 — 구름만 남기지 않는다
+        handle._fuse = setTimeout(() => this.stormCloudDisperse(handle), 2600);
+        return handle;
+    },
+
+    // 낙뢰 연발 — 구름에서 **바바박**. 발마다 자리를 흔들어 같은 선이 반복되지 않게 한다.
+    stormCloudStrike(handle, targetIds, color, tier) {
+        const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
+        const pw = t / 5;
+        const h = handle && !handle.done ? handle : this.stormCloudGather(targetIds, color, tier);
+        if (!h) {   // 씬이 없으면 예전 동작(단발)이라도 남긴다
+            (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean).forEach(m => {
+                const p = m.g.position.clone();
+                this.lightningBolt(new THREE.Vector3(p.x, 6.2, p.z), new THREE.Vector3(p.x, p.y + 0.45, p.z), color, t);
+                this.explosion(p, color);
+            });
+            return;
+        }
+        clearTimeout(h._fuse);
+        const n = this.stormBolts(t);
+        const gap = 96 - pw * 26;                 // 미식일수록 촘촘하게(바바박)
+        for (let i = 0; i < n; i++) {
+            setTimeout(() => {
+                if (h.done) return;
+                // 발마다 구름을 골라 돈다 — 적이 여럿이면 번갈아 때려 화면 전체가 폭풍으로 읽힌다
+                const c = h.clouds[i % h.clouds.length];
+                // ⚠️ 착탄점은 **매 발 다시 조회**한다. 살아 있으면 지금 자리로(넉백을 따라간다),
+                //    죽었으면 구름 바로 아래 지면으로 — 번개가 허공에서 끊기지 않게.
+                const liveM = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
+                const tgt = liveM.length ? liveM[i % liveM.length].g.position.clone() : c.at.clone();
+                // 첫 발은 정확히 머리 위, 이후는 주변으로 흩어 '난타'로 읽히게
+                const j = i === 0 ? 0 : 0.55 + pw * 0.35;
+                const hit = new THREE.Vector3(tgt.x + U.rand(-j, j), tgt.y + 0.45, tgt.z + U.rand(-j, j) * 0.5);
+                const from = new THREE.Vector3(c.cg.position.x + U.rand(-0.3, 0.3), this.STORM_CLOUD_Y - 0.35, c.cg.position.z + U.rand(-0.2, 0.2));
+                this.lightningBolt(from, hit, color, t);
+                // 구름이 그 순간 안에서 하얗게 터진다 — 번개가 '구름에서 나왔다'를 잇는 고리
+                // 구름이 그 순간 안에서 하얗게 터진다 — Basic 재질이라 emissive 가 없다.
+                // 원래 색을 보관해 두고 **색 자체를 밝혔다가** 되돌린다(안 되돌리면 구름이 흰 채로 남는다).
+                c.belly.material.opacity = 1;
+                for (const pf of c.puffs) {
+                    if (!pf.userData.c0) pf.userData.c0 = pf.material.color.getHex();
+                    pf.material.color.setHex(0x8f9cb4);
+                }
+                setTimeout(() => { for (const pf of c.puffs) if (pf.userData.c0) pf.material.color.setHex(pf.userData.c0); }, 70);
+                this.flashLight(from, 0xdff2ff, 0.14);
+                // 착탄: 링 + 불티 + 흔들림. 첫 발이 가장 세고 뒤로 갈수록 잔진동으로 (연타가 물러지지 않게)
+                const w = i === 0 ? 1 : 0.62;
+                this.expandRing(new THREE.Vector3(hit.x, 0.02, hit.z), color, (1.1 + pw * 0.9) * w);
+                this.spawnSparks(hit.clone(), Math.round((10 + pw * 16) * w), color.getHex(), { speed: 1.1 + pw * 0.7 });
+                this.shake((0.2 + pw * 0.24) * w);
+                SFX.stormStrike(i);
+            }, i * gap);
+        }
+        // 충전 지지직 — 첫 발 직전에 한 번(구름이 '차올랐다'를 소리로도)
+        SFX.stormCrackle();
+        // 마지막 발이 떨어진 뒤 흩어진다
+        setTimeout(() => this.stormCloudDisperse(h), n * gap + 220);
+    },
+
+    // 여운 — 덩이가 부풀며 옅어지고 연기가 오른다. 그냥 지우면 구름이 '증발'해 장면이 안 닫힌다.
+    stormCloudDisperse(h) {
+        if (!h || h.done) return;
+        h.done = true;
+        clearTimeout(h._fuse);
+        for (const c of h.clouds) {
+            for (let i = 0; i < 3; i++) {
+                this.riseParticle(new THREE.Vector3(c.cg.position.x + U.rand(-0.5, 0.5), this.STORM_CLOUD_Y - 0.5, c.cg.position.z + U.rand(-0.3, 0.3)),
+                    new THREE.Color(0x8a93a6));
+            }
+        }
+        const op0 = [];
+        for (const c of h.clouds) for (const p of c.puffs) op0.push(p.material.opacity);
+        this.addAnim(0.4, k => {
+            let i = 0;
+            for (const c of h.clouds) {
+                for (const p of c.puffs) {
+                    p.scale.setScalar(1 + k * 0.5);
+                    p.material.opacity = op0[i++] * (1 - k);
+                    p.rotation.y += p.userData.spin * 0.015;
+                }
+                c.belly.material.opacity = Math.max(0, c.belly.material.opacity * (1 - k));
+            }
+            h.light.intensity *= (1 - k * 0.6);
+        }, () => {
+            // ⚠️ 스프라이트는 **재질만** 해제한다 — three r128 의 Sprite 는 지오메트리를 전역에서
+            //    공유해서, 한 번 해제하면 이후 모든 스프라이트(불티·모트)가 깨진다.
+            //    (`skillCastBeat` 이 같은 함정을 주석으로 남겨 둔 자리다.)
+            h.G.traverse(o => {
+                if (o.isMesh && o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
+                if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
+            });
+            this.scene.remove(h.G);
+            this.scene.remove(h.light);
+        });
     },
 
     // 지그재그 번개 볼트 (항목 ㉰: 번개류=지그재그 볼트 메시). 예전 bolt 는 하늘에서 내리꽂는
