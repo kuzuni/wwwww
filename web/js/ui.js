@@ -4928,7 +4928,10 @@ const UI = {
             // (레벨업은 노드 팝업의 [완료] 버튼이 한다 — 사용자 지시 2026-08-19)
             const ready = researching && TechTree.isDone();
             const cls = ready ? 'researching ready' : researching ? 'researching' : max ? 'done' : !open ? 'tlocked' : lv > 0 ? 'active' : 'locked';
-            const face = max ? IconGen.img('check') : !open ? IconGen.img('lock') : this.techIcon(id);
+            // 🔓 잠긴 노드에도 **자물쇠를 그리지 않는다** — 뭐가 있는지 미리 보이게 내용(아이콘)을
+            // 그대로 띄우고, 잠김은 `tlocked` 의 은은한 비활성 처리(회색 원반·흐림)로만 구분한다
+            // (사용자 지시 2026-08-19 `techtree-no-lock-icon`). 되돌리지 말 것.
+            const face = max ? IconGen.img('check') : this.techIcon(id);
             const badge = ready
                 ? '<small class="tech-tree-node-time">완료!</small>'
                 : researching
@@ -5082,7 +5085,7 @@ const UI = {
             // 선으로 이어진 부모 노드를 1레벨만 찍으면 열린다 — 아직 0레벨인 부모를 그대로 알려준다
             const need = TechTree.lockedBy(id).map(p => `${(TechTree.def(p) || {}).name || p} ${TechTree.roman(TechTree.tierOf(p))}단계`);
             const what = need.length > 1 ? `${need.join(' · ')}를 각각` : `${need[0] || '위 노드'}를`;
-            actionHtml = `<button class="btn sm primary disabled">${IconGen.img('lock')} 잠김</button>
+            actionHtml = `<button class="btn sm primary disabled">잠김</button>
                 <p class="muted" style="text-align:center">${what} 1레벨 이상 올리면 열립니다</p>`;
         } else if (researching && TechTree.isDone()) {
             // 시간이 끝나도 레벨은 아직 안 올랐다 — 이 버튼을 눌러야 오른다 (사용자 지시 2026-08-19)
@@ -5111,7 +5114,7 @@ const UI = {
             <div class="idet-wrap">
                 <div class="modal-card paper item-detail${researching ? ' tn-researching' : ''}" data-tech-node="${id}">
                     <div class="idet-head">
-                        <div class="idet-icon tn-bronze">${max ? IconGen.img('check') : !open ? IconGen.img('lock') : this.techIcon(id)}<span class="idet-star">${lv}/${TechTree.MAX_LEVEL}</span></div>
+                        <div class="idet-icon tn-bronze${!open && !max ? ' tn-dim' : ''}">${max ? IconGen.img('check') : this.techIcon(id)}<span class="idet-star">${lv}/${TechTree.MAX_LEVEL}</span></div>
                         <div class="idet-title">
                             <div class="idet-name">${def.name} <small class="tn-lv">${roman}단계 · Lv.${lv}/${TechTree.MAX_LEVEL}</small></div>
                             <div class="idet-main">+${U.fmt(TechTree.totalOf(id))}${unit} <small class="tn-gain">(${TechTree.gainNote()} +${U.fmt(def.per)}${unit} · 이 노드 +${U.fmt(TechTree.nodeTotal(id))}${unit})</small></div>
