@@ -9555,13 +9555,9 @@ const Scene3D = {
             this.flashLight(this.heroG.position, color.getHex(), 0.3);
             targets.forEach(m => this.spawnSparks(m.g.position.clone().add(new THREE.Vector3(0, 0.5, 0)), 10, color.getHex()));
         } else if (fx === 'beam') {
-            if (targets[0]) {
-                const from = this.heroG.position.clone().add(new THREE.Vector3(0.4, 1, 0));
-                const to = targets[0].g.position.clone().add(new THREE.Vector3(0, 0.6, 0));
-                // 화살류=발사체 트레일 (항목 ㉰): 예전 beam 은 즉시 화면을 가로지르는 원기둥(히트스캔)이라
-                // '쏘는 화살'이 아니라 '이미 연결된 선'으로 읽혔다. 실제로 날아가는 머리+꼬리로 바꾼다.
-                this.projectileBolt(from, to, color, tier || 0);
-            }
+            // 화살 세례 (skill-fx-exaggerated) — 한 발이 아니라 여러 발이 다다다닥.
+            // 화살 조형(projectileBolt)은 그대로 재사용한다: 좋았던 건 물건이 아니라 발수였다.
+            this.arrowVolley(targetIds, color, tier || 0);
         } else if (fx === 'bolt') {
             // 1박에 세운 먹구름에서 낙뢰가 연달아 꽂힌다 (skill-fx-exaggerated).
             // 예전엔 여기서 볼트 1발 + 폭발 1회로 끝나 '따' 하고 닫혔다.
@@ -10120,6 +10116,34 @@ const Scene3D = {
     },
 
     // 실제로 날아가는 발사체 + 혜성 꼬리 (항목 ㉰: 화살류=발사체 트레일+적중 파편).
+    // ---- 스킬 전용 미니 연출 ④: 화살 세례 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----
+    // 사용자 원문: "화살들을 존나 여러 개 다다다다다다다닥 쏜다던지".
+    // `beam`(관통 사격·공허의 창)은 화살 **한 발**이었다. 화살 자체의 조형(머리·꼬리·글로우·관통
+    // 파편)은 이미 좋았으니 **발수만** 세례로 바꾼다 — 물건을 새로 만들 이유가 없다.
+    // ⚠️ 화살은 비행이 0.09초로 짧다. 그래서 간격을 낙뢰(65~96ms)보다 더 좁혀야 '다다다닥'이 된다 —
+    //    낙뢰 간격을 그대로 쓰면 발과 발 사이가 비어 '한 발씩 쏜다'로 읽힌다.
+    // ⚠️ **첫 발과 마지막 발은 정조준**, 가운데만 흩는다(운석과 같은 규칙 — 조준됐다/마무리가 읽힌다).
+    //    마지막 한 발은 굵게: 관통 사격은 세례로, 공허의 창은 마지막 큰 창으로 읽히게 하는 겸용이다.
+    arrowVolley(targetIds, color, tier) {
+        const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
+        const n = 3 + Math.min(4, t);                  // 레어 4발 … 궁극 이상 7발
+        const gap = 62 - t * 4;                        // 등급이 높을수록 촘촘하게
+        for (let i = 0; i < n; i++) {
+            setTimeout(() => {
+                const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
+                if (!live.length) return;              // 다 죽었으면 허공에 쏘지 않는다
+                const m = live[i % live.length];
+                const last = i === n - 1;
+                const j = (i === 0 || last) ? 0 : 0.34;
+                const from = this.heroG.position.clone().add(new THREE.Vector3(0.4, 1 + U.rand(-0.12, 0.12), U.rand(-0.1, 0.1)));
+                const to = m.g.position.clone().add(new THREE.Vector3(U.rand(-j, j), 0.6 + U.rand(-j, j) * 0.6, U.rand(-j, j) * 0.5));
+                this.projectileBolt(from, to, color, last ? Math.min(5, t + 2) : t);
+                if (last) { this.expandRing(new THREE.Vector3(to.x, 0.02, to.z), color, 1.2 + t * 0.22); this.shake(0.2 + t * 0.05); }
+                SFX.arrowShot(i, t);
+            }, i * gap);
+        }
+    },
+
     projectileBolt(from, to, color, tier) {
         const delta = to.clone().sub(from), dist = delta.length();
         const dir = delta.clone().normalize();

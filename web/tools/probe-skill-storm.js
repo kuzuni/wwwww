@@ -263,6 +263,52 @@ const ok = (c, m) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${m}`); if (!c) fail
     }
     ok(srows[1].born.length > srows[0].born.length, `참격 등급 사다리 — ${srows.map(r => r.born.length).join(' → ')}회`);
 
+    // ================= 화살 세례 (beam) =================
+    console.log('\n════ 화살 세례 ════');
+    const arows = [];
+    for (const rarity of ['rare', 'ultimate']) {
+        const r = await p.evaluate(async (rar) => {
+            Scene3D.clearEnemies();
+            const e = { id: 7900 + rar.length, x: Combat.MELEE_X, alive: true, hp: Big.of(1e9), maxHp: Big.of(1e9) };
+            Combat.enemies = [e]; Scene3D.spawnEnemy(e);
+            for (const a of Scene3D.anims) { try { a.fn(1); a.onDone && a.onDone(); } catch (x) {} }
+            Scene3D.anims = [];
+            const m = Scene3D.enemyMap.get(e.id);
+            m.g.position.set(e.x + Scene3D.worldX, 0, 0);
+            const def = SKILL_DEFS.find(s => s.fx === 'beam' && s.rarity === rar) || { rarity: rar, fx: 'beam', color: '#81d4fa' };
+            const tier = Scene3D.skillTier(def);
+            const t0 = performance.now();
+            const shots = [];
+            const orig = Scene3D.projectileBolt.bind(Scene3D);
+            Scene3D.projectileBolt = (from, to, col, ti) => { shots.push({ t: performance.now() - t0, fx: from.x, tx: to.x, tz: to.z, ti }); return orig(from, to, col, ti); };
+            Scene3D.skillEffect('beam', def.color, [e.id], def);
+            const ep = m.g.position.clone();
+            await new Promise(res => {
+                const iv = setInterval(() => { Scene3D.update(1 / 60); if (performance.now() - t0 > 1500) { clearInterval(iv); res(); } }, 16);
+            });
+            Scene3D.projectileBolt = orig;
+            return { rar, tier, shots, enemy: { x: ep.x, z: ep.z }, hero: Scene3D.heroG.position.x, want: 3 + Math.min(4, tier) };
+        }, rarity);
+        arows.push(r);
+        await p.waitForTimeout(250);
+    }
+    for (const r of arows) {
+        console.log(`\n── beam ${r.rar} (tier ${r.tier}) ──`);
+        const spread = r.shots.length >= 2 ? r.shots[r.shots.length - 1].t - r.shots[0].t : 0;
+        console.log(`   화살 ${r.shots.length}발 · 첫~끝 ${spread.toFixed(0)}ms · 시각 ${r.shots.map(x => x.t.toFixed(0)).join(', ')}ms`);
+        ok(r.shots.length === r.want, `[beam ${r.rar}] 화살 ${r.shots.length}발 (코드값 ${r.want}발 — 예전엔 1발)`);
+        if (r.shots.length >= 2) {
+            const gaps = r.shots.slice(1).map((x, i) => x.t - r.shots[i].t);
+            ok(Math.max(...gaps) < 130, `[beam ${r.rar}] '다다다닥' 간격 (최대 ${Math.max(...gaps).toFixed(0)}ms <130 — 벌어지면 한 발씩 쏘는 걸로 읽힌다)`);
+            ok(spread > 120, `[beam ${r.rar}] 시간축에 퍼진다 (첫~끝 ${spread.toFixed(0)}ms >120)`);
+        }
+        ok(r.shots.every(x => Math.abs(x.fx - r.hero) < 1.2), `[beam ${r.rar}] 전부 영웅에게서 나간다`);
+        const far = r.shots.filter(x => Math.hypot(x.tx - r.enemy.x, x.tz - r.enemy.z) > 1.0);
+        ok(far.length === 0, `[beam ${r.rar}] 착탄이 적 주변 1.0유닛 안 (이탈 ${far.length}/${r.shots.length})`);
+        ok(r.shots[r.shots.length - 1].ti > r.shots[0].ti, `[beam ${r.rar}] 마지막 한 발이 굵다 (tier ${r.shots[0].ti} → ${r.shots[r.shots.length - 1].ti})`);
+    }
+    ok(arows[1].shots.length > arows[0].shots.length, `화살 등급 사다리 — ${arows.map(r => r.shots.length).join(' → ')}발`);
+
     // ⑵-b 등급 사다리 — 높을수록 발수가 많다(단조 비감소, 양 끝은 실제로 늘어야 한다)
     const counts = rows.map(r => r.strikes.length);
     ok(counts.every((c, i) => i === 0 || c >= counts[i - 1]) && counts[counts.length - 1] > counts[0],

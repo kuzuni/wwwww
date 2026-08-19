@@ -285,6 +285,15 @@ const SFX = {
         this.ring(2600 * k, 0.11, { gain: 0.07 + (tier || 0) * 0.008, delay: 0.006, rvb: 0.18 });
     },
 
+    // 화살 발사 — 시위가 튕기는 짧은 저역 퍽 + 공기를 가르는 고역 스윕. 세례라 발마다
+    // 피치를 흔들어야 기관총이 아니라 '여러 발'로 들린다.
+    arrowShot(i, tier) {
+        const k = 1 + (((i || 0) * 37) % 11 - 5) * 0.02;     // 발마다 다른 고정 지터(난수 없이 균등)
+        this.thump(300 * k, 120, 0.05, { gain: 0.16, jitter: 0.04 });
+        this.noiseBurst(0.07, { type: 'highpass', filterFreq: 2600 * k, gain: 0.13 });
+        this.tone(1800 * k, 0.06, { type: 'triangle', gain: 0.06 + (tier || 0) * 0.006, slideTo: 900, jitter: 0.05 });
+    },
+
     // ---- 장비 교체 3박자 (equip-swap-throwout, 사용자 지시 2026-08-19) ----
     // 화면 연출(`UI.playEquipSwapFx`)의 세 순간에 하나씩 붙는다: 던짐(0ms) → 딸깍(130ms) → 착지(558ms).
     // 셋이 같은 대역이면 한 덩어리로 뭉개져 '세 번 일어난 일'로 안 들린다 — 대역을 갈라 둔다:
