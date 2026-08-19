@@ -6014,6 +6014,30 @@ const Scene3D = {
             }
         };
 
+        // ── 태엽 감개 (mount-animal-machine-dynamic ①) ────────────────────────────
+        // 이 게임의 탈것 소환 재화가 **태엽**이라, 기계 계열 탈것은 등에 감개를 달고 그게 실제로 돈다.
+        // '기계다'를 정지 화면에서 알리는 실루엣이면서 동시에 **움직임**이기도 하다(사용자 지시의 두 요구가
+        // 한 파츠에서 만난다). 회전은 `animateMountParts` 가 `userData.spinners` 를 훑어 누적으로 돌린다 —
+        // ⚠️ 사인으로 흔들면 '감기다 말고 되감기는' 태엽이 된다(바퀴가 이미 밟은 함정).
+        // 축은 z(등 뒤로 튀어나온 방향)다. 감개 본체는 회전 대칭이라 **날개 2장이 없으면 회전이 안 읽힌다.**
+        const windUpKey = (x, y, z) => {
+            const key = new THREE.Group();
+            key.position.set(x, y, z);
+            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.08, 8), IRON);
+            stem.rotation.x = Math.PI / 2;            // 등에서 뒤로 눕힌다
+            const hub = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.011, 6, 12), IRON);
+            hub.position.z = -0.05;
+            key.add(stem, hub);
+            for (const s of [-1, 1]) {                // 날개 2장 — 회전을 읽히게 하는 부분
+                const w = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.014, 0.03), IRON);
+                w.position.set(s * 0.038, 0, -0.05);
+                key.add(w);
+            }
+            g.add(key);
+            (g.userData.spinners || (g.userData.spinners = [])).push(key);
+            return key;
+        };
+
         // ── 굴레·재갈·고삐 ───────────────────────────────────────────────────────
         // 비평가가 3·4차 채점에서 **매번 상위로 올린 지적**이 "손이 아무것도 안 잡는다"(㉢)인데,
         // 사족·비행형은 **잡을 물건 자체가 없었다**(자전거만 핸들바가 있다). 포즈만 올려 봐야
@@ -6082,7 +6106,10 @@ const Scene3D = {
         // 탈것을 추가할 때 두 곳을 맞춰야 했고, 한쪽만 고치면 '몸은 사족인데 포즈는 평판'이 된다.
         const formKey = this.MOUNT_FORM_OF[name] || 'quad';
 
-        if (formKey === 'flat') { // 평판형: 나뭇잎/연잎/호버보드/호버디스크 — 넓적한 발판 + 탑승 발판 위 살짝 솟은 손잡이
+        // ⚠️ 이 계열은 이제 **호버 기계 둘뿐**이다 — 나뭇잎·연잎·뗏목 5종은 2026-08-19 로스터 교체
+        //    (`mount-animal-machine-dynamic` ①, 사용자 지시 "왠만하면 다 동물, 기계")로 폐기됐다.
+        //    그때 지운 잎맥·노치·통나무 분기를 되살리지 말 것 — 로스터·MOUNT_FORM_OF 에도 이미 없다.
+        if (formKey === 'flat') { // 호버형: 호버보드/호버 디스크 — 넓적한 발판 + 아래 추진 노즐
             // 예전 (1.7, 0.32, 1.9)는 폭이 영웅 어깨너비의 3배라, 게임 카메라 거리에서 '탈것'이 아니라
             // 잔디에 깔린 초록 범위 표시 데칼로 읽혔다(비평가 지적, 실제로 그렇게 보인다).
             // 폭을 줄이고 두께를 키우고 지면에서 띄워(hover 0.10) 판때기로 읽히게 한다.
@@ -6093,34 +6120,7 @@ const Scene3D = {
             else sp(0.3, 0, 0.09, 0, light, 1.5, 0.2, 1.6);
             // 같은 평판이라도 종이 구분돼야 한다 — 같은 발판만 색만 바꿔 내보내면 로스터를 늘려도
             // '똑같은 판때기가 여러 개'로 읽혀 사용자 지적이 그대로 남는다.
-            if (name === 'Oak Leaf') {                    // 떡갈나무잎: 굵은 주맥 + 갈라진 결각 + 잎자루
-                // ⚠️ 발판 스피어의 실제 반높이는 0.34×0.42=0.143이라 윗면이 y=0.193이다.
-                //    주맥을 y 0.10에 두면 **판 안에 묻혀** 아무것도 안 보인다(첫 시도가 그랬다).
-                bx(0.05, 0.025, 0.90, 0, 0.205, 0, dark);                                  // 주맥 — 윗면 위에 얹는다
-                for (let i = 0; i < 3; i++) for (const s of [-1, 1]) {                      // 결각(잎 가장자리 굴곡)
-                    sp(0.115, s * 0.36, 0.05, -0.28 + i * 0.28, mat, 1.0, 0.42, 1.0);
-                }
-                const stem = cy(0.028, 0.02, 0.26, 0, 0.06, -0.60, dark); stem.rotation.x = Math.PI / 2; // 잎자루
-            } else if (name === 'Log Raft') {              // 통나무 뗏목: 통나무 4짝 + 가로 결박
-                for (let i = 0; i < 4; i++) {
-                    const lg = cy(0.075, 0.075, 0.92, -0.20 + i * 0.135, 0.085, 0, i % 2 ? mat : dark);
-                    lg.rotation.x = Math.PI / 2;
-                }
-                for (const z of [-0.28, 0.28]) bx(0.62, 0.022, 0.035, 0, 0.155, z, M(0x6d4c41));  // 결박 밧줄
-            } else if (name === 'Brown Leaf') {            // 마른 잎: 끝이 말려 올라가고 잎맥이 갈라진다
-                sp(0.19, 0, 0.14, -0.42, mat, 1.0, 0.5, 0.7).rotation.x = -0.5;                 // 말린 끝
-                bx(0.035, 0.02, 0.80, 0, 0.205, 0.02, dark);                                    // 주맥
-                for (let i = 0; i < 3; i++) for (const s of [-1, 1]) {                          // 측맥
-                    const v = bx(0.30, 0.015, 0.02, s * 0.17, 0.20, -0.20 + i * 0.24, dark);
-                    v.rotation.y = s * 0.55;
-                }
-            } else if (name === 'Lily Leaf') {             // 수련잎: 원형 판에 V자 갈라짐(노치)
-                cn(0.17, 0.30, 0, 0.13, 0.40, dark).rotation.x = -Math.PI / 2;                  // 앞쪽 노치(어두운 쐐기)
-                to(0.33, 0.022, 0, 0.185, 0, dark).rotation.x = -Math.PI / 2;                   // 가장자리 테
-            } else if (name === 'Lily Pad') {              // 연잎: 솟은 테두리 + 가운데 물방울
-                to(0.34, 0.045, 0, 0.16, 0, mat).rotation.x = -Math.PI / 2;                     // 오목하게 솟은 테두리
-                sp(0.075, 0, 0.20, 0.06, M(0x81d4fa, { emissive: 0x0288d1, emissiveIntensity: 0.35 }), 1.0, 0.55, 1.0); // 물방울
-            } else if (name === 'Hover Board') {           // 호버보드: 각진 데크 + 아래 추진 노즐 2개
+            if (name === 'Hover Board') {                 // 호버보드: 각진 데크 + 아래 추진 노즐 2개
                 bx(0.62, 0.055, 0.86, 0, 0.15, 0, mat);                                         // 각진 데크(원판과 실루엣 분리)
                 for (const z of [-0.28, 0.28]) {
                     const noz = cy(0.085, 0.11, 0.07, 0, -0.03, z, M(0x29e0ff, { emissive: 0x0aa0c0, emissiveIntensity: 0.9 }));
@@ -6129,8 +6129,8 @@ const Scene3D = {
                 }
             }
             g.userData.deck = g.children[0];
-            // 추진 노즐 — 부유 맥동(밝기)에 쓴다. 잎사귀 계열은 빈 배열이고, 그때는 판 자체의
-            // 부유 흔들림(아래 animateMountParts 의 pitch)만으로 살아 있게 한다.
+            // 추진 노즐 — 부유 맥동(밝기)에 쓴다. 노즐이 없는 종(호버 디스크)은 빈 배열이고,
+            // 그때는 판 자체의 부유 흔들림·뱅킹(아래 animateMountParts)만으로 살아 있게 한다.
             g.userData.glow = g.children.filter(o => o.userData && o.userData.thruster);
             g.userData.flat = true;
         } else if (formKey === 'wheeled') { // 탈것형: 자전거/외바퀴 드로이드 — 바퀴 + 프레임
@@ -6332,7 +6332,8 @@ const Scene3D = {
             //    누워 나가는 동물이라, 앞·아래로 빼면서 굵기도 줄이면 다리가 드러나고 실루엣도 말다워진다.
             // 낙타도 목이 긴 계열 — 같은 목 튜브를 쓴다(가림률이 이미 검증된 형상이라 새로 만들지 않는다).
             // 큰사슴은 짧은목 자리(headZ 0.46)를 유지한다 — 뿔을 그 머리 위치에 맞춰 달았기 때문이다.
-            const longNeck = name === 'Brown Horse' || name === 'Dino' || name === 'Camel';
+            // 알파카도 긴 목 계열 — 목이 곧게 선 게 이 종의 유일한 실루엣 식별점이라 뺄 수 없다.
+            const longNeck = name === 'Brown Horse' || name === 'Dino' || name === 'Camel' || name === 'Alpaca';
             if (longNeck) HEADPART(tube([0, 0.40, 0.26], name === 'Dino' ? [0, 0.40, 0.60] : [0, 0.32, 0.58], 0.058, mat));
             // 뿔·코는 머리에 붙어 있어야 한다 — 머리를 앞으로 뺀 만큼(z +0.06) 같이 따라간다
             if (name === 'Goat') for (const s of [-1, 1]) { const horn = cn(0.025, 0.13, s * 0.06, 0.44, 0.40, light); horn.rotation.x = -0.6; horn.rotation.z = s * 0.3; }
@@ -6341,7 +6342,43 @@ const Scene3D = {
             // ⚠️ 파츠는 **안장 앞·위(z 0.2~0.4, y 0.4~0.5)를 피해서** 붙인다 — 거기 굵은 걸 세우면
             //    카메라(탈것 앞-왼쪽 위)에서 먼 쪽 다리를 가려 probe-ride-clear가 바로 잡아낸다.
             //    뿔·주둥이는 머리(headZ 0.46~0.68)에, 등짐·갈기는 몸통 뒤(z ≤ 0)에.
-            if (name === 'Sheep') {                        // 양: 뭉실한 양털 + 짧고 말린 뿔
+            // ── 로스터 교체로 들어온 신규 5종 (mount-animal-machine-dynamic ① 2026-08-19) ──────
+            // 나뭇잎·연잎·뗏목 자리를 메운 동물 3 + 태엽 기계 2. 전부 quad 골격을 그대로 쓴다 —
+            // 안장·등자·굴레·고삐·트롯이 이미 검증된 형상이라 새 계열을 만들 이유가 없고,
+            // 계열이 같으면 ② 에서 넣은 동적 모션(다리·머리·꼬리)도 공짜로 따라온다.
+            // ⚠️ 파츠는 위 경고대로 **안장 앞·위(z 0.2~0.4, y 0.4~0.5)를 피한다.**
+            if (name === 'Pony') {                         // 조랑말: 목~등을 덮는 짧은 갈기 + 앞머리
+                for (let i = 0; i < 5; i++) bx(0.045, 0.075, 0.07, 0, 0.44 - i * 0.012, 0.30 - i * 0.075, dark);
+                HEADPART(bx(0.05, 0.06, 0.05, 0, 0.40, 0.44, dark));                       // 앞머리 한 줌
+            } else if (name === 'Donkey') {                // 당나귀: 길게 선 귀 한 쌍 + 짧고 곧은 갈기
+                for (const s of [-1, 1]) {
+                    const ear = HEADPART(sp(0.05, s * 0.07, 0.46, 0.40, light, 0.5, 1.9, 0.6));
+                    ear.rotation.z = s * 0.22;
+                }
+                for (let i = 0; i < 4; i++) bx(0.035, 0.09, 0.06, 0, 0.45, 0.26 - i * 0.07, dark);
+            } else if (name === 'Alpaca') {                // 알파카: 목까지 덮은 복슬한 털 + 짧은 주둥이 뭉치
+                for (const [ax, ay, az] of [[0.12, 0.36, -0.12], [-0.12, 0.36, -0.12], [0, 0.40, -0.26], [0, 0.42, 0.10]])
+                    sp(0.105, ax, ay, az, light, 1.0, 0.9, 1.0);
+                for (const s of [-1, 1]) HEADPART(sp(0.032, s * 0.055, 0.40, 0.56, light, 0.6, 1.5, 0.6)); // 쫑긋한 귀
+            } else if (name === 'Clockwork Mouse') {       // 태엽 생쥐: 큰 원반 귀 + 배 판금 + 등에 태엽 감개
+                for (const s of [-1, 1]) {
+                    const ear = HEADPART(to(0.075, 0.02, s * 0.10, 0.42, 0.42, IRON));
+                    ear.rotation.y = s * 0.5;
+                    HEADPART(sp(0.062, s * 0.10, 0.42, 0.42, light, 1.0, 1.0, 0.25));      // 귀 안쪽 판
+                }
+                bx(0.20, 0.13, 0.30, 0, 0.20, 0.10, IRON);                                  // 배 판금
+                for (const s of [-1, 1]) sp(0.028, s * 0.06, 0.24, 0.40, blk, 1, 1, 1);     // 코 옆 리벳
+                windUpKey(0, 0.40, -0.22);                                                  // 등 태엽 감개
+            } else if (name === 'Clockwork Beetle') {      // 태엽 딱정벌레: 갈라진 등딱지 + 더듬이 + 태엽 감개
+                sp(0.215, 0, 0.32, -0.02, dark, 1.06, 0.66, 1.32);                          // 등딱지(엘리트라)
+                bx(0.02, 0.05, 0.62, 0, 0.44, -0.02, IRON);                                 // 딱지 가운데 이음선
+                for (const s of [-1, 1]) {
+                    const ant = HEADPART(tube([s * 0.05, 0.38, 0.50], [s * 0.14, 0.52, 0.62], 0.014, IRON));
+                    HEADPART(sp(0.026, s * 0.14, 0.52, 0.62, M(0xffd54f, { emissive: 0xff8f00, emissiveIntensity: 0.7 })));
+                    ant.userData.part = 'head';
+                }
+                windUpKey(0, 0.46, -0.26);
+            } else if (name === 'Sheep') {                 // 양: 뭉실한 양털 + 짧고 말린 뿔
                 for (const [sx, sy2, sz] of [[0.13, 0.36, -0.14], [-0.13, 0.36, -0.14], [0, 0.40, -0.30], [0, 0.38, 0.06]])
                     sp(0.11, sx, sy2, sz, light, 1.0, 0.85, 1.0);
                 for (const s of [-1, 1]) { const h = to(0.045, 0.018, s * 0.07, 0.40, 0.44, dark); h.rotation.y = Math.PI / 2; }
@@ -6589,11 +6626,12 @@ const Scene3D = {
     },
     // 종 → 계열. **여기 없는 종은 사족형(quad)** 이고, makeMountMesh의 몸통 분기도 이 표 하나만 본다.
     MOUNT_FORM_OF: {
-        'Brown Leaf': 'flat', 'Lily Leaf': 'flat', 'Lily Pad': 'flat', 'Oak Leaf': 'flat',
-        'Log Raft': 'flat', 'Hover Board': 'flat', 'Hover Disk': 'flat',
+        'Hover Board': 'flat', 'Hover Disk': 'flat',
         'Bike': 'wheeled', 'One-Wheel Droid': 'wheeled',
         'Giant Bee': 'fly', 'Mini Dragon': 'fly', 'Star Whale': 'fly',
-        // 나머지(거북·게·말·공룡·멧돼지·돼지·염소·낙타·큰사슴·흑표범·양·장갑 코뿔소·기계 거미)는 quad
+        // 나머지는 전부 quad — 조랑말·당나귀·알파카·태엽 생쥐·태엽 딱정벌레·양·거북·게·말·공룡·
+        // 멧돼지·돼지·염소·낙타·큰사슴·흑표범·장갑 코뿔소·기계 거미.
+        // ⚠️ 나뭇잎·연잎·뗏목 5종의 'flat' 항목은 로스터 교체로 지웠다(mount-animal-machine-dynamic ①).
     },
     mountFormOf(name) { return this.MOUNT_FORMS[this.MOUNT_FORM_OF[name] || 'quad']; },
     // 안장 윗면 높이 ÷ 영웅의 **서 있을 때 골반 높이**.
@@ -6730,6 +6768,8 @@ const Scene3D = {
             ud.tail.rotation.z = Math.sin(t * 3.4) * 0.5;
             ud.tail.rotation.y = Math.sin(t * 2.1) * 0.24;   // 좌우로도 흔들어 한 평면에 갇히지 않게
         }
+        // 태엽 감개 — 바퀴와 같은 규약(누적). 서 있어도 천천히 감긴다(태엽은 멈추지 않는다).
+        if (ud.spinners) { const k = (moving ? 5.4 : 1.6) * dt; for (const sg of ud.spinners) sg.rotation.z -= k; }
         // 바퀴 — **누적 회전**이라 dt 로 굴린다(사인으로 흔들면 앞뒤로 덜덜 떠는 바퀴가 된다).
         if (ud.wheels) { const spin = (moving ? 7.6 : 1.0) * dt; for (const wg of ud.wheels) wg.rotation.x -= spin; }
         // 추진 노즐 맥동 — **밝기만** 흔든다(크기를 흔들면 노즐이 숨 쉬는 풍선이 된다).
@@ -6746,6 +6786,11 @@ const Scene3D = {
                 m.color.copy(o.userData.baseCol).multiplyScalar(0.72 + k * 0.28);
             }
         }
+        // 호버 기계는 **뱅킹(좌우 기울기)** 까지 준다 — 피치만으로는 '앞뒤로 까딱이는 판'이라
+        // 떠 있는 물건으로 안 읽힌다(사용자 지시 "움직임 자체가 좀 동적인 거로").
+        // ⚠️ 이 롤은 영웅에게 전달하지 않는다 — heroG.rotation.z 는 회피·피격 반동이 이미 쓰고 있어
+        //    여기서 매 프레임 덮으면 그 연출들이 통째로 지워진다. 보드만 기울고 라이더는 선 자세가 맞다.
+        if (ud.flat) mg.rotation.z = Math.sin(t * 0.83) * 0.10 * (moving ? 1.5 : 1);
         // 계열별 몸통 피치
         if (ud.flat) return Math.sin(t * 1.15) * 0.05 + (moving ? Math.sin(t * 3.1) * 0.03 : 0); // 부유 드리프트
         if (ud.wings) return Math.sin(t * 1.6) * 0.06;                                           // 비행 몸통 피치
@@ -6834,6 +6879,7 @@ const Scene3D = {
         g.userData.legs = mesh.userData.legs || null;
         g.userData.head = mesh.userData.head || null;
         g.userData.wheels = mesh.userData.wheels || null;
+        g.userData.spinners = mesh.userData.spinners || null;  // 태엽 감개 — 위 경고 그대로, 안 올리면 안 돈다
         g.userData.glow = mesh.userData.glow || null;
         g.userData.flat = !!mesh.userData.flat;
         g.userData.bar = mesh.userData.bar || null;      // 핸들바 — 영웅 손에 맞춰 스템을 늘인다
@@ -6927,6 +6973,7 @@ const Scene3D = {
             g.userData.legs = mesh.userData.legs || null;     // 무리도 걷는다 — 탄 놈만 움직이면 더 이상하다
             g.userData.head = mesh.userData.head || null;
             g.userData.wheels = mesh.userData.wheels || null;
+            g.userData.spinners = mesh.userData.spinners || null;  // 무리의 태엽도 같이 감긴다
             g.userData.glow = mesh.userData.glow || null;
             g.userData.flat = !!mesh.userData.flat;
             this.setShadow(g, true);

@@ -9,7 +9,7 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
     // 로스터 확장(2026-08-18)으로 들어온 종 — 머리·뿔·혹처럼 **안장 앞에 서는 파츠**가 붙은 것만 골랐다.
     // 그런 파츠가 먼 쪽 다리를 가리는 게 이 검사의 표적이라, 계열 대표 1종만 보면 새 종을 통째로 놓친다.
     ['quad', 'Elk'], ['quad', 'Armored Rhino'], ['quad', 'Camel'], ['quad', 'Mech Spider'],
-    ['fly', 'Star Whale'], ['flat', 'Log Raft'], ['flat', 'Oak Leaf']];
+    ['fly', 'Star Whale'], ['flat', 'Hover Board'], ['flat', 'Hover Disk']];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -17,7 +17,15 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    // ⚠️ waitForFunction 금지 — 페이지 안 폴링이 3D 렌더 한 프레임에 밀려 안 도는 컨테이너가 있다.
+    //    이 프로브도 그 20초 타임아웃에 걸려 **판정 자체를 못 내고 있었다**(2026-08-19 실측 — 옆의
+    //    probe-ride-clear 는 이미 같은 이유로 고쳐져 있었는데 이쪽만 남아 있었다). Node 쪽 폴링으로.
+    for (let w = 0; ; w++) {
+        const ready = await page.evaluate('typeof Scene3D !== "undefined" && !!Scene3D.heroG').catch(() => false);
+        if (ready) break;
+        if (w > 900) throw new Error('부팅 대기 초과');
+        await page.waitForTimeout(200);
+    }
     await page.waitForTimeout(1500);
 
     const rows = await page.evaluate((list) => {

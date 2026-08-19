@@ -513,8 +513,8 @@ const PET_MOTION = {
 
 // 마운트 이름 한글화 + 아이콘(이모지 프리뷰)
 const MOUNT_KR = {
-    'Brown Leaf': '갈색 나뭇잎', 'Lily Leaf': '수련잎', 'Lily Pad': '연잎',
-    'Oak Leaf': '떡갈나무잎', 'Log Raft': '통나무 뗏목', 'Sheep': '양',
+    'Pony': '조랑말', 'Donkey': '당나귀', 'Alpaca': '알파카',
+    'Clockwork Mouse': '태엽 생쥐', 'Clockwork Beetle': '태엽 딱정벌레', 'Sheep': '양',
     'Turtle': '거북이', 'Crab': '게', 'Brown Horse': '갈색 말', 'Dino': '공룡', 'Boar': '멧돼지',
     'Pig': '돼지', 'Goat': '염소', 'Camel': '낙타', 'Elk': '큰사슴', 'Panther': '흑표범',
     'Bike': '자전거', 'Giant Bee': '거대 벌', 'Armored Rhino': '장갑 코뿔소',
@@ -522,8 +522,8 @@ const MOUNT_KR = {
     'Hover Board': '호버보드', 'Hover Disk': '호버 디스크', 'Star Whale': '별고래',
 };
 const MOUNT_ICONS = {
-    'Brown Leaf': '🍂', 'Lily Leaf': '🍃', 'Lily Pad': '🪷',
-    'Oak Leaf': '🌿', 'Log Raft': '🪵', 'Sheep': '🐑',
+    'Pony': '🐴', 'Donkey': '🫏', 'Alpaca': '🦙',
+    'Clockwork Mouse': '🐭', 'Clockwork Beetle': '🪲', 'Sheep': '🐑',
     'Turtle': '🐢', 'Crab': '🦀', 'Brown Horse': '🐴', 'Dino': '🦕', 'Boar': '🐗',
     'Pig': '🐷', 'Goat': '🐐', 'Camel': '🐫', 'Elk': '🦌', 'Panther': '🐆',
     'Bike': '🚲', 'Giant Bee': '🐝', 'Armored Rhino': '🦏',

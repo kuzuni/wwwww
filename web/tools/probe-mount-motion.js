@@ -48,14 +48,19 @@ const FRAMES = 90;   // 1.5초분 — 가장 느린 채널(머리 좌우 스캔 
 
     for (const [form, name] of CASES) {
         const r = await page.evaluate(({ form, name, FRAMES }) => {
-            // 대표 종 하나를 보유·장착시키고, 무리 쪽도 보이게 한 마리 더 둔다
-            S.mounts = {};
-            S.mounts[name] = { rarity: 'epic', level: 1, dupes: 0, subs: {} };
-            S.mounts['Sheep'] = { rarity: 'common', level: 1, dupes: 0, subs: {} };
+            // 대표 종 하나를 보유·장착시키고, 무리 쪽도 보이게 한 마리 더 둔다.
+            // ⚠️ 2026-08-19 `mount-inventory-like-pet-250` 로 **`S.mounts` 는 이름 맵이 아니라 개체 배열**이고
+            //    `S.activeMounts` 는 이름이 아니라 **인덱스** 배열이다. 옛 형태로 세우면 `riddenInst()` 가
+            //    null 을 돌려줘 `refreshMount` 가 아무것도 안 만들고, 이 프로브는 계열 4개 전부
+            //    "mountGroup 이 안 만들어졌다"로 죽는다 — 실제로 그 상태로 방치돼 있었다(2026-08-19 발견).
+            S.mounts = [
+                { name, rarity: 'epic', level: 1, xp: 0, stars: 0, subs: [] },
+                { name: 'Sheep', rarity: 'common', level: 1, xp: 0, stars: 0, subs: [] },
+            ];
             // ⚠️ 무리(followers)는 `S.activeMounts.slice(1)` 이다. 지금은 장착이 1마리로 제한돼
             //    (`mount-single-equip`) 게임에서는 잘 안 생기지만 **코드 경로는 그대로 살아 있다** —
             //    파츠를 한쪽에만 올리는 사고(드래곤 날개 동결)가 재발하는 자리라 여기서 강제로 만든다.
-            S.activeMounts = [name, 'Sheep'];
+            S.activeMounts = [0, 1];
             Scene3D.refreshMount();
             Scene3D.riding = Scene3D.riding || null;
             Scene3D.walking = true;

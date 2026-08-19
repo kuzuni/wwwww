@@ -13,7 +13,10 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
     // 로스터 확장(2026-08-18)으로 들어온 종 — 머리·뿔·혹처럼 **안장 앞에 서는 파츠**가 붙은 것만 골랐다.
     // 그런 파츠가 먼 쪽 다리를 가리는 게 이 검사의 표적이라, 계열 대표 1종만 보면 새 종을 통째로 놓친다.
     ['quad', 'Elk'], ['quad', 'Armored Rhino'], ['quad', 'Camel'], ['quad', 'Mech Spider'],
-    ['fly', 'Star Whale'], ['flat', 'Log Raft'], ['flat', 'Oak Leaf']];
+    ['fly', 'Star Whale'], ['flat', 'Hover Disk'],
+    // 로스터 교체(2026-08-19 mount-animal-machine-dynamic ①)로 들어온 종 중 **안장 앞에 뭔가 서는** 셋.
+    // 당나귀=긴 귀, 알파카=긴 목, 태엽 딱정벌레=더듬이 — 전부 이 검사의 표적 형상이라 빠지면 안 된다.
+    ['quad', 'Donkey'], ['quad', 'Alpaca'], ['quad', 'Clockwork Beetle']];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });

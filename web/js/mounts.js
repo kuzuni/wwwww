@@ -13,6 +13,7 @@ const Mounts = {
         if (S.winders === undefined) S.winders = 0;
         if (S.mountOpens === undefined) S.mountOpens = 0;
         this.migrateInventory();               // 종류당 1개 맵 → 펫과 같은 **인스턴스 배열**
+        this.migrateSpecies();                 // 폐기된 종(나뭇잎·뗏목) → 새 종으로 이름만 갈아 끼운다
         // 장착은 **1마리**다 (사용자 지시 2026-08-18 "탈것은 한 개만 장착 가능해야 하는데 여러 개 장착 가능하더라").
         // ⚠️ 같은 날의 '제한 없음' 지시와 헷갈리지 말 것 — 그건 **보유(인벤토리)** 얘기이고, 보유는 계속 무제한이다.
         //    자료 구조는 배열 그대로 두되(세이브 호환·`ridden()`/`setRidden` 경로가 배열 전제) **길이를 1로 못박는다.**
@@ -65,6 +66,27 @@ const Mounts = {
         }
         this.clampInventory();
     },
+    // ===== 폐기된 종 이관 (mount-animal-machine-dynamic ① 2026-08-19) =====
+    // 사용자 지시로 common 의 나뭇잎·연잎·뗏목 5종을 동물·기계로 갈아 끼웠다. 이미 그걸 뽑아 둔
+    // 세이브는 **이름만** 새 종으로 옮긴다 — 레벨·경험치·승천·옵션은 그 개체의 성과라 그대로 둔다.
+    // ⚠️ 개체를 지우면 안 된다. 키워 둔 탈것이 통째로 증발하고, 장착 인덱스도 어긋난다.
+    // ⚠️ 이름을 안 옮기면 더 나쁘다 — `MOUNT_KR`·`MOUNT_ICONS`·`makeMountMesh` 어디에도 없는 이름이라
+    //    한글명이 원문 그대로 뜨고 3D 는 quad 기본 몸통으로 떨어져 '이름 없는 초록 짐승'이 된다.
+    // 같은 계열끼리 짝지었다(잎 3종 → 동물 3종, 판때기 2종 → 태엽 기계 2종).
+    LEGACY_SPECIES: {
+        'Brown Leaf': 'Pony', 'Lily Leaf': 'Donkey', 'Oak Leaf': 'Alpaca',
+        'Lily Pad': 'Clockwork Mouse', 'Log Raft': 'Clockwork Beetle',
+    },
+    migrateSpecies() {
+        if (!Array.isArray(S.mounts)) return 0;
+        let moved = 0;
+        for (const m of S.mounts) {
+            const to = m && this.LEGACY_SPECIES[m.name];
+            if (to) { m.name = to; moved++; }
+        }
+        return moved;
+    },
+
     // 상한 초과분은 뒤에서 자른다(정상 경로에서는 소환이 이미 막아 여기 걸릴 일이 없다 — 손상 세이브 방어).
     clampInventory() { if (S.mounts.length > this.INV_CAP) S.mounts.length = this.INV_CAP; },
 

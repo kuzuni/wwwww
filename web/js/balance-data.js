@@ -332,8 +332,14 @@ const mountBoosts = {
 // 초반 소환이 그 3종으로 수렴한 것이었다(실측: 20회 소환 → 타일 3개·중복 17). 펫 로스터(6/5/5/3/3/3)에
 // 맞춰 common 6 · rare 5 · epic 5 · legendary 3 · ultimate 3 · mythic 3 = 25종으로 늘렸다.
 // ⚠️ 종을 추가하면 MOUNT_KR·MOUNT_ICONS(gamedata.js)와 Scene3D.MOUNT_FORM_OF(계열)도 같이 채울 것.
+// ⚠️ 2026-08-19 `mount-animal-machine-dynamic` ①: common 6종 중 **나뭇잎·뗏목 5종을 폐기**하고
+//    동물·기계로 갈아 끼웠다 (사용자 지시 "탈것도 왠만하면 다 동물, 기계 같은 거로").
+//    잎사귀류는 로스터에서만 사라진 게 아니라 `Scene3D.makeMountMesh` 의 flat 분기·`MOUNT_FORM_OF`
+//    항목도 함께 지웠다 — 되살리려면 세 곳을 같이 되돌려야 한다. 구세이브의 옛 이름은
+//    `Mounts.migrateSpecies()` 가 새 종으로 옮긴다(그 표도 같이 볼 것).
+//    기계 쪽은 이 게임의 소환 재화가 **태엽**이라는 데서 왔다 — 태엽 감개가 등에 달려 실제로 돈다.
 const mountNames = {
-    common: ['Brown Leaf', 'Lily Leaf', 'Lily Pad', 'Oak Leaf', 'Log Raft', 'Sheep'],
+    common: ['Pony', 'Donkey', 'Alpaca', 'Clockwork Mouse', 'Clockwork Beetle', 'Sheep'],
     rare: ['Turtle', 'Crab', 'Brown Horse', 'Dino', 'Boar'],
     epic: ['Pig', 'Goat', 'Camel', 'Elk', 'Panther'],
     legendary: ['Bike', 'Giant Bee', 'Armored Rhino'],

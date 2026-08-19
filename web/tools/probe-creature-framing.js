@@ -11,7 +11,11 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
-const MOUNTS = ['Brown Leaf', 'Lily Leaf', 'Lily Pad', 'Turtle', 'Crab', 'Brown Horse', 'Dino',
+// ⚠️ 2026-08-19 로스터 교체(mount-animal-machine-dynamic ①)로 나뭇잎·연잎 3종이 폐기되고
+//    조랑말·당나귀·알파카·태엽 생쥐·태엽 딱정벌레가 들어왔다 — 신규 5종을 여기 넣어 두지 않으면
+//    새 종의 썸네일 프레이밍을 아무도 안 재게 된다(판정문 없는 도구는 통과가 아니라 사각지대다).
+const MOUNTS = ['Pony', 'Donkey', 'Alpaca', 'Clockwork Mouse', 'Clockwork Beetle',
+                'Turtle', 'Crab', 'Brown Horse', 'Dino',
                 'Pig', 'Goat', 'Bike', 'Giant Bee', 'Mini Dragon', 'One-Wheel Droid', 'Hover Board', 'Hover Disk'];
 
 (async () => {
@@ -120,8 +124,8 @@ const MOUNTS = ['Brown Leaf', 'Lily Leaf', 'Lily Pad', 'Turtle', 'Crab', 'Brown 
     }
 
     console.log('=== ② 서로 다른 탈것은 서로 다른 그림인가 ===');
-    // ⚠️ "15종 전부 달라야 한다"로 재면 안 된다 — 나뭇잎 계열 3종(Brown Leaf/Lily Leaf/Lily Pad)은
-    //    **인게임 메시 자체가 같고 등급색만 다르다**. 그 경우 썸네일이 같은 게 오히려 정답(썸네일=실물).
+    // ⚠️ "전부 달라야 한다"로 재면 안 된다 — 같은 계열에서 **인게임 메시 자체가 같고 등급색만 다른**
+    //    종이 있을 수 있다(예전 나뭇잎 3종이 그랬다). 그 경우 썸네일이 같은 게 오히려 정답(썸네일=실물).
     //    그래서 실제 메시 지문으로 종을 묶고, **다른 메시끼리** 그림이 갈리는지만 판정한다.
     const meshGroups = await page.evaluate((names) => {
         const fp = (o) => { const a = []; o.traverse(m => { if (m.geometry) a.push(m.geometry.type + ':' + JSON.stringify(m.geometry.parameters || {}) + ':' + m.position.toArray().map(v => v.toFixed(3)).join(',')); }); return a.sort().join('|'); };
