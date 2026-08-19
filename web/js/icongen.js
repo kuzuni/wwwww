@@ -519,13 +519,27 @@ const IconGen = {
             ctx.restore();
 
             path();
+            // 15차(ui-quality-up · 비평가 R7 A[6]·B[6] 교집합): 종전 3스톱은 그늘 쪽이 -0.5 에서
+            // 멈춰 **터미네이터가 없는 '납작한 원반'**으로 읽혔다(둘 다 "flat radial with one blob").
+            // 스톱을 넷으로 늘려 밝은 쪽은 더 밝게, 그늘 쪽은 더 깊게 — 명도 폭이 곧 구(球)의 단서다.
             ctx.fillStyle = G._rad(ctx, cx - w * 0.42, S * 0.30, S * 0.02, cx, S * 0.55, S * 0.56,
-                [[0, G._shade(base, 0.55)], [0.42, base], [1, G._shade(base, -0.5)]]);
+                [[0, G._shade(base, 0.62)], [0.38, base], [0.78, G._shade(base, -0.42)], [1, G._shade(base, -0.72)]]);
             ctx.fill();
 
             ctx.save();
             path();
             ctx.clip();
+            // 그늘 쪽 반사광(rim/bounce) — 두 비평가가 각각 "no rim light on the shade side"·"crescent
+            // rim on the lower-right" 로 같은 것을 요구했다. 광원이 좌상단이므로 우하단 가장자리에만
+            // 초승달로 얹는다. 껍질 색에서 파생시켜(흰색이 아니라) 등급색 알에서도 색이 안 튄다.
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = G._rad(ctx, cx + w * 0.72, cy + hBot * 0.62, S * 0.01,
+                                        cx + w * 0.52, cy + hBot * 0.48, w * 0.95,
+                [[0, G._shade(base, 0.30)], [0.55, G._shade(base, -0.55)], [1, 'rgba(0,0,0,0)']]);
+            ctx.globalAlpha = 0.55;
+            ctx.fillRect(0, 0, S, S);
+            ctx.restore();
             // 반점
             const rnd = G._rng(20260817);
             const glX = cx - w * 0.40, glY = S * 0.31;   // 광택 위치 — 반점이 겹치면 구멍처럼 보인다

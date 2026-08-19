@@ -3,26 +3,26 @@
     {
       "frame": "pill.coin",
       "icoH": 25.2,
-      "frameH": 25.1,
-      "fill": 100.6
+      "frameH": 29.8,
+      "fill": 84.6
     },
     {
       "frame": "pill.coin",
-      "icoH": 16.1,
-      "frameH": 25.1,
-      "fill": 64.4
+      "icoH": 12.4,
+      "frameH": 29.8,
+      "fill": 41.7
     },
     {
       "frame": "pill.gem",
       "icoH": 25.2,
-      "frameH": 25.1,
-      "fill": 100.6
+      "frameH": 29.8,
+      "fill": 84.6
     },
     {
       "frame": "pill.gem",
-      "icoH": 16.1,
-      "frameH": 25.1,
-      "fill": 64.4
+      "icoH": 12.4,
+      "frameH": 29.8,
+      "fill": 41.7
     },
     {
       "frame": "small",
@@ -44,147 +44,147 @@
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "tile-face",
-      "icoH": 57.5,
-      "frameH": 65.4,
-      "fill": 88
+      "icoH": 60.5,
+      "frameH": 50.9,
+      "fill": 119
     },
     {
       "frame": "summon-cost",
@@ -200,8 +200,8 @@
     }
   ],
   "pillHeights": [
-    25.06,
-    25.06
+    29.8,
+    29.8
   ],
   "topbarH": null
 }
