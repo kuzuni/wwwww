@@ -26,7 +26,7 @@ const DYS = [-0.02, -0.07, -0.12];
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
     await page.waitForTimeout(1500);
 
     // 셋업: 탈것을 태우고 shot-ride-pets 의 near 앵글과 같은 카메라를 세운다(camLock 훅).

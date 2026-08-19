@@ -18,7 +18,7 @@ const SEQ = [['fly', 'Mini Dragon'], ['quad', 'Brown Horse'], ['wheeled', 'Bike'
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
     await page.waitForTimeout(1500);
 
     const rows = await page.evaluate((SEQ) => {

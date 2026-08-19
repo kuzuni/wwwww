@@ -16,7 +16,7 @@ const BARREL = { flat: 0.578, wheeled: 0.03, fly: 0.152, quad: 0.180 }[FORM];
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
     await page.waitForTimeout(1500);
 
     const rows = await page.evaluate(({ form, name }) => {

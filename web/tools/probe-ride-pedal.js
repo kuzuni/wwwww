@@ -21,7 +21,7 @@ const TOL = 0.06;   // 월드 단위, **수직 간격**만. 부츠 밑면과 페
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
     await page.waitForTimeout(1500);
 
     const out = await page.evaluate((sweep) => {

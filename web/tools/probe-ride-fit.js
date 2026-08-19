@@ -30,12 +30,19 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
 
     const rows = await page.evaluate((list) => {
         Combat.tick = () => { };
+        // ⚠️ **부유 위상과 시계를 못박지 않으면 같은 코드가 실행마다 다른 수치를 낸다** — `probe-ride-clear`
+        //    가 이미 밟은 함정인데 이 프로브에는 빠져 있었다. 실측(2026-08-19): 코드를 안 바꾸고 두 번
+        //    돌렸더니 비행형 발 여유가 Mini Dragon +0.002 / Star Whale −0.010 ↔ Mini Dragon −0.011 /
+        //    Star Whale −0.005 로 **좌우 대칭차까지 0.001 ↔ 0.027 을 오갔다**. 그 흔들림 때문에 멀쩡한
+        //    포즈 변경을 개선/개악으로 오독할 뻔했다(실제로 한 번 오독했다). 여기서 고정하고 잰다.
+        Scene3D.ridePhase = 0;
         Scene3D.clearEnemies(); Combat.enemies = [];
         const out = [];
         for (const [form, name] of list) {
             S.mounts = {}; S.mounts[name] = { rarity: 'epic', count: 1, level: 1 };
             S.activeMount = name;
             Scene3D.refreshMount();
+            Scene3D._clock = 0;                                    // 바운스는 `_clock + phase` 의 함수다 — 위상만 고정해선 부족
             for (let i = 0; i < 60; i++) Scene3D.update(1 / 60);   // 포즈·정렬이 안정될 때까지 돌린다
             Scene3D.heroG.updateWorldMatrix(true, true);
             Scene3D.mountGroup.updateWorldMatrix(true, true);

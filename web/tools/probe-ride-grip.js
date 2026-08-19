@@ -15,7 +15,7 @@ const REST = { y: 0.60, z: 0.215 };   // makeMountMesh 의 바 기준자리(로�
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
     await page.waitForTimeout(1500);
 
     const rows = await page.evaluate(() => {
