@@ -50,6 +50,11 @@ const Scene3D = {
         this.fxLayer = fxLayer;
         this.container = container;
         this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        // 셰이더 컴파일마다 링크 상태·인포로그를 동기 조회하는 디버그 체크를 끈다 (startup-lag-loading).
+        // 이 조회는 GPU 파이프라인을 강제로 세우는 동기 지점이라, 프로그램이 수십 개 컴파일되는
+        // 부팅·첫 연출 구간의 스톨을 그대로 키운다(CPU 프로파일 실측: 제거 후 창의 27%가 getProgramInfoLog).
+        // 셰이더가 깨지면 어차피 그리기가 실패해 화면·probe-screens-errors 로 드러난다.
+        this.renderer.debug.checkShaderErrors = false;
         this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
         this.renderer.shadowMap.enabled = true;               // 그림자 (사실감)
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -292,6 +297,47 @@ const Scene3D = {
         this._compMat.uniforms.tScene.value = this._rtScene.texture;
         this._compMat.uniforms.tBloom.value = this._rtA.texture;
         r.setRenderTarget(null); r.render(this._fsScene, this._fsCam);
+    },
+
+    // ---- 셰이더 워밍업 (startup-lag-loading) — 부팅 로딩창이 떠 있는 동안 호출된다 ----
+    // 시작 렉의 지배 비용은 첫 렌더가 유발하는 셰이더 프로그램 컴파일이다(probe-startup-cpuprofile 실측:
+    // JS 부팅 ~0.7s vs three 프로그램 컴파일 수 초). 컴파일 자체는 없앨 수 없으니 **시점을 옮긴다** —
+    // 여기서 컴파일과 첫 프레임(섀도맵 패스·포스트 스택 포함)을 미리 태워, 로딩창이 사라진 뒤의
+    // 첫 rAF 프레임이 눈에 보이는 수 초 프리즈가 되지 않게 한다.
+    // ⚠️ renderer.compile()은 씬 재질의 본 프로그램만 만든다 — 섀도 뎁스 프로그램과 포스트 스택은
+    //    실제 renderFrame()을 한 번 돌려야 컴파일된다. 둘 다 필요하다(하나만 하면 잔여 컴파일이
+    //    첫 프레임으로 새서 워밍업이 반쪽이 된다).
+    // ⚠️ Combat.start() **뒤에** 불러야 한다 — 적 웨이브가 스폰된 상태여야 적 재질(피격 플래시용
+    //    클론 포함 계열)까지 이 프레임에 함께 컴파일된다.
+    warmup() {
+        if (!this.renderer || !this.scene || !this.camera) return;
+        this.renderer.compile(this.scene, this.camera);
+        this.renderFrame();
+        // ---- 연출 프리미티브 프리라이트 ----
+        // compile()+첫 프레임은 '지금 씬에 있는' 재질만 만든다 — 첫 스킬 일제사격·첫 타격이 쓰는
+        // 공용 프리미티브(수렴 룬 링·모트 스프라이트·충격 링·불티)는 그 순간 새 프로그램을 컴파일해
+        // 오버레이가 사라진 직후 눈에 보이는 스톨을 만든다(renderer.info.programs 실측: 제거 시점
+        // 38개 → 6초 뒤 97개). 여기서 한 번씩 태워 그 계열 프로그램을 로딩창 아래에서 만들어 둔다.
+        // 전부 addAnim 기반이라 fn(1)+onDone 으로 즉시 배수된다(TODO 상단 '함정 ③'과 같은 규약).
+        const animsBefore = this.anims.length;
+        const childrenBefore = new Set(this.scene.children);
+        try {
+            const p = this.heroG ? this.heroG.position.clone() : new THREE.Vector3();
+            const c = new THREE.Color(0xffd873);
+            this.skillCastBeat(c, 'aura', 3);   // t>=3 이 링 3겹 경로까지 컴파일한다
+            this.expandRing(p, c, 1.2);
+            this.spawnSparks(p.clone().add(new THREE.Vector3(0, 0.55, 0)), 4, 0xffd873, { speed: 1 });
+            this.spawnSparks(p.clone().add(new THREE.Vector3(0, 0.55, 0)), 2, 0xffd873, { solid: true });
+            this.renderFrame();
+        } catch (e) { console.error('Scene3D.warmup 프리라이트 실패(치명 아님)', e); }
+        // 배수 — 프리라이트가 얹은 애니메이션만 끝까지 감고(기존 앰비언트 루프는 건드리지 않는다),
+        // onDone 이 못 치운 잔여 자식은 자식 차분으로 회수한다.
+        for (const a of this.anims.splice(animsBefore)) {
+            try { a.fn && a.fn(1); a.onDone && a.onDone(); } catch (e) { /* 배수 실패는 프레임이 치운다 */ }
+        }
+        for (const ch of [...this.scene.children]) {
+            if (!childrenBefore.has(ch)) { this.scene.remove(ch); try { this.disposeTree(ch); } catch (e) {} }
+        }
     },
 
     resize() {

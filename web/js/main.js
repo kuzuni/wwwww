@@ -25,7 +25,26 @@
         if (typeof UI !== 'undefined' && UI.drawTechLinks) UI.drawTechLinks();
     }
 
-    function boot() {
+    // ---- 부팅 로딩 오버레이 (startup-lag-loading, 사용자 지시 2026-08-19) ----
+    // 시작 렉의 지배 비용은 첫 렌더의 셰이더 컴파일(수 초, 없앨 수 없음)이라 로딩창 아래에서 소화한다.
+    // 부팅을 단계로 쪼개 단계 사이마다 이벤트 루프에 양보(rAF+setTimeout)해야 오버레이가 실제로
+    // 칠해지고 진행률이 갱신된다 — 통짜 동기 블록이면 로딩창을 넣어도 첫 페인트가 끝까지 밀린다.
+    const blSet = (pct, label) => {
+        const f = document.getElementById('bl-fill'), s = document.getElementById('bl-stage');
+        if (f) f.style.width = pct + '%';
+        if (s && label) s.textContent = label;
+    };
+    // rAF(페인트 기회) 뒤 setTimeout(태스크 경계)까지 기다려야 진행률이 화면에 반영된다.
+    const blYield = () => new Promise(res => requestAnimationFrame(() => setTimeout(res, 0)));
+    const blDone = () => {
+        const el = document.getElementById('boot-loading');
+        if (!el) return;
+        el.classList.add('bl-done');
+        setTimeout(() => el.remove(), 450); // 인라인 CSS transition .4s와 맞춤
+    };
+
+    async function boot() {
+        blSet(8, '세이브 불러오는 중…');
         loadGame();
         Dungeons.ensure();
         TechTree.ensure();
@@ -36,15 +55,21 @@
         Chat.ensure();
         // 부팅 시 자동 지급은 폐기 — 누적분은 그대로 두고 팝업으로 보여주기만 한다(수집은 [수집] 버튼에서만).
         const offlinePending = pendingOffline();
+        // 브라우저 자동재생 정책: 최초 사용자 입력 시 AudioContext 활성화
+        // (로딩 중의 탭도 유효하도록 오버레이가 떠 있는 동안 먼저 등록한다)
+        document.addEventListener('pointerdown', () => { SFX.resume(); SFX.startMusic(); }, { once: true });
+        await blYield();
 
+        blSet(24, '인터페이스 조립 중…');
         // 렌더 한 곳이 터져도 그 뒤(3D·전투·틱·자동저장 등록)가 통째로 날아가면 안 된다 —
         // QA 10차 버그가 정확히 그 모양이었다(세이브 필드 누락 → renderSkillBar TypeError →
         // boot() 중단 → 화면이 얇은 띠로 붕괴 + 게임 내 초기화 버튼조차 안 그려져 탈출 불가).
         // 세이브 쪽 원인은 loadGame()의 ensureStateShape()가 막지만, 어떤 렌더 실패도 같은 사고를
         // 다시 일으키지 못하게 여기서 한 겹 더 끊는다. 조용히 삼키지는 않는다(콘솔에 남긴다).
         try { UI.init(); } catch (e) { console.error('UI.init() 실패 — 나머지 부팅은 계속한다', e); }
-        // 브라우저 자동재생 정책: 최초 사용자 입력 시 AudioContext 활성화
-        document.addEventListener('pointerdown', () => { SFX.resume(); SFX.startMusic(); }, { once: true });
+        await blYield();
+
+        blSet(42, '전장 짓는 중…');
         Scene3D.init(
             document.getElementById('game3d'),
             document.getElementById('fx-layer'),
@@ -52,11 +77,22 @@
         );
         fitLayout();
         window.addEventListener('resize', fitLayout);
+        await blYield();
 
+        blSet(58, '전투 준비 중…');
         Combat.start();
         League.ensure(); // 전투력 계산이 끝난 뒤 봇 생성 (combatPower 참조)
         UI.renderTopBar(); // UI.init()에서 먼저 그린 상단바(전투력 0)를 실제 계산치로 갱신
         UI.updateStageLabel();
+        await blYield();
+
+        // 셰이더 워밍업 — 시작 렉의 본체. 영웅·적·맵·포스트 스택의 셰이더 프로그램 컴파일과
+        // 첫 프레임 렌더를 로딩창이 덮고 있는 동안 전부 소화한다(안 하면 오버레이가 사라진 직후
+        // 첫 rAF 프레임에서 수 초짜리 프리즈가 사용자 눈앞에서 터진다 — probe-startup-lag 실측).
+        blSet(74, '용광로 데우는 중…');
+        try { Scene3D.warmup(); } catch (e) { console.error('Scene3D.warmup() 실패 — 부팅은 계속한다', e); }
+        blSet(96, '마무리 중…');
+        await blYield();
 
         if (offlinePending && offlinePending.elapsed >= 60) UI.showOffline(offlinePending); // 1분 미만 경과는 팝업 생략
 
@@ -187,7 +223,14 @@
             if (document.hidden) saveGame();
         });
         window.addEventListener('beforeunload', saveGame);
+
+        blSet(100);
+        blDone();
     }
 
-    document.addEventListener('DOMContentLoaded', boot);
+    document.addEventListener('DOMContentLoaded', () => {
+        // 부팅이 어디서 죽더라도 로딩 오버레이는 반드시 치운다 — 안 치우면 z-200 오버레이가
+        // UI.init 폴백이 그려 둔 초기화 버튼까지 가려 탈출 불가가 된다(QA 10차와 같은 급의 사고).
+        boot().catch(e => { console.error('boot() 실패', e); }).finally(blDone);
+    });
 })();

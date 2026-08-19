@@ -12,6 +12,53 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<!-- 부팅 로딩 오버레이 (startup-lag-loading, 사용자 지시 2026-08-19) — 실측(probe-startup-cpuprofile)상
+     시작 렉의 지배 비용은 JS 부팅(~0.7s)이 아니라 **첫 렌더의 셰이더 프로그램 컴파일(three.min.js, 수 초)**이다.
+     그 컴파일은 없앨 수 없으므로 로딩창 아래에서 소화한다(Scene3D.warmup). main.js boot()가 단계마다
+     진행률을 갱신하고 끝나면 페이드아웃 후 제거한다.
+     ⚠️ 스타일은 style.css가 아니라 인라인이다 — 이 오버레이는 뒤따르는 무거운 스크립트 평가가 시작되기
+     전에 그려져야 의미가 있어서 외부 CSS 클래스에 의존하지 않는다. 마크업도 #app 앞(파서가 먼저 만나게). -->
+<div id="boot-loading">
+<style>
+#boot-loading { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(120% 90% at 50% 30%, #2a3550 0%, #171e30 55%, #0d1220 100%);
+    transition: opacity .4s ease; font-family: system-ui, sans-serif; }
+#boot-loading.bl-done { opacity: 0; pointer-events: none; }
+#boot-loading .bl-box { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+/* 대장간 엠블럼: CSS 모루 + 두드리는 망치 + 타격 불꽃 (에셋 없음 — 전부 코드 생성 제약) */
+#boot-loading .bl-forge { position: relative; width: 96px; height: 84px; }
+#boot-loading .bl-anvil { position: absolute; left: 50%; bottom: 8px; width: 64px; height: 22px; transform: translateX(-50%);
+    background: linear-gradient(#5d6a80, #3a4356); border-radius: 4px 10px 3px 3px;
+    clip-path: polygon(0 0, 100% 0, 82% 45%, 70% 100%, 30% 100%, 18% 45%); }
+#boot-loading .bl-anvil::after { content: ''; position: absolute; left: 50%; top: 100%; width: 30px; height: 10px;
+    transform: translateX(-50%); background: #2c3344; border-radius: 0 0 4px 4px; }
+#boot-loading .bl-hammer { position: absolute; left: 58%; bottom: 30px; width: 44px; height: 44px;
+    transform-origin: 88% 88%; animation: bl-swing 1s cubic-bezier(.55, 0, .3, 1) infinite; }
+#boot-loading .bl-hammer::before { content: ''; position: absolute; left: 0; top: 2px; width: 22px; height: 14px;
+    background: linear-gradient(#8b97ab, #55617a); border-radius: 3px; }
+#boot-loading .bl-hammer::after { content: ''; position: absolute; left: 9px; top: 12px; width: 5px; height: 32px;
+    background: linear-gradient(#a8794a, #7a5430); border-radius: 2px; transform: rotate(24deg); }
+@keyframes bl-swing { 0%, 12% { transform: rotate(-52deg); } 38%, 55% { transform: rotate(6deg); } 100% { transform: rotate(-52deg); } }
+#boot-loading .bl-spark { position: absolute; left: 46%; bottom: 26px; width: 5px; height: 5px; border-radius: 50%;
+    background: #ffd873; opacity: 0; animation: bl-spark 1s ease-out infinite; }
+#boot-loading .bl-spark.s2 { animation-delay: .05s; --dx: -16px; --dy: -20px; }
+#boot-loading .bl-spark.s3 { animation-delay: .1s; --dx: 18px; --dy: -14px; }
+@keyframes bl-spark { 0%, 36% { opacity: 0; transform: none; } 44% { opacity: 1; }
+    100% { opacity: 0; transform: translate(var(--dx, 8px), var(--dy, -26px)) scale(.4); } }
+#boot-loading .bl-title { color: #f2e8d8; font-size: 22px; font-weight: 800; letter-spacing: .12em; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+#boot-loading .bl-track { width: 216px; height: 8px; border-radius: 5px; background: rgba(255,255,255,.12);
+    overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
+#boot-loading .bl-fill { width: 0%; height: 100%; border-radius: 5px; transition: width .25s ease;
+    background: linear-gradient(90deg, #e8a33d, #ffd873); box-shadow: 0 0 8px rgba(255,216,115,.7); }
+#boot-loading .bl-stage { color: #9aa7c0; font-size: 12px; min-height: 1.2em; }
+</style>
+<div class="bl-box">
+    <div class="bl-forge"><div class="bl-anvil"></div><div class="bl-hammer"></div><i class="bl-spark"></i><i class="bl-spark s2"></i><i class="bl-spark s3"></i></div>
+    <div class="bl-title">포지 클론</div>
+    <div class="bl-track"><div class="bl-fill" id="bl-fill"></div></div>
+    <div class="bl-stage" id="bl-stage">불 지피는 중…</div>
+</div>
+</div>
 <div id="app">
     <!-- 상단 재화 바 -->
     <div id="topbar"></div>
