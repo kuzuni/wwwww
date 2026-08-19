@@ -5665,6 +5665,7 @@ const Scene3D = {
             vest: { shoulder: 1.05, waist: 0.98, skirt: 0.190, top: 0.80 },   // 짧게 잘린 조끼 (크롭)
             suit: { shoulder: 1.03, waist: 1.04, skirt: 0.215, top: 1.02 },   // 통통한 여압복
             bone: { shoulder: 0.90, waist: 1.06, skirt: 0.198, top: 0.86 },   // 뼈 갑주: 좁은 어깨·통짜 몸통·짧은 기장 (늑골이 바깥 윤곽을 진다)
+            exo: { shoulder: 0.86, waist: 0.86, skirt: 0.170, top: 1.10 },   // 외골격: 몸통은 얇은 코어, 부피는 바깥 프레임이 진다 (판금과 정반대 배분)
         }[style] || { shoulder: 1, waist: 1, skirt: 0.225, top: 1 };
         // 천 주름(비평가 ⓒ⑶) — 로브는 어깨에 걸린 천이라 밑으로 갈수록 주름이 깊어진다.
         // fw 는 링별 주름 가중치(목 0 → 밑단 1). 판금은 0(주름진 강철은 찌그러진 강철이다).
@@ -5695,7 +5696,10 @@ const Scene3D = {
             { flat: this.ageGearKind(age) === 'primal' && !soft, fold: FOLD, foldN: 11 });
         g.add(torso);
         const neckY = 0.29 * P.top;
-        if (!soft) {
+        // ⚠️ `exo`(외골격)는 제외한다 — 흉근 두 덩이 + 정중선 능선은 **단조 흉갑의 언어**라,
+        //    외골격에 얹으면 가슴 한가운데 세로 렌즈가 서서 동력 코어를 가리고 다시 '근육 갑주'로
+        //    읽힌다(실측: 코어가 키일 뒤로 완전히 묻혔다). 외골격의 가슴은 평평한 코어 패널이다.
+        if (!soft && style !== 'exo') {
             // 가슴 곡률 — 판금은 흉근 두 덩이 + 가운데 능선(키일)이 서야 '흉갑'으로 읽힌다.
             // ⚠️ 구를 그대로 쓰면 두 개의 유방으로 읽힌다 — z를 0.26까지 눌러 **표면에서 살짝
             //    부푼 면**으로 만들고 몸통 앞면(rz 0.16)에 반쯤 묻는다.
@@ -5881,6 +5885,93 @@ const Scene3D = {
                 tusk.rotation.x = Math.PI;      // 아래로 뾰족하게
                 tusk.rotation.z = dx * 1.4;
                 g.add(tusk);
+            }
+        }
+        if (style === 'exo') {
+            // ── 미래 `외골격` (equip-era-theming ②) ────────────────────────────────────
+            // 🚨 **되돌려서 `plate` 로 쓰지 말 것.** '엑소스켈레톤'(우주)·'아다만티움 슈트'(성간)·
+            //    '델타 아머'(양자)가 전부 style `plate` 였다 — 즉 우주 시대 외골격이 **중세 판금
+            //    흉갑**(라멜라 파울드론·파울드·리벳)으로 그려졌다. 원시 '뼈 갑옷'과 같은 뿌리의 결함이고,
+            //    사용자 지적 "전부 중세 같은 디자인임 대체로"가 가리키는 나머지 절반이 이것이다.
+            // 조형 언어(판금과 **정반대의 부피 배분**): 판금은 몸통 자체가 두껍고 어깨에 판을 얹지만,
+            //   외골격은 ⓐ 몸통이 얇은 코어(P.shoulder/waist 0.86)이고 ⓑ 부피는 몸 **바깥의 프레임**이
+            //   진다 — 어깨 짐벌 링 · 옆구리 액추에이터 기둥 · 허리 피스톤 · 가슴 동력 코어.
+            //   리벳·문장은 0개(그건 단조 판금의 언어다), 대신 발광 라인이 시대를 진다.
+            // ⚠️ `mats.dark` 를 프레임에 쓰지 말 것 — alloy 계열의 dark 는 밝은 회색이라 허리 벨트·
+            //    허브가 **흰 고리**로 나왔다(실측). 프레임은 몸통색을 크게 내린 값이라야 다크 앵커가 된다.
+            const frameM = this.tintOf(mats.body, -0.40);
+            // ⚠️ 밝기를 +0.16 올리면 시대색이 **연분홍 파스텔**로 바래 '발광'이 아니라 '분홍 플라스틱'이 된다
+            //    (실측: 우주 시대 exo 3각도 전부). 채도를 올리고 밝기는 거의 안 건드려야 빛으로 읽힌다.
+            const glowHex = new THREE.Color(c).offsetHSL(0, 0.22, 0.04).getHex();
+            const glowM = new THREE.MeshBasicMaterial({ color: glowHex });
+            // ⓐ 어깨 짐벌 링 — 파울드론(덮는 판)과 반대로 **뚫린 고리**라 96px 에서 윤곽이 갈린다
+            for (const s of [-1, 1]) {
+                // ⚠️ r 0.082·tube 0.021·x 0.255 로 두지 말 것 — 몸통 반경(0.205)에 맞먹는 고리가 되어
+                //    소화전 손잡이처럼 읽혔다(실측). 어깨 관절은 몸통보다 확실히 작아야 관절로 읽힌다.
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.017, 6, 16), mats.body);
+                ring.position.set(s * 0.232, 0.178, 0);
+                ring.rotation.y = Math.PI / 2;
+                ring.rotation.x = -s * 0.10;
+                g.add(ring);
+                const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.046, 10), frameM);
+                hub.position.set(s * 0.232, 0.178, 0);
+                hub.rotation.z = Math.PI / 2;
+                g.add(hub);
+                const lit = new THREE.Mesh(new THREE.TorusGeometry(0.030, 0.0065, 5, 14), glowM);
+                lit.position.set(s * 0.246, 0.178, 0);
+                lit.rotation.y = Math.PI / 2;
+                g.add(lit);
+                // 어깨 링을 몸통에 잇는 스트럿 — 링이 허공에 뜨면 '귀걸이'가 된다
+                const arm = new THREE.Mesh(new THREE.BoxGeometry(0.072, 0.026, 0.038), frameM);
+                arm.position.set(s * 0.186, 0.188, 0);
+                arm.rotation.z = -s * 0.16;
+                g.add(arm);
+            }
+            // ⓑ 옆구리 액추에이터 기둥 — 위아래 마디 + 가운데 얇은 로드(피스톤). 몸통 밖에 선다.
+            for (const s of [-1, 1]) {
+                const x = s * 0.215;
+                for (const [y, h] of [[0.088, 0.135], [-0.155, 0.115]]) {
+                    const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.030, h, 8), mats.body);
+                    seg.position.set(x, y, 0.006);
+                    g.add(seg);
+                }
+                const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.0135, 0.0135, 0.155, 6), frameM);
+                rod.position.set(x, -0.036, 0.006);
+                g.add(rod);
+                const knee = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), glowM);
+                knee.position.set(x, -0.036, 0.030);
+                knee.scale.z = 0.5;
+                g.add(knee);
+            }
+            // ⓒ 가슴 동력 코어 — 이 시대의 '문장'. 판금의 리벳 자리에 빛이 선다.
+            {
+                const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.068, 0.040, 12), frameM);
+                housing.rotation.x = Math.PI / 2;
+                housing.position.set(0, 0.115, 0.134);
+                g.add(housing);
+                const core = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.016, 12), glowM);
+                core.rotation.x = Math.PI / 2;
+                core.position.set(0, 0.115, 0.153);
+                g.add(core);
+                // ⚠️ 코어에서 어깨로 뻗는 발광 도관 2줄은 **넣지 말 것** — 기울인 막대 2개가 가슴
+                //    한가운데서 **분홍 꽃잎**으로 읽히고 코어를 가린다(실측). 시대 발광은 코어 하나와
+                //    벨트 셀이 이미 충분히 진다.
+            }
+            // ⓓ 허리 피스톤 벨트 — 잘록한 코어(waist 0.86)를 한 바퀴 감아 '기계 허리'를 못 박는다
+            {
+                const wr = RINGS[2];
+                const belt = new THREE.Mesh(new THREE.TorusGeometry(wr.rx * 1.06, 0.024, 6, 20), frameM);
+                belt.rotation.x = Math.PI / 2;
+                belt.position.y = wr.y;
+                belt.scale.y = (wr.rz / wr.rx) * 1.06;
+                g.add(belt);
+                for (let i = 0; i < 4; i++) {   // 벨트에 박힌 발광 셀
+                    const a = -0.9 + i * 0.6;
+                    const cell = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.020, 0.014), glowM);
+                    cell.position.set(Math.sin(a) * wr.rx * 1.08, wr.y, Math.cos(a) * wr.rz * 1.12);
+                    cell.rotation.y = a;
+                    g.add(cell);
+                }
             }
         }
         // 곡면 흉갑의 실제 앞뒤 깊이를 넘겨 부속을 표면에 앉힌다(상수 좌표면 1~3cm 뜬다)

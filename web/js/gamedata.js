@@ -124,22 +124,26 @@ const HELMET_STYLES = {
 };
 // 갑옷: hide(가죽) plate(판금+견갑) vest(전술조끼) suit(슈트+백팩) robe(로브) cape(망토)
 //       bone(뼈 갑주 — 늑골 아치+견갑골 판+가죽끈, 원시 전용)
+//       exo(외골격 — 어깨 짐벌 링+옆구리 액추에이터+동력 코어, 우주 이후 전용)
 // 시대당 5종 (원본 카탈로그 2~3종 + 자체 확충)
-// 헬멧과 같은 규칙 — 시대 안에서 스타일 중복 금지 (계열이 7종뿐이라 시대당 5개를 겹치지 않게 고른다)
+// 헬멧과 같은 규칙 — 시대 안에서 스타일 중복 금지 (계열이 8종뿐이라 시대당 5개를 겹치지 않게 고른다)
 // 🚨 **시대에 안 맞는 조형을 배정하지 말 것 (equip-era-theming, 사용자 지시 2026-08-19).**
 //    스타일이 곧 3D 조형이라, 이름이 '뼈 갑옷'이어도 style 이 'plate' 면 화면에는 **중세 판금 흉갑**
 //    (라멜라 파울드론·파울드·리벳)이 나온다. 실제로 원시 시대 3번 칸이 그랬고, 그게 사용자 지적
 //    "원시 장비가 원시 장비 같지 않다 / 전부 중세 같은 디자인임"의 가장 직접적인 실물이었다.
 //    → `plate` 는 **판금이 실제로 그 시대의 언어인 시대에만** 준다(중세·근대 초기·지하 세계·다중 우주·천상).
+//    같은 이유로 우주·성간·양자의 '엑소스켈레톤/아다만티움 슈트/델타 아머'는 `exo`(외골격)로 옮겼다.
+//    ⚠️ 남은 어긋남(다음 세션): `modern` 의 '전술 조끼'가 아직 plate 다 — 현대 플레이트 캐리어용
+//       조형(하드플레이트+MOLLE)이 따로 필요해서 이번엔 안 건드렸다.
 const ARMOR_STYLES = {
     primitive:    ['hide', 'robe', 'bone', 'cape', 'vest'],   // 가죽옷·곰가죽·뼈 갑옷·풀잎 망토·사냥꾼 조끼 (plate 제거)
     medieval:     ['plate', 'suit', 'vest', 'cape', 'robe'],
     earlyModern:  ['plate', 'robe', 'suit', 'vest', 'cape'],
     modern:       ['vest', 'hide', 'plate', 'cape', 'suit'],
-    space:        ['suit', 'plate', 'vest', 'robe', 'cape'],
-    interstellar: ['suit', 'plate', 'vest', 'robe', 'cape'],
+    space:        ['suit', 'exo', 'vest', 'robe', 'cape'],     // 우주복·엑소스켈레톤·진공 슈트·추진 슈트·궤도 망토 (plate 제거)
+    interstellar: ['suit', 'exo', 'vest', 'robe', 'cape'],     // 플라즈마 슈트·아다만티움 슈트·성간 코트·중력자 로브·항성 망토
     multiverse:   ['suit', 'plate', 'robe', 'vest', 'cape'],
-    quantum:      ['plate', 'suit', 'robe', 'vest', 'cape'],
+    quantum:      ['exo', 'suit', 'robe', 'vest', 'cape'],     // 델타 아머·오비터 슈트·파동 로브·입자 조끼·양자 망토
     underworld:   ['plate', 'suit', 'cape', 'robe', 'vest'],
     divine:       ['robe', 'plate', 'cape', 'vest', 'suit'],
 };
