@@ -1092,8 +1092,10 @@ const ProChar = {
             // 팔꿈치 개스킷 — 무릎과 같은 언어(니어블랙 관절 슬리브)
             const elbowGasket = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.044, 0.072, 12), deepGasket);
             const forearm = this.capsule(0.046, 0.042, 0.13, mailMat);
+            forearm.userData.part = 'forearm';
             // 뱀브레이스 라메 2겹 — 하완이 민짜 튜브로 남지 않게 판금 밴드를 감는다
             const vambraceA = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.05, 0.028, 12), steel());
+            vambraceA.userData.part = 'vambrace';
             vambraceA.position.y = -0.038;
             const vambraceB = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.048, 0.024, 12), steelDark());
             vambraceB.position.y = -0.072;
@@ -1107,6 +1109,7 @@ const ProChar = {
             const gloveMat = deepHide;
             const palmMat = this.deepMat({ roughness: 0.88, metalness: 0.1 });
             const fist = new THREE.Group();
+            fist.userData.part = 'fist';
             fist.position.y = -0.16;
             const palm = new THREE.Mesh(new THREE.SphereGeometry(0.052, 9, 8), palmMat);
             palm.scale.set(1.0, 1.05, 0.72); // 앞뒤로 눌린 손등 블록

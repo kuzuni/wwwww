@@ -15,6 +15,7 @@ for p in \
     test-death-timeline.js \
     probe-death-remnant.js \
     probe-creature-framing.js \
+    probe-arm-taper.js \
     probe-icon-cross-screen.js \
     probe-skillfx-timeline.js \
     probe-tools-wait-guard.js \
