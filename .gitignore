@@ -118,3 +118,7 @@ InitTestScene*.unity*
 
 # shot-hitfx.js 가 채점 라운드마다 새로 굽는 임시 캡처 (동일 파일이 web/tools/shots-<N>cha/ 에 보존본으로 커밋된다)
 web/tools/hitfx-*.png
+
+# 비평가(서브에이전트) 채점용 임시 확대 크롭 — 라운드마다 새로 생성, 보존 불필요
+web/ref/screens/crops/
+web/tools/crops/
