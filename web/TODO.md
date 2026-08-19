@@ -49,8 +49,8 @@
 ## 그래픽/연출 품질 기준 (2026-08-17 사용자 확정)
 > ⚖️ **작업 우선순위 3단 (사용자 확정 2026-08-20, 강제) — 위에서부터 소진한다.**
 > **① 최우선 = 버그 수정·기능 수정(비채점).** '되고 안 되고 명확한' 것(버그·동작·기능 지시)은 채점 항목보다 무조건 먼저. (규칙 0과 동일 — 이게 있으면 채점은 손대지 않는다.)
-> **② 그다음 = 사용자 중요 채점 그룹.** 사용자가 "제일 중요"라 지목한 것(2026-08-20): **맵·캐릭터·테마 장비·스킬·탈것·펫.** 실제 슬러그 = `map-quality-up`(맵) · `prochar-aaa`+`enemy-quality`(캐릭터=영웅+적) · `cute-art-direction`(캐릭터·배경 화풍) · `equip-era-theming`(테마 장비) · `skill-fx`+`skill-fx-exaggerated`+`skill-unique-signature`(스킬) · `mount-species-recognizable`(탈것) · `pet-species-recognizable`(펫). **이 그룹이 전부 9/10 게이트를 넘기 전에는 ③을 잡지 않는다.**
-> **③ 후순위 = 나머지 채점 항목.** `summon-result-fx` · `anvil-ref` · `equip-design-dedupe` · `ascend-design-tiers` · `맵 프롭 퀄리티` · `AAA 아이콘 전면 교체` · `aaa-skin`(전 화면 UI 스킨) · `최종 마무리`. (단 ②의 형제 코드라 곁다리로 같이 처리되는 건 무방 — 예: `equip-design-dedupe`는 `equip-era-theming` 작업 중, `맵 프롭`은 `map-quality-up` 작업 중.)
+> **② 그다음 = 사용자 중요 채점 그룹.** 사용자가 "제일 중요"라 지목한 것(2026-08-20): **맵·캐릭터·테마 장비·스킬·탈것·펫.** 실제 슬러그 = `map-quality-up`(맵) · `prochar-aaa`+`enemy-quality`(캐릭터=영웅+적) · `cute-art-direction`(캐릭터·배경 화풍) · `equip-era-theming`+`equip-design-dedupe`(테마 장비 — 시대감 + 중복 제거, 사용자 "장비 중복제거도 최우선" 2026-08-20) · `skill-fx`+`skill-fx-exaggerated`+`skill-unique-signature`(스킬) · `mount-species-recognizable`(탈것) · `pet-species-recognizable`(펫). **이 그룹이 전부 9/10 게이트를 넘기 전에는 ③을 잡지 않는다.** ⚠️ `equip-design-dedupe`의 '같은 부위 장비가 죄다 같은 아이콘으로 반복'은 명확한 결함이라 장비 작업 안에서 먼저 처리.
+> **③ 후순위 = 나머지 채점 항목.** `summon-result-fx` · `anvil-ref` · `ascend-design-tiers` · `맵 프롭 퀄리티` · `AAA 아이콘 전면 교체` · `aaa-skin`(전 화면 UI 스킨) · `최종 마무리`. (단 ②의 형제 코드라 곁다리로 같이 처리되는 건 무방 — 예: `맵 프롭`은 `map-quality-up` 작업 중.)
 >
 > ⚖️ **각 단(段) 안에서는 항목 간 골고루 돌릴 것 (강제).** 한두 항목만 11차·10차씩 재채점 반복하고 나머지는 0차(정식 채점조차 안 함)로 방치 금지 — 실제로 그랬다(`summon-result-fx` 11차 vs 위 그룹 대부분 0차). **착수 규칙: 그 단에서 채점 횟수가 가장 적은(특히 0차) 항목을 먼저 고른다.** 같은 항목 연속 금지(직전 세션이 만진 슬러그면 다른 항목으로), 한 항목이 게이트 밑에서 2라운드 연속 점수 정체면 파킹하고 다른 항목을 한 바퀴 돈 뒤 복귀. 목표는 **그 단 전체의 최소 채점 횟수를 끌어올리는 것**(넓게 먼저).
 >
