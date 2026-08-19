@@ -12,7 +12,7 @@ const ONLY = process.argv[3] || '';
 
 const BIOMES = [
     { biome: 'forest', sky: 0x87ceeb, fog: 0xa8d8ea, ground: 0x7cb342 },
-    { biome: 'desert', sky: 0xffcc80, fog: 0xffe0b2, ground: 0xbca77b },
+    { biome: 'desert', sky: 0x7cc0e0, fog: 0xffe0b2, ground: 0xbca77b },
     { biome: 'rock', sky: 0x7f9cbd, fog: 0xaebfd4, ground: 0x6b6157 },
     { biome: 'snow', sky: 0x1a237e, fog: 0x283593, ground: 0xaac2e2, celestial: 'moon' },
     { biome: 'magic', sky: 0x2e1a72, fog: 0x3a2384, ground: 0x352061, celestial: 'moon' },

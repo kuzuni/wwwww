@@ -11547,7 +11547,19 @@ const Scene3D = {
         // 근·중·원 3단(근경 능선 → 원경 능선 → 하늘)의 대기 원근이 읽히게 함.
         // 대기 원근은 명도만이 아니라 **채도**로도 읽힌다 — 멀수록 채도를 계단식으로 빼(farDesat) 원경이
         // 근경과 같은 초록 덩어리로 붙지 않게 한다(비평가 ⑵ '원경 LOD 채도 낮추기').
-        this.mountainMat.color.copy(gC.clone().offsetHSL(0, 0.03 - V.farDesat * 0.35, -0.16).lerp(fogC, 0.22));
+        // 원경 능선의 후퇴 방향 (map-quality-up 비평가 A #4 '대기원근 3단 계단 부재' · A #3/B #4 '숲 뒤
+        // 청록 수면 조각') — 종전 공식(지면색 -0.16 어둡게 + 안개색 22% 혼합)의 문제는 둘이었다:
+        //  ⑴ 어둡게 눌러 근경과 같은 명도대 = 원경이 후퇴하지 않는다.
+        //  ⑵ 초록(지면)과 하늘색(안개)을 반반 섞은 **채도 높은 청록 혼색**이 나무 틈으로 보일 때
+        //     '물 조각/숲의 구멍'으로 읽힌다(실측: 렌더 화소 h≈0.5 — 지면에도 안개에도 없는 색).
+        // 낮: **지면 색상을 유지**한 채 채도를 절반 이하로 빼고 +0.10 밝힌다. 안개 혼합은 12%만 —
+        //     혼색 대신 씬 fog(z-12에서 ~44%)가 대기 원근을 마저 채운다. 결과 = 하늘보다 어둡고
+        //     근경보다 밝은 저채도 실루엣(원신식 명도 계단), 색상은 '멀리 있는 같은 땅'.
+        // 밤: 종전 공식 유지 — 설원 밤의 능선 후퇴는 비평가가 '되돌리지 말 것'으로 꼽은 자리다.
+        this.mountainMat.color.copy(isNightPre
+            ? gC.clone().offsetHSL(0, 0.03 - V.farDesat * 0.35, -0.16).lerp(fogC, 0.22)
+            : (() => { const m = gC.getHSL({ h: 0, s: 0, l: 0 });
+                return new THREE.Color().setHSL(m.h, m.s * 0.42, Math.min(0.8, m.l + 0.10)).lerp(fogC, 0.12); })());
         this.hillMat.color.copy(gC.clone().offsetHSL(0, -V.farDesat * 0.7, 0).lerp(fogC, 0.75));
         this.farHillMat.color.copy(gC.clone().offsetHSL(0, -V.farDesat, 0).lerp(fogC, 0.9)); // 안개에 거의 잠긴 최원경
         // 식생은 지면보다 한 단계 더 눌러 '어두운 덩어리'로 — 화면의 다크 엔드를 실제로 담당하는 레이어.
@@ -11583,6 +11595,14 @@ const Scene3D = {
         this.foliageMatDark.color.copy(leaf(-0.025, 0.09, -0.23 + dF)); // 뒤 나무용 어두운 변주
         this.foliageMatLight.color.copy(leaf(-0.015, 0.07, -0.09 + dF)); // 앞 나무용 밝은 변주
         this.bushMat.color.copy(leaf(-0.01, 0.05, -0.1 + dF));   // 덤불도 같은 바닥값 — 늪지에서 #040503(사실상 순흑)이었다
+        // 바위 이끼 뚜껑 — 고정 청록(0x4f8578)이 숲에선 나무 사이 '수면 조각/구멍', 바위산에선
+        // '의도를 알 수 없는 민트 패치'로 읽혔다(map-quality-up 비평가 A #3 · B #6, 독립 지적).
+        // 바이옴 지면 색상에서 초록 쪽으로 1/3만 끌린 저채도·저명도 이끼색으로 파생 — 어느 바이옴에서든
+        // '바위에 낀 이끼'로 읽히고, 청록 보색 악센트는 잔향으로만 남는다.
+        if (this.mossMat) {
+            const mg = gC.getHSL({ h: 0, s: 0, l: 0 });
+            this.mossMat.color.setHSL(((mg.h + (0.36 - mg.h) * 0.35) % 1 + 1) % 1, 0.30, 0.30);
+        }
         this.hemi.color.setHex(t.sky);
         this.hemi.groundColor.copy(gC.clone().offsetHSL(0, 0, -0.1));
         // 흙길 데칼을 바이옴 흙색으로 (map-quality-up, 비평가 2인 공통 1위 지적) — 데칼 캔버스는

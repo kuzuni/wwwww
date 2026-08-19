@@ -555,7 +555,10 @@ const UNLOCKS = [
 // celestial: 하늘 천체 ('sun'|'moon'|'none', 생략 시 sun) — 밤 챕터는 달+별
 const CHAPTER_THEMES = [
     { sky: 0x87ceeb, fog: 0xa8d8ea, ground: 0x7cb342, biome: 'forest' },                    // 1 초원
-    { sky: 0xffcc80, fog: 0xffe0b2, ground: 0xbca77b, biome: 'desert' },                    // 2 사막
+    // 2 사막 — 하늘을 모래와 같은 베이지로 두면 지평선이 소멸하고 화면 전체가 한 덩어리 베이지가 된다
+    // (map-quality-up 비평가 2인 공통 지적). 원신 수메르 문법대로 '따뜻한 모래 vs 푸른 하늘' 보색으로 —
+    // 안개(fog)는 모래색을 유지하므로 지평선엔 여전히 따뜻한 모래 연무가 깔리고 천정만 파랗게 벌어진다.
+    { sky: 0x7cc0e0, fog: 0xffe0b2, ground: 0xbca77b, biome: 'desert' },
     { sky: 0x7f9cbd, fog: 0xaebfd4, ground: 0x6b6157, biome: 'rock' },                      // 3 바위산 (웜 그레이 지면 × 쿨 블루 하늘 — 회색×회색 단색 화면의 hue 분리)
     { sky: 0x4a6572, fog: 0x607d8b, ground: 0x455a64, biome: 'forest' },                    // 4 폭풍
     { sky: 0x263238, fog: 0x37474f, ground: 0x33691e, biome: 'forest', celestial: 'moon' }, // 5 밤 숲
