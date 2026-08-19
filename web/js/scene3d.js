@@ -6327,17 +6327,110 @@ const Scene3D = {
                 g.add(lapel);
             }
         } else if (style === 'robe') {
-            // 로브: 목 뒤로 솟은 **후드**가 실루엣의 얼굴이다 — 없으면 96px 에서 그냥 종(鐘)이다
-            const hood = new THREE.Mesh(new THREE.SphereGeometry(0.155, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.68), mat);
-            hood.scale.set(1, 1.15, 0.85);
-            hood.position.set(0, neckY - 0.02, -0.075);
-            hood.rotation.x = -0.34;
-            g.add(hood);
-            const brim = new THREE.Mesh(new THREE.TorusGeometry(0.148, 0.026, 6, 20, Math.PI * 1.1), mat);
-            brim.position.set(0, neckY + 0.04, -0.055);
-            brim.rotation.x = Math.PI / 2 - 0.34;
-            brim.rotation.z = Math.PI * 0.95;
-            g.add(brim);
+            // 로브: 목 위로 솟은 **어깨-목 처리**가 실루엣의 얼굴이다 — 없으면 96px 에서 그냥 종(鐘)이다.
+            // 🚨 **전 시대에 같은 후드를 달지 말 것 (equip-era-theming ⑦).** 비평가 2인이 **공통 1~3순위**로
+            //    지목한 결함이 이것이다: 중세 수도복 종형 하나가 7~9시대에 공용이라 원시 '곰가죽'·근대
+            //    '기병 카디건'·우주 '추진 슈트'가 전부 **수도사**로 보인다(이름과 조형이 정면 충돌).
+            //    몸통(종형 드레이프)은 로브 계열의 공통 골격이라 두고, **목 위 처리만 시대로 분기**한다 —
+            //    그 자리가 96px 에서 실루엣의 얼굴이라 여기만 갈라도 시대가 갈린다.
+            const ROBE_NECK = { primitive: 'pelt', earlyModern: 'coat', space: 'thruster' };
+            const neckKind = ROBE_NECK[age] || 'hood';
+            if (neckKind === 'pelt') {
+                // 원시 '곰가죽' — 짐승 가죽을 **머리째** 뒤집어쓴 것. 후드 자리에 짐승 머리가 온다.
+                const skullH = new THREE.Mesh(new THREE.SphereGeometry(0.145, 14, 10), mat);
+                skullH.scale.set(1, 0.92, 1.10);
+                skullH.position.set(0, neckY + 0.045, -0.045);
+                g.add(skullH);
+                const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.082, 0.145, 8), mat);
+                muzzle.rotation.x = Math.PI / 2 + 0.20;
+                muzzle.position.set(0, neckY + 0.012, 0.085);
+                muzzle.scale.set(1, 1, 0.82);
+                g.add(muzzle);
+                const nose = new THREE.Mesh(new THREE.SphereGeometry(0.030, 8, 6), mats.dark);
+                nose.scale.set(1, 0.78, 0.72);
+                nose.position.set(0, neckY - 0.008, 0.152);
+                g.add(nose);
+                for (const s of [-1, 1]) {           // 둥근 귀 — 곰의 서명
+                    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), mat);
+                    ear.scale.set(1, 1, 0.52);
+                    ear.position.set(s * 0.098, neckY + 0.145, -0.045);
+                    ear.rotation.x = Math.PI / 2;
+                    g.add(ear);
+                    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.017, 7, 6), mats.dark);
+                    eye.position.set(s * 0.055, neckY + 0.048, 0.098);
+                    g.add(eye);
+                    // 앞발 — 가죽이 어깨에서 가슴으로 넘어와 늘어진다(뒤집어쓴 가죽의 증거)
+                    const paw = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.042, 0.235, 7), mat);
+                    paw.position.set(s * 0.175, 0.088, 0.108);
+                    paw.rotation.z = s * 0.22;
+                    g.add(paw);
+                    for (let k = -1; k <= 1; k++) {  // 발톱 3개
+                        const claw = new THREE.Mesh(new THREE.ConeGeometry(0.011, 0.038, 5), mats.dark);
+                        claw.position.set(s * 0.175 + k * 0.024, -0.038, 0.128);
+                        claw.rotation.x = Math.PI;
+                        g.add(claw);
+                    }
+                }
+            } else if (neckKind === 'coat') {
+                // 근대 초기 '기병 카디건' — 후드가 아니라 **선 깃 + 여민 앞섶 + 놋단추 줄**.
+                const collar = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.132, 0.158, 0.115, 16, 1, true), this.tintOf(mat, -0.05));
+                collar.position.set(0, neckY + 0.045, -0.010);
+                collar.rotation.x = -0.16;
+                g.add(collar);
+                for (const s of [-1, 1]) {           // 젖힌 라펠 2장
+                    const lap = this.beveledSlab(0.098, 0.235, 0.030, 0.022, this.tintOf(mat, -0.05));
+                    lap.position.set(s * 0.072, 0.115, 0.140);
+                    lap.rotation.z = -s * 0.26;
+                    lap.rotation.y = s * 0.18;
+                    g.add(lap);
+                }
+                for (let i = 0; i < 5; i++) {        // 놋단추 한 줄 — 근세의 서명
+                    const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.012, 10), mats.dark);
+                    btn.rotation.x = Math.PI / 2;
+                    btn.position.set(0, 0.055 - i * 0.072, 0.152);
+                    g.add(btn);
+                }
+            } else if (neckKind === 'thruster') {
+                // 우주 '추진 슈트' — 후드가 아니라 **밀폐 목 링 + 등 추진기 2문**. 이름이 약속한 물건.
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.140, 0.030, 8, 20), this.tintOf(mat, -0.18));
+                ring.position.set(0, neckY + 0.030, 0);
+                ring.rotation.x = Math.PI / 2;
+                ring.scale.y = 0.72;
+                g.add(ring);
+                const glowM = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color(c).offsetHSL(0, 0.22, 0.04).getHex() });
+                // ⚠️ 추진기를 등 뒤(z −0.135)에만 두면 썸네일 기본 3/4 **정면** 각도에서 통째로 가려져
+                //    앞에서는 그냥 로브다(실측: 뒤 각도에서만 보였다). 몸통 **옆**으로 빼서 실루엣에
+                //    걸리게 한다 — 시대 신호는 정면에서 읽혀야 값을 한다.
+                for (const s of [-1, 1]) {
+                    const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.078, 0.195, 10), this.tintOf(mat, -0.18));
+                    nozzle.position.set(s * 0.212, -0.128, -0.052);
+                    nozzle.rotation.set(0.16, 0, -s * 0.10);
+                    g.add(nozzle);
+                    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.060, 0.112, 10), glowM);
+                    flame.position.set(s * 0.222, -0.256, -0.072);
+                    flame.rotation.set(Math.PI + 0.16, 0, s * 0.10);   // 아래로 뿜는다
+                    g.add(flame);
+                    const strut = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.030, 0.115), this.tintOf(mat, -0.18));
+                    strut.position.set(s * 0.185, 0.012, -0.030);
+                    g.add(strut);
+                    const mount = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.048, 0.048), this.tintOf(mat, -0.18));
+                    mount.position.set(s * 0.185, 0.012, -0.052);
+                    g.add(mount);
+                }
+            } else {
+                const hood = new THREE.Mesh(new THREE.SphereGeometry(0.155, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.68), mat);
+                hood.scale.set(1, 1.15, 0.85);
+                hood.position.set(0, neckY - 0.02, -0.075);
+                hood.rotation.x = -0.34;
+                g.add(hood);
+                const brim = new THREE.Mesh(new THREE.TorusGeometry(0.148, 0.026, 6, 20, Math.PI * 1.1), mat);
+                brim.position.set(0, neckY + 0.04, -0.055);
+                brim.rotation.x = Math.PI / 2 - 0.34;
+                brim.rotation.z = Math.PI * 0.95;
+                g.add(brim);
+            }
         } else if (style === 'hide') {
             // 가죽: 민짜 덩어리로 읽히던 것을 **앞섶 교차 끈 + 어깨 모피 + 너덜한 밑단**으로 갈랐다.
             // 밑단 술이 아래 윤곽을 톱니로 만들어 plate 의 매끈한 항아리와 96px 에서도 갈린다.
