@@ -92,7 +92,7 @@ async function waitBooted(page, timeout = 25000) {
     if (!ready) { console.log('FAIL .af-hammer 스윙 애니메이션이 잡히지 않음'); await browser.close(); process.exit(1); }
 
     // 로컬(망치 프레임) 점 → 화면 좌표. 모루 상판 접점도 모루 SVG의 CTM으로 같이 뽑는다.
-    const measureAt = async (pct) => page.evaluate((pct) => {
+    const measureAt = async (pct) => page.evaluate(({ pct, hitPctsIn }) => {
         const DUR = UI.ANVIL_FX_MS;   // ⚠️ 손으로 베끼지 말 것(함정 ④) — 생성원에서 읽는다
         // ⚠️ 두 가지를 같이 고쳐야 접점이 제대로 측정된다.
         //  ⑴ `.anvil-fx *` 만 멈추면 **모루(.anvil-svg)의 anvilbump 이 빠진다** — 접점 검사가
@@ -135,10 +135,24 @@ async function waitBooted(page, timeout = 25000) {
         //    프레임마다 다른 곳에 있다. `.anv-billet` 의 CTM 으로 매핑하면 **모루 침하 +
         //    빌릿 압축이 둘 다 들어간 실제 위치**가 나온다(TODO '함정 ④ 프로브가 자가 코드보다
         //    낡으면 판정 전부가 무효' — 상수를 베끼면 정확히 그 함정이다).
+        //    ⚠️ x 도 상수가 아니다 — 타격마다 때리는 자리가 걸어간다(`UI.ANVIL_HIT_DX`, 비평가 ⓞ).
+        //    여기서도 **생성원에서 읽는다**(함정 ④). 이 pct 가 몇 번째 타격인지는 hitPcts 로 되푼다.
         const bil = anv.querySelector('.anv-billet');
-        const hitPt = (() => {                    // 빌릿 윗면 접점 (로컬 55,11)
-            const p = anv.createSVGPoint(); p.x = 55; p.y = 11;
-            return p.matrixTransform((bil || anv).getScreenCTM());
+        const hIdx = hitPctsIn.indexOf(pct);
+        const hitDx = hIdx >= 0 ? UI.ANVIL_HIT_DX[hIdx] : 0;
+        // 🚨 **x 와 y 를 다른 CTM 에서 뽑는다 — 같은 걸로 뽑으면 틀린다.**
+        //    y 는 빌릿 CTM(압축으로 윗면이 내려간 실제 높이). x 는 **모루 CTM** 이다.
+        //    빌릿은 타격마다 가로로 퍼지는데(anvilbillet scaleX 1.40, 축은 중심 x=55) 그 스케일을
+        //    접점 x 에 먹이면 중심에서 dx 만큼 떨어진 점이 dx×1.40 으로 밀려난다 — 그런데 **망치는
+        //    빌릿의 퍼짐을 따라가지 않는다**(afswing 이 55+dx 에 놓는다). 실제로 dx 를 ±5.4 로
+        //    벌리자마자 ⑫ hit3 이 1.66px 로 틀어져 이 오차가 드러났다(dx=0 이던 시절엔 두 CTM 의
+        //    x 가 같아서 영영 안 보였다). 소성 변형은 소재가 퍼지는 것이지 **때리는 자리가 밀려나는
+        //    것이 아니다.**
+        const hitPt = (() => {                    // 접점: x = 모루 기준 55+dx, y = 빌릿 윗면(눌림 포함)
+            const p = anv.createSVGPoint(); p.x = UI.ANVIL_HIT_X + hitDx; p.y = 11;
+            const onAnvil = p.matrixTransform(anv.getScreenCTM());
+            const onBillet = p.matrixTransform((bil || anv).getScreenCTM());
+            return { x: onAnvil.x, y: onBillet.y };
         })();
         const topFaceL = (() => { const p = anv.createSVGPoint(); p.x = 12; p.y = 26; return p.matrixTransform(anv.getScreenCTM()); })();
         const topFaceR = (() => { const p = anv.createSVGPoint(); p.x = 95; p.y = 25; return p.matrixTransform(anv.getScreenCTM()); })();
@@ -151,13 +165,18 @@ async function waitBooted(page, timeout = 25000) {
             topA: { x: topA.x, y: topA.y }, topB: { x: topB.x, y: topB.y },
             hammerW: hb.width, hammerH: hb.height, anvilW: ab.width, anvilH: ab.height,
         };
-    }, pct);
+    }, { pct, hitPctsIn: hitPcts() });
 
     const say = (ok, msg) => { console.log(`${ok ? 'OK  ' : 'FAIL'} ${msg}`); if (!ok) fail++; };
     let sizeReported = false;
 
+    const hitFaceX = [];
     for (const f of FRAMES) {
         const m = await measureAt(f.pct);
+        // ⚠️ **모루 기준 상대 x 로 모은다**(절대 화면 x 가 아니라). 타격 프레임에는 sheetshake 가
+        //    시트를 통째로 흔들고 anvilbump 이 모루를 눌러 좌우로 민다 — 절대 좌표로 재면 그
+        //    흔들림이 '걸어간 거리'로 둔갑해 ㉑ 이 실제 dx 와 무관하게 통과/실패할 수 있다.
+        if (f.kind === 'hit') hitFaceX.push(m.face.x - m.faceL);
         const d = Math.hypot(m.face.x - m.hit.x, m.face.y - m.hit.y);
         // ⚠️ 7%(6.4px) 는 너무 헐거웠다 — 모루가 눌려 내려가는 동안 망치가 제자리에 남아 **4.7px
         //    벌어진 채로도 통과**했다(비평가 두 명이 같은 이격을 1순위로 지목했다). 망치가 표면을
@@ -187,6 +206,19 @@ async function waitBooted(page, timeout = 25000) {
         }
         const btn = await page.$('.anvil-btn');
         await btn.screenshot({ path: path.join(OUT, `anvilhammer-${f.name}.png`) }).catch(() => {});
+    }
+
+    // ㉑ 🚨 **타격점이 세 번 다 같으면 안 된다** (비평가 4차 ⓞ: "타격점이 세 번 다 정확히 x=55 —
+    //    대장장이는 소재를 옮긴다"). 같은 자리를 세 번 찍으면 리듬·세기를 아무리 벌려도 세 프레임이
+    //    복사본으로 보인다. **굽 쪽 → 뿔 쪽으로 단조롭게 걸어가는지**를 못 박는다(왔다 갔다 하면
+    //    '작업이 진행됐다'가 아니라 '흔들린다'로 읽힌다).
+    //    ⚠️ 임계는 화면 폭 기준이다 — 모루 폭의 3% 미만이면 92px 에서 1픽셀 남짓이라 안 읽힌다.
+    {
+        const anvilW = (await measureAt(hitPcts()[0])).anvilW;
+        const gap = anvilW * 0.03;
+        const d1 = hitFaceX[1] - hitFaceX[0], d2 = hitFaceX[2] - hitFaceX[1];
+        say(d1 >= gap && d2 >= gap,
+            `㉑ 타격점이 굽→뿔로 걸어간다 — 상판 왼끝 기준 x ${hitFaceX.map(v => v.toFixed(1)).join(' → ')} (간격 ${d1.toFixed(1)}px, ${d2.toFixed(1)}px ≥ ${gap.toFixed(1)}px)`);
     }
 
     // ⑦ 이펙트 CSS 규칙이 **실제로 먹고 있는가**. 이게 없으면 style.css가 어디선가 깨져도
@@ -297,7 +329,12 @@ async function waitBooted(page, timeout = 25000) {
             const anv = document.querySelector('.anvil-btn .anvil-svg');
             // ⑫ 도 ① 과 같은 기준점을 써야 한다 — 빌릿 윗면(눌림 포함)을 CTM 으로 직접 잡는다.
             const bil = anv.querySelector('.anv-billet');
-            const hp = (() => { const p = anv.createSVGPoint(); p.x = 55; p.y = 11; return p.matrixTransform((bil || anv).getScreenCTM()); })();
+            // ⚠️ ① 과 같은 규약 — 접점 x 는 타격마다 걸어가고(UI.ANVIL_HIT_DX, 생성원에서 읽는다),
+            //    x 는 모루 CTM · y 는 빌릿 CTM 에서 뽑는다(① 의 긴 주석 참고).
+            const hp = (() => {
+                const p = anv.createSVGPoint(); p.x = UI.ANVIL_HIT_X + UI.ANVIL_HIT_DX[h]; p.y = 11;
+                return { x: p.matrixTransform(anv.getScreenCTM()).x, y: p.matrixTransform((bil || anv).getScreenCTM()).y };
+            })();
             const out = {};
             for (const [key, sel] of [['ring', `.af-ring.h${h}`], ['core', `.af-core.c${h}`], ['flash', `.af-flash.f${h}`]]) {
                 const e = document.querySelector('.anvil-fx ' + sel);

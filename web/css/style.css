@@ -1139,36 +1139,42 @@ body {
        그래서 ⑴ 접촉 직전 저속구간(21°) → 스미어 → 접촉 → 드웰 → 되튐의 **절대 길이를 900ms 판 그대로**
        두고, ⑵ 벌어진 시간은 전부 **들어올리는 구간과 정점 체공**에 줬다. 무거운 망치를 천천히 감아올려
        한 박 멈췄다가 같은 속도로 꽂는 그림이 된다.
-       위계도 같이 키웠다 — 정점 리프트 27 / 38 / 54 유닛, 정점 체공 120 / 130 / 195ms. */
+       위계도 같이 키웠다 — 정점 리프트 27 / 38 / 54 유닛, 정점 체공 120 / 130 / 195ms.
+       🚨 **접촉 x 는 타격마다 다르다 — `var(--dxN)`(비평가 4차 잔여 ⓞ).** 같은 자리를 세 번
+       찍으면 리듬·세기를 아무리 벌려도 프레임이 복사본으로 보인다. 실제 단조는 소재를 따라
+       때리는 자리가 걸어간다. 값은 `UI.ANVIL_HIT_DX` 한 곳에서 오고(`startAnvilStrike` 가
+       내려보낸다), 불티·링 원점과 probe ①⑫ 기준점도 같은 배열에서 파생된다 — 여기 숫자를
+       손으로 바꾸지 말 것. ⚠️ 옮기는 건 **스미어·접촉·드웰**뿐이다. 되튐·윈드업까지 옮기면
+       망치가 옆으로 미끄러지며 튀어올라 '걸어간다'가 아니라 '흘렀다'로 읽힌다. */
     0%      { transform: translate(12px, -44px) rotate(-50deg) scale(1, 1); opacity: 0; }  /* 위가 아니라 옆에서 들어온다 */
     2%      { transform: translate(7px, -38px)  rotate(-42deg) scale(1, 1); opacity: 1; }  /* 60ms — 여기서 이미 보인다 */
     7.667%  { transform: translate(4.6px, -31px) rotate(-34deg) scale(1, 1); opacity: 1; } /* 230ms — 무겁게 올라간다 */
     12.667% { transform: translate(3.6px, -27px) rotate(-30deg) scale(1, 1); }  /* 380ms — 1타 윈드업 정점 */
     16.667% { transform: translate(2.6px, -21px) rotate(-23deg) scale(1, 1); }  /* 500ms — 한 박 머문다(앤티시페이션) */
     19.167% { transform: translate(1.2px, -8px)  rotate(-2deg) scale(1, 1); }   /* 575ms — 45ms에 21° = 저속 */
-    20.133% { transform: translate(.31px, .12px) rotate(10.6deg) scale(1, 1.16); } /* 604ms 스미어 = 아직 안 눌린 빌릿 윗면(y=11) */
-    20.667% { transform: translate(-.07px, 3.08px) rotate(19deg) scale(1, 1); }  /* 620ms 접촉 — 16ms에 8.4° = 급가속 */
-    21.767% { transform: translate(-.07px, 2.58px) rotate(19deg) scale(1, 1); }  /* 33ms 정지(2프레임) */
+    20.133% { transform: translate(calc(.31px + var(--dx0, 0px)), .12px) rotate(10.6deg) scale(1, 1.16); } /* 604ms 스미어 = 아직 안 눌린 빌릿 윗면(y=11) */
+    20.667% { transform: translate(calc(-.07px + var(--dx0, 0px)), 3.08px) rotate(19deg) scale(1, 1); }  /* 620ms 접촉 — 16ms에 8.4° = 급가속 */
+    21.767% { transform: translate(calc(-.07px + var(--dx0, 0px)), 2.58px) rotate(19deg) scale(1, 1); }  /* 33ms 정지(2프레임) */
     23.333% { transform: translate(.8px, -6px)  rotate(4deg) scale(1, 1); }      /* 되튐 = 타격의 0.72배 */
     30.0%   { transform: translate(4.2px, -30px) rotate(-33deg) scale(1, 1); }   /* 900ms */
     37.333% { transform: translate(3.4px, -38px) rotate(-42deg) scale(1, 1); }   /* 1120ms — 2타 정점 */
     41.667% { transform: translate(2.9px, -27px) rotate(-29deg) scale(1, 1); }   /* 1250ms 체공 */
     45.167% { transform: translate(1.6px, -14px) rotate(-9deg) scale(1, 1); }
-    46.033% { transform: translate(.17px, 1.28px) rotate(10.6deg) scale(1, 1.18); }
-    46.667% { transform: translate(-.11px, 5.40px) rotate(19deg) scale(1, 1); }  /* 1400ms — 0.8유닛 관통 */
-    48.0%   { transform: translate(-.11px, 4.60px) rotate(19deg) scale(1, 1); }  /* 40ms 정지 */
+    46.033% { transform: translate(calc(.17px + var(--dx1, 0px)), 1.28px) rotate(10.6deg) scale(1, 1.18); }
+    46.667% { transform: translate(calc(-.11px + var(--dx1, 0px)), 5.40px) rotate(19deg) scale(1, 1); }  /* 1400ms — 0.8유닛 관통 */
+    48.0%   { transform: translate(calc(-.11px + var(--dx1, 0px)), 4.60px) rotate(19deg) scale(1, 1); }  /* 40ms 정지 */
     49.567% { transform: translate(1.2px, -7px) rotate(3deg) scale(1, 1); }
     58.333% { transform: translate(4.4px, -42px) rotate(-48deg) scale(1, 1); }   /* 1750ms */
     67.333% { transform: translate(5px, -54px)  rotate(-60deg) scale(1, 1); }    /* 2020ms — 화면 최고점 */
     73.0%   { transform: translate(3.8px, -36px) rotate(-38deg) scale(1, 1); }   /* 2190ms — 가장 길게 체공 */
     79.5%   { transform: translate(2.6px, -20px) rotate(-20deg) scale(1, 1); }
-    80.533% { transform: translate(.32px, 2.51px) rotate(8deg) scale(1, 1.22); } /* 3타가 가장 길게 늘어난다 */
+    80.533% { transform: translate(calc(.32px + var(--dx2, 0px)), 2.51px) rotate(8deg) scale(1, 1.22); } /* 3타가 가장 길게 늘어난다 */
     /* ⚠️ 여기 회전을 26° 로 눕히자는 제안이 있었지만(3타만 자세를 다르게) 그러면 타격면이
        상판과 6.7° 어긋나 **다시 모서리로 찍는다**(probe ⑩ 가 잡았다). 상판이 -0.85° 이므로
        합각은 0° 근처를 벗어날 수 없다 — 3타의 차별화는 각도가 아니라 **관통 깊이**(2.0유닛)와
        드웰 길이(50ms)로 판다. */
-    81.333% { transform: translate(-.18px, 8.35px) rotate(20deg) scale(1, 1); opacity: 1; }  /* 2440ms — 1.2유닛 관통 */
-    83.0%   { transform: translate(-.18px, 7.15px) rotate(20deg) scale(1, 1); opacity: 1; }  /* 50ms 정지(최장) */
+    81.333% { transform: translate(calc(-.18px + var(--dx2, 0px)), 8.35px) rotate(20deg) scale(1, 1); opacity: 1; }  /* 2440ms — 1.2유닛 관통 */
+    83.0%   { transform: translate(calc(-.18px + var(--dx2, 0px)), 7.15px) rotate(20deg) scale(1, 1); opacity: 1; }  /* 50ms 정지(최장) */
     /* ⚠️ afexit 이 2510ms 에 넘겨받는다 — 그 0% 자세와 반드시 같아야 경계에서 안 튄다.
        100% 까지 같은 자세로 붙잡아 둔다(afexit 이 목록 뒤라 실제 표시는 그쪽이 이긴다). */
     83.667%, 100% { transform: translate(1.2px, -1px) rotate(8deg) scale(1, 1); opacity: 1; }
