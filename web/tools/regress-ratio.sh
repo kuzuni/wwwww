@@ -66,6 +66,13 @@ PROBES=(
     probe-offline-dom.js        # offline      042110
     probe-skilldetail-dom.js    # skill-detail 042426
     probe-rates-dom.js          # summon-rates 042521
+    # 🚩 11~14건째 — 같은 ⓖ 방언. 이들도 원본 목표치 대조 + 종료 코드를 이미 갖추고 있었다
+    #    (한때 '원본 참조 없는 클론 덤프'로 잘못 적어 뒀는데, 실제로는 동반 `-ref` 프로브가 뽑은
+    #    원본 실측치를 표로 박아 두고 ±2%p 로 대조하는 완성된 판정기다).
+    probe-petdetail-dom.js      # pet-detail   042449
+    probe-petupgrade-dom.js     # pet-upgrade  042503
+    probe-affilter-dom.js       # autoforge-filter 042950
+    probe-forge-detail-dom.js   # forge-detail 042931
 )
 
 if [ "$#" -gt 0 ]; then
