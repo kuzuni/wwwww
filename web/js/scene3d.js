@@ -10772,6 +10772,9 @@ const Scene3D = {
     // 예전엔 적만 숫자가 떠서 "내가 몇 대 맞아 얼마나 깎였는지"를 화면에서 읽을 방법이 HP바 길이뿐이었다(비평가 3차 6번).
     heroHit(sev, dmg) {
         sev = U.clamp(sev || 0.12, 0, 1);
+        // 관절 반동 — 아래 넉백/롤은 **몸통을 통째로** 움직일 뿐이라 포즈는 맞기 전과 같다.
+        // 적 쪽 `driveFlinch` 와 같은 결함이었고(비평가 A #7 / B #5) 같은 언어로 갚는다.
+        if (typeof ProChar !== 'undefined') ProChar.hit(this.heroRig, sev);
         const ox = this.heroG.position.x;
         // 뒤로(-x) 밀리며 상체가 젖혀지는 움찔 — 피해가 클수록 깊게
         const kb = 0.16 + Math.min(0.26, sev * 1.2);

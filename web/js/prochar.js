@@ -1648,6 +1648,13 @@ const ProChar = {
         return null;
     },
 
+    // 피격 반동을 건다(위 update 의 플린치 층이 이 값을 읽는다). sev = 최대 HP 대비 피해 비중.
+    hit(R, sev) {
+        if (!R) return;
+        R.hitT = R.hitDur = 0.30;
+        R.hitAmp = 0.5 + Math.min(0.5, (sev || 0) * 1.6);
+    },
+
     play(R, cands, once, timeScale, onDone) {
         const name = this.resolveClip(Array.isArray(cands) ? cands : [cands]);
         if (!name) return;
@@ -1726,6 +1733,36 @@ const ProChar = {
             else if (ch === 'px') bone.position.x += v;
             else if (ch === 'py') bone.position.y += v;
             else if (ch === 'pz') bone.position.z += v;
+        }
+        // ── 피격 플린치 (hp-juicy 7차 잔여 ㉳ '영웅 피격 포즈 반동 부재') ──────────────────────
+        // 적 쪽에서 먼저 확인된 것과 **같은 결함**이다: `Scene3D.heroHit` 은 몸통 넉백(x)과 롤(rz),
+        // 플래시·셰이크·비네트를 걸지만 **관절은 한 개도 안 움직인다.** 그래서 화면은 요란한데
+        // 영웅 자세는 맞기 전과 똑같아 '내가 맞았다'가 포즈로 안 읽힌다(비평가 A #7 / B #5 일치).
+        // 여기서는 되돌리기가 필요 없다 — 이 함수는 매 프레임 `R.base` 에서 포즈를 새로 쌓기 때문에
+        // (적 쪽은 대기 분기가 곱셈 감쇠라 `undoFlinch` 가 필요했다) **가산 한 번이면 끝이다.**
+        // 클립보다 뒤에 얹으므로 공격 모션 중에 맞아도 반동이 살아 있다.
+        if (R.hitT > 0 && !(R._clip && R._clip.groundPose)) {   // 쓰러진 시체는 제외
+            R.hitT = Math.max(0, R.hitT - dt);
+            const v = 1 - R.hitT / R.hitDur;
+            const RISE = 0.06;   // 즉발 스냅 — 타격은 예고 없이 들어온다(예비동작 없음). 적 쪽과 같은 곡선.
+            let w;
+            if (v < RISE) w = v / RISE;
+            else { const u = (v - RISE) / (1 - RISE); w = Math.exp(-3.6 * u) * Math.cos(u * Math.PI * 2.4); }
+            const a = (R.hitAmp || 0) * w;
+            if (a) addPose({
+                // 적은 +x(오른쪽)에 서므로 영웅은 **왼쪽으로** 접힌다 — 넉백·롤과 같은 방향이라
+                // 몸통 이동과 관절 반동이 한 덩어리로 읽힌다(반대로 주면 서로 상쇄돼 제자리걸음이 된다).
+                spine: { rz: a * 0.20, rx: -a * 0.15 },
+                neck: { rz: a * 0.30, rx: -a * 0.22 },   // 머리가 가장 크게 젖혀진다(무게가 가벼우니까)
+                head: { rz: a * 0.16 },
+                shoulderL: { rx: a * 0.46, rz: a * 0.30 },
+                shoulderR: { rx: a * 0.34, rz: a * 0.24 }, // 무기 든 팔은 덜 흔들린다(쥐고 버틴다)
+                elbowL: { rx: -a * 0.30 },
+                elbowR: { rx: -a * 0.18 },
+                hipL: { rx: -a * 0.13 }, hipR: { rx: -a * 0.13 },
+                kneeL: { rx: -a * 0.28 }, kneeR: { rx: -a * 0.24 }, // 무릎이 접히며 충격을 받는다
+                cape: { rx: a * 0.30 },                             // 천은 한 박자 늦게 따라 출렁인다
+            });
         }
         // 망토 천 물결 — 세로 진행파+가로 미세 플러터 2겹, 걷기 중 증폭 (비평가: '두께 없는 판자 망토')
         // `capeFlat`(0~1) 채널은 천을 자기 평면(z=0)으로 눌러 편다 — 쓰러져 누웠을 때 등 뒤로 부풀어 있던
