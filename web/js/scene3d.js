@@ -1640,6 +1640,7 @@ const Scene3D = {
             map: gt.map, normalMap: gt.normal,
             normalScale: new THREE.Vector2(0.7, 0.7), // 1.45는 고주파 스펙클('카펫')로 읽힘 — 저폴리 소품과 톤 맞춤
         });
+        this.terrainShade(this.terrainMat); // 타일 동일성 깨기 + 거리 LOD + 눈 수광면 탈색 (㉰·㉱)
         // 🚨 **깊이를 30 → 60 으로 늘리고 뒤로 15 밀었다 (map-quality-up).**
         //    종전 플레인은 z −15..+15 라 **far 모서리가 카메라에서 23.7 유닛**인데 `fog.far` 가 35 이라
         //    **49% 만 안개에 잠긴 채 뚝 끊겼다** — 그 끊긴 자리가 화면 폭을 관통하는 곧은 가로선으로
@@ -2214,6 +2215,77 @@ const Scene3D = {
     //  · 주파수 2개를 겹쳐 준다(1.6Hz + 2.9Hz). 사인 하나면 기계적으로 왔다갔다해 눈에 띈다.
     // ⚠️ 시간 유니폼은 재질마다 따로 산다 — 컴파일된 uniforms 객체 참조를 `_windMats` 에 모아
     //    update() 에서 한꺼번에 밀어 준다(재질을 새로 구울 때마다 등록해야 한다).
+    // ---- 지면 셰이더: 타일 동일성 깨기 + 거리 LOD + 눈 수광면 탈색 ----
+    // `map-quality-up` 잔여 결함 ㉰·㉱ 를 한 자리에서 처리한다. 둘 다 '재질 색을 무엇으로 두느냐'가
+    // 아니라 **지면이 거리와 빛에 어떻게 반응하느냐**의 문제라서 셰이더 몫이다.
+    //  ⓐ **매크로 변조** — 지면 텍스처는 12×6 으로 반복되는데 타일마다 완전히 동일하다. 같은 map 을
+    //     아주 낮은 주파수로 한 번 더 떠서 곱하면 같은 타일이 자리마다 다르게 보여 반복이 깨진다.
+    //     🚨 이게 ㉰ 의 **재정의된** 처방이다 — 원래 지적('사막 물결이 근경~원경 동일 스케일')은
+    //        계측으로 지지되지 않았다(`probe-ground-tiling.js`: 날것의 자기상관 0.82 중 대부분이
+    //        무늬가 아니라 안개 그라디언트였고, 고역통과 후 사막은 다른 바이옴과 구별되지 않았다).
+    //        실제로 남는 문제는 '물결 스케일'이 아니라 '타일마다 같은 무늬'다.
+    //     ⚠️ 매크로 주기는 **uv 6 = 월드 30** 으로 잡는다. 지면이 `ground.position.x += 30` 으로
+    //        순환하므로 주기가 30 의 약수가 아니면 순환하는 순간 무늬가 튄다.
+    //  ⓑ **거리 LOD** — 원경일수록 저주파 쪽으로 섞는다. 근경은 결이 살고 원경은 큰 덩어리로 물러난다.
+    //  ⓒ **눈 수광면 탈색** — 눈은 알베도가 1 에 가까워 **빛이 닿는 면은 백색으로 탈색되고 색은
+    //     그늘에만 남는다.** 밝을수록 채도를 빼서 그 광학을 흉내낸다(㉱ — 6 설원 수광면 채도 0.267).
+    //     ⚠️ 눈 kin 에서만 uSnow>0 으로 켠다. **18 빙하는 설계된 청빙색이라 대상이 아니다**
+    //        (테마 ground 0x9fc9de 채도 0.49 + BIOMES.glacier tint 채도 +0.16 — 백색으로 밀면 빙하가 사라진다).
+    // ⚠️ r128 규약대로 `vUv`·`mapTexelToLinear`·`vViewPosition` 을 쓴다(전부 lib/three.min.js 에서 확인).
+    //    r128 에는 `output_fragment` 청크가 없고 `gl_FragColor` 가 인라인이라, 탈색은 그 직전인
+    //    `envmap_fragment` 뒤에 끼운다. 셰이더를 바꾸면 `customProgramCacheKey` 를 같이 줄 것.
+    TERRAIN: { macro: 0.30, lod: 0.45, lodNear: 14, lodFar: 34, snow: 0 },
+    terrainShade(mat) {
+        const cfg = this.TERRAIN;
+        mat.onBeforeCompile = (sh) => {
+            sh.uniforms.uMacro = { value: cfg.macro };
+            sh.uniforms.uMacroScale = { value: 1 / 6 };   // uv 6 주기 = 월드 30 (지면 순환 주기와 일치)
+            sh.uniforms.uLod = { value: cfg.lod };
+            sh.uniforms.uLodNear = { value: cfg.lodNear };
+            sh.uniforms.uLodFar = { value: cfg.lodFar };
+            sh.uniforms.uSnow = { value: cfg.snow };
+            this._terrainU = sh.uniforms;   // 재컴파일마다 새로 생기므로 참조를 갱신해 둔다
+            sh.fragmentShader = 'uniform float uMacro;\nuniform float uMacroScale;\nuniform float uLod;\n'
+                + 'uniform float uLodNear;\nuniform float uLodFar;\nuniform float uSnow;\n'
+                + sh.fragmentShader
+                    .replace('#include <map_fragment>', [
+                        '#ifdef USE_MAP',
+                        '\tvec4 tDet = mapTexelToLinear( texture2D( map, vUv ) );',
+                        '\tvec4 tMac = mapTexelToLinear( texture2D( map, vUv * uMacroScale ) );',
+                        '\tvec4 texelColor = tDet;',
+                        // ⓐ 저주파 변조 — 0.5 를 중심으로 ±라 전체 밝기는 유지된다
+                        '\ttexelColor.rgb *= 1.0 + ( dot( tMac.rgb, vec3( 0.3333 ) ) - 0.5 ) * uMacro;',
+                        // ⓑ 거리 LOD
+                        '\ttexelColor.rgb = mix( texelColor.rgb, tMac.rgb,',
+                        '\t\tsmoothstep( uLodNear, uLodFar, length( vViewPosition ) ) * uLod );',
+                        '\tdiffuseColor *= texelColor;',
+                        '#endif',
+                    ].join('\n'))
+                    .replace('#include <envmap_fragment>', [
+                        '#include <envmap_fragment>',
+                        // ⓒ 눈 수광면 탈색 — 밝은 면일수록 무채색(=백색)으로
+                        '\tif ( uSnow > 0.0 ) {',
+                        '\t\tfloat snowL = dot( outgoingLight, vec3( 0.2126, 0.7152, 0.0722 ) );',
+                        '\t\toutgoingLight = mix( outgoingLight, vec3( snowL ),',
+                        // ⚠️ 임계는 **선형 공간** 값이다. sRGB 감각으로 0.20~0.80 을 넣으면
+                        //    실제 수광면(sRGB 0.69 ≈ 선형 0.43)에서 게이트가 절반만 열려
+                        //    효과가 거의 안 난다(실측: 채도 0.267→0.241 로 찔끔).
+                        '\t\t\tsmoothstep( 0.06, 0.40, snowL ) * uSnow );',
+                        '\t}',
+                    ].join('\n'));
+        };
+        mat.customProgramCacheKey = () => 'terrain-v1';
+        return mat;
+    },
+
+    // 지면 셰이더 유니폼 갱신 — 값은 TERRAIN 에 남겨 재컴파일 뒤에도 살아남게 한다.
+    setTerrainUniform(k, v) {
+        this.TERRAIN[k] = v;
+        if (this._terrainU && this._terrainU['u' + k.charAt(0).toUpperCase() + k.slice(1)]) {
+            this._terrainU['u' + k.charAt(0).toUpperCase() + k.slice(1)].value = v;
+        }
+    },
+
     windShade(mat, amp) {
         if (!mat) return mat;
         this._windMats = this._windMats || [];
@@ -12881,6 +12953,13 @@ const Scene3D = {
         const dF = -Math.min(V.foliageMax, V.foliageK * gHSL.l) * nightK; // 식생 추가 하향
         const gC = new THREE.Color(t.ground).offsetHSL(0, V.satK * dL, dL); // 명도를 내리면 채도도 함께 (탁한 파스텔 방지)
         this.terrainMat.color.copy(gC);
+        // 눈 수광면 탈색은 **눈 kin 에서만** 켠다(㉱). 18 빙하는 kin 이 snow 지만 '청빙'이 정체성이라
+        // 테마 지면 채도가 0.49 + tint +0.16 로 의도적으로 높다 — 여기서 탈색하면 그 바이옴이 사라진다.
+        // ⚠️ **테마 지면의 채도로는 못 가른다** — 6 설원 0xaac2e2 와 18 빙하 0x9fc9de 는 채도가
+        //    0.491 / 0.488 로 사실상 같다(처음에 이걸로 가르려다 6 설원이 통째로 꺼졌다).
+        //    가르는 기준은 **바이옴 이름**이다: 기본 `snow` 만 흰 눈이고, `glacier`(청빙)·`tundra`
+        //    (눈이 걷힌 갈색 이끼)는 kin 이 snow 라도 tint 로 제 정체성을 따로 잡은 파생 바이옴이다.
+        this.setTerrainUniform('snow', t.biome === 'snow' ? 0.7 : 0);
         // 능선 실루엣(MeshBasic·무조명): 근경은 어둡게·원경은 안개에 깊이 잠기게 명도 단차를 크게 벌려
         // 근·중·원 3단(근경 능선 → 원경 능선 → 하늘)의 대기 원근이 읽히게 함.
         // 대기 원근은 명도만이 아니라 **채도**로도 읽힌다 — 멀수록 채도를 계단식으로 빼(farDesat) 원경이

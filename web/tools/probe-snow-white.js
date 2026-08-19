@@ -14,8 +14,12 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
-const SNOW = [6, 18];        // 설원 밤 · 빙하 (19 툰드라는 '눈이 걷힌 갈색 이끼 지대'라 대상 아님)
-const REF = [1, 9];          // 대조군 — 초원·용암(여기는 수광면이 유채색이어도 정상)
+// 🚨 판정 대상은 **기본 `snow` 바이옴(6 설원)뿐**이다.
+//    18 빙하는 kin 이 snow 지만 '청빙'이 정체성이라 테마 지면 채도가 의도적으로 높다(0.49 + tint 0.16).
+//    ⚠️ 채도로는 둘을 못 가른다 — 6 설원 0xaac2e2 와 18 빙하 0x9fc9de 의 채도가 0.491/0.488 로 같다.
+//    가르는 기준은 바이옴 이름이고, 코드도 같은 기준을 쓴다(`setTheme` 의 uSnow).
+const SNOW = [6];            // 설원 밤 — 흰 눈이어야 하는 유일한 챕터
+const REF = [18, 1, 9];      // 대조군 — 빙하(설계된 청빙)·초원·용암
 const LIT_SAT_MAX = 0.22;    // 수광면 평균 채도 상한 — 이 위는 '흰 눈'이 아니라 '색 있는 땅'
 const LIT_L_MIN = 0.55;      // 수광면 평균 명도 하한 — 눈은 밤이어도 수광면이 밝아야 한다
 
