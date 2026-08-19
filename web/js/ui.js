@@ -3811,7 +3811,7 @@ const UI = {
                     <span class="sk-lv">Lv.${sk.level}</span>
                 </span>
                 ${sk.stars ? `<span class="sk-star">${IconGen.img('star')}${sk.stars}</span>` : ''}
-                <span class="sk-shard"><i style="width:${ratio}%"></i><em>${sk.dupes}/${need}</em></span>
+                <span class="sk-shard" style="--r:${ratio}%"><i></i><em>${sk.dupes}/${need}</em></span>
             </button>`;
         }).join('') || '<span class="muted grid-empty">보유 스킬 없음 — 소환해보세요!</span>';
 
@@ -3941,7 +3941,7 @@ const UI = {
                         <div class="skd-orbcol">
                             <span class="sk-orb" style="--rc:${RARITY_CSS[d.rarity]}">${IconGen.skill(id)}<span class="sk-lv">Lv.${sk.level}</span></span>
                             ${sk.stars ? `<span class="sk-star">${IconGen.img('star')}${sk.stars}</span>` : ''}
-                            <span class="sk-shard"><i style="width:${ratio}%"></i><em>${sk.dupes}/${need}</em></span>
+                            <span class="sk-shard" style="--r:${ratio}%"><i></i><em>${sk.dupes}/${need}</em></span>
                         </div>
                         <div class="skd-body">
                             <div class="skd-name">[${RARITY_KR[d.rarity]}] ${d.name}</div>

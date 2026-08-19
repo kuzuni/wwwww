@@ -3556,10 +3556,22 @@ body {
     position: relative; width: 100%; height: calc(var(--app-h) * .0169); background: #17181a;
     border: var(--ol2) solid var(--pp-line); border-radius: .45rem; overflow: hidden;
 }
-.sk-shard i { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; }
+/* 채움 폭은 ui.js 가 `--r` 로 넘긴다 — 글자 색이 **같은 경계**에서 갈려야 하므로 한 값만 쓴다
+   (종전엔 i 의 인라인 width 였고 글자는 그 값을 몰랐다). */
+.sk-shard i { position: absolute; left: 0; top: 0; bottom: 0; width: var(--r, 0%); background: #fff; }
+/* 🚨 개수 글자는 **검정 트랙과 흰 채움을 동시에** 지나간다(slug: sk-shard-count-illegible).
+   종전 처방은 흰 글자 + `-webkit-text-stroke: 2.5px #17181a` 한 벌이었는데, .52rem 글자에서
+   2.5px 외곽선은 **자획 폭보다 두꺼워** 채움 위에 오면 흰 속이 다 먹히고 검은 덩어리만 남았다
+   (4배 확대 실측: `6/3`·`5/6`·`3/6` 에서 6↔5, 3↔8 이 구별 불가. 빈 구간의 `0/3`·`2/6` 은 멀쩡했다 —
+   한 벌로 두 바탕을 감당하려 한 게 원인이다).
+   → 글자를 두 벌로 복제하지 않고 **채움 경계에서 색을 갈라 칠한다**: 채움(흰) 구간은 잉크색,
+   트랙(검정) 구간은 흰색. 경계에 걸친 글리프는 반반으로 갈려 양쪽 다 대비가 산다.
+   ⚠️ `background-clip: text` 는 `color: transparent` 가 있어야 칠이 보인다. 외곽선은 이제 불필요
+      하므로 뺀다(넣으면 같은 병이 되돌아온다). 크기·테·라운드는 원본 실측값이라 불변. */
 .sk-shard em {
     position: absolute; inset: 0; font-style: normal; font-size: .52rem; font-weight: 900;
-    color: #fff; -webkit-text-stroke: 2.5px #17181a; paint-order: stroke fill; /* 흰 채움 위에서도 글리프 내부가 살아남는 외곽선 */
+    background-image: linear-gradient(90deg, #17181a 0 var(--r, 0%), #fff var(--r, 0%) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
     display: flex; align-items: center; justify-content: center;
 }
 .equipped-row {
