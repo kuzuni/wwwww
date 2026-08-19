@@ -16789,6 +16789,12 @@ const Scene3D = {
             // 예전엔 z 를 안 줘서 auto(=형제 순서)에 맡겼는데, 그러면 #fx-layer 가 나중에 스택 문맥을
             // 갖게 되는 순간 서열이 바뀐다 — 사망 커버와 같은 이유로 값을 못 박는다(`death-overlay-zorder`).
             el.style.cssText = 'position:absolute;inset:0;background:#05070c;opacity:1;pointer-events:none;z-index:14';
+            // 🚩 판정 도구용 표식 (dungeon-fail-cover-stuck). 이게 없으면 프로브가 '#fx-layer 안의
+            //    넓고 불투명한 div' 로 커버를 세는데, 그 조건에는 **사망 오버레이(z 15, 같은
+            //    배경색)** 도 걸린다 — 실제로 `probe-dungeon-fail-return` 이 사망 배너를
+            //    '안 걷힌 컷 커버'로 오독해 빨간 채로 방치돼 있었다(death-fade-popup 이 들어오기
+            //    전에 쓰인 프로브였다). 연출은 자기가 심은 표식으로 세게 한다(storm 프로브 규약).
+            el.dataset.sceneCut = '1';
             this.fxLayer.appendChild(el);
         }
         try {

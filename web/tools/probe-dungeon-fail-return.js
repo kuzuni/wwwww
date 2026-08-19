@@ -52,11 +52,15 @@ const path = require('path');
         ok(S.chapter === 1 && S.stage === 5, `본대 스테이지 불변: ${S.chapter}-${S.stage} (기대 1-5)`);
         ok(S.dungeons.keys.ghost === keysBefore, `열쇠 불변: ${S.dungeons.keys.ghost} (기대 ${keysBefore})`);
 
-        // ③ 컷 커버가 실제로 올라갔는가 — fx-layer 안 전면 검은 판 (연출은 있되 상태를 붙잡지 않아야 한다)
-        const covers = [...document.querySelectorAll('#fx-layer > div')].filter(el => {
-            const s = getComputedStyle(el);
-            return s.position === 'absolute' && el.offsetWidth >= 300 && parseFloat(s.opacity) > 0.05;
-        });
+        // ③ 컷 커버가 실제로 올라갔는가 (연출은 있되 상태를 붙잡지 않아야 한다)
+        // 🚨 **'넓고 불투명한 div' 로 세면 안 된다** — 그 조건에는 사망 오버레이(z 15, 같은 배경색
+        //    #05070c)도 걸린다. 던전 실패는 **사망 경로**라 사망 배너가 반드시 같이 떠 있고,
+        //    `DEATH_DOWN_MS` 가 1600ms 라 아래 1.5초 검사 시점엔 **정상적으로 아직 화면에 있다.**
+        //    그래서 이 프로브는 오랫동안 사망 배너를 '안 걷힌 컷 커버'로 오독해 빨갛게 떠 있었다
+        //    (death-fade-popup 이 들어오기 전에 쓰인 자다 — 코드가 아니라 자가 낡은 것이었다).
+        //    이제 `sceneCut` 이 심는 표식(`data-scene-cut`)만 센다.
+        const covers = [...document.querySelectorAll('#fx-layer > div[data-scene-cut]')].filter(el =>
+            parseFloat(getComputedStyle(el).opacity) > 0.05);
         ok(covers.length === 1, `컷 커버 1장이 올라와 있다 (실측 ${covers.length}장)`);
 
         // 여기서부터 렌더 루프를 세운다 — swiftshader 소프트 렌더는 한 프레임이 초 단위라
@@ -68,9 +72,15 @@ const path = require('path');
 
     // ④ 커버가 스스로 걷히는가 — 검은 판이 화면에 남으면 그게 더 큰 사고
     await p.waitForTimeout(1500);
-    const leftover = await p.evaluate(() => [...document.querySelectorAll('#fx-layer > div')]
-        .filter(el => el.offsetWidth >= 300 && parseFloat(getComputedStyle(el).opacity) > 0.05).length);
+    const leftover = await p.evaluate(() => [...document.querySelectorAll('#fx-layer > div[data-scene-cut]')]
+        .filter(el => parseFloat(getComputedStyle(el).opacity) > 0.05).length);
     r.out.push((leftover === 0 ? 'PASS ' : 'FAIL ') + `1.5초 뒤 커버 잔류 0장 (실측 ${leftover}장)`);
+    // ⑤ 사망 오버레이는 **자기 창(DEATH_DOWN 1600 + RISE 850 + MARCH 400 ≈ 2.85초) 안에** 걷히는가.
+    //    위 ④ 에서 사망 배너를 제외했다고 검사까지 사라지면 안 된다 — 축을 나눠 둘 다 지킨다.
+    await p.waitForTimeout(3200);
+    const deathLeft = await p.evaluate(() => [...document.querySelectorAll('#fx-layer > div')]
+        .filter(el => !el.dataset.sceneCut && el.offsetWidth >= 300 && parseFloat(getComputedStyle(el).opacity) > 0.05).length);
+    r.out.push((deathLeft === 0 ? 'PASS ' : 'FAIL ') + `사망 오버레이도 제 창(≈2.85초) 안에 걷힌다 — 4.7초 뒤 잔류 0장 (실측 ${deathLeft}장)`);
     r.out.push((errors.length === 0 ? 'PASS ' : 'FAIL ') + `콘솔 에러 0건 (실측 ${errors.length}건)`);
 
     console.log(r.out.join('\n'));
