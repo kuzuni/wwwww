@@ -19,6 +19,13 @@ const Combat = {
     buffs: [],               // 공격력 버프: {id, buff:{atkFlat: Big}, until} — 고정 가산이라 % 가 아니다
     hots: [],                // 지속 회복: {id, per: Big(초당), remain: Big(남은 총량), until, acc: Big, accT} — 흘려 넣는다
     cooldowns: {},           // skillId → 남은 초
+
+    // 스킬 쿨 전체 리셋 — 스테이지 전환마다 setupStage 가 부른다 (skill-cd-tick-and-reset ②).
+    // 값은 첫 진입과 같은 1~3초 스태거: 0으로 두면 전환 직후 장착 스킬이 전탄 동시 발사된다.
+    resetCooldowns() {
+        this.cooldowns = {};
+        for (const id of S.equippedSkills) this.cooldowns[id] = 1 + Math.random() * 2;
+    },
     pending: [],             // 지연 실행 큐 [{t, fn}]
     wave: 0,
     phase: 'idle',           // fight | waveDelay | stageDelay
@@ -94,6 +101,11 @@ const Combat = {
         this.wave = 0;
         this.enemies = [];
         this.pending = [];
+        // 스테이지 전환 시 스킬 쿨 초기화 (skill-cd-tick-and-reset ②, 사용자 지시 2026-08-19) —
+        // ⓐ 보스 클리어 후 다음 스테이지 ⓑ 던전 입장(Dungeons.enter → setupStage) ⓒ 사망 후퇴가
+        // 전부 여기를 지난다. '초기화' = 0(즉시 전탄 발사)이 아니라 첫 진입과 같은 1~3초 스태거 —
+        // 스테이지가 열리자마자 스킬이 한꺼번에 쏟아지지 않게(기존 undefined 초기화와 같은 분포).
+        this.resetCooldowns();
         this.hero.hp = this.hero.maxHp; // 스테이지 시작 시 완전 회복
         this.downUntil = 0; this.riseUntil = 0;
         Scene3D.heroRevive(); // 사망 상태로 스테이지가 시작되지 않게(던전 입장 등으로 기상 예약이 지워진 경우 대비)
@@ -233,6 +245,16 @@ const Combat = {
         const regenPct = 0.01 + (this.hero.stats ? this.hero.stats.hpRegen / 100 : 0);
         this.hero.hp = this.hero.hp.add(this.hero.maxHp.mul(regenPct * dt)).min(this.hero.maxHp);
 
+        // 스킬 쿨타임 감소 — **전투 중이 아니어도 흐른다** (skill-cd-tick-and-reset ①, 사용자 지시
+        // 2026-08-19: "전투 중 아닐 때는 스킬 쿨타임 안 흐르는 거 같은데 그거 흐르게"). 예전엔 이 루프가
+        // 아래 fight 게이트 안에 있어 웨이브 딜레이·스테이지 이동·보스 워닝 동안 쿨이 얼어붙었다.
+        // 자동 발동(autoCast)은 여전히 fight 블록에서만 — 적 없는 허공에 쏘지 않게 감소와 발동을 갈랐다.
+        for (const id of S.equippedSkills) {
+            if (this.cooldowns[id] === undefined) this.cooldowns[id] = 1 + Math.random() * 2;
+            this.cooldowns[id] = Math.max(0, this.cooldowns[id] - dt);
+        }
+        UI.updateSkillBar(); // 쿨이 전 페이즈에서 흐르니 바 표시도 전 페이즈에서 따라 돈다
+
         if (this.phase === 'waveDelay' || this.phase === 'stageDelay' || this.phase === 'bossWarn') {
             // 쓰러져 누워 있는 동안 — 스테이지 타이머를 세워 둔다 (캐치업 버스트가 연출을 건너뛰지 못하게)
             if (this.downUntil) {
@@ -295,13 +317,10 @@ const Combat = {
             }
         }
 
-        // 스킬 자동 발동
-        for (const id of S.equippedSkills) {
-            if (this.cooldowns[id] === undefined) this.cooldowns[id] = 1 + Math.random() * 2;
-            this.cooldowns[id] = Math.max(0, this.cooldowns[id] - dt);
-            if (S.autoCast && this.cooldowns[id] <= 0) this.tryCast(id);
+        // 스킬 자동 발동 — 쿨 감소는 위 공통 구간(전 페이즈)에서 이미 했다 (skill-cd-tick-and-reset ①)
+        if (S.autoCast) for (const id of S.equippedSkills) {
+            if (this.cooldowns[id] <= 0) this.tryCast(id);
         }
-        UI.updateSkillBar();
     },
 
     tryCast(id, manual) {
