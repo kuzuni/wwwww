@@ -427,12 +427,14 @@ const SUBSTATS = [
 const SKILL_DEFS = [
     { id: 'powerStrike', name: '연속 참격',       rarity: 'common',    type: 'single', mult: 3.0,  cd: 11, fx: 'slash',    color: '#cfd8dc' },
     { id: 'whirlwind',   name: '회오리 베기',     rarity: 'common',    type: 'aoe',    mult: 1.6,  cd: 12, fx: 'ring',     color: '#b0bec5' },
-    { id: 'firstAid',    name: '응급 처치',       rarity: 'common',    type: 'heal',   mult: 1.8,  dur: 4,  cd: 13, fx: 'heal', color: '#a5d6a7' },
+    { id: 'firstAid',    name: '응급 처치',       rarity: 'common',    type: 'heal',   mult: 1.8,  dur: 4,  cd: 13, fx: 'firstaid', color: '#a5d6a7' },
     { id: 'fireball',    name: '화염구',          rarity: 'rare',      type: 'aoe',    mult: 2.4,  cd: 12, fx: 'explode',  color: '#ff8a65' },
     { id: 'pierceShot',  name: '화살 세례',       rarity: 'rare',      type: 'single', mult: 4.5,  cd: 11, fx: 'beam',     color: '#81d4fa' },
-    { id: 'warCry',      name: '전투의 함성',     rarity: 'rare',      type: 'buff',   mult: 1.5,  dur: 8,  cd: 14, fx: 'aura', color: '#ffcc80' },
+    { id: 'warCry',      name: '전투의 함성',     rarity: 'rare',      type: 'buff',   mult: 1.5,  dur: 8,  cd: 14, fx: 'warcry', color: '#ffcc80' },
     { id: 'meteor',      name: '메테오',          rarity: 'epic',      type: 'aoe',    mult: 4.0,  cd: 12, fx: 'meteor',   color: '#ff7043' },
     { id: 'lightning',   name: '낙뢰',            rarity: 'epic',      type: 'single', mult: 7.0,  cd: 11, fx: 'bolt',     color: '#fff176' },
+        // 지원계 6종은 fx 가 전부 다르다 (skill-unique-signature). 축복이 `heal`(빛기둥 강림), 성역이
+    // `aura`(룬 서클) 자리를 유지하고 나머지 4종이 전용 연출로 갈렸다 — 개념이 가장 잘 맞는 짝을 남겼다.
     { id: 'blessing',    name: '축복',            rarity: 'epic',      type: 'heal',   mult: 3.5,  dur: 5,  cd: 13, fx: 'heal', color: '#80cbc4' },
     { id: 'dragonBreath', name: '용의 아가리',    rarity: 'legendary', type: 'aoe',    mult: 6.5,  cd: 12, fx: 'breath',   color: '#ba68c8' },
     // ⚠️ fx 'guillotine' — 강타와 fx 를 공유하던 것을 분리 (skill-unique-signature): 교차 참격이 아니라
@@ -445,14 +447,14 @@ const SKILL_DEFS = [
     // fx 'beam'(=화살 세례) 을 관통 사격과 공유하던 것을 분리 (skill-unique-signature).
     // 궁극기인데 레어 스킬과 같은 화살이 발수만 늘어난 그림이라 '공허의 창'이 화면에 없었다.
     { id: 'voidLance',   name: '공허의 창',       rarity: 'ultimate',  type: 'single', mult: 18.0, cd: 11, fx: 'voidrift', color: '#9575cd' },
-    { id: 'timeWarp',    name: '시간 왜곡',       rarity: 'ultimate',  type: 'buff',   mult: 2.0,  dur: 10, cd: 14, fx: 'aura', color: '#4dd0e1' },
+    { id: 'timeWarp',    name: '시간 왜곡',       rarity: 'ultimate',  type: 'buff',   mult: 2.0,  dur: 10, cd: 14, fx: 'timewarp', color: '#4dd0e1' },
     // ⚠️ fx 'dragonfire' — 메테오와 fx 를 공유하던 것을 분리 (skill-unique-signature, 사용자 지목 쌍:
     //    "아포칼립스랑 메테오라는 스킬 너무 똑같음. 거대한 용이 나와서 불을 뿜는 스킬로 바꾸든지").
     { id: 'apocalypse',  name: '종말의 화룡',     rarity: 'mythic',    type: 'aoe',    mult: 18.0, cd: 12, fx: 'dragonfire', color: '#ef5350' },
     // ⚠️ fx 'spear' — 낙뢰와 fx 를 공유하던 것을 분리 (skill-unique-signature): 먹구름 번개가 아니라
     //    하늘이 열리고 거대한 황금 창이 내리꽂히는 전용 연출.
     { id: 'godspear',    name: '신의 창',         rarity: 'mythic',    type: 'single', mult: 32.0, cd: 11, fx: 'spear',    color: '#ffd54f' },
-    { id: 'divineShield', name: '신성한 가호',    rarity: 'mythic',    type: 'heal',   mult: 7.0,  dur: 6,  cd: 13, fx: 'heal', color: '#fff59d' },
+    { id: 'divineShield', name: '신성한 가호',    rarity: 'mythic',    type: 'heal',   mult: 7.0,  dur: 6,  cd: 13, fx: 'wardshield', color: '#fff59d' },
 ];
 
 // 스킬 고정 데미지·패시브 등급별 기준치 (원본 개별 계수 미확보 → 자체 설계, BALANCE.md 참고)

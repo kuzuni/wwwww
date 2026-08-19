@@ -335,7 +335,9 @@ const Combat = {
             const dur = d.dur || 1;
             this.hots = this.hots.filter(h => h.id !== id); // 같은 스킬 재시전은 갱신(중첩 금지) — 버프와 같은 규약
             this.hots.push({ id, per: total.div(dur), remain: total, until: U.now() + dur * 1000, acc: Big.ZERO, accT: 0 });
-            Scene3D.skillEffect('heal', d.color, [], d);
+            // 🚨 여기는 여태 리터럴 'heal' 을 넘겼다 — 그래서 지원계의 `fx` 필드가 **죽은 값**이었다
+            //    (성역은 fx:'aura' 인데 type:'heal' 이라 화면에 빛기둥이 떴다). d.fx 를 쓴다.
+            Scene3D.skillEffect(d.fx || 'heal', d.color, [], d);
             UI.skillCutin(d);
         } else if (d.type === 'buff') {
             // 같은 스킬의 이전 버프를 먼저 제거 — 재사용 대기시간이 지속시간보다 짧아지면(스킬재사용대기시간 서브스탯) 무한 중첩 방지
@@ -344,7 +346,7 @@ const Combat = {
             // 버프가 살아 있는 동안 heroStats 가 매번 다시 계산하지 않게 여기서 한 번만 뽑는다.
             this.buffs.push({ id, buff: { atkFlat: Skills.buffAtk(id) }, until: U.now() + d.dur * 1000 });
             this.recalcHero();
-            Scene3D.skillEffect('aura', d.color, [], d);
+            Scene3D.skillEffect(d.fx || 'aura', d.color, [], d);   // 위와 같은 이유 — 리터럴 금지
             UI.skillCutin(d);
         } else {
             const alive = this.aliveEnemies().filter(e => e.x < 3.2);

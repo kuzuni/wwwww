@@ -11293,7 +11293,10 @@ const Scene3D = {
     skillCastBeat(color, fx, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const pw = t / 5;                                   // 0(커먼) ~ 1(미식)
-        const support = fx === 'heal' || fx === 'aura';
+        // ⚠️ 지원계 6종은 fx 키가 전부 다르다(skill-unique-signature) — 하나라도 빠지면 그 스킬만
+        //    시전 1박이 공격계 문법(발밑으로 조여드는 링)으로 돌아 지원계의 상승 축과 어긋난다.
+        const support = fx === 'heal' || fx === 'aura' || fx === 'firstaid'
+            || fx === 'wardshield' || fx === 'warcry' || fx === 'timewarp';
         const hero = this.heroG.position;
         const chest = new THREE.Vector3(hero.x, hero.y + 1.05, hero.z);
         const dur = this.castBeatMs(t) / 1000;             // 박자 길이는 fx 와 무관하게 등급만 탄다
@@ -11514,12 +11517,28 @@ const Scene3D = {
             // 참격 세례 (skill-fx-exaggerated). 예전엔 **불티 22개 + 조명 한 번**이 전부라
             // 화면에 그려지는 물건이 하나도 없었다 — 18종 중 가장 빈약한 자리였다.
             this.slashArcs(targetIds, color, tier || 0);
+        } else if (fx === 'firstaid') {
+            // 응급 처치 — 붕대+십자 표식 (skill-unique-signature). 축복과 `heal` 을 공유하던 것을 분리.
+            this.firstAidWrap(color, tier || 0);
+            this.flashLight(this.heroG.position, color.getHex(), 0.3);
+        } else if (fx === 'wardshield') {
+            // 신성한 가호 — 육각 결계 돔 (skill-unique-signature). 축복과 `heal` 을 공유하던 것을 분리.
+            this.wardShieldDome(color, tier || 0);
+            this.flashLight(this.heroG.position, color.getHex(), 0.4);
+        } else if (fx === 'warcry') {
+            // 전투의 함성 — 포효 고리 (skill-unique-signature). 성역·시간왜곡과 `aura` 를 공유하던 것을 분리.
+            this.warCryShout(color, tier || 0);
+        } else if (fx === 'timewarp') {
+            // 시간 왜곡 — 시계 고리 3겹 (skill-unique-signature). 성역·함성과 `aura` 를 공유하던 것을 분리.
+            this.timeWarpDial(color, tier || 0);
+            this.flashLight(this.heroG.position, color.getHex(), 0.4);
         } else if (fx === 'heal') {
-            // 빛기둥 강림 (skill-fx-exaggerated). 예전엔 파티클 20개 + 링 하나라 `aura` 와 구분이 안 됐다.
+            // 축복 — 빛기둥 강림 (skill-fx-exaggerated). 위에서 내려오는 은총이 곧 축복이라 이 자리를 유지한다.
             this.healPillar(color, tier || 0);
             this.flashLight(this.heroG.position, color.getHex(), 0.4);
         } else if (fx === 'aura') {
-            // 룬 서클 (skill-fx-exaggerated). 회복은 위에서 내려오고 버프는 **아래에서 올라온다** —
+            // 성역 — 룬 서클 (skill-fx-exaggerated). 축성된 땅이 곧 성역이라 이 자리를 유지한다.
+            // 회복은 위에서 내려오고 버프는 **아래에서 올라온다** —
             // 이 축 차이가 색·파티클보다 확실하게 둘을 갈라 준다(스킬 색은 6종이 제각각이라 단서가 못 된다).
             this.auraCircle(color, tier || 0);
             this.flashLight(this.heroG.position, color.getHex(), 0.4);
@@ -12933,6 +12952,283 @@ const Scene3D = {
             this.scene.remove(G); light.release();
         });
         SFX.auraRise(t);
+    },
+
+    // ---- 스킬 전용 미니 연출 ⑧: 지원계 6종 개별 시그니처 (skill-unique-signature) ----
+    //      (사용자 지시 2026-08-19 "스킬 너무 똑같아 보이는 거 하지 말라 하기")
+    //
+    // 앞선 `skill-fx-exaggerated` 가 지원계를 heal(빛기둥 강림) / aura(룬 서클) **둘**로 갈라 놨다.
+    // 회복이 위에서 내려오고 버프가 아래에서 올라오는 축 대비까지는 좋았지만, 그 안에서
+    // **6종이 여전히 3개씩 한 그림**이었다. 여기서 6종을 전부 갈라 준다:
+    //   응급 처치 → `firstaid`  붕대가 감기고 십자 표식이 박힌다 (작고 빠른 실무적 처치)
+    //   축복       → `heal`      빛기둥 강림 (유지 — '위에서 내려오는 은총'이 곧 축복이다)
+    //   신성한 가호 → `wardshield` 육각 결계 돔이 탁 닫힌다 (기둥이 아니라 **껍질**)
+    //   전투의 함성 → `warcry`    영웅의 머리에서 포효 고리가 수평으로 터져 나간다
+    //   성역       → `aura`      룬 서클 (유지 — 축성된 땅이 곧 성역이다)
+    //   시간 왜곡  → `timewarp`  시계 고리 3겹이 서로 다른 속도로 돌고 잔상이 남는다
+    //
+    // 🚨 **`combat.js` 가 fx 키를 무시하고 있었다** — `tryCast` 이 `d.fx` 가 아니라 리터럴
+    //    `'heal'`/`'aura'` 를 넘겨서, 지원계 6종의 `fx` 필드는 **여태 죽은 값**이었다.
+    //    (실제 피해: 성역은 `fx:'aura'` 인데 `type:'heal'` 이라 화면에는 빛기둥이 떴다.)
+    //    그래서 이 항목은 gamedata 만 갈라서는 아무 일도 안 일어난다 — combat.js 를 같이 고쳤다.
+    // ⚠️ `skillCastBeat` 의 `support` 판정도 6종 전부를 알아야 한다. 거기서 빠지면 시전 1박이
+    //    공격계 문법(발밑으로 조여드는 링)으로 돌아 지원계의 상승 축과 어긋난다.
+
+    // 응급 처치 — 붕대가 몸을 감고 십자 표식이 박힌다. 지원계 중 유일하게 **작고 빠르다**(커먼).
+    // 빛기둥·결계처럼 화면을 먹지 않는 게 이 스킬의 정체성이다 — 크게 만들면 축복과 다시 겹친다.
+    firstAidWrap(color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
+        const pw = t / 5;
+        const hero = this.heroG.position.clone();
+        const G = new THREE.Group();
+        G.userData.firstaidFx = true;
+        G.position.set(hero.x, hero.y, hero.z);
+        this.scene.add(G);
+        const mat = (col, op, add) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op,
+            side: THREE.DoubleSide, depthWrite: false, toneMapped: false,
+            blending: add ? THREE.AdditiveBlending : THREE.NormalBlending });
+        const pale = color.clone().lerp(new THREE.Color(0xffffff), 0.6);
+        // ⓐ 붕대 — 몸을 나선으로 감는 납작한 띠 5~7겹. 아래에서 위로 순서대로 감긴다.
+        const wraps = [];
+        const wn = 5 + Math.round(pw * 2);
+        for (let i = 0; i < wn; i++) {
+            const w = new THREE.Mesh(this.fxGeo('torus', 0.34, 0.045, 5, 18), mat(pale, 0, false));
+            w.userData = { y0: 0.45 + i * 0.19, sharedGeometry: true };
+            w.rotation.x = -Math.PI / 2 + U.rand(-0.16, 0.16);   // 살짝 기울여야 '감았다'로 읽힌다
+            w.position.y = w.userData.y0;
+            wraps.push(w); G.add(w);
+        }
+        // ⓑ 십자 표식 — 가슴 앞에 카메라를 향해 박힌다. 회복계의 만국 공통 기호라 한 프레임에 읽힌다.
+        const cross = new THREE.Group();
+        const barH = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.14), mat(0xffffff, 0, true));
+        const barV = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.42), mat(0xffffff, 0, true));
+        const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.62), mat(color, 0, true));
+        glow.position.z = -0.01;
+        cross.add(glow, barH, barV);
+        cross.position.set(0, 1.15, 0.42);
+        if (this.camera) cross.lookAt(this.camera.position);   // 월드 타깃 — 부모 위치를 빼지 말 것
+        G.add(cross);
+        const light = this.fxLight(color.getHex(), 5, 'firstaidLight');
+        light.pos(hero.x, hero.y + 1.1, hero.z);
+        SFX.healDescend(t);
+        this.addAnim(0.52, k => {
+            const op = k < 0.68 ? 1 : 1 - (k - 0.68) / 0.32;
+            wraps.forEach((w, i) => {
+                // 아래 겹부터 순서대로 감긴다 — 동시에 켜면 '띠 뭉치'가 된다
+                const d = Math.max(0, Math.min(1, (k - i * 0.055) / 0.2));
+                w.material.opacity = 0.8 * d * op;
+                w.scale.setScalar(0.5 + d * 0.5);
+                w.rotation.z += 0.05;
+                w.position.y = w.userData.y0 + (1 - d) * 0.12;
+            });
+            // 십자는 붕대가 다 감긴 뒤 **탁** 박힌다(오버슈트) — 마무리 도장
+            const s = Math.max(0, Math.min(1, (k - 0.34) / 0.22));
+            const pop = s < 1 ? 1.5 - 0.5 * (1 - Math.pow(1 - s, 3)) : 1;
+            cross.scale.setScalar(Math.max(0.001, s * pop));
+            barH.material.opacity = barV.material.opacity = s * op;
+            glow.material.opacity = s * op * 0.5;
+            light.set((0.8 + pw * 0.6) * op * Math.min(1, k / 0.2));
+            if (Math.random() < 0.4) this.riseParticle(new THREE.Vector3(hero.x + U.rand(-0.35, 0.35), hero.y + U.rand(0.2, 0.9), hero.z + U.rand(-0.2, 0.2)), color);
+        }, () => {
+            G.traverse(o => {
+                if (o.isMesh && o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
+                if (o.isMesh && o.material) o.material.dispose();
+            });
+            this.scene.remove(G); light.release();
+        });
+    },
+
+    // 신성한 가호 — 육각 결계 **돔**이 탁 닫힌다. 회복계 중 유일하게 몸을 **껍질로 감싼다**
+    // (기둥은 축·붕대는 띠·이건 면) — 신화 등급이라 화면에서 가장 큰 지원 연출이어도 된다.
+    wardShieldDome(color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
+        const pw = t / 5;
+        const hero = this.heroG.position.clone();
+        const G = new THREE.Group();
+        G.userData.wardFx = true;
+        G.position.set(hero.x, hero.y + 0.02, hero.z);
+        this.scene.add(G);
+        const R = 1.15 + pw * 0.35;
+        const mat = (col, op, add) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op,
+            side: THREE.DoubleSide, depthWrite: false, toneMapped: false,
+            blending: add ? THREE.AdditiveBlending : THREE.NormalBlending });
+        // ⓐ 돔 본체 — 반구. ⚠️ 가산으로 깔면 한낮 하늘에 통째로 묻힌다(healPillar 가 먼저 밟은 자리):
+        //    면은 **일반 합성 + 흰 쪽으로 민 색**으로 반투명 유리처럼, 가산은 테두리에만.
+        const pale = color.clone().lerp(new THREE.Color(0xffffff), 0.5);
+        const dome = new THREE.Mesh(new THREE.SphereGeometry(R, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat(pale, 0, false));
+        // ⓑ 육각 격자 — 결계가 '판'이 아니라 **짜인 것**으로 읽히게. 위도별 링 3겹 + 경선 6줄.
+        const grid = new THREE.Group();
+        for (let i = 1; i <= 3; i++) {
+            const a = (i / 4) * (Math.PI / 2);
+            const ring = new THREE.Mesh(this.fxGeo('torus', R * Math.cos(a), 0.022, 5, 24), mat(color, 0, true));
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = R * Math.sin(a);
+            ring.userData.sharedGeometry = true;
+            grid.add(ring);
+        }
+        for (let i = 0; i < 6; i++) {
+            const rib = new THREE.Mesh(new THREE.TorusGeometry(R, 0.02, 5, 20, Math.PI / 2), mat(color, 0, true));
+            rib.rotation.y = (i / 6) * Math.PI * 2;
+            grid.add(rib);
+        }
+        // ⓒ 바닥 테 — 돔이 지면에 앉았다는 접지선. 없으면 공중에 뜬 비눗방울로 읽힌다.
+        const base = new THREE.Mesh(new THREE.RingGeometry(R * 0.94, R * 1.04, 36), mat(color, 0, true));
+        base.rotation.x = -Math.PI / 2;
+        G.add(dome, grid, base);
+        const light = this.fxLight(color.getHex(), 7, 'wardLight');
+        light.pos(hero.x, hero.y + 1.0, hero.z);
+        SFX.auraRise(t);
+        const dur = 0.72 + pw * 0.2;
+        this.addAnim(dur, k => {
+            // 위에서 덮개가 내려앉듯 닫힌다(y 스케일) → 닫히는 순간 한 번 번쩍 → 유지 → 사라짐
+            const close = Math.min(1, k / 0.3);
+            const e = 1 - Math.pow(1 - close, 3);
+            const op = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
+            const snap = Math.max(0, 1 - Math.abs(k - 0.3) / 0.12);   // 닫히는 순간의 섬광
+            dome.scale.set(e, e, e);
+            grid.scale.set(e, e, e);
+            dome.material.opacity = (0.3 + snap * 0.35) * op;
+            base.scale.setScalar(e);
+            base.material.opacity = (0.7 + snap * 0.3) * op;
+            grid.children.forEach(m => { m.material.opacity = (0.55 + snap * 0.45) * op; });
+            grid.rotation.y += 0.008;                                 // 아주 천천히 — '유지되는 결계'
+            light.set((1.0 + pw * 0.9) * op * (e * 0.6 + snap));
+            if (Math.random() < 0.35) {                               // 표면을 타고 오르는 알갱이
+                const a = U.rand(0, Math.PI * 2);
+                this.riseParticle(new THREE.Vector3(hero.x + Math.cos(a) * R * 0.9, hero.y + 0.1, hero.z + Math.sin(a) * R * 0.9), color);
+            }
+        }, () => {
+            G.traverse(o => {
+                if (o.isMesh && o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
+                if (o.isMesh && o.material) o.material.dispose();
+            });
+            this.scene.remove(G); light.release();
+        });
+        this.expandRing(new THREE.Vector3(hero.x, 0.02, hero.z), color, 1.4 + pw * 0.7);
+    },
+
+    // 전투의 함성 — 영웅의 **머리에서** 포효 고리가 수평으로 터져 나간다.
+    // 룬 서클(발밑에서 위로)과 축을 반대로 둔다: 이건 **가슴 높이에서 바깥으로**. 유일하게
+    // 영웅 몸이 아니라 **주변 공간**이 밀리는 버프라, 카메라 셰이크를 지원계 중 유일하게 쓴다.
+    warCryShout(color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
+        const pw = t / 5;
+        const hero = this.heroG.position.clone();
+        const G = new THREE.Group();
+        G.userData.warcryFx = true;
+        G.position.set(hero.x, hero.y + 1.25, hero.z);
+        this.scene.add(G);
+        const mat = (col, op) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op,
+            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+        // 고리 3~5겹이 시차를 두고 터진다. 카메라를 향해 세워야 '퍼지는 파문'으로 읽힌다
+        // (눕히면 카메라가 내려다봐서 납작한 선이 된다 — godspear 광륜이 밟은 자리).
+        const rings = [];
+        const rn = 3 + Math.round(pw * 2);
+        for (let i = 0; i < rn; i++) {
+            const r = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.66, 26), mat(i % 2 ? 0xffffff : color, 0));
+            if (this.camera) r.lookAt(this.camera.position);   // 월드 타깃 — 부모 위치를 빼지 말 것
+            r.userData.delay = i * 0.075;
+            rings.push(r); G.add(r);
+        }
+        // 발밑 먼지 테 — 소리가 땅을 때렸다는 증거. 이게 없으면 고리가 허공에 뜬다.
+        const dust = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.62, 30), mat(color, 0));
+        dust.rotation.x = -Math.PI / 2;
+        dust.position.y = -(hero.y + 1.21);
+        G.add(dust);
+        const light = this.fxLight(color.getHex(), 6, 'warcryLight');
+        light.pos(hero.x, hero.y + 1.25, hero.z);
+        SFX.mawRoar(t);
+        this.shake(0.18 + pw * 0.22);
+        this.addAnim(0.6, k => {
+            for (const r of rings) {
+                const d = Math.max(0, Math.min(1, (k - r.userData.delay) / 0.42));
+                const e = 1 - Math.pow(1 - d, 2);                 // 처음 빠르게 → 느려지는 확산
+                r.scale.setScalar(0.3 + e * (2.6 + pw * 1.5));
+                r.material.opacity = d > 0 ? 0.8 * (1 - d) : 0;
+            }
+            const dd = Math.max(0, Math.min(1, k / 0.5));
+            dust.scale.setScalar(0.5 + dd * (2.2 + pw * 1.0));
+            dust.material.opacity = 0.55 * (1 - dd);
+            light.set((1.0 + pw * 0.9) * Math.max(0, 1 - k / 0.5));
+        }, () => {
+            G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+            this.scene.remove(G); light.release();
+        });
+    },
+
+    // 시간 왜곡 — 시계 고리 3겹이 **서로 다른 속도로, 일부는 거꾸로** 돈다.
+    // 다른 지원계가 전부 '켜졌다 꺼지는' 것과 달리 이건 **계속 어긋나게 도는** 게 정체성이라,
+    // 각속도 차이가 곧 연출이다. 영웅 잔상까지 얹어 '시간이 어긋났다'를 못 박는다.
+    // ⚠️ 축대칭 고리는 같은 속도로 돌리면 **멈춰 보인다**(whirlwindVortex 가 기록한 함정) —
+    //    그래서 고리마다 눈금 수를 다르게 두고 속도도 정수배를 피한다.
+    timeWarpDial(color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 4 : tier));
+        const pw = t / 5;
+        const hero = this.heroG.position.clone();
+        const G = new THREE.Group();
+        G.userData.timewarpFx = true;
+        G.position.set(hero.x, hero.y + 1.05, hero.z);
+        // Object3D.lookAt 은 **월드 좌표 타깃**을 받고 부모 변환도 알아서 처리한다 —
+        // 부모 위치를 손으로 빼면 엉뚱한 데를 본다. 그냥 카메라 월드 위치를 준다.
+        if (this.camera) G.lookAt(this.camera.position);
+        this.scene.add(G);
+        const mat = (col, op) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op,
+            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+        // 고리 3겹 — 반지름·눈금 수·각속도가 전부 다르고 가운데 것만 역회전.
+        const dials = [];
+        const spec = [[1.25, 12, 0.9], [0.92, 8, -1.45], [0.62, 16, 2.1]];
+        for (const [rad, ticks, spin] of spec) {
+            const d = new THREE.Group();
+            const rim = new THREE.Mesh(new THREE.RingGeometry(rad * 0.96, rad, 40), mat(color, 0));
+            d.add(rim);
+            for (let i = 0; i < ticks; i++) {                    // 눈금 — 이게 있어야 회전이 보인다
+                const a = (i / ticks) * Math.PI * 2;
+                const len = (i % (ticks / 4) === 0) ? 0.17 : 0.09;
+                const tk = new THREE.Mesh(new THREE.PlaneGeometry(0.035, len), mat(i % (ticks / 4) === 0 ? 0xffffff : color, 0));
+                tk.position.set(Math.cos(a) * (rad - len / 2 - 0.02), Math.sin(a) * (rad - len / 2 - 0.02), 0);
+                tk.rotation.z = a - Math.PI / 2;
+                d.add(tk);
+            }
+            d.userData = { spin, rad };
+            dials.push(d); G.add(d);
+        }
+        // 시계 바늘 2개 — 긴 바늘이 **거꾸로** 돈다(시간이 되감긴다는 한 컷 설명)
+        const hands = [];
+        for (const [len, w, spin] of [[1.05, 0.05, -3.2], [0.68, 0.07, 1.1]]) {
+            const h = new THREE.Mesh(new THREE.PlaneGeometry(w, len), mat(0xffffff, 0));
+            h.geometry.translate(0, len / 2, 0);                 // 회전 원점을 바늘 뿌리로
+            h.userData.spin = spin;
+            hands.push(h); G.add(h);
+        }
+        const light = this.fxLight(color.getHex(), 6, 'timewarpLight');
+        light.pos(hero.x, hero.y + 1.05, hero.z);
+        SFX.auraRise(t);
+        const dur = 0.85 + pw * 0.2;
+        this.addAnim(dur, k => {
+            const draw = Math.min(1, k / 0.26);
+            const op = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
+            dials.forEach((d, i) => {
+                const dd = Math.max(0, Math.min(1, (draw - i * 0.18) * 1.6));
+                d.rotation.z += d.userData.spin * 0.03;
+                d.scale.setScalar(0.4 + dd * 0.6);
+                d.children.forEach(m => { m.material.opacity = (m.material.color.getHex() === 0xffffff ? 0.9 : 0.7) * dd * op; });
+            });
+            for (const h of hands) {
+                h.rotation.z += h.userData.spin * 0.03;
+                h.material.opacity = 0.85 * draw * op;
+                h.scale.setScalar(0.4 + draw * 0.6);
+            }
+            light.set((0.9 + pw * 0.9) * draw * op);
+        }, () => {
+            G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+            this.scene.remove(G); light.release();
+        });
+        // 영웅 잔상 — '시간이 어긋났다'의 본체. 등급이 높을수록 여러 겹.
+        this.expandRing(new THREE.Vector3(hero.x, 0.02, hero.z), color, 1.2 + pw * 0.8);
     },
 
     // ---- 스킬 전용 미니 연출 ⑦: 회오리 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----
