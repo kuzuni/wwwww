@@ -46,9 +46,18 @@ const ARG = process.argv.slice(2).length ? process.argv.slice(2) : ['primitive',
         // ⚠️ body 를 갈아엎기 전에 게임 타이머를 먼저 끊는다 — 안 그러면 UI 주기 갱신이
         //    사라진 노드를 잡아 `Cannot set properties of null` 을 계속 뱉는다(프로브가 만든
         //    가짜 콘솔 에러라 진짜 회귀를 덮는다).
-        for (let i = 1; i < 5000; i++) { clearInterval(i); clearTimeout(i); }
+        for (let i = 1; i < 5000; i++) { clearInterval(i); clearTimeout(i); cancelAnimationFrame(i); }
         document.body.innerHTML = `<div id="sheet" style="background:#f2f2f2;padding:6px;width:1160px">${
             ages.map(a => row(a, 'helmet') + row(a, 'armor')).join('')}</div>`;
+        // ⚠️ 타이머를 끊어도 **resize 리스너**는 남는다 — 시대를 4개 이상 넘기면 시트가 뷰포트보다
+        //    길어져 Playwright 가 element 스크린샷을 찍으려고 뷰포트를 늘리고, 그때 `main.js` 의
+        //    `fitLayout` 이 사라진 `#app` 을 잡아 `Cannot read properties of null (reading 'style')` 을
+        //    뱉는다(실측: 3시대 0건 → 4시대 1건, 스택으로 확인). **게임 회귀가 아니라 이 도구가 만든
+        //    가짜 에러**라 진짜 회귀를 덮는다 — 빈 `#app` 을 남겨 fitLayout 이 조용히 지나가게 한다.
+        const keep = document.createElement('div');
+        keep.id = 'app';
+        keep.style.cssText = 'position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden';
+        document.body.appendChild(keep);
     }, ARG);
     await page.locator('#sheet').screenshot({ path: require('path').join(__dirname, 'era-gear-zoom.png') });
     await browser.close();
