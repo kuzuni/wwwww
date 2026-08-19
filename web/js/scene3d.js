@@ -9370,6 +9370,14 @@ const Scene3D = {
         this.blobGeo = new THREE.PlaneGeometry(1, 1);
     },
 
+    // 블롭 제거 — 비행체 블롭은 개체 복제 재질이라 여기서 놓아 준다(공유 재질은 건드리지 않는다).
+    dropBlob(m) {
+        if (!m || !m.blob) return;
+        this.scene.remove(m.blob);
+        if (!m.blob.userData.sharedMaterial && m.blob.material) m.blob.material.dispose();
+        m.blob = null;
+    },
+
     spawnEnemy(e) {
         const m = this.monsterMesh(e);
         m.g.position.set(e.x + this.worldX, 0, 0);
@@ -9402,13 +9410,20 @@ const Scene3D = {
         // 비행체는 태양 각도로 실그림자가 본체에서 멀리 이탈해 '따로 노는 얼룩'이 됨 (비평가 7.1 4번) — 실그림자 끄고 발밑 수직 블롭만
         const flying = m.kind === 'bat';
         if (flying) m.g.traverse(o => { if (o.isMesh) o.castShadow = false; });
-        const blob = new THREE.Mesh(this.blobGeo, flying ? this.blobShadowFlyMat : this.blobShadowFoeMat);
+        // 🚨 비행체 블롭만 **개체마다 재질을 복제**한다 — 고도에 따라 불투명도를 달리 주려면
+        //    공유 싱글턴으로는 안 된다(한 마리를 옅게 하면 전부 옅어진다). 박쥐는 웨이브당 몇 마리라
+        //    복제 비용은 무시할 만하다. ⚠️ 대신 제거할 때 반드시 dispose 한다 — 이 저장소는 공유 재질과
+        //    개체 재질을 섞어 쓰다 누수를 낸 전력이 있다(dispose-tree-dup). `dropBlob()` 이 그 자리다.
+        const blobMat = flying ? this.blobShadowFlyMat.clone() : this.blobShadowFoeMat;
+        const blob = new THREE.Mesh(this.blobGeo, blobMat);
         blob.rotation.x = -Math.PI / 2;
         blob.position.set(e.x + this.worldX, 0.03, 0);
         blob.scale.setScalar(flying ? 0.85 : 0.72); // 실그림자 접지부 안 컨택트 AO — 비행체는 블롭이 유일한 접지 단서라 더 크게
         blob.userData.baseS = blob.scale.x;
         blob.userData.sharedGeometry = true;
-        blob.userData.sharedMaterial = true; // blobShadow*Mat 싱글턴 — disposeTree 재질 해제 금지
+        blob.userData.sharedMaterial = !flying; // 지상 적은 blobShadow*Mat 싱글턴 — disposeTree 재질 해제 금지
+        blob.userData.fly = flying;
+        blob.userData.baseO = blobMat.opacity;  // 고도 감쇠의 기준값(테마 틴트는 색만 바꾸므로 안전)
         this.scene.add(blob);
         m.blob = blob;
         // 등장: 지면을 밟고 화면 밖(+x)에서 걸어 들어옴 — 하늘 낙하 금지 (사용자 지시).
@@ -9437,7 +9452,7 @@ const Scene3D = {
         for (const [, m] of this.enemyMap) {
             this.disposeTree(m.g); this.scene.remove(m.g);
             if (m.hpG) { this.disposeTree(m.hpG); this.scene.remove(m.hpG); } // 바가 scene 직속이라 따로 걷어낸다
-            if (m.blob) this.scene.remove(m.blob);
+            this.dropBlob(m);
         }
         this.enemyMap.clear();
     },
@@ -10551,7 +10566,7 @@ const Scene3D = {
         }, () => {
             this.disposeTree(m.g); this.scene.remove(m.g);
             if (m.hpG) { this.disposeTree(m.hpG); this.scene.remove(m.hpG); } // 바가 scene 직속이라 따로 걷어낸다
-            if (m.blob) this.scene.remove(m.blob);
+            this.dropBlob(m);
             this.enemyMap.delete(id);
         });
     },
@@ -13653,7 +13668,20 @@ const Scene3D = {
             if (m.blob) { // 블롭 섀도우 추적 — 홉/비행 높이에 따라 축소 (지면에 남는 그림자)
                 m.blob.position.x = m.g.position.x;
                 m.blob.position.z = m.g.position.z;
-                m.blob.scale.setScalar((m.blob.userData.baseS || 0.95) * Math.max(0.55, 1 - m.g.position.y * 0.35)); // 0.8 감쇠는 비행 고도에서 블롭이 소멸해 '부유 스티커' (비평가 7.3 5번)
+                const by = Math.max(0, m.g.position.y);
+                if (m.blob.userData.fly) {
+                    // 🚨 종전엔 고도가 오를수록 블롭을 **줄이기만** 했다(1 - y*0.35). 그건 실제 그림자와
+                    //    반대다 — 캐스터가 지면에서 멀어지면 반그림자가 **넓게 퍼지면서 옅어진다.**
+                    //    줄이기만 하면 높이 뜬 박쥐 아래에 '작고 진한 검은 점'이 남아, 위에 아무것도
+                    //    없는 스티커로 읽힌다(비평가 ㉲ '박쥐 블롭이 순흑 크게 읽히는 컷').
+                    //    퍼뜨리면서 옅게 하면 같은 접지 단서를 주면서도 검은 얼룩으로는 안 읽힌다.
+                    // ⚠️ 접지(y=0) 불투명도는 0.45 그대로다 — 그 눈금은 '부유 스티커'와 이중 노출
+                    //    사이에서 실측으로 잡은 값이라(ensureBlobRes 주석) 고도만 그 아래로 낮춘다.
+                    m.blob.scale.setScalar((m.blob.userData.baseS || 0.85) * (1 + by * 1.7));
+                    m.blob.material.opacity = (m.blob.userData.baseO || 0.45) * U.clamp(1 - by * 2.2, 0.30, 1);
+                } else {
+                    m.blob.scale.setScalar((m.blob.userData.baseS || 0.95) * Math.max(0.55, 1 - by * 0.35)); // 0.8 감쇠는 비행 고도에서 블롭이 소멸해 '부유 스티커' (비평가 7.3 5번)
+                }
             }
             // 히트축 스쿼시 — 접지 후에만(등장 스케일 인 연출과 겹치지 않게)
             if (m.punchT > 0 && m.g.userData.landed) {
