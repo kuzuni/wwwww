@@ -91,7 +91,14 @@ body {
 
 
 /* ---- 3D 전투 영역 ---- */
-#game-area { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+/* ⚠️ `isolation: isolate` 는 overlay-covers-panel 의 수정이다 — 씬 안 연출(피격 비네트 12 ·
+   씬컷 13/14 · 사망 암전 15 · 보스 경고 16)의 z 가 #app 형제와 **직접** 겨루면 탭 패널(.panel 8)을
+   뚫고 올라온다(기술트리 열람 중 "죽었습니다" 검은 화면 4초 — QA 실재현). 씬을 스태킹 컨텍스트로
+   격리하면 내부 서열(12<13/14<15<16, 사용자가 못 박은 값)은 그대로 두고, 컨텍스트 전체가 z:auto 로
+   패널(8)·팝업(20/22/40/60) **아래**에 깔린다 — '연출은 씬/배경 레벨'(death-overlay-zorder ·
+   boss-warning-zorder-position)의 구조적 귀결이다. 조건부 z 강등(:has 등)으로 되돌리지 말 것 —
+   그 방식이 두 군데서 새는 건 #boss-warning 주석에 기록돼 있다. */
+#game-area { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; isolation: isolate; }
 /* 비네트 포스트 — 화면 가장자리를 살짝 눌러 시선을 중앙 전투 라인으로 모음 (AAA 모바일 표준 마감) */
 #game-area::after {
     content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;

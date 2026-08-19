@@ -4,7 +4,7 @@
 //     — #boss-warning은 pointer-events:none이라 elementFromPoint가 그냥은 잡지 못한다.
 //       측정 중에만 pointer-events:auto를 강제해 페인트 순서를 그대로 읽는다.
 //  ③ 배너·문구의 기하학적 겹침 넓이는 참고 수치로만 찍는다(아래로 깔린 뒤에도 좌표는 겹친다)
-//  ④ 팝업이 없을 때는 경고가 그대로 최상위(z-index 35)여야 한다 — 회귀 방지
+//  ④ 팝업이 없을 때는 경고가 씬 위에 보여야 한다 — 회귀 방지 (z 는 상시 16: 옛 19/35 조건부 체계 폐기)
 // 사용: node probe-bosswarn-modal.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
@@ -80,7 +80,9 @@ const CASES = [
         if (r.err) continue;
         rows.push(`${name.padEnd(8)} card=${r.card} z=${r.z} dim=${r.dimDisplay} 카드덮임=${r.overBoss}/96 (참고 좌표겹침 배너=${r.banner}px² 문구=${r.sub}px²)`);
         ok(r.overBoss === 0, `${name}: 카드 안 표본 ${r.overBoss}/96이 아직 #boss-warning에 덮여 있다`);
-        ok(r.z === '19', `${name}: 팝업 중 z-index가 ${r.z} (19 기대)`);
+        // 현행 사양은 **항상 16**이다 (boss-warning-zorder-position: 조건부 19/35 강등 체계 삭제,
+        // style.css #boss-warning 주석). 옛 19 기대는 낡은 단언이었다.
+        ok(r.z === '16', `${name}: 팝업 중 z-index가 ${r.z} (16 기대)`);
         ok(r.dimDisplay === 'none', `${name}: 경고 딤이 모달 딤과 겹쳐 켜져 있다 (${r.dimDisplay})`);
     }
 
@@ -95,9 +97,9 @@ const CASES = [
     });
     rows.push(`팝업없음   z=${solo.z} dim=${solo.dim} 화면중앙최상위=${solo.top}`);
     await page.evaluate(() => { const st = document.getElementById('probe-hit'); if (st) st.remove(); });
-    ok(solo.z === '35', `팝업 없을 때 z-index가 ${solo.z} (35 기대)`);
+    ok(solo.z === '16', `팝업 없을 때 z-index가 ${solo.z} (16 기대 — 상시 16, 옛 35 체계 폐기)`);
     ok(solo.dim === 'block', `팝업 없을 때 경고 딤이 꺼졌다 (${solo.dim})`);
-    ok(solo.top, '팝업 없을 때 경고가 화면 최상위가 아니다');
+    ok(solo.top, '팝업 없을 때 경고가 씬 위 최상위가 아니다 (씬 중앙 215,200 기준 — 패널·팝업이 없으면 경고가 보여야 한다)');
 
     console.log(rows.join('\n'));
     console.log(errs.length ? '콘솔 에러: ' + errs.join(' / ') : '콘솔 에러 0건');

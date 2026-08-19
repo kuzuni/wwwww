@@ -11629,8 +11629,8 @@ const Scene3D = {
         const total = T.delay + T.fadeIn + T.hold + T.fadeOut;
         const cover = document.createElement('div');
         // z-index 15: 게임 영역 HUD(스테이지 라벨·이정표 3·오프라인 4·스킬바 4·루트피드 4)와 피격
-        // 비네트(#dmg-flash 12) 위, **모든 팝업 아래**(.modal 20 · 상세 22 · 채팅/대장간 40 · 소환결과 60).
-        // fx-layer는 스태킹 컨텍스트가 아니라 이 값이 #app 안 형제들과 직접 겨룬다.
+        // 비네트(#dmg-flash 12) 위. #game-area 가 isolation:isolate 라(overlay-covers-panel) 이 값은
+        // **씬 안에서만** 겨루고, 탭 패널(.panel 8)·모든 팝업(20/22/40/60)은 컨텍스트 밖에서 항상 위다.
         // 🚨 **20 이상으로 올리지 말 것** — 사용자 재지적 2026-08-19 (`death-overlay-zorder`):
         //    "죽었습니다 검은 화면이 … 다른 팝업들을 침범. 해결." 사망 연출은 씬/배경 레벨이다.
         cover.style.cssText = 'position:absolute;inset:0;background:#05070c;opacity:0;pointer-events:none;z-index:15;'
