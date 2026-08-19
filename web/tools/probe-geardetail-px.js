@@ -189,27 +189,45 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
         return m.getBoundingClientRect().height > 0 && m.textContent.includes('파충의 펠트');
     }, null, { timeout: 30000 });
     await page.waitForTimeout(500);
-    const shot = await page.screenshot({ timeout: 180000 });
-
-    const [ref, clone] = await page.evaluate(MEASURE,
-        [dataUrl(REF_PNG), 'data:image/png;base64,' + shot.toString('base64')]);
-
-    if (ref.err || clone.err) { console.log('측정 실패:', ref.err || '', clone.err || ''); await browser.close(); process.exit(2); }
 
     // 🚨 자기검증(probe-techoverview·probe-tabbar 규약) — 잡은 덩어리가 **장비 상세 카드의 기하**를
     //    갖췄는지 먼저 본다. 아니면 요소 수치를 **인쇄하지 않고 exit 2(측정기 고장)로 끊는다**:
     //    가짜 불통과를 좇으면 멀쩡한 레이아웃을 망가뜨린다(tech-overview 때 거짓 FAIL 6건의 교훈).
     //    기준은 원본 실측(카드 폭 68.21%W · 높이 17.50%H)에서 넉넉히 잡은 헐거운 울타리라,
     //    ±2%p 판정을 대신하지 않는다 — 진짜 비율 어긋남은 그대로 아래 판정에서 걸린다.
-    for (const [who, m] of [['원본', ref], ['클론', clone]]) {
+    const bad = m => {
         const w = (m.card.right - m.card.left) / m.W * 100, h = (m.card.bottom - m.card.top) / m.H * 100;
-        if (!(w >= 40 && w <= 95 && h >= 8 && h <= 40)) {
-            console.log(`측정기 고장 — ${who} 카드로 잡힌 덩어리가 장비 상세 카드 기하가 아니다: ` +
-                `폭 ${w.toFixed(2)}%W(기대 40~95) · 높이 ${h.toFixed(2)}%H(기대 8~40) ` +
-                `[px x${m.card.left}~${m.card.right} y${m.card.top}~${m.card.bottom}]`);
-            console.log('  → 팝업이 안 뜬 화면을 찍었을 가능성이 높다(병렬 부하). 수치는 믿지 말고 재실행할 것.');
-            await browser.close(); process.exit(2);
-        }
+        if (!(w >= 40 && w <= 95 && h >= 8 && h <= 40))
+            return `카드로 잡힌 덩어리가 장비 상세 카드 기하가 아니다: 폭 ${w.toFixed(2)}%W(기대 40~95) · ` +
+                `높이 ${h.toFixed(2)}%H(기대 8~40) [px x${m.card.left}~${m.card.right} y${m.card.top}~${m.card.bottom}]`;
+        return null;
+    };
+
+    // 🚨 캡처를 **자기검증에 통과할 때까지 다시 찍는다**(최대 4회) — probe-league-verdict 와 같은 처방.
+    //    DOM 은 멀쩡한데 **캡처된 픽셀만** 오염되는 헤드리스 합성 아티팩트라(병렬 부하에서 낡은 레이어를
+    //    그대로 얹어 찍는다), 상태를 더 기다려도 안 낫는다. 그냥 다시 찍어도 같은 오염 프레임이 나오므로
+    //    레이어를 `translateZ(0)` 토글로 무효화한 뒤 rAF 2회를 기다려 다시 찍는다.
+    //    (실측: 이 처방을 넣기 전 단독 3런에서 2런이 고장 — league 는 같은 처방 뒤 전수 스윕에서 통과했다.)
+    let ref, clone, why = null;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+        const shot = await page.screenshot({ timeout: 180000 });
+        [ref, clone] = await page.evaluate(MEASURE,
+            [dataUrl(REF_PNG), 'data:image/png;base64,' + shot.toString('base64')]);
+        if (ref.err || clone.err) { console.log('측정 실패:', ref.err || '', clone.err || ''); await browser.close(); process.exit(2); }
+        const rb = bad(ref); if (rb) { console.log(`측정기 고장 — 원본 ${rb}`); await browser.close(); process.exit(2); }
+        why = bad(clone);
+        if (!why) { if (attempt > 1) console.log(`(캡처 ${attempt}회째에 자기검증 통과 — 앞선 ${attempt - 1}회는 오염된 프레임)`); break; }
+        await page.evaluate(() => {
+            const m = document.getElementById('gear-detail-modal');
+            if (m) { m.style.transform = 'translateZ(0)'; void m.offsetHeight; m.style.transform = ''; void m.offsetHeight; }
+        });
+        await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+        await page.waitForTimeout(700);
+    }
+    if (why) {
+        console.log(`측정기 고장 — 클론 ${why}`);
+        console.log('  → 4회 다시 찍어도 팝업이 안 잡혔다(병렬 부하). 수치는 믿지 말고 재실행할 것.');
+        await browser.close(); process.exit(2);
     }
 
     const pct = (m, v, unit) => +(v / (unit === 'W' ? m.W : m.H) * 100).toFixed(2);
