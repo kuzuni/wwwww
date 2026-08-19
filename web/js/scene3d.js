@@ -15048,6 +15048,10 @@ const Scene3D = {
     //          → 퇴장(칼날이 어둠으로 스러짐).
     // ⚠️ 칼날은 카메라를 향해 세운다(slashArcs 와 같은 함정 — 월드 축 고정이면 얇은 판이 사라진다).
     GUILLOTINE_IMPACT_MS: 430,   // 절단 시각(선고 300 + 낙하 130) — skillImpactWeight 지연과 동기
+    // 절단 뒤 칼날의 수명 — 판정기(`probe-blade-exit.js`)가 음성 대조에서 이 값을 되돌려 쓴다.
+    GUILLOTINE_HOLD_S: 0.09,     // 박힌 채 여운(짧게 한 박자)
+    GUILLOTINE_EXIT_S: 0.16,     // 퇴장
+    GUILLOTINE_SINK: 0.55,       // 퇴장 중 가라앉는 거리(음수면 떠오른다 = 주차로 읽힌다)
     guillotineDrop(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 3 : tier));
@@ -15137,17 +15141,28 @@ const Scene3D = {
                 this.shake(0.36 + pw * 0.3);
                 this.flashLight(hit, color.getHex(), 0.26);
                 SFX.stormStrike(1);
-                this.addAnim(0.22, k => {                     // 박힌 채 여운 — 날만 뜨겁게 명멸
+                // 🚨 **벤 칼날은 화면에 머물면 안 된다** (2026-08-19, 비평가 2인 2차 일치 최악급 지적:
+                //    "적 뒤에 박힌 뒤 1050ms 까지 그 자리에 주차한다"). 실측으로도 절단 후 **512ms** 동안
+                //    칼날 잉크가 3,400~3,600화소에서 **줄지 않고** 버티다 처분 시점에 뚝 끊겼다.
+                //    원인 2개: ⑴ 퇴장이 `opacity *= (1 - k*0.25)` 라 **프레임마다 곱하는 감쇠**였다 —
+                //    프레임 수에 따라 결과가 달라지고 **0 에 영원히 도달하지 않는다**(그래서 '페이드'가
+                //    화면에서 안 보였다). ⑵ 퇴장 중 칼날이 **위로 떠올라** 프레임 안에 계속 남았다.
+                //    남아야 하는 건 칼날이 아니라 **자국**이다(그을음·균열 링·파편은 그대로 둔다).
+                //    판정기: `tools/probe-blade-exit.js`.
+                this.addAnim(this.GUILLOTINE_HOLD_S, k => {   // 박힌 채 여운 — 짧게 한 박자만
                     edge.material.opacity = 0.7 + Math.sin(k * 26) * 0.3;
                     light.set((1.2 + pw * 0.8) * (1 - k * 0.5));
                 }, () => {
-                    // ⓓ 퇴장 0.3s — 어둠으로 스러진다
-                    this.addAnim(0.3, k => {
-                        for (const m of [body, edge, back, grip]) m.material.opacity *= (1 - k * 0.25);
+                    // ⓓ 퇴장 — 지면으로 가라앉으며 스러진다(위로 뜨면 '주차'로 읽힌다)
+                    const base = [body, edge, back, grip].map(m => m.material.opacity);
+                    const y0 = blade.position.y, l0 = light.get();
+                    this.addAnim(this.GUILLOTINE_EXIT_S, k => {
+                        const e = k * k;                      // 끝으로 갈수록 빨리 사라진다
+                        [body, edge, back, grip].forEach((m, i) => { m.material.opacity = base[i] * (1 - e); });
                         doom.material.opacity = 0.55 * (1 - k);
                         rim.material.opacity = 0.85 * (1 - k);
-                        blade.position.y += 0.01;             // 미세 부상 — '거둬 간다'
-                        light.set(light.get() * 0.9);
+                        blade.position.y = y0 - this.GUILLOTINE_SINK * e;   // 가라앉는다 — '베고 지나갔다'
+                        light.set(l0 * (1 - k));
                     }, dispose);
                 });
             });
