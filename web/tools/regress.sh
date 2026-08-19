@@ -9,6 +9,7 @@ fail=0
 for p in \
     probe-cell-icon-size.js \
     test-voxel.js \
+    test-voxel-shapes.js \
     probe-voxel-build.js \
     probe-grid-empty.js \
     test-death-timeline.js \

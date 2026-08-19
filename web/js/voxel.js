@@ -131,6 +131,208 @@
             return out;
         },
 
+        // ── 조립 유틸 ─────────────────────────────────────────────────────────
+        // 큐브 적층 조형은 "덩어리를 만들어 옮겨 붙이는" 일이라, 그 네 동작을 먼저 둔다.
+        //   ⚠️ 전부 **새 배열을 반환한다**(입력을 안 고친다) — 같은 덩어리를 좌우로 두 번
+        //      쓰는 패턴(어깨·장갑·부츠)이 흔한데, 제자리 수정이면 첫 번째가 같이 밀린다.
+        at: function (voxels, dx, dy, dz) {
+            var out = [];
+            for (var i = 0; i < voxels.length; i++) {
+                var v = voxels[i];
+                out.push({ x: v.x + (dx || 0), y: v.y + (dy || 0), z: v.z + (dz || 0), c: v.c });
+            }
+            return out;
+        },
+        merge: function () {
+            var out = [];
+            for (var i = 0; i < arguments.length; i++) {
+                var a = arguments[i];
+                if (a) for (var j = 0; j < a.length; j++) out.push(a[j]);
+            }
+            return out;
+        },
+        // x 를 뒤집는다. 좌우 대칭 파츠를 한 번만 깎게 해 준다.
+        //   ⚠️ `about` 은 **거울면의 x**다. 기본 0 이면 x → −x 라 격자가 반 칸 안 어긋난다.
+        mirrorX: function (voxels, about) {
+            var a = about || 0, out = [];
+            for (var i = 0; i < voxels.length; i++) {
+                var v = voxels[i];
+                out.push({ x: 2 * a - v.x, y: v.y, z: v.z, c: v.c });
+            }
+            return out;
+        },
+        // 색을 다시 칠한다. fn(v) 가 undefined 를 주면 그 칸의 색은 그대로 둔다.
+        recolor: function (voxels, fn) {
+            var out = [];
+            for (var i = 0; i < voxels.length; i++) {
+                var v = voxels[i], c = (typeof fn === 'function') ? fn(v, i) : fn;
+                out.push({ x: v.x, y: v.y, z: v.z, c: (c === undefined ? v.c : c) });
+            }
+            return out;
+        },
+        // 🚨 **`hollow`(속 파내기)는 두지 않는다 — 여기선 함정이다.** 착수 때 "속 칸을 버리면
+        //    메모리가 준다"고 넣었다가 시험(`test-voxel-shapes.js` ⑧)에서 뒤집혔다: 6³ 덩어리의
+        //    속을 파면 칸은 216 → 152 로 줄지만 **면이 216 → 312 로 는다**. 파낸 공동(4³)의
+        //    안쪽 벽 96면이 새로 드러나기 때문이다 — 영원히 안 보이는데 매 프레임 그린다.
+        //    즉 면 제거 규칙 ⓑ 가 이미 속 칸의 면을 전부 버리고 있어서 **속 칸은 렌더 비용이
+        //    0 이었고**, 파내는 순간 없던 비용이 생긴다. 속이 비어야 하는 조형(고리·튜브·나팔
+        //    커프)은 파내는 게 아니라 `ring`/`taper({t})` 로 **처음부터 비워서** 만들 것.
+        // 덩어리의 정수 경계 상자. 파츠를 이어 붙일 때 "어디서 끝났나"를 재는 자.
+        bounds: function (voxels) {
+            if (!voxels.length) return null;
+            var b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity, z0: Infinity, z1: -Infinity };
+            for (var i = 0; i < voxels.length; i++) {
+                var v = voxels[i];
+                if (v.x < b.x0) b.x0 = v.x; if (v.x > b.x1) b.x1 = v.x;
+                if (v.y < b.y0) b.y0 = v.y; if (v.y > b.y1) b.y1 = v.y;
+                if (v.z < b.z0) b.z0 = v.z; if (v.z > b.z1) b.z1 = v.z;
+            }
+            return b;
+        },
+
+        // ── 단면 적층 조형 ────────────────────────────────────────────────────
+        // 🚨 **여기가 화풍 전환의 핵심이다.** 구/토러스/캡슐 프리미티브가 화풍 정합 2/10 을
+        //    받은 이유는 '매끈해서'가 아니라 **면이 축정렬이 아니어서**다(비스듬한 삼각형이
+        //    보이면 그 순간 voxel 로 안 읽힌다). 아래 헬퍼는 전부 **정수 격자 칸만** 채우므로
+        //    나오는 면이 6방향뿐이다 — 그게 '큐브로 읽힌다'의 기계적 정의다.
+        //
+        // 타원 기둥의 한 층(또는 여러 층). rix/riz > 0 이면 그만큼 속을 판다(= 큐브 링).
+        //   반지름은 **칸 개수 단위의 실수**다(r = 3.5 면 −3..3 = 7칸 폭).
+        //   포함 판정을 칸 중심(정수 좌표)으로 하므로 r 이 0.5 미만이면 중앙 한 칸만 남는다.
+        ellipse: function (rx, rz, h, opts) {
+            opts = opts || {};
+            var rix = opts.rix || 0, riz = opts.riz || 0, color = opts.color;
+            var y0 = opts.y0 || 0, hh = (h === undefined ? 1 : h);
+            var out = [];
+            if (rx <= 0 || rz <= 0 || hh <= 0) return out;
+            var mx = Math.floor(rx), mz = Math.floor(rz);
+            for (var x = -mx; x <= mx; x++) for (var z = -mz; z <= mz; z++) {
+                var ox = x / rx, oz = z / rz;
+                if (ox * ox + oz * oz > 1.0000001) continue;
+                if (rix > 0 && riz > 0) {
+                    var ix = x / rix, iz = z / riz;
+                    if (ix * ix + iz * iz <= 1.0000001) continue;   // 속을 판 자리
+                }
+                for (var y = 0; y < hh; y++) out.push({ x: x, y: y0 + y, z: z, c: color });
+            }
+            return out;
+        },
+        // 원기둥(속 찬 원판 기둥). 토러스가 아니라 **판**이 필요할 때.
+        disc: function (r, h, color, rz) {
+            return this.ellipse(r, rz === undefined ? r : rz, h, { color: color });
+        },
+        // 🧊 **큐브 링** — 토러스 대체. 반지·목걸이 고리·버클·왕관 테두리가 전부 이것이다.
+        //   두께 t 는 바깥 반지름에서 안쪽을 판 나머지다(t 가 1 미만이면 링이 끊긴다).
+        ring: function (rOut, t, h, color) {
+            return this.ellipse(rOut, rOut, h === undefined ? 1 : h,
+                { rix: rOut - t, riz: rOut - t, color: color });
+        },
+        // 🧊 **계단형 돔** — 반구 대체. 층마다 반지름이 줄어드는 원판을 쌓아 계단을 만든다.
+        //   ⚠️ 층 반지름을 **칸 중심 높이**(y+0.5)로 계산한다. y 로 계산하면 맨 아래 층이
+        //      정확히 r 이 되어 밑동이 원기둥처럼 한 층 곧게 서고, 맨 위가 반 층 뾰족해진다.
+        //   opts.t 를 주면 껍데기만 남긴다(속이 안 보이는 투구·돔 지붕에서 칸 수를 줄인다).
+        dome: function (r, h, color, opts) {
+            opts = opts || {};
+            var hin = (h === undefined ? r : h);
+            if (hin <= 0 || r <= 0) return [];      // 높이 0 은 '층 없음' — `disc(r,0)` 과 같게 맞춘다
+            var out = [], hh = Math.max(1, Math.round(hin));
+            for (var y = 0; y < hh; y++) {
+                var k = (y + 0.5) / hh;
+                var rr = r * Math.sqrt(Math.max(0, 1 - k * k));
+                if (rr < 0.5) rr = 0.5;                       // 꼭대기는 한 칸으로 닫는다
+                var lay = this.ellipse(rr, rr, 1, { y0: y, color: color });
+                if (opts.t > 0) {
+                    var inner = this.ellipse(rr - opts.t, rr - opts.t, 1, { y0: y, color: color });
+                    var seen = occupancy(inner);
+                    lay = lay.filter(function (v) { return !seen[key(v.x, v.y, v.z)]; });
+                }
+                out = out.concat(lay);
+            }
+            return out;
+        },
+        // 절두원뿔(테이퍼) — 캡슐·원뿔 대체. r0(밑) → r1(위) 로 층마다 선형 보간한다.
+        //   opts.t 로 속을 파면 나팔형 커프·소매가 된다.
+        taper: function (r0, r1, h, color, opts) {
+            opts = opts || {};
+            if (!(h > 0)) return [];                // ⚠️ `Math.max(1, …)` 만 두면 h=0 이 한 층을 만든다
+            var out = [], hh = Math.max(1, Math.round(h));
+            for (var y = 0; y < hh; y++) {
+                var k = hh === 1 ? 0 : y / (hh - 1);
+                var rr = r0 + (r1 - r0) * k;
+                if (rr < 0.5) continue;
+                out = out.concat(this.ellipse(rr, rr, 1, {
+                    y0: y, color: color,
+                    rix: opts.t > 0 ? rr - opts.t : 0, riz: opts.t > 0 ? rr - opts.t : 0,
+                }));
+            }
+            return out;
+        },
+        // 링 목록을 선형 보간해 쌓는다 — 기존 `shellFromRings`(매끈 회전체)의 voxel 대응.
+        //   rings = [{y, rx, rz, t?}] · y 는 **칸 번호**다. 부위마다 단면을 재서 옮겨 적으면
+        //   비례를 그대로 유지한 채 조형만 큐브로 바뀐다(인계 메모: 비례는 그대로 옮겨 쓸 것).
+        shell: function (rings, color, opts) {
+            opts = opts || {};
+            var out = [];
+            for (var i = 0; i < rings.length - 1; i++) {
+                var a = rings[i], b = rings[i + 1];
+                var y0 = Math.round(a.y), y1 = Math.round(b.y);
+                for (var y = y0; y < y1; y++) {
+                    var k = (y1 === y0) ? 0 : (y - y0) / (y1 - y0);
+                    var rx = a.rx + (b.rx - a.rx) * k;
+                    var rz = (a.rz === undefined ? a.rx : a.rz) + ((b.rz === undefined ? b.rx : b.rz) - (a.rz === undefined ? a.rx : a.rz)) * k;
+                    var t = (a.t === undefined ? opts.t : a.t);
+                    out = out.concat(this.ellipse(rx, rz, 1, {
+                        y0: y, color: color,
+                        rix: t > 0 ? rx - t : 0, riz: t > 0 ? rz - t : 0,
+                    }));
+                }
+            }
+            return out;
+        },
+        // 🧊 **라멜라 판** — 판금 라메·견갑·치마갑의 겹친 판. 판이 서로 **겹치는 게 실제 라멜라다**
+        //   (판이 미끄러지며 포개진다). step < h 로 두어 겹침을 만든다.
+        //   opts: { rx, rz, h 판 두께(칸), step 판 간격, drx/drz 판마다 반경 증감,
+        //           t 속 두께(띠로 만들 때), colors 판별 색 배열 }
+        lamella: function (n, opts) {
+            opts = opts || {};
+            var rx = opts.rx === undefined ? 4 : opts.rx;
+            var rz = opts.rz === undefined ? rx : opts.rz;
+            var h = Math.max(1, Math.round(opts.h === undefined ? 2 : opts.h));
+            var step = opts.step === undefined ? Math.max(1, h - 1) : Math.round(opts.step);
+            var out = [];
+            for (var i = 0; i < n; i++) {
+                var px = rx + (opts.drx || 0) * i, pz = rz + (opts.drz || 0) * i;
+                if (px < 0.5 || pz < 0.5) break;
+                var c = opts.colors ? opts.colors[i % opts.colors.length] : opts.color;
+                out = out.concat(this.ellipse(px, pz, h, {
+                    y0: i * step, color: c,
+                    rix: opts.t > 0 ? px - opts.t : 0, riz: opts.t > 0 ? pz - opts.t : 0,
+                }));
+            }
+            return out;
+        },
+        // 🧊 **큐브 보석** — 팔면체 대체. |x|+|y|+|z| ≤ r 이라 계단이 45° 로 떨어진다.
+        //   보석은 작게 쓰이므로(반지 알 r=2~3) 밀도를 더 올려도 칸 수가 안 는다.
+        gem: function (r, color) {
+            var out = [], m = Math.floor(r);
+            for (var x = -m; x <= m; x++) for (var y = -m; y <= m; y++) for (var z = -m; z <= m; z++)
+                if (Math.abs(x) + Math.abs(y) + Math.abs(z) <= r) out.push({ x: x, y: y, z: z, c: color });
+            return out;
+        },
+        // 계단식 픽셀 베벨을 먹인 판 — 화풍 ㉱ 의 3D 대응(부드러운 라운드 금지, 계단으로 깎는다).
+        //   bevel 칸만큼 네 모서리를 대각으로 잘라낸다. 중심은 (0,0,0) 기준 x/z 대칭.
+        slab: function (w, h, d, color, bevel) {
+            var out = [], bv = bevel || 0;
+            var hx = (w - 1) / 2, hz = (d - 1) / 2;
+            for (var xi = 0; xi < w; xi++) for (var zi = 0; zi < d; zi++) {
+                var ex = Math.min(xi, w - 1 - xi), ez = Math.min(zi, d - 1 - zi);
+                if (bv > 0 && ex + ez < bv) continue;              // 모서리를 계단으로 깎는다
+                for (var y = 0; y < h; y++)
+                    out.push({ x: Math.round(xi - hx), y: y, z: Math.round(zi - hz), c: color });
+            }
+            return out;
+        },
+
         // 복셀 목록 → THREE.Mesh. 브라우저 전용(THREE 필요).
         // opts: { size 복셀 한 변의 월드 길이, color 기본색, jitter 색변화 폭(0~0.15),
         //         ao 이음새 강도(0~1), material 재질 오버라이드, center 중심 정렬 여부 }
