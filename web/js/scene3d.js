@@ -8907,8 +8907,9 @@ const Scene3D = {
     },
 
     // ---- 타격감(피격 연출) ----
-    // 히트스톱: 한 박자 얼어붙었다 풀리며 타격을 각인시킨다. 렌더 dt만 늦추므로 Combat의 고정 틱(로직)은 그대로 돈다.
-    hitStop(dur) { this._hitStop = Math.max(this._hitStop || 0, dur); },
+    // 🚨 **히트스톱(씬 dt 정지) 금지 — 되살리지 말 것** (사용자 지시 2026-08-19, skill-cast-lag-optimize 재오픈):
+    // "데미지 들어갈 때마다 일부러 시간 멈춘 거면 그것도 없애라." 씬만 얼고 CSS(보스워닝)는 스무스해
+    // '렉'으로 읽혔다. 타격감은 dt 를 건드리지 않는 항목들(셰이크·fovPunch·스쿼시·플래시·넉백)이 맡는다.
 
     // 접촉점 임팩트 플레어 텍스처: 방사 코어 + 십자 스파이크 (캔버스 절차 생성, 1회 캐시)
     flareTex() {
@@ -9481,25 +9482,17 @@ const Scene3D = {
         m.punchT = m.punchDur = crit ? 0.30 : 0.24;
         m.punchHold = crit ? 0.075 : 0.055; // 최대 압축 유지 — 이 뒤부터 elastic 복귀(비평가 권고 "60ms 후")
         m.punchAmp = (0.07 + Math.min(0.07, sev * 0.28)) * (crit ? 1.55 : 1);
-        let freeze = 0;
-        if (crit || sev > 0.1) {
-            freeze = crit ? 0.045 : 0.028;
-            this.hitStop(freeze);
-            // 감속만으로는 '한 박자'가 지각되지 않는다.
-            // ⚠️ 셰이크 세기는 **다른 이벤트와의 상대값**으로 잡아야 한다 — 0.07은 화면 6.7px라
-            // 무기 스윙이 이미 부르는 shake(0.15)(=15px)에 `Math.max`로 통째로 먹혀 크리에서만
-            // 카메라가 더 흔들리는 일이 아예 없었다(비평가 '셰이크 미관측'의 실제 원인).
-            // 스윙 0.15 < 크리 0.2(22px) < 보스 등장 0.4~0.5 순으로 벌린다.
-            if (crit) { this.shake(0.2); this.fovPunch(0.026, 0.13); }
-        }
+        // 히트스톱은 제거됐다(파일 상단 '타격감' 주석 — 사용자 지시). 크리의 '한 박자'는 카메라가 맡는다.
+        // ⚠️ 셰이크 세기는 **다른 이벤트와의 상대값**으로 잡아야 한다 — 0.07은 화면 6.7px라
+        // 무기 스윙이 이미 부르는 shake(0.15)(=15px)에 `Math.max`로 통째로 먹혀 크리에서만
+        // 카메라가 더 흔들리는 일이 아예 없었다(비평가 '셰이크 미관측'의 실제 원인).
+        // 스윙 0.15 < 크리 0.2(22px) < 보스 등장 0.4~0.5 순으로 벌린다.
+        if (crit) { this.shake(0.2); this.fovPunch(0.026, 0.13); }
         // ⑤ HP 바 신호
         this.hitHpBar(m, sev);
-        // ⑥ 데미지 숫자 — 항상 대상 오른쪽 위로 비켜 띄워 HP바를 가리지 않게.
-        // ⚠️ 예전엔 프리즈가 끝난 뒤에야 **생성**해서, 크리처럼 히트스톱이 붙는 타격은 정작 임팩트
-        // 프레임에 숫자가 없고 +66ms에야 등장했다(비평가 4차 ⓑ). 숫자가 늦게 나오면 "얼마나 아팠나"가
-        // 타격과 다른 사건으로 갈린다. 지금은 **임팩트 프레임에 태우되 애니메이션만 프리즈 동안 멈춰
-        // 둔다** — 원래 우려('월드는 멈췄는데 DOM 숫자만 날아가 시간축이 갈라진다')는 등장이 아니라
-        // 이동이 문제였으므로, 정지한 채 떠 있으면 둘 다 만족한다.
+        // ⑥ 데미지 숫자 — 항상 대상 오른쪽 위로 비켜 띄워 HP바를 가리지 않게. 임팩트 프레임에 바로 태운다
+        // (숫자가 늦게 나오면 "얼마나 아팠나"가 타격과 다른 사건으로 갈린다 — 비평가 4차 ⓑ.
+        //  히트스톱 시절의 animationPlayState 일시정지는 히트스톱 제거와 함께 걷어냈다).
         // 3티어: 일반(흰 1rem) < 크리(주황 1.15rem) < **처치(흰 코어+주황 글로우 1.3rem+오버슛)**.
         // 처치타가 크리와 같은 클래스로 태어나면 '마지막 한 방'이 그냥 큰 크리로 읽힌다(비평가 5차 A #8·B #3).
         // 처치는 크리·스킬보다 우선한다 — 한 프레임에 둘 다 참일 때 더 위 티어가 이겨야 위계가 안 뒤집힌다.
@@ -9527,19 +9520,7 @@ const Scene3D = {
             dx: U.rand(6, 26), rise: -(30 + sev * 18 + (crit ? 12 : 0)), scale: 1 + Math.min(0.3, sev * 0.9),
             clearY: m.hpBg ? this.project(bw).y - 6 : undefined,
         };
-        const el = this.damageNumber(numPos, U.fmt(dmg), cls, numOpt);
-        if (freeze && el) {
-            // 프리즈 동안 CSS 아크를 정지. 재개는 **애니메이션 큐**에 맡긴다 — 큐는 dt로 도는데
-            // 히트스톱 중엔 dt=0이라, dur을 0에 가깝게 주면 '프리즈가 풀린 첫 프레임'에 정확히 풀린다
-            // (freeze만큼을 dur로 주면 프리즈가 끝난 뒤 그 시간을 또 기다려 두 배 늦는다).
-            el.style.animationPlayState = 'paused';
-            this.addAnim(1e-4, () => {}, () => { el.style.animationPlayState = ''; });
-        }
-    },
-
-    // 히트스톱: 짧게 전역 타임스케일을 0에 가깝게 눌렀다 되돌린다 (update가 dt에 곱해 쓴다)
-    hitStop(dur) {
-        this._hitStop = Math.max(this._hitStop || 0, dur);
+        this.damageNumber(numPos, U.fmt(dmg), cls, numOpt);
     },
 
     killEnemy(id, isBoss) {
@@ -9584,7 +9565,6 @@ const Scene3D = {
         // 시체는 쓰러지며 +0.22 밀리므로 그 착지점에 맞춘다 — 죽은 자리와 그을음이 어긋나면 배경 얼룩으로 읽힌다
         this.scorchDecal(new THREE.Vector3(m.g.position.x + 0.18, 0, m.g.position.z),
             (isBoss ? 1.2 : 0.66) * (m.baseScale || 1), isBoss ? 2.4 : 1.8);
-        this.hitStop(isBoss ? 0.07 : 0.045);
         // 카메라 반응 — 7차 비평가 2인이 공통 1위로 "처치 순간조차 카메라가 정지"를 지적했는데,
         // 실측하니 크리는 shake(0.2)+fovPunch 가 있는데 **처치에는 카메라 항이 아예 없었다**(접점
         // 셰이크 잔량 0.028 = 직전 크리의 찌꺼기뿐). 위계 사다리(스윙 0.15 < 크리 0.2 < 처치 < 보스
@@ -9778,7 +9758,6 @@ const Scene3D = {
         if (!this._heroFlash || this._heroFlash.g !== this.heroG) this._heroFlash = { g: this.heroG };
         this.flashMesh(this._heroFlash, 0.25, 0.12, 0xffd9d9); // 몸통 화이트아웃 금지 — 적과 같은 기준(붉은 기 = 피해)
         this.hitHpBar(this.heroBar, sev);
-        if (sev > 0.12) this.hitStop(0.035);
         this.shake(Math.min(0.22, 0.05 + sev * 0.6));
         UI.flashDamage(sev);
         // 영웅 피해 숫자 — 적과 반대쪽(왼쪽)으로 흘려 적 숫자와 소유자가 헷갈리지 않게 한다.
@@ -9802,7 +9781,6 @@ const Scene3D = {
         this._attacking = false;
         this.walking = false;
         this.heroPlay(['Death_A'], true);
-        this.hitStop(0.075);   // 사망 순간 한 박 멈춤 — 피격 충격이 흐물흐물 시작하지 않게
         this.shake(0.4);
         UI.flashDamage(1); // 화면 붉은 비네트 — 치명타 피격보다 진하게
         // 2단 붕괴에 맞춘 2단 접지 먼지 — 클립(dur 1.45)의 무릎 접지 t=0.38(≈0.55초), 몸통 접지 t=0.78(≈1.13초).
@@ -10149,10 +10127,6 @@ const Scene3D = {
         this.shake(0.26 + pw * 0.42);
         this.fovPunch(0.018 + pw * 0.030, 0.16 + pw * 0.10);   // 카메라도 같이 물린다 — 전 등급
         this.skillScreenFlash(color, t);                       // 화면 플래시 + 그레이드 펄스
-        // 히트스톱은 에픽 이상 — 예전엔 궁극 이상뿐이라 대부분의 스킬에 '멈칫'이 없었다.
-        // ⚠️ 커먼·레어에는 여전히 주지 않는다. 잡몹에게 초당 여러 번 나가는 대역이라 히트스톱을
-        //    깔면 화려한 게 아니라 **렉으로 읽힌다**(타격 히트스톱과 같은 규칙).
-        if (t >= 2) this.hitStop(0.035 + pw * 0.045);
     },
 
     // 발동 순간의 **화면 플래시 + 그레이드 펄스** (skill-fx-exaggerated).
@@ -10513,8 +10487,6 @@ const Scene3D = {
                     this.shake((0.18 + pw * 0.2) * big);
                     this.flashLight(spot.clone(), color.getHex(), 0.18 * big);
                     SFX.stormStrike(i);
-                    // 마지막 한 발만 화면을 물린다 — 매 발 물면 연타가 렉으로 읽힌다(타격 히트스톱과 같은 규칙)
-                    if (last && t >= 2) this.hitStop(0.04 + pw * 0.04);
                     this.meteorScorch(spot, big);
                 });
             }, at + this.METEOR_TELL_MS);
@@ -10727,7 +10699,6 @@ const Scene3D = {
                         this.spawnSparks(bite, Math.round(18 + pw * 22), color.getHex(), { speed: 1.5 + pw * 0.8 });
                         this.shake(0.34 + pw * 0.3);
                         this.flashLight(bite, color.getHex(), 0.3);
-                        if (t >= 2) this.hitStop(0.045 + pw * 0.04);
                         SFX.mawBite(t);
                         // ⓓ 퇴장 — 가라앉으며 먼지
                         this.addAnim(0.34, k => {
@@ -11002,7 +10973,6 @@ const Scene3D = {
             this.explosion(spot.clone(), color);
             this.flashLight(spot.clone(), color.getHex(), 0.3);
             this.shake(0.28 + pw * 0.26);
-            if (t >= 2) this.hitStop(0.035 + pw * 0.04);
             SFX.stormStrike(0);
             // ⓒ 불의 고리가 **바깥으로** 퍼지며 그 위로 불기둥이 차례로 솟는다
             const waves = 3 + Math.round(pw * 2);
@@ -12211,9 +12181,8 @@ const Scene3D = {
     addAnim(dur, fn, onDone) { this.anims.push({ t: 0, dur, fn, onDone }); },
 
     update(dt) {
-        // 히트스톱: 연출 시간을 완전히 멈춘다(로직 틱은 Combat의 별도 고정 인터벌이라 전투는 계속 돈다).
-        // 감속(dt*=0.12)으로는 55ms짜리 한 박자가 지각되지 않아 크리와 일반 타격이 구분되지 않았다.
-        if (this._hitStop > 0) { this._hitStop = Math.max(0, this._hitStop - dt); dt = 0; }
+        // 🚨 히트스톱(dt=0 정지)은 여기 있었고 **제거됐다 — 되살리지 말 것** (사용자 지시 2026-08-19,
+        // skill-cast-lag-optimize: 씬만 얼고 CSS 는 도니 '렉'으로 읽혔다). dt 는 어떤 연출도 얼리지 않는다.
         this._clock += dt;
         // 적 위치 동기화 + 걷기 모션 + HP바 (논리 좌표 + 월드 오프셋)
         for (const e of Combat.enemies) {

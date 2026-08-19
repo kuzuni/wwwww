@@ -34,17 +34,16 @@ const path = require('path');
 
         // 2) 연타 중 마지막 플래시만 복구를 소유 (앞선 플래시의 onDone이 뒤 플래시를 지우면 안 됨)
         // ⚠️ **관측 창을 앞 플래시가 실제로 끝나는 지점까지 끌어야 한다** (`hitflash-overwrite` 진단).
-        //    종전 `step(8)` 은 위험 구간에 **닿지도 못했다**: 두 번째 타격이 크리라 히트스톱이 애니
-        //    시간을 ~0.05초 얼려서, 앞 플래시(dur 0.1s)의 남은 수명이 그만큼 뒤로 밀린다. 실측으로
-        //    앞 플래시의 onDone 은 **타2 + 13프레임**에 떨어진다(그 프레임에 emissive 가 hex 0 · i 1.0
-        //    으로 되돌아가고, 뒤 플래시 fn 이 세기만 계속 써서 **흰빛 없이 숫자만 사는** 상태가 된다).
-        //    16프레임이면 그 지점을 지나면서도 뒤 플래시(dur 0.14s)는 아직 살아 있다 —
-        //    `flashMesh` 의 seq 가드를 지우면 이 검사가 실제로 FAIL 하는 것으로 자 점검했다.
-        //    (종전 창에서는 가드를 지워도 통과해, 검사에 이가 없었다.)
+        //    앞 플래시(타1, dur 0.1s = 12프레임)는 타2(+6프레임) 기준 **타2+6** 에 onDone 이 떨어진다
+        //    (그 프레임에 emissive 가 원복되고, 뒤 플래시 fn 이 세기만 계속 써서 **흰빛 없이 숫자만
+        //    사는** 상태가 된다 — seq 가드가 막는 게 이것이다). 9프레임이면 그 지점을 지나면서도
+        //    뒤 플래시(크리, dur 0.14s ≈ 17프레임)는 아직 충분히 살아 있다.
+        //    (히트스톱 시절엔 얼린 ~0.05초만큼 종료가 밀려 창이 타2+13/16 이었다 — 히트스톱 제거
+        //    (사용자 지시 2026-08-19)로 창을 당겼다. step(16)이면 뒤 플래시가 거의 다 꺼져 오검출.)
         Combat.damageEnemy(e, Big.of(50), false, null);
         step(6);
         Combat.damageEnemy(e, Big.of(50), true, null);
-        step(16); // 앞 플래시의 실제 종료 지점(타2+13)을 지나되 뒤 플래시는 아직 살아 있는 창
+        step(9); // 앞 플래시의 실제 종료 지점(타2+6)을 지나되 뒤 플래시는 아직 살아 있는 창
         const mid = m.flashMats.find(x => x.emissive);
         ok(mid.emissive.getHex() === 0xffffff && mid.emissiveIntensity > 0.05,
             '연타 시 나중 플래시가 살아있음 (앞 플래시 종료가 덮어쓰지 않음)');
@@ -80,17 +79,14 @@ const path = require('path');
         step(300); // 사망 연출(1.05초) 종료 + enemyMap 정리까지
         ({ e, m } = mk(801)); // 이후 검사들이 쓸 개체를 같은 id로 되살린다
 
-        // 3-d) 크리(히트스톱 있음)도 **임팩트 프레임에** 숫자가 있고, 프리즈 동안엔 아크가 멈춰 있다
-        // (비평가 4차 ⓑ: 예전엔 프리즈가 끝난 +66ms에야 생성돼 숫자가 타격과 다른 사건으로 갈렸다)
+        // 3-d) 크리도 **임팩트 프레임에** 숫자가 있다 (비평가 4차 ⓑ). 히트스톱은 제거됐으므로
+        // (사용자 지시 2026-08-19, skill-cast-lag-optimize) 아크 일시정지도 없어야 한다 — 즉시 날아간다.
         Scene3D.fxLayer.innerHTML = '';
         Combat.damageEnemy(e, Big.of(300), true, null);
         const born = [...Scene3D.fxLayer.children];
         ok(born.length > 0, '크리 숫자가 임팩트 프레임에 존재 (' + born.length + '개)');
-        ok(born.length > 0 && born[born.length - 1].style.animationPlayState === 'paused',
-            '프리즈 동안 아크 정지 — 월드는 멈췄는데 숫자만 날아가지 않는다');
-        step(12); // 프리즈(45ms = 5.4프레임)를 넘긴다
         ok(born.length > 0 && born[born.length - 1].style.animationPlayState !== 'paused',
-            '프리즈가 풀리면 아크 재개');
+            '히트스톱 제거 후 숫자 아크가 일시정지 없이 즉시 날아간다');
         step(60);
 
         // 3-e) 연타로 슬롯이 쌓여도 숫자가 3D 캔버스 위(상단 HUD)로 넘어가지 않는다
@@ -142,10 +138,11 @@ const path = require('path');
         const gC = m.hpGhost.material.color;
         ok(gC.g > gC.b * 1.5 && gC.r > 0.3, '적 잔상바가 빨강 채움과 갈림 (노랑~살구)');
 
-        // 4) 히트스톱이 반드시 풀린다 (연출이 영구 슬로모로 남지 않게)
+        // 4) 히트스톱 메커니즘이 존재하지 않는다 — 되살아나면 여기서 잡는다 (사용자 지시: dt 정지 금지)
         Combat.damageEnemy(e, Big.of(300), true, null);
         step(30);
-        ok(!Scene3D._hitStop, '히트스톱 자동 해제 (' + Scene3D._hitStop + ')');
+        ok(Scene3D.hitStop === undefined && !Scene3D._hitStop,
+            '히트스톱 메커니즘 부재 (hitStop=' + typeof Scene3D.hitStop + ', _hitStop=' + Scene3D._hitStop + ')');
 
         // 5) 처치 후 정리: enemyMap·바 잔존 없음
         const nAnimBefore = Scene3D.anims.length;
