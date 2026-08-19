@@ -4110,7 +4110,7 @@ const UI = {
             </div>`;
 
         this.els.questModal.innerHTML = `
-            <div class="modal-card sheet">
+            <div class="modal-card sheet quest-sheet">
                 <h3 class="sheet-title">퀘스트</h3>
                 <p class="sheet-sub">모든 퀘스트는 수령해도 같은 내용으로 반복됩니다</p>
                 ${claimAllBtn}
