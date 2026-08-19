@@ -4976,6 +4976,25 @@ body {
     filter: blur(3px);
     animation: srveil 5.2s ease-in-out infinite;
 }
+/* ===== 캐스케이드 지속층 — 11차 비평가 A C + B ④ (2인 일치) =====
+   두 사람이 서로 다른 자로 같은 것을 짚었다: 중반 구간(x5 t0840~t1740 · x75 t0990~t2520)의
+   프레임 간 변화가 정점의 3~6%로 주저앉아 "작은 구체가 똑같은 팝을 반복하는" 구간이 된다.
+   ⚠️ A 는 '소환진 링 상시 회전'을 처방했지만 **그건 이미 실측으로 뒤집힌 처방**이다(TODO ㉮ —
+      34s 까지 늦춰도 타원으로 눌린 눈금이 링을 따라 도는 붓질 자국으로 보인다). 회전 말고
+      **가로로 훑는 빛띠**로 푼다: 방사 대칭을 안 깨므로 그 아티팩트가 원리적으로 안 생긴다.
+   ⚠️ 기존 천개 호흡(3.8~5.2s)만으로는 60ms 프레임 델타가 0.005 수준이다 — 주기가 느린 게
+      원인이라 진폭이 아니라 **속도**를 넣어야 한다(2.2s). */
+.sr-canopy b::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(100deg, rgba(0,0,0,0) 34%,
+        rgba(198,226,255,.5) 48%, rgba(228,240,255,.72) 52%, rgba(198,226,255,.5) 56%, rgba(0,0,0,0) 70%);
+    mix-blend-mode: screen; opacity: .9;
+    animation: srsweep 2.2s linear infinite;
+}
+@keyframes srsweep {
+    0%   { transform: translateX(-115%); }
+    100% { transform: translateX(115%); }
+}
 .sr-canopy.compact b { height: 6.5rem; }
 .sr-canopy i:nth-child(1) { margin-left: -5.6rem; height: 7.8rem; animation-duration: 3.8s; }
 .sr-canopy i:nth-child(3) { margin-left: 5.6rem; height: 7.8rem; animation-duration: 4.6s; animation-delay: -1.2s; }
@@ -4995,7 +5014,13 @@ body {
     /* 구멍을 그리드 밖에서 시작시켜 광선이 구체·이름을 관통하지 않게 한다 */
     -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,0) 22%, #000 34%, rgba(0,0,0,.32) 54%, rgba(0,0,0,0) 72%);
     mask-image: radial-gradient(circle, rgba(0,0,0,0) 22%, #000 34%, rgba(0,0,0,.32) 54%, rgba(0,0,0,0) 72%);
-    animation: srrayspin 48s linear infinite;
+    /* 회전 속도 — 11차 비평가 A C + B ④(2인 일치) '중반 진폭이 정점의 3~6%로 주저앉는다'의
+       유일하게 화면 면적이 큰 지속층이다. 48s(7.5°/s)는 60ms 프레임에서 사실상 정지라
+       중반 구간 기여가 0 이었다. A·B 가 함께 제안한 18°/s 쪽으로 당긴다(26s ≈ 13.8°/s).
+       ⚠️ TODO ㉮ 의 '회전 금지'는 **소환진 바닥 링** 얘기다 — 그건 타원으로 눌린 눈금이
+          링을 따라 돌아 붓질 자국이 됐다. 이 광선은 원형·방사 대칭이라 그 아티팩트가
+          원리적으로 안 생긴다(둘을 같은 규칙으로 묶지 말 것). */
+    animation: srrayspin 26s linear infinite;
 }
 /* 중앙 광원 — 아이콘 줄 뒤를 밝혀 대비를 만든다 */
 .sr-halo {
