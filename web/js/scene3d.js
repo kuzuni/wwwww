@@ -3417,14 +3417,22 @@ const Scene3D = {
                   pouch.rotation.x = Math.PI; pouch.scale.set(1.15, 0.62, 0.9); pouch.position.y = -0.3; g.add(pouch); }
                 { const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.085, 0), mat);
                   stone.rotation.set(0.4, 0.7, 0); stone.position.y = -0.285; g.add(stone); }
-                // ⚠️ 끈 두 가닥은 **자루 밑동에 실제로 닿아야** 한다 — 끝이 뜨면 '나뭇가지 두 개 + 그릇'이
-                //    된다(실측). 아래 값은 주머니 테(±0.11, -0.28) → 자루 밑동(±0.02, 0.02) 을 잇는 계산값.
-                for (const sx of [-0.11, 0.11]) {
-                    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.313, 5), dark);
-                    cord.position.set(sx * 0.59, -0.13, 0); cord.rotation.z = sx > 0 ? 0.291 : -0.291;
+                // ⚠️ 끈 두 가닥은 **끝이 어딘가에 닿아야** 한다 — 끝이 뜨면 '나뭇가지 두 개 + 그릇'이
+                //    된다(실측). 그리고 1차 채점(A '국자'·B 'Y자 새총')의 원인은 **위 세로 손잡이 + 곧은
+                //    V자 끈**이었다 — 곧은 두 가닥이 Y 포크로, 세로 자루가 새총 그립으로 읽힌다.
+                //    → 손잡이를 **가로 토글**로 눕히고, 끈을 바깥으로 살짝 배부른 **곡선 튜브**로 바꿔
+                //    '늘어진 가죽끈'을 만든다(새총 프레임은 곧아야 하므로 곡선이 곧 슬링의 서명이다).
+                { const toggle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.17, 7), wood);
+                  toggle.rotation.z = Math.PI / 2; toggle.position.y = 0.05; g.add(toggle); }
+                for (const s of [-1, 1]) {
+                    const pts = [
+                        new THREE.Vector3(s * 0.07, 0.045, 0),      // 토글 끝
+                        new THREE.Vector3(s * 0.125, -0.12, 0),     // 바깥으로 배부른 중간
+                        new THREE.Vector3(s * 0.10, -0.275, 0),     // 주머니 테
+                    ];
+                    const cord = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.009, 5), dark);
                     g.add(cord);
                 }
-                cyl(0.03, 0.034, 0.15, wood, 0, 0.07);   // 손잡이 매듭
                 // ⚠️ 손목 고리(토러스)를 자루 위에 얹었다가 뺐다 — 자루와 떨어져 보여 **갈고리**로 읽혔다.
                 break;
             }
