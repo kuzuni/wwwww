@@ -244,6 +244,19 @@ const SCAN_REF = function (src) {
         const pick = TechTree.nid('extraEgg', 4);
         S.tech = S.tech || {};
         for (let t = 1; t < 4; t++) S.tech[TechTree.nid('extraEgg', t)] = 5;
+        // 🚨 해금 규칙이 '같은 타입 세로 레일'에서 **바로 위 행에 그려진 노드 전부**로 바뀌었다
+        //    (`techtree-node-logic` 2026-08-19). 같은 타입 하위 티어만 채운 옛 시드로는 이 노드가
+        //    **잠긴 채**여서 팝업이 진행바 대신 [잠김]을 그렸고, 프로브가 `clone.bar = null` 로
+        //    죽었다(측정기 고장이 아니라 시드가 낡은 것 — 함정 ㉣ '자가 코드보다 낡은 프로브').
+        //    조상을 전부 1레벨로 펴서 원본(연구 진행 중)과 같은 상태를 만든다.
+        const openUp = (id, depth) => {
+            if (depth > 12) return;
+            for (const p of TechTree.parentsOf(id)) {
+                if (!(S.tech[p] >= 1)) S.tech[p] = 1;
+                openUp(p, depth + 1);
+            }
+        };
+        openUp(pick, 0);
         S.tech[pick] = 1;
         S.techResearch = { id: pick, endsAt: U.now() + (13 * 60 + 30) * 60e3 };
         UI.switchTab('summon'); UI.switchSummonSub('tech');
@@ -305,6 +318,7 @@ const SCAN_REF = function (src) {
     }
 
     const rows = [];
+    const divergence = [];   // 원본과 **사양이 갈린** 자리(측정 실패가 아니다)
     const add = (name, refV, cloneV) => rows.push({ name, refV, cloneV, d: cloneV - refV });
     add('카드 좌', rw(ref.card.l - ref.appL), cw(clone.card.x));
     add('카드 폭', rw(ref.card.w), cw(clone.card.w));
@@ -327,6 +341,23 @@ const SCAN_REF = function (src) {
         add('버튼 간격', rw(ref.cancel.l - ref.skip.r - 1), cw(clone.btns[1].x - (clone.btns[0].x + clone.btns[0].w)));
         add('버튼 상단', rh(ref.cancel.top), ch(clone.btns[1].y));
         add('버튼 높이', rh(ref.cancel.bot - ref.cancel.top + 1), ch(clone.btns[1].h));
+    } else if (clone.btns.length === 1) {
+        // 원본은 [건너뛰기][취소] 2분할이지만 클론은 **의도적으로 [건너뛰기] 하나**다
+        // (사용자 지시 2026-08-19 `techtree-node-logic` "연구 시작하면 취소 불가" → [취소] 폐기).
+        // 사양이 원본과 갈린 자리라 '버튼 2개'를 기대하면 이 화면은 영영 못 잰다 — 남은 한 개를
+        // 원본의 같은 버튼(건너뛰기)과 대조하고, 갈린 사실을 출력에 남긴다.
+        divergence.push('원본 [건너뛰기][취소] 2분할 → 클론 [건너뛰기] 1개 (취소 불가 사양)');
+        // 🚨 **가로(좌·폭·간격)는 대조하지 않는다** — 2분할의 한 칸과 1개짜리 줄은 원리상 같을 수
+        //    없다(첫 판에서 좌 Δ+9.76%p, 폭 Δ+12.24%p 로 FAIL 이 났다. 사양 분기를 비율 결함으로 읽은 것).
+        //    원본에는 '버튼 하나만 있는 상태'가 아예 없어서 폭의 정답이 없다 — 값만 참고로 찍는다.
+        // 세로(줄 상단·높이)와 중심 정렬은 그대로 성립하므로 그건 대조한다.
+        // ⚠️ 세로는 **취소 버튼 박스**를 쓴다 — `ref.skip` 의 세로는 은색 본체에서 끊겨(bot 513)
+        //    실제 버튼(≈474~542, 확대 크롭으로 두 버튼 높이가 같은 것을 확인)보다 29px 짧다.
+        add('버튼 상단', rh(ref.cancel.top), ch(clone.btns[0].y));
+        add('버튼 높이', rh(ref.cancel.bot - ref.cancel.top + 1), ch(clone.btns[0].h));
+        add('버튼 중심x(카드중심 대비)', rw((ref.card.l + ref.card.r) / 2 - ref.appL),
+            cw(clone.btns[0].x + clone.btns[0].w / 2));
+        divergence.push(`참고 폭: 원본 한 칸 ${rw(ref.skip.w).toFixed(2)}%W → 클론 ${cw(clone.btns[0].w).toFixed(2)}%W`);
     }
     if (clone.xbtn) {
         add('X원 폭', rw(ref.xbtn.w), cw(clone.xbtn.w));
@@ -334,6 +365,7 @@ const SCAN_REF = function (src) {
         add('X원 상단', rh(ref.xbtn.top), ch(clone.xbtn.y));
     }
 
+    if (divergence.length) console.log('\n사양 분기(대조 제외): ' + divergence.join(' · '));
     console.log('\n요소별 대조 (원본 → 클론, Δ%p · 기준 ±2.0%p):');
     let fails = 0;
     for (const r of rows) {
