@@ -1476,11 +1476,56 @@ const UI = {
     // 종전 구현은 '카드1→팝업→카드1→팝업' 교차라 사용자가 "카드를 10개 안 보여준다"고 세 번 지적했다.
     // 팝업이 떠 있는 동안에는 망치를 소비하지 않는다.
     _autoSeq: null,
+    // 자동 제련 [시작] 시, **지금 필터로** 기존 보류품을 일괄 재판정해 탈락분을 조용히 판다
+    // (사용자 지시 2026-08-20 autoforge-purge-held-nonmatch-on-start: "원시적이 잔뜩 보류돼 있는데
+    //  '현대의'만 체크하고 시작을 누르면 원시적은 필터에 안 걸리니까 싹 다 판매되고 돌아가야 함").
+    // 🔑 **왜 재판정이 필요한가**: 큐(`S.autoMatchQueue`)에 쌓인 통과분은 **쌓일 당시의 필터**로
+    //    통과한 것이라, 그 뒤 필터를 바꿔도 `openNextAutoMatch`(위)가 재판정 없이 그대로 비교
+    //    팝업을 열었다 — 시작을 누르면 새 목표와 아무 상관 없는 옛 장비들이 줄줄이 떠서 판매/장착을
+    //    강제로 물었다(사용자가 지적한 바로 그 화면). 대기품 1슬롯도 마찬가지로 새는 자리가 있다:
+    //    `autoSeqStep`은 대기품을 재판정하지만 **팝업이 이미 떠 있으면 그 앞에서 return** 하므로
+    //    (부팅 복원 `restorePendingCraft` → `startAutoSeq` 순서가 정확히 그 상태다) 옛 필터 장비의
+    //    팝업이 그대로 남았다. 그래서 판정을 시작 지점으로 끌어와 **한 곳에서** 정리한다.
+    // 판매는 조용히 — 토스트 없음(autoforge-toast-suppress), 코인 연출은 배치당 한 번으로 합친다
+    // (autoforge-no-auto-equip 이후 자동 경로의 처리는 언제나 판매뿐이다).
+    purgeNonMatchingHeld() {
+        // ① 펴 놓다 만 카드판(S.autoBatch)부터 규약대로 흘려보낸다 — `drainAutoBatch`는 이미 현재
+        //    필터로 판정하므로, 여기서 먼저 부르면 통과분이 큐로 합류해 아래 한 번의 검사로 끝난다.
+        this.drainAutoBatch();
+        let gained = 0, sold = 0;
+        // ② 통과분 큐: 지금 필터를 통과하는 것만 남기고 나머지는 판매
+        const q = Array.isArray(S.autoMatchQueue) ? S.autoMatchQueue : (S.autoMatchQueue = []);
+        const keep = [];
+        for (const it of q.splice(0)) {
+            if (!it || !it.slot) continue;                 // 손상 세이브 방어
+            if (Forge.passesAutoFilter(it)) { keep.push(it); continue; }
+            gained += this.autoDispose(it).gained || 0; sold++;
+        }
+        for (const it of keep) q.push(it);
+        // ③ 모루 자리 대기품도 같은 기준. 비교 팝업이 떠 있으면 **접고** 판다 — 안 접으면 방금 판
+        //    장비의 팝업이 화면에 그대로 남아 [판매]/[장착]을 다시 묻는다(resolvePendingCraft와 같은 처리).
+        const held = this._pendingItem;
+        if (held && !Forge.passesAutoFilter(held)) {
+            if (!this.els.craftModal.classList.contains('hidden')) {
+                this.cancelAnvilStrike();
+                this.els.craftModal.classList.add('hidden');
+            }
+            this.clearPendingCraft();
+            gained += this.autoDispose(held).gained || 0; sold++;
+        }
+        if (sold) { this.coinBurst(gained); this.renderTopBar(); this.renderEquipSheet(); }
+        saveGame();
+        return sold;
+    },
     startAutoSeq() {
         if (this._autoSeq) return;
         // 자동 제련을 다시 켠 것은 '보류해 둔 것도 마저 처리하라'는 뜻이다 — 보류 모드를 풀어
         // 큐가 평소대로 팝업으로 흘러가게 한다 (autoforge-dim-hold-all 2026-08-19).
         S.autoMatchHeld = false;
+        // 보류 모드를 푼 **직후·시퀀스를 세우기 전에** 재판정한다: 앞이면 보류 모드가 살아 있어
+        // 아래 정리 중 `promoteHeldToSlot`이 끼어들 수 있고, 뒤면 `autoSeqStep`이 먼저 옛 장비의
+        // 팝업을 띄운다.
+        this.purgeNonMatchingHeld();
         this._autoSeq = { stopAfterPick: false };   // 사이클 잔량(inCycle)은 배치화로 없어졌다
         this.autoSeqStep();
     },
