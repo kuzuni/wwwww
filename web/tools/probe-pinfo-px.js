@@ -1,37 +1,60 @@
 // 플레이어 정보 팝업 shot-043313 의 **장비 그리드 / 오브 줄** 비율 대조 —
-// '전 UI 비율 전수 검증 패스'(ui-ratio-audit)의 밴드 미실측 화면.
-// 원본 PNG 와 클론 캡처를 **같은 픽셀 코드로** 잰다.
+// '전 UI 비율 전수 검증 패스'(ui-ratio-audit)의 화면별 실측기.
 //
 // 📌 **짝 도구와 역할이 다르다 — 겹치지 말 것.**
 //   · `probe-pinfo-loadout.js`(QA 11차) = 오브 3종(스킬·펫·탈것)이 **서로 같은 지름**이고 찌부러지지
 //     않았는지. 뷰포트 3종을 돌며 **렌더 절대 지름**을 본다(원본과는 무관한 검사다).
 //   · 이 도구 = 그 줄이 **원본과 같은 비율**인지. 자는 흰 카드 폭(CW), 가로세로 공통.
-//   ⚠️ 그쪽은 카드가 열림 애니(scale .7) 중일 때를 전제로 절대 px 을 보므로, 이 도구의 수치와
-//     직접 비교하면 안 된다(33.5px vs 48px 처럼 0.7배 차이로 보인다).
 //
-// 📏 자 = 흰 카드 폭 — 원본 이미지 폭과 클론 앱 폭이 다를 수 있어서다(인계 메모 함정 ㉠).
+// 📏 자 = 카드 폭 — 원본 이미지 폭과 클론 앱 폭이 다를 수 있어서다(인계 메모 함정 ㉠).
 //
-// 🚨 측정 함정:
+// ══════════════════════════════════════════════════════════════════════════════
+// 🚨 2026-08-19 수리: **클론 쪽을 픽셀 스캔에서 DOM rect 로 옮겼다** (인계 메모 ⓓ '측정기 고장').
+//
+//   증상: `측정기 고장 (CLONE): 오브 줄을 못 찾음` (exit 2). 장비 밴드는 351..476 로 잡히는데
+//         그 아래 밴드가 **하나도 없다**고 나왔다.
+//   진범: 처음엔 '오브가 밝아져 비흰색 술어에 안 걸린다'로 의심했는데 **실측하니 반대였다** —
+//         오브 행의 비흰색 화소는 260개(문턱 37.5)로 넉넉하다. 진짜 원인은 **카드 바탕에 깔린
+//         크로스해치 스킨 텍스처**다(`ui-quality-up`/`aaa-skin` 패스). 카드 바탕이 240~243 인데
+//         13px 주기로 **235~237 짜리 실오라기**가 지나간다. `white()` 문턱이 `>238` 이라 그 실이
+//         전부 비흰색으로 잡혀 **흰 런이 10px 마다 끊긴다**(실측: y600 에서 최장 흰 런 10px).
+//         카드 행 조건이 `최장 흰 런 > 이미지폭×0.55`(=274) 이므로 **카드 하단(cb)이 y492 에서
+//         멈추고**, 오브 줄(y493~535)이 통째로 스캔 범위 밖으로 나갔다. 밴드를 못 찾은 게 아니라
+//         **카드가 오브 줄 위에서 잘렸다.**
+//   교훈: 카드 바탕색에 매달린 술어는 스킨 패스 한 번에 죽는다(`probe-fl-face` 의 등급색 사례와
+//         같은 계열). 문턱을 235 로 내리는 건 **다음 텍스처가 더 진해지면 또 죽는** 미봉책이라,
+//         이 저장소 규약대로(probe-tn-dom · probe-fl-face · probe-lgr-dom · probe-pets2-dom)
+//         **원본만 픽셀 스캔하고 클론은 DOM rect** 로 잰다. 색이 또 바뀌어도 안 깨진다.
+//   ⚠️ 그러니 이 도구를 '픽셀 대 픽셀'로 되돌리지 말 것 — 되돌리면 같은 고장이 재발한다.
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// 🚨 원본(REF) 스캔의 측정 함정 — 이쪽은 그대로 유효하다:
 //   ⑴ 흰 카드 좌우는 **전 행의 최대 흰 구간**으로 잡는다(첫 행은 라운드 모서리라 좁게 잡힌다).
-//   ⑵ 오브/타일을 **색으로** 잡으면 안 된다 — 원본 오브는 빨강, 클론은 회색이다. 두 그림 공통인
-//      '흰 카드 위의 비흰색 덩어리'로 잡는다.
+//   ⑵ 오브/타일을 **색으로** 잡으면 안 된다 — 원본 오브는 빨강이다. '흰 카드 위의 비흰색 덩어리'로 잡는다.
 //   ⑶ **밴드 안에서 어느 행을 재느냐**가 제일 까다롭다 — 원본 오브는 안쪽 밝은 면 때문에 한 칸이
-//      두 조각으로 갈리는 행이 있고, 오브 줄 가운데는 'Lv.N' 라벨 줄이다. 자세한 실패 이력은
-//      아래 colsOf 주석에 적어 뒀다(네 가지 방법을 차례로 버렸다).
+//      두 조각으로 갈리는 행이 있고, 오브 줄 가운데는 'Lv.N' 라벨 줄이다(colsOf 주석 참조).
 //   ⑷ **머리줄(아바타+이름+우측 3줄)이 장비 그리드로 오인된다** — 밴드 높이로 가른다(타일 줄은 두껍다).
-// 자기검증: 두 그림 모두 카드가 잡히고, 장비 그리드가 **폭이 고른 5열**이며, 오브 줄이 그보다 작은
-//           칸 5개 이상인지 본다. 어긋나면 수치를 인쇄하지 않고 **밴드 진단과 함께** exit 2.
 //
-// 사용: node tools/probe-pinfo-px.js
-// 종료코드 0=PASS(±2%p 초과 0건) / 1=비율 초과 / 2=측정기 고장
+// 자기검증: 원본은 카드가 잡히고 장비 그리드가 **폭이 고른 5열**이며 오브 줄이 그보다 작은 칸 5개
+//           이상인지, 클론은 셀렉터 4종이 실제로 잡히고 장비 1행이 5칸인지 본다.
+//           어긋나면 수치를 인쇄하지 않고 **진단과 함께** exit 2.
+//
+// 사용: node tools/probe-pinfo-px.js  [--selftest]
+//   `--selftest` 는 오브를 일부러 1.3배로 부풀려 **FAIL 이 실제로 나는지** 확인한다 — 자를 DOM 으로
+//   옮긴 뒤 '전부 통과'가 게이트가 헐거워진 탓이 아님을 보이는 용도다(probe-profile-dom 규약).
+// 종료코드 0=PASS(±2%p 초과 0건 · 콘솔 에러 0건) / 1=비율 초과 / 2=측정기 고장
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
-const REF = path.resolve(__dirname, '../ref/screens/shot-043313.png');
-const CLONE = path.resolve(__dirname, 'ref-cmp/clone/player-info.png');
-const TOL = 2.0;
+const SC = require('./shot-screens-seed.js');
 
-const MEASURE = async ([src]) => {
+const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
+const REF = path.resolve(__dirname, '../ref/screens/shot-043313.png');
+const TOL = 2.0;
+const SELFTEST = process.argv.includes('--selftest');
+
+// ── 원본 PNG 픽셀 스캔 ────────────────────────────────────────────────────────
+const SCAN = async ([src]) => {
     const img = new Image();
     await new Promise(r => { img.onload = r; img.src = src; });
     const c = document.createElement('canvas');
@@ -55,7 +78,6 @@ const MEASURE = async ([src]) => {
     }
     if (ct < 0) return bad('흰 카드를 못 찾음');
     const CW = cr - cl + 1;
-    const pc = v => +((v / CW) * 100).toFixed(2);
 
     // ── 카드 안 비흰색 밴드 (함정 ⑵) ────────────────────────────────────────
     const bands = [];
@@ -73,11 +95,8 @@ const MEASURE = async ([src]) => {
     //   ⓑ '밴드의 가운데 행' → 오브 줄의 가운데는 **'Lv.N' 글자 줄**이라 5px 짜리 파편만 잡힌다
     //      (오브 지름이 31px 인데 16px 로 읽혔다).
     //   ⓒ '작은 틈은 메우기' → **상대 임계값으로는 절대 못 가른다.** 원본 오브가 갈리는 틈은 4px/31px
-    //      = 12.9% 인데, 장비 타일 사이의 진짜 틈은 5px/52px = 9.6% 로 **오히려 더 좁다**. 메우면
-    //      타일 다섯 개가 하나로 합쳐진다(실측).
+    //      = 12.9% 인데, 장비 타일 사이의 진짜 틈은 5px/52px = 9.6% 로 **오히려 더 좁다**.
     // → **파편은 폭으로 버린다**: 한 행 안에서 가장 넓은 칸의 60% 에 못 미치는 런은 조각으로 보고 버린다.
-    //   그렇게 정리한 뒤 **중앙값 칸 폭이 가장 큰 행**을 쓰고, 같으면 **칸 폭이 고른 행**을 택한다
-    //   (원본 장비 밴드는 중앙값 52 인 행이 여럿인데, 타일 모서리에 걸린 행은 56/51 로 들쭉날쭉하다).
     const runsAt = (y) => {
         const runs = [];
         let r = -1;
@@ -92,7 +111,7 @@ const MEASURE = async ([src]) => {
     };
     const colsOf = (b, minW) => {
         // 밴드의 **위쪽 60%** 만 본다 — 아래쪽에는 'Lv.N' 라벨이 깔려 있어, 칸 하나가 라벨 때문에
-        //    넓게 잡히면 60% 폭 필터가 나머지를 죄다 조각으로 버린다(클론 오브 줄이 7칸인데 4칸으로 잡혔다).
+        //    넓게 잡히면 60% 폭 필터가 나머지를 죄다 조각으로 버린다.
         const yEnd = b.y0 + Math.max(4, Math.round((b.y1 - b.y0) * 0.6));
         let best = [], bestMed = -1, bestSpread = 1e9, bestY = -1;
         for (let y = b.y0; y <= yEnd; y++) {
@@ -102,39 +121,38 @@ const MEASURE = async ([src]) => {
             const med = ws[Math.floor(ws.length / 2)];
             const spread = ws[ws.length - 1] - ws[0];
             // 동점 처리 순서가 중요하다: 중앙값 → **칸 수** → 폭 균일도.
-            // 칸 수를 안 보면, 같은 중앙값·같은 균일도인 **더 위쪽 행**(원 위쪽이라 일부 칸만 걸린)이
-            // 먼저 이겨 버린다 — 클론 오브 줄이 7칸인데 y480 의 4칸으로 잡혔다(실측).
             const better = med > bestMed
                 || (med === bestMed && runs.length > best.length)
                 || (med === bestMed && runs.length === best.length && spread < bestSpread);
             if (better) { bestMed = med; bestSpread = spread; best = runs; bestY = y; }
         }
         // ⚠️ '좌 인셋'은 **필터 전** 잉크의 왼쪽 끝으로 잰다 — 원본 첫 오브는 안쪽 밝은 면 때문에
-        //    13+15 로 갈려 60% 폭 필터에 둘 다 버려진다. 그러면 '두 번째 오브'가 첫 칸이 되어
-        //    좌 인셋이 10.19 대신 21.18%CW 로 나온다(실측). 왼쪽 끝만은 원본 그대로 쓴다.
+        //    13+15 로 갈려 60% 폭 필터에 둘 다 버려진다. 왼쪽 끝만은 원본 그대로 쓴다.
         colsOf.lastY = bestY; colsOf.lastMed = bestMed;
         colsOf.lastLeft = -1;
         if (bestY >= 0) for (let x = cl; x <= cr; x++) if (!white(at(x, bestY))) { colsOf.lastLeft = x; break; }
         return best.filter(v => v[1] - v[0] + 1 >= minW);
     };
-    // 장비 그리드 = 5열이 잡히는 첫 밴드. (2행은 넓은 탈것 칸 때문에 가운데 행에서 4열로 잡혀 안 걸린다.)
-    // 5열이면 다 장비 그리드인 건 아니다 — 머리줄(아바타+이름+우측 3줄)도 5조각으로 잡힐 수 있다.
-    // 장비 칸은 **서로 폭이 거의 같다**는 것으로 가른다(글자 조각은 폭이 들쭉날쭉하다).
+    // 장비 그리드 = 5열이 잡히는 첫 밴드. 5열이면 다 장비 그리드인 건 아니다 — 머리줄도 5조각으로
+    // 잡힐 수 있어 **서로 폭이 거의 같다**는 것으로 가른다(글자 조각은 폭이 들쭉날쭉하다).
     const evenCols = (cols) => {
         const ws = cols.map(v => v[1] - v[0] + 1);
         return Math.max(...ws) - Math.min(...ws) < CW * 0.03;
     };
-    // 🚨 밴드 높이 조건이 없으면 **머리줄(아바타+이름+우측 3줄)이 장비 그리드로 잡힌다** — 실제로
-    //    클론에서 그렇게 잡혀 그 아래 진짜 그리드·오브 줄을 통째로 못 찾았다. 타일 줄은 두껍고
+    // 🚨 밴드 높이 조건이 없으면 **머리줄이 장비 그리드로 잡힌다** — 타일 줄은 두껍고
     //    (장비 14.6%CW · 오브 9.1%CW) 머리줄은 얇다(3.9%CW).
     const tall = (b) => (b.y1 - b.y0 + 1) >= CW * 0.08;
+    const diag = () => bands.map(b => {
+        const cc = colsOf(b, Math.round(CW * 0.03));
+        return `${b.y0}..${b.y1}[행y${colsOf.lastY} 칸${cc.length}개 두꺼움${tall(b)}]`;
+    }).join(' ');
     let gear = null, gearCols = null;
     for (const b of bands) {
         if (!tall(b)) continue;
         const cols = colsOf(b, Math.round(CW * 0.06));
         if (cols.length === 5 && evenCols(cols)) { gear = b; gearCols = cols; break; }
     }
-    if (!gear) return bad(`장비 그리드(폭이 고른 5열 밴드)를 못 찾음 — 밴드 ${bands.map(b => b.y0 + '..' + b.y1).join(' ')}`);
+    if (!gear) return bad(`장비 그리드(폭이 고른 5열 밴드)를 못 찾음 — 밴드 ${diag()}`);
     const gearW = gearCols[0][1] - gearCols[0][0] + 1;
     let orb = null, orbCols = null;
     for (const b of bands) {
@@ -142,7 +160,7 @@ const MEASURE = async ([src]) => {
         const cols = colsOf(b, Math.round(CW * 0.03));
         if (cols.length >= 5 && evenCols(cols) && (cols[0][1] - cols[0][0] + 1) < gearW * 0.85) { orb = b; orbCols = cols; break; }
     }
-    if (!orb) return bad(`오브 줄을 못 찾음 — gear ${gear.y0}..${gear.y1} w${gearW} · 밴드별 ${bands.map(b => { const cc = colsOf(b, Math.round(CW * 0.03)); return `${b.y0}..${b.y1}[행y${colsOf.lastY} 칸${cc.length}개 폭${cc.length ? cc[0][1] - cc[0][0] + 1 : '-'} 두꺼움${tall(b)} 고름${cc.length ? evenCols(cc) : '-'}]`; }).join(' ')}`);
+    if (!orb) return bad(`오브 줄을 못 찾음 — gear ${gear.y0}..${gear.y1} w${gearW} · 밴드별 ${diag()}`);
 
     colsOf(orb, Math.round(CW * 0.03));            // lastLeft 를 오브 줄 기준으로 다시 채운다
     const orbLeft = colsOf.lastLeft;
@@ -151,43 +169,100 @@ const MEASURE = async ([src]) => {
 
     return {
         size: [W, H], card: { l: cl, t: ct, r: cr, b: cb, w: CW },
-        gearBand: `${gear.y0}..${gear.y1}`, orbBand: `${orb.y0}..${orb.y1}`,
-        orbN: orbCols.length,
-        m: {
-            '장비 칸 폭': pc(gearW),
-            '장비 열 피치': pc(gearCols[1][0] - gearCols[0][0]),
-            '장비 좌 인셋': pc(gearCols[0][0] - cl),
-            '오브 지름': pc(orbW),
-            '오브 열 피치': pc(orbCols[1][0] - orbCols[0][0]),
-            '오브 좌 인셋': pc(orbLeft - cl),
-            '오브 줄 상단': pc(orb.y0 - ct),
+        gearBand: `${gear.y0}..${gear.y1}`, orbBand: `${orb.y0}..${orb.y1}`, orbN: orbCols.length,
+        px: {
+            gearW, gearPitch: gearCols[1][0] - gearCols[0][0], gearLeft: gearCols[0][0] - cl,
+            orbW, orbPitch: orbCols[1][0] - orbCols[0][0], orbLeft: orbLeft - cl, orbTop: orb.y0 - ct,
         },
     };
 };
 
+// ── 클론 라이브 DOM 실측 ─────────────────────────────────────────────────────
+const DOM = () => {
+    const vis = e => e && e.offsetParent !== null;
+    const card = document.querySelector('.pinfo-card');
+    if (!vis(card)) return { err: '.pinfo-card 가 없다(팝업이 안 열렸다)' };
+    const cr = card.getBoundingClientRect();
+    const R = e => { const r = e.getBoundingClientRect(); return { x: r.x - cr.x, y: r.y - cr.y, w: r.width, h: r.height }; };
+    const cells = [...document.querySelectorAll('.equip-grid.pinfo-gear .equip-cell')].filter(vis).map(R);
+    // 장비 1행 = **가장 위 행**. 칸 수를 5로 가정하지 않고 top 으로 묶는다 — 2행은 탈것 넓은 칸이
+    // 섞여 있어 폭 기준이 다르고, 행 수가 바뀌어도 이 묶음은 안 깨진다.
+    let row1 = [];
+    if (cells.length) {
+        const top = Math.min(...cells.map(c => c.y));
+        row1 = cells.filter(c => Math.abs(c.y - top) <= c.h * 0.5).sort((a, b) => a.x - b.x);
+    }
+    // 오브 = 로드아웃 줄의 각 칸 안 .sk-orb (없으면 칸 자체 — 펫/탈것 칸 구조가 달라질 때 대비)
+    const orbs = [...document.querySelectorAll('.pinfo-loadout-row .sk-cell')].filter(vis)
+        .map(c => R(c.querySelector('.sk-orb') || c)).sort((a, b) => a.x - b.x);
+    return { card: { w: cr.width, h: cr.height }, cellN: cells.length, row1, orbs };
+};
+
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
-    const page = await browser.newPage();
-    await page.goto('about:blank');
-    const read = f => 'data:image/png;base64,' + fs.readFileSync(f).toString('base64');
-    const ref = await page.evaluate(MEASURE, [read(REF)]);
-    const clone = await page.evaluate(MEASURE, [read(CLONE)]);
+    const page = await browser.newPage({ viewport: { width: 499, height: 892 }, deviceScaleFactor: 1 });
+    const errors = [];
+    page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
+    page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errors.push('CONSOLE ' + m.text()); });
+    await page.goto(INDEX, { waitUntil: 'load' });
+    // UI.els 까지 기다린다 — `S.forgeLevel` 은 스크립트 파싱 시점에 참이 되는데 `UI.els` 는
+    // DOMContentLoaded 가 채워서, 느린 컨테이너에서 시드가 undefined 로 죽는다(probe-main-px 의 그 레이스).
+    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined' && UI.els && !!UI.els.equipSheet, null, { timeout: 90000 });
+
+    const ref = await page.evaluate(SCAN, ['data:image/png;base64,' + fs.readFileSync(REF).toString('base64')]);
+
+    await page.evaluate(SC.SEED_SRC);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && S.forgeLevel === 29 && UI.els && !!UI.els.equipSheet, null, { timeout: 90000 });
+    await page.evaluate(() => {
+        if (typeof Scene3D !== 'undefined') Scene3D.update = function () { };
+        UI.toast = () => { }; UI.bossWarning = () => { }; UI.flashDamage = () => { };
+        UI.openPlayerInfo();
+    });
+    // 열림 애니(cardpop scale .7) 한복판에서 재면 카드가 0.7배로 잡힌다 — 규약대로 애니를 끄고
+    // opening 클래스를 떼어 최종 상태로 스냅시킨다.
+    await page.addStyleTag({ content: '*, *::before, *::after { animation: none !important; transition: none !important; }' });
+    await page.evaluate(() => document.querySelectorAll('.modal, .modal-card').forEach(m => m.classList.remove('opening')));
+    await page.evaluate(() => Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))])).catch(() => { });
+    if (SELFTEST) await page.addStyleTag({ content: '.pinfo-loadout-row .sk-orb { width: 130% !important; height: 130% !important; }' });
+    await page.waitForTimeout(700);
+    const clone = await page.evaluate(DOM);
     await browser.close();
 
-    for (const [k, o] of [['REF', ref], ['CLONE', clone]]) {
-        if (o.err) { console.log(`측정기 고장 (${k}): ${o.err}`); process.exit(2); }
-        console.log(`${k.padEnd(5)} ${o.size.join('x')} · 카드폭 ${o.card.w} · 장비밴드 ${o.gearBand} · 오브밴드 ${o.orbBand}(${o.orbN}칸)`);
-    }
-    console.log('\n단위 = 흰 카드 폭 대비 % (가로세로 공통)');
+    // ── 자기검증 ────────────────────────────────────────────────────────────
+    const bad = [];
+    if (ref.err) bad.push(`원본 스캔: ${ref.err}`);
+    if (clone.err) bad.push(`클론 DOM: ${clone.err}`);
+    if (!ref.err) console.log(`REF   ${ref.size.join('x')} · 카드폭 ${ref.card.w} · 장비밴드 ${ref.gearBand} · 오브밴드 ${ref.orbBand}(${ref.orbN}칸)`);
+    if (!clone.err) console.log(`CLONE DOM · 카드 ${clone.card.w.toFixed(1)}x${clone.card.h.toFixed(1)} · 장비칸 ${clone.cellN}개(1행 ${clone.row1.length}칸) · 오브 ${clone.orbs.length}개`);
+    if (!clone.err && clone.row1.length !== 5) bad.push(`클론 장비 1행이 5칸이 아니다(${clone.row1.length}칸 — 마크업이 바뀌었으면 머리말대로 셀렉터를 고칠 것)`);
+    if (!clone.err && clone.orbs.length < 2) bad.push(`클론 오브가 ${clone.orbs.length}개다(피치를 못 잰다 — 시드가 스킬/펫을 안 채웠다)`);
+    if (bad.length) { console.log('\n=> 측정기 고장(exit 2): ' + bad.join(' · ')); process.exit(2); }
+
+    // ── 대조 (자 = 카드 폭, 가로세로 공통) ───────────────────────────────────
+    const rp = v => (v / ref.card.w) * 100, cp = v => (v / clone.card.w) * 100;
+    const r1 = clone.row1, ob = clone.orbs;
+    const rows = [
+        ['장비 칸 폭', rp(ref.px.gearW), cp(r1[0].w)],
+        ['장비 열 피치', rp(ref.px.gearPitch), cp(r1[1].x - r1[0].x)],
+        ['장비 좌 인셋', rp(ref.px.gearLeft), cp(r1[0].x)],
+        ['오브 지름', rp(ref.px.orbW), cp(ob[0].w)],
+        ['오브 열 피치', rp(ref.px.orbPitch), cp(ob[1].x - ob[0].x)],
+        ['오브 좌 인셋', rp(ref.px.orbLeft), cp(ob[0].x)],
+        ['오브 줄 상단', rp(ref.px.orbTop), cp(Math.min(...ob.map(o => o.y)))],
+    ];
+    console.log('\n단위 = 카드 폭 대비 % (가로세로 공통)');
     console.log('요소                 원본     클론      Δ%p   판정(게이트 ±2%p)');
     let fail = 0;
-    for (const k of Object.keys(ref.m)) {
-        const a = ref.m[k], b = clone.m[k], d = +(b - a).toFixed(2), ok = Math.abs(d) <= TOL;
+    for (const [k, a, b] of rows) {
+        const d = +(b - a).toFixed(2), ok = Math.abs(d) <= TOL;
         if (!ok) fail++;
         console.log(`${k.padEnd(20)} ${a.toFixed(2).padStart(7)} ${b.toFixed(2).padStart(8)} ${(d > 0 ? '+' : '') + d.toFixed(2)}   ${ok ? 'PASS' : 'FAIL'}`);
     }
     // 게이트 밖이지만 매번 인쇄한다 — 통과에 묻혀 사라지면 '전부 같다'로 읽힌다.
-    console.log(`\n※ 비율 게이트 밖 차이: 오브 칸 수 원본 ${ref.orbN} vs 클론 ${clone.orbN} (장착 스킬·출전 펫 수 = 시드 상태 소관).`);
-    console.log(fail === 0 ? '\nPASS — 초과 0건' : `\nFAIL — 초과 ${fail}건`);
-    process.exit(fail === 0 ? 0 : 1);
+    console.log(`\n※ 비율 게이트 밖 차이: 오브 칸 수 원본 ${ref.orbN} vs 클론 ${ob.length} (장착 스킬·출전 펫 수 = 시드 상태 소관).`);
+    console.log(`콘솔/페이지 에러: ${errors.length}건${errors.length ? ' — ' + errors.slice(0, 3).join(' | ') : ''}`);
+    const pass = fail === 0 && errors.length === 0;
+    console.log(pass ? '\nPASS — 초과 0건' : `\nFAIL — 초과 ${fail}건${errors.length ? ` · 콘솔 에러 ${errors.length}건` : ''}`);
+    process.exit(pass ? 0 : 1);
 })();
