@@ -138,12 +138,45 @@ const MEASURE = async ([src]) => {
     const hs = bands.map(b => b.y1 - b.y0 + 1);
     if (Math.max(...hs) - Math.min(...hs) > 4) return bad(`행 높이가 고르지 않음 ${JSON.stringify(hs)}`);
 
+    // ── [도전] 버튼 (첫 행) ──────────────────────────────────────────────────
+    // 🚨 **이걸 안 재고 있었던 탓에 진짜 결함이 '유령 지적'으로 기각된 적이 있다.** 기각 근거가
+    //    "probe-lc-dom 10/10 통과"였는데 이 도구는 위 10지표(카드·행·티켓 알약)뿐이고 버튼은
+    //    쳐다본 적도 없었다. 실제로는 원본 108px(21.73%W) vs 클론 56px(11.22%W)로 **폭이 절반**
+    //    이었다(부모가 column flex 라 `flex: 0 0 26%` 가 폭이 아니라 높이에 걸려 있었다).
+    //    **'프로브가 통과했다'는 그 프로브가 그 요소를 잴 때만 반증이 된다** — 그래서 여기 넣는다.
+    // 버튼은 회색 행(#cacaca) 위에 얹힌 어두운 덩어리다. 행 오른쪽 45% 안에서 4-연결 최대 성분을
+    // 쓴다(왼쪽 절반은 아바타 초상이라 더 큰 어두운 덩어리가 있다). 별 배지(+N)는 버튼 위에 떨어져
+    // 있어 성분이 안 붙는다 — 원본·클론 모두에서 확인했다.
+    const btnInk = (x, y) => { const p = at(x, y); return Math.max(...p) < 120; };
+    const bx0 = Math.round(rl + (rr - rl) * 0.55), bx1 = rr, by0 = bands[0].y0, by1 = bands[0].y1;
+    let btn = null;
+    { const lab = new Int32Array((bx1 - bx0 + 1) * (by1 - by0 + 1)).fill(-1);
+      const idx = (x, y) => (y - by0) * (bx1 - bx0 + 1) + (x - bx0);
+      for (let y = by0; y <= by1; y++) for (let x = bx0; x <= bx1; x++) {
+          if (lab[idx(x, y)] !== -1 || !btnInk(x, y)) continue;
+          const st = [[x, y]]; lab[idx(x, y)] = 1;
+          let n = 0, ax = W, bxx = -1, ay = H, byy = -1;
+          while (st.length) {
+              const [px, py] = st.pop(); n++;
+              if (px < ax) ax = px; if (px > bxx) bxx = px; if (py < ay) ay = py; if (py > byy) byy = py;
+              for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+                  const nx = px + dx, ny = py + dy;
+                  if (nx < bx0 || nx > bx1 || ny < by0 || ny > by1) continue;
+                  if (lab[idx(nx, ny)] === -1 && btnInk(nx, ny)) { lab[idx(nx, ny)] = 1; st.push([nx, ny]); }
+              }
+          }
+          if (!btn || n > btn.n) btn = { n, l: ax, r: bxx + 1, t: ay, b: byy + 1 };
+      } }
+    if (!btn || btn.r - btn.l < CW * 0.05) return bad(`[도전] 버튼을 못 잡음 (행1 ${by0}..${by1} · x${bx0}~${bx1}${btn ? ` · 최대 성분 w${btn.r - btn.l}` : ''})`);
+
     return {
         size: [W, H],
         card: { l: cl, t: ct, r: cr, b: cb, w: CW, h: CH },
         rows: bands.map(b => `${b.y0}..${b.y1}`),
         m: {
             '카드 높이': pc(CH),
+            '도전 버튼 폭': pc(btn.r - btn.l),
+            '도전 버튼 좌': pc(btn.l - cl),
             '행 좌 인셋': pc(rl - cl),
             '행 폭': pc(rr - rl + 1),
             '행 높이': pc(hs[0]),

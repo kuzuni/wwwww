@@ -2437,7 +2437,19 @@ body {
        마지막 행 하단이 +4.39%p 밀렸다. 높이를 못 박고 세로 패딩은 0 으로 둔다. */
     height: calc(var(--app-w) * .1568); box-sizing: border-box;
 }
-.league-challenge-row .btn.sm { flex: 0 0 26%; min-height: 2.9rem; font-size: .85rem; } /* 원본 도전 버튼 ≈21% 화면폭 (185 재채점) */
+/* 🚨 `flex: 0 0 26%` 는 **이 버튼의 폭을 정하지 못한다** — 버튼의 부모 `.league-challenge-side` 가
+   `flex-direction: column` 이라 flex-basis 는 주축인 **세로**에 걸린다. 그래서 폭은 계속 내용
+   (`도전` + 티켓 줄)에 끌려 다녔고, 실측 **56px(11.22%W)** 로 원본 **108px(21.73%W)** 의 절반이었다
+   (원본 x301~409 좌 60.56%W vs 클론 x356~412 좌 71.34%W — 폭 −10.51%p · 좌 +10.78%p).
+   주석의 '≈21% 화면폭'이라는 의도는 옳았는데 **거는 축을 잘못 골라 한 번도 먹은 적이 없다.**
+   ⚠️ 이 결함은 앞선 라운드에서 한 번 '유령 지적'으로 기각된 적이 있다 — 근거가 `probe-lc-dom`
+      10/10 통과였는데 **그 프로브는 이 버튼을 아예 안 잰다**(카드 높이·행 인셋/폭/높이/피치·
+      첫 행·끝 행·티켓 알약 3종뿐). 이번엔 독립 비평가 2인이 각각 −10.3 / −10.40%p 로 짚었고
+      원본·클론을 같은 픽셀 코드로 재서 확인했으며 확대 크롭으로 눈으로도 봤다(원본은 행 우측을
+      가로지르는 넓은 버튼, 클론은 거의 정사각). **'프로브가 통과했다'는 그 프로브가 그 요소를
+      잴 때만 반증이 된다.**
+   폭은 앱 폭 기준으로 못박는다(카드·행이 모두 앱 폭의 고정 %라 같이 간다). */
+.league-challenge-row .btn.sm { flex: none; width: calc(var(--app-w) * .2173); min-height: 2.9rem; font-size: .85rem; }
 .league-challenge-avatar {
     /* 원본 타일 키라인은 굵은 순검정(y330 단면 x87~88 #262626·#000000 — probe-lc-dom 비고의 그 차이) */
     width: 2.6rem; height: 2.6rem; border-radius: .4rem; background: #fff; border: var(--ol3) solid #000;
