@@ -20,6 +20,19 @@ const ProChar = {
     ease(t) { return t * t * (3 - 2 * t); },            // smoothstep — 관절 기본
     easeOut(t) { return 1 - (1 - t) * (1 - t); },       // 빠른 시작 (타격 스윙)
     easeIn(t) { return t * t; },                        // 느린 시작 (와인드업)
+    // ---- 1930s 카툰 이징 (`cute-art-direction` 사용자 추가: "애니메이션들도 1930년대 카툰 느낌으로 과장되게") ----
+    // 러버호스 카툰은 선형·smoothstep 로 안 간다 — **목표를 지나쳤다 돌아오거나(오버슈트)
+    // 통통 튀어(바운스)** 멈춘다. 트랙 키의 3번째 원소로 구간 이징 이름을 준다: [t, v, 'back'].
+    easeBack(t) { const c = 1.70158; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); },   // 오버슈트 후 안착
+    easeBounce(t) {                                     // 착지·정착 — 점점 작아지는 3번 튐
+        const n = 7.5625, d = 2.75;
+        if (t < 1 / d) return n * t * t;
+        if (t < 2 / d) return n * (t -= 1.5 / d) * t + 0.75;
+        if (t < 2.5 / d) return n * (t -= 2.25 / d) * t + 0.9375;
+        return n * (t -= 2.625 / d) * t + 0.984375;
+    },
+    easeSnap(t) { return 1 - Math.pow(1 - t, 4); },      // 예비동작에서 튀어나가는 급가속 종료
+    EASES: { back: 'easeBack', bounce: 'easeBounce', snap: 'easeSnap', out: 'easeOut', in: 'easeIn' },
 
     // 캡슐(원기둥+반구 캡) — 사지/손가락 공용. 원점=위쪽 끝(피벗), 아래로 len만큼 늘어짐
     capsule(rTop, rBot, len, mat, seg) {
@@ -1396,7 +1409,11 @@ const ProChar = {
         R.root = root;
 
         // 베이스 포즈 기록 (매 프레임 여기서 시작해 클립 오프셋을 얹음)
-        const rec = (o) => ({ rx: o.rotation.x, ry: o.rotation.y, rz: o.rotation.z, px: o.position.x, py: o.position.y, pz: o.position.z });
+        // ⚠️ 스케일도 기록한다 — 스쿼시&스트레치 트랙(`sx/sy/sz`)이 **곱셈 오프셋**이라 매 프레임
+        //    본래 배율로 되돌린 뒤 곱해야 한다. headG 처럼 빌드 때 이미 1.30 이 걸린 본이 있어서
+        //    1 로 리셋하면 치비 머리가 통째로 작아진다(`probe-hero-proportion` 의 두신비 게이트가 잡는다).
+        const rec = (o) => ({ rx: o.rotation.x, ry: o.rotation.y, rz: o.rotation.z, px: o.position.x, py: o.position.y, pz: o.position.z,
+            sx: o.scale.x, sy: o.scale.y, sz: o.scale.z });
         for (const k in R.bones) R.base[k] = rec(R.bones[k]);
         R.base.root = rec(root);
 
@@ -1425,6 +1442,26 @@ const ProChar = {
                 'kneeR.rx': [[0, -0.08], [0.5, -0.05], [1, -0.08]],
                 'hipL.rx': [[0, 0.04], [1, 0.04]],
                 'hipR.rx': [[0, 0.06], [1, 0.06]],
+                // ===== 1930s 카툰 대기 — "정지가 없다" + 스쿼시&스트레치 (사용자 추가 2026-08-19) =====
+                // ⚠️ **접지를 건드리지 않으려면 스쿼시는 root 가 아니라 spine 에 건다.** root 는 원점이
+                //    발 위에 있어 sy 를 만지면 발이 지면을 뚫거나 뜬다(GROUND_Y 보정이 통째로 어긋난다).
+                // ⚠️ 진폭 상한은 `probe-hero-proportion` 의 **크기 불변 게이트(전신 1.785 ±3%)** 다.
+                //    척추 위에 머리가 얹혀 있어 척추 sy 의 증분이 전신 높이에 거의 그대로 실린다 —
+                //    +3.5% 를 걸고 머리로 −2.2% 를 되받아 순증을 게이트 안에 둔다. 더 키우려면
+                //    그 프로브부터 다시 돌릴 것.
+                // 실측(`probe-hero-squash`): 아래 값에서 척추 배율이 0.997~1.032(진폭 3.5%)로 흔들리고
+                // **전신 높이의 사이클 변동폭은 2.3%** 다(back 이징의 오버슈트가 키 값보다 조금 더 간다 —
+                // 키에 적은 3.2% 를 그대로 예산으로 잡으면 안 된다).
+                'spine.sy': [[0, 1], [0.5, 1.028, 'back'], [1, 1, 'back']],   // 들숨에 늘어났다 오버슈트하며 안착
+                'spine.sx': [[0, 1], [0.5, 0.986], [1, 1]],                   // 부피 보존 — 늘어나면 가늘어진다
+                'spine.sz': [[0, 1], [0.5, 0.986], [1, 1]],
+                'head.sy': [[0, 1], [0.5, 0.975, 'back'], [1, 1, 'back']],    // 머리는 **반대로** 눌린다(카툰 대비)
+                'head.sx': [[0, 1], [0.5, 1.025], [1, 1]],
+                // 까딱임 2겹 — 느린 좌우 기울임(back 이징으로 지나쳤다 돌아옴) + 그 2배속 도리질.
+                //   ⚠️ 요우(ry)는 `hero-gaze-forward-attack` 규약(시선 전방)에 걸리는 채널이라 0.04rad
+                //      이하로만 쓴다. `probe-hero-gaze` 절대 게이트가 0.25rad 이다.
+                'head.rz': [[0, 0], [0.28, 0.05, 'back'], [0.66, -0.038, 'back'], [1, 0, 'back']],
+                'head.ry': [[0, 0], [0.25, 0.04], [0.5, 0], [0.75, -0.04], [1, 0]],
             }
         },
         Walking: {
@@ -1674,7 +1711,10 @@ const ProChar = {
         for (let i = 1; i < keys.length; i++) {
             if (t <= keys[i][0]) {
                 const [t0, v0] = keys[i - 1], [t1, v1] = keys[i];
-                const k = this.ease((t - t0) / Math.max(0.0001, t1 - t0));
+                const u = (t - t0) / Math.max(0.0001, t1 - t0);
+                // 키의 3번째 원소 = **그 키로 들어오는 구간**의 이징 이름. 없으면 종전대로 smoothstep.
+                const fn = this.EASES[keys[i][2]];
+                const k = fn ? this[fn](u) : this.ease(u);
                 return v0 + (v1 - v0) * k;
             }
         }
@@ -1695,6 +1735,7 @@ const ProChar = {
         const apply = (bone, base) => {
             bone.rotation.set(base.rx, base.ry, base.rz);
             bone.position.set(base.px, base.py, base.pz);
+            bone.scale.set(base.sx, base.sy, base.sz);
         };
         for (const k in R.bones) apply(R.bones[k], R.base[k]);
         apply(R.root, R.base.root);
@@ -1733,6 +1774,12 @@ const ProChar = {
             else if (ch === 'px') bone.position.x += v;
             else if (ch === 'py') bone.position.y += v;
             else if (ch === 'pz') bone.position.z += v;
+            // 스쿼시&스트레치 — 1930s 러버호스 카툰 모션 언어(`cute-art-direction` 사용자 추가 2026-08-19).
+            //   회전·위치와 달리 **곱셈**이다(1.0 = 원래 크기). 위 apply 가 매 프레임 베이스 배율로
+            //   되돌려 놓으므로 여기서 그대로 곱하면 된다.
+            else if (ch === 'sx') bone.scale.x *= v;
+            else if (ch === 'sy') bone.scale.y *= v;
+            else if (ch === 'sz') bone.scale.z *= v;
         }
         // ── 피격 플린치 (hp-juicy 7차 잔여 ㉳ '영웅 피격 포즈 반동 부재') ──────────────────────
         // 적 쪽에서 먼저 확인된 것과 **같은 결함**이다: `Scene3D.heroHit` 은 몸통 넉백(x)과 롤(rz),
