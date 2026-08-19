@@ -10430,12 +10430,52 @@ const Scene3D = {
                         lid.scale.set(1.05, 0.5, 0.58);
                         eg.add(lid);
                     }
-                    if (style === 'angry' || style === 'fierce') { // 눈썹은 성난 계열만
-                        const brow = new THREE.Mesh(new THREE.BoxGeometry(er * 1.6, er * (style === 'fierce' ? 0.26 : 0.34), er * 0.3),
+                    if (style === 'angry' || style === 'fierce') {
+                        // ===== 눈썹 — '화난 막대'에서 '익살맞은 아치'로 (`cute-art-direction`, 1차 비평가 2인 합의) =====
+                        // 🚨 사용자 원문 1순위가 **"적이랑 내 캐릭터가 좀 더 귀여웠으면"** 인데 정반대로 가 있었다.
+                        //    비평가 A "7종 예외 없이 두꺼운 검은 사선 눈썹이 눈 안쪽으로 내리꽂힌다" · B "현대
+                        //    애니메이션의 화난 눈매". 1930s 카툰의 악당도 **둥글고 익살맞다**(플라이셔의 블루토).
+                        // 처방(교집합): 하강각을 대폭 완화(0.55/0.42 → 0.18/0.14 = 31°/24° → 10°/8°) + 막대를
+                        //    **위로 휜 아치**로. 종 정체성인 `browColor` 는 그대로 둔다(색으로 종을 가른다).
+                        // ⚠️ 각을 0 으로 만들지는 않았다 — 완전 수평 아치는 '무표정'이라 종별 성격이 사라진다.
+                        //    fierce 가 angry 보다 여전히 조금 더 기울어 서열은 남는다.
+                        const bw = er * 1.55, bt = er * (style === 'fierce' ? 0.24 : 0.30);
+                        // 아치 = 큰 반지름의 짧은 토러스 호(양끝이 자연히 얇아 보인다 — 박스의 '잘린 막대' 인상 제거)
+                        const brow = new THREE.Mesh(new THREE.TorusGeometry(bw * 0.62, bt * 0.5, 5, 10, Math.PI * 0.52),
                             new THREE.MeshLambertMaterial({ color: o.browColor || 0x2b2b33 }));
-                        brow.position.set(0, er * (style === 'fierce' ? 0.78 : 1.0), er * 0.28);
-                        brow.rotation.z = s * (style === 'fierce' ? 0.55 : 0.42); // 안쪽이 내려간 분노 각
-                        eg.add(brow);
+                        brow.rotation.z = Math.PI * 0.5 - Math.PI * 0.26;   // 호의 가운데가 위로 오게 눕힌다
+                        brow.scale.set(1, 0.72, 0.42);
+                        const bg = new THREE.Group();
+                        bg.add(brow);
+                        bg.position.set(0, er * (style === 'fierce' ? 0.86 : 1.02), er * 0.30);
+                        bg.rotation.z = s * (style === 'fierce' ? 0.18 : 0.14); // 완화된 기울기
+                        bg.userData.cuteBrow = true;    // 판정 도구가 이 태그로 눈썹을 집는다
+                        bg.userData.tiltZ = Math.abs(bg.rotation.z);
+                        eg.add(bg);
+                    }
+                    // ===== 볼 블러시 — 양쪽 비평가가 같은 처방으로 꼽은 '귀여움' 신호 =====
+                    // 눈 바깥·아래로 살짝 내려 붙인다(눈 그룹 기준이라 종마다 얼굴 위치를 따로 안 잡아도 된다).
+                    // ⚠️ 반투명으로 안 갔다 — 이 씬은 투명 오브젝트가 깊이를 안 써서 정렬이 뒤집히면 얼굴
+                    //    앞으로 튀어나온다(killEnemy 의 디졸브 주석과 같은 함정). 불투명 납작 구 + 낮은
+                    //    emissive 로 '스티커'가 아니라 '홍조'로 읽히게 한다.
+                    if (o.blush !== false) {
+                        // 🚨 첫 판은 **얼굴에 파묻혀 화면에 21~29px 밖에 안 나왔다**(`probe-enemy-cute` 실측).
+                        //    눈 그룹 기준으로 아래로 내려갈수록 두상 표면이 −z 로 휘어 도망가는데, z 를 눈과
+                        //    비슷한 er·0.34 에 두니 볼 위가 아니라 볼 **속**이었다. 앞으로 밀고(0.34 → 0.72)
+                        //    크기를 키워(0.62 → 0.86) 볼 위에 얹었다. '넣었다'와 '보인다'는 다르다.
+                        // 🚨 두 번째 판은 반대로 **실루엣 밖으로 샜다**(고블린 574px·버섯 984px·늑대 444px).
+                        //    머리가 좁은 종에서는 눈 반지름 기준 오프셋이 두상 폭을 넘는다 — 그러면 볼 홍조가
+                        //    아니라 '얼굴 옆에 붙은 분홍 스티커'다. 안쪽으로 당기고 줄여 실루엣 안에 넣는다.
+                        // 🚨 크기·위치는 눈 반지름(er)에 매달려 있는데 **두상 폭은 종마다 다르다** — 좁은 머리
+                        //    (늑대 주둥이·버섯 줄기·고블린)에서는 같은 값이 실루엣을 넘는다. 그 종만
+                        //    `blushK` 로 줄인다(전역으로 더 줄이면 넓은 얼굴에서 볼이 점으로 사라진다).
+                        const bk = o.blushK || 1;
+                        const bl = new THREE.Mesh(new THREE.SphereGeometry(er * 0.46 * bk, 9, 7),
+                            new THREE.MeshLambertMaterial({ color: o.blushColor || 0xd98177, emissive: 0x3a1210 }));
+                        bl.scale.set(1.10, 0.70, 0.26);
+                        bl.position.set(s * er * 0.38 * bk, -er * 0.84, er * 0.76);
+                        bl.userData.cuteBlush = true;
+                        eg.add(bl);
                     }
                 }
                 g.add(eg);
@@ -10720,7 +10760,7 @@ const Scene3D = {
             const nose = mk(new THREE.ConeGeometry(0.045, 0.14, 6), skinD);
             nose.position.set(0, 0.93, 0.3); nose.rotation.x = Math.PI / 2 - 0.35;
             g.add(nose);
-            eyes(0.99, 0.28, 0.1, 0.045, 'fierce', { iris: 0xd9c422, tilt: 0.12, browColor: 0x3a4a2e });
+            eyes(0.99, 0.28, 0.1, 0.045, 'fierce', { iris: 0xd9c422, tilt: 0.07, browColor: 0x3a4a2e, blushK: 0.66 }); // tilt 0.12→0.07 — 눈 기울기도 '화난 눈매'의 절반을 진다(cute-art-direction)
             // 분절 팔 + 가시 몽둥이
             for (const s of [-1, 1]) {
                 const sh = new THREE.Group();
@@ -10797,7 +10837,7 @@ const Scene3D = {
                 anim.wings.push(wing);
                 g.add(wing);
             }
-            eyes(0.66, 0.165, 0.08, 0.042, 'angry', { iris: 0xffb547, glow: 0.12, tilt: 0.14, browColor: 0x3a3142 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
+            eyes(0.66, 0.165, 0.08, 0.042, 'angry', { iris: 0xffb547, glow: 0.12, tilt: 0.08, browColor: 0x3a3142 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
             // 두상(r 0.2)과 털몸통(r 0.125) 사이 목 · 날개가 몸에 박히는 소켓
             aoRing(0.130, 0.025, 0, 0.442, -0.01, { ez: 0.85, flat: 0.5, op: 0.58 }); // 0.132/0.022 는 기여가 하한에 걸칠 만큼 옅었고(probe 60~67px), 0.138/0.027 은 유출 5px 였다(실측 0.94배에서 0, 기여 118px)
             for (const s of [-1, 1]) aoRing(0.062, 0.016, s * 0.155, 0.63, 0, { flat: 0.6, op: 0.42 });
@@ -10847,7 +10887,7 @@ const Scene3D = {
             }
             // 성난 왕눈 + 벌린 입 — 갓 그늘 아래 파묻힌 '얼굴 없는 소품' 탈피 (비평가 1위 결함)
             // 홍채 축소+무광+딥 크림슨, 흰자 비중 확대, 눈썹 진하게 — '주황 단추' 오독 재설계 (비평가 지적)
-            eyes(0.3, 0.135, 0.08, 0.048, 'angry', { iris: 0xb0301f, irisScale: 0.85, glow: 0.3, tilt: 0.16, browColor: 0x33201a });
+            eyes(0.3, 0.135, 0.08, 0.048, 'angry', { iris: 0xb0301f, irisScale: 0.85, glow: 0.3, tilt: 0.09, browColor: 0x33201a, blushK: 0.68 });
             const mMouth = mk(new THREE.SphereGeometry(0.042, 8, 6), new THREE.MeshBasicMaterial({ color: 0x3a2420 }));
             mMouth.position.set(0, 0.165, 0.118); mMouth.scale.set(1.2, 0.8, 0.4); // 벌린 아우성 입
             const tooth = mk(new THREE.BoxGeometry(0.028, 0.02, 0.012), new THREE.MeshBasicMaterial({ color: 0xfff6e8 }));
@@ -10939,7 +10979,7 @@ const Scene3D = {
                 g.add(tuft, tuft2);
             }
             g.add(headW);
-            eyes(0.645, 0.472, 0.072, 0.03, 'fierce', { iris: 0xe8b13c, glow: 0.25, tilt: -0.28, browColor: 0x3c414d }); // 흰자+호박 홍채 — 두상 안에 파묻어 배치(흰 뿔 오독 방지), 좌우 분리 유지
+            eyes(0.645, 0.472, 0.072, 0.03, 'fierce', { iris: 0xe8b13c, glow: 0.25, tilt: -0.15, browColor: 0x3c414d, blushK: 0.62 }); // 흰자+호박 홍채 — 두상 안에 파묻어 배치(흰 뿔 오독 방지), 좌우 분리 유지
             // 등 다크 새들 — 목덜미→엉덩이 한 흐름으로 세그먼트 경계(흉곽/연결통/골반 이음새) 은폐.
             // ⚠️ 2026-08-18 까지 이 새들은 **만들어만 지고 `g.add()` 가 없어 화면에 한 번도 안 나왔다**(wolf-backstripe-dead).
             //    죽어 있던 원래 값(구 r0.16 을 0.78/0.5/2.45 로 늘인 **한 덩어리**)을 그대로 붙이면 안 된다 —
@@ -11057,7 +11097,7 @@ const Scene3D = {
                 ear.scale.z = 0.5;
                 g.add(horn1, horn2, ear);
             }
-            eyes(0.65, 0.105, 0.055, 0.034, 'angry', { iris: 0xffe14a, glow: 0.12, tilt: 0.22, browColor: 0x5c2338 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
+            eyes(0.65, 0.105, 0.055, 0.034, 'angry', { iris: 0xffe14a, glow: 0.12, tilt: 0.12, browColor: 0x5c2338 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
             // 목(두상 r 0.125 밑) · 허리(몸통 r 0.15×1.25 밑단과 골반 경계) · 날개 소켓
             aoRing(0.088, 0.018, 0, 0.545, 0, { flat: 0.5 });
             aoRing(0.118, 0.02, 0, 0.312, 0, { ez: 0.9, flat: 0.45, op: 0.44 });
