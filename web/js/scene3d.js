@@ -8923,6 +8923,43 @@ const Scene3D = {
             (o.parent || g).add(ring);
             return ring;
         };
+        // ── AO 스커트: 몸 표면을 **그대로 따라가는** 얇은 셸 ──
+        // 🚨 **링(토러스)이 원리적으로 못 푸는 자리가 있다.** 링은 몸보다 굵어야 보이는데, 굵은 만큼이
+        //    실루엣 밖으로 안 나가려면 **위아래가 더 굵어야**(= 허리여야) 한다. 골렘 허리·고블린 허리가
+        //    그래서 되는 것이다(구 두 개가 겹친 크레비스라 실루엣은 구가 잡는다).
+        //    라테(회전체)는 **프로파일이 곧 실루엣**이라 그 조건이 성립하지 않는다 — 어떤 반경을 줘도
+        //    굵으면 배경에 뜨고(후프) 가늘면 파묻힌다. 실측: 버섯 갓 밑 링은 반경을 0.70 배까지 줄여도
+        //    유출이 64px 로 남았다(1.00 배 153px). 반경 튜닝으로 좁혀질 문제가 아니었다.
+        // → 몸 프로파일을 grow 배(기본 3%)로 부풀린 라테 셸이면 어느 방위에서도 표면 **바로 위**라
+        //   유출이 구조적으로 0 이고, 세로 알파 그라디언트로 이음새에서 멀어질수록 풀린다.
+        // ⚠️ prof 는 몸 라테와 **같은 세그먼트 수**로 줄 것 — 다르면 다각형 위상이 어긋나 셸이
+        //    몸 면을 파고들었다 나왔다 한다(균일 오프셋이 깨진다).
+        // ⚠️ prof 는 [[r, y], …] **아래→위**, 이음새(진한 쪽)가 마지막 점이다. LatheGeometry 의 v 는
+        //    프로파일 순서를 따르고, CanvasTexture 는 flipY 기본값이라 **캔버스 위쪽이 v=1**(= 마지막 점)이다.
+        const aoSkirtFade = this._aoSkirtTex || (this._aoSkirtTex = (() => {
+            const cv = document.createElement('canvas');
+            cv.width = 4; cv.height = 64;
+            const cx = cv.getContext('2d');
+            const gd = cx.createLinearGradient(0, 0, 0, 64);
+            gd.addColorStop(0.0, '#ffffff');   // v=1 = 이음새 — 가장 진하다
+            gd.addColorStop(0.42, '#6e6e6e');
+            gd.addColorStop(1.0, '#000000');   // v=0 = 그늘이 완전히 풀리는 쪽
+            cx.fillStyle = gd; cx.fillRect(0, 0, 4, 64);
+            return new THREE.CanvasTexture(cv);   // ⚠️ alphaMap 은 **색(회색조)** 을 읽는다 — rgba 알파 금지
+        })());
+        const aoSkirt = (prof, opt) => {
+            const o = opt || {};
+            const grow = o.grow === undefined ? 1.03 : o.grow;
+            const geo = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0] * grow, p[1])), o.seg || 10);
+            const sk = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+                color: 0x0a0d12, transparent: true, opacity: o.op === undefined ? 0.6 : o.op,
+                depthWrite: false, alphaMap: aoSkirtFade }));
+            if (o.x || o.y || o.z) sk.position.set(o.x || 0, o.y || 0, o.z || 0);
+            sk.userData.noOutline = true;
+            sk.userData.aoRing = true;           // 링과 같은 표식 — 판정기가 함께 껐다 켠다
+            (o.parent || g).add(sk);
+            return sk;
+        };
         // 몬스터 눈: 흰자+홍채+동공+하이라이트+성난 눈썹 (빨간 점 → 캐릭터 표정)
         // 종별 파라미터 눈 — 전 종 공용 '성난 스티커' 복붙 금지 (비평가 2위 결함)
         // style: round(순둥 왕눈)/angry(성난 흰자눈)/fierce(가늘게 뜬 맹수 흰자눈)/sleepy(반쯤 감김)/slit(발광 슬릿, 흰자 없음)
@@ -9164,7 +9201,9 @@ const Scene3D = {
             // 목 바위(r 0.11~0.14) 밑 · 라테 몸통 밑단(r 0.17)과 골반 바위 경계 · 기둥 다리 소켓
             aoRing(0.142, 0.024, 0, 0.955, 0.04, { ez: 0.92 });
             aoRing(0.19, 0.03, 0, 0.435, 0, { ez: 0.85, flat: 0.45 });
-            for (const s of [-1, 1]) aoRing(0.118, 0.02, s * 0.17, 0.345, 0, { flat: 0.5 });
+            // 어깨 소켓 — 0.118/0.02 는 +x 쪽만 3px 샜다(바위 청크가 좌우 비대칭이라 한쪽만 걸린다).
+            // 좌우가 같은 호출이라 한쪽만 줄일 수 없어, 실측으로 양쪽 다 유출 0 이 되는 0.70 배를 쓴다.
+            for (const s of [-1, 1]) aoRing(0.083, 0.014, s * 0.17, 0.345, 0, { flat: 0.5 });
             eyes(1.05, 0.21, 0.08, 0.045, 'slit', { iris: 0xff7d33, narrow: true });
             topY = 1.35;
         } else if (kind === 'goblin') {
@@ -9253,7 +9292,7 @@ const Scene3D = {
             }
             // 목: 두상(r 0.21) 밑 · 허리: 로프 벨트(r 0.205) 바로 아래 로인클로스 경계
             aoRing(0.142, 0.026, 0, 0.85, 0.06, { flat: 0.5 });
-            aoRing(0.216, 0.028, 0, 0.462, 0, { flat: 0.45, op: 0.44 });
+            aoRing(0.203, 0.026, 0, 0.462, 0, { flat: 0.45, op: 0.44 });   // 0.216/0.028 은 유출 5px(실측 0.94배에서 0, 기여 204px)
             g.add(head, jawG);
             for (const s of [-1, 1]) {
                 const ear = new THREE.Group();
@@ -9349,7 +9388,7 @@ const Scene3D = {
             }
             eyes(0.66, 0.165, 0.08, 0.042, 'angry', { iris: 0xffb547, glow: 0.12, tilt: 0.14, browColor: 0x3a3142 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
             // 두상(r 0.2)과 털몸통(r 0.125) 사이 목 · 날개가 몸에 박히는 소켓
-            aoRing(0.138, 0.027, 0, 0.442, -0.01, { ez: 0.85, flat: 0.5, op: 0.58 }); // 0.132/0.022 는 기여가 하한에 걸칠 만큼 옅었다(probe 60~67px)
+            aoRing(0.130, 0.025, 0, 0.442, -0.01, { ez: 0.85, flat: 0.5, op: 0.58 }); // 0.132/0.022 는 기여가 하한에 걸칠 만큼 옅었고(probe 60~67px), 0.138/0.027 은 유출 5px 였다(실측 0.94배에서 0, 기여 118px)
             for (const s of [-1, 1]) aoRing(0.062, 0.016, s * 0.155, 0.63, 0, { flat: 0.6, op: 0.42 });
             anim.fly = true; topY = 1.0;
         } else if (kind === 'mushroom') {
@@ -9405,8 +9444,13 @@ const Scene3D = {
             g.add(mMouth, tooth);
             // 🍄 갓 밑 그늘 — 이 종에서 가장 큰 이음새다(주름살 r 0.28~0.2 가 줄기 r 0.16 에 얹힌다).
             //    링은 capG 에 붙여 갓이 출렁일 때 그늘도 같이 움직이게 한다(따로 두면 갓만 흔들려 뜬다).
-            aoRing(0.176, 0.045, 0, -0.045, 0, { flat: 0.42, op: 0.58, parent: capG }); // r 0.208 은 갓 그늘 밖으로 4px 삐져나왔다(probe) — 줄기(r≈0.16)에 붙인다
-            aoRing(0.146, 0.028, 0, 0.02, 0, { flat: 0.35, op: 0.44 });   // 밑동 접지 — 줄기 라테는 y0.02 에서 r≈0.144 다(0.158 은 후프로 4px 삐져나왔다)
+            // 🚨 종전 링(r 0.176, parent capG)은 **두 겹으로 틀렸다**: ⑴ world y≈0.395 로 줄기 꼭대기
+            //    (0.38) **위 허공**에 떠 있었고, ⑵ 줄기가 라테라 애초에 링으로는 못 푸는 자리였다
+            //    (위 aoSkirt 주석 참조 — 실측 유출 1.00배 153px / 0.70배까지 줄여도 64px).
+            //    스커트는 줄기 프로파일(같은 세그먼트 10) 위를 3% 띄워 따라가므로 유출이 구조적으로 0 이다.
+            //    프로파일 점은 stemProf 선분 위에서 뽑았다 — y0.16 은 (0.12,0.1)~(0.1,0.22) 의 중점이라 r 0.11.
+            aoSkirt([[0.11, 0.16], [0.10, 0.22], [0.13, 0.32], [0.16, 0.38]], { op: 0.62, seg: 10 });
+            aoRing(0.128, 0.025, 0, 0.02, 0, { flat: 0.35, op: 0.44 });   // 밑동 접지 — 0.146/0.028 은 유출 50px 이었다(실측 0.88배에서 0, 기여 113px)
             anim.cap = capG; anim.hop = true;
             // ── 갓 테두리 플랩 (진행 메모 ⓑ '버섯은 아직 통짜') ──
             // 지금까지 갓은 `capG.rotation.z` 로 **통째로 기울기만** 했다 — 우산 살처럼 테두리가
@@ -9531,7 +9575,9 @@ const Scene3D = {
                 // ⚠️ 처음엔 근육 덩어리 높이(y 0.375)에 뒀는데 **0픽셀**이었다(probe-enemy-ao) — 흉곽 구가
                 //    (r 0.19×0.9=0.171) 그 높이의 |x|=0.11 을 통째로 덮는다. 몸통 반폭이 0.088 로 줄어드는
                 //    y≈0.27(=leg 로컬 −0.09)이 다리가 실제로 드러나는 첫 높이다.
-                aoRing(0.052, 0.014, 0, -0.09, 0, { flat: 0.55, op: 0.46, parent: leg });
+                // 다리 4개가 같은 호출이라 개별 튜닝이 불가능하다 — 가장 많이 새는 다리(5px)까지
+                // 한 번에 잡는 0.70 배를 쓴다(실측: 0.76 에서 그 다리가 0 이지만 여유가 없다).
+                aoRing(0.036, 0.010, 0, -0.09, 0, { flat: 0.55, op: 0.46, parent: leg });
                 (anim.knees = anim.knees || []).push(lower);
                 anim.legs.push(leg);
                 g.add(leg);
