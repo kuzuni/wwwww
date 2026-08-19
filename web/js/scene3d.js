@@ -4639,6 +4639,44 @@ const Scene3D = {
         // ⚠️ 반경을 키우지 말 것 — 후광은 자동 프레이밍의 bbox 를 그대로 키워서, 크게 잡으면
         //    썸네일에서 **투구 본체가 쪼그라든다**(0.30 판에서 실측). 0.22 가 '보이되 안 먹는' 값이다.
         if (age === 'divine' && style !== 'halo') this.addDivineHalo(g, 0.3, 0.22);
+        // 원시 투구: 뼈·깃털 기호 (사용자 지시 '원시→진짜 원시 같아야 함' — 갑옷 이빨 목걸이와 한 벌).
+        // 스타일은 시대 공용이라 지오메트리를 고치면 다른 시대까지 움직인다 — 천상 후광처럼 **시대 분기 가산**만 한다.
+        if (age === 'primitive') {
+            if (style === 'visor' || style === 'mask' || style === 'cone') {
+                // 해골 투구·가면·전투 페인트: 좌우 뼈 뿔 — 88px 에서도 시대가 실루엣으로 읽힌다.
+                // ⚠️ 가면은 돔(r 0.25)이 좁아 뿔을 0.26 에 두면 전부 노출돼 화면 질량이 커지고,
+                //    3/4 썸네일 카메라에서 중심오차 4.7%(기준 4%)로 걸렸다(A/B 실측 — 뿔을 끄면 0건).
+                //    비녀·visor 처럼 밑동을 셸에 묻어 질량을 줄인다.
+                this.addPrimalHorns(g, style === 'cone' ? 0.30 : style === 'mask' ? 0.20 : 0.26,
+                    style === 'cone' ? 0.14 : style === 'mask' ? 0.05 : 0.10,
+                    style === 'mask' ? 0.85 : 0);
+            } else if (style === 'plume') {
+                // 깃털 장식: 외깃 하나는 '흰 뿔'로 읽힌다 — 양옆에 짧은 깃을 더해 부채꼴 깃장식으로
+                for (const s of [-1, 1]) {
+                    const feather = new THREE.Mesh(new THREE.ConeGeometry(0.048, 0.24, 7), rareMat);
+                    feather.position.set(s * 0.09, 0.36, -0.02);
+                    feather.rotation.z = -s * 0.38;
+                    g.add(feather);
+                }
+            } else if (style === 'hair') {
+                // 수염(털가죽 모자): 뼈 비녀 — 사선으로 꽂힌 뼈 막대 + 양끝 마디.
+                // ⚠️ 캡(r 0.25)이 y 0.16 에서 반폭 0.206 이라, 막대 0.42 로는 양끝이 표면에 묻힌다(실측) —
+                //    0.56 으로 늘려 양끝 0.06 이상을 확실히 내민다.
+                const pin = new THREE.Group();
+                const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.56, 6), this.primalBoneMat());
+                rod.rotation.z = Math.PI / 2;
+                pin.add(rod);
+                for (const s of [-1, 1]) {
+                    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.03, 7, 6), this.primalBoneMat());
+                    knob.position.x = s * 0.28;
+                    pin.add(knob);
+                }
+                pin.position.set(0, 0.15, 0.02);
+                pin.rotation.y = 0.35;
+                pin.rotation.z = 0.1;
+                g.add(pin);
+            }
+        }
         g.scale.setScalar(0.85); // 두상 밀착 피팅 — 헬멧이 머리보다 한 치수 커서 '풍선'으로 읽히던 문제 (비평가 3번 결함)
         return g;
     },
@@ -4719,6 +4757,25 @@ const Scene3D = {
         g.add(grp);
         return grp;
     },
+    // 원시 뼈 뿔 한 쌍 — 2분절(기둥+끝 원뿔)로 살짝 굽는다. ⚠️ 토러스 호로 만들지 말 것 —
+    // 굵기가 일정한 관은 뿔이 아니라 갈고리로 읽힌다(이 항목 무기 메모 함정 ⓐ와 같은 함정).
+    addPrimalHorns(g, hx, hy, sc) {
+        const boneM = this.primalBoneMat();
+        for (const s of [-1, 1]) {
+            const horn = new THREE.Group();
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 0.11, 7), boneM);
+            base.position.y = 0.055;
+            const tip = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.12, 7), boneM);
+            tip.position.set(0, 0.13, 0.01);         // 끝 분절이 살짝 앞으로 굽는다
+            tip.rotation.x = 0.18;
+            horn.add(base, tip);
+            horn.position.set(s * hx, hy, 0);
+            horn.rotation.z = -s * 0.62;             // 바깥으로 벌어진다
+            if (sc) horn.scale.setScalar(sc);
+            g.add(horn);
+        }
+    },
+
     // 중세 문장 방패 — 히터 실드(위 직선·아래 뾰족)에 등급색 필드 + 은빛 가로 밴드(페스).
     // 십자가는 천상의 기호라 쓰지 않는다. 필드가 등급색이라 등급 위계도 같이 실어 나른다.
     addHeraldShield(g, x, y, z, h, rareHex, mats) {
