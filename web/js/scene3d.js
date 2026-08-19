@@ -1297,6 +1297,14 @@ const Scene3D = {
                         ctx.stroke();
                     }
                 });
+                // 🚨 발광 균열이 지나가는 **바로 그 자리**에 암반 쪽 골을 새긴다(결함 ㉯ '지형 골 안착').
+                //    `crackNetwork()` 를 emissiveMap 과 공유하므로 uv 상 정확히 겹친다 — 종전에는 둘이
+                //    각각 난수를 뽑아, 빛나는 선 아래에 아무 골도 없어 '표면에 얹힌 네온 낙서'가 됐다.
+                //    바깥의 밝은 립(굳은 재가 융기한 가장자리) → 안쪽의 어두운 골 순서로 겹쳐 그린다.
+                this.strokeCrackNet(ctx, size, [
+                    { w: d => 10 * this.CRACK_W[d], col: () => 'rgba(168,158,146,0.26)' }, // 균열 어깨의 굳은 재
+                    { w: d => 4.6 * this.CRACK_W[d], col: () => 'rgba(26,20,18,0.70)' },   // 골(그늘)
+                ]);
                 break;
             }
             case 'magic': { // 마법 — 큰 몽환 얼룩 + 마나 가루 점
@@ -1427,6 +1435,26 @@ const Scene3D = {
                     ctx.closePath(); ctx.fill();
                 }
             });
+            // 용암만: 균열 네트워크를 **높이맵에도** 파 넣는다(결함 ㉯). 이 캔버스는 소벨로 법선이 되므로
+            // 어두운 선 = 꺼진 골, 그 어깨의 밝은 선 = 융기한 립이 되어 **조명이 실제로 균열에 반응**한다.
+            // 알베도의 그늘은 '칠해진 그림자'라 광원이 움직여도 안 변하지만, 이건 진짜 요철로 읽힌다.
+            if (kin === 'lava') {
+                this.strokeCrackNet(ctx, size, [
+                    // 🚨 **가장자리를 세우지 말 것.** 처음엔 어깨(밝은 선) 바로 옆에 골(어두운 선)을 붙여
+                    //    단차로 그렸는데, 그러면 몇 px 안에서 명도가 214→30 으로 꺾여 **기울기 봉우리**가 선다.
+                    //    성긴 직선 피처가 그런 봉우리를 가지면 `probe-ground-tile-seam` 의 lava normal 이
+                    //    베이스라인 0.92~1.10 → 0.76~1.32 로 벌어진다(균열이 타일 경계에 나란히 얹히는 판에서
+                    //    경계 기울기가 튀어 기준 1.25 를 넘는다). 대비를 낮추는 것만으론 안 잡혔다 —
+                    //    문제는 세기가 아니라 **가파름**이다.
+                    //    그래서 폭이 다른 반투명 스트로크를 겹쳐 **완만한 경사면**으로 판다: 같은 깊이를
+                    //    더 넓은 구간에 나눠 담으므로 최대 기울기는 낮고, '파인 골'이라는 단서는 그대로다.
+                    { w: d => 13 * this.CRACK_W[d], col: () => 'rgba(210,210,210,0.10)' }, // 어깨 융기(완만)
+                    { w: d => 10 * this.CRACK_W[d], col: () => 'rgba(40,40,40,0.10)' },    // 골 바깥 경사
+                    { w: d => 7 * this.CRACK_W[d], col: () => 'rgba(36,36,36,0.14)' },
+                    { w: d => 4.4 * this.CRACK_W[d], col: () => 'rgba(32,32,32,0.20)' },
+                    { w: d => 2.4 * this.CRACK_W[d], col: () => 'rgba(28,28,28,0.26)' },   // 골 바닥
+                ]);
+            }
         } else {
             // 완만한 굴곡 (흙더미/풀 뭉치 규모) — 눈은 굴곡을 더 크고 부드럽게
             const soft = kin === 'snow';
@@ -1473,8 +1501,94 @@ const Scene3D = {
         return tex;
     },
 
-    // 용암 균열 텍스처(emissiveMap 전용) — 검정 바탕에 발광 주황 균열 폴리라인.
-    // 넓은 은은한 광 위에 좁은 밝은 코어를 겹쳐 그려 블룸 비슷한 발광 인상을 근사.
+    // ---- 용암 균열 네트워크: 주 혈관 → 지류 → 실핏줄의 3단 위계 ----
+    // `map-quality-up` 잔여 결함 ㉯("위계 없는 네온 낙서로 읽힘: 굵은 주 혈관+가는 지류, 주변
+    // 라이트 블리드, 지형 골 안착" — 비평가 A2 #3·A3 #4·B3 #4 로 **3라운드 연속** 지적)의 처방.
+    //
+    // 🚨 종전 구조의 진짜 문제는 '난수 폴리라인'이 아니라 **균열이 암반에 존재하지 않았다는 것**이다.
+    //    발광 크랙(`makeCrackTexture`)과 지면 알베도(`makeGroundTexture` lava)·노멀맵이 **각각 따로**
+    //    난수를 뽑아 그렸다 — 그래서 빛나는 선이 지나가는 자리에 대응하는 골도, 그늘도, 요철도 없었다.
+    //    표면에 얹힌 발광 선 = 정확히 '네온 낙서'다. 여기서 네트워크를 **한 번만** 만들어 세 맵이
+    //    전부 같은 경로를 쓰게 하면, 같은 자리에 골(노멀)·그늘(알베도)·백열(발광)이 겹쳐
+    //    비로소 '암반이 갈라져 그 안이 빛나는' 것으로 읽힌다.
+    // ⚠️ 좌표는 **정규화(0~1)** 로 들고 있는다 — 알베도·노멀은 512, 발광은 256 캔버스라 픽셀 좌표로
+    //    두면 어긋난다. 세 맵 모두 repeat 12×6 으로 통일돼 있으므로 uv 좌표계에서는 정확히 겹친다.
+    crackNetwork() {
+        if (this._crackNet) return this._crackNet;
+        const segs = [];
+        // depth 0 = 주 혈관, 1 = 지류, 2 = 실핏줄
+        const walk = (x, y, a, steps, step, depth, wob) => {
+            const pts = [[x, y]];
+            for (let s = 0; s < steps; s++) {
+                a += U.rand(-wob, wob);
+                x += Math.cos(a) * step; y += Math.sin(a) * step;
+                pts.push([x, y]);
+            }
+            segs.push({ pts, depth });
+            return pts;
+        };
+        const dirAt = (pts, k) => Math.atan2(pts[k][1] - pts[k - 1][1], pts[k][0] - pts[k - 1][0]);
+        // 🚨 **총 잉크량을 종전 수준으로 묶는 게 이 함수의 진짜 제약이다.** 타일이 12×6 으로 반복되므로
+        //    타일당 균열이 조금만 길어도 화면 전체가 주황 그물로 덮인다(원 코드 주석의 경고 그대로다 —
+        //    첫 판에서 주 혈관 2개×21스텝 + 지류 8개로 만들었다가 지면이 통째로 네온 웹이 됐다).
+        //    위계는 '더 많이 그려서'가 아니라 **같은 잉크를 굵기로 나눠서** 만든다.
+        for (let i = 0; i < 2; i++) {                      // 주 혈관 2개 (종전 3개 균등 → 위계 없음이었다)
+            const main = walk(Math.random(), Math.random(), Math.random() * Math.PI * 2,
+                9 + (Math.random() * 3 | 0), 0.05, 0, 0.40);
+            const nb = 2;
+            for (let b = 0; b < nb; b++) {
+                // ⚠️ 지류는 주 혈관의 **중간 지점**에서 갈라져야 한다. 끝점에서 이으면 굵기만 다른
+                //    한 줄로 보여서 위계가 아니라 '선이 가늘어진 것'으로 읽힌다.
+                const k = 2 + (Math.random() * (main.length - 4) | 0);
+                const br = dirAt(main, k) + (Math.random() < 0.5 ? 1 : -1) * U.rand(0.5, 1.15);
+                const trib = walk(main[k][0], main[k][1], br, 4 + (Math.random() * 3 | 0), 0.035, 1, 0.5);
+                if (Math.random() < 0.6 && trib.length > 3) {
+                    const k2 = 1 + (Math.random() * (trib.length - 2) | 0);
+                    walk(trib[k2][0], trib[k2][1],
+                        dirAt(trib, k2) + (Math.random() < 0.5 ? 1 : -1) * U.rand(0.6, 1.3),
+                        3 + (Math.random() * 2 | 0), 0.025, 2, 0.6);
+                }
+            }
+        }
+        this._crackNet = segs;
+        return segs;
+    },
+
+    // 균열 네트워크 공통 스트로커 — 정규화 경로를 임의 크기 캔버스에 그린다.
+    // `layers` 는 바깥층부터 순서대로: 각 층이 **모든** 세그먼트를 그린 뒤 다음 층으로 넘어간다
+    // (세그먼트별로 3겹을 다 그리면 나중 세그먼트의 넓은 폴오프가 앞 세그먼트의 코어를 덮는다).
+    // 폭은 256 기준으로 적고 캔버스 크기에 비례 확대해, 512 맵에서도 uv 상 같은 굵기가 된다.
+    // 타일 경계를 넘는 균열이 잘려 이음매가 되지 않게 3×3 으로 감아 그린다(알베도 `tile9` 과 같은 이유).
+    strokeCrackNet(ctx, size, layers) {
+        const net = this.crackNetwork();
+        const k = size / 256;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        for (const L of layers) {
+            for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
+                for (const sg of net) {
+                    const w = L.w(sg.depth);
+                    if (!(w > 0)) continue;
+                    ctx.strokeStyle = L.col(sg.depth);
+                    ctx.lineWidth = w * k;
+                    ctx.beginPath();
+                    for (let p = 0; p < sg.pts.length; p++) {
+                        const X = (sg.pts[p][0] + ox) * size, Y = (sg.pts[p][1] + oy) * size;
+                        if (p === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+                    }
+                    ctx.stroke();
+                }
+            }
+        }
+    },
+
+    // 깊이별 굵기·밝기 배수 — 이 두 배열이 곧 '위계'다. 주 혈관만 넓게 번지고 실핏줄은 가늘고 어둡다.
+    CRACK_W: [1, 0.52, 0.28],
+    CRACK_A: [1, 0.52, 0.24],
+
+    // 용암 균열 텍스처(emissiveMap 전용) — 검정 바탕에 발광 주황 균열.
+    // 4겹: 넓은 열기 블리드 → 광 → 중심 광 → 백열 코어. 바깥 블리드를 종전 14px → 26px 로 넓히고
+    // 알파를 낮춰, 균열 자체보다 **주변 암반이 달아오른 것**이 먼저 읽히게 했다(지적 '주변 라이트 블리드').
     makeCrackTexture() {
         const size = 256;
         const c = document.createElement('canvas');
@@ -1482,29 +1596,13 @@ const Scene3D = {
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, size, size);
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        for (let i = 0; i < 3; i++) {
-            // 랜덤 워크 균열 경로를 먼저 만들고 같은 경로를 두 번(광·코어) 스트로크
-            // (타일이 12×6으로 반복되므로 타일당 균열 수는 적어야 화면 전체가 그물처럼 덮이지 않음)
-            const pts = [[Math.random() * size, Math.random() * size]];
-            let a = Math.random() * Math.PI * 2;
-            const steps = 10 + (Math.random() * 8 | 0);
-            for (let s = 0; s < steps; s++) {
-                a += U.rand(-0.7, 0.7);
-                const [px, py] = pts[pts.length - 1];
-                pts.push([px + Math.cos(a) * 10, py + Math.sin(a) * 10]);
-            }
-            // 3겹: 넓은 열기 폴오프 → 중간 광 → 좁은 백열 코어 (크랙이 지면을 달구는 인상)
-            for (const [wd, col] of [[14, 'rgba(255,61,0,0.13)'], [6, 'rgba(255,61,0,0.3)'], [2.2, 'rgba(255,167,38,0.9)']]) {
-                ctx.strokeStyle = col;
-                ctx.lineWidth = wd;
-                ctx.beginPath();
-                ctx.moveTo(pts[0][0], pts[0][1]);
-                for (let p = 1; p < pts.length; p++) ctx.lineTo(pts[p][0], pts[p][1]);
-                ctx.stroke();
-            }
-        }
+        const W = this.CRACK_W, A = this.CRACK_A;
+        this.strokeCrackNet(ctx, size, [
+            { w: d => 18 * W[d], col: d => `rgba(255,88,20,${(0.09 * A[d]).toFixed(3)})` },   // 열기 블리드
+            { w: d => 11 * W[d], col: d => `rgba(255,72,0,${(0.26 * A[d]).toFixed(3)})` },    // 광
+            { w: d => 4.4 * W[d], col: d => `rgba(255,140,30,${(0.62 * A[d]).toFixed(3)})` }, // 중심 광
+            { w: d => 1.9 * W[d], col: d => `rgba(255,214,150,${(0.95 * A[d]).toFixed(3)})` },// 백열 코어
+        ]);
         const tex = new THREE.CanvasTexture(c);
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         return tex;
