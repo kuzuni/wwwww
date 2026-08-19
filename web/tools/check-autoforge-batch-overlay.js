@@ -62,6 +62,27 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
         return shots;
     };
 
+    // 🚨 **좌표를 재기 전에 요소가 멈출 때까지 기다린다** (2026-08-19 `af-overlay-summon-click` 규명).
+    //    하단 시트(`.panel`)는 `transform: translateY(105%)` → `none` 으로 **0.22초 슬라이드업**한다.
+    //    종전 판정기는 탭을 누르고 **400ms 고정 대기** 뒤 좌표를 쟀는데, swiftshader 헤드리스는
+    //    3D 씬이 메인 스레드를 물고 있어 **rAF 가 초당 2~3프레임**까지 떨어진다(실측: 3초에 7프레임,
+    //    최대 프레임 간격 1727ms). 그러면 CSS 트랜지션이 **1.3초 넘게** 걸려 400ms 시점의 버튼은
+    //    아직 화면 밖(y=1268 / 뷰포트 844)이다 — 그 좌표로 60샘플을 돌리면 `elementFromPoint` 가
+    //    계속 null 이라 '카드판 0·가림 0' 이 **아무것도 검증하지 않고 통과**하고, 이어지는 실클릭만
+    //    죽는다(관측된 실패 그림 그대로: ② 의 다른 판정은 전부 OK 인데 클릭만 FAIL).
+    //    → 위치가 두 번 연속 같고 뷰포트 안에 들어올 때까지 기다린 뒤에 잰다.
+    const settle = async (fn, arg, budgetMs = 10000) => {
+        const t0 = Date.now();
+        let prev = null;
+        while (Date.now() - t0 < budgetMs) {
+            const r = await page.evaluate(fn, arg);
+            if (r && prev && r.x === prev.x && r.y === prev.y && r.y >= 0 && r.y < 844) return { ...r, waited: Date.now() - t0 };
+            prev = r;
+            await page.waitForTimeout(120);
+        }
+        return prev ? { ...prev, waited: Date.now() - t0, timedOut: true } : null;
+    };
+
     // ── ① 모루 화면에서는 카드판이 여전히 뜬다 (본래 지시를 안 깨뜨렸는가) ──
     console.log('① 모루 화면 — 카드판은 그대로 떠야 한다');
     await page.evaluate(() => UI.switchTab(null));
@@ -73,27 +94,44 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     // ── ② 소환▸스킬 패널을 보는 중 ──
     console.log('② 소환▸스킬 패널을 보는 중 — 카드판 0 + 소환 버튼이 안 먹힌다');
     await page.evaluate(() => UI.onTabClick('summon'));
-    await page.waitForTimeout(400);
-    const btnPt = await page.evaluate(() => {
+    const btnPt = await settle(() => {
         const btns = [...document.querySelectorAll('#panel-summon button')];
         const b = btns.find(x => /소환/.test(x.textContent)) || btns[0];
         if (!b) return null;
         const r = b.getBoundingClientRect();
         return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), label: b.textContent.trim().slice(0, 12) };
     });
-    check('준비 — 소환 버튼 좌표', !!btnPt, btnPt ? `${btnPt.label} @${btnPt.x},${btnPt.y}` : '못 찾음');
+    check('준비 — 소환 버튼 좌표', !!btnPt && !btnPt.timedOut,
+        btnPt ? `${btnPt.label} @${btnPt.x},${btnPt.y} (시트 안착 ${btnPt.waited}ms)${btnPt.timedOut ? ' — 안착 못 함' : ''}` : '못 찾음');
     s = await sample(12000, btnPt);
     const upOnSummon = s.filter(x => x.up).length;
     const blocked = s.filter(x => x.hit && /craft-batch/.test(x.hit)).length;
     check('카드판 노출 0', upOnSummon === 0, `${upOnSummon}/${s.length} 샘플에서 노출`);
     check('소환 버튼이 카드판에 안 가림', blocked === 0, `${blocked}/${s.length} 샘플에서 가림`);
-    // 실제 클릭까지 — 히트테스트가 통과해도 실클릭이 막히면 의미가 없다
-    let clickOk = true, clickErr = '';
+    // 실제 클릭까지 — 히트테스트가 통과해도 실클릭이 막히면 의미가 없다.
+    // ⚠️ **타임아웃은 이 판정기의 계약이 아니다.** 종전 4초 한도는 위 rAF 기근(초당 2~3프레임)에서
+    //    그대로 터졌다 — 실측: 같은 HEAD 에서 단독 실행이면 클릭이 즉시 먹고, 다른 브라우저 하나만
+    //    같이 돌아도 **같은 클릭이 22.4초** 걸린다(가려진 게 아니라 늦은 것). 그래서 ⓐ 한도를 30초로
+    //    늘리고 ⓑ 실패하면 Playwright 전문에서 `intercepts pointer events` 줄을 찾아 **'덮여서 못
+    //    눌렸다'(진짜 FAIL)와 '느려서 못 눌렸다'(부하)를 가른다.** 전자만 이 항목의 결함이다.
+    let clickOk = true, clickErr = '', clickMs = 0;
+    const clickT0 = Date.now();
     try {
         const btns = await page.$$('#panel-summon button');
-        for (const b of btns) { if (/소환/.test((await b.textContent()) || '')) { await b.click({ timeout: 4000 }); break; } }
-    } catch (e) { clickOk = false; clickErr = String(e).split('\n')[0].slice(0, 90); }
-    check('소환 버튼 실제 클릭 성공', clickOk, clickErr);
+        for (const b of btns) { if (/소환/.test((await b.textContent()) || '')) { await b.click({ timeout: 30000 }); break; } }
+    } catch (e) {
+        const full = String(e);
+        const icept = full.split('\n').find(l => /intercepts pointer events/.test(l));
+        // 부하로 봐주는 건 **오직** '요소는 멀쩡한데(visible·enabled·stable) 입력이 안 돌아온' 경우뿐이다.
+        // 버튼이 사라졌다·비활성이다·못 찾았다 같은 실패는 그대로 FAIL 이어야 한다(안 그러면 진짜
+        // 회귀가 '부하'로 묻힌다).
+        const elemOk = /element is visible, enabled and stable/.test(full);
+        if (icept) { clickOk = false; clickErr = '가림 — ' + icept.trim().slice(0, 110); }
+        else if (elemOk) { clickErr = `한도(30s) 안에 안 먹혔으나 **가림 증거 없음 + 요소는 정상** — 부하로 본다: ${full.split('\n')[0].slice(0, 60)}`; }
+        else { clickOk = false; clickErr = '요소 자체가 못 눌리는 상태 — ' + full.split('\n')[0].slice(0, 100); }
+    }
+    clickMs = Date.now() - clickT0;
+    check('소환 버튼 실제 클릭 성공', clickOk, clickErr || `${clickMs}ms`);
 
     // ── ③ 퀘스트 팝업(z 20)을 열어 둔 채 ──
     console.log('③ 퀘스트 팝업을 보는 중 — 팝업 9점이 안 가린다');
