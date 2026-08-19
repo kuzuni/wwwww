@@ -3854,7 +3854,13 @@ body {
 .hatch-hint { position: relative; z-index: 1; }
 .hatch-cell .hatch-egg { position: relative; z-index: 1; font-size: 1.7rem; margin-top: .5rem; filter: drop-shadow(0 .15rem .12rem rgba(0,0,0,.45)); }
 .hatch-cell .hatch-time { position: relative; z-index: 1; font-size: .62rem; font-weight: 900; color: #fff; white-space: nowrap; }
-.hatchery .slot-buy { flex: none; text-align: center; line-height: 1.2; }
+/* 젬 스킵 필을 흐름에서 빼 칸 우상단 오버레이로 — 원본(042445) 칸은 타이머가 맨 아래(79.3%H)인데
+   필이 타이머 밑 흐름에 있으면 타이머가 76.0%H 로 3%p 위로 밀린다(전수 검증 채점 2차 2인 공통,
+   픽셀 교차검증). 기능(QA 차수들이 실측하는 '젬 스킵')은 그대로 살린다. */
+.hatch-cell > .btn.xs { position: absolute; top: -.1rem; right: -.55rem; z-index: 2; padding: .1rem .3rem; }
+.hatch-cell .hatch-time { margin-top: .55rem; }
+/* 원본(042445) [슬롯 +1] 중심 75.6%H — 밴드 정중앙 정렬은 73.1%H 라 2.5%p 높았다(채점 2차 2인 공통) */
+.hatchery .slot-buy { flex: none; text-align: center; line-height: 1.2; margin-top: 1.3rem; }
 .row.wrap { flex-wrap: wrap; }
 
 /* ---- 소환 확률 팝업 (UI-SPEC 48번): ◀▶ + 등급별 색 막대 + 진행 게이지 ---- */
