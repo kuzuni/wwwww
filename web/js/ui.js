@@ -4403,9 +4403,15 @@ const UI = {
             const grid = el.nextElementSibling;
             if (!grid) continue;
             const cell = el.getBoundingClientRect(), gx = grid.getBoundingClientRect().left;
-            // 라벨은 칸 가운데 정렬이라 좌우로 같은 양이 삐져나온다 — 오른쪽 여유의 2배가 쓸 수 있는 폭이다.
-            // 1px 은 안전 여유다 — 비율만 곱하면 외곽선·자간 반올림이 남아 실측에서 0.3px 쯤 넘친다.
-            const room = (gx - (cell.left + cell.width / 2)) * 2 - 1;
+            // ⚠️ (2026-08-19 lgr-rank-label-overflow) 종전 식 `room = (gx - 칸중심)*2 - 1` 은
+            //    "라벨이 칸 가운데 정렬이라 좌우로 같은 양이 삐져나온다"는 전제였는데 **실측이 이를
+            //    뒤집었다**: `.league-tier-rank` 가 `text-align:center` 라도 내용이 고정폭 칸(2.4rem)을
+            //    넘치면 브라우저는 **오른쪽으로만** 흘리고 잉크 왼쪽은 칸 왼쪽에 붙는다(4뷰포트·
+            //    dsf 1·5 모두 overflowLeft=0, ink.left≈cell.left). 그래서 대칭 전제가 폭을 ~7px 과대
+            //    산정해 `11-20`·`21위 이하` 가 pill 을 파고들었다. **한쪽 기준**으로 고친다: 쓸 수
+            //    있는 폭 = pill 왼쪽 − 칸 왼쪽 − 안전여유. 안전여유 3px 은 `-webkit-text-stroke`
+            //    (.108em, 잉크 밖으로 반씩 번진다)와 반올림 몫이다(Range 잉크는 획을 안 잰다).
+            const room = gx - cell.left - 3;
             const rg = document.createRange(); rg.selectNodeContents(el);
             const ink = rg.getBoundingClientRect().width;
             if (ink > room && room > 0) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * room / ink) + 'px';
