@@ -1,4 +1,4 @@
-// probe-btn-bevel-live.js — 클론의 파랑·빨강 액션 버튼 **아래턱이 실제로 보이는가** (aaa-skin ⓐ)
+// probe-btn-bevel-live.js — 클론의 파랑·빨강 액션 버튼 **아래턱과 글자 키라인** (aaa-skin ⓐ)
 //
 // 왜: R3 비평가 2인이 화면마다 "버튼에 아래턱이 없어 비활성 판때기로 읽힌다"고 짚었다.
 //     원본 전수 census(`probe-btn-bevel-ref.js`)로 원본 값이 확정됐다 —
@@ -13,6 +13,11 @@
 //          유리막이 있어도 상관없다 — 이 자는 '턱이 면과 갈리는가'만 묻는다.
 // ⚠️ 면 **최빈색**과 비교하면 안 된다 — 유리막이 아래를 아무리 깎아도 윗부분 밝은 색이 최빈이라
 //    통과해 버린다. 낙차 **바로 위 줄**과 비교해야 '유리막이 턱을 삼켰다'가 잡힌다.
+//
+// 두 번째 축 — **글자 검정 키라인**: 버튼 안쪽 창의 어두운 화소 비율을 원본과 견준다.
+//   원본 [장착] 4.16% · [판매] 4.31% 인데 클론은 2.40% · 2.36% 였다 = 잉크가 거의 반이다
+//   (`ui-quality-up` 이 준 `text-shadow` 한 겹뿐이라 글자가 면에 파묻힌다).
+//   문턱은 **양쪽**(원본의 0.7~1.35배)이다 — 아래만 두면 획을 굵히기만 해도 통과한다.
 //
 // 사용: node tools/probe-btn-bevel-live.js
 // 종료: 0 통과 / 1 불통과 / 2 측정 불가(자 고장)
@@ -33,11 +38,32 @@ const lum = p => .299 * p[0] + .587 * p[1] + .114 * p[2];
 const GAP = { blue: lum(REF.blue.face) - lum(REF.blue.lip), red: lum(REF.red.face) - lum(REF.red.lip) };
 
 // 대상 — 화면·선택자·기대 색상. 클론에서 실제로 눌리는 액션 버튼만 고른다.
+// `ink` 는 그 버튼과 **같은 상태의 원본 창**이다(shot-043224 제작 비교). 버튼 안쪽 창의
+// 어두운 화소 비율 = 글자 검정 키라인의 양. 원본에만 있으면 글자가 면에 파묻힌 것이다.
 const TARGETS = [
-    { screen: '제작 비교', open: `UI._realShowCraftModal(Object.assign(Forge.rollItem(), { subs: U.rollSubs(2) }))`, sel: '#craft-modal .btn.equip', kind: 'blue' },
-    { screen: '제작 비교', open: null, sel: '#craft-modal .btn.sell', kind: 'red' },
+    { screen: '제작 비교', open: `UI._realShowCraftModal(Object.assign(Forge.rollItem(), { subs: U.rollSubs(2) }))`, sel: '#craft-modal .btn.equip', kind: 'blue',
+      ink: { file: 'shot-043224.png', win: [268, 688, 133, 56] } },
+    { screen: '제작 비교', open: null, sel: '#craft-modal .btn.sell', kind: 'red',
+      ink: { file: 'shot-043224.png', win: [105, 688, 133, 56] } },
     { screen: '펫 상세', open: `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.switchTab('summon'); UI.switchSummonSub('pets'); UI.openPetDetail(0)`, sel: '.petd-btn.primary', kind: 'blue' },
 ];
+
+// 창 안 어두운/흰 화소 비율 — 원본 PNG 와 클론 캡처에 같은 코드를 태운다.
+const INK_SRC = `(async (a) => {
+    const img = new Image();
+    await new Promise(ok => { img.onload = ok; img.src = a.dataUrl; });
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    const [x, y, w, h] = a.win;
+    if (x < 0 || y < 0 || x + w > c.width || y + h > c.height) return null;
+    const d = g.getImageData(x, y, w, h).data;
+    let dark = 0, white = 0, tot = 0;
+    for (let k = 0; k < d.length; k += 4) {
+        const L = .299*d[k] + .587*d[k+1] + .114*d[k+2];
+        tot++; if (L < 40) dark++; if (L > 200) white++;
+    }
+    return { dark: +(100*dark/tot).toFixed(2), white: +(100*white/tot).toFixed(2) };
+})`;
 
 const SCAN_SRC = `(async (a) => {
     const img = new Image();
@@ -118,8 +144,9 @@ const SCAN_SRC = `(async (a) => {
         if (!box) { console.log(`FAIL ${t.screen} ${t.sel} — 버튼을 못 찾았다(측정 불가)`); await browser.close(); process.exit(2); }
         const shot = path.join(os.tmpdir(), 'bbl.png');
         await page.screenshot({ path: shot });
+        const shotUrl = 'data:image/png;base64,' + fs.readFileSync(shot).toString('base64');
         const r = await flat.evaluate(({ src, a }) => (new Function('return ' + src))()(a),
-            { src: SCAN_SRC, a: { dataUrl: 'data:image/png;base64,' + fs.readFileSync(shot).toString('base64'), kind: t.kind, x: box.x, y: box.y, w: box.w, h: box.h } });
+            { src: SCAN_SRC, a: { dataUrl: shotUrl, kind: t.kind, x: box.x, y: box.y, w: box.w, h: box.h } });
         fs.unlinkSync(shot);
         if (!r) { console.log(`FAIL ${t.screen} ${t.sel} — 버튼 면 기둥을 못 잡았다(자 고장 — 색 술어를 볼 것)`); await browser.close(); process.exit(2); }
         const gap = r.lip ? lum(r.faceLast) - lum(r.lip) : null;
@@ -130,10 +157,29 @@ const SCAN_SRC = `(async (a) => {
         console.log(`    턱↔면 명도차 ${gap === null ? '—' : gap.toFixed(1)}  (원본 ${GAP[t.kind].toFixed(1)} · 필요 ≥ ${need.toFixed(1)})`);
         if (!r.lip || r.lipN < 2) fails.push(`${t.screen} ${t.kind} — 아래턱 띠가 없다(${r.lipN}px)`);
         else if (gap < need) fails.push(`${t.screen} ${t.kind} — 아래턱이 면과 안 갈린다: 명도차 ${gap.toFixed(1)} < ${need.toFixed(1)}`);
+
+        // ── 글자 검정 키라인 ────────────────────────────────────────────────
+        // ⚠️ 원본 창은 손으로 확인한 좌표, 클론 창은 **DOM 사각형 안쪽**을 같은 크기로 잡는다.
+        //    클론 좌표를 베끼면 버튼이 밀렸을 때 자가 엉뚱한 자리를 재고도 통과한다.
+        if (t.ink) {
+            const refUrl = 'data:image/png;base64,' + fs.readFileSync(path.resolve(__dirname, '../ref/screens/', t.ink.file)).toString('base64');
+            const oi = await flat.evaluate(({ src, a }) => (new Function('return ' + src))()(a), { src: INK_SRC, a: { dataUrl: refUrl, win: t.ink.win } });
+            const [, , iw, ih] = t.ink.win;
+            const cw = [Math.round(box.x + (box.w - iw) / 2), Math.round(box.y + (box.h - ih) / 2), iw, ih];
+            const ci = await flat.evaluate(({ src, a }) => (new Function('return ' + src))()(a), { src: INK_SRC, a: { dataUrl: shotUrl, win: cw } });
+            if (!oi || !ci) { console.log(`FAIL ${t.screen} 잉크 창이 그림 밖이다(자 고장)`); await browser.close(); process.exit(2); }
+            // ⚠️ **위쪽 문턱이 꼭 있어야 한다.** 아래쪽만 두면 획을 굵게 할수록 점수가 좋아져
+            //    원본을 지나쳐도 통과한다 — 실제로 `var(--ol3)`(3px)에서 잉크가 7.00%(원본 4.16%)
+            //    로 **원본의 1.7배**였는데 아래 문턱만으로는 초록이었다. 2px 로 내려 4.08% 가 됐다.
+            const lo = oi.dark * .7, hi = oi.dark * 1.35;
+            console.log(`    글자 검정 잉크 원본 ${oi.dark}%  클론 ${ci.dark}%  (허용 ${lo.toFixed(2)}~${hi.toFixed(2)}%)`);
+            if (ci.dark < lo) fails.push(`${t.screen} ${t.kind} — 글자 검정 키라인 부족: ${ci.dark}% < ${lo.toFixed(2)}%(원본 ${oi.dark}%)`);
+            else if (ci.dark > hi) fails.push(`${t.screen} ${t.kind} — 글자 획이 원본보다 두껍다: ${ci.dark}% > ${hi.toFixed(2)}%(원본 ${oi.dark}%)`);
+        }
     }
     await browser.close();
     if (errors.length) fails.push(`콘솔 에러 ${errors.length}건: ${errors.slice(0, 2).join(' | ')}`);
     if (fails.length) { console.log('\n판정: 불통과 ' + fails.length + '건'); fails.forEach(f => console.log('  · ' + f)); process.exit(1); }
-    console.log('\n판정: 통과 — 파랑·빨강 버튼 아래턱이 원본만큼 면과 갈린다 (콘솔 에러 0)');
+    console.log('\n판정: 통과 — 파랑·빨강 버튼 아래턱·글자 키라인이 원본만큼 산다 (콘솔 에러 0)');
     process.exit(0);
 })();

@@ -8011,3 +8011,34 @@ body {
 /* 펫 상세의 [해제] 는 이미 원본 실측(#f2191d/#4a0709 — ✕ 계열)으로 스코프에 가둬 뒀다.
    위 규칙이 0-4-0 이라 그쪽(0-3-0)을 덮어 버리므로 값을 다시 못박아 되돌린다. */
 .petd-wrap .btn.btn.danger.danger { background-color: #f2191d; box-shadow: inset 0 -.28rem 0 #4a0709; }
+
+/* ===== aaa-skin ⓐ-3 — 색 버튼 글자에 검정 키라인이 없다 (2026-08-19 UI 스트림) =====
+   ⓐ-1(소환)·ⓐ-2(아래턱)에 이은 마지막 조각이다. 원본 [판매]/[장착] 글자는 **흰 코어를
+   굵은 순검정이 빙 두른** 꼴인데(shot-043224 확대에서 획 양옆이 순검정), 클론은
+   `ui-quality-up` 이 준 `text-shadow: 0 1px 1px rgba(4,18,52,.62)` **한 겹뿐**이라 글자가
+   면에 파묻힌다. 실측(버튼 안쪽 133×56 창의 어두운 화소 비율):
+       장착  원본 4.16%  ↔  클론 2.40%      판매  원본 4.31%  ↔  클론 2.36%
+   즉 잉크가 **거의 반**이다. `.petd-wrap .petd-btn` 은 2026-08-18 에 같은 진단으로 이미
+   `-webkit-text-stroke` 를 받았다 — 그 처방을 색 버튼 전체로 넓히는 것뿐이다.
+   ⚠️ **회색·은색 버튼은 제외한다** — 원본에서 그쪽 글자는 흰색이 아니라 검정이다
+      (`.btn.silver` 던전 상세 [이전 소탕] 등). 색 면 위 흰 글자에만 건다.
+   ⚠️ `paint-order: stroke fill` 이 있어야 획이 흰 코어를 안 먹는다(이 파일 `.hatch-time`·
+      `.petd-btn` 이 같은 이유로 붙여 둔 것). 없으면 작은 글자가 통째로 뭉갠 검정이 된다.
+   ⚠️ `text-shadow` 는 걷는다 — 진짜 키라인이 생기면 그 위의 흐린 그림자는 획을 두껍게만
+      보이게 해 원본보다 잉크가 과해진다.
+   ⚠️ 굵기는 **재서 골랐다**(`.petd-btn` 의 3px 를 그대로 베끼지 않았다). 같은 창의 어두운
+      화소 비율: `--ol4`(4px) 10.23% · `--ol3`(3px) 7.00% · **`--ol2`(2px) 4.08%** ↔ 원본 4.16%.
+      3px 는 원본의 1.7배라 글자가 뭉개 보인다 — 판정기에 **위쪽 문턱**(원본의 1.35배)을 둔 이유가
+      이것이다. 아래쪽 문턱만 두면 굵힐수록 점수가 좋아져 원본을 지나쳐도 초록이 된다. */
+.btn.btn.primary.primary, .btn.btn.on.on, .btn.btn.equip.equip,
+.btn.btn.danger.danger, .btn.btn.sell.sell {
+    color: #fff;
+    -webkit-text-stroke: var(--ol2) var(--pp-line);
+    paint-order: stroke fill;
+    text-shadow: none;
+}
+/* 비활성은 원본에서도 죽은 회색 글자다 — 키라인을 주면 살아 있는 버튼으로 읽힌다. */
+.btn.btn.primary.primary.disabled, .btn.btn.on.on.disabled, .btn.btn.equip.equip.disabled,
+.btn.btn.danger.danger.disabled, .btn.btn.sell.sell.disabled {
+    color: #7b7b7b; -webkit-text-stroke: 0; text-shadow: none;
+}
