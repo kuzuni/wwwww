@@ -671,6 +671,14 @@ const ProChar = {
             greave.position.set(0, -0.128 * SS, 0.012);
             greave.scale.set(0.95, 1.7 * SS, 0.95);
             knee.add(greave);
+            // ⓒ-2 무릎 아래 판독(mount-ride 비평가 D의 F): 정강이 아래가 mail(0x070a0d)·steelDark·
+            // 니어블랙 부츠로만 이어져 **검은 띠**로 뭉개진다 — 사바톤(발끝)까지 밝은 값이 하나도 없다.
+            // 처방은 판금 관절이 이미 쓰는 언어의 재사용: 그리브 정면 **능선 키라인**(스틸). 폴린 윙·
+            // 사바톤과 같은 밝기라 '장갑판의 하이라이트'로 읽히고, 면이 아니라 선이라 값 구조(다리는
+            // 어두운 대역)를 흔들지 않는다. 조형 가드(부츠 4꺾임·평바닥)는 부츠 그룹 밖이라 무관.
+            const greaveRidge = new THREE.Mesh(new THREE.CylinderGeometry(0.0075, 0.0055, 0.115 * SS * 1.7, 6), steel());
+            greaveRidge.position.set(0, -0.128 * SS, 0.012 + 0.068 * 0.95 - 0.004);
+            knee.add(greaveRidge);
             // 부츠: 라운드 토 (구+원통 결합) + 강철 사바톤
             // 0x4a3728은 r128의 리니어 해석 + sRGB 출력 + 밝은 가죽 텍스처(#c9b8a6)가 겹쳐 화면에서 살구빛 탄으로 떠
             // 정면·측면샷에서 '맨발'로 읽혔다 — 건틀릿이 이미 겪은 함정(0x6b4e3a → 0x241408)과 같은 원인이라 같은 방식으로 역보정한다.
@@ -731,6 +739,14 @@ const ProChar = {
             footAO.rotation.x = Math.PI / 2;
             footAO.position.set(0, -0.352, 0.075);
             footAO.scale.set(1.05, 1.42, 0.34);       // z(상하 두께) 납작 · y(전후) 길게 — 발 형상 추종
+            // ⓒ-2 부츠 커프 — 부츠 상단에 스틸 밴드+골드 버클 한 점. 정강이(사슬)↔부츠(니어블랙)
+            // 경계에 명도 단차를 세워 '검은 막대'가 '사슬 정강이 + 부츠'로 갈라져 읽히게 한다.
+            // ankleLame(발목 라메)와 같은 관절 장갑 언어. ⚠️ 부츠 기존 파츠 좌표는 한 자도 안 건드린다
+            // (probe-boot-profile 확정 형상) — 커프는 bootTop 윗단(−0.217) 바로 밑에 **추가**만 한다.
+            const bootCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.0645, 0.0605, 0.018, 12), steel());
+            bootCuff.position.y = -0.2265;
+            const cuffBuckle = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 5), gold);
+            cuffBuckle.position.set(0, -0.2265, 0.060);
             // ㉢ 연장 후에도 **부츠 조형은 한 자도 건드리지 않는다** — 4꺾임 실루엣(발목·발등·발가락·굽)과
             // 평바닥 밑창은 `probe-boot-profile.js` 가 지키는 확정 형상이라, 좌표를 개별로 다시 계산하면
             // 그 판정이 통째로 무너진다. 그래서 **부츠 전체를 한 그룹으로 묶어 정강이 연장분만큼 내린다**
@@ -745,7 +761,7 @@ const ProChar = {
             const footG = new THREE.Group();
             footG.scale.setScalar(BOOT_S);
             footG.position.y = -(SHIN_L - SHIN_L0) + BOOT_ANCHOR * (1 - BOOT_S);
-            footG.add(bootTop, ankleNeck, midFoot, toe, sabaton, ankleLame, sole, heel, footAO);
+            footG.add(bootTop, ankleNeck, midFoot, toe, sabaton, ankleLame, sole, heel, footAO, bootCuff, cuffBuckle);
             knee.add(kneeCap, shin, footG);
             hip.add(thigh, thighPad, garter, cuisse, knee);
             aoRing(0.082, 0.016, hip, -0.015, 0.5); // 고관절-대퇴 경계 접촉 그림자
