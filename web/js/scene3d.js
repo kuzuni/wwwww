@@ -9814,7 +9814,11 @@ const Scene3D = {
         const bandR = headR * 0.98;                      // 표면 살짝 안쪽 — 물려야 '머리에 낀 띠'로 읽힌다
         const band = put(new THREE.Mesh(new THREE.TorusGeometry(bandR, headR * 0.15, 8, 18), gold), 'crown', crownG);
         band.rotation.x = Math.PI / 2;
-        const SPIKES = 6, spikeH = headR * 0.8;
+        // 가시 **높이**만 몸 크기에 연동한다 — 머리가 가는 종(슬라임 돔·박쥐)은 headR 이 작아
+        // 관이 '가느다란 반지'로 읽혔다(화면 기여 248·179px, 통과선 120 바로 위). 높이는 밑동 링
+        // 위치를 안 건드리므로 **접촉(rGap)을 해치지 않고** 존재감만 올린다. 밑동 반경은 실측값 그대로.
+        const orn = Math.max(headR, bodyH * 0.13);
+        const SPIKES = 6, spikeH = orn * 0.8;
         let crownTop = 0;
         for (let i = 0; i < SPIKES; i++) {
             const a = (i / SPIKES) * Math.PI * 2;
@@ -9827,7 +9831,7 @@ const Scene3D = {
             sp.rotation.x = Math.cos(a) * 0.26;
             crownTop = Math.max(crownTop, headR * 0.10 + h);
         }
-        const jewel = put(new THREE.Mesh(new THREE.OctahedronGeometry(headR * 0.22), gemM), 'crown', crownG);
+        const jewel = put(new THREE.Mesh(new THREE.OctahedronGeometry(Math.min(orn * 0.22, headR * 0.5)), gemM), 'crown', crownG);
         jewel.position.set(0, headR * 0.05, bandR * 1.0);
         jewel.scale.set(1, 1.25, 0.55);
         crownTop += bandY;

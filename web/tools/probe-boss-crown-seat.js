@@ -28,7 +28,7 @@
 // 음성 대조(공짜 PASS 차단 — 없는 PASS 는 이 저장소에서 믿지 않는다):
 //   NEG=lift 로 레갈리아를 몸 키의 25% 만큼 띄우면 FAIL(뜸) 이 나와야 한다.
 //   NEG=sink 로 같은 만큼 내리면 visPx 가 급감해 FAIL(묻힘) 이 나와야 한다.
-//   NEG=grow 로 관만 1.6배 키우면 rGap 이 커져 FAIL(반경 뜸) 이 나와야 한다.
+//   NEG=grow 로 관만 2.5배 키우면 rGap 이 커져 FAIL(반경 뜸) 이 나와야 한다.
 // 사용: node probe-boss-crown-seat.js [kind...]     NEG=lift|sink|grow node probe-boss-crown-seat.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
@@ -87,7 +87,10 @@ const INPAGE = `(kind, neg) => {
         const bodyBox0 = new THREE.Box3();
         m.g.traverse(o => { if (o.isMesh && reg.indexOf(o) < 0) bodyBox0.expandByObject(o); });
         const H0 = bodyBox0.max.y - bodyBox0.min.y;
-        if (neg === 'grow') { for (const o of crown) { o.scale.multiplyScalar(1.6); o.position.x *= 1.6; o.position.z *= 1.6; } }
+        // 2.5배. 1.6배는 **음성 대조로서 힘이 모자랐다** — 밑동 링이 밀려나는 거리가 0.6×headR
+        // ≈ 몸 키의 6% 라 게이트 허용치(5%)와 겨우 1.2배 차이여서 종 절반이 그대로 통과했다.
+        // 대조는 게이트 허용치를 **여유 있게** 넘겨야 '자가 반응한다'를 말할 수 있다.
+        if (neg === 'grow') { for (const o of crown) { o.scale.multiplyScalar(2.5); o.position.x *= 2.5; o.position.z *= 2.5; } }
         else { const d = H0 * 0.25 * (neg === 'sink' ? -1 : 1); for (const o of reg) o.position.y += d / (m.g.scale.y || 1); }
         m.g.updateMatrixWorld(true);
     }
