@@ -59,6 +59,44 @@ const IconGen = {
         for (const k in this.SIZES) if (name.indexOf(k) === 0) return this.SIZES[k];
         return this.SIZE;
     },
+    /* OUTLINE — 실루엣 바깥에 순검정 키라인을 **사후에** 두르는 아이콘과 그 두께(S 대비 비율).
+     *
+     * 왜 사후 처리인가: 원본의 아이콘 화법은 예외 없이 '순검정 키라인 + 평면 채움'인데, 재화·보상
+     * 계열 8종(망치·티켓·물약·태엽·알·깨진알·돈주머니·전투력)은 그라디언트로 입체를 낸 **테 없는**
+     * 그림이라 같은 줄에 놓으면 혼자 다른 게임 아이콘처럼 보인다(코인·젬을 원본 화법으로 고친 뒤
+     * 그 차이가 확 드러났다 — 10종을 한 줄에 놓고 확인). 이 8종은 형태 자체는 멀쩡하므로 **다시
+     * 그리지 않고 테만 두른다** — 스티커 화법의 `ink()` 로 전부 다시 그리면 실루엣 좌표를 8번
+     * 새로 잡아야 하고, 그 과정에서 이미 맞춰 둔 비율이 흔들린다.
+     * ⚠️ **이미 키라인이 있는 아이콘(탭바·슬롯·무기 등)은 여기 넣지 말 것** — 테가 두 겹이 된다.
+     * 값은 S 대비 **바깥으로 번지는 반지름**이다(= 보이는 띠 폭). 코인의 띠 폭 0.155/2 ≈ 0.078 과
+     * 같은 급으로 잡되, 이 8종은 표시 크기가 20~24px 로 코인과 비슷해 같은 값을 쓴다. */
+    OUTLINE: {
+        hammer: 0.062, ticket: 0.062, potion: 0.062, winder: 0.062,
+        egg: 0.062, eggCracked: 0.062, moneybag: 0.062, power: 0.055,
+    },
+    _outlineOf(name) { return this.OUTLINE[name] || 0; },
+    /* 알파 실루엣을 반지름 r 만큼 사방으로 부풀린 검정 판을 깔고 그 위에 원본을 얹는다.
+     * ⚠️ **한 방향씩 16번 찍는 방식이라야 한다** — `shadowBlur` 로 대신하면 테가 흐린 그을음이 되고
+     *    (순검정 비율이 안 나온다), 스케일 확대로 부풀리면 **가운데가 빈 아이콘이 통째로 커져** 구멍이
+     *    메워진다(반지·도넛류에서 바로 깨진다). 방향 수 16은 r 이 커져도 다각형 티가 안 나는 최소치다. */
+    _outlined(big, r) {
+        const sil = document.createElement('canvas');
+        sil.width = big.width; sil.height = big.height;
+        const sc = sil.getContext('2d');
+        sc.drawImage(big, 0, 0);
+        sc.globalCompositeOperation = 'source-in';
+        sc.fillStyle = '#000';
+        sc.fillRect(0, 0, sil.width, sil.height);
+        const out = document.createElement('canvas');
+        out.width = big.width; out.height = big.height;
+        const oc = out.getContext('2d');
+        for (let i = 0; i < 16; i++) {
+            const a = (i / 16) * Math.PI * 2;
+            oc.drawImage(sil, Math.cos(a) * r, Math.sin(a) * r);
+        }
+        oc.drawImage(big, 0, 0);
+        return out;
+    },
     cache: {},
     _classes: {},
     _styleEl: null,
@@ -78,13 +116,15 @@ const IconGen = {
         bctx.lineJoin = 'round';
         bctx.lineCap = 'round';
         try { fn.call(this, bctx, S * SS, opt || {}); } catch (e) { console.warn('[IconGen] draw fail', name, e); }
+        const ow = this._outlineOf(name);
+        const src = ow ? this._outlined(big, ow * S * SS) : big;
         const cv = document.createElement('canvas');
         cv.height = S;
         cv.width = Math.round(S * AR);
         const ctx = cv.getContext('2d');
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(big, 0, 0, cv.width, cv.height);
+        ctx.drawImage(src, 0, 0, cv.width, cv.height);
         return (this.cache[key] = cv.toDataURL('image/png'));
     },
 
