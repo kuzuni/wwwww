@@ -19,12 +19,26 @@ const ARG = process.argv.slice(2).length ? process.argv.slice(2) : ['primitive',
     await page.evaluate((ages) => {
         Scene3D.itemThumb({ slot: 'armor', age: 'medieval', ageIdx: 1, rarity: 'common', nameIdx: 0 });
         Scene3D._thumbR.setSize(200, 200); Scene3D._thumbCache = {};
+        // ⚠️ 잣대 정합(2차 채점 후 수정): 예전 시트는 #f2f2f2 맨바닥에 투명 PNG 를 그대로 얹어
+        //    실게임에 없는 밝은 배경으로 채점됐다 — 천상(크림·금)이 통째로 '빈 칸'으로 오독된 원인.
+        //    실게임 셀은 .equip-cell 의 어두운 시대색 해칭(color-mix(rc 58%, #17181a)) + 검정
+        //    아웃라인 드롭섀도(css .fl-face img) 위다. 그 배경을 그대로 재현해 찍는다.
+        const hex = n => '#' + n.toString(16).padStart(6, '0');
+        const cellBg = age => {
+            const rc = hex(AGE_COLORS[age] !== undefined ? AGE_COLORS[age] : 0x6b3538);
+            return `background:
+                repeating-linear-gradient(45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),
+                repeating-linear-gradient(-45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),
+                color-mix(in srgb, ${rc} 58%, #17181a);
+                border:3px solid color-mix(in srgb, ${rc} 80%, #000); border-radius:12px;`;
+        };
+        const OUT = 'filter: drop-shadow(2px 0 0 #000) drop-shadow(-2px 0 0 #000) drop-shadow(0 2px 0 #000) drop-shadow(0 -2px 0 #000) drop-shadow(0 3px 2px rgba(0,0,0,.28));';
         const row = (age, slot) => {
             const ai = AGES.indexOf(age);
             const styles = (slot === 'helmet' ? HELMET_STYLES : ARMOR_STYLES)[age] || [];
             const cells = styles.map((st, i) => {
                 const t = Scene3D.itemThumb({ slot, age, ageIdx: ai, rarity: 'common', level: 1, main: 'atk', value: 1, subs: [], nameIdx: i });
-                return `<div style="width:200px;text-align:center"><img src="${t}" style="width:196px;height:196px"><div style="font:12px sans-serif;color:#222">${st} · ${itemNameOf({ slot, age, nameIdx: i })}</div></div>`;
+                return `<div style="width:200px;text-align:center"><div style="${cellBg(age)}width:194px;height:194px;display:flex;align-items:center;justify-content:center"><img src="${t}" style="width:182px;height:182px;${OUT}"></div><div style="font:12px sans-serif;color:#222">${st} · ${itemNameOf({ slot, age, nameIdx: i })}</div></div>`;
             }).join('');
             return `<div style="display:flex;align-items:center;border-bottom:1px solid #ccc">
                 <div style="width:76px;font:bold 13px sans-serif;color:#111">${AGE_KR[age]}<br>${slot}</div>${cells}</div>`;
