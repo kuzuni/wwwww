@@ -9644,10 +9644,14 @@ const Scene3D = {
             // 운석 세례 (skill-fx-exaggerated). 예전엔 **타깃당 돌멩이 1개**라 적이 하나면 1발이었다 —
             // 광역기인데 화면에는 돌 하나가 떨어지고 끝나서 '운석'이 아니라 '던진 돌'로 읽혔다.
             this.meteorStorm(targetIds, color, tier || 0);
-        } else if (fx === 'explode' || fx === 'breath') {
+        } else if (fx === 'breath') {
+            // 지중 습격 — 거대 아가리 (skill-fx-exaggerated, 사용자 예 ⓓ).
+            // 예전엔 `explode` 와 **같은 코드**(폭발 한 번)라 레전더리 광역기인데 화염구와 구분이 안 됐다.
+            this.dragonMaw(targetIds, color, tier || 0);
+        } else if (fx === 'explode') {
             targets.forEach((m, i) => setTimeout(() => {
                 this.explosion(m.g.position.clone(), color);
-                if (fx === 'explode') this.firePillar(m.g.position.clone(), color, tier || 0); // 화염류=치솟는 불기둥 (항목 ㉰)
+                this.firePillar(m.g.position.clone(), color, tier || 0); // 화염류=치솟는 불기둥 (항목 ㉰)
             }, i * 60));
         } else if (fx === 'ring') {
             this.expandRing(this.heroG.position.clone(), color, 5);
@@ -10045,6 +10049,156 @@ const Scene3D = {
         }
     },
 
+    // ---- 스킬 전용 미니 연출 ⑤: 지중 습격 — 거대 아가리 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----
+    // 사용자 원문(방향 보정 예 ⓓ): "적 아래에서 갑자기 거대 몬스터 나와서 입으로 공격한다던가".
+    // 이걸 `breath`(용의 숨결)에 얹는다 — 스킬 이름과도 맞물린다(용이 솟아 물고 숨을 뿜는다).
+    // 예전 `breath` 는 `explode` 와 **같은 코드**(폭발 한 번)를 썼다. 레전더리 광역기인데 화면에서
+    // 화염구와 구분이 안 됐다.
+    //
+    // 장면 4단: 예고(적 발밑이 부풀고 흙먼지 링) → 분출(거대 아가리가 솟구친다, 입을 벌린 채)
+    //          → 포식(턱이 **덥석** 닫히며 숨결이 뿜어진다) → 퇴장(가라앉으며 먼지)
+    // ⚠️ 조형은 전부 코드 생성이다(에셋 금지). 파츠는 10개 안쪽으로 — 이 연출은 적 수만큼 뜬다.
+    MAW_TELL_MS: 230,      // 발밑이 부푸는 예고 시간
+    mawHead(color, scale) {
+        // 어두운 비늘 + 스킬 색 목구멍. 색을 몸에 칠하면 '색 덩어리'가 되므로 몸은 어둡게 두고
+        // **입 안쪽만** 스킬 색으로 빛낸다 — 벌어진 순간 목구멍이 읽히는 게 이 조형의 요점이다.
+        const G = new THREE.Group();
+        // 🚨 **여기도 Lambert 를 쓰면 안 된다** — 먹구름에서 이미 밟은 함정을 그대로 반복했다가
+        //    첫 캡처에서 아가리가 **흰 덩어리**로 나왔다. 한낮 초원 조명 + 톤매핑이 어두운 albedo 를
+        //    통째로 씻는다. 무광 Basic 으로 어둠을 고정하고 명암은 파츠별 색으로 직접 준다.
+        // 밝은 초원 위에 놓이므로 몸은 **확실히 어두워야** 실루엣이 선다(스킬 색은 살짝만 섞는다 —
+        // 많이 섞으면 배경의 찬 색조에 묻혀 '보라색 조각'이 된다).
+        const hide = new THREE.Color(0x1a1520).lerp(color, 0.13);
+        const mk = (geo, col) => new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col }));
+        // 위턱 / 아래턱 — 앞으로 갈수록 좁아지는 쐐기(원뿔을 눕혀 쓴다)
+        const jawGeo = () => new THREE.ConeGeometry(0.42, 1.25, 5);
+        // 위턱은 밝게 · 아래턱은 어둡게 — 조명이 없으니 이 색차가 곧 입체감이다
+        const upper = mk(jawGeo(), hide.clone().lerp(new THREE.Color(0xffffff), 0.12));
+        upper.rotation.z = -Math.PI / 2; upper.position.set(0.45, 0.28, 0);
+        const lower = mk(jawGeo(), hide.clone().multiplyScalar(0.6));
+        lower.rotation.z = -Math.PI / 2; lower.position.set(0.45, -0.06, 0);
+        // 목구멍 — 입 **안쪽**에 갇혀 있어야 한다. 크고 밝게 주면 가산 합성이 머리를 통째로
+        // 흰 덩어리로 밀어 조형이 사라진다(첫 캡처에서 실제로 그랬다 — 먹구름 배쪽 글로우와 같은 함정).
+        const throat = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        throat.position.set(0.16, 0.1, 0);
+        // 이빨 — 위아래 3쌍. 없으면 '입'이 아니라 '벌어진 원뿔 두 개'다.
+        const teeth = new THREE.Group();
+        for (let i = 0; i < 3; i++) {
+            for (const s of [1, -1]) {
+                const tth = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.26, 4),
+                    new THREE.MeshBasicMaterial({ color: 0xf4ece0 }));
+                tth.position.set(0.38 + i * 0.26, s > 0 ? 0.17 : 0.03, (i % 2 ? 0.14 : -0.14) * (i ? 1 : 0));
+                tth.rotation.z = s > 0 ? Math.PI : 0;
+                teeth.add(tth);
+            }
+        }
+        // 뿔 2개 + 눈 2개 — 실루엣과 시선. 이 둘이 있어야 '짐승 머리'로 읽힌다.
+        for (const s of [1, -1]) {
+            const horn = mk(new THREE.ConeGeometry(0.09, 0.52, 4), 0xbfae96);
+            horn.position.set(-0.12, 0.5, s * 0.2);
+            horn.rotation.set(s * 0.3, 0, 0.5);
+            G.add(horn);
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.075, 6, 5),
+                new THREE.MeshBasicMaterial({ color: 0xffe57a, toneMapped: false }));
+            eye.position.set(0.2, 0.34, s * 0.26);
+            G.add(eye);
+        }
+        G.add(upper, lower, throat, teeth);
+        G.scale.setScalar(scale);
+        G.userData.jaw = { upper, lower, throat };
+        return G;
+    },
+    dragonMaw(targetIds, color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 3 : tier));
+        const pw = t / 5;
+        const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
+        const spots = (live.length ? live.map(m => m.g.position.clone()) : [this.heroG.position.clone()]).slice(0, 2);
+        spots.forEach((spot, si) => {
+            const at = si * 140;
+            // ⓐ 예고 — 발밑이 부풀고 흙먼지 링. "뭔가 올라온다"
+            setTimeout(() => {
+                const mound = new THREE.Mesh(new THREE.SphereGeometry(0.5 + pw * 0.2, 10, 6),
+                    new THREE.MeshLambertMaterial({ color: 0x6b573f, flatShading: true }));
+                mound.userData.mawTell = true;
+                mound.position.set(spot.x, -0.45, spot.z);
+                mound.scale.y = 0.5;
+                this.scene.add(mound);
+                this.expandRing(new THREE.Vector3(spot.x, 0.02, spot.z), new THREE.Color(0x9c8466), 0.9);
+                this.addAnim(this.MAW_TELL_MS / 1000, k => {
+                    mound.position.y = -0.45 + k * 0.4;          // 흙이 솟아오른다
+                    mound.scale.setScalar(0.7 + k * 0.5);
+                    mound.scale.y *= 0.55;
+                }, () => { mound.geometry.dispose(); mound.material.dispose(); this.scene.remove(mound); });
+                for (let i = 0; i < 5; i++) this.riseParticle(new THREE.Vector3(spot.x + U.rand(-0.4, 0.4), 0.05, spot.z + U.rand(-0.3, 0.3)), new THREE.Color(0x8a7358));
+                SFX.stormRumble(0.28);
+            }, at);
+            // ⓑ 분출 → ⓒ 포식
+            setTimeout(() => {
+                // ⚠️ **크기가 이 연출의 절반이다.** 첫 캡처에서 1.05~1.6 배로 뽑았더니 적과 비슷한
+                //    덩치라 '거대 몬스터가 솟았다'가 아니라 '보라색 조각이 튀어나왔다'로 읽혔다.
+                //    적(≈1유닛)의 두 배는 돼야 '거대'가 성립한다.
+                const scale = 1.85 + pw * 0.85;
+                const G = this.mawHead(color, scale);
+                G.userData.mawHead = true;
+                // 입이 **카메라 쪽으로 열리게** 돌린다. 진행축(+x)만 보고 세우면 옆모습이라
+                // 벌어진 입이 실루엣에서 안 읽힌다 — 벌린 입을 보여 주는 게 이 연출의 전부다.
+                G.position.set(spot.x - 0.62, -1.5, spot.z - 0.1);
+                G.rotation.y = -0.95;
+                this.scene.add(G);
+                const jaw = G.userData.jaw;
+                const light = new THREE.PointLight(color.getHex(), 0, 6);
+                light.userData.mawLight = true;
+                light.position.set(spot.x, 1.1, spot.z);
+                this.scene.add(light);
+                this.shake(0.3 + pw * 0.25);
+                SFX.mawRoar(t);
+                // 솟구침 0.26s: 아래에서 위로, 입을 벌리며
+                this.addAnim(0.26, k => {
+                    const e = 1 - Math.pow(1 - k, 3);
+                    G.position.y = -1.5 + e * 2.35;
+                    const open = Math.min(1, k / 0.7);
+                    jaw.upper.rotation.z = -Math.PI / 2 - open * 0.62;   // 위턱이 젖혀진다
+                    jaw.lower.rotation.z = -Math.PI / 2 + open * 0.34;
+                    jaw.throat.material.opacity = 0.35 + open * 0.6;
+                    jaw.throat.scale.setScalar(0.7 + open * 0.7);
+                    light.intensity = e * (1.2 + pw * 1.2);
+                }, () => {
+                    // 포식 — 턱이 덥석 닫히며 숨결이 뿜어진다
+                    this.addAnim(0.16, k => {
+                        const c = k * k;                                  // 닫힘은 가속(무는 힘)
+                        jaw.upper.rotation.z = -Math.PI / 2 - 0.62 * (1 - c);
+                        jaw.lower.rotation.z = -Math.PI / 2 + 0.34 * (1 - c);
+                        jaw.throat.material.opacity = 0.95 * (1 - c * 0.6);
+                    }, () => {
+                        const bite = new THREE.Vector3(spot.x, 0.7, spot.z);
+                        this.explosion(bite, color);
+                        this.expandRing(new THREE.Vector3(spot.x, 0.02, spot.z), color, 1.6 + pw * 1.1);
+                        this.spawnSparks(bite, Math.round(18 + pw * 22), color.getHex(), { speed: 1.5 + pw * 0.8 });
+                        this.shake(0.34 + pw * 0.3);
+                        this.flashLight(bite, color.getHex(), 0.3);
+                        if (t >= 2) this.hitStop(0.045 + pw * 0.04);
+                        SFX.mawBite(t);
+                        // ⓓ 퇴장 — 가라앉으며 먼지
+                        this.addAnim(0.34, k => {
+                            G.position.y = 0.85 - k * 2.4;
+                            light.intensity *= 0.9;
+                            if (k > 0.5) G.rotation.x = (k - 0.5) * 0.5;
+                        }, () => {
+                            G.traverse(o => {
+                                if (o.isMesh && o.geometry) o.geometry.dispose();
+                                if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
+                            });
+                            this.scene.remove(G); this.scene.remove(light);
+                            for (let i = 0; i < 4; i++) this.riseParticle(new THREE.Vector3(spot.x + U.rand(-0.5, 0.5), 0.05, spot.z + U.rand(-0.3, 0.3)), new THREE.Color(0x8a7358));
+                        });
+                    });
+                });
+            }, at + this.MAW_TELL_MS);
+        });
+    },
+
     // 지그재그 번개 볼트 (항목 ㉰: 번개류=지그재그 볼트 메시). 예전 bolt 는 하늘에서 내리꽂는
     // 굵은 **곧은 원기둥**이라 '번개'가 아니라 '흰 기둥'으로 읽혔다 — 번개의 정체성은 **꺾인 경로**다.
     // from→to 사이를 세그먼트로 나눠 가로로 지터를 준 폴리라인을 TubeGeometry 로 두껍혀,
@@ -10224,10 +10378,13 @@ const Scene3D = {
     //    낙뢰 간격을 그대로 쓰면 발과 발 사이가 비어 '한 발씩 쏜다'로 읽힌다.
     // ⚠️ **첫 발과 마지막 발은 정조준**, 가운데만 흩는다(운석과 같은 규칙 — 조준됐다/마무리가 읽힌다).
     //    마지막 한 발은 굵게: 관통 사격은 세례로, 공허의 창은 마지막 큰 창으로 읽히게 하는 겸용이다.
+    // 발 간격(ms) — 등급이 높을수록 촘촘하게. **판정기가 이 값을 읽어 판정선을 만든다**(손으로
+    // 베끼면 여기를 고친 뒤에도 옛 값으로 재는 함정에 걸린다 — TODO 계측 함정 ④).
+    arrowGapMs(tier) { return 62 - Math.max(0, Math.min(5, tier | 0)) * 4; },
     arrowVolley(targetIds, color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const n = 3 + Math.min(4, t);                  // 레어 4발 … 궁극 이상 7발
-        const gap = 62 - t * 4;                        // 등급이 높을수록 촘촘하게
+        const gap = this.arrowGapMs(t);
         for (let i = 0; i < n; i++) {
             setTimeout(() => {
                 const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);

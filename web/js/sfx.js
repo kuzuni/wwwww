@@ -294,6 +294,20 @@ const SFX = {
         this.tone(1800 * k, 0.06, { type: 'triangle', gain: 0.06 + (tier || 0) * 0.006, slideTo: 900, jitter: 0.05 });
     },
 
+    // 거대 아가리 — 포효는 **저역이 전부**다. 낮은 톱니를 아래로 훑고 그 위에 으르렁 노이즈를 얹는다.
+    mawRoar(tier) {
+        const g = 0.2 + (tier || 0) * 0.02;
+        this.tone(120, 0.42, { type: 'sawtooth', gain: g, slideTo: 52, jitter: 0.04, rvb: 0.4 });
+        this.tone(180, 0.36, { type: 'triangle', gain: g * 0.6, slideTo: 78, jitter: 0.05, rvb: 0.35 });
+        this.noiseBurst(0.4, { filterFreq: 700, filterTo: 180, gain: 0.16, rvb: 0.3 });
+    },
+    // 무는 순간 — 이빨이 맞부딪는 딱 + 살점 뜯는 저역. 트랜지언트가 없으면 '닫혔다'가 안 들린다.
+    mawBite(tier) {
+        this.click({ freq: 5200, gain: 0.3 });
+        this.noiseBurst(0.11, { gain: 0.3, filterFreq: 2600, filterTo: 500 });
+        this.thump(150, 40, 0.22, { gain: 0.36 + (tier || 0) * 0.01, jitter: 0.05 });
+    },
+
     // ---- 장비 교체 3박자 (equip-swap-throwout, 사용자 지시 2026-08-19) ----
     // 화면 연출(`UI.playEquipSwapFx`)의 세 순간에 하나씩 붙는다: 던짐(0ms) → 딸깍(130ms) → 착지(558ms).
     // 셋이 같은 대역이면 한 덩어리로 뭉개져 '세 번 일어난 일'로 안 들린다 — 대역을 갈라 둔다:

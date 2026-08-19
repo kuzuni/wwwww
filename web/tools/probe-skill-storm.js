@@ -287,7 +287,8 @@ const ok = (c, m) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${m}`); if (!c) fail
                 const iv = setInterval(() => { Scene3D.update(1 / 60); if (performance.now() - t0 > 1500) { clearInterval(iv); res(); } }, 16);
             });
             Scene3D.projectileBolt = orig;
-            return { rar, tier, shots, enemy: { x: ep.x, z: ep.z }, hero: Scene3D.heroG.position.x, want: 3 + Math.min(4, tier) };
+            return { rar, tier, shots, enemy: { x: ep.x, z: ep.z }, hero: Scene3D.heroG.position.x, want: 3 + Math.min(4, tier),
+                gap: Scene3D.arrowGapMs(tier) };
         }, rarity);
         arows.push(r);
         await p.waitForTimeout(250);
@@ -299,7 +300,12 @@ const ok = (c, m) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${m}`); if (!c) fail
         ok(r.shots.length === r.want, `[beam ${r.rar}] 화살 ${r.shots.length}발 (코드값 ${r.want}발 — 예전엔 1발)`);
         if (r.shots.length >= 2) {
             const gaps = r.shots.slice(1).map((x, i) => x.t - r.shots[i].t);
-            ok(Math.max(...gaps) < 130, `[beam ${r.rar}] '다다다닥' 간격 (최대 ${Math.max(...gaps).toFixed(0)}ms <130 — 벌어지면 한 발씩 쏘는 걸로 읽힌다)`);
+            // ⚠️ 판정선은 **코드가 준 간격**에서 만든다. 130ms 같은 손으로 적은 상수를 쓰면 ⓐ 코드를
+            //    고친 뒤에도 옛 값으로 재고(함정 ④) ⓑ 실시간 setTimeout 은 렌더 부하에 따라 흔들려
+            //    같은 코드가 64ms↔140ms 로 오간다(실제로 이 단언이 그렇게 한 번 깜빡였다).
+            //    스케줄러 지터를 넉넉히 물리되, '한 발씩 쏘는' 수준(코드값의 3배 이상)은 잡는다.
+            const lim = r.gap * 3 + 60;
+            ok(Math.max(...gaps) < lim, `[beam ${r.rar}] '다다다닥' 간격 (최대 ${Math.max(...gaps).toFixed(0)}ms < ${lim}ms = 코드값 ${r.gap}ms 기준선)`);
             ok(spread > 120, `[beam ${r.rar}] 시간축에 퍼진다 (첫~끝 ${spread.toFixed(0)}ms >120)`);
         }
         ok(r.shots.every(x => Math.abs(x.fx - r.hero) < 1.2), `[beam ${r.rar}] 전부 영웅에게서 나간다`);
@@ -308,6 +314,67 @@ const ok = (c, m) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${m}`); if (!c) fail
         ok(r.shots[r.shots.length - 1].ti > r.shots[0].ti, `[beam ${r.rar}] 마지막 한 발이 굵다 (tier ${r.shots[0].ti} → ${r.shots[r.shots.length - 1].ti})`);
     }
     ok(arows[1].shots.length > arows[0].shots.length, `화살 등급 사다리 — ${arows.map(r => r.shots.length).join(' → ')}발`);
+
+    // ================= 지중 습격 · 거대 아가리 (breath) =================
+    // 여기서 '장면'의 증거는 넷: 발밑 예고가 아가리보다 먼저 뜨는가 · 아가리가 **땅속에서 위로**
+    // 솟는가(y 가 음수에서 양수로) · 턱이 벌어졌다 **닫히는가**(각이 커졌다 작아진다) · 가라앉아 사라지는가.
+    console.log('\n════ 지중 습격 · 거대 아가리 ════');
+    const brow = await p.evaluate(async () => {
+        Scene3D.clearEnemies();
+        const e = { id: 7950, x: Combat.MELEE_X, alive: true, hp: Big.of(1e9), maxHp: Big.of(1e9) };
+        Combat.enemies = [e]; Scene3D.spawnEnemy(e);
+        for (const a of Scene3D.anims) { try { a.fn(1); a.onDone && a.onDone(); } catch (x) {} }
+        Scene3D.anims = [];
+        const m = Scene3D.enemyMap.get(e.id);
+        m.g.position.set(e.x + Scene3D.worldX, 0, 0);
+        const def = SKILL_DEFS.find(s => s.fx === 'breath') || { rarity: 'legendary', fx: 'breath', color: '#ba68c8' };
+        const tier = Scene3D.skillTier(def);
+        const t0 = performance.now();
+        const frames = [];
+        Scene3D.skillEffect('breath', def.color, [e.id], def);
+        const ep = m.g.position.clone();
+        await new Promise(res => {
+            const iv = setInterval(() => {
+                Scene3D.update(1 / 60);
+                let tell = 0, head = 0, y = null, jaw = null, dx = null;
+                Scene3D.scene.traverse(o => {
+                    if (!o.userData) return;
+                    if (o.userData.mawTell) tell++;
+                    if (o.userData.mawHead) {
+                        head++; y = +o.position.y.toFixed(3);
+                        dx = +Math.hypot(o.position.x - ep.x, o.position.z - ep.z).toFixed(2);
+                        if (o.userData.jaw) jaw = +(o.userData.jaw.upper.rotation.z).toFixed(3);
+                    }
+                });
+                frames.push({ t: performance.now() - t0, tell, head, y, jaw, dx });
+                if (performance.now() - t0 > 2200) { clearInterval(iv); res(); }
+            }, 16);
+        });
+        return { tier, frames, tellMs: Scene3D.MAW_TELL_MS };
+    });
+    {
+        const f = brow.frames;
+        const firstTell = (f.find(x => x.tell > 0) || {}).t;
+        const firstHead = (f.find(x => x.head > 0) || {}).t;
+        const ys = f.filter(x => x.y !== null).map(x => x.y);
+        const jaws = f.filter(x => x.jaw !== null).map(x => x.jaw);
+        const last = f[f.length - 1];
+        console.log(`   발밑 예고 ${firstTell === undefined ? '없음' : firstTell.toFixed(0) + 'ms'} · 아가리 등장 ${firstHead === undefined ? '없음' : firstHead.toFixed(0) + 'ms'}`);
+        console.log(`   아가리 y ${ys.length ? Math.min(...ys).toFixed(2) + ' → ' + Math.max(...ys).toFixed(2) + ' → ' + ys[ys.length - 1].toFixed(2) : 'n/a'}`);
+        console.log(`   위턱 각 ${jaws.length ? Math.max(...jaws).toFixed(2) + ' ~ ' + Math.min(...jaws).toFixed(2) : 'n/a'}`);
+        ok(firstTell !== undefined, `[breath] 발밑 예고(흙더미)가 뜬다`);
+        ok(firstHead !== undefined && firstTell < firstHead, `[breath] 예고가 아가리보다 먼저다 (${firstTell === undefined ? 'n/a' : firstTell.toFixed(0)}ms < ${firstHead === undefined ? 'n/a' : firstHead.toFixed(0)}ms)`);
+        ok(ys.length > 0 && Math.min(...ys) < 0, `[breath] 땅속에서 시작한다 (최저 y ${ys.length ? Math.min(...ys).toFixed(2) : 'n/a'} < 0)`);
+        ok(ys.length > 0 && Math.max(...ys) > 0.3, `[breath] 지면 위로 솟는다 (최고 y ${ys.length ? Math.max(...ys).toFixed(2) : 'n/a'} > 0.3)`);
+        // 턱: 벌어졌다(각의 절댓값 증가) 닫힌다(다시 감소)
+        const openMax = jaws.length ? Math.min(...jaws) : 0;      // 더 젖혀질수록 값이 작아진다(-π/2 - open)
+        const closedEnd = jaws.length ? Math.max(...jaws) : 0;
+        ok(jaws.length > 3 && openMax < -1.9 && closedEnd > openMax + 0.3,
+            `[breath] 턱이 벌어졌다 덥석 닫힌다 (${openMax.toFixed(2)} → ${closedEnd.toFixed(2)})`);
+        const near = Math.max(0, ...f.filter(x => x.dx !== null).map(x => x.dx));
+        ok(near < 1.5, `[breath] 적 자리에서 솟는다 (최대 거리 ${near.toFixed(2)} <1.5)`);
+        ok(last.head === 0 && last.tell === 0, `[breath] 연출 뒤 잔존 0 (아가리 ${last.head} · 흙더미 ${last.tell})`);
+    }
 
     // ⑵-b 등급 사다리 — 높을수록 발수가 많다(단조 비감소, 양 끝은 실제로 늘어야 한다)
     const counts = rows.map(r => r.strikes.length);
