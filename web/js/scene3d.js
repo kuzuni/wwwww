@@ -4436,9 +4436,35 @@ const Scene3D = {
         if (style === 'plume') {            // 돔 + 깃장식
             const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat);
             dome.position.y = 0.03;
-            const plume = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.32, 8), rareMat);
-            plume.position.y = 0.42;
-            g.add(dome, plume);
+            g.add(dome);
+            if (age === 'primitive') {
+                // 깃털 장식(원시 분기): 곧은 원뿔은 '흰 스파이크/수정 다발'로 읽혔다(1차 채점 A·B 공통 —
+                // 깃털의 휘어짐·결이 0). 납작한 잎꼴 판 + 가운데 깃대 + 뒤로 눕는 휨 = 깃털의 서명.
+                const ribM = this.primalCordMat();
+                for (const [dx, tilt, len] of [[-0.095, 0.36, 0.30], [0, 0, 0.38], [0.095, -0.36, 0.30]]) {
+                    const f = new THREE.Group();
+                    const hw = len * 0.17;
+                    const sh = new THREE.Shape();
+                    sh.moveTo(0, 0);
+                    sh.quadraticCurveTo(hw, len * 0.28, hw * 0.72, len * 0.75);
+                    sh.quadraticCurveTo(hw * 0.4, len * 0.97, 0, len);
+                    sh.quadraticCurveTo(-hw * 0.4, len * 0.97, -hw * 0.72, len * 0.75);
+                    sh.quadraticCurveTo(-hw, len * 0.28, 0, 0);
+                    const blade = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: false }), rareMat);
+                    blade.position.z = -0.006;
+                    f.add(blade);
+                    const rib = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.011, len * 0.88, 5), ribM);
+                    rib.position.set(0, len * 0.42, 0.012);
+                    f.add(rib);
+                    f.position.set(dx, 0.24, -0.02);
+                    f.rotation.set(-0.24, 0, tilt);   // 뒤로 눕고(휨) 좌우는 부채로 벌어진다
+                    g.add(f);
+                }
+            } else {
+                const plume = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.32, 8), rareMat);
+                plume.position.y = 0.42;
+                g.add(plume);
+            }
         } else if (style === 'cone') {      // 고깔 모자 (마법사/사신)
             const cone = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.55, 10), mat);
             cone.position.y = 0.34;
@@ -4708,14 +4734,6 @@ const Scene3D = {
                 this.addPrimalHorns(g, style === 'cone' ? 0.30 : style === 'mask' ? 0.20 : 0.26,
                     style === 'cone' ? 0.14 : style === 'mask' ? 0.05 : 0.10,
                     style === 'mask' ? 0.85 : 0);
-            } else if (style === 'plume') {
-                // 깃털 장식: 외깃 하나는 '흰 뿔'로 읽힌다 — 양옆에 짧은 깃을 더해 부채꼴 깃장식으로
-                for (const s of [-1, 1]) {
-                    const feather = new THREE.Mesh(new THREE.ConeGeometry(0.048, 0.24, 7), rareMat);
-                    feather.position.set(s * 0.09, 0.36, -0.02);
-                    feather.rotation.z = -s * 0.38;
-                    g.add(feather);
-                }
             } else if (style === 'hair') {
                 // 수염(털가죽 모자): 뼈 비녀 — 사선으로 꽂힌 뼈 막대 + 양끝 마디.
                 // ⚠️ 캡(r 0.25)이 y 0.16 에서 반폭 0.206 이라, 막대 0.42 로는 양끝이 표면에 묻힌다(실측) —
