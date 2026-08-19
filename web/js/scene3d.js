@@ -426,13 +426,32 @@ const Scene3D = {
             m.onBeforeCompile = (shader, renderer) => {
                 if (prev) prev(shader, renderer);
                 for (const k in u) shader.uniforms[k] = u[k];
+                // ⚠️ `getShadowMask()` 는 **Phong/Standard 프래그먼트에 기본 포함되지 않는다.**
+                //    그 함수는 `shadowmask_pars_fragment` 청크에 있고, 조명 재질은 그림자를
+                //    `lights_fragment_begin` 안에서 인라인으로 처리하느라 이 청크를 안 넣는다
+                //    (그래서 `#ifdef USE_SHADOWMAP` 로 감싸도 'no matching overloaded function' 이 난다 — 실측).
+                //    → 청크를 **`void main()` 직전**에 직접 끼워 넣는다(그 위에서 `shadowmap_pars_fragment`
+                //      가 이미 getShadow 등을 선언해 두므로 여기서 정의가 성립한다).
                 shader.fragmentShader = 'uniform vec3 uShadeTint;\nuniform float uShadeStr;\nuniform vec3 uShadeSun;\n'
-                    + shader.fragmentShader.replace('#include <tonemapping_fragment>', [
+                    + shader.fragmentShader
+                        .replace('void main()', '#include <shadowmask_pars_fragment>\nvoid main()')
+                        .replace('#include <tonemapping_fragment>', [
                         '{',
-                        // 그늘 판정은 **면이 태양을 등졌는가**로만 한다(뷰 공간 법선 · 뷰 공간 태양 방향).
+                        // 그늘은 두 갈래다 — ⑴ 면이 태양을 등졌거나(self shadow) ⑵ 남이 드리웠거나(cast shadow).
+                        // ⑵ 를 빼면 **드리운 그림자만 순검정으로 남는다** — 비평가 2인이 각각 최우선으로
+                        // 지적한 "드리울 물체가 화면에 없는 거대한 새까만 아메바 얼룩"이 정확히 이것이다
+                        // (지면은 태양을 향하고 있어 N·L 로는 그늘로 안 잡힌다).
                         '  float ndl = dot(normalize(normal), uShadeSun);',
                         // 정면광(0.25 이상)은 0, 완전 역광(−0.35)에서 1 — 터미네이터를 넓게 잡아 밴딩 방지
-                        '  float k = smoothstep(0.25, -0.35, ndl);',
+                        '  float kSelf = smoothstep(0.25, -0.35, ndl);',
+                        // ⚠️ `getShadowMask()` 는 **`USE_SHADOWMAP` 이 정의된 재질에만** 존재한다.
+                        //    그림자를 안 받는 재질(receiveShadow=false)에서는 선언 자체가 없어
+                        //    'no matching overloaded function' 로 셰이더가 통째로 컴파일 실패한다(실측).
+                        '  float kCast = 0.0;',
+                        '  #ifdef USE_SHADOWMAP',
+                        '    kCast = 1.0 - getShadowMask();',   // 1 = 완전히 가려짐
+                        '  #endif',
+                        '  float k = max(kSelf, kCast);',
                         '  gl_FragColor.rgb += uShadeTint * (k * uShadeStr);',
                         '}',
                         '#include <tonemapping_fragment>',
@@ -1685,7 +1704,8 @@ const Scene3D = {
             const blob = new THREE.Mesh(this.blobGeo, this.blobShadowMat); // setShadow 이후에 붙여 castShadow 제외
             blob.rotation.x = -Math.PI / 2;
             blob.position.y = 0.03;
-            blob.scale.setScalar(1.15 * s + 0.5); // 캐노피 밖으로 그림자가 보이도록 넉넉하게
+            // 실측 실루엣 폭에 묶는다(t.scale 은 블롭이 t 의 자식이라 상쇄해 준다).
+            blob.scale.setScalar(this.footprintRadius(t) * 1.9 / Math.max(0.01, t.scale.x));
             blob.userData.sharedGeometry = true;
             t.add(blob);
             this.scene.add(t);
@@ -1706,7 +1726,7 @@ const Scene3D = {
             const hblob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
             hblob.rotation.x = -Math.PI / 2;
             hblob.position.y = 0.04;
-            hblob.scale.setScalar(2.9);
+            hblob.scale.setScalar(this.footprintRadius(hero) * 1.7);   // 랜드마크는 고정 2.9 였다 — 종에 따라 실루엣이 2배 넘게 달랐다
             hblob.userData.sharedGeometry = true;
             hero.add(hblob);
             this.scene.add(hero);
@@ -1781,7 +1801,7 @@ const Scene3D = {
                 const blob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
                 blob.rotation.x = -Math.PI / 2;
                 blob.position.y = 0.03;
-                blob.scale.setScalar(0.9 * s + 0.4);
+                blob.scale.setScalar(this.footprintRadius(p) * 1.8 / Math.max(0.01, p.scale.x));
                 blob.userData.sharedGeometry = true;
                 p.add(blob);
                 this.scene.add(p);
@@ -8120,10 +8140,39 @@ const Scene3D = {
         return rec;
     },
 
+    // 접지 블롭 전용 텍스처 — `makeGlowTexture` 는 45% 지점에서 이미 알파 0.4 라 **넓고 흐린 헤이즈**가
+    // 된다. 큰 소품에 그걸 크게 깔면 '무엇이 드리웠는지 알 수 없는 검은 아메바 얼룩'으로 읽힌다
+    // (비평가 2인이 각각 최우선으로 지적: "드리울 물체가 화면에 없는 거대한 새까만 얼룩").
+    // 접지 AO 는 **중심이 진하고 빨리 떨어져야** 한다 — 밑동 아래를 확실히 눌러 주고 가장자리는 곧 사라진다.
+    makeBlobTexture() {
+        if (this._blobTex) return this._blobTex;
+        const size = 128;
+        const c = document.createElement('canvas');
+        c.width = c.height = size;
+        const ctx = c.getContext('2d');
+        const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+        grad.addColorStop(0, 'rgba(255,255,255,1)');
+        grad.addColorStop(0.34, 'rgba(255,255,255,0.72)');
+        grad.addColorStop(0.68, 'rgba(255,255,255,0.16)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, size, size);
+        return (this._blobTex = new THREE.CanvasTexture(c));
+    },
+
+    // 소품이 실제로 지면을 덮는 반경(월드) — 블롭 크기를 **명목 스케일이 아니라 실측 실루엣**에 묶는다.
+    // 명목 스케일(`1.15*s+0.5`)로 잡으면 같은 s 라도 종에 따라 폭이 2배 넘게 달라 블롭이 따로 논다.
+    footprintRadius(obj) {
+        const bb = new THREE.Box3().setFromObject(obj);
+        if (!isFinite(bb.min.x)) return 1;
+        const sz = bb.getSize(new THREE.Vector3());
+        return U.clamp(Math.max(sz.x, sz.z) * 0.5, 0.25, 4.5);
+    },
+
     ensureBlobRes() {
         if (this.blobShadowMat) return;
         this.blobShadowMat = new THREE.MeshBasicMaterial({
-            map: this.makeGlowTexture(), color: 0x000000, transparent: true, opacity: 0.17, depthWrite: false, // 실그림자(섀도맵)의 접지 AO 보조 — 0.34는 실그림자와 이중 노출로 '그림자 두 개' 오독 (비평가: 버섯·임프 블롭 정합)
+            map: this.makeBlobTexture(), color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false, // 실그림자(섀도맵)의 접지 AO 보조 — 0.34는 실그림자와 이중 노출로 '그림자 두 개' 오독 (비평가: 버섯·임프 블롭 정합). 폴오프를 좁힌 만큼(makeBlobTexture) 0.17 → 0.22 로 소폭 보정
         });
         this.blobShadowFlyMat = this.blobShadowMat.clone();
         this.blobShadowFlyMat.opacity = 0.45; // 비행체 전용 — 실그림자를 끄므로 블롭이 유일한 접지 단서 (0.3은 샷에서 안 보여 '부유 스티커', 비평가 7.3 5번)

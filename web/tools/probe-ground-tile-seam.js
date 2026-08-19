@@ -12,6 +12,9 @@
 // 사용: node probe-ground-seam.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
+// ⚠️ **한 번 돌려 판정하지 말 것.** 텍스처는 매 부팅 `Math.random()` 으로 새로 굽기 때문에 비율이
+//     런마다 흔들린다(실측 5회: 4회 전부 통과, 1회가 게이트를 스쳤다). 값은 보통 0.91~1.13 대역이라
+//     여유가 있지만, 경계에 걸리면 **3회 중앙값**으로 볼 것.
 const GATE = 1.25;
 
 (async () => {
