@@ -1809,13 +1809,20 @@ const Scene3D = {
             }
         }
         // 작은 소품도 접지 블롭을 깔아 "떠 있는 스티커" 인상 제거 — 회전은 내부 메시에만 주고 그룹은 수평 유지
+        // ⚠️ 작은 소품도 **큰 소품과 같은 규칙**(footprintRadius 실측)을 따라야 한다. 큰 것만 실루엣에
+        //    묶고 여기를 손튜닝 상수로 남겨 뒀더니, 풀·덤불에서 블롭이 제 소품의 **최대 4.6배**로 남아
+        //    있었다(실측 `probe-prop-blob.js`: 초원·밤숲·마법 29/215건 초과, 최악 반경 0.054 소품 아래
+        //    반경 0.25 블롭). 큰 얼룩만 눈에 띄어서 작은 것들이 사각지대로 남은 것.
+        //    `blobScale` 은 이제 폴백이다 — 박스를 못 재는 경우(빈 그룹)에만 쓰인다.
         const grounded = (mesh, blobScale) => {
             const g = new THREE.Group();
             g.add(mesh);
             const blob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
             blob.rotation.x = -Math.PI / 2;
             blob.position.y = 0.025;
-            blob.scale.setScalar(blobScale);
+            // 블롭을 **붙이기 전에** 잰다(붙인 뒤면 블롭 자신이 박스에 들어가 제 크기를 정당화한다)
+            const r = this.footprintRadius(g, 0.02);   // 하한 0.25 는 풀 한 포기의 5배다 — 작은 소품용 하한으로
+            blob.scale.setScalar(r > 0 ? r * 1.9 : blobScale);
             blob.userData.sharedGeometry = true;
             g.add(blob);
             return g;
@@ -8213,11 +8220,15 @@ const Scene3D = {
 
     // 소품이 실제로 지면을 덮는 반경(월드) — 블롭 크기를 **명목 스케일이 아니라 실측 실루엣**에 묶는다.
     // 명목 스케일(`1.15*s+0.5`)로 잡으면 같은 s 라도 종에 따라 폭이 2배 넘게 달라 블롭이 따로 논다.
-    footprintRadius(obj) {
+    // minR: 하한(기본 0.25). ⚠️ 풀·덤불처럼 **하한보다 작은 소품**에는 이 기본값을 쓰면 안 된다 —
+    //    반경 0.05 짜리 풀에 0.25 를 깔면 블롭이 제 소품의 **5배**가 되어, 큰 소품에서 없앤 '캐스터 없는
+    //    얼룩'이 작은 소품에서 그대로 재현된다(실측: 초원·밤숲·마법에서 최악 4.8배). 호출부가 자기
+    //    크기대에 맞는 하한을 넘길 것.
+    footprintRadius(obj, minR) {
         const bb = new THREE.Box3().setFromObject(obj);
         if (!isFinite(bb.min.x)) return 1;
         const sz = bb.getSize(new THREE.Vector3());
-        return U.clamp(Math.max(sz.x, sz.z) * 0.5, 0.25, 4.5);
+        return U.clamp(Math.max(sz.x, sz.z) * 0.5, minR === undefined ? 0.25 : minR, 4.5);
     },
 
     ensureBlobRes() {
