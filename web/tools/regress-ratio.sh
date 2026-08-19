@@ -41,6 +41,7 @@ PROBES=(
     probe-fi-dom.js             # forge-info  042831
     probe-shop-dom.js           # shop        042632
     probe-tn-dom.js             # tech-node   042605
+    probe-pinfo-px.js           # player-info 043313 — 판정문·종료코드를 갖췄는데 목록에 없어 묻혀 있었다
     probe-cell-icon-size.js     # 메인 장비 칸 아이콘 채움
     probe-grid-empty.js         # 빈 상태 문구 스팬
     probe-xmark-dom.js          # 닫기 ✕ 캔버스 아이콘 계약(폭/높이/색, icon-gen)

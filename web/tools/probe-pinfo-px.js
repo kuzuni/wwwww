@@ -181,13 +181,42 @@ const SCAN = async ([src]) => {
     }
     const mountW = mtL >= 0 ? mtR - mtL + 1 : null;   // null 이면 시안 셀 없음(상태 다름) — 판정 제외
 
+    // ── 스탯(옵션 합계) 줄 — 좌 인셋 · 줄 피치 ────────────────────────────────
+    // 왜 재나: 이 두 값이 아무 판정기에도 안 걸려 있어서, `.pinfo-subs-list` 의 실측 `line-height`
+    // 를 **뒤에 온 같은 특이도 규칙이 조용히 덮어도** 아무도 몰랐다(2026-08-19 비평가 2인이
+    // 독립적으로 잡아냈다 — 줄마다 +0.65~0.87%p 가 쌓여 7번째 줄에서 +6.5%p). 좌 인셋도 같이
+    // 어긋나 있었다(원본 15.01%CW vs 클론 6.93%CW). 다시 덮이면 여기서 걸린다.
+    // 위 밴드 기계를 안 쓰고 따로 훑는다 — 밴드는 `y1-y0 >= 12` 라 12~13px 짜리 글자 줄이
+    // 경계에 걸려 붙었다 떨어졌다 한다. 글자만 보는 술어로 독립 스캔하는 편이 안 흔들린다.
+    const glyph = (x, y) => Math.max(...at(x, y)) < 120;
+    const subLines = [];
+    { let cur = null;
+      for (let y = orb.y1 + 1; y <= cb; y++) {
+          let f = -1, n = 0;
+          for (let x = cl; x <= cr; x++) if (glyph(x, y)) { if (f < 0) f = x; n++; }
+          if (n >= 8) { if (!cur) cur = { y0: y, y1: y, f }; else { cur.y1 = y; cur.f = Math.min(cur.f, f); } }
+          else if (cur) { if (cur.y1 - cur.y0 >= 5) subLines.push(cur); cur = null; }
+      }
+      if (cur && cur.y1 - cur.y0 >= 5) subLines.push(cur); }
+    // 좌 인셋은 **줄들의 최빈 좌단**으로 — 값이 짧은 줄('+3.86% 피해')도 같은 x 에서 시작하므로
+    // 최빈값이 곧 목록의 들여쓰기다. 피치는 앞 두 줄 간격(원본은 7줄이 17px 로 고르다).
+    let subsLeft = null, subsPitch = null;
+    if (subLines.length >= 2) {
+        const m = new Map(); let bv = null, bc = 0;
+        for (const s of subLines) { const n = (m.get(s.f) || 0) + 1; m.set(s.f, n); if (n > bc) { bc = n; bv = s.f; } }
+        const same = subLines.filter(s => s.f === bv);
+        subsLeft = bv - cl;
+        if (same.length >= 2) subsPitch = same[1].y0 - same[0].y0;
+    }
+
     return {
         size: [W, H], card: { l: cl, t: ct, r: cr, b: cb, w: CW },
         gearBand: `${gear.y0}..${gear.y1}`, orbBand: `${orb.y0}..${orb.y1}`, orbN: orbCols.length,
+        subLineN: subLines.length,
         px: {
             gearW, gearPitch: gearCols[1][0] - gearCols[0][0], gearLeft: gearCols[0][0] - cl,
             orbW, orbPitch: orbCols[1][0] - orbCols[0][0], orbLeft: orbLeft - cl, orbTop: orb.y0 - ct,
-            mountW,
+            mountW, subsLeft, subsPitch,
         },
     };
 };
@@ -213,7 +242,14 @@ const DOM = () => {
     // 장비 2행 탈것 셀 = span-2 넓은 칸 (인계 ⓑ)
     const mountEl = document.querySelector('.equip-grid.pinfo-gear .pinfo-mount-wide');
     const mount = vis(mountEl) ? R(mountEl) : null;
-    return { card: { w: cr.width, h: cr.height }, cellN: cells.length, row1, orbs, mount };
+    // 스탯 줄 — 원본은 글자 잉크로 재므로 클론도 **글자 상자**가 아니라 줄 상자로 맞춰야 자가 같다.
+    // `.pinfo-subs-list > div` 는 한 줄에 하나라 rect 의 y 차이가 곧 줄 피치이고,
+    // 좌단은 목록의 padding-left 가 반영된 콘텐츠 좌단이다(원본 잉크 좌단과 같은 자리).
+    const subEls = [...document.querySelectorAll('.pinfo-subs-list > div')].filter(vis).map(R);
+    const subs = subEls.length >= 2
+        ? { left: subEls[0].x, pitch: subEls[1].y - subEls[0].y, n: subEls.length }
+        : null;
+    return { card: { w: cr.width, h: cr.height }, cellN: cells.length, row1, orbs, mount, subs };
 };
 
 (async () => {
@@ -272,6 +308,18 @@ const DOM = () => {
     // 탈것 셀(span-2 시안 칸) — 원본 시안이 잡히고 클론에 .pinfo-mount-wide 가 있을 때만 판정(인계 ⓑ)
     if (ref.px.mountW != null && clone.mount) rows.push(['탈것 셀 폭(span2)', rp(ref.px.mountW), cp(clone.mount.w)]);
     else console.log(`\n[미판정 참고] 탈것 셀 — 원본 시안 ${ref.px.mountW == null ? '없음(상태 다름)' : rp(ref.px.mountW).toFixed(2) + '%CW'} · 클론 ${clone.mount ? cp(clone.mount.w).toFixed(2) + '%CW' : '.pinfo-mount-wide 없음'}`);
+    // 스탯 줄 — 원본에서 줄이 2개 이상 잡히고 클론 목록도 2줄 이상일 때만 판정한다
+    // (보유 옵션이 0~1개인 상태에서는 피치가 없다 — '보유한 옵션 없음' 한 줄만 나온다).
+    if (ref.px.subsLeft != null && ref.px.subsPitch != null && clone.subs) {
+        rows.push(['스탯 줄 좌 인셋', rp(ref.px.subsLeft), cp(clone.subs.left)]);
+        rows.push(['스탯 줄 피치', rp(ref.px.subsPitch), cp(clone.subs.pitch)]);
+        // 🚨 줄 피치는 **한 줄만 보면 게이트를 통과하면서 목록 전체를 밀어낸다** — 비평가 2인이
+        //    잡은 실제 증상이 그것이다(줄마다 +0.65~0.87%p 인데 7번째 줄에서 +6.5%p). 그래서
+        //    6칸(=7줄) 누적도 같은 ±2%p 로 판정한다. 이게 사람이 보는 어긋남에 맞는 감도다.
+        rows.push(['스탯 6칸 누적', rp(ref.px.subsPitch * 6), cp(clone.subs.pitch * 6)]);
+    } else {
+        console.log(`\n[미판정 참고] 스탯 줄 — 원본 ${ref.subLineN}줄(좌 ${ref.px.subsLeft} · 피치 ${ref.px.subsPitch}) · 클론 ${clone.subs ? clone.subs.n + '줄' : '2줄 미만'}`);
+    }
     console.log('\n단위 = 카드 폭 대비 % (가로세로 공통)');
     console.log('요소                 원본     클론      Δ%p   판정(게이트 ±2%p)');
     let fail = 0;
