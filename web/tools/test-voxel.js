@@ -167,6 +167,26 @@ eq('8×8×8 은 384면(제거 없으면 3072)', Voxel.faces(Voxel.box(8, 8, 8), 
             cap.some(v => v.y === capTop && v.x === 0 && v.z === 0));
     }
 
+    // 바위 — 겉만 깎고 속은 안 건드린다(속을 깎으면 겉이 뚫려 구멍이 난다).
+    {
+        const r0 = Voxel.rock(4, 3), r1 = Voxel.rock(4, 3), r2 = Voxel.rock(4, 11);
+        ok('rock 은 같은 seed 에 같은 바위를 낸다', JSON.stringify(r0) === JSON.stringify(r1));
+        ok('rock 은 seed 가 다르면 다른 바위를 낸다', JSON.stringify(r0) !== JSON.stringify(r2));
+        eq('bite 0 이면 타원체 그대로', Voxel.rock(4, 3, { bite: 0 }).length, Voxel.ellipsoid(4, 4, 4).length);
+        ok('bite 가 걸리면 칸이 준다', r0.length < Voxel.ellipsoid(4, 4, 4).length,
+            `${r0.length} < ${Voxel.ellipsoid(4, 4, 4).length}`);
+        // 🚨 속 칸은 한 개도 안 깎여야 한다 — 깎이면 겉에서 들여다보이는 구멍이 된다.
+        const full = Voxel.ellipsoid(4, 4, 4);
+        const inner = full.filter(v => Voxel.faces([v], {}) &&
+            [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]
+                .every(n => full.some(w => w.x === v.x + n[0] && w.y === v.y + n[1] && w.z === v.z + n[2])));
+        const have = new Set(r0.map(v => v.x + ',' + v.y + ',' + v.z));
+        ok('rock 은 속 칸을 안 깎는다', inner.every(v => have.has(v.x + ',' + v.y + ',' + v.z)),
+            `속 ${inner.length}칸`);
+        // 접지면은 평평해야 땅에 얹힌다 — flatBottom 아래는 통째로 잘린다.
+        ok('flatBottom 아래는 잘린다', Math.min(...Voxel.rock(4, 7, { flatBottom: -1 }).map(v => v.y)) === -1);
+    }
+
     // 조립 — `at` 은 원본을 안 건드리고, `merge` 는 **단순 이어붙이기**다(중복 제거 아님).
     {
         const src = [{ x: 0, y: 0, z: 0, c: 0x111111 }];

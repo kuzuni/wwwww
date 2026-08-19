@@ -12585,58 +12585,89 @@ const Scene3D = {
                 anim.jelly = { mesh: body, base: Float32Array.from(jp.array), h: hMax || 1, lag: 1.15, follow };
             }
         } else if (kind === 'golem') {
-            // 바위 구축물: 역삼각 몸통 라테 + 마그마 코어 + 거대 주먹 분절 팔 (눈사람 금지)
-            const rockM = lam(base.clone().offsetHSL(0, -0.12, -0.02), ProChar.rockTex());
-            const rockD = lam(base.clone().offsetHSL(0, -0.12, -0.16), ProChar.rockTex());
-            rockM.flatShading = true; rockD.flatShading = true; // 각진 바위 파셋 — '매끈한 점토' 오독 제거 (비평가 지적)
-            const magma = new THREE.MeshBasicMaterial({ color: 0xff5a22 }); // 깊은 마그마 오렌지 — 베이지 데칼 오독 방지
+            // 🧊 **voxel 전환 2종째** (화풍 확정 2026-08-20). 바위는 큐브 조형이 가장 잘 맞는 종이라
+            //    슬라임 다음 순서로 잡았다 — 종전은 이십면체를 노이즈로 깎은 청크(`boulderGeo`)와
+            //    라테 몸통이라, '각져 보이지만 면이 축정렬이 아니어서' 화풍 정합에서 떨어지는 조형이었다.
+            // ⚠️ **비례·부위 목록·애니 훅·AO 링 자리는 그대로 옮긴다** — 인계 규칙(형태 판정은 유지).
+            // 🚨 **표면 텍스처(rockTex)를 뺐다 — 되돌리지 말 것.** 화풍 ⓒ 가 '텍스처 파일 없음 ·
+            //    면당 플랫 색'을 못 박았고, `equip-voxelize` 도 "표면의 자갈 노이즈가 그 규칙을 깬다"를
+            //    비평가 지적으로 등재해 뒀다. 바위의 얼룩덜룩함은 이제 **큐브별 색변화(jitter)**가 낸다.
+            const rockM = lam(base.clone().offsetHSL(0, -0.12, -0.02));
+            const rockD = lam(base.clone().offsetHSL(0, -0.12, -0.16));
+            for (const m2 of [rockM, rockD]) { m2.vertexColors = true; m2.flatShading = true; }
+            const magma = new THREE.MeshBasicMaterial({ color: 0xff5a22, vertexColors: true }); // 깊은 마그마 오렌지 — 베이지 데칼 오독 방지
+            // 🚨 **한 칸(VS=0.05)보다 작은 디테일은 한 칸으로 '올라붙는다'.** 종전 균열은 폭 0.013,
+            //    코어 림 튜브는 0.022 였다 — 복셀 격자에서 그건 표현할 수 없다. 종마다 격자를 잘게
+            //    바꾸면 같은 세계의 벽돌 크기가 달라져(슬라임 13칸 vs 골렘 27칸이 같은 벽돌이라는
+            //    사실이 화풍의 일관성 그 자체다) 오히려 화풍이 깨진다. → **격자는 공용으로 두고
+            //    작은 디테일은 한 칸으로 키운다**(마인크래프트의 용암 광맥이 그렇게 생겼다).
+            const gv = (r) => r / VS;                        // 월드 반지름 → 칸
+            // 피벗이 위쪽 끝인 분절 사지 — `limb`(캡슐)의 voxel 대응.
+            //   `taper` 는 y0 부터 위로 쌓이므로, 위(rTop)가 꼭대기에 오도록 뒤집어 넣고 통째로 내린다.
+            const vlimb = (rTop, rBot, len, m) => {
+                const grp = new THREE.Group();
+                const h = Math.max(1, Math.round(len / VS));
+                const mesh = vx(Voxel.taper(gv(rBot), gv(rTop), h), { material: m, color: 0xffffff });
+                mesh.position.y = -(h - 1) * VS;
+                grp.add(mesh);
+                return grp;
+            };
+            const vrock = (r, seed, o) => vx(Voxel.rock(gv(r), seed, o || {}), { material: (o && o.mat) || rockM, color: 0xffffff, center: true });
+            // 역삼각 몸통 — 종전 라테 프로파일을 칸 단위로 그대로 넘긴다(실루엣 불변).
             const prof = [[0.17, 0], [0.3, 0.1], [0.36, 0.3], [0.33, 0.46], [0.2, 0.56]];
-            body = mk(new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 12), rockM);
+            body = vx(Voxel.revolve(prof.map(p => [gv(p[0]), gv(p[1])])), { material: rockM, color: 0xffffff });
             body.position.y = 0.42; body.scale.z = 0.85;
             g.add(body);
-            // 마그마 코어 + 가슴 균열 스트립
-            const core = mk(new THREE.OctahedronGeometry(0.072), magma); // 각진 마그마 결정 — 평면 데칼 아닌 돌출 지오메트리
+            // 마그마 코어 — 종전 팔면체. `gem` 이 |x|+|y|+|z| ≤ r 이라 계단이 45° 로 떨어져 같은 언어다.
+            // ⚠️ 크기는 실측으로 한 단 내렸다 — `gem(2)`(5칸 = 0.25)는 종전 팔면체(0.144)의 1.7배라
+            //    림·균열과 합쳐져 **가슴 전체가 주황 덩어리 하나**로 뭉쳤다(첫 캡처에서 육안 확인).
+            const core = vx(Voxel.gem(1.6), { material: magma, color: 0xffffff, center: true, ao: 0 });
             core.position.set(0, 0.73, 0.325); core.scale.z = 0.45; core.rotation.z = 0.35;
-            const coreRim = mk(new THREE.TorusGeometry(0.075, 0.022, 6, 12), rockD); // 코어 둘레 함몰 바위 림 — 표면 스티커가 아니라 깨진 틈 속 마그마
-            coreRim.position.set(0, 0.73, 0.318);
+            // 코어 둘레 함몰 바위 림 — 토러스 → 큐브 링(표면 스티커가 아니라 깨진 틈 속 마그마)
+            const coreRim = vx(Voxel.ring(2, 1, 1), { material: rockD, color: 0xffffff, center: true });
+            coreRim.position.set(0, 0.73, 0.318); coreRim.scale.set(0.8, 0.8, 0.5);
             g.add(core, coreRim);
-            // 코어에서 방사하는 가는 균열 (한 덩어리로 뭉치지 않게 짧고 얇게)
-            for (const [cx2, cy2, ang] of [[0.1, 0.79, 0.9], [-0.1, 0.78, -0.8], [0.09, 0.66, -1.0], [-0.08, 0.65, 1.1]]) {
-                const crack = mk(new THREE.BoxGeometry(0.013, 0.09, 0.012), magma);
-                crack.position.set(cx2, cy2, 0.305); crack.rotation.z = ang;
+            // 코어에서 방사하는 균열 — 종전은 회전시킨 얇은 Box(축정렬이 아니라 화풍 위반).
+            // 복셀에서 비스듬한 선은 **계단 3칸**이다. 한 칸 = 0.05 라 종전 폭 0.013 보다 굵어진다.
+            for (const [cx2, cy2, dx] of [[0.1, 0.79, 1], [-0.1, 0.78, -1], [0.09, 0.66, -1], [-0.08, 0.65, 1]]) {
+                // ⚠️ 계단 3칸(0.15)은 코어와 붙어 덩어리가 됐다 — 2칸으로 줄이고 두께도 0.6배.
+                const crack = vx(Voxel.merge(Voxel.box(1, 1, 1), Voxel.at(Voxel.box(1, 1, 1), dx, 1, 0)),
+                    { material: magma, color: 0xffffff, center: true, ao: 0, jitter: 0 });
+                crack.position.set(cx2, cy2, 0.305); crack.scale.set(0.6, 0.9, 0.3);
                 g.add(crack);
             }
-            // 옆구리 마그마 틈 + 이끼 패치 — 단색 표면 정보량 상향
+            // 옆구리 마그마 틈 — 같은 이유로 계단 2칸
             for (const s of [-1, 1]) {
-                const flank = mk(new THREE.BoxGeometry(0.011, 0.13, 0.011), magma);
-                flank.position.set(s * 0.3, 0.62, 0.12); flank.rotation.z = s * 0.5;
+                const flank = vx(Voxel.merge(Voxel.box(1, 2, 1), Voxel.at(Voxel.box(1, 1, 1), s, 2, 0)),
+                    { material: magma, color: 0xffffff, center: true, ao: 0, jitter: 0 });
+                flank.position.set(s * 0.3, 0.62, 0.12); flank.scale.z = 0.3;
                 g.add(flank);
             }
-            const mossM = new THREE.MeshLambertMaterial({ color: 0x5e7d3a });
-            for (const [mx, my, mz, mr] of [[-0.14, 0.95, 0.1, 0.075], [0.2, 0.52, 0.2, 0.06], [0.05, 1.13, -0.05, 0.065]]) {
-                const moss = mk(new THREE.SphereGeometry(mr, 8, 6), mossM);
-                moss.position.set(mx, my, mz); moss.scale.y = 0.35;
+            // 이끼 패치 — 납작한 큐브 판(구를 눌러 만들던 것). 바위 위에 얹힌 이끼는 원래 판이다.
+            const mossM = new THREE.MeshLambertMaterial({ color: 0x5e7d3a, vertexColors: true, flatShading: true });
+            for (const [mx, my, mz, mr] of [[-0.14, 0.95, 0.1, 2], [0.2, 0.52, 0.2, 1.6], [0.05, 1.13, -0.05, 1.7]]) {
+                const moss = vx(Voxel.ellipse(mr, mr, 1, {}), { material: mossM, color: 0xffffff, center: true, ao: 0.5 });
+                moss.position.set(mx, my, mz);
                 g.add(moss);
             }
-            // 어깨 볼더 + 분절 팔(상완 캡슐 → 팔꿈치 → 하완 → 거대 주먹, 지면까지 늘어짐)
+            // 어깨 볼더 + 분절 팔(상완 → 팔꿈치 → 하완 → 거대 주먹, 지면까지 늘어짐)
             for (const s of [-1, 1]) {
                 const sh = new THREE.Group();
                 sh.position.set(s * 0.38, 0.9, 0); // 몸통에 파묻히게 안쪽으로 — 어깨 볼더 공중부양 금지
-                // 어깨·팔꿈치·주먹·너클은 전부 완전구였다 — 좌우 시드를 갈라 비대칭까지 준다(바위는 대칭이 아니다)
-                const boulder = mk(this.boulderGeo(0.165, s > 0 ? 3 : 11, { amp: 0.3 }), rockD);
+                // 좌우 시드를 갈라 비대칭까지 준다(바위는 대칭이 아니다)
+                const boulder = vrock(0.165, s > 0 ? 3 : 11, { bite: 0.3 });
                 boulder.scale.set(1.05, 0.9, 0.9); boulder.position.x = -s * 0.02;
-                const upper = limb(0.085, 0.075, 0.3, rockM);
+                const upper = vlimb(0.085, 0.075, 0.3, rockM);
                 upper.rotation.z = s * 0.12;
                 const elbow = new THREE.Group();
                 elbow.position.y = -0.32;
-                const eJoint = mk(this.boulderGeo(0.082, s > 0 ? 5 : 13, { amp: 0.2 }), rockM); // 팔꿈치 관절 바위 — 굽힘 시 이음새 은폐
+                const eJoint = vrock(0.082, s > 0 ? 5 : 13, { bite: 0.2 }); // 팔꿈치 관절 바위 — 굽힘 시 이음새 은폐
                 elbow.add(eJoint);
-                const fore = limb(0.088, 0.108, 0.26, rockD); // 하완이 상완보다 두꺼운 파괴자 실루엣
-                const fist = mk(this.boulderGeo(0.17, s > 0 ? 7 : 17, { amp: 0.28 }), rockM);
+                const fore = vlimb(0.088, 0.108, 0.26, rockD); // 하완이 상완보다 두꺼운 파괴자 실루엣
+                const fist = vrock(0.17, s > 0 ? 7 : 17, { bite: 0.28 });
                 fist.position.y = -0.32; fist.scale.set(1, 1.1, 1);
                 for (let k2 = 0; k2 < 3; k2++) { // 주먹 관절 돌기
-                    // 너클은 작아 detail 1 이면 조각이 안 읽힌다 — detail 0(정십이면체급 20정점)으로 각지게
-                    const knuckle = mk(this.boulderGeo(0.05, s * 100 + k2 * 3 + 2, { detail: 0, amp: 0.24 }), rockD);
+                    const knuckle = vrock(0.05, s * 100 + k2 * 3 + 2, { bite: 0.24, mat: rockD });
                     knuckle.position.set((k2 - 1) * 0.08, -0.42, s * 0.065);
                     elbow.add(knuckle);
                 }
@@ -12647,39 +12678,38 @@ const Scene3D = {
                 if (s > 0) { armR = sh; anim.armRJ = { sh, elbow }; } else armL = sh;
             }
             // 골반 바위 — 몸통 하단과 다리 사이 공중 부양 갭 메움
-            const pelvisG = mk(this.boulderGeo(0.21, 23, { amp: 0.22 }), rockD);
+            const pelvisG = vrock(0.21, 23, { bite: 0.22, mat: rockD });
             pelvisG.position.set(0, 0.37, 0); pelvisG.scale.set(1.15, 0.62, 0.9);
             g.add(pelvisG);
             // 짧은 기둥 다리 + 발 바위 — 상체 질량 대비 두껍게 (왜소 다리 금지)
             for (const s of [-1, 1]) {
-                const leg = limb(0.115, 0.1, 0.2, rockD);
+                const leg = vlimb(0.115, 0.1, 0.2, rockD);
                 leg.position.set(s * 0.17, 0.26, 0);
-                // 발은 접지면이라 밑을 더 세게 눌러 평평한 단면을 남긴다 — 둥근 밑면은 땅에 안 얹힌 것처럼 뜬다
-                const foot = mk(this.boulderGeo(0.13, s > 0 ? 29 : 31, { amp: 0.2, flatBottom: 0.34 }), rockM);
-                // ⓓ: 예전엔 다리·발이 **둘 다 g 에 고정**돼 골렘이 걸을 때 다리가 하나도 안 움직였다
-                //    (몸통만 위아래로 까딱여 '미끄러지는 석상'). `limb` 은 피벗이 위쪽 끝인 그룹이라
-                //    그대로 스윙시킬 수 있다 — 발을 다리에 매달아 같이 돌게 하고 anim 에 노출한다.
-                //    발 로컬 = 원래 g 좌표 − 다리 좌표.
+                // 발은 접지면이라 밑을 잘라 평평한 단면을 남긴다 — 둥근 밑면은 땅에 안 얹힌 것처럼 뜬다.
+                // 종전 `flatBottom: 0.34`(구 반지름 비율)의 복셀 대응 = 밑에서 한 칸을 자른다.
+                const foot = vrock(0.13, s > 0 ? 29 : 31, { bite: 0.2, flatBottom: -1 });
                 foot.position.set(s * 0.01, -0.205, 0.04); foot.scale.set(1, 0.5, 1.35);
                 leg.add(foot);
                 (anim.gleg = anim.gleg || []).push(leg);
                 g.add(leg);
             }
             // 머리: 어깨 사이에 파묻힌 낮은 바위 돔 + 목 바위 + 무거운 눈두덩 슬랩
-            // 목: 매끈한 원기둥이면 '돌 몸에 끼운 파이프'다 — 단면을 타원으로 눌러 앞뒤를 좁히고 flat 으로 깎아낸 면을 남긴다
-            const neckG = this.shellFromRings([
-                { y: -0.06, rx: 0.145, rz: 0.128 }, { y: -0.018, rx: 0.132, rz: 0.117 },
-                { y: 0.022, rx: 0.119, rz: 0.106 }, { y: 0.06, rx: 0.107, rz: 0.097 },
-            ], 9, rockD, { flat: true });
+            // 목: 매끈한 원기둥이면 '돌 몸에 끼운 파이프'다 — 단면을 타원으로 눌러 앞뒤를 좁힌다.
+            //     `shellFromRings` 의 voxel 대응이 `Voxel.shell`(같은 링 목록을 칸으로 받는다).
+            const neckG = vx(Voxel.shell([
+                { y: gv(-0.06), rx: gv(0.145), rz: gv(0.128) }, { y: gv(-0.018), rx: gv(0.132), rz: gv(0.117) },
+                { y: gv(0.022), rx: gv(0.119), rz: gv(0.106) }, { y: gv(0.06), rx: gv(0.107), rz: gv(0.097) },
+            ]), { material: rockD, color: 0xffffff, center: true });
             neckG.position.set(0, 0.98, 0.04);
             g.add(neckG);
-            const head = mk(this.boulderGeo(0.17, 41, { amp: 0.24 }), rockM);
+            const head = vrock(0.17, 41, { bite: 0.24 });
             head.position.set(0, 1.06, 0.05); head.scale.set(1.1, 0.82, 0.95);
-            // 눈두덩은 판이라 Box 가 아니라 베벨 슬랩 — 모서리가 깎여 하이라이트가 한 줄로 흘러야 '바위 처마'로 읽힌다
-            const browSlab = this.beveledSlab(0.3, 0.07, 0.14, 0.022, rockD);
+            // 눈두덩은 판 — 종전 베벨 슬랩의 voxel 대응이 `slab`(모서리를 계단으로 깎는다).
+            const browSlab = vx(Voxel.slab(Math.round(0.3 / VS), 2, Math.round(0.14 / VS), undefined, 1),
+                { material: rockD, color: 0xffffff, center: true });
             browSlab.position.set(0, 1.14, 0.1); browSlab.rotation.x = 0.15;
             g.add(head, browSlab);
-            // 목 바위(r 0.11~0.14) 밑 · 라테 몸통 밑단(r 0.17)과 골반 바위 경계 · 기둥 다리 소켓
+            // 목 바위(r 0.11~0.14) 밑 · 몸통 밑단(r 0.17)과 골반 바위 경계 · 기둥 다리 소켓
             // 목 이음새 — 0.142/0.024 는 **파묻혀 26px** 밖에 기여를 못 했다(하한 60). 실측 배율 훑기에서
             // 1.20/1.45/1.75 배가 전부 유출 0 이라, 위아래로 여유가 있는 가운데 값(1.45배)을 쓴다 → 371px.
             aoRing(0.206, 0.035, 0, 0.955, 0.04, { ez: 0.92 });

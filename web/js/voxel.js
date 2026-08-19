@@ -371,6 +371,41 @@
             }
             return out;
         },
+        // 🧊 **바위 덩어리** — `Scene3D.boulderGeo`(이십면체를 노이즈로 깎던 것)의 voxel 대응.
+        //   골렘·맵 프롭·광석이 전부 이 모양이라 한 자리에 모은다.
+        //   타원체에서 시작해 **표면 칸만** 좌표 해시로 깎아 내(0..1 이 `bite` 미만이면 제거)
+        //   울퉁불퉁한 청크를 만든다. 속 칸은 안 건드린다 — 속을 깎으면 겉이 뚫려 구멍이 난다.
+        //   ⚠️ **`Math.random` 을 쓰지 않는다.** 개체마다 달라야 하는 건 `seed` 로 주고, 같은
+        //      seed 는 언제나 같은 바위를 낸다 — 안 그러면 A/B 캡처와 회귀 프로브가 흔들린다.
+        //   opts: { bite 깎는 비율 0~0.5 · flatBottom 밑을 평평하게 자를 y(칸) · color }
+        rock: function (r, seed, opts) {
+            opts = opts || {};
+            var bite = opts.bite === undefined ? 0.28 : opts.bite;
+            var rx = opts.rx === undefined ? r : opts.rx;
+            var ry = opts.ry === undefined ? r : opts.ry;
+            var rz = opts.rz === undefined ? r : opts.rz;
+            var base = this.ellipsoid(rx, ry, rz, opts.color);
+            var occ = occupancy(base), out = [];
+            var sd = (seed || 0) | 0;
+            for (var i = 0; i < base.length; i++) {
+                var v = base[i];
+                if (opts.flatBottom !== undefined && v.y < opts.flatBottom) continue;  // 접지면은 평평하게
+                // 표면 칸인가 — 6이웃 중 하나라도 비었으면 겉이다.
+                var surf = false;
+                for (var f = 0; f < FACES.length; f++) {
+                    var n = FACES[f].n;
+                    if (!occ[key(v.x + n[0], v.y + n[1], v.z + n[2])]) { surf = true; break; }
+                }
+                if (surf) {
+                    var h = ((v.x + 31) * 73856093) ^ ((v.y + 37) * 19349663) ^ ((v.z + 41) * 83492791) ^ (sd * 2654435761);
+                    h = (h ^ (h >>> 13)) >>> 0;
+                    if ((h % 1000) / 1000 < bite) continue;   // 이 칸은 떨어져 나갔다
+                }
+                out.push(v);
+            }
+            return out;
+        },
+
         // 겉껍질만 남긴다 — 6이웃 중 하나라도 비어 있는 복셀만.
         //   🚨 **위의 `shell(rings, …)` 과 헷갈리지 말 것 — 이름이 비슷하지만 하는 일이 다르다.**
         //      `shell` 은 링 목록으로 **회전체를 만들면서** 반경 방향으로만 속을 판다(위·아래가
