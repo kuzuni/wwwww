@@ -179,6 +179,15 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
     await page.evaluate(() => UI.openGearDetail('weapon'));
     await page.addStyleTag({ content: '*, *::before, *::after { animation: none !important; transition: none !important; }' });
     await page.evaluate(() => document.querySelectorAll('.modal').forEach(m => m.classList.remove('opening')));
+    // 🚨 팝업이 **실제로 떠서 자리를 잡을 때까지** 기다린다 — 고정 대기만 두면 병렬 세션이 붙어
+    //    컨테이너가 눌릴 때 아직 안 뜬 화면을 찍고, 아래 밝은-성분 탐색이 엉뚱한 작은 덩어리를
+    //    카드로 집는다(실측: 클론 카드가 x341~369 y265~295 인 28×30 상자로 잡혀 '카드 폭 −62.6%p'
+    //    같은 **가짜 불통과** 10건이 나왔다 — 같은 코드가 한가할 땐 −0.86%p 통과다).
+    await page.waitForFunction(() => {
+        const m = document.getElementById('gear-detail-modal');
+        if (!m || m.classList.contains('hidden')) return false;
+        return m.getBoundingClientRect().height > 0 && m.textContent.includes('파충의 펠트');
+    }, null, { timeout: 30000 });
     await page.waitForTimeout(500);
     const shot = await page.screenshot({ timeout: 180000 });
 
@@ -186,6 +195,22 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
         [dataUrl(REF_PNG), 'data:image/png;base64,' + shot.toString('base64')]);
 
     if (ref.err || clone.err) { console.log('측정 실패:', ref.err || '', clone.err || ''); await browser.close(); process.exit(2); }
+
+    // 🚨 자기검증(probe-techoverview·probe-tabbar 규약) — 잡은 덩어리가 **장비 상세 카드의 기하**를
+    //    갖췄는지 먼저 본다. 아니면 요소 수치를 **인쇄하지 않고 exit 2(측정기 고장)로 끊는다**:
+    //    가짜 불통과를 좇으면 멀쩡한 레이아웃을 망가뜨린다(tech-overview 때 거짓 FAIL 6건의 교훈).
+    //    기준은 원본 실측(카드 폭 68.21%W · 높이 17.50%H)에서 넉넉히 잡은 헐거운 울타리라,
+    //    ±2%p 판정을 대신하지 않는다 — 진짜 비율 어긋남은 그대로 아래 판정에서 걸린다.
+    for (const [who, m] of [['원본', ref], ['클론', clone]]) {
+        const w = (m.card.right - m.card.left) / m.W * 100, h = (m.card.bottom - m.card.top) / m.H * 100;
+        if (!(w >= 40 && w <= 95 && h >= 8 && h <= 40)) {
+            console.log(`측정기 고장 — ${who} 카드로 잡힌 덩어리가 장비 상세 카드 기하가 아니다: ` +
+                `폭 ${w.toFixed(2)}%W(기대 40~95) · 높이 ${h.toFixed(2)}%H(기대 8~40) ` +
+                `[px x${m.card.left}~${m.card.right} y${m.card.top}~${m.card.bottom}]`);
+            console.log('  → 팝업이 안 뜬 화면을 찍었을 가능성이 높다(병렬 부하). 수치는 믿지 말고 재실행할 것.');
+            await browser.close(); process.exit(2);
+        }
+    }
 
     const pct = (m, v, unit) => +(v / (unit === 'W' ? m.W : m.H) * 100).toFixed(2);
     const ROWS = [

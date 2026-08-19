@@ -70,24 +70,30 @@ declare -a FAILED=() DEAD=()
 for p in "${PROBES[@]}"; do
     [ -f "$p" ] || { echo "SKIP  $p (없음)"; continue; }
     out="$(timeout "$TIMEOUT" node "$p" 2>&1)"; rc=$?
-    # 판정 줄만 뽑는다(마지막 것). 🚨 **판정문 방언이 5가지다** — 옛 정규식은 `(^|판정: )(PASS|FAIL)`
-    #    뿐이라 나머지 4가지를 **전부 못 읽고 '판정문 없음 — 측정 덤프일 수 있다'로 흘려보냈다**
+    # 판정 줄만 뽑는다(마지막 것). 🚨 **판정문 방언이 6가지다** — 옛 정규식은 `(^|판정: )(PASS|FAIL)`
+    #    뿐이라 나머지를 **전부 못 읽고 '판정문 없음 — 측정 덤프일 수 있다'로 흘려보냈다**
     #    (2026-08-19 전수 실행 실측: 29종 중 **12종**이 멀쩡한 판정기인데 덤프 취급이었다).
     #    그 경고는 '이 도구는 못 믿는다'는 뜻이라, 진짜 덤프와 구별이 안 되면 경고가 무의미해진다.
     #    ⓐ `판정: 통과/불통과`(probe-main-px·techbranch-px·geardetail-px·league-verdict)
-    #    ⓑ `=> PASS` / `=> 불통과 N건`(probe-lgr-dom·tn-dom)
+    #    ⓑ `=> PASS` / `=> 불통과 N건`(probe-lgr-dom·tn-dom) — 실패에 'FAIL' 글자를 아예 안 쓴다
     #    ⓒ `✅ PASS` / `❌ FAIL`(probe-fi-dom)
     #    ⓓ `결과: PASS` / `결과: FAIL N건`(probe-xmark-dom·autoforge-toast·offline-collect-tick·
     #       eggcell-label-shadow·lgr-rank-clip)
+    #    ⓔ `총평: PASS/FAIL`(뷰포트를 여러 개 도는 판정기 — probe-chatprev-contrast 꼴)
+    #    ⓕ `측정기 고장`(자기검증에 걸려 수치를 안 낸 것 — 아래 rc=2 와 짝이다)
     #    도구 12개를 고치는 대신 **읽는 쪽 한 곳**을 넓힌다 — 판정문 문구를 바꾸면 그 문구를 따로
     #    긁어 쓰는 다른 스크립트가 조용히 깨질 수 있고, 방언은 앞으로도 또 생긴다.
-    verdict="$(printf '%s\n' "$out" | grep -oE '(^|판정: |결과: |=> |✅ |❌ )(PASS|FAIL|불통과|통과)' | tail -1)"
-    # 한국어 판정을 PASS/FAIL 로 정규화한다(아래 FAIL 검사가 영문만 보므로).
+    #    ⚠️ 못 읽으면 경고 한 줄로 끝나는 게 아니다: 아래 **'판정문은 FAIL 인데 exit 0' 안전망이
+    #    그 12종에서 통째로 꺼진다**(probe-shop-dom 때 잡은 사고가 재발해도 초록). 실제로 술어를
+    #    넓히자마자 `probe-geardetail-px` 가 그 상태로 걸렸다(판정문 불통과인데 exit 0).
+    vline="$(printf '%s\n' "$out" | grep -E '(^|=> |✅ |❌ |결과: |판정: |총평: )(PASS|FAIL|통과|불통과)|불통과 [0-9]+건|측정기 고장' | tail -1)"
+    # 잡은 줄을 PASS/FAIL 로 환산한다(불통과 0건은 통과다).
     # ⚠️ `불통과` 가 `통과` 를 포함하므로 **반드시 불통과를 먼저** 볼 것.
-    case "$verdict" in
-        *불통과) verdict='판정: FAIL' ;;
-        *통과)   verdict='판정: PASS' ;;
-    esac
+    if   printf '%s' "$vline" | grep -qE 'FAIL|❌|불통과 [1-9]|측정기 고장'; then verdict=FAIL
+    elif printf '%s' "$vline" | grep -qE '불통과 0건';                        then verdict=PASS
+    elif printf '%s' "$vline" | grep -q  '불통과';                            then verdict=FAIL
+    elif printf '%s' "$vline" | grep -qE 'PASS|통과';                         then verdict=PASS
+    else verdict=""; fi
     worst="$(printf '%s\n' "$out" | grep -oE '최대 편차 [+-]?[0-9.]+%p' | tail -1)"
     # 🚨 종료 코드만 믿지 않는다 — `probe-shop-dom` 은 판정문을 찍으면서 exit 코드를 안 내
     #    ±2%p 를 넘겨도 초록으로 찍히고 있었다(2026-08-19 실측, 그 자리에서 고쳤다).
@@ -100,6 +106,13 @@ for p in "${PROBES[@]}"; do
         pass=$((pass+1)); printf 'PASS  %-26s %s%s\n' "$p" "$worst" "$([ -z "$verdict" ] && echo '  (⚠️ 판정문 없음 — 측정 덤프일 수 있다)')"
     elif [ "$rc" = 124 ]; then
         dead=$((dead+1)); DEAD+=("$p"); printf 'DEAD  %-26s (%ss 초과 — 병렬 부하일 수 있다, 재실행할 것)\n' "$p" "$TIMEOUT"
+    elif [ "$rc" = 2 ]; then
+        # rc=2 는 **측정기 고장**(자기검증에 걸려 수치를 안 낸 것)이지 비율 결함이 아니다 —
+        # 좇으면 멀쩡한 레이아웃을 망가뜨리니 라벨을 구분한다. 다만 '검증 안 된 화면'이므로
+        # 초록으로 세지 않고 불통과에 함께 담아 스크립트가 1 로 끝나게 둔다.
+        fail=$((fail+1)); FAILED+=("$p")
+        printf 'BROKEN %-25s (측정기 고장 — 비율 결함 아님. 재실행할 것)\n' "$p"
+        printf '%s\n' "$out" | grep -E '측정기 고장|측정 실패|→' | head -4 | sed 's/^/        /'
     else
         fail=$((fail+1)); FAILED+=("$p")
         printf 'FAIL  %-26s %s\n' "$p" "$worst"
