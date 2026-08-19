@@ -47,25 +47,9 @@ body {
 }
 
 /* ---- 상단바: 좌측 프로필 카드 + 우측 코인·젬 (UI-SPEC 1번) ---- */
-/* 🚨 **원본에는 상단 띠가 아예 없다 — 프로필 판·재화 알약이 전투 화면 위에 그냥 떠 있다.**
-   원본 shot-042120 행 평균색 실측: y0~y10 이 필드 초록 `(11,183,99)` · 어두운 화소 0%.
-   (y15~y45 의 어두운 화소는 그 위에 뜬 프로필 판·알약의 잉크지 띠가 아니다.)
-   클론은 `#1c2128` 불투명 띠가 흐름에서 **73px(8.2%H)** 를 먹고 전투 화면을 그만큼 아래로
-   밀어내고 있었다 — 실측: 클론 y0~y70 이 근흑(어두운 화소 73~100%)이고 3D 씬은 y75 부터.
-   그래서 씬 세로가 원본 55.0%H vs 클론 47.0%H 로 **−8%p** 였다(독립 비평가 2인이 각각
-   +8.2 / +8.7%p 로 같은 지점을 짚었고, 위 행 평균색이 그걸 뒷받침한다).
-   `ui-ratio-audit` 이 이 건을 "띠 유무·색은 스킨 소관"이라며 **미판정으로 남기고 aaa-skin 에
-   넘겨 둔** 항목이다 — 여기서 처리한다.
-   처방: 띠를 흐름에서 빼고(`position:absolute`) 바탕·아래 테를 없앤다. `#game-area` 가
-   `flex:1 1 auto` 로 남는 자리를 먹으므로 **전투 화면이 그만큼 위로 자라고, 아래 콘텐츠
-   패널은 제자리에 그대로 있다**(원본도 씬 하단이 55%H 로 같다).
-   ⚠️ 알약·프로필 판은 제 배경을 따로 갖고 있어(.profile-card · .currency-pills) 필드 위에서
-      그대로 읽힌다 — 띠가 없어도 대비가 죽지 않는다.
-   ⚠️ z-index 5 를 유지할 것 — `#game-area`(뒤 형제, isolation:isolate)보다 위에 있어야 한다. */
 #topbar {
-    position: absolute; top: 0; left: 0; right: 0;
     display: flex; gap: .4rem; align-items: center; justify-content: space-between;
-    padding: .5rem .6rem; background: transparent; border-bottom: none;
+    padding: .5rem .6rem; background: #1c2128; border-bottom: var(--ol1) solid #30363d;
     font-size: .82rem; font-weight: 600; z-index: 5;
 }
 .profile-card {
@@ -135,22 +119,17 @@ body {
 #fx-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 
 #stage-label {
-    /* 원본(042120) 제목 잉크 상단 = **7.62%H(y68)**.
-       ⚠️ 2026-08-19(aaa-skin) 상단 띠를 흐름에서 빼면서 이 값을 다시 잡았다 — `#game-area` 가
-          73px 위로 자라는데 이 라벨은 그 안의 absolute 라 **같이 73px 올라가 화면 밖으로 나갔다**
-          (probe-main-px 의 '제목' 2지표가 미검출로 떨어져 잡혔다). 종전 `top:-.32rem` 은
-          '띠 바로 밑'을 노린 값이라 띠가 사라진 지금은 뜻이 없다.
-       띠에 기대지 않게 **앱 높이 기준**으로 못박는다(잉크는 상자보다 ~7px 아래에서 시작한다). */
-    position: absolute; top: calc(var(--app-h) * .0685); left: 50%; transform: translateX(-50%);
+    /* 원본(042120) 제목 잉크 상단 = 7.62%H(y68). 클론은 상단바 띠(스킨 소관) 밑에서 시작해
+       top:.6rem 이면 잉크가 9.98%H(+2.36%p 초과, probe-main-px)로 처졌다 — 음수 top 으로 띠 바로
+       밑(잉크 ≈ 8.3%H, Δ+0.6%p)까지 올린다. 띠를 침범하지 않는 한도의 최상단이다. */
+    position: absolute; top: -.32rem; left: 50%; transform: translateX(-50%);
     font-size: 1.15rem; font-weight: 800; color: #fff;
     text-shadow: 0 1px 0 rgba(0,0,0,.8), 0 -1px 0 rgba(0,0,0,.55), 1px 0 0 rgba(0,0,0,.55), -1px 0 0 rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.65); /* 밝은 하늘 배경에서 씻겨 보이던 문제 (비평가 7.1 20번) — 외곽선형 그림자 */
 }
 /* 웨이브 진행 점: 원본처럼 점들을 선으로 이어 표시 (●─○) */
 #wave-pips {
-    /* 원본의 제목-점줄 간격(잉크 11px)을 유지한다 — 제목과 **같은 기준**에 2.12rem 을 더한다
-       (종전엔 제목 -.32rem / 점줄 1.8rem 로 그 차이가 2.12rem 이었다. 띠 제거 후 제목이 앱 높이
-       기준으로 바뀌었으니 이쪽도 같은 식에 얹어야 둘이 따로 놀지 않는다). */
-    position: absolute; top: calc(var(--app-h) * .0685 + 2.12rem); left: 50%; transform: translateX(-50%);
+    /* 제목을 올린 만큼 같이 올려 원본의 제목-점줄 간격(잉크 11px)을 유지한다 */
+    position: absolute; top: 1.8rem; left: 50%; transform: translateX(-50%);
     display: flex; align-items: center; gap: .3rem; padding: 0 .15rem;
 }
 #wave-pips::before {
@@ -636,7 +615,12 @@ body {
 .age-pct { font-weight: 700; color: #90a4ae; white-space: nowrap; }
 .age-tag { font-size: .72rem; font-weight: 700; border-left: var(--ol3) solid var(--ac, #444c56); padding-left: .35rem; }
 
-.forge-age-list { display: flex; flex-direction: column; gap: .6rem; max-height: calc(var(--app-h) * .55); overflow-y: auto; }
+/* 목록 스크롤 상한이 카드 높이를 정한다 — 원본(shot-042905) 카드는 **세로 172.70%CW**(x79 열을 따라
+   걸어 잰 143~724, 카드 폭 337 기준)인데 클론은 162.46%CW 라 **하단이 −3.02%p 짧았다**(비평가 B 지적,
+   픽셀로 확정). .55 → .59 로 올려 35.7px 을 되돌린다. ⚠️ 카드 하단을 '흰 잉크가 끊기는 곳'으로 재면
+   안 된다(가운데 ✕ 가 흰 런을 자른다 — player-info 에서 실제로 오독했다). **카드 좌 가장자리 안쪽
+   열을 따라 걸어야** 진짜 하단이 나온다. */
+.forge-age-list { display: flex; flex-direction: column; gap: .6rem; max-height: calc(var(--app-h) * .59); overflow-y: auto; }
 .forge-age-section .age-tag { display: flex; align-items: center; gap: .3rem; margin-bottom: .3rem; }
 .forge-age-section .age-tag small { color: #90a4ae; font-weight: 400; }
 /* 원본 shot-042905 픽셀 실측(aaa-skin ⑮, 2026-08-18): 패널 #d6d6d6 · 셀 간격 19px(3.95%W) ·
@@ -5067,6 +5051,11 @@ body {
    좌 인셋은 rem 이 아니라 앱 폭 기준으로 준다 — 카드가 앱 폭의 고정 %라 뷰포트가 바뀌어도 같이 간다
    (56px 중 카드 패딩 1.1rem + 테 몫을 빼고 남는 35.8px = 앱 폭의 7.18%). */
 .pinfo-subs-list { text-align: left; font-weight: 900; color: var(--pp-ink); font-size: .88rem; line-height: 1.14; padding-left: calc(var(--app-w) * .0718); }
+/* `.idet-wrap` 은 카드 + 그 아래 ✕ 를 통째로 세로 중앙 정렬한다 — 카드를 원본 높이로 키우면
+   **위아래로 똑같이** 자라서 상단이 원본보다 2.01%p 위로 뜬다(실측). 9px 내려 상단·하단을 함께
+   맞춘다: 상단 Δ−1.00 · 하단 Δ+0.01 · 높이 Δ+0.08%p. `#detail-modal` 은 여러 팝업이 공유하므로
+   이 마크업에만 붙는 `.fl-wrap` 으로 스코프한다(`.rates-wrap` 과 같은 규약). */
+.fl-wrap { position: relative; top: calc(var(--app-h) * .0101); }
 .fl-card { width: 71%; /* 원본 shot-042905 71.3% · shot-042931 70.5% 실측 */ padding: .85rem .8rem .9rem; }
 /* 제목 아래 여백 — 원본(shot-042905) 제목 잉크→시대 필 33px vs 클론 13px. 카드 상단→패널이
    -9.19%CW(28px) 좁던 것의 몫 20px (probe-fl-body, 나머지 7px 은 아래 fl-head 몫). */
@@ -7215,11 +7204,13 @@ body {
       2차 슬라이스 머리말의 같은 단서). */
 /* 🚨 9차(비평가 라운드 1 반영): 종전 알파(.05~.10)는 frame-bands 클로즈업에서 "재질 없는 검은
    사각형"으로 채점됐다(비평가 A 결함[2]·[8]). 바탕색은 그대로 두고 층의 대비만 올린다. */
-/* 🚨 여기 있던 `#topbar` 칠 층(림라이트 + 아래로 가는 그늘 + 드롭섀도)은 **띠를 지우면서 같이
-   지웠다**(2026-08-19, aaa-skin). 위 50행 주석대로 원본에는 상단 띠 자체가 없고 프로필 판·재화
-   알약만 전투 화면 위에 뜬다 — 띠를 투명으로 돌린 마당에 '밴드가 얹힌 판으로 읽히게' 하는
-   그늘·그림자를 남기면 투명 배경 위에 **회색 얼룩만** 남는다(그라디언트는 배경색이 없어도 칠해진다).
-   상단 마감이 필요하면 띠가 아니라 **알약·프로필 판 쪽**에 줄 것. */
+#topbar {
+    background-image:
+        linear-gradient(180deg, rgba(255,255,255,.16) 0 1px, rgba(255,255,255,0) 1px),   /* 위 림라이트 */
+        linear-gradient(180deg, rgba(255,255,255,.09) 0, rgba(255,255,255,.02) 40%,
+                                rgba(0,0,0,.10) 68%, rgba(0,0,0,.26) 100%);              /* 아래로 가는 그늘 */
+    box-shadow: 0 .18rem .4rem rgba(0,0,0,.34);   /* 밴드가 전투 화면 위에 얹힌 판으로 읽히게 */
+}
 #tabbar {
     /* ⚠️ 이 그라디언트는 probe-tabbar 의 잉크 판정을 깨뜨릴 수 있어, 그 프로브가 **캡처 시에만
        탭바 칠 층을 끈다**(라벨 숨김과 같은 기준 맞추기 — 2026-08-19 9차에서 summon 아이콘

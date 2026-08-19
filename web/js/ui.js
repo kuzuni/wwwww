@@ -1747,7 +1747,7 @@ const UI = {
         // CSS `content:'★'` 이 리터럴 한 글자라 승천 3회·7회에도 셀당 별이 1개였다(실측 FAIL).
         // 게이트가 두 층이면 한쪽만 고쳐지는 사고가 재발하므로 `.fl-asc` 는 통째로 걷었다.
         this.els.forgeInfoModal.innerHTML = `
-            <div class="idet-wrap">
+            <div class="idet-wrap fl-wrap">
                 <div class="modal-card paper fl-card">
                     <h3 class="fi-title">모든 장비의 목록</h3>
                     <div class="forge-age-list">${sections}</div>

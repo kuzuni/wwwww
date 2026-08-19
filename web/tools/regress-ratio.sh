@@ -43,6 +43,9 @@ PROBES=(
     probe-shop-dom.js           # shop        042632
     probe-tn-dom.js             # tech-node   042605
     probe-pinfo-px.js           # player-info 043313 — 판정문·종료코드를 갖췄는데 목록에 없어 묻혀 있었다
+    probe-fl-head.js            # forge-list 042905 시대 헤더 막대 — 같은 사유로 묻혀 있었다(3건째)
+    probe-fl-body.js            # forge-list 042905 본문(카드·그리드·타일)
+    probe-fl-cell-star.js       # forge-list 셀 ★ ↔ 승천 횟수 1:1
     probe-cell-icon-size.js     # 메인 장비 칸 아이콘 채움
     probe-grid-empty.js         # 빈 상태 문구 스팬
     probe-xmark-dom.js          # 닫기 ✕ 캔버스 아이콘 계약(폭/높이/색, icon-gen)

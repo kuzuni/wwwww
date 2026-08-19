@@ -152,7 +152,7 @@ function starCount(txt) {
 
     console.log(`\n콘솔 에러 ${errors.length}건`);
     if (errors.length) console.log(errors.slice(0, 5).join('\n'));
-    console.log(fail === 0 ? '\n✅ PASS — 셀 ★이 승천 횟수와 1:1' : `\n❌ FAIL ${fail}건`);
+    console.log(fail === 0 ? '\n판정: PASS — 셀 ★이 승천 횟수와 1:1' : `\n판정: FAIL — ${fail}건`);
     await browser.close();
     process.exit(fail === 0 ? 0 : 1);
 })();

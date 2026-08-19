@@ -243,7 +243,7 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
         console.log(label.padEnd(18) + a.toFixed(2).padStart(9) + b.toFixed(2).padStart(9) + `${dd > 0 ? '+' : ''}${dd}`.padStart(9) + (ok ? '  ok' : `  ← ±${TOL}%CW 초과`));
     }
     console.log(`\n최대 편차 ${worst > 0 ? '+' : ''}${worst}%CW · 초과 ${ng.length}건${ng.length ? ': ' + ng.join(', ') : ''}`);
-    console.log(`판정: ${ng.length ? '불통과' : '통과'}`);
+    console.log(`판정: ${ng.length ? `FAIL — 불통과 ${ng.length}건` : 'PASS'}`);
     console.log(`(원본 카드 x${ref.card.x1}~${ref.card.x2} y${ref.card.y1}~${ref.card.y2} · 클론 x${clone.card.x1}~${clone.card.x2} y${clone.card.y1}~${clone.card.y2})`);
     console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : '(콘솔 에러 0건)');
     await browser.close();
