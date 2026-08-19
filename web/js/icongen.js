@@ -2044,14 +2044,27 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.quadraticCurveTo(x(.73, S), y(.40, S), x(.5775, S), y(.42, S));
             ctx.lineTo(x(.5775, S), y(.92, S)); ctx.closePath();
         },
-        whirl(ctx, S) {                                  // 회오리 베기 — 소용돌이 2엽
-            const cx = .5 * S, cy = .5 * S, ro = .40 * S, ri = .18 * S;
-            for (let k = 0; k < 2; k++) {
-                const a0 = k * Math.PI - 0.2, a1 = a0 + Math.PI * 0.92;
-                ctx.moveTo(cx + Math.cos(a0) * ri, cy + Math.sin(a0) * ri);
-                ctx.arc(cx, cy, ri, a0, a1, false);
-                ctx.lineTo(cx + Math.cos(a1) * ro, cy + Math.sin(a1) * ro);
-                ctx.arc(cx, cy, ro, a1, a0, true);
+        whirl(ctx, S) {                                  // 회오리 베기 — 굽은 베기 날 3엽 (fx ring)
+            /* 🚨 종전 '2엽'은 안팎 두 호가 **거의 닫힌 고리**를 만들고 가운데가 뻥 뚫려 있어서
+               38px 로 줄이면 **몬스터볼/로딩 스피너**로 읽혔다(비평가 '범용 클립아트' 지적의
+               대표 사례). 고리를 끊고 서로 닿지 않는 날 3장을 120°로 돌려 놓으면 빈 가운데가
+               '회전축'이 되고 날 끝이 '베기'를 만든다.
+               ⚠️ **날은 뚱뚱해야 한다.** 첫 판은 얇은 초승달이라 `probe-emblem-core` 속살이
+                  **8.7%**(문턱 34%)까지 떨어졌다 — 38px 에서 키라인이 날을 통째로 먹어 검은
+                  꼬부랑선 세 개가 됐다. 바깥은 뭉툭한 호로 두껍게 열고 안쪽으로만 뾰족하게 좁힌다. */
+            const cx = .5 * S, cy = .5 * S, ro = .46 * S, ri = .10 * S;
+            const P2 = (r, a) => [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+            const D = Math.PI / 180;
+            for (let k = 0; k < 3; k++) {
+                const a0 = k * 120 * D;
+                const [sx, sy] = P2(ri, a0 - 14 * D);                      // 안쪽 뾰족한 끝(축 근처)
+                ctx.moveTo(sx, sy);
+                // 앞날(베는 쪽) — 축에서 바깥으로 **거의 곧게** 뻗는다. 여기가 굽으면 부채가 된다.
+                ctx.quadraticCurveTo(...P2(ro * .62, a0 + 2 * D), ...P2(ro, a0 + 30 * D));
+                // 바깥 끝 — 짧은 호로 뭉툭하게(뾰족하게 닫으면 38px 에서 키라인이 먹는다)
+                ctx.arc(cx, cy, ro, a0 + 30 * D, a0 + 62 * D, false);
+                // 뒷날 — 회전 방향으로 **크게 휘어** 축으로 감겨 든다. 이 곡률이 '회전'을 만든다.
+                ctx.quadraticCurveTo(...P2(ro * .52, a0 + 84 * D), sx, sy);
                 ctx.closePath();
             }
         },
@@ -2062,10 +2075,21 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.lineTo(x(b, S), y(hi, S)); ctx.lineTo(x(a, S), y(hi, S)); ctx.lineTo(x(a, S), y(b, S));
             ctx.lineTo(x(lo, S), y(b, S)); ctx.lineTo(x(lo, S), y(a, S)); ctx.lineTo(x(a, S), y(a, S)); ctx.closePath();
         },
-        flame(ctx, S) {                                  // 화염구 — 불꽃
-            ctx.moveTo(x(.5, S), y(.05, S));
-            ctx.bezierCurveTo(x(.84, S), y(.36, S), x(.72, S), y(.68, S), x(.5, S), y(.93, S));
-            ctx.bezierCurveTo(x(.28, S), y(.68, S), x(.16, S), y(.36, S), x(.5, S), y(.05, S));
+        flame(ctx, S) {                                  // 화염구 — 흔들리는 불꽃 (fx explode)
+            /* 🚨 종전 모양은 **좌우 대칭 물방울**이라 38px 에서 불이 아니라 **나뭇잎**으로 읽혔다
+               (비평가 '범용 클립아트' 지적). 불로 읽히게 만드는 건 색이 아니라 **비대칭**이다 —
+               한쪽 옆구리를 안으로 파 S 자로 꺾고(바람에 눕는 결), 끝을 한쪽으로 기울인다.
+               밑동은 넓고 둥글게 둬야 '떠 있는 구체'가 아니라 '타오르는 덩어리'가 된다.
+               ⚠️ 곁불꽃을 **따로 그리지 말 것** — `emblem()` 은 경로 전체에 획을 그어서 겹친
+                  서브패스의 이음매가 안쪽에 검은 줄로 남는다(도끼 날에서 밟은 그 함정).
+                  대신 밑동 왼쪽에 **홈 하나**를 파 두 갈래처럼 보이게 한다. */
+            ctx.moveTo(x(.585, S), y(.04, S));                                        // 끝(오른쪽으로 기운다)
+            ctx.bezierCurveTo(x(.60, S), y(.30, S), x(.86, S), y(.40, S), x(.85, S), y(.63, S));
+            ctx.bezierCurveTo(x(.84, S), y(.86, S), x(.68, S), y(.97, S), x(.48, S), y(.96, S));
+            ctx.bezierCurveTo(x(.27, S), y(.95, S), x(.13, S), y(.81, S), x(.14, S), y(.61, S));
+            ctx.bezierCurveTo(x(.15, S), y(.47, S), x(.26, S), y(.40, S), x(.30, S), y(.28, S));  // 왼쪽 밑동 홈(두 갈래 느낌)
+            ctx.bezierCurveTo(x(.36, S), y(.44, S), x(.44, S), y(.47, S), x(.47, S), y(.40, S));
+            ctx.bezierCurveTo(x(.51, S), y(.30, S), x(.48, S), y(.17, S), x(.585, S), y(.04, S));
             ctx.closePath();
         },
         flame3(ctx, S) {                                 // 용의 숨결 — 삼중 불꽃 부채
@@ -2193,30 +2217,51 @@ IconGen._genderSym = function (ctx, S, female) {
             shaft(.825, .19, .66, .13, .155, .22);
         },
         maw(ctx, S) {                                    // 용의 아가리 — 벌어진 턱 (fx dragonMaw)
-            // 연출은 발밑에서 **거대 아가리가 솟아 덥석 문다**. 두 가지가 '아가리'를 만든다:
-            //  ⓐ 이빨 선이 **아치**여야 한다 — 곧은 가로선 두 개는 38px 에서 모래시계로 읽힌다(첫 판이 그랬다).
-            //  ⓑ 이빨은 굵게(밑변 ≥.18) · 아랫니는 윗니 **사이**로 물린다.
-            ctx.moveTo(x(.04, S), y(.03, S)); ctx.lineTo(x(.96, S), y(.03, S)); ctx.lineTo(x(.96, S), y(.33, S));
-            ctx.lineTo(x(.80, S), y(.24, S)); ctx.lineTo(x(.70, S), y(.47, S)); ctx.lineTo(x(.61, S), y(.18, S));
-            ctx.lineTo(x(.50, S), y(.45, S)); ctx.lineTo(x(.39, S), y(.18, S)); ctx.lineTo(x(.30, S), y(.47, S));
-            ctx.lineTo(x(.20, S), y(.24, S)); ctx.lineTo(x(.04, S), y(.33, S)); ctx.closePath();
-            ctx.moveTo(x(.08, S), y(.97, S)); ctx.lineTo(x(.92, S), y(.97, S)); ctx.lineTo(x(.92, S), y(.71, S));
-            ctx.lineTo(x(.75, S), y(.80, S)); ctx.lineTo(x(.63, S), y(.57, S)); ctx.lineTo(x(.50, S), y(.82, S));
-            ctx.lineTo(x(.37, S), y(.57, S)); ctx.lineTo(x(.25, S), y(.80, S)); ctx.lineTo(x(.08, S), y(.71, S));
+            /* 연출은 발밑에서 **거대 아가리가 솟아 덥석 문다**.
+               🚨 종전 판은 위·아래 턱의 **바깥 변이 곧은 가로선**이라 전체 실루엣이 사각 블록이 됐고,
+                  38px 에서 '지퍼/톱니 띠'로 읽혔다(비평가 '범용 클립아트' 지적). 이빨을 아치로 놓는
+                  것만으로는 모자라다 — **턱 자체를 바나나꼴로 휘어야** 벌어진 입이 된다.
+               ⓐ 바깥 변을 호로 휘어 양끝을 안으로 오므린다(입꼬리).
+               ⓑ 이빨은 굵게(밑변 ≥.18) · 아랫니는 윗니 **사이**로 물린다.
+               ⓒ 위아래 턱은 가운데에서 **벌어진 채** 두어 목구멍(빈 공간)이 보이게 한다. */
+            // 윗턱 — 바깥 변이 위로 볼록한 호, 양끝이 아래로 내려온다
+            ctx.moveTo(x(.045, S), y(.20, S));
+            ctx.quadraticCurveTo(x(.50, S), y(-.06, S), x(.955, S), y(.20, S));
+            ctx.lineTo(x(.885, S), y(.335, S));
+            ctx.lineTo(x(.775, S), y(.245, S)); ctx.lineTo(x(.680, S), y(.455, S));
+            ctx.lineTo(x(.560, S), y(.235, S)); ctx.lineTo(x(.440, S), y(.455, S));
+            ctx.lineTo(x(.320, S), y(.235, S)); ctx.lineTo(x(.225, S), y(.445, S));
+            ctx.lineTo(x(.115, S), y(.335, S));
+            ctx.closePath();
+            // 아랫턱 — 위아래 뒤집은 같은 꼴. 이빨은 윗니 사이(반 칸 어긋나게) 물린다.
+            ctx.moveTo(x(.045, S), y(.80, S));
+            ctx.quadraticCurveTo(x(.50, S), y(1.06, S), x(.955, S), y(.80, S));
+            ctx.lineTo(x(.885, S), y(.665, S));
+            ctx.lineTo(x(.775, S), y(.755, S)); ctx.lineTo(x(.680, S), y(.545, S));
+            ctx.lineTo(x(.560, S), y(.765, S)); ctx.lineTo(x(.440, S), y(.545, S));
+            ctx.lineTo(x(.320, S), y(.765, S)); ctx.lineTo(x(.225, S), y(.555, S));
+            ctx.lineTo(x(.115, S), y(.665, S));
             ctx.closePath();
         },
         cleaver(ctx, S) {                                // 처형 — 처형대 칼날 (fx guillotineDrop)
-            // 도끼가 아니라 **거대한 칼날이 수직으로 떨어져 자른다**. 38px 에서 '떨어지는 칼날'을
-            // 만드는 건 날 모양이 아니라 **양옆 기둥(처형대 프레임)** 이다 — 날만 그리면 깃발,
-            // 날+속도선은 흩어진 블록으로 읽혔다(두 판 폐기). 날은 기둥에 **닿지 않게** 띄운다
-            // (맞붙이면 두 윤곽선이 겹쳐 이음매가 검은 줄로 남는다).
-            const post = (x0) => {
-                ctx.moveTo(x(x0, S), y(.03, S)); ctx.lineTo(x(x0 + .115, S), y(.03, S));
-                ctx.lineTo(x(x0 + .115, S), y(.97, S)); ctx.lineTo(x(x0, S), y(.97, S)); ctx.closePath();
-            };
-            post(.015); post(.87);
-            ctx.moveTo(x(.175, S), y(.10, S)); ctx.lineTo(x(.825, S), y(.10, S));  // 날 — 아래변이 비스듬한 판
-            ctx.lineTo(x(.825, S), y(.52, S)); ctx.lineTo(x(.175, S), y(.80, S)); ctx.closePath();
+            /* 도끼가 아니라 **거대한 칼날이 수직으로 떨어져 자른다**.
+               🚨 종전 판은 기둥 두 개가 **따로 떨어진 막대**라, 그 사이의 창백한 사다리꼴이
+                  '깃대에 걸린 깃발'로 읽혔다(비평가 '범용 클립아트' 지적). 처형대로 읽히게 하는 건
+                  기둥이 아니라 **위를 잇는 도리(Π 꼴)** 다 — 틀이 닫혀야 '기계'가 된다.
+               ⚠️ 기둥과 도리는 **하나의 닫힌 윤곽**으로 그린다. 겹쳐 그리면 `emblem()` 이 경로
+                  전체에 획을 그어 이음매가 안쪽에 검은 줄로 남는다(도끼 날에서 밟은 그 함정).
+               ⚠️ 날은 틀에 **닿지 않게** 띄운다(맞붙이면 두 윤곽선이 겹쳐 같은 문제가 난다). */
+            ctx.moveTo(x(.020, S), y(.030, S)); ctx.lineTo(x(.980, S), y(.030, S));   // Π 틀 — 도리 + 기둥 둘
+            ctx.lineTo(x(.980, S), y(.970, S)); ctx.lineTo(x(.885, S), y(.970, S));
+            ctx.lineTo(x(.885, S), y(.175, S)); ctx.lineTo(x(.115, S), y(.175, S));
+            ctx.lineTo(x(.115, S), y(.970, S)); ctx.lineTo(x(.020, S), y(.970, S));
+            ctx.closePath();
+            /* 날 — **얇고 넓은 쐐기**여야 '떨어지는 칼날'이다. 두꺼우면 틀 안에 낀 판때기(깃발·화면)로
+               읽힌다(첫 판이 그랬다). 아래변을 가파르게 기울여 **비스듬한 날등**을 세우고,
+               날 아래로 검은 틈을 넉넉히 남겨 '매달려 있다'를 만든다. */
+            ctx.moveTo(x(.205, S), y(.285, S)); ctx.lineTo(x(.795, S), y(.285, S));
+            ctx.lineTo(x(.795, S), y(.430, S)); ctx.lineTo(x(.205, S), y(.700, S));
+            ctx.closePath();
         },
         dragon(ctx, S) {                                 // 종말의 화룡 — 뿔·송곳니 용 머리 (fx dragonfireBreath)
             // 아포칼립스의 연출은 **거대 화염룡이 수평으로 쓸어 가는 브레스**다(운석이 아니다 —
