@@ -8249,6 +8249,9 @@ const Scene3D = {
         m.g.rotation.y = -0.55; // 영웅 방향(-x)으로 3/4 자세
         this.setShadow(m.g, true);
         this.applyRimLight(m.g, this.ENEMY_RIM); // 적 전용 강화 컨투어 — ENEMY_RIM 주석 참고
+        // 사망 디졸브 셰이더를 **여기서** 심는다(죽을 때 심으면 재질 100여 개가 한 프레임에 재컴파일된다).
+        // uDis=0 이라 살아 있는 동안 화면은 한 픽셀도 안 바뀐다 — installDissolve 주석 참고.
+        this.installDissolve(m.g);
         this.scene.add(m.g);
         // 적 바는 **적대 빨강**으로 못 박는다 — 영웅 바와 같은 초록/노랑/빨강 램프를 쓰면 둘이
         // 같은 색이라 피아 구분이 안 됐다(비평가 4차 ⓓ). 남은 체력은 어차피 **바 길이**가 말해 주므로
@@ -8611,6 +8614,116 @@ const Scene3D = {
         }
         this._flareTex = new THREE.CanvasTexture(c);
         return this._flareTex;
+    },
+
+    // ── 사망 디졸브(노이즈 알파 클립) ─────────────────────────────────────────────
+    // 종전 디졸브는 전 재질 `opacity = 1 - f` 균일 페이드였다. 그건 '사라진다'가 아니라
+    // **'투명해진다'**로 읽힌다 — 시체가 통째로 옅어지는 동안 실루엣이 끝까지 남아 있어서
+    // 마지막 0.3초가 '유령이 됐다'로 보였고, 배경(초원)이 비쳐 색이 뭉개졌다.
+    // 노이즈 임계값으로 화소를 **버리면**(discard) 시체가 가장자리부터 부스러지며 없어지고,
+    // 버려지는 경계에 잔불(ember)을 얹어 처치 버스트의 주황이 시체까지 이어진다.
+    //
+    // 🚨 왜 `onBeforeCompile` 을 **스폰 때** 거는가 — 죽을 때 걸면 프레임이 튄다.
+    //    적 한 마리의 재질은 40~130개고(실측: 고블린 126메시), 죽는 순간 `needsUpdate` 로
+    //    전부 재컴파일하면 그 프레임이 통째로 멎는다. 처치는 몇 초에 한 번씩 계속 일어나므로
+    //    그 히치가 곧 게임 내내의 히치다. 스폰 때 걸어 두면 컴파일이 **첫 렌더 한 번**으로 끝나고
+    //    (그 프레임은 어차피 지오메트리 업로드로 무거운 프레임이다), 죽을 때는 유니폼 숫자
+    //    하나만 올리면 된다. uDis=0 이면 셰이더가 `discard` 를 타지 않으므로 살아 있는 동안의
+    //    비용은 노이즈 계산뿐이고, 그마저 uDis<=0 에서 조기 반환한다.
+    // 🚨 훅 함수는 **하나를 공유**해야 한다 — three r128 의 `Material.customProgramCacheKey()`
+    //    기본 구현이 `onBeforeCompile.toString()` 이라, 재질마다 새 클로저를 만들면 문자열은 같아도
+    //    안전하지만 재질별로 함수를 새로 만들 이유가 없다. 유니폼만 재질별(`userData.dissolveU`)로 쥔다.
+    DISSOLVE_NOISE: [
+        'float dsvHash(vec3 p){ p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419)); p *= 17.0;',
+        '  return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }',
+        'float dsvNoise(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);',
+        '  return mix(mix(mix(dsvHash(i), dsvHash(i + vec3(1,0,0)), f.x), mix(dsvHash(i + vec3(0,1,0)), dsvHash(i + vec3(1,1,0)), f.x), f.y),',
+        '             mix(mix(dsvHash(i + vec3(0,0,1)), dsvHash(i + vec3(1,0,1)), f.x), mix(dsvHash(i + vec3(0,1,1)), dsvHash(i + vec3(1,1,1)), f.x), f.y), f.z); }',
+    ].join('\n'),
+
+    // 프로그램 캐시 키 — 🚨 훅을 하나로 공유하면 three 의 기본 키(`onBeforeCompile.toString()`)가
+    // **림/그늘이 걸린 재질과 안 걸린 재질을 같은 키로 묶어** 엉뚱한 프로그램을 재사용한다
+    // (적은 몸 재질에만 림이 붙고 눈 흰자 등에는 안 붙는다 — applyRimLight 의 Standard/Phong 조건).
+    // 그래서 심는 순간 어떤 훅이 얹혀 있었는지를 키에 적어 준다.
+    _dissolveCacheKey() {
+        return 'dsv|' + (this.userData.__rim ? 'r' : '') + (this.userData.__shade ? 's' : '');
+    },
+
+    // 모든 디졸브 재질이 공유하는 단일 훅 (위 캐시키 주석 참고).
+    _dissolveHook(shader, renderer) {
+        // `this` 는 three 가 재질을 바인딩해 준다 — 훅 시그니처가 (shader, renderer) 라 재질은 this.
+        // ⚠️ 먼저 **앞서 걸려 있던 훅(림 라이트·그늘 틴트)을 부른다.** 이걸 빠뜨리면 적의 컨투어가
+        //    통째로 사라진다 — spawnEnemy 는 applyRimLight **뒤에** installDissolve 를 부른다.
+        const prev = this.userData.dissolvePrev;
+        if (prev) prev.call(this, shader, renderer);
+        shader.uniforms.uDis = this.userData.dissolveU;
+        shader.vertexShader = 'varying vec3 vDsvPos;\n' + shader.vertexShader.replace(
+            '#include <begin_vertex>', '#include <begin_vertex>\n\tvDsvPos = position;');
+        shader.fragmentShader = 'uniform float uDis;\nvarying vec3 vDsvPos;\n' + Scene3D.DISSOLVE_NOISE + '\n'
+            + shader.fragmentShader
+                // 버리는 건 조명 계산 전에 — 조명·그림자 코드를 태우고 버리면 낭비다.
+                .replace('#include <clipping_planes_fragment>', [
+                    '#include <clipping_planes_fragment>',
+                    'float dsvN = 0.0;',
+                    'if (uDis > 0.0) {',
+                    // 두 옥타브 — 한 옥타브만 쓰면 구멍이 격자로 뚫려 '체크무늬'로 읽힌다.
+                    '  dsvN = dsvNoise(vDsvPos * 6.5) * 0.62 + dsvNoise(vDsvPos * 15.0) * 0.38;',
+                    // 아래를 조금 오래 남긴다 — 발밑부터 사라지면 시체가 위로 떠오르는 것처럼 보인다.
+                    '  dsvN += clamp(vDsvPos.y, -0.6, 1.2) * 0.10;',
+                    '  if (dsvN < uDis) discard;',
+                    '}',
+                ].join('\n'))
+                // 잔불 — 최종 색이 나온 뒤(디더링 직전)에 경계만 태운다.
+                .replace('#include <dithering_fragment>', [
+                    '#include <dithering_fragment>',
+                    'if (uDis > 0.0) {',
+                    '  float dsvE = 1.0 - smoothstep(uDis, uDis + 0.13, dsvN);',
+                    '  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0, 0.52, 0.16) * 1.6, dsvE * 0.92);',
+                    '}',
+                ].join('\n'));
+    },
+
+    // 서브트리의 모든 재질에 디졸브 훅을 심는다(같은 재질이 여러 메시에 걸려 있어도 한 번만).
+    installDissolve(root) {
+        root.traverse(o => {
+            if (!o.isMesh || !o.material) return;
+            (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => {
+                if (mt.userData.dissolveU) return;
+                mt.userData.dissolveU = { value: 0 };
+                mt.userData.dissolvePrev = mt.onBeforeCompile;  // 림/그늘 훅 보존 — _dissolveHook 이 먼저 부른다
+                mt.onBeforeCompile = this._dissolveHook;
+                mt.customProgramCacheKey = this._dissolveCacheKey;
+                mt.needsUpdate = true;
+            });
+        });
+    },
+
+    // 디졸브 진행도 f(0~1)를 서브트리에 먹인다.
+    // 🚨 f 를 임계값에 **그대로** 넣으면 안 된다 — 값 노이즈는 0.5 근처에 질량이 몰린 종 모양이라,
+    //    임계값을 등속으로 올리면 앞뒤 0.3 구간에서는 아무것도 안 없어지고 가운데서 한꺼번에 무너진다.
+    //    실측(`probe-death-dissolve.js`, 골렘): 임계 0.21 에서 커버리지 0.98 · 0.53 에서 0.68 ·
+    //    0.76 에서 0.02 로, **눈에 보이는 소멸이 창의 3분의 1로 뭉쳐** 0.42초를 줬는데 실제 소멸은
+    //    0.14초였다(처방 0.3~0.5초 미달). 그래서 노이즈가 실제로 분포한 대역
+    //    [DSV_LO, DSV_HI] 로 f 를 펴서 창 전체를 쓰게 한다(대역은 위 실측 표에서 커버리지 1.0/0.0 이 되는 임계값).
+    // ⚠️ 마지막 12% 는 대역 밖(0.95)까지 밀어 올린다 — 종·파츠마다 로컬 좌표 크기가 달라
+    //    노이즈 최댓값이 DSV_HI 를 넘는 메시가 남는다(실측: 골렘 15px 이 0.1초 더 떠 있었다).
+    //    보이는 소멸 구간은 f≤0.88 의 [LO, HI] 구간이 그대로 담당하므로 타이밍은 안 바뀐다.
+    DSV_LO: 0.24, DSV_HI: 0.78, DSV_TAIL: 0.88,
+    setDissolve(root, f) {
+        const c = U.clamp(f, 0, 1);
+        const v = f <= 0 ? 0
+            : c <= this.DSV_TAIL ? this.DSV_LO + (c / this.DSV_TAIL) * (this.DSV_HI - this.DSV_LO)
+                : this.DSV_HI + ((c - this.DSV_TAIL) / (1 - this.DSV_TAIL)) * (0.95 - this.DSV_HI);
+        root.traverse(o => {
+            if (!o.isMesh || !o.material) return;
+            (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => {
+                if (mt.userData.dissolveU) { mt.userData.dissolveU.value = v; return; }
+                // 훅이 안 걸린 재질(스폰 경로를 안 탄 것)은 종전대로 불투명도로 접는다 — 안 그러면 그 파츠만 남는다.
+                const b = mt.userData.dissolveBase !== undefined ? mt.userData.dissolveBase : 1;
+                mt.transparent = true;
+                mt.opacity = b * Math.max(0, 1 - f);
+            });
+        });
     },
 
     // 타격 지점에 카메라를 향한 가산 쿼드를 번쩍인다. 전신을 하얗게 태우는 대신 "어디를 맞았는지"를 준다.
@@ -9142,16 +9255,18 @@ const Scene3D = {
                 }, () => { barG.visible = false; });
             });
         }
-        const mats = [];
+        // ⚠️ 원래 불투명이 **아니었던** 재질은 자기 불투명도를 기준으로 접어야 한다.
+        // 예전엔 아래에서 `opacity = 1 - f` 로 통째로 덮어썼는데, 쓰러짐 구간에서는 f 가 0 이라
+        // 젤리 몸통(0.82)·정수리 광택(0.38)·막날개(0.76/0.85)·접촉 AO 링(0.42~0.58)이
+        // **죽는 첫 프레임에 불투명으로 팍 튀었다** — 관절 AO 가 '검은 테로 켜지는' 걸로 보인다.
+        // 그 기준값만 여기서 갈무리하고, 실제 소멸은 `setDissolve`(노이즈 알파 클립)가 맡는다.
+        // 🚨 예전처럼 여기서 `transparent = true` 를 **일괄로 켜지 않는다** — 알파 클립은 불투명
+        //    패스에서 그대로 동작하고, 시체를 통째로 투명 패스로 옮기면 쓰러지는 동안 파츠끼리
+        //    정렬이 뒤집혀 이빨·눈이 얼굴 앞으로 튀어나온다(투명 오브젝트는 깊이 기록을 안 한다).
         m.g.traverse(o => {
             if (!o.isMesh || !o.material) return;
-            // ⚠️ 원래 불투명이 **아니었던** 재질은 자기 불투명도를 기준으로 디졸브해야 한다.
-            // 예전엔 아래에서 `opacity = 1 - f` 로 통째로 덮어썼는데, 쓰러짐 구간에서는 f 가 0 이라
-            // 젤리 몸통(0.82)·정수리 광택(0.38)·막날개(0.76/0.85)·접촉 AO 링(0.42~0.58)이
-            // **죽는 첫 프레임에 불투명으로 팍 튀었다** — 관절 AO 가 '검은 테로 켜지는' 걸로 보인다.
             (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => {
                 if (mt.userData.dissolveBase === undefined) mt.userData.dissolveBase = mt.transparent ? mt.opacity : 1;
-                mt.transparent = true; mats.push(mt);
             });
         });
         // 진행 중이던 히트축 스쿼시를 먼저 접는다 — update 루프는 `!e.alive`를 건너뛰므로 여기서 안 끄면
@@ -9196,10 +9311,14 @@ const Scene3D = {
                 m.g.position.y = 0;
                 m.g.position.x = ox + 0.22;
                 // 착지 후 잠깐(0.18s) 시체를 불투명하게 눕혀 둔다 — 닿자마자 녹기 시작하면 '쓰러졌다'가
-                // 지각되기 전에 사라져 순간 소멸처럼 보인다. 그 뒤 남은 시간 전부를 디졸브에 쓴다.
+                // 지각되기 전에 사라져 순간 소멸처럼 보인다.
+                // 🚨 디졸브 길이를 **절대 시간 0.52초로 못 박는다**(비평가 처방 '접지 후 0.3~0.5초').
+                //    예전엔 `(k - kHold) / (1 - kHold)` 로 **남은 시간 전부**를 썼는데, 그러면 일반
+                //    0.57초 · 보스 0.90초로 종류마다 소멸 속도가 달라지고 보스는 거의 1초를 반투명
+                //    시체로 서 있었다. 남는 꼬리는 이미 다 사라진 상태로 흘려보낸다(시체는 안 보인다).
                 const kHold = kDown + 0.18 / dur;
-                const f = k < kHold ? 0 : (k - kHold) / (1 - kHold);
-                mats.forEach(mt => mt.opacity = (mt.userData.dissolveBase !== undefined ? mt.userData.dissolveBase : 1) * (1 - f)); // 디졸브 (재질별 원래 불투명도 기준)
+                const f = k < kHold ? 0 : U.clamp((k - kHold) * dur / 0.52, 0, 1);
+                this.setDissolve(m.g, f);   // 임계값 매핑은 setDissolve 가 한다(노이즈 분포 주석 참고)
                 if (m.blob) m.blob.scale.setScalar(0.95 * (1 - f)); // 공유 재질인 블롭 섀도우는 스케일로만 축소
             }
             // 빈 HP바가 시체를 따라간다. 바 위치는 평소 `update()` 의 `for (const e of Combat.enemies)`
