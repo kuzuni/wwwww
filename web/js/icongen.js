@@ -4659,34 +4659,35 @@ IconGen._genderSym = function (ctx, S, female) {
     /* 🧟 좀비 러시 — 보라 하늘 + 고목 2그루 + 철망 울타리 + 드럼통 */
     G.draw.dg_zombie = function (ctx, S) {
         const W = S * AR, H = S, R = rnd(53);
-        /* R4 비평가 B '원본은 밝은 라벤더(실측 204,177,255) — 클론은 밤처럼 어둡다': 파스텔로 올린다 */
-        sky(ctx, W, H, '#e4d2fb', '#cbb2e8');   // R8 값게이트: 하단이 #8a63b5(L115)면 0.3~0.6H 가 원본보다 40 어둡다
-        /* 구름 = 납작한 **가로 밴드**(끝 둥근 막대). 종전의 큰 달무리 원 + 타원 구름은 '정체불명의
-           흰 얼룩이 떠 있다'로 읽혔다(비평가 7차) — 원본 4행 하늘도 수평 구름 밴드다. */
-        /* 9차 2인 공통 '스켈레톤 로딩 바' 오독: 원본이 수평 구름 밴드인 건 실측 확정이라 밴드는
-           유지하되, **윗변에 뭉게 혹 2개**를 얹어 '구름'으로 판독되게 한다(균일 캡슐 금지). */
-        /* R4 비평가 A '외곽선 없는 소프트 블롭 — 키라인 원칙 위반': 구름에도 합집합 키라인
-           (스트로크→채움 2패스, 덤불 화법). 하늘이 파스텔로 밝아져 채움도 한 단 진하게 갈랐다. */
-        /* ⚠️ 키라인을 두르는 순간 '가는 캡슐 + 작은 혹'은 '구슬 꿴 철사'로 읽힌다(이번 런 캡처
-           확인) — 밴드를 짧고 두껍게, 혹 반경을 밴드 두께의 1.3~1.9배로 키워 뭉게 덩어리로. */
-        const band = (bx, by, bw, bh2, c) => {
-            const p = () => {
-                ctx.moveTo(bx, by); ctx.arc(bx, by + bh2 / 2, bh2 / 2, Math.PI * 1.5, Math.PI * 0.5, true);
-                ctx.lineTo(bx + bw, by + bh2); ctx.arc(bx + bw, by + bh2 / 2, bh2 / 2, Math.PI * 0.5, Math.PI * 1.5, true);
-                ctx.closePath();
-                /* 혹 원은 캡슐과 같은 반시계 감김으로 — 감김이 갈리면 nonzero 규칙에서 겹침이
-                   구멍이 되어 캡슐 윗변 스트로크가 혹 안으로 비쳐 '선 관통'이 된다(캡처 확인). */
-                ctx.arc(bx + bw * 0.32, by + bh2 * 0.14, bh2 * 1.05, 0, Math.PI * 2, true);   // 혹 — R9 2인 공통 '동글동글 뭉게구름': 납작하게 낮춘다
-                ctx.arc(bx + bw * 0.70, by + bh2 * 0.24, bh2 * 0.80, 0, Math.PI * 2, true);
-            };
-            /* R5 A [치명] '이 화면 유일의 유선 하늘 요소 — 라인 정책 충돌': 검은 키라인을 걷고
-               하늘보다 어두운 보라 실루엣으로(원본 실측도 무외곽선 저명도 밴드 — R4 A 의 '유선
-               구름' 처방이 원본 이탈이었다). 뭉게 혹 실루엣은 유지. */
-            fill(ctx, c, p);
-        };
-        band(W * 0.095, H * 0.15, W * 0.205, H * 0.042, '#a683c8');   // R9: 가로로 길고 납작하게(원본의 수평 구름 띠)
-        band(W * 0.44, H * 0.10, W * 0.165, H * 0.038, '#9d7ac0');
-        band(W * 0.325, H * 0.265, W * 0.130, H * 0.032, '#a683c8');
+        /* R10 실측 — 원본 4행 하늘은 **평평한 단색 #ccb1ff** 다. y0.04·0.10·0.16·0.22·0.30·0.46 어디를
+           훑어도 최빈색이 같고 그 색이 창의 100% 를 차지한다(그라디언트 없음). R4 비평가가
+           '실측 204,177,255' 로 적어 둔 값이 정확히 이것인데, 그 뒤 파스텔 그라디언트로 덮여
+           상단이 원본보다 26 밝아져 있었다(값 게이트 1·2밴드가 +17.6/+19.6 로 한계 22 에 붙어 있던
+           이유가 이거다). 평평한 단색으로 되돌린다 — R9 '층마다 한 색' 발견과 같은 처방이다. */
+        sky(ctx, W, H, '#ccb1ff', '#ccb1ff');
+        /* 🚨 R10 — 구름을 '가로 막대'로 그리는 화법을 **폐기**한다.
+           9라운드 동안 캡슐→뭉게 혹→키라인 착탈로 *모양만* 바꿨는데 비평가는 매 라운드
+           '스켈레톤 로딩 바 / 구슬 꿴 철사'로 읽었다. 이번엔 모양 대신 **자리와 명암**을 쟀고
+           (`tools/probe-dg-sky.js`), 지적이 옳았다는 게 수치로 나왔다:
+             · 하늘 상단 창(x0.33~0.52W · y0.06~0.30H)에서 원본은 **거의 비어 있다** —
+               가로 경계 1.04/행 · 어두운 픽셀 6.3%. 클론은 같은 창의 **51.2%** 를 어두운 막대로
+               덮었고 경계가 **12.93/행**(원본의 12배)이었다. '막대로 읽힌다'가 곧 실측이다.
+             · 명암이 **반대**였다: 원본 구름은 하늘보다 **밝고**(+7~22L) 아래쪽(y0.29~0.41H)에
+               눕는데, 클론 막대는 하늘보다 **어둡고**(-66L) 위쪽(y0.10~0.30H)에 있었다.
+           → ⓐ 상단은 비운다 ⓑ 하늘보다 한 단 밝은 라벤더로 ⓒ 아래쪽에만 ⓓ 양끝이 한 점으로
+             모이는 **결**(테이퍼)로. 키라인·혹·균일 두께는 전부 금지 — 그게 막대의 정체였다.
+           ⚠️ 다음 세션 경고: 여기에 다시 '판독되게' 키라인이나 혹을 얹지 말 것. 그 두 처방이
+             R4~R9 를 돈 자리이고, 원본에는 **둘 다 없다**(무외곽선 · 균일하지 않은 결). */
+        const wisp = (wx, wy, ww, wh, c) => fill(ctx, c, () => {
+            ctx.moveTo(wx, wy + wh * 0.55);                                  // 왼쪽 끝 — 한 점으로 모인다
+            ctx.quadraticCurveTo(wx + ww * 0.28, wy - wh * 0.10, wx + ww * 0.60, wy + wh * 0.20);
+            ctx.quadraticCurveTo(wx + ww * 0.86, wy + wh * 0.42, wx + ww, wy + wh * 0.50);   // 오른쪽 끝 — 한 점
+            ctx.quadraticCurveTo(wx + ww * 0.78, wy + wh * 0.92, wx + ww * 0.44, wy + wh);
+            ctx.quadraticCurveTo(wx + ww * 0.18, wy + wh * 1.04, wx, wy + wh * 0.55);
+        });
+        wisp(W * 0.130, H * 0.296, W * 0.225, H * 0.055, '#dcc6ff');   // 밝은 쪽 (+16L)
+        wisp(W * 0.365, H * 0.350, W * 0.155, H * 0.042, '#d6bffd');   // 옅은 쪽 (+8L)
+        wisp(W * 0.048, H * 0.392, W * 0.120, H * 0.032, '#d6bffd');
         /* 배경 능선 2겹(잔여 결함 ⓔ): 하늘→지면이 한 번에 끊겨 원경이 없었다(8차 '능선 3단 명도').
            멀수록 밝게(대기원근) — 뒤 #5f4585 → 앞 #533a74 → 기존 지면 #4a3563 으로 3단이 선다. */
         fill(ctx, '#a189c6', () => { ctx.moveTo(0, H * 0.66); ctx.quadraticCurveTo(W * 0.22, H * 0.575, W * 0.46, H * 0.645); ctx.quadraticCurveTo(W * 0.72, H * 0.71, W, H * 0.625); ctx.lineTo(W, H); ctx.lineTo(0, H); });
@@ -4723,15 +4724,25 @@ IconGen._genderSym = function (ctx, S, female) {
                 ctx.quadraticCurveTo(x + u * 0.115, B - u * 0.075, x + u * 0.235, B + u * 0.02);
                 ctx.closePath();
             });
-            tap(x, B, x - u * 0.05, B - u * 0.30, x + u * 0.025, B - u * 0.56, u * 0.195);            // 줄기(S자 뒤틀림·위로 갈수록 가늘게·꼭대기 뾰족)
-            tap(x - u * 0.015, B - u * 0.30, x - u * 0.16, B - u * 0.34, x - u * 0.30, B - u * 0.50, u * 0.100);   // 왼 큰 가지
-            tap(x + u * 0.015, B - u * 0.40, x + u * 0.13, B - u * 0.50, x + u * 0.27, B - u * 0.56, u * 0.092);   // 오른 큰 가지
-            tap(x + u * 0.02, B - u * 0.18, x + u * 0.10, B - u * 0.22, x + u * 0.17, B - u * 0.30, u * 0.058);    // 아래 작은 가지
-            tap(x - u * 0.005, B - u * 0.50, x - u * 0.06, B - u * 0.58, x - u * 0.09, B - u * 0.645, u * 0.030);  // 꼭대기 곁스파이크
-            tap(x - u * 0.17, B - u * 0.40, x - u * 0.225, B - u * 0.36, x - u * 0.245, B - u * 0.275, u * 0.024); // 처진 잔가지(왼 가지 중간에서 아래로)
-            tap(x + u * 0.16, B - u * 0.505, x + u * 0.21, B - u * 0.47, x + u * 0.23, B - u * 0.39, u * 0.022);   // 처진 잔가지(오른 가지 중간에서 아래로)
+            /* R10 — **가지를 가늘게, 대신 더 많이.** 두 가지 근거가 같은 곳을 가리켰다:
+               ⑴ 값 게이트에서 4~7밴드(y0.29~0.58H)가 원본보다 17~28 어두웠고, 그 구간의 암부
+                  초과분(원본 16.6/19.1% vs 클론 22.8/28.6%)은 전부 굵은 가지 + 굵은 키라인이었다.
+               ⑵ 같은 자리가 눈으로는 '뭉툭한 가시 덩어리(불가사리·박쥐)'로 읽혔다 — 원본 고목은
+                  **가늘고 여러 갈래로 갈라진** 잔가지 다발이다.
+               굵기를 0.62~0.70배로 내리고 키라인을 0.034→0.021 로 줄인 뒤, 남는 여백에 잔가지
+               3본을 더 꽂았다(면적은 줄고 갈래 수는 늘어 '앙상함'이 산다). */
+            tap(x, B, x - u * 0.05, B - u * 0.30, x + u * 0.025, B - u * 0.56, u * 0.150);            // 줄기(S자 뒤틀림·위로 갈수록 가늘게·꼭대기 뾰족)
+            tap(x - u * 0.015, B - u * 0.30, x - u * 0.16, B - u * 0.34, x - u * 0.30, B - u * 0.50, u * 0.066);   // 왼 큰 가지
+            tap(x + u * 0.015, B - u * 0.40, x + u * 0.13, B - u * 0.50, x + u * 0.27, B - u * 0.56, u * 0.060);   // 오른 큰 가지
+            tap(x + u * 0.02, B - u * 0.18, x + u * 0.10, B - u * 0.22, x + u * 0.17, B - u * 0.30, u * 0.040);    // 아래 작은 가지
+            tap(x - u * 0.005, B - u * 0.50, x - u * 0.06, B - u * 0.58, x - u * 0.09, B - u * 0.645, u * 0.022);  // 꼭대기 곁스파이크
+            tap(x - u * 0.17, B - u * 0.40, x - u * 0.225, B - u * 0.36, x - u * 0.245, B - u * 0.275, u * 0.017); // 처진 잔가지(왼 가지 중간에서 아래로)
+            tap(x + u * 0.16, B - u * 0.505, x + u * 0.21, B - u * 0.47, x + u * 0.23, B - u * 0.39, u * 0.016);   // 처진 잔가지(오른 가지 중간에서 아래로)
+            tap(x - u * 0.20, B - u * 0.425, x - u * 0.30, B - u * 0.50, x - u * 0.40, B - u * 0.545, u * 0.017);  // 왼 가지에서 위로 갈라진 잔가지
+            tap(x + u * 0.135, B - u * 0.455, x + u * 0.20, B - u * 0.585, x + u * 0.225, B - u * 0.680, u * 0.016); // 오른 가지에서 위로
+            tap(x + u * 0.025, B - u * 0.545, x + u * 0.115, B - u * 0.585, x + u * 0.175, B - u * 0.660, u * 0.015); // 꼭대기 갈래
             ctx.lineJoin = 'round';
-            P.forEach(p => { ctx.beginPath(); p(); ctx.strokeStyle = oc; ctx.lineWidth = H * 0.034; ctx.stroke(); });   // 합집합 키라인(R7 증량)
+            P.forEach(p => { ctx.beginPath(); p(); ctx.strokeStyle = oc; ctx.lineWidth = H * 0.021; ctx.stroke(); });   // 합집합 키라인(R10 감량 — 위 주석 ⑴)
             P.forEach(p => { ctx.beginPath(); p(); ctx.fillStyle = c; ctx.fill(); });
             fill(ctx, oc, () => ctx.ellipse(x + u * 0.015, B - u * 0.26, u * 0.042, u * 0.062, 0.2, 0, Math.PI * 2));   // 옹이 — R9 D10: 1x 에서 보이게 확대
             ctx.save();                                                    // 셀 라이트 한 단(R3 B ⓓ '전경 소품 2톤') — 줄기 왼 가장자리
@@ -4748,45 +4759,67 @@ IconGen._genderSym = function (ctx, S, female) {
            세운다. ⚠️ 호출은 철망 **뒤가 아니라 앞**(R1 B '해골이 철망 메쉬에 덮여 바래 사실상 안
            보인다') — 정의만 여기 두고 철망 다음에 부른다. */
         const drawRemains = () => {
-            /* ⚠️ 해골이 작고 갈비 획이 가늘면 '해골 옆 거미'로 읽힌다(1차 시안) — 두개골을 키우고
-               갈비는 두껍게, 척추선으로 잇는다. */
-            const sx = W * 0.145, sy = H * 0.82, r = H * 0.088;
-            fill(ctx, 'rgba(15,10,28,.40)', () => ctx.ellipse(sx + r * 1.4, sy + r * 1.35, r * 2.6, r * 0.42, 0, 0, Math.PI * 2));   // 바닥 그림자 — '철망에 붙은 표지판'이 아니라 바닥에 놓인 소품(비평가 7차)
-            /* 뼈 무더기 키라인(R2 공통 '전경 키라인 비일관'): 척추·갈비를 근흑 언더레이 위에 겹쳐
-               그리고 두개골·턱도 스트로크→채움 순서로 키라인을 두른다. */
-            /* 이번 런 B '해골 옆 회색 덩어리 판독 불능': 갈비 아치가 굵은 키라인에 뭉개져 요철만
-               남았다 — 키라인을 가늘게, 아치 반경을 키우고 간격을 벌려 **늑골 사이 틈**이 1x 에서
-               보이게 한다. 척추 끝에 골반 혹을 달아 '유해'의 형태 언어를 명시. */
-            [[H * 0.040, '#150e26'], [H * 0.024, '#d9d2e6']].forEach(([lw, col]) => {
+            /* 🚨 R10 — **정면 두개골을 폐기하고 원본대로 '옆으로 누운 짐승 두개골'로** 다시 그린다.
+               R9 잔여 ⓑ('좌하단 흰 덩어리가 자동차인지 뼈인지 판독 불가')의 정체를 원본 10배
+               크롭으로 확정했다: 종전 조형이 **원 + 그 밑 사각 턱 + 세로 이빨 골** 이었는데,
+               이 조합은 1x 에서 정확히 **차체 + 창문띠 + 라디에이터 그릴** 로 읽힌다 — 비평가가
+               '자동차'라고 한 건 은유가 아니라 그 형태 그대로였다.
+               원본은 전혀 다른 물건이다: **오른쪽을 향해 누운 긴 주둥이 짐승 두개골**(말/소 계열)
+               + 위로 휜 뿔 하나 + **길쭉한 검은 눈구멍 하나**(정면 눈 두 개가 아니다) + 그 뒤로
+               흩어진 **갈비 아치 4개**. 정면성을 버리는 게 핵심이다 — 좌우 대칭이 남아 있는 한
+               사람 얼굴이나 차 앞모습으로 계속 읽힌다.
+               ⚠️ 다음 세션: 여기에 정면 눈 2개·사각 턱·세로 이빨 골을 다시 넣지 말 것. */
+            /* 크기·자리는 원본 10배 크롭 실측: 유해 전체가 가로 ≈0.167W · 세로 ≈0.31H 를 차지하고
+               세로로 y0.66~0.97H 에 눕는다. 첫 시안은 그 2/3 크기라 '작은 새'로 읽혔다. */
+            const sx = W * 0.108, sy = H * 0.822, r = H * 0.104;
+            fill(ctx, 'rgba(15,10,28,.40)', () => ctx.ellipse(sx + r * 1.5, sy + r * 0.95, r * 3.0, r * 0.40, 0, 0, Math.PI * 2));   // 바닥 그림자 — 바닥에 놓인 소품(비평가 7차)
+            /* 갈비 아치 — 두개골 **뒤(왼쪽)** 로 흩어진다. 원본도 두개골 왼쪽에 4개가 겹쳐 있다.
+               키라인(근흑) → 뼈색 2패스로 늑골 사이 틈이 1x 에서 살아 있게 한다. */
+            [[H * 0.034, '#150e26'], [H * 0.019, '#e8e2f2']].forEach(([lw, col]) => {
                 ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineCap = 'round';
-                ctx.beginPath(); ctx.moveTo(sx + r * 1.0, sy + r * 0.55); ctx.lineTo(sx + r * 3.55, sy + r * 0.62); ctx.stroke();   // 척추
-                [1.55, 2.35, 3.10].forEach(k => {                                                 // 갈비 아치(간격을 벌려 틈이 보이게)
-                    ctx.beginPath(); ctx.arc(sx + r * k, sy + r * 0.58, r * 0.60, Math.PI, Math.PI * 2); ctx.stroke();
+                [[-1.62, 0.86, -0.35], [-1.10, 0.95, -0.22], [-0.56, 0.90, -0.10], [-0.04, 0.74, 0.02]].forEach(([k, rad, tilt]) => {
+                    ctx.beginPath();
+                    ctx.ellipse(sx + r * k, sy + r * 0.30, r * rad, r * rad * 0.62, tilt, Math.PI * 0.92, Math.PI * 2.02);
+                    ctx.stroke();
                 });
                 ctx.lineCap = 'butt';
             });
-            (() => {                                                                              // 골반 혹(척추 끝)
-                const px = sx + r * 3.55, py = sy + r * 0.62;
-                ctx.beginPath(); ctx.ellipse(px, py, r * 0.30, r * 0.24, 0.2, 0, Math.PI * 2);
-                ctx.strokeStyle = '#150e26'; ctx.lineWidth = H * 0.020; ctx.stroke();
-                ctx.beginPath(); ctx.ellipse(px, py, r * 0.30, r * 0.24, 0.2, 0, Math.PI * 2);
-                ctx.fillStyle = '#d9d2e6'; ctx.fill();
-            })();
-            const skullP = () => { ctx.arc(sx, sy, r, 0, Math.PI * 2); };
-            const jawP = () => { ctx.rect(sx - r * 0.5, sy + r * 0.55, r * 1.15, r * 0.60); };
-            ctx.strokeStyle = '#150e26'; ctx.lineWidth = H * 0.036;
-            [skullP, jawP].forEach(p => { ctx.beginPath(); p(); ctx.stroke(); });
-            fill(ctx, '#d9d2e6', skullP);                                                        // 두개골
-            fill(ctx, '#d9d2e6', jawP);                                                          // 턱
-            fill(ctx, '#3a2a52', () => ctx.arc(sx - r * 0.34, sy - r * 0.08, r * 0.26, 0, Math.PI * 2));   // 눈구멍
-            fill(ctx, '#3a2a52', () => ctx.arc(sx + r * 0.34, sy - r * 0.08, r * 0.26, 0, Math.PI * 2));
-            [-0.28, 0, 0.28].forEach(dx =>                                                        // 이빨 골
-                fill(ctx, '#3a2a52', () => ctx.rect(sx + r * (dx - 0.06), sy + r * 0.58, r * 0.12, r * 0.42)));
-            const x = W * 0.365, y = H * 0.92, l = H * 0.10;                                      // 곁뼈 하나
-            const boneP = [() => ctx.rect(x, y, l, H * 0.022), () => ctx.arc(x, y + H * 0.011, H * 0.022, 0, Math.PI * 2), () => ctx.arc(x + l, y + H * 0.011, H * 0.022, 0, Math.PI * 2)];
-            ctx.strokeStyle = '#150e26'; ctx.lineWidth = H * 0.028;
-            boneP.forEach(p => { ctx.beginPath(); p(); ctx.stroke(); });                          // 합집합 키라인
-            boneP.forEach(p => fill(ctx, '#d9d2e6', p));
+            /* 두개골 옆모습: 뒤통수(둥근 뒤) → 위로 휜 뿔 → 앞으로 뻗은 긴 주둥이 → 아래턱 선.
+               한 폴리곤으로 이어 그려 '덩어리 하나'로 읽히게 한다(조각나면 다시 판독 불가). */
+            /* ⚠️ 뒤통수를 완전한 원호로 두면 주둥이와 합쳐 '오리/새 머리'가 된다(2차 시안에서 실제로
+               그렇게 읽혔다) — 뒤통수 위를 **각진 마루**로 꺾고 턱 뒤에 하악각을 만들어 짐승
+               두개골의 쐐기 실루엣을 세운다. */
+            const skullP = () => {
+                ctx.moveTo(sx - r * 0.86, sy + r * 0.06);                                          // 뒤통수 아래(하악각)
+                ctx.lineTo(sx - r * 0.92, sy - r * 0.44);                                          // 뒤통수 뒷변 — 직선으로 각지게
+                ctx.lineTo(sx - r * 0.44, sy - r * 0.74);                                          // 두정 마루(꺾임)
+                ctx.quadraticCurveTo(sx + r * 0.14, sy - r * 0.88, sx + r * 0.56, sy - r * 0.52);   // 이마 → 눈두덩
+                ctx.quadraticCurveTo(sx + r * 1.34, sy - r * 0.44, sx + r * 2.34, sy - r * 0.10);   // 주둥이 윗선(길게)
+                ctx.quadraticCurveTo(sx + r * 2.62, sy + r * 0.04, sx + r * 2.28, sy + r * 0.26);   // 콧등 끝(둥글게 마감)
+                ctx.quadraticCurveTo(sx + r * 1.30, sy + r * 0.36, sx + r * 0.62, sy + r * 0.44);   // 주둥이 아랫선
+                ctx.quadraticCurveTo(sx + r * 0.08, sy + r * 0.78, sx - r * 0.46, sy + r * 0.66);   // 턱 밑
+                ctx.lineTo(sx - r * 0.86, sy + r * 0.06);
+            };
+            const hornP = () => {                                                                  // 위로 휜 뿔 하나(비대칭 — 옆모습의 증거)
+                ctx.moveTo(sx - r * 0.40, sy - r * 0.70);
+                ctx.quadraticCurveTo(sx - r * 0.72, sy - r * 1.62, sx + r * 0.16, sy - r * 2.02);
+                ctx.quadraticCurveTo(sx - r * 0.20, sy - r * 1.42, sx + r * 0.06, sy - r * 0.60);
+            };
+            ctx.strokeStyle = '#150e26'; ctx.lineWidth = H * 0.032; ctx.lineJoin = 'round';
+            [skullP, hornP].forEach(p => { ctx.beginPath(); p(); ctx.closePath(); ctx.stroke(); });
+            fill(ctx, '#e8e2f2', skullP);
+            fill(ctx, '#e8e2f2', hornP);
+            ctx.lineJoin = 'miter';
+            fill(ctx, '#2b1c3f', () => {                                                           // 눈구멍 — 길쭉한 하나(옆모습)
+                ctx.ellipse(sx + r * 0.30, sy - r * 0.20, r * 0.40, r * 0.24, -0.16, 0, Math.PI * 2);
+            });
+            fill(ctx, '#2b1c3f', () => {                                                           // 콧구멍 — 주둥이 끝 작은 점
+                ctx.ellipse(sx + r * 1.96, sy + r * 0.04, r * 0.13, r * 0.09, 0, 0, Math.PI * 2);
+            });
+            /* R10 — 화면 한복판 바닥(0.365W · 0.92H)에 떠 있던 **곁뼈 하나를 걷어냈다.** 원본의
+               같은 자리는 아무것도 없는 평평한 어두운 바닥이고, 이 뼈는 유해(0.11W)와도 멀어
+               주인 없는 조각으로 떠 보였다(R9 잔여 '떠 보이는 조각' 계열). 뼈는 유해 쪽에
+               모여 있어야 '한 구의 잔해'로 읽힌다 — 여기 다시 흩뿌리지 말 것. */
         };
         /* 드럼통 — 원본은 **밴드가 층층인 원기둥**이다(파란 사각 블록이 아니라). 옆면을 살짝
            부풀리고 위 타원 + 곡률 따라 도는 어두운 밴드 + 세로 하이라이트 + 키라인.
@@ -4818,33 +4851,34 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.strokeStyle = '#101528'; ctx.lineWidth = H * 0.018; ctx.stroke();
             ctx.beginPath(); body(); ctx.strokeStyle = '#101528'; ctx.lineWidth = H * 0.022; ctx.stroke();  // 키라인(R2 공통 — 전경 소품 굵기로 통일)
         })();
-        /* 철망 울타리 — **왼쪽 끝**으로 옮겼다(잔여 결함 ⓑ). 종전 자리(x 0.86W~)는 [열기] 버튼과
-           열쇠 필이 정확히 덮는 자리라, 격자가 버튼 위·아래로만 조각나 '깨진 무늬'로 보였다.
-           낮게(y 0.52~0.90H) 깔아 지평선 소품으로 읽히게 한다. */
+        /* 철망 울타리 — **오른쪽 끝으로 되돌린다(R10)**. 앞 라운드가 '[열기] 버튼에 잘려 조각난다'는
+           이유로 왼쪽 끝(0~0.22W)으로 옮겼는데, 원본 확대(x0.80~1.0W 크롭)를 보면 **원본도 정확히
+           그 자리에 있고 버튼 뒤로 물린다** — 잘리는 게 원본의 구도다. 왼쪽으로 옮긴 대가가 더
+           컸다: ⑴ 원본 좌하단의 주인공 소품(짐승 두개골+갈비)을 격자가 덮어 '자동차'로 읽히는
+           바탕이 됐고 ⑵ 원본에 없는 구조물이 좌측에 서서 좌우 무게가 뒤집혔다.
+           → 원본대로 우측(0.875~1.0W · y0.36~0.78H)에 세우고, 버튼에 물리는 건 그대로 둔다.
+           ⚠️ 다시 왼쪽으로 옮기지 말 것 — 원본 대조로 확정한 자리다. */
+        const FX0 = W * 0.875, FX1 = W, FY0 = H * 0.36, FY1 = H * 0.78;
         ctx.save();
-        ctx.beginPath(); ctx.rect(0, H * 0.50, W * 0.22, H * 0.435); ctx.clip();   // 하단은 레일(0.935H)까지만 — 밑으로 삐진 크로스해치 조각이 '글리프 노이즈'로 읽혔다(R2 A2)
+        ctx.beginPath(); ctx.rect(FX0, FY0, FX1 - FX0, FY1 - FY0); ctx.clip();
         ctx.strokeStyle = 'rgba(178,172,200,.42)'; ctx.lineWidth = H * 0.019;   // 메쉬를 굵고 진하게 — 얇으면 재질감이 죽는다(비평가 3차) · R1 B '철망이 주제부보다 도드라짐' — 구조(레일·포스트)는 진하게, 메쉬는 다시 낮춤
-        for (let i = -4; i < 9; i++) {
-            ctx.beginPath(); ctx.moveTo(i * H * 0.07, H * 0.50); ctx.lineTo(i * H * 0.07 + H * 0.40, H * 0.96); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(i * H * 0.07 + H * 0.40, H * 0.50); ctx.lineTo(i * H * 0.07, H * 0.96); ctx.stroke();
+        for (let i = -6; i < 9; i++) {
+            const ox = FX0 + i * H * 0.07;
+            ctx.beginPath(); ctx.moveTo(ox, FY0); ctx.lineTo(ox + (FY1 - FY0), FY1); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(ox + (FY1 - FY0), FY0); ctx.lineTo(ox, FY1); ctx.stroke();
         }
         ctx.restore();
         /* 철망 마감(3차 재채점 교집합 ⓓ): 크로스해치가 프레임 없이 공중에서 끊겨 '깨진 무늬'로
-           읽혔다 — 상·하단 가로 레일 + 포스트 2본 + 포스트 캡으로 '울타리 구조물'을 세운다.
-           위치·범위(0~0.22W, y0.50~0.96H)는 사양 그대로. */
+           읽혔다 — 상·하단 가로 레일 + 포스트로 '울타리 구조물'을 세운다(자리만 우측으로 옮김). */
         ctx.save();
         ctx.strokeStyle = 'rgba(172,166,194,.72)'; ctx.lineWidth = H * 0.024;
-        ctx.beginPath(); ctx.moveTo(0, H * 0.505); ctx.lineTo(W * 0.22, H * 0.505); ctx.stroke();  // 상단 레일
-        ctx.beginPath(); ctx.moveTo(0, H * 0.935); ctx.lineTo(W * 0.22, H * 0.935); ctx.stroke();  // 하단 레일
+        ctx.beginPath(); ctx.moveTo(FX0, FY0 + H * 0.005); ctx.lineTo(FX1, FY0 + H * 0.005); ctx.stroke();   // 상단 레일
+        ctx.beginPath(); ctx.moveTo(FX0, FY1 - H * 0.02); ctx.lineTo(FX1, FY1 - H * 0.02); ctx.stroke();     // 하단 레일
         ctx.lineWidth = H * 0.028;
-        [W * 0.022, W * 0.21].forEach(px => {                                                      // 포스트 2본
-            ctx.beginPath(); ctx.moveTo(px, H * 0.50); ctx.lineTo(px, H * 0.945); ctx.stroke();
-        });
-        [W * 0.022, W * 0.21].forEach(px => {                                                      // 포스트 캡(둥근 머리 + 어두운 키라인)
-            ctx.beginPath(); ctx.arc(px, H * 0.495, H * 0.021, 0, Math.PI * 2);
-            ctx.fillStyle = '#cfc9de'; ctx.fill();
-            ctx.strokeStyle = '#1c1333'; ctx.lineWidth = H * 0.010; ctx.stroke();
-        });
+        ctx.beginPath(); ctx.moveTo(FX0 + W * 0.008, FY0); ctx.lineTo(FX0 + W * 0.008, FY1 - H * 0.01); ctx.stroke();   // 포스트(왼쪽 1본 — 오른쪽은 카드 밖)
+        ctx.beginPath(); ctx.arc(FX0 + W * 0.008, FY0 - H * 0.005, H * 0.021, 0, Math.PI * 2);                          // 포스트 캡
+        ctx.fillStyle = '#cfc9de'; ctx.fill();
+        ctx.strokeStyle = '#1c1333'; ctx.lineWidth = H * 0.010; ctx.stroke();
         ctx.restore();
         drawRemains();                                                     // 해골+갈비는 철망 **앞**(R1 B — 메쉬 뒤에선 바래서 안 보였다)
 
