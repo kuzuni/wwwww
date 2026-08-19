@@ -1722,7 +1722,9 @@ body {
    배경 평균색으로 재면 과소평가된다(그 계측이 종전 .86 스크림을 불렀다). */
 .dg-banner::before {
     content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-    background: linear-gradient(90deg, rgba(0,0,0,.46) 0%, rgba(0,0,0,.34) 26%, rgba(0,0,0,.14) 46%, rgba(0,0,0,0) 62%);
+    /* R4(2026-08-19 UI): .46→.36 한 단 완화 — 비평가 2인 공통 '클론 팔레트가 원본보다 탁하다'의
+       일부가 이 스크림이다. 제목 대비는 글자 키라인(21:1)이 보증하므로 스크림은 무드용 최소만. */
+    background: linear-gradient(90deg, rgba(0,0,0,.36) 0%, rgba(0,0,0,.26) 26%, rgba(0,0,0,.10) 46%, rgba(0,0,0,0) 62%);
 }
 .dg-banner .dg-info, .dg-banner .dg-right { position: relative; z-index: 1; }
 /* 제목 왼쪽 보상 재화 아이콘 — 글자와 같은 줄에 인라인. 줄상자를 키우지 않게 음수 마진을 준다
