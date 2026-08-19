@@ -7,7 +7,9 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const OUT = __dirname;
-const NEW5 = ['Pony', 'Donkey', 'Alpaca', 'Clockwork Mouse', 'Clockwork Beetle'];
+// 인자로 종을 주면 그 종만 찍는다(종 조형을 고치는 루프에서 5종을 매번 다 찍을 이유가 없다).
+const NEW5 = process.argv.slice(2).length ? process.argv.slice(2)
+    : ['Pony', 'Donkey', 'Alpaca', 'Clockwork Mouse', 'Clockwork Beetle'];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
