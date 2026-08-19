@@ -5738,6 +5738,7 @@ const Scene3D = {
             suit: { shoulder: 1.03, waist: 1.04, skirt: 0.215, top: 1.02 },   // 통통한 여압복
             bone: { shoulder: 0.90, waist: 1.06, skirt: 0.198, top: 0.86 },   // 뼈 갑주: 좁은 어깨·통짜 몸통·짧은 기장 (늑골이 바깥 윤곽을 진다)
             exo: { shoulder: 0.86, waist: 0.86, skirt: 0.170, top: 1.10 },   // 외골격: 몸통은 얇은 코어, 부피는 바깥 프레임이 진다 (판금과 정반대 배분)
+            carrier: { shoulder: 1.10, waist: 1.02, skirt: 0.205, top: 0.88 },   // 플레이트 캐리어: 넓고 각지고 짧다 (곡면 흉갑과 반대로 평판)
         }[style] || { shoulder: 1, waist: 1, skirt: 0.225, top: 1 };
         // 천 주름(비평가 ⓒ⑶) — 로브는 어깨에 걸린 천이라 밑으로 갈수록 주름이 깊어진다.
         // fw 는 링별 주름 가중치(목 0 → 밑단 1). 판금은 0(주름진 강철은 찌그러진 강철이다).
@@ -5771,7 +5772,9 @@ const Scene3D = {
         // ⚠️ `exo`(외골격)는 제외한다 — 흉근 두 덩이 + 정중선 능선은 **단조 흉갑의 언어**라,
         //    외골격에 얹으면 가슴 한가운데 세로 렌즈가 서서 동력 코어를 가리고 다시 '근육 갑주'로
         //    읽힌다(실측: 코어가 키일 뒤로 완전히 묻혔다). 외골격의 가슴은 평평한 코어 패널이다.
-        if (!soft && style !== 'exo') {
+        // `carrier`(현대 플레이트 캐리어)도 제외 — 하드플레이트는 **평판**이라 흉근 곡률이 서면
+        //    다시 근육 흉갑(중세 언어)이 된다.
+        if (!soft && style !== 'exo' && style !== 'carrier') {
             // 가슴 곡률 — 판금은 흉근 두 덩이 + 가운데 능선(키일)이 서야 '흉갑'으로 읽힌다.
             // ⚠️ 구를 그대로 쓰면 두 개의 유방으로 읽힌다 — z를 0.26까지 눌러 **표면에서 살짝
             //    부푼 면**으로 만들고 몸통 앞면(rz 0.16)에 반쯤 묻는다.
@@ -5957,6 +5960,59 @@ const Scene3D = {
                 tusk.rotation.x = Math.PI;      // 아래로 뾰족하게
                 tusk.rotation.z = dx * 1.4;
                 g.add(tusk);
+            }
+        }
+        if (style === 'carrier') {
+            // ── 현대 `플레이트 캐리어` (equip-era-theming ⑤, 현대 '전술 조끼') ──────────
+            // 🚨 **되돌려서 `plate` 로 쓰지 말 것.** 현대 3번 칸 '전술 조끼'가 style `plate`,
+            //    즉 **중세 판금 흉갑**(라멜라 파울드론·파울드·리벳·문장)이었다. 현대 방탄복은
+            //    같은 '판'이라도 조형 언어가 정반대다: 곡면 흉갑이 아니라 **평평한 하드플레이트**,
+            //    겹친 강철판이 아니라 **가로 웨빙(MOLLE) 줄**, 어깨판이 아니라 **넓은 어깨 요크**,
+            //    허리는 파울드가 아니라 **커머번드**가 감는다. 리벳·문장은 0개.
+            const webM = this.tintOf(mats.dark, -0.10);
+            const hardM = this.tintOf(mats.body, -0.16);
+            // ⓐ 앞 하드플레이트 — 이 스타일의 얼굴. 곡면 몸통 위에 **평판**이 얹혀야 방탄복이다.
+            const front = this.beveledSlab(0.315, 0.315, 0.052, 0.028, hardM);
+            front.position.set(0, 0.055, 0.132);
+            g.add(front);
+            // ⓑ MOLLE 웨빙 — 가로 줄 4단. 세로 홈이 아니라 **가로 줄**이라야 전술 장비로 읽힌다.
+            for (let i = 0; i < 4; i++) {
+                const row = new THREE.Mesh(new THREE.BoxGeometry(0.285, 0.017, 0.020), webM);
+                row.position.set(0, 0.148 - i * 0.062, 0.163);
+                g.add(row);
+                for (const dx of [-0.088, 0.088]) {   // 줄을 고정하는 세로 스티치
+                    const st = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.030, 0.016), webM);
+                    st.position.set(dx, 0.148 - i * 0.062, 0.166);
+                    g.add(st);
+                }
+            }
+            // ⓒ 어깨 요크 — 판금 파울드론(둥근 덩어리)과 달리 **넓고 납작한 띠**가 어깨를 덮는다
+            for (const s of [-1, 1]) {
+                const yoke = this.beveledSlab(0.115, 0.070, 0.235, 0.024, hardM);
+                yoke.position.set(s * 0.175, 0.225, 0);
+                yoke.rotation.z = s * 0.16;
+                g.add(yoke);
+                const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.030, 0.026), webM);
+                buckle.position.set(s * 0.148, 0.196, 0.132);
+                g.add(buckle);
+            }
+            // ⓓ 커머번드 — 허리를 감는 넓은 벨크로 띠(파울드처럼 늘어지지 않는다)
+            {
+                const wr = RINGS[2];
+                const cum = new THREE.Mesh(new THREE.CylinderGeometry(wr.rx * 1.04, wr.rx * 1.06, 0.115, 20, 1, true), webM);
+                cum.position.y = wr.y - 0.012;
+                cum.scale.z = wr.rz / wr.rx;
+                g.add(cum);
+            }
+            // ⓔ 어깨 위 무전기 안테나 — 96px 실루엣 게이트가 요구하는 '몸통 윗변 위 표식'
+            {
+                const radio = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.105, 0.045), webM);
+                radio.position.set(0.135, 0.268, -0.055);
+                g.add(radio);
+                const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.006, 0.185, 6), webM);
+                ant.position.set(0.135, 0.382, -0.055);
+                ant.rotation.z = -0.13;
+                g.add(ant);
             }
         }
         if (style === 'exo') {
