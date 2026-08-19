@@ -9,7 +9,7 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
-const { waitReady } = require('./wait-ready.js');
+const { waitReady, waitUiReady } = require('./wait-ready.js');
 const { SEED_SRC } = require('./shot-screens-seed.js');
 
 const REF_W = 496, REF_H = 890;
@@ -44,6 +44,9 @@ const T = [
     await page.evaluate(SEED_SRC);
     await page.reload({ waitUntil: 'load' });
     await waitReady(page, 'typeof UI !== "undefined" && S && S.forgeLevel === 29', { label: '시드 상태 로드' });
+    // 🚨 시드가 들어왔다고 `UI.els` 가 찬 건 아니다 — 아래 `UI.els.craftModal` 이 undefined 라
+    //    **런마다 갈리며** 터졌다(느린 런에서만 죽어 '간헐 결함'으로 보인다). 핸들을 기다린다.
+    await waitUiReady(page);
     await page.evaluate(() => {
         UI.toast = () => { }; UI.showCraftModal = () => { }; UI.resolvePendingCraft = () => { };
         S.autoForgeOn = false; S.pendingCraft = null; UI._pendingItem = null;

@@ -29,4 +29,16 @@ async function waitReady(page, exprSrc, opts = {}) {
     throw new Error('waitReady 타임아웃(' + timeout + 'ms): ' + label + (last ? ' / 마지막 오류: ' + String(last).slice(0, 200) : ''));
 }
 
-module.exports = { waitReady };
+/* 🚨 **`UI` 가 정의됐다고 화면이 준비된 건 아니다.** `UI.init()` 이 `els` 를 채우기 전에
+   `UI.els.craftModal.classList…` / `UI.renderEquipSheet()` 를 부르면 프로브가 통째로 터진다
+   ("Cannot read/set properties of undefined"). 부팅이 빠른 런에서는 우연히 지나가고 느린 런에서만
+   죽어서, **간헐 크래시 = 게임 결함**으로 오독되기 딱 좋다(2026-08-19 icon-gen 세션에서
+   `probe-cell-icon-size` 는 상시 크래시로, `probe-skills-dom` 은 간헐 크래시로 각각 발견).
+   ⚠️ 이 저장소의 프로브 상당수가 `waitReady(… typeof UI !== 'undefined' …)` 뒤에 곧바로
+      `UI.els.*` 를 만진다 — 같은 병을 앓고 있을 가능성이 높다. 새 프로브는 이걸 쓸 것. */
+async function waitUiReady(page, opts = {}) {
+    return waitReady(page, 'typeof UI !== "undefined" && UI.els && UI.els.craftModal && typeof S !== "undefined"',
+        Object.assign({ label: 'UI.init() 이 els 를 채움' }, opts));
+}
+
+module.exports = { waitReady, waitUiReady };
