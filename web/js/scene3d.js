@@ -7728,12 +7728,206 @@ const Scene3D = {
             g.add(model);
             sc.add(g);
             const d = this.ITEM_THUMB_DIR;
-            this.thumbFrameToFit(this._thumbCam, g, new THREE.Vector3(d.x, d.y, d.z).normalize(), 1.06);
+            // 여백 1.06 → THUMB_FIT_PAD: 아래에 **접지 그림자가 앉을 자리**를 낸다(아래 thumbFinish 주석).
+            this.thumbFrameToFit(this._thumbCam, g, new THREE.Vector3(d.x, d.y, d.z).normalize(), this.THUMB_FIT_PAD);
+            // 깊이 패스를 **컬러보다 먼저** — 카메라 near/far 를 피사체에 맞춰 임시로 좁혀야 하고,
+            // 컬러 렌더가 그 뒤에 와야 마지막 프레임버퍼가 컬러로 남는다.
+            const depth = this.thumbDepthPass(sc, g);
             this._thumbR.render(sc, this._thumbCam);
-            const url = this._thumbR.domElement.toDataURL();
+            const url = this.thumbFinish(this._thumbR.domElement, depth, item.rarity) ||
+                this._thumbR.domElement.toDataURL();
             this._thumbCache[key] = url;
             return url;
         } catch (e) { return null; }
+    },
+
+    // ==== 장비 아이콘 마감 (equip-design-dedupe ㉯⑶ — 비평가 지적 "접지 그림자·소프트 AO·비네트·
+    //      레어리티 프레임 부재") ==============================================================
+    // 조형·재질·조명은 앞 세션들이 다 올렸는데도 아이콘이 '떠 있는 렌더 미리보기'로 읽히던 자리다.
+    // 네 겹 전부 **3D 씬이 아니라 2D 합성**으로 넣는다 — 이유가 각각 다르다:
+    //   ⓐ 접지 그림자를 3D 바닥판으로 넣으면 `thumbFrameToFit` 이 바닥까지 프레임에 욱여넣어
+    //      피사체가 그만큼 작아지고, 바닥판이 바운딩박스에 들어가 **칸마다 축척이 널뛴다.**
+    //   ⓑ 소프트 AO 는 깊이 버퍼가 있어야 하는데 r128 에는 SSAO 패스가 없다(EffectComposer 는
+    //      examples/ 라 file:// 단일 번들 제약에 안 맞는다). 깊이를 한 번 더 구워 2D 에서 판다.
+    //   ⓒ 비네트·프레임은 애초에 **화면 공간** 개념이라 3D 로 옮길 이유가 없다.
+    // ⚠️ 이 마감은 `itemThumb` 경로에만 걸린다 — `probe-equip-silhouette` 처럼 씬을 직접 굽는
+    //    도구는 마감 없는 날것을 본다(의도된 것: 그쪽은 **조형** 게이트라 마감이 끼면 못 잰다).
+    THUMB_FIT_PAD: 1.10,   // 프레임의 약 91%를 피사체가 채운다(1.06=94%). 남은 아래쪽이 그림자 자리.
+    //   ⚠️ 더 키우지 말 것 — 목록 셀은 46px 라 1.20 까지 가면 아이콘이 눈에 띄게 좁쌀이 된다(실측 대조).
+    THUMB_LIFT: 0.05,      // 피사체를 프레임 높이의 5% 위로 — 그림자가 앉을 바닥을 만든다
+    // 깊이 패스 — 소프트 AO 재료. 🚨 카메라 near/far 를 **피사체 두께에 맞춰 임시로 좁히는 게 핵심**이다.
+    // 본래 near 0.01 / far 200 으로 구우면 z 가 비선형이라 2유닛 앞 물체의 깊이차가 8bit 로 1~2계단밖에
+    // 안 남아 AO 가 통째로 0 이 된다(실측 전 예측이 아니라 원리: fragCoordZ ≈ 1 - near/z).
+    thumbDepthPass(sc, g) {
+        const R = this._thumbR, cam = this._thumbCam;
+        if (!R || !cam) return null;
+        const S = R.domElement.width;
+        let n0 = cam.near, f0 = cam.far, prevOv = sc.overrideMaterial;
+        try {
+            const sph = new THREE.Box3().setFromObject(g).getBoundingSphere(new THREE.Sphere());
+            const dist = cam.position.distanceTo(sph.center);
+            const r = Math.max(1e-4, sph.radius * 1.02);
+            cam.near = Math.max(1e-4, dist - r); cam.far = dist + r; cam.updateProjectionMatrix();
+            if (!this._thumbDepthMat) this._thumbDepthMat = new THREE.MeshDepthMaterial();
+            sc.overrideMaterial = this._thumbDepthMat;
+            R.render(sc, cam);
+            sc.overrideMaterial = prevOv;
+            cam.near = n0; cam.far = f0; cam.updateProjectionMatrix();
+            const cv = document.createElement('canvas'); cv.width = cv.height = S;
+            const cx = cv.getContext('2d', { willReadFrequently: true });
+            cx.drawImage(R.domElement, 0, 0);
+            return cx.getImageData(0, 0, S, S);
+        } catch (e) {
+            sc.overrideMaterial = prevOv;
+            cam.near = n0; cam.far = f0; cam.updateProjectionMatrix();
+            return null;
+        }
+    },
+    // 깊이에서 화면공간 캐비티 AO 를 판다. MeshDepthMaterial(BasicDepthPacking)은 `1 - fragCoordZ` 를
+    // 내보내므로 **값이 클수록 가깝다.** 이웃이 나보다 앞에 있으면 그만큼 파묻힌 자리다.
+    // 반환: S*S Float32 (0=열림, 1=완전히 파묻힘)
+    thumbAO(depth, S) {
+        if (!depth) return null;
+        const d = depth.data, n = S * S;
+        const dep = new Float32Array(n), msk = new Uint8Array(n);
+        for (let i = 0; i < n; i++) { msk[i] = d[i * 4 + 3] > 8 ? 1 : 0; dep[i] = d[i * 4] / 255; }
+        const step = Math.max(1, Math.round(S / 48));   // 96px 기준 2px — 아이콘에서 눈에 잡히는 최소 골
+        const taps = [];
+        for (const rad of [step, step * 2, step * 3]) {
+            for (let k = 0; k < 8; k++) {
+                const th = k * Math.PI / 4;
+                taps.push([Math.round(Math.cos(th) * rad), Math.round(Math.sin(th) * rad), 1 / rad]);
+            }
+        }
+        const RANGE = 0.055;   // 이 정도 깊이차면 '완전히 파묻힘' — 물체 두께로 정규화된 값 기준
+        const ao = new Float32Array(n);
+        for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+            const i = y * S + x;
+            if (!msk[i]) continue;
+            let occ = 0, wsum = 0;
+            for (let t = 0; t < taps.length; t++) {
+                const nx = x + taps[t][0], ny = y + taps[t][1];
+                if (nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
+                const j = ny * S + nx, w = taps[t][2];
+                wsum += w;
+                if (!msk[j]) continue;                          // 배경은 가리지 않는다
+                const dz = dep[j] - dep[i];                     // 이웃이 더 가까우면 양수
+                if (dz > 0) occ += w * Math.min(1, dz / RANGE);
+            }
+            ao[i] = wsum ? occ / wsum : 0;
+        }
+        // 두 번 뭉갠다 — 한 픽셀짜리 AO 는 '검은 후추'로 보이지 그늘로 안 보인다
+        const blurred = this.blurField(this.blurField(ao, S), S);
+        return blurred;
+    },
+    blurField(src, S) {
+        const out = new Float32Array(S * S);
+        for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+            let s = 0, c = 0;
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
+                s += src[ny * S + nx]; c++;
+            }
+            out[y * S + x] = s / c;
+        }
+        return out;
+    },
+    THUMB_AO_STRENGTH: 0.5,    // AO 최대 감광폭. 0.7 은 은/홀로 같은 밝은 계열을 회색으로 만든다
+    THUMB_VIGNETTE: 0.15,      // 가장자리 감광폭 — 시선을 아이콘 가운데로 모은다
+    // 컬러 프레임 + 깊이에서 최종 아이콘을 합성한다. 반환 = dataURL(없으면 null → 호출측이 날것 사용)
+    THUMB_FINISH_OFF: false,   // 검수 도구가 '마감 전/후'를 나란히 굽기 위한 스위치(런타임 전용)
+    thumbFinish(glCanvas, depth, rarity) {
+        if (this.THUMB_FINISH_OFF) return null;
+        try {
+            const S = glCanvas.width;
+            const src = document.createElement('canvas'); src.width = src.height = S;
+            const sx = src.getContext('2d', { willReadFrequently: true });
+            sx.drawImage(glCanvas, 0, 0);
+            const img = sx.getImageData(0, 0, S, S), p = img.data;
+            const ao = this.thumbAO(depth, S);
+            // ── 픽셀 층: 소프트 AO × 비네트 (둘 다 **피사체 픽셀에만** 곱한다 — 배경은 투명 유지)
+            const cxp = (S - 1) / 2, cyp = (S - 1) / 2, maxR = S * 0.62;
+            let minX = S, maxX = -1, minY = S, maxY = -1;
+            for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+                const i = y * S + x, a = p[i * 4 + 3];
+                if (a <= 8) continue;
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+                const dx = (x - cxp) / maxR, dy = (y - cyp) / maxR;
+                const rr = Math.min(1, Math.sqrt(dx * dx + dy * dy));
+                let m = 1 - this.THUMB_VIGNETTE * Math.pow(rr, 2.2);
+                if (ao) m *= 1 - this.THUMB_AO_STRENGTH * ao[i];
+                p[i * 4] *= m; p[i * 4 + 1] *= m; p[i * 4 + 2] *= m;
+            }
+            sx.putImageData(img, 0, 0);
+            if (maxX < 0) return null;   // 빈 렌더 — 마감할 게 없다
+
+            const out = document.createElement('canvas'); out.width = out.height = S;
+            const o = out.getContext('2d');
+            const lift = Math.round(S * this.THUMB_LIFT);
+            const rc = (typeof RARITY_CSS !== 'undefined' && RARITY_CSS[rarity]) || null;
+            // ── ⓐ 레어리티 글로우(뒤) — 일반 등급엔 **아무것도 얹지 않는다.**
+            //    이유 두 가지: ⑴ 일반은 게임에서 가장 흔해 프레임이 붙으면 값싸 보인다
+            //    ⑵ 이 항목의 판정 게이트(`probe-equip-dedupe`)가 306칸을 전부 `common` 으로 굽는데,
+            //       모든 칸에 같은 테두리를 박으면 **알파 IoU 가 통째로 올라가 '지각 중복'이 늘어난다.**
+            //       프레임은 등급을 읽히게 하는 장치지 아이콘의 일부가 아니다.
+            if (rc && rarity !== 'common') {
+                const gr = o.createRadialGradient(S / 2, S / 2 - lift, S * 0.10, S / 2, S / 2 - lift, S * 0.52);
+                gr.addColorStop(0, this.hexA(rc, 0.16));
+                gr.addColorStop(0.55, this.hexA(rc, 0.06));
+                gr.addColorStop(1, this.hexA(rc, 0));
+                o.fillStyle = gr; o.fillRect(0, 0, S, S);
+            }
+            // ── ⓑ 접지 그림자 — 실루엣 **아래 22% 구간의 실제 폭**에서 타원을 뽑는다.
+            //    고정 크기 타원을 쓰면 반지 하나에도 갑옷만 한 그림자가 깔려 '스티커'로 보인다.
+            const baseY = Math.min(S - 2, maxY - lift + Math.round(S * 0.03));
+            const band = Math.max(1, Math.round((maxY - minY) * 0.22));
+            let bx0 = S, bx1 = -1;
+            for (let y = Math.max(0, maxY - band); y <= maxY; y++)
+                for (let x = 0; x < S; x++) {
+                    if (p[(y * S + x) * 4 + 3] <= 8) continue;
+                    if (x < bx0) bx0 = x; if (x > bx1) bx1 = x;
+                }
+            if (bx1 < 0) { bx0 = minX; bx1 = maxX; }
+            const shW = Math.max(S * 0.14, (bx1 - bx0) * 0.66), shH = Math.max(2, shW * 0.25);
+            const shX = (bx0 + bx1) / 2;
+            const sg = o.createRadialGradient(0, 0, 0, 0, 0, 1);
+            sg.addColorStop(0, 'rgba(6,10,18,0.30)');
+            sg.addColorStop(0.55, 'rgba(6,10,18,0.15)');
+            sg.addColorStop(1, 'rgba(6,10,18,0)');
+            o.save();
+            o.translate(shX, baseY);
+            o.scale(shW, shH);
+            o.fillStyle = sg;
+            o.fillRect(-1, -1, 2, 2);
+            o.restore();
+            // ── ⓒ 피사체 — 그림자 위에, lift 만큼 올려서
+            o.drawImage(src, 0, -lift);
+            // ── ⓓ 레어리티 프레임(앞) — 네 귀퉁이 갈고리. 사각 테두리를 두르면 아이콘이 아니라
+            //    '액자'가 돼 실루엣을 덮는다. 귀퉁이만 물면 등급색은 읽히고 실루엣은 안 가린다.
+            if (rc && rarity !== 'common') {
+                const inset = S * 0.045, arm = S * 0.17, lw = Math.max(1, S / 44);
+                o.strokeStyle = this.hexA(rc, 0.92);
+                o.lineWidth = lw; o.lineCap = 'round'; o.lineJoin = 'round';
+                for (const [cx0, cy0, sxs, sys] of [
+                    [inset, inset, 1, 1], [S - inset, inset, -1, 1],
+                    [inset, S - inset, 1, -1], [S - inset, S - inset, -1, -1]]) {
+                    o.beginPath();
+                    o.moveTo(cx0 + sxs * arm, cy0);
+                    o.lineTo(cx0, cy0);
+                    o.lineTo(cx0, cy0 + sys * arm);
+                    o.stroke();
+                }
+            }
+            return out.toDataURL();
+        } catch (e) { return null; }
+    },
+    // '#rrggbb' + 알파 → rgba(). 등급색은 CSS 표(RARITY_CSS)에서 오므로 문자열 파싱이 맞다.
+    hexA(hex, a) {
+        const h = String(hex).replace('#', '');
+        const v = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+        return 'rgba(' + ((v >> 16) & 255) + ',' + ((v >> 8) & 255) + ',' + (v & 255) + ',' + a + ')';
     },
 
     // ---- 탈것 썸네일: 슬롯 아이콘 = 실제로 소환되는 그 탈것 (사용자 지시 2026-08-18) ----
