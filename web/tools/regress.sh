@@ -13,6 +13,7 @@ for p in \
     probe-death-remnant.js \
     probe-creature-framing.js \
     probe-icon-cross-screen.js \
+    probe-skillfx-timeline.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1

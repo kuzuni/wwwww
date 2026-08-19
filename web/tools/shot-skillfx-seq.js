@@ -12,12 +12,26 @@
 // ⚠️ `skillEffect` 는 2박을 setTimeout 으로 미루므로 그대로 부르면 결정론이 깨진다.
 //    캡처에서는 1박(`skillCastBeat`)과 2박(`skillPayload`)을 **CAST_MS 에 해당하는 프레임에서 직접** 부른다
 //    — 실제 게임과 같은 간격이고, 벽시계에 의존하지 않는다.
+// 🚨 **가상 시계 심(2026-08-19)**: 위 '결정론'은 `Scene3D.update` 에만 걸려 있었다. 연출 층 상당수는
+//    `setTimeout` 으로 예약되는데 그건 **벽시계**로 터지고, 한 프레임 촬영에 실제로 ~800ms 가 걸린다
+//    — 그래서 560ms 짜리 예약(초신성 폭발·처형 절단·신의 창 착탄)이 **가상 30ms 컷에서** 이미 터져
+//    시트의 '언제'가 통째로 앞으로 쏠렸다. 1차 비평가 2인이 그 시트를 보고 "임팩트 층이 없다"고
+//    적은 게 이 때문이다. 이제 `VClock` 이 setTimeout 을 가상 시각 큐로 가로채 프레임마다 pump 한다.
+// 🚨 **피격 반응(2026-08-19)**: 이 촬영기는 `Combat.tick` 을 끊어 두므로 **피해가 한 번도 안 들어갔다**
+//    — 적은 어떤 스킬에서도 플린치·히트플래시·넉백을 안 했고, 셰이크도 안 울렸다. 실게임은
+//    `Combat.tryCast` 가 단일 0.20초 / 광역 0.25초 뒤에 `damageEnemy`+`shake` 를 건다(combat.js).
+//    같은 시각에 `hitEnemy`/`shake` 를 직접 태워 3박(적중)이 화면에 실재하게 한다.
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
+const { VCLOCK_SRC } = require('./virtual-clock.js');
 const ARG = process.argv[2] || 'fireball';
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
-const STEP_MS = 30, N = 22;      // 0~630ms — 미식 시전 220ms + 발동/적중 잔광까지 들어온다
+// 🚨 촬영 창(2026-08-19): 예전 22컷(0~630ms)은 **늦게 때리는 스킬의 임팩트를 통째로 잘라먹었다** —
+//    초신성 560ms · 신의 창 500ms · 공허의 창 540ms · 아포칼립스 820ms 가 전부 창 끝이나 창 밖이라,
+//    시트가 '최대 밝기로 끝나는 정지 화면'으로 보였다(1차 채점 2인이 '소멸 단계 부재'로 감점).
+//    가장 늦은 임팩트(820ms) + 잔광 350ms 까지 담도록 40컷(0~1170ms)으로 늘렸다.
+const STEP_MS = 30, N = 40;      // 0~1170ms — 미식 시전 220ms + 최장 임팩트 820ms + 잔광까지
 const COLS = 6;
 
 (async () => {
@@ -28,6 +42,7 @@ const COLS = 6;
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.scene && typeof Combat !== 'undefined', null, { timeout: 60000 });
+    await page.evaluate(VCLOCK_SRC);
 
     await page.evaluate(() => {
         Combat.tick = () => { };
@@ -35,7 +50,9 @@ const COLS = 6;
         Scene3D._trailOn = false; Scene3D.trailPts = []; if (Scene3D.trailMesh) Scene3D.trailMesh.visible = false;
         Scene3D.heroAttack = () => { };
         Scene3D.clearEnemies();
-        const e = { id: 999, x: Combat.MELEE_X + 0.9, alive: true, hp: 100, maxHp: 100 };
+        // maxHp 는 연출 강도(sev = 이번 피해/최대HP)의 분모다 — 100 으로 두고 스킬 피해를 넣으면
+        // sev 가 1.0 으로 포화해 잡몹 한 방이 보스 처치급으로 찍힌다. 보통 교전(≈15%)으로 맞춘다.
+        const e = { id: 999, x: Combat.MELEE_X + 0.9, alive: true, hp: 1e9, maxHp: 1e9 };
         Combat.enemies = [e];
         Scene3D.spawnEnemy(e);
         const m = Scene3D.enemyMap.get(999);
@@ -72,13 +89,29 @@ const COLS = 6;
                 Scene3D.__castCol = new THREE.Color(def.color);
                 Scene3D.__wait = Scene3D.castMsFor(def.fx, Scene3D.__tier);
                 Scene3D.__beat = Scene3D.castBeatMs(Scene3D.__tier);   // 박자 길이 ≠ 2박 지연(메테오는 지연 0)
+                // 실게임 `Combat.tryCast` 의 피해 시각: 단일 0.20초 · 광역 0.25초 (combat.js)
+                Scene3D.__hitMs = (def.type === 'aoe' ? 250 : 200);
+                VClock.install();                                     // 이 시점부터 setTimeout 은 가상 시각
                 Scene3D.skillCastBeat(Scene3D.__castCol, def.fx, Scene3D.__tier);   // 1박
-                Scene3D.__fired = false;
+                Scene3D.__fired = false; Scene3D.__hit = false;
             } else {
+                const t = i * STEP_MS;
+                VClock.pump(t);                                        // 가상 시각까지 도달한 예약 층
                 // castMsFor 를 넘긴 첫 프레임에서 2·3박 — 실게임의 setTimeout 과 같은 간격
-                if (!Scene3D.__fired && i * STEP_MS >= Scene3D.__wait) {
+                if (!Scene3D.__fired && t >= Scene3D.__wait) {
                     Scene3D.__fired = true;
                     Scene3D.skillPayload(Scene3D.__fx, Scene3D.__castCol, [999], Scene3D.__tier);   // 2·3박
+                    VClock.pump(t);                                    // 페이로드가 0ms 로 건 층까지 이 컷에
+                }
+                // 3박(적중) — 실게임과 같은 시각에 피해 반응·셰이크. 이게 없으면 적이 어떤 스킬에도
+                // 반응하지 않아 '임팩트 층이 통째로 없다'는 오판이 나온다(1차 채점 2인 일치 지적).
+                if (!Scene3D.__hit && t >= Scene3D.__hitMs) {
+                    Scene3D.__hit = true;
+                    const isAoe = (Scene3D.__def || {}).type === 'aoe';
+                    Scene3D.shake(isAoe ? 0.35 : 0.22);
+                    // 최대HP의 15% — '보통 교전 한 방'. 크리는 단일기만(실게임 tryCast 와 같다).
+                    Scene3D.hitEnemy(999, 1e9 * 0.15, !isAoe, 'skill', false);
+                    VClock.pump(t);
                 }
                 Scene3D.__realUpdate(dt);
             }
@@ -91,6 +124,8 @@ const COLS = 6;
         }, { i, STEP_MS, ARG, r: rect });
         frames.push(png);
     }
+
+    await page.evaluate(() => VClock.restore());   // 남은 정리 타이머를 실제 시계로 넘긴다
 
     // 프레임별 변화량 — '연출이 실제로 움직였는가'를 수치로 남긴다(정지 화면 나열 방지)
     const diffs = await page.evaluate(async (frames) => {
