@@ -60,6 +60,12 @@ PROBES=(
     probe-dungeons-px.js        # dungeons     042251
     probe-pass-px.js            # pass         042705 (단위가 %TW=탭줄 폭 기준이다)
     probe-ccmp-px.js            # craft-compare 043224
+    # 🚩 7~10건째 — 판정 낱말이 없어(ⓖ 방언) 덤프로 오해받던 판정기들. 원본 목표치와 ±2%p 로
+    #    대조하고 종료 코드까지 내는데 목록에 없어, 이 4개 화면도 한 번도 판정되지 않았다.
+    probe-skills-dom.js         # skills       042340 (이번에 종료 코드를 붙였다)
+    probe-offline-dom.js        # offline      042110
+    probe-skilldetail-dom.js    # skill-detail 042426
+    probe-rates-dom.js          # summon-rates 042521
 )
 
 if [ "$#" -gt 0 ]; then
@@ -92,12 +98,15 @@ for p in "${PROBES[@]}"; do
     #    ⚠️ 못 읽으면 경고 한 줄로 끝나는 게 아니다: 아래 **'판정문은 FAIL 인데 exit 0' 안전망이
     #    그 12종에서 통째로 꺼진다**(probe-shop-dom 때 잡은 사고가 재발해도 초록). 실제로 술어를
     #    넓히자마자 `probe-geardetail-px` 가 그 상태로 걸렸다(판정문 불통과인데 exit 0).
-    vline="$(printf '%s\n' "$out" | grep -E '(^|=> |✅ |❌ |결과: |판정: |총평: )(PASS|FAIL|통과|불통과)|불통과 [0-9]+건|측정기 고장' | tail -1)"
-    # 잡은 줄을 PASS/FAIL 로 환산한다(불통과 0건은 통과다).
+    #    ⓖ `최대 편차 X%p · 초과 N건`(probe-offline-dom·skilldetail-dom·rates-dom) — **판정 낱말이 아예
+    #       없고 초과 건수가 곧 판정이다**(0 건이면 통과). 종료 코드는 멀쩡히 내므로 판정기가 맞다.
+    vline="$(printf '%s\n' "$out" | grep -E '(^|=> |✅ |❌ |결과: |판정: |총평: )(PASS|FAIL|통과|불통과)|불통과 [0-9]+건|초과 [0-9]+건|측정기 고장' | tail -1)"
+    # 잡은 줄을 PASS/FAIL 로 환산한다(불통과 0건·초과 0건은 통과다).
     # ⚠️ `불통과` 가 `통과` 를 포함하므로 **반드시 불통과를 먼저** 볼 것.
+    # ⚠️ 행 표시자 `← ±2%p 초과` 에는 건수가 없어 `초과 [0-9]+건` 에 안 걸린다(의도한 것).
     if   printf '%s' "$vline" | grep -qE 'FAIL|❌|불통과 [1-9]|측정기 고장'; then verdict=FAIL
-    elif printf '%s' "$vline" | grep -qE '불통과 0건';                        then verdict=PASS
-    elif printf '%s' "$vline" | grep -q  '불통과';                            then verdict=FAIL
+    elif printf '%s' "$vline" | grep -qE '불통과 0건|초과 0건';               then verdict=PASS
+    elif printf '%s' "$vline" | grep -qE '불통과|초과 [1-9]';                 then verdict=FAIL
     elif printf '%s' "$vline" | grep -qE 'PASS|통과';                         then verdict=PASS
     else verdict=""; fi
     worst="$(printf '%s\n' "$out" | grep -oE '최대 편차 [+-]?[0-9.]+%p' | tail -1)"

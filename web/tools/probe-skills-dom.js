@@ -117,4 +117,10 @@ const T = [
     console.log('');
     console.log(fail ? `판정: FAIL — ±2%p 초과 요소 ${fail}건` : '판정: PASS — 전 요소 ±2%p 이내');
     console.log(errs.length ? '콘솔 에러: ' + errs.join(' / ') : '콘솔 에러 0건');
+    // 🚨 **종료 코드를 낸다** — 여태 판정문만 찍고 exit 코드가 없어서, 이 판정기를 regress-ratio 에
+    //    넣어도 FAIL 이 조용히 초록으로 세어질 수 있었다(probe-shop-dom 사고와 같은 뿌리).
+    //    ⚠️ 위 '별 배지 0개'는 **결함이 아니라 상태 차이다**: 별은 `sk.stars` 가 있을 때만 그려지는데
+    //    (`ui.js:3874`) 시드 스킬이 0성이고 원본 세이브는 1성이었다. 그래서 판정에 넣지 않는다 —
+    //    넣으면 멀쩡한 코드를 좇아 고치게 된다(geardetail 이 카드 글자를 원본과 같게 못박은 것과 같은 사유).
+    process.exit(fail || errs.length ? 1 : 0);
 })();
