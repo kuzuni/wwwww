@@ -4092,6 +4092,12 @@ const Scene3D = {
         // '체커보드 프린트'로 오독된다(2차 채점 A·B) — 전용 holy 계열로 가른다.
         return i === 0 ? 'primal' : i === 1 ? 'forged' : i === 2 ? 'brass' : i === 3 ? 'polymer' : i === AGES.length - 1 ? 'holy' : 'alloy';
     },
+    // 그 시대의 `suit` 가 **기밀복(압력 탱크·호스·발광 스트라이프)** 인가 (equip-era-theming ③).
+    // ⚠️ 계열(ageGearKind)로 가르면 안 된다 — alloy 에는 지하 세계('용암 갑주')가 같이 묶이고
+    //    holy 에는 '신탁의 로브'가 묶여, 용암 갑주와 신성한 로브 등에 산소통이 붙는다.
+    //    실제로 밀폐복인 시대만 이름으로 골라 둔다. 그 밖의 시대 suit 는 퀴레스 조형으로 간다.
+    SUIT_SEALED: ['modern', 'space', 'interstellar', 'multiverse', 'quantum'],
+    suitSealed(age) { return this.SUIT_SEALED.indexOf(age) >= 0; },
 
     // 시대별 재질 세트 — body(주 표면) / dark(부속·스트랩) / trim(시대 디테일) / glow 여부.
     // ⚠️ map은 albedo에 **곱해진다**. rockTex 베이스가 #b9bcc0(≈0.73), leatherTex가 #c9b8a6(≈0.76)이라
@@ -5527,7 +5533,19 @@ const Scene3D = {
         // 천 계열(로브 자락·망토)은 금속기를 빼야 '철판 커튼'이 안 된다
         const cloth = mats ? this.tintOf(mats.body, -0.1, { metalness: 0.02, roughness: 0.9, envMapIntensity: 0.3, side: THREE.DoubleSide })
                            : new THREE.MeshLambertMaterial({ color: darker, side: THREE.DoubleSide });
-        if (style === 'suit') {          // 백팩 + 발광 스트라이프
+        if (style === 'suit' && !this.suitSealed(o.age)) {
+            // 전산업 시대의 suit = 퀴레스 — 등판 + 어깨 벨트. 백팩·발광 스트라이프는 기밀복의 언어라
+            // 여기 오면 중세 기사 등에 산소 백팩이 붙는다(makeArmorPreview 쪽 주석 참조).
+            const backplate = this.beveledSlab(0.30, 0.34, 0.055, 0.035, body);
+            backplate.position.set(0, 0.66, o.packZ !== undefined ? o.packZ + 0.06 : -0.18);
+            g.add(backplate);
+            for (const s of [-1, 1]) {
+                const belt = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.20, 0.34), mats ? mats.dark : body);
+                belt.position.set(s * 0.14, 0.86, 0);
+                belt.rotation.z = s * 0.22;
+                g.add(belt);
+            }
+        } else if (style === 'suit') {          // 백팩 + 발광 스트라이프
             const pack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, 0.14), body);
             pack.position.set(0, 0.68, o.packZ !== undefined ? o.packZ : -0.24);
             // 스트라이프는 평면 판이 아니라 **몸통을 감는 얇은 호**여야 표면에 붙어 보인다
@@ -6019,7 +6037,7 @@ const Scene3D = {
         //    깨는 표식을 더한다(몸통 윗변 y=0.25 위로 나와야 실루엣이 갈린다).
         // ⚠️ 좌표는 **곡면 몸통 기준**으로 다시 잡혀 있다(예전 0.46×0.5 상자 기준 값을 그대로 두면
         //    허리가 잘록해진 만큼 산소통·어깨끈이 몸통에서 떨어져 허공에 뜬다).
-        if (style === 'suit') {          // 슈트: 어깨 위로 솟은 산소통 2개 + 호스
+        if (style === 'suit' && this.suitSealed(age)) {   // 기밀복: 어깨 위로 솟은 산소통 2개 + 호스
             for (const s of [-1, 1]) {
                 const tank = this.shellFromRings([   // 위아래가 둥근 실린더 = 압력 탱크
                     { y: -0.15, rx: 0.032, rz: 0.032 }, { y: -0.125, rx: 0.055, rz: 0.055 },
@@ -6032,6 +6050,41 @@ const Scene3D = {
                 hose.rotation.x = -0.8;
                 hose.rotation.z = s * 0.5;
                 g.add(hose);
+            }
+        } else if (style === 'suit') {
+            // ── 전산업 시대의 `suit` = 퀴레스(equip-era-theming ③) ─────────────────────
+            // 🚨 **산소통을 되돌리지 말 것.** `suit` 는 중세 '퀴레스'·근대 초기 '총사 코트'·
+            //    지하 세계 '용암 갑주'·천상 '신탁의 로브'에도 배정돼 있는데, 조형이 시대 무관하게
+            //    **압력 탱크 2개 + 호스**여서 중세 기사 등에 산소통이 붙어 있었다(사용자 지적
+            //    '등급에 맞는 테마의 디자인이 아님'의 같은 뿌리). 기밀복이 실제인 시대(현대~양자)만
+            //    탱크를 남기고, 그 밖은 **선 목가리개(haute-piece) + 어깨 벨트**로 간다 —
+            //    96px 실루엣 게이트가 요구하는 '몸통 윗변(y 0.25) 위로 나오는 표식'은 목가리개가 진다.
+            for (const s of [-1, 1]) {
+                // 세운 어깨 깃 — 15세기 흉갑의 서명. 바깥으로 젖혀야 '깃'이지 '뿔'이 아니다.
+                // ⚠️ 길고 좁게(r 0.075·h 0.20) 세우면 **굴뚝 두 개**로 읽혀 산소통과 실루엣이 안 갈린다
+                //    (실측). 낮고 넓게, 바깥으로 크게 젖혀야 '어깨에서 솟은 깃'이 된다.
+                const cop = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.100, 0.138, 0.145, 14, 1, true, -1.15, 2.3), mat);
+                cop.position.set(s * 0.122, 0.300, -0.010);
+                cop.rotation.z = -s * 0.46;
+                cop.rotation.y = s * 1.45;          // 열린 면이 바깥을 본다
+                g.add(cop);
+                const lip = new THREE.Mesh(new THREE.TorusGeometry(0.104, 0.015, 6, 16, Math.PI * 1.3), mats.dark);
+                lip.position.set(s * 0.155, 0.362, -0.010);
+                lip.rotation.x = Math.PI / 2;
+                lip.rotation.z = -s * 0.46;
+                g.add(lip);
+                // 어깨를 넘어 등으로 가는 가죽 벨트 + 버클 — 흉갑이 무엇에 매달렸는지 보여 준다
+                const belt = new THREE.Mesh(new THREE.BoxGeometry(0.050, 0.185, 0.30), mats.dark);
+                belt.position.set(s * 0.152, 0.205, 0);
+                belt.rotation.z = s * 0.24;
+                g.add(belt);
+                const buckle = new THREE.Mesh(new THREE.TorusGeometry(0.030, 0.010, 5, 12), mat);
+                buckle.position.set(s * 0.128, 0.135, 0.128);
+                buckle.rotation.x = Math.PI / 2;
+                buckle.rotation.z = s * 0.24;
+                buckle.scale.y = 0.6;
+                g.add(buckle);
             }
         } else if (style === 'vest') {   // 조끼: 어깨끈 2줄이 어깨를 넘어가고 앞섶이 V로 벌어진다
             for (const s of [-1, 1]) {
