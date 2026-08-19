@@ -3720,7 +3720,7 @@ IconGen._genderSym = function (ctx, S, female) {
         [0.63, 0.60], [0.63, 0.42], [0.665, 0.36], [0.70, 0.42], [0.70, 0.60],
         [0.76, 0.60], [0.76, 0.48], [0.80, 0.42], [0.84, 0.48], [0.84, 0.60],
         [0.90, 0.60], [0.90, 0.50], [0.95, 0.46], [1.02, 0.50]],
-            '#a6c79b', '#7f99a8');   /* 9차: 원경은 밝게·탈채도(대기원근) — 근경 초록과 명도 분리 */
+            '#b3c4c6', '#8298a8');   /* 10차 2인 공통: 원경 열은 아예 한색(청회) — 근경 초록과 색상군까지 갈라 3층을 세운다 */
         town([[-0.02, 0.74], [0.04, 0.74], [0.04, 0.60], [0.08, 0.54], [0.12, 0.60], [0.12, 0.74],
         [0.20, 0.74], [0.20, 0.62], [0.245, 0.56], [0.29, 0.62], [0.29, 0.74],
         [0.38, 0.74], [0.38, 0.64], [0.43, 0.58], [0.48, 0.64], [0.48, 0.74],
@@ -3728,6 +3728,9 @@ IconGen._genderSym = function (ctx, S, female) {
         [0.74, 0.74], [0.74, 0.64], [0.79, 0.58], [0.84, 0.64], [0.84, 0.74],
         [0.92, 0.74], [0.92, 0.62], [0.97, 0.58], [1.02, 0.60]],
             '#71a94c', '#4c7a3a');
+        /* 창 실루엣(10차 2인 공통 '마을 판독') — 근경 열 벽면에 어두운 창 5개 */
+        [[0.065, 0.655], [0.235, 0.665], [0.425, 0.67], [0.615, 0.655], [0.795, 0.665]].forEach(([wx, wy]) =>
+            fill(ctx, '#4c7a3a', () => ctx.rect(W * wx, H * wy, W * 0.020, H * 0.038)));
         /* 굴뚝(9차 '마을이 아니라 도시 실루엣') — 근경 열 지붕 경사 위 작은 굴뚝 3개 */
         [[0.075, 0.565], [0.44, 0.605], [0.805, 0.605]].forEach(([cx, cy]) => {
             fill(ctx, '#71a94c', () => ctx.rect(W * cx, H * (cy - 0.055), W * 0.017, H * 0.055));
@@ -3769,11 +3772,11 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.beginPath(); ctx.moveTo(tx - H * 0.03, H * 0.52); ctx.quadraticCurveTo(tx - H * 0.22, H * 0.42, tx - H * 0.30, H * 0.28); ctx.stroke();
             ctx.lineCap = 'butt';
             for (let i = 0; i < 6; i++) {                                 // 아래층 잎(가장 어둡게 — 캐노피 명도 3단, 비평가 5차)
-                const x = W * 0.86 + H * (-0.30 + R() * 0.56), y = H * (0.10 + R() * 0.28), r = H * (0.11 + R() * 0.08);
+                const x = W * 0.86 + H * (-0.26 + R() * 0.56), y = H * (0.10 + R() * 0.28), r = H * (0.11 + R() * 0.08);
                 fill(ctx, '#1f5c22', () => ctx.arc(x, y, r, 0, Math.PI * 2));
             }
             for (let i = 0; i < 9; i++) {                                 // 잎 덩어리(진초록)
-                const x = W * 0.86 + H * (-0.34 + R() * 0.60), y = H * (-0.08 + R() * 0.34), r = H * (0.13 + R() * 0.09);
+                const x = W * 0.86 + H * (-0.30 + R() * 0.60), y = H * (-0.08 + R() * 0.34), r = H * (0.13 + R() * 0.09);
                 fill(ctx, '#2f7a2f', () => ctx.arc(x, y, r, 0, Math.PI * 2));
             }
             for (let i = 0; i < 5; i++) {                                 // 중간층(윗부분 밝게)
@@ -3788,8 +3791,10 @@ IconGen._genderSym = function (ctx, S, female) {
         // 모서리 수풀 — 좌하단(키라인 있는 덤불 덩어리)
         const bush = (bx, by, s, fc, oc) => {
             const p = () => { ctx.arc(bx - H * 0.10 * s, by, H * 0.11 * s, 0, Math.PI * 2); ctx.arc(bx + H * 0.02 * s, by - H * 0.07 * s, H * 0.13 * s, 0, Math.PI * 2); ctx.arc(bx + H * 0.15 * s, by, H * 0.11 * s, 0, Math.PI * 2); };
+            /* 스트로크 → 채움 순서(스티커 기법): 채움이 안쪽 획을 덮어 **합집합 실루엣 키라인**만
+               남는다 — 채움 먼저 하면 원 3개의 안쪽 경계가 보여 벤다이어그램이 된다(2차 재채점). */
+            ctx.beginPath(); p(); ctx.strokeStyle = oc; ctx.lineWidth = H * 0.036; ctx.stroke();
             ctx.beginPath(); p(); ctx.fillStyle = fc; ctx.fill();
-            ctx.beginPath(); p(); ctx.strokeStyle = oc; ctx.lineWidth = H * 0.018; ctx.stroke();
         };
         bush(W * 0.04, H * 0.98, 1.5, '#3f8a2c', '#245c1e');
         bush(W * 0.30, H * 1.06, 1.0, '#3f8a2c', '#245c1e');
@@ -3843,13 +3848,13 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.translate(2.100 * S, 0.310 * S); ctx.rotate(SWING);
         /* 9차 2인 공통 '녹색 위 녹색': 올리브(#6f7b34)가 마을·풀밭 초록에 녹아 실루엣이 죽는다 —
            웜 아이언 그레이로 탈채도(2톤 베벨 상한 규약은 유지). */
-        ink(ctx, S, rrect(ctx, S, -0.160, -0.255, 0.320, 0.510, 0.050), '#75795c', 0.032);
+        ink(ctx, S, rrect(ctx, S, -0.160, -0.255, 0.320, 0.510, 0.050), '#7b838a', 0.032);
         ctx.save();
         ctx.beginPath(); rrect(ctx, S, -0.160, -0.255, 0.320, 0.510, 0.050)(); ctx.clip();
         /* ⚠️ 하이라이트 띠+물림 테 2줄+결 줄+스펙큘러를 다 얹으면 가로세로 선이 교차해 **타탄
            격자 직물**로 읽힌다(비평가 6차 2인 공통 1순위 — 확대 크롭으로 확인). 3면 셰이딩과
            물림 테 하나만 남긴다. */
-        on(ctx, rrect(ctx, S, 0.064, -0.255, 0.096, 0.510, 0), '#9da181');                // 위(빛 받는) 면 — local +x 가 회전 후 우상향
+        on(ctx, rrect(ctx, S, 0.034, -0.255, 0.126, 0.510, 0), '#a9b3ba');                // 위(빛 받는) 면 — local +x 가 회전 후 우상향
         on(ctx, rrect(ctx, S, -0.160, -0.255, 0.084, 0.510, 0), 'rgba(0,0,0,.24)');       // 아랫면 음영
         // (물림 테도 뺐다 — 밴드가 광택·빛면과 교차하는 순간 다시 체크 무늬가 된다. 2톤 베벨이 끝, 비평가 7차)
         ctx.restore();
@@ -3954,15 +3959,21 @@ IconGen._genderSym = function (ctx, S, female) {
         /* 폐가 실루엣(9차 — 묘지뿐이라 '유령 **마을**'이 성립 안 함): 언덕 능선 위 좌중앙에
            지붕 꺾인 폐가 한 채 + 노란 창 하나. 창 불빛은 밝은 쪽이라 title-ink 하한(26)에 안전. */
         (() => {
-            const hx = W * 0.315, hy = H * 0.615, hw = W * 0.085, hh = H * 0.14;
-            fill(ctx, '#10142b', () => {
+            /* 2차 재채점 2인 공통 1순위: #10142b 는 하늘과 명도가 붙어 창문만 '허공에 뜬 주황 조각'이
+               됐다 — 언덕(#151a34)보다 더 어두운 흑청으로 낮추고, 지붕을 키우고, 달 쪽(오른쪽)
+               지붕선에 달빛 림라이트 한 줄을 얹어 '집 → 창' 소속을 명시한다. */
+            const hx = W * 0.30, hy = H * 0.625, hw = W * 0.105, hh = H * 0.175;
+            const house = () => {
                 ctx.moveTo(hx, hy); ctx.lineTo(hx, hy - hh * 0.55);
-                ctx.lineTo(hx + hw * 0.18, hy - hh * 0.55); ctx.lineTo(hx + hw * 0.42, hy - hh);   // 꺾인 박공
-                ctx.lineTo(hx + hw * 0.78, hy - hh * 0.60); ctx.lineTo(hx + hw, hy - hh * 0.62);
+                ctx.lineTo(hx + hw * 0.16, hy - hh * 0.55); ctx.lineTo(hx + hw * 0.44, hy - hh);   // 꺾인 박공(크게)
+                ctx.lineTo(hx + hw * 0.80, hy - hh * 0.58); ctx.lineTo(hx + hw, hy - hh * 0.60);
                 ctx.lineTo(hx + hw, hy); ctx.closePath();
-            });
-            fill(ctx, '#10142b', () => ctx.rect(hx + hw * 0.62, hy - hh * 1.18, hw * 0.13, hh * 0.60));   // 굴뚝
-            fill(ctx, '#e8c86a', () => ctx.rect(hx + hw * 0.30, hy - hh * 0.42, hw * 0.18, hh * 0.24));   // 불 켜진 창
+            };
+            fill(ctx, '#0a0d1d', house);
+            fill(ctx, '#0a0d1d', () => ctx.rect(hx + hw * 0.64, hy - hh * 1.15, hw * 0.13, hh * 0.58));   // 굴뚝
+            ctx.strokeStyle = 'rgba(210,215,235,.40)'; ctx.lineWidth = H * 0.008;                          // 달빛 림(달 쪽 지붕선)
+            ctx.beginPath(); ctx.moveTo(hx + hw * 0.44, hy - hh); ctx.lineTo(hx + hw * 0.80, hy - hh * 0.58); ctx.lineTo(hx + hw, hy - hh * 0.60); ctx.stroke();
+            fill(ctx, '#e8c86a', () => ctx.rect(hx + hw * 0.32, hy - hh * 0.40, hw * 0.17, hh * 0.22));   // 불 켜진 창
         })();
         fill(ctx, '#0c1024', () => { ctx.moveTo(0, H * 0.90); ctx.quadraticCurveTo(W * 0.45, H * 0.78, W, H * 0.92); ctx.lineTo(W, H); ctx.lineTo(0, H); });
         /* 묘비 — 원본은 우하단에 **큰 것 둘**(회청 판 + 해골·RIP 각인)이고 [열기]가 일부를 덮는다.
@@ -3985,7 +3996,7 @@ IconGen._genderSym = function (ctx, S, female) {
         stone(W * 0.72, H * 0.56, H * 0.26, H * 0.48, true);               // 큰 것은 각짐/둥긂을 섞어 리듬(비평가 5차)
         for (let i = 0; i < 18; i++) {                                     // 앞 언덕 풀 실루엣 — 지면이 무지 단색으로 끊기지 않게
             const x = W * (0.02 + R() * 0.92), y = H * (0.90 + R() * 0.05), h = H * (0.035 + R() * 0.035);
-            fill(ctx, '#060913', () => { ctx.moveTo(x, y); ctx.lineTo(x + H * 0.014, y - h); ctx.lineTo(x + H * 0.028, y); });
+            fill(ctx, '#060913', () => { const w2 = H * (0.020 + R() * 0.020); ctx.moveTo(x, y); ctx.lineTo(x + w2 / 2, y - h); ctx.lineTo(x + w2, y); });
         }
         // 좌측 고목 — 원본은 **잎 달린** 큰 나무다(마른 가지가 아니라). 줄기 갈색 + 아주 어두운 잎 덩어리.
         (() => {
@@ -4074,7 +4085,7 @@ IconGen._genderSym = function (ctx, S, female) {
         (() => {
             ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, H * 0.40);
             let x = 0;
-            while (x < W) { const r = H * (0.028 + R() * 0.022); ctx.arc(x + r, H * 0.40, r, Math.PI, 0); x += r * 2; }
+            while (x < W) { const r = H * (0.028 + R() * 0.022); ctx.arc(x + r, H * (0.395 + R() * 0.016), r, Math.PI, 0); x += r * (1.7 + R() * 0.7); }
             ctx.lineTo(W, H); ctx.closePath(); ctx.fillStyle = '#cdb094'; ctx.fill();
         })();
         /* 인물 한 명 — 머리(kind 0=둥근 투구 1=뾰족 투구 2=뿔 투구) + 어깨. oc 를 주면 검정
@@ -4118,12 +4129,16 @@ IconGen._genderSym = function (ctx, S, female) {
             figure(W * (i / 14 + 0.015 + R() * 0.03), H * (0.465 + R() * 0.04), 0.55 + R() * 0.25, '#b79a82', R() < 0.6 ? 0 : 1);
         /* 중간 열 — 뒤(#cdb094)와 앞(#241612) 사이의 **명도 중간층**이라 밝은 모브 계열이어야
            대기원근 3단이 선다(비평가 4차 '단일 톤 플랫 매스'). 뿔 투구는 1/8 로 드물게. */
+        /* 중경을 명도 2단으로 분리(2차 재채점 2인 공통 '동일 명도 블롭 뭉개짐'):
+           위 밴드(원경 쪽)는 +10% 밝은 색군, 아래 밴드는 기존 색군 — 겹침은 유지. */
+        const MIDC_HI = ['#ac8d7c', '#a07e6f', '#b4948a', '#a48570'];
         const MIDC = ['#9b7b6b', '#8d6c5e', '#a5847a', '#93745f'];         // 색·키·크기를 함께 흔들어 타일링 패턴을 깬다
         const pickKind = k =>                                              // 6종 혼합(ⓐ) — 뾰족·뿔은 드물게(9차 '삼각형 정체불명')
             k < 0.28 ? 0 : k < 0.42 ? 1 : k < 0.62 ? 3 : k < 0.78 ? 4 : k < 0.92 ? 5 : 2;
-        for (let i = 0; i < 30; i++) {                                     // 30명 — 몸이 절반씩 겹쳐야 사이로 하늘이 안 샌다(비평가 7차 '점점이')
-            figure(W * (i / 30 - 0.004 + R() * 0.033), H * (0.535 + R() * 0.105), 0.66 + R() * 0.70, MIDC[(R() * 4) | 0], pickKind(R()));   // 간격·키·크기 지터 ±30%(9차 '타일 반복')
-        }
+        for (let i = 0; i < 14; i++)                                       // 위 밴드(밝게)
+            figure(W * (i / 14 - 0.004 + R() * 0.036), H * (0.530 + R() * 0.045), 0.62 + R() * 0.45, MIDC_HI[(R() * 4) | 0], pickKind(R()));
+        for (let i = 0; i < 18; i++)                                       // 아래 밴드(기존 명도)
+            figure(W * (i / 18 - 0.004 + R() * 0.033), H * (0.585 + R() * 0.060), 0.78 + R() * 0.58, MIDC[(R() * 4) | 0], pickKind(R()));
         // 창 — 군중 사이에서 올라오는 자루+창끝
         for (let i = 0; i < 6; i++) {
             const x = W * (0.06 + i * 0.17 + R() * 0.05), top = H * (0.18 + R() * 0.14);
@@ -4256,7 +4271,7 @@ IconGen._genderSym = function (ctx, S, female) {
                 ctx.quadraticCurveTo(bx + bw * 1.055, by + bh * 0.5, bx + bw, by);
                 ctx.closePath();
             };
-            ctx.beginPath(); body(); ctx.fillStyle = '#3d5f9e'; ctx.fill();   /* 9차: 순파랑 → 보라 앰비언트 섞은 청보라 */
+            ctx.beginPath(); body(); ctx.fillStyle = '#4a5c8a'; ctx.fill();   /* 10차: 한 단 더 탈채도(2차 재채점 '유일한 한색') */
             ctx.save();
             ctx.beginPath(); body(); ctx.clip();
             [0.32, 0.66].forEach(k => {                                                           // 곡률 따라 도는 밴드
@@ -4266,7 +4281,7 @@ IconGen._genderSym = function (ctx, S, female) {
             fill(ctx, 'rgba(255,255,255,.20)', () => ctx.rect(bx + bw * 0.12, by, bw * 0.13, bh + ey * 2)); // 세로 하이라이트
             fill(ctx, 'rgba(0,0,0,.22)', () => ctx.rect(bx + bw * 0.78, by, bw * 0.22, bh + ey * 2));       // 오른쪽 음영
             ctx.restore();
-            fill(ctx, '#5a7cb4', () => ctx.ellipse(bx + bw / 2, by, bw / 2, ey, 0, 0, Math.PI * 2));        // 윗면
+            fill(ctx, '#6479a6', () => ctx.ellipse(bx + bw / 2, by, bw / 2, ey, 0, 0, Math.PI * 2));        // 윗면
             ctx.beginPath(); ctx.ellipse(bx + bw / 2, by, bw / 2, ey, 0, 0, Math.PI * 2);
             ctx.strokeStyle = '#101528'; ctx.lineWidth = H * 0.013; ctx.stroke();
             ctx.beginPath(); body(); ctx.strokeStyle = '#101528'; ctx.lineWidth = H * 0.014; ctx.stroke();  // 키라인
@@ -4287,6 +4302,19 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.beginPath(); ctx.moveTo(W * 0.21, H * 0.50); ctx.lineTo(W * 0.21, H * 0.94); ctx.stroke();
         ctx.restore();
 
+        /* 지평선 좀비 떼(2차 재채점 A4 — '러시'인데 1구뿐): 능선 위 뒷모습 실루엣 2구.
+           디테일 없는 단색 암록 — 주인공과 명도로 갈려 원근이 선다. */
+        [[0.30, 0.60, 0.55], [0.505, 0.575, 0.42]].forEach(([zx, zy, zs]) => {
+            const x = W * zx, y = H * zy, u = H * 0.10 * zs;
+            fill(ctx, '#2c4a3c', () => {                                   // 몸통+머리 한 덩어리 실루엣
+                ctx.moveTo(x - u * 0.9, y + u * 2.6);
+                ctx.lineTo(x - u * 0.8, y + u * 0.55); ctx.quadraticCurveTo(x - u * 0.75, y + u * 0.2, x - u * 0.45, y + u * 0.15);
+                ctx.arc(x, y, u * 0.52, Math.PI, 0);                       // 머리
+                ctx.quadraticCurveTo(x + u * 0.75, y + u * 0.25, x + u * 0.7, y + u * 0.6);
+                ctx.lineTo(x + u * 0.85, y + u * 2.6); ctx.closePath();
+            });
+            fill(ctx, '#2c4a3c', () => { ctx.moveTo(x + u * 0.55, y + u * 0.5); ctx.lineTo(x + u * 1.25, y - u * 0.45); ctx.lineTo(x + u * 1.05, y - u * 0.55); ctx.lineTo(x + u * 0.42, y + u * 0.3); ctx.closePath(); });   // 치켜든 팔
+        });
         /* 주인공 — 가운데 팔 든 좀비 (잔여 결함 ⓐ·ⓒ). 좀비 러시 카드에 좀비가 없어서
            유령 마을과 '밤/황무지' 테마가 겹쳐 읽혔다 — 초록 좀비 하나로 두 카드가 갈린다.
            ⚠️ 팔은 몸통 실루엣 **밖**으로 내야 팔로 읽힌다(안쪽에서 올리면 몸통에 통째로 가린다).
@@ -4342,8 +4370,10 @@ IconGen._genderSym = function (ctx, S, female) {
         on(ctx, ell(ctx, S, 1.556, 0.452, 0.020, 0.016), 'rgba(0,0,0,.26)');                      // 귀 앞 볼그늘(측면 힌트)
         ctx.restore();
         ctx.restore();
-        // 왼손에 쥔 뼈다귀
+        // 왼손에 쥔 뼈다귀 + 주먹(2차 재채점 — 주먹 없이 뼈가 팔에 융합돼 보였다)
         ink(ctx, S, bar(ctx, S, 1.512, 0.290, 1.552, 0.165, 0.052), '#e6e2d2', 0.024);
         [[1.512, 0.150], [1.578, 0.166]].forEach(p => ink(ctx, S, circle(ctx, S, p[0], p[1], 0.044), '#e6e2d2', 0.022));
+        ink(ctx, S, circle(ctx, S, 1.508, 0.288, 0.066), '#4a8f47', 0.028);                       // 주먹(뼈 하단을 감아쥠)
+        on(ctx, ell(ctx, S, 1.492, 0.272, 0.026, 0.020), 'rgba(255,255,255,.20)');                // 주먹 광
     };
 })(IconGen);
