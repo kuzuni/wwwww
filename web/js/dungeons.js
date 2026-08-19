@@ -13,12 +13,18 @@ const Dungeons = {
     DEFAULT_WAVES: 3,   // run.waves가 없는 구버전 진행 상태용 폴백
     rollWaves() { return this.MIN_WAVES + Math.floor(Math.random() * (this.MAX_WAVES - this.MIN_WAVES + 1)); },
 
+    // 🚨 `kr` 은 **원본 표기 그대로**다 (2026-08-19 `dungeon-name-hammer`): 목록 배너(shot-042251)와
+    // 상세 팝업 제목(shot-042304)이 `망치 도둑`·`침략`이다(3배 확대 대조). 종전 `해머 도둑`·`침공`은
+    // 두 화면 모두 다른 글자를 찍었다. ⚠️ 보상 화폐 이름('해머')은 별개다 — 원본은 재화를 아이콘 +
+    // 수치로만 보여 줘 글자가 없으므로 여기 `reward` 문구는 건드리지 않는다.
+    // ⚠️ 던전 이름은 `js/techtree.js` 의 기술 노드 이름·설명·라벨에도 나온다 — 한쪽만 고치면
+    //    기술 트리와 던전 화면이 서로 다른 이름을 쓴다(그래서 같은 커밋에서 함께 고쳤다).
     DEFS: [
-        { id: 'hammer',   name: 'Hammer Thief', kr: '해머 도둑',  icon: '🔨', unlock: '2-10', reward: '해머 · 코인',
+        { id: 'hammer',   name: 'Hammer Thief', kr: '망치 도둑',  icon: '🔨', unlock: '2-10', reward: '해머 · 코인',
           theme: { sky: 0x5d4037, fog: 0x795548, ground: 0x4e342e, biome: 'rock', celestial: 'none' } },
         { id: 'ghost',    name: 'Ghost Town',   kr: '유령 마을',  icon: '👻', unlock: '2-8',  reward: '스킬 티켓',
           theme: { sky: 0x37474f, fog: 0x546e7a, ground: 0x455a64, biome: 'rock', celestial: 'moon' } },
-        { id: 'invasion', name: 'Invasion',     kr: '침공',       icon: '🥚', unlock: '3-1',  reward: '깨진 알 (펫 소환용)',
+        { id: 'invasion', name: 'Invasion',     kr: '침략',       icon: '🥚', unlock: '3-1',  reward: '깨진 알 (펫 소환용)',
           theme: { sky: 0x4a148c, fog: 0x6a1b9a, ground: 0x38006b, biome: 'magic', celestial: 'moon' } },
         { id: 'zombie',   name: 'Zombie Rush',  kr: '좀비 러시',  icon: '🧟', unlock: '4-1',  reward: '물약 (기술 재화)',
           theme: { sky: 0x1b5e20, fog: 0x2e7d32, ground: 0x1b3a1e, biome: 'forest', celestial: 'none' } },
