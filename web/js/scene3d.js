@@ -3080,10 +3080,13 @@ const Scene3D = {
             // 천상: 황금 + 상아. ⚠️ 종전 값(날 0xfff4d0 + 자체발광 0.42)은 썸네일 조명에서 **완전히
             //    타서 흰 막대**가 됐다 — 천상 줄 5종이 전부 '하얗게 날아간 실루엣'이라 금색조차 안 남았다.
             //    발광을 눌러 금이 금으로 보이게 하고, 빛나는 몫은 후광·성흔 보석(holyLit)이 진다.
+            // 1차 채점 A·B 공통: 신의 창이 밝은 배경에 융해(상아 날 + 밝은 자루 = 다크 앵커 0).
+            // 발광은 그대로 두고(⚠️ 0.42 로 되돌리면 흰 막대 — 위 경고) **알베도만** 한 단 눌렀다:
+            // 날은 상아→깊은 금, 자루는 밝은 모래→어두운 청동 나무. 금 vs 그늘의 명도폭이 생긴다.
             mat      = std({ color: 0xf0bf45, metalness: 0.95, roughness: 0.2, emissive: 0xffb020, emissiveIntensity: 0.16 });
-            bladeMat = std({ color: 0xf2e3b4, metalness: 0.9, roughness: 0.18, envMapIntensity: 1.0, emissive: 0xffd98a, emissiveIntensity: 0.16 });
-            wood     = std({ color: 0xcbb37a, metalness: 0.06, roughness: 0.6 });
-            dark     = std({ color: 0xa8801f, metalness: 0.9, roughness: 0.32 });
+            bladeMat = std({ color: 0xe6cd8a, metalness: 0.9, roughness: 0.18, envMapIntensity: 1.0, emissive: 0xffd98a, emissiveIntensity: 0.16 });
+            wood     = std({ color: 0x8a6a38, metalness: 0.06, roughness: 0.6 });
+            dark     = std({ color: 0x9a731c, metalness: 0.9, roughness: 0.32 });
             edgeHex  = 0xfff6d8;
         } else {
             // steel — 중세·근세 melee 전용 계열.
@@ -4469,6 +4472,18 @@ const Scene3D = {
             const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.15, 0.045),
                 this.tintOf(mat, -0.14)); // 코 가드 — 슬림+다크 (밝은 굵은 바가 '반투명 띠 아티팩트'로 오독, 비평가 7번)
             noseBar.position.set(0, -0.02, 0.262);
+            if (age === 'medieval') {
+                // 기사 투구(중세 분기): 1차 채점 A "T자 슬릿·힌지 없이 항아리로 읽힌다" — 가로 슬릿 밑에
+                // 세로 개구부를 더해 T 를 만들고, 양옆에 바이저 힌지 리벳을 박는다(시대 공용 조형은 불변).
+                const vslit = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.15, 0.02), cavity);
+                vslit.position.set(0, -0.045, 0.266);
+                g.add(vslit);
+                for (const hs of [-1, 1]) {
+                    const hinge = new THREE.Mesh(new THREE.SphereGeometry(0.026, 7, 5), this.tintOf(mat, 0.08));
+                    hinge.position.set(hs * 0.272, 0.06, 0.02);
+                    g.add(hinge);
+                }
+            }
             // 정수리 볏 아크 — ⚠️ 이전 값(반지름 0.21, 중심 y 0.13)은 **돔 셸 안에 묻혀 있었다.**
             // 돔은 반지름 0.28·스케일 y1.02·중심 y0.04이므로 표면이 y축 0.2856인데, 볏은 자기 중심이
             // 0.09 위에 있어 정수리(0.09+0.21=0.30)만 셸을 0.014 뚫고 나오고 양 끝(18°/162°에서
@@ -4549,12 +4564,17 @@ const Scene3D = {
             const strap = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.045, 0.045), darkMat);
             strap.position.y = 0.02;
             g.add(plate, mouth, strap);
-        } else if (style === 'halo') {      // 후광 (빛나는 링)
-            const halo = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.035, 8, 20),
-                new THREE.MeshLambertMaterial({ color: 0xffd54f, emissive: 0xffd54f, emissiveIntensity: 1 }));
-            halo.rotation.x = Math.PI / 2;
-            halo.position.y = 0.48;
-            g.add(halo);
+        } else if (style === 'halo') {      // 후광 (수호의 후광) — 링 하나는 '크림색 도넛'으로 읽혔다(1차 채점 A·B 공통).
+            // 천상 공통 문법(addDivineHalo: 세워진 링 + 방사 광선 8줄)을 그대로 쓰고, 내광 디스크로 '빛'을 더한다.
+            this.addDivineHalo(g, 0.42, 0.2);
+            // ⚠️ 가산 디스크는 밝기를 아껴 쓸 것 — opacity 0.38 에서 셀의 54% 가 순백 포화로 날아가
+            //    probe-equip-clip 에 걸렸다(실측). 0.14 가 '빛나되 안 타는' 값이다.
+            const glow = new THREE.Mesh(new THREE.CircleGeometry(0.155, 20), new THREE.MeshBasicMaterial({
+                color: 0xffd98a, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending,
+                depthWrite: false, side: THREE.DoubleSide }));
+            glow.position.set(0, 0.42, -0.2 * 0.42 + 0.01);
+            glow.rotation.x = -0.22;
+            g.add(glow);
         } else if (style === 'hair') {      // 머리카락/수염/비니
             const cap = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), mat);
             cap.position.y = 0.04;
@@ -4566,11 +4586,35 @@ const Scene3D = {
             const band = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.12, 12), mat);
             band.position.y = 0.16;
             g.add(band);
-            for (let i = 0; i < 5; i++) {
-                const spike = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.14, 6), rareMat);
-                const a = (i / 5) * Math.PI * 2;
-                spike.position.set(Math.cos(a) * 0.21, 0.28, Math.sin(a) * 0.21);
-                g.add(spike);
+            if (age === 'medieval') {
+                // 사무라이 투구: 1차 채점 A·B 공통 "카부토 문법 전무 — 그냥 왕관/울타리".
+                // 스타일은 시대 공용이라 **중세 분기**로만: 정수리 돔(하치) + 쿠와가타(금빛 V 뿔) + 시코로(목가리개 라멜라).
+                // 스파이크 5개 링은 이 분기에서 뺀다 — '생일 왕관' 오독의 원인이 그것이었다.
+                const hachi = new THREE.Mesh(new THREE.SphereGeometry(0.23, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.52), mat);
+                hachi.position.y = 0.17;
+                g.add(hachi);
+                for (const s of [-1, 1]) {   // 쿠와가타 — 위로 벌어지는 납작한 뿔 두 장
+                    const horn = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.27, 0.014), rareMat);
+                    horn.position.set(s * 0.085, 0.42, 0.205);
+                    horn.rotation.z = -s * 0.42;
+                    g.add(horn);
+                }
+                const crest = new THREE.Mesh(new THREE.SphereGeometry(0.036, 8, 6), rareMat); // 뿔 사이 전립(마에다테 심)
+                crest.position.set(0, 0.34, 0.215);
+                g.add(crest);
+                for (let l = 0; l < 3; l++) {  // 시코로 — 뒤·옆을 감는 라멜라 3장, 아래로 갈수록 벌어진다
+                    const lam = new THREE.Mesh(new THREE.CylinderGeometry(0.235 + l * 0.028, 0.265 + l * 0.028, 0.05,
+                        14, 1, true, Math.PI * 0.32, Math.PI * 1.36), this.tintOf(mat, -0.04 * (l + 1), { side: THREE.DoubleSide }));
+                    lam.position.y = 0.115 - l * 0.048;
+                    g.add(lam);
+                }
+            } else {
+                for (let i = 0; i < 5; i++) {
+                    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.14, 6), rareMat);
+                    const a = (i / 5) * Math.PI * 2;
+                    spike.position.set(Math.cos(a) * 0.21, 0.28, Math.sin(a) * 0.21);
+                    g.add(spike);
+                }
             }
         } else if (style === 'tech') {      // 메카 헬름 — 곡면 셸 + 랩어라운드 발광 바이저 (박스 금지, 비평가 1위 결함 재작업)
             const shell = new THREE.Mesh(new THREE.SphereGeometry(0.29, 10, 8), mat);
@@ -4837,7 +4881,10 @@ const Scene3D = {
             g.add(pack, stripe);
         } else if (style === 'vest') {   // 전술 파우치 — 벨트 루프로 몸통에 매달린다
             const pz = o.frontZ !== undefined ? o.frontZ : 0.155;
-            const pm = mats ? mats.dark : new THREE.MeshLambertMaterial({ color: 0x37474f });
+            // ⚠️ 천상은 alloy 계열이라 mats.dark 가 짙은 합금 회색이다 — 성광 조끼에 회색 파우치가
+            //    그대로 남아 '재탕 노출'로 읽혔다(1차 채점 B). 다크 앵커는 유지하되 금의 어두운 단으로.
+            const pm = mats ? (o.age === 'divine' ? this.tintOf(mats.body, -0.22) : mats.dark)
+                            : new THREE.MeshLambertMaterial({ color: 0x37474f });
             for (const dx of [-0.11, 0.11]) {
                 const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.06), pm);
                 pouch.position.set(dx, 0.56, pz - 0.012);
