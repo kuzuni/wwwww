@@ -39,7 +39,10 @@ const MEASURE = async ([src]) => {
     g.drawImage(img, 0, 0);
     const W = c.width, H = c.height, D = g.getImageData(0, 0, W, H).data;
     const at = (x, y) => { const i = (y * W + x) * 4; return [D[i], D[i + 1], D[i + 2]]; };
-    const white = p => p[0] > 238 && p[1] > 238 && p[2] > 238;
+    // 🚨 문턱 238→215 (2026-08-19, probe-ccmp-px 와 같은 수리): ui-quality-up 팝업 카드 스킨의
+    //    하단 그늘(rgba(0,0,0,.08~.14))이 카드 아래쪽 흰 바탕을 255→219까지 눌러, 238 문턱에서는
+    //    카드 하부가 잘려 행 밴드가 5→2개로 나왔다. 행 회색(202)·행 간격 판정과는 안 겹친다(<215).
+    const white = p => p[0] > 215 && p[1] > 215 && p[2] > 215 && Math.abs(p[0] - p[2]) < 12;
     // 행 카드 회색 — 원본 rgb(202) · 클론 rgb(207) 실측. 무채색이고 흰색보다 확실히 어둡다.
     const rowGray = p => Math.abs(p[0] - p[1]) < 10 && Math.abs(p[1] - p[2]) < 10 && p[0] > 180 && p[0] < 225;
     const bad = m => ({ err: m });

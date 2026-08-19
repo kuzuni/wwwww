@@ -2669,6 +2669,10 @@ body {
    shot-042724 카드 139~749px/893 = 68.31%H — 두 원본 모두 카드 실높이 610px로 일치한다.
    .66은 여기서 4~5%p 짧아 카드 하단(과 거기 걸친 ✕)이 통째로 위로 올라와 있었다. */
 .modal-card.wide.profile-sheet { width: 71.6%; height: min(calc(var(--app-h) * .70), var(--popup-h-max)); display: flex; flex-direction: column; }
+/* 플레이어 정보 카드 — 원본(shot-043313) 흰 카드 잉크 373/496 = 75.20%W 인데 공용 .wide 74%는
+   테두리를 빼면 72.75%W 라 −2.46%p 로 유일하게 ±2%p 를 넘겼다(전수 검증 채점 1차, 픽셀 교차검증).
+   공용 74%를 건드리면 league-challenge 등 CW 캘리브레이션이 통째로 흔들리므로 이 카드만 승격. */
+.modal-card.wide.pinfo-card { width: 76.5%; }
 /* 원본은 [프로필][설정] 줄 아래로 카드 바닥까지 55px(6.2%H)의 흰 여백이 남는다 —
    카드 패딩 1.1rem만으로는 13px뿐이라 버튼줄이 바닥에 붙어 있었다. */
 .profile-sheet .profile-tabs { margin-top: auto; margin-bottom: 2.2rem; }
@@ -3398,7 +3402,11 @@ body {
     top: 0; bottom: var(--tabbar-h); height: auto; border-radius: 0;
     padding: .8rem .8rem 0; display: flex; flex-direction: column; gap: .5rem; overflow: hidden;
 }
-#panel-summon > .summon-sub { flex: 1; min-height: 0; overflow-y: auto; order: 1; padding-bottom: .6rem; }
+/* 좌우 margin −.8rem + padding .8rem 짝: 콘텐츠 위치는 그대로 두고 **클립 상자(패딩 박스)만 앱
+   전폭으로** 넓힌다 — 부화장(.hatchery)의 음수 마진 전폭 블리드가 이 스크롤 컨테이너의
+   overflow 클립에 잘려 좌우 13px 흰 홈이 남던 것(원본 042356/042445 는 밴드가 0~100%W 전폭.
+   DOM rect 는 전폭인데 페인트만 잘려서 rect 실측으로는 안 잡힌다 — 캡처 픽셀로 잡았다). */
+#panel-summon > .summon-sub { flex: 1; min-height: 0; overflow-y: auto; order: 1; padding-bottom: .6rem; margin-left: -.8rem; margin-right: -.8rem; padding-left: .8rem; padding-right: .8rem; }
 /* 펫·스킬 화면: 시트 전체 스크롤 금지 — 상단(제목/재화)·하단(장착됨/소환 바/부화장)은 고정, 가운데 그리드만 내부 스크롤 (사용자 지시) */
 #panel-pets.summon-visible, #panel-skills.summon-visible { overflow: hidden; }
 .grid-scroll {

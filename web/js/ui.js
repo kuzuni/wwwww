@@ -4684,7 +4684,7 @@ const UI = {
 
         this.els.playerInfoModal.innerHTML = `
             <div class="idet-wrap">
-                <div class="modal-card wide">
+                <div class="modal-card wide pinfo-card">
                     <div class="pinfo-header">
                         <div class="pinfo-id">
                             <span class="avatar">${IconGen.avatar(S.avatarEmoji)}</span>

@@ -45,7 +45,12 @@ const MEASURE = (async (srcs) => {
             if (f > 3 || l < W - 4) { out.push({ err: `앱 폭≠이미지 폭 (탭바 x${f}~${l} / W${W})` }); continue; }
         }
         // 흰 카드 = 최대 4-연결 흰 성분(행 단위 판정은 이 카드 계열에서 두 번 틀렸다 — geardetail 프로브 주석 참조).
-        const white = (x, y) => { const p = at(x, y); return p[0] >= 238 && p[1] >= 238 && p[2] >= 238 && (Math.max(...p) - Math.min(...p)) <= 8; };
+        // 🚨 문턱 238→215 (2026-08-19): ui-quality-up 팝업 카드 스킨의 하단 그늘(rgba(0,0,0,.08~.14))이
+        //    카드 아래쪽 흰 여백을 255→219까지 눌러, 238 문턱에서는 카드 성분이 y~662에서 끊기고
+        //    (실제 bottom ~775) yBtn 밴드가 새 장비 타일을 물어 '버튼을 못 잡음(red 46·blue 2310)'이
+        //    났다. 215면 그늘 밑까지 이어지고, 클론 패널(#ececec 236)이 흰 성분에 합쳐져도 패널은
+        //    카드 안쪽이라 카드 bbox는 안 변한다(패널 자체는 별도 gray 술어로 다시 잡는다).
+        const white = (x, y) => { const p = at(x, y); return p[0] >= 215 && p[1] >= 215 && p[2] >= 215 && (Math.max(...p) - Math.min(...p)) <= 10; };
         const lab = new Int32Array(W * H).fill(-1);
         let bestId = -1, bestN = 0; const comp = [];
         for (let y0 = 0; y0 < H; y0++) for (let x0 = 0; x0 < W; x0++) {
@@ -77,9 +82,11 @@ const MEASURE = (async (srcs) => {
         }
         const mode = (arr) => { const m = new Map(); let bv = null, bc = 0; for (const v of arr) { const n = (m.get(v) || 0) + 1; m.set(v, n); if (n > bc) { bc = n; bv = v; } } return bv; };
         const card = { left: mode(firsts), right: mode(lasts), top: cc.minY, bottom: cc.maxY + 1 };
-        // 회색 패널 = 카드 안 최대 무채색(밝기 175~236) 성분. 원본 #bebebe 와 클론 #ececec 를
-        // **같은 술어**로 잡아야 하므로 문턱을 넓게 둔다(238↑는 흰 카드 술어와 서로 배타).
-        const gray = (p) => { const mx = Math.max(...p), mn = Math.min(...p); return mx - mn <= 8 && mn >= 175 && mx <= 236; };
+        // 회색 패널 = 카드 안 최대 무채색(밝기 175~210) 성분. 원본도 클론도 지금은 #bebebe(190)다
+        // (클론이 원본 팔레트로 이행 — DOM 실측 rgb(190,190,190)·인셋 7.2px/쪽 = 원본 7px 일치).
+        // 🚨 상한 236→210 (2026-08-19): 팝업 카드 스킨의 하단 그늘이 카드 흰 여백을 219~236 무채색으로
+        //    만들어, 236 상한이면 그 여백이 패널 성분에 합쳐져 '패널 폭 +2.39%p' 가짜 초과가 난다.
+        const gray = (p) => { const mx = Math.max(...p), mn = Math.min(...p); return mx - mn <= 8 && mn >= 175 && mx <= 210; };
         const inCard = (x, y) => x > card.left && x < card.right - 1 && y > card.top && y < card.bottom - 1;
         const grow = (pred, x1b, x2b, y1b, y2b) => {
             const seen = new Int32Array(W * H).fill(-1);
@@ -109,12 +116,16 @@ const MEASURE = (async (srcs) => {
         // 버튼: 카드 하부 40%에서 빨강([판매])·파랑([장착]) 최대 성분 — 위쪽 제한은 새 장비 타일이
         // 시대색(파랑일 수 있음)이라 버튼과 헷갈리는 것을 막는다.
         const yBtn = Math.round(card.top + (card.bottom - card.top) * 0.6);
-        const red = grow(p => p[0] > 190 && p[1] < 70 && p[2] < 70, card.left, card.right, yBtn, card.bottom);
-        const blue = grow(p => p[2] > 200 && p[0] < 80 && p[1] < 120, card.left, card.right, yBtn, card.bottom);
+        // 🚨 2026-08-19 술어 완화 — ui-quality-up 버튼 광택 밴드(상단 흰 그라디언트 + 하단 그늘)가
+        //    클론 버튼의 절대값을 흔들어(위쪽 r 상승·아래쪽 b 하강) 절대 임계식이 red 21px·blue 72px
+        //    로 죽었다(2000 미달). 채널 '차이' 기반으로 바꿔 원본(민채움)과 클론(광택) 둘 다 문다.
+        //    red 는 흰 오버레이가 r−g 차이를 가장 빨리 죽인다(0.6 흰 위 (246,175,172): r−g 71) — 문턱 50.
+        const red = grow(p => p[0] > 170 && p[0] - p[1] > 50 && p[0] - p[2] > 50, card.left, card.right, yBtn, card.bottom);
+        const blue = grow(p => p[2] > 150 && p[2] - p[0] > 60 && p[2] - p[1] > 40, card.left, card.right, yBtn, card.bottom);
         // 자기검증 ②: 패널이 카드 폭 절반도 안 되거나 버튼이 없으면 측정기 고장이다 — 수치를 내지 않는다.
         const cw = card.right - card.left;
         if (!panel || panel.x2 - panel.x1 < cw * 0.5) { out.push({ err: `회색 패널을 못 잡음 (${panel ? `w${panel.x2 - panel.x1}` : 'none'})` }); continue; }
-        if (!red || red.n < 2000 || !blue || blue.n < 2000) { out.push({ err: `버튼을 못 잡음 (red ${red ? red.n : 0} · blue ${blue ? blue.n : 0})` }); continue; }
+        if (!red || red.n < 2000 || !blue || blue.n < 2000) { out.push({ err: `버튼을 못 잡음 (red ${red ? red.n : 0} · blue ${blue ? blue.n : 0} · card x${card.left}~${card.right} y${card.top}~${card.bottom} · yBtn ${yBtn}${blue ? ` · blue@x${blue.x1}~${blue.x2} y${blue.y1}~${blue.y2}` : ''})` }); continue; }
         out.push({ W, H, card, panel, red, blue });
     }
     return out;
