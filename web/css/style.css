@@ -1685,7 +1685,16 @@ body {
 }
 .dg-banner.locked { opacity: .55; }
 /* 배경 일러스트(`dgSceneCls`, icon-gen 슬라이스)가 배너에 직접 깔리므로, 그 위에 얹히는 제목·보상
-   슬롯과 오른쪽 열쇠·[열기] 는 스택 위로 올려 둔다. */
+   슬롯과 오른쪽 열쇠·[열기] 는 스택 위로 올려 둔다.
+   그리고 **왼쪽에 스크림 한 겹**을 깐다 — 일러스트가 행마다 밝기가 완전히 달라(해머=한낮 하늘,
+   침공=노을) 흰 제목이 묻힌다. 실측(제목 글자를 숨기고 그 자리 배경 평균색으로 대비 계산):
+   해머 1.98:1 · 침공 2.93:1 · 좀비 3.60:1 로 **4행 중 3행이 4.5:1 미달**이었다(유령만 11.11:1 통과).
+   오른쪽은 [열기]·열쇠 필이 자체 배경을 갖고 있어 스크림이 필요 없다 — 왼쪽만 덮어 일러스트를
+   최대한 살린다. */
+.dg-banner::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: linear-gradient(90deg, rgba(0,0,0,.86) 0%, rgba(0,0,0,.74) 32%, rgba(0,0,0,.34) 52%, rgba(0,0,0,0) 66%);
+}
 .dg-banner .dg-info, .dg-banner .dg-right { position: relative; z-index: 1; }
 /* 제목 왼쪽 보상 재화 아이콘 — 글자와 같은 줄에 인라인. 줄상자를 키우지 않게 음수 마진을 준다
    (`.auto-loop-ico` 와 같은 기법). em 이라 제목 크기를 바꾸면 같이 따라온다. */
@@ -3230,7 +3239,9 @@ body {
 .modal-card.sheet .dg-banner .dg-keys {
     color: #ffe082; text-shadow: 0 1px 2px rgba(0,0,0,.8);
     display: inline-flex; align-items: center; gap: .12rem;
-    background: rgba(0,0,0,.46); border: var(--ol1) solid rgba(255,255,255,.22);
+    /* 판은 **불투명**이다 — 반투명이면 뒤 일러스트가 비쳐 행마다 필 색이 달라지고(회청/흑청/탄/자주),
+       고사목 가지·깃대가 필을 관통해 '검은 긁힘'처럼 얹힌다(비평가 지적). */
+    background: #171c22; border: var(--ol1) solid rgba(255,255,255,.28);
     border-radius: 1rem; padding: .06rem .38rem .06rem .28rem;
 }
 .modal-card.sheet .dg-banner .btn {
