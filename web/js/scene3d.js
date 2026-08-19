@@ -11056,7 +11056,8 @@ const Scene3D = {
         const targets = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
         if (tier !== undefined) setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier),
             fx === 'meteor' ? 340 : fx === 'dragonfire' ? this.DRAGONFIRE_IMPACT_MS : fx === 'spear' ? this.GODSPEAR_IMPACT_MS
-                : fx === 'nova' ? this.NOVA_IMPACT_MS : fx === 'guillotine' ? this.GUILLOTINE_IMPACT_MS : 30);
+                : fx === 'nova' ? this.NOVA_IMPACT_MS : fx === 'guillotine' ? this.GUILLOTINE_IMPACT_MS
+                    : fx === 'voidrift' ? this.VOIDRIFT_IMPACT_MS : 30);
         if (fx === 'dragonfire') {
             // 아포칼립스 — 거대 화염룡 강림 (skill-unique-signature). 메테오와 fx 를 공유하던
             // 사용자 지목 쌍을 완전 분리: 하늘 낙하(운석)가 아니라 **주인공 뒤에서 솟은 용이
@@ -11091,7 +11092,12 @@ const Scene3D = {
         } else if (fx === 'beam') {
             // 화살 세례 (skill-fx-exaggerated) — 한 발이 아니라 여러 발이 다다다닥.
             // 화살 조형(projectileBolt)은 그대로 재사용한다: 좋았던 건 물건이 아니라 발수였다.
+            // ⚠️ 이제 이 fx 는 **관통 사격 전용**이다 — 공허의 창은 `voidrift` 로 분리했다.
             this.arrowVolley(targetIds, color, tier || 0);
+        } else if (fx === 'voidrift') {
+            // 공허의 창 — 적 너머 공간이 찢어지고 그 구멍에서 창이 튀어나온다 (skill-unique-signature).
+            // 관통 사격(화살 세례)과 fx 를 공유하던 것을 분리.
+            this.voidLanceRift(targetIds, color, tier || 0);
         } else if (fx === 'spear') {
             // 신의 창 — 하늘이 열리고 거대한 황금 창이 내리꽂힌다 (skill-unique-signature).
             // 낙뢰(먹구름+지그재그 볼트)와 fx 를 공유하던 것을 분리.
@@ -12157,6 +12163,231 @@ const Scene3D = {
                     }
                     light.set(light.get() * 0.92);
                 }, dispose);
+            });
+        });
+    },
+
+    // ---- 스킬 전용 미니 연출 ⑦: 공허의 창 — 공간이 찢어지고 창이 튀어나온다 ----
+    //      (skill-unique-signature, 사용자 지시 2026-08-19 "스킬 너무 똑같아 보이는 거 하지 말라")
+    //
+    // 여태 공허의 창은 관통 사격과 fx `beam`(= 화살 세례)을 **공유**했다. 궁극기인데 레어 스킬과
+    // 같은 화살이 발수만 늘어난 그림이라, 화면에 '공허'도 '창'도 없었다.
+    //
+    // 시그니처 = **음화(negative space)**. 이 저장소의 연출은 전부 가산 발광이라 하는 일이 '밝아지는
+    // 것' 하나뿐인데, 여기서는 화면에 **구멍(근흑 렌즈)** 을 뚫는다 — 18종 중 유일하게 어두워지는
+    // 연출이라 색·크기와 무관하게 한눈에 갈린다.
+    // 축도 셋 다 다르다: 신의 창은 하늘에서 **수직**으로 내리꽂고(godSpearDrop), 화살 세례는
+    // **영웅→적**으로 날아간다. 이건 **적 너머에 열린 균열에서 나와 영웅 쪽으로** 적을 꿰뚫는다.
+    // ⚠️ 발사 원점이 영웅이 아니다 — '주인공 원점 원칙'의 의도된 유일한 예외다(쏘는 주체가 공허다).
+    //   개열 0.30s: 흰 실선이 세로로 그어지고 → 좌우로 벌어져 근흑 렌즈가 된다(공간 파편이 빨려든다)
+    //   돌출 0.14s: 창끝이 균열에서 나왔다가 살짝 되당겨진다(예비동작)
+    //   관통 0.10s: 수평 급가속으로 적을 꿰뚫고 반대편으로 빠져나간다(출구에 작은 균열이 튄다)
+    //   여운 0.55s: 박힌 창이 떨다가 **균열로 되빨려 들어가고**, 균열이 탁 다물린다
+    //
+    // 🚨 캡처로 밟은 함정 (재발 방지):
+    //  ⑴ **근흑은 0x070509 까지 내려야 한다** — sRGB 출력 인코딩이 재질색을 linear→sRGB 로 들어
+    //     올려서 0x14 대역 헥스는 화면에서 0x50 대역 연보라로 뜬다(dragonfire 가 먼저 밟은 자리).
+    //     '구멍'이 연보라 판이 되면 이 연출의 시그니처가 통째로 없어진다.
+    //  ⑵ **렌즈를 카메라로 세우지 않으면 모서리선이 된다** — 카메라가 y3.7 에서 내려다보므로
+    //     월드축에 눕힌 판은 납작한 선으로 읽힌다(godspear 광륜이 같은 함정을 밟았다).
+    //  ⑶ **균열을 적에게서 1.75 보다 멀리 두지 말 것** — 적 뒤는 화면 오른쪽 끝이라 그 너머는
+    //     프레임 밖이다. 창의 비행 거리도 같이 짧아지므로 속도감은 이징으로 벌 것.
+    VOIDRIFT_IMPACT_MS: 540,     // 관통 시각(개열 300 + 돌출 140 + 관통 100) — skillImpactWeight 지연과 동기
+    voidLanceRift(targetIds, color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 4 : tier));
+        const pw = t / 5;
+        const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
+        const spot = live.length ? live[0].g.position.clone() : this.heroG.position.clone().add(new THREE.Vector3(2.4, 0, 0));
+        const violet = color.clone().lerp(new THREE.Color(0x9575cd), 0.45);
+        const VOID = 0x070509;                     // 함정 ⑴ — 이보다 밝으면 화면에서 '구멍'이 안 된다
+
+        // 영웅 → 적 방향. 균열은 그 **너머**에 열리고 창은 되짚어 와 적을 꿰뚫는다.
+        const away = spot.clone().sub(this.heroG.position); away.y = 0;
+        if (away.lengthSq() < 1e-4) away.set(1, 0, 0);
+        away.normalize();
+        // 함정 ⑶ — 순수 `away` 로 밀면 적이 이미 화면 오른쪽 끝이라 균열이 통째로 프레임 밖으로
+        // 나간다(첫 캡처 실측: 1.75 에서 렌즈가 우측 경계에 잘렸다). **카메라 쪽(+z)을 섞어**
+        // 화면 아래·앞으로 빼면 가로 폭을 안 먹으면서 '적 뒤'라는 깊이는 유지된다. 대각 관통이라
+        // 화면 운동량도 수평보다 낫다. 그래도 프레임을 벗어나는 배치(적이 극단에 선 경우)를 위해
+        // 거리를 줄여 가며 **프레임 안에 드는 가장 먼 자리**를 고른다.
+        const toCam = this.camera ? this.camera.position.clone().sub(spot).setY(0).normalize() : new THREE.Vector3(0, 0, 1);
+        const offDir = away.clone().multiplyScalar(0.6).addScaledVector(toCam, 0.55).normalize();
+        const inFrame = (p) => {
+            if (!this.camera) return true;
+            const v = p.clone().project(this.camera);
+            return Math.abs(v.x) < 0.70 && Math.abs(v.y) < 0.80;
+        };
+        let riftPos = spot.clone().addScaledVector(offDir, 0.95); riftPos.y = 1.35;
+        for (const d of [1.85, 1.55, 1.25]) {
+            const c = spot.clone().addScaledVector(offDir, d); c.y = 1.35;
+            if (inFrame(c)) { riftPos = c; break; }
+        }
+        const hitPos = spot.clone(); hitPos.y = 0.85;
+        // 관통 후 빠져나가는 자리 — 균열 반대편으로 창 길이만큼. 적을 확실히 지나치게.
+        const endPos = hitPos.clone().addScaledVector(offDir, -1.05); endPos.y = 0.62;
+        const travel = endPos.clone().sub(riftPos).normalize();
+
+        const G = new THREE.Group();
+        G.userData.voidriftFx = true;
+        this.scene.add(G);
+        const mat = (col, op, blend) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op,
+            side: THREE.DoubleSide, depthWrite: false, toneMapped: false,
+            blending: blend === false ? THREE.NormalBlending : THREE.AdditiveBlending });
+        // 세로 렌즈(눈 모양) — 위아래가 뾰족해야 '찢어진 자국'으로 읽힌다(타원은 그냥 구멍).
+        const lensGeo = (w, h) => {
+            const s = new THREE.Shape();
+            s.moveTo(0, h / 2);
+            s.quadraticCurveTo(w, 0, 0, -h / 2);
+            s.quadraticCurveTo(-w, 0, 0, h / 2);
+            return new THREE.ShapeGeometry(s, 14);
+        };
+
+        // ⓐ 균열 — 카메라를 향해 세운 그룹(함정 ⑵). 자식은 로컬 z 로만 앞뒤를 준다.
+        const RIFT_H = 2.3 + pw * 0.5;
+        const riftG = new THREE.Group();
+        riftG.position.copy(riftPos);
+        if (this.camera) riftG.lookAt(this.camera.position);
+        G.add(riftG);
+        // 가장자리 보랏빛 번짐. ⚠️ 여기를 키우면 밝은 하늘 위에서 흰 테두리가 **근흑 코어보다
+        // 세게** 읽혀 '구멍'이 '빛나는 고치'가 된다(캡처 실측) — 테는 코어를 이기면 안 된다.
+        const halo = new THREE.Mesh(lensGeo(0.88, RIFT_H * 1.09), mat(violet, 0));
+        halo.position.z = -0.03;
+        const core = new THREE.Mesh(lensGeo(0.62, RIFT_H), mat(VOID, 0, false));       // 근흑 구멍 — 시그니처
+        const slit = new THREE.Mesh(new THREE.PlaneGeometry(0.075, RIFT_H), mat(0xffffff, 0));  // 최초의 실선
+        slit.position.z = 0.03;
+        riftG.add(halo, core, slit);
+        riftG.scale.x = 0.001;                     // 닫힌 상태에서 시작 — 실선만 보인다
+
+        // ⓑ 빨려드는 공간 파편 — 균열 주위를 나선으로 조여들며 흡수된다.
+        const shards = [];
+        for (let i = 0; i < 6; i++) {
+            const sh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.05), mat(violet, 0));
+            sh.userData.a0 = (i / 6) * Math.PI * 2;
+            sh.userData.r0 = 1.5 + (i % 3) * 0.35;
+            riftG.add(sh); shards.push(sh);
+        }
+
+        // ⓒ 창 — 원점이 **창끝**이라 position 이 곧 관통점이 된다(godSpear 와 같은 규약).
+        // 🚨 첫 캡처에서 이게 **흰 광선**으로 읽혔다 — 즉 분리하려던 `beam`(화살 세례)과 오히려
+        //    더 닮아 버렸다. 원인 셋: ⓘ 자루 전 길이에 가산 `edge` 를 깔아 근흑이 통째로 씻김
+        //    ⓘⓘ 꼬리(wake)가 자루보다 굵고 길어 물체가 아니라 궤적으로 보임 ⓘⓘⓘ 창 길이 3.4 가
+        //    비행 거리보다 길어 화면을 가로지르는 '막대'가 됨. → **근흑 자루를 굵게, 가산은
+        //    창끝 근처 짧은 마디에만, 꼬리는 자루보다 가늘게, 전장 2.2 로** 줄인다.
+        const lance = new THREE.Group();
+        const solid = (col) => new THREE.MeshBasicMaterial({ color: col, toneMapped: false });
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.21, 0.8, 6), solid(0xb39ddb));
+        tip.rotation.x = Math.PI;
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 1.55, 6), solid(VOID));
+        shaft.position.y = 1.25;
+        const barb = new THREE.Mesh(new THREE.ConeGeometry(0.27, 0.42, 6), solid(VOID));  // 역가시 — 뽑히지 않는 인상
+        barb.rotation.x = Math.PI; barb.position.y = 0.54;
+        const edge = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.5, 4), mat(violet, 0.8));
+        edge.position.y = 0.52;                     // 창끝 바로 뒤 한 마디만 — 자루는 검게 남긴다
+        const wake = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.13, 1.5, 6, 1, true), mat(violet, 0));
+        wake.position.y = 2.0;                      // 관통 순간에만 켜지는 꼬리 — 자루보다 가늘게
+        lance.add(tip, shaft, barb, edge, wake);
+        lance.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), travel);
+        lance.position.copy(riftPos);
+        lance.scale.setScalar(1.05 + pw * 0.3);
+        lance.visible = false;
+        G.add(lance);
+
+        const light = this.fxLight(violet.getHex(), 8, 'voidriftLight');
+        light.pos(riftPos.x, riftPos.y, riftPos.z);
+        SFX.voidTear(t);
+
+        const dispose = () => {
+            G.traverse(o => {
+                if (o.isMesh && o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
+                if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
+            });
+            this.scene.remove(G); light.release();
+        };
+
+        // ⓐ 개열 0.30s — 실선이 그어지고(전반) 좌우로 벌어진다(후반).
+        this.addAnim(0.30, k => {
+            const draw = Math.min(1, k / 0.38);                  // 실선이 세로로 그어지는 구간
+            const open = Math.max(0, (k - 0.34) / 0.66);
+            const e = 1 - Math.pow(1 - open, 3);
+            slit.scale.y = 0.05 + draw * 0.95;
+            slit.material.opacity = draw * (1 - open * 0.85);
+            riftG.scale.x = 0.001 + e * 1.0;
+            core.material.opacity = e;
+            halo.material.opacity = e * 0.38;
+            for (const sh of shards) {                            // 나선으로 조여들며 흡수
+                const r = sh.userData.r0 * (1 - e * 0.92);
+                const a = sh.userData.a0 + e * 2.4;
+                sh.position.set(Math.cos(a) * r, Math.sin(a) * r * 0.8, 0.02);
+                sh.rotation.z = a + Math.PI / 2;
+                sh.material.opacity = Math.sin(Math.min(1, e * 1.25) * Math.PI) * 0.7;
+                sh.scale.setScalar(1 - e * 0.5);
+            }
+            light.set(e * (0.7 + pw * 0.7));
+        }, () => {
+            // ⓑ 돌출 0.14s — 창끝이 나왔다가 되당겨진다(예비동작). 나온 만큼만 보이게 스케일로 자란다.
+            lance.visible = true;
+            this.addAnim(0.14, k => {
+                const out = k < 0.62 ? (k / 0.62) : 1 - (k - 0.62) / 0.38 * 0.42;   // 0→1→0.58
+                lance.position.copy(riftPos).addScaledVector(travel, out * 0.75);
+                lance.scale.setScalar((1.05 + pw * 0.3) * (0.55 + out * 0.45));
+                edge.material.opacity = 0.5 + out * 0.5;
+                for (const sh of shards) sh.material.opacity *= 0.8;
+            }, () => {
+                // ⓒ 관통 0.10s — 급가속(k²)으로 적을 뚫고 반대편으로 빠진다.
+                const from = lance.position.clone();
+                this.addAnim(0.10, k => {
+                    const e = k * k;
+                    lance.position.copy(from).lerp(endPos, e);
+                    wake.material.opacity = Math.sin(k * Math.PI) * 0.45;
+                    wake.scale.y = 0.4 + e * 0.9;
+                }, () => {
+                    // 착탄 — 폭발 + 지면 링 + 진행 방향으로 튀는 파편(관통의 관성)
+                    this.explosion(hitPos.clone(), violet);
+                    this.expandRing(new THREE.Vector3(hitPos.x, 0.02, hitPos.z), violet, 2.0 + pw * 1.3);
+                    this.spawnShards(hitPos.clone(), Math.round(12 + pw * 12), violet.getHex(),
+                        { dir: Math.atan2(travel.z, travel.x), spread: 0.65, speed: 1.5 + pw * 0.8 });
+                    this.spawnSparks(hitPos.clone(), Math.round(16 + pw * 20), violet.getHex(), { speed: 1.5 + pw * 0.7 });
+                    this.shake(0.32 + pw * 0.3);
+                    this.flashLight(hitPos, violet.getHex(), 0.28);
+                    SFX.voidPierce(t);
+                    // 출구 균열 — 창이 빠져나간 자리에 작은 렌즈가 튄다(꿰뚫었다는 증거).
+                    const exitG = new THREE.Group();
+                    exitG.position.copy(endPos);
+                    if (this.camera) exitG.lookAt(this.camera.position);
+                    const exitL = new THREE.Mesh(lensGeo(0.34, 1.0), mat(VOID, 1, false));
+                    const exitH = new THREE.Mesh(lensGeo(0.5, 1.2), mat(violet, 0.7));
+                    exitH.position.z = -0.02;
+                    exitG.add(exitH, exitL); G.add(exitG);
+                    // 여운 0.55s — 창이 떨다가 균열로 되빨려 들어가고, 균열이 탁 다물린다.
+                    let snapped = false;
+                    this.addAnim(0.55, k => {
+                        const q = Math.max(0, (k - 0.30) / 0.70);      // 되빨림 구간
+                        // 박힌 채 미세 진동 → 그 다음 균열 쪽으로 되끌려 간다
+                        const jitter = (1 - Math.min(1, k / 0.30)) * 0.05;
+                        lance.position.copy(endPos).lerp(riftPos, q * q)
+                            .add(new THREE.Vector3(U.rand(-jitter, jitter), U.rand(-jitter, jitter), 0));
+                        lance.scale.setScalar((1.05 + pw * 0.3) * (1 - q * 0.55));
+                        for (const m of [tip, shaft, barb]) { m.material.transparent = true; m.material.opacity = 1 - q; }
+                        edge.material.opacity = (1 - q) * 0.85;
+                        wake.material.opacity = 0;
+                        if (q > 0.05 && Math.random() < 0.45) {         // 되빨리는 알갱이
+                            this.riseParticle(lance.position.clone().add(new THREE.Vector3(U.rand(-0.25, 0.25), U.rand(-0.2, 0.4), 0)), violet);
+                        }
+                        exitL.material.opacity = Math.max(0, 1 - k / 0.42);
+                        exitH.material.opacity = Math.max(0, 0.7 - k / 0.34);
+                        // 균열 폐쇄 — 마지막 30% 에 좌우로 다물리고, 다물린 뒤 실선이 세로로 사라진다.
+                        if (k > 0.70) {
+                            const c = (k - 0.70) / 0.30;
+                            riftG.scale.x = Math.max(0.001, 1 - c);
+                            halo.material.opacity = 0.38 * (1 - c);
+                            slit.material.opacity = Math.sin(c * Math.PI) * 0.9;    // 다물리며 한 번 번쩍
+                            slit.scale.y = 1 - Math.max(0, (c - 0.6) / 0.4);
+                            if (!snapped && c > 0.55) { snapped = true; SFX.voidSnap(); }
+                        }
+                        light.set(light.get() * 0.93);
+                    }, dispose);
+                });
             });
         });
     },

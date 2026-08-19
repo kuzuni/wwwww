@@ -442,7 +442,9 @@ const SKILL_DEFS = [
     // ⚠️ fx 'nova' — 화염구와 fx 를 공유하던 것을 분리 (skill-unique-signature): 투척 불덩이가 아니라
     //    허공에 빛이 **빨려 들어가 붕괴했다가** 한 번에 터지는 초신성 전용 연출.
     { id: 'supernova',   name: '초신성',          rarity: 'ultimate',  type: 'aoe',    mult: 10.0, cd: 12, fx: 'nova',     color: '#ffb74d' },
-    { id: 'voidLance',   name: '공허의 창',       rarity: 'ultimate',  type: 'single', mult: 18.0, cd: 11, fx: 'beam',     color: '#9575cd' },
+    // fx 'beam'(=화살 세례) 을 관통 사격과 공유하던 것을 분리 (skill-unique-signature).
+    // 궁극기인데 레어 스킬과 같은 화살이 발수만 늘어난 그림이라 '공허의 창'이 화면에 없었다.
+    { id: 'voidLance',   name: '공허의 창',       rarity: 'ultimate',  type: 'single', mult: 18.0, cd: 11, fx: 'voidrift', color: '#9575cd' },
     { id: 'timeWarp',    name: '시간 왜곡',       rarity: 'ultimate',  type: 'buff',   mult: 2.0,  dur: 10, cd: 14, fx: 'aura', color: '#4dd0e1' },
     // ⚠️ fx 'dragonfire' — 메테오와 fx 를 공유하던 것을 분리 (skill-unique-signature, 사용자 지목 쌍:
     //    "아포칼립스랑 메테오라는 스킬 너무 똑같음. 거대한 용이 나와서 불을 뿜는 스킬로 바꾸든지").

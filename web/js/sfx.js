@@ -323,6 +323,32 @@ const SFX = {
         this.noiseBurst(0.3, { type: 'bandpass', filterFreq: 500, filterTo: 1800, gain: 0.06, Q: 1.2 });
     },
 
+    // ---- 공허의 창 (skill-unique-signature) — 화면이 '어두워지는' 유일한 연출의 소리 ----
+    // 개열: 공기가 **빨려 들어가는** 역방향 스웰. 다른 시전음이 전부 밝아지는 라이저라
+    // 여기만 대역이 좁아지며 조여드는(필터가 위→아래로 닫히는) 소리를 낸다. 저역 디튠 2겹이
+    // 맥놀이를 만들어 '공간이 삐걱인다'가 들린다 — 화성으로 안 맞춘 건 의도다.
+    voidTear(tier) {
+        const g = 0.1 + (tier || 0) * 0.008;
+        this.noiseBurst(0.3, { type: 'bandpass', filterFreq: 3600, filterTo: 420, gain: 0.13, Q: 2.2, rvb: 0.4 });
+        this.tone(96, 0.34, { type: 'sawtooth', gain: g, slideTo: 62, jitter: 0.03, rvb: 0.45 });
+        this.tone(99.5, 0.34, { type: 'sawtooth', gain: g * 0.7, slideTo: 64, jitter: 0.03, rvb: 0.45 }); // 3.5Hz 맥놀이
+    },
+    // 관통: 트랜지언트(클릭) → 쇠가 살을 뚫는 짧은 밴드 노이즈 → 서브 드롭.
+    // 낙뢰(stormStrike)와 같은 뼈대지만 **고역을 깎고 서브를 더 깊게** 떨어뜨려 '뚫렸다'가 되게.
+    voidPierce(tier) {
+        const t = tier || 0;
+        this.click({ freq: 5200, gain: 0.26 });
+        this.noiseBurst(0.13, { type: 'bandpass', filterFreq: 2600, filterTo: 380, gain: 0.3, Q: 1.6, rvb: 0.25 });
+        this.thump(150, 34, 0.3, { gain: 0.32 + t * 0.01, jitter: 0.05 });
+        this.ring(1180, 0.16, { gain: 0.07 + t * 0.006, delay: 0.01, rvb: 0.3 });
+    },
+    // 폐쇄: 균열이 **탁** 하고 다물린다. 짧고 마른 트랜지언트 하나 — 여운을 주면 안 닫힌 것 같다.
+    voidSnap() {
+        this.click({ freq: 8200, gain: 0.2 });
+        this.noiseBurst(0.06, { type: 'highpass', filterFreq: 3000, gain: 0.16 });
+        this.thump(240, 70, 0.09, { gain: 0.2, jitter: 0.04 });
+    },
+
     // ---- 장비 교체 3박자 (equip-swap-throwout, 사용자 지시 2026-08-19) ----
     // 화면 연출(`UI.playEquipSwapFx`)의 세 순간에 하나씩 붙는다: 던짐(0ms) → 딸깍(130ms) → 착지(558ms).
     // 셋이 같은 대역이면 한 덩어리로 뭉개져 '세 번 일어난 일'로 안 들린다 — 대역을 갈라 둔다:
