@@ -9010,20 +9010,67 @@ const Scene3D = {
     // ⚠️ 타깃은 여기서 **다시 조회**한다 — 이 함수는 30ms(메테오는 340ms) 뒤에 불리므로,
     //    호출 시점의 메시를 붙들고 있으면 그 사이 죽어 disposeTree 된 지오메트리를 참조한다
     //    (2박에서 이미 한 번 밟은 함정이라 같은 규칙을 그대로 적용한다).
+    // ⚠️ **등급 하한을 두지 말 것** (사용자 지시 2026-08-19 `skill-fx-exaggerated`:
+    //    "스킬 부분은 연출이 좀 대체로 약한 게 좀 문제임. 연출이 더 과장되고 화려해야 함").
+    //    예전엔 `if (tier < 2) return` 으로 **커먼·레어에 무게를 아예 안 줬다** — 초반 플레이어가
+    //    실제로 보는 스킬 대부분이 그 대역이라 "스킬 연출이 약하다"의 절반이 이 한 줄이었다.
+    //    이제 pw 를 0~1 로 전 등급에 펴고(커먼도 0 이 아니다) 진폭 자체를 키운다.
+    //    위계는 그대로 산다 — 커먼 대비 미식이 링 2.2배·불꽃 3.4배·셰이크 2.6배다.
     skillImpactWeight(fx, color, targetIds, tier) {
-        if (tier < 2) return;                              // 커먼·레어는 기본 연출 그대로 (위계의 바닥)
-        const pw = (tier - 2) / 3;                         // 0(에픽) ~ 1(미식)
+        const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
+        const pw = t / 5;                                  // 0(커먼) ~ 1(미식) — 하한 없음
         const live = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
         const anchors = live.length ? live.map(m => m.g.position.clone())
             : [this.heroG.position.clone()];
         for (const p of anchors.slice(0, 4)) {             // 다수 적일 때 상한 — 링이 화면을 덮지 않게
-            this.expandRing(p, color, 1.8 + pw * 1.6);
-            if (tier >= 4) setTimeout(() => this.expandRing(p, new THREE.Color(0xffffff), 1.2 + pw * 1.2), 55);
-            this.spawnSparks(p.clone().add(new THREE.Vector3(0, 0.55, 0)), Math.round(10 + pw * 22), color.getHex(), { speed: 1.1 + pw * 0.7 });
+            this.expandRing(p, color, 1.9 + pw * 2.3);
+            // 흰 코어 링을 **전 등급**에 얹는다(예전엔 궁극 이상만) — 색 링 하나만으로는 '터졌다'가
+            // 안 읽힌다. 상위 등급은 한 겹 더 늦게 얹어 3겹으로 간다.
+            setTimeout(() => this.expandRing(p, new THREE.Color(0xffffff), 1.15 + pw * 1.5), 55);
+            if (t >= 3) setTimeout(() => this.expandRing(p, color, 2.6 + pw * 2.0), 120);
+            this.spawnSparks(p.clone().add(new THREE.Vector3(0, 0.55, 0)),
+                Math.round(14 + pw * 34), color.getHex(), { speed: 1.3 + pw * 1.0 });
         }
-        this.shake(0.18 + pw * 0.42);
-        // 히트스톱은 최상위 두 등급만 — 남발하면 '렉'으로 읽힌다(타격 히트스톱과 같은 규칙)
-        if (tier >= 4) this.hitStop(0.045 + pw * 0.035);
+        this.shake(0.26 + pw * 0.42);
+        this.fovPunch(0.018 + pw * 0.030, 0.16 + pw * 0.10);   // 카메라도 같이 물린다 — 전 등급
+        this.skillScreenFlash(color, t);                       // 화면 플래시 + 그레이드 펄스
+        // 히트스톱은 에픽 이상 — 예전엔 궁극 이상뿐이라 대부분의 스킬에 '멈칫'이 없었다.
+        // ⚠️ 커먼·레어에는 여전히 주지 않는다. 잡몹에게 초당 여러 번 나가는 대역이라 히트스톱을
+        //    깔면 화려한 게 아니라 **렉으로 읽힌다**(타격 히트스톱과 같은 규칙).
+        if (t >= 2) this.hitStop(0.035 + pw * 0.045);
+    },
+
+    // 발동 순간의 **화면 플래시 + 그레이드 펄스** (skill-fx-exaggerated).
+    // 3D 안의 링·불꽃만으로는 '화면이 물든' 느낌이 안 난다 — 원신의 발동 컷이 그렇듯 화면 전체가
+    // 한 프레임 스킬 색으로 물었다 빠져야 한다. 색수차 대용으로 씬 그레이드(채도·대비)도 같이 문다
+    // (r128 + CDN 금지라 포스트프로세싱 컴포저를 못 쓴다 — CSS 필터가 이 저장소의 그레이드 수단이다).
+    // 🚨 z-index 13 — `death-overlay-zorder`/`boss-warning-zorder-position` 이 정한 서열을 지킨다:
+    //    피격 비네트 12 < **스킬 플래시 13** < 씬컷 14 < 사망 15 < 보스 경고 16 < 모든 팝업 20+.
+    //    연출은 씬 대역이다. 20 이상으로 올리면 팝업을 침범한다.
+    skillScreenFlash(color, tier) {
+        if (!this.fxLayer) return;
+        const pw = Math.max(0, Math.min(5, tier || 0)) / 5;
+        const el = document.createElement('div');
+        const c = `${Math.round(color.r * 255)},${Math.round(color.g * 255)},${Math.round(color.b * 255)}`;
+        el.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:13;mix-blend-mode:screen;opacity:0;'
+            + `background:radial-gradient(ellipse at 50% 52%, rgba(${c},${(0.42 + pw * 0.36).toFixed(2)}) 0%,`
+            + ` rgba(${c},${(0.16 + pw * 0.20).toFixed(2)}) 46%, rgba(${c},0) 78%)`;
+        this.fxLayer.appendChild(el);
+        const ms = 150 + pw * 110;
+        if (!el.animate) { el.remove(); return; }   // WAAPI 미지원이면 연출만 잃는다
+        // 정점은 **첫 프레임 안**이어야 한다 — 램프를 주면 "터진 뒤에 화면이 물든다"로 읽힌다
+        // (피격 비네트가 같은 지적을 받고 고친 자리다).
+        el.animate([{ opacity: 1, offset: 0 }, { opacity: 0.55, offset: 0.22 }, { opacity: 0, offset: 1 }],
+            { duration: ms, easing: 'cubic-bezier(.2,.7,.35,1)' }).onfinish = () => el.remove();
+        setTimeout(() => el.remove(), ms + 300);     // onfinish 유실 대비 — 화면에 색판이 남는 일만은 없게
+        // 씬 그레이드 펄스 — 기본값(style.css `#game3d`)으로 정확히 되돌린다.
+        const cv = this.canvas || document.getElementById('game3d');
+        if (cv) {
+            clearTimeout(this._skillGradeT);
+            cv.style.filter = `saturate(${(1.12 + pw * 0.5).toFixed(2)}) contrast(${(1.07 + pw * 0.22).toFixed(2)}) brightness(${(1 + pw * 0.10).toFixed(2)})`;
+            cv.style.transition = 'filter 120ms ease-out';
+            this._skillGradeT = setTimeout(() => { cv.style.filter = ''; }, 120 + pw * 90);
+        }
     },
 
     skillPayload(fx, color, targetIds, tier) {
