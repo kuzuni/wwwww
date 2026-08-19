@@ -722,7 +722,10 @@ const Scene3D = {
         if (this.hazeMat) this.hazeMat.color.setHex(fogHex);
         if (this.clouds) {
             // 구름은 하늘보다 확실히 밝게 띄워 대비 확보 (밤엔 달빛에 은은히 비치는 정도로만)
+            // 낮 구름은 하늘색 파생(청록끼)이 아니라 난색 하이라이트가 도는 흰색으로 — 하늘·수관과
+            // 같은 청록 계열이면 '구름인지 물 덩어리인지' 모호해진다(재채점 A2 #4). 밤은 종전 유지.
             const cloudTint = new THREE.Color(skyHex).offsetHSL(0, -0.5, night ? 0.1 : 0.48);
+            if (!night) cloudTint.lerp(new THREE.Color(0xfff6e8), 0.65);
             for (const cl of this.clouds) {
                 cl.material.color.copy(cloudTint);
                 cl.material.opacity = night ? 0.45 : 1;
@@ -11559,7 +11562,9 @@ const Scene3D = {
         this.mountainMat.color.copy(isNightPre
             ? gC.clone().offsetHSL(0, 0.03 - V.farDesat * 0.35, -0.16).lerp(fogC, 0.22)
             : (() => { const m = gC.getHSL({ h: 0, s: 0, l: 0 });
-                return new THREE.Color().setHSL(m.h, m.s * 0.42, Math.min(0.8, m.l + 0.10)).lerp(fogC, 0.12); })());
+                // 채도 계수 0.42는 사막(원래 s≈0.3)에서 '채도 없는 플랫 회색 띠'를 만들었다(재채점 B2 #2)
+                // — 0.55로. 색상이 지면과 같아서 채도가 남아도 '물'로는 안 읽힌다(그건 혼색의 문제였다).
+                return new THREE.Color().setHSL(m.h, m.s * 0.55, Math.min(0.8, m.l + 0.10)).lerp(fogC, 0.12); })());
         this.hillMat.color.copy(gC.clone().offsetHSL(0, -V.farDesat * 0.7, 0).lerp(fogC, 0.75));
         this.farHillMat.color.copy(gC.clone().offsetHSL(0, -V.farDesat, 0).lerp(fogC, 0.9)); // 안개에 거의 잠긴 최원경
         // 식생은 지면보다 한 단계 더 눌러 '어두운 덩어리'로 — 화면의 다크 엔드를 실제로 담당하는 레이어.
@@ -11602,6 +11607,18 @@ const Scene3D = {
         if (this.mossMat) {
             const mg = gC.getHSL({ h: 0, s: 0, l: 0 });
             this.mossMat.color.setHSL(((mg.h + (0.36 - mg.h) * 0.35) % 1 + 1) % 1, 0.30, 0.30);
+        }
+        // 접지 블롭 그림자 색 — 순흑(0x000000)은 밝은 지면(설원·마법 라벤더)에서 '경계 선명한 검은
+        // 스티커'로 읽힌다(map-quality-up 재채점 A2·B2 공통 지적). 지면 팔레트로 틴트한 다크 톤으로 —
+        // 설원이면 남색, 마법이면 보라 그림자. ⚠️ 불투명도 눈금(0.22/0.26/0.45)은 건드리지 않는다:
+        // 실그림자 이중 노출·'부유 스티커'·초원 하이키 사이에서 실측으로 잡은 값들이다(ensureBlobRes 주석).
+        this.ensureBlobRes();
+        {
+            const bs = gC.getHSL({ h: 0, s: 0, l: 0 });
+            const shade = new THREE.Color().setHSL(bs.h, Math.min(0.5, bs.s * 0.6 + 0.1), 0.10);
+            this.blobShadowMat.color.copy(shade);
+            this.blobShadowFlyMat.color.copy(shade);
+            this.blobShadowFoeMat.color.copy(shade);
         }
         this.hemi.color.setHex(t.sky);
         this.hemi.groundColor.copy(gC.clone().offsetHSL(0, 0, -0.1));
@@ -11680,8 +11697,11 @@ const Scene3D = {
         this.scene.fog.far = sp.fog ? sp.fog[1] : isNight || kin === 'lava' ? 30 : kin === 'rock' ? 42 : 35;
         // 발광체 라이트 블리드(악센트 포인트라이트 3기)는 buildProps에서 발광 소품에 직접 부착·설정됨
         // 바이옴별 돌 색 (설원=서리 낀 밝은 회청, 사막=테라코타 악센트, 바위산=지면보다 두 단계 어둡게 — 명도 분리)
+        // 바위산 절벽 0x6a6055 → 0x51483e: 지면 albedo가 값 그레이딩으로 L≈0.24까지 내려와 절벽과
+        // 같은 명도대에 붙었다(재채점 A2·B2 공통 1위 '전부 같은 회갈색'). 절벽을 두 단계 더 눌러
+        // '어두운 근경 실루엣 vs 밝은 지면'의 단차를 복구한다(지면 쪽은 아래 테마 ground가 밝힌다).
         this.stoneMat.color.setHex(sp.stone !== undefined ? sp.stone :
-            kin === 'snow' ? 0xc9d8e6 : kin === 'desert' ? 0xb97f5e : kin === 'rock' ? 0x6a6055 : 0x90a4ae);
+            kin === 'snow' ? 0xc9d8e6 : kin === 'desert' ? 0xb97f5e : kin === 'rock' ? 0x51483e : 0x90a4ae);
         // 바위산: 지면 탠과 색온도를 맞춘 웜 그레이 — "배치한 에셋" 티 제거 (쿨 그레이는 지면과 따로 놀았음)
         // 천체: 낮=해, 밤=달+별 (테마 celestial 필드로 명시, 기본 sun)
         const cel = t.celestial || 'sun';

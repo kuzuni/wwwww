@@ -559,7 +559,9 @@ const CHAPTER_THEMES = [
     // (map-quality-up 비평가 2인 공통 지적). 원신 수메르 문법대로 '따뜻한 모래 vs 푸른 하늘' 보색으로 —
     // 안개(fog)는 모래색을 유지하므로 지평선엔 여전히 따뜻한 모래 연무가 깔리고 천정만 파랗게 벌어진다.
     { sky: 0x7cc0e0, fog: 0xffe0b2, ground: 0xbca77b, biome: 'desert' },
-    { sky: 0x7f9cbd, fog: 0xaebfd4, ground: 0x6b6157, biome: 'rock' },                      // 3 바위산 (웜 그레이 지면 × 쿨 블루 하늘 — 회색×회색 단색 화면의 hue 분리)
+    // 3 바위산 — 지면을 0x6b6157→0x8a7c68로 밝힘: 값 그레이딩(-비례 하향) 후에도 절벽(0x51483e)과
+    // 명도 단차가 남아야 한다(map-quality-up 재채점 A2·B2 공통 1위 '지면·바위·원경이 같은 회갈색 뭉개짐').
+    { sky: 0x7f9cbd, fog: 0xaebfd4, ground: 0x8a7c68, biome: 'rock' },
     { sky: 0x4a6572, fog: 0x607d8b, ground: 0x455a64, biome: 'forest' },                    // 4 폭풍
     { sky: 0x263238, fog: 0x37474f, ground: 0x33691e, biome: 'forest', celestial: 'moon' }, // 5 밤 숲
     { sky: 0x1a237e, fog: 0x283593, ground: 0xaac2e2, biome: 'snow', celestial: 'moon' },   // 6 설원 밤 (눈 고유색 복원 — 남색 지면은 "파란 지형"으로 보였음)
