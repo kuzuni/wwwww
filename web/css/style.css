@@ -7792,10 +7792,29 @@ body {
 .shop-reward-pill, .qst-row .qst-name {
     text-shadow: 0 1px 0 rgba(255,255,255,.92);
 }
-.league-row .lgr-name, .league-row .lgr-rank, .league-score,
+/* 🚨 이 규칙의 이름 **두 개가 오타**였다 (2026-08-19 QA 19차 league-row-ink-keyline):
+   리그 **랭킹 행**의 실제 클래스는 `.league-name`/`.league-rank` 이고, `lgr-` 접두사는
+   **리그 보상 팝업**(`.lgr-rank-ico`·`.lgr-rank-n`)의 것이라 `.league-row` 안에 존재하지 않는다.
+   런타임 실측: `.league-row .lgr-name` **0개** vs `.league-row .league-name` **9개**.
+   같은 규칙의 `.league-score` 는 9개를 정상으로 잡고 있어 **규칙 자체는 살아 있었고 이름 둘만**
+   죽어 있었다 — 그래서 파란 '내 행'의 닉네임·순위·전투력만 맨 글자로 남았다. */
+.league-row .league-name, .league-row .league-rank, .league-score,
 .equipped-label + * , .chat-preview-name {
     text-shadow: 0 1px 1px rgba(0,0,0,.75), 0 0 6px rgba(0,0,0,.35);
 }
+/* ⚠️ **오타만 고치면 절반이다.** 위 규칙은 부드러운 드롭섀도라 원본의 두꺼운 순검정 키라인과
+   다르다. 원본(shot-042149) 파란 행은 잉크/배경 대비가 **2.19:1 로 오히려 낮은데도** 읽히는데,
+   읽히게 만드는 건 색이 아니라 **키라인**이다(글자 상자 안 어두운 화소 20.6%). 그러니 금색을
+   밝게 바꿔 대비를 올리는 처방은 원본에서 멀어진다 — 빠진 키라인을 넣는 게 맞다.
+   화법은 **같은 리그 화면의 `.league-challenge-name small`** 이 이미 쓰는 것을 그대로 가져온다
+   (획을 글리프 안쪽까지 먹지 않게 `paint-order: stroke fill`). 전투력(`small`)은 부모 규칙이
+   색을 안 물려주므로 따로 적어야 한다. */
+.league-row .league-name, .league-row .league-rank {
+    -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill;
+}
+/* 전투력은 `small`(0.8em 대)이라 부모와 같은 2px 을 물리면 획이 속공간을 메워 숫자가 뭉갠다 —
+   글자 크기에 비례시킨다(`.coin-amt` 가 같은 이유로 두께를 낮춘 그 처방). */
+.league-row .league-name small { -webkit-text-stroke: max(1.4px, .1em) var(--pp-line); paint-order: stroke fill; }
 
 /* ⑤ 어두운 행 플레이트 — 7차(리그 행)의 알파(.13/.02)는 인계 ⑶ 이 말한 '안 읽히는 저알파'의
    전형이었다: 두 비평가가 각각 '민짜 근흑'(A[8]·B[1])으로 다시 잡았다. 같은 화법으로 값만 올리고,
