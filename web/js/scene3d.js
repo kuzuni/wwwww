@@ -9600,15 +9600,22 @@ const Scene3D = {
     // lean = 전방 기울기(고블린의 굽은 등, 임프의 돌진 자세).
     // 이족(golem·goblin·imp)만이 아니라 **네 발·비행·홉·젤리 종도 여기서 값을 뽑는다.** 예전엔 그쪽
     // 분기마다 상수가 박혀 있어 ⑴ 한 곳에서 튜닝할 수 없고 ⑵ **보스가 되어도 박자가 안 변했다**(아래).
+    // sq = 스쿼시&스트레치 진폭 (`cute-art-direction` ⓔ, 1930s 카툰 모션 — 사용자 "애니메이션들도
+    // 1930년대 카툰 느낌으로 과장되게"). 영웅은 클립 스케일 트랙으로 이미 받았는데 적은 순수 사인
+    // 상하 이동뿐이라 **강체 인형이 위아래로 움직이는 것**으로 읽혔다. 착지에 눌리고 도약에 늘어나야
+    // 같은 화풍이 된다. 값은 '무거울수록 덜 눌린다'가 아니라 **카툰 관성**이다 — 가벼운 종(임프·버섯)이
+    // 크게 눌리고 골렘은 질량감 때문에 작게(대신 접지 구간이 길다, bobPow 1.9).
+    // ⚠️ 젤리(슬라임)는 정점 웨이브(driveJelly)가 이미 몸을 흔들므로 그룹 스쿼시를 **겹쳐 걸지 않는다**
+    //    (강체 스케일이 젤리 웨이브를 덮으면 '크기가 변하는 풍선'으로 되돌아간다 — driveJelly 주석).
     ENEMY_GAIT: {
-        golem: { rate: 4.2, bob: 0.05, bobPow: 1.9, roll: 0.055, hip: 0.34, arm: 0.40, lean: 0.02 },
-        goblin: { rate: 10.5, bob: 0.05, bobPow: 1.0, roll: 0.035, hip: 0.88, arm: 0.72, lean: 0.10 },
-        imp: { rate: 12.0, bob: 0.062, bobPow: 0.7, roll: 0.03, hip: 0.78, arm: 0.66, lean: 0.13 },
-        wolf: { rate: 11, bob: 0.05, bobPow: 1.0, legRate: 13, tailRate: 9, pitch: 0.03 },
-        bat: { rate: 5, bob: 0.1, bobPow: 1.0, hover: 0.12, wingRate: 16 },
-        mushroom: { rate: 7, bob: 0.17, bobPow: 1.0, capTilt: 0.13, capAmp: 0.035 },
-        slime: { rate: 6, bob: 0.12, bobPow: 1.0, jellyAmp: 0.16 },
-        _default: { rate: 8, bob: 0.055, bobPow: 1.0, roll: 0.05, hip: 0.8, arm: 0.65, lean: 0 },
+        golem: { rate: 4.2, bob: 0.05, bobPow: 1.9, roll: 0.055, hip: 0.34, arm: 0.40, lean: 0.02, sq: 0.055 },
+        goblin: { rate: 10.5, bob: 0.05, bobPow: 1.0, roll: 0.035, hip: 0.88, arm: 0.72, lean: 0.10, sq: 0.085 },
+        imp: { rate: 12.0, bob: 0.062, bobPow: 0.7, roll: 0.03, hip: 0.78, arm: 0.66, lean: 0.13, sq: 0.105 },
+        wolf: { rate: 11, bob: 0.05, bobPow: 1.0, legRate: 13, tailRate: 9, pitch: 0.03, sq: 0.070 },
+        bat: { rate: 5, bob: 0.1, bobPow: 1.0, hover: 0.12, wingRate: 16, sq: 0.045 },
+        mushroom: { rate: 7, bob: 0.17, bobPow: 1.0, capTilt: 0.13, capAmp: 0.035, sq: 0.115 },
+        slime: { rate: 6, bob: 0.12, bobPow: 1.0, jellyAmp: 0.16, sq: 0 },
+        _default: { rate: 8, bob: 0.055, bobPow: 1.0, roll: 0.05, hip: 0.8, arm: 0.65, lean: 0, sq: 0.08 },
     },
     BOSS_SCALE: 1.9,
     // 보스는 **같은 메시를 그대로 키운 것**이라(g.scale 1.9) 박자까지 같으면 '크기만 키운 장난감'으로
@@ -9629,7 +9636,42 @@ const Scene3D = {
         if (G.roll) o.roll = G.roll * 1.2;
         if (G.hip) o.hip = G.hip * 0.9;
         if (G.arm) o.arm = G.arm * 0.9;
+        if (G.sq) o.sq = G.sq * 0.82;   // 큰 개체는 상대 변형이 작다(스윙 각을 줄이는 것과 같은 이유)
         return o;
+    },
+
+    // ── 1930s 카툰 홉 곡선 (`cute-art-direction` ⓔ) ────────────────────────────────
+    // 종전 높이는 `pow(|sin ph|, bobPow)` 였다 — |sin| 은 **오르내림이 완전 대칭**이라 어느 프레임을
+    // 봐도 같은 속도로 뜨고 같은 속도로 내린다. 그게 '기계적 상하 이동'의 정체다. 카툰 바운스는
+    // ⓐ 이륙이 급가속(스냅) ⓑ 정점에 **체공(hang)** ⓒ 낙하가 가속 ⓓ 착지 뒤 **접지 유지**로,
+    // 시간이 정점과 바닥에 몰려 있다. 여기서 u 는 한 홉 주기(|sin| 주기 = π)를 0~1 로 편 값이다.
+    // ⚠️ 진폭(G.bob)은 종전 그대로다 — 높이를 바꾸면 블롭 섀도우 축소·HP바 추적·`probe-enemy-spacing`
+    //    이 같이 흔들린다. **바꾼 것은 오직 시간 분포**다.
+    hopCurve(u, bobPow) {
+        u = u - Math.floor(u);
+        // 접지 구간 — bobPow 가 클수록(무거울수록) 바닥에 오래 머문다. 종전 bobPow 의 뜻을 그대로 잇는다.
+        const gc = Math.min(0.34, Math.max(0.05, 0.11 * (bobPow || 1)));
+        if (u < gc) return 0;
+        const v = (u - gc) / (1 - gc);                       // 체공 진행 0~1
+        if (v < 0.34) { const t = v / 0.34; return 1 - Math.pow(1 - t, 4); }   // ⓐ 이륙 스냅
+        if (v < 0.62) return 1 - 0.06 * (1 - Math.cos((v - 0.34) / 0.28 * Math.PI * 2)) * 0.5; // ⓑ 정점 체공(미세 아치)
+        const f = (v - 0.62) / 0.38; return Math.max(0, 1 - f * f);           // ⓒ 가속 낙하
+    },
+    // 같은 주기의 스쿼시&스트레치 양(+ = 늘어남, − = 눌림). 홉 곡선과 위상이 맞물려야
+    // '착지에 눌리고 도약에 늘어난다'가 성립한다 — 따로 돌리면 공중에서 눌리는 프레임이 생긴다.
+    gaitSquash(u, bobPow, amp) {
+        if (!amp) return 0;
+        u = u - Math.floor(u);
+        const gc = Math.min(0.34, Math.max(0.05, 0.11 * (bobPow || 1)));
+        if (u < gc) {
+            // 착지 임팩트에서 최대로 눌리고, 접지 끝(=도약 직전 예비동작)까지 눌린 채 버틴다.
+            const g = u / gc;
+            return -amp * (1 - 0.30 * g);
+        }
+        const v = (u - gc) / (1 - gc);
+        if (v < 0.22) return amp * 0.85 * (1 - v / 0.22);    // 이륙 직후 쭉 늘어남
+        if (v < 0.60) return 0;                              // 정점은 중립 — 늘어난 채 떠 있으면 국수가 된다
+        const f = (v - 0.60) / 0.40; return amp * 0.75 * f * f; // 낙하 가속에 다시 늘어남
     },
     monsterMesh(e) {
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
@@ -10680,6 +10722,9 @@ const Scene3D = {
             // bossEntrance의 착지 임팩트와 같은 프레임에 시작되므로 여기서는 '솟아오르는 몸' 쪽만 담당한다.
             const targetScale = m.g.scale.x;
             m.g.scale.setScalar(targetScale * 0.42);
+            // 등장 스케일 인이 도는 동안 보행 스쿼시가 같은 scale 을 덮어쓰면 '솟아오르는 몸'이 사라진다.
+            // (종전에는 스케일을 쓰는 상시 코드가 히트 스쿼시뿐이었고 그건 등장 중엔 안 걸렸다.)
+            m._scaleLocked = true;
             this.expandRing(m.g.position.clone(), new THREE.Color(0xbcaaa4), 1.8);
             this.spawnSparks(m.g.position.clone().add(new THREE.Vector3(0, 0.3, 0)), 18, 0xd7ccc8, { speed: 1.6 });
             this.addAnim(0.42, k => {
@@ -10687,7 +10732,7 @@ const Scene3D = {
                 const e2 = 1 - Math.pow(1 - k, 3);
                 const over = Math.sin(Math.PI * Math.min(1, k / 0.85)) * 0.08;
                 m.g.scale.setScalar(targetScale * (0.42 + 0.58 * e2 + over));
-            }, () => m.g.scale.setScalar(targetScale));
+            }, () => { m.g.scale.setScalar(targetScale); m._scaleLocked = false; });
         }
     },
 
@@ -15570,14 +15615,22 @@ const Scene3D = {
                 const clk = this._clock, id = e.id;
                 // 종별 프로파일 — 보스면 배율에 맞춰 박자가 느려지고 무거워진다(gaitOf 주석 참조).
                 const G = this.gaitOf(m.anim && m.anim.kind, e.isBoss);
+                // 홉 위상 — `hopCurve`/`gaitSquash` 는 |sin| 한 주기(π)를 0~1 로 편 값을 받는다.
+                // 종전 `pow(|sin ph|, bobPow)` 와 **같은 박자**이고 시간 분포만 카툰으로 바뀐다.
+                const hopU = (clk * G.rate + id) / Math.PI;
+                m._gaitSq = 0;   // 이 프레임의 보행 스쿼시 — 아래 스케일 합성에서 히트 스쿼시와 곱해진다
                 if (m.anim && m.anim.fly) {
                     // 박쥐류: 공중 부양 + 날개 퍼덕임
                     m.g.position.y = G.hover + Math.sin(clk * G.rate + id) * G.bob;
                     m.anim.wings.forEach(w => w.rotation.z = w.userData.s * (0.3 + Math.sin(clk * G.wingRate + id) * 0.55));
+                    // 비행체는 착지가 없으므로 홉 스쿼시 대신 **날갯짓 박자**에 몸을 눌러 준다
+                    // (내리치는 순간 압축 → 떠오르며 늘어남). 안 걸면 박쥐만 강체로 남는다.
+                    m._gaitSq = -Math.sin(clk * G.wingRate + id) * (G.sq || 0) * 0.6;
                 } else if (walking) {
                     if (m.anim && m.anim.kind === 'wolf') {
                         // 늑대: 네 다리 질주
-                        m.g.position.y = Math.pow(Math.abs(Math.sin(clk * G.rate + id)), G.bobPow) * G.bob;
+                        m.g.position.y = this.hopCurve(hopU, G.bobPow) * G.bob;
+                        m._gaitSq = this.gaitSquash(hopU, G.bobPow, G.sq);
                         m.anim.legs.forEach((lg, j) => {
                             // 로터리 갤럽 위상: 앞발 쌍·뒷발 쌍이 살짝 어긋나 어느 프레임에도 4지 동시 접지가 없음 (비평가: 죽은 프레임 금지)
                             const lp = clk * G.legRate + id + [0, 1.1, 3.25, 4.35][j];
@@ -15590,21 +15643,23 @@ const Scene3D = {
                         if (m.anim.tail) m.anim.tail.rotation.z = Math.sin(clk * G.tailRate + id) * 0.25; // 질주 중 꼬리 좌우 휘날림
                     } else if (m.anim && m.anim.hop) {
                         // 버섯: 크게 총총 + 갓 출렁 + **테두리 플랩**(우산 살 2차 모션)
-                        m.g.position.y = Math.pow(Math.abs(Math.sin(clk * G.rate + id)), G.bobPow) * G.bob;
+                        m.g.position.y = this.hopCurve(hopU, G.bobPow) * G.bob;
+                        m._gaitSq = this.gaitSquash(hopU, G.bobPow, G.sq);
                         if (m.anim.cap) m.anim.cap.rotation.z = Math.sin(clk * G.rate + id) * G.capTilt;
                         this.driveCapFlap(m, clk, G.capAmp, id);
                     } else if (m.anim && m.anim.kind === 'slime') {
                         // 슬라임: 젤리 스쿼시 점프 — 몸통 스케일을 통째로 흔들지 않고 **정점 웨이브**로 민다.
                         // (강체 스케일은 '크기가 변하는 풍선'이라 젤리로 안 읽혔다 — driveJelly 주석 참조.)
-                        m.g.position.y = Math.pow(Math.abs(Math.sin(clk * G.rate + id)), G.bobPow) * G.bob;
-                        this.driveJelly(m, clk, G.jellyAmp, id);
+                        m.g.position.y = this.hopCurve(hopU, G.bobPow) * G.bob;
+                        this.driveJelly(m, clk, G.jellyAmp, id);   // G.sq = 0 — 젤리 웨이브와 겹치지 않게(ENEMY_GAIT 주석)
                     } else {
                         // 이족보행: 관절 걷기 — 고관절 스윙+무릎 굽힘, 어깨 스윙+팔꿈치 굽힘 (통짜 막대기 금지)
                         // ⓓ: 박자·진폭을 **종별 프로파일**(위 G)에서 뽑는다. 예전엔 셋 다 clk*8 고정이라
                         //    골렘·고블린·임프의 걸음이 구분이 안 됐다(ENEMY_GAIT 주석 참조).
                         const ph = clk * G.rate + id; // 종마다 주기가 달라 연속 캡처 정수배 겹침도 자연히 갈린다
                         // bobPow — 골렘은 아래에 오래 머물러 '쿵' 하고 내려앉고, 임프는 위에 오래 떠 가볍다.
-                        m.g.position.y = Math.pow(Math.abs(Math.sin(ph)), G.bobPow) * G.bob;
+                        m.g.position.y = this.hopCurve(hopU, G.bobPow) * G.bob;
+                        m._gaitSq = this.gaitSquash(hopU, G.bobPow, G.sq);
                         m.g.rotation.z = Math.sin(ph) * G.roll; // 롤 축소 — 다리 측면 벌어짐 오독 방지
                         m.g.rotation.x = G.lean;                // 굽은 등/돌진 자세는 종별 상수 기울기
                         // 골렘 기둥 다리 — 무릎이 없어 통째로 스윙한다(짧고 두꺼워 큰 각은 부러져 보인다)
@@ -15627,8 +15682,17 @@ const Scene3D = {
                         }
                     }
                 } else {
-                    m.g.position.y = Math.max(0, Math.sin(clk * 6 + id) * 0.04);
-                    m.g.rotation.z *= 0.9;
+                    // 대기 — 1930s 카툰은 **정지가 없다**(`cute-art-direction` ⓓ). 종전엔 순수 사인 상하
+                    // 이동뿐이라 멈춘 적이 '위아래로 떠다니는 강체'였다. 같은 홉 곡선을 낮은 진폭·느린
+                    // 박자로 돌려 ⓐ 접지에 눌리고 ⓑ 들숨에 늘어나고 ⓒ 좌우로 까딱이게 한다.
+                    const iu = (clk * 3.2 + id) / Math.PI;
+                    m.g.position.y = this.hopCurve(iu, 1.35) * 0.030;
+                    m._gaitSq = this.gaitSquash(iu, 1.35, (G.sq || 0) * 0.55);
+                    // ⚠️ 까딱임은 `*= 0.9` 감쇠에 **더하면 안 된다** — 감쇠+가산은 1차 지연 필터라
+                    //    같은 값을 매 프레임 더하면 진폭이 10배로 쌓인다. 목표값으로 **추종**시킨다
+                    //    (보행 중 걸린 롤도 이 추종이 자연히 풀어 준다).
+                    const sway = Math.sin(clk * 2.3 + id * 1.7) * 0.022;
+                    m.g.rotation.z += (sway - m.g.rotation.z) * Math.min(1, dt * 6);
                     m.g.rotation.x *= 0.9;   // 보행 중 걸어 둔 종별 전방 기울기(G.lean)를 풀어 준다 — 안 그러면 멈춘 뒤에도 숙인 채로 굳는다
                     if (m.anim && m.anim.jelly) this.driveJelly(m, clk, 0.06, id); // 대기 중에도 젤리는 미세하게 흔들린다
                     if (m.anim && m.anim.capFlap) this.driveCapFlap(m, clk, 0.012, id); // 대기 중 갓 테두리 미세 호흡
@@ -15661,7 +15725,11 @@ const Scene3D = {
                     m.blob.scale.setScalar((m.blob.userData.baseS || 0.95) * Math.max(0.55, 1 - by * 0.35)); // 0.8 감쇠는 비행 고도에서 블롭이 소멸해 '부유 스티커' (비평가 7.3 5번)
                 }
             }
-            // 히트축 스쿼시 — 접지 후에만(등장 스케일 인 연출과 겹치지 않게)
+            // 히트축 스쿼시(가로) × 보행 스쿼시(세로) 합성 — 접지 후에만(등장 스케일 인과 겹치지 않게).
+            // ⚠️ 예전엔 이 블록이 **펀치가 도는 동안에만** scale 을 썼다. 이제 보행/대기 스쿼시가
+            //    매 프레임 scale 을 쓰므로, 등장 스케일 인처럼 scale 을 독점하는 연출은
+            //    `m._scaleLocked` 로 이 합성을 막는다(안 막으면 솟아오르는 몸이 한 프레임 만에 지워진다).
+            let punchA = 0;
             if (m.punchT > 0 && m.g.userData.landed) {
                 m.punchT = Math.max(0, m.punchT - dt);
                 // ⚠️ 축이 예전엔 반대였다. 옛 식은 x·z를 **넓히고** y를 눌러 '위에서 착지한 스쿼시'였는데,
@@ -15680,10 +15748,17 @@ const Scene3D = {
                     const v = (el - m.punchHold) / Math.max(1e-4, m.punchDur - m.punchHold); // 0 → 1
                     a = m.punchAmp * Math.exp(-4.8 * v) * Math.cos(v * Math.PI * 3.2);
                 }
-                const b = m.baseScale || 1;
-                // 세로 0.92·깊이 0.14 배분은 부피 보존(-1 + 0.92 + 0.14 ≈ 0)에서 나온 값이다.
-                if (m.punchT > 0) m.g.scale.set(b * (1 - a), b * (1 + a * 0.92), b * (1 + a * 0.14));
-                else m.g.scale.setScalar(b);
+                if (m.punchT > 0) punchA = a;
+            }
+            if (m.g.userData.landed && !m._scaleLocked) {
+                const b = m.baseScale || 1, a = punchA, s = m._gaitSq || 0;
+                // 히트: 세로 0.92·깊이 0.14 배분은 부피 보존(-1 + 0.92 + 0.14 ≈ 0)에서 나온 값이다.
+                // 보행: s > 0 = 늘어남(세로 ↑ 가로 ↓), s < 0 = 눌림. 가로/깊이에 −s/2 씩 나눠 같은 원리로 보존한다.
+                // 두 변형은 **곱해서** 겹친다 — 더하면 피격 중 보행 스쿼시가 히트 압축을 상쇄해 버린다.
+                m.g.scale.set(
+                    b * (1 - a) * (1 - s * 0.5),
+                    b * (1 + a * 0.92) * (1 + s),
+                    b * (1 + a * 0.14) * (1 - s * 0.5));
             }
             const ratio = U.clamp(Big.of(e.hp).ratioTo(e.maxHp), 0, 1); // hp는 Big — 비율만 Number로 뽑는다
             if (!m.barDying) this.driveHpBar(m, ratio, dt); // 처치 드레인 중인 바는 killEnemy의 애니메이션이 단독 소유
