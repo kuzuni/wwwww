@@ -1,6 +1,7 @@
 // 디버그 탭 아이콘 검증 — 이모지가 남아 있지 않고, 아이콘 노드가 실제 그림을 갖는지 본다.
 // 사용: PW_PATH=... node probe-debug-icons.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitBootDone } = require('./wait-ready.js');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 
@@ -10,6 +11,11 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     const errs = [];
     page.on('console', m => m.type() === 'error' && errs.push(m.text()));
     await page.goto(INDEX + '?tab=debug');
+    // 🚨 이 도구는 `?tab=debug` **딥링크**에 기댄다 — 그건 boot() 사슬의 **마지막 단계**라
+    //    `waitUiReady`(24% 지점) 로는 못 잡는다. 게다가 헤드리스에서 evaluate 를 한 번만 부르고
+    //    폴링을 멈추면 rAF 펌프가 죽어 부팅이 그 자리에서 굳는다(wait-ready.js 의 실측표 참조).
+    //    부팅 완주까지 폴링을 이어가는 waitBootDone 이 두 문제를 한꺼번에 없앤다.
+    await waitBootDone(page);
     await page.waitForTimeout(1100);
     const r = await page.evaluate(() => {
         const p = UI.els.panels.debug;

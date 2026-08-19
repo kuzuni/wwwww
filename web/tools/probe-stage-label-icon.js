@@ -25,7 +25,7 @@ const EMO = /[\u{1F300}-\u{1FAFF}\u{1F000}-\u{1F2FF}]/u;
     page.on('pageerror', e => errs.push(e.message));
     page.on('console', m => m.type() === 'error' && !/favicon\.ico/.test(m.text()) && errs.push(m.text()));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 150000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && UI.els && UI.els.craftModal && typeof S !== 'undefined', null, { timeout: 150000 });
     await page.waitForTimeout(700);
     await page.evaluate(() => { if (typeof Scene3D !== 'undefined') Scene3D.update = function () {}; });
 

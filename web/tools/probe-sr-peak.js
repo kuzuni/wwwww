@@ -67,7 +67,7 @@ const MIN_STEP = 1.12;     // ⒝ 배수 한 단계당 고휘도 면적 증가 �
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', e => { if (e.type() === 'error') errors.push('console ' + e.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof Scene3D !== 'undefined', null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && UI.els && UI.els.craftModal && typeof Scene3D !== 'undefined', null, { timeout: 20000 });
     await page.evaluate(SEED);
     await page.evaluate(() => { Scene3D.update = function () { }; });
     await page.waitForTimeout(450);

@@ -180,10 +180,10 @@ const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? 
     const errs = [];
     page.on('console', m => { if (m.type() === 'error') errs.push(m.text().slice(0, 160)); });
     await page.goto(INDEX);
-    await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined" && typeof Forge !== "undefined"');
+    await waitReady(page, 'typeof UI !== "undefined" && UI.els && UI.els.craftModal && typeof S !== "undefined" && typeof Forge !== "undefined"');
     await page.evaluate(SEED_SRC);
     await page.reload();
-    await waitReady(page, 'typeof UI !== "undefined" && S && S.forgeLevel === 29');
+    await waitReady(page, 'typeof UI !== "undefined" && UI.els && UI.els.craftModal && S && S.forgeLevel === 29');
     // 3D 루프를 세우면 스크린샷이 15~30초 → 0.15초(전 폴리싱 항목 공통 요령).
     // ⚠️ **화면을 가리는 것들을 전부 걷어내는 게 이 프로브에서 제일 중요하다.** 처음엔 토스트만
     //    껐다가 세 번 오측정했다(전부 '테가 없다'로 보였다): ⑴ 부팅 직후 첫 클리어 토스트가

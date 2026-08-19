@@ -13,7 +13,7 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     page.on('pageerror', e => errs.push(e.message));
     page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof S !== 'undefined', null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && UI.els && UI.els.craftModal && typeof S !== 'undefined', null, { timeout: 20000 });
     await page.waitForTimeout(500);
     await page.evaluate(() => {
         if (typeof Scene3D !== 'undefined') Scene3D.update = function () {};

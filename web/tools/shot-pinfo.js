@@ -14,10 +14,10 @@ const OUT = process.argv[2] || path.join(__dirname, 'ref-cmp/clone/player-info.p
     page.on('pageerror', e => errs.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push('CONSOLE ' + m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await waitReady(page, 'typeof UI !== "undefined" && typeof S !== "undefined" && typeof Forge !== "undefined"', { label: '스크립트 로드' });
+    await waitReady(page, 'typeof UI !== "undefined" && UI.els && UI.els.craftModal && typeof S !== "undefined" && typeof Forge !== "undefined"', { label: '스크립트 로드' });
     await page.evaluate(SEED_SRC);
     await page.reload({ waitUntil: 'load' });
-    await waitReady(page, 'typeof UI !== "undefined" && S && S.forgeLevel === 29', { label: '시드 상태 로드' });
+    await waitReady(page, 'typeof UI !== "undefined" && UI.els && UI.els.craftModal && S && S.forgeLevel === 29', { label: '시드 상태 로드' });
     await page.evaluate(() => {
         UI.toast = () => { };
         UI.showCraftModal = () => { };

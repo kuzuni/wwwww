@@ -7,6 +7,7 @@
 //  ⑹ 구세이브의 S.inventory·S.heldCrafts는 로드 시 조용히 폐기된다
 // 사용: node probe-hold-slot.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitBootDone } = require('./wait-ready.js');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
 async function waitBooted(page, timeout = 20000) {
@@ -31,6 +32,11 @@ async function waitBooted(page, timeout = 20000) {
     page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push(m.text()); });
 
     await page.goto(INDEX, { waitUntil: 'load' });
+    // 🚨 `UI.els.*` 를 만지기 전에 **부팅 완주**를 기다린다. `UI` 가 떴다고 화면이 준비된 게 아니고
+    //    (`UI.init()` 은 boot() 사슬의 24% 지점), 헤드리스에서는 evaluate 를 한 번만 부르고 폴링을
+    //    멈추면 rAF 펌프가 죽어 **부팅이 그 자리에서 굳는다** — 그래서 고정 대기도, 한 번짜리
+    //    대기도 답이 아니다. 실측표는 `wait-ready.js` 의 `waitBootDone` 머리말에 있다.
+    await waitBootDone(page);
     await waitBooted(page);
     await page.waitForTimeout(400);
     await page.evaluate(() => {

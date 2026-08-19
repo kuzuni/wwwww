@@ -85,7 +85,7 @@ const norm = (v) => Math.hypot(...v);
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', e => { if (e.type() === 'error') errors.push('console ' + e.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof UI !== 'undefined' && typeof Scene3D !== 'undefined', null, { timeout: 20000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && UI.els && UI.els.craftModal && typeof Scene3D !== 'undefined', null, { timeout: 20000 });
     await page.evaluate(SEED);
     await page.evaluate(() => { Scene3D.update = function () { }; });   // 3D 루프 정지 — 캡처가 빠르다
     await page.waitForTimeout(500);

@@ -14,6 +14,7 @@ for p in \
     probe-creature-framing.js \
     probe-icon-cross-screen.js \
     probe-skillfx-timeline.js \
+    probe-tools-wait-guard.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1

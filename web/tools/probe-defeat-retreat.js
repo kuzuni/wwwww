@@ -10,7 +10,7 @@ const path = require('path');
     p.on('pageerror', e => errors.push(String(e)));
     p.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errors.push(m.text()); });
     await p.goto('file://' + path.resolve(__dirname, '../index.html'), { waitUntil: 'load' });
-    await p.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    await p.waitForFunction(() => typeof UI !== 'undefined' && UI.els && UI.els.craftModal && typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
     await p.waitForTimeout(1200);
 
     const r = await p.evaluate(() => {

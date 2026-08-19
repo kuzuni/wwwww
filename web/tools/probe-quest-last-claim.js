@@ -8,6 +8,7 @@
 // 사용: node tools/probe-quest-last-claim.js
 const path = require('path');
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitBootDone } = require('./wait-ready.js');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const VIEWS = [[390, 844], [360, 640], [430, 932]];
 
@@ -26,6 +27,11 @@ async function booted(page) {
         page.on('pageerror', e => errs.push(e.message));
         page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
         await page.goto(INDEX, { waitUntil: 'load' });
+        // 🚨 `UI.els.*` 를 만지기 전에 **부팅 완주**를 기다린다. `UI` 가 떴다고 화면이 준비된 게 아니고
+        //    (`UI.init()` 은 boot() 사슬의 24% 지점), 헤드리스에서는 evaluate 를 한 번만 부르고 폴링을
+        //    멈추면 rAF 펌프가 죽어 **부팅이 그 자리에서 굳는다** — 그래서 고정 대기도, 한 번짜리
+        //    대기도 답이 아니다. 실측표는 `wait-ready.js` 의 `waitBootDone` 머리말에 있다.
+        await waitBootDone(page);
         await booted(page);
         // 전 퀘스트 완료 상태로
         await page.evaluate(() => { Quests.ensure(); S.quests.forEach(q => q.prog = q.need); UI.switchTab(null); UI.openQuests(); });

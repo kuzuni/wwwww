@@ -11,6 +11,7 @@
 //  ⑺ 비교 팝업 딤 클릭 = 보류 → 모루 자리에 카드, 그 카드를 누르면 비교 팝업 재등장, 세이브 보존
 // 사용: node probe-autocraft-seq.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
+const { waitBootDone } = require('./wait-ready.js');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
 async function waitBooted(page, timeout = 20000) {
@@ -44,6 +45,11 @@ async function until(page, fnSrc, ms = 8000) {
     page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push(m.text()); });
 
     await page.goto(INDEX, { waitUntil: 'load' });
+    // 🚨 `UI.els.*` 를 만지기 전에 **부팅 완주**를 기다린다. `UI` 가 떴다고 화면이 준비된 게 아니고
+    //    (`UI.init()` 은 boot() 사슬의 24% 지점), 헤드리스에서는 evaluate 를 한 번만 부르고 폴링을
+    //    멈추면 rAF 펌프가 죽어 **부팅이 그 자리에서 굳는다** — 그래서 고정 대기도, 한 번짜리
+    //    대기도 답이 아니다. 실측표는 `wait-ready.js` 의 `waitBootDone` 머리말에 있다.
+    await waitBootDone(page);
     await waitBooted(page);
     await page.waitForTimeout(400);
     // 해금·재화 세팅 + 망치질 연출 관찰을 위해 3D만 정지(연출 타이밍 자체는 실제 값을 쓴다)

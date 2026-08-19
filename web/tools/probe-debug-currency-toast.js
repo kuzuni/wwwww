@@ -28,7 +28,7 @@ const EXPECT = {
     const errs = [];
     page.on('console', m => m.type() === 'error' && errs.push(m.text()));
     await page.goto(INDEX + '?tab=debug');
-    await page.waitForFunction(() => typeof UI !== 'undefined' && UI.activeTab === 'debug', null, { timeout: 30000 });
+    await page.waitForFunction(() => typeof UI !== 'undefined' && UI.els && UI.els.craftModal && UI.activeTab === 'debug', null, { timeout: 30000 });
     await page.evaluate(() => document.fonts.ready);   // 폰트 전 프레임 실측 금지(인계 메모 ㉠)
     await page.waitForTimeout(300);
 

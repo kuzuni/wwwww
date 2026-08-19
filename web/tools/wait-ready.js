@@ -41,4 +41,34 @@ async function waitUiReady(page, opts = {}) {
         Object.assign({ label: 'UI.init() 이 els 를 채움' }, opts));
 }
 
-module.exports = { waitReady, waitUiReady };
+/* 🚨 **`UI.els` 가 찼다고 부팅이 끝난 것도 아니다 — 그리고 여기엔 훨씬 고약한 함정이 있다.**
+   (2026-08-19 icon-gen 세션 실측. `probe-debug-icons` 가 이 사슬을 통째로 드러냈다.)
+
+   `main.js` 의 `boot()` 는 단계마다 `blYield()` = `requestAnimationFrame(() => setTimeout(res, 0))`
+   로 양보하는 **비동기 사슬**이다. `UI.init()` 은 그 사슬의 24% 지점이라 `waitUiReady` 는
+   **부팅이 한참 남았을 때** 돌아온다. `?tab=` 딥링크·`restorePendingCraft`·자동 제작 재개 같은
+   **뒷단계에 기대는 도구는 그 시점에 재면 아무것도 없는 화면을 잰다.**
+
+   ⚠️ 그런데 진짜 함정은 이것이다 — **헤드리스에서 `page.evaluate` 한 번은 rAF 펌프를 멈춘다.**
+   실측(`?tab=debug` 로 부팅, 1.5초 뒤 `UI.activeTab` 확인):
+     ① evaluate 안 함        → tab='debug' 아이콘 13  (부팅 완주)
+     ② goto 직후 evaluate 1번 → tab=null  아이콘 0   ← **부팅이 rAF 양보에서 멈춘다**
+     ③ 300ms 뒤 evaluate 1번  → tab=null  아이콘 0
+     ④ 1500ms 뒤(부팅 후) 1번 → tab='debug' 아이콘 13
+     ⑤ goto 직후 evaluate 5번 → tab='debug' 아이콘 13  ← **계속 부르면 다시 돈다**
+   즉 **한 번만 부르면 죽고, 계속 부르면 산다.** `waitReady` 계열이 헤드리스에서 잘 도는 이유가
+   이거였다(폴링이 rAF 펌프를 계속 걷어차고 있었다). 반대로 **조건이 일찍 참이 돼 폴링을 일찍
+   멈추면, 그 뒤 부팅은 아무도 안 걷어차서 그대로 굳는다** — `waitUiReady` 만 부른 도구가 딱 그
+   모양이 된다. 고정 `waitForTimeout` 도 같은 이유로 못 구한다(태우는 건 노드 쪽 시간이다).
+
+   그래서 **부팅 뒷단계에 기대는 도구는 이걸 쓸 것** — 폴링이 부팅 끝까지 이어져 두 문제를
+   한꺼번에 없앤다. 판정 기준은 `boot()` 마지막 줄의 `blDone()`(로딩 오버레이에 `bl-done` 을
+   붙이고 450ms 뒤 제거)이다. `boot()` 가 중간에 터져도 `.finally(blDone)` 이 붙여 주므로
+   여기서 영원히 기다리는 일은 없다. */
+async function waitBootDone(page, opts = {}) {
+    return waitReady(page,
+        'typeof UI !== "undefined" && UI.els && typeof S !== "undefined" && (() => { const b = document.getElementById("boot-loading"); return !b || b.classList.contains("bl-done"); })()',
+        Object.assign({ label: 'boot() 완주(로딩 오버레이 해제)' }, opts));
+}
+
+module.exports = { waitReady, waitUiReady, waitBootDone };
