@@ -4002,6 +4002,9 @@ const UI = {
     // IconGen 이 던전마다 캔버스 배경(하늘·지형·소품)을 굽고, 주인공은 위 dgIcon 이 그대로 얹는다.
     // 없는 던전 id 는 클래스가 비어 종전 그라디언트로 떨어진다.
     DG_SCENE: { hammer: 'dg_hammer', ghost: 'dg_ghost', invasion: 'dg_invasion', zombie: 'dg_zombie' },
+    // 던전 목록 행별 열쇠 색(원본 shot-042251 확대 실측: 해머=은회 · 유령=초록 · 침략=주황 · 좀비=빨강).
+    // 상세 팝업 등 다른 자리의 열쇠는 기본 'key'(은회) 그대로다 — 그쪽 원본(shot-042304)이 은회색이다.
+    DG_KEY_ICON: { hammer: 'key', ghost: 'key_green', invasion: 'key_orange', zombie: 'key_red' },
     dgSceneCls(d) {
         const name = this.DG_SCENE[d.id];
         return name && typeof IconGen !== 'undefined' ? (IconGen.cls(name) || '') : '';
@@ -4033,7 +4036,7 @@ const UI = {
                     ${ok ? '' : `<span class="dg-lock">${IconGen.img('lock')} ${d.unlock} 도달 시 해금</span>`}
                 </div>
                 <div class="dg-right">
-                    ${ok ? `<span class="dg-keys">${IconGen.img('key')} ${keys}/${Dungeons.MAX_KEYS}</span>` : ''}
+                    ${ok ? `<span class="dg-keys">${IconGen.img(this.DG_KEY_ICON[d.id] || 'key')} ${keys}/${Dungeons.MAX_KEYS}</span>` : ''}
                     <button class="btn sm primary ${ok ? '' : 'disabled'}" onclick="UI.openDungeonDetail('${d.id}')">열기</button>
                 </div>
             </div>`;

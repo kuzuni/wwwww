@@ -922,12 +922,15 @@ const IconGen = {
         },
 
         // ---- 열쇠: 던전 입장 열쇠 개수 표시 ----
+        // 원본(shot-042304 팝업 '0/2' 줄 잉크 히스토그램)은 금색이 아니라 **은회색**이다 —
+        // 채움 #b0b0b0(176,176,176) 중심 + 순검정 외곽선(최빈 잉크가 0,0,0). 무채색 그라디언트로 재현.
+        // 단, **던전 목록(shot-042251)의 행별 열쇠는 색이 다르다**(확대 실측 2026-08-19: 해머=은회 ·
+        // 유령=초록 · 침략=주황 · 좀비=빨강) — key_green/orange/red 가 스톱만 바꿔 같은 화형을 쓴다.
         key(ctx, S) {
             const G = IconGen;
-            // 원본(shot-042304 팝업 '0/2' 줄 잉크 히스토그램)은 금색이 아니라 **은회색**이다 —
-            // 채움 #b0b0b0(176,176,176) 중심 + 순검정 외곽선(최빈 잉크가 0,0,0). 무채색 그라디언트로 재현.
-            const silver = () => G._lin(ctx, 0, S * 0.2, 0, S * 0.85,
-                [[0, '#dcdcdc'], [0.32, '#bcbcbc'], [0.7, '#9c9c9c'], [1, '#6e6e6e']]);
+            const stops = G.draw._keyStops || [[0, '#dcdcdc'], [0.32, '#bcbcbc'], [0.7, '#9c9c9c'], [1, '#6e6e6e']];
+            G.draw._keyStops = null;
+            const silver = () => G._lin(ctx, 0, S * 0.2, 0, S * 0.85, stops);
             ctx.save();
             ctx.translate(S / 2, S / 2); ctx.rotate(-0.62); ctx.translate(-S / 2, -S / 2);
             const bx = S * 0.30, by = S * 0.26, bR = S * 0.155;   // 손잡이 고리
@@ -965,6 +968,19 @@ const IconGen = {
             ctx.strokeStyle = 'rgba(255,255,255,.45)';
             ctx.stroke();
             ctx.restore();
+        },
+        // 던전 목록 행별 색 열쇠(원본 shot-042251 실측: 유령=초록·침략=주황·좀비=빨강. 해머는 기본 은회색)
+        key_green(ctx, S) {
+            IconGen.draw._keyStops = [[0, '#b8f0a8'], [0.32, '#7ed468'], [0.7, '#46a83e'], [1, '#297428']];
+            IconGen.draw.key(ctx, S);
+        },
+        key_orange(ctx, S) {
+            IconGen.draw._keyStops = [[0, '#ffdca4'], [0.32, '#ffb45e'], [0.7, '#ee8a28'], [1, '#b25c12']];
+            IconGen.draw.key(ctx, S);
+        },
+        key_red(ctx, S) {
+            IconGen.draw._keyStops = [[0, '#ffb4aa'], [0.32, '#f07260'], [0.7, '#d43a2e'], [1, '#96201a']];
+            IconGen.draw.key(ctx, S);
         },
 
         // ---- 선물 상자: 보상 수령 (리그 시즌·패스·특가) ----
@@ -3644,143 +3660,264 @@ IconGen._genderSym = function (ctx, S, female) {
        스크림을 그리지 말 것 — 그림을 살리는 게 이 항목의 사용자 지시다. */
     const ground = (ctx, W, H, y, c) => fill(ctx, c, () => { ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.lineTo(W, H); ctx.lineTo(0, H); });
 
-    /* 🔨 망치 도둑 — 낮 하늘 + 초록 성벽 실루엣 2겹 + 좌상단 수풀 + 잔디 바닥 */
+    /* 🔨 망치 도둑 — 원본(shot-042251 1행 확대 실측 2026-08-19): 흉벽 상자가 아니라 **뾰족 지붕
+       마을 실루엣 한 장**(연초록 채움 + 회청 키라인)이고, 하늘엔 분홍-라벤더 구름 줄, 오른쪽엔
+       줄기 있는 큰 나무(잎 덩어리 + 연두 림 혹), 망치는 **대각선으로 휘두르는 중**이며 주먹이
+       자루 중간을 감아쥐고 있다(손가락 골 4개가 보인다). 비평가 A·B 공통 1순위 감점이 여기였다
+       ('망치가 수직으로 박힌 정지 구도 + 손이 없다'). */
     G.draw.dg_hammer = function (ctx, S) {
         const W = S * AR, H = S, R = rnd(11);
         sky(ctx, W, H, '#a9dcf3', '#dff2ff');
-        // 뒤 성벽(연한 초록) — 톱니 흉벽을 얹은 상자 3동
-        const tower = (x, w, top, c) => {
-            fill(ctx, c, () => { ctx.moveTo(x, top); ctx.lineTo(x + w, top); ctx.lineTo(x + w, H); ctx.lineTo(x, H); });
-            for (let i = 0; i * (w / 5) < w - 1; i += 2)                   // 흉벽 톱니
-                fill(ctx, c, () => { ctx.rect(x + i * (w / 5), top - H * 0.075, w / 5, H * 0.08); });
+        // 구름 줄 — 원본의 분홍-라벤더 가로 스트릭. 제목(좌상단)과 겹쳐도 키라인 제목이 이긴다.
+        const cloud = (cx, cy, cw, chh, c) => fill(ctx, c, () => ctx.ellipse(cx, cy, cw, chh, 0, 0, Math.PI * 2));
+        cloud(W * 0.16, H * 0.15, W * 0.13, H * 0.050, '#e7d2ec');
+        cloud(W * 0.27, H * 0.09, W * 0.09, H * 0.038, '#f4eaf6');
+        cloud(W * 0.52, H * 0.08, W * 0.15, H * 0.045, '#e7d2ec');
+        cloud(W * 0.63, H * 0.17, W * 0.08, H * 0.032, '#f4eaf6');
+        cloud(W * 0.40, H * 0.23, W * 0.06, H * 0.028, '#eedcf2');
+        // 마을 스카이라인 — 연속 폴리라인 한 장 + 회청 키라인. 뾰족 지붕·박공·망루가 섞인다.
+        const town = (pts, fc, oc) => {
+            ctx.beginPath(); ctx.moveTo(-H * 0.05, H * 1.2);
+            pts.forEach(p => ctx.lineTo(p[0] * W, p[1] * H));
+            ctx.lineTo(W + H * 0.05, H * 1.2); ctx.closePath();
+            ctx.fillStyle = fc; ctx.fill();
+            ctx.strokeStyle = oc; ctx.lineWidth = H * 0.020; ctx.stroke();
         };
-        tower(W * 0.30, W * 0.16, H * 0.40, '#7cc056');
-        tower(W * 0.52, W * 0.12, H * 0.30, '#7cc056');
-        tower(W * 0.70, W * 0.20, H * 0.44, '#7cc056');
-        tower(W * 0.40, W * 0.13, H * 0.52, '#4f9436');                   // 앞 성벽(진한 초록)
-        tower(W * 0.62, W * 0.17, H * 0.58, '#4f9436');
-        // 오른쪽 끝을 비워 두면 마지막 성벽(0.90W)과 우측 덤불 사이로 **하늘이 삼각으로 새어**
-        // [열기] 바로 아래에 하늘색 쐐기가 뜬다(잔여 결함 ⓐ 후단, 실측 x≈0.93W·y≈0.77H).
-        tower(W * 0.87, W * 0.20, H * 0.60, '#4f9436');
-        // 수풀 — 원본처럼 **가장자리에서 안으로 비어져 나오게**(위 모서리·좌우 끝). 제목 자리
-        // (x 3~35% · y 12~45%)를 덮으면 초록 알약이 글자 뒤에 깔린 것처럼 보인다 — 실측으로 확인해 뺐다.
-        for (let i = 0; i < 8; i++) {                                     // 위 모서리에서 내려오는 덩굴
-            const x = W * (0.02 + R() * 0.42), y = H * (-0.10 + R() * 0.10), r = H * (0.09 + R() * 0.08);
-            fill(ctx, i % 3 ? '#5aa83c' : '#3f8a2c', () => ctx.arc(x, y, r, 0, Math.PI * 2));
-        }
-        for (let i = 0; i < 6; i++) {                                     // 오른쪽 끝 나무 덤불
-            const x = W * (0.94 + R() * 0.10), y = H * (0.10 + R() * 0.70), r = H * (0.12 + R() * 0.10);
-            fill(ctx, i % 2 ? '#4f9436' : '#3f8a2c', () => ctx.arc(x, y, r, 0, Math.PI * 2));
-        }
-        ground(ctx, W, H, H * 0.80, '#59a53c');
-        ground(ctx, W, H, H * 0.90, '#3f8a2c');
+        /* ⚠️ 점끼리 x·y 를 동시에 바꾸면 사선 연쇄가 돼 **산맥으로 읽힌다**(1차 시안에서 밟았다).
+           벽은 반드시 수직(같은 x 로 두 점), 지붕만 경사 — 그래야 건물이 된다. */
+        town([[-0.02, 0.60], [0.03, 0.60], [0.03, 0.46], [0.055, 0.40], [0.08, 0.46], [0.08, 0.60],
+        [0.13, 0.60], [0.13, 0.50], [0.155, 0.50], [0.155, 0.34], [0.185, 0.28], [0.215, 0.34], [0.215, 0.50], [0.24, 0.50], [0.24, 0.60],
+        [0.30, 0.60], [0.30, 0.44], [0.335, 0.38], [0.37, 0.44], [0.37, 0.60],
+        [0.43, 0.60], [0.43, 0.50], [0.475, 0.50], [0.475, 0.30], [0.505, 0.24], [0.535, 0.30], [0.535, 0.50], [0.565, 0.50], [0.565, 0.60],
+        [0.63, 0.60], [0.63, 0.42], [0.665, 0.36], [0.70, 0.42], [0.70, 0.60],
+        [0.76, 0.60], [0.76, 0.48], [0.80, 0.42], [0.84, 0.48], [0.84, 0.60],
+        [0.90, 0.60], [0.90, 0.50], [0.95, 0.46], [1.02, 0.50]],
+            '#95c268', '#6b8ba0');
+        town([[-0.02, 0.74], [0.04, 0.74], [0.04, 0.60], [0.08, 0.54], [0.12, 0.60], [0.12, 0.74],
+        [0.20, 0.74], [0.20, 0.62], [0.245, 0.56], [0.29, 0.62], [0.29, 0.74],
+        [0.38, 0.74], [0.38, 0.64], [0.43, 0.58], [0.48, 0.64], [0.48, 0.74],
+        [0.57, 0.74], [0.57, 0.60], [0.615, 0.54], [0.66, 0.60], [0.66, 0.74],
+        [0.74, 0.74], [0.74, 0.64], [0.79, 0.58], [0.84, 0.64], [0.84, 0.74],
+        [0.92, 0.74], [0.92, 0.62], [0.97, 0.58], [1.02, 0.60]],
+            '#71a94c', '#4c7a3a');
+        ground(ctx, W, H, H * 0.82, '#59a53c');
+        ground(ctx, W, H, H * 0.91, '#3f8a2c');
         for (let i = 0; i < 26; i++) {                                    // 풀포기
-            const x = R() * W, y = H * (0.82 + R() * 0.16), h = H * (0.05 + R() * 0.05);
+            const x = R() * W, y = H * (0.84 + R() * 0.14), h = H * (0.05 + R() * 0.05);
             fill(ctx, '#2f6b28', () => { ctx.moveTo(x, y); ctx.lineTo(x + H * 0.02, y - h); ctx.lineTo(x + H * 0.04, y); });
         }
+        // 오른쪽 큰 나무 — 줄기 + 잎 덩어리(어두운 채움 + 연두 림 혹). [열기] 가 일부를 덮는 건 원본과 같다.
+        (() => {
+            const tx = W * 0.86;
+            ctx.strokeStyle = '#5d4030'; ctx.lineCap = 'round';
+            ctx.lineWidth = H * 0.075;
+            ctx.beginPath(); ctx.moveTo(tx + H * 0.10, H * 1.02); ctx.quadraticCurveTo(tx - H * 0.06, H * 0.62, tx - H * 0.02, H * 0.30); ctx.stroke();
+            ctx.lineWidth = H * 0.045;
+            ctx.beginPath(); ctx.moveTo(tx - H * 0.03, H * 0.52); ctx.quadraticCurveTo(tx - H * 0.22, H * 0.42, tx - H * 0.30, H * 0.28); ctx.stroke();
+            ctx.lineCap = 'butt';
+            for (let i = 0; i < 9; i++) {                                 // 잎 덩어리(진초록)
+                const x = W * 0.86 + H * (-0.34 + R() * 0.60), y = H * (-0.08 + R() * 0.34), r = H * (0.13 + R() * 0.09);
+                fill(ctx, '#2f7a2f', () => ctx.arc(x, y, r, 0, Math.PI * 2));
+            }
+            for (let i = 0; i < 7; i++) {                                 // 연두 림라이트 혹
+                const x = W * 0.86 + H * (-0.30 + R() * 0.52), y = H * (-0.10 + R() * 0.26), r = H * (0.045 + R() * 0.035);
+                fill(ctx, '#79c257', () => ctx.arc(x, y, r, 0, Math.PI * 2));
+            }
+        })();
+        // 모서리 수풀 — 좌하단(키라인 있는 덤불 덩어리)
+        const bush = (bx, by, s, fc, oc) => {
+            const p = () => { ctx.arc(bx - H * 0.10 * s, by, H * 0.11 * s, 0, Math.PI * 2); ctx.arc(bx + H * 0.02 * s, by - H * 0.07 * s, H * 0.13 * s, 0, Math.PI * 2); ctx.arc(bx + H * 0.15 * s, by, H * 0.11 * s, 0, Math.PI * 2); };
+            ctx.beginPath(); p(); ctx.fillStyle = fc; ctx.fill();
+            ctx.beginPath(); p(); ctx.strokeStyle = oc; ctx.lineWidth = H * 0.018; ctx.stroke();
+        };
+        bush(W * 0.04, H * 0.98, 1.2, '#3f8a2c', '#245c1e');
+        bush(W * 0.30, H * 1.04, 0.9, '#3f8a2c', '#245c1e');
 
-        /* 주인공 — 가운데 대형 망치를 쥔 주먹 (잔여 결함 ⓐ).
-           이 블록 머리말은 원래 "주인공은 그리지 않는다 — 배너 우측 `.dg-icon` 이 맡는다" 였는데,
-           그 `.dg-icon` 은 같은 항목의 사용자 지시("기존 덩어리 같이 생긴 아이콘은 없애기")로
-           **삭제됐다**. 그래서 해머 도둑 카드에 해머도 도둑도 하나 없는 '왕국 초원'이 됐다.
-           원본(shot-042251) 1행도 가운데에 손에 쥔 대형 망치가 주인공이다.
-           좌표는 세로 1.0 정규계(x 는 0~3.45) — `_sticker` 헬퍼가 두 축 모두 S(=H)를 곱한다.
-           ⚠️ 머리를 육각 폴리곤으로 그리면 302px 표시 폭에서 '초록 육각 덩어리'로 읽힌다 —
-           모서리 둥근 상자를 살짝 기울여야 망치가 된다. 그리는 차례가 곧 앞뒤: 자루 → 머리 → 주먹. */
-        ink(ctx, S, bar(ctx, S, 1.742, 0.99, 1.800, 0.40, 0.090), '#c08b41', 0.030);      // 자루
-        on(ctx, bar(ctx, S, 1.724, 0.96, 1.782, 0.44, 0.028), 'rgba(255,255,255,.30)');   // 자루 광택
-        ctx.save();
-        ctx.translate(1.828 * S, 0.335 * S); ctx.rotate(-0.16);
-        ink(ctx, S, rrect(ctx, S, -0.250, -0.155, 0.500, 0.310, 0.050), '#6f7b34', 0.032);
-        ctx.save();
-        ctx.beginPath(); rrect(ctx, S, -0.250, -0.155, 0.500, 0.310, 0.050)(); ctx.clip();
-        on(ctx, rrect(ctx, S, -0.250, -0.155, 0.500, 0.092, 0), '#9aa84a');               // 윗면 밝은 띠
-        on(ctx, rrect(ctx, S, 0.118, -0.155, 0.132, 0.310, 0), 'rgba(0,0,0,.24)');        // 오른 끝면 음영
-        on(ctx, rrect(ctx, S, -0.075, -0.155, 0.030, 0.310, 0), 'rgba(0,0,0,.30)');       // 자루 물림 테
-        on(ctx, rrect(ctx, S, 0.052, -0.155, 0.030, 0.310, 0), 'rgba(0,0,0,.30)');
+        /* 주인공 — **대각선으로 휘두르는 망치 + 자루를 감아쥔 주먹** (비평가 A·B 공통 1순위).
+           종전엔 자루가 수직(-0.16rad)이고 주먹이 자루 '아래 끝'에 붙어 '막대 위에 망치가 박힌
+           정지 구도'로 읽혔다. 원본(1행 확대)은 망치 머리가 우상단, 자루가 좌하로 45° 기울고
+           주먹이 자루 **중간**을 감아쥔다(손가락 골이 자루와 직교로 4줄). 좌표는 세로 1.0 정규계
+           (x 0~3.45) — `_sticker` 헬퍼가 두 축 모두 S(=H)를 곱는다.
+           ⚠️ 머리는 모서리 둥근 상자(육각 폴리곤이면 302px 에서 '초록 육각 덩어리'). 차례 = 앞뒤:
+           자루 → 주먹(자루 위) → 머리(맨 위). 주먹·손가락은 자루 기울기와 같은 프레임에서 그려야
+           골이 직교로 떨어진다. */
+        const SWING = Math.atan2(0.345 - 0.905, 2.075 - 1.560);                           // 자루 기울기 ≈ -0.83rad
+        ink(ctx, S, bar(ctx, S, 1.560, 0.905, 2.075, 0.345, 0.088), '#c08b41', 0.030);    // 자루(좌하→우상)
+        on(ctx, bar(ctx, S, 1.586, 0.845, 2.052, 0.390, 0.026), 'rgba(255,255,255,.30)'); // 자루 광택
+        ctx.save();                                                                       // 주먹 — 자루 중간을 감아쥔다
+        // 수직 자루(θ=-π/2) 코드의 무회전이 기준이므로, 임의 기울기에선 θ+π/2 만큼 돌린다.
+        ctx.translate(1.705 * S, 0.735 * S); ctx.rotate(SWING + Math.PI / 2);
+        ink(ctx, S, rrect(ctx, S, -0.130, -0.150, 0.260, 0.300, 0.085), '#cf8f5f', 0.032);
+        [-0.088, -0.020, 0.048].forEach(y =>                                              // 손가락 골(자루와 직교)
+            on(ctx, rrect(ctx, S, -0.104, y, 0.208, 0.032, 0.016), 'rgba(0,0,0,.30)'));
+        ink(ctx, S, ell(ctx, S, 0.096, 0.086, 0.052, 0.066), '#e0a06d', 0.026);           // 엄지(감아쥔 쪽)
+        ink(ctx, S, rrect(ctx, S, -0.120, 0.128, 0.240, 0.130, 0.050), '#a8683f', 0.028); // 손목(주먹보다 좁고 어둡다)
         ctx.restore();
-        ink(ctx, S, ell(ctx, S, 0.196, -0.058, 0.040, 0.034), '#c9a24e', 0.024);          // 쐐기 못
+        ctx.save();                                                                       // 머리 — 자루 끝(우상단)
+        // 머리 상자는 세로(local y)가 장축 = 자루와 직교하려면 회전각이 자루 기울기 그대로여야 한다.
+        ctx.translate(2.100 * S, 0.310 * S); ctx.rotate(SWING);
+        ink(ctx, S, rrect(ctx, S, -0.160, -0.255, 0.320, 0.510, 0.050), '#6f7b34', 0.032);
+        ctx.save();
+        ctx.beginPath(); rrect(ctx, S, -0.160, -0.255, 0.320, 0.510, 0.050)(); ctx.clip();
+        on(ctx, rrect(ctx, S, 0.064, -0.255, 0.096, 0.510, 0), '#9aa84a');                // 위(빛 받는) 면 — local +x 가 회전 후 우상향
+        on(ctx, rrect(ctx, S, -0.160, -0.255, 0.084, 0.510, 0), 'rgba(0,0,0,.24)');       // 아랫면 음영
+        on(ctx, rrect(ctx, S, -0.160, -0.078, 0.320, 0.030, 0), 'rgba(0,0,0,.30)');       // 자루 물림 테
+        on(ctx, rrect(ctx, S, -0.160, 0.048, 0.320, 0.030, 0), 'rgba(0,0,0,.30)');
         ctx.restore();
-        ink(ctx, S, rrect(ctx, S, 1.700, 0.855, 0.158, 0.170, 0.040), '#a8683f', 0.030);  // 팔뚝(주먹보다 좁고 어둡다 — 아니면 한 덩어리 기둥으로 읽힌다)
-        ink(ctx, S, rrect(ctx, S, 1.652, 0.618, 0.248, 0.252, 0.082), '#cf8f5f', 0.032);  // 주먹
-        [0.662, 0.730, 0.798].forEach(y => on(ctx, rrect(ctx, S, 1.680, y, 0.192, 0.030, 0.015), 'rgba(0,0,0,.30)')); // 손가락 골
-        on(ctx, rrect(ctx, S, 1.670, 0.634, 0.048, 0.218, 0.024), 'rgba(255,255,255,.24)');
+        ink(ctx, S, ell(ctx, S, 0.052, -0.190, 0.040, 0.034), '#c9a24e', 0.024);          // 쐐기 못
+        ctx.restore();
     };
 
     /* 👻 유령 마을 — 밤하늘 + 별 + 큰 달 + 언덕 + 묘비·마른 나무 */
     G.draw.dg_ghost = function (ctx, S) {
+        /* 원본(2행 확대 실측 2026-08-19): 별은 **성기다**(십수 개, 크기 편차), 달은 크림색에
+           어두운 소용돌이 무늬 + 회청 헤일로 원반, 하늘엔 **찢긴 검은 구름 줄**이 달을 가로지른다
+           (박쥐가 아니다). 묘비는 우하단에 큰 것 둘(해골·RIP 각인), 좌측은 잎 달린 큰 나무,
+           모서리엔 어두운 덤불. */
         const W = S * AR, H = S, R = rnd(23);
         sky(ctx, W, H, '#1d2549', '#0b0f22');
-        for (let i = 0; i < 46; i++) {                                    // 별
-            const x = R() * W, y = R() * H * 0.72, r = H * (0.006 + R() * 0.012);
-            fill(ctx, `rgba(255,255,255,${0.35 + R() * 0.5})`, () => ctx.arc(x, y, r, 0, Math.PI * 2));
+        for (let i = 0; i < 26; i++) {                                    // 별 — 원본처럼 성기게, 큰 놈 몇 개
+            const x = R() * W, y = R() * H * 0.72, r = H * (0.006 + R() * 0.014);
+            fill(ctx, `rgba(255,255,255,${0.35 + R() * 0.55})`, () => ctx.arc(x, y, r, 0, Math.PI * 2));
         }
-        const mx = W * 0.58, my = H * 0.32, mr = H * 0.20;                // 달 + 헤일로
+        const mx = W * 0.58, my = H * 0.34, mr = H * 0.21;                // 달
+        fill(ctx, 'rgba(190,200,225,.13)', () => ctx.arc(mx, my, mr * 1.42, 0, Math.PI * 2));   // 회청 헤일로 원반
         const g = ctx.createRadialGradient(mx, my, mr * 0.6, mx, my, mr * 2.4);
-        g.addColorStop(0, 'rgba(247,224,138,.42)'); g.addColorStop(1, 'rgba(247,224,138,0)');
+        g.addColorStop(0, 'rgba(247,228,160,.30)'); g.addColorStop(1, 'rgba(247,228,160,0)');
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-        fill(ctx, '#f7e08a', () => ctx.arc(mx, my, mr, 0, Math.PI * 2));
-        fill(ctx, 'rgba(0,0,0,.07)', () => ctx.arc(mx - mr * 0.28, my + mr * 0.22, mr * 0.22, 0, Math.PI * 2));   // 크레이터
-        fill(ctx, 'rgba(0,0,0,.07)', () => ctx.arc(mx + mr * 0.30, my - mr * 0.18, mr * 0.15, 0, Math.PI * 2));
+        fill(ctx, '#f2e2ae', () => ctx.arc(mx, my, mr, 0, Math.PI * 2));
+        ctx.save();                                                        // 소용돌이 무늬(원본 달의 'S' 마킹)
+        ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.clip();
+        ctx.strokeStyle = 'rgba(120,100,55,.30)'; ctx.lineWidth = mr * 0.30; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(mx + mr * 0.52, my - mr * 0.38);
+        ctx.quadraticCurveTo(mx - mr * 0.55, my - mr * 0.45, mx - mr * 0.30, my + mr * 0.05);
+        ctx.quadraticCurveTo(mx - mr * 0.05, my + mr * 0.45, mx + mr * 0.55, my + mr * 0.30);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+        ctx.restore();
+        /* 찢긴 검은 구름 줄 — 원본의 그 가로 스트릭. 달 **앞**을 지나는 한 줄이 핵심이라 달 뒤에
+           깔면 의미가 없다(그래서 달 다음에 그린다). 좌반부 평균 휘도 하한(probe-dungeon-title-ink,
+           26)을 깎지 않게 왼쪽 끝(x<0.18W)까지는 끌지 않는다. */
+        const streak = (sx, sy, len, th, c) => {
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            let x = sx;
+            while (x < sx + len) { const seg = H * (0.10 + R() * 0.14); ctx.lineTo(x + seg * 0.5, sy - th * (0.4 + R() * 0.8)); x += seg; ctx.lineTo(x, sy - th * 0.2 * R()); }
+            ctx.lineTo(sx + len + th, sy + th * 0.3);
+            x = sx + len;
+            while (x > sx) { const seg = H * (0.09 + R() * 0.12); ctx.lineTo(x - seg * 0.5, sy + th * (0.5 + R() * 0.7)); x -= seg; }
+            ctx.closePath(); ctx.fillStyle = c; ctx.fill();
+        };
+        streak(W * 0.32, H * 0.31, W * 0.44, H * 0.042, '#080b18');       // 달을 가로지르는 줄(얇게 — 두꺼우면 '떠 있는 산맥'이 된다)
+        streak(W * 0.22, H * 0.14, W * 0.26, H * 0.032, '#0a0e1e');
+        streak(W * 0.48, H * 0.55, W * 0.24, H * 0.028, '#0a0e1e');
         // 언덕 2겹
         fill(ctx, '#151a34', () => { ctx.moveTo(0, H * 0.78); ctx.quadraticCurveTo(W * 0.30, H * 0.58, W * 0.62, H * 0.76); ctx.quadraticCurveTo(W * 0.85, H * 0.88, W, H * 0.72); ctx.lineTo(W, H); ctx.lineTo(0, H); });
         fill(ctx, '#0c1024', () => { ctx.moveTo(0, H * 0.90); ctx.quadraticCurveTo(W * 0.45, H * 0.78, W, H * 0.92); ctx.lineTo(W, H); ctx.lineTo(0, H); });
-        /* 묘비 — 종전 색(#2a3154)은 앞 언덕(#0c1024)과 명도차가 거의 없어 '바닥의 검은 혹'으로만
-           읽혔다. 한 단 밝게 올리고 십자 각인을 새겨 묘비로 세운다. 이 카드의 주인공은 달과
-           묘지이므로(따로 얹는 주인공이 없다) 여기가 읽히지 않으면 카드가 빈 밤하늘이 된다. */
-        for (let i = 0; i < 5; i++) {
-            const x = W * (0.06 + i * 0.19 + R() * 0.03), y = H * (0.78 + R() * 0.06), w = H * 0.15, h = H * 0.24;
-            fill(ctx, '#414a72', () => { ctx.moveTo(x, y + h); ctx.lineTo(x, y + w * 0.5); ctx.arc(x + w * 0.5, y + w * 0.5, w * 0.5, Math.PI, 0); ctx.lineTo(x + w, y + h); });
-            fill(ctx, 'rgba(0,0,0,.34)', () => ctx.rect(x + w * 0.34, y + w * 0.42, w * 0.32, w * 0.11));   // 십자 가로획
-            fill(ctx, 'rgba(0,0,0,.34)', () => ctx.rect(x + w * 0.44, y + w * 0.26, w * 0.12, w * 0.52));   // 십자 세로획
-        }
-        /* 박쥐 — 원본 유령 마을의 그 갈매기형 실루엣. 밤하늘이 별만 있으면 '검은 띠'로 남는다.
-           키 큰 소품이 아니라 UI 열(오른쪽 28%)을 피할 필요는 없지만, 열쇠 필과 겹치지 않게
-           x 0.70W 안쪽에만 둔다. */
-        const bat = (bx, by, bw) => {
-            ctx.beginPath();
-            ctx.moveTo(bx - bw, by);
-            ctx.quadraticCurveTo(bx - bw * 0.45, by - bw * 0.55, bx, by - bw * 0.06);
-            ctx.quadraticCurveTo(bx + bw * 0.45, by - bw * 0.55, bx + bw, by);
-            ctx.quadraticCurveTo(bx + bw * 0.42, by + bw * 0.20, bx, by + bw * 0.24);
-            ctx.quadraticCurveTo(bx - bw * 0.42, by + bw * 0.20, bx - bw, by);
-            ctx.closePath(); ctx.fillStyle = '#070a16'; ctx.fill();
+        /* 묘비 — 원본은 우하단에 **큰 것 둘**(회청 판 + 해골·RIP 각인)이고 [열기]가 일부를 덮는다.
+           다섯 개를 고루 늘어놓던 종전 배치는 원본과 다르고 작아서 '바닥 혹'으로 읽혔다. */
+        const stone = (x, y, w, h) => {
+            const p = () => { ctx.moveTo(x, y + h); ctx.lineTo(x, y + w * 0.5); ctx.arc(x + w * 0.5, y + w * 0.5, w * 0.5, Math.PI, 0); ctx.lineTo(x + w, y + h); ctx.closePath(); };
+            ctx.beginPath(); p(); ctx.fillStyle = '#48547e'; ctx.fill();
+            ctx.beginPath(); p(); ctx.strokeStyle = '#0a0d1e'; ctx.lineWidth = H * 0.018; ctx.stroke();
+            fill(ctx, 'rgba(10,13,30,.75)', () => ctx.arc(x + w * 0.5, y + w * 0.55, w * 0.16, 0, Math.PI * 2));            // 해골 눈구멍(원형 각인)
+            fill(ctx, 'rgba(10,13,30,.55)', () => ctx.rect(x + w * 0.24, y + w * 0.92, w * 0.52, h * 0.085));               // RIP 줄 각인
+            fill(ctx, 'rgba(255,255,255,.10)', () => ctx.rect(x + w * 0.10, y + w * 0.30, w * 0.10, h * 0.55));             // 왼쪽 세로 하이라이트
         };
-        bat(W * 0.30, H * 0.24, H * 0.10); bat(W * 0.42, H * 0.50, H * 0.070); bat(W * 0.68, H * 0.20, H * 0.082);
-        // 좌측 고목 — 달빛 밤 풍경의 앞경. UI 열을 피해 x 0.70W 안쪽.
+        stone(W * 0.585, H * 0.62, H * 0.22, H * 0.40);
+        stone(W * 0.72, H * 0.56, H * 0.26, H * 0.48);
+        // 좌측 고목 — 원본은 **잎 달린** 큰 나무다(마른 가지가 아니라). 줄기 갈색 + 아주 어두운 잎 덩어리.
         (() => {
-            const c = '#0a0d1e', t = H * 0.05, x = W * 0.13, top = H * 0.14;
-            fill(ctx, c, () => { ctx.moveTo(x - t, H * 0.92); ctx.lineTo(x - t * 0.5, top); ctx.lineTo(x + t * 0.5, top); ctx.lineTo(x + t, H * 0.92); });
-            ctx.strokeStyle = c; ctx.lineWidth = t * 0.66;
-            [[-1, 0.20, 0.22], [1, 0.26, 0.26], [-1, 0.40, 0.14], [1, 0.44, 0.16]].forEach(([dx, dy, len]) => {
-                ctx.beginPath();
-                ctx.moveTo(x, top + H * 0.18);
-                ctx.quadraticCurveTo(x + dx * H * len * 0.6, top + H * (0.18 - dy * 0.5), x + dx * H * len, top + H * (0.18 - dy));
-                ctx.stroke();
-            });
+            const x = W * 0.115, top = H * 0.10, t = H * 0.055;
+            ctx.strokeStyle = '#2e2119'; ctx.lineCap = 'round';
+            ctx.lineWidth = t;
+            ctx.beginPath(); ctx.moveTo(x + H * 0.03, H * 0.96); ctx.quadraticCurveTo(x - H * 0.04, H * 0.55, x, top + H * 0.16); ctx.stroke();
+            ctx.lineWidth = t * 0.55;
+            ctx.beginPath(); ctx.moveTo(x - H * 0.01, H * 0.42); ctx.quadraticCurveTo(x + H * 0.16, H * 0.34, x + H * 0.24, H * 0.24); ctx.stroke();
+            ctx.lineCap = 'butt';
+            for (let i = 0; i < 7; i++) {                                  // 잎 덩어리(밤이라 거의 검은 초록)
+                const lx = x + H * (-0.20 + R() * 0.44), ly = H * (-0.06 + R() * 0.26), r = H * (0.11 + R() * 0.07);
+                fill(ctx, i % 2 ? '#101f16' : '#152a1c', () => ctx.arc(lx, ly, r, 0, Math.PI * 2));
+            }
+            for (let i = 0; i < 4; i++) {                                  // 달빛 림 혹
+                const lx = x + H * (-0.14 + R() * 0.36), ly = H * (-0.04 + R() * 0.18), r = H * (0.035 + R() * 0.025);
+                fill(ctx, '#23402a', () => ctx.arc(lx, ly, r, 0, Math.PI * 2));
+            }
         })();
+        // 모서리 덤불 — 우하단(묘비 앞)·좌하단. 원본 네 모서리의 어두운 초록 덩어리.
+        const dbush = (bx, by, s) => {
+            ctx.beginPath();
+            ctx.arc(bx - H * 0.10 * s, by, H * 0.10 * s, 0, Math.PI * 2);
+            ctx.arc(bx + H * 0.02 * s, by - H * 0.06 * s, H * 0.12 * s, 0, Math.PI * 2);
+            ctx.arc(bx + H * 0.14 * s, by, H * 0.10 * s, 0, Math.PI * 2);
+            ctx.fillStyle = '#122417'; ctx.fill();
+        };
+        dbush(W * 0.03, H * 1.00, 1.1); dbush(W * 0.97, H * 1.02, 1.3);
     };
 
-    /* ⚔ 침략 — 노을 하늘 + 지평선 + 깃발 든 무리 실루엣(뒤 흐림 · 앞 진함) */
+    /* ⚔ 침략 — 원본(3행 확대 실측 2026-08-19): 명도 3단의 **개별 인물 군중**이다. 뒤=연갈 띠 위로
+       투구 혹 텍스처, 중간=중갈색 머리(둥근/뾰족 투구 섞임)+어깨, 앞=암갈 대형 실루엣이 서로
+       간격을 두고 갈린다. 깃발은 삼각 페넌트가 아니라 **너덜너덜한 대형 배너**가 기운 장대에
+       달려 하늘을 가른다. 비평가 A('사람 없는 목책')·B('톱니 산맥 텍스처') 공통 지적이
+       '개별 인물이 안 읽힌다'였다 — 톱니 폴리곤 열을 버리고 인물 단위로 다시 그린다. */
     G.draw.dg_invasion = function (ctx, S) {
         const W = S * AR, H = S, R = rnd(37);
-        sky(ctx, W, H, '#f3c48d', '#a5674a');
-        fill(ctx, 'rgba(255,236,190,.38)', () => ctx.arc(W * 0.60, H * 0.66, H * 0.20, 0, Math.PI * 2));   // 저무는 해(작게 — 크면 우측 아이콘과 덩어리가 겹쳐 읽힌다)
-        ground(ctx, W, H, H * 0.74, '#7a4c3a');
-        const horde = (baseY, c, n, sc) => {
-            for (let i = 0; i < n; i++) {
-                const x = W * (i / n) + R() * W * 0.02, hh = H * (0.16 + R() * 0.10) * sc, w = H * 0.09 * sc;
-                fill(ctx, c, () => ctx.arc(x, baseY - hh, w * 0.55, 0, Math.PI * 2));                       // 머리
-                fill(ctx, c, () => { ctx.moveTo(x - w * 0.6, baseY); ctx.lineTo(x - w * 0.45, baseY - hh); ctx.lineTo(x + w * 0.45, baseY - hh); ctx.lineTo(x + w * 0.6, baseY); });   // 몸통
+        sky(ctx, W, H, '#f7e6c6', '#e0a97e');
+        const cloud = (cx, cy, cw, chh, c) => fill(ctx, c, () => ctx.ellipse(cx, cy, cw, chh, 0, 0, Math.PI * 2));
+        cloud(W * 0.22, H * 0.12, W * 0.13, H * 0.045, '#fdf3da');
+        cloud(W * 0.55, H * 0.08, W * 0.10, H * 0.038, '#fbecd0');
+        cloud(W * 0.78, H * 0.16, W * 0.09, H * 0.035, '#fdf3da');
+        // 뒤 열 — 연갈 띠, 위 가장자리가 투구 혹(반원 연쇄)
+        (() => {
+            ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, H * 0.48);
+            let x = 0;
+            while (x < W) { const r = H * (0.028 + R() * 0.022); ctx.arc(x + r, H * 0.48, r, Math.PI, 0); x += r * 2; }
+            ctx.lineTo(W, H); ctx.closePath(); ctx.fillStyle = '#cdb094'; ctx.fill();
+        })();
+        /* 인물 한 명 — 머리(kind 0=둥근 투구 1=뾰족 투구 2=뿔 투구) + 어깨.
+           ⚠️ 어깨를 좁고 높은 아치로 세우면 'A자 천막' 열이 된다(1차 시안) — 어깨는 넓고 낮게,
+           뾰족 투구도 낮게. 몸이 옆 사람과 절반쯤 겹쳐야 '무리'가 되고, 머리 혹만 갈리면 된다. */
+        const figure = (x, y, s, c, kind) => {
+            const r = H * 0.055 * s;
+            if (kind === 1) fill(ctx, c, () => { ctx.moveTo(x - r, y + r * 0.5); ctx.lineTo(x, y - r * 1.15); ctx.lineTo(x + r, y + r * 0.5); });
+            else fill(ctx, c, () => ctx.arc(x, y, r, 0, Math.PI * 2));
+            if (kind === 2) {                                              // 양쪽 뿔
+                fill(ctx, c, () => { ctx.moveTo(x - r * 0.8, y - r * 0.1); ctx.lineTo(x - r * 1.5, y - r * 1.2); ctx.lineTo(x - r * 0.2, y - r * 0.8); });
+                fill(ctx, c, () => { ctx.moveTo(x + r * 0.8, y - r * 0.1); ctx.lineTo(x + r * 1.5, y - r * 1.2); ctx.lineTo(x + r * 0.2, y - r * 0.8); });
             }
+            fill(ctx, c, () => { ctx.moveTo(x - r * 1.9, y + r * 3.2); ctx.quadraticCurveTo(x - r * 1.7, y + r * 0.7, x, y + r * 0.75); ctx.quadraticCurveTo(x + r * 1.7, y + r * 0.7, x + r * 1.9, y + r * 3.2); ctx.closePath(); });   // 어깨(넓고 낮게)
         };
-        horde(H * 0.80, '#4a2f26', 19, 0.85);                             // 뒤 열
-        for (let i = 0; i < 4; i++) {                                     // 깃대 + 삼각 깃발
-            const x = W * (0.12 + i * 0.24 + R() * 0.05), top = H * (0.16 + R() * 0.12);
-            fill(ctx, '#33221c', () => ctx.rect(x, top, H * 0.022, H * 0.72));
-            fill(ctx, '#33221c', () => { ctx.moveTo(x + H * 0.022, top); ctx.lineTo(x + H * 0.26, top + H * 0.07); ctx.lineTo(x + H * 0.022, top + H * 0.16); });
+        for (let i = 0; i < 22; i++)                                       // 중간 열 — 몸은 겹치고 머리 혹만 갈린다
+            figure(W * (i / 22 + 0.010 + R() * 0.02), H * (0.60 + R() * 0.05), 0.85 + R() * 0.3, i % 3 ? '#8a6a5a' : '#7c5c4e', (R() * 3) | 0);
+        // 창 — 군중 사이에서 올라오는 자루+창끝
+        for (let i = 0; i < 6; i++) {
+            const x = W * (0.06 + i * 0.17 + R() * 0.05), top = H * (0.18 + R() * 0.14);
+            fill(ctx, '#3a251d', () => ctx.rect(x, top, H * 0.014, H * 0.55));
+            fill(ctx, '#3a251d', () => { ctx.moveTo(x - H * 0.020, top); ctx.lineTo(x + H * 0.007, top - H * 0.075); ctx.lineTo(x + H * 0.034, top); });
         }
-        horde(H * 1.02, '#241612', 14, 1.35);                             // 앞 열(잘려 보이게 바닥 아래까지)
+        /* 대형 배너 — 기운 장대 + 자락. ⚠️ 폭 0.5H + 깊은 찢김 노치로 다섯 장을 깔면 하늘이
+           '검은 덩어리 천지'가 된다(1차 시안) — 폭을 줄이고 찢김은 얕게, 넉 장만. */
+        const banner = (x, top, wd, ht, tilt, c) => {
+            ctx.save(); ctx.translate(x, top); ctx.rotate(tilt);
+            fill(ctx, c, () => ctx.rect(-H * 0.012, 0, H * 0.024, H * 1.05));
+            fill(ctx, c, () => {
+                ctx.moveTo(0, H * 0.02);
+                ctx.lineTo(wd, H * 0.09);
+                ctx.lineTo(wd * 0.92, ht * 0.44);
+                ctx.lineTo(wd, ht * 0.70);
+                ctx.lineTo(wd * 0.62, ht * 0.86);   // 찢긴 자락(얕게)
+                ctx.lineTo(wd * 0.68, ht * 0.64);
+                ctx.lineTo(0, ht);
+            });
+            ctx.restore();
+        };
+        banner(W * 0.30, H * 0.08, H * 0.28, H * 0.30, -0.20, '#7d5c4e');  // 중경 밝은 배너(군중 앞이라 깊이가 갈린다)
+        banner(W * 0.14, -H * 0.10, H * 0.40, H * 0.42, 0.10, '#2e1c15');
+        banner(W * 0.46, -H * 0.14, H * 0.38, H * 0.40, -0.08, '#241511');
+        banner(W * 0.70, -H * 0.05, H * 0.36, H * 0.40, 0.16, '#2e1c15');
+        for (let i = 0; i < 13; i++)                                       // 앞 열 — 몸이 이어진 암갈 덩어리에서 머리 혹이 갈린다
+            figure(W * (i / 13 + 0.015 + R() * 0.025), H * (0.94 + R() * 0.07), 2.0 + R() * 0.45, i % 4 ? '#241612' : '#2e1d16', (R() * 3) | 0);
     };
 
     /* 🧟 좀비 러시 — 보라 하늘 + 고목 2그루 + 철망 울타리 + 드럼통 */
@@ -3788,8 +3925,14 @@ IconGen._genderSym = function (ctx, S, female) {
         const W = S * AR, H = S, R = rnd(53);
         sky(ctx, W, H, '#c49bdd', '#6f4c9b');
         fill(ctx, 'rgba(255,255,255,.14)', () => ctx.arc(W * 0.30, H * 0.30, H * 0.26, 0, Math.PI * 2));   // 흐린 달무리
+        // 연분홍 구름 줄 — 원본 4행 하늘의 가로 스트릭
+        fill(ctx, '#e3c9ec', () => ctx.ellipse(W * 0.20, H * 0.16, W * 0.11, H * 0.040, 0, 0, Math.PI * 2));
+        fill(ctx, '#d9bce6', () => ctx.ellipse(W * 0.52, H * 0.10, W * 0.09, H * 0.034, 0, 0, Math.PI * 2));
+        fill(ctx, '#e3c9ec', () => ctx.ellipse(W * 0.42, H * 0.26, W * 0.06, H * 0.026, 0, 0, Math.PI * 2));
         ground(ctx, W, H, H * 0.76, '#4a3563');
-        ground(ctx, W, H, H * 0.88, '#33224a');
+        // 구불한 어두운 길 — 원본 앞바닥의 진한 띠
+        fill(ctx, '#3a2a52', () => { ctx.moveTo(0, H * 0.84); ctx.quadraticCurveTo(W * 0.35, H * 0.76, W * 0.60, H * 0.84); ctx.quadraticCurveTo(W * 0.80, H * 0.90, W, H * 0.84); ctx.lineTo(W, H); ctx.lineTo(0, H); });
+        ground(ctx, W, H, H * 0.92, '#33224a');
         const tree = (x, sc) => {                                          // 고목 — 줄기 + 갈라진 가지
             const c = '#2a1d38', t = H * 0.05 * sc;
             fill(ctx, c, () => { ctx.moveTo(x - t, H * 0.86); ctx.lineTo(x - t * 0.5, H * (0.86 - 0.52 * sc)); ctx.lineTo(x + t * 0.5, H * (0.86 - 0.52 * sc)); ctx.lineTo(x + t, H * 0.86); });
@@ -3804,20 +3947,55 @@ IconGen._genderSym = function (ctx, S, female) {
         // 오른쪽 고목은 x 0.70W 안쪽으로 — 0.86W 에 두면 가지가 열쇠 필과 [열기] 를 관통해
         // '검은 긁힘'으로 얹힌다(잔여 결함 ⓑ). 우측 28% 열은 UI 몫이라 키 큰 소품을 안 넣는다.
         tree(W * 0.10, 1.05); tree(W * 0.66, 0.85);
-        for (let i = 0; i < 3; i++) {                                      // 흩어진 뼈
-            const x = W * (0.24 + i * 0.13 + R() * 0.04), y = H * (0.88 + R() * 0.06), l = H * 0.10;
+        /* 해골+갈비뼈 — 원본 좌하단의 그 잔해. 흩어진 막대 뼈 셋보다 '좀비 던전'을 한눈에 세운다. */
+        (() => {
+            /* ⚠️ 해골이 작고 갈비 획이 가늘면 '해골 옆 거미'로 읽힌다(1차 시안) — 두개골을 키우고
+               갈비는 두껍게, 척추선으로 잇는다. */
+            const sx = W * 0.145, sy = H * 0.82, r = H * 0.088;
+            ctx.strokeStyle = '#d9d2e6'; ctx.lineWidth = H * 0.030; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(sx + r * 1.0, sy + r * 0.55); ctx.lineTo(sx + r * 3.3, sy + r * 0.62); ctx.stroke();   // 척추
+            [1.5, 2.15, 2.8].forEach(k => {                                                       // 갈비 아치(위로 솟은 반원)
+                ctx.beginPath(); ctx.arc(sx + r * k, sy + r * 0.58, r * 0.52, Math.PI, Math.PI * 2); ctx.stroke();
+            });
+            ctx.lineCap = 'butt';
+            fill(ctx, '#d9d2e6', () => ctx.arc(sx, sy, r, 0, Math.PI * 2));                      // 두개골
+            fill(ctx, '#d9d2e6', () => ctx.rect(sx - r * 0.5, sy + r * 0.55, r * 1.15, r * 0.60)); // 턱
+            fill(ctx, '#3a2a52', () => ctx.arc(sx - r * 0.34, sy - r * 0.08, r * 0.26, 0, Math.PI * 2));   // 눈구멍
+            fill(ctx, '#3a2a52', () => ctx.arc(sx + r * 0.34, sy - r * 0.08, r * 0.26, 0, Math.PI * 2));
+            [-0.28, 0, 0.28].forEach(dx =>                                                        // 이빨 골
+                fill(ctx, '#3a2a52', () => ctx.rect(sx + r * (dx - 0.06), sy + r * 0.58, r * 0.12, r * 0.42)));
+            const x = W * 0.365, y = H * 0.92, l = H * 0.10;                                      // 곁뼈 하나
             fill(ctx, '#d9d2e6', () => ctx.rect(x, y, l, H * 0.022));
             fill(ctx, '#d9d2e6', () => ctx.arc(x, y + H * 0.011, H * 0.022, 0, Math.PI * 2));
             fill(ctx, '#d9d2e6', () => ctx.arc(x + l, y + H * 0.011, H * 0.022, 0, Math.PI * 2));
-        }
-        // 드럼통(원본 우중앙의 파란 통) — 배너 오른쪽 28%는 열쇠·[열기] 열이 덮으므로 그보다 왼쪽에 둔다
-        // 드럼통은 좀비(정규계 x 1.44~1.92 = 0.42~0.56W)를 피해 왼쪽으로. 0.55W 에 두면 좀비 몸통
-        // 뒤로 들어가 파란 조각만 삐져나온다. 오른쪽 28%는 UI 열이라 그쪽으로도 못 민다.
-        const bx = W * 0.26, by = H * 0.60, bw = H * 0.16, bh = H * 0.28;
-        fill(ctx, '#2f6fa8', () => ctx.rect(bx, by, bw, bh));
-        fill(ctx, '#1e4c78', () => ctx.rect(bx, by + bh * 0.30, bw, bh * 0.10));
-        fill(ctx, '#1e4c78', () => ctx.rect(bx, by + bh * 0.64, bw, bh * 0.10));
-        fill(ctx, '#4b8ec4', () => ctx.ellipse(bx + bw / 2, by, bw / 2, bh * 0.09, 0, 0, Math.PI * 2));
+        })();
+        /* 드럼통 — 원본은 **밴드가 층층인 원기둥**이다(파란 사각 블록이 아니라). 옆면을 살짝
+           부풀리고 위 타원 + 곡률 따라 도는 어두운 밴드 + 세로 하이라이트 + 키라인.
+           자리 제약은 종전과 같다: 좀비(0.42~0.56W)와 우측 28% UI 열 사이를 피해 0.26W. */
+        (() => {
+            const bx = W * 0.26, by = H * 0.60, bw = H * 0.16, bh = H * 0.28, ey = bh * 0.085;
+            const body = () => {
+                ctx.moveTo(bx, by);
+                ctx.quadraticCurveTo(bx - bw * 0.055, by + bh * 0.5, bx, by + bh);
+                ctx.quadraticCurveTo(bx + bw * 0.5, by + bh + ey * 1.6, bx + bw, by + bh);
+                ctx.quadraticCurveTo(bx + bw * 1.055, by + bh * 0.5, bx + bw, by);
+                ctx.closePath();
+            };
+            ctx.beginPath(); body(); ctx.fillStyle = '#2f6fa8'; ctx.fill();
+            ctx.save();
+            ctx.beginPath(); body(); ctx.clip();
+            [0.32, 0.66].forEach(k => {                                                           // 곡률 따라 도는 밴드
+                ctx.beginPath(); ctx.ellipse(bx + bw / 2, by + bh * k, bw * 0.56, ey, 0, 0, Math.PI);
+                ctx.strokeStyle = '#1e4c78'; ctx.lineWidth = bh * 0.09; ctx.stroke();
+            });
+            fill(ctx, 'rgba(255,255,255,.20)', () => ctx.rect(bx + bw * 0.12, by, bw * 0.13, bh + ey * 2)); // 세로 하이라이트
+            fill(ctx, 'rgba(0,0,0,.22)', () => ctx.rect(bx + bw * 0.78, by, bw * 0.22, bh + ey * 2));       // 오른쪽 음영
+            ctx.restore();
+            fill(ctx, '#4b8ec4', () => ctx.ellipse(bx + bw / 2, by, bw / 2, ey, 0, 0, Math.PI * 2));        // 윗면
+            ctx.beginPath(); ctx.ellipse(bx + bw / 2, by, bw / 2, ey, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = '#101528'; ctx.lineWidth = H * 0.013; ctx.stroke();
+            ctx.beginPath(); body(); ctx.strokeStyle = '#101528'; ctx.lineWidth = H * 0.014; ctx.stroke();  // 키라인
+        })();
         /* 철망 울타리 — **왼쪽 끝**으로 옮겼다(잔여 결함 ⓑ). 종전 자리(x 0.86W~)는 [열기] 버튼과
            열쇠 필이 정확히 덮는 자리라, 격자가 버튼 위·아래로만 조각나 '깨진 무늬'로 보였다.
            낮게(y 0.52~0.90H) 깔아 지평선 소품으로 읽히게 한다. */
@@ -3840,15 +4018,20 @@ IconGen._genderSym = function (ctx, S, female) {
            ⚠️ 네모 머리 + 점 눈 둘이면 '초록 로봇'이다 — 눈두덩 그늘·드러난 이·썩은 얼룩이 있어야
            좀비가 된다. 좌표는 세로 1.0 정규계(x 0~3.45). */
         ink(ctx, S, bar(ctx, S, 1.512, 0.760, 1.404, 0.470, 0.104), '#3a763a', 0.030);            // 왼 위팔
+        on(ctx, bar(ctx, S, 1.532, 0.768, 1.428, 0.488, 0.034), 'rgba(0,0,0,.20)');               // 위팔 아랫면 음영(단일톤 방지 — 비평가 B)
         ink(ctx, S, bar(ctx, S, 1.404, 0.490, 1.508, 0.290, 0.098), '#4a8f47', 0.030);            // 왼 아래팔(위로)
+        on(ctx, bar(ctx, S, 1.394, 0.478, 1.484, 0.306, 0.028), 'rgba(255,255,255,.18)');         // 아래팔 빛면
         ink(ctx, S, bar(ctx, S, 1.852, 0.760, 1.968, 0.500, 0.104), '#3a763a', 0.030);            // 오른 위팔
+        on(ctx, bar(ctx, S, 1.834, 0.770, 1.946, 0.520, 0.034), 'rgba(0,0,0,.20)');
         ink(ctx, S, bar(ctx, S, 1.968, 0.520, 1.888, 0.330, 0.098), '#458742', 0.030);            // 오른 아래팔
+        on(ctx, bar(ctx, S, 1.982, 0.508, 1.906, 0.344, 0.028), 'rgba(255,255,255,.16)');
         const torso = poly(ctx, S, [[1.440, 1.02], [1.492, 0.585], [1.872, 0.585], [1.924, 1.02]]);
         ink(ctx, S, torso, '#41823f', 0.032);
         ctx.save();
         ctx.beginPath(); torso(); ctx.clip();
         on(ctx, rrect(ctx, S, 1.500, 0.600, 0.090, 0.440, 0.040), 'rgba(255,255,255,.14)');       // 왼쪽 하이라이트
         on(ctx, rrect(ctx, S, 1.800, 0.585, 0.140, 0.450, 0), 'rgba(0,0,0,.20)');                 // 오른쪽 음영
+        on(ctx, ell(ctx, S, 1.682, 0.615, 0.150, 0.052), 'rgba(0,0,0,.24)');                      // 목 아래 드리운 그림자
         on(ctx, ell(ctx, S, 1.700, 0.760, 0.062, 0.044, 0.3), 'rgba(0,0,0,.22)');                 // 썩은 얼룩
         on(ctx, rrect(ctx, S, 1.618, 0.585, 0.030, 0.440, 0), 'rgba(0,0,0,.16)');                 // 찢어진 옷자락 이음
         ctx.restore();
