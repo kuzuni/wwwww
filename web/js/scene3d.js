@@ -8635,18 +8635,46 @@ const Scene3D = {
                     rim.scale.set(1.5, o.narrow ? 0.5 : 0.7, 0.32);
                     eg.add(rim, slit);
                 } else {
+                    // ===== 파이컷 흰자 — 1930s 러버호스 카툰 (`cute-art-direction` 사용자 확정 2026-08-19) =====
+                    // 종전은 흰자+발광 홍채+글로시 하이라이트라 영웅과 같은 '캐주얼 3D 마스코트' 눈이었다.
+                    // 영웅(prochar.js)을 파이컷으로 바꾼 것과 **같은 화풍**으로 여기서 6종을 한꺼번에 맞춘다
+                    // (slit 계열 = 골렘 마그마·늑대 냉광은 발광 슬릿이 종 정체성이라 이번 회차 대상 아님).
+                    //
+                    // 🔑 **영웅과 달리 평평한 판을 못 쓴다** — 적은 아레나에서 좌우로 돌고 넉백으로 자세가
+                    //    바뀌어, 판이면 옆에서 사라진다. 그래서 **구를 유지한 채 파이 조각을 판다**:
+                    //    `SphereGeometry` 의 phi 절단은 극축을 감는 쐐기(오렌지 조각)라, **극축을 +z(보는 쪽)로
+                    //    눕히면**(mesh.rotation.x = π/2) 정면에서 정확히 파이 조각으로 보인다.
+                    //    ⚠️ 회전은 **메시**에, 납작 스케일은 **부모 그룹**에 건다 — 한 오브젝트에 둘 다 걸면
+                    //       스케일이 회전 전 로컬 축에 먹어 'y 를 눌렀는데 z 가 눌리는' 결과가 된다.
+                    // 🔑 phi ↔ 화면 각 대응: 눕힌 뒤 구의 (x,y,z)가 눈 로컬 (x,−z,y)로 가므로 **화면 방위각
+                    //    α = φ + π** 다. α 구간 [wc−PIE/2, wc+PIE/2] 를 빼려면 φ = wc + PIE/2 − π 에서
+                    //    2π−PIE 만큼 그리면 된다.
                     const tall = style === 'round' ? 1.3 : style === 'sleepy' ? 0.62 : 0.92;
-                    const sc = new THREE.Mesh(new THREE.SphereGeometry(er, 9, 7), new THREE.MeshLambertMaterial({ color: 0xfff6e8 })); // 음영 받는 흰자 — 평면 스티커 오독 방지 (비평가 지적)
-                    sc.scale.set(1, tall, 0.55);
-                    const irisR = (style === 'round' ? er * 0.7 : er * 0.55) * (o.irisScale || 1); // irisScale<1 = 흰자 비중 확대 ('단추 눈' 방지)
-                    const ir = new THREE.Mesh(new THREE.SphereGeometry(irisR, 8, 6), new THREE.MeshLambertMaterial({ color: o.iris || 0xd8352a, emissive: o.iris || 0xd8352a, emissiveIntensity: o.glow !== undefined ? o.glow : 0.45 })); // 은은한 발광 홍채 (glow로 종별 무광 조절)
-                    ir.position.z = er * 0.4;
-                    if (style === 'sleepy') ir.scale.y = 0.75;
-                    const pu = new THREE.Mesh(new THREE.SphereGeometry(irisR * 0.48, 6, 5), new THREE.MeshBasicMaterial({ color: 0x1a1210 }));
-                    pu.position.z = er * 0.58;
-                    const hl = new THREE.Mesh(new THREE.SphereGeometry(er * 0.16, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-                    hl.position.set(er * 0.22, er * 0.26, er * 0.62);
-                    eg.add(sc, ir, pu, hl);
+                    const PIE = Math.PI * 0.30;                    // 도려낸 부채꼴 각 (영웅과 같은 값)
+                    const wc = s > 0 ? 0.42 : Math.PI - 0.42;      // 쐐기 중심 = **바깥쪽 위**(안쪽에 두면 두 눈의 빈 자리가 코 양옆에서 마주 본다)
+                    const scG = new THREE.Group();
+                    scG.scale.set(1, tall, 0.55);
+                    const sc = new THREE.Mesh(new THREE.SphereGeometry(er, 18, 12, wc + PIE / 2 - Math.PI, Math.PI * 2 - PIE),
+                        // 음영은 남기되 **바닥값을 emissive 로 깐다** — 흰자가 완전히 죽으면 파이 조각이 안 보인다.
+                        // (버섯처럼 갓 그늘에 머리가 통째로 들어가는 종은 순수 Lambert 로는 눈이 검게 뭉갰다 — 실측 캡처.)
+                        // 종전 주석의 '음영 받는 흰자(평면 스티커 오독 방지)'는 유지 — 완전 무광 Basic 으로 가지 않는 이유다.
+                        new THREE.MeshLambertMaterial({ color: 0xfff6e8, emissive: 0x9a958c }));
+                    sc.rotation.x = Math.PI / 2;
+                    sc.userData.pieEye = true;   // 캡처·판정 도구가 이 태그로 흰자를 집는다(영웅 prochar.js 와 같은 규약)
+                    scG.add(sc);
+                    // 동공 = **검은 점**(사용자 지시 원문). 발광 홍채를 뺐으므로 종 색은 눈썹(browColor)·몸통이 진다.
+                    //   ⚠️ `o.iris`/`o.glow`/`o.irisScale` 은 slit 계열이 계속 쓴다 — 인자를 지우지 말 것.
+                    const puR = er * (style === 'round' ? 0.42 : 0.36) * (o.irisScale || 1);
+                    const pu = new THREE.Mesh(new THREE.SphereGeometry(puR, 10, 8), new THREE.MeshBasicMaterial({ color: 0x141013 }));
+                    // 🚨 z 는 **흰자 앞면 밖**이어야 한다 — 흰자 그룹이 z 를 0.55 로 눌러 앞면이 er·0.55 에
+                    //    있으므로, 종전 감각대로 er·0.42 에 두면 동공이 흰자 **속**에 묻혀 끝만 삐져나온다
+                    //    (실측 캡처에서 잿빛 얼룩으로 읽혔다). 파이 쐐기가 극(=정면 중심)까지 열려 있어
+                    //    묻힌 동공이 그 틈으로 비치는 바람에 '지워졌는데 보이는' 착시까지 났다.
+                    pu.scale.set(1, style === 'sleepy' ? 0.8 : 1.15, 0.42);
+                    pu.position.set(-s * er * 0.12, -er * 0.05, er * 0.56);
+                    const hl = new THREE.Mesh(new THREE.SphereGeometry(er * 0.11, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                    hl.position.set(-s * er * 0.26, er * 0.20, er * 0.60);
+                    eg.add(scG, pu, hl);
                     if (style === 'sleepy') { // 위 눈꺼풀 — 살색보다 어두운 덮개
                         const lid = new THREE.Mesh(new THREE.SphereGeometry(er * 1.02, 8, 6), new THREE.MeshLambertMaterial({ color: o.lid || 0x8d6a56 }));
                         lid.position.y = er * 0.5;

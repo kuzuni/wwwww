@@ -16,6 +16,7 @@ const OUT = __dirname;
         page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
         await page.goto(INDEX + '?enemy=' + kind, { waitUntil: 'load' });
         await page.waitForFunction(() => typeof Scene3D !== "undefined" && Scene3D.scene && typeof Combat !== "undefined", null, { timeout: 60000 });
+        await page.evaluate(([z, k]) => { window.__zoomFace = z; window.__zoomK = k; }, [process.env.ZOOM === 'face', +(process.env.ZOOM_K || 2.4)]);
         await page.evaluate((kind) => {
             // 전투 동결: 논리 틱 정지 + 걷기 정지
             Combat.tick = () => {};
@@ -57,6 +58,18 @@ const OUT = __dirname;
                 pos: new THREE.Vector3(c.x - dist * 0.55, c.y + dist * 0.35, c.z + dist * 0.95),
                 look: c.clone()
             };
+            // ZOOM=face 면 이목구비 클로즈업 — 전신 샷의 눈은 몇 px 이라 파이컷 판독이 안 된다
+            //   (`cute-art-direction` 적 눈 개편 확인용). 얼굴 = 몸통 상단 대역으로 잡는다.
+            if (window.__zoomFace) {
+                // 눈 자체(`userData.pieEye` 태그가 붙은 흰자)의 bbox 로 겨눈다 — 몸통 비율로 어림하면
+                // 종마다 머리 높이가 달라 슬라임처럼 눈이 화면 밖으로 나간다(실제로 그랬다).
+                const eb = new THREE.Box3(); let found = 0;
+                m.g.traverse(o => { if (o.userData && o.userData.pieEye) { eb.expandByObject(o); found++; } });
+                const look = found ? eb.getCenter(new THREE.Vector3()) : new THREE.Vector3(c.x, box.max.y - size.y * 0.15, c.z);
+                const eyeSpan = found ? Math.max(eb.getSize(new THREE.Vector3()).x, 0.06) : size.x * 0.4;
+                const d2 = eyeSpan * window.__zoomK + 0.14;   // 환경변수 ZOOM_K 로 배율 조절 (기본 2.4)
+                Scene3D.camLock = { pos: look.clone().add(new THREE.Vector3(-d2 * 0.28, d2 * 0.16, d2 * 0.95)), look };
+            }
         }, kind);
         // 애니메이션 한 사이클 대기 (idle 포즈 안정)
         await page.waitForTimeout(700);
@@ -69,8 +82,8 @@ const OUT = __dirname;
             const r = document.querySelector('canvas').getBoundingClientRect();
             return { x: Math.max(0, r.x), y: Math.max(0, r.y), width: r.width, height: r.height };
         });
-        await page.screenshot({ path: `${OUT}/enemy-${kind}.png`, clip: rect });
-        console.log(`enemy-${kind}.png` + (errors.length ? '  CONSOLE ERRORS: ' + errors.join(' | ') : '  (no console errors)'));
+        await page.screenshot({ path: `${OUT}/enemy-${kind}${process.env.ZOOM === 'face' ? '-face' : ''}.png`, clip: rect });
+        console.log(`enemy-${kind}${process.env.ZOOM === 'face' ? '-face' : ''}.png` + (errors.length ? '  CONSOLE ERRORS: ' + errors.join(' | ') : '  (no console errors)'));
         await page.close();
     }
     await browser.close();
