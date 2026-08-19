@@ -2215,15 +2215,24 @@ body {
     background: var(--pp-red); color: #fff; border: var(--ol3) solid #000; font-size: .95rem; font-weight: 900;
     box-shadow: inset 0 -.36rem 0 var(--pp-red-dk);
     display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1;
-    font-size: 0; /* '◀' 문자를 숨긴다 — 플랫폼 이모지 폰트가 컬러 글리프로 그려서 원본의 단색 흰 삼각형과 달라진다 */
+    font-size: 0; /* 아이콘만 들어오는 상자 — 텍스트 노드가 다시 들어와도 크기를 만들지 못하게 둔다 */
 }
-/* 원본의 흰 삼각형을 CSS로 직접 그린다 (외부 에셋·폰트 의존 없음, file:// 안전).
-   원본 실측 비율: 버튼 35×29 안에서 삼각형 ≈14×16px. 바닥 어두운 띠를 피하려 살짝 위로 올린다. */
-.league-back-btn::before {
-    content: ''; display: block; margin-bottom: .18rem;
-    border-style: solid; border-width: .47rem .83rem .47rem 0;
-    border-color: transparent #fff transparent transparent;
+/* 뒤로가기 삼각형 — 캔버스 아이콘(`IconGen.draw.tri_left`)이다.
+   ⚠️ 여기 있던 CSS 삼각형(`::before` 의 border 트릭)은 **키라인을 못 그린다**. 원본을 ASCII 로
+   확대해 보면(`tools/probe-tri-ref.js`) 흰 삼각형 둘레에 **순검정 테 2px** 이 둘려 있고, 화면의
+   다른 아이콘이 전부 쓰는 그 스티커 화법이다 — 테 없는 흰 삼각형만 혼자 떠 보였다.
+   원본 실측(shot-042149): 버튼 35×29 안 흰 잉크 **12×13px**. 아이콘 상자는 테까지 포함하므로
+   13 ÷ 0.81(잉크/전체 세로비) = **16px = 앱 세로의 1.79%**. 상자를 정사각으로 두면
+   `background-size:contain` 이 세로에 맞춰 그리므로 세로가 그대로 계약값이 된다. */
+.back-btn .ico, .league-back-btn .ico, .tech-tree-back .ico, .chat-input-bar .btn.danger .ico {
+    width: calc(var(--app-h) * .0179); height: calc(var(--app-h) * .0179); margin: 0;
 }
+/* 아래턱(어두운 빨강 띠)을 피해 살짝 위로 — 원본도 삼각형이 밝은 면 한가운데에 앉는다 */
+.league-back-btn .ico { margin-bottom: .18rem; }
+/* 좌우 스텝 삼각형(소환 확률 팝업·던전 상세) — 원본 파란 잉크 25×27px(shot-042521, 앱 499×894).
+   27 ÷ 0.81 = 33.3px = 앱 세로의 **3.73%**. 종전에는 `◀▶` 글리프에 `-webkit-text-stroke` 로
+   테를 흉내 냈는데, 글리프 자체가 플랫폼마다 크기·좌우 여백이 달라 버튼 안에서 위치가 흔들렸다. */
+.tri-btn .ico { width: calc(var(--app-h) * .0373); height: calc(var(--app-h) * .0373); margin: 0; }
 /* 🚨 폭은 **앱 폭 기준으로** 맞춰야 한다 — `flex-basis` 는 `.league-actions`(≈93.8%W) 기준이라
    28% 는 앱의 25.05%W 밖에 안 됐다. 원본 [도전] 버튼의 파란 잉크는 **27.11%W**(135px/498)로
    −2.06%p 불통과였다(`probe-league-verdict.js` 실측: 오른쪽 끝은 −0.12%p 로 맞고 **왼쪽만 10px
@@ -4046,9 +4055,12 @@ body {
 .rates-sub { font-size: .82rem; font-weight: 800; color: var(--pp-ink); }
 .tri-btn {
     width: 1.77rem; /* 원본 30px */ height: 2.2rem; cursor: pointer;
-    background: none; border: none; padding: 0;
-    color: var(--pp-blue); font-size: 1.7rem; font-weight: 900; line-height: 1;
-    -webkit-text-stroke: 4px #17181a; paint-order: stroke fill;   /* 4방향 그림자 → 스트로크 (ⓖ 뭉개짐) */
+    background: none; border: none; padding: 0; font-size: 0; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    /* 삼각형은 캔버스 아이콘이다(`.tri-btn .ico`). 종전의 `font-size:1.7rem + -webkit-text-stroke`
+       조합은 **글리프**라 플랫폼마다 크기·좌우 여백이 달라졌고, 스트로크 색도 #17181a 로 다른
+       아이콘의 순검정 키라인과 갈렸다. 상자 크기는 그대로 둔다 — 아이콘이 상자보다 넓어도
+       가운데 정렬이라 잉크 중심은 안 움직인다(위치 계약은 `.dgd-stage-row` gap 이 쥔다). */
 }
 .tri-btn:active { transform: translateY(.1rem); }
 /* 원본 바 29px · 간격 4px(피치 33px) — 한 줄만 보면 +0.34%p 라 통과지만 6줄이 쌓여 +27.8px 다 */
@@ -4643,10 +4655,14 @@ body {
    29,29 → 25 에서 역산한 빨간 면 반경 3.5px + 검정 테 2px). 클론 상자 높이 16.7px 기준 3.7px
    = 앱 폭의 0.94%. 종전 50%/.6rem 은 세로 22.6px 상자에서 통짜 알약으로 읽혔다. */
 .btn.back-btn { font-size: 0; border-radius: calc(var(--app-w) * .0094); }
-.back-btn::before {
-    content: ''; position: absolute; left: 25.8%; top: 14.3%; width: 38.7%; height: 66.7%;
-    background: #fff; clip-path: polygon(100% 0, 100% 100%, 0 50%);
-}
+/* 🚨 여기 있던 `.back-btn::before`(clip-path 흰 삼각형)는 **폐기했다**(2026-08-19 icon-gen).
+   같은 결함('글리프가 빨간 면 밖으로 샌다')을 두 세션이 동시에 고쳤고, 지금은 삼각형을
+   `IconGen.draw.tri_left` 아이콘이 그린다(2222행). ::before 를 남겨 두면 **삼각형이 둘 그려진다.**
+   아이콘 쪽을 택한 이유: 원본을 ASCII 로 확대해 보면 흰 삼각형 둘레에 **순검정 키라인 2px** 이
+   있는데(`tools/probe-tri-ref.js`), CSS 삼각형으로는 그 테를 그릴 수 없다 — 화면의 다른 아이콘이
+   전부 쓰는 스티커 화법에서 이 표시만 빠져 있었다. 면 밖으로 새는 문제도 아이콘 쪽이 같이 해결한다
+   (`probe-tri-dom` 이 잉크 크기·키라인을 계약으로 잡는다). **되돌리지 말 것.**
+   위 `.btn.back-btn { font-size:0; border-radius }` 는 그 세션의 실측값이라 그대로 살렸다. */
 .summon-bar .btn.x5-toggle { /* 소환 바 공통 — 스킬(패널)·펫(패널)·탈것(모달) 세 곳 통일 (QA: 탈것 x1 늘어남·◀ 겹침) */
     background: #fff; border: var(--ol3) solid var(--pp-blue); color: var(--pp-blue);
     /* 원본 40x18px (8.06%W x 2.02%H) */
@@ -4754,7 +4770,9 @@ body {
       43.05px(2.56rem) + 18.7 = 61.75px = 앱 폭의 12.37%. rem 은 루트 글꼴(16.82px)에 매여 있어
       뷰포트가 바뀌면 목표에서 벗어나므로 다른 실측값들처럼 --app-w 비율로 못박는다. */
 .dgd-stage-row { display: flex; align-items: center; justify-content: center; gap: calc(var(--app-w) * .1237); margin: .3rem 0 .5rem; }
-.dgd-stage-row .tri-btn { font-size: 2.34rem; }
+/* 던전 상세의 ◀▶ 는 소환 확률 팝업보다 한 뼘 크다 — 원본 실측 파란 잉크 **26×29px**(042304)
+   대 25×27px(042521). 29 ÷ 0.81 = 35.8px = 앱 세로의 4.0%. */
+.dgd-stage-row .tri-btn .ico { width: calc(var(--app-h) * .0400); height: calc(var(--app-h) * .0400); }
 .dgd-stage { text-align: center; line-height: 1.15; }
 .dgd-stage span { display: block; font-size: .88rem; font-weight: 900; color: var(--pp-ink); }
 .dgd-stage b { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); }
@@ -7272,11 +7290,11 @@ body {
 }
 /* ⑦ 슬롯 라벨 — 저대비 분홍 글자에 다크 아웃라인 스크림(색값 불변) */
 .equip-cell .slot-name { text-shadow: 0 1px 2px rgba(0,0,0,.65), 0 0 2px rgba(0,0,0,.45); }
-/* ⑧ 뒤로가기 ◀ — 글리프에 명암(위 하이라이트·아래 그림자), 컨테이너 광택은 5차 버튼 규격이 이미 적용 */
-.back-btn, .sheet-back-btn, .hatch-back { text-shadow: 0 1px 0 rgba(255,255,255,.30), 0 -1px 1px rgba(0,0,0,.35); }
-/* `.back-btn` 계열도 이제 문자가 아니라 ::before 삼각형이라(4610행) 같은 그늘을 여기서 받는다 —
-   위 text-shadow 는 font-size:0 이 된 뒤로 이 세 버튼에서 아무것도 안 그린다. */
-.league-back-btn::before, .back-btn::before { filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
+/* ⑧ 뒤로가기 ◀ — 삼각형에 명암(아래로 떨어지는 그림자 한 겹), 컨테이너 광택은 5차 버튼 규격이 이미 적용.
+   ⚠️ 종전의 `text-shadow` 는 **글리프 전용**이라 삼각형이 캔버스 아이콘으로 바뀐 뒤로는 아무 효과가
+   없다(빈 텍스트 노드에 걸린다) — 아이콘에 걸리는 `drop-shadow` 로 옮긴다. */
+.back-btn .ico, .sheet-back-btn .ico, .hatch-back .ico,
+.league-back-btn .ico, .tech-tree-back .ico, .tri-btn .ico { filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
 /* ⑨ 시트 헤더 위계 — 헤더 아래 부드러운 구분 그늘 한 겹 */
 .sheet-head { box-shadow: 0 .12rem .16rem -.08rem rgba(23,24,26,.18); }
 

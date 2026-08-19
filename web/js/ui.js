@@ -1,4 +1,8 @@
 // ===== UI: 탭/패널/HUD/모달/토스트 =====
+/* 좌우 스텝 삼각형(◀▶)의 채움색. 원본 shot-042521 소환 확률 팝업의 파란 삼각형 실측이
+   정확히 `#005dff` 로, css `--pp-blue` 와 같은 값이다 — 캔버스 아이콘은 CSS 변수를 못 읽으니
+   여기 한 곳에만 리터럴을 둔다(팔레트가 바뀌면 두 곳을 같이 고칠 것). */
+const TRI_BLUE = { tint: '#005dff' };
 const UI = {
     els: {},
     activeTab: null,
@@ -3574,7 +3578,7 @@ const UI = {
                 </div>
             </div>
             <div class="hatchery">
-                <button class="btn danger round back-btn hatch-back" onclick="UI.switchTab(null)">◀</button>
+                <button class="btn danger round back-btn hatch-back" onclick="UI.switchTab(null)">${IconGen.img("tri_left")}</button>
                 <div class="hatch-row">${hatchHtml}</div>
                 ${Pets.canBuySlot() ? `<button class="btn xs slot-buy" onclick="UI.onBuyHatchSlot()">슬롯 +1<br>${IconGen.img('gem')} ${Pets.slotCost()}</button>` : ''}
             </div>`;
@@ -3876,7 +3880,7 @@ const UI = {
                 <button class="btn sm primary sk-action-btn" onclick="UI.onQuickEquipSkills()">빠른 장착</button>
             </div>
             <div class="summon-bar">
-                <button class="btn danger round back-btn" onclick="UI.switchTab(null)">◀</button>
+                <button class="btn danger round back-btn" onclick="UI.switchTab(null)">${IconGen.img("tri_left")}</button>
                 <button class="btn xs x5-toggle ${skillSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('skill')">x${skillSummonN}</button>
                 ${Ascension.ready('skill')
                     ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('skill')">${IconGen.img('star')} 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
@@ -3944,9 +3948,9 @@ const UI = {
             <div class="idet-wrap rates-wrap">
                 <div class="modal-card paper rates-card">
                     <div class="rates-head">
-                        <button class="tri-btn" onclick="UI.stepSummonRates(-1)">◀</button>
+                        <button class="tri-btn" onclick="UI.stepSummonRates(-1)">${IconGen.img("tri_left", null, TRI_BLUE)}</button>
                         <div><h3>레벨 ${lvl}</h3><div class="rates-sub">소환 확률</div></div>
-                        <button class="tri-btn" onclick="UI.stepSummonRates(1)">▶</button>
+                        <button class="tri-btn" onclick="UI.stepSummonRates(1)">${IconGen.img("tri_right", null, TRI_BLUE)}</button>
                     </div>
                     <button class="rates-i" onclick="UI.toast('소환 레벨이 오르면 높은 등급 확률이 올라갑니다')">i</button>
                     <div class="rate-list">${barsHtml}</div>
@@ -4108,7 +4112,7 @@ const UI = {
                 <h3 class="sheet-title">던전</h3>
                 <p class="sheet-sub">던전 열쇠는 매일 09:00에 보충됩니다. 열쇠는 던전을 완료할 때만 소모됩니다</p>
                 <div class="dungeon-list">${bannerHtml}</div>
-                <button class="league-back-btn sheet-back-btn" onclick="UI.closeDungeons()">◀</button>
+                <button class="league-back-btn sheet-back-btn" onclick="UI.closeDungeons()">${IconGen.img("tri_left")}</button>
             </div>`;
         this.showModal(this.els.dungeonModal);
     },
@@ -4153,7 +4157,7 @@ const UI = {
                 <p class="sheet-sub">모든 퀘스트는 수령해도 같은 내용으로 반복됩니다</p>
                 ${claimAllBtn}
                 <div class="quest-list">${rows}</div>
-                <button class="league-back-btn sheet-back-btn" onclick="UI.closeQuests()">◀</button>
+                <button class="league-back-btn sheet-back-btn" onclick="UI.closeQuests()">${IconGen.img("tri_left")}</button>
             </div>`;
         this.showModal(this.els.questModal);
     },
@@ -4234,9 +4238,9 @@ const UI = {
                 <div class="modal-card paper dgd-card">
                     <div class="dg-detail-hero ${this.dgSceneCls(d)}" style="--bg:${hex}">${this.dgHeroIcon(d)}<span class="dgd-title">${d.kr}</span></div>
                     <div class="dgd-stage-row">
-                        <button class="tri-btn" onclick="UI.onDungeonStageStep(-1)" style="visibility:${stage <= 1 ? 'hidden' : 'visible'}">◀</button>
+                        <button class="tri-btn" onclick="UI.onDungeonStageStep(-1)" style="visibility:${stage <= 1 ? 'hidden' : 'visible'}">${IconGen.img("tri_left", null, TRI_BLUE)}</button>
                         <div class="dgd-stage"><span>난이도</span><b>${this.dgStageText(stage)}</b></div>
-                        <button class="tri-btn" onclick="UI.onDungeonStageStep(1)" style="visibility:${stage >= best + 1 ? 'hidden' : 'visible'}">▶</button>
+                        <button class="tri-btn" onclick="UI.onDungeonStageStep(1)" style="visibility:${stage >= best + 1 ? 'hidden' : 'visible'}">${IconGen.img("tri_right", null, TRI_BLUE)}</button>
                     </div>
                     <div class="dgd-reward-pill"><span class="dgd-reward-label">보상:</span>${this.iconizeHTML(Dungeons.rewardText(id, stage, '  '))}</div>
                     <div class="dgd-keys">${IconGen.img('key')} ${keys}/${Dungeons.MAX_KEYS}</div>
@@ -4338,7 +4342,7 @@ const UI = {
                 <div class="league-foot">
                     <div class="league-pinned">${this.leagueRow(me, myRank)}</div>
                     <div class="league-actions">
-                        <button class="league-back-btn" onclick="UI.closeLeague()">◀</button>
+                        <button class="league-back-btn" onclick="UI.closeLeague()">${IconGen.img("tri_left")}</button>
                         <button class="btn primary" onclick="UI.openLeagueChallenge()">도전</button>
                     </div>
                 </div>
@@ -4560,7 +4564,7 @@ const UI = {
                 <div class="shop-deals">${dealsHtml}</div>
                 <div class="shop-banner">보석</div>
                 <div class="shop-gems">${gemsHtml}</div>
-                <button class="league-back-btn sheet-back-btn" onclick="UI.closeShop()">◀</button>
+                <button class="league-back-btn sheet-back-btn" onclick="UI.closeShop()">${IconGen.img("tri_left")}</button>
             </div>`;
     },
     onClaimDeal(key, btn) {
@@ -4883,7 +4887,7 @@ const UI = {
             <div class="modal-card chat-card">
                 <div class="chat-list" id="chat-list" data-own-scroll onscroll="UI.onChatScroll()"></div>
                 <div class="chat-input-bar">
-                    <button class="btn danger round" onclick="UI.closeChat()">◀</button>
+                    <button class="btn danger round" onclick="UI.closeChat()">${IconGen.img("tri_left")}</button>
                     <input id="chat-input" type="text" placeholder="메시지 보내기..." maxlength="200"
                         onkeydown="if(event.key==='Enter') UI.onSendChat()">
                 </div>
@@ -4958,7 +4962,7 @@ const UI = {
                 <span class="cur-pill gem">${IconGen.img('gem')} ${U.fmt(S.gems)}</span>
             </div>
             <div class="tech-branch-grid">${cardsHtml}</div>
-            <button class="league-back-btn sheet-back-btn" onclick="UI.switchTab(null)">◀</button>`;
+            <button class="league-back-btn sheet-back-btn" onclick="UI.switchTab(null)">${IconGen.img("tri_left")}</button>`;
     },
     // 분기 상세: **단계가 가로 블록**인 5단계 트리 (사용자 재정정 2026-08-17 4회차).
     // 한 단계에 그 분기의 타입이 전부 놓이고(폭이 좁아 2개씩 흘려 쌓는다), 같은 타입이
@@ -5024,7 +5028,7 @@ const UI = {
                  ⚠️ ! 로 되돌리지 말 것: 원본 우상단은 검정 원 안 흰 i 이고, 한 스타일이 화면마다 다른 글자를 쓰면 안 된다. -->
             <button class="fi-info-btn tech-branch-info" onclick="UI.openTechBonuses()">i</button>
             <div class="tech-tree-col"><svg class="tech-tree-links" aria-hidden="true"></svg>${rowsHtml.join('')}</div>
-            <button class="btn danger tech-tree-back" onclick="UI.openTechOverview()">◀</button>`;
+            <button class="btn danger tech-tree-back" onclick="UI.openTechOverview()">${IconGen.img("tri_left")}</button>`;
         this.drawTechLinks();
     },
     // 연결선 그리기 (사용자 재지적 2026-08-18 — "일자로만 가지 말고 한 덩어리로 보이게"):
@@ -5225,7 +5229,7 @@ const UI = {
                 <div class="mount-pill-row"><span class="cur-pill winder">${IconGen.img('winder')} ${U.fmt(S.winders || 0)}</span></div>
                 <div class="grid-scroll"><div class="sk-grid">${tiles}</div></div>
                 <div class="summon-bar">
-                    <button class="btn danger round back-btn" onclick="UI.closeMounts()">◀</button>
+                    <button class="btn danger round back-btn" onclick="UI.closeMounts()">${IconGen.img("tri_left")}</button>
                     <button class="btn xs x5-toggle ${mountSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('mount')">x${mountSummonN}</button>
                     ${Ascension.ready('mount')
                         ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('mount')">${IconGen.img('star')} 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
