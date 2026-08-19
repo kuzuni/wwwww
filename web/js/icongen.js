@@ -2375,56 +2375,83 @@ IconGen._genderSym = function (ctx, S, female) {
         on(ctx, circle(ctx, S, 0.588, 0.582, 0.036), 'rgba(255,255,255,.9)');
     };
 
-    // ---- 던전: 돌 아치 성문 + 포트컬리스 (사용자 지시 2026-08-19 "던전 아이콘은 던전 문처럼") ----
+    // ---- 던전: 붉은 나무 아치문 + 좌우 횃불 (사용자 지시 2026-08-19 "던전 아이콘은 던전 문처럼") ----
     // 옛 PVP 의 '방패 깃발 + 교차 검'이 여기 있었는데, 길드 문장으로 읽힌다는 지적으로 폐기했다
     // (해골+단검이 PVP 로 올라갔다 — 위 tab_pvp 참조).
-    // 원본 탭바에 대응 칸이 없는 신규 아이콘이라 형태는 옆 4종과 같은 규약으로만 맞춘다:
-    // ⓐ 순검정 키라인 하나로 실루엣 ⓑ 채움 2톤(밝은 면 + 아래 그림자) ⓒ 스페큘러 한 점
-    // ⓓ 50px 축소에서 살아남는 건 '아치 + 검은 구멍 + 굵은 창살'뿐이라 돌 이음매·경첩·횃불은 안 넣는다.
+    //
+    // 🚨 **원본에 대응 그림이 있다 — 없다고 적어 둔 앞 메모가 틀렸다 (2026-08-19 실측).**
+    //    원본 탭바(shot-042120) **1번 칸('방', 지금은 삭제된 탭)이 바로 아치문**이다. 8배로 떠서
+    //    확인했다: 회색 돌 아치테 + **붉은 나무 문짝**(rgb 145,53,33 — 이 칸 유채색 최빈값) +
+    //    세로 널 3장 + 가운데 **검은 원형 노커** + 아래쪽 밝은 갈색 가로 띠 + 회색 문지방,
+    //    그리고 **좌우에 횃불 두 개**. 대응 칸이 없다고 보고 새로 지어낸 '베이지 돌 성문 +
+    //    흰 포트컬리스'는 그래서 원본 화풍에서 혼자 떨어져 나와 있었다 — `probe-icon-style.js`
+    //    실측이 그걸 그대로 보여준다: 이 칸만 **채도 평균 0.187 · 상위10% 0.377** 로, 옆 5종
+    //    (0.43~0.87)과 원본 문짝 칸(0.554 / 0.851)의 절반도 안 됐다. 50px 로 줄이면 대비가
+    //    없어 '회색 덩어리'로 뭉갠다(대조 시트 `tools/shot-tabbar-cmp.js` 육안 확인).
+    //    → 원본 문짝을 좌표·색까지 그대로 옮긴다. 치수는 원본 잉크 bbox(51×45px)에서 역산했다.
+    // ⓐ 순검정 키라인 하나로 실루엣 ⓑ 채움 2톤 ⓒ 50px 에서 살아남는 디테일만(널 이음선·노커·
+    //    가로 띠·문지방·횃불 — 원본에 있는 손잡이 고리와 돌 이음매는 1px 미만이라 뺐다).
     G.draw.tab_dungeon = function (ctx, S) {
-        const stone = '#a89078', stoneDk = '#6d5a44', hollow = '#141414', iron = '#d2d2d2', ironDk = '#8a8a8a';
-        // 바깥 아치 = 반원 머리 + 곧은 기둥. 바닥을 아이콘 아래 끝까지 내려 '땅에 선 문'으로 읽히게 한다
-        // (아래를 띄우면 문이 아니라 열쇠구멍/무덤 비석으로 보인다).
-        const outer = () => {
-            ctx.moveTo(0.088 * S, 0.940 * S);
-            ctx.lineTo(0.088 * S, 0.474 * S);
-            ctx.arc(0.500 * S, 0.474 * S, 0.412 * S, Math.PI, 0);
-            ctx.lineTo(0.912 * S, 0.940 * S);
-            ctx.closePath();
-        };
-        ink(ctx, S, outer, stone, 0.068);
-        ctx.save(); ctx.beginPath(); outer(); ctx.clip();
-        on(ctx, rrect(ctx, S, 0.088, 0.646, 0.824, 0.294, 0), stoneDk);       // 아래 ~30% 그림자 (2톤 규약)
-        ctx.restore();
-        // 문 구멍 — 이 **검은 공동**이 던전 아이콘의 정체다(작게 줄여도 이것만은 안 뭉갠다)
-        const hollowPath = () => {
-            ctx.moveTo(0.256 * S, 0.940 * S);
-            ctx.lineTo(0.256 * S, 0.520 * S);
-            ctx.arc(0.500 * S, 0.520 * S, 0.244 * S, Math.PI, 0);
-            ctx.lineTo(0.744 * S, 0.940 * S);
-            ctx.closePath();
-        };
-        ink(ctx, S, hollowPath, hollow, 0.052);
-        // 창살(포트컬리스) — 구멍 안으로 clip. 굵기 0.080 은 50px 축소에서 4px 라 1px 로 안 사라진다.
-        ctx.save(); ctx.beginPath(); hollowPath(); ctx.clip();
-        [0.352, 0.500, 0.648].forEach(x => {
-            on(ctx, rrect(ctx, S, x - 0.040, 0.300, 0.080, 0.640, 0.020), iron);
-            on(ctx, rrect(ctx, S, x + 0.006, 0.300, 0.034, 0.640, 0.014), ironDk);   // 창살마다 오른쪽 면만 어둡게(원기둥감)
+        const stone = '#b0adb5', stoneDk = '#7e7b85',      // 아치테(원본 회색-보라 계열)
+            wood = '#913521', woodDk = '#6b2416',          // 문짝(원본 최빈 유채색 rgb 145,53,33)
+            band = '#a86a34', sill = '#5b4f5c', knob = '#2a2530',
+            flame = '#f0a51f', flameHi = '#ffd66a', sconce = '#3a3038', sconceLt = '#9c96a2';
+        const ARCH_X = 0.498, ARCH_R = 0.285, ARCH_Y = 0.415, FLOOR = 0.8305;   // 아치테
+        const DOOR_R = 0.234, DOOR_Y = 0.419;                                   // 문짝(테 안쪽)
+
+        // 횃불 좌우 — **먼저** 그려서 아치테 뒤로 들어가게 한다(원본도 벽에 붙어 있다).
+        // 이 주황 두 점이 이 아이콘의 유일한 고채도 화소다: 빼면 채도 지표가 다시 반토막 난다.
+        [0.107, 0.893].forEach(tx => {
+            // ⚠️ 자루를 통째로 어두운 색 하나로 두면 **근흑 탭바 배경에 먹혀 불꽃만 공중에 뜬다**
+            //    (첫 시안이 그랬다 — 대조 시트에서 '촛불 두 점'으로 보였다). 원본처럼
+            //    **밝은 회색 몸통 + 위아래 어두운 테**의 3단으로 나눠야 자루가 배경에서 떨어진다.
+            ink(ctx, S, poly(ctx, S, [[tx - 0.050, 0.470], [tx + 0.050, 0.470], [tx + 0.024, 0.700], [tx - 0.024, 0.700]]), sconceLt, 0.048);
+            on(ctx, rrect(ctx, S, tx - 0.052, 0.462, 0.104, 0.052, 0.014), sconce);     // 위 테(불꽃 받침)
+            on(ctx, poly(ctx, S, [[tx - 0.032, 0.618], [tx + 0.032, 0.618], [tx + 0.022, 0.700], [tx - 0.022, 0.700]]), sconce);   // 아래로 좁아지는 꼬리
+            ink(ctx, S, () => {                                    // 불꽃 — 위로 뾰족한 물방울
+                ctx.moveTo(tx * S, 0.276 * S);
+                ctx.bezierCurveTo((tx + 0.066) * S, 0.366 * S, (tx + 0.062) * S, 0.450 * S, tx * S, 0.470 * S);
+                ctx.bezierCurveTo((tx - 0.062) * S, 0.450 * S, (tx - 0.066) * S, 0.366 * S, tx * S, 0.276 * S);
+                ctx.closePath();
+            }, flame, 0.044);
+            on(ctx, ell(ctx, S, tx, 0.398, 0.022, 0.042), flameHi);   // 불꽃 심 — 1점만
         });
-        on(ctx, rrect(ctx, S, 0.256, 0.606, 0.488, 0.072, 0.022), iron);       // 가로 띠 하나 — 세로줄 3개가 '격자'로 묶인다
-        ctx.restore();
-        // 머릿돌(키스톤) — 아치 꼭대기의 쐐기돌. 디테일 3개째이자 '성문'으로 읽히게 하는 결정타다.
-        // ⚠️ 두 번 틀렸다: ⓐ 아치와 같은 색으로 두면 키라인만 남아 128px 에서도 안 읽혔다(→ 한 톤 밝은 돌)
-        //   ⓑ 사다리꼴을 **위가 좁게** 뒤집어 놨더니 아치에 붙인 '병뚜껑 딱지'로 보였다 — 쐐기돌은
-        //     위가 넓고 아래로 좁아지며, **윗변이 아치 바깥 곡선을 그대로 타야** 박혀 있는 돌이 된다.
-        const kw = Math.asin(0.098 / 0.412);   // 아치 중심에서 본 머릿돌 반각 — 윗변을 곡선에 맞추는 값
-        ink(ctx, S, () => {
-            ctx.arc(0.500 * S, 0.474 * S, 0.412 * S, Math.PI * 1.5 - kw, Math.PI * 1.5 + kw);
-            ctx.lineTo(0.566 * S, 0.300 * S);   // 아래로 좁아지는 쐐기 — 끝은 문 구멍 윗선(0.276)에 닿는다
-            ctx.lineTo(0.434 * S, 0.300 * S);
+
+        // 아치테(돌) = 반원 머리 + 곧은 기둥. 바닥을 문지방까지 내려 '땅에 선 문'으로 읽히게 한다.
+        const frame = () => {
+            ctx.moveTo((ARCH_X - ARCH_R) * S, FLOOR * S);
+            ctx.lineTo((ARCH_X - ARCH_R) * S, ARCH_Y * S);
+            ctx.arc(ARCH_X * S, ARCH_Y * S, ARCH_R * S, Math.PI, 0);
+            ctx.lineTo((ARCH_X + ARCH_R) * S, FLOOR * S);
             ctx.closePath();
-        }, '#c8b096', 0.046);
-        on(ctx, circle(ctx, S, 0.206, 0.352, 0.050), 'rgba(255,255,255,.85)');  // 스페큘러 한 점
+        };
+        ink(ctx, S, frame, stone, 0.060);
+        ctx.save(); ctx.beginPath(); frame(); ctx.clip();
+        on(ctx, rrect(ctx, S, ARCH_X - ARCH_R, FLOOR - 0.150, ARCH_R * 2, 0.150, 0), stoneDk);   // 테 아래 그림자(2톤)
+        ctx.restore();
+
+        // 문짝 — 아치테 안쪽에 같은 곡률로 앉는다. 이 붉은 면이 아이콘의 정체다.
+        const door = () => {
+            ctx.moveTo((ARCH_X - DOOR_R) * S, FLOOR * S);
+            ctx.lineTo((ARCH_X - DOOR_R) * S, DOOR_Y * S);
+            ctx.arc(ARCH_X * S, DOOR_Y * S, DOOR_R * S, Math.PI, 0);
+            ctx.lineTo((ARCH_X + DOOR_R) * S, FLOOR * S);
+            ctx.closePath();
+        };
+        ink(ctx, S, door, wood, 0.052);
+        ctx.save(); ctx.beginPath(); door(); ctx.clip();
+        on(ctx, rrect(ctx, S, ARCH_X - DOOR_R, 0.700, DOOR_R * 2, 0.200, 0), woodDk);            // 아래 그림자
+        // 세로 널 이음선 2줄 — 문짝이 널 3장으로 읽히게 하는 최소 디테일(같은 간격이라야 판자다)
+        [ARCH_X - 0.078, ARCH_X + 0.078].forEach(x => on(ctx, rrect(ctx, S, x - 0.017, 0.150, 0.034, 0.760, 0), K));
+        on(ctx, rrect(ctx, S, ARCH_X - DOOR_R, 0.674, DOOR_R * 2, 0.046, 0), band);              // 밝은 갈색 가로 띠
+        on(ctx, rrect(ctx, S, ARCH_X - DOOR_R, 0.720, DOOR_R * 2, 0.016, 0), K);                 // 띠 아래 그림자선
+        ctx.restore();
+        // 노커(검은 원) — 널 이음선을 가로질러 앉아야 '문에 박힌 쇠붙이'가 된다. 50px 에서도 안 뭉갠다.
+        ink(ctx, S, circle(ctx, S, ARCH_X, 0.388, 0.086), knob, 0.040);
+
+        // 문지방 — 문짝보다 양옆으로 튀어나와야 '바닥에 놓인 단'이 된다(옆 상점 아이콘과 같은 처리).
+        ink(ctx, S, rrect(ctx, S, 0.186, FLOOR, 0.634, 0.100, 0.018), sill, 0.048);
+        on(ctx, circle(ctx, S, ARCH_X - 0.180, 0.240, 0.042), 'rgba(255,255,255,.80)');          // 스페큘러 한 점
     };
 
     // ---- 퀘스트: 양피지 두루마리 (사용자 지시 2026-08-18 — 소환과 상점 사이 새 탭) ----

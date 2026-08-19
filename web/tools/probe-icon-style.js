@@ -114,13 +114,24 @@ const inPage = async (page, src, y0, y1, cells) => page.evaluate(async ([s, code
     await page.evaluate(() => { if (typeof Scene3D !== 'undefined') Scene3D.update = function () { }; if (typeof Combat !== 'undefined') Combat.tick = function () { }; });
     await page.waitForTimeout(400);
     await page.addStyleTag({ content: '#tabbar button span{visibility:hidden!important}' });
-    const bar = await page.evaluate(() => { const b = document.getElementById('tabbar').getBoundingClientRect(); return { y: b.top, h: b.height }; });
+    const bar = await page.evaluate(() => {
+        const b = document.getElementById('tabbar').getBoundingClientRect();
+        return { y: b.top, h: b.height, tabs: [...document.querySelectorAll('#tabbar button')].map(x => x.dataset.tab) };
+    });
     const shot = await page.screenshot({ clip: { x: 0, y: bar.y, width: VW, height: bar.h } });
-    const clone = await inPage(page, 'data:image/png;base64,' + shot.toString('base64'), null, null, 4);
+    // 🚨 칸 수는 **DOM 의 버튼 수에서 읽는다.** 4 로 박아 두면(탭이 4개이던 시절의 값) 6버튼 탭바를
+    //    4등분해 **칸마다 아이콘 1.5개**를 한 덩어리로 재고, 그 덩어리에 낀 배경까지 잉크로 세서
+    //    '순검정 비율이 원본의 절반'·'잉크가 1.5배' 같은 유령 수치가 나온다(실측으로 확인).
+    const clone = await inPage(page, 'data:image/png;base64,' + shot.toString('base64'), null, null, bar.tabs.length);
     await browser.close();
 
-    const REFN = ['던전', '방(삭제)', '소환', 'PVP', '상점'];
-    const CLN = ['PVP', '던전', '소환', '상점'];
+    const REFN = ['해골+단검', '방(삭제)', '소환', '방패깃발(폐기)', '상점'];
+    const LABEL = { pvp: 'PVP', dungeon: '던전', summon: '소환', quest: '퀘스트', shop: '상점', debug: '디버그' };
+    const CLN = bar.tabs.map(t => LABEL[t] || t);
+    // 원본↔클론 짝. `pvp-dungeon-icon-swap`(2026-08-19) 이후 **해골+단검 그림이 PVP 칸으로 옮겨졌다.**
+    // 던전은 원본 1번 칸('방', 삭제된 탭)의 아치문을 그대로 옮겨 그린 것이라 그 칸이 짝이다.
+    // 짝이 없는 칸은 퀘스트(두루마리)·디버그(무당벌레) 둘뿐 — 원본에 대응 그림이 아예 없다.
+    const PAIR = { pvp: 0, dungeon: 1, summon: 2, shop: 4 };
     const row = (n, c) => `  ${n.padEnd(9)} 키라인 ${String(c.keyMedian).padStart(2)}px ${c.keyRGB ? 'rgb(' + c.keyRGB.join(',') + ')' : '없음'}` +
         ` · 채도 평균 ${c.satAvg} 상위10% ${c.satTop10} · 명도 ${c.valAvg}` +
         ` · 순백 ${c.purePureWhitePct}% 순검정 ${c.pureBlackPct}% · 잉크 ${c.inkPx}px`;
@@ -129,10 +140,16 @@ const inPage = async (page, src, y0, y1, cells) => page.evaluate(async ([s, code
     console.log(`\n클론 (native 499px 폭 캡처):`);
     clone.cells.forEach((c, i) => console.log(row(CLN[i], c)));
 
+    // 요약은 **짝이 있는 칸끼리만** 평균낸다. 짝 없는 칸(던전·퀘스트·디버그)을 섞으면
+    // 원본에 없는 그림의 화풍이 평균을 흔들어 '원본과 얼마나 다른가'가 안 나온다.
     const mean = (arr, k) => +(arr.reduce((a, c) => a + c[k], 0) / arr.length).toFixed(3);
-    const refUse = [ref.cells[0], ref.cells[2], ref.cells[3], ref.cells[4]];   // 방(삭제) 제외
-    console.log('\n요약 (원본 4칸 평균 → 클론 4칸 평균):');
-    for (const k of ['keyMedian', 'satAvg', 'satTop10', 'valAvg', 'purePureWhitePct', 'pureBlackPct']) {
-        console.log(`  ${k.padEnd(17)} ${mean(refUse, k)} → ${mean(clone.cells, k)}`);
+    const pairs = Object.entries(PAIR)
+        .map(([tab, ri]) => ({ tab, r: ref.cells[ri], c: clone.cells[bar.tabs.indexOf(tab)] }))
+        .filter(p => p.r && p.c);
+    console.log(`\n짝 있는 ${pairs.length}칸 대조 (원본 → 클론):`);
+    for (const k of ['keyMedian', 'satAvg', 'satTop10', 'valAvg', 'purePureWhitePct', 'pureBlackPct', 'inkPx']) {
+        const rv = mean(pairs.map(p => p.r), k), cv = mean(pairs.map(p => p.c), k);
+        const per = pairs.map(p => `${LABEL[p.tab]} ${p.r[k]}→${p.c[k]}`).join(' · ');
+        console.log(`  ${k.padEnd(17)} 평균 ${rv} → ${cv}   [${per}]`);
     }
 })();

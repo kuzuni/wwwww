@@ -184,11 +184,18 @@ const SCAN = function (data, W, y0, y1, cells) {
     const bandD = pctH(dom.band.h) - pctH(ref.band[1] - ref.band[0]);
     console.log(`  밴드 높이 Δ ${bandD >= 0 ? '+' : ''}${bandD.toFixed(2)}%p  ${Math.abs(bandD) <= 2 ? 'OK' : 'FAIL'}`);
 
-    // 원본 순서 [던전, 방, 소환, PVP, 상점]. '방'은 삭제됐지만 그 자리에 **퀘스트**가 들어와
-    // 다시 5칸이 됐으므로, 신규 퀘스트 아이콘은 원본 1번 칸(방)을 **크기 기준으로만** 견준다
+    // 원본 순서 [해골+단검, 방, 소환, 방패깃발, 상점]. '방'은 삭제됐지만 그 자리에 **퀘스트**가
+    // 들어와 다시 5칸이 됐으므로, 신규 퀘스트 아이콘은 원본 1번 칸(방)을 **크기 기준으로만** 견준다
     // (모양은 대응 원본이 없는 신규 아이콘이라 잉크 bbox 치수만 같은 급인지 본다).
-    // 디버그는 원본에 없는 칸이라 refIdx 에 자리가 없다 — 아래에서 '원본 긴 변 평균'과만 견준다.
-    const refIdx = { dungeon: 0, quest: 1, summon: 2, pvp: 3, shop: 4 };
+    // 🚨 **`pvp-dungeon-icon-swap`(사용자 지시 2026-08-19) 이후 짝이 바뀌었다 — 여기를 안 고치면
+    //    멀쩡한 화면이 상시 FAIL 로 뜬다(실측: `pvp` 가 원본 3번 칸과 견줘져 Δ −3.01%p FAIL).**
+    //    ⓐ 원본 0번 칸의 **해골+단검**은 이제 클론의 **PVP** 칸이 그린다(그림은 한 획도 안 바뀌었다).
+    //    ⓑ 클론의 **던전**은 원본 **1번 칸('방', 삭제된 탭)의 아치문**을 그대로 옮겨 그린 것이다
+    //       (2026-08-19 실측 — 앞 메모의 '대응 칸 없음'은 틀렸다). 그래서 1번 칸과 짝짓는다.
+    //    ⓒ 퀘스트(두루마리)는 원본에 대응 그림이 아예 없다 — 디버그와 같이 '원본 긴 변 평균'과만
+    //       견준다(종전엔 1번 칸을 크기 기준으로 빌려 썼는데, 이제 던전이 그 칸의 진짜 짝이다).
+    //    ⓓ 원본 3번 칸(방패 깃발+교차 검)은 '길드 문장으로 읽힌다'는 지적으로 폐기돼 짝이 없다.
+    const refIdx = { pvp: 0, dungeon: 1, summon: 2, shop: 4 };
     console.log('\n원본 5칸 잉크 bbox (%W×%H):');
     ref.cells.forEach((c, i) => console.log(`  [${i}] ${c ? `${pctW(c.w).toFixed(2)}×${pctH(c.h).toFixed(2)}  (${c.w}×${c.h}px)  ink=${c.ink}` : '없음'}`));
     const refLong = ref.cells.filter(Boolean).map(c => Math.max(pctW(c.w), pctH(c.h)));
