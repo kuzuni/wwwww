@@ -108,8 +108,12 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     ok('② 길이도 계속 늘어난다(정지한 별표가 아니다)', avg(normal.len.t2) > avg(normal.len.t0),
         `${avg(normal.len.t0).toFixed(3)} → ${avg(normal.len.t2).toFixed(3)}`);
     ok('③ 접점 링이 생긴다', normal.nRing >= 1, `${normal.nRing}개`);
-    ok('③ 링이 끝까지 퍼진다(정체 구간 없음)',
-        normal.ring.t2[0] > normal.ring.t1[0] && normal.ring.t1[0] > normal.ring.t0[0],
+    // ⚠️ '매 구간 반드시 커진다'로 재면 안 된다 — 히트스톱 구간에서는 `Scene3D.update` 가 dt 를 0 으로
+    //    눌러 앞쪽 샘플이 그대로 멈춘다(실측: t0 == t1 == 0.1856). 그건 정상이다.
+    //    진짜 결함은 **끝에서 멈춰 서는 것**이었으므로(expandRing 이 수명의 3/4을 정지한 채 알파만 뺐다)
+    //    '마지막 구간에도 계속 커지는가'로 판정한다.
+    ok('③ 링이 끝까지 퍼진다(끝에서 정체하지 않는다)',
+        normal.ring.t2[0] > normal.ring.t1[0] && normal.ring.t2[0] > normal.ring.t0[0],
         `${normal.ring.t0[0]} → ${normal.ring.t1[0]} → ${normal.ring.t2[0]}`);
     ok('④ 크리가 더 촘촘하다', crit.nSpike > normal.nSpike, `일반 ${normal.nSpike} → 크리 ${crit.nSpike}`);
     ok('④ 크리가 더 크다(스파이크·링 둘 다)',
