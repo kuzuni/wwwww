@@ -1327,7 +1327,17 @@ const ProChar = {
             //   쐐기 위치는 **바깥쪽 위** — 안쪽(코 쪽)에 두면 두 눈의 빈 자리가 코 양옆에서 마주 봐 얼굴
             //   가운데가 뚫린 것처럼 읽힌다. 왼눈 바깥은 −x(=π), 오른눈 바깥은 +x(=0), 거기서 위로 튼다.
             const wc = dx < 0 ? Math.PI - 0.42 : 0.42;
-            const sclera = new THREE.Mesh(new THREE.CircleGeometry(EYE_R, 30, wc + PIE / 2, Math.PI * 2 - PIE), new THREE.MeshBasicMaterial({ color: 0xffffff }));   // 순백 — 피부(크림)와 대비가 있어야 도려낸 자리가 보인다
+            // 🚨 **`toneMapped = false` 가 이 재질의 핵심이다 — 빼면 흰 눈이 피부에 묻힌다.**
+            //   흰자를 순백(0xffffff)으로 둔 의도는 "피부보다 밝아야 눈이 형태로 읽힌다" 인데,
+            //   기본값(toneMapped = true)이면 ACES 가 상단을 압축해 **255 가 234 로 눌린다.** 반면 피부는
+            //   조명을 받는 Standard 라 1.0 을 넘겨 들어와 압축 뒤에도 225 까지 올라온다 — 즉 흰자와
+            //   피부 차가 **ΔL 9.1** 밖에 안 남아 눈이 두상에 묻혔다. **재질 색만 보면 통과인데 화면에서는
+            //   실패하는 자리**라, 이건 화풍 문제가 아니라 렌더 버그다(그래서 화풍이 바뀌어도 유효하다).
+            //   흰자는 조명을 안 받는 플랫 도형이므로 톤매핑 대상이 아니다 — 빼면 255 로 나가 ΔL 30.0.
+            //   ⚠️ 눈을 voxel 큐브로 다시 짜더라도 **흰 면에는 이 플래그를 그대로 들고 갈 것**
+            //      (화풍 확정 2026-08-20 = voxel + 치비, "면당 플랫 색"이라 눌린 흰색은 그때 더 치명적이다).
+            //   게이트: `tools/probe-eye-contrast.js` (ΔL ≥ 30, 음성 대조 + 표본 독립성 검증 내장).
+            const sclera = new THREE.Mesh(new THREE.CircleGeometry(EYE_R, 30, wc + PIE / 2, Math.PI * 2 - PIE), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }));
             sclera.scale.set(1, EYE_SY, 1);
             sclera.userData.pieEye = true;   // 투구 가림 판정기(`probe-face-helmet-clear.js`)가 이 태그로 흰자만 집는다
             eye.add(sclera);
