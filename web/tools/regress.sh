@@ -17,6 +17,7 @@ for p in \
     probe-tools-wait-guard.js \
     probe-fire-color.js \
     probe-blade-exit.js \
+    probe-nova-beat.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1

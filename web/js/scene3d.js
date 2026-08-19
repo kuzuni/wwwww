@@ -15218,6 +15218,10 @@ const Scene3D = {
     //          — 정적 한 박자) → 폭발(거대 구각 2겹 + 수평 파동 + 전 적 동시 타격) → 여운(잔광·잉걸).
     // 화염구(투척 포물선 + 불의 고리 확산)와 운동 문법이 정반대다.
     NOVA_IMPACT_MS: 560,       // 폭발 시각(흡입 420 + 붕괴 140) — skillImpactWeight 지연과 동기
+    // 아래 셋은 판정기(`probe-nova-beat.js`)가 음성 대조에서 교정 전 값으로 되돌려 쓴다.
+    NOVA_SQUEEZE_MIN: 0.5,    // 붕괴 바닥 — 코어를 0 까지 조이면 폭발 직전에 '빈 프레임'이 난다
+    NOVA_SHELL_ADDITIVE: false,// 폭발 껍질을 가산으로 두면 밝은 배경 위에서 순백으로 클리핑된다
+    NOVA_SHELL_ALPHA: 0.5,     // 알파 합성 껍질의 불투명도
     supernovaBlast(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 4 : tier));
@@ -15280,14 +15284,24 @@ const Scene3D = {
             glow.material.opacity = 0.35 + k * 0.1;
             light.set(0.5 + k * (0.9 + pw * 0.8));
         }, () => {
-            // ⓑ 붕괴 0.14s — 커진 코어가 점으로 **조인다**(정적 한 박자 = 폭발 직전의 숨)
+            // ⓑ 붕괴 0.14s — 커진 코어가 **작고 뜨겁게 조인다**(정적 한 박자 = 폭발 직전의 숨)
+            // 🚨 예전엔 `max(0.06, 1-k)` 라 코어가 사실상 **0 까지 조여 화면에서 사라졌다** — 2차 비평가
+            //    2인이 일치로 "폭발 직전 빈 프레임 / 스킬이 취소된 것처럼 보인다"고 적었고, 실측으로도
+            //    690·720·750ms 세 컷의 연출 잉크가 275→64→**8화소**였다. 원신은 폭발 직전 코어를 죽이지
+            //    않는다: 최소 크기에서 **밝기를 더 올리며 홀드**해 긴장을 만든다. 조명도 프레임마다
+            //    곱해 내리던 것(프레임레이트 의존)을 **올라가는 곡선**으로 바꾼다 — 압축이 곧 충전이다.
+            const l0 = light.get();
             this.addAnim(0.14, k => {
-                const s = Math.max(0.06, 1 - k);
+                const s = Math.max(this.NOVA_SQUEEZE_MIN, 1 - k);
                 core.scale.setScalar(2.4 * s);
-                glow.scale.setScalar(2.8 * s * s);
+                core.material.opacity = 0.95 + 0.05 * k;
+                // 글로우를 `s*s` 로 조이면 코어보다 훨씬 빨리 사라져, 바닥을 깔아도 별이 안 보인다
+                // (실측: 바닥 0.42 에서도 연출 잉크가 154~275화소 = 화면의 0.06%). 선형으로 조인다.
+                glow.scale.setScalar(2.8 * s);
+                glow.material.opacity = 0.45 + k * 0.45;      // 조일수록 진해진다
                 inRing.material.opacity = 0.8 * (1 - k);
                 inRing.scale.setScalar(0.35 * (1 - k) + 0.05);
-                light.set(light.get() * 0.85);
+                light.set(l0 * (1 + k * 0.8));
             }, () => {
                 // ⓒ 폭발 — 구각 2겹 + 수평 파동 + 전 적 동시 타격
                 for (const m of motes) m.visible = false;
@@ -15303,12 +15317,18 @@ const Scene3D = {
                     this.explosion(m.g.position.clone(), color);
                 }
                 this.spawnSparks(C.clone(), Math.round(24 + pw * 26), color.getHex(), { speed: 1.8 + pw * 1.0 });
+                // 🚨 **팽창 껍질은 가산이면 안 된다** — 화염구(`firePillar`)와 정확히 같은 기전이다:
+                //    가산 + DoubleSide 라 밝은 배경 위에서 세 채널이 전부 클리핑돼 '순백 풍선'이 되고,
+                //    실측으로 순백이 화면의 **31.3% 를 120ms** 동안 덮었다(2차 2인 일치 지적).
+                //    바깥 껍질은 알파 합성으로 **색을 칠하고**, 백열은 안쪽 코어에 짧게만 남긴다.
+                if (!this.NOVA_SHELL_ADDITIVE) { glow.material.blending = THREE.NormalBlending; glow.material.needsUpdate = true; }
+                const shellA = this.NOVA_SHELL_ALPHA;
                 this.addAnim(0.5, k => {
                     const e = 1 - Math.pow(1 - k, 3);
                     core.scale.setScalar(0.2 + e * R * 5.5);           // 구각으로 팽창 (r0.16 기준 배율)
-                    core.material.opacity = 0.95 * (1 - e);
+                    core.material.opacity = 0.95 * Math.pow(1 - e, 2.4);   // 순백은 앞 몇 컷만
                     glow.scale.setScalar(0.2 + e * R * 4.6);
-                    glow.material.opacity = 0.8 * (1 - e * 0.9);
+                    glow.material.opacity = shellA * (1 - e * 0.85);
                     light.set((1.6 + pw * 1.2) * (1 - e * 0.8));
                     if (Math.random() < 0.6) this.riseParticle(new THREE.Vector3(C.x + U.rand(-R, R) * 0.5, 0.1, C.z + U.rand(-R, R) * 0.3), color);
                 }, () => {
