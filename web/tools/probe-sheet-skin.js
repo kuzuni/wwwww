@@ -1,5 +1,5 @@
-// 시트 바탕 · 장비 셀 스킨 패스 검증 — `ui-quality-up` 2차 슬라이스.
-// 짝: css/style.css 말미 '시트 바탕 · 장비 셀 AAA 스킨' 블록(같이 고칠 것).
+// 시트 바탕 · 장비 셀 · 팝업 카드 스킨 패스 검증 — `ui-quality-up` 2·3차 슬라이스.
+// 짝: css/style.css 말미 '시트 바탕 · 장비 셀 AAA 스킨' + '일반 팝업 카드 바탕 AAA 스킨' 블록(같이 고칠 것).
 //
 // 스킨 패스의 절대 조건은 1차(probe-tile-skin.js)와 같다: **레이아웃이 한 픽셀도 안 움직여야 한다.**
 // 비평가 게이트가 요소 박스 ±2%p 라서, 칠하는 속성(background-image/box-shadow)만 건드렸다면
@@ -30,6 +30,7 @@ const KILL_SKIN = `
     box-shadow: none !important; transition: none !important;
 }
 .equip-cell.empty { box-shadow: none !important; }
+.modal-card:not(.sheet) { background-image: none !important; box-shadow: 0 .5rem 0 rgba(0,0,0,.25) !important; }
 `;
 
 (async () => {
@@ -52,6 +53,11 @@ const KILL_SKIN = `
         ['quests', `UI.openQuests && UI.openQuests()`, '#quest-modal .modal-card.sheet, #quest-modal .qst-row'],
         ['dungeons', `UI.openDungeons()`, '#dungeon-modal .modal-card.sheet, #dungeon-modal .dg-banner'],
         ['pets', `UI.switchTab('summon'); UI.switchSummonSub('pets')`, '#panel-pets .sk-grid, #panel-pets .pet-tile'],
+        // 3차 슬라이스 — 가운데 정렬 팝업 카드(.modal-card:not(.sheet)) 바탕
+        ['player-info', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.openPlayerInfo()`,
+            '#player-info-modal .modal-card, #player-info-modal .modal-card .equip-cell, #player-info-modal .modal-card .btn'],
+        ['forge-info', `UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.openForgeInfo()`,
+            '.modal:not(.hidden) .modal-card:not(.sheet), .modal:not(.hidden) .modal-card:not(.sheet) .btn'],
     ];
     const boxesOf = sel => page.evaluate(s => {
         const R = e => { const r = e.getBoundingClientRect(); return [+r.left.toFixed(2), +r.top.toFixed(2), +r.width.toFixed(2), +r.height.toFixed(2)]; };
@@ -73,7 +79,9 @@ const KILL_SKIN = `
         await setSkin(false); await page.waitForTimeout(120);
         const without = await boxesOf(sel);
         await setSkin(true); await page.waitForTimeout(150);
-        await page.screenshot({ path: path.resolve(__dirname, `sheet-skin-${label}.png`) });
+        // screenshot 내부의 폰트 대기가 30s 로 터진다 — 상한을 먼저 소화하고 자체 타임아웃도 올린다(shot-screens.js 와 같은 처방).
+        await page.evaluate(() => Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))])).catch(() => { });
+        await page.screenshot({ path: path.resolve(__dirname, `sheet-skin-${label}.png`), timeout: 180000 });
 
         if (!withSkin.length) { console.log(`  FAIL ${label}: 요소를 못 찾음(${sel})`); fail++; continue; }
         if (withSkin.length !== without.length) { console.log(`  FAIL ${label}: 요소 수 ${without.length} → ${withSkin.length}`); fail++; continue; }

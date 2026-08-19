@@ -6503,3 +6503,22 @@ body {
 }
 /* 눌리는 물건으로 — 칸이 살짝 내려앉고 밝아진다(타일 면과 같은 탭 피드백) */
 .equip-cell:not(.egg-cell):not(.empty):active { transform: translateY(.08rem); filter: brightness(1.07); }
+
+/* ===== 일반 팝업 카드 바탕 AAA 스킨 (slug: ui-quality-up — 3차 슬라이스) =====
+   시트(전체화면)에 이어 **가운데 정렬 팝업 카드**(플레이어 정보·장비 상세·확률 정보·기술 노드·
+   비교 팝업 …)의 흰 바탕도 같은 화법으로 올린다. `.modal-card` 하나라서 팝업 수십 개가 같이 오른다.
+   ⚠️ 칠하는 속성만: background-image / box-shadow. 색값(`--pp-paper`)·테·라운드·패딩은 그대로다.
+   🚨 원래 하드 그림자 `0 .5rem 0 rgba(0,0,0,.25)`(카드가 떠 있는 원본 카툰 톤)를 **반드시 첫 층으로
+      유지**할 것 — 여기서 빼면 카드가 종이에 붙어 버린다.
+   🚨 시트는 제외한다(`:not(.sheet)`) — 시트는 위 블록에서 제 처방을 따로 받고, box-shadow: none 이
+      전제라 여기 그림자가 얹히면 전체화면 바탕에 테두리 그늘이 생긴다. */
+.modal-card:not(.sheet) {
+    background-image:
+        repeating-linear-gradient(45deg, rgba(23,24,26,.014) 0 2px, rgba(23,24,26,0) 2px 9px), /* 종이 결 */
+        radial-gradient(120% 55% at 50% -8%, rgba(255,255,255,.95) 0, rgba(255,255,255,0) 74%), /* 위쪽 광원 */
+        linear-gradient(180deg, #fff 0, #fbfbfc 46%, #efeef2 100%);                             /* 아래로 가는 그늘 */
+    box-shadow:
+        0 .5rem 0 rgba(0,0,0,.25),                          /* 원래 하드 그림자 — 유지 */
+        inset 0 .1rem 0 rgba(255,255,255,.9),               /* 위 림라이트 */
+        inset 0 -.75rem .9rem -.75rem rgba(23,24,26,.13);   /* 아래 안쪽 그늘 */
+}
