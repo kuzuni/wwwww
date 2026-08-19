@@ -22,7 +22,18 @@ const measure = async (page, file) => {
         const at = (x, y) => { const i = (y * W + x) * 4; return [d[i], d[i + 1], d[i + 2]]; };
         const P = (v, t) => +(v / t * 100).toFixed(2);
 
-        const isWhite = p => p[0] > 244 && p[1] > 244 && p[2] > 244;
+        // 🚨 **'순백' 고정 문턱으로 재면 클론에서 도구가 통째로 죽는다** (2026-08-19 probe-dungeon-detail-crash):
+        //    원본 카드 본문은 순백이지만 **클론은 따뜻한 미색이고 아래로 갈수록 어두워진다**
+        //    (실측: 위 rgb(251,248,242) → 아래 rgb(228,224,218), 종이결 무늬에서 더 내려간다).
+        //    그래서 `>244` 판정으로는 **가장 긴 흰 구간이 1px** 이 되고, `white` 가 null 인 채
+        //    다음 줄 `white.bot` 에서 예외로 죽었다 — 던전 상세 감사가 **아예 안 돌았다**.
+        //    ⚠️ 문턱을 그냥 낮추면 이번엔 **버튼 회색**(클론 실버는 그라디언트 상단이 227 까지 올라간다)을
+        //       종이로 삼켜 원본과 다른 것을 재게 된다. 그래서 **문턱을 이미지마다 자동 보정**한다:
+        //       244 부터 한 단씩 내리며 '카드 본문(세로)과 카드 좌우 끝(가로)이 둘 다 잡히는' 첫 문턱을 쓴다.
+        //       순백 원본은 첫 단(244)에서 바로 잡혀 **종전 수치가 그대로 나온다**(회귀 없음).
+        const paperAt = t => p => Math.min(p[0], p[1], p[2]) > t
+            && (Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2])) < 24;
+        let isWhite = paperAt(244);
         // 버튼/pill 회색 = 무채색. 상한 238 — 클론 실버 버튼은 그라디언트 상단이 rgb(227)까지 올라가
         // 상한을 218로 두면 버튼 윗부분을 통째로 놓친다(원본·클론 같은 판정을 써야 비교가 성립).
         const isGray = p => Math.abs(p[0] - p[1]) < 14 && Math.abs(p[1] - p[2]) < 14 && p[0] > 148 && p[0] < 239;
@@ -51,14 +62,25 @@ const measure = async (page, file) => {
         const longest = a => a.slice().sort((p, q) => (q.h ?? q.w) - (p.h ?? p.w))[0] || null;
 
         // ① 카드 흰 본문 — 카드 왼쪽 안쪽 열(콘텐츠가 없는 x)에서 가장 긴 흰 구간
-        let white = null, whiteX = null;
-        for (const xf of [0.17, 0.18, 0.19, 0.16]) {
-            const r = longest(colRuns(Math.round(xf * W), isWhite, 20));
-            if (r && (!white || r.h > white.h)) { white = r; whiteX = xf; }
-        }
         // ② 카드 좌우 끝 — 흰 본문 하단 근처 행(버튼 아래 여백)에서
+        // 둘을 한 묶음으로 시도한다(문턱 자동 보정의 성공 조건이 '둘 다 잡힘'이라서).
+        let white = null, whiteX = null, cardLR = null, paperT = null;
+        for (const t of [244, 238, 232, 226, 220]) {
+            isWhite = paperAt(t);
+            let w = null, wx = null;
+            for (const xf of [0.17, 0.18, 0.19, 0.16]) {
+                const r = longest(colRuns(Math.round(xf * W), isWhite, 20));
+                if (r && (!w || r.h > w.h)) { w = r; wx = xf; }
+            }
+            if (!w || w.h < 15) continue;                       // 카드 본문은 화면 높이의 15% 는 넘는다
+            const lr = longest(rowRuns(Math.round((w.bot / 100 * H) - 6), isWhite, 60));
+            if (!lr) continue;
+            white = w; whiteX = wx; cardLR = lr; paperT = t; break;
+        }
+        // 못 찾았으면 **예외로 죽지 말고 이유를 돌려준다** — 죽으면 두 번째 파일의 수치가 통째로
+        // 안 나오고(비교 자체가 성립 안 한다) 원인도 스택 한 줄뿐이라 안 보인다.
+        if (!white) return { fail: '카드 흰 본문/좌우 끝을 못 찾았다(문턱 244~220 전부 실패 — 색 판정이 이 캡처와 안 맞는다)', size: [W, H] };
         const yBottomBand = Math.round((white.bot / 100 * H) - 6);
-        const cardLR = longest(rowRuns(yBottomBand, isWhite, 60));
         // ③ 배너(카드 상단 ~ 흰 본문 상단): 카드 상단을 찾기 위해 흰 본문 위쪽에서
         //    '배경(어두운 딤)이 아닌' 첫 행을 카드 왼쪽 안쪽 열에서 찾는다.
         const cx = Math.round((cardLR.x + cardLR.w / 2) / 100 * W);
@@ -106,7 +128,7 @@ const measure = async (page, file) => {
         const xBtn = rx.n ? { x: P(rx.minX, W), w: P(rx.maxX - rx.minX + 1, W), y: P(rx.minY, H), h: P(rx.maxY - rx.minY + 1, H), bot: P(rx.maxY + 1, H), px: `x${rx.minX}..${rx.maxX} y${rx.minY}..${rx.maxY}` } : null;
 
         return {
-            size: [W, H], whiteX, bgTop: bgTop.join(','),
+            size: [W, H], whiteX, paperT, bgTop: bgTop.join(','),
             cardTop: cardTop == null ? null : { y: P(cardTop, H), px: cardTop },
             bannerH: cardTop == null ? null : +(P(white.y / 100 * H - cardTop, H)).toFixed(2),
             whiteBody: white,
@@ -124,7 +146,8 @@ const measure = async (page, file) => {
     const page = await browser.newPage();
     for (const [tag, file] of [['원본', REF], ['클론', CLONE]]) {
         const r = await measure(page, file);
-        console.log('\n===', tag, path.basename(file), r.size.join('x'), '(흰열 xf=' + r.whiteX + ', 배너색 ' + r.bgTop + ') ===');
+        if (r.fail) { console.log('\n===', tag, path.basename(file), r.size.join('x'), '=== FAIL —', r.fail); continue; }
+        console.log('\n===', tag, path.basename(file), r.size.join('x'), '(흰열 xf=' + r.whiteX + ', 종이 문턱 ' + r.paperT + ', 배너색 ' + r.bgTop + ') ===');
         console.log('카드 상단 y :', JSON.stringify(r.cardTop), ' 배너 높이:', r.bannerH, '%H');
         console.log('흰 본문     :', JSON.stringify(r.whiteBody));
         console.log('카드 좌우/하:', JSON.stringify(r.card));
