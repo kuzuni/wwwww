@@ -22,6 +22,9 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
     // ③ 에서 얼굴·머리 위에 새 파츠가 붙은 종 — 염소 뿔·양 뿔·돼지 귀·멧돼지 목 갈기.
     // 전부 `HEADPART` 라 이 검사의 표적이다(특히 멧돼지 갈기는 머리 위에 세운 가시 여섯이다).
     ['quad', 'Goat'], ['quad', 'Sheep'], ['quad', 'Pig'], ['quad', 'Boar'],
+    // ④ 에서 머리·목 위에 새 파츠가 붙은 종 — 공룡 목 골판 6장(시선 띠 바로 아래를 지난다)·
+    // 흑표범 고양이 귀. (알파카·낙타는 아래 줄에 이미 있다.)
+    ['quad', 'Dino'], ['quad', 'Panther'],
     ['fly', 'Star Whale'], ['flat', 'Hover Disk'],
     // 로스터 교체(2026-08-19 mount-animal-machine-dynamic ①)로 들어온 종 중 **안장 앞에 뭔가 서는** 셋.
     // 당나귀=긴 귀, 알파카=긴 목, 태엽 딱정벌레=더듬이 — 전부 이 검사의 표적 형상이라 빠지면 안 된다.
