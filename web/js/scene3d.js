@@ -7528,101 +7528,101 @@ const Scene3D = {
         const dark = mats.dark;
         const add = (mesh, x, y, z) => { mesh.position.set(x || 0, y || 0, z || 0); g.add(mesh); return mesh; };
         if (slot === 'gloves') {
-            // ⚠️ 세 변형이 전부 **납작한 상자 한두 개**였다 — 손가락도 손등 곡률도 없어 96px 에서는
-            //    그냥 판때기였다(비평가 지적 ㉯⑴). 손 형태를 실제로 조립한다: 곡면 손등 + 손가락 5개.
+            // 🧊 **voxel 전환 2차분 (equip-voxelize ⓑ).** 여기도 썸네일 전용이라 영웅과 안 겹친다.
+            // ⚠️ 세 변형이 전부 **납작한 상자 한두 개**였던 것을 앞 세션이 '곡면 손등 + 손가락 5개'로
+            //    고쳐 놨다 — **부위 목록과 비례는 그대로 옮긴다**(블라인드 판독을 통과시킨 실체가
+            //    그거다). 바뀌는 건 조형뿐: `shellFromRings` 회전체 → `Voxel.shell` 큐브 링 적층,
+            //    `capsuleMesh` 손가락 → 각진 큐브 기둥, `TorusGeometry` 붕대 → 타원 큐브 링.
+            // ⚠️ 손가락 굵기·간격은 **칸 단위로 다시 정한다**. 원래 반경(0.028 ≈ 1.2칸)을 그대로
+            //    옮기면 손가락이 십자 5칸짜리 뾰족한 것이 되고, 간격 0.06(2.5칸)이면 서로 붙어
+            //    한 판때기로 뭉친다 — 굵기 2칸 · 간격 3칸(사이 1칸)이 손등 폭(12칸) 안에 딱 맞는다.
+            const AS = 0.024;
+            const cBody = mat.color.getHex(), cDark = dark.color.getHex();
+            const V = Voxel;
+            const body = [], glow = [];
+            // 손가락 4개 — 굵기 2칸, 왼쪽 끝 x 부터 3칸 간격. len 은 칸 수.
+            const fingers = (lens, y0, c, z0) => {
+                const out = [];
+                lens.forEach((len, i) => out.push(...V.at(V.box(2, len, 2, c), -5 + i * 3, y0, (z0 || 0) - 1)));
+                return out;
+            };
+            // 엄지 — 손 왼쪽에서 **계단으로** 벌어져 올라간다(예전 `rotation.z = 0.9` 대체).
+            const thumb = (x0, y0, n, c) => {
+                const out = [];
+                for (let i = 0; i < n; i++) out.push(...V.at(V.box(2, 1, 2, c), x0 - i, y0 + Math.round(i * 0.75), 0));
+                return out;
+            };
             if (variant === 0) { // 장갑: 손등 곡면 + 손가락 4개 + 벌어진 엄지 + 손목 커프
-                g.add(this.shellFromRings([
-                    { y: 0.17, rx: 0.105, rz: 0.052 },   // 손목
-                    { y: 0.26, rx: 0.128, rz: 0.060 },
-                    { y: 0.38, rx: 0.142, rz: 0.062 },   // 너클(가장 넓다)
-                    { y: 0.46, rx: 0.132, rz: 0.052 },
-                ], 16, mat));
-                [0.15, 0.175, 0.165, 0.132].forEach((len, i) => {   // 중지가 가장 길다
-                    const f = this.capsuleMesh(0.028, len, mat, 8);
-                    f.position.set(-0.089 + i * 0.06, 0.455 + len / 2, 0.002);
-                    f.rotation.z = (i - 1.5) * 0.055;
-                    g.add(f);
-                });
-                const th = this.capsuleMesh(0.032, 0.125, mat, 8);
-                th.position.set(-0.15, 0.33, 0.028);
-                th.rotation.z = 0.9;
-                g.add(th);
-                const cuff = this.shellFromRings([
-                    { y: 0.06, rx: 0.128, rz: 0.075 }, { y: 0.175, rx: 0.108, rz: 0.055 },
-                ], 16, dark);
-                g.add(cuff);
+                body.push(...V.shell([
+                    { y: 7, rx: 4.4, rz: 2.2 },    // 손목
+                    { y: 11, rx: 5.3, rz: 2.5 },
+                    { y: 16, rx: 5.9, rz: 2.6 },   // 너클(가장 넓다)
+                    { y: 19, rx: 5.5, rz: 2.2 },
+                ], cBody));
+                body.push(...fingers([6, 8, 7, 5], 19, cBody));   // 중지가 가장 길다
+                body.push(...thumb(-6, 12, 6, cBody));
+                body.push(...V.shell([{ y: 2, rx: 5.3, rz: 3.1 }, { y: 7, rx: 4.5, rz: 2.3 }], cDark));
             } else if (variant === 1) { // 건틀릿: 판금 손등 + 너클판 + 손가락 라멜라 + 나팔 커프
-                g.add(this.shellFromRings([
-                    { y: 0.20, rx: 0.108, rz: 0.055 }, { y: 0.30, rx: 0.130, rz: 0.062 },
-                    { y: 0.40, rx: 0.140, rz: 0.060 }, { y: 0.47, rx: 0.128, rz: 0.050 },
-                ], 16, mat));
-                const knuck = this.beveledSlab(0.25, 0.1, 0.05, 0.035, this.tintOf(mat, 0.03));
-                knuck.position.set(0, 0.42, 0.052);
-                knuck.rotation.x = -0.24;
-                g.add(knuck);
-                // ⚠️ 라멜라만 띄우면 **허공의 벽돌 격자**가 된다 — 손가락(캡슐)을 먼저 세우고
+                body.push(...V.shell([
+                    { y: 8, rx: 4.5, rz: 2.3 }, { y: 12, rx: 5.4, rz: 2.6 },
+                    { y: 17, rx: 5.8, rz: 2.5 }, { y: 20, rx: 5.3, rz: 2.1 },
+                ], cBody));
+                body.push(...V.at(V.slab(11, 4, 3, cBody, 2), 0, 16, 2));   // 너클판
+                // ⚠️ 라멜라만 띄우면 **허공의 벽돌 격자**가 된다 — 손가락 기둥을 먼저 세우고
                 //    그 위에 판을 얹어야 '판금 손가락'으로 읽힌다.
-                [0.145, 0.168, 0.158, 0.128].forEach((len, i) => {
-                    const f = this.capsuleMesh(0.026, len, this.tintOf(mat, -0.06), 8);
-                    f.position.set(-0.087 + i * 0.058, 0.465 + len / 2, 0);
-                    f.rotation.z = (i - 1.5) * 0.05;
-                    g.add(f);
-                    for (let l = 0; l < 2; l++) {          // 손가락마다 판 2장이 겹쳐 내려온다
-                        const lame = this.beveledSlab(0.058, 0.07, 0.05, 0.022, l ? this.tintOf(mat, -0.03) : mat);
-                        lame.position.set(-0.087 + i * 0.058, 0.5 + l * 0.066, 0.014 - l * 0.006);
-                        lame.rotation.x = -0.14;
-                        lame.rotation.z = (i - 1.5) * 0.05;
-                        g.add(lame);
-                    }
-                });
-                const th = this.capsuleMesh(0.031, 0.115, mat, 8);
-                th.position.set(-0.148, 0.345, 0.026);
-                th.rotation.z = 0.9;
-                g.add(th);
+                body.push(...fingers([6, 8, 7, 5], 19, cDark));
+                // ⚠️ 판 폭을 손가락 간격(3칸)과 같게 두면 판끼리 붙어 **손가락 넷이 한 막대**로
+                //    뭉친다(1차판에서 그랬다). 폭 2 로 두어 사이에 1칸 골을 남긴다 — 그 골이
+                //    '손가락이 넷'을 읽게 하는 유일한 단서다.
+                for (let i = 0; i < 4; i++) for (let l = 0; l < 2; l++)
+                    body.push(...V.at(V.slab(2, 2, 3, cBody, 0), -4 + i * 3, 21 + l * 3, 1 - l));
+                body.push(...thumb(-6, 13, 5, cBody));
                 // 나팔 커프 — 손목에서 팔뚝 쪽으로 벌어진다(건틀릿의 얼굴)
-                g.add(this.shellFromRings([
-                    { y: -0.02, rx: 0.175, rz: 0.128 }, { y: 0.06, rx: 0.140, rz: 0.098 },
-                    { y: 0.16, rx: 0.118, rz: 0.070 }, { y: 0.21, rx: 0.112, rz: 0.062 },
-                ], 16, mat));
-                add(new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), gemMat), 0, 0.42, 0.088);
+                body.push(...V.shell([
+                    { y: -1, rx: 7.3, rz: 5.3 }, { y: 2, rx: 5.8, rz: 4.1 },
+                    { y: 7, rx: 4.9, rz: 2.9 }, { y: 9, rx: 4.7, rz: 2.6 },
+                ], cBody));
+                glow.push(...V.at(V.ball(2), 0, 17, 4));
             } else { // 핸드랩: 쥔 주먹 + 비스듬히 감긴 붕대
                 // 손목까지 내려오는 한 덩이 — 붕대가 감길 몸통이 있어야 한다
-                const fist = this.shellFromRings([
-                    { y: 0.10, rx: 0.093, rz: 0.057 }, { y: 0.22, rx: 0.101, rz: 0.062 },
-                    { y: 0.31, rx: 0.132, rz: 0.082 }, { y: 0.43, rx: 0.146, rz: 0.090 },
-                    { y: 0.53, rx: 0.118, rz: 0.072 },
-                ], 16, mat);
-                g.add(fist);
-                for (let i = 0; i < 4; i++) {   // 너클 4개가 위쪽에 튀어나온다
-                    const kn = new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 8), mat);
-                    kn.scale.set(1, 0.8, 0.9);
-                    kn.position.set(-0.082 + i * 0.055, 0.515, 0.03);
-                    g.add(kn);
+                const fist = [
+                    { y: 4, rx: 3.9, rz: 2.4 }, { y: 9, rx: 4.2, rz: 2.6 },
+                    { y: 13, rx: 5.5, rz: 3.4 }, { y: 18, rx: 6.1, rz: 3.8 },
+                    { y: 22, rx: 4.9, rz: 3.0 },
+                ];
+                body.push(...V.shell(fist, cBody));
+                // 너클 4개가 **주먹 꼭대기 위로** 튀어나온다. ⚠️ 맨 위 링(y 22)보다 낮게 두면
+                //    통째로 파묻혀 주먹이 민짜 통이 된다(1차판에서 그랬다) — 위로 올리고, 구가
+                //    아니라 각진 큐브로 둔다(구는 5칸 폭이라 서로 붙어 하나로 뭉친다).
+                for (let i = 0; i < 4; i++)
+                    body.push(...V.at(V.box(2, 2, 3, cBody), -5 + i * 3, 22, 0));
+                body.push(...thumb(-6, 15, 4, cBody));
+                // ⚠️ 반경을 상수로 두면 손목 쪽 밴드가 몸통 밖 허공에 뜬다 — **그 높이의 실제
+                //    굵기**를 주먹 링 목록에서 보간해 쓴다(예전 코드가 같은 이유로 반경을 하드코딩
+                //    해 뒀는데, 칸으로 옮기면서 그 값이 어긋나면 바로 뜬다).
+                const at = (y) => {
+                    for (let i = 0; i < fist.length - 1; i++) if (y >= fist[i].y && y <= fist[i + 1].y) {
+                        const k = (y - fist[i].y) / (fist[i + 1].y - fist[i].y);
+                        return [fist[i].rx + (fist[i + 1].rx - fist[i].rx) * k,
+                                fist[i].rz + (fist[i + 1].rz - fist[i].rz) * k];
+                    }
+                    return [fist[fist.length - 1].rx, fist[fist.length - 1].rz];
+                };
+                for (const y of [7, 11, 16, 20]) {
+                    const [rx, rz] = at(y);
+                    body.push(...V.ellipse(rx + 0.8, rz + 0.8, 2, {
+                        y0: y, color: cDark, rix: rx - 0.4, riz: rz - 0.4,
+                    }));
                 }
-                const th = this.capsuleMesh(0.033, 0.10, mat, 8);
-                th.position.set(-0.135, 0.375, 0.055);
-                th.rotation.z = 1.0; th.rotation.x = -0.3;
-                g.add(th);
-                // 붕대는 수평이 아니라 **비스듬히** 감겨야 감긴 티가 난다.
-                // ⚠️ 반경을 상수로 두면 손목 쪽 링이 몸통 밖 허공에 뜬다 — 그 높이의 실제 굵기에 맞춘다.
-                [[0.16, 0.098], [0.27, 0.119], [0.38, 0.142], [0.47, 0.137]].forEach(([y, r], i) => {
-                    const band = new THREE.Mesh(new THREE.TorusGeometry(r + 0.009, 0.017, 6, 18), dark);
-                    band.position.set(0, y, 0.004);
-                    band.rotation.x = Math.PI / 2 + 0.15;
-                    band.rotation.z = (i % 2 ? 1 : -1) * 0.09;
-                    band.scale.y = 0.62;       // 손 단면이 타원이라 링도 눌러야 옆으로 뜨지 않는다
-                    g.add(band);
-                });
-                // 늘어뜨린 붕대 끝 — 손목 밴드(y 0.16) 안쪽에서 시작해야 '풀린 끝'으로 읽힌다.
-                // 떼어 놓으면 손 옆 허공의 캡슐이 된다(비평가 지적 '부유 부속').
-                const tail = this.beveledSlab(0.046, 0.115, 0.022, 0.016, dark);
-                tail.position.set(0.079, 0.125, 0.035);
-                tail.rotation.z = -0.28;
-                g.add(tail);
-                const knot = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), dark);  // 매듭 = 접점
-                knot.position.set(0.092, 0.168, 0.03);
-                g.add(knot);
+                // 늘어뜨린 붕대 끝 — 손목 밴드(y 7) 안쪽에서 시작해야 '풀린 끝'으로 읽힌다.
+                // 떼어 놓으면 손 옆 허공의 토막이 된다(비평가 지적 '부유 부속').
+                for (let i = 0; i < 5; i++) body.push(...V.at(V.box(2, 1, 2, cDark), 3 + Math.round(i * 0.3), 7 - i, 1));
+                body.push(...V.at(V.ball(1, cDark), 3, 7, 1));   // 매듭 = 접점
             }
+            g.add(this.voxPart(body, AS, mat, { color: cBody }));
+            if (glow.length) g.add(this.voxPart(glow, AS, mat, {
+                color: rc, emissive: rc, emissiveIntensity: 0.7, metalness: 0, roughness: 0.5,
+            }));
         } else if (slot === 'necklace' || slot === 'ring') {
             // 🧊 **여기가 voxel 전환 1차분이다 (equip-voxelize ⓑ).** 목걸이·반지를 고른 이유:
             //   ⑴ 비평가가 이름까지 집어 지적한 것이 '우주 반지 = 토러스 + 팔면체'다
