@@ -33,10 +33,18 @@ const path = require('path');
             '플래시 후 emissive 색·세기가 원래대로 복구 (' + before.length + '개 재질)');
 
         // 2) 연타 중 마지막 플래시만 복구를 소유 (앞선 플래시의 onDone이 뒤 플래시를 지우면 안 됨)
+        // ⚠️ **관측 창을 앞 플래시가 실제로 끝나는 지점까지 끌어야 한다** (`hitflash-overwrite` 진단).
+        //    종전 `step(8)` 은 위험 구간에 **닿지도 못했다**: 두 번째 타격이 크리라 히트스톱이 애니
+        //    시간을 ~0.05초 얼려서, 앞 플래시(dur 0.1s)의 남은 수명이 그만큼 뒤로 밀린다. 실측으로
+        //    앞 플래시의 onDone 은 **타2 + 13프레임**에 떨어진다(그 프레임에 emissive 가 hex 0 · i 1.0
+        //    으로 되돌아가고, 뒤 플래시 fn 이 세기만 계속 써서 **흰빛 없이 숫자만 사는** 상태가 된다).
+        //    16프레임이면 그 지점을 지나면서도 뒤 플래시(dur 0.14s)는 아직 살아 있다 —
+        //    `flashMesh` 의 seq 가드를 지우면 이 검사가 실제로 FAIL 하는 것으로 자 점검했다.
+        //    (종전 창에서는 가드를 지워도 통과해, 검사에 이가 없었다.)
         Combat.damageEnemy(e, Big.of(50), false, null);
         step(6);
         Combat.damageEnemy(e, Big.of(50), true, null);
-        step(8); // 첫 플래시의 종료 시점 통과
+        step(16); // 앞 플래시의 실제 종료 지점(타2+13)을 지나되 뒤 플래시는 아직 살아 있는 창
         const mid = m.flashMats.find(x => x.emissive);
         ok(mid.emissive.getHex() === 0xffffff && mid.emissiveIntensity > 0.05,
             '연타 시 나중 플래시가 살아있음 (앞 플래시 종료가 덮어쓰지 않음)');
