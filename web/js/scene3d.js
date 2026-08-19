@@ -9497,7 +9497,18 @@ const Scene3D = {
         this.impactFlare(burst, 0xffd28a, fmax, 0.18, 0.2, 0.42);        // 중간(살구)
         this.impactFlare(burst, 0xff7a2a, fmax * 1.28, 0.22, -0.4, 0.24); // 외곽 잔광
         // 파편 수는 위계의 뼈대 — 일반 4~8, 크리 8, 처치 24(보스 34). 개수 차이가 곧 '사건의 크기'다.
-        this.spawnShards(burst, isBoss ? 34 : 24, 0xff7043, { dir: 0, spread: Math.PI, speed: isBoss ? 1.5 : 1.15, scale: isBoss ? 1.7 : 1.25 });
+        // 파편 색은 **적 몸 팔레트를 상속**한다(7차 비평가 A #3: 회색 골렘에서 정체불명의 주황 조각) —
+        // lit 재질 평균 albedo 를 55%, 잔광 주황을 45% 섞어 '그 몸이 부서졌다'로 읽히게 하되
+        // 어두운 배경에서의 판독성(난색 성분)은 남긴다.
+        const shardC = (() => {
+            const t = this.flashTargets(m);
+            if (!t.lit.length) return 0xff7043;
+            const acc = new THREE.Color(0, 0, 0);
+            for (const mat of t.lit) acc.add(mat.color);
+            acc.multiplyScalar(1 / t.lit.length);
+            return acc.lerp(new THREE.Color(0xff7043), 0.45).getHex();
+        })();
+        this.spawnShards(burst, isBoss ? 34 : 24, shardC, { dir: 0, spread: Math.PI, speed: isBoss ? 1.5 : 1.15, scale: isBoss ? 1.7 : 1.25 });
         this.spawnSparks(burst, isBoss ? 30 : 14, 0xffd54f, { speed: 2.3 });             // 가산 불티 — 파편 사이 잔광
         this.spawnSparks(burst, isBoss ? 14 : 6, 0xffffff, { scale: 1.35, speed: 1.7 }); // 흰 코어
         this.flashLight(burst, isBoss ? 0xffab40 : 0xffcc80, isBoss ? 0.45 : 0.3);
@@ -9507,6 +9518,12 @@ const Scene3D = {
         this.scorchDecal(new THREE.Vector3(m.g.position.x + 0.18, 0, m.g.position.z),
             (isBoss ? 1.2 : 0.66) * (m.baseScale || 1), isBoss ? 2.4 : 1.8);
         this.hitStop(isBoss ? 0.07 : 0.045);
+        // 카메라 반응 — 7차 비평가 2인이 공통 1위로 "처치 순간조차 카메라가 정지"를 지적했는데,
+        // 실측하니 크리는 shake(0.2)+fovPunch 가 있는데 **처치에는 카메라 항이 아예 없었다**(접점
+        // 셰이크 잔량 0.028 = 직전 크리의 찌꺼기뿐). 위계 사다리(스윙 0.15 < 크리 0.2 < 처치 < 보스
+        // 등장 0.4~0.5) 규약대로 처치를 크리 위·보스 등장 아래에 앉힌다.
+        this.shake(isBoss ? 0.42 : 0.3);
+        this.fovPunch(0.034, 0.15);
         // 세 이벤트 중 가장 두껍고 오래 — 처치가 페이오프임이 윤곽만으로 읽히게. 몸 emissive 를
         // 0.3 으로 낮춘 몫(화이트아웃 방지)은 셸 두께(1.42)가 잇는다 — 두께는 몸 안을 안 태운다.
         // 색은 크리(주황 0xff8a3d)와 갈리게 **더 희고 밝은 금백**(0xffe9b8) — probe-hit-hierarchy 의
