@@ -10823,7 +10823,12 @@ const Scene3D = {
     // shapeK: 형태 보존 계수(0~1, 기본 0) — 1이면 emissive 를 재질 albedo 명도에 비례시켜 어두운
     // 파츠가 어둡게 남는다. **처치 전용**: 일반·크리(peak≤0.28)는 화이트아웃이 없고 가시성 게이트
     // (probe-hitflash-ab Δ0.06)가 빠듯해 감쇠를 걸면 미달한다(실측 Δ0.0761 → 0.0583 FAIL).
-    flashMesh(m, peak, dur, color, olK, shapeK) {
+    // emHex = **몸 emissive 색**(기본 순백). 🚨 예전엔 몸이 언제나 `0xffffff` 로만 탔다 — `color` 는
+    // 외곽/림 셸에만 쓰였다. 그래서 무슨 색을 넘겨도 **몸은 흰빛으로 밝아질 뿐**이었고, 영웅 피격이
+    // '붉게 맞았다'가 아니라 '하얗게 날아갔다'로 읽힌 두 번째 원인이 이것이다(실측: 림 색을 붉게
+    // 바꾸고 peak 를 절반으로 낮춰도 실루엣 R−B 가 여전히 **−4.0** 으로 차가워졌다).
+    // 적 계열은 인자를 안 주므로 **기본값 순백 그대로** — 기존 게이트(probe-hitflash-ab·hit-hierarchy)에 영향 없다.
+    flashMesh(m, peak, dur, color, olK, shapeK, emHex) {
         const t = this.flashTargets(m);
         if ((!t.lit.length && !t.out.length)) return;
         m.flashSeq = (m.flashSeq || 0) + 1;
@@ -10839,7 +10844,7 @@ const Scene3D = {
         for (let i = 0; i < t.lit.length; i++) {
             const mat = t.lit[i];
             if (!mat.userData._em0) mat.userData._em0 = { hex: mat.emissive.getHex(), i: mat.emissiveIntensity };
-            mat.emissive.setHex(0xffffff);
+            mat.emissive.setHex(emHex === undefined ? 0xffffff : emHex);
             mat.emissiveIntensity = peak * emScale(i);
         }
         // 외곽선은 가산이 아니라 **색 자체**를 올린다(Basic 이라 조명이 없다). peak 를 그대로 쓰면
@@ -11380,7 +11385,15 @@ const Scene3D = {
         // 영웅 전신 틴트 + 외곽선 점등. 대상 수집·캐시·무효화는 flashTargets 가 전부 한다
         // (예전엔 여기서 emissive 재질만 따로 모았는데, 그 목록은 면적을 쥔 외곽선을 통째로 놓쳤다).
         if (!this._heroFlash || this._heroFlash.g !== this.heroG) this._heroFlash = { g: this.heroG };
-        this.flashMesh(this._heroFlash, 0.25, 0.12, 0xffd9d9); // 몸통 화이트아웃 금지 — 적과 같은 기준(붉은 기 = 피해)
+        // 🚨 주석은 '화이트아웃 금지'라고 적혀 있었지만 **실제로는 화이트아웃이었다**(8차 비평가 2인
+        //    일치 ㉤, `probe-hero-flash-identity` 실측): 실루엣 평균 휘도가 0.395 → 0.598 로 **+0.20**
+        //    오르고 R−B 는 오히려 **−10.1** 떨어졌다 — 검은 갑옷이 은백색으로 날아가며 '붉게'가
+        //    아니라 그냥 밝아진 것이다. 원인 둘: ⑴ `olK` 를 안 줘서 유도식(0.35+peak×2.2)이 **0.90**
+        //    으로 붙어 림이 거의 순백까지 탔다 ⑵ 몸 emissive 가 균일 백색 0.25 라 어두운 갑주가 함께 들렸다.
+        //    → 적 쪽에서 이미 도달한 결론을 영웅에도 적용한다: **밝기로 때우지 말고 색으로 말할 것.**
+        //    peak 를 절반으로 낮추고, `shapeK`(albedo 명도 비례 감쇠)로 어두운 파츠는 어둡게 남기고,
+        //    림 계수를 직접 쥐고, 색을 옅은 분홍(0xffd9d9)에서 **채도 있는 붉은색**으로 옮긴다.
+        this.flashMesh(this._heroFlash, 0.12, 0.12, 0xff5a4a, 0.62, 1, 0xff2a18);
         this.hitHpBar(this.heroBar, sev);
         this.shake(Math.min(0.22, 0.05 + sev * 0.6));
         UI.flashDamage(sev);
