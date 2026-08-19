@@ -15522,6 +15522,8 @@ const Scene3D = {
     // ⚠️ 라이트는 fxLight 풀만. 재질은 가산 + toneMapped:false (밝은 하늘 위 요소라 가산이 맞다 —
     //    healPillar 의 '기둥은 일반 합성' 함정은 **지면 근처 수직면** 얘기고, 광륜은 하늘 배경이라 문제없다).
     GODSPEAR_IMPACT_MS: 500,     // 관통 착탄 시각 — skillImpactWeight 지연과 동기 (개천 350 + 낙하 150)
+    // 개천 이후에도 광륜을 돌릴지 — 판정기(`probe-halo-spin.js`)가 음성 대조에서 false 로 되돌린다.
+    GODSPEAR_SPIN_AFTER: true,
     godSpearDrop(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
@@ -15605,6 +15607,7 @@ const Scene3D = {
             this.addAnim(0.15, k => {
                 spear.position.y = fromY + (toY - fromY) * k * k;
                 aura.material.opacity = 0.4 + k * 0.4;
+                if (this.GODSPEAR_SPIN_AFTER) { halo.rotation.z += 0.06; halo2.rotation.z -= 0.09; }   // 개천이 계속 돈다(아래 주석)
             }, () => {
                 // 착탄 — 금빛 폭발 + 지면 방사 광선 + 링
                 const hit = new THREE.Vector3(spot.x, 0.5, spot.z);
@@ -15616,7 +15619,17 @@ const Scene3D = {
                 this.flashLight(hit, gold.getHex(), 0.3);
                 SFX.stormStrike(0);
                 // ⓓ 여운 0.55s — 광륜은 닫히고, 박힌 창이 빛기둥으로 타올랐다 위로 소멸
+                // 🚨 **광륜의 회전은 여기서도 계속돼야 한다** (2026-08-19). 2차 비평가 2인이 "하늘 원반이
+                //    240ms 부터 끝까지 정지해 있다 / 배경에 붙은 스티커"라고 일치 지적했다. 실측해 보니
+                //    지적의 절반은 틀렸고(팝인 아님 — 불투명도 0.2→0.85·스케일 0.618→1.0 으로 램프인하고,
+                //    720ms 뒤 실제로 감쇠한다) 절반은 맞았다: **`rotation.z` 를 개천 단계에서만 돌려서
+                //    570ms 에 0.72 로 얼어붙고 그 뒤 600ms 동안 한 번도 안 돈다.** '정지'로 읽힌 실체가
+                //    그것이다 — 크기·밝기는 변하는데 문양이 안 도니 살아 있는 물체로 안 보인다.
                 this.addAnim(0.55, k => {
+                    if (this.GODSPEAR_SPIN_AFTER) {          // 닫히며 느려진다(뚝 멈추지 않게)
+                        halo.rotation.z += 0.045 * (1 - k);
+                        halo2.rotation.z -= 0.07 * (1 - k);
+                    }
                     halo.material.opacity = 0.85 * (1 - k);
                     halo2.material.opacity = 0.9 * (1 - k);
                     halo.scale.setScalar(1 - k * 0.4);
