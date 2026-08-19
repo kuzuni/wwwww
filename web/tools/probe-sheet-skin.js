@@ -32,6 +32,8 @@ const KILL_SKIN = `
 .equip-cell.empty { box-shadow: none !important; }
 .modal-card:not(.sheet) { background-image: none !important; box-shadow: 0 .5rem 0 rgba(0,0,0,.25) !important; }
 .qst-row { background-image: none !important; box-shadow: 0 .25rem 0 rgba(0,0,0,.3) !important; }
+/* 5차 슬라이스 — 버튼 면 광택(background-image 하나만 쓰므로 그것만 되돌린다) */
+.btn.btn:not(.silver):not(.ascend-ready) { background-image: none !important; }
 `;
 
 (async () => {
@@ -113,6 +115,22 @@ const KILL_SKIN = `
         if (!ok) fail++;
         console.log(`  ${ok ? 'OK  ' : 'FAIL'} 어두운 시트 ${k}: 배경 ${got.bg} · 이미지 ${got.img === 'none' ? '없음' : '있음(오염)'}`);
     }
+
+    // ⓒ 5차 슬라이스(버튼 면 광택)가 **원본 색 아래턱을 덮지 않았는가.**
+    //    이 게임의 버튼 두께는 `inset 0 -.22rem 0 var(--pp-*-dk)` 이고 그 색은 원본 픽셀에서 뽑은 값이다 —
+    //    광택 규칙이 box-shadow 까지 건드리면 여기서 턱이 사라진 채로 잡힌다(첫 판에서 실제로 잡았다).
+    await page.evaluate(`(() => { try { UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); UI.openPlayerInfo(); } catch (e) { } })()`);
+    await page.waitForTimeout(500);
+    const ledge = await page.evaluate(() => {
+        const out = {};
+        const q = s => { const e = document.querySelector(s); if (!e) return null; const cs = getComputedStyle(e); return { img: cs.backgroundImage, shadow: cs.boxShadow }; };
+        out.any = q('#player-info-modal .btn') || q('.modal-card .btn') || q('.panel .btn');
+        return out;
+    });
+    const L = ledge.any;
+    const ledgeOk = !!L && /inset/.test(L.shadow) && L.img.includes('linear-gradient');
+    if (!ledgeOk) fail++;
+    console.log(`  ${ledgeOk ? 'OK  ' : 'FAIL'} 버튼 아래턱 보존 + 광택 적용: shadow=${L ? L.shadow.slice(0, 44) : '요소 없음'} / img=${L ? L.img.slice(0, 30) : '-'}`);
 
     // ⓑ 장비 셀 크로스해치 2겹 보존 — background-image 층이 4개(광택·명암·해치·해치)여야 한다.
     await page.evaluate(`(() => { try { UI.closeAllTabSurfaces && UI.closeAllTabSurfaces(); } catch (e) { } })()`);

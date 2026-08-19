@@ -6616,3 +6616,30 @@ body {
         0 .25rem 0 rgba(0,0,0,.3),                     /* 원래 아래턱 — 유지 */
         inset 0 .08rem 0 rgba(255,255,255,.95);        /* 위 림라이트 */
 }
+
+/* ===== 버튼 표면 AAA 스킨 (slug: ui-quality-up — 5차 슬라이스) =====
+   시트·팝업 카드·퀘스트 행에 이어 남은 가장 넓은 평면 — **버튼 면**이다. 지금은 단색 면 + 아래턱뿐이라
+   화면마다 '심플'의 원인이 된다. 화법은 앞 슬라이스와 같다: 위 광원 → 아래 그늘 + 위 림라이트.
+
+   ⚠️ **칠하는 속성 하나만 쓴다 — `background-image`.** box-shadow 도 :active 도 건드리지 않는다.
+   🚨 그 이유(첫 판에서 실제로 밟았다): 이 게임의 버튼 아래턱은 `--pp-blue-dk`·`--pp-red-dk`·
+      `--pp-gray-dk` 로 **원본 픽셀에서 뽑은 색**이고(`.modal-card .btn, .panel .btn, #equip-sheet .btn`
+      계열, 0-2-0), 눌림도 그 블록의 `:active { transform:.1rem; box-shadow:none }` 가 이미 정의한다.
+      특이도를 올린 이 규칙에서 box-shadow 를 쓰면 **그 검증된 턱과 눌림이 통째로 덮인다** — 실제로
+      은색 소환 버튼 검사가 그 회귀를 잡아냈다. 광택은 얹되 구조는 그 블록에 맡긴다.
+   🚨 **선택자를 `.btn.btn` 으로 쓴 이유** — `.btn.primary`·`.danger`·`.on`·`.disabled` 계열이 전부
+      `background:` **단축**으로 색을 주고, 단축은 background-image 를 none 으로 되돌린다. `.btn`
+      한 겹(0-1-0)으로 적으면 가장 흔한 변형들에서 스킨이 통째로 사라진다. 값은 전부 반투명이라
+      어떤 바탕색(파랑·빨강·회색·남색) 위에도 그대로 얹힌다.
+   🚨 **이미 제 그라디언트를 가진 버튼은 뺀다** — `.silver`(은색)·`.ascend-ready`(초록). 여기 층을
+      얹으면 그 디자인이 지워진다. **앞으로 제 그라디언트를 가진 버튼을 새로 만들면 이 :not() 목록에
+      반드시 추가할 것**(3차 슬라이스가 `.pass-card` 로 겪은 것과 같은 계열의 함정이다).
+      `.summon-btn` 은 뺄 필요가 없다 — 이 게임에서 그건 `.panel .btn` 의 회색 면으로 덮여 이미
+      은색이 아니다(실측: backgroundImage none · rgb(196,196,196)). */
+.btn.btn:not(.silver):not(.ascend-ready) {
+    background-image:
+        linear-gradient(180deg, rgba(255,255,255,.55) 0 1px, rgba(255,255,255,0) 1px),           /* 위 림라이트(머리카락 선) */
+        radial-gradient(122% 76% at 50% -12%, rgba(255,255,255,.22) 0, rgba(255,255,255,0) 60%), /* 위 광원 */
+        linear-gradient(180deg, rgba(255,255,255,.10) 0, rgba(255,255,255,0) 36%,
+                                rgba(0,0,0,.07) 70%, rgba(0,0,0,.18) 100%);                      /* 위→아래 명암 */
+}
