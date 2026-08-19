@@ -13467,34 +13467,83 @@ const Scene3D = {
             }
             topY = 1.25;
         } else if (kind === 'bat') {
-            body = sp(0.2, 0, 0.6, 0, mat, 1, 1.1, 0.9);
+            // 🧊 **voxel 전환 4종째** (화풍 확정 2026-08-20). 두상 + 털몸통 + 막날개 + 매달림 발.
+            //    ⚠️ 부위 목록·비례·애니 훅(`anim.wings`·`anim.fly`)·AO 링 자리는 그대로 옮긴다.
+            //    ⚠️ 재질은 전부 **Standard/Basic** 이다 — `MeshLambertMaterial` + `vertexColors` 는
+            //       이 씬에서 새까맣게 렌더된다(버섯 반점에서 실측으로 확인한 지뢰).
+            const gv = (r) => r / VS;
+            // 🚨 **공용 `mat`/`dark`/`light` 를 그대로 쓰면 안 된다 — 두 가지가 동시에 어긋난다.**
+            //    ⑴ `vertexColors` 가 없어서 큐브별 색변화와 이음새 AO 가 **통째로 무시**된다
+            //       (플래그가 없으면 조용히 무시된다 — 첫 판이 민짜 단색 판으로 나온 원인이다).
+            //    ⑵ 종별 `bodyTex`(furTex)를 물고 있어 **표면에 털 노이즈**가 깔린다 —
+            //       화풍 ⓒ 의 '텍스처 파일 없음 · 면당 플랫 색' 위반이다.
+            //    → 종 안에서 voxel 전용 재질을 새로 만든다(색은 그대로 물려받는다).
+            //    ⚠️ 색까지 같이 되돌려야 한다 — 빌더 머리에서 `if (bodyTex) base.offsetHSL(0, 0.02, 0.055)`
+            //       로 **맵이 albedo 를 ≈0.88 배 죽이는 만큼 미리 올려 둔** 보정이 걸려 있다. 맵을 빼면
+            //       그 보정만 남아 종이 통째로 밝게 뜬다(첫 판에서 막날개가 연보라로 나온 원인의 절반).
+            const vBase = base.clone().offsetHSL(0, -0.02, -0.055);   // 맵 보정 되돌림
+            const vm = (c) => new THREE.MeshStandardMaterial({ color: c, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.8 });
+            const batM = vm(vBase.clone()), batD = vm(vBase.clone().offsetHSL(0, 0, -0.13)), batL = vm(vBase.clone().offsetHSL(0, 0, 0.1));
+            const vput = (voxels, m, x, y, z, o) => {
+                const mesh = vx(voxels, Object.assign({ material: m, color: 0xffffff, center: true }, o || {}));
+                mesh.position.set(x, y, z);
+                g.add(mesh);
+                return mesh;
+            };
+            body = vput(Voxel.ellipsoid(gv(0.2), gv(0.22), gv(0.18)), batM, 0, 0.6, 0);
             // 몸통·다리 — '날개 달린 머리' 금지(비평가 지적): 털복숭이 몸통 + 밝은 가슴털 + 매달림 발톱 발
-            sp(0.125, 0, 0.38, -0.02, dark, 1, 1.3, 0.8);
-            sp(0.08, 0, 0.42, 0.07, light, 1, 1.15, 0.5); // 가슴털 패치
+            vput(Voxel.ellipsoid(gv(0.125), gv(0.163), gv(0.1)), batD, 0, 0.38, -0.02);
+            vput(Voxel.ellipsoid(gv(0.08), gv(0.092), gv(0.04)), batL, 0, 0.42, 0.07); // 가슴털 패치
+            const clawM = new THREE.MeshStandardMaterial({ color: 0x2c2733, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.8 });
             for (const s of [-1, 1]) {
-                const legB = cy(0.016, 0.012, 0.09, s * 0.05, 0.25, 0, dark);
+                const legB = vput(Voxel.taper(gv(0.012), gv(0.016), 2), batD, s * 0.05, 0.25, 0);
                 legB.rotation.z = s * 0.22;
-                const claw = cn(0.018, 0.05, s * 0.068, 0.19, 0.012, new THREE.MeshLambertMaterial({ color: 0x2c2733 }));
+                const claw = vput(Voxel.taper(gv(0.018), 0.5, 1), clawM, s * 0.068, 0.19, 0.012);
                 claw.rotation.x = Math.PI;
             }
+            const earInM = new THREE.MeshStandardMaterial({ color: 0x35283e, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.85 });
+            const fangM = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.6 });
             for (const s of [-1, 1]) {
-                const ear = cn(0.05, 0.14, s * 0.11, 0.82, 0);
+                // ⚠️ **첫 판은 귀가 '작은 블록 두 개'로 뭉갰다.** `taper(1, 0.5, 3)` 은 밑변이 3칸(0.15)
+                //    뿐이라 화면에서 6px 이다 — 매끈 원뿔은 옆면이 매끄러워 같은 치수로도 뾰족함이
+                //    읽혔지만 큐브는 **계단 수가 곧 형태**라 층이 3개면 삼각형으로 안 읽힌다.
+                //    밑변 2칸·높이 5층으로 키워 계단이 실제로 좁아지는 것이 보이게 한다.
+                const ear = vput(Voxel.taper(2, 0.5, 5), batM, s * 0.11, 0.84, 0);
                 ear.rotation.z = s * -0.3;
-                const earIn = cn(0.028, 0.09, s * 0.105, 0.8, 0.02, new THREE.MeshLambertMaterial({ color: 0x35283e })); // 귀 안쪽 어두운 면
+                const earIn = vput(Voxel.taper(1.4, 0.5, 4), earInM, s * 0.105, 0.82, 0.02); // 귀 안쪽 어두운 면
                 earIn.rotation.z = s * -0.3; earIn.scale.z = 0.5;
-                cn(0.018, 0.06, s * 0.05, 0.5, 0.14, new THREE.MeshLambertMaterial({ color: 0xffffff })); // 송곳니
+                // 송곳니 — z 0.14 는 **두상 안**이라 한 번도 안 보였다(두상 앞면이 z 0.175). 밖으로 뺀다.
+                vput(Voxel.box(1, 2, 1), fangM, s * 0.05, 0.485, 0.175, { ao: 0, jitter: 0 }).scale.set(0.6, 1, 0.6); // 송곳니
                 const wing = new THREE.Group();
                 wing.position.set(s * 0.17, 0.65, 0);
-                const wm = new THREE.Mesh(wingGeo(0.44, 0.3), new THREE.MeshLambertMaterial({ color: base.clone().offsetHSL(0.015, 0.06, -0.06), side: THREE.DoubleSide, transparent: true, opacity: 0.76 })); // 반투명 막 — 0.88은 사실상 불투명 판자로 읽힘 (비평가 6.8 8번)
-                wm.scale.x = s;
-                const wBone = mk(new THREE.CylinderGeometry(0.014, 0.01, 0.42, 5), dark); // 앞전 뼈대
-                wBone.rotation.z = s * (Math.PI / 2 - 0.18);
-                wBone.position.set(s * 0.2, 0.055, 0.002);
+                // 🧊 **막날개 = 한 칸 두께 판.** 종전은 `ShapeGeometry`(2차 베지에 앞전 + 스캘럽 뒷전)라
+                //    비스듬한 삼각형 덩어리였다 — 축정렬이 아니니 화풍 위반이다.
+                //    복셀에서 곡선 뒷전은 **계단 스캘럽**으로 옮긴다: 열마다 위/아래 끝을 직접 준다.
+                //    ⚠️ 뒷전을 −2/−3 로 번갈아 주는 것이 '손가락 골 사이 막이 처진' 스캘럽이다 —
+                //       일정하게 주면 그냥 사각 판자('종이 평판' 오독)로 돌아간다.
+                const memb = [];
+                const COLS = [[1, -1], [2, -2], [2, -3], [2, -2], [2, -3], [1, -2], [1, -3], [0, -2], [0, -1]];
+                for (let cx2 = 0; cx2 < COLS.length; cx2++)
+                    for (let cy2 = COLS[cx2][1]; cy2 <= COLS[cx2][0]; cy2++)
+                        memb.push({ x: s * cx2, y: cy2, z: 0 });
+                const wm = vx(memb, {
+                    material: new THREE.MeshStandardMaterial({
+                        color: vBase.clone().offsetHSL(0.015, 0.06, -0.20), vertexColors: true, flatShading: true,
+                        side: THREE.DoubleSide, transparent: true, opacity: 0.76, metalness: 0, roughness: 0.9,
+                        // ⚠️ **`envMapIntensity: 0`** — 종전 막은 `MeshLambertMaterial`(환경맵 없음)이었다.
+                        //    Standard 로 갈아타면 씬 환경맵 반사가 얹혀 얇은 막이 몸통보다 밝게 뜬다
+                        //    (voxel 전환에서 Lambert → Standard 를 강제하는 이상 이 항이 따라온다).
+                        envMapIntensity: 0,
+                    }), color: 0xffffff, center: false,
+                }); // 반투명 막 — 0.88은 사실상 불투명 판자로 읽힘 (비평가 6.8 8번)
+                // ⚠️ 명도를 −0.06 → −0.20 으로 더 내렸다: 한 칸 두께 판은 윗면이 광원을 정면으로 받아
+                //    매끈 평면보다 훨씬 밝게 뜬다(첫 판에서 막이 몸통보다 밝은 연보라로 나왔다).
+                const wBone = vx(Voxel.box(9, 1, 1), { material: batD, color: 0xffffff, center: false }); // 앞전 뼈대
+                wBone.position.set(s < 0 ? -8 * VS : 0, 2 * VS, 0.006);
                 wing.add(wm, wBone);
-                for (const [fa, fl] of [[-0.55, 0.34], [-0.95, 0.3]]) { // 막 위 손가락 골 뼈대 — 종이 평판 아닌 막 구조
-                    const fb = mk(new THREE.CylinderGeometry(0.009, 0.006, fl, 4), dark);
-                    fb.position.set(s * Math.cos(-fa) * fl * 0.5, Math.sin(fa) * fl * 0.5 + 0.05, 0.006);
-                    fb.rotation.z = s * (Math.PI / 2 - fa);
+                for (const [fy, fl] of [[-1, 7], [-2, 6]]) { // 막 위 손가락 골 뼈대 — 종이 평판 아닌 막 구조
+                    const fb = vx(Voxel.box(fl, 1, 1), { material: batD, color: 0xffffff, center: false });
+                    fb.position.set(s < 0 ? -(fl - 1) * VS : 0, fy * VS, 0.006);
                     wing.add(fb);
                 }
                 wing.rotation.set(0.16, s * -0.3, s * -0.1); // 살짝 뒤로 스윕 + 끝 처짐 — 수평 판자 오독 방지
@@ -13504,14 +13553,16 @@ const Scene3D = {
             }
             eyes(0.66, 0.165, 0.08, 0.042, 'angry', { iris: 0xffb547, glow: 0.12, tilt: 0.08, browColor: 0x3a3142 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
             // 두상(r 0.2)과 털몸통(r 0.125) 사이 목 · 날개가 몸에 박히는 소켓
-            aoRing(0.130, 0.025, 0, 0.442, -0.01, { ez: 0.85, flat: 0.5, op: 0.58 }); // 0.132/0.022 는 기여가 하한에 걸칠 만큼 옅었고(probe 60~67px), 0.138/0.027 은 유출 5px 였다(실측 0.94배에서 0, 기여 118px)
-            // 날개 소켓 링 2개 — 앞 세션이 '다음 착수 지점'으로 남긴 자리(기여 24/30px 로 있으나 마나였다).
-            // `AO_SCALES=1,1.15,1.3,1.45,1.6,1.8 probe-enemy-ao-split.js bat` 로 훑으니 **전 배율에서
-            // 유출 0**(파묻힌 쪽 결함이라 키워도 실루엣 밖으로 안 나간다)이고 기여만 오른다:
-            //   #1 24→30→39→54→64→87px · #2 30→40→57→67→82→91px.
-            // ⚠️ 최대(1.80)를 그대로 쓰지 않는다 — **유출은 가산적이지 않아** 링을 한꺼번에 켜면
-            //    겹치는 화소가 임계를 넘겨 단독 0 이던 것들이 합계에서 샌다(앞 세션 실측 ⑷).
-            //    한 눈금 물러난 **1.60배**(0.062→0.099 · 0.016→0.026)를 쓴다 — 둘 다 하한 60px 위다.
+            // 🚨 **복셀 전환 뒤 반경을 다시 쟀다** — 복셀 회전체는 축이 가장 뚱뚱하고 대각이 가장
+            //    얇아, 매끈 시절 반경을 그대로 두면 대각에서 후프가 샌다(버섯 스커트에서 실측).
+            //    실측(`AO_SCALES=0.7,0.8,0.9,1.0 probe-enemy-ao-split.js bat`): 목 링은 1.00 배에서
+            //    유출 3px, 0.90 배에서 유출 0 이지만 기여가 36px(하한 60) 로 떨어진다 — **반경만으로는
+            //    두 조건을 동시에 못 맞춘다.** 반경은 0.90 배로 내리고 **튜브를 굵혀** 기여를 되찾는다
+            //    ⚠️ **튜브를 굵히는 건 답이 아니다(실측으로 뒤집혔다)** — `TorusGeometry(r, tube)` 의
+            //    바깥 반경은 **r + tube** 라, 튜브를 키우면 링이 그만큼 더 밖으로 나간다(0.117+0.042
+            //    = 0.159 > 종전 0.155 → 유출이 3px 에서 12px 로 **늘었다**). 크기 대신 **진하기(op)**
+            //    를 올려 기여를 되찾는다 — 그건 실루엣을 한 픽셀도 안 넓힌다.
+            aoRing(0.116, 0.023, 0, 0.442, -0.01, { ez: 0.85, flat: 0.5, op: 0.80 });
             for (const s of [-1, 1]) aoRing(0.099, 0.026, s * 0.155, 0.63, 0, { flat: 0.6, op: 0.42 });
             anim.fly = true; topY = 1.0;
         } else if (kind === 'mushroom') {
