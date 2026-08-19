@@ -3807,10 +3807,22 @@ body {
     padding: .48rem .5rem; box-shadow: 0 .22rem 0 rgba(0,0,0,.35);
     width: 74%; align-self: center; /* 원본 장착됨 바 ≈70% W (풀블리드 아님) */
 }
+/* 장착됨 깃발 — 원본 두 컷(042356 490x882 · 042445 490x876)이 **같은 목표**를 가리킨다:
+     · 흰 몸통 폭 97/97px = **19.80%AW** (양쪽 소수점까지 일치)
+     · 깃발 세로 중심이 바 세로 중심에서 **−0.68%H**(= 바에 거의 세로 중앙, 살짝 위)
+   종전 값은 내용폭 상자(13.61%AW, **−6.19%p**)에 `top:-.45rem` 이라 바 **위로 떠서**
+   중심이 −2.81%H(**−2.13%p**)였다 — 비평가 2인이 pets·pets-2 양쪽에서 독립적으로 짚은 자리다.
+   ⚠️ 폭은 rem 이 아니라 앱 폭 기준으로 준다(뷰포트가 바뀌어도 같은 비율로 간다).
+      `box-sizing:border-box` 라 키라인 두 겹을 더해야 **흰 몸통**이 19.80%AW 가 된다.
+   ⚠️ 이 규칙은 펫 화면과 스킬 화면(ui.js:3768·4081)이 공유한다 — 한쪽만 보고 고치지 말 것.
+   판정기: `tools/probe-equipped-label.js` (REF=042356 / 042445 두 컷 교차) */
 .equipped-label {
-    position: absolute; top: -.45rem; left: -.55rem; z-index: 1;
+    position: absolute; left: -.55rem; z-index: 1;
+    top: 50%; transform: translateY(calc(-50% - var(--app-h) * .0068));
+    width: calc(var(--app-w) * .198 + var(--ol3) * 2);
     background: #fff; color: #17181a; font-size: .78rem; font-weight: 900;
     border: var(--ol3) solid var(--pp-line); padding: .1rem 1.1rem .1rem .6rem;
+    text-align: center;   /* 폭을 넓혔으니 글자를 몸통 가운데로 — 원본도 노치 앞 몸통 중앙이다 */
     clip-path: polygon(0 0, 100% 0, calc(100% - .7rem) 50%, 100% 100%, 0 100%);
 }
 .equipped-icons { display: flex; gap: .35rem; margin-left: auto; }

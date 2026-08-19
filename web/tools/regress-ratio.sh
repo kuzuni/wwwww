@@ -32,6 +32,7 @@ PROBES=(
     probe-pets-dom.js           # pets        042356
     probe-pets2-dom.js          # pets-2      042445
     probe-pets-timer-px.js      # pets·pets-2 부화 타이머 글자 크기 — dom 판정기가 줄 y 만 보고 크기는 안 봤다
+    probe-equipped-label.js     # pets·skills '장착됨' 흰 깃발(폭·바 안 세로 정렬) — dom 판정기가 '바'만 보고 깃발은 안 봤다
     probe-lgr-dom.js            # league-rewards 042208
     probe-league-verdict.js     # league      042149
     probe-lc-dom.js             # league-challenge 042228
