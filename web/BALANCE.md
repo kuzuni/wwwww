@@ -57,7 +57,8 @@ Common → Rare → Epic → Legendary → Ultimate → Mythic
   - Lv21에서 Legendary 0.01% 최초 등장, Lv64에서 Mythic 0.01%, Lv100에서 전등급 16.5~17.5% 균등
 - 젬 소환 비용: 200젬/회
 - 중복 획득 → 스킬 레벨업. 용도 구분: 광역(웨이브) / 단일(보스) / 힐
-- ❗개별 스킬 계수/쿨타임은 미확보 → 자체 설계 필요
+- ❗개별 스킬 계수는 미확보 → 자체 설계 필요
+- **쿨타임은 원본 대조 대상이 아니다 (사용자 지시 2026-08-19 `skill-cooldown-uniform`)**: "전부 10~14초 내외로 해라 모든 스킬. 등급별로 쿨타임 다르지도 마라." → 전 스킬 `cd` 를 10~14초 대역에 두고 **rarity 와 무관**하게 정한다. 현재 배정은 type 축 하나뿐(single 11 · aoe 12 · heal 13 · buff 14)이라 등급별 평균이 12.0~12.33 으로 평평하다. 값은 `gamedata.js` `SKILL_DEFS`, 검증기는 `tools/test-skill-cooldown.js`.
 
 ## 마운트 — `data/raw/mounts.js`
 
