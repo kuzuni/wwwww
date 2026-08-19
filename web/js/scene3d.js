@@ -5798,6 +5798,95 @@ const Scene3D = {
         //    2차 패스를 다시 시도하려면 먼저 그 발산 원인부터 규명할 것.
         return dist;
     },
+
+    // ── 무기 아이콘 자루 비례 과장 (썸네일 전용) ─────────────────────────────────
+    // 3차 채점 C·D 공통 지적 ⓑ: 96px 썸네일에서 **창·지팡이·낫의 자루가 2~4px 로 증발**해
+    // '헤드만 허공에 떠 있는 그림'으로 읽힌다. 원신 무기 아이콘은 실물 비례가 아니라 판독을
+    // 위해 자루를 과장한다 — 실물 비례의 봉은 아이콘 크기에서 선(線)이 되기 때문이다.
+    // 🚨 **makeWeapon 안에 넣지 말 것** — 인게임 영웅 손·투사체와 공용이라 전장 무기까지
+    //    굵어진다(tierizeParts·applyAscendDecor 가 썸네일 경로에만 걸려 있는 것과 같은 이유).
+    // ⚠️ 부모에 스케일 그룹을 끼워 넣는 방식은 쓰지 않는다 — 자식 순서가 바뀌면
+    //    `tierizeParts` 의 명도 3단 순열(traverse 순번)이 통째로 밀려 회귀(dedupe/shading)가 흔들린다.
+    //    대신 **지오메트리에 구워** 트리 모양을 한 자도 안 바꾼다(지오메트리는 clone 해서 공유본 보호).
+    // ⚠️ 헤드(촉·크리스탈·날)는 건드리지 않는다 — 자루만 굵어져야 '무기 아이콘'이지,
+    //    전체를 키우면 프레이밍이 흡수해 버려 화면상 아무 변화가 없다.
+    // 자루가 실루엣의 몸통인 장병기 계열만 대상 — 총기·활은 '가늘고 긴 세로 실린더'가
+    // 꽂을대(머스킷)·볼트(석궁) 같은 **부속**이라, 형상 화이트리스트 없이 기하로만 고르면
+    // 그 부속이 자루로 오인돼 2배로 부푼다(실측: musket 꽂을대 0.008 → 0.016, crossbow 볼트).
+    WEAPON_HAFT_SHAPES: ['spear', 'staff', 'scythe', 'axe', 'hammer', 'mace', 'club', 'thrown'],
+    weaponThumbBulk(model, wtypeId) {
+        if (!model || !model.children) return null;
+        if (this.WEAPON_HAFT_SHAPES.indexOf(weaponShape(wtypeId)) < 0) return null;
+        model.updateMatrixWorld(true);
+        // 🚨 치수는 전부 **모델 로컬(무기 그룹) 좌표계**로 잰다 — `Box3.setFromObject` 은 월드라
+        //    makeWeapon 말미의 `g.scale.setScalar(시대·등급 성장 배율)` 이 섞여 들어가고, 그러면
+        //    지오메트리 파라미터(자루 반경)와 **단위가 달라져** 부속 판정이 통째로 빗나간다
+        //    (실측: 지팡이 그립 밴드가 문턱 바로 밖으로 밀려 자루만 굵어졌다).
+        const boxOf = (ch) => {
+            if (!ch.geometry) return null;
+            if (!ch.geometry.boundingBox) ch.geometry.computeBoundingBox();
+            if (!ch.geometry.boundingBox) return null;
+            return ch.geometry.boundingBox.clone().applyMatrix4(ch.matrix);
+        };
+        const all = new THREE.Box3();
+        all.makeEmpty();
+        for (const ch of model.children) { const b = ch.isMesh && boxOf(ch); if (b) all.union(b); }
+        if (all.isEmpty()) return null;
+        const size = all.getSize(new THREE.Vector3());
+        const L = Math.max(size.x, size.y, size.z);
+        if (!(L > 0)) return null;
+        // 자루 = 모델 길이의 30% 이상으로 길고 반경이 4.5% 이하로 가는 **세로** 실린더.
+        // 세로 조건이 없으면 투석구의 가로 토글·총열 같은 것이 자루로 잡힌다.
+        let shaft = null;
+        for (const ch of model.children) {
+            if (!ch.isMesh || !ch.geometry || ch.geometry.type !== 'CylinderGeometry') continue;
+            const p = ch.geometry.parameters || {};
+            const rMin = Math.min(p.radiusTop, p.radiusBottom), rMax = Math.max(p.radiusTop, p.radiusBottom);
+            if (!(p.height >= L * 0.30) || !(rMin > 0) || !(rMin <= L * 0.045)) continue;
+            if (Math.abs(ch.rotation.x) > 0.35 || Math.abs(ch.rotation.z) > 0.35) continue;
+            if (!shaft || p.height > shaft.h) shaft = { mesh: ch, h: p.height, rMin, rMax };
+        }
+        if (!shaft) return null;
+        // 가는 끝 **지름**이 모델 길이의 7% (96px 에서 ~6.7px) 가 되는 배율. 상한 2.0 —
+        // 그 위로 밀면 자루가 헤드보다 굵어져 '몽둥이'가 된다(창·지팡이의 정체성이 사라진다).
+        // 하한 1.15 — 그 아래는 96px 에서 1px 도 안 움직이는데 지오메트리만 새로 굽는다(도끼 실측 1.05).
+        const k = Math.min(2.0, (L * 0.035) / shaft.rMin);
+        if (k < 1.15) return null;
+        const sb = boxOf(shaft.mesh);
+        const sc = sb.getCenter(new THREE.Vector3());   // 자루 축 (x,z) — 원점이 아닐 수 있다(총열 등)
+        // 자루에 **붙어 도는** 부속(그립 밴드·랑겟·결속끈·헤드 소켓)도 같이 굵힌다 —
+        // 자루만 부풀면 밴드가 자루 속에 파묻혀 '민짜 봉'이 된다.
+        const parts = [];
+        for (const ch of model.children) {
+            if (!ch.isMesh) continue;
+            const b = boxOf(ch);
+            if (!b || b.isEmpty()) continue;
+            if (b.max.y < sb.min.y || b.min.y > sb.max.y) continue;        // 자루 높이 구간 밖 = 헤드
+            const c = b.getCenter(new THREE.Vector3());
+            if (Math.hypot(c.x - sc.x, c.z - sc.z) > shaft.rMax * 0.8) continue;   // 축에서 벗어난 것 = 날·수염
+            const rr = Math.hypot(Math.max(Math.abs(b.min.x - sc.x), Math.abs(b.max.x - sc.x)),
+                                  Math.max(Math.abs(b.min.z - sc.z), Math.abs(b.max.z - sc.z)));
+            if (rr > shaft.rMax * 1.8) continue;                           // 자루보다 훨씬 굵은 것 = 헤드
+            parts.push(ch);
+        }
+        // 자루 축(원점이 아닐 수 있다) 둘레로 반경만 늘린다 — 원점 기준으로 늘리면 축째로 밀려난다
+        const S = new THREE.Matrix4().makeTranslation(sc.x, 0, sc.z)
+            .multiply(new THREE.Matrix4().makeScale(k, 1, k))
+            .multiply(new THREE.Matrix4().makeTranslation(-sc.x, 0, -sc.z));
+        for (const m of parts) {
+            const geo = m.geometry.clone();
+            geo.applyMatrix4(m.matrix);   // 부모(무기 그룹) 좌표계로 옮긴 뒤
+            geo.applyMatrix4(S);          // 축 반경만 과장(길이는 불변)
+            m.geometry = geo;
+            m.position.set(0, 0, 0);
+            m.rotation.set(0, 0, 0);
+            m.scale.set(1, 1, 1);
+            m.updateMatrix();
+        }
+        model.updateMatrixWorld(true);
+        return { k: k, parts: parts.length, rMin: shaft.rMin, len: L };
+    },
+
     itemThumb(item) {
         if (!item) return null;
         const aTier = this.ascendTier(item.stars); // 승천 티어별 디자인 분화 — 키에 안 넣으면 별이 달라도 같은 썸네일이 재사용된다
@@ -5811,6 +5900,7 @@ const Scene3D = {
             let model;
             if (item.slot === 'weapon') {
                 model = this.makeWeapon(item.wtype || 'sword', item.ageIdx, item.rarity);
+                this.weaponThumbBulk(model, item.wtype || 'sword');   // 자루 과장 — 썸네일 경로에서만 (위 주석 참조)
             } else if (item.slot === 'helmet') {
                 model = this.makeHelmet(item.age, item.rarity, itemStyleOf(item), itemNameOf(item));
             } else if (item.slot === 'armor') {
