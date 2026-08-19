@@ -16,7 +16,7 @@ const src = [
 
 function makeCtx() {
     const toasts = [];
-    const calls = { topBar: 0, stageLabel: 0, save: 0, heroDown: 0, dungeonFail: 0 };
+    const calls = { topBar: 0, stageLabel: 0, save: 0, heroDown: 0, dungeonFail: 0, wipeEnemies: 0 };
     const ctx = {
         // 진행 상태 스텁은 뺐다 — state.js의 진짜 defaultState()가 아래에서 세운다.
         // `ctx.S`는 그 진짜 S로 연결되는 접근자로 다시 깔린다(기존 단언들이 t.ctx.S를 그대로 쓴다).
@@ -38,6 +38,9 @@ function makeCtx() {
         // 강등 경로를 봐야 하므로 배너를 못 띄운 환경(false)으로 둔다.
         Scene3D: {
             heroDown: () => calls.heroDown++, heroRevive() {}, clearEnemies() {}, deathFade: () => false,
+            // death-enemy-remnant: 사망 순간 남은 적을 암전 뒤에서 녹여 없앤다 — 정리 호출 자체를
+            // 이 테스트가 세지는 않지만, 스텁이 없으면 onDefeat 이 TypeError로 통째로 죽는다.
+            deathWipeEnemies: () => calls.wipeEnemies++,
             scene: null, setChapterTheme() {}, setTheme() {},   // 던전 실패 경로의 본대 복귀 컷
         },
         SFX: { setMusicMode() {} },

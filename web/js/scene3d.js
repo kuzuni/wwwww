@@ -10420,6 +10420,64 @@ const Scene3D = {
         this.enemyMap.clear();
     },
 
+    // 사망 암전이 닫히는 동안 남은 적을 걷어낸다 (death-enemy-remnant, 사용자 지시 2026-08-20:
+    // "죽음 후 화면이 걷힌 뒤에도 이전 적 메시가 몇 초간 남아 있다").
+    //
+    // 왜 별도 함수인가 — `clearEnemies` 는 `setupStage` 안에 있고, 사망 경로에서 그 시점은
+    // **암전이 이미 걷히기 시작한 뒤**다. 실측(`tools/probe-death-remnant.js`, 수정 전):
+    // 암전 완전 폐쇄 1723ms → 다시 걷힘(opacity<0.6) 3353ms → **옛 적 메시는 6258ms 까지 씬에 잔류**.
+    // 즉 사용자는 걷힌 화면에서 직전 스테이지 적을 1초 넘게 본다. 그래서 정리를 **사망 순간에서
+    // 재는 벽시계**로 앞당겨 암전 안에서 끝낸다.
+    //
+    // 왜 하드 삭제가 아니라 디졸브인가 — 앞당긴 정리는 커버가 아직 투명한 구간(0~delay)과 겹칠 수
+    // 있고, 커버 자체가 없는 강등 경로(WAAPI 미지원 → 토스트)도 있다. 하드 삭제면 그 구간에서
+    // '적이 순간 증발'로 읽힌다. 사망 디졸브(`setDissolve`)와 같은 노이즈 소멸로 흘려보내면
+    // 커버가 있든 없든 자연스럽다. 소멸 구간은 `DEATH_FADE.delay`→`delay+fadeIn` 에 정확히 맞춘다
+    // (=커버가 어두워지는 그 구간에서만 녹는다).
+    //
+    // 맵에서는 **즉시** 지운다: 소멸이 끝나기를 기다리면 그 사이 `clearEnemies`/`spawnEnemy` 가
+    // 같은 메시를 두 번 만지고, 무엇보다 '논리상 이미 없는 적'을 조회하는 코드가 살아난다.
+    // 🚨 진행도는 애니메이션 k(=렌더 dt 누적)가 아니라 **벽시계**로 잰다. main.js 의 렌더 루프는
+    //    dt 를 프레임당 0.1s 로 클램프하므로(`Math.min(0.1, …)`), 10fps 아래로 떨어지면 addAnim 의
+    //    k 가 실시간보다 몇 배 느리게 흐른다. 그런데 이걸 가려 주는 암전 커버는 WAAPI = **벽시계**다.
+    //    k 로 재면 저프레임에서 그 위상차만큼 덜 녹은 적이 걷힌 암전 뒤로 드러난다 — 고치려는
+    //    결함과 정확히 같은 계열이다(실측: swiftshader 3fps 환경에서 소멸이 1.6s → 5s 로 늘어졌다).
+    //    렌더 루프가 아예 멈춘 경우까지 보증하려고 setTimeout 안전망도 같이 건다.
+    deathWipeEnemies() {
+        const T = this.DEATH_FADE;
+        const total = T.delay + T.fadeIn;          // 커버가 완전히 닫히는 시점 = 소멸이 끝나야 하는 시점
+        const t0 = U.now();
+        const doomed = [...this.enemyMap.values()];
+        this.enemyMap.clear();
+        const finish = m => {
+            if (m._wiped) return;                  // 애니 종료·f 도달·안전망 셋 중 먼저 온 하나만 치운다
+            m._wiped = true;
+            this.disposeTree(m.g); this.scene.remove(m.g); this.dropBlob(m);
+        };
+        for (const m of doomed) {
+            // 빈 HP바는 즉시 걷는다 — 몸이 녹는 동안 바만 떠 있으면 몸과 무관한 UI 조각으로 읽힌다
+            // (`enemyDie` 가 빈 바를 시체에 붙여 둔 것과 같은 이유의 반대편 처리).
+            if (m.hpG) { this.disposeTree(m.hpG); this.scene.remove(m.hpG); m.hpG = null; }
+            // 죽는 중이던 적은 제 디졸브가 이미 돌고 있다 — 0부터 다시 칠하면 반쯤 녹은 몸이
+            // 되살아난다. 그 애니메이션은 그대로 두고 여기서는 뒷정리(치우기)만 겹쳐 건다.
+            const dying = !!m.dead;
+            // addAnim 은 **프레임 티커로만** 쓴다 — 치우는 시점은 오로지 벽시계(f>=1)와 아래 안전망이
+            // 정한다. 애니 종료(onDone)에 치우기를 맡기면 애니 시계가 벽시계보다 앞설 때(프레임을
+            // 몰아 그리는 캡처 하네스에서 실제로 그랬다) 아직 화면이 다 보이는데 적이 증발한다.
+            this.addAnim((total + 400) / 1000, () => {
+                if (m._wiped) return;
+                const f = U.clamp((U.now() - t0 - T.delay) / T.fadeIn, 0, 1);
+                if (!dying) {
+                    this.setDissolve(m.g, f);
+                    if (m.blob) m.blob.scale.setScalar(0.95 * (1 - f));
+                }
+                if (f >= 1) finish(m);
+            }, () => { if (U.now() - t0 >= total) finish(m); });
+            setTimeout(() => finish(m), total + 400);   // 렌더 루프가 멈춘 경우의 최종 보증
+        }
+        return doomed.length;
+    },
+
     // 오브젝트 서브트리의 geometry/material을 해제 (제거 시 GPU 메모리 누적 방지).
     // GLB 스켈레톤 몬스터 clone은 geometry를 원본 템플릿과 공유하므로
     // monsterMesh()에서 userData.sharedGeometry=true로 표시된 메시는 geometry를 건드리지 않음(material은 인스턴스별 clone이라 해제).
@@ -14548,9 +14606,12 @@ const Scene3D = {
     // 사망 연출 — 암전 커버 + 중앙 "죽었습니다 / …" 배너 (death-fade-popup, 사용자 지시 2026-08-18).
     // sceneCut과 같은 규약: 이 오버레이는 **순수 장식**이고 게임 상태(후퇴·부활·재시작)는 Combat의
     // 벽시계(downUntil/riseUntil)와 phaseTimer가 굴린다 — 오버레이가 유실돼도 진행은 이미 정상이다.
-    // 타이밍은 onDefeat의 벽시계에 맞춘 상수다: 사망 클립이 읽히는 0~delay 구간은 투명, 이후 암전,
-    // 부활(+2400ms)·기상(+3250ms)은 어둠 뒤에서 지나가고, 페이드-인이 끝날 때(+4100ms) 행군이 재개돼 있다.
-    // ⚠️ downUntil(2400)을 늘리면 hold도 같이 늘려야 어둠이 기상보다 먼저 걷히지 않는다.
+    // 타이밍은 onDefeat의 벽시계(`Combat.DEATH_DOWN_MS`/`DEATH_RISE_MS`/`DEATH_MARCH_S`)와 맞물린 표다:
+    //   0~900 투명(사망 클립을 읽는 구간) · 900~1600 잠김 · 1600~3400 완전 암전 · 3400~4100 걷힘.
+    //   부활(1600ms)·기상 완료(2450ms)·새 스테이지 구성(setupStage 2900ms)이 전부 그 완전 암전
+    //   구간 안에서 지나가므로, 커버가 걷힌 첫 프레임은 이미 새 스테이지다 (death-enemy-remnant).
+    // ⚠️ Combat 쪽 세 상수의 합을 늘리면 hold도 같이 늘려야 어둠이 새 스테이지보다 먼저 걷힌다.
+    //    그 불변식은 `tools/test-death-timeline.js` 가 지킨다(양쪽 상수를 원문에서 읽어 비교).
     DEATH_FADE: { delay: 900, fadeIn: 700, hold: 1800, fadeOut: 700 },
     deathFade(sub) {
         if (!this.fxLayer) return false;
@@ -14578,13 +14639,21 @@ const Scene3D = {
         if (!cover.animate) return false; // WAAPI 미지원이면 호출부가 토스트로 강등한다 (검은 판 정지화면 방지)
         this.fxLayer.appendChild(cover);
         const off = ms => ms / total;
+        // 🚨 이징은 **키프레임마다** 준다. options 의 `easing` 은 구간별 곡선이 아니라 **반복 전체의
+        //    타이밍 함수**라, 넣으면 offset 이 가리키는 ms 자체가 통째로 휜다. 예전엔 여기에
+        //    cubic-bezier(.3,0,.35,1) 이 options 로 걸려 있어 위 주석이 약속한 표(암전 1600~3400ms)와
+        //    실제 화면이 900ms 가까이 어긋나 있었다 — 실측(`tools/shot-death-reveal.js`, 100ms 간격
+        //    연속 캡처): 완전 암전이 1300ms 에 닫히고 **2500ms 에 이미 걷히기 시작**(3400ms 예정),
+        //    페이드아웃은 700ms 가 아니라 ~1550ms 였다. `Combat.DEATH_*` 가 "암전 안에서 끝난다"고
+        //    맞춰 놓은 시각이 실제로는 커버가 반쯤 걷힌 시점이었다는 뜻이라, 표대로 돌게 바로잡는다.
+        //    (곡선 자체는 구간 이징으로 그대로 살린다 — 검게 잠기고 물러나는 느낌은 안 잃는다.)
         cover.animate([
-            { opacity: 0, offset: 0 },
-            { opacity: 0, offset: off(T.delay) },
-            { opacity: 1, offset: off(T.delay + T.fadeIn), easing: 'linear' },
-            { opacity: 1, offset: off(T.delay + T.fadeIn + T.hold) },
+            { opacity: 0, offset: 0, easing: 'linear' },
+            { opacity: 0, offset: off(T.delay), easing: 'cubic-bezier(.3,0,.35,1)' },  // 잠기는 구간
+            { opacity: 1, offset: off(T.delay + T.fadeIn), easing: 'linear' },         // 완전 암전 유지
+            { opacity: 1, offset: off(T.delay + T.fadeIn + T.hold), easing: 'cubic-bezier(.3,0,.35,1)' }, // 물러나는 구간
             { opacity: 0, offset: 1 },
-        ], { duration: total, easing: 'cubic-bezier(.3,0,.35,1)' }).onfinish = () => cover.remove();
+        ], { duration: total }).onfinish = () => cover.remove();
         // 배너는 암전이 거의 끝난 뒤 아래에서 떠오른다 — 커버(부모)의 opacity에 곱해지므로 커버와 함께 사라진다
         for (const el of [title, rule, subEl]) el.animate([
             { opacity: 0, transform: 'translateY(.6rem)', offset: 0 },

@@ -12,6 +12,19 @@ const Combat = {
     MELEE_GAP: 0.2,          // 그 위에 얹는 고정 여유 (유닛)
     MELEE_LANE_Z: [0, 0.95, -0.9], // 슬롯별 깊이 레인 — 앞줄 / 카메라 쪽 / 안쪽
 
+    // ── 사망 연출 벽시계 (death-enemy-remnant, 2026-08-20) ──────────────────────────
+    // 🚨 **불변식**: DOWN + RISE + MARCH*1000 ≤ Scene3D.DEATH_FADE 의 `delay+fadeIn+hold`(=암전이
+    //    다시 걷히기 시작하는 시점). 그래야 `setupStage`(옛 적 정리 + 새 스테이지 구성)가 **암전
+    //    안에서** 끝나 리빌 첫 프레임이 이미 새 스테이지다. 이 합을 늘릴 땐 `hold` 도 같이 늘릴 것.
+    //    (수정 전: 2400+850+800=4050ms 인데 암전은 3400ms 에 걷히기 시작 → 650ms+ 동안 직전
+    //     스테이지 적이 그대로 보였다. 실측 `tools/probe-death-remnant.js`.)
+    // 왜 DOWN 을 2400→1600 으로 줄여도 되나: 커버는 1600ms 에 **완전 불투명**이 된다. 옛 2400 중
+    // 뒤 800ms 는 어차피 순검은 화면 뒤였다 — 눈에 보이는 사망 읽기(쓰러짐 클립 1.3s + 누운 채
+    // 0.3s)는 한 프레임도 안 줄었다. 줄어든 건 아무도 못 보던 대기 시간뿐이다.
+    DEATH_DOWN_MS: 1600,     // 쓰러져 누워 있는 구간 (커버가 완전히 닫히는 시점과 같다)
+    DEATH_RISE_MS: 850,      // ProChar Revive 클립 길이(dur 0.85s)
+    DEATH_MARCH_S: 0.4,      // 기상 뒤 한 박자 — 이 뒤에 setupStage
+
     enemies: [],
     hero: { hp: Big.ONE, maxHp: Big.ONE, atkTimer: 0, stats: null }, // hp·maxHp는 Big (승천 배율로 Number 한계를 넘는다)
     // 스킬 버프는 **HP 회복·공격력 업 둘뿐**이다 (사용자 지시 2026-08-19 buff-redesign-heal-atk-fixed).
@@ -203,9 +216,16 @@ const Combat = {
         // 던전 클리어 팝업 대기 중에도 멈춘다 — 팝업 뒤에서 영웅이 하염없이 행군하면 '클리어하고 서 있다'로 안 읽힌다.
         Scene3D.walking = this.phase !== 'bossWarn' && this.phase !== 'dungeonClear' && (this.phase !== 'fight' || !this.aliveEnemies().length);
         // 지연 큐
+        // ⚠️ 콜백이 큐를 **통째로 비울 수 있다** — 지연 피해(`damageHero`)가 그 자리에서 `onDefeat`
+        //    를 부르고, 사망/던전 이탈은 `this.pending = []` 로 남은 예약을 버린다(사라진 적을
+        //    겨냥한 뒤늦은 타격 연출 방지). 그러면 이 역순 루프의 남은 인덱스는 새 빈 배열을
+        //    가리켜 `undefined.t` 로 터진다(적이 둘 이상일 때만 나서 오래 숨어 있던 경로다).
+        //    엔트리를 매번 다시 집어 없으면 그대로 끝낸다 — 버려진 예약을 되살리지 않는 게 의도다.
         for (let i = this.pending.length - 1; i >= 0; i--) {
-            this.pending[i].t -= dt;
-            if (this.pending[i].t <= 0) { const fn = this.pending[i].fn; this.pending.splice(i, 1); fn(); }
+            const p = this.pending[i];
+            if (!p) continue;
+            p.t -= dt;
+            if (p.t <= 0) { this.pending.splice(i, 1); p.fn(); }
         }
         // 버프 만료
         const nowMs = U.now();
@@ -260,7 +280,7 @@ const Combat = {
             if (this.downUntil) {
                 if (U.now() < this.downUntil) return;
                 this.downUntil = 0;
-                this.riseUntil = U.now() + 850; // ProChar Revive 클립 길이(dur 0.85s)
+                this.riseUntil = U.now() + this.DEATH_RISE_MS;
                 Scene3D.heroRevive();
                 return;
             }
@@ -487,8 +507,8 @@ const Combat = {
     // 던전에서 튕겨 나온 순간 = 본대 복귀 순간. 실패 토스트가 "본대로 복귀합니다"라고 말하는
     // 바로 그 프레임에 화면도 본대로 돌려놓는다.
     // 왜 필요했나(2026-08-18 QA 17차): Dungeons.onFail()은 run=null + 토스트 + 저장만 했고,
-    // 라벨·3D 테마·던전 몹은 사망 연출이 다 끝난 setupStage 시점(다운 2.4s + 기상 0.85s +
-    // phaseTimer 0.8s)에야 정리됐다. 실측 4.5~6.2초 동안 "본대로 복귀합니다" 토스트 아래로
+    // 라벨·3D 테마·던전 몹은 사망 연출이 다 끝난 setupStage 시점(당시 다운 2.4s + 기상 0.85s +
+    // phaseTimer 0.8s — 지금은 DEATH_* 상수)에야 정리됐다. 실측 4.5~6.2초 동안 "본대로 복귀합니다" 토스트 아래로
     // 던전 이름 라벨 + 던전 하늘 + 나를 죽인 던전 몹이 그대로 서 있었다.
     // ⚠️ 라벨만 당기면 안 된다 — 그러면 4초 동안 '본대 라벨 + 던전 배경'으로 어긋나기만 한다.
     //    라벨·배경·몹·음악은 전부 같은 프레임에 넘어가야 한판이 끝난 것으로 읽힌다.
@@ -540,20 +560,28 @@ const Combat = {
             // — 그 토스트는 사용자가 이름 대 이름으로 지목했던 알림이라 'combat' 레인(팝업 위 금지)을 지킨다.
             if (!Scene3D.deathFade(back ? `${stageName()} 스테이지로 이동합니다` : '회복 후 다시 도전합니다'))
                 UI.toast(back ? `💀 쓰러졌다... ${stageName()}로 한 스테이지 후퇴!` : '💀 쓰러졌다... 회복 후 다시 도전!', 'combat');
+            // 나를 죽인 적은 암전이 닫히는 동안 녹여 없앤다 (death-enemy-remnant) — 정리를
+            // setupStage 까지 미루면 암전이 걷힌 화면에 직전 스테이지 적이 그대로 서 있다.
+            // 논리 쪽도 같은 프레임에 비운다(던전 실패의 leaveDungeon 과 같은 규약): 지연 큐를
+            // 안 비우면 이미 지운 적을 겨냥한 뒤늦은 타격 연출이 빈 자리에서 터진다.
+            this.enemies = [];
+            this.pending = [];
+            Scene3D.deathWipeEnemies();
             UI.renderTopBar();
-            UI.updateStageLabel(); // 쓰러져 있는 2.4초 동안 라벨이 옛 스테이지를 가리키지 않게(setupStage 전에 먼저 갱신)
+            UI.updateStageLabel(); // 쓰러져 있는 동안(DEATH_DOWN_MS) 라벨이 옛 스테이지를 가리키지 않게(setupStage 전에 먼저 갱신)
         }
         saveGame();
         this.hero.hp = this.hero.maxHp; // 머리 위 바는 Scene3D.update가 매 프레임 자체 갱신
         this.phase = 'stageDelay';
-        // 사망 클립 1.3초 + 쓰러진 채 머무는 시간 + 기상 0.8초. 2.0초면 쓰러지자마자 다시 서서
+        // 사망 클립 1.3초 + 쓰러진 채 머무는 시간 + 기상 0.85초. 쓰러지자마자 다시 서면
         // "죽은 것처럼 안 보인다"는 지적이 그대로 남는다 — 누운 포즈가 확실히 읽힐 만큼 준다.
-        this.phaseTimer = 0.8; // 기상까지 끝난 뒤 남는 행군 구간 (연출 길이는 아래 벽시계가 담당)
+        // 구간 길이는 위 DEATH_* 상수에 모아 뒀다(암전 안에서 끝나야 하는 불변식이 거기 붙어 있다).
+        this.phaseTimer = this.DEATH_MARCH_S; // 기상까지 끝난 뒤 남는 행군 구간 (연출 길이는 아래 벽시계가 담당)
         // ⚠️ 기상 예약을 pending(=틱 누적)으로 걸면 안 된다. main.js의 로직 루프는 탭 스톨·긴 프레임 뒤
         // Math.min(5000, …) 만큼을 한 번의 인터벌 발화에서 while로 몰아 돌리므로(최대 50틱=5초치),
         // 그 한 번에 쓰러짐→기상→다음 스테이지까지 전부 지나가 사망이 또 안 보인다(실측: 실제 2ms 만에 스테이지 재시작).
         // 그래서 사망 구간만 벽시계로 잰다 — 캐치업이 몇 틱을 몰아 돌리든 실제 시간이 흘러야 일어난다.
-        this.downUntil = U.now() + 2400;
+        this.downUntil = U.now() + this.DEATH_DOWN_MS;
         this.riseUntil = 0;
     },
 };
