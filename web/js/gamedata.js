@@ -436,7 +436,9 @@ const SKILL_DEFS = [
     { id: 'supernova',   name: '초신성',          rarity: 'ultimate',  type: 'aoe',    mult: 10.0, cd: 12, fx: 'explode',  color: '#ffb74d' },
     { id: 'voidLance',   name: '공허의 창',       rarity: 'ultimate',  type: 'single', mult: 18.0, cd: 11, fx: 'beam',     color: '#9575cd' },
     { id: 'timeWarp',    name: '시간 왜곡',       rarity: 'ultimate',  type: 'buff',   mult: 2.0,  dur: 10, cd: 14, fx: 'aura', color: '#4dd0e1' },
-    { id: 'apocalypse',  name: '아포칼립스',      rarity: 'mythic',    type: 'aoe',    mult: 18.0, cd: 12, fx: 'meteor',   color: '#ef5350' },
+    // ⚠️ fx 'dragonfire' — 메테오와 fx 를 공유하던 것을 분리 (skill-unique-signature, 사용자 지목 쌍:
+    //    "아포칼립스랑 메테오라는 스킬 너무 똑같음. 거대한 용이 나와서 불을 뿜는 스킬로 바꾸든지").
+    { id: 'apocalypse',  name: '아포칼립스',      rarity: 'mythic',    type: 'aoe',    mult: 18.0, cd: 12, fx: 'dragonfire', color: '#ef5350' },
     { id: 'godspear',    name: '신의 창',         rarity: 'mythic',    type: 'single', mult: 32.0, cd: 11, fx: 'bolt',     color: '#ffd54f' },
     { id: 'divineShield', name: '신성한 가호',    rarity: 'mythic',    type: 'heal',   mult: 7.0,  dur: 6,  cd: 13, fx: 'heal', color: '#fff59d' },
 ];

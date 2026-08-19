@@ -10166,6 +10166,7 @@ const Scene3D = {
     STORM_GATHER_MIN_MS: 190,
     castMsFor(fx, tier) {
         if (fx === 'meteor') return this.CAST_MS_METEOR;
+        if (fx === 'dragonfire') return this.CAST_MS_METEOR;   // 용의 강림 자체가 예고 — 시전만 겹친다
         if (fx === 'bolt') return Math.max(this.STORM_GATHER_MIN_MS, this.castBeatMs(tier));
         return this.castBeatMs(tier);
     },
@@ -10339,8 +10340,14 @@ const Scene3D = {
 
     skillPayload(fx, color, targetIds, tier, scene) {
         const targets = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
-        if (tier !== undefined) setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier), fx === 'meteor' ? 340 : 30);
-        if (fx === 'meteor') {
+        if (tier !== undefined) setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier),
+            fx === 'meteor' ? 340 : fx === 'dragonfire' ? this.DRAGONFIRE_IMPACT_MS : 30);
+        if (fx === 'dragonfire') {
+            // 아포칼립스 — 거대 화염룡 강림 (skill-unique-signature). 메테오와 fx 를 공유하던
+            // 사용자 지목 쌍을 완전 분리: 하늘 낙하(운석)가 아니라 **주인공 뒤에서 솟은 용이
+            // 수평으로 쓸어 가는 브레스**다.
+            this.dragonfireBreath(targetIds, color, tier || 0);
+        } else if (fx === 'meteor') {
             // 운석 세례 (skill-fx-exaggerated). 예전엔 **타깃당 돌멩이 1개**라 적이 하나면 1발이었다 —
             // 광역기인데 화면에는 돌 하나가 떨어지고 끝나서 '운석'이 아니라 '던진 돌'로 읽혔다.
             this.meteorStorm(targetIds, color, tier || 0);
@@ -10894,6 +10901,190 @@ const Scene3D = {
                     });
                 });
             }, at + this.MAW_TELL_MS);
+        });
+    },
+
+    // ---- 스킬 전용 연출: 아포칼립스 — 거대 화염룡 강림 (skill-unique-signature, 사용자 지시 2026-08-19) ----
+    // 사용자 원문: "아포칼립스랑 메테오라는 스킬 너무 똑같음. 아예 존나 다르게 해야 함.
+    //              예를 들어 거대한 용이 나와서 불을 뿜는 스킬로 하나를 바꾸든지."
+    // 그 예시 그대로 구현. 축이 기존 연출 전부와 다르다 — 운석(하늘에서 낙하)·지중 습격(적 발밑
+    // 아가리)·화염 폭풍(수평 투척 후 확산)과 달리, 이건 **주인공 뒤편(왼쪽)에서 솟은 거대한 용이
+    // 적 전열을 수평으로 쓸어 태우는 브레스**다(주인공 원점 원칙 skill-fx-origin-hero-side 준수).
+    // 장면 4단: 강림(융기 먼지+용이 솟음, 날개 펼침) → 예비(고개 젖히고 목구멍 충전) →
+    //          브레스(입에서 불줄기 원뿔이 적 전열을 근→원 순서로 태움, 적마다 불기둥·폭발) →
+    //          퇴장(가라앉으며 잉걸).
+    // ⚠️ 머리는 mawHead 재사용(뿔·이빨·벌어지는 턱이 이미 검증됨 — 재질 함정 포함).
+    // ⚠️ 라이트는 fxLight 풀만 — new PointLight 직접 생성은 재컴파일 스톨 부활(skill-cast-lag-optimize).
+    DRAGONFIRE_IMPACT_MS: 820,     // 첫 브레스 착탄 시각 — skillPayload 의 무게(skillImpactWeight) 지연과 동기
+    dragonfireBreath(targetIds, color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
+        const pw = t / 5;
+        const hero = this.heroG.position;
+        // ⚠️ 주인공에서 너무 떨어뜨리면(실측 -2.35, z -1.25) 화면 왼쪽 가장자리 숲에 가려 안 보인다 —
+        //    강림 지점은 주인공 바로 뒤 어깨너머로.
+        const base = new THREE.Vector3(hero.x - 1.65, 0, hero.z - 0.85);
+        const G = new THREE.Group();
+        G.userData.dragonFx = true;
+        G.position.set(base.x, -4.2, base.z);
+        G.rotation.y = -0.18;                               // 살짝 카메라 쪽으로 틀어 실루엣을 연다
+        const mk = (geo, col) => new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col }));
+        // 몸통→목 사슬: 아래가 굵고 위로 가늘어지는 S자. 한낮 초원 위라 몸은 확실히 어둡게(mawHead 함정).
+        // ⚠️ 0x2a2130 은 캡처에서 연보라 덩어리로 떴다 — sRGB 출력 인코딩이 재질색을 linear→sRGB 로
+        //    들어 올린다(픽셀 실측: 0x14 대역이 화면에서 0x50 대역). 실루엣이 검게 서려면 근흑까지 내린다.
+        const hide = new THREE.Color(0x070509);
+        const segDef = [[0.95, 0, 0.55, 0], [0.74, 0.26, 1.5, 0], [0.56, 0.68, 2.35, 0], [0.44, 1.16, 2.98, 0]];
+        for (const [r, x, y, z] of segDef) {
+            const s = mk(new THREE.SphereGeometry(r, 10, 8), hide.clone().offsetHSL(0, 0, (y / 3) * 0.06));
+            s.position.set(x, y, z);
+            G.add(s);
+            // 용암 균열 밴드 — 스킬 색 가산 토러스. 어두운 몸에 색 정체성을 심는다.
+            const band = new THREE.Mesh(new THREE.TorusGeometry(r * 0.82, 0.045, 6, 18),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+            band.position.set(x, y - r * 0.25, z);
+            band.rotation.x = Math.PI / 2 - 0.25;
+            G.add(band);
+        }
+        // 가슴 충전 코어 — 예비 단계에서 부풀어 브레스의 출처를 만든다.
+        // ⚠️ 몸 밖으로 삐져나오면 '분홍 공'으로 읽힌다(캡처 실측) — 목 안쪽에 작게 묻는다.
+        const chest = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 8),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        chest.position.set(0.5, 1.95, 0.15);
+        G.add(chest);
+        // 날개 2장 — 어깨 피벗에 달아 펼침/퍼덕임을 회전으로 준다(납작 콘 = 막).
+        // ⚠️ 몸과 같은 명도·몸에 붙은 위치면 한 덩어리로 뭉친다(캡처 실측) — 어깨 위로 올려
+        //    스카이라인에 걸치고, 막은 몸보다 밝은 톤 + 스킬 색 15% 로 분리한다.
+        const wings = [];
+        for (const s of [-1, 1]) {
+            const piv = new THREE.Group();
+            piv.position.set(0.05, 2.55, s * 0.6);
+            // ⚠️ 날개를 크게(2.5)·밝게 주면 화면 상단에서 배경 산과 한 덩어리로 읽힌다(캡처 실측) —
+            //    몸과 같은 근흑 + 스킬 색 8%, 몸 폭 안쪽 크기로.
+            const mem = mk(new THREE.ConeGeometry(0.72, 1.6, 3),
+                hide.clone().offsetHSL(0, 0, 0.02).lerp(color, 0.08));
+            mem.scale.z = 0.08;
+            mem.position.set(-0.45, 0.62, s * 0.5);
+            mem.rotation.set(s * 0.5, 0, 1.3);
+            piv.add(mem);
+            const edge = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.025, 1.5),
+                new THREE.MeshBasicMaterial({ color: hide.clone().offsetHSL(0, 0, 0.04) }));
+            edge.position.set(-0.4, 0.66, s * 0.5);
+            edge.rotation.z = 1.2;
+            piv.add(edge);
+            piv.rotation.z = 1.35;                          // 접힌 채 시작 — 강림하며 펼친다
+            piv.userData.s = s;
+            G.add(piv);
+            wings.push(piv);
+        }
+        // 머리 — mawHead 재사용(+x 방향으로 입이 벌어진다). 목 끝에 얹는다.
+        const head = this.mawHead(color, 1.4);
+        head.position.set(1.62, 3.3, 0);
+        G.add(head);
+        const jaw = head.userData.jaw;
+        this.scene.add(G);
+        const light = this.fxLight(color.getHex(), 9, 'dragonLight'); // 풀 리스 — 직접 생성 금지
+        light.pos(base.x + 1.2, 3.2, base.z + 0.6);
+        // 융기 먼지 — 강림 지점
+        this.expandRing(new THREE.Vector3(base.x, 0.02, base.z), new THREE.Color(0x9c8466), 1.6);
+        for (let i = 0; i < 6; i++) this.riseParticle(new THREE.Vector3(base.x + U.rand(-0.8, 0.8), 0.05, base.z + U.rand(-0.5, 0.5)), new THREE.Color(0x8a7358));
+        SFX.mawRoar(t);
+        this.shake(0.32 + pw * 0.2);
+        const dispose = () => {
+            G.traverse(o => {
+                if (o.isMesh && o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
+                if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
+            });
+            this.scene.remove(G); light.release();
+            for (let i = 0; i < 4; i++) this.riseParticle(new THREE.Vector3(base.x + U.rand(-0.6, 0.6), 0.05, base.z + U.rand(-0.4, 0.4)), new THREE.Color(0xff8a50));
+        };
+        // ⓐ 강림 0.42s — 지하에서 솟으며 날개를 펼친다
+        this.addAnim(0.42, k => {
+            const e = 1 - Math.pow(1 - k, 3);
+            G.position.y = -4.2 + e * 3.9;                  // 최종 -0.3 (발치는 땅속 — 하반신 생략)
+            for (const w of wings) w.rotation.z = 1.35 - e * 1.0;
+            light.set(e * (1.0 + pw * 0.9));
+        }, () => {
+            // ⓑ 예비 0.2s — 고개를 젖히고 목구멍·가슴이 충전된다 (anticipation)
+            this.addAnim(0.2, k => {
+                head.rotation.z = k * 0.38;
+                const open = k;
+                jaw.upper.rotation.z = -Math.PI / 2 - open * 0.66;
+                jaw.lower.rotation.z = -Math.PI / 2 + open * 0.36;
+                jaw.throat.material.opacity = 0.35 + open * 0.6;
+                chest.material.opacity = k * 0.55;
+                chest.scale.setScalar(1 + k * 0.5);
+            }, () => {
+                // ⓒ 브레스 0.78s — 입에서 불줄기 원뿔이 적 전열을 **근→원 순서로** 쓸어 태운다
+                const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean)
+                    .sort((a, b) => a.g.position.x - b.g.position.x);
+                const aims = live.length ? live.map(m => m.g.position.clone())
+                    : [new THREE.Vector3(hero.x + 3.2, 0, hero.z)];
+                const mouth = new THREE.Vector3();
+                head.getWorldPosition(mouth);
+                mouth.x += 0.62; mouth.y += 0.1;
+                // 불줄기 2겹: 바깥 스킬 색 + 안 흰 코어. 원뿔(입쪽 가늘게)을 매 프레임 조준점에 맞춘다.
+                const mkCone = (r, col, op) => {
+                    const c = new THREE.Mesh(new THREE.CylinderGeometry(r, 0.06, 1, 10, 1, true),
+                        new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+                    this.scene.add(c);
+                    return c;
+                };
+                // 불줄기 색: 흰 코어가 크면 통째로 백광 빔이 된다(캡처 실측) — 바깥은 불색(스킬 색을
+                // 주황으로 절반 끌어옴)으로 두껍게, 흰 코어는 가늘고 옅게.
+                const fire = color.clone().lerp(new THREE.Color(0xff7043), 0.5);
+                const stream = mkCone(0.6 + pw * 0.25, fire, 0.9);
+                const core = mkCone(0.16 + pw * 0.06, 0xffffff, 0.55);
+                const hitDone = new Set();
+                const dur = 0.78;
+                this.addAnim(dur, k => {
+                    // 조준점: 가장 가까운 적 → 가장 먼 적으로 쓸어 간다
+                    const sweep = Math.min(1, k / 0.85);
+                    const fi = sweep * (aims.length - 1);
+                    const lo = Math.floor(fi), hi = Math.min(aims.length - 1, lo + 1);
+                    const P = aims[lo].clone().lerp(aims[hi], fi - lo);
+                    P.y += 0.5;
+                    // 원뿔을 mouth→P 축에 세운다 (+y 축 실린더 → 방향 쿼터니언)
+                    const d = P.clone().sub(mouth), len = d.length();
+                    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+                    for (const c of [stream, core]) {
+                        c.quaternion.copy(q);
+                        c.position.copy(mouth).addScaledVector(d, 0.5);
+                        c.scale.y = len;
+                    }
+                    const flick = 0.75 + Math.sin(k * 46) * 0.2;      // 불꽃 명멸
+                    stream.material.opacity = 0.9 * flick * (k > 0.86 ? (1 - k) / 0.14 : 1);
+                    core.material.opacity = 0.55 * flick * (k > 0.86 ? (1 - k) / 0.14 : 1);
+                    jaw.throat.material.opacity = 0.5 + flick * 0.4;
+                    chest.material.opacity = 0.16 + flick * 0.12;   // 브레스 중엔 은은하게 — 분홍 공 방지
+                    light.pos(P.x, P.y + 0.7, P.z);
+                    light.set(1.4 + pw * 1.1);
+                    if (Math.random() < 0.7) this.riseParticle(P.clone().add(new THREE.Vector3(U.rand(-0.3, 0.3), 0, U.rand(-0.2, 0.2))), new THREE.Color(0xff7043));
+                    // 조준점이 적을 지나는 순간 그 적을 태운다 — 불기둥 + 폭발
+                    for (let i = 0; i <= hi; i++) {
+                        if (i > fi || hitDone.has(i)) continue;
+                        hitDone.add(i);
+                        const p = aims[i];
+                        this.firePillar(p.clone(), color, Math.max(1, t - 1));
+                        this.explosion(p.clone(), color);
+                        this.meteorScorch(p, 1.2 + pw * 0.4);
+                        this.shake(0.2 + pw * 0.2);
+                        SFX.stormStrike(i);
+                    }
+                }, () => {
+                    for (const c of [stream, core]) { c.geometry.dispose(); c.material.dispose(); this.scene.remove(c); }
+                    // ⓓ 퇴장 0.4s — 턱을 다물고 가라앉는다
+                    this.addAnim(0.4, k => {
+                        const c = k * k;
+                        head.rotation.z = 0.38 * (1 - c);
+                        jaw.upper.rotation.z = -Math.PI / 2 - 0.66 * (1 - c);
+                        jaw.lower.rotation.z = -Math.PI / 2 + 0.36 * (1 - c);
+                        chest.material.opacity = 0.55 * (1 - c);
+                        G.position.y = -0.3 - c * 4.0;
+                        for (const w of wings) w.rotation.z = 0.35 + c * 1.0;
+                        light.set(light.get() * 0.88);
+                    }, dispose);
+                });
+            });
         });
     },
 
