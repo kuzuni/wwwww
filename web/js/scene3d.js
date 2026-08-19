@@ -2928,8 +2928,10 @@ const Scene3D = {
         const std = o => new THREE.MeshStandardMaterial(o);
         if (matKind === 'stone') {
             // 원시: 무광 회백 석재 + 가죽끈 결속 — 금속기가 전혀 없어야 '돌'로 읽힌다
-            mat      = std({ color: 0x8d8a80, metalness: 0.02, roughness: 0.96, flatShading: true });
-            bladeMat = std({ color: 0x9b978b, metalness: 0.02, roughness: 0.94, flatShading: true });
+            // 0x8d8a80/0x9b978b 는 썸네일 밝은 배경에서 헤드가 **흰 덩어리**로 날아가 뗀 자국이 전부 사라졌다
+            //  — 화강암 쪽으로 눌러 깬 면의 명암이 남게 한다 (엣지 하이라이트가 대비를 계속 준다).
+            mat      = std({ color: 0x635e55, metalness: 0.02, roughness: 0.96, flatShading: true });
+            bladeMat = std({ color: 0x716b5e, metalness: 0.02, roughness: 0.94, flatShading: true });
             wood     = std({ color: 0x4a3220, metalness: 0, roughness: 0.9, map: ProChar.leatherTex() });
             dark     = std({ color: 0x2e1f13, metalness: 0, roughness: 0.88, map: ProChar.leatherTex() });
             edgeHex  = 0xc9c3b2;
@@ -2962,14 +2964,27 @@ const Scene3D = {
             dark     = std({ color: 0x131820, metalness: 0.6, roughness: 0.5 });
             edgeHex  = new THREE.Color(c).offsetHSL(0, 0, 0.35).getHex();
         } else if (matKind === 'holy') {
-            mat      = std({ color: 0xffd76a, metalness: 0.94, roughness: 0.18, emissive: 0xffc247, emissiveIntensity: 0.3 });
-            bladeMat = std({ color: 0xfff4d0, metalness: 0.86, roughness: 0.16, envMapIntensity: 1.0, emissive: 0xfff0c0, emissiveIntensity: 0.42 });
-            wood     = std({ color: 0xe8dcc0, metalness: 0.05, roughness: 0.62 });
-            dark     = std({ color: 0xb9922f, metalness: 0.9, roughness: 0.3 });
-            edgeHex  = 0xfffbe8;
+            // 천상: 황금 + 상아. ⚠️ 종전 값(날 0xfff4d0 + 자체발광 0.42)은 썸네일 조명에서 **완전히
+            //    타서 흰 막대**가 됐다 — 천상 줄 5종이 전부 '하얗게 날아간 실루엣'이라 금색조차 안 남았다.
+            //    발광을 눌러 금이 금으로 보이게 하고, 빛나는 몫은 후광·성흔 보석(holyLit)이 진다.
+            mat      = std({ color: 0xf0bf45, metalness: 0.95, roughness: 0.2, emissive: 0xffb020, emissiveIntensity: 0.16 });
+            bladeMat = std({ color: 0xf2e3b4, metalness: 0.9, roughness: 0.18, envMapIntensity: 1.0, emissive: 0xffd98a, emissiveIntensity: 0.16 });
+            wood     = std({ color: 0xcbb37a, metalness: 0.06, roughness: 0.6 });
+            dark     = std({ color: 0xa8801f, metalness: 0.9, roughness: 0.32 });
+            edgeHex  = 0xfff6d8;
         } else {
-            // steel (기존 룩 — 되돌리지 말 것)
-            mat = std({ color: c, metalness: 0.65, roughness: 0.45, emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.5 : 0 });
+            // steel — 중세·근세 melee 전용 계열.
+            // 🚨 **되돌리지 말 것**: 예전엔 `color: c`(=AGE_COLORS 원색)를 그대로 썼는데, `mat` 은 도끼날·
+            //    철퇴 구·망치 헤드·활대·창촉·단검 날에 전부 쓰이는 '무기의 업무 끝단' 재질이라, 중세 한 줄이
+            //    통째로 **하늘색 상자를 막대에 꽂은 그림**으로 읽혔다(실측: 전투도끼·철퇴·전투 망치·활·석궁이
+            //    전부 0x1cafff 단색 덩어리, 근대 초기는 초록 상자). 사용자 지시 '중세→진짜 중세 같아야 함
+            //    (중세기사 느낌)'의 1차 원인이 이것이다. bladeMat 이 이미 쓰던 문법 그대로 **단조 강철에
+            //    시대색을 22%만 섞는다** — 시대 식별은 edge 하이라이트·젬·트림 링이 계속 진다.
+            mat = std({
+                color: new THREE.Color(0xa9b4bd).lerp(new THREE.Color(c), 0.22),
+                metalness: 0.88, roughness: 0.38, envMapIntensity: 0.85,
+                emissive: glow ? c : 0x000000, emissiveIntensity: glow ? 0.5 : 0
+            });
             // 날 전용 금속: 스틸 베이스에 시대색 18%만 — 시대색 직치환 날은 '노란 막대사탕'으로 읽힘 (비평가 2번)
             // PBR 분리: 날은 고금속·저러프 — scene.environment 반사로 '강철'이 읽히는 핵심
             bladeMat = std({
@@ -3031,50 +3046,171 @@ const Scene3D = {
             case 'axe':
                 cyl(0.035, 0.045, 0.85, wood, 0, 0.3);
                 if (matKind === 'stone') {
-                    // 돌도끼: 쪼갠 돌덩이를 자루 홈에 얹고 끈으로 동여맨 형태 — 판금 도끼와 실루엣부터 달라야 한다
-                    { const head = new THREE.Mesh(new THREE.DodecahedronGeometry(0.16, 0), mat);
-                      head.scale.set(1, 0.85, 0.42); head.position.set(0.09, 0.62, 0); head.rotation.z = -0.25; g.add(head); }
-                    edge(0.02, 0.2, 0.05, 0.216, 0.615, 0, -0.25);   // 쪼개진 날 면
-                    lashing(0.6, 0.06);
+                    // 돌도끼(원시): 자루 홈에 얹어 끈으로 동여맨 **뗀석기 쐐기** — 사용자 지시 '원시→뗀석기'.
+                    // 종전 십이면체는 둥근 자갈이라 '막대에 얹은 돌멩이'였다. 프리미티브로는 안 된다 —
+                    // 깨낸 돌은 **직선 파세트가 한 점으로 모이는** 윤곽이라 셰이프를 직접 찍어 밀어낸다.
+                    // 두께(0.075)를 남기는 게 중요하다: 얇게 누르면 종잇장 삼각형(=깃발)으로 읽힌다.
+                    { const s = new THREE.Shape();
+                      s.moveTo(-0.025, 0.135); s.lineTo(0.10, 0.15); s.lineTo(0.215, 0.07);
+                      s.lineTo(0.265, -0.015); s.lineTo(0.185, -0.105); s.lineTo(0.055, -0.155);
+                      s.lineTo(-0.04, -0.085); s.lineTo(-0.025, 0.135);
+                      const geo = new THREE.ExtrudeGeometry(s, { depth: 0.075, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 1, curveSegments: 1 });
+                      geo.translate(0, 0, -0.0375);
+                      const head = new THREE.Mesh(geo, mat);
+                      head.position.set(0.055, 0.63, 0); head.rotation.z = -0.12; g.add(head); }
+                    edge(0.02, 0.16, 0.05, 0.3, 0.612, 0, -0.12);   // 갈아낸 날 끝
+                    lashing(0.59, 0.062);
                 } else {
-                    box(0.3, 0.22, 0.05, mat, 0.15, 0.62);
-                    edge(0.016, 0.24, 0.054, 0.297, 0.62);   // 도끼날 엣지
+                    // 중세 전투도끼: 아래로 늘어진 **수염 날(bearded)** + 자루를 무는 소켓 + 상단 스파이크
+                    // + 랑겟(자루 보강 쇠띠). 상자 하나짜리 헤드는 '막대에 꽂은 판때기'로 읽혔다
+                    // (사용자 지시 '중세→중세기사 무기').
+                    // ⚠️ 첫 판에서 초승달을 **토러스 호**로 만들었다가 실패했다 — 관(tube)은 굵기가 일정해
+                    //    도끼날이 아니라 **갈고리(물음표)** 로 읽힌다. 도끼는 '넓은 판이 바깥으로 갈수록
+                    //    얇아지고 아래로 늘어지는' 면이라, 셰이프를 밀어내고 안쪽에 인셋 패널을 얹는다.
+                    const bladeShape = () => {
+                        const s = new THREE.Shape();
+                        s.moveTo(0.045, 0.125);
+                        s.lineTo(0.19, 0.115);
+                        s.quadraticCurveTo(0.325, 0.03, 0.275, -0.085);    // 바깥 날(초승달)
+                        s.quadraticCurveTo(0.20, -0.195, 0.05, -0.215);    // 아래로 늘어진 수염
+                        s.quadraticCurveTo(0.135, -0.10, 0.045, -0.03);    // 수염 안쪽 오목선
+                        s.lineTo(0.045, 0.125);
+                        return s;
+                    };
+                    { const geo = new THREE.ExtrudeGeometry(bladeShape(), { depth: 0.026, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 10 });
+                      geo.translate(0, 0, -0.013);
+                      const blade = new THREE.Mesh(geo, mat); blade.position.y = 0.62; g.add(blade); }
+                    for (const zz of [0.016, -0.024]) {   // 양 날 면의 인셋 패널 — 벼려낸 면이 읽히게
+                        const pg = new THREE.ExtrudeGeometry(bladeShape(), { depth: 0.008, bevelEnabled: false, curveSegments: 8 });
+                        pg.scale(0.72, 0.72, 1); pg.translate(0.022, 0, zz);
+                        const panel = new THREE.Mesh(pg, dark); panel.position.y = 0.62; g.add(panel);
+                    }
+                    { const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.21, 8), mat);
+                      socket.position.y = 0.62; g.add(socket); }
+                    { const spike = new THREE.Mesh(new THREE.ConeGeometry(0.033, 0.15, 4), mat);
+                      spike.position.y = 0.8; g.add(spike); }
+                    for (const ly of [0.52, 0.43]) {           // 랑겟
+                        const band = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.011, 5, 10), dark);
+                        band.rotation.x = Math.PI / 2; band.position.y = ly; g.add(band);
+                    }
                 }
                 break;
             case 'spear':
                 cyl(0.03, 0.035, 1.05, wood, 0, 0.4);
                 if (matKind === 'stone') {
-                    // 돌창: 뾰족하게 깬 돌 촉 + 결속끈 (매끈한 금속 원뿔 금지)
-                    { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.062, 0.24, 5), mat);
-                      tip.position.y = 1.02; tip.rotation.y = 0.4; tip.scale.z = 0.55; g.add(tip); }
-                    lashing(0.9, 0.045);
+                    // 돌창(원시): **잎사귀꼴 뗀석기 촉** — 배가 부풀고 양끝이 모이는 형태라야 '깨서 만든 돌'로
+                    // 읽힌다. 원뿔은 밑동이 가장 넓어 금속 촉과 구분이 안 됐다(팔면체를 납작하게 눌러 쓴다).
+                    { const s = new THREE.Shape();
+                      s.moveTo(0, 0.2); s.lineTo(0.078, 0.03); s.lineTo(0.058, -0.105);
+                      s.lineTo(0, -0.155); s.lineTo(-0.058, -0.105); s.lineTo(-0.078, 0.03);
+                      s.lineTo(0, 0.2);
+                      const geo = new THREE.ExtrudeGeometry(s, { depth: 0.052, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 1, curveSegments: 1 });
+                      geo.translate(0, 0, -0.026);
+                      const tip = new THREE.Mesh(geo, mat); tip.position.y = 1.05; g.add(tip); }
+                    edge(0.012, 0.2, 0.03, 0.06, 1.08, 0, 0.42);   // 갈아낸 한쪽 날
+                    lashing(0.88, 0.045);
                 } else {
-                    { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.26, 8), mat); tip.position.y = 1.03; g.add(tip); }
+                    { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.26, 8), bladeMat); tip.position.y = 1.03; g.add(tip); }
                     { const tipHl = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.1, 6), edgeMat); tipHl.position.y = 1.14; g.add(tipHl); }
                 }
                 break;
             case 'hammer':
                 cyl(0.04, 0.05, 0.72, wood, 0, 0.28);
                 box(0.3, 0.2, 0.2, mat, 0, 0.66);
+                if (matKind === 'steel') {
+                    // 중세 워해머: 한쪽은 두들기는 타격면, 반대쪽은 판금을 뚫는 **까마귀 부리 첨두**,
+                    // 자루엔 랑겟. 상자 하나로는 '막대에 얹은 벽돌'이라 기사 무기로 안 읽힌다.
+                    // ⚠️ steel 게이트를 빼지 말 것 — hammer 형상은 중력/항성/붕괴/파멸/심판 해머와 공용이라
+                    //    무조건 붙이면 후기 시대 해머가 전부 중세 실루엣이 된다.
+                    { const beak = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.25, 4), mat);
+                      beak.position.set(-0.27, 0.68, 0); beak.rotation.z = Math.PI / 2 + 0.16;
+                      beak.scale.z = 0.72; g.add(beak); }
+                    edge(0.014, 0.19, 0.19, 0.153, 0.66);       // 타격면 테
+                    { const spike = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.13, 4), mat);
+                      spike.position.y = 0.82; g.add(spike); }
+                    for (const ly of [0.52, 0.43]) {
+                        const band = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.011, 5, 10), dark);
+                        band.rotation.x = Math.PI / 2; band.position.y = ly; g.add(band);
+                    }
+                }
                 break;
             case 'dagger':
-                box(0.07, 0.4, 0.03, mat, 0, 0.24);
-                edge(0.014, 0.36, 0.034, 0.037, 0.235);  // 단검 날 하이라이트
-                box(0.16, 0.04, 0.05, dark, 0, 0.03);
-                cyl(0.03, 0.03, 0.12, wood, 0, -0.05);
+                if (matKind === 'bone') {
+                    // 뼈 단검(원시): 쪼개 간 **뼈 파편**. 십자 가드도 균일한 판금 날도 있으면 안 된다 —
+                    // 종전엔 색만 아이보리인 '중세 단검'이라 원시 줄에서 유일하게 시대가 안 읽혔다
+                    // (사용자 지시 '원시→진짜 원시(뗀석기)'). 각뿔을 눌러 납작한 파편으로 만들고
+                    // 높이에 따라 폭을 흔들어 깨낸 단면을 준 뒤, 가죽만 감아 손잡이로 쓴다.
+                    { const shard = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.46, 5), mat);
+                      const p = shard.geometry.attributes.position;
+                      for (let i = 0; i < p.count; i++) {
+                          p.setZ(i, p.getZ(i) * 0.34);
+                          const j = 1 + Math.sin(p.getY(i) * 41 + p.getX(i) * 17) * 0.18;
+                          p.setX(i, p.getX(i) * j);
+                      }
+                      shard.geometry.computeVertexNormals();
+                      shard.rotation.y = 0.35; shard.position.y = 0.31; g.add(shard); }
+                    edge(0.012, 0.3, 0.028, 0.05, 0.27, 0, -0.05);  // 갈아낸 한쪽 날만 번들거림
+                    cyl(0.032, 0.026, 0.17, dark, 0, 0.0);          // 가죽 감은 자루 (가드 없음)
+                    lashing(0.06, 0.04);
+                    lashing(-0.05, 0.038);
+                } else {
+                    // ⚠️ 날에는 bladeMat 을 쓸 것 — mat 은 시대색 액센트라, 여기 물리면 근대 초기 단검이
+                    //    '초록 판때기'가 된다(실측). 계열 규약: mat=헤드/부속, bladeMat=베는 날.
+                    box(0.07, 0.4, 0.03, bladeMat, 0, 0.24);
+                    edge(0.014, 0.36, 0.034, 0.037, 0.235);  // 단검 날 하이라이트
+                    box(0.16, 0.04, 0.05, dark, 0, 0.03);
+                    cyl(0.03, 0.03, 0.12, wood, 0, -0.05);
+                }
                 break;
             case 'bow': {
-                const arc = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.028, 6, 14, Math.PI), mat);
+                const arc = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.028, 6, 16, Math.PI), mat);
                 arc.rotation.z = -Math.PI / 2;
                 g.add(arc);
                 box(0.012, 0.84, 0.012, dark, -0.01, 0); // 시위
+                // 라이저(가죽 감은 손잡이)·화살 선반·뿔 노크 — 매끈한 반원 호 하나는 '색칠한 괄호'로
+                // 읽혔다. 활 계열 전체(중세 활·메아리·망령·세라핌)에 공통으로 준다.
+                { const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.2, 8), wood);
+                  grip.position.x = 0.4; g.add(grip); }
+                { const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.042, 0.05), dark);
+                  shelf.position.set(0.355, 0.085, 0); g.add(shelf); }
+                for (const ny of [0.42, -0.42]) {          // 뿔 노크(시위 거는 홈)
+                    const nock = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.09, 5), dark);
+                    nock.position.y = ny + (ny > 0 ? 0.038 : -0.038);
+                    nock.rotation.z = ny > 0 ? 0 : Math.PI;
+                    g.add(nock);
+                }
                 break;
             }
-            case 'crossbow':
-                box(0.09, 0.55, 0.09, wood, 0, 0.2);       // 총몸
-                box(0.5, 0.06, 0.05, mat, 0, 0.42);        // 활대
-                box(0.012, 0.3, 0.012, dark, 0, 0.42);
+            case 'crossbow': {
+                // 중세 석궁: 틸러(개머리 달린 몸통) + **휘어진 프로드** + 당겨진 V자 시위 + 회전 너트
+                // + 방아쇠 + 발 거는 등자 + 장전된 볼트. 종전의 '판때기 두 장 십자 교차'는
+                // 썸네일에서 나무 십자가로 읽혔다 (사용자 지시 '중세→중세기사 무기').
+                box(0.085, 0.62, 0.085, wood, 0, 0.17);                 // 틸러
+                { const butt = box(0.1, 0.17, 0.11, wood, 0, -0.18); butt.rotation.x = 0.16; }
+                { const prod = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.036, 6, 18, Math.PI * 0.72), mat);
+                  prod.rotation.z = -Math.PI * 0.86;       // 호의 배가 뒤(-y), 양 끝이 앞(+y)으로 젖혀짐
+                  prod.position.y = 0.75; prod.scale.z = 0.5; g.add(prod); }
+                { const lath = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.075, 0.1), dark);
+                  lath.position.y = 0.45; g.add(lath); }   // 프로드를 무는 결속 블록 (활대가 허공에 뜨면 안 됨)
+                { const nut = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.07, 8), dark);
+                  nut.rotation.x = Math.PI / 2; nut.position.y = 0.2; g.add(nut); }
+                for (const sx of [-0.298, 0.298]) {        // 너트까지 당겨진 시위 두 가닥
+                    const str = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.508, 5), dark);
+                    str.position.set(sx / 2, 0.41, 0);
+                    str.rotation.z = -Math.atan2(sx, 0.41);
+                    g.add(str);
+                }
+                { const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.34, 6), wood);
+                  bolt.position.set(0, 0.4, 0.055); g.add(bolt); }
+                { const bhead = new THREE.Mesh(new THREE.ConeGeometry(0.023, 0.07, 4), mat);
+                  bhead.position.set(0, 0.6, 0.055); g.add(bhead); }
+                { const trig = box(0.022, 0.12, 0.03, dark, 0, 0.09, 0.05); trig.rotation.x = -0.3; }
+                // 등자는 **틸러 앞끝에 물려** 앞으로 뻗어야 발을 거는 고리로 읽힌다 —
+                // xy 평면에 세워 두면 프로드와 같은 방향이라 '뿔 하나 더'가 된다(실측).
+                { const stirrup = new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.014, 6, 14), mat);
+                  stirrup.rotation.x = Math.PI / 2; stirrup.position.set(0, 0.5, 0.13); g.add(stirrup); }
                 break;
+            }
             case 'gun':
                 box(0.08, 0.5, 0.07, mat, 0, 0.3);         // 총열(위로)
                 box(0.07, 0.16, 0.09, dark, 0, 0.02, 0.02);// 그립
@@ -3100,7 +3236,10 @@ const Scene3D = {
             }
             case 'thrown':
                 cyl(0.03, 0.035, 0.42, wood, 0, 0.14);
-                box(0.2, 0.15, 0.04, mat, 0.1, 0.36);
+                box(0.2, 0.15, 0.04, bladeMat, 0.1, 0.36);
+                edge(0.014, 0.17, 0.044, 0.197, 0.36);   // 던지는 날 끝
+                { const collar = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.01, 5, 10), dark);
+                  collar.rotation.x = Math.PI / 2; collar.position.y = 0.29; g.add(collar); }
                 break;
             case 'club': {
                 // 원시 몽둥이: 손잡이는 가늘고 타격부로 갈수록 굵어지는 비대칭 곤봉 + 박아넣은 돌조각
@@ -3157,15 +3296,20 @@ const Scene3D = {
             }
             case 'sling': {
                 // 투석구: 가죽 주머니 + 두 가닥 끈 + 장전된 돌 (총기류로 오독되면 안 되는 원시 원거리 무기)
-                { const pouch = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), dark);
-                  pouch.rotation.x = Math.PI; pouch.scale.set(1, 0.75, 0.8); pouch.position.y = -0.24; g.add(pouch); }
-                { const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.07, 0), mat); stone.position.y = -0.235; g.add(stone); }
-                for (const sx of [-0.075, 0.075]) {   // 두 가닥 끈이 손에서 주머니로
-                    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.28, 5), dark);
-                    cord.position.set(sx, -0.11, 0); cord.rotation.z = sx > 0 ? -0.22 : 0.22;
+                // 주머니를 넓적하게·돌을 크게 잡아야 '두 갈래 포크'로 안 읽힌다(썸네일 실측).
+                { const pouch = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2), dark);
+                  pouch.rotation.x = Math.PI; pouch.scale.set(1.15, 0.62, 0.9); pouch.position.y = -0.3; g.add(pouch); }
+                { const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.085, 0), mat);
+                  stone.rotation.set(0.4, 0.7, 0); stone.position.y = -0.285; g.add(stone); }
+                // ⚠️ 끈 두 가닥은 **자루 밑동에 실제로 닿아야** 한다 — 끝이 뜨면 '나뭇가지 두 개 + 그릇'이
+                //    된다(실측). 아래 값은 주머니 테(±0.11, -0.28) → 자루 밑동(±0.02, 0.02) 을 잇는 계산값.
+                for (const sx of [-0.11, 0.11]) {
+                    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.313, 5), dark);
+                    cord.position.set(sx * 0.59, -0.13, 0); cord.rotation.z = sx > 0 ? 0.291 : -0.291;
                     g.add(cord);
                 }
-                cyl(0.028, 0.032, 0.12, wood, 0, 0.04);   // 손잡이 매듭
+                cyl(0.03, 0.034, 0.15, wood, 0, 0.07);   // 손잡이 매듭
+                // ⚠️ 손목 고리(토러스)를 자루 위에 얹었다가 뺐다 — 자루와 떨어져 보여 **갈고리**로 읽혔다.
                 break;
             }
             case 'pistol': {
@@ -3252,8 +3396,37 @@ const Scene3D = {
             default: // 무기 없음 → 나무 몽둥이
                 cyl(0.045, 0.06, 0.5, wood, 0, 0.22);
         }
+        // ── 천상: 십자가 + 후광 (사용자 지시 2026-08-19 "천상→진짜 천상 같아야 함 — 예: 예수 머리·십자가") ──
+        // 금색 재질만으로는 '노랗게 칠한 강철'이라 시대가 색으로만 읽혔다. 정체성을 **형태**로 준다:
+        // 파지점 위 라틴 십자가 · 무기 머리 뒤 후광 고리 + 방사 광선.
+        // ⚠️ 세로대와 가로대를 같은 길이로 두면 더하기 기호로 읽힌다 — 가로대는 세로대 위쪽 1/3 지점.
+        if (matKind === 'holy') {
+            const holyLit = new THREE.MeshLambertMaterial({ color: 0xfff2cc, emissive: 0xffc247, emissiveIntensity: 0.85 });
+            const cross = new THREE.Group();
+            { const v = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.2, 0.026), mat); cross.add(v);
+              const h = new THREE.Mesh(new THREE.BoxGeometry(0.125, 0.034, 0.026), mat); h.position.y = 0.045; cross.add(h);
+              const gem = new THREE.Mesh(new THREE.SphereGeometry(0.019, 8, 6), holyLit);
+              gem.position.set(0, 0.045, 0.022); cross.add(gem); }
+            cross.position.set(0, 0.05, -0.055);
+            g.add(cross);
+            // 후광은 무기 실높이에 맞춰 머리 뒤에 — 고정 y 로 두면 짧은 무기에서 허공에 뜬다
+            // (에너지 링이 예전에 밟은 함정과 같은 자리).
+            const wTop = new THREE.Box3().setFromObject(g).max.y;
+            const haloY = Math.min(0.88, Math.max(0.34, wTop * 0.8));
+            const halo = new THREE.Mesh(new THREE.TorusGeometry(0.155, 0.017, 6, 24), holyLit);
+            halo.position.set(0, haloY, -0.07); g.add(halo);
+            for (let i = 0; i < 8; i++) {   // 성상화의 방사 광선
+                const a = i * Math.PI / 4;
+                const ray = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.075, 0.011), holyLit);
+                ray.position.set(Math.cos(a) * 0.205, haloY + Math.sin(a) * 0.205, -0.072);
+                ray.rotation.z = Math.PI / 2 - a;
+                g.add(ray);
+            }
+        }
         // 시대 구간별 디테일 (같은 무기도 시대에 따라 다르게)
-        if (ageIdx >= 3 && ageIdx <= 6) { // 근현대~우주: 테크 액센트 스트립
+        if (matKind === 'holy') {
+            // 천상은 위 후광이 시대 표식이라 에너지 링을 겹치지 않는다 (고리 두 개 = 정체 불명)
+        } else if (ageIdx >= 3 && ageIdx <= 6) { // 근현대~우주: 테크 액센트 스트립
             const strip = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.34, 0.012),
                 new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 0.9 }));
             strip.position.set(0.03, 0.38, 0.02);

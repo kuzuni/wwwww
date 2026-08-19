@@ -2,12 +2,13 @@
 // 사용: node shot-age-weapons.js  → tools/age-weapons.png
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
+const { waitReady } = require('./wait-ready.js');
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
     const page = await browser.newPage({ viewport: { width: 760, height: 1500 } });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 20000 });
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.heroG');
     await page.evaluate(() => {
         const rows = AGES.map(age => {
             const cells = weaponsOfAge(age).map((w, i) => {
