@@ -1785,6 +1785,7 @@ const Scene3D = {
             // 실측 실루엣 폭에 묶는다(t.scale 은 블롭이 t 의 자식이라 상쇄해 준다).
             blob.scale.setScalar(this.footprintRadius(t) * 1.9 / Math.max(0.01, t.scale.x));
             blob.userData.sharedGeometry = true;
+            blob.userData.sharedMaterial = true; // blobShadowMat 싱글턴
             t.add(blob);
             this.scene.add(t);
             this.trees.push(t);
@@ -2710,6 +2711,7 @@ const Scene3D = {
         contact.scale.setScalar(1.75 * s);    // 클러스터가 ±0.3s 로 퍼지고 반경도 높이 비례로 굵어졌다 —
         // 데칼을 상수로 두면 넓어진 밑동이 그림자 밖으로 삐져나온다(비평가 ④ 회귀의 원인).
         contact.userData.sharedGeometry = true;
+        contact.userData.sharedMaterial = true; // crystalContactMat 싱글턴
         g.add(contact);
         // 공중 할로 스프라이트 — 블룸 없는 파이프라인에서 "빛이 번지는" 인상을 만드는 가짜 글로우.
         // 지면 링만으론 발광이 지면 레이어에서 끝난다는 지적 → 결정 몸통 높이에 겹침
@@ -2735,6 +2737,7 @@ const Scene3D = {
         glow.scale.setScalar(2.1 * s); // 도넛 텍스처(안쪽 34% 가 빔)로 바꿨으니 폭은 되돌려도 밑동을 안 덮는다.
         // 꽉 찬 글로우 시절엔 1.7 이 접지 그림자를 통째로 덮어 '밑동이 밝은' 상태를 만들고 있었다.
         glow.userData.sharedGeometry = true;
+        glow.userData.sharedMaterial = true; // crystalGlowMat 싱글턴
         g.add(glow);
         return g;
     },
@@ -8536,6 +8539,7 @@ const Scene3D = {
         blob.scale.setScalar(flying ? 0.85 : 0.72); // 실그림자 접지부 안 컨택트 AO — 비행체는 블롭이 유일한 접지 단서라 더 크게
         blob.userData.baseS = blob.scale.x;
         blob.userData.sharedGeometry = true;
+        blob.userData.sharedMaterial = true; // blobShadow*Mat 싱글턴 — disposeTree 재질 해제 금지
         this.scene.add(blob);
         m.blob = blob;
         // 등장: 지면을 밟고 화면 밖(+x)에서 걸어 들어옴 — 하늘 낙하 금지 (사용자 지시).
@@ -8572,11 +8576,16 @@ const Scene3D = {
     // 오브젝트 서브트리의 geometry/material을 해제 (제거 시 GPU 메모리 누적 방지).
     // GLB 스켈레톤 몬스터 clone은 geometry를 원본 템플릿과 공유하므로
     // monsterMesh()에서 userData.sharedGeometry=true로 표시된 메시는 geometry를 건드리지 않음(material은 인스턴스별 clone이라 해제).
+    // ⚠️ 이 메서드는 파일에 **하나만** 있어야 한다 — 예전에 프리뷰 쪽에 지오메트리만 지우는 동명
+    //    정의가 하나 더 있었고, 객체 리터럴 중복 키는 뒤가 이겨서 재질 해제가 통째로 죽어 있었다
+    //    (dispose-tree-dup). 공유 재질(blobShadowMat 계열·crystal*Mat·_pvMats 캐시 클론)을 물고
+    //    있는 메시는 `userData.sharedMaterial = true` 를 달아 재질을 건너뛴다 — 지오메트리의
+    //    sharedGeometry 플래그와 같은 규약이다.
     disposeTree(root) {
         root.traverse(o => {
             if (!o.isMesh) return;
             if (o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
-            if (o.material) {
+            if (o.material && !o.userData.sharedMaterial) {
                 if (Array.isArray(o.material)) o.material.forEach(mm => mm && mm.dispose());
                 else o.material.dispose();
             }
@@ -11931,7 +11940,7 @@ const Scene3D = {
     // 프롭 하나를 프리뷰용으로 만든다 — 재질을 전부 클론으로 바꿔 끼운 뒤 돌려준다
     previewProp(kind, s, g) {
         const p = this.makeProp('forest', kind, s);
-        p.traverse(m => { if (m.isMesh && m.material) m.material = this.previewMat(m.material, g); });
+        p.traverse(m => { if (m.isMesh && m.material) { m.material = this.previewMat(m.material, g); m.userData.sharedMaterial = true; } }); // _pvMats 캐시 클론 — 다음 프리뷰 빌드가 재사용
         return p;
     },
 
@@ -12027,10 +12036,6 @@ const Scene3D = {
             this._pvHelmet = hg;
         }
         ProChar.play(rig, ['Walking']);
-    },
-
-    disposeTree(o) {
-        o.traverse(m => { if (m.isMesh && m.geometry && !m.userData.sharedGeometry) m.geometry.dispose(); });
     },
 
     previewInit(container) {
