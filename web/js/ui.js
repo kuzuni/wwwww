@@ -3580,7 +3580,10 @@ const UI = {
             <div class="hatchery">
                 <button class="btn danger round back-btn hatch-back" onclick="UI.switchTab(null)">${IconGen.img("tri_left")}</button>
                 <div class="hatch-row">${hatchHtml}</div>
-                ${Pets.canBuySlot() ? `<button class="btn xs slot-buy" onclick="UI.onBuyHatchSlot()">슬롯 +1<br>${IconGen.img('gem')} ${Pets.slotCost()}</button>` : ''}
+                ${Pets.canBuySlot() ? `<div class="slot-buy-wrap">
+                    <span class="slot-buy-label">슬롯 +1</span>
+                    <button class="btn xs slot-buy" onclick="UI.onBuyHatchSlot()">${IconGen.img('gem')}<b>${Pets.slotCost()}</b></button>
+                </div>` : ''}
             </div>`;
         this.hydrateMountThumbs();   // 펫 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
     },

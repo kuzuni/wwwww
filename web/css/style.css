@@ -4038,8 +4038,37 @@ body {
    픽셀 교차검증). 기능(QA 차수들이 실측하는 '젬 스킵')은 그대로 살린다. */
 .hatch-cell > .btn.xs { position: absolute; top: -.1rem; right: -.55rem; z-index: 2; padding: .1rem .3rem; }
 .hatch-cell .hatch-time { margin-top: .55rem; }
-/* 원본(042445) [슬롯 +1] 중심 75.6%H — 밴드 정중앙 정렬은 73.1%H 라 2.5%p 높았다(채점 2차 2인 공통) */
-.hatchery .slot-buy { flex: none; text-align: center; line-height: 1.2; margin-top: 1.3rem; }
+/* 원본(042445) [슬롯 +1] 은 **한 덩어리 버튼이 아니다** — 밴드 위에 그냥 얹힌 흰 글자 `슬롯 +1` 과
+   그 아래 **은색 알약(젬 아이콘 + 빨간 숫자)** 두 조각이다(확대 크롭·픽셀 맵 확인). 클론은 둘을 한
+   버튼 안에 2줄로 넣어 글자까지 상자에 갇혀 있었고, 그래서 비평가 A(세로 −1.4%p)·B(좌 −2.24 ·
+   하단 −2.51%p)가 같은 자리를 다르게 짚었다 — 상자 경계가 서로 다른 물건이었기 때문이다.
+   원본 실측(shot-042445, 밴드 y573~720 · 앱 폭 490 기준):
+     · 흰 글자 잉크  x369~411(폭 8.78%W) · y635~646(높이 2.45%W) · 밴드상단 대비 12.65%W
+     · 은색 알약 상자 x363~418(폭 11.43%W) · y655~685(높이 6.33%W) · 밴드상단 대비 16.73%W · 중심x 79.69%W
+     · 알약 안: 젬 x369~381(2.65%W) · 빨강 숫자 x388~415(폭 5.71%W · 높이 2.45%W)
+   ⚠️ 두 원본 컷은 이 블록에서 6px(1.2%W) 어긋난다(042356 이 오른쪽) — 앞 규칙들과 같게 **042445** 를 쓴다. */
+.hatchery .slot-buy-wrap {
+    flex: none; display: flex; flex-direction: column; align-items: center;
+    gap: calc(var(--app-w) * .0184);            /* 글자 잉크 아래 ~ 알약 위 (646→655) */
+    /* 세로: 밴드 상단 대비 글자 잉크 12.65%W 에 맞춘 값. 밴드 자체 높이가 원본(30.2%W)보다
+       큰(34.7%W) 상태라 '밴드 정중앙' 류 정렬로는 못 맞춘다 — 상단 기준 오프셋으로 박는다. */
+    margin-top: calc(var(--app-w) * .017);
+    /* 가로: 앞의 .hatch-row 폭에서 따라오는 자리가 원본보다 1.33%W 왼쪽이다(알약 중심 78.36 vs 79.69) */
+    margin-left: calc(var(--app-w) * .0133);
+}
+/* 흰 글자는 밴드 위에 바로 얹힌다 — 상자·테두리 없음. 타이머와 같은 검정 테 규약. */
+.slot-buy-label {
+    font-size: .87rem; font-weight: 900; color: #fff; white-space: nowrap; line-height: 1;
+    -webkit-text-stroke: var(--ol3) #17181a; paint-order: stroke fill;
+}
+.hatchery .slot-buy {
+    flex: none; display: flex; align-items: center; justify-content: center;
+    gap: calc(var(--app-w) * .0143);
+    width: calc(var(--app-w) * .1143); height: calc(var(--app-w) * .0633);
+    padding: 0; margin-top: 0; line-height: 1; border-radius: .55rem;
+}
+.hatchery .slot-buy b { font-size: .95rem; font-weight: 900; color: #e8112d; }
+.hatchery .slot-buy .ico { width: calc(var(--app-w) * .0265); height: calc(var(--app-w) * .0265); margin: 0; }
 .row.wrap { flex-wrap: wrap; }
 
 /* ---- 소환 확률 팝업 (UI-SPEC 48번): ◀▶ + 등급별 색 막대 + 진행 게이지 ---- */
