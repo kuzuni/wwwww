@@ -4116,7 +4116,7 @@ const UI = {
         // (개별 [수령] 버튼이 이미 쓰는 `.disabled` 규약 그대로다).
         const ready = Quests.readyCount();
         const claimAllBtn = `<div class="qst-allbar">
-                <button class="btn sm ${ready ? 'primary' : 'disabled'}" onclick="UI.onClaimAllQuests()">일괄수령${ready ? ` (${ready})` : ''}</button>
+                <button class="btn sm ${ready ? 'primary' : 'disabled'}" onclick="UI.onClaimAllQuests(this)">일괄수령${ready ? ` (${ready})` : ''}</button>
             </div>`;
 
         this.els.questModal.innerHTML = `
@@ -4149,10 +4149,16 @@ const UI = {
     },
     // 토스트는 **재화별 합계로 한 줄** (항목 ③) — 완료가 5개면 토스트 5개가 쌓이는 게 아니라
     // "📜 3개 수령! 코인 +1,200 · 해머 +16" 한 줄이다.
-    onClaimAllQuests() {
+    onClaimAllQuests(btn) {
         const { n, gains } = Quests.claimAll();
         if (!n) { this.toast('📜 수령할 수 있는 퀘스트가 없습니다'); return; }
         const parts = Object.keys(gains).map(cur => `${Quests.CUR_KR[cur] || cur} +${U.fmt(gains[cur])}`);
+        // 🚨 여기만 공통 수령 연출이 빠져 있었다 — 개별 [수령]·던전 소탕·던전 클리어·오프라인
+        //    보상·상점 무료칸·패스는 전부 `rewardBurst` 를 타는데 **일괄수령만 토스트 한 줄**이라,
+        //    사용자에겐 '퀘스트 수령에 이펙트가 안 뜬다'로 보였다(slug: quest-claim-fx).
+        //    ⚠️ 순서가 중요하다 — `rewardBurst` 가 `_toastHoldUntil` 을 세우므로 **먼저** 부를 것.
+        //    뒤에 부르면 토스트가 이미 떠서 '+획득량' 라벨과 겹친다(그걸 막으려고 만든 장치다).
+        this.rewardBurst(gains, { from: btn });
         this.toast(`📜 ${n}개 수령! ${parts.join(' · ')}`);
         this.renderTopBar();
         this.renderEquipSheet();

@@ -123,6 +123,47 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     ok(sw.seen > 0, '⑸ 던전 소탕에서 수령 연출이 안 떴다');
     console.log(`⑸ 던전 소탕 — 아이콘 ${sw.seen}개 관측`);
 
+    // ---- ⑺ 퀘스트 **일괄수령** 도 같은 연출 (slug: quest-claim-fx) ----
+    // 개별 [수령]만 rewardBurst 를 타고 일괄수령은 토스트 한 줄뿐이라, 사용자에겐
+    // '퀘스트 수령에 이펙트가 안 뜬다'로 보였다. 토스트가 연출 뒤로 **미뤄지는지**까지 같이 본다
+    // (rewardBurst 를 toast 보다 먼저 불러야 _toastHoldUntil 이 서고, 안 그러면 라벨과 겹친다).
+    const ca = await page.evaluate(async () => {
+        document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+        Quests.ensure();
+        for (const q of Quests.list()) q.prog = q.need;       // 전부 완료 상태로(진행도 = 목표치)
+        UI.openQuests();
+        await new Promise(r => setTimeout(r, 150));
+        const btn = [...document.querySelectorAll('#quest-modal button, .modal button')]
+            .find(b => /일괄수령/.test(b.textContent));
+        if (!btn) return { err: '일괄수령 버튼을 못 찾았다' };
+        if (btn.classList.contains('disabled')) return { err: '일괄수령 버튼이 비활성이다(완료 퀘스트 0개)' };
+        let fly = 0, amt = 0, toastDuringFx = 0;
+        const rec = setInterval(() => {
+            fly = Math.max(fly, document.querySelectorAll('.rw-fly').length);
+            amt = Math.max(amt, document.querySelectorAll('.rw-amt').length);
+        }, 25);
+        btn.click();
+        await new Promise(r => setTimeout(r, 260));          // 연출 초반 — 이 구간엔 토스트가 없어야 한다
+        toastDuringFx = document.querySelectorAll('#toasts .toast').length;
+        // 미뤄진 토스트가 **끝내 뜨는지**까지 본다 — 지운 게 아니라 미룬 것이라는 게 규약이다.
+        // 홀드 = 재화수*90 + 7*44 + RW_FLY_MS(820) + 120 이라 6종이면 약 1.8s → 3s 까지 폴링한다.
+        let toastAfter = 0;
+        for (let t = 0; t < 3000 && !toastAfter; t += 100) {
+            await new Promise(r => setTimeout(r, 100));
+            toastAfter = document.querySelectorAll('#toasts .toast').length;
+        }
+        clearInterval(rec);
+        return { fly, amt, toastDuringFx, toastAfter };
+    });
+    if (ca.err) ok(false, '⑺ ' + ca.err);
+    else {
+        ok(ca.fly > 0, `⑺ 일괄수령에서 아이콘(.rw-fly)이 안 떴다`);
+        ok(ca.amt > 0, `⑺ 일괄수령에서 +획득량 라벨(.rw-amt)이 안 떴다`);
+        ok(ca.toastDuringFx === 0, `⑺ 연출 중에 토스트가 ${ca.toastDuringFx}개 떴다 — rewardBurst 를 toast 보다 먼저 부를 것`);
+        ok(ca.toastAfter > 0, `⑺ 미뤄진 요약 토스트가 끝내 안 떴다 — 미루는 것과 지우는 것은 다르다`);
+        console.log(`⑺ 퀘스트 일괄수령 — 아이콘 ${ca.fly}개 · 라벨 ${ca.amt}개 · 연출 중 토스트 ${ca.toastDuringFx}개(0이어야 함) · 연출 후 ${ca.toastAfter}개`);
+    }
+
     ok(errs.length === 0, `⑹ 콘솔 에러 ${errs.length}건: ${errs.slice(0, 3).join(' | ')}`);
     console.log(`실패 ${fails.length}건 / 콘솔 에러 ${errs.length}건`);
     fails.forEach(f => console.log('  FAIL ' + f));
