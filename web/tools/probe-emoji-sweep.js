@@ -47,13 +47,32 @@ const SCREENS = [...SRC.matchAll(/^\s*\['([\w-]+)',\s*(?:'[\d]+'|null),\s*(`[^`]
     const found = new Map();   // 이모지 → { count, screens:Set, sample }
     let screensSeen = 0;
     for (const [name, opener] of SCREENS) {
-        const hits = await page.evaluate((src) => {
+        // 🚨 **화면을 여는 것과 세는 것을 같은 evaluate 안에서 하지 말 것** (2026-08-19 규명).
+        //    탈것·펫 얼굴(`.mt-face`)은 **이모지를 먼저 깔고 다음 프레임에 3D 썸네일로 갈아치운다**
+        //    (`UI.creatureFace`/`hydrateMountThumbs` — 첫 썸네일 굽기가 무거워 동기로 못 한다).
+        //    그 교체는 `requestAnimationFrame` 안에서 도는데, **한 evaluate 안에서 열고 바로 세면
+        //    rAF 가 돌 틈이 없다** — 그래서 아직 안 구워진 얼굴이 전부 '남은 이모지'로 잡힌다.
+        //    실측(고치기 전): 🐴🐾🦙🪲🫏🐑🐭 7종이 mounts·pets·player-info 에 남았다고 나왔는데,
+        //    구워질 때까지 기다리면 **0종**이다. 사용자가 볼 일 없는 첫 프레임을 쫓고 있던 것이다.
+        //    (스크롤 밖 셀을 세지 말라는 아래 함정과 같은 계열 — '사용자가 실제로 보는 것만 센다'.)
+        const opened = await page.evaluate((src) => {
             try {
                 UI.closeAllTabSurfaces && UI.closeAllTabSurfaces();
                 UI.closeDetail && UI.closeDetail();
                 document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
                 eval(src);
-            } catch (e) { return null; }
+            } catch (e) { return false; }
+            return true;
+        }, opener);
+        if (!opened) continue;
+        // 얼굴 하이드레이트가 끝날 때까지(또는 예산까지) 기다린다. 폴링은 노드 쪽에서 돈다 —
+        // `waitForFunction` 은 swiftshader 포화 구간에서 아예 안 돌아간다(`wait-ready.js` 머리말).
+        for (let i = 0; i < 40; i++) {
+            const left = await page.evaluate(() => document.querySelectorAll('.mt-face[data-mt]:not(.has-thumb)').length);
+            if (!left) break;
+            await page.waitForTimeout(150);
+        }
+        const hits = await page.evaluate(() => {
             // 화면에 **실제로 보이는** 텍스트 노드만 본다 — hidden 안의 잔재도, 스크롤 밖도 사용자가 못 본다.
             const EMO = /[\u{1F300}-\u{1FAFF}\u{1F000}-\u{1F2FF}\u{2190}-\u{21FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/gu;
             const out = [];
@@ -82,7 +101,7 @@ const SCREENS = [...SRC.matchAll(/^\s*\['([\w-]+)',\s*(?:'[\d]+'|null),\s*(`[^`]
                 }
             }
             return out;
-        }, opener);
+        });
         await page.waitForTimeout(100);
         if (hits === null) continue;
         screensSeen++;
