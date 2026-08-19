@@ -4449,6 +4449,18 @@ const Scene3D = {
     //    여기 한 줄을 같이 적을 것 — 안 적으면 조용히 갈레아로 떨어진다).
     FIN_VARIANT: { modern: 'combat', space: 'antenna', interstellar: 'mech', underworld: 'hellforged' },
     finVariant(age) { return this.FIN_VARIANT[age] || 'galea'; },
+    // 그 시대의 `vest`(조끼) 가 **어떤 조끼인가** (equip-era-theming, R1 교집합 ㉡).
+    // `vest` 는 **10시대 전부**에 배정된 유일한 갑옷 스타일인데 조형은 하나였다 — 현대 군용
+    // 플레이트 캐리어(어깨끈 + V 앞섶 + 검정 파우치 2개 + 크롭 헴). 실측 시트(`shot-vest-eras.js`)
+    // 에서 10칸이 **색만 다른 같은 메시**로 찍혔고, 비평가 2인이 공통으로 짚은 게 그 두 극단이다:
+    // 중세 '사슬 조끼'에 **사슬이 없고**, 천상 '성광 조끼'에 **검정 폴리머 버클이 금 위에 얹힌다**.
+    // ⚠️ `ageGearKind` 로 가르지 말 것 — `fin`·`suit` 과 같은 이유다(alloy 한 계열에 우주·항성간·
+    //    다중우주·양자·지하가 통째로 묶여 '진공 슈트'와 '재의 조끼'가 도로 같은 물건이 된다).
+    //    **이름이 실제로 그것인 시대만** 적는다. 새 시대에 vest 를 배정하면 여기 한 줄도 같이
+    //    적을 것 — 안 적으면 조용히 전술 조끼로 떨어진다.
+    // 현대('케블라')는 `tactical` 이 정답이라 표에 없다(기본값이 곧 맞는 조형인 유일한 시대).
+    VEST_VARIANT: { primitive: 'hunter', medieval: 'mail', earlyModern: 'waistcoat', space: 'sealed', divine: 'radiant' },
+    vestVariant(age) { return this.VEST_VARIANT[age] || 'tactical'; },
 
     // 시대별 재질 세트 — body(주 표면) / dark(부속·스트랩) / trim(시대 디테일) / glow 여부.
     // ⚠️ map은 albedo에 **곱해진다**. rockTex 베이스가 #b9bcc0(≈0.73), leatherTex가 #c9b8a6(≈0.76)이라
@@ -6423,20 +6435,108 @@ const Scene3D = {
                 new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.7, side: THREE.DoubleSide }));
             stripe.position.set(0, 0.65, 0);
             g.add(pack, stripe);
-        } else if (style === 'vest') {   // 전술 파우치 — 벨트 루프로 몸통에 매달린다
+        } else if (style === 'vest') {
+            // 🚨 **전 시대에 같은 전술 파우치를 달지 말 것 (equip-era-theming R1 교집합 ㉡).**
+            //    이 자리(가슴 한복판)가 조끼에서 시대를 가장 크게 읽히는 칸인데, 여기 검정 폴리머
+            //    파우치 2개가 **10시대 전부**에 붙어 있었다 — 중세 '사슬 조끼'와 천상 '성광 조끼'
+            //    위에까지 그대로 얹혔고, 비평가 2인이 공통으로 그걸 짚었다. 변종표는 `VEST_VARIANT`.
             const pz = o.frontZ !== undefined ? o.frontZ : 0.155;
+            const vv = this.vestVariant(o.age);
             // ⚠️ 천상은 alloy 계열이라 mats.dark 가 짙은 합금 회색이다 — 성광 조끼에 회색 파우치가
             //    그대로 남아 '재탕 노출'로 읽혔다(1차 채점 B). 다크 앵커는 유지하되 금의 어두운 단으로.
             const pm = mats ? (o.age === 'divine' ? this.tintOf(mats.body, -0.22) : mats.dark)
                             : new THREE.MeshLambertMaterial({ color: 0x37474f });
-            for (const dx of [-0.11, 0.11]) {
-                const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.06), pm);
-                pouch.position.set(dx, 0.56, pz - 0.012);
-                g.add(pouch);
-                // ⚠️ 파우치만 띄우면 '몸통 옆 허공의 상자'다 — 위로 넘어가는 루프를 반드시 같이 낸다
-                const loop = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.085, 0.055), pm);
-                loop.position.set(dx, 0.625, pz - 0.03);
-                g.add(loop);
+            const lit = mats ? mats.body : pm;
+            const trim = mats ? (mats.trim || mats.dark) : pm;
+            if (vv === 'hunter') {
+                // 원시 '사냥꾼 조끼' — 가슴에 **엇갈려 매단 엄니 2개**와 생가죽 X자 끈.
+                //    파우치(바느질한 상자)는 원시에 없는 물건이다. 엄니는 뼈라 몸통보다 밝아야 읽힌다.
+                const bone = this.tintOf(mats ? mats.body : pm, 0.30);
+                for (const s of [-1, 1]) {
+                    const tusk = new THREE.Mesh(new THREE.CylinderGeometry(0.010, 0.026, 0.135, 6), bone);
+                    tusk.position.set(s * 0.085, 0.575, pz + 0.002);
+                    tusk.rotation.z = s * 0.62;         // 아래로 벌어지게 — 나란히 세우면 '단추 두 개'다
+                    tusk.rotation.x = -0.22;
+                    g.add(tusk);
+                }
+                for (const s of [-1, 1]) {              // X자 생가죽 끈 — 조끼를 묶고 있다는 신호
+                    const cord = new THREE.Mesh(new THREE.BoxGeometry(0.017, 0.20, 0.022), pm);
+                    cord.position.set(0, 0.60, pz - 0.006);
+                    cord.rotation.z = s * 0.72;
+                    g.add(cord);
+                }
+            } else if (vv === 'mail') {
+                // 중세 '사슬 조끼' — **사슬 고리 격자**. 이름이 사슬인데 사슬이 없던 칸이다.
+                //    ⚠️ 고리는 몸통 앞면에 **격자로 촘촘히** 깔아야 96px 에서 '사슬 표면'으로 뭉친다 —
+                //    몇 개만 크게 놓으면 그냥 '가슴에 박은 링 장식'이다. 짝수 행을 반 칸 밀어(오프셋)
+                //    엇물린 고리로 읽히게 한다.
+                for (let row = 0; row < 4; row++) {
+                    const y = 0.505 + row * 0.042;
+                    const off = (row % 2) * 0.024;
+                    for (let k = -2; k <= 2; k++) {
+                        const x = k * 0.048 + off;
+                        if (Math.abs(x) > 0.115) continue;
+                        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.020, 0.0068, 4, 8), trim);
+                        // 가슴이 곡면이라 바깥 고리는 뒤로 물러나야 표면에 붙는다
+                        ring.position.set(x, y, pz - 0.004 - Math.abs(x) * 0.18);
+                        ring.rotation.y = -x * 1.5;
+                        g.add(ring);
+                    }
+                }
+            } else if (vv === 'waistcoat') {
+                // 근대 초기 '항해사 조끼' — **놋단추 한 줄 + 어깨에서 허리로 내려가는 새시**.
+                //    비평가 B 가 "근대 초기에 놋단추·프로깅이 0" 이라 지적한 것에 직접 답한다.
+                for (let i = 0; i < 4; i++) {
+                    const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.0175, 0.0175, 0.012, 10), trim);
+                    btn.rotation.x = Math.PI / 2;
+                    btn.position.set(0.028, 0.505 + i * 0.043, pz + 0.004);
+                    g.add(btn);
+                }
+                const sash = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.30, 0.028), pm);
+                sash.position.set(-0.030, 0.585, pz - 0.004);
+                sash.rotation.z = 0.46;
+                g.add(sash);
+            } else if (vv === 'sealed') {
+                // 우주 '진공 슈트' — **닫힌 가슴 제어판 + 상태등**. 열린 웨빙 조끼이던 칸이다
+                //    (비평가: "'진공 슈트'가 열린 웨빙 조끼"). 진공복은 무엇보다 **밀폐**여야 한다.
+                const panel = new THREE.Mesh(new THREE.BoxGeometry(0.115, 0.085, 0.030), pm);
+                panel.position.set(0.052, 0.585, pz + 0.004);
+                g.add(panel);
+                for (let i = 0; i < 3; i++) {   // 상태등 — 발광이라 96px 에서도 '기계'로 읽힌다
+                    const led = new THREE.Mesh(new THREE.SphereGeometry(0.0125, 8, 6),
+                        new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.85 }));
+                    led.position.set(0.016 + i * 0.036, 0.607, pz + 0.020);
+                    g.add(led);
+                }
+                const hose = this.capsuleMesh(0.0135, 0.10, pm, 8);   // 패널에서 목으로 가는 급기 호스
+                hose.position.set(-0.052, 0.615, pz - 0.010);
+                hose.rotation.z = -0.42;
+                g.add(hose);
+            } else if (vv === 'radiant') {
+                // 천상 '성광 조끼' — **어두운 부속을 하나도 두지 않는다.** 검정 폴리머 버클이 금 위에
+                //    그대로 얹혀 있던 게 비평가 2인 공통 지적이다. 가슴 십자 + 광배 고리로 간다.
+                const bar = new THREE.Mesh(new THREE.BoxGeometry(0.031, 0.155, 0.022), lit);
+                bar.position.set(0, 0.585, pz + 0.002);
+                g.add(bar);
+                const cross = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.031, 0.022), lit);
+                cross.position.set(0, 0.615, pz + 0.002);
+                g.add(cross);
+                // ⚠️ 광배에 `rareHex`(등급색)를 쓰면 안 된다 — common 이 거의 흰색이라 금 위에서
+                //    **흰 말굽쇠**로 찍혔다(실측). 등급은 다른 데서 이미 지고, 여기 색은 금이다.
+                const halo = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.0105, 6, 20),
+                    this.tintOf(mats ? mats.body : lit, 0.26));
+                halo.position.set(0, 0.632, pz - 0.020);   // 십자 **뒤·위** — 광배는 머리 쪽에서 뜬다
+                g.add(halo);
+            } else {   // tactical — 현대 '케블라' 등. 전술 파우치가 정답인 시대만 여기로 온다.
+                for (const dx of [-0.11, 0.11]) {
+                    const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.06), pm);
+                    pouch.position.set(dx, 0.56, pz - 0.012);
+                    g.add(pouch);
+                    // ⚠️ 파우치만 띄우면 '몸통 옆 허공의 상자'다 — 위로 넘어가는 루프를 반드시 같이 낸다
+                    const loop = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.085, 0.055), pm);
+                    loop.position.set(dx, 0.625, pz - 0.03);
+                    g.add(loop);
+                }
             }
         } else if (style === 'robe') {   // 로브 자락 + 밑단 헴
             const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.5, 12, 1, true), cloth);
@@ -6998,11 +7098,48 @@ const Scene3D = {
             }
         } else if (style === 'vest') {
             // 크롭 톱: 밑단이 허리 위에서 잘려야 '조끼'로 읽힌다 — 어두운 헴 라인이 잘림선을 못 박는다
-            const hem = new THREE.Mesh(new THREE.TorusGeometry(0.198, 0.015, 6, 20), mats.dark);
+            const vv = this.vestVariant(age);
+            const hem = new THREE.Mesh(new THREE.TorusGeometry(0.198, 0.015, 6, 20),
+                vv === 'radiant' ? this.tintOf(mats.body, 0.20) : mats.dark);   // 성광 조끼에 검정 테를 두르지 않는다
             hem.position.y = -0.07;
             hem.rotation.x = Math.PI / 2;
             hem.scale.y = 0.63;
             g.add(hem);
+            // 밑단 처리로도 시대를 가른다 — 잘림선 하나만으로는 10시대가 같은 실루엣이 된다.
+            if (vv === 'hunter') {
+                // 원시 — 아래로 늘어진 **가죽 술** 한 줄. 바깥 윤곽을 톱니로 깨는 게 요점이다
+                // (매끈한 헴은 재봉된 옷 = 근대 이후로 읽힌다).
+                //   ⚠️ 뿔(원뿔)로 내면 **밑니로 읽힌다** — 초판이 그랬다(가슴 엄니와 같은 형태라
+                //      '입'이 하나 더 생긴다). 가죽끈은 뾰족한 게 아니라 **납작하게 늘어진 판**이다.
+                for (let i = 0; i < 9; i++) {
+                    const a = -Math.PI * 0.68 + (i / 8) * Math.PI * 1.36;
+                    const t = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.072 + (i % 2) * 0.026, 0.011), mat);
+                    t.position.set(Math.sin(a) * 0.193, -0.108 - (i % 2) * 0.013, Math.cos(a) * 0.124);
+                    t.rotation.y = a;
+                    t.rotation.z = (i % 3 - 1) * 0.09;   // 제각각 늘어져야 잘라 만든 술로 읽힌다
+                    g.add(t);
+                }
+            } else if (vv === 'mail') {
+                // 중세 — 사슬 자락의 **부채꼴 스캘럽**. 하우버크 밑단은 직선으로 잘리지 않는다.
+                for (let i = 0; i < 10; i++) {
+                    const a = -Math.PI * 0.72 + (i / 9) * Math.PI * 1.44;
+                    const sc = new THREE.Mesh(new THREE.SphereGeometry(0.034, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.5), mat);
+                    sc.rotation.x = Math.PI;     // 반구를 엎어 아래로 볼록하게
+                    sc.scale.set(1, 0.78, 1);
+                    sc.position.set(Math.sin(a) * 0.196, -0.086, Math.cos(a) * 0.125);
+                    g.add(sc);
+                }
+            } else if (vv === 'radiant') {
+                // 천상 — 밑단 아래로 **금 술 한 줄**(제의의 프린지). 어두운 부속은 여기도 안 쓴다.
+                //   ⚠️ `mats.trim` 은 천상에서 거의 흰색이라, 길게 내면 밑단에서 **흰 이빨**로 읽힌다.
+                //      몸통색(`mat`)으로 짧게 내고 끝만 트림이 물리게 두께로 승부한다.
+                for (let i = 0; i < 11; i++) {
+                    const a = -Math.PI * 0.74 + (i / 10) * Math.PI * 1.48;
+                    const f = new THREE.Mesh(new THREE.CylinderGeometry(0.0105, 0.0072, 0.046, 5), mat);
+                    f.position.set(Math.sin(a) * 0.195, -0.098, Math.cos(a) * 0.124);
+                    g.add(f);
+                }
+            }
         } else if (style === 'robe') {
             // 롱 드레이프 — 밑단 아래로 흘러내리는 자락 슬리브 2개(P.skirt 를 키운 것과 결합해 '아래로 긴' 실루엣)
             for (const s of [-1, 1]) {
@@ -7078,19 +7215,125 @@ const Scene3D = {
                 buckle.scale.y = 0.6;
                 g.add(buckle);
             }
-        } else if (style === 'vest') {   // 조끼: 어깨끈 2줄이 어깨를 넘어가고 앞섶이 V로 벌어진다
-            for (const s of [-1, 1]) {
-                // 어깨끈은 몸통 **위에 얹혀** 있어야 한다 — 앞으로 빼면 허공의 막대가 된다
-                const strap = this.beveledSlab(0.058, 0.2, 0.15, 0.026, mats.dark);
-                strap.position.set(s * 0.125, 0.225, 0);
-                strap.rotation.z = s * 0.26;
-                g.add(strap);
-                // 앞섶: 가슴 곡면에 붙어 V로 벌어지는 판(z는 몸통 앞면 rz 0.16 에 반쯤 묻힌다)
-                const lapel = this.beveledSlab(0.095, 0.25, 0.035, 0.03, mat);
-                lapel.position.set(s * 0.068, 0.095, 0.138);
-                lapel.rotation.z = -s * 0.28;
-                lapel.rotation.y = s * 0.16;
-                g.add(lapel);
+        } else if (style === 'vest') {
+            // 조끼의 **어깨-앞섶 처리**가 96px 실루엣의 얼굴이다. 전 시대에 같은 처리를 달면
+            // 파우치만 갈라 봐야 소용이 없다 — 어깨끈(웨빙)과 V 앞섶은 **전술 조끼의 서명**이라
+            // 사슬 조끼·성광 조끼에 그대로 얹히면 도로 군용으로 읽힌다. 변종표는 `VEST_VARIANT`.
+            const vv = this.vestVariant(age);
+            // 🚨 **이 스타일의 좌표를 잡을 때 반드시 알아야 하는 두 가지 (2026-08-19 실측으로 값을 물림)**
+            //   ⑴ `vest` 는 `P.top = 0.80` 짜리 **크롭**이라 몸통 맨 윗링이 y = 0.29·0.80 = **0.232**
+            //      에서 끝난다(다른 스타일의 0.29 가 아니다). 어깨 부속을 0.24 위에 두면 몸통에서
+            //      떨어져 **머리 위에 뜬 갓**으로 찍힌다 — 초판의 맨틀·요크가 정확히 그렇게 나왔다.
+            //      쓸 만한 어깨 구간은 y 0.10 ~ 0.23 이고, 그 구간의 실반경은 rx 0.25 → 0.17 이다.
+            //   ⑵ 몸통은 **타원**이다(rz/rx ≈ 0.67). 원통·원뿔을 그대로 두르면 앞뒤로 3할 넘게
+            //      비어져 나와 몸을 감은 옷이 아니라 **원판**으로 읽힌다 — 반드시 `scale.z ≈ 0.68`.
+            //      (토러스는 `rotation.x = π/2` 뒤 `scale.y` 가 그 축이라 값 자리가 다르다.)
+            if (vv === 'mail') {
+                // 사슬 조끼 — 어깨끈 대신 **어깨를 덮는 사슬 케이프(맨틀)** 와 목을 감는 사슬 깃.
+                //    마일 하우버크의 실루엣은 '끈 두 줄'이 아니라 어깨에서 흘러내리는 한 겹이다.
+                const mantle = new THREE.Mesh(new THREE.CylinderGeometry(0.186, 0.258, 0.122, 18, 1, true), mats.dark);
+                mantle.position.set(0, 0.158, 0);
+                mantle.scale.z = 0.68;
+                g.add(mantle);
+                const collar = new THREE.Mesh(new THREE.TorusGeometry(0.156, 0.024, 6, 18), mats.dark);
+                collar.position.set(0, 0.228, 0);
+                collar.rotation.x = Math.PI / 2;
+                collar.scale.y = 0.68;
+                g.add(collar);
+                // 맨틀 밑단의 고리 술 — 사슬이 '판'이 아니라 '엮인 것'으로 읽히게 하는 결정타.
+                //   ⚠️ 술은 맨틀 **밑단 높이**(0.158 − 0.061 ≈ 0.097)에 걸어야 매달린 것으로 보인다.
+                //      허리께에 두면 옷과 무관한 **목걸이**가 된다(초판이 그랬다).
+                for (let i = 0; i < 9; i++) {
+                    const a = -Math.PI * 0.70 + (i / 8) * Math.PI * 1.40;
+                    const r = new THREE.Mesh(new THREE.TorusGeometry(0.0165, 0.0058, 4, 8), mats.dark);
+                    r.position.set(Math.sin(a) * 0.252, 0.092, Math.cos(a) * 0.172);
+                    r.rotation.y = a;
+                    g.add(r);
+                }
+            } else if (vv === 'radiant') {
+                // 성광 조끼 — 검정 웨빙이 아니라 **금 브로케이드 어깨 요크 + 가슴 팔리움 띠**.
+                //    ⚠️ `mats.dark` 를 쓰지 않는 게 요점이다(비평가 2인 공통: 금 위의 검정 버클).
+                // ⚠️ 천상의 `mats.trim` 은 거의 **흰색**이다. 여기에 트림으로 온전한 링을 두르면
+                //    금 몸통에 **흰 테 두른 통**(술통)이 돼 `sealed`(여압 리브)와 실루엣이 겹친다 —
+                //    실측에서 두 칸이 똑같이 '고리 두른 원통'으로 찍혔다. 천상의 밝은 단은 흰색이
+                //    아니라 **밝은 금**이어야 하고, 링이 아니라 **어깨에서 끊기는 호**여야 한다.
+                const gold = this.tintOf(mats.body, 0.20);
+                const yoke = new THREE.Mesh(new THREE.CylinderGeometry(0.190, 0.254, 0.100, 18, 1, true), mat);
+                yoke.position.set(0, 0.170, 0);
+                yoke.scale.z = 0.68;
+                g.add(yoke);
+                // 요크 밑단의 금 테 — 앞쪽 240°만 돌아 등에서 끊긴다(통을 감는 후프로 안 읽히게).
+                const rim = new THREE.Mesh(new THREE.TorusGeometry(0.252, 0.0135, 6, 20, Math.PI * 1.34), gold);
+                rim.position.set(0, 0.122, 0);
+                rim.rotation.x = Math.PI / 2;
+                rim.rotation.z = Math.PI * 0.33;
+                rim.scale.y = 0.68;
+                g.add(rim);
+                for (const s of [-1, 1]) {   // 어깨 끝의 금 견장 — 요크가 '옷'임을 못 박는다
+                    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.052, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), gold);
+                    tip.scale.set(1.05, 0.52, 0.72);
+                    tip.position.set(s * 0.212, 0.152, 0);
+                    tip.rotation.z = s * 0.30;
+                    g.add(tip);
+                }
+                // ⚠️ 띠는 **한 줄**이다. 좌우 2장으로 내리면 가슴 한복판의 십자(extras)를 사이에 끼고
+                //    **두 다리**로 읽힌다(초판 실측). 정중선 한 줄이라야 제의의 팔리움으로 읽힌다.
+                const band = this.beveledSlab(0.070, 0.235, 0.028, 0.020, gold);
+                band.position.set(0, 0.068, 0.132);
+                g.add(band);
+            } else if (vv === 'waistcoat') {
+                // 항해사 조끼 — 웨빙 끈 대신 **넓게 젖힌 노치드 라펠 2장**(근세 조끼의 서명).
+                //    앞섶을 위로 길게 빼 어깨선까지 닿게 하면 어깨끈 없이도 상단 윤곽이 산다.
+                for (const s of [-1, 1]) {
+                    const lapel = this.beveledSlab(0.115, 0.30, 0.035, 0.028, mats.dark);
+                    lapel.position.set(s * 0.078, 0.118, 0.134);
+                    lapel.rotation.z = -s * 0.20;
+                    lapel.rotation.y = s * 0.22;
+                    g.add(lapel);
+                    const notch = this.beveledSlab(0.072, 0.052, 0.030, 0.018, mats.dark);
+                    notch.position.set(s * 0.126, 0.238, 0.104);
+                    notch.rotation.z = -s * 0.62;
+                    g.add(notch);
+                }
+            } else if (vv === 'sealed') {
+                // 진공 슈트 — 끈이 하나도 없어야 한다(열린 웨빙이면 진공이 아니다).
+                //    **목 씰링 링 + 몸통을 감는 여압 리브 2줄**로 '닫힌 옷'을 못 박는다.
+                const seal = new THREE.Mesh(new THREE.TorusGeometry(0.160, 0.028, 8, 20), mats.dark);
+                seal.position.set(0, 0.226, 0);      // 몸통 맨 윗링(0.232) 바로 아래 — 위로 빼면 뜬 뚜껑이다
+                seal.rotation.x = Math.PI / 2;
+                seal.scale.y = 0.68;
+                g.add(seal);
+                const lock = new THREE.Mesh(new THREE.TorusGeometry(0.172, 0.0115, 6, 22), mats.trim || mats.dark);
+                lock.position.set(0, 0.198, 0);
+                lock.rotation.x = Math.PI / 2;
+                lock.scale.y = 0.68;
+                g.add(lock);
+                // 여압 리브 — 몸통 곡면을 감는 얇은 띠. 반경은 그 높이의 **실제 링 반경**에 맞춘다
+                //   (y 0.155 → rx≈0.241 · y 0.055 → rx≈0.226). 한 값으로 두르면 한쪽이 몸에 묻힌다.
+                for (const [y, rr] of [[0.155, 0.246], [0.055, 0.231]]) {
+                    const rib = new THREE.Mesh(new THREE.TorusGeometry(rr, 0.0115, 6, 22), mats.dark);
+                    rib.position.set(0, y, 0);
+                    rib.rotation.x = Math.PI / 2;
+                    rib.scale.y = 0.68;
+                    g.add(rib);
+                }
+            } else {
+                // hunter · tactical — 어깨끈 2줄이 어깨를 넘어가고 앞섶이 V로 벌어진다.
+                //   원시 '사냥꾼 조끼'도 어깨에 걸친 가죽끈은 맞는 조형이라 같은 골격을 쓴다
+                //   (원시 서명은 아래 실루엣 오버레이의 **술 장식**과 extras 의 엄니가 진다).
+                for (const s of [-1, 1]) {
+                    // 어깨끈은 몸통 **위에 얹혀** 있어야 한다 — 앞으로 빼면 허공의 막대가 된다
+                    const strap = this.beveledSlab(0.058, 0.2, 0.15, 0.026, mats.dark);
+                    strap.position.set(s * 0.125, 0.225, 0);
+                    strap.rotation.z = s * 0.26;
+                    g.add(strap);
+                    // 앞섶: 가슴 곡면에 붙어 V로 벌어지는 판(z는 몸통 앞면 rz 0.16 에 반쯤 묻힌다)
+                    const lapel = this.beveledSlab(0.095, 0.25, 0.035, 0.03, mat);
+                    lapel.position.set(s * 0.068, 0.095, 0.138);
+                    lapel.rotation.z = -s * 0.28;
+                    lapel.rotation.y = s * 0.16;
+                    g.add(lapel);
+                }
             }
         } else if (style === 'robe') {
             // 로브: 목 위로 솟은 **어깨-목 처리**가 실루엣의 얼굴이다 — 없으면 96px 에서 그냥 종(鐘)이다.
