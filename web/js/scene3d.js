@@ -9811,10 +9811,14 @@ const Scene3D = {
             // 예전엔 `explode` 와 **같은 코드**(폭발 한 번)라 레전더리 광역기인데 화염구와 구분이 안 됐다.
             this.dragonMaw(targetIds, color, tier || 0);
         } else if (fx === 'explode') {
-            targets.forEach((m, i) => setTimeout(() => {
+            // 화염 폭풍 (skill-fx-exaggerated). 스킬 이름이 **화염구**인데 정작 날아가는 불덩이가
+            // 없어서 적 발밑에서 갑자기 터졌다 — 던지고, 터지고, 불의 고리가 바깥으로 퍼지게 바꿨다.
+            this.fireStorm(targetIds, color, tier || 0);
+            // 적이 여럿이면 나머지에도 폭발만 얹는다(불덩이는 하나 — 여러 개면 운석과 그림이 겹친다)
+            targets.slice(1).forEach((m, i) => setTimeout(() => {
                 this.explosion(m.g.position.clone(), color);
-                this.firePillar(m.g.position.clone(), color, tier || 0); // 화염류=치솟는 불기둥 (항목 ㉰)
-            }, i * 60));
+                this.firePillar(m.g.position.clone(), color, tier || 0);
+            }, 90 + i * 60));
         } else if (fx === 'ring') {
             // 회오리 (skill-fx-exaggerated). 이름이 회오리인데 예전엔 **퍼지는 링 2개**뿐이라
             // 도는 물건이 하나도 없었다 — '회오리'가 아니라 '충격파'로 읽혔다.
@@ -10576,6 +10580,68 @@ const Scene3D = {
         });
         this.expandRing(new THREE.Vector3(hero.x, 0.02, hero.z), color, 1.6 + pw * 1.4);
         SFX.auraRise(t);
+    },
+
+    // ---- 스킬 전용 미니 연출 ⑧: 화염 폭풍 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----
+    // `explode`(화염구·초신성)는 폭발 + 불기둥이라 fx 중에선 나은 편이었지만 여전히 **한 점에서
+    // 한 번 터지고 끝**이라 '장면'은 아니었다. 그리고 스킬 이름이 **화염구**인데 정작
+    // **날아가는 불덩이가 없었다** — 적 발밑에서 갑자기 터졌다.
+    // 장면 4단: 영웅 손에서 불덩이가 포물선으로 날아가고 → 착탄해 터지고 → 불의 고리가 바깥으로
+    //          퍼지며 그 위로 불기둥이 **차례로** 솟고 → 잉걸이 남아 스러진다.
+    // ⚠️ 운석(하늘에서 여러 개)·아가리(땅에서 솟음)와 **겹치지 않는 축**을 골랐다: 이건 **수평으로
+    //    퍼지는** 불이다. 세 연출이 각각 위/아래/바깥을 맡아 같은 광역기라도 그림이 안 겹친다.
+    fireStorm(targetIds, color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
+        const pw = t / 5;
+        const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
+        const spot = (live.length ? live[0].g.position.clone() : this.heroG.position.clone().add(new THREE.Vector3(2, 0, 0)));
+        const from = this.heroG.position.clone().add(new THREE.Vector3(0.4, 1.05, 0));
+        // ⓐ 불덩이 — 포물선. 코어 + 글로우 2겹에 불티 꼬리.
+        const ball = new THREE.Group();
+        ball.userData.fireBall = true;
+        const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.17 + pw * 0.09, 0),
+            new THREE.MeshBasicMaterial({ color: 0xffe0a8, toneMapped: false }));
+        const glow = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3 + pw * 0.14, 0),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        ball.add(core, glow);
+        ball.position.copy(from);
+        this.scene.add(ball);
+        const arc = 1.1 + pw * 0.4;                       // 포물선 높이
+        const fly = 0.3 + pw * 0.06;
+        this.addAnim(fly, k => {
+            ball.position.lerpVectors(from, spot, k);
+            ball.position.y += Math.sin(k * Math.PI) * arc;   // 위로 솟았다 내려앉는 궤적
+            ball.rotation.x += 0.3; ball.rotation.y += 0.24;
+            if (Math.random() < 0.85) this.riseParticle(ball.position.clone(), new THREE.Color(0xff7043));
+        }, () => {
+            ball.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+            this.scene.remove(ball);
+            // ⓑ 착탄
+            this.explosion(spot.clone(), color);
+            this.flashLight(spot.clone(), color.getHex(), 0.3);
+            this.shake(0.28 + pw * 0.26);
+            if (t >= 2) this.hitStop(0.035 + pw * 0.04);
+            SFX.stormStrike(0);
+            // ⓒ 불의 고리가 **바깥으로** 퍼지며 그 위로 불기둥이 차례로 솟는다
+            const waves = 3 + Math.round(pw * 2);
+            for (let w = 0; w < waves; w++) {
+                setTimeout(() => {
+                    const rad = 0.55 + w * (0.62 + pw * 0.2);
+                    this.expandRing(new THREE.Vector3(spot.x, 0.02, spot.z), color, rad * 1.5);
+                    const pn = 3 + w;                       // 바깥 고리일수록 기둥이 많다
+                    for (let i = 0; i < pn; i++) {
+                        const a = (i / pn) * Math.PI * 2 + w * 0.5;
+                        const p = new THREE.Vector3(spot.x + Math.cos(a) * rad, 0, spot.z + Math.sin(a) * rad * 0.6);
+                        this.firePillar(p, color, Math.max(0, t - w));   // 바깥으로 갈수록 낮아진다
+                        if (Math.random() < 0.6) this.riseParticle(p.clone(), new THREE.Color(0xff8a50));
+                    }
+                    this.shake((0.16 + pw * 0.16) * (1 - w / waves));
+                    SFX.stormStrike(w + 1);
+                }, 70 + w * (95 - pw * 18));
+            }
+        });
+        SFX.arrowShot(0, t);
     },
 
     // 지그재그 번개 볼트 (항목 ㉰: 번개류=지그재그 볼트 메시). 예전 bolt 는 하늘에서 내리꽂는

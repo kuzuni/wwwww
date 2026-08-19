@@ -477,6 +477,54 @@ const ok = (c, m) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${m}`); if (!c) fail
         ok(vres.frames[vres.frames.length - 1].vortex === 0, `[ring] 연출 뒤 잔존 0`);
     }
 
+    // ================= 화염 폭풍 (explode) =================
+    // '화염구'의 최소 조건은 **날아가는 불덩이가 있는가**다(예전엔 적 발밑에서 그냥 터졌다).
+    // 그리고 터진 뒤 불이 **바깥으로 퍼지는가** — 불기둥이 여러 파로 나뉘어 솟아야 한다.
+    console.log('\n════ 화염 폭풍 ════');
+    const fres = await p.evaluate(async () => {
+        Scene3D.clearEnemies();
+        const e = { id: 7995, x: Combat.MELEE_X, alive: true, hp: Big.of(1e9), maxHp: Big.of(1e9) };
+        Combat.enemies = [e]; Scene3D.spawnEnemy(e);
+        for (const a of Scene3D.anims) { try { a.fn(1); a.onDone && a.onDone(); } catch (x) {} }
+        Scene3D.anims = [];
+        const m = Scene3D.enemyMap.get(e.id);
+        m.g.position.set(e.x + Scene3D.worldX, 0, 0);
+        const def = SKILL_DEFS.find(s => s.fx === 'explode' && s.rarity === 'ultimate') || SKILL_DEFS.find(s => s.fx === 'explode');
+        const t0 = performance.now();
+        const frames = [], pillars = [];
+        const origFP = Scene3D.firePillar.bind(Scene3D);
+        Scene3D.firePillar = (pos, col, ti) => { pillars.push({ t: performance.now() - t0, r: +Math.hypot(pos.x - m.g.position.x, pos.z - m.g.position.z).toFixed(2) }); return origFP(pos, col, ti); };
+        Scene3D.skillEffect('explode', def.color, [e.id], def);
+        await new Promise(res => {
+            const iv = setInterval(() => {
+                Scene3D.update(1 / 60);
+                let ball = 0, bx = null;
+                Scene3D.scene.traverse(o => { if (o.userData && o.userData.fireBall) { ball++; bx = +o.position.x.toFixed(2); } });
+                frames.push({ t: performance.now() - t0, ball, bx });
+                if (performance.now() - t0 > 2200) { clearInterval(iv); res(); }
+            }, 16);
+        });
+        Scene3D.firePillar = origFP;
+        return { frames, pillars, hero: +Scene3D.heroG.position.x.toFixed(2), enemy: +m.g.position.x.toFixed(2) };
+    });
+    {
+        const bf = fres.frames.filter(x => x.ball > 0);
+        const xs = bf.map(x => x.bx);
+        console.log(`   불덩이 ${bf.length}프레임 · x ${xs.length ? xs[0] + ' → ' + xs[xs.length - 1] : 'n/a'} (영웅 ${fres.hero} → 적 ${fres.enemy})`);
+        console.log(`   불기둥 ${fres.pillars.length}개 · 반경 ${fres.pillars.length ? Math.min(...fres.pillars.map(x => x.r)).toFixed(2) + ' ~ ' + Math.max(...fres.pillars.map(x => x.r)).toFixed(2) : 'n/a'}`);
+        ok(bf.length > 3, `[explode] 날아가는 불덩이가 있다 (${bf.length}프레임 — 예전엔 발밑에서 그냥 터졌다)`);
+        ok(xs.length > 1 && Math.abs(xs[xs.length - 1] - fres.enemy) < Math.abs(xs[0] - fres.enemy),
+            `[explode] 불덩이가 영웅에게서 적으로 간다`);
+        ok(fres.pillars.length >= 6, `[explode] 불기둥이 여러 개 솟는다 (${fres.pillars.length}개)`);
+        const rs = fres.pillars.map(x => x.r);
+        ok(rs.length > 0 && Math.max(...rs) - Math.min(...rs) > 0.6,
+            `[explode] 불이 **바깥으로** 퍼진다 (기둥 반경 ${Math.min(...rs).toFixed(2)} → ${Math.max(...rs).toFixed(2)})`);
+        // 파(wave)로 나뉜다 — 기둥 생성 시각이 뭉치지 않고 여러 덩이로
+        const ts = fres.pillars.map(x => Math.round(x.t / 50));
+        ok(new Set(ts).size >= 3, `[explode] 여러 파로 나뉘어 솟는다 (시각 군집 ${new Set(ts).size}개 ≥3)`);
+        ok(fres.frames[fres.frames.length - 1].ball === 0, `[explode] 연출 뒤 불덩이 잔존 0`);
+    }
+
     // ⑵-b 등급 사다리 — 높을수록 발수가 많다(단조 비감소, 양 끝은 실제로 늘어야 한다)
     const counts = rows.map(r => r.strikes.length);
     ok(counts.every((c, i) => i === 0 || c >= counts[i - 1]) && counts[counts.length - 1] > counts[0],
