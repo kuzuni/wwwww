@@ -1,13 +1,15 @@
-// '모든 장비의 목록' 팝업 — 셀 프레임이 시대(등급)색인지 + 아이콘에 검정 아웃라인이 걸렸는지
-// (사용자 지시 2026-08-19 `forge-list-frame-color`: "장비들 프레임 색깔이 실제 프레임 색과 달리
-//  다 회색으로 되어 있음... 그 부분에 장비들 다 검정 아웃라인도 없고")
+// '모든 장비의 목록' 팝업 — 타일이 **메인 장비 슬롯(.equip-cell)과 같은 디자인**인지
+// (사용자 재지적 2026-08-19 `forge-list-frame-color` 재오픈: "아웃라인 부분만 등급색이고 프레임
+//  안쪽이 등급색이 아님... 메인에 장비 슬롯이랑 레벨 표시된 거 빼고는 디자인이 같아야 함")
 // 검사 항목
-//  ① 셀 테두리색 = `color-mix(in srgb, 시대색 72%, #000)` = 시대색 ×0.72 (채널 ±4)
-//  ② 안쪽 링(box-shadow inset)이 시대색 그대로 들어간다
+//  ① 셀 테두리색 = `color-mix(in srgb, 시대색 80%, #000)` = 시대색 ×0.80 (채널 ±4, 슬롯과 같은 식)
+//  ② 셀 안쪽 면(배경색) = `color-mix(시대색 58%, #17181a)` (채널 ±4, 슬롯 해칭 바탕과 같은 식)
+//  ②b 슬롯과 동일 디자인: 타일 background-image·border-radius·테 두께가 메인 .equip-cell 과
+//     문자열/수치로 같고, 타일 안에 레벨 배지(.cell-lv)가 **없다**(유일하게 허용된 차이)
 //  ③ 시대 10종의 테두리색이 서로 갈린다(8종 이상 서로 다름 = '전부 회색' 회귀 방지)
 //  ④ 아이콘(img·.ico)에 검정 drop-shadow 4패스(상하좌우)가 폭 >0 으로 걸린다 — 두께 노브는
 //     슬롯과 공유하는 `--slot-out`(outline-halve-egg-none 로 절반)
-//  ⑤ 장비 상세 팝업도 같은 언어(프레임 시대색 + 아이콘 아웃라인)
+//  ⑤ 장비 상세 팝업도 같은 언어(테 ×0.80 + 면 58% 틴트 + 아이콘 아웃라인)
 //  ⑥ 콘솔 에러 0
 // 사용: node probe-forge-list-frame.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
@@ -56,25 +58,48 @@ const rgb = (str) => {
                 age: face.dataset.age,
                 hex: UI.ageHex(face.dataset.age),
                 border: cs.borderTopColor,
-                shadow: cs.boxShadow,
+                bg: cs.backgroundColor,
+                bgImage: cs.backgroundImage,
+                radius: cs.borderTopLeftRadius,
+                borderW: cs.borderTopWidth,
+                isEquipCell: face.classList.contains('equip-cell'),
+                hasLv: !!face.querySelector('.cell-lv'),
                 filter: icon ? getComputedStyle(icon).filter : '(아이콘 없음)',
             };
         });
     });
     ok(rows.length >= 10, `시대 섹션이 ${rows.length}개다(10개 기대)`);
+    // ②b 비교 기준 = 메인 하단 장비 그리드의 실제 슬롯 (모달 아래 DOM에 그대로 있다)
+    const slotRef = await page.evaluate(() => {
+        const cell = document.querySelector('#equip-sheet .equip-grid .equip-cell:not(.egg-cell)');
+        if (!cell) return null;
+        const cs = getComputedStyle(cell);
+        return { bgImage: cs.backgroundImage, radius: cs.borderTopLeftRadius, borderW: cs.borderTopWidth };
+    });
+    ok(!!slotRef, '②b 비교할 메인 장비 슬롯(.equip-cell)을 못 찾았다');
 
     const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
     const seen = new Set();
+    // 슬롯 면 혼합 상수: color-mix(in srgb, rc 58%, #17181a)
+    const faceMix = h => hexRgb(h).map((v, i) => Math.round(v * 0.58 + [23, 24, 26][i] * 0.42));
     for (const r of rows) {
-        const want = hexRgb(r.hex).map(v => Math.round(v * 0.72));
+        const want = hexRgb(r.hex).map(v => Math.round(v * 0.80));
         const got = rgb(r.border);
         const dev = Math.max(...want.map((v, i) => Math.abs(v - got[i])));
-        ok(dev <= 4, `① ${r.age}: 테두리 ${r.border} — 시대색 ${r.hex} ×0.72 = rgb(${want}) 여야 한다 (최대 편차 ${dev})`);
-        // ② 안쪽 링에 시대색 원본이 들어갔는지 (box-shadow 첫 inset)
-        const ring = rgb(r.shadow);
-        const wantRing = hexRgb(r.hex);
-        ok(Math.max(...wantRing.map((v, i) => Math.abs(v - ring[i]))) <= 4,
-            `② ${r.age}: 안쪽 링 색이 시대색이 아니다 (${r.shadow.slice(0, 40)})`);
+        ok(dev <= 4, `① ${r.age}: 테두리 ${r.border} — 시대색 ${r.hex} ×0.80 = rgb(${want}) 여야 한다 (최대 편차 ${dev})`);
+        // ② 안쪽 면 = 시대색 58% + #17181a 42% (슬롯 해칭 바탕과 같은 식)
+        const wantFace = faceMix(r.hex);
+        const gotFace = rgb(r.bg);
+        ok(Math.max(...wantFace.map((v, i) => Math.abs(v - gotFace[i]))) <= 4,
+            `② ${r.age}: 안쪽 면 ${r.bg} — color-mix(시대색 58%, #17181a) = rgb(${wantFace}) 여야 한다`);
+        // ②b 슬롯과 동일 디자인 + 레벨 배지만 없음
+        ok(r.isEquipCell, `②b ${r.age}: 타일에 equip-cell 클래스가 없다(슬롯 CSS 재사용이 풀렸다)`);
+        ok(!r.hasLv, `②b ${r.age}: 타일 안에 레벨 배지(.cell-lv)가 있다 — 목록은 레벨 표시를 빼야 한다`);
+        if (slotRef) {
+            ok(r.bgImage === slotRef.bgImage, `②b ${r.age}: background-image 가 메인 슬롯과 다르다`);
+            ok(r.radius === slotRef.radius, `②b ${r.age}: 라운드 ${r.radius} ≠ 슬롯 ${slotRef.radius}`);
+            ok(r.borderW === slotRef.borderW, `②b ${r.age}: 테 두께 ${r.borderW} ≠ 슬롯 ${slotRef.borderW}`);
+        }
         seen.add(got.join(','));
         // ④ 아이콘 검정 아웃라인 4패스
         const passes = (r.filter.match(/drop-shadow\(rgb\(0,\s*0,\s*0\)[^)]*\)/g) || []).length;
@@ -93,14 +118,19 @@ const rgb = (str) => {
         return {
             hex: UI.ageHex('interstellar'),
             border: box ? getComputedStyle(box).borderTopColor : null,
+            bg: box ? getComputedStyle(box).backgroundColor : null,
             filter: icon ? getComputedStyle(icon).filter : '(아이콘 없음)',
         };
     });
     if (det.border) {
-        const want = hexRgb(det.hex).map(v => Math.round(v * 0.72));
+        const want = hexRgb(det.hex).map(v => Math.round(v * 0.80));
         const got = rgb(det.border);
         ok(Math.max(...want.map((v, i) => Math.abs(v - got[i]))) <= 4,
-            `⑤ 상세 팝업 프레임 ${det.border} — 시대색 ×0.72 rgb(${want}) 기대`);
+            `⑤ 상세 팝업 프레임 ${det.border} — 시대색 ×0.80 rgb(${want}) 기대`);
+        const wantFace = faceMix(det.hex);
+        const gotFace = rgb(det.bg);
+        ok(Math.max(...wantFace.map((v, i) => Math.abs(v - gotFace[i]))) <= 4,
+            `⑤ 상세 팝업 안쪽 면 ${det.bg} — color-mix(시대색 58%, #17181a) rgb(${wantFace}) 기대`);
         ok((det.filter.match(/drop-shadow\(rgb\(0,\s*0,\s*0\)[^)]*\)/g) || []).length >= 4,
             `⑤ 상세 팝업 아이콘에 검정 아웃라인이 없다 (filter=${det.filter.slice(0, 90)})`);
     } else ok(false, '⑤ 상세 팝업 아이콘 상자를 못 읽었다');
@@ -109,7 +139,7 @@ const rgb = (str) => {
     console.log('시대별 셀 테두리색:');
     rows.forEach(r => console.log(`  ${String(r.age).padEnd(13)} 시대색 ${r.hex} → 테 ${r.border}`));
     console.log(fails.length ? `\n❌ FAIL (${fails.length}건)\n` + fails.join('\n')
-        : `\n✅ PASS — 목록 셀 프레임이 시대색(${seen.size}종) · 아이콘 검정 아웃라인 · 상세 팝업 동일`);
+        : `\n✅ PASS — 타일 = 메인 슬롯 동일 디자인(테 ×0.80·면 58% 틴트·${seen.size}종 색 분화·레벨 배지 없음) · 아이콘 검정 아웃라인 · 상세 팝업 동일`);
     await browser.close();
     process.exit(fails.length ? 1 : 0);
 })();

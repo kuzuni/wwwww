@@ -610,29 +610,17 @@ body {
     gap: calc(var(--app-h) * .0069);   /* 원본 셀 바닥→% 글자 6px */
     cursor: pointer;
 }
-/* 셀 크롬(equip-design-dedupe (나), 3D 스트림 인계 2026-08-18): 접지 그림자·소프트 AO·비네트·
-   레어리티 프레임은 아이콘 PNG에 구우면 알파 bbox 계약(fit-ink 배율·probe-equip-framing/silhouette/
-   dedupe)이 통째로 깨진다(probe-thumb-plate-cost 실측: 28쌍 실루엣 IoU 0.416→1.000). 그래서 셀 CSS가
-   진다. 원본(shot-042905) 셀 면은 플랫 #e0e0e0 이므로 배치·기하는 그대로 두고 표면 레이어만 얹는다
-   (aaa-skin 규칙과 동일 — 배경 그라디언트·box-shadow 는 기하 무변). */
+/* 타일 = 메인 장비 슬롯과 **완전히 같은 디자인** (사용자 재지적 2026-08-19 `forge-list-frame-color`
+   재오픈: "아웃라인 부분만 등급색이고 프레임 안쪽이 등급색이 아님... 메인에 장비 슬롯이랑 레벨
+   표시된 거 빼고는 디자인이 같아야 함"). 별도 스타일을 만들지 않고 마크업이 `.equip-cell` 클래스를
+   같이 입는다(ui.js renderForgeListView) — 해칭 배경 `color-mix(--rc 58%, #17181a)`·시대색 테
+   `color-mix(--rc 80%, #000)`·라운드 .7rem·시대 무늬 층(`[data-age]::before`)·광택 스킨
+   (`.equip-cell:not(.egg-cell)`)이 전부 저절로 따라온다. 레벨 배지(.cell-lv)는 마크업에 없어서
+   그 차이만 남는다. 여기는 .equip-cell 이 안 주는 것만 둔다: 그리드 채움 폭과 이모지 플레이스홀더
+   크기. 1차 수정의 자체 배경(#e0e0e0)·72% 테·시대색 안쪽 링은 슬롯과 다른 디자인이라 **지웠다** —
+   되살리면 재오픈 원인이 그대로 돌아온다. */
 .fl-face {
-    position: relative; width: 100%; aspect-ratio: 1;
-    background:
-        radial-gradient(130% 105% at 50% 24%, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 52%),  /* 탑 라이트 */
-        radial-gradient(150% 150% at 50% 56%, rgba(0,0,0,0) 58%, rgba(0,0,0,.10) 100%),            /* 비네트 */
-        #e0e0e0;
-    /* 프레임 색 = 그 시대(등급)색 (사용자 지시 2026-08-19 `forge-list-frame-color`: "장비들 프레임
-       색깔이 실제 프레임 색과 달리 다 회색으로 되어 있음"). 종전 `--pp-line` 회색 테 + 55% 로 흐린
-       안쪽 링이라 열 개 시대가 전부 같은 회색으로 보였다. 장비 셀(.equip-cell)이 쓰는 언어와 같게
-       **시대색에 검정을 섞어** 원본의 어두운 키라인 성격은 유지하면서 색은 읽히게 한다.
-       --rc 없는 셀(다른 화면 재사용)은 종전 회색으로 돌아간다. */
-    border: var(--ol2) solid color-mix(in srgb, var(--rc, var(--pp-line)) 72%, #000); border-radius: .5rem;
-    /* 안쪽 1줄 = 레어리티(시대색) 링 — 이제 흐리게 섞지 않고 시대색 그대로 둔다. */
-    box-shadow:
-        inset 0 0 0 max(1px, .07rem) var(--rc, transparent),
-        inset 0 2px 3px rgba(255,255,255,.35),          /* 윗면 소프트 하이라이트 */
-        inset 0 -3px 4px rgba(0,0,0,.10);               /* 바닥 소프트 AO */
-    display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
+    width: 100%; font-size: 1.25rem;
 }
 /* 3D 스냅샷 썸네일 — 접지 그림자는 PNG가 아니라 여기서 진다(플레이스홀더 .ico 는 IconGen plate 가
    그림자를 자체 포함하므로 img 에만 건다). */
@@ -3157,12 +3145,16 @@ body {
    그만큼 패널이 위로 올라와 있었다. 백분율 기준은 padding=래퍼 폭, width/margin=카드 안쪽 폭. */
 #forge-item-modal .modal-card.item-detail { padding: 2.64%; }
 #forge-item-modal .idet-icon { width: 20.1%; }
-/* 장비 상세도 목록과 같은 언어 — 프레임은 시대색, 아이콘엔 검정 아웃라인
-   (사용자 지시 2026-08-19 `forge-list-frame-color`. 다른 화면이 함께 쓰는 `.idet-icon` 을
-   건드리지 않게 이 팝업으로만 가둔다) */
+/* 장비 상세도 목록과 같은 언어 — 목록 타일이 메인 슬롯(.equip-cell) 디자인으로 통일되면서
+   (사용자 재지적 2026-08-19 `forge-list-frame-color` 재오픈) 이 팝업 아이콘 상자도 같은 면을 쓴다:
+   해칭 배경 + 시대색 58% 틴트 면 + 시대색 80% 테. 다른 화면이 함께 쓰는 `.idet-icon` 을
+   건드리지 않게 이 팝업으로만 가둔다. */
 #forge-item-modal .idet-icon {
-    border-color: color-mix(in srgb, var(--rc, #d5d5d5) 72%, #000);
-    box-shadow: inset 0 0 0 max(1px, .07rem) var(--rc, transparent);
+    background:
+        repeating-linear-gradient(45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),
+        repeating-linear-gradient(-45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 12px),
+        color-mix(in srgb, var(--rc, #d5d5d5) 58%, #17181a);
+    border-color: color-mix(in srgb, var(--rc, #d5d5d5) 80%, #000);
 }
 #forge-item-modal .idet-icon img, #forge-item-modal .idet-icon .ico {
     --sw: var(--slot-out);
