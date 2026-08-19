@@ -5706,8 +5706,13 @@ const Scene3D = {
         this._thumbScene = new THREE.Scene();
         // far 는 넉넉히 — 자동 프레이밍이 형상에 따라 카메라를 멀리 빼므로 10 이면 큰 모델이 잘린다
         this._thumbCam = new THREE.PerspectiveCamera(35, 1, 0.01, 200);
-        this._thumbAmb = new THREE.AmbientLight(0xffffff, 0.42);
-        this._thumbDir = new THREE.DirectionalLight(0xffffff, 0.72);
+        // 키↑·앰비언트↓ — 앰비언트 0.42/키 0.72 는 형태 음영을 눌러 전 계열이 '무광 매트'로 읽혔다
+        // (2·3차 채점 전원 1순위 "스페큘러/명암 분리 부재"). 0.36/0.84 로 명부-암부 폭을 벌린다.
+        // ⚠️ 더 밀어붙이지 말 것(실측 2건): ⑴ 0.30/0.95 는 primal↔polymer(hide) 재질분리를
+        //    1.12 → 0.58 로 무너뜨린다(probe-age-shading — 키가 셀수록 두 천의 평균 휘도차가 좁아진다).
+        //    ⑵ 키 웜톤(0xfff2e0)도 같은 쌍을 0.70 으로 깬다. 중립 백색 + 이 비율이 게이트 안 최대치다.
+        this._thumbAmb = new THREE.AmbientLight(0xffffff, 0.36);
+        this._thumbDir = new THREE.DirectionalLight(0xffffff, 0.84);
         this._thumbDir.position.set(2, 3, 2);
         // 쿨톤 역광(림 라이트) — 본편·생물 썸네일과 동일한 3광 구성. 키 반대쪽 뒤에서 넣어 실루엣
         // 가장자리를 투명 배경에서 떼어낸다(비평가 지적 ㉯⑶ "라이트 2개뿐, 림·접지그림자 없음").
