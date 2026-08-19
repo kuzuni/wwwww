@@ -3666,7 +3666,7 @@ const Scene3D = {
             this.shoulderPads.forEach(p => p.visible = style === 'plate');
             this.chestPlate.visible = style !== 'hide' && style !== 'robe';
             this.clearGroup(this.armorExtraG);
-            this.armorExtraG.add(this.makeArmorExtras(style, c, ec, a ? this.ageGearMats(a.age, itemNameOf(a)) : null));
+            this.armorExtraG.add(this.makeArmorExtras(style, c, ec, a ? this.ageGearMats(a.age, itemNameOf(a)) : null, { age: a && a.age }));
         }
         // ⚠️ **방패는 일부러 그레이딩에 안 태운다 — 되돌리지 말 것.** 리그 소속이라 썸네일과 무관해
         //    기술적으로는 걸 수 있고 실제로 걸어 봤는데(전량·절반 둘 다), 방패는 그레이딩 전에도
@@ -4535,8 +4535,51 @@ const Scene3D = {
         }
         // 시대 디테일 — halo(빛 링만)·bubble(유리 돔)은 두를 표면이 없어 제외
         if (style !== 'halo' && style !== 'bubble') this.addAgeTrim(g, mats, { yFrac: 0.2 });
+        // 천상 투구: 머리 뒤 후광 (사용자 지시 '천상→예: 예수 머리·십자가'). 무기의 후광과 같은 문법.
+        // ⚠️ halo 스타일은 그 자체가 후광이라 겹쳐 두 겹이 되면 안 된다.
+        // ⚠️ 반경을 키우지 말 것 — 후광은 자동 프레이밍의 bbox 를 그대로 키워서, 크게 잡으면
+        //    썸네일에서 **투구 본체가 쪼그라든다**(0.30 판에서 실측). 0.22 가 '보이되 안 먹는' 값이다.
+        if (age === 'divine' && style !== 'halo') this.addDivineHalo(g, 0.3, 0.22);
         g.scale.setScalar(0.85); // 두상 밀착 피팅 — 헬멧이 머리보다 한 치수 커서 '풍선'으로 읽히던 문제 (비평가 3번 결함)
         return g;
+    },
+
+    // ── 천상(divine) 공통 문장 — 후광 / 십자가 ─────────────────────────────────────
+    // 사용자 지시 2026-08-19: "천상→진짜 천상 같아야 함(예: 예수 머리·십자가)".
+    // 금색 재질만으로는 '노랗게 칠한 금속'이라 시대가 색으로만 읽혔다 — 무기·투구·갑옷이
+    // **같은 두 기호**(후광·십자가)를 쓰게 해서 한 벌로 묶는다. 여기 한 곳만 고치면 셋이 같이 움직인다.
+    divineLitMat() {
+        if (!this._divineLit) this._divineLit = new THREE.MeshLambertMaterial({
+            color: 0xfff2cc, emissive: 0xffc247, emissiveIntensity: 0.85
+        });
+        return this._divineLit;
+    },
+    addDivineHalo(g, y, r) {
+        const m = this.divineLitMat();
+        const halo = new THREE.Mesh(new THREE.TorusGeometry(r, r * 0.11, 6, 24), m);
+        halo.position.set(0, y, -r * 0.42);
+        halo.rotation.x = -0.22;   // 성상화처럼 뒤로 살짝 눕힌다 (정면에서 타원 고리로 읽힘)
+        g.add(halo);
+        for (let i = 0; i < 8; i++) {   // 방사 광선
+            const a = i * Math.PI / 4;
+            const ray = new THREE.Mesh(new THREE.BoxGeometry(r * 0.075, r * 0.44, r * 0.075), m);
+            ray.position.set(Math.cos(a) * r * 1.32, y + Math.sin(a) * r * 1.32, -r * 0.44);
+            ray.rotation.z = Math.PI / 2 - a;
+            g.add(ray);
+        }
+        return g;
+    },
+    // 라틴 십자가 — 가로대는 세로대 위쪽 1/3. 같은 길이로 두면 더하기 기호로 읽힌다.
+    addDivineCross(g, x, y, z, h, mat) {
+        const m = mat || this.divineLitMat();
+        const cross = new THREE.Group();
+        const v = new THREE.Mesh(new THREE.BoxGeometry(h * 0.18, h, h * 0.13), m);
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(h * 0.62, h * 0.17, h * 0.13), m);
+        bar.position.y = h * 0.22;
+        cross.add(v, bar);
+        cross.position.set(x, y, z);
+        g.add(cross);
+        return cross;
     },
 
     // 갑옷 스타일별 부속 (몸통 기준 좌표 — 영웅 몸통 y0.65)
@@ -4603,6 +4646,14 @@ const Scene3D = {
                 clasp.position.set(dx, 0.9, cz + 0.09);
                 g.add(clasp);
             }
+        }
+        // 천상: 가슴 십자가 (사용자 지시 '천상→예: 예수 머리·십자가').
+        // ⚠️ makeArmorPreview 가 아니라 **여기**에 둔다 — 프리뷰 전용에 두면 썸네일만 성스럽고
+        //    실제로 입은 영웅 가슴에는 아무것도 안 붙는다(이 파일의 '부속은 프리뷰 전용' 관례는
+        //    좌표가 틀어지는 부속에 대한 것이고, 십자가는 앞면 중앙이라 양쪽 다 같은 자리다).
+        if (o.age === 'divine') {
+            const frontZ = o.frontZ !== undefined ? o.frontZ : 0.128;
+            this.addDivineCross(g, 0, o.crossY !== undefined ? o.crossY : 0.78, frontZ + 0.05, 0.17);
         }
         return g;
     },
@@ -4742,7 +4793,7 @@ const Scene3D = {
             }
         }
         // 곡면 흉갑의 실제 앞뒤 깊이를 넘겨 부속을 표면에 앉힌다(상수 좌표면 1~3cm 뜬다)
-        const extras = this.makeArmorExtras(style, c, RARITY_HEX[rarity] || 0xffffff, mats, { frontZ: 0.128, backZ: -0.03, packZ: -0.185 });
+        const extras = this.makeArmorExtras(style, c, RARITY_HEX[rarity] || 0xffffff, mats, { frontZ: 0.128, backZ: -0.03, packZ: -0.185, age });   // crossY 는 기본값(0.78) 그대로 — extras 는 통째로 y-0.65 되므로 프리뷰에서 가슴 높이(0.13)가 된다
         extras.position.y = -0.65; // 부속 좌표계를 프리뷰 몸통 기준으로 보정
         g.add(extras);
         // ⚠️ suit·vest 는 **프리뷰에서 서로 구분이 안 됐다** — 실측(probe-equip-dedupe)에서 남은

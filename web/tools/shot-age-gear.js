@@ -5,6 +5,7 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const path = require('path');
 const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
+const { waitReady } = require('./wait-ready.js');
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -12,7 +13,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.itemThumb, null, { timeout: 20000 });
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.itemThumb');
 
     const url = await page.evaluate(() => {
         const S = 192;

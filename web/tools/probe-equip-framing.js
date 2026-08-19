@@ -12,6 +12,7 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
+const { waitReady } = require('./wait-ready.js');
 
 const FILL_MIN = 0.82, FILL_MAX = 0.99, OFF_MAX = 0.04;
 
@@ -22,7 +23,7 @@ const FILL_MIN = 0.82, FILL_MAX = 0.99, OFF_MAX = 0.04;
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(INDEX, { waitUntil: 'load' });
-    await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.itemThumb, null, { timeout: 20000 });
+    await waitReady(page, 'typeof Scene3D !== "undefined" && Scene3D.itemThumb');   // ⚠️ waitForFunction 은 이 컨테이너에서 안 돈다(wait-ready.js 헤더 참조)
 
     const res = await page.evaluate(async ({ FILL_MIN, FILL_MAX, OFF_MAX }) => {
         const S = 128;
