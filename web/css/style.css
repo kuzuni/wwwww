@@ -3677,12 +3677,28 @@ body {
     padding: .8rem .8rem; background: #1f2740; border-top: var(--ol3) solid var(--pp-line);
     min-height: 10.5rem;
 }
-.hatch-row { flex: 1; display: flex; gap: .45rem; }
+/* 원본(shot-042445) 실측: 부화 칸 3개는 **밴드를 꽉 채우지 않는다** — 왼쪽에 ◀ 자리, 오른쪽에
+   [슬롯 +1] 자리를 남기고 가운데 왼쪽에 모여 있다. 칸 중심 27.86 · 45.20 · 62.35%W(피치 17.24%W).
+   종전엔 `.hatch-row{flex:1}` + `.hatch-cell{flex:1}` 이라 밴드 폭을 3등분해 칸이 27.18%W 간격으로
+   벌어졌고(피치 +9.93%p), 1칸이 ◀ 밑으로 들어가고 [슬롯 +1] 이 오른쪽 끝(중심 90.8%W)까지 밀렸다.
+   폭을 원본 값으로 고정하면 그 뒤에 놓이는 [슬롯 +1] 도 원본 자리(중심 ≈79.8%W)로 따라온다. */
+.hatch-row {
+    flex: none; display: flex; gap: 0;
+    width: calc(var(--app-w) * .5172);          /* 3칸 × 17.24%W */
+    /* ⚠️ `.hatchery` 가 좌우 .8rem 패딩을 주므로 콘텐츠 원점이 이미 앱 좌단 + .8rem 이다 —
+       그만큼 빼야 1칸 중심이 앱 기준 27.86%W 에 온다(안 빼면 세 칸이 나란히 +2.68%p 밀린다). */
+    margin-left: calc(var(--app-w) * .1924 - .8rem);
+}
 .hatchery { position: relative; }
-.hatch-back { position: absolute; left: .55rem; bottom: .55rem; z-index: 2; flex: 0 0 auto; width: 2.5rem; height: 2.5rem; } /* 원본(042356): 부화장 좌하단 ◀ */
+/* 원본(042356·042445): 부화장 좌하단 ◀. 실측 31×21px(6.33%W × 4.29%W) — 2.5rem 정사각은 폭이
+   +2.43%p 큰 데다 세로로도 길어 원본의 납작한 라운드 사각과 다른 물건이 된다. */
+/* ⚠️ `.btn.round`(0-2-0)가 2.6rem 정사각을 박으므로 선택자를 같은 특이도 이상으로 올려야 먹는다 —
+   `.hatch-back` 한 겹(0-1-0)으로 적었더니 값이 통째로 무시됐다(실측: 폭이 8.76%W 그대로). */
+.btn.round.hatch-back, .hatch-back { position: absolute; left: .55rem; bottom: .55rem; z-index: 2; flex: 0 0 auto;
+    width: calc(var(--app-w) * .0633); height: calc(var(--app-w) * .0429); border-radius: .5rem; }
 /* 원본(shot-042356): 램프 아래 노란 빛 원뿔 + 알 — 박스 없는 스포트라이트 연출 */
 .hatch-cell {
-    flex: 1; min-width: 0; position: relative; background: none; border: none;
+    flex: 0 0 calc(var(--app-w) * .1724); min-width: 0; position: relative; background: none; border: none;
     /* 위 패딩 3.6rem → 2.6rem: 원본 부화장 높이 19.27%H 인데 클론은 20.84%H 였다(+1.57%p).
        램프·원뿔은 절대배치라 안 흔들리고 알 위치만 14px 올라온다. */
     padding: 2.6rem .2rem .1rem; display: flex; flex-direction: column; align-items: center; gap: .15rem;
@@ -3695,7 +3711,7 @@ body {
 .hatch-lamp::after { content: ''; position: absolute; bottom: -.28rem; left: 50%; transform: translateX(-50%); width: .5rem; height: .28rem; background: #ffe95c; border-radius: 0 0 .3rem .3rem; }
 .hatch-cone {
     position: absolute; top: .7rem; left: 50%; transform: translateX(-50%);
-    width: 5rem; height: 5.4rem; pointer-events: none;
+    width: calc(var(--app-w) * .1265); height: 5.4rem; pointer-events: none;   /* 원본 빛기둥 폭 12.65%W */
     background: linear-gradient(180deg, rgba(255,235,80,.9), rgba(255,235,80,.08));
     clip-path: polygon(38% 0, 62% 0, 100% 100%, 0 100%);
 }
