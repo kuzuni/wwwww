@@ -67,7 +67,16 @@ push_lock() {
   local i
   for i in 1 2 3 4 5 6 7 8; do
     if git push -q origin "HEAD:refs/heads/$BRANCH" 2>/dev/null; then return 0; fi
-    if ! git pull --rebase -q origin "$BRANCH" 2>/dev/null; then
+    # 🚨 **--autostash 를 빼지 말 것** (2026-08-19 3D 스트림, A/B 실측으로 원인 확정).
+    #    `git pull --rebase` 는 **작업 트리가 더러우면 무조건 실패**한다. 그런데 refresh 를
+    #    부르는 시점은 정의상 **작업 중**이라 트리가 더러운 게 정상이다 — 즉 이 한 줄 때문에
+    #    refresh 가 **정작 필요할 때만 골라서 실패**하고 있었다. 증상은 `WARN … 다음 주기
+    #    재시도` 라 무해해 보이지만, remote 의 ts 가 acquire 시각에 멈춰 30분 뒤 남이 STALE 로
+    #    회수해 간다(TODO 규칙 2 의 사고 기록이 전부 이 경로였다). 실측 A/B: 같은 커밋에서
+    #    트리가 더러우면 WARN, `git stash` 로 비우면 곧바로 `OK 리스 갱신`.
+    #    ⚠️ TODO 규칙 2 는 원인을 detached HEAD 로만 적어 뒀는데, **더러운 트리가 훨씬 흔한
+    #       원인**이다. 셋(detached · behind · dirty) 다 같은 WARN 으로 뭉개진다.
+    if ! git -c rebase.autoStash=true pull --rebase -q origin "$BRANCH" 2>/dev/null; then
       return 1   # 충돌 — 콜러가 양보/복구 결정
     fi
   done
