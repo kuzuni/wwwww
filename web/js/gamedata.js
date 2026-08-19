@@ -123,10 +123,16 @@ const HELMET_STYLES = {
     divine:       ['halo', 'cone', 'crown', 'plume', 'hair'],
 };
 // 갑옷: hide(가죽) plate(판금+견갑) vest(전술조끼) suit(슈트+백팩) robe(로브) cape(망토)
+//       bone(뼈 갑주 — 늑골 아치+견갑골 판+가죽끈, 원시 전용)
 // 시대당 5종 (원본 카탈로그 2~3종 + 자체 확충)
-// 헬멧과 같은 규칙 — 시대 안에서 스타일 중복 금지 (계열이 6종뿐이라 시대당 5개를 겹치지 않게 고른다)
+// 헬멧과 같은 규칙 — 시대 안에서 스타일 중복 금지 (계열이 7종뿐이라 시대당 5개를 겹치지 않게 고른다)
+// 🚨 **시대에 안 맞는 조형을 배정하지 말 것 (equip-era-theming, 사용자 지시 2026-08-19).**
+//    스타일이 곧 3D 조형이라, 이름이 '뼈 갑옷'이어도 style 이 'plate' 면 화면에는 **중세 판금 흉갑**
+//    (라멜라 파울드론·파울드·리벳)이 나온다. 실제로 원시 시대 3번 칸이 그랬고, 그게 사용자 지적
+//    "원시 장비가 원시 장비 같지 않다 / 전부 중세 같은 디자인임"의 가장 직접적인 실물이었다.
+//    → `plate` 는 **판금이 실제로 그 시대의 언어인 시대에만** 준다(중세·근대 초기·지하 세계·다중 우주·천상).
 const ARMOR_STYLES = {
-    primitive:    ['hide', 'robe', 'plate', 'cape', 'vest'],
+    primitive:    ['hide', 'robe', 'bone', 'cape', 'vest'],   // 가죽옷·곰가죽·뼈 갑옷·풀잎 망토·사냥꾼 조끼 (plate 제거)
     medieval:     ['plate', 'suit', 'vest', 'cape', 'robe'],
     earlyModern:  ['plate', 'robe', 'suit', 'vest', 'cape'],
     modern:       ['vest', 'hide', 'plate', 'cape', 'suit'],

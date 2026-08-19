@@ -34,7 +34,11 @@ const PROF_MIN = 0.055;  // 덩어리가 같아도 윤곽이 이만큼 갈리면
         Scene3D._thumbR.setSize(256, 256);
         Scene3D._thumbCache = {};
 
-        const ARMOR = ['plate', 'hide', 'robe', 'cape', 'vest', 'suit'];
+        // ⚠️ 손으로 베낀 목록을 두지 말 것 — 표에 새 스타일이 생겨도(2026-08-19 `bone`) 게이트가
+        //    옛 6종만 재서 **새 조형이 한 번도 판정되지 않는다.** 투구 쪽 주석과 같은 이유로
+        //    ARMOR_STYLES 에서 직접 뽑는다.
+        const ARMOR = [];
+        for (const age of AGES) for (const st of (ARMOR_STYLES[age] || [])) if (ARMOR.indexOf(st) < 0) ARMOR.push(st);
         const cells = [];
         for (const st of ARMOR) cells.push({ group: 'armor', label: 'armor/' + st, slot: 'armor', style: st });
         for (const sl of ['gloves', 'shoes', 'belt', 'necklace', 'ring'])

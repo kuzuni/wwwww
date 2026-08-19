@@ -4058,7 +4058,7 @@ const Scene3D = {
         // 프로시저럴 리그 모드에선 레거시 파츠를 다시 켜지 않는다 (setupHeroProc이 전부 숨겼음)
         if (!this.heroRig) {
             this.shoulderPads.forEach(p => p.visible = style === 'plate');
-            this.chestPlate.visible = style !== 'hide' && style !== 'robe';
+            this.chestPlate.visible = style !== 'hide' && style !== 'robe' && style !== 'bone'; // bone = 가죽 받침 + 뼈판, 강철 흉갑이 아니다
             this.clearGroup(this.armorExtraG);
             this.armorExtraG.add(this.makeArmorExtras(style, c, ec, a ? this.ageGearMats(a.age, itemNameOf(a)) : null, { age: a && a.age }));
         }
@@ -5594,7 +5594,10 @@ const Scene3D = {
                 this.addDivineCross(g, 0, o.crossY !== undefined ? o.crossY : 0.78, frontZ + 0.05, 0.17);
             }
         } else if (o.age === 'primitive') {          // 원시 — 이빨 트로피 목걸이 (십자가와 같은 자리 규약)
-            if (style === 'hide' || style === 'vest' || style === 'plate') {
+            // ⚠️ 'plate' 였던 자리를 'bone' 으로 갈았다 — 원시 시대에는 `plate`(중세 판금)가 더 이상
+            //    배정되지 않는다(ARMOR_STYLES.primitive, equip-era-theming). 구세이브가 든 옛 조합을
+            //    위해 'plate' 도 남겨 둔다(원시+plate 는 이제 폴백 경로에서만 나온다).
+            if (style === 'hide' || style === 'vest' || style === 'bone' || style === 'plate') {
                 this.addPrimalTrophy(g, 0.89, o.frontZ !== undefined ? o.frontZ : 0.128);
             }
         } else if (o.age === 'medieval') {           // 중세 — 가슴 문장 방패 (경식 갑주만)
@@ -5612,7 +5615,8 @@ const Scene3D = {
         const mats = this.ageGearMats(age, name);
         style = style || 'plate';
         // 가죽·로브는 판금 재질을 쓰면 '철판 원피스'로 읽힌다 — 시대색은 유지한 채 금속기만 뺀다
-        const soft = style === 'hide' || style === 'robe';
+        // `bone`(원시 뼈 갑옷)도 몸통은 생가죽 받침이다 — 뼈는 그 위에 얹는 별도 층(아래 참조).
+        const soft = style === 'hide' || style === 'robe' || style === 'bone';
         // 천·가죽은 시대 계열 셰이딩(판금의 에지 웨어)이 아니라 **천 프로파일**을 탄다 — 안 그러면
         // 로브에 강철 모서리 반짝임이 얹힌다. tintOf 가 base 의 계열을 물려주므로 여기서 덮어쓴다.
         // ⚠️ 명도차도 시대마다 줘야 한다 — 셰이딩 프로파일만 갈랐더니 근세(왁스 캔버스)와 현대(기술섬유)
@@ -5620,8 +5624,18 @@ const Scene3D = {
         //    천은 '시대별 소재'가 곧 밝기다: 생가죽은 그을리고, 모직은 중간, 캔버스는 볕에 바래 밝고,
         //    기술섬유는 무광 흑회색, 발광 섬유는 어둡되 림이 산다.
         const SOFT_DL = { primal: -0.06, forged: 0.01, brass: 0.06, polymer: -0.21, alloy: -0.10, holy: 0.10 };
-        const mat = soft ? this.ageShade(this.tintOf(mats.body, SOFT_DL[mats.kind] !== undefined ? SOFT_DL[mats.kind] : -0.02,
-            { metalness: 0.03, roughness: 0.9, envMapIntensity: 0.3 }), 'soft:' + mats.kind) : mats.body;
+        // 🚨 `bone`(원시 뼈 갑주)의 몸통만 **이름 물질을 따르지 않는다**. '뼈 갑옷'이라는 이름은
+        //    `substanceOf` 를 거쳐 몸통까지 크림빛 뼈로 칠하는데, 그러면 위에 얹는 늑골·견갑골이
+        //    받침과 **같은 명도**가 되어 통째로 사라진다(실측: 3각도 전부 전 부위 L 225~236 의 흰 덩어리).
+        //    이 스타일의 정의는 '생가죽 받침 + 그 위에 묶은 뼈판'이라, 받침을 어두운 생가죽으로
+        //    굳혀야 뼈가 그 위에서 뜬다 — 다크 앵커도 여기서 나온다.
+        const mat = style === 'bone'
+            ? this.ageShade(new THREE.MeshStandardMaterial({
+                color: 0x6a4c30, metalness: 0.02, roughness: 0.93, envMapIntensity: 0.22,
+                map: (typeof ProChar !== 'undefined' && ProChar.leatherTex) ? ProChar.leatherTex() : null
+            }), 'soft:primal')
+            : soft ? this.ageShade(this.tintOf(mats.body, SOFT_DL[mats.kind] !== undefined ? SOFT_DL[mats.kind] : -0.02,
+                { metalness: 0.03, roughness: 0.9, envMapIntensity: 0.3 }), 'soft:' + mats.kind) : mats.body;
         // ── 몸통: 0.46×0.5×0.3 상자 → **단면 링을 쌓은 곡면 흉갑** (비평가 지적 ㉯⑴) ──
         // 아랫단이 벌어지고(플레어) 허리가 잘록해지며 가슴이 가장 두껍고 목으로 좁아진다.
         // 폭·높이는 예전 상자와 맞춰 둔다(rx 0.238×2≈0.46) — 부속(견갑·망토)·시대 트림의 좌표가
@@ -5650,6 +5664,7 @@ const Scene3D = {
             cape: { shoulder: 1.00, waist: 0.96, skirt: 0.230, top: 1.00 },
             vest: { shoulder: 1.05, waist: 0.98, skirt: 0.190, top: 0.80 },   // 짧게 잘린 조끼 (크롭)
             suit: { shoulder: 1.03, waist: 1.04, skirt: 0.215, top: 1.02 },   // 통통한 여압복
+            bone: { shoulder: 0.90, waist: 1.06, skirt: 0.198, top: 0.86 },   // 뼈 갑주: 좁은 어깨·통짜 몸통·짧은 기장 (늑골이 바깥 윤곽을 진다)
         }[style] || { shoulder: 1, waist: 1, skirt: 0.225, top: 1 };
         // 천 주름(비평가 ⓒ⑶) — 로브는 어깨에 걸린 천이라 밑으로 갈수록 주름이 깊어진다.
         // fw 는 링별 주름 가중치(목 0 → 밑단 1). 판금은 0(주름진 강철은 찌그러진 강철이다).
@@ -5751,6 +5766,121 @@ const Scene3D = {
                 f.rotation.y = a;
                 f.rotation.x = 0.22;
                 g.add(f);
+            }
+        }
+        if (style === 'bone') {
+            // ── 원시 `뼈 갑옷` (equip-era-theming) ─────────────────────────────────────
+            // 🚨 **되돌려서 `plate` 로 쓰지 말 것.** 2026-08-19 까지 원시 시대의 '뼈 갑옷'은
+            //    `ARMOR_STYLES.primitive[2] = 'plate'` 이라 **중세 판금 흉갑**(라멜라 파울드론 3장 +
+            //    파울드 3판 + 어깨판)으로 그려졌다 — 재질만 돌빛이고 조형은 기사 갑주 그대로였다.
+            //    사용자 지적 "원시 장비가 원시 장비 같은 디자인이 아닌 게 제일 큼 / 전부 중세 같은
+            //    디자인임"의 가장 직접적인 실물이 이것이다. `plate` 의 조형 언어(겹친 강철판·리벳·
+            //    문장)를 원시에서 완전히 걷어내고 **묶어서 만든 뼈 갑주**로 갈아 끼운다.
+            // 조형 언어: ⓐ 생가죽 받침(soft 몸통) 위에 ⓑ **늑골 아치**가 가로로 겹쳐 얹히고
+            //   ⓒ 가슴 한가운데 **흉골 기둥**이 그 아치들을 꿴다 ⓓ 어깨에는 넓적한 **견갑골 판**
+            //   ⓔ 전부 **가죽끈**으로 묶여 있다(금속 부속·리벳 0개 — 그게 원시의 정의다).
+            // ⚠️ 뼈는 밝은 크림이라 밝은 썸네일 배경에서 날아간다(무기 `holy` 가 같은 함정을 밟았다) —
+            //    받침 가죽(어두움)과 가죽끈(가장 어두움)이 항상 뼈 뒤에 깔려 다크 앵커를 준다.
+            // 계열은 `primal`(돌·뼈) — soft(가죽·천) 프로파일을 주면 뼈에 **바늘땀**이 찍힌다.
+            // primal 은 깊은 틈 그늘 + 먼지빛 모서리 + `AGE_DETAIL.primal` 의 팬 자국·기공이라 뼈에 맞다.
+            // ⚠️ 0xc2b493 은 썸네일 조명(ambient 0.85)에서 **순백으로 타서** 뼈가 흰 플라스틱 판이
+            //    됐다(무기 `holy` 가 밟은 것과 같은 함정). 알베도를 상아 쪽으로 눌러 내부 음영이 남게 한다.
+            const boneM = this.ageShade(new THREE.MeshStandardMaterial({
+                color: 0x9c8f6f, metalness: 0.02, roughness: 0.82, flatShading: true
+            }), 'primal', 'primal');
+            const cordM = this.tintOf(mats.dark, -0.08, { metalness: 0.02, roughness: 0.92, envMapIntensity: 0.25 });
+            // ⓑ 늑골 아치 4쌍 — 몸통 앞면을 감싸 도는 토러스 호. 위가 넓고 아래로 좁아진다.
+            //    ⚠️ 반지름은 RINGS 에서 읽는다(P.shoulder/P.waist 가 바뀌면 갈비뼈가 몸통에서 뜬다).
+            const RIB = [[4, 0.99], [3, 1.02], [2, 1.04], [1, 1.05]];
+            for (let i = 0; i < RIB.length; i++) {
+                const r = RINGS[RIB[i][0]], k = RIB[i][1];
+                const arc = Math.PI * (0.92 - i * 0.05);          // 아래로 갈수록 짧아진다 = 갈비뼈 수렴
+                const rib = new THREE.Mesh(
+                    new THREE.TorusGeometry(r.rx * k, 0.0225 - i * 0.0015, 5, 16, arc), boneM);
+                rib.rotation.x = Math.PI / 2;
+                rib.rotation.z = Math.PI / 2 - arc / 2;            // 호의 중심을 +z(정면)로
+                rib.position.y = r.y;
+                rib.scale.y = (r.rz / r.rx) * k;                   // 몸통 단면이 타원 — 호도 눌러야 앞뒤로 안 뜬다
+                g.add(rib);
+            }
+            // ⓒ 흉골판 — 갈비뼈를 정중선에서 받는 납작한 뼈. ⚠️ 구를 세로로 늘여 4개 쌓지 말 것:
+            //    정면에서 **흰 달걀 세 개**로 읽혔다(실측). 흉골은 하나의 판이고, 갈비뼈가 붙는
+            //    자리마다 **가로 마디**가 팬다 — 판 + 마디 홈이라야 뼈로 읽힌다.
+            {
+                const sh = new THREE.Shape();
+                // ⚠️ 위끝을 목(y 0.215)까지 올리지 말 것 — 그 높이는 몸통이 급히 좁아져(rz 0.106)
+                //    판이 5cm 나 앞으로 튀어 **가슴 앞에 뜬 흰 타일**로 읽힌다(실측). 가슴 안에서 끝낸다.
+                sh.moveTo(-0.028, 0.168); sh.lineTo(0.028, 0.168); sh.lineTo(0.036, 0.045);
+                sh.lineTo(0.021, -0.112); sh.lineTo(0, -0.158); sh.lineTo(-0.021, -0.112);
+                sh.lineTo(-0.036, 0.045); sh.lineTo(-0.028, 0.168);
+                const geo = new THREE.ExtrudeGeometry(sh, {
+                    depth: 0.026, bevelEnabled: true, bevelThickness: 0.007, bevelSize: 0.007,
+                    bevelSegments: 1, curveSegments: 1
+                });
+                const stern = new THREE.Mesh(geo, boneM);
+                stern.position.set(0, 0, 0.118);
+                g.add(stern);
+                for (let i = 0; i < 3; i++) {   // 마디 홈 — 갈비뼈가 붙는 자리
+                    const notch = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.010, 0.014), cordM);
+                    notch.position.set(0, 0.118 - i * 0.078, 0.150);
+                    g.add(notch);
+                }
+            }
+            // ⓓ 견갑골 판 — 큰 짐승의 어깨뼈를 그대로 얹은 것. 판금 파울드론과 달리 **한 장**이고
+            //    가장자리가 고르지 않다(꼭짓점 6개 셰이프 + 두께).
+            for (const s of [-1, 1]) {
+                const sh = new THREE.Shape();
+                sh.moveTo(-0.085, 0.052); sh.lineTo(0.028, 0.088); sh.lineTo(0.108, 0.030);
+                sh.lineTo(0.086, -0.062); sh.lineTo(-0.020, -0.092); sh.lineTo(-0.098, -0.030);
+                sh.lineTo(-0.085, 0.052);
+                const geo = new THREE.ExtrudeGeometry(sh, {
+                    depth: 0.028, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008,
+                    bevelSegments: 1, curveSegments: 1
+                });
+                geo.translate(0, 0, -0.014);
+                const blade = new THREE.Mesh(geo, boneM);
+                blade.position.set(s * 0.212, 0.196, 0.012);
+                blade.rotation.set(0.22, 0, -s * 0.42);
+                blade.scale.set(1, 1, 1.25);
+                g.add(blade);
+            }
+            // ⓔ 결속 가죽끈 — 뼈판이 몸통에 **묶여** 있다는 증거. 늑골 사이를 지나는 얇은 띠 2줄.
+            // ⚠️ 상자(BoxGeometry)로 두지 말 것 — 곡면 몸통에 평면 판을 대면 옆에서 **널빤지가
+            //    가로로 튀어나온 그림**이 된다(실측 3각도 전부: 어깨끈·옆구리끈이 나무 판자로 읽혔다).
+            //    몸통을 실제로 감는 토러스 호라야 '감긴 끈'으로 읽힌다(로브 허리끈이 쓰는 문법 그대로).
+            for (const [ri, k] of [[3, 0.965], [2, 0.985]]) {
+                const r = RINGS[ri];
+                const band = new THREE.Mesh(new THREE.TorusGeometry(r.rx * k, 0.0135, 5, 22), cordM);
+                band.rotation.x = Math.PI / 2;
+                band.position.y = r.y + 0.038;
+                band.scale.y = (r.rz / r.rx) * k;
+                g.add(band);
+            }
+            // 어깨 위를 넘어가는 멜빵 2줄 — 견갑골 판이 무엇에 매달렸는지 보여 준다(부유 인상 제거)
+            for (const s of [-1, 1]) {
+                const yoke = new THREE.Mesh(new THREE.TorusGeometry(0.108, 0.0145, 5, 14, Math.PI * 0.95), cordM);
+                yoke.position.set(s * 0.152, 0.185, 0.015);
+                yoke.rotation.set(Math.PI / 2, 0, -s * 0.42);
+                yoke.scale.z = 0.62;
+                g.add(yoke);
+            }
+            // 옆구리 엇갈린 매듭 — 끈이 '칠한 선'이 아니라 실제로 여며진 것으로 읽히게 한다
+            for (const s of [-1, 1]) {
+                for (let i = 0; i < 3; i++) {
+                    const r = RINGS[2 + (i > 1 ? 0 : 1)];
+                    const knot = this.tieKnot(cordM, 0.013);
+                    knot.position.set(s * r.rx * 0.99, 0.09 - i * 0.098, 0.026);
+                    knot.rotation.y = s * Math.PI / 2;
+                    g.add(knot);
+                }
+            }
+            // ⓕ 밑단에 매달린 엄니 3개 — 짧은 기장(P.top 0.86)의 잘림선을 못 박고 아래 윤곽을 톱니로 만든다
+            for (const dx of [-0.088, 0, 0.088]) {
+                const tusk = new THREE.Mesh(new THREE.ConeGeometry(0.021, 0.098 + (dx ? 0 : 0.03), 6), boneM);
+                tusk.position.set(dx, -0.30, 0.088);
+                tusk.rotation.x = Math.PI;      // 아래로 뾰족하게
+                tusk.rotation.z = dx * 1.4;
+                g.add(tusk);
             }
         }
         // 곡면 흉갑의 실제 앞뒤 깊이를 넘겨 부속을 표면에 앉힌다(상수 좌표면 1~3cm 뜬다)
