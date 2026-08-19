@@ -103,9 +103,15 @@ const Scene3D = {
         this.accents = [];
         for (let i = 0; i < 3; i++) {
             const pl = new THREE.PointLight(0xffffff, 0, 9, 2);
-            pl.position.set(0, 0.9, 0); // 씬에는 넣지 않음 — buildProps가 발광 바이옴에서만 소품에 부착
+            pl.position.set(0, 0.9, 0);
+            // 🚨 미사용이어도 **씬에 상주**시킨다 (skill-cast-lag-optimize) — three 는 씬의 포인트라이트
+            // '개수'가 변할 때마다 라이트를 받는 모든 재질의 셰이더를 통째로 재컴파일한다. 예전처럼
+            // 발광 바이옴에서만 넣었다 빼면 바이옴 경계마다 수십 프로그램 컴파일 스톨이 터진다.
+            // intensity 0 라이트의 프래그먼트 비용은 미미하고, 개수 고정이 주는 무스톨이 압도한다.
+            this.scene.add(pl);
             this.accents.push(pl);
         }
+        this.initFxLights(); // 연출(스킬·처치 플래시)용 포인트라이트 풀 — 같은 이유로 개수 고정
         // ❗sun.target을 씬에 추가해야 target.position 이동이 matrixWorld에 반영됨 —
         // 월드가 +x로 무한 스크롤하므로 update()가 sun/target을 worldX만큼 따라 옮긴다.
         // (안 옮기면 전진 몇 초 만에 소품 전체가 그림자 카메라 프러스텀 밖으로 벗어나 그림자가 소실됨)
@@ -1845,8 +1851,13 @@ const Scene3D = {
                     pl.position.set(0, conf.y, 0);
                     anchor.add(pl);
                 } else {
-                    pl.intensity = 0; // 미사용 바이옴에선 씬에서 완전히 빼 프래그먼트 라이트 평가 비용 제로화
-                }                     // (스킬 이펙트가 이미 포인트라이트를 수시로 넣었다 빼므로 셰이더 재컴파일은 기존 동작 범위)
+                    // 🚨 미사용이어도 씬에 **다시 넣어 둔다** (skill-cast-lag-optimize) — 포인트라이트
+                    // 개수가 변하면 three 가 라이트 받는 재질 전체를 재컴파일한다(바이옴 경계 스톨).
+                    // intensity 0 으로 씬 상주가 '완전히 빼기'보다 압도적으로 싸다.
+                    pl.intensity = 0;
+                    pl.position.set(0, -50, 0);
+                    this.scene.add(pl);
+                }
             });
         }
         // 사막 중경 공백 채우기 — 소품 라인(z≈-3)과 원경 메사(z≈-12) 사이 빈 모래밭에
@@ -9795,11 +9806,11 @@ const Scene3D = {
         const ringSpec = [[1.4, 0.042, color, 1], [1.0, 0.026, new THREE.Color(0xffffff), -1.6]];
         if (t >= 3) ringSpec.push([1.85, 0.03, color, -0.7]);   // 레전더리 이상만 바깥 겹 하나 더
         for (const [r0, tube, colr, spin] of ringSpec) {
-            const ring = new THREE.Mesh(new THREE.TorusGeometry(r0, tube, 6, 30),
+            const ring = new THREE.Mesh(this.fxGeo('torus', r0, tube, 6, 30),
                 new THREE.MeshBasicMaterial({ color: colr, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
             ring.rotation.x = -Math.PI / 2;
             ring.position.set(hero.x, 0.14, hero.z);
-            ring.userData = { r0, spin };
+            ring.userData = { r0, spin, sharedGeometry: true }; // 공유 지오 — dispose 금지 플래그
             G.add(ring); rings.push(ring);
         }
 
@@ -9824,9 +9835,8 @@ const Scene3D = {
         G.add(core);
 
         // ⓓ 조명은 **올라가야** 한다 — flashLight 는 내려가는(터진 뒤) 곡선이라 시전엔 못 쓴다.
-        const light = new THREE.PointLight(color.getHex(), 0, 6);
-        light.position.set(chest.x, chest.y, chest.z + 0.4);
-        this.scene.add(light);
+        const light = this.fxLight(color.getHex(), 6); // 풀 리스 — 직접 생성 금지(개수 변화 = 재컴파일)
+        light.pos(chest.x, chest.y, chest.z + 0.4);
 
         this.addAnim(dur, k => {
             const ease = k * k;                       // 안으로 갈수록 빨라진다(흡입)
@@ -9843,7 +9853,7 @@ const Scene3D = {
             const pop = k < 0.82 ? k / 0.82 : 1 + (k - 0.82) / 0.18 * 0.9;  // 부풀다 마지막 18% 에 터짐
             core.scale.setScalar(0.05 + pop * (support ? 0.34 : 0.46) * (0.78 + pw * 0.62));
             core.material.opacity = k < 0.82 ? 0.35 + k * 0.75 : 1 - (k - 0.82) / 0.18;
-            light.intensity = (1.5 + pw * 1.9) * ease;   // 2.6 고정은 지면 전체를 씻어 '화면이 밝아졌다'로 읽혔다
+            light.set((1.5 + pw * 1.9) * ease);   // 2.6 고정은 지면 전체를 씻어 '화면이 밝아졌다'로 읽혔다
         }, () => {
             // ⚠️ `disposeTree` 는 `isMesh` 만 훑어 **Sprite 재질을 통째로 흘린다**(스킬마다 12장씩 샌다).
             //    그렇다고 Sprite 의 geometry 를 해제하면 안 된다 — three r128 의 Sprite 는 모듈 전역
@@ -9851,10 +9861,10 @@ const Scene3D = {
             //    깨진다(불티·모트 전부). 그래서 메시는 지오메트리+재질, 스프라이트는 재질만 해제한다.
             //    맵(castGlowTex)은 캐시라 건드리지 않는다.
             G.traverse(o => {
-                if (o.isMesh && o.geometry) o.geometry.dispose();
+                if (o.isMesh && o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
                 if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
             });
-            this.scene.remove(G); this.scene.remove(light);
+            this.scene.remove(G); light.release();
         });
     },
 
@@ -10073,10 +10083,8 @@ const Scene3D = {
         }
         if (!clouds.length) { this.scene.remove(G); return null; }
         // 구름 아래를 비추는 빛 — 지면에 그늘/반사를 만들어 '위에 뭔가 생겼다'를 지면에서도 읽게 한다
-        const light = new THREE.PointLight(color.getHex(), 0, 7);
-        light.userData.stormLight = true;
-        light.position.set(clouds[0].at.x, this.STORM_CLOUD_Y - 0.5, clouds[0].at.z);
-        this.scene.add(light);
+        const light = this.fxLight(color.getHex(), 7, 'stormLight'); // 풀 리스 — 직접 생성 금지(개수 변화 = 재컴파일)
+        light.pos(clouds[0].at.x, this.STORM_CLOUD_Y - 0.5, clouds[0].at.z);
         const handle = { G, clouds, light, color, done: false };
         SFX.stormRumble(0.34 + pw * 0.2);
         // 부풀기 — **페이로드를 기다리는 시간과 정확히 같은 길이**여야 한다(`castMsFor('bolt', t)`).
@@ -10093,7 +10101,7 @@ const Scene3D = {
                 }
                 c.belly.material.opacity = k * k * 0.3;
             }
-            handle.light.intensity = k * (0.3 + pw * 0.45);   // 지면을 씻지 않을 만큼만
+            handle.light.set(k * (0.3 + pw * 0.45));   // 지면을 씻지 않을 만큼만
         });
         // 낙뢰가 영영 안 오는 경우(스킬이 끊기거나 씬이 갈릴 때)의 안전망 — 구름만 남기지 않는다
         handle._fuse = setTimeout(() => this.stormCloudDisperse(handle), 2600);
@@ -10177,7 +10185,7 @@ const Scene3D = {
                 }
                 c.belly.material.opacity = Math.max(0, c.belly.material.opacity * (1 - k));
             }
-            h.light.intensity *= (1 - k * 0.6);
+            h.light.set(h.light.get() * (1 - k * 0.6));
         }, () => {
             // ⚠️ 스프라이트는 **재질만** 해제한다 — three r128 의 Sprite 는 지오메트리를 전역에서
             //    공유해서, 한 번 해제하면 이후 모든 스프라이트(불티·모트)가 깨진다.
@@ -10187,7 +10195,7 @@ const Scene3D = {
                 if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
             });
             this.scene.remove(h.G);
-            this.scene.remove(h.light);
+            h.light.release();
         });
     },
 
@@ -10454,10 +10462,8 @@ const Scene3D = {
                 G.rotation.y = -0.95;
                 this.scene.add(G);
                 const jaw = G.userData.jaw;
-                const light = new THREE.PointLight(color.getHex(), 0, 6);
-                light.userData.mawLight = true;
-                light.position.set(spot.x, 1.1, spot.z);
-                this.scene.add(light);
+                const light = this.fxLight(color.getHex(), 6, 'mawLight'); // 풀 리스 — 직접 생성 금지(개수 변화 = 재컴파일)
+                light.pos(spot.x, 1.1, spot.z);
                 this.shake(0.3 + pw * 0.25);
                 SFX.mawRoar(t);
                 // 솟구침 0.26s: 아래에서 위로, 입을 벌리며
@@ -10469,7 +10475,7 @@ const Scene3D = {
                     jaw.lower.rotation.z = -Math.PI / 2 + open * 0.34;
                     jaw.throat.material.opacity = 0.35 + open * 0.6;
                     jaw.throat.scale.setScalar(0.7 + open * 0.7);
-                    light.intensity = e * (1.2 + pw * 1.2);
+                    light.set(e * (1.2 + pw * 1.2));
                 }, () => {
                     // 포식 — 턱이 덥석 닫히며 숨결이 뿜어진다
                     this.addAnim(0.16, k => {
@@ -10489,14 +10495,14 @@ const Scene3D = {
                         // ⓓ 퇴장 — 가라앉으며 먼지
                         this.addAnim(0.34, k => {
                             G.position.y = 0.85 - k * 2.4;
-                            light.intensity *= 0.9;
+                            light.set(light.get() * 0.9);
                             if (k > 0.5) G.rotation.x = (k - 0.5) * 0.5;
                         }, () => {
                             G.traverse(o => {
                                 if (o.isMesh && o.geometry) o.geometry.dispose();
                                 if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
                             });
-                            this.scene.remove(G); this.scene.remove(light);
+                            this.scene.remove(G); light.release();
                             for (let i = 0; i < 4; i++) this.riseParticle(new THREE.Vector3(spot.x + U.rand(-0.5, 0.5), 0.05, spot.z + U.rand(-0.3, 0.3)), new THREE.Color(0x8a7358));
                         });
                     });
@@ -10541,10 +10547,8 @@ const Scene3D = {
         const colCore = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.3, R * 0.2, 1, 10, 1, true),
             new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
         G.add(disc, disc2, col, colCore);
-        const light = new THREE.PointLight(color.getHex(), 0, 6);
-        light.userData.healLight = true;
-        light.position.set(hero.x, hero.y + 1.4, hero.z);
-        this.scene.add(light);
+        const light = this.fxLight(color.getHex(), 6, 'healLight'); // 풀 리스 — 직접 생성 금지(개수 변화 = 재컴파일)
+        light.pos(hero.x, hero.y + 1.4, hero.z);
         const topY = hero.y + 3.0, footY = hero.y + 0.06;
         const dur = 0.5 + pw * 0.18;
         this.addAnim(dur, k => {
@@ -10564,15 +10568,15 @@ const Scene3D = {
             colCore.scale.y = h;
             colCore.position.set(hero.x, footY + h / 2, hero.z);
             colCore.material.opacity = 0.6 * op * e;
-            light.intensity = (1.1 + pw * 1.0) * op * e;
-            light.position.y = dy;
+            light.set((1.1 + pw * 1.0) * op * e);
+            light.pos(hero.x, dy, hero.z);
             // 회복 알갱이 — 기둥 안에서 **위로** 솟는다(피해 파티클과 반대 방향 = 회복의 문법)
             if (Math.random() < 0.55) {
                 this.riseParticle(new THREE.Vector3(hero.x + U.rand(-R, R), footY + U.rand(0, 0.4), hero.z + U.rand(-R, R) * 0.6), color);
             }
         }, () => {
             G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
-            this.scene.remove(G); this.scene.remove(light);
+            this.scene.remove(G); light.release();
         });
         this.expandRing(new THREE.Vector3(hero.x, 0.02, hero.z), color, 1.1 + pw * 0.6);
         SFX.healDescend(t);
@@ -10615,10 +10619,8 @@ const Scene3D = {
             pillars.push(pl); G.add(pl);
         }
         G.add(rim, inner, spokes);
-        const light = new THREE.PointLight(color.getHex(), 0, 6);
-        light.userData.auraLight = true;
-        light.position.set(hero.x, 0.7, hero.z);
-        this.scene.add(light);
+        const light = this.fxLight(color.getHex(), 6, 'auraLight'); // 풀 리스 — 직접 생성 금지(개수 변화 = 재컴파일)
+        light.pos(hero.x, 0.7, hero.z);
         const dur = 0.6 + pw * 0.25;
         this.addAnim(dur, k => {
             const draw = Math.min(1, k / 0.3);                 // 서클이 그려지는 구간
@@ -10640,14 +10642,14 @@ const Scene3D = {
                 pl.position.y = h / 2;
                 pl.material.opacity = 0.6 * rise * op;
             }
-            light.intensity = (1.0 + pw * 1.0) * draw * op;
+            light.set((1.0 + pw * 1.0) * draw * op);
             if (Math.random() < 0.5) {
                 const a = U.rand(0, Math.PI * 2);
                 this.riseParticle(new THREE.Vector3(hero.x + Math.cos(a) * R * 0.8, 0.05, hero.z + Math.sin(a) * R * 0.8), color);
             }
         }, () => {
             G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
-            this.scene.remove(G); this.scene.remove(light);
+            this.scene.remove(G); light.release();
         });
         SFX.auraRise(t);
     },
@@ -10878,12 +10880,73 @@ const Scene3D = {
         }, () => { this.disposeTree(grp); this.scene.remove(grp); });
     },
 
+    // ---- 연출 포인트라이트 풀 (skill-cast-lag-optimize) ----
+    // 🚨 연출용 라이트는 반드시 이 풀에서 빌린다 — `new THREE.PointLight` 를 씬에 넣었다 빼지 말 것.
+    // three 는 씬의 포인트라이트 **개수**가 변할 때마다(NUM_POINT_LIGHTS 디파인) 라이트를 받는 모든
+    // 재질의 셰이더 프로그램을 재컴파일한다. 스킬·처치 플래시가 라이트를 수시로 넣었다 빼던 종전
+    // 구조에서는 동시 연출 수가 0↔1↔2↔… 로 출렁일 때마다 수십 프로그램짜리 컴파일 스톨이 터졌다
+    // (renderer.info.programs 실측 38→97개 — '스킬 나올 때 렉'의 본체). 풀은 부팅 때 4기를 씬에
+    // 상주시켜 개수를 고정하고, 빌림/반납은 intensity 만 만진다.
+    // 리스 토큰: 풀이 바닥나면 가장 오래된 리스를 뺏는다(동시 연출 라이트 상한 = 4). 뺏긴 쪽의
+    // 애니메이션이 남아 있어도 토큰이 다르면 set/release 가 무시돼 새 주인의 연출을 망치지 않는다.
+    // ---- 연출 공유 지오메트리 캐시 (skill-cast-lag-optimize) ----
+    // 충격 링·시전 룬 링·회복 알갱이는 매 발동마다 **같은 치수**의 지오메트리를 새로 만들어
+    // GPU 버퍼 생성/업로드를 반복하고 0.2초 뒤 버렸다(커먼·레어 대역은 초당 여러 번). 치수가
+    // 상수인 프리미티브는 여기서 한 번 만들어 공유한다 — 크기 변주는 어차피 mesh.scale 로 한다.
+    // 🚨 공유 지오메트리를 받는 메시는 반드시 `userData.sharedGeometry = true` 를 달 것 —
+    //    disposeTree/파티클 청소가 그 플래그를 보고 지오메트리를 건너뛴다(안 달면 해제 후
+    //    다음 사용 때 재업로드라 캐시가 무의미해진다).
+    _fxGeoCache: {},
+    fxGeo(kind, a, b, c, d) {
+        const k = kind + ':' + a + ':' + b + ':' + c + ':' + d;
+        let g = this._fxGeoCache[k];
+        if (!g) {
+            g = kind === 'torus' ? new THREE.TorusGeometry(a, b, c, d) : new THREE.SphereGeometry(a, b, c);
+            this._fxGeoCache[k] = g;
+        }
+        return g;
+    },
+
+    initFxLights() {
+        this._fxLights = [];
+        this._fxLightSeq = 0;
+        for (let i = 0; i < 4; i++) {
+            const pl = new THREE.PointLight(0xffffff, 0, 7);
+            pl.position.set(0, -50, 0);
+            pl.userData.lease = 0;
+            this.scene.add(pl);
+            this._fxLights.push(pl);
+        }
+    },
+    // tag: 리스 동안 pl.userData[tag]=true 로 표시(검증 프로브가 연출별 라이트를 세는 용도).
+    // 반납·강탈 시 지워진다 — 풀 라이트는 공유 객체라 태그를 남기면 다음 연출에 오인된다.
+    fxLight(colorHex, distance, tag) {
+        let pl = this._fxLights.find(l => !l.userData.busy);
+        if (!pl) pl = this._fxLights.reduce((a, b) => (a.userData.lease <= b.userData.lease ? a : b));
+        const token = ++this._fxLightSeq;
+        if (pl.userData._fxTag) { delete pl.userData[pl.userData._fxTag]; delete pl.userData._fxTag; }
+        pl.userData.busy = true; pl.userData.lease = token;
+        if (tag) { pl.userData[tag] = true; pl.userData._fxTag = tag; }
+        pl.color.setHex(colorHex); pl.intensity = 0;
+        pl.distance = distance || 7;
+        return {
+            light: pl,
+            set(i) { if (pl.userData.lease === token) pl.intensity = i; },
+            get() { return pl.userData.lease === token ? pl.intensity : 0; },
+            pos(x, y, z) { if (pl.userData.lease === token) pl.position.set(x, y, z); },
+            release() {
+                if (pl.userData.lease !== token) return;
+                pl.intensity = 0; pl.userData.busy = false;
+                if (pl.userData._fxTag) { delete pl.userData[pl.userData._fxTag]; delete pl.userData._fxTag; }
+            },
+        };
+    },
+
     // 순간 광원 플래시 (연출 강화)
     flashLight(pos, colorHex, dur) {
-        const light = new THREE.PointLight(colorHex, 2.8, 7);
-        light.position.set(pos.x, pos.y + 0.8, pos.z + 0.5);
-        this.scene.add(light);
-        this.addAnim(dur || 0.3, k => { light.intensity = 2.8 * (1 - k); }, () => this.scene.remove(light));
+        const h = this.fxLight(colorHex, 7);
+        h.pos(pos.x, pos.y + 0.8, pos.z + 0.5);
+        this.addAnim(dur || 0.3, k => { h.set(2.8 * (1 - k)); }, () => h.release());
     },
 
     explosion(pos, color) {
@@ -10934,10 +10997,11 @@ const Scene3D = {
         // 만개한 뒤 +267ms 까지 200ms 동안 지름이 100.5px 에 못박힌 채** 알파만 빠졌다. 수명의 3/4을
         // 안 움직이고 서 있었던 셈이라, 비평가 A #4 가 본 '얼룩'은 크기보다 이 **정체 구간**이었다.
         // 그래서 ⑴ 끝까지 계속 퍼지는 감속 곡선으로 바꾸고 ⑵ 수명을 0.17초로 줄인다.
-        const under = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.085, 6, 24),
+        const under = new THREE.Mesh(this.fxGeo('torus', 0.3, 0.085, 6, 24),
             new THREE.MeshBasicMaterial({ color: 0x2a1a0e, transparent: true, opacity: 0.5 }));
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.06, 6, 24),
+        const ring = new THREE.Mesh(this.fxGeo('torus', 0.3, 0.06, 6, 24),
             new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+        under.userData.sharedGeometry = ring.userData.sharedGeometry = true; // 공유 지오 — dispose 금지 플래그
         // 밝은 초원·모랫길 위의 연주황 링은 밝기가 배경과 겹쳐 안 뜬다(A #4 '저대비'). 채도·밝기를
         // 더 올리면 화이트아웃 쪽으로 가므로, 대신 **어두운 밑링**을 한 겹 깔아 명도 경계를 만든다
         // (데미지 숫자 판독성을 색이 아니라 명도 경계로 푼 것과 같은 처방 — 비평가 4차 ⓒ).
@@ -11196,8 +11260,9 @@ const Scene3D = {
     },
 
     riseParticle(pos, color) {
-        const p = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6),
+        const p = new THREE.Mesh(this.fxGeo('sphere', 0.06, 6, 6),
             new THREE.MeshBasicMaterial({ color, transparent: true }));
+        p.userData.sharedGeometry = true; // 공유 지오 — 파티클 청소가 dispose 를 건너뛴다
         p.position.copy(pos);
         p.userData.vel = new THREE.Vector3(0, U.rand(1, 2), 0);
         p.userData.life = 0.8; p.userData.age = 0; p.userData.noGravity = true;
