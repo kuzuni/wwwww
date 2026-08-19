@@ -83,7 +83,11 @@ async function recordTimeline(page, trigger, ms = 2200) {
     // ⚠️ 관측 창은 **망치질 길이에서 되풀어** 잡는다. 예전엔 3000ms 상수였는데(망치질 0.72초 기준),
     //    망치질이 3초로 늘어난 뒤(anvil-anim-3s-juicy) 그 창 안에서는 카드가 아직 뜨지도 않아
     //    "카드를 안 보여준다"는 **유령 실패**가 났다 — 프로브가 제 코드보다 낡은 전형(함정 ④).
-    const WIN = await page.evaluate(() => UI.ANVIL_FX_MS + UI.REVEAL_CARD_MS + 900);
+    // 🚨 여유분(뒤의 상수)은 **클럭에 비례하지 않는다** — 헤드리스에서 망치질 시작~카드까지 붙는
+    //    지연은 부팅·페인트·병렬 세션 부하에서 오는 고정비다(실측: 3초판 639ms · 1.5초판 972ms).
+    //    900ms 로는 1.5초 축소(anvil-anim-3s-juicy 재오픈) 뒤 팝업이 창 밖으로 27ms 밀려
+    //    "팝업이 끝내 안 떴다"는 유령 실패가 났다. 클럭을 줄일수록 여유분은 **더** 필요하다.
+    const WIN = await page.evaluate(() => UI.ANVIL_FX_MS + UI.REVEAL_CARD_MS + 2200);
     const tl = await recordTimeline(page, () => { UI.onCraft(); }, WIN);
 
     const idx = p => tl.findIndex(p);

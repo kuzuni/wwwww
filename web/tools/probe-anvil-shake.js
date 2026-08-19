@@ -11,7 +11,7 @@ const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 // ⚠️ 클럭·타격 시각은 **페이지에서 읽는다**(부팅 뒤 대입). 상수로 베껴 두면 클럭이 바뀔 때
 //    엉뚱한 프레임을 재고 '흔들림이 0px' 이라는 유령 실패가 난다(TODO '함정 ④').
-let DUR = 3000, HITPCT = [20.667, 46.667, 81.333];
+let DUR = 1500, HITPCT = [20.0, 43.333, 73.333];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });

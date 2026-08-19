@@ -23,18 +23,18 @@ const OUT = process.argv[2] || '.';
 const hitPcts = () => FRAMES.filter(f => f.kind === 'hit').map(f => f.pct);
 
 const VP = { width: 390, height: 844 };
-// ⚠️ 총 길이는 **페이지에서 읽는다**(부팅 뒤 대입) — 3000ms 확대(anvil-anim-3s-juicy) 때
-//    여기 720 이 남아 있으면 프로브 전체가 낡은 클럭으로 재고 판정이 통째로 무효가 된다(함정 ④).
-let DUR = 3000;
+// ⚠️ 총 길이는 **페이지에서 읽는다**(부팅 뒤 대입) — 1500ms 축소(anvil-anim-3s-juicy 재오픈) 때
+//    여기 3000 이 남아 있으면 프로브 전체가 낡은 클럭으로 재고 판정이 통째로 무효가 된다(함정 ④).
+let DUR = 1500;
 // afswing 키프레임의 타격/윈드업 지점(%). 타격 %는 `UI.ANVIL_HITS` 에서 되풀어 쓰고(부팅 뒤 갱신),
 // 윈드업 정점만 키프레임 상수다.
 const FRAMES = [
-    { name: 'wind1', pct: 12.667, kind: 'up' },  // 🚨 1타 예비동작 — 여기가 비어 있어 위계가 2단이었다
-    { name: 'hit1', pct: 20.667, kind: 'hit' },
-    { name: 'wind2', pct: 37.333, kind: 'up' },
-    { name: 'hit2', pct: 46.667, kind: 'hit' },  // 등간격(메트로놈)을 깨려고 간격을 1.33배로 벌렸다
-    { name: 'wind3', pct: 67.333, kind: 'up' },
-    { name: 'hit3', pct: 81.333, kind: 'hit' },
+    { name: 'wind1', pct: 10.0, kind: 'up' },    // 🚨 1타 예비동작 — 여기가 비어 있어 위계가 2단이었다
+    { name: 'hit1', pct: 20.0, kind: 'hit' },
+    { name: 'wind2', pct: 33.333, kind: 'up' },
+    { name: 'hit2', pct: 43.333, kind: 'hit' },  // 등간격(메트로놈)을 깨려고 간격을 1.29배로 벌렸다
+    { name: 'wind3', pct: 60.0, kind: 'up' },
+    { name: 'hit3', pct: 73.333, kind: 'hit' },
 ];
 
 async function waitBooted(page, timeout = 25000) {
@@ -309,9 +309,10 @@ async function waitBooted(page, timeout = 25000) {
     });
     say(life.life >= life.lastEndMs,
         `⑥ 오버레이 수명 ${life.life}ms ≥ 마지막 자식 애니메이션 종료 ${life.lastEndMs}ms`);
-    // 🚨 상한 900ms 는 **낡은 스펙**이다 — 사용자가 2026-08-19 에 "1초 만에 끝나는데 3초는 걸리게"로
-    //    직접 뒤집었다(anvil-anim-3s-juicy). 이제 3초 근방인지를 본다.
-    say(life.life >= 2800 && life.life <= 3200, `⑥ 총 템포 ${life.life}ms = 3초 근방 (사용자 지시 2026-08-19)`);
+    // 🚨 스펙이 두 번 뒤집혔다 — 900ms → 3초("1초 만에 끝나는데 3초는 걸리게") → **1.5초**
+    //    ("전체 길이가 1.5초여야 함. 한 번 내려칠 때마다 1.5초 느낌인 것처럼 존나 김", 2026-08-19).
+    //    3타 **전체**가 1.5초 안이어야 한다 — 타격 하나당이 아니다.
+    say(life.life >= 1400 && life.life <= 1600, `⑥ 총 템포 ${life.life}ms = 1.5초 근방 (사용자 지시 2026-08-19)`);
 
     // ⑫ 🚨 **이펙트가 실제 접점에서 터지는가.** 망치만 상판 침하를 따라가게 고쳤더니 빛·불티는
     //    cy=14 에 남아 3타에서 진짜 접점보다 8.5px 위 허공에서 터졌다(비평가 B 2차 1순위).
@@ -663,7 +664,11 @@ async function waitBooted(page, timeout = 25000) {
     //    망치가 **투명한 채로** 높이 올라가 있어도 통과한다 — 실제로 예전 1타가 그랬다(0% opacity 0,
     //    9%에 이미 -18유닛까지 내려온 자리에서 알파를 켰다). 위계도 같이 본다: 예비동작이 1타에만
     //    없으면 크레셴도가 '없음 → 중 → 대'의 2단으로 읽힌다(비평가 A·B 공통).
-    const winds = await page.evaluate(() => {
+    // 🚨 **여기에도 퍼센트를 손으로 적어 두면 안 된다(함정 ④ 재발).** 이 자리에는 `[8, 39.04, 71.38]`
+    //    이 박혀 있었다 — 900ms 시절 값이라 3초판에서도 **엉뚱한 프레임**을 재고 있었고, 1.5초로
+    //    조이자 정점이 아니라 되튐 구간을 집어 '위계가 거꾸로'라는 유령 FAIL 을 냈다.
+    //    윈드업 정점은 위 FRAMES 의 `kind: 'up'` 한 곳에서만 온다.
+    const winds = await page.evaluate((upPcts) => {
         const DUR = UI.ANVIL_FX_MS;   // ⚠️ 손으로 베끼지 말 것(함정 ④) — 생성원에서 읽는다
         UI.cancelAnvilStrike(); UI._anvilBusy = false;
         document.getElementById('equip-sheet').getBoundingClientRect();
@@ -684,8 +689,8 @@ async function waitBooted(page, timeout = 25000) {
             const top = q.matrixTransform((bil || anv).getScreenCTM());
             return { lift: top.y - face.y, op: +getComputedStyle(g).opacity };
         };
-        return [8, 39.04, 71.38].map(at);   // 각 타격의 윈드업 정점
-    });
+        return upPcts.map(at);   // 각 타격의 윈드업 정점(FRAMES 에서 파생)
+    }, FRAMES.filter(f => f.kind === 'up').map(f => f.pct));
     winds.forEach((w, h) => {
         say(w.op >= 0.95,
             `⑳ 윈드업${h + 1} 정점에서 망치가 **보인다** — opacity ${w.op.toFixed(2)} (기준 ≥0.95; 투명하면 올라가도 예비동작이 아니다)`);
