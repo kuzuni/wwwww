@@ -736,12 +736,15 @@ body {
 .equip-cell.egg-cell.empty .mount-sil { font-size: 1.5rem; filter: brightness(0) opacity(.32); transform: translateY(-.15rem); } /* 탑승물 실루엣 — 빈 상태 판독 단서 */
 .equip-cell.empty { cursor: default; }
 /* 빈 슬롯 실루엣도 '같은 비율감'으로 (TODO 지시) — 1.35rem 고정은 셀의 33%밖에 안 됐다 */
-.equip-cell.empty .cell-img.dim { filter: grayscale(1) opacity(.35); font-size: 72cqi; }
+/* 12차(게이트 재도전 준비): 비평가 A/B 공통분모 '슬롯 아이콘 판독 확보' — 마룬 타일 위 .35 실루엣은
+   명도차가 안 나와 형태가 안 읽혔다. 밝기를 올려 '어두운 면 위 밝은 실루엣'으로 뒤집는다(형태·채움 불변). */
+.equip-cell.empty .cell-img.dim { filter: grayscale(1) brightness(1.75) opacity(.52); font-size: 72cqi; }
 /* 빈 칸 실루엣이 이모지에서 코드 생성 아이콘으로 바뀌었다. `.ico` 기본 1.45em 은 위 72cqi 글자
    크기를 타고 칸 밖으로 넘친다 — 칸 기준으로 직접 잡는다(항목 ⑤ '프레임의 85~95%'). */
 .equip-cell.empty .cell-img.dim .ico { width: 88%; height: 88%; margin: 0; }
 .equip-cell.egg-cell.empty { cursor: pointer; } /* 탈것 창 진입점이라 빈 상태에도 클릭 가능 */
-.equip-cell .slot-name { position: absolute; bottom: .3rem; left: 0; right: 0; text-align: center; font-size: .58rem; font-weight: 800; color: #b9a8a8; }
+/* 12차: 라벨도 판독 확보 대상(A/B 공통) — #b9a8a8→#d8caca 반 단계, 스크림은 10차 ⑦ text-shadow 가 이미 있다 */
+.equip-cell .slot-name { position: absolute; bottom: .3rem; left: 0; right: 0; text-align: center; font-size: .58rem; font-weight: 800; color: #d8caca; }
 /* 밝은 하늘색 egg-cell 위에서 회색 라벨이 대비 1.5:1로 안 읽히던 QA 버그 — 흰 글자+검정 그림자 (185) */
 .equip-cell.egg-cell .slot-name { color: #fff; text-shadow: 0 1px 0 var(--olc), 0 0 3px rgba(0,0,0,.55); font-size: .72rem; }
 /* 아이콘이 셀을 꽉 채우게 커진 뒤 `Lv. NNN`이 밝은 아이콘 위에서 씻겨나가던 QA 버그.
@@ -7119,4 +7122,25 @@ body {
         inset 0 .12rem .2rem rgba(0,0,0,.60),
         inset 0 -.06rem 0 rgba(255,255,255,.15),
         inset 0 0 0 1px rgba(0,0,0,.35);
+}
+
+/* ===== 12차 슬라이스 — 게이트 재도전 준비: 4라운드 교집합 결함 마감 (slug: ui-quality-up) =====
+   인계 목록(⑵) 중 칠로 끝나는 잔여분: 전구 글로우 · 소형 컨트롤 접지 · 팝업 내부 서브패널 위계.
+   (게이지 트랙 밝힘·리그 밴드 다크·슬롯 실루엣 판독은 본문 해당 자리에서 12차 주석으로 처리)
+   ⚠️ 전부 칠 속성(box-shadow/filter/background-image)만 — 색값·크기·배치 불변. */
+
+/* ⓐ 부화장 전구 글로우 — 원뿔 블러·바닥 풀(10차 ⑥)에 빛의 근원이 빠져 있었다 */
+.hatch-lamp::after { box-shadow: 0 0 .45rem .12rem rgba(255,235,80,.75), 0 0 1.1rem .3rem rgba(255,235,80,.30); }
+
+/* ⓑ 소형 컨트롤 접지 — 재화 + 배지·ⓘ 버튼이 면 위에 스티커처럼 떠 있었다 */
+.pill-plus { filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)); }
+.info-btn, #equip-sheet .anvil-side .info-btn {
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 .1rem .16rem rgba(0,0,0,.38);
+}
+
+/* ⓒ 팝업 내부 서브패널 — 카드 바탕과 같은 톤의 민짜 사각형이라 위계가 없었다: 파인 안쪽 면으로 */
+.modal-card .substat-list, .modal-card .prob-box, .modal-card .age-bar-wrap {
+    background-image: linear-gradient(180deg, rgba(0,0,0,.05) 0, rgba(0,0,0,0) 22%,
+                                              rgba(255,255,255,0) 82%, rgba(255,255,255,.28) 100%);
+    box-shadow: inset 0 .1rem .18rem rgba(0,0,0,.10), inset 0 0 0 1px rgba(0,0,0,.06);
 }
