@@ -1348,7 +1348,9 @@ const UI = {
             <div class="equip-grid">${equipHtml}${eggCellHtml}</div>
             <div class="anvil-row">
                 <div class="anvil-side left">
-                    <button class="info-btn" title="플레이어 정보" onclick="UI.openPlayerInfo()">!</button>
+                    <!-- 글리프는 원본(shot-042120) 실측대로 소문자 i — 게임 안 정보 버튼 6곳이 전부 i 인데
+                         여기만 느낌표였다(2026-08-19 QA 등재 equip-sheet-info-glyph). probe-info-glyph.js 가 계약을 건다. -->
+                    <button class="info-btn" title="플레이어 정보" onclick="UI.openPlayerInfo()">i</button>
                 </div>
                 ${this.anvilSlotHTML()}
                 <div class="anvil-side right">

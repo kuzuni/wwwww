@@ -3402,7 +3402,10 @@ body {
    (x30/x470 y540 · x30 y700 세 점 동일). --pp-sheet(#f2f0ea)는 승천 팝업 서브카드에만 남는다. */
 #equip-sheet { background: #e7e7e7; border-top: var(--ol3) solid var(--pp-line); }
 /* 장비 셀 룩은 .equip-cell 기본(원본 shot-042120 정합)이 담당 — 시트별 재정의 제거 */
-#equip-sheet .info-btn { background: var(--pp-paper); border: var(--ol2) solid var(--pp-line); color: var(--pp-ink); }
+/* 원본(shot-042120) 장비 시트의 ⓘ = **검정으로 꽉 찬 원 + 흰 소문자 i**. 종전엔 흰 원 + 검정 글자로
+   흑백이 뒤집혀 있었다(2026-08-19 QA 등재 equip-sheet-info-glyph). 다른 화면의 같은 계열 버튼
+   `.fi-info-btn`(검정 면 + 흰 글자)과도 이제 결이 같다. 지름·글자 크기는 원본과 이미 맞으므로 안 건드린다. */
+#equip-sheet .info-btn { background: var(--pp-line); border: none; color: var(--pp-paper); font-weight: 900; }
 #equip-sheet .anvil-btn { border: none; }
 #equip-sheet .forge-time { color: #6d6a63; }
 /* 채팅 미리보기 띠 원본 실측 **#8a8a8a**(y765~804 전 구간) — 시트보다 한 단 어두운 별도 면이다.
