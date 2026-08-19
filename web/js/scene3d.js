@@ -224,7 +224,18 @@ const Scene3D = {
             depthTest: false, depthWrite: false,
         });
     },
+    // 뷰 공간 태양 방향을 셰이더로 내려보낸다 — 카메라가 움직이므로 **매 프레임** 갱신해야 한다.
+    // (월드 방향을 그대로 넣으면 카메라가 흔들릴 때 그늘면이 같이 돌아 '조명이 따라다니는' 그림이 된다.)
+    updateShadeSun() {
+        if (!this._shadeUniforms.length || !this.sun) return;
+        const v = this._shadeSunTmp || (this._shadeSunTmp = new THREE.Vector3());
+        v.copy(this.sun.position).normalize();                       // 디렉셔널 라이트는 원점을 향한다
+        v.transformDirection(this.camera.matrixWorldInverse);        // 월드 → 뷰
+        for (const u of this._shadeUniforms) u.uShadeSun.value.copy(v);
+    },
+
     renderFrame() {
+        this.updateShadeSun();
         if (!this.postOn || !this._rtScene) { this.renderer.render(this.scene, this.camera); return; }
         const r = this.renderer;
         r.setRenderTarget(this._rtScene);
@@ -356,6 +367,20 @@ const Scene3D = {
     // 주의: 주입 지점이 톤매핑 앞 **선형 공간**이라 sRGB 인코딩 후 크게 밝아진다.
     //   그래서 darkColor는 니어블랙, darkStrength도 0.88처럼 세게 필요하다(0.38은 육안 무변화).
     RIM: { color: 0xdcefff, strength: 0, power: 5.0, darkColor: 0x0a1119, darkStrength: 0.88, darkPower: 1.35 },
+    // ---- 암부 색 보정 (map-quality-up) ----
+    // 비평가 4인이 공통으로 1·2순위로 꼽은 결함: **암부가 무채색 검정으로 붕괴**한다.
+    // ("나무 서너 그루가 한 검은 실루엣으로 융합돼 그루 수를 셀 수 없다", "초록 나무의 암부가
+    //  갈회색~검정으로 떨어져 초원 한복판에 고사목이 선 것처럼 팔레트가 어긋난다")
+    // 처방: **어두운 화소에만** 하늘색 계열의 차가운 빛을 얹는다 — 스타일라이즈드 3D 의 표준
+    // 처방인 '검정 대신 보색 그림자'를 프래그먼트 한 줄로 근사한 것이다.
+    // ⚠️ 전역 `hemi.intensity` 를 올리는 방식은 **쓰면 안 된다.** 그건 밝은 면까지 같이 들어올려
+    //    다크 엔드 확보 작업(VALUE 그레이드)을 통째로 되돌린다. 여기서는 휘도가 `floor` 아래인
+    //    화소에만, 어두울수록 강하게 더한다 — 밝은 면은 수치상 전혀 안 변한다.
+    // ⚠️ 🚨 **휘도로 '그늘'을 판정하면 안 된다 — 첫 판이 그렇게 만들었다가 나무가 통째로 청록이 됐다.**
+    //    잎은 albedo 자체가 어둡게 설계돼 있어서(#1a350c) **햇빛을 받는 면조차 휘도가 0.20 아래**다.
+    //    그래서 '어두운 화소'를 그늘로 보면 나무 전체가 대상이 된다. 그늘은 **N·L 로만** 판정한다.
+    SHADE: { strength: 0.26 },
+    _shadeUniforms: [],
     // 적 전용 오버라이드(`silhouette-after-outline`) — 검은 인버티드 헐이 사용자 지시로 삭제된 뒤
     // 적(특히 고블린×초원)이 배경에 잠겼다. 아웃라인 복구는 금지라 **다크 컨투어를 적에게만** 더
     // 세고 넓게 건다: 프레넬이라 실루엣 안쪽만 어두워져 면적을 안 늘린다(지시와 충돌 없음).
@@ -369,6 +394,39 @@ const Scene3D = {
     //    아래 필터가 Standard/Phong이 아닌 재질을 건너뛰기 때문이다. 펫 실루엣을 림으로 분리하려는
     //    시도(다크 컨투어 강화)를 한 번 했다가 비평가 계측에서 '변화 0'으로 확인돼 되돌렸다.
     //    펫에 림을 걸려면 먼저 펫 재질을 Standard/Phong으로 올려야 한다.
+    // 공유 재질에 암부 리프트를 심는다. 재질 단위라 **한 번만** 부르면 그 재질을 쓰는 모든 소품에 걸린다.
+    applyShadeLift(mats) {
+        for (const m of mats) {
+            if (!m || m.userData.__shade) continue;
+            // ⚠️ **Lambert 는 제외한다.** three.js 의 Lambert 는 라이팅을 정점 셰이더에서 끝내서
+            //    프래그먼트에 `normal` 이 아예 선언돼 있지 않다 — 넣으면 'undeclared identifier normal'
+            //    로 셰이더가 통째로 컴파일 실패한다(실측). `applyRimLight` 도 같은 이유로 Phong/Standard
+            //    만 받는다. 줄기(trunkMat·charTrunkMat)가 Lambert 라 여기서 빠진다.
+            if (!(m.isMeshStandardMaterial || m.isMeshPhongMaterial)) continue;
+            m.userData.__shade = true;
+            const u = { uShadeTint: { value: new THREE.Color(0x2c4a6e) }, uShadeStr: { value: this.SHADE.strength },
+                uShadeSun: { value: new THREE.Vector3(0, 1, 0) } };   // 뷰 공간 태양 방향 — 매 프레임 갱신
+            this._shadeUniforms.push(u);
+            const prev = m.onBeforeCompile;
+            m.onBeforeCompile = (shader, renderer) => {
+                if (prev) prev(shader, renderer);
+                for (const k in u) shader.uniforms[k] = u[k];
+                shader.fragmentShader = 'uniform vec3 uShadeTint;\nuniform float uShadeStr;\nuniform vec3 uShadeSun;\n'
+                    + shader.fragmentShader.replace('#include <tonemapping_fragment>', [
+                        '{',
+                        // 그늘 판정은 **면이 태양을 등졌는가**로만 한다(뷰 공간 법선 · 뷰 공간 태양 방향).
+                        '  float ndl = dot(normalize(normal), uShadeSun);',
+                        // 정면광(0.25 이상)은 0, 완전 역광(−0.35)에서 1 — 터미네이터를 넓게 잡아 밴딩 방지
+                        '  float k = smoothstep(0.25, -0.35, ndl);',
+                        '  gl_FragColor.rgb += uShadeTint * (k * uShadeStr);',
+                        '}',
+                        '#include <tonemapping_fragment>',
+                    ].join('\n'));
+            };
+            m.needsUpdate = true;
+        }
+    },
+
     applyRimLight(g, look) {
         // look = RIM 필드 부분 오버라이드(적 전용 ENEMY_RIM 등). 안 주면 기존 동작 그대로.
         const L = look ? Object.assign({}, this.RIM, look) : this.RIM;
@@ -1463,6 +1521,10 @@ const Scene3D = {
         this.charTrunkMat = new THREE.MeshLambertMaterial({ color: 0x30231d });
         this.charRockMat = new THREE.MeshPhongMaterial({ color: 0x2e2521, flatShading: true, shininess: 0, vertexColors: true });
         this.lavaCoreMat = new THREE.MeshBasicMaterial({ color: 0xff7043 });
+        // 암부 색 보정을 **공유 소품 재질에 한 번** 심는다(재질 단위라 이 재질을 쓰는 모든 소품에 걸린다).
+        // 발광체(lavaCore·crystal)와 무조명 능선(MeshBasic)은 제외 — 애초에 암부가 없다.
+        this.applyShadeLift([this.foliageMat, this.foliageMatDark, this.foliageMatLight,
+            this.bushMat, this.stoneMat, this.mossMat, this.cactusMat, this.charRockMat, this.terrainMat]);
         // vertexColors — 이 재질을 쓰는 메시는 `crystalGeo()` 가 굽는 클러스터 하나뿐이다(파일 전체 확인함).
         // ⚠️ 새 메시를 이 재질로 만들 땐 반드시 color 속성을 붙일 것(없으면 그 메시만 검게 찍힌다).
         this.crystalMat = new THREE.MeshPhongMaterial({
@@ -9767,6 +9829,15 @@ const Scene3D = {
             const fe = sp.foliage || (kin === 'magic' ? { color: 0x4a2f8f, intensity: 0.34 } : null);
             fm.emissive.setHex(fe ? fe.color : 0x000000);
             fm.emissiveIntensity = fe ? fe.intensity : 1;
+        }
+        // 암부에 얹는 빛은 **그 챕터 하늘의 색**이다(하늘 반사광의 근사) — 어둡고 채도를 살짝 올린 버전.
+        // 밤에는 더 눌러 '흐린 낮'처럼 뜨는 것을 막는다.
+        {
+            const st = new THREE.Color(t.sky).offsetHSL(0, 0.10, night ? -0.46 : -0.38);
+            for (const u of this._shadeUniforms) {
+                u.uShadeTint.value.copy(st);
+                u.uShadeStr.value = this.SHADE.strength * (night ? 0.7 : 1);
+            }
         }
         this.paintSky(t.sky, fogC.getHex(), night);
     },
