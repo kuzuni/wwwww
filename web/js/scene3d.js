@@ -28,6 +28,23 @@ const Scene3D = {
     //        '캐릭터에 진짜 어두운 값이 없다')이라 61° 는 그 수정을 도로 무른다. 48° 가 이탈을 거의 다
     //        걷어내면서 다크 엔드 손실은 절반에 그치는 자리다.
     SUN_DAY: [7, 8.55, 3.2],
+    // 원경 능선 3겹의 유일한 제원표 — `buildTerrain`(생성)과 `setTheme`(바이옴별 실루엣 재생성)이
+    // 둘 다 여기만 읽는다. 높이가 **멀수록 커지는 것**이 이 표의 핵심이다(근거는 buildTerrain 주석).
+    // 능선 3겹이 안개색 쪽으로 섞이는 비율(근/중/원). `setTheme` 이 유일한 소비자다.
+    // 🚨 화면 명도는 **재질 명도가 아니다** — outputEncoding sRGB + ACES 가 밝은 쪽을 압축해서,
+    //    재질 L 146/156/177 이 화면에서는 205/209/214 로 붙어 버린다(실측). 그래서 사다리는
+    //    재질 공간이 아니라 **화면 명도로 재서**(probe-ridge-layers) 잡아야 한다.
+    //    스윕(scratchpad, 바이옴 × 조합 4~5개씩 2라운드) 결과 채택값.
+    //    ⚠️ 밤 근능선은 종전 0.22 였다 — 0.05 로 내렸다. 낮춘 쪽이 **더 잘 후퇴한다**: 밤엔 안개색이
+    //    지면보다 어두워서 혼합을 키우면 근능선까지 같이 어두워져 중·원구릉과 붙는다(실측 설원
+    //    근↔중 계단 2.7 → 9.6). '설원 밤 능선은 후퇴해야 한다'는 종전 요구는 중·원구릉(0.45/0.95)이
+    //    그대로 떠맡는다(176 → 172 → 156).
+    RIDGE_MIX: { day: [0.05, 0.34, 0.68], night: [0.05, 0.40, 0.74] },
+    RIDGE_LAYERS: [
+        { w: 70, h: 4.6, peaks: 8, z: -12 },   // 근능선
+        { w: 95, h: 5.4, peaks: 11, z: -19 },  // 중구릉
+        { w: 120, h: 6.0, peaks: 14, z: -25 }, // 원구릉 — 안개에 거의 잠긴 최원경
+    ],
     renderer: null, scene: null, camera: null,
     worldX: 0,               // 플레이어가 오른쪽으로 전진한 누적 거리 (무한 월드)
     heroG: null, weaponG: null, helmetG: null, bodyMesh: null,
@@ -1995,8 +2012,10 @@ const Scene3D = {
 
         // 원경 능선 2겹 — 노이즈 프로필의 커스텀 실루엣 메시(콘의 단조로운 삼각형 대체).
         // 안개 낀 원경은 조명 음영이 거의 안 읽히므로 라이팅 없는 순색(MeshBasic)+fog 블렌딩이 그림처럼 보임.
-        this.mountainMat = new THREE.MeshBasicMaterial({ color: 0x558b2f });
-        this.hillMat = new THREE.MeshBasicMaterial({ color: 0x6d9150 });
+        // fog:false — 후퇴는 `setTheme` 의 lerp 사다리가 전담한다(거기 주석 참조. 씬 fog 를 같이
+        // 먹이면 중·원구릉이 순수 안개색으로 포화돼 세 겹이 한 톤으로 붙는다).
+        this.mountainMat = new THREE.MeshBasicMaterial({ color: 0x558b2f, fog: false });
+        this.hillMat = new THREE.MeshBasicMaterial({ color: 0x6d9150, fog: false });
         const mkRidge = (mat, w, hgt, peaks, z) => {
             const m = new THREE.Mesh(this.makeRidgeGeo(w, hgt, peaks), mat);
             m.position.set(0, 0, z);
@@ -2004,9 +2023,20 @@ const Scene3D = {
             this.scene.add(m);
             return m;
         };
-        this.mountains = [mkRidge(this.mountainMat, 70, 5.4, 8, -12)];
-        this.farHillMat = new THREE.MeshBasicMaterial({ color: 0x9db98d }); // 최원경 3번째 레이어 — 안개 직전 톤
-        this.hills = [mkRidge(this.hillMat, 95, 3.6, 11, -19), mkRidge(this.farHillMat, 120, 2.6, 14, -25)];
+        // (레이어 제원은 `RIDGE_LAYERS` 한 곳에만 있다 — 여기와 `setTheme` 이 갈리면 바이옴을
+        //  바꾼 순간 높이가 옛 값으로 되돌아간다. 두 곳이 갈려 서로를 되돌린 전례가 이 파일에 있다.)
+        // 🚨 **먼 겹일수록 높다 — 뒤집지 말 것** (map-quality-up 채점 ①, 2026-08-19 실측으로 확정).
+        //    종전 값은 5.4 / 3.6 / 2.6 이었다. 멀수록 낮으니 뒤 두 겹이 앞 능선의 실루엣 **아래**로
+        //    들어가 통째로 가려졌다 — `probe-ridge-layers` 실측: 6바이옴 중 5곳에서 원구릉 가시화소
+        //    **0.00~0.03%**, 중구릉도 0.17~0.50%. 즉 코드에는 세 겹이 있는데 화면에는 **한 겹**만
+        //    나왔고, 비평가 2인이 각각 독립적으로 "능선이 한 겹 판지"를 1순위 결함으로 꼽았다.
+        //    (카메라가 아래를 내려다봐 지평선 위 가시 하늘이 6° 남짓뿐이라, 뒤 겹이 조금만 낮아도
+        //     앞 겹에 통째로 먹힌다. 실제 산맥이 그렇듯 **먼 능선이 더 크게 솟아야** 층이 보인다.)
+        //    스윕(`scratchpad` 6조합 × 3바이옴)에서 세 겹이 동시에 2% 이상 나오는 대역을 골랐다.
+        this.farHillMat = new THREE.MeshBasicMaterial({ color: 0x9db98d, fog: false }); // 최원경 3번째 레이어
+        const R = this.RIDGE_LAYERS;
+        this.mountains = [mkRidge(this.mountainMat, R[0].w, R[0].h, R[0].peaks, R[0].z)];
+        this.hills = [mkRidge(this.hillMat, R[1].w, R[1].h, R[1].peaks, R[1].z), mkRidge(this.farHillMat, R[2].w, R[2].h, R[2].peaks, R[2].z)];
 
         // 소품 공유 매테리얼 (바이옴 재구성 시 지오메트리만 버리고 매테리얼은 재사용)
         // vertexColors — 잎 지오메트리는 전부 sculptFoliage 를 거쳐 color 속성을 갖는다(makePine·makeRoundTree
@@ -2146,8 +2176,15 @@ const Scene3D = {
         // 바이옴 시그니처 원경 실루엣 — 사막=메사, 용암/바위산=첨봉, 그 외=자연 능선
         if (this.mountains) {
             const shape = sp.ridge || (kin === 'desert' ? 'mesa' : (kin === 'lava' || kin === 'rock') ? 'jagged' : 'ridge');
-            this.mountains[0].geometry.dispose();
-            this.mountains[0].geometry = this.makeRidgeGeo(70, 5.4, 8, shape);
+            // 세 겹 **전부** 바이옴 실루엣으로 다시 굽는다. 예전엔 근능선만 갈아 끼웠는데, 그때는
+            // 뒤 두 겹이 어차피 안 보였으니(가시화소 0%) 티가 안 났을 뿐이다 — 이제 보이므로,
+            // 사막에 메사 하나 뒤로 기본 능선 두 겹이 서 있으면 바이옴 시그니처가 깨진다.
+            const R = this.RIDGE_LAYERS;
+            [this.mountains[0], this.hills[0], this.hills[1]].forEach((m, i) => {
+                if (!m) return;
+                m.geometry.dispose();
+                m.geometry = this.makeRidgeGeo(R[i].w, R[i].h, R[i].peaks, shape);
+            });
         }
         // 큰 소품: 'p'=주 소품(나무 계열), 'r'=부 소품(둥근 계열) — 바이옴별로 실제 형태가 결정됨
         const spots = [
@@ -16952,18 +16989,33 @@ const Scene3D = {
         //  ⑴ 어둡게 눌러 근경과 같은 명도대 = 원경이 후퇴하지 않는다.
         //  ⑵ 초록(지면)과 하늘색(안개)을 반반 섞은 **채도 높은 청록 혼색**이 나무 틈으로 보일 때
         //     '물 조각/숲의 구멍'으로 읽힌다(실측: 렌더 화소 h≈0.5 — 지면에도 안개에도 없는 색).
-        // 낮: **지면 색상을 유지**한 채 채도를 절반 이하로 빼고 +0.10 밝힌다. 안개 혼합은 12%만 —
-        //     혼색 대신 씬 fog(z-12에서 ~44%)가 대기 원근을 마저 채운다. 결과 = 하늘보다 어둡고
-        //     근경보다 밝은 저채도 실루엣(원신식 명도 계단), 색상은 '멀리 있는 같은 땅'.
+        // 낮: **지면 색상을 유지**한 채 채도를 절반 이하로 빼고 +0.10 밝힌다. 안개 혼합량은 이제
+        //     `RIDGE_MIX` 가 쥔다(씬 fog 를 껐으므로 이 값이 곧 최종 후퇴량이다). 결과 = 하늘보다
+        //     어둡고 근경보다 밝은 저채도 실루엣(원신식 명도 계단), 색상은 '멀리 있는 같은 땅'.
         // 밤: 종전 공식 유지 — 설원 밤의 능선 후퇴는 비평가가 '되돌리지 말 것'으로 꼽은 자리다.
-        this.mountainMat.color.copy(isNightPre
-            ? gC.clone().offsetHSL(0, 0.03 - V.farDesat * 0.35, -0.16).lerp(fogC, 0.22)
+        const RM = isNightPre ? this.RIDGE_MIX.night : this.RIDGE_MIX.day;
+        // 세 겹은 **같은 기준색 하나**에서 갈라진다 — 안개색 쪽으로 얼마나 갔는지만 다르다.
+        // 🚨 예전엔 겹마다 기준색이 달랐다(근=명도/채도 재구성, 중=채도 −0.7×farDesat, 원=−farDesat).
+        //    그러면 채도 강하와 안개 혼합이 서로 반대로 밀어, 더 멀리 있는 겹이 오히려 **더 어둡게**
+        //    나오는 역전이 생긴다(실측: 초록 숲에서 중구릉 L138 < 근능선 L144, 설원 원구릉 L151 <
+        //    중구릉 L173). 한 기준색에서 단조 보간하면 사다리가 구조적으로 뒤집힐 수 없다.
+        //    안개색으로 가는 보간은 그 자체가 채도를 대기색 쪽으로 빼므로 farDesat 의 의도도 함께 산다.
+        const ridgeBase = isNightPre
+            ? gC.clone().offsetHSL(0, 0.03 - V.farDesat * 0.35, -0.16)
             : (() => { const m = gC.getHSL({ h: 0, s: 0, l: 0 });
                 // 채도 계수 0.42는 사막(원래 s≈0.3)에서 '채도 없는 플랫 회색 띠'를 만들었다(재채점 B2 #2)
                 // — 0.55로. 색상이 지면과 같아서 채도가 남아도 '물'로는 안 읽힌다(그건 혼색의 문제였다).
-                return new THREE.Color().setHSL(m.h, m.s * 0.55, Math.min(0.8, m.l + 0.10)).lerp(fogC, 0.12); })());
-        this.hillMat.color.copy(gC.clone().offsetHSL(0, -V.farDesat * 0.7, 0).lerp(fogC, 0.75));
-        this.farHillMat.color.copy(gC.clone().offsetHSL(0, -V.farDesat, 0).lerp(fogC, 0.9)); // 안개에 거의 잠긴 최원경
+                return new THREE.Color().setHSL(m.h, m.s * 0.55, Math.min(0.8, m.l + 0.10)); })();
+        this.mountainMat.color.copy(ridgeBase.clone().lerp(fogC, RM[0]));
+        // 🚨 **씬 fog 를 끄고 이 lerp 사다리로만 후퇴시킨다** (map-quality-up 채점 ①, 2026-08-19).
+        //    종전엔 세 재질이 씬 fog 도 같이 먹었다. 선형 fog(낮 13~35)를 거리로 풀면 실효 혼합비가
+        //    **근 0.41 / 중 0.91 / 원 0.99** 였다 — 중·원이 사실상 순수 안개색이라 **둘을 어떤 값으로
+        //    칠해도 화면에서는 같은 색**이 된다(실측: 사막 중구릉 L217.6 vs 원구릉 L217.7, 차이 0.1).
+        //    그래서 겹을 세 개로 만들어도 톤이 한 덩어리로 붙었다. 이제 fog:false 로 두고 사다리를
+        //    직접 잡는다. 사다리 값은 `RIDGE_MIX` 표에 있고, 화면 명도 계단을 실측해 고른 것이다.
+        //    ⚠️ 세 재질의 `fog` 를 다시 켜지 말 것. 켜는 순간 위 압축이 그대로 돌아온다.
+        this.hillMat.color.copy(ridgeBase.clone().lerp(fogC, RM[1]));
+        this.farHillMat.color.copy(ridgeBase.clone().lerp(fogC, RM[2])); // 안개에 가장 깊이 잠긴 최원경
         // 식생은 지면보다 한 단계 더 눌러 '어두운 덩어리'로 — 화면의 다크 엔드를 실제로 담당하는 레이어.
         // 🚨 **다만 순흑까지 가면 안 된다 (map-quality-up).** 실측: 초원에서 `foliageMat` 이 #060803,
         //    `foliageMatDark` 는 명도가 음수로 내려가 **클램프 결과 #000000** 이었다. 비평가 2인이
