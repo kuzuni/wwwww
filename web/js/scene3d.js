@@ -4785,6 +4785,26 @@ const Scene3D = {
         }
     },
 
+    // 등급색 장식 재질 — ⓓ '흰 부위 플랫' (3차 채점 C·D: fin 볏 · 사무라이 쿠와가타 · plume).
+    // 무채·고휘도 등급색(일반 0xd6d6d6)에 이미시브 0.45 를 얹으면 램버트에서 **어느 면이나 같은
+    // 밝기**로 타 '흰 종이 판'이 된다 — 명부·암부 폭이 0 이라 어떤 조명을 걸어도 형태가 안 남는다.
+    // ⑴ 순백 계열은 웜 오프화이트(0xe8e0d5)로 **상한**을 두고 이미시브를 죽인다.
+    // ⑵ 램버트 → 스탠다드 — 환경 반사가 면마다 다르게 얹혀 곡면이 곡면으로 읽힌다.
+    // ⚠️ **채도 있는 등급색(전설 노랑·궁극 빨강·신화 보라)은 발광이 정체성이라 손대지 않는다** —
+    //    거기까지 바꾸면 등급 식별이 흔들리고 rim/clip 회귀 기준선이 통째로 움직인다.
+    rarityDecorMat(pc) {
+        const hsl = new THREE.Color(pc).getHSL({ h: 0, s: 0, l: 0 });
+        if (hsl.s < 0.18 && hsl.l > 0.62) {
+            // ⚠️ 이미시브를 조금이라도 남기면(0.06 실측) 명부·암부가 도로 붙는다 — 자체발광은
+            //    법선과 무관하게 더해지므로 **평탄화 항**이다. 흰 부위는 발광이 아니라 형태로 읽혀야
+            //    한다. env 반사도 낮춘다(밝은 환경이 암부를 들어 올려 폭을 깎는다).
+            return new THREE.MeshStandardMaterial({
+                color: 0xc9beac, metalness: 0.03, roughness: 0.76, envMapIntensity: 0.45,
+            });
+        }
+        return new THREE.MeshLambertMaterial({ color: pc, emissive: pc, emissiveIntensity: 0.45 });
+    },
+
     // 투구: 이름별 스타일 11종
     makeHelmet(age, rarity, style, name) {
         const g = new THREE.Group();
@@ -4794,18 +4814,25 @@ const Scene3D = {
         const mats = this.ageGearMats(age, name);
         const mat = mats.body;
         const darkMat = mats.dark;
-        const rareMat = new THREE.MeshLambertMaterial({ color: pc, emissive: pc, emissiveIntensity: 0.45 });
+        const rareMat = this.rarityDecorMat(pc);
         style = style || 'plume';
 
         if (style === 'plume') {            // 돔 + 깃장식
             const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat);
             dome.position.y = 0.03;
             g.add(dome);
-            if (age === 'primitive') {
-                // 깃털 장식(원시 분기): 곧은 원뿔은 '흰 스파이크/수정 다발'로 읽혔다(1차 채점 A·B 공통 —
+            {
+                // 깃털 장식: 곧은 원뿔은 '흰 스파이크/수정 다발'로 읽혔다(1차 채점 A·B 공통 —
                 // 깃털의 휘어짐·결이 0). 납작한 잎꼴 판 + 가운데 깃대 + 뒤로 눕는 휨 = 깃털의 서명.
-                const ribM = this.primalCordMat();
-                for (const [dx, tilt, len] of [[-0.095, 0.36, 0.30], [0, 0, 0.38], [0.095, -0.36, 0.30]]) {
+                // ⓓ **원시 분기에만 있던 이 처방을 전 시대로 넓혔다** — 비원시는 여전히 매끈한 원뿔
+                //   하나(0.06×0.32)라 3차 채점이 같은 지적('흰 부위 플랫')을 다시 냈다. 문법을 두 벌
+                //   만들지 않고 이미 통과한 쪽을 쓴다. 시대차는 깃대 재질·가닥 수·기울기로만 준다.
+                const primal = age === 'primitive';
+                const ribM = primal ? this.primalCordMat() : darkMat;
+                const FAN = primal
+                    ? [[-0.095, 0.36, 0.30], [0, 0, 0.38], [0.095, -0.36, 0.30]]
+                    : [[-0.082, 0.34, 0.25], [-0.028, 0.11, 0.33], [0.028, -0.11, 0.33], [0.082, -0.34, 0.25]];
+                for (const [dx, tilt, len] of FAN) {
                     const f = new THREE.Group();
                     const hw = len * 0.17;
                     const sh = new THREE.Shape();
@@ -4819,15 +4846,20 @@ const Scene3D = {
                     f.add(blade);
                     const rib = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.011, len * 0.88, 5), ribM);
                     rib.position.set(0, len * 0.42, 0.012);
+                    rib.userData.decorAccent = true;
                     f.add(rib);
                     f.position.set(dx, 0.24, -0.02);
                     f.rotation.set(-0.24, 0, tilt);   // 뒤로 눕고(휨) 좌우는 부채로 벌어진다
                     g.add(f);
                 }
-            } else {
-                const plume = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.32, 8), rareMat);
-                plume.position.y = 0.42;
-                g.add(plume);
+                if (!primal) {
+                    // 밑동 소켓 — 깃이 돔에서 그냥 자라난 것처럼 보이면 '흰 뿔'이 된다. 어두운
+                    // 단이 서야 '꽂은 깃 장식'으로 읽힌다(투구 트림이 이미 쓰는 명도 단차 언어).
+                    const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 0.05, 10), darkMat);
+                    socket.position.y = 0.245;
+                    socket.userData.decorAccent = true;
+                    g.add(socket);
+                }
             }
         } else if (style === 'cone') {      // 고깔 모자 (마법사/사신)
             const cone = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.55, 10), mat);
@@ -4931,8 +4963,47 @@ const Scene3D = {
         } else if (style === 'fin') {       // 볏 투구 (로마/사무라이)
             const dome = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), mat);
             dome.position.y = 0.02;
-            const crest = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.36), rareMat);
-            crest.position.y = 0.32;
+            // 볏(크레스트) — ⓓ. 재질만 고쳐도 **평판 상자**(0.05×0.2×0.36)는 여전히 판이다.
+            // ⚠️ 상자를 계단처럼 쌓아 아치를 흉내 냈다가 되돌렸다 — 96px 에서 **지구라트**로 읽힌다.
+            //    로마 볏은 앞뒤로 흐르는 **매끈한 아치**라 옆면 실루엣(zy 평면)을 셰이프로 찍어 x 로
+            //    밀어내고, 베벨로 능선 하이라이트를 만든다.
+            const crest = new THREE.Group();
+            {
+                const sh = new THREE.Shape();
+                sh.moveTo(-0.185, 0);
+                sh.quadraticCurveTo(-0.10, 0.20, 0, 0.215);      // 앞에서 솟아
+                sh.quadraticCurveTo(0.10, 0.20, 0.185, 0);       // 뒤로 흘러내린다
+                sh.quadraticCurveTo(0, 0.035, -0.185, 0);        // 밑변은 돔을 타고 살짝 오목
+                const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.026, bevelEnabled: true, bevelThickness: 0.007, bevelSize: 0.007, bevelSegments: 2, curveSegments: 10 });
+                geo.rotateY(Math.PI / 2);                        // zy 평면 프로파일 → 두께가 x 로
+                geo.translate(-0.013, 0, 0);                     // 두께를 x=0 기준으로 중앙 정렬
+                crest.add(new THREE.Mesh(geo, rareMat));
+                // 말총 결 — 🚨 **매끈한 판은 재질을 아무리 고쳐도 안 산다**(실측: 이미시브를 0 으로
+                // 내리고 러프니스를 올려도 흰 부위 휘도 폭 10 → 12). 판은 법선이 한 방향뿐이라
+                // 어떤 조명에서도 한 값으로 칠해진다. **면을 물리적으로 쪼개야** 한다.
+                // ⚠️ 살을 판 **속**에 넣으면 아무 일도 안 일어난다 — 첫 판이 그래서 실패했다.
+                //    반드시 양쪽 면 **바깥**으로 나오게 둘 것(판 반두께 0.013 < 살 중심 0.019).
+                for (const sx of [0.019, -0.019]) {
+                    for (let i = 0; i < 9; i++) {
+                        const t = (i / 8) * 2 - 1;
+                        const h = 0.215 * (1 - t * t * 0.86);
+                        if (h < 0.035) continue;
+                        const rib = new THREE.Mesh(new THREE.CylinderGeometry(0.0105, 0.0105, h, 6), rareMat);
+                        rib.position.set(sx, h / 2 + 0.012, t * 0.168);
+                        rib.rotation.x = t * 0.30;
+                        crest.add(rib);
+                    }
+                }
+                // 밑동 밴드 — 볏이 돔에서 그냥 자라난 것처럼 보이지 않게 어두운 한 단
+                // ⚠️ 폭·두께가 볏보다 커야 보인다 — 볏 안에 들어가면 차분 기여가 0 이다(실측).
+                const base = new THREE.Mesh(new THREE.BoxGeometry(0.079, 0.030, 0.31), darkMat);
+                base.position.y = 0.017;
+                base.userData.decorAccent = true;   // 판정기 차분용 표식(아래 rarityDecor 주석 참조)
+                crest.add(base);
+            }
+            // ⚠️ 돔 정수리는 y 0.28 이다 — 볏을 0.20 에 두면 밑동이 통째로 돔 **안**에 묻혀
+            //    밴드도 결도 안 보인다(실측: 부위 휘도 폭이 흰 면 폭과 같았다).
+            crest.position.y = 0.245;
             const cheek1 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.12), mat);
             cheek1.position.set(-0.24, -0.08, 0.1);
             const cheek2 = cheek1.clone(); cheek2.position.x = 0.24;
@@ -5022,10 +5093,29 @@ const Scene3D = {
                 hachi.position.y = 0.17;
                 g.add(hachi);
                 for (const s of [-1, 1]) {   // 쿠와가타 — 위로 벌어지는 납작한 뿔 두 장
-                    const horn = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.27, 0.014), rareMat);
-                    horn.position.set(s * 0.085, 0.42, 0.205);
-                    horn.rotation.z = -s * 0.42;
-                    g.add(horn);
+                    // ⓓ: 균일 두께 상자(0.034×0.27×0.014)는 흰 종이 조각이다. 실제 쿠와가타는
+                    //     **뿌리가 넓고 바깥으로 배부르다 끝에서 뾰족해지는** 납작한 뿔이다.
+                    // ⚠️ 상자를 테이퍼로 쌓아 봤다가 되돌렸다 — 끝 폭이 0.013 까지 가늘어져
+                    //    '젓가락/안테나'로 읽혔다(96px 실측). 뿌리 폭을 지키고 배를 남길 것.
+                    const hg = new THREE.Group();
+                    const sh = new THREE.Shape();
+                    sh.moveTo(-0.026, 0);
+                    sh.quadraticCurveTo(-0.030, 0.13, -0.008, 0.26);   // 바깥 날 — 배부르다 끝으로 모임
+                    sh.lineTo(0.006, 0.26);
+                    sh.quadraticCurveTo(0.026, 0.12, 0.026, 0);        // 안쪽 날
+                    sh.lineTo(-0.026, 0);
+                    const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.016, bevelEnabled: true, bevelThickness: 0.005, bevelSize: 0.005, bevelSegments: 1, curveSegments: 8 });
+                    geo.translate(0, 0, -0.008);
+                    hg.add(new THREE.Mesh(geo, rareMat));
+                    // ⚠️ 뿔 두께(0.016 + 베벨 0.005×2 = 0.026)보다 두꺼워야 보인다 — 0.021 은
+                    //    통째로 묻혀 차분 기여가 0 이었다(실측).
+                    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.009, 0.23, 0.034), darkMat);  // 가운데 능선 심
+                    spine.position.set(0, 0.115, 0);
+                    spine.userData.decorAccent = true;
+                    hg.add(spine);
+                    hg.position.set(s * 0.085, 0.29, 0.205);
+                    hg.rotation.z = -s * 0.42;
+                    g.add(hg);
                 }
                 const crest = new THREE.Mesh(new THREE.SphereGeometry(0.036, 8, 6), rareMat); // 뿔 사이 전립(마에다테 심)
                 crest.position.set(0, 0.34, 0.215);
@@ -5168,6 +5258,9 @@ const Scene3D = {
             }
         }
         g.scale.setScalar(0.85); // 두상 밀착 피팅 — 헬멧이 머리보다 한 치수 커서 '풍선'으로 읽히던 문제 (비평가 3번 결함)
+        // 등급색 장식 표식 — 판정기가 **차분 규약**(껐다 켜서 기여 화소만 잰다)으로 이 부위만
+        // 골라 재게 한다(probe-white-decor). 재질 동일성으로 잡으므로 좌표를 손으로 베낄 일이 없다.
+        g.traverse(o => { if (o.isMesh && o.material === rareMat) o.userData.rarityDecor = true; });
         return g;
     },
 
