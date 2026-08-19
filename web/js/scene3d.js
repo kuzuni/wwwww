@@ -5246,7 +5246,15 @@ const Scene3D = {
         } catch (e) { return null; }
     },
 
-    // ---- 펫: 종별 실물 모델 25종 ----
+    // 펫 몸체 — 종별 **관절 리그**로 짓는다 (2026-08-19 `pet-articulated-joints`, 사용자 지시 "펫들도 관절 다 움직이게").
+    // ⚠️ 예전 구조의 결함 두 가지를 같은 자리에서 고쳤다:
+    //   ⑴ 파츠를 전부 루트(g)에 평면으로 붙여 **관절이랄 게 없었다** — 다리는 정적 원기둥,
+    //      몸통은 통짜였고 살아 있는 건 그룹 전체의 상하 바운스뿐이었다(사용자가 지적한 '통짜').
+    //   ⑵ 그나마 있던 파츠 애니(wings/tail/claws/sting/heads/tails)는 **한 프레임도 돈 적이 없다**:
+    //      `refreshPets` 가 `mesh.userData` 를 래퍼 그룹으로 올리지 않아 update 의 `ud.wings` 등이
+    //      전부 undefined 였다. 탈것은 같은 값을 `mountG` 에서 올려 준다 — 펫만 빠져 있었다.
+    // 지금은 파츠를 **관절 피벗(Group)** 아래에 달고 `userData.joints` 로 넘긴다. 회전은 반드시
+    // 피벗에서 걸 것 — 메시 자신을 돌리면 원기둥 한가운데가 축이 돼 다리가 몸을 뚫고 프로펠러가 된다.
     makePetMesh(name) {
         const g = new THREE.Group();
         const c = PET_COLORS[name] || 0xbdbdbd;
@@ -5255,257 +5263,455 @@ const Scene3D = {
         const dark = M(new THREE.Color(c).offsetHSL(0, 0, -0.15));
         const light = M(new THREE.Color(c).offsetHSL(0, 0, 0.14));
         const blk = new THREE.MeshBasicMaterial({ color: 0x263238 });
-        // 헬퍼: 정면 +z, 바닥 y0 기준
-        const sp = (r, x, y, z, m, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 9, 7), m || mat); o.position.set(x, y, z); if (sx) o.scale.set(sx, sy, sz); g.add(o); return o; };
-        const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); g.add(o); return o; };
-        const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), m || mat); o.position.set(x, y, z); g.add(o); return o; };
-        const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 7), m || mat); o.position.set(x, y, z); g.add(o); return o; };
+        const J = [];                 // 관절 목록 — update 의 제너릭 드라이버가 종별 위상으로 돌린다
+        let CUR = g;                  // 지금 파츠가 붙을 부모(관절 아래로 내려가면 바뀐다)
+        // 헬퍼: 정면 +z, 바닥 y0 기준. 전부 **CUR** 에 붙는다(예전엔 무조건 g 였다)
+        const sp = (r, x, y, z, m, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 9, 7), m || mat); o.position.set(x, y, z); if (sx) o.scale.set(sx, sy, sz); CUR.add(o); return o; };
+        const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); CUR.add(o); return o; };
+        const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), m || mat); o.position.set(x, y, z); CUR.add(o); return o; };
+        const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 7), m || mat); o.position.set(x, y, z); CUR.add(o); return o; };
         const eyes = (y, z, gap, r) => { for (const s of [-1, 1]) sp(r || 0.028, s * (gap || 0.06), y, z, blk); };
+        // 관절 피벗: 회전축이 **관절 위치**에 오도록 빈 Group 을 세운다
+        const pv = (x, y, z) => { const o = new THREE.Group(); o.position.set(x, y, z); CUR.add(o); return o; };
+        // node 아래에 파츠를 붙이는 스코프(콜백이 값을 주면 그걸, 아니면 node 를 돌려준다)
+        const into = (node, fn) => { const prev = CUR; CUR = node; const r = fn(node); CUR = prev; return r === undefined ? node : r; };
+        // 관절 등록: axis 축을 **빌드 시 각도(base)** 기준으로 amp 만큼 흔든다.
+        //   f = 종 모션 주파수(PET_MOTION.freq)의 배수 · ph = 위상(rad) · gain = 이동 중 진폭 배수
+        //   abs = 한쪽으로만 접힘(무릎·도약) · spin = 등속 회전(전기 코일 등)
+        const jt = (o, axis, amp, ph, opt) => {
+            if (o) J.push(Object.assign({ o, axis, base: o.rotation[axis] || 0, amp, ph: ph || 0, f: 1, gain: 1, abs: false, spin: false }, opt || {}));
+            return o;
+        };
+        // 관절 사지: 피벗을 관절에 두고 길이 len 만큼 **아래로** 늘어뜨린 원기둥
+        const limb = (x, y, z, len, r1, r2, m) => {
+            const p = pv(x, y, z);
+            const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2 === undefined ? r1 : r2, len, 7), m || mat);
+            o.position.y = -len / 2; p.add(o);
+            return p;
+        };
+        // 2단 사지(허벅지+정강이) — [고관절, 무릎] 피벗을 준다
+        const limb2 = (x, y, z, up, lo, r, m) => {
+            const hip = limb(x, y, z, up, r, r * 0.82, m);
+            const knee = into(hip, () => limb(0, -up, 0, lo, r * 0.82, r * 0.72, m));
+            return [hip, knee];
+        };
+        // 사족 4다리 — 앞다리 z=zf, 뒷다리 z=zb, **대각선끼리 같은 위상**(말·개의 속보)
+        const quad = (dx, zf, zb, y, len, r, m, o) => {
+            const A = (o && o.amp !== undefined) ? o.amp : 0.5, two = !(o && o.one), lo = (o && o.lo) || len * 0.6;
+            const ph = [0, Math.PI, Math.PI, 0];   // FL FR BL BR
+            let i = 0;
+            for (const z of [zf, zb]) for (const s of [-1, 1]) {
+                const p = ph[i++];
+                if (two) {
+                    const [hip, knee] = limb2(s * dx, y, z, len, lo, r, m);
+                    jt(hip, 'x', A, p, { gain: 1.9 });
+                    jt(knee, 'x', -A * 0.75, p + 1.15, { gain: 1.9, abs: true });   // 무릎은 한쪽으로만 접힌다
+                } else {
+                    jt(limb(s * dx, y, z, len, r, r * 0.8, m), 'x', A, p, { gain: 1.9 });
+                }
+            }
+        };
 
         switch (name) {
-            case 'Snail': { // 몸통 + 나선 껍데기 + 더듬이눈
+            case 'Snail': { // 몸통 + 나선 껍데기 + 관절 더듬이눈
                 sp(0.13, 0, 0.09, 0.04, mat, 1.1, 0.7, 1.5);
                 sp(0.15, 0, 0.26, -0.08, light);
                 sp(0.09, 0, 0.26, -0.08, dark, 1.05, 1.05, 0.5);
                 for (const s of [-1, 1]) {
-                    cy(0.012, 0.012, 0.14, s * 0.05, 0.24, 0.2, dark);
-                    sp(0.028, s * 0.05, 0.32, 0.21, blk);
+                    const st = pv(s * 0.05, 0.17, 0.2);     // 더듬이 뿌리 = 관절
+                    into(st, () => { cy(0.012, 0.012, 0.14, 0, 0.07, 0, dark); sp(0.028, 0, 0.15, 0.01, blk); });
+                    jt(st, 'z', 0.24, s > 0 ? 0 : Math.PI, { f: 0.9, gain: 1.6 });   // 좌우로 더듬더듬
+                    jt(st, 'x', 0.16, s * 0.8, { f: 1.5, gain: 1.6 });
                 }
                 break;
             }
-            case 'Turtle': { // 등딱지 + 머리 + 다리
+            case 'Turtle': { // 등딱지 + 관절 목 + 노 젓는 네 다리
                 sp(0.19, 0, 0.15, 0, dark, 1, 0.62, 1.2);
                 sp(0.14, 0, 0.19, 0, M(new THREE.Color(c).offsetHSL(0, 0, -0.25)), 1, 0.5, 1);
-                sp(0.08, 0, 0.13, 0.26, light);
-                for (const s of [-1, 1]) { sp(0.05, s * 0.14, 0.05, 0.14, light); sp(0.05, s * 0.14, 0.05, -0.14, light); }
-                eyes(0.17, 0.32, 0.045, 0.02);
+                const neck = pv(0, 0.13, 0.16);
+                into(neck, () => { sp(0.08, 0, 0, 0.1, light); eyes(0.04, 0.16, 0.045, 0.02); });
+                jt(neck, 'x', 0.3, 0, { f: 0.8, gain: 1.7 });            // 목 빼고 넣고
+                let i = 0;
+                const ph = [0, Math.PI, Math.PI, 0];
+                for (const z of [0.14, -0.14]) for (const s of [-1, 1]) {
+                    const fl = pv(s * 0.13, 0.07, z);
+                    into(fl, () => sp(0.05, s * 0.03, 0, 0, light, 1.2, 0.7, 1));
+                    jt(fl, 'z', 0.5 * s, ph[i++], { gain: 1.8 });        // 지느러미발 노 젓기
+                }
                 break;
             }
-            case 'Mouse': { // 큰 귀 + 꼬리
-                sp(0.14, 0, 0.13, 0, mat, 1, 0.95, 1.2);
-                for (const s of [-1, 1]) sp(0.075, s * 0.09, 0.3, -0.02, light, 1, 1, 0.4);
-                sp(0.025, 0, 0.1, 0.17, M(0xf48fb1));
-                const tail = cy(0.012, 0.012, 0.26, 0, 0.1, -0.2, dark); tail.rotation.x = 1.3;
-                eyes(0.17, 0.13);
+            case 'Mouse': { // 큰 귀 + 관절 네 다리 + 꼬리
+                sp(0.14, 0, 0.17, 0, mat, 1, 0.95, 1.2);
+                for (const s of [-1, 1]) {
+                    const ear = pv(s * 0.09, 0.3, -0.02);
+                    into(ear, () => sp(0.075, 0, 0.04, 0, light, 1, 1, 0.4));
+                    jt(ear, 'z', 0.2 * s, s > 0 ? 0 : 1.2, { f: 1.7 });  // 귀 쫑긋
+                }
+                sp(0.025, 0, 0.14, 0.17, M(0xf48fb1));
+                quad(0.075, 0.08, -0.08, 0.11, 0.1, 0.014, dark, { one: true, amp: 0.62 });
+                const tail = pv(0, 0.14, -0.13);
+                into(tail, () => cy(0.012, 0.012, 0.26, 0, -0.13, 0, dark));
+                tail.rotation.x = 2.2;                                    // 뒤로 세운 꼬리(예전 정적 각을 피벗으로)
+                g.userData.tail = tail;
+                eyes(0.21, 0.13);
                 break;
             }
-            case 'Chicken': { // 볏 + 부리 + 날개
-                sp(0.13, 0, 0.16, 0);
-                for (let i = 0; i < 3; i++) sp(0.03, 0, 0.32 - i * 0.01, 0.04 - i * 0.05, M(0xef5350));
-                const beak = cn(0.035, 0.09, 0, 0.17, 0.16, M(0xffa726)); beak.rotation.x = Math.PI / 2;
-                for (const s of [-1, 1]) sp(0.07, s * 0.12, 0.15, -0.02, light, 0.5, 0.8, 1);
-                for (const s of [-1, 1]) cy(0.012, 0.012, 0.1, s * 0.05, 0.03, 0, M(0xffa726));
-                eyes(0.2, 0.11);
+            case 'Chicken': { // 볏 + 부리 + 관절 날개·두 다리
+                sp(0.13, 0, 0.2, 0);
+                for (let i = 0; i < 3; i++) sp(0.03, 0, 0.36 - i * 0.01, 0.04 - i * 0.05, M(0xef5350));
+                const head = pv(0, 0.2, 0.05);
+                into(head, () => { const beak = cn(0.035, 0.09, 0, 0.01, 0.11, M(0xffa726)); beak.rotation.x = Math.PI / 2; eyes(0.04, 0.06); });
+                jt(head, 'x', 0.32, 0, { f: 1, gain: 1.8 });             // 닭 특유의 목 까딱
+                for (const s of [-1, 1]) {
+                    const sh = pv(s * 0.09, 0.21, -0.02);
+                    into(sh, () => sp(0.07, s * 0.05, -0.03, 0, light, 0.5, 0.8, 1));
+                    jt(sh, 'z', -0.42 * s, s > 0 ? 0 : 0.3, { f: 1.3, gain: 1.6 });   // 푸드덕
+                }
+                let i = 0;
+                for (const s of [-1, 1]) jt(limb(s * 0.05, 0.11, 0, 0.11, 0.012, 0.012, M(0xffa726)), 'x', 0.55, (i++) * Math.PI, { gain: 1.9 });
                 break;
             }
             case 'Cat': case 'Tiger': case 'Saber Tooth': case 'Spectral Tiger': { // 고양잇과 공통 + 변형
                 const ghost = name === 'Spectral Tiger';
                 const bmat = ghost ? M(c, { transparent: true, opacity: 0.6, emissive: c, emissiveIntensity: 0.4 }) : mat;
                 if (ghost) g.userData.ghostMat = bmat;
-                sp(0.12, 0, 0.12, -0.02, bmat, 1, 0.95, 1.3);
-                sp(0.11, 0, 0.28, 0.1, bmat);
-                for (const s of [-1, 1]) cn(0.04, 0.08, s * 0.07, 0.4, 0.08, bmat);
-                const tail = cy(0.018, 0.012, 0.2, 0, 0.2, -0.2, bmat); tail.rotation.x = -0.9;
+                sp(0.12, 0, 0.19, -0.02, bmat, 1, 0.95, 1.3);
+                const neck = pv(0, 0.24, 0.06);
+                into(neck, () => {
+                    sp(0.11, 0, 0.11, 0.04, bmat);
+                    for (const s of [-1, 1]) cn(0.04, 0.08, s * 0.07, 0.23, 0.02, bmat);      // 귀
+                    if (name === 'Saber Tooth') for (const s of [-1, 1]) cn(0.015, 0.07, s * 0.05, 0.03, 0.12, M(0xffffff));
+                    eyes(0.13, 0.13);
+                });
+                jt(neck, 'x', 0.16, 0.6, { f: 0.9, gain: 1.6 });          // 머리 끄덕
+                const tail = pv(0, 0.24, -0.14);
+                into(tail, () => cy(0.018, 0.012, 0.2, 0, -0.1, 0, bmat));
+                tail.rotation.x = 2.3;                                     // 위로 치켜든 꼬리
                 g.userData.tail = tail;
-                if (name === 'Tiger' || name === 'Spectral Tiger') for (let i = 0; i < 3; i++) bx(0.02, 0.09, 0.16, -0.06 + i * 0.06, 0.15, -0.02, blk);
-                if (name === 'Saber Tooth') for (const s of [-1, 1]) cn(0.015, 0.07, s * 0.05, 0.2, 0.18, M(0xffffff));
-                eyes(0.3, 0.19);
+                quad(0.075, 0.09, -0.1, 0.14, 0.08, 0.02, bmat, { amp: 0.46, lo: 0.06 });
+                if (name === 'Tiger' || name === 'Spectral Tiger') for (let i = 0; i < 3; i++) bx(0.02, 0.09, 0.16, -0.06 + i * 0.06, 0.22, -0.02, blk);
                 break;
             }
-            case 'Dog': { // 늘어진 귀 + 주둥이
-                sp(0.13, 0, 0.13, -0.02, mat, 1, 0.95, 1.25);
-                sp(0.11, 0, 0.29, 0.1);
-                for (const s of [-1, 1]) sp(0.05, s * 0.11, 0.26, 0.06, dark, 0.6, 1.3, 0.7);
-                sp(0.055, 0, 0.25, 0.2, light);
-                sp(0.022, 0, 0.27, 0.25, blk);
-                const tail = cy(0.015, 0.01, 0.16, 0, 0.2, -0.19); tail.rotation.x = -0.7;
+            case 'Dog': { // 늘어진 귀 + 주둥이 + 관절 네 다리
+                sp(0.13, 0, 0.2, -0.02, mat, 1, 0.95, 1.25);
+                const neck = pv(0, 0.26, 0.06);
+                into(neck, () => {
+                    sp(0.11, 0, 0.1, 0.04);
+                    for (const s of [-1, 1]) {
+                        const ear = pv(s * 0.11, 0.12, 0);
+                        into(ear, () => sp(0.05, 0, -0.05, 0, dark, 0.6, 1.3, 0.7));
+                        jt(ear, 'x', 0.3, s * 0.9, { f: 1.4, gain: 1.7 });   // 뛸 때 귀가 펄럭
+                    }
+                    sp(0.055, 0, 0.06, 0.14, light);
+                    sp(0.022, 0, 0.08, 0.19, blk);
+                    eyes(0.14, 0.12);
+                });
+                jt(neck, 'x', 0.18, 0.5, { f: 1, gain: 1.7 });
+                const tail = pv(0, 0.25, -0.14);
+                into(tail, () => cy(0.015, 0.01, 0.16, 0, -0.08, 0, mat));
+                tail.rotation.x = 2.4;
                 g.userData.tail = tail;
-                eyes(0.33, 0.18);
+                quad(0.08, 0.09, -0.1, 0.15, 0.09, 0.021, mat, { amp: 0.52, lo: 0.06 });
                 break;
             }
-            case 'Hedgehog': { // 등 가시
-                sp(0.14, 0, 0.12, 0.02, light, 1.1, 0.85, 1.25);
+            case 'Hedgehog': { // 등 가시 + 총총거리는 짧은 네 다리
+                sp(0.14, 0, 0.16, 0.02, light, 1.1, 0.85, 1.25);
                 for (let i = 0; i < 7; i++) {
                     const a = (i / 7) * Math.PI - Math.PI / 2;
-                    const s2 = cn(0.03, 0.11, Math.sin(a) * 0.1, 0.2 + Math.cos(a) * 0.06, -0.05 - Math.abs(Math.sin(a)) * 0.04, dark);
+                    const s2 = cn(0.03, 0.11, Math.sin(a) * 0.1, 0.24 + Math.cos(a) * 0.06, -0.05 - Math.abs(Math.sin(a)) * 0.04, dark);
                     s2.rotation.z = -a * 0.8;
                 }
-                sp(0.03, 0, 0.1, 0.2, blk);
-                eyes(0.15, 0.17, 0.05);
+                const snout = pv(0, 0.14, 0.14);
+                into(snout, () => { sp(0.03, 0, 0, 0.06, blk); eyes(0.05, 0.03, 0.05); });
+                jt(snout, 'x', 0.22, 0, { f: 2.2 });                       // 코 킁킁
+                quad(0.075, 0.07, -0.07, 0.08, 0.075, 0.013, dark, { one: true, amp: 0.6 });
                 break;
             }
-            case 'Bear': { // 둥근 귀 + 주둥이
-                sp(0.16, 0, 0.16, 0);
-                sp(0.12, 0, 0.34, 0.05);
-                for (const s of [-1, 1]) sp(0.045, s * 0.09, 0.44, 0.01, dark);
-                sp(0.055, 0, 0.31, 0.15, light);
-                sp(0.025, 0, 0.33, 0.2, blk);
-                eyes(0.38, 0.14);
+            case 'Bear': { // 둥근 귀 + 주둥이 + 관절 네 다리
+                sp(0.16, 0, 0.24, 0);
+                const neck = pv(0, 0.32, 0.03);
+                into(neck, () => {
+                    sp(0.12, 0, 0.1, 0.02);
+                    for (const s of [-1, 1]) sp(0.045, s * 0.09, 0.2, -0.02, dark);
+                    sp(0.055, 0, 0.07, 0.12, light);
+                    sp(0.025, 0, 0.09, 0.17, blk);
+                    eyes(0.14, 0.11);
+                });
+                jt(neck, 'x', 0.14, 0.4, { f: 0.9, gain: 1.6 });
+                quad(0.1, 0.09, -0.11, 0.19, 0.11, 0.028, mat, { amp: 0.42, lo: 0.08 });
                 break;
             }
-            case 'Ostrich': { // 긴 목
-                sp(0.13, 0, 0.24, 0, mat, 1.1, 1, 1.1);
-                cy(0.022, 0.028, 0.26, 0.02, 0.45, 0.06, light);
-                sp(0.055, 0.02, 0.6, 0.09);
-                const beak = cn(0.025, 0.07, 0.02, 0.6, 0.16, M(0xffa726)); beak.rotation.x = Math.PI / 2;
-                for (const s of [-1, 1]) cy(0.013, 0.013, 0.2, s * 0.05, 0.08, 0, M(0xbcaaa4));
-                eyes(0.63, 0.12, 0.04, 0.02);
+            case 'Ostrich': { // 긴 관절 목 + 2단 다리
+                sp(0.13, 0, 0.3, 0, mat, 1.1, 1, 1.1);
+                const neck = pv(0.02, 0.36, 0.04);
+                const head = into(neck, () => {
+                    cy(0.022, 0.028, 0.26, 0, 0.13, 0.02, light);
+                    const h = pv(0, 0.26, 0.05);
+                    into(h, () => { sp(0.055, 0, 0, 0); const beak = cn(0.025, 0.07, 0, 0, 0.07, M(0xffa726)); beak.rotation.x = Math.PI / 2; eyes(0.03, 0.03, 0.04, 0.02); });
+                    return h;
+                });
+                jt(neck, 'x', 0.22, 0, { f: 0.8, gain: 1.8 });             // 목 전체가 앞뒤로
+                jt(head, 'x', 0.3, 1.4, { f: 1.6, gain: 1.6 });            // 머리는 그 위에서 까딱
+                let i = 0;
+                for (const s of [-1, 1]) {
+                    const [hip, knee] = limb2(s * 0.05, 0.2, 0, 0.11, 0.09, 0.014, M(0xbcaaa4));
+                    jt(hip, 'x', 0.6, (i) * Math.PI, { gain: 1.9 });
+                    jt(knee, 'x', -0.5, (i++) * Math.PI + 1.2, { gain: 1.9, abs: true });
+                }
                 break;
             }
-            case 'Scorpion': { // 집게 + 꼬리침
-                sp(0.12, 0, 0.08, -0.02, mat, 1.35, 0.6, 1.5);
-                sp(0.045, 0, 0.17, -0.16, dark);
-                sp(0.04, 0, 0.27, -0.2, dark);
-                sp(0.035, 0, 0.36, -0.16, dark);
-                const sting = cn(0.028, 0.09, 0, 0.42, -0.1, blk); sting.rotation.x = 2.5;
+            case 'Scorpion': { // 집게 + 꼬리침 + 관절 여섯 다리
+                sp(0.12, 0, 0.12, -0.02, mat, 1.35, 0.6, 1.5);
+                // 꼬리 마디를 사슬로 걸어 침까지 한 몸으로 아치를 그린다
+                const t1 = pv(0, 0.15, -0.12);
+                let sting;
+                into(t1, () => {
+                    sp(0.045, 0, 0.04, -0.04, dark);
+                    const t2 = pv(0, 0.1, -0.06);
+                    into(t2, () => {
+                        sp(0.04, 0, 0.04, -0.02, dark);
+                        sp(0.035, 0, 0.12, 0.02, dark);
+                        sting = cn(0.028, 0.09, 0, 0.18, 0.06, blk); sting.rotation.x = 2.5;
+                    });
+                    jt(t2, 'x', 0.28, 1.1, { f: 0.9 });
+                });
+                jt(t1, 'x', 0.24, 0, { f: 0.9 });
                 g.userData.sting = sting;
                 g.userData.claws = [];
                 for (const s of [-1, 1]) {
-                    sp(0.055, s * 0.13, 0.07, 0.15, dark);
-                    g.userData.claws.push(sp(0.04, s * 0.16, 0.07, 0.22, dark, 1, 0.7, 1.2));
+                    const arm = pv(s * 0.1, 0.1, 0.08);
+                    into(arm, () => {
+                        sp(0.055, s * 0.03, 0, 0.07, dark);
+                        g.userData.claws.push(sp(0.04, s * 0.06, 0, 0.14, dark, 1, 0.7, 1.2));
+                    });
+                    jt(arm, 'y', 0.22 * s, s > 0 ? 0 : Math.PI, { f: 1.2 });   // 집게팔 벌렸다 오므렸다
                     for (let i = 0; i < 3; i++) {
-                        const leg = cy(0.01, 0.01, 0.12, s * 0.15, 0.05, -0.04 + i * 0.07, dark);
-                        leg.rotation.z = s * 1.1;
+                        const leg = limb(s * 0.12, 0.1, -0.04 + i * 0.07, 0.11, 0.01, 0.008, dark);
+                        leg.rotation.z = s * 1.0;
+                        jt(leg, 'x', 0.42, i * 1.05 + (s > 0 ? Math.PI : 0), { f: 1.6, gain: 1.8 });   // 마디마다 시차
                     }
                 }
-                eyes(0.12, 0.2, 0.05, 0.02);
+                eyes(0.16, 0.2, 0.05, 0.02);
                 break;
             }
-            case 'Spider': { // 다리 8개
-                sp(0.12, 0, 0.14, -0.05);
-                sp(0.08, 0, 0.12, 0.11, light);
+            case 'Spider': { // 관절 여덟 다리 — 좌우 교대 4각 보행
+                sp(0.12, 0, 0.2, -0.05);
+                sp(0.08, 0, 0.18, 0.11, light);
                 for (const s of [-1, 1]) for (let i = 0; i < 4; i++) {
-                    const leg = cy(0.01, 0.008, 0.18, s * 0.14, 0.1, -0.1 + i * 0.07, dark);
-                    leg.rotation.z = s * (1.15 - i * 0.08);
+                    const [hip, knee] = limb2(s * 0.09, 0.19, -0.1 + i * 0.07, 0.1, 0.09, 0.01, dark);
+                    hip.rotation.z = s * 1.05;
+                    jt(hip, 'x', 0.4, (i % 2 ? 0 : Math.PI) + (s > 0 ? Math.PI : 0), { f: 1.5, gain: 1.8 });
+                    jt(knee, 'z', -s * 0.5, (i % 2 ? 0 : Math.PI) + (s > 0 ? Math.PI : 0) + 0.9, { f: 1.5, gain: 1.8, abs: true });
                 }
-                for (const s of [-1, 1]) { sp(0.022, s * 0.035, 0.15, 0.18, new THREE.MeshBasicMaterial({ color: 0xff1744 })); sp(0.014, s * 0.075, 0.13, 0.17, new THREE.MeshBasicMaterial({ color: 0xff1744 })); }
+                for (const s of [-1, 1]) { sp(0.022, s * 0.035, 0.21, 0.18, new THREE.MeshBasicMaterial({ color: 0xff1744 })); sp(0.014, s * 0.075, 0.19, 0.17, new THREE.MeshBasicMaterial({ color: 0xff1744 })); }
                 break;
             }
-            case 'Panda': { // 흑백
+            case 'Panda': { // 흑백 + 관절 네 다리
                 const wht = M(0xf5f5f5), b = M(0x37474f);
-                sp(0.15, 0, 0.15, 0, wht);
-                sp(0.12, 0, 0.32, 0.04, wht);
-                for (const s of [-1, 1]) { sp(0.045, s * 0.1, 0.42, 0, b); sp(0.035, s * 0.055, 0.33, 0.13, b, 1, 1.3, 0.5); sp(0.05, s * 0.14, 0.14, 0.06, b); }
-                sp(0.022, 0, 0.29, 0.16, blk);
-                eyes(0.34, 0.15, 0.055, 0.018);
+                sp(0.15, 0, 0.23, 0, wht);
+                const neck = pv(0, 0.32, 0.02);
+                into(neck, () => {
+                    sp(0.12, 0, 0.08, 0.02, wht);
+                    for (const s of [-1, 1]) { sp(0.045, s * 0.1, 0.18, -0.02, b); sp(0.035, s * 0.055, 0.09, 0.11, b, 1, 1.3, 0.5); }
+                    sp(0.022, 0, 0.05, 0.14, blk);
+                    eyes(0.1, 0.13, 0.055, 0.018);
+                });
+                jt(neck, 'x', 0.15, 0.5, { f: 0.9, gain: 1.5 });
+                quad(0.095, 0.08, -0.1, 0.18, 0.1, 0.027, b, { amp: 0.4, lo: 0.07 });
                 break;
             }
-            case 'Griffin': { // 날개 + 부리
-                sp(0.13, 0, 0.15, -0.02, mat, 1, 1, 1.25);
-                sp(0.1, 0, 0.3, 0.1, light);
-                const beak = cn(0.03, 0.08, 0, 0.3, 0.2, M(0xffa726)); beak.rotation.x = Math.PI / 2;
+            case 'Griffin': { // 날개 + 부리 + 관절 네 다리
+                sp(0.13, 0, 0.24, -0.02, mat, 1, 1, 1.25);
+                const neck = pv(0, 0.3, 0.06);
+                into(neck, () => {
+                    sp(0.1, 0, 0.09, 0.04, light);
+                    const beak = cn(0.03, 0.08, 0, 0.09, 0.14, M(0xffa726)); beak.rotation.x = Math.PI / 2;
+                    eyes(0.13, 0.12);
+                });
+                jt(neck, 'x', 0.2, 0.7, { f: 1, gain: 1.6 });
                 g.userData.wings = [];
                 for (const s of [-1, 1]) {
-                    const wing = sp(0.11, s * 0.14, 0.26, -0.06, light, 0.25, 1, 0.8);
-                    wing.rotation.z = s * 0.5;
-                    wing.userData.s = s;
-                    g.userData.wings.push(wing);
+                    const sh = pv(s * 0.07, 0.3, -0.06);
+                    into(sh, () => sp(0.11, s * 0.07, -0.04, 0, light, 0.25, 1, 0.8));
+                    sh.rotation.z = s * 0.5;
+                    sh.userData.s = s;
+                    g.userData.wings.push(sh);         // 날갯짓은 update 의 wings 경로가 맡는다(어깨에서 회전)
                 }
-                eyes(0.34, 0.18);
+                quad(0.08, 0.09, -0.1, 0.19, 0.11, 0.019, mat, { amp: 0.4, lo: 0.07 });
                 break;
             }
-            case 'Unicorn': { // 뿔 + 갈기
-                sp(0.14, 0, 0.18, 0, mat, 1.05, 0.9, 1.3);
-                sp(0.09, 0, 0.37, 0.15);
-                cn(0.022, 0.13, 0, 0.5, 0.17, M(0xffd54f, { emissive: 0xffd54f, emissiveIntensity: 0.6 }));
-                for (let i = 0; i < 3; i++) sp(0.035, -0.01, 0.42 - i * 0.06, 0.04 - i * 0.03, M(0xba68c8));
-                for (const s of [-1, 1]) { cy(0.02, 0.02, 0.14, s * 0.08, 0.06, 0.08); cy(0.02, 0.02, 0.14, s * 0.08, 0.06, -0.1); }
-                eyes(0.4, 0.22, 0.045);
+            case 'Unicorn': { // 뿔 + 갈기 + 2단 네 다리
+                sp(0.14, 0, 0.28, 0, mat, 1.05, 0.9, 1.3);
+                const neck = pv(0, 0.34, 0.1);
+                into(neck, () => {
+                    sp(0.09, 0, 0.09, 0.05);
+                    cn(0.022, 0.13, 0, 0.22, 0.07, M(0xffd54f, { emissive: 0xffd54f, emissiveIntensity: 0.6 }));
+                    for (let i = 0; i < 3; i++) sp(0.035, -0.01, 0.14 - i * 0.06, -0.06 - i * 0.03, M(0xba68c8));
+                    eyes(0.12, 0.12, 0.045);
+                });
+                jt(neck, 'x', 0.2, 0.5, { f: 1, gain: 1.7 });              // 말 특유의 목 젓기
+                quad(0.085, 0.1, -0.11, 0.22, 0.12, 0.021, mat, { amp: 0.55, lo: 0.09 });
                 break;
             }
-            case 'Cerberus': { // 머리 셋
-                sp(0.15, 0, 0.15, -0.02, mat, 1.25, 0.95, 1.2);
+            case 'Cerberus': { // 관절 목 셋 + 네 다리
+                sp(0.15, 0, 0.24, -0.02, mat, 1.25, 0.95, 1.2);
                 g.userData.heads = [];
                 for (const dx of [-0.13, 0, 0.13]) {
-                    g.userData.heads.push(sp(0.08, dx, 0.32, 0.08 + (dx === 0 ? 0.04 : 0)));
-                    for (const s of [-1, 1]) cn(0.025, 0.05, dx + s * 0.05, 0.41, 0.05);
-                    for (const s of [-1, 1]) sp(0.018, dx + s * 0.035, 0.34, 0.15, new THREE.MeshBasicMaterial({ color: 0xff1744 }));
+                    const neck = pv(dx, 0.32, 0.04 + (dx === 0 ? 0.04 : 0));
+                    into(neck, () => {
+                        sp(0.08, 0, 0, 0.04);
+                        for (const s of [-1, 1]) cn(0.025, 0.05, s * 0.05, 0.09, 0.01);
+                        for (const s of [-1, 1]) sp(0.018, s * 0.035, 0.02, 0.11, new THREE.MeshBasicMaterial({ color: 0xff1744 }));
+                    });
+                    jt(neck, 'x', 0.22, dx * 8, { f: 1.1, gain: 1.6 });    // 머리 셋이 서로 시차를 두고
+                    jt(neck, 'y', 0.18, dx * 8 + 1.2, { f: 0.7 });
+                    g.userData.heads.push(neck);
                 }
+                quad(0.1, 0.09, -0.11, 0.19, 0.11, 0.024, dark, { amp: 0.48, lo: 0.08 });
                 break;
             }
-            case 'Kitsune': { // 꼬리 셋 여우
-                sp(0.12, 0, 0.13, 0, mat, 1, 0.95, 1.25);
-                sp(0.1, 0, 0.28, 0.1);
-                cn(0.03, 0.07, 0, 0.26, 0.2, M(0xffffff));
-                for (const s of [-1, 1]) cn(0.045, 0.1, s * 0.07, 0.4, 0.06);
+            case 'Kitsune': { // 꼬리 셋 여우 + 관절 네 다리
+                sp(0.12, 0, 0.2, 0, mat, 1, 0.95, 1.25);
+                const neck = pv(0, 0.25, 0.06);
+                into(neck, () => {
+                    sp(0.1, 0, 0.08, 0.04);
+                    cn(0.03, 0.07, 0, 0.06, 0.14, M(0xffffff));
+                    for (const s of [-1, 1]) cn(0.045, 0.1, s * 0.07, 0.2, 0);
+                    eyes(0.1, 0.12);
+                });
+                jt(neck, 'x', 0.18, 0.6, { f: 1, gain: 1.6 });
                 g.userData.tails = [];
                 for (const dx of [-0.09, 0, 0.09]) {
-                    const tail = cn(0.045, 0.2, dx, 0.24, -0.18, light);
-                    tail.rotation.x = -0.9 - Math.abs(dx);
-                    g.userData.tails.push(tail);
+                    const tp = pv(dx, 0.26, -0.1);
+                    into(tp, () => { const t = cn(0.045, 0.2, 0, 0.1, 0, light); t.rotation.x = Math.PI; });
+                    tp.rotation.x = -0.9 - Math.abs(dx);
+                    g.userData.tails.push(tp);        // 꼬리 물결은 update 의 tails 경로(뿌리에서 회전)
                 }
-                eyes(0.3, 0.18);
+                quad(0.075, 0.09, -0.1, 0.15, 0.09, 0.019, mat, { amp: 0.5, lo: 0.06 });
                 break;
             }
-            case 'Serpent': { // 또아리 + 든 머리
+            case 'Serpent': { // 또아리 + 관절 목 사슬 + 혀
                 sp(0.11, 0, 0.07, 0, mat, 1.5, 0.6, 1.5);
                 sp(0.09, 0, 0.16, -0.02, mat, 1.25, 0.55, 1.25);
-                cy(0.045, 0.055, 0.16, 0.02, 0.28, 0.06);
-                sp(0.07, 0.02, 0.4, 0.1);
-                bx(0.015, 0.008, 0.06, 0.02, 0.38, 0.19, new THREE.MeshBasicMaterial({ color: 0xff5252 }));
-                eyes(0.43, 0.15, 0.04, 0.02);
+                const n1 = pv(0, 0.2, 0);
+                into(n1, () => {
+                    cy(0.045, 0.055, 0.16, 0.02, 0.08, 0.06);
+                    const n2 = pv(0.02, 0.16, 0.06);
+                    into(n2, () => {
+                        sp(0.07, 0, 0.04, 0.04);
+                        const tongue = bx(0.015, 0.008, 0.06, 0, 0.02, 0.13, new THREE.MeshBasicMaterial({ color: 0xff5252 }));
+                        jt(tongue, 'x', 0.5, 0, { f: 3.4 });               // 혀 날름
+                        eyes(0.07, 0.09, 0.04, 0.02);
+                    });
+                    jt(n2, 'z', 0.3, 1.3, { f: 1.2, gain: 1.6 });
+                    jt(n2, 'x', 0.16, 0.4, { f: 0.9, gain: 1.4 });
+                });
+                jt(n1, 'z', 0.22, 0, { f: 1.2, gain: 1.7 });               // 몸을 S 자로 흔든다(이동 중 더 크게)
                 break;
             }
-            case 'Treant': { // 나무 정령
+            case 'Treant': { // 나무 정령 — 관절 팔 + 뿌리 다리
                 const wood = M(0x6d4c41);
-                cy(0.07, 0.1, 0.3, 0, 0.15, 0, wood);
-                sp(0.14, 0, 0.38, 0, mat);
-                sp(0.08, 0.12, 0.32, 0.03, mat);
-                for (const s of [-1, 1]) { const arm = cy(0.02, 0.025, 0.16, s * 0.11, 0.2, 0.02, wood); arm.rotation.z = s * 0.9; }
-                eyes(0.18, 0.09, 0.045);
-                break;
-            }
-            case 'Enchanted Elk': { // 가지뿔
-                sp(0.13, 0, 0.2, 0, mat, 1, 0.85, 1.3);
-                sp(0.08, 0, 0.37, 0.14);
+                cy(0.07, 0.1, 0.3, 0, 0.2, 0, wood);
+                const head = pv(0, 0.36, 0);
+                into(head, () => { sp(0.14, 0, 0.07, 0, mat); sp(0.08, 0.12, 0.01, 0.03, mat); eyes(0.03, 0.09, 0.045); });
+                jt(head, 'z', 0.1, 0, { f: 0.8 });                         // 우듬지처럼 천천히 흔들림
                 for (const s of [-1, 1]) {
-                    const a1 = cy(0.012, 0.012, 0.16, s * 0.06, 0.5, 0.1, M(0xfff59d, { emissive: 0xfff59d, emissiveIntensity: 0.5 })); a1.rotation.z = s * 0.5;
-                    const a2 = cy(0.01, 0.01, 0.09, s * 0.11, 0.55, 0.1, M(0xfff59d, { emissive: 0xfff59d, emissiveIntensity: 0.5 })); a2.rotation.z = s * 1.2;
+                    const sh = pv(s * 0.06, 0.28, 0.02);
+                    into(sh, () => cy(0.02, 0.025, 0.16, 0, -0.08, 0, wood));
+                    sh.rotation.z = s * 2.05;                              // 위로 뻗은 가지 팔
+                    jt(sh, 'x', 0.24, s > 0 ? 0 : Math.PI, { f: 0.9, gain: 1.6 });
                 }
-                for (const s of [-1, 1]) { cy(0.018, 0.018, 0.16, s * 0.07, 0.07, 0.08); cy(0.018, 0.018, 0.16, s * 0.07, 0.07, -0.09); }
-                eyes(0.4, 0.2, 0.04);
+                for (const s of [-1, 1]) jt(limb(s * 0.05, 0.08, 0, 0.09, 0.03, 0.022, wood), 'x', 0.34, s > 0 ? 0 : Math.PI, { gain: 1.9 });
                 break;
             }
-            case 'Electry': { // 전기 구체
+            case 'Enchanted Elk': { // 가지뿔 + 관절 목·네 다리
+                sp(0.13, 0, 0.28, 0, mat, 1, 0.85, 1.3);
+                const glow = M(0xfff59d, { emissive: 0xfff59d, emissiveIntensity: 0.5 });
+                const neck = pv(0, 0.34, 0.08);
+                into(neck, () => {
+                    sp(0.08, 0, 0.09, 0.06);
+                    for (const s of [-1, 1]) {
+                        const a1 = cy(0.012, 0.012, 0.16, s * 0.06, 0.22, 0.02, glow); a1.rotation.z = s * 0.5;
+                        const a2 = cy(0.01, 0.01, 0.09, s * 0.11, 0.27, 0.02, glow); a2.rotation.z = s * 1.2;
+                    }
+                    eyes(0.12, 0.12, 0.04);
+                });
+                jt(neck, 'x', 0.2, 0.4, { f: 1, gain: 1.7 });
+                quad(0.08, 0.09, -0.1, 0.22, 0.12, 0.019, mat, { amp: 0.56, lo: 0.09 });
+                break;
+            }
+            case 'Electry': { // 전기 구체 — 코일이 등속으로 돈다
                 sp(0.13, 0, 0.2, 0, M(c, { emissive: c, emissiveIntensity: 0.8 }));
-                for (let i = 0; i < 4; i++) {
-                    const bolt = bx(0.02, 0.12, 0.02, Math.cos(i * 1.57) * 0.17, 0.2 + Math.sin(i * 1.57) * 0.17, 0, M(0xffff00, { emissive: 0xffff00, emissiveIntensity: 1 }));
-                    bolt.rotation.z = i * 0.8;
-                }
+                const ring = pv(0, 0.2, 0);
+                into(ring, () => {
+                    for (let i = 0; i < 4; i++) {
+                        const bolt = bx(0.02, 0.12, 0.02, Math.cos(i * 1.57) * 0.17, Math.sin(i * 1.57) * 0.17, 0, M(0xffff00, { emissive: 0xffff00, emissiveIntensity: 1 }));
+                        bolt.rotation.z = i * 0.8;
+                        jt(bolt, 'x', 0.7, i * 1.6, { f: 2.4, gain: 1.7 });   // 개별 방전 떨림(이동 중 격해진다)
+                    }
+                });
+                jt(ring, 'z', 0, 0, { spin: true, f: 0.25 });              // 코일 전체가 등속 회전
+                jt(ring, 'y', 0, 0, { spin: true, f: 0.13 });
                 eyes(0.22, 0.12);
                 break;
             }
-            case 'Genie': { // 연기 하체 + 터번
-                cn(0.02, 0.18, 0, 0.09, 0, M(new THREE.Color(c).offsetHSL(0, 0, -0.1), { transparent: true, opacity: 0.7 }));
-                cy(0.09, 0.03, 0.14, 0, 0.22, 0, M(c, { transparent: true, opacity: 0.85 }));
+            case 'Genie': { // 연기 하체 + 터번 + 관절 팔
+                const smoke = pv(0, 0.18, 0);
+                into(smoke, () => {
+                    cn(0.02, 0.18, 0, -0.09, 0, M(new THREE.Color(c).offsetHSL(0, 0, -0.1), { transparent: true, opacity: 0.7 }));
+                    cy(0.09, 0.03, 0.14, 0, 0.04, 0, M(c, { transparent: true, opacity: 0.85 }));
+                });
+                jt(smoke, 'z', 0.2, 0, { f: 0.9, gain: 1.6 });             // 연기 하체가 나부낀다
+                jt(smoke, 'x', 0.12, 1.1, { f: 0.7, gain: 1.8 });
                 sp(0.11, 0, 0.36, 0, mat);
-                sp(0.09, 0, 0.5, 0, light);
-                sp(0.03, 0, 0.56, 0.07, M(0xffd54f, { emissive: 0xffd54f, emissiveIntensity: 0.6 }));
-                for (const s of [-1, 1]) sp(0.04, s * 0.12, 0.36, 0.04);
-                eyes(0.5, 0.08);
+                const head = pv(0, 0.44, 0);
+                into(head, () => {
+                    sp(0.09, 0, 0.06, 0, light);
+                    sp(0.03, 0, 0.12, 0.07, M(0xffd54f, { emissive: 0xffd54f, emissiveIntensity: 0.6 }));
+                    eyes(0.06, 0.08);
+                });
+                jt(head, 'y', 0.24, 0, { f: 0.8 });
+                for (const s of [-1, 1]) {
+                    const sh = pv(s * 0.09, 0.38, 0.01);
+                    into(sh, () => { cy(0.022, 0.02, 0.1, 0, -0.05, 0, mat); sp(0.04, 0, -0.11, 0.03); });
+                    sh.rotation.z = s * 0.5;
+                    jt(sh, 'x', 0.3, s > 0 ? 0 : Math.PI, { f: 1, gain: 1.5 });   // 팔짱 대신 느긋한 팔 흔들기
+                }
                 break;
             }
-            case 'Baby Dragon': { // 날개 + 뿔 + 꼬리
-                sp(0.13, 0, 0.15, 0, mat, 1, 0.95, 1.2);
-                sp(0.1, 0, 0.32, 0.09);
-                sp(0.05, 0, 0.29, 0.18, light);
-                for (const s of [-1, 1]) cn(0.02, 0.06, s * 0.05, 0.42, 0.04, M(0xffffff));
+            case 'Baby Dragon': { // 날개 + 뿔 + 관절 목·두 다리·꼬리
+                sp(0.13, 0, 0.2, 0, mat, 1, 0.95, 1.2);
+                const neck = pv(0, 0.26, 0.06);
+                into(neck, () => {
+                    sp(0.1, 0, 0.11, 0.03);
+                    sp(0.05, 0, 0.08, 0.12, light);
+                    for (const s of [-1, 1]) cn(0.02, 0.06, s * 0.05, 0.21, -0.02, M(0xffffff));
+                    eyes(0.14, 0.11);
+                });
+                jt(neck, 'x', 0.24, 0.5, { f: 1, gain: 1.6 });
                 g.userData.wings = [];
                 for (const s of [-1, 1]) {
-                    const wing = sp(0.1, s * 0.15, 0.24, -0.05, dark, 0.2, 1, 0.7);
-                    wing.rotation.z = s * 0.6;
-                    wing.userData.s = s;
-                    g.userData.wings.push(wing);
+                    const sh = pv(s * 0.08, 0.28, -0.05);
+                    into(sh, () => sp(0.1, s * 0.07, -0.04, 0, dark, 0.2, 1, 0.7));
+                    sh.rotation.z = s * 0.6;
+                    sh.userData.s = s;
+                    g.userData.wings.push(sh);
                 }
-                const tail = cn(0.035, 0.16, 0, 0.12, -0.2, mat); tail.rotation.x = -2.1;
+                const tail = pv(0, 0.19, -0.12);
+                into(tail, () => { const t = cn(0.035, 0.16, 0, 0.08, 0, mat); t.rotation.x = Math.PI; });
+                tail.rotation.x = -0.9;
                 g.userData.tail = tail;
-                eyes(0.35, 0.17);
+                let i = 0;
+                for (const s of [-1, 1]) jt(limb(s * 0.06, 0.13, 0.02, 0.13, 0.022, 0.016, dark), 'x', 0.46, (i++) * Math.PI, { gain: 1.8 });
                 break;
             }
-            default:
-                sp(0.14, 0, 0.15, 0);
-                eyes(0.2, 0.12);
+            default: {
+                sp(0.14, 0, 0.19, 0);
+                eyes(0.24, 0.12);
+                for (let i = 0; i < 2; i++) jt(limb((i ? 1 : -1) * 0.06, 0.1, 0, 0.1, 0.016, 0.013, dark), 'x', 0.5, i * Math.PI, { gain: 1.9 });
+            }
         }
+        g.userData.joints = J;
         return g;
     },
 
@@ -6117,6 +6323,11 @@ const Scene3D = {
             // 등급이 높을수록 큼직하게
             mesh.scale.setScalar(0.85 + RARITIES.indexOf(p.rarity) * 0.14);
             g.add(mesh);
+            // 🚨 파츠 핸들(관절·날개·꼬리·집게…)을 **래퍼 그룹으로 올린다**. 이걸 안 해서
+            //    update 의 `ud.wings`/`ud.tail`/`ud.claws`… 가 전부 undefined 였고, 펫 파츠 애니가
+            //    코드에만 있고 화면에서는 **한 프레임도 돈 적이 없었다**(사용자가 본 '통짜 펫'의 정체).
+            //    탈것은 mountG 에서 같은 값을 올려 준다 — 펫만 빠져 있었다.
+            Object.assign(g.userData, mesh.userData);
             g.rotation.y = 0.55; // 적 방향 3/4
             // 펫은 전부 **카메라 쪽(z+) 앞줄**에 부채꼴로 세운다 — 카메라가 (0.15, 3.7, 8.2)에서 내려다보므로
             // z가 0 이하인 자리는 영웅 몸통 뒤에 그대로 가린다(기존 2번 자리 z=-0.65가 사용자가 지적한 그 자리).
@@ -10411,6 +10622,15 @@ const Scene3D = {
             if (ud.sting) ud.sting.rotation.x = 2.5 + Math.sin(t * 3.2) * 0.55; // 꼬리침 크게 아치
             if (ud.heads) ud.heads.forEach((h, j) => h.position.y = 0.32 + Math.sin(t * 5 + j * 2.1) * 0.05);
             if (ud.ghostMat) ud.ghostMat.opacity = 0.4 + Math.sin(t * 2.5) * 0.2;
+            // 관절 리그 (pet-articulated-joints): 종별 리그가 심어 둔 피벗을 한 루프로 돌린다.
+            // 위상은 몸통 바운스와 같은 시계(t)·같은 주파수(mo.freq)를 쓰므로 걸음과 바운스가 안 어긋난다.
+            // gain 은 **이동 중에만** 진폭을 키운다 — 대기에서는 같은 리그가 잔잔한 호흡으로 읽힌다.
+            if (ud.joints) for (const j of ud.joints) {
+                const a = t * mo.freq * j.f + j.ph;
+                if (j.spin) { j.o.rotation[j.axis] = j.base + a; continue; }
+                const w = 1 + (j.gain - 1) * (this.walking ? 1 : 0);
+                j.o.rotation[j.axis] = j.base + (j.abs ? Math.abs(Math.sin(a)) : Math.sin(a)) * j.amp * w;
+            }
         });
         // 애니메이션 큐
         for (let i = this.anims.length - 1; i >= 0; i--) {
