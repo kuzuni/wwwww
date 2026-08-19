@@ -53,6 +53,59 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
         const leg = R.legs[0].knee;
         const box = new THREE.Box3().setFromObject(leg);
+
+        // ── ②의 **월드 좌표 실측** (2026-08-19 신설, slug `boot-profile-threshold`) ─────────────
+        // 🚨 화소 판정만으로는 ②를 잴 수 없다 — 임계가 낡은 게 아니라 **자가 원리적으로 틀렸다.**
+        //    아래 화소 스캔의 카메라는 시선축만 수평일 뿐 **다리 bbox 중심 높이**에 있다. 밑창은 그보다
+        //    0.35 쯤 아래에 있으므로, 수평 시선이어도 원근 때문에 **평평한 원판의 가까운 테두리가 가장
+        //    낮게** 맺힌다. 그래서 '최저행 ±1px' 창은 밑창의 길이가 아니라 **그 근접 테두리 호**를 잰다 —
+        //    실측 윤곽(최저행부터 위로): 31px → 58 → 126 → 143 … 17행 위에서야 169px(발길이). 밑창이
+        //    완벽히 평평해도 이 모양이 나오므로 화소 ②는 임계를 어떻게 잡아도 참을 못 말한다.
+        //    (형상 자체는 평평한 게 확실하다 — `prochar.js` 의 sole·heel 은 둘 다 축이 수직인
+        //     CylinderGeometry 라 밑면이 수평면이고, 바닥이 −0.3676/−0.3675 로 같은 높이다.)
+        // → 투영을 안 거치는 자로 바꾼다: 발 밑에서 **위로 레이캐스트**해 그 자리의 밑면 높이를 읽고,
+        //    최저 높이에서 eps 안에 드는 구간의 길이 ÷ 밑면이 존재하는 구간의 길이.
+        //    eps 는 발길이의 1%(화소 자의 ±1px/169px ≈ 0.6% 에 테셀레이션 여유를 더한 값).
+        const ground = (() => {
+            const fwd0 = new THREE.Vector3();
+            Scene3D.heroG.getWorldDirection(fwd0);          // 발의 긴 축 = 영웅 정면
+            fwd0.y = 0; fwd0.normalize();
+            const c0 = box.getCenter(new THREE.Vector3());
+            const L = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) * 1.6;
+            const rc = new THREE.Raycaster(); rc.far = 3;
+            const N = 400, hits = [];
+            for (let i = 0; i < N; i++) {
+                const t = (i / (N - 1) - 0.5) * L;
+                const p = c0.clone().addScaledVector(fwd0, t);
+                rc.set(new THREE.Vector3(p.x, box.min.y - 0.2, p.z), new THREE.Vector3(0, 1, 0));
+                const h2 = rc.intersectObject(leg, true);
+                hits.push({ t, y: h2.length ? h2[0].point.y : null });
+            }
+            const on = hits.filter(h => h.y != null);
+            if (!on.length) return null;
+            const minY = Math.min(...on.map(h => h.y));
+            const step = L / (N - 1);
+            const footLenW = (Math.max(...on.map(h => h.t)) - Math.min(...on.map(h => h.t))) + step;
+            const eps = footLenW * 0.01;
+            // ⚠️ 접지 길이를 **양 끝점 간격**으로 재면 안 된다 — 앞꿈치 끝과 뒤꿈치 끝만 닿는 로커
+            //    밑창(=지적이 말한 '접지가 점')이 100% 로 나온다. 실제로 sole·heel 은 분리돼 있고
+            //    그 사이는 아치라 닿지 않는다. **닿은 표본 수 × 간격**(덮은 길이)으로 재고,
+            //    '한 장의 슬래브인가 두 점인가'는 **최장 연속 구간**으로 따로 본다.
+            const flatMask = on.map(h => h.y <= minY + eps);
+            const contactW = flatMask.filter(Boolean).length * step;
+            let run = 0, runBest = 0;
+            for (const f of flatMask) { run = f ? run + 1 : 0; if (run > runBest) runBest = run; }
+            const runW = runBest * step;
+            return {
+                footLenW: +footLenW.toFixed(4), contactW: +contactW.toFixed(4),
+                runW: +runW.toFixed(4), runFrac: footLenW ? +(runW / footLenW).toFixed(3) : null,
+                flatnessW: footLenW ? +(contactW / footLenW).toFixed(3) : null,
+                eps: +eps.toFixed(4), minY: +minY.toFixed(4),
+                // 밑면 높이의 최저~최저+eps 밖 구간이 얼마나 솟았는지(참고): 접지 구간 밖 평균 높이차
+                riseOut: +( (on.filter(h => h.y > minY + eps).reduce((a, h) => a + (h.y - minY), 0) /
+                             Math.max(1, on.filter(h => h.y > minY + eps).length)) ).toFixed(4),
+            };
+        })();
         const c = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
         // 정측면(yaw 90°) — 발가락·굽은 측면에서만 판독된다
@@ -128,7 +181,7 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
             flatness: footLen ? +(contactLen / footLen).toFixed(3) : null,
             ankleW, ankleRow, shinW,
             ankleCinch: shinW ? +(1 - ankleW / shinW).toFixed(3) : null,
-            heelVerticalPx: vBest, toeSide: toeRight ? 'right' : 'left',
+            heelVerticalPx: vBest, toeSide: toeRight ? 'right' : 'left', ground,
         };
     });
 
@@ -136,8 +189,16 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     console.log('canvas', JSON.stringify(out.px), '· 다리 행범위', JSON.stringify(out.legRows), '· 발끝 방향', out.toeSide);
     console.log('① 발목 조임   :', `발목 ${out.ankleW}px / 정강이 ${out.shinW}px → ${(out.ankleCinch * 100).toFixed(1)}% 조임`,
         out.ankleCinch >= 0.12 ? '✅ 잘록함 있음' : '❌ 잘록함 없음(둥근 포드)');
-    console.log('② 접지선 평탄도:', `${out.contactLen}px / 발길이 ${out.footLen}px = ${out.flatness}`,
-        out.flatness >= 0.35 ? '✅ 슬래브로 읽힘' : '❌ 둥근 바닥(접지가 선이 아니라 점)');
+    // ② 는 **월드 실측**으로 판정한다. 화소값은 참고로만 남긴다 — 카메라가 밑창보다 위에 있는 한
+    //    화소 최저행은 평평한 원판의 근접 테두리 호를 재므로, 임계를 어떻게 잡아도 참을 못 말한다.
+    const G = out.ground;
+    console.log('② 접지선 평탄도(월드 실측):', G ? `접지 ${G.contactW} / 발길이 ${G.footLenW} = ${G.flatnessW}` +
+        ` (eps ${G.eps} = 발길이 1% · 접지 밖 평균 융기 ${G.riseOut})` : '측정 실패(레이가 발을 못 맞혔다)',
+        G && G.flatnessW >= 0.35 ? '✅ 슬래브로 읽힘' : '❌ 둥근 바닥(접지가 선이 아니라 점)');
+    if (G) console.log('   최장 연속 접지:', `${G.runW} / 발길이 ${G.footLenW} = ${G.runFrac}`,
+        G.runFrac >= 0.20 ? '✅ 한 장의 슬래브가 닿는다' : '❌ 끝점만 닿는 로커(점 접지)');
+    console.log('   (참고) 화소 스캔값:', `${out.contactLen}px / 발길이 ${out.footLen}px = ${out.flatness}`,
+        '— 판정에 쓰지 않는다(위 주석: 근접 테두리 호를 잰다)');
     console.log('③ 뒤꿈치 수직면:', out.heelVerticalPx + 'px',
         out.heelVerticalPx >= 6 ? '✅ 수직 뒷면 있음' : '❌ 뒤가 둥글게 말림');
     console.log(errs.length ? 'ERRORS: ' + errs.join(' | ') : '(no console errors)');
