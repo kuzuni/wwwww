@@ -3,7 +3,9 @@
 // 여기서는 **실제 설정값**으로만 돌린다.
 //  ① 기본값(유지 시대 미체크·필터 OFF·정지 미설정·망치 N) → 손대지 않아도 망치 N개를 다 쓰고 정지,
 //     그 사이 비교 팝업이 한 번도 뜨지 않는다(= 진짜 '자동')
-//  ② 기본값에서 장착품보다 강한 장비가 나오면 그냥 팔지 않고 자동 장착된다 (업그레이드 유실 금지)
+//  ② 기본값에서도 **자동 장착은 절대 일어나지 않는다** — 자동 경로로 나온 장비는 전부 판매된다
+//     (사용자 지시 2026-08-20 autoforge-no-auto-equip: "자동제련 할 때 자동장착 되면 안 됨. 절대로."
+//      → 종전의 '업그레이드면 자동 장착' 계약을 **뒤집은** 자리다. 장착은 비교 팝업 [장착]뿐이다.)
 //  ③ 유지 시대 + '목표를 찾으면 정지'(stopOnTarget) ON → 목표가 뽑히는 순간 비교 팝업이 뜨고 거기서 멈춘다
 //  ④ 유지 시대를 켠 상태의 탈락품은 (자동 장착이 아니라) 판매된다 — 사용자 지시 우선
 // 사용: node probe-autoforge-default.js
@@ -68,20 +70,23 @@ async function until(page, fnSrc, ms = 30000) {
     ok(!a2.seq, '배치 종료 후에도 시퀀스가 남아 있다');
     console.log(`① 기본 설정 무개입 — 해머 ${a.h0} → ${a2.h} (소진 정지), 망치질 ${a2.strikes}회(사이클 ${N}개씩), 비교 팝업 ${a2.opens}회, 정지=${!a2.on}`);
 
-    // ---- ② 기본 설정에서 업그레이드는 자동 장착 ----
+    // ---- ② 기본 설정에서도 자동 장착이 **일어나지 않는다** (autoforge-no-auto-equip) ----
+    // 빈 슬롯(무기)을 비워 두고 돌린다 — 종전 계약이라면 '장착품보다 강하니' 반드시 자동 장착되던
+    // 조건이다. 그 자리가 비어 있어야 자동 장착이 정말 사라졌다고 말할 수 있다(가장 센 음성 조건).
     const b = await page.evaluate(async () => {
         S.equipment.weapon = null;
         Combat.recalcHero();
         S.autoForge.hammersPerBatch = 3;
         S.hammers = 9;                          // 소진 정지 사양이라 예산을 작게 (3개 사이클 ×3)
         S.autoForgeOn = false; UI._autoSeq = null; UI.clearPendingCraft();
+        const c0 = S.coins;
         UI.onToggleAutoForge();
         for (let i = 0; i < 800 && S.autoForgeOn; i++) await new Promise(r => setTimeout(r, 50));
-        const filled = Object.keys(S.equipment).filter(k => S.equipment[k]).length;
-        return { filled, weapon: !!S.equipment.weapon };
+        return { weapon: !!S.equipment.weapon, spent: 9 - S.hammers, coinGain: S.coins - c0 };
     });
-    ok(b.filled > 0, '기본 설정 배치를 돌렸는데 장착된 장비가 하나도 없다 (업그레이드를 전부 팔아버렸다)');
-    console.log(`② 기본 설정 자동 장착 — 배치 후 장착 슬롯 ${b.filled}개 (무기 ${b.weapon})`);
+    ok(!b.weapon, `자동 제련이 빈 무기 슬롯에 장비를 **자동 장착**했다 — 사용자 지시상 절대 금지 (무기 ${b.weapon})`);
+    ok(b.coinGain > 0, `자동 장착을 없앴으면 뽑힌 장비는 전부 판매돼 코인이 늘어야 한다 (증가 ${b.coinGain})`);
+    console.log(`② 자동 장착 없음 — 망치 ${b.spent}개 소모 · 무기 슬롯 비어 있음(${b.weapon}) · 판매 코인 +${b.coinGain}`);
 
     // ---- ②-b 사용자 재현(autoforge-show-all-cards 재지적 2026-08-18 + 3차 2026-08-19): 유지 시대를 켜
     //      목표가 족족 뽑히면 **자동 장착하지 말고 비교 팝업으로 사용자 선택을 받아야 한다**("해당되면

@@ -1478,7 +1478,8 @@ const UI = {
             this.clearPendingCraft();
             const r = this.autoDispose(held);
             // 처리 토스트 생략(autoforge-toast-suppress) — 판매 코인 연출(coinBurst)만 남긴다.
-            if (!r.equipped) this.coinBurst(r.gained);
+            // 자동 경로는 이제 **항상 판매**라 조건이 없다(autoforge-no-auto-equip 으로 자동 장착 삭제).
+            this.coinBurst(r.gained);
             this.renderTopBar();
             this.renderEquipSheet();
         }
@@ -1529,8 +1530,8 @@ const UI = {
                 if (Forge.autoForgeConfig().stopOnTarget && this._autoSeq) this._autoSeq.stopAfterPick = true;
                 this.queueAutoMatch(it);               // saveGame 포함
             } else {
-                const r = this.autoDispose(it);
-                if (!r.equipped) { gained += r.gained || 0; sold++; }
+                const r = this.autoDispose(it);   // 항상 판매 — 자동 장착은 삭제됐다
+                gained += r.gained || 0; sold++;
             }
         }
         // 코인 연출은 배치당 한 번으로 합친다 — 장당 터뜨리면 10장에서 화면이 코인으로 덮인다.
@@ -1541,15 +1542,13 @@ const UI = {
         saveGame();
         return batch.length;
     },
-    // '목표 아님'으로 판정된 장비의 처리. 반환은 Forge.autoResolve와 같은 { equipped, gained }.
-    // 유지 시대·필터를 하나라도 켜 뒀으면 그건 명시적 의사표시라 탈락품을 그대로 판매한다
-    // (원시 시대만 유지하라고 해 놓고 중세 장비를 자동 장착하면 지시를 어기는 것).
-    // 아무것도 안 켠 기본 설정에서는 목표라는 개념이 없으므로 오토포지 표준 판정
-    // (Forge.autoResolve — 장착품보다 강하면 장착, 아니면 판매)에 맡긴다. 이렇게 해야
-    // 기본 설정에서도 망치 예산을 끝까지 소화하면서 업그레이드를 그냥 팔아버리지 않는다.
+    // '목표 아님'으로 판정된 장비의 처리 = **판매**. 반환은 Forge.autoResolve와 같은 { equipped, gained }.
+    // 종전엔 목표 설정 여부로 두 갈래였다 — 목표가 있으면 판매, 없으면 `Forge.autoResolve` 의
+    // '장착품보다 강하면 자동 장착'에 맡겼다. **그 자동 장착이 통째로 삭제되면서(사용자 지시
+    // 2026-08-20 autoforge-no-auto-equip: "절대로") 두 갈래가 같은 동작이 되어 하나로 합쳤다.**
+    // 자동 경로에서 장착이 일어나는 자리는 이제 없다 — 장착은 비교 팝업 [장착]뿐이다.
     autoDispose(item) {
-        if (Forge.hasAutoTarget()) return { equipped: false, gained: Forge.sell(item) };
-        return Forge.autoResolve(item);
+        return Forge.autoResolve(item);   // 항상 { equipped: false, gained: 판매액 }
     },
     // 모루 위에 뜨는 결과 카드 한 벌 — 탈락 카드(코인으로 빨려 들어감)와 리빌 카드(떠올라 머무름)가
     // 같은 몸통·같은 좌표계를 쓴다. 궤적만 css 클래스로 갈린다.
