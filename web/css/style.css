@@ -7357,9 +7357,16 @@ body {
         linear-gradient(180deg, rgba(255,255,255,.14) 0 1px, rgba(255,255,255,0) 1px),
         linear-gradient(180deg, rgba(16,19,26,.62) 0, rgba(16,19,26,.74) 100%);
     box-shadow: inset 0 -.06rem .12rem rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.05);
+    /* 상속 잉크도 같이 뒤집는다 — 밝은-스킨 블록의 `#chat-preview { color: #1b1b1b }`(같은 1-0-0,
+       위쪽)이 남아 있어서, 이 띠에 앞으로 붙는 글자가 자기 색을 안 들고 오면 다시 검정이 된다. */
+    color: #eef1f5;
 }
-.chat-preview-name { color: #eef1f5; text-shadow: 0 1px 1px rgba(0,0,0,.5); }
-.chat-preview-msg { color: #aab3c0; }
+/* 🚨 두 줄 다 **`#chat-preview` 한정자를 붙여** 쓴다(특정도 1-1-0). 클래스만(0-1-0) 쓰면 위쪽
+   밝은-스킨 블록의 `#chat-preview .chat-preview-msg`(1-1-0)에 **소스 순서와 무관하게 밀려**
+   메시지 줄이 어두운 바 위에 검정으로 남는다(대비 1.12:1 = 실질 안 보임, `chatprev-msg-invisible`).
+   닉네임은 경쟁 규칙에 ID가 없어 우연히 멀쩡했을 뿐이라, 같은 함정을 막게 짝을 맞춰 올린다. */
+#chat-preview .chat-preview-name { color: #eef1f5; text-shadow: 0 1px 1px rgba(0,0,0,.5); }
+#chat-preview .chat-preview-msg { color: #aab3c0; }
 /* ② 탈것 셀 — 다른 7칸과 같은 광택 문법(색·크기 불변, 층만) */
 /* 🚨 하늘색 바탕은 위 728행 규칙이 background: **단축**의 그라디언트 층으로 갖고 있다 — 여기서
    background-image 를 다시 쓰면 그 층이 통째로 사라져 셀이 흰 시트색이 된다(probe-main-px
