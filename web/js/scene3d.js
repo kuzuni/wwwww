@@ -6442,6 +6442,13 @@ const Scene3D = {
             //    위에까지 그대로 얹혔고, 비평가 2인이 공통으로 그걸 짚었다. 변종표는 `VEST_VARIANT`.
             const pz = o.frontZ !== undefined ? o.frontZ : 0.155;
             const vv = this.vestVariant(o.age);
+            // 🚨 **이 좌표계에서 가슴은 y ≈ 0.78 이고 허리띠는 y ≈ 0.56 이다 — 헷갈리면 조용히 망한다.**
+            //    기존 전술 파우치가 0.56 에 있는 건 **파우치가 벨트에 매달린 물건이라 맞는 것**이지
+            //    "가슴 높이가 0.56"이라는 뜻이 아니다(`addDivineCross` 의 기본 crossY 0.78 이 가슴이다).
+            //    초판이 이걸 착각해 사슬 고리·엄니·놋단추·십자를 전부 0.50~0.63 에 깔았고, 그래서
+            //    비평가 2인이 나란히 "사슬이 **복부 우하단** 한 뭉치뿐" · "중앙 부속이 **배의 닻**으로
+            //    읽힌다"고 적었다 — 조형이 틀린 게 아니라 **높이가 한 뼘 낮았던 것**이다.
+            //    가슴에 붙일 것은 0.72~0.86, 벨트에 매달 것만 0.52~0.63.
             // ⚠️ 천상은 alloy 계열이라 mats.dark 가 짙은 합금 회색이다 — 성광 조끼에 회색 파우치가
             //    그대로 남아 '재탕 노출'로 읽혔다(1차 채점 B). 다크 앵커는 유지하되 금의 어두운 단으로.
             const pm = mats ? (o.age === 'divine' ? this.tintOf(mats.body, -0.22) : mats.dark)
@@ -6454,14 +6461,14 @@ const Scene3D = {
                 const bone = this.tintOf(mats ? mats.body : pm, 0.30);
                 for (const s of [-1, 1]) {
                     const tusk = new THREE.Mesh(new THREE.CylinderGeometry(0.010, 0.026, 0.135, 6), bone);
-                    tusk.position.set(s * 0.085, 0.575, pz + 0.002);
+                    tusk.position.set(s * 0.085, 0.782, pz + 0.002);
                     tusk.rotation.z = s * 0.62;         // 아래로 벌어지게 — 나란히 세우면 '단추 두 개'다
                     tusk.rotation.x = -0.22;
                     g.add(tusk);
                 }
                 for (const s of [-1, 1]) {              // X자 생가죽 끈 — 조끼를 묶고 있다는 신호
                     const cord = new THREE.Mesh(new THREE.BoxGeometry(0.017, 0.20, 0.022), pm);
-                    cord.position.set(0, 0.60, pz - 0.006);
+                    cord.position.set(0, 0.792, pz - 0.006);
                     cord.rotation.z = s * 0.72;
                     g.add(cord);
                 }
@@ -6471,7 +6478,7 @@ const Scene3D = {
                 //    몇 개만 크게 놓으면 그냥 '가슴에 박은 링 장식'이다. 짝수 행을 반 칸 밀어(오프셋)
                 //    엇물린 고리로 읽히게 한다.
                 for (let row = 0; row < 4; row++) {
-                    const y = 0.505 + row * 0.042;
+                    const y = 0.716 + row * 0.045;
                     const off = (row % 2) * 0.024;
                     for (let k = -2; k <= 2; k++) {
                         const x = k * 0.048 + off;
@@ -6489,43 +6496,43 @@ const Scene3D = {
                 for (let i = 0; i < 4; i++) {
                     const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.0175, 0.0175, 0.012, 10), trim);
                     btn.rotation.x = Math.PI / 2;
-                    btn.position.set(0.028, 0.505 + i * 0.043, pz + 0.004);
+                    btn.position.set(0.028, 0.718 + i * 0.046, pz + 0.004);
                     g.add(btn);
                 }
                 const sash = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.30, 0.028), pm);
-                sash.position.set(-0.030, 0.585, pz - 0.004);
+                sash.position.set(-0.030, 0.792, pz - 0.004);
                 sash.rotation.z = 0.46;
                 g.add(sash);
             } else if (vv === 'sealed') {
                 // 우주 '진공 슈트' — **닫힌 가슴 제어판 + 상태등**. 열린 웨빙 조끼이던 칸이다
                 //    (비평가: "'진공 슈트'가 열린 웨빙 조끼"). 진공복은 무엇보다 **밀폐**여야 한다.
                 const panel = new THREE.Mesh(new THREE.BoxGeometry(0.115, 0.085, 0.030), pm);
-                panel.position.set(0.052, 0.585, pz + 0.004);
+                panel.position.set(0.052, 0.792, pz + 0.004);
                 g.add(panel);
                 for (let i = 0; i < 3; i++) {   // 상태등 — 발광이라 96px 에서도 '기계'로 읽힌다
                     const led = new THREE.Mesh(new THREE.SphereGeometry(0.0125, 8, 6),
                         new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.85 }));
-                    led.position.set(0.016 + i * 0.036, 0.607, pz + 0.020);
+                    led.position.set(0.016 + i * 0.036, 0.814, pz + 0.020);
                     g.add(led);
                 }
                 const hose = this.capsuleMesh(0.0135, 0.10, pm, 8);   // 패널에서 목으로 가는 급기 호스
-                hose.position.set(-0.052, 0.615, pz - 0.010);
+                hose.position.set(-0.052, 0.822, pz - 0.010);
                 hose.rotation.z = -0.42;
                 g.add(hose);
             } else if (vv === 'radiant') {
                 // 천상 '성광 조끼' — **어두운 부속을 하나도 두지 않는다.** 검정 폴리머 버클이 금 위에
                 //    그대로 얹혀 있던 게 비평가 2인 공통 지적이다. 가슴 십자 + 광배 고리로 간다.
                 const bar = new THREE.Mesh(new THREE.BoxGeometry(0.031, 0.155, 0.022), lit);
-                bar.position.set(0, 0.585, pz + 0.002);
+                bar.position.set(0, 0.788, pz + 0.002);
                 g.add(bar);
                 const cross = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.031, 0.022), lit);
-                cross.position.set(0, 0.615, pz + 0.002);
+                cross.position.set(0, 0.822, pz + 0.002);
                 g.add(cross);
                 // ⚠️ 광배에 `rareHex`(등급색)를 쓰면 안 된다 — common 이 거의 흰색이라 금 위에서
                 //    **흰 말굽쇠**로 찍혔다(실측). 등급은 다른 데서 이미 지고, 여기 색은 금이다.
                 const halo = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.0105, 6, 20),
                     this.tintOf(mats ? mats.body : lit, 0.26));
-                halo.position.set(0, 0.632, pz - 0.020);   // 십자 **뒤·위** — 광배는 머리 쪽에서 뜬다
+                halo.position.set(0, 0.845, pz - 0.020);   // 십자 **뒤·위** — 광배는 머리 쪽에서 뜬다
                 g.add(halo);
             } else {   // tactical — 현대 '케블라' 등. 전술 파우치가 정답인 시대만 여기로 온다.
                 for (const dx of [-0.11, 0.11]) {
@@ -7235,8 +7242,15 @@ const Scene3D = {
                 mantle.position.set(0, 0.158, 0);
                 mantle.scale.z = 0.68;
                 g.add(mantle);
+                // 맨틀 윗변 마개 — 열린 원뿔의 윗구멍이 위에서 보이면 찢어진 판자가 된다
+                // (`radiant` 요크에서 실측한 것과 같은 결함. 링을 얹어 테를 만든다).
+                const mcap = new THREE.Mesh(new THREE.TorusGeometry(0.186, 0.016, 6, 18), mats.dark);
+                mcap.position.set(0, 0.208, 0);
+                mcap.rotation.x = Math.PI / 2;
+                mcap.scale.y = 0.68;
+                g.add(mcap);
                 const collar = new THREE.Mesh(new THREE.TorusGeometry(0.156, 0.024, 6, 18), mats.dark);
-                collar.position.set(0, 0.228, 0);
+                collar.position.set(0, 0.238, 0);
                 collar.rotation.x = Math.PI / 2;
                 collar.scale.y = 0.68;
                 g.add(collar);
@@ -7258,10 +7272,20 @@ const Scene3D = {
                 //    실측에서 두 칸이 똑같이 '고리 두른 원통'으로 찍혔다. 천상의 밝은 단은 흰색이
                 //    아니라 **밝은 금**이어야 하고, 링이 아니라 **어깨에서 끊기는 호**여야 한다.
                 const gold = this.tintOf(mats.body, 0.20);
+                // 🚨 **열린 원뿔(openEnded)의 윗변을 그냥 두지 말 것 — 찢어진 판자로 찍힌다.**
+                //    카메라가 위(ITEM_THUMB_DIR y +0.55)에서 내려다보므로 열린 윗구멍이 그대로
+                //    보이고, 뒷면은 컬링돼 사라져 **테두리만 남은 조각들**이 된다. 비평가 B 가
+                //    '우측 어깨 폴리곤 파편'이라 부른 게 이것이다(내가 이번에 낸 결함이다).
+                //    → 윗변을 토러스로 **막는다**. 아래 `mail` 의 깃이 같은 일을 하고 있었다.
                 const yoke = new THREE.Mesh(new THREE.CylinderGeometry(0.190, 0.254, 0.100, 18, 1, true), mat);
                 yoke.position.set(0, 0.170, 0);
                 yoke.scale.z = 0.68;
                 g.add(yoke);
+                const cap = new THREE.Mesh(new THREE.TorusGeometry(0.190, 0.018, 6, 20), gold);
+                cap.position.set(0, 0.220, 0);
+                cap.rotation.x = Math.PI / 2;
+                cap.scale.y = 0.68;
+                g.add(cap);
                 // 요크 밑단의 금 테 — 앞쪽 240°만 돌아 등에서 끊긴다(통을 감는 후프로 안 읽히게).
                 const rim = new THREE.Mesh(new THREE.TorusGeometry(0.252, 0.0135, 6, 20, Math.PI * 1.34), gold);
                 rim.position.set(0, 0.122, 0);
@@ -7269,11 +7293,14 @@ const Scene3D = {
                 rim.rotation.z = Math.PI * 0.33;
                 rim.scale.y = 0.68;
                 g.add(rim);
-                for (const s of [-1, 1]) {   // 어깨 끝의 금 견장 — 요크가 '옷'임을 못 박는다
-                    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.052, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), gold);
-                    tip.scale.set(1.05, 0.52, 0.72);
-                    tip.position.set(s * 0.212, 0.152, 0);
-                    tip.rotation.z = s * 0.30;
+                // ⚠️ 어깨 끝에 **납작하게 눌린 반구**(scale.y 0.52)를 달지 말 것 — 위에서 내려다보는
+                //    각도라 곡률이 안 보이고 **허공의 금속판**으로 찍힌다(초판이 그랬다). 견장은
+                //    눌리지 않은 돔이라야 어깨로 읽힌다.
+                for (const s of [-1, 1]) {
+                    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), gold);
+                    tip.scale.set(1.0, 0.86, 0.70);
+                    tip.position.set(s * 0.196, 0.150, 0);
+                    tip.rotation.z = s * 0.42;
                     g.add(tip);
                 }
                 // ⚠️ 띠는 **한 줄**이다. 좌우 2장으로 내리면 가슴 한복판의 십자(extras)를 사이에 끼고
@@ -7309,13 +7336,22 @@ const Scene3D = {
                 lock.scale.y = 0.68;
                 g.add(lock);
                 // 여압 리브 — 몸통 곡면을 감는 얇은 띠. 반경은 그 높이의 **실제 링 반경**에 맞춘다
-                //   (y 0.155 → rx≈0.241 · y 0.055 → rx≈0.226). 한 값으로 두르면 한쪽이 몸에 묻힌다.
-                for (const [y, rr] of [[0.155, 0.246], [0.055, 0.231]]) {
-                    const rib = new THREE.Mesh(new THREE.TorusGeometry(rr, 0.0115, 6, 22), mats.dark);
-                    rib.position.set(0, y, 0);
-                    rib.rotation.x = Math.PI / 2;
-                    rib.scale.y = 0.68;
-                    g.add(rib);
+                //   (y 0.155 → rx≈0.241). 한 값으로 두르면 한쪽이 몸에 묻힌다.
+                //   ⚠️ **온전한 링을 여러 겹 두르지 말 것 — 술통 후프가 된다.** 초판이 씰링 링·
+                //      잠금 링·리브 2개를 다 온전한 링으로 둘러 비평가 2인이 나란히 '나무 물통 /
+                //      스팀펑크 벨트 조끼'라 불렀다. 리브는 한 줄만, 그것도 **앞쪽 호로 끊어서**.
+                const rib = new THREE.Mesh(new THREE.TorusGeometry(0.246, 0.0125, 6, 20, Math.PI * 1.22), mats.dark);
+                rib.position.set(0, 0.155, 0);
+                rib.rotation.x = Math.PI / 2;
+                rib.rotation.z = Math.PI * 0.39;
+                rib.scale.y = 0.68;
+                g.add(rib);
+                for (const s of [-1, 1]) {   // 암홀 커프 링 — 밀폐복의 서명(비평가 2인 공통 지시)
+                    const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.016, 6, 14), mats.trim || mats.dark);
+                    cuff.position.set(s * 0.208, 0.168, 0.010);
+                    cuff.rotation.y = Math.PI / 2;
+                    cuff.rotation.z = s * 0.34;
+                    g.add(cuff);
                 }
             } else {
                 // hunter · tactical — 어깨끈 2줄이 어깨를 넘어가고 앞섶이 V로 벌어진다.
