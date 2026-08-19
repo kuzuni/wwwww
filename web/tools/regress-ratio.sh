@@ -54,6 +54,12 @@ PROBES=(
     probe-eggcell-label-shadow.js  # 탈것 셀 라벨 외곽선(eggcell-slotname-noshadow)
     probe-lgr-rank-clip.js      # 리그 보상 등수 라벨 pill 침범 0(lgr-rank-label-overflow)
     probe-chat-win-badge.js     # 채팅 전투 공유 `승리` 배지 위치 + 검정 키라인(chat-win-badge)
+    # 🚩 아래 3종은 **판정문·종료코드를 다 갖춘 판정기인데 목록에 없어 묻혀 있었다**(4~6건째 — 앞선
+    #    pinfo-px·fl-head·fl-body 와 같은 사유). 이 셋이 빠져 있어서 dungeons·pass·craft-compare
+    #    세 화면이 '전수 검증'이라는 이름 아래 **한 번도 판정되지 않고** 있었다.
+    probe-dungeons-px.js        # dungeons     042251
+    probe-pass-px.js            # pass         042705 (단위가 %TW=탭줄 폭 기준이다)
+    probe-ccmp-px.js            # craft-compare 043224
 )
 
 if [ "$#" -gt 0 ]; then
