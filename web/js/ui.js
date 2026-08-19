@@ -3901,6 +3901,14 @@ const UI = {
         const name = this.DG_SCENE[d.id];
         return name && typeof IconGen !== 'undefined' ? (IconGen.cls(name) || '') : '';
     },
+    // 상세 팝업 히어로의 아이콘 — **그림이 붙는 던전은 아이콘을 얹지 않는다.**
+    // 2026-08-19: 배너 일러스트가 주인공(쥔 망치·좀비 등)을 직접 그리는 쪽으로 바뀌었다
+    // (dungeon-row-quality 세션). 그래서 목록 행은 `.dg-icon` 을 이미 뺐는데, 상세 팝업이
+    // 그대로 얹고 있으면 **같은 물건이 그림 안에 하나 + 아이콘으로 하나** 겹쳐 두 개가 된다.
+    // 그림이 없는 던전 id 는 배경이 종전 그라디언트로 떨어지므로 그때만 아이콘을 남긴다.
+    dgHeroIcon(d) {
+        return this.dgSceneCls(d) ? '' : `<span class="dg-icon">${this.dgIcon(d)}</span>`;
+    },
 
     // ---- 던전: 가로 배너 목록 + 상세(난이도 선택) 팝업 (UI-SPEC 6~7번) ----
     openDungeons() {
@@ -4049,7 +4057,7 @@ const UI = {
         this.els.dungeonDetailModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper dgd-card">
-                    <div class="dg-detail-hero ${this.dgSceneCls(d)}" style="--bg:${hex}"><span class="dg-icon">${this.dgIcon(d)}</span><span class="dgd-title">${d.kr}</span></div>
+                    <div class="dg-detail-hero ${this.dgSceneCls(d)}" style="--bg:${hex}">${this.dgHeroIcon(d)}<span class="dgd-title">${d.kr}</span></div>
                     <div class="dgd-stage-row">
                         <button class="tri-btn" onclick="UI.onDungeonStageStep(-1)" style="visibility:${stage <= 1 ? 'hidden' : 'visible'}">◀</button>
                         <div class="dgd-stage"><span>난이도</span><b>${this.dgStageText(stage)}</b></div>
