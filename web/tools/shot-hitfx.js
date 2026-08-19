@@ -117,7 +117,14 @@ const OUT = process.argv[2] || __dirname;
     await step(0.084); await shot('b2b-kill+180ms');
     await step(0.08);  await shot('b2c-kill+260ms');
     await step(0.086); await shot('b3-kill+346ms');
-    await step(0.5);   await shot('b4-kill+846ms');  // 밝은 파편이 다 꺼진 뒤 — 그을음 데칼만 남는 구간
+    // 🚨 예전엔 여기서 +346ms → +846ms 로 **500ms 를 통째로 건너뛰었다.** 그런데 디졸브는 접지 후
+    //    0.18초 홀드 뒤부터 0.52초에 걸쳐 도므로(≈ +480ms ~ +1000ms) **부스러지는 과정이 한 컷도
+    //    안 잡혔고**, 비평가 7차 B #6 이 "잔해가 b3→b4 에서 팝아웃한다"고 봤다(디졸브는 멀쩡히
+    //    돌고 있었다 — `probe-death-dissolve` 가 중반 커버리지 0.2~0.8 로 통과한다). 붕괴 구간에
+    //    b2b·b2c 를 넣었을 때와 **같은 종류의 촬영기 구멍**이라 같은 방식으로 메운다.
+    await step(0.2);   await shot('b3b-kill+546ms'); // 디졸브 시작 직후 — 가장자리부터 부스러짐
+    await step(0.15);  await shot('b3c-kill+696ms'); // 디졸브 중반 — 구멍이 몸통까지 번짐
+    await step(0.15);  await shot('b4-kill+846ms');  // 밝은 파편이 다 꺼진 뒤 — 그을음 데칼만 남는 구간
 
     // ── C. 영웅 피격(붉은 비네트 + 움찔 + 영웅 HP바) ──
     // 적을 죽이면 phase가 waveDelay로 바뀌어 damageHero가 조기 반환한다 — 다시 fight로 두고 블록도 배제
