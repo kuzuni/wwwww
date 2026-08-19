@@ -111,6 +111,12 @@ const inPage = (page, src, cx, cy, bgHint) => page.evaluate(async ([s, code, a, 
         }
         return o;
     });
+    // 🚨 캡처 시에만 pill 의 ui-quality-up 스킨(파인 홈 그라디언트·inset 그림자)을 끈다 —
+    // 세로 그라디언트가 배경 최빈 2색 판별을 죽여 잉크가 0(-1e9 센티널)으로 나온다
+    // (probe-tabbar 가 밟은 것과 같은 계열: 판정 대상은 아이콘 잉크 기하이지 pill 칠이 아니다.
+    //  pill 칠 자체의 회귀는 probe-sheet-skin frame-bands 화면이 지킨다).
+    await page.addStyleTag({ content: '.currency-pills .pill{background-image:none!important;box-shadow:none!important}' });
+    await page.waitForTimeout(120);
     const shot = 'data:image/png;base64,' + (await page.screenshot({ clip: { x: 0, y: 0, width: VW, height: 80 } })).toString('base64');
     const clone = {};
     for (const k of ['coin', 'gem']) clone[k] = await inPage(page, shot, at[k].x, at[k].y, null);
