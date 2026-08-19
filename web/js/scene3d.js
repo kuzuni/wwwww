@@ -9,6 +9,25 @@ const Scene3D = {
     // leafFloor/leafCool: 잎 색이 순흑으로 크러시되는 것을 막는 바닥값과, 바닥에 눌린 만큼 미는 색상량.
     // (map-quality-up — 비평가 2인이 공통으로 '잎이 검은 덩어리'를 지적했고 실측으로 확인됐다.)
     VALUE: { groundK: 0.40, groundMax: 0.22, foliageK: 0.22, foliageMax: 0.12, satK: 0.35, farDesat: 0.26, leafFloor: 0.13, leafCool: 0.06 },
+
+    // 🚨 낮 태양 방향의 **단일 생성원** (map-quality-up, 2026-08-19). 생성자·`setTheme`·`previewBuild`
+    //    세 곳이 각자 리터럴을 들고 있었고 그중 둘이 서로를 부정하는 주석을 달아, 라운드마다 한쪽이
+    //    다른 쪽의 수정을 되돌렸다(POLISH.md 진행로그 ⑶). 고치려면 여기 한 줄만 고칠 것.
+    //
+    //    값은 고도 **48°** (수평 성분 |(7, 3.2)| = 7.70 → y = 7.70·tan48° = 8.55).
+    //    종전 34°(y 5.2)에서 올린 근거는 `probe-sun-elevation.js` 스윕 실측(챕터 1·3·4, 고도 34~61°):
+    //      · **'요철 스컬핑이 저고도에서 최대'라는 34° 쪽 근거는 측정되지 않는다** — 소품 화소 휘도 SD 가
+    //        고도를 61°까지 올려도 평평하다(ch1 0.2138→0.2125 · ch3 0.1999→**0.2047**(오히려 상승) ·
+    //        ch4 0.2396→0.2363). 즉 이 축에서는 잃는 게 없다.
+    //      · 반면 **그림자 이탈('캐스터 없는 아메바 얼룩')은 고도에 그대로 딸려 온다** — 그림자 화소 중
+    //        소품 실루엣(6px 팽창) 밖 비율이 34°에서 ch1 33.4% · ch4 32.0% 인데 48°에서 4.3% · 1.7% 로
+    //        떨어지고, 그림자 총면적도 11.4%→6.3% · 12.8%→7.4% 로 준다.
+    //      · **61°까지 올리지 않은 이유는 영웅이다.** 고도를 올릴수록 정수리 위주 조명이 되어 캐릭터의
+    //        다크 엔드가 깎인다(ch4 영웅 명도 0.18 이하 비율 27.5% → 48°에서 22.2% → 61°에서 **15.4%**).
+    //        그 다크 엔드는 앞 세션이 광량을 1.85→1.00 으로 내려 가며 얻어낸 것(비평가 2인 공통 1위
+    //        '캐릭터에 진짜 어두운 값이 없다')이라 61° 는 그 수정을 도로 무른다. 48° 가 이탈을 거의 다
+    //        걷어내면서 다크 엔드 손실은 절반에 그치는 자리다.
+    SUN_DAY: [7, 8.55, 3.2],
     renderer: null, scene: null, camera: null,
     worldX: 0,               // 플레이어가 오른쪽으로 전진한 누적 거리 (무한 월드)
     heroG: null, weaponG: null, helmetG: null, bodyMesh: null,
@@ -58,7 +77,11 @@ const Scene3D = {
         // (균일하게 밝은 "판대기" 인상 제거 — 나무/바위 한쪽 면에 그늘이 지게)
         this.hemi = new THREE.HemisphereLight(0xbddcff, 0x6e7a60, 0.54); // 그림자 바닥톤 소폭 상승 — 검록 얼룩 완화 (비평가 7.3 4번)
         this.sun = new THREE.DirectionalLight(0xfff3d6, 1.2);
-        this.sun.position.set(4, 9.5, 3.5); // 고도 ~60도 — 45도의 긴 그림자가 본체 이탈 '검은 얼룩'으로 읽힘 (비평가 7.3 4번 골렘·버섯)
+        // 🚨 태양 고도의 단일 결정은 위 `SUN_DAY` 다 — 여기 값은 `setTheme` 이 낮/밤 모두 덮어쓰므로
+        //    **부팅 첫 프레임에만 쓰인다.** 2026-08-19 이전에는 이 줄(고도 61°)과 `setTheme`(고도 34°)이
+        //    서로를 부정하는 주석을 달고 있어서, 라운드마다 한쪽이 다른 쪽의 수정을 되돌렸다
+        //    (POLISH.md 진행로그 ⑶). 두 곳이 갈리지 않게 같은 상수를 쓴다.
+        this.sun.position.set(this.SUN_DAY[0], this.SUN_DAY[1], this.SUN_DAY[2]);
         this.sun.castShadow = true;
         // 데스크톱만 2048 — 중급 폰은 프레임 하락 확인돼 1024 유지. 1024×24유닛의 저밀도가 '뭉개진 그림자 블롭'으로 읽힘 (비평가 4번)
         const shadowRes = /Mobi|Android/i.test(navigator.userAgent) ? 1024 : 2048;
@@ -11236,8 +11259,11 @@ const Scene3D = {
             this.sun.position.set(5, 6.5, -7); // 달 디스크(우측 후방)와 같은 방향에서 내려오는 역광 — 그림자가 카메라 쪽으로
             this.sun.userData.baseX = 5;
         } else {
-            this.sun.position.set(7, 5.2, 3.2); // 낮: 측면 45도 저고도 — 캐스트 섀도를 길게, 요철 스컬핑 최대로
-            this.sun.userData.baseX = 7;
+            // 낮 태양 방향은 `SUN_DAY` 한 곳에서만 정한다 — 고도 근거는 그 상수의 주석 참고.
+            // (종전엔 여기 `(7, 5.2, 3.2)` 리터럴이 "측면 45도 저고도 — 요철 스컬핑 최대로" 주석과 함께
+            //  생성자의 고도 61° 를 매 챕터 덮어써, 두 곳이 서로의 수정을 무르는 상태였다.)
+            this.sun.position.set(this.SUN_DAY[0], this.SUN_DAY[1], this.SUN_DAY[2]);
+            this.sun.userData.baseX = this.SUN_DAY[0];
             // ⚠️ 광량 대폭 하향 (1.85 → 1.15). 비평가 2인이 **공통 1위**로 지목한 결함
             // "캐릭터에 진짜 어두운 값이 전혀 없다 / 캐릭터와 지면의 명도가 같다"의 근본 원인이
             // 바로 이 광량이었다. 부츠 albedo는 이미 0x2a1a0d(니어블랙)인데도 중간톤으로 렌더된다 —
@@ -11430,7 +11456,7 @@ const Scene3D = {
         // (creatureThumb 쪽 `syncCreatureLights` 주석이 같은 함정을 이미 기록해 뒀다).
         const hemi = new THREE.HemisphereLight(t.sky, g.ground.clone().offsetHSL(0, 0, -0.1).getHex(), 0.15);
         const sun = new THREE.DirectionalLight(new THREE.Color(0xffedc4).lerp(new THREE.Color(t.sky), 0.15), 1.0);
-        sun.position.set(7, 5.2, 3.2);
+        sun.position.set(this.SUN_DAY[0], this.SUN_DAY[1], this.SUN_DAY[2]); // 본편 낮과 같은 방향 — 리터럴을 베끼면 또 갈린다
         const rim = new THREE.DirectionalLight(0xcfe4ff, 0.18);
         rim.position.set(-5, 3.5, -7);
         sc.add(hemi, sun, rim);
