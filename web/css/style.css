@@ -2291,8 +2291,12 @@ body {
    기존 클론은 트랙이 50vh(446px)로 과대하고 하단 다크 띠가 없어(`margin-bottom: -.9rem`) 카드가 69px 길었고,
    그만큼 세로 중앙 정렬이 카드를 위로 밀어 카드 상단이 11.32%(원본 13.03%)에 놓였다 — 탭 행이 원본보다
    2.76%p 위에 있던 편차의 절반이 여기서 나온다. gap도 0으로 두고 간격은 전부 margin으로 실측값을 준다. */
+/* 🚨 바탕색 교정 (2026-08-19 UI, aaa-skin 채점 2라운드) — 위 주석의 '어두운 남색'은 틀렸다.
+   원본 shot-042705 을 직접 찍어 보니 카드 안쪽 6점(좌우 열 × 상·중·하)이 **전부 #0e111b 로 같다**
+   — 남색도 아니고 그라디언트도 아닌 **평평한 근흑**이다. 비평가 2인이 각각 같은 값을 짚었고
+   실측이 그 편을 들었다. 남보라(#2b3272→#1a2050)는 흰 보상 리스트와의 대비를 뭉갠다. */
 .modal-card.pass-card {
-    background: linear-gradient(180deg, #2b3272, #1a2050); color: #fff;
+    background: #0e111b; color: #fff;
     position: relative; overflow: visible; gap: 0;
     padding: 2.3rem 1.1rem 2.94rem; /* 상 37px · 하 47px(트랙 아래 다크 띠) */
     width: 72%; /* 원본 ≈70% W (185) — 보상 카드 폭이 원본 32.38%에 맞는 값이라 유지 */
@@ -2318,7 +2322,11 @@ body {
    클론은 밴드가 73.55%밖에 안 돼 -5.34%p 좁았다. 카드 콘텐츠 폭(318px)에서 좌우로
    40.8px씩 빼내 밴드 외곽 400px(=80.1%W, 채움 78.9%W)를 만든다. */
 .pass-banner {
-    position: relative; background: linear-gradient(180deg, #5252f0, #3c3cbe); border: var(--ol3) solid var(--pp-line);
+    /* 밴드 채움은 **평평한 #341cff** 다 — 원본 밴드의 글자 없는 구간(x107·x127)을 위(y169)·아래(y191)
+       두 끝에서 찍으면 값이 똑같다(2026-08-19 실측). 클론의 세로 그라디언트(#4848d9→#3d3dc0)는 색상까지
+       달라서, 비평가 2인이 "파랑이 네 종류로 팔레트 규율이 무너졌다"고 짚은 그 자리다.
+       ⚠️ 제비꼬리(::before/::after) 의 #2112a0 은 **원본과 이미 정확히 같다** — 건드리지 말 것(실측 확인). */
+    position: relative; background: #341cff; border: var(--ol3) solid var(--pp-line);
     color: #fff; font-weight: 900; font-size: 1.05rem; text-align: center; line-height: 1.15;
     border-radius: .2rem; padding: .49rem .5rem; margin: 0 -2.55rem 1.19rem; /* 아래 간격 19px */
 }
@@ -6549,8 +6557,14 @@ body {
    🚨 원래 하드 그림자 `0 .5rem 0 rgba(0,0,0,.25)`(카드가 떠 있는 원본 카툰 톤)를 **반드시 첫 층으로
       유지**할 것 — 여기서 빼면 카드가 종이에 붙어 버린다.
    🚨 시트는 제외한다(`:not(.sheet)`) — 시트는 위 블록에서 제 처방을 따로 받고, box-shadow: none 이
-      전제라 여기 그림자가 얹히면 전체화면 바탕에 테두리 그늘이 생긴다. */
-.modal-card:not(.sheet) {
+      전제라 여기 그림자가 얹히면 전체화면 바탕에 테두리 그늘이 생긴다.
+   🚨 **`.pass-card` 도 제외한다 (2026-08-19 UI, aaa-skin — 회귀 잡음)**: 진행 패스 카드는 원본이
+      근흑(#0e111b)인 **어두운 팝업**이라, 여기 맨 아래 층의 **불투명** 흰 그라디언트가 그대로 얹혀
+      카드가 통째로 흰 종이가 된다. 위 시트 블록이 `.league-sheet`·`.shop-sheet` 를 뺀 것과 **같은
+      이유·같은 처방**이다 — 이 블록은 '흰 바탕 팝업'만 대상이다. 특이도가 `.modal-card.pass-card`
+      (0-2-0)와 같아 뒤에 있는 이 규칙이 이기므로, 카드 쪽에서 색을 바꾸는 것만으로는 못 막는다.
+      ⚠️ 앞으로 **어두운 배경을 가진 팝업 카드를 새로 만들면 여기 :not() 에 반드시 추가할 것.** */
+.modal-card:not(.sheet):not(.pass-card) {
     background-image:
         repeating-linear-gradient(45deg, rgba(23,24,26,.014) 0 2px, rgba(23,24,26,0) 2px 9px), /* 종이 결 */
         radial-gradient(120% 55% at 50% -8%, rgba(255,255,255,.95) 0, rgba(255,255,255,0) 74%), /* 위쪽 광원 */
