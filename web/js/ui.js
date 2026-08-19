@@ -4049,7 +4049,7 @@ const UI = {
         this.els.dungeonDetailModal.innerHTML = `
             <div class="idet-wrap">
                 <div class="modal-card paper dgd-card">
-                    <div class="dg-detail-hero" style="--bg:${hex}"><span class="dg-icon">${this.dgIcon(d)}</span><span class="dgd-title">${d.kr}</span></div>
+                    <div class="dg-detail-hero ${this.dgSceneCls(d)}" style="--bg:${hex}"><span class="dg-icon">${this.dgIcon(d)}</span><span class="dgd-title">${d.kr}</span></div>
                     <div class="dgd-stage-row">
                         <button class="tri-btn" onclick="UI.onDungeonStageStep(-1)" style="visibility:${stage <= 1 ? 'hidden' : 'visible'}">◀</button>
                         <div class="dgd-stage"><span>난이도</span><b>${this.dgStageText(stage)}</b></div>

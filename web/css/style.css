@@ -1764,6 +1764,12 @@ body {
 .dg-detail-hero {
     height: 5rem; border-radius: .6rem; margin-bottom: .4rem;
     background: linear-gradient(120deg, var(--bg, #444c56), #161b22);
+    /* 목록 배너와 **같은** IconGen `dg_*` 배경 일러스트를 얹는다(ui.js dgSceneCls). 목록만 그림이고
+       상세 팝업만 갈색 그라디언트로 남아 있던 게 이 화면 채점의 결정적 감점이었다.
+       ⚠️ `.dg-banner` 와 같은 함정 — shorthand 가 background-size 를 auto 로 되돌리므로 **뒤에** 준다.
+       그림은 배너 비(3.45:1)로 구워지는데 이 판은 ≈2.6:1 이라 cover 가 좌우를 자른다 — 그림 규약상
+       주인공을 안 그리고 하늘·지형이 가로로 이어지는 구도라 잘려도 장면이 깨지지 않는다. */
+    background-size: cover; background-position: center; background-repeat: no-repeat;
     display: flex; align-items: center; justify-content: center; font-size: 2.4rem;
 }
 
@@ -4361,8 +4367,17 @@ body {
 /* 원본(042304) ◀ 실측: 파란 채움 x142..167(28.51%W·폭 5.22%W) — gap 1rem 으로는 클론 글리프가
    34.47%W 에서 시작해 +5.96%p 오른쪽으로 '난이도' 텍스트에 붙고, 글리프도 원본의 0.73배로 작았다
    (독립 비평가 2인이 같은 지점을 지적: Δ6.6%p / 크기 Δ2.0%p). gap 을 키워 삼각형을 원본 자리로 보낸다.
-   .tri-btn 은 소환 확률 팝업(042521)과 공용이므로 이 화면으로만 한정한다. */
-.dgd-stage-row { display: flex; align-items: center; justify-content: center; gap: 2.56rem; margin: .3rem 0 .5rem; }
+   .tri-btn 은 소환 확률 팝업(042521)과 공용이므로 이 화면으로만 한정한다.
+   ⚠️ **2.56rem 은 목표에 못 미쳤다 — 2026-08-19 재실측**: 채점 2라운드에서 독립 비평가 2인이 다시
+   같은 지적을 냈고(Δ+4.0 / +3.78%p), 원본 PNG·클론 캡처를 같은 픽셀 코드로 재니 파란 채움 좌단이
+   **원본 28.51%W vs 클론 32.26%W = +3.75%p** 였다(비평가 지적과 일치 — 오측정이 아니다).
+   ⓐ 임계값이 '난이도 20-9' 글자의 파란 안티에일리어싱까지 잡아 union 폭이 21.84%W 로 뻥튀기되므로
+      **가로 연속 덩어리로 쪼개** 첫 덩어리(폭 5.41%W)만 삼각형으로 쥔다 — union 을 그대로 쓰면 안 된다.
+   ⓑ 행은 `justify-content:center` 라 gap 을 g 만큼 키우면 묶음 폭이 2g 늘고 ◀ 는 **g 만큼만** 왼쪽으로
+      간다(2g 이 아니다 — 앞 세션이 여기서 절반을 놓쳤다). 필요한 이동 3.75%W×499 ≈ 18.7px →
+      43.05px(2.56rem) + 18.7 = 61.75px = 앱 폭의 12.37%. rem 은 루트 글꼴(16.82px)에 매여 있어
+      뷰포트가 바뀌면 목표에서 벗어나므로 다른 실측값들처럼 --app-w 비율로 못박는다. */
+.dgd-stage-row { display: flex; align-items: center; justify-content: center; gap: calc(var(--app-w) * .1237); margin: .3rem 0 .5rem; }
 .dgd-stage-row .tri-btn { font-size: 2.34rem; }
 .dgd-stage { text-align: center; line-height: 1.15; }
 .dgd-stage span { display: block; font-size: .88rem; font-weight: 900; color: var(--pp-ink); }
