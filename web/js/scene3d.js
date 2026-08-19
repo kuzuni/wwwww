@@ -6705,17 +6705,16 @@ const Scene3D = {
         // 종 고유색 + 개체 지터 (챕터 무드 혼합은 채도를 죽여 배경 보호색화 — 폐지, 비평가 지적)
         const base = new THREE.Color(this.KIND_COLOR[kind]).offsetHSL(U.rand(-0.02, 0.02), U.rand(-0.03, 0.03), U.rand(-0.02, 0.02));
         const g = new THREE.Group();
-        // ⚠️ 이 목록은 **더 이상 피격 플래시의 대상이 아니다.** `lam()` 을 거친 재질만 담겨 몸의 절반이
-        //    빠져 있었고(박쥐 60메시 중 13 등), 무엇보다 화면 면적을 쥔 외곽선 셸이 통째로 없다 —
-        //    지금은 `Scene3D.flashTargets()` 가 서브트리를 직접 훑는다(그 함수의 실측 근거 주석 참고).
-        //    필드는 기존 probe 4종(probe-hitflash-delta·probe-flash-gl·test-hitfx·shot-hero)이 참조해
-        //    남겨 두지만, **여기에 재질을 더한다고 플래시가 달라지지 않는다.**
-        const flashMats = [];
+        // ⚠️ 예전엔 여기서 `lam()` 을 거친 재질을 `flashMats` 배열에 모아 뒀지만 **삭제했다.**
+        //    ⓐ 피격 플래시는 이미 `Scene3D.flashTargets()` 가 서브트리를 직접 훑어 정한다
+        //    ⓑ 그 스냅샷에는 **어떤 메시도 안 쓰는 고아 재질**이 섞여 도구들을 오독시켰다
+        //       (자세한 실측은 이 빌더 return 문의 `flashMats` 게터 주석 참고 — slug: hitflash-overwrite).
+        //    지금 `m.flashMats` 는 그 게터이고, 항상 실제 플래시 대상과 같다.
         const lam = (c2, map) => {
             const m = new THREE.MeshStandardMaterial({ color: c2, map: map || null, metalness: 0, roughness: 0.72 });
             // 맵이 있으면 굴곡까지 함께 준다 — 알베도만 바꾸면 표면이 아니라 '무늬 스티커'로 읽힌다
             if (map) { m.bumpMap = map; m.bumpScale = 0.013; }
-            flashMats.push(m); return m;
+            return m;
         }; // 유기물 PBR — 부드러운 스펙큘러 롤오프 (무광 점토 인상 완화)
         // 종별 표면 질감 — 예전엔 **골렘(rockTex)만** 맵을 물고 나머지 6종은 전부 민짜였다.
         // 그래서 늑대는 회색 캡슐 조립, 버섯 몸통은 흰 덩어리로 읽혔다(영웅은 캔버스 텍스처 +
@@ -6856,7 +6855,6 @@ const Scene3D = {
         if (kind === 'slime') {
             // 광택 젤리: 고분할 스무스 돔 + Phong 스펙큘러 + 반투명 너머 비치는 내부 핵 (저분할 '바위 덩어리' 오독 제거, 비평가 지적)
             const jelly = new THREE.MeshStandardMaterial({ color: base, transparent: true, opacity: 0.82, metalness: 0, roughness: 0.12, envMapIntensity: 1.2 }); // 젖은 젤리 — 환경 반사로 광택
-            flashMats.push(jelly);
             // 물방울 라테: 바닥 퍼짐→돔이 한 곡면 — 몸통 구+스커트 토러스 2피스는 '접시 위 슬라임'으로 읽힘 (비평가 12번)
             const slProf = [[0.001, 0], [0.42, 0.012], [0.5, 0.07], [0.485, 0.18], [0.44, 0.3], [0.38, 0.42], [0.27, 0.54], [0.13, 0.62], [0.001, 0.65]];
             body = mk(new THREE.LatheGeometry(slProf.map(([r, y]) => new THREE.Vector2(r, y)), 26), jelly);
@@ -7540,7 +7538,20 @@ const Scene3D = {
         const pip = this.makeOwnerPip(0xe5484d, barY - 0.135 / 2);
         hpG.add(hpBg, hpGhost, hpFg, pip);
         hpG.scale.setScalar(gs); // scene 직속이라 예전에 상속받던 baseScale을 직접 건다
-        return { g, body, hpBg, hpGhost, hpFg, hpPip: pip, hpG, armR, armL, flashMats, kind, anim, baseScale: g.scale.x, topY, barY };
+        const rec = { g, body, hpBg, hpGhost, hpFg, hpPip: pip, hpG, armR, armL, kind, anim, baseScale: g.scale.x, topY, barY };
+        // `flashMats` — **실제로 플래시가 칠하는 재질 목록**을 그때그때 돌려주는 게터.
+        // ⚠️ 예전엔 빌더가 `lam()` 을 거친 재질을 모아 둔 **스냅샷 배열**이었는데, 그 목록에는
+        //    **어떤 메시도 안 쓰는 고아 재질**이 섞여 있었다 — 종별 분기가 공용으로 만든 몸통 재질을
+        //    안 쓰고 자기 것을 따로 만들기 때문이다(실측: imp 5개 중 앞의 2개가 고아, 서브트리 재질
+        //    21개 중 진짜 겹치는 건 3개뿐). 그래서 이 배열을 읽던 `test-hitfx` 의 '연타' 검사는
+        //    **플래시가 애초에 건드리지도 않는 재질**을 보고 있었고, 당연히 항상 흰색이 아니라
+        //    상시 FAIL 했다(slug: hitflash-overwrite). 진짜 seq 로직은 멀쩡하다 — 실측으로
+        //    나중 플래시가 앞 플래시의 onDone 을 넘겨 살아남고(0.28→0.213) 끝나면 원래대로 돌아온다.
+        // 게터로 `flashTargets()` 에 위임하면 ⓐ 고아 재질이 원천적으로 못 섞이고 ⓑ 장비 교체로
+        // 파츠가 갈려도 항상 최신이며 ⓒ 이 필드를 읽는 도구 4종(test-hitfx·probe-hitflash-delta·
+        // probe-flash-gl·shot-hero)이 전부 "진짜 빛나는 것"을 측정하게 된다.
+        Object.defineProperty(rec, 'flashMats', { get() { return Scene3D.flashTargets(this).lit; }, enumerable: true });
+        return rec;
     },
 
     ensureBlobRes() {
