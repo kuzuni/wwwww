@@ -3672,14 +3672,24 @@ IconGen._genderSym = function (ctx, S, female) {
        ('망치가 수직으로 박힌 정지 구도 + 손이 없다'). */
     G.draw.dg_hammer = function (ctx, S) {
         const W = S * AR, H = S, R = rnd(11);
-        sky(ctx, W, H, '#a9dcf3', '#dff2ff');
-        // 구름 줄 — 원본의 분홍-라벤더 가로 스트릭. 제목(좌상단)과 겹쳐도 키라인 제목이 이긴다.
-        const cloud = (cx, cy, cw, chh, c) => fill(ctx, c, () => ctx.ellipse(cx, cy, cw, chh, 0, 0, Math.PI * 2));
-        cloud(W * 0.16, H * 0.15, W * 0.13, H * 0.050, '#e7d2ec');
-        cloud(W * 0.27, H * 0.09, W * 0.09, H * 0.038, '#f4eaf6');
-        cloud(W * 0.52, H * 0.08, W * 0.15, H * 0.045, '#e7d2ec');
-        cloud(W * 0.63, H * 0.17, W * 0.08, H * 0.032, '#f4eaf6');
-        cloud(W * 0.40, H * 0.23, W * 0.06, H * 0.028, '#eedcf2');
+        sky(ctx, W, H, '#9ed9f4', '#dff2ff');
+        /* 구름 — 납작한 타원 하나면 '분홍 스티커'로 읽힌다(비평가 6차): 혹 3~4개를 겹친 뭉게
+           윤곽 + 아래는 평평하게. 원본의 분홍-라벤더 구름 줄. */
+        const cloud = (cx, cy, cw, chh, c) => {
+            fill(ctx, c, () => {
+                ctx.moveTo(cx - cw, cy + chh * 0.5);
+                ctx.arc(cx - cw * 0.55, cy, chh * 0.9, Math.PI * 0.95, Math.PI * 1.9);
+                ctx.arc(cx - cw * 0.05, cy - chh * 0.55, chh * 1.1, Math.PI * 1.05, Math.PI * 1.98);
+                ctx.arc(cx + cw * 0.45, cy - chh * 0.10, chh * 0.95, Math.PI * 1.15, Math.PI * 2);
+                ctx.lineTo(cx + cw, cy + chh * 0.5);
+                ctx.closePath();
+            });
+        };
+        cloud(W * 0.16, H * 0.15, W * 0.11, H * 0.045, '#e7d2ec');
+        cloud(W * 0.27, H * 0.09, W * 0.07, H * 0.034, '#f4eaf6');
+        cloud(W * 0.52, H * 0.08, W * 0.12, H * 0.042, '#e7d2ec');
+        cloud(W * 0.63, H * 0.17, W * 0.06, H * 0.030, '#f4eaf6');
+        cloud(W * 0.40, H * 0.23, W * 0.05, H * 0.026, '#eedcf2');
         (() => {                                                          // 지평선 웜톤 — 하늘이 2단 그라디언트로 납작하지 않게(비평가 재채점)
             const hz = ctx.createLinearGradient(0, H * 0.42, 0, H * 0.82);
             hz.addColorStop(0, 'rgba(255,214,188,0)'); hz.addColorStop(1, 'rgba(255,214,188,.30)');
@@ -3795,14 +3805,12 @@ IconGen._genderSym = function (ctx, S, female) {
         ink(ctx, S, rrect(ctx, S, -0.160, -0.255, 0.320, 0.510, 0.050), '#6f7b34', 0.032);
         ctx.save();
         ctx.beginPath(); rrect(ctx, S, -0.160, -0.255, 0.320, 0.510, 0.050)(); ctx.clip();
+        /* ⚠️ 하이라이트 띠+물림 테 2줄+결 줄+스펙큘러를 다 얹으면 가로세로 선이 교차해 **타탄
+           격자 직물**로 읽힌다(비평가 6차 2인 공통 1순위 — 확대 크롭으로 확인). 3면 셰이딩과
+           물림 테 하나만 남긴다. */
         on(ctx, rrect(ctx, S, 0.064, -0.255, 0.096, 0.510, 0), '#9aa84a');                // 위(빛 받는) 면 — local +x 가 회전 후 우상향
-        on(ctx, rrect(ctx, S, 0.126, -0.235, 0.026, 0.470, 0.013), 'rgba(255,255,255,.40)'); // 스펙큘러 라인(베벨 입체 — 비평가 재채점)
         on(ctx, rrect(ctx, S, -0.160, -0.255, 0.084, 0.510, 0), 'rgba(0,0,0,.24)');       // 아랫면 음영
-        on(ctx, rrect(ctx, S, -0.160, -0.255, 0.036, 0.510, 0), 'rgba(0,0,0,.20)');       // 아래 모서리 한 단 더
-        on(ctx, rrect(ctx, S, -0.160, -0.078, 0.320, 0.030, 0), 'rgba(0,0,0,.30)');       // 자루 물림 테
-        on(ctx, rrect(ctx, S, -0.160, 0.048, 0.320, 0.030, 0), 'rgba(0,0,0,.30)');
-        on(ctx, ell(ctx, S, 0.010, 0.140, 0.070, 0.052), 'rgba(255,255,255,.16)');        // 타격면 쪽 방사 하이라이트(재질감 — 비평가 5차)
-        on(ctx, rrect(ctx, S, -0.060, -0.230, 0.020, 0.460, 0.010), 'rgba(0,0,0,.14)');   // 머리 결 줄
+        on(ctx, rrect(ctx, S, -0.160, -0.032, 0.320, 0.064, 0), 'rgba(0,0,0,.26)');       // 자루 물림 테(하나만)
         ctx.restore();
         ink(ctx, S, ell(ctx, S, 0.052, -0.190, 0.040, 0.034), '#c9a24e', 0.024);          // 쐐기 못
         on(ctx, ell(ctx, S, 0.040, -0.198, 0.016, 0.013), 'rgba(255,255,255,.55)');       // 못 하이라이트
@@ -3893,11 +3901,14 @@ IconGen._genderSym = function (ctx, S, female) {
             const p = sq
                 ? () => { ctx.moveTo(x, y + h); ctx.lineTo(x, y + w * 0.28); ctx.lineTo(x + w * 0.16, y + w * 0.12); ctx.lineTo(x + w * 0.84, y + w * 0.12); ctx.lineTo(x + w, y + w * 0.28); ctx.lineTo(x + w, y + h); ctx.closePath(); }
                 : () => { ctx.moveTo(x, y + h); ctx.lineTo(x, y + w * 0.5); ctx.arc(x + w * 0.5, y + w * 0.5, w * 0.5, Math.PI, 0); ctx.lineTo(x + w, y + h); ctx.closePath(); };
-            ctx.beginPath(); p(); ctx.fillStyle = '#48547e'; ctx.fill();
+            ctx.beginPath(); p(); ctx.fillStyle = '#3d4a72'; ctx.fill();   // 밝은 회청은 밤 무드에서 튄다(비평가 6차) — 한 단 가라앉힘
             ctx.beginPath(); p(); ctx.strokeStyle = '#0a0d1e'; ctx.lineWidth = H * 0.018; ctx.stroke();
-            fill(ctx, 'rgba(10,13,30,.75)', () => ctx.arc(x + w * 0.5, y + w * 0.55, w * 0.16, 0, Math.PI * 2));            // 해골 눈구멍(원형 각인)
-            fill(ctx, 'rgba(10,13,30,.55)', () => ctx.rect(x + w * 0.24, y + w * 0.92, w * 0.52, h * 0.085));               // RIP 줄 각인
-            fill(ctx, 'rgba(255,255,255,.10)', () => ctx.rect(x + w * 0.10, y + w * 0.30, w * 0.10, h * 0.55));             // 왼쪽 세로 하이라이트
+            fill(ctx, 'rgba(8,10,24,.9)', () => ctx.arc(x + w * 0.36, y + w * 0.52, w * 0.13, 0, Math.PI * 2));             // 해골 각인(두 눈 + 코)
+            fill(ctx, 'rgba(8,10,24,.9)', () => ctx.arc(x + w * 0.64, y + w * 0.52, w * 0.13, 0, Math.PI * 2));
+            fill(ctx, 'rgba(8,10,24,.75)', () => { ctx.moveTo(x + w * 0.5, y + w * 0.62); ctx.lineTo(x + w * 0.42, y + w * 0.78); ctx.lineTo(x + w * 0.58, y + w * 0.78); });
+            fill(ctx, 'rgba(8,10,24,.7)', () => ctx.rect(x + w * 0.22, y + w * 0.94, w * 0.56, h * 0.09));                  // RIP 줄 각인
+            fill(ctx, 'rgba(8,10,24,.55)', () => ctx.rect(x + w * 0.30, y + w * 0.94 + h * 0.16, w * 0.40, h * 0.07));
+            fill(ctx, 'rgba(255,255,255,.10)', () => ctx.rect(x + w * 0.10, y + w * 0.30, w * 0.09, h * 0.50));             // 왼쪽 세로 하이라이트
         };
         stone(W * 0.475, H * 0.70, H * 0.17, H * 0.30, true);              // 셋째(작게, 각진 어깨) — 바닥 허전함 보완(비평가 4차)
         stone(W * 0.585, H * 0.62, H * 0.22, H * 0.40);
@@ -3952,34 +3963,42 @@ IconGen._genderSym = function (ctx, S, female) {
             hz.addColorStop(0, 'rgba(244,146,100,0)'); hz.addColorStop(1, 'rgba(244,146,100,.38)');   // 새벽 주황-핑크를 진하게(비평가 3차 '워시아웃')
             ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H);
         })();
-        // 뒤 열 — 연갈 띠, 위 가장자리가 투구 혹(반원 연쇄)
+        /* 뒤 열 — 연갈 띠, 위 가장자리가 투구 혹(반원 연쇄). ⚠️ 0.48H 에서 시작하면 하늘이 행의
+           절반을 먹어 '인파의 바다'(원본)가 얇은 띠로 죽는다(비평가 6차) — 0.40H 까지 올린다. */
         (() => {
-            ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, H * 0.48);
+            ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, H * 0.40);
             let x = 0;
-            while (x < W) { const r = H * (0.028 + R() * 0.022); ctx.arc(x + r, H * 0.48, r, Math.PI, 0); x += r * 2; }
+            while (x < W) { const r = H * (0.028 + R() * 0.022); ctx.arc(x + r, H * 0.40, r, Math.PI, 0); x += r * 2; }
             ctx.lineTo(W, H); ctx.closePath(); ctx.fillStyle = '#cdb094'; ctx.fill();
         })();
-        /* 인물 한 명 — 머리(kind 0=둥근 투구 1=뾰족 투구 2=뿔 투구) + 어깨.
+        /* 인물 한 명 — 머리(kind 0=둥근 투구 1=뾰족 투구 2=뿔 투구) + 어깨. oc 를 주면 검정
+           키라인을 두른다(앞 열 — 윤곽 없는 균일 반원 반복은 '스캘럽 무늬'로 읽힌다, 비평가 6차).
            ⚠️ 어깨를 좁고 높은 아치로 세우면 'A자 천막' 열이 된다(1차 시안) — 어깨는 넓고 낮게,
            뾰족 투구도 낮게. 몸이 옆 사람과 절반쯤 겹쳐야 '무리'가 되고, 머리 혹만 갈리면 된다. */
-        const figure = (x, y, s, c, kind) => {
-            const r = H * 0.055 * s;
-            if (kind === 1) fill(ctx, c, () => { ctx.moveTo(x - r, y + r * 0.5); ctx.lineTo(x, y - r * 1.15); ctx.lineTo(x + r, y + r * 0.5); });
-            else fill(ctx, c, () => ctx.arc(x, y, r, 0, Math.PI * 2));
+        const figure = (x, y, s, c, kind, oc, wf) => {
+            const r = H * 0.055 * s, w = wf || 1.9;
+            const paths = [];
+            if (kind === 1) paths.push(() => { ctx.moveTo(x - r, y + r * 0.5); ctx.lineTo(x, y - r * 1.15); ctx.lineTo(x + r, y + r * 0.5); ctx.closePath(); });
+            else paths.push(() => ctx.arc(x, y, r, 0, Math.PI * 2));
             if (kind === 2) {                                              // 양쪽 뿔 — 크고 잦으면 '고양이 귀'로 읽힌다(비평가 4차): 짧게
-                fill(ctx, c, () => { ctx.moveTo(x - r * 0.7, y - r * 0.2); ctx.lineTo(x - r * 1.15, y - r * 1.0); ctx.lineTo(x - r * 0.15, y - r * 0.85); });
-                fill(ctx, c, () => { ctx.moveTo(x + r * 0.7, y - r * 0.2); ctx.lineTo(x + r * 1.15, y - r * 1.0); ctx.lineTo(x + r * 0.15, y - r * 0.85); });
+                paths.push(() => { ctx.moveTo(x - r * 0.7, y - r * 0.2); ctx.lineTo(x - r * 1.15, y - r * 1.0); ctx.lineTo(x - r * 0.15, y - r * 0.85); ctx.closePath(); });
+                paths.push(() => { ctx.moveTo(x + r * 0.7, y - r * 0.2); ctx.lineTo(x + r * 1.15, y - r * 1.0); ctx.lineTo(x + r * 0.15, y - r * 0.85); ctx.closePath(); });
             }
-            fill(ctx, c, () => { ctx.moveTo(x - r * 1.9, y + r * 3.2); ctx.quadraticCurveTo(x - r * 1.7, y + r * 0.7, x, y + r * 0.75); ctx.quadraticCurveTo(x + r * 1.7, y + r * 0.7, x + r * 1.9, y + r * 3.2); ctx.closePath(); });   // 어깨(넓고 낮게)
+            paths.push(() => { ctx.moveTo(x - r * w, y + r * 3.2); ctx.quadraticCurveTo(x - r * (w - 0.2), y + r * 0.7, x, y + r * 0.75); ctx.quadraticCurveTo(x + r * (w - 0.2), y + r * 0.7, x + r * w, y + r * 3.2); ctx.closePath(); });   // 어깨(넓고 낮게)
+            if (oc) {
+                ctx.strokeStyle = oc; ctx.lineWidth = H * 0.016; ctx.lineJoin = 'round';
+                paths.forEach(p => { ctx.beginPath(); p(); ctx.stroke(); });
+            }
+            paths.forEach(p => fill(ctx, c, p));
         };
-        for (let i = 0; i < 12; i++)                                       // 원경-중경 사이 반층 — 레이어 한 겹 더(비평가 5차)
-            figure(W * (i / 12 + 0.02 + R() * 0.03), H * (0.525 + R() * 0.04), 0.55 + R() * 0.25, '#b79a82', R() < 0.6 ? 0 : 1);
+        for (let i = 0; i < 14; i++)                                       // 원경-중경 사이 반층 — 레이어 한 겹 더(비평가 5차)
+            figure(W * (i / 14 + 0.015 + R() * 0.03), H * (0.465 + R() * 0.04), 0.55 + R() * 0.25, '#b79a82', R() < 0.6 ? 0 : 1);
         /* 중간 열 — 뒤(#cdb094)와 앞(#241612) 사이의 **명도 중간층**이라 밝은 모브 계열이어야
            대기원근 3단이 선다(비평가 4차 '단일 톤 플랫 매스'). 뿔 투구는 1/8 로 드물게. */
         const MIDC = ['#9b7b6b', '#8d6c5e', '#a5847a', '#93745f'];         // 색·키·크기를 함께 흔들어 타일링 패턴을 깬다
         for (let i = 0; i < 22; i++) {
             const k = R();
-            figure(W * (i / 22 + 0.010 + R() * 0.02), H * (0.575 + R() * 0.085), 0.72 + R() * 0.55, MIDC[(R() * 4) | 0], k < 0.5 ? 0 : (k < 0.875 ? 1 : 2));
+            figure(W * (i / 22 + 0.010 + R() * 0.02), H * (0.545 + R() * 0.085), 0.72 + R() * 0.55, MIDC[(R() * 4) | 0], k < 0.5 ? 0 : (k < 0.875 ? 1 : 2));
         }
         // 창 — 군중 사이에서 올라오는 자루+창끝
         for (let i = 0; i < 6; i++) {
@@ -3992,7 +4011,7 @@ IconGen._genderSym = function (ctx, S, female) {
         const banner = (x, top, wd, ht, tilt, c) => {
             ctx.save(); ctx.translate(x, top); ctx.rotate(tilt);
             fill(ctx, c, () => ctx.rect(-H * 0.012, 0, H * 0.024, H * 1.05));
-            fill(ctx, c, () => {                    // 천에는 곡률(펄럭임) — 직선 삼각형이면 정적으로 죽는다(비평가 재채점)
+            const cloth = () => {                   // 천에는 곡률(펄럭임) — 직선 삼각형이면 정적으로 죽는다(비평가 재채점)
                 ctx.moveTo(0, H * 0.02);
                 ctx.quadraticCurveTo(wd * 0.50, -H * 0.015, wd, H * 0.09);
                 ctx.quadraticCurveTo(wd * 0.85, ht * 0.26, wd * 0.92, ht * 0.44);
@@ -4000,10 +4019,19 @@ IconGen._genderSym = function (ctx, S, female) {
                 ctx.lineTo(wd * 0.62, ht * 0.86);   // 찢긴 자락(얕게)
                 ctx.lineTo(wd * 0.68, ht * 0.64);
                 ctx.quadraticCurveTo(wd * 0.32, ht * 0.80, 0, ht);
-            });
+                ctx.closePath();
+            };
+            fill(ctx, c, cloth);
+            ctx.save();                             // 천 주름 2톤 — 단색 실루엣이면 접힘이 없다(비평가 6차)
+            ctx.beginPath(); cloth(); ctx.clip();
+            ctx.fillStyle = 'rgba(0,0,0,.20)'; ctx.fillRect(-wd, ht * 0.58, wd * 3, ht);
+            ctx.fillStyle = 'rgba(255,255,255,.10)'; ctx.fillRect(-wd, 0, wd * 3, ht * 0.16);
+            ctx.restore();
             ctx.restore();
         };
         banner(W * 0.30, H * 0.08, H * 0.28, H * 0.30, -0.20, '#7d5c4e');  // 중경 밝은 배너(군중 앞이라 깊이가 갈린다)
+        banner(W * 0.585, H * 0.02, H * 0.26, H * 0.28, -0.14, '#6d5044');
+        banner(W * 0.05, H * 0.02, H * 0.30, H * 0.34, 0.06, '#2e1c15');
         banner(W * 0.14, -H * 0.10, H * 0.40, H * 0.42, 0.10, '#2e1c15');
         banner(W * 0.46, -H * 0.14, H * 0.38, H * 0.40, -0.08, '#241511');
         banner(W * 0.70, -H * 0.05, H * 0.36, H * 0.40, 0.16, '#2e1c15');
@@ -4013,9 +4041,9 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.fillStyle = hz; ctx.fillRect(0, H * 0.40, W, H * 0.45);
         })();
         fill(ctx, '#241612', () => ctx.rect(0, H * 0.925, W, H * 0.08));   // 앞 열 바탕 띠 — 이게 없으면 머리들이 '떠 있는 검은 공'이 된다(어깨가 크롭 아래라 몸이 안 이어진다)
-        for (let i = 0; i < 13; i++) {                                     // 앞 열 — 몸이 이어진 암갈 덩어리에서 머리 혹이 갈린다
+        for (let i = 0; i < 13; i++) {                                     // 앞 열 — 키라인 + 폭 변주(균일 반원 반복 = 스캘럽 무늬, 비평가 6차)
             const k = R();
-            figure(W * (i / 13 + 0.015 + R() * 0.025), H * (0.875 + R() * 0.08), 1.75 + R() * 0.8, i % 4 ? '#241612' : '#2e1d16', k < 0.55 ? 0 : (k < 0.9 ? 1 : 2));   // 머리가 하단 크롭에 잘리면 삼각 톱니로 읽힌다 — 0.875H
+            figure(W * (i / 13 + 0.015 + R() * 0.025), H * (0.875 + R() * 0.08), 1.75 + R() * 0.8, i % 4 ? '#241612' : '#2e1d16', k < 0.55 ? 0 : (k < 0.9 ? 1 : 2), 'rgba(5,3,2,.9)', 1.6 + R() * 0.7);   // 머리가 하단 크롭에 잘리면 삼각 톱니로 읽힌다 — 0.875H
         }
     };
 
@@ -4131,10 +4159,11 @@ IconGen._genderSym = function (ctx, S, female) {
         on(ctx, bar(ctx, S, 1.532, 0.768, 1.428, 0.488, 0.034), 'rgba(0,0,0,.20)');               // 위팔 아랫면 음영(단일톤 방지 — 비평가 B)
         ink(ctx, S, bar(ctx, S, 1.404, 0.490, 1.508, 0.290, 0.098), '#4a8f47', 0.030);            // 왼 아래팔(위로)
         on(ctx, bar(ctx, S, 1.394, 0.478, 1.484, 0.306, 0.028), 'rgba(255,255,255,.18)');         // 아래팔 빛면
-        ink(ctx, S, bar(ctx, S, 1.852, 0.760, 1.968, 0.500, 0.104), '#3a763a', 0.030);            // 오른 위팔
-        on(ctx, bar(ctx, S, 1.834, 0.770, 1.946, 0.520, 0.034), 'rgba(0,0,0,.20)');
-        ink(ctx, S, bar(ctx, S, 1.968, 0.520, 1.888, 0.330, 0.098), '#458742', 0.030);            // 오른 아래팔
-        on(ctx, bar(ctx, S, 1.982, 0.508, 1.906, 0.344, 0.028), 'rgba(255,255,255,.16)');
+        /* 오른팔은 **내린다** — 양팔 만세는 원본(한 팔만 뼈를 들고 다른 팔은 내린 뒷모습)과 달리
+           '귀여운 만세 로봇'으로 읽힌다(비평가 6차 2인 공통). */
+        ink(ctx, S, bar(ctx, S, 1.858, 0.700, 1.948, 0.905, 0.100), '#3a763a', 0.030);            // 오른 위팔(아래로)
+        on(ctx, bar(ctx, S, 1.876, 0.712, 1.958, 0.895, 0.032), 'rgba(0,0,0,.20)');
+        ink(ctx, S, bar(ctx, S, 1.948, 0.895, 1.988, 1.060, 0.092), '#458742', 0.030);            // 오른 아래팔(몸 옆으로 늘어짐)
         const torso = poly(ctx, S, [[1.440, 1.02], [1.492, 0.585], [1.872, 0.585], [1.924, 1.02]]);
         ink(ctx, S, torso, '#41823f', 0.032);
         ctx.save();
@@ -4147,17 +4176,21 @@ IconGen._genderSym = function (ctx, S, female) {
         on(ctx, ell(ctx, S, 1.700, 0.760, 0.062, 0.044, 0.3), 'rgba(0,0,0,.22)');                 // 썩은 얼룩
         on(ctx, rrect(ctx, S, 1.618, 0.585, 0.030, 0.440, 0), 'rgba(0,0,0,.16)');                 // 찢어진 옷자락 이음
         ctx.restore();
-        const head = rrect(ctx, S, 1.542, 0.350, 0.278, 0.262, 0.072);
+        /* 머리 = **뒷모습**(비평가 6차 2인 공통: 원본은 얼굴이 안 보이는 뒷모습 실루엣인데 점눈+
+           이빨 정면 얼굴은 '귀여운 로봇'이 된다). 눈·입·이빨 대신 뒤통수 스티치 흉터 + 헝클어진
+           머리털 혹 + 썩은 얼룩으로 좀비를 세운다. */
+        const head = rrect(ctx, S, 1.542, 0.350, 0.278, 0.262, 0.085);
+        [[1.586, 0.332, 0.040], [1.660, 0.318, 0.048], [1.744, 0.330, 0.038]].forEach(([hx, hy, hr]) =>   // 머리털 혹(키라인째)
+            ink(ctx, S, circle(ctx, S, hx, hy, hr), '#3f7d3c', 0.026));
         ink(ctx, S, head, '#4f9a4b', 0.032);
         ctx.save();
         ctx.beginPath(); head(); ctx.clip();
-        on(ctx, rrect(ctx, S, 1.542, 0.350, 0.278, 0.070, 0), 'rgba(0,0,0,.20)');                 // 눈두덩 그늘
-        on(ctx, ell(ctx, S, 1.600, 0.452, 0.038, 0.032), '#16240f');                              // 움푹한 눈
-        on(ctx, ell(ctx, S, 1.722, 0.452, 0.038, 0.032), '#16240f');
-        on(ctx, ell(ctx, S, 1.786, 0.400, 0.036, 0.026, 0.4), 'rgba(0,0,0,.20)');                 // 썩은 얼룩
-        on(ctx, rrect(ctx, S, 1.578, 0.520, 0.208, 0.046, 0.014), 'rgba(0,0,0,.46)');             // 입
-        [1.598, 1.646, 1.694, 1.742].forEach(x =>                                                 // 드러난 이
-            on(ctx, rrect(ctx, S, x, 0.520, 0.024, 0.046, 0.006), 'rgba(236,234,221,.85)'));
+        on(ctx, rrect(ctx, S, 1.542, 0.350, 0.070, 0.262, 0), 'rgba(255,255,255,.12)');           // 왼쪽 빛면
+        on(ctx, rrect(ctx, S, 1.752, 0.350, 0.068, 0.262, 0), 'rgba(0,0,0,.18)');                 // 오른쪽 음영
+        on(ctx, rrect(ctx, S, 1.672, 0.372, 0.018, 0.200, 0.009), 'rgba(0,0,0,.34)');             // 뒤통수 스티치 흉터
+        [0.408, 0.468, 0.528].forEach(y =>
+            on(ctx, rrect(ctx, S, 1.646, y, 0.070, 0.014, 0.007), 'rgba(0,0,0,.30)'));
+        on(ctx, ell(ctx, S, 1.596, 0.520, 0.040, 0.030, 0.3), 'rgba(0,0,0,.18)');                 // 썩은 얼룩
         ctx.restore();
         // 왼손에 쥔 뼈다귀
         ink(ctx, S, bar(ctx, S, 1.512, 0.290, 1.552, 0.165, 0.052), '#e6e2d2', 0.024);
