@@ -14,7 +14,9 @@ const path = require('path');
 const KINDS = process.argv.slice(2).length ? process.argv.slice(2)
     : ['golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
-const SCALES = [1, 0.94, 0.88, 0.82, 0.76, 0.7];
+// 기본은 '너무 커서 새는' 링을 좁히는 하향 훑기. 반대로 **파묻힌 링**(darkPx 0 = 무비용 무효과)을
+// 키울 때는 상향으로 준다: AO_SCALES=1,1.15,1.3,1.5,1.75,2 node probe-enemy-ao-split.js goblin
+const SCALES = (process.env.AO_SCALES || '1,0.94,0.88,0.82,0.76,0.7').split(',').map(Number);
 const MIN_DARK_PX = 60;
 
 async function renderAndGrab(page, rect, setup) {
