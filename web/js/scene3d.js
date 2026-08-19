@@ -1260,8 +1260,17 @@ const Scene3D = {
             map: gt.map, normalMap: gt.normal,
             normalScale: new THREE.Vector2(0.7, 0.7), // 1.45는 고주파 스펙클('카펫')로 읽힘 — 저폴리 소품과 톤 맞춤
         });
-        const geo = new THREE.PlaneGeometry(60, 30, 64, 28);
+        // 🚨 **깊이를 30 → 60 으로 늘리고 뒤로 15 밀었다 (map-quality-up).**
+        //    종전 플레인은 z −15..+15 라 **far 모서리가 카메라에서 23.7 유닛**인데 `fog.far` 가 35 이라
+        //    **49% 만 안개에 잠긴 채 뚝 끊겼다** — 그 끊긴 자리가 화면 폭을 관통하는 곧은 가로선으로
+        //    보인다(비평가 2인이 독립적으로 지적). 기존 `probe-ground-seam.js` 도 그 행에서 최대 단차
+        //    **중앙값의 7.5~9배**를 냈고, 그림자맵 off·지면 receiveShadow off·흙길 off·섀도캠 ×3
+        //    **어떤 토글에서도 값이 안 변했다** — 그림자도 데칼도 아니고 지형 자체라는 뜻이다.
+        //    이제 far 모서리가 z=−45(카메라에서 53 유닛)라 fog.far 밖이므로 **안개에 완전히 녹아 사라진다.**
+        //    ⚠️ 원경 능선은 z −12/−19/−25 에 있다 — 지면이 그보다 뒤까지 깔려야 능선 아래가 안 비친다.
+        const geo = new THREE.PlaneGeometry(60, 60, 64, 56);
         geo.rotateX(-Math.PI / 2);
+        geo.translate(0, 0, -15);
         const pos = geo.attributes.position;
         for (let i = 0; i < pos.count; i++) {
             const x = pos.getX(i), z = pos.getZ(i);
