@@ -142,6 +142,24 @@ const UI = {
                 .toString(16).padStart(2, '0')).join('');
     },
 
+    // 구체 스페큘러(--rc-lite) — **등급이 올라갈수록 하이라이트가 밝아지게** 목표 휘도로 역산한다.
+    // 🚨 이걸 상수 배합(예전 `srShade(rc, .5)`)으로 두면 위계가 뒤집힌다: 하이라이트 휘도가
+    //    팔레트 고유 휘도에 그대로 딸려 가는데, `RARITY_CSS` 는 일반(#d6d6d6, luma 214)이
+    //    희귀한(#29b6f6, 147)·서사시(#3ddc50, 157)·궁극의(#ff3b30, 116)·신화(#b23dff, 118)보다
+    //    **밝다**. 실제로 `probe-sr-material` 의 구체 평균 휘도가 일반 140.6 > 희귀한 103.0 ·
+    //    궁극의 81.5 · 신화 80.4 로, 최하 등급이 위 네 등급보다 밝게 찍혔다(10차 비평가 B ②,
+    //    13차 비평가 B 가 독립적으로 같은 것을 지적했고 우리 계측기가 세 번째로 확인했다).
+    // ⚠️ 팔레트(RARITY_CSS)는 전 화면 공용이라 **건드리지 않는다** — 몸통 색(--rc)은 그대로 두고
+    //    스페큘러 스톱만 등급별 목표 휘도로 올린다. 색상(hue)은 몸통 40% 스톱이 지킨다.
+    SR_HILITE_LUMA: [222, 246, 248, 250, 252, 254],
+    srHilite(hex, tier) {
+        const [r, g, b] = this.srRgb(hex);
+        const luma = r * .299 + g * .587 + b * .114;
+        const want = this.SR_HILITE_LUMA[U.clamp(tier, 0, 5)];
+        // amt = 흰색으로 얼마나 당길지. (255-luma) 로 나눠 목표 휘도를 맞춘다.
+        return this.srShade(hex, U.clamp((want - luma) / Math.max(1, 255 - luma), 0, 1));
+    },
+
     srRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; },
 
     // ===== 흰 '페이퍼' 카드 위에서 쓸 등급색 =====
@@ -338,9 +356,10 @@ const UI = {
             //    받고 만들어 낸 성과다(크기 격차는 CSS 쪽 --peersz 로 절반만 좁힌다).
             const peer = heroIdx >= 0 && i !== heroIdx && e.rarity === best;
             // data-tier로 등급별 세기(크기·광채·광선)를 계단화한다 — 6등급이 2상태로 붕괴하지 않게
-            return `${brk}<div class="sr-cell${hi ? ' hi' : ''}${i === heroIdx ? ' heroic' : ''}${peer ? ' peer' : ''}" data-tier="${RARITIES.indexOf(e.rarity)}"
+            const tier = RARITIES.indexOf(e.rarity);
+            return `${brk}<div class="sr-cell${hi ? ' hi' : ''}${i === heroIdx ? ' heroic' : ''}${peer ? ' peer' : ''}" data-tier="${tier}"
                 data-mat="${this.srMaterial(e.rarity)}"
-                style="--i:${i};--rc:${rc};--rc-lite:${this.srShade(rc, .5)};--rc-deep:${this.srShade(rc, -.62)};${this.chipVars(e.rarity)}">
+                style="--i:${i};--rc:${rc};--rc-lite:${this.srHilite(rc, tier)};--rc-deep:${this.srShade(rc, -.62)};${this.chipVars(e.rarity)}">
                 <div class="sr-orbwrap">
                     <span class="sr-ray"></span>
                     <span class="sr-beam"></span>

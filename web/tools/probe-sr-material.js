@@ -64,8 +64,12 @@ const BUILD = `(SZ => {
         cell.dataset.tier = String(t);
         cell.dataset.mat = UI.srMaterial(RARITIES[t]);
         // ⚠️ .sr-cell 기본값은 opacity:0 · scale(.35)다(등장 애니메이션 전 상태) — 실측용으로 편다
+        // 🚨 배합을 여기 손으로 베끼면 안 된다 — 게임 코드가 스페큘러 식을 바꿔도 프로브는 옛
+        //    값으로 계속 재서 '고쳤는데 수치가 그대로'인 유령 결과를 낸다(TODO 함정 ④를 여기서
+        //    한 번 밟았다: srShade(rc,.5) 가 박혀 있어 등급별 하이라이트 도입이 0 변화로 찍혔다).
+        //    실제 셀을 그리는 그 함수(UI.srHilite)를 그대로 부른다.
         cell.style.cssText = 'opacity:1;transform:none;width:' + SZ + 'px;--rc:' + rc
-            + ';--rc-lite:' + UI.srShade(rc, .5) + ';--rc-deep:' + UI.srShade(rc, -.62);
+            + ';--rc-lite:' + UI.srHilite(rc, t) + ';--rc-deep:' + UI.srShade(rc, -.62);
         // 래퍼 transform: scale(--sz)가 걸리면 캡처 상자와 구체 반경이 어긋난다 — 실측 중에만 끈다
         cell.innerHTML = '<div class="sr-orbwrap" style="transform:none"><span class="sr-orb"></span></div>';
         host.appendChild(cell);
@@ -124,13 +128,23 @@ const luma = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
         const cx = b.x + b.w / 2, cy = b.y + b.h / 2, R = b.w / 2;
         // 전체 평균(아이콘 자리 r<0.34 제외, 테두리 r>0.94 제외)
         let sum = 0, n = 0;
+        const all = [];
         for (let y = -R; y <= R; y += 1) for (let x = -R; x <= R; x += 1) {
             const rr = Math.hypot(x, y) / R;
             if (rr < 0.34 || rr > 0.94) continue;
             const [r0, g0, b0] = px(cx + x, cy + y);
-            sum += luma(r0, g0, b0); n++;
+            const L = luma(r0, g0, b0);
+            sum += L; n++; all.push(L);
         }
         const mean = sum / n;
+        // 명부(상위 10% 휘도 평균) — **위계는 여기서 읽힌다.**
+        // ⚠️ 평균휘도로 등급 위계를 판정하면 안 된다: 구체 몸통 색은 팔레트 고유 휘도에 그대로
+        //    딸려 가는데 RARITY_CSS 는 일반(#d6d6d6)이 궁극의(#ff3b30)·신화(#b23dff)보다 밝고,
+        //    그 팔레트는 전 화면 공용이라 변경 금지다. 우리가 등급으로 통제할 수 있는 축은
+        //    **스페큘러(--rc-lite)** 이고, 비평가가 '명부'라고 부르며 잰 것도 이 통계다.
+        all.sort((a, b2) => b2 - a);
+        const hi = all.slice(0, Math.max(1, Math.round(all.length * 0.1)));
+        const bright = hi.reduce((a, b2) => a + b2, 0) / hi.length;
 
         // M1 — 광원 반대편 림(r 0.78~0.92, cos < -0.5)
         let ls = 0, ln = 0;
@@ -202,11 +216,11 @@ const luma = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
             / (Math.sqrt(dot(inner.sig, inner.sig) * dot(outer.sig, outer.sig)) || 1e-9);
         const m3 = (inner.frac + outer.frac) / 2 * Math.max(0, corr);
 
-        rows.push({ t, kr: RK[t], mat: MAT[t], mean, m1, m2, m3, axis });
+        rows.push({ t, kr: RK[t], mat: MAT[t], mean, bright, m1, m2, m3, axis });
     }
 
     console.log('== 소환 구체 재질 위계(구면감) 실측 ==');
-    console.log('등급        재질   평균휘도   M1 터미네이터   M2 광축단조   M3 각고주파');
+    console.log('등급        재질   평균휘도   명부(상위10%)   M1 터미네이터   M2 광축단조   M3 각고주파');
     let fail = 0;
     for (const r of rows) {
         const bad = [];
@@ -214,11 +228,21 @@ const luma = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
         if (r.m2 < GATE.m2) bad.push('M2');
         if (r.m3 > GATE.m3) bad.push('M3');
         if (bad.length) fail++;
-        console.log(`${r.kr.padEnd(8)}  ${r.mat.padEnd(6)} ${r.mean.toFixed(1).padStart(7)}`
+        console.log(`${r.kr.padEnd(8)}  ${r.mat.padEnd(6)} ${r.mean.toFixed(1).padStart(7)} ${r.bright.toFixed(1).padStart(12)}`
             + `   ${r.m1.toFixed(3).padStart(10)}   ${r.m2.toFixed(3).padStart(9)}   ${r.m3.toFixed(3).padStart(9)}`
             + (bad.length ? `   ← FAIL ${bad.join(',')}` : '   PASS'));
     }
-    console.log(`게이트: M1 ≤ ${GATE.m1} · M2 ≥ ${GATE.m2} · M3 ≤ ${GATE.m3}`);
+    // 게이트 ④ — 명부(상위 10%)가 등급을 따라 **단조 증가**해야 한다.
+    // 두 회차의 비평가가 독립적으로 "희귀한/궁극의/신화가 일반보다 초라하다"고 지적한 그 축이고,
+    // 팔레트를 못 건드리는 이상 여기가 위계를 세우는 유일한 통제축이다(평균휘도는 팔레트 고유
+    // 휘도에 딸려 가므로 게이트로 쓸 수 없다 — 실측 120.0/107.9/139.7/157.4/96.1/95.6).
+    for (let t = 1; t < rows.length; t++) {
+        if (rows[t].bright < rows[t - 1].bright - 0.5) {
+            fail++;
+            console.log(`  ← FAIL 명부 역전: ${rows[t - 1].kr} ${rows[t - 1].bright.toFixed(1)} > ${rows[t].kr} ${rows[t].bright.toFixed(1)}`);
+        }
+    }
+    console.log(`게이트: M1 ≤ ${GATE.m1} · M2 ≥ ${GATE.m2} · M3 ≤ ${GATE.m3} · 명부 단조 증가`);
     // M2가 떨어졌을 때 '어느 반경에서 다시 밝아졌는지'를 봐야 원인 층을 짚을 수 있다 —
     // 수치만 보고 층을 지우면 멀쩡한 재질 단서(유리 굴절 핫스팟 등)를 잃는다.
     if (process.argv.indexOf('--profile') >= 0) {

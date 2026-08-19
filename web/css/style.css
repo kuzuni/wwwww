@@ -5543,9 +5543,14 @@ body {
 .sr-grid.one .sr-orb { font-size: 6.2rem; }
 .sr-grid.mid .sr-orb { font-size: 1.7rem; }
 .sr-grid.dense .sr-orb { font-size: 1.25rem; }
-/* 하위 등급은 눌러 둔다 — 일반색(#d6d6d6)이 팔레트 최고 휘도라 그대로 두면
-   쓰레기 드랍이 화면에서 가장 빛나는 휘도 역전이 생긴다 */
-.sr-cell[data-tier="0"] .sr-orb,
+/* 하위 등급은 눌러 둔다 — 일반색(#e0e0e0, luma 224)이 팔레트 최고 휘도라 그대로 두면
+   쓰레기 드랍이 화면에서 가장 빛나는 휘도 역전이 생긴다.
+   🚨 **tier 0 과 1 을 같은 값으로 누르면 역전이 한 칸 옮겨 갈 뿐이다.** 희귀한(#1cafff)은
+   고유 휘도가 140 이라 같은 배율로 눌리면 일반보다 어두워진다 — 실측 명부(상위 10%)가
+   일반 173.0 > 희귀한 168.8 로, 두 회차의 비평가가 독립적으로 "희귀한이 일반보다 초라하다"고
+   지적한 그 수치다. 억제는 유지하되(그게 없으면 진짜로 쓰레기가 제일 빛난다) **일반만 한 단
+   더 누른다.** 회귀 검사는 probe-sr-material 의 명부 열(단조 증가)로 한다. */
+.sr-cell[data-tier="0"] .sr-orb { filter: saturate(.62) brightness(.64); }
 .sr-cell[data-tier="1"] .sr-orb { filter: saturate(.66) brightness(.74); }
 .sr-cell[data-tier="2"] .sr-orb { filter: saturate(.95) brightness(.9); } /* 서사시는 쓰레기와 구분되게 덜 누른다 */
 /* 상위 등급 내부의 휘도 역전(순노랑 전설이 어두운 보라 신화보다 밝음)은 본체 밝기로 정규화 */
