@@ -27,13 +27,21 @@ const MOUNTS = ['Pony', 'Donkey', 'Alpaca', 'Clockwork Mouse', 'Clockwork Beetle
     await page.goto(INDEX, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof UI !== 'undefined' && typeof Scene3D !== 'undefined' && Scene3D.mountThumb, null, { timeout: 30000 });
 
-    // 전 15종을 보유 + 하나 장착시켜 슬롯/타일/오브/칩을 전부 켠다
-    await page.evaluate((names) => {
+    // 전 종을 보유 + 하나 장착시켜 슬롯/타일/오브/칩을 전부 켠다
+    // ⚠️ 2026-08-19 인벤 개편 이후 `S.mounts` 는 **개체 배열**이다(이름 키 맵이 아니다). 옛 시드는
+    //    배열에 이름 프로퍼티를 얹어 `Mounts.inst(name)` 이 그걸 그대로 집었고, 등급도 이 저장소에
+    //    없는 `uncommon` 을 넣어 `RARITY_CSS['uncommon']` 이 undefined → `srRgb` 가 터졌다
+    //    (probe-creature-framing-crash: 프로브가 판정 한 줄도 못 내고 죽던 원인).
+    //    등급은 팔레트에서 직접 뽑아 온다 — 표가 바뀌어도 시드가 같이 따라 움직이도록.
+    const idxOf = await page.evaluate((names) => {
         Mounts.ensure();
-        const RA = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
-        names.forEach((n, i) => { S.mounts[n] = { rarity: RA[i % RA.length], level: 3 + i, dupes: 0, subs: Mounts.rollSubs() }; });
-        S.activeMount = 'Brown Horse';
+        const RA = Object.keys(RARITY_CSS);
+        S.mounts = names.map((n, i) => ({ name: n, rarity: RA[i % RA.length], level: 3 + i, xp: 0, stars: 0, subs: Mounts.rollSubs() }));
+        const map = {};
+        S.mounts.forEach((m, i) => { map[m.name] = i; });
+        S.activeMounts = [map['Brown Horse']];   // 장착은 **인덱스** 목록이다(옛 S.activeMount 이름 아님)
         if (Scene3D.refreshMount) Scene3D.refreshMount();
+        return map;
     }, MOUNTS);
 
     // ── ③④ 썸네일 자체 품질: 알파 채널로 실제 그려진 픽셀 비율을 재고, 색 히스토그램을 뽑는다
@@ -70,16 +78,18 @@ const MOUNTS = ['Pony', 'Donkey', 'Alpaca', 'Clockwork Mouse', 'Clockwork Beetle
             im.src = url;
         });
         const out = {};
+        const byName = {};
+        S.mounts.forEach(m => { byName[m.name] = byName[m.name] || m; });   // 개체 배열 → 이름 대표 개체
         for (const n of names) {
-            const url = Scene3D.mountThumb(n, S.mounts[n].rarity);
+            const url = Scene3D.mountThumb(n, byName[n].rarity);
             out[n] = url ? Object.assign({ len: url.length }, await px(url)) : null;
         }
         return out;
     }, MOUNTS);
 
     // ── ①② 실제 DOM: 각 화면을 열고 .mt-face가 img로 교체되는지 + src가 서로 다른지
-    const domCheck = async (label, open, sel) => {
-        await page.evaluate(open);
+    const domCheck = async (label, open, sel, arg) => {
+        await page.evaluate(open, arg);
         await page.waitForTimeout(1400);   // 하이드레이트 청크가 도는 시간(소프트웨어 GL)
         return await page.evaluate((s) => {
             const faces = [...document.querySelectorAll(s)];
@@ -96,8 +106,9 @@ const MOUNTS = ['Pony', 'Donkey', 'Alpaca', 'Clockwork Mouse', 'Clockwork Beetle
     const res = {};
     res.equipSlot   = await domCheck('장비시트 탈것칸', () => UI.renderEquipSheet(), '#equip-sheet .mt-face');
     res.mountScreen = await domCheck('탈것 화면 타일', () => UI.openMounts(), '#mount-modal .mt-face');
-    res.mountDetail = await domCheck('탈것 상세',      () => UI.openMountDetail('Mini Dragon'), '#detail-modal .mt-face');
-    res.upgrade     = await domCheck('업그레이드 재료', () => { UI.closeDetail(); UI.openMountUpgrade('Turtle'); }, '#mount-upgrade-modal .mt-face');
+    // 상세·업그레이드는 **개체 인덱스**로 연다(이름을 넘기면 `Mounts.inst` 가 null 을 물고 조용히 return 한다)
+    res.mountDetail = await domCheck('탈것 상세',      (i) => UI.openMountDetail(i), '#detail-modal .mt-face', idxOf['Mini Dragon']);
+    res.upgrade     = await domCheck('업그레이드 재료', (i) => { UI.closeDetail(); UI.openMountUpgrade(i); }, '#mount-upgrade-modal .mt-face', idxOf['Turtle']);
     res.playerInfo  = await domCheck('플레이어 정보',   () => { UI.closeMountUpgrade(); UI.openPlayerInfo(); }, '#player-info-modal .mt-face');
 
     // ── ④ 인게임 탑승 탈것과 같은 모델을 쓰는지: 썸네일과 씬의 탈것 지오메트리 지문 대조
@@ -105,7 +116,8 @@ const MOUNTS = ['Pony', 'Donkey', 'Alpaca', 'Clockwork Mouse', 'Clockwork Beetle
         // 씬에 실제로 올라간 탈것 메시의 (자식 수, 지오메트리 타입 목록) 지문
         const fp = (obj) => { const a = []; obj.traverse(o => { if (o.geometry) a.push(o.geometry.type + ':' + Math.round((o.geometry.parameters ? (o.geometry.parameters.radius || o.geometry.parameters.width || 0) : 0) * 1000)); }); return a.sort().join('|'); };
         const live = Scene3D.mountGroup ? fp(Scene3D.mountGroup) : null;
-        const thumbMesh = Scene3D.makeMountMesh(S.activeMount, S.mounts[S.activeMount].rarity);
+        const rid = Mounts.riddenInst();   // 실제 탑승 **개체**(옛 S.activeMount 이름 조회는 폐기)
+        const thumbMesh = Scene3D.makeMountMesh(rid.name, rid.rarity);
         return { liveLen: live ? live.length : 0, match: live ? live.indexOf(fp(thumbMesh).slice(0, 200)) >= 0 || fp(thumbMesh) === live : null };
     });
 

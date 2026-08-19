@@ -142,9 +142,10 @@ const UI = {
 
     // 등급색에서 밝은/어두운 스톱을 계산한다. RARITY_CSS는 전 화면 공용 데이터라 건드리지 않고,
     // 구체 그라디언트에만 파생색을 쓴다 (color-mix 미지원 브라우저에서도 동작하게 JS로 계산).
+    // 파싱은 `srRgb` 한 곳에만 둔다 — 여기 따로 `parseInt(hex.slice(1))` 을 복제해 두면
+    // 나쁜 값 가드도 두 벌이 돼서 한쪽만 고치게 된다(실제로 그래서 이 줄이 따로 터졌다).
     srShade(hex, amt) {
-        const n = parseInt(hex.slice(1), 16);
-        return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+        return '#' + this.srRgb(hex)
             .map(c => U.clamp(Math.round(amt > 0 ? c + (255 - c) * amt : c * (1 + amt)), 0, 255)
                 .toString(16).padStart(2, '0')).join('');
     },
@@ -167,7 +168,22 @@ const UI = {
         return this.srShade(hex, U.clamp((want - luma) / Math.max(1, 255 - luma), 0, 1));
     },
 
-    srRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; },
+    // ⚠️ 색이 아닌 값(undefined 등)이 들어와도 **여기서 팝업 전체를 무너뜨리지 않는다.**
+    //    실측 사례(probe-creature-framing-crash): 등급표에 없는 문자열이 `RARITY_CSS[...]` 로 조회돼
+    //    undefined 가 여기까지 내려왔고, `undefined.slice` 가 터지면서 탈것 상세 팝업이 통째로 죽었다.
+    //    다만 **조용히 삼키지는 않는다** — 그랬으면 이 결함 자체가 안 보였을 것이다. 회색으로 눈에
+    //    띄게 떨어뜨리고 console.error 를 내서 프로브의 '콘솔 에러 0건' 판정에 반드시 걸리게 한다.
+    SR_RGB_FALLBACK: '#808080',
+    srRgb(hex) {
+        if (typeof hex === 'string' && /^#[0-9a-fA-F]{3}$/.test(hex)) {   // #abc → #aabbcc
+            hex = '#' + hex.slice(1).split('').map(c => c + c).join('');
+        }
+        if (typeof hex !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(hex)) {
+            console.error('[UI.srRgb] 색이 아닌 값이 들어왔다(등급표에 없는 키?):', hex);
+            hex = this.SR_RGB_FALLBACK;
+        }
+        const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    },
 
     // ===== 흰 '페이퍼' 카드 위에서 쓸 등급색 =====
     // RARITY_CSS는 어두운 3D 씬·검은 UI 위에서 쓰라고 잡은 **밝은** 팔레트다. 흰 카드 위

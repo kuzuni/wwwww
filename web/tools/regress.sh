@@ -11,6 +11,7 @@ for p in \
     probe-grid-empty.js \
     test-death-timeline.js \
     probe-death-remnant.js \
+    probe-creature-framing.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1
