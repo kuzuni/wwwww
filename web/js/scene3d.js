@@ -11183,57 +11183,93 @@ const Scene3D = {
         const VS = 0.04;
         const V = Voxel;
         const H = (s, l) => new THREE.Color(c).offsetHSL(0, s, l).getHex();
-        const SHELL_D = H(0.05, -0.24), SHELL_L = H(0.02, 0.04);
+        // ⚠️ 갑판 판/홈의 명도차는 **0.28 → 0.18** 로 좁혔다. 비평가 지적: *"밝은 민트/진한 초록
+        //    대비가 커서 계단면이 썸네일에서 지글거리는 노이즈로 뭉갠다."* 무늬는 대비가 아니라
+        //    **판 크기**로 읽히므로(홈 간격 8) 대비를 낮춰도 갑판은 안 사라진다.
+        const SHELL_D = H(0.05, -0.18), SHELL_L = H(0.02, 0.00);
         const SKIN = H(0, 0), SKIN_D = H(0, -0.12);
         const RIM = 0x4a3b28, PLASTRON = 0xd8cdb0, BEAK = 0xcbbb9a, EYE = 0x1b1f24;
         const LEATHER = 0x2b1a0c, TRIM = 0xc9a227;
-        let vox = [];
-        const add = (a) => { vox = vox.concat(a); };
+        const FOOT = 0xd8cdb0;
         if (name !== 'Turtle') return g;      // 시험판은 거북 1종. 다른 종은 빈 그룹(호출부가 걸러 준다)
 
-        // ⑴ 다리 4개 — 굵고 짧은 기둥. 거북 다리는 파이프가 아니라 **뭉툭한 기둥**이다.
-        for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(V.at(V.slab(3, 4, 3, SKIN_D), sx * 4, 0, sz * 6));
-        // ⑵ 배딱지(plastron) — 한 층짜리 타원판. 밑에서 봐도 거북이다.
-        add(V.ellipse(6, 8, 1, { y0: 3, color: PLASTRON }));
-        // ⑶ 등딱지 — 층마다 반지름이 주는 계단 돔. 맨 아래 층이 **테두리**(고정 각질색)다.
-        //    ⚠️ 테두리 층을 몸(다리·배딱지)보다 넓게 두는 게 핵심 — 거북 ② 가 실측으로 세운
-        //       '테두리 오버행이 곧 거북다움'이라는 결론을 층 반지름 하나로 표현한 것이다.
-        const LAYERS = [[4, 8.0, 10.0], [5, 7.8, 9.8], [6, 7.3, 9.1], [7, 6.5, 8.1], [8, 5.4, 6.7], [9, 3.8, 4.7]];
+        // 🚨🚨 **1판은 전신을 메시 하나로 병합했다 — 그게 채점의 가장 큰 지적이었다.**
+        //    비평가: *"A 는 53메시라 머리·다리·안장이 분리돼 있다. B 는 메시 1개다. 탈것은 걷기
+        //    사이클이 필수인데 이 구조로는 파츠 회전이 불가능하다 — 화풍을 얻는 대신 애니메이션
+        //    파이프라인을 잃었다."* 그리고 이건 **`js/voxel.js` 자신의 설계 결정 ⓐ 를 어긴 것**이다:
+        //    *"파츠마다 지오메트리를 병합한다 … 애니 단위는 큐브가 아니라 **파츠**다. 파츠 하나를
+        //    병합 메시로 만들어 피벗 Group 에 달면 기존 파츠 리그를 그대로 재활용할 수 있다."*
+        //    → 아래 `part()` 가 그 규약이다. **종을 늘리기 전에 반드시 이 구조 위에서 지을 것.**
+        // 규약: 복셀은 전부 **한 격자(global cell)** 좌표로 적고, 피벗 칸만 따로 준다. 메시를
+        //    피벗만큼 되밀어 놓으므로 **월드 자리는 그대로**이고 회전축만 생긴다 — 좌표를 두 번
+        //    적지 않는다(이 파일이 굴레·눈에서 반복해 밟은 '상수를 다시 적어 따로 논다' 함정).
+        const part = (voxels, px, py, pz) => {
+            // ⚠️ 재질은 **반드시 `vertexColors: true`** — `Voxel.build` 가 큐브별 색변화와 이음새
+            //    AO 를 정점 색에 굽는다. 없으면 무늬도 AO 도 사라져 단색 덩어리가 나온다.
+            //    램버트인 건 나머지 탈것과 **같은 조명 응답**이어야 시험판 비교가 유효해서다.
+            const m = V.build(voxels, {
+                size: VS, jitter: 0.03, ao: 0.9, center: false,
+                material: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }),
+            });
+            m.position.set(-px * VS, -py * VS, -pz * VS);
+            const pivot = new THREE.Group();
+            pivot.position.set(px * VS, py * VS + VS / 2, pz * VS);   // 규약 ⑴ — 맨 아래 칸 밑면을 지면에
+            pivot.add(m); g.add(pivot);
+            return pivot;
+        };
+
+        // ⑴ 다리 4개 — **각각 자기 피벗(고관절)에 달린다.** 발끝 한 칸을 밝은 색으로 빼 접지감을 준다
+        //    (채점 지적 ④ "발 없는 사각기둥 = 탁자 다리").
+        g.userData.legs = [];
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+            const leg = V.merge(V.at(V.slab(5, 1, 5, FOOT), sx * 4, 0, sz * 6),
+                                V.at(V.slab(3, 4, 3, SKIN_D), sx * 4, 1, sz * 6));
+            g.userData.legs.push(part(leg, sx * 4, 4, sz * 6));      // 피벗 = 다리 윗끝(고관절)
+        }
+        // ⑵ 등딱지 + 배딱지 — 한 파츠(몸통). 배딱지는 한 층짜리 타원판이라 밑에서 봐도 거북이다.
+        let shell = V.ellipse(6, 8, 1, { y0: 3, color: PLASTRON });
+        //    ⚠️ **층 반지름 차이가 곧 계단 높이다.** 1판(8.0→7.8→7.3→6.5→5.4→3.8)은 위로 갈수록
+        //       차이가 커져 비평가 2인이 독립적으로 **'웨딩케이크·계단 피라미드·원형극장'** 으로
+        //       읽었다. 차이를 고르게 눕혀 돔에 가깝게 만든다 — 거북다움은 계단 수가 아니라
+        //       **테두리 오버행 + 갑판 구획**에서 나온다(매끈판 거북 ②가 이미 실측으로 세운 결론).
+        const LAYERS = [[4, 8.0, 10.0], [5, 7.9, 9.9], [6, 7.6, 9.5], [7, 7.1, 8.9], [8, 6.3, 7.9], [9, 5.2, 6.5]];
         for (const [y, rx, rz] of LAYERS) {
             const lay = V.ellipse(rx, rz, 1, { y0: y, color: SHELL_D });
-            // 갑판 무늬 — 격자 홈만 어둡게 남기고 나머지를 밝은 판으로. **색으로만** 낸다(위 주석).
-            add(y === 4 ? V.recolor(lay, () => RIM)
-                : V.recolor(lay, v => (((v.x + 30) % 6 === 0) || ((v.z + 30) % 6 === 0)) ? SHELL_D : SHELL_L));
-            // ⚠️ 홈 간격 5 는 **너무 촘촘했다** — 판보다 홈이 많아 갑판이 아니라 '이끼 낀 자갈'로
-            //    읽혔다(1판 캡처). 6 으로 벌려 판을 크게 잡는다. 무늬는 홈의 **수**가 아니라
-            //    판의 **크기**로 읽힌다(매끈판 거북 ② 가 '판 두께 0.04 는 징이다'로 배운 것과 같은 축).
+            // 갑판(scute) — **판을 크게, 경계선만 한 칸.** 홈 간격 5→6 으로 벌렸는데도 아직
+            // '판보다 홈이 많다'는 지적이 남아 8 로 벌린다. 무늬는 홈의 수가 아니라 **판 크기**로 읽힌다.
+            shell = V.merge(shell, y === 4 ? V.recolor(lay, () => RIM)
+                : V.recolor(lay, v => (((v.x + 40) % 8 === 0) || ((v.z + 40) % 8 === 0)) ? SHELL_D : SHELL_L));
         }
-        // ⑷ 목·머리 — 짧고 굵은 주름 목 + 각질 부리. 부리가 없으면 두상만으로는 도마뱀·개구리다.
-        add(V.at(V.slab(3, 3, 3, SKIN_D), 0, 5, 11));
-        const head = V.at(V.slab(5, 3, 5, SKIN), 0, 6, 14);
-        add(V.recolor(head, v => (Math.abs(v.x) === 2 && v.y === 7 && v.z === 16) ? EYE : undefined));
-        add(V.at(V.slab(3, 1, 3, BEAK), 0, 6, 17));
-        // ⑸ 꼬리
-        add(V.at(V.slab(3, 2, 3, SKIN_D), 0, 4, -11));
-        // ⑹ 안장 — 방석 윗면이 정확히 0.44 에 오는 한 층(규약 ⑵). 앞턱·뒷턱은 그 위로 한 층.
-        const seat = V.ellipse(4.6, 5.8, 1, { y0: 10, color: LEATHER });
-        // ⚠️ 금색 테두리 문턱 0.55 는 방석의 **절반 이상**을 금으로 칠해 안장이 아니라 '금색 의자'
-        //    였고, 앞턱·뒷턱을 2층으로 세웠더니 **의자 등받이**가 됐다(1판 캡처). 테두리는 바깥
-        //    한 줄만(0.82), 턱은 한 층만.
-        add(V.recolor(seat, v => ((v.x / 4.6) ** 2 + (v.z / 5.8) ** 2 > 0.82) ? TRIM : undefined));
-        add(V.at(V.slab(5, 1, 1, LEATHER), 0, 11, 4));
-        add(V.at(V.slab(5, 1, 1, LEATHER), 0, 11, -4));
-
-        // ⚠️ 재질은 **반드시 `vertexColors: true`** — `Voxel.build` 가 큐브별 색변화와 이음새 AO 를
-        //    정점 색에 굽는다. 이 플래그가 없으면 무늬도 AO 도 통째로 사라져 단색 덩어리가 나온다
-        //    (적 voxel 전환이 같은 함정을 주석으로 남겨 뒀다).
-        // 램버트를 쓰는 건 나머지 탈것과 **같은 조명 응답**이어야 시험판 비교가 유효하기 때문이다.
-        const mesh = V.build(vox, {
-            size: VS, jitter: 0.03, ao: 0.9, center: false,   // jitter 0.05 는 계단 돔 위에서 얼룩으로 읽힌다
-            material: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }),
+        part(shell, 0, 0, 0);
+        // ⑶ 목·머리 — **하나의 머리 피벗**에 목·머리·부리·눈이 전부 묶인다. 이 파일이 매끈판에서
+        //    세 번 밟은 '머리를 옮겼는데 눈·굴레만 제자리에 남는' 사고를 구조로 막는 자리다.
+        // 🚨 **눈은 파낸 홈이 아니라 표면에 얹는 색면이어야 한다.** 1판은 1칸짜리 어두운 자국이라
+        //    비평가 2인이 "나사 구멍/환풍구", "배경이 비치는 관통 홀"로 읽었고 치비 점수를 통째로
+        //    깎았다(둘 다 3/10). 흰자 2칸 + 동공 1칸으로 키우고 **머리 앞면 한 면에만** 좌우 대칭.
+        let headV = V.merge(V.at(V.slab(3, 3, 3, SKIN_D), 0, 5, 11),        // 목
+                            V.at(V.slab(7, 4, 5, SKIN), 0, 6, 14),          // 머리 — 치비라 넓고 높게
+                            V.at(V.slab(3, 1, 3, BEAK), 0, 6, 17));         // 각질 부리
+        headV = V.recolor(headV, v => {
+            if (v.z !== 16 || v.y < 8) return undefined;                    // 앞면 윗줄만
+            const ax = Math.abs(v.x);
+            if (ax === 2 || ax === 3) return (ax === 2 && v.y === 8) ? EYE : 0xf4f6f8;
+            return undefined;
         });
-        mesh.position.y = VS / 2;      // 규약 ⑴ — 맨 아래 칸의 **밑면**을 지면에 맞춘다
-        g.add(mesh);
+        g.userData.head = part(headV, 0, 5, 11);                            // 피벗 = 목 밑동
+        // ⑷ 꼬리 — 머리와 **크기가 비슷하면 앞뒤가 안 갈린다**(비평가 지적: 옆에서 양방향 생물).
+        //    머리(폭 7)의 절반 이하로 줄인다.
+        g.userData.tail = part(V.at(V.slab(3, 2, 3, SKIN_D), 0, 4, -11), 0, 5, -10);
+        // ⑸ 안장 — 방석 윗면이 정확히 0.44 에 오는 한 층(규약 ⑵). 앞턱·뒷턱은 그 위로 한 층.
+        //    ⚠️ 금색 테두리 문턱 0.55 는 방석의 절반 이상을 금으로 칠해 '금색 의자'였고, 앞턱·뒷턱을
+        //       2층으로 세웠더니 '의자 등받이'였다(1판 캡처). 테두리는 바깥 한 줄만, 턱은 한 층만.
+        //    📌 **마구(등자·고삐·벨트)는 일부러 안 넣었다** — 비평가 2인이 "안장을 종별로 만들지 말고
+        //       **공용 파츠 1세트**로 만들어 29종에 얹으라"고 했다. 여기서 일회용으로 지으면 그 지적을
+        //       그대로 반복하는 것이라, 공용 마구 모듈은 다음 세션의 선행 과제로 남긴다.
+        const seat = V.ellipse(4.6, 5.8, 1, { y0: 10, color: LEATHER });
+        part(V.merge(V.recolor(seat, v => ((v.x / 4.6) ** 2 + (v.z / 5.8) ** 2 > 0.82) ? TRIM : undefined),
+                     V.at(V.slab(5, 1, 1, LEATHER), 0, 11, 4),
+                     V.at(V.slab(5, 1, 1, LEATHER), 0, 11, -4)), 0, 0, 0);
+
         g.userData.voxelPilot = true;
         return g;
     },
