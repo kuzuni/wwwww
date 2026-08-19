@@ -66,19 +66,26 @@ const URL0 = 'file://' + path.resolve(__dirname, '..', 'index.html');
         ['upgradeStart', () => { S.coins = 1e9; S.forgeUpgradeEndsAt = null; Forge.startUpgrade(); }, 1],
         ['gearUpgrade', () => { S.forgeUpgradeEndsAt = 1; Forge.tickUpgrade(); }, 1],
         ['skillSummon', () => { S.tickets = 1e6; Skills.summon(false, 3); }, 3],
-        ['techDone', () => { S.techResearch = { id: TechTree.BRANCHES[0].types[0] + '@1', endsAt: 1 }; TechTree.tick(); }, 1],
+        // 🔑 `tick()` 이 아니라 `claim()` 이다 — 2026-08-19 사용자 지시로 "시간이 끝나도 [완료]를 눌러야
+        //    실제 완료"가 되면서 레벨업·훅이 `TechTree.claim()` 으로 옮겨 갔다(techtree.js `isDone`/`claim`
+        //    주석). tick 은 [완료] 버튼을 띄우기만 하므로 옛 프로브는 게임이 멀쩡한데도 prog=0 을 냈다.
+        ['techDone', () => { S.techResearch = { id: TechTree.BRANCHES[0].types[0] + '@1', endsAt: 1 }; TechTree.claim(); }, 1],
         ['petHatch', () => { S.hatching = [{ rarity: 'common', endsAt: 1 }]; Pets.tick(); }, 1],
         ['petMerge', () => {
             S.pets = [{ name: petStats.common[0].name, rarity: 'common', level: 1, dupes: 3, xp: 0, stars: 0, subs: [] }];
             S.eggs = []; Pets.merge('common');
         }, 1],
         ['mountSummon', () => { S.winders = 1e6; Mounts.summon(2); }, 2],
+        // 🔑 탈것 인벤은 이름 맵 `{name:{...}}` 에서 **개체 배열**로 바뀌었고(`Mounts.migrateInventory`),
+        //    `absorbMaterials` 는 이제 **인덱스**를 받는다. 옛 프로브는 이름 맵을 세워 놓아
+        //    `inst()` 의 `Array.isArray(S.mounts)` 가드에서 곧장 false 로 튕겼다 — 게임 쪽 버그가 아니다.
         ['mountMerge', () => {
-            const a = mountNames.common[0], b = mountNames.common[1];
-            S.mounts = {}; S.activeMounts = [];
-            S.mounts[a] = { rarity: 'common', level: 1, xp: 0 };
-            S.mounts[b] = { rarity: 'common', level: 1, xp: 0 };
-            Mounts.absorbMaterials(a, [b]);
+            S.mounts = [
+                { name: mountNames.common[0], rarity: 'common', level: 1, xp: 0, stars: 0, subs: [] },
+                { name: mountNames.common[1], rarity: 'common', level: 1, xp: 0, stars: 0, subs: [] },
+            ];
+            S.activeMounts = [];
+            Mounts.absorbMaterials(0, [1]);
         }, 1],
         ['dungeonClear', () => {
             Dungeons.ensure();
