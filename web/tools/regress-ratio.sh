@@ -47,6 +47,7 @@ PROBES=(
     probe-fl-head.js            # forge-list 042905 시대 헤더 막대 — 같은 사유로 묻혀 있었다(3건째)
     probe-fl-body.js            # forge-list 042905 본문(카드·그리드·타일)
     probe-fl-cell-star.js       # forge-list 셀 ★ ↔ 승천 횟수 1:1
+    probe-fl-section-gap.js     # forge-list 시대 섹션 사이 간격 — 타일 개수와 무관한 값이라 판정 가능한데 미판정이었다
     probe-cell-icon-size.js     # 메인 장비 칸 아이콘 채움
     probe-grid-empty.js         # 빈 상태 문구 스팬
     probe-xmark-dom.js          # 닫기 ✕ 캔버스 아이콘 계약(폭/높이/색, icon-gen)

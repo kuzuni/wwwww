@@ -620,7 +620,14 @@ body {
    픽셀로 확정). .55 → .59 로 올려 35.7px 을 되돌린다. ⚠️ 카드 하단을 '흰 잉크가 끊기는 곳'으로 재면
    안 된다(가운데 ✕ 가 흰 런을 자른다 — player-info 에서 실제로 오독했다). **카드 좌 가장자리 안쪽
    열을 따라 걸어야** 진짜 하단이 나온다. */
-.forge-age-list { display: flex; flex-direction: column; gap: .6rem; max-height: calc(var(--app-h) * .59); overflow-y: auto; }
+/* 시대 섹션 사이 간격 — 원본 042905 실측 **43px = 4.92%H**(회색 그리드 패널 하단 y602 →
+   파란 '중세의' 막대 상단 y646). 종전 `.6rem`(9.6px = 1.12%H)은 **−3.80%p** 라 등급 묶음이
+   서로 달라붙어 '한 덩어리'로 읽혔다 — 비평가 2인이 R4 에서 독립적으로 짚은 자리다
+   (A '카드 하단 여백 −3.1%p' · B '그룹 하단↔다음 헤더 −3.8%p' — 같은 자리를 다르게 불렀다).
+   ⚠️ 이 값은 **타일 개수와 무관**해서 판정할 수 있다(패널 높이·막대 절대 위치는 원본 23종 vs
+      클론 30종이라 판정 대상이 아니다 — `probe-fl-body` 머리말 참조). 그 구분이 이 항목의 핵심이라
+      `probe-fl-section-gap.js` 는 간격 하나만 잰다. */
+.forge-age-list { display: flex; flex-direction: column; gap: calc(var(--app-h) * .0492); max-height: calc(var(--app-h) * .59); overflow-y: auto; }
 .forge-age-section .age-tag { display: flex; align-items: center; gap: .3rem; margin-bottom: .3rem; }
 .forge-age-section .age-tag small { color: #90a4ae; font-weight: 400; }
 /* 원본 shot-042905 픽셀 실측(aaa-skin ⑮, 2026-08-18): 패널 #d6d6d6 · 셀 간격 19px(3.95%W) ·
