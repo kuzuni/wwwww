@@ -9673,6 +9673,193 @@ const Scene3D = {
         if (v < 0.60) return 0;                              // 정점은 중립 — 늘어난 채 떠 있으면 국수가 된다
         const f = (v - 0.60) / 0.40; return amp * 0.75 * f * f; // 낙하 가속에 다시 늘어남
     },
+    // ── 보스 레갈리아(冠·등가시·견갑뿔) — 종마다 **몸 표면에 앉혀** 붙인다 ────────────────
+    // 예전 보스 처리는 `g.scale.setScalar(1.9)` + 반경 0.18 원뿔 하나를 `crown.position.y = topY`
+    // 에 놓는 것이 전부였다. 그런데 `topY` 는 **HP 바를 띄우려고 정한 논리 높이**라 종마다 몸
+    // 꼭대기와 어긋난다 — 슬라임은 몸 꼭대기가 0.65 인데 topY 가 0.85 다. 그래서 왕관이 머리에
+    // 앉는 게 아니라 **허공에 떠 있었고**(실측: 보스 전체 높이가 1.9배가 아니라 ×2.42 로 불어난 게
+    // 그 증거다), 갓이 넓은 버섯에서는 반대로 갓 안에 **잠겨** 화면 기여가 0px 이었다.
+    // 게이트는 `tools/probe-boss-crown-seat.js`(gap = 관 밑면 − 몸 꼭대기, 화면 기여 px).
+    //
+    // 처방은 '값을 잘 고르는 것'이 아니라 **몸에서 좌표를 뽑는 것**이다. 종별 상수를 손으로 넣으면
+    // 종이 늘 때마다 같은 사고가 재발한다(이 파일에 이미 여러 번 있었다). 그래서 정점을 한 번 훑어
+    // 월드 좌표 표를 만들고, 관·등가시·견갑뿔이 각자 **자기 높이의 실제 몸 반경**을 물어서 앉는다.
+    //
+    // ⚠️ **`g.scale` 을 걸기 전에** 부를 것 — 여기서 월드 박스·정점을 재는데 이미 1.9배면 실측값이
+    //    전부 1.9배로 들어와 관이 그만큼 크게 앉는다.
+    // ⚠️ 반환값은 **새 topY** 다. 관이 머리 위로 자란 만큼 HP 바를 올리지 않으면 바가 관을 뚫는다.
+    // ⚠️ 파츠에 `userData.bossRegalia` 를 반드시 남길 것 — 착좌 게이트가 몸통과 장식을 이걸로 가른다
+    //    ('crown' 만 gap 을 매긴다. 등가시·견갑뿔은 원래 몸 아래쪽에 붙으므로 gap 대상이 아니다).
+    bossRegalia(g, base, topY, humanoid) {
+        g.updateMatrixWorld(true);
+        // 정점 월드 좌표 1회 수집 — 아래 세 장식이 전부 이 표에 질의한다
+        const V = [];
+        const v = new THREE.Vector3();
+        g.traverse(o => {
+            if (!o.isMesh || !o.geometry || !o.geometry.attributes || !o.geometry.attributes.position) return;
+            if (o.userData.aoRing || o.userData.isOutline) return;   // 그림자 링은 몸 표면이 아니다
+            const p = o.geometry.attributes.position;
+            for (let i = 0; i < p.count; i++) {
+                v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld);
+                V.push(v.x, v.y, v.z);
+            }
+        });
+        if (V.length < 30) return topY;                              // 잴 게 없으면 손대지 않는다
+        let bodyTop = -Infinity, bodyBot = Infinity;
+        for (let i = 1; i < V.length; i += 3) { if (V[i] > bodyTop) bodyTop = V[i]; if (V[i] < bodyBot) bodyBot = V[i]; }
+        const bodyH = Math.max(bodyTop - bodyBot, 0.2);
+        // 높이 y 부근(±band)에서 몸이 실제로 얼마나 굵은가 — 장식은 전부 이 답에 맞춰 앉는다.
+        // 🚨 **최대 반경으로 재면 안 된다.** 그 높이에 팔 하나가 뻗어 있으면 그게 곧 답이 돼
+        //    관이 팔 끝까지 벌어진다(실측: 골렘 관 밑동이 몸 표면보다 몸키의 24% 밖에 앉았다).
+        //    방위를 12 섹터로 갈라 섹터별 최대를 낸 뒤 **그 중앙값**을 쓴다 — 팔은 한두 섹터만
+        //    밀어내므로 중앙값이 몸통 굵기를 그대로 준다.
+        const SECT = 12;
+        const radAt = (y, band, c) => {
+            const cx = c ? c.x : 0, cz = c ? c.z : 0;
+            const s = new Array(SECT).fill(0);
+            for (let i = 0; i < V.length; i += 3) {
+                if (Math.abs(V[i + 1] - y) > band) continue;
+                const dx = V[i] - cx, dz = V[i + 2] - cz;
+                const d = Math.hypot(dx, dz);
+                let k = Math.floor((Math.atan2(dz, dx) + Math.PI) / (Math.PI * 2) * SECT);
+                if (k >= SECT) k = SECT - 1; else if (k < 0) k = 0;
+                if (d > s[k]) s[k] = d;
+            }
+            // 중앙값이 아니라 **하위 30% 분위**를 쓴다. 임프 뿔·박쥐 귀처럼 머리 높이에서
+            // 좌우로 벌어진 돌기가 있으면 중앙값이 그 돌기까지 부풀어 관이 머리가 아니라
+            // **돌기 두 개를 함께 감는 링**이 된다(실측: 임프 접촉거리 0.403 = 몸 키의 40%).
+            // 낮은 분위는 몸통 심(芯)을 따라가고, 넓은 쪽에서는 살짝 파고들 뿐이라 안전하다.
+            const nz = s.filter(x => x > 0).sort((a, b) => a - b);
+            // full = 몸이 실제로 채운 방위 수. 이게 작으면 그 높이는 '단면'이 아니라 **돌기 몇 개**다.
+            return { r: nz.length ? nz[Math.floor(nz.length * 0.3)] : 0, full: nz.length };
+        };
+        // 그 높이 정점들의 xz 중심 — 머리가 축에서 벗어난 종(늑대·박쥐)에서 관을 머리에 얹는 기준
+        const centroidAt = (y, band) => {
+            let sx = 0, sz = 0, n = 0;
+            for (let i = 0; i < V.length; i += 3) {
+                if (Math.abs(V[i + 1] - y) > band) continue;
+                sx += V[i]; sz += V[i + 2]; n++;
+            }
+            return n ? { x: sx / n, z: sz / n } : { x: 0, z: 0 };
+        };
+        // (x,z) 기둥에서 몸의 윗면 높이 — 등가시를 등 표면에 앉히는 데 쓴다
+        const topAt = (x, z, rad) => {
+            let y = -Infinity;
+            for (let i = 0; i < V.length; i += 3) {
+                if (Math.hypot(V[i] - x, V[i + 2] - z) > rad) continue;
+                if (V[i + 1] > y) y = V[i + 1];
+            }
+            return y;
+        };
+        // 그 높이의 등쪽(−z) 표면. 모델 앞면은 +z 다. 팔이 끼지 않게 중심선 근처만 본다.
+        const backAt = (y, band, half) => {
+            let z = 0;
+            for (let i = 0; i < V.length; i += 3) {
+                if (Math.abs(V[i + 1] - y) > band || Math.abs(V[i]) > half) continue;
+                if (V[i + 2] < z) z = V[i + 2];
+            }
+            return z;
+        };
+        const sideAt = (y, band) => {          // 그 높이의 좌우 폭 (견갑뿔용)
+            let x = 0;
+            for (let i = 0; i < V.length; i += 3) { if (Math.abs(V[i + 1] - y) > band) continue; if (Math.abs(V[i]) > x) x = Math.abs(V[i]); }
+            return x;
+        };
+
+        const gold = new THREE.MeshStandardMaterial({ color: 0xffd54f, emissive: 0xffa000, emissiveIntensity: 0.32, metalness: 0.85, roughness: 0.3 });
+        const goldD = new THREE.MeshStandardMaterial({ color: 0xc79a2e, emissive: 0xff8f00, emissiveIntensity: 0.18, metalness: 0.85, roughness: 0.42 });
+        // 보석은 **종 키 컬러의 보색** — 몸과 같은 색이면 관이 몸에 묻는다(종별 팔레트 원칙의 연장)
+        const gemC = base.clone().offsetHSL(0.5, 0.25, 0.12);
+        const gemM = new THREE.MeshStandardMaterial({ color: gemC, emissive: gemC, emissiveIntensity: 0.95, metalness: 0.15, roughness: 0.18 });
+        const put = (mesh, tag, parent) => { mesh.userData.bossRegalia = tag; (parent || g).add(mesh); return mesh; };
+
+        // ⑴ 관 — 몸 꼭대기 바로 아래를 **그 높이의 실제 반경으로** 감는다.
+        //    반경을 상수로 두면 머리가 가는 종에선 허공에 뜨고 굵은 종에선 파묻힌다(예전 0.18 고정이 그랬다).
+        // ⚠️ '꼭대기에서 고정 비율만큼 내려온 높이'로 잡아도 안 된다 — 슬라임 돔·박쥐 귀처럼 위가
+        //    **뾰족한** 종은 거기 몸이 거의 없어서 관이 허공에 걸린다(실측: 축에서 쏜 광선이 표면을
+        //    아예 못 맞혔다 = 그 높이에 몸이 없다). 위에서부터 슬라이스를 내려오며 **몸이 실제로
+        //    굵어지는 첫 지점**(머리 구간 최대 굵기의 절반)에 앉힌다.
+        // 🚨 그리고 **관을 그룹 세로축에 꿰면 안 된다** — 늑대·박쥐는 머리가 축 위에 있지 않고 앞으로
+        //    나와 있다. 축 중심 링은 머리를 비껴가 뒤통수 뒤 허공에 걸린다(실측: 밑동 링 정점에서
+        //    축 방향으로 쏜 광선이 표면을 못 맞혔다). 그래서 그 높이 정점들의 **xz 중심**을 구해
+        //    거기에 관을 세운다.
+        // 🚨 그리고 '굵기'만 보고 자리를 고르면 안 된다 — **뿔·귀 끝**이 그 자리를 이긴다.
+        //    실측(임프): 최상단 슬라이스는 12방위 중 **2방위만** 차 있고 그 둘이 곡선 뿔의 끝인데,
+        //    둘 다 반경 0.145 로 아래 어느 슬라이스보다 굵어서 규칙이 거길 골랐다. 결과는 뿔 두 개를
+        //    함께 감는 링(접촉거리 = 몸 키의 40%). → 방위를 60% 이상 채운 = **진짜 단면인** 슬라이스만
+        //    후보로 둔다.
+        // ⚠️ 슬라이스 지표를 **그룹 세로축 기준으로 재면 안 된다** — 늑대는 머리가 z=+0.36 에 나와
+        //    있어서 머리 높이의 '축 기준 반경'이 0.5 를 넘는다(그건 머리 굵기가 아니라 축에서 머리까지의
+        //    거리다). 슬라이스마다 **자기 중심**을 먼저 구하고 그 중심 기준으로 굵기·방위를 잰다.
+        const SLICES = 14, yLo = bodyTop - bodyH * 0.45, dY = (bodyTop - yLo) / SLICES;
+        const prof = [];
+        for (let i = 0; i < SLICES; i++) {
+            const y = bodyTop - (i + 0.5) * dY;
+            const c = centroidAt(y, dY * 0.75);
+            prof.push(Object.assign({ y, c }, radAt(y, dY * 0.75, c)));
+        }
+        // 후보 = 방위를 60% 이상 채운 **진짜 단면**. 뿔 끝·귀 끝만 있는 슬라이스가 여기서 걸러진다.
+        const solid = prof.filter(p => p.full >= Math.ceil(SECT * 0.6));
+        const pool = solid.length ? solid : prof;
+        // 그중 굵기가 충분한(=돔 꼭짓점처럼 반경이 0 으로 수렴하지 않은) **가장 높은** 자리.
+        // 슬라임 돔 꼭짓점은 방위는 12/12 로 다 차지만 반경이 0.001 이라 이 조건에서 걸러진다.
+        let rMax = 0; for (const p of pool) if (p.r > rMax) rMax = p.r;
+        const seat = pool.find(p => p.r >= rMax * 0.3) || pool[pool.length - 1];
+        const bandY = seat.y;
+        const ctr = seat.c;                              // 머리 중심 (늑대는 +z 로 나와 있다)
+        const headR = Math.max(seat.r, bodyH * 0.05);
+        const crownG = new THREE.Group();
+        crownG.position.set(ctr.x, bandY, ctr.z);
+        g.add(crownG);
+        const bandR = headR * 0.98;                      // 표면 살짝 안쪽 — 물려야 '머리에 낀 띠'로 읽힌다
+        const band = put(new THREE.Mesh(new THREE.TorusGeometry(bandR, headR * 0.15, 8, 18), gold), 'crown', crownG);
+        band.rotation.x = Math.PI / 2;
+        const SPIKES = 6, spikeH = headR * 0.8;
+        let crownTop = 0;
+        for (let i = 0; i < SPIKES; i++) {
+            const a = (i / SPIKES) * Math.PI * 2;
+            const front = i === 0;                       // 앞 가시는 크게 — 정면에서 관이 읽히는 지점
+            const h = spikeH * (front ? 1.5 : 1);
+            const sp = put(new THREE.Mesh(new THREE.ConeGeometry(headR * 0.17 * (front ? 1.15 : 1), h, 4), front ? gold : goldD), 'crown', crownG);
+            sp.position.set(Math.sin(a) * bandR * 0.92, headR * 0.10 + h / 2, Math.cos(a) * bandR * 0.92);
+            // 바깥으로 벌린다 — 수직으로 세우면 '원통에 박은 못'으로 읽힌다
+            sp.rotation.z = -Math.sin(a) * 0.26;
+            sp.rotation.x = Math.cos(a) * 0.26;
+            crownTop = Math.max(crownTop, headR * 0.10 + h);
+        }
+        const jewel = put(new THREE.Mesh(new THREE.OctahedronGeometry(headR * 0.22), gemM), 'crown', crownG);
+        jewel.position.set(0, headR * 0.05, bandR * 1.0);
+        jewel.scale.set(1, 1.25, 0.55);
+        crownTop += bandY;
+
+        // ⑵ 등가시 — 등줄기를 톱니로 깨 3/4 뷰 윤곽을 바꾼다.
+        // 머리 자리에서 몸 뒤끝까지 **등 위를 따라가며** 심는다. 높이만 훑으면(예전 시안) 늑대처럼
+        // 몸이 누운 종에서 꼬리 한 점에 4개가 세로로 쌓인다 — 등은 z 로 뻗어 있지 y 로 뻗어 있지 않다.
+        const RIDGE = [0.62, 1.0, 0.86, 0.58];           // 목 뒤가 가장 길고 꼬리 쪽으로 잦아든다
+        const zRear = backAt(bodyBot + bodyH * 0.62, bodyH * 0.22, Math.max(headR, bodyH * 0.12));
+        for (let i = 0; i < RIDGE.length; i++) {
+            const t = (i + 1) / RIDGE.length;            // 머리 바로 뒤에서 시작해 꼬리까지
+            const zx = ctr.x * (1 - t), zz = ctr.z + (zRear - ctr.z) * t;
+            const yTop = topAt(zx, zz, Math.max(headR * 0.55, bodyH * 0.05));
+            if (!isFinite(yTop)) continue;               // 그 자리에 몸이 없으면 건너뛴다
+            const h = headR * 0.95 * RIDGE[i];
+            const sp = put(new THREE.Mesh(new THREE.ConeGeometry(headR * 0.19 * RIDGE[i], h, 5), i % 2 ? goldD : gold), 'ridge');
+            sp.position.set(zx, yTop - h * 0.18, zz);    // 밑동을 몸 안에 물린다 — 안 그러면 등에서 뜬다
+            sp.rotation.x = -0.55;                       // 뒤로 눕혀 등줄기를 따라간다
+        }
+
+        // ⑶ 견갑 뿔 — 이족(팔 관절이 있는 종)만. 네발·비행·젤리에 붙이면 어깨가 없어 허공에 뜬다.
+        if (humanoid) {
+            const y = bodyBot + bodyH * 0.72;
+            const sx = sideAt(y, bodyH * 0.06);
+            if (sx > 0.03) for (const s of [-1, 1]) {
+                const horn = put(new THREE.Mesh(new THREE.ConeGeometry(headR * 0.22, headR * 1.1, 5), gold), 'horn');
+                horn.position.set(s * sx * 0.86, y, 0);
+                horn.rotation.z = -s * 0.62;             // 바깥·위로 뻗는다
+            }
+        }
+        return Math.max(topY, crownTop) + 0.03;
+    },
     monsterMesh(e) {
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
         // 디버그: ?enemy=imp 로 특정 몬스터 강제
@@ -10568,10 +10755,10 @@ const Scene3D = {
             topY = 0.98;
         }
         if (e.isBoss) {
+            // ⚠️ 레갈리아를 **배율보다 먼저** 세운다 — bossRegalia 는 g 의 월드 정점을 재서 앉는데,
+            //    1.9배가 이미 걸려 있으면 실측값이 전부 1.9배로 들어와 관이 그만큼 크게 앉는다.
+            topY = this.bossRegalia(g, base, topY, !!anim.barm);
             g.scale.setScalar(this.BOSS_SCALE);
-            const crown = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.26, 5), new THREE.MeshLambertMaterial({ color: 0xffd54f, emissive: 0xffd54f, emissiveIntensity: 0.4 }));
-            crown.position.y = topY;
-            g.add(crown);
         }
         // HP 바: 몸의 변형을 따라가면 안 되므로 g의 자식이 아니라 scene 직속으로 두고
         // update에서 위치만 추적한다(블롭 섀도우와 같은 방식). g의 자식이면 크리 스케일 펀치·
