@@ -1943,7 +1943,10 @@ const ProChar = {
             const hStyle = equipment.helmet ? itemStyleOf(equipment.helmet) : null;
             // skull(짐승 두개골, equip-era-theming ④)도 얼굴을 덮는다 — 눈구멍·주둥이가
             // 정확히 얼굴 높이라, 얼굴을 켜 두면 두개골 속에서 사람 눈이 튀어나온다.
-            R.faceMesh.visible = !(hStyle === 'visor' || hStyle === 'mask' || hStyle === 'tech' || hStyle === 'skull');
+            // sealed(밀폐 여압 투구, equip-era-theming ⑦)도 마찬가지 — 전면창이 얼굴 전체를
+            // 덮는 **불투명 스모크 유리**라, 얼굴을 켜 두면 창 안에서 코가 뚫고 나온다.
+            R.faceMesh.visible = !(hStyle === 'visor' || hStyle === 'mask' || hStyle === 'tech'
+                || hStyle === 'skull' || hStyle === 'sealed');
         }
     },
 };

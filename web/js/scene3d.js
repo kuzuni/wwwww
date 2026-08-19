@@ -5987,6 +5987,102 @@ const Scene3D = {
             const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.026, 6, 6), rareMat);
             antTip.position.set(0.232, 0.5, -0.06);
             g.add(shell, jawGuard, visorArc, ridge, antSock, ant, antTip);
+        } else if (style === 'sealed') {
+            // ── 밀폐 여압 투구 (equip-era-theming ⑦, 현대~양자 5시대의 `visor` 대체) ──────
+            // 🚨 **되돌려서 `visor` 로 쓰지 말 것.** 현대·우주·성간·다중 우주·양자 **다섯 시대가
+            //    전부 `visor`**(중세 기사 풀헬름 — 돔+뺨가드+눈 슬릿)를 한 칸씩 쓰고 있었다.
+            //    재질이 합금이라 원시 `plate`/`visor` 만큼 튀지는 않았지만 조형 언어는 **중세 그대로**라,
+            //    사용자 지적 '전부 중세 같은 디자인임 대체로' 의 미래 쪽 실물이다.
+            //    갑옷의 `SUIT_SEALED`(밀폐복이 실제로 그 시대의 언어인 다섯 시대)와 **같은 시대 집합**이라
+            //    투구·갑옷이 한 벌로 '기밀 장비'를 이룬다 — 계열(`ageGearKind`)로 가르면 안 되는 이유도 같다.
+            // 밀폐의 서명 넷. 이 넷이 없으면 남는 건 매끈한 반구 = 다시 기사 투구다:
+            //   ⓐ **목 실링 링**(탈착 경계 — 통짜로 이어진 기사 투구엔 없는 단차)
+            //   ⓑ **걸쇠 3개**(링을 무는 클램프 = '잠근다'는 동작이 보이는 자리)
+            //   ⓒ **넓은 곡면 전면창**(좁은 눈 슬릿의 정반대 — 슬릿은 '못 뚫리게', 창은 '보이게'가 목적이다)
+            //   ⓓ **턱 흡기 레귤레이터 2구**(호흡기 = 바깥 공기를 안 쓴다는 선언)
+            // ⚠️ 안테나·이어 포드·정수리 능선은 **`tech` 의 서명**이라 여기 쓰지 않는다 — 겹치면
+            //    우주·성간·다중 우주·양자에서 `tech` 와 같은 칸이 둘 생긴다(스타일 중복 금지 규칙).
+            // ⚠️ **1차 조형을 통째로 버리고 다시 짰다(되돌리지 말 것) — 실측 캡처 3각도 근거.**
+            //    ⑴ 창을 **원통 섹터**로 두르면 측면에서 **평면 판이 얼굴에 붙은 그림**이 된다(구면을
+            //       안 따라가므로 테두리가 직선으로 잘린다). → 창·창틀 둘 다 **구면 패치**로 바꿨다.
+            //    ⑵ 정수리에 납작한 판(r 0.148/0.181)을 얹으면 **솥뚜껑**으로 읽혀 전체가 '냄비'가 된다.
+            //       → 판을 없애고 작은 **퍼지 밸브 캡**(r 0.058)만 남겼다. 장비로 읽히고 실루엣도 안 먹는다.
+            //    ⑶ 칼라 플랜지를 0.292 로 두면 그 높이의 셸 실반경(0.192)보다 **10cm** 커서 `bubble` 의
+            //       튜브 림과 같은 **도넛 받침**이 된다. → 0.215/0.228 로 좁혀 목에 붙는 링으로.
+            //    ⑷ 레귤레이터를 y −0.072·z 0.223 에 두면 그 높이 셸(z 0.244)에 **묻혀 안 보인다**.
+            //       턱 높이(y −0.10)로 내리면 셸이 z 0.198 로 들어와 같은 포트가 **5.7cm 튀어나온다.**
+            // ⚠️ 화풍(2026-08-20 voxel 확정) 전환은 `equip-voxelize` 항목이 `makeHelmet` 전체를
+            //    한꺼번에 옮긴다. 여기만 큐브로 짜면 12스타일 중 하나만 화풍이 달라져 더 어긋난다.
+            const glass = new THREE.MeshStandardMaterial({ color: 0x0a0e14, metalness: 0.3, roughness: 0.2, envMapIntensity: 0.45 });
+            const frameMat = this.tintOf(mat, -0.14);
+            // 돔 = 스케일 그룹. 창·창틀을 **자식으로** 달아야 셸과 같은 곡률로 눕는다 —
+            // 월드에 따로 놓으면 스케일이 안 먹어 구면에서 떠오른다(⑴ 의 재발 경로).
+            const R = 0.272;
+            const dome = new THREE.Group();
+            dome.position.y = 0.05;
+            dome.scale.set(1, 0.96, 1);
+            g.add(dome);
+            dome.add(new THREE.Mesh(new THREE.SphereGeometry(R, 16, 12), this.tintOf(mat, 0.015)));
+            // ⓒ 전면창 — 구면 패치. 규약: SphereGeometry 의 phi=π/2 가 +z(정면)다.
+            //    창틀을 **반경은 작게·각폭은 넓게**, 유리를 **반경은 크게·각폭은 좁게** 겹치면
+            //    유리가 창틀 위로 볼록 솟고 그 둘레만 금속 테로 남는다(개스킷 창의 문법).
+            const PHI = 0.78, TH0 = 1.20, TH1 = 1.98;
+            const frameP = new THREE.Mesh(new THREE.SphereGeometry(R + 0.006, 20, 14,
+                Math.PI / 2 - (PHI + 0.09), (PHI + 0.09) * 2, TH0 - 0.09, (TH1 - TH0) + 0.18), frameMat);
+            const glassP = new THREE.Mesh(new THREE.SphereGeometry(R + 0.011, 20, 14,
+                Math.PI / 2 - PHI, PHI * 2, TH0, TH1 - TH0), glass);
+            dome.add(frameP, glassP);
+            // 유리 반사 줄기 — 어두운 판만 있으면 '뚫린 구멍'인지 '유리'인지 안 갈린다.
+            // ⚠️ 발광 눈 2점은 `tech` 의 서명이라 쓰지 않았다(같은 시대에 둘 다 배정된다).
+            for (const [ax, aw, op] of [[-0.30, 0.030, 0.5], [-0.14, 0.014, 0.32]]) {
+                const sheen = new THREE.Mesh(new THREE.SphereGeometry(R + 0.013, 16, 12,
+                    Math.PI / 2 + ax, aw, TH0 + 0.06, (TH1 - TH0) - 0.20),
+                    new THREE.MeshBasicMaterial({ color: 0xdfeaf5, transparent: true, opacity: op, depthWrite: false }));
+                // ⚠️ 수직 그대로 두면 유리에 **긁힌 자국 두 줄**로 읽힌다(실측 캡처). 기울여야
+                //    '비껴 든 빛'이 된다. 패치의 회전 중심이 곧 구 중심이라 눕혀도 구면에 남는다.
+                sheen.rotation.z = -0.34;
+                dome.add(sheen);
+            }
+            // 정수리 퍼지 밸브 — 솥뚜껑이 아니라 '부속'으로 읽히는 크기(⑵)
+            // ⚠️ y 0.297 에 두면 **돔 속에 완전히 묻힌다** — 그 높이의 돔 반경이 0.088 이라
+            //    반경 0.058~0.07 인 밸브가 통째로 안쪽이다(실측). 돔 꼭대기(0.311) 위로 올린다.
+            const valve = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.07, 0.034, 10), frameMat);
+            valve.position.y = 0.318;
+            const valveCap = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 8), darkMat);
+            valveCap.position.y = 0.342;
+            g.add(valve, valveCap);
+            // ⓐ 목 실링 링 — 금속 링 + 그 아래 고무 개스킷. 이 **단차**가 '벗겨지는 투구'의 서명이다.
+            const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.215, 0.228, 0.042, 16), frameMat);
+            collar.position.y = -0.138;
+            const gasket = new THREE.Mesh(new THREE.TorusGeometry(0.206, 0.022, 6, 16), darkMat);
+            gasket.rotation.x = Math.PI / 2;
+            gasket.position.y = -0.168;
+            g.add(collar, gasket);
+            // ⓑ 걸쇠 3개 — 앞 좌우 + 뒤 하나. 정면 한복판은 레귤레이터 자리라 비운다.
+            // 등급색이라 `rarityDecor` 차분 판정기가 이 부위를 골라 잰다.
+            for (const a of [Math.PI / 2 + 1.02, Math.PI / 2 - 1.02, -Math.PI / 2]) {
+                const latch = new THREE.Mesh(new THREE.BoxGeometry(0.046, 0.052, 0.03), rareMat);
+                latch.position.set(Math.cos(a) * 0.226, -0.138, Math.sin(a) * 0.226);
+                latch.rotation.y = Math.PI / 2 - a;
+                g.add(latch);
+            }
+            // ⓓ 턱 흡기 레귤레이터 2구 — 턱 높이(y −0.10)라야 셸(z 0.198)보다 확실히 앞으로 나온다(⑷)
+            for (const s of [-1, 1]) {
+                const port = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.052, 0.10, 10), frameMat);
+                port.rotation.x = Math.PI / 2;
+                port.position.set(s * 0.082, -0.1, 0.205);
+                const grille = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.033, 0.018, 10), darkMat);
+                grille.rotation.x = Math.PI / 2;
+                grille.position.set(s * 0.082, -0.1, 0.262);
+                g.add(port, grille);
+            }
+            // 후면 생명유지 커넥터 — 3/4 썸네일 카메라에서 뒤통수가 비므로 여기 질량을 하나 준다.
+            const conn = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.112, 0.05), darkMat);
+            conn.position.set(0, 0.015, -0.246);
+            const hose = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.05, 8), frameMat);
+            hose.rotation.x = Math.PI / 2;
+            hose.position.set(0, -0.032, -0.278);
+            g.add(conn, hose);
         } else if (style === 'bubble') {    // 우주 헬멧 (투명 돔)
             const bub = new THREE.Mesh(new THREE.SphereGeometry(0.31, 14, 10),
                 new THREE.MeshStandardMaterial({ color: c, metalness: 0, roughness: 0.08, transparent: true, opacity: 0.32 })); // 유리 돔 — 매끈한 반사
@@ -6064,11 +6160,28 @@ const Scene3D = {
             // ⚠️ `combat`(현대 철모)은 테두리가 챙으로 0.319 까지 벌어져 있어, 갈레아용 링
             //    (y 0.02 · r 0.245)을 그대로 두르면 **챙 밑에 통째로 묻혀 시대 디테일이 0 이 된다**.
             //    사발 허리(y 0.105 에서 실반경 0.222)를 둘러 M1 의 헬멧 밴드로 읽히게 올린다.
+            // ⚠️ `sealed`(밀폐 투구)는 **bbox 가 가장 굵은 곳이 턱 레귤레이터**(정면 z 0.271)라
+            //    기본 yFrac 0.2 를 쓰면 링 높이가 그 레귤레이터 한복판에 떨어지고, 반경도 거기서
+            //    역산돼 그 높이의 실제 셸 반경보다 크게 잡힌다 — 함수 주석이 경고하는 '허공에 뜬
+            //    고리' 그대로다. 눈높이 밴드(y 0.02)에서 셸 실반경(0.270)을 직접 넘긴다.
+            //    `faceOpen` 도 켠다 — 이 투구는 **정면 전체가 전면창**이라, 정면 부착물(alloy 계열의
+            //    세로 발광 스트립·보석·벤트)이 유리 한복판에 박힌다. faceOpen 이면 링의 정면 ±1.0rad
+            //    이 비고 부착물이 뒤로 돌아간다(창의 각폭이 ±0.87rad 이라 정확히 덮인다).
+            // 🚨 **링 높이를 0.16 으로 올리지 말 것 — probe-equip-framing 이 즉시 4칸을 문다(A/B 실측).**
+            //    alloy 계열 트림은 세로 발광 스트립을 `y + size.y*0.2` 에 `size.y*0.3` 높이로 세운다.
+            //    링을 0.16 에 두면 그 막대가 y 0.35 까지 올라가 **잉크는 거의 없이 bbox 만 키운다** →
+            //    thumbFrameToFit 이 그 빈 꼭대기까지 맞추느라 본체가 내려앉아 중심오차 y 가
+            //    2.7%→5.5% 로 튄다(기준 4%). 우주·성간·다중 우주·양자 넷이 정확히 그렇게 걸렸고,
+            //    폴리머 트림인 현대만 멀쩡했다(막대가 없는 계열이라). 0.02 로 내리면 막대가
+            //    y 0.21 에서 끝나 돔 안에 들어오고 넷 다 풀린다. (천상 후광이 bbox 를 키워 본체를
+            //    쪼그라뜨린다는 아래 경고와 **같은 함정**이다.)
             const finV = style === 'fin' ? this.finVariant(age) : null;
             this.addAgeTrim(g, mats, finV === 'combat'
                 ? { y: 0.105, rx: 0.222, rz: 0.222, faceOpen: true }
                 : finV
                 ? { y: 0.02, rx: 0.245, rz: 0.245, faceOpen: true }
+                : style === 'sealed'
+                ? { y: 0.02, rx: 0.27, rz: 0.27, faceOpen: true }
                 : { yFrac: 0.2 });
         }
         // 천상 투구: 머리 뒤 후광 (사용자 지시 '천상→예: 예수 머리·십자가'). 무기의 후광과 같은 문법.

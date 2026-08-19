@@ -8,7 +8,7 @@
 //    빌더가 빈 그룹을 주면 bbox 가 Infinity 라 **가림이 0 인 것처럼 PASS** 로 뭉개진다.
 // → 그래서 **화면 가림률을 직접 잰다**: 흰자 재질만 키 컬러(순마젠타)로 바꿔 놓고 ⓐ 투구를 숨긴 프레임과
 //    ⓑ 투구를 씌운 프레임에서 키 픽셀 수를 세어, 남은 비율이 게이트를 넘는지 본다.
-//    (얼굴을 통째로 숨기는 풀커버 visor·mask·tech 는 규약상 판정 대상이 아니다 — prochar.js 참조.)
+//    (얼굴을 통째로 숨기는 풀커버 visor·mask·tech·skull·sealed 는 규약상 판정 대상이 아니다 — prochar.js 참조.)
 // 사용: node probe-face-helmet-clear.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
@@ -116,7 +116,7 @@ const SKIP = { bubble: '투명 돔이 키 컬러를 물들여 색으로는 못 �
     await page.waitForTimeout(200);
     const base = await keyPixels();
 
-    // 얼굴이 보이는 투구 스타일 전부 (gamedata.js HELMET_STYLES 에서 풀커버 visor·mask·tech 를 뺀 것).
+    // 얼굴이 보이는 투구 스타일 전부 (gamedata.js HELMET_STYLES 에서 풀커버 visor·mask·tech·skull·sealed 를 뺀 것).
     // ⚠️ 'plate'·'hide' 등은 **갑옷** 스타일이라 makeHelmet 이 빈 그룹을 준다 — 넣지 말 것.
     // ⚠️ `age` 를 주는 항목은 그 시대 조형으로 짓는다 — `fin` 처럼 시대 분기가 있는 계열은
     //    시대마다 부속이 달라 눈 가림도 달라진다. age 없는 항목은 종전대로 숫자 0(=galea 등 기본).

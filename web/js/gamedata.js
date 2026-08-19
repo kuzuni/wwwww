@@ -108,8 +108,13 @@ const ITEM_NAMES = {
 // 투구: plume(돔+깃) cone(고깔) tophat(실크햇) visor(풀헬름) fin(볏 투구) mask(가면/방독면)
 //       halo(후광) hair(머리카락/수염) crown(왕관) tech(메카) bubble(우주 헬멧)
 //       skull(짐승 두개골 — 주둥이·눈구멍·광대활·이빨, 원시 전용)
+//       sealed(밀폐 여압 투구 — 목 개스킷 칼라+걸쇠 3개+넓은 전면창+턱 레귤레이터, 현대~양자 전용)
 // 🚨 갑옷 표와 같은 규칙 — 시대에 안 맞는 조형을 배정하지 말 것(equip-era-theming).
 //    원시 '해골 투구'가 `visor`(중세 기사 풀헬름)였다 → `skull` 로 교체했다.
+//    같은 이유로 **현대·우주·성간·다중 우주·양자 다섯 시대의 `visor` 를 `sealed` 로 옮겼다** —
+//    합금 재질이라 덜 튀었을 뿐 조형은 중세 풀헬름 그대로였다. `visor` 가 남는 곳은 판금 투구가
+//    실제로 그 시대의 언어인 **중세·근대 초기·지하 세계** 셋뿐이다.
+//    시대 집합은 갑옷의 `Scene3D.SUIT_SEALED` 와 **일부러 같게** 뒀다(투구+갑옷이 한 벌).
 // 🚨 `fin` 은 이제 **시대마다 조형이 갈리는 계열**이다(`Scene3D.FIN_VARIANT`):
 //    galea(중세 그리스 투구) / combat(현대 철모 M1) / antenna(우주 위성 안테나 헬름) /
 //    mech(항성간 어드밴스드 메크) / hellforged(지하 헬포지드 헬름).
@@ -122,11 +127,11 @@ const HELMET_STYLES = {
     primitive:    ['hair', 'mask', 'cone', 'skull', 'plume'],   // 수염·가면·전투 페인트·해골 투구·깃털 장식 (visor=기사 풀헬름 제거)
     medieval:     ['visor', 'fin', 'plume', 'crown', 'cone'],
     earlyModern:  ['visor', 'crown', 'plume', 'cone', 'tophat'],
-    modern:       ['visor', 'bubble', 'fin', 'tophat', 'crown', 'plume', 'hair'],
-    space:        ['bubble', 'tech', 'mask', 'visor', 'fin'],
-    interstellar: ['tech', 'bubble', 'mask', 'fin', 'visor', 'crown'],
-    multiverse:   ['tech', 'mask', 'visor', 'tophat', 'crown'],
-    quantum:      ['tech', 'visor', 'mask', 'hair', 'plume'],
+    modern:       ['sealed', 'bubble', 'fin', 'tophat', 'crown', 'plume', 'hair'],
+    space:        ['bubble', 'tech', 'mask', 'sealed', 'fin'],
+    interstellar: ['tech', 'bubble', 'mask', 'fin', 'sealed', 'crown'],
+    multiverse:   ['tech', 'mask', 'sealed', 'tophat', 'crown'],
+    quantum:      ['tech', 'sealed', 'mask', 'hair', 'plume'],
     underworld:   ['fin', 'crown', 'mask', 'visor', 'cone'],
     divine:       ['halo', 'cone', 'crown', 'plume', 'hair'],
 };
