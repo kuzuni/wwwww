@@ -565,15 +565,21 @@ const MOUNT_KR = {
     'Bike': '자전거', 'Giant Bee': '거대 벌', 'Armored Rhino': '장갑 코뿔소',
     'Mini Dragon': '미니 드래곤', 'One-Wheel Droid': '외바퀴 드로이드', 'Mech Spider': '기계 거미',
     'Hover Board': '호버보드', 'Hover Disk': '호버 디스크', 'Star Whale': '별고래',
+    // mount-roster-add5 (사용자 지시 2026-08-19) — 공룡은 위 'Dino' 가 이미 그것이라 새로 넣지 않았다.
+    'Pterosaur': '익룡', 'Bipedal Mech': '두발 로봇', 'Dump Truck': '덤프트럭', 'Cleaning Robot': '청소로봇',
 };
 const MOUNT_ICONS = {
     'Pony': '🐴', 'Donkey': '🫏', 'Alpaca': '🦙',
     'Clockwork Mouse': '🐭', 'Clockwork Beetle': '🪲', 'Sheep': '🐑',
-    'Turtle': '🐢', 'Crab': '🦀', 'Brown Horse': '🐴', 'Dino': '🦕', 'Boar': '🐗',
+    // ⚠️ 갈색 말은 조랑말과 **같은 🐴 를 쓰고 있었다** — 목록에서 두 종이 같은 아이콘으로 보인다
+    //    (2026-08-19 `mount-roster-add5` 의 아이콘 중복 게이트가 잡았다). 말은 🐎 로 갈랐다.
+    'Turtle': '🐢', 'Crab': '🦀', 'Brown Horse': '🐎', 'Dino': '🦕', 'Boar': '🐗',
     'Pig': '🐷', 'Goat': '🐐', 'Camel': '🐫', 'Elk': '🦌', 'Panther': '🐆',
     'Bike': '🚲', 'Giant Bee': '🐝', 'Armored Rhino': '🦏',
     'Mini Dragon': '🐉', 'One-Wheel Droid': '🤖', 'Mech Spider': '🕷',
     'Hover Board': '🛹', 'Hover Disk': '🛸', 'Star Whale': '🐋',
+    // ⚠️ 이모지는 서로 겹치지 않게 골랐다 — 🦕(Dino)·🤖(외바퀴 드로이드)·🕷(기계 거미)는 이미 쓰인다.
+    'Pterosaur': '🦅', 'Bipedal Mech': '🦾', 'Dump Truck': '🚚', 'Cleaning Robot': '🧹',
 };
 
 // 기능 해금 (원본 스테이지 해금 테이블)

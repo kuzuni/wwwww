@@ -30,7 +30,11 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
     ['fly', 'Star Whale'], ['flat', 'Hover Disk'],
     // 로스터 교체(2026-08-19 mount-animal-machine-dynamic ①)로 들어온 종 중 **안장 앞에 뭔가 서는** 셋.
     // 당나귀=긴 귀, 알파카=긴 목, 태엽 딱정벌레=더듬이 — 전부 이 검사의 표적 형상이라 빠지면 안 된다.
-    ['quad', 'Donkey'], ['quad', 'Alpaca'], ['quad', 'Clockwork Beetle']];
+    ['quad', 'Donkey'], ['quad', 'Alpaca'], ['quad', 'Clockwork Beetle'],
+    // 로스터 추가(2026-08-19 `mount-roster-add5`)로 들어온 4종 — 넷 다 이 검사의 표적이다.
+    // 익룡=안장 앞의 긴 부리·볏 + 몸통보다 넓은 막날개, 두발 로봇=앞으로 내민 센서 헤드(신설 biped 계열),
+    // 덤프트럭=영웅 옆의 바퀴 4개, 청소로봇=영웅 발밑까지 퍼진 원반.
+    ['fly', 'Pterosaur'], ['biped', 'Bipedal Mech'], ['wheeled', 'Dump Truck'], ['wheeled', 'Cleaning Robot']];
 
 // 종 이름을 인자로 주면 그 종만 본다 — 전체 20종은 이 소프트웨어 렌더 컨테이너에서 20분+ 걸려,
 // 한 종을 고치고 확인하는 루프가 통째로 막힌다(2026-08-20 실측: 한 판 돌리는 데 25분).

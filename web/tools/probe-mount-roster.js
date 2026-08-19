@@ -121,7 +121,10 @@ const MACHINES = ['Clockwork Mouse', 'Clockwork Beetle', 'Bike', 'One-Wheel Droi
     console.log('mount-animal-machine-dynamic ① 판정 (로스터 = 동물·기계 · 새 종의 몸과 움직임)');
     ok('ⓐ 정적 사물(잎·연잎·뗏목)이 로스터에서 0건', roster.banned.length === 0, roster.banned.join(','));
     ok('ⓐ 새 5종이 전부 로스터에 있다', roster.newIn.length === 5, roster.newIn.join(','));
-    ok('ⓐ 로스터 종 수 25 유지', roster.count === 25, roster.count);
+    // ⚠️ 25 → 29: `mount-roster-add5`(사용자 지시 2026-08-19)로 익룡·두발 로봇·덤프트럭·청소로봇을
+    //    넣었다. 이 줄은 **'로스터가 임의로 줄지 않았나'** 를 보는 하한 겸 고정값이고, 종을 더하는
+    //    항목이 들어오면 그 항목이 같이 올린다(그 항목 전용 게이트는 probe-mount-roster-add5.js).
+    ok('ⓐ 로스터 종 수 29 유지', roster.count === 29, roster.count);
     ok('ⓐ 모든 종에 한글명이 있다', roster.noKr.length === 0, roster.noKr.join(','));
     ok('ⓐ 모든 종에 아이콘이 있다', roster.noIcon.length === 0, roster.noIcon.join(','));
     ok('ⓐ 계열 표에 유령 항목(로스터에 없는 이름)이 없다', roster.ghostForms.length === 0, roster.ghostForms.join(','));

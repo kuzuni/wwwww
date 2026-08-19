@@ -338,12 +338,22 @@ const mountBoosts = {
 //    항목도 함께 지웠다 — 되살리려면 세 곳을 같이 되돌려야 한다. 구세이브의 옛 이름은
 //    `Mounts.migrateSpecies()` 가 새 종으로 옮긴다(그 표도 같이 볼 것).
 //    기계 쪽은 이 게임의 소환 재화가 **태엽**이라는 데서 왔다 — 태엽 감개가 등에 달려 실제로 돈다.
+// ⚠️ 2026-08-19 `mount-roster-add5`: 사용자 지시 "공룡, 익룡도 탈것으로 넣어줘. 두 발 달린 로봇이랑.
+//    덤프트럭도 놔줘 탈것으로. 청소로봇도." → **4종 추가**(25 → 29종).
+//    ⓐ `Pterosaur`(익룡·fly) ⓑ `Bipedal Mech`(두발 로봇·**biped 신설 계열**) ⓒ `Dump Truck`(덤프트럭·wheeled)
+//    ⓓ `Cleaning Robot`(청소로봇·wheeled).
+//    **공룡은 이미 있다** — rare 의 `Dino`(한글명 '공룡')가 그것이고, 목 골판·이빨 난 아래턱·꼬리 가시까지
+//    전용 조형이 붙어 있다(`makeMountMesh` 의 `name === 'Dino'` 분기). 같은 이름을 하나 더 넣으면
+//    한글명이 겹쳐 목록에서 구분이 안 되므로 **추가하지 않고 기존 종으로 충족**시킨다.
+//    등급 배정 근거 = 같은 성격의 기존 종 옆에 붙였다: 청소로봇은 태엽 기계(common)와 같은 소형 생활기계,
+//    덤프트럭은 자전거보다 크고 낙타·큰사슴급 덩치(epic), 익룡은 거대 벌과 같은 비행 legendary,
+//    두발 로봇은 기계 거미와 같은 대형 기계(ultimate).
 const mountNames = {
-    common: ['Pony', 'Donkey', 'Alpaca', 'Clockwork Mouse', 'Clockwork Beetle', 'Sheep'],
+    common: ['Pony', 'Donkey', 'Alpaca', 'Clockwork Mouse', 'Clockwork Beetle', 'Sheep', 'Cleaning Robot'],
     rare: ['Turtle', 'Crab', 'Brown Horse', 'Dino', 'Boar'],
-    epic: ['Pig', 'Goat', 'Camel', 'Elk', 'Panther'],
-    legendary: ['Bike', 'Giant Bee', 'Armored Rhino'],
-    ultimate: ['Mini Dragon', 'One-Wheel Droid', 'Mech Spider'],
+    epic: ['Pig', 'Goat', 'Camel', 'Elk', 'Panther', 'Dump Truck'],
+    legendary: ['Bike', 'Giant Bee', 'Armored Rhino', 'Pterosaur'],
+    ultimate: ['Mini Dragon', 'One-Wheel Droid', 'Mech Spider', 'Bipedal Mech'],
     mythic: ['Hover Board', 'Hover Disk', 'Star Whale']
 };
 

@@ -10,7 +10,10 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
     // 로스터 확장(2026-08-18)으로 들어온 종 — 머리·뿔·혹처럼 **안장 앞에 서는 파츠**가 붙은 것만 골랐다.
     // 그런 파츠가 먼 쪽 다리를 가리는 게 이 검사의 표적이라, 계열 대표 1종만 보면 새 종을 통째로 놓친다.
     ['quad', 'Elk'], ['quad', 'Armored Rhino'], ['quad', 'Camel'], ['quad', 'Mech Spider'],
-    ['fly', 'Star Whale'], ['flat', 'Hover Board'], ['flat', 'Hover Disk']];
+    ['fly', 'Star Whale'], ['flat', 'Hover Board'], ['flat', 'Hover Disk'],
+    // 로스터 추가(2026-08-19 `mount-roster-add5`) — **두발 로봇은 계열이 새로 생긴 종**이라
+    // (biped) 이 검사가 유일하게 그 계열의 안장 정합·무릎 굴곡을 보는 자리다. 나머지 3종도 넣는다.
+    ['biped', 'Bipedal Mech'], ['fly', 'Pterosaur'], ['wheeled', 'Dump Truck'], ['wheeled', 'Cleaning Robot']];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -79,7 +82,10 @@ const MOUNTS = [['flat', 'Hover Board'], ['wheeled', 'Bike'], ['fly', 'Mini Drag
                 const a = hp.sub(kp).normalize(), b = fp.sub(kp).normalize();
                 return +(180 - Math.acos(Math.max(-1, Math.min(1, a.dot(b)))) * 180 / Math.PI).toFixed(1);
             };
-            const BARREL = { flat: 0.578, wheeled: 0.03, fly: 0.152, quad: 0.180 }[form]; // 로컬 반폭(코드 상수)
+            // 로컬 반폭(코드 상수). ⚠️ 계열을 새로 만들면 **여기도 채울 것** — 빠지면 undefined 가
+            // 그대로 NaN 비교가 돼 '다리가 몸통에 묻힘'으로 오판정한다(biped 신설 때 실제로 그랬다).
+            // biped 0.15 = `makeMountMesh` 이족 섀시 상자 폭 0.30 의 절반.
+            const BARREL = { flat: 0.578, wheeled: 0.03, fly: 0.152, quad: 0.180, biped: 0.15 }[form];
             out.push({
                 form, name,
                 heroYaw: +Scene3D.heroG.rotation.y.toFixed(3),
