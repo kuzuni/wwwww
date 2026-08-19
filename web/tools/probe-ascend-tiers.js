@@ -90,6 +90,29 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         ok(Scene3D.ascendSkillColor(0x66bb6a, { id: 'powerStrike' }) === base, '⑤ 별 6 = 별 0 색 (순환)');
         S.skills.powerStrike.stars = 0;
 
+        // ---- ⑥ UI 셀 아이콘의 stars 축 (ascend-design-tiers ⑴ — 셀 아이콘이 티어 0으로 굽히던 구멍) ----
+        // creatureFace 가 data-stars 를 심고, hydrate 가 그 값을 petThumb/mountThumb 에 넘겨야
+        // 인벤 타일에서도 승천 데코가 보인다. 썸네일 캐시 키가 ':a티어' 를 포함하므로 url 비교로 판정.
+        const faceHtml = UI.petFace(petName, 'mt-inline', 2);
+        ok(faceHtml.includes('data-stars="2"'), '⑥ petFace 가 data-stars 를 심는다');
+        const pth0 = Scene3D.petThumb(petName, 0), pth2 = Scene3D.petThumb(petName, 2), pth6 = Scene3D.petThumb(petName, 6);
+        ok(!!pth0 && !!pth2 && pth0 !== pth2, '⑥ 펫 썸네일이 별 티어별로 다른 이미지');
+        ok(pth6 === pth0, '⑥ 펫 썸네일 별 6 = 별 0 (순환)');
+        // hydrate 경로 — 헤드리스는 rAF 가 안 돌므로 즉시 실행으로 바꿔 태운다
+        const div = document.createElement('div');
+        div.innerHTML = UI.creatureFace('pet', petName, '', 'mt-inline', '🐾', 2);
+        document.body.appendChild(div);
+        const realRAF = window.requestAnimationFrame;
+        window.requestAnimationFrame = fn => { fn(); return 0; };
+        try { UI.hydrateMountThumbs(div); } finally { window.requestAnimationFrame = realRAF; }
+        const img = div.querySelector('img');
+        ok(!!img && img.src === pth2, '⑥ hydrate 가 data-stars 티어 썸네일로 굽는다');
+        div.remove();
+        // 이름만 아는 호출부(mountFace 기본 경로)도 개체의 stars 를 찾아 쓴다
+        S.mounts = [{ name: mtName, rarity: 'common', level: 1, xp: 0, stars: 2, subs: [] }];
+        ok(UI.mountFace(mtName, 'x').includes('data-stars="2"'), '⑥ mountFace 가 개체 stars 를 기본값으로 찾는다');
+        S.mounts = [];
+
         return out;
     });
 

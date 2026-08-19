@@ -1308,7 +1308,7 @@ const UI = {
         const extraMounts = Math.max(0, (S.activeMounts || []).length - 1);
         const eggCellHtml = activeMount
             ? `<div class="equip-cell egg-cell" title="탈것: ${MOUNT_KR[riddenName] || riddenName}${extraMounts ? ` 외 ${extraMounts}마리` : ''}" onclick="UI.openMounts()">
-                ${UI.mountFace(riddenName, 'cell-img emoji')}
+                ${UI.mountFace(riddenName, 'cell-img emoji', activeMount.rarity, activeMount.stars)}
                 <span class="cell-lv">Lv.${activeMount.level}</span>
                 ${extraMounts ? `<span class="cell-count" style="${UI.MOUNT_COUNT_STYLE}">+${extraMounts}</span>` : ''}
             </div>`
@@ -1732,24 +1732,30 @@ const UI = {
     // (첫 썸네일 호출이 렌더러·PMREM 환경맵을 만드느라 유독 무거워 동기로 부르면 화면이 붙잡힌다).
     // rarity 를 주면 그 개체의 등급을 쓰고, 안 주면 같은 이름의 아무 개체에서 찾는다 —
     // 이름↔등급은 `mountNames` 에서 1:1이라 결과는 같지만, 개체를 쥐고 있는 호출부는 넘기는 게 명확하다.
-    mountFace(name, cls, rarity) {
-        const r = rarity || ((Array.isArray(S.mounts) ? S.mounts.find(m => m && m.name === name) : null) || {}).rarity || '';
-        return this.creatureFace('mount', name, r, cls, MOUNT_ICONS[name] || '🐴');
+    mountFace(name, cls, rarity, stars) {
+        const inst = (Array.isArray(S.mounts) ? S.mounts.find(m => m && m.name === name) : null) || {};
+        const r = rarity || inst.rarity || '';
+        // 승천 티어(별%6) 데코가 썸네일에 반영돼야 한다 (ascend-design-tiers ⑴ — 셀 아이콘의 stars 축).
+        // 개체를 쥔 호출부는 stars 를 직접 넘기고, 이름만 아는 호출부는 같은 이름의 개체에서 찾는다.
+        const st = stars !== undefined ? stars : inst.stars;
+        return this.creatureFace('mount', name, r, cls, MOUNT_ICONS[name] || '🐴', st);
     },
     // ⚠️ 이미 구워 둔 썸네일이면 **이모지를 거치지 않고 바로 박는다.** 매번 이모지로 깔고
     //    하이드레이트를 기다리면, 그리는 도중에 또 다시 그려지는 화면에서는 앞 프레임의 작업이
     //    떨어져 나가 몇 칸이 이모지로 남는다(실측: 탈것 화면 15칸 중 3칸이 간헐적으로 잔존).
     //    첫 굽기 때만 이모지 폴백이 필요하고, 그 뒤로는 다시 그려도 항상 완성된 그림이 나온다.
-    creatureFace(kind, name, rarity, cls, emoji) {
-        const attrs = `class="${cls} mt-face" data-kind="${kind}" data-mt="${name || ''}" data-rarity="${rarity || ''}"`;
+    creatureFace(kind, name, rarity, cls, emoji, stars) {
+        const attrs = `class="${cls} mt-face" data-kind="${kind}" data-mt="${name || ''}" data-rarity="${rarity || ''}" data-stars="${stars || 0}"`;
         const url = typeof Scene3D !== 'undefined' && Scene3D.creatureThumbCached
-            ? Scene3D.creatureThumbCached(kind, name, rarity) : null;
+            ? Scene3D.creatureThumbCached(kind, name, rarity, stars) : null;
         if (url) return `<span ${attrs.replace('mt-face', 'mt-face has-thumb')}><img src="${url}" alt=""></span>`;
         return `<span ${attrs}>${emoji}</span>`;
     },
     // 펫도 같은 문제(🐾 이모지 ≠ 실제 3D 펫) — 완전히 같은 파이프라인을 쓴다
-    petFace(name, cls) {
-        return this.creatureFace('pet', name, '', cls, PET_ICONS[name] || '🐾');
+    petFace(name, cls, stars) {
+        const st = stars !== undefined ? stars
+            : (((S.pets || []).find(p => p && p.name === name)) || {}).stars;
+        return this.creatureFace('pet', name, '', cls, PET_ICONS[name] || '🐾', st);
     },
     hydrateMountThumbs(root) {
         const scope = root || document;
@@ -1759,9 +1765,10 @@ const UI = {
         requestAnimationFrame(() => {
             for (const el of faces) {
                 if (!el.isConnected) continue;
+                const st = Number(el.dataset.stars) || 0;   // 승천 티어 축 — creatureFace 가 심는다
                 const url = el.dataset.kind === 'pet'
-                    ? Scene3D.petThumb(el.dataset.mt)
-                    : Scene3D.mountThumb(el.dataset.mt, el.dataset.rarity || 'common');
+                    ? Scene3D.petThumb(el.dataset.mt, st)
+                    : Scene3D.mountThumb(el.dataset.mt, el.dataset.rarity || 'common', st);
                 if (url) { el.innerHTML = `<img src="${url}" alt="">`; el.classList.add('has-thumb'); }
             }
         });
@@ -3467,7 +3474,7 @@ const UI = {
             const active = S.activePets.includes(i);
             return `<button class="pet-tile" style="--rc:${RARITY_CSS[pet.rarity]}" onclick="UI.openPetDetail(${i})">
                 <span class="tile-face">
-                    ${UI.petFace(pet.name, 'mt-inline')}
+                    ${UI.petFace(pet.name, 'mt-inline', pet.stars)}
                     ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${pet.level}</span>
                 </span>
@@ -3484,7 +3491,7 @@ const UI = {
         const equippedRowHtml = S.activePets.map(i => {
             const pet = S.pets[i];
             if (!pet) return '';
-            return `<button class="sk-mini square" style="--rc:${RARITY_CSS[pet.rarity]}" title="${PET_KR[pet.name] || pet.name} — 상세/해제" onclick="UI.openPetDetail(${i})">${UI.petFace(pet.name, 'mt-inline')}<small>Lv.${pet.level}</small></button>`;
+            return `<button class="sk-mini square" style="--rc:${RARITY_CSS[pet.rarity]}" title="${PET_KR[pet.name] || pet.name} — 상세/해제" onclick="UI.openPetDetail(${i})">${UI.petFace(pet.name, 'mt-inline', pet.stars)}<small>Lv.${pet.level}</small></button>`;
         }).join('') || '<span class="muted">없음</span>';
 
         const mergeHtml = RARITIES.slice(0, -1).map(r => Pets.canMerge(r) ?
@@ -3542,7 +3549,7 @@ const UI = {
                     <div class="petd-head">
                         <div class="petd-tilecol">
                             <div class="petd-tile" style="--rc:${RARITY_CSS[pet.rarity]}">
-                                ${UI.petFace(pet.name, 'mt-inline')}
+                                ${UI.petFace(pet.name, 'mt-inline', pet.stars)}
                                 ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                                 <span class="sk-lv">Lv.${pet.level}</span>
                             </div>
@@ -3663,7 +3670,7 @@ const UI = {
             return `
             <button class="pet-tile ${on ? 'selected' : ''} ${locked ? 'mat-locked' : ''}" style="--rc:${RARITY_CSS[p.rarity]}" onclick="UI.onToggleUpgradeMat('pet', ${i})">
                 <span class="tile-face">
-                    ${UI.petFace(p.name, 'mt-inline')}
+                    ${UI.petFace(p.name, 'mt-inline', p.stars)}
                     ${locked ? '<span class="sk-ribbon">장착됨</span>' : ''}
                     <span class="sk-lv">Lv.${p.level}</span>
                     ${on ? '<span class="tile-check">✓</span>' : ''}
@@ -3702,7 +3709,7 @@ const UI = {
                     <div class="petup-panel">
                     <div class="petup-head" style="--rc:${RARITY_CSS[target.rarity]}">
                         <div class="petup-icon">
-                            ${UI.petFace(target.name, 'mt-inline')}
+                            ${UI.petFace(target.name, 'mt-inline', target.stars)}
                             ${active ? '<span class="sk-ribbon">장착됨</span>' : ''}
                             <span class="sk-lv">Lv.${target.level}</span>
                         </div>
@@ -4658,7 +4665,7 @@ const UI = {
         const amExtra = Math.max(0, (S.activeMounts || []).length - 1);
         gearHtml += am
             ? `<div class="equip-cell egg-cell pinfo-mount-wide" onclick="UI.openMounts()">
-                ${UI.mountFace(amName, 'cell-img emoji')}
+                ${UI.mountFace(amName, 'cell-img emoji', am.rarity, am.stars)}
                 <span class="cell-lv">Lv.${am.level}</span>
                 ${amExtra ? `<span class="cell-count" style="${UI.MOUNT_COUNT_STYLE}">+${amExtra}</span>` : ''}</div>`
             : `<div class="equip-cell egg-cell empty pinfo-mount-wide" onclick="UI.openMounts()"><span class="slot-name">탈것</span></div>`;
@@ -4669,12 +4676,12 @@ const UI = {
         const petIconsHtml = S.activePets.map(i => {
             const p = S.pets[i];
             return `<button class="sk-cell" onclick="UI.openPetDetail(${i})">
-                <span class="sk-orb">${UI.petFace(p.name, 'mt-inline')}<span class="sk-lv">Lv.${p.level}</span></span></button>`;
+                <span class="sk-orb">${UI.petFace(p.name, 'mt-inline', p.stars)}<span class="sk-lv">Lv.${p.level}</span></span></button>`;
         }).join('');
         // 장착 탈것을 나열한다 — 장착이 1마리라 사실상 1칸이다(`mount-single-equip`).
         const mountIconHtml = (S.activeMounts || []).map(i => ({ i, m: Mounts.inst(i) })).filter(x => x.m).map(({ i, m }) =>
             `<button class="sk-cell" onclick="UI.openMountUpgrade(${i})">
-            <span class="sk-orb">${UI.mountFace(m.name, 'mt-inline', m.rarity)}<span class="sk-lv">Lv.${m.level}</span></span></button>`).join('');
+            <span class="sk-orb">${UI.mountFace(m.name, 'mt-inline', m.rarity, m.stars)}<span class="sk-lv">Lv.${m.level}</span></span></button>`).join('');
 
         const subsHtml = SUBSTATS
             .map(([key, label]) => ({ key, label, value: +stats.subs[key].toFixed(1) }))
@@ -5251,7 +5258,7 @@ const UI = {
         // 🔑 재료도 **개체 인덱스**다 — 같은 이름이 여럿이라 이름으로 고르면 어느 개체가 사라질지 알 수 없다.
         const matChips = S.mounts.map((m, i) => ({ m, i })).filter(x => x.i !== idx).map(({ m, i }) => `
             <button class="mat-chip ${sel.includes(i) ? 'on' : ''} ${Mounts.isActive(i) ? 'active' : ''}" style="--rc:${RARITY_CSS[m.rarity]}" onclick="UI.onToggleMountUpgradeMat(${i})">
-                ${UI.mountFace(m.name, 'mt-inline', m.rarity)}<small>Lv.${m.level}${m.stars ? ` ${IconGen.img('star')}${m.stars}` : ''}</small>
+                ${UI.mountFace(m.name, 'mt-inline', m.rarity, m.stars)}<small>Lv.${m.level}${m.stars ? ` ${IconGen.img('star')}${m.stars}` : ''}</small>
             </button>`).join('');
 
         const previewXp = sel.map(i => Mounts.inst(i)).filter(Boolean)
