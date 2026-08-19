@@ -430,6 +430,53 @@ const ok = (c, m) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${m}`); if (!c) fail
         ok(af[af.length - 1].aura === 0, `[aura] 연출 뒤 잔존 0`);
     }
 
+    // ================= 회오리 (ring) =================
+    // '회오리인가'의 증거는 하나다 — **돌고 있는가**. 층별 회전각이 실제로 변하는지, 그리고
+    // 층마다 속도가 달라 회전이 눈에 걸리는지(같은 속도면 축대칭이라 정지한 것처럼 보인다).
+    console.log('\n════ 회오리 ════');
+    const vres = await p.evaluate(async () => {
+        Scene3D.clearEnemies();
+        const e = { id: 7990, x: Combat.MELEE_X, alive: true, hp: Big.of(1e9), maxHp: Big.of(1e9) };
+        Combat.enemies = [e]; Scene3D.spawnEnemy(e);
+        for (const a of Scene3D.anims) { try { a.fn(1); a.onDone && a.onDone(); } catch (x) {} }
+        Scene3D.anims = [];
+        Scene3D.enemyMap.get(e.id).g.position.set(e.x + Scene3D.worldX, 0, 0);
+        const def = SKILL_DEFS.find(s => s.fx === 'ring') || { rarity: 'common', fx: 'ring', color: '#b0bec5' };
+        const t0 = performance.now();
+        const frames = [];
+        Scene3D.skillEffect('ring', def.color, [e.id], def);
+        await new Promise(res => {
+            const iv = setInterval(() => {
+                Scene3D.update(1 / 60);
+                let vortex = 0, rots = [], sx = null;
+                Scene3D.scene.traverse(o => {
+                    if (o.userData && o.userData.vortexFx) {
+                        vortex++; sx = +o.scale.x.toFixed(3);
+                        for (const lg of o.children) if (lg.userData && lg.userData.w !== undefined) rots.push(+lg.rotation.y.toFixed(3));
+                    }
+                });
+                frames.push({ t: performance.now() - t0, vortex, rots, sx });
+                if (performance.now() - t0 > 1600) { clearInterval(iv); res(); }
+            }, 16);
+        });
+        return { frames, tier: Scene3D.skillTier(def) };
+    });
+    {
+        const f = vres.frames.filter(x => x.vortex > 0);
+        const first = f[0], mid = f[Math.floor(f.length / 2)];
+        console.log(`   회오리 프레임 ${f.length}개 · 배율 ${first ? first.sx : 'n/a'} → ${Math.max(...f.map(x => x.sx || 0)).toFixed(3)}`);
+        console.log(`   층별 회전각 첫 ${first ? JSON.stringify(first.rots) : 'n/a'} → 중간 ${mid ? JSON.stringify(mid.rots) : 'n/a'}`);
+        ok(f.length > 5, `[ring] 회오리가 실재한다 (${f.length}프레임 — 예전엔 도는 물건이 0개)`);
+        // 돈다: 층 회전각이 실제로 변한다
+        const spun = first && mid && first.rots.some((r, i) => Math.abs(mid.rots[i] - r) > 0.3);
+        ok(spun, `[ring] 실제로 돈다 (층 회전각이 변한다)`);
+        // 층마다 다르게 돈다: 중간 프레임에서 층별 각이 서로 다르다
+        const distinct = mid && new Set(mid.rots.map(r => r.toFixed(2))).size === mid.rots.length;
+        ok(distinct, `[ring] 층마다 각속도가 다르다 (${mid ? mid.rots.join(' / ') : 'n/a'} — 같으면 축대칭이라 정지해 보인다)`);
+        ok(Math.max(...f.map(x => x.sx || 0)) > (first ? first.sx : 0) + 0.4, `[ring] 바깥으로 퍼진다 (배율 증가)`);
+        ok(vres.frames[vres.frames.length - 1].vortex === 0, `[ring] 연출 뒤 잔존 0`);
+    }
+
     // ⑵-b 등급 사다리 — 높을수록 발수가 많다(단조 비감소, 양 끝은 실제로 늘어야 한다)
     const counts = rows.map(r => r.strikes.length);
     ok(counts.every((c, i) => i === 0 || c >= counts[i - 1]) && counts[counts.length - 1] > counts[0],

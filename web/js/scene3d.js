@@ -9793,10 +9793,10 @@ const Scene3D = {
                 this.firePillar(m.g.position.clone(), color, tier || 0); // 화염류=치솟는 불기둥 (항목 ㉰)
             }, i * 60));
         } else if (fx === 'ring') {
-            this.expandRing(this.heroG.position.clone(), color, 5);
-            this.expandRing(this.heroG.position.clone(), new THREE.Color(0xffffff), 3.5);
+            // 회오리 (skill-fx-exaggerated). 이름이 회오리인데 예전엔 **퍼지는 링 2개**뿐이라
+            // 도는 물건이 하나도 없었다 — '회오리'가 아니라 '충격파'로 읽혔다.
+            this.whirlwindVortex(targetIds, color, tier || 0);
             this.flashLight(this.heroG.position, color.getHex(), 0.3);
-            targets.forEach(m => this.spawnSparks(m.g.position.clone().add(new THREE.Vector3(0, 0.5, 0)), 10, color.getHex()));
         } else if (fx === 'beam') {
             // 화살 세례 (skill-fx-exaggerated) — 한 발이 아니라 여러 발이 다다다닥.
             // 화살 조형(projectileBolt)은 그대로 재사용한다: 좋았던 건 물건이 아니라 발수였다.
@@ -10480,6 +10480,78 @@ const Scene3D = {
             G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
             this.scene.remove(G); this.scene.remove(light);
         });
+        SFX.auraRise(t);
+    },
+
+    // ---- 스킬 전용 미니 연출 ⑦: 회오리 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----
+    // `ring`(회오리 베기)은 이름이 **회오리**인데 화면에는 **퍼지는 링 2개**뿐이었다 — 도는 물건이
+    // 하나도 없어서 '회오리'가 아니라 '충격파'로 읽혔다. 커먼이라 초반에 가장 많이 보는 스킬이다.
+    // 장면: 발밑에서 먼지가 감기기 시작 → 칼날 깃이 층층이 **돌면서** 깔때기를 만든다 → 깔때기가
+    //       바깥으로 퍼지며 닿는 적을 벤다 → 위로 풀리며 흩어진다.
+    // ⚠️ **도는 게 보여야 회오리다.** 층마다 각속도를 다르게 줘야 회전이 눈에 걸린다 — 통짜로 같은
+    //    속도면 '돌아가는 원뿔'이 아니라 '가만히 있는 원뿔'로 보인다(모양이 축대칭이라 그렇다).
+    whirlwindVortex(targetIds, color, tier) {
+        if (!this.scene) return;
+        const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
+        const pw = t / 5;
+        const hero = this.heroG.position.clone();
+        const G = new THREE.Group();
+        G.userData.vortexFx = true;
+        G.position.set(hero.x, 0.05, hero.z);
+        this.scene.add(G);
+        // 층 3개 — 위로 갈수록 넓어지는 깔때기. 층마다 깃 수·각속도가 다르다.
+        const layers = [];
+        const LAY = [{ y: 0.12, r: 0.55, n: 3, w: 1.0 }, { y: 0.62, r: 0.85, n: 4, w: -1.45 }, { y: 1.15, r: 1.15, n: 3, w: 1.9 }];
+        for (const L of LAY) {
+            const lg = new THREE.Group();
+            lg.position.y = L.y;
+            lg.userData.w = L.w;
+            for (let i = 0; i < L.n; i++) {
+                const a = (i / L.n) * Math.PI * 2;
+                // 깃 = 얇은 부분 링(호). 길이를 층마다 달리해 나선처럼 어긋나 보이게 한다.
+                const vane = new THREE.Mesh(new THREE.RingGeometry(L.r * 0.62, L.r, 16, 1, a, 1.05),
+                    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+                vane.rotation.x = -Math.PI / 2;
+                lg.add(vane);
+            }
+            G.add(lg); layers.push(lg);
+        }
+        const dur = 0.62 + pw * 0.24;
+        const grow = 1 + pw * 0.75;                      // 등급이 높을수록 크게 퍼진다
+        const hit = new Set();
+        this.addAnim(dur, k => {
+            const e = 1 - Math.pow(1 - k, 2);
+            const op = k < 0.68 ? Math.min(1, k / 0.16) : 1 - (k - 0.68) / 0.32;
+            G.scale.set(0.45 + e * grow, 0.7 + e * 0.7, 0.45 + e * grow);
+            for (const lg of layers) {
+                lg.rotation.y += lg.userData.w * 0.14;   // 층마다 다른 각속도 = 회전이 읽힌다
+                for (const v of lg.children) v.material.opacity = 0.8 * op;
+            }
+            // 감겨 올라가는 먼지 — 회오리 안쪽에서 위로
+            if (Math.random() < 0.6) {
+                const a = U.rand(0, Math.PI * 2), rr = (0.4 + e * grow) * U.rand(0.5, 1);
+                this.riseParticle(new THREE.Vector3(hero.x + Math.cos(a) * rr, 0.06, hero.z + Math.sin(a) * rr), color);
+            }
+            // 깔때기가 닿는 적을 벤다 — **한 번씩만**(매 프레임 때리면 불티가 화면을 덮는다)
+            const reach = (0.45 + e * grow) * 1.15;
+            for (const id of (targetIds || [])) {
+                if (hit.has(id)) continue;
+                const m = this.enemyMap.get(id);
+                if (!m) continue;
+                if (Math.hypot(m.g.position.x - hero.x, m.g.position.z - hero.z) <= reach) {
+                    hit.add(id);
+                    const p = m.g.position.clone().add(new THREE.Vector3(0, 0.55, 0));
+                    this.spawnSparks(p, Math.round(10 + pw * 14), color.getHex(), { speed: 1.3 + pw * 0.6 });
+                    this.flashLight(p, color.getHex(), 0.16);
+                    this.shake(0.12 + pw * 0.14);
+                    SFX.slashArc(hit.size - 1, t);
+                }
+            }
+        }, () => {
+            G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+            this.scene.remove(G);
+        });
+        this.expandRing(new THREE.Vector3(hero.x, 0.02, hero.z), color, 1.6 + pw * 1.4);
         SFX.auraRise(t);
     },
 
