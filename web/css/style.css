@@ -3987,8 +3987,11 @@ body {
    +2.43%p 큰 데다 세로로도 길어 원본의 납작한 라운드 사각과 다른 물건이 된다. */
 /* ⚠️ `.btn.round`(0-2-0)가 2.6rem 정사각을 박으므로 선택자를 같은 특이도 이상으로 올려야 먹는다 —
    `.hatch-back` 한 겹(0-1-0)으로 적었더니 값이 통째로 무시됐다(실측: 폭이 8.76%W 그대로). */
+/* 라운드는 `.btn.back-btn` 과 같은 원본값(앱 폭 0.94%)으로 통일한다 — .5rem 은 390에서 7.6px 이라
+   16.7px 상자에서 알약으로 읽혔다(원본 바깥 상자 35×25 의 반경 ≈5.5px = 높이 22%). 삼각형도
+   그 규칙이 그린다(4610행 참조). */
 .btn.round.hatch-back, .hatch-back { position: absolute; left: .55rem; bottom: .55rem; z-index: 2; flex: 0 0 auto;
-    width: calc(var(--app-w) * .0633); height: calc(var(--app-w) * .0429); border-radius: .5rem; }
+    width: calc(var(--app-w) * .0633); height: calc(var(--app-w) * .0429); border-radius: calc(var(--app-w) * .0094); }
 /* 원본(shot-042356): 램프 아래 노란 빛 원뿔 + 알 — 박스 없는 스포트라이트 연출 */
 .hatch-cell {
     flex: 0 0 calc(var(--app-w) * .1724); min-width: 0; position: relative; background: none; border: none;
@@ -4615,7 +4618,35 @@ body {
 .fi-prog #upg-fill { background: var(--pp-blue); }
 
 /* ===== 스킬/펫 소환 바 (shot-042340 원본 대조 재작업) ===== */
-.back-btn { width: 2.4rem; height: 2.4rem; border-radius: .6rem; padding: 0; flex: none; font-size: 1rem; }
+/* 🚨 좌하단 뒤로 ◀ 는 `.league-back-btn` 과 **같은 규약**을 쓴다 — `font-size: 0` 으로 '◀' 문자를
+   죽이고 흰 삼각형을 CSS 로 직접 그린다(2026-08-17 수정이 세운 규약: 플랫폼 이모지 폰트가 ◀ 를
+   컬러 글리프로 그려 원본의 단색 흰 삼각형과 달라진다).
+   ⚠️ 여기서 `font-size: 1rem` 로 문자를 그대로 쓰면, 상자를 원본 비례(부화장 6.33%W × 4.29%W)로
+   **납작하게 줄여 둔** 부화장·소환 바에서 글리프 라인박스가 상자보다 커져 아래로 흘러넘친다
+   — 실측 넘침 세로 +7/+7/+10px(360·390·430), 삼각형 아래 꼭짓점이 빨간 면 밖으로 나갔다
+   (slug: summon-back-glyph-spill). 상자만 원본 비례로 줄이고 글리프 방식을 안 옮긴 게 뿌리였다.
+   삼각형은 **% 로만** 잡는다: 부화장(24.7×16.7)과 소환 바(27.5×22.6)는 상자 크기가 서로 달라서
+   rem·px 로 적으면 한쪽에서만 맞는다. 원본 실측(shot-042356 펫 부화장 · shot-042340 스킬 소환 바 —
+   두 컷이 독립적으로 같은 값): 빨간 면 31×21px 안에서 삼각형 12×14px
+   = 폭 38.7% · 높이 66.7% · 좌여백 25.8% · 상여백 14.3%. */
+/* `position: relative` 는 ::before 삼각형의 기준 상자를 보장하는 몫이다(세 자리 모두 자기 규칙에서
+   absolute 라 실제로는 그쪽이 이긴다 — 새 자리에 `.back-btn` 을 붙였을 때 삼각형이 새지 않게 하는 보험). */
+.back-btn { width: 2.4rem; height: 2.4rem; border-radius: .6rem; padding: 0; flex: none; font-size: 0; position: relative; }
+/* 🚨 `.btn.round`(0-2-0, 3170행)가 이 세 버튼 전부에 `font-size: 1.15rem` 과 `border-radius: 50%` 를
+   박는다 — `.back-btn` 한 겹(0-1-0)으로 적은 값은 **통째로 무시된다**(390에서 rem 13.15px ×1.15
+   = 실측 15.12px 가 그 증거다. 소환 바 ◀ 가 '가로로 긴 알약'으로 보이던 것도 이 50% 다).
+   그래서 그 **두 속성만** 같은 특이도로 되돌린다.
+   ⚠️ 여기에 width/height 를 같이 적으면 안 된다 — `.summon-bar .back-btn`(0-2-0, 3757행)이
+   원본 비례로 잡아 둔 27.5×22.6 을 뒤에 온 이 블록이 이겨서 31.5×31.5 정사각으로 되돌린다
+   (이 수정 1차에서 실제로 그렇게 깨뜨렸다 — 실측으로 잡았다).
+   라운드: 원본 바깥 상자 35×25px 의 모서리 반경 ≈5.5px = 높이의 22%(빨간 면 행별 폭 프로파일
+   29,29 → 25 에서 역산한 빨간 면 반경 3.5px + 검정 테 2px). 클론 상자 높이 16.7px 기준 3.7px
+   = 앱 폭의 0.94%. 종전 50%/.6rem 은 세로 22.6px 상자에서 통짜 알약으로 읽혔다. */
+.btn.back-btn { font-size: 0; border-radius: calc(var(--app-w) * .0094); }
+.back-btn::before {
+    content: ''; position: absolute; left: 25.8%; top: 14.3%; width: 38.7%; height: 66.7%;
+    background: #fff; clip-path: polygon(100% 0, 100% 100%, 0 50%);
+}
 .summon-bar .btn.x5-toggle { /* 소환 바 공통 — 스킬(패널)·펫(패널)·탈것(모달) 세 곳 통일 (QA: 탈것 x1 늘어남·◀ 겹침) */
     background: #fff; border: var(--ol3) solid var(--pp-blue); color: var(--pp-blue);
     /* 원본 40x18px (8.06%W x 2.02%H) */
@@ -7243,7 +7274,9 @@ body {
 .equip-cell .slot-name { text-shadow: 0 1px 2px rgba(0,0,0,.65), 0 0 2px rgba(0,0,0,.45); }
 /* ⑧ 뒤로가기 ◀ — 글리프에 명암(위 하이라이트·아래 그림자), 컨테이너 광택은 5차 버튼 규격이 이미 적용 */
 .back-btn, .sheet-back-btn, .hatch-back { text-shadow: 0 1px 0 rgba(255,255,255,.30), 0 -1px 1px rgba(0,0,0,.35); }
-.league-back-btn::before { filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
+/* `.back-btn` 계열도 이제 문자가 아니라 ::before 삼각형이라(4610행) 같은 그늘을 여기서 받는다 —
+   위 text-shadow 는 font-size:0 이 된 뒤로 이 세 버튼에서 아무것도 안 그린다. */
+.league-back-btn::before, .back-btn::before { filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
 /* ⑨ 시트 헤더 위계 — 헤더 아래 부드러운 구분 그늘 한 겹 */
 .sheet-head { box-shadow: 0 .12rem .16rem -.08rem rgba(23,24,26,.18); }
 
