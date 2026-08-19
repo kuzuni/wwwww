@@ -25,6 +25,16 @@ const FLOOR = {
     halo:   0.95,   // 기준선 99.5%
     fin:    0.85,   // 선행 결함 수리(slug: helmet-fin-covers-eyes) 뒤 게이트로 승격.
                     //   결함 상태 1.7% → 사발 앞 테두리를 눈 윗변 위(투구 로컬 y 0.074)로 올렸다.
+    // 🚨 `fin` 은 이제 **시대마다 조형이 갈린다**(`Scene3D.FIN_VARIANT`, equip-era-theming ㉢).
+    //    종전 이 판정기는 `makeHelmet(0, …)` 로 **age 를 숫자 0** 으로 넘겨, 표에 없는 값이라
+    //    전부 galea 로 떨어졌다 — 즉 combat·antenna·mech·hellforged 는 **한 번도 판정된 적이 없다**
+    //    (이 저장소가 반복해 밟는 '판정기 목록이 손으로 베낀 상수' 함정). 아래 4행이 그 구멍이다.
+    //    combat 은 사발을 낮춰(ry 0.239) 앞 테두리가 눈에 더 가깝고 챙이 이마 위를 덮으므로
+    //    galea 보다 하한이 낮다. 값은 전부 실측 기준선에서 뽑았다.
+    'fin@modern':       0.80,
+    'fin@space':        0.85,
+    'fin@interstellar': 0.80,   // 센서 바(y 0.103)와 브로우 후드가 눈썹 위를 지난다
+    'fin@underworld':   0.80,
 };
 // 🚨 판정에서 빼는 스타일 — **이 항목과 무관**하고, 넣으면 자가 무효한 FAIL 이 상시로 뜬다.
 //   · bubble = **판정기의 한계**. 투명 유리 돔 너머로 키 컬러가 물들어 임계값을 벗어난다(0.0%로 읽힌다).
@@ -108,33 +118,40 @@ const SKIP = { bubble: '투명 돔이 키 컬러를 물들여 색으로는 못 �
 
     // 얼굴이 보이는 투구 스타일 전부 (gamedata.js HELMET_STYLES 에서 풀커버 visor·mask·tech 를 뺀 것).
     // ⚠️ 'plate'·'hide' 등은 **갑옷** 스타일이라 makeHelmet 이 빈 그룹을 준다 — 넣지 말 것.
-    const STYLES = ['hair', 'cone', 'plume', 'fin', 'crown', 'tophat', 'bubble', 'halo'];
+    // ⚠️ `age` 를 주는 항목은 그 시대 조형으로 짓는다 — `fin` 처럼 시대 분기가 있는 계열은
+    //    시대마다 부속이 달라 눈 가림도 달라진다. age 없는 항목은 종전대로 숫자 0(=galea 등 기본).
+    const STYLES = ['hair', 'cone', 'plume', 'fin', 'crown', 'tophat', 'bubble', 'halo',
+        { style: 'fin', age: 'modern' }, { style: 'fin', age: 'space' },
+        { style: 'fin', age: 'interstellar' }, { style: 'fin', age: 'underworld' }];
     let fail = 0, pass = 0;
     console.log(`기준(투구 없음) 흰자 키 픽셀 = ${base}`);
     if (base < 200) { console.log('FAIL  기준 흰자가 너무 적다 — 카메라/키컬러 설정이 깨졌다'); fail++; }
 
-    for (const style of STYLES) {
-        const built = await page.evaluate((style) => {
+    for (const entry of STYLES) {
+        const style = typeof entry === 'string' ? entry : entry.style;
+        const age = typeof entry === 'string' ? 0 : entry.age;
+        const label = typeof entry === 'string' ? style : style + '@' + entry.age;
+        const built = await page.evaluate(({ style, age }) => {
             const slot = Scene3D.helmetG;
             while (slot.children.length) slot.remove(slot.children[0]);
             let m = null;
-            try { m = Scene3D.makeHelmet(0, 'common', style, style); } catch (e) { return { err: String(e) }; }
+            try { m = Scene3D.makeHelmet(age, 'common', style, style); } catch (e) { return { err: String(e) }; }
             if (!m) return { empty: true };
             slot.add(m); slot.visible = true;
             Scene3D.heroG.updateMatrixWorld(true);
             let meshes = 0; m.traverse(o => { if (o.isMesh) meshes++; });
             return { meshes };
-        }, style);
-        if (built.err) { console.log(`FAIL  ${style} — 투구 빌드 예외: ${built.err}`); fail++; continue; }
-        if (built.empty || !built.meshes) { console.log(`FAIL  ${style} — 투구 모델이 비어 있다(메시 0)`); fail++; continue; }
+        }, { style, age });
+        if (built.err) { console.log(`FAIL  ${label} — 투구 빌드 예외: ${built.err}`); fail++; continue; }
+        if (built.empty || !built.meshes) { console.log(`FAIL  ${label} — 투구 모델이 비어 있다(메시 0)`); fail++; continue; }
         await page.waitForTimeout(150);
         const n = await keyPixels();
         const keep = base ? n / base : 0;
-        if (SKIP[style]) { console.log(`skip  ${style} — 잔존 ${(keep * 100).toFixed(1)}% · ${SKIP[style]}`); continue; }
-        const floor = FLOOR[style];
-        if (floor === undefined) { console.log(`FAIL  ${style} — FLOOR 표에 없는 스타일(표를 갱신할 것)`); fail++; continue; }
+        if (SKIP[label] || SKIP[style]) { console.log(`skip  ${label} — 잔존 ${(keep * 100).toFixed(1)}% · ${SKIP[label] || SKIP[style]}`); continue; }
+        const floor = FLOOR[label] !== undefined ? FLOOR[label] : FLOOR[style];
+        if (floor === undefined) { console.log(`FAIL  ${label} — FLOOR 표에 없는 스타일(표를 갱신할 것)`); fail++; continue; }
         const ok = keep >= floor;
-        console.log(`${ok ? 'PASS' : 'FAIL'}  ${style} — 흰자 잔존 ${(keep * 100).toFixed(1)}% (${n}/${base}, 메시 ${built.meshes}개, 하한 ≥${(floor * 100).toFixed(0)}%)`);
+        console.log(`${ok ? 'PASS' : 'FAIL'}  ${label} — 흰자 잔존 ${(keep * 100).toFixed(1)}% (${n}/${base}, 메시 ${built.meshes}개, 하한 ≥${(floor * 100).toFixed(0)}%)`);
         ok ? pass++ : fail++;
     }
 

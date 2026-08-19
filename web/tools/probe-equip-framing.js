@@ -87,10 +87,10 @@ const FILL_MIN = 0.82, FILL_MAX = 0.99, OFF_MAX = 0.04;
     console.log(`채움비 평균 ${pct(avg(rendered.map(r => r.fill)))}  최소 ${pct(Math.min(...rendered.map(r => r.fill)))}  최대 ${pct(Math.max(...rendered.map(r => r.fill)))}`);
     console.log(`잉크(알파 픽셀 비율) 평균 ${pct(avg(rendered.map(r => r.ink)))}`);
     console.log(`기준 위반 칸 ${bad.length} / ${rendered.length}  (크롭 ${bad.filter(r => r.bad.includes('크롭')).length} · 작음 ${bad.filter(r => r.bad.includes('작음')).length} · 넘침 ${bad.filter(r => r.bad.includes('넘침')).length} · 치우침 ${bad.filter(r => r.bad.includes('치우침')).length})`);
-    for (const r of bad.slice(0, 40)) {
+    for (const r of bad.slice(0, Number(process.env.LIST || 40))) {
         console.log(`  [${r.bad.join(',')}] ${r.age}/${r.slot}#${r.nameIdx} ${r.name}  채움 ${pct(r.fill)} (${pct(r.w)}×${pct(r.h)})  중심오차 ${pct(r.cx)},${pct(r.cy)}`);
     }
-    if (bad.length > 40) console.log(`  … 외 ${bad.length - 40}칸`);
+    if (bad.length > Number(process.env.LIST || 40)) console.log(`  … 외 ${bad.length - Number(process.env.LIST || 40)}칸`);
     for (const r of failed) console.log(`  [${r.fail}] ${r.age}/${r.slot}#${r.nameIdx} ${r.name}`);
     console.log('콘솔 에러:', errors.length, errors.slice(0, 5));
 

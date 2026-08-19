@@ -4178,6 +4178,19 @@ const Scene3D = {
     //    실제로 밀폐복인 시대만 이름으로 골라 둔다. 그 밖의 시대 suit 는 퀴레스 조형으로 간다.
     SUIT_SEALED: ['modern', 'space', 'interstellar', 'multiverse', 'quantum'],
     suitSealed(age) { return this.SUIT_SEALED.indexOf(age) >= 0; },
+    // 그 시대의 `fin`(볏 투구) 이 **어떤 조형인가** (equip-era-theming, R1 교집합 ㉢).
+    // `fin` 은 로마 갈레아 하나(리벳 밴드 + 말총 볏 + 늘어진 뺨가드)로 **5시대 공용**이었다.
+    // 중세 '그리스 투구'는 그 조형이 정답이지만, 나머지 넷은 이름이 요구하는 물건이 전혀 다르다:
+    // 현대 '철모'(M1 냄비+턱끈) · 우주 '위성 안테나 헬름'(접시·휩) · 항성간 '어드밴스드 메크'
+    // (각진 장갑판·센서 바) · 지하 세계 '헬포지드 헬름'(뿔·슬래그). 실측 시트에서 이 네 칸은
+    // 육안으로 구분이 안 됐고, 비평가 2인이 공통 1~3순위로 "리벳 밴드+뺨가리개가 현대~지하까지
+    // 그대로"라고 짚었다.
+    // ⚠️ **`ageGearKind` 로 가르지 말 것** — alloy 한 계열에 우주·항성간·다중우주·양자·지하가
+    //    통째로 묶여 '위성 안테나'와 '헬포지드'가 도로 같은 조형이 된다. `suit` 의 SUIT_SEALED 과
+    //    같은 이유로, **이름이 실제로 그것인 시대만** 표에 적어 둔다(새 시대에 fin 을 배정하면
+    //    여기 한 줄을 같이 적을 것 — 안 적으면 조용히 갈레아로 떨어진다).
+    FIN_VARIANT: { modern: 'combat', space: 'antenna', interstellar: 'mech', underworld: 'hellforged' },
+    finVariant(age) { return this.FIN_VARIANT[age] || 'galea'; },
 
     // 시대별 재질 세트 — body(주 표면) / dark(부속·스트랩) / trim(시대 디테일) / glow 여부.
     // ⚠️ map은 albedo에 **곱해진다**. rockTex 베이스가 #b9bcc0(≈0.73), leatherTex가 #c9b8a6(≈0.76)이라
@@ -5154,7 +5167,7 @@ const Scene3D = {
             brow.position.set(0, 0.118, 0.03);
             brow.scale.set(1, 1, 0.86);
             g.add(brow);
-        } else if (style === 'fin') {       // 볏 투구 (로마 갈레아/사무라이)
+        } else if (style === 'fin') {       // 볏 투구 계열 — 시대마다 다른 조형 (FIN_VARIANT)
             // 🚨 종전엔 `SphereGeometry(0.26, …, 0, Math.PI*0.6)` 돔 **하나**였다. thetaLength 가
             //    둘레 전체에 한 값이라, 뒤통수를 덮으려고 0.6π(= 적도 아래 18°)를 준 순간 **앞도
             //    같이 눈높이 아래까지 내려와** 흰자 잔존률이 1.7%(= 코와 입만 남는다)였다.
@@ -5162,81 +5175,379 @@ const Scene3D = {
             //    실측 좌표(두상 로컬): 눈 윗변 0.147 · 눈썹 0.163~0.177. 투구 로컬은 headMount
             //    y=0.08 만큼 아래이므로 각각 **0.067 · 0.083~0.097**. 앞 테두리를 로컬 y≈0.074 에
             //    두면 흰자 위·눈썹 아래를 지나간다(= 눈썹만 살짝 덮는 갈레아의 브로우 라인).
-            const BR = 0.238, BRY = 0.272, BCY = 0.015;   // 정수리 = BCY+BRY = 0.287
-            const ARC = { rx: BR, ry: BRY, rz: BR, cy: BCY,
-                front: 1.353,   // 77.5° → 테두리 y = 0.015 + 0.272·cos77.5° = 0.074 (> 눈 윗변 0.067)
-                side:  1.676,   // 96°   → y = −0.013 (관자놀이. 볼가드 −0.08 위)
-                back:  1.990 }; // 114°  → y = −0.096 (목덜미)
-            const dome = this.browedBowl(ARC, this.tintOf(mat, 0, { side: THREE.DoubleSide }));
-            // 테두리 롤 밴드 — 앞을 비우면 셸 단면이 그대로 보인다. 한 바퀴 두른 어두운 띠가
-            // 그 단면을 덮고 아치를 선으로 읽히게 한다(실제 갈레아의 말린 가장자리).
-            const band = this.browedBowl(Object.assign({}, ARC,
-                { rx: BR * 1.04, ry: BRY * 1.04, rz: BR * 1.04, from: 0.88, rows: 3 }),
-                this.tintOf(darkMat, 0, { side: THREE.DoubleSide }));
-            band.userData.decorAccent = true;
-            // 목가리개 — 뒤쪽 테두리만 바깥으로 벌어지는 자락. 갈레아의 서명이고, 앞을 비운 만큼
-            // 뒤가 허전해지는 것을 메운다(φ=π 기준 ±54°).
-            const neck = this.browedBowl(Object.assign({}, ARC,
-                { rx: BR * 1.04, ry: BRY * 1.04, rz: BR * 1.04, from: 0.93, flare: 0.19, rows: 4,
-                  seg: 16, phi0: Math.PI - 0.95, phiLen: 1.9 }),
-                this.tintOf(mat, -0.05, { side: THREE.DoubleSide }));
-            g.add(band, neck);
-            // 브로우 리벳 — 아치 위에 5개. 96px 로 줄여도 앞 테두리가 '선'으로 남게 하는 이차 디테일.
-            for (let i = -2; i <= 2; i++) {
-                const phi = i * 0.30, c = Math.cos(phi);
-                const tm = ARC.side - (ARC.side - ARC.front) * Math.pow(c, 0.65);
-                const th = tm * 0.925, s = Math.sin(th), k = 1.055;
-                const rv = new THREE.Mesh(new THREE.SphereGeometry(0.0125, 6, 5), rareMat);
-                rv.position.set(BR * k * s * Math.sin(phi), BCY + BRY * k * Math.cos(th), BR * k * s * Math.cos(phi));
-                rv.scale.z = 0.6;
-                g.add(rv);
-            }
-            // 볏(크레스트) — ⓓ. 재질만 고쳐도 **평판 상자**(0.05×0.2×0.36)는 여전히 판이다.
-            // ⚠️ 상자를 계단처럼 쌓아 아치를 흉내 냈다가 되돌렸다 — 96px 에서 **지구라트**로 읽힌다.
-            //    로마 볏은 앞뒤로 흐르는 **매끈한 아치**라 옆면 실루엣(zy 평면)을 셰이프로 찍어 x 로
-            //    밀어내고, 베벨로 능선 하이라이트를 만든다.
-            const crest = new THREE.Group();
-            {
-                const sh = new THREE.Shape();
-                sh.moveTo(-0.185, 0);
-                sh.quadraticCurveTo(-0.10, 0.20, 0, 0.215);      // 앞에서 솟아
-                sh.quadraticCurveTo(0.10, 0.20, 0.185, 0);       // 뒤로 흘러내린다
-                sh.quadraticCurveTo(0, 0.035, -0.185, 0);        // 밑변은 돔을 타고 살짝 오목
-                const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.026, bevelEnabled: true, bevelThickness: 0.007, bevelSize: 0.007, bevelSegments: 2, curveSegments: 10 });
-                geo.rotateY(Math.PI / 2);                        // zy 평면 프로파일 → 두께가 x 로
-                geo.translate(-0.013, 0, 0);                     // 두께를 x=0 기준으로 중앙 정렬
-                crest.add(new THREE.Mesh(geo, rareMat));
-                // 말총 결 — 🚨 **매끈한 판은 재질을 아무리 고쳐도 안 산다**(실측: 이미시브를 0 으로
-                // 내리고 러프니스를 올려도 흰 부위 휘도 폭 10 → 12). 판은 법선이 한 방향뿐이라
-                // 어떤 조명에서도 한 값으로 칠해진다. **면을 물리적으로 쪼개야** 한다.
-                // ⚠️ 살을 판 **속**에 넣으면 아무 일도 안 일어난다 — 첫 판이 그래서 실패했다.
-                //    반드시 양쪽 면 **바깥**으로 나오게 둘 것(판 반두께 0.013 < 살 중심 0.019).
-                for (const sx of [0.019, -0.019]) {
-                    for (let i = 0; i < 9; i++) {
-                        const t = (i / 8) * 2 - 1;
-                        const h = 0.215 * (1 - t * t * 0.86);
-                        if (h < 0.035) continue;
-                        const rib = new THREE.Mesh(new THREE.CylinderGeometry(0.0105, 0.0105, h, 6), rareMat);
-                        rib.position.set(sx, h / 2 + 0.012, t * 0.168);
-                        rib.rotation.x = t * 0.30;
-                        crest.add(rib);
+            // 🚨 **여기서부터 시대 분기**(equip-era-theming, R1 교집합 ㉢ — 비평가 2인 공통 지적).
+            //    로마 갈레아 하나가 5시대 공용이라, 현대 '철모'·우주 '위성 안테나 헬름'·항성간
+            //    '어드밴스드 메크'·지하 '헬포지드 헬름'이 전부 **색만 다른 같은 볏 투구**로 떴다
+            //    (실측 시트에서 네 칸이 육안 구분 불가). 사발(`browedBowl`)은 '머리를 덮되 눈을
+            //    안 가린다'는 공통 골격이라 남기고, **테두리 각과 그 위에 얹는 부속 일체**를
+            //    변종별로 새로 깎는다. 변종표는 `FIN_VARIANT` 참조.
+            const finV = this.finVariant(age);
+            const BR = 0.238, BRY = finV === 'combat' ? 0.239 : 0.272, BCY = 0.015;   // 정수리 = BCY+BRY
+            // ⚠️ 앞 테두리 y 는 **어느 변종에서도** 눈 윗변 0.067 위여야 한다(위 실측 좌표).
+            //    combat 은 ry 를 0.239 로 낮췄으므로 상한이 acos((0.074−0.015)/0.239)=1.3215rad 이다.
+            const ARC = finV === 'combat'
+                // 현대 철모(M1/PASGT)는 갈레아와 정반대로 **앞뒤 테두리 각차가 작은 수평한 냄비**다.
+                // 앞 1.32 → y 0.074(눈 위) · 옆 1.52 → 0.027 · 뒤 1.70 → −0.016.
+                ? { rx: BR, ry: BRY, rz: BR, cy: BCY, front: 1.32, side: 1.52, back: 1.70 }
+                : { rx: BR, ry: BRY, rz: BR, cy: BCY,
+                    front: 1.353,   // 77.5° → 테두리 y = 0.015 + 0.272·cos77.5° = 0.074 (> 눈 윗변 0.067)
+                    side:  1.676,   // 96°   → y = −0.013 (관자놀이. 볼가드 −0.08 위)
+                    back:  1.990 }; // 114°  → y = −0.096 (목덜미)
+            // 메크만 셸을 각지게 — 분할을 줄이고 flatShading 을 물려 **장갑판**으로 읽히게 한다.
+            // (매끈한 사발은 재질을 아무리 바꿔도 사발이다 — 볏 판때기에서 이미 밟은 벽이다.)
+            const dome = this.browedBowl(
+                finV === 'mech' ? Object.assign({}, ARC, { seg: 9, rows: 3 }) : ARC,
+                this.tintOf(mat, 0, finV === 'mech'
+                    ? { side: THREE.DoubleSide, flatShading: true } : { side: THREE.DoubleSide }));
+            g.add(dome);
+
+            if (finV === 'galea') {          // 중세 '그리스 투구' — 로마 갈레아 (이 조형은 시대가 맞다)
+                // 테두리 롤 밴드 — 앞을 비우면 셸 단면이 그대로 보인다. 한 바퀴 두른 어두운 띠가
+                // 그 단면을 덮고 아치를 선으로 읽히게 한다(실제 갈레아의 말린 가장자리).
+                const band = this.browedBowl(Object.assign({}, ARC,
+                    { rx: BR * 1.04, ry: BRY * 1.04, rz: BR * 1.04, from: 0.88, rows: 3 }),
+                    this.tintOf(darkMat, 0, { side: THREE.DoubleSide }));
+                band.userData.decorAccent = true;
+                // 목가리개 — 뒤쪽 테두리만 바깥으로 벌어지는 자락. 갈레아의 서명이고, 앞을 비운 만큼
+                // 뒤가 허전해지는 것을 메운다(φ=π 기준 ±54°).
+                const neck = this.browedBowl(Object.assign({}, ARC,
+                    { rx: BR * 1.04, ry: BRY * 1.04, rz: BR * 1.04, from: 0.93, flare: 0.19, rows: 4,
+                      seg: 16, phi0: Math.PI - 0.95, phiLen: 1.9 }),
+                    this.tintOf(mat, -0.05, { side: THREE.DoubleSide }));
+                g.add(band, neck);
+                // 브로우 리벳 — 아치 위에 5개. 96px 로 줄여도 앞 테두리가 '선'으로 남게 하는 이차 디테일.
+                for (let i = -2; i <= 2; i++) {
+                    const phi = i * 0.30, c = Math.cos(phi);
+                    const tm = ARC.side - (ARC.side - ARC.front) * Math.pow(c, 0.65);
+                    const th = tm * 0.925, s = Math.sin(th), k = 1.055;
+                    const rv = new THREE.Mesh(new THREE.SphereGeometry(0.0125, 6, 5), rareMat);
+                    rv.position.set(BR * k * s * Math.sin(phi), BCY + BRY * k * Math.cos(th), BR * k * s * Math.cos(phi));
+                    rv.scale.z = 0.6;
+                    g.add(rv);
+                }
+                // 볏(크레스트) — ⓓ. 재질만 고쳐도 **평판 상자**(0.05×0.2×0.36)는 여전히 판이다.
+                // ⚠️ 상자를 계단처럼 쌓아 아치를 흉내 냈다가 되돌렸다 — 96px 에서 **지구라트**로 읽힌다.
+                //    로마 볏은 앞뒤로 흐르는 **매끈한 아치**라 옆면 실루엣(zy 평면)을 셰이프로 찍어 x 로
+                //    밀어내고, 베벨로 능선 하이라이트를 만든다.
+                const crest = new THREE.Group();
+                {
+                    const sh = new THREE.Shape();
+                    sh.moveTo(-0.185, 0);
+                    sh.quadraticCurveTo(-0.10, 0.20, 0, 0.215);      // 앞에서 솟아
+                    sh.quadraticCurveTo(0.10, 0.20, 0.185, 0);       // 뒤로 흘러내린다
+                    sh.quadraticCurveTo(0, 0.035, -0.185, 0);        // 밑변은 돔을 타고 살짝 오목
+                    const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.026, bevelEnabled: true, bevelThickness: 0.007, bevelSize: 0.007, bevelSegments: 2, curveSegments: 10 });
+                    geo.rotateY(Math.PI / 2);                        // zy 평면 프로파일 → 두께가 x 로
+                    geo.translate(-0.013, 0, 0);                     // 두께를 x=0 기준으로 중앙 정렬
+                    crest.add(new THREE.Mesh(geo, rareMat));
+                    // 말총 결 — 🚨 **매끈한 판은 재질을 아무리 고쳐도 안 산다**(실측: 이미시브를 0 으로
+                    // 내리고 러프니스를 올려도 흰 부위 휘도 폭 10 → 12). 판은 법선이 한 방향뿐이라
+                    // 어떤 조명에서도 한 값으로 칠해진다. **면을 물리적으로 쪼개야** 한다.
+                    // ⚠️ 살을 판 **속**에 넣으면 아무 일도 안 일어난다 — 첫 판이 그래서 실패했다.
+                    //    반드시 양쪽 면 **바깥**으로 나오게 둘 것(판 반두께 0.013 < 살 중심 0.019).
+                    for (const sx of [0.019, -0.019]) {
+                        for (let i = 0; i < 9; i++) {
+                            const t = (i / 8) * 2 - 1;
+                            const h = 0.215 * (1 - t * t * 0.86);
+                            if (h < 0.035) continue;
+                            const rib = new THREE.Mesh(new THREE.CylinderGeometry(0.0105, 0.0105, h, 6), rareMat);
+                            rib.position.set(sx, h / 2 + 0.012, t * 0.168);
+                            rib.rotation.x = t * 0.30;
+                            crest.add(rib);
+                        }
+                    }
+                    // 밑동 밴드 — 볏이 돔에서 그냥 자라난 것처럼 보이지 않게 어두운 한 단
+                    // ⚠️ 폭·두께가 볏보다 커야 보인다 — 볏 안에 들어가면 차분 기여가 0 이다(실측).
+                    const base = new THREE.Mesh(new THREE.BoxGeometry(0.079, 0.030, 0.31), darkMat);
+                    base.position.y = 0.017;
+                    base.userData.decorAccent = true;   // 판정기 차분용 표식(아래 rarityDecor 주석 참조)
+                    crest.add(base);
+                }
+                // ⚠️ 돔 정수리는 y 0.287 이다(사발 교체로 0.28 → 0.287) — 볏을 0.20 에 두면 밑동이
+                //    통째로 사발 **안**에 묻혀 밴드도 결도 안 보인다(실측: 부위 휘도 폭이 흰 면 폭과 같았다).
+                //    정수리−볏 간격 0.035 를 그대로 유지한다.
+                crest.position.y = 0.252;
+                const cheek1 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.12), mat);
+                cheek1.position.set(-0.24, -0.08, 0.1);
+                const cheek2 = cheek1.clone(); cheek2.position.x = 0.24;
+                g.add(crest, cheek1, cheek2);
+            } else if (finV === 'combat') {  // 현대 '철모' — M1/PASGT 전투 헬멧
+                // 갈레아와 갈리는 것 셋: ⓐ 한 바퀴 바깥으로 말린 **챙**(갈레아는 뒤에만 자락이
+                // 벌어진다) ⓑ **볏·리벳·뺨가드가 하나도 없다** ⓒ 관자놀이에서 내려온 **턱끈 웨빙**
+                // 이 턱컵에서 만난다. 96px 로 줄여도 이 셋이 실루엣을 갈레아와 다르게 만든다.
+                // ⚠️ flare 를 0.34 로 두면 챙이 반경 0.319 까지 벌어져 **밀짚 햇빛가리개**로 읽힌다
+                //    (실측 캡처). M1 은 냄비에 가까워 벌어짐이 완만하다 → 0.24.
+                const brim = this.browedBowl(Object.assign({}, ARC,
+                    { from: 0.87, flare: 0.24, rows: 4, seg: 30 }),
+                    this.tintOf(mat, -0.06, { side: THREE.DoubleSide }));
+                brim.userData.decorAccent = true;
+                g.add(brim);
+                // 이마 NVG 슈라우드 + 마운트 러그 — 현대 전투 헬멧의 서명 부속. 앞에서 '기계'로
+                // 읽히게 하는 유일한 돌출이라 뺄 수 없다(챙만으로는 '냄비'에서 안 벗어난다).
+                const shroud = new THREE.Mesh(new THREE.BoxGeometry(0.074, 0.052, 0.030), darkMat);
+                shroud.position.set(0, 0.112, 0.206);
+                shroud.rotation.x = -0.22;
+                shroud.userData.decorAccent = true;
+                const lug = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.028, 8), rareMat);
+                lug.rotation.z = Math.PI / 2;
+                lug.position.set(0, 0.112, 0.228);
+                g.add(shroud, lug);
+                // 턱끈 — 앞뒤 두 갈래(Y 웨빙)가 턱컵에서 만난다. ⚠️ 폭을 두껍게 하면 갈레아
+                //    뺨가드로 되돌아간다 — 얇고(0.030) 비스듬해야 '천 끈'으로 읽힌다.
+                // 🚨 **회전 부호를 뒤집지 말 것.** `rotation.z = γ` 면 상자의 +y 축이
+                //    (−sin γ, cos γ, 0) 로 가므로 **아래 방향은 (sin γ, −cos γ, 0)** 이다.
+                //    sx=+1 쪽에서 끈이 안쪽(x 감소)으로 모이려면 γ<0 → `-sx * …` 여야 한다.
+                //    처음 `+sx * 0.26` 으로 뒀더니 두 끈이 **바깥으로 벌어져** 턱컵이 저 혼자
+                //    허공에 뜬 'C' 로 떨어졌다(실측 캡처).
+                //    뒤 갈래는 Euler XYZ(R = Rx·Ry·Rz)라 Rx 가 나중에 걸린다 — 아래 방향의 z 성분이
+                //    −cos γ·sin β 라, 앞(+z)으로 오게 하려면 β<0 이다.
+                const CUPY = -0.152, CUPZ = 0.086;
+                for (const sx of [-1, 1]) {
+                    const front = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.200, 0.012), darkMat);
+                    front.position.set(sx * 0.134, -0.065, 0.062);   // 관자놀이(0.200,0.010) → 턱(0.068,−0.140)
+                    front.rotation.set(0.10, 0, -sx * 0.72);
+                    const rear = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.175, 0.012), darkMat);
+                    rear.position.set(sx * 0.139, -0.047, -0.021);   // 뒤통수 → 앞아래로 넘어온다
+                    rear.rotation.set(-0.75, 0, -sx * 0.62);
+                    g.add(front, rear);
+                }
+                // 턱컵 — 열린 반원통(양면). 끈 네 갈래가 여기서 만나야 '헬멧을 쓴 것'으로 읽힌다.
+                const cup = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.074, 0.062, 0.052, 14, 1, true, -Math.PI * 0.58, Math.PI * 1.16),
+                    this.tintOf(darkMat, 0.04, { side: THREE.DoubleSide }));
+                cup.position.set(0, CUPY, CUPZ);
+                cup.rotation.x = 0.24;
+                const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.022, 0.014), rareMat);
+                buckle.position.set(0.082, CUPY + 0.020, CUPZ + 0.010);
+                buckle.rotation.z = 0.62;
+                g.add(cup, buckle);
+            } else if (finV === 'antenna') { // 우주 '위성 안테나 헬름' — 접시 1문 + 휩 2본
+                // 이름이 요구하는 부속이 **하나도 없었다**(말총 볏이 달린 갈레아였다).
+                // 매끈한 밀폐 셸 + 목 씰링 링 위에 접시·휩을 올린다. 리벳·볏 0개 = 미래의 정의.
+                // ⚠️ 접시를 등 뒤에 두면 썸네일 기본 3/4 정면에서 통째로 가려진다 — `robe` 추진기에서
+                //    실측으로 밟은 함정이다. **시대 신호는 정면에서 읽혀야 값을 한다** → 옆으로 뺀다.
+                // ⚠️ 씰링 링을 굵게(tube 0.030) 두면 같은 시대 `bubble`(우주 헬멧)의 큰 링과
+                //    실루엣이 겹쳐 '구명튜브 쓴 머리' 두 칸이 된다(실측 캡처) — 얇게 두 줄로 간다.
+                // 🚨 **한 바퀴 닫힌 링으로 두르지 말 것.** 이 높이는 얼굴 높이라 통짜 토러스는
+                //    눈을 가로지른다 — `addAgeTrim` 이 같은 자리에서 이미 밟은 함정이고(링 하나가
+                //    흰자 32%p), 여기서도 닫힌 링 두 줄이 흰자를 93%→55% 로 떨어뜨렸다
+                //    (`probe-face-helmet-clear` 의 `fin@space` 가 잡았다). 정면 ±1.05rad 을 비운다.
+                //    Euler XYZ 는 Rz 가 먼저라, `rotation.set(π/2, 0, φ0)` 이면 토러스 자기 평면에서
+                //    시작각을 φ0 만큼 돌린 뒤 눕는다 → 덮이는 방위각이 [φ0, φ0+arc] 가 된다.
+                //    (밀폐복의 목 씰은 원래 얼굴 창을 비켜 뒤·옆으로 도는 것이라 조형상으로도 맞다.)
+                const FACE_GAP = 1.05, RING_ARC = Math.PI * 2 - FACE_GAP * 2;
+                const seal = new THREE.Mesh(new THREE.TorusGeometry(0.231, 0.018, 8, 26, RING_ARC), darkMat);
+                seal.rotation.set(Math.PI / 2, 0, Math.PI / 2 + FACE_GAP);
+                seal.position.y = -0.036;
+                seal.userData.decorAccent = true;
+                const lock = new THREE.Mesh(new THREE.TorusGeometry(0.238, 0.009, 6, 26, RING_ARC), rareMat);
+                lock.rotation.set(Math.PI / 2, 0, Math.PI / 2 + FACE_GAP);
+                lock.position.y = -0.004;
+                g.add(seal, lock);
+                // 링을 끊은 자리에 **잠금 클램프**를 물린다. 없으면 잘린 단면 두 개가 부러진
+                // 그루터기로 읽힌다(실측 캡처) — 클램프가 서면 '앞에서 여닫는 목 씰'이 된다.
+                for (const s of [-1, 1]) {
+                    const a = Math.PI / 2 - s * FACE_GAP;
+                    const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.084, 0.046), darkMat);
+                    clamp.position.set(0.231 * Math.cos(a), -0.020, 0.231 * Math.sin(a));
+                    clamp.rotation.y = Math.PI / 2 - a;
+                    const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.010, 0.010, 0.030, 8), rareMat);
+                    pin.position.set(0.244 * Math.cos(a), -0.020, 0.244 * Math.sin(a));
+                    pin.rotation.set(Math.PI / 2, 0, 0);
+                    pin.rotation.y = Math.PI / 2 - a;
+                    g.add(clamp, pin);
+                }
+                {   // 접시 — 짐벌 팔 + 포물면(양면) + 피드혼. 오른쪽으로 뻗어 실루엣을 깬다.
+                    // 🚨 **왼쪽(−x)에 두지 말 것.** 썸네일 카메라는 `ITEM_THUMB_DIR (1.0, 0.55, 2.3)`
+                    //    = 오른쪽 앞 위라, −x 에 단 부속은 돔에 가려 **테두리만 삐죽 나온다**
+                    //    (실측 캡처에서 접시가 좌상단 얇은 조각으로만 보였다). 시대 신호는
+                    //    카메라가 보는 쪽에 달아야 값을 한다.
+                    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.019, 0.105, 8), darkMat);
+                    arm.position.set(0.222, 0.152, -0.010);
+                    arm.rotation.z = -0.66;
+                    // 🚨 **개구가 카메라를 향해야 접시다.** 사발의 개구는 기본 −y 이고, Euler XYZ 라
+                    //    Rz 가 먼저·Rx 가 나중이다: (0,−1,0) → Rz(γ) → (sin γ, −cos γ, 0) →
+                    //    Rx(β) → (sin γ, −cos γ·cos β, −cos γ·sin β).
+                    //    ⚠️ 방향을 네 번 틀렸다(전부 실측 캡처): β=−0.26 은 개구가 뒤를 향해
+                    //    **볼록한 뒷면**만 보여 '쥐 귀'로, β=+0.9 는 좌측면을 향해 **초승달**로,
+                    //    법선을 카메라와 거의 일치(0.45,0.55,0.70)시켰더니 이번엔 정면 원판이라
+                    //    **납작한 노**로 읽혔다. 오목한 곡률이 보이려면 카메라와 **45~50° 어긋나야**
+                    //    한다 → 법선 (0.62, 0.72, 0.30)(카메라 축과 dot 0.66). 역산 γ=+0.669·β=−2.748.
+                    //    테두리 토러스도 같이 둔다 — 얕은 캡은 림이 없으면 어느 각도에서도 판이다.
+                    const DR = 0.128;
+                    const dish = new THREE.Group();
+                    dish.add(new THREE.Mesh(
+                        new THREE.SphereGeometry(DR, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.34),
+                        this.tintOf(mat, 0.07, { side: THREE.DoubleSide })));
+                    const rim = new THREE.Mesh(
+                        new THREE.TorusGeometry(DR * Math.sin(Math.PI * 0.34), 0.0095, 6, 28), darkMat);
+                    rim.rotation.x = Math.PI / 2;
+                    rim.position.y = DR * Math.cos(Math.PI * 0.34);
+                    dish.add(rim);
+                    dish.position.set(0.258, 0.224, 0.022);
+                    dish.rotation.set(-2.748, 0, 0.669);
+                    // 피드혼 — 초점(접시 앞 0.046)에서 접시를 되본다. 회전이 접시와 같으면
+                    // 원뿔의 +y 축이 법선의 **반대**로 가므로 그대로 쓴다(끝이 접시를 향한다).
+                    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.019, 0.060, 8), rareMat);
+                    horn.position.set(0.258 + 0.62 * 0.048, 0.224 + 0.72 * 0.048, 0.022 + 0.30 * 0.048);
+                    horn.rotation.set(-2.748, 0, 0.669);
+                    g.add(arm, dish, horn);
+                    // 항전 박스 — 접시 반대편 무게추. 없으면 bbox 가 오른쪽으로 쏠려 자동 프레이밍이
+                    // 투구를 왼쪽 구석에 밀어붙인다(`probe-equip-framing` 중심오차).
+                    const avio = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.078, 0.106), darkMat);
+                    avio.position.set(-0.212, 0.062, -0.044);
+                    avio.rotation.z = 0.30;
+                    const fin2 = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.052, 0.086), rareMat);
+                    fin2.position.set(-0.246, 0.076, -0.044);
+                    fin2.rotation.z = 0.30;
+                    g.add(avio, fin2);
+                }
+                // 휩 안테나 2본 — 오른쪽. 접시 질량과 맞물려 x 중심이 치우치지 않게 반대편에 둔다.
+                // ⚠️ 밑동은 **셸 표면 위**여야 한다 — y 0.172 에서 사발 반경은 0.1926 이라
+                //    (x,z) 반지름이 그보다 크면 허공에 꽂힌 막대가 된다(0.178 · 0.175 를 쓴다).
+                const beadMat = mats.glow ? mats.trim : rareMat;
+                const WHIP = [{ x: -0.166, z: 0.048, h: 0.205, rz: 0.20 },
+                              { x: -0.140, z: -0.086, h: 0.150, rz: 0.32 }];
+                for (const w of WHIP) {
+                    const whip = new THREE.Mesh(new THREE.CylinderGeometry(0.0050, 0.0085, w.h, 6), darkMat);
+                    whip.position.set(w.x, 0.172 + w.h / 2, w.z);
+                    whip.rotation.z = w.rz;
+                    // 원통 축(+y)을 z 로 rz 만큼 돌린 끝점 = (−sin rz, cos rz, 0)·h/2
+                    const bead = new THREE.Mesh(new THREE.SphereGeometry(0.0135, 8, 6), beadMat);
+                    bead.position.set(w.x - Math.sin(w.rz) * w.h / 2,
+                        whip.position.y + Math.cos(w.rz) * w.h / 2, w.z);
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.024, 0.022, 8), darkMat);
+                    base.position.set(w.x, 0.170, w.z);
+                    g.add(whip, bead, base);
+                }
+                // 상태등 2점 — 밀폐 셸에 '살아 있는 장비' 신호. 정면 살짝 옆(눈을 안 가린다).
+                for (const sx of [-1, 1]) {
+                    const led = new THREE.Mesh(new THREE.SphereGeometry(0.0155, 8, 6), beadMat);
+                    led.position.set(sx * 0.148, 0.118, 0.168);
+                    led.scale.z = 0.55;
+                    g.add(led);
+                }
+            } else if (finV === 'mech') {    // 항성간 '어드밴스드 메크' — 각진 장갑판 + 센서 바
+                // 갈레아의 매끈한 사발·말총 볏 대신 서명 셋: ⓐ 눈썹 위를 가로지르는 **단안 센서 바**
+                // ⓑ 옆머리 **배기 루버 3단** ⓒ 곡선 아치가 아니라 **직선 능선(킬)**.
+                // ⚠️ 센서 바 아랫변은 0.103−0.015 = 0.088 로 눈 윗변(0.067) 위다 — 여기서 내리면
+                //    `probe-face-helmet-clear` 가 곧바로 흰자를 잃는다.
+                const barMat = mats.glow ? mats.trim : rareMat;
+                for (let i = -2; i <= 2; i++) {
+                    const a = Math.PI / 2 + i * 0.22, r = 0.222;   // x=cos a · z=sin a (정면 = π/2)
+                    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.046, 0.030, 0.020), barMat);
+                    seg.position.set(r * Math.cos(a), 0.103, r * Math.sin(a));
+                    seg.rotation.y = Math.PI / 2 - a;
+                    g.add(seg);
+                    // 바 위를 덮는 어두운 브로우 후드 — 발광 띠가 셸에 그냥 박힌 스티커로
+                    // 보이지 않게 한 단 얹는다(투구 트림이 쓰는 명도 단차 언어).
+                    const hood = new THREE.Mesh(new THREE.BoxGeometry(0.050, 0.020, 0.030), darkMat);
+                    hood.position.set(r * 1.01 * Math.cos(a), 0.128, r * 1.01 * Math.sin(a));
+                    hood.rotation.y = seg.rotation.y;
+                    hood.rotation.x = -0.30;
+                    g.add(hood);
+                }
+                {   // 능선(킬) — 직선 프로파일. 갈레아 볏의 완만한 아치와 정면으로 갈린다.
+                    const sh = new THREE.Shape();
+                    sh.moveTo(-0.175, 0);
+                    sh.lineTo(-0.055, 0.086);
+                    sh.lineTo(0.085, 0.072);
+                    sh.lineTo(0.175, 0);
+                    sh.lineTo(-0.175, 0);
+                    const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.030, bevelEnabled: true, bevelThickness: 0.005, bevelSize: 0.005, bevelSegments: 1 });
+                    geo.rotateY(Math.PI / 2);
+                    geo.translate(-0.015, 0, 0);
+                    const keel = new THREE.Mesh(geo, this.tintOf(mat, -0.10, { flatShading: true }));
+                    keel.position.y = 0.256;
+                    keel.userData.decorAccent = true;
+                    g.add(keel);
+                }
+                // 배기 루버 3단 — 얇은 판을 비스듬히 겹친다. 관자놀이 뒤라 얼굴을 안 먹는다.
+                for (const sx of [-1, 1]) {
+                    for (let i = 0; i < 3; i++) {
+                        const lv = new THREE.Mesh(new THREE.BoxGeometry(0.020, 0.016, 0.096), darkMat);
+                        lv.position.set(sx * 0.212, 0.056 - i * 0.036, -0.068);
+                        lv.rotation.set(0.42, 0, sx * 0.12);
+                        g.add(lv);
+                    }
+                    // 턱 액추에이터 — 늘어진 천 뺨가드 대신 **각진 판 + 피스톤**
+                    const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.140, 0.086),
+                        this.tintOf(mat, -0.05, { flatShading: true }));
+                    jaw.position.set(sx * 0.226, -0.072, 0.076);
+                    jaw.rotation.z = sx * 0.10;
+                    const piston = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.096, 8), rareMat);
+                    piston.position.set(sx * 0.244, -0.056, 0.030);
+                    piston.rotation.z = sx * 0.10;
+                    g.add(jaw, piston);
+                }
+            } else {                          // 지하 세계 '헬포지드 헬름' — 뿔 + 깨진 능선 + 용암 균열
+                // ⚠️ 균열·발광을 시대 팔레트에 맡기면 지하 세계 색이 살구빛이라 비평가가 지적한
+                //    '분홍색 중세'로 되돌아간다. 이름이 **지옥 단조**라 용암 주황을 고정한다.
+                const lava = new THREE.MeshBasicMaterial({ color: 0xff5a12 });
+                const hornMat = this.tintOf(mat, -0.12, { flatShading: true });
+                // 뿔 — 마디 5개를 걸어가며 쌓는다. 위로 갈수록 서고(a↓) 뒤로 휜다(b↑).
+                // ⚠️ **곧추세우지 말 것**(a 를 0.66 에서 0.17 씩 줄여 마지막이 수직이었다).
+                //    가늘고 높은 뿔은 bbox 만 위로 늘리고 화면 질량은 아래에 남아, 자동 프레이밍의
+                //    세로 중심오차가 4.3%(기준 4%)로 걸린다 — `probe-equip-framing` 이 잡았고
+                //    이 항목이 낸 **유일한** 신규 위반이었다. 바깥으로 벌리면 같은 뿔이 폭으로
+                //    가고 질량이 위쪽에 남아 중심이 맞는다(악마 뿔로도 이쪽이 더 읽힌다).
+                for (const sx of [-1, 1]) {
+                    const p = new THREE.Vector3(sx * 0.170, 0.146, -0.020);
+                    let a = 0.72, b = 0.05;
+                    for (let i = 0; i < 5; i++) {
+                        const len = 0.086 - i * 0.011, rad = 0.045 - i * 0.0072;
+                        const dir = new THREE.Vector3(sx * Math.sin(a), Math.cos(a) * Math.cos(b), -Math.cos(a) * Math.sin(b));
+                        const seg = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.74, rad, len, 7), hornMat);
+                        seg.position.copy(p).addScaledVector(dir, len * 0.5);
+                        seg.rotation.set(-b, 0, -sx * a);
+                        g.add(seg);
+                        p.addScaledVector(dir, len);
+                        if (i === 4) {
+                            const tip = new THREE.Mesh(new THREE.ConeGeometry(rad * 0.72, 0.062, 7), hornMat);
+                            tip.position.copy(p).addScaledVector(dir, 0.031);
+                            tip.rotation.set(-b, 0, -sx * a);
+                            g.add(tip);
+                        }
+                        a -= 0.14; b += 0.06;
+                    }
+                    // 뿔 밑동 소켓 — 뿔이 셸에서 그냥 자라난 것처럼 보이지 않게 어두운 한 단
+                    const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.050, 0.060, 0.040, 8), darkMat);
+                    socket.position.set(sx * 0.164, 0.140, -0.038);
+                    socket.rotation.z = -sx * 0.66;
+                    socket.userData.decorAccent = true;
+                    g.add(socket);
+                }
+                // 능선 — 매끈한 볏이 아니라 **깨진 쐐기 5장**. 높이·기울기를 흩어 단조 실패한 결로.
+                for (let i = 0; i < 5; i++) {
+                    const t = (i / 4) * 2 - 1;
+                    const h = 0.108 * (1 - t * t * 0.55) * (i % 2 ? 0.72 : 1);
+                    const sh = new THREE.Mesh(new THREE.ConeGeometry(0.030 - Math.abs(t) * 0.008, h, 4), hornMat);
+                    sh.position.set(0, 0.268 + h * 0.42, -t * 0.128);
+                    sh.rotation.set(t * 0.34, 0.5 + i * 0.31, i % 2 ? 0.16 : -0.13);
+                    g.add(sh);
+                }
+                // 용암 균열 — 셸 표면을 따라 얇은 마디로 흐른다. 방위각을 눈(정면 ±33°) 밖으로 둔다.
+                for (const seed of [[1.05, 0.150], [2.30, 0.095], [-0.95, 0.120], [3.55, 0.060]]) {
+                    for (let i = 0; i < 3; i++) {
+                        const a = seed[0] + i * 0.15, y = seed[1] - i * 0.042;
+                        const cs = Math.max(0.02, (y - BCY) / BRY);
+                        const r = BR * Math.sqrt(Math.max(0, 1 - cs * cs)) * 1.012;
+                        const cr = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.014, 0.012), lava);
+                        cr.position.set(r * Math.cos(a), y, r * Math.sin(a));
+                        cr.rotation.set(0, Math.PI / 2 - a, 0.5 + i * 0.3);
+                        g.add(cr);
                     }
                 }
-                // 밑동 밴드 — 볏이 돔에서 그냥 자라난 것처럼 보이지 않게 어두운 한 단
-                // ⚠️ 폭·두께가 볏보다 커야 보인다 — 볏 안에 들어가면 차분 기여가 0 이다(실측).
-                const base = new THREE.Mesh(new THREE.BoxGeometry(0.079, 0.030, 0.31), darkMat);
-                base.position.y = 0.017;
-                base.userData.decorAccent = true;   // 판정기 차분용 표식(아래 rarityDecor 주석 참조)
-                crest.add(base);
+                // 아래로 뻗은 엄니 뺨가드 — 늘어진 천 조각(갈레아)이 아니라 **깨진 쇳조각**
+                for (const sx of [-1, 1]) {
+                    const fang = new THREE.Mesh(new THREE.ConeGeometry(0.046, 0.170, 5), hornMat);
+                    fang.position.set(sx * 0.222, -0.086, 0.062);
+                    fang.rotation.set(0.12, 0, Math.PI + sx * 0.20);
+                    const ember = new THREE.Mesh(new THREE.SphereGeometry(0.017, 8, 6), lava);
+                    ember.position.set(sx * 0.226, -0.020, 0.086);
+                    g.add(fang, ember);
+                }
             }
-            // ⚠️ 돔 정수리는 y 0.287 이다(사발 교체로 0.28 → 0.287) — 볏을 0.20 에 두면 밑동이
-            //    통째로 사발 **안**에 묻혀 밴드도 결도 안 보인다(실측: 부위 휘도 폭이 흰 면 폭과 같았다).
-            //    정수리−볏 간격 0.035 를 그대로 유지한다.
-            crest.position.y = 0.252;
-            const cheek1 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.12), mat);
-            cheek1.position.set(-0.24, -0.08, 0.1);
-            const cheek2 = cheek1.clone(); cheek2.position.x = 0.24;
-            g.add(dome, crest, cheek1, cheek2);
         } else if (style === 'mask') {      // 가면/방독면: 얼굴을 감싸는 곡면 판 (평판 박스 → 원통 셸)
             const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.22, 0.32, 14, 1, true, -Math.PI * 0.42, Math.PI * 0.84), mat);
             plate.material = this.tintOf(mat, 0, { side: THREE.DoubleSide }); // 원색 직치환 금지 — 시대 재질 톤 공유
@@ -5492,7 +5803,13 @@ const Scene3D = {
         //    거기 두르면 링이 흰자를 32%p 먹는다(실측 probe-fin-occluder). 높이를 옆 테두리(−0.014)
         //    바로 위로 올리고 정면 호를 비운다 — 눈 방위각은 정면 ±33°(+튜브 5°)라 ±57°(1.0rad)면 덮는다.
         if (style !== 'halo' && style !== 'bubble') {
-            this.addAgeTrim(g, mats, style === 'fin'
+            // ⚠️ `combat`(현대 철모)은 테두리가 챙으로 0.319 까지 벌어져 있어, 갈레아용 링
+            //    (y 0.02 · r 0.245)을 그대로 두르면 **챙 밑에 통째로 묻혀 시대 디테일이 0 이 된다**.
+            //    사발 허리(y 0.105 에서 실반경 0.222)를 둘러 M1 의 헬멧 밴드로 읽히게 올린다.
+            const finV = style === 'fin' ? this.finVariant(age) : null;
+            this.addAgeTrim(g, mats, finV === 'combat'
+                ? { y: 0.105, rx: 0.222, rz: 0.222, faceOpen: true }
+                : finV
                 ? { y: 0.02, rx: 0.245, rz: 0.245, faceOpen: true }
                 : { yFrac: 0.2 });
         }
