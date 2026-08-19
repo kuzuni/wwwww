@@ -34,7 +34,15 @@ const NAME = process.argv[2] || 'Hover Board';
         Scene3D.clearEnemies(); Combat.enemies = [];
         S.mounts = {}; S.mounts[name] = { rarity: 'epic', count: 1, level: 1 };
         S.activeMount = name;
+        // ⚠️ **부유 위상과 시계를 못박지 않으면 같은 코드가 실행마다 다른 판정을 낸다** — `probe-ride-clear`·
+        //    `probe-ride-fit` 이 이미 밟은 함정인데 이 프로브에만 빠져 있었다. 실측(2026-08-19): 코드를
+        //    한 자도 안 바꾸고 두 번 돌렸더니 ④(발이 발판 위) 가 **FAIL(L −0.038) ↔ PASS(L −0.032)** 로
+        //    뒤집혔다 — 임계가 0.035 라 부유 바운스 폭이 그대로 판정을 갈랐다. 그 흔들림 때문에 하마터면
+        //    멀쩡한 스탠스를 '내용 결함'으로 등재할 뻔했다. `ridePhase` 는 `refreshMount` 가 읽는 훅이라
+        //    **호출 전에** 세우고, 바운스는 `_clock + phase` 의 함수라 `_clock` 도 같이 0 으로 못박는다.
+        Scene3D.ridePhase = 0;
         Scene3D.refreshMount();
+        Scene3D._clock = 0;
         for (let i = 0; i < 60; i++) Scene3D.update(1 / 60);
         const g = Scene3D.mountGroup, rig = Scene3D.heroRig;
         Scene3D.heroG.updateWorldMatrix(true, true); g.updateWorldMatrix(true, true);
@@ -45,7 +53,11 @@ const NAME = process.argv[2] || 'Hover Board';
         //    돌아가 있어 그 두 꼭짓점은 범위가 아니라 **대각선**이다 — 실제 데크가 1:1.4 인데
         //    4.4:1(길이 1.57 / 폭 0.355)로 찍혀, 스탠스 비율 판정이 통째로 거짓이었다.
         //    파츠의 지오메트리 bbox 는 이미 그 파츠 로컬이므로, 자기 scale·position 만 얹으면 된다.
-        const deck = g.userData.deck || inner.children[0];
+        // ⚠️ 훅은 **탈것 메시 그룹(inner)** 에 심겨 있다 — `Scene3D.mountGroup` 의 userData 는 그중 몇
+        //    개만 골라 복사받으므로 `deck` 이 없다. 예전엔 그 사실을 모른 채 `g.userData.deck` 만 보고
+        //    항상 폴백(`inner.children[0]` = 눌린 타원체 선체)으로 떨어졌고, 그래서 ②의 분모(발판 치수)와
+        //    ④의 자(발판 윗면)가 둘 다 딛는 면이 아니라 **선체**였다.
+        const deck = inner.userData.deck || g.userData.deck || inner.children[0];
         if (!deck.geometry.boundingBox) deck.geometry.computeBoundingBox();
         const gb = deck.geometry.boundingBox;
         const deckLen = (gb.max.z - gb.min.z) * Math.abs(deck.scale.z);
@@ -62,12 +74,27 @@ const NAME = process.argv[2] || 'Hover Board';
             const hp = hip.getWorldPosition(V(0, 0, 0)), kp = knee.getWorldPosition(V(0, 0, 0));
             const a = hp.clone().sub(kp).normalize(), b = footW.clone().sub(kp).normalize();
             r[side] = {
+                world: footW.clone(),
                 local: inner.worldToLocal(footW.clone()),
                 fwd: inner.worldToLocal(footW.clone().add(fwd)).sub(inner.worldToLocal(footW.clone())),
                 knee: 180 - Math.acos(Math.max(-1, Math.min(1, a.dot(b)))) * 180 / Math.PI,
                 footY: footW.y,
             };
         }
+        // 🚨 ④의 자는 **발 밑 발판 표면**이다 — AABB 꼭대기가 아니다.
+        //    호버 디스크의 발판은 눌린 타원체라 **가운데가 봉긋한 돔**이고, 보더는 그 중심이 아니라
+        //    앞뒤로 벌려 선다(스탠스가 판정 ②의 요구다). 그러면 발은 돔 꼭대기보다 낮은 게 **정상**인데
+        //    꼭대기를 자로 삼아 −0.051/−0.041 로 반려했다(실측 2026-08-19). 발 (x,z) 에서 수직으로
+        //    레이캐스트해 그 자리의 표면 높이를 쓴다 — 평평한 데크(호버보드)에서는 결과가 같고,
+        //    뱅킹으로 판이 기울어도 따라온다. **못 맞히면 그 발은 발판 밖**이라 그 자체가 실패다
+        //    (기존 주석이 약속만 하고 실제로는 검사하지 않던 '발판 밖 이탈'이 이걸로 처음 걸린다).
+        const deckTopMax = new THREE.Box3().setFromObject(deck).max.y;
+        const rc = new THREE.Raycaster(); rc.far = 8;
+        const surfAt = (w) => {
+            rc.set(V(w.x, deckTopMax + 0.5, w.z), V(0, -1, 0));
+            const hit = rc.intersectObject(deck, true);
+            return hit.length ? hit[0].point.y : null;
+        };
         // 보드 진행축 = 탈것 로컬 +z
         const yawOf = (v) => Math.abs(Math.atan2(v.x, v.z)) * 180 / Math.PI;
         return {
@@ -78,6 +105,8 @@ const NAME = process.argv[2] || 'Hover Board';
             zL: +r.L.local.z.toFixed(3), zR: +r.R.local.z.toFixed(3),
             kneeL: +r.L.knee.toFixed(1), kneeR: +r.R.knee.toFixed(1),
             footYL: +r.L.footY.toFixed(3), footYR: +r.R.footY.toFixed(3),
+            surfL: (v => v == null ? null : +v.toFixed(3))(surfAt(r.L.world)),
+            surfR: (v => v == null ? null : +v.toFixed(3))(surfAt(r.R.world)),
             spineRY: +(rig.bones.spine ? rig.bones.spine.rotation.y : 0).toFixed(3),
         };
     }, NAME);
@@ -90,7 +119,7 @@ const NAME = process.argv[2] || 'Hover Board';
     console.log(`  두 발 z 간격                 ${o.zGap}  (발판 길이 대비 ${(o.zGap / o.deckLen * 100).toFixed(0)}%, 기준 20% 이상)`);
     console.log(`  무릎 굴곡                    L ${o.kneeL}° / R ${o.kneeR}°   (기준 15° 이상)`);
     console.log(`  발 로컬 좌표                 L(${o.xL}, ${o.zL}) / R(${o.xR}, ${o.zR})`);
-    console.log(`  발 월드 y                    L ${o.footYL} / R ${o.footYR}  (발판 윗면 ${o.deckTop})`);
+    console.log(`  발 월드 y                    L ${o.footYL} / R ${o.footYR}  (발 밑 발판면 L ${o.surfL == null ? '없음(판 밖)' : o.surfL} / R ${o.surfR == null ? '없음(판 밖)' : o.surfR} · 판 AABB 꼭대기 ${o.deckTop})`);
     console.log(`  상체 비틀림(spine.ry)        ${o.spineRY}rad`);
 
     const fail = [];
@@ -100,8 +129,9 @@ const NAME = process.argv[2] || 'Hover Board';
     // 발이 발판 밖으로 나가면 '자세는 잡혔는데 공중을 딛는' 해로 도망간 것이다.
     // ⚠️ 기준을 느슨하게 잡으면 **한 발이 판 위에 떠 있는 채로 PASS** 한다(첫 통과 판이 그랬다 —
     //    앞발이 0.067 떠 있었다). 보더는 두 발 다 판을 딛는다. 0.035 = 부츠 두께 정도.
-    for (const [s, x, z, y] of [['L', o.xL, o.zL, o.footYL], ['R', o.xR, o.zR, o.footYR]]) {
-        if (Math.abs(y - o.deckTop) > 0.035) fail.push(`${s} 발이 발판 윗면에서 ${(y - o.deckTop).toFixed(3)} 떨어졌다`);
+    for (const [s, y, surf] of [['L', o.footYL, o.surfL], ['R', o.footYR, o.surfR]]) {
+        if (surf == null) { fail.push(`${s} 발이 발판 밖이다(수직 레이가 발판을 못 맞혔다)`); continue; }
+        if (Math.abs(y - surf) > 0.035) fail.push(`${s} 발이 발판면에서 ${(y - surf).toFixed(3)} 떨어졌다`);
     }
     console.log(fail.length ? '\n판정: FAIL\n  - ' + fail.join('\n  - ') : '\n판정: PASS');
     console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\n(no page errors)');
