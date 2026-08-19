@@ -8151,3 +8151,50 @@ body {
     background: #afafaf;
     box-shadow: inset 0 -.25rem 0 #353535;
 }
+
+/* ===== aaa-skin ⓖ — 게이지 축: 유리 광택을 걷고 **분절 블록 채움**으로 (2026-08-19 UI 스트림) =====
+   근거는 취향이 아니라 **사용자 확정 화풍**이다(2026-08-20 화풍 블록 ⓕ):
+     ㉯ "표면은 플랫/매트 — 글로시 유리·금속 광택 폐기(voxel 매트 월드와 충돌)"
+     ㉳ "게이지·바 = **분절/블록 채움**(마인크래프트 하트처럼 청키 세그먼트)"
+   즉 `ui-quality-up` 9차·12차가 게이지에 얹은 '파인 홈 + 액체 광택'은 그 지시로 폐기된 방향이다.
+   ⚠️ R3 비평가의 공통 ⓑ('게이지가 빈 검정 알약, 채움 광택 없음')를 앞 세션이 **기각**한 것은 그때
+      기준에서 옳았다("원본이 이미 평면이다"). 이 블록은 그 기각을 뒤집지 않는다 — **광택을 더하는
+      게 아니라 빼고**, 원본이 안 가진 것은 오직 ㉳ 가 새로 요구한 **분절**뿐이다.
+   ⚠️ ㉮ "배치·레이아웃은 원본 절대 기준(불변)" — 그래서 이 블록은 **칠하는 속성만** 쓴다
+      (background / box-shadow / ::after 오버레이). 높이·라운드·테두리 폭·overflow 는 안 건드린다.
+      `probe-sheet-skin` 이 스킨 on/off 로 기하가 ±0.5px 안인지 상시 단언하는 그 계약 그대로다.
+
+   🧊 **분절 격자는 게이지마다 따로 정하지 않고 한 벌로 공유한다** — 그래야 화면이 달라도 같은
+      '픽셀 크기'로 읽힌다(voxel 월드의 큐브 한 변이 어디서나 같은 것과 같은 원리). */
+:root {
+    --seg: .62rem;              /* 블록 한 칸의 피치 */
+    --seg-gap: var(--ol2);      /* 칸 사이 틈 — 아웃라인 토큰과 같은 축으로 앱이 작아지면 같이 얇아진다 */
+    --seg-line: rgba(0,0,0,.58);/* 틈 색 — 하드 엣지(블러 금지, ⓕ-㉱) */
+}
+/* ⑴ 트랙 — 파인 홈(블러 inset 3겹)과 위→아래 그라디언트를 걷고 **플랫 매트 + 하드 키라인**으로.
+   🚨 트랙 **색값은 안 건드린다**: `#262c34`/`#2d333c` 는 12차가 "채움 밖 흰 글자 판독(대비 12:1)"을
+      위해 사용자 지시로 올린 값이라(1756행 '어두운 트랙' 규약) 되돌리면 그 판독이 깨진다.
+      여기서 지우는 것은 **광택 층**뿐이다. */
+.upg-progress, .summon-gauge, .qst-bar {
+    background-image: none;
+    box-shadow: inset 0 0 0 var(--ol1) rgba(0,0,0,.55);   /* 블러 0 — 하드 키라인 한 겹 */
+}
+/* ⑵ 채움 — '액체 광택' 그라디언트를 걷고 플랫 색면으로. */
+#upg-fill, #tech-node-fill, .tech-prog #tech-node-fill, .summon-gauge i { background-image: none; }
+/* 퀘스트 바는 파랑/초록이 **상태 신호**(수령 대기=초록)라 색상환을 유지한 채 평탄화만 한다 —
+   종전 3정지 그라디언트의 중간색(38%)을 그대로 단색으로 쓴다(신호는 그대로, 광택만 사라진다). */
+.qst-bar i { background: #4fc3f7; }
+.qst-row.done .qst-bar i { background: #81e884; }
+/* ⑶ 분절 — 트랙 위에 **하드 세로 구분선**을 얹는다. 채움 위에서만 또렷하게 읽히고(밝은 면),
+   빈 구간에서는 어두운 트랙에 묻혀 은은한 슬롯으로 남는다 = 마인크래프트 하트와 같은 읽힘.
+   ⚠️ 채움은 트랙의 absolute 자식이라 이 `::after`(z 2)가 자연히 그 위에 온다. 가운데 수치 글자만
+      z 3 으로 올려 구분선에 안 깔리게 한다. */
+.upg-progress::after, .summon-gauge::after, .qst-bar::after,
+.summon-prog::after, .petup-xpbar::after, .rates-prog::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+    background-image: repeating-linear-gradient(90deg,
+        rgba(0,0,0,0) 0 calc(var(--seg) - var(--seg-gap)),
+        var(--seg-line) calc(var(--seg) - var(--seg-gap)) var(--seg));
+}
+#upg-time, #tech-node-time, .qst-bar em, .summon-gauge em,
+.summon-prog span, .petup-xpbar span, .rates-prog span { z-index: 3; }
