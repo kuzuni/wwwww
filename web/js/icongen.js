@@ -4222,7 +4222,7 @@ IconGen._genderSym = function (ctx, S, female) {
             let x = 0;
             /* R5 A '균일 반원 = 팝콘 텍스처': 반경·간격 지터 확대 + 서너 개마다 뾰족 투구 혹을 섞는다 */
             while (x < W) {
-                const r = H * (0.022 + R() * 0.034), cy = H * (0.343 + R() * 0.022);
+                const r = H * (0.034 + R() * 0.044), cy = H * (0.343 + R() * 0.022);
                 if (R() < 0.22) { ctx.lineTo(x, cy + r * 0.2); ctx.lineTo(x + r, cy - r * 1.05); ctx.lineTo(x + r * 2, cy + r * 0.2); }
                 else ctx.arc(x + r, cy, r, Math.PI, 0);
                 x += r * (1.5 + R() * 1.1);
@@ -4233,7 +4233,7 @@ IconGen._genderSym = function (ctx, S, female) {
             for (let i = 0; i < 8; i++) {
                 const px = W * (0.05 + i * 0.118 + R() * 0.04), top = H * (0.285 + R() * 0.05);
                 fill(ctx, '#87705f', () => ctx.rect(px, top, H * 0.009, H * 0.115));
-                fill(ctx, '#87705f', () => { ctx.moveTo(px - H * 0.013, top); ctx.lineTo(px + H * 0.004, top - H * 0.048); ctx.lineTo(px + H * 0.021, top); ctx.closePath(); });
+                fill(ctx, '#87705f', () => { ctx.moveTo(px - H * 0.006, top); ctx.lineTo(px + H * 0.004, top - H * 0.024); ctx.lineTo(px + H * 0.014, top); ctx.closePath(); });
             }
         })();
         /* 인물 한 명 — 머리(kind 0=둥근 투구 1=뾰족 투구 2=뿔 투구) + 어깨. oc 를 주면 검정
@@ -4271,15 +4271,23 @@ IconGen._genderSym = function (ctx, S, female) {
                 paths.push(() => { ctx.moveTo(x - r * 0.58, y - r * 0.72); ctx.quadraticCurveTo(x + r * 0.05, y - r * 2.15, x + r * 0.62, y - r * 0.72); ctx.closePath(); });
             if (kind === 6)                                                // R4: 둥근 투구 돔 + 넓은 챙 — 전경 '삼각 융기=산맥' 오독(2인 공통) 해소용 기본 종
                 paths.push(() => ctx.rect(x - r * 1.32, y + r * 0.26, r * 2.64, r * 0.36));
-            paths.push(() => { ctx.moveTo(x - r * w, y + r * 3.2); ctx.quadraticCurveTo(x - r * (w - 0.2), y + r * 0.7, x, y + r * 0.75); ctx.quadraticCurveTo(x + r * (w - 0.2), y + r * 0.7, x + r * w, y + r * 3.2); ctx.closePath(); });   // 어깨(넓고 낮게)
+            paths.push(() => {                                             // 어깨(넓고 낮게) + 목 노치
+                ctx.moveTo(x - r * w, y + r * 3.2);
+                ctx.quadraticCurveTo(x - r * (w - 0.10), y + r * 1.18, x - r * 0.64, y + r * 1.24);   // 어깨 마루
+                ctx.lineTo(x - r * 0.44, y + r * 0.60);                    // 목 좌 — 오목한 계단
+                ctx.lineTo(x + r * 0.44, y + r * 0.60);                    // 목 우
+                ctx.lineTo(x + r * 0.64, y + r * 1.24);
+                ctx.quadraticCurveTo(x + r * (w - 0.10), y + r * 1.18, x + r * w, y + r * 3.2);
+                ctx.closePath();
+            });
             if (oc) {
                 ctx.strokeStyle = oc; ctx.lineWidth = ow || H * 0.016; ctx.lineJoin = 'round';
                 paths.forEach(p => { ctx.beginPath(); p(); ctx.stroke(); });
             }
             paths.forEach(p => fill(ctx, c, p));
         };
-        for (let i = 0; i < 14; i++)                                       // 원경-중경 사이 반층 — 레이어 한 겹 더(비평가 5차)
-            figure(W * (i / 14 + 0.015 + R() * 0.03), H * (0.415 + R() * 0.04), 0.55 + R() * 0.25, '#63514a', [0, 1, 1, 4, 5, 0][(R() * 6) | 0]);   // R7 2인 공통 '균일 돔 반복': 원경 반층에도 투구 변주
+        for (let i = 0; i < 10; i++)                                       // 원경-중경 사이 반층 — 레이어 한 겹 더(비평가 5차)
+            figure(W * (i / 10 + 0.015 + R() * 0.03), H * (0.415 + R() * 0.04), 0.85 + R() * 0.35, '#63514a', [0, 1, 1, 4, 5, 0][(R() * 6) | 0]);   // R7 2인 공통 '균일 돔 반복': 원경 반층에도 투구 변주
         /* 중간 열 — 뒤(#cdb094)와 앞(#241612) 사이의 **명도 중간층**이라 밝은 모브 계열이어야
            대기원근 3단이 선다(비평가 4차 '단일 톤 플랫 매스'). 뿔 투구는 1/8 로 드물게. */
         /* 중경을 명도 2단으로 분리(2차 재채점 2인 공통 '동일 명도 블롭 뭉개짐'):
@@ -4293,10 +4301,10 @@ IconGen._genderSym = function (ctx, S, female) {
         /* R1 비평가 2인 공통 '중경 군중 뭉개짐/외곽선 부재': 아래 밴드에 어두운 갈색 얇은 윤곽을
            둘러 인물 한 명 한 명이 분절되게 한다(검정이면 전경 열과 층이 안 갈리므로 톤 윤곽).
            밀도도 한 단 올린다(성겨서 '대군'의 압박감이 약하다는 공통 지적). */
-        for (let i = 0; i < 16; i++)                                       // 위 밴드(밝게)
-            figure(W * (i / 16 - 0.004 + R() * 0.036), H * (0.468 + R() * 0.045), 0.52 + R() * 0.62, MIDC_HI[(R() * 4) | 0], pickKind(R()));
-        for (let i = 0; i < 22; i++)                                       // 아래 밴드(기존 명도 + 톤 윤곽)
-            figure(W * (i / 22 - 0.004 + R() * 0.033), H * (0.523 + R() * 0.060), 0.66 + R() * 0.78, MIDC[(R() * 4) | 0], pickKind(R()), 'rgba(120,86,66,.60)');   // 근흑 채움 위 어두운 윤곽은 안 보인다 — 윤곽을 채움보다 **밝게** 뒤집어 분절을 살린다
+        for (let i = 0; i < 10; i++)                                       // 위 밴드(밝게)
+            figure(W * (i / 10 - 0.004 + R() * 0.055), H * (0.468 + R() * 0.045), 1.00 + R() * 0.60, MIDC_HI[(R() * 4) | 0], pickKind(R()));
+        for (let i = 0; i < 13; i++)                                       // 아래 밴드(기존 명도 + 톤 윤곽)
+            figure(W * (i / 13 - 0.004 + R() * 0.050), H * (0.523 + R() * 0.060), 1.25 + R() * 0.75, MIDC[(R() * 4) | 0], pickKind(R()), 'rgba(120,86,66,.60)');   // 근흑 채움 위 어두운 윤곽은 안 보인다 — 윤곽을 채움보다 **밝게** 뒤집어 분절을 살린다
         // 창 — 군중 사이에서 올라오는 자루+창끝
         for (let i = 0; i < 6; i++) {
             const x = W * (0.06 + i * 0.17 + R() * 0.05), top = H * (0.18 + R() * 0.14);
@@ -4307,7 +4315,7 @@ IconGen._genderSym = function (ctx, S, female) {
            '검은 덩어리 천지'가 된다(1차 시안) — 폭을 줄이고 찢김은 얕게, 넉 장만. */
         const banner = (x, top, wd, ht, tilt, c) => {
             ctx.save(); ctx.translate(x, top); ctx.rotate(tilt);
-            fill(ctx, c, () => ctx.rect(-H * 0.012, 0, H * 0.024, H * 1.05));
+            fill(ctx, c, () => ctx.rect(-H * 0.017, 0, H * 0.034, H * 1.05));
             const cloth = () => {                   // 천에는 곡률(펄럭임) — 직선 삼각형이면 정적으로 죽는다(비평가 재채점)
                 ctx.moveTo(0, H * 0.02);
                 ctx.quadraticCurveTo(wd * 0.50, -H * 0.015, wd, H * 0.09);
@@ -4342,11 +4350,11 @@ IconGen._genderSym = function (ctx, S, female) {
            투구 단서 있는 종(뾰족·뿔·볏·챙)만 뽑는다 — 사람 단서가 실루엣에 최소 1개씩 실린다.
            ⑵ 채움을 한 단 밝혀(#241612→#2b1a12 계열) 근흑 키라인(#050302)이 갈리게 한다 —
            종전엔 채움·키라인이 다 근흑이라 윤곽 정보가 0이었다. */
-        for (let i = 0; i < 16; i++) {
+        for (let i = 0; i < 6; i++) {
             /* R4 비평가 2인 공통 '전경이 삼각형 산/바위로 읽힘': 사람 단서는 **둥근 투구 돔+챙**
                (kind 6)이 즉독이라 6을 주종(과반)으로, 뾰족·볏·챙은 악센트로만(민머리 0 금지 유지,
                병렬 R3 '뿔=고양이 귀' — 뿔 종(kind 2)도 제외 유지). */
-            figure(W * (i / 16 + 0.010 + R() * 0.025), H * (0.875 + R() * 0.08), 1.75 + R() * 0.8, i % 4 ? '#221208' : '#2d1a0e', [6, 6, 4, 6, 5, 1][(R() * 6) | 0], '#050302', 1.9 + R() * 0.8, H * 0.026);   // R6 B '전경 틈 제거'(밀도·어깨폭 업) · 머리가 하단 크롭에 잘리면 삼각 톱니로 읽힌다 — 0.875H · R2 공통: 전경 키라인 굵기 통일
+            figure(W * (i / 6 + 0.020 + R() * 0.045), H * (0.815 + R() * 0.05), 2.85 + R() * 0.65, i % 4 ? '#221208' : '#2d1a0e', [6, 6, 4, 6, 5, 1][(R() * 6) | 0], '#050302', 1.9 + R() * 0.8, H * 0.026);   // R6 B '전경 틈 제거'(밀도·어깨폭 업) · 머리가 하단 크롭에 잘리면 삼각 톱니로 읽힌다 — 0.875H · R2 공통: 전경 키라인 굵기 통일
         }
         /* 근경 주역 1기(R1 A·B 공통 '초점 부재' → R2 A2·B2 공통 '주역이 배경에 묻힘 + 이 행만
            무키라인'): 다른 행 주인공 문법으로 **승격** — 근흑 키라인 + 채움 명도 분리 + 노을
@@ -4437,8 +4445,8 @@ IconGen._genderSym = function (ctx, S, female) {
                실루엣 위에 직접 세운다. 장수(0.335W+검 0.435W)·도끼(0.135W)·미늘창(0.63W)과
                겹치지 않는 자리, 높이는 제각각. */
             [[0.055, 0.70], [0.245, 0.63], [0.525, 0.67]].forEach(([px, ptop]) => {
-                pole(W * px, H * ptop, H * 1.0, H * 0.020);
-                fill(ctx, c, () => { ctx.moveTo(W * px - H * 0.026, H * ptop); ctx.lineTo(W * px, H * (ptop - 0.075)); ctx.lineTo(W * px + H * 0.026, H * ptop); ctx.closePath(); });
+                pole(W * px, H * ptop, H * 1.0, H * 0.028);
+                fill(ctx, c, () => { ctx.moveTo(W * px - H * 0.020, H * ptop); ctx.lineTo(W * px, H * (ptop - 0.055)); ctx.lineTo(W * px + H * 0.020, H * ptop); ctx.closePath(); });
             });
         })();
     };
