@@ -3,13 +3,15 @@
 // 되는 게 여전히 다른 팝업보다 위 레이어여서 다른 팝업들을 침범. 해결."
 //
 // 왜 z 숫자만 보면 안 되는가: z-index 서열은 **같은 스태킹 컨텍스트 안에서만** 의미가 있다.
-// `#dmg-flash`(z 12)와 사망 커버(z 15)는 `#game-area > #fx-layer` 안에 있는데, 그 둘이 스태킹
-// 컨텍스트를 만들지 않기 때문에 `#app` 안에서 팝업(.modal 20+)과 직접 겨룬다. 이 전제가 깨지면
-// (누가 `#game-area` 에 transform/opacity/isolation 을 넣으면) 숫자가 그대로여도 서열이 뒤집힌다.
-// 그래서 ① 전제 자체를 검사하고 ② 숫자를 비교하고 ③ **픽셀로 확인**한다.
+// ⚠️ 체계 변경(2026-08-19 overlay-covers-panel): `#game-area` 는 이제 **의도적으로**
+// `isolation: isolate` 다 — 씬 안 연출(12~16)이 #app 형제(패널 8)를 z 로 뚫던 것을 격리가 막는다.
+// 그래서 ①의 기대가 뒤집혔다: #game-area 는 격리 컨텍스트**여야** 하고(z 는 auto 유지 — 양수를
+// 주면 컨텍스트째 팝업 위로 떠서 격리가 무의미해진다), #fx-layer 는 여전히 컨텍스트를 안 만들어야
+// 내부 서열(비네트 12 < 사망 15 < 보스 16)이 성립한다. ②③의 z 숫자 비교는 격리 덕에 침범 방지
+// 장치는 아니게 됐지만 내부 서열 회귀 감시로 남긴다. 최종 판정은 어차피 ④ 픽셀이 한다.
 //
-// 판정: ① `#game-area`·`#fx-layer` 가 스태킹 컨텍스트를 안 만든다(z auto · transform/filter/
-//          opacity/isolation/will-change 없음) — z 비교의 전제
+// 판정: ① `#game-area` 는 isolation:isolate + z auto, `#fx-layer` 는 스태킹 컨텍스트를 안
+//          만든다(z auto · transform/filter/opacity/will-change 없음) — 격리 체계의 전제
 //       ② 팝업이 떠 있을 때 사망 커버·피격 비네트의 z 가 그 팝업 z 보다 **낮다**
 //       ③ ⚠️ 조건부 강등(`:has()`)에 기대지 않는다 — 팝업이 **없을 때도** 두 연출의 z 가
 //          팝업 최소 z(.modal = 20) 미만이다. (`:has()` 미지원 엔진·비-.modal 팝업 대비)
@@ -141,10 +143,16 @@ const CLEAR_FX = `(() => {
         return ['game-area', 'fx-layer'].map(check);
     })()`);
     for (const c of ctx) {
-        const clean = c.z === 'auto' && c.transform === 'none' && c.filter === 'none'
-            && c.opacity === '1' && c.isolation === 'auto' && c.mixBlend === 'normal'
-            && (c.willChange === 'auto' || c.willChange === '');
-        ok(clean, `#${c.id} 가 스태킹 컨텍스트를 만든다 — 연출 z 가 팝업과 겨루지 못한다: ${JSON.stringify(c)}`);
+        const noTricks = c.transform === 'none' && c.filter === 'none' && c.opacity === '1'
+            && c.mixBlend === 'normal' && (c.willChange === 'auto' || c.willChange === '');
+        if (c.id === 'game-area') {
+            // 격리 체계(overlay-covers-panel): isolate 가 침범 방지 본체, z 는 auto 여야 팝업 아래 깔린다
+            ok(c.isolation === 'isolate' && c.z === 'auto' && noTricks,
+                `#game-area 격리 체계 붕괴 — isolation:isolate + z:auto 여야 한다: ${JSON.stringify(c)}`);
+        } else {
+            ok(c.z === 'auto' && c.isolation === 'auto' && noTricks,
+                `#${c.id} 가 스태킹 컨텍스트를 만든다 — 씬 내부 서열(12~16)이 겨루지 못한다: ${JSON.stringify(c)}`);
+        }
     }
 
     // ---------- ③ 팝업이 없을 때도 두 연출이 팝업 대역(20) 아래 ----------

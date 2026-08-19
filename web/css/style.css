@@ -18,6 +18,14 @@ html, body { height: 100%; overflow: hidden; background: #0d1117; }
     :root { forced-color-adjust: none; }
     * { forced-color-adjust: none !important; }
 }
+/* ===== z-index 정책 (boss-warning-zorder-position 재오픈 ⓑ, 2026-08-19 확정) =====
+   ① 전투 연출(피격 비네트 12 · 스킬 플래시 13 · 씬컷 14 · 사망 암전 15 · 보스 경고 16)은 전부
+      `#game-area` 안 + `isolation: isolate` 라 **어떤 z 값으로도 #app 형제(패널 8·팝업 20+)를
+      못 뚫는다** — 침범 방지는 이 격리가 맡고, 내부 숫자는 연출끼리의 서열일 뿐이다.
+   ② 사용자 대면 팝업/모달/시트/토스트는 **#game-area 밖(#app 직속 이후)에** 만들 것.
+      연출 위에 떠야 하는 새 표면을 #game-area 안에 넣으면 z 를 17 이상으로 — 안이면 연출과 겨룬다.
+   ③ 수령 연출(#reward-burst 70)만 예외로 팝업 위다(수령 확인 연출이라 의도된 역전, reward-claim-fx).
+   전수 검증: tools/probe-overlay-panel.js ④ 가 모든 .modal/시트/패널 위 연출 침범 0 을 상시 단언한다. */
 /* art-outline-scale: 아웃라인 두께 토큰 — 기준(루트 16px)에선 원래 px, 앱이 작아지면 같은 비율로 얇아진다 */
 :root {
     --ol1: min(1px, calc(.0625rem + .49px));
