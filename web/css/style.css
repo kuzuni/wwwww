@@ -3048,7 +3048,17 @@ body {
 .tech-node-bar div { height: 100%; background: #ffd54f; }
 
 /* ---- 플레이어 정보 팝업 (UI-SPEC 27번, 원본 shot-043313) ---- */
-.pinfo-header { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
+/* 원본 shot-043313 실측 — **헤더 줄만** 카드 안쪽 여백이 더 크다(나머지 줄은 카드 패딩 그대로):
+     · 좌 인셋(아바타 타일 바깥 테) 카드 내벽에서 29px = **5.85%W**
+     · 우 인셋(우측정렬 3줄 끝) 30px = **6.05%W**  ← 3줄이 모두 같은 x 에서 끝나 글자수 탓이 아니다
+   클론은 `.modal-card { padding: 1.1rem }`(18px = 3.61%W)를 그대로 써서 좌 −2.24%p · 우 −2.44%p
+   였다 — 2026-08-19 R5(player-info) 에서 비평가 2인이 독립적으로 짚은 자리다(A 2.24/2.44 · B 2.04/2.24).
+   카드 패딩을 건드리면 프리뷰·그리드·스탯 줄이 같이 밀리므로(그 셋은 전부 게이트 안이다)
+   **헤더 줄에만** 차액을 얹는다. */
+.pinfo-header {
+    display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem;
+    padding-left: calc(var(--app-w) * .0224); padding-right: calc(var(--app-w) * .0244);
+}
 .pinfo-id { display: flex; align-items: center; gap: .5rem; }
 /* 원본(shot-043313 4배)도 같은 흰 타일이다. */
 .pinfo-id .avatar {
@@ -3061,7 +3071,16 @@ body {
 .pinfo-id-text .clan .ico { width: 1.05em; height: 1.05em; margin: -.2em .05em -.2em 0; }   /* 성별 = 캔버스 아이콘 */
 .profile-field .ico { width: 1.15em; height: 1.15em; margin: -.2em 0; }   /* 성별 = 캔버스 아이콘(IconGen.gender_*) */
 .pinfo-id-text .cp { font-size: .8rem; font-weight: 800; color: var(--pp-ink); }
-.pinfo-right { text-align: right; font-size: .76rem; font-weight: 700; color: var(--pp-ink); line-height: 1.55; }
+/* 우측 3줄 스택 — 원본은 줄 피치 12px(**1.36%H**)·블록 높이 34px(3.86%H)로 촘촘한데
+   `line-height: 1.55`(20.5px = 2.30%H)면 블록이 6.05%H 로 **+2.19%p** 부푼다(R5 비평가 A 실측).
+   ⚠️ **원본 피치를 그대로 박으면 안 된다(밟았다)** — 원본은 글자 잉크가 ~7.4px 인데 우리 글꼴은
+      `.76rem`(12.8px)에서 잉크가 ~9.5px 라, 피치만 12px 로 줄이면 **줄끼리 겹쳐서 읽히지 않는다**
+      (확대 크롭에서 'Lv. 29 대장간'과 '총 피해'가 붙어 버렸다). 글꼴 자체가 다른 데서 오는 차이라
+      `gear-detail` 아이템명(자폭)·`league-tier-rank-label` 과 같은 계열이다.
+   그래서 **겹치지 않는 선에서 최대한 좁힌다**: 피치 1.65%H → 블록 ≈4.87%H(원본 3.86%H, Δ+1.01%p
+   로 게이트 안). 길이 단위로 주는 이유는 `.pinfo-subs-list` 가 뒤 규칙에 line-height 를 덮여
+   한 번 무너진 자리라 값의 출처를 못 박아 두려는 것이다. */
+.pinfo-right { text-align: right; font-size: .76rem; font-weight: 700; color: var(--pp-ink); line-height: calc(var(--app-h) * .0165); }
 .pinfo-preview {
     display: flex; align-items: center; gap: .4rem; overflow-x: auto;
     min-height: 7.6rem; /* 원본 프리뷰 ≈13% H (185) */
