@@ -6498,24 +6498,29 @@ const Scene3D = {
             }
             return d;
         };
-        // 타원 링: 토러스는 로컬 XY면 → rotation.x=π/2로 눕히면 로컬 y가 월드 z가 된다(scale.y로 z반경 조절)
+        // 🧊 타원 링 — 토러스 → 큐브 타원 띠 (equip-voxelize ⓑ). Voxel.ellipse 는 칸 0 대칭이라
+        //    put(0, y, 0) 하면 중심이 정확히 ctr 에 온다. 앞이 열린 투구(faceOpen)는 정면 아크
+        //    칸을 걸러 종전 부분 토러스와 같은 자리를 비운다.
         const ellipseRing = (tube, seg, m) => {
-            const geo = new THREE.TorusGeometry(rx, tube, 5, seg, open ? TAU - 2 * FA : TAU);
-            // 호의 시작을 정면 반대쪽으로 돌려 [π/2+FA, π/2+2π−FA] 를 덮게 한다(= 정면 ±FA 가 빈다).
-            if (open) geo.rotateZ(Math.PI / 2 + FA);
-            const t = new THREE.Mesh(geo, m);
-            t.rotation.x = Math.PI / 2;
-            t.scale.y = rz / rx;   // 로컬 y(→ 월드 z) 만 눌러 타원으로. 호 시작 위치와 무관하다
-            return t;
+            const TS = 0.024;
+            const rC = rx / TS, kZ = rz / rx;
+            const th = Math.max(1.4, (tube * 2.6) / TS);
+            const hC = Math.max(1, Math.round((tube * 2) / TS));
+            let cells = Voxel.ellipse(rC + th * 0.5, (rC + th * 0.5) * kZ, hC,
+                { color: m.color.getHex(), rix: rC - th * 0.5, riz: (rC - th * 0.5) * kZ });
+            if (open) cells = cells.filter(c => !inFace(Math.atan2(c.z, c.x)));
+            const t = Voxel.build(cells, { size: TS, material: this.voxMat(m, {}), center: false, jitter: 0.04, ao: 0.8 });
+            t.position.y = -(hC - 1) * TS * 0.5;   // 층 스택의 세로 중심을 링 높이에 맞춘다
+            const wrap = new THREE.Group(); wrap.add(t);
+            return wrap;
         };
         if (mats.kind === 'forged') {                       // 리벳 8개 링 — 단조 판금의 서명
             const n = o.rivets || 8, rr = Math.min(0.026, r * 0.11);
             for (let i = 0; i < n; i++) {
                 const a = (i / n) * Math.PI * 2 + 0.2;
                 if (inFace(a)) continue;               // 앞이 열린 투구 — 얼굴 앞 리벳은 건너뛴다
-                const riv = new THREE.Mesh(new THREE.SphereGeometry(rr, 7, 5, 0, Math.PI * 2, 0, Math.PI * 0.5), mats.trim);
-                riv.rotation.x = Math.PI / 2;
-                riv.rotation.z = -a;
+                const riv = new THREE.Mesh(new THREE.BoxGeometry(rr * 1.7, rr * 1.7, rr * 1.7), mats.trim);   // 🧊 반구 → 큐브 리벳
+                riv.rotation.y = -a;   // 면이 표면 법선을 보게(회전 박스 = 로컬 축정렬)
                 put(riv, Math.cos(a) * rx, y, Math.sin(a) * rz);
             }
         } else if (mats.kind === 'alloy') {                 // 발광 라인 — 아랫단 링 + 정면 세로 스트립
@@ -6549,21 +6554,27 @@ const Scene3D = {
         } else if (mats.kind === 'primal') {                // 가죽 결속끈 + 매달린 뼈 구슬
             put(ellipseRing(Math.min(0.02, r * 0.085), 18, mats.trim), 0, y, 0);
             for (const [dx, dy] of [[-0.055, -0.05], [0, -0.075], [0.055, -0.05]]) {
-                const tooth = new THREE.Mesh(new THREE.ConeGeometry(Math.min(0.022, r * 0.09), Math.min(0.07, r * 0.3), 5), mats.bead);
-                tooth.rotation.x = Math.PI;
-                put(tooth, dx, y + dy, rz * 0.86 * zf);
+                // 🧊 뼈 이빨 — 원뿔 → 2단 계단 촉(위 굵고 아래 가는 큐브)
+                const tw = Math.min(0.04, r * 0.17), th = Math.min(0.07, r * 0.3);
+                const t1 = new THREE.Mesh(new THREE.BoxGeometry(tw, th * 0.55, tw), mats.bead);
+                put(t1, dx, y + dy + th * 0.22, rz * 0.86 * zf);
+                const t2 = new THREE.Mesh(new THREE.BoxGeometry(tw * 0.55, th * 0.5, tw * 0.55), mats.bead);
+                put(t2, dx, y + dy - th * 0.25, rz * 0.86 * zf);
             }
         } else if (mats.kind === 'brass') {                 // 황동 림 밴드 + 스터드 4개
             put(ellipseRing(Math.min(0.016, r * 0.07), 20, mats.trim), 0, y, 0);
             for (let i = 0; i < 4; i++) {
                 const a = (i / 4) * Math.PI * 2 + 0.4;
                 if (inFace(a)) continue;               // 앞이 열린 투구 — 얼굴 앞 스터드는 건너뛴다
-                const stud = new THREE.Mesh(new THREE.SphereGeometry(Math.min(0.024, r * 0.1), 7, 5), mats.trim);
+                const sr = Math.min(0.024, r * 0.1);
+                const stud = new THREE.Mesh(new THREE.BoxGeometry(sr * 1.6, sr * 1.6, sr * 1.6), mats.trim);   // 🧊 구 → 큐브 스터드
+                stud.rotation.y = -a;
                 put(stud, Math.cos(a) * rx, y + size.y * 0.1, Math.sin(a) * rz);
             }
         } else if (mats.kind === 'holy') {                  // 상아 새시 밴드 + 정면 성광 보석 — 금·백 2톤의 서명
             put(ellipseRing(Math.min(0.016, r * 0.07), 20, mats.trim), 0, y, 0);
-            const gem = new THREE.Mesh(new THREE.SphereGeometry(Math.min(0.024, r * 0.1), 8, 6), mats.bead || mats.trim);
+            const gr = Math.min(0.024, r * 0.1);
+            const gem = new THREE.Mesh(new THREE.BoxGeometry(gr * 1.7, gr * 1.7, gr * 1.7), mats.bead || mats.trim);   // 🧊 성광 보석 큐브
             put(gem, 0, y + size.y * 0.08, rz * 0.99 * zf);
         } else if (mats.kind === 'polymer') {               // 정면 벤트 슬랫 3줄
             for (let i = 0; i < 3; i++) {
@@ -6604,6 +6615,14 @@ const Scene3D = {
         const darkMat = mats.dark;
         const rareMat = this.rarityDecorMat(pc);
         style = style || 'plume';
+        // 🧊 투구 복셀 공용 (equip-voxelize ⓑ — 투구도 축정렬 큐브 적층으로). 칸은 갑옷·장신구와
+        //    같은 0.024 — 슬롯마다 칸이 다르면 화풍이 안 모인다(갑옷 5차 실측 결론). 색은 정점에
+        //    굽고 시대 셰이딩은 voxMat 의 shade 로 잇는다(맵 없는 셰이더 항만 살린다).
+        //    Voxel 헬퍼(ellipse/dome/ring/taper)는 칸 0 대칭(홀수 폭)이라 중심이 정확히 0 에 온다.
+        const HS = 0.024;
+        const V = Voxel;
+        const HEXOF = m => m.color.getHex();
+        const vhead = (voxels, src, opts) => { const mesh = this.voxPart(voxels, HS, src, opts); g.add(mesh); return mesh; };
 
         if (style === 'plume') {            // 돔 + 깃장식
             const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat);
@@ -6649,142 +6668,112 @@ const Scene3D = {
                     g.add(socket);
                 }
             }
-        } else if (style === 'cone') {      // 고깔 모자 (마법사/사신)
-            const cone = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.55, 10), mat);
-            cone.position.y = 0.34;
-            cone.rotation.z = 0.12;
-            const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.03, 12), mat);
-            brim.position.y = 0.08;
-            g.add(cone, brim);
-        } else if (style === 'tophat') {    // 실크햇/제모
-            const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.03, 14), mat);
-            brim.position.y = 0.1;
-            const top = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.2, 0.38, 14), mat);
-            top.position.y = 0.3;
-            const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.205, 0.07, 14), rareMat);
-            ribbon.position.y = 0.15;
-            g.add(brim, top, ribbon);
-        } else if (style === 'visor') {     // 풀헬름 — 돔+뺨가드+눈 슬릿, 슬릿 안 발광 눈 2점 (어둠 속 시선)
-            const helm = new THREE.Mesh(new THREE.SphereGeometry(0.28, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.78), mat);
-            helm.position.y = 0.04;
-            helm.scale.set(0.97, 1.02, 1);
-            // 슬릿 = 돔 곡률을 따라 감싸는 함몰 밴드 — 박스 돌출식은 정면 '선글라스 스티커'·측면 '번진 글자' 오독 (비평가 7.1 2번)
-            const cavity = new THREE.MeshBasicMaterial({ color: 0x0c0f12 });
-            const slitArc = Math.PI * 0.62; // 전면 ±56° — 측면에선 자연스럽게 원근 수축
-            const slit = new THREE.Mesh(new THREE.CylinderGeometry(0.2855, 0.2855, 0.048, 18, 1, true, -slitArc / 2, slitArc), cavity);
-            slit.position.set(0, 0.06, 0);
-            for (const [sy, off] of [[0.088, 0.5], [0.032, -0.5]]) { // 상하 금속 림 — 개구부 프레임이 빛을 받아 '뚫린 구멍'으로 판독
-                const rim = new THREE.Mesh(new THREE.TorusGeometry(0.2865, 0.011, 5, 18, slitArc),
-                    this.tintOf(mat, -0.1)); // 시대 재질 계승 — 여기만 금속으로 굳히면 원시 투구에 강철 림이 붙는다
-                rim.rotation.x = Math.PI / 2;
-                rim.rotation.z = Math.PI / 2 - slitArc / 2; // 토러스 아크 중심을 +z로
-                rim.position.y = sy;
-                g.add(rim);
+        } else if (style === 'cone') {      // 🧊 고깔 모자 — 계단 원뿔 + 원판 챙 (equip-voxelize ⓑ)
+            const cBody = HEXOF(mat);
+            const brim = vhead(V.disc(15, 1, cBody), mat, { shade: mats.kind });
+            brim.position.y = 0.066;
+            const cone = vhead(V.taper(10.8, 0.5, 23, cBody), mat, { shade: mats.kind });
+            cone.position.y = 0.09;
+            cone.rotation.z = 0.12;          // 종전 기울임 유지(전체 회전 = 로컬 축정렬)
+        } else if (style === 'tophat') {    // 🧊 실크햇/제모 — 원판 챙 + 각단 통 + 등급색 리본 링 (equip-voxelize ⓑ)
+            const cBody = HEXOF(mat);
+            const brim = vhead(V.disc(14, 1, cBody), mat, { shade: mats.kind });
+            brim.position.y = 0.086;
+            const top = vhead(V.taper(8.3, 7.9, 16, cBody), mat, { shade: mats.kind });
+            top.position.y = 0.112;
+            const ribbon = vhead(V.ring(9, 1.4, 3, new THREE.Color(pc).getHex()), rareMat, { emissive: pc, emissiveIntensity: 0.35, jitter: 0.03 });
+            ribbon.position.y = 0.118;
+        } else if (style === 'visor') {     // 풀헬름 — 🧊 계단 셸 + 눈 슬릿 개구 + 발광 눈 (equip-voxelize ⓑ)
+            // 종전 조형의 서명을 칸 문법으로 전부 잇는다:
+            //   · 슬릿 = 돌출 스티커가 아니라 **셸을 실제로 뚫은 개구부**(그 행의 전면 아크 칸을
+            //     제거) + 안쪽 캐비티 링(니어블랙) — '뚫린 구멍' 판독 유지 (비평가 7.1 2번)
+            //   · 상하 금속 림 = 개구부 위·아래 행의 전면 아크를 어두운 톤으로(행 색 = 프레임)
+            //   · 뺨 판·브로우 리지 = 셸 반지름 +1 칸의 돌출 패치(순수 구 실루엣 깨기, A 단독 P1)
+            //   · 볏 = 정수리를 넘는 1칸 폭 계단 아크(끝이 슬릿 위에서 멈춤 — 종전 0.62π 그대로)
+            const R = 12, CY = 2;                    // 셸 반지름(칸)·구심(월드 0.048 ≈ 종전 0.04)
+            const slitArc = Math.PI * 0.62;          // 전면 ±56° — 측면에선 자연스럽게 원근 수축
+            const inArc = (x, z, arc) => Math.abs(Math.atan2(x, z)) < arc / 2;   // +z 가 정면
+            const cBody = HEXOF(mat), cRim = this.tintOf(mat, -0.1).color.getHex();
+            const cCheek = this.tintOf(mat, -0.05).color.getHex(), cBrow = this.tintOf(mat, 0.06).color.getHex();
+            // 🚨 **코 가드(nasal)는 전산업 시대의 것이다 (equip-era-theming ⑧)** — 밀폐 시대(polymer/
+            //    alloy)는 콧대 바 대신 목 씰링 링 + 턱 호흡 포트 (비평가 A·B 공통 지적, 종전 그대로).
+            const sealedHelm = this.ageGearKind(age) === 'polymer' || this.ageGearKind(age) === 'alloy';
+            const v = [];
+            for (let dy = -9; dy <= R; dy++) {       // 0.78π 컷 — 아래 -9칸(뺨 아래)에서 끝난다
+                const rr = Math.sqrt(Math.max(0, R * R - dy * dy));
+                if (rr < 0.6) { v.push({ x: 0, y: CY + dy, z: 0, c: cBody }); continue; }
+                const slitRow = dy === 0 || dy === 1;    // 눈 슬릿 밴드(월드 y 0.048~0.096)
+                const rimRow = dy === -1 || dy === 2;    // 상하 금속 림 행
+                for (const c of V.ellipse(rr, rr, 1, { y0: CY + dy, color: cBody, rix: Math.max(0, rr - 2.4), riz: Math.max(0, rr - 2.4) })) {
+                    if (slitRow && inArc(c.x, c.z, slitArc)) continue;         // 개구부 — 셸을 실제로 뚫는다
+                    if (rimRow && inArc(c.x, c.z, slitArc)) c.c = cRim;
+                    v.push(c);
+                }
+                if (slitRow)                             // 캐비티 — 개구부 안쪽의 함몰 어둠 벽
+                    for (const c of V.ellipse(rr - 2, rr - 2, 1, { y0: CY + dy, color: 0x0c0f12, rix: Math.max(0, rr - 4), riz: Math.max(0, rr - 4) }))
+                        if (inArc(c.x, c.z, slitArc + 0.4)) v.push(c);
+                // 뺨 판 — 슬릿 아래 하관 양옆(정면 32°~86° 섹터)에 +1칸 돌출 패치
+                if (dy >= -6 && dy <= -2)
+                    for (const c of V.ellipse(rr + 1, rr + 1, 1, { y0: CY + dy, color: cCheek, rix: rr, riz: rr })) {
+                        const a = Math.abs(Math.atan2(c.x, c.z));
+                        if (a > 0.55 && a < 1.5 && c.z > 0) v.push(c);
+                    }
+                // 브로우 리지 — 슬릿 바로 위 행의 전면 아크 +1칸 돌출 능선
+                if (dy === 3)
+                    for (const c of V.ellipse(rr + 1, rr + 1, 1, { y0: CY + dy, color: cBrow, rix: rr, riz: rr }))
+                        if (inArc(c.x, c.z, slitArc)) v.push(c);
             }
-            for (const dx of [-0.055, 0.055]) { // 캐비티 속 언릿 발광 눈 — 어둠 대비 최대
-                const glowEye = new THREE.Mesh(new THREE.SphereGeometry(0.027, 6, 5),
+            vhead(v, mat, { shade: mats.kind });
+            for (const dx of [-0.055, 0.055]) {      // 캐비티 속 언릿 발광 눈 — 어둠 대비 최대 (큐브 판)
+                const glowEye = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.03, 0.02),
                     new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.18, 0.24) }));
-                const ex = dx * 1.2, ez = Math.sqrt(0.2855 * 0.2855 - ex * ex) + 0.004; // 밴드 원통면 위 — 평면 배치는 측면에서 밴드 밖 부유
-                glowEye.position.set(ex, 0.06, ez);
-                glowEye.rotation.y = Math.atan2(ex, ez); // 면 법선 방향
-                glowEye.scale.set(1.1, 0.55, 0.4);
+                const ex = dx * 1.2, ez = (R - 1.6) * HS;
+                glowEye.position.set(ex, 0.066, Math.sqrt(Math.max(0, ez * ez - ex * ex)));
+                glowEye.rotation.y = Math.atan2(ex, glowEye.position.z);   // 면 법선 방향(회전 박스 = 로컬 축정렬)
                 g.add(glowEye);
             }
-            const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.15, 0.045),
-                this.tintOf(mat, -0.14)); // 코 가드 — 슬림+다크 (밝은 굵은 바가 '반투명 띠 아티팩트'로 오독, 비평가 7번)
-            noseBar.position.set(0, -0.02, 0.262);
-            if (age === 'medieval') {
-                // 기사 투구(중세 분기): 1차 채점 A "T자 슬릿·힌지 없이 항아리로 읽힌다" — 가로 슬릿 밑에
-                // 세로 개구부를 더해 T 를 만들고, 양옆에 바이저 힌지 리벳을 박는다(시대 공용 조형은 불변).
-                const vslit = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.15, 0.02), cavity);
-                vslit.position.set(0, -0.045, 0.266);
-                g.add(vslit);
-                for (const hs of [-1, 1]) {
-                    const hinge = new THREE.Mesh(new THREE.SphereGeometry(0.026, 7, 5), this.tintOf(mat, 0.08));
-                    hinge.position.set(hs * 0.272, 0.06, 0.02);
-                    g.add(hinge);
-                }
-            }
-            // 정수리 볏 아크 — ⚠️ 이전 값(반지름 0.21, 중심 y 0.13)은 **돔 셸 안에 묻혀 있었다.**
-            // 돔은 반지름 0.28·스케일 y1.02·중심 y0.04이므로 표면이 y축 0.2856인데, 볏은 자기 중심이
-            // 0.09 위에 있어 정수리(0.09+0.21=0.30)만 셸을 0.014 뚫고 나오고 양 끝(18°/162°에서
-            // 중심거리 0.253)은 셸 속에 잠겼다. 그래서 볏이 '연결 안 된 파란 탭 조각'으로 보였다
-            // (비평가 A·B가 각각 "머리 위에 붙은 데 없는 수직 막대"로 지목한 것의 실체).
-            // 수정: 중심을 돔 중심(y 0.04)에 맞추고 반지름을 셸 바로 바깥(0.295)으로 키워 아크
-            // 전체가 셸 위를 타게 한다. 아크 길이는 0.8π→0.62π로 줄여 끝이 눈 슬릿(y 0.088)
-            // 아래로 내려오지 않게 하고, rotation.z로 정수리(90°)에 중심을 맞춘다.
-            const crestArc = Math.PI * 0.62;
-            const crestR = 0.295;
-            const crest = new THREE.Mesh(new THREE.TorusGeometry(crestR, 0.026, 6, 16, crestArc), rareMat);
-            crest.position.y = 0.04;
-            crest.rotation.y = Math.PI / 2;
-            crest.rotation.z = Math.PI / 2 - crestArc / 2;
-            // 🚨 **코 가드(nasal)는 전산업 시대의 것이다 (equip-era-theming ⑧).** 비평가 2인이 공통
-            //    1~3순위로 지목한 게 '기사 풀헬름 돔이 현대~지하 세계까지 8시대 그대로'인데, 그 돔에서
-            //    시대를 가장 크게 배신하는 부속이 **콧대를 덮는 세로 바**다(나잘 헬름·바시넷의 서명).
-            //    밀폐 헬멧에는 콧대 바가 없다 — 대신 **목 씰링 링**과 **턱 호흡 포트**가 온다
-            //    (비평가 A 원문: "우주 헬멧은 밀폐 셸+씰링 링이어야 한다", B: "seal ring and no rivets").
-            const sealedHelm = this.ageGearKind(age) === 'polymer' || this.ageGearKind(age) === 'alloy';
-            g.add(helm, slit, crest);
             if (!sealedHelm) {
+                const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.15, 0.045),
+                    this.tintOf(mat, -0.14)); // 코 가드 — 슬림+다크 (종전 그대로, 원래 축정렬 박스)
+                noseBar.position.set(0, -0.02, 0.262);
                 g.add(noseBar);
             } else {
-                // 목 씰링 링 — 셸 아랫단을 한 바퀴 감는 두꺼운 개스킷. 헬멧이 '닫힌 것'으로 읽힌다.
-                const seal = new THREE.Mesh(new THREE.TorusGeometry(0.252, 0.030, 8, 22), this.tintOf(mat, -0.22));
-                seal.position.y = -0.132;
-                seal.rotation.x = Math.PI / 2;
-                seal.scale.y = 0.94;
-                g.add(seal);
-                const lock = new THREE.Mesh(new THREE.TorusGeometry(0.244, 0.011, 5, 22), this.tintOf(mat, 0.10));
-                lock.position.y = -0.098;
-                lock.rotation.x = Math.PI / 2;
-                lock.scale.y = 0.94;
-                g.add(lock);
-                // 턱 호흡 포트 — 콧대 바가 있던 자리에 대신 온다(정면 실루엣의 빈자리를 메운다)
-                const port = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.068, 0.062, 12), this.tintOf(mat, -0.18));
-                port.rotation.x = Math.PI / 2 + 0.30;
-                port.position.set(0, -0.088, 0.232);
-                g.add(port);
-                const grill = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.040, 0.016, 12),
-                    new THREE.MeshBasicMaterial({ color: 0x14181d }));
-                grill.rotation.x = Math.PI / 2 + 0.30;
-                grill.position.set(0, -0.098, 0.266);
-                g.add(grill);
-                for (const hs of [-1, 1]) {   // 포트를 셸에 잇는 짧은 호스 2줄
-                    const hose = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.105, 7), this.tintOf(mat, -0.22));
+                const sv = [];
+                const cSeal = this.tintOf(mat, -0.22).color.getHex(), cLock = this.tintOf(mat, 0.10).color.getHex();
+                sv.push(...V.ellipse(11.7, 11, 2, { y0: -7, color: cSeal, rix: 9.2, riz: 8.6 }));   // 목 씰링 개스킷
+                sv.push(...V.ellipse(10.6, 10, 1, { y0: -4, color: cLock, rix: 9.5, riz: 8.9 }));   // 걸쇠 링(밝은 단차)
+                sv.push(...V.at(V.box(5, 3, 3, this.tintOf(mat, -0.18).color.getHex()), -2, -5, 8)); // 턱 호흡 포트
+                sv.push(...V.at(V.box(3, 2, 1, 0x14181d), -1, -5, 11));                              // 포트 그릴(언릿 어둠)
+                vhead(sv, mat, { shade: mats.kind });
+                for (const hs of [-1, 1]) {   // 포트를 셸에 잇는 짧은 호스 2줄 — 기울인 각재(로컬 축정렬)
+                    const hose = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.105, 0.032), this.tintOf(mat, -0.22));
                     hose.position.set(hs * 0.108, -0.098, 0.196);
                     hose.rotation.z = hs * 1.05;
                     g.add(hose);
                 }
             }
-            // 아크 끝 마감 — 부분 토러스는 **끝 뚜껑이 없어** 열린 튜브 단면이 그대로 보인다.
-            // 끝점마다 같은 재질의 작은 구를 얹어 막는다(방패 개방 셸과 같은 부류의 결함).
-            for (const s of [-1, 1]) {
-                const a = Math.PI / 2 + s * crestArc / 2;
-                const capEnd = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), rareMat);
-                capEnd.position.set(0, 0.04 + Math.sin(a) * crestR, Math.cos(a) * crestR);
-                g.add(capEnd);
+            if (age === 'medieval') {
+                // 기사 투구(중세 분기): T자 세로 개구 + 바이저 힌지 (1차 채점 A 처방 유지)
+                const vslit = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.15, 0.02), new THREE.MeshBasicMaterial({ color: 0x0c0f12 }));
+                vslit.position.set(0, -0.045, 0.266);
+                g.add(vslit);
+                for (const hs of [-1, 1]) {
+                    const hinge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), this.tintOf(mat, 0.08));
+                    hinge.position.set(hs * 0.272, 0.06, 0.02);
+                    g.add(hinge);
+                }
             }
-            // ── A 단독 지적 P1 완화(가법) — 돔은 그대로 두고 바시넷 특징만 얹는다 ──
-            // ⚠️ 앞선 시도: 돔을 통째로 Lathe 프로파일로 바꿨더니 슬릿 캐비티가 뻥 뚫린 구멍으로 노출되고
-            //    뺨·브로우가 따로 노는 회귀가 났다(슬릿·눈·코가드가 구 반경 0.2855 에 앵커돼 있어서다).
-            //    → 돔을 건드리지 않고 **뺨 판 + 브로우 리지만 추가**해 '순수 구' 실루엣만 깬다.
-            //    슬릿 밴드(y 0.06)보다 아래·위로만 얹으므로 슬릿·눈·코가드와 겹치지 않는다.
-            // 뺨 판 — 하관 양옆(슬릿 아래)을 덮는 판금. 정면 실루엣에 얼굴 폭 → 턱 폭 좁아짐을 만든다.
-            for (const cx of [-1, 1]) {
-                const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.093, 8, 8, 0, Math.PI, 0, Math.PI * 0.85), this.tintOf(mat, -0.05));
-                cheek.position.set(cx * 0.176, -0.045, 0.145);
-                cheek.scale.set(0.52, 1.25, 0.98);
-                cheek.rotation.set(0.12, cx * -0.62, cx * 0.10);
-                g.add(cheek);
+            // 정수리 볏 — 1칸 폭 계단 아크. 반지름을 셸 바로 바깥(R+1)으로 두어 전부 셸 위를 타고,
+            // 각도 ±56° 에서 끊어 끝이 눈 슬릿 아래로 내려오지 않는다(종전 0.62π 결론 그대로).
+            const crest = [];
+            const cpc = new THREE.Color(pc).getHex();
+            for (let z = -11; z <= 11; z++) {
+                const yy = Math.sqrt(Math.max(0, (R + 1.3) * (R + 1.3) - z * z));
+                if (yy < (R + 1.3) * Math.cos(slitArc / 2 + 0.35)) continue;
+                const yi = Math.round(yy);
+                crest.push({ x: 0, y: CY + yi, z, c: cpc }, { x: 0, y: CY + yi - 1, z, c: cpc });
             }
-            // 브로우 리지 — 눈 슬릿(y 0.06) 바로 위를 가로지르는 판금 능선. 매끈한 이마에 눈두덩 그늘을 만든다.
-            const brow = new THREE.Mesh(new THREE.TorusGeometry(0.243, 0.019, 6, 20, Math.PI * 0.62), this.tintOf(mat, 0.06));
-            brow.rotation.x = Math.PI / 2;
-            brow.rotation.z = Math.PI / 2 - Math.PI * 0.31;
-            brow.position.set(0, 0.118, 0.03);
-            brow.scale.set(1, 1, 0.86);
-            g.add(brow);
+            vhead(crest, rareMat, { emissive: pc, emissiveIntensity: 0.4, jitter: 0.03 });
         } else if (style === 'fin') {       // 볏 투구 계열 — 시대마다 다른 조형 (FIN_VARIANT)
             // 🚨 종전엔 `SphereGeometry(0.26, …, 0, Math.PI*0.6)` 돔 **하나**였다. thetaLength 가
             //    둘레 전체에 한 값이라, 뒤통수를 덮으려고 0.6π(= 적도 아래 18°)를 준 순간 **앞도
@@ -7166,34 +7155,39 @@ const Scene3D = {
                     g.add(fang, ember);
                 }
             }
-        } else if (style === 'mask') {      // 가면/방독면: 얼굴을 감싸는 곡면 판 (평판 박스 → 원통 셸)
-            const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.22, 0.32, 14, 1, true, -Math.PI * 0.42, Math.PI * 0.84), mat);
-            plate.material = this.tintOf(mat, 0, { side: THREE.DoubleSide }); // 원색 직치환 금지 — 시대 재질 톤 공유
-            plate.position.set(0, 0.02, 0.02);
-            const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat); // 정수리 덮개
-            dome.position.y = 0.1;
-            g.add(dome);
-            for (const dx of [-0.09, 0.09]) { // 눈 소켓: 함몰 어둠 + 림 + 발광 동공 — 민짜 회색 점 2개 오독 (비평가 3번)
-                const hole = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: 0x14181c }));
-                hole.position.set(dx, 0.04, 0.252); hole.scale.z = 0.5;
-                const socketRim = new THREE.Mesh(new THREE.TorusGeometry(0.047, 0.009, 5, 12),
-                    this.tintOf(mat, -0.14));
-                socketRim.position.set(dx, 0.04, 0.273);
-                const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 5),
-                    new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.15, 0.2) }));
-                pupil.position.set(dx, 0.04, 0.278);
-                g.add(hole, socketRim, pupil);
+        } else if (style === 'mask') {      // 🧊 가면/방독면 — 전면 계단 셸 + 정수리 돔 (equip-voxelize ⓑ)
+            // 종전 서명 유지: 얼굴을 **감싸는** 판(평판 아님 — 전면 ±76° 아크), 눈 소켓 = 함몰
+            // 어둠 + 림 + 발광 동공(민짜 점 2개 오독 방지, 비평가 3번), 호흡 필터 = 다크 벤트 +
+            // 가는 등급색 림(발광 원통은 '새는 광원' 오독 — 비평가 7.1 12번).
+            const cBody = HEXOF(mat), cRim = this.tintOf(mat, -0.14).color.getHex();
+            const v = [];
+            v.push(...V.at(V.dome(10.4, 10, cBody, { t: 2.5 }), 0, 4, 0));   // 정수리 덮개(계단 돔, y 0.1~0.35)
+            for (let dy = -6; dy <= 3; dy++) {       // 전면 아크 판 — 위 0.24 → 아래 0.22 테이퍼
+                const rr = 9.6 - (3 - dy) * 0.09;
+                for (const c of V.ellipse(rr, rr, 1, { y0: dy, color: cBody, rix: rr - 1.6, riz: rr - 1.6 }))
+                    if (Math.abs(Math.atan2(c.x, c.z)) < Math.PI * 0.42) { c.z += 1; v.push(c); }
             }
-            // 호흡 필터 — 발광 원통(rareMat)은 '턱 밑에서 새는 흰 광원'으로 오독 (비평가 7.1 12번) → 다크 금속 벤트+가는 등급색 림만
-            const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.05, 10), darkMat);
-            mouth.rotation.x = Math.PI / 2;
-            mouth.position.set(0, -0.1, 0.265);
-            const ventRim = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.008, 5, 12), rareMat);
-            ventRim.position.set(0, -0.1, 0.292);
-            g.add(ventRim);
+            for (const dx of [-4, 4]) {              // 눈 소켓: 3×3 함몰 어둠 + 둘레 림 톤
+                for (let x = dx - 2; x <= dx + 2; x++) for (let y = 0; y <= 2; y++) {
+                    const edge2 = (x === dx - 2 || x === dx + 2 || y === 0 || y === 2);
+                    v.push({ x, y, z: 10, c: edge2 ? cRim : 0x14181c });
+                }
+            }
+            vhead(v, mat, { shade: mats.kind });
+            for (const dx of [-0.096, 0.096]) {      // 발광 동공 큐브 — 함몰 속 언릿
+                const pupil = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.032, 0.02),
+                    new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.15, 0.2) }));
+                pupil.position.set(dx, 0.028, 0.268);
+                g.add(pupil);
+            }
+            vhead(V.at(V.box(5, 4, 2, HEXOF(darkMat)), -2, -6, 9), darkMat, { jitter: 0.03 });   // 다크 벤트 블록
+            const mrim = [];                         // 가는 등급색 사각 림 — 벤트와 재질을 갈라 벤트는 안 빛나게
+            for (let x = -3; x <= 3; x++) for (let y = -7; y <= -2; y++)
+                if (x === -3 || x === 3 || y === -7 || y === -2) mrim.push({ x, y, z: 10, c: new THREE.Color(pc).getHex() });
+            vhead(mrim, rareMat, { emissive: pc, emissiveIntensity: 0.3, jitter: 0.02 });
             const strap = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.045, 0.045), darkMat);
             strap.position.y = 0.02;
-            g.add(plate, mouth, strap);
+            g.add(strap);
         } else if (style === 'halo') {      // 후광 (수호의 후광) — 링 하나는 '크림색 도넛'으로 읽혔다(1차 채점 A·B 공통).
             // 천상 공통 문법(addDivineHalo: 세워진 링 + 방사 광선 8줄)을 그대로 쓰고, 내광 디스크로 '빛'을 더한다.
             this.addDivineHalo(g, 0.42, 0.2);
