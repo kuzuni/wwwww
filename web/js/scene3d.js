@@ -14590,10 +14590,17 @@ const Scene3D = {
         //    옮겨야** 한다. 끈을 몸 옆면(테두리)에서 곧게 내리면 사선이 아예 안 생긴다.
         //    (실제 마구도 등자 가죽은 안장에서 나오지만, 넓은 몸에서는 그 구간이 **몸에 가려** 안
         //     보이는 게 정상이다 — 화면에 그리지 않는 쪽이 오히려 실제에 가깝다.)
+        // 🚨 **4차 채점 2인 교집합 두 건을 여기서 닫는다.** ⑴ *"닫힌 사각 고리 = 자물쇠"* (A·B 공통,
+        //    B 처방 "U자+가로바로 재설계") — 고리 **윗변을 가죽색**으로 바꾸면 쇠는 U 만 남고, 위는
+        //    끈이 감아 내려온 가로바로 읽힌다(구멍은 그대로라 등자 기능도 읽힌다). ⑵ *"고리가 끈과
+        //    이격되어 부유"* — 끈이 LEATHER(0x2b1a0c)라 어두운 몸 위에서 **끈만 안 보여** 고리가 떠
+        //    보이는 것이었다(칸은 면으로 닿아 있다 — probe-voxel-pilot-fit 이 증인). 끈을 담요색
+        //    (BLANKET)으로 밝혀 뱃대끈과 같은 계열로 잇는다.
         const stirrup = (s) => {
             const out = [];
-            for (let y = o.stirrupY + 2; y <= o.strapTopY; y++) out.push({ x: s * o.stirrupX, y: y, z: 0, c: LEATHER });
-            return V.merge(out, V.at(ringYZ(1, IRON), s * o.stirrupX, o.stirrupY, 0));
+            for (let y = o.stirrupY + 2; y <= o.strapTopY; y++) out.push({ x: s * o.stirrupX, y: y, z: 0, c: BLANKET });
+            return V.merge(out, V.at(ringYZ(1, IRON), s * o.stirrupX, o.stirrupY, 0)
+                .map(v => (v.y === o.stirrupY + 1) ? Object.assign({}, v, { c: BLANKET }) : v));
         };
         // 🚨 **고삐 — 재채점이 '머리에 굴레·고삐가 아예 없다'로 짚은 자리(인계 순서 ③).**
         //    없으면 *"등에 상자를 얹은 야생 거북"* 이고, 있으면 '조종 가능한 탈것'이 된다.
@@ -14640,14 +14647,18 @@ const Scene3D = {
         // 규약: 복셀은 전부 **한 격자(global cell)** 좌표로 적고, 피벗 칸만 따로 준다. 메시를
         //    피벗만큼 되밀어 놓으므로 **월드 자리는 그대로**이고 회전축만 생긴다 — 좌표를 두 번
         //    적지 않는다(이 파일이 굴레·눈에서 반복해 밟은 '상수를 다시 적어 따로 논다' 함정).
-        const part = (voxels, px, py, pz) => {
+        const part = (voxels, px, py, pz, opts) => {
             // ⚠️ 재질은 **반드시 `vertexColors: true`** — `Voxel.build` 가 큐브별 색변화와 이음새
             //    AO 를 정점 색에 굽는다. 없으면 무늬도 AO 도 사라져 단색 덩어리가 나온다.
             //    램버트인 건 나머지 탈것과 **같은 조명 응답**이어야 시험판 비교가 유효해서다.
-            const m = V.build(voxels, {
+            // 🚨 **마구(끈·버클)는 jitter 를 끄고 AO 를 눌러서 굽는다(4차 채점 2인 교집합).** 한 칸
+            //    두께 끈에 몸통용 큐브별 색변화(0.03)와 AO 0.9 를 그대로 얹으면 칸마다 명암이 갈려
+            //    A *"지그재그 파편화 — 지층/오염 텍스처"* · B *"탄색 셀 랜덤 혼입 노이즈"* 로 읽힌다.
+            //    무늬는 면적이 있어야 무늬고, 한 줄짜리 부품에서는 얼룩이다 — opts 로 갈아 끼운다.
+            const m = V.build(voxels, Object.assign({
                 size: VS, jitter: 0.03, ao: 0.9, center: false,
                 material: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }),
-            });
+            }, opts || {}));
             m.position.set(-px * VS, -py * VS, -pz * VS);
             const pivot = new THREE.Group();
             pivot.position.set(px * VS, py * VS + VS / 2, pz * VS);   // 규약 ⑴ — 맨 아래 칸 밑면을 지면에
@@ -14746,6 +14757,12 @@ const Scene3D = {
                         //     보이는 무늬다 — 벽은 민짜로 두고 상면에만 판을 가른다.
                         : (v.y >= CY.deckC && (((v.x + 42) % 6 === 0) || ((v.z + 42) % 6 === 0))) ? SHELL_D : undefined));
         }
+        // 🚨 **목 소켓 (4차 채점 B "머리-몸 사이 어두운 갭 — 끊긴 부품").** 실측으로 확인: 목(z9~10)과
+        //    등딱지 벽 뒤끝(z7) 사이 **z8 한 칸이 실제로 비어** 목·머리 뭉치가 몸에 한 면도 안 닿는
+        //    부유 파츠였다. 목을 늘리면 머리 파츠 bbox 가 등딱지 bbox 와 겹쳐 `probe-voxel-pilot-fit`
+        //    이 빨개지므로(면 공유 평면도 겹침으로 센다), **등딱지 쪽에 살색 소켓 한 줄(z8)** 을 넣어
+        //    잇는다 — 머리가 끄덕여도 소켓은 몸에 남는 목덜미라 조형상으로도 맞다.
+        shell = V.merge(shell, V.at(V.slab(5, 3, 1, SKIN_D), 0, 5, 8));
         part(shell, 0, 0, 0);
         // ⑶ 목·머리 — **하나의 머리 피벗**에 목·머리·부리·눈이 전부 묶인다.
         // 🚨🚨 **여기가 치비 점수(3/10)가 막혀 있던 자리다.** 비평가: *"치비의 핵심은 큰 머리·큰
@@ -14812,7 +14829,9 @@ const Scene3D = {
             { x: sx * 4, y: 10, z: 13, c: 0xf4f6f8 }, { x: sx * 4, y: 10, z: 14, c: 0xf4f6f8 },
             { x: sx * 4, y: 9, z: 13, c: 0xf4f6f8 }, { x: sx * 4, y: 9, z: 14, c: EYE },
         ];
-        headV = V.merge(headV, V.at(V.slab(5, 1, 1, BEAK), 0, 7, 16),       // 부리 — 입선 바로 위 한 칸
+        //  🚨 부리 폭 5 → **3**(4차 채점 2인 교집합 — A *"좌우 관통, 오리 부리"* · B *"담배/뼈다귀
+        //     문 것"*). 얼굴 폭(7)만큼 가로지르면 물체를 문 것이고, 가운데 3칸이면 각질 윗턱이다.
+        headV = V.merge(headV, V.at(V.slab(3, 1, 1, BEAK), 0, 7, 16),       // 부리 — 입선 바로 위 한 칸
             eye(1), eye(-1),
             //  볼 버클 — 머리 옆면(|x| 3)에서 한 칸 도드라진다. 고삐가 여기서 나간다.
             { x: 4, y: 7, z: 11, c: 0x9e9e9e }, { x: -4, y: 7, z: 11, c: 0x9e9e9e });
@@ -14857,10 +14876,11 @@ const Scene3D = {
             //     → 볼 버클(= 고삐 앵커)만 남기고 줄은 안 그린다. 큐브 판을 게임 경로에 물릴 때
             //       `bridleRig` 의 앵커 계약에 이 버클을 물릴 것.
         });
-        part(tack.seat, 0, 0, 0);
-        part(tack.girth, 0, 0, 0);
+        const TACK_OPTS = { jitter: 0.004, ao: 0.55 };   // 끈·버클은 민짜로 — part() 주석 참조
+        part(tack.seat, 0, 0, 0, TACK_OPTS);
+        part(tack.girth, 0, 0, 0, TACK_OPTS);
         // 등자는 좌우 **각자 피벗**에 — 라이브에서는 `alignStirrups` 가 매 프레임 발까지 늘인다.
-        g.userData.stirrups = [part(tack.stirrupL, -9, CY.deckA, 0), part(tack.stirrupR, 9, CY.deckA, 0)];
+        g.userData.stirrups = [part(tack.stirrupL, -9, CY.deckA, 0, TACK_OPTS), part(tack.stirrupR, 9, CY.deckA, 0, TACK_OPTS)];
         //  고삐 줄은 이 판에 없다(위 `reinPath` 주석 참조) — 앵커는 머리의 볼 버클이 진다.
         //  라이브에서 줄을 붙일 땐 등자와 같은 계열로 **자기 피벗**에 달 것(손을 따라 늘어난다).
 
