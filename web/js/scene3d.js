@@ -10622,7 +10622,16 @@ const Scene3D = {
             let v = VMAT.get(m);
             if (v) return v;
             const isBasic = m.isMeshBasicMaterial;
-            const o = { vertexColors: true, flatShading: true, color: 0xffffff };
+            // 🚨 **`flatShading` 을 넣지 말 것 — Lambert/Basic 은 이 키를 안 받는다.** three.js 는
+            //    생성자(`setValues`)에서 모르는 키를 만나면 **재질 하나마다 경고를 찍는다.** 이 팩토리는
+            //    소스 재질마다 새 인스턴스를 만들어 캐시하므로 그 경고가 세션 내내 누적됐다 —
+            //    QA 자율 플레이 10분에 **566건**(Lambert 457 + Basic 109)이 이 계열이었고, 그 스팸이
+            //    진짜 에러를 스크롤 밖으로 밀어냈다(`three-flatshading-warn-spam`).
+            //    ⚠️ **렌더에는 아무 영향이 없다** — r128 에서 `flatShading` 을 실제로 지원하는 건
+            //    Standard/Phong 뿐이고 Lambert(정점 단위 고로 셰이딩)·Basic(무조명)은 애초에 법선을
+            //    그렇게 안 쓴다. 즉 이 키는 **처음부터 아무 일도 안 하고 경고만 찍고 있었다.**
+            //    각진 면이 필요하면 키가 아니라 **지오메트리**로 낼 것(voxel 은 이미 면이 갈려 있다).
+            const o = { vertexColors: true, color: 0xffffff };
             if (m.transparent) { o.transparent = true; o.opacity = m.opacity; o.depthWrite = m.depthWrite; }
             if (m.side !== undefined) o.side = m.side;
             if (!isBasic && m.emissive) o.emissive = m.emissive.clone();
@@ -10668,8 +10677,8 @@ const Scene3D = {
         //    흰자가 통째로 죽는다(매끈판에서 실측한 사유 그대로).
         // 크기 배수는 적(1.5)보다 작은 **1.15** 다 — 펫 두상은 반지름 0.055(타조·거북)까지 내려가서,
         // 1.5 를 쓰면 두 눈이 두상 폭을 넘어 서로 겹친다(코를 놓을 자리가 사라진다).
-        const EYE_W = new THREE.MeshLambertMaterial({ color: 0xfff6e8, emissive: 0x9a958c, vertexColors: true, flatShading: true });
-        const EYE_P = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, flatShading: true });
+        const EYE_W = new THREE.MeshLambertMaterial({ color: 0xfff6e8, emissive: 0x9a958c, vertexColors: true });
+        const EYE_P = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true });
         const eyes = (y, z, gap, r, opt) => {
             const o = opt || {}, er = (r || 0.028) * 1.15;
             // 흰자 칸 수 — **2~4칸으로 가둔다**. 1칸이면 동공을 놓을 자리가 없어 눈이 '검은 점'으로
@@ -11999,7 +12008,7 @@ const Scene3D = {
                     const sh = pv(s * 0.07, 0.30, -0.04);
                     into(sh, () => {
                         const w = Voxel.build(wingVox(s), { size: PVS, jitter: 0.05, ao: 0.7, center: false,
-                            material: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), color: 0xffffff });
+                            material: new THREE.MeshLambertMaterial({ vertexColors: true }), color: 0xffffff });
                         sh.add(w);
                     });
                     sh.rotation.z = s * 0.5; sh.rotation.y = s * 0.5;   // 위로 벌리고 뒤로 젖혀 등 위 V
@@ -14717,7 +14726,7 @@ const Scene3D = {
             //    무늬는 면적이 있어야 무늬고, 한 줄짜리 부품에서는 얼룩이다 — opts 로 갈아 끼운다.
             const m = V.build(voxels, Object.assign({
                 size: VS, jitter: 0.03, ao: 0.9, center: false,
-                material: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }),
+                material: new THREE.MeshLambertMaterial({ vertexColors: true }),
             }, opts || {}));
             m.position.set(-px * VS, -py * VS, -pz * VS);
             const pivot = new THREE.Group();
@@ -16287,9 +16296,9 @@ const Scene3D = {
             const eb = (v, m, col) => Voxel.build(v, { size: VS, jitter: 0.04, ao: 0.55, center: false, material: m, color: col });
             // 흰자는 **음영을 받되 바닥값을 emissive 로 깐다** — 버섯처럼 갓 그늘에 머리가 통째로
             // 들어가는 종은 순수 Lambert 로 눈이 검게 뭉갰다(매끈판 실측 캡처, 그대로 유효).
-            const EYE_W = new THREE.MeshLambertMaterial({ color: 0xfff6e8, emissive: 0x9a958c, vertexColors: true, flatShading: true });
+            const EYE_W = new THREE.MeshLambertMaterial({ color: 0xfff6e8, emissive: 0x9a958c, vertexColors: true });
             // 동공·글린트 공용 — 색은 정점 색이 지므로 재질 하나로 검정/흰색을 다 찍는다.
-            const EYE_P = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, flatShading: true });
+            const EYE_P = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true });
             const front = er * 0.55;                       // 판 앞면 = 옛 파이컷 흰자 앞면
             if (style === 'slit') {
                 // 어둠 속 이글거리는 발광 슬릿 (골렘 마그마/늑대 냉광/임프 유황) — 흰자 없음.
@@ -16301,8 +16310,8 @@ const Scene3D = {
                 const sh = o.narrow ? 1 : Math.max(1, Math.min(2, Math.round(er * 0.79 / VS)));
                 // 흰자 눈과 같은 사유 — 판 두 장 사이에 얼굴이 최소 한 칸은 남아야 한다.
                 const eyeGap = Math.max(gap, (sw + 1) * VS / 2);
-                const IRIS = new THREE.MeshLambertMaterial({ color: o.iris, emissive: o.iris, emissiveIntensity: 1, vertexColors: true, flatShading: true });
-                const RIM = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, flatShading: true });
+                const IRIS = new THREE.MeshLambertMaterial({ color: o.iris, emissive: o.iris, emissiveIntensity: 1, vertexColors: true });
+                const RIM = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true });
                 for (const s of [-1, 1]) {
                     const eg = new THREE.Group();
                     eg.position.set(s * eyeGap, y, z);
@@ -16407,7 +16416,7 @@ const Scene3D = {
                     for (let i = 0; i < bn; i++) bv.push({ x: i, y: (i > 0 && i < bn - 1) ? 1 : 0, z: 0 });
                     const bg = new THREE.Group();
                     bg.position.set(0, ny * VS / 2 + VS * (style === 'fierce' ? 0.5 : 0.62), front - VS / 2);
-                    const bm = eb(bv, new THREE.MeshLambertMaterial({ color: o.browColor || 0x2b2b33, vertexColors: true, flatShading: true }), 0xffffff);
+                    const bm = eb(bv, new THREE.MeshLambertMaterial({ color: o.browColor || 0x2b2b33, vertexColors: true }), 0xffffff);
                     bm.position.x = -(bn - 1) * VS / 2;
                     bg.add(bm);
                     bg.userData.cuteBrow = true;    // 판정 도구가 이 태그로 눈썹을 집는다
@@ -16416,7 +16425,7 @@ const Scene3D = {
                 }
                 if (blushOn) {
                     const bk = o.blushK || 1;
-                    const BLUSH = new THREE.MeshLambertMaterial({ color: o.blushColor || 0xd98177, emissive: 0x3a1210, vertexColors: true, flatShading: true });
+                    const BLUSH = new THREE.MeshLambertMaterial({ color: o.blushColor || 0xd98177, emissive: 0x3a1210, vertexColors: true });
                     let bl;
                     if (blushIn) {
                         bl = eb(blush, BLUSH, 0xffffff);
@@ -19919,7 +19928,7 @@ const Scene3D = {
             // ⓐ 예고 — 발밑이 부풀고 흙먼지 링. "뭔가 올라온다"
             setTimeout(() => {
                 const mound = new THREE.Mesh(new THREE.SphereGeometry(0.5 + pw * 0.2, 10, 6),
-                    new THREE.MeshLambertMaterial({ color: 0x6b573f, flatShading: true }));
+                    new THREE.MeshLambertMaterial({ color: 0x6b573f }));
                 mound.userData.mawTell = true;
                 mound.position.set(spot.x, -0.45, spot.z);
                 mound.scale.y = 0.5;
