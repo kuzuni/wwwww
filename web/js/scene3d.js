@@ -10400,8 +10400,20 @@ const Scene3D = {
         const vhex = (m) => (m && m.color) ? m.color.getHex() : (typeof m === 'number' ? m : c);
         const vR = (r, lo) => Math.max(lo === undefined ? 0.5 : lo, r / VP);
         const vH = (h) => Math.max(1, Math.round(h / VP));
+        // 🎨 색 쨍하게 (mount-riverbond-remake, 비평가 2인 공통 최우선 감점 "washed-out grey/tan,
+        //    no color pop"). 원인 둘: ⓐ Voxel.build 기본 지터 0.06 이 칸마다 밝기를 흔들어 240px
+        //    썸네일에서 'moldy' 로 뭉갠다(인계 메모가 이미 지목) ⓑ AO·지터가 색을 곱으로 **깎기만**
+        //    해 바탕색이 늘 어둡게 씻긴다. → 지터 0.06→0.035·AO 1→0.82 로 깎는 폭을 줄여 바탕색을
+        //    끌어올리고, 이미 채도가 있는 색(회색 동물 제외)은 채도·명도를 살짝 더 밀어 '리버본드 팝'을 낸다.
+        //    ⚠️ 탈것 전용(pet/equip/enemy 는 각자 build 호출이라 무영향) — 회색 종은 s>0.12 가드로 안 물들인다.
+        const vivid = (hex) => {
+            const col = new THREE.Color(hex); const hsl = {}; col.getHSL(hsl);
+            if (hsl.s > 0.12) col.offsetHSL(0, Math.min(0.18, (1 - hsl.s) * 0.55), 0.025);
+            else col.offsetHSL(0, 0, 0.02);   // 무채색 종은 색조 안 넣고 살짝만 밝게
+            return col.getHex();
+        };
         const vbuild = (voxels, m) => {
-            const o = Voxel.build(voxels, { size: VP, color: vhex(m), material: voxMat });
+            const o = Voxel.build(voxels, { size: VP, color: vivid(vhex(m)), material: voxMat, jitter: 0.035, ao: 0.82 });
             // `alignHandlebar` 등은 원통이던 시절의 `geometry.parameters.height` 로 스템 길이를 되잰다 —
             // 복셀 BufferGeometry 엔 그 필드가 없으니 y 축 실측 높이로 셈을 넣어 계약을 유지한다.
             o.geometry.computeBoundingBox();
