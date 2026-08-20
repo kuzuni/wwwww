@@ -19919,21 +19919,45 @@ const Scene3D = {
         this.scene.add(G);
         const mat = (col, op, blend) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op,
             side: THREE.DoubleSide, depthWrite: false, blending: blend === false ? THREE.NormalBlending : THREE.AdditiveBlending, toneMapped: false });
+        // 🧊 **매끈 구 → 복셀 볼 (3차 채점 2인 일치 ㉠, 2026-08-20).** 종전 코어·글로우·코로나·조임
+        //    링이 전부 SphereGeometry/RingGeometry 라, 파편층만 복셀이고 **센터피스가 '당구공' →
+        //    '비눗방울'** 로 읽혔다(둘 다 치명 1순위). 얼티밋일수록 화풍 위반이 커지는 역전의 본체.
+        //    → 코어·글로우·코로나 = `Voxel.ellipsoid` 볼(칸 4), 조임 링 = 픽셀 계단 링. 팽창 단계에서
+        //    복셀 볼이 그대로 커지므로 껍질도 청키한 큐브 돔이 된다. 재질 동작(가산 코어/글로우,
+        //    폭발 시 NormalBlending 전환, opacity 곡선)은 전부 그대로 — probe-nova-beat 의 잉크
+        //    문턱(빈 컷 600화소)을 지키기 위해 크기 값도 그대로 옮겼다.
+        const voxBallMat = (op, additive) => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true,
+            opacity: op, depthWrite: false, blending: additive === false ? THREE.NormalBlending : THREE.AdditiveBlending, toneMapped: false });
+        const voxBall = (r, colHex, op, additive) => {
+            const m = Voxel.build(Voxel.ellipsoid(4, 4, 4, colHex), { size: r / 4, jitter: 0.1, ao: 0.72, material: voxBallMat(op, additive) });
+            m.castShadow = m.receiveShadow = false;
+            return m;
+        };
         // 코어 — 흰 심 + 색 글로우
-        const core = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), mat(0xffffff, 0.95));
+        const core = voxBall(0.16, 0xffffff, 0.95);
         core.position.copy(C);
-        const glow = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), mat(color, 0.55));
+        const glow = voxBall(0.3, color.getHex(), 0.55);
         glow.position.copy(C);
         G.add(core, glow);
-        // 조임 링 — 확장 링의 정반대 운동(수축) + 흡입 알갱이 12~20개
-        const inRing = new THREE.Mesh(new THREE.RingGeometry(0.82, 1.0, 26), mat(color, 0));
+        // 조임 링(픽셀 계단) — 확장 링의 정반대 운동(수축) + 흡입 알갱이 12~20개
+        const inRingVox = [];
+        for (let gx = -8; gx <= 8; gx++) for (let gy = -8; gy <= 8; gy++) {
+            const d = Math.hypot(gx, gy);
+            if (d <= 8.45 && d >= 6.5) inRingVox.push({ x: gx, y: gy, z: 0 });
+        }
+        const inRing = Voxel.build(inRingVox, { size: 1.0 / 8, color: color.getHex(), jitter: 0.08, ao: 0.6,
+            material: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0,
+                side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }) });
+        inRing.castShadow = inRing.receiveShadow = false;
         inRing.position.copy(C);
         if (this.camera) inRing.lookAt(this.camera.position);
         G.add(inRing);
         const motes = [];
         const nMote = 12 + Math.round(pw * 8);
         for (let i = 0; i < nMote; i++) {
-            const m = new THREE.Mesh(new THREE.SphereGeometry(0.05 + Math.random() * 0.04, 6, 5), mat(i % 3 ? color : 0xffffff, 0.9));
+            const ms = 0.09 + Math.random() * 0.07;         // 흡입 알갱이도 큐브다 — 구는 화풍 위반
+            const m = new THREE.Mesh(new THREE.BoxGeometry(ms, ms, ms), mat(i % 3 ? color : 0xffffff, 0.9));
+            m.rotation.set(Math.random() * 1.2, Math.random() * 1.2, Math.random() * 1.2);
             const a = Math.random() * Math.PI * 2, r = 1.6 + Math.random() * 1.3;
             m.userData.from = new THREE.Vector3(C.x + Math.cos(a) * r, C.y + U.rand(-0.9, 1.1), C.z + Math.sin(a) * r * 0.6);
             m.userData.d = Math.random() * 0.35;            // 개체별 출발 지연 — 한 번에 안 움직이게
@@ -19987,8 +20011,7 @@ const Scene3D = {
             //       (알갱이 배치에 `Math.random` 이 있어 컷마다 잉크가 흔들린다). 끝 반경 1.11·알파 0.8 로 키웠다.
             // ⚠️ 코로나는 **알파 합성**이다 — 가산으로 두면 코어와 겹쳐 순백으로 클리핑되고,
             //    바로 아래 폭발 껍질에서 이미 한 번 밟은 함정(`NOVA_SHELL_ADDITIVE`)을 되풀이한다.
-            const corona = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 10),
-                mat(color, 0, false));
+            const corona = voxBall(0.3, color.getHex(), 0, false);   // 충전 코로나도 복셀 볼 — 알파 합성(가산 클리핑 함정)
             corona.position.copy(C);
             G.add(corona);
             this.addAnim(0.14, k => {
@@ -20024,6 +20047,31 @@ const Scene3D = {
                 SFX.stormStrike(0);
                 this.shake(0.4 + pw * 0.35);
                 this.flashLight(C.clone(), color.getHex(), 0.4);
+                // 폭발 스냅 — 2~3컷짜리 백색 픽셀 스타버스트(볼드 플랫 섬광). 3차 비평가 B 일치 지적
+                // "구체→콘페티가 디졸브로 넘어가 릴리즈 스냅이 없다"의 처방: 릴리즈 첫 프레임에
+                // 픽셀 별 하나가 '탁' 하고 떴다 사라진다(부드러운 글로우가 아니라 플랫 흰색).
+                {
+                    const starVox = [];
+                    for (let i = 0; i < 8; i++) {
+                        const a = i * Math.PI / 4, len = (i % 2 === 0) ? 9 : 5;
+                        for (let r = 1; r <= len; r++) {
+                            const bx = Math.round(Math.cos(a) * r), by = Math.round(Math.sin(a) * r);
+                            starVox.push({ x: bx, y: by, z: 0 });
+                        }
+                    }
+                    starVox.push({ x: 0, y: 0, z: 0 });
+                    const star = Voxel.build(starVox, { size: 0.17, color: 0xffffff, jitter: 0, ao: 0,
+                        material: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1,
+                            side: THREE.DoubleSide, depthWrite: false, toneMapped: false }) });
+                    star.castShadow = star.receiveShadow = false;
+                    star.position.copy(C);
+                    if (this.camera) star.lookAt(this.camera.position);
+                    G.add(star);
+                    this.addAnim(0.09, k => {
+                        star.scale.setScalar(0.7 + k * 1.1);
+                        star.material.opacity = 1 - k * k;
+                    }, () => { star.visible = false; });
+                }
                 const R = 2.6 + pw * 1.6;
                 this.expandRing(new THREE.Vector3(C.x, 0.02, C.z), color, R * 1.4);
                 setTimeout(() => this.expandRing(new THREE.Vector3(C.x, 0.02, C.z), new THREE.Color(0xffffff), R), 60);
