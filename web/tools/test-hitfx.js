@@ -20,7 +20,12 @@ const path = require('path');
         // 적이 그 목표를 따라가느라 '넉백 후 제자리 복귀'가 3회 중 1회꼴로 거짓 실패했다. 넉백과 무관한 월드 이동이다.
         Scene3D.walking = false;
         Scene3D.clearEnemies();
-        const mk = (id) => { const e = { id, x: Combat.MELEE_X, alive: true, hp: Big.of(1000), maxHp: Big.of(1000) }; Combat.enemies = [e]; Scene3D.spawnEnemy(e); const m = Scene3D.enemyMap.get(id); for (const a of Scene3D.anims) { try { a.fn(1); a.onDone && a.onDone(); } catch (x) {} } Scene3D.anims = []; m.g.position.set(e.x + Scene3D.worldX, 0, 0); m.g.userData.landed = true; return { e, m }; };
+        const mk = (id) => { const e = { id, x: Combat.MELEE_X, alive: true, hp: Big.of(1000), maxHp: Big.of(1000) }; Combat.enemies = [e]; Scene3D.spawnEnemy(e); const m = Scene3D.enemyMap.get(id); for (const a of Scene3D.anims) { try { a.fn(1); a.onDone && a.onDone(); } catch (x) {} } Scene3D.anims = []; m.g.position.set(e.x + Scene3D.worldX, 0, 0); m.g.userData.landed = true;
+            // 대기 호흡 스쿼시(_gaitSq)를 0 으로 고정한다 — 스케일 합성이 매 프레임 b·(1−s/2) 를 쓰므로
+            // 호흡이 살아 있으면 '원래 크기 복귀'의 정확일치(1e-6) 자가 위상값(실측 0.9778)을 읽는다.
+            // 이 자는 펀치/히트 스쿼시의 복귀만 재는 자다 — 호흡만 끊고 펀치 경로는 그대로 둔다 (hitfx-breath-ruler).
+            Object.defineProperty(m, '_gaitSq', { get: () => 0, set: () => {} });
+            return { e, m }; };
         const step = n => { for (let i = 0; i < n; i++) Scene3D.update(1 / 120); };
 
         // 1) 원래 emissive 복구 (예전 구현은 흰색을 영구히 덮어써 발광 재질이 죽었다)
