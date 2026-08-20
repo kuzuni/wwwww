@@ -26,6 +26,41 @@ const UI = {
         else this.keepScroll(() => this.openMounts());   // 이미 열린 목록 재렌더 — 스크롤 유지
     },
 
+    // ===== 보관함이 가득 찬 소환 라인 (펫·탈것 공용) =====
+    // 🚨 종전에는 두 화면이 **서로 다른 반쪽만** 보고 있었다 (summon-btn-when-inventory-full,
+    //    2026-08-20 QA 20차 실측):
+    //     · 펫 — 라벨·비용에 `Pets.summonCount/summonCost` 를 그대로 써서, 여유가 0이면 둘 다 0으로
+    //       줄어 **`소환 x0 · 🥚 0`**(공짜로 0개 뽑는 것처럼 보임)이 됐다. 배수를 x5 로 바꿔도
+    //       `x0` 그대로라 배수 토글까지 죽은 것처럼 보였다.
+    //     · 탈것 — 라벨은 줄지 않는 원래 배수라 **`소환 x1 · ⚙️ 50` 으로 멀쩡해 보이고 `disabled`
+    //       조차 안 붙는데**(`Mounts.canSummon` 이 태엽만 보고 보유 상한을 아예 안 본다) 눌러도
+    //       절대 성공하지 않는다.
+    //    두 화면을 **같은 규칙**으로 맞춘다: 가득 차면 비활성 + 라벨/비용 자리에 **이유**를 적는다.
+    // ⚠️ `Pets.summonCount` 의 클램프 자체는 건드리지 않는다 — 여유가 3칸일 때 x5 로 3개만 나가는
+    //    동작은 의도이고 `r.clamped` 토스트까지 붙어 있다. 고치는 것은 **여유 0 이라는 밑바닥 경우**뿐이다.
+    // ⚠️ `Mounts.canSummon` 에 공간 조건을 더하지 않는다 — 그 함수는 `Mounts.summon` 안에서
+    //    재검사로도 쓰여(mounts.js) 클램프된 n 과 얽힌다. 상한은 여기 UI 판정에서만 본다.
+    // ⚠️ 라벨은 **`보관함 가득` 다섯 글자로 고정**한다 — 버튼 폭이 122px 뿐이라 `알 보관함 가득`
+    //    처럼 한 글자만 길어져도 윗줄이 접혀 버튼 높이가 58.4px → 64.7px(+10.8%p)로 튄다(실측).
+    //    어느 보관함인지는 아랫줄 아이콘(🥚/⚙️)과 수치가 말한다.
+    SUMMON_FULL: {
+        pet:   { icon: 'eggCracked', cur: () => S.eggs.length,   cap: () => Pets.EGG_CAP,    label: '보관함 가득' },
+        mount: { icon: 'winder',     cur: () => Mounts.count(),  cap: () => Mounts.INV_CAP,  label: '보관함 가득' },
+    },
+    // 보관함이 가득 찼나 (가득이면 소환 버튼을 이 규칙으로 그린다)
+    summonFull(kind) {
+        const f = this.SUMMON_FULL[kind];
+        return !!f && f.cur() >= f.cap();
+    },
+    // 가득 찬 소환 버튼 HTML — 평소 버튼과 **같은 두 줄 구조**(윗줄 라벨 + `.summon-cost` 아랫줄)라
+    // 버튼 높이·비율이 흔들리지 않는다. 비활성은 종전 규약대로 클래스만 준다(onclick 은 살려 둬야
+    // 눌렀을 때 핸들러 토스트가 같은 사실을 한 번 더 말해 준다).
+    summonFullBtnHTML(kind, onclick) {
+        const f = this.SUMMON_FULL[kind];
+        return `<button class="btn big summon-btn disabled" onclick="${onclick}">`
+            + `${f.label}<small class="summon-cost">${IconGen.img(f.icon)} <b>${f.cur()}/${f.cap()}</b></small></button>`;
+    },
+
     // ===== 소환 결과 연출 팝업 (스킬·펫·탈것 공용) =====
     // 원본 구성: 어두운(남색/검정) 풀스크린 오버레이 위에 뽑힌 항목을 등급색 원형 아이콘으로 나열.
     // 연출: ① 빛 모임 플래시+충격파(기대감) → ② 아이콘이 등급 오름차순으로 하나씩 팝(스케일 바운스,
@@ -3801,6 +3836,8 @@ const UI = {
                 <button class="btn xs x5-toggle ${petSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('pet')">x${petSummonN}</button>
                 ${Ascension.ready('pet')
                     ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('pet')">${IconGen.img('star')} 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
+                    : this.summonFull('pet')
+                    ? this.summonFullBtnHTML('pet', 'UI.onSummonPetEgg()')
                     : `<button class="btn big summon-btn ${Pets.canSummon(petSummonN) ? '' : 'disabled'}" onclick="UI.onSummonPetEgg()">
                     소환 x${Pets.summonCount(petSummonN)}<small class="summon-cost">${IconGen.img('eggCracked')} <b>${Pets.summonCost(petSummonN)}</b></small></button>`}
                 <div class="summon-info">
@@ -5468,6 +5505,8 @@ const UI = {
                     <button class="btn xs x5-toggle ${mountSummonN > 1 ? 'on' : ''}" onclick="UI.cycleSummonMult('mount')">x${mountSummonN}</button>
                     ${Ascension.ready('mount')
                         ? `<button class="btn big summon-btn ascend-ready" onclick="UI.openAscension('mount')">${IconGen.img('star')} 승천 가능<small class="summon-cost">소환 Lv.MAX</small></button>`
+                        : this.summonFull('mount')
+                        ? this.summonFullBtnHTML('mount', 'UI.onSummonMount()')
                         : `<button class="btn big summon-btn ${Mounts.canSummon(mountSummonN) ? '' : 'disabled'}" onclick="UI.onSummonMount()">
                         소환 x${mountSummonN}<small class="summon-cost">${IconGen.img('winder')} <b>${Mounts.winderCost(mountSummonN)}</b></small></button>`}
                     <div class="summon-info">
