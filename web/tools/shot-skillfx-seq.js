@@ -166,6 +166,22 @@ const COLS = 6;
         return c.toDataURL('image/png');
     }, { frames, COLS, STEP_MS });
 
+    // 🚨 **컨택트 시트만으로 '조형'을 채점하게 두지 말 것 — 두 비평가가 같은 오진을 했다 (2026-08-20 3D 스트림).**
+    //    시트는 480×854 컷 40장을 6열로 붙여 **2880×5696** 이라, 채점자에게 전달될 때 가로 1500px 안팎으로
+    //    줄어든다(≈0.5배). 그러면 한 변 10~15px 짜리 불티 큐브가 **5px 남짓**이 돼 모서리가 사라지고
+    //    둥근 점으로 보인다. 실제로 비평가 2인이 독립적으로 "큐브가 단 한 개도 없다 · 전부 소프트 라운드
+    //    글로우 블롭"을 **1순위 결함**으로 꼽았는데, `spawnSparks` 는 그때 이미 큐브였다 — 같은 프레임을
+    //    원본 해상도로 3배 크롭해 보면 큐브 모서리가 또렷하다(A/B 캡처로 확인). 한 명은 "9배 확대해
+    //    재확인했다"고까지 적었지만, **줄어든 이미지를 확대한 것**이라 사라진 화소는 돌아오지 않는다.
+    //    → 조형(큐브인가·모서리가 있는가)을 묻는 채점에는 `DUMP_DIR` 로 뽑은 **원본 해상도 개별 프레임**을
+    //      같이 줄 것. 시트는 타이밍·박자·지속 시간을 보는 용도다.
+    if (process.env.DUMP_DIR) {
+        const dir = path.resolve(process.env.DUMP_DIR);
+        fs.mkdirSync(dir, { recursive: true });
+        frames.forEach((f, i) => fs.writeFileSync(path.join(dir, `${ARG}-${String(i * STEP_MS).padStart(4, '0')}ms.png`),
+            Buffer.from(f.split(',')[1], 'base64')));
+        console.log(`  개별 프레임 ${frames.length}장(원본 해상도) → ${dir}`);
+    }
     const meta = await page.evaluate(() => ({ fx: Scene3D.__fx, tier: Scene3D.__tier, wait: Scene3D.__wait, beat: Scene3D.__beat, name: (Scene3D.__def || {}).name }));
     const out = path.join(__dirname, `skillfx-${ARG}-seq.png`);
     fs.writeFileSync(out, Buffer.from(sheet.split(',')[1], 'base64'));

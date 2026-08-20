@@ -15963,17 +15963,37 @@ const Scene3D = {
             const a = (i / n) * Math.PI * 2 + U.rand(-0.2, 0.2);
             const rad = U.rand(0.85, 1.2);
             const from = new THREE.Vector3(hero.x + Math.cos(a) * rad, hero.y + (support ? U.rand(0.0, 0.5) : U.rand(0.5, 1.8)), hero.z + Math.sin(a) * rad * 0.6);
-            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.castGlowTex(), color, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }));
-            sp.scale.setScalar(U.rand(0.16, 0.28));
+            // 🧊 **청키 큐브 모트** (화풍 확정 2026-08-20 ⓔ: "스킬 이펙트 = 청키 큐브 파티클 …
+            //    **부드러운 사실 VFX 아님**"). 예전엔 `castGlowTex`(소프트 방사 그라디언트) 빌보드
+            //    스프라이트였다 — 확정 화풍이 이름을 대고 배제한 바로 그것이고, 18종 **전 스킬의
+            //    1박에 매번 8~22장**이 뜨므로 스킬 연출에서 소프트 글로우가 가장 넓게 남아 있던 자리다.
+            //    `spawnSparks`(불티·파편)는 이미 같은 이유로 큐브로 갈아탔다 — 여기만 남아 있었다.
+            // ⚠️ 한 변은 스프라이트 폭의 **0.55배 언저리**로 잡는다(`spawnSparks` 주석의 실측 환산:
+            //    스프라이트 0.16~0.34 ↔ 꽉 찬 큐브 0.09~0.19 가 같은 덩치다. 소프트 falloff 라
+            //    스프라이트는 실효 코어가 폭보다 작다). 그 환산값에서 과장 축만큼만 키웠다.
+            const sp = new THREE.Mesh(this.fxGeo('box', 1, 1, 1),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }));
+            sp.scale.setScalar(U.rand(0.105, 0.185));
             sp.position.copy(from);
-            sp.userData = { from, s0: sp.scale.x };
+            // 축정렬 큐브가 안 돌면 '떠 있는 정사각형'으로 읽힌다 — 초기 각·텀블을 3축 다 흔든다.
+            // 텀블은 **박자 전체에 대한 라디안**이다(콜백이 dt 가 아니라 진행도 k 를 주므로 각을 k 로 적분해 둔다).
+            const r0 = { x: U.rand(0, 6.28), y: U.rand(0, 6.28), z: U.rand(0, 6.28) };
+            sp.rotation.set(r0.x, r0.y, r0.z);
+            // 🚨 `sharedGeometry` 를 빼지 말 것 — `fxGeo` 는 캐시라 이 박스를 `spawnSparks` 와 **공유**한다.
+            //    정리에서 dispose 하면 이후 모든 불티·파편이 깨진다.
+            sp.userData = { from, s0: sp.scale.x, r0, tumble: { x: U.rand(-7, 7), y: U.rand(-7, 7), z: U.rand(-7, 7) }, sharedGeometry: true };
             G.add(sp); motes.push(sp);
         }
 
         // ⓒ 차지 코어 — 가슴에서 부풀다 마지막에 팍 터진다(2박으로 넘기는 손잡이).
-        const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.castGlowTex(), color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+        // 🧊 차지 코어도 큐브다(위 모트와 같은 이유). 스프라이트 시절 최대 폭의 0.62배로 환산해
+        //    덩치를 맞춘다 — 꽉 찬 큐브는 소프트 글로우보다 실효 면적이 커서 그대로 두면 가슴에
+        //    흰 덩어리가 앉는다.
+        const core = new THREE.Mesh(this.fxGeo('box', 1, 1, 1),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
         core.position.copy(chest);
         core.scale.setScalar(0.01);
+        core.userData.sharedGeometry = true;   // 공유 지오(위 🚨 참조) — dispose 금지
         G.add(core);
 
         // ⓓ 조명은 **올라가야** 한다 — flashLight 는 내려가는(터진 뒤) 곡선이라 시전엔 못 쓴다.
@@ -15988,12 +16008,20 @@ const Scene3D = {
                 r.material.opacity = Math.sin(k * Math.PI) * 0.72;  // 떴다 사라짐 — 끝에 링이 남으면 얼룩
             }
             for (const m of motes) {
-                m.position.lerpVectors(m.userData.from, chest, ease);
-                m.scale.setScalar(m.userData.s0 * (1 - 0.55 * k));
+                const u = m.userData;
+                m.position.lerpVectors(u.from, chest, ease);
+                m.scale.setScalar(u.s0 * (1 - 0.55 * k));
+                m.rotation.set(u.r0.x + u.tumble.x * k, u.r0.y + u.tumble.y * k, u.r0.z + u.tumble.z * k);
                 m.material.opacity = 0.95 * (1 - k * k * k);        // 도착 직전까지 살아 있어야 '빨려들었다'
             }
             const pop = k < 0.82 ? k / 0.82 : 1 + (k - 0.82) / 0.18 * 0.9;  // 부풀다 마지막 18% 에 터짐
-            core.scale.setScalar(0.05 + pop * (support ? 0.34 : 0.46) * (0.78 + pw * 0.62));
+            // 0.62 = 스프라이트→큐브 덩치 환산(위 코어 주석). 빼면 가슴에 흰 덩어리가 앉는다.
+            const cs = (0.05 + pop * (support ? 0.34 : 0.46) * (0.78 + pw * 0.62)) * 0.62;
+            // 🧊 스쿼시&스트레치(화풍 ⓓ '찰진') — 모으는 동안 세로로 늘었다가 터질 때 가로로 퍼진다.
+            //    큐브는 축이 보이므로 이 왜곡이 스프라이트와 달리 실제로 읽힌다.
+            const sq = k < 0.82 ? 1 + 0.20 * (k / 0.82) : 1 - 0.42 * ((k - 0.82) / 0.18);
+            core.scale.set(cs / Math.sqrt(sq), cs * sq, cs / Math.sqrt(sq));
+            core.rotation.set(k * 2.1, k * 2.7, k * 1.3);
             core.material.opacity = k < 0.82 ? 0.35 + k * 0.75 : 1 - (k - 0.82) / 0.18;
             light.set((1.5 + pw * 1.9) * ease);   // 2.6 고정은 지면 전체를 씻어 '화면이 밝아졌다'로 읽혔다
         }, () => {
