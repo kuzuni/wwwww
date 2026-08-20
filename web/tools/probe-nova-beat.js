@@ -49,7 +49,15 @@ const STEP_MS = 30, N = 48;          // 0~1410ms
         const realUpdate = Scene3D.update.bind(Scene3D);
 
         // 음성 대조: 교정 전 값으로 되돌린다(코어를 0 까지 조이고, 폭발 껍질을 순백 가산으로).
-        if (SELFTEST) { Scene3D.NOVA_SQUEEZE_MIN = 0.06; Scene3D.NOVA_SHELL_ADDITIVE = true; Scene3D.NOVA_SHELL_ALPHA = 0.8; }
+        // ⚠️ **교정 전 값을 하나라도 빠뜨리면 음성 대조가 조용히 통과한다** — 2026-08-20 실측으로
+        //    실제로 그랬다. 붕괴 바닥(`NOVA_SQUEEZE_MIN`)만 되돌려 놓고 그 뒤에 들어온 두 교정
+        //    (충전 코로나 · 폭발을 붙잡은 크기에서 시작)을 안 되돌리니, 코어를 0 까지 조여도
+        //    코로나가 프레임을 채워 `빈 컷 0개` 로 **통과**했다. 새 교정을 넣는 세션은 그 되돌림도
+        //    반드시 여기 한 줄로 같이 넣을 것 — 안 그러면 이 판정기는 자기가 못 잡는 걸 모른다.
+        if (SELFTEST) {
+            Scene3D.NOVA_SQUEEZE_MIN = 0.06; Scene3D.NOVA_SHELL_ADDITIVE = true; Scene3D.NOVA_SHELL_ALPHA = 0.8;
+            Scene3D.NOVA_CORONA_ALPHA = 0; Scene3D.NOVA_BLAST_FROM_HOLD = false;
+        }
 
         const def = SKILL_DEFS.find(d => d.fx === 'nova');
         const tier = Scene3D.skillTier(def), col = new THREE.Color(def.color);

@@ -19364,6 +19364,8 @@ const Scene3D = {
     NOVA_SQUEEZE_MIN: 0.5,    // 붕괴 바닥 — 코어를 0 까지 조이면 폭발 직전에 '빈 프레임'이 난다
     NOVA_SHELL_ADDITIVE: false,// 폭발 껍질을 가산으로 두면 밝은 배경 위에서 순백으로 클리핑된다
     NOVA_SHELL_ALPHA: 0.5,     // 알파 합성 껍질의 불투명도
+    NOVA_CORONA_ALPHA: 0.8,    // 붕괴 중 자라는 충전 코로나의 최대 불투명도 (0 이면 옛 '빈 컷'으로 되돌아간다)
+    NOVA_BLAST_FROM_HOLD: true,// 폭발 팽창을 '붙잡고 있던 크기'에서 시작할지 — false 면 옛 0.2 스냅다운으로 되돌아간다
     supernovaBlast(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 4 : tier));
@@ -19433,6 +19435,23 @@ const Scene3D = {
             //    않는다: 최소 크기에서 **밝기를 더 올리며 홀드**해 긴장을 만든다. 조명도 프레임마다
             //    곱해 내리던 것(프레임레이트 의존)을 **올라가는 곡선**으로 바꾼다 — 압축이 곧 충전이다.
             const l0 = light.get();
+            // 🚨 **조인 코어·글로우만으로는 마지막 컷을 못 채운다 — 판정기가 그걸 잡았다
+            //    (2026-08-20 `nova-beat-empty-frame`).** `NOVA_SQUEEZE_MIN` 바닥을 깔아 코어가 0 이
+            //    되는 건 막았는데, 그 바닥에서도 **연출 잉크가 750ms 컷에 310화소**(문턱 600)뿐이었다.
+            //    이유는 면적 계산을 해 보면 자명하다: 이 카메라에서 월드 1 유닛 ≈ 24px 이라,
+            //    바닥에 앉은 글로우(반경 0.3·2.8·0.5 = 0.42)는 화면에서 **반지름 10px 짜리 원**이다.
+            //    바닥을 더 올리면(0.85 쯤) 문턱은 넘지만 그건 **붕괴를 없애는 것**이라 연출이 죽는다.
+            //    → 조형으로 푼다: 코어가 조이는 동안 **충전 코로나**가 반대로 자라며 밝아진다.
+            //    주석이 원래 적어 둔 의도("압축이 곧 충전")를 그림으로 옮긴 것이고, 폭발 직전
+            //    ⚠️ 여유를 넉넉히 둘 것 — 1차안(코로나 끝 반경 0.78·알파 0.55)은 750ms 컷을 310 → **636**
+            //       화소로 올려 문턱(600)을 **6% 차이로** 겨우 넘었고, 두 번 돌리면 한 번은 다시 FAIL 했다
+            //       (알갱이 배치에 `Math.random` 이 있어 컷마다 잉크가 흔들린다). 끝 반경 1.11·알파 0.8 로 키웠다.
+            // ⚠️ 코로나는 **알파 합성**이다 — 가산으로 두면 코어와 겹쳐 순백으로 클리핑되고,
+            //    바로 아래 폭발 껍질에서 이미 한 번 밟은 함정(`NOVA_SHELL_ADDITIVE`)을 되풀이한다.
+            const corona = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 10),
+                mat(color, 0, false));
+            corona.position.copy(C);
+            G.add(corona);
             this.addAnim(0.14, k => {
                 const s = Math.max(this.NOVA_SQUEEZE_MIN, 1 - k);
                 core.scale.setScalar(2.4 * s);
@@ -19441,10 +19460,25 @@ const Scene3D = {
                 // (실측: 바닥 0.42 에서도 연출 잉크가 154~275화소 = 화면의 0.06%). 선형으로 조인다.
                 glow.scale.setScalar(2.8 * s);
                 glow.material.opacity = 0.45 + k * 0.45;      // 조일수록 진해진다
+                // 충전 코로나 — 코어와 **반대로** 자라며 진해진다(압축이 곧 충전).
+                corona.scale.setScalar(1.1 + k * 2.6);
+                corona.material.opacity = k * k * this.NOVA_CORONA_ALPHA;
                 inRing.material.opacity = 0.8 * (1 - k);
                 inRing.scale.setScalar(0.35 * (1 - k) + 0.05);
                 light.set(l0 * (1 + k * 0.8));
             }, () => {
+                // 🚨 **빈 컷의 진짜 범인은 붕괴가 아니라 여기, 폭발의 첫 프레임이었다**
+                //    (2026-08-20 `nova-beat-empty-frame` — 씬그래프를 프레임별로 찍어 확정).
+                //    이 콜백은 알갱이·조임 링을 **즉시 감추는데**, 아래 팽창 애니는 `e = 0` 에서
+                //    `core.scale = 0.2 + e·R·5.5` 로 시작한다 — 즉 붕괴 끝에 1.20 이던 코어가
+                //    폭발이 시작하는 순간 **0.2 로 쪼그라든다**(글로우도 1.40 → 0.2).
+                //    그래서 딱 한 컷, 화면에 조인 심만 남아 연출 잉크가 **497화소**(문턱 600)로 꺼졌다.
+                //    실측 프레임: 720ms ink 4684 → **750ms ink 497** → 780ms ink 3995.
+                //    → 팽창은 **붙잡고 있던 크기에서** 출발한다(아래 `coreS0`/`glowS0`).
+                //    ⚠️ `0.2` 를 되살리지 말 것 — 그 값은 '반경 0.16 기준 배율'을 손으로 적어 둔
+                //       것인데, 붕괴가 코어를 그보다 크게 붙잡고 있으므로 이제 출발점이 아니다.
+                const fromHold = this.NOVA_BLAST_FROM_HOLD;
+                const coreS0 = fromHold ? core.scale.x : 0.2, glowS0 = fromHold ? glow.scale.x : 0.2, coronaS0 = corona.scale.x;
                 // ⓒ 폭발 — 구각 2겹 + 수평 파동 + 전 적 동시 타격
                 for (const m of motes) m.visible = false;
                 inRing.visible = false;
@@ -19467,10 +19501,13 @@ const Scene3D = {
                 const shellA = this.NOVA_SHELL_ALPHA;
                 this.addAnim(0.5, k => {
                     const e = 1 - Math.pow(1 - k, 3);
-                    core.scale.setScalar(0.2 + e * R * 5.5);           // 구각으로 팽창 (r0.16 기준 배율)
+                    core.scale.setScalar(coreS0 + e * R * 5.5);        // 붙잡고 있던 크기에서 구각으로 팽창
                     core.material.opacity = 0.95 * Math.pow(1 - e, 2.4);   // 순백은 앞 몇 컷만
-                    glow.scale.setScalar(0.2 + e * R * 4.6);
+                    glow.scale.setScalar(glowS0 + e * R * 4.6);
                     glow.material.opacity = shellA * (1 - e * 0.85);
+                    // 충전 코로나는 **끄지 않고 폭발에 실어 보낸다** — 즉시 감추면 그것대로 한 컷이 빈다.
+                    corona.scale.setScalar(coronaS0 * (1 + e * 1.6));
+                    corona.material.opacity = this.NOVA_CORONA_ALPHA * Math.max(0, 1 - e * 2.6);
                     light.set((1.6 + pw * 1.2) * (1 - e * 0.8));
                     if (Math.random() < 0.6) this.riseParticle(new THREE.Vector3(C.x + U.rand(-R, R) * 0.5, 0.1, C.z + U.rand(-R, R) * 0.3), color);
                 }, () => {
