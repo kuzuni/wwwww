@@ -4,7 +4,14 @@
 시작 전 반드시 `git pull --rebase origin main` 으로 최신화한다.
 
 ## 🔗 같은 그룹은 묶어서 읽고 작업 (사용자 지시 2026-08-20 — 강제)
-착수 항목이 특정 그룹(스킬·장비·펫·탈것·맵·캐릭터 등)에 속하면, **코드를 건드리기 전에 같은 그룹의 다른 TODO 항목을 grep으로 전부 모아 읽고**(예: 장비면 `equip-*` 슬러그 항목 전부 `grep -n "equip-" web/TODO.md`, 스킬이면 `skill-*` 전부, 펫이면 `pet-*`·탈것이면 `mount-*`·`ride-*`) 그 맥락·이전 시도·정합 요구를 반영해 만든다. 한 항목만 고립되게 보면 같은 그룹끼리 어긋난다 — 장비의 voxel화(`equip-voxelize`)↔시대감(`equip-era-theming`)↔중복제거(`equip-design-dedupe`)처럼 서로 맞물린 것들은 **한 벌로 읽어야** 방향이 맞는다. 그룹 슬러그 목록은 아래 '작업 우선순위 3단 ②'(맵=`map-quality-up`, 캐릭터=`prochar-aaa`+`enemy-quality`+`cute-art-direction`, 장비=`equip-*`, 스킬=`skill-fx`+`skill-fx-exaggerated`+`skill-unique-signature`, 탈것=`mount-species-recognizable`, 펫=`pet-species-recognizable`) 참조.
+착수 항목이 특정 그룹(스킬·장비·펫·탈것·맵·캐릭터 등)에 속하면, **코드를 건드리기 전에 같은 그룹의 다른 TODO 항목을 grep으로 전부 모아 읽고**(예: 장비면 `equip-*` 슬러그 항목 전부 `grep -n "equip-" web/TODO.md`, 스킬이면 `skill-*` 전부, 펫이면 `pet-*`·탈것이면 `mount-*`·`ride-*`) 그 맥락·이전 시도·정합 요구를 반영해 만든다. 한 항목만 고립되게 보면 같은 그룹끼리 어긋난다 — 장비의 voxel화(`equip-voxelize`)↔시대감(`equip-era-theming`)↔중복제거(`equip-design-dedupe`)처럼 서로 맞물린 것들은 **한 벌로 읽어야** 방향이 맞는다. 그룹 슬러그 목록(맞물린 것끼리 = 한 벌로 읽고, 이득이면 한 세션에서 함께 구현):
+> - **장비** = `equip-voxelize`(큐브 조형) + `equip-era-theming`(시대감) + `equip-design-dedupe`(부위별 중복 제거) [+ `equip-framing-red`]
+> - **스킬** = `skill-fx`(품질) + `skill-fx-exaggerated`(과장·화려) + `skill-unique-signature`(스킬마다 고유 실루엣) [+ 아이콘은 `icon-gen`]
+> - **펫** = `pet-species-recognizable`(종 읽히는 조형) + `creature-body-species-color`(종별 몸색)
+> - **탈것** = `mount-species-recognizable`(종 조형) + `ride-seat-*`(안장 색·높이·`ride-seat-flat-chrome`)
+> - **배경/환경** = `map-quality-up`(지형 높낮이 voxel + 잔디 voxel + 안개·원경) + 맵 프롭 퀄 + `cute-art-direction`의 배경 부분 + `voxel-consistency-audit` — 지면·언덕·잔디·프롭이 **한 큐브 세계**로 읽히게 함께
+> - **캐릭터** = `prochar-aaa`(영웅) + `enemy-quality`(적) + `cute-art-direction`(귀엽게·큰 눈) + `hero-chibi`(비례)
+> - 승천 디자인(`ascend-design-tiers`)은 위 그룹들에 다 걸치므로, 해당 그룹 작업 시 그 시대/승천 분기까지 같이 볼 것.
 
 **🆕 맞물린 그룹은 여러 항목을 한 번에 처리해도 된다 (사용자 지시 2026-08-20).** 장비처럼 서로 맞물린 항목들(`equip-voxelize`↔`equip-era-theming`↔`equip-design-dedupe`)은 따로 하면 서로 덮어써 재작업이 나므로, **한 세션에서 함께 구현하는 게 더 효율적이면 그렇게 한다.** 단 안전장치:
 > ① **묶어서 구현할 항목의 슬러그를 전부 먼저 claim** 한다(하나만 잡고 나머지를 건드리면 다른 세션이 동시에 그 항목을 잡아 충돌한다). 못 잡는(BUSY) 슬러그가 있으면 그건 빼고 잡힌 것만 묶는다.
