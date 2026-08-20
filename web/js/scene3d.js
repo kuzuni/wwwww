@@ -3146,12 +3146,24 @@ const Scene3D = {
                 n = 120;
                 tint = 0.2;
                 break;
-            default: // forest: 풀 포기 (잎날 클러스터) — 지형 알베도 쪽으로 30% 눌러 채도 정합
+            default: { // forest: 풀 포기 (잎날 클러스터)
                 geo = this.tuftGeo();
-                mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0x558b2f).lerp(new THREE.Color(0x9cbf6e), 0.58) }); // 지면 알베도로 더 눌러 채도 정합 — 네온 튀는 스프라이트 인상 (비평가 7.1 9번)
+                // 🎨 지면 등급색 파생 (map-palette-unify) — 종전 고정 초록(0x558b2f→0x9cbf6e 58%)은
+                //    forest kin 인데 지면이 초록이 아닌 챕터(10 천상=골드, 4 폭풍=회청록)에서 팔레트 밖
+                //    이물이었고, ch1 에서도 등급 지면(카키 올리브)보다 쨍해 '네온 스프라이트' 인상이
+                //    남았다(비평가 7.1 9번의 잔재). 색상은 지면에서 잎 초록(0.26) 쪽으로 30%만 끌고
+                //    채도·명도를 지면 반 단계 위에 앉힌다 — 어느 지면색에서든 '그 땅의 풀'로 읽히게.
+                //    ⚠️ terrainMat.color 는 setTheme 이 buildProps 호출 **전에** gC 로 칠해 둔다
+                //    (biome-stone-color-leak 수리로 못 박힌 순서) — 여기서 읽어도 이번 챕터 색이다.
+                const gh = this.terrainMat.color.getHSL({ h: 0, s: 0, l: 0 });
+                mat = new THREE.MeshLambertMaterial({ color: new THREE.Color().setHSL(
+                    gh.h + (0.26 - gh.h) * 0.3,
+                    U.clamp(gh.s + 0.06, 0.15, 0.55),
+                    U.clamp(gh.l + 0.12, 0.18, 0.60)) });
                 n = 240;
                 flat = false;
                 tint = 0.2;
+            }
         }
         // 화면 하단(카메라 앞 둔덕 z 2.2~3.4)까지 스캐터를 확장 — "하단 40% 빈 지면" 구도 결함 완화
         const mk = (geo2, mat2, cnt, flat2, tint2, zMin, zMax, so) => {
@@ -22995,7 +23007,12 @@ const Scene3D = {
         // 원래 흙색과 가까운 바이옴은 틴트가 거의 백색이라 종전 그림을 해치지 않는다.
         if (this.pathMesh) {
             const g = gC.getHSL({ h: 0, s: 0, l: 0 });
-            const bTint = new THREE.Color().setHSL(g.h, U.clamp(g.s, 0, 0.7), 0.7);
+            // 🎨 틴트 명도를 지면 등급색에 따라간다 (map-palette-unify) — 종전 L 0.7 고정은 어두운
+            //    챕터(흑요석 gC L≈0.06·심연·종말)에서 흙길만 밝은 베이지 띠로 떠, 챕터 무관한
+            //    '오버레이 밴드'로 읽혔다(팔레트 실측: ch22 유채색 무게의 33% 가 챕터 색상 밖 35° 웜).
+            //    지면보다 +0.22 밝은 자리(하한 0.30)에 앉혀 '같은 땅의 다져진 길'로 — 밝은 챕터
+            //    (사막 등)는 상한 0.7 이 종전 값 그대로라 기존 그림을 해치지 않는다.
+            const bTint = new THREE.Color().setHSL(g.h, U.clamp(g.s, 0, 0.7), U.clamp(g.l + 0.22, 0.30, 0.7));
             this.pathMesh.material.color.copy(new THREE.Color(0xffffff).lerp(bTint, 0.62));
         }
         // 바이옴 소품 교체 (같은 바이옴이면 그대로 유지)
@@ -23067,8 +23084,13 @@ const Scene3D = {
         // 바위산 절벽 0x6a6055 → 0x51483e: 지면 albedo가 값 그레이딩으로 L≈0.24까지 내려와 절벽과
         // 같은 명도대에 붙었다(재채점 A2·B2 공통 1위 '전부 같은 회갈색'). 절벽을 두 단계 더 눌러
         // '어두운 근경 실루엣 vs 밝은 지면'의 단차를 복구한다(지면 쪽은 아래 테마 ground가 밝힌다).
-        this.stoneMat.color.setHex(sp.stone !== undefined ? sp.stone :
-            kin === 'snow' ? 0xc9d8e6 : kin === 'desert' ? 0xb97f5e : kin === 'rock' ? 0x51483e : 0x90a4ae);
+        // 🎨 최종 기본값(종전 0x90a4ae 고정)은 `stoneFrom(gC)` 팔레트 파생으로 (map-palette-unify) —
+        //    청회 고정색은 초원(초록)·마법(보라)·용암(암갈) 어디서나 같은 '하늘색 바위'로 서서
+        //    팔레트 밖 이물로 읽혔다(ch1 실측: 초록 지면 위 청회 둔덕 — 비평가 이전 지적 '사막에
+        //    얼음빛 바위'와 같은 뿌리인데, fallback 을 쓰는 kin 셋은 leak 수리 때도 그대로 남았었다).
+        this.stoneMat.color.copy(sp.stone !== undefined ? new THREE.Color(sp.stone) :
+            kin === 'snow' ? new THREE.Color(0xc9d8e6) : kin === 'desert' ? new THREE.Color(0xb97f5e) :
+            kin === 'rock' ? new THREE.Color(0x51483e) : this.stoneFrom(gC));
         // 바위산: 지면 탠과 색온도를 맞춘 웜 그레이 — "배치한 에셋" 티 제거 (쿨 그레이는 지면과 따로 놀았음)
         // 천체: 낮=해, 밤=달+별 (테마 celestial 필드로 명시, 기본 sun)
         const cel = t.celestial || 'sun';
@@ -23146,10 +23168,22 @@ const Scene3D = {
             fm.emissive.setHex(fe ? fe.color : 0x000000);
             fm.emissiveIntensity = fe ? fe.intensity : 1;
         }
-        // 암부에 얹는 빛은 **그 챕터 하늘의 색**이다(하늘 반사광의 근사) — 어둡고 채도를 살짝 올린 버전.
+        // 암부에 얹는 빛의 **색상·채도 = 하늘 60% + 지면 등급색 40% 혼합** (map-palette-unify).
+        // 종전엔 하늘색 단색(하늘 반사광 근사)이었는데, 태양이 −z(화면 안쪽)라 **카메라를 보는 면
+        // 대부분이 N·L 그늘**이고, 거기 얹힌 순수 하늘색이 챕터 전체에 하늘색 캐스트를 깔았다 —
+        // ch1 실측: 초록 숲 캐노피가 통째로 청록으로 읽혀 유채색 무게가 청록 53% vs 초록 42% 로
+        // 양분됐다(셰이드만 끄면 즉시 초록 복귀 — 안개 기여는 미미). 지면 반사광 몫을 40% 섞으면
+        // 암부가 그 챕터 팔레트 안의 한색으로 내려앉는다('검정 대신 보색 그림자' 처방은 유지).
+        // 🚨 **명도는 혼합에서 가져오면 안 된다 — 종전 공식(하늘 L − 0.38/0.46) 그대로 쓴다.**
+        //    지면 등급색이 니어블랙인 챕터(흑요석 gC L≈0.06)는 RGB lerp 가 리프트 휘도까지 40%
+        //    끌어내려 암부가 도로 뭉개진다(실측: ch22 crush 0.18% → 3.71%, ch9 0.98% → 2.33%).
+        //    색상·채도만 혼합에서 취하면 리프트 세기는 종전과 같고 캐스트만 팔레트 안으로 든다.
         // 밤에는 더 눌러 '흐린 낮'처럼 뜨는 것을 막는다.
         {
-            const st = new THREE.Color(t.sky).offsetHSL(0, 0.10, night ? -0.46 : -0.38);
+            const skyHSL = new THREE.Color(t.sky).getHSL({ h: 0, s: 0, l: 0 });
+            const mixHSL = new THREE.Color(t.sky).lerp(gC, 0.40).getHSL({ h: 0, s: 0, l: 0 });
+            const st = new THREE.Color().setHSL(mixHSL.h, U.clamp(mixHSL.s + 0.10, 0, 1),
+                Math.max(0, skyHSL.l + (night ? -0.46 : -0.38)));
             for (const u of this._shadeUniforms) {
                 u.uShadeTint.value.copy(st);
                 u.uShadeStr.value = this.SHADE.strength * (night ? 0.7 : 1);
@@ -23172,6 +23206,16 @@ const Scene3D = {
         //    ⚠️ 같은 바이옴 안에서 챕터만 바뀌면 `buildProps` 가 아예 안 돌므로(`biome !== this._biome` 가드),
         //       클론 동기화를 여기서 안 하면 `sp.stone` 이 다른 형제 챕터끼리도 색이 안 갈린다.
         this.syncVxMats();
+    },
+
+    // 챕터 팔레트 파생 돌색 (map-palette-unify) — stone 스펙이 없는 kin(forest·magic·lava)의 기본값.
+    // 지면 등급색(gC)의 색상만 물려받고 채도를 눌러 '같은 땅에서 솟은 돌'로 만든다. 명도는 지면보다
+    // 한 단계 위(+0.16) — 어두운 챕터(용암 gC L≈0.07)에서도 바위 실루엣이 지면과 분리되게 하한 0.28.
+    // ⚠️ setTheme 의 기본 분기와 previewMat(플레이어 정보 미니 씬의 초원 돌색)이 **둘 다 이 함수**를
+    //    쓴다 — 값이 두 곳에 갈라지면 미니 씬 돌만 옛 색으로 남는다(pinfo-preview-leaf-black 의 전철).
+    stoneFrom(gC) {
+        const g = gC.getHSL({ h: 0, s: 0, l: 0 });
+        return new THREE.Color().setHSL(g.h, Math.min(0.22, g.s * 0.45), U.clamp(g.l + 0.16, 0.28, 0.55));
     },
 
     // 복셀 프롭 재질 클론 ← 원본 재질 색 동기화. `vxMat` 의 색 복사부와 **같은 식**을 쓴다
@@ -23295,7 +23339,7 @@ const Scene3D = {
             c.color.copy(g.foliage[fi]);
             c.emissive.setHex(0x000000); c.emissiveIntensity = 1;   // 마법 챕터의 보라 발광이 묻어오지 않게
         } else if (src === this.bushMat) c.color.copy(g.bush);
-        else if (src === this.stoneMat) c.color.setHex(0x90a4ae);  // 초원 돌색(setTheme 의 기본 분기)
+        else if (src === this.stoneMat) c.color.copy(this.stoneFrom(g.ground));  // 초원 돌색 — setTheme 기본 분기와 같은 파생(stoneFrom)
         this._pvMats.set(orig, c);
         return c;
     },

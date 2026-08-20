@@ -601,7 +601,12 @@ const UNLOCKS = [
 // biome: 챕터별 소품 세트(Scene3D.buildProps) — 색만 바뀌는 게 아니라 지형 소재 자체가 바뀜
 // celestial: 하늘 천체 ('sun'|'moon'|'none', 생략 시 sun) — 밤 챕터는 달+별
 const CHAPTER_THEMES = [
-    { sky: 0x87ceeb, fog: 0xa8d8ea, ground: 0x7cb342, biome: 'forest' },                    // 1 초원
+    // 1 초원 — 안개를 하늘색 청록(0xa8d8ea)에서 **연둣빛 파스텔 연무**로 (map-palette-unify).
+    // 종전엔 중경 나무 절반이 청록 베일에 씻겨 '초록 초원 vs 청록 숲'의 이중 세계로 갈라졌다
+    // (팔레트 실측: 유채색 무게가 청록 185° 53% vs 초록 85° 42% 로 양분). 안개가 지면 계열의
+    // 연둣빛이면 원경 숲이 같은 초록 세계 안에서 부드럽게 후퇴한다(하늘 쪽 30% lerp 는 setTheme 몫).
+    { sky: 0x87ceeb, fog: 0xc0e2b6, ground: 0x7cb342, biome: 'forest' },
+
     // 2 사막 — 하늘을 모래와 같은 베이지로 두면 지평선이 소멸하고 화면 전체가 한 덩어리 베이지가 된다
     // (map-quality-up 비평가 2인 공통 지적). 원신 수메르 문법대로 '따뜻한 모래 vs 푸른 하늘' 보색으로 —
     // 안개(fog)는 모래색을 유지하므로 지평선엔 여전히 따뜻한 모래 연무가 깔리고 천정만 파랗게 벌어진다.
