@@ -23,6 +23,13 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const PX = 38;          // 스킬 오브 글리프 실측 표시 크기
+/* 🚨 **작은 쪽도 같이 잰다 — 비평가가 헷갈린다고 한 크기는 38px 이 아니라 14~20px 이다
+      (2026-08-20 UI 스트림, 락 `icon-gen`).**
+   이 자는 처음부터 38px 하나만 봤는데, 이 지적의 원문은 "**14~20px 에서** 같은 흰 얼룩"이었다.
+   실측하면 두 크기의 순위가 실제로 갈린다 — 20px 에서만 상위로 올라오는 쌍이 있다
+   (연속 참격↔응급 처치 · 낙뢰↔신의 창). 축소가 한 칸 더 들어가면 가는 부재가 먼저 뭉개져
+   **'가늘어서 갈리던' 조형이 먼저 무너지기** 때문이다. 한쪽만 보면 그 무리를 통째로 놓친다. */
+const PX2 = 20;         // 재화 pill·작은 버튼 속 스킬 아이콘 실측 크기(비평가 지적의 크기)
 const TOP = 12;
 
 (async () => {
@@ -37,7 +44,7 @@ const TOP = 12;
         await page.waitForTimeout(100);
     }
 
-    const res = await page.evaluate(async (a) => {
+    const measure = async (a) => {
         const ids = SKILL_DEFS.map(d => d.id);
         const masks = {}, areas = {};
         for (const id of ids) {
@@ -65,10 +72,13 @@ const TOP = 12;
         }
         pairs.sort((p, q) => q.iou - p.iou);
         return { pairs, areas, ids, total: pairs.length };
-    }, { PX });
+    };
+    const res = await page.evaluate(measure, { PX });
+    const res2 = await page.evaluate(measure, { PX: PX2 });
 
     await browser.close();
     if (res.fatal) { console.error('🚨', res.fatal); process.exit(2); }
+    if (res2.fatal) { console.error('🚨', res2.fatal); process.exit(2); }
 
     const name = {};
     // 이름은 순전히 사람이 읽으라고 붙인다(판정에 안 쓴다).
@@ -96,12 +106,24 @@ const TOP = 12;
        '한 줄이 사라지고 한 줄이 생긴' 것처럼만 보인다.
        📌 그래서 판단 기준은 **최악값 + `≥0.60` 개수 + `≥0.55` 개수 세 개를 함께**. 셋이 같이
           내려가야 진짜로 갈린 것이다(이 세션 실측: 0.673/10/25 → 0.640/3/21). */
-    const n60 = res.pairs.filter(p => p.iou >= .60).length, n55 = res.pairs.filter(p => p.iou >= .55).length;
-    console.log(`   분포: 최악 ${res.pairs[0].iou.toFixed(3)} · IoU ≥0.60 인 쌍 ${n60}개 · ≥0.55 ${n55}개 (낮을수록 갈린다)`);
-    const hub = {};
-    res.pairs.filter(p => p.iou >= .55).forEach(p => { hub[p.a] = (hub[p.a] || 0) + 1; hub[p.b] = (hub[p.b] || 0) + 1; });
-    const hubs = Object.entries(hub).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    if (hubs.length) console.log(`   허브(≥0.55 쌍에 가장 자주 끼는 종): ${hubs.map(([k, v]) => `${name[k]} ${v}`).join(' · ')}`);
+    const dist = (r) => ({ worst: r.pairs[0].iou, n60: r.pairs.filter(p => p.iou >= .60).length, n55: r.pairs.filter(p => p.iou >= .55).length });
+    const hubsOf = (r) => {
+        const hub = {};
+        r.pairs.filter(p => p.iou >= .55).forEach(p => { hub[p.a] = (hub[p.a] || 0) + 1; hub[p.b] = (hub[p.b] || 0) + 1; });
+        return Object.entries(hub).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    };
+    for (const [px, r] of [[PX, res], [PX2, res2]]) {
+        const d = dist(r), h = hubsOf(r);
+        console.log(`   분포 ${String(px).padStart(2)}px: 최악 ${d.worst.toFixed(3)} · IoU ≥0.60 인 쌍 ${d.n60}개 · ≥0.55 ${d.n55}개 (낮을수록 갈린다)`);
+        if (h.length) console.log(`     허브: ${h.map(([k, v]) => `${name[k]} ${v}`).join(' · ')}`);
+    }
+    // 20px 에서만 상위로 올라오는 쌍 — 축소 한 칸에 먼저 무너지는 조형이 여기 잡힌다.
+    const rank38 = new Map(res.pairs.map((p, i) => [p.a + '|' + p.b, i]));
+    const only20 = res2.pairs.slice(0, TOP).filter(p => (rank38.get(p.a + '|' + p.b) ?? 999) >= TOP);
+    if (only20.length) {
+        console.log(`\n■ ${PX2}px 에서만 상위 ${TOP} 에 드는 쌍(38px 순위 밖) — 축소에 먼저 무너지는 조형:`);
+        only20.forEach(p => console.log(`   IoU ${p.iou.toFixed(3)}  ${name[p.a]} ↔ ${name[p.b]}  (38px 에선 ${(rank38.get(p.a + '|' + p.b) ?? 0) + 1}위)`));
+    }
 
     console.log(`\n잉크 면적(${PX}px 프레임 ${PX * PX}화소 중):`);
     res.ids.forEach(id => process.stdout.write(`  ${name[id]} ${res.areas[id]}`));
