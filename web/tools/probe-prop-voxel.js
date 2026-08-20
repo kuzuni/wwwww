@@ -19,14 +19,17 @@
 //      **침엽수 8그루가 바운딩 박스까지 완전히 동일**했다(`probe-foliage-sculpt` 가 잡아 줬다).
 //      복셀에서 개체차는 **치수·단 수·`Voxel.rock` 의 seed** 로 낸다.
 //
-// ⚠️ 이 프로브는 exit 코드가 아니라 출력의 판정 줄로 읽을 것.
+// 판정은 마지막 줄과 **exit 코드** 둘 다로 낸다(2026-08-20 `regress.sh` 등재하며 exit 코드를 붙였다).
 // 사용: node probe-prop-voxel.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
 const MIN_VARIANTS = 3;   // 8번 지어 최소 3가지 — 2가지면 이지선다(분기 하나)일 뿐 '개체차'가 아니다.
 
-// [빌더, 인자, 기대 높이 대역(×s), 기대 폭 대역(×s)] — 대역은 전환 전 조형의 실측 치수에서 왔다.
+// [빌더, 인자, 기대 높이 대역(×s), 기대 폭 대역(×s), 재질키?] — 대역은 전환 전 조형의 실측 치수에서 왔다.
+// ⓧ **재질키**를 주면 그 재질의 메시만 잰다. 크리스탈처럼 조형 옆에 **발광 데칼**(접지 그림자 1.75s ·
+//    글로우 링 2.1s · 할로 스프라이트)이 붙는 프롭은 그냥 재면 치수 대역이 데칼 크기를 재게 되고,
+//    법선·중복면도 데칼 평면이 섞여 들어와 '조형이 큐브인가'를 못 묻는다.
 const PROPS = [
     // 대역이 한 점이 아닌 이유: 복셀은 정점 노이즈로 개체차를 못 내므로 **단 수·치수로** 낸다(의도).
     ['makePine', [1], [1.45, 2.05], [0.85, 1.35]],
@@ -49,6 +52,10 @@ const PROPS = [
     ['makeRockCluster', [1], [0.4, 1.3], [0.9, 2.0]],
     ['makeVolcanicRock', [1], [0.4, 1.2], [0.5, 1.4]],
     ['makeBones', [1], [0.15, 0.7], [0.5, 1.4]],
+    // 크리스탈 — 마지막까지 매끈한 삼각형으로 남아 있던 프롭(2026-08-20 전환). 몸통만 잰다(재질키 참고).
+    // 대역: 주상 결정 최고 높이 hk 1.06 × R(0.95,1.25) 에 −0.04s 매설을 더한 것이 상한, 폭은 클러스터가
+    // ±0.29s 로 퍼지고 각 결정 반경이 높이 비례(≤0.185h)라 그 합이다.
+    ['makeCrystal', [1], [0.9, 1.45], [0.5, 1.4], 'crystalMat'],
 ];
 
 (async () => {
@@ -57,6 +64,16 @@ const PROPS = [
     const errs = [];
     page.on('pageerror', e => errs.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+    // 🚨 **난수를 못 박는다 — 안 그러면 밴드 경계에서 실행마다 빨강/초록이 갈린다.**
+    //    조형은 `U.rand`(=`Math.random`)로 단 수·치수를 흔들어 개체차를 내므로, 8번 지어 min/max 를
+    //    밴드에 견주는 이 판정은 **표본이 매번 다르다.** 실측: `makeRockSpire` 높이 최댓값이 실행마다
+    //    2.17 ↔ **2.42**(상한 2.40) 로 오르내려 같은 코드가 PASS/FAIL 을 번갈아 냈다. 이 상태로
+    //    `regress.sh` 에 올리면 남의 커밋을 무작위로 빨갛게 만든다. LCG 로 고정해 표본을 재현 가능하게 둔다
+    //    (개체차 검사는 그대로 산다 — 한 실행 안의 8개는 여전히 서로 다르다).
+    await page.addInitScript(() => {
+        let sd = 20260820 >>> 0;
+        Math.random = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
+    });
     await page.goto(INDEX, { waitUntil: 'load' });
     for (let i = 0; i < 600; i++) {
         if (await page.evaluate(() => typeof Scene3D !== 'undefined' && !!Scene3D.scene && !!Scene3D.trees)) break;
@@ -65,23 +82,31 @@ const PROPS = [
 
     const rows = await page.evaluate((PROPS) => {
         const out = [];
-        for (const [fn, args, hBand, wBand] of PROPS) {
+        for (const [fn, args, hBand, wBand, matKey] of PROPS) {
             // 같은 빌더를 여러 번 부른다 — 조형에 `Math.random` 분기가 있어(팔 유무·마디 수) 한 개체만
             // 재면 분기 하나를 통째로 못 본다. 최악값을 모아 판정한다.
             const agg = { name: fn + (args[1] ? '+snow' : ''), n: 0, meshes: 0, offAxis: 0, noColor: 0, dupFaces: 0, hMin: 1e9, hMax: -1e9, wMin: 1e9, wMax: -1e9 };
             const sigs = new Set();
             for (let it = 0; it < 8; it++) {
                 const g = Scene3D[fn].apply(Scene3D, args);
+                const want = m => m.isMesh && (!matKey || m.material === Scene3D[matKey]);
+                // 🚨 **먼저 트리 전체의 월드 행렬을 갱신한다.** 옛 판은 `Box3.setFromObject(g)` 가 이걸
+                //    대신 해 주고 있었고(그 함수가 내부에서 트리를 갱신한다), 아래 중복면 검사의
+                //    `m.updateMatrixWorld(true)` 는 **부모 행렬이 이미 맞다는 전제**로 돈다. 재질 필터를
+                //    넣느라 setFromObject 를 메시별 expandByObject 로 바꿨을 때 이 갱신이 빠져
+                //    대나무 마디 링 8개가 전부 원점에 겹쳐 잡히면서 **중복면 9068건**이 났다(거짓 양성).
+                g.updateWorldMatrix(true, true);
                 let verts = 0;
-                g.traverse(m => { if (m.isMesh) verts += m.geometry.getAttribute('position').count; });
-                const box = new THREE.Box3().setFromObject(g);
+                g.traverse(m => { if (want(m)) verts += m.geometry.getAttribute('position').count; });
+                const box = new THREE.Box3();
+                g.traverse(m => { if (want(m)) box.expandByObject(m); });
                 const sz = box.getSize(new THREE.Vector3());
                 agg.hMin = Math.min(agg.hMin, sz.y); agg.hMax = Math.max(agg.hMax, sz.y);
                 const w = Math.max(sz.x, sz.z);
                 agg.wMin = Math.min(agg.wMin, w); agg.wMax = Math.max(agg.wMax, w);
                 const seen = new Set();
                 g.traverse(m => {
-                    if (!m.isMesh) return;
+                    if (!want(m)) return;
                     agg.meshes++;
                     const geo = m.geometry;
                     const nor = geo.getAttribute('normal'), pos = geo.getAttribute('position');
@@ -138,4 +163,5 @@ const PROPS = [
     console.log('콘솔 에러: ' + errs.length + (errs.length ? '\n  ' + errs.slice(0, 5).join('\n  ') : ''));
     console.log(fail === 0 && errs.length === 0 ? '판정: PASS — 배경 프롭 전부 축정렬 큐브 조형' : `판정: FAIL (${fail}종 미달)`);
     await browser.close();
+    process.exit(fail || errs.length ? 1 : 0);   // `regress.sh` 는 exit 코드로 읽는다(2026-08-20 등재)
 })();

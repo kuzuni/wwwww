@@ -57,16 +57,21 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
         const SCALES = [1.2, 1.2, 1.2, 1.2, 3.3];
         for (let t = 0; t < SCALES.length; t++) {
             const geo = Scene3D.crystalGeo(SCALES[t]);
-            const pos = geo.attributes.position, col = geo.attributes.color;
+            const pos = geo.attributes.position, col = geo.attributes.color, nor = geo.attributes.normal;
             if (!col) { out.noColor++; continue; }
             const parts = [];
             for (const p of geo.userData.parts) {
                 // 배치 행렬을 되돌려 **결정 자신의 축** 기준으로 잰다(기울여 심은 파편도 같은 자로 본다)
                 const inv = new THREE.Matrix4().fromArray(p.mat).invert();
                 const v = new THREE.Vector3();
-                const ys = [], rs = [], cs = [], loc = [];
+                const ys = [], rs = [], cs = [], loc = [], wld = [], wn = [];
                 for (let i = p.start; i < p.start + p.count; i++) {
-                    v.fromBufferAttribute(pos, i).applyMatrix4(inv);
+                    // ⑤·⑪ 은 **월드 좌표에서** 잰다 — 감기 방향과 수평 폭은 배치 변환을 되돌릴 필요가
+                    // 없고(전단은 방향을 보존한다), 되돌리면 계단 눕힘의 반 칸 잔차만 섞여 든다.
+                    v.fromBufferAttribute(pos, i);
+                    wld.push(v.x, v.y, v.z);
+                    if (nor) { wn.push(nor.getX(i), nor.getY(i), nor.getZ(i)); } else { wn.push(0, 0, 0); }
+                    v.applyMatrix4(inv);
                     loc.push(v.x, v.y, v.z);
                     ys.push(v.y); rs.push(Math.hypot(v.x, v.z));
                     // ⚠️ 색은 채널마다 다른 틴트가 곱해져 있다 — R 하나만 읽으면 램프가 아니라 틴트를 잰다. 휘도로 본다.
@@ -87,14 +92,28 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
                             hit.push(Math.hypot(A[0] + (B[0] - A[0]) * t, A[2] + (B[2] - A[2]) * t));
                         }
                     }
-                    return hit.length ? hit.reduce((x, y2) => x + y2, 0) / hit.length : 0;
+                    // 🚨 **평균이 아니라 상위 퍼센타일이다.** 복셀 전환 뒤로는 결정끼리 겹친 칸을 먼저 온
+                    //    쪽이 가져가므로(z-파이팅 방지) 뒤에 온 결정에 구멍이 생기고, 그 **속면**이 평면에
+                    //    같이 잘려 평균을 아래로 끈다. 실루엣 반경을 묻는 지표이므로 p85 로 읽는다
+                    //    (옛 육방 기둥은 한 높이의 히트가 전부 같은 링 반경이라 평균과 p85 가 같다 = 호환).
+                    if (!hit.length) return 0;
+                    hit.sort((a, b) => a - b);
+                    return hit[Math.min(hit.length - 1, Math.floor(hit.length * 0.85))];
                 };
                 const lo = radiusAt(0.05 * p.h), mid = radiusAt(0.45 * p.h);
                 // ⑧ 비율 — 중경에서 '바늘'로 무너지지 않으려면 **주상부가 길고 뿔이 짧아야** 한다.
                 //    어깨 높이는 굽힌 정점의 y 중에서 밑동(0)도 꼭짓점(h)도 아닌 링의 평균으로 되뽑는다.
-                const midYs = ys.filter(y2 => y2 > p.h * 0.05 && y2 < p.h * 0.97);
-                const shoulderK = midYs.length ? (midYs.reduce((x, y2) => x + y2, 0) / midYs.length) / p.h : 0;
-                const slender = radiusAt(0.05 * p.h) / p.h;   // r/h — 작을수록 바늘
+                // 🚨 **'중간 정점들의 평균 y' 로 재던 옛 식을 버렸다 — 조형에 기대는 자였다.**
+                //    옛 육방 기둥은 정점이 **밑동 링과 어깨 링 두 곳에만** 있어서 그 평균이 우연히 어깨
+                //    높이 언저리(0.735)였다. 복셀은 층마다 정점이 있어 같은 식이 **언제나 ≈0.5** 를 뱉는다
+                //    (전환 첫 판 0.358 — 조형이 아니라 자가 틀린 것이다. 함정 ④ '자가 낡으면 판정 무효').
+                //    재정의: **실루엣 반경이 밑동의 75% 아래로 내려가기 시작하는 높이.** 주상부는 taper
+                //    (0.80~0.97)만큼만 좁아져 전부 0.75 위에 있고, 어깨를 지나면 뿔이 선형으로 0 까지
+                //    떨어져 곧바로 걸린다 — 검출값 = 참 어깨 +0.01~0.05h(두 조형 모두).
+                const rBase0 = radiusAt(0.05 * p.h);
+                let shoulderK = 0;
+                for (let q = 5; q <= 98; q++) if (radiusAt(q / 100 * p.h) >= 0.75 * rBase0) shoulderK = q / 100;
+                const slender = rBase0 / p.h;   // r/h — 작을수록 바늘
                 // ② 단면 비대칭 + ④ 면 변주 — 밑동 링(y ≈ 0) 정점들
                 const baseIdx = [];
                 for (let i = 0; i < ys.length; i++) if (Math.abs(ys[i]) < 1e-4 * p.h + 1e-5) baseIdx.push(i);
@@ -105,40 +124,52 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
                 const ord = ys.map((y2, i) => [y2, i]).sort((a, b) => a[0] - b[0]).map(q => q[1]);
                 const q30 = Math.max(1, Math.floor(ord.length * 0.3));
                 const shade = mean(ord.slice(-q30).map(i => cs[i])) - mean(ord.slice(0, q30).map(i => cs[i]));
-                // ⑤ 법선 방향 — 기둥 구간(어깨 아래) 삼각형만
+                // ⑤ 법선 방향 — 🚨 **'축에서 바깥을 보는가(dot>0)' 로 재던 옛 식을 버렸다.**
+                //    그 식은 결정이 **곧게 선 것**을 전제한다. 복셀은 임의 각도 회전이 금지라 눕힘을
+                //    **층마다 반올림해 미는 계단**으로 내는데, 그러면 축이 층마다 최대 반 칸 어긋나
+                //    축 반대편 가장자리 면의 dot 이 음수로 떨어진다(전환 첫 판 893/6070 — 조형은 멀쩡했다).
+                //    실제로 묻고 싶은 것은 **'감기 방향이 뒤집혀 컬링되는가'** 이므로 그것을 직접 잰다:
+                //    삼각형의 **감기에서 나온 법선**과 지오메트리에 **저장된 법선**의 부호가 같은가.
+                //    복셀은 법선을 `Voxel.build` 가 면의 진짜 바깥 방향으로 직접 써 넣으므로 자기 참조가
+                //    아니다(옛 판은 `computeVertexNormals` 라 볼록 프리즘에서 같은 값이 나온다 = 호환).
                 let inward = 0, sideTris = 0;
                 for (let i = 0; i < loc.length / 9; i++) {
                     const o = i * 9;
-                    const ax = loc[o], ay = loc[o + 1], az = loc[o + 2];
-                    const bx = loc[o + 3], by = loc[o + 4], bz = loc[o + 5];
-                    const cx = loc[o + 6], cy = loc[o + 7], cz = loc[o + 8];
-                    const cyMid = (ay + by + cy) / 3;
+                    const cyMid = (loc[o + 1] + loc[o + 4] + loc[o + 7]) / 3;
                     if (cyMid < 0.06 * p.h || cyMid > p.shoulder * 0.85) continue;   // 밑면·추면 제외
+                    const o3 = i * 9;
+                    const ax = wld[o3], ay = wld[o3 + 1], az = wld[o3 + 2];
+                    const bx = wld[o3 + 3], by = wld[o3 + 4], bz = wld[o3 + 5];
+                    const cx = wld[o3 + 6], cy = wld[o3 + 7], cz = wld[o3 + 8];
                     const ux = bx - ax, uy = by - ay, uz = bz - az;
                     const wx = cx - ax, wy = cy - ay, wz = cz - az;
-                    const nx = uy * wz - uz * wy, nz = ux * wy - uy * wx;
-                    const cxm = (ax + bx + cx) / 3, czm = (az + bz + cz) / 3;
+                    const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
                     sideTris++;
-                    if (nx * cxm + nz * czm <= 0) inward++;
+                    if (nx * wn[o3] + ny * wn[o3 + 1] + nz * wn[o3 + 2] <= 0) inward++;
                 }
                 // ⑩ 면 투영 폭 — flatShading 은 면 하나에 값 하나라, 화면에서 '한 값으로 이어지는 가로 폭'은
                 //    곧 **면의 폭**이다. 굽힌 정점에서 이웃 밑동 정점 사이의 최대 거리로 되뽑는다(월드 단위).
                 //    ⚠️ 픽셀로 재려던 시도는 버렸다 — 프레임마다 노출·프레이밍이 흔들려 24↔57px 로 널뛴다.
+                // 🚨 **'밑동 링 이웃 정점 거리' 로 재던 옛 식을 버렸다 — 이것도 조형에 기대는 자였다.**
+                //    옛 육방 기둥은 y=0 에 **링 정점 SIDES 개만** 있어서 각도순 이웃 거리가 곧 주상면 폭이었다.
+                //    복셀은 밑면이 통째로 막혀 있어 y=0 정점에 **밑면 격자 전체**가 들어오고, 각도가 비슷한
+                //    안쪽 점과 바깥쪽 점이 이웃으로 잡혀 반경만 한 거리가 나온다(전환 첫 판 0.707).
+                //    재정의: **주상면(옆면) 삼각형의 수평 변 최대 길이.** flatShading 은 삼각형 하나에 값
+                //    하나이므로 화면의 '한 값으로 이어지는 가로 폭'은 곧 이 값이다 — 옛 판에서는 프리즘
+                //    면의 가로 폭과 같은 수를 낸다(= 게이트 0.30 의 근거가 그대로 산다).
+                //    ⚠️ 세로 변은 넣지 않는다. 옛 지적은 **가로** 민짜 런(41px)이었고, 세로를 넣으면 옛
+                //       조형의 기둥 한 면(높이 ≈0.8h)이 무조건 걸려 게이트가 의미를 잃는다.
+                //    ⚠️ 윗면(±y)도 넣지 않는다 — 복셀의 윗면은 한 칸 대각(u√2)이 잡혀 실제로 보이는
+                //       민짜 폭보다 크게 나오고, 원래 지적 대상은 옆면이었다.
                 let faceW = 0;
-                for (let a = 0; a < baseIdx.length; a++) for (let b2 = a + 1; b2 < baseIdx.length; b2++) {
-                    const ia = baseIdx[a] * 3, ib = baseIdx[b2] * 3;
-                    const d = Math.hypot(loc[ia] - loc[ib], loc[ia + 2] - loc[ib + 2]);
-                    if (d > 1e-6 && d < 0.9 * 2 * Math.max(...baseR) && d > faceW) {
-                        // 같은 면을 이루는 이웃 정점만: 링에서 가장 가까운 이웃 간 거리들의 최댓값을 쓴다
-                    }
-                }
-                {   // 링 정점을 각도순으로 정렬해 이웃 간 거리(=면 폭)의 최댓값
-                    const ring = baseIdx.map(i2 => ({ a: Math.atan2(loc[i2 * 3 + 2], loc[i2 * 3]), x: loc[i2 * 3], z: loc[i2 * 3 + 2] }))
-                        .sort((p1, p2) => p1.a - p2.a);
-                    const uniq = ring.filter((p1, i2) => i2 === 0 || Math.abs(p1.a - ring[i2 - 1].a) > 1e-6);
-                    for (let i2 = 0; i2 < uniq.length; i2++) {
-                        const n2 = uniq[(i2 + 1) % uniq.length];
-                        faceW = Math.max(faceW, Math.hypot(uniq[i2].x - n2.x, uniq[i2].z - n2.z));
+                for (let i = 0; i < wld.length / 9; i++) {
+                    const o = i * 9;
+                    if (Math.abs(wn[o + 1]) >= 0.5) continue;                          // 윗면·밑면 제외
+                    const cyMid = (loc[o + 1] + loc[o + 4] + loc[o + 7]) / 3;
+                    if (cyMid < 0.06 * p.h || cyMid > p.shoulder * 0.85) continue;     // 주상 구간만
+                    for (let a = 0; a < 3; a++) {
+                        const A = o + a * 3, B = o + ((a + 1) % 3) * 3;
+                        faceW = Math.max(faceW, Math.hypot(wld[A] - wld[B], wld[A + 2] - wld[B + 2]));
                     }
                 }
                 parts.push({
@@ -217,6 +248,17 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
         const p2 = await browser.newPage({ viewport: { width: 480, height: 854 } });
         p2.on('pageerror', e => errors.push(String(e)));
         p2.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+        // 🚨 **씬 배치 난수를 못 박는다 — 안 그러면 ⑦ 이 같은 코드에서 0.00%↔6.43% 로 널뛴다.**
+        //    카메라·월드 스크롤·맥동을 다 세워도 남는 변인이 하나 있었다: **부팅 때 굴린 소품 배치.**
+        //    크리스탈 픽셀 수가 실행마다 25,905↔38,644 로 흔들린 게 그 증거다(화면에 든 결정 수·거리가
+        //    매번 달랐다). 5회 실측: 0.00 / 0.81 / 1.28 / 3.03 / 6.43% — **게이트가 동전던지기였다.**
+        //    `Math.random` 을 LCG 로 갈아 끼워 부팅 전체를 결정론으로 만든다(이 저장소의 다른 프로브가
+        //    쓰는 것과 같은 수단 — `probe-coin-overlap.js`·`probe-boss-identity.js`).
+        //    ⚠️ `addInitScript` 라 **반드시 `goto` 앞**이다. `goto` 뒤에 심으면 소품은 이미 배치된 뒤다.
+        await p2.addInitScript(() => {
+            let sd = 20260820 >>> 0;
+            Math.random = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
+        });
         await p2.goto(INDEX, { waitUntil: 'load' });
         await p2.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
         await p2.evaluate(() => {

@@ -2243,7 +2243,13 @@ const Scene3D = {
             color: 0x9575cd, emissive: 0x6a3fb5, emissiveIntensity: 0.5,
             // 스페큘러를 순백에서 옅은 시안으로 — 하이라이트가 (255,255,255) 로 클리핑되면 그 자리는
             // 면도 색도 사라진 흰 구멍이다(실측 클리핑 2.7%). 색 있는 결정의 반사는 원래 색을 띤다.
-            flatShading: true, shininess: 58, specular: 0x7cc2d4, vertexColors: true,
+            // 🚨 **voxel 전환(2026-08-20)에서 한 번 더 낮췄다(0x7cc2d4 → 0x3f6270).** 큐브는 면이 평평해서
+            //    Phong 하이라이트가 **면 하나를 통째로** 덮는다(매끈 프리즘은 면 안에서 그라디언트가 졌다) —
+            //    그래서 같은 스페큘러로도 순백 클립이 1.88% → **5.10%** 로 뛰었다(`probe-crystal-sculpt` ⑦,
+            //    난수 고정 후 재현 가능한 값). **원인은 정점 색 램프가 아니다** — A/B 로 확인했다:
+            //    스페큘러만 0으로 두면 흰 화소가 **0**, 발광만 0으로 두면 거의 그대로였다.
+            //    ⚠️ shininess 를 대신 올리지 말 것 — 하이라이트가 좁아지는 대신 더 세져 면 하나가 더 하얘진다.
+            flatShading: true, shininess: 58, specular: 0x3f6270, vertexColors: true,
         });
         this.trees = [];
         this.rocks = [];
@@ -3576,149 +3582,202 @@ const Scene3D = {
         return g;
     },
 
-    // ---- 크리스탈 조형: 정오각뿔 3개 → 육방정 결정 클러스터 (TODO '맵 프롭 퀄리티 업' — 구조물·크리스탈 계열) ----
-    // 적용 전 `makeCrystal` 은 **ConeGeometry(r, h, 5) 3개**였다. 원뿔은 밑동에서 꼭짓점까지 한 번에
-    // 좁아져 원경에서 '고깔모자/죽창'으로 읽힌다 — 실제 수정은 **기둥(주상면)으로 곧게 오르다가 어깨에서
-    // 꺾여 뿔(추면)로 끝난다.** 그 어깨선이 없으면 어떤 발광을 걸어도 결정으로 안 보인다.
-    //  ⑴ **육방 기둥 + 종단 뿔** — 단면 반경을 면마다 지터(정육각형이면 그냥 또 다른 정다면체다),
-    //     어깨 높이도 면마다 다르게, 꼭짓점은 축에서 살짝 비켜 둔다(자연 결정의 종단은 대칭이 아니다).
-    //  ⑵ **클러스터를 메시 1개로 합쳐 굽는다** — 결정 6개(주상 3 + 밑동 파편 3)를 넣고도 드로우콜은
-    //     3 → 1 로 **준다.** r128 에는 BufferGeometryUtils 가 없으므로(lib 에 three.min.js 하나뿐)
-    //     삼각형 배열을 직접 쌓는다. 비인덱스 = flatShading 이 그대로 먹는다.
-    //  ⑶ **버텍스 컬러** — 높이 그라디언트(밑동 어둡게·끝 밝게) + **면마다 미세 변주**. 결정은 면마다 빛을
-    //     다르게 받아야 '깎인 것'으로 읽힌다. 종단면은 한 단 더 밝게(빛이 통과해 나가는 끝).
+    // ---- 크리스탈 조형: 육방정 결정 클러스터 → 🧊 **축정렬 큐브 적층**(2026-08-20 voxel 전환) ----
+    // 역사: ConeGeometry 3개('죽창') → 육방 기둥 + 종단 뿔(삼각형 직접 적층) → **복셀**.
+    // 이번 전환은 `cute-art-direction` ③ 배경의 마지막 조각이다 — 식생 7종·바위 6종이 이미 큐브로
+    // 넘어가 있어 **결정만 매끈한 비스듬 삼각형**으로 남아 있었다(`probe-prop-voxel` 의 프롭 표에도
+    // 크리스탈만 빠져 있었다). 화풍 블록: "3D로 그리는 모든 것을 큐브 기반 조형으로 통일".
+    //
+    // 🚨 **설계 의도는 앞 판에서 그대로 물려받는다 — 조형만 큐브로 옮겼다.** 아래 다섯은 전부 비평가
+    //    지적으로 얻은 것이라 다시 잃으면 같은 지적이 그대로 돌아온다:
+    //  ⑴ **기둥 + 어깨 + 종단 뿔** — 밑동에서 꼭짓점까지 한 번에 좁아지면 어떤 발광을 걸어도 고깔이다.
+    //     어깨는 전체 높이의 76~85% 에 둔다(뿔이 25% 를 넘으면 중경에서 어깨가 소실돼 다시 원뿔로 읽힌다).
+    //  ⑵ **단면 비대칭** — `Voxel.ellipse` 를 그냥 쓰면 계단 원기둥이라 '깎인 결정'이 아니라 **픽셀 파이프**다.
+    //     옛 판의 `rj[]`(넓은 면/좁은 면 교대)를 **섹터별 반경 변조**로 옮겼다. 교대 위상은 결정마다 뒤집는다.
+    //  ⑶ **반경을 높이에 종속** — 상수 반경이면 키 작은 개체까지 같은 굵기라 세장비가 무너져 '바늘'이 된다.
+    //     주상 결정 r/h 0.150~0.185, 밑동 파편은 짧고 굵게 0.22~0.30.
+    //  ⑷ **눕힌다** — 전부 수직이면 클러스터가 '울타리 말뚝'으로 읽힌다.
+    //     ⚠️ **임의 각도 회전은 금지다**(격자가 깨지면 그 순간 voxel 로 안 읽힌다). 옛 판의
+    //        `makeRotationFromEuler` 는 **층마다 한 칸씩 미는 계단 기울임**으로 옮겼다 —
+    //        `makeRockSpire`·`makeSlab` 이 이미 쓰는 수단이라 바위 계열과 기울기 어휘가 같아진다.
+    //  ⑸ **큰 자리는 키우지 말고 늘린다** — 랜드마크(s>2.2)는 한 기를 거대하게 만드는 게 아니라 클러스터를
+    //     4덩이로 늘린다. 복셀에서는 이유가 하나 더 붙는다: 같은 칸 수를 한 기에 몰면 칸이 커져 **큐브 한 면의
+    //     화면 폭**이 그대로 커진다(옛 판이 flatShading 민짜 면으로 반려당한 것과 같은 실패).
+    //
+    // ⑹ **버텍스 컬러** — 높이 그라디언트(밑동 어둡게·끝 밝게) × 루트 암부 + **섹터별 미세 변주**.
+    //    램프 하한 0.22: 폭이 좁으면 발광에 씻겨 면이 통째로 한 값으로 뭉갠다(비평가 ②). 밑동 28% 구간을
+    //    한 번 더 눌러 접지를 만든다 — 접지는 데칼보다 **밑동 자체의 암부**가 먼저 만든다.
+    //    ⚠️ **색상은 그늘의 R 을 올려서 만든다 — 광부의 R 을 올리면 안 된다**(끝이 분홍으로 뜬다).
+    //       그늘 R 을 더 낮추는 것도 안 된다(R≈0 이면 색이 시안축에 못박혀 색상각이 전 구간 고정된다).
+    //    이 재질은 발광체라 `applyVoxAmbient`/`applyShadeLift` 대상이 아니다(암부가 애초에 없다) —
+    //    그래서 `vxProp` 을 쓰지 않고 `crystalMat` 을 그대로 물린다.
+    // ⑺ **클러스터를 메시 1개로** — 결정 6기(주상 3 + 밑동 파편 3)를 넣고도 드로우콜은 1이다.
+    //    결정마다 따로 굽고 `mergeGeos` 로 합친다(합쳐 굽지 않는 이유는 `parts` 주석 참고).
     // ⚠️ **난수를 `U.rand`(전역 RNG)에서 뽑지 않는다** — `sculptFoliage` 와 같은 이유다. 소비량이 바뀌면
     //    시드 고정 대조 캡처(`shot-biomes.js`)의 뒤쪽 프롭 배치가 통째로 밀린다. 내부 카운터를 쓴다.
-    //    (이번 교체로 마법 바이옴의 U.rand 소비량 자체가 줄어 magic 캡처의 배치는 한 번 어긋난다 — 예상된 것.)
     crystalGeo(s) {
         let n = (this._crystalSeq = (this._crystalSeq || 0) + 1) * 131.7;
         const rnd = () => { n = Math.sin(n * 12.9898 + 78.233) * 43758.5453; n -= Math.floor(n); return n; };
         const R = (a, b) => a + (b - a) * rnd();
-        const pos = [], col = [];
-        // 명도만 갈면 면들이 전부 같은 색의 무광 램프가 된다("면 간 hue 차 0" — 비평가 ③).
-        // 그늘은 푸른 보라로, 빛 받는 쪽은 청록으로 **색온도까지** 갈라 준다. 두 틴트 모두 최대 성분이
-        // 1.0 이라 vertexColors(=albedo 에 곱해짐)가 1 을 넘지 않는다.
-        // ⚠️ 🚨 **색상은 그늘의 R 을 올려서 만든다 — 광부의 R 을 올리면 안 된다.** 두 번 틀렸다:
-        //    ⑴ 광부에 R 을 넣었더니 청록 결정 끝이 **분홍**으로 떴다. ⑵ 되돌리며 그늘의 R 을 더 낮췄더니
-        //    (0.70) 어두운 절반의 R 이 3~21/255 로 짓눌려 **색상각이 전 구간 187° 로 고정**됐다
-        //    (비평가 실측 Δ2°) — R≈0 이면 색은 G–B 평면(시안축)에 못박혀 어떤 색상도 발생하지 않는다.
-        //    명도가 낮은 그늘에 R 을 넣으면 분홍이 아니라 **보라**로 읽힌다. 목표: 최암 ≥198° · 최명 ≤180°.
-        //    ⑶ 그래서 그늘 R 을 1.90 까지 올려 봤다 — **되돌렸다.** 이 알베도(0x1a7286, R=0.10)에서는
-        //    R 을 1.9 배 해도 0.19 라 색상은 거의 안 움직이는데(그늘의 색상은 emissive 가 지배한다),
-        //    **명암 대비만 무너진다**(음영 기울기 실측 0.639 → 0.280, 격리 캡처에서도 눈에 띄게 납작해졌다).
-        //    ⇒ **결론: 이 재질에서 버텍스 컬러만으로는 색상각을 못 만든다.** 색상을 갈고 싶으면 먼저
-        //    emissive 를 더 낮추고 몸통 albedo 자체를 푸른 쪽으로 옮겨야 한다(다음 세션 몫, TODO 메모 참조).
+        // s 하나당 칸 수. 🚨 **삼각형 수가 GRID² 에 비례한다 — 눈으로 고르지 말고 예산으로 고를 것.**
+        // 결정은 가늘어서(r/h ≈ 0.17) 표면적이 작아 보이지만 **바이옴당 26~37기**가 서기 때문에 씬 총합에
+        // 그대로 곱해진다. 실측(마법 바이옴 씬 전체 삼각형, 전환 전 92,967 · 초원 대조군 124,281):
+        //   GRID 26 → 280,569(3.0배, 기각) · 16 → 160,859 · **14 → 141,069(채택)** · 12 → 126,452.
+        // 14 면 주상 결정 한 기가 높이 16칸 · 밑동 반경 2.7칸이라 섹터 변조(⑵)가 실루엣에 남는다.
+        // 12 로 더 내리면 단면이 마름모로 뭉개져 ⑵ 가 사라진다.
+        // (아래 두 결정 — 격자 정규화 +7% · 면 단위 중복 제거 +4% — 을 반영한 **최종 157,379**, 초원의 1.26배.)
+        const GRID = 14;
+        // 섹터(=주상면) 수. 석영의 육방 습성 그대로 6 — 넓은 면/좁은 면이 3쌍 교대한다.
+        // ⚠️ 8 이상으로 올리지 말 것: 밑동 반경이 2~3칸이라 섹터가 칸보다 잘아져 변조가 격자에 묻힌다.
+        const SEC = 6;
+        // 그늘은 푸른 보라, 빛 받는 쪽은 청록으로 **색온도까지** 가른다(명도만 갈면 무광 램프가 된다).
         const TC = [0.70, 0.80, 1.00], TL = [0.86, 1.00, 0.97];
-        const push = (p, sh, k) => {
-            pos.push(p.x, p.y, p.z);
-            // 틴트 R 이 1 을 넘으므로 채널마다 1.0 으로 자른다 — vertexColors 는 albedo 에 곱해진다.
-            for (let q = 0; q < 3; q++) col.push(Math.min(1, sh * (TC[q] + (TL[q] - TC[q]) * k)));
+        // 램프 상한. 1.0 로 두지 않는 건 큐브 윗면(N·L 최대)에 정점 색 1.0 + 발광이 겹치는 자리를
+        // 미리 눌러 두기 위해서다. ⚠️ **순백 클리핑의 범인은 이 램프가 아니다 — 스페큘러였다.**
+        //    한 런을 여기에 썼으니 다시 밟지 말 것: 1.00→0.86→0.80→0.76 으로 내려도 ⑦ 이 단조롭게
+        //    안 움직였고(측정 자체가 그때는 난수 미고정이라 0.00~6.43% 로 널뛰었다), 난수를 고정한 뒤
+        //    A/B 로 잡아 보니 **스페큘러만 0 으로 두면 흰 화소가 0**, 발광만 0 으로 두면 거의 그대로였다.
+        //    → 실제 처방은 `crystalMat.specular` 를 낮춘 것이다(재질 정의부 주석 참고). 여기는 0.76 유지.
+        const RAMP = 0.76;
+        const colOf = (k, f) => {
+            const root = 0.55 + 0.45 * Math.min(1, k / 0.28);
+            // 🚨 섹터 변주 `f` 는 **더한다 — 곱하기로 바꾸지 말 것(2026-08-20 A/B 로 되돌렸다).**
+            //    "밑동에서 하한 0.16 에 잘리니 곱셈이 낫다"는 추측으로 `* (1 + f)` 를 넣어 봤는데 ④ 가
+            //    0.0133 → **0.0094 로 더 나빠졌다**. 이유: 밑동 램프가 0.22 라 곱셈은 거기서 절대 변동이
+            //    ±0.048 밖에 안 되는데, 가산은 잘리고도 ±0.1 이 남는다. 밑동 링에서 재는 지표라 절대값이 이긴다.
+            const sh = Math.max(0.16, Math.min(RAMP, (0.40 + (RAMP - 0.40) * Math.pow(k, 0.8)) * root + f));
+            let hex = 0;
+            for (let q = 0; q < 3; q++) {
+                hex = (hex << 8) | Math.round(Math.min(1, sh * (TC[q] + (TL[q] - TC[q]) * k)) * 255);
+            }
+            return hex;
         };
-        const tri = (a, b, c, sa, sb, sc, ka, kb, kc) => { push(a, sa, ka); push(b, sb, kb); push(c, sc, kc); };
-        // 큰 것 하나가 지배하고 나머지가 받치는 구성 — 같은 키 3개는 '삼지창'으로 읽힌다.
-        // [높이계수, x, z]  ⚠️ 반경은 상수로 주지 않는다 — 아래에서 **높이에 비례**시킨다.
+        // 큰 것 하나가 지배하고 나머지가 받치는 구성 — 같은 키 3개는 '삼지창'으로 읽힌다. [높이계수, x, z]
         const plan = [
             [1.06, 0.00, 0.00], [0.78, -0.21, 0.11], [0.58, 0.20, -0.15],
             [0.30, -0.27, -0.21], [0.24, 0.29, 0.17], [0.18, 0.06, 0.27],
         ];
-        const KINK = 0.105;   // 6° — 쌍끼리 반대로 꺾어 한 '면'을 값이 다른 두 띠로 가른다.
-        // ⚠️ 3° 로는 두 반쪽의 명도차가 루마 4 미만이라 화면에서 한 면으로 뭉친다(최장 평탄 런 51px).
-        const m = new THREE.Matrix4(), e = new THREE.Euler();
-        const v = new THREE.Vector3();
-        let tall = 0;
-        const parts = [];   // 결정별 정점 구간 + 배치 행렬 — 합친 뒤에도 개체 단위로 잴 수 있게 남긴다(probe-crystal-sculpt)
-        // 🚨 **큰 자리(랜드마크 s=3.3)는 결정을 키우는 게 아니라 늘린다.** 한 기를 그대로 키우면
-        //    개체 하나가 거대해져 ⑴ 면 하나의 폭이 그대로 커지고(flatShading 이라 그 폭만큼 화면에서
-        //    민짜다 — 비평가 실측 평탄 런 42px, 중경은 13px) ⑵ 프레임 상단에 잘려 종단 뿔이 화면에
-        //    한 번도 안 나온다. **면을 더 쪼개는 것은 답이 아니다** — 54면쯤 가면 결정이 아니라 원기둥이다.
-        //    실제 수정 노두도 큰 결정 하나가 아니라 중간 결정 여러 기가 뭉친 모양이다.
         const clumps = s > 2.2 ? [[0, 0, 0.62], [0.62, 0.34, 0.50], [-0.55, 0.46, 0.43], [0.16, -0.52, 0.38]]
             : [[0, 0, 1]];
-        for (let ck = 0; ck < clumps.length; ck++) {
-        const [cx0, cz0, hs] = clumps[ck];
-        for (let ci = 0; ci < plan.length; ci++) {
-            const vStart = pos.length / 3;
-            const [hk, px0, pz0] = plan[ci];
-            const px = px0 + cx0, pz = pz0 + cz0;
-            const h = hk * hs * R(0.95, 1.25) * s;
-            // ⚠️ **반경을 높이에 종속시킨다.** 상수 반경(rk×s)으로 주면 키 작은 개체까지 전부 같은 굵기라
-            //    중경·원경에서 세장비가 무너져 '바늘'이 양산된다(비평가 ①: 중경 39~55px 개체가 다수).
-            //    비율을 규칙으로 못 박는다 — 주상 결정 r/h 0.150~0.185, 밑동 파편은 짧고 굵게 0.22~0.30.
-            const rBase = h * (ci < 3 ? R(0.150, 0.185) : R(0.22, 0.30));
-            // 파편일수록 크게 눕는다(밑동에서 사방으로 뻗어 나온 인상). ⚠️ 주상 결정도 **반드시 눕힌다** —
-            // 전부 수직이면 클러스터가 '울타리 말뚝'으로 읽힌다(비평가 ②: "중심 x가 50행 동안 154.0 고정").
-            const tilt = ci < 3 ? R(0.06, 0.30) : R(0.22, 0.5);
-            const dir = R(0, Math.PI * 2);
-            e.set(Math.cos(dir) * tilt, R(0, Math.PI * 2), Math.sin(dir) * tilt);
-            m.makeRotationFromEuler(e);
-            m.setPosition(px * s, -0.04 * s, pz * s);   // 밑동을 지면 아래로 살짝 묻는다
-            const xf = p => p.applyMatrix4(m).clone();
-            // 면마다 다른 반경·어깨높이 — 여기서 정육각형을 깨야 결정으로 읽힌다
-            const rj = [], sy = [], fShade = [];
-            // ⚠️ 반경을 **균등 난수만**으로 흔들면 6면뿐이라 표본이 적어 가끔 거의 정육각형이 나온다
-            //    (첫 판 실측: 30개 중 최소 변동계수 0.058 — 게이트 0.06 미달). 석영의 주상면이 실제로
-            //    넓은 면/좁은 면이 교대로 나는 것을 그대로 쓴다 — 교대 패턴이 비대칭 하한을 보장한다.
-            //    교대 위상은 결정마다 뒤집는다(넓은 면이 어디서 시작하느냐 = 습성의 회전) — 위상까지 같으면
-            //    단면이 결정마다 거의 똑같아져 개체차가 게이트 밑으로 떨어진다(실측 0.0376 → 0.0980).
-            const flip = rnd() < 0.5 ? 1 : 0;
-            // ⚠️ **면 수를 반경에 종속시킨다.** 반경을 높이 비례로 바꾼 뒤로 **가장 큰 개체가 가장 넓은
-            //    민짜 면**을 얻어 버렸다 — 비평가 실측: 평탄면 최장 가로 런이 중경 13px 인데 랜드마크
-            //    결정만 42px(한 행 41px 이 사실상 한 값). 굵을수록 더 쪼개야 같은 밀도로 읽힌다.
-            // ⚠️ flatShading 은 면 하나에 값 하나다 — 화면에서 '한 값으로 이어지는 가로 폭'은 곧
-            //    **면의 투영 폭**이다. 그래서 계단이 아니라 반경에 **연속으로** 비례시킨다(랜드마크 s=3.3 → 23면).
-            //    ⚠️ 반드시 **짝수**여야 한다 — 킹크가 쌍 단위라 홀수면 한 바퀴 도는 지점에서 패턴이 깨진다.
-            const SIDES = Math.max(6, Math.min(32, Math.round((6 + rBase * 36) / 2) * 2));
-            const pairMode = SIDES > 6;   // 8·12면은 **쌍**이 하나의 주상면 — 넓은/좁은 교대는 쌍 단위로 준다
-            for (let j = 0; j < SIDES; j++) {
-                const pi = pairMode ? (j >> 1) : j;
-                rj.push(((pi + flip) % 2 ? 1.16 : 0.86) * R(0.86, 1.17));
-                sy.push(R(0.88, 1.12)); fShade.push((rnd() - 0.5) * 0.15);
+        // 🚨 **칸 크기는 `s` 가 아니라 '이 클러스터의 가장 큰 결정'이 정한다.** 랜드마크는 한 기를 키우는
+        //    대신 **작은 덩이 여러 개**로 늘리므로(⑸), `u = s/GRID` 로 두면 s 만 커지고 개체는 안 커져
+        //    **개체당 칸 수가 반토막**난다 — 실측(s=3.3): 최고 결정이 16칸이 아니라 10칸, 밑동 파편은
+        //    4칸까지 내려가 클러스터 전체가 '네모 토막 더미'로 읽혔다(캡처로 확인). 최대 clump 계수로
+        //    나눠 두면 어느 배율에서도 **가장 큰 결정이 항상 GRID 칸 남짓**이라 해상도가 일정하다.
+        const hsMax = Math.max.apply(null, clumps.map(c => c[2]));
+        const u = s * hsMax / GRID;
+        // 격자 밑면(층 0 의 아랫면)을 −0.04s 에 앉힌다 — 밑동을 살짝 묻어야 접지가 산다.
+        // `Voxel.build(center:false)` 는 칸 **중심**을 격자 좌표에 놓으므로 반 칸을 더해 준다.
+        const GY = 0.5 * u - 0.04 * s;
+        const items = [], parts = [];
+        // 🚨 **겹침은 '칸'이 아니라 '면'에서 지운다 (2026-08-20 실측으로 뒤집은 설계).**
+        //    첫 판은 겹친 **칸**을 먼저 온 결정에게 주고 뒤엣것에서 뺐다. 렌더 결과는 같지만(빠진 칸은
+        //    어차피 남의 몸 속이다) **판정이 무너진다** — 뒤엣 결정의 윗동이 통째로 빠져 `probe-crystal-sculpt`
+        //    ⑧ 이 "실루엣 반경이 절반 높이에서 0 으로 꺼진다"고 읽었다(실측 sk 0.50, 조형은 멀쩡했다).
+        //    클러스터는 **서로 파고드는 게 설계**라(옛 매끈 판도 원뿔들이 관통했다) 결정마다 껍질이
+        //    온전해야 개체 단위로 잴 수 있다. 그래서 칸은 그대로 두고, 합칠 때 **완전히 같은 자리·같은
+        //    법선의 삼각형**만 걷어낸다 — z-파이팅의 실제 조건이 그것뿐이다(맞닿은 두 칸은 법선이 반대라
+        //    뒷면 컬링으로 갈린다). 아래 `dedupeFaces` 가 그 일을 한다.
+        const seenFace = new Set();
+        const dedupeFaces = (g) => {
+            const P = g.attributes.position.array, N = g.attributes.normal.array, C = g.attributes.color.array;
+            const keep = [];
+            for (let t = 0; t < P.length; t += 9) {
+                const k = Math.round((P[t] + P[t + 3] + P[t + 6]) / 3 * 2000) + ',' +
+                    Math.round((P[t + 1] + P[t + 4] + P[t + 7]) / 3 * 2000) + ',' +
+                    Math.round((P[t + 2] + P[t + 5] + P[t + 8]) / 3 * 2000) + '|' +
+                    Math.round(N[t]) + ',' + Math.round(N[t + 1]) + ',' + Math.round(N[t + 2]);
+                if (seenFace.has(k)) continue;
+                seenFace.add(k); keep.push(t);
             }
-            // 기둥 → 뿔 전이 높이. ⚠️ **종단 뿔은 전체 높이의 25% 를 넘지 않는다** — 0.58~0.74 로 두면
-            // 뿔이 실루엣의 26~42% 를 먹어 중경에서 어깨가 통째로 소실되고 다시 원뿔로 읽힌다.
-            const shoulder = h * R(0.76, 0.85);
-            const taper = R(0.80, 0.97);                 // 기둥은 살짝만 좁아진다(원뿔과 갈리는 지점)
-            const r0 = [], r1 = [], apex = xf(v.set(rBase * R(-0.25, 0.25), h, rBase * R(-0.25, 0.25)));
-            for (let j = 0; j < SIDES; j++) {
-                // 쌍끼리 ±3° 킹크 — 두 반쪽이 살짝 다른 방향을 봐서 flatShading 이 값을 갈라 준다.
-                // 실루엣은 거의 안 바뀌고 면 안쪽에만 꺾임이 생긴다(넓은 판을 끊는 게 목적).
-                const ang = (j / SIDES) * Math.PI * 2 + (pairMode ? (j % 2 ? KINK : -KINK) : 0);
-                const rb = rBase * rj[j];
-                r0.push(xf(v.set(Math.cos(ang) * rb, 0, Math.sin(ang) * rb)));
-                r1.push(xf(v.set(Math.cos(ang) * rb * taper, shoulder * sy[j], Math.sin(ang) * rb * taper)));
+            if (keep.length * 9 === P.length) return g;
+            const np = new Float32Array(keep.length * 9), nn = new Float32Array(keep.length * 9), nc = new Float32Array(keep.length * 9);
+            keep.forEach((t, i) => {
+                np.set(P.subarray(t, t + 9), i * 9); nn.set(N.subarray(t, t + 9), i * 9); nc.set(C.subarray(t, t + 9), i * 9);
+            });
+            const out = new THREE.BufferGeometry();
+            out.setAttribute('position', new THREE.BufferAttribute(np, 3));
+            out.setAttribute('normal', new THREE.BufferAttribute(nn, 3));
+            out.setAttribute('color', new THREE.BufferAttribute(nc, 3));
+            g.dispose();
+            return out;
+        };
+        let tall = 0, vOff = 0;
+        for (const [cx0, cz0, hs] of clumps) {
+            for (let ci = 0; ci < plan.length; ci++) {
+                const [hk, px0, pz0] = plan[ci];
+                const hW = hk * hs * R(0.95, 1.25) * s;
+                const hC = Math.max(4, Math.round(hW / u));                       // 칸 단위 높이
+                const rC = Math.max(1.6, hC * (ci < 3 ? R(0.150, 0.185) : R(0.22, 0.30)));
+                // 어깨 = 전체의 76~85%. 🚨 상한을 `hC - 2` 로 두면 안 된다 — 종단 뿔에 최소 2칸을 요구하는
+                // 셈이라 **키가 4~5칸인 개체에서 어깨가 절반까지 내려온다**(실측 0.500, ⑧ 게이트 0.72 미달).
+                // `hC - 1` 로 두면 그런 개체는 뿔이 아예 없는 **뭉툭한 파편**이 되는데, 밑동 부스러기는
+                // 원래 '부러진 결정'이라 그 편이 조형적으로도 맞다(뾰족한 1칸 침보다 낫다).
+                const shC = Math.max(2, Math.min(hC - 1, Math.round(hC * R(0.76, 0.85))));
+                const taper = R(0.80, 0.97);                                      // 기둥은 살짝만 좁아진다
+                const az = R(0.74, 1.00), flat = rnd() < 0.5;                     // 단면을 한 축으로 눌러 원을 깬다
+                // 파편일수록 크게 눕는다(밑동에서 사방으로 뻗어 나온 인상).
+                const tilt = ci < 3 ? R(0.06, 0.30) : R(0.22, 0.50);
+                const dir = R(0, Math.PI * 2);
+                const lx = Math.cos(dir) * Math.tan(tilt), lz = Math.sin(dir) * Math.tan(tilt);
+                const rmul = [], fs = [];
+                const ph = rnd() < 0.5 ? 0 : 1;   // 넓은 면이 어디서 시작하나 = 습성의 회전(결정마다 뒤집는다)
+                for (let j = 0; j < SEC; j++) {
+                    rmul.push(((j + ph) % 2 ? 1.16 : 0.86) * R(0.88, 1.14));
+                    // 섹터 변주 폭. 옛 판은 ±0.075 였는데 복셀에서는 한 섹터가 **여러 칸**을 공유해
+                    // 같은 값이 반복되므로 밑동 링의 색 sd 가 게이트(0.012) 바로 밑(0.0117)까지 떨어졌다 —
+                    // 면 수가 준 만큼 폭을 넓혀 갚는다(실측: ±0.075 → 0.0117 미달 · ±0.12 → 0.0133 · **±0.15 → 여유**).
+                    fs.push((rnd() - 0.5) * 0.24);
+                }
+                const bx = Math.round((px0 + cx0) * GRID), bz = Math.round((pz0 + cz0) * GRID);
+                const vox = [];
+                for (let y = 0; y < hC; y++) {
+                    const k = hC > 1 ? y / (hC - 1) : 1;
+                    const rr = y <= shC ? rC * (1 + (taper - 1) * (y / shC))              // 주상부
+                        : rC * taper * Math.max(0, 1 - (y - shC) / (hC - shC));           // 종단 뿔
+                    // 계단 기울임 — 층 **중심 높이**(y+0.5)로 밀어야 전단(shear)과 반 칸 어긋나지 않는다.
+                    const ox = bx + Math.round(lx * (y + 0.5)), oz = bz + Math.round(lz * (y + 0.5));
+                    const m = Math.floor(rr * 1.2) + 1;
+                    const lay = [];
+                    for (let x = -m; x <= m; x++) for (let z = -m; z <= m; z++) {
+                        const si = ((Math.floor((Math.atan2(z, x) + Math.PI) / (Math.PI * 2) * SEC) % SEC) + SEC) % SEC;
+                        const rx = rr * rmul[si] * (flat ? 1 : az), rz = rr * rmul[si] * (flat ? az : 1);
+                        if (rx < 0.5 || rz < 0.5) continue;
+                        const dx = x / rx, dz = z / rz;
+                        if (dx * dx + dz * dz > 1.0000001) continue;
+                        lay.push({ x: ox + x, y, z: oz + z, c: colOf(k, fs[si]) });
+                    }
+                    if (!lay.length) lay.push({ x: ox, y, z: oz, c: colOf(k, fs[0]) });   // 종단은 한 칸으로 닫는다
+                    for (const v of lay) vox.push(v);
+                }
+                if (!vox.length) continue;
+                let geo = Voxel.build(vox, {
+                    size: u, color: 0xffffff, jitter: 0.05, ao: 0.9, center: false, material: this.crystalMat,
+                }).geometry;
+                geo.translate(0, GY, 0);
+                geo = dedupeFaces(geo);
+                if (!geo.attributes.position.count) continue;
+                // 🚨 **결정마다 따로 굽는 이유는 `parts` 다.** 판정기(`probe-crystal-sculpt`)는 결정 하나씩
+                //    자기 축에서 재야 하므로 정점 구간 [start, count) 이 결정 단위로 끊겨 있어야 한다.
+                //    한 번에 구우면 `Voxel.faces` 가 복셀 순서로 면을 뱉어도 가려진 면이 빠져 구간이 안 맞는다.
+                //    드로우콜은 `mergeGeos` 로 되돌리므로(⑺) 비용은 그대로 1이다.
+                // ⚠️ 배치 행렬은 **월드 단위 전단(shear)** 이다 — 계단 기울임을 판정기가 inv 로 되돌려
+                //    결정 자기 축에서 잴 수 있게. 실제 격자는 층마다 반올림되므로 최대 반 칸의 잔차가 남는다.
+                const mat = new THREE.Matrix4().set(
+                    1, lx, 0, bx * u,
+                    0, 1, 0, -0.04 * s,
+                    0, lz, 1, bz * u,
+                    0, 0, 0, 1);
+                parts.push({
+                    start: vOff, count: geo.attributes.position.count,
+                    h: hC * u, rBase: rC * u, shoulder: shC * u, mat: mat.elements.slice(),
+                });
+                vOff += geo.attributes.position.count;
+                items.push([geo]);
+                tall = Math.max(tall, hC * u);
             }
-            // 높이 그라디언트 × **루트 암부** + 면 변주 — vertexColors 는 albedo 에 곱해지므로 1.0 을 넘기지 않는다.
-            // 램프 하한을 0.50 → 0.22 로 내렸다: 첫 판은 폭이 좁아(0.50~1.00) 발광에 씻기면 면이 통째로
-            // 한 값으로 뭉갰다(비평가 ②: "70픽셀 내내 L=203 동일"). 밑동 28% 구간은 한 번 더 눌러
-            // 지면과 만나는 지점을 어둡게 — 접지는 접지 데칼보다 **밑동 자체의 암부**가 먼저 만든다.
-            const sh = (y, f) => {
-                const k = Math.min(1, Math.max(0, y / h));
-                const root = 0.55 + 0.45 * Math.min(1, k / 0.28);
-                return Math.max(0.16, Math.min(1, (0.40 + 0.60 * Math.pow(k, 0.8)) * root + f));
-            };
-            const shoulderShade = j => sh(shoulder * sy[j], fShade[j]);
-            const kh = y => Math.min(1, Math.max(0, y / h));   // 색온도 보간용 정규화 높이
-            const kS = j => kh(shoulder * sy[j]);
-            for (let j = 0; j < SIDES; j++) {
-                const k = (j + 1) % SIDES;
-                const f = fShade[j];
-                const b0 = sh(0, f), b1 = sh(0, fShade[k]);
-                // ⚠️ 감기 방향 — three.js 는 CCW 가 앞면이다. 각도 증가 순(r0[j]→r0[k])으로 감으면 법선이
-                //    **안쪽**을 봐서 옆면이 통째로 컬링돼 결정이 뚫려 보인다. 역순으로 감는다(밑면만 정순).
-                tri(r1[k], r0[k], r0[j], shoulderShade(k), b1, b0, kS(k), 0, 0);              // 주상면 ⑴
-                tri(r1[j], r1[k], r0[j], shoulderShade(j), shoulderShade(k), b0, kS(j), kS(k), 0); // 주상면 ⑵
-                const ft = Math.min(1, sh(h, f) + 0.08);                        // 종단면은 한 단 밝게
-                tri(apex, r1[k], r1[j], ft, shoulderShade(k), shoulderShade(j), 1, kS(k), kS(j)); // 추면
-                if (j >= 2) tri(r0[0], r0[j], r0[k], b0 * 0.72, b0 * 0.72, b1 * 0.72, 0, 0, 0); // 밑면(눕는 파편이 있어 막는다)
-            }
-            parts.push({ start: vStart, count: pos.length / 3 - vStart, h, rBase, shoulder, mat: m.elements.slice() });
-            tall = Math.max(tall, h);
         }
-        }
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
-        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
-        geo.computeVertexNormals();
+        const geo = this.mergeGeos(items);
         geo.userData.tall = tall;
         geo.userData.parts = parts;
         return geo;
