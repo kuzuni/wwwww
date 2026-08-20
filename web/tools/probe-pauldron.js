@@ -138,7 +138,14 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
                 .addScaledVector(az, Math.sin(a) * off)
                 .addScaledVector(up, -0.05);
             rc.set(origin, up);
-            const hs = rc.intersectObject(shoulder, true).filter(h => !h.object.userData.isOutline);
+            // 🚨 **팔 쪽 파츠를 맞은 건 '막힘'이 아니다 (2026-08-20 추가).** 옛 링은 종잇장(0.079~0.0814)
+            //    이라 조준 반경이 상완 바깥(0.0802 > 0.0712)에 있었고, 그래서 팔을 맞을 일이 없어
+            //    이 필터가 없어도 견갑만 판정했다. voxel 링은 두께가 1칸 미만이면 끊기므로 안쪽으로
+            //    파고들 수밖에 없고, 그러면 조준 반경이 팔 안으로 들어와 **팔이 구멍을 막아 주는 것을
+            //    '견갑이 막혔다'로 오독**한다. → 상완·패딩 소매를 맞은 건 버린다. 옛 조형에서는
+            //    조준 반경이 원래 팔 밖이라 이 필터가 있어도 값이 안 변한다(재현 확인함).
+            const armSide = o => { for (let p = o; p; p = p.parent) if (p.userData.part === 'upperArm' || p.userData.part === 'armPad') return true; return false; };
+            const hs = rc.intersectObject(shoulder, true).filter(h => !h.object.userData.isOutline && !armSide(h.object));
             hits.push(hs.length ? +(hs[0].distance).toFixed(4) : null);
         }
         const open = hits.filter(h => h === null).length;

@@ -1176,14 +1176,23 @@ const ProChar = {
             const capPts = [];
             for (const [r, y] of [[0.005, 0.062], [0.043, 0.058], [0.077, 0.047], [0.101, 0.026], [0.110, 0.002], [PR, -0.020]])
                 capPts.push(new THREE.Vector2(r, y));
-            const pCap = new THREE.Mesh(new THREE.LatheGeometry(capPts, 14), steel());
+            // 🧊 **캡 voxel 전환** — 라테 회전체 → 같은 프로파일 숫자를 **칸으로 환산한** 큐브 회전체.
+            //    실루엣을 다시 디자인하지 않는다는 게 이 전환의 전제라 위 capPts 는 한 자도 안 바꾼다.
+            //    `center: false` 로 굽고 밑단(프로파일 최저 y)을 직접 맞춘다 — center 를 쓰면 층 수
+            //    반올림에 따라 중심이 움직여 밴드 체인의 기준점(lastY)이 흔들린다.
+            const CAP_BASE = -0.020;                // capPts 의 최저 y = 캡 밑단
+            let capVox = Voxel.revolve(capPts.map(v => [this.vr(v.x), (v.y - CAP_BASE) / this.VOX]));
+            // 두께 판독 — 맨 아랫층을 **곱셈 계수**로 어둡게 굽는다(규약 ⑸). 옛 `pCapLine`(캡 안감)이
+            // 하던 일이고, 그 가짜 안감은 지웠다: voxel 캡은 속이 차 밑면이 실재하는데 매끈한 안감을
+            // 계단진 겉면 안에 두면 칸 반올림(최대 반 칸 = 0.008)에 그대로 뚫고 나온다(요크에서 겪은 것).
+            { const b = Voxel.bounds(capVox).y0; capVox = Voxel.recolor(capVox, v => (v.y === b ? 0x4a4a4a : 0xffffff)); }
+            const pCap = this.voxPart(capVox, steelVox, { center: false });
             // 🏷 **본체 판(라메) 표식** — `probe-pauldron` ② 가 이 태그로 판만 쥐고 **구워진 정점에서**
             //    실루엣 반폭 프로파일을 잰다. 림(장식 테)·안감·아웃라인은 태그가 없어 빠진다.
             //    태그는 이름표일 뿐이고 치수는 정점에서 나온다(설계 상수를 읽는 자 함정 회피).
             pCap.userData.part = 'pauldronPlate';
-            const pCapLine = new THREE.Mesh(new THREE.LatheGeometry(
-                capPts.map(v => new THREE.Vector2(v.x * 0.95, v.y - 0.004)), 14), deepLine); // 캡 안감(두께)
-            pauldronG.add(pCap, pCapLine);
+            pCap.position.y = CAP_BASE + this.VOX * 0.5;   // 칸 y=0 의 **밑면**을 캡 밑단에 맞춘다
+            pauldronG.add(pCap);
             // 라메 밴드 2겹 — 반경비 0.85 · 0.72, 각 장 14° 씩 바깥-아래 누적 회전.
             // 회전을 누적시키려고 밴드를 **중첩 그룹 체인**으로 단다(부모 장의 기울기를 물려받아야
             // '한 장씩 꺾여 흘러내리는' 판이 된다 — 형제로 달면 각도만 다른 링 3개가 되어 아코디언 그대로다).
@@ -1212,28 +1221,42 @@ const ProChar = {
                 seg.rotation.z = side * LAME_TILT;
                 node.add(seg);
                 const rt = lastR * 0.98, rb = PR * ratio; // 위는 앞 장 밑단에 맞물리고 아래로 좁아진다
-                const band = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, hh, 14, 1, true), steel());
+                // 🧊 **밴드 voxel 전환** — 열린 원통 → 큐브 판. **속을 비우지 않는다.**
+                //    처음엔 라메가 실제로 튜브라 `{t: 1.5}` 로 벽만 세웠는데, 접사(`shot-pauldron`)에서
+                //    **뚫린 속이 그대로 보였다** — 캡 밑단보다 라메 윗면이 기울기 보정만큼 올라와 있어
+                //    안쪽 고리 면이 노출되고, 그 구멍으로 패딩 소매가 비친다. 그게 비평가 A 가 지적한
+                //    "속이 비어 있는 원뿔 = 갓등" 바로 그 그림이라 되돌렸다. voxel 판은 속이 차 있어야
+                //    한다(규약 ⑸) — 상완은 그 속에 묻히고, 라메 밑으로 다시 나온다.
+                //    높이는 **내림**으로 칸을 잡는다(0.024·0.020 → 각 1칸). 반올림이면 2칸이 돼 드리움이
+                //    0.008 늘어나는데, 드리움은 상완 노출 구간을 그대로 먹는다(`probe-upperarm` ①).
+                const hCells = Math.max(1, Math.floor(hh / this.VOX));
+                const bandVox = Voxel.taper(this.vr(rb), this.vr(rt), hCells);
+                const band = this.voxPart(bandVox, steelVox, { center: false });
                 band.userData.part = 'pauldronPlate';
-                band.position.y = -hh / 2;
-                // 안감은 DoubleSide(deepLine)라 열린 밑단으로 올려다볼 때 어두운 속이 보인다 — 판금 두께
-                const bandIn = new THREE.Mesh(new THREE.CylinderGeometry(rt * 0.95, rb * 0.95, hh * 1.04, 14, 1, true), deepLine);
-                bandIn.position.y = -hh / 2;
-                // 밑단 림 — 밴드 경계마다 밝은 금속 테. 구의 매끈한 그라디언트를 가로로 끊는 실질 요소.
-                const rim = new THREE.Mesh(new THREE.TorusGeometry(rb, 0.0075, 5, 16), steelDark());
-                rim.rotation.x = Math.PI / 2;
-                rim.position.y = -hh;
-                seg.add(band, bandIn, rim);
-                node = seg; lastR = rb; lastY = -hh;
+                band.position.y = -(hCells - 0.5) * this.VOX;   // 맨 **윗면**을 앞 장 밑단(=seg 원점)에 맞춘다
+                seg.add(band);
+                node = seg; lastR = rb; lastY = -hCells * this.VOX;
             }
             // 밑면 캡 (A 의 "밑면 캡이 없어 내부 면이 보인다") — 마지막 라메 밑단을 니어블랙 링으로 막는다.
             // 원판이 아니라 **링**인 이유: 가운데로 상완이 지나가므로 원판이면 팔을 뚫고 나온 판으로 보인다.
             // 안쪽 반경은 굵어진 상완(0.073)보다 살짝 크게 잡아 팔이 링을 관통하지 않게 한다.
-            const pFloor = new THREE.Mesh(new THREE.RingGeometry(0.079, lastR, 14), deepLine);
+            // 🧊 밑면 마개 — **링이 아니라 원판**이고, 라메 스택의 **맨 아래 한 층**이다.
+            //    ⑴ 옛 링(0.079~0.0814)은 두께 0.0024 = 0.15칸이라 그대로 옮기면 끊긴 점선이 된다
+            //       (voxel.js `ring` 주석: t < 1칸이면 링이 끊긴다) → 원판으로 바꾼다. 가운데는 상완이
+            //       지나가지만 상완이 더 굵어(0.0712 > 마개 안쪽) 묻히므로 '팔을 뚫고 나온 판'으로 안 보인다.
+            //    ⑵ 색은 니어블랙 **칸 색 계수**로 낸다 — 옛 `deepLine` 은 bumpMap 을 물고 있어 uv 없는
+            //       voxel 에 붙이면 한 텍셀만 샘플링돼 무늬가 아니라 단색 곱셈이 된다(규약 ⑶).
+            //    ⑶ 이 한 층이 곧 옛 `rim`(밴드 밑단 밝은 테)의 대응이기도 하다 — 별도 메시 없이
+            //       라메 밑단에 명암 띠가 생긴다(어깨당 드로우콜 4개 감소: 안감2·림2).
+            //    🚨 드리움 예산: 라메 1칸 + 1칸 + 마개 1칸 = 0.048. 이 위로 한 칸만 더 늘려도
+            //       `probe-upperarm` ①(노출/지름 ≥0.55)이 떨어진다 — 실측으로 0.495 까지 갔었다.
+            const pFloor = this.voxPart(
+                Voxel.disc(this.vr(lastR), 1, 0x3c3c3c), steelDarkVox, { center: false });
             pFloor.userData.part = 'pauldronFloor';  // ③ 이 타입(RingGeometry)이 아니라 이 태그로 찾는다
-            pFloor.rotation.x = Math.PI / 2;         // 아래를 향하게
-            pFloor.position.y = lastY - 0.001;
+            pFloor.position.y = lastY - this.VOX * 0.5;   // 칸 y=0 의 **윗면**을 마지막 라메 밑단에 맞춘다
             node.add(pFloor);
-            const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.019, 6, 5), gold);
+            // 🧊 리벳 — 구(6×5) → 큐브 보석. 작은 알은 `ball` 이 그냥 큐브로 보여서 `gem`(45° 계단)이 낫다.
+            const rivet = this.voxPart(Voxel.gem(this.vr(0.019), 0xffffff), goldVox);
             rivet.position.set(side * 0.012, 0.080, 0); // 캡 꼭대기 리벳 (셸 상단 0.062 + 견갑 y 0.012 위)
             // 견갑 안쪽-상완 경계 접촉 그림자 — 견갑 밑단이 −0.133 → −0.061 로 올라왔으므로 같이 올린다.
             // ⚠️ 종전 y −0.03 은 밑단보다 **한참 위**라 판금 속에 묻혀 있었다(경계에 그림자가 없었다).
