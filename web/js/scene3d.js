@@ -20175,6 +20175,28 @@ const Scene3D = {
     //           벨 때마다 불티·충격링·흔들림 → 벤 자국이 잠깐 남았다 지워진다.
     // ⚠️ 초승달은 **카메라를 향해** 세워야 '벴다'로 읽힌다. 월드 축에 고정하면 옆에서 본 얇은
     //    판이 돼 프레임에 따라 사라진다 — `lookAt(camera)` 로 매번 카메라에 맞춘다.
+    // 초승달 복셀 지오메트리(캐시·바깥 반지름 ≈1 정규화) — 🧊 매끈 부분 RingGeometry → 계단 호.
+    // 호 끝으로 갈수록 안쪽 반지름을 올려 **날의 배**(가운데 두껍고 끝이 뾰족)를 만든다 — 균일 띠였던
+    // 종전보다 오히려 초승달에 가깝다. 'blade'(±0.62rad·배 두껍게) / 'core'(±0.5rad·가는 흰 날).
+    voxCrescentGeo(part) {
+        const key = part === 'core' ? '_voxCrescentCore' : '_voxCrescentBlade';
+        if (!this[key]) {
+            const R = 10, vox = [];
+            const half = part === 'core' ? 0.5 : 0.62;
+            for (let gx = -R; gx <= R; gx++) for (let gy = -R; gy <= R; gy++) {
+                const d = Math.hypot(gx, gy);
+                if (d > R + 0.45 || d < 1) continue;
+                const ang = Math.atan2(gy, gx);
+                if (Math.abs(ang) > half) continue;
+                const u = (Math.abs(ang) / half) ** 2;         // 0=배(가운데) … 1=호 끝
+                const rIn = part === 'core' ? (8.6 + u * 0.9) : (7.0 + u * 2.2);
+                if (d >= rIn - 0.45) vox.push({ x: gx, y: gy, z: 0 });
+            }
+            // center:false — 피벗이 호의 원 중심(원점)이어야 rotateZ/슬라이드가 종전 RingGeometry 와 같게 돈다
+            this[key] = Voxel.build(vox, { size: 1 / R, color: 0xffffff, jitter: 0.08, ao: 0, center: false }).geometry;
+        }
+        return this[key];
+    },
     slashArcs(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
@@ -20189,16 +20211,18 @@ const Scene3D = {
             for (let i = 0; i < n; i++) {
                 setTimeout(() => {
                     const R = (0.85 + pw * 0.5) * (i === n - 1 ? 1.25 : 1);   // 마지막 한 번이 가장 크다
-                    // 초승달 = 부분 링(RingGeometry 의 thetaLength). 안쪽을 두껍게 해 날의 배가 생긴다.
-                    const g = new THREE.RingGeometry(R * 0.74, R, 26, 1, -0.62, 1.24);
-                    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0,
+                    // 🧊 초승달 = 복셀 계단 호(voxCrescentGeo 캐시 — 반지름 1 정규화라 스케일에 R).
+                    const mat = new THREE.MeshBasicMaterial({ color, vertexColors: true, transparent: true, opacity: 0,
                         side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
-                    const arc = new THREE.Mesh(g, mat);
+                    const arc = new THREE.Mesh(this.voxCrescentGeo('blade'), mat);
+                    arc.scale.setScalar(R);
                     arc.userData.slashArc = true;
                     // 흰 코어를 겹쳐 날을 세운다 — 색 하나면 '색 띠'로, 코어가 있으면 '날'로 읽힌다
-                    const core = new THREE.Mesh(new THREE.RingGeometry(R * 0.86, R * 0.96, 26, 1, -0.5, 1.0),
-                        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0,
+                    const core = new THREE.Mesh(this.voxCrescentGeo('core'),
+                        new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, transparent: true, opacity: 0,
                             side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+                    core.scale.setScalar(R);
+                    arc.userData.sharedGeometry = core.userData.sharedGeometry = true;   // 캐시 지오 — dispose 금지
                     const G = new THREE.Group();
                     G.add(arc, core);
                     G.position.copy(at);
@@ -20219,7 +20243,7 @@ const Scene3D = {
                         mat.opacity = a * 0.95;
                         core.material.opacity = a;
                     }, () => {
-                        G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+                        G.traverse(o => { if (o.isMesh) { if (!o.userData.sharedGeometry) o.geometry.dispose(); o.material.dispose(); } });
                         this.scene.remove(G);
                     });
                     // 벤 순간의 반응 — 불티는 날이 지나가는 축과 **직교**로 튀어야 '잘렸다'가 된다
