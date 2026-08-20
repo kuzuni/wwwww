@@ -13989,7 +13989,15 @@ const Scene3D = {
             //    — 원은 그 사이를 지나므로 대각에서 실루엣 밖으로 튀어나온다. 반경을 대각의
             //    최소 외곽까지 내린다(×0.9). `probe-enemy-ao` 의 '후프 유출 0' 이 이 선을 지킨다.
             aoSkirt([[0.099, 0.16], [0.09, 0.22], [0.117, 0.32], [0.144, 0.38]], { op: 0.62, seg: 10 });
-            aoRing(0.128, 0.025, 0, 0.02, 0, { flat: 0.35, op: 0.44 });   // 밑동 접지
+            // 밑동 접지 — 🚨 **범인은 스커트가 아니라 이 링이었다(`probe-enemy-ao-split` 로 분리 확인).**
+            //    스커트를 두 번 줄여도 유출이 안 사라져 자를 바꿔 봤더니, 스커트는 전 배율에서 유출 0 이고
+            //    이 링만 1.00 배에서 1px 을 냈다. **합계만 보고 큰 쪽을 의심하면 엉뚱한 걸 줄인다** —
+            //    유출이 나면 먼저 `probe-enemy-ao-split` 으로 링을 갈라 볼 것.
+            //    ⚠️ 0.90 배(바깥 반경 0.1375)도 **경계값이라 런마다 0~1px 을 오갔다.** 구조적으로 잡으려면
+            //    **바깥 반경(r+tube)을 복셀 줄기의 '대각' 외곽 안**에 넣어야 한다 — 이 높이의 줄기는 3칸
+            //    반경이라 축 외곽 0.175 vs **대각 외곽 ≈0.106** 이다. r+tube = 0.105 로 맞추고 기여는
+            //    크기가 아니라 `op` 로 되찾는다(박쥐에서 세운 규칙과 같다).
+            aoRing(0.086, 0.019, 0, 0.02, 0, { flat: 0.35, op: 0.9 });
             anim.cap = capG; anim.hop = true;
             // ── 갓 테두리 플랩 — 돔 정점을 중심에서 먼 순서로 늦게 처지게 한다(우산 살 2차 모션).
             // ⚠️ 돔만 흔들면 테두리 립·주름살이 제자리에 남아 갓이 두 조각으로 갈라진다 —
@@ -14010,111 +14018,108 @@ const Scene3D = {
             }
             body = capG; topY = 0.9;
         } else if (kind === 'wolf') {
-            // 사족 맹수 리그 재작성(비평가 3위 결함 '미구현 늑대'): 흉곽→골반 테이퍼 몸통 + 목/쐐기 두상 + 가슴 러프 + 2관절 다리 + 3분절 꼬리
-            const furM = lam(base, ProChar.hideTex());
-            const furD = lam(base.clone().offsetHSL(0, 0.02, -0.22), ProChar.hideTex()); // 대비 강화 — 단색 클레이 오독 방지
-            const furL = lam(base.clone().offsetHSL(0.01, -0.06, 0.27), ProChar.hideTex()); // 배·러프·꼬리끝 명확한 라이트 톤
-            // 몸 덩어리가 전부 **완전구를 눌러 만든 타원체**라 '회색 캡슐 조립'으로 읽혔다(ⓒ).
-            // 골렘처럼 각지게 깎으면 '수정 늑대'가 되므로 저주파·저진폭 유기 변형만 건다.
-            const oSp = (r, w, h, seed, amp) => this.sculptOrganic(new THREE.SphereGeometry(r, w, h), seed, { amp });
-            body = mk(oSp(0.19, 12, 9, 2, 0.10), furM);           // 흉곽 (앞이 크고)
-            body.position.set(0, 0.42, 0.12); body.scale.set(0.9, 0.92, 1.25);
-            const hind = mk(oSp(0.16, 11, 8, 3, 0.10), furM);     // 골반 (뒤가 작게)
-            hind.position.set(0, 0.4, -0.22); hind.scale.set(0.82, 0.85, 1.1);
-            const belly = mk(new THREE.CylinderGeometry(0.155, 0.13, 0.34, 10), furM); // 연결 몸통
-            belly.rotation.x = Math.PI / 2; belly.position.set(0, 0.41, -0.05);
-            belly.scale.set(0.9, 1, 0.92);
-            const ruff = mk(oSp(0.15, 10, 8, 4, 0.15), furL);     // 앞가슴 밝은 러프 털 — 털뭉치라 진폭을 크게
-            ruff.position.set(0, 0.38, 0.26); ruff.scale.set(0.85, 0.8, 0.7);
-            const neckW = mk(new THREE.CylinderGeometry(0.085, 0.105, 0.18, 9), furM);
+            // 🧊 **voxel 전환 7종째(마지막): 늑대.** 사족 맹수 리그 — 흉곽→골반 테이퍼 몸통 + 목/쐐기
+            //    두상 + 가슴 러프 + 2관절 다리 4개 + 3분절 꼬리. 부위·비례·애니 훅(`anim.legs`/`knees`/
+            //    `tail`)·AO 링 5개 자리는 그대로 옮긴다. 빌더 공용 `vmat`/`vBase`/`gv`/`vlimb` 만 쓴다.
+            // 🚨 `sculptOrganic` 은 뺀다 — ⓒ('완전구를 쓰지 마라')가 겨눈 결함이 복셀에서는 구조적으로
+            //    사라지고, 변형을 걸면 칸이 격자에서 밀려나 **면이 축정렬을 잃는다**(화풍 위반).
+            const furM = vmat(vBase.clone());
+            const furD = vmat(vBase.clone().offsetHSL(0, 0.02, -0.22)); // 대비 강화 — 단색 클레이 오독 방지
+            const furL = vmat(vBase.clone().offsetHSL(0.01, -0.06, 0.27)); // 배·러프·꼬리끝 명확한 라이트 톤
+            const vsp = (rx, ry, rz, m) => vx(Voxel.ellipsoid(gv(rx), gv(ry), gv(rz)), { material: m, color: 0xffffff, center: true });
+            body = vsp(0.19 * 0.9, 0.19 * 0.92, 0.19 * 1.25, furM);   // 흉곽 (앞이 크고)
+            body.position.set(0, 0.42, 0.12);
+            const hind = vsp(0.16 * 0.82, 0.16 * 0.85, 0.16 * 1.1, furM); // 골반 (뒤가 작게)
+            hind.position.set(0, 0.4, -0.22);
+            const belly = vsp(0.155 * 0.9, 0.145, 0.17, furM);        // 연결 몸통
+            belly.position.set(0, 0.41, -0.05);
+            const ruff = vsp(0.15 * 0.85, 0.15 * 0.8, 0.15 * 0.7, furL); // 앞가슴 밝은 러프 털
+            ruff.position.set(0, 0.38, 0.26);
+            const neckW = vx(Voxel.taper(gv(0.105), gv(0.085), 4), { material: furM, color: 0xffffff, center: true });
             neckW.position.set(0, 0.52, 0.3); neckW.rotation.x = -0.7;
             g.add(body, hind, belly, ruff, neckW);
             const headW = new THREE.Group();                                   // 쐐기 두상 + 테이퍼 주둥이
             headW.position.set(0, 0.6, 0.38);
-            const skullW = mk(oSp(0.105, 11, 8, 5, 0.06), furM);   // 눈이 상대 배치라 진폭을 낮게
-            skullW.scale.set(1.24, 0.92, 1.05); // x 확폭 2차 — 1.12로도 3/4 각도에서 흰자+호박 홍채가 실루엣 밖 '유니콘 뿔'로 돌출 (비평가 7.1 14번)
-            const muzzleM = lam(base.clone().offsetHSL(0.005, -0.04, 0.14), ProChar.hideTex()); // 주둥이 전용 중간 톤 — 순백 러프색은 '붙임 데칼'로 읽힘 (비평가)
-            const snout = mk(new THREE.CylinderGeometry(0.048, 0.075, 0.16, 8), muzzleM);
+            const skullW = vsp(0.105 * 1.24, 0.105 * 0.92, 0.105 * 1.05, furM);
+            const muzzleM = vmat(vBase.clone().offsetHSL(0.005, -0.04, 0.14)); // 주둥이 전용 중간 톤 — 순백 러프색은 '붙임 데칼'로 읽힘 (비평가)
+            const snout = vx(Voxel.taper(gv(0.075), gv(0.048), 3), { material: muzzleM, color: 0xffffff, center: true });
             snout.rotation.x = Math.PI / 2; snout.position.set(0, -0.02, 0.14);
-            const bridge = mk(oSp(0.045, 8, 6, 8, 0.07), furD); // 콧등 다크 스트라이프 — 밝은 주둥이와 톤 분리 (비평가: 주둥이가 두상에 뭉개짐)
-            bridge.position.set(0, 0.03, 0.12); bridge.scale.set(0.8, 0.5, 2.1);
+            const bridge = vsp(0.045 * 0.8, 0.045 * 0.5, 0.045 * 2.1, furD); // 콧등 다크 스트라이프 — 밝은 주둥이와 톤 분리
+            bridge.position.set(0, 0.03, 0.12);
             headW.add(bridge);
-            const noseW = mk(new THREE.SphereGeometry(0.028, 7, 6), new THREE.MeshBasicMaterial({ color: 0x1d2126 }));
+            const noseW = vx(Voxel.box(1, 1, 1), { material: new THREE.MeshBasicMaterial({ color: 0x1d2126, vertexColors: true }), color: 0xffffff, center: true, ao: 0, jitter: 0 });
             noseW.position.set(0, -0.005, 0.22);
-            const jawW = mk(new THREE.BoxGeometry(0.07, 0.03, 0.11), furD);
+            const jawW = vx(Voxel.box(1, 1, 2), { material: furD, color: 0xffffff, center: true });
             jawW.position.set(0, -0.07, 0.1);
             headW.add(skullW, snout, noseW, jawW);
-            for (const s of [-1, 1]) { // 드러난 송곳니 — 맹수 인상
-                const fang = mk(new THREE.ConeGeometry(0.012, 0.035, 5), new THREE.MeshLambertMaterial({ color: 0xf5efdd }));
-                fang.position.set(s * 0.032, -0.055, 0.185); fang.rotation.x = Math.PI;
+            const fangM = vmat(new THREE.Color(0xf5efdd), { roughness: 0.55 });
+            for (const s of [-1, 1]) { // 드러난 송곳니 — 맹수 인상. 한 칸 큐브(원뿔은 0.24칸이라 사라진다)
+                const fang = vx(Voxel.box(1, 1, 1), { material: fangM, color: 0xffffff, center: true, ao: 0, jitter: 0 });
+                fang.position.set(s * 0.032, -0.055, 0.185); fang.scale.set(0.45, 0.7, 0.45);
                 headW.add(fang);
             }
+            const earInM = vmat(new THREE.Color(0x272c36));
             for (const s of [-1, 1]) {                                         // 쫑긋 삼각 귀 (안쪽 어두운 면)
-                const ear = mk(new THREE.ConeGeometry(0.045, 0.11, 5), furD);  // 다크 톤 — 밝은 귀가 역광에서 '흰 뿔'로 오독 (비평가 6.4 9번)
+                // ⚠️ 밑변 3칸 이상 · 3층 이상이라야 계단이 좁아지는 게 보여 삼각형으로 읽힌다(박쥐·임프 실측).
+                const ear = vx(Voxel.taper(1.0, 0.5, 3), { material: furD, color: 0xffffff, center: true }); // 다크 톤 — 밝은 귀가 역광에서 '흰 뿔'로 오독 (비평가 6.4 9번)
                 ear.position.set(s * 0.065, 0.12, -0.02); ear.rotation.set(-0.25, 0, s * -0.3);
-                const earIn = mk(new THREE.ConeGeometry(0.028, 0.08, 5), lam(new THREE.Color(0x272c36))); // 귀 안쪽 — 외이보다 한층 더 어둡게
+                const earIn = vx(Voxel.taper(0.6, 0.5, 2), { material: earInM, color: 0xffffff, center: true }); // 귀 안쪽 — 외이보다 한층 더 어둡게
                 earIn.position.set(s * 0.065, 0.11, -0.005); earIn.rotation.set(-0.25, 0, s * -0.3);
                 earIn.scale.z = 0.5;
                 headW.add(ear, earIn);
             }
             for (const s of [-1, 1]) { // 목덜미 갈기 술 — 늑대 실루엣 개성 (양·개 오독 방지)
-                const tuft = mk(new THREE.ConeGeometry(0.05, 0.13, 5), furD);
+                const tuft = vx(Voxel.taper(1.0, 0.5, 3), { material: furD, color: 0xffffff, center: true });
                 tuft.position.set(s * 0.1, 0.52, 0.24); tuft.rotation.set(0.8, 0, s * 0.9);
-                const tuft2 = mk(new THREE.ConeGeometry(0.04, 0.1, 5), furD);
+                const tuft2 = vx(Voxel.taper(0.8, 0.5, 2), { material: furD, color: 0xffffff, center: true });
                 tuft2.position.set(s * 0.13, 0.44, 0.28); tuft2.rotation.set(1.1, 0, s * 1.3);
                 g.add(tuft, tuft2);
             }
             g.add(headW);
-            eyes(0.645, 0.472, 0.072, 0.03, 'fierce', { iris: 0xe8b13c, glow: 0.25, tilt: -0.15, browColor: 0x3c414d, blushK: 0.62 }); // 흰자+호박 홍채 — 두상 안에 파묻어 배치(흰 뿔 오독 방지), 좌우 분리 유지
+            eyes(0.645, 0.472, 0.072, 0.03, 'fierce', { iris: 0xe8b13c, glow: 0.25, tilt: -0.15, browColor: 0x3c414d, blushK: 0.62 }); // 흰자+호박 홍채 — 두상 안에 파묻어 배치(흰 뿔 오독 방지)
             // 등 다크 새들 — 목덜미→엉덩이 한 흐름으로 세그먼트 경계(흉곽/연결통/골반 이음새) 은폐.
-            // ⚠️ 2026-08-18 까지 이 새들은 **만들어만 지고 `g.add()` 가 없어 화면에 한 번도 안 나왔다**(wolf-backstripe-dead).
-            //    죽어 있던 원래 값(구 r0.16 을 0.78/0.5/2.45 로 늘인 **한 덩어리**)을 그대로 붙이면 안 된다 —
-            //    등마루 상면을 z 를 따라 해석으로 떠 보면 흉곽 위(z 0.04~0.28)에서는 **1~3cm 파묻혀 안 보이고**,
-            //    반대로 뒤로는 몸이 끝난 z −0.40 까지 나가 그 높이의 **몸 반폭을 0.067 넘겨** 엉덩이 뒤 허공에
-            //    검은 덩어리로 뜬다. 한 덩어리로는 원리상 못 맞춘다 — 등마루가 z 0.12 에서 y 0.595 로 솟았다가
-            //    z −0.12 의 0.536 으로 꺼지는 곡선인데 타원체 상면은 중심 부근이 평평해 두 지점을 동시에 못 탄다.
-            //    그래서 마루를 **3분절로 따라가며 평균 +0.03 만 떠 있게** 맞췄다(구간 전체 +0.022~+0.038):
-            //    ⓐ 몸 자신의 털 노이즈(sculptOrganic ±10% → 흉곽 y 기준 ±0.016)보다 확실히 커야 몸이 새들을
-            //      뚫고 나와 얼룩덜룩해지지 않는다 ⓑ 옆폭은 그 높이의 몸 반폭보다 **항상 0.008 이상 좁게** 잡아
-            //      실루엣과 AO 링(probe-enemy-ao 늑대 5개)을 건드리지 않는다. 수치를 바꿀 땐 probe-wolf-saddle 로 재잴 것.
-            for (const [sy, sz, sr, kx, ky, kz, seed] of [
-                [0.527, 0.123, 0.140, 0.82, 0.71, 1.27, 6],    // 기갑~흉곽 마루
-                [0.518, 0.056, 0.120, 0.78, 0.73, 1.30, 16],   // 흉곽→연결통 이음새 (여기가 비면 이음새가 그대로 드러난다)
-                [0.495, -0.184, 0.115, 0.70, 0.66, 1.39, 26],  // 연결통→골반 이음새~엉덩이
+            // ⚠️ 2026-08-18 까지 이 새들은 **만들어만 지고 `g.add()` 가 없어 화면에 한 번도 안 나왔다**
+            //    (wolf-backstripe-dead). `probe-wolf-saddle` 이 ⓐ씬에 붙었나 ⓑ등마루 위에서 내리쏜
+            //    레이의 첫 히트가 새들인가 ⓒ화소가 실제로 어두워지나 ⓓ실루엣을 안 넓히나 를 본다.
+            // 🚨 **복셀 전환으로 y 를 다시 잡아야 한다** — 매끈 몸통은 정점이 이상적인 타원면 위에
+            //    있었지만 복셀 몸통의 등마루는 **칸 윗면(계단)**이라 최대 반 칸(0.025) 위로 올라온다.
+            //    종전 y 를 그대로 쓰면 새들이 등 속으로 들어가 ⓑ 가 떨어진다. 실측으로 +0.025 올렸다.
+            for (const [sy, sz, sr, kx, ky, kz] of [
+                [0.552, 0.123, 0.140, 0.82, 0.71, 1.27],    // 기갑~흉곽 마루
+                [0.543, 0.056, 0.120, 0.78, 0.73, 1.30],    // 흉곽→연결통 이음새 (여기가 비면 이음새가 그대로 드러난다)
+                [0.520, -0.184, 0.115, 0.70, 0.66, 1.39],   // 연결통→골반 이음새~엉덩이
             ]) {
-                const seg = mk(oSp(sr, 10, 8, seed, 0.07), furD); // 진폭은 몸(0.10)보다 낮게 — 띠가 조각조각 끊겨 보이지 않게
-                seg.position.set(0, sy, sz); seg.scale.set(kx, ky, kz);
+                const seg = vsp(sr * kx, sr * ky, sr * kz, furD);
+                seg.position.set(0, sy, sz);
                 seg.name = 'wolfSaddle';
                 g.add(seg);
             }
-            const bellyW = mk(oSp(0.13, 10, 8, 7, 0.09), furL); // 밝은 아랫배 — 투톤 코트
-            bellyW.position.set(0, 0.33, -0.02); bellyW.scale.set(0.8, 0.6, 1.6);
+            const bellyW = vsp(0.13 * 0.8, 0.13 * 0.6, 0.13 * 1.6, furL); // 밝은 아랫배 — 투톤 코트
+            bellyW.position.set(0, 0.33, -0.02);
             g.add(bellyW);
             // 2관절 다리 4개: 어깨/고관절 피벗 → 상퇴 → 하퇴 → 발 (달리기 사이클은 기존 anim.legs 인터페이스)
             for (const [lx, lz, front] of [[-0.11, 0.22, 1], [0.11, 0.22, 1], [-0.1, -0.24, 0], [0.1, -0.24, 0]]) {
-                const haunch = mk(oSp(front ? 0.072 : 0.088, 9, 7, 10 + lx * 37 + lz * 11, 0.11), furM); // 어깨/뒷다리 근육 덩어리 — 몸통-다리 이음새 은폐 ('로봇 다리' 오독 제거)
+                const hr = front ? 0.072 : 0.088;
+                const haunch = vsp(hr * 0.75, hr * 1.15, hr * 1.2, furM); // 어깨/뒷다리 근육 덩어리 — 몸통-다리 이음새 은폐
                 haunch.position.set(lx * 0.95, front ? 0.41 : 0.4, lz + (front ? 0.015 : -0.02));
-                haunch.scale.set(0.75, 1.15, 1.2);
                 g.add(haunch);
                 const leg = new THREE.Group();
                 leg.position.set(lx, 0.36, lz);
-                const upper = limb(0.05, 0.038, 0.18, furM);
+                const upper = vlimb(0.05, 0.038, 0.18, furM);
                 upper.rotation.x = front ? 0.12 : -0.2;
-                const lower = limb(0.034, 0.026, 0.17, furD);
+                const lower = vlimb(0.034, 0.026, 0.17, furD);
                 lower.position.y = -0.18; lower.rotation.x = front ? -0.1 : 0.32;
-                const paw = mk(oSp(0.045, 7, 6, 20 + lx * 29 + lz * 7, 0.08), furD); // 다크 삭스 발 — 색 분리
-                paw.position.set(0, -0.165, 0.025); paw.scale.set(1, 0.55, 1.35);
+                const paw = vsp(0.045, 0.045 * 0.55, 0.045 * 1.35, furD); // 다크 삭스 발 — 색 분리
+                paw.position.set(0, -0.165, 0.025);
                 lower.add(paw);
                 upper.add(lower);
                 leg.add(upper);
                 lower.userData.rx0 = lower.rotation.x; lower.userData.front = front; // 질주 무릎 굽힘 기준 포즈
                 // 다리가 몸통 실루엣 **밖으로 나오는 높이**에 두르고, leg 그룹에 매달아 질주할 때 같이 움직이게.
-                // ⚠️ 처음엔 근육 덩어리 높이(y 0.375)에 뒀는데 **0픽셀**이었다(probe-enemy-ao) — 흉곽 구가
-                //    (r 0.19×0.9=0.171) 그 높이의 |x|=0.11 을 통째로 덮는다. 몸통 반폭이 0.088 로 줄어드는
-                //    y≈0.27(=leg 로컬 −0.09)이 다리가 실제로 드러나는 첫 높이다.
-                // 다리 4개가 같은 호출이라 개별 튜닝이 불가능하다 — 가장 많이 새는 다리(5px)까지
-                // 한 번에 잡는 0.70 배를 쓴다(실측: 0.76 에서 그 다리가 0 이지만 여유가 없다).
-                aoRing(0.036, 0.010, 0, -0.09, 0, { flat: 0.55, op: 0.46, parent: leg });
+                // ⚠️ 링 4개가 각자로는 어느 배율에서도 유출 0 인데(`probe-enemy-ao-split` 실측)
+                //    **합계에서는 런에 따라 1px 이 샜다** — 유출은 가산적이지 않아 겹치는 화소가
+                //    임계(휘도 −6)를 넘긴다. 단독 최적값에서 한 눈금 물러난 0.90 배를 쓴다.
+                aoRing(0.0324, 0.009, 0, -0.09, 0, { flat: 0.55, op: 0.52, parent: leg });
                 (anim.knees = anim.knees || []).push(lower);
                 anim.legs.push(leg);
                 g.add(leg);
@@ -14123,16 +14128,16 @@ const Scene3D = {
             const tailG = new THREE.Group();
             tailG.position.set(0, 0.46, -0.33);
             tailG.rotation.x = 0.55;
-            // 꼬리 밑동 — 엉덩이 구 안에 파묻히지 않도록 **꼬리 축을 감는** 링으로(axis:'z') tailG 에 매단다.
+            // 꼬리 밑동 — 엉덩이 안에 파묻히지 않도록 **꼬리 축을 감는** 링으로(axis:'z') tailG 에 매단다.
             aoRing(0.072, 0.016, 0, 0, -0.03, { flat: 1, op: 0.46, axis: 'z', parent: tailG });
             let tPrev = tailG;
             for (let ti = 0; ti < 3; ti++) {
                 const holder = new THREE.Group();
                 holder.position.set(0, 0, -0.068); // 분절 간격 축소+세그 연장 — '구슬 체인' 오독 방지 (비평가 13번)
                 holder.rotation.x = -0.26;
-                const seg = mk(oSp(0.085 - ti * 0.011, 8, 6, 31 + ti * 13, 0.13), ti === 2 ? furL : furD); // 두툼한 브러시 꼬리 — 털이라 진폭 크게 — 질주 실루엣 방향성
+                const tr = 0.085 - ti * 0.011;
+                const seg = vsp(tr * 0.82, tr * 0.82, tr * 1.85, ti === 2 ? furL : furD); // 두툼한 브러시 꼬리
                 seg.position.z = -0.045;
-                seg.scale.set(0.82, 0.82, 1.85);
                 holder.add(seg);
                 tPrev.add(holder);
                 tPrev = holder;
