@@ -17,12 +17,20 @@
 //      뱅킹한 탈것)까지 '곡면'으로 세면 조형이 아니라 **배치**를 재게 된다. 우리가 묻는 건
 //      "이 덩어리가 큐브 적층인가"지 "지금 똑바로 놓였나"가 아니다.
 //
+//   ② **최장축 칸 수** = 그 덩어리가 큐브 **몇 개로** 깎였나. 사용자 지적의 나머지 절반이
+//      *"큐브가 너무 작고 촘촘해서 복셀 안 같음"* 인데 **축정렬 비율은 칸이 아무리 잘아도 100%** 라
+//      그 축을 전혀 못 잡는다(= ① 이 100% 여도 '복셀로 안 보인다'가 성립한다. 펫이 정확히 그 경우다).
+//      격자 피치를 지오메트리에서 역산해서(좌표 이웃 간격의 **중앙값**) 바운딩박스를 나눈다.
+//      🚨 **축정렬 99% 이상일 때만 인쇄한다.** 격자가 없는 곡면 조형은 이 값이 격자 피치가 아니라
+//      **곡면 분할 간격**이라 영웅 2860칸·게 1089칸 같은 **허수**가 나오고, 그걸 그대로 두면
+//      "칸이 잘다"로 오독된다 — 격자가 없는 것이지 칸이 잔 게 아니다. 그래서 n/a 로 비운다.
+//      📏 **참고 대역**: 이미 합격한 **프롭이 11~22칸**. 펫은 **26~35칸**으로 그 2~3배다.
+//
 // 무엇을 **안** 재는가 (한계를 먼저 못 박는다 — 이 숫자를 과신하지 말 것):
-//   ⓐ **칸 크기**는 안 본다. 사용자 지적의 절반은 *"큐브가 너무 작고 촘촘해서"* 인데, 축정렬 비율은
-//      칸이 아무리 잘아도 100% 가 나온다. 즉 **이 자가 100% 라도 '복셀로 안 보인다'가 성립한다.**
-//      칸 크기 축은 별도 자가 필요하다(아래 📌).
 //   ⓑ **스킬 이펙트**는 안 잰다 — 발동 순간에만 존재하는 파티클/스프라이트라 빌더를 정지 상태로
 //      부를 수가 없다. `skill-fx` 계열은 연속 프레임 캡처로 따로 봐야 한다.
+//   ⓒ **화면에서의 크기**는 안 본다 — 칸 수는 로컬 기준이라 그룹 스케일이 안 들어간다. 같은 20칸도
+//      멀리 놓이면 잘아 보인다. '화면에서 큐브가 몇 픽셀인가'는 캡처로 따로 볼 것.
 //
 // 판정: 기본은 **감사(리포트)** 라 항상 exit 0 이다. 카테고리가 실제로 전환된 뒤 그 슬러그가
 //   `VOXCON_MIN=<비율>` 로 게이트를 걸 수 있다(예: `VOXCON_MIN=99 node probe-voxel-consistency.js`
@@ -76,11 +84,58 @@ const MIN = process.env.VOXCON_MIN ? parseFloat(process.env.VOXCON_MIN) : null;
             });
             return { pct: total ? axis / total * 100 : 100, meshes };
         };
+        // **칸 굵기 축** — 사용자 지적의 나머지 절반("큐브가 너무 작고 촘촘해서 복셀 안 같음").
+        //   격자 피치를 지오메트리에서 **역산**한다: 축마다 서로 다른 좌표값을 모아 정렬하고
+        //   **이웃 간 간격의 중앙값**을 피치로 본다. 그 피치로 바운딩박스를 나누면 **"이 덩어리가
+        //   큐브 몇 개짜리인가"** 가 나온다 — 이게 '촘촘함'의 직접 지표다.
+        //   ⚠️ **최소 간격이 아니라 중앙값**을 쓴다. `Voxel.build` 는 칸마다 ±5% 크기 지터를 주고
+        //      (`jitter`), 베벨·서브칸 장식이 아주 작은 간격을 만든다 — 최소값을 쓰면 그 잡음이
+        //      피치가 돼 칸 수가 몇 배로 부풀어 오른다. 중앙값은 그 꼬리에 안 끌린다.
+        //   ⚠️ 로컬 기준이라 그룹 스케일(예: `headG.scale` 1.3)은 안 들어간다 — 우리가 묻는 건
+        //      "칸 몇 개로 깎았나"지 "화면에서 몇 픽셀인가"가 아니다.
+        const cellsAcross = (root) => {
+            const vals = [new Set(), new Set(), new Set()];
+            const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+            root.traverse(o => {
+                if (!o.isMesh || !o.geometry) return;
+                for (let p = o; p; p = p.parent) if (p.visible === false) return;
+                const pos = o.geometry.attributes && o.geometry.attributes.position;
+                if (!pos) return;
+                for (let i = 0; i < pos.count; i++) {
+                    const v = [pos.getX(i), pos.getY(i), pos.getZ(i)];
+                    for (let a = 0; a < 3; a++) {
+                        vals[a].add(Math.round(v[a] * 1e4) / 1e4);
+                        if (v[a] < lo[a]) lo[a] = v[a];
+                        if (v[a] > hi[a]) hi[a] = v[a];
+                    }
+                }
+            });
+            let best = null;
+            for (let a = 0; a < 3; a++) {
+                const s = [...vals[a]].sort((x, y) => x - y);
+                if (s.length < 3) continue;
+                const gaps = [];
+                for (let i = 1; i < s.length; i++) { const g = s[i] - s[i - 1]; if (g > 1e-5) gaps.push(g); }
+                if (!gaps.length) continue;
+                gaps.sort((x, y) => x - y);
+                const pitch = gaps[Math.floor(gaps.length / 2)];
+                const span = hi[a] - lo[a];
+                if (pitch > 1e-5 && span > 0) {
+                    const n = span / pitch;
+                    if (!best || n > best.cells) best = { cells: n, pitch };   // 가장 긴 축 = '몇 칸짜리 덩어리인가'
+                }
+            }
+            return best;
+        };
         const out = [];
         const add = (cat, name, root) => {
             if (!root) { out.push({ cat, name, pct: null, meshes: 0 }); return; }
-            const r = ratio(root);
-            out.push({ cat, name, pct: r.pct, meshes: r.meshes });
+            const r = ratio(root), ca = cellsAcross(root);
+            // 🚨 **칸 수는 축정렬이 성립할 때만 의미가 있다.** 곡면 조형은 좌표가 사실상 연속이라
+            //    '이웃 간격의 중앙값'이 격자 피치가 아니라 **곡면 분할 간격**이 된다 — 그대로 인쇄하면
+            //    영웅 2860칸·게 1089칸 같은 **허수**가 나와 "칸이 잘다"로 오독된다. 격자가 없는 것이지
+            //    칸이 잔 게 아니다. 그래서 축정렬 99% 미만이면 칸 수를 **아예 안 준다**.
+            out.push({ cat, name, pct: r.pct, meshes: r.meshes, cells: (ca && r.pct >= 99) ? ca.cells : null });
         };
         const want = c => !only || c === only;
 
@@ -120,7 +175,8 @@ const MIN = process.env.VOXCON_MIN ? parseFloat(process.env.VOXCON_MIN) : null;
         return out;
     }, ONLY);
 
-    const fmt = r => r.pct === null ? '  (빌더 없음)' : `${r.pct.toFixed(1).padStart(6)}%  (메시 ${r.meshes})`;
+    const fmt = r => r.pct === null ? '  (빌더 없음)'
+        : `${r.pct.toFixed(1).padStart(6)}%  · 최장축 ${r.cells === null ? '  n/a' : r.cells.toFixed(0).padStart(4) + '칸'}  (메시 ${r.meshes})`;
     const cats = [...new Set(rows.map(r => r.cat))];
     console.log('축정렬 법선 비율 — 100% = 완전한 큐브 적층 · 낮을수록 곡면 프리미티브가 남아 있다\n');
     let worst = [];
@@ -135,7 +191,9 @@ const MIN = process.env.VOXCON_MIN ? parseFloat(process.env.VOXCON_MIN) : null;
         if (rs.length > 6) console.log(`     … 그 외 ${rs.length - 6}종`);
         worst = worst.concat(rs.filter(r => MIN !== null && r.pct < MIN));
     }
-    console.log('\n※ 이 자는 **칸 크기를 안 본다** — 100% 여도 칸이 잘면 "복셀로 안 보인다"가 그대로 성립한다(머리말 ⓐ).');
+    console.log('\n※ 최장축 칸 수 = 그 덩어리가 큐브 몇 개로 깎였나(촘촘함 지표). **축정렬 99% 이상일 때만** 준다 —');
+    console.log('   격자가 없는 조형은 이 값이 격자 피치가 아니라 곡면 분할 간격이라 허수가 된다(n/a 로 비운다).');
+    console.log('   📏 참고 대역: 이미 합격한 **프롭이 11~22칸**. 펫은 26~35칸으로 그 2~3배라 "너무 잘다"는 지적과 맞는다.');
     console.log('※ 스킬 이펙트는 정지 상태로 못 부른다 — 연속 프레임 캡처로 따로 볼 것(머리말 ⓑ).');
     if (MIN !== null) {
         console.log(`\n게이트 VOXCON_MIN=${MIN}% → ${worst.length ? 'FAIL ' + worst.length + '종 미달' : 'PASS'}`);
