@@ -44,6 +44,7 @@ for p in \
     probe-tabx-clickable.js \
     probe-popup-close.js \
     probe-dim-tabbar.js \
+    probe-css-var-undefined.js \
     probe-arc-centered.js \
 ; do
     echo "── $p"

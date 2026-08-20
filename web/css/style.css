@@ -365,13 +365,18 @@ body {
 .bw-track { display: flex; width: max-content; animation: bwscroll 2.6s linear infinite; }
 .bw-track span {
     flex: none; white-space: nowrap; font-size: 1.5rem; font-weight: 900; letter-spacing: .14em;
-    color: #fff; text-shadow: 0 0 .45rem #ff1744, 0 0 1.2rem #ff1744, 0 2px 0 var(--olc);
+    /* ⚠️ 여기 `var(--olc)` 를 쓰지 말 것 — 그 변수는 `.equip-cell .cell-lv/.cell-star` 에만 정의돼 있어
+       여기서는 **선언 전체가 무효**가 되고 `text-shadow: none` 이 된다(= 빨간 글로우까지 통째로 죽는다).
+       2026-08-20 실측으로 확인: 이 규칙과 `.bw-sub`·`.chat-name` 셋 다 계산값이 `none` 이었다.
+       `--olc` 가 뜻하던 값(`rgba(0,0,0,.86)`)을 리터럴로 적는다. 판정기: `probe-css-var-undefined.js`. */
+    color: #fff; text-shadow: 0 0 .45rem #ff1744, 0 0 1.2rem #ff1744, 0 2px 0 rgba(0,0,0,.86);
 }
 /* ⓓ 한글 부제 — 배너가 영문 마퀴라 "무슨 일이 났는지"는 여기서 읽힌다 */
 .bw-sub {
     position: absolute; left: 0; right: 0; top: calc(var(--bw-top) + 2.5rem); text-align: center;
     font-size: .95rem; font-weight: 900; letter-spacing: .55em; text-indent: .55em;
-    color: #ffd54f; text-shadow: 0 0 .6rem rgba(255,23,68,.95), 0 2px 0 var(--olc); opacity: 0;
+    /* ⚠️ 위 `.bw-track span` 과 같은 건 — `var(--olc)` 는 여기서 미정의라 선언이 통째로 죽었다. */
+    color: #ffd54f; text-shadow: 0 0 .6rem rgba(255,23,68,.95), 0 2px 0 rgba(0,0,0,.86); opacity: 0;
     animation: bwsub var(--bw-dur, 2s) ease-out forwards;
 }
 @keyframes bwdim   { 0% { opacity: 0; } 8% { opacity: 1; } 76% { opacity: 1; } 100% { opacity: 0; } }
@@ -3254,9 +3259,14 @@ body {
 .chat-name, .chat-tag {
     /* 원본 외곽선은 **변당 2px**이다(비평가 C 실측: 이름 글자 띠 원본 15px vs 1px 외곽선 클론 11px).
        1px 8방향으로는 절반밖에 안 나오므로 2px 링을 겹쳐 두른다. */
-    text-shadow: -1px 0 var(--olc), 1px 0 var(--olc), 0 -1px #000, 0 1px #000,
+    /* ⚠️ 2026-08-20 실측 — 이 20겹 링은 **한 번도 그려진 적이 없다.** 가로 4겹에 쓰인 `var(--olc)` 가
+       `.equip-cell .cell-lv/.cell-star` 에만 정의된 변수라(같은 함정을 `eggcell-slotname-noshadow` 에서
+       이미 한 번 밟았다) **선언 전체가 무효**가 돼 계산값이 `text-shadow: none` 이었다. 원본 043500 의
+       닉네임은 주황 칠 + **또렷한 검정 키라인**이라, 나머지 16겹과 같은 리터럴 `#000` 으로 되살린다
+       (`--olc` 의 rgba(0,0,0,.86) 이 아니라 #000 인 이유: 이 링은 원래 solid 로 설계됐고 16겹이 이미 그렇다). */
+    text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000,
                  -1px -1px #000, 1px -1px #000, -1px 1px #000, 1px 1px #000,
-                 -2px 0 var(--olc), 2px 0 var(--olc), 0 -2px #000, 0 2px #000,
+                 -2px 0 #000, 2px 0 #000, 0 -2px #000, 0 2px #000,
                  -2px -1px #000, 2px -1px #000, -2px 1px #000, 2px 1px #000,
                  -1px -2px #000, 1px -2px #000, -1px 2px #000, 1px 2px #000;
 }
@@ -3308,7 +3318,13 @@ body {
     width: calc(var(--app-w) * .0882); height: calc(var(--app-w) * .0882); font-size: 1.5rem;
 }
 .chat-share-side small { font-weight: 800; }
-.chat-share-side small:last-child { color: #ff880f; }   /* 원본 전투력 수치는 주황 */
+/* 원본 전투력 수치는 주황 + 검정 키라인 — 043500 을 4배로 확대하면 `⚔4.1t` 이 같은 카드의
+   `승리`(`.chat-share-label`)와 **같은 테**를 두르고 있다(그 옆 검정 이름 `MilkMessiah` 만 민무늬).
+   그래서 굵기도 그 자와 같은 `--ol2` 로 맞춘다 — 한 카드 안에서 주황 글자의 테가 갈리면 안 된다. */
+.chat-share-side small:last-child {
+    color: #ff880f;
+    -webkit-text-stroke: var(--ol2) #000; paint-order: stroke fill;
+}
 .chat-share-side.lose { background: #cecece; }          /* 원본은 말풍선과 같은 회색이라 목록에 녹아든다 */
 .chat-share-avatar { position: relative; display: flex; }
 /* 원본(shot-043500) 실측 — `승리` 는 아바타 타일 **안**이 아니라 타일 하단 모서리에 **걸터앉는다**.

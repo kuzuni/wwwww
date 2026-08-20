@@ -48,6 +48,12 @@ function loadScreens(){const src=fs.readFileSync(path.join(__dirname,'shot-scree
       if((own.match(/[0-9A-Za-z가-힣]/g)||[]).length<1)continue;
       const s=getComputedStyle(el);
       const sw=parseFloat(s.webkitTextStrokeWidth)||0;
+      // 🚨 스트로크가 있다고 다 키라인이 아니다 — **칠과 같은 색 스트로크는 '굵기 보정'**이다.
+      //    `.chat-bubble`/`.chat-time` 이 `-webkit-text-stroke: .5px currentColor` 를 쓰는데(원본보다
+      //    획이 1px 얇아서 채운 것, 7차 비평가 실측), 이걸 키라인으로 세면 검정 칠 22개가 통째로
+      //    '뺄 것'으로 잡혀 **애써 맞춘 획 굵기를 도로 지우게 된다.** 색이 다를 때만 키라인으로 센다.
+      const sameHue=(a,b)=>{const p=x=>((x||'').match(/-?[\d.]+/g)||[]).slice(0,3).join(',');return p(a)===p(b);};
+      const keyline=sw>0&&!sameHue(s.webkitTextStrokeColor,s.color);
       const sh=s.textShadow||'none';
       const hardRing=sh!=='none'&&(sh.match(/0px 0px|0px -|-?\d+px 0px/g)||[]).length>=2;
       const m=(s.color||'').match(/-?[\d.]+/g)||[0,0,0];
@@ -60,7 +66,7 @@ function loadScreens(){const src=fs.readFileSync(path.join(__dirname,'shot-scree
         if((q.length>3?+q[3]:1)<0.5)continue;
         bg=0.2126*+q[0]+0.7152*+q[1]+0.0722*+q[2]; break;
       }
-      out.push({p:pathOf(el),has:sw>0||hardRing,sw,sh:sh.slice(0,60),ink:+ink.toFixed(0),bg:bg===null?null:+bg.toFixed(0),fs:+parseFloat(s.fontSize).toFixed(1),t:own.slice(0,14),color:s.color});
+      out.push({p:pathOf(el),has:keyline||hardRing,sw,sh:sh.slice(0,60),ink:+ink.toFixed(0),bg:bg===null?null:+bg.toFixed(0),fs:+parseFloat(s.fontSize).toFixed(1),t:own.slice(0,14),color:s.color});
     }
     return out;
   });
