@@ -1983,6 +1983,16 @@ IconGen._genderSym = function (ctx, S, female) {
     // 심볼 하나를 '발광 엠블럼'으로 렌더한다.
     //   ① 속성색 글로우(뒤) → ② 밝은 그라디언트 채움 → ③ 어두운 외곽선(밝은 오브 위 대비) → ④ 상단 하이라이트
     // pathFn(ctx, S) 는 beginPath 없이 서브패스만 추가한다(규약). 채움은 nonzero.
+    /* 평면 3단 채움의 단별 밝기 + 상단 하이라이트 알파 — **`tools/probe-emblem-core.js` 와 짝인
+       노브**다. 채도를 올리려면(㉢) 이 값을 내리고, 속살(38px 표시에서 루마 ≥110 인 화소 비율)이
+       34% 를 지키는 한도까지만 내려야 한다. 두 지표는 정면으로 상충한다 —
+       **키라인 .067 이 38px 에서 글리프 속을 파고들 때, 밝은 채움만이 안티에일리어싱 혼합 뒤에도
+       110 을 넘긴다.** 그래서 '가장 어둡게 하되 속살 게이트를 깨지 않는' 자리를 찾아 굳힌 값이다
+       (2026-08-20 UI 스트림이 `tools/sweep-emblem-step.js` 로 8조합을 실측해 고름).
+       ⚠️ 값을 바꾸면 **반드시 두 자를 같이** 돌릴 것: `probe-emblem-core.js`(속살 ≥34%) 와
+          `probe-skill-orb-ink.js`(잉크율·채도). 한쪽만 보면 반대쪽이 조용히 무너진다. */
+    G._EMBLEM_STEP = { top: 0.30, mid: 0.05, bot: -0.24, floorL: 116, gloss: 0.22, keyline: 0.067 };
+
     function emblem(ctx, S, color, pathFn, glow) {
         // ① 속성색 글로우 — 두 번 칠해 진하게. 밝은 오브에서 죽지 않도록 어두운 접지 그림자도 함께.
         ctx.save();
@@ -2000,11 +2010,41 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.beginPath(); pathFn(ctx, S); ctx.fill();
         ctx.beginPath(); pathFn(ctx, S); ctx.fill();
         ctx.restore();
-        // ② 본체 밝은 채움
+        /* ② 본체 채움 — **평면 3단(계단식)**. (2026-08-20 UI 스트림, 락 `icon-gen`)
+           종전엔 `#ffffff → _shade(color,.62) → _shade(color,.08)` 인 **부드러운 흰→색 그라디언트**
+           였다. 두 가지가 걸렸다:
+             ⓐ **화풍 위반** — 이 게임의 아이콘 화법은 `probe-icon-keyline` 머리말이 적어 둔 대로
+                '순검정 키라인 + **평면** 채움'이고, 재화 8종은 이미 그렇게 고쳐졌다(코인 주석 참조).
+                2026-08-20 확정 화풍(voxel+치비) ㉯㉰㉱ 도 **플랫/매트 · 제한 팔레트 · 계단식
+                픽셀 베벨**을 못 박고 **부드러운 그라디언트를 명시적으로 폐기**한다.
+                엠블럼 24종(스킬 18 + 기술 노드 6)만 옛 글로시 화법으로 남아 있었다.
+             ⓑ **미결 ㉢ 의 정체** — 비평가 A#3·B#5 가 '글리프 채움이 흰색 지배'라 지적했고
+                `probe-skill-orb-ink` 가 잉크 화소 평균 채도로 **원본 53.5% ↔ 클론 26.5%** 를 냈다.
+                원인은 스킬 색이 아니라 **이 그라디언트의 위쪽 절반**이다(그 자가 재는 표본이
+                오브 **위쪽**이라 흰 끝이 그대로 잡힌다) — 아래 ④ 흰 광택 덮개와 함께.
+           단은 위→아래 밝음→기본→어둠, 경계는 **같은 오프셋을 두 번 주어 하드 컷**으로 낸다.
+           🚨 **바닥단에 `_shade` 를 쓰지 말고 `_shadeFloor` 를 쓸 것** — `probe-emblem-core` 의
+              속살은 **루마 ≥110** 이고 스킬 색 중 `#ef5350`(종말의 화룡)은 루마가 116 뿐이라,
+              곱셈으로 어둡게 하면 바닥단이 통째로 속살에서 빠져 게이트(34%)를 깬다. 명도 바닥
+              116 을 두면 어두운 단을 주면서도 속살이 산다. */
         ctx.beginPath(); pathFn(ctx, S);
-        ctx.fillStyle = G._lin(ctx, 0, S * 0.14, 0, S * 0.9,
-            [[0, '#ffffff'], [0.5, G._shade(color, 0.62)], [1, G._shade(color, 0.08)]]);
+        const K = G._EMBLEM_STEP;
+        // `legacy: true` — **옛 글로시 화법 그대로**. 제품 경로에서는 절대 켜지 않는다.
+        // `tools/shot-emblem-ab.js` 가 옛/새를 같은 페이지에서 나란히 굽기 위한 문(門)이다:
+        // 노브만으로 흉내내면 부드러운 그라디언트를 재현할 수 없어 A/B 가 거짓 비교가 된다.
+        if (K.legacy) {
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.14, 0, S * 0.9,
+                [[0, '#ffffff'], [0.5, G._shade(color, 0.62)], [1, G._shade(color, 0.08)]]);
+            ctx.fill();
+        } else {
+        const _top = G._shade(color, K.top), _mid = G._shade(color, K.mid), _bot = G._shadeFloor(color, K.bot, K.floorL);
+        ctx.fillStyle = G._lin(ctx, 0, S * 0.14, 0, S * 0.9, [
+            [0, _top], [0.40, _top],
+            [0.40, _mid], [0.74, _mid],
+            [0.74, _bot], [1, _bot],
+        ]);
         ctx.fill();
+        }
         /* ③ 키라인 — **순검정**, 원본 실측 비로. (2026-08-19 UI 스트림)
            종전엔 `_shade(color,-0.64)` 인 **색조 파생 어두운 색** + `lineWidth 0.038` 이었다.
            원본(shot-042120)의 스킬 오브는 전부 쿨다운 상태라 글리프가 어둡지만, 유일하게 읽히는
@@ -2025,15 +2065,29 @@ IconGen._genderSym = function (ctx, S, female) {
               '테가 그림을 다 먹었다'를 절대 못 잡는다. 속살 검사기가 그 반대 방향 지표다. */
         ctx.beginPath(); pathFn(ctx, S);
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-        ctx.lineWidth = S * 0.067;
+        // 두께는 노브로 뺀다 — `probe-emblem-core` 가 **음성 대조**(일부러 테를 살찌워 속살
+        // 검사가 실제로 FAIL 하는지)를 돌리기 위한 자리다. 제품 기본값은 원본 실측 비 0.067.
+        ctx.lineWidth = S * (K.keyline || 0.067);
         ctx.strokeStyle = '#000';
         ctx.stroke();
-        // ④ 상단 하이라이트(클립)
+        /* ④ 상단 하이라이트 — **하드 컷 한 단**(클립). (2026-08-20 UI 스트림)
+           종전엔 `rgba(255,255,255,.9) → 투명` 을 글리프 위 절반(0.08S~0.54S)에 덮는 **부드러운
+           흰 광택**이었다. ㉢('흰색 지배')의 절반은 ② 그라디언트가 아니라 **이 덮개**다 —
+           맨 위가 알파 .9 라 어떤 색을 깔아도 그 자리는 사실상 순백이 된다(그래서 채도 지표가
+           원본의 절반으로 나왔다). 화풍 ㉯ 도 '글로시 광택 폐기'를 못 박는다.
+           대신 **위 22% 에 알파 .22 짜리 평면 띠 하나**만 둔다 — 그라디언트가 아니라 하드 컷이라
+           voxel 의 '윗면이 밝다' 읽기는 남기면서 흰색이 색을 덮지 않는다. 알파를 올리거나
+           그라디언트로 되돌리면 ㉢ 이 그대로 재발한다. */
         ctx.save();
         ctx.beginPath(); pathFn(ctx, S); ctx.clip();
-        ctx.fillStyle = G._lin(ctx, 0, S * 0.12, 0, S * 0.52,
-            [[0, 'rgba(255,255,255,.9)'], [1, 'rgba(255,255,255,0)']]);
-        ctx.fillRect(0, S * 0.08, S, S * 0.46);
+        if (K.legacy) {
+            ctx.fillStyle = G._lin(ctx, 0, S * 0.12, 0, S * 0.52,
+                [[0, 'rgba(255,255,255,.9)'], [1, 'rgba(255,255,255,0)']]);
+            ctx.fillRect(0, S * 0.08, S, S * 0.46);
+        } else {
+            ctx.fillStyle = 'rgba(255,255,255,' + K.gloss + ')';
+            ctx.fillRect(0, S * 0.08, S, S * 0.22);
+        }
         ctx.restore();
     }
 
