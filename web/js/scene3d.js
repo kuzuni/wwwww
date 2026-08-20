@@ -7767,6 +7767,29 @@ const Scene3D = {
                     { y: 7, rx: 4.9, rz: 2.9 }, { y: 9, rx: 4.7, rz: 2.6 },
                 ], cBody));
                 glow.push(...V.at(V.ball(2), 0, 17, 4));
+            } else if (variant === 3) { // 브레이서: 손등 + 짧은 손가락 + 팔뚝을 길게 덮는 보호대 + 밴드 2줄 (equip-build-acc)
+                body.push(...V.shell([
+                    { y: 10, rx: 4.6, rz: 2.3 }, { y: 14, rx: 5.4, rz: 2.5 }, { y: 18, rx: 5.2, rz: 2.2 },
+                ], cBody));
+                body.push(...fingers([4, 5, 4, 3], 18, cBody));
+                body.push(...thumb(-6, 13, 4, cBody));
+                // 팔뚝 보호대 — 아래로 길게 내려오는 통이 이 변형의 얼굴(장갑 셋과 실루엣이 세로로 갈린다)
+                body.push(...V.shell([
+                    { y: -8, rx: 5.6, rz: 3.4 }, { y: -3, rx: 5.2, rz: 3.1 },
+                    { y: 3, rx: 4.8, rz: 2.8 }, { y: 9, rx: 4.5, rz: 2.5 },
+                ], cBody));
+                for (const y of [-6, 0])
+                    body.push(...V.ellipse(5.9, 3.7, 1, { y0: y, color: cDark, rix: 4.6, riz: 2.6 }));
+                glow.push(...V.at(V.box(2, 2, 1), 0, -3, 3));   // 팔뚝 정면 스터드
+            } else if (variant === 4) { // 너클: 쥔 주먹 + 너클을 가로지르는 금속 바 + 스터드 4개 (equip-build-acc)
+                body.push(...V.shell([
+                    { y: 4, rx: 3.9, rz: 2.4 }, { y: 9, rx: 4.2, rz: 2.6 },
+                    { y: 14, rx: 5.6, rz: 3.4 }, { y: 19, rx: 6.0, rz: 3.7 }, { y: 22, rx: 4.8, rz: 3.0 },
+                ], cBody));
+                body.push(...thumb(-6, 14, 4, cBody));
+                body.push(...V.at(V.slab(13, 3, 4, cDark, 1), 0, 22, 1));   // 너클 바 — 주먹 꼭대기의 금속 판
+                for (let i = 0; i < 4; i++) glow.push(...V.at(V.box(2, 2, 1), -5 + i * 3, 22, 4));
+                body.push(...V.ellipse(4.6, 3.0, 2, { y0: 6, color: cDark, rix: 3.5, riz: 2.0 })); // 손목 스트랩
             } else { // 핸드랩: 쥔 주먹 + 비스듬히 감긴 붕대
                 // 손목까지 내려오는 한 덩이 — 붕대가 감길 몸통이 있어야 한다
                 const fist = [
@@ -7854,6 +7877,21 @@ const Scene3D = {
                     //    바꾸고 두께를 4칸 준다: `slab` 의 계단 베벨이 곧 팔각 단면이다.
                     glow.push(...V.at(V.rotX(V.slab(13, 4, 13, undefined, 4), 1), 0, U(0.27), U(0.04) - 2));
                     body.push(...V.at(upRing(U(0.198), U(0.056), U(0.09), cBody), 0, U(0.27), U(0.04)));
+                } else if (variant === 3) { // 로켓: 짧은 사슬 + 여닫는 사각 로켓함 (equip-build-acc)
+                    for (let i = 0; i < 3; i++) {
+                        const lk = V.ring(3, 1, 2, cBody);
+                        body.push(...V.at(i % 2 ? V.rotZ(V.rotX(lk, 1), 1) : V.rotX(lk, 1), 0, U(0.72) - i * U(0.078), U(0.02)));
+                    }
+                    body.push(...V.at(V.box(3, 3, 2, cDark), 0, U(0.72) - 3 * U(0.078) + 1, U(0.02))); // 경첩 고리 — 사슬과 함을 잇는다
+                    body.push(...V.at(V.slab(11, 13, 4, cBody, 2), 0, U(0.30), U(0.02)));               // 로켓함 몸체(넓적한 함)
+                    body.push(...V.at(V.box(7, 1, 2, cDark), -3, U(0.30), U(0.02) + 2));                // 여닫는 이음선
+                    glow.push(...V.at(V.gem(3), 0, U(0.30) + 3, U(0.02) + 3));                          // 전면 보석
+                } else if (variant === 4) { // 초커: 넓은 목띠 + 밑에 매달린 드롭 3개 (equip-build-acc)
+                    body.push(...V.at(upRing(11, 3, 7, cBody), 0, U(0.52), 0));
+                    // 드롭은 띠 아래 칸에 **면으로 물려야** 한다 — 떼면 허공 조각(부유 부속 함정)
+                    for (const dx of [-6, 6]) body.push(...V.at(V.box(2, 4, 2, cDark), dx, U(0.52) - 12, 0));
+                    body.push(...V.at(V.box(2, 2, 2, cDark), 0, U(0.52) - 12, 0));
+                    glow.push(...V.at(V.gem(4), 0, U(0.52) - 16, 0));
                 } else {                    // 펜던트: 사슬 고리가 세로로 이어지고 끝에 물방울
                     for (let i = 0; i < 5; i++) {
                         // 고리는 한 칸 걸러 90° 눕는다 — 실제 사슬이 그렇게 물린다.
@@ -7900,6 +7938,17 @@ const Scene3D = {
                     body.push(...V.at(upRing(rO, 3, 6, cBody), 0, yc, 0));
                     body.push(...V.at(V.slab(15, 5, 10, cBody, 3), 0, yc + rO - 1, 0));
                     glow.push(...V.at(V.slab(9, 1, 6, undefined, 2), 0, yc + rO + 3, 0));
+                } else if (variant === 3) { // 쌍줄 반지: 가는 밴드 2줄 + 꼭대기 브릿지 + 쌍보석 (equip-build-acc)
+                    const rO = 11;
+                    for (const dz of [-3, 3]) body.push(...V.at(upRing(rO, 2, 3, cBody), 0, yc, dz));
+                    body.push(...V.at(V.box(3, 2, 9, cDark), -1, yc + rO - 1, -4)); // 두 밴드를 잇는 브릿지 — 없으면 도넛 두 짝
+                    for (const dz of [-3, 3]) glow.push(...V.at(V.gem(3), 0, yc + rO + 2, dz));
+                } else if (variant === 4) { // 왕관 반지: 밴드 + 성곽식 총안 요철 크라운 (equip-build-acc)
+                    const rO = 10;
+                    body.push(...V.at(upRing(rO, 3, 5, cBody), 0, yc, 0));
+                    for (let i = 0; i < 5; i++)  // 총안 — 한 칸 걸러 높낮이가 갈리는 요철이 곧 왕관 실루엣
+                        body.push(...V.at(V.box(2, i % 2 ? 5 : 2, 4, cBody), -7 + i * 3, yc + rO - 1, -2));
+                    glow.push(...V.at(V.gem(3), 0, yc + rO + 4, 0));
                 } else {                    // 보석 반지: 얇은 밴드 + 발톱 물림쇠 + 높이 세운 큐브 보석
                     const rO = 11;
                     body.push(...V.at(upRing(rO, 2, 4, cBody), 0, yc, 0));
@@ -7962,11 +8011,15 @@ const Scene3D = {
                 ];
                 if (variant === 1) upper.push({ y: 15, rx: 2.5, rz: 2.7, z: -3 }, { y: 20, rx: 2.9, rz: 3.0, z: -3 });
                 else if (variant === 2) upper.push({ y: 16, rx: 2.7, rz: 2.9, z: -3 }, { y: 24, rx: 2.9, rz: 3.2, z: -3 });
+                else if (variant === 4) upper.push(   // 장화 — 무릎 아래까지 통이 올라간다 (equip-build-acc)
+                    { y: 16, rx: 2.8, rz: 3.0, z: -3 }, { y: 23, rx: 2.9, rz: 3.0, z: -3 }, { y: 29, rx: 3.1, rz: 3.2, z: -3 });
                 else upper.push({ y: 11, rx: 2.4, rz: 2.6, z: -2 });   // 구두는 발목에서 끝난다
-                vox.push(...V.shell(upper, cBody));
-                // 발가락 캡 — 밑창 앞코를 덮어 '깎인 단면'을 없앤다
-                vox.push(...V.at(V.ellipse(3.2, 3.6, 2, { color: cBody }), 0, 2, 5));
-                vox.push(...V.at(V.ellipse(2.4, 2.6, 1, { color: cBody }), 0, 4, 5));
+                if (variant !== 3) {   // 샌들(v3)은 갑피가 없다 — 밑창 + 스트랩만
+                    vox.push(...V.shell(upper, cBody));
+                    // 발가락 캡 — 밑창 앞코를 덮어 '깎인 단면'을 없앤다
+                    vox.push(...V.at(V.ellipse(3.2, 3.6, 2, { color: cBody }), 0, 2, 5));
+                    vox.push(...V.at(V.ellipse(2.4, 2.6, 1, { color: cBody }), 0, 4, 5));
+                }
                 if (variant === 0) {          // 구두: 발목 깃 + 끈 3줄
                     vox.push(...V.at(V.ellipse(3.0, 3.0, 2, { rix: 1.8, riz: 1.8, color: cDark }), 0, 10, -2));
                     for (let i = 0; i < 3; i++)   // 끈은 발등을 가로지르는 가로 막대다
@@ -7980,6 +8033,19 @@ const Scene3D = {
                     ], cDark));
                     vox.push(...V.at(V.ellipse(3.4, 3.4, 2, { rix: 2.2, riz: 2.2, color: cDark }), 0, 11, -2));
                     gl.push(...V.at(V.box(2, 2, 2), -1, 11, 1));
+                } else if (variant === 3) {   // 샌들: 발등 교차 스트랩 + 뒤꿈치 스트랩 + 발목 고리 (equip-build-acc)
+                    // 스트랩은 발등(밑창 윗면 y2)에 **면으로 앉아야** 한다 — 띄우면 공중 막대(부유 부속 함정)
+                    for (let i = 0; i < 3; i++) vox.push(...V.at(V.box(7, 1, 2, cBody), -3, 2, 4 - i * 3));
+                    vox.push(...V.at(V.box(7, 1, 2, cBody), -3, 2, -5));       // 뒤꿈치 스트랩
+                    vox.push(...V.at(V.ellipse(2.8, 2.8, 1, { rix: 1.8, riz: 1.8, color: cDark }), 0, 8, -2)); // 발목 고리
+                    for (let y = 3; y < 8; y++) vox.push(...V.at(V.box(1, 1, 2, cDark), 0, y, -4)); // 고리~뒤꿈치를 잇는 세로끈
+                    gl.push(...V.at(V.box(2, 1, 2), 0, 3, 4));                 // 발등 장식 단추
+                } else if (variant === 4) {   // 장화: 긴 통 + 접단 + 앞 정강이 선 (equip-build-acc)
+                    vox.push(...V.shell([
+                        { y: 29, rx: 3.5, rz: 3.6, z: -3 }, { y: 31, rx: 3.1, rz: 3.2, z: -3 },
+                    ], cDark));                                                 // 접어 내린 목단
+                    vox.push(...V.at(V.slab(3, 12, 2, cDark, 1), 0, 15, -1));   // 앞 정강이 세로선
+                    gl.push(...V.at(V.box(2, 2, 2), 0, 27, -1));                // 무릎 아래 장식 단추
                 } else {                      // 그리브: 정강이 판 + 무릎 돔 + 고정 밴드 2줄
                     // 정강이 판은 앞으로 튀어나와야 보인다 — 갑피 앞면 밖에 얹되 반쯤 파묻는다
                     vox.push(...V.at(V.slab(4, 12, 2, cBody, 1), 0, 11, 0));
@@ -8076,6 +8142,19 @@ const Scene3D = {
                     glow.push(...V.at(V.box(2, 2, 2), px - 1, 16, pz + 3));          // 잠금 단추
                 }
                 glow.push(...V.at(rectRing(6, 6, 2, 1), 0, 20, RZ + 1));
+            } else if (variant === 3) { // 이중 벨트: 두 줄 띠 + 앞을 가로지르는 대각 보조끈 + 옆 파우치 (equip-build-acc)
+                body.push(...strapBand(22, 4, cBody, RX, RZ));
+                body.push(...strapBand(14, 4, cBody, RX * 0.98, RZ * 0.98));
+                body.push(...strip([[-2, 22, RZ - 1], [5, 14, Math.round(RZ * 0.7)]], 3, 2, cDark)); // 대각끈 — 계단으로 내려간다
+                body.push(...V.at(V.slab(5, 6, 4, cDark, 1), -9, 14, 3));                            // 옆 파우치 하나(비대칭 표식)
+                glow.push(...V.at(rectRing(6, 5, 2, 1), 0, 22, RZ - 1));
+                glow.push(...V.at(rectRing(5, 4, 2, 1), 0, 14, RZ - 2));
+            } else if (variant === 4) { // 장식판 벨트: 넓은 띠 + 앞·좌우 금속 판 3장 + 중앙 보석 (equip-build-acc)
+                body.push(...strapBand(19, 6, cBody, RX, RZ));
+                // 판은 축정렬 그대로 세 자리 — 파우치 벨트(v1)와 같은 규약(임의 각 금지)
+                for (const [px, pz] of [[-7, 4], [0, 6], [7, 4]])
+                    body.push(...V.at(V.slab(5, 7, 2, cDark, 1), px, 19, pz));
+                glow.push(...V.at(V.gem(4), 0, 19, RZ + 2));
             } else { // 장식 새시: 주름 잡힌 넓은 띠 + 늘어뜨린 천자락
                 // 주름 — 반경이 오르내리는 링을 겹쳐 천이 접힌 느낌을 낸다(민짜 원통과 갈리는 지점).
                 //   큐브로 바꾸면 이 오르내림이 **한 칸짜리 단**으로 떨어져 오히려 또렷해진다.
@@ -8372,7 +8451,7 @@ const Scene3D = {
                 model = this.makeArmorPreview(item.age, item.rarity, itemStyleOf(item), itemNameOf(item));
             } else {
                 // 장신구류: 부위당 3종 변형 프리뷰
-                model = this.makeAccessoryPreview(item.slot, Math.max(0, item.nameIdx || 0) % 3, item.age, item.rarity, itemNameOf(item));
+                model = this.makeAccessoryPreview(item.slot, Math.max(0, item.nameIdx || 0) % 5, item.age, item.rarity, itemNameOf(item)); // 5종 확장 (equip-build-acc)
             }
             // ⚠️ 부위별 고정 배율(투구1.5·갑옷1.3·장신구1.4)+고정 카메라를 쓰면 **형상**에 따라
             //    잘리거나 좁쌀만 하게 찍힌다 — 납작한 '수호의 후광'은 프레임 위쪽 실선 한 줄,
