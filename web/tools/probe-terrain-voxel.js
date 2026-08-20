@@ -17,6 +17,9 @@
 //   ⑦ **원경 능선 계단 실루엣** — mountains/hills 지오메트리의 법선이 전부 (0,0,±1)이고,
 //      정점 y 의 고유값 개수가 14 이하(스텝 h/12 양자화의 흔적). 곡선 프로파일이면 수십 개가 나온다.
 //   ⑧ **잔디 복셀 블레이드** — scatter(인스턴스드) 지오메트리 법선이 전부 축정렬(blade 바이옴).
+//   ⑨ **스캐터 전 층 + 흔들림 식생** — 광물·악센트 스캐터(scatter/2/3)와 windSway 식생(꽃·양치류·
+//      나무)의 모든 메시 법선이 축정렬. 2026-08-20 scatterGeo·꽃·양치류 voxel 전환의 재발 방지 —
+//      blade 만 재던 ⑧ 의 확장이다(접지 블롭 blobGeo 는 음영 오버레이라 제외).
 //
 // 판정: 마지막 줄 + exit 코드 (0 통과 · 1 미달 · 2 자 고장). 사용: node probe-terrain-voxel.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
@@ -115,6 +118,23 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
             out.bladeBadNormals = badB;
             if (badB !== 0) out.fails.push(`⑧ 잔디 비축정렬 법선 ${badB}개`);
         }
+        // ⑨ 스캐터 전 층(광물·악센트 포함) + 흔들림 식생(꽃·양치류·나무) — 전부 복셀이어야 한다
+        out.scatBad = 0; out.scatLayers = 0; out.vegBad = 0; out.vegMeshes = 0;
+        for (const sm of [S.scatter, S.scatter2, S.scatter3]) {
+            if (!sm || !sm.geometry) continue;
+            out.scatLayers++;
+            if (axisAligned(sm.geometry) !== 0) out.scatBad++;
+        }
+        if (out.scatBad) out.fails.push(`⑨ 스캐터 층 ${out.scatBad}/${out.scatLayers}개에 비축정렬 법선`);
+        S.scene.children.forEach(g => {
+            if (!g.userData || !g.userData.windSway) return;
+            g.traverse(m => {
+                if (!m.isMesh || !m.geometry || m.geometry === S.blobGeo) return;   // 접지 블롭 = 음영 오버레이
+                out.vegMeshes++;
+                if (axisAligned(m.geometry) !== 0) out.vegBad++;
+            });
+        });
+        if (out.vegBad) out.fails.push(`⑨ 흔들림 식생 ${out.vegBad}/${out.vegMeshes}개 메시에 비축정렬 법선`);
         out.biome = S.biome;
         return out;
     });
@@ -122,6 +142,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     await browser.close();
     console.log(`지면 비축정렬 ${r.groundBadNormals} · 비양자화 y ${r.groundBadY} · smooth 최대차 ${r.maxDiff}`);
     console.log(`능선 ${r.ridges}겹 · 잔디 검사 ${r.bladeChecked ? `수행(비축정렬 ${r.bladeBadNormals})` : '건너뜀(비 blade 바이옴)'} · 바이옴 ${r.biome}`);
+    console.log(`스캐터 층 ${r.scatLayers}개(위반 ${r.scatBad}) · 흔들림 식생 ${r.vegMeshes}메시(위반 ${r.vegBad})`);
     console.log(`콘솔 에러 ${errs.length}건`);
     if (errs.length) { console.log(errs.slice(0, 3).join('\n')); }
     if (r.fails.length || errs.length) {
