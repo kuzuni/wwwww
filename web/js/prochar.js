@@ -1915,7 +1915,7 @@ const ProChar = {
             box(skinM, headS, headS, headS, 0, headCy, 0);
             // 마인크래프트식 얼굴 — 흰자 + 초록 동공 눈 2개 + 눈썹 + 입
             const whiteM = new THREE.MeshBasicMaterial({ color: 0xffffff }); whiteM.toneMapped = false;
-            const pupilM = new THREE.MeshBasicMaterial({ color: 0x4a7a3a }); pupilM.toneMapped = false; // 초록 동공(Alex)
+            const pupilM = new THREE.MeshBasicMaterial({ color: 0x111114 }); pupilM.toneMapped = false; // 검정 동공 (사용자 2026-08-21)
             const fz = headS / 2, eyeY = headCy + headS * 0.06;
             for (const sx of [-1, 1]) {
                 box(whiteM, 0.12, 0.13, 0.02, sx * 0.115, eyeY, fz + 0.001);        // 흰자
