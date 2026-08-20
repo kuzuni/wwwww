@@ -37,12 +37,21 @@
 //   → 축정렬 99% 미만인 항목이 하나라도 있으면 exit 1). 🚨 **전환이 끝나기 전에 `regress.sh` 에
 //   등재하지 말 것** — 지금은 대부분이 빨간 게 정상이고, 등재하면 회귀 목록이 통째로 빨개져
 //   **진짜 회귀를 가린다**(이 저장소가 이미 겪은 사고다).
+//   🎯 **굵기 게이트 `VOXCON_MAXCELLS=<칸>` (2026-08-20 사용자 지시 — "촘촘하면 FAIL나게").**
+//   반복 지적("네모가 아니다")의 진짜 원인이 **축정렬 여부만 검사하고 큐브 크기를 안 재는 것**이었다 —
+//   큐브를 잘게 썰어 촘촘하게 쌓으면 축정렬 100% 인데도 실루엣이 매끈해 voxel 로 안 읽힌다.
+//   이 게이트는 **최장축 칸 수가 상한을 넘으면(=너무 잘면) FAIL** 낸다. 격자가 성립한(축정렬 99%↑)
+//   항목에만 적용한다 — 격자 없는 곡면은 칸 수 자체가 허수라 이 축이 아니라 MIN 축이 잡는다.
+//   📏 상한 고르기: 이미 합격한 프롭이 11~22칸이니 **22** 부터가 기준 대역이다. 사용자 목표
+//   "파츠 한 변에 큐브 최대 6~10개"는 파츠 기준이라 엔티티 전체(최장축)로는 대략 2~3파츠 × 8칸 ≈ 22.
 // 사용: node probe-voxel-consistency.js  [카테고리]
+//       VOXCON_MIN=99 VOXCON_MAXCELLS=22 node probe-voxel-consistency.js 펫   (양축 게이트)
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const { waitReady } = require('./wait-ready.js');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 const ONLY = process.argv[2] || '';
 const MIN = process.env.VOXCON_MIN ? parseFloat(process.env.VOXCON_MIN) : null;
+const MAXCELLS = process.env.VOXCON_MAXCELLS ? parseFloat(process.env.VOXCON_MAXCELLS) : null;
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -93,14 +102,21 @@ const MIN = process.env.VOXCON_MIN ? parseFloat(process.env.VOXCON_MIN) : null;
         //      피치가 돼 칸 수가 몇 배로 부풀어 오른다. 중앙값은 그 꼬리에 안 끌린다.
         //   ⚠️ 로컬 기준이라 그룹 스케일(예: `headG.scale` 1.3)은 안 들어간다 — 우리가 묻는 건
         //      "칸 몇 개로 깎았나"지 "화면에서 몇 픽셀인가"가 아니다.
+        //   ⚠️ **메시별로 잰 뒤 최대를 취한다(2026-08-20 수리).** 종전엔 전 메시 좌표를 한 집합에
+        //      병합해 피치를 구했는데, 클러스터 조형(예: 버섯 본체 + 0.3~0.55배 곁 개체)은 메시마다
+        //      격자 피치가 달라 **작은 피치 × 전체 bbox = 허수**가 났다(버섯이 56칸으로 인쇄 — 실제
+        //      각 개체는 ~14칸). 파츠(메시)마다 자기 피치·자기 스팬으로 재면 이 함정이 없고,
+        //      사용자 지시("**파츠당** 복셀 개수 상한")와도 정합이다. 단일 격자 조형(펫·단일 프롭)은
+        //      메시가 하나라 값이 종전과 같다 — 기록된 참고 대역(프롭 11~22 · 펫 26~35)은 유효하다.
         const cellsAcross = (root) => {
-            const vals = [new Set(), new Set(), new Set()];
-            const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+            let best = null;
             root.traverse(o => {
                 if (!o.isMesh || !o.geometry) return;
                 for (let p = o; p; p = p.parent) if (p.visible === false) return;
                 const pos = o.geometry.attributes && o.geometry.attributes.position;
                 if (!pos) return;
+                const vals = [new Set(), new Set(), new Set()];
+                const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
                 for (let i = 0; i < pos.count; i++) {
                     const v = [pos.getX(i), pos.getY(i), pos.getZ(i)];
                     for (let a = 0; a < 3; a++) {
@@ -109,22 +125,21 @@ const MIN = process.env.VOXCON_MIN ? parseFloat(process.env.VOXCON_MIN) : null;
                         if (v[a] > hi[a]) hi[a] = v[a];
                     }
                 }
-            });
-            let best = null;
-            for (let a = 0; a < 3; a++) {
-                const s = [...vals[a]].sort((x, y) => x - y);
-                if (s.length < 3) continue;
-                const gaps = [];
-                for (let i = 1; i < s.length; i++) { const g = s[i] - s[i - 1]; if (g > 1e-5) gaps.push(g); }
-                if (!gaps.length) continue;
-                gaps.sort((x, y) => x - y);
-                const pitch = gaps[Math.floor(gaps.length / 2)];
-                const span = hi[a] - lo[a];
-                if (pitch > 1e-5 && span > 0) {
-                    const n = span / pitch;
-                    if (!best || n > best.cells) best = { cells: n, pitch };   // 가장 긴 축 = '몇 칸짜리 덩어리인가'
+                for (let a = 0; a < 3; a++) {
+                    const s = [...vals[a]].sort((x, y) => x - y);
+                    if (s.length < 3) continue;
+                    const gaps = [];
+                    for (let i = 1; i < s.length; i++) { const g = s[i] - s[i - 1]; if (g > 1e-5) gaps.push(g); }
+                    if (!gaps.length) continue;
+                    gaps.sort((x, y) => x - y);
+                    const pitch = gaps[Math.floor(gaps.length / 2)];
+                    const span = hi[a] - lo[a];
+                    if (pitch > 1e-5 && span > 0) {
+                        const n = span / pitch;
+                        if (!best || n > best.cells) best = { cells: n, pitch };   // 가장 잘게 깎인 파츠의 최장축
+                    }
                 }
-            }
+            });
             return best;
         };
         const out = [];
@@ -179,7 +194,7 @@ const MIN = process.env.VOXCON_MIN ? parseFloat(process.env.VOXCON_MIN) : null;
         : `${r.pct.toFixed(1).padStart(6)}%  · 최장축 ${r.cells === null ? '  n/a' : r.cells.toFixed(0).padStart(4) + '칸'}  (메시 ${r.meshes})`;
     const cats = [...new Set(rows.map(r => r.cat))];
     console.log('축정렬 법선 비율 — 100% = 완전한 큐브 적층 · 낮을수록 곡면 프리미티브가 남아 있다\n');
-    let worst = [];
+    let worst = [], tooFine = [];
     for (const c of cats) {
         const rs = rows.filter(r => r.cat === c && r.pct !== null);
         if (!rs.length) { console.log(`■ ${c}: 측정 대상 없음`); continue; }
@@ -190,6 +205,8 @@ const MIN = process.env.VOXCON_MIN ? parseFloat(process.env.VOXCON_MIN) : null;
             console.log(`     ${r.pct >= 99.9 ? '✅' : '🔶'} ${r.name.padEnd(26)} ${fmt(r)}`);
         if (rs.length > 6) console.log(`     … 그 외 ${rs.length - 6}종`);
         worst = worst.concat(rs.filter(r => MIN !== null && r.pct < MIN));
+        // 굵기 축 — 격자가 성립한 항목이 상한보다 잘게 깎였으면 '촘촘=매끈'이라 FAIL 후보.
+        tooFine = tooFine.concat(rs.filter(r => MAXCELLS !== null && r.cells !== null && r.cells > MAXCELLS));
     }
     console.log('\n※ 최장축 칸 수 = 그 덩어리가 큐브 몇 개로 깎였나(촘촘함 지표). **축정렬 99% 이상일 때만** 준다 —');
     console.log('   격자가 없는 조형은 이 값이 격자 피치가 아니라 곡면 분할 간격이라 허수가 된다(n/a 로 비운다).');
@@ -197,10 +214,15 @@ const MIN = process.env.VOXCON_MIN ? parseFloat(process.env.VOXCON_MIN) : null;
     console.log('※ 스킬 이펙트는 정지 상태로 못 부른다 — 연속 프레임 캡처로 따로 볼 것(머리말 ⓑ).');
     if (MIN !== null) {
         console.log(`\n게이트 VOXCON_MIN=${MIN}% → ${worst.length ? 'FAIL ' + worst.length + '종 미달' : 'PASS'}`);
-    } else {
-        console.log('\n(감사 모드 — 게이트를 걸려면 VOXCON_MIN=<비율> 을 주고 돌린다)');
+    }
+    if (MAXCELLS !== null) {
+        console.log(`게이트 VOXCON_MAXCELLS=${MAXCELLS}칸(굵기) → ${tooFine.length ? 'FAIL ' + tooFine.length + '종이 너무 잘다(촘촘=매끈)' : 'PASS'}`);
+        for (const r of tooFine) console.log(`   ⬆ ${r.cat} ${r.name}: 최장축 ${r.cells.toFixed(0)}칸 > ${MAXCELLS} — 격자 해상도를 낮춰 큐브를 굵힐 것`);
+    }
+    if (MIN === null && MAXCELLS === null) {
+        console.log('\n(감사 모드 — 게이트는 VOXCON_MIN=<비율> · VOXCON_MAXCELLS=<칸> 을 주고 돌린다)');
     }
     console.log(errors.length ? '\nERRORS:\n' + errors.join('\n') : '\n(no page errors)');
     await browser.close();
-    process.exit(MIN !== null && worst.length ? 1 : 0);
+    process.exit((MIN !== null && worst.length) || (MAXCELLS !== null && tooFine.length) ? 1 : 0);
 })();
