@@ -111,9 +111,16 @@
         if (offlinePending && offlinePending.elapsed >= 60) UI.showOffline(offlinePending); // 1분 미만 경과는 팝업 생략
 
         // 지난 세션이 판매/장착을 고르지 않고 떠난 제작품 복원 — 오프라인 팝업보다 뒤에 띄워 위로 오게 한다
-        UI.restorePendingCraft();
+        // 🚨 `UI.init()`·`Combat.start()` 와 **같은 이유로** 격리한다 (boot-pending-craft-unguarded,
+        //    2026-08-20 QA 20차): 이 줄이 `boot()` 안에서 유일하게 안 감싼 위험 호출이었고, `subs` 가
+        //    빠진 대기품 한 칸이 여기서 던지면 **아래의 논리 틱·rAF 루프·1초 틱·오토포지 안전망·30초
+        //    자동 저장·딥링크가 통째로 등록되지 않았다.** 자동 저장이 안 붙는 게 가장 나쁘다 — 오염된
+        //    세이브가 덮어써지지 않아 새로고침해도 영원히 같은 상태로 부팅된다(탈출로가 전멸 리셋뿐).
+        //    `restorePendingCraft` 쪽 가드도 같이 올렸지만(isForgeShaped), 둘 중 하나만 하면 다음에
+        //    다른 필드가 같은 자리에서 터진다 — 이 저장소가 이미 두 번 밟은 함정이다.
+        try { UI.restorePendingCraft(); } catch (e) { console.error('UI.restorePendingCraft() 실패 — 나머지 부팅은 계속한다', e); }
         // 자동 제작이 켜진 채로 저장됐으면 순차 시퀀스를 이어서 시작한다
-        if (S.autoForgeOn && isUnlocked('autoForge')) UI.startAutoSeq();
+        try { if (S.autoForgeOn && isUnlocked('autoForge')) UI.startAutoSeq(); } catch (e) { console.error('UI.startAutoSeq() 실패 — 나머지 부팅은 계속한다', e); }
 
         // 디버그: ?tab=summon|pets|skills|debug 등으로 패널 바로 열기, ?debug=craft로 제작 모달 확인
         const params = new URLSearchParams(location.search);

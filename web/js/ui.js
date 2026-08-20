@@ -830,7 +830,10 @@ const UI = {
         const q = Array.isArray(S.autoMatchQueue) ? S.autoMatchQueue : (S.autoMatchQueue = []);
         while (q.length) {
             const item = q.shift();
-            if (!item || !item.slot) continue;           // 손상 세이브 방어
+            // 손상 세이브 방어 — `restorePendingCraft`·`drainAutoBatch` 와 **같은 검사**를 쓴다
+            // (boot-pending-craft-unguarded). `slot` 만 보면 `subs` 없는 항목이 그대로
+            // `showCraftModal → itemCardHTML` 로 가 던지고, 이 경로도 `boot()` 안에서 불린다.
+            if (!this.isForgeShaped(item)) { console.error('openNextAutoMatch: 제작물의 최소 형태가 아닌 큐 항목을 버렸다 —', JSON.stringify(item)); continue; }
             this.setPendingCraft(item);                  // saveGame 포함 — 큐에서 뺀 것과 대기품을 같은 저장에
             this.showCraftModal(item);
             this.renderEquipSheet();
@@ -847,7 +850,9 @@ const UI = {
         const q = Array.isArray(S.autoMatchQueue) ? S.autoMatchQueue : (S.autoMatchQueue = []);
         while (q.length) {
             const item = q.shift();
-            if (!item || !item.slot) continue;           // 손상 세이브 방어
+            // 손상 세이브 방어 — 위 `openNextAutoMatch` 와 같은 검사(boot-pending-craft-unguarded).
+            // 여기서 통과시키면 모루 자리 카드를 누르는 순간 같은 자리에서 던진다.
+            if (!this.isForgeShaped(item)) { console.error('promoteHeldToSlot: 제작물의 최소 형태가 아닌 큐 항목을 버렸다 —', JSON.stringify(item)); continue; }
             this.setPendingCraft(item);                  // saveGame 포함 — 큐에서 뺀 것과 대기품을 같은 저장에
             this.renderEquipSheet();
             return true;
@@ -868,7 +873,26 @@ const UI = {
         // 연출이라 다시 띄우지 않고, 결과만 평소 규약대로 흘려보낸다(통과분은 큐 → 아래에서 팝업).
         this.drainAutoBatch();
         const item = S.pendingCraft;
-        if (!item || !item.slot) { this.openNextAutoMatch(); return; }   // 대기품이 없으면 큐에 남은 통과분부터
+        // 🚨 가드는 `drainAutoBatch` 와 **같은 '제작물의 최소 형태' 검사**여야 한다
+        //    (boot-pending-craft-unguarded, 2026-08-20 QA 20차 실측). 종전 가드가
+        //    `!item || !item.slot` 둘뿐이라 `subs` 없는 대기품이 그대로 통과해
+        //    `showCraftModal → itemCardHTML` 의 `item.subs.length` 에서 던졌고,
+        //    그 예외가 `boot()` 를 통째로 끊어 **논리 틱·rAF 루프·30초 자동 저장이 아예
+        //    등록되지 않았다** — 화면은 다 그려져 있는데 게임이 멈추고, 자동 저장이 없으니
+        //    오염된 세이브가 덮어써지지 않아 새로고침해도 영원히 같은 상태로 부팅된다.
+        //    바로 옆 `autoBatch` 는 `isForgeShaped` 로 이미 방어돼 있었다 — 같은 규칙으로 맞춘다.
+        // ⚠️ **조용히 버리지 말 것** — 이 필드가 있는 이유가 "안 고른 장비가 소리 없이 사라지는 것"을
+        //    막는 것이다(`pendingCraft` 신설 메모). 콘솔에 짖고 토스트로도 알린다.
+        if (item && !this.isForgeShaped(item)) {
+            console.error('restorePendingCraft: 제작물의 최소 형태가 아닌 대기품을 버렸다 —', JSON.stringify(item));
+            S.pendingCraft = null;
+            this._pendingItem = null;
+            this.toast('⚠️ 손상된 제작 대기품 하나를 복원하지 못했습니다');
+            saveGame();
+            this.openNextAutoMatch();
+            return;
+        }
+        if (!item) { this.openNextAutoMatch(); return; }   // 대기품이 없으면 큐에 남은 통과분부터
         this._pendingItem = item;
         // 보류 상태로 떠난 것 — 모루 자리 카드로만 두고 누를 때 연다. 팝업을 안 띄우는 대신
         // **여기서 장비 시트를 다시 그려야** 한다: 부팅 렌더는 대기품을 세우기 전에 이미 끝나
