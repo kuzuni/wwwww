@@ -4972,6 +4972,168 @@ const Scene3D = {
         tatter: { rTop: 0.22, rBot: 0.28, len: 0.40, arc: 0.80, hem: false },
         wings: { rTop: 0.22, rBot: 0.30, len: 0.52, arc: 0.66 },
     },
+    // 그 시대의 `robe`(로브) 가 **어떤 로브인가** (equip-era-theming).
+    // 목 위 처리는 `ROBE_NECK`(pelt/coat/thruster/hood)이 이미 가르고 있지만 **그건 몸통 안쪽이라
+    // 96px 실루엣을 못 바꾼다** — 크로스-시대 게이트가 36쌍 중 29쌍을 미분화로 물었다.
+    // 여기서 가르는 건 **자락의 바깥 윤곽**(퍼짐·기장·밑단의 결)이고, 그게 실루엣을 진다.
+    // ⚠️ 9시대를 다 적는다 — 기본값으로 떨어지는 칸을 남기면 그 칸들이 다시 한 덩어리가 된다.
+    ROBE_VARIANT: {
+        primitive: 'pelt',        // 곰가죽 — 짧고 통짜, 밑단이 털처럼 너덜하다
+        medieval: 'friar',        // 성직자 로브 — 길고 곧은 종형 + 허리 새끼줄
+        earlyModern: 'rider',     // 기병 카디건 — 앞이 갈린 짧은 코트 자락
+        space: 'thruster',        // 추진 슈트 — 좁은 몸통 + 밑단 추진 노즐 3개
+        interstellar: 'grav',     // 중력자 로브 — 자락이 짧고 그 아래 **떠 있는** 구체 고리
+        multiverse: 'code',       // 코드 로브 — 계단식 픽셀 밑단
+        quantum: 'ripple',        // 파동 로브 — 물결로 오르내리는 밑단
+        underworld: 'hell',       // 지옥 로브 — 길이가 제각각인 그을린 너덜 자락
+        divine: 'gown',           // 홀리 가운 — 가장 길고 크게 퍼지는 트레인
+    },
+    robeVariant(age) { return this.ROBE_VARIANT[age] || 'friar'; },
+    // r = 밑단 반경(퍼짐) · len = 기장 · hem = 매끈한 밑단 테를 두를지.
+    // ⚠️ 밑단 높이는 전 시대 공통(y 0.075)에 물린다 — 기장을 바꾸면 **위로** 자란다.
+    //    밑단이 같이 내려가면 로브가 바닥을 뚫고 프레이밍이 통째로 틀어진다.
+    ROBE_SHAPE: {
+        pelt: { r: 0.34, len: 0.36, hem: false },
+        friar: { r: 0.35, len: 0.54 },
+        rider: { r: 0.30, len: 0.40, hem: false },
+        thruster: { r: 0.26, len: 0.46 },
+        grav: { r: 0.29, len: 0.34, hem: false },
+        // ⚠️ 이 둘은 밑단의 **결**만 달랐다가 게이트에 물렸다(IoU 0.936 · 윤곽차 0.0155) —
+        //    자락 치수가 r 0.37/0.36 · len 0.48/0.46 으로 사실상 같았기 때문이다. 결은 96px 에서
+        //    윤곽의 **잔물결**일 뿐이라, 덩어리가 같으면 그것만으로는 못 가른다.
+        //    → 코드는 **넓고 짧게**(각진 블록), 파동은 **좁고 길게**(늘어진 천) 갈라 놓는다.
+        code: { r: 0.41, len: 0.38, hem: false },
+        ripple: { r: 0.30, len: 0.58, hem: false },
+        hell: { r: 0.33, len: 0.40, hem: false },
+        gown: { r: 0.42, len: 0.62 },
+    },
+    robeShape(rv) {
+        const s = this.ROBE_SHAPE[rv] || this.ROBE_SHAPE.friar;
+        return { r: s.r, len: s.len, hem: s.hem };
+    },
+    // 시대별 덧구조 — `cape` 와 같은 원칙: **자락 밖으로 나가 윤곽을 스스로 지는 것만** 둔다.
+    addRobeEraDetail(g, rv, RS, mats, cloth, body, rareHex) {
+        const dark = mats ? mats.dark : cloth;
+        const trim = mats ? (mats.trim || mats.dark) : cloth;
+        const yHem = 0.075;
+        const ring = (i, n, r) => {           // 밑단 둘레의 한 점(로브는 온 둘레를 두른다)
+            const a = (i / n) * Math.PI * 2;
+            return [Math.sin(a) * r, Math.cos(a) * r, a];
+        };
+        if (rv === 'pelt') {
+            // 곰가죽 — 밑단이 **털 뭉치**로 끝난다. 길이를 3박자로 벌려 톱니가 아니라 털로 읽히게.
+            // 🚨 **밑단 요소는 '사이 틈보다 넓게' 깔 것 — 좁으면 다리(테이블 다리)로 읽힌다.**
+            //    (1차 실측 캡처에서 pelt·ripple·hell·code 가 나란히 그렇게 나왔다.) 둘레 ÷ 개수가
+            //    한 요소의 폭보다 크면 그 순간 '매달린 막대 여럿'이고, 작으면 '울퉁불퉁한 한 겹'이다.
+            //    여기 둘레는 2π·0.32 ≈ 2.01, 14개면 간격 0.144 → 밑지름이 그보다 커야 한다.
+            for (let i = 0; i < 14; i++) {
+                const [x, z, a] = ring(i, 14, RS.r - 0.02);
+                const len = 0.070 + (i % 3) * 0.030;
+                const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.082, len, 5), cloth);
+                tuft.position.set(x, yHem + 0.01 - len / 2, z);
+                tuft.rotation.x = Math.PI;
+                tuft.rotation.y = a;
+                tuft.rotation.z = (i % 2 ? 1 : -1) * 0.14;
+                g.add(tuft);
+            }
+        } else if (rv === 'friar') {
+            // 성직자 로브 — 허리 **새끼줄**과 늘어진 매듭 꼬리. 종형 자락의 서명이다.
+            const cord = new THREE.Mesh(new THREE.TorusGeometry(0.255, 0.017, 6, 20), dark);
+            cord.position.y = yHem + RS.len * 0.72;
+            cord.rotation.x = Math.PI / 2;
+            g.add(cord);
+            for (const dx of [-0.045, 0.045]) {
+                const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.011, 0.20, 6), dark);
+                tail.position.set(dx, yHem + RS.len * 0.72 - 0.11, 0.235);
+                tail.rotation.z = dx > 0 ? 0.12 : -0.12;
+                g.add(tail);
+            }
+        } else if (rv === 'rider') {
+            // 기병 카디건 — 앞이 **좌우로 갈린** 짧은 코트 자락. 갈린 틈이 밑변에 V 노치를 낸다.
+            for (const s of [-1, 1]) {
+                const flap = new THREE.Mesh(new THREE.BoxGeometry(0.215, RS.len * 0.92, 0.045), cloth);
+                flap.position.set(s * 0.135, yHem + RS.len * 0.46, 0.215);
+                flap.rotation.z = s * 0.20;
+                flap.rotation.y = -s * 0.34;
+                g.add(flap);
+            }
+            const slit = new THREE.Mesh(new THREE.BoxGeometry(0.028, RS.len * 0.9, 0.058), dark);
+            slit.position.set(0, yHem + RS.len * 0.46, 0.238);
+            g.add(slit);
+        } else if (rv === 'thruster') {
+            // 추진 슈트 — 밑단에 **추진 노즐 3개**. 좁은 자락 아래로 튀어나와 윤곽을 끊는다.
+            const glow = new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.8 });
+            for (let i = 0; i < 3; i++) {
+                const a = -0.7 + i * 0.7;
+                const x = Math.sin(a) * 0.17, z = Math.cos(a) * 0.17;
+                const noz = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.072, 0.11, 8, 1, true), trim);
+                noz.position.set(x, yHem - 0.04, z);
+                g.add(noz);
+                const fl = new THREE.Mesh(new THREE.ConeGeometry(0.052, 0.19, 8), glow);
+                fl.position.set(x, yHem - 0.185, z);
+                fl.rotation.x = Math.PI;
+                g.add(fl);
+            }
+        } else if (rv === 'grav') {
+            // 중력자 로브 — 자락이 짧고 그 **아래 허공에 구체가 고리로 떠 있다**. 자락과 구체 사이의
+            //   빈 띠가 이 조형의 서명이라, 구체를 자락에 붙이면 그냥 술 장식이 된다.
+            const glow = new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.7 });
+            // ⚠️ 띄우는 간격이 크면 **바퀴 달린 로봇**으로 읽힌다(1차 실측). 자락과 구체 사이의
+            //    빈 띠는 '떠 있다'를 보이는 최소한이면 되고, 구체는 작고 촘촘해야 **띠 한 겹**이 된다.
+            for (let i = 0; i < 14; i++) {
+                const [x, z] = ring(i, 14, RS.r - 0.025);
+                const orb = new THREE.Mesh(new THREE.SphereGeometry(0.030, 8, 6), i % 3 ? trim : glow);
+                orb.position.set(x, yHem - 0.058, z);
+                g.add(orb);
+            }
+        } else if (rv === 'code') {
+            // 코드 로브 — 🧊 **계단식 픽셀 밑단**. 큐브를 층층이 물려 밑변을 계단으로 만든다.
+            for (let i = 0; i < 18; i++) {
+                const [x, z, a] = ring(i, 18, RS.r - 0.02);
+                const step = (i % 3);                     // 0·1·2 층 — 세 칸 주기의 계단
+                const h = 0.050 + step * 0.040;
+                const cube = new THREE.Mesh(new THREE.BoxGeometry(0.132, h, 0.058), step === 1 ? trim : cloth);
+                cube.position.set(x, yHem + 0.012 - h / 2, z);
+                cube.rotation.y = a;
+                g.add(cube);
+            }
+        } else if (rv === 'ripple') {
+            // 파동 로브 — 밑단이 **사인으로 오르내린다**. 매끈한 테와 갈리는 유일한 축이라 진폭을 크게.
+            // 폭 ≥ 간격(2π·0.345/20 ≈ 0.108) 이어야 물결 한 겹이다 — 좁으면 다리 스무 개다.
+            for (let i = 0; i < 20; i++) {
+                const [x, z, a] = ring(i, 20, RS.r - 0.015);
+                const h = 0.072 + Math.sin(a * 3) * 0.050;
+                const lob = new THREE.Mesh(new THREE.BoxGeometry(0.122, h, 0.052), cloth);
+                lob.position.set(x, yHem + 0.012 - h / 2, z);
+                lob.rotation.y = a;
+                g.add(lob);
+            }
+        } else if (rv === 'hell') {
+            // 지옥 로브 — **길이 4:1 로 벌린 그을린 자락**. 밑변이 통째로 사라진다.
+            const LEN = [0.21, 0.07, 0.16, 0.24, 0.10, 0.18, 0.06, 0.14, 0.22, 0.08, 0.17, 0.11];
+            const ember = new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.5 });
+            for (let i = 0; i < LEN.length; i++) {
+                const [x, z, a] = ring(i, LEN.length, RS.r - 0.02);
+                const strip = new THREE.Mesh(new THREE.BoxGeometry(0.115, LEN[i], 0.044), i % 4 === 1 ? ember : cloth);
+                strip.position.set(x, yHem + 0.012 - LEN[i] / 2, z);
+                strip.rotation.y = a;
+                strip.rotation.z = (i % 2 ? 1 : -1) * 0.09;
+                g.add(strip);
+            }
+        } else if (rv === 'gown') {
+            // 홀리 가운 — 뒤로 길게 끄는 **트레인**. 가장 긴 자락에 더해 뒤 윤곽을 더 늘린다.
+            const gold = mats ? this.tintOf(mats.body, 0.18) : cloth;
+            const train = new THREE.Mesh(new THREE.ConeGeometry(0.30, 0.34, 12, 1, true), cloth);
+            train.position.set(0, yHem - 0.02, -0.16);
+            train.rotation.x = -0.42;
+            g.add(train);
+            const band = new THREE.Mesh(new THREE.TorusGeometry(RS.r - 0.03, 0.020, 6, 22), gold);
+            band.position.y = yHem + 0.075;
+            band.rotation.x = Math.PI / 2;
+            g.add(band);
+        }
+    },
+
     capeShape(cv) {
         const s = this.CAPE_SHAPE[cv] || this.CAPE_SHAPE.order;
         return { rTop: s.rTop, rBot: s.rBot, len: s.len, arc: s.arc, hem: s.hem, y: this.CAPE_TOP - s.len / 2 };
@@ -7342,13 +7504,24 @@ const Scene3D = {
                 }
             }
         } else if (style === 'robe') {   // 로브 자락 + 밑단 헴
-            const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.5, 12, 1, true), cloth);
-            skirt.position.y = 0.32;
+            // 🧭 시대 분기 — `robe` 도 **9시대 공용 조형 하나**였다(크로스-시대 게이트 실측:
+            //    36쌍 중 **29쌍 미분화 · 최악 IoU 1.000 · 윤곽차 0.0000**). 목 위 처리는 앞선
+            //    세션이 `ROBE_NECK` 로 3시대를 갈라 놨지만 **그건 몸통 안쪽이라 96px 실루엣을
+            //    못 바꾼다** — `vest` 6칸이 가슴 부속만 갈리고도 IoU 0.92~0.98 로 붙어 있던 것과
+            //    같은 자리다. 그래서 `cape` 와 같은 방식으로 **자락의 바깥 윤곽**을 가른다.
+            const RS = this.robeShape(this.robeVariant(o.age));
+            const skirt = new THREE.Mesh(new THREE.ConeGeometry(RS.r, RS.len, 12, 1, true), cloth);
+            skirt.position.y = 0.075 + RS.len / 2;      // 밑단을 y 0.075 에 고정 — 기장만 위로 자란다
             g.add(skirt);
-            const hem = new THREE.Mesh(new THREE.TorusGeometry(0.355, 0.026, 6, 20), cloth);
-            hem.position.y = 0.075;
-            hem.rotation.x = Math.PI / 2;
-            g.add(hem);
+            // ⚠️ `hem: false` 는 실수가 아니다 — 계단·물결·너덜이 밑단의 **결**을 짓는 변종에서
+            //    매끈한 테를 두르면 그 결을 가로줄 하나가 잘라 먹는다(`cape` 에서 실측한 것과 같다).
+            if (RS.hem !== false) {
+                const hem = new THREE.Mesh(new THREE.TorusGeometry(RS.r - 0.005, 0.026, 6, 20), cloth);
+                hem.position.y = 0.075;
+                hem.rotation.x = Math.PI / 2;
+                g.add(hem);
+            }
+            this.addRobeEraDetail(g, this.robeVariant(o.age), RS, mats, cloth, body, rareHex);
         } else if (style === 'cape') {   // 망토
             // ⚠️ 예전엔 0.52×0.66×**0.04 평면 상자**였다 — 옆에서 보면 사라지고 라이팅에도
             //    반응하지 않아 'UI 스티커'로 읽혔다(비평가 지적). 어깨를 감아 아래로 벌어지는

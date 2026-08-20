@@ -36,6 +36,7 @@ const PROF_MIN = 0.055;
 const GATED = {
     vest: ['interstellar', 'multiverse', 'quantum', 'underworld'],   // starcoat · wire · orbit · ashen
     cape: ['*'],                                                     // 10시대 전부 시대 조형으로 갈랐다
+    robe: ['*'],                                                     // 9시대 전부 자락 윤곽으로 갈랐다
 };
 const LIST = !!process.env.LIST;
 const isGated = (style, age) => {
