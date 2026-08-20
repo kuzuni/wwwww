@@ -38,6 +38,7 @@ const GATED = {
     cape: ['*'],                                                     // 10시대 전부 시대 조형으로 갈랐다
     robe: ['*'],                                                     // 9시대 전부 자락 윤곽으로 갈랐다
     suit: ['*'],                                                     // 8시대 전부 어깨 위 표식으로 갈랐다
+    exo: ['*'],                                                      // 3시대 전부 어깨·옆구리 윤곽으로 갈랐다 (rig/adamant/delta)
 };
 const LIST = !!process.env.LIST;
 const isGated = (style, age) => {

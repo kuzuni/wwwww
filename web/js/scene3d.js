@@ -5198,6 +5198,19 @@ const Scene3D = {
         quantum: 'orbiter',       // 오비터 슈트 — 기울어진 자이로 링 2개
     },
     suitVariant(age) { return this.SUIT_VARIANT[age] || (this.suitSealed(age) ? 'eva' : 'cuirass'); },
+
+    // 그 시대의 `exo`(외골격) 가 **어떤 외골격인가** (equip-era-theming, 크로스-시대 게이트 잔여).
+    // `exo` 3시대(우주 '엑소스켈레톤'·성간 '아다만티움 슈트'·양자 '델타 아머')가 조형 하나였다 —
+    // 실측 3쌍 전부 미분화 · IoU **1.000 · 윤곽차 0.0000**(suit 를 gate 에 물린 뒤 가장 안 갈린 덩어리).
+    // 가르는 축은 **어깨·옆구리의 바깥 윤곽**이다(11차 교훈: 부속만 얹으면 96px 실루엣이 안 갈린다) —
+    // rig 는 '뚫린 고리 + 가는 기둥', adamant 는 '넓은 각진 슬래브', delta 는 '기울인 삼각 핀'.
+    // ⚠️ 3시대를 다 적는다 — 기본값으로 떨어지는 칸을 남기면 그 칸들이 다시 한 덩어리가 된다.
+    EXO_VARIANT: {
+        space: 'rig',            // 엑소스켈레톤 — 어깨 짐벌 링 + 옆구리 액추에이터 기둥(종전 조형 유지)
+        interstellar: 'adamant', // 아다만티움 슈트 — 계단식 각진 장갑 슬래브 견갑 + 세그먼트 블록 벨트
+        quantum: 'delta',        // 델타 아머 — 바깥으로 기운 Δ 핀 + 골반 옆 부유 삼각판 + Δ 코어
+    },
+    exoVariant(age) { return this.EXO_VARIANT[age] || 'rig'; },
     // 어깨 위·등 뒤로 나가는 표식만 둔다 — 몸통 안쪽 장식은 96px 에서 사라진다(`vest` 에서 실측).
     addSuitEraDetail(g, sv, mat, mats, rareHex, ageHex) {
         const dark = mats ? mats.dark : mat;
@@ -8479,6 +8492,11 @@ const Scene3D = {
             //    (실측: 우주 시대 exo 3각도 전부). 채도를 올리고 밝기는 거의 안 건드려야 빛으로 읽힌다.
             const glowHex = new THREE.Color(c).offsetHSL(0, 0.22, 0.04).getHex();
             const glowM = new THREE.MeshBasicMaterial({ color: glowHex });
+            // ── 시대 분기 (`EXO_VARIANT`) — 어깨·옆구리·허리의 **바깥 윤곽**을 가른다 ──────────
+            // 크로스-시대 게이트 실측: 3시대가 이 블록 하나를 그대로 써서 3쌍 전부 IoU 1.000 이었다.
+            // 부속(코어·발광)은 공통으로 두고, 실루엣을 지는 세 자리(어깨·옆구리·허리)만 변종별로 간다.
+            const ev = this.exoVariant(age);
+            if (ev === 'rig') {
             // ⓐ 어깨 짐벌 링 — 파울드론(덮는 판)과 반대로 **뚫린 고리**라 96px 에서 윤곽이 갈린다
             for (const s of [-1, 1]) {
                 // ⚠️ r 0.082·tube 0.021·x 0.255 로 두지 말 것 — 몸통 반경(0.205)에 맞먹는 고리가 되어
@@ -8517,6 +8535,75 @@ const Scene3D = {
                 knee.position.set(x, -0.036, 0.030);
                 knee.scale.z = 0.5;
                 g.add(knee);
+            }
+            } else if (ev === 'adamant') {
+                // ── 성간 '아다만티움 슈트' — 무게가 언어다: 계단식 각진 슬래브 견갑 ──────────
+                // rig 의 '뚫린 고리'와 정반대로 **꽉 찬 상자**를 2단 계단으로 몸통 밖(x 0.34)까지 내민다.
+                // 상자는 flatShading 이라야 장갑판으로 읽힌다(9차 mech 의 교훈 — 매끈 셸은 플라스틱이다).
+                const slabM = this.tintOf(mats.body, -0.10);
+                for (const s of [-1, 1]) {
+                    const up = new THREE.Mesh(new THREE.BoxGeometry(0.150, 0.058, 0.150), mats.body);
+                    up.position.set(s * 0.230, 0.212, 0.005);
+                    up.rotation.z = -s * 0.08;
+                    g.add(up);
+                    const low = new THREE.Mesh(new THREE.BoxGeometry(0.112, 0.048, 0.122), slabM);
+                    low.position.set(s * 0.292, 0.158, 0.005);
+                    low.rotation.z = -s * 0.24;   // 바깥 단이 아래로 꺾여 계단 실루엣이 된다
+                    g.add(low);
+                    // 슬래브 옆면 발광 슬릿 — 시대 발광은 유지하되 윤곽은 상자가 진다
+                    const slit = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.030, 0.096), glowM);
+                    slit.position.set(s * 0.345, 0.150, 0.005);
+                    slit.rotation.z = -s * 0.24;
+                    g.add(slit);
+                }
+                // 가슴 스탠드오프 판 — 코어 좌우로 앞에 띄운 각진 판 2장(정면 부피)
+                for (const s of [-1, 1]) {
+                    const pl = new THREE.Mesh(new THREE.BoxGeometry(0.096, 0.150, 0.026), slabM);
+                    pl.position.set(s * 0.118, 0.055, 0.150);
+                    pl.rotation.y = s * 0.14;
+                    g.add(pl);
+                }
+                // 허리 — 가는 토러스 대신 **세그먼트 블록 4개**가 옆으로 튀어나온다
+                {
+                    const wr = RINGS[2];
+                    for (let i = 0; i < 4; i++) {
+                        const a = -1.05 + i * 0.7;
+                        const blk = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.052, 0.040), frameM);
+                        blk.position.set(Math.sin(a) * wr.rx * 1.12, wr.y, Math.cos(a) * wr.rz * 1.16);
+                        blk.rotation.y = a;
+                        g.add(blk);
+                    }
+                }
+            } else {
+                // ── 양자 '델타 아머' — 이름의 Δ 를 그대로: 기울인 삼각 핀 + 부유 삼각판 ──────
+                // 3각 원뿔(CylinderGeometry radialSegments 3)이 곧 사면 프리즘이다 — 어깨에서 바깥
+                // 위로 기울여 대각 윤곽을 만든다(rig 의 수직 기둥·adamant 의 수평 계단과 셋 다 갈린다).
+                for (const s of [-1, 1]) {
+                    const fin = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.085, 0.190, 3), mats.body);
+                    fin.position.set(s * 0.252, 0.235, 0.005);
+                    fin.rotation.z = -s * 0.52;   // 바깥으로 눕는 Δ — 9차 교훈: 깊이 폭이 아니라 정면 평면에서 기울일 것
+                    fin.rotation.y = s * 0.35;
+                    g.add(fin);
+                    const edge = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.020, 0.150, 3), glowM);
+                    edge.position.set(s * 0.272, 0.235, 0.030);
+                    edge.rotation.z = -s * 0.52;
+                    edge.rotation.y = s * 0.35;
+                    g.add(edge);
+                }
+                // 골반 옆 부유 삼각판 — 아래로 벌어지는 대각 윤곽(홀로 판과 달리 삼각이라 결이 다르다)
+                for (const s of [-1, 1]) {
+                    const tri = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.070, 0.130, 3), frameM);
+                    tri.position.set(s * 0.252, -0.150, 0.010);
+                    tri.rotation.z = s * (Math.PI - 0.38);   // 꼭짓점이 아래-바깥을 향해 매달린다
+                    g.add(tri);
+                }
+                // 가슴 Δ 엠블럼 — 코어 위에 얹는 삼각 링(TorusGeometry tubularSegments 3 = 삼각형)
+                {
+                    const dtri = new THREE.Mesh(new THREE.TorusGeometry(0.070, 0.011, 6, 3), glowM);
+                    dtri.position.set(0, 0.108, 0.148);
+                    dtri.rotation.z = Math.PI / 2;   // 꼭짓점이 위로
+                    g.add(dtri);
+                }
             }
             // ⓒ 가슴 동력 코어 — 이 시대의 '문장'. 판금의 리벳 자리에 빛이 선다.
             {
