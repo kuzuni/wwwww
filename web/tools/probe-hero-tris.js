@@ -20,10 +20,23 @@
 //      더 늘면 **다시 A/B 를 재라**는 신호가 되는 자리다. ⚠️ 넘겼다고 조형을 되돌리기 전에 반드시
 //      `probe-hero-frametime` 으로 실제 비용부터 확인할 것 — 이번에도 '무거워 보인다'가 아니라
 //      실측이 판단을 뒤집었다(`shot-hero` 타임아웃의 범인은 조형이 아니라 고정 대기 문턱이었다).
+//
+// 🔁 **2026-08-20 두상 voxel 전환에서 트립와이어가 실제로 울렸고, 지시대로 다시 쟀다 → 66000 으로 옮긴다.**
+//    두상·턱을 구 두 개에서 큐브 상자로 옮기니 합계 55,070 → **60,762**(+5,692, 문턱 1.3% 초과).
+//    조형을 되돌리기 전에 이 머리말이 시키는 대로 `probe-hero-frametime` 을 **같은 실행 조건에서 교차로**
+//    돌렸다(old/new 를 번갈아, 120프레임, 중앙값):
+//      · R1  old 255.1ms(p90 543.5 — 다른 프로브가 붙어 오염된 판) / new 246.4ms
+//      · R2  old **245.3ms** / new **247.9ms**  ← 깨끗한 짝
+//    **삼각형 +10.3% 에 프레임 +1.1%.** 앞선 측정(2.3배에 +8%)과 같은 결론이다 — 이 씬은 정점이 아니라
+//    필레이트·나머지 작업이 지배한다. 그래서 조형을 되돌리지 않고 문턱을 옮겼다.
+//    ⚠️ **다음에 또 울리면 똑같이 하라: 먼저 재고, 그 다음에 판단하라.** 다만 66000 은 남은 전환
+//       (무기·방패·손·코)까지 잡은 자리이므로 **여기서 또 넘으면 이번엔 정말 조형/병합을 손볼 때**다.
+//       ⓐ 얼굴 안 보이는 면(투구 착용 시 두상 전체)을 조건부로 빼는 길 ⓑ 파츠 병합으로 드로우콜부터
+//       줄이는 길이 남아 있다 — 문턱만 또 올리지 말 것.
 // 사용: node probe-hero-tris.js
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
-const BUDGET = 60000;
+const BUDGET = 66000;   // ⚠️ 숫자만 보고 옮기지 말 것 — 머리말의 실측 근거를 먼저 읽어라
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });

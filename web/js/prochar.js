@@ -1578,14 +1578,40 @@ const ProChar = {
         const throat = new THREE.Mesh(new THREE.CylinderGeometry(0.112, 0.098, 0.09, 16, 1, true), deepLine);
         throat.position.y = cy(0.512);   // 목 구멍 암부도 칼라와 함께 내려온다(안 내리면 라메 위로 삐져나온다)
         spine.add(...collarParts, throat);
-        // 얼굴 — 둥근 두상 + 턱 라운딩 (헬멧 미착용 시 노출)
-        const skull = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 12), skin);
-        skull.position.y = 0.08;
-        skull.scale.set(0.95, 1.05, 0.95);
-        const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.145, 12, 9), skin);
-        jaw.position.set(0, -0.01, 0.02);
-        jaw.scale.set(0.95, 0.7, 0.9);
-        headG.add(skull, jaw);
+        // 🧊 **두상 = 축정렬 큐브 상자 (2026-08-20 voxel 전환, `prochar-aaa`).**
+        //   종전은 `SphereGeometry` 두 개(두개 0.19 · 턱 0.145)를 비균등 scale 로 눌러 만든 **매끈한 구**였다.
+        //   `cute-art-direction` 0차 채점에서 **비평가 2인이 서로의 점수를 모른 채 이걸 1순위로 같이 짚었다**:
+        //   "몸통·팔·다리는 큐브인데 머리만 구라서 한 캐릭터 안에서 조형 언어가 충돌한다"(A/B 요지).
+        //   3D 씬에서 가장 큰 단일 오브젝트가 화풍 밖에 있으니 다른 걸 아무리 고쳐도 점수가 안 올랐다.
+        //
+        //   ⚠️ **둥근 복셀(타원체 적층)로 바꾸면 안 된다.** 화풍 블록이 "치비 = 비례만 · 큐브를 둥글리지 말 것"
+        //      이라고 못 박았다 — 크로시로드 캐릭터가 네모나면서 귀여운 그 원리다. 그래서 **상자**로 간다.
+        //      모서리는 계단 베벨만 준다(화풍 ㉲ "각지거나 픽셀-라운드(계단)").
+        //   ⚠️ **비례는 옛 구에서 그대로 물려받는다** — 두상 반축 (0.1805, 0.1995, 0.1805)·중심 y=0.08,
+        //      턱 반축 (0.1378, 0.1015, 0.1305)·중심 (0,-0.01,0.02). 세로 점유 −0.12~0.28(높이 0.40)을
+        //      유지해야 `hero-chibi` 의 두신비 2.48 과 `probe-head-sweep` 이 안 흔들린다.
+        //   ⚠️ 칸은 리그 공용 `VOX`(0.016)다. `headG.scale` 이 1.30 이라 머리 큐브는 몸통보다 1.3배 크게
+        //      보이는데, **투구 파츠도 같은 headG 아래서 같은 격자로 굽고 있으므로** 머리와 투구는 서로 맞는다.
+        const HEAD_CRAN = { w: 23, d: 23, h: 16, bevel: 2 };   // 두개 — 23칸 = 0.368 ≈ 옛 폭 0.361
+        const HEAD_JAW = { w: 17, d: 17, h: 9, bevel: 1, dz: 1 }; // 턱 — 한 단 좁고 한 칸 앞으로(턱선 계단)
+        const HEAD_Y0 = -0.112;   // 층 0 의 **아랫면**이 −0.12 에 오도록(build(center:false) 는 칸 중심 기준)
+        // 두개와 턱을 **한 목록으로** 굽는다 — 맞닿는 면이 서로 가려져 사라지므로 삼각형이 준다
+        // (따로 구우면 그 경계면 두 벌이 그대로 남는다).
+        const headVox = Voxel.merge(
+            Voxel.at(Voxel.slab(HEAD_JAW.w, HEAD_JAW.h, HEAD_JAW.d, undefined, HEAD_JAW.bevel), 0, 0, HEAD_JAW.dz),
+            Voxel.at(Voxel.slab(HEAD_CRAN.w, HEAD_CRAN.h, HEAD_CRAN.d, undefined, HEAD_CRAN.bevel), 0, HEAD_JAW.h, 0));
+        // 살색 voxel 재질 — `mailVoxMat` 과 같은 이유로 인스턴스를 가른다(정점 색이 없는 메시에 같은
+        // 재질을 물리면 그쪽이 attribute 기본값 0 이라 통째로 검게 죽는다. 코·손은 아직 매끈이다).
+        const skinVox = new THREE.MeshStandardMaterial({
+            color: skin.color.getHex(), metalness: 0, roughness: 0.6, vertexColors: true, flatShading: true,
+        });
+        const head = this.voxPart(headVox, skinVox, { center: false });
+        head.position.y = HEAD_Y0;
+        headG.add(head);
+        // 얼굴 판이 붙을 **앞면 z** — 상자라 평면이다. 손으로 적지 말고 상자에서 파생시킨다
+        // (칸 수를 바꾸면 얼굴도 같이 따라와야 한다. 옛 판은 구 표면 z 를 손으로 베껴 적어 뒀었다).
+        const FACE_ZC = (HEAD_CRAN.d / 2) * this.VOX;                    // 두개 앞면 (= 0.184)
+        const FACE_ZJ = (HEAD_JAW.d / 2 + HEAD_JAW.dz) * this.VOX;       // 턱 앞면 (= 0.152)
         // 얼굴 이목구비 그룹 — 풀커버 투구(visor/mask/tech) 착용 시 통째로 숨김 (투구 밖으로 코/눈 뚫림 방지)
         const faceG = new THREE.Group();
         headG.add(faceG);
@@ -1611,7 +1637,15 @@ const ProChar = {
         const EYE_R = 0.056;                 // 눈 판 반지름 (종전 구형 흰자 0.046 대비 +22%)
         const EYE_SY = 1.16;                 // 흰자 세로배율
         const EYE_Y = 0.082, EYE_X = 0.082;  // 눈 중심 (두상 로컬)
-        const EYE_Z = 0.161, EYE_TILT = 0.47;// 접평면 원점 z · 접선 기울기(rad)
+        // 🧊 **두상이 상자가 되면서 접평면 계산이 통째로 사라졌다 (2026-08-20).** 위 주석의 '반지름
+        //    0.19·scale(0.95,1.05,0.95) 타원체의 접선 각 0.47rad, 표면 z 0.161' 은 **구였을 때의 유도**다.
+        //    상자의 앞면은 **평면**이라 기울기가 0 이고, 판을 얹을 z 는 그 평면 바로 앞 한 자리다.
+        //    ⚠️ 숫자를 손으로 다시 적지 말 것 — `FACE_ZC`(두개 앞면)에서 파생시킨다. 안 그러면 상자 칸
+        //       수를 바꾼 다음 세션에서 **눈이 머리 속으로 잠긴다**(옛 0.161 을 그대로 두면 지금 당장 잠긴다.
+        //       두개 앞면이 0.184 라 0.161 은 23칸 상자의 **안쪽**이다).
+        //    ⚠️ 기울기 0 이 조형적으로도 맞다 — 크로시로드 계열은 상자 앞면에 **정면으로** 얼굴이 얹힌다.
+        //       기울기를 남기면 판이 앞면과 어긋나 모서리에서 살이 비쳐 나온다.
+        const EYE_Z = FACE_ZC + 0.002, EYE_TILT = 0;
         const PIE = Math.PI * 0.30;          // 도려낸 부채꼴 각
         const inkMat = new THREE.MeshBasicMaterial({ color: 0x121316 });     // 동공·파이 쐐기 공용 잉크색
         for (const dx of [-EYE_X, EYE_X]) {
@@ -1657,7 +1691,7 @@ const ProChar = {
             faceG.add(blush);
             // 눈썹 — 눈 위로 올린 가는 아크. 커진 눈에 밀려 종전 y(0.128)는 흰자 안이라 못 쓴다.
             const brow = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.062, 6), new THREE.MeshLambertMaterial({ color: 0x33281a })); // r128엔 CapsuleGeometry 없음. 잉크 갈색 — 종전 0x6e4e1a 는 이 조명에서 '금색 막대'로 읽혔다
-            brow.position.set(dx, 0.170, 0.144);
+            brow.position.set(dx, 0.170, FACE_ZC + 0.002);   // 눈썹도 상자 앞면에 (구 시절 0.144 는 곡률 몫이었다)
             brow.rotation.z = Math.PI / 2 + sgn * 0.16;
             brow.rotation.y = sgn * 0.42;
             faceG.add(brow);
@@ -1666,14 +1700,14 @@ const ProChar = {
         //   ⚠️ 눈 판 안쪽 가장자리가 x=0.082−0.056·cos(0.47)=0.032 라 코 반폭도 그 안에 둔다(겹치면
         //   벌브가 흰자 아래를 파고든다). y 도 눈 아래로 내린다.
         const nose = new THREE.Mesh(new THREE.SphereGeometry(0.031, 12, 9), skin);
-        nose.position.set(0, 0.028, 0.192);
+        nose.position.set(0, 0.028, FACE_ZC + 0.008);   // 코는 앞면에서 **튀어나온다** (0.192 — 옛 값과 같다)
         nose.scale.set(1, 0.92, 1);
         faceG.add(nose);
         // 입 — 넓은 미소(사용자 지시 "넓은 미소"). 반원 구강 + 아랫니 띠 + 잉크 입술선 3겹.
         //   종전은 폭 0.032 의 옅은 아크라 얼굴 대비 1/6 도 안 됐다. 1930s 카툰 입은 얼굴 폭의 절반 이상이다.
         const MOUTH_W = 0.078;
         const mouthG = new THREE.Group();
-        mouthG.position.set(0, -0.030, 0.153);
+        mouthG.position.set(0, -0.030, FACE_ZJ + 0.002);   // 입은 **턱 상자** 앞면 (0.154 — 옛 값과 사실상 같다)
         mouthG.rotation.x = 0.18;            // 턱 곡면을 따라 살짝 아래를 보게
         faceG.add(mouthG);
         const maw = new THREE.Mesh(new THREE.CircleGeometry(MOUTH_W, 24, Math.PI, Math.PI), new THREE.MeshBasicMaterial({ color: 0x5a1f24 }));
