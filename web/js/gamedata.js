@@ -538,7 +538,7 @@ const PET_KR = {
 //    프로브 불변, 지오메트리 무변경.
 const PET_COLORS = {
     'Snail': 0xf0a83c, 'Turtle': 0x81c784, 'Mouse': 0xbdbdbd, 'Chicken': 0xf2ce3a, 'Cat': 0xe38b3e, 'Dog': 0xc98f4e,
-    'Hedgehog': 0x8d6e63, 'Bear': 0x8a5a2e, 'Ostrich': 0xe0e0e0, 'Scorpion': 0xef9a9a, 'Spider': 0x616161,
+    'Hedgehog': 0x8d6e63, 'Bear': 0x8a5a2e, 'Ostrich': 0xe0e0e0, 'Scorpion': 0xef9a9a, 'Spider': 0x6f5240,
     'Panda': 0xeeeeee, 'Griffin': 0xe0a828, 'Unicorn': 0xf6a8cc, 'Saber Tooth': 0xd98a34, 'Tiger': 0xf5801c,
     'Cerberus': 0x8e24aa, 'Kitsune': 0xe85e26, 'Serpent': 0x4db6ac,
     'Treant': 0x66bb6a, 'Enchanted Elk': 0x90caf9, 'Electry': 0xfff59d,
