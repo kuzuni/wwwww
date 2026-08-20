@@ -1177,6 +1177,10 @@ const ProChar = {
             for (const [r, y] of [[0.005, 0.062], [0.043, 0.058], [0.077, 0.047], [0.101, 0.026], [0.110, 0.002], [PR, -0.020]])
                 capPts.push(new THREE.Vector2(r, y));
             const pCap = new THREE.Mesh(new THREE.LatheGeometry(capPts, 14), steel());
+            // 🏷 **본체 판(라메) 표식** — `probe-pauldron` ② 가 이 태그로 판만 쥐고 **구워진 정점에서**
+            //    실루엣 반폭 프로파일을 잰다. 림(장식 테)·안감·아웃라인은 태그가 없어 빠진다.
+            //    태그는 이름표일 뿐이고 치수는 정점에서 나온다(설계 상수를 읽는 자 함정 회피).
+            pCap.userData.part = 'pauldronPlate';
             const pCapLine = new THREE.Mesh(new THREE.LatheGeometry(
                 capPts.map(v => new THREE.Vector2(v.x * 0.95, v.y - 0.004)), 14), deepLine); // 캡 안감(두께)
             pauldronG.add(pCap, pCapLine);
@@ -1209,6 +1213,7 @@ const ProChar = {
                 node.add(seg);
                 const rt = lastR * 0.98, rb = PR * ratio; // 위는 앞 장 밑단에 맞물리고 아래로 좁아진다
                 const band = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, hh, 14, 1, true), steel());
+                band.userData.part = 'pauldronPlate';
                 band.position.y = -hh / 2;
                 // 안감은 DoubleSide(deepLine)라 열린 밑단으로 올려다볼 때 어두운 속이 보인다 — 판금 두께
                 const bandIn = new THREE.Mesh(new THREE.CylinderGeometry(rt * 0.95, rb * 0.95, hh * 1.04, 14, 1, true), deepLine);
@@ -1224,6 +1229,7 @@ const ProChar = {
             // 원판이 아니라 **링**인 이유: 가운데로 상완이 지나가므로 원판이면 팔을 뚫고 나온 판으로 보인다.
             // 안쪽 반경은 굵어진 상완(0.073)보다 살짝 크게 잡아 팔이 링을 관통하지 않게 한다.
             const pFloor = new THREE.Mesh(new THREE.RingGeometry(0.079, lastR, 14), deepLine);
+            pFloor.userData.part = 'pauldronFloor';  // ③ 이 타입(RingGeometry)이 아니라 이 태그로 찾는다
             pFloor.rotation.x = Math.PI / 2;         // 아래를 향하게
             pFloor.position.y = lastY - 0.001;
             node.add(pFloor);

@@ -34,26 +34,45 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         const shoulder = R.arms && R.arms[0] ? R.arms[0].shoulder : null;
         if (!shoulder) return { error: 'R.arms[0].shoulder 없음' };
 
-        // ── 라메 반경 수집 ──────────────────────────────────────────────
-        // 밴드는 CylinderGeometry(rt, rb, ...) 로 만들어지므로 parameters 에서 바로 읽는다.
-        // 안감(bandIn)·림(Torus)·아웃라인 셸은 제외 — 본체 밴드만 센다.
-        const lames = [];
-        let capR = 0, armR = 0;
+        // ── 라메 실루엣 반폭 프로파일 수집 ─────────────────────────────
+        // 🚨 **2026-08-20 자 교체 — 옛 판은 voxel 앞에서 통째로 눈이 멀었다.**
+        //    옛 ②는 밴드를 `geometry.type === 'CylinderGeometry'` + `parameters.openEnded` 로 열거하고
+        //    캡 반경을 `LatheGeometry.parameters.points` 에서 뽑았다. 둘 다 **설계 인자를 읽는 자**라,
+        //    판을 큐브 적층(`BufferGeometry`, `parameters` 없음)으로 바꾸는 순간 `lames`·`capR` 이
+        //    **조용히 빈 배열·0** 이 된다 — ①의 `armR` 이 상완 voxel 전환 때 정확히 그렇게 죽었다(㉡).
+        //    → 판정을 조형 무관한 말로 바꾼다: **실루엣 반폭 프로파일이 최대점 아래로 단조 비증가**이고
+        //      **밑단 ≤ 0.82 × 최대**(옛 '0.72 대역 0.62~0.82' 와 같은 뜻). 프리미티브를 뭘 쓰든 같은 값이 나온다.
+        //
+        //    ⚠️ **프로파일은 판마다 그 판의 로컬 프레임에서 잰다.** 라메는 장마다 14°씩 누적으로
+        //       기울어 있어서, 견갑 전체를 한 y 축으로 훑으면 기울기가 반폭에 섞여 들어간다(판은 안 넓어졌는데
+        //       넓어진 것으로 읽힌다). 각 판은 자기 축에 대한 회전체이므로 자기 프레임에서 재는 게 곧 실루엣이다.
+        //    ⚠️ 반폭은 `max(|x|,|z|)` — `hypot` 은 각진 단면에서 모서리 대각선(정사각이면 ×√2)을 잡아
+        //       조형을 안 건드렸는데 "굵어졌다"고 보고한다(㉠, 팔 프로브 3종이 실제로 뒤집혔다).
+        //    ⚠️ 판 순서는 **중첩 깊이** — 라메는 앞 장의 자식으로 매달리므로 깊이가 곧 적층 순서다.
+        //       월드 y 중심으로 정렬하면 안 된다(장이 서로 겹치게 설계돼 있어 중심이 뒤집힌다).
+        const BIN = 0.006;                            // 프로파일 y 구간(칸 0.016 보다 잘게)
+        const plates = [];
+        let armR = 0;
         shoulder.traverse(o => {
-            if (!o.isMesh || o.userData.isOutline) return;
-            const p = o.geometry && o.geometry.parameters;
-            if (!p) return;
-            if (o.geometry.type === 'CylinderGeometry' && p.openEnded && p.radiusTop > 0.05) {
-                // 안감은 본체보다 정확히 5% 작게 만든다 — 같은 값이 두 번 잡히지 않게 걸러낸다
-                lames.push({ rt: +p.radiusTop.toFixed(4), rb: +p.radiusBottom.toFixed(4), h: +p.height.toFixed(4), y: +o.position.y.toFixed(4) });
+            if (!o.isMesh || o.userData.isOutline || o.userData.part !== 'pauldronPlate') return;
+            let depth = 0;
+            for (let p = o.parent; p; p = p.parent) { depth++; if (p.userData.part === 'pauldron') break; }
+            o.updateWorldMatrix(true, false);
+            const pos = o.geometry.attributes.position;
+            const bins = new Map();
+            const v = new THREE.Vector3();
+            for (let i = 0; i < pos.count; i++) {
+                v.fromBufferAttribute(pos, i);
+                const b = Math.round(v.y / BIN);
+                const r = Math.max(Math.abs(v.x), Math.abs(v.z));
+                if (!(bins.get(b) >= r)) bins.set(b, r);
             }
-            if (o.geometry.type === 'LatheGeometry') {
-                for (const v of (p.points || [])) capR = Math.max(capR, v.x);
-            }
+            const prof = [...bins.entries()].sort((a, b) => b[0] - a[0])   // 위 → 아래
+                .map(([b, r]) => ({ y: +(b * BIN).toFixed(4), r: +r.toFixed(4) }));
+            plates.push({ depth, prof });
         });
-        // 안감 걸러내기 — 본체와 반경비 0.95 로 짝지어지는 것을 뺀다
-        const body = lames.filter(a => !lames.some(b => b !== a && Math.abs(b.rt * 0.95 - a.rt) < 1e-3));
-        body.sort((a, b) => b.rt - a.rt);
+        plates.sort((a, b) => a.depth - b.depth);
+        const profile = plates.flatMap(p => p.prof.map(s => s.r));
 
         // 상완 — 🚨 **`userData.part` 태그로 찾고 구워진 정점에서 잰다 (2026-08-20 수정).**
         //    옛 판은 `geometry.parameters.radiusTop`(= CylinderGeometry 설계 인자)을 읽었다.
@@ -84,16 +103,32 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         // ⚠️ **월드 수직으로 쏘면 안 된다.** 라메는 바깥-아래로 14°씩 누적 회전해 있어, 수직 레이는
         //    기울어진 밑단 옆으로 그냥 빠져나간다(막혀 있어도 '뚫림'으로 읽힌다). 판정해야 하는 것은
         //    "견갑 자기 축 방향에서 올려다볼 때 속이 보이는가" 이므로 **마지막 라메의 로컬 +Y**로 쏜다.
-        const floorMesh = (() => { let f = null; shoulder.traverse(o => { if (!f && o.isMesh && !o.userData.isOutline && o.geometry.type === 'RingGeometry') f = o; }); return f; })();
-        if (!floorMesh) return { error: '밑면 캡(RingGeometry) 이 없다 — ③ 미구현' };
+        // 🚨 **2026-08-20 — ③ 도 같은 함정이었다.** 옛 판은 밑면 캡을 `geometry.type === 'RingGeometry'`
+        //    로 찾고 구멍 반경을 `parameters.innerRadius/outerRadius` 에서 읽었다. 캡을 큐브 링으로
+        //    바꾸면 **찾지도 못하고**(에러 종료) 반경도 못 읽는다. → 태그로 찾고, 반경은 정점에서 잰다.
+        const floorMesh = (() => { let f = null; shoulder.traverse(o => { if (!f && o.isMesh && !o.userData.isOutline && o.userData.part === 'pauldronFloor') f = o; }); return f; })();
+        if (!floorMesh) return { error: '밑면 캡(part=pauldronFloor) 이 없다 — ③ 미구현' };
         const segM = floorMesh.parent.matrixWorld;
         const up = new THREE.Vector3(0, 1, 0).transformDirection(segM).normalize();
         const ax = new THREE.Vector3(1, 0, 0).transformDirection(segM).normalize();
         const az = new THREE.Vector3(0, 0, 1).transformDirection(segM).normalize();
         const hemC = new THREE.Vector3(0, floorMesh.position.y, 0).applyMatrix4(segM);
         // 상완과 견갑 밑단 **사이**를 노린다 — 거기가 뚫려 있으면 안감 내부 면이 그대로 보인다.
-        const rp = floorMesh.geometry.parameters;
-        const off = (rp.innerRadius + rp.outerRadius) / 2;
+        // 링의 안·바깥 반경은 **부모(라메) 프레임으로 옮긴 정점**에서 잰다 — 옛 RingGeometry 는 XY 평면에
+        // 누워 있어 자기 프레임에서 재면 z 가 0 이고, voxel 링은 이미 XZ 평면이라 프레임이 서로 다르다.
+        // 부모 프레임에서 재면 둘 다 같은 뜻이 된다(옛 값 재현 확인함).
+        const fp = floorMesh.geometry.attributes.position;
+        let rIn = Infinity, rOut = 0;
+        {
+            const v = new THREE.Vector3();
+            for (let i = 0; i < fp.count; i++) {
+                v.fromBufferAttribute(fp, i).applyMatrix4(floorMesh.matrix);
+                const r = Math.hypot(v.x - floorMesh.position.x, v.z - floorMesh.position.z);
+                if (r < rIn) rIn = r;
+                if (r > rOut) rOut = r;
+            }
+        }
+        const off = (rIn + rOut) / 2;
         const rc = new THREE.Raycaster();
         const hits = [];
         for (let i = 0; i < 8; i++) {
@@ -110,32 +145,49 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
         // ⚠️ '견갑 지름'은 캡 반경이 아니라 **가장 넓은 지점**이다. 직전 판은 캡(0.099)보다 밑단 밴드
         //    (0.119)가 더 넓었으므로, 캡만 보면 판정 ①이 낡은 갓등 형상에서도 통과해 버린다(실제로 0.626).
-        const maxR = Math.max(capR, ...body.map(b => Math.max(b.rt, b.rb)));
+        const maxR = Math.max(...profile);
+        const iMax = profile.indexOf(maxR);
+        const below = profile.slice(iMax);            // 최대점 **아래**만 본다(캡 꼭대기 → 최대는 원래 넓어진다)
+        // 단조 비증가 — 넓어지는 구간이 하나라도 있으면 그게 '갓등'이다. 어디서 뒤집혔는지 같이 남긴다.
+        let rise = null;
+        for (let i = 1; i < below.length; i++)
+            if (below[i] > below[i - 1] + 1e-6) { rise = { i: iMax + i, from: below[i - 1], to: below[i] }; break; }
+        // 🚨 **단조 판정만으로는 갓등이 안 잡힌다 — 실측으로 확인하고 조건을 하나 더 걸었다.**
+        //    아래로 갈수록 **계속** 넓어지는 형태는 최대점이 맨 밑이라 `below` 가 한 칸뿐이고
+        //    "단조 비증가 = true" 로 통과해 버린다(A/B: 반경비를 1.10·1.20 으로 뒤집어 재현했다).
+        //    처방 원문이 "어깨 캡이 가장 넓고 팔을 따라 좁아지며 내려간다" 이므로, **최대점이 캡(맨 위 판)
+        //    안에 있어야 한다**를 같이 건다. 밑단비만 걸면 밑단만 좁힌 항아리형도 통과한다.
+        const capLen = plates.length ? plates[0].prof.length : 0;
         return {
-            capR: +capR.toFixed(4),
             maxR: +maxR.toFixed(4),
-            lames: body,
-            ratios: body.map(b => +(b.rb / maxR).toFixed(3)),
+            capOwnsMax: iMax < capLen, capLen,
+            profile: profile.map(r => +r.toFixed(4)),
+            plateProfiles: plates.map(p => ({ depth: p.depth, prof: p.prof })),
+            iMax, rise,
+            hemRatio: +(profile[profile.length - 1] / maxR).toFixed(3),
             armR: +armR.toFixed(4),
             armOverPauldron: +((armR * 2) / (maxR * 2)).toFixed(3),
             overhang: +(maxR - armR).toFixed(4),
+            floorR: [+rIn.toFixed(4), +rOut.toFixed(4)],
             rayHits: hits, openRays: open,
         };
     });
 
     if (out.error) { console.log('ERROR ' + out.error); await browser.close(); process.exit(1); }
-    console.log(`캡 반경 ${out.capR} · 견갑 최대반경 ${out.maxR} · 상완 반경 ${out.armR} · 오버행 ${out.overhang}`);
-    console.log('라메(본체) 밴드:');
-    for (const l of out.lames) console.log(`   rt=${l.rt} rb=${l.rb} h=${l.h} y=${l.y}`);
+    console.log(`견갑 최대반경 ${out.maxR} · 상완 반경 ${out.armR} · 오버행 ${out.overhang} · 밑면 링 ${out.floorR.join('~')}`);
+    console.log('판별 실루엣 반폭 프로파일(위→아래, 판마다 자기 프레임):');
+    for (const p of out.plateProfiles)
+        console.log(`   깊이${p.depth}: ` + p.prof.map(s => `${s.y}:${s.r}`).join(' '));
     const ok = [];
     // ① 상완 지름 ≥ 견갑 지름 × 0.6
     const p1 = out.armOverPauldron >= 0.6;
     console.log(`① 상완/견갑 지름비 ${out.armOverPauldron} (처방 ≥0.60) ${p1 ? '✅' : '❌'}`); ok.push(p1);
-    // ② 아래로 갈수록 좁아지고, 최하단 비율이 0.72 근처
-    const desc = out.ratios.every((r, i, a) => i === 0 || r < a[i - 1]);
-    const last = out.ratios[out.ratios.length - 1];
-    const p2 = desc && last >= 0.62 && last <= 0.82;
-    console.log(`② 라메 반경비 [1.0, ${out.ratios.join(', ')}] — 단조 감소=${desc} · 최하단 ${last} (처방 0.72 대역 0.62~0.82) ${p2 ? '✅' : '❌'}`); ok.push(p2);
+    // ② 최대점 아래로 단조 비증가 + 밑단 ≤ 0.82×최대 (옛 '반경비 1.0/0.85/0.72' 와 같은 뜻, 조형 무관)
+    const p2 = !out.rise && out.capOwnsMax && out.hemRatio >= 0.62 && out.hemRatio <= 0.82;
+    console.log(`② 최대 ${out.maxR}(프로파일 ${out.iMax}번째 / 캡 ${out.capLen}칸) 아래 단조 비증가=${!out.rise}`
+        + (out.rise ? ` — ${out.rise.i}번째에서 ${out.rise.from}→${out.rise.to} 로 넓어진다(갓등)` : '')
+        + ` · 최대점이 캡 안=${out.capOwnsMax}`
+        + ` · 밑단비 ${out.hemRatio} (처방 0.62~0.82) ${p2 ? '✅' : '❌'}`); ok.push(p2);
     // ③ 밑면 막힘
     const p3 = out.openRays === 0;
     console.log(`③ 밑면 레이 8발 중 뚫린 것 ${out.openRays}발 ${p3 ? '✅ 막힘' : '❌ 열려 있다'}`); ok.push(p3);
