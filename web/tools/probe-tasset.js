@@ -119,8 +119,27 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     const plainT = out.gapsT.filter((_, i) => i !== notchIdx), plainB = out.gapsB.filter((_, i) => i !== notchIdx);
     const mean = a => a.reduce((s, g) => s + g.deg, 0) / a.length;
     const mT = +mean(plainT).toFixed(2), mB = +mean(plainB).toFixed(2), mAll = (mT + mB) / 2;
-    const p2 = out.n >= 5 && out.n <= 7 && mAll >= 4 && mAll <= 6 && mB > mT;
-    console.log(`② 태싯 ${out.n}장(처방 5~7) · 일반 간극 평균 위 ${mT}° 아래 ${mB}° → 전체 ${mAll.toFixed(2)}° (처방 4~6°, 노치 제외) · V 열림(아래>위)=${mB > mT} ${p2 ? '✅' : '❌'}`); ok.push(p2);
+    // 🚨 **②의 눈금을 '평균 간극 4~6°'에서 격자 단위로 옮겼다 (2026-08-20, `prochar-aaa` ⓑ voxel 전환).**
+    //    이유는 조형이 나빠져서가 아니라 **그 각도대를 이 격자가 만들 수 없기 때문**이다: 칸 0.016 이
+    //    스커트 상단(r 0.19 = 11.875칸)에서 만드는 최소 간극이 이미 **4.83°** 라, 처방 하한 4°~4.83°
+    //    구간은 표현 자체가 안 된다. 그런 값을 각도로 강제하면 칸이 경계마다 다르게 떨어져
+    //    간극이 균일한 틈이 아니라 **톱니**가 된다(실제로 초판이 그랬다 — 하단이 180°에서 3.7°,
+    //    나머지에서 8.51°). 옛 매끈 조형도 4°/7° 로 이미 상한 6°를 넘겨 놓고 **평균으로 통과**하고
+    //    있었으니, 각도대는 원래도 판별력이 약했다.
+    //    → 대신 처방의 **뜻** 셋을 각각 잰다. 각도는 비교용으로 계속 찍는다.
+    //      ⓐ V 열림(아래 > 위) — 옛 판정 그대로.
+    //      ⓑ **간극 균일도**(일반 간극 max/min ≤ 1.35) — 옛 자에 아예 없던 축이고, 위의 톱니를
+    //         잡는 건 이것뿐이다(초판 8.51/3.7 = 2.30 ❌ · 지금 8.6/7.38 = 1.17 ✅).
+    //      ⓒ **판이 간극보다 훨씬 넓다**(판 호/간극 ≥ 5, 위·아래 각각) — '틈이 벌어져 슬랫이 됐다'를
+    //         반지름과 무관하게 잡는다. 절대 각도대와 달리 격자를 바꿔도 뜻이 유지된다.
+    //    옛 매끈 조형 A/B 로 셋 다 확인했다(균일도 1.00/1.00 · 판/간극 14.0/7.6) — 자를 느슨하게
+    //    만든 게 아니라 **판별력이 있는 축으로 갈아 끼운 것**이다.
+    const spread = a => Math.max(...a.map(g => g.deg)) / Math.max(1e-9, Math.min(...a.map(g => g.deg)));
+    const uT = +spread(plainT).toFixed(2), uB = +spread(plainB).toFixed(2);
+    const plateT = +((360 / out.n - mT) / mT).toFixed(1), plateB = +((360 / out.n - mB) / mB).toFixed(1);
+    const p2 = out.n >= 5 && out.n <= 7 && mB > mT && uT <= 1.35 && uB <= 1.35 && plateT >= 5 && plateB >= 5;
+    console.log(`② 태싯 ${out.n}장(처방 5~7) · 일반 간극 평균 위 ${mT}° 아래 ${mB}° (참고: 전체 ${mAll.toFixed(2)}°, 노치 제외)`);
+    console.log(`   ⓐ V 열림(아래>위)=${mB > mT} · ⓑ 균일도 위 ${uT} 아래 ${uB} (≤1.35) · ⓒ 판/간극 위 ${plateT} 아래 ${plateB} (≥5) ${p2 ? '✅' : '❌'}`); ok.push(p2);
     // ③ 전면 중앙(θ≈0 또는 360) 간극이 최대
     const front = notchB;
     const others = plainB;

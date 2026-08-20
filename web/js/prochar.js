@@ -631,56 +631,107 @@ const ProChar = {
         //     6장으로 가르고, 간극을 **위 4° → 아래 7°** 로 벌려 틈 자체가 V 로 열리게 한다(처방 4~6° 대역).
         //     전면 중앙(θ=0)은 간극을 2배로 줘 **중앙 V 노치**를 만든다.
         const SK_TOP = 0.19, SK_BOT = 0.248, SK_H = 0.18, SK_Y = -0.045;
-        // 태싯 판 — CylinderGeometry 로는 못 만든다(theta 범위가 높이에 따라 변할 수 없어 간극이 V 로 안 열린다).
-        // 그래서 (theta, y) 격자를 직접 떠서 위/아래 theta 경계를 따로 받는 곡면 판을 만든다.
-        const tassetPlate = (rT, rB, h, yTop, aT0, aT1, aB0, aB1, mat) => {
-            const SEG_T = 6, SEG_Y = 2;
-            const pos = [], nor = [], idx = [];
-            const ny = (rB - rT) / h;   // 원뿔 측면 법선의 y 성분 (밑으로 벌어지면 법선이 위를 향한다)
-            for (let j = 0; j <= SEG_Y; j++) {
-                const v = j / SEG_Y;
-                const r = rT + (rB - rT) * v, y = yTop - h * v;
-                const t0 = aT0 + (aB0 - aT0) * v, t1 = aT1 + (aB1 - aT1) * v;
-                for (let i = 0; i <= SEG_T; i++) {
-                    const th = t0 + (t1 - t0) * (i / SEG_T);
-                    const s = Math.sin(th), c = Math.cos(th);
-                    pos.push(r * s, y, r * c);
-                    const n = new THREE.Vector3(s, ny, c).normalize();
-                    nor.push(n.x, n.y, n.z);
+        const N_TASSET = 6, SEG_A = (Math.PI * 2) / N_TASSET;
+        // 🧊 **voxel 태싯** — (theta, y) 격자를 직접 뜬 매끈 곡면 판을 칸 적층으로 옮긴다.
+        //   🚨 **간극을 '각도'로 주면 이 격자에서는 표현이 안 된다 — 조형에 손대기 전에 실측으로 확인했다.**
+        //      칸 0.016 이 스커트 상단(r 0.19 = 11.875칸)에서 만드는 각은 **4.83°** 라, 옛 처방의
+        //      '위 간극 4°'는 **한 칸보다 좁다**(0.83칸). 그런 값을 각도로 주면 반올림이 각도마다
+        //      0칸/1칸으로 갈려 간극이 균일한 틈이 아니라 **톱니**가 된다.
+        //      → 간극을 **칸 호길이**로 잡는다: **위 1칸 → 아래 2칸.** 반지름이 커지는 만큼 각도는
+        //        저절로 벌어져 **4.83° → 7.39°** 가 되고, 이는 옛 매끈 판의 **4° → 7°** 와 거의 같은
+        //        자리다. 물리 폭으로 보면 0.0133 → 0.0303 이 **0.016 → 0.032** 가 된 것이라,
+        //        '비례를 그대로 옮겨 적는다'는 이 전환의 전제를 각도가 아니라 폭에서 지킨 셈이다.
+        //      ⚠️ 그래서 `probe-tasset` ② 의 '간극 평균 4~6°' 눈금은 이 격자에서 의미가 바뀐다 —
+        //        자를 칸 단위로 옮겼다(그쪽 주석 참조). 눈금을 느슨하게 한 게 아니라 **표현 가능한
+        //        최소 간극이 4.83°** 라, 4~4.83° 구간은 격자가 만들 수 없는 값이다.
+        const VOXC = this.VOX;
+        const rTc = SK_TOP / VOXC, rBc = SK_BOT / VOXC;            // 칸 반지름 11.875 → 15.5
+        const SK_LAYERS = Math.max(1, Math.round(SK_H / VOXC));    // 층 수 11
+        const GAP_C_T = 1, GAP_C_B = 2;                            // 간극(칸 호길이) 위 → 아래
+        // 판 하나를 칸으로 적는다. 칸 y: **0 = 밑단**, SK_LAYERS-1 = 상단.
+        //   notch0/notch1 = 그 쪽 간극을 2배로(전면 중앙 V 노치). opts.dr = 셸 반경만 밀어내는
+        //   오프셋(칸) — 금 테를 한 칸 도톰하게 두를 때 쓴다. **각도는 판 반지름으로 재고 셸만
+        //   밀어낸다** — 안 그러면 금 테의 간극이 판보다 좁아져 틈 안으로 금이 비어져 든다.
+        //   🚨 **판을 각도로 잘라내면 안 된다 — 초판이 그렇게 했다가 간극이 톱니가 됐다(실측).**
+        //      각도 경계로 칸을 걸러내면 경계마다 칸이 다르게 떨어져, 같은 처방인데도 실측 하단
+        //      간극이 **180°에서 3.7° · 나머지에서 8.51°** 로 튀었다(한 칸 대 두 칸). 링 자체가
+        //      정사각 격자라 방위마다 칸 위상이 다르기 때문이고, 이건 값을 바꿔서 고칠 수 없다.
+        //      → 층마다 링의 칸을 **각도순으로 줄 세운 뒤 경계마다 정확히 g칸을 걷어낸다.**
+        //        간극이 '각도'가 아니라 '칸 수'로 정의되므로 여섯 경계가 반드시 같아진다.
+        //      g 는 층마다 `round(2 → 1)` 이라 아래 절반이 2칸, 위 절반이 1칸인 **계단 V** 가 된다 —
+        //      11층에서 1~2칸을 매끈하게 잇는 방법은 없고, 화풍이 요구하는 것도 '굵게 끊긴 계단'이다.
+        const buildTassets = (yFrom, yTo) => {
+            const plates = [];
+            for (let k = 0; k < N_TASSET; k++) plates.push([]);
+            for (let j = yFrom; j < yTo; j++) {
+                const u = SK_LAYERS === 1 ? 1 : j / (SK_LAYERS - 1);    // 0 = 밑단, 1 = 상단
+                const r = rBc + (rTc - rBc) * u;                        // 각도 기준 반지름
+                const gap = Math.max(1, Math.round(GAP_C_B + (GAP_C_T - GAP_C_B) * u));   // 걷어낼 칸 수
+                const rc = r, m = Math.ceil(rc);
+                const ring = [];
+                for (let x = -m; x <= m; x++) for (let z = -m; z <= m; z++) {
+                    const d = Math.hypot(x, z);
+                    if (d > rc || d <= rc - 1) continue;                // 한 칸 두께 셸
+                    let th = Math.atan2(x, z);        // 매끈 판과 같은 규약(x = r·sinθ, z = r·cosθ)
+                    if (th < 0) th += Math.PI * 2;
+                    ring.push({ x, z, th });
+                }
+                if (!ring.length) continue;
+                ring.sort((a, b) => a.th - b.th);
+                const n = ring.length, dead = new Array(n).fill(false);
+                for (let b = 0; b < N_TASSET; b++) {
+                    const beta = b * SEG_A;
+                    let bi = 0, best = Infinity;      // 경계에 가장 가까운 칸
+                    for (let i = 0; i < n; i++) {
+                        let dth = Math.abs(ring[i].th - beta);
+                        if (dth > Math.PI) dth = Math.PI * 2 - dth;
+                        if (dth < best) { best = dth; bi = i; }
+                    }
+                    const g = gap * (b === 0 ? 2 : 1);   // θ0 = 정면 중앙만 2배 = V 노치
+                    for (let s = 0; s < g; s++) dead[(bi + s - (g >> 1) + n * 2) % n] = true;
+                }
+                for (let i = 0; i < n; i++) {
+                    if (dead[i]) continue;
+                    const k = Math.min(N_TASSET - 1, Math.floor(ring[i].th / SEG_A));
+                    plates[k].push({ x: ring[i].x, y: j, z: ring[i].z });
                 }
             }
-            for (let j = 0; j < SEG_Y; j++) for (let i = 0; i < SEG_T; i++) {
-                const a = j * (SEG_T + 1) + i, b = a + 1, c2 = a + SEG_T + 1, d = c2 + 1;
-                idx.push(a, c2, b, b, c2, d);
-            }
-            const g = new THREE.BufferGeometry();
-            g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-            g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-            g.setIndex(idx);
-            return new THREE.Mesh(g, mat);
+            return plates;
         };
-        const D = Math.PI / 180;
-        const N_TASSET = 6, SEG_A = (Math.PI * 2) / N_TASSET;
-        const GAP_T = 4 * D, GAP_B = 7 * D;          // 간극: 위 4° → 아래 7° (틈이 V 로 열린다)
-        const NOTCH_T = 4 * D, NOTCH_B = 7 * D;      // 전면 중앙만 간극 2배 = V 노치
-        // 태싯 본체는 **FrontSide** 로 둔다 — DoubleSide 면 인버티드 헐 아웃라인 대상에서 빠져(재질 필터)
-        // 절개선이 테두리로 안 읽힌다. 안쪽은 바로 뒤의 니어블랙 안감(skirtLine, DoubleSide)이 받는다.
-        const tassetMat = steelDark();
+        // 칸 y=0 의 **밑면**을 옛 판의 밑단(SK_Y − SK_H/2)에 맞춘다 — 안장 정합(`heroSeatDropY`)이
+        // 재는 게 이 밑단이라 여기를 정확히 두고, 대신 윗변이 0.004(¼칸) 낮게 끝나는 걸 받는다
+        // (11칸 × 0.016 = 0.176 < 0.18). 윗변은 벨트가 덮는 자리라 화면에서 드러나지 않는다.
+        const SK_MESH_Y = SK_Y - SK_H / 2 + VOXC / 2;
+        const tassetMat = voxSteel('steelDark');
+        // 금 트림의 voxel 판 — 양쪽 비평가가 '되돌리지 말 것'으로 꼽은 골드 트림이라 색·금속감은
+        // 원본(0xd9a441 / metal 0.95 / rough 0.3)을 유지하고, env 만 이음새가 보이게 내린다.
+        // (아래 다리 판금 블록도 이 인스턴스를 그대로 쓴다 — 톤 재질을 두 벌 만들지 않는다.)
+        const goldVox = new THREE.MeshStandardMaterial({
+            color: 0xd9a441, metalness: 0.9, roughness: 0.34, envMapIntensity: 0.55,
+            vertexColors: true, flatShading: true,
+        });
+        const steelDarkVox = tassetMat;
         const tassets = [], hemRims = [];
+        // 🚨 **금 테를 '한 칸 밖으로 내민 립'으로 만들지 말 것 — 해 보고 캡처에서 되돌렸다.** 칸 단위
+        //    돌출은 이 반지름에서 4~6% 라 얇은 테가 아니라 **밑에서 보면 식탁 모서리 같은 차양**으로
+        //    찍힌다(`tools/shot-tasset.js` 아래 컷에서 바로 드러났다). voxel 에서 밑단 테의 옳은 형태는
+        //    돌출이 아니라 **밑단 한 층을 금색으로 칠하는 것**이다 — 실루엣을 안 건드리고 색만 띠가 된다.
+        const bodyVox = buildTassets(1, SK_LAYERS);      // 본체 — 밑단 한 층은 금 테에 내준다
+        const rimVox = buildTassets(0, 1);               // 금 테 — 밑단 한 층(같은 셸, 돌출 없음)
         for (let k = 0; k < N_TASSET; k++) {
-            const cA = (k + 0.5) * SEG_A, b0 = cA - SEG_A / 2, b1 = cA + SEG_A / 2;
-            let g0T = GAP_T / 2, g1T = GAP_T / 2, g0B = GAP_B / 2, g1B = GAP_B / 2;
-            if (k === 0) { g0T += NOTCH_T / 2; g0B += NOTCH_B / 2; }               // b0 = θ0 = 정면 중앙
-            if (k === N_TASSET - 1) { g1T += NOTCH_T / 2; g1B += NOTCH_B / 2; }    // b1 = θ360 = 같은 자리
-            const aT0 = b0 + g0T, aT1 = b1 - g1T, aB0 = b0 + g0B, aB1 = b1 - g1B;
-            const t = tassetPlate(SK_TOP, SK_BOT, SK_H, SK_Y + SK_H / 2, aT0, aT1, aB0, aB1, tassetMat);
+            const t = this.voxPart(bodyVox[k], tassetMat, { center: false });
+            t.position.y = SK_MESH_Y;
             // 🏷 `probe-tasset` 이 판을 **정점 수 21개(7×3 격자)로** 찾고 있었다 — 조형을 바꾸는 순간
             //    눈이 먼다(견갑 전환에서 프로브 셋이 같은 이유로 무너졌다). 태그로 쥐게 한다.
             t.userData.part = 'tasset';
             tassets.push(t);
             // 밑단 금 테 — 통짜 토러스를 쓰면 갈라 놓은 태싯을 다시 한 줄로 이어 붙여 절개가 무의미해진다.
             // 태싯마다 **자기 밑단 호**만 두른다(같은 theta 경계라 정렬이 어긋날 수 없다).
-            const rim = tassetPlate(SK_BOT + 0.004, SK_BOT + 0.004, 0.018, SK_Y - SK_H / 2 + 0.018, aB0, aB1, aB0, aB1, gold);
+            // voxel 판이라 옛 '반경 +0.004 · 높이 0.018 띠' 를 **밑단 한 층을 한 칸 밖으로 내민 금 립**
+            // 으로 옮긴다 — 반 칸짜리 돌출은 이 격자에서 표현이 안 되고(칸 단위가 최소), 한 칸이면
+            // 96px 에서도 금 선이 살아 남는다.
+            const rim = this.voxPart(rimVox[k], goldVox, { center: false });
+            rim.position.y = SK_MESH_Y;
             rim.userData.part = 'tassetRim';   // 본체 판과 구분 — ②는 본체만 센다
             hemRims.push(rim);
         }
@@ -751,13 +802,11 @@ const ProChar = {
         this._toneMats.push(mailVoxMat);
         // voxel 판금 2톤 — 다리 판금(쿠이스·폴린·그리브·라메)이 공유한다. 인스턴스를 하나로 묶어
         // 드로우콜과 톤 스윕 대상 수를 아낀다(원통판 `steel()`/`steelDark()` 는 호출마다 새로 만든다).
-        const steelVox = voxSteel('steel'), steelDarkVox = voxSteel('steelDark');
-        // 금 트림의 voxel 판 — 양쪽 비평가가 '되돌리지 말 것'으로 꼽은 골드 트림이라 색·금속감은
-        // 원본(0xd9a441 / metal 0.95 / rough 0.3)을 유지하고, env 만 이음새가 보이게 내린다.
-        const goldVox = new THREE.MeshStandardMaterial({
-            color: 0xd9a441, metalness: 0.9, roughness: 0.34, envMapIntensity: 0.55,
-            vertexColors: true, flatShading: true,
-        });
+        const steelVox = voxSteel('steel');
+        // ⚠️ `steelDarkVox`·`goldVox` 는 **스커트 태싯 블록(위)에서 이미 만들어 두고 내려온다** —
+        //    태싯이 voxel 로 바뀌면서 그 둘을 먼저 쓰게 됐고, 여기서 다시 만들면 같은 톤의 재질이
+        //    두 벌이 되어 `setTone`·시대 틴트가 한쪽만 잡는다(`R.armorMats` 에 둘 다 들어가긴 하나
+        //    드로우콜과 톤 스윕 대상이 공연히 는다). 하나만 두고 공유한다.
         for (const side of [-1, 1]) {
             const hip = new THREE.Group();
             hip.position.set(side * 0.13, -0.06, 0);
