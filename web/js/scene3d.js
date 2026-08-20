@@ -4447,19 +4447,25 @@ const Scene3D = {
                 const bc = HEXOF(bladeMat), dc = HEXOF(dark), wc = HEXOF(wood);
                 const fullerC = new THREE.Color(bc).offsetHSL(0, 0, -0.09).getHex();
                 const edgeC = edgeHex;
+                // 🧊 큐브 굵히기 (equip-voxelize — 사용자 재지적 "장비 픽셀 너무 작음", VOXCON_MAXCELLS).
+                //    검신 전용 피치 WSb(0.041)로 성기게 굽는다 — WS(0.03)보다 큐브가 크다. 격자 행수는
+                //    그만큼 줄여(24→18칸) **물리 검신 길이·검끝 y(≈0.78)는 그대로** 두므로 파지(WEAPON_GRIP)·
+                //    트레일 팁(TRAIL_TIP)·투사체 스폰(전부 월드 좌표 기준)은 무회귀. 열 색(edge/fuller/back)
+                //    스킴은 x 범위를 보존해 그대로 살린다.
+                const WSb = 0.041;
                 const v = [];
-                for (let y = 3; y <= 16; y++) for (let x = -2; x <= 1; x++)      // 몸판(넓은 단)
+                for (let y = 2; y <= 12; y++) for (let x = -2; x <= 1; x++)      // 몸판(넓은 단)
                     vbox(v, x, x, y, y, -1, 0, x === 1 ? edgeC : (x === -2 ? bc : fullerC));
-                for (let y = 17; y <= 26; y++) for (let x = -1; x <= 0; x++)     // 끝단(좁은 단)
+                for (let y = 13; y <= 19; y++) for (let x = -1; x <= 0; x++)     // 끝단(좁은 단)
                     vbox(v, x, x, y, y, -1, 0, x === 0 ? edgeC : bc);
-                vpart(v, bladeMat);
+                g.add(this.voxPart(v, WSb, bladeMat));
                 box(0.26, 0.045, 0.06, dark, 0, 0.08);     // 크로스가드(원래부터 축정렬 박스)
                 box(0.058, 0.058, 0.062, dark, 0.13, 0.08);   // 퀼런 마감 큐브
                 box(0.058, 0.058, 0.062, dark, -0.13, 0.08);
                 const grip = [];
-                vbox(grip, -1, 0, -4, 2, -1, 0, wc);       // 그립 2×2
-                vbox(grip, -1, 0, -6, -5, -1, 0, dc);      // 폼멜 큐브
-                vpart(grip, wood);
+                vbox(grip, -1, 0, -3, 1, -1, 0, wc);       // 그립 2×2 (WSb 로 성기게 — 검신과 같은 피치)
+                vbox(grip, -1, 0, -5, -4, -1, 0, dc);      // 폼멜 큐브
+                g.add(this.voxPart(grip, WSb, wood));
                 break;
             }
             case 'axe': {
