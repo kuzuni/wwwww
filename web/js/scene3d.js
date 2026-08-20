@@ -19793,12 +19793,18 @@ const Scene3D = {
         const vs = W / NX;                               // 복셀 한 변(월드)
         const BOT_R = 0.42;                              // 오른쪽 아랫변 높이(H 배수). 0.55 는 빗각이 완만해 계단이 안 읽혔다
         const bodyVox = [];
+        // 클리버 구멍 — 실루엣이 '사각 판'이 아니라 '처형도(도구)'로 읽히게 하는 한 조각.
+        // 3차 비평가 A "복셀 베벨/엣지가 없어 원경에서 UI 패널로 오독" · B "실루엣이 칼로 안 읽힌다"
+        // 의 처방: 판을 밝히는 대신(어두운 값이 대비 축이다) **음의 공간**으로 정체를 준다.
+        const holeIx = NX - 4, holeIy = Math.round(-0.28 * H / vs);
         for (let ix = 0; ix < NX; ix++) {
             const u = (ix + 0.5) / NX;                   // 0=왼쪽(긴 쪽) … 1=오른쪽
             const yT = Math.round((0 + 0.12 * u) / vs);              // 윗변은 오른쪽이 살짝 높다
             const yB = Math.round((-H + (H - H * BOT_R) * u) / vs);  // 아랫변이 빗각 — 계단이 여기서 나온다
-            for (let iy = yB; iy < yT; iy++)
+            for (let iy = yB; iy < yT; iy++) {
+                if (Math.abs(ix - holeIx) <= 1 && Math.abs(iy - holeIy) <= 1) continue;   // 3×3 관통 구멍
                 for (let iz = 0; iz < DEPTH; iz++) bodyVox.push({ x: ix, y: iy, z: iz });
+            }
         }
         // 🚨 **조명 받는 재질(Standard/Lambert)로 바꾸지 말 것 — 해 보고 되돌린 자리다.**
         //    `MeshStandardMaterial` 로 구웠더니 이 씬의 앰비언트+블룸+sRGB 가 근흑 알베도를
@@ -19815,12 +19821,12 @@ const Scene3D = {
         body.position.set(0, (-H + 0.12) / 2, 0);        // 복셀은 중심 정렬되어 나오므로 프로필 bbox 중심에 얹는다
         // 사선 날 스트립 — 빗각을 따라 흰 날을 세운다
         const eLen = Math.hypot(W, H * 0.45), eAng = Math.atan2(H * 0.45, W);
-        const edge = new THREE.Mesh(new THREE.PlaneGeometry(eLen, 0.09),
+        const edge = new THREE.Mesh(new THREE.PlaneGeometry(eLen, 0.15),
             new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, toneMapped: false }));
         edge.position.set(0, -H * 0.78 + 0.02, vs * DEPTH * 0.5 + 0.012);   // 몸판에 두께가 생겼으니 그 앞면 위로
         edge.rotation.z = eAng;
-        const back = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.94, 0.08),
-            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        const back = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.94, 0.13),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
         back.position.set(0, 0.1, vs * DEPTH * 0.5 + 0.012);
         // 손잡이 — 위쪽 중앙. '판'이 아니라 '기구'로 읽히는 마지막 한 조각.
         // 🧊 토러스(둥근 고리)에서 각진 큐브 자루로 — 화풍은 '큐브를 둥글리지 말 것'이다.
@@ -19850,17 +19856,27 @@ const Scene3D = {
             rim.scale.setScalar(1.25 - e * 0.25);           // 살짝 조이며 자리를 못박는다
             body.material.opacity = e;   // 🚨 0.92 로 두지 말 것 — 처형도 너머로 나무가 비쳐 '고체'가 안 된다(캡처 실측)
             edge.material.opacity = e;
-            back.material.opacity = e * 0.8;
+            back.material.opacity = e * 0.9;
             grip.material.opacity = e * 0.92;
-            blade.rotation.z = Math.sin(k * 9) * 0.03;      // 결정화 중 미세 진동 — 정지 판 방지
+            // 앤티시페이션 — 3차 일치 지적 "체공이 조준이 아니라 느린 표류"의 처방: 정지 대기가
+            // 아니라 **천천히 들어 올려 장전**한다(뒤로 살짝 젖힘 포함). 낙하 직전이 최고점이라
+            // '들었다 → 내리찍는다'의 인과가 프레임에 남는다.
+            blade.position.y = topY + e * 0.34;
+            blade.rotation.z = -e * 0.10 + Math.sin(k * 9) * 0.03;   // 젖힘 + 미세 진동(정지 판 방지)
             light.set(e * (0.6 + pw * 0.5));
         }, () => {
             SFX.slashArc(0, t);
-            // ⓑ 낙하 0.13s — 수직 급강하 (가속)
+            // ⓑ 낙하 0.13s — 수직 급강하 (가속). 장전 최고점에서 출발한다.
+            const fromY = blade.position.y;
             const toY = H - 0.12;                            // 날 원점=윗변이라, 빗날 끝이 지면을 살짝 파고드는 높이
             this.addAnim(0.13, k => {
-                blade.position.y = topY + (toY - topY) * k * k;
+                blade.position.y = fromY + (toY - fromY) * k * k;
+                blade.rotation.z = -0.10 * (1 - k);          // 젖힘이 낙하 중에 풀린다
+                // 모션 스트레치 — 3차 일치 지적 "무스트릭 순간 낙하"의 처방: 중간에 세로로 늘었다
+                // 착지에 1 로 복귀(스쿼시&스트레치). 4~5컷짜리 낙하에 잔상 축을 만든다.
+                blade.scale.y = 1 + k * (1 - k) * 1.6;
             }, () => {
+                blade.scale.y = 1;
                 // ⓒ 절단 — 붉은 섬광 + 균열 링 + 파편. 칼날은 박힌 채 한 박자 멈춘다.
                 const hit = new THREE.Vector3(spot.x, 0.6, spot.z);
                 this.explosion(hit, color);
