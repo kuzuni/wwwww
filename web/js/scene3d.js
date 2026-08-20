@@ -5094,6 +5094,126 @@ const Scene3D = {
         divine: 'gown',           // 홀리 가운 — 가장 길고 크게 퍼지는 트레인
     },
     robeVariant(age) { return this.ROBE_VARIANT[age] || 'friar'; },
+
+    // 그 시대의 `suit`(슈트) 가 **어떤 슈트인가** (equip-era-theming).
+    // `SUIT_SEALED` 가 '기밀복이냐 퀴레스냐' 두 갈래로만 갈라 놔서, **기밀복 5시대가 탱크 2개로
+    // 전부 같은 물건**이었다(크로스-시대 게이트: 28쌍 중 13쌍 미분화 · 최악 IoU 1.000 · 윤곽차 0.0000).
+    // 탱크가 정말 맞는 건 우주 '우주복' 하나뿐이다.
+    // ⚠️ 8시대를 다 적는다 — 기본값으로 떨어지는 칸을 남기면 그 칸들이 다시 한 덩어리가 된다
+    //    (`VEST_VARIANT` 가 5시대를 비워 뒀다가 정확히 그렇게 됐다).
+    // 📌 `SUIT_SEALED`/`suitSealed` 는 **지우지 말 것** — `makeArmorExtras` 의 백팩/등판 분기가
+    //    아직 그걸로 갈린다. 여기 표는 그 위에 얹는 '어깨 위 표식'의 분기다.
+    SUIT_VARIANT: {
+        medieval: 'cuirass',      // 퀴레스 — 세운 어깨 깃 + 어깨 벨트 (아래 `else` 분기가 그린다)
+        earlyModern: 'musketeer', // 총사 코트 — 어깨에 걸친 짧은 망토 + 사선 새시(퀴레스와 갈린다)
+        underworld: 'lava',       // 용암 갑주 — 어깨에서 솟은 암석 뿔 + 균열
+        modern: 'spec',           // 특수부대 슈트 — 낮고 각진 통신 백팩 + 견장
+        space: 'eva',             // 우주복 — 압력 탱크 2개 + 헬멧 도킹 넥링
+        interstellar: 'plasma',   // 플라즈마 슈트 — 등에서 위로 솟은 방열 핀 3장
+        multiverse: 'holo',       // 홀로 아머 — 몸통 밖으로 어긋난 판 3겹
+        quantum: 'orbiter',       // 오비터 슈트 — 기울어진 자이로 링 2개
+    },
+    suitVariant(age) { return this.SUIT_VARIANT[age] || (this.suitSealed(age) ? 'eva' : 'cuirass'); },
+    // 어깨 위·등 뒤로 나가는 표식만 둔다 — 몸통 안쪽 장식은 96px 에서 사라진다(`vest` 에서 실측).
+    addSuitEraDetail(g, sv, mat, mats, rareHex, ageHex) {
+        const dark = mats ? mats.dark : mat;
+        const trim = mats ? (mats.trim || mats.dark) : mat;
+        const glowMat = i => new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: i });
+        if (sv === 'spec') {
+            // 특수부대 슈트 — **낮고 각진** 통신 백팩 + 각진 견장. 탱크(둥근 기둥)와 정반대 언어다.
+            const pack = this.beveledSlab(0.26, 0.13, 0.10, 0.02, dark);
+            pack.position.set(0, 0.285, -0.115);
+            g.add(pack);
+            const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.006, 0.20, 5), dark);
+            ant.position.set(0.095, 0.385, -0.115);
+            ant.rotation.z = -0.22;
+            g.add(ant);
+            for (const s of [-1, 1]) {   // 각진 견장 — 어깨선을 네모로 끊는다
+                const pad = this.beveledSlab(0.135, 0.052, 0.115, 0.012, dark);
+                pad.position.set(s * 0.155, 0.255, -0.005);
+                pad.rotation.z = -s * 0.30;
+                g.add(pad);
+            }
+        } else if (sv === 'plasma') {
+            // 플라즈마 슈트 — 등에서 **위로 솟은 방열 핀 3장**. 위 윤곽이 톱니로 끊긴다.
+            for (let i = -1; i <= 1; i++) {
+                const h = 0.26 - Math.abs(i) * 0.075;
+                const fin = this.beveledSlab(0.038, h, 0.135, 0.010, trim);
+                fin.position.set(i * 0.105, 0.245 + h / 2, -0.095);
+                fin.rotation.z = i * 0.16;
+                g.add(fin);
+                const edge = new THREE.Mesh(new THREE.BoxGeometry(0.020, h * 0.82, 0.020), glowMat(0.85));
+                edge.position.set(i * 0.105, 0.245 + h / 2, -0.030);
+                edge.rotation.z = i * 0.16;
+                g.add(edge);
+            }
+        } else if (sv === 'holo') {
+            // 홀로 아머 — 몸통 밖으로 **어긋나게 겹친 판 3겹**. 윤곽이 한 겹이 아니라 계단이 된다.
+            // ⚠️ 반투명은 알파 합성으로 — 가산으로 두면 겹친 자리가 순백으로 클리핑된다
+            //    (이 파일이 `firePillar`·초신성 껍질에서 두 번 밟은 함정).
+            for (let i = 0; i < 3; i++) {
+                // ⚠️ 판 색에 `rareHex` 를 쓰지 말 것 — 커먼이 거의 흰색이라 시대색 위에서 **회색 상자**로
+                //    찍힌다(1차 실측 캡처). 여기 색은 등급이 아니라 **시대 트림**이고, 발광을 올려야
+                //    '홀로그램 판'으로 읽힌다(불투명 판이면 그냥 어깨에 붙인 널빤지다).
+                // 색은 **시대색**(`AGE_COLORS`)이다 — 등급색은 커먼이 거의 흰색이라 회색 상자가 되고,
+                //    `mats.trim` 은 시대에 따라 무채색이라 역시 회색이 된다(둘 다 1차 실측에서 확인).
+                const hc = new THREE.Color(ageHex !== undefined ? ageHex : rareHex).offsetHSL(0, 0.25, 0.22);
+                const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.255 + i * 0.030, 0.235 + i * 0.030, 0.20 - i * 0.03, 14, 1, true, Math.PI * 0.15 + i * 0.5, Math.PI * 1.1),
+                    new THREE.MeshLambertMaterial({ color: hc, emissive: hc, emissiveIntensity: 0.75 - i * 0.12, transparent: true, opacity: 0.5 - i * 0.09, side: THREE.DoubleSide }));
+                sh.position.set(0, 0.185 - i * 0.045, 0);
+                sh.scale.z = 0.70;
+                g.add(sh);
+            }
+        } else if (sv === 'orbiter') {
+            // 오비터 슈트 — 몸통을 감는 **기울어진 자이로 링 2개**. 링이 몸통 밖으로 크게 나가
+            //   실루엣이 가로로 벌어진다(다른 슈트는 전부 세로 통이다).
+            // 🚨 `rotation.x` 와 `rotation.z` 를 함께 주지 말 것 — 눕힌 호가 딴 데로 기운다
+            //    (`arc-rotz-tilt` 계열). 온전한 링이라 한 축만 쓰면 안전하다.
+            for (let i = 0; i < 2; i++) {
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.315 - i * 0.045, 0.019, 6, 24), i ? trim : dark);
+                ring.position.set(0, 0.135 + i * 0.075, 0);
+                ring.rotation.x = (i ? 1.05 : Math.PI / 2 - 0.42);
+                g.add(ring);
+                const node = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.048, 0.048), glowMat(0.8));
+                node.position.set((i ? -1 : 1) * (0.315 - i * 0.045), 0.135 + i * 0.075, 0);
+                g.add(node);
+            }
+        } else if (sv === 'musketeer') {
+            // 총사 코트 — **어깨에 걸친 짧은 망토(카사크) + 사선 새시**. 퀴레스(세운 깃 + 어깨 벨트)와
+            //   같은 전산업 시대지만 물건이 다르다 — 위 윤곽이 '깃 두 개'가 아니라 **넓은 한 겹**이다.
+            const cassock = new THREE.Mesh(new THREE.CylinderGeometry(0.215, 0.315, 0.165, 16, 1, true, Math.PI * 0.18, Math.PI * 1.64), mat);
+            cassock.position.set(0, 0.205, -0.015);
+            cassock.scale.z = 0.74;
+            g.add(cassock);
+            // 열린 원뿔의 윗구멍은 반드시 막는다 — 위에서 내려다보는 각도라 '찢어진 판자'가 된다
+            // (이 파일이 `radiant` 요크·`mail` 맨틀에서 두 번 밟은 함정).
+            const cap = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.017, 6, 20, Math.PI * 1.64), trim);
+            cap.rotation.x = Math.PI / 2;
+            cap.position.set(0, 0.288, -0.015);
+            cap.scale.y = 0.74;
+            g.add(cap);
+            const sash = new THREE.Mesh(new THREE.BoxGeometry(0.072, 0.40, 0.030), trim);
+            sash.position.set(-0.030, 0.095, 0.150);
+            sash.rotation.z = 0.52;
+            g.add(sash);
+        } else if (sv === 'lava') {
+            // 용암 갑주 — 어깨에서 **솟은 암석 뿔** + 사이로 새는 균열. 비대칭으로 박아
+            //   좌우 대칭 견장(현대·중세의 언어)과 갈린다.
+            const SPUR = [[-1, 0.185, 0.30], [-1, 0.105, 0.20], [1, 0.215, 0.34], [1, 0.130, 0.17], [1, 0.060, 0.12]];
+            for (const [s, h, tilt] of SPUR) {
+                const spur = new THREE.Mesh(new THREE.ConeGeometry(0.055, h, 5), dark);
+                spur.position.set(s * (0.115 + h * 0.22), 0.240 + h * 0.42, -0.045 + h * 0.10);
+                spur.rotation.z = -s * tilt;
+                g.add(spur);
+            }
+            for (const [x, y] of [[0.075, 0.255], [-0.095, 0.215]]) {
+                const crack = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.085, 0.018), glowMat(0.7));
+                crack.position.set(x, y, 0.055);
+                crack.rotation.z = x > 0 ? 0.35 : -0.28;
+                g.add(crack);
+            }
+        }
+    },
     // r = 밑단 반경(퍼짐) · len = 기장 · hem = 매끈한 밑단 테를 두를지.
     // ⚠️ 밑단 높이는 전 시대 공통(y 0.075)에 물린다 — 기장을 바꾸면 **위로** 자란다.
     //    밑단이 같이 내려가면 로브가 바닥을 뚫고 프레이밍이 통째로 틀어진다.
@@ -8434,7 +8554,14 @@ const Scene3D = {
         //    깨는 표식을 더한다(몸통 윗변 y=0.25 위로 나와야 실루엣이 갈린다).
         // ⚠️ 좌표는 **곡면 몸통 기준**으로 다시 잡혀 있다(예전 0.46×0.5 상자 기준 값을 그대로 두면
         //    허리가 잘록해진 만큼 산소통·어깨끈이 몸통에서 떨어져 허공에 뜬다).
-        if (style === 'suit' && this.suitSealed(age)) {   // 기밀복: 어깨 위로 솟은 산소통 2개 + 호스
+        if (style === 'suit' && ['spec', 'plasma', 'holo', 'orbiter', 'lava', 'musketeer'].includes(this.suitVariant(age))) {
+            // 🧭 기밀복 5시대가 **탱크 2개로 전부 같은 물건**이었다(크로스-시대 게이트: `suit` 28쌍 중
+            //    13쌍 미분화 · 최악 IoU **1.000 · 윤곽차 0.0000**). 탱크가 정말 맞는 건 우주 '우주복'
+            //    하나뿐이고, 나머지 넷은 이름이 요구하는 물건이 다르다 — 현대 '특수부대 슈트' ·
+            //    항성간 '플라즈마 슈트' · 다중우주 '홀로 아머' · 양자 '오비터 슈트'.
+            //    `vest`·`cape`·`robe` 에서 배운 대로 **몸통 밖으로 나가는 구조**로만 가른다.
+            this.addSuitEraDetail(g, this.suitVariant(age), mat, mats, RARITY_HEX[rarity] || 0xffffff, AGE_COLORS[age]);
+        } else if (style === 'suit' && this.suitVariant(age) === 'eva') {   // 우주복: 어깨 위로 솟은 산소통 2개 + 호스
             for (const s of [-1, 1]) {
                 const tank = this.shellFromRings([   // 위아래가 둥근 실린더 = 압력 탱크
                     { y: -0.15, rx: 0.032, rz: 0.032 }, { y: -0.125, rx: 0.055, rz: 0.055 },
@@ -8448,6 +8575,12 @@ const Scene3D = {
                 hose.rotation.z = s * 0.5;
                 g.add(hose);
             }
+            // 헬멧 도킹 넥링 — '우주복'의 서명이자 다른 넷과 갈리는 위 윤곽(비평가 R2 ㉤ 이 진공 슈트에 요구한 것과 같은 부속).
+            const nring = new THREE.Mesh(new THREE.TorusGeometry(0.132, 0.026, 8, 18), mats.trim || mats.dark);
+            nring.position.set(0, 0.318, 0);
+            nring.rotation.x = Math.PI / 2;
+            nring.scale.y = 0.72;
+            g.add(nring);
         } else if (style === 'suit') {
             // ── 전산업 시대의 `suit` = 퀴레스(equip-era-theming ③) ─────────────────────
             // 🚨 **산소통을 되돌리지 말 것.** `suit` 는 중세 '퀴레스'·근대 초기 '총사 코트'·
