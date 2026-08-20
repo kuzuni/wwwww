@@ -3598,6 +3598,53 @@ body {
     position: static;
 }
 .sheet-title { font-size: 1.35rem; font-weight: 900; text-align: center; color: var(--pp-ink); }
+
+/* ---- 화풍 ⓕ-㉴ 헤더 블록 타이포 (aaa-skin, 2026-08-20) ----------------------------
+   원본 실측(3장 육안 + 화소): 원본의 **제목·수치 활자는 전부 '흰 채움 + 검정 링'** 이다 —
+   소환 확률 팝업의 `레벨 69`(042521), 리그 보상 리본의 `플래티넘 리그 보상`(042208),
+   HUD 의 `8.87k / 149.05`(042110) 가 모두 같은 활자다. 클론은 이 자리들이 **민무늬 굵은
+   본문 활자**(`--pp-ink` 단색)라, 제목이 본문과 같은 종류의 글자로 읽혔다.
+   화풍 ⓕ-㉴("헤더 타이포 = 블록/픽셀 폰트 악센트, 본문 가독은 유지")가 가리키는 그 자리다.
+
+   📏 링 두께의 근거 — `tools/probe-header-ring.js` census. '검정런 → 흰 속살 → 검정런' 단면에서
+      원본 헤더는 **검정 링 2px · 흰 속살 3px**(레벨69 18px 글자 / 플래티넘 22px 글자 동일).
+      `-webkit-text-stroke: N` 은 글리프 윤곽에 N 을 **중심 정렬**로 그리므로 `paint-order: stroke fill`
+      과 함께 쓰면 겉으로 보이는 링은 N/2 다 → 산술로는 링 2px 에 N ≈ 4px ≈ .18em 이 나온다.
+   🚨 **그 산술값(.18em)은 실제로 넣어 보니 너무 굵었다 — .11em 으로 내렸다.** 원본 활자는 우리
+      시스템 폰트(weight 900)보다 획이 굵어서 같은 링을 둘러도 속공간이 남는데, 클론 글리프는
+      획이 얇아 **한글 속공간이 메워진다**(19.3px `확률 정보` 캡처에서 확·률·정·보 네 글자의 속이
+      전부 막혔다). `.coin-amt` 가 남긴 경고와 같은 자리다 — "링 두께를 키우지 말 것, 획 사이
+      속공간이 메워져 뭉갠다". 원본의 링 두께를 그대로 베끼지 말고 **속공간이 살아 있는 한도**로
+      잡을 것(같은 자의 '속살비'가 그 한도를 숫자로 준다 — 링이 속을 메우면 속살비가 떨어진다).
+   ⚠️ **em 이어야 한다**(`.league-tier-rank.text` 가 남긴 교훈과 같은 이유) — 제목 크기가
+      1.05~1.5rem 으로 제각각인데 rem 으로 못 박으면 작은 제목에서 링이 획 사이를 메워 뭉갠다.
+   ⚠️ 이 블록은 **칠하는 속성만** 건드린다(color·text-stroke·paint-order). text-stroke 와 paint-order
+      는 레이아웃 박스를 안 움직이므로 비율 검증(요소 ±2%p)은 그대로 통과해야 한다 —
+      `tools/probe-header-typo-geom.js` 가 on/off 기하 동일(±0.5px)을 단언한다.
+   🚫 본문·설명·작은 라벨(`.sheet-sub`·`.pinfo-section-title` 등)은 **넣지 않는다** — ⓕ-㉴ 의
+      '본문 가독은 유지' 단서이고, 작은 글자에 링을 두르면 획이 메워져 오히려 안 읽힌다.
+   🚫 이미 흰 글자 + 외곽선인 제목(`.league-title`·`.dgd-title`·`.dgclear-title`·`.sr-title`)은
+      앞 패스가 각자 처리해 뒀다 — 여기서 다시 칠하지 않는다(두 벌이 겹치면 링이 두 배가 된다).
+   🚨 **제목이 h2/h3 면 태그를 같이 적을 것 — 안 그러면 획만 먹고 색이 조용히 안 먹는다.**
+      `.sheet-title`·`.fi-title`·`.af-title`·`.tb-title`·`.sellwarn-title` 은 실제로 `<h2>`/`<h3>` 이고,
+      위쪽에 `.modal-card h2, .modal-card h3, .modal-card h4 { color: var(--pp-ink) }` 가 있다.
+      명시도가 (0,1,1) 대 (0,1,0) 이라 **클래스만 쓰면 그 규칙이 색을 도로 가져간다** — 실측:
+      `-webkit-text-stroke: 3.48px` 는 먹었는데 `color` 는 `rgb(23,24,26)` 그대로였다. 결과가
+      '흰 글자 + 검정 링'이 아니라 **검정 글자에 검정 링**(그냥 더 굵은 검은 글자)이라
+      캡처로 보기 전엔 고친 줄 알기 딱 좋다. `h2.`/`h3.` 을 붙여 (0,1,1) 로 맞추고, 같은 명시도는
+      **뒤에 온 이 블록이 이긴다**(이 블록이 3324행보다 아래다).
+   🚫 **`.modal-card` 로 감싸지 말 것** — 스킬·펫·기술 화면의 시트는 `.modal` 이 아니라 **탭 표면**이라
+      그 제목이 통째로 빠진다(제목 census 에서 그 화면들이 '열린 팝업 없음'으로 찍힌 이유다).
+   📌 제목 선택자 목록의 근거는 `tools/probe-popup-title-census.js`(팝업을 하나씩 열어 h1~h4 +
+      *-title 을 전수로 적는다). 클래스 이름만으로 모으면 **클래스가 없는 제목**이 빠진다 —
+      소환 확률 팝업의 `레벨 69` 가 그랬다(`.rates-head h3`, 무클래스). */
+h2.sheet-title, h3.sheet-title, h3.fi-title, h3.af-title, h3.tb-title,
+h3.sellwarn-title, .rates-head h3,
+.offline-title, .profile-title, .asc-focus-title {
+    color: #fff;
+    -webkit-text-stroke: .11em var(--pp-line);
+    paint-order: stroke fill;
+}
 .sheet-sub {
     font-size: .8rem; font-weight: 700; line-height: 1.4; text-align: center;
     color: #4a4a4a; margin-bottom: .5rem; padding: 0 .6rem;
