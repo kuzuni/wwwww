@@ -10304,7 +10304,25 @@ const Scene3D = {
         const to = (r, tr, x, y, z, m) => { const o = vbuild(Voxel.ring(vR(r + tr, 1.5), Math.max(1, 2 * tr / VP), vH(2 * tr)), m); o.geometry.rotateX(Math.PI / 2); o.position.set(x, y, z); g.add(o); return o; };
         // 만든 눈 두 개를 **돌려준다** — 머리 피벗(아래 `neckRig`)이 눈까지 같이 묶어야 하기 때문이다.
         // 눈만 g 에 남으면 머리가 끄덕일 때 눈알만 허공에 붙박여 남는다.
-        const eyes = (y, z, gap) => [-1, 1].map(s => sp(0.026, s * (gap || 0.07), y, z, blk));
+        // 🧊 **디캘 눈 (탈것 리버본드, 사용자 스펙 2026-08-21 "얼굴 디캘 눈").** 펫은 2026-08-20 화풍
+        //    전환에서 매끈 구 눈을 **납작 칸 판(흰자) + 동공 큐브**로 바꿨는데(마인크래프트·크로시로드가
+        //    얼굴을 그리는 문법), **탈것만 아직 검은 구**였다 — 같은 화풍으로 통일한다.
+        // ⚠️ **footprint 는 종전 구(지름 0.052)와 맞춘다** — 실루엣·프레이밍·`probe-mount-detached`(머리와
+        //    맞닿는지)를 안 흔들려면 눈 덩치를 키우지 말 것. 흰자 판을 z 로 살짝 proud 하게 앞에 세우고
+        //    (두상에 파묻히면 무표정한 회색 점이 된다 — 펫 판의 실측 교훈) 동공을 그 앞 한 칸에 얹는다.
+        // ⚠️ **그룹으로 돌려준다** — 게(눈자루) 호출부가 반환물을 `scale`·`HEADPART` 하므로 메시 하나가
+        //    아니라 그룹이어야 흰자+동공이 함께 딸려간다.
+        const EYE_W = new THREE.MeshLambertMaterial({ color: 0xf5efe4, emissive: 0x5c5852 });
+        const eyes = (y, z, gap) => [-1, 1].map(s => {
+            const eg = new THREE.Group();
+            eg.position.set(s * (gap || 0.07), y, z);
+            const w = new THREE.Mesh(new THREE.BoxGeometry(0.050, 0.042, 0.014), EYE_W);
+            w.position.z = 0.004; eg.add(w);                                  // 흰자 = 납작 판, 살짝 앞으로
+            const p = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.030, 0.012), blk);
+            p.position.z = 0.014; eg.add(p);                                  // 동공 = 흰자 앞면 밖 한 칸
+            g.add(eg);
+            return eg;
+        });
         // ── 머리 피벗 (mount-animal-machine-dynamic) ──────────────────────────────
         // 머리·뿔·귀(part:'head')와 굴레(bridle), 눈을 **한 그룹**으로 묶어 목 밑동을 축으로 끄덕이게 한다.
         // ⚠️ 머리 메시만 돌리면 굴레·눈이 제자리에 남는다 — 모델 주석이 경고한 그 사고 그대로다.
