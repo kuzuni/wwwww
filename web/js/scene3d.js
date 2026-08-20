@@ -4358,7 +4358,12 @@ const Scene3D = {
         // 재질 계열별 팔레트 — mat(헤드/액센트) / bladeMat(날) / wood(자루) / dark(부속) / edgeMat(날 하이라이트)
         // steel이 기존 룩이고, 나머지는 시대 정체성을 만드는 축 (사용자 지시 2026-08-17).
         let mat, bladeMat, wood, dark, edgeHex;
-        const std = o => new THREE.MeshStandardMaterial(o);
+        // 🧊 무기 재질도 박스-캐릭터 시대 테마 복셀로 정렬 (equip-build-weapon, 사용자 2026-08-21):
+        //    새 갑옷·투구는 flatShading 로 면당 플랫 색인데(화풍 블록 ⓒ), 무기 재질 다수(steel·gunmetal·
+        //    blackpowder·energy·holy·bone 날)는 flatShading 이 빠져 매끈 보간 노멀로 구워졌다 — 같은
+        //    씬에서 무기만 사실적 광택으로 겉돌았다. std 기본을 flatShading:true 로 두어 무기 면을
+        //    복셀 세계와 같은 하드 페이스로 통일한다(개별 o 에 flatShading 을 주면 그 값이 이긴다).
+        const std = o => new THREE.MeshStandardMaterial(Object.assign({ flatShading: true }, o));
         if (matKind === 'stone') {
             // 원시: 무광 회백 석재 + 가죽끈 결속 — 금속기가 전혀 없어야 '돌'로 읽힌다
             // 0x8d8a80/0x9b978b 는 썸네일 밝은 배경에서 헤드가 **흰 덩어리**로 날아가 뗀 자국이 전부 사라졌다
