@@ -8829,43 +8829,133 @@ const Scene3D = {
         const blk = new THREE.MeshBasicMaterial({ color: 0x263238 });
         const J = [];                 // 관절 목록 — update 의 제너릭 드라이버가 종별 위상으로 돌린다
         let CUR = g;                  // 지금 파츠가 붙을 부모(관절 아래로 내려가면 바뀐다)
+        // ===== 🧊 voxel 전환 (화풍 확정 2026-08-20 · `pet-species-recognizable`) =====================
+        // 펫 25종은 구·원뿔·원기둥 **704개**로 깎여 있었다(실측 704/710 — voxel 0개). 화풍 블록이
+        // 못 박은 대로 큐브로 옮긴다. 🚨 **종별로 다시 디자인하지 않는다** — 인계 메모 ⑤ 의 지시가
+        // 그것이다: *"부위 목록과 비례는 그대로 옮겨 쓸 것 — 그게 블라인드 판독을 통과시킨 실체다."*
+        // 그래서 바꾸는 자리는 **헬퍼 4개(sp·bx·cn·cy) + limb + stripeBands 뿐**이고, 아래 1000줄의
+        // 종별 조형 코드(좌표·반지름·색·관절)는 **한 줄도 안 건드린다.** 시그니처가 같아서 호출부
+        // 153곳이 한꺼번에 큐브가 된다(펫 눈 파이컷을 헬퍼 하나로 올린 것과 같은 수법).
+        //
+        // 🚨 **격자는 25종 공통 한 개여야 한다.** 탈것 거북 재채점에서 비평가 2인이 독립적으로
+        //    *"복셀 셀 크기가 3종 섞였다"* 고 읽었다 — 파츠마다 칸을 다르게 잡으면 같은 화풍으로
+        //    안 모인다. 그래서 `PVS` 하나로 못 박고, 모든 헬퍼가 이걸로만 칸을 센다.
+        //    값 근거: 펫 몸통 반지름이 0.10~0.16 이라 PVS 0.014 면 반지름 **7~11칸**(지름 15~23칸)
+        //    이다 — 크로시로드 캐릭터의 밀도대다. 더 키우면 계단(등고선)으로 읽히고, 더 줄이면
+        //    매끈해져 voxel 로 안 읽힌다.
+        const PVS = 0.014;
+        // 월드 반지름 → 칸.
+        // 🚨🚨 **반 칸을 먼저 뺀다 — 이걸 빼먹고 `probe-pet-eyes` 6종을 깼다(실측으로 잡음).**
+        //    `ellipsoid`/`ellipse` 는 **칸 중심**으로 포함을 판정하므로, 반지름 인덱스 m 짜리
+        //    덩어리의 바깥 **면**은 m + 0.5 칸까지 나간다 — 즉 그냥 `r/PVS` 를 주면 조형이
+        //    매끈판보다 반 칸(0.007) 부풀어 표면이 통째로 밖으로 밀린다. 이 파일의 좌표는 25종
+        //    전부 **매끈 반지름 r 을 역산해서** 적혀 있다(`backY`·`stripeBands`·눈 z·표식 z 전부).
+        //    표면이 부풀면 그 좌표들이 일제히 조형 **속**으로 들어간다 — 실제로 눈 6종(생쥐·
+        //    고양이·곰·호랑이·서펀트·유령호랑이)이 파묻혀 `probe-pet-eyes` 가 FAIL 로 뒤집혔다.
+        // 🚨 **그런데 그냥 빼기만 하면 이번엔 가는 파츠가 굶는다(캡처로 잡았다).** 칸 조형의
+        //    지름은 **항상 홀수 칸**(중심 칸 + 좌우 대칭)이라, 다리(r 0.018 = 2.6칸)처럼 짝수대에
+        //    걸친 값은 1칸이냐 3칸이냐로 갈린다. 단순히 `r/PVS − 0.5` 를 넘기면 0.79 → `floor` 0
+        //    → **1칸 철사 다리**가 된다(고양이·타조·유니콘이 전부 실 다리가 됐다).
+        //    🚨 **반올림으로 풀려다 한 번 더 깨졌다(실측) — 올림은 못 쓴다.** 가장 가까운 홀수
+        //       칸으로 반올림하면 다리는 3칸으로 살아나지만 **두상이 반 칸 부푼다**(r 0.085 →
+        //       바깥 면 0.091). 그 순간 위 문단의 사고가 그대로 재발해 `probe-pet-eyes` 가 11종
+        //       FAIL 로 뒤집혔다. 표면 역산 좌표가 걸린 축에서는 **부풀리기가 언제나 금지**다.
+        //    → 정답은 **내림을 유지하되 바닥만 올리는 것**: 한 칸 이상 굵은 파츠는 반지름 인덱스가
+        //       최소 1(=3칸)이 되게 하고, 한 칸도 안 되는 잔 파츠(수염 r 0.0022)만 1칸으로 둔다.
+        //       큰 덩어리는 그대로 내림이라 바깥 면이 r 안쪽에 떨어지고(역산 유지), 다리처럼
+        //       2~3칸대에 걸친 파츠만 3칸으로 올라온다.
+        //    ⚠️ 결과값이 **0.5 미만이면 안 된다** — `Voxel.taper` 는 `rr < 0.5` 인 층을 통째로
+        //       버려서, 그러면 가는 원뿔·원기둥(수염·발톱·뿔)이 한 층도 안 생긴다.
+        const gv = r => { const k = r / PVS; return k < 1 ? 0.5 : Math.max(1, k - 0.5); };
+        const gh = h => Math.max(1, Math.round(h / PVS));
+        // ⚠️ 재질은 **반드시 `vertexColors: true`** — `Voxel.build` 는 큐브별 색변화와 이음새 AO 를
+        //    정점 색에 굽는다. 없으면 무늬도 AO 도 사라져 단색 덩어리가 나온다(탈것 판의 실측 교훈).
+        //    호출부는 여전히 색이 든 재질을 넘기므로, 여기서 **색만 뽑아 정점으로 보내고** 나머지
+        //    성질(투명도·emissive·Basic/Lambert 구분)은 유지한 사본을 캐시해 재활용한다.
+        //    캐시가 없으면 파츠마다 재질이 새로 생겨 드로우콜 배칭이 통째로 깨진다.
+        const VMAT = new Map();
+        const vmat = m => {
+            let v = VMAT.get(m);
+            if (v) return v;
+            const isBasic = m.isMeshBasicMaterial;
+            const o = { vertexColors: true, flatShading: true, color: 0xffffff };
+            if (m.transparent) { o.transparent = true; o.opacity = m.opacity; o.depthWrite = m.depthWrite; }
+            if (m.side !== undefined) o.side = m.side;
+            if (!isBasic && m.emissive) o.emissive = m.emissive.clone();
+            v = isBasic ? new THREE.MeshBasicMaterial(o) : new THREE.MeshLambertMaterial(o);
+            VMAT.set(m, v);
+            return v;
+        };
+        const vox = (voxels, m, x, y, z) => {
+            const mm = m || mat;
+            const o = Voxel.build(voxels, {
+                size: PVS, jitter: 0.05, ao: 0.9, center: true,
+                material: vmat(mm), color: mm.color.getHex(),
+            });
+            o.position.set(x, y, z); CUR.add(o); return o;
+        };
         // 헬퍼: 정면 +z, 바닥 y0 기준. 전부 **CUR** 에 붙는다(예전엔 무조건 g 였다)
-        const sp = (r, x, y, z, m, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 9, 7), m || mat); o.position.set(x, y, z); if (sx) o.scale.set(sx, sy, sz); CUR.add(o); return o; };
-        const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); CUR.add(o); return o; };
-        const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), m || mat); o.position.set(x, y, z); CUR.add(o); return o; };
-        const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 7), m || mat); o.position.set(x, y, z); CUR.add(o); return o; };
-        // ===== 파이컷 흰자 눈 — 영웅(prochar.js)·적(makeEnemyMesh)과 **같은 화풍** (`pet-species-recognizable`, 2026-08-19) =====
-        // 종전은 `blk` 구 두 개가 전부라, **25종 전부 얼굴이 없었다**(주둥이·코를 받은 종도 눈만은 회색 점 두 개).
-        // 판독 시트에서 곰·판다·그리핀·유니콘·구미호가 '점 두 개 박힌 달걀'로 안 갈리던 둘째 원인이고,
-        // 체형을 가른 종(고양잇과)에서도 얼굴만은 여전히 무표정이었다. 종 조형과 **직교하는 축**이라
-        // 헬퍼 하나를 올리면 **호출부 20곳이 시그니처 그대로 한꺼번에** 올라간다.
-        // 구현은 적 쪽 `eyes()` 의 규약을 그대로 따른다 —
-        //   🔑 phi 절단 쐐기는 극축을 감으므로 **극축을 +z 로 눕혀야**(mesh.rotation.x = π/2) 정면에서 파이로 보인다.
-        //   ⚠️ 회전은 **메시**에, 납작 스케일은 **부모 그룹**에 — 한 오브젝트에 둘 다 걸면 스케일이 회전 전 축에 먹는다.
-        //   🚨 동공 z 는 **눌린 흰자 앞면 밖**(er·0.56)이어야 한다 — 안쪽에 두면 흰자에 묻혀 잿빛 얼룩이 된다.
+        // 🚨 `sp` 의 sx/sy/sz 는 **반지름에 굽는다 — `mesh.scale` 로 남기지 않는다.** 복셀 메시에
+        //    비균등 스케일을 걸면 칸이 직육면체로 눌려, 옆 파츠와 셀 크기가 달라 보인다(위 지적의
+        //    바로 그 병). 반지름에 미리 곱하면 칸은 정육면체로 남고 실루엣만 눌린다.
+        const sp = (r, x, y, z, m, sx, sy, sz) => vox(Voxel.ellipsoid(
+            gv(r * (sx === undefined ? 1 : sx)), gv(r * (sy === undefined ? 1 : sy)), gv(r * (sz === undefined ? 1 : sz))), m, x, y, z);
+        const bx = (w, h, d, x, y, z, m) => vox(Voxel.box(gh(w), gh(h), gh(d)), m, x, y, z);
+        // 원뿔 = 밑면 r → 한 칸 꼭짓점으로 좁아지는 적층.
+        // 🚨 **끝을 0 으로 두면 원뿔이 짧아진다** — `taper` 는 반지름이 0.5칸 밑인 층을 통째로
+        //    버리므로, 가는 원뿔(수염·가시·깃)은 위 절반이 사라져 길이가 반토막 난다(실측:
+        //    `taper(5,0,8)` 은 8층이 아니라 7층, `taper(1,0,h)` 는 h/2 층). 끝값을 **0.5** 로 두면
+        //    전 층이 남고 꼭대기가 큐브 한 칸으로 끝난다 — 길이도 지키고 voxel 뾰족함도 얻는다.
+        const cn = (r, h, x, y, z, m) => vox(Voxel.taper(gv(r), 0.5, gh(h)), m, x, y, z);
+        // ⚠️ `CylinderGeometry(r1, r2, …)` 의 r1 은 **윗면**, r2 가 밑면이다. `taper(r0, r1, …)` 는
+        //    r0 가 **밑층**이라 순서가 뒤집힌다 — 여기서 한 번 뒤집어 두지 않으면 25종의 모든
+        //    다리·목·꼬리가 위아래 거꾸로 가늘어진다(호출부는 못 알아챈다).
+        const cy = (r1, r2, h, x, y, z, m) => vox(Voxel.taper(gv(r2), gv(r1), gh(h)), m, x, y, z);
+        // ===== 🧊 블록 눈 — 25종 공통 (`pet-species-recognizable`, voxel 전환 2026-08-20) =========
+        // 종전은 **파이컷 흰자 구**였다(2026-08-19, 영웅·적과 맞춘 화풍). 화풍 블록이 2026-08-20 에
+        // voxel 로 못 박히면서 *"옛 항목 본문의 파이컷 눈 등 모든 화풍 문구는 이 블록이 덮어쓴다"* 가
+        // 됐고, 실제로 캡처에서 **몸만 큐브고 눈만 매끈한 흰 타원**이라 얼굴에서 화풍이 깨졌다
+        // (일렉트리 캡처가 가장 노골적이었다 — 노란 큐브 덩어리에 매끈한 계란 두 개).
+        //   → 흰자를 **납작한 칸 판**으로, 동공·하이라이트를 **큐브 한 칸**으로 바꾼다. 마인크래프트·
+        //     크로시로드가 얼굴을 그리는 문법 그대로다.
+        // ⚠️ **구조(eg > scG > sc)와 `pieEye` 태그는 그대로 둔다** — `probe-pet-eyes` 가 흰자에서
+        //    `parent.parent` 로 눈 그룹을 거슬러 올라가고, 캡처 도구도 이 태그로 흰자를 집는다.
+        // ⚠️ 음영은 남기되 바닥값을 emissive 로 깐다 — 그늘에 들어가는 종(트렌트 수관 밑)에서
+        //    흰자가 통째로 죽는다(매끈판에서 실측한 사유 그대로).
         // 크기 배수는 적(1.5)보다 작은 **1.15** 다 — 펫 두상은 반지름 0.055(타조·거북)까지 내려가서,
         // 1.5 를 쓰면 두 눈이 두상 폭을 넘어 서로 겹친다(코를 놓을 자리가 사라진다).
+        const EYE_W = new THREE.MeshLambertMaterial({ color: 0xfff6e8, emissive: 0x9a958c, vertexColors: true, flatShading: true });
+        const EYE_P = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, flatShading: true });
         const eyes = (y, z, gap, r, opt) => {
             const o = opt || {}, er = (r || 0.028) * 1.15;
+            // 흰자 칸 수 — **2~4칸으로 가둔다**. 1칸이면 동공을 놓을 자리가 없어 눈이 '검은 점'으로
+            // 뭉치고, 5칸을 넘으면 반지름 0.055 두상에서 두 눈이 겹친다.
+            // 🚨 **지름(er·2)을 그대로 칸으로 바꾸면 안 된다(캡처로 잡았다).** 매끈판 흰자는 **구**라
+            //    두상에 파묻히고 앞쪽 캡만 보였는데, 판은 **통째로 다 보인다** — 같은 수치를 옮기면
+            //    눈이 두 배로 커져 머리 옆으로 삐져나온 **흰 깃발**이 된다(고양이·판다 실측).
+            //    보이는 면적을 맞추려면 지름이 아니라 **반지름 남짓**(er·1.4)이 맞다.
+            const nx = Math.max(2, Math.min(4, Math.round(er * 1.4 / PVS)));
+            const ny = Math.max(2, Math.round(nx * (o.tall || 0.92)));
+            const eb = (v, m, col) => Voxel.build(v, { size: PVS, jitter: 0.04, ao: 0.55, center: false, material: m, color: col });
             return [-1, 1].map(s => {
                 const eg = new THREE.Group();
                 eg.position.set(s * (gap || 0.06), y, z);
                 eg.rotation.z = s * (o.tilt || 0);
-                const PIE = Math.PI * 0.30;                    // 도려낸 부채꼴 각 (영웅·적과 같은 값)
-                const wc = s > 0 ? 0.42 : Math.PI - 0.42;      // 쐐기 중심 = 바깥쪽 위
                 const scG = new THREE.Group();
-                scG.scale.set(1, o.tall || 0.92, 0.55);
-                const sc = new THREE.Mesh(new THREE.SphereGeometry(er, 14, 10, wc + PIE / 2 - Math.PI, Math.PI * 2 - PIE),
-                    // 음영은 남기되 바닥값을 emissive 로 깐다 — 그늘에 들어가는 종(트렌트 수관 밑)에서 흰자가 통째로 죽는다.
-                    new THREE.MeshLambertMaterial({ color: 0xfff6e8, emissive: 0x9a958c }));
-                sc.rotation.x = Math.PI / 2;
+                // 흰자 = 한 칸 두께 판. ⚠️ z 를 **−1..0** 에 둬 판이 눈 좌표보다 **안쪽**에 앉는다 —
+                //    호출부의 눈 z 는 매끈 구의 **중심** 자리라, 판을 통째로 그 뒤에 앉히면 두상에
+                //    파묻혀 얼굴이 사라진다(실측 캡처: 고양이·판다가 무표정한 회색 점 두 개가 됐다).
+                //    한 칸 판을 z 0..1 에 세워 앞면이 두상 밖으로 나오게 하는 게 맞다.
+                const sc = eb(Voxel.at(Voxel.box(nx, ny, 1), -Math.floor(nx / 2), -Math.floor(ny / 2), 0), EYE_W, 0xfff6e8);
                 sc.userData.pieEye = true;   // 캡처·판정 도구가 이 태그로 흰자를 집는다(영웅·적과 같은 규약)
                 scG.add(sc);
-                const pu = new THREE.Mesh(new THREE.SphereGeometry(er * 0.38, 8, 6), new THREE.MeshBasicMaterial({ color: 0x141013 }));
-                pu.scale.set(1, 1.15, 0.42);
-                pu.position.set(-s * er * 0.12, -er * 0.05, er * 0.56);
-                const hl = new THREE.Mesh(new THREE.SphereGeometry(er * 0.12, 5, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-                hl.position.set(-s * er * 0.26, er * 0.20, er * 0.60);
+                // 🚨 동공은 흰자 **앞면 밖**의 한 칸이어야 한다(매끈판의 사유 그대로 — 안쪽에 두면
+                //    흰자에 묻혀 잿빛 얼룩이 된다). 흰자가 z 0 한 층이니 동공은 z 1 칸.
+                //    자리는 안쪽 아래 — 시선이 정면을 향해 모여 치비 인상이 된다.
+                const inx = -s * Math.max(0, Math.floor((nx - 1) / 2) - (nx >= 4 ? 1 : 0));
+                const pu = eb(Voxel.at(Voxel.box(1, Math.min(2, ny - 1), 1), inx, -Math.floor(ny / 2), 1), EYE_P, 0x141013);
+                // 하이라이트 = 바깥 위 모서리 한 칸(동공과 같은 앞면). 큐브 하나면 충분하다.
+                const hl = eb(Voxel.at(Voxel.box(1, 1, 1), -inx, Math.ceil(ny / 2) - 1, 1), EYE_P, 0xffffff);
                 eg.add(scG, pu, hl);
                 CUR.add(eg);
                 return eg;
@@ -8885,8 +8975,10 @@ const Scene3D = {
         // 관절 사지: 피벗을 관절에 두고 길이 len 만큼 **아래로** 늘어뜨린 원기둥
         const limb = (x, y, z, len, r1, r2, m) => {
             const p = pv(x, y, z);
-            const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2 === undefined ? r1 : r2, len, 7), m || mat);
-            o.position.y = -len / 2; p.add(o);
+            // 🧊 voxel — r1 이 윗면(고관절 쪽), r2 가 아랫면이라 `taper` 에는 뒤집어 넣는다.
+            const prev = CUR; CUR = p;
+            const o = vox(Voxel.taper(gv(r2 === undefined ? r1 : r2), gv(r1), gh(len)), m, 0, -len / 2, 0);
+            CUR = prev;
             return p;
         };
         // 2단 사지(허벅지+정강이) — [고관절, 무릎] 피벗을 준다
@@ -8942,13 +9034,14 @@ const Scene3D = {
                 const k = 1 - Math.pow((z - T.z) / c, 2);
                 if (k <= 0.03) return;
                 const rr = Math.sqrt(k) * 1.02;               // 몸 표면보다 2% 크게 = 살짝 도드라진 띠
-                // 열린 원통(옆면만) — 축이 +y 라 x 로 90° 돌려 z 축에 세운다. 스케일은 회전 **전**
-                // 로컬 기준이므로 (반지름x, 두께, 반지름y) 순서다.
-                const o = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, (th || 0.032) * (i % 2 ? 1 : 0.78), 16, 1, true), m);
-                o.rotation.x = Math.PI / 2;
-                o.scale.set(a * rr, 1, b * rr);
-                o.position.set(T.x, T.y, z);
-                CUR.add(o);
+                // 🧊 voxel — 열린 원통을 **칸 링**으로 바꾼다. `Voxel.ellipse` 는 xz 평면에 눕혀
+                //    나오므로(`rotX` 한 번이면 z 축에 선다) 매끈판의 `rotation.x = π/2` 와 같은 자리다.
+                //    ⚠️ 링 두께는 **한 칸**으로 고정한다(rix = rx − 1) — 매끈판이 스케일로 만들던
+                //    '무한히 얇은 껍질'은 칸에 없다. 띠 폭(원기둥 높이)만 종전 값을 칸으로 옮긴다.
+                const rx = gv(a * rr), rz = gv(b * rr);
+                const wid = Math.max(1, Math.round((th || 0.032) * (i % 2 ? 1 : 0.78) / PVS));
+                const o = vox(Voxel.rotX(Voxel.ellipse(rx, rz, wid, { rix: Math.max(0, rx - 1), riz: Math.max(0, rz - 1) }), 1),
+                    m, T.x, T.y, z);
             });
         };
 
@@ -9135,10 +9228,10 @@ const Scene3D = {
                         // 볏 — 정수리 능선을 따라 **삼각 톱니 5개**. 앞이 크고 뒤로 작아진다.
                         for (let i = 0; i < 5; i++) {
                             const t = i / 4;
-                            const cw = new THREE.Mesh(new THREE.ConeGeometry(0.021 - t * 0.007, 0.062 - t * 0.024, 4), COMB);
-                            cw.position.set(0, 0.062 + (0.03 - t * 0.012), 0.030 - i * 0.028);
+                            // 🧊 `cn` 경유 — 종전엔 원뿔을 손으로 만들어 헬퍼를 우회했고, 그래서
+                            //    voxel 전환에서 닭만 매끈 프리미티브 10개가 남아 있었다.
+                            const cw = cn(0.021 - t * 0.007, 0.062 - t * 0.024, 0, 0.062 + (0.03 - t * 0.012), 0.030 - i * 0.028, COMB);
                             cw.scale.z = 0.42;                            // 좌우로 얇은 판 = 볏
-                            CUR.add(cw);
                         }
                         const beak = cn(0.030, 0.075, 0, -0.004, 0.088, M(0xffa726));
                         beak.rotation.x = Math.PI / 2;
@@ -9154,12 +9247,15 @@ const Scene3D = {
                 const tail = pv(0, 0.245, -0.115);
                 into(tail, () => {
                     for (let i = -2; i <= 2; i++) {
-                        const f = new THREE.Mesh(new THREE.ConeGeometry(0.030, 0.175 - Math.abs(i) * 0.030, 4), light);
-                        f.scale.set(1, 1, 0.34);
-                        f.position.set(0, (0.175 - Math.abs(i) * 0.030) / 2, 0);
+                        // 🧊 `cn` 경유(위 볏과 같은 이유). ⚠️ `cn` 은 **CUR** 에 붙이므로, 깃을
+                        //    피벗 안에 넣으려면 피벗을 먼저 만들고 `into` 로 들어가야 한다 —
+                        //    종전처럼 만든 뒤 `pf.add(f)` 로 옮기면 부모가 두 번 바뀐다.
                         const pf = pv(0, 0, 0);
                         pf.rotation.set(-0.85, 0, i * 0.26);
-                        pf.add(f);
+                        into(pf, () => {
+                            const f = cn(0.030, 0.175 - Math.abs(i) * 0.030, 0, (0.175 - Math.abs(i) * 0.030) / 2, 0, light);
+                            f.scale.set(1, 1, 0.34);
+                        });
                     }
                 });
                 jt(tail, 'x', 0.16, 0.4, { f: 1.3, gain: 1.4 });
@@ -9774,14 +9870,27 @@ const Scene3D = {
                 sp(0.05, 0, 0.2, 0.02, BOLT);                       // 작은 백열 심 — 코어 한복판만
                 // ⚡ 번개꼴 평면 — 위→아래로 좌우 두 번 꺾이는 폐곡선. 로컬 원점이 안쪽(코어 쪽)이고
                 //    +y 가 바깥 방향이라, 갈래를 코어 둘레에 각도만 돌려 심으면 된다.
-                const boltShape = (() => {
-                    const w = 0.052, L = 0.30, sh = new THREE.Shape();
-                    sh.moveTo(-w, 0); sh.lineTo(w, 0);
-                    sh.lineTo(w * 0.35, L * 0.45); sh.lineTo(w * 1.5, L * 0.5);   // 오른쪽으로 꺾인 어깨
-                    sh.lineTo(-w * 0.2, L); sh.lineTo(w * 0.2, L * 0.62);         // 뾰족한 끝 → 되꺾임
-                    sh.lineTo(-w * 1.4, L * 0.55); sh.lineTo(-w * 0.35, L * 0.42);
-                    sh.closePath();
-                    return new THREE.ExtrudeGeometry(sh, { depth: 0.03, bevelEnabled: false });
+                // 🧊 voxel — **폐곡선은 그대로 두고 칸으로만 채운다.** `ExtrudeGeometry` 는 이 파일에
+                //    마지막까지 남은 비(非)복셀 지오메트리였는데(펫 25종 중 일렉트리 5개), 번개 갈래는
+                //    판독을 두 번 갈아엎어 얻은 실루엣이라 **다시 디자인하면 안 된다**(위 🚨 참조).
+                //    그래서 같은 꼭짓점 목록으로 **칸 중심 point-in-polygon** 을 돌려 채운다 — 실루엣은
+                //    보존되고 모서리만 계단이 된다. 실측: 밑동 7칸 → 목 3칸 → 어깨 10칸 → 끝 1칸.
+                const boltVox = (() => {
+                    const w = 0.052, L = 0.30, D = 2;                 // D = 두께(칸). 종전 depth 0.03 ≈ 2칸
+                    const P = [[-w, 0], [w, 0], [w * 0.35, L * 0.45], [w * 1.5, L * 0.5],
+                               [-w * 0.2, L], [w * 0.2, L * 0.62], [-w * 1.4, L * 0.55], [-w * 0.35, L * 0.42]];
+                    const inside = (px, py) => {
+                        let hit = false;
+                        for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+                            const xi = P[i][0], yi = P[i][1], xj = P[j][0], yj = P[j][1];
+                            if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) hit = !hit;
+                        }
+                        return hit;
+                    };
+                    const out = [], my = Math.round(L / PVS), mx = Math.ceil(w * 2 / PVS);
+                    for (let y = 0; y <= my; y++) for (let x = -mx; x <= mx; x++)
+                        if (inside(x * PVS, y * PVS)) for (let z = 0; z < D; z++) out.push({ x: x, y: y, z: z });
+                    return out;
                 })();
                 // 🚨 **갈래를 등속 회전시키지 말 것 — probe-pet-joints 가 '발끝이 바닥 아래'로 문다.**
                 //    길이 0.30 짜리 갈래가 회전하면 아래로 내려오는 순간 코어(y0.2) 밑 바닥을 뚫는다
@@ -9792,8 +9901,13 @@ const Scene3D = {
                     for (const a of [0.34, 1.05, 1.57, 2.09, 2.80]) {   // 5 갈래, 전부 수평 위(바닥 안 뚫음)
                         const node = pv(Math.cos(a) * 0.1, Math.sin(a) * 0.1, 0);
                         node.rotation.z = a - Math.PI / 2;            // 번개 로컬 +y = 바깥 방향
-                        const blt = new THREE.Mesh(boltShape, BOLT);
-                        blt.position.z = -0.015;                      // 두께 중앙을 판 위로
+                        // ⚠️ `center: false` — 갈래는 **로컬 원점(y0)이 코어 쪽 밑동**이어야 각도만
+                        //    돌려 심을 수 있다. 중심 정렬을 켜면 밑동이 코어 속으로 반쯤 들어간다.
+                        const blt = Voxel.build(boltVox, {
+                            size: PVS, jitter: 0.05, ao: 0.9, center: false,
+                            material: vmat(BOLT), color: BOLT.color.getHex(),
+                        });
+                        blt.position.z = -PVS;                        // 두께(2칸) 중앙을 판 위로
                         node.add(blt);
                         jt(node, 'z', 0.16, a * 2.3, { f: 2.9, gain: 1.5 });   // 방전 떨림(제자리)
                     }
