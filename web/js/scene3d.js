@@ -20799,6 +20799,54 @@ const Scene3D = {
         });
     },
 
+    // 창 복셀 지오메트리(캐시) — 🧊 신의 창·공허의 창 공용 '블록 창' 문법: 매끈 콘/실린더/구를
+    // 계단 촉·블록 자루·큐브 보주로 전환(voxel-consistency-audit 처방 ⓐ의 잔여분). 파츠 치수와
+    // 로컬 규약(중심 정렬·촉 끝 +y)은 종전 프리미티브를 그대로 계승해, 회전(rotation.x=π)·배치·
+    // 페이드 애니메이션 코드는 안 바뀐다. 캐시라 dispose 금지 — 쓰는 쪽이 sharedGeometry 표식.
+    voxSpearGeo(part) {
+        if (!this._voxSpearGeo) this._voxSpearGeo = {};
+        const C = this._voxSpearGeo;
+        if (!C[part]) {
+            const vox = [];
+            const plus = (y) => vox.push({ x: 0, y, z: 0 }, { x: 1, y, z: 0 }, { x: -1, y, z: 0 },
+                { x: 0, y, z: 1 }, { x: 0, y, z: -1 });
+            let size = 0.1, jitter = 0.07, ao = 0.5;
+            if (part === 'tip') {                    // 계단 촉 — 종전 Cone(r0.24, h0.85) 자리
+                size = 0.17;
+                for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++) vox.push({ x, y: 0, z });
+                plus(1);
+                vox.push({ x: 0, y: 2, z: 0 }, { x: 0, y: 3, z: 0 }, { x: 0, y: 4, z: 0 });
+            } else if (part === 'collar') {          // 2단 계단 — Cone(r0.3, h0.4) 자리(공허 역가시 겸용)
+                size = 0.2;
+                for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++) vox.push({ x, y: 0, z });
+                plus(1);
+            } else if (part === 'shaftG') {          // 신의 창 자루 — Cylinder(r0.1~0.13, h2.4) 자리
+                size = 0.24;
+                for (let y = 0; y <= 9; y++) vox.push({ x: 0, y, z: 0 });
+            } else if (part === 'shaftV') {          // 공허의 창 자루 — Cylinder(r0.13~0.16, h1.55) 자리
+                size = 0.31;
+                for (let y = 0; y <= 4; y++) vox.push({ x: 0, y, z: 0 });
+            } else if (part === 'pommel') {          // 큐브 보주 — Sphere(r0.12) 자리
+                size = 0.14;
+                for (let x = 0; x <= 1; x++) for (let y = 0; y <= 1; y++) for (let z = 0; z <= 1; z++) vox.push({ x, y, z });
+            } else if (part === 'aura') {            // 사각 통 오라 — 열린 Cylinder(r0.2~0.26, h3.0) 자리
+                size = 0.22; jitter = 0.12; ao = 0;
+                for (let y = 0; y <= 13; y++)
+                    for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++)
+                        if (x !== 0 || z !== 0) vox.push({ x, y, z });
+            } else if (part === 'edge') {            // 창끝 뒤 발광 마디 — Cylinder(r0.055, h0.5) 자리
+                size = 0.125; jitter = 0.1; ao = 0;
+                for (let y = 0; y <= 3; y++) vox.push({ x: 0, y, z: 0 });
+            } else if (part === 'wake') {            // 관통 꼬리 — 끝(+y)이 큐브 낱개로 부서지는 기둥, h1.5
+                size = 0.15; jitter = 0.1; ao = 0;
+                for (let y = 0; y <= 6; y++) vox.push({ x: 0, y, z: 0 });
+                vox.push({ x: 0, y: 8, z: 0 }, { x: 0, y: 9, z: 0 });   // y7 빈칸 — 트레일이 블록으로 흩어진다
+            }
+            C[part] = Voxel.build(vox, { size, color: 0xffffff, jitter, ao }).geometry;
+        }
+        return C[part];
+    },
+
     // ---- 스킬 전용 연출: 신의 창 — 하늘이 열리고 거대한 황금 창이 내리꽂힌다 (skill-unique-signature) ----
     // 낙뢰(먹구름 + 지그재그 볼트)와 fx('bolt')를 공유해 색만 노랄 뿐 같은 그림이었다.
     // 장면 4단: 개천(적 상공에 회전하는 황금 광륜 + 사선 광선) → 강림 예고(광륜 아래 거대한 창이
@@ -20876,26 +20924,29 @@ const Scene3D = {
         halo2.position.set(spot.x, skyY, spot.z + 0.05);
         if (this.camera) halo2.lookAt(this.camera.position);
         const rays = [];                                   // 판 광선은 폐기 — 광선은 halo 메시에 병합됐다
-        // 창 — 자루(긴 원기둥) + 창촉(2단 콘) + 십자 코등이 + 자루 끝 보주. 길이 ~3.4.
+        // 창 — 🧊 블록 창(voxSpearGeo 캐시): 계단 촉 + 블록 자루 + 2단 물미 + 큐브 보주. 길이 ~3.4.
+        // 매끈 실린더/콘/구는 여기가 스킬층의 마지막 남은 큰 곡면이었다(voxel 처방 ⓐ). 십자
+        // 코등이(Box)는 원래 각져서 유지. 치수·로컬 규약이 종전과 같아 애니메이션 코드는 그대로.
         const spear = new THREE.Group();
         // ⚠️ 가는 흰 창은 밝은 하늘에 통째로 소실된다(캡처 실측) — 굵기를 키우고 채도 있는 금으로.
-        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 2.4, 8),
-            new THREE.MeshBasicMaterial({ color: 0xffb300, toneMapped: false }));
+        const vsolid = (col) => new THREE.MeshBasicMaterial({ color: col, vertexColors: true, toneMapped: false });
+        const shaft = new THREE.Mesh(this.voxSpearGeo('shaftG'), vsolid(0xffb300));
         shaft.position.y = 1.55;
-        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.85, 8),
-            new THREE.MeshBasicMaterial({ color: 0xfff3c4, toneMapped: false }));
+        const tip = new THREE.Mesh(this.voxSpearGeo('tip'), vsolid(0xfff3c4));
         tip.rotation.x = Math.PI; tip.position.y = 0;
-        const collar = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.4, 8),
-            new THREE.MeshBasicMaterial({ color: gold, toneMapped: false }));
+        const collar = new THREE.Mesh(this.voxSpearGeo('collar'), vsolid(gold));
         collar.rotation.x = Math.PI; collar.position.y = 0.5;
         const guard = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.12, 0.12),
             new THREE.MeshBasicMaterial({ color: gold, toneMapped: false }));
         guard.position.y = 0.74;
-        const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6),
-            new THREE.MeshBasicMaterial({ color: gold, toneMapped: false }));
+        const pommel = new THREE.Mesh(this.voxSpearGeo('pommel'), vsolid(gold));
         pommel.position.y = 2.8;
-        const aura = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 3.0, 8, 1, true), mat(gold, 0.4));
+        const aura = new THREE.Mesh(this.voxSpearGeo('aura'),
+            new THREE.MeshBasicMaterial({ color: gold, vertexColors: true, transparent: true, opacity: 0.4,
+                side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
         aura.position.y = 1.5;
+        shaft.userData.sharedGeometry = tip.userData.sharedGeometry = collar.userData.sharedGeometry =
+            pommel.userData.sharedGeometry = aura.userData.sharedGeometry = true;   // 캐시 지오 — dispose 금지
         spear.add(shaft, tip, collar, guard, pommel, aura);
         spear.position.set(spot.x, skyY - 0.6, spot.z);
         spear.scale.setScalar(1.15 + pw * 0.35);
@@ -21079,17 +21130,23 @@ const Scene3D = {
         //    비행 거리보다 길어 화면을 가로지르는 '막대'가 됨. → **근흑 자루를 굵게, 가산은
         //    창끝 근처 짧은 마디에만, 꼬리는 자루보다 가늘게, 전장 2.2 로** 줄인다.
         const lance = new THREE.Group();
-        const solid = (col) => new THREE.MeshBasicMaterial({ color: col, toneMapped: false });
-        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.21, 0.8, 6), solid(0xb39ddb));
-        tip.rotation.x = Math.PI;
-        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 1.55, 6), solid(VOID));
+        // 🧊 블록 창(voxSpearGeo — 신의 창과 같은 캐시 문법): 계단 촉·블록 자루·역가시 전부 각지게.
+        // 치수는 종전 콘/실린더 계승(tip·barb 만 스케일로 종전 반지름·높이에 맞춤). 자식 수 5는
+        // probe-voidrift 가 lance 를 찾는 표식이라 유지.
+        const solid = (col) => new THREE.MeshBasicMaterial({ color: col, vertexColors: true, toneMapped: false });
+        const vmat = (col, op) => { const m = mat(col, op); m.vertexColors = true; return m; };
+        const tip = new THREE.Mesh(this.voxSpearGeo('tip'), solid(0xb39ddb));
+        tip.rotation.x = Math.PI; tip.scale.set(0.82, 0.94, 0.82);
+        const shaft = new THREE.Mesh(this.voxSpearGeo('shaftV'), solid(VOID));
         shaft.position.y = 1.25;
-        const barb = new THREE.Mesh(new THREE.ConeGeometry(0.27, 0.42, 6), solid(VOID));  // 역가시 — 뽑히지 않는 인상
-        barb.rotation.x = Math.PI; barb.position.y = 0.54;
-        const edge = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.5, 4), mat(violet, 0.8));
+        const barb = new THREE.Mesh(this.voxSpearGeo('collar'), solid(VOID));  // 역가시 — 뽑히지 않는 인상
+        barb.rotation.x = Math.PI; barb.position.y = 0.54; barb.scale.set(0.9, 1.05, 0.9);
+        const edge = new THREE.Mesh(this.voxSpearGeo('edge'), vmat(violet, 0.8));
         edge.position.y = 0.52;                     // 창끝 바로 뒤 한 마디만 — 자루는 검게 남긴다
-        const wake = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.13, 1.5, 6, 1, true), mat(violet, 0));
+        const wake = new THREE.Mesh(this.voxSpearGeo('wake'), vmat(violet, 0));
         wake.position.y = 2.0;                      // 관통 순간에만 켜지는 꼬리 — 자루보다 가늘게
+        tip.userData.sharedGeometry = shaft.userData.sharedGeometry = barb.userData.sharedGeometry =
+            edge.userData.sharedGeometry = wake.userData.sharedGeometry = true;   // 캐시 지오 — dispose 금지
         lance.add(tip, shaft, barb, edge, wake);
         lance.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), travel);
         lance.position.copy(riftPos);
