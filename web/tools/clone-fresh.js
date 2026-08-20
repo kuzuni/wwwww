@@ -14,10 +14,16 @@
 //   📌 교훈: **판정기가 '변화 없음'을 말하면 먼저 그 자가 변화를 볼 수 있는지부터 증명할 것.**
 //      극단값 음성 대조는 30초면 된다(`probe-emblem-core` 가 이미 자 안에 그걸 박아 두고 있다).
 //
-// 신선도 판정은 **mtime 이 아니라 git 커밋 시각**으로 한다 — 새로 clone 한 컨테이너에서는 모든
+// 신선도 판정은 **커밋된 것끼리는 git 커밋 시각**으로 한다 — 새로 clone 한 컨테이너에서는 모든
 // 파일의 mtime 이 체크아웃 시각이라 순서가 무의미해진다(이 저장소는 매 세션 새 컨테이너다).
-//   ⓐ 소스 중 하나라도 **워킹 트리에서 수정됨**(git status) → 낡음. 지금 고치는 중이라는 뜻이다.
-//   ⓑ 소스의 마지막 커밋 시각 > PNG 의 마지막 커밋 시각 → 낡음.
+//   ⓐ 소스의 마지막 커밋 시각 > PNG 의 마지막 커밋 시각 → **낡음(exit 2)**.
+//   ⓑ 소스가 **워킹 트리에서 수정 중**이면 커밋 시각이 없으니 **그 둘의 mtime 을 본다**(같은 세션
+//      안이라 mtime 이 의미를 갖는 유일한 경우다):
+//        · PNG mtime > 소스 mtime → 고친 뒤 다시 구웠다는 뜻 → **통과하되 경고 한 줄**
+//          ("커밋 전 트리 기준 수치"). 개발 중에 A/B 를 뜨는 게 정상 작업이라 여기서 끊으면 안 된다.
+//        · PNG mtime < 소스 mtime → 고쳐 놓고 안 구웠다 → **낡음(exit 2)**.
+//      ⚠️ 이 완화를 '더러우면 무조건 통과'로 되돌리지 말 것 — 그러면 가드가 **정작 필요할 때만
+//         골라서 꺼진다**(고치는 중이 곧 재는 중이다). 반드시 mtime 비교를 남길 것.
 //
 // 사용:
 //   const { assertFresh } = require('./clone-fresh.js');
@@ -27,6 +33,7 @@
 //    빨개져서, 다음 사람이 캡처를 다시 굽는 대신 **이 가드를 뜯어낼** 유인이 된다.
 const { execFileSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 const ROOT = path.resolve(__dirname, '..', '..');          // 저장소 루트(web/ 의 부모)
 
@@ -39,6 +46,23 @@ function git(args) {
 function lastCommit(rel) {
     const t = git(['log', '-1', '--format=%ct', '--', rel]);
     return t ? parseInt(t, 10) : null;
+}
+
+function mtime(abs) {
+    try { return fs.statSync(abs).mtimeMs; } catch (e) { return null; }
+}
+
+// 파일이면 그 mtime, 디렉터리면 그 아래에서 **가장 새로운** mtime(한 겹만 훑는다 — css/ 용).
+function newestMtime(abs) {
+    let st;
+    try { st = fs.statSync(abs); } catch (e) { return null; }
+    if (!st.isDirectory()) return st.mtimeMs;
+    let best = st.mtimeMs;
+    for (const f of fs.readdirSync(abs)) {
+        const m = mtime(path.join(abs, f));
+        if (m !== null && m > best) best = m;
+    }
+    return best;
 }
 
 function dirty(rel) {
@@ -61,14 +85,29 @@ function assertFresh(png, sources, howToRebake) {
         console.error(`   커밋된 클론 캡처가 아니면 이 판정기의 '클론' 쪽 수치는 근거가 없다.`);
         process.exit(2);
     }
-    const stale = [];
+    const pngM = mtime(path.join(ROOT, pngRel));
+    const stale = [], uncommitted = [];
     for (const s of sources) {
         const sRel = rel(s);
-        if (dirty(sRel)) { stale.push(`${sRel} (워킹 트리에서 수정됨 — 지금 고치는 중)`); continue; }
+        if (dirty(sRel)) {
+            // 커밋 시각이 없다 → 같은 세션 안이므로 mtime 으로 '고친 뒤 다시 구웠나'를 본다.
+            const sM = newestMtime(path.join(ROOT, sRel));
+            if (pngM !== null && sM !== null && pngM >= sM) uncommitted.push(sRel);
+            else stale.push(`${sRel} (워킹 트리에서 수정됨 — 그 뒤로 캡처를 다시 굽지 않았다)`);
+            continue;
+        }
         const sT = lastCommit(sRel);
         if (sT !== null && sT > pngT) stale.push(`${sRel} (${new Date(sT * 1000).toISOString()} > 캡처 ${new Date(pngT * 1000).toISOString()})`);
     }
-    if (!stale.length) return true;
+    if (!stale.length) {
+        if (uncommitted.length) {
+            console.error(`⚠️ 아래 소스가 커밋 전이다 — 캡처는 그 뒤에 다시 구웠으니 수치는 유효하지만,`);
+            console.error(`   **'지금 워킹 트리' 기준**이다(커밋된 상태의 수치가 아니다):`);
+            uncommitted.forEach(s => console.error('   · ' + s));
+            console.error(`   👉 커밋할 때 다시 구운 PNG 를 **같은 커밋에** 담을 것.\n`);
+        }
+        return true;
+    }
     console.error(`🚨 클론 캡처가 낡았다 — ${pngRel} 는 지금 코드로 구운 것이 아니다.`);
     stale.forEach(s => console.error('   · ' + s));
     console.error(`\n   이 자는 브라우저를 안 띄우고 **커밋된 PNG 두 장을 맞대기만 한다.** 이대로 재면`);
