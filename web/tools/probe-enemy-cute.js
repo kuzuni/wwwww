@@ -5,7 +5,10 @@
 //       node probe-enemy-cute.js --neg            (음성 대조: 옛 분노 각으로 되돌려 FAIL 재현)
 //
 // 게이트
-//   ① 눈썹 기울기 — 모든 눈썹의 |rotation.z| 가 0.20rad(≈11°) 이하 (옛 값 0.42~0.55 = 24~31°)
+//   ① 눈썹 기울기 — 모든 눈썹의 **실측 하강각**이 0.20rad(≈11°) 이하 (옛 값 0.42~0.55 = 24~31°).
+//      🚨 2026-08-20 voxel 전환과 함께 **`rotation.z` 읽기에서 기하 실측으로 교체**했다 — 큐브 아치는
+//      기울기를 회전이 아니라 칸 배치로 내므로 회전값을 읽으면 무엇을 만들든 0 이라 변별력이 사라진다.
+//      지금은 눈썹 정점을 월드로 펴 **바깥 절반 평균 y − 안쪽 절반 평균 y** 로 각을 낸다.
 //   ② 블러시가 **화면에 실제로 기여** — 껐다 켠 차분의 밝아진 화소 수. 🚨 '넣었다'와 '보인다'는 다르다:
 //      얼굴 안쪽에 파묻히면 한 픽셀도 안 나오는데 콘솔도 캡처도 멀쩡하다(`probe-enemy-ao` 와 같은 함정).
 //   ③ 실루엣 유출 0 — 블러시가 몸 밖 배경을 물들이면 '떠 있는 스티커'다(경계 AA 는 따로 세어 통과).
@@ -90,7 +93,38 @@ async function grab(page, rect, setup) {
             //    초안이 이 자리에서 얼렸다가 클로즈업이 아니라 **게임 기본 카메라**(적이 50px 남짓)를
             //    찍었고, 그래서 블러시를 키워도 변화 화소가 21/29 로 **한 자리도 안 움직였다**
             //    (같은 숫자가 두 번 나오면 자를 의심하라는 이 저장소 규칙 그대로였다). 동결은 대기 뒤.
-            return { brows: window.__brows.length, blush: window.__blush.length, tilts: window.__brows.map(b => +(b.userData.tiltZ || 0).toFixed(3)) };
+            // 🚨 ① 은 **`rotation.z` 가 아니라 기하로 잰다 (2026-08-20 voxel 전환 때 교체).**
+            //    눈썹이 축정렬 큐브 아치가 되면서 기울기를 회전이 아니라 **칸 배치**로 표현하게 됐다 —
+            //    `rotation.z` 를 계속 읽으면 어떤 조형이든 0 이라 이 게이트가 **구조적으로 항상 통과**한다
+            //    (인계 ㉦ 의 '변별력 0' 함정 그대로). 그래서 눈썹 정점을 월드로 펴서 **바깥 절반과 안쪽
+            //    절반의 평균 높이 차**로 실제 하강각을 낸다. 매끈판 토러스(과거·음성 대조)도, 계단 아치도
+            //    같은 자로 재진다 — 음성 대조가 여전히 0.55rad 를 뱉는 것이 이 자의 자기검증이다.
+            const rootX = new THREE.Vector3(); m.g.getWorldPosition(rootX);
+            m.g.updateMatrixWorld(true);
+            const slopes = window.__brows.map(b => {
+                const pts = [];
+                b.updateMatrixWorld(true);
+                b.traverse(o => {
+                    if (!o.isMesh || !o.geometry || !o.geometry.attributes || !o.geometry.attributes.position) return;
+                    const pa = o.geometry.attributes.position;
+                    for (let i = 0; i < pa.count; i++) {
+                        const v = new THREE.Vector3().fromBufferAttribute(pa, i);
+                        o.localToWorld(v); pts.push(v);
+                    }
+                });
+                if (pts.length < 6) return 0;
+                const bw = new THREE.Vector3(); b.getWorldPosition(bw);
+                const side = Math.sign(bw.x - rootX.x) || 1;          // +1 = 적 중심의 오른쪽 눈썹
+                let mx = 0; for (const v of pts) mx += v.x; mx /= pts.length;
+                // 바깥 = 중심에서 먼 쪽 · 안쪽 = 중심에 가까운 쪽
+                const outer = pts.filter(v => (v.x - mx) * side > 0), inner = pts.filter(v => (v.x - mx) * side < 0);
+                if (!outer.length || !inner.length) return 0;
+                const avg = (a, k) => a.reduce((t, v) => t + v[k], 0) / a.length;
+                const dy = avg(outer, 'y') - avg(inner, 'y');          // >0 = 안쪽이 내려감 = 성난 눈썹
+                const dx = Math.abs(avg(outer, 'x') - avg(inner, 'x'));
+                return dx < 1e-6 ? 0 : Math.abs(Math.atan2(dy, dx));
+            });
+            return { brows: window.__brows.length, blush: window.__blush.length, tilts: slopes.map(v => +v.toFixed(3)) };
         }, NEG);
         await page.evaluate(() => {
             for (const sel of ['#topbar', '#equip-sheet', '#skill-bar', '#stage-label', '#wave-pips', '#chat-preview', '#loot-feed', '#hero-hp-wrap', '.waypoint', '#offline-btn'])

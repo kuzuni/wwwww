@@ -49,6 +49,7 @@ for p in \
     probe-dim-tabbar.js \
     probe-css-var-undefined.js \
     probe-arc-centered.js \
+    probe-enemy-cute.js \
     probe-lgr-px.js \
     probe-mount-neck-height.js \
     probe-mount-rein-rest.js \

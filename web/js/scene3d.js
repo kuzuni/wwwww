@@ -15368,121 +15368,180 @@ const Scene3D = {
             (o.parent || g).add(sk);
             return sk;
         };
-        // 몬스터 눈: 흰자+홍채+동공+하이라이트+성난 눈썹 (빨간 점 → 캐릭터 표정)
-        // 종별 파라미터 눈 — 전 종 공용 '성난 스티커' 복붙 금지 (비평가 2위 결함)
+        // 몬스터 눈 — 🧊 **voxel 전환** (화풍 확정 2026-08-20 · 직전 3D 세션 인계 ⓑ).
+        //   몸통·사지·보스 레갈리아를 전부 큐브로 옮긴 뒤 **적에게 남은 마지막 매끈 프리미티브**가
+        //   얼굴이었다(파이컷 구 흰자 + 구 동공/하이라이트 + 토러스 눈썹 + 납작 구 블러시).
+        //   7종 공용이라 이 함수 하나를 갈면 얼굴 전체가 한 번에 화풍에 붙는다 — **호출부 7곳 무수정**.
+        //
+        // 🔑 **격자는 종별로 바꾸지 않는다 — 전부 `ENEMY_VS`(0.05) 한 벌**(인계 ㉤). 눈이 작다고 반 칸짜리
+        //    하위 격자를 파면 얼굴만 다른 벽돌로 찍혀 '모든 종이 같은 벽돌'이라는 화풍 자체가 깨진다.
+        //    그래서 눈은 **2~4칸**이고, 그보다 잔 디테일(홍채 링·글린트 점)은 한 칸으로 올라붙는다.
+        // 🔑 **깊이로 쌓지 않고 한 층에서 색으로 가른다.** 매끈판은 동공을 흰자 **앞**에 띄워야 했지만
+        //    (구에 묻히면 잿빛 얼룩이 됐다) 복셀은 같은 층의 **다른 칸**을 검게 칠하면 그만이다.
+        //    두 층으로 쌓으면 한 칸이 0.05 라 동공이 얼굴에서 5cm 튀어나와 '눈알 부착물'이 된다.
+        //    ⚠️ 흰자(emissive Lambert)와 동공(Basic)은 재질이 달라 **메시는 둘**이지만 칸은 안 겹친다 —
+        //       겹치면 같은 평면 두 장이라 z-파이팅이다(`probe-prop-voxel` ④ 가 프롭 쪽에서 잡던 결함).
+        // 🔑 **판 앞면을 옛 흰자 앞면(er·0.55)에 맞춘다.** 칸이 종 눈보다 커서 z 를 대충 두면 두상에
+        //    파묻히거나(뒤) 얼굴에서 떠오른다(앞) — 펫 전환이 실물로 밟은 함정이다.
+        // 🔑 **`tilt` 는 회전이 아니라 모서리 깎기로 옮겼다.** 격자를 4~9° 돌리면 큐브 면이 축을 벗어나
+        //    '복셀로 안 읽히는' 바로 그 결함이 된다(장비 화풍 정합 2/10 의 1순위 사유). 대신 안쪽 위(성난)·
+        //    바깥 아래(예리) 모서리를 **한 칸 깎아** 같은 눈매를 낸다 — 그래서 호출부의 부호가 그대로 산다.
         // style: round(순둥 왕눈)/angry(성난 흰자눈)/fierce(가늘게 뜬 맹수 흰자눈)/sleepy(반쯤 감김)/slit(발광 슬릿, 흰자 없음)
-        // opts: { iris: 홍채색, tilt: 눈꼬리 기울기(+=안쪽 내려감 분노, -=바깥 올라감 예리), narrow: 슬릿 더 납작, browColor }
+        // opts: { iris: 홍채색, tilt: 눈꼬리(+=안쪽 내려감 분노, -=바깥 올라감 예리), narrow: 슬릿 더 납작, browColor,
+        //         blush/blushK/blushColor, lid }
+        //   ⚠️ `iris` 는 slit 계열이 계속 쓴다 — 인자를 지우지 말 것. `irisScale`·`glow` 는 한 칸보다 작은
+        //      조절이라 복셀에서 표현할 자리가 없어 **무시된다**(호출부는 그대로 둔다 — 지우면 매끈판으로
+        //      되돌릴 때 근거가 사라지고, 남겨 두면 값이 무해하다).
         const eyes = (y, z, gap, r, style, opts) => {
             const o = opts || {};
             const er = (r || 0.045) * 1.5;
+            const eb = (v, m, col) => Voxel.build(v, { size: VS, jitter: 0.04, ao: 0.55, center: false, material: m, color: col });
+            // 흰자는 **음영을 받되 바닥값을 emissive 로 깐다** — 버섯처럼 갓 그늘에 머리가 통째로
+            // 들어가는 종은 순수 Lambert 로 눈이 검게 뭉갰다(매끈판 실측 캡처, 그대로 유효).
+            const EYE_W = new THREE.MeshLambertMaterial({ color: 0xfff6e8, emissive: 0x9a958c, vertexColors: true, flatShading: true });
+            // 동공·글린트 공용 — 색은 정점 색이 지므로 재질 하나로 검정/흰색을 다 찍는다.
+            const EYE_P = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, flatShading: true });
+            const front = er * 0.55;                       // 판 앞면 = 옛 파이컷 흰자 앞면
+            if (style === 'slit') {
+                // 어둠 속 이글거리는 발광 슬릿 (골렘 마그마/늑대 냉광/임프 유황) — 흰자 없음.
+                // 🚨 **테를 위아래로 두르면 눈이 세 배로 두꺼워진다.** 매끈판 테는 슬릿보다 **19%만** 넓고
+                //    (0.162 vs 0.136) 높이도 1.1칸뿐이라, 복셀에서 위아래 한 줄씩 두르면 3칸(0.15) —
+                //    골렘 얼굴을 가로지르는 **띠 한 장**이 된다(실측 캡처). 복셀의 올바른 번역은
+                //    **위 한 줄만 어둡게** 두는 것이다: 눈두덩 그늘이 곧 골렘의 눈썹 선반이 된다.
+                const sw = Math.max(2, Math.min(4, Math.round(er * 2.02 / VS)));
+                const sh = o.narrow ? 1 : Math.max(1, Math.min(2, Math.round(er * 0.79 / VS)));
+                // 흰자 눈과 같은 사유 — 판 두 장 사이에 얼굴이 최소 한 칸은 남아야 한다.
+                const eyeGap = Math.max(gap, (sw + 1) * VS / 2);
+                const IRIS = new THREE.MeshLambertMaterial({ color: o.iris, emissive: o.iris, emissiveIntensity: 1, vertexColors: true, flatShading: true });
+                const RIM = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, flatShading: true });
+                for (const s of [-1, 1]) {
+                    const eg = new THREE.Group();
+                    eg.position.set(s * eyeGap, y, z);
+                    const pl = new THREE.Group();
+                    pl.position.set(-(sw - 1) * VS / 2, -sh * VS / 2, front - VS / 2);
+                    const rimV = [];
+                    for (let i = 0; i < sw; i++) rimV.push({ x: i, y: sh, z: 0 });
+                    const slitV = [];
+                    for (let i = 0; i < sw; i++) for (let j = 0; j < sh; j++) slitV.push({ x: i, y: j, z: 0 });
+                    pl.add(eb(rimV, RIM, 0x14100e));
+                    const sl = eb(slitV, IRIS, 0xffffff);
+                    sl.userData.pieEye = true;   // 캡처·판정 도구가 이 태그로 '눈 판'을 집는다(영웅·펫과 같은 규약)
+                    pl.add(sl);
+                    eg.add(pl);
+                    g.add(eg);
+                }
+                return;
+            }
+            // ── 흰자 눈 ─────────────────────────────────────────────────────────────
+            // 큰 눈 = 치비 요구라 **칸 수를 옛 실루엣보다 줄이지 않는다**(er·2.2 ≈ 옛 지름 + 여유 한 칸).
+            const tall = style === 'round' ? 1.3 : style === 'sleepy' ? 0.62 : 0.92;
+            const nx = Math.max(2, Math.min(4, Math.round(er * 2.2 / VS)));
+            const ny = Math.max(2, Math.min(4, Math.round(nx * tall)));
+            // 🚨 **판 두 장 사이에 얼굴이 최소 한 칸은 남아야 한다.** 매끈 구는 서로 스쳐도 음영이 경계를
+            //    그려 주지만, 축정렬 판은 사이가 비면 **가로로 이어진 흰 띠 한 장**으로 렌더된다
+            //    (늑대 주둥이·임프 실측 캡처 — 눈 두 개가 통째로 붙어 하나가 됐다).
+            //    ⚠️ 처음엔 반대로 **판을 좁혀서** 맞추려 했는데 그러면 좁은 얼굴의 눈이 한 칸까지 줄어
+            //       흰자·동공이 통째로 사라졌다(자동 프레이밍이 그 빈 bbox 를 물고 카메라가 땅속으로
+            //       들어갔다). 복셀에서 올바른 해법은 **크기를 줄이는 게 아니라 자리를 벌리는 것**이다 —
+            //       눈이 넓게 벌어지는 건 치비 비례에서 오히려 맞는 방향이다.
+            const eyeGap = Math.max(gap, (nx + 1) * VS / 2);
+            const tilt = o.tilt || 0;
+            const lidRows = style === 'sleepy' ? 1 : 0;          // 위 눈꺼풀이 먹는 줄 수
+            // 🚨 **동공은 '안쪽 끝'이 아니라 한 열 안쪽(가운데)에 둔다 — 첫 판이 판다 얼굴이 된 원인이다.**
+            //    매끈판 동공은 흰자 면적의 **16%**(0.72er × 0.83er ÷ 2er × 1.84er)뿐이라 한 칸(3×3의 11~22%)이
+            //    맞는 크기인데, 그 한 칸을 **안쪽 모서리**에 붙였더니 두 눈의 검은 칸이 코를 사이에 두고
+            //    마주 보며 **가로로 이어진 마스크**로 읽혔다. 흰자가 동공을 **양옆에서 감싸야** 눈이 된다.
+            const pupCol = nx >= 3 ? nx - 2 : nx - 1;            // 동공 열(바깥 0 → 안쪽 nx−1 기준)
+            // 세로도 같은 이유로 **가운데 한 칸**이다. 바닥 2칸을 채우면 세로 막대가 되어 '눈'이 아니라
+            // '슬롯'으로 읽혔다(중간 판 캡처). 매끈판 동공도 y −0.05er = 사실상 정중이었다.
+            const pupRow = ny - lidRows >= 3 ? 1 : 0;            // 동공 줄(바닥 0 기준)
+            // 2×2 는 예외 — 한 칸만 검게 칠하면 **밝은 털 종(늑대)에서 눈이 통째로 사라진다**(실측 캡처:
+            //   흰자 0xfff6e8 과 회백색 두상이 붙어 한 덩어리로 읽혔고 동공 한 칸은 그 안에서 점이 됐다).
+            //   네 칸짜리 판은 **안쪽 열을 통째로** 검게 칠해 반반으로 가른다(마인크래프트 주민 눈).
+            const pupFull = nx <= 2;
+            // ===== 볼 블러시 — 양쪽 비평가가 같은 처방으로 꼽은 '귀여움' 신호 =====
+            // 🚨 **판이 세 칸 이상이면 볼을 판 안(바깥 아래 칸)에 넣는다.** 매끈판이 두 번 실패한 그 자리다:
+            //    ⑴ 얼굴에 파묻혀 21~29px → ⑵ 반대로 실루엣 밖으로 샘. 복셀에서 **별개 큐브를 판 아래에
+            //    두는 3안도 같은 병으로 실패했다**(버섯 89→30px, 최대 거리 99→7px — 칸이 0.05 라 볼이
+            //    매끈판보다 두 배 아래로 내려가 줄기 밑을 벗어났다). 판 **안**에 넣으면 볼이 눈 판의
+            //    실루엣을 물려받아 **유출이 구조적으로 불가능**하고 같은 층이라 z-파이팅도 없다.
+            // ⚠️ 두 칸짜리 눈(늑대·임프)은 네 칸 중 하나도 못 뺀다 — 그쪽만 판 아래 한 칸 큐브를 쓰고,
+            //    실제로 그 두 종은 얼굴이 넓어 이 배치로 게이트를 통과한다(늑대 3px·임프 0px).
+            // ⚠️ 반투명으로 안 갔다 — 이 씬은 투명 오브젝트가 깊이를 안 써서 정렬이 뒤집히면 얼굴
+            //    앞으로 튀어나온다(killEnemy 의 디졸브 주석과 같은 함정).
+            const blushOn = o.blush !== false;
+            const blushIn = blushOn && nx >= 3 && ny >= 3;
             for (const s of [-1, 1]) {
                 const eg = new THREE.Group();
-                eg.position.set(s * gap, y, z);
-                eg.rotation.z = s * (o.tilt || 0);
-                if (style === 'slit') {
-                    // 어둠 속 이글거리는 발광 슬릿 (골렘 마그마/늑대 냉광/임프 유황) — 흰자 없음
-                    const slit = new THREE.Mesh(new THREE.SphereGeometry(er * 0.72, 8, 6),
-                        new THREE.MeshLambertMaterial({ color: o.iris, emissive: o.iris, emissiveIntensity: 1 }));
-                    slit.scale.set(1.4, o.narrow ? 0.36 : 0.55, 0.4);
-                    const rim = new THREE.Mesh(new THREE.SphereGeometry(er * 0.8, 8, 6),
-                        new THREE.MeshBasicMaterial({ color: 0x14100e }));
-                    rim.position.z = -er * 0.12;
-                    rim.scale.set(1.5, o.narrow ? 0.5 : 0.7, 0.32);
-                    eg.add(rim, slit);
-                } else {
-                    // ===== 파이컷 흰자 — 1930s 러버호스 카툰 (`cute-art-direction` 사용자 확정 2026-08-19) =====
-                    // 종전은 흰자+발광 홍채+글로시 하이라이트라 영웅과 같은 '캐주얼 3D 마스코트' 눈이었다.
-                    // 영웅(prochar.js)을 파이컷으로 바꾼 것과 **같은 화풍**으로 여기서 6종을 한꺼번에 맞춘다
-                    // (slit 계열 = 골렘 마그마·늑대 냉광은 발광 슬릿이 종 정체성이라 이번 회차 대상 아님).
-                    //
-                    // 🔑 **영웅과 달리 평평한 판을 못 쓴다** — 적은 아레나에서 좌우로 돌고 넉백으로 자세가
-                    //    바뀌어, 판이면 옆에서 사라진다. 그래서 **구를 유지한 채 파이 조각을 판다**:
-                    //    `SphereGeometry` 의 phi 절단은 극축을 감는 쐐기(오렌지 조각)라, **극축을 +z(보는 쪽)로
-                    //    눕히면**(mesh.rotation.x = π/2) 정면에서 정확히 파이 조각으로 보인다.
-                    //    ⚠️ 회전은 **메시**에, 납작 스케일은 **부모 그룹**에 건다 — 한 오브젝트에 둘 다 걸면
-                    //       스케일이 회전 전 로컬 축에 먹어 'y 를 눌렀는데 z 가 눌리는' 결과가 된다.
-                    // 🔑 phi ↔ 화면 각 대응: 눕힌 뒤 구의 (x,y,z)가 눈 로컬 (x,−z,y)로 가므로 **화면 방위각
-                    //    α = φ + π** 다. α 구간 [wc−PIE/2, wc+PIE/2] 를 빼려면 φ = wc + PIE/2 − π 에서
-                    //    2π−PIE 만큼 그리면 된다.
-                    const tall = style === 'round' ? 1.3 : style === 'sleepy' ? 0.62 : 0.92;
-                    const PIE = Math.PI * 0.30;                    // 도려낸 부채꼴 각 (영웅과 같은 값)
-                    const wc = s > 0 ? 0.42 : Math.PI - 0.42;      // 쐐기 중심 = **바깥쪽 위**(안쪽에 두면 두 눈의 빈 자리가 코 양옆에서 마주 본다)
-                    const scG = new THREE.Group();
-                    scG.scale.set(1, tall, 0.55);
-                    const sc = new THREE.Mesh(new THREE.SphereGeometry(er, 18, 12, wc + PIE / 2 - Math.PI, Math.PI * 2 - PIE),
-                        // 음영은 남기되 **바닥값을 emissive 로 깐다** — 흰자가 완전히 죽으면 파이 조각이 안 보인다.
-                        // (버섯처럼 갓 그늘에 머리가 통째로 들어가는 종은 순수 Lambert 로는 눈이 검게 뭉갰다 — 실측 캡처.)
-                        // 종전 주석의 '음영 받는 흰자(평면 스티커 오독 방지)'는 유지 — 완전 무광 Basic 으로 가지 않는 이유다.
-                        new THREE.MeshLambertMaterial({ color: 0xfff6e8, emissive: 0x9a958c }));
-                    sc.rotation.x = Math.PI / 2;
-                    sc.userData.pieEye = true;   // 캡처·판정 도구가 이 태그로 흰자를 집는다(영웅 prochar.js 와 같은 규약)
-                    scG.add(sc);
-                    // 동공 = **검은 점**(사용자 지시 원문). 발광 홍채를 뺐으므로 종 색은 눈썹(browColor)·몸통이 진다.
-                    //   ⚠️ `o.iris`/`o.glow`/`o.irisScale` 은 slit 계열이 계속 쓴다 — 인자를 지우지 말 것.
-                    const puR = er * (style === 'round' ? 0.42 : 0.36) * (o.irisScale || 1);
-                    const pu = new THREE.Mesh(new THREE.SphereGeometry(puR, 10, 8), new THREE.MeshBasicMaterial({ color: 0x141013 }));
-                    // 🚨 z 는 **흰자 앞면 밖**이어야 한다 — 흰자 그룹이 z 를 0.55 로 눌러 앞면이 er·0.55 에
-                    //    있으므로, 종전 감각대로 er·0.42 에 두면 동공이 흰자 **속**에 묻혀 끝만 삐져나온다
-                    //    (실측 캡처에서 잿빛 얼룩으로 읽혔다). 파이 쐐기가 극(=정면 중심)까지 열려 있어
-                    //    묻힌 동공이 그 틈으로 비치는 바람에 '지워졌는데 보이는' 착시까지 났다.
-                    pu.scale.set(1, style === 'sleepy' ? 0.8 : 1.15, 0.42);
-                    pu.position.set(-s * er * 0.12, -er * 0.05, er * 0.56);
-                    const hl = new THREE.Mesh(new THREE.SphereGeometry(er * 0.11, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-                    hl.position.set(-s * er * 0.26, er * 0.20, er * 0.60);
-                    eg.add(scG, pu, hl);
-                    if (style === 'sleepy') { // 위 눈꺼풀 — 살색보다 어두운 덮개
-                        const lid = new THREE.Mesh(new THREE.SphereGeometry(er * 1.02, 8, 6), new THREE.MeshLambertMaterial({ color: o.lid || 0x8d6a56 }));
-                        lid.position.y = er * 0.5;
-                        lid.scale.set(1.05, 0.5, 0.58);
-                        eg.add(lid);
-                    }
-                    if (style === 'angry' || style === 'fierce') {
-                        // ===== 눈썹 — '화난 막대'에서 '익살맞은 아치'로 (`cute-art-direction`, 1차 비평가 2인 합의) =====
-                        // 🚨 사용자 원문 1순위가 **"적이랑 내 캐릭터가 좀 더 귀여웠으면"** 인데 정반대로 가 있었다.
-                        //    비평가 A "7종 예외 없이 두꺼운 검은 사선 눈썹이 눈 안쪽으로 내리꽂힌다" · B "현대
-                        //    애니메이션의 화난 눈매". 1930s 카툰의 악당도 **둥글고 익살맞다**(플라이셔의 블루토).
-                        // 처방(교집합): 하강각을 대폭 완화(0.55/0.42 → 0.18/0.14 = 31°/24° → 10°/8°) + 막대를
-                        //    **위로 휜 아치**로. 종 정체성인 `browColor` 는 그대로 둔다(색으로 종을 가른다).
-                        // ⚠️ 각을 0 으로 만들지는 않았다 — 완전 수평 아치는 '무표정'이라 종별 성격이 사라진다.
-                        //    fierce 가 angry 보다 여전히 조금 더 기울어 서열은 남는다.
-                        const bw = er * 1.55, bt = er * (style === 'fierce' ? 0.24 : 0.30);
-                        // 아치 = 큰 반지름의 짧은 토러스 호(양끝이 자연히 얇아 보인다 — 박스의 '잘린 막대' 인상 제거)
-                        const brow = new THREE.Mesh(new THREE.TorusGeometry(bw * 0.62, bt * 0.5, 5, 10, Math.PI * 0.52),
-                            new THREE.MeshLambertMaterial({ color: o.browColor || 0x2b2b33 }));
-                        brow.rotation.z = Math.PI * 0.5 - Math.PI * 0.26;   // 호의 가운데가 위로 오게 눕힌다
-                        brow.scale.set(1, 0.72, 0.42);
-                        const bg = new THREE.Group();
-                        bg.add(brow);
-                        bg.position.set(0, er * (style === 'fierce' ? 0.86 : 1.02), er * 0.30);
-                        bg.rotation.z = s * (style === 'fierce' ? 0.18 : 0.14); // 완화된 기울기
-                        bg.userData.cuteBrow = true;    // 판정 도구가 이 태그로 눈썹을 집는다
-                        bg.userData.tiltZ = Math.abs(bg.rotation.z);
-                        eg.add(bg);
-                    }
-                    // ===== 볼 블러시 — 양쪽 비평가가 같은 처방으로 꼽은 '귀여움' 신호 =====
-                    // 눈 바깥·아래로 살짝 내려 붙인다(눈 그룹 기준이라 종마다 얼굴 위치를 따로 안 잡아도 된다).
-                    // ⚠️ 반투명으로 안 갔다 — 이 씬은 투명 오브젝트가 깊이를 안 써서 정렬이 뒤집히면 얼굴
-                    //    앞으로 튀어나온다(killEnemy 의 디졸브 주석과 같은 함정). 불투명 납작 구 + 낮은
-                    //    emissive 로 '스티커'가 아니라 '홍조'로 읽히게 한다.
-                    if (o.blush !== false) {
-                        // 🚨 첫 판은 **얼굴에 파묻혀 화면에 21~29px 밖에 안 나왔다**(`probe-enemy-cute` 실측).
-                        //    눈 그룹 기준으로 아래로 내려갈수록 두상 표면이 −z 로 휘어 도망가는데, z 를 눈과
-                        //    비슷한 er·0.34 에 두니 볼 위가 아니라 볼 **속**이었다. 앞으로 밀고(0.34 → 0.72)
-                        //    크기를 키워(0.62 → 0.86) 볼 위에 얹었다. '넣었다'와 '보인다'는 다르다.
-                        // 🚨 두 번째 판은 반대로 **실루엣 밖으로 샜다**(고블린 574px·버섯 984px·늑대 444px).
-                        //    머리가 좁은 종에서는 눈 반지름 기준 오프셋이 두상 폭을 넘는다 — 그러면 볼 홍조가
-                        //    아니라 '얼굴 옆에 붙은 분홍 스티커'다. 안쪽으로 당기고 줄여 실루엣 안에 넣는다.
-                        // 🚨 크기·위치는 눈 반지름(er)에 매달려 있는데 **두상 폭은 종마다 다르다** — 좁은 머리
-                        //    (늑대 주둥이·버섯 줄기·고블린)에서는 같은 값이 실루엣을 넘는다. 그 종만
-                        //    `blushK` 로 줄인다(전역으로 더 줄이면 넓은 얼굴에서 볼이 점으로 사라진다).
-                        const bk = o.blushK || 1;
-                        const bl = new THREE.Mesh(new THREE.SphereGeometry(er * 0.46 * bk, 9, 7),
-                            new THREE.MeshLambertMaterial({ color: o.blushColor || 0xd98177, emissive: 0x3a1210 }));
-                        bl.scale.set(1.10, 0.70, 0.26);
-                        bl.position.set(s * er * 0.38 * bk, -er * 0.84, er * 0.76);
-                        bl.userData.cuteBlush = true;
+                eg.position.set(s * eyeGap, y, z);
+                const scG = new THREE.Group();
+                scG.position.set(-(nx - 1) * VS / 2, -(ny - 1) * VS / 2, front - VS / 2);
+                // 칸 좌표: ix 는 **바깥(0) → 안쪽(nx−1)** 이라 좌우 눈을 같은 식으로 깎는다.
+                //   s>0(오른눈)은 −x 가 안쪽이므로 격자 x 를 뒤집는다.
+                const gx = ix => (s > 0 ? nx - 1 - ix : ix);
+                const white = [], dark = [], lid = [], blush = [];
+                for (let ix = 0; ix < nx; ix++) for (let iy = 0; iy < ny; iy++) {
+                    const inner = ix === nx - 1, outer = ix === 0, top = iy === ny - 1, bot = iy === 0;
+                    if (lidRows && iy >= ny - lidRows) { lid.push({ x: gx(ix), y: iy, z: 0 }); continue; }
+                    // 볼이 눈꼬리 깎기보다 우선이다 — 둘 다 '바깥 아래' 한 칸을 노리는데, 볼은 게이트
+                    //   항목(`probe-enemy-cute` ②)이고 눈꼬리는 인상 조절이라 볼을 먼저 앉힌다.
+                    if (blushIn && outer && bot) { blush.push({ x: gx(ix), y: iy, z: 0 }); continue; }
+                    // 눈꼬리 — 회전 대신 모서리 한 칸을 깎는다(위 🔑).
+                    // ⚠️ 2×2 에서는 깎지 않는다 — 네 칸 중 하나를 떼면 흰자나 동공이 통째로 사라진다.
+                    if (nx >= 3 && ny >= 3 && tilt > 0.03 && inner && top) continue;   // 안쪽 위가 내려간다 = 성난 눈
+                    if (nx >= 3 && ny >= 3 && tilt < -0.03 && outer && bot) continue;  // 바깥 아래가 올라간다 = 예리한 눈
+                    if (ix === pupCol && (pupFull ? iy < ny - lidRows : iy === pupRow)) { dark.push({ x: gx(ix), y: iy, z: 0, c: 0x141013 }); continue; }
+                    // 글린트 = **바깥 위 한 칸**. 큐브 하나면 충분하고, 그보다 잘게 쪼개면 격자가 깨진다.
+                    if (nx >= 3 && ny >= 3 && outer && top) { dark.push({ x: gx(ix), y: iy, z: 0, c: 0xffffff }); continue; }
+                    white.push({ x: gx(ix), y: iy, z: 0 });
+                }
+                const sc = eb(white, EYE_W, 0xfff6e8);
+                sc.userData.pieEye = true;   // 캡처·판정 도구가 이 태그로 흰자를 집는다(영웅·펫과 같은 규약)
+                scG.add(sc);
+                if (dark.length) scG.add(eb(dark, EYE_P, 0xffffff));
+                if (lid.length) scG.add(eb(lid, EYE_W, o.lid || 0x8d6a56));
+                eg.add(scG);
+                if (style === 'angry' || style === 'fierce') {
+                    // ===== 눈썹 — '화난 막대'에서 **계단 아치**로 =====
+                    // 🚨 1930s 판이 남긴 결론은 그대로다: 사용자 원문 1순위가 "적이 좀 더 귀여웠으면"인데
+                    //    비평가 2인이 "7종 예외 없이 두꺼운 검은 사선 눈썹이 눈 안쪽으로 내리꽂힌다"로 합의했다.
+                    //    복셀에서 그 처방은 **기울기 0 + 가운데만 한 칸 올린 대칭 아치**다 — 격자를 돌리지
+                    //    않고도 '내리꽂히지 않음'이 구조적으로 보장된다.
+                    // ⚠️ **두께는 한 칸으로 못 박는다.** 매끈판 두께가 er·0.30(≈0.4칸)이라 한 칸도 이미
+                    //    2.5배다 — 여기서 가운데를 2칸으로 채우면 그게 바로 지적받은 '두꺼운 검은 막대'다.
+                    //    그래서 열마다 한 칸씩만 두고 가운데 열만 y 를 올린다(모서리로 이어진 계단 아치).
+                    // 폭은 **눈 판과 같다** — 더 넓히면 좁은 얼굴에서 두 눈썹이 미간에서 겹쳐 이마를
+                    //   가로지르는 검은 슬래브가 된다(늑대 첫 판 실측). 두 칸이면 아치를 못 그리니 평평한
+                    //   막대로 두는데, 평평한 것 자체는 '안쪽으로 내리꽂히지 않음'이라 결함이 아니다.
+                    const bn = nx;
+                    const bv = [];
+                    for (let i = 0; i < bn; i++) bv.push({ x: i, y: (i > 0 && i < bn - 1) ? 1 : 0, z: 0 });
+                    const bg = new THREE.Group();
+                    bg.position.set(0, ny * VS / 2 + VS * (style === 'fierce' ? 0.5 : 0.62), front - VS / 2);
+                    const bm = eb(bv, new THREE.MeshLambertMaterial({ color: o.browColor || 0x2b2b33, vertexColors: true, flatShading: true }), 0xffffff);
+                    bm.position.x = -(bn - 1) * VS / 2;
+                    bg.add(bm);
+                    bg.userData.cuteBrow = true;    // 판정 도구가 이 태그로 눈썹을 집는다
+                    bg.userData.tiltZ = 0;          // 격자 정렬 = 기울기 0 (`probe-enemy-cute` ① 은 이제 기하로 잰다)
+                    eg.add(bg);
+                }
+                if (blushOn) {
+                    const bk = o.blushK || 1;
+                    const BLUSH = new THREE.MeshLambertMaterial({ color: o.blushColor || 0xd98177, emissive: 0x3a1210, vertexColors: true, flatShading: true });
+                    let bl;
+                    if (blushIn) {
+                        bl = eb(blush, BLUSH, 0xffffff);
+                        scG.add(bl);
+                    } else {
+                        // 🚨 별개 큐브일 때 **x 는 눈 판이 아니라 `gap`(종이 authoring 한 얼굴 위치)에 매단다.**
+                        //    판이 안 붙게 눈을 `eyeGap` 으로 벌렸는데 볼까지 끌려 나가면 좁은 머리에서
+                        //    실루엣 밖으로 뜬 스티커가 된다(늑대 27px 실측 FAIL). 이 식은 매끈판의 볼
+                        //    월드 x(= gap + er·0.38·bk)를 ±0.008 안에서 재현한다.
+                        bl = eb([{ x: 0, y: 0, z: 0 }], BLUSH, 0xffffff);
+                        bl.position.set(s * ((gap - eyeGap) + VS * 0.3 * bk), -(ny + 1) * VS / 2, front - VS / 2);
                         eg.add(bl);
                     }
+                    bl.userData.cuteBlush = true;
                 }
                 g.add(eg);
             }
