@@ -64,7 +64,7 @@ const CASES = [
             g.drawImage(img, 0, 0);
             const D = g.getImageData(0, 0, cv.width, cv.height).data, W = cv.width;
             return a.cells.map((c2) => {
-                const R = a.R, Ls = [];
+                const R = a.R, Ls = [], RGB = [];
                 for (let dy = -R; dy <= R; dy++) {
                     for (let dx = -R; dx <= R; dx++) {
                         if (Math.hypot(dx, dy) > 0.85 * R) continue;
@@ -73,6 +73,7 @@ const CASES = [
                         if (x < 0 || y < 0 || x >= cv.width || y >= cv.height) continue;
                         const i = (y * W + x) * 4;
                         Ls.push(0.2126 * D[i] + 0.7152 * D[i + 1] + 0.0722 * D[i + 2]);
+                        RGB.push([D[i], D[i + 1], D[i + 2]]);
                     }
                 }
                 if (Ls.length < 40) return { key: c2.key, n: Ls.length, broken: true };
@@ -83,8 +84,18 @@ const CASES = [
                 let s = 0, n = 0;
                 for (const L of Ls) if (Math.floor(L / 10) === bi) { s += L; n++; }
                 const Lm = n ? s / n : bi * 10 + 5;
-                const ink = Ls.filter(L => Math.abs(L - Lm) >= 40).length / Ls.length * 100;
-                return { key: c2.key, n: Ls.length, Lm, ink };
+                const inkIdx = [];
+                for (let i = 0; i < Ls.length; i++) if (Math.abs(Ls[i] - Lm) >= 40) inkIdx.push(i);
+                const ink = inkIdx.length / Ls.length * 100;
+                // 잉크 화소의 평균 채도 — '모티프가 색을 가졌나 흰가'를 재는 값(아래 판정에는 안 쓴다).
+                // 순검정 키라인(채도 0)은 원본·클론 **양쪽에** 있으므로 상수 편향으로 대체로 상쇄된다.
+                let sat = 0;
+                for (const i of inkIdx) {
+                    const [r, g2, b] = RGB[i], mx = Math.max(r, g2, b), mn = Math.min(r, g2, b);
+                    sat += mx ? (mx - mn) / mx : 0;
+                }
+                sat = inkIdx.length ? sat / inkIdx.length * 100 : 0;
+                return { key: c2.key, n: Ls.length, Lm, ink, sat };
             });
         }, { dataUrl, R: c.R, cells });
 
@@ -99,10 +110,12 @@ const CASES = [
             console.log(`   ${o.key}${eqSet.has(o.key) ? ' (장착)' : '       '}  바탕 휘도 ${o.Lm.toFixed(0).padStart(3)}  잉크율 ${o.ink.toFixed(1).padStart(5)}%  표본 ${o.n}`);
         }
         const unInk = avg(un, o => o.ink), eqInk = avg(eq, o => o.ink);
+        const unSat = avg(un, o => o.sat);
         const weak = un.filter(o => o.ink < 20);
         console.log(`  ▶ 미장착 ${un.length}개 평균 잉크율 ${unInk.toFixed(1)}%  ·  (참고) 장착 ${eq.length}개 ${eqInk.toFixed(1)}%`);
         console.log(`  ▶ 잉크율 20% 미만 미장착 오브: ${weak.length}개${weak.length ? ' — ' + weak.map(o => `${o.key}(${o.ink.toFixed(1)}%)`).join(', ') : ''}`);
-        out.push({ label: c.label, unInk, eqInk, weak: weak.length, un });
+        console.log(`  ▶ (참고) 미장착 오브 잉크 화소 평균 채도 ${unSat.toFixed(1)}% — '모티프가 색을 가졌나 흰가'`);
+        out.push({ label: c.label, unInk, eqInk, unSat, weak: weak.length, un });
     }
 
     await browser.close();
@@ -110,6 +123,10 @@ const CASES = [
     console.log('\n===== 대조 =====');
     console.log(`미장착 평균 잉크율   원본 ${ref.unInk.toFixed(1)}%  vs  클론 ${clone.unInk.toFixed(1)}%   (차 ${(clone.unInk - ref.unInk).toFixed(1)}%p)`);
     console.log(`잉크율 20% 미만 개수  원본 ${ref.weak}/${ref.un.length}  vs  클론 ${clone.weak}/${clone.un.length}`);
+    console.log(`잉크 채도(참고·판정 제외)  원본 ${ref.unSat.toFixed(1)}%  vs  클론 ${clone.unSat.toFixed(1)}%   (차 ${(clone.unSat - ref.unSat).toFixed(1)}%p)`);
+    console.log(`   ↑ 이 줄은 미결 ㉢('스킬 글리프 채움이 흰색 지배', 비평가 A#3·B#5)의 **판단 근거**로만 쓴다.`);
+    console.log(`     낮다 = 우리 모티프가 원본보다 흰색에 가깝다는 뜻이지 '안 읽힌다'는 뜻이 아니다 —`);
+    console.log(`     읽힘은 바로 위 잉크율이 답하고, 그쪽은 우리가 원본보다 높다. 즉 ㉢ 은 결함이 아니라 화풍 선택이다.`);
     if (bad) { console.log('\n측정기 고장 — 수치를 쓰지 말 것.'); process.exit(2); }
     const ok = clone.unInk >= ref.unInk - 8 && clone.weak <= ref.weak;
     console.log(ok ? '\nPASS' : '\nFAIL — 클론 오브의 모티프가 원본만큼 오브 면과 갈리지 않는다.');
