@@ -103,6 +103,28 @@ const ProChar = {
         });
     },
 
+    // 평평한 사각 패치 다발 — 이목구비처럼 **'상자 앞면에 그린 그림'** 을 굽는다.
+    //   rects = [[cx, cy, w, h], ...] (패치 로컬·월드 단위, 전부 z=0 평면) → 한 지오메트리로 병합.
+    // 🔑 **칸마다 따로 굽지 말 것.** 칸당 2 tri 면 7×8 눈 하나가 112 tri 라 이걸로 갈아치우려던
+    //    옛 원판(30 tri)보다 오히려 **비싸진다.** 같은 색이 이어지는 구간을 **직사각형 런으로 뭉쳐**
+    //    넘겨야 이득이 난다(L자 흰자 = 사각형 2장 = 4 tri). `probe-hero-tris` 상한이 빠듯해서
+    //    (이 세션 시작 시 잔여 4930) 이 규약을 어기면 바로 예산을 넘긴다.
+    // ⚠️ 법선은 전부 +z 라 `computeVertexNormals` 로 충분하다. uv 는 안 만든다 — 이 패치들은
+    //    텍스처를 안 쓰고 면당 플랫 색만 쓴다(화풍 ⓕ "표면은 플랫/매트").
+    flatPatch(rects, mat) {
+        const pos = [], idx = [];
+        for (let i = 0; i < rects.length; i++) {
+            const r = rects[i], hw = r[2] / 2, hh = r[3] / 2, b = i * 4;
+            pos.push(r[0] - hw, r[1] - hh, 0, r[0] + hw, r[1] - hh, 0, r[0] + hw, r[1] + hh, 0, r[0] - hw, r[1] + hh, 0);
+            idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setIndex(idx);
+        g.computeVertexNormals();
+        return new THREE.Mesh(g, mat);
+    },
+
     // ---- 캔버스 생성 텍스처 (외부 에셋 금지 — 코드로 재질감 생성) ----
     // 밝기 중심 그레이스케일로 만들어 material.color 틴트(장비 시대색)와 곱해지게 한다.
     _texCache: {},
@@ -1652,21 +1674,18 @@ const ProChar = {
         //    ⚠️ 기울기 0 이 조형적으로도 맞다 — 크로시로드 계열은 상자 앞면에 **정면으로** 얼굴이 얹힌다.
         //       기울기를 남기면 판이 앞면과 어긋나 모서리에서 살이 비쳐 나온다.
         const EYE_Z = FACE_ZC + 0.002, EYE_TILT = 0;
-        const PIE = Math.PI * 0.30;          // 도려낸 부채꼴 각
-        const inkMat = new THREE.MeshBasicMaterial({ color: 0x121316 });     // 동공·파이 쐐기 공용 잉크색
+        const inkMat = new THREE.MeshBasicMaterial({ color: 0x121316 });     // 동공·입술선 공용 잉크색
         for (const dx of [-EYE_X, EYE_X]) {
             const sgn = dx < 0 ? -1 : 1;     // +1 = 화면 오른쪽 눈
             const eye = new THREE.Group();
             eye.position.set(dx, EYE_Y, EYE_Z);
             eye.rotation.y = sgn * EYE_TILT;
             faceG.add(eye);
-            // 흰자 — 세로로 긴 큰 원판에서 **부채꼴 하나를 진짜로 빼고 그린다**(thetaLength = 2π−PIE).
-            //   🚨 처음엔 온전한 원판 위에 잉크색 쐐기를 덮었는데, 쐐기가 동공과 같은 색이라 둘이 한 덩어리로
+            // 흰자 — 흰 칸 덩어리에서 **모서리 하나를 진짜로 빼고 그린다**(옛 파이컷의 격자판).
+            //   🚨 처음엔 온전한 판 위에 잉크색 쐐기를 덮었는데, 쐐기가 동공과 같은 색이라 둘이 한 덩어리로
             //      뭉쳐 **'파이컷'이 아니라 그냥 큰 검은 홍채**로 읽혔다(실측 캡처 face-front). 도형을 실제로
-            //      도려내 **피부가 그 사이로 비치게** 해야 파이 조각이 빠진 게 보인다.
-            //   쐐기 위치는 **바깥쪽 위** — 안쪽(코 쪽)에 두면 두 눈의 빈 자리가 코 양옆에서 마주 봐 얼굴
-            //   가운데가 뚫린 것처럼 읽힌다. 왼눈 바깥은 −x(=π), 오른눈 바깥은 +x(=0), 거기서 위로 튼다.
-            const wc = dx < 0 ? Math.PI - 0.42 : 0.42;
+            //      도려내 **피부가 그 사이로 비치게** 해야 빠진 조각이 보인다 — 노치도 같은 규약이라
+            //      **덮지 말고 빼야 한다**(그래서 L자를 사각형 2장으로 굽는다).
             // 🚨 **`toneMapped = false` 가 이 재질의 핵심이다 — 빼면 흰 눈이 피부에 묻힌다.**
             //   흰자를 순백(0xffffff)으로 둔 의도는 "피부보다 밝아야 눈이 형태로 읽힌다" 인데,
             //   기본값(toneMapped = true)이면 ACES 가 상단을 압축해 **255 가 234 로 눌린다.** 반면 피부는
@@ -1677,18 +1696,43 @@ const ProChar = {
             //   ⚠️ 눈을 voxel 큐브로 다시 짜더라도 **흰 면에는 이 플래그를 그대로 들고 갈 것**
             //      (화풍 확정 2026-08-20 = voxel + 치비, "면당 플랫 색"이라 눌린 흰색은 그때 더 치명적이다).
             //   게이트: `tools/probe-eye-contrast.js` (ΔL ≥ 30, 음성 대조 + 표본 독립성 검증 내장).
-            const sclera = new THREE.Mesh(new THREE.CircleGeometry(EYE_R, 30, wc + PIE / 2, Math.PI * 2 - PIE), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }));
-            sclera.scale.set(1, EYE_SY, 1);
+            // 🧊 **원판 → 칸 패치 (2026-08-20, `prochar-aaa` 눈·입 슬라이스).** 두상만 상자로 옮긴
+            //    앞 세션이 "남은 것 = 눈·입을 큐브 패치로"라 예고한 자리다. 비평가 지적의 절반이
+            //    *"눈·입이 안티에일리어싱된 부드러운 데칼"* 이었는데, 두상이 상자가 된 뒤로는 매끈한
+            //    원판만 화풍에서 튀어 있었다. 격자는 **리그 공용 `VOX`(0.016)** 를 그대로 쓴다 —
+            //    두상·투구와 같은 칸이라야 '같은 세계의 픽셀'로 읽힌다.
+            // 🔑 **칸 수는 옛 원판 치수에서 그대로 파생시킨다**(눈대중 금지 — 위 🚨 의 투구 가림률
+            //    스윕으로 잡은 값이라 크기가 바뀌면 `probe-face-helmet-clear` 가 흔들린다):
+            //      가로 2·EYE_R = 0.112 = **7칸** · 세로 2·EYE_R·EYE_SY = 0.130 ≈ **8칸**(0.128).
+            const CELL = this.VOX;
+            const EW = 7, EH = 8;                       // 눈 격자 (칸)
+            const cx = c => (c - (EW - 1) / 2) * CELL;  // 칸 열 → 로컬 x (열 0..6)
+            const cy = r => (r - (EH - 1) / 2) * CELL;  // 칸 행 → 로컬 y (행 0..7, 0=아래)
+            // 흰자 — **파이컷이 모서리 노치가 된다.** 옛 부채꼴(PIE = 0.30π = 54°)은 원판 면적의 15%를
+            //   도려냈는데, 7×8 격자에서 **3×3 노치(9/56 = 16%)** 가 그 비율을 그대로 잇는다.
+            //   ⚠️ 노치는 **바깥쪽 위** 그대로 — 안쪽에 두면 두 눈의 빈 자리가 코 양옆에서 마주 봐
+            //      얼굴 가운데가 뚫린 것처럼 읽힌다(옛 주석의 이유가 격자에서도 똑같이 성립한다).
+            //   L자를 **직사각형 2장**으로 굽는다(칸당 굽기 금지 — `flatPatch` 머리말 참조).
+            const NOTCH = 3;
+            const sclera = this.flatPatch([
+                [0, cy((EH - NOTCH - 1) / 2), EW * CELL, (EH - NOTCH) * CELL],                 // 아래 5행 전폭
+                [-sgn * (NOTCH / 2) * CELL, cy(EH - (NOTCH + 1) / 2), (EW - NOTCH) * CELL, NOTCH * CELL], // 위 3행에서 바깥 3칸을 뺀 폭
+            ], new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }));
             sclera.userData.pieEye = true;   // 투구 가림 판정기(`probe-face-helmet-clear.js`)가 이 태그로 흰자만 집는다
             eye.add(sclera);
-            // 동공 — 검은 '점'(사용자 지시 원문). 홍채 없이 점 하나라 파이 조각의 빈 자리가 안 묻힌다.
-            const pupil = new THREE.Mesh(new THREE.CircleGeometry(EYE_R * 0.30, 18), inkMat);
-            pupil.scale.set(1, 1.18, 1);
-            pupil.position.set(-sgn * EYE_R * 0.14, -EYE_R * 0.06, 0.0032);
+            // 동공 — 검은 '점'(사용자 지시 원문). **3×3칸**으로 굽는다.
+            //   ⚠️ 옛 원판 면적(지름 0.0336 × 세로 1.18)을 그대로 옮기면 2×3칸인데, 거기서 글린트 한 칸을
+            //      빼면 남는 게 **가느다란 L자 5칸**이라 동공이 아니라 '얼룩'으로 읽혔다(실측 캡처).
+            //      3×3 에서 한 칸을 빼면 **모서리가 베어 물린 사각 8칸**이라 동공으로 읽힌다 — 격자에서는
+            //      면적 충실도보다 **한 칸을 빼고도 형태가 남는지**가 먼저다(칸이 굵어 반 칸이 없다).
+            const pupil = this.flatPatch([[0, -0.5 * CELL, 3 * CELL, 3 * CELL]], inkMat);
+            pupil.position.z = 0.0032;
             eye.add(pupil);
-            // 글린트 — 아주 작은 흰 점 하나만. 1930s 카툰은 3D 글로시 하이라이트를 쓰지 않는다.
-            const glint = new THREE.Mesh(new THREE.CircleGeometry(EYE_R * 0.09, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-            glint.position.set(-sgn * EYE_R * 0.24, EYE_R * 0.10, 0.0048);
+            // 글린트 — **한 칸짜리 흰 사각** 하나. 1930s 카툰은 3D 글로시 하이라이트를 쓰지 않는다.
+            //   동공 위 안쪽 모서리 칸에 얹는다(동공 안에 있어야 '눈빛'으로 읽힌다 — 밖에 두면 흰자에
+            //   찍힌 점이라 티가 안 난다).
+            const glint = this.flatPatch([[-sgn * CELL, 0.5 * CELL, CELL, CELL]], new THREE.MeshBasicMaterial({ color: 0xffffff }));
+            glint.position.z = 0.0048;
             eye.add(glint);
             // 볼터치 — 반투명 분홍 (캐주얼 3D 표정 온기)
             const blush = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf29a8a, transparent: true, opacity: 0.38 }));
@@ -1714,23 +1758,42 @@ const ProChar = {
         const MOUTH_W = 0.078;
         const mouthG = new THREE.Group();
         mouthG.position.set(0, -0.030, FACE_ZJ + 0.002);   // 입은 **턱 상자** 앞면 (0.154 — 옛 값과 사실상 같다)
-        mouthG.rotation.x = 0.18;            // 턱 곡면을 따라 살짝 아래를 보게
+        // 🧊 **기울기를 0 으로 내렸다 (2026-08-20).** 옛 `rotation.x = 0.18` 은 *"턱 곡면을 따라 살짝
+        //    아래를 보게"* 한 값인데, 턱이 상자가 된 뒤로 그 앞면은 **평면**이라 기울일 곡면이 없다
+        //    (눈이 `EYE_TILT = 0` 으로 간 것과 같은 이유·같은 판단).
+        // 🚨 그냥 화풍 문제가 아니라 **실제로 입이 얼굴 속으로 잠겼다** — 기울이면 원점에서 먼 아래
+        //    행일수록 z 가 뒤로 밀린다(맨 아래 행 y −0.040 → z −0.0072). 턱 앞면이 0.152, 입 그룹이
+        //    0.154 라 **0.0072 를 빼면 0.147 로 앞면 뒤쪽**이 된다. 실측 캡처에서 계단 두 행이 통째로
+        //    사라지고 윗니 띠만 남아 **미소가 일자 막대**로 보였다(반원 시절엔 도형이 낮고 둥글어
+        //    가장자리만 얕게 잠겨 티가 덜 났다). 기울기를 되살리려면 그 z 손실부터 되갚을 것.
         faceG.add(mouthG);
-        const maw = new THREE.Mesh(new THREE.CircleGeometry(MOUTH_W, 24, Math.PI, Math.PI), new THREE.MeshBasicMaterial({ color: 0x5a1f24 }));
-        maw.scale.set(1, 0.62, 1);
-        mouthG.add(maw);
-        // 윗니 띠 — 입술선 바로 아래에 붙는 얇은 흰 띠. **아래쪽에 깔면 '혀'로 읽힌다**(실측 캡처에서
-        //   분홍 덩어리가 턱 쪽에 고여 그렇게 보였다). 1930s 카툰 웃음은 윗니가 위에 붙어 있다.
-        const teeth = new THREE.Mesh(new THREE.CircleGeometry(MOUTH_W * 0.94, 22, Math.PI, Math.PI), new THREE.MeshBasicMaterial({ color: 0xf7f2e6 }));
-        teeth.scale.set(1, 0.17, 1);
-        teeth.position.set(0, 0, 0.0016);
-        mouthG.add(teeth);
-        // 입술선 — 구강 테두리를 잉크로 둘러 미소 곡선이 얼굴에서 또렷하게 끊긴다.
-        const lip = new THREE.Mesh(new THREE.TorusGeometry(MOUTH_W, 0.0055, 6, 22, Math.PI), inkMat);
-        lip.rotation.z = Math.PI;
-        lip.scale.set(1, 0.62, 1);
-        lip.position.z = 0.0026;
+        // 🧊 **반원 → 계단 미소 (2026-08-20, 눈과 같은 슬라이스).** 옛 입은 반원 구강 + 반원 띠 +
+        //    **반토러스 입술선**이었는데, 그 토러스 하나가 `TorusGeometry(_, _, 6, 22, π)` = **264 tri**
+        //    로 얼굴에서 제일 비싼 물건이었다(입 전체 310 tri). 계단으로 옮기면 12 tri 다 — 화풍도 맞고
+        //    빠듯한 `probe-hero-tris` 예산도 같이 푼다.
+        // 🔑 **곡선은 '칸 수를 줄여 가며' 낸다.** 폭 2·MOUTH_W = 0.156 ≈ **10칸**, 깊이는 옛 세로배율
+        //    (MOUTH_W·0.62 = 0.048) 그대로 **3칸**. 행마다 10 → 8 → 6칸으로 좁히면 아래로 볼록한
+        //    미소가 된다(칸을 하나씩 줄여야 계단이 고르다 — 2칸씩 줄이면 세 행이 삼각형이 된다).
+        //   ⚠️ 칸 수는 **`MOUTH_W` 에서 파생시킨다** — 손으로 10 이라 적어 두면 폭을 바꾼 다음 세션에서
+        //      입만 옛 크기로 남는다(두상 상자가 얼굴 앵커를 무효로 만들었던 위 🚨 와 같은 사고다).
+        const MCELL = this.VOX, MW = Math.round(MOUTH_W * 2 / MCELL), MROWS = [MW, MW - 2, MW - 4];
+        const mrow = i => -(i + 0.5) * MCELL;                // 행 i(0=위)의 중심 y — 입은 원점 **아래**로 걸린다
+        // 입술선 — 계단 실루엣을 **한 겹 뒤에서 살짝 키워** 두른다. 테두리를 따로 그리면 사각형이
+        //   여러 장 필요하지만, 같은 계단을 키워 뒤에 깔면 3장으로 균일한 외곽선이 나온다.
+        //   ⚠️ 행끼리 세로로 LIP 만큼 겹치므로 계단 모서리에서도 선이 끊기지 않는다.
+        const LIP = 0.006;
+        const lip = this.flatPatch(MROWS.map((w, i) => [0, mrow(i), w * MCELL + LIP * 2, MCELL + LIP * 2]), inkMat);
+        lip.position.z = -0.0008;
         mouthG.add(lip);
+        // 구강 — 윗니 아래 두 행만 진홍. 맨 윗행은 아래 윗니가 통째로 덮으므로 굽지 않는다.
+        const maw = this.flatPatch(MROWS.slice(1).map((w, i) => [0, mrow(i + 1), w * MCELL, MCELL]), new THREE.MeshBasicMaterial({ color: 0x5a1f24 }));
+        mouthG.add(maw);
+        // 윗니 띠 — 입술선 바로 아래에 붙는 흰 띠. **아래쪽에 깔면 '혀'로 읽힌다**(실측 캡처에서
+        //   분홍 덩어리가 턱 쪽에 고여 그렇게 보였다). 1930s 카툰 웃음은 윗니가 위에 붙어 있다.
+        //   격자에서는 **맨 윗행 한 칸**이 그 띠다(옛 세로배율 0.17 ≈ 0.8칸).
+        const teeth = this.flatPatch([[0, mrow(0), MW * MCELL, MCELL]], new THREE.MeshBasicMaterial({ color: 0xf7f2e6 }));
+        teeth.position.z = 0.0016;
+        mouthG.add(teeth);
         // 머리카락 없음 — 기본형은 대머리 치비 (사용자 지시 2026-08-18: "아무것도 장착 안 했을 때
         // 대머리 치비 캐릭터가 기본형"). 투구는 종전대로 headMount 에 얹힌다.
         // 기존 헬멧 시스템 부착점 (Scene3D.helmetG가 여기 붙음 — 머리 중심 기준)
