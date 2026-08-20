@@ -1883,27 +1883,43 @@ const ProChar = {
         // 🧊 진짜 단순 큐브 캐릭터 (사용자 2026-08-21 "머리1·몸통1·팔다리 각1 큐브, 맨살") —
         //    기사 리그의 모든 몸 메시를 숨기고, 관절에 살색 박스 하나씩만 얹는다. 머리(두상+눈)만 유지.
         {
-            const faceKeep = new Set();
-            if (R.faceMesh) R.faceMesh.traverse(o => faceKeep.add(o));   // 눈·입만 유지
-            const hideTree = g => g && g.traverse(o => { if (o.isMesh && !faceKeep.has(o) && !(o.userData && o.userData.simpleBox)) o.visible = false; });
-            hideTree(outer); hideTree(root);   // 두개골 포함 모든 몸 메시 숨김
+            // 전부 숨기고(눈 포함), 골반 한 기준에 박스를 쌓아 머리-몸통-다리가 딱 이어지게 짓는다.
+            const hideTree = g => g && g.traverse(o => { if (o.isMesh && !(o.userData && o.userData.simpleBox)) o.visible = false; });
+            hideTree(outer); hideTree(root);
             const skinM = new THREE.MeshStandardMaterial({ color: 0xf2c9a4, metalness: 0, roughness: 0.62, flatShading: true });
-            const box = (parent, w, h, d, x, y, z) => {
-                const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), skinM);
-                b.position.set(x || 0, y || 0, z || 0); b.userData.simpleBox = true; parent.add(b); return b;
+            const inkM = new THREE.MeshBasicMaterial({ color: 0x1c1c22 });
+            const P = R.bones.pelvis;   // 골반 로컬 y=0 기준: 다리는 아래, 몸통·머리는 위로 쌓는다
+            const box = (mat, w, h, d, x, y, z) => {
+                const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+                b.position.set(x, y, z); b.userData.simpleBox = true; P.add(b); return b;
             };
-            // 머리 = 깨끗한 네모 하나 (두개골+턱+베벨 폐기). headG.scale 1.30→0.62 로 크기 정상화
-            //   (눈이 든 faceG 도 같이 줄어 앞면에 그대로 얹힌다).
-            if (R.bones.head) { R.bones.head.scale.setScalar(0.62); box(R.bones.head, 0.70, 0.74, 0.70, 0, 0.263, 0); }
-            box(R.bones.spine, 0.42, 0.44, 0.22, 0, 0.19, 0);           // 몸통 1큐브
-            (R.arms || []).forEach(a => {                               // 팔 1큐브 — 몸통 옆면에 붙게 x 당김
-                a.shoulder.position.x = Math.sign(a.shoulder.position.x || 1) * 0.27;
-                box(a.shoulder, 0.12, 0.34, 0.12, 0, -0.17, 0);
-            });
-            (R.legs || []).forEach(l => {                              // 다리 1큐브 — 몸통 밑 중앙에 모으기
-                l.hip.position.x = Math.sign(l.hip.position.x || 1) * 0.07;
-                box(l.hip, 0.14, 0.40, 0.14, 0, -0.20, 0);
-            });
+            // 🎮 마인크래프트 비율 (1px=0.05): 머리8 · 몸통 8w×12h×4d · 팔다리 각 4w×12h×4d.
+            const PX = 0.05;
+            const headS = 8 * PX, torW = 8 * PX, torH = 12 * PX, torD = 4 * PX;
+            const limbW = 4 * PX, limbH = 12 * PX, limbD = 4 * PX, armW = 4 * PX;
+            const FEET = -0.44;                 // 발바닥 y(=지면). 위로 다리→몸통→머리 순으로 쌓는다
+            const torBot = FEET + limbH, torCy = torBot + torH / 2, torTop = torBot + torH;
+            // 다리 2개 (발바닥 FEET, 중앙에서 맞닿게)
+            box(skinM, limbW, limbH, limbD, -limbW / 2, FEET + limbH / 2, 0);
+            box(skinM, limbW, limbH, limbD, limbW / 2, FEET + limbH / 2, 0);
+            // 몸통
+            box(skinM, torW, torH, torD, 0, torCy, 0);
+            // 팔 2개 (몸통 옆면에 붙여, 위 정렬)
+            box(skinM, armW, limbH, limbD, -(torW / 2 + armW / 2), torTop - limbH / 2, 0);
+            box(skinM, armW, limbH, limbD, (torW / 2 + armW / 2), torTop - limbH / 2, 0);
+            // 머리 (몸통 위)
+            const headCy = torTop + headS / 2;
+            box(skinM, headS, headS, headS, 0, headCy, 0);
+            // 마인크래프트식 얼굴 — 흰자 + 초록 동공 눈 2개 + 눈썹 + 입
+            const whiteM = new THREE.MeshBasicMaterial({ color: 0xffffff }); whiteM.toneMapped = false;
+            const pupilM = new THREE.MeshBasicMaterial({ color: 0x4a7a3a }); pupilM.toneMapped = false; // 초록 동공(Alex)
+            const fz = headS / 2, eyeY = headCy + headS * 0.06;
+            for (const sx of [-1, 1]) {
+                box(whiteM, 0.12, 0.13, 0.02, sx * 0.105, eyeY, fz + 0.001);        // 흰자
+                box(pupilM, 0.058, 0.13, 0.02, sx * 0.105 + sx * 0.030, eyeY, fz + 0.004); // 동공(바깥 절반)
+                box(inkM, 0.13, 0.028, 0.02, sx * 0.105, eyeY + 0.093, fz + 0.003);  // 눈썹
+            }
+            box(inkM, 0.14, 0.03, 0.02, 0, headCy - headS * 0.22, fz + 0.003);      // 입
         }
 
         // 베이스 포즈 기록 (매 프레임 여기서 시작해 클립 오프셋을 얹음)
