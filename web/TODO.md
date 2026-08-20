@@ -3,6 +3,9 @@
 작업 규칙: 한 세션(런)에 **하나의 작업만** 진행한다. 완료하면 체크박스를 채우고 커밋·푸시한다.
 시작 전 반드시 `git pull --rebase origin main` 으로 최신화한다.
 
+## 🔗 같은 그룹은 묶어서 읽고 작업 (사용자 지시 2026-08-20 — 강제)
+착수 항목이 특정 그룹(스킬·장비·펫·탈것·맵·캐릭터 등)에 속하면, **코드를 건드리기 전에 같은 그룹의 다른 TODO 항목을 grep으로 전부 모아 읽고**(예: 장비면 `equip-*` 슬러그 항목 전부 `grep -n "equip-" web/TODO.md`, 스킬이면 `skill-*` 전부, 펫이면 `pet-*`·탈것이면 `mount-*`·`ride-*`) 그 맥락·이전 시도·정합 요구를 반영해 만든다. 한 항목만 고립되게 보면 같은 그룹끼리 어긋난다 — 장비의 voxel화(`equip-voxelize`)↔시대감(`equip-era-theming`)↔중복제거(`equip-design-dedupe`)처럼 서로 맞물린 것들은 **한 벌로 읽어야** 방향이 맞는다. 그룹 슬러그 목록은 아래 '작업 우선순위 3단 ②'(맵=`map-quality-up`, 캐릭터=`prochar-aaa`+`enemy-quality`+`cute-art-direction`, 장비=`equip-*`, 스킬=`skill-fx`+`skill-fx-exaggerated`+`skill-unique-signature`, 탈것=`mount-species-recognizable`, 펫=`pet-species-recognizable`) 참조. ⚠️ **읽기만 그룹 단위 — claim 락·커밋은 여전히 착수하는 그 한 항목만** 잡는다(그룹 전체를 락으로 잡지 말 것).
+
 ## 🔒 병렬 세션 충돌 방지 — 항목 착수 전 반드시 클레임 (2026-08-18 신설, 강제)
 여러 세션이 동시에 돌기 때문에 **커밋 로그로 조율하지 말고 `web/tools/claim.sh` 락을 쓴다.** 커밋 마커(`[3D작업중]` 등)에 항목 이름을 넣어도 충돌은 실제로 났다(로그는 과거 기록이라 실시간 점유 상태가 아니다). 락은 remote push를 원자적 직렬화 지점으로 삼아 진짜로 막는다.
 1. **항목을 고른 직후, 코드를 건드리기 전에** (트리가 깨끗한 상태에서) 먼저 잡는다:
