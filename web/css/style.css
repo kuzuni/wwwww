@@ -4039,6 +4039,28 @@ h3.sellwarn-title, .rates-head h3,
     background: #17181a; color: #fff; border-radius: .5rem; padding: 0 .25rem;
     font-size: .6rem; font-weight: 900; white-space: nowrap;
 }
+/* 🔑 **스킬 격자의 Lv 라벨은 알약 배지가 아니라 오브 면에 얹힌 큰 글자다 (slug: sk-orb-lv-pill / ui-ratio-audit, 2026-08-20).**
+   원본 042340 을 9배로 확대하면 `Lv.64` 가 **검정 알약 없이** 오브 면 위에 바로 얹힌 **흰 칠 + 두꺼운
+   검정 링**의 큰 글자이고, 오브 지름을 거의 꽉 채운다. 오브 15개 전수 census 에서 예외가 없다.
+   🔬 **원본 실측(shot-042340 1행 1열, 픽셀)** — 오브 지름 **50px**(x66~115) · 흰 잉크 **x67~111 = 45px**
+      · 잉크 y123~131 = **9px** · 잉크 세로중심이 오브 상단에서 **72.9%**, 잉크 하단 **81.3%**.
+      → ⓑ 라벨폭/지름 **90%** ⓒ 라벨 흰 잉크 높이/지름 **18%**.
+   🔬 **교정 전 클론(DOM)** — 오브 50.3px · 라벨 **상자** 33.4×11(그중 알약 패딩 좌우 4.2px 씩이라 글자는
+      ≈25px) · 폭비 **66.5%**(잉크로는 ≈50%) · 세로중심 **88.1%** · 하단 **99%**(= 오브 밖으로 반쯤 걸침).
+   ⚠️ **알약을 걷는 것과 링을 다는 것은 한 커밋이어야 한다** — 알약이 있는 동안 이 라벨은 `ring-rule`
+      술어 ③('검정 판 위 링은 무의미')에 걸려 census 의 '넣을 것'에 **안 잡힌다.** 판을 걷는 순간
+      등급색 면 위 민무늬 흰 글자가 되어 밝은 오브에서 사라진다(항목 `sk-orb-lv-pill` 의 🚨 그대로).
+   ⚠️ **폭과 높이를 동시에 맞출 수는 없다** — 원본 글리프는 폭/캡높이 ≈ 5.0 인데 우리 서체는 ≈ 3.5 라
+      더 좁고 길다. **폭을 맞춘다**(원본 대조에서 '오브를 꽉 채운다'가 이 라벨의 정체이고, ±2%p 비례
+      게이트도 가로 축이다). 남는 세로 차이는 서체 차이라 폰트 교체 없이는 못 지운다.
+   ⚠️ 스코프는 **스킬 화면만** — `.sk-lv`·`.sk-grid` 는 펫·탈것·플레이어정보·비교팝업과 공용이고
+      그쪽은 아직 요소 실측 전이다(`equipped-icons-pitch` 가 같은 이유로 `#panel-skills` 로 좁힌 선례). */
+#panel-skills .sk-grid .sk-lv {
+    background: none; border-radius: 0; padding: 0;
+    font-size: calc(var(--app-w) * .0383);
+    -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill;
+    bottom: calc(var(--app-w) * .0042);
+}
 .sk-ribbon {
     position: absolute; top: -.2rem; left: 50%; transform: translateX(-50%);
     background: #17181a; color: #fff; border-radius: .4rem; padding: 0 .2rem;
