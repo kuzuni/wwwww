@@ -18188,22 +18188,46 @@ const Scene3D = {
         }
     },
 
+    // 픽셀 계단 링 지오메트리(XY 평면·정점색 흰색) — expandRing·impactRing 이 공유하는 임팩트 문법.
+    // 호출 빈도가 높아 한 번 굽고 캐시한다(dispose 금지 — 쓰는 쪽이 sharedGeometry 표식을 달 것).
+    // 반지름 보정: 격자 12칸 링의 평균 반지름이 0.325 라, 종전 토러스(반지름 0.5) 크기 감각을
+    // 유지하려면 스케일에 PXRING_F 를 곱해야 한다(밑에서 함께 쓴다).
+    pixelRingGeo(thick) {
+        const key = thick ? '_pixelRingGeoThick' : '_pixelRingGeo';
+        if (!this[key]) {
+            const vox = [];
+            for (let gx = -6; gx <= 6; gx++) for (let gy = -6; gy <= 6; gy++) {
+                const d = Math.hypot(gx, gy);
+                if (d <= 6.45 && d >= (thick ? 3.9 : 4.4)) vox.push({ x: gx, y: gy, z: 0 });
+            }
+            this[key] = Voxel.build(vox, { size: 0.06, color: 0xffffff, jitter: 0.08, ao: 0 }).geometry;
+        }
+        return this[key];
+    },
+    PXRING_F: 1.54,
+
     // 접점에서 퍼지는 **카메라를 향한** 얇은 테 — `expandRing` 은 지면에 눕는 충격파라 역할이 다르다
     // (그건 발밑, 이건 맞은 자리). 둘을 같이 쓰면 '바닥이 울리고 몸이 튄다'가 한 프레임에 읽힌다.
+    // 🧊 매끈 토러스 → 픽셀 계단 링(voxel 화풍 통일 ①: expandRing 이 먼저 간 그 문법). 역할·타이밍·
+    //    표식·가산 합성은 그대로 두고 조형만 갈았다 — 크리의 '더 굵은 테'는 튜브 반지름 대신
+    //    안쪽 밴드가 넓은 thick 지오메트리가 잇는다.
     impactRing(pos, colorHex, size, dur, crit) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, crit ? 0.07 : 0.05, 6, 20),
+        const ring = new THREE.Mesh(this.pixelRingGeo(!!crit),
             new THREE.MeshBasicMaterial({
-                color: colorHex, transparent: true, opacity: crit ? 0.95 : 0.75,
+                color: colorHex, vertexColors: true, transparent: true, opacity: crit ? 0.95 : 0.75,
                 blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false,
             }));
         ring.position.copy(pos);
         ring.lookAt(this.camera.position);
-        ring.scale.setScalar(size * 0.25);
-        ring.userData.impactRing = true;   // 지면 충격파(expandRing)의 토러스와 갈라 보기 위한 표식
+        ring.rotateZ(U.rand(0, Math.PI / 2));   // 4겹 대칭 계단이라 매번 같은 모양으로 안 읽히게 굴림
+        const F = this.PXRING_F;
+        ring.scale.setScalar(size * 0.25 * F);
+        ring.userData.impactRing = true;   // 지면 충격파(expandRing)의 계단 링과 갈라 보기 위한 표식
+        ring.userData.sharedGeometry = true;   // 캐시 지오 — disposeTree 가 지우면 이후 모든 링이 깨진다
         this.scene.add(ring);
         this.addAnim(dur, k => {
             const g = 1 - Math.pow(1 - k, 2.6);     // 끝까지 퍼진다 — 멈춰 서면 테가 아니라 얼룩이다(expandRing 교훈)
-            ring.scale.setScalar(size * (0.25 + g * (crit ? 1.5 : 1.05)));
+            ring.scale.setScalar(size * (0.25 + g * (crit ? 1.5 : 1.05)) * F);
             ring.material.opacity = (crit ? 0.95 : 0.75) * (1 - k) * (1 - k);
         }, () => { this.disposeTree(ring); this.scene.remove(ring); });
     },
@@ -22070,18 +22094,10 @@ const Scene3D = {
         //    으로 남았다. supernova 의 픽셀 차지 링(정답 문법 보유)과 같은 계단 링 지오메트리를
         //    **한 번 굽고 캐시**한다(호출 빈도가 높아 매번 굽으면 비용이 크다). 정점색은 흰색으로
         //    구워 material.color 곱으로 물들인다 — 색 튜닝 축이 종전과 같다.
-        if (!this._pixelRingGeo) {
-            const vox = [];
-            for (let gx = -6; gx <= 6; gx++) for (let gy = -6; gy <= 6; gy++) {
-                const d = Math.hypot(gx, gy);
-                if (d <= 6.45 && d >= 4.4) vox.push({ x: gx, y: gy, z: 0 });
-            }
-            this._pixelRingGeo = Voxel.build(vox, { size: 0.06, color: 0xffffff, jitter: 0.08, ao: 0 }).geometry;
-        }
         const ringMat = (col, op) => new THREE.MeshBasicMaterial({ color: col, vertexColors: true,
             transparent: true, opacity: op, depthWrite: false, toneMapped: false });
-        const under = new THREE.Mesh(this._pixelRingGeo, ringMat(0x2a1a0e, 0.5));
-        const ring = new THREE.Mesh(this._pixelRingGeo, ringMat(color, 0.9));
+        const under = new THREE.Mesh(this.pixelRingGeo(false), ringMat(0x2a1a0e, 0.5));
+        const ring = new THREE.Mesh(this.pixelRingGeo(false), ringMat(color, 0.9));
         under.userData.shockRing = ring.userData.shockRing = true;
         under.userData.sharedGeometry = ring.userData.sharedGeometry = true; // 공유 지오 — dispose 금지 플래그
         // 밝은 초원·모랫길 위의 연주황 링은 밝기가 배경과 겹쳐 안 뜬다(A #4 '저대비'). 채도·밝기를
