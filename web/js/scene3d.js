@@ -18151,12 +18151,19 @@ const Scene3D = {
     //    실제로 보는 스킬 대부분이 그 대역이라 "스킬 연출이 약하다"의 절반이 이 한 줄이었다.
     //    이제 pw 를 0~1 로 전 등급에 펴고(커먼도 0 이 아니다) 진폭 자체를 키운다.
     //    위계는 그대로 산다 — 커먼 대비 미식이 링 2.2배·불꽃 3.4배·셰이크 2.6배다.
-    skillImpactWeight(fx, color, targetIds, tier) {
+    // `at` = 무게를 얹을 자리를 호출부가 **직접** 주는 통로(선택). 안 주면 종전대로 살아 있는
+    // 타깃 → 주인공 순으로 찾는다.
+    //   왜 필요한가 (skill-fx ㉣, 2026-08-20 실측): 무게가 늦게 터지는 연출(운석 세례는 최대
+    //   1.1초)은 그 시점에 **적이 이미 죽어 `enemyMap` 에서 빠져 있을 수 있다**(광역 피해는
+    //   0.25초에 들어간다). 그러면 아래 폴백이 마무리 링을 **주인공 발밑**에 깔아, 운석은
+    //   적 자리에 떨어졌는데 무게만 반대편에서 터지는 그림이 된다.
+    skillImpactWeight(fx, color, targetIds, tier, at) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const pw = t / 5;                                  // 0(커먼) ~ 1(미식) — 하한 없음
         const live = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
-        const anchors = live.length ? live.map(m => m.g.position.clone())
-            : [this.heroG.position.clone()];
+        const anchors = (at && at.length) ? at
+            : live.length ? live.map(m => m.g.position.clone())
+                : [this.heroG.position.clone()];
         for (const p of anchors.slice(0, 4)) {             // 다수 적일 때 상한 — 링이 화면을 덮지 않게
             this.expandRing(p, color, 1.9 + pw * 2.3);
             // 흰 코어 링을 **전 등급**에 얹는다(예전엔 궁극 이상만) — 색 링 하나만으로는 '터졌다'가
@@ -18206,8 +18213,20 @@ const Scene3D = {
 
     skillPayload(fx, color, targetIds, tier, scene) {
         const targets = targetIds.map(id => this.enemyMap.get(id)).filter(Boolean);
-        if (tier !== undefined) setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier),
-            fx === 'meteor' ? 340 : fx === 'dragonfire' ? this.DRAGONFIRE_IMPACT_MS : fx === 'spear' ? this.GODSPEAR_IMPACT_MS
+        // 🚨 **메테오만 이 고정 지연에서 뺐다** — 무게는 `meteorStorm` 의 **마지막 착탄 콜백**이
+        //    직접 태운다 (skill-fx ㉣, 2026-08-20 3D 스트림. 판정기 `probe-meteor-causality.js`).
+        //    ⑴ **고정 지연으로는 인과가 안 맞았다.** 여기 있던 `340` 은 운석이 *타깃당 1발*이고
+        //       조준 링이 없던 시절의 낙하 0.35초에서 온 값이다. 그 뒤 `METEOR_TELL_MS: 200`
+        //       (조준 링 예고)이 생기며 첫 착탄이 540ms 로 밀렸는데 이 상수만 남았다.
+        //       교정 전 실측: 무게 **340ms** · 첫 착탄 **530ms**, 무게가 터지는 순간 가장 낮은
+        //       돌이 **y=5.48**(출발 6.6 — 낙하의 17%). 비평가 2차 2인 일치 지적 "낙하와 지상
+        //       폭발이 인과로 안 붙는다(폭발 시각에 운석이 아직 상공)"가 이 한 줄이었다.
+        //    ⑵ **착탄 시각이 등급을 탄다.** 발수(4~9)도 간격(108~82ms)도 등급 함수라 상수 하나로는
+        //       못 맞춘다 — 무게는 **자기를 터뜨린 돌**이 들고 있어야 등급이 바뀌어도 안 어긋난다.
+        //    ⑶ 마지막 발은 이미 `big=1.7` 로 "연타가 물러지지 않게 닫는" 자리다. 무게를 거기
+        //       얹으면 인과와 마무리가 같은 프레임에서 만난다.
+        if (tier !== undefined && fx !== 'meteor') setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier),
+            fx === 'dragonfire' ? this.DRAGONFIRE_IMPACT_MS : fx === 'spear' ? this.GODSPEAR_IMPACT_MS
                 : fx === 'nova' ? this.NOVA_IMPACT_MS : fx === 'guillotine' ? this.GUILLOTINE_IMPACT_MS
                     : fx === 'voidrift' ? this.VOIDRIFT_IMPACT_MS : 30);
         if (fx === 'dragonfire') {
@@ -18510,7 +18529,117 @@ const Scene3D = {
     //    시작한다 — 낙하 자체(0.35s)를 예고로 치면 '떨어지는 걸 봤다'일 뿐 '올 걸 알았다'가 아니다.
     METEOR_TELL_MS: 200,      // 조준 링이 먼저 떠 있는 시간
     METEOR_FALL_S: 0.34,      // 낙하 시간(초)
+    // 마디 수 — 낙하 경로(y 6.6 → 0)를 균등 분할한다. 14 로는 간격이 0.47 이라 화면 안(대략
+    // y 4.5 아래)에 여덟 마디밖에 안 걸려 '점 몇 개'로 보였다(390ms 확대 실측). 20 이면 간격
+    // 0.33 으로 줄어 보이는 구간에 열넷이 남아 비로소 **줄기**로 읽힌다.
+    METEOR_TRAIL_N: 20,
     meteorCount(tier) { return 4 + Math.min(5, Math.max(0, tier | 0)); },   // 에픽 6발 … 미식 9발
+
+    // ---- 낙하체 = **복셀 운석** (화풍 블록: 3D로 그리는 건 전부 큐브 조형) ----
+    // 종전엔 `DodecahedronGeometry` + `MeshBasicMaterial({color})` 였다. 단색 무광이라 면끼리
+    // 명암 차가 **하나도 없어**, 굴러도 실루엣만 보이는 **납작한 다각형**으로 읽혔다(비평가 2차
+    // 2인 일치 지적 ㉣ 의 앞 절이 정확히 이것이다 — 회전은 이미 있었는데 회전이 안 읽혔다.
+    // 면 명암이 없으면 대칭 실루엣은 돌아도 정지해 보인다).
+    // → 복셀 덩어리로 바꾼다: 찌그러진 현무암 블록에 **용암 균열 큐브**를 섞어 굴릴 때마다
+    //   밝은 면이 들고 나게 한다. 균열은 방향이 아니라 **분포**로 넣는다 — 앞면만 달구면
+    //   텀블링에 뒷면이 오는 순간 그냥 검은 돌이 된다.
+    //
+    // ⚠️ 재질은 **무광(MeshBasicMaterial) + vertexColors** 다. `Voxel.build` 가 AO 를 정점색에
+    //    이미 구워 두므로 무광이어도 이음새 음영이 살아 있고, 이 층은 씬 조명이 아니라 자기가
+    //    타는 물건(fx 대역)이라 다른 fx 와 같은 규약으로 둔다. `toneMapped:false` 로 용암색이
+    //    톤매핑에 씻기지 않게 한다.
+    // ⚠️ 지오/재질은 **캐시해서 공유**한다(한 시전에 최대 9발 × 시전마다 재생성은 낭비다).
+    //    그래서 처분할 때 `dispose` 하면 안 된다 — `sharedGeometry` 규약과 같은 이유다.
+    meteorRockMesh(color, big) {
+        if (!this._meteorRockCache) this._meteorRockCache = {};
+        const key = color.getHexString() + ':' + (big > 1 ? 'big' : 'std');
+        let e = this._meteorRockCache[key];
+        if (!e) {
+            // ⚠️ 현무암은 **어둡게** 간다. 처음엔 0x6b4a33 대의 중간 갈색으로 깔았는데, 이 게임의
+            //    하늘은 밝은 하늘색이라 중간 갈색 블록이 하늘 위에서 **떨어지는 나무 상자**로
+            //    읽혔다(390ms 확대 실측). 돌은 어두워야 하늘에 실루엣이 서고, 그래야 균열의
+            //    불빛이 '타는 중'으로 읽힌다 — 밝은 돌에 밝은 균열을 얹으면 둘 다 뭉갠다.
+            const ROCK = [0x2a1e18, 0x201612, 0x36261d, 0x18110e];   // 현무암 4색(어두운 대역)
+            const hot = new THREE.Color(color);
+            const hotHsl = hot.getHSL({ h: 0, s: 0, l: 0 });
+            const vox = [];
+            // 5×5×5 격자에서 찌그러진 구를 깎는다. 난수를 쓰지 않는다 — 캐시가 시전마다
+            // 다른 모양을 뱉으면 '같은 스킬'로 안 읽히고, 판정기도 재현이 안 된다.
+            for (let x = -2; x <= 2; x++) for (let y = -2; y <= 2; y++) for (let z = -2; z <= 2; z++) {
+                const h = ((x * 73 + y * 151 + z * 233) % 11 + 11) % 11;
+                const d = Math.sqrt((x / 1.18) * (x / 1.18) + y * y + (z / 1.1) * (z / 1.1));
+                if (d > 2.05 + (h < 4 ? 0.3 : -0.2)) continue;       // 요철 — 매끈한 공이 안 되게
+                const lava = h === 2 || h === 7 || h === 5;          // ~27% 가 용암 균열
+                // ⚠️ 용암 밝기를 0.86 까지 올리면 **하얘져서 '하이라이트'로 읽힌다**(390ms ×10 확대
+                //    실측: 창백한 살구색 사각 세 개였다). 렌더러가 출력에서 sRGB 로 감마 인코딩해
+                //    올려 주므로, 화면에서 '타는 주황'으로 남으려면 여기서는 **중간 명도 + 최대
+                //    채도**로 둬야 한다. 밝기가 아니라 **채도가 불을 만든다.**
+                const c = lava
+                    ? new THREE.Color().setHSL(hotHsl.h, Math.min(1, hotHsl.s * 1.05),
+                        h === 2 ? 0.58 : h === 7 ? 0.45 : 0.34).getHex()
+                    : ROCK[((x + y * 3 + z * 5) % ROCK.length + ROCK.length) % ROCK.length];
+                vox.push({ x, y, z, c });
+            }
+            const size = (big > 1 ? 0.155 : 0.105);                  // 마지막 한 발이 눈에 띄게 크다
+            const mesh = Voxel.build(vox, {
+                size, jitter: 0.09, ao: 1,
+                material: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
+            });
+            e = { geo: mesh.geometry, mat: mesh.material };
+            this._meteorRockCache[key] = e;
+        }
+        const m = new THREE.Mesh(e.geo, e.mat);
+        m.userData.sharedGeometry = true;   // 공유 자원 — 처분에서 dispose 금지
+        return m;
+    },
+
+    // ---- 불꼬리 — 낙하체 **뒤**에 깔리는 큐브 마디 ----
+    // 종전 꼬리는 `riseParticle`(반지름 0.06 구, 위로 1~2m/s)이었다. 두 가지가 틀렸다:
+    //   ⑴ **안 보인다.** 0.06 구는 이 카메라 거리에서 한두 화소다 — 판정기로 세면 꼬리가
+    //      0개로 잡히는 게 아니라 '있는데 화면에 없다'였다.
+    //   ⑵ **방향이 반대다.** 떨어지는 물건의 꼬리가 위로 솟으면 연기이지 불꼬리가 아니다.
+    //      꼬리는 **지나온 자리에 남아 그 자리에서 삭아야** 궤적이 읽힌다.
+    // → 지나온 좌표(직전 프레임 위치)에 큐브를 떨군다. 머리 쪽일수록 크고 희고, 뒤로 갈수록
+    //   작고 스킬색으로 식는다 — 이 색·크기 기울기가 곧 **진행 방향**이다.
+    meteorTrailCube(pos, color, big, k) {
+        if (this.particles.length > 300) return;
+        const hsl = new THREE.Color(color).getHSL({ h: 0, s: 0, l: 0 });
+        // k = **경로 진행도**(0 출발 ~ 1 착탄). 머리 쪽(큰 k)일수록 크고 희게 달군다.
+        const heat = 0.3 + 0.7 * k;
+        // ⚠️ 머리를 '뜨겁게' 만든다고 **탈색(채도↓·명도↑)** 하면 안 된다 — 이 하늘 밝기에서는
+        //    그대로 **연한 살구색**이 돼 불이 아니라 종이 조각으로 읽힌다(450ms 확대 실측).
+        //    채도는 전 구간 높게 붙들고, 머리/꼬리 구분은 **명도와 덩치**로만 준다.
+        const c = new THREE.Color().setHSL(hsl.h, U.clamp(hsl.s * (1.0 - 0.12 * heat), 0, 1),
+            U.clamp(0.38 + 0.30 * heat, 0.16, 0.92));
+        const e = (0.12 + 0.16 * heat) * big;
+        // 🚨 **가산 블렌딩을 쓰지 말 것** (2026-08-20 실측으로 되돌렸다). 운석은 낙하 구간 대부분이
+        //    **밝은 하늘 위**라, 가산으로 깔면 배경 휘도에 더해져 꼬리가 통째로 **흰 점**이 된다
+        //    (390ms 확대: 주황 꼬리가 흰 사각 두 개로만 보였다). `spawnSparks` 가 `opt.solid` 로
+        //    같은 함정을 이미 적어 두었다 — "색이 살아남아야 하는 파편은 불투명 쪽으로".
+        //    불꼬리는 **색이 곧 정보**(주황=불)라 여기선 불투명이 정답이다.
+        const p = new THREE.Mesh(this.fxGeo('box', 1, 1, 1),
+            new THREE.MeshBasicMaterial({
+                color: c, transparent: true, blending: THREE.NormalBlending,
+                opacity: 0.95, depthWrite: false, toneMapped: false,
+            }));
+        p.userData.sharedGeometry = true;
+        p.userData.meteorTrail = true;
+        p.position.copy(pos);
+        p.userData.baseScale = e;
+        p.scale.setScalar(e);
+        p.rotation.set(U.rand(0, 6.28), U.rand(0, 6.28), U.rand(0, 6.28));
+        p.userData.tumble = new THREE.Vector3(U.rand(-5, 5), U.rand(-5, 5), U.rand(-5, 5));
+        // 제자리에서 살짝 부풀어 오르며 삭는다(불이 꺼지는 운동). 중력은 끈다 — 꼬리가
+        // 아래로 흘러내리면 궤적이 뭉개진다.
+        p.userData.vel = new THREE.Vector3(U.rand(-0.25, 0.25), U.rand(0.25, 0.7), U.rand(-0.2, 0.2));
+        p.userData.noGravity = true;
+        // 뒤쪽 마디일수록 오래 산다 — 그래야 **낙하 내내 꼬리 전체가 한 화면에 같이** 있다.
+        // (짧게 주면 머리 근처 두세 마디만 남아 '꼬리'가 아니라 '점'이 된다.)
+        p.userData.life = 0.30 + 0.26 * (1 - k);
+        p.userData.age = 0;
+        this.scene.add(p);
+        this.particles.push(p);
+    },
     meteorStorm(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 2 : tier));
@@ -18549,8 +18678,7 @@ const Scene3D = {
             }, at);
             // ⓑ 낙하 → ⓒ 착탄
             setTimeout(() => {
-                const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3 * big, 0),
-                    new THREE.MeshBasicMaterial({ color, toneMapped: false }));
+                const rock = this.meteorRockMesh(color, big);
                 rock.userData.meteorRock = true;
                 // 비스듬히 떨어져야 '하늘에서 온 것'이 된다(수직 낙하는 '위에서 놓았다'로 읽힌다).
                 // ⚠️ 사선의 부호 = **주인공 쪽(왼쪽, 낮은 x)에서** 적 쪽으로 (skill-fx-origin-hero-side,
@@ -18559,13 +18687,27 @@ const Scene3D = {
                 const start = new THREE.Vector3(spot.x - (1.6 + U.rand(-0.4, 0.4)), 6.6, spot.z - 0.6);
                 rock.position.copy(start);
                 this.scene.add(rock);
-                const hot = new THREE.Color(0xff7043);
+                // 꼬리는 **지나온 자리**에 남긴다 — 매 프레임이 아니라 진행도 균등 분할로
+                // 떨군다. 프레임률에 따라 꼬리 밀도가 변하면 저사양에서 궤적이 끊긴다
+                // (헤드리스 실측: 소프트웨어 GL 은 낙하 340ms 에 3~5프레임밖에 안 돈다).
+                let laid = 0;
                 this.addAnim(this.METEOR_FALL_S, k => {
                     rock.position.lerpVectors(start, spot, k * k);   // 가속 낙하
                     rock.rotation.x += 0.34; rock.rotation.z += 0.22;
-                    if (Math.random() < 0.8) this.riseParticle(rock.position.clone(), hot);
+                    // ⚠️ 마디는 **시간이 아니라 경로**로 균등 분할한다. 낙하가 `k²` 가속이라
+                    //    시간 균등으로 떨구면 마디가 출발부에 뭉치고 **지면 근처가 텅 빈다** —
+                    //    정작 플레이어가 보는 구간(화면 안)에 꼬리가 없어진다. 경로 진행도
+                    //    `f = k²` 가 1/N 눈금을 넘을 때 그 눈금 자리에 떨구면 간격이 고르다.
+                    const prog = k * k;
+                    while (laid < this.METEOR_TRAIL_N && prog >= (laid + 1) / this.METEOR_TRAIL_N) {
+                        laid++;
+                        const f = laid / this.METEOR_TRAIL_N;
+                        const at = new THREE.Vector3().lerpVectors(start, spot, f);
+                        at.x -= U.rand(0, 0.1); at.y += U.rand(0, 0.09); at.z += U.rand(-0.07, 0.07);
+                        this.meteorTrailCube(at, color, big, f);
+                    }
                 }, () => {
-                    rock.geometry.dispose(); rock.material.dispose(); this.scene.remove(rock);
+                    this.scene.remove(rock);        // 지오/재질은 캐시 공유 — dispose 금지
                     this.explosion(spot.clone(), color);
                     this.expandRing(new THREE.Vector3(spot.x, 0.02, spot.z), color, (1.2 + pw * 0.9) * big);
                     this.spawnSparks(spot.clone().add(new THREE.Vector3(0, 0.4, 0)),
@@ -18574,6 +18716,12 @@ const Scene3D = {
                     this.flashLight(spot.clone(), color.getHex(), 0.18 * big);
                     SFX.stormStrike(i);
                     this.meteorScorch(spot, big);
+                    // 연출의 **무게**(화면 플래시·FOV 펀치·큰 셰이크·3겹 링)는 마지막 한 발이
+                    // 직접 태운다 — `skillPayload` 의 고정 지연에서 메테오만 뺀 이유가 여기 있다
+                    // (그 자리 주석에 교정 전 실측이 있다). 앵커로 **착탄 자리**를 직접 넘긴다:
+                    // 이 시점(최대 1.1초)엔 적이 이미 죽어 있을 수 있고, 그러면 폴백이 무게를
+                    // 주인공 발밑에 깐다.
+                    if (last) this.skillImpactWeight('meteor', color, targetIds, t, [spot.clone()]);
                 });
             }, at + this.METEOR_TELL_MS);
         }
