@@ -19,6 +19,7 @@ for p in \
     probe-arm-taper.js \
     probe-vox-limb.js \
     probe-vox-plate.js \
+    probe-hero-tris.js \
     probe-icon-cross-screen.js \
     probe-skillfx-timeline.js \
     probe-tools-wait-guard.js \

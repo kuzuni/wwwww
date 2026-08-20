@@ -923,7 +923,6 @@ const ProChar = {
         // → 최대 반지름을 y 0.345 = **높이의 74%(가슴)** 로 올리고 밑단을 0.163까지 조여
         //    허리÷가슴을 0.64로 만든다. 그래야 골반 플레어 → 잘록한 허리 → 부푼 가슴 → 어깨선의
         //    4단 꺾임이 생긴다(전에는 꺾임이 1개였다).
-        const cuirassPts = [];
         const prof = [
             [0.163, 0],      // 허리 — 벨트에 조여지는 가장 좁은 지점
             [0.171, 0.05],
@@ -935,7 +934,6 @@ const ProChar = {
             [0.196, 0.435],  // 어깨 요크로 수렴
             [0.132, 0.465],
         ];
-        for (const [r, y] of prof) cuirassPts.push(new THREE.Vector2(r, y));
         // ⚠️ 측면 S자 프로파일 (비평가 잔여 지적 ⓔ "정면은 해소됐고 측면만 남았다 — 균일 깊이 달걀").
         //    라테는 **정의상 회전체**라 위 prof 반지름을 아무리 다듬어도, scale.z 를 아무리 눌러도
         //    옆에서 본 실루엣의 **중심선은 완벽한 수직 직선**이다 — 즉 측면은 언제나 앞뒤 대칭 달걀이다.
@@ -986,17 +984,33 @@ const ProChar = {
             const k = x ? Math.sqrt(Math.max(0, 1 - Math.pow(x / (1.04 * r), 2))) : 1;
             return (r * m.d * k + m.o) * CUIRASS_SZ;
         };
-        const cuirassGeo = new THREE.LatheGeometry(cuirassPts, 22); // 세그먼트 18→22 (허리 곡률이 급해 각지던 것)
-        {
-            const p = cuirassGeo.attributes.position;
-            for (let i = 0; i < p.count; i++) {
-                const m = torsoZ(p.getY(i) / TORSO_TOP);
-                p.setZ(i, p.getZ(i) * m.d + m.o);
-            }
-            cuirassGeo.computeVertexNormals();   // 곡면이 바뀌었으므로 필수 — 안 하면 음영이 옛 회전체를 그린다
-        }
-        const cuirass = new THREE.Mesh(cuirassGeo, steel());
-        cuirass.scale.set(1.04, 1.08, CUIRASS_SZ); // 역삼각 실루엣 — 가슴 상향+좌우 확장, 앞뒤 눌림 (비평가: 실루엣 꺾임)
+        // 🧊 **흉갑 = 큐브 회전체** (LatheGeometry 22세그 → `Voxel.shell`). 화면 점유 단일 최대 파츠라
+        //    여기가 안 바뀌면 영웅은 계속 매끈한 달걀로 읽힌다.
+        //    ⚠️ **위 `prof` 숫자를 그대로 쓴다** — `Voxel.shell` 이 링 목록을 받는 이유가 정확히 이것이다
+        //       (실루엣을 다시 디자인하지 않는다. 허리÷가슴 0.657, 가슴 최대폭 74% 지점이 그대로 산다).
+        //    ⚠️ **옛 `mesh.scale(1.04, 1.08, 0.8)` 을 그대로 옮기면 안 된다** — 비등방 scale 은 큐브를
+        //       직육면체로 누른다(`probe-vox-plate` ② 가 잡는다). 세 배율을 전부 **링 치수에 흡수**한다:
+        //       x 배율 → rx, y 배율 → 링 y, z 배율·깊이배수·S자 오프셋 → rz 와 z 중심.
+        //    ⚠️ **S자(측면 중심선)는 칸 단위로 계단이 된다.** 오프셋 −0.020~+0.020 에 z배율 0.8 을 물리면
+        //       ±0.016 = **±1칸**이라 이동폭이 2칸으로 양자화된다 — 렌더 배율에서 약 7px 로, 옛 실측
+        //       7px 과 같은 폭이다(`probe-torso-profile side` 의 'S자면 6px 이상' 기준선을 지킨다).
+        //       칸을 더 키우면 이 S자가 통째로 사라지므로 `VOX` 를 올릴 때 이 판정을 반드시 다시 볼 것.
+        const CU_SX = 1.04, CU_SY = 1.08;        // 옛 scale.x / scale.y — 칸 치수로 흡수한다
+        const cuRings = prof.map(([r, y]) => {
+            const m = torsoZ(y / TORSO_TOP);
+            return {
+                y: this.vr(y * CU_SY),
+                rx: this.vr(r * CU_SX),
+                rz: this.vr(r * m.d * CUIRASS_SZ),
+                z: this.vr(m.o * CUIRASS_SZ),
+            };
+        });
+        // `shell` 은 마지막 링의 층을 안 만든다(구간 [y_i, y_{i+1}) 를 채운다) — 한 칸짜리 닫는 링을 더한다.
+        cuRings.push(Object.assign({}, cuRings[cuRings.length - 1], { y: cuRings[cuRings.length - 1].y + 1 }));
+        // 속을 파는 건 `t` 가 아니라 `hollow` 로 한다 — `t` 는 위아래가 뚫린 관이라 **목 구멍으로
+        // 안쪽 면이 보인다**. `hollow` 는 겉면 칸만 남기므로 면 수는 같고 칸 수만 준다(슬라임과 같은 방식).
+        const cuirass = this.voxPart(Voxel.hollow(Voxel.shell(cuRings)), steelVox, { center: false });
+        cuirass.userData.part = 'cuirass';
         // 목 링 — 고젯 라메 스택(아래 collar*)의 **맨 밑 테**. 스택이 흉갑에 얹히는 지점을 매듭짓는다.
         // ⚠️ 위치·굵기는 스택 최하단(y 0.434, r 0.133)에서 역산한 값이다. 스택 치수를 바꾸면 같이 옮길 것 —
         //    예전 값(y 0.45 · major 0.1 · tube 0.032)은 스택 한가운데를 뚫고 나온다.

@@ -21,7 +21,7 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
 // 여기 이름을 추가하는 것이 곧 '이 파츠를 voxel 로 옮겼다'의 선언이다 — 새 전환을 하면 같이 넓힐 것
 // (이 저장소가 반복해 밟은 '판정기에 구멍이 있으면 그 구멍 안에서 결함이 자란다').
-const PARTS = ['thigh', 'shin', 'upperArm', 'forearm', 'cuisse', 'kneeCap', 'poleynWing', 'kneeLame', 'greave'];
+const PARTS = ['thigh', 'shin', 'upperArm', 'forearm', 'cuisse', 'kneeCap', 'poleynWing', 'kneeLame', 'greave', 'cuirass'];
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
