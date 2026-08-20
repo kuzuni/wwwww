@@ -46,7 +46,11 @@ for p in \
     probe-dim-tabbar.js \
     probe-css-var-undefined.js \
     probe-arc-centered.js \
+<<<<<<< Updated upstream
     probe-lgr-px.js \
+=======
+    probe-mount-neck-height.js \
+>>>>>>> Stashed changes
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1
