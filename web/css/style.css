@@ -2485,6 +2485,10 @@ body {
     border-radius: .3rem; margin: 0 0 1.2rem; align-self: center; flex: none;
     box-shadow: inset 0 -1px 0 #450406;
 }
+/* 🔑 흰 칠 + 검정 키라인 (aaa-skin ㉹, 2026-08-20). 원본 042208 8배 확대: 빨간 리본의
+   `플래티넘 리그 보상` 이 흰 칠 + 두꺼운 검정 테. 한글 16.8px 이지만 굵기는 크기가 아니라
+   글리프 복잡도로 잡으므로(㉲) 여기도 **2px** — `넘`·`상` 처럼 획이 많은 글자가 섞여 있다. */
+.league-reward-banner { -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill; }
 .league-reward-banner::before, .league-reward-banner::after {
     content: ''; position: absolute; background: #a00a0e;
     top: calc(var(--app-h) * .009); height: calc(var(--app-h) * .0584);
@@ -2919,6 +2923,11 @@ body {
     padding: 0 1.4rem 0 calc(var(--app-w) * .0503); display: flex; align-items: center;
     clip-path: polygon(0 0, 100% 0, calc(100% - .8rem) 50%, 100% 100%, 0 100%);
 }
+/* 🔑 흰 칠 + 검정 키라인 (aaa-skin ㉹, 2026-08-20). 원본 042632 을 8배로 확대하면 빨간 태그의
+   `기술 거래` 가 **흰 칠을 두꺼운 검정이 두른** 글자다(클론은 민무늬라 빨강 위 흰 글자가 붕 떠 있고
+   서브픽셀 AA 의 주황/청록 색선까지 보인다). 굵기는 ㉲ 대로 **글리프 복잡도**로 — 한글 13.5px 은
+   2px 이 자리다(3px 이면 `기`·`술` 의 속공간이 메워져 검은 덩어리가 된다, ㉶ 실측). */
+.shop-deal-tag { -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill; }
 .shop-deal-body { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; margin-top: 0; }
 .shop-deal-rewards { display: flex; flex-direction: column; gap: calc(var(--app-h) * .0011); }
 .shop-reward-pill {
@@ -3065,6 +3074,10 @@ body {
 }
 .profile-tabs button:first-child { border-left: none; }
 .profile-tabs button.on { background: var(--pp-blue); }
+/* 🔑 흰 칠 + 검정 키라인 (aaa-skin ㉹, 2026-08-20). 원본 042724(프로필)·042744(설정) 8배 확대에서
+   파란 활성 탭의 `프로필` 은 흰 칠 + 두꺼운 검정 테다. 꺼진 탭(흰 판 검정 글자)은 원본도 민무늬라
+   `.on` 에만 건다 — `.league-row.me` 만 두른 ㉵ 와 같은 화법이다. 한글 14.3px → 2px. */
+.profile-tabs button.on { -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill; }
 /* 줄무늬 색은 원본 픽셀값 그대로 — shot-042744 목록은 rgb(204,204,204)/rgb(238,238,238) 교대다.
    --pp-panel(#efefef)+카드 흰색(#fff)으로 그리면 대비가 51 → 16으로 떨어져 줄이 거의 안 보였다.
    --pp-panel은 다른 팝업 패널이 공용하는 토큰이라 건드리지 않고 이 목록 전용 값으로 둔다. */
@@ -4205,6 +4218,14 @@ h3.sellwarn-title, .rates-head h3,
 .modal-card.sheet.mount-sheet { overflow: hidden; padding-bottom: calc(var(--tabbar-h) + .9rem); }
 .mount-pill-row { display: flex; justify-content: center; }
 .cur-pill.winder { background: #2b2b2b; }
+/* 🔑 흰 칠 + 검정 키라인 (aaa-skin ㉹, 2026-08-20).
+   ⚠️ **이 화면만 원본 스크린샷이 없다** — `shot-screens.js` 의 `['mounts', null, …]`. 그래서 원본
+   확대로 직접 확인할 수 없고, **같은 컴포넌트의 원본 화법**을 따랐다: `.cur-pill` 은 042340 의 `44`
+   (티켓)·042356 의 `28`(알)에서 **근흑 판(휘도 35) 위인데도 흰 칠 + 검정 테**이고(㉶⑵ 가 이미
+   `.summon-sub .sheet-head .cur-pill` 에 3px 로 구현해 뒀다), 그게 술어 ③('검정 판 위 링은 무의미')의
+   경계가 40 보다 한참 아래라는 근거이기도 하다. 숫자뿐이라 속을 메울 걱정이 적어 형제와 같은 3px.
+   👉 원본이 생기면 이 한 줄부터 확대 대조할 것. */
+.mount-pill-row .cur-pill.winder { -webkit-text-stroke: 3px var(--pp-line); paint-order: stroke fill; }
 .cur-pill.gem { background: #c62828; }
 .cur-pill.coin { background: #b8860b; }
 .pet-tile { background: none; border: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .1rem; }
