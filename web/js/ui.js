@@ -80,8 +80,14 @@ const UI = {
     // ⚠️ 소환 결과 타임라인 5종은 2026-08-19 사용자 지시("뽑기 애니메이션 3초 같은데 절반으로")로
     //    일괄 절반이다. 정점 동기 CSS(.sr-charge/.sr-shock/.sr-wrap 딜레이·.charging 5종·srstreak)와
     //    SFX.summonCharge 길이도 같은 배율로 묶여 있다 — 한쪽만 되돌리면 빛 정점과 첫 셀이 어긋난다.
-    SR_REVEAL_BUDGET: 1100, // 셀이 많을 때 전체 등장 연출이 넘지 않을 시간(ms)
+    SR_REVEAL_BUDGET: 1100, // (소량 판 산정용 잔재 — 대량 판은 아래 행 단위 웨이브가 대체)
     SR_SLOW_STEP: 125,      // 10개 이하 소량 뽑기의 셀 간격 — 캐스케이드가 눈에 보이는 하한
+    // 대량 소환(>10셀)은 셀 단위 균일 드립이 아니라 **행 단위 웨이브**로 민다(11차 비평가
+    // 2인 일치 ⑴ — 균일 61ms 드립은 프레임당 변화가 정점의 3~5%라 중반이 죽은 화면으로
+    // 읽혔다. 행 6개가 40ms 스태거로 한꺼번에 착지하면 같은 시간에 변화가 뭉쳐 파도가 된다).
+    SR_ROW_MS: 300,         // 행 시작 간격 — 행 착지(6열×40ms=240ms) 뒤 60ms 숨
+    SR_ROW_STAG_MS: 40,     // 행 안 셀 스태거
+    SR_TIER_PAUSE_MS: 200,  // 등급(챕터) 경계의 짧은 정지 — 그 등급색 링 플래시가 틈을 채운다
     // 빛 모임은 이 시각에 '최대 휘도'로 터진다 — 그 백색 오버슛이 감쇠하는 동안 첫 아이콘이
     // 꺼내진다(예전엔 120ms에 피크를 찍고 480ms엔 암전인데 아이콘이 540ms에 떠서, 빛과
     // 아이콘이 인과로 안 묶이고 '별개 애니메이션 두 개'로 읽혔다)
@@ -473,6 +479,7 @@ const UI = {
                 <div class="sr-shock"></div>
                 <div class="sr-shock echo"></div>
                 <div class="sr-relights"></div>
+                <div class="sr-tierbreaks"></div>
                 <div class="sr-idle"><i></i><i></i></div>
                 <div class="sr-flash" style="--rc:${RARITY_CSS[best]}"></div>
                 <div class="sr-wipe" style="--rc:${RARITY_CSS[best]}"></div>
@@ -551,15 +558,33 @@ const UI = {
         this._srEntries = entries;
         this.setSummonEjectPaths(m);
         const n = this._srCells.length;
-        const step = n <= 10 ? this.SR_SLOW_STEP : U.clamp(this.SR_REVEAL_BUDGET / n, 20, 120);
-        // 셀별 등장 시각 — 마지막 최고 등급 한 개만 홀드백만큼 더 뜸들인다
+        // 셀별 등장 시각 — 마지막 최고 등급 한 개만 홀드백만큼 더 뜸들인다.
+        // 대량 판(>10)은 행 단위 웨이브 + 등급 챕터: 행이 40ms 스태거로 한꺼번에 착지하고,
+        // 등급이 바뀌는 셀 앞에 짧은 정지를 넣어 그 자리에 등급색 링 플래시(챕터 구분)를 켠다.
+        // ⚠️ 정지·행 오프셋은 전부 **누적 단조 증가**라야 한다 — tickSummonResult 가
+        //    while(d[idx] <= elapsed) 로 인덱스 순서대로 켠다(오름차순 전제).
         this._srDelays = [];
-        for (let i = 0; i < n; i++) {
-            this._srDelays.push(this.SR_CHARGE_MS + i * step + (holdback && i === n - 1 ? this.SR_HOLDBACK_MS : 0));
+        this._srTierBreaks = [];
+        if (n <= 10) {
+            for (let i = 0; i < n; i++) {
+                this._srDelays.push(this.SR_CHARGE_MS + i * this.SR_SLOW_STEP + (holdback && i === n - 1 ? this.SR_HOLDBACK_MS : 0));
+            }
+        } else {
+            let pause = 0;
+            for (let i = 0; i < n; i++) {
+                const boundary = i > 0 && RARITIES.indexOf(entries[i].rarity) > RARITIES.indexOf(entries[i - 1].rarity);
+                if (boundary) pause += this.SR_TIER_PAUSE_MS;
+                const d = this.SR_CHARGE_MS + Math.floor(i / cols) * this.SR_ROW_MS + (i % cols) * this.SR_ROW_STAG_MS
+                    + pause + (holdback && i === n - 1 ? this.SR_HOLDBACK_MS : 0);
+                // 플래시는 첫 셀보다 반 박자 앞 — '예고 → 그 등급 등장'의 인과가 서게
+                if (boundary) this._srTierBreaks.push({ t: Math.max(this.SR_CHARGE_MS, d - 160), rarity: entries[i].rarity });
+                this._srDelays.push(d);
+            }
         }
         this._srHoldback = holdback;
         this._srHeroIdx = heroIdx;
         this.fillSummonRelights(m, entries);
+        this.fillSummonTierBreaks(m);
         this._srStart = performance.now();
         this._srIdx = 0;
         this._srRaf = requestAnimationFrame(() => this.tickSummonResult());
@@ -616,6 +641,22 @@ const UI = {
             const tier = RARITIES.indexOf(e.rarity);
             return `<span class="sr-relight" style="--rc:${rc};--rc-lite:${this.srHilite(rc, tier)};`
                 + `--glow:${(0.16 + tier * 0.13).toFixed(2)};animation-delay:${d}ms"></span>`;
+        }).join('');
+    },
+
+    // 등급 챕터 링 플래시 — 대량 판의 등급 경계 정지(SR_TIER_PAUSE_MS)를 채우는 예고 링.
+    // 재점화(.sr-relights)와 같은 계약: `.sr-wrap` 직속(광원 = wrap 중심), 시각은 인라인
+    // `animation-delay` — CSS 애니메이션 currentTime 이 delay 를 포함하므로 캡처/프로브 시크가
+    // 손댈 것 없이 저절로 맞는다.
+    fillSummonTierBreaks(m) {
+        const host = m.querySelector('.sr-tierbreaks');
+        if (!host) return;
+        host.innerHTML = (this._srTierBreaks || []).map(b => {
+            const rc = RARITY_CSS[b.rarity] || '#fff';
+            const tier = RARITIES.indexOf(b.rarity);
+            // 펄스(전화면·면적 담당) + 링(방향·챕터 기호 담당) 한 쌍 — 등급이 높을수록 세게
+            return `<span class="sr-tierpulse" style="--rc:${rc};--rc-lite:${this.srHilite(rc, tier)};--pk:${(0.15 + tier * 0.04).toFixed(3)};animation-delay:${b.t}ms"></span>`
+                + `<span class="sr-tierflash" style="--rc:${rc};--rc-lite:${this.srHilite(rc, tier)};animation-delay:${b.t}ms"></span>`;
         }).join('');
     },
 

@@ -88,7 +88,9 @@ const CASES = [
 // 연속 프레임으로 훑을 케이스 — [이름, 소환 소스, 프레임 간격, 마지막 시각, RNG 시드]
 const TIMELINES = [
     ['tl-x5-hi', `S.summonCount = 5000; S.summonMult = {skill:5}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, 60, 2760, 14],
-    ['tl-x75', `S.summonCount = 5000; S.summonMult = {skill:75}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, 90, 3060, 3],
+    // ⚠️ 끝 시각 3060 → 3780: 행 단위 웨이브 + 등급 챕터 정지(11차 2인 일치 ⑴)로 x75 캐스케이드가
+    //    ~1300ms → ~2100ms 로 길어졌다 — 옛 끝으로 두면 done 뒤 아이들이 몇 장 안 담긴다.
+    ['tl-x75', `S.summonCount = 5000; S.summonMult = {skill:75}; UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false);`, 90, 3780, 3],
 ];
 
 (async () => {

@@ -29,6 +29,7 @@ const LADDER = [
     ['.sr-floor', 10],
     ['.sr-canopy', 20],
     ['.sr-flash', 25],
+    ['.sr-tierbreaks', 27],
     ['.sr-shock', 30],
     ['.sr-dust', 35],
     ['.sr-grid', 40],

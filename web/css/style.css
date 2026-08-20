@@ -5676,6 +5676,7 @@ h3.sellwarn-title, .rates-head h3,
       10  소환진 바닥(.sr-floor) / 12 바닥 반사(.sr-reflect)
       20  천개(.sr-canopy)
       25  착지 섬광(.sr-flash — 가산이라 셀 아래여야 셀을 탁하게 죽이지 않는다)
+      27  등급 챕터 링 플래시(.sr-tierbreaks — 광원 예고라 셀 아래·섬광 위)
       30  충격파·잔파(.sr-shock)
       35  중간 평면 먼지(.sr-dust)
       40  구체 그리드(.sr-grid) — 셀 안에서 다시 셀 z(--i 계단) → orbwrap 2 → 이름표/칩 3
@@ -5894,11 +5895,11 @@ h3.sellwarn-title, .rates-head h3,
     mask-image: radial-gradient(circle, rgba(0,0,0,0) 22%, #000 34%, rgba(0,0,0,.32) 54%, rgba(0,0,0,0) 72%);
     /* 회전 속도 — 11차 비평가 A C + B ④(2인 일치) '중반 진폭이 정점의 3~6%로 주저앉는다'의
        유일하게 화면 면적이 큰 지속층이다. 48s(7.5°/s)는 60ms 프레임에서 사실상 정지라
-       중반 구간 기여가 0 이었다. A·B 가 함께 제안한 18°/s 쪽으로 당긴다(26s ≈ 13.8°/s).
+       중반 구간 기여가 0 이었다. A·B 가 함께 제안한 18°/s = 20s 로 당겼다(26s를 거쳐 확정).
        ⚠️ TODO ㉮ 의 '회전 금지'는 **소환진 바닥 링** 얘기다 — 그건 타원으로 눌린 눈금이
           링을 따라 돌아 붓질 자국이 됐다. 이 광선은 원형·방사 대칭이라 그 아티팩트가
           원리적으로 안 생긴다(둘을 같은 규칙으로 묶지 말 것). */
-    animation: srrayspin 26s linear infinite;
+    animation: srrayspin 20s linear infinite;
 }
 /* 중앙 광원 — 아이콘 줄 뒤를 밝혀 대비를 만든다 */
 .sr-halo {
@@ -6334,6 +6335,63 @@ h3.sellwarn-title, .rates-head h3,
     0%   { opacity: 0;                             transform: translate(-50%,-50%) scale(.28); }
     24%  { opacity: calc(.55 + .42 * var(--glow)); transform: translate(-50%,-50%) scale(1); }
     100% { opacity: 0;                             transform: translate(-50%,-50%) scale(1.46); }
+}
+
+/* ===== 등급 챕터 링 플래시 (.sr-tierbreaks / .sr-tierflash) — 11차 2인 일치 ⑴ =====
+   대량 판(>10셀)의 등급 경계 정지(UI.SR_TIER_PAUSE_MS)를 채우는 예고 — 다음 등급색 링이
+   광원에서 화면으로 퍼지며 '챕터가 바뀐다'를 알린다. 충격파(srshock)와 같은 압력파 문법:
+   퍼질수록 얇아지고(border-width ↓) 번진다(blur ↑). 하드엣지 고정 굵기는 '그래픽 스탬프'다.
+   ⚠️ 시각은 UI.fillSummonTierBreaks 의 인라인 animation-delay — 시크 재현이 저절로 맞는다. */
+.sr-tierbreaks { position: absolute; inset: 0; pointer-events: none; z-index: 27; }
+/* 전화면 등급색 펄스 — 링만으로는 화면 평균 휘도가 안 움직인다(면적이 작은 층은 아무리
+   밝아도 중반 진폭 계측에 안 잡힌다 — 천개 빛띠에서 이미 배운 것). 챕터가 바뀌는 순간
+   화면 전체가 그 등급색으로 한 번 달아올랐다 식는다. 등급이 높을수록 세게(--pk). */
+.sr-tierpulse {
+    position: absolute; inset: -2%;
+    /* 중심은 등급 하이라이트색(--rc-lite, 등급별 목표 휘도로 역산된 밝은 색) — 궁극(빨강)·
+       신화(보라)는 고유 휘도가 낮아 등급색만으로는 screen 블렌드가 화면 휘도를 못 움직인다
+       (실측: 신화 챕터 펄스가 루마 Δ 1.4%로 최약체였다). 색상 정체성은 중대역 --rc 가 지킨다. */
+    background: radial-gradient(120% 90% at 50% 42%, var(--rc-lite, #fff) 0%, var(--rc) 30%, rgba(0,0,0,0) 64%);
+    opacity: 0; mix-blend-mode: screen;
+    animation: srtierpulse .54s ease-out both;
+}
+@keyframes srtierpulse {
+    0%   { opacity: 0; }
+    20%  { opacity: var(--pk, .16); }
+    100% { opacity: 0; }
+}
+.sr-tierflash {
+    position: absolute; left: 50%; top: 50%; border-radius: 50%;
+    width: min(11rem, 46vw); height: min(11rem, 46vw);
+    border: .34rem solid var(--rc);
+    box-shadow: 0 0 .9rem var(--rc);
+    opacity: 0; mix-blend-mode: screen;
+    transform: translate(-50%, -50%) scale(.24);
+    animation: srtierflash .56s cubic-bezier(.12,.7,.22,1) both;
+}
+/* 링 안쪽 심지 — 링만 있으면 '테두리 원'이고, 중심이 그 등급색으로 한 번 달아올라야
+   재점화·수렴 빛과 같은 광원 문법에 앉는다.
+   ⚠️ 심지는 부모 scale 을 그대로 곱해 커진다(잔파 링 ::after 함정과 같은 뿌리) — 확장 중반에
+   큰 얼룩이 되지 않게 자체 opacity 로 45% 지점까지만 살린다. animation-delay: inherit 로
+   부모의 인라인 딜레이를 그대로 받으므로 시크 재현도 부모와 같이 맞는다. */
+.sr-tierflash::after {
+    content: ''; position: absolute; inset: 18%;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, var(--rc-lite, #fff) 0%, var(--rc) 40%, rgba(0,0,0,0) 72%);
+    opacity: 0; filter: blur(2px);
+    animation: srtierwick .56s cubic-bezier(.12,.7,.22,1) both;
+    animation-delay: inherit;
+}
+@keyframes srtierwick {
+    0%   { opacity: 0; }
+    14%  { opacity: .85; }
+    45%  { opacity: 0; }
+    100% { opacity: 0; }
+}
+@keyframes srtierflash {
+    0%   { opacity: 0;   transform: translate(-50%,-50%) scale(.24); border-width: .38rem; filter: blur(0); }
+    16%  { opacity: .88; }
+    100% { opacity: 0;   transform: translate(-50%,-50%) scale(3.0); border-width: .05rem; filter: blur(2.8px); }
 }
 /* 반사 복제본에서는 안 돈다 — `.sr-reflect *` 가 애니메이션을 끈다(원본과 위상이 어긋나면 두 겹으로 떨린다) */
 
