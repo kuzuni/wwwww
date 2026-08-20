@@ -76,13 +76,23 @@ function rel(p) {
 }
 
 /* 낡았으면 exit 2(= '측정기 고장', probe-emblem-core 와 같은 규약)로 끊는다.
-   판정 실패(exit 1)와 갈라 두는 이유: 낡은 캡처는 **아이콘이 나쁘다는 뜻이 아니라 잰 게 없다는 뜻**이다. */
-function assertFresh(png, sources, howToRebake) {
+   판정 실패(exit 1)와 갈라 두는 이유: 낡은 캡처는 **아이콘이 나쁘다는 뜻이 아니라 잰 게 없다는 뜻**이다.
+
+   opts.warnOnly — 진단만 찍고 **끊지 않는다**(낡으면 false 반환). 왜 이 모드가 있나:
+     이 저장소는 `ref-cmp/clone/*.png` 를 **`shot-screens.js` 로 한꺼번에** 다시 굽는 관행이라,
+     소스 목록을 넓게(`web/js`·`web/css`) 잡으면 **무관한 작업 중에도 자주 낡음으로 잡힌다.**
+     거기서 곧장 `exit 2` 로 끊으면 멀쩡히 쓰던 판정기가 갑자기 죽고, 다음 사람은 캡처를 굽는
+     대신 **가드를 뜯어낼** 유인을 받는다(2026-08-20 UI 스트림 판단).
+     👉 그래서 **처음 물릴 때는 warnOnly** 로 두어 '이 수치는 낡은 캡처다'를 읽는 사람에게 알리기만
+        하고, 소스 목록을 그 화면에 맞게 **좁힌 뒤에** 하드 게이트로 올릴 것.
+        (`probe-skill-orb-ink` 는 이미 좁혀서 하드 게이트로 돌고 있다 — 그 모양이 목표다.) */
+function assertFresh(png, sources, howToRebake, opts = {}) {
     const pngRel = rel(png);
     const pngT = lastCommit(pngRel);
     if (pngT === null) {
         console.error(`⚠️ ${pngRel} 이 git 에 없다 — 신선도를 확인할 수 없다.`);
         console.error(`   커밋된 클론 캡처가 아니면 이 판정기의 '클론' 쪽 수치는 근거가 없다.`);
+        if (opts.warnOnly) return false;
         process.exit(2);
     }
     const pngM = mtime(path.join(ROOT, pngRel));
@@ -118,6 +128,10 @@ function assertFresh(png, sources, howToRebake) {
     console.error(`      이 가드가 통과한다. 갈라 커밋하면 그 사이 상태에서 또 낡은 걸로 잡힌다.`);
     console.error(`   📌 아직 작업 중이라 커밋 전이면(위에 '워킹 트리에서 수정됨'이 뜬 경우) 그게 정상이다 —`);
     console.error(`      캡처를 굽고 재는 건 되지만, 그 수치는 커밋 전까지 '지금 트리' 기준임을 알고 쓸 것.`);
+    if (opts.warnOnly) {
+        console.error(`\n   ⚠️ (경고 전용 모드라 판정은 그대로 진행한다 — **아래 '클론' 수치를 그대로 믿지 말 것.**)\n`);
+        return false;
+    }
     process.exit(2);
 }
 

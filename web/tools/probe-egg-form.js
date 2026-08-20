@@ -24,6 +24,15 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
+const { assertFresh } = require('./clone-fresh.js');
+/* 🚨 **이 자는 브라우저를 안 띄운다 — 커밋된 클론 캡처 PNG 를 원본과 맞대기만 한다.**
+   그래서 게임 코드를 고치고 캡처를 다시 굽지 않으면 **옛 화면을 재면서 아무 말도 안 한다.**
+   그 사고가 실제로 났다(`probe-skill-orb-ink` — `clone-fresh.js` 머리말에 전말이 있다).
+   ⚠️ 지금은 **경고 전용**이다: 소스 목록이 `web/js`·`web/css` 로 넓어서 무관한 작업에도 자주
+      걸리기 때문에 끊지는 않는다. 이 화면을 그리는 파일만으로 목록을 **좁힌 뒤** 네 번째 인자를
+      빼면 하드 게이트(exit 2)가 된다. */
+assertFresh('tools/ref-cmp/clone/pets.png', ['web/js', 'web/css'], 'node tools/shot-pets.js  # 또는 shot-screens.js', { warnOnly: true });
+
 
 // [파일, 라벨, 알 하나를 감싸는 상자(x,y,w,h) — '알' 글자는 뺀다]
 const CASES = [
