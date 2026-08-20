@@ -2146,8 +2146,11 @@ IconGen._genderSym = function (ctx, S, female) {
                 ctx.closePath();
             }
         },
-        cross(ctx, S) {                                  // 응급 처치 — 십자
-            const lo = .18, hi = .82, a = .385, b = .615;
+        // 응급 처치 — 십자. **가는 십자**로(잉크 면적이 줄어 덩어리 무리와 안 겹친다).
+        // 팔 폭 .20 은 키라인 .067 이 양쪽에서 .0335 씩 먹고도 속살이 남는 하한 근처다 —
+        // 더 가늘게 하면 `probe-emblem-core` 가 곧장 걸린다(검은 막대기 회귀).
+        cross(ctx, S) {
+            const lo = .15, hi = .85, a = .40, b = .60;
             ctx.moveTo(x(a, S), y(lo, S)); ctx.lineTo(x(b, S), y(lo, S)); ctx.lineTo(x(b, S), y(a, S));
             ctx.lineTo(x(hi, S), y(a, S)); ctx.lineTo(x(hi, S), y(b, S)); ctx.lineTo(x(b, S), y(b, S));
             ctx.lineTo(x(b, S), y(hi, S)); ctx.lineTo(x(a, S), y(hi, S)); ctx.lineTo(x(a, S), y(b, S));
@@ -2217,8 +2220,10 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.lineTo(x(.34, S), y(.96, S)); ctx.lineTo(x(.74, S), y(.39, S)); ctx.lineTo(x(.53, S), y(.39, S));
             ctx.lineTo(x(.68, S), y(.04, S)); ctx.closePath();   // 윗변 .08 → .12
         },
-        sparkle(ctx, S) {                                // 축복 — 4각 반짝임
-            const cx = .5, cy = .48, R = .44, c = .11;
+        // 축복 — 4각 반짝임. **작게 + 좌상으로 치우치게**(크기·위치로 나머지 셋과 갈린다).
+        // 위성 두 알은 그대로 두되 바깥으로 조금 더 밀어 실루엣이 대각으로 흐르게 했다.
+        sparkle(ctx, S) {
+            const cx = .44, cy = .43, R = .35, c = .09;
             ctx.moveTo(x(cx, S), y(cy - R, S));
             ctx.quadraticCurveTo(x(cx + c, S), y(cy - c, S), x(cx + R, S), y(cy, S));
             ctx.quadraticCurveTo(x(cx + c, S), y(cy + c, S), x(cx, S), y(cy + R, S));
@@ -2231,12 +2236,27 @@ IconGen._genderSym = function (ctx, S, female) {
                 ctx.quadraticCurveTo(x(mx - r * .28, S), y(my + r * .28, S), x(mx - r, S), y(my, S));
                 ctx.quadraticCurveTo(x(mx - r * .28, S), y(my - r * .28, S), x(mx, S), y(my - r, S)); ctx.closePath();
             };
-            sm(.82, .22, .085); sm(.20, .78, .06);
+            sm(.81, .24, .095); sm(.23, .81, .07);
         },
-        shield(ctx, S) {                                 // 성역 — 방패
-            ctx.moveTo(x(.5, S), y(.09, S)); ctx.lineTo(x(.83, S), y(.22, S)); ctx.lineTo(x(.81, S), y(.55, S));
-            ctx.quadraticCurveTo(x(.72, S), y(.82, S), x(.5, S), y(.93, S));
-            ctx.quadraticCurveTo(x(.28, S), y(.82, S), x(.19, S), y(.55, S)); ctx.lineTo(x(.17, S), y(.22, S)); ctx.closePath();
+        /* 신성한 가호 — 방패. (경로 이름은 `shield` 지만 쓰는 쪽은 `divineShield` 다. 성역은
+           `sanctum` 을 쓴다 — 2026-08-20 이름 뒤바뀜을 고칠 때 갈렸다.)
+           🚨 **좁고 길게 + 각지게** (2026-08-20 UI 스트림, 락 `icon-gen`).
+              종전은 x .17~.83 · y .09~.93 의 **프레임을 채우는 중앙 둥근 덩어리**라
+              `burst`·`sparkle`·`cross` 와 실루엣이 통째로 겹쳤다(IoU 최악 쌍 초신성↔가호 **0.761**).
+              IoU 는 내부 무늬가 아니라 **덩어리의 가로세로비·크기·위치**로 갈리므로 안쪽을 아무리
+              다듬어도 안 떨어진다 — 그래서 넷을 서로 다른 '자리'로 흩었다: 방패=좁고 길게,
+              초신성=넓고 낮게, 축복=작게+치우치게, 응급 처치=가는 십자.
+              곡선을 직선 꺾임으로 바꾼 건 확정 화풍 ㉲(모서리는 각지거나 픽셀-라운드)와도 맞다. */
+        /* ⚠️ **어깨를 좁히다 못해 '총알'이 된 적이 있다 (2026-08-20, 같은 세션에서 되돌림).**
+           IoU 를 떼려고 x .27~.73(폭 .46)까지 좁혔더니 A/B 시트에서 방패가 아니라 **탄두/묘비**로
+           읽혔다 — 방패의 정체는 길이가 아니라 **넓은 어깨 + 아래로 모이는 삼각**이다.
+           그래서 어깨는 되살리고(폭 .56) 길이만 늘려(.08~.95) 가로세로비 .64 로 갈랐다.
+           초신성은 반대로 넓고 낮다(.94 × .70 = 1.34) — 둘은 이제 비(比)로 갈린다. */
+        shield(ctx, S) {
+            ctx.moveTo(x(.22, S), y(.08, S)); ctx.lineTo(x(.78, S), y(.08, S));
+            ctx.lineTo(x(.78, S), y(.42, S)); ctx.lineTo(x(.70, S), y(.70, S));
+            ctx.lineTo(x(.5, S), y(.95, S)); ctx.lineTo(x(.30, S), y(.70, S));
+            ctx.lineTo(x(.22, S), y(.42, S)); ctx.closePath();
         },
         halo(ctx, S) {                                   // 신성한 가호 — 후광 링 + 날개
             const cx = .5 * S, cy = .44 * S, ro = .35 * S, ri = .20 * S;
@@ -2275,11 +2295,14 @@ IconGen._genderSym = function (ctx, S, female) {
             };
             beam(.20, .28); beam(.50, .04); beam(.80, .28);
         },
-        burst(ctx, S) {                                  // 초신성 — 8각 폭발
-            const cx = .5 * S, cy = .5 * S, R = .47 * S, r = .235 * S, N = 8;   // r .17 → .235: 갈래가 테에 먹히던 것
+        // 초신성 — 8각 폭발. **넓고 낮게**(가로세로비로 방패와 갈린다 — 위 `shield` 주석 참조).
+        // 안쪽 반지름 r 은 .17 → .235 로 올린 값을 그대로 지킨다(갈래가 키라인에 먹히던 자리다).
+        burst(ctx, S) {
+            const cx = .5 * S, cy = .5 * S, N = 8;
+            const RX = .47 * S, RY = .35 * S, rx = .235 * S, ry = .175 * S;
             for (let i = 0; i < N * 2; i++) {
-                const a = (i / (N * 2)) * Math.PI * 2 - Math.PI / 2, rr = i % 2 ? r : R;
-                const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
+                const a = (i / (N * 2)) * Math.PI * 2 - Math.PI / 2;
+                const px = cx + Math.cos(a) * (i % 2 ? rx : RX), py = cy + Math.sin(a) * (i % 2 ? ry : RY);
                 i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
             }
             ctx.closePath();

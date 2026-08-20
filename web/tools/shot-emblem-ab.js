@@ -26,11 +26,14 @@ const OUT = process.argv[2] || path.join(__dirname, 'emblem-ab.png');
     const html = await page.evaluate(async () => {
         const names = Object.keys(IconGen.draw).filter(n => /^sk_|^tm_/.test(n));
         const bake = () => { IconGen.cache = {}; return names.map(n => IconGen.url(n)); };
+        // 🚨 제품값은 **베껴 적지 말고 보관했다가 되돌린다** — 여기에 숫자를 박아 두면 제품 노브를
+        //    바꿨을 때 이 자만 옛 값으로 남아 A/B 의 '새' 쪽이 조용히 제품과 달라진다.
+        const BASE = JSON.parse(JSON.stringify(IconGen._EMBLEM_STEP));
         const NEW = bake();
-        // 옛 화법 복원: 흰 끝 + 62% 흰섞임 + 알파 .9 소프트 광택
-        IconGen._EMBLEM_STEP = { top: 0.62, mid: 0.62, bot: 0.08, floorL: 0, gloss: 0.9, legacy: true };
+        // 옛 화법 복원: `legacy` 문이 흰 끝 그라디언트 + 알파 .9 소프트 광택을 그대로 그린다.
+        IconGen._EMBLEM_STEP = Object.assign({}, BASE, { legacy: true });
         const OLD = bake();
-        IconGen._EMBLEM_STEP = { top: 0.30, mid: 0.05, bot: -0.24, floorL: 116, gloss: 0.22 };
+        IconGen._EMBLEM_STEP = BASE;
         IconGen.cache = {};
         return { names, NEW, OLD };
     });
