@@ -893,7 +893,7 @@ const Scene3D = {
     buildSky() {
         // 세그먼트 72×36 — 정점색 보간이라 산란 로브(`paintSky`)의 해상도가 곧 이 분할이다.
         // 24×16 에서는 로브가 각진 삼각형 얼룩으로 보인다. 2592정점은 1회 빌드라 비용이 무의미하다.
-        const geo = new THREE.SphereGeometry(70, 72, 36, 0, Math.PI * 2, 0, Math.PI * 0.62);
+        const geo = new THREE.SphereGeometry(70, 72, 36, 0, Math.PI * 2, 0, Math.PI * 0.62)   // voxel-ok: 하늘 돔 — 조형이 아니라 배경 그라디언트 캔버스(카메라가 안쪽을 봐 실루엣 없음), 산란 로브가 정점색 보간이라 72×36 분할이 곧 해상도
         const colors = new Float32Array(geo.attributes.position.count * 3);
         geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false });
@@ -2380,7 +2380,7 @@ const Scene3D = {
         this.mists = [];
         for (let i = 0; i < 7; i++) {
             const mist = new THREE.Mesh(
-                new THREE.SphereGeometry(1, 12, 8),
+                new THREE.SphereGeometry(1, 12, 8),   // voxel-ok: 떠다니는 안개 — aoRing 과 같은 투명 오버레이(depthWrite off·op 0.05~0.1), 실루엣이 아니라 공기감에만 기여
                 new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: U.rand(0.05, 0.1), depthWrite: false })
             );
             mist.scale.set(U.rand(1.8, 3), U.rand(0.3, 0.55), U.rand(0.7, 1.2));
@@ -2394,56 +2394,8 @@ const Scene3D = {
 
     // 바이옴별 지면 텍스처 캐시 — 챕터 전환 때마다 캔버스를 다시 그리지 않게 1회 생성 후 재사용.
     // 모든 맵의 repeat를 12,6으로 통일(r128은 emissiveMap 등이 map의 uv변환을 공유하므로 어긋나면 안 됨).
-    // 불규칙 바위 지오메트리 — 정십이면체 정점을 랜덤 변위 (기하학 '주사위' 실루엣 제거, 비평가 지적)
-    rockGeo(rad) {
-        const geo = new THREE.DodecahedronGeometry(rad, 0);
-        const p = geo.attributes.position;
-        const seedX = Math.random() * 10, seedY = Math.random() * 10;
-        for (let i = 0; i < p.count; i++) {
-            // 면이 공유하는 정점은 같은 변위를 받아야 면이 안 찢어짐 — 좌표 기반 의사난수
-            // ⚠️ 사인 2개로는 시드가 달라도 가끔 거의 같은 바위가 나온다(실측: 15쌍 중 최소 개체차
-            //    0.0363 으로 `probe-foliage-sculpt` 게이트 0.040 에 걸렸다). 서로 나눠떨어지지 않는
-            //    주파수의 항을 하나 더 얹어 시드 간 상관을 끊는다.
-            const kx = Math.sin(p.getX(i) * 51.7 + seedX) * 0.38
-                + Math.sin(p.getY(i) * 37.3 + seedY) * 0.38
-                + Math.sin((p.getX(i) + p.getZ(i)) * 23.9 + seedX * 2.7 + seedY) * 0.24;
-            const s2 = 1 + kx * 0.26;
-            p.setXYZ(i, p.getX(i) * s2, p.getY(i) * (1 + Math.sin(p.getZ(i) * 43.1 + seedX) * 0.18), p.getZ(i) * s2);
-        }
-        // 버텍스 컬러 음영 — 잎(sculptFoliage)과 같은 이유로 바위에도 굽는다. 바위는 **접지물**이라
-        // 아래가 어두워야 땅에 얹힌 것으로 읽힌다(라이트를 안 늘리고 얻는 접지감).
-        // ⚠️ 잎보다 대비를 약하게 준다 — 바위는 면이 넓어 같은 기울기를 주면 아랫면이 새까맣게 죽는다.
-        // ⚠️ `stoneMat`·`charRockMat` 을 쓰는 메시는 **전부** 이 함수를 거친다(확인함) — 그래서 두 재질에
-        //    `vertexColors` 를 켜도 안전하다. 이 재질로 새 메시를 만들면 반드시 여기를 거칠 것.
-        {
-            geo.computeBoundingBox();
-            const bb = geo.boundingBox;
-            const yMin = bb.min.y, ySpan = Math.max(1e-4, bb.max.y - bb.min.y);
-            const cols = new Float32Array(p.count * 3);
-            for (let i = 0; i < p.count; i++) {
-                const k = Math.min(1, Math.max(0, (p.getY(i) - yMin) / ySpan));
-                const sh = 0.70 + 0.36 * Math.pow(k, 0.9);
-                cols[i * 3] = cols[i * 3 + 1] = cols[i * 3 + 2] = sh;
-            }
-            geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-        }
-        geo.computeVertexNormals();
-        return geo;
-    },
-
-    // 퇴적 지층 톤 밴딩 — 층 지오메트리의 색속성(rockGeo 가 구운 높이 음영)에 층별 틴트를 곱해
-    // 사암/이암이 번갈아 쌓인 지층처럼 읽히게 한다(단일 회색 판 인상 제거 — makeSlab·makeStrata 전용).
-    // ⚠️ 틴트는 albedo(stoneMat 0x9a9083)에 곱해지므로 1.0 부근으로 얕게만 준다 —
-    //    크리스탈 항목에서 R 을 크게 올렸다가 결정 끝이 분홍으로 뜬 함정과 같은 이유(색상만 크게 밀면 명암이 무너진다).
-    bandTint(geo, tr, tg, tb) {
-        const c = geo.attributes.color;
-        if (!c) return geo;
-        for (let i = 0; i < c.count; i++) {
-            c.setXYZ(i, Math.min(1, c.getX(i) * tr), Math.min(1, c.getY(i) * tg), Math.min(1, c.getZ(i) * tb));
-        }
-        c.needsUpdate = true;
-        return geo;
-    },
+    // (rockGeo — 정십이면체 랜덤 변위 바위 — 와 그 색속성 틴트 bandTint 는 2026-08-20 voxel 전환에서
+    // 호출부 0 의 사장 코드가 되어 삭제. 바위는 Voxel.rock, 지층 틴트는 vxBandTint 가 대응한다.)
 
     groundTexFor(biome) {
         this._gtex = this._gtex || {};
