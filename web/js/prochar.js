@@ -1889,7 +1889,7 @@ const ProChar = {
             const scan = g => g && g.traverse(o => { if (o.isMesh && !(o.userData && o.userData.simpleBox)) kill.push(o); });
             scan(outer); scan(root);
             kill.forEach(o => { if (o.parent) o.parent.remove(o); });
-            const skinM = new THREE.MeshStandardMaterial({ color: 0xf2c9a4, metalness: 0, roughness: 0.62, flatShading: true });
+            const skinM = new THREE.MeshStandardMaterial({ color: 0xe0a074, metalness: 0, roughness: 0.62, flatShading: true }); // 더 살색(따뜻·진하게, 사용자 2026-08-21)
             const inkM = new THREE.MeshBasicMaterial({ color: 0x1c1c22 });
             const P = R.bones.pelvis;   // 골반 로컬 y=0 기준: 다리는 아래, 몸통·머리는 위로 쌓는다
             const box = (mat, w, h, d, x, y, z) => {
