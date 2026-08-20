@@ -148,6 +148,36 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
     }
     console.log(`④ 전 팝업 스윕: ${swept}면 침범 0 확인 (컨트롤 HUD 연출 히트 ${sweep.ctrl}/24, 스킵 ${sweep.rows.filter(r => r.skip).length})`);
 
+    // ⑤ 판매 코인 연출(#coin-burst) — z 서열 + 가림 가드 (slug: coin-burst-over-modal).
+    //    z 33 이 패널(8)·모달(20~22)을 전부 이겨 +N 라벨이 팝업 위로 뚫고 나왔던 결함.
+    //    ㉠ 계산된 z 직독: #coin-burst < .panel — CSS 만 되돌려도 잡힌다(하드코딩 목록 금지,
+    //       tabbarCovered 의 교훈 그대로). ㉡ 가드: 패널이 열려 있으면 coinBurst 가 조용히 생략,
+    //       ㉢ 닫히면 정상 스폰 — 가드가 너무 세져 메인 화면 연출까지 죽는 회귀도 같이 잡는다.
+    const coin = await page.evaluate(() => {
+        document.querySelectorAll('#app > .modal:not(.hidden)').forEach(m => m.classList.add('hidden'));
+        UI.switchTab(null);
+        UI.coinBurst(100);                       // 레이어 생성 + 메인 화면 정상 스폰 확인
+        const layer = document.getElementById('coin-burst');
+        const onMain = layer ? layer.childElementCount : -1;
+        const zCoin = layer ? +getComputedStyle(layer).zIndex : NaN;
+        const panel = document.querySelector('.panel');
+        const zPanel = panel ? +getComputedStyle(panel).zIndex : NaN;
+        if (layer) layer.innerHTML = '';
+        UI.switchTab('summon');                  // 소환 패널 — QA 캡처의 재현 화면
+        UI.coinBurst(100);
+        const underPanel = layer ? layer.childElementCount : -1;
+        UI.switchTab(null);
+        UI.coinBurst(100);
+        const afterClose = layer ? layer.childElementCount : -1;
+        if (layer) layer.innerHTML = '';
+        return { onMain, zCoin, zPanel, underPanel, afterClose };
+    });
+    ok(coin.onMain > 0, `⑤ 메인 화면에서 코인 연출이 스폰된다 — 자식 ${coin.onMain}개`);
+    ok(coin.zCoin < coin.zPanel, `⑤ #coin-burst z(${coin.zCoin}) < .panel z(${coin.zPanel}) — 33 으로 되돌리면 팝업을 뚫는다`);
+    ok(coin.underPanel === 0, `⑤ 패널이 열린 동안은 조용히 생략 — 자식 ${coin.underPanel}개 (가드 무력화 회귀)`);
+    ok(coin.afterClose > 0, `⑤ 패널을 닫으면 다시 스폰 — 자식 ${coin.afterClose}개 (가드 과잉 회귀)`);
+    console.log(`⑤ 코인 연출: z ${coin.zCoin} < 패널 ${coin.zPanel} · 메인 ${coin.onMain} / 패널중 ${coin.underPanel} / 닫은뒤 ${coin.afterClose}`);
+
     for (const f of fails) console.log('FAIL —', f);
     for (const e of errs.slice(0, 5)) console.log('콘솔 에러 —', e);
     console.log(fails.length || errs.length ? `실패 ${fails.length}건 / 콘솔 에러 ${errs.length}건` : 'PASS — 연출이 패널 아래·씬 HUD 위·팝업 아래 (isolation:isolate)');

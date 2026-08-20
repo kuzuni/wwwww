@@ -7230,7 +7230,12 @@ h3.sellwarn-title, .rates-head h3,
 /* ---- 판매 코인 분출 (사용자 지시: 모루에서 코인이 터지듯 나오고 착지 자리마다 금액이 떠오른다) ----
    포물선은 x(등속)와 y(상승 감속 → 낙하 가속 → 바운스 1회)를 다른 요소에 나눠 걸어 만든다.
    한 요소에 둘 다 걸면 transform이 합성되면서 직선 이동으로 보인다. */
-#coin-burst { position: absolute; inset: 0; pointer-events: none; z-index: 33; overflow: hidden; }
+/* ⚠️ **z 는 6 이다 — 33 으로 되돌리지 말 것** (coin-burst-over-modal, 2026-08-20 QA 실측):
+   33 은 패널(8)·탭바·모달 딤(20)·모달(22)을 전부 이겨서 소환 패널·펫 상세·오프라인 보상 팝업 위로
+   +N 라벨이 뚫고 나왔다. z-정책 ③ 의 팝업 위 예외는 #reward-burst(70) 하나뿐이다.
+   6 = 장비 시트(5, 모루가 사는 층) 위 · 패널(8) 아래. 가림 생략은 ui.js coinBurst 가드가 맡고,
+   z 서열·가드는 probe-overlay-panel.js ⑤ 가 상시 단언한다. */
+#coin-burst { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
 .coin-fly {
     position: absolute; will-change: transform;
     animation: coinFlyX var(--dur, 780ms) linear var(--delay, 0ms) forwards;

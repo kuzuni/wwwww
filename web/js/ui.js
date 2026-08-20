@@ -3368,6 +3368,12 @@ const UI = {
         const btn = document.querySelector('.anvil-btn');
         const host = document.getElementById('app');
         if (!btn || !host) return; // 모루가 화면에 없으면(전체화면 시트 등) 조용히 생략
+        // 🚨 존재만 보면 안 된다 (coin-burst-over-modal, 2026-08-20 QA 실측): 패널·팝업이 모루를
+        //    덮고 있어도 그대로 그려서 연출이 소환 패널·펫 상세·오프라인 보상 위로 뚫고 나왔다.
+        //    열린 팝업(.modal)·탭 패널(.panel.open)이 있으면 모루가 가려진 상태다 — 위 의도
+        //    주석("조용히 생략")대로 소리까지 통째로 생략한다. z 강등(6)으로 어차피 안 보이는데
+        //    소리만 나는 반쪽 연출이 남는 걸 막는다. probe-overlay-panel.js ⑤ 가 이 가드를 단언한다.
+        if (document.querySelector('.modal:not(.hidden)') || document.querySelector('.panel.open')) return;
         const hb = host.getBoundingClientRect(), bb = btn.getBoundingClientRect();
         const ox = bb.left - hb.left + bb.width / 2, oy = bb.top - hb.top + bb.height * 0.4;
 
