@@ -794,7 +794,7 @@ const ProChar = {
         const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.176, 0.19, 0.1, 16), deepHide);
         belt.position.y = 0.05;
         belt.scale.z = 0.85;
-        const buckle = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), gold);
+        const buckle = Voxel.build(Voxel.gem(this.vr(0.04), 0xffffff), { size: this.VOX, material: goldVox, color: 0xd9a441, center: true, jitter: 0.04 }); // 🧊 금 버클 스터드 — 구 → 큐브 젬
         buckle.position.set(0, 0.05, 0.158); // 벨트 z 반경이 0.183×0.85≒0.156이므로 그 위에 얹힘 (벨트 축소 반영)
         buckle.scale.set(1.1, 0.9, 0.45);
         // 벨트에 매달리는 세로 스트랩 2줄 — 골반 앞면에 어두운 세로 분할선을 넣어 판금 덩어리를 끊는다
@@ -898,7 +898,7 @@ const ProChar = {
                 Voxel.taper(this.vr(0.062), this.vr(0.066), Math.max(1, Math.round(this.vr(0.024)))), steelVox);
             kneeLameDn.userData.part = 'kneeLame';
             kneeLameDn.position.y = -0.044;
-            const kneeRivet = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 5), gold);
+            const kneeRivet = Voxel.build(Voxel.box(1, 1, 1, 0xffffff), { size: 0.015, material: goldVox, color: 0xd9a441, center: true, jitter: 0 }); // 🧊 무릎 리벳 — 구 → 큐브
             kneeRivet.position.set(side * 0.052, 0.006, 0.012);
             // 무릎 개스킷 — 라메 2겹 사이로 드러나는 니어블랙 관절 슬리브. 접합부 벌어짐도 함께 가린다.
             const kneeGasket = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.056, 0.088, 12), deepGasket);
@@ -987,7 +987,7 @@ const ProChar = {
             // (probe-boot-profile 확정 형상) — 커프는 bootTop 윗단(−0.217) 바로 밑에 **추가**만 한다.
             const bootCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.0645, 0.0605, 0.018, 12), steel());
             bootCuff.position.y = -0.2265;
-            const cuffBuckle = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 5), gold);
+            const cuffBuckle = Voxel.build(Voxel.box(1, 1, 1, 0xffffff), { size: 0.013, material: goldVox, color: 0xd9a441, center: true, jitter: 0 }); // 🧊 부츠 커프 버클 — 구 → 큐브
             cuffBuckle.position.set(0, -0.2265, 0.060);
             // ㉢ 연장 후에도 **부츠 조형은 한 자도 건드리지 않는다** — 4꺾임 실루엣(발목·발등·발가락·굽)과
             // 평바닥 밑창은 `probe-boot-profile.js` 가 지키는 확정 형상이라, 좌표를 개별로 다시 계산하면
@@ -1234,7 +1234,7 @@ const ProChar = {
         capeG.rotation.x = 0.14;
         // 클래스프: 양어깨 금 원판 + 가슴을 가로지르는 가죽 스트랩
         for (const sx of [-1, 1]) {
-            const clasp = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), gold);
+            const clasp = Voxel.build(Voxel.gem(this.vr(0.035), 0xffffff), { size: this.VOX, material: goldVox, color: 0xd9a441, center: true, jitter: 0.04 }); // 🧊 어깨 클래스프 원판 — 구 → 큐브 젬
             clasp.position.set(sx * 0.13, 0.04, 0.02);
             clasp.scale.z = 0.5;
             capeG.add(clasp);
@@ -1395,7 +1395,7 @@ const ProChar = {
             couterWing.position.set(side * 0.036, -0.004, -0.004);
             couterWing.rotation.z = side * -1.35;
             couterWing.scale.set(1, 0.5, 1.1);
-            const couterRivet = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 5), gold);
+            const couterRivet = Voxel.build(Voxel.box(1, 1, 1, 0xffffff), { size: 0.013, material: goldVox, color: 0xd9a441, center: true, jitter: 0 }); // 🧊 쿠터 리벳 — 구 → 큐브
             couterRivet.position.set(side * 0.042, 0.004, 0.01);
             // 팔꿈치 개스킷 — 무릎과 같은 언어(니어블랙 관절 슬리브)
             const elbowGasket = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.044, 0.072, 12), deepGasket);

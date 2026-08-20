@@ -1,11 +1,11 @@
 {
  "note": "곡면 생성자 래칫 기준선 — probe-geo-ratchet.js 가 관리. 손으로 올리지 말 것(늘리면 그 프로브가 FAIL 낸다).",
- "total": 157,
+ "total": 152,
  "whitelisted": 4,
  "files": {
   "prochar.js": {
    "Cylinder": 24,
-   "Sphere": 11,
+   "Sphere": 6,
    "Torus": 3
   },
   "scene3d.js": {
