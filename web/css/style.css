@@ -4203,8 +4203,16 @@ h3.sellwarn-title, .rates-head h3,
     background: #ffe95c; border-radius: 50%;
 }
 .hatch-cone {
-    position: absolute; top: .7rem; left: 50%; transform: translateX(-50%);
-    width: calc(var(--app-w) * .1265); height: 5.4rem; pointer-events: none;   /* 원본 빛기둥 폭 12.65%W */
+    /* 시작 y — 종전 `.7rem` 은 **전구보다 위**여서 빛기둥이 전구 위에서부터 시작했다(원본은
+       전구에서 뻗어 나온다). 전구 상단(셀 기준 ≈20.3px)까지 내리면 warm 잉크 상단이 콘이 아니라
+       전구가 되어 원본과 같은 자리를 잰다(클론 68.27%H vs 원본 69.61/69.18%H). */
+    position: absolute; top: calc(.7rem + var(--app-h) * .018); left: 50%; transform: translateX(-50%);
+    /* 세로 길이 — 원본 두 컷의 콘 **하단**이 77.44%H(042356) · 77.05%H(042445) 인데 클론은
+       73.77%H 로 **−3.3~−3.7%p 짧았다**(빛기둥이 알을 다 덮지 못하고 중간에 끊겼다).
+       그라데이션이 warm 문턱 아래로 떨어지는 자리가 곧 보이는 끝이라 상자 높이와 1:1이 아니다 —
+       2점 보정(5.4rem→하단 658px · 8rem→693px, 기울기 13.46px/rem)으로 목표 689px 을 역산했다.
+       ⚠️ rem 은 `main.js fitLayout()` 이 앱 높이에 비례해 잡으므로(h/844*16) 앱 높이 비율로 써도 같다. */
+    width: calc(var(--app-w) * .1265); height: calc(var(--app-h) * .1234); pointer-events: none;   /* 원본 빛기둥 폭 12.65%W */
     background: linear-gradient(180deg, rgba(255,235,80,.9), rgba(255,235,80,.08));
     clip-path: polygon(38% 0, 62% 0, 100% 100%, 0 100%);
 }
