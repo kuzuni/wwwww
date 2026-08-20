@@ -39,6 +39,14 @@ const RULER_MIN = 300;     // 자 점검 하한: 디졸브 직전 시체가 이�
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
     let fail = 0;
     for (const kind of KINDS) {
+      // 🚨 컨텍스트 로스 재시도 루프 (2026-08-20 — '7종 연속 런에서만 wolf 가 자 0px' 플레이크의 뿌리).
+      //    swiftshader 는 연속 런 부하에서 WebGL 컨텍스트를 떨구는데, `Scene3D.renderFrame()` 은
+      //    ctxLost 면 **조용히 아무것도 안 그리고** 돌아온다(scene3d.js 렌더 가드). 그 상태로
+      //    `readRenderTargetPixels` 를 읽으면 전부 0 이라 커버리지 차분이 0 — 자(尺) 점검이
+      //    '시체가 화면에 없다'로 오독한다(단독 런 405px ↔ 연속 런 0px 가 그 증거였다).
+      //    측정이 끝난 뒤 컨텍스트 생사를 물어, 죽었으면 그 종만 새 페이지에서 **한 번** 다시 잰다 —
+      //    두 번 연속 죽거나 살아 있는 컨텍스트에서 실패하면 그건 진짜 FAIL 이다.
+      for (let attempt = 0; ; attempt++) {
         const page = await browser.newPage({ viewport: { width: 480, height: 854 }, deviceScaleFactor: 1 });
         const errors = [];
         page.on('pageerror', e => errors.push(String(e)));
@@ -146,14 +154,23 @@ const RULER_MIN = 300;     // 자 점검 하한: 디졸브 직전 시체가 이�
             const endOp = before.filter(b => !b.mt.userData.dissolveU)
                 .reduce((a, b) => Math.max(a, b.mt.opacity), 0);
             const endPx = coverage();
+            // 컨텍스트 생사 — 죽어 있으면 위의 모든 픽셀 읽기가 0 이라 이 측정 전체가 무효다(위 재시도 루프 주석).
+            const ctxLost = Scene3D.ctxLost || (() => {
+                try { const gl = rend.getContext(); return !gl || gl.isContextLost(); } catch (err2) { return true; }
+            })();
             return {
                 total: before.length, semi, hooked, clips: clips.length, sampled,
                 worst: +worst.toFixed(3), worstBase: +worstBase.toFixed(2),
-                endU: +endU.toFixed(3), endOp: +endOp.toFixed(3), endPx, ruler, box, W, H,
+                endU: +endU.toFixed(3), endOp: +endOp.toFixed(3), endPx, ruler, box, W, H, ctxLost,
             };
         }, DSV_END);
 
-        if (r.err) { console.log(`FAIL ${kind.padEnd(9)} ${r.err}`); fail++; await page.close(); continue; }
+        if (!r.err && r.ctxLost && attempt === 0) {
+            console.log(`RETRY ${kind.padEnd(9)} WebGL 컨텍스트 로스 감지 — 이 측정은 전부 0 읽기라 무효, 새 페이지에서 한 번 재측정`);
+            await page.close();
+            continue;
+        }
+        if (r.err) { console.log(`FAIL ${kind.padEnd(9)} ${r.err}`); fail++; await page.close(); break; }
         // 튐 허용치 0.02 — k 격자가 101칸이라 f 가 정확히 0 인 순간을 못 짚을 수 있어 미세 오차만 봐준다
         // 표본이 101 미만이면 클립을 못 몬 것이므로 그 자체가 실패다(공짜 PASS 방지)
         const cond = [
@@ -173,8 +190,11 @@ const RULER_MIN = 300;     // 자 점검 하한: 디졸브 직전 시체가 이�
             ` · 종료 uDis ${r.endU}/${DSV_END} · 비훅 opacity ${r.endOp} · 종료 커버리지 ${r.endPx}px(자 ${r.ruler}px)` +
             ` · 클립 ${r.clips}개 × 표본 ${r.sampled}컷` +
             (bad.length ? ` · 위반: ${bad.join(',')}` : '') +
-            (errors.length ? ' · CONSOLE ERRORS: ' + errors.join(' | ') : ''));
+            (errors.length ? ' · CONSOLE ERRORS: ' + errors.join(' | ') : '') +
+            (r.ctxLost ? ' · ⚠️ 재시도에서도 컨텍스트 로스(이 FAIL 은 부하 인프라일 수 있다)' : ''));
         await page.close();
+        break;
+      }
     }
     await browser.close();
     console.log(fail ? `\n${fail}종 FAIL` : '\n전 종 PASS');
