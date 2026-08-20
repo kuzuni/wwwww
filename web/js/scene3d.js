@@ -4550,33 +4550,30 @@ const Scene3D = {
                 //    ⑵ 끝이 **시위 선을 넘어 뒤로 젖혀진다**(리커브 팁). 그래서 실루엣이 반원이 아니라
                 //       가운데가 잘록한 활꼴 + 갈고리 두 개가 된다.
                 //    여기에 림 테이퍼(뿌리 굵고 끝 가늘게)까지 얹어야 '색칠한 괄호'에서 벗어난다.
-                const STR_X = -0.012, TIP_Y = 0.475;      // 시위 선 · 팁 높이
-                for (const s of [1, -1]) {                 // 위·아래 림 (대칭)
-                    const limb = this.taperedTube([
-                        [0.40, s * 0.055], [0.395, s * 0.165],  // 라이저 부근 — 거의 곧다(뻣뻣한 구간)
-                        [0.335, s * 0.295], [0.175, s * 0.375], // 휘는 구간
-                        [0.02, s * 0.395],                      // 시위 선을 **가로지른다**
-                        [-0.06, s * 0.425],                     // 시위 뒤로 넘어간 리커브 배
-                        [-0.02, s * TIP_Y],                     // 다시 앞으로 꺾여 시위에서 끝나는 팁
-                    ], 0.036, 0.013, mat, 22, 6);
-                    g.add(limb);
+                // 🧊 큐브 번역 (equip-voxelize ⓑ 4차): 매끈 튜브 림 → **계단 폴리라인 림**.
+                //    위 처방은 그대로 산다 — 라이저 쪽 거의 수직(뻣뻣) → 점점 큰 x 스텝(휨) →
+                //    시위 선(x칸 -1)을 넘는 배 → 앞으로 꺾이는 팁. 굵기도 뿌리 2칸 → 끝 1칸 테이퍼.
+                const mc = HEXOF(mat), dc2 = HEXOF(dark);
+                const v = [];
+                vbox(v, 12, 13, -4, 3, -1, 0, HEXOF(wood));    // 라이저(가죽 손잡이) — 림보다 먼저(겹친 칸은 가죽 색)
+                const LIMB = [   // [x0,x1,y0,y1] — 위 림(아래 림은 y 미러). 뿌리→팁 순서.
+                    [12, 13, 1, 5], [11, 12, 6, 8], [9, 11, 9, 10], [6, 8, 10, 11],
+                    [2, 5, 11, 12], [-2, 1, 12, 13],          // 시위 선을 가로지르는 배
+                    [-2, -1, 14, 15],                          // 리커브 배(시위 뒤)
+                    [-1, -1, 15, 16],                          // 앞으로 꺾인 팁(1칸 테이퍼)
+                ];
+                for (const [x0, x1, y0, y1] of LIMB) {
+                    vbox(v, x0, x1, y0, y1, -1, 0, mc);                   // 위 림
+                    vbox(v, x0, x1, -1 - y1, -1 - y0, -1, 0, mc);         // 아래 림(짝수 격자 미러)
                 }
-                // 시위는 **팁과 팁 사이**만 잇는다. 림이 시위 선을 넘었다 돌아오므로 바깥 윤곽에
-                // 노치가 생겨 반원+현(=D)으로 닫히지 않는다.
-                { const str = new THREE.Mesh(new THREE.BoxGeometry(0.012, TIP_Y * 2, 0.012), dark);
-                  str.position.x = STR_X; g.add(str); }
-                // 라이저(가죽 감은 손잡이)·화살 선반·뿔 노크 — 매끈한 호 하나는 '색칠한 괄호'로
-                // 읽혔다. 활 계열 전체(중세 활·메아리·망령·세라핌)에 공통으로 준다.
-                { const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.2, 8), wood);
-                  grip.position.x = 0.4; g.add(grip); }
+                v.push({ x: -1, y: 17, z: 0, c: dc2 }, { x: -1, y: 17, z: -1, c: dc2 },   // 뿔 노크
+                       { x: -1, y: -18, z: 0, c: dc2 }, { x: -1, y: -18, z: -1, c: dc2 });
+                vpart(v, mat);
+                // 시위는 **팁과 팁 사이**만 — 림이 시위 선을 넘었다 돌아오므로 D 로 안 닫힌다.
+                { const str = new THREE.Mesh(new THREE.BoxGeometry(0.012, 1.02, 0.012), dark);
+                  str.position.x = -0.012; g.add(str); }
                 { const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.042, 0.05), dark);
-                  shelf.position.set(0.355, 0.085, 0); g.add(shelf); }
-                for (const s of [1, -1]) {                 // 뿔 노크(시위 거는 홈) — 젖혀진 팁 끝에 붙인다
-                    const nock = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.075, 5), dark);
-                    nock.position.set(-0.016, s * (TIP_Y + 0.026), 0);
-                    nock.rotation.z = s > 0 ? -0.2 : Math.PI + 0.2;
-                    g.add(nock);
-                }
+                  shelf.position.set(0.355, 0.085, 0); g.add(shelf); }    // 화살 선반(원래 축정렬)
                 break;
             }
             case 'crossbow': {
@@ -4590,42 +4587,42 @@ const Scene3D = {
                 box(0.085, 0.44, 0.085, wood, 0, 0.26);                 // 틸러 앞부분(프로드·너트·볼트가 붙는 구간)
                 { const wrist = box(0.052, 0.17, 0.072, wood, 0, 0.005); wrist.rotation.x = 0.05; }  // 손목(그립) — 가장 잘록
                 { const comb = box(0.068, 0.10, 0.078, wood, 0, -0.115); comb.rotation.x = 0.12; }   // 콤(뺨 대는 등선)
-                { const butt = this.beveledSlab(0.148, 0.175, 0.105, 0.022, wood);                   // 개머리판 — 바깥으로 벌어진다
-                  butt.position.set(0, -0.245, 0.012); butt.rotation.x = 0.2; g.add(butt); }
+                { const butt = box(0.148, 0.175, 0.105, wood, 0, -0.245, 0.012); butt.rotation.x = 0.2; }  // 🧊 개머리판 — 베벨 슬랩 → 각판
                 { const plate = new THREE.Mesh(new THREE.BoxGeometry(0.152, 0.028, 0.112), dark);    // 개머리 끝 쇠판
                   plate.position.set(0, -0.325, 0.028); plate.rotation.x = 0.2; g.add(plate); }
-                // ⚠️ 프로드는 **납작해야** 한다 — r 0.33·스윕 0.72π 는 끝이 130° 말려 올라가
-                //    1차 채점 A 가 '사슴뿔 달린 지팡이'로 읽었다. 같은 폭(반현 0.298)을 유지한 채
-                //    r 0.486·스윕 0.42π 로 펴서 끝 들림을 0.19 → 0.10 으로 눌렀다(시위 좌표도 연동).
-                { const prod = new THREE.Mesh(new THREE.TorusGeometry(0.486, 0.036, 6, 18, Math.PI * 0.42), mat);
-                  prod.rotation.z = -Math.PI * 0.71;       // 호의 배가 뒤(-y), 양 끝이 앞(+y)으로 살짝 젖혀짐
-                  prod.position.y = 0.936; prod.scale.z = 0.5; g.add(prod); }
+                // 🧊 프로드 — 납작한 계단 활대 (equip-voxelize ⓑ 4차). '납작해야 한다'는 종전
+                //    결론 유지: 가운데가 낮고(y15) 끝이 살짝만 들리는(y18) 얕은 계단 호. 폭
+                //    (반현 ±10칸 ≈ 0.30)도 종전 그대로라 시위 좌표가 안 틀어진다.
+                const pv = [];
+                const pc2 = HEXOF(mat);
+                vbox(pv, -2, 1, 15, 16, -1, 0, pc2);         // 활대 중앙(결속 블록이 문다)
+                for (const s of [0, 1]) {                    // 좌·우 미러(짝수 격자: x → -x-1)
+                    const M = x => s ? -x - 1 : x;
+                    for (const [xa, xb, y0, y1] of [[2, 4, 15, 16], [5, 7, 16, 17], [8, 9, 17, 18]])
+                        for (let x = xa; x <= xb; x++) vbox(pv, M(x), M(x), y0, y1, -1, 0, pc2);
+                }
+                vpart(pv, mat);
                 { const lath = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.075, 0.1), dark);
                   lath.position.y = 0.45; g.add(lath); }   // 프로드를 무는 결속 블록 (활대가 허공에 뜨면 안 됨)
-                { const nut = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.07, 8), dark);
-                  nut.rotation.x = Math.PI / 2; nut.position.y = 0.2; g.add(nut); }
-                for (const sx of [-0.298, 0.298]) {        // 너트까지 당겨진 시위 두 가닥 (프로드 끝 y 0.552 → 너트 y 0.2)
-                    const str = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.461, 5), dark);
+                box(0.07, 0.07, 0.075, dark, 0, 0.2);      // 회전 너트 — 원통 → 큐브
+                for (const sx of [-0.298, 0.298]) {        // 너트까지 당겨진 시위 두 가닥 — 기울인 각재(로컬 축정렬)
+                    const str = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.461, 0.016), dark);
                     str.position.set(sx / 2, 0.376, 0);
                     str.rotation.z = -Math.atan2(sx, 0.352);
                     g.add(str);
                 }
-                { const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.34, 6), wood);
-                  bolt.position.set(0, 0.4, 0.055); g.add(bolt); }
-                { const bhead = new THREE.Mesh(new THREE.ConeGeometry(0.023, 0.07, 4), mat);
-                  bhead.position.set(0, 0.6, 0.055); g.add(bhead); }
-                // 방아쇠 + **방아쇠울** — 울(고리)은 석궁·총의 서명이다. 막대 하나만 두면 위에서
-                // 본 실루엣에 아무것도 안 남지만, 고리는 어느 각도에서도 뚫린 구멍으로 읽힌다.
+                box(0.024, 0.34, 0.024, wood, 0, 0.4, 0.055);   // 장전된 볼트 — 각재
+                box(0.048, 0.07, 0.048, mat, 0, 0.6, 0.055);    // 볼트 촉 큐브
+                // 방아쇠 + **방아쇠울** — 울은 석궁·총의 서명. 토러스 → ㄷ자 각재 프레임(기둥 2 + 아래 레일)
                 { const trig = box(0.022, 0.115, 0.03, dark, 0, 0.075, 0.062); trig.rotation.x = -0.34; }
-                { const guard = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.012, 6, 16, Math.PI * 1.15), dark);
-                  guard.position.set(0, 0.05, 0.085);
-                  guard.rotation.y = Math.PI / 2;      // 고리 평면이 틸러를 따라 선다(옆에서 보면 U자)
-                  guard.rotation.x = Math.PI * 0.52;
-                  g.add(guard); }
-                // 등자는 **틸러 앞끝에 물려** 앞으로 뻗어야 발을 거는 고리로 읽힌다 —
-                // xy 평면에 세워 두면 프로드와 같은 방향이라 '뿔 하나 더'가 된다(실측).
-                { const stirrup = new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.014, 6, 14), mat);
-                  stirrup.rotation.x = Math.PI / 2; stirrup.position.set(0, 0.5, 0.13); g.add(stirrup); }
+                box(0.016, 0.016, 0.06, dark, 0, 0.115, 0.1);
+                box(0.016, 0.016, 0.06, dark, 0, -0.012, 0.1);
+                box(0.016, 0.143, 0.016, dark, 0, 0.052, 0.125);
+                // 등자 — **틸러 앞끝에 물려 앞으로** 뻗는 발걸이. 토러스 → xz 평면 정사각 프레임
+                for (const [w, d, px, pz] of [[0.12, 0.016, 0, 0.195], [0.12, 0.016, 0, 0.075], [0.016, 0.14, -0.06, 0.135], [0.016, 0.14, 0.06, 0.135]]) {
+                    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, 0.016, d), mat);
+                    bar.position.set(px, 0.5, pz); g.add(bar);
+                }
                 break;
             }
             case 'gun':
@@ -4814,19 +4811,19 @@ const Scene3D = {
                             rail.position.set(rx, 0.5, 0); g.add(rail);
                         }
                     } else {
-                        for (let i = 0; i < 3; i++) {
-                            const coil = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.013, 5, 12), bladeMat);
-                            coil.rotation.x = Math.PI / 2; coil.position.y = 0.34 + i * 0.13;
+                        for (let i = 0; i < 3; i++) {   // 🧊 발광 코일 — 토러스 → 정사각 칼라 판
+                            const coil = new THREE.Mesh(new THREE.BoxGeometry(0.104, 0.026, 0.104), bladeMat);
+                            coil.position.y = 0.34 + i * 0.13;
                             g.add(coil);
                         }
                     }
                     { const cell = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.05), bladeMat); cell.position.set(0, 0.08, 0.085); g.add(cell); } // 에너지 셀
                 } else if (matKind === 'blackpowder') {
                     // 머스킷: 꽂을대 + 총열 밴드 + 부싯돌 기관 — 현대 화기와 확실히 구분되는 구식 부속
-                    { const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.56, 5), mat); rod.position.set(0, 0.44, 0.05); g.add(rod); }
-                    for (const by of [0.3, 0.52]) {
-                        const band = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.009, 5, 10), mat);
-                        band.rotation.x = Math.PI / 2; band.position.y = by; g.add(band);
+                    box(0.016, 0.56, 0.016, mat, 0, 0.44, 0.05);   // 🧊 꽂을대 — 원통 → 각재
+                    for (const by of [0.3, 0.52]) {                // 🧊 총열 밴드 — 토러스 → 정사각 판
+                        const band = new THREE.Mesh(new THREE.BoxGeometry(0.096, 0.018, 0.096), mat);
+                        band.position.y = by; g.add(band);
                     }
                     { const lock = box(0.03, 0.09, 0.05, mat, 0, 0.12, -0.06); lock.rotation.x = -0.35; }  // 부싯돌 공이
                 }
@@ -4838,26 +4835,31 @@ const Scene3D = {
                 box(0.09, 0.22, 0.095, mat, 0, 0.1);            // 리시버
                 { const magz = box(0.05, 0.2, 0.07, dark, 0, -0.06, 0.02); magz.rotation.x = -0.12; }  // 탄창
                 box(0.05, 0.11, 0.07, wood, 0, -0.02, -0.03);   // 그립
-                { const stock = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 5, 10, Math.PI), dark);
-                  stock.rotation.y = Math.PI / 2; stock.position.set(0, -0.08, -0.09); g.add(stock); } // 접이식 개머리
+                // 🧊 접이식 개머리 — 반토러스 → ㄷ자 각재 프레임(기둥 2 + 뒤 레일)
+                box(0.024, 0.024, 0.09, dark, 0, -0.03, -0.11);
+                box(0.024, 0.024, 0.09, dark, 0, -0.13, -0.11);
+                box(0.024, 0.124, 0.024, dark, 0, -0.08, -0.145);
                 break;
             }
             case 'cannon': {
-                // 캐논/발사기: 굵은 포신 + 어깨 견착부 + 에너지 셀 (라이플보다 확연히 굵게)
-                cyl(0.11, 0.13, 0.62, mat, 0, 0.36);            // 포신
-                { const muzzle = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.028, 6, 14), dark);
-                  muzzle.rotation.x = Math.PI / 2; muzzle.position.y = 0.66; g.add(muzzle); }  // 포구 링
-                { const bore = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.06, 10), bladeMat);
-                  bore.position.y = 0.68; g.add(bore); }        // 발광 포구
-                box(0.13, 0.24, 0.14, dark, 0, 0.06);           // 몸체
-                { const cell = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.18, 8), bladeMat);
-                  cell.rotation.z = Math.PI / 2; cell.position.set(0, 0.1, 0.11); g.add(cell); }  // 에너지 셀
+                // 🧊 캐논/발사기 — 포신을 각기둥 계단으로 (equip-voxelize ⓑ 4차). 굵기 위계
+                //    (라이플보다 확연히 굵게)는 그대로 — 몸통 8칸 각포신 + 포구 확장단.
+                box(0.22, 0.5, 0.22, mat, 0, 0.3);              // 각포신(아래 굵은 단)
+                box(0.19, 0.16, 0.19, mat, 0, 0.6);             // 포신 윗단(계단 테이퍼)
+                box(0.27, 0.055, 0.27, dark, 0, 0.66);          // 포구 링 → 각플랜지 판
+                box(0.16, 0.06, 0.16, bladeMat, 0, 0.69);       // 발광 포구 각단
+                box(0.13, 0.24, 0.14, dark, 0, 0.06, 0.06);     // 몸체
+                box(0.11, 0.11, 0.15, bladeMat, 0, 0.1, 0.13);  // 에너지 셀 — 원통 → 발광 큐브
                 box(0.06, 0.13, 0.08, wood, 0, -0.08, 0.02);    // 그립
                 { const pad = box(0.1, 0.14, 0.1, dark, 0, -0.12, -0.06); pad.rotation.x = 0.2; }  // 견착 패드
                 break;
             }
-            default: // 무기 없음 → 나무 몽둥이
-                cyl(0.045, 0.06, 0.5, wood, 0, 0.22);
+            default: { // 무기 없음 → 나무 몽둥이 (🧊 큐브 기둥)
+                const v = [];
+                vbox(v, -1, 0, -3, 8, -1, 0, HEXOF(wood));
+                vbox(v, -2, 1, 9, 13, -2, 1, HEXOF(wood));
+                vpart(v, wood);
+            }
         }
         // ── 천상: 십자가 + 후광 (사용자 지시 2026-08-19 "천상→진짜 천상 같아야 함 — 예: 예수 머리·십자가") ──
         // 금색 재질만으로는 '노랗게 칠한 강철'이라 시대가 색으로만 읽혔다. 정체성을 **형태**로 준다:
@@ -4868,16 +4870,20 @@ const Scene3D = {
             const cross = new THREE.Group();
             { const v = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.2, 0.026), mat); cross.add(v);
               const h = new THREE.Mesh(new THREE.BoxGeometry(0.125, 0.034, 0.026), mat); h.position.y = 0.045; cross.add(h);
-              const gem = new THREE.Mesh(new THREE.SphereGeometry(0.019, 8, 6), holyLit);
+              const gem = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.032, 0.032), holyLit);   // 🧊 성흔 보석 큐브
               gem.position.set(0, 0.045, 0.022); cross.add(gem); }
             cross.position.set(0, 0.05, -0.055);
             g.add(cross);
             // 후광은 무기 실높이에 맞춰 머리 뒤에 — 고정 y 로 두면 짧은 무기에서 허공에 뜬다
             // (에너지 링이 예전에 밟은 함정과 같은 자리).
+            // 🧊 토러스 → 정사각 각재 프레임 (equip-voxelize ⓑ 4차) — 방사 광선 8개와 합쳐
+            //    성상화의 '각진 후광'으로 읽힌다.
             const wTop = new THREE.Box3().setFromObject(g).max.y;
             const haloY = Math.min(0.88, Math.max(0.34, wTop * 0.8));
-            const halo = new THREE.Mesh(new THREE.TorusGeometry(0.155, 0.017, 6, 24), holyLit);
-            halo.position.set(0, haloY, -0.07); g.add(halo);
+            for (const [w, h2, px, py] of [[0.34, 0.034, 0, 0.155], [0.34, 0.034, 0, -0.155], [0.034, 0.276, 0.155, 0], [0.034, 0.276, -0.155, 0]]) {
+                const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h2, 0.034), holyLit);
+                bar.position.set(px, haloY + py, -0.07); g.add(bar);
+            }
             for (let i = 0; i < 8; i++) {   // 성상화의 방사 광선
                 const a = i * Math.PI / 4;
                 const ray = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.075, 0.011), holyLit);
@@ -4895,11 +4901,14 @@ const Scene3D = {
             strip.position.set(0.03, 0.38, 0.02);
             g.add(strip);
         } else if (ageIdx >= 7) { // 멀티버스 이후: 에너지 링 — 무기 실높이에 맞춰 자루에 감김 (짧은 무기에서 허공 부유 금지, 비평가 지적)
+            // 🧊 토러스 → 정사각 각재 프레임 (equip-voxelize ⓑ 4차)
             const wTop = new THREE.Box3().setFromObject(g).max.y;
-            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.015, 6, 14),
-                new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 1 }));
-            ring.position.y = Math.min(0.72, wTop * 0.62);
-            g.add(ring);
+            const ringY = Math.min(0.72, wTop * 0.62);
+            const eMat = new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 1 });
+            for (const [w, d, px, pz] of [[0.2, 0.03, 0, 0.09], [0.2, 0.03, 0, -0.09], [0.03, 0.15, 0.09, 0], [0.03, 0.15, -0.09, 0]]) {
+                const bar = new THREE.Mesh(new THREE.BoxGeometry(w, 0.03, d), eMat);
+                bar.position.set(px, ringY, pz); g.add(bar);
+            }
             mat.emissiveIntensity = 0.7;
         }
         // 등급 연출: 높을수록 화려하게
