@@ -69,6 +69,7 @@ const Scene3D = {
     //       ch1 중경 점유 7.45 → **7.69%**, 큰 요소 7.9 → **11.3개**(전 챕터 통과).
     //    즉 하늘과 지면은 피치에서는 서로를 잡아먹고, FOV 에서는 같이 는다. 비용은 영웅이 화면에서
     //    작아지는 것뿐이다(높이 29.4% → 22.8%). **화면 중심 y 0.49 는 그대로**라 구도 앵커는 안 흔들린다.
+    SKY_LOBE: 1,       // 태양 산란 로브 세기(A/B 훅 — `probe-sky-lobe` 가 0 으로 두고 차분을 잰다)
     CAM_POS: [0.15, 3.7, 8.2],
     CAM_LOOK_Y: 0.9,
     CAM_FOV: 62,       // 세로 half-FOV 31° − 피치 18.9° → 가시 하늘 12.15°(종전 6.15°)
@@ -851,7 +852,9 @@ const Scene3D = {
 
     // ---- 하늘: 정점색 그라디언트 돔(천정→지평선), 챕터 테마 색으로 다시 칠할 수 있음 ----
     buildSky() {
-        const geo = new THREE.SphereGeometry(70, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.62);
+        // 세그먼트 72×36 — 정점색 보간이라 산란 로브(`paintSky`)의 해상도가 곧 이 분할이다.
+        // 24×16 에서는 로브가 각진 삼각형 얼룩으로 보인다. 2592정점은 1회 빌드라 비용이 무의미하다.
+        const geo = new THREE.SphereGeometry(70, 72, 36, 0, Math.PI * 2, 0, Math.PI * 0.62);
         const colors = new Float32Array(geo.attributes.position.count * 3);
         geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false });
@@ -996,12 +999,38 @@ const Scene3D = {
         const yTop = this.CAM_POS[1] + R * Math.sin(this.skyBandDeg() * Math.PI / 180);
         const kH = (yHorizon - minY) / span, kT = (yTop - minY) / span;
         const GLOW = 0.22;                                             // 대역 아래 22% = 지평선 글로우 띠
+        // ---- 태양(달) 산란 로브 ----
+        // 🚨 **로브는 광원 벡터(`SUN_DAY`)가 아니라 '그려진 원반' 방향에 건다.** 광원은 고도 48° 인데
+        //    가시 대역은 12.15° 뿐이라, 광원 방향으로 걸면 로브 중심이 통째로 프레임 위로 나간다 —
+        //    그게 2026-08-19(16) 이 로브를 넣고도 "사막·용암 변화 화소 0.00%" 를 본 이유의 절반이다
+        //    (나머지 절반인 '방위가 카메라 뒤'는 `SUN_DAY` 를 −z 로 돌려 해결했다).
+        //    원반은 `skyAnchor` 로 대역 안(고도 ≈6°)에 걸려 있으니 **보이는 해 둘레**에 산란이 앉는다.
+        // 넓은 lobe(pow 6) = 하늘 전반의 따뜻한 기울기 · 좁은 lobe(pow 40) = 해 주변 광휘.
+        const eye = new THREE.Vector3(0, this.CAM_POS[1], 0);
+        const sunDir = (night
+            ? this.skyAnchor(0.5, 38, [this.SUN_NIGHT[0], this.SUN_NIGHT[2]])
+            : this.skyAnchor(0.5, 38)).clone().sub(eye).normalize();
+        // 산란색: 낮은 해 쪽 난색, 밤은 달 쪽 창백한 한색. 지평선색에서 파생해 바이옴 팔레트를 안 벗어난다.
+        const scatter = horizon.clone().offsetHSL(night ? -0.02 : -0.045, night ? 0.05 : 0.30, night ? 0.06 : 0.10);
+        // `SKY_LOBE` 는 A/B 훅이다(`probe-sky-lobe` 가 0 으로 두고 다시 칠해 차분을 잰다).
+        // 2026-08-19(16) 의 로브 판이 "변화 화소 0.00%" 로 죽은 전례가 있어, 이 연출만은
+        // **켰다 껐다 해서 화면이 실제로 달라지는지** 재는 자를 같이 둔다.
+        const LB = this.SKY_LOBE === undefined ? 1 : this.SKY_LOBE;
+        const W_WIDE = (night ? 0.10 : 0.26) * LB, W_TIGHT = (night ? 0.16 : 0.40) * LB;
+        const v = new THREE.Vector3();
         for (let i = 0; i < pos.count; i++) {
             const k = U.clamp((pos.getY(i) - minY) / span, 0, 1);
             const u = (k - kH) / Math.max(0.001, kT - kH);             // 0=지평선, 1=프레임 위끝
             if (u < 0) tmp.copy(glow);                                 // 지평선 아래 — 지형·안개에 가림
             else if (u < GLOW) tmp.copy(glow).lerp(horizon, u / GLOW);
             else tmp.copy(horizon).lerp(zenith, Math.pow(U.clamp((u - GLOW) / (1 - GLOW), 0, 1), 0.6));
+            if (u >= 0) {
+                v.set(pos.getX(i), pos.getY(i), pos.getZ(i)).sub(eye).normalize();
+                const c = Math.max(0, v.dot(sunDir));
+                const c2 = c * c, c6 = c2 * c2 * c2;
+                const lobe = U.clamp(c6 * W_WIDE + Math.pow(c2, 20) * W_TIGHT, 0, 1);
+                if (lobe > 0.001) tmp.lerp(scatter, lobe);
+            }
             col.setXYZ(i, tmp.r, tmp.g, tmp.b);
         }
         col.needsUpdate = true;
