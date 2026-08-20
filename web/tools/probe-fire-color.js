@@ -57,9 +57,15 @@ const STEP_MS = 30, N = 30;          // 0~870ms — 화염 기둥이 다 서는 
         const origPillar = Scene3D.firePillar.bind(Scene3D);
         Scene3D.firePillar = function (pos, color, tier) {
             const before = new Set(Scene3D.scene.children);
-            // 음성 대조: 불꽃 색을 흰색으로 눌러, 이 자가 '흰 덩어리'를 잡아내는지 본다.
+            // 음성 대조: 불꽃을 흰색으로 눌러, 이 자가 '흰 덩어리'를 잡아내는지 본다.
+            // ⚠️ 복셀 화염(2026-08-20)은 층 색이 상수라 색 인자로는 흰 불꽃이 안 만들어진다(백색
+            //    내성) — 전용 레버 FIREPILLAR_WHITE 로 층 색 자체를 민다.
+            if (SELFTEST) Scene3D.FIREPILLAR_WHITE = true;
             const r = origPillar(pos, SELFTEST ? new THREE.Color(0xffffff) : color, tier);
-            for (const c of Scene3D.scene.children) if (!before.has(c)) pillars.push(c);
+            // ⚠️ **Group 만 쥔다** — firePillar 는 호출 중에 불티(riseParticle, 씬 직속 Mesh)도 뿌리는데
+            //    그것까지 차분에 걸리면 '불기둥만 잰다'는 이 자의 전제가 깨진다. 실측: 기둥이 다
+            //    꺼진 810~870ms 에 불티 잔재만 남아 R−B 0.03 회색으로 재였다(기둥 결함이 아닌 FAIL).
+            for (const c of Scene3D.scene.children) if (!before.has(c) && c.isGroup) pillars.push(c);
             return r;
         };
 

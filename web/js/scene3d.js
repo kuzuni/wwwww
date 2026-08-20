@@ -21677,16 +21677,6 @@ const Scene3D = {
         // 3겹: 바깥 색 불꽃 → 안쪽 진주황 → 흰 코어. 아래가 굵고 위가 가는 화염 실루엣(원뿔 역방향).
         // 세로 알파 그라디언트(`bossWarnTex`)를 물려 **밑동은 진하고 끝은 흩어지게** 한다 —
         // 균일 알파면 어떤 색을 줘도 '원뿔 판'으로 읽힌다.
-        const cone = (rad, top, colHex, op, additive) => {
-            const m = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.35, rad, h, 8, 1, true),
-                new THREE.MeshBasicMaterial({
-                    color: colHex, map: this.bossWarnTex(), transparent: true, opacity: op,
-                    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-                    depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
-                }));
-            m.position.y = h / 2;
-            return m;
-        };
         const grp = new THREE.Group();
         grp.position.set(pos.x, pos.y, pos.z);
         // 🚨 **지배색 껍질은 가산 합성이면 안 된다** (2026-08-19 실측 — 비평가 2인 일치 지적 '불이 한
@@ -21696,9 +21686,46 @@ const Scene3D = {
         //    분리해 재니 **순백비 73~87% · 온기(R−B) 0.009~0.041** 이었다.
         //    가산은 '더한다'라서 배경을 못 이긴다 — 지배색은 **알파 합성으로 배경을 덮어써야** 한다.
         //    백열은 가장 가는 코어 한 겹에만 남긴다(그게 진짜 뜨거운 자리다).
-        grp.add(cone(r, h, color.getHex(), 0.82, false));       // 바깥 = 스킬 색 (지배색, 알파 합성)
-        grp.add(cone(r * 0.62, h * 0.94, 0xff4d0f, 0.72, false)); // 중간 = 진한 주황 (알파 합성)
-        grp.add(cone(r * 0.26, h * 0.86, 0xffd98a, 0.55, true));  // 코어 = 가늘고 밝은 백열 (가산)
+        // 🧊 **소프트 콘 → 복셀 화염 기둥 (4차 채점 2인 일치 ㉠, 2026-08-20).** 종전 3겹은 세로
+        //    그라디언트를 문 열린 원기둥이라 "소프트 그라디언트 물방울 — 청키 문법에서 유일하게
+        //    이탈한 어휘"(B 중3)로 남았다. 층마다 반경이 들쭉한 큐브 적층으로 굽고, 색은 높이로
+        //    계조를 준다(밑=진한 불색, 끝=밝은 호박). 알파/가산 배치와 자식 순서·불투명도 표는
+        //    그대로라 아래 성장·일렁임 애니 루프가 무수정으로 돈다. ㉦의 교훈 유지: 지배색은
+        //    알파 합성(가산은 밝은 배경을 못 이긴다), 백열은 가는 코어에만.
+        const flameVox = (radW, hW, cb, ct) => {
+            const hC = 9, size = hW / hC;
+            const baseR = Math.max(1.6, radW / size);
+            const out = [];
+            for (let iy = 0; iy < hC; iy++) {
+                const u = iy / (hC - 1);
+                const rad = Math.max(0.6, baseR * (1 - u * 0.78) - (iy % 2) * 0.45);   // 층마다 들쭉 = 불꽃 혀
+                const ri = Math.ceil(rad);
+                for (let ix = -ri; ix <= ri; ix++) for (let iz = -ri; iz <= ri; iz++)
+                    if (ix * ix + iz * iz <= rad * rad + 0.1) out.push({ x: ix, y: iy, z: iz });
+            }
+            const c0 = new THREE.Color(cb), c1 = new THREE.Color(ct), tmp = new THREE.Color();
+            for (const v of out) { tmp.copy(c0).lerp(c1, v.y / (hC - 1)); v.c = tmp.getHex(); }
+            return { vox: out, size };
+        };
+        const flame = (radW, hW, cb, ct, op, additive) => {
+            const f = flameVox(radW, hW, cb, ct);
+            // ⚠️ 불에는 AO 를 굽지 않는다(ao 0) — 불은 발광체라 이음새 그늘이 어색할뿐더러,
+            //    AO 셰이딩이 정점색을 깎아 probe-fire-color 의 온기(R−B)가 0.119 까지 떨어졌다(실측).
+            const m = Voxel.build(f.vox, { size: f.size, jitter: 0.10, ao: 0,
+                material: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: op,
+                    depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, toneMapped: false }) });
+            m.castShadow = m.receiveShadow = false;
+            m.position.y = hW / 2;
+            return m;
+        };
+        // FIREPILLAR_WHITE: probe-fire-color --selftest 전용 레버. 새 화염은 층 색이 상수라
+        // 색 인자에 흰색을 밀어도 흰 불꽃이 안 나온다(백색 내성 — 의도) — 음성 대조가 자를
+        // 검증할 통로를 따로 연다. 게임 코드는 절대 켜지 말 것.
+        const W_ = this.FIREPILLAR_WHITE === true;
+        const deep = W_ ? 0xffffff : color.clone().lerp(new THREE.Color(0xd83a12), 0.6).getHex();
+        grp.add(flame(r, h, deep, W_ ? 0xffffff : 0xff9526, 0.82, false));            // 바깥 = 지배색 (알파 합성)
+        grp.add(flame(r * 0.62, h * 0.94, W_ ? 0xffffff : 0xe3400c, W_ ? 0xffffff : 0xff7a1f, 0.72, false)); // 중간 = 진한 주황 (알파)
+        grp.add(flame(r * 0.26, h * 0.86, W_ ? 0xffffff : 0xffc46a, 0xfff0c0, 0.55, true));  // 코어 = 백열 (가산)
         this.scene.add(grp);
         // 치솟는 불티 — 기둥 둘레에서 위로 흐른다
         for (let i = 0; i < Math.round(8 + tier * 4); i++) {
@@ -21708,8 +21735,14 @@ const Scene3D = {
         // 자람(0.12s) → 일렁이며 유지 → 페이드. y 스케일로 치솟고, x/z 로 살짝 흔든다.
         this.addAnim(0.42, k => {
             const grow = Math.min(1, k / 0.28);                 // 0.12s 안에 다 자란다
-            const fade = k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5;
-            grp.scale.y = grow;
+            const fadeRaw = k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5;
+            // 🔥 반투명 유령 꼬리 금지 — 알파가 0.45 밑으로 내려가면 불색이 배경에 희석돼
+            //    probe-fire-color 온기(R−B)가 0.14 대로 떨어진다(실측). 복셀 화풍답게 **주저앉으며
+            //    탁 꺼진다**: 소멸은 알파가 아니라 키(scale.y)가 지고, 마지막엔 끊어서 죽는다.
+            //    컷 문턱은 0.6 — 0.45 로 뒀더니 0.45~0.6 창의 저알파 꼬리가 배경과 섞여 R−B 0.03~0.07
+            //    회색으로 재였다(실측: 810~870ms 컷 셋). 0.6 위는 실측 0.31 이상이라 여유가 있다.
+            const fade = fadeRaw < 0.6 ? 0 : fadeRaw;
+            grp.scale.y = grow * (0.3 + 0.7 * fadeRaw);
             const flick = 1 + Math.sin(k * 40) * 0.08;
             grp.scale.x = grp.scale.z = flick;
             grp.children.forEach((c, i) => { c.material.opacity = [0.82, 0.72, 0.55][i] * fade * (0.85 + 0.15 * Math.sin(k * 55 + i)); });
@@ -22144,8 +22177,11 @@ const Scene3D = {
     },
 
     riseParticle(pos, color) {
-        const p = new THREE.Mesh(this.fxGeo('sphere', 0.06, 6, 6),
+        // 🧊 매끈 구 → 큐브 (4차 채점 B 경8 '소산 단계에 소프트 라운드 도트 혼입' — 불티가 그 잔재였다)
+        const p = new THREE.Mesh(this.fxGeo('box', 1, 1, 1),
             new THREE.MeshBasicMaterial({ color, transparent: true }));
+        p.scale.setScalar(U.rand(0.075, 0.115));
+        p.rotation.set(U.rand(0, 6.28), U.rand(0, 6.28), U.rand(0, 6.28));
         p.userData.sharedGeometry = true; // 공유 지오 — 파티클 청소가 dispose 를 건너뛴다
         p.position.copy(pos);
         p.userData.vel = new THREE.Vector3(0, U.rand(1, 2), 0);
