@@ -1326,11 +1326,16 @@ const Scene3D = {
         },
         // --- desert 계열 ---
         salt: { // 14 소금 사막 — 갈라진 염판. 사막 리플 위에 채도를 완전히 뽑아 흰 평원으로
+            // 🎨 순백 강조 → 한색 얼음빛 (map-palette-unify 5차 — B ⑷ 'ch14 탈색 화이트아웃, 그림자에
+            //    한색 틴트'). 종전 accent `0xffffff` 순백이 이미 near-white 인 염판 위에 **날린 하이라이트**를
+            //    얹어 화이트아웃을 키웠다. 소금 결정 하이라이트를 **한색 얼음빛 `0xc8dcec`**로 바꿔,
+            //    순백 공백 대신 푸른 기가 도는 결정으로 읽히게(B 가 짚은 '한색 틴트'를 강조에 실는다).
+            //    지면·명도 구조는 무접촉 — near-white 밝기는 유지하되 색 온도만 한색으로.
             kin: 'desert', tint: [0, -0.62, 0.08], ridge: 'mesa',
             props: { p: [['makeSlab', 1.15], ['makeStrata', 1.0]], r: [['makeSlab', 0.7], ['makeBoulder', 0.6]] },
             mid: [['makeStrata', 2.2], ['makeStrata', 1.9], ['makeBones', 1.1], ['makeSlab', 1.6]],
             scatter: { geo: 'slabchip', r: 0.06, color: 0xdfe3e6, n: 200, flat: true, tint: 0.07 },
-            accent: { geo: 'cone', r: 0.03, color: 0xffffff, n: 46, basic: true },
+            accent: { geo: 'cone', r: 0.03, color: 0xc8dcec, n: 46, basic: true },
             stone: 0xd6d9da,
         },
         canyon: { // 15 붉은 협곡 — 사암 지층 첨탑. 사막 리플을 붉게 물들이고 메사를 크게 세웠다
