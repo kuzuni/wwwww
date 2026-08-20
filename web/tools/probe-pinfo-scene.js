@@ -154,6 +154,35 @@ const say = (ok, msg) => { if (!ok) fails++; console.log(`${ok ? 'OK  ' : 'FAIL'
     say(Math.max.apply(null, dl) <= 0.02, `⑽ 프리뷰↔본편 잎 ΔL ${dl.map(d => d.toFixed(4)).join(' ')} (≤0.02) · 본편 ${leafChk.live.map(c => c.hex).join(' ')}`);
     say(leafChk.bush.d <= 0.02, `⑽ 덤불도 같은 바닥값 — 프리뷰 ${leafChk.bush.pv} ↔ 본편 ${leafChk.bush.live} ΔL ${leafChk.bush.d.toFixed(4)}`);
 
+    // ⑾ **프리뷰 영웅이 검은 실루엣이 아닌가 (slug: pinfo-preview-hero-black).**
+    //    ⑽ 과 같은 '두 벌' 병의 재발 — 환경맵(PMREM)이 본편(scene)·썸네일(_thumbScene)에만 있고
+    //    _pvScene 에 없어서, MeshStandardMaterial 인 영웅만 IBL 의존분이 빠져 근흑으로 찍혔다.
+    //    ㉠ 씬 객체 직독: _pvScene.environment non-null (원인 축).
+    //    ㉡ 화소 실측: 영웅이 서는 중앙 상자에서 밝은 화소(크림색 머리·피부톤)가 실제로 보이는가 (증상 축).
+    //       ⚠️ toDataURL 되읽기 금지(⑽ 경고) — 위에서 이미 뜬 page.screenshot() 산 shot 을 재사용한다.
+    //       A/B 실측(2026-08-20): bake 를 빼면 2.89%(상자에 걸친 웜톤 바위·지면이 바닥을 만든다),
+    //       넣으면 12.56% — 기준은 그 사이 6%(양쪽 여유 ≈2배). 순수 0% 를 기대하지 말 것.
+    const heroChk = await page.evaluate(async (src) => {
+        const env = !!(Scene3D._pvScene && Scene3D._pvScene.environment);
+        const im = await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; });
+        const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+        const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+        // 영웅 상자: 카메라가 (0.05,0.92) 를 보고 영웅이 화면 중앙에 서므로 가로 중앙 22%, 세로 30~78%
+        const x0 = Math.round(c.width * 0.39), x1 = Math.round(c.width * 0.61);
+        const y0 = Math.round(c.height * 0.30), y1 = Math.round(c.height * 0.78);
+        const d = x.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+        let bright = 0, n = 0;
+        for (let i = 0; i < d.length; i += 4) {
+            const l = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+            const g = d[i + 1], warm = d[i] > g - 8 && g > d[i + 2] - 8; // 웜톤(머리·피부·가죽) — 초록 배경 배제
+            if (l > 0.45 && warm) bright++;
+            n++;
+        }
+        return { env, brightPct: +(bright / n * 100).toFixed(2), n };
+    }, 'data:image/png;base64,' + shot.toString('base64'));
+    say(heroChk.env, '⑾ _pvScene.environment(PMREM)가 있다 — 없으면 영웅(MeshStandard)만 IBL 없이 근흑');
+    say(heroChk.brightPct >= 6, `⑾ 영웅 상자에 밝은 웜톤 화소 ${heroChk.brightPct}% (기준 ≥6% — 실루엣이면 ~2.9%, 정상 ~12.6%)`);
+
     say(errors.length === 0, `⑼ 콘솔 에러 ${errors.length}건${errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''}`);
     await browser.close();
     console.log(fails ? `\n실패 ${fails}건` : '\n전부 통과');

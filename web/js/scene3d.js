@@ -252,10 +252,19 @@ const Scene3D = {
     //    스스로 재업로드하지만, 이건 렌더 타깃에서 구운 결과물이라 원본이 없다 — 안 구우면 금속이
     //    반사할 세상이 검정으로 남는다(복구는 됐는데 갑옷만 새까만 그림).
     bakeEnvironment() {
-        if (!this.renderer || !this.scene) return;
+        if (!this.renderer) return;
+        this.bakeEnvFor(this.renderer, this.scene);
+    },
+
+    // 보조 GL 컨텍스트(장비 썸네일·플레이어 정보 프리뷰)는 본편의 PMREM 텍스처를 공유할 수 없다 —
+    // 렌더러마다 자체 PMREM 을 굽는다. 🚨 씬을 새로 만들거나 렌더러를 갈아 끼울 때마다 부를 것:
+    // 한 벌이라도 빠지면 그 씬의 MeshStandardMaterial 만 IBL 없이 근흑으로 찍힌다
+    // (pinfo-preview-leaf-black 의 '두 벌' 병과 같은 계열 — pinfo-preview-hero-black 이 이 경로였다).
+    bakeEnvFor(renderer, scene) {
+        if (!renderer || !scene) return;
         try {
-            const pmrem = new THREE.PMREMGenerator(this.renderer);
-            this.scene.environment = pmrem.fromCubemap(ProChar.envMap()).texture;
+            const pmrem = new THREE.PMREMGenerator(renderer);
+            scene.environment = pmrem.fromCubemap(ProChar.envMap()).texture;
             pmrem.dispose();
         } catch (e) { /* PMREM 실패 시 라이트만으로 렌더 (구형 기기 폴백) */ }
     },
@@ -9891,11 +9900,7 @@ const Scene3D = {
         this._thumbRim.position.set(-2.2, 1.6, -2.6);
         // 썸네일 렌더러는 별도 GL 컨텍스트 — 메인 씬의 PMREM 텍스처 공유 불가.
         // 자체 PMREM 환경 필수: 없으면 고금속 PBR 재질(무기 날 등)이 반사할 게 없어 검게 찍힘.
-        try {
-            const pm = new THREE.PMREMGenerator(this._thumbR);
-            this._thumbScene.environment = pm.fromCubemap(ProChar.envMap()).texture;
-            pm.dispose();
-        } catch (e) { /* 폴백: 라이트만 */ }
+        this.bakeEnvFor(this._thumbR, this._thumbScene);
         this.itemThumbResetCam();
     },
     // 장비 썸네일용 고정 프레이밍 — 탈것 썸네일이 카메라를 옮기므로 매번 되돌려 놓는다
@@ -22973,6 +22978,11 @@ const Scene3D = {
             r.domElement.className = 'pinfo-scene-canvas';
             this._pvR = r;
             if (!this._pvScene) this.previewBuild();
+            // 프리뷰도 별도 GL 컨텍스트 — 자체 PMREM 을 굽는다. 영웅 리그가 MeshStandardMaterial 이라
+            // 이게 빠지면 IBL 의존분이 통째로 사라져 머리·몸이 근흑 실루엣으로 찍힌다
+            // (pinfo-preview-hero-black). 컨텍스트 로스로 렌더러를 새로 만들 때도 이 블록을 다시
+            // 지나므로 재굽기가 함께 처리된다.
+            this.bakeEnvFor(r, this._pvScene);
         }
         if (this._pvR.domElement.parentNode !== container) container.appendChild(this._pvR.domElement);
         this._pvHost = container;
