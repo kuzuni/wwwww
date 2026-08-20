@@ -54,7 +54,6 @@ for p in \
     probe-lgr-px.js \
     probe-mount-neck-height.js \
     probe-mount-rein-rest.js \
-    probe-egg-form.js \
     probe-prop-voxel.js \
     probe-crystal-sculpt.js \
     probe-biome-mat-path.js \
