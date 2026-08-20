@@ -75,6 +75,15 @@ const SCAN = async (src) => {
         for (let y = my0; y <= my1; y++) if (!isGreen(x, y)) n++;
         if (n > (my1 - my0 + 1) * 0.8) { if (px0 < 0) px0 = x; px1 = x; }
     }
+    // ③-b 알약 안 글자 잉크의 좌·우 끝 — 타일 오른쪽부터 알약 우단 직전까지, 알약 바탕색과 다른 화소.
+    //     (알약 우단 바깥은 초록 필드라 `x1-2` 까지만 본다 — 안 그러면 필드가 잉크로 잡혀 우단이 알약
+    //      바깥으로 나간다. 실측으로 밟았다.)
+    const pillBg = at(px1 - 4, py0 + 3);
+    const isInk = (x, y) => {
+        const q = at(x, y);
+        return Math.abs(q[0] - pillBg[0]) + Math.abs(q[1] - pillBg[1]) + Math.abs(q[2] - pillBg[2]) > 60;
+    };
+
     // ③ 타일 — **알약 밖으로 삐져나온 화소가 있는 열**이 곧 타일이 선 열이다.
     //    ⚠️ '열별 비초록 행 수가 알약 높이보다 크다'로 잡으면 안 된다 — 알약 아래쪽 창(YMAX)에
     //       걸린 다른 요소 몇 행이 더해져 **순수 알약 열까지 타일로 잡힌다**(실측: 타일이
@@ -96,7 +105,15 @@ const SCAN = async (src) => {
         for (let x = tx0; x <= tx1; x++) if (!isGreen(x, y)) n++;
         if (n > (tx1 - tx0 + 1) * 0.5) { if (ty0 < 0) ty0 = y; ty1 = y; }
     }
-    return { W, H, pill: { x0: px0, x1: px1, y0: py0, y1: py1 }, tile: { x0: tx0, x1: tx1, y0: ty0, y1: ty1 } };
+    // 글자 잉크 가로 범위 (타일 오른쪽 ~ 알약 우단 직전)
+    let ix0 = -1, ix1 = -1;
+    for (let x = tx1 + 2; x <= px1 - 2; x++) {
+        let n = 0;
+        for (let y = py0 + 2; y <= py1 - 2; y++) if (isInk(x, y)) n++;
+        if (n > 0) { if (ix0 < 0) ix0 = x; ix1 = x; }
+    }
+    return { W, H, pill: { x0: px0, x1: px1, y0: py0, y1: py1 }, tile: { x0: tx0, x1: tx1, y0: ty0, y1: ty1 },
+             ink: { x0: ix0, x1: ix1 }, pillBg };
 };
 
 (async () => {
@@ -132,7 +149,9 @@ const SCAN = async (src) => {
     for (const k of Object.keys(SC)) if (typeof SC[k] === 'function') { try { await SC[k](page); } catch (e) { /* 시드 일부 실패는 이 화면과 무관 */ } }
     await page.waitForTimeout(400);
     if (SELFTEST) {
-        await page.addStyleTag({ content: `.profile-card { height: auto !important; padding: .25rem .7rem .25rem .3rem !important; }` });
+        // 교정한 네 값을 **전부** 되돌린다 — 높이·좌패딩(구조 축) + min-width·gap(크기 축).
+        // 이 자가 네 축을 다 보고 있다는 증명이라, 새 축을 판정에 넣을 때마다 여기도 같이 되돌릴 것.
+        await page.addStyleTag({ content: `.profile-card { height: auto !important; padding: .25rem .7rem .25rem .3rem !important; min-width: 0 !important; gap: .4rem !important; }` });
         await page.waitForTimeout(200);
     }
     const clone = await page.evaluate(() => {
@@ -141,7 +160,11 @@ const SCAN = async (src) => {
         const av = card.querySelector('.avatar');
         if (!av) return { err: '.profile-card .avatar 없음' };
         const R = e => { const b = e.getBoundingClientRect(); return { x0: b.left, x1: b.right, y0: b.top, y1: b.bottom }; };
-        return { pill: R(card), tile: R(av), appW: document.getElementById('app').getBoundingClientRect().width,
+        const info = card.querySelector('.profile-info');
+        const cs = getComputedStyle(card);
+        return { pill: R(card), tile: R(av), text: info ? R(info) : null,
+                 minW: parseFloat(cs.minWidth) || 0,
+                 appW: document.getElementById('app').getBoundingClientRect().width,
                  appH: document.getElementById('app').getBoundingClientRect().height };
     });
     if (clone.err) { console.log('❌ 측정기 고장(exit 2) — ' + clone.err); await browser.close(); process.exit(2); }
@@ -158,6 +181,16 @@ const SCAN = async (src) => {
         '알약 높이':         [rph(ref.pill.y1 - ref.pill.y0 + 1),             cph(clone.pill.y1 - clone.pill.y0)],
         '타일 높이':         [rph(ref.tile.y1 - ref.tile.y0 + 1),             cph(clone.tile.y1 - clone.tile.y0)],
         '타일 폭':           [rpw(ref.tile.x1 - ref.tile.x0 + 1),             cpw(clone.tile.x1 - clone.tile.x0)],
+        /* 🚩 **바 폭은 이제 판정한다 (2026-08-20 결정 실험 뒤).** 앞 세션은 이 축을 '콘텐츠 hug 라
+           상태 차이'로 보고 판정에서 뺐는데, 콘텐츠를 원본과 같게(`moonzzanf`/`20.7b`) 맞춘 뒤에도
+           Δ−5.83%p 가 남아 **상태로 다 설명되지 않았다.** 원인은 원본 바가 제 내용보다 46px 넓다는
+           것이었고(두 줄이 같은 자리에서 끝나므로 '긴 줄 hug'로도 설명이 안 된다), `min-width` 를
+           원본 실측 32.26%W 로 주어 닫았다. **min-width 를 주는 순간 이 축은 콘텐츠와 무관해져
+           판정 가능해진다** — 그게 이 줄을 여기 넣을 수 있는 이유다.
+           ⚠️ 닉네임이 아주 길어져 내용이 min-width 를 넘으면 다시 콘텐츠 구동이 된다 — 그 경우
+              아래에서 경고를 찍는다(그때의 빨강은 비율 결함이 아니다). */
+        '바 폭':             [rpw(ref.pill.x1 - ref.pill.x0 + 1),             cpw(clone.pill.x1 - clone.pill.x0)],
+        '타일→글자 gap':     [rpw(ref.ink.x0 - ref.tile.x1 - 1),              cpw(clone.text.x0 - clone.tile.x1)],
     };
 
     console.log(`원본 shot-042120 ${RW}×${RH} · 클론 앱 ${CW.toFixed(0)}×${CH.toFixed(0)}${SELFTEST ? '  [SELFTEST: 교정 전 CSS 재적용]' : ''}`);
@@ -197,9 +230,18 @@ const SCAN = async (src) => {
     console.log('\n구조 판정 (원본이 만족하는 명제를 클론도 만족하는가 — %p 게이트가 못 잡는 축):');
     console.log(struct.length ? '  ❌ ' + struct.join('\n  ❌ ') : '  ✅ 4건 전부 만족');
 
-    // 참고(판정 안 함) — 콘텐츠 hug 라 상태 차이다
-    console.log(`\n[미판정 참고] 바 폭 원본 ${rpw(ref.pill.x1 - ref.pill.x0 + 1)}%W ↔ 클론 ${cpw(clone.pill.x1 - clone.pill.x0)}%W`
-        + ` — 이 바는 **콘텐츠 hug** 라 닉네임 길이·전투력 자릿수에 따라 변한다(앞 세션 실측 확정). 비율 결함 아님.`);
+    /* 참고(판정 안 함) — **글꼴 폭 차이**와 그 결과물. 같은 문자열에서 원본 잉크 59px ↔ 우리 68.5px
+       (+16%)로 글꼴 자체가 넓다(`gear-detail` 아이템명·`league-tier-rank-label` 과 같은 계열).
+       바 폭·gap 을 원본값으로 박고 나면 **그 차액은 전부 글자 오른쪽 여백으로 몰린다** — 즉 아래
+       두 줄은 서로 다른 결함이 아니라 **같은 글꼴 차이를 두 번 보는 것**이라 판정에 넣지 않는다.
+       (넣으면 글자를 줄이게 되고, 그러면 이번엔 잉크 높이 축이 깨진다.) */
+    const rSlack = ref.pill.x1 - ref.ink.x1, cSlack = clone.pill.x1 - clone.text.x1;
+    console.log(`\n[미판정 참고] 글자 잉크 폭 원본 ${rpw(ref.ink.x1 - ref.ink.x0 + 1)}%W(\`moonzzanf\`) ↔ 클론 ${cpw(clone.text.x1 - clone.text.x0)}%W(시드 닉네임)`
+        + ` — ⚠️ **문자열이 다르므로 이 두 값을 직접 빼지 말 것.** 같은 문자열로 맞춰 잰 별도 실험에서는 원본 59px ↔ 클론 68.5px = **글꼴이 +16% 넓다**(비율 결함 아님).`);
+    console.log(`[미판정 참고] 글자 오른쪽 여백 원본 ${rpw(rSlack)}%W ↔ 클론 ${cpw(cSlack)}%W — 바 폭·gap 을 원본값으로 박고 나면 글꼴 폭 차이가 전부 여기로 몰린다(같은 축을 두 번 세는 셈). 역시 문자열 차이가 섞여 있다.`);
+    if (clone.minW && (clone.pill.x1 - clone.pill.x0) > clone.minW + 1) {
+        console.log(`⚠️ 바가 min-width(${clone.minW.toFixed(1)}px)를 넘겨 **콘텐츠 구동 상태**다 — 닉네임이 길어졌다는 뜻이고, 이때 '바 폭' 빨강은 비율 결함이 아니다.`);
+    }
     console.log(`콘솔/페이지 에러: ${errs.length}건`);
     console.log(`\n최대 편차 ${worst > 0 ? '+' : ''}${worst}%p · 초과 ${ng.length}건${ng.length ? ':\n  ' + ng.join('\n  ') : ''} · 구조 위반 ${struct.length}건`);
     const fail = ng.length + struct.length;
