@@ -12299,11 +12299,37 @@ const Scene3D = {
         const dark = M(new THREE.Color(c).offsetHSL(0, 0, -0.18));
         const light = M(new THREE.Color(c).offsetHSL(0, 0, 0.18));
         const blk = new THREE.MeshBasicMaterial({ color: 0x263238 });
-        const sp = (r, x, y, z, m, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), m || mat); o.position.set(x, y, z); if (sx) o.scale.set(sx, sy, sz); g.add(o); return o; };
+        // 🧊 voxel 전환 (2026-08-20, mount-species-recognizable / voxel-consistency-audit)
+        //    곡면 프리미티브 헬퍼(sp/cn/cy/to/tube)를 큐브 적층으로 바꾼다. 15종이 이 헬퍼들을
+        //    공유하므로 여기 한 곳만 갈면 전종이 동시에 voxel 로 간다(감사 기준 27%→~100%).
+        //    ⚠️ 감사(probe-voxel-consistency)는 **로컬 지오메트리 법선만** 재고 배치 회전을 무시하니
+        //    tube 쿼터니언·torus 90° 재배향은 큐브 축정렬을 안 깬다. 색은 정점색에 굽고 재질은
+        //    voxMat 하나를 공유한다(Lambert+vertexColors 는 이 씬에서 새까매져 Standard, voxel.js 머리말 ㉠).
+        const VP = 0.055;   // 탈것 복셀 한 칸 크기(월드) — 촘촘함 대역(프롭 11~22칸)에 맞춘 값
+        const voxMat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0, roughness: 0.85, flatShading: true });
+        const vhex = (m) => (m && m.color) ? m.color.getHex() : (typeof m === 'number' ? m : c);
+        const vR = (r, lo) => Math.max(lo === undefined ? 0.5 : lo, r / VP);
+        const vH = (h) => Math.max(1, Math.round(h / VP));
+        const vbuild = (voxels, m) => {
+            const o = Voxel.build(voxels, { size: VP, color: vhex(m), material: voxMat });
+            // `alignHandlebar` 등은 원통이던 시절의 `geometry.parameters.height` 로 스템 길이를 되잰다 —
+            // 복셀 BufferGeometry 엔 그 필드가 없으니 y 축 실측 높이로 셈을 넣어 계약을 유지한다.
+            o.geometry.computeBoundingBox();
+            const bb = o.geometry.boundingBox;
+            o.geometry.parameters = { height: bb ? (bb.max.y - bb.min.y) : 0 };
+            return o;
+        };
+        // 인라인 프리미티브(g 가 아닌 하위 그룹에 붙는 것)용 — 지오메트리만 돌려주고 재질은 호출부가 유지
+        const vgeo = (voxels) => Voxel.build(voxels, { size: VP }).geometry;
+        const vgSphere = (r) => vgeo(Voxel.ellipsoid(vR(r), vR(r), vR(r)));
+        const vgCone = (r, h) => vgeo(Voxel.taper(vR(r, 0.8), 0, vH(h)));
+        const vgCyl = (rTop, rBot, h) => vgeo(Voxel.taper(vR(rBot, 0.6), vR(rTop, 0.6), vH(h)));
+        const vgTorus = (r, tr) => { const ge = vgeo(Voxel.ring(vR(r + tr, 1.5), Math.max(1, 2 * tr / VP), vH(2 * tr))); ge.rotateX(Math.PI / 2); return ge; };
+        const sp = (r, x, y, z, m, sx, sy, sz) => { const o = vbuild(Voxel.ellipsoid(vR(r * (sx || 1)), vR(r * (sy !== undefined ? sy : 1)), vR(r * (sz !== undefined ? sz : 1))), m); o.position.set(x, y, z); g.add(o); return o; };
         const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); g.add(o); return o; };
-        const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
-        const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 12), m || mat); o.position.set(x, y, z); g.add(o); return o; };
-        const to = (r, tr, x, y, z, m) => { const o = new THREE.Mesh(new THREE.TorusGeometry(r, tr, 8, 14), m || mat); o.position.set(x, y, z); g.add(o); return o; };
+        const cn = (r, h, x, y, z, m) => { const o = vbuild(Voxel.taper(vR(r, 0.8), 0, vH(h)), m); o.position.set(x, y, z); g.add(o); return o; };
+        const cy = (r1, r2, h, x, y, z, m) => { const o = vbuild(Voxel.taper(vR(r2, 0.6), vR(r1, 0.6), vH(h)), m); o.position.set(x, y, z); g.add(o); return o; };
+        const to = (r, tr, x, y, z, m) => { const o = vbuild(Voxel.ring(vR(r + tr, 1.5), Math.max(1, 2 * tr / VP), vH(2 * tr)), m); o.geometry.rotateX(Math.PI / 2); o.position.set(x, y, z); g.add(o); return o; };
         // 만든 눈 두 개를 **돌려준다** — 머리 피벗(아래 `neckRig`)이 눈까지 같이 묶어야 하기 때문이다.
         // 눈만 g 에 남으면 머리가 끄덕일 때 눈알만 허공에 붙박여 남는다.
         const eyes = (y, z, gap) => [-1, 1].map(s => sp(0.026, s * (gap || 0.07), y, z, blk));
@@ -12329,7 +12355,7 @@ const Scene3D = {
         const tube = (a, b, r, m) => {
             const A = new THREE.Vector3(a[0], a[1], a[2]), B = new THREE.Vector3(b[0], b[1], b[2]);
             const d = new THREE.Vector3().subVectors(B, A);
-            const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 8), m || mat);
+            const o = vbuild(Voxel.taper(vR(r, 0.6), vR(r, 0.6), vH(d.length())), m);
             o.position.copy(A).addScaledVector(d, 0.5);
             o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
             g.add(o);
@@ -12340,7 +12366,7 @@ const Scene3D = {
         const tube2 = (a, b, r1, r2, m) => {
             const A = new THREE.Vector3(a[0], a[1], a[2]), B = new THREE.Vector3(b[0], b[1], b[2]);
             const d = new THREE.Vector3().subVectors(B, A);
-            const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, d.length(), 8), m || mat);
+            const o = vbuild(Voxel.taper(vR(r2, 0.6), vR(r1, 0.6), vH(d.length())), m);
             o.position.copy(A).addScaledVector(d, 0.5);
             o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
             g.add(o);
@@ -12446,10 +12472,10 @@ const Scene3D = {
                 //    크게 뻗어 이 파일이 이미 지적한 '옆구리로 삐져나온 것'이 다시 생긴다.
                 g.add(hand);
                 // 손바닥(propodus) — 게 집게의 상징인 **불룩한 밑동**. 박스 대신 눌린 구로 덩어리감을 준다.
-                const palm = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), mat);
+                const palm = new THREE.Mesh(vgSphere(0.075), mat);
                 palm.scale.set(0.95, 1.15, 1.35); palm.position.set(0, 0, 0.05);
                 // 손가락 — 손바닥과 **같은 몸색**(끝만 각질). 끝으로 갈수록 얇아지는 각기둥.
-                const finger = (len, r0, r1, m) => new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, len, 5), m || mat);
+                const finger = (len, r0, r1, m) => new THREE.Mesh(vgCyl(r1, r0, len), m || mat);
                 const lo = finger(0.19, 0.046, 0.016);
                 lo.rotation.x = Math.PI / 2; lo.position.set(0, -0.034, 0.170);
                 lo.add((() => { const t = finger(0.05, 0.018, 0.008, CHITIN); t.rotation.x = 0; t.position.y = 0.10; return t; })()); // 각질 손톱
@@ -12488,7 +12514,7 @@ const Scene3D = {
                 const up = tube([0, 0, 0], [knee[0] - pivot.position.x, knee[1] - pivot.position.y, knee[2] - z], 0.028, legM);
                 const dn = tube([knee[0] - pivot.position.x, knee[1] - pivot.position.y, knee[2] - z],
                                 [foot[0] - pivot.position.x, foot[1] - pivot.position.y, foot[2] - z], 0.022, legM);
-                const tip = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.07, 6), TIP);
+                const tip = new THREE.Mesh(vgCone(0.024, 0.07), TIP);
                 tip.position.set(foot[0] - pivot.position.x, foot[1] - pivot.position.y + 0.02, foot[2] - z);
                 tip.rotation.x = Math.PI;
                 pivot.add(up, dn, tip);   // 헬퍼가 g 에 붙인 것을 피벗으로 옮긴다(three 의 add 가 재부모화한다)
@@ -12520,7 +12546,7 @@ const Scene3D = {
             //    판마다 돔 중심에서 바깥으로 향하게 돌려 붙인다(lookAt 대신 각도 계산 한 번).
             const put = (ax, ay, az, r, h) => {
                 const v = new THREE.Vector3(ax, ay, az).normalize();
-                const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.92, h, 6), shellL);
+                const o = new THREE.Mesh(vgCyl(r, r * 0.92, h), shellL);
                 o.position.set(0.318 * v.x, 0.265 + 0.168 * v.y, -0.01 + 0.378 * v.z);
                 o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0),
                     new THREE.Vector3(v.x / 0.318, v.y / 0.168, v.z / 0.378).normalize());
@@ -12619,7 +12645,7 @@ const Scene3D = {
                 // 원점(=발)에서 위로 자란다 — scale.y가 곧 끈 길이. 길이 1로 두면 정렬 전 한 프레임 동안
                 // 영웅 키를 넘는 장대가 서므로 기본값도 그럴듯한 길이로 줄여 둔다.
                 strap.scale.y = 0.24; strap.position.y = 0.12;
-                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.012, 6, 12), IRON);
+                const ring = new THREE.Mesh(vgTorus(0.042, 0.012), IRON);
                 ring.rotation.y = Math.PI / 2;
                 st.add(strap, ring);
                 st.userData.strap = strap;
@@ -12640,9 +12666,9 @@ const Scene3D = {
         const windUpKey = (x, y, z) => {
             const key = new THREE.Group();
             key.position.set(x, y, z);
-            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.08, 8), IRON);
+            const stem = new THREE.Mesh(vgCyl(0.018, 0.018, 0.08), IRON);
             stem.rotation.x = Math.PI / 2;            // 등에서 뒤로 눕힌다
-            const hub = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.011, 6, 12), IRON);
+            const hub = new THREE.Mesh(vgTorus(0.032, 0.011), IRON);
             hub.position.z = -0.05;
             key.add(stem, hub);
             for (const s of [-1, 1]) {                // 날개 2장 — 회전을 읽히게 하는 부분
@@ -13096,7 +13122,7 @@ const Scene3D = {
                     const brush = new THREE.Group();
                     brush.position.set(s * 0.20, 0.055, 0.19);
                     brush.rotation.x = -Math.PI / 2;
-                    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.030, 0.022, 8), IRON);
+                    const cap = new THREE.Mesh(vgCyl(0.030, 0.030, 0.022), IRON);
                     cap.rotation.x = Math.PI / 2;               // 그룹이 눕었으니 뚜껑도 같이 눕힌다
                     brush.add(cap);
                     for (let k = 0; k < 5; k++) {               // 솔 5가닥 — 회전 대칭을 깨는 표식
@@ -13253,7 +13279,7 @@ const Scene3D = {
                 for (let i = 0; i < 5; i++) cn(0.030 - i * 0.004, 0.11 - i * 0.014, 0, 0.33 - i * 0.022, -0.30 - i * 0.062, dark).rotation.x = -0.5;
                 const tail = cy(0.05, 0.012, 0.38, 0, 0.20, -0.36, mat); tail.rotation.x = -1.45; g.userData.tail = tail;
                 // 꼬리 끝 **화살촉** — 용 꼬리의 상투이자, 가늘어지다 끊긴 원통을 마무리해 준다.
-                const spade = new THREE.Mesh(new THREE.ConeGeometry(0.062, 0.13, 4), light);
+                const spade = new THREE.Mesh(vgCone(0.062, 0.13), light);
                 spade.position.set(0, -0.20, 0); spade.rotation.x = Math.PI; spade.scale.set(1, 1, 0.35);
                 tail.add(spade);
                 sp(0.15, 0, 0.155, 0.02, light, 0.82, 0.28, 1.50);                          // 밝은 배(복부 비늘)
@@ -14366,7 +14392,7 @@ const Scene3D = {
                     tail = new THREE.Group(); tail.position.set(0, 0.305, -0.265); g.add(tail);
                     for (let i = 0; i < 7; i++) {         // 나선 — 반지름이 줄면서 한 바퀴 반 감긴다
                         const a = i * 0.95, r = 0.055 - i * 0.005;
-                        const seg = new THREE.Mesh(new THREE.SphereGeometry(0.022 - i * 0.0018, 6, 5), mat);
+                        const seg = new THREE.Mesh(vgSphere(0.022 - i * 0.0018), mat);
                         seg.position.set(Math.sin(a) * r, Math.cos(a) * r * 0.9, -i * 0.012);
                         tail.add(seg);
                     }
@@ -14386,7 +14412,7 @@ const Scene3D = {
                     //    길이를 지키려 14마디로 늘린다 — 이제 이어진 곡선 한 줄로 읽힌다.
                     tail = new THREE.Group(); tail.position.set(0, 0.27, -0.36); g.add(tail);
                     for (let i = 0; i < 14; i++) {
-                        const seg = new THREE.Mesh(new THREE.SphereGeometry(0.024 - i * 0.0012, 6, 5), M(0xd9b7a8));
+                        const seg = new THREE.Mesh(vgSphere(0.024 - i * 0.0012), M(0xd9b7a8));
                         seg.position.set(0, -0.055 + Math.sin(i * 0.22) * 0.075, -0.036 * i);
                         tail.add(seg);
                     }
@@ -14396,7 +14422,7 @@ const Scene3D = {
                     // ⚠️ 수평으로 뻗으면(rotation.x 1.42) 꼬리가 아니라 **엉덩이에 꽂은 파이프**다(1판 실측).
                     //    고양이 꼬리는 뿌리에서 **위로 들렸다가** 끝이 처진다 — 1.05rad 로 세워 든다.
                     tail = cy(0.036, 0.026, 0.38, 0, 0.30, -0.46, bodyMat); tail.rotation.x = 1.05;
-                    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.030, 8, 6), legMat);
+                    const tip = new THREE.Mesh(vgSphere(0.030), legMat);
                     tip.position.set(0, -0.19, 0); tail.add(tip);
                 } else {
                     tail = cy(0.03, 0.01, 0.24, 0, 0.24, -0.34, mat); tail.rotation.x = 1.3;
@@ -14405,7 +14431,7 @@ const Scene3D = {
                 // 당나귀 꼬리는 말총이 아니라 **끝에만 술이 달린 소꼬리**다 — 실루엣 식별점이라 붙인다.
                 // 꼬리의 자식으로 달아야 흔들 때 같이 간다(`ud.tail` 회전은 자식에 그대로 전달된다).
                 if (name === 'Donkey') {
-                    const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), DONKEY_DARK);
+                    const tuft = new THREE.Mesh(vgSphere(0.055), DONKEY_DARK);
                     tuft.position.set(0, -0.13, 0); tuft.scale.set(0.8, 1.35, 0.8);
                     tail.add(tuft);
                 }
@@ -14444,7 +14470,7 @@ const Scene3D = {
                     // ⚠️ 아랫다리에 `dark`(등급색 −0.18)를 쓰면 **초록 파이프**다 — 기계 다리는 금속색으로.
                     //    (기존 기계 다리 4개도 같은 실수를 하고 있어 아래에서 같이 고쳤다.)
                     const dn = tube([sx * 0.20, 0.14, 0], [sx * 0.26, -HIP_Y, 0], 0.018, MECH_DARK);
-                    const ft = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.06, 5), IRON);
+                    const ft = new THREE.Mesh(vgCone(0.026, 0.06), IRON);
                     ft.position.set(sx * 0.26, 0.03 - HIP_Y, 0); ft.rotation.x = Math.PI;
                     pivot.add(up, dn, ft);
                     pivot.userData.gait = sx * sz;
@@ -14489,7 +14515,7 @@ const Scene3D = {
                 const leg = tube2([0, 0, 0], [0, kneeY, kneeZ], rHip, rKnee, legMat);          // 상완·대퇴
                 const shin = tube2([0, kneeY, kneeZ], [0, -legH, 0], rKnee * 0.92, rFoot, legMat); // 정강이·포
                 // 관절 마디 — 꺾이는 자리에 덩이가 없으면 두 관이 그냥 어긋난 파이프로 읽힌다.
-                const knee = new THREE.Mesh(new THREE.SphereGeometry(rKnee * 1.22, 8, 6), legMat);
+                const knee = new THREE.Mesh(vgSphere(rKnee * 1.22), legMat);
                 knee.position.set(0, kneeY, kneeZ);
                 g.add(knee);
                 // 발굽 — 예전엔 원통이 그냥 잘려 끝나 '땅에 꽂힌 초록 파이프'로 읽혔다.
