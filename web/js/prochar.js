@@ -87,6 +87,22 @@ const ProChar = {
         return g;
     },
 
+    // 🧊 **voxel 판금 조각 공용** — 리그의 구/원통 프리미티브를 큐브 덩어리로 바꿀 때 쓴다.
+    //   ⚠️ **비균등 scale 을 mesh.scale 로 주지 말 것.** 그러면 큐브가 직육면체로 눌려 voxel 로
+    //      안 읽힌다(화풍 ⓐ: 조형은 그대로 큐브). 대신 **축별 반지름을 칸으로 환산해** 넣는다 —
+    //      아래 `vr()` 이 그 환산이고, 그래서 호출부는 원래 프리미티브의 반지름×scale 을 그대로
+    //      적어 넣으면 된다(비례를 다시 디자인하지 않아도 된다는 게 이 전환의 전제다).
+    VOX: 0.016,          // 리그 공용 칸 크기 — 사지·판금이 같은 격자로 읽히려면 하나여야 한다
+    vr(world, size) { return world / (size || this.VOX); },   // 월드 반지름 → 칸 반지름
+    voxPart(voxels, mat, opts) {
+        opts = opts || {};
+        return Voxel.build(voxels, {
+            size: opts.size || this.VOX, material: mat, color: 0xffffff,
+            center: opts.center === undefined ? true : opts.center,
+            jitter: opts.jitter === undefined ? 0.05 : opts.jitter,
+        });
+    },
+
     // ---- 캔버스 생성 텍스처 (외부 에셋 금지 — 코드로 재질감 생성) ----
     // 밝기 중심 그레이스케일로 만들어 material.color 틴트(장비 시대색)와 곱해지게 한다.
     _texCache: {},
@@ -518,6 +534,28 @@ const ProChar = {
             (this._toneMats || (this._toneMats = [])).push(m);
             return m;
         };
+        // 🧊 **voxel 판금 재질 — `steel`/`steelDark` 의 큐브판.** 세 가지가 다르고 셋 다 이유가 있다:
+        //   ⑴ `vertexColors: true` — `Voxel.build` 는 색·이음새 AO 를 정점 색에 굽는다(없으면 AO 소멸).
+        //   ⑵ `map`/`bumpMap` 없음 — `Voxel.build` 는 uv 를 안 만들어서 텍스처가 한 텍셀만 샘플링된다.
+        //   ⑶ metalness·env 하향 — env 반사가 세면 구워 둔 AO 가 씻겨 이음새가 안 보인다(= 큐브로 안 읽힘).
+        //      ⚠️ 값 구조(비평가 ㉠, 영웅 평균 L 70~85)를 지키려면 여기를 **올리지 말 것** — 판금 env 를
+        //         올리는 순간 투구가 흰 돔으로 돌아갔던 그 축이다.
+        //   톤 레지스트리에는 같은 `tone` 으로 등록하므로 `setTone`·시대 틴트가 원통판과 함께 잡는다.
+        const voxSteel = (tone) => {
+            const m = new THREE.MeshStandardMaterial({
+                color: tone === 'steelDark' ? T.steelDark : T.steel,
+                metalness: tone === 'steelDark' ? 0.60 : 0.66,
+                roughness: tone === 'steelDark' ? 0.58 : 0.46,
+                envMapIntensity: tone === 'steelDark' ? 0.20 : 0.22,
+                vertexColors: true, flatShading: true,
+            });
+            if (tone === 'steelDark') m.userData.dark = true;
+            m.userData.tone = tone;
+            m.userData.baseColor = m.color.getHex();
+            R.armorMats.push(m);
+            (this._toneMats || (this._toneMats = [])).push(m);
+            return m;
+        };
         const steelDark = () => {
             const m = new THREE.MeshStandardMaterial({ color: T.steelDark, metalness: 0.8, roughness: 0.5, map: mTex, bumpMap: mTex, bumpScale: 0.006, envMapIntensity: 0.29 });
             m.userData.dark = true; // 틴트 시 명도 단차 유지용
@@ -707,13 +745,20 @@ const ProChar = {
         mailVoxMat.userData.baseColor = mailVoxMat.color.getHex();
         R.armorMats.push(mailVoxMat);
         this._toneMats.push(mailVoxMat);
+        // voxel 판금 2톤 — 다리 판금(쿠이스·폴린·그리브·라메)이 공유한다. 인스턴스를 하나로 묶어
+        // 드로우콜과 톤 스윕 대상 수를 아낀다(원통판 `steel()`/`steelDark()` 는 호출마다 새로 만든다).
+        const steelVox = voxSteel('steel'), steelDarkVox = voxSteel('steelDark');
         for (const side of [-1, 1]) {
             const hip = new THREE.Group();
             hip.position.set(side * 0.13, -0.06, 0);
-            const thigh = this.voxLimb(0.085, 0.07, THIGH_L, mailVoxMat); // ㉢ 연장 — 반지름은 그대로라 길수록 가늘어 보인다(성인 비례)
-            const cuisse = new THREE.Mesh(new THREE.SphereGeometry(0.095, 10, 8), steelDark()); // 대퇴 장갑판
+            const thigh = this.voxLimb(0.085, 0.07, THIGH_L, mailVoxMat);
+            thigh.userData.part = 'thigh'; // ㉢ 연장 — 반지름은 그대로라 길수록 가늘어 보인다(성인 비례)
+            // 🧊 대퇴 장갑판 — 구(10×8) → 큐브 타원체. 반지름 0.095 와 세로 배율 1.45·TS 를 **칸으로
+            //    환산해** 넣는다(scale 로 눌러 만들면 큐브가 직육면체가 된다). 커버 범위·중심은 불변.
+            const cuisse = this.voxPart(
+                Voxel.ellipsoid(this.vr(0.095), this.vr(0.095 * 1.45 * TS), this.vr(0.095)), steelDarkVox);
+            cuisse.userData.part = 'cuisse';
             cuisse.position.y = -0.115 * TS;
-            cuisse.scale.set(1, 1.45 * TS, 1);   // 커버 비율 유지 — 안 늘이면 대퇴 아래쪽이 맨사슬로 뜬다
             // 대퇴 상단 패딩 링 — 스커트(판금)와 사슬이 맞물리는 경계에 누빔천을 끼워 재질이 3층으로 읽히게
             // 🧊 0.092/0.088 → 0.095/0.0925 (voxel 대퇴 전환). 칸 폭이 홀수라 대퇴 바깥 면이
             //    이 구간에서 0.088 에 서는데, 12각 원통은 각 사이 평평한 면이 반지름×cos15°
@@ -726,16 +771,27 @@ const ProChar = {
             const knee = new THREE.Group();
             knee.position.y = -THIGH_L;
             // 무릎 폴린(poleyn): 슬개 돔 + 측면 팬 윙 + 상하 라메 2겹 — 관절이 '캡슐 이음매'가 아니라 관절 장갑으로 보이게
-            const kneeCap = new THREE.Mesh(new THREE.SphereGeometry(0.062, 10, 8), steel());
-            kneeCap.scale.set(1.05, 0.95, 1.15);
+            // 🧊 슬개 돔 — 구 → 큐브 타원체(축별 배율 1.05/0.95/1.15 를 칸 반지름에 흡수).
+            const kneeCap = this.voxPart(
+                Voxel.ellipsoid(this.vr(0.062 * 1.05), this.vr(0.062 * 0.95), this.vr(0.062 * 1.15)), steelVox);
+            kneeCap.userData.part = 'kneeCap';
             kneeCap.position.z = 0.008;
-            const poleynWing = new THREE.Mesh(new THREE.SphereGeometry(0.052, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.5), steelDark());
+            // 🧊 폴린 윙 — 반구(theta 0~π/2) → 큐브 타원체의 위쪽 절반. `ellipsoid` 를 만들고 y≥0 만
+            //    남기면 원본과 같은 '펼친 원반'이 되고, 회전·위치는 그대로 쓴다.
+            const wingVox = Voxel.ellipsoid(this.vr(0.052), this.vr(0.052 * 0.55), this.vr(0.052 * 1.1))
+                .filter(v => v.y >= 0);
+            const poleynWing = this.voxPart(wingVox, steelDarkVox, { center: false });
+            poleynWing.userData.part = 'poleynWing';
             poleynWing.position.set(side * 0.045, -0.006, -0.004);
             poleynWing.rotation.z = side * -1.35; // 바깥쪽으로 펼쳐지는 원반 날개
-            poleynWing.scale.set(1, 0.55, 1.1);
-            const kneeLameUp = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.068, 0.026, 12), steel());
+            // 🧊 무릎 라메 2겹 — 원통(테이퍼) → 큐브 테이퍼. 높이도 칸으로 환산한다.
+            const kneeLameUp = this.voxPart(
+                Voxel.taper(this.vr(0.068), this.vr(0.072), Math.max(1, Math.round(this.vr(0.026)))), steelVox);
+            kneeLameUp.userData.part = 'kneeLame';
             kneeLameUp.position.y = 0.042;
-            const kneeLameDn = new THREE.Mesh(new THREE.CylinderGeometry(0.066, 0.062, 0.024, 12), steel());
+            const kneeLameDn = this.voxPart(
+                Voxel.taper(this.vr(0.062), this.vr(0.066), Math.max(1, Math.round(this.vr(0.024)))), steelVox);
+            kneeLameDn.userData.part = 'kneeLame';
             kneeLameDn.position.y = -0.044;
             const kneeRivet = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 5), gold);
             kneeRivet.position.set(side * 0.052, 0.006, 0.012);
@@ -744,10 +800,13 @@ const ProChar = {
             kneeGasket.position.y = -0.002;
             knee.add(kneeGasket, poleynWing, kneeLameUp, kneeLameDn, kneeRivet);
             const shin = this.voxLimb(0.06, 0.052, SHIN_L, mailVoxMat);
+            shin.userData.part = 'shin';
             // 정강이 장갑판 (그리브)
-            const greave = new THREE.Mesh(new THREE.SphereGeometry(0.068, 9, 7), steelDark());
+            // 🧊 그리브 — 구 → 큐브 타원체(0.95 / 1.7·SS / 0.95 를 칸 반지름에 흡수).
+            const greave = this.voxPart(
+                Voxel.ellipsoid(this.vr(0.068 * 0.95), this.vr(0.068 * 1.7 * SS), this.vr(0.068 * 0.95)), steelDarkVox);
+            greave.userData.part = 'greave';
             greave.position.set(0, -0.128 * SS, 0.012);
-            greave.scale.set(0.95, 1.7 * SS, 0.95);
             knee.add(greave);
             // ⓒ-2 무릎 아래 판독(mount-ride 비평가 D의 F): 정강이 아래가 mail(0x070a0d)·steelDark·
             // 니어블랙 부츠로만 이어져 **검은 띠**로 뭉개진다 — 사바톤(발끝)까지 밝은 값이 하나도 없다.
