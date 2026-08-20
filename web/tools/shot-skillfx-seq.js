@@ -93,6 +93,11 @@ const COLS = 6;
                 Scene3D.__hitMs = (def.type === 'aoe' ? 250 : 200);
                 VClock.install();                                     // 이 시점부터 setTimeout 은 가상 시각
                 Scene3D.skillCastBeat(Scene3D.__castCol, def.fx, Scene3D.__tier);   // 1박
+                // 🚨 실게임 `skillEffect` 는 번개류의 먹구름 예고를 **1박과 같은 시각**에 세운다
+                //    (scene3d.js '예고 오브젝트' 주석). 여기서 그걸 빼먹으면 볼트가 칠 때에야 구름이
+                //    폴백으로 생겨 '150ms 공백 + 210ms 구름 팝인'이 찍힌다 — 3차 채점 2인이 실제로
+                //    그렇게 감점했고, 코드가 아니라 이 촬영기의 구멍이었다(함정 ④의 재판).
+                Scene3D.__stormScene = def.fx === 'bolt' ? Scene3D.stormCloudGather([999], Scene3D.__castCol, Scene3D.__tier) : null;
                 Scene3D.__fired = false; Scene3D.__hit = false;
             } else {
                 const t = i * STEP_MS;
@@ -100,7 +105,7 @@ const COLS = 6;
                 // castMsFor 를 넘긴 첫 프레임에서 2·3박 — 실게임의 setTimeout 과 같은 간격
                 if (!Scene3D.__fired && t >= Scene3D.__wait) {
                     Scene3D.__fired = true;
-                    Scene3D.skillPayload(Scene3D.__fx, Scene3D.__castCol, [999], Scene3D.__tier);   // 2·3박
+                    Scene3D.skillPayload(Scene3D.__fx, Scene3D.__castCol, [999], Scene3D.__tier, Scene3D.__stormScene);   // 2·3박
                     VClock.pump(t);                                    // 페이로드가 0ms 로 건 층까지 이 컷에
                 }
                 // 3박(적중) — 실게임과 같은 시각에 피해 반응·셰이크. 이게 없으면 적이 어떤 스킬에도

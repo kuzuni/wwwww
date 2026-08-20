@@ -21256,40 +21256,54 @@ const Scene3D = {
     // 청백 코어 + 색 글로우 2겹으로 만든다. 등급이 높으면 갈래(fork)가 붙는다. 번개는 **깜빡인다** —
     // 밝기를 두어 번 튀겼다 사그라뜨려 정지한 빔과 구분한다.
     lightningBolt(from, to, color, tier) {
-        // 꺾인 경로: 위에서 아래로 내려오며 가로 지터. 타깃 근처일수록 지터를 줄여 적에 수렴한다.
-        const segs = 9;
+        // 🧊 **매끈 관 → 각진 상자 체인 (3차 채점 2인 일치 ㉢, 2026-08-20).** 종전 구현은 지터
+        //    폴리라인을 `CatmullRomCurve3` 가 **다려 버리고** `TubeGeometry` 가 둥근 관으로 만들어,
+        //    비평가 2인이 일치로 "매끈한 S자 사인커브 리본 — 번개가 아니라 연기 기둥/리본"이라
+        //    적었다. ⚡ 의 표식은 곡선이 아니라 **각진 꺾임의 교대**다: 스무딩을 버리고 세그먼트마다
+        //    납작한 직육면체를 잇는다(꺾인 판때기 체인 = 복셀 화풍의 번개).
+        const segs = 7;
         const pts = [];
+        let side = Math.random() < 0.5 ? 1 : -1;
         for (let i = 0; i <= segs; i++) {
             const t = i / segs;
             const base = from.clone().lerp(to, t);
             if (i > 0 && i < segs) {
                 const conv = 1 - t;                          // 위쪽일수록 크게, 타깃에선 0
-                base.x += U.rand(-0.55, 0.55) * conv;
-                base.z += U.rand(-0.28, 0.28) * conv;        // 카메라 깊이축은 얕게(옆에서 봤을 때 과하지 않게)
+                side = -side;                                // 교대 — 랜덤만으로는 지그재그가 안 나온다
+                base.x += side * U.rand(0.22, 0.60) * conv;
+                base.z += U.rand(-0.18, 0.18) * conv;        // 카메라 깊이축은 얕게(옆에서 봤을 때 과하지 않게)
             }
             pts.push(base);
         }
-        const curve = new THREE.CatmullRomCurve3(pts);
-        const tubeR = 0.05 + tier * 0.012;
-        const glow = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, tubeR * 2.4, 5, false),
-            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-        const bolt = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, tubeR, 5, false),
-            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, toneMapped: false }));
-        const core = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, tubeR * 0.42, 4, false),
-            new THREE.MeshBasicMaterial({ color: 0xdff2ff, transparent: true, opacity: 1, toneMapped: false }));
         const group = new THREE.Group();
-        group.add(glow, bolt, core);
-        // 갈래(fork): 중간 지점에서 짧게 튀어나간 곁가지 — 에픽 이상만, 등급 따라 1~3개
+        const W = 0.085 + tier * 0.02;
+        const UP = new THREE.Vector3(0, 1, 0);
+        const mkSeg = (a, b, w, colHex, op, additive) => {
+            const len = a.distanceTo(b);
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, len + w * 0.6, w * 0.55),   // 살짝 겹쳐 꺾임에 틈이 안 나게
+                new THREE.MeshBasicMaterial({ color: colHex, transparent: true, opacity: op,
+                    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: false, toneMapped: false }));
+            m.position.copy(a).lerp(b, 0.5);
+            m.quaternion.setFromUnitVectors(UP, b.clone().sub(a).normalize());
+            group.add(m);
+            return m;
+        };
+        for (let i = 0; i < segs; i++) {
+            mkSeg(pts[i], pts[i + 1], W * 2.4, color.getHex(), 0.45, true);   // 글로우(가산, 넓게)
+            mkSeg(pts[i], pts[i + 1], W, color.getHex(), 0.95, false);        // 본체(알파 — 하늘 위에서도 색이 산다)
+            mkSeg(pts[i], pts[i + 1], W * 0.45, 0xdff2ff, 1, false);          // 청백 코어
+        }
+        // 갈래(fork): 중간 지점에서 짧게 튀어나간 각진 곁가지 — 에픽 이상만, 등급 따라 1~3개
         const forkN = tier >= 2 ? Math.min(3, tier - 1) : 0;
         for (let f = 0; f < forkN; f++) {
-            const anchor = pts[3 + Math.floor(U.rand(0, segs - 4))];
-            const fpts = [anchor.clone()];
-            let cur = anchor.clone();
-            for (let j = 0; j < 3; j++) { cur = cur.clone().add(new THREE.Vector3(U.rand(-0.5, 0.5), U.rand(-0.7, -0.2), U.rand(-0.2, 0.2))); fpts.push(cur); }
-            const fc = new THREE.CatmullRomCurve3(fpts);
-            const fm = new THREE.Mesh(new THREE.TubeGeometry(fc, 16, tubeR * 0.6, 4, false),
-                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-            group.add(fm);
+            let cur = pts[2 + Math.floor(U.rand(0, segs - 3))].clone();
+            let fside = Math.random() < 0.5 ? 1 : -1;
+            for (let j = 0; j < 3; j++) {
+                fside = -fside;
+                const nxt = cur.clone().add(new THREE.Vector3(fside * U.rand(0.25, 0.5), U.rand(-0.6, -0.25), U.rand(-0.15, 0.15)));
+                mkSeg(cur, nxt, W * 0.5, color.getHex(), 0.85, true);
+                cur = nxt;
+            }
         }
         this.scene.add(group);
         this.flashLight(to, color.getHex(), 0.22);
