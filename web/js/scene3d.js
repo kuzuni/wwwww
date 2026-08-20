@@ -6624,10 +6624,9 @@ const Scene3D = {
         const HEXOF = m => m.color.getHex();
         const vhead = (voxels, src, opts) => { const mesh = this.voxPart(voxels, HS, src, opts); g.add(mesh); return mesh; };
 
-        if (style === 'plume') {            // 돔 + 깃장식
-            const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+        if (style === 'plume') {            // 🧊 계단 돔 + 깃장식 (equip-voxelize ⓑ)
+            const dome = vhead(V.dome(10.4, 10, HEXOF(mat), { t: 2.5 }), mat, { shade: mats.kind });
             dome.position.y = 0.03;
-            g.add(dome);
             {
                 // 깃털 장식: 곧은 원뿔은 '흰 스파이크/수정 다발'로 읽혔다(1차 채점 A·B 공통 —
                 // 깃털의 휘어짐·결이 0). 납작한 잎꼴 판 + 가운데 깃대 + 뒤로 눕는 휨 = 깃털의 서명.
@@ -6639,33 +6638,32 @@ const Scene3D = {
                 const FAN = primal
                     ? [[-0.095, 0.36, 0.30], [0, 0, 0.38], [0.095, -0.36, 0.30]]
                     : [[-0.082, 0.34, 0.25], [-0.028, 0.11, 0.33], [0.028, -0.11, 0.33], [0.082, -0.34, 0.25]];
+                // 🧊 깃털 = 잎꼴 계단 판(1칸 두께) + 가운데 깃대 열 — 납작한 잎꼴·가운데 깃대·
+                //    뒤로 눕는 휨(그룹 회전 = 로컬 축정렬)의 서명 셋을 칸 문법으로 잇는다.
+                const cBlade = HEXOF(rareMat), cRib = HEXOF(ribM);
                 for (const [dx, tilt, len] of FAN) {
                     const f = new THREE.Group();
-                    const hw = len * 0.17;
-                    const sh = new THREE.Shape();
-                    sh.moveTo(0, 0);
-                    sh.quadraticCurveTo(hw, len * 0.28, hw * 0.72, len * 0.75);
-                    sh.quadraticCurveTo(hw * 0.4, len * 0.97, 0, len);
-                    sh.quadraticCurveTo(-hw * 0.4, len * 0.97, -hw * 0.72, len * 0.75);
-                    sh.quadraticCurveTo(-hw, len * 0.28, 0, 0);
-                    const blade = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: false }), rareMat);
-                    blade.position.z = -0.006;
+                    const L = Math.round(len / HS);          // 깃 길이(칸)
+                    const fv = [];
+                    for (let y = 0; y < L; y++) {            // 잎꼴: 배(0.28L 부근)가 넓고 양끝이 모인다
+                        const k = y / L;
+                        const w = Math.max(1, Math.round((len * 0.17 / HS) * 2 * Math.sin(Math.PI * Math.min(1, 0.12 + k * 0.95))));
+                        const half = Math.floor(w / 2);
+                        for (let x = -half; x <= half; x++)
+                            fv.push({ x, y, z: 0, c: x === 0 && y < L * 0.88 ? cRib : cBlade });
+                    }
+                    const blade = this.voxPart(fv, HS, rareMat, { jitter: 0.03 });
+                    blade.userData.decorAccent = true;
                     f.add(blade);
-                    const rib = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.011, len * 0.88, 5), ribM);
-                    rib.position.set(0, len * 0.42, 0.012);
-                    rib.userData.decorAccent = true;
-                    f.add(rib);
                     f.position.set(dx, 0.24, -0.02);
                     f.rotation.set(-0.24, 0, tilt);   // 뒤로 눕고(휨) 좌우는 부채로 벌어진다
                     g.add(f);
                 }
                 if (!primal) {
-                    // 밑동 소켓 — 깃이 돔에서 그냥 자라난 것처럼 보이면 '흰 뿔'이 된다. 어두운
-                    // 단이 서야 '꽂은 깃 장식'으로 읽힌다(투구 트림이 이미 쓰는 명도 단차 언어).
-                    const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 0.05, 10), darkMat);
-                    socket.position.y = 0.245;
+                    // 밑동 소켓 — 어두운 단(꽂은 깃 장식 판독)은 큐브 2단으로
+                    const socket = vhead(V.at(V.taper(2.6, 2.1, 2, HEXOF(darkMat)), 0, 0, 0), darkMat, { jitter: 0.03 });
+                    socket.position.y = 0.22;
                     socket.userData.decorAccent = true;
-                    g.add(socket);
                 }
             }
         } else if (style === 'cone') {      // 🧊 고깔 모자 — 계단 원뿔 + 원판 챙 (equip-voxelize ⓑ)
@@ -7348,61 +7346,60 @@ const Scene3D = {
                     g.add(spike);
                 }
             }
-        } else if (style === 'tech') {      // 메카 헬름 — 곡면 셸 + 랩어라운드 발광 바이저 (박스 금지, 비평가 1위 결함 재작업)
-            const shell = new THREE.Mesh(new THREE.SphereGeometry(0.29, 10, 8), mat);
-            shell.material = this.tintOf(mat, 0.02); // 시대 재질 계승 — 원색 풍선 방지는 ageGearMats의 혼합이 이미 담당
-            // flatShading 패싯 제거 — visor/mask는 스무스인데 tech만 패싯이라 '다른 파이프라인' 비일관 (비평가 6.9 9번)
-            shell.position.y = 0.06;
-            shell.scale.set(0.98, 0.92, 1.05);
-            const jawGuard = new THREE.Mesh(new THREE.SphereGeometry(0.27, 10, 6, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.3), darkMat);
-            jawGuard.position.y = 0.07;
-            jawGuard.scale.set(0.96, 1.05, 1.02);
-            // 바이저: 앞면을 감싸는 토러스 아크 (발광) — 얼굴은 리그에서 숨겨지고 이 슬릿이 눈을 대신함
-            // 지오메트리 공간에서 회전: 아크 중점을 +y로 돌린 뒤 XZ 수평면으로 눕히면 중점이 정면(+z)에 온다
-            const vGeo = new THREE.TorusGeometry(0.25, 0.04, 8, 22, Math.PI * 0.86);
-            vGeo.rotateZ(Math.PI * 0.07);
-            vGeo.rotateX(Math.PI / 2);
-            // 밝은 단색 아크는 눈을 가리는 '안대/눈가리개'로 오독(비평가 6.4 5번) — 다크 스모크 유리 밴드 + 안쪽 발광 눈 2점으로 재작업
-            // 고금속·저러프는 밝은 하늘 env를 통반사해 도로 '밝은 밴드'가 됨(비평가 6.8 3번) — 저금속 무광에 가까운 흑유리로
-            const visorArc = new THREE.Mesh(vGeo, new THREE.MeshStandardMaterial({
-                color: 0x090d13, metalness: 0.3, roughness: 0.32, envMapIntensity: 0.45
-            }));
-            visorArc.position.set(0, 0.01, 0.035);             // 눈높이로 하강 — 이마 밴드 오독 방지
-            visorArc.scale.y = 0.6;                            // 납작한 슬릿 단면
-            for (const dx of [-0.095, 0.095]) {                // 유리면 위 발광 눈 — 등급색 파생은 창백하게 씻김(비평가 6.9) → 고정 시안 렌즈
-                const eyeC = new THREE.Color(0x35e0ff);
-                const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: eyeC }));
-                eye.position.set(dx, 0.01, 0.3);
-                eye.scale.set(1.3, 0.72, 0.4);                 // 가로로 긴 렌즈 눈
-                const glow = new THREE.Mesh(new THREE.SphereGeometry(0.068, 8, 6),
-                    new THREE.MeshBasicMaterial({ color: eyeC, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
-                glow.position.copy(eye.position);
-                glow.scale.set(1.35, 0.8, 0.45);
-                g.add(eye, glow);
+        } else if (style === 'tech') {      // 🧊 메카 헬름 — 계단 타원 셸 + 랩어라운드 흑유리 밴드 (equip-voxelize ⓑ)
+            // 종전 서명을 칸 문법으로: 바이저 = 셸 행 recolor + 1칸 돌출(흑유리 밴드 — 밝은 단색
+            // 아크는 '안대' 오독, 비평가 6.4 5번), 그 위 발광 렌즈 눈 2점(고정 시안 — 등급색 파생은
+            // 씻김, 6.9), 턱 가드 = 하부 돌출 다크 밴드, 이어 포드·정수리 능선·안테나는 큐브.
+            const R = 12, CY = 2;
+            const cShell = this.tintOf(mat, 0.02).color.getHex(), cDark = HEXOF(darkMat);
+            const cGlass = 0x090d13;
+            const inArc = (x, z, arc) => Math.abs(Math.atan2(x, z)) < arc / 2;
+            const v = [];
+            for (let dy = -10; dy <= 10; dy++) {     // 통짜 타원구 셸(y 0.92 눌림 · z 1.05 앞뒤로 김)
+                const rr = R * Math.sqrt(Math.max(0, 1 - (dy / 10.5) * (dy / 10.5)));
+                if (rr < 0.6) { v.push({ x: 0, y: CY + dy, z: 0, c: cShell }); continue; }
+                const visorRow = dy === -1 || dy === 0;      // 눈높이 흑유리 밴드
+                const jawRow = dy >= -8 && dy <= -5;         // 턱 가드 대역
+                for (const c of V.ellipse(rr * 0.98, rr * 1.07, 1, { y0: CY + dy, color: cShell, rix: Math.max(0, rr * 0.98 - 2.4), riz: Math.max(0, rr * 1.07 - 2.4) })) {
+                    if (visorRow && inArc(c.x, c.z, Math.PI * 0.86)) c.c = cGlass;
+                    v.push(c);
+                }
+                if (visorRow)                                 // 흑유리 밴드 — +1칸 돌출로 '감싸는 슬릿' 유지
+                    for (const c of V.ellipse(rr * 0.98 + 1, rr * 1.07 + 1, 1, { y0: CY + dy, color: cGlass, rix: rr * 0.98, riz: rr * 1.07 }))
+                        if (inArc(c.x, c.z, Math.PI * 0.86)) v.push(c);
+                if (jawRow)                                   // 턱 가드 — 하부 돌출 다크 밴드
+                    for (const c of V.ellipse(rr * 0.98 + 1, rr * 1.07 + 1, 1, { y0: CY + dy, color: cDark, rix: rr * 0.98, riz: rr * 1.07 }))
+                        v.push(c);
             }
-            // 이어 포드 + 정수리 능선
-            for (const dx of [-0.27, 0.27]) {
-                const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.05, 10), darkMat);
-                pod.rotation.z = Math.PI / 2;
+            // 정수리 능선 — 전후 방향 1칸 폭 계단 아크(셸 밖 +1칸)
+            for (let z = -10; z <= 10; z++) {
+                const yy = Math.sqrt(Math.max(0, (R + 1.2) * (R + 1.2) - z * z * 0.85));
+                if (yy < 6) continue;
+                const yi = Math.round(yy * 0.92);
+                v.push({ x: 0, y: CY + yi, z, c: cDark }, { x: 0, y: CY + yi - 1, z, c: cDark });
+            }
+            vhead(v, mat, { shade: mats.kind });
+            for (const dx of [-0.095, 0.095]) {      // 유리 밴드 위 발광 렌즈 눈 — 언릿 큐브 판
+                const eye = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.05, 0.02), new THREE.MeshBasicMaterial({ color: 0x35e0ff }));
+                eye.position.set(dx, 0.03, 0.315);
+                eye.rotation.y = Math.atan2(dx, 0.315);
+                g.add(eye);
+            }
+            for (const dx of [-0.29, 0.29]) {        // 이어 포드 + 등급색 도트 큐브
+                const pod = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.1), darkMat);
                 pod.position.set(dx, 0.07, 0);
-                const podDot = new THREE.Mesh(new THREE.SphereGeometry(0.024, 6, 5), rareMat);
+                const podDot = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.04), rareMat);
                 podDot.position.set(dx * 1.1, 0.07, 0);
                 g.add(pod, podDot);
             }
-            const rGeo = new THREE.TorusGeometry(0.275, 0.03, 6, 16, Math.PI * 0.85); // 정수리 능선 — 전후 방향 아크 (셸 밖으로 살짝 돌출)
-            rGeo.rotateZ(Math.PI * 0.075);
-            rGeo.rotateY(Math.PI / 2);
-            const ridge = new THREE.Mesh(rGeo, darkMat);
-            ridge.position.y = 0.075;
-            const antSock = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.046, 0.07, 8), darkMat); // 안테나 소켓 — 셸을 그냥 뚫고 나오던 클리핑(비평가) 마감
+            const antSock = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.07, 0.075), darkMat);   // 안테나 소켓(클리핑 마감 유지)
             antSock.position.set(0.195, 0.285, -0.06);
-            antSock.rotation.z = -0.18;
-            const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.2, 6), darkMat);
+            const ant = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.2, 0.024), darkMat);
             ant.position.set(0.213, 0.4, -0.06);
-            ant.rotation.z = -0.18;
-            const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.026, 6, 6), rareMat);
+            ant.rotation.z = -0.18;                  // 기울인 각재 = 로컬 축정렬
+            const antTip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), rareMat);
             antTip.position.set(0.232, 0.5, -0.06);
-            g.add(shell, jawGuard, visorArc, ridge, antSock, ant, antTip);
+            g.add(antSock, ant, antTip);
         } else if (style === 'sealed') {
             // ── 밀폐 여압 투구 (equip-era-theming ⑦, 현대~양자 5시대의 `visor` 대체) ──────
             // 🚨 **되돌려서 `visor` 로 쓰지 말 것.** 현대·우주·성간·다중 우주·양자 **다섯 시대가
