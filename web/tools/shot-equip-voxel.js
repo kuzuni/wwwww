@@ -25,6 +25,9 @@ const SLOTS = (process.argv[3] || 'necklace,ring').split(',').filter(Boolean);
 
     const res = await page.evaluate((SLOTS) => {
         const S = 224;
+        // 등급을 셋으로 굴린다 — 90칸이 전부 같은 하늘색 액센트로 보이던 건 시트가 rarity 를
+        //   'rare' 하나로 고정했기 때문이다(게임에서는 아이템마다 등급이 다르다).
+        const RAR = ['rare', 'legendary', 'mythic'];
         Scene3D.itemThumb({ slot: 'ring', age: 'medieval', ageIdx: 1, rarity: 'rare', nameIdx: 0 });
         Scene3D._thumbR.setSize(S, S);
         Scene3D._thumbCache = {};
@@ -39,18 +42,33 @@ const SLOTS = (process.argv[3] || 'necklace,ring').split(',').filter(Boolean);
         const jobs = [], errs = [];
         AGE_ROWS.forEach((age, r) => {
             cells.forEach((cell, c) => {
-                let dataUrl = null;
+                let dataUrl = null, rawUrl = null;
                 try {
-                    const model = Scene3D.makeAccessoryPreview(cell.slot, cell.variant, age, 'rare', '');
-                    const sc = Scene3D._thumbScene;
-                    Scene3D.clearGroup(sc);
-                    sc.add(Scene3D._thumbAmb, Scene3D._thumbDir, Scene3D._thumbRim);
-                    const g = new THREE.Group();
-                    g.add(model); sc.add(g);
-                    const d = Scene3D.ITEM_THUMB_DIR;
-                    Scene3D.thumbFrameToFit(Scene3D._thumbCam, g, new THREE.Vector3(d.x, d.y, d.z).normalize(), 1.06);
-                    Scene3D._thumbR.render(sc, Scene3D._thumbCam);
-                    dataUrl = Scene3D._thumbR.domElement.toDataURL();
+                    // 🚨 **`itemThumb` 을 그대로 부른다 — 씬을 직접 굽지 말 것.** 첫 판은
+                    //    `shot-equip-sculpt.js` 를 베껴 `makeAccessoryPreview` + `_thumbR.render` 로
+                    //    직접 구웠는데, 그러면 `thumbFinish` 의 **마감 4겹(접지 그림자·소프트 AO·
+                    //    비네트·레어리티 프레임)이 통째로 빠진다.** 그 판으로 비평가를 돌렸더니
+                    //    "접지 그림자 없음 · 비네트 없음 · 이미시브 없음"이 마감 점수의 근거로
+                    //    돌아왔다 — 게임에는 다 있는 것이라, **자가 아니라 검수판이 틀린 것**이었다.
+                    //    `itemThumb` 은 (슬롯,시대,이름idx) 캐시 키를 쓰고 변형 = nameIdx % 3 이므로
+                    //    변형도 그대로 고를 수 있다.
+                    Scene3D._thumbCache = {};
+                    dataUrl = Scene3D.itemThumb({
+                        slot: cell.slot, age, ageIdx: AGES.indexOf(age),
+                        rarity: RAR[cell.variant % RAR.length],   // 등급 프레임·보석 색이 갈리는 것도 보여야 한다
+                        nameIdx: cell.variant,
+                    });
+                    // 🚨 실루엣 판은 **마감을 끈 판**으로 뜬다. 마감은 비네트로 타일 전체를
+                    //    불투명하게 칠하므로, 마감본의 알파를 실루엣으로 쓰면 아이템이 아니라
+                    //    **타일 사각형**이 찍힌다(마감을 켜자마자 이 칸이 통째로 까맣게 나왔다).
+                    //    타일 = 플레이어가 보는 것, 실루엣 = 조형만 — 둘의 출처가 달라야 한다.
+                    Scene3D.THUMB_FINISH_OFF = true;
+                    Scene3D._thumbCache = {};
+                    rawUrl = Scene3D.itemThumb({
+                        slot: cell.slot, age, ageIdx: AGES.indexOf(age),
+                        rarity: RAR[cell.variant % RAR.length], nameIdx: cell.variant,
+                    });
+                    Scene3D.THUMB_FINISH_OFF = false;
                 } catch (e) { errs.push(cell.label + '/' + age + ': ' + e.message); }
                 if (!dataUrl) return;
                 jobs.push(new Promise(res => {
@@ -60,18 +78,27 @@ const SLOTS = (process.argv[3] || 'necklace,ring').split(',').filter(Boolean);
                         if (r === AGE_ROWS.length - 1) {
                             const y = AGE_ROWS.length * S;
                             ctx.drawImage(im, c * S + 10, y + 40, 96, 96);
-                            const t = document.createElement('canvas'); t.width = t.height = 96;
-                            const tc = t.getContext('2d', { willReadFrequently: true });
-                            tc.drawImage(im, 0, 0, 96, 96);
-                            const d2 = tc.getImageData(0, 0, 96, 96);
-                            for (let i = 0; i < d2.data.length; i += 4) {
-                                const a = d2.data[i + 3];
-                                d2.data[i] = d2.data[i + 1] = d2.data[i + 2] = a > 24 ? 20 : 0;
-                                d2.data[i + 3] = a > 24 ? 255 : 0;
-                            }
-                            tc.putImageData(d2, 0, 0);
                             ctx.fillStyle = '#8a97a8'; ctx.fillRect(c * S + 112, y + 40, 96, 96);
-                            ctx.drawImage(t, c * S + 112, y + 40, 96, 96);
+                            if (rawUrl) {
+                                const sm = new Image();
+                                sm.onload = () => {
+                                    const t = document.createElement('canvas'); t.width = t.height = 96;
+                                    const tc = t.getContext('2d', { willReadFrequently: true });
+                                    tc.drawImage(sm, 0, 0, 96, 96);
+                                    const d2 = tc.getImageData(0, 0, 96, 96);
+                                    for (let i = 0; i < d2.data.length; i += 4) {
+                                        const a = d2.data[i + 3];
+                                        d2.data[i] = d2.data[i + 1] = d2.data[i + 2] = a > 24 ? 20 : 0;
+                                        d2.data[i + 3] = a > 24 ? 255 : 0;
+                                    }
+                                    tc.putImageData(d2, 0, 0);
+                                    ctx.drawImage(t, c * S + 112, y + 40, 96, 96);
+                                    res();
+                                };
+                                sm.onerror = () => res();
+                                sm.src = rawUrl;
+                                return;
+                            }
                         }
                         res();
                     };

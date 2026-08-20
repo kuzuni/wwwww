@@ -7590,7 +7590,12 @@ const Scene3D = {
                 color: 0xffffff, vertexColors: true, flatShading: true,
                 metalness: metal, roughness: rough,
                 emissive: emi, emissiveIntensity: emi ? ei : 0,
-                envMapIntensity: 0.35,
+                // 🚨 **환경맵을 거의 끈다(0.35 → 0.06).** `flatShading` 은 법선만 평평하게 할 뿐,
+                //    환경 반사는 **픽셀마다 시선 방향이 달라** 평평한 면 하나에도 위→아래 부드러운
+                //    그라디언트를 깐다. 비평가 2인이 각자 "면당 플랫 색이 아니다 · 같은 평면의
+                //    인접 큐브 경계가 안 보인다"로 짚은 것이 그것이다(화풍 ⓒ 위반). 완전히 0 으로
+                //    두지 않는 이유는 금속 시대(단조·황동)가 통째로 종이처럼 죽기 때문이다.
+                envMapIntensity: 0.06,
             });
         }
         return m;
@@ -7742,7 +7747,10 @@ const Scene3D = {
                     // ⚠️ 구슬을 x ±8 에 두면 고리 **안쪽 구멍 가장자리**에 박혀 안 보인다(첫 판이
                     //    그랬다). 고리가 가장 넓은 자리(x = ±rOut, 같은 높이)에 얹어야 밖으로 읽힌다.
                     for (const dx of [-10, 10]) body.push(...V.at(V.ball(2, cBead), dx, U(0.52), U(0.05)));
-                    glow.push(...V.at(V.ball(5), 0, U(0.24), U(0.04)));
+                    // 🚨 펜던트를 `ball(5)` 로 두면 안 된다 — 반지름 5짜리 구는 계단이 잘아서
+                    //    96px 로 내려가면 **매끈한 공**으로 뭉개진다(비평가 2인 공통 지적).
+                    //    같은 부피를 45° 각면 보석으로 바꾸면 계단이 크게 떨어져 살아남는다.
+                    glow.push(...V.at(V.gem(6), 0, U(0.24), U(0.04)));
                 } else if (variant === 1) { // 아뮬렛: V자로 내려오는 두 가닥 끈 + 넓은 원판
                     // 🚨 끈의 기울기는 **계단**으로 낸다. 예전 코드의 `rotation.z = ±0.42` 를 그대로
                     //    두면 원기둥이 비스듬히 눕고, 그 면은 어느 축과도 안 맞아 voxel 이 깨진다.
@@ -7753,16 +7761,22 @@ const Scene3D = {
                             body.push(...V.at(V.box(2, 1, 2, cBody), x, y, U(0.02)));
                         }
                     }
-                    glow.push(...V.at(V.rotX(V.disc(U(0.17), U(0.05)), 1), 0, U(0.27), U(0.04)));
-                    body.push(...V.at(upRing(U(0.198), U(0.056), U(0.06), cBody), 0, U(0.27), U(0.04)));
+                    // 🚨 원판(`disc`)을 세워 두면 **두께 0 짜리 스티커**로 읽힌다 — 윤곽만 계단이고
+                    //    앞면은 통짜 단색 판이라 3D 가 아니다(비평가 2인 공통). 팔각 결정으로
+                    //    바꾸고 두께를 4칸 준다: `slab` 의 계단 베벨이 곧 팔각 단면이다.
+                    glow.push(...V.at(V.rotX(V.slab(13, 4, 13, undefined, 4), 1), 0, U(0.27), U(0.04) - 2));
+                    body.push(...V.at(upRing(U(0.198), U(0.056), U(0.09), cBody), 0, U(0.27), U(0.04)));
                 } else {                    // 펜던트: 사슬 고리가 세로로 이어지고 끝에 물방울
                     for (let i = 0; i < 5; i++) {
                         // 고리는 한 칸 걸러 90° 눕는다 — 실제 사슬이 그렇게 물린다.
                         const lk = V.ring(3, 1, 2, cBody);
                         body.push(...V.at(i % 2 ? V.rotZ(V.rotX(lk, 1), 1) : V.rotX(lk, 1), 0, U(0.72) - i * U(0.078), U(0.02)));
                     }
-                    // 물방울 = 아래로 뾰족한 테이퍼(원뿔 대체). 밑이 좁고 위가 넓다.
-                    glow.push(...V.at(V.taper(0.7, U(0.1), U(0.26)), 0, U(0.06), U(0.02)));
+                    // 🚨 물방울을 `taper` 로 뽑으면 **층마다 반지름이 0.3칸씩** 늘어 계단이 안 생기고
+                    //    매끈한 원뿔이 된다(비평가 2인이 "이건 원뿔이다"로 공통 지목). 층을 넷으로
+                    //    묶어 **한 단이 확실히 2칸씩** 뛰는 계단 각뿔로 다시 짠다 — 아래가 뾰족하다.
+                    [[3, 3, 0], [5, 3, 3], [7, 3, 6], [9, 2, 9]].forEach(([w, h, y]) =>
+                        glow.push(...V.at(V.slab(w, h, w, undefined, w > 3 ? 1 : 0), 0, U(0.06) + y, U(0.02))));
                 }
             } else {
                 // 반지도 같은 문제였다(밴드 공유 + 좁쌀만 한 보석). 밴드 굵기·머리 형태를 가른다.
@@ -7778,7 +7792,11 @@ const Scene3D = {
                 if (variant === 0) {        // 고리/반지: 두껍고 민짜인 굵은 밴드 + 낮은 계단 돔
                     const rO = 12;
                     body.push(...V.at(upRing(rO, 5, 7, cBody), 0, yc, 0));
-                    glow.push(...V.at(V.dome(7, 5), 0, yc + rO - 2, 0));
+                    // 🚨 `dome` 은 층마다 반지름이 조금씩 줄어 **잘게 쪼갠 캡**이 된다(비평가 지적).
+                    //    단을 셋으로 굵게 끊어 계단이 눈에 보이게 하고, 키도 5 → 4 로 낮춘다
+                    //    (`probe-equip-framing` 이 이 칸을 세로 채움 100% = 크롭으로 잡고 있다).
+                    [[11, 2, 0], [7, 1, 2], [5, 1, 3]].forEach(([w, h, dy]) =>
+                        glow.push(...V.at(V.slab(w, h, w, undefined, 3), 0, yc + rO - 2 + dy, 0)));
                 } else if (variant === 1) { // 인장 반지: 넓적한 사각 인장판이 머리에 얹힌다
                     // ⚠️ **밴드를 작게, 판을 크게.** 밴드를 v0 와 비슷한 크기로 두면 96px 실루엣이
                     //    둘 다 '도넛 + 작은 혹'으로 수렴한다(1차판에서 실제로 그랬다) — 지각 중복
@@ -7793,7 +7811,7 @@ const Scene3D = {
                     const rO = 8;
                     body.push(...V.at(upRing(rO, 3, 6, cBody), 0, yc, 0));
                     body.push(...V.at(V.slab(15, 5, 10, cBody, 3), 0, yc + rO - 1, 0));
-                    glow.push(...V.at(V.slab(9, 1, 6, undefined, 2), 0, yc + rO + 4, 0));
+                    glow.push(...V.at(V.slab(9, 1, 6, undefined, 2), 0, yc + rO + 3, 0));
                 } else {                    // 보석 반지: 얇은 밴드 + 발톱 물림쇠 + 높이 세운 큐브 보석
                     const rO = 11;
                     body.push(...V.at(upRing(rO, 2, 4, cBody), 0, yc, 0));
