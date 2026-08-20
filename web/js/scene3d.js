@@ -10487,16 +10487,66 @@ const Scene3D = {
                     eyes(0.14, 0.11);
                 });
                 jt(neck, 'x', 0.4, 0.5, { f: 1, gain: 1.6 });
+                // 🚨 교집합 지적 ㉨: *"붉은 부속이 3/4각에서 원반·옆에서 원뿔이라 정체 불명."*
+                //    종전 날개는 `sp(0.1, …, 0.2, 1, 0.7)` — **납작한 타원 한 덩어리**라 각도에 따라
+                //    원반/원뿔로 뭉갰다. 처방: **막날개(손가락 골조 3 + 뒷전 파임 3)**. 박쥐·용 날개의
+                //    문법은 '면(막) + 그 면을 가르는 손가락뼈'다 — 타원으로는 절대 안 나온다.
+                //    막을 폐곡선으로 깎고(뒷전에 파임 3), 뿌리에서 각 손가락 끝으로 **어두운 골조**를 긋는다.
+                const WING_M = M(new THREE.Color(c).offsetHSL(0, 0.05, -0.12));   // 막(반투명 아님 — voxel 은 두께가 있다)
+                const WING_B = M(new THREE.Color(c).offsetHSL(0, 0.10, -0.30));   // 손가락뼈(막보다 진하게)
+                const FT = [[0.205, -0.02], [0.150, -0.045], [0.092, -0.060]];    // 손가락 끝 3개(span, y)
+                const wingVox = (s) => {
+                    // 막 폐곡선 — 앞전은 뿌리→바깥위, 뒷전은 손가락 끝 3개 사이가 위로 파인다(scallop).
+                    const P = [[0, 0.03], [0.225, 0.085],
+                        FT[0], [0.178, 0.005], FT[1], [0.121, -0.010], FT[2], [0.046, 0.005], [0, -0.03]]
+                        .map(([x, y]) => [s * x, y]);
+                    const inside = (px, py) => {
+                        let hit = false;
+                        for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+                            const xi = P[i][0], yi = P[i][1], xj = P[j][0], yj = P[j][1];
+                            if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) hit = !hit;
+                        }
+                        return hit;
+                    };
+                    const out = [], mx = Math.ceil(0.24 / PVS), myU = Math.ceil(0.09 / PVS), myD = Math.ceil(0.07 / PVS);
+                    for (let y = -myD; y <= myU; y++) for (let x = -mx; x <= mx; x++)
+                        if (inside(x * PVS, y * PVS)) for (let z = 0; z < 2; z++) out.push({ x, y, z, c: WING_M.color.getHex() });
+                    // 손가락뼈 — 뿌리(0,0)에서 각 끝점까지 Bresenham 로 칸을 이어 어두운 색으로 덮는다.
+                    for (const [fx, fy] of FT) {
+                        const ex = Math.round(s * fx / PVS), ey = Math.round(fy / PVS);
+                        const n = Math.max(Math.abs(ex), Math.abs(ey));
+                        for (let k = 0; k <= n; k++) {
+                            const x = Math.round(ex * k / n), y = Math.round(ey * k / n);
+                            for (let z = 0; z < 2; z++) out.push({ x, y, z, c: WING_B.color.getHex() });
+                        }
+                    }
+                    return out;
+                };
                 g.userData.wings = [];
                 for (const s of [-1, 1]) {
-                    const sh = pv(s * 0.08, 0.28, -0.05);
-                    into(sh, () => sp(0.1, s * 0.07, -0.04, 0, dark, 0.2, 1, 0.7));
-                    sh.rotation.z = s * 0.6;
+                    const sh = pv(s * 0.07, 0.30, -0.04);
+                    into(sh, () => {
+                        const w = Voxel.build(wingVox(s), { size: PVS, jitter: 0.05, ao: 0.7, center: false,
+                            material: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), color: 0xffffff });
+                        sh.add(w);
+                    });
+                    sh.rotation.z = s * 0.5; sh.rotation.y = s * 0.5;   // 위로 벌리고 뒤로 젖혀 등 위 V
                     sh.userData.s = s;
                     g.userData.wings.push(sh);
                 }
+                // 스페이드 끝 꼬리 — 지적 ㉨ 의 둘째. 가는 줄 끝에 **마름모 판**을 세워 용 꼬리로 맺는다.
                 const tail = pv(0, 0.19, -0.12);
-                into(tail, () => { const t = cn(0.035, 0.16, 0, 0.08, 0, mat); t.rotation.x = Math.PI; });
+                into(tail, () => {
+                    const t = cn(0.030, 0.15, 0, 0.075, 0, mat); t.rotation.x = Math.PI;
+                    // 스페이드(마름모) — |x|+|y| ≤ r 판을 세워 끝에 얹는다. z 로 얇게.
+                    const spadeV = [];
+                    const sr = 4;
+                    for (let x = -sr; x <= sr; x++) for (let y = -sr; y <= sr; y++)
+                        if (Math.abs(x) + Math.abs(y) <= sr) for (let z = 0; z < 2; z++) spadeV.push({ x, y: -y, z });
+                    const sp2 = Voxel.build(spadeV, { size: PVS, jitter: 0.05, ao: 0.8, center: true,
+                        material: vmat(light), color: light.color.getHex() });
+                    sp2.position.set(0, 0.175, 0); CUR.add(sp2);
+                });
                 tail.rotation.x = -0.9;
                 g.userData.tail = tail;
                 let i = 0;
