@@ -31,8 +31,10 @@ const TOL = 2;   // ±2%p (TODO 상단 UI 규칙)
 // 확인한다. 30px = 3.37%H — 클론이 이미 최대 0.33%p 낮게 앉아 있어 20px(2.24%H) 로는 한 지표가 1.91%p 로 문턱 아래에 남는다(실측). 밀어 넣는 양은 **문턱 + 기존 편차**보다 넉넉해야 한다: 카드 행 4지표가 FAIL 로 뒤집혀야 정상이다.
 // (이미지 전체를 밀면 앱 좌우 끝·탭바가 같이 밀려 상대 좌표가 그대로라 아무것도 안 잡힌다.)
 const SELFTEST = process.argv.includes('--selftest');
+// --selftest-back: 뒤로 버튼 축 전용 음성 대조(아래 MEASURE 의 backMode 주석 참조).
+const SELFTEST_BACK = process.argv.includes('--selftest-back');
 
-const MEASURE = async ([src, shiftCards]) => {
+const MEASURE = async ([src, shiftCards, backMode]) => {
         const img = new Image();
         await new Promise(r => { img.onload = r; img.src = src; });
         const c = document.createElement('canvas');
@@ -142,10 +144,73 @@ const MEASURE = async ([src, shiftCards]) => {
         }
 
         // ---- 뒤로 버튼(빨강 ◀) ----
+        // 🚨 **밴드 안 빨강 화소의 '합집합'으로 재면 안 된다 — 2026-08-20 실측으로 터졌다.**
+        //    크로미엄이 흰 글자를 파란 서브탭('기술 트리') 위에 그리면 서브픽셀 렌더링이 글자
+        //    오른쪽 모서리에 **붉은 프린지**를 남긴다(실측 `151,71,52`·`167,87,45` — 좌우 이웃이
+        //    `255,255,223` 과 `10,51,95` 라 글자 가장자리인 게 드러난다). 그 화소가 **4개** 밴드에
+        //    들어오는 순간 합집합 상자가 29px → 382px 로 늘어 `뒤로 폭 +70.31%p`·`뒤로 높이
+        //    +7.39%p` 라는 유령 불통과가 났다. 정작 버튼은 x15~43·y692~714 로 멀쩡했다.
+        //    ⚠️ 원본 PNG 에는 이 프린지가 없다 = **클론에서만 터지는 오염**이다. 이 자의 설계
+        //    원칙이 '양쪽에 같은 코드'인데, 한쪽만 오염되는 경로는 그 원칙으로 막히지 않는다.
+        //    → 합집합 대신 **가장 큰 연결 성분(4-이웃)** 하나만 잰다. 프린지는 1~2화소짜리
+        //    고립점이라 자동으로 진다. '가장 붉은 것'이 아니라 '가장 큰 덩어리'로 고르는 이유는,
+        //    문턱을 조이는 처방은 프린지 색이 배경색에 딸려 움직여서 다음 색 변경에 또 뚫린다.
+        const isRed = (x, y) => { const p = at(x, y); return p[0] > 150 && p[1] < 90 && p[2] < 90; };
+        const yTop = Math.round(H * 0.6), yBot = (subTop > 0 ? subTop : H);
+        let nBlobs = 0;
+        const findRedBlob = () => {
+            const seen = new Uint8Array(W * H);
+            let best = null; nBlobs = 0;
+            for (let y = yTop; y < yBot; y++) for (let x = ax0; x <= ax1; x++) {
+                const k0 = y * W + x;
+                if (seen[k0] || !isRed(x, y)) continue;
+                let n = 0, x0 = W, x1 = -1, y0 = H, y1 = -1;
+                const st = [k0]; seen[k0] = 1;
+                while (st.length) {
+                    const cur = st.pop(), cx = cur % W, cy = (cur - cx) / W;
+                    n++;
+                    if (cx < x0) x0 = cx; if (cx > x1) x1 = cx;
+                    if (cy < y0) y0 = cy; if (cy > y1) y1 = cy;
+                    for (const [nx, ny] of [[cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]]) {
+                        if (nx < ax0 || nx > ax1 || ny < yTop || ny >= yBot) continue;
+                        const nk = ny * W + nx;
+                        if (seen[nk] || !isRed(nx, ny)) continue;
+                        seen[nk] = 1; st.push(nk);
+                    }
+                }
+                nBlobs++;
+                if (!best || n > best.n) best = { n, x0, x1, y0, y1 };
+            }
+            return best;
+        };
+        // 🔬 음성 대조 두 종(--selftest-back). 이 축은 **판정기에 자기검증이 아예 없어서** 위 사고가
+        //    조용히 났다 — 고친 성질을 그대로 겨누는 대조를 붙여 둔다. 좌표는 하나도 안 박는다
+        //    (인계 함정 ④⑴: 손으로 베낀 인자는 코드가 변하면 유령 결과를 낸다).
+        //    ⓐ fringe = **고립 빨강 화소**를 밴드 오른쪽에 심는다 → 합집합 시절이면 상자가 통째로
+        //       늘어나 FAIL, 연결 성분이면 **아무것도 안 변해야** 한다(면역 확인).
+        //    ⓑ grow  = 찾은 덩어리 **오른쪽에 이어 붙여** 20px 넓힌다 → 이 축이 아직 살아 있으면
+        //       `뒤로 폭` 이 FAIL 로 뒤집혀야 한다(판정력 확인).
+        const paintRed = (x0, y0, x1, y1) => {
+            for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+                const i = (y * W + x) * 4; D[i] = 220; D[i + 1] = 40; D[i + 2] = 40;
+            }
+        };
+        if (backMode === 'fringe') {
+            const fy = Math.round((yTop + yBot) / 2);
+            for (let j = 0; j < 4; j++) paintRed(ax0 + Math.round(AW * 0.75) + j * 7, fy + j * 5, ax0 + Math.round(AW * 0.75) + j * 7, fy + j * 5);
+            log.push(`[selftest-back:fringe] 고립 빨강 4화소를 x≈${ax0 + Math.round(AW * 0.75)} y≈${fy} 에 심었다`);
+        } else if (backMode === 'grow') {
+            const b0 = findRedBlob();
+            if (b0) { paintRed(b0.x1 + 1, b0.y0, Math.min(ax1, b0.x1 + 20), b0.y1); log.push(`[selftest-back:grow] 덩어리 오른쪽에 20px 이어 붙였다(x${b0.x1 + 1}~${Math.min(ax1, b0.x1 + 20)})`); }
+        }
+        const blob = findRedBlob(), blobs = nBlobs;
         let bx0 = W, bx1 = -1, by0 = H, by1 = -1;
-        for (let y = Math.round(H * 0.6); y < (subTop > 0 ? subTop : H); y++) for (let x = ax0; x <= ax1; x++) {
-            const p = at(x, y);
-            if (p[0] > 150 && p[1] < 90 && p[2] < 90) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+        if (blob) {
+            ({ x0: bx0, x1: bx1, y0: by0, y1: by1 } = blob);
+            log.push(`뒤로 빨강 덩어리 ${blobs}개 중 최대 ${blob.n}화소 x${bx0}~${bx1} y${by0}~${by1}(나머지는 서브픽셀 프린지)`);
+            // 자기검증: 버튼 한 개치고 말이 안 되는 덩어리면 수치를 내지 않는다(인계 규칙 — 측정기 고장).
+            const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
+            if (blob.n < 100 || bw > AW * 0.25 || bh > H * 0.1) { log.push(`⚠️ 측정기 고장 — 뒤로 덩어리가 버튼 크기가 아니다(${blob.n}화소 ${bw}×${bh})`); bx1 = -1; }
         }
 
         const pw = v => +((v) / AW * 100).toFixed(2);
@@ -172,10 +237,29 @@ const MEASURE = async ([src, shiftCards]) => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
     const page = await browser.newPage();
     await page.setContent('<body style="margin:0">');
-    const run = async (f, shift) => page.evaluate(MEASURE, ['data:image/png;base64,' + fs.readFileSync(f).toString('base64'), shift || 0]);
+    const run = async (f, shift, backMode) => page.evaluate(MEASURE, ['data:image/png;base64,' + fs.readFileSync(f).toString('base64'), shift || 0, backMode || '']);
     const ref = await run(REF);
     const clone = await run(CLONE, SELFTEST ? 30 : 0);
     if (SELFTEST) console.log('[selftest] 클론 카드 밴드를 30px(3.37%H) 아래로 밀어 잰다 — 카드 행 지표가 FAIL 로 뒤집혀야 판정기가 살아 있는 것이다.');
+
+    // ---- --selftest-back: 뒤로 버튼 축의 음성 대조 2종 ----
+    // 카드 밴드를 미는 기존 --selftest 는 이 축을 전혀 안 건드린다. 그래서 '합집합으로 재던 사고'가
+    // 판정기가 초록인 채로 지나갔다(정확히는 유령 빨강이 났고, 그게 UI 결함으로 오해될 뻔했다).
+    if (SELFTEST_BACK) {
+        const keys = ['뒤로 좌', '뒤로 폭', '뒤로 상단', '뒤로 높이'];
+        const fringe = await run(CLONE, 0, 'fringe');
+        const grow = await run(CLONE, 0, 'grow');
+        const same = keys.every(k => fringe.R[k] === clone.R[k]);
+        const grew = grow.R['뒤로 폭'] != null && Math.abs(grow.R['뒤로 폭'] - ref.R['뒤로 폭']) > TOL;
+        console.log('\n[selftest-back] 뒤로 버튼 축 음성 대조');
+        fringe.log.filter(l => l.startsWith('[selftest') || l.startsWith('뒤로')).forEach(l => console.log('  ⓐ ' + l));
+        console.log(`  ⓐ 고립 프린지 면역: ${keys.map(k => `${k} ${clone.R[k]}→${fringe.R[k]}`).join(' · ')} → ${same ? 'OK(안 변함)' : 'FAIL(합집합으로 재고 있다)'}`);
+        grow.log.filter(l => l.startsWith('[selftest') || l.startsWith('뒤로')).forEach(l => console.log('  ⓑ ' + l));
+        console.log(`  ⓑ 20px 확장 검출: 뒤로 폭 ${clone.R['뒤로 폭']}→${grow.R['뒤로 폭']}(원본 ${ref.R['뒤로 폭']}) → ${grew ? 'OK(FAIL 로 뒤집힘)' : 'FAIL(판정력 없음)'}`);
+        console.log(same && grew ? '\nSELFTEST-BACK OK — 프린지엔 면역이고 진짜 확장은 잡는다' : '\nSELFTEST-BACK FAIL — 판정기 고장');
+        await browser.close();
+        process.exit(same && grew ? 0 : 1);
+    }
 
     for (const [label, o] of [['원본 shot-042407', ref], ['클론 tech-overview', clone]]) {
         console.log(`\n${label} ${o.size.join('×')} · 앱 ${o.app.join('~')}`);
