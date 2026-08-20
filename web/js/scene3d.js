@@ -694,6 +694,7 @@ const Scene3D = {
             const u = { uShadeTint: { value: new THREE.Color(0x2c4a6e) }, uShadeStr: { value: this.SHADE.strength },
                 uShadeSun: { value: new THREE.Vector3(0, 1, 0) } };   // 뷰 공간 태양 방향 — 매 프레임 갱신
             this._shadeUniforms.push(u);
+            m.userData.__shadeU = u;   // 재질 단위로 강도를 들여다볼 수 있게 (setTheme 이 매 챕터 이 값을 덮어쓴다)
             const prev = m.onBeforeCompile;
             m.onBeforeCompile = (shader, renderer) => {
                 if (prev) prev(shader, renderer);
@@ -2064,6 +2065,9 @@ const Scene3D = {
         this.applyShadeLift([this.foliageMat, this.foliageMatDark, this.foliageMatLight, this.trunkMat,
             this.bushMat, this.stoneMat, this.mossMat, this.cactusMat, this.charTrunkMat, this.charRockMat,
             this.terrainMat]);
+        // 잎 재질은 복셀 프롭이 **원본을 그대로** 쓴다(vertexColors 가 이미 켜져 있어 클론이 필요 없고,
+        // 클론하면 `previewMat` 의 동일성 비교가 깨진다) — 그래서 여기서 직접 리프트를 올려 준다.
+        for (const m of this.foliageMats) this.applyVoxAmbient(m);
         // vertexColors — 이 재질을 쓰는 메시는 `crystalGeo()` 가 굽는 클러스터 하나뿐이다(파일 전체 확인함).
         // ⚠️ 새 메시를 이 재질로 만들 땐 반드시 color 속성을 붙일 것(없으면 그 메시만 검게 찍힌다).
         this.crystalMat = new THREE.MeshPhongMaterial({
@@ -2816,6 +2820,134 @@ const Scene3D = {
         }
     },
 
+    // ---- 배경 프롭 voxel 조형 (화풍 확정 2026-08-20: Voxel + 치비 — `cute-art-direction` ③ 배경) ----
+    // 화풍 블록이 "3D 로 그리는 모든 것 … **배경/환경(전투 씬의 숲·지형·하늘·나무·바위 등)**" 을
+    // 큐브 기반 조형으로 통일하라고 못 박았다. 식생이 원뿔·라테·구로 남아 있으면 캐릭터·장비만
+    // 복셀이 되고 배경은 사실주의라 **한 화면에 두 화풍이 섞인다** — 장비 쪽에서 화풍 정합
+    // 2/10 을 받은 것과 같은 실패다. 그래서 조형은 전부 `Voxel` 공용 빌더 위에 얹는다.
+    //
+    // 🚨 **왜 재질을 원본에 그대로 못 쓰는가.** 프롭 재질은 전역 공유이고 `setTheme` 이 챕터마다
+    //    색을 덮어쓴다. 그런데 `Voxel.build` 는 색·AO 를 **정점 색**에 굽기 때문에 재질에
+    //    `vertexColors` 가 켜져 있어야 한다 — 원본에 바로 켜면 그 재질을 쓰는 **기존 비복셀
+    //    메시(color 속성이 없다)가 통째로 검게** 찍힌다(`foliageMat` 주석이 경고하는 그 사고).
+    //    → 원본은 그대로 두고 복셀 전용 클론을 캐시하되, **색은 부를 때마다 원본에서 복사**해
+    //      바이옴 재색칠을 따라간다(프롭은 챕터가 바뀌면 통째로 다시 만들어지므로 이 시점 복사로
+    //      충분하다). 이미 `vertexColors` 가 켜진 재질(`foliageMats`)은 클론하지 않고 **그대로
+    //      쓴다** — 클론하면 `previewMat` 의 동일성 비교가 깨져 프리뷰가 현재 챕터 색을 탄다.
+    // 🚨 `clone()` 은 userData 를 깊은 복사해 `__shade` 플래그까지 가져오는데 `onBeforeCompile`
+    //    은 안 가져온다. 플래그를 지우고 `applyShadeLift` 를 다시 걸지 않으면 **복셀 프롭만**
+    //    암부 색 보정에서 빠져 그늘이 순검정으로 남는다(고사목이 '검은 스티커'가 되던 그 경로).
+    vxMat(base) {
+        if (!this._vxMats) { this._vxMats = new Map(); this._vxBaseOf = new Map(); }
+        let m = this._vxMats.get(base);
+        if (!m) {
+            m = base.clone();
+            m.vertexColors = true;
+            m.map = null;              // 면당 플랫 색(화풍 ⓒ) — 큐브 면에 텍스처를 얹지 않는다
+            m.flatShading = true;
+            m.userData = {};
+            this.applyShadeLift([m]);
+            this.applyVoxAmbient(m);
+            this._vxMats.set(base, m);
+            this._vxBaseOf.set(m, base);   // previewMat 이 원본을 되찾는 길 (userData 에 넣으면 clone 의 JSON 복사에 걸린다)
+        }
+        m.color.copy(base.color);
+        return m;
+    },
+
+    // 🚨 **복셀 조형은 암부가 더 깊다 — 면 앰비언트(voxel face light)가 필요하다.**
+    // 큐브는 면이 6방향뿐이라 옛 원뿔·구에는 없던 **아래·뒤를 향한 넓은 평면**이 생긴다. 옛 조형은
+    // `computeVertexNormals` 로 법선이 부드러워 어느 정점이든 해를 조금씩 받았지만, 축정렬 평면은
+    // N·L 이 정확히 0 이라 밤 챕터에서 통째로 순흑으로 떨어진다 — 실측(5회 중앙값, 씬 재생성):
+    // 크러시 ch4 **2.64% → 7.23%**, ch5 **5.88% → 8.66%**(`map-quality-up` 이 '잎이 순흑으로
+    // 크러시'를 잡아 놓은 걸 되돌린 꼴). 마스크를 찍어 보면 크러시 화소가 **전부 복셀 잎**이다
+    // (복셀 프롭만 숨기면 ch4 7.37% → 0.48%).
+    //
+    // ⚠️ **막다른 길 둘을 먼저 기록해 둔다 — 다시 밟지 말 것.**
+    //   ⑴ **정점 색(AO·지터)은 범인이 아니다.** 잎 메시의 color 속성을 전부 1 로 밀어도 크러시가
+    //      ch4 5.85→5.71% · ch5 8.35→8.34% 로 안 움직인다. 빛이 0 인 면은 알베도를 아무리 올려도 0 이다.
+    //   ⑵ **`applyShadeLift` 강도를 올려도 소용없다.** `uShadeStr` 을 0.26 → **5.0** 으로 올려도
+    //      크러시가 7.42 → 7.42% 로 그대로다. 이유는 `setTheme` 이 매번 `uShadeTint` 를 **그 챕터
+    //      하늘색을 −0.46 만큼 어둡게** 깎아 넣기 때문 — 밤에는 tint 자체가 사실상 검정이라 아무리
+    //      곱해도 0 이다(그리고 setTheme 이 `uShadeStr` 도 매번 되돌려 놓는다).
+    //
+    // 그래서 실제 복셀 렌더러가 쓰는 처방을 쓴다: **면 앰비언트를 알베도에 비례해 더한다.**
+    //   · 알베도에 곱하므로 **색이 안 튄다**(파란 리프트처럼 밤 숲을 청록으로 밀지 않는다).
+    //   · 이미 밝은 면은 상대적으로 거의 안 변하고 **0 이던 면만 바닥에서 들린다**(다크 엔드 유지).
+    // ⚠️ `emissive` 로 대신하지 말 것 — 이미 칠해져 있던 재질의 emissive 를 런타임에 켜 봤더니
+    //    화면이 통째로 검게 나갔다(크러시 100%). 이 재질들은 `setTheme` 이 emissive 를 소유한다.
+    VOX_AMBIENT: 0.62,
+    applyVoxAmbient(m) {
+        if (!m || m.userData.__voxAmb) return m;
+        m.userData.__voxAmb = true;
+        const u = { uVoxAmb: { value: this.VOX_AMBIENT } };
+        const prev = m.onBeforeCompile;
+        m.onBeforeCompile = (shader, renderer) => {
+            if (prev) prev(shader, renderer);
+            shader.uniforms.uVoxAmb = u.uVoxAmb;
+            // 🚨 **더하지 말고 바닥값으로 쓴다(`max`).** 더하면 이미 밝은 면까지 같이 들려서
+            //    설원 침엽수와 사막 선인장이 허옇게 뜬다(실측: `probe-chapters` 블로운 ch6 0.09→1.0%).
+            //    `max` 면 **빛을 못 받은 면만** 알베도의 uVoxAmb 배까지 올라오고 밝은 면은 한 화소도
+            //    안 변한다 — 다크 엔드 확보(VALUE 그레이드)와 충돌하지 않는 유일한 형태다.
+            // `diffuseColor` 는 알베도 × 정점 색이고 main() 끝까지 살아 있다. 톤매핑 직전이라
+            // 색공간 변환 전 — 다른 조명 항과 같은 선형 공간에서 견준다.
+            shader.fragmentShader = 'uniform float uVoxAmb;\n' + shader.fragmentShader
+                .replace('#include <tonemapping_fragment>',
+                    'gl_FragColor.rgb = max(gl_FragColor.rgb, diffuseColor.rgb * uVoxAmb);\n#include <tonemapping_fragment>');
+        };
+        m.needsUpdate = true;
+        return m;
+    },
+
+    // 복셀 목록 → 씬 규약에 맞춘 메시.
+    //   ⚠️ `center: false` 로 굽고 **격자 y=0 칸의 밑면**을 원점에 맞춰 올린다. 프롭은 전부
+    //      밑동을 바닥에 붙여 놓는 물건이라, 덩어리마다 중심이 기준이면 접지가 제각각 어긋난다.
+    //   ⚠️ 색은 흰색으로 굽는다 — 실제 색은 **재질**이 곱한다(그래야 바이옴 재색칠이 산다).
+    //      큐브별 미세 색변화(jitter)와 이음새 AO 만 정점 색에 실린다.
+    // ⚠️ **중복 칸을 반드시 걷어낸다.** 조형을 덩어리 여러 개로 합치면(줄기 + 가지, 몸통 + 팔)
+    //    같은 칸이 두 번 들어오는 게 정상인데, `Voxel.faces` 는 복셀 목록을 순회하므로 그대로 두면
+    //    **같은 자리에 면이 두 벌** 생겨 z-파이팅으로 지글거린다. 뒤에 온 색을 남긴다(덧칠 규약).
+    vxProp(voxels, size, baseMat, opt) {
+        const seen = new Map();
+        for (const v of voxels) seen.set(v.x + ',' + v.y + ',' + v.z, v);
+        voxels = [...seen.values()];
+        const mat = baseMat.vertexColors ? baseMat : this.vxMat(baseMat);
+        const mesh = Voxel.build(voxels, Object.assign(
+            { size, color: 0xffffff, jitter: 0.055, ao: 0.95, center: false, material: mat }, opt || {}));
+        mesh.position.y = size * 0.5;
+        return mesh;
+    },
+
+    // 계단형 원뿔 한 단의 층별 반지름 — 침엽수 잎단과 그 위에 앉는 눈 테두리가 **같은 표를 봐야**
+    // 눈이 잎의 어깨에 정확히 얹힌다(따로 계산하면 반 칸씩 어긋나 눈이 공중에 뜬다).
+    vxConeRadii(r0, h) {
+        const rs = [];
+        for (let j = 0; j < h; j++) rs.push(r0 + (1 - r0) * (j / (h - 1)));
+        return rs;
+    },
+
+    // 가지·잔가지 — 임의 각도 회전이 금지(격자가 깨지면 그 순간 voxel 로 안 읽힌다)라
+    // **계단으로 깎는다**: 밑동에서 한 칸씩 바깥·위로 걸어 나가며 큐브를 놓는다.
+    //   dx/dz 는 걸음당 수평 이동(부호 포함 실수), dy 는 걸음당 상승. 누적 좌표를 반올림하므로
+    //   기울기가 완만하면 계단참이 길어지고 가파르면 짧아진다 — 그게 곧 가지의 각도다.
+    // 겹친 칸 빼기 — 색이 달라 **메시를 나눠야 하는** 두 덩어리(줄기 ↔ 잎, 갓 ↔ 반점)가 같은 칸을
+    // 채우면 z-파이팅으로 지글거린다. `vxProp` 의 중복 제거는 한 메시 안에서만 도는지라, 메시를
+    // 나눈 뒤에는 이걸로 한쪽을 깎아야 한다(`probe-prop-voxel` ④ 가 이 실패를 잡는 자다).
+    vxSub(voxels, others) {
+        const occ = new Set(others.map(v => v.x + ',' + v.y + ',' + v.z));
+        return voxels.filter(v => !occ.has(v.x + ',' + v.y + ',' + v.z));
+    },
+
+    vxTwig(x0, y0, z0, dx, dy, dz, n, color) {
+        const out = [];
+        let x = x0, y = y0, z = z0;
+        for (let i = 0; i < n; i++) {
+            out.push({ x: Math.round(x), y: Math.round(y), z: Math.round(z), c: color });
+            x += dx; y += dy; z += dz;
+        }
+        return out;
+    },
+
     // ---- 프롭 조형: '단순 도형 티' 제거 (TODO '맵 프롭 퀄리티 업' — 비대칭 변형 + 버텍스 컬러 음영) ----
     // 침엽수는 **정원뿔 3개**, 활엽수는 **정십이면체 2개**였다. 어떤 라이팅을 걸어도 정다면체는 정다면체라
     // 원경에서 '복붙한 도형'으로 읽힌다(장비 쪽에서 '박스는 어떤 라이팅을 걸어도 박스'로 이미 겪은 벽이다).
@@ -2827,6 +2959,9 @@ const Scene3D = {
     //    지오메트리를 비인덱스로 펴 두면 같은 모서리의 정점이 여러 벌 중복된다. 인덱스 기준 난수를 주면
     //    그 사본들이 제각각 움직여 **메시에 구멍이 뚫린다.** 좌표를 반올림해 해시하면 같은 자리는 늘 같은 값을 받는다.
     // ⚠️ **인스턴스마다 새로 구운 지오메트리에만 쓸 것** — 공유 지오메트리에 쓰면 모든 프롭이 같이 변형된다.
+    // ⚠️ 2026-08-20 화풍 전환(Voxel + 치비) 이후 **프롭은 이 함수를 더 쓰지 않는다** — 큐브 조형은
+    //    정점을 밀면 면이 비스듬해져 voxel 로 안 읽힌다. 남겨 둔 건 `tools/probe-foliage-sculpt.js`
+    //    가 직접 부르기 때문이고, 새 조형에 다시 쓰지 말 것.
     sculptFoliage(geo, opt) {
         const o = opt || {};
         const amp = o.amp === undefined ? 0.14 : o.amp;
@@ -2869,93 +3004,88 @@ const Scene3D = {
         return g;
     },
 
+    // 🧊 침엽수 — 원뿔 3개 → **계단형 큐브 원뿔 3단**. 치수(밑단 반경 0.55s · 전고 ≈1.73s)는
+    //    옛 판을 그대로 물려받아 `probe-prop-blob`·`probe-nearfield-mass` 의 점유 대역을 안 흔든다.
+    // 🚨 **눈은 잎단의 '어깨'에만 놓는다.** 눈 원뿔을 따로 얹어 잎과 같은 칸을 채우면 두 메시가
+    //    겹쳐 z-파이팅이 난다. 층 j 의 반지름과 층 j+1 의 반지름 사이 고리는 **정의상 비어 있는
+    //    자리**(위 층이 더 좁다)이므로, 거기에만 채우면 겹치지 않으면서 '단마다 쌓인 눈'이 된다.
     makePine(s, snow) {
         const g = new THREE.Group();
         g.userData.windSway = 0.030;   // 바람에 밑동부터 휘는 식물 (rocks·crystal 은 태그 없음 = 정지)
         const fm = this.foliageMats[Math.random() * 3 | 0]; // 나무별 잎 명도 변주
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * s, 0.13 * s, 0.5 * s, 7), this.trunkMat);
-        trunk.position.y = 0.25 * s;
-        g.add(trunk);
+        const u = s / 12;              // 복셀 한 변 — 전고 21칸 = 1.75s
+        const H = 5;                   // 한 단의 층 수
+        const leaf = [], snowV = [];
         for (let i = 0; i < 3; i++) {
-            const cone = new THREE.Mesh(this.sculptFoliage(new THREE.ConeGeometry((0.55 - i * 0.13) * s, 0.62 * s, 7), { amp: 0.16 }), fm);
-            cone.position.y = (0.62 + i * 0.4) * s;
-            g.add(cone);
-            if (snow) { // 설원: 각 단 위에 눈 고깔을 얹음
-                const cap = new THREE.Mesh(new THREE.ConeGeometry((0.55 - i * 0.13) * s * 0.8, 0.3 * s, 7), this.snowMat);
-                cap.position.y = (0.62 + i * 0.4) * s + 0.19 * s;
-                g.add(cap);
+            const y0 = 6 + i * 5, rs = this.vxConeRadii(6.6 - i * 1.5, H);
+            for (let j = 0; j < H; j++) {
+                leaf.push(...Voxel.ellipse(rs[j], rs[j], 1, { y0: y0 + j }));
+                // 위 층이 덮지 않고 남은 고리 = 이 층의 노출된 윗면. 눈은 여기만 앉는다.
+                if (snow && j < H - 1 && rs[j] - rs[j + 1] >= 1)
+                    snowV.push(...Voxel.ellipse(rs[j], rs[j], 1, { y0: y0 + j + 1, rix: rs[j + 1], riz: rs[j + 1] }));
             }
         }
+        g.add(this.vxProp(Voxel.at(Voxel.box(3, 8, 3), -1, 0, -1), u, this.trunkMat));
+        g.add(this.vxProp(leaf, u, fm));
+        if (snowV.length) g.add(this.vxProp(snowV, u, this.snowMat));
         return g;
     },
 
     // 죽은 나무(용암) — 잎 없이 갈라진 검게 탄 가지. 2단 분기 + 부러진 우듬지로 "Y자 막대기" 인상 제거
+    // 🧊 고사목 — 원기둥 줄기 + 비스듬한 원기둥 가지 → **큐브 줄기 + 계단 가지**.
+    //    가지를 회전으로 눕히면 면이 비스듬해져 그 순간 voxel 로 안 읽힌다(voxel.js `rot*` 주석).
+    //    `vxTwig` 로 한 칸씩 바깥·위로 걸어 계단을 만드는 게 격자를 지키는 유일한 길이다.
     makeDeadTree(s) {
         const g = new THREE.Group();
         g.userData.windSway = 0.020;   // 바람에 밑동부터 휘는 식물 (rocks·crystal 은 태그 없음 = 정지)
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * s, 0.14 * s, 0.9 * s, 6), this.charTrunkMat);
-        trunk.position.y = 0.45 * s;
-        trunk.rotation.z = U.rand(-0.09, 0.09);
-        g.add(trunk);
-        const snag = new THREE.Mesh(new THREE.CylinderGeometry(0.001, 0.05 * s, 0.2 * s, 5), this.charTrunkMat); // 부러진 우듬지 스파이크
-        snag.position.y = 0.98 * s;
-        snag.rotation.z = trunk.rotation.z;
-        g.add(snag);
-        for (let i = 0; i < 4; i++) {
-            const len = U.rand(0.4, 0.6) * s;
-            const br = new THREE.Mesh(new THREE.CylinderGeometry(0.016 * s, 0.042 * s, len, 5), this.charTrunkMat);
-            const a = (i / 4) * Math.PI * 2 + U.rand(0, 0.9);
-            const y0 = (0.5 + i * 0.13) * s;
-            br.position.set(Math.cos(a) * 0.2 * s, y0, Math.sin(a) * 0.2 * s);
-            br.rotation.set(Math.sin(a) * U.rand(0.55, 0.95), 0, -Math.cos(a) * U.rand(0.55, 0.95));
-            g.add(br);
-            // 2차 잔가지 — 가지 끝에서 다른 방향으로 꺾여 나감 (실루엣 디자인)
-            const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.006 * s, 0.016 * s, len * 0.55, 4), this.charTrunkMat);
-            tw.position.set(Math.cos(a) * 0.44 * s, y0 + len * 0.3, Math.sin(a) * 0.44 * s);
-            tw.rotation.set(Math.sin(a) * U.rand(0.1, 0.5), U.rand(0, 1.5), -Math.cos(a) * U.rand(0.9, 1.4));
-            g.add(tw);
+        const u = s / 14;              // 전고 ≈15칸 = 1.07s (옛 판 줄기 0.9s + 우듬지)
+        const v = [];
+        // 줄기 — 밑동이 굵고 위로 가늘어진다. 층마다 반경을 줄여 계단으로 좁힌다.
+        for (let y = 0; y < 13; y++) {
+            const r = y < 3 ? 1.6 : (y < 8 ? 1.2 : 0.6);
+            v.push(...Voxel.ellipse(r, r, 1, { y0: y }));
         }
+        v.push(...Voxel.at(Voxel.box(1, 2, 1), 0, 13, 0));   // 부러진 우듬지 스파이크
+        for (let i = 0; i < 4; i++) {
+            const a = (i / 4) * Math.PI * 2 + U.rand(0, 0.9);
+            const y0 = 5 + i * 2;
+            const cx = Math.cos(a), cz = Math.sin(a);
+            const n = 4 + (Math.random() * 3 | 0);
+            v.push(...this.vxTwig(cx * 1.4, y0, cz * 1.4, cx * 0.9, U.rand(0.35, 0.75), cz * 0.9, n));
+            // 2차 잔가지 — 가지 끝에서 다른 방향으로 꺾여 나감 (실루엣 디자인)
+            const b = a + U.rand(0.9, 1.9);
+            v.push(...this.vxTwig(cx * (1.4 + n * 0.9), y0 + n * 0.5, cz * (1.4 + n * 0.9),
+                Math.cos(b) * 0.8, U.rand(0.5, 0.95), Math.sin(b) * 0.8, 2 + (Math.random() * 2 | 0)));
+        }
+        g.add(this.vxProp(v, u, this.charTrunkMat));
         return g;
     },
 
     // 선인장(사막) — 몸통 + ㄴ자 팔
     // 선인장(사막) — 배흘림 몸통(라테) + 둥근 팔꿈치 관절 + 반구 꼭지. "직육면체 압출" 인상 제거
+    // 🧊 voxel 전환(2026-08-20) — 라테 몸통 + 구 관절 + 반구 꼭지를 **회전체 큐브 적층 + ㄴ자 큐브 팔**로.
+    //    배흘림 프로파일은 `Voxel.revolve` 가 **같은 숫자 그대로** 받아 주므로 실루엣을 다시 디자인하지 않는다.
     makeCactus(s) {
         const g = new THREE.Group();
-        // ⚠️ 선인장은 **흔들지 않는다** — 다육 기둥은 굵고 뻣뻣해서 휘면 고무로 읽힌다.
+        // ⚠️ 선인장은 **흔들지 않는다**(windSway 태그 없음) — 다육 기둥은 굵고 뻣뻣해서 휘면 고무로 읽힌다.
         //    (첫 판에서 0.010 을 줬다가 `probe-wind` 에서 사막이 광물 정지 기준을 넘겨 잡혔다.
         //     지표가 옳았고 내 판단이 틀렸다 — 사막에서 움직여야 할 건 선인장이 아니라 없다.)
-        // 몸통: 아래가 불룩한 배흘림 프로필 (수직 압출 원기둥 대신 유기적 실루엣)
-        const prof = [[0.09, 0], [0.15, 0.14], [0.165, 0.4], [0.14, 0.7], [0.1, 0.94], [0.001, 1.02]];
-        const body = new THREE.Mesh(
-            new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r * s, y * s)), 9), this.cactusMat);
-        g.add(body);
-        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.1 * s, 9, 6, 0, Math.PI * 2, 0, Math.PI / 2), this.cactusMat);
-        cap.position.y = 0.94 * s;
-        g.add(cap);
+        const u = s / 16;                    // 전고 17칸 ≈ 1.06s (옛 판 1.02s)
+        const v = [];
+        // 배흘림 몸통 — 아래가 불룩한 프로파일(옛 라테 프로파일을 칸 단위로 옮긴 것)
+        v.push(...Voxel.revolve([[1.6, 0], [2.5, 2], [2.7, 6], [2.3, 11], [1.7, 15], [1.2, 16]]));
         for (const side of [-1, 1]) {
             if (Math.random() < 0.3) continue;
-            const y = U.rand(0.38, 0.58) * s;
-            // 팔: 수평 세그먼트 → 구 관절 → 위로 꺾인 세그먼트 → 반구 팁 (곡선형 ㄴ자)
-            const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.06 * s, 0.07 * s, 0.24 * s, 8), this.cactusMat);
-            seg1.rotation.z = side * (Math.PI / 2 - 0.18);
-            seg1.position.set(side * 0.24 * s, y + 0.02 * s, 0);
-            const joint = new THREE.Mesh(new THREE.SphereGeometry(0.065 * s, 8, 6), this.cactusMat);
-            joint.position.set(side * 0.35 * s, y + 0.05 * s, 0);
-            const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * s, 0.062 * s, 0.32 * s, 8), this.cactusMat);
-            seg2.rotation.z = side * 0.12;
-            seg2.position.set(side * 0.37 * s, y + 0.2 * s, 0);
-            const tip = new THREE.Mesh(new THREE.SphereGeometry(0.052 * s, 8, 6), this.cactusMat);
-            tip.position.set(side * 0.385 * s, y + 0.36 * s, 0);
-            g.add(seg1, joint, seg2, tip);
+            const y = 6 + (Math.random() * 3 | 0);
+            // 팔 = 수평 큐브 팔뚝 → 위로 꺾인 큐브 기둥 (구 관절 없이 격자만으로 ㄴ자를 만든다)
+            v.push(...Voxel.at(Voxel.box(3, 2, 2), side > 0 ? 2 : -4, y, -1));
+            v.push(...Voxel.at(Voxel.box(2, 6, 2), side > 0 ? 4 : -5, y, -1));
         }
-        // 사막 악센트 5%: 가끔 꼭대기에 분홍 선인장 꽃
+        g.add(this.vxProp(v, u, this.cactusMat));
+        // 사막 악센트: 가끔 꼭대기에 분홍 선인장 꽃 — 팔면체 → 큐브 보석
         if (Math.random() < 0.4) {
             if (!this.cactusFlowerMat) this.cactusFlowerMat = new THREE.MeshLambertMaterial({ color: 0xef6292 });
-            const fl = new THREE.Mesh(new THREE.OctahedronGeometry(0.055 * s, 0), this.cactusFlowerMat);
-            fl.position.y = 1.02 * s;
-            fl.scale.y = 0.7;
-            g.add(fl);
+            g.add(this.vxProp(Voxel.at(Voxel.gem(1.6), 0, 18, 0), u, this.cactusFlowerMat));
         }
         return g;
     },
@@ -3056,19 +3186,19 @@ const Scene3D = {
     },
 
     // 사막 마른 관목 — 밑동에서 사방으로 뻗는 가는 가지 다발 (죽은 덤불)
+    // 🧊 voxel 전환(2026-08-20) — 눕힌 가는 원기둥 다발 → 밑동에서 사방으로 뻗는 **계단 잔가지**.
     makeDryShrub(s) {
         const g = new THREE.Group();
+        const u = s / 18;
         const n = 5 + (Math.random() * 3 | 0);
+        const v = [{ x: 0, y: 0, z: 0 }];
         for (let i = 0; i < n; i++) {
-            const len = U.rand(0.3, 0.5) * s;
-            const br = new THREE.Mesh(new THREE.CylinderGeometry(0.006 * s, 0.016 * s, len, 4), this.charTrunkMat);
             const a = (i / n) * Math.PI * 2 + U.rand(-0.3, 0.3);
-            const tilt = U.rand(0.5, 1.0); // 바깥으로 눕는 정도
-            br.position.set(Math.cos(a) * Math.sin(tilt) * len * 0.4, Math.cos(tilt) * len * 0.45, Math.sin(a) * Math.sin(tilt) * len * 0.4);
-            br.rotation.z = -Math.cos(a) * tilt;
-            br.rotation.x = Math.sin(a) * tilt;
-            g.add(br);
+            const tilt = U.rand(0.5, 1.0);            // 바깥으로 눕는 정도 — 클수록 수평에 가깝다
+            const out = Math.sin(tilt), up = Math.cos(tilt);
+            v.push(...this.vxTwig(0, 0, 0, Math.cos(a) * out, up, Math.sin(a) * out, 5 + (Math.random() * 3 | 0)));
         }
+        g.add(this.vxProp(v, u, this.charTrunkMat));
         return g;
     },
 
@@ -3370,40 +3500,31 @@ const Scene3D = {
             //    양면 렌더가 같이 켜진다(공유 재질에 인스턴스 단위 속성을 쓰는 전형적 사고).
             this.bambooLeafMat = new THREE.MeshLambertMaterial({ color: 0x8bc34a, side: THREE.DoubleSide });
         }
+        // 🧊 voxel 전환(2026-08-20) — 라테 기둥 + 판때기 잎 → **큐브 기둥 + 마디 링 + 큐브 잎**.
+        //    마디는 여전히 **실루엣 안에** 둔다: 기둥 한 칸 굵기에서 마디 층만 3칸으로 부풀리면
+        //    링 메시를 따로 얹지 않고도 윤곽선에 마디가 드러난다(드로우콜도 안 는다).
+        const u = s / 22;                                 // 기둥 1칸 ≈ 0.045s (옛 판 반경 0.028~0.042s)
         const culms = 3 + (Math.random() * 3 | 0);
         for (let i = 0; i < culms; i++) {
-            const h = U.rand(1.5, 2.5) * s;
-            const r = U.rand(0.028, 0.042) * s;
+            const h = Math.round(U.rand(1.5, 2.5) * s / u);   // 칸 단위 높이
             const a = (i / culms) * Math.PI * 2 + U.rand(-0.4, 0.4);
             const rad = U.rand(0.05, 0.22) * s;
             const culm = new THREE.Group();
-            // 마디를 **실루엣 안에** 넣는다 — 링 메시를 따로 얹으면 드로우콜이 마디 수만큼 불어나는 데다
-            // 옆에서 보면 기둥에 낀 반지로 읽힌다. 회전 프로파일의 반경을 마디 자리에서만 부풀리면
-            // 기둥과 마디가 한 메시이면서 윤곽선에 마디가 드러난다. 프로파일 점은 마디 근처에만 둔다
-            // (균등 분할하면 같은 실루엣에 폴리곤만 수십 배 든다).
+            const pole = Voxel.box(1, h, 1);
             const nodes = 3 + (Math.random() * 3 | 0);
-            const prof = [new THREE.Vector2(r, 0)];
             for (let k = 1; k <= nodes; k++) {
-                const t = Math.pow(k / (nodes + 1), 0.82);   // 위로 갈수록 절간이 좁아지는 실제 분포
-                const rt = r * (1 - 0.14 * t);
-                prof.push(new THREE.Vector2(rt, (t - 0.018) * h));
-                prof.push(new THREE.Vector2(rt * 1.24, t * h));
-                prof.push(new THREE.Vector2(rt, (t + 0.018) * h));
+                const t = Math.pow(k / (nodes + 1), 0.82);    // 위로 갈수록 절간이 좁아지는 실제 분포
+                pole.push(...Voxel.ellipse(1.2, 1.2, 1, { y0: Math.round(t * h) }));   // 마디 = 한 층만 굵게
             }
-            prof.push(new THREE.Vector2(r * 0.84, h));
-            const pole = new THREE.Mesh(new THREE.LatheGeometry(prof, 6), this.bambooMat);
-            culm.add(pole);
-            // 잎 — 상단 1/3 에만. 판 4장을 한 지오메트리로 합쳐 드로우콜 1개로 끝낸다
-            const leafGeos = [];
+            culm.add(this.vxProp(pole, u, this.bambooMat));
+            // 잎 — 상단 1/3 에만. 얇은 큐브 판을 계단으로 뻗어 한 메시로 굽는다(드로우콜 1개).
+            const leaf = [];
             for (let k = 0; k < 4; k++) {
-                const lw = U.rand(0.1, 0.2) * s, ll = U.rand(0.3, 0.5) * s;
                 const la = U.rand(0, Math.PI * 2);
-                const m = new THREE.Matrix4()
-                    .makeRotationFromEuler(new THREE.Euler(U.rand(-0.5, -0.15), la, U.rand(-0.4, 0.4)))
-                    .setPosition(Math.cos(la) * lw * 0.6, h * U.rand(0.66, 0.98), Math.sin(la) * lw * 0.6);
-                leafGeos.push([new THREE.PlaneGeometry(lw, ll), m]);
+                leaf.push(...this.vxTwig(Math.cos(la), Math.round(h * U.rand(0.66, 0.95)), Math.sin(la),
+                    Math.cos(la) * 1.1, U.rand(-0.5, 0.35), Math.sin(la) * 1.1, 3 + (Math.random() * 3 | 0)));
             }
-            culm.add(new THREE.Mesh(this.mergeGeos(leafGeos), this.bambooLeafMat));
+            culm.add(this.vxProp(this.vxSub(leaf, pole), u, this.bambooLeafMat));   // 기둥에 파묻힌 잎 칸은 뺀다
             culm.position.set(Math.cos(a) * rad, 0, Math.sin(a) * rad);
             culm.rotation.z = U.rand(-0.07, 0.07);
             culm.rotation.x = U.rand(-0.07, 0.07);
@@ -3422,37 +3543,37 @@ const Scene3D = {
         }
         const g = new THREE.Group();
         g.userData.windSway = 0.016;   // 다육질이라 거의 안 흔들린다 — 나무만큼 흔들면 고무로 읽힌다
+        // 🧊 voxel 전환(2026-08-20) — 반구 갓 + 원뿔 주름 + 구 반점 → **계단형 돔 + 큐브 원판 + 큐브 반점**.
+        // 🚨 **반점은 갓에서 그 칸을 빼고 따로 굽는다.** 갓 위에 흰 덩어리를 겹쳐 놓으면 같은 칸을
+        //    두 메시가 채워 z-파이팅이 난다. 갓 목록에서 반점 좌표를 제거하고 그 자리에 반점 메시를
+        //    놓으면 겹치는 칸이 하나도 없다(색이 다른 두 재질을 한 덩어리에 섞는 유일한 방법이다 —
+        //    한 메시로 구우면 재질 색이 반점까지 곱해 바이옴 잎색으로 물든다).
         const one = (sc, fm) => {
             const m = new THREE.Group();
-            const stemH = U.rand(0.45, 0.7) * sc;
-            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.075 * sc, 0.12 * sc, stemH, 8), this.trunkMat);
-            stem.position.y = stemH / 2;
-            stem.rotation.z = U.rand(-0.1, 0.1);
-            m.add(stem);
-            // 갓: 위쪽 반구를 눌러 만든 돔. 정점 변위로 가장자리를 물결지게
-            const capR = U.rand(0.34, 0.46) * sc;
-            const capGeo = this.sculptFoliage(
-                new THREE.SphereGeometry(capR, 12, 7, 0, Math.PI * 2, 0, Math.PI * 0.56), { amp: 0.13 });
-            const cap = new THREE.Mesh(capGeo, fm);
-            cap.scale.y = 0.72;
-            cap.position.y = stemH + capR * 0.06;
-            m.add(cap);
-            // 갓 아래 주름 — 밝은 원뿔면. 갓 그늘에 밝은 면이 하나 있어야 부피가 읽힌다
-            const gill = new THREE.Mesh(new THREE.ConeGeometry(capR * 0.94, capR * 0.34, 12, 1, true), this.gillMat);
-            gill.position.y = stemH - capR * 0.1;
-            m.add(gill);
-            // 반점 — 갓 윗면 납작한 원반. 개수만큼 메시를 늘리지 않게 한 덩어리로 합친다
-            const dots = [];
-            for (let i = 0; i < 3 + (Math.random() * 3 | 0); i++) {
-                const sr = U.rand(0.05, 0.095) * sc;
-                const a = U.rand(0, Math.PI * 2), rr = U.rand(0.15, 0.72) * capR;
-                const mm = new THREE.Matrix4().makeScale(1, 0.45, 1).setPosition(
-                    Math.cos(a) * rr,
-                    stemH + capR * 0.62 * Math.sqrt(Math.max(0, 1 - (rr / capR) ** 2)),
-                    Math.sin(a) * rr);
-                dots.push([new THREE.SphereGeometry(sr, 6, 4), mm]);
+            const u = sc / 14;
+            const stemH = Math.round(U.rand(0.45, 0.7) * sc / u);
+            const capR = U.rand(0.34, 0.46) * sc / u;              // 칸 단위 갓 반지름
+            const capH = Math.max(2, Math.round(capR * 0.72));
+            m.add(this.vxProp(Voxel.revolve([[1.4, 0], [1.1, stemH]]), u, this.trunkMat));
+            // 갓 — 계단형 돔(반구 대체). 밑변 한 층은 갓 테두리라 반지름을 그대로 둔다.
+            let cap = Voxel.at(Voxel.dome(capR, capH), 0, stemH, 0);
+            // 갓 아래 주름 — 밝은 원판. 갓 그늘에 밝은 면이 하나 있어야 부피가 읽힌다
+            m.add(this.vxProp(Voxel.at(Voxel.disc(capR * 0.9, 1), 0, stemH - 1, 0), u, this.gillMat));
+            // 반점 — 갓 윗면에서 뽑은 칸. 개수만큼 메시를 늘리지 않게 한 덩어리로 굽는다
+            const top = new Map();                                  // 각 (x,z) 기둥의 최상단 칸
+            for (const v of cap) {
+                const k = v.x + ',' + v.z;
+                if (!top.has(k) || top.get(k).y < v.y) top.set(k, v);
             }
-            m.add(new THREE.Mesh(this.mergeGeos(dots), this.sporeMat));
+            const cols = [...top.values()], dots = [];
+            for (let i = 0; i < 3 + (Math.random() * 3 | 0); i++) {
+                const c = cols[Math.random() * cols.length | 0];
+                if (c) dots.push(c);
+            }
+            const taken = new Set(dots.map(v => v.x + ',' + v.y + ',' + v.z));
+            cap = cap.filter(v => !taken.has(v.x + ',' + v.y + ',' + v.z));
+            m.add(this.vxProp(cap, u, fm));
+            if (dots.length) m.add(this.vxProp(dots, u, this.sporeMat));
             return m;
         };
         const fm = this.foliageMats[Math.random() * 3 | 0];
@@ -3467,17 +3588,23 @@ const Scene3D = {
         return g;
     },
 
+    // 🧊 활엽수 — 정십이면체 2개 → **큐브 수관 2덩이**. 반지름·중심은 옛 판 그대로라 점유가 안 흔들린다.
+    //    `hollow` 로 속 칸을 버린다: 겉면만 남아도 그림은 같고(가려진 면은 어차피 안 만든다) 칸 수가 준다.
     makeRoundTree(s) {
         const g = new THREE.Group();
         g.userData.windSway = 0.034;   // 활엽수는 침엽수보다 크게 휜다
         const fm = this.foliageMats[Math.random() * 3 | 0]; // 나무별 잎 명도 변주
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * s, 0.12 * s, 0.6 * s, 7), this.trunkMat);
-        trunk.position.y = 0.3 * s;
-        const crown = new THREE.Mesh(this.sculptFoliage(new THREE.DodecahedronGeometry(0.5 * s, 0), { amp: 0.15 }), fm);
-        crown.position.y = 0.95 * s;
-        const crown2 = new THREE.Mesh(this.sculptFoliage(new THREE.DodecahedronGeometry(0.32 * s, 0), { amp: 0.17 }), fm);
-        crown2.position.set(0.28 * s, 0.75 * s, 0.1 * s);
-        g.add(trunk, crown, crown2);
+        const u = s / 12;
+        const trunk = Voxel.at(Voxel.box(3, 8, 3), -1, 0, -1);
+        g.add(this.vxProp(trunk, u, this.trunkMat));
+        // ⚠️ 반지름을 옛 정십이면체의 **외접반경 그대로** 옮기면 실루엣이 넓어진다 — 정십이면체의
+        //    투영 면적은 외접구의 ~0.83 배인데 복셀 타원체는 구를 꽉 채우기 때문이다. √0.83 ≈ 0.91
+        //    을 곱해 화면 점유를 옛 판에 맞춘다(다른 게이트가 이 점유 대역 위에 서 있다).
+        const crown = Voxel.merge(
+            Voxel.at(Voxel.ellipsoid(5.5, 4.9, 5.5), 0, 11, 0),    // 옛 판 반경 0.5s · 중심 0.95s
+            Voxel.at(Voxel.ellipsoid(3.5, 3.2, 3.5), 3, 9, 1));    // 곁가지 수관 (옛 판 0.32s @ 0.28s,0.75s,0.1s)
+        // 줄기가 지나는 칸은 수관에서 뺀다 — 두 메시가 같은 칸을 채우면 z-파이팅이다(`vxSub` 주석).
+        g.add(this.vxProp(this.vxSub(Voxel.hollow(crown), trunk), u, fm));
         return g;
     },
 
@@ -19366,12 +19493,16 @@ const Scene3D = {
         if (!this._pvMats) this._pvMats = new Map();
         if (this._pvMats.has(orig)) return this._pvMats.get(orig);
         const c = orig.clone();
-        const fi = this.foliageMats.indexOf(orig);
+        // 복셀 프롭은 공유 재질의 **클론**을 쓴다(`vxMat` — 원본에 vertexColors 를 못 켜서다).
+        // 아래 동일성 비교는 원본을 기준으로 하므로, 클론이면 먼저 원본으로 되돌려 놓는다.
+        // 안 그러면 프리뷰 프롭이 초원색을 못 받고 **현재 챕터 색**을 그대로 탄다.
+        const src = (this._vxBaseOf && this._vxBaseOf.get(orig)) || orig;
+        const fi = this.foliageMats.indexOf(src);
         if (fi >= 0) {
             c.color.copy(g.foliage[fi]);
             c.emissive.setHex(0x000000); c.emissiveIntensity = 1;   // 마법 챕터의 보라 발광이 묻어오지 않게
-        } else if (orig === this.bushMat) c.color.copy(g.bush);
-        else if (orig === this.stoneMat) c.color.setHex(0x90a4ae);  // 초원 돌색(setTheme 의 기본 분기)
+        } else if (src === this.bushMat) c.color.copy(g.bush);
+        else if (src === this.stoneMat) c.color.setHex(0x90a4ae);  // 초원 돌색(setTheme 의 기본 분기)
         this._pvMats.set(orig, c);
         return c;
     },
