@@ -5749,6 +5749,32 @@ h3.sellwarn-title, .rates-head h3,
     animation: srfloor .43s cubic-bezier(.2,.9,.3,1) .08s forwards;
 }
 .sr-body.stage.one .sr-floor { width: 64%; aspect-ratio: 2.6 / 1; margin-top: -3.4rem; }
+/* x1 무대 +40px 하강(11차 A G — 하단 25.3% 공백의 절반은 무대가 너무 높이 떠서 생긴다) */
+.sr-body.stage.one { padding-top: 2.5rem; }
+/* ===== x1 하단 정보 (.sr-solo) — 11차 2인 일치 ⑵ =====
+   마지막 칩 바닥(y566)과 [확인] 윗변(y756) 사이 190px 무정보 밴드를 요약 한 줄·보유 수·
+   [다시 소환]으로 채운다. 다연 화면은 같은 자리를 집계 칩이 채우므로 x1 전용(JS 가 1셀일 때만
+   렌더). .sr-sum 과 같은 계약 — 자리는 미리 잡고(.done 전 invisible) 끝나면 드러난다. */
+.sr-solo {
+    position: relative; z-index: 40; margin-top: 1.1rem;
+    display: flex; flex-direction: column; align-items: center; gap: .5rem;
+    visibility: hidden;
+}
+#summon-result-modal.done .sr-solo { visibility: visible; animation: srtitle .3s ease-out both; }
+.sr-solo-line { font-size: .86rem; font-weight: 800; color: #e8eeff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+.sr-solo-own {
+    font-size: .74rem; font-weight: 700; color: rgba(214,224,248,.85);
+    background: rgba(10,16,40,.55); border: 1px solid rgba(120,140,200,.35);
+    border-radius: .55rem; padding: .18rem .7rem;
+}
+/* [다시 소환] — [확인](금색 주역)과 위계를 가른 보조 버튼: 어두운 판 + 밝은 테 */
+.sr-again {
+    min-width: 8.6rem; min-height: 2.3rem; font-size: .84rem; font-weight: 800;
+    color: #dfe7ff; letter-spacing: .04em;
+    background: linear-gradient(rgba(52,66,120,.9), rgba(30,40,82,.9));
+    border: 1px solid rgba(150,172,235,.55); border-radius: .6rem;
+    box-shadow: inset 0 .1rem 0 rgba(255,255,255,.14), 0 .25rem .6rem rgba(0,0,0,.5);
+}
 /* 10차 잔여 ⑤ — 다중 셀 무대 판은 소환진을 더 크고 깊게(88% · 2.5:1) 눕혀 링 호와 바깥
    번짐이 소환진 아래 빈 행(실측 std 19~25)을 실제로 지나가게 한다 */
 .sr-body.stage:not(.one) .sr-floor { width: 88%; aspect-ratio: 2.5 / 1; margin-top: -3.1rem; }

@@ -489,6 +489,7 @@ const UI = {
                     <div class="sr-grid${size}${heroRow ? ' herorow' : ''}" style="--cols:${cols}">${cells}</div>
                     ${stage ? '<div class="sr-floor"></div>' : ''}
                     ${stage ? this.summonStageStars() : ''}
+                    ${entries.length === 1 ? this.summonSoloInfo(kind, results, entries[0]) : ''}
                 </div>
                 ${this.summonNearField()}
                 <div class="sr-foot">
@@ -642,6 +643,41 @@ const UI = {
             return `<span class="sr-relight" style="--rc:${rc};--rc-lite:${this.srHilite(rc, tier)};`
                 + `--glow:${(0.16 + tier * 0.13).toFixed(2)};animation-delay:${d}ms"></span>`;
         }).join('');
+    },
+
+    // x1 하단 정보 — 11차 2인 일치 ⑵ 'x1 하단 25.3% 공백'(마지막 칩 바닥 y566 → [확인] 윗변
+    // y756 사이 190px 무정보). 다연 화면은 같은 자리를 집계 칩이 채우므로 **x1 에만** 붙인다:
+    // 요약 한 줄 · 보유 수 · [다시 소환]. 집계 칩(.sr-sum)과 같은 계약으로 .done 에서만 드러난다
+    // (캐스케이드 중에 보이면 결과 스포일러).
+    summonSoloInfo(kind, results, entry) {
+        const r = results[0] || {};
+        let line = '', own = '';
+        if (kind === 'skill' && r.def) {
+            const st = S.skills[r.def.id] || { level: r.level || 1, dupes: 0 };
+            line = r.isNew ? '✨ 신규 스킬 획득!' : '이미 보유한 스킬 — 조각으로 적립됩니다';
+            own = `보유 Lv.${st.level} · 조각 ${st.dupes}`;
+        } else if (kind === 'mount') {
+            const cnt = (S.mounts || []).filter(m => m.name === r.name).length;
+            line = r.isNew ? '✨ 새 탈것 발견!' : '같은 종 — 합성 재료가 됩니다';
+            own = `보유 ${cnt}마리`;
+        } else {
+            const cnt = (S.eggs || []).filter(e => e.rarity === r.rarity).length;
+            line = '부화장에 넣어 부화시킬 수 있습니다';
+            own = `보유 ${RARITY_KR[r.rarity] || ''} 알 ${cnt}개`;
+        }
+        return `<div class="sr-solo">
+            <div class="sr-solo-line">${line}</div>
+            <div class="sr-solo-own">${own}</div>
+            <button class="btn sr-again" onclick="event.stopPropagation(); UI.onSummonAgain()">다시 소환</button>
+        </div>`;
+    },
+    // [다시 소환] — 팝업을 닫고 같은 소환을 한 번 더. 반복 대상은 각 소환 핸들러가
+    // openSummonResult 직전에 _srRepeat 로 남긴다(스킬은 젬/티켓 경로가 갈려 kind 만으로는
+    // 원래 비용 경로를 복원할 수 없다). 재화 부족이면 해당 핸들러가 토스트를 띄운다.
+    onSummonAgain() {
+        const again = this._srRepeat;
+        this.closeSummonResult();
+        if (again) again();
     },
 
     // 등급 챕터 링 플래시 — 대량 판의 등급 경계 정지(SR_TIER_PAUSE_MS)를 채우는 예고 링.
@@ -3984,6 +4020,7 @@ const UI = {
         // 보관함 여유가 배수보다 적어 줄어든 경우엔 몇 개만 나갔는지 알려준다(버튼이 죽지는 않는다)
         if (r.clamped) this.toast(`🥚 보관함 여유만큼 ${r.summoned}개만 소환했습니다 (${S.eggs.length}/${Pets.EGG_CAP})`);
         this.renderPets();
+        this._srRepeat = () => this.onSummonPetEgg(); // x1 [다시 소환]
         this.openSummonResult('pet', r.results); // 결과는 토스트 대신 전용 연출 팝업으로 보여준다
     },
 
@@ -4366,6 +4403,7 @@ const UI = {
         const r = Skills.summon(useGems, count);
         if (!r) { this.toast(useGems ? '💎 젬이 부족합니다' : '🎫 티켓이 부족합니다 (스테이지 클리어로 획득)'); return; }
         this.renderSkills(); this.renderSkillBar(); this.renderTopBar();
+        this._srRepeat = () => this.onSummon(useGems); // x1 [다시 소환] — 같은 비용 경로로 반복
         this.openSummonResult('skill', r.results); // 결과는 토스트 대신 전용 연출 팝업으로 보여준다
     },
     onUpgradeSkill(id) {
@@ -5657,6 +5695,7 @@ const UI = {
             return;
         }
         this.keepScroll(() => this.openMounts()); this.renderTopBar(); this.renderEquipSheet();
+        this._srRepeat = () => this.onSummonMount(); // x1 [다시 소환]
         this.openSummonResult('mount', r.results); // 결과는 토스트 대신 전용 연출 팝업으로 보여준다
     },
     onEquipMount(idx) { if (Mounts.equip(idx)) { this.keepScroll(() => this.openMounts()); this.renderEquipSheet(); } },
