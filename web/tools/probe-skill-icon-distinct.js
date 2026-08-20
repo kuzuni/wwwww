@@ -88,6 +88,21 @@ const TOP = 12;
     const median = res.pairs[Math.floor(res.pairs.length / 2)].iou;
     console.log(`   (전체 중앙값 ${median.toFixed(3)} · 최고 ${res.pairs[0].iou.toFixed(3)})`);
 
+    /* 🚨 **분포 3줄 — 조형을 고친 전후는 반드시 이걸로 볼 것 (2026-08-20 UI 스트림, 락 `icon-gen`).**
+       상위 12쌍만 보면 **한 쌍을 떼고 다른 쌍을 만드는 맞바꿈**이 개선으로 보인다. 실제로 이 세션이
+       두 번 밟았다: ⓐ 성역을 줄였더니 최악값이 0.673 → **0.682 로 올랐고**(작은 쪽이 큰 쪽에 통째로
+       들어가면 IoU 는 되레 오른다) ⓑ 모래시계 판을 넓혀 신의 창과의 .630 을 .53 대로 떨어뜨렸더니
+       **넓은 위/아래 띠**가 돼서 용의 아가리와 새로 .662 가 났다. 둘 다 상위 12쌍 목록에서는
+       '한 줄이 사라지고 한 줄이 생긴' 것처럼만 보인다.
+       📌 그래서 판단 기준은 **최악값 + `≥0.60` 개수 + `≥0.55` 개수 세 개를 함께**. 셋이 같이
+          내려가야 진짜로 갈린 것이다(이 세션 실측: 0.673/10/25 → 0.640/3/21). */
+    const n60 = res.pairs.filter(p => p.iou >= .60).length, n55 = res.pairs.filter(p => p.iou >= .55).length;
+    console.log(`   분포: 최악 ${res.pairs[0].iou.toFixed(3)} · IoU ≥0.60 인 쌍 ${n60}개 · ≥0.55 ${n55}개 (낮을수록 갈린다)`);
+    const hub = {};
+    res.pairs.filter(p => p.iou >= .55).forEach(p => { hub[p.a] = (hub[p.a] || 0) + 1; hub[p.b] = (hub[p.b] || 0) + 1; });
+    const hubs = Object.entries(hub).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    if (hubs.length) console.log(`   허브(≥0.55 쌍에 가장 자주 끼는 종): ${hubs.map(([k, v]) => `${name[k]} ${v}`).join(' · ')}`);
+
     console.log(`\n잉크 면적(${PX}px 프레임 ${PX * PX}화소 중):`);
     res.ids.forEach(id => process.stdout.write(`  ${name[id]} ${res.areas[id]}`));
     console.log(`\n\n콘솔 에러 ${errs.length}건`, errs.slice(0, 3));
