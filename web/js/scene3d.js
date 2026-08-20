@@ -22157,31 +22157,56 @@ const Scene3D = {
         }
     },
 
+    // 화살 복셀 지오메트리(캐시·정규화) — 🧊 매끈 콘/원기둥 → 계단 스파이크 + 블록 꼬리
+    // ('블록 투사체' 문법). 머리는 3단 계단 촉(전고 ~0.34), 꼬리는 +y(머리 쪽)가 굵고 끝이
+    // 큐브 낱개로 부서지는 단위 길이 기둥 — 종전 실린더처럼 scale.y=len 으로 늘여 쓴다.
+    voxArrowGeo(part) {
+        const key = part === 'head' ? '_voxArrowHeadGeo' : '_voxArrowTailGeo';
+        if (!this[key]) {
+            const vox = [];
+            if (part === 'head') {
+                for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++) vox.push({ x, y: 0, z }); // 3×3 밑동
+                vox.push({ x: 0, y: 1, z: 0 }, { x: 1, y: 1, z: 0 }, { x: -1, y: 1, z: 0 },
+                    { x: 0, y: 1, z: 1 }, { x: 0, y: 1, z: -1 });                                     // 십자 허리
+                vox.push({ x: 0, y: 2, z: 0 });                                                       // 촉 끝
+            } else {
+                vox.push({ x: 0, y: 9, z: 0 }, { x: 1, y: 9, z: 0 }, { x: -1, y: 9, z: 0 },
+                    { x: 0, y: 9, z: 1 }, { x: 0, y: 9, z: -1 });   // 머리 쪽 십자(굵은 목)
+                for (const y of [8, 7, 6, 5, 4, 3, 1]) vox.push({ x: 0, y, z: 0 }); // y=2·0 은 빈칸 — 끝이 블록으로 부서진다
+            }
+            this[key] = Voxel.build(vox, { size: part === 'head' ? 0.115 : 0.105, color: 0xffffff, jitter: 0.07, ao: 0 }).geometry;
+        }
+        return this[key];
+    },
     projectileBolt(from, to, color, tier) {
         const delta = to.clone().sub(from), dist = delta.length();
         const dir = delta.clone().normalize();
-        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); // 실린더/콘 축(+y)을 진행방향으로
+        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); // 복셀 스파이크 축(+y)을 진행방향으로
         const dur = 0.09 + tier * 0.004;               // 화살답게 빠르게
         const tailLen = Math.min(dist * 0.55, 1.7 + tier * 0.15);
         const headR = 0.08 + tier * 0.012;
-        // 머리(뾰족한 화살촉) — 흰 코어. 꼬리(혜성 tail) — 스킬 색 가산. 글로우 한 겹 더.
-        const head = new THREE.Mesh(new THREE.ConeGeometry(headR, 0.34, 6),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1, toneMapped: false }));
-        const tail = new THREE.Mesh(new THREE.CylinderGeometry(headR * 0.85, 0.015, 1, 6, 1, true),
-            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-        const glow = new THREE.Mesh(new THREE.CylinderGeometry(headR * 1.7, 0.03, 1, 6, 1, true),
-            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        // 머리(계단 촉) — 흰 코어. 꼬리(블록 기둥) — 스킬 색 가산(가는 코어라 가산 허용 범위).
+        // 글로우는 같은 지오를 1.7배 굵혀 한 겹 더 — 종전 3메시 구성·재질 언어 그대로.
+        const vmat = (col, op) => new THREE.MeshBasicMaterial({ color: col, vertexColors: true,
+            transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+        const head = new THREE.Mesh(this.voxArrowGeo('head'),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, transparent: true, opacity: 1, toneMapped: false }));
+        const tail = new THREE.Mesh(this.voxArrowGeo('tail'), vmat(color, 0.9));
+        const glow = new THREE.Mesh(this.voxArrowGeo('tail'), vmat(color, 0.4));
+        head.userData.sharedGeometry = tail.userData.sharedGeometry = glow.userData.sharedGeometry = true; // 캐시 지오 — dispose 금지
+        const wf = headR / 0.13;                       // 티어별 굵기 — 촉 밑동 반폭(0.17)이 종전 콘 감각에 맞는 배율
+        head.scale.set(wf, 1, wf);
         head.quaternion.copy(q); tail.quaternion.copy(q); glow.quaternion.copy(q);
         this.scene.add(head, tail, glow);
-        const placeTail = (m, headPos, len) => {
+        const placeTail = (m, headPos, len, w) => {
             m.position.copy(headPos).addScaledVector(dir, -len / 2 - 0.17); // 머리 뒤로 len 만큼
-            m.scale.y = Math.max(0.001, len);
+            m.scale.set(w, Math.max(0.001, len), w);       // 굵기도 티어를 탄다(종전 실린더의 headR 인자 몫)
         };
         this.addAnim(dur, k => {
             const headPos = from.clone().addScaledVector(dir, dist * k + 0.17);
             head.position.copy(headPos);
             const len = tailLen * Math.min(1, k / 0.35);   // 처음엔 짧게 시작해 곧 최대 길이
-            placeTail(tail, headPos, len); placeTail(glow, headPos, len * 1.05);
+            placeTail(tail, headPos, len, wf * 0.85); placeTail(glow, headPos, len * 1.05, wf * 1.7);
         }, () => {
             this.disposeTree(head); this.disposeTree(tail); this.disposeTree(glow);
             this.scene.remove(head); this.scene.remove(tail); this.scene.remove(glow);
