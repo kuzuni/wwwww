@@ -14062,6 +14062,11 @@ const Scene3D = {
         g.traverse(o => {
             if (!o.isMesh || !o.material) return;
             if (o.userData.aoRing || o.userData.isOutline || o.userData.bossRegalia) return;
+            // 🚨 **흰자는 살이 아니다 — 같이 어둡게 하면 눈이 두상에 묻힌다.** `probe-eye-contrast` 가
+            //   영웅에서 이미 잡아 둔 함정이다(흰자는 톤매핑에 눌리는데 조명 받는 피부는 안 눌려,
+            //   재질 색만 보면 통과인데 화면에서는 눈이 사라진다). 여기서는 살을 ×0.68 로 내리므로
+            //   흰자를 그대로 두면 대비가 오히려 **좋아진다** — 건드리지 않는 게 이득이다.
+            if (o.userData.pieEye) return;
             const src = o.material;
             if (Array.isArray(src)) return;                      // 멀티머티리얼 파츠는 건드리지 않는다
             let m = seen.get(src);
