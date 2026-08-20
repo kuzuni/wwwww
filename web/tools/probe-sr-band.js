@@ -34,7 +34,7 @@ const SEED = `
         await new Promise(r => setTimeout(r, 500));
     }
     await page.evaluate(SEED);
-    await page.evaluate(() => { Scene3D.update = function () { }; });   // 3D 루프를 멈춰야 캡처가 빠르다
+    await page.evaluate(() => { Scene3D.update = function () { }; const bl = document.getElementById('boot-loading'); if (bl) bl.remove(); });   // 3D 루프 정지 + 부팅 오버레이 제거(시크가 소등 transition 을 얼린다)
     await page.waitForTimeout(600);
 
     // [이름, 판을 세우는 소스] — 스킬 소환 결과는 `{def, isNew}` 형태다

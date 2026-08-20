@@ -108,7 +108,7 @@ const SAMPLE = `(() => {
     await page.goto(INDEX);
     await page.waitForFunction('typeof UI !== "undefined" && UI.els');
     await page.evaluate(SEED);
-    await page.evaluate(`Scene3D.update = function () {};`);
+    await page.evaluate(`Scene3D.update = function () {}; const bl = document.getElementById('boot-loading'); if (bl) bl.remove();`);
     await page.waitForTimeout(250);
 
     const fails = [];

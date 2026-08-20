@@ -58,7 +58,7 @@ const EMPTY_SD = 30 / 255;
             await new Promise(r => setTimeout(r, 500));
         }
         await p.evaluate(`S.tickets=999999;S.gems=999999;S.eggCurrency=999999;S.winders=999999;S.bestChapter=20;S.bestStage=9;saveGame();`);
-        await p.evaluate(`Scene3D.update = function () {};`);
+        await p.evaluate(`Scene3D.update = function () {}; const bl = document.getElementById('boot-loading'); if (bl) bl.remove();`);
         await p.evaluate(`(() => { ${RNG(seed)}; S.summonCount = ${cnt}; S.summonMult = {skill:${mult}};
             UI.switchTab('summon'); UI.switchSummonSub('skills'); UI.onSummon(false); })()`);
         // 연출이 끝난 정지 화면에서 잰다 — A 가 본 것도 `-3400` 즉 종료 후 프레임이다

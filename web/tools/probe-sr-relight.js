@@ -64,7 +64,7 @@ const RELIGHT_MIN = 1.35;    // 광원 자리 휘도 / baseline. A 실측은 0.8
     await page.goto(INDEX, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof UI !== 'undefined' && UI.els && UI.els.craftModal && typeof Scene3D !== 'undefined', null, { timeout: 20000 });
     await page.evaluate(SEED);
-    await page.evaluate(() => { Scene3D.update = function () { }; });
+    await page.evaluate(() => { Scene3D.update = function () { }; const bl = document.getElementById('boot-loading'); if (bl) bl.remove(); });
     await page.waitForTimeout(400);
 
     const made = await page.evaluate(MAKE);

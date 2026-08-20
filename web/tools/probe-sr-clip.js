@@ -69,7 +69,7 @@ const GATE = 40; // 같은 열에 정렬된 급변 행 수가 이 이상이면 �
         await page.goto(INDEX);
         await page.waitForFunction('typeof UI !== "undefined" && UI.els');
         await page.evaluate(SEED);
-        await page.evaluate(`Scene3D.update = function () {};`);
+        await page.evaluate(`Scene3D.update = function () {}; const bl = document.getElementById('boot-loading'); if (bl) bl.remove();`);
         // ⚠️ 시드와 소환은 한 evaluate 안에 — 따로 부르면 그 사이 게임 루프가 난수를 먹는다
         await page.evaluate(RNG(seed) + ';' + open);
         await page.evaluate(`UI.clearSummonTimers()`);

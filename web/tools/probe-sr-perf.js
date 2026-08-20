@@ -23,7 +23,7 @@ const SEED = `S.tickets = 999999; S.gems = 999999; S.eggCurrency = 999999; S.win
     await page.screenshot({ path: path.join(OUT, 'base.png'), timeout: 60000 });
     console.log('팝업 없음:', Date.now() - t, 'ms');
     // 3D 렌더를 멈추면 캡처가 얼마나 빨라지는지 (팝업은 불투명 풀스크린이라 화면은 동일)
-    await page.evaluate(`Scene3D.update = function () {};`);
+    await page.evaluate(`Scene3D.update = function () {}; const bl = document.getElementById('boot-loading'); if (bl) bl.remove();`);
     t = Date.now();
     await page.screenshot({ path: path.join(OUT, 'base-nogl.png'), timeout: 60000 });
     console.log('3D 정지·팝업 없음:', Date.now() - t, 'ms');

@@ -19,7 +19,12 @@ const SEED = `
     S.tickets = 999999; S.gems = 999999; S.eggCurrency = 999999; S.winders = 999999;
     S.bestChapter = 20; S.bestStage = 9; saveGame();
 `;
-const FREEZE_3D = `Scene3D.update = function () {};`;
+const FREEZE_3D = `Scene3D.update = function () {};
+    // 🚨 부팅 오버레이(#boot-loading)를 지운다 — 소등이 CSS transition 이라 시크의
+    // getAnimations() 일괄 pause 에 걸리면 t0 프레임이 통째로 로딩 화면이 된다(실제로
+    // tl-*/t0000 두 세트가 그렇게 구워졌고, 11차 B 9번 't0000 이 완전히 같은 프레임'
+    // 지적의 정체가 이것이다). 경쟁이라 회차마다 걸리기도 안 걸리기도 한다.
+    const bl = document.getElementById('boot-loading'); if (bl) bl.remove();`;
 // shot-summon-result.js 와 같은 mulberry32 — 시드 14 는 x5 가 [희귀한·서사시·전설·궁극의·신화]
 const RNG = seed => `(() => { let a = ${seed} >>> 0; Math.random = function () {
     a |= 0; a = a + 0x6D2B79F5 | 0;

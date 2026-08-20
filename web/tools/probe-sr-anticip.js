@@ -58,7 +58,7 @@ const SEEK = `((T, base) => {
     await page.goto(INDEX);
     await page.waitForFunction('typeof UI !== "undefined" && UI.els');
     await page.evaluate(SEED);
-    await page.evaluate(`Scene3D.update = function () {};`);
+    await page.evaluate(`Scene3D.update = function () {}; const bl = document.getElementById('boot-loading'); if (bl) bl.remove();`); // 오버레이 제거 — shot-summon-result.js FREEZE_3D 주석 참조
     await page.evaluate(RNG(14) + ';' + OPEN);
     await page.evaluate(`UI.clearSummonTimers()`);
 

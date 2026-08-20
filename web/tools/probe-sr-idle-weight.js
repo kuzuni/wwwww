@@ -39,6 +39,7 @@ const SEED = `
     S.tickets = 999999; S.gems = 999999; S.eggCurrency = 999999; S.winders = 999999;
     S.bestChapter = 20; S.bestStage = 9; S.summonCount = 5000; saveGame();
     Scene3D.update = function () {};
+    const bl = document.getElementById('boot-loading'); if (bl) bl.remove();
 `;
 // 주역(전설 이상)이 확실히 서게 만렙 소환 레벨로 x5를 굴린다.
 // ⚠️ 등급 구성이 난수면 실행마다 셀 수·등급이 달라져 **수정 전/후 비교가 성립하지 않는다**
