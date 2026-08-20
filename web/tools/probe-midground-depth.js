@@ -22,6 +22,10 @@
 // 🚨 **접지 블롭 제외 · `rocks` 까지 훑기 · 재빌드 시드 고정** — 셋 다 선행 자가 밟고 기록한 함정이라
 //    같은 규약을 그대로 따른다(`probe-nearfield-mass` 머리말 참조).
 //
+// ── 안정성 (regress.sh 등재 전에 확인한 것) ────────────────────────────────────
+//   같은 코드 3회의 챕터별 중경 점유%: 최악 챕터(용암)가 7.32 / 7.47 / 7.32 로 폭 0.15,
+//   전 챕터 폭도 ≤0.98. 기준선 6.0 대비 최소값이 22% 여유다(재빌드 시드 고정 덕분).
+//
 // 사용: node probe-midground-depth.js      # 게이트. 중경 지표 미달이면 종료코드 1
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');

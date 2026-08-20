@@ -36,6 +36,8 @@ for p in \
     probe-icon-light-frame.js \
     probe-alloy-trim-contact.js \
     probe-armor-era-silhouette.js \
+    probe-midground-depth.js \
+    probe-emissive-bleed.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1

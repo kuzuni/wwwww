@@ -20,6 +20,12 @@
 //    지적은 '주변을 밝힘'이다. 둘을 섞으면 크랙이 밝게 찍히는 것만 보고 통과를 준다.
 //    그래서 토글하는 건 **오직 `Scene3D.accents` 의 intensity** 다.
 //
+// ── 안정성 (regress.sh 등재 전에 확인한 것) ────────────────────────────────────
+//   시드 고정 **전** 같은 코드 4회: 정합비 3.29 / 1.91 / 1.57 / 1.81 (폭 1.72) — 게이트로 못 쓴다.
+//   시드 고정 **후** 3회: 2.27 / 2.33 / 2.57 (폭 0.30). 기준선 1.3 대비 최소값이 75% 여유다.
+//   ⚠️ 완전 결정론은 아니다(잔여 흔들림은 swiftshader 의 가산 데칼 래스터화). 튜닝은 폭 0.3 을
+//   넘는 변화에만 근거로 쓸 것.
+//
 // 사용: node probe-emissive-bleed.js       # 게이트. 발광 바이옴이 기준 미달이면 종료코드 1
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
@@ -45,6 +51,12 @@ const GATE_ALIGN = 1.3;    // '광원 발밑 발광 밝기 ÷ 같은 z 임의 �
     const rows = [];
     for (const t of TARGETS) {
         const r = await page.evaluate(([chapter, DTH]) => {
+            // 🚨 **시드를 고정하지 않으면 게이트로 못 쓴다.** 균열 자리(`crackWorldSpots`)는 주 혈관
+            //   경로 위 점을 난수로 고르고 대조군 오프셋도 난수라, 같은 코드로 4회 돌렸더니 정합비가
+            //   **3.29 / 1.91 / 1.57 / 1.81** 로 흔들렸다(개선폭만큼 큰 흔들림). `setChapterTheme` 앞에서
+            //   고정 시드를 심어 배치·대조군을 재현 가능하게 만든다(`probe-midground-depth` 와 같은 규약).
+            let rs = 0x9e3779b9 >>> 0;
+            Math.random = () => { rs ^= rs << 13; rs >>>= 0; rs ^= rs >>> 17; rs ^= rs << 5; rs >>>= 0; return rs / 4294967296; };
             Scene3D.setChapterTheme(chapter);
             const gl = Scene3D.renderer.getContext();
             const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
