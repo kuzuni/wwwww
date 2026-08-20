@@ -6716,11 +6716,25 @@ const Scene3D = {
     //    핵심 제약: ⓐ 얼굴 디캘 눈을 가리지 않는다(정면 눈썹 아래는 항상 열림) ⓑ 큐브 두상(g-로컬
     //    중심 (0,0.083,0)·반경 0.20, probe-head-frame 실측)에 한 겹 크게 덮는다 ⓒ 시대 정체성은
     //    ageGearMats 재질 + 스타일별 토퍼(볏·뿔·왕관·후광·안테나…)로 준다. 채점 없음(사용자 지시).
+    // 투구 재질 세트 — 갑옷(mcArmorParts)·장신구(mcAccMats)와 같은 MC_CLOTH 시대 팔레트에서 색을
+    //   끌어와 투구가 시대 테마 갑옷과 **한 세계로 읽히게** 한다(사용자 스펙 2026-08-21 "박스 캐릭터
+    //   시대 테마 복셀"). 옛 ageGearMats(자갈/브러시 텍스처 + 시대색 32% 혼합)를 폐기·대체 — 조형은 이미
+    //   박스-캐릭터 복셀(equip-build-helmet)이라 그대로 두고 팔레트만 갑옷과 통일한다.
+    // 셸 = alt(갑옷 몸통색 base 와 갈리는 금속/경질 톤이라 머리와 몸이 분리돼 읽힌다) · 그늘/부속 = dark.
+    //   전부 mcClothMat(캐시·flatShading) 표준재질 — 쓰는 메시는 makeHelmet 말미에서 sharedMaterial 마킹.
+    mcHelmMats(age) {
+        const T = this.MC_CLOTH[age] || this.MC_CLOTH.medieval;
+        return {
+            body: this.mcClothMat(T.alt, { metal: T.metal }),
+            dark: this.mcClothMat(T.dark, { metal: 0.05 }),
+            trim: this.mcClothMat(T.trim, { metal: Math.min(0.6, T.metal + 0.15) }),
+        };
+    },
     makeHelmet(age, rarity, style, name) {
         const g = new THREE.Group();
         const pc = RARITY_HEX[rarity] || 0xef5350;      // 장식 = 등급색
-        const mats = this.ageGearMats(age, name);
-        const mat = mats.body, darkMat = mats.dark;
+        const M = this.mcHelmMats(age);
+        const mat = M.body, darkMat = M.dark;
         const rareMat = this.rarityDecorMat(pc);
         style = style || 'plume';
 
@@ -6758,8 +6772,6 @@ const Scene3D = {
         };
         // 정면 눈썹 라인의 등급색 트림 띠 — 시대·등급을 실루엣으로 싣는다.
         const browTrim = () => blk(2 * OX + 0.008, 0.022, W + 0.006, rareMat, 0, yBrow - 0.006, frontZ);
-
-        const kind = mats.kind;
 
         if (style === 'hair') {
             // 머리카락/수염 — 두피를 덮는 얇은 각진 모(毛). 얼굴은 완전 개방.
@@ -6893,6 +6905,12 @@ const Scene3D = {
                 for (const s of [-1, 1]) blk(0.05, 0.05, 0.05, this.primalBoneMat(), s * 0.14, yTop + 0.02, -0.04);  // 뼈 장식
         }
 
+        // 캐시 재질 보호 — mcClothMat(셸·그늘·트림) 및 시대 싱글턴(천상 후광 금·원시 뼈/끈)은 공유
+        //   재질이라, clearGroup/disposeTree 가 죽이면 다음 썸네일이 검게 나온다(mcClothMat·mcArmorParts
+        //   주석과 같은 규약). tintOf 파생·rareMat·유리/머리카락 등 호출마다 새로 만드는 재질은 마킹하지
+        //   않는다 — 그건 정상 해제 대상이다(라이브 영웅 교체 시 누수 방지).
+        const _shared = [mat, darkMat, M.trim, this._divineLit, this._primalBone, this._primalCord];
+        g.traverse(o => { if (o.isMesh && _shared.indexOf(o.material) >= 0) o.userData.sharedMaterial = true; });
         // 등급색 장식 표식 — 판정기 차분 규약(probe-white-decor)이 이 부위만 골라 잰다.
         g.traverse(o => { if (o.isMesh && o.material === rareMat) o.userData.rarityDecor = true; });
         return g;
