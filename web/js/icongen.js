@@ -2119,7 +2119,12 @@ IconGen._genderSym = function (ctx, S, female) {
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
         // 두께는 노브로 뺀다 — `probe-emblem-core` 가 **음성 대조**(일부러 테를 살찌워 속살
         // 검사가 실제로 FAIL 하는지)를 돌리기 위한 자리다. 제품 기본값은 원본 실측 비 0.067.
-        ctx.lineWidth = S * (K.keyline || 0.067);
+        // 🚨 `??` 일 것 — `||` 이면 **`keyline: 0` 이 조용히 기본값 .067 로 되돌아간다**(2026-08-20
+        //    UI 스트림이 음성 대조 중 발견). `probe-emblem-core` 의 음성 대조는 테를 **살찌우는**
+        //    쪽(0.16)이라 이 구멍에 안 걸렸고, '테를 없애고 재 보기'를 하려던 이 세션이
+        //    **아무것도 안 변하는 결과**를 받아 하마터면 "AA 링이 원인이 아니다"를 엉뚱한 근거로
+        //    결론지을 뻔했다(고치고 다시 재니 실제로는 잉크율 55.1% → 28.8% 로 크게 움직인다).
+        ctx.lineWidth = S * (K.keyline ?? 0.067);
         ctx.strokeStyle = '#000';
         ctx.stroke();
         /* ④ 상단 하이라이트 — **하드 컷 한 단**(클립). (2026-08-20 UI 스트림)
