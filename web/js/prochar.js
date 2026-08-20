@@ -1883,18 +1883,27 @@ const ProChar = {
         // 🧊 진짜 단순 큐브 캐릭터 (사용자 2026-08-21 "머리1·몸통1·팔다리 각1 큐브, 맨살") —
         //    기사 리그의 모든 몸 메시를 숨기고, 관절에 살색 박스 하나씩만 얹는다. 머리(두상+눈)만 유지.
         {
-            const headKeep = new Set();
-            if (R.bones.head) R.bones.head.traverse(o => headKeep.add(o));   // 두상 + 얼굴/눈
-            const hideTree = g => g && g.traverse(o => { if (o.isMesh && !headKeep.has(o) && !(o.userData && o.userData.simpleBox)) o.visible = false; });
-            hideTree(outer); hideTree(root);   // 남은 몸 메시 전부 숨김(허리 잔재 포함)
+            const faceKeep = new Set();
+            if (R.faceMesh) R.faceMesh.traverse(o => faceKeep.add(o));   // 눈·입만 유지
+            const hideTree = g => g && g.traverse(o => { if (o.isMesh && !faceKeep.has(o) && !(o.userData && o.userData.simpleBox)) o.visible = false; });
+            hideTree(outer); hideTree(root);   // 두개골 포함 모든 몸 메시 숨김
             const skinM = new THREE.MeshStandardMaterial({ color: 0xf2c9a4, metalness: 0, roughness: 0.62, flatShading: true });
-            const box = (parent, w, h, d, y) => {
+            const box = (parent, w, h, d, x, y, z) => {
                 const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), skinM);
-                b.position.set(0, y, 0); b.userData.simpleBox = true; parent.add(b); return b;
+                b.position.set(x || 0, y || 0, z || 0); b.userData.simpleBox = true; parent.add(b); return b;
             };
-            box(R.bones.spine, 0.30, 0.40, 0.19, 0.19);                 // 몸통 1큐브 (어깨 0.385 ~ 골반 사이)
-            (R.arms || []).forEach(a => box(a.shoulder, 0.12, 0.34, 0.12, -0.17));  // 팔 1큐브씩 (어깨에서 아래)
-            (R.legs || []).forEach(l => box(l.hip, 0.14, 0.38, 0.14, -0.19));       // 다리 1큐브씩 (골반에서 아래)
+            // 머리 = 깨끗한 네모 하나 (두개골+턱+베벨 폐기). headG.scale 1.30→0.62 로 크기 정상화
+            //   (눈이 든 faceG 도 같이 줄어 앞면에 그대로 얹힌다).
+            if (R.bones.head) { R.bones.head.scale.setScalar(0.62); box(R.bones.head, 0.70, 0.74, 0.70, 0, 0.263, 0); }
+            box(R.bones.spine, 0.42, 0.44, 0.22, 0, 0.19, 0);           // 몸통 1큐브
+            (R.arms || []).forEach(a => {                               // 팔 1큐브 — 몸통 옆면에 붙게 x 당김
+                a.shoulder.position.x = Math.sign(a.shoulder.position.x || 1) * 0.27;
+                box(a.shoulder, 0.12, 0.34, 0.12, 0, -0.17, 0);
+            });
+            (R.legs || []).forEach(l => {                              // 다리 1큐브 — 몸통 밑 중앙에 모으기
+                l.hip.position.x = Math.sign(l.hip.position.x || 1) * 0.07;
+                box(l.hip, 0.14, 0.40, 0.14, 0, -0.20, 0);
+            });
         }
 
         // 베이스 포즈 기록 (매 프레임 여기서 시작해 클립 오프셋을 얹음)
