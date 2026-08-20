@@ -6720,7 +6720,11 @@ const Scene3D = {
                 if (rr < 0.6) { v.push({ x: 0, y: CY + dy, z: 0, c: cBody }); continue; }
                 const slitRow = dy === 0 || dy === 1;    // 눈 슬릿 밴드(월드 y 0.048~0.096)
                 const rimRow = dy === -1 || dy === 2;    // 상하 금속 림 행
-                for (const c of V.ellipse(rr, rr, 1, { y0: CY + dy, color: cBody, rix: Math.max(0, rr - 2.4), riz: Math.max(0, rr - 2.4) })) {
+                // ⚠️ 중공(rix)은 슬릿 주변 행에만 — 안 보이는 안쪽 벽이 행마다 서면 영웅 tri 예산
+                //    (probe-hero-tris 66k)을 뚫는다(실측 +7.5k, 이 세션이 밟았다). 나머지는 솔리드
+                //    (속칸은 이웃 컬링으로 면이 아예 안 구워져 오히려 싸다).
+                const hollow = dy >= -1 && dy <= 2 ? Math.max(0, rr - 2.4) : 0;
+                for (const c of V.ellipse(rr, rr, 1, { y0: CY + dy, color: cBody, rix: hollow, riz: hollow })) {
                     if (slitRow && inArc(c.x, c.z, slitArc)) continue;         // 개구부 — 셸을 실제로 뚫는다
                     if (rimRow && inArc(c.x, c.z, slitArc)) c.c = cRim;
                     v.push(c);
@@ -6729,7 +6733,7 @@ const Scene3D = {
                     for (const c of V.ellipse(rr - 2, rr - 2, 1, { y0: CY + dy, color: 0x0c0f12, rix: Math.max(0, rr - 4), riz: Math.max(0, rr - 4) }))
                         if (inArc(c.x, c.z, slitArc + 0.4)) v.push(c);
                 // 뺨 판 — 슬릿 아래 하관 양옆(정면 32°~86° 섹터)에 +1칸 돌출 패치
-                if (dy >= -6 && dy <= -2)
+                if (dy >= -5 && dy <= -2)
                     for (const c of V.ellipse(rr + 1, rr + 1, 1, { y0: CY + dy, color: cCheek, rix: rr, riz: rr })) {
                         const a = Math.abs(Math.atan2(c.x, c.z));
                         if (a > 0.55 && a < 1.5 && c.z > 0) v.push(c);
@@ -6787,7 +6791,8 @@ const Scene3D = {
                 const yy = Math.sqrt(Math.max(0, (R + 1.3) * (R + 1.3) - z * z));
                 if (yy < (R + 1.3) * Math.cos(slitArc / 2 + 0.35)) continue;
                 const yi = Math.round(yy);
-                crest.push({ x: 0, y: CY + yi, z, c: cpc }, { x: 0, y: CY + yi - 1, z, c: cpc });
+                crest.push({ x: 0, y: CY + yi, z, c: cpc });
+                if (Math.abs(z) < 6) crest.push({ x: 0, y: CY + yi - 1, z, c: cpc });   // 정수리 쪽만 2단(tri 예산)
             }
             vhead(crest, rareMat, { emissive: pc, emissiveIntensity: 0.4, jitter: 0.03 });
         } else if (style === 'fin') {       // 볏 투구 계열 — 시대마다 다른 조형 (FIN_VARIANT)
@@ -7370,7 +7375,8 @@ const Scene3D = {
                 if (rr < 0.6) { v.push({ x: 0, y: CY + dy, z: 0, c: cShell }); continue; }
                 const visorRow = dy === -1 || dy === 0;      // 눈높이 흑유리 밴드
                 const jawRow = dy >= -8 && dy <= -5;         // 턱 가드 대역
-                for (const c of V.ellipse(rr * 0.98, rr * 1.07, 1, { y0: CY + dy, color: cShell, rix: Math.max(0, rr * 0.98 - 2.4), riz: Math.max(0, rr * 1.07 - 2.4) })) {
+                const hollow2 = 0;                            // 솔리드 — 안쪽 벽 tri 절약(visor 주석 참조)
+                for (const c of V.ellipse(rr * 0.98, rr * 1.07, 1, { y0: CY + dy, color: cShell, rix: hollow2, riz: hollow2 })) {
                     if (visorRow && inArc(c.x, c.z, Math.PI * 0.86)) c.c = cGlass;
                     v.push(c);
                 }
@@ -7451,7 +7457,7 @@ const Scene3D = {
                 if (rr < 0.6) { v.push({ x: 0, y: CY + dy, z: 0, c: cShell }); continue; }
                 const winRow = dy >= -4 && dy <= 4;      // 전면창 세로 대역(θ 1.20~1.98 의 칸 번역)
                 const frameRow = dy === -5 || dy === 5;  // 창틀 상·하단 행
-                for (const cc of V.ellipse(rr, rr, 1, { y0: CY + dy, color: cShell, rix: Math.max(0, rr - 2.4), riz: Math.max(0, rr - 2.4) })) {
+                for (const cc of V.ellipse(rr, rr, 1, { y0: CY + dy, color: cShell })) {   // 솔리드(visor 주석 참조)
                     const az = Math.abs(Math.atan2(cc.x, cc.z));
                     if (winRow && az < PHI) cc.c = cGlass;
                     else if ((winRow && az < PHI + 0.16) || (frameRow && az < PHI + 0.1)) cc.c = cFrame;
@@ -9537,7 +9543,7 @@ const Scene3D = {
                 }
             } else {
                 // 🧊 후드 — 계단 돔 셸 + 테두리 아크 큐브 링 (equip-voxelize ⓑ)
-                const hood = this.voxPart(Voxel.dome(6.4, 7, mat.color.getHex(), { t: 2 }), 0.024, mat, { jitter: 0.04, shade: 'soft:' + mats.kind });
+                const hood = this.voxPart(Voxel.dome(6.4, 7, mat.color.getHex()), 0.024, mat, { jitter: 0.04, shade: 'soft:' + mats.kind });   // 솔리드 — 중공 이중벽은 tri 예산을 뚫는다
                 hood.scale.set(1, 1.15, 0.85);
                 hood.position.set(0, neckY - 0.13, -0.075);
                 hood.rotation.x = -0.34;
