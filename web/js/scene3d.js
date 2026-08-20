@@ -20332,7 +20332,7 @@ const Scene3D = {
                 for (let x = 0; x <= 1; x++) for (let z = 0; z <= 1; z++) vox.push({ x, y: 0, z });
                 for (let y = 1; y <= 3; y++) vox.push({ x: 0, y, z: 0 });
                 geo = Voxel.build(vox, { size, color: 0xffffff, jitter: 0.12, ao: 0.6 }).geometry;
-            } else {                              // 'mound' — 흙더미 계단 봉분(반폭 1 정규화)
+            } else if (part === 'mound') {        // 흙더미 계단 봉분(반폭 1 정규화)
                 for (let y = 0; y <= 2; y++) {
                     const r = [2.5, 1.7, 0.9][y];
                     const ri = Math.ceil(r);
@@ -20341,6 +20341,32 @@ const Scene3D = {
                 }
                 geo = Voxel.build(vox, { size: 1, color: 0x6b573f, jitter: 0.16, ao: 0.6 }).geometry;
                 geo.scale(1 / 2.5, 1 / 2.5, 1 / 2.5);
+            } else if (part === 'blob') {         // 몸통 마디 — Sphere(r) 자리. 반폭 1 정규화 큐브 덩어리
+                for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++)
+                    vox.push({ x, y, z });
+                for (const [x, y, z] of [[2, 0, 0], [-2, 0, 0], [0, 2, 0], [0, -2, 0], [0, 0, 2], [0, 0, -2]])
+                    vox.push({ x, y, z });        // 6면 돌기 — 매끈 정육면체가 아니라 울퉁 바위 덩어리로
+                geo = Voxel.build(vox, { size: 1, color: 0xffffff, jitter: 0.12, ao: 0.45 }).geometry;
+                geo.scale(1 / 2.5, 1 / 2.5, 1 / 2.5);
+            } else if (part === 'wing') {         // 날개 막 — 납작 Cone(r0.72, h1.6)+scale.z 자리. 계단 삼각 판
+                const size = 0.32;
+                for (let y = 0; y <= 4; y++) {
+                    const half = [2, 2, 1, 1, 0][y];
+                    for (let x = -half; x <= half; x++) vox.push({ x, y, z: 0 });
+                }
+                geo = Voxel.build(vox, { size, color: 0xffffff, jitter: 0.1, ao: 0 }).geometry;
+                geo.scale(1, 1, 0.18);            // 막 두께 — 축정렬 유지(비등방 스케일은 법선을 안 굽힌다)
+            } else {                              // 'breath' — 브레스 콘. 열린 Cylinder(r,0.06,1) 자리.
+                // 높이 1 정규화·촉(-y=입쪽) 좁고 +y(착탄쪽) 반폭 1 — 쓰는 쪽이 scale.set(r,len,r).
+                // 둘레만 남긴 계단 깔때기(FrontSide) — 속이 비어야 안쪽 흰 코어가 산다.
+                for (let y = 0; y <= 7; y++) {
+                    const half = [0, 0, 1, 1, 2, 2, 3, 3][y];
+                    for (let x = -half; x <= half; x++) for (let z = -half; z <= half; z++)
+                        if (half === 0 || Math.max(Math.abs(x), Math.abs(z)) === half)
+                            vox.push({ x, y, z });
+                }
+                geo = Voxel.build(vox, { size: 1, color: 0xffffff, jitter: 0.12, ao: 0 }).geometry;
+                geo.scale(1 / 3.5, 1 / 8, 1 / 3.5);
             }
             C[part] = geo;
         }
@@ -20524,27 +20550,39 @@ const Scene3D = {
         G.userData.dragonFx = true;
         G.position.set(base.x, -4.2, base.z);
         G.rotation.y = -0.18;                               // 살짝 카메라 쪽으로 틀어 실루엣을 연다
-        const mk = (geo, col) => new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col }));
+        // 🧊 캐시 복셀 지오 공유 — vertexColors 로 jitter·AO 가 살고, sharedGeometry 로 dispose 를 막는다.
+        const mk = (geo, col) => {
+            const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col, vertexColors: true }));
+            m.userData.sharedGeometry = true;
+            return m;
+        };
         // 몸통→목 사슬: 아래가 굵고 위로 가늘어지는 S자. 한낮 초원 위라 몸은 확실히 어둡게(mawHead 함정).
         // ⚠️ 0x2a2130 은 캡처에서 연보라 덩어리로 떴다 — sRGB 출력 인코딩이 재질색을 linear→sRGB 로
         //    들어 올린다(픽셀 실측: 0x14 대역이 화면에서 0x50 대역). 실루엣이 검게 서려면 근흑까지 내린다.
         const hide = new THREE.Color(0x070509);
         const segDef = [[0.95, 0, 0.55, 0], [0.74, 0.26, 1.5, 0], [0.56, 0.68, 2.35, 0], [0.44, 1.16, 2.98, 0]];
         for (const [r, x, y, z] of segDef) {
-            const s = mk(new THREE.SphereGeometry(r, 10, 8), hide.clone().offsetHSL(0, 0, (y / 3) * 0.06));
+            // 🧊 매끈 구 → 큐브 덩어리(voxMawGeo 'blob' — 반폭 1 정규화, 마디 반경 r 은 스케일로)
+            const s = mk(this.voxMawGeo('blob'), hide.clone().offsetHSL(0, 0, (y / 3) * 0.06));
+            s.scale.setScalar(r);
             s.position.set(x, y, z);
             G.add(s);
-            // 용암 균열 밴드 — 스킬 색 가산 토러스. 어두운 몸에 색 정체성을 심는다.
-            const band = new THREE.Mesh(new THREE.TorusGeometry(r * 0.82, 0.045, 6, 18),
-                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+            // 용암 균열 밴드 — 스킬 색 가산 링. 어두운 몸에 색 정체성을 심는다.
+            // 🧊 매끈 토러스 → 픽셀 계단 링(pixelAnnulusGeo — 바깥 반지름 1 정규화라 스케일에 r 을 곱한다)
+            const band = new THREE.Mesh(this.pixelAnnulusGeo(0.86),
+                new THREE.MeshBasicMaterial({ color, vertexColors: true, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+            band.userData.sharedGeometry = true;
+            band.scale.setScalar(r * 0.88);
             band.position.set(x, y - r * 0.25, z);
             band.rotation.x = Math.PI / 2 - 0.25;
             G.add(band);
         }
         // 가슴 충전 코어 — 예비 단계에서 부풀어 브레스의 출처를 만든다.
         // ⚠️ 몸 밖으로 삐져나오면 '분홍 공'으로 읽힌다(캡처 실측) — 목 안쪽에 작게 묻는다.
-        const chest = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 8),
+        // 🧊 매끈 구 → 큐브(fxGeo 절대 치수 캐시 — scale 애니가 지오 위에 얹힌다).
+        const chest = new THREE.Mesh(this.fxGeo('box', 0.55, 0.55, 0.55),
             new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        chest.userData.sharedGeometry = true;
         chest.position.set(0.5, 1.95, 0.15);
         G.add(chest);
         // 날개 2장 — 어깨 피벗에 달아 펼침/퍼덕임을 회전으로 준다(납작 콘 = 막).
@@ -20556,14 +20594,16 @@ const Scene3D = {
             piv.position.set(0.05, 2.55, s * 0.6);
             // ⚠️ 날개를 크게(2.5)·밝게 주면 화면 상단에서 배경 산과 한 덩어리로 읽힌다(캡처 실측) —
             //    몸과 같은 근흑 + 스킬 색 8%, 몸 폭 안쪽 크기로.
-            const mem = mk(new THREE.ConeGeometry(0.72, 1.6, 3),
+            // 🧊 납작 콘 → 계단 삼각 판(voxMawGeo 'wing' — 막 두께가 지오에 구워져 scale.z 불필요)
+            const mem = mk(this.voxMawGeo('wing'),
                 hide.clone().offsetHSL(0, 0, 0.02).lerp(color, 0.08));
-            mem.scale.z = 0.08;
             mem.position.set(-0.45, 0.62, s * 0.5);
             mem.rotation.set(s * 0.5, 0, 1.3);
             piv.add(mem);
-            const edge = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.025, 1.5),
+            // 🧊 날개 뼈대 실린더 → 각진 막대(fxGeo 캐시)
+            const edge = new THREE.Mesh(this.fxGeo('box', 0.08, 1.5, 0.08),
                 new THREE.MeshBasicMaterial({ color: hide.clone().offsetHSL(0, 0, 0.04) }));
+            edge.userData.sharedGeometry = true;
             edge.position.set(-0.4, 0.66, s * 0.5);
             edge.rotation.z = 1.2;
             piv.add(edge);
@@ -20618,10 +20658,15 @@ const Scene3D = {
                 const mouth = new THREE.Vector3();
                 head.getWorldPosition(mouth);
                 mouth.x += 0.62; mouth.y += 0.1;
-                // 불줄기 2겹: 바깥 스킬 색 + 안 흰 코어. 원뿔(입쪽 가늘게)을 매 프레임 조준점에 맞춘다.
+                // 불줄기 2겹: 바깥 스킬 색 + 안 흰 코어. 깔때기(입쪽 가늘게)를 매 프레임 조준점에 맞춘다.
+                // 🧊 열린 원뿔통 → 계단 깔때기(voxMawGeo 'breath' — 높이 1 정규화·촉 반폭 1이라
+                //    r 은 x/z 스케일로, 아래 애니의 c.scale.y=len 줄은 무수정). FrontSide —
+                //    복셀 통을 DoubleSide 로 두면 안팎 면이 겹쳐 가산이 포화한다(결계 돔의 함정).
                 const mkCone = (r, col, op) => {
-                    const c = new THREE.Mesh(new THREE.CylinderGeometry(r, 0.06, 1, 10, 1, true),
-                        new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+                    const c = new THREE.Mesh(this.voxMawGeo('breath'),
+                        new THREE.MeshBasicMaterial({ color: col, vertexColors: true, transparent: true, opacity: op, side: THREE.FrontSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+                    c.scale.set(r, 1, r);
+                    c.userData.sharedGeometry = true;
                     this.scene.add(c);
                     return c;
                 };
@@ -20667,7 +20712,7 @@ const Scene3D = {
                         SFX.stormStrike(i);
                     }
                 }, () => {
-                    for (const c of [stream, core]) { c.geometry.dispose(); c.material.dispose(); this.scene.remove(c); }
+                    for (const c of [stream, core]) { c.material.dispose(); this.scene.remove(c); }   // 캐시 지오 — dispose 금지
                     // ⓓ 퇴장 0.4s — 턱을 다물고 가라앉는다
                     this.addAnim(0.4, k => {
                         const c = k * k;
