@@ -82,6 +82,11 @@ PROBES=(
     probe-petupgrade-dom.js     # pet-upgrade  042503
     probe-affilter-dom.js       # autoforge-filter 042950
     probe-forge-detail-dom.js   # forge-detail 042931
+    # 🚩 판정기가 아니라 **판정기의 자(尺)를 지키는 판정기**. 키라인 규칙의 술어 ①~④ 를 합성
+    #    레코드로 재확인한다(원본 확대로 얻은 반례가 그대로 케이스로 박혀 있다).
+    #    등재 사유: `probe-label-keyline-census` 와 `probe-screen-ring-todo` 가 같은 규칙을 따로
+    #    베껴 두고 있다가 술어 4개만큼 갈라졌고, 하필 **작업 순위(ⓛ)를 뽑는 쪽**이 낡은 자였다.
+    ring-rule.js                # 키라인 규칙 단일 원본 — 술어 ①~④ 회귀
 )
 
 if [ "$#" -gt 0 ]; then
