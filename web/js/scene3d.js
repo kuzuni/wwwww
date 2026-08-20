@@ -10699,23 +10699,10 @@ const Scene3D = {
             o.restore();
             // ── ⓒ 피사체 — 그림자 위에 (올림·축척은 위 affine 이 이미 물고 있다)
             o.drawImage(src, 0, 0);
-            o.setTransform(1, 0, 0, 1, 0, 0);   // 아래 귀퉁이 갈고리는 화면공간
-            // ── ⓓ 레어리티 프레임(앞) — 네 귀퉁이 갈고리. 사각 테두리를 두르면 아이콘이 아니라
-            //    '액자'가 돼 실루엣을 덮는다. 귀퉁이만 물면 등급색은 읽히고 실루엣은 안 가린다.
-            if (rc && rarity !== 'common') {
-                const inset = S * 0.045, arm = S * 0.17, lw = Math.max(1, S / 44);
-                o.strokeStyle = this.hexA(rc, 0.92);
-                o.lineWidth = lw; o.lineCap = 'round'; o.lineJoin = 'round';
-                for (const [cx0, cy0, sxs, sys] of [
-                    [inset, inset, 1, 1], [S - inset, inset, -1, 1],
-                    [inset, S - inset, 1, -1], [S - inset, S - inset, -1, -1]]) {
-                    o.beginPath();
-                    o.moveTo(cx0 + sxs * arm, cy0);
-                    o.lineTo(cx0, cy0);
-                    o.lineTo(cx0, cy0 + sys * arm);
-                    o.stroke();
-                }
-            }
+            // ── ⓓ 레어리티 프레임(네 귀퉁이 갈고리 'ㄱ/ㄴ')은 **제거했다**(사용자 지시 2026-08-21:
+            //    "장비 슬롯에 ㄱ 같이 생긴 선 4개 표시 없애줘"). 등급색은 셀 테두리(--rc)가 이미
+            //    읽히게 하므로 썸네일 위에 별도 갈고리를 얹지 않는다. 뒤 글로우(ⓐ)는 그대로 둔다.
+            o.setTransform(1, 0, 0, 1, 0, 0);
             return out.toDataURL();
         } catch (e) { return null; }
     },
