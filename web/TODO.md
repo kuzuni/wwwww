@@ -4,7 +4,13 @@
 시작 전 반드시 `git pull --rebase origin main` 으로 최신화한다.
 
 ## 🔗 같은 그룹은 묶어서 읽고 작업 (사용자 지시 2026-08-20 — 강제)
-착수 항목이 특정 그룹(스킬·장비·펫·탈것·맵·캐릭터 등)에 속하면, **코드를 건드리기 전에 같은 그룹의 다른 TODO 항목을 grep으로 전부 모아 읽고**(예: 장비면 `equip-*` 슬러그 항목 전부 `grep -n "equip-" web/TODO.md`, 스킬이면 `skill-*` 전부, 펫이면 `pet-*`·탈것이면 `mount-*`·`ride-*`) 그 맥락·이전 시도·정합 요구를 반영해 만든다. 한 항목만 고립되게 보면 같은 그룹끼리 어긋난다 — 장비의 voxel화(`equip-voxelize`)↔시대감(`equip-era-theming`)↔중복제거(`equip-design-dedupe`)처럼 서로 맞물린 것들은 **한 벌로 읽어야** 방향이 맞는다. 그룹 슬러그 목록은 아래 '작업 우선순위 3단 ②'(맵=`map-quality-up`, 캐릭터=`prochar-aaa`+`enemy-quality`+`cute-art-direction`, 장비=`equip-*`, 스킬=`skill-fx`+`skill-fx-exaggerated`+`skill-unique-signature`, 탈것=`mount-species-recognizable`, 펫=`pet-species-recognizable`) 참조. ⚠️ **읽기만 그룹 단위 — claim 락·커밋은 여전히 착수하는 그 한 항목만** 잡는다(그룹 전체를 락으로 잡지 말 것).
+착수 항목이 특정 그룹(스킬·장비·펫·탈것·맵·캐릭터 등)에 속하면, **코드를 건드리기 전에 같은 그룹의 다른 TODO 항목을 grep으로 전부 모아 읽고**(예: 장비면 `equip-*` 슬러그 항목 전부 `grep -n "equip-" web/TODO.md`, 스킬이면 `skill-*` 전부, 펫이면 `pet-*`·탈것이면 `mount-*`·`ride-*`) 그 맥락·이전 시도·정합 요구를 반영해 만든다. 한 항목만 고립되게 보면 같은 그룹끼리 어긋난다 — 장비의 voxel화(`equip-voxelize`)↔시대감(`equip-era-theming`)↔중복제거(`equip-design-dedupe`)처럼 서로 맞물린 것들은 **한 벌로 읽어야** 방향이 맞는다. 그룹 슬러그 목록은 아래 '작업 우선순위 3단 ②'(맵=`map-quality-up`, 캐릭터=`prochar-aaa`+`enemy-quality`+`cute-art-direction`, 장비=`equip-*`, 스킬=`skill-fx`+`skill-fx-exaggerated`+`skill-unique-signature`, 탈것=`mount-species-recognizable`, 펫=`pet-species-recognizable`) 참조.
+
+**🆕 맞물린 그룹은 여러 항목을 한 번에 처리해도 된다 (사용자 지시 2026-08-20).** 장비처럼 서로 맞물린 항목들(`equip-voxelize`↔`equip-era-theming`↔`equip-design-dedupe`)은 따로 하면 서로 덮어써 재작업이 나므로, **한 세션에서 함께 구현하는 게 더 효율적이면 그렇게 한다.** 단 안전장치:
+> ① **묶어서 구현할 항목의 슬러그를 전부 먼저 claim** 한다(하나만 잡고 나머지를 건드리면 다른 세션이 동시에 그 항목을 잡아 충돌한다). 못 잡는(BUSY) 슬러그가 있으면 그건 빼고 잡힌 것만 묶는다.
+> ② 커밋은 **여전히 논리 단위로** 나눠 자주 한다(슬러그 하나 끝나면 그 체크박스 채우고 커밋 — 한 거대 커밋에 다 몰지 말 것, rebase 충돌·"깨진 상태 push"를 키운다). '한 번에'는 **한 세션에서 정합을 맞춰 연달아** 하라는 뜻이지 한 커밋에 뭉치라는 게 아니다.
+> ③ 끝난 슬러그부터 `release` 로 락을 놓는다.
+> ④ **서로 남남인 항목(예: 지형 ↔ 장비, 펫 ↔ 스킬)은 묶지 말 것** — 묶어도 이득 없고 병렬 세션 충돌·rebase만 커진다. 묶기는 '같은 그룹에서 맞물린 것'에만.
 
 ## 🔒 병렬 세션 충돌 방지 — 항목 착수 전 반드시 클레임 (2026-08-18 신설, 강제)
 여러 세션이 동시에 돌기 때문에 **커밋 로그로 조율하지 말고 `web/tools/claim.sh` 락을 쓴다.** 커밋 마커(`[3D작업중]` 등)에 항목 이름을 넣어도 충돌은 실제로 났다(로그는 과거 기록이라 실시간 점유 상태가 아니다). 락은 remote push를 원자적 직렬화 지점으로 삼아 진짜로 막는다.
