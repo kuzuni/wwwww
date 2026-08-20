@@ -1880,26 +1880,22 @@ const ProChar = {
         R.group = outer;
         R.root = root;
 
-        // 🧊 맨살 단순화 (사용자 2026-08-21 "머리1·몸통1·팔다리 각1 큐브, 옷 없이 맨살, 기본인데 왜 갑옷") —
-        //    기사 리그의 장식 판금을 숨기고, 남은 몸 전체를 **얼굴(눈·입) 빼고 살색으로 통일**. 단순 블록 캐릭터.
-        const HIDE_PARTS = new Set(['armPad', 'emblem', 'emblemRim', 'gorget', 'greave', 'kneeCap', 'kneeLame',
-            'pauldron', 'pauldronFloor', 'pauldronPlate', 'poleynWing', 'tasset', 'tassetRim', 'vambrace', 'yoke', 'cuisse']);
-        const faceMats = new Set();
-        if (R.faceMesh) R.faceMesh.traverse(o => { if (o.isMesh && o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => faceMats.add(m)); });
-        outer.traverse(o => {
-            if (o.userData && HIDE_PARTS.has(o.userData.part)) { o.visible = false; return; }
-            if (!o.isMesh || !o.material) return;
-            const mats = Array.isArray(o.material) ? o.material : [o.material];
-            for (const m of mats) {
-                if (faceMats.has(m) || m._bared) continue;
-                m._bared = true;
-                if (m.color) m.color.setHex(0xf2c9a4);
-                m.metalness = 0; m.roughness = 0.62;
-                if (m.map) m.map = null;
-                if (m.emissive) m.emissive.setHex(0x000000);
-                if (m.userData) { m.userData.baseColor = 0xf2c9a4; m.userData.dark = false; }
-            }
-        });
+        // 🧊 진짜 단순 큐브 캐릭터 (사용자 2026-08-21 "머리1·몸통1·팔다리 각1 큐브, 맨살") —
+        //    기사 리그의 모든 몸 메시를 숨기고, 관절에 살색 박스 하나씩만 얹는다. 머리(두상+눈)만 유지.
+        {
+            const headKeep = new Set();
+            if (R.bones.head) R.bones.head.traverse(o => headKeep.add(o));   // 두상 + 얼굴/눈
+            const hideTree = g => g && g.traverse(o => { if (o.isMesh && !headKeep.has(o) && !(o.userData && o.userData.simpleBox)) o.visible = false; });
+            hideTree(outer); hideTree(root);   // 남은 몸 메시 전부 숨김(허리 잔재 포함)
+            const skinM = new THREE.MeshStandardMaterial({ color: 0xf2c9a4, metalness: 0, roughness: 0.62, flatShading: true });
+            const box = (parent, w, h, d, y) => {
+                const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), skinM);
+                b.position.set(0, y, 0); b.userData.simpleBox = true; parent.add(b); return b;
+            };
+            box(R.bones.spine, 0.30, 0.40, 0.19, 0.19);                 // 몸통 1큐브 (어깨 0.385 ~ 골반 사이)
+            (R.arms || []).forEach(a => box(a.shoulder, 0.12, 0.34, 0.12, -0.17));  // 팔 1큐브씩 (어깨에서 아래)
+            (R.legs || []).forEach(l => box(l.hip, 0.14, 0.38, 0.14, -0.19));       // 다리 1큐브씩 (골반에서 아래)
+        }
 
         // 베이스 포즈 기록 (매 프레임 여기서 시작해 클립 오프셋을 얹음)
         // ⚠️ 스케일도 기록한다 — 스쿼시&스트레치 트랙(`sx/sy/sz`)이 **곱셈 오프셋**이라 매 프레임
