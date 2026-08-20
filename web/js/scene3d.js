@@ -10631,9 +10631,11 @@ const Scene3D = {
                 const spread = 0.30 + i * 0.012;      // 뒤로 갈수록 조금 더 벌어진다(부챗살 = 다리 여러 개로 읽힌다)
                 const knee = [sx * spread, 0.34, z * 0.75];
                 const foot = [sx * (spread + 0.05), 0.0, z * 0.55];
-                const up = tube([0, 0, 0], [knee[0] - pivot.position.x, knee[1] - pivot.position.y, knee[2] - z], 0.028, legM);
+                // 다리 반지름 0.028/0.022 → 0.044/0.036: 비평가 2인 "spindly spider-like legs, 죽마" 처치.
+                //    VP 0.055 격자에서 0.028 은 ~1칸 철사라 8개가 죽마로 읽혔다 — 굵혀 블록 다리로.
+                const up = tube([0, 0, 0], [knee[0] - pivot.position.x, knee[1] - pivot.position.y, knee[2] - z], 0.044, legM);
                 const dn = tube([knee[0] - pivot.position.x, knee[1] - pivot.position.y, knee[2] - z],
-                                [foot[0] - pivot.position.x, foot[1] - pivot.position.y, foot[2] - z], 0.022, legM);
+                                [foot[0] - pivot.position.x, foot[1] - pivot.position.y, foot[2] - z], 0.036, legM);
                 const tip = new THREE.Mesh(vgCone(0.024, 0.07), TIP);
                 tip.position.set(foot[0] - pivot.position.x, foot[1] - pivot.position.y + 0.02, foot[2] - z);
                 tip.rotation.x = Math.PI;
@@ -11304,8 +11306,8 @@ const Scene3D = {
             // ⚠️ 익룡은 폭(0.88)을 벌에 맞춰 두되 몸통을 **짧게**(1.45) — 익룡의 부피는 몸통이 아니라
             //    **날개**가 낸다. 길게 두면 드래곤과 실루엣이 겹친다(같은 초록 통에 같은 목).
             sp(0.16, 0, 0.22, 0, mat, dragon ? 0.95 : whale ? 0.95 : ptero ? 0.88 : 0.9,
-               dragon ? 1.0 : whale ? 1.05 : ptero ? 0.92 : 0.95,
-               dragon ? 1.75 : whale ? 2.0 : ptero ? 1.45 : 1.75);
+               dragon ? 1.0 : whale ? 1.05 : ptero ? 1.06 : 0.95,   // 익룡 몸 y 0.92→1.06: 비평가 "skeletal wire-thin body" — 폭(x0.88)은 다리 노출 근거라 불변, 높이만 키워 몸통 덩어리를 세운다
+               dragon ? 1.75 : whale ? 2.0 : ptero ? 1.55 : 1.75);   // 익룡 z 1.45→1.55: 살짝 길게(덩어리 확보, 드래곤 1.75 보단 짧게 유지)
             if (whale) {
                 // 별고래: 둥근 머리 + 아래턱 홈 + 꼬리 지느러미(fluke), 등에 별 반짝임
                 // ⚠️ 이마를 y 0.235에 두면 정수리(0.355)가 카메라→먼 정강이 시선을 스쳐 probe-ride-clear
@@ -11505,6 +11507,8 @@ const Scene3D = {
             g.userData.wings = [];
             // 별고래 지느러미색 — 몸색+0.07 밝기(플리퍼는 몸의 연장). `light`(+0.18)는 '떠 있는 흰 판'으로 읽혔다.
             const FINC = M(new THREE.Color(c).offsetHSL(0, 0.02, 0.07));
+            // 드래곤 막날개색 — 같은 이유로 `light`(창백) 대신 몸색+0.09(막이 몸의 연장으로 읽힌다).
+            const WINGC = M(new THREE.Color(c).offsetHSL(0, 0.02, 0.09));
             for (const s of [-1, 1]) {
                 // 날개를 크게 — 비행형이 '날고 있다'로 읽히려면 실루엣에서 몸통보다 넓어야 한다
                 // 고래는 날개가 아니라 **가슴지느러미**라 몸통 앞쪽·아래에 눕혀 단다
@@ -11529,7 +11533,7 @@ const Scene3D = {
                                    //    → 날개는 **안장보다 위**에 있어야 하고, 그래서 등 위에 뜬다.
                                    //    이 틈은 날개를 내려서가 아니라 **등에 날개 밑동(어깨 융기)을
                                    //    올려서** 닫아야 한다. 단 그 융기는 안장깔개 밑을 피해야 한다.
-                                   : dragon ? sp(0.16, s * 0.30, 0.46, -0.24, light, 1.5, 0.12, 1.0)
+                                   : dragon ? sp(0.16, s * 0.30, 0.46, -0.24, WINGC, 1.5, 0.14, 1.05)
                                             // ⚠️ 벌 날개를 납작한 **상자**로 두면 흰 널빤지 두 장이다
                                             //    (드래곤·고래는 이미 눌린 타원을 쓴다 — 같은 문법으로 통일).
                                             //    앞뒤로 긴 타원이라 곤충 날개의 잎사귀 실루엣이 나온다.
@@ -11547,7 +11551,10 @@ const Scene3D = {
                                             //    익룡 막은 두껍게 세우면 솔리드 델타로 읽혀 좋았지만, 곤충 날개를
                                             //    두껍게 하면 '흰 널빤지 두 장'이 된다(실측 캡처로 확인). 벌 날개는
                                             //    얇은 잎이 맞다(y 0.10 유지) — 벌의 감점은 조형이 아니라 ride-clear 뿐.
-                                            : sp(0.15, s * 0.28, 0.46, -0.24, light, 1.35, 0.10, 0.62);
+                                            // 익룡 막은 몸색계열(WINGC)로 — pale `light` 는 '떠 있는 흰 판'으로 읽혀
+                                            //    비평가가 '흩어진 조각'으로 봤다. 벌은 얇은 pale 잎이 맞으니 light 유지.
+                                            : ptero ? sp(0.15, s * 0.28, 0.46, -0.24, WINGC, 1.35, 0.10, 0.62)
+                                                    : sp(0.15, s * 0.28, 0.46, -0.24, light, 1.35, 0.10, 0.62);
                 wing.userData.s = s;
                 g.userData.wings.push(wing);
                 // ── 날개 밑동 융기 (`mount-species-recognizable` 2차 채점 반영) ──────────────
