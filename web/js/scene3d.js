@@ -9757,6 +9757,17 @@ const Scene3D = {
             g.add(o);
             return o;
         };
+        // 두 점을 잇는 **테이퍼 관** — `tube` 와 같은 문법인데 양끝 굵기가 다르다.
+        // 동물 다리는 위가 굵고 아래가 가늘다: 같은 굵기 원통 하나면 어떤 종이든 파이프로 읽힌다.
+        const tube2 = (a, b, r1, r2, m) => {
+            const A = new THREE.Vector3(a[0], a[1], a[2]), B = new THREE.Vector3(b[0], b[1], b[2]);
+            const d = new THREE.Vector3().subVectors(B, A);
+            const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, d.length(), 8), m || mat);
+            o.position.copy(A).addScaledVector(d, 0.5);
+            o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+            g.add(o);
+            return o;
+        };
 
         // ── 게 (`mount-species-recognizable` 2026-08-19) ────────────────────────────────
         // 사용자 원문 "게인데 게 안 같게 생겼고". 전(前) 형상은 말 배럴 + 옆구리에 붙인 **납작한 상자
@@ -11585,12 +11596,51 @@ const Scene3D = {
                 // 길이는 **고관절에서 지면까지** 역산한다 — 발끝(y −0.02)은 종 불문 고정이라야 접지가
                 // 산다. HIP_Y 0.22(리프트 0)를 넣으면 길이 0.24 · 로컬 y −0.12 로 **종전 값 그대로**다.
                 const legH = HIP_Y + 0.02;
-                const leg = cy(0.05 * lw, 0.045 * lw, legH, 0, -legH / 2, 0, legMat);
+                // ── 관절 다리 (`mount-species-recognizable` 실루엣 분화 3단, 2026-08-20) ──────────
+                // 🚨 **여기가 25종이 공유하던 마지막 큰 덩어리다.** 2단까지 몸통·다리 길이는 갈렸는데
+                //    다리 자체는 **굵기만 다른 민짜 원통 하나**였다 — 판독 시트에서 비평가가 세 판 연속
+                //    "같은 파이프 다리 넷"으로 읽은 그 형상이고, 2단으로 다리가 길어진 만큼 더 크게 읽힌다.
+                // 동물 다리를 다리로 만드는 건 굵기가 아니라 **⑴ 위가 굵고 아래가 가는 테이퍼**와
+                //    **⑵ 중간에서 한 번 꺾이는 관절**이다. 둘 다 실루엣 정보라 96px 에서도 남는다.
+                // ⚠️ **발끝(x·z)은 절대 안 옮긴다** — 고관절 바로 밑에 그대로 둔다. 접지(probe-ride-ground)
+                //    와 영웅 다리 노출(probe-ride-clear 의 근쪽 다리 기준)이 둘 다 발 위치에 걸려 있어,
+                //    꺾임은 **무릎만 z 로 밀고 발은 제자리**인 형태로만 낸다(그래서 다리는 ㄱ 자가 아니라
+                //    ⟨ 자 = 무릎이 튀어나온 형태다. 실제 네발짐승 옆모습이 그렇다).
+                // 표 = [무릎 높이 비율(고관절→발끝), **뒷다리** 비절 꺾임, **앞다리** 무릎 꺾임] (legH 대비)
+                //  · 뒷다리가 앞다리보다 훨씬 크게 꺾인다 — 이게 '앞뒤가 다른 네 다리'로 읽히는 값이고,
+                //    비평가가 지적한 "게임 앵글에서 다리 수를 못 센다"의 반대편이다(넷이 다 같으면 못 센다).
+                const LJ = {
+                    'Camel':   [0.56, 0.30, 0.11],   // 낙타: 무릎이 높고 크게 꺾인다(사막 보행의 서명)
+                    'Elk':     [0.55, 0.30, 0.07],
+                    'Alpaca':  [0.55, 0.27, 0.07],
+                    'Brown Horse': [0.52, 0.26, 0.06],
+                    'Goat':    [0.52, 0.24, 0.05],
+                    'Panther': [0.48, 0.34, 0.15],   // 고양잇과: 앞뒤 다 깊게 접힌 채 낮게 깔린다
+                    'Dino':    [0.50, 0.30, 0.04],   // 수각류: 뒷다리만 크게 꺾이고 앞은 곧다
+                    'Pony':    [0.50, 0.21, 0.06], 'Donkey': [0.50, 0.22, 0.06],
+                    'Sheep':   [0.48, 0.16, 0.04], 'Boar': [0.46, 0.18, 0.05],
+                    'Clockwork Mouse': [0.48, 0.19, 0.09], 'Clockwork Beetle': [0.46, 0.17, 0.09],
+                    'Pig':     [0.44, 0.11, 0.03],   // 돼지·코뿔소·거북: 거의 안 꺾이는 기둥 다리
+                    'Armored Rhino': [0.44, 0.10, 0.03], 'Turtle': [0.42, 0.08, 0.06],
+                }[name] || [0.50, 0.20, 0.06];
+                const kneeY = -legH * LJ[0];
+                // sz +1 = 앞다리 / −1 = 뒷다리. 뒷다리 비절은 **뒤로**(−z), 앞다리 무릎은 살짝 앞으로.
+                const kneeZ = sz > 0 ? legH * LJ[2] : -legH * LJ[1];
+                const rHip = 0.058 * lw, rKnee = 0.042 * lw, rFoot = 0.037 * lw;
+                const leg = tube2([0, 0, 0], [0, kneeY, kneeZ], rHip, rKnee, legMat);          // 상완·대퇴
+                const shin = tube2([0, kneeY, kneeZ], [0, -legH, 0], rKnee * 0.92, rFoot, legMat); // 정강이·포
+                // 관절 마디 — 꺾이는 자리에 덩이가 없으면 두 관이 그냥 어긋난 파이프로 읽힌다.
+                const knee = new THREE.Mesh(new THREE.SphereGeometry(rKnee * 1.22, 8, 6), legMat);
+                knee.position.set(0, kneeY, kneeZ);
+                g.add(knee);
                 // 발굽 — 예전엔 원통이 그냥 잘려 끝나 '땅에 꽂힌 초록 파이프'로 읽혔다.
                 // 다리보다 살짝 넓고 어두운 각질을 물려 접지면을 만든다(발굽은 등급색 파생 금지).
                 const hoof = cy(0.055 * lw, 0.052 * lw, 0.05, 0, -0.005 - HIP_Y, 0,
                                 name === 'Turtle' ? M(0xd8cdb0) : PANTHER ? legMat : HOOF);
-                pivot.add(leg, hoof);   // 헬퍼가 g 에 붙인 것을 피벗으로 옮긴다(three 의 add 가 재부모화한다)
+                // 헬퍼가 g 에 붙인 것을 피벗으로 옮긴다(three 의 add 가 재부모화한다).
+                // ⚠️ **네 조각 전부** 옮길 것 — 하나라도 g 에 남으면 걸을 때 그 조각만 제자리에 붙박여
+                //    다리가 통째로 끊긴 그림이 된다(굴레·눈이 남던 `neckRig` 사고와 같은 경로).
+                pivot.add(leg, shin, knee, hoof);
                 pivot.userData.gait = sx * sz;
                 g.userData.legs.push(pivot);
             }
