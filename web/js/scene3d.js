@@ -17942,7 +17942,12 @@ const Scene3D = {
         this.ensureBlobRes();
         // 비행체는 태양 각도로 실그림자가 본체에서 멀리 이탈해 '따로 노는 얼룩'이 됨 (비평가 7.1 4번) — 실그림자 끄고 발밑 수직 블롭만
         const flying = m.kind === 'bat';
-        if (flying) m.g.traverse(o => { if (o.isMesh) o.castShadow = false; });
+        // 작은 지상 종(버섯·슬라임)은 저해상 태양 섀도맵이 발밑에서 **큰 소프트 웅덩이**로 뭉개져
+        // '검은 구덩이 위 부유'로 읽힌다(줄 166 자인 · enemy-quality ⓕ 채점 2인 공통 지적, 캡처 확인).
+        // 비행체와 같은 처방 — 실그림자를 끄고 **크리스프 발자국 블롭**만 남긴다. 큰 종(골렘 등)은
+        // 섀도맵이 몸 크기에 맞아 정상이라 그대로 둔다.
+        const noSunShadow = flying || this.footprintRadius(m.g) < 0.5;
+        if (noSunShadow) m.g.traverse(o => { if (o.isMesh) o.castShadow = false; });
         // 🚨 비행체 블롭만 **개체마다 재질을 복제**한다 — 고도에 따라 불투명도를 달리 주려면
         //    공유 싱글턴으로는 안 된다(한 마리를 옅게 하면 전부 옅어진다). 박쥐는 웨이브당 몇 마리라
         //    복제 비용은 무시할 만하다. ⚠️ 대신 제거할 때 반드시 dispose 한다 — 이 저장소는 공유 재질과
@@ -17951,7 +17956,10 @@ const Scene3D = {
         const blob = new THREE.Mesh(this.blobGeo, blobMat);
         blob.rotation.x = -Math.PI / 2;
         blob.position.set(e.x + this.worldX, 0.03, 0);
-        blob.scale.setScalar(flying ? 0.85 : 0.72); // 실그림자 접지부 안 컨택트 AO — 비행체는 블롭이 유일한 접지 단서라 더 크게
+        // 지상 블롭은 **개체 발자국에 묶는다**(프롭이 쓰는 footprintRadius 패턴) — 고정 0.72 는 작은
+        // 종(버섯·슬라임)에선 몸보다 큰 블롭이 발밑에서 떨어져 '검은 웅덩이 위 부유'로 읽혔다(enemy-quality ⓕ
+        // 채점 2인 공통 지적, 캡처 확인). 비행체는 유일 접지 단서라 종전 고정값 유지.
+        blob.scale.setScalar(flying ? 0.85 : U.clamp(this.footprintRadius(m.g) * 1.8, 0.42, 0.9));
         blob.userData.baseS = blob.scale.x;
         blob.userData.sharedGeometry = true;
         blob.userData.sharedMaterial = !flying; // 지상 적은 blobShadow*Mat 싱글턴 — disposeTree 재질 해제 금지
@@ -18042,7 +18050,7 @@ const Scene3D = {
                 const f = U.clamp((U.now() - t0 - T.delay) / T.fadeIn, 0, 1);
                 if (!dying) {
                     this.setDissolve(m.g, f);
-                    if (m.blob) m.blob.scale.setScalar(0.95 * (1 - f));
+                    if (m.blob) m.blob.scale.setScalar((m.blob.userData.baseS || 0.72) * (1 - f));
                 }
                 if (f >= 1) finish(m);
             }, () => { if (U.now() - t0 >= total) finish(m); });
