@@ -30,7 +30,8 @@ const TARGETS = [{ ch: 9, name: 'lava' }, { ch: 7, name: 'magic' }];
 const VW = 480, VH = 854;
 const DTH = 3;              // 휘도 증가 문턱(8bit). 이 아래는 디더/압축 잡음으로 본다.
 const GATE_PIX = 1.0;       // 영향화소 % 하한
-const GATE_MAX = 12;        // 최대 휘도 증가분 하한
+const GATE_MAX = 12;       // 최대 휘도 증가분 하한
+const GATE_ALIGN = 1.3;    // '광원 발밑 발광 밝기 ÷ 같은 z 임의 지면' 하한 — 빛이 균열 위에 있는가
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -64,6 +65,55 @@ const GATE_MAX = 12;        // 최대 휘도 증가분 하한
             const saved = Scene3D.accents.map(pl => pl.intensity);
             Scene3D.accents.forEach(pl => { pl.intensity = 0; });
             const off = grab();
+
+            // ── 정합: 빛 웅덩이가 **균열 위**에 있는가 (map-quality-up 2026-08-20) ──────────
+            // 악센트를 끈 화면(off)에는 발광 재질만 남는다. 그 화면에서 **광원 발밑 화소**가
+            // **같은 z 대역의 임의 지면 화소**보다 밝아야 빛이 균열 위에 있는 것이다.
+            // 🚨 광원 자체(y=0.5)가 아니라 **발밑 지면점**을 투영한다 — 균열은 지면에 있다.
+            const groundLum = (wx, wy, wz) => {
+                const v = new THREE.Vector3(wx, wy, wz).project(cam);
+                if (v.z > 1 || v.x < -1 || v.x > 1 || v.y < -1 || v.y > 1) return null;
+                const px = Math.round((v.x + 1) / 2 * w), py = Math.round((v.y + 1) / 2 * h);
+                if (px < 0 || py < 0 || px >= w || py >= h) return null;
+                const i = (py * w + px) * 4;
+                return lum(off, i);
+            };
+            let hit = [], ctrl = [];
+            const spots = Scene3D.crackGlowSpots;
+            if (spots && spots.length) {
+                // 🚨 **한 자리에서만 재면 표본이 2개뿐이다** — 균열 자리는 지면 한 주기(x 12타일)에
+                //   흩어져 있는데 한 화면에 들어오는 건 두어 개뿐이라, 그 둘이 어쩌다 밝으면 통과가
+                //   나온다. 카메라를 주기만큼 패닝하며 각 자리를 화면에 들여 재고 전부 합산한다.
+                const baseX = cam.position.x;
+                const PAN = 9, PERIOD = 30;
+                for (let s2 = 0; s2 < PAN; s2++) {
+                    cam.position.x = baseX - PERIOD / 2 + PERIOD * s2 / PAN;
+                    cam.lookAt(cam.position.x, 0.9, 0);
+                    cam.updateMatrixWorld(true);
+                    const frame = (Scene3D.renderFrame(), (() => { const px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); return px; })());
+                    const at = (wx, wy, wz) => {
+                        const v = new THREE.Vector3(wx, wy, wz).project(cam);
+                        if (v.z > 1 || v.x < -0.95 || v.x > 0.95 || v.y < -0.95 || v.y > 0.95) return null;
+                        const px = Math.round((v.x + 1) / 2 * w), py = Math.round((v.y + 1) / 2 * h);
+                        if (px < 0 || py < 0 || px >= w || py >= h) return null;
+                        return lum(frame, (py * w + px) * 4);
+                    };
+                    const gx = Scene3D.ground.position.x;
+                    for (const s of spots) {
+                        const v = at(s[0] + gx, Scene3D.heightAt(s[0], s[1]) + 0.05, s[1]);
+                        if (v !== null) hit.push(v);
+                        // 대조군: 같은 z, x 만 임의로 옮긴 지면점(균열과 무관한 자리)
+                        for (let k = 0; k < 3; k++) {
+                            const rx = s[0] + (Math.random() * 2 - 1) * 6;
+                            const c = at(rx + gx, Scene3D.heightAt(rx, s[1]) + 0.05, s[1]);
+                            if (c !== null) ctrl.push(c);
+                        }
+                    }
+                }
+                cam.position.x = baseX; cam.lookAt(baseX, 0.9, 0); cam.updateMatrixWorld(true);
+            }
+            const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+
             Scene3D.accents.forEach((pl, i) => { pl.intensity = saved[i]; });
 
             let n = 0, sum = 0, max = 0;
@@ -92,6 +142,7 @@ const GATE_MAX = 12;        // 최대 휘도 증가분 하한
                 intensity: saved.join('/'),
                 bands: bs.map(b => ({ n: b.n, mean: b.n ? b.sum / b.n : 0 })),
                 bandEdges: BANDS,
+                align: { n: hit.length, hit: avg(hit), ctrl: avg(ctrl) },
             };
         }, [t.ch, DTH]);
         rows.push({ name: t.name, ...r });
@@ -108,6 +159,11 @@ const GATE_MAX = 12;        // 최대 휘도 증가분 하한
         console.log('         반경대 평균Δ: ' + r.bands.map((b, i) => `${lab[i]}px ${b.mean.toFixed(1)}(n=${b.n})`).join('  '));
         const near = r.bands[0].mean, far = r.bands[3].mean;
         console.log(`         근/원 대비: ${far > 0 ? (near / far).toFixed(2) : '—'}  ← 1 에 가까우면 광원에 안 묶인 화면 전체 워시`);
+        if (r.align && r.align.n) {
+            const ratio = r.align.ctrl > 0 ? r.align.hit / r.align.ctrl : 0;
+            console.log(`         균열 정합: 광원 발밑 ${r.align.hit.toFixed(1)} vs 대조군 ${r.align.ctrl.toFixed(1)} = ${ratio.toFixed(2)}배 (표본 ${r.align.n})`);
+            if (ratio < GATE_ALIGN) bad.push(`${r.name} 균열 정합 ${ratio.toFixed(2)}배 — 빛이 균열 위에 없다`);
+        }
         if (r.pix < GATE_PIX || r.max < GATE_MAX) bad.push(`${r.name} 영향화소 ${r.pix.toFixed(2)}% · 최대Δ ${r.max.toFixed(0)}`);
     }
     console.log(`\n참고선 영향화소 ≥${GATE_PIX}% · 최대Δ ≥${GATE_MAX}`);

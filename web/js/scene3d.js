@@ -47,6 +47,9 @@ const Scene3D = {
     ],
     renderer: null, scene: null, camera: null,
     worldX: 0,               // 플레이어가 오른쪽으로 전진한 누적 거리 (무한 월드)
+    lavaGlows: [],           // 용암 발광 데칼 — `ground` 의 자식이라 소품 정리 루프가 못 걷는다(따로 비운다)
+    crackGlowSpots: null,    // 균열 위 발광 자리(지면 로컬 x,z) — 악센트 라이트가 매 프레임 여기서 고른다
+    crackLit: false,         // 악센트 3기가 균열 추종 모드인가(용암 전용)
     heroG: null, weaponG: null, helmetG: null, bodyMesh: null,
     petGroups: [],
     mountGroup: null,      // 영웅이 올라탄 탈것 (활성 목록의 맨 앞 1마리)
@@ -1797,6 +1800,54 @@ const Scene3D = {
         return segs;
     },
 
+    // 균열 정규화 좌표 → **지면 로컬 월드 좌표**. 용암 발광 데칼·악센트 라이트를 실제 균열 위에 놓는다.
+    //
+    // 🚨 **왜 필요한가 (map-quality-up, 2026-08-20 실측)**: 발광 데칼과 거기 붙는 악센트 라이트는
+    //   `U.rand(-9,9)`/`U.rand(-5.5,1.5)` 로 **독립 난수** 배치였는데, 화면에 보이는 균열은
+    //   `crackNetwork()` 가 **지면 텍스처 UV 공간**에 그린다. 둘이 아무 상관이 없어서 **빛 웅덩이는
+    //   균열 없는 맨바닥에 생기고, 빛나는 균열에는 웅덩이가 없었다.** 라이트 자체는 멀쩡히 듣고
+    //   있었으므로(`probe-emissive-bleed`: 영향화소 27%·근/원 2.55) 결함은 세기가 아니라 **자리**다.
+    //   이건 2026-08-19(5) 가 한 층 아래에서 고친 것과 같은 모양의 버그다(그땐 발광 크랙과
+    //   알베도·노멀이 각각 따로 난수를 뽑아 '빛나는 선 밑에 골이 없었다') — 처방도 같이 **경로 공유**다.
+    //
+    // 🚨 **환산은 상수를 베끼지 말고 실제 uv 변환에서 뽑는다**(TODO 함정 ④). 지면 uv 실측:
+    //   uv(0,0)→(x −30, z +15) · uv(1,1)→(x +30, z −45) 이므로 u=(x+30)/60 · v=(15−z)/60 이고,
+    //   `terrainMat.map.repeat`(12,6)를 먹이면 타일 하나가 **5(x) × 10(z) 월드 유닛**을 덮는다.
+    //   ⚠️ three r128 은 재질에 `map` 이 있으면 **그 하나의 uvTransform 을 emissiveMap 에도 적용**한다
+    //   (crackTex 자신의 `.repeat` 은 1,1 로 읽혀도 화면에는 map 의 12×6 이 걸린다). 그래서 반복은
+    //   반드시 `map.repeat` 에서 읽어야 한다 — emissiveMap.repeat 을 믿으면 12배 어긋난다.
+    //
+    // 🚨 **반환값은 `ground` 로컬 좌표다 — 데칼은 반드시 `this.ground` 의 자식으로 붙일 것.**
+    //   지면 타일은 x 주기 **30** 으로 순환하는데(`ground.position.x += 30`) 소품 스크롤은 주기 **26**
+    //   이다(`o.position.x += 26`). 데칼을 소품 쪽(`scrollables`)에 두면 두 주기가 어긋나 몇 바퀴 만에
+    //   빛이 균열에서 떨어져 나간다. 지면의 자식으로 두면 텍스처와 영원히 같이 움직인다.
+    //   (`heightAt` 은 x 주기가 30 이라 로컬 x 로 불러도 값이 같다 — 스캐터가 쓰는 규약과 동일.)
+    crackWorldSpots() {
+        const rep = this.terrainMat && this.terrainMat.map ? this.terrainMat.map.repeat : { x: 12, y: 6 };
+        const TW = 60 / rep.x, TD = 60 / rep.y;      // 타일 하나가 덮는 월드 크기
+        const wrap1 = t => ((t % 1) + 1) % 1;        // walk() 가 타일 밖으로 나가므로 되감는다
+        // 주 혈관(depth 0)만 쓴다 — 지류·실핏줄은 `CRACK_A` 로 이미 어둡게 눌러 둔 가는 선이라
+        // 거기에 빛 웅덩이를 걸면 '균열보다 빛이 굵은' 그림이 된다(위계가 뒤집힌다).
+        const pts = [];
+        for (const sg of this.crackNetwork()) {
+            if (sg.depth !== 0) continue;
+            for (const p of sg.pts) pts.push(p);
+        }
+        if (!pts.length) return [];
+        const spots = [];
+        // x 타일마다 하나씩 — 지면이 순환해도 카메라 앞에 늘 몇 개가 걸리게 한다.
+        // z 는 화면에 실제로 보이는 두 줄(j=1,2 → z +5~−15)에서만 고른다. 그 밖은 안개 뒤라 안 읽힌다.
+        for (let i = 0; i < rep.x; i++) {
+            const p = pts[(Math.random() * pts.length) | 0];
+            const j = 1 + (Math.random() < 0.5 ? 0 : 1);
+            const x = (wrap1(p[0]) + i) * TW - 30;
+            const z = 15 - (wrap1(p[1]) + j) * TD;
+            if (z < -13 || z > 2) continue;          // 능선 뒤·카메라 뒤는 버린다
+            spots.push([x, z]);
+        }
+        return spots;
+    },
+
     // 균열 네트워크 공통 스트로커 — 정규화 경로를 임의 크기 캔버스에 그린다.
     // `layers` 는 바깥층부터 순서대로: 각 층이 **모든** 세그먼트를 그린 뒤 다음 층으로 넘어간다
     // (세그먼트별로 3겹을 다 그리면 나중 세그먼트의 넓은 폴오프가 앞 세그먼트의 코어를 덮는다).
@@ -2177,6 +2228,15 @@ const Scene3D = {
         }
         this.trees = [];
         this.rocks = [];
+        // 용암 발광 데칼은 `ground` 의 자식이라 위 루프(`scene.remove`)가 못 걷어낸다 — 따로 치운다.
+        // 안 치우면 바이옴을 오갈 때마다 지면에 데칼이 누적된다(전부 AdditiveBlending 이라 곧 하얗게 탄다).
+        for (const o of this.lavaGlows) {
+            o.traverse(m => { if (m.isMesh && m.geometry && !m.userData.sharedGeometry) m.geometry.dispose(); });
+            this.ground.remove(o);
+        }
+        this.lavaGlows = [];
+        this.crackGlowSpots = null;
+        this.crackLit = false;
         // 바이옴 시그니처 원경 실루엣 — 사막=메사, 용암/바위산=첨봉, 그 외=자연 능선
         if (this.mountains) {
             const shape = sp.ridge || (kin === 'desert' ? 'mesa' : (kin === 'lava' || kin === 'rock') ? 'jagged' : 'ridge');
@@ -2255,19 +2315,22 @@ const Scene3D = {
                 });
             }
             this.lavaGlowMat.color.setHex(em.glow); // 유황=노랑, 종말=핏빛 — 같은 데칼이 바이옴 색을 따라간다
-            for (let i = 0; i < 7; i++) {
+            // 🚨 자리를 난수가 아니라 **균열 경로에서** 받는다 (근거는 `crackWorldSpots` 머리말).
+            //   좌표가 `ground` 로컬이므로 데칼도 `ground` 의 자식이어야 한다 — `scrollables` 에 넣으면
+            //   소품 주기 26 과 지면 주기 30 이 어긋나 빛이 균열에서 떨어져 나간다.
+            const spots = this.crackWorldSpots();
+            this.crackGlowSpots = spots;    // 악센트 라이트가 매 프레임 여기서 가장 가까운 자리를 고른다
+            for (const [x, z] of spots) {
                 const gl = new THREE.Mesh(this.blobGeo, this.lavaGlowMat);
                 gl.rotation.x = -Math.PI / 2;
                 gl.position.y = 0.045;
                 gl.scale.setScalar(U.rand(1.4, 2.6));
                 gl.userData.sharedGeometry = true;
-                const wrap = new THREE.Group(); // scrollables가 그룹 position을 조작하므로 좌표는 그룹에
+                const wrap = new THREE.Group();
                 wrap.add(gl);
-                const x = U.rand(-9, 9), z = U.rand(-5.5, 1.5);
                 wrap.position.set(x, this.heightAt(x, z), z);
-                this.scene.add(wrap);
-                this.rocks.push(wrap);
-                emissiveAnchors.push(wrap);
+                this.ground.add(wrap);      // ← 지면의 자식(텍스처와 같이 순환)
+                this.lavaGlows.push(wrap);
             }
         }
         // 악센트 포인트라이트 풀 배치 — 발광 소품의 자식으로 붙여 크리스탈/크랙 "주변"이 실제로 물들게.
@@ -2279,8 +2342,22 @@ const Scene3D = {
                 : lightHex ? { color: lightHex, intensity: 2.2, dist: 9, y: 0.9 } : null;
             const n = emissiveAnchors.length;
             const picks = n ? [0, Math.floor(n / 2), n - 1] : []; // 몰리지 않게 앞·중간·끝에서 선택
+            // 🚨 용암은 앵커에 **붙이지 않는다** — 발광 데칼이 이제 `ground` 의 자식이라 x 로컬 좌표가
+            //   −30~30 에 흩어져 있고, 3기뿐인 라이트를 고정으로 붙이면 대부분 화면 밖에 있게 된다.
+            //   대신 `ground` 의 자식으로 넣고 **매 프레임 카메라에 가까운 균열 자리 3곳으로 옮긴다**
+            //   (`update` 의 crackGlowSpots 추종부). 부모가 지면이므로 좌표계가 데칼과 같다.
+            this.crackLit = kin === 'lava' && conf && this.crackGlowSpots && this.crackGlowSpots.length > 0;
             this.accents.forEach((pl, i) => {
                 if (pl.parent) pl.parent.remove(pl);
+                if (this.crackLit) {
+                    pl.color.setHex(conf.color);
+                    pl.intensity = conf.intensity;
+                    pl.distance = conf.dist;
+                    pl.position.set(0, conf.y, 0);   // x·z 는 update 가 매 프레임 채운다
+                    pl.userData.crackY = conf.y;
+                    this.ground.add(pl);
+                    return;
+                }
                 const anchor = conf && n ? emissiveAnchors[picks[i % picks.length]] : null;
                 if (anchor) {
                     pl.color.setHex(conf.color);
@@ -20755,6 +20832,20 @@ const Scene3D = {
         // 태양(+그림자 카메라 프러스텀)도 월드 스크롤을 따라감 — 라이트 방향은 불변, 프러스텀만 동행
         if (this.sun.userData.baseX !== undefined) this.sun.position.x = this.sun.userData.baseX + this.worldX;
         this.sun.target.position.x = this.worldX;
+        // 균열 추종 악센트 라이트 (용암) — 라이트가 3기뿐이라 **카메라에 가장 가까운 균열 자리**로 옮긴다.
+        // 데칼은 12자리에 흩어져 있고 지면이 순환하므로, 고정으로 붙이면 대부분 화면 밖에서 탄다.
+        // 라이트도 데칼도 `ground` 의 자식이라 좌표계가 같다 — 카메라 x 를 지면 로컬로 바꿔 재기만 하면 된다.
+        if (this.crackLit && this.crackGlowSpots && this.crackGlowSpots.length) {
+            const camLocalX = this.camera.position.x - this.ground.position.x;
+            const sorted = this.crackGlowSpots
+                .map(s => [Math.abs(s[0] - camLocalX), s])
+                .sort((a, b) => a[0] - b[0]);
+            for (let i = 0; i < this.accents.length; i++) {
+                const pick = sorted[i % sorted.length][1];
+                const pl = this.accents[i];
+                pl.position.set(pick[0], this.heightAt(pick[0], pick[1]) + (pl.userData.crackY || 0.5), pick[1]);
+            }
+        }
         for (const mt of this.mountains) mt.position.x = mt.userData.baseX + this.worldX;
         for (const h of this.hills) h.position.x = h.userData.baseX + this.worldX;
         if (this.skyDome) this.skyDome.position.x = this.worldX;
