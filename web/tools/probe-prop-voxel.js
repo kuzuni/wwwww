@@ -108,13 +108,24 @@ const PROPS = [
                 g.traverse(m => {
                     if (!want(m)) return;
                     agg.meshes++;
+                    m.updateMatrixWorld(true);
                     const geo = m.geometry;
                     const nor = geo.getAttribute('normal'), pos = geo.getAttribute('position');
                     if (m.material && m.material.vertexColors && !geo.getAttribute('color')) agg.noColor++;
                     if (!nor) return;
+                    // 🚨 **월드 법선으로 잰다 — 로컬 법선으로 재면 이 게이트가 ⓓ 를 통째로 놓친다
+                    //    (2026-08-20 실측으로 잡았다).** `Voxel.build` 가 굽는 법선은 정의상 언제나
+                    //    축정렬이라, 지오메트리만 보면 **부모 그룹을 몇 도로 돌려 놓든 항상 0 이 나온다.**
+                    //    실제로 `makeBamboo` 는 줄기마다 `rotation.x/z = ±0.07` 을 걸고 있었는데 이 자는
+                    //    8회 전건 `비축정렬법선 0` 을 찍었다 — 비평가 2인이 **눈으로** 먼저 잡았다.
+                    //    화풍 ⓓ('임의 각도 회전 금지')가 묻는 것은 화면에 서는 방향이므로 월드가 맞다.
+                    const nm = new THREE.Matrix3().getNormalMatrix(m.matrixWorld);
+                    const nv = new THREE.Vector3();
                     for (let i = 0; i < nor.count; i++) {
-                        const a = [Math.abs(nor.getX(i)), Math.abs(nor.getY(i)), Math.abs(nor.getZ(i))].sort((p, q) => q - p);
+                        nv.fromBufferAttribute(nor, i).applyMatrix3(nm).normalize();
+                        const a = [Math.abs(nv.x), Math.abs(nv.y), Math.abs(nv.z)].sort((p, q) => q - p);
                         // 축정렬이면 최대 성분이 1, 나머지 둘이 0 이다.
+                        // 눈금 1e-3 = 0.057° — 격자 정렬이면 부동소수 오차만 남으므로 이 아래다.
                         if (Math.abs(a[0] - 1) > 1e-3 || a[1] > 1e-3) agg.offAxis++;
                     }
                     // 면 중복 — 삼각형의 무게중심 + 법선을 반올림해 키로 쓴다. 같은 프롭 안에서

@@ -3555,7 +3555,7 @@ const Scene3D = {
         g.add(main);
         const slab = this.makeSlab(s * 0.55);
         slab.position.set(U.rand(0.32, 0.45) * s, 0, U.rand(-0.2, 0.2) * s);
-        slab.rotation.y = U.rand(0, Math.PI * 2);
+        slab.rotation.y = (Math.random() * 4 | 0) * Math.PI / 2;   // 90° 스냅 — 위 버섯과 같은 사유(화풍 ⓓ)
         g.add(slab);
         const u = s / 12;
         const peb = [];
@@ -3893,24 +3893,35 @@ const Scene3D = {
             const a = (i / culms) * Math.PI * 2 + U.rand(-0.4, 0.4);
             const rad = U.rand(0.05, 0.22) * s;
             const culm = new THREE.Group();
-            const pole = Voxel.box(1, h, 1);
+            // 🚨 **기울임을 `rotation.x/z` 로 주면 안 된다 — 격자가 그 순간 깨진다(화풍 ⓓ).**
+            //    옛 판은 줄기마다 `±0.07rad` 을 걸었는데, 50칸짜리 기둥에서는 꼭대기가 4칸 가까이
+            //    밀려 큐브 면이 통째로 비스듬해진다. 비평가 2인이 **독립적으로 이걸 지목**했고
+            //    (`cute-art-direction` 1차 채점 ⓓ), 그런데도 `probe-prop-voxel` 은 8회 전건
+            //    '비축정렬법선 0' 을 찍고 있었다 — **로컬 법선만 읽고 있었기 때문**이다(자를 같이 고쳤다).
+            //    복셀에서 기울임의 올바른 어휘는 `makeRockSpire`·`makeSlab` 이 쓰는 **계단**이다:
+            //    몇 층마다 한 칸씩 옆으로 민다. 방향은 4방위 중 하나라 격자를 벗어나지 않는다.
+            const [ldx, ldz] = [[1, 0], [-1, 0], [0, 1], [0, -1]][Math.random() * 4 | 0];
+            const per = Math.max(6, Math.round(h / U.rand(2, 4)));   // 총 2~4칸 밀린다(옛 0.07rad 대역)
+            const off = y => Math.floor(y / per);
+            const pole = [];
+            for (let y = 0; y < h; y++) pole.push({ x: ldx * off(y), y, z: ldz * off(y) });
             const nodes = 3 + (Math.random() * 3 | 0);
             for (let k = 1; k <= nodes; k++) {
                 const t = Math.pow(k / (nodes + 1), 0.82);    // 위로 갈수록 절간이 좁아지는 실제 분포
-                pole.push(...Voxel.ellipse(1.2, 1.2, 1, { y0: Math.round(t * h) }));   // 마디 = 한 층만 굵게
+                const ny = Math.round(t * h);
+                // 마디 = 한 층만 굵게. 계단만큼 같이 밀어야 마디가 기둥에서 떨어지지 않는다.
+                pole.push(...Voxel.at(Voxel.ellipse(1.2, 1.2, 1), ldx * off(ny), ny, ldz * off(ny)));
             }
             culm.add(this.vxProp(pole, u, this.bambooMat));
             // 잎 — 상단 1/3 에만. 얇은 큐브 판을 계단으로 뻗어 한 메시로 굽는다(드로우콜 1개).
             const leaf = [];
             for (let k = 0; k < 4; k++) {
-                const la = U.rand(0, Math.PI * 2);
-                leaf.push(...this.vxTwig(Math.cos(la), Math.round(h * U.rand(0.66, 0.95)), Math.sin(la),
+                const la = U.rand(0, Math.PI * 2), ly = Math.round(h * U.rand(0.66, 0.95));
+                leaf.push(...this.vxTwig(Math.cos(la) + ldx * off(ly), ly, Math.sin(la) + ldz * off(ly),
                     Math.cos(la) * 1.1, U.rand(-0.5, 0.35), Math.sin(la) * 1.1, 3 + (Math.random() * 3 | 0)));
             }
             culm.add(this.vxProp(this.vxSub(leaf, pole), u, this.bambooLeafMat));   // 기둥에 파묻힌 잎 칸은 뺀다
             culm.position.set(Math.cos(a) * rad, 0, Math.sin(a) * rad);
-            culm.rotation.z = U.rand(-0.07, 0.07);
-            culm.rotation.x = U.rand(-0.07, 0.07);
             g.add(culm);
         }
         return g;
@@ -3965,7 +3976,9 @@ const Scene3D = {
             const sub = one(s * U.rand(0.3, 0.55), fm);
             const a = U.rand(0, Math.PI * 2), rr = U.rand(0.36, 0.62) * s;
             sub.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
-            sub.rotation.y = U.rand(0, Math.PI * 2);
+            // 🚨 y 회전도 **90° 배수로 스냅**한다 — 임의 각이면 갓·반점의 큐브 면이 통째로 비스듬해져
+            //    화풍 ⓓ 를 깬다(비평가 2인 공통 지적). 4방위면 방향 변주는 그대로 남고 격자는 안 깨진다.
+            sub.rotation.y = (Math.random() * 4 | 0) * Math.PI / 2;
             g.add(sub);
         }
         return g;
