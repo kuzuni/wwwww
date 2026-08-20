@@ -1306,9 +1306,14 @@ const Scene3D = {
             stone: 0x6f7560, fog: [10, 27],
         },
         bamboo: { // 12 대나무 숲 — 가늘고 높은 수직선이 화면을 채우는 유일한 맵
+            // 🎨 잔디 필드를 밝은 라임/샤르트뢰즈로 (map-palette-unify 5차 — B ⑷ '녹색 3연속' 중
+            //    ch1 초원 ↔ ch12 대나무 동일 주 색상 85° 분리). 대나무 숲은 어린 죽순의 **밝은 황록**이라
+            //    초원의 진한 풀색과 온도가 다른데, 종전 scatter 0x7cae4a 는 초원과 같은 85°로 겹쳤다.
+            //    지배 필드인 잔디만 라임(0x9ec93f)으로 밀어 주 색상을 노랑 쪽(~78°)·명도를 올려 분리한다
+            //    (지면·하늘·안개는 무접촉 — 값 구조 보존).
             kin: 'forest', tint: [0.02, 0.06, 0.02], ridge: 'ridge',
             props: { p: [['makeBamboo', 1.1]], r: [['makeBamboo', 0.75], ['makeRoundTree', 0.8]] },
-            scatter: { geo: 'blade', r: 0.07, color: 0x7cae4a, n: 240, flat: false, tint: 0.2, wind: true },
+            scatter: { geo: 'blade', r: 0.07, color: 0x9ec93f, n: 240, flat: false, tint: 0.2, wind: true },
             accent: { geo: 'cone', r: 0.034, color: 0xe8f4a8, n: 44, basic: true, wind: true },
             stone: 0x8d9482,
         },
