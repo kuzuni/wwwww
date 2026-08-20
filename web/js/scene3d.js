@@ -3218,6 +3218,32 @@ const Scene3D = {
             // 부모 지형을 포함한 씬 전체의 그림자 수신이 조용히 깨진다(실측: 이 한 줄이 true면 지형 그림자 전멸).
             im.receiveShadow = false;
             this.ground.add(im);
+            // 🌱 접지 블롭 그림자 (grass-contact-shadow — 사용자 2026-08-21 "잔디 왜 그림자 없냐/붕 뜬 느낌").
+            //    잔디는 windShade 정점 변위 때문에 castShadow 를 못 켠다(깊이 패스가 바람 변위를 몰라
+            //    그림자만 안 흔들리고 어긋난다 — TODO 처방 ① 기각 사유). 소품·적이 쓰는 blobShadowMat
+            //    소프트 블롭을 포기 밑동에 인스턴스로 하나 더 깐다(처방 ② — aoRing 계열 투명 오버레이라
+            //    voxel 화풍 ⓓ '부드러운 그림자' 허용 안). ⚠️ U.rand 추가 호출 없음 — 위 루프가 구운
+            //    인스턴스 행렬을 그대로 분해해 쓰므로 시드 고정 프로브의 난수 소비가 안 변한다.
+            if (so && so.blob) {
+                this.ensureBlobRes();
+                const bim = new THREE.InstancedMesh(this.blobGeo, this.blobShadowMat, cnt);
+                const bd = new THREE.Object3D();
+                for (let i = 0; i < cnt; i++) {
+                    im.getMatrixAt(i, bd.matrix);
+                    bd.matrix.decompose(bd.position, bd.quaternion, bd.scale);
+                    const r = bd.scale.x * 0.30;               // 포기 폭에 비례한 블롭 반경
+                    bd.position.y = this.heightAt(bd.position.x, bd.position.z) + 0.015;
+                    bd.rotation.set(-Math.PI / 2, 0, 0);
+                    bd.scale.set(r, r, r);
+                    bd.updateMatrix();
+                    bim.setMatrixAt(i, bd.matrix);
+                }
+                bim.userData.sharedGeometry = true;            // blobGeo 싱글턴
+                bim.userData.sharedMaterial = true;            // blobShadowMat 싱글턴(setTheme 이 챕터색으로 물들인다)
+                bim.userData.aoRing = true;                    // setShadow 스윕 제외(704 규약 — 그림자 링은 몸이 아니다)
+                bim.receiveShadow = false;
+                this.ground.add(bim);
+            }
             return im;
         };
         // 바람은 **식물에만** 건다 — 자갈·얼음 조각이 흔들리면 '떠 있는 돌'이 된다.
@@ -3233,14 +3259,14 @@ const Scene3D = {
         // ⚠️ 지수 배분: **근경 위계는 `scatter3` 의 개수로 벌고, 주 스캐터는 지수를 낮게(1.75) 둔다.**
         //    주 스캐터 지수를 2.5까지 올려 위계를 만들면 원경띠가 같이 굶어(실측 원경 156~180개, 게이트 미달)
         //    "카펫" 결함이 뒤쪽에서 되살아난다. 근/중은 근경 레이어로, 중/원은 이 지수로 따로 잡는 게 맞다.
-        this.scatter = mk(geo, mat, n, flat, tint, -9, 3.2, { depthPow: 1.75, clumpR: 2.0, seedFrac: 0.42 });
+        this.scatter = mk(geo, mat, n, flat, tint, -9, 3.2, { depthPow: 1.75, clumpR: 2.0, seedFrac: 0.42, blob: windy });
         // 근경 전용 디테일 레이어 — 카메라 앞 둔덕에 같은 소재를 더 크고 촘촘하게.
         // 세로 화면 첫인상을 결정하는 근경이 "무텍스처 단색 평면"이던 결함 해소.
         // 🚨 **뒤끝을 z 5.6 → 5.0 으로 당겼다.** 지면이 화면 바닥(ndc.y −1)과 만나는 곳이 실측 z 4.97 이라
         //    z 5.0 너머에 뿌린 몫(종전 배치의 약 1/4)은 **한 번도 화면에 안 들어왔다** — 근경을 채우라고
         //    만든 레이어가 정작 프레임 밖에 예산을 버리고 있었다.
         this.scatter3 = mk(geo, mat, Math.round(n * 1.9), flat, tint, 3.2, 5.0,
-            { depthPow: 2.0, clumpR: 1.5, seedFrac: 0.42, scaleLo: 1.1, scaleHi: 2.4 }); // 근경은 원근상 더 커야 자연스럽다
+            { depthPow: 2.0, clumpR: 1.5, seedFrac: 0.42, scaleLo: 1.1, scaleHi: 2.4, blob: windy }); // 근경은 원근상 더 커야 자연스럽다
         // 보조 악센트 스캐터 — 5% 악센트 색 규칙(단색 팔레트 지적 반영): 초원=들꽃, 설원=얼음 결정,
         // 바위산=골드 야생화, 마법=보라 자갈, 사막=적갈 자갈, 용암=재 조각
         // 🧊 테이블은 [종류, r] 문자열만 들고 scatterGeo(복셀 팩토리)가 굽는다 — 종전엔 6종 다면체를
