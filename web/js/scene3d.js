@@ -21888,10 +21888,24 @@ const Scene3D = {
         // 만개한 뒤 +267ms 까지 200ms 동안 지름이 100.5px 에 못박힌 채** 알파만 빠졌다. 수명의 3/4을
         // 안 움직이고 서 있었던 셈이라, 비평가 A #4 가 본 '얼룩'은 크기보다 이 **정체 구간**이었다.
         // 그래서 ⑴ 끝까지 계속 퍼지는 감속 곡선으로 바꾸고 ⑵ 수명을 0.17초로 줄인다.
-        const under = new THREE.Mesh(this.fxGeo('torus', 0.3, 0.085, 6, 24),
-            new THREE.MeshBasicMaterial({ color: 0x2a1a0e, transparent: true, opacity: 0.5 }));
-        const ring = new THREE.Mesh(this.fxGeo('torus', 0.3, 0.06, 6, 24),
-            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+        // 🧊 **매끈 토러스 → 픽셀 계단 링 (4차 채점 2인 일치 ㉡, 2026-08-20).** 충격 링은 전 스킬·평타가
+        //    공유하는 임팩트 프리미티브인데 혼자 매끈한 원반이라 "각진 킷 안의 매끈 문법 잔존"(B 경4)
+        //    으로 남았다. supernova 의 픽셀 차지 링(정답 문법 보유)과 같은 계단 링 지오메트리를
+        //    **한 번 굽고 캐시**한다(호출 빈도가 높아 매번 굽으면 비용이 크다). 정점색은 흰색으로
+        //    구워 material.color 곱으로 물들인다 — 색 튜닝 축이 종전과 같다.
+        if (!this._pixelRingGeo) {
+            const vox = [];
+            for (let gx = -6; gx <= 6; gx++) for (let gy = -6; gy <= 6; gy++) {
+                const d = Math.hypot(gx, gy);
+                if (d <= 6.45 && d >= 4.4) vox.push({ x: gx, y: gy, z: 0 });
+            }
+            this._pixelRingGeo = Voxel.build(vox, { size: 0.06, color: 0xffffff, jitter: 0.08, ao: 0 }).geometry;
+        }
+        const ringMat = (col, op) => new THREE.MeshBasicMaterial({ color: col, vertexColors: true,
+            transparent: true, opacity: op, depthWrite: false, toneMapped: false });
+        const under = new THREE.Mesh(this._pixelRingGeo, ringMat(0x2a1a0e, 0.5));
+        const ring = new THREE.Mesh(this._pixelRingGeo, ringMat(color, 0.9));
+        under.userData.shockRing = ring.userData.shockRing = true;
         under.userData.sharedGeometry = ring.userData.sharedGeometry = true; // 공유 지오 — dispose 금지 플래그
         // 밝은 초원·모랫길 위의 연주황 링은 밝기가 배경과 겹쳐 안 뜬다(A #4 '저대비'). 채도·밝기를
         // 더 올리면 화이트아웃 쪽으로 가므로, 대신 **어두운 밑링**을 한 겹 깔아 명도 경계를 만든다

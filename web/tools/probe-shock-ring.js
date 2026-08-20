@@ -63,7 +63,7 @@ const ZLANE = (() => { const i = process.argv.indexOf('--z'); return i > 0 ? par
         D.refreshHeroEquip();
         D.anims.length = 0; D._hitStop = 0; D._attacking = false; D._trailOn = false;
         // 이미 떠 있는 링이 있으면 걷어낸다(밀린 연출에서 나온 것)
-        for (const o of [...D.scene.children]) if (o.isMesh && o.geometry && o.geometry.type === 'TorusGeometry') D.scene.remove(o);
+        for (const o of [...D.scene.children]) if (o.isMesh && (o.userData.shockRing || (o.geometry && o.geometry.type === 'TorusGeometry'))) D.scene.remove(o);
         e.x = Combat.stopXOf(e);
         e.z = ZLANE;
         m.g.position.set(e.x + D.worldX, m.g.position.y, ZLANE);
