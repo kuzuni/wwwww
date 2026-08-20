@@ -2396,7 +2396,7 @@ const Scene3D = {
         for (const [x, z, s, kind] of spots) {
             const t = this.makeProp(biome, kind, s);
             t.position.set(x, this.heightAt(x, z), z);
-            t.rotation.y = U.rand(0, Math.PI * 2);
+            t.rotation.y = this.gridYaw();
             t.scale.multiplyScalar(U.rand(0.88, 1.14)); t.scale.y *= U.rand(0.94, 1.1); // 인스턴스 지터 — 동일 스케일 복붙 티 제거 (비평가 13번)
             if ((kin === 'magic' || sp.emissive) && kind === 'p' && z > -5) emissiveAnchors.push(t); // 근·중경 크리스탈만
             this.setShadow(t);
@@ -2419,7 +2419,7 @@ const Scene3D = {
             hero.add(main);
             const side = this.makeProp(biome, 'r', 1.2);
             side.position.set(1.5, 0, 0.7);
-            side.rotation.y = U.rand(0, Math.PI * 2);
+            side.rotation.y = this.gridYaw();
             hero.add(side);
             hero.position.set(-3.2, this.heightAt(-3.2, -7.6), -7.6);
             this.setShadow(hero);
@@ -2518,7 +2518,7 @@ const Scene3D = {
                 const p = mspec ? this[mspec[0]](s * (mspec[1] === undefined ? 1 : mspec[1]))
                     : kind === 'strata' ? this.makeStrata(s) : kind === 'shrub' ? this.makeDryShrub(s) : this.makeBones(s);
                 p.position.set(x, this.heightAt(x, z), z);
-                p.rotation.y = U.rand(0, Math.PI * 2);
+                p.rotation.y = this.gridYaw();
                 this.setShadow(p);
                 const blob = new THREE.Mesh(this.blobGeo, this.blobShadowMat);
                 blob.rotation.x = -Math.PI / 2;
@@ -2657,13 +2657,21 @@ const Scene3D = {
                 magic: (s) => this.makeCrystal(s * 1.05),   // 크리스탈은 뾰족·가늘어 같은 s 로도 발자국이 작다 — 키워서 캡으로 눕힌다
                 snow: (s) => this.makeBoulder(s * 0.95, true),
             }[kin] || ((s) => this.makeBoulder(s * 0.85, false, true));
+            // 🚨 **배치 요를 90° 로 스냅한 만큼 치수를 되돌려 준다 (2026-08-20).** 임의 각으로 놓인
+            //   상자는 대각을 보여 화면 폭이 최대 √2 배였다 — 4방위로 스냅하면 그 여유가 사라져
+            //   `probe-nearfield-mass` 근경 점유가 ch2 9.6% · ch7 9.3% 로 **하한 10 아래로 떨어졌다**
+            //   (스냅 전 실측: 두 챕터 모두 통과). 이 자가 묻는 것은 '근경에 덩치가 있는가'이지
+            //   '어느 방향으로 놓였는가'가 아니므로, **회전을 되돌리지 말고 치수로 갚는 것**이 맞다.
+            //   ×1.21 = 잃은 대각 폭(√2 의 절반쯤, 소품이 정육면체가 아니라 전부는 아니다)의 보상값.
+            //   ⚠️ 높이는 아래 `HCAP` 이 그대로 누르므로 **폭만 는다** — 파티 가림 전제(z 하한·높이 캡)는
+            //      안 건드렸다(`probe-pet-occlusion` 으로 재확인함).
             for (let i = 0; i < 6; i++) {
-                const t = foreMaker(U.rand(0.82, 1.24));
+                const t = foreMaker(U.rand(0.99, 1.50));
                 // 캡: 만든 뒤 실제 박스를 재서 누른다(프롭마다 자연 높이가 달라 상수로는 못 맞춘다).
                 const box = new THREE.Box3().setFromObject(t);
                 const h = box.max.y - box.min.y;
                 if (h > HCAP) t.scale.y *= HCAP / h;
-                t.rotation.y = U.rand(0, Math.PI * 2);
+                t.rotation.y = this.gridYaw();
                 this.setShadow(t);
                 const g = grounded(t, 0.5);    // 접지 블롭은 setShadow 뒤에 붙어야 캐스터에서 빠진다
                 const x = U.rand(-9, 9), z = U.rand(3.95, 4.85);
@@ -2703,7 +2711,7 @@ const Scene3D = {
                 const box = new THREE.Box3().setFromObject(t);
                 const h = box.max.y - box.min.y;
                 if (h > HCAP) t.scale.y *= HCAP / h;   // 만든 뒤 실제 박스를 재서 누른다(근경 앵커와 같은 이유)
-                t.rotation.y = U.rand(0, Math.PI * 2);
+                t.rotation.y = this.gridYaw();
                 this.setShadow(t);
                 const g = grounded(t, 0.5);   // 접지 블롭은 setShadow 뒤 (캐스터에서 빠지게)
                 const x = U.rand(-9.5, 9.5), z = U.rand(-4.6, -3.0);
@@ -2795,7 +2803,7 @@ const Scene3D = {
                 const box = new THREE.Box3().setFromObject(t);
                 const h = box.max.y - box.min.y;
                 if (h > HCAP) t.scale.y *= HCAP / h;   // 만든 뒤 실제 박스를 재서 누른다(위 두 블록과 같은 이유)
-                t.rotation.y = U.rand(0, Math.PI * 2);
+                t.rotation.y = this.gridYaw();
                 this.setShadow(t);
                 const g = grounded(t, 0.5);            // 접지 블롭은 setShadow 뒤 (캐스터에서 빠지게)
                 const x = -SPAN / 2 + SPAN * (i + U.rand(0.15, 0.85)) / N;
@@ -3038,6 +3046,11 @@ const Scene3D = {
                 let x = spots[i][0], z = spots[i][1];
                 if (Math.abs(z) < 0.55) z = 0.55 * Math.sign(z || 1) + z; // 스캐터도 전투 라인 살짝 비켜감
                 dummy.position.set(x, this.heightAt(x, z) + 0.02, z);
+                // ⚠️ **여기만 임의 각을 남긴다 — 스캐터는 평면 블레이드다.** 4방위로 스냅하면 절반이
+                //    카메라에 엣지온으로 서서 **풀이 통째로 절반쯤 사라진다.** 화풍 ⓓ 는 큐브 면이
+                //    사선이 되는 걸 막자는 것이고 평면 스프라이트에는 그 전제가 없다. 비평가 2인이
+                //    지적한 '풀이 얇은 삼각 판'은 회전이 아니라 **조형**(큐브 다발) 문제라, 그건
+                //    `cute-art-direction` ㉥ 로 따로 남겼다 — 조형을 큐브로 바꿀 때 이 줄도 같이 스냅할 것.
                 dummy.rotation.y = U.rand(0, Math.PI * 2);
                 const sc = U.rand(sLo, sHi);
                 dummy.scale.set(sc, sc * (flat2 ? U.rand(0.45, 0.75) : U.rand(0.8, 1.4)), sc);
@@ -16728,21 +16741,51 @@ const Scene3D = {
     // 된다. 큰 소품에 그걸 크게 깔면 '무엇이 드리웠는지 알 수 없는 검은 아메바 얼룩'으로 읽힌다
     // (비평가 2인이 각각 최우선으로 지적: "드리울 물체가 화면에 없는 거대한 새까만 얼룩").
     // 접지 AO 는 **중심이 진하고 빨리 떨어져야** 한다 — 밑동 아래를 확실히 눌러 주고 가장자리는 곧 사라진다.
+    // 🧊 **voxel 전환(2026-08-20) — 매끈한 방사 그라디언트 → 격자 계단 그림자.**
+    //   `cute-art-direction` 1차 채점에서 비평가 2인이 **각자 독립으로** 지목했다: "부드러운 그라디언트
+    //   얼룩이라 플랫/격자 언어와 충돌한다 · 발밑에 캐릭터 폭의 2~3배로 흐리게 번진다". 처방도 둘이
+    //   같았다 — **하드 엣지 · 셀 단위로 양자화한 그림자**.
+    // 🔑 **해상도를 낮추고 `NearestFilter` 를 거는 것이 곧 조형이다.** 128px 캔버스에 계단을 그려도
+    //   기본 선형 확대가 그 계단을 도로 뭉갠다 — 텍셀 자체를 크게 만들어야 화면에서 네모가 남는다.
+    // 🔑 **반경별 알파 대역은 옛 그라디언트를 그대로 따라간다**(1.0 / 0.72 / 0.36 / 0.12 / 0). 이 자리는
+    //   `probe-prop-blob`(블롭이 소품보다 크게 번지지 않는가 · 접지 단서가 사라지지 않는가)이 지키는
+    //   대역이라, **화풍만 바꾸고 폴오프 총량은 안 건드린다.**
+    // ⚠️ 블롭은 소품에 비례해 커지므로 셀도 같이 커진다(월드 고정 셀이 아니다). 개체마다 텍스처를
+    //   따로 굽지 않으려는 선택이고, '그림자 픽셀이 물체 크기를 따라간다'는 쪽이 오히려 일관돼 보인다.
     makeBlobTexture() {
         if (this._blobTex) return this._blobTex;
-        const size = 128;
+        const N = 16;                                  // 셀 격자 — 짝수라 중앙이 2×2 로 대칭이다
         const c = document.createElement('canvas');
-        c.width = c.height = size;
+        c.width = c.height = N;
         const ctx = c.getContext('2d');
-        const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-        grad.addColorStop(0, 'rgba(255,255,255,1)');
-        grad.addColorStop(0.34, 'rgba(255,255,255,0.72)');
-        grad.addColorStop(0.68, 'rgba(255,255,255,0.16)');
-        grad.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, size, size);
-        return (this._blobTex = new THREE.CanvasTexture(c));
+        ctx.clearRect(0, 0, N, N);
+        // 옛 그라디언트의 정지점을 계단으로 옮긴 것 — [정규화 반경 상한, 알파]
+        const STEP = [[0.30, 1], [0.50, 0.72], [0.70, 0.36], [0.88, 0.12]];
+        for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+            const dx = (x + 0.5) / N * 2 - 1, dy = (y + 0.5) / N * 2 - 1;
+            const d = Math.hypot(dx, dy);
+            let a = 0;
+            for (const [r, v] of STEP) if (d <= r) { a = v; break; }
+            if (!a) continue;
+            ctx.fillStyle = 'rgba(255,255,255,' + a + ')';
+            ctx.fillRect(x, y, 1, 1);
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.magFilter = THREE.NearestFilter;   // 이게 없으면 위 계단이 확대되며 도로 그라디언트가 된다
+        tex.minFilter = THREE.NearestFilter;   // 축소 쪽도 섞지 않는다(밉맵 없이 16² 는 비용이 없다)
+        tex.generateMipmaps = false;
+        return (this._blobTex = tex);
     },
+
+    // 🧊 **배치 요(yaw)는 90° 배수로 스냅한다 (화풍 ⓓ, 2026-08-20 `cute-art-direction` 1차 채점).**
+    //   빌더가 아무리 축정렬 큐브를 쌓아도 **놓을 때 `rotation.y = rand(0,2π)` 를 걸면 그 순간 격자가
+    //   깨진다** — 화면에 서는 방향이 비스듬하면 큐브 면이 전부 사선이 되고, 그게 비평가 2인이
+    //   독립적으로 지목한 "임의 각도 회전이 도처에" 다.
+    // 🚨 **`probe-prop-voxel` 은 이걸 원리적으로 못 본다** — 그 자는 빌더를 **단독 호출**해서 재므로
+    //   `buildProps` 가 나중에 거는 배치 회전이 측정에 안 들어온다(자를 월드 법선으로 고쳐도 마찬가지다).
+    //   그래서 이 자리는 코드 규약으로 지킨다: **배치 요는 반드시 이 함수를 거칠 것.**
+    // 4방위면 '같은 소품이 같은 방향으로 복붙된' 인상은 그대로 깨지고 격자는 안 깨진다.
+    gridYaw() { return (Math.random() * 4 | 0) * Math.PI / 2; },
 
     // 소품이 실제로 지면을 덮는 반경(월드) — 블롭 크기를 **명목 스케일이 아니라 실측 실루엣**에 묶는다.
     // 명목 스케일(`1.15*s+0.5`)로 잡으면 같은 s 라도 종에 따라 폭이 2배 넘게 달라 블롭이 따로 논다.
@@ -22128,7 +22171,7 @@ const Scene3D = {
         for (const [x, z, sz, kind] of spots) {
             const p = this.previewProp(kind, sz, g);
             p.position.set(x, 0, z);
-            p.rotation.y = U.rand(0, Math.PI * 2);
+            p.rotation.y = this.gridYaw();
             sc.add(p);
             this._pvProps.push(p);
         }
