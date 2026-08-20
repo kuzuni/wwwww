@@ -8851,17 +8851,56 @@ const Scene3D = {
                 }
                 break;
             }
-            case 'Turtle': { // 등딱지 + 관절 목 + 노 젓는 네 다리
-                sp(0.19, 0, 0.15, 0, dark, 1, 0.62, 1.2);
-                sp(0.14, 0, 0.19, 0, M(new THREE.Color(c).offsetHSL(0, 0, -0.25)), 1, 0.5, 1);
+            case 'Turtle': { // 등딱지(테두리 오버행 + 갑판) + 관절 목 + 노 젓는 네 다리
+                // 🚨 예전 판은 판독 시트에서 **초록 알약**으로 읽혔다(종 판독 실패). 원인은
+                //    '돔이 없어서'가 아니다 — 돔은 있었다(구 2개를 눌러 얹었다). 진짜 원인은
+                //    **등딱지와 몸이 같은 초록 덩어리로 이어져 경계가 0 이었다**는 것이다.
+                //    등딱지가 등딱지로 읽히려면 몸 위에 **얹힌 별개의 딱지**여야 한다.
+                // 🔑 처방은 이 파일이 **탈것 거북(voxel 판)에서 이미 실측으로 세운 결론**을 그대로
+                //    가져온 것이다 — *"거북다움은 계단 수가 아니라 **테두리 오버행 + 갑판 구획**에서
+                //    나온다"*. 그래서 층을 쌓지 않고 ⓑ 테두리와 ⓓ 갑판 두 가지에만 질량을 쓴다.
+                // ⚠️ 갑판은 **판을 크게, 경계는 틈으로**. 같은 탈것 판에서 '홈을 많이 파는' 1차 시도가
+                //    비평가에게 '판보다 홈이 많다'고 두 번 걸렸다 — 무늬는 홈의 수가 아니라 판 크기로 읽힌다.
+                const cc = new THREE.Color(c);
+                const SHELL = M(cc.clone().offsetHSL(0, 0.06, -0.19));     // 등딱지 바탕(= 갑판 사이 틈)
+                const SCUTE = M(cc.clone().offsetHSL(0, 0.01, -0.03));     // 갑판 — 바탕보다 밝아야 판으로 읽힌다
+                const RIM = M(cc.clone().offsetHSL(0, 0.10, -0.30));       // 테두리(연갑판)
+                const SKIN = M(cc.clone().offsetHSL(0.05, -0.10, 0.11));   // 살갗 — 딱지와 **색상까지** 갈라야 별개로 보인다
+                // ⚠️ 부리를 길고 창백하게(길이 0.075 · 명도 +0.30) 두면 **생쥐 주둥이**로 읽힌다(캡처 실측).
+                //    거북 부리는 뻗은 주둥이가 아니라 윗턱 끝의 **짧고 단단한 각질**이다 — 짧고 어둡게.
+                const BEAK = M(cc.clone().offsetHSL(0.07, -0.16, 0.02));
+                sp(1, 0, 0.083, 0, SKIN, 0.163, 0.062, 0.186);             // ⓐ 배딱지 — 딱지 밑으로 살짝 나오는 살갗 층
+                const RX = 0.212, RZ = 0.246;
+                sp(1, 0, 0.124, 0, RIM, RX, 0.030, RZ);                    // ⓑ 테두리 오버행 — 거북다움 1순위
+                const DX = 0.184, DY = 0.126, DZ = 0.214;
+                sp(1, 0, 0.121, 0, SHELL, DX, DY, DZ);                     // ⓒ 등딱지 돔
+                // ⓓ 갑판 — 돔 표면에 **법선 방향으로 눕혀** 얹는다. 방향을 안 맞추면 판이 돔을
+                //    비스듬히 뚫고 나와 '박힌 조약돌'이 된다(타원면 법선은 반지름 제곱으로 나눈다).
+                const NY = new THREE.Vector3(0, 1, 0), nrm = new THREE.Vector3();
+                const scute = (dx, dy, dz, r) => {
+                    const L = Math.hypot(dx, dy, dz); dx /= L; dy /= L; dz /= L;
+                    const px = DX * dx, py = DY * dy, pz = DZ * dz;
+                    const o = sp(1, px, 0.121 + py, pz, SCUTE, r, 0.030, r);
+                    nrm.set(px / (DX * DX), py / (DY * DY), pz / (DZ * DZ)).normalize();
+                    o.quaternion.setFromUnitVectors(NY, nrm);              // 스케일→회전 순으로 합성된다(T·R·S)
+                };
+                for (const t of [-0.80, -0.27, 0.27, 0.80]) scute(0, Math.cos(t), Math.sin(t), 0.062);  // 등줄 갑판
+                for (const a of [0.92, Math.PI - 0.92]) for (const s of [-1, 1]) {                      // 옆 갑판
+                    const t2 = 1.02;
+                    scute(s * Math.sin(a) * Math.sin(t2), Math.cos(t2), Math.cos(a) * Math.sin(t2), 0.058);
+                }
                 const neck = pv(0, 0.13, 0.16);
-                into(neck, () => { sp(0.08, 0, 0, 0.1, light); eyes(0.04, 0.16, 0.045, 0.02); });
+                into(neck, () => {
+                    sp(0.08, 0, 0, 0.1, SKIN);
+                    const bk = cn(0.040, 0.046, 0, -0.016, 0.152, BEAK); bk.rotation.x = Math.PI / 2;  // 각질 부리(짧게)
+                    eyes(0.04, 0.16, 0.045, 0.02);
+                });
                 jt(neck, 'x', 0.3, 0, { f: 0.8, gain: 1.7 });            // 목 빼고 넣고
                 let i = 0;
                 const ph = [0, Math.PI, Math.PI, 0];
                 for (const z of [0.14, -0.14]) for (const s of [-1, 1]) {
                     const fl = pv(s * 0.13, 0.07, z);
-                    into(fl, () => sp(0.05, s * 0.03, 0, 0, light, 1.2, 0.7, 1));
+                    into(fl, () => sp(0.055, s * 0.035, 0, 0, SKIN, 1.35, 0.55, 1.05));  // 노 젓는 물갈퀴(납작한 판)
                     jt(fl, 'z', 0.5 * s, ph[i++], { gain: 1.8 });        // 지느러미발 노 젓기
                 }
                 break;
