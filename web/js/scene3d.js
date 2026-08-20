@@ -4812,6 +4812,235 @@ const Scene3D = {
     },
     vestVariant(age) { return this.VEST_VARIANT[age] || 'tactical'; },
 
+    // 그 시대의 `cape`(망토) 가 **어떤 망토인가** (equip-era-theming, R1 교집합 밖 지적 + R2 ㉥).
+    // `cape` 는 `vest` 와 함께 **10시대 전부**에 배정된 조형인데 하나뿐이었다 — 크로스-시대 게이트
+    // (`probe-armor-era-silhouette.js`) 실측으로 45쌍 **전부** 미분화, 최악 IoU **1.000 · 윤곽차
+    // 0.0000**(96px 실루엣이 픽셀 단위로 동일)이라 이 저장소에서 가장 큰 '색만 다른' 덩어리였다.
+    // ⚠️ `ageGearKind` 로 가르지 말 것 — `fin`·`suit`·`vest` 와 같은 이유(alloy 한 계열에 우주·항성간·
+    //    다중우주·양자·지하가 통째로 묶여 '궤도 망토'와 '어둠의 망토'가 도로 같은 물건이 된다).
+    // 여기엔 **10시대를 다 적는다** — 기본값으로 떨어지는 칸을 남기면 그 칸들이 다시 한 덩어리가
+    // 된다(`VEST_VARIANT` 가 5시대를 비워 뒀다가 정확히 그렇게 됐다).
+    CAPE_VARIANT: {
+        primitive: 'leaf',        // 풀잎 망토 — 겹쳐 단 잎날, 밑단이 톱니
+        medieval: 'order',        // 기사단 망토 — 곧게 떨어지는 긴 맨틀 + 걸쇠 사슬
+        earlyModern: 'noble',     // 귀족 망토 — 짧은 케이프 + 넓은 모피 깃
+        modern: 'duster',         // 방탄 코트 — 아주 길고 좁은 곧은 자락 + 뒤트임
+        space: 'panel',           // 궤도 망토 — 강체 패널 3장(천이 아니다)
+        interstellar: 'stellar',  // 항성 망토 — 아래로 좁아지는 역테이퍼 광류
+        multiverse: 'rift',       // 차원 망토 — 조각으로 끊기고 파편이 떨어져 나간다
+        quantum: 'wave',          // 양자 망토 — 물결 밑단 + 뒤로 어긋난 잔상 2겹
+        underworld: 'tatter',     // 어둠의 망토 — 길이가 제각각인 너덜 띠
+        divine: 'wings',          // 대천사 망토 — 깃털 판을 좌우로 펼쳐 가로로 넓은 실루엣 (R2 ㉥)
+    },
+    capeVariant(age) { return this.CAPE_VARIANT[age] || 'order'; },
+
+    // 망토의 **바깥 윤곽 4축** — 기장(len) · 퍼짐(rTop→rBot) · 감는 폭(arc) · 밑단 테(hem).
+    // 🚨 **이 표가 이 조형의 분화를 진다.** 부속을 아무리 얹어도 96px 실루엣은 안 갈린다는 걸
+    //    `vest` 에서 실측으로 배웠다(장식만 갈린 6칸이 IoU 0.92~0.98 로 붙어 있었다).
+    // ⚠️ `hem: false` 는 밑단 테를 **일부러 빼는** 것이다 — 톱니·물결·결손이 밑단의 결 자체를
+    //    짓는 조형에서는 매끈한 테가 그 결을 지운다(잎날 끝을 가로줄 하나가 잘라 먹는다).
+    // ⚠️ 어깨선은 전 시대 공통으로 y = `CAPE_TOP` 에 물린다 — 기장을 바꿀 때 위가 같이 움직이면
+    //    망토가 어깨에서 떨어져 **허공에 뜬 천**이 된다. 그래서 표에는 기장만 두고 중심 y 는 뽑는다.
+    CAPE_TOP: 0.93,
+    CAPE_SHAPE: {
+        leaf: { rTop: 0.22, rBot: 0.30, len: 0.44, arc: 0.80, hem: false },
+        order: { rTop: 0.22, rBot: 0.27, len: 0.76, arc: 0.76 },
+        noble: { rTop: 0.24, rBot: 0.38, len: 0.34, arc: 0.86 },
+        duster: { rTop: 0.21, rBot: 0.23, len: 0.78, arc: 0.70 },
+        panel: { rTop: 0.21, rBot: 0.21, len: 0.50, arc: 0.44, hem: false },
+        stellar: { rTop: 0.26, rBot: 0.13, len: 0.74, arc: 0.72 },
+        rift: { rTop: 0.22, rBot: 0.31, len: 0.58, arc: 0.30, hem: false },
+        wave: { rTop: 0.22, rBot: 0.33, len: 0.60, arc: 0.76, hem: false },
+        tatter: { rTop: 0.22, rBot: 0.28, len: 0.40, arc: 0.80, hem: false },
+        wings: { rTop: 0.22, rBot: 0.30, len: 0.52, arc: 0.66 },
+    },
+    capeShape(cv) {
+        const s = this.CAPE_SHAPE[cv] || this.CAPE_SHAPE.order;
+        return { rTop: s.rTop, rBot: s.rBot, len: s.len, arc: s.arc, hem: s.hem, y: this.CAPE_TOP - s.len / 2 };
+    },
+
+    // 시대별 덧구조 — **몸통 밖으로 나가 바깥 윤곽을 스스로 지는 것만** 둔다.
+    //   (안쪽 장식은 96px 에서 사라진다 — `vest` 6칸이 그래서 안 갈렸다.)
+    addCapeEraDetail(g, cv, CS, cz, mats, cloth, body, rareHex) {
+        const dark = mats ? mats.dark : cloth;
+        const trim = mats ? (mats.trim || mats.dark) : cloth;
+        const yBot = CS.y - CS.len / 2, yTop = CS.y + CS.len / 2;
+        // 밑단 둘레의 한 점 — 호가 등 뒤(θ중심 π)를 중심으로 감기므로 t ∈ [-1,1] 을 그 호에 태운다.
+        const atHem = (t, r) => {
+            const th = Math.PI + t * (Math.PI * CS.arc) / 2;
+            return [Math.sin(th) * (r === undefined ? CS.rBot : r), Math.cos(th) * (r === undefined ? CS.rBot : r)];
+        };
+        if (cv === 'leaf') {
+            // 풀잎 망토 — 잎날을 **3단으로 겹쳐** 단다. 밑단이 톱니가 되고, 단마다 길이를 달리해
+            //   아래 윤곽이 규칙적인 톱니가 아니라 **자란 풀**로 읽힌다.
+            for (let row = 0; row < 3; row++) {
+                const n = 7 - row, ry = yBot + 0.055 + row * 0.105;
+                const rr = CS.rBot - row * 0.026;
+                for (let i = 0; i < n; i++) {
+                    const t = (n === 1) ? 0 : (i / (n - 1)) * 2 - 1;
+                    const [x, z] = atHem(t * 0.92, rr);
+                    const len = 0.135 + ((i + row) % 3) * 0.038;   // 길이를 3박자로 — 고르면 '주름 장식'이다
+                    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.048, len, 4), cloth);
+                    blade.position.set(x, ry - len * 0.42, z + cz);
+                    blade.rotation.x = Math.PI;                    // 끝이 아래로
+                    blade.rotation.y = Math.atan2(x, z);
+                    blade.rotation.z = (i % 2 ? 1 : -1) * 0.12;
+                    g.add(blade);
+                }
+            }
+        } else if (cv === 'order') {
+            // 기사단 망토 — 어깨 걸쇠 사이를 잇는 **사슬**. 곧게 떨어지는 긴 맨틀의 서명이다.
+            for (let i = 0; i < 9; i++) {
+                const t = (i / 8) * 2 - 1;                 // −1(왼 걸쇠) ~ +1(오른 걸쇠)
+                const x = t * 0.155;
+                const sag = (1 - t * t) * 0.055;           // 가운데가 처지는 현수선 — 팽팽하면 '막대'다
+                const link = new THREE.Mesh(new THREE.TorusGeometry(0.021, 0.007, 4, 10), trim);
+                link.position.set(x, yTop - 0.020 - sag, cz + 0.10);
+                link.rotation.y = Math.PI / 2;
+                link.rotation.x = (i % 2) * Math.PI / 2;   // 한 칸 걸러 눕혀 엮인 사슬로 읽히게
+                link.rotation.z = -t * 0.5;                // 처진 곡선의 접선을 따라 눕는다
+                g.add(link);
+            }
+        } else if (cv === 'noble') {
+            // 귀족 망토 — **넓은 모피 깃**. 짧은 케이프라 위가 넓고 아래가 짧은 실루엣이 서명이다.
+            //   깃은 몸통 반경(0.25)보다 확실히 크게 — 안 그러면 그냥 목도리다.
+            // 🚨 **덩이를 띄엄띄엄 놓지 말 것 — 모피가 아니라 '구슬 목걸이'가 된다**(1차 실측 캡처).
+            //    털은 덩이 하나하나가 아니라 **뭉친 한 겹**으로 읽혀야 한다: 개수를 둘레에 맞춰
+            //    이웃과 겹치게 깔고(중심 간격 < 반지름), 위아래로 살짝 흔들어 테두리를 울퉁불퉁하게.
+            const FN = 17;
+            for (let i = 0; i < FN; i++) {
+                const t = (i / (FN - 1)) * 2 - 1;
+                const th = Math.PI + t * Math.PI * 0.60;
+                const r = 0.30 + Math.cos(t * 1.2) * 0.030;
+                const puff = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), trim);
+                puff.scale.set(1, 0.78, 0.90);
+                puff.position.set(Math.sin(th) * r,
+                    yTop - 0.045 - Math.abs(t) * 0.040 + ((i % 2) ? 0.014 : -0.014),
+                    Math.cos(th) * r * 0.92 + cz + 0.06);
+                g.add(puff);
+            }
+        } else if (cv === 'duster') {
+            // 방탄 코트 — 밑단 **뒤트임**(center vent). 아주 길고 좁은 자락에 세로 틈이 하나 있어야
+            //   '코트'로 읽힌다(없으면 원통 자루다).
+            const vent = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.34, 0.075), dark);
+            vent.position.set(0, yBot + 0.17, cz - CS.rBot + 0.02);
+            g.add(vent);
+            for (const s of [-1, 1]) {   // 어깨 스톰 플랩 — 위 윤곽을 각지게 끊는다
+                const flap = new THREE.Mesh(new THREE.BoxGeometry(0.155, 0.020, 0.115), dark);
+                flap.position.set(s * 0.115, yTop - 0.055, cz - 0.045);
+                flap.rotation.z = -s * 0.22;
+                g.add(flap);
+            }
+        } else if (cv === 'panel') {
+            // 궤도 망토 — **강체 패널 3장**(천이 아니다). 각진 판이 계단으로 벌어져 윤곽이 꺾인다.
+            const glow = new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.6 });
+            for (let i = 0; i < 3; i++) {
+                for (const s of [-1, 1]) {
+                    const w = 0.135 - i * 0.018, h = 0.30 - i * 0.05;
+                    const p = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.022), trim);
+                    p.position.set(s * (0.102 + i * 0.098), yTop - 0.13 - i * 0.085, cz - 0.14 + i * 0.035);
+                    p.rotation.z = -s * (0.20 + i * 0.14);
+                    p.rotation.y = s * 0.30;
+                    g.add(p);
+                    const bar = new THREE.Mesh(new THREE.BoxGeometry(w * 0.72, 0.014, 0.026), glow);
+                    bar.position.set(s * (0.102 + i * 0.098), yTop - 0.13 - i * 0.085, cz - 0.14 + i * 0.035 + 0.014);
+                    bar.rotation.z = -s * (0.20 + i * 0.14);
+                    bar.rotation.y = s * 0.30;
+                    g.add(bar);
+                }
+            }
+        } else if (cv === 'stellar') {
+            // 항성 망토 — 역테이퍼(아래로 좁아진다)에 **광류 줄기**를 태워 꼬리로 흐르게.
+            const glow = new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.85 });
+            for (let i = 0; i < 5; i++) {
+                const t = (i / 4) * 2 - 1;
+                const [x, z] = atHem(t * 0.8, CS.rTop * 0.92);
+                const streak = new THREE.Mesh(new THREE.BoxGeometry(0.022, CS.len * (0.62 + (i % 2) * 0.22), 0.022), glow);
+                streak.position.set(x * 0.72, CS.y + 0.03, z * 0.72 + cz);
+                streak.rotation.z = -x * 0.9;
+                g.add(streak);
+            }
+            // ⚠️ 끝을 길게 빼면 **추(錘)** 로 읽힌다(1차 실측: 0.16 짜리 원뿔이 시계추처럼 매달렸다).
+            //    역테이퍼는 그 자체로 이미 뾰족하다 — 끝은 밑단에 **묻히는 마감**이면 충분하다.
+            const tip = new THREE.Mesh(new THREE.ConeGeometry(0.052, 0.085, 5), glow);
+            tip.position.set(0, yBot - 0.005, cz - CS.rBot * 0.45);
+            tip.rotation.x = Math.PI;
+            g.add(tip);
+        } else if (cv === 'rift') {
+            // 차원 망토 — 본체 호를 좁게 두고 **조각을 띄엄띄엄** 채운다. 조각 사이가 비어
+            //   바깥 윤곽이 끊기고, 떨어져 나간 파편 2개가 그 결손을 못 박는다.
+            const SHARD = [[-0.86, 0.30, 0.34], [-0.48, 0.20, 0.46], [0.44, 0.24, 0.40], [0.82, 0.34, 0.28]];
+            for (const [t, w, h] of SHARD) {
+                const [x, z] = atHem(t, CS.rBot * 0.95);
+                const sh = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.026), cloth);
+                sh.position.set(x, CS.y - 0.02 + (t > 0 ? 0.04 : -0.03), z + cz);
+                sh.rotation.y = Math.atan2(x, z);
+                sh.rotation.z = t * 0.20;
+                g.add(sh);
+            }
+            for (const [t, dy, sc] of [[-1.18, 0.10, 0.55], [1.10, -0.13, 0.42]]) {   // 떨어져 나간 파편
+                const [x, z] = atHem(t, CS.rBot * 1.28);
+                const f = new THREE.Mesh(new THREE.BoxGeometry(0.13 * sc + 0.05, 0.17 * sc + 0.05, 0.022), cloth);
+                f.position.set(x, CS.y + dy, z + cz);
+                f.rotation.y = Math.atan2(x, z);
+                f.rotation.z = t * 0.5;
+                g.add(f);
+            }
+        } else if (cv === 'wave') {
+            // 양자 망토 — **물결 밑단** + 뒤로 어긋난 **잔상 2겹**. 밑단이 사인으로 오르내려
+            //   매끈한 테와 갈리고, 잔상이 윤곽을 세 겹으로 만든다.
+            for (let i = 0; i < 13; i++) {
+                const t = (i / 12) * 2 - 1;
+                const [x, z] = atHem(t, CS.rBot);
+                const h = 0.075 + Math.sin(t * Math.PI * 2.2) * 0.055 + 0.055;
+                const lob = new THREE.Mesh(new THREE.BoxGeometry(0.062, h, 0.026), cloth);
+                lob.position.set(x, yBot + 0.01 - h / 2, z + cz);
+                lob.rotation.y = Math.atan2(x, z);
+                g.add(lob);
+            }
+            // ⚠️ 잔상을 **뒤로 많이 밀지 말 것** — 썸네일 카메라가 3/4 각도(ITEM_THUMB_DIR)라
+            //    뒤로 민 것이 화면에서는 **한쪽으로** 쏠려 잉크 무게중심을 끌고 간다.
+            //    실측: z 오프셋 0.045·반경 증가 0.035 로 두자 `probe-equip-framing` 이 양자 망토를
+            //    중심오차 x **−5.9%**(기준 4%)로 물었다. 잔상은 윤곽을 겹으로 보이게 하는 게 목적이라
+            //    조금만 어긋나도 된다 — 아래 값이 그 절반이다.
+            const ghost = new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.45, transparent: true, opacity: 0.5 });
+            for (let k = 1; k <= 2; k++) {
+                const arc = Math.PI * CS.arc;
+                const gh = new THREE.Mesh(new THREE.CylinderGeometry(CS.rTop + k * 0.016, CS.rBot + k * 0.018, CS.len * (1 - k * 0.10), 16, 1, true, Math.PI - arc / 2, arc), ghost);
+                gh.position.set(0, CS.y + k * 0.020, cz - k * 0.020);
+                gh.rotation.x = 0.1;
+                g.add(gh);
+            }
+        } else if (cv === 'tatter') {
+            // 어둠의 망토 — 짧은 본체 아래로 **길이가 제각각인 너덜 띠**. 밑변이 통째로 사라진다.
+            //   ⚠️ 길이를 고르게 주면 '술 장식'이라 되레 정돈돼 보인다 — 4:1 까지 벌린다.
+            const LEN = [0.42, 0.17, 0.33, 0.11, 0.38, 0.22, 0.46, 0.14, 0.29];
+            for (let i = 0; i < LEN.length; i++) {
+                const t = (i / (LEN.length - 1)) * 2 - 1;
+                const [x, z] = atHem(t * 0.94, CS.rBot);
+                const strip = new THREE.Mesh(new THREE.BoxGeometry(0.058, LEN[i], 0.024), cloth);
+                strip.position.set(x, yBot + 0.02 - LEN[i] / 2, z + cz);
+                strip.rotation.y = Math.atan2(x, z);
+                strip.rotation.z = (i % 2 ? 1 : -1) * 0.10;
+                g.add(strip);
+            }
+        } else if (cv === 'wings') {
+            // 대천사 망토 — **깃털 판을 좌우로 펼쳐** 세로 통이던 실루엣을 가로로 넓은 날개형으로.
+            //   (비평가 R2 ㉥ 가 성광 조끼에 요구한 것과 같은 방향 — 최상위 등급은 폭으로 읽힌다.)
+            const gold = mats ? this.tintOf(mats.body, 0.20) : cloth;
+            for (const s of [-1, 1]) {
+                for (let i = 0; i < 4; i++) {
+                    const len = 0.34 - i * 0.052;
+                    const f = new THREE.Mesh(new THREE.BoxGeometry(len, 0.085, 0.026), i % 2 ? gold : cloth);
+                    f.position.set(s * (0.152 + len * 0.42), yTop - 0.10 - i * 0.088, cz - 0.05 - i * 0.012);
+                    f.rotation.z = -s * (0.34 - i * 0.06);
+                    f.rotation.y = s * 0.22;
+                    g.add(f);
+                }
+            }
+        }
+    },
+
     // 시대별 재질 세트 — body(주 표면) / dark(부속·스트랩) / trim(시대 디테일) / glow 여부.
     // ⚠️ map은 albedo에 **곱해진다**. rockTex 베이스가 #b9bcc0(≈0.73), leatherTex가 #c9b8a6(≈0.76)이라
     //    맵을 얹는 계열은 color를 그만큼 올려두지 않으면 시대색이 통째로 한 단 어두워진다(실측 후 보정).
@@ -7007,10 +7236,26 @@ const Scene3D = {
             //    반응하지 않아 'UI 스티커'로 읽혔다(비평가 지적). 어깨를 감아 아래로 벌어지는
             //    **열린 원뿔 호**로 바꿔 곡률과 부피를 준다.
             const cz = o.backZ !== undefined ? o.backZ : -0.06;
-            const cape = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.34, 0.66, 14, 1, true, Math.PI * 0.62, Math.PI * 0.76), cloth);
-            cape.position.set(0, 0.6, cz);
+            // 🧭 시대 분기 — `cape` 는 **10시대 전부**에 배정된 조형인데 하나뿐이었다
+            //    (크로스-시대 게이트 실측: 45쌍 **전부** 미분화 · 최악 IoU **1.000 · 윤곽차 0.0000**,
+            //     `vest` 의 `tactical` 5칸보다도 넓은 저장소 최대의 덩어리였다).
+            // 🚨 **부속을 더 얹어서는 안 갈린다 — `vest` 분기에서 실측으로 배운 교훈이다.**
+            //    앞선 세션이 조끼 6칸에 가슴 부속을 시대별로 달아 놨는데도 96px 실루엣은 IoU 0.92~0.98
+            //    로 붙어 있었다(전부 몸통 반경 **안쪽**에서만 갈렸기 때문). 그래서 망토는 처음부터
+            //    **바깥 윤곽을 짓는 네 축**으로만 가른다: ⓐ 기장 ⓑ 퍼짐(위/아래 반경 비) ⓒ 밑단의
+            //    결(매끈/톱니/물결/결손) ⓓ 몸통 밖으로 나가는 덧구조(깃·날개·패널).
+            const cv = this.capeVariant(o.age);
+            const CS = this.capeShape(cv);
+            // 원뿔 호의 시작각은 **−Z(등 뒤) 중심** 규약을 따른다 — 아래 밑단 호 주석의 계산과 같은 셈.
+            //   `CylinderGeometry` 는 x = r·sin θ · z = r·cos θ 라 θ 가 **+Z 에서 +X 로** 재는 방위각이고,
+            //   등 뒤 중심이면 θ중심 = π 이므로 시작각 = π − 호폭/2.
+            const capeArc = Math.PI * CS.arc;
+            const cape = new THREE.Mesh(new THREE.CylinderGeometry(
+                CS.rTop, CS.rBot, CS.len, 16, 1, true, Math.PI - capeArc / 2, capeArc), cloth);
+            cape.position.set(0, CS.y, cz);
             cape.rotation.x = 0.1;
             g.add(cape);
+            this.addCapeEraDetail(g, cv, CS, cz, mats, cloth, body, rareHex);
             // 🚨 **밑단 호의 시작각을 `rotation.z` 로 주지 말 것 — 그게 '고양이 꼬리'의 정체다.**
             //    (2026-08-20 3D 스트림이 씬그래프 덤프로 확정. 비평가 R1 '교집합 밖' 지적
             //     "`cape` 10시대 공통의 고양이 꼬리 곡선이 망토로 안 읽힌다" 가 바로 이 버그다.)
@@ -7029,16 +7274,23 @@ const Scene3D = {
             //    호 폭이 0.76π(=136.8°)이니 시작각 = −90° − 68.4° = −158.4° = **−0.88π**.
             //    (옛 −0.62π 면 중심이 −43.2° 로 **오른쪽 뒤**를 향해, 밑단이 원뿔에서 45° 어긋난 채
             //     한쪽으로 삐져나왔다 — 실측 x중심 +0.113, 원뿔은 0.000.)
-            const hemG = new THREE.TorusGeometry(0.335, 0.024, 6, 22, Math.PI * 0.76);
-            hemG.rotateZ(-Math.PI * 0.88);      // ① XY 평면에서 호의 시작각을 원뿔과 맞추고
-            hemG.rotateX(Math.PI / 2);          // ② 그 뒤에 눕힌다
-            const hem = new THREE.Mesh(hemG, cloth);
-            hem.position.set(0, 0.275, cz);
-            g.add(hem);
+            //    치수는 시대 표(`CAPE_SHAPE`)를 따라간다 — 원뿔만 갈고 밑단을 고정값으로 두면
+            //    짧은 망토에서는 밑단이 허공에 남고 긴 망토에서는 중간에 띠가 하나 걸린다.
+            // ⚠️ 밑단을 아예 안 두는 변종이 있다(`hem: false`) — 톱니·물결·결손이 밑단의 **결**
+            //    자체를 짓는 조형(`leaf`·`tatter`·`rift`·`wave`)에서는 매끈한 테가 그 결을 지운다.
+            if (CS.hem !== false) {
+                const hemArc = Math.PI * CS.arc;
+                const hemG = new THREE.TorusGeometry(CS.rBot - 0.005, 0.024, 6, 22, hemArc);
+                hemG.rotateZ(-Math.PI / 2 - hemArc / 2);   // ① XY 평면에서 호의 시작각을 원뿔과 맞추고
+                hemG.rotateX(Math.PI / 2);                 // ② 그 뒤에 눕힌다
+                const hem = new THREE.Mesh(hemG, cloth);
+                hem.position.set(0, CS.y - CS.len / 2, cz);
+                g.add(hem);
+            }
             // 어깨 걸쇠 — 망토가 무엇에 매달렸는지 보여 준다(부유 인상 제거)
             for (const dx of [-0.16, 0.16]) {
                 const clasp = new THREE.Mesh(new THREE.SphereGeometry(0.042, 10, 8), body);
-                clasp.position.set(dx, 0.9, cz + 0.09);
+                clasp.position.set(dx, CS.y + CS.len / 2, cz + 0.09);
                 g.add(clasp);
             }
         }

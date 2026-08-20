@@ -35,6 +35,7 @@ const PROF_MIN = 0.055;
 // 스타일 전체를 마쳤으면 `'*'` 한 줄로 적는다.
 const GATED = {
     vest: ['interstellar', 'multiverse', 'quantum', 'underworld'],   // starcoat · wire · orbit · ashen
+    cape: ['*'],                                                     // 10시대 전부 시대 조형으로 갈랐다
 };
 const LIST = !!process.env.LIST;
 const isGated = (style, age) => {
