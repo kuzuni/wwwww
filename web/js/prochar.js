@@ -1485,55 +1485,67 @@ const ProChar = {
         R.handL = R.arms[0].handMount;
         R.handR = R.arms[1].handMount;
 
-        // 방패 (왼손) — 축소 라운드 셸 + 림 리벳 + 문장 필드(등급색 틴트 대상) + 방사 보강대
+        // 방패 (왼손) — 🧊 **voxel 히터 실드** (화풍 확정 2026-08-20: 원형 셸/디스크/토러스를 전부 폐기).
+        //   비평가 2인이 공통 2순위로 "방패는 매끈한 원형 디스크"라 지적한 그것이다 → 조형을
+        //   **위 넓고 아래 뾰족한 히터(방패) 실루엣**으로 바꿔 '디스크'로 안 읽히게 하고, 스틸판·금
+        //   테·문장·보스·리벳을 전부 축정렬 큐브 적층으로 옮긴다. 곡면 생성자(Sphere×3·Torus×1·
+        //   Cylinder×2) 6개가 여기서 0이 된다(래칫 174→168).
+        //   ⚠️ 옛 개방 셸(SphereGeometry phi 0.35π)이 안쪽에서 배경을 비치던 버그(probe-shield.js
+        //     안쪽 기여 0픽셀)는 **판이 앞뒤로 꽉 찬 큐브 덩어리라 구조적으로 사라진다**(양면 그린다).
         const shieldG = new THREE.Group();
-        // ⚠️ 이 돔은 thetaLength 0.35π의 **뚜껑 없는 개방 셸**이다. 기본 side=FrontSide면
-        // 오목한 안쪽에서 볼 때 한 픽셀도 그리지 않아, 문장 원판(r 0.105)과 금색 림(r 0.155)
-        // 사이 고리 영역으로 **배경이 그대로 비친다**(probe-shield.js: 안쪽 시점에서 돔 기여
-        // 0픽셀, domeSide=FrontSide, domePhi=1.1 실측 / 비평가 B가 "림 안으로 풀과 꽃이
-        // 보인다"고 지목한 것의 실체). 팔이 스윙하며 안쪽이 카메라를 향하는 순간이 실제로 있다.
-        const shieldShellMat = steel();
-        shieldShellMat.side = THREE.DoubleSide;   // steel()은 호출마다 새 인스턴스라 다른 파츠에 영향 없음
-        const shieldBody = new THREE.Mesh(
-            new THREE.SphereGeometry(0.185, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.35), shieldShellMat);
-        shieldBody.rotation.x = Math.PI / 2;
-        shieldBody.scale.set(1, 1, 1.25);
-        const shieldRim = new THREE.Mesh(new THREE.TorusGeometry(0.155, 0.017, 6, 22), gold);
-        // 문장 필드 — 중앙 원판(장비 없을 땐 청강색, 갑옷 장착 시 등급색)
-        R.shieldFaceMat = new THREE.MeshStandardMaterial({ color: 0x3f5a74, metalness: 0.55, roughness: 0.42 });
-        const face = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.016, 20), R.shieldFaceMat);
-        face.rotation.x = Math.PI / 2;
-        face.position.z = 0.055;
-        const boss = new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 8), gold);
-        boss.position.z = 0.085;
-        boss.scale.z = 0.7;
-        // 방사 보강대 4개 + 림 리벳 8개
-        for (let i = 0; i < 4; i++) {
-            const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.13, 0.012), gold);
-            const a = i * Math.PI / 2 + Math.PI / 4;
-            spoke.position.set(Math.cos(a) * 0.062, Math.sin(a) * 0.062, 0.062);
-            spoke.rotation.z = a + Math.PI / 2;
-            shieldG.add(spoke);
+        {
+            const SVOX = 0.024;                  // 방패 전용 칸 — 굵은 블록으로 읽히게 리그 VOX(0.016)보다 크게
+            const yTop = 7, yBot = -8;
+            // 행별 반폭(칸). 위는 각진 사각(모서리 계단 베벨) → 아래로 좁아져 뾰족한 끝 = 히터 실루엣.
+            const halfW = (y) => {
+                if (y >= 5) return 6 - (y - 5);          // y5:6 y6:5 y7:4 — 윗변 모서리 계단
+                if (y >= -1) return 6;                    // 곧은 옆면
+                const t = -1 - y;                         // 1..8 아래로
+                return Math.max(1, Math.round(6 * Math.sqrt(Math.max(0, 1 - (t / 7.6) * (t / 7.6)))));
+            };
+            // 스틸판 — 앞뒤 2칸 두께(꽉 찬 덩어리라 안쪽 관통 없음). voxSteel 은 R.armorMats 에 실려 등급 틴트를 받는다.
+            const plate = [];
+            for (let y = yBot; y <= yTop; y++) {
+                const hw = halfW(y);
+                for (let x = -hw; x <= hw; x++) for (let z = 0; z <= 1; z++) plate.push({ x, y, z, c: 0xffffff });
+            }
+            const plateMesh = Voxel.build(plate, { size: SVOX, material: voxSteel('steel'), color: 0xffffff, center: false, jitter: 0.05 });
+            // 금 테 — 실루엣 바깥 한 칸을 금색으로 한 칸 앞(z=2)으로 돌출시켜 굵은 블록 테. goldVox 는 태싯 블록에서 내려온다.
+            const rim = [];
+            for (let y = yBot; y <= yTop; y++) {
+                const hw = halfW(y), hwUp = halfW(Math.min(yTop, y + 1)), hwDn = halfW(Math.max(yBot, y - 1));
+                for (let x = -hw; x <= hw; x++)
+                    if (Math.abs(x) === hw || y === yTop || y === yBot || Math.abs(x) > hwUp || Math.abs(x) > hwDn)
+                        rim.push({ x, y, z: 2, c: 0xffffff });
+            }
+            const rimMesh = Voxel.build(rim, { size: SVOX, material: goldVox, color: 0xd9a441, center: false, jitter: 0.07 });
+            // 문장 필드 — 중앙 블록 마름모(장비 없을 땐 청강색, 갑옷 장착 시 등급색). vertexColors 로 틴트가 흰 정점색에 곱해진다.
+            R.shieldFaceMat = new THREE.MeshStandardMaterial({ color: 0x3f5a74, metalness: 0.55, roughness: 0.42, vertexColors: true, flatShading: true });
+            const field = [];
+            for (let y = -2; y <= 3; y++) for (let x = -3; x <= 3; x++)
+                if (Math.abs(x) + Math.abs(y - 0.5) <= 3.5) field.push({ x, y, z: 2, c: 0xffffff });
+            const fieldMesh = Voxel.build(field, { size: SVOX, material: R.shieldFaceMat, color: 0xffffff, center: false, jitter: 0.04 });
+            // 중앙 보스 — 금 큐브 젬(팔면체), 문장 위로 돌출
+            const bossMesh = Voxel.build(Voxel.at(Voxel.gem(2.2, 0xffffff), 0, 0, 4), { size: SVOX, material: goldVox, color: 0xd9a441, center: false, jitter: 0.05 });
+            // 림 리벳 — 실루엣 둘레 6곳 작은 금 큐브(z=3, 테보다 반 칸 앞)
+            for (const rp of [[0, 7], [-5, 4], [5, 4], [-5, -1], [5, -1], [0, -8]]) {
+                shieldG.add(Voxel.build(Voxel.at(Voxel.box(1, 1, 1, 0xffffff), rp[0], rp[1], 3), { size: SVOX, material: goldVox, color: 0xd9a441, center: false, jitter: 0 }));
+            }
+            // 뒷판(니어블랙) — ① 두께감 ② 비평가 공통 1위 '진짜 어두운 값 부재'에 면적 보탬 ③ 손잡이 근거.
+            //   실루엣 그대로 z=-1 한 칸. deepHide 는 map/bump 를 물어 vertexColors 를 안 켠 매끈 재질이라
+            //   전용 voxel 재질(니어블랙 무광)을 쓴다.
+            const backMat = new THREE.MeshStandardMaterial({ color: 0x241f1b, metalness: 0.12, roughness: 0.9, envMapIntensity: 0.12, vertexColors: true, flatShading: true });
+            const back = [];
+            for (let y = yBot; y <= yTop; y++) { const hw = halfW(y); for (let x = -hw; x <= hw; x++) back.push({ x, y, z: -1, c: 0xffffff }); }
+            const backMesh = Voxel.build(back, { size: SVOX, material: backMat, color: 0xffffff, center: false, jitter: 0.05 });
+            shieldG.add(plateMesh, rimMesh, fieldMesh, bossMesh, backMesh);
+            // 팔을 지나는 가로 가죽 스트랩 2줄(손잡이) — Box 는 곡면이 아니라 그대로 둔다(뒷판보다 뒤).
+            for (const sy of [-1, 1]) {
+                const strap = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.028, 0.016), deepHide);
+                strap.position.set(0, sy * 0.062, -0.045);
+                shieldG.add(strap);
+            }
         }
-        for (let i = 0; i < 8; i++) {
-            const riv = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 5), gold);
-            const a = i * Math.PI / 4;
-            riv.position.set(Math.cos(a) * 0.155, Math.sin(a) * 0.155, 0.012);
-            shieldG.add(riv);
-        }
-        // 뒷판 + 가죽 손잡이 끈 — ① 개방 셸을 실제로 막아 두께가 있는 방패로 읽히게 하고
-        // ② 비평가 2인이 공통 1위로 지목한 '캐릭터에 진짜 어두운 값이 없다'는 결함에
-        // 니어블랙 가죽 면적을 보태며 ③ "들고 있지 않고 떠 있다"는 지적(손잡이 부재)을 해소한다.
-        const shieldBack = new THREE.Mesh(new THREE.CylinderGeometry(0.163, 0.163, 0.012, 20), deepHide);
-        shieldBack.rotation.x = Math.PI / 2;
-        shieldBack.position.z = -0.012;
-        shieldG.add(shieldBack);
-        for (const sy of [-1, 1]) {   // 팔을 지나는 가로 스트랩 2줄 (뒷판보다 앞=팔 쪽)
-            const strap = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.028, 0.016), deepHide);
-            strap.position.set(0, sy * 0.062, -0.03);
-            shieldG.add(strap);
-        }
-        shieldG.add(shieldBody, shieldRim, face, boss);
         shieldG.rotation.y = -Math.PI / 2;
         shieldG.position.set(-0.06, 0.03, 0);
         R.handL.add(shieldG);
