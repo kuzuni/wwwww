@@ -13006,6 +13006,9 @@ const Scene3D = {
         slime: { rate: 6, bob: 0.12, bobPow: 1.0, jellyAmp: 0.16, sq: 0 },
         _default: { rate: 8, bob: 0.055, bobPow: 1.0, roll: 0.05, hip: 0.8, arm: 0.65, lean: 0, sq: 0.08 },
     },
+    // 적 공용 복셀 한 변(월드). `monsterMesh` 의 종 조형과 `bossRegalia` 의 관·가시가 **같은 벽돌**을
+    // 써야 보스가 한 세계로 읽힌다(보스는 g 를 통째로 1.9배 하므로 둘 다 같이 커진다).
+    ENEMY_VS: 0.05,
     BOSS_SCALE: 1.9,
     // 보스는 **같은 메시를 그대로 키운 것**이라(g.scale 1.9) 박자까지 같으면 '크기만 키운 장난감'으로
     // 읽힌다 — 큰 짐승이 작은 짐승과 같은 보폭으로 종종거리는 게 정확히 그 인상이다.
@@ -13155,11 +13158,18 @@ const Scene3D = {
             return x;
         };
 
-        const gold = new THREE.MeshStandardMaterial({ color: 0xffd54f, emissive: 0xffa000, emissiveIntensity: 0.32, metalness: 0.85, roughness: 0.3 });
-        const goldD = new THREE.MeshStandardMaterial({ color: 0xc79a2e, emissive: 0xff8f00, emissiveIntensity: 0.18, metalness: 0.85, roughness: 0.42 });
+        // 🧊 voxel 레갈리아 — 적 7종이 큐브가 된 뒤 **관만 매끈 프리미티브로 남으면** 보스가
+        //    '큐브 몸에 씌운 반지'가 된다. 띠는 큐브 링, 가시는 계단 테이퍼, 보석은 큐브 젬으로.
+        //    ⚠️ 재질에 `vertexColors` 가 없으면 큐브별 색변화·이음새 AO 가 조용히 무시된다.
+        const gold = new THREE.MeshStandardMaterial({ color: 0xffd54f, emissive: 0xffa000, emissiveIntensity: 0.32, metalness: 0.85, roughness: 0.3, vertexColors: true, flatShading: true });
+        const goldD = new THREE.MeshStandardMaterial({ color: 0xc79a2e, emissive: 0xff8f00, emissiveIntensity: 0.18, metalness: 0.85, roughness: 0.42, vertexColors: true, flatShading: true });
         // 보석은 **종 키 컬러의 보색** — 몸과 같은 색이면 관이 몸에 묻는다(종별 팔레트 원칙의 연장)
         const gemC = base.clone().offsetHSL(0.5, 0.25, 0.12);
-        const gemM = new THREE.MeshStandardMaterial({ color: gemC, emissive: gemC, emissiveIntensity: 0.95, metalness: 0.15, roughness: 0.18 });
+        const gemM = new THREE.MeshStandardMaterial({ color: gemC, emissive: gemC, emissiveIntensity: 0.95, metalness: 0.15, roughness: 0.18, vertexColors: true, flatShading: true });
+        const VS = this.ENEMY_VS;
+        const vr = (r) => Math.max(0.5, r / VS);                         // 월드 반지름 → 칸(0.5 클램프)
+        const vh = (h) => Math.max(1, Math.round(h / VS));               // 월드 높이 → 층 수
+        const vxr = (voxels, m) => Voxel.build(voxels, { size: VS, jitter: 0.04, ao: 0.9, center: true, material: m, color: 0xffffff });
         const put = (mesh, tag, parent) => { mesh.userData.bossRegalia = tag; (parent || g).add(mesh); return mesh; };
 
         // ⑴ 관 — 몸 꼭대기 바로 아래를 **그 높이의 실제 반경으로** 감는다.
@@ -13200,9 +13210,15 @@ const Scene3D = {
         const crownG = new THREE.Group();
         crownG.position.set(ctr.x, bandY, ctr.z);
         g.add(crownG);
-        const bandR = headR * 0.98;                      // 표면 살짝 안쪽 — 물려야 '머리에 낀 띠'로 읽힌다
-        const band = put(new THREE.Mesh(new THREE.TorusGeometry(bandR, headR * 0.15, 8, 18), gold), 'crown', crownG);
-        band.rotation.x = Math.PI / 2;
+        // 표면 살짝 안쪽 — 물려야 '머리에 낀 띠'로 읽힌다.
+        // 🚨 voxel 링으로 바꾸면서 0.98 → 0.94 로 한 단 더 물렸다. 계단 링과 계단 두상은 **격자가 서로
+        //    독립**이라(둘 다 자기 파츠 중심 기준) 방위에 따라 최대 한 칸이 어긋난다 — 고블린이 rGap
+        //    0.048(허용 0.05)로 경계에 붙었다. 더 물리면 그 어긋남이 살 속으로 들어가 없어진다.
+        const bandR = headR * 0.94;
+        // 큐브 링 — 토러스 대체. 토러스의 (중심반경 bandR, 튜브 headR*0.15) 를 (바깥반경, 두께, 높이)로 옮긴다.
+        // ⚠️ `rotation.x = π/2` 는 **필요 없다** — `Voxel.ring` 은 이미 xz 평면에 눕혀 나온다.
+        //    토러스 시절 코드를 베끼며 회전을 같이 옮기면 링이 세로로 서서 머리를 관통한다.
+        put(vxr(Voxel.ring(vr(bandR + headR * 0.15), vh(headR * 0.30), vh(headR * 0.30)), gold), 'crown', crownG);
         // 가시 **높이**만 몸 크기에 연동한다 — 머리가 가는 종(슬라임 돔·박쥐)은 headR 이 작아
         // 관이 '가느다란 반지'로 읽혔다(화면 기여 248·179px, 통과선 120 바로 위). 높이는 밑동 링
         // 위치를 안 건드리므로 **접촉(rGap)을 해치지 않고** 존재감만 올린다. 밑동 반경은 실측값 그대로.
@@ -13213,14 +13229,14 @@ const Scene3D = {
             const a = (i / SPIKES) * Math.PI * 2;
             const front = i === 0;                       // 앞 가시는 크게 — 정면에서 관이 읽히는 지점
             const h = spikeH * (front ? 1.5 : 1);
-            const sp = put(new THREE.Mesh(new THREE.ConeGeometry(headR * 0.17 * (front ? 1.15 : 1), h, 4), front ? gold : goldD), 'crown', crownG);
+            const sp = put(vxr(Voxel.taper(vr(headR * 0.17 * (front ? 1.15 : 1)), 0.5, vh(h)), front ? gold : goldD), 'crown', crownG);
             sp.position.set(Math.sin(a) * bandR * 0.92, headR * 0.10 + h / 2, Math.cos(a) * bandR * 0.92);
             // 바깥으로 벌린다 — 수직으로 세우면 '원통에 박은 못'으로 읽힌다
             sp.rotation.z = -Math.sin(a) * 0.26;
             sp.rotation.x = Math.cos(a) * 0.26;
             crownTop = Math.max(crownTop, headR * 0.10 + h);
         }
-        const jewel = put(new THREE.Mesh(new THREE.OctahedronGeometry(Math.min(orn * 0.22, headR * 0.5)), gemM), 'crown', crownG);
+        const jewel = put(vxr(Voxel.gem(vr(Math.min(orn * 0.22, headR * 0.5))), gemM), 'crown', crownG);  // 큐브 젬 — |x|+|y|+|z| ≤ r 이라 계단이 45° 로 떨어진다(팔면체와 같은 언어)
         jewel.position.set(0, headR * 0.05, bandR * 1.0);
         jewel.scale.set(1, 1.25, 0.55);
         crownTop += bandY;
@@ -13236,7 +13252,7 @@ const Scene3D = {
             const yTop = topAt(zx, zz, Math.max(headR * 0.55, bodyH * 0.05));
             if (!isFinite(yTop)) continue;               // 그 자리에 몸이 없으면 건너뛴다
             const h = headR * 0.95 * RIDGE[i];
-            const sp = put(new THREE.Mesh(new THREE.ConeGeometry(headR * 0.19 * RIDGE[i], h, 5), i % 2 ? goldD : gold), 'ridge');
+            const sp = put(vxr(Voxel.taper(vr(headR * 0.19 * RIDGE[i]), 0.5, vh(h)), i % 2 ? goldD : gold), 'ridge');
             sp.position.set(zx, yTop - h * 0.18, zz);    // 밑동을 몸 안에 물린다 — 안 그러면 등에서 뜬다
             sp.rotation.x = -0.55;                       // 뒤로 눕혀 등줄기를 따라간다
         }
@@ -13246,7 +13262,7 @@ const Scene3D = {
             const y = bodyBot + bodyH * 0.72;
             const sx = sideAt(y, bodyH * 0.06);
             if (sx > 0.03) for (const s of [-1, 1]) {
-                const horn = put(new THREE.Mesh(new THREE.ConeGeometry(headR * 0.22, headR * 1.1, 5), gold), 'horn');
+                const horn = put(vxr(Voxel.taper(vr(headR * 0.22), 0.5, vh(headR * 1.1)), gold), 'horn');
                 horn.position.set(s * sx * 0.86, y, 0);
                 horn.rotation.z = -s * 0.62;             // 바깥·위로 뻗는다
             }
@@ -13291,7 +13307,7 @@ const Scene3D = {
         //      재질 색은 정점 색에 **곱해지므로** 종 키 컬러(base)를 그대로 물려도 된다.
         //   ⚠️ `center: false` 로 두면 복셀 좌표가 곧 로컬 좌표(× size)다 — 바닥 기준(y=0)으로
         //      깎은 프로파일이 접지선을 그대로 유지한다. 파츠를 피벗에 달 때만 center 를 쓸 것.
-        const VS = 0.05;   // 적 공용 복셀 한 변(월드). 슬라임 전신이 13칸 = 0.65
+        const VS = this.ENEMY_VS;   // 적 공용 복셀 한 변(월드). 슬라임 전신이 13칸 = 0.65
         const vx = (voxels, o) => Voxel.build(voxels, Object.assign({ size: VS, jitter: 0.05, ao: 0.9, center: false }, o || {}));
         // 월드 반지름 → 칸. 🚨 **0.5 로 클램프한다** — `Voxel.taper`/`ellipse` 는 반지름이 0.5 미만이면
         //   층을 통째로 버려서(칸 중심 판정) **빈 메시**가 나온다. 임프 하완(r 0.024 = 0.48칸)처럼
