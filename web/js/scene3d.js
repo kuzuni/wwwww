@@ -14409,19 +14409,21 @@ const Scene3D = {
     // 동시에 설 수 있다. 예전처럼 자리를 3개만 손으로 박아 두면 4번째부터 `spots[i]`가 undefined라
     // 그 자리에서 터진다 — 마리 수에 따라 자리를 만들어 내는 함수로 바꾼다.
     //
-    // 앞 3자리는 예전 값을 그대로 쓴다. 저 좌표는 "z<=0은 영웅 몸통 뒤에 가린다 / 탈것을 타면
-    // 탈것 다리가 펫을 자른다"를 실측으로 잡아낸 결과라, 흔한 3마리 이하 구성의 그림을 지키려면
-    // 새 공식으로 덮어쓰지 않는 편이 낫다. 4번째부터만 바깥쪽 호를 만들어 붙인다.
+    // 펫 대열은 **영웅 x축 후방(−x, 진행 반대쪽)** 이다 — 사용자 지시 2026-08-20 `pet-size-place`:
+    // "1.5배 키우고 플레이어 뒤에 놔라. x축으로 뒤로." 종전 '카메라 쪽(z+) 앞줄 부채꼴'을 후방
+    // 종대로 갈았다. 깊이(z)는 여전히 **양수만** 쓴다 — z<=0 은 영웅 몸통에 깊이로 가리는 자리라는
+    // 과거 실측(probe-pet-occlusion)이 그대로 유효하고, x 후방 배치는 z 를 건드릴 이유가 없다.
+    // z 대역은 0.35~2.6 안에서만 편다 — 전경 소품 사고 대역(z 2.6~2.8 관통, scene3d.js 근경 앵커
+    // 🚨 주석)과 z≥3.95 높이캡 전제를 침범하지 않는 상한이다.
     PET_ROW0: {
-        mounted:  [[-1.16, 1.52], [0.06, 2.02], [1.14, 1.46]],
-        unmounted: [[-0.72, 1.18], [0.02, 1.62], [0.68, 1.12]],
+        mounted:  [[-1.85, 1.45], [-2.85, 0.80], [-2.75, 2.00]],
+        unmounted: [[-1.35, 1.30], [-2.35, 0.70], [-2.45, 1.95]],
     },
-    // 4번째부터의 호. 두 가지를 동시에 만족해야 한다:
-    //  ⑴ 카메라(z 8.2)로 다가오면 화면을 가린다 → **깊이(rz)보다 폭(rx)을 훨씬 빨리** 넓힌다.
-    //  ⑵ 행 사이가 붙으면 안 된다 → rzStep이 너무 작으면 앞뒤 행이 0.4유닛까지 겹친다(실측으로 걸림).
-    //     행 안쪽 간격(gap)만 보고 행 간격을 안 보면 이 함정에 빠진다 — 둘 다 tools/test-slot-unlimited.js가 잰다.
-    // hmin: 정면(각 0) 쪽으로 비워 둘 각도. 펫은 정면도 써야 하니 0.
-    PET_ARC: { rx0: 3.2, rxStep: 1.4, rz0: 2.35, rzStep: 0.78, hmin: 0, hmax: 1.18, gap: 1.15, mountedRx: 0.45, mountedRz: 0.42 },
+    // 4번째부터는 후방(−x) 격자 종대 — cols 개 z 슬롯(rz0 + k·rzStep)을 채우고 다음 행은 x 로
+    // rxStep 더 물러난다. 홀수 행은 z 를 반 칸 밀어(지그재그) 같은 열끼리 일렬로 안 겹치게 한다.
+    // 화면 실측(2026-08-20 투영 스윕): sx −2.8 · z≤2.0 까지 NDC 안 — 4번째 이후는 어차피
+    // 화면 밖으로 밀려나는 수가 있고(종전 앞줄 호도 3행부터 그랬다), 겹침·결정성만 지킨다.
+    PET_ARC: { rear: true, rx0: 3.45, rxStep: 1.15, rz0: 0.35, rzStep: 0.64, cols: 4, mountedRx: 0.5, mountedRz: 0.1 },
     // 타지 않은 탈것(따라다니는 무리)은 영웅 **뒤쪽** 호에 세운다 — 덩치가 커서 앞에 두면
     // 전투선과 펫을 통째로 가린다. hmin > 0 으로 **정면 뒤(각 0)를 비워** 영웅 몸통에 가리는 자리를 없앤다.
     MOUNT_ARC: { rx0: 2.5, rxStep: 1.5, rz0: 1.7, rzStep: 0.85, zBase: -0.35, hmin: 0.32, hmax: 1.2, gap: 1.4 },
@@ -14432,6 +14434,11 @@ const Scene3D = {
     formationSpot(i, arc, row0) {
         if (row0 && i < row0.length) return row0[i];
         let n = i - (row0 ? row0.length : 0);
+        // 후방(−x) 격자 종대 (rear: true — 펫 대열). z 는 항상 rz0 이상 양수라 깊이 가림이 없다.
+        if (arc.rear) {
+            const r = (n / arc.cols) | 0, k = n % arc.cols;
+            return [-(arc.rx0 + r * arc.rxStep), arc.rz0 + k * arc.rzStep + (r % 2 ? arc.rzStep * 0.5 : 0)];
+        }
         const span = arc.hmax - arc.hmin;
         for (let r = 0; r < 64; r++) {
             const rx = arc.rx0 + r * arc.rxStep, rz = arc.rz0 + r * arc.rzStep;
@@ -14548,8 +14555,8 @@ const Scene3D = {
         // 탈것을 타고 있으면 탈것 풋프린트를 피해 앞 3자리를 넓게 쓰고, 생성 호도 그만큼 밀어낸다
         const mounted = !!Mounts.ridden();
         const row0 = mounted ? this.PET_ROW0.mounted : this.PET_ROW0.unmounted;
-        // 탑승 중 row0은 더 넓고 더 깊은 자리라, 생성 호도 폭·깊이 양쪽으로 같이 밀어내야
-        // 4번째 펫이 3번째 자리에 붙어 선다(rx만 밀면 앞뒤로 겹친다 — 실측으로 걸렸다).
+        // 탑승 중 row0은 x 로 더 물러난 자리라, 후방 격자(rx0)도 같이 밀어내야
+        // 4번째 펫이 3번째 자리에 붙어 서지 않는다(row0 만 밀면 격자 1행과 겹친다).
         const arc = mounted
             ? { ...this.PET_ARC, rx0: this.PET_ARC.rx0 + this.PET_ARC.mountedRx, rz0: this.PET_ARC.rz0 + this.PET_ARC.mountedRz }
             : this.PET_ARC;
@@ -14559,8 +14566,10 @@ const Scene3D = {
             const g = new THREE.Group();
             const mesh = this.makePetMesh(p.name);
             this.applyAscendDecor(mesh, p.stars, 'pet'); // 승천 데코는 스케일 전 원본 치수 기준 (ascend-design-tiers)
-            // 등급이 높을수록 큼직하게
-            mesh.scale.setScalar(0.85 + RARITIES.indexOf(p.rarity) * 0.14);
+            // 등급이 높을수록 큼직하게. ×1.5 는 `pet-size-place`(사용자 지시 2026-08-20 "펫 크기
+            // 1.5배") — 등급 스케일에 곱으로 얹는다. 커진 몸이 화면을 안 막는 건 배치가 후방(−x)
+            // 이라서다 — 스케일만 되돌리거나 배치만 되돌리면 가림 전제가 깨진다(한 벌).
+            mesh.scale.setScalar((0.85 + RARITIES.indexOf(p.rarity) * 0.14) * 1.5);
             g.add(mesh);
             // 🚨 파츠 핸들(관절·날개·꼬리·집게…)을 **래퍼 그룹으로 올린다**. 이걸 안 해서
             //    update 의 `ud.wings`/`ud.tail`/`ud.claws`… 가 전부 undefined 였고, 펫 파츠 애니가
@@ -14568,14 +14577,12 @@ const Scene3D = {
             //    탈것은 mountG 에서 같은 값을 올려 준다 — 펫만 빠져 있었다.
             Object.assign(g.userData, mesh.userData);
             g.rotation.y = 0.55; // 적 방향 3/4
-            // 펫은 전부 **카메라 쪽(z+) 앞줄**에 부채꼴로 세운다 — 카메라가 (0.15, 3.7, 8.2)에서 내려다보므로
-            // z가 0 이하인 자리는 영웅 몸통 뒤에 그대로 가린다(기존 2번 자리 z=-0.65가 사용자가 지적한 그 자리).
-            // x는 영웅~적 교전선(HERO_X -1.35 ~ MELEE_X -0.5)을 피해 좌우로 벌리고, z를 엇갈려 서로도 안 겹치게.
-            // 탈것은 이제 영웅 발밑(탑승)이라 예전처럼 오른쪽 자리를 비워 둘 필요가 없다.
-            // 탈것을 타면 탈것의 다리·몸통이 펫을 다시 가린다(비평가 실측: 3마리 중 2마리가 탈것 다리에
-            // 잘리고 1마리는 배 밑으로 들어갔다). 영웅만 있을 때 기준으로 잡은 반경이라 탈것 풋프린트를
-            // 못 피하는 것 — 탈것 장착 중에는 좌우로 더 벌리고 카메라 쪽으로 더 당긴다.
-            // 4번째부터는 formationSpot이 바깥 호에 자리를 만들어 준다(출전 제한 해제, 최대 25마리).
+            // 펫은 전부 **영웅 x축 후방(−x)** 에 세운다(사용자 지시 `pet-size-place` — "플레이어 뒤에,
+            // x축으로 뒤"). 깊이(z)는 여전히 양수 대역(0.35~2.6)만 쓴다 — z<=0 은 영웅 몸통에 깊이로
+            // 가리는 자리고(과거 2번 자리 z=-0.65 실측), 후방 배치는 x 로만 밀면 된다. 교전선은 +x
+            // 쪽이라 후방 펫이 전투·적을 가릴 일도 없다. 탈것을 타면 탈것 풋프린트(영웅 발밑)가
+            // 넓어지므로 mounted row0/mountedRx 로 x 를 더 물리고 z 를 조금 넓힌다.
+            // 4번째부터는 formationSpot이 후방 격자에 자리를 만들어 준다(출전 제한 해제, 최대 25마리).
             const spot = this.formationSpot(i, arc, row0);
             g.position.set(Combat.HERO_X + spot[0] + this.worldX, 0.4, spot[1]);
             g.userData.home = g.position.clone();
