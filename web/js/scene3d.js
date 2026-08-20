@@ -1414,10 +1414,15 @@ const Scene3D = {
             stone: 0x7d6a22, emissive: { crack: 0xffd54f, intensity: 0.95, glow: 0xffc107, light: 0xffd54f },
         },
         obsidian: { // 22 흑요석 지대 — 식은 검은 유리. 발광을 **꺼서** lava kin 에서 완전히 빠져나온다
+            // 🎨 유리 글린트 하이라이트를 밝은 청보라로 (map-palette-unify 5차 — B 3차 채점 ⑵
+            //    'ch22 하단 절반 디테일 없는 순흑 · 흑요석 보라/청 하이라이트 부재'). 니어블랙 지면은
+            //    실루엣 대비용이라 **명도는 못 올린다**(값 구조 crush 0.9·dark 30% 유지) — 대신 지면에
+            //    흩은 강조 octa 를 **빛을 받은 유리면**처럼 밝은 청보라(0xb4c4f0)·조금 크게(0.042)로 올려
+            //    화면 하단이 순흑 공백이 아니라 '빛을 튕기는 검은 유리밭'으로 읽히게 한다(성긴 강조라 median 무영향).
             kin: 'lava', tint: [-0.02, -0.5, -0.16], ridge: 'jagged',
             props: { p: [['makeRockSpire', 1.05], ['makeVolcanicRock', 0.9]], r: [['makeSlab', 0.75], ['makeBoulder', 0.66]] },
             scatter: { geo: 'octa', r: 0.05, color: 0x2a2d38, n: 170, flat: true, tint: 0.12 },
-            accent: { geo: 'octa', r: 0.038, color: 0x7986cb, n: 46, basic: true },
+            accent: { geo: 'octa', r: 0.042, color: 0xb4c4f0, n: 46, basic: true },
             stone: 0x4e5464, emissive: null, fog: [11, 28],
         },
         doomland: { // 25 종말의 땅 — 최종 챕터. 핏빛 균열 + 고사목 + 뼈. 화면에서 가장 어두운 지면
