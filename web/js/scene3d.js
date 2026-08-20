@@ -21660,6 +21660,28 @@ const Scene3D = {
 
     // 신성한 가호 — 육각 결계 **돔**이 탁 닫힌다. 회복계 중 유일하게 몸을 **껍질로 감싼다**
     // (기둥은 축·붕대는 띠·이건 면) — 신화 등급이라 화면에서 가장 큰 지원 연출이어도 된다.
+    // 결계 복셀 지오메트리(캐시·반지름 1 정규화) — 'dome' 반구 한 칸 두께 껍질 / 'rib' 경선 사분호
+    // (XY 평면, +x 지면 → +y 천장 — 종전 TorusGeometry(thetaLength π/2) 와 같은 피벗·방향이라
+    // rotation.y 배치가 그대로 산다). center:false — 피벗이 구/호의 중심이어야 한다.
+    voxWardGeo(part) {
+        const key = part === 'rib' ? '_voxWardRibGeo' : '_voxWardDomeGeo';
+        if (!this[key]) {
+            const R = 10, vox = [];
+            if (part === 'rib') {
+                for (let gx = 0; gx <= R; gx++) for (let gy = 0; gy <= R; gy++) {
+                    const d = Math.hypot(gx, gy);
+                    if (d <= R + 0.45 && d >= 8.95) vox.push({ x: gx, y: gy, z: 0 });
+                }
+            } else {
+                for (let gx = -R; gx <= R; gx++) for (let gy = 0; gy <= R; gy++) for (let gz = -R; gz <= R; gz++) {
+                    const d = Math.hypot(gx, gy, gz);
+                    if (d <= R + 0.45 && d >= 9.0) vox.push({ x: gx, y: gy, z: gz });
+                }
+            }
+            this[key] = Voxel.build(vox, { size: 1 / R, color: 0xffffff, jitter: 0.06, ao: 0, center: false }).geometry;
+        }
+        return this[key];
+    },
     wardShieldDome(color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
@@ -21675,21 +21697,33 @@ const Scene3D = {
             blending: add ? THREE.AdditiveBlending : THREE.NormalBlending });
         // ⓐ 돔 본체 — 반구. ⚠️ 가산으로 깔면 한낮 하늘에 통째로 묻힌다(healPillar 가 먼저 밟은 자리):
         //    면은 **일반 합성 + 흰 쪽으로 민 색**으로 반투명 유리처럼, 가산은 테두리에만.
+        // 🧊 매끈 SphereGeometry 반구 → 복셀 껍질 돔(voxWardGeo('dome') 캐시 — 반지름 1 정규화,
+        //    한 칸 두께 껍질이라 반투명 너머로 안쪽 면이 살아 '두께 있는 결계'로 읽힌다).
         const pale = color.clone().lerp(new THREE.Color(0xffffff), 0.5);
-        const dome = new THREE.Mesh(new THREE.SphereGeometry(R, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat(pale, 0, false));
+        // ⚠️ 복셀 껍질은 DoubleSide 로 두면 안팎 면이 4겹으로 겹쳐 알파가 포화한다(첫 캡처에서
+        //    돔이 흰 광구로 클리핑됐다 — 캡처 실측). FrontSide 로 바깥 면 한 겹만 남긴다.
+        const domeM = mat(pale, 0, false); domeM.vertexColors = true; domeM.side = THREE.FrontSide;
+        const dome = new THREE.Mesh(this.voxWardGeo('dome'), domeM);
+        dome.userData.sharedGeometry = true;
         // ⓑ 육각 격자 — 결계가 '판'이 아니라 **짜인 것**으로 읽히게. 위도별 링 3겹 + 경선 6줄.
+        // 🧊 위도 링은 픽셀 계단 링(pixelAnnulusGeo), 경선은 복셀 사분호(voxWardGeo('rib')) — 전부 캐시.
         const grid = new THREE.Group();
         for (let i = 1; i <= 3; i++) {
             const a = (i / 4) * (Math.PI / 2);
-            const ring = new THREE.Mesh(this.fxGeo('torus', R * Math.cos(a), 0.022, 5, 24), mat(color, 0, true));
+            const ringM = mat(color, 0, true); ringM.vertexColors = true;
+            const ring = new THREE.Mesh(this.pixelAnnulusGeo(0.9), ringM);
             ring.rotation.x = -Math.PI / 2;
             ring.position.y = R * Math.sin(a);
+            ring.scale.setScalar(R * Math.cos(a));
             ring.userData.sharedGeometry = true;
             grid.add(ring);
         }
         for (let i = 0; i < 6; i++) {
-            const rib = new THREE.Mesh(new THREE.TorusGeometry(R, 0.02, 5, 20, Math.PI / 2), mat(color, 0, true));
+            const ribM = mat(color, 0, true); ribM.vertexColors = true;
+            const rib = new THREE.Mesh(this.voxWardGeo('rib'), ribM);
             rib.rotation.y = (i / 6) * Math.PI * 2;
+            rib.scale.setScalar(R);
+            rib.userData.sharedGeometry = true;
             grid.add(rib);
         }
         // ⓒ 바닥 테 — 돔이 지면에 앉았다는 접지선. 없으면 공중에 뜬 비눗방울로 읽힌다.
@@ -21709,12 +21743,15 @@ const Scene3D = {
             const e = 1 - Math.pow(1 - close, 3);
             const op = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
             const snap = Math.max(0, 1 - Math.abs(k - 0.3) / 0.12);   // 닫히는 순간의 섬광
-            dome.scale.set(e, e, e);
+            dome.scale.setScalar(Math.max(0.001, R * e));   // 지오가 반지름 1 정규화 — R 을 곱한다
             grid.scale.set(e, e, e);
-            dome.material.opacity = (0.3 + snap * 0.35) * op;
+            // 복셀 껍질은 실루엣 부근에서 한 화소에 큐브 면이 여러 장 겹쳐 매끈 반구보다 짙게 찍힌다
+            // — 기본 0.3 이던 것을 내려 종전 '반투명 유리' 농도를 유지한다(전후 캡처 대조로 맞춤).
+            dome.material.opacity = (0.18 + snap * 0.3) * op;
             base.scale.setScalar(R * 1.04 * e);
             base.material.opacity = (0.7 + snap * 0.3) * op;
-            grid.children.forEach(m => { m.material.opacity = (0.55 + snap * 0.45) * op; });
+            // 픽셀 링/사분호는 종전 0.02 토러스보다 2배쯤 굵어 가산 잉크가 진하다 — 불투명도로 상쇄
+            grid.children.forEach(m => { m.material.opacity = (0.38 + snap * 0.35) * op; });
             grid.rotation.y += 0.008;                                 // 아주 천천히 — '유지되는 결계'
             light.set((1.0 + pw * 0.9) * op * (e * 0.6 + snap));
             if (Math.random() < 0.35) {                               // 표면을 타고 오르는 알갱이
