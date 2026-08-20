@@ -21475,6 +21475,28 @@ const Scene3D = {
     //   aura → **룬 서클**: 발밑에 문양이 그려지고 가장자리에서 빛기둥이 솟아 서서히 돈다.
     // 축이 반대다 — 회복은 **위에서 내려오고**, 버프는 **아래에서 올라온다**. 이 방향 차이만으로도
     // 둘이 구분된다(색·파티클로 구분하려 들면 스킬 색이 제각각이라 실패한다).
+    // 빛기둥 복셀 지오메트리(캐시·중심 정렬) — 'tube' 3×3 둘레 사각 통(반폭 0.63·높이 2.52) /
+    // 'rod' 1줄 큐브 기둥(폭 0.22·높이 1.54, 꼭대기 한 칸 띄워 빛이 낱개 큐브로 흩어진다).
+    // 원통의 scale.y=h 관행은 유지하되 h 를 지오 높이(VOXTUBE_H/VOXROD_H)로 나눠 큐브가 안 늘어나게.
+    VOXTUBE_H: 2.52, VOXTUBE_R: 0.63, VOXROD_H: 1.54,
+    voxPillarGeo(part) {
+        const key = part === 'rod' ? '_voxPillarRodGeo' : '_voxPillarTubeGeo';
+        if (!this[key]) {
+            const vox = [];
+            let size;
+            if (part === 'rod') {
+                size = 0.22;
+                for (const y of [0, 1, 2, 3, 4, 6]) vox.push({ x: 0, y, z: 0 });   // y5 빈칸 — 끝이 블록으로 흩어진다
+            } else {
+                size = 0.42;
+                for (let y = 0; y <= 5; y++)
+                    for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++)
+                        if (x !== 0 || z !== 0) vox.push({ x, y, z });
+            }
+            this[key] = Voxel.build(vox, { size, color: 0xffffff, jitter: 0.09, ao: 0 }).geometry;
+        }
+        return this[key];
+    },
     healPillar(color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
@@ -21503,10 +21525,15 @@ const Scene3D = {
         //    기둥은 **일반 합성 + 흰 쪽으로 민 색**으로 '반투명한 빛의 축'을 세우고, 가산은
         //    그 안쪽 가는 코어에만 남긴다.
         const pale = color.clone().lerp(new THREE.Color(0xffffff), 0.55);
-        const col = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.82, R * 0.62, 1, 14, 1, true),
-            new THREE.MeshBasicMaterial({ color: pale, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
-        const colCore = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.3, R * 0.2, 1, 10, 1, true),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        // 🧊 열린 원통 2겹 → 복셀 기둥(voxPillarGeo): 겉은 사각 통, 코어는 큐브 낱개 기둥.
+        //    FrontSide — 복셀 통을 DoubleSide 로 두면 안팎 면이 겹쳐 알파가 포화한다(결계 돔의 함정).
+        const col = new THREE.Mesh(this.voxPillarGeo('tube'),
+            new THREE.MeshBasicMaterial({ color: pale, vertexColors: true, transparent: true, opacity: 0, side: THREE.FrontSide, depthWrite: false, toneMapped: false }));
+        col.scale.set(R * 0.82 / this.VOXTUBE_R, 1, R * 0.82 / this.VOXTUBE_R);
+        const colCore = new THREE.Mesh(this.voxPillarGeo('rod'),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        colCore.scale.set(R * 2.3, 1, R * 2.3);
+        col.userData.sharedGeometry = colCore.userData.sharedGeometry = true;   // 캐시 지오 — dispose 금지
         G.add(disc, disc2, col, colCore);
         const light = this.fxLight(color.getHex(), 6, 'healLight'); // 풀 리스 — 직접 생성 금지(개수 변화 = 재컴파일)
         light.pos(hero.x, hero.y + 1.4, hero.z);
@@ -21523,10 +21550,10 @@ const Scene3D = {
             disc2.material.opacity = 0.95 * op * e;
             disc.rotation.z += 0.03; disc2.rotation.z -= 0.05;
             const h = Math.max(0.001, dy - footY);
-            col.scale.y = h;
+            col.scale.y = h / this.VOXTUBE_H;              // 지오 높이로 나눠 큐브 비율 유지
             col.position.set(hero.x, footY + h / 2, hero.z);
             col.material.opacity = 0.52 * op * e;
-            colCore.scale.y = h;
+            colCore.scale.y = h / this.VOXROD_H;
             colCore.position.set(hero.x, footY + h / 2, hero.z);
             colCore.material.opacity = 0.6 * op * e;
             light.set((1.1 + pw * 1.0) * op * e);
@@ -21575,12 +21602,14 @@ const Scene3D = {
         // ⓑ 가장자리 빛기둥 — 서클에서 **위로** 솟는다(회복의 하강과 반대 축)
         const pillars = [];
         const pn = 4 + Math.round(pw * 2);
+        // 🧊 열린 원통 → 큐브 낱개 기둥(voxPillarGeo('rod') — 꼭대기 한 칸이 떠 있어 솟을 때 블록이 흩어진다)
         for (let i = 0; i < pn; i++) {
             const a = (i / pn) * Math.PI * 2;
-            const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 1, 6, 1, true),
-                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+            const pl = new THREE.Mesh(this.voxPillarGeo('rod'),
+                new THREE.MeshBasicMaterial({ color, vertexColors: true, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
             pl.position.set(Math.cos(a) * R * 0.86, 0, Math.sin(a) * R * 0.86);
             pl.userData.h = 1.1 + U.rand(-0.25, 0.35) + pw * 0.6;
+            pl.userData.sharedGeometry = true;
             pillars.push(pl); G.add(pl);
         }
         G.add(rim, inner, spokes);
@@ -21603,7 +21632,7 @@ const Scene3D = {
             const rise = Math.max(0, Math.min(1, (k - 0.26) / 0.34));
             for (const pl of pillars) {
                 const h = pl.userData.h * (1 - Math.pow(1 - rise, 2));
-                pl.scale.y = Math.max(0.001, h);
+                pl.scale.y = Math.max(0.001, h / this.VOXROD_H);   // 지오 높이로 나눠 큐브 비율 유지
                 pl.position.y = h / 2;
                 pl.material.opacity = 0.6 * rise * op;
             }
