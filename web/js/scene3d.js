@@ -1080,6 +1080,12 @@ const Scene3D = {
             // 같은 청록 계열이면 '구름인지 물 덩어리인지' 모호해진다(재채점 A2 #4). 밤은 종전 유지.
             const cloudTint = new THREE.Color(skyHex).offsetHSL(0, -0.5, night ? 0.1 : 0.48);
             if (!night) cloudTint.lerp(new THREE.Color(0xfff6e8), 0.65);
+            // 🎨 마지막에 안개색을 25% 얹는다 (map-palette-unify 2차) — 위 난색 흰색 처방은 청록
+            //    하늘(재채점 A2 #4 '구름=물덩어리')용인데, 유채 하늘 챕터(9 용암 주황·25 종말 적색)
+            //    에서는 **순백 구름만 대기색을 안 먹은 유일한 요소**로 떠서 팔레트를 깼다(2차 채점
+            //    A·B 교집합). 안개색은 그 챕터 대기의 정의라, 파스텔 안개 챕터(초원 등)에선 거의
+            //    백색 그대로고(물덩어리 회귀 없음) 유채 안개 챕터에서만 구름이 대기에 젖는다.
+            if (!night) cloudTint.lerp(new THREE.Color(fogHex), 0.25);
             for (const cl of this.clouds) {
                 cl.material.color.copy(cloudTint);
                 cl.material.opacity = night ? 0.45 : 1;
@@ -23114,7 +23120,12 @@ const Scene3D = {
         // '바위에 낀 이끼'로 읽히고, 청록 보색 악센트는 잔향으로만 남는다.
         if (this.mossMat) {
             const mg = gC.getHSL({ h: 0, s: 0, l: 0 });
-            this.mossMat.color.setHSL(((mg.h + (0.36 - mg.h) * 0.35) % 1 + 1) % 1, 0.30, 0.30);
+            // 🎨 초록 견인에 상한 ±0.05 (map-palette-unify 2차) — 종전 '0.36 쪽으로 35%' 비례 견인은
+            //    난색 지면 챕터에서 과도했다: 단풍(지면 h≈0.07)의 이끼가 h 0.17(61° 올리브초록)로
+            //    앰버 화면의 보색 이물이 됐다(2차 채점 A #1 '순색 초록 새싹'). 상한을 걸면 단풍 이끼는
+            //    h 0.12(43° 앰버 올리브)로 팔레트 안에 남고, 초원은 견인량이 0.042 라 클램프에 안 걸려
+            //    **종전과 완전히 같은 초록**이다(h 0.24→0.28) — 초원 쪽 회귀 없음.
+            this.mossMat.color.setHSL(((mg.h + U.clamp((0.36 - mg.h) * 0.35, -0.05, 0.05)) % 1 + 1) % 1, 0.30, 0.30);
         }
         // 접지 블롭 그림자 색 — 순흑(0x000000)은 밝은 지면(설원·마법 라벤더)에서 '경계 선명한 검은
         // 스티커'로 읽힌다(map-quality-up 재채점 A2·B2 공통 지적). 지면 팔레트로 틴트한 다크 톤으로 —
@@ -23143,7 +23154,13 @@ const Scene3D = {
             //    지면보다 +0.22 밝은 자리(하한 0.30)에 앉혀 '같은 땅의 다져진 길'로 — 밝은 챕터
             //    (사막 등)는 상한 0.7 이 종전 값 그대로라 기존 그림을 해치지 않는다.
             const bTint = new THREE.Color().setHSL(g.h, U.clamp(g.s, 0, 0.7), U.clamp(g.l + 0.22, 0.30, 0.7));
-            this.pathMesh.material.color.copy(new THREE.Color(0xffffff).lerp(bTint, 0.62));
+            // 🎨 색상 견인량을 지면-오커 색상 거리에 비례시킨다 (map-palette-unify 2차) — 62% 고정으로는
+            //    오커 캔버스가 색상환 반대편 챕터(마법 보라·심연 청록)에서 갈색 원색으로 남아, 야간 씬
+            //    한복판의 '조명 안 받은 낮 색 띠'로 읽혔다(2차 채점 B #2). 오커(h≈0.09)와 가까운
+            //    챕터(초원·사막·단풍)는 종전 0.62 그대로 — 기존 그림 무변경.
+            let hd = Math.abs(g.h - 0.09); if (hd > 0.5) hd = 1 - hd;
+            const pull = 0.62 + U.clamp((hd - 0.10) * 1.2, 0, 0.18);
+            this.pathMesh.material.color.copy(new THREE.Color(0xffffff).lerp(bTint, pull));
         }
         // 바이옴 소품 교체 (같은 바이옴이면 그대로 유지)
         const biome = t.biome || 'forest';
