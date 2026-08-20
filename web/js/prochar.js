@@ -1922,14 +1922,20 @@ const ProChar = {
             const headGY = spineY + R.bones.neck.position.y + hH.position.y;
             const hy = (torTop + headS / 2) - headGY;   // headG 로컬 머리 중심
             add(hH, skinM, headS, headS, headS, 0, hy, 0);
-            // 마인크래프트식 얼굴 (headG 로컬, 머리 앞면)
-            const fz = headS / 2, eyeY = hy + headS * 0.06;
+            // 마인크래프트식 얼굴 — **평면 디캘**(사용자 2026-08-21: 얼굴을 디캘 방식으로).
+            //   튀어나온 큐브가 아니라 머리 앞면에 납작하게 그린 판. whiteM/pupilM 의 toneMapped=false 는
+            //   흰자가 피부에 묻히지 않게 하는 핵심이라 유지(위 probe-eye-contrast 주석 참조).
+            const fz = headS / 2 + 0.002, eyeY = hy + headS * 0.06;
+            const decal = (mat, w, h, x, y, z) => {
+                const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+                m.position.set(x, y, z); m.userData.simpleBox = true; hH.add(m); return m;
+            };
             for (const sx of [-1, 1]) {
-                add(hH, whiteM, 0.12, 0.13, 0.02, sx * 0.115, eyeY, fz + 0.001);
-                add(hH, pupilM, 0.06, 0.13, 0.02, sx * 0.115, eyeY, fz + 0.004);
-                add(hH, inkM, 0.13, 0.028, 0.02, sx * 0.105, eyeY + 0.093, fz + 0.003);
+                decal(whiteM, 0.12, 0.13, sx * 0.115, eyeY, fz);
+                decal(pupilM, 0.06, 0.13, sx * 0.115, eyeY, fz + 0.002);
+                decal(inkM, 0.13, 0.028, sx * 0.105, eyeY + 0.093, fz + 0.001);   // 눈썹
             }
-            add(hH, inkM, 0.14, 0.03, 0.02, 0, hy - headS * 0.22, fz + 0.003);
+            decal(inkM, 0.14, 0.03, 0, hy - headS * 0.22, fz + 0.001);            // 입
         }
 
         // 베이스 포즈 기록 (매 프레임 여기서 시작해 클립 오프셋을 얹음)
