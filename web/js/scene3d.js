@@ -5484,12 +5484,12 @@ const Scene3D = {
             }
         } else if (rv === 'friar') {
             // 성직자 로브 — 허리 **새끼줄**과 늘어진 매듭 꼬리. 종형 자락의 서명이다.
-            const cord = new THREE.Mesh(new THREE.TorusGeometry(0.255, 0.017, 6, 20), dark);
-            cord.position.y = yHem + RS.len * 0.72;
-            cord.rotation.x = Math.PI / 2;
+            // 🧊 토러스 → 큐브 링, 꼬리 원통 → 기울인 각재 (equip-voxelize ⓑ)
+            const cord = this.voxPart(Voxel.ring(0.262 / 0.024, 1.6, 2, dark.color.getHex()), 0.024, dark, { jitter: 0.04 });
+            cord.position.y = yHem + RS.len * 0.72 - 0.024;
             g.add(cord);
             for (const dx of [-0.045, 0.045]) {
-                const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.011, 0.20, 6), dark);
+                const tail = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.20, 0.024), dark);
                 tail.position.set(dx, yHem + RS.len * 0.72 - 0.11, 0.235);
                 tail.rotation.z = dx > 0 ? 0.12 : -0.12;
                 g.add(tail);
@@ -6251,23 +6251,24 @@ const Scene3D = {
         s.lineTo(-x, -y + rr); s.quadraticCurveTo(-x, -y, -x + rr, -y);
         return s;
     },
+    // 🧊 라운드+베벨 판 → **2단 계단 판** (equip-voxelize ⓑ) — 본판 위에 한 단 작은 면판이
+    //    도드라져 종전 베벨의 '모서리 접힌 판' 인상을 계단으로 잇는다. 경사 법선 0. 호출부
+    //    (파울드·스커트·타바드·백플레이트·슈트 부속)는 그대로 — Group 도 position/rotation 규약 동일.
     beveledSlab(w, h, d, r, mat) {
-        const bev = Math.min(d * 0.3, Math.min(w, h) * 0.15, 0.02);
-        const geo = new THREE.ExtrudeGeometry(
-            this.roundedRectShape(w - bev * 2, h - bev * 2, r === undefined ? Math.min(w, h) * 0.3 : r),
-            { depth: Math.max(0.001, d - bev * 2), bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 6 });
-        geo.translate(0, 0, -d / 2 + bev);
-        return new THREE.Mesh(geo, mat);
+        const g = new THREE.Group();
+        const step = Math.min(0.022, w * 0.16, h * 0.16);
+        const base = new THREE.Mesh(new THREE.BoxGeometry(w, h, Math.max(0.004, d - step * 1.4)), mat);
+        const face = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.004, w - step * 2), Math.max(0.004, h - step * 2), d), mat);
+        g.add(base, face);
+        return g;
     },
-    // ⑶ 캡슐 — 손가락·프롱·끈처럼 '끝이 둥근 기둥'. Cylinder 만 쓰면 잘린 관처럼 보인다.
+    // ⑶ 🧊 캡슐 → 각기둥 + 반칸 캡 — '끝이 막힌 기둥'을 계단 2단으로 (equip-voxelize ⓑ)
     capsuleMesh(r, len, mat, seg) {
         const g = new THREE.Group();
-        const n = seg || 10;
-        g.add(new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, n), mat));
+        g.add(new THREE.Mesh(new THREE.BoxGeometry(r * 2, len, r * 2), mat));
         for (const s of [-1, 1]) {
-            const cap = new THREE.Mesh(new THREE.SphereGeometry(r, n, Math.max(4, n >> 1), 0, Math.PI * 2, 0, Math.PI / 2), mat);
-            cap.position.y = s * len / 2;
-            if (s < 0) cap.rotation.x = Math.PI;
+            const cap = new THREE.Mesh(new THREE.BoxGeometry(r * 1.3, r * 0.9, r * 1.3), mat);
+            cap.position.y = s * (len / 2 + r * 0.35);
             g.add(cap);
         }
         return g;
@@ -8009,15 +8010,18 @@ const Scene3D = {
             //    못 바꾼다** — `vest` 6칸이 가슴 부속만 갈리고도 IoU 0.92~0.98 로 붙어 있던 것과
             //    같은 자리다. 그래서 `cape` 와 같은 방식으로 **자락의 바깥 윤곽**을 가른다.
             const RS = this.robeShape(this.robeVariant(o.age));
-            const skirt = new THREE.Mesh(new THREE.ConeGeometry(RS.r, RS.len, 12, 1, true), cloth);
-            skirt.position.y = 0.075 + RS.len / 2;      // 밑단을 y 0.075 에 고정 — 기장만 위로 자란다
+            // 🧊 원뿔 자락 → 계단 테이퍼 셸 (equip-voxelize ⓑ) — 기장·퍼짐 축은 RS 표 그대로.
+            const RA = 0.024;
+            const skirt = this.voxPart(Voxel.taper(RS.r / RA, 0.8, Math.max(2, Math.round(RS.len / RA)), cloth.color.getHex(), { t: 1.7 }),
+                RA, cloth, { jitter: 0.05, shade: 'soft:' + mats.kind });
+            skirt.position.y = 0.075;                   // 밑단을 y 0.075 에 고정 — 기장만 위로 자란다
             g.add(skirt);
             // ⚠️ `hem: false` 는 실수가 아니다 — 계단·물결·너덜이 밑단의 **결**을 짓는 변종에서
             //    매끈한 테를 두르면 그 결을 가로줄 하나가 잘라 먹는다(`cape` 에서 실측한 것과 같다).
             if (RS.hem !== false) {
-                const hem = new THREE.Mesh(new THREE.TorusGeometry(RS.r - 0.005, 0.026, 6, 20), cloth);
-                hem.position.y = 0.075;
-                hem.rotation.x = Math.PI / 2;
+                const hem = this.voxPart(Voxel.ring(RS.r / RA + 0.6, 1.8, 2, this.tintOf(cloth, -0.05).color.getHex()),
+                    RA, cloth, { jitter: 0.04 });
+                hem.position.y = 0.075 - 0.024;
                 g.add(hem);
             }
             this.addRobeEraDetail(g, this.robeVariant(o.age), RS, mats, cloth, body, rareHex);
@@ -8400,15 +8404,17 @@ const Scene3D = {
                 // 구를 적도보다 조금 더(0.62π) 내려 자르면 테두리가 안쪽으로 말려 뚫린 면이 안 보인다.
                 // skirted 는 어깨를 한 치수 줄인다(스커트가 얼굴이 되게) · paladin 은 첨두가 따로 선다.
                 const pk = pv === 'skirted' ? 0.80 : 1;
+                // 🧊 파울드론 라멜라 3장 — 반구 → 2층 계단 캡 (equip-voxelize ⓑ). 겹쳐 벌어지는
+                //    구조(l 마다 반경↓·y↓)와 톤 단차는 그대로.
                 for (const s of [-1, 1]) {
                     const pg = new THREE.Group();
                     for (let l = 0; l < 3; l++) {
-                        const lame = new THREE.Mesh(
-                            new THREE.SphereGeometry((0.112 - l * 0.021) * pk, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.62),
-                            l ? this.tintOf(mat, -0.045) : mat);
-                        lame.scale.set(1, 0.62, 0.94);
-                        lame.position.y = -l * 0.038 * pk;
-                        pg.add(lame);
+                        const rr = (0.112 - l * 0.021) * pk / 0.024;
+                        const lam = this.voxPart(Voxel.dome(rr, 2, (l ? this.tintOf(mat, -0.045) : mat).color.getHex(), { t: 1.7 }),
+                            0.024, mat, { jitter: 0.04, shade: mats.kind });
+                        lam.scale.z = 0.94;
+                        lam.position.y = -l * 0.038 * pk;
+                        pg.add(lam);
                     }
                     pg.position.set(s * 0.185, 0.216, 0);
                     pg.rotation.z = -s * 0.34;     // 어깨 밖으로 흘러내린다
@@ -8440,7 +8446,15 @@ const Scene3D = {
                 // (radialSegments 4 토러스 = 마름모 링, 알파에 구멍이 나 유령 판으로 읽힌다) +
                 // 몸통 옆에 위아래로 어긋난 파편 판 2장(비대칭 — suit 'holo' 의 정렬된 3겹과 결이 다르다).
                 for (const s of [-1, 1]) {
-                    const frame = new THREE.Mesh(new THREE.TorusGeometry(0.088, 0.020, 4, 4), mat);
+                    // 🧊 마름모 링 — 4각 토러스 → 45° 돌린 정사각 각재 프레임(뚫린 구멍 유지)
+                    const frame = new THREE.Group();
+                    for (let i = 0; i < 4; i++) {
+                        const bar = new THREE.Mesh(new THREE.BoxGeometry(0.125, 0.036, 0.036), mat);
+                        const a = Math.PI / 4 + i * Math.PI / 2;
+                        bar.position.set(Math.cos(a + Math.PI / 4) * 0.062, Math.sin(a + Math.PI / 4) * 0.062, 0);
+                        bar.rotation.z = a;
+                        frame.add(bar);
+                    }
                     frame.position.set(s * 0.242, 0.205, 0.005);
                     frame.rotation.z = -s * 0.30;
                     frame.rotation.y = s * 0.28;
@@ -8456,26 +8470,35 @@ const Scene3D = {
                 // ⚠️ 같은 시대 suit 'lava' 가 큰 암석 뿔 2개다 — 가시는 작게 여러 개·굽은 금속으로
                 //    결을 가른다(크기·개수·재질 셋 다 다르게). 뿔 마디는 걸어 쌓는다(9차 교훈 ⑶).
                 for (const s of [-1, 1]) {
-                    const base = new THREE.Mesh(
-                        new THREE.SphereGeometry(0.105, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), mat);
-                    base.scale.set(1.1, 0.6, 0.95);
+                    // 🧊 어깨 판 — 반구 → 2층 계단 캡, 가시 — 원뿔 → 2단 계단 촉(굽은 부채 각도 유지)
+                    const base = this.voxPart(Voxel.dome(4.6, 2, mat.color.getHex(), { t: 1.7 }), 0.024, mat, { jitter: 0.04, shade: mats.kind });
+                    base.scale.set(1.1, 0.72, 0.95);
                     base.position.set(s * 0.195, 0.212, 0);
                     base.rotation.z = -s * 0.30;
                     g.add(base);
                     for (let i = 0; i < 3; i++) {
                         const h = 0.115 - i * 0.028;
-                        const spike = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0255, h, 6), this.tintOf(mat, -0.08));
+                        const spike = new THREE.Group();
+                        const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.042, h * 0.55, 0.042), this.tintOf(mat, -0.08));
+                        s1.position.y = h * 0.22;
+                        const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.02, h * 0.55, 0.02), this.tintOf(mat, -0.08));
+                        s2.position.y = h * 0.7;
+                        spike.add(s1, s2);
                         const bx = s * (0.170 + i * 0.052), by = 0.252 - i * 0.014;
-                        spike.position.set(bx, by + h * 0.42, 0.005);
+                        spike.position.set(bx, by, 0.005);
                         spike.rotation.z = -s * (0.30 + i * 0.24);   // 바깥으로 갈수록 더 눕는다 = 굽은 부채
                         g.add(spike);
                     }
                 }
-                // 밑단 금속 이빨 — 아래로 뾰족한 삼각 5개가 헴을 문다
+                // 밑단 금속 이빨 — 아래로 뾰족한 2단 계단 촉 5개가 헴을 문다
                 for (let i = 0; i < 5; i++) {
                     const a = -0.95 + i * 0.475;
-                    const tooth = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.0045, 0.085, 4), this.tintOf(mat, -0.06));
-                    tooth.position.set(Math.sin(a) * 0.190, -0.275, Math.cos(a) * 0.132);
+                    const tooth = new THREE.Group();
+                    const t1 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.045, 0.036), this.tintOf(mat, -0.06));
+                    const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.045, 0.02), this.tintOf(mat, -0.06));
+                    t2.position.y = -0.042;
+                    tooth.add(t1, t2);
+                    tooth.position.set(Math.sin(a) * 0.190, -0.26, Math.cos(a) * 0.132);
                     tooth.rotation.y = a;
                     g.add(tooth);
                 }
@@ -8484,7 +8507,13 @@ const Scene3D = {
                 // 같은 시대 cape 'wings'(가로로 펼친 깃털 판)와 축이 다르다 — 이쪽은 세로 첨두다.
                 const gold = this.tintOf(mats.body, 0.20);
                 for (const s of [-1, 1]) {
-                    const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.052, 0.150, 5), gold);
+                    // 🧊 고딕 첨두 — 원뿔 → 3단 계단 촉
+                    const spire = new THREE.Group();
+                    for (const [w, y0, hh] of [[0.09, -0.05, 0.055], [0.052, 0.005, 0.055], [0.022, 0.06, 0.06]]) {
+                        const seg = new THREE.Mesh(new THREE.BoxGeometry(w, hh, w), gold);
+                        seg.position.y = y0 + hh / 2;
+                        spire.add(seg);
+                    }
                     spire.position.set(s * 0.225, 0.300, 0);
                     spire.rotation.z = -s * 0.22;   // 살짝 바깥으로 — 첨두 한 쌍이 위 윤곽을 든다
                     g.add(spire);
@@ -8963,10 +8992,12 @@ const Scene3D = {
             }
         } else if (style === 'robe') {
             // 롱 드레이프 — 밑단 아래로 흘러내리는 자락 슬리브 2개(P.skirt 를 키운 것과 결합해 '아래로 긴' 실루엣)
+            // 🧊 원뿔 → 계단 테이퍼 셸 (equip-voxelize ⓑ) — 기울임은 그룹 회전(로컬 축정렬)
             for (const s of [-1, 1]) {
-                const sl = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.36, 10, 1, true), mat);
+                const sl = this.voxPart(V.taper(0.11 / AS, 0.8, Math.round(0.36 / AS), mat.color.getHex(), { t: 1.7 }),
+                    AS, mat, { jitter: 0.05, shade: soft ? 'soft:' + mats.kind : mats.kind });
                 sl.rotation.z = -s * 0.16;
-                sl.position.set(s * 0.19, -0.02, 0);
+                sl.position.set(s * 0.19, -0.2, 0);
                 g.add(sl);
             }
         } else if (style === 'cape') {
