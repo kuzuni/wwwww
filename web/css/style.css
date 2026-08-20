@@ -4123,6 +4123,15 @@ h3.sellwarn-title, .rates-head h3,
    회귀를 막으려고 이 패스에서는 **스킬 화면으로만 스코프**한다. 펫 차례에 같은 수치로 재검증할 것. */
 #panel-skills .equipped-row { padding: .28rem .5rem; margin-bottom: .32rem; }
 #panel-skills .equipped-row .sk-mini { width: 2.16rem; height: 2.16rem; }
+/* 미니 오브 간격 (slug: equipped-icons-pitch) — 원본은 **피치 10.08%W 가 완전 균일**하고
+   지름이 6.85%W 라 오브 사이 간격이 **3.23%W** 다. 클론은 `.equipped-icons { gap:.35rem }`
+   = 1.17%W 로 촘촘해, 지름이 맞는데도(Δ+0.43%p) 묶음이 **−2.83%p 좁고 좌단이 +4.50%p** 밀렸다.
+   묶음은 우측 정렬이라 gap 만 벌리면 좌단이 왼쪽으로 자라 세 축이 함께 들어온다.
+   값은 '원본 피치 − 클론 지름' = 10.08 − 7.28 = **2.80%W** (간격이 아니라 **피치**를 원본에 맞춘다 —
+   지름 측정이 원본=픽셀/클론=DOM 이라 미세 편향이 있는데, 피치는 중심 간 거리라 그 편향이 상쇄된다).
+   ⚠️ 위 블록과 같은 이유로 **스킬 화면으로만 스코프** — `.equipped-icons` 는 펫 화면과 공용이고
+   펫은 아직 요소 실측 전이다. 판정기: `tools/probe-equipped-icons-pitch.js`(regress-ratio.sh 등재). */
+#panel-skills .equipped-row .equipped-icons { gap: calc(var(--app-w) * .0280); }
 /* 원본 버튼 높이 43px(4.83%H) — min-height 만 주면 패딩·글자가 50px 로 밀어 올린다 */
 #panel-skills .sk-action-btn { min-height: 0; height: calc(var(--app-h) * .0483); }
 /* 원본에서 '장착됨 바~버튼' 묶음은 지금보다 19px 아래에 앉는다. 소환 바 y 는 이미 맞으므로

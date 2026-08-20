@@ -72,6 +72,7 @@ PROBES=(
     probe-sheet-title-center.js # skills       042340 시트 헤더 제목이 앱 가로 중앙인가. skills-dom 은 14요소를 재고 전부 통과인데 그 표에 제목이 없어, 중앙에서 8.52%p 밀린 걸 아무 게이트도 못 봤다
     probe-skills-dashed-divider.js # skills    042340 버튼행↔소환바 사이 전폭 점선. **없는 요소는 좌표 표에 줄이 안 생겨 영원히 초록**이라, 존재·구조부터 판정한다
     probe-sheet-head-hairline.js # 전 시트     원본엔 없는 헤더 아래 전폭 가로선이 **다시 들어오지 않는가**(있어야 할 것이 아니라 없어야 할 것을 지키는 자)
+    probe-equipped-icons-pitch.js # skills     042340 장착됨 바 **안쪽** 미니오브 피치·묶음. equipped-label 은 바와 깃발만, skills-dom 은 바 한 줄만 봐서 안쪽 배분은 아무도 안 봤다
     probe-offline-dom.js        # offline      042110
     probe-skilldetail-dom.js    # skill-detail 042426
     probe-rates-dom.js          # summon-rates 042521
