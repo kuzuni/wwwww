@@ -58,6 +58,7 @@ for p in \
     probe-mount-rein-rest.js \
     probe-ride-seat.js \
     probe-prop-voxel.js \
+    probe-terrain-voxel.js \
     probe-crystal-sculpt.js \
     probe-biome-mat-path.js \
     probe-pinfo-scene.js \

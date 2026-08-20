@@ -2923,30 +2923,39 @@ const Scene3D = {
     // 바이옴별 지면 스캐터(풀 포기/자갈/발광 이끼 등) — InstancedMesh 1드로우콜.
     // 지면 타일(this.ground)의 자식이라 타일 순환(x±30 점프)과 함께 자동으로 흘러가고,
     // heightAt이 x 주기 30이라 로컬 좌표 높이가 어느 타일 위치에서도 유효함.
-    // 풀 포기: 원뿔 1개는 '압정'으로 읽힘(비평가 지적) — 기울기·크기가 다른 잎날 4개를 병합한 클러스터 지오메트리
+    // 풀 포기: 🧊 큐브 블레이드 클러스터 (map-quality-up 잔디 voxel, 사용자 지시 2026-08-20 "잔디들도 voxel로").
+    //    종전 원뿔 4개 병합('압정' 지적의 처방이던)은 매끈한 경사면이라 voxel 세계에서 이물이었다.
+    //    잎날 4개 = 1복셀 두께 큐브 기둥(2~3단) + 꼭대기 옆에 한 칸 붙인 L자 머리(계단식 lean —
+    //    임의 기울임 회전은 격자를 깨는 순간 voxel 로 안 읽히므로 금지, voxel.js rotX 주석과 같은 근거).
+    //    `Voxel.faces` 로 가려진 면을 버리고 위치·법선만 굽는다 — 색은 재질 color + 인스턴스 색
+    //    (setColorAt)이 종전처럼 입히므로 정점색은 안 쓴다. 지오메트리 하나를 수백 인스턴스가
+    //    공유(InstancedMesh)하는 규약은 그대로다(voxel.js 설계 ⓐ의 예외 항목이 바로 이 잔디다).
     tuftGeo() {
-        const parts = [];
-        const defs = [[0, 0, 0, 1], [0.05, 0.025, 0.4, 0.68], [-0.045, -0.02, -0.34, 0.74], [0.012, -0.05, 0.18, 0.55]];
-        for (const [dx, dz, tilt, k] of defs) {
-            const h = 0.1 + 0.12 * k;
-            const g2 = new THREE.ConeGeometry(0.02 + 0.028 * k, h, 4).toNonIndexed();
-            g2.rotateZ(tilt);
-            g2.rotateY(dx * 40);
-            g2.translate(dx, h * 0.3, dz);
-            parts.push(g2);
-        }
-        let total = 0;
-        parts.forEach(g2 => { total += g2.attributes.position.count; });
-        const pos = new Float32Array(total * 3), norm = new Float32Array(total * 3);
-        let off = 0;
-        for (const g2 of parts) {
-            pos.set(g2.attributes.position.array, off * 3);
-            norm.set(g2.attributes.normal.array, off * 3);
-            off += g2.attributes.position.count;
+        const SZ = 0.05;   // 복셀 한 변(월드) — 4포기 클러스터 폭 ~0.2 = 종전 원뿔 다발 발자국과 동급
+        const B = (x, y, z) => ({ x, y, z });
+        const vox = [
+            B(0, 0, 0), B(0, 1, 0), B(0, 2, 0), B(1, 2, 0),      // A 중앙 3단 + L머리(+x)
+            B(2, 0, 1), B(2, 1, 1), B(1, 1, 1),                  // B 우전방 2단 + L머리(-x)
+            B(-1, 0, -2), B(-1, 1, -2), B(-1, 1, -1),            // C 후방 2단 + L머리(+z)
+            B(1, 0, -1), B(1, 1, -1),                            // D 소형 2단
+        ];
+        const fl = Voxel.faces(vox, {});
+        const pos = new Float32Array(fl.length * 18), norm = new Float32Array(fl.length * 18);
+        let p = 0;
+        const order = [0, 1, 2, 0, 2, 3];
+        for (const F of fl) {
+            for (const ci of order) {
+                const c = F.corners[ci];
+                // +0.5: 큐브 밑면이 정확히 y=0 — 바람 셰이더가 max(0, y) 비례라 밑동이 땅에 박힌다
+                pos[p] = c[0] * SZ; pos[p + 1] = (c[1] + 0.5) * SZ; pos[p + 2] = c[2] * SZ;
+                norm[p] = F.n[0]; norm[p + 1] = F.n[1]; norm[p + 2] = F.n[2];
+                p += 3;
+            }
         }
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         geo.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+        geo.userData.voxSnap = true;   // 배치 요(rotation.y)를 90° 스냅 — 3D 조형이라 엣지온 소실이 없다
         return geo;
     },
 
@@ -3136,12 +3145,14 @@ const Scene3D = {
                 let x = spots[i][0], z = spots[i][1];
                 if (Math.abs(z) < 0.55) z = 0.55 * Math.sign(z || 1) + z; // 스캐터도 전투 라인 살짝 비켜감
                 dummy.position.set(x, this.heightAt(x, z) + 0.02, z);
-                // ⚠️ **여기만 임의 각을 남긴다 — 스캐터는 평면 블레이드다.** 4방위로 스냅하면 절반이
-                //    카메라에 엣지온으로 서서 **풀이 통째로 절반쯤 사라진다.** 화풍 ⓓ 는 큐브 면이
-                //    사선이 되는 걸 막자는 것이고 평면 스프라이트에는 그 전제가 없다. 비평가 2인이
-                //    지적한 '풀이 얇은 삼각 판'은 회전이 아니라 **조형**(큐브 다발) 문제라, 그건
-                //    `cute-art-direction` ㉥ 로 따로 남겼다 — 조형을 큐브로 바꿀 때 이 줄도 같이 스냅할 것.
-                dummy.rotation.y = U.rand(0, Math.PI * 2);
+                // 🧊 복셀 조형(voxSnap — 잔디 큐브 블레이드)은 요를 90° 스냅한다(화풍 ⓓ: 큐브 면이
+                //    사선이 되면 그 순간 voxel 로 안 읽힌다). 3D 큐브 다발이라 종전 평면 블레이드의
+                //    '엣지온 소실'(스냅을 미뤄 온 이유)이 없다. 광물(다면체 자갈 등)은 평면 전제가
+                //    없어도 임의 각을 유지 — 그쪽 복셀 전환은 `voxel-consistency-audit` 소관.
+                //    ⚠️ 두 분기 모두 U.rand 1회 — 시드 고정 프로브의 난수 소비량이 분기와 무관해야 한다.
+                dummy.rotation.y = (geo2.userData && geo2.userData.voxSnap)
+                    ? Math.floor(U.rand(0, 4)) * Math.PI / 2
+                    : U.rand(0, Math.PI * 2);
                 const sc = U.rand(sLo, sHi);
                 dummy.scale.set(sc, sc * (flat2 ? U.rand(0.45, 0.75) : U.rand(0.8, 1.4)), sc);
                 dummy.updateMatrix();
