@@ -2474,8 +2474,12 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.moveTo(cx + .47 * S, cy); ctx.ellipse(cx, cy, .47 * S, .195 * S, 0, 0, Math.PI * 2, false);
             ctx.moveTo(cx + .205 * S, cy); ctx.ellipse(cx, cy, .205 * S, .052 * S, 0, 0, Math.PI * 2, true);
             // 솟는 빛기둥 3 — 가운데가 가장 높다. 아래끝(.505)은 고리 윗변(.57)에 **안 닿게** 띄웠다.
+            /* 기둥은 위로 갈수록 좁아진다(사다리꼴) — 기둥을 짧게 자른 뒤 직사각형으로 두니
+               38px 에서 '빛기둥'이 아니라 **바닥에 놓인 블록 3개**로 읽혔다. 위를 좁히면 짧아도
+               '솟는다'가 남는다. ⚠️ 꼭대기 폭(.11)은 키라인 .067 을 빼고 **.043 이 남는 하한**이라
+               더 좁히지 말 것(`probe-emblem-core` 로 확인 — 좁히면 끝이 검게 막힌다). */
             const beam = (bx, top) => {
-                ctx.moveTo(x(bx - .085, S), y(top, S)); ctx.lineTo(x(bx + .085, S), y(top, S));
+                ctx.moveTo(x(bx - .055, S), y(top, S)); ctx.lineTo(x(bx + .055, S), y(top, S));
                 ctx.lineTo(x(bx + .085, S), y(.505, S)); ctx.lineTo(x(bx - .085, S), y(.505, S));
                 ctx.closePath();
             };
