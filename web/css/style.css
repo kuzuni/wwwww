@@ -5237,24 +5237,42 @@ h3.sellwarn-title, .rates-head h3,
 .dgd-stage { text-align: center; line-height: 1.15; }
 .dgd-stage span { display: block; font-size: .88rem; font-weight: 900; color: var(--pp-ink); }
 .dgd-stage b { font-size: 1.15rem; font-weight: 900; color: var(--pp-ink); }
+/* ── 🚨 흑백이 뒤집혀 있었다 (aaa-skin ㉸, 2026-08-20) ─────────────────────────────
+   이 화면의 세 자리(보상 pill · 열쇠 · 은색 버튼)는 **검정 칠 + 흰 외곽선**으로 적혀 있었는데,
+   원본 042304 는 전부 **흰 칠 + 검정 링**이다 — ㉮ 규칙 그대로다. 종전 주석이 근거로 든
+   '세로 단면에 검정 획 사이 흰 픽셀' 은 같은 그림의 **반대 해석**이었다(어느 쪽이 링인지는
+   획 굵기가 아니라 **판에 닿는 색**이 정한다).
+   📏 실측(원본 042304, 가로 런렝스): `입장` y578 → 판 163×25 → **검정×2 → 흰 247×12** → … → 검정×2 → 판.
+      링이 2px, 속살이 12px 다. 보상 `302`(y456)·열쇠 `0/2`(y510) 도 흰 255 속살을 검정 1~2px 이 두른다.
+      `.petup-selrow .btn.silver`(042503 `업그레이드`)도 같다 — 세로 단면 4열(x=352·358·372·386)에서
+      판 163 다음이 전부 **어두운 런**이고 흰 픽셀은 그 안쪽에만 나온다.
+   🚨 **그래서 종전의 '실버=검정글자 / 유색=흰글자' 규칙은 없었다** — 은색 버튼도 유색 버튼과
+      같은 흰 칠 + 검정 링이다. 그 규칙을 적어 둔 자리(`.petup-selrow .btn.silver` 위)도 같이 고쳤다.
+   ⚠️ 굵기는 ㉲ 대로 **글리프 복잡도**로 잡는다(글자 크기 아님): 한글 13~16px 은 2px 이 자리고,
+      3px 부터 속공간이 메워진다. 숫자만 있는 `.dgd-keys`(25px)는 메울 속이 없어 4px
+      (`.shop-gem-amt` 가 21.6px 에서 쓰는 값과 같은 계열).
+   ⚠️ `-webkit-text-stroke` 는 **상속**된다 — pill 에 걸면 `.dgd-reward-label` 도 같이 받는다.
+      그래서 라벨의 회색 4방향 그림자는 걷어냈다(두 벌이 겹치면 심이 흐려진다). */
 .dgd-reward-pill {
     /* 면 색은 원본 실측 **#9a9a9a 단색**(x=150 세로 단면 y437~470 이 전부 같은 값 — 테두리도 아래턱도 없다).
-       클론의 #b9b9b9 는 31단계 밝아 원본보다 허옇게 떴다. 숫자는 검정 + 흰 외곽선. */
+       클론의 #b9b9b9 는 31단계 밝아 원본보다 허옇게 떴다. 숫자는 **흰 칠 + 검정 링**(위 ㉸). */
     background: #9a9a9a; border-radius: .6rem; margin: 0 auto .55rem; padding: .3rem .9rem; width: 78%; /* 원본 ≈55% 화면폭 */
-    text-align: center; font-size: .88rem; font-weight: 900; color: #000;
-    text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff;
+    text-align: center; font-size: .88rem; font-weight: 900; color: #fff;
+    -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill;
 }
-.dgd-reward-pill .ico { filter: drop-shadow(0 0 1.2px #fff); }
-.dgd-reward-label { color: #fff; text-shadow: -1px -1px 0 #6d6d6d, 1px -1px 0 #6d6d6d, -1px 1px 0 #6d6d6d, 1px 1px 0 #6d6d6d; margin-right: .3rem; }
+/* 아이콘도 같은 뒤집힘이었다 — 원본의 망치·코인은 검정 윤곽으로 판과 갈라지는데 흰 글로우를 두르고 있었다. */
+.dgd-reward-pill .ico { filter: drop-shadow(0 0 1.2px rgba(0,0,0,.9)); }
+.dgd-reward-label { color: #fff; margin-right: .3rem; }
 /* 원본(042304)의 열쇠 줄은 아이콘+숫자 밴드가 22px(2.48%H)인 큰 표기인데 .95rem은 12px(1.35%H)로 −1.13%p 작다. */
 /* 🚨 열쇠 줄이 원본보다 29px(−3.29%p) 위에 붙어 있었다. `.dgd-btns` 만 `margin-top:auto` 라 카드의
    남는 세로 공간이 **전부 열쇠 줄 아래**로 몰린 탓이다 — 원본은 보상 pill~열쇠 26px · 열쇠~버튼 27px 로
    위아래가 거의 반반이다. 열쇠 줄에도 auto 를 줘 남는 공간이 양쪽으로 갈리게 한다. */
 .dgd-keys {
-    text-align: center; font-size: 1.5rem; font-weight: 900; color: #000;
+    text-align: center; font-size: 1.5rem; font-weight: 900; color: #fff;
     margin-top: auto; margin-bottom: .7rem;
-    /* 원본의 '0/2' 도 버튼·보상 숫자와 같은 검정+흰 외곽선 화풍이다 */
-    text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff;
+    /* 원본의 '0/2' 도 버튼·보상 숫자와 같은 **흰 칠 + 검정 링**이다(위 ㉸ — 종전 주석은 반대로 읽었다).
+       숫자뿐이라 메울 속공간이 없어 한글보다 굵게 간다. */
+    -webkit-text-stroke: 4px var(--pp-line); paint-order: stroke fill;
 }
 /* 원본은 버튼 아래로 흰 여백이 58px(6.5%H) 남고 그 위에 빨간 ✕가 걸친다. .2rem(+카드 패딩 1rem)이면
    24px뿐이라 카드 하단이 원본보다 2.58%p 위에서 끝났다 — 아래 여백을 실측값으로 되돌린다. */
@@ -5268,13 +5286,14 @@ h3.sellwarn-title, .rates-head h3,
 /* ── AAA 스킨 ② 표면 (원본 shot-042304 픽셀 실측 — 눈대중 금지, tools/probe-dgd-tone.js 로 뽑았다)
    좌버튼 세로 단면(x=160): y542~543 검정 키라인 → 544~603 면 **#a3a3a3 단색** → 604~608 아래턱 **#323132**
    → 609~610 검정. 공용 `.btn.silver` 의 밝은 그라디언트(#e3e3e3→#c2c2c2)와 옅은 턱(#9c9c9c)은
-   원본보다 한참 밝아 '다른 물건'으로 보였다. 글자는 검정 + **흰 외곽선**이다(단면에서 검정 획 사이에
-   #ffffff 가 규칙적으로 끼어 있다) — 지금은 외곽선 없는 얇은 글자였다. */
+   원본보다 한참 밝아 '다른 물건'으로 보였다.
+   🚨 글자는 **흰 칠 + 검정 링**이다(위 ㉸ 의 런렝스 실측 — 판 163 → 검정 2 → 흰 12). 종전 주석은
+      같은 단면을 '검정 획 사이에 흰 픽셀'로 **반대로** 읽어 흑백을 뒤집어 놓았다. */
 .dgd-btn.silver {
     background: #a3a3a3;
     box-shadow: inset 0 -.3rem 0 #323132;
-    color: #000;
-    text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff;
+    color: #fff;
+    -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill;
 }
 .dgd-btn.silver:active { box-shadow: none; }
 
@@ -5380,24 +5399,33 @@ h3.sellwarn-title, .rates-head h3,
       **오독하지 말 것** — 위쪽 y203 에도 같은 폭의 전이 픽셀이 있어 대칭이므로 안티에일리어싱이다.
    ㉢ 바 글자 = 흰 채움 + 검정 키라인(y216 가로 단면에서 #ffffff 획 양옆이 #000000).
    ㉣ 업그레이드(실버) 버튼 = 면 **#a3a3a3 단색** · 아래턱 **#323132** 6px · 검정 테두리(x370 세로 단면
-      y247 검정 → 249~281 면 → 282~287 턱 → 288 검정). 글자는 **검정 + 흰 외곽선**이다 —
-      y267 가로 단면에서 어두운 획이 3~4px, 흰 픽셀이 1~2px 라 흰 쪽이 외곽선이다(⑫ 의 파랑·빨강
-      버튼은 반대로 흰 획 + 검정 키라인이었다: **실버=검정글자/유색=흰글자** 가 원본의 규칙).
-      던전 상세(042304)에서 독립적으로 뽑은 `.dgd-btn.silver` 값과 정확히 같아 서로 교차검증된다. */
+      y247 검정 → 249~281 면 → 282~287 턱 → 288 검정). 글자는 **흰 칠 + 검정 링**이다(㉢ 과 같은 화법).
+      🚨 **여기 적혀 있던 '실버=검정글자 / 유색=흰글자' 규칙은 없었다** (aaa-skin ㉸, 2026-08-20 정정).
+         근거로 든 `y267 가로 단면에서 어두운 획 3~4px, 흰 픽셀 1~2px` 은 **글자 속을 가로지르는 줄**이라
+         어느 쪽이 링인지 못 가른다 — 링은 굵기가 아니라 **판에 닿는 색**이 정한다. 같은 그림을 세로로
+         자르면 4열(x=352·358·372·386) 전부 판 163 다음이 **어두운 런**이고 흰 픽셀은 그 안쪽에만 나온다.
+         12배 확대도 흰 글자에 검정 윤곽으로 보인다. 바로 위 ㉢ 이 같은 화면에서 '흰 채움 + 검정 키라인'을
+         이미 적어 둔 것과도 이제 앞뒤가 맞는다.
+      ⚠️ '던전 상세와 정확히 같아 교차검증된다'는 말은 맞았다 — 다만 **양쪽이 같이 뒤집혀 있었다.**
+         두 자리가 일치한다는 건 서로를 검증해 주지 않는다(같은 오독을 두 번 한 것과 구별이 안 된다). */
 .petup-xpbar span { -webkit-text-stroke: 2.5px var(--pp-line); paint-order: stroke fill; }
 .petup-selrow .btn.silver {
     background: #a3a3a3;
     box-shadow: inset 0 -.3rem 0 #323132;
-    color: #000;
-    text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff;
+    color: #fff;
+    -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill;   /* 13.1px 한글 — ㉲ 상한 */
 }
 .petup-selrow .btn.silver:active { box-shadow: none; }
 /* 비활성 [업그레이드] — 공용 `.modal-card .btn.disabled` 의 `opacity:.75` 가 **면·아래턱·키라인을 통째로
    흐리게** 만든다(캡처 실측: 면 #a3a3a3→#a8a8a8 · 턱 #323132→#3f3f41 · 검정 글자 → #2d2d2d).
    원본에는 재료가 선택돼 있어 비활성 컷이 없으므로 조형을 지어내지 않고, 이미 같은 문제를 처리해 둔
    `.skd-btn.silver.disabled` 의 처방을 그대로 따른다 — 불투명도를 되돌리고 글자만 회색으로 죽인다. */
+/* ⚠️ 비활성은 **키라인을 끈다** (aaa-skin ㉸). 활성이 흰 칠 + 검정 링으로 바뀌었는데 비활성은 칠이
+   회색(#6f6f6f)이라, 그대로 두면 어두운 칠에 어두운 링이 겹쳐 13.1px 한글의 속공간이 메워진다(㉲ 가
+   경고한 그 자리). 원본에 비활성 컷이 없으므로 조형을 지어내지 않고 평평한 회색 글자로 죽인다. */
 .petup-selrow .btn.silver.disabled {
     opacity: 1; background: #b4b4b4; color: #6f6f6f;
+    -webkit-text-stroke-width: 0;
     box-shadow: inset 0 -.3rem 0 #3b3b3b;
     text-shadow: -1.5px -1.5px 0 #e8e8e8, 1.5px -1.5px 0 #e8e8e8, -1.5px 1.5px 0 #e8e8e8, 1.5px 1.5px 0 #e8e8e8;
 }
