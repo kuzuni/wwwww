@@ -75,9 +75,15 @@ const SCREENS = [...SRC.matchAll(/^\s*\['([\w-]+)',\s*(?:'[\d]+'|null),\s*(`[^`]
                 interactive: m.querySelectorAll('button, [onclick]').length,
             };
         }, opener);
-        await page.waitForTimeout(120);
+        await page.waitForTimeout(200);
         if (r.err) { errs.push(`[${name}] ${r.err}`); continue; }
         if (!r.modal) continue;
+        // 🚨 **탭바 ✕ 는 팝업을 연 그 evaluate 안에서 읽으면 안 된다** (2026-08-20 UI 스트림 실측).
+        //    `refreshTabX` 는 `watchTabX` 의 MutationObserver 가 굴리는데, 옵저버는 **비동기**라
+        //    같은 tick 안에서는 아직 클래스가 안 붙어 있다. 그래서 z20 짜리 멀쩡한 팝업
+        //    (shop·dungeons·league)이 실행 순서에 따라 '탭바 ✕ 없음'으로 들쭉날쭉 찍혔다.
+        //    한 박자 쉬고 다시 읽는다 — 사용자가 보는 것도 이쪽이다.
+        r.tabX = await page.evaluate(() => !!document.querySelector('#tabbar button.tab-x'));
 
         // ⑶ — ⑴⑵ 로 안 잡힌 팝업만, 버튼을 실제로 **눌러서** 닫히는지 본다(최대 6개).
         r.clickCloses = null;
@@ -95,7 +101,13 @@ const SCREENS = [...SRC.matchAll(/^\s*\['([\w-]+)',\s*(?:'[\d]+'|null),\s*(`[^`]
                     const b = m.querySelectorAll('button')[i];
                     if (!b) return null;
                     b.click();
-                    return m.classList.contains('hidden') ? (b.textContent || '').trim().slice(0, 12) : null;
+                    if (!m.classList.contains('hidden')) return null;
+                    // 🚨 **글자 없는 아이콘 버튼을 빈 문자열로 돌려주면 안 된다** (2026-08-20 UI 스트림 실측).
+                    //    종전엔 `(b.textContent||'').trim().slice(0,12)` 를 그대로 돌려줘서, 닫기가 **실제로
+                    //    성공했는데도** 빈 문자열이 falsy 라 호출부 `if (hid)` 가 실패로 읽었다. 채팅 팝업의
+                    //    닫기(`.btn.danger.round`, `onclick="UI.closeChat()"`)가 정확히 그 모양이라
+                    //    **닫는 길이 멀쩡한데 '없다'고 FAIL** 이 났다.
+                    return (b.textContent || '').trim().slice(0, 12) || b.className || '(아이콘 버튼)';
                 }, { src: opener, i });
                 if (hid) { r.clickCloses = `${hid}`; break; }
             }

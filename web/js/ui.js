@@ -995,8 +995,32 @@ const UI = {
         const obs = new MutationObserver(() => this.refreshTabX());
         document.querySelectorAll('.modal').forEach(m => obs.observe(m, { attributes: true, attributeFilter: ['class'] }));
     },
+    // 지금 열린 팝업의 딤이 **탭바 위를 덮고 있나** (= 탭바 ✕ 를 그려도 안 눌린다).
+    // 🚨 이 검사가 없어서 `tabx-dead-under-dim` 이 났다 (2026-08-20 QA 20차 실측): `modal-dim-tabbar`
+    //    교정이 '진짜 팝업' 계열을 `z-index:40` 으로 올렸는데 `#tabbar` 는 30 이라, 그 계열과
+    //    `MODAL_TAB` 이 겹치는 셋(`dungeon-detail-modal`→dungeon · `pass-modal`→pvp ·
+    //    `pet-upgrade-modal`→summon)에서 **✕ 가 딤 아래 깔렸다.** 그림은 멀쩡히 보이는데
+    //    `elementFromPoint` 는 팝업을 집고, 진짜 마우스 탭도 안 먹는 **'보이는데 안 먹는 버튼'**이
+    //    됐다. 같은 그림의 버튼이 상점·던전 목록에서는 먹으니 더 나쁘다.
+    // 🔑 **하드코딩 목록 대신 계산된 z-index 를 읽는다** — CSS 의 z 목록과 JS 의 `MODAL_TAB` 이
+    //    서로를 모르는 게 이 결함의 뿌리였다. 실제 z 를 비교하면 CSS 만 바뀌어도 따라온다.
+    // 🚫 **탭바 z 를 도로 올리는 방향은 금지** — `modal-dim-tabbar` 의 원본 실측 결론을 되돌린다.
+    tabbarCovered() {
+        const tb = document.getElementById('tabbar');
+        if (!tb) return false;
+        const tz = parseInt(getComputedStyle(tb).zIndex, 10) || 0;
+        for (const m of document.querySelectorAll('.modal:not(.hidden)')) {
+            const cs = getComputedStyle(m);
+            if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+            if ((parseInt(cs.zIndex, 10) || 0) > tz) return true;
+        }
+        return false;
+    },
     // 지금 열려 있는 팝업/시트가 속한 탭 (없으면 null)
     openedTab() {
+        // 딤이 탭바 위면 ✕ 를 **아예 그리지 않는다** — 안 먹는 어포던스를 보여 주느니 평소 탭이 낫다.
+        // (그 팝업들은 카드 안에 자체 ✕ 가 있어 닫는 길은 그대로 있다.)
+        if (this.tabbarCovered()) return null;
         for (const id in this.MODAL_TAB) {
             const el = document.getElementById(id);
             if (el && !el.classList.contains('hidden')) return this.MODAL_TAB[id];
