@@ -16978,33 +16978,58 @@ const Scene3D = {
         // sRGB 인코딩이 어두운 헥스를 들어 올리므로 몸은 근흑(0x0a0608)까지 내린다(dragonfire 함정).
         const blade = new THREE.Group();
         const W = 1.5 + pw * 0.5, H = 1.0 + pw * 0.3;
-        // 몸판 = 기요틴 프로필(빗각 날) — 평평한 사각형은 '검은 판자'로 읽힌다(캡처 실측).
-        // 아랫변을 왼쪽 아래로 빗겨 처형도의 사선 날을 만든다.
-        const prof = new THREE.Shape();
-        prof.moveTo(-W / 2, 0);
-        prof.lineTo(W / 2, 0.12);
-        prof.lineTo(W / 2, -H * 0.55);
-        prof.lineTo(-W / 2, -H);
-        prof.closePath();
-        const body = new THREE.Mesh(new THREE.ShapeGeometry(prof),
-            new THREE.MeshBasicMaterial({ color: 0x0a0608, transparent: true, opacity: 0, side: THREE.DoubleSide }));
+        // 몸판 = 기요틴 프로필(빗각 날). 🧊 **계단형 복셀 적층 — 평면 `ShapeGeometry` 로 되돌리지 말 것.**
+        //    예전엔 `ShapeGeometry`(두께 0) + 무광 근흑 `MeshBasicMaterial` 한 색이었다. 비평가 2인이
+        //    독립적으로 **2순위**로 같은 것을 적었다: "무지 단색 검은 사각 판때기 — 에셋 미완성/렌더 버그로
+        //    읽힌다", "텍스처 없는 불투명 판때기". 맞는 지적이었다 — 두께가 0이라 측면이 없고, 조명을 안
+        //    받는 단색이라 면이 하나도 안 갈리고, 카메라를 향해 세운 판이라 어느 각도에서도 종잇장이었다.
+        //    → 공용 `Voxel` 빌더로 **기둥마다 높이가 다른 큐브 적층**을 굽는다: 빗각 날이 계단이 되고
+        //      (voxel 실루엣), 실제 두께가 생기고, **큐브별 미세 색변화 + 이음새 AO**가 정점 색에 구워져
+        //      '한 색'이 아니게 된다. 메시는 **하나**라 `body.material.opacity` 한 줄 제어가 그대로 산다.
+        // ⚠️ `blade` 는 반드시 `Group` 으로 남길 것 — `probe-blade-exit` 이 그룹 하나를 찾아 토글한다.
+        const NX = 12, DEPTH = 2;                        // 가로 12칸 · 두께 2칸(청키). 늘리면 계단이 잘아져 다시 매끈한 판이 된다
+        const vs = W / NX;                               // 복셀 한 변(월드)
+        const BOT_R = 0.42;                              // 오른쪽 아랫변 높이(H 배수). 0.55 는 빗각이 완만해 계단이 안 읽혔다
+        const bodyVox = [];
+        for (let ix = 0; ix < NX; ix++) {
+            const u = (ix + 0.5) / NX;                   // 0=왼쪽(긴 쪽) … 1=오른쪽
+            const yT = Math.round((0 + 0.12 * u) / vs);              // 윗변은 오른쪽이 살짝 높다
+            const yB = Math.round((-H + (H - H * BOT_R) * u) / vs);  // 아랫변이 빗각 — 계단이 여기서 나온다
+            for (let iy = yB; iy < yT; iy++)
+                for (let iz = 0; iz < DEPTH; iz++) bodyVox.push({ x: ix, y: iy, z: iz });
+        }
+        // 🚨 **조명 받는 재질(Standard/Lambert)로 바꾸지 말 것 — 해 보고 되돌린 자리다.**
+        //    `MeshStandardMaterial` 로 구웠더니 이 씬의 앰비언트+블룸+sRGB 가 근흑 알베도를
+        //    **연회색 판**까지 들어 올려, 비평가가 지적한 '무지 단색 판때기'가 오히려 심해졌다
+        //    (밝은 초원 대비 '어두운 값' 이라는 대비 축까지 같이 잃었다 — 캡처로 확인하고 되돌렸다).
+        //    → **언릿(Basic) + 정점 색**이 정답이다: 값을 내가 정확히 정하면서도, `Voxel` 이 구워 넣은
+        //      **큐브별 미세 색변화(jitter)와 이음새 AO**가 그대로 살아 면이 갈린다('한 색'이 아니게 된다).
+        // ⚠️ 그래서 기본색은 근흑(0x0a0608)이 아니다 — 값이 0 에 붙으면 jitter·AO 가 전부 검정에 묻혀
+        //    다시 한 색이 된다. 초원보다 확실히 어두우면서 변화가 보이는 대역으로 올렸다.
+        const body = Voxel.build(bodyVox, {
+            size: vs, color: 0x140c11, jitter: 0.22, ao: 1,
+            material: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0 }),
+        });
+        body.position.set(0, (-H + 0.12) / 2, 0);        // 복셀은 중심 정렬되어 나오므로 프로필 bbox 중심에 얹는다
         // 사선 날 스트립 — 빗각을 따라 흰 날을 세운다
         const eLen = Math.hypot(W, H * 0.45), eAng = Math.atan2(H * 0.45, W);
         const edge = new THREE.Mesh(new THREE.PlaneGeometry(eLen, 0.09),
             new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, toneMapped: false }));
-        edge.position.set(0, -H * 0.78 + 0.02, 0.01);
+        edge.position.set(0, -H * 0.78 + 0.02, vs * DEPTH * 0.5 + 0.012);   // 몸판에 두께가 생겼으니 그 앞면 위로
         edge.rotation.z = eAng;
         const back = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.94, 0.08),
             new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-        back.position.y = 0.1;
-        // 손잡이 고리 — 위쪽 중앙. '판'이 아니라 '기구'로 읽히는 마지막 한 조각.
-        const grip = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.045, 6, 14),
+        back.position.set(0, 0.1, vs * DEPTH * 0.5 + 0.012);
+        // 손잡이 — 위쪽 중앙. '판'이 아니라 '기구'로 읽히는 마지막 한 조각.
+        // 🧊 토러스(둥근 고리)에서 각진 큐브 자루로 — 화풍은 '큐브를 둥글리지 말 것'이다.
+        const grip = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.30, vs * DEPTH * 0.9),
             new THREE.MeshBasicMaterial({ color: 0x241418, transparent: true, opacity: 0 }));
         grip.position.y = 0.28;
         blade.add(body, edge, back, grip);
         const topY = 3.4 + pw * 0.5;
         blade.position.set(spot.x, topY, spot.z);
         if (this.camera) blade.lookAt(this.camera.position);   // 카메라를 향해 세운 판 — 항상 보인다
+        blade.rotateY(0.26);   // 정면을 살짝 튼다 — 안 틀면 새로 생긴 두께(측면)가 영영 안 보인다
         G.add(blade);
         const light = this.fxLight(color.getHex(), 7, 'guillotineLight');
         light.pos(spot.x, 1.6, spot.z);
@@ -17021,7 +17046,7 @@ const Scene3D = {
             doom.material.opacity = e * 0.55;
             rim.material.opacity = e * 0.85;
             rim.scale.setScalar(1.25 - e * 0.25);           // 살짝 조이며 자리를 못박는다
-            body.material.opacity = e * 0.92;
+            body.material.opacity = e;   // 🚨 0.92 로 두지 말 것 — 처형도 너머로 나무가 비쳐 '고체'가 안 된다(캡처 실측)
             edge.material.opacity = e;
             back.material.opacity = e * 0.8;
             grip.material.opacity = e * 0.92;
