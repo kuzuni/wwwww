@@ -227,7 +227,7 @@ const MAXCELLS = process.env.VOXCON_MAXCELLS ? parseFloat(process.env.VOXCON_MAX
     }
     console.log('\n※ 최장축 칸 수 = 그 덩어리가 큐브 몇 개로 깎였나(촘촘함 지표). **축정렬 99% 이상일 때만** 준다 —');
     console.log('   격자가 없는 조형은 이 값이 격자 피치가 아니라 곡면 분할 간격이라 허수가 된다(n/a 로 비운다).');
-    console.log('   📏 참고 대역: 이미 합격한 **프롭이 11~22칸**. 펫은 26~35칸으로 그 2~3배라 "너무 잘다"는 지적과 맞는다.');
+    console.log('   📏 참고 대역: 이미 합격한 **프롭이 11~22칸**. (펫은 26~35칸이었다가 2026-08-20 PVS 0.014→0.023 으로 11~21칸에 들어옴.)');
     console.log('※ 스킬 이펙트는 정지 상태로 못 부른다 — 연속 프레임 캡처로 따로 볼 것(머리말 ⓑ).');
     if (MIN !== null) {
         console.log(`\n게이트 VOXCON_MIN=${MIN}% → ${worst.length ? 'FAIL ' + worst.length + '종 미달' : 'PASS'}`);
