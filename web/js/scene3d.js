@@ -2251,6 +2251,9 @@ const Scene3D = {
             //    ⚠️ shininess 를 대신 올리지 말 것 — 하이라이트가 좁아지는 대신 더 세져 면 하나가 더 하얘진다.
             flatShading: true, shininess: 58, specular: 0x3f6270, vertexColors: true,
         });
+        // 결정 재질의 **출고 상태**를 떠 둔다 — `setTheme` 이 결정 없는 바이옴으로 갈 때 되돌릴 자리다
+        // (아래 `setTheme` 의 결정 색 분기 주석 참고. 안 되돌리면 앞 챕터 색이 그대로 남는다).
+        this._crystalDefault = { color: 0x9575cd, emissive: 0x6a3fb5, intensity: 0.5, halo: 0x4dd9e8, glow: 0x26c6da };
         this.trees = [];
         this.rocks = [];
         this.buildProps('forest');
@@ -21315,6 +21318,22 @@ const Scene3D = {
             // ch7 마법이 보라 할로를 그대로 물고 있게 된다(공유 재질의 전형적 잔상).
             if (this.crystalHaloMat) this.crystalHaloMat.color.setHex(0x4dd9e8);
             if (this.crystalGlowMat) this.crystalGlowMat.color.setHex(0x26c6da);
+        } else {
+            // 🚨 **결정을 안 쓰는 바이옴도 반드시 되돌린다 (slug: biome-stone-color-leak 과 같은 계열).**
+            //    종전엔 이 `else` 가 아예 없어서, 마법·빙하를 거쳐 온 뒤 초원·사막에 결정이 서면
+            //    **앞 챕터 색 그대로** 청록/얼음빛으로 섰다. 지금 원본 6종은 결정을 안 놓아 화면에는
+            //    안 드러나지만(사막 씬의 `crystalMat` 메시 0개를 실측으로 확인했다), 프롭 표에 결정을
+            //    한 줄만 추가하면 그날 바로 터지는 **잠복 결함**이라 여기서 막는다.
+            //    ⚠️ 바로 위 `magic` 분기의 값을 여기에 베껴 쓰지 말 것 — 그건 마법 바이옴 전용 처방이다.
+            //       되돌릴 값은 **재질 생성 시점의 출고 상태**(`_crystalDefault`)다.
+            const d = this._crystalDefault;
+            if (d) {
+                this.crystalMat.color.setHex(d.color);
+                this.crystalMat.emissive.setHex(d.emissive);
+                this.crystalMat.emissiveIntensity = d.intensity;
+                if (this.crystalHaloMat) this.crystalHaloMat.color.setHex(d.halo);
+                if (this.crystalGlowMat) this.crystalGlowMat.color.setHex(d.glow);
+            }
         }
         // 용암: 반구광 지면 반사색을 뜨거운 주황으로 — 소품 아랫면이 용암빛을 받는 느낌
         // 소품 아랫면이 지면의 열기를 받는 느낌 — 균열 색을 그대로 쓰면 반구광이 화면을 씻어내므로 45%로 눌러 쓴다
@@ -21353,6 +21372,32 @@ const Scene3D = {
             }
         }
         this.paintSky(t.sky, fogC.getHex(), night);
+        // 🚨 **복셀 프롭 재질 클론을 원본에서 다시 동기화한다 — 이 줄이 없으면 프롭이 한 챕터 늦은 색으로 선다.**
+        //    (slug: biome-stone-color-leak, 2026-08-20 실측으로 확정)
+        //    `vxProp` 은 `stoneMat` 처럼 map 이 달린 재질을 그대로 못 쓰고(큐브 면에 텍스처가 얹히면 화풍 ⓒ 위반)
+        //    `vxMat` 이 만든 **클론**을 물린다. 그런데 이 함수의 순서가 어긋나 있었다:
+        //      ① `buildProps(biome)` 를 **맨 앞**(이 함수 위쪽)에서 부른다 → 그 시점의 `stoneMat.color` 가
+        //         클론에 복사된다. ② 그 **한참 뒤**에 `stoneMat.color.setHex(…)` 로 이번 바이옴 색을 칠한다.
+        //      → 원본만 바뀌고 **실제로 그려지는 클론은 직전 바이옴 색 그대로**다.
+        //    실측(한 페이지에서 `setTheme` 만 갈아끼움): `lava`→`desert` 사막 바위 **#5f6e76**(= 용암 fallback
+        //    0x90a4ae × map 보정), `snow`→`desert` **#85919d**(= 설원 0xc9d8e6 × 보정). 사막 자기 색
+        //    0xb97f5e(테라코타)는 **한 번도 안 나온다.** 0차 채점에서 비평가가 "사막에 하늘색 얼음빛 바위"로
+        //    지적한 것이 이것이다.
+        //    ⚠️ **`buildProps` 를 뒤로 옮기는 방식으로 고치지 말 것** — 그 사이에서 조명·안개·`_biome` 이
+        //       정해지고 `buildProps` 가 발광 소품에 포인트라이트를 직접 단다(순서를 뒤집으면 그쪽이 깨진다).
+        //    ⚠️ 같은 바이옴 안에서 챕터만 바뀌면 `buildProps` 가 아예 안 돌므로(`biome !== this._biome` 가드),
+        //       클론 동기화를 여기서 안 하면 `sp.stone` 이 다른 형제 챕터끼리도 색이 안 갈린다.
+        this.syncVxMats();
+    },
+
+    // 복셀 프롭 재질 클론 ← 원본 재질 색 동기화. `vxMat` 의 색 복사부와 **같은 식**을 쓴다
+    // (map 을 뗀 만큼 밝아지는 몫을 되돌리는 보정까지 포함) — 두 곳이 갈리면 프롭만 밝거나 어두워진다.
+    syncVxMats() {
+        if (!this._vxMats) return;
+        for (const [base, m] of this._vxMats) {
+            m.color.copy(base.color);
+            if (base.map) m.color.multiply(this._vxMapComp || (this._vxMapComp = new THREE.Color(0.666, 0.675, 0.683)));
+        }
     },
 
     // ==========================================================================

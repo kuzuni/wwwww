@@ -55,6 +55,7 @@ for p in \
     probe-egg-form.js \
     probe-prop-voxel.js \
     probe-crystal-sculpt.js \
+    probe-biome-mat-path.js \
     probe-orb-face-flat.js \
 ; do
     echo "── $p"
