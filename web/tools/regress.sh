@@ -12,6 +12,7 @@ for p in \
     test-voxel-shapes.js \
     probe-voxel-build.js \
     probe-equip-voxel.js \
+    probe-equip-framing.js \
     probe-grid-empty.js \
     test-death-timeline.js \
     probe-death-remnant.js \
