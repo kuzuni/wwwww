@@ -613,7 +613,10 @@ const CHAPTER_THEMES = [
     { sky: 0x7cc0e0, fog: 0xffe0b2, ground: 0xbca77b, biome: 'desert' },
     // 3 바위산 — 지면을 0x6b6157→0x8a7c68로 밝힘: 값 그레이딩(-비례 하향) 후에도 절벽(0x51483e)과
     // 명도 단차가 남아야 한다(map-quality-up 재채점 A2·B2 공통 1위 '지면·바위·원경이 같은 회갈색 뭉개짐').
-    { sky: 0x7f9cbd, fog: 0xaebfd4, ground: 0x8a7c68, biome: 'rock' },
+    // 🎨 0x8a7c68 → 0x857d6f (map-palette-unify 3차): 명도는 그대로 두고(위 단차 결론 보존) 색만
+    //    반 단계 냉각 — 한랭 청회 하늘·침엽수 아래 '따뜻한 모래색 지면'이 화면을 온도 반반으로
+    //    갈랐다(2차 채점 A #3 온도 충돌). 완전 무채로 빼지는 않는다(툰드라 주석의 잎 파생 함정).
+    { sky: 0x7f9cbd, fog: 0xaebfd4, ground: 0x857d6f, biome: 'rock' },
     { sky: 0x4a6572, fog: 0x607d8b, ground: 0x455a64, biome: 'forest' },                    // 4 폭풍
     { sky: 0x263238, fog: 0x37474f, ground: 0x33691e, biome: 'forest', celestial: 'moon' }, // 5 밤 숲
     { sky: 0x1a237e, fog: 0x283593, ground: 0xaac2e2, biome: 'snow', celestial: 'moon' },   // 6 설원 밤 (눈 고유색 복원 — 남색 지면은 "파란 지형"으로 보였음)
