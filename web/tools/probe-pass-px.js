@@ -140,16 +140,40 @@ const MEASURE = (async (srcs) => {
         if (cur) rows.push(cur);
         // X 버튼(패널 하단 아래, 탭 줄 중앙 ±25%TW)
         const cx = X0 + TW / 2;
-        let xbtn = null;
-        for (let y = U.y2 + 3; y < H; y++)
-            for (let x = Math.round(cx - TW * 0.25); x < cx + TW * 0.25; x++) {
-                const p = at(x, y);
-                if (p[0] > 190 && p[1] < 90 && p[2] < 90) {
-                    if (!xbtn) xbtn = { x1: x, x2: x, y1: y, y2: y };
-                    xbtn.x1 = Math.min(xbtn.x1, x); xbtn.x2 = Math.max(xbtn.x2, x + 1);
-                    xbtn.y1 = Math.min(xbtn.y1, y); xbtn.y2 = Math.max(xbtn.y2, y + 1);
+        // 🚨 **합집합으로 재지 않는다 — 2026-08-20 `probe-techov-px` 가 이 꼴로 터졌다.**
+        //    크로미엄이 흰 글자를 파란 면 위에 그리면 서브픽셀 렌더링이 글자 모서리에 붉은
+        //    프린지(`151,71,52` 류)를 남긴다. 그 화소 몇 개가 밴드에 들어오면 합집합 상자가
+        //    버튼 29px → 382px 로 늘어 `+70.31%p` 짜리 유령 불통과가 난다(실측). 원본 PNG 엔
+        //    프린지가 없어 **클론에서만** 터지고, **캡처를 다시 구운 세션에서만** 보인다.
+        //    이 화면도 같은 구조(넓은 밴드 · 색 문턱 · 합집합)라 미리 닫는다 — 게다가 이 밴드
+        //    바로 위가 파란 탭 줄이라 프린지가 생기는 조건이 그대로 갖춰져 있다.
+        //    (`comps` 는 위에서 흰 패널용으로 이미 쓰고 있어 이름을 `compsIn` 으로 둔다.)
+        const compsIn = (pred, x1, y1, x2, y2) => {
+            const seen = new Uint8Array(W * H), list = [];
+            for (let yy = y1; yy <= y2; yy++) for (let xx = x1; xx <= x2; xx++) {
+                const i0 = yy * W + xx;
+                if (seen[i0] || !pred(xx, yy)) continue;
+                const st = [i0]; seen[i0] = 1;
+                let n = 0, a = W, b2 = -1, t = H, bo = -1;
+                while (st.length) {
+                    const i = st.pop(); n++;
+                    const x = i % W, y = (i - x) / W;
+                    if (x < a) a = x; if (x > b2) b2 = x; if (y < t) t = y; if (y > bo) bo = y;
+                    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+                        const nx = x + dx, ny = y + dy;
+                        if (nx < x1 || nx > x2 || ny < y1 || ny > y2) continue;
+                        const ni = ny * W + nx;
+                        if (!seen[ni] && pred(nx, ny)) { seen[ni] = 1; st.push(ni); }
+                    }
                 }
+                list.push({ n, x1: a, x2: b2, y1: t, y2: bo });
             }
+            return list;
+        };
+        const xComps = compsIn((x, y) => { const p = at(x, y); return p[0] > 190 && p[1] < 90 && p[2] < 90; },
+            Math.max(0, Math.round(cx - TW * 0.25)), U.y2 + 3,
+            Math.min(W - 1, Math.round(cx + TW * 0.25) - 1), H - 1).sort((a, b) => b.n - a.n);
+        const xbtn = xComps.length ? { x1: xComps[0].x1, x2: xComps[0].x2 + 1, y1: xComps[0].y1, y2: xComps[0].y2 + 1 } : null;
         out.push({ W, H, TW, X0, tab, ribbon, badge, U, rows, xbtn });
     }
     return out;

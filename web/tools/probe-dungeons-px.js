@@ -36,6 +36,31 @@ const MEASURE = (async (srcs) => {
         const at = (x, y) => { const i = (y * W + x) * 4; return [d[i], d[i + 1], d[i + 2]]; };
         const nonWhite = (x, y) => { const p = at(x, y); return !(Math.min(...p) >= 238 && (Math.max(...p) - Math.min(...p)) <= 10); };
         const dark = (x, y) => Math.max(...at(x, y)) < 90;
+        // 연결 성분(4-이웃) — `probe-fl-body` 와 같은 관용구. 색 문턱으로 요소를 찾을 때
+        // '합집합'이 아니라 '가장 큰 덩어리'를 쓰기 위한 것이다(아래 뒤로 버튼 주석 참조).
+        const comps = (pred, x1, y1, x2, y2) => {
+            const lab = new Int32Array(W * H).fill(-1);
+            const list = [];
+            for (let yy = y1; yy <= y2; yy++) for (let xx = x1; xx <= x2; xx++) {
+                const i0 = yy * W + xx;
+                if (lab[i0] !== -1 || !pred(xx, yy)) continue;
+                const id = list.length, st = [i0]; lab[i0] = id;
+                let n = 0, a = W, b2 = -1, t = H, bo = -1;
+                while (st.length) {
+                    const i = st.pop(); n++;
+                    const x = i % W, y = (i - x) / W;
+                    if (x < a) a = x; if (x > b2) b2 = x; if (y < t) t = y; if (y > bo) bo = y;
+                    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+                        const nx = x + dx, ny = y + dy;
+                        if (nx < x1 || nx > x2 || ny < y1 || ny > y2) continue;
+                        const ni = ny * W + nx;
+                        if (lab[ni] === -1 && pred(nx, ny)) { lab[ni] = id; st.push(ni); }
+                    }
+                }
+                list.push({ n, x1: a, x2: b2, y1: t, y2: bo });
+            }
+            return list;
+        };
         // 밴드 스캔(전 높이) → 상단 80%H 앞은 카드, 뒤는 탭바로 분류
         // (⚠️ '어두운 픽셀 92%W' 식 탭바 상단 검출은 아이콘·라벨 색이 끼어 중간 행에 걸린다 — 밟았다)
         const bands = [];
@@ -89,16 +114,17 @@ const MEASURE = (async (srcs) => {
             }
         }
         // 뒤로 버튼: 카드 아래 ~ 탭바 사이, 왼쪽 1/4 의 빨강
-        let back = null;
-        const yFrom = cards.length ? cards[cards.length - 1].bot + 3 : Math.round(H * 0.6);
-        for (let y = yFrom; y < tabbarTop - 1; y++) for (let x = 0; x < W / 4; x++) {
-            const p = at(x, y);
-            if (p[0] > 190 && p[1] < 90 && p[2] < 90) {
-                if (!back) back = { x1: x, x2: x, y1: y, y2: y };
-                back.x1 = Math.min(back.x1, x); back.x2 = Math.max(back.x2, x + 1);
-                back.y1 = Math.min(back.y1, y); back.y2 = Math.max(back.y2, y + 1);
-            }
-        }
+        // 🚨 **합집합으로 재지 않는다 — 2026-08-20 `probe-techov-px` 가 이 꼴로 터졌다.**
+        //    크로미엄이 흰 글자를 파란 면 위에 그리면 서브픽셀 렌더링이 글자 모서리에 붉은
+        //    프린지(`151,71,52` 류)를 남긴다. 그 화소 몇 개가 밴드에 들어오면 합집합 상자가
+        //    버튼 29px → 382px 로 늘어 `+70.31%p` 짜리 유령 불통과가 난다(실측). 원본 PNG 엔
+        //    프린지가 없어 **클론에서만** 터지고, **캡처를 다시 구운 세션에서만** 보인다.
+        //    → 이 화면도 같은 구조(넓은 밴드 · 색 문턱 · 합집합)라 미리 닫는다. `probe-fl-body`
+        //    가 이미 쓰는 관용구(연결 성분 중 최대)로 맞춰 두어 처방이 갈라지지 않게 한다.
+        const backComps = comps((x, y) => { const p = at(x, y); return p[0] > 190 && p[1] < 90 && p[2] < 90; },
+            0, cards.length ? cards[cards.length - 1].bot + 3 : Math.round(H * 0.6),
+            Math.round(W / 4) - 1, tabbarTop - 2).sort((a, b) => b.n - a.n);
+        const back = backComps.length ? { x1: backComps[0].x1, x2: backComps[0].x2 + 1, y1: backComps[0].y1, y2: backComps[0].y2 + 1 } : null;
         out.push({ W, H, tabbarTop, fullWidth, cards, open1, back });
     }
     return out;

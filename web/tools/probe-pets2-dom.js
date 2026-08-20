@@ -83,12 +83,35 @@ const SCAN = (async (src) => {
     }
 
     // ── ◀ 버튼: 밴드 안 왼쪽 1/4 의 빨강 덩어리
+    // 🚨 **주석은 '덩어리'였는데 코드는 합집합이었다 — 2026-08-20 `probe-techov-px` 가 이 꼴로 터졌다.**
+    //    크로미엄이 흰 글자를 파란 면 위에 그리면 서브픽셀 렌더링이 글자 모서리에 붉은
+    //    프린지(`151,71,52` 류)를 남기고, 그 화소 몇 개가 밴드에 들어오면 합집합 상자가
+    //    버튼 29px → 382px 로 늘어 `+70.31%p` 짜리 유령 불통과가 난다(실측). 원본 PNG 엔
+    //    프린지가 없어 **클론에서만**, 그것도 **캡처를 다시 구운 세션에서만** 보인다.
+    //    → 주석대로 진짜 '가장 큰 연결 성분'을 쓴다(`probe-fl-body`·`probe-lgr-dom` 관용구).
     const red = p => p[0] > 175 && p[1] < 90 && p[2] < 90;
-    let bl = 1e9, br = -1, bt = 1e9, bb = -1;
-    for (let y = bandTop; y <= bandBot; y++) for (let x = appL; x <= appL + AW * 0.25; x++) {
-        if (red(at(x, y))) { if (x < bl) bl = x; if (x > br) br = x; if (y < bt) bt = y; if (y > bb) bb = y; }
+    const bx1 = appL, bx2 = Math.round(appL + AW * 0.25);
+    const seen = new Uint8Array(W * H);
+    let backBlob = null;
+    for (let y = bandTop; y <= bandBot; y++) for (let x = bx1; x <= bx2; x++) {
+        const i0 = y * W + x;
+        if (seen[i0] || !red(at(x, y))) continue;
+        const st = [i0]; seen[i0] = 1;
+        let n = 0, a = 1e9, b = -1, t = 1e9, bo = -1;
+        while (st.length) {
+            const i = st.pop(); n++;
+            const cx = i % W, cy = (i - cx) / W;
+            if (cx < a) a = cx; if (cx > b) b = cx; if (cy < t) t = cy; if (cy > bo) bo = cy;
+            for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+                const nx = cx + dx, ny = cy + dy;
+                if (nx < bx1 || nx > bx2 || ny < bandTop || ny > bandBot) continue;
+                const ni = ny * W + nx;
+                if (!seen[ni] && red(at(nx, ny))) { seen[ni] = 1; st.push(ni); }
+            }
+        }
+        if (!backBlob || n > backBlob.n) backBlob = { n, x1: a, x2: b, y1: t, y2: bo };
     }
-    const back = br > 0 ? { x1: bl, x2: br, y1: bt, y2: bb } : null;
+    const back = backBlob ? { x1: backBlob.x1, x2: backBlob.x2, y1: backBlob.y1, y2: backBlob.y2 } : null;
     return { W, H, appL, appR, AW, bandTop, bandBot, cells, timeTop, back };
 });
 
