@@ -89,13 +89,18 @@ const CASES = [
                 const ink = inkIdx.length / Ls.length * 100;
                 // 잉크 화소의 평균 채도 — '모티프가 색을 가졌나 흰가'를 재는 값(아래 판정에는 안 쓴다).
                 // 순검정 키라인(채도 0)은 원본·클론 **양쪽에** 있으므로 상수 편향으로 대체로 상쇄된다.
-                let sat = 0;
+                let sat = 0, satC = 0, nC = 0, nK = 0;
                 for (const i of inkIdx) {
                     const [r, g2, b] = RGB[i], mx = Math.max(r, g2, b), mn = Math.min(r, g2, b);
-                    sat += mx ? (mx - mn) / mx : 0;
+                    const sv = mx ? (mx - mn) / mx : 0;
+                    sat += sv;
+                    // 키라인 몫과 채움 몫을 가른다 — 아래 ⓐⓑ 참조.
+                    if (Ls[i] < 60) nK++; else { satC += sv; nC++; }
                 }
                 sat = inkIdx.length ? sat / inkIdx.length * 100 : 0;
-                return { key: c2.key, n: Ls.length, Lm, ink, sat };
+                const kBlack = inkIdx.length ? nK / inkIdx.length * 100 : 0;
+                const satCol = nC ? satC / nC * 100 : 0;
+                return { key: c2.key, n: Ls.length, Lm, ink, sat, kBlack, satCol };
             });
         }, { dataUrl, R: c.R, cells });
 
@@ -110,12 +115,13 @@ const CASES = [
             console.log(`   ${o.key}${eqSet.has(o.key) ? ' (장착)' : '       '}  바탕 휘도 ${o.Lm.toFixed(0).padStart(3)}  잉크율 ${o.ink.toFixed(1).padStart(5)}%  표본 ${o.n}`);
         }
         const unInk = avg(un, o => o.ink), eqInk = avg(eq, o => o.ink);
-        const unSat = avg(un, o => o.sat);
+        const unSat = avg(un, o => o.sat), unK = avg(un, o => o.kBlack), unSatCol = avg(un, o => o.satCol);
         const weak = un.filter(o => o.ink < 20);
         console.log(`  ▶ 미장착 ${un.length}개 평균 잉크율 ${unInk.toFixed(1)}%  ·  (참고) 장착 ${eq.length}개 ${eqInk.toFixed(1)}%`);
         console.log(`  ▶ 잉크율 20% 미만 미장착 오브: ${weak.length}개${weak.length ? ' — ' + weak.map(o => `${o.key}(${o.ink.toFixed(1)}%)`).join(', ') : ''}`);
         console.log(`  ▶ (참고) 미장착 오브 잉크 화소 평균 채도 ${unSat.toFixed(1)}% — '모티프가 색을 가졌나 흰가'`);
-        out.push({ label: c.label, unInk, eqInk, unSat, weak: weak.length, un });
+        console.log(`  ▶ (참고) 잉크 화소 중 '거의 검정'(L<60) ${unK.toFixed(1)}%  ·  그걸 뺀 채움 화소 평균 채도 ${unSatCol.toFixed(1)}%`);
+        out.push({ label: c.label, unInk, eqInk, unSat, unK, unSatCol, weak: weak.length, un });
     }
 
     await browser.close();
@@ -124,9 +130,16 @@ const CASES = [
     console.log(`미장착 평균 잉크율   원본 ${ref.unInk.toFixed(1)}%  vs  클론 ${clone.unInk.toFixed(1)}%   (차 ${(clone.unInk - ref.unInk).toFixed(1)}%p)`);
     console.log(`잉크율 20% 미만 개수  원본 ${ref.weak}/${ref.un.length}  vs  클론 ${clone.weak}/${clone.un.length}`);
     console.log(`잉크 채도(참고·판정 제외)  원본 ${ref.unSat.toFixed(1)}%  vs  클론 ${clone.unSat.toFixed(1)}%   (차 ${(clone.unSat - ref.unSat).toFixed(1)}%p)`);
-    console.log(`   ↑ 이 줄은 미결 ㉢('스킬 글리프 채움이 흰색 지배', 비평가 A#3·B#5)의 **판단 근거**로만 쓴다.`);
-    console.log(`     낮다 = 우리 모티프가 원본보다 흰색에 가깝다는 뜻이지 '안 읽힌다'는 뜻이 아니다 —`);
-    console.log(`     읽힘은 바로 위 잉크율이 답하고, 그쪽은 우리가 원본보다 높다. 즉 ㉢ 은 결함이 아니라 화풍 선택이다.`);
+    console.log(`  ⓐ 그중 '거의 검정'(키라인) 몫   원본 ${ref.unK.toFixed(1)}%  vs  클론 ${clone.unK.toFixed(1)}%   (차 ${(clone.unK - ref.unK).toFixed(1)}%p)`);
+    console.log(`  ⓑ 검정을 뺀 **채움** 화소 채도   원본 ${ref.unSatCol.toFixed(1)}%  vs  클론 ${clone.unSatCol.toFixed(1)}%   (차 ${(clone.unSatCol - ref.unSatCol).toFixed(1)}%p)`);
+    console.log(`   ↑ 🚨 **ⓐ 없이 위 한 줄만 읽으면 오독한다** (2026-08-20 UI 스트림이 실제로 당했다).`);
+    console.log(`     스킬 색 18종을 블록 팔레트로 옮겨 **팔레트 채도를 46.9% → 69.2%** 로 올렸는데도`);
+    console.log(`     위 '잉크 채도'는 32.9% → 33.0% 로 **꿈쩍하지 않았다.** 이유가 ⓐ 다 —`);
+    console.log(`     우리 키라인은 원본 실측 비 .067 이라 잉크 화소의 큰 몫이 **채도 0 인 순검정**이고,`);
+    console.log(`     그 몫이 평균을 붙들고 있다. 즉 이 지표는 '채움이 얼마나 색을 가졌나'가 아니라`);
+    console.log(`     **'키라인이 얼마나 두꺼운가'** 를 같이 재고 있다. 채움만 보려면 ⓑ 를 볼 것.`);
+    console.log(`     ⚠️ ⓐ 를 줄이려고 키라인을 얇게 만들지 말 것 — 두께 .067 은 원본 실측 비이고`);
+    console.log(`        '순검정 키라인 + 평면 채움'은 이 게임 아이콘 화법의 핵심이다(probe-icon-keyline).`);
     if (bad) { console.log('\n측정기 고장 — 수치를 쓰지 말 것.'); process.exit(2); }
     const ok = clone.unInk >= ref.unInk - 8 && clone.weak <= ref.weak;
     console.log(ok ? '\nPASS' : '\nFAIL — 클론 오브의 모티프가 원본만큼 오브 면과 갈리지 않는다.');

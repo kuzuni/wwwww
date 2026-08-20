@@ -357,6 +357,44 @@ const IconGen = {
           **순흑은 다크 엔드가 아니라 정보의 소실이다**(POLISH.md 3D 스트림이 잎에서 남긴 교훈).
        채우는 빛을 흰색이 아니라 (0.30,0.42,0.72) 하늘빛으로 쓰는 이유: 회색으로 들어올리면
        채도가 빠져 '먼지 낀 면'이 되지만, 찬 빛은 **햇빛을 등진 면에 하늘이 비친다**는 읽기가 된다. */
+    /* 파스텔 색을 **블록 아이콘 팔레트**(굵고 진하고 밝은 제한 팔레트)로 옮긴다 — 색상(hue)은 그대로,
+       채도와 밝기만 끌어올린다. (2026-08-20 UI 스트림, 락 `icon-gen`)
+       왜: 확정 화풍 ㉰ 가 `IconGen` 을 "굵고 각지고 **제한 팔레트** 블록 아이콘"으로 못 박는데,
+       스킬 색 `SKILL_DEFS[].color` 는 머티리얼 200~300 톤이라 **18색 평균 HSV 채도가 46.9%**,
+       최악은 `연속 참격 #cfd8dc`(**5.9%**)·`회오리 베기 #b0bec5`(**10.7%**)로 사실상 무채색이다.
+       채움 화법을 아무리 고쳐도(㉢) 원재료가 회색이면 색이 안 나온다 — 실제로 `probe-skill-orb-ink`
+       의 잉크 채도는 원본 53.5% 대비 32.9% 에서 더 못 올라갔고, 남은 격차의 정체가 이것이었다.
+       🚨 **`SKILL_DEFS` 를 고치지 않는 이유**: 그 색은 `combat.js` 의 스킬 FX 가 같이 쓴다(3D 스트림
+          도메인). 여기서 파생색을 만들면 **아이콘만** 바뀌고 전투 연출은 그대로다.
+       기준점은 재화 아이콘이다 — 원본 실측 코인이 `rgb(255,136,15)`(채도 **94%** · 밝기 255)이니
+       이 게임의 팔레트는 원래 밝고 진하다. 파스텔이 예외였다.
+       ⚠️ 채도를 상수로 몰지 말 것(`s*0.75 + 0.34`) — 전부 상한에 붙이면 18색의 **서로 다름**이
+          뭉개져 스킬 구분이 색에서 사라진다. 원 순서를 유지한 채 대역만 올린다. */
+    _block(hex) {
+        const n = parseInt(hex.slice(1), 16);
+        const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+        if (!mx) return hex;
+        let h = 0;
+        if (d) {
+            if (mx === r) h = ((g - b) / d + (g < b ? 6 : 0));
+            else if (mx === g) h = (b - r) / d + 2;
+            else h = (r - g) / d + 4;
+            h *= 60;
+        }
+        const s2 = Math.min(0.90, (d / mx) * 0.75 + 0.34);
+        const v2 = Math.max(mx, 232) / 255;
+        const c = v2 * s2, xx = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v2 - c;
+        let rr, gg, bb;
+        if (h < 60) { rr = c; gg = xx; bb = 0; }
+        else if (h < 120) { rr = xx; gg = c; bb = 0; }
+        else if (h < 180) { rr = 0; gg = c; bb = xx; }
+        else if (h < 240) { rr = 0; gg = xx; bb = c; }
+        else if (h < 300) { rr = xx; gg = 0; bb = c; }
+        else { rr = c; gg = 0; bb = xx; }
+        const f = (v) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+        return '#' + f(rr) + f(gg) + f(bb);
+    },
     _shadeFloor(hex, amt, floorL) {
         const n = parseInt(hex.slice(1), 16);
         const f = (v) => Math.max(0, Math.min(255, amt > 0 ? v + (255 - v) * amt : v * (1 + amt)));
@@ -2468,7 +2506,9 @@ IconGen._genderSym = function (ctx, S, female) {
             try { if (typeof SKILL_DEFS !== 'undefined') { const d = SKILL_DEFS.find(k => k.id === id); if (d && d.color) color = d.color; } } catch (e) { }
             const path = P[motif] || P.sparkle;
             if (rot) { ctx.save(); ctx.translate(S / 2, S / 2); ctx.rotate(rot); ctx.translate(-S / 2, -S / 2); }
-            emblem(ctx, S, color, path, glow);
+            // 파스텔 원색을 블록 팔레트로 옮겨 그린다(`_block` 주석 참조). **아이콘만** 바뀐다 —
+            // `SKILL_DEFS[].color` 원값은 그대로라 `combat.js` 의 스킬 FX 는 영향받지 않는다.
+            emblem(ctx, S, G._block(color), path, glow);
             if (rot) ctx.restore();
         };
     });
@@ -2484,7 +2524,9 @@ IconGen._genderSym = function (ctx, S, female) {
     };
     Object.keys(TECH_MOTIF).forEach((k) => {
         const [motif, color] = TECH_MOTIF[k];
-        G.draw[k] = function (ctx, S) { emblem(ctx, S, color, P[motif]); };
+        // 스킬 오브와 **같은 블록 팔레트**를 태운다(`_block`). 안 태우면 기술 트리 노드만 파스텔로
+        // 남아 나란히 놓였을 때 혼자 바래 보인다 — 실제로 A/B 시트에서 그렇게 갈렸다.
+        G.draw[k] = function (ctx, S) { emblem(ctx, S, G._block(color), P[motif]); };
     });
 
     // 스킬 오브에 얹을 심볼 아이콘 HTML. (오브 배경/글로우는 CSS .sk-orb 가 담당)
