@@ -121,6 +121,39 @@ const say = (ok, msg) => { if (!ok) fails++; console.log(`${ok ? 'OK  ' : 'FAIL'
     say(ctx.same, '⑻ 다시 열어도 렌더러를 재사용한다(WebGL 컨텍스트 누수 없음)');
     say(ctx.canvases <= 3, `⑻ 문서 전체 캔버스 ${ctx.canvases}개 (전장 + 미니 씬 + 여유 1)`);
 
+    // ⑽ **프리뷰 잎 색이 본편과 같은가 (slug: pinfo-preview-leaf-black).**
+    //    이 자는 17개 게이트를 전부 통과하면서도 **잎 색을 안 봤고**, 그 사각지대에서 미니 씬의 잎이
+    //    순흑(`#000000`)으로 찍히고 있었다 — 본편 `setTheme` 은 잎에 바닥값(`V.leafFloor`)을 먹이는데
+    //    프리뷰용 `previewGrade()` 만 같은 오프셋 표를 복사해 두고 생짜로 적용했기 때문이다.
+    //    ⚠️ **픽셀로 재지 말 것** — WebGL 캔버스를 `drawImage`/`toDataURL` 로 되읽으면
+    //       `preserveDrawingBuffer:false` 라 본편·프리뷰 **둘 다 '검정 100%'** 가 돌아온다(헛수치).
+    //       재질/색 객체를 직접 읽는다.
+    //    ⚠️ 🚨 **본편 값을 '지금 재질에 들어 있는 색'으로 읽어서 비교하면 안 된다.** 이 프로브는
+    //       9챕터(용암)에서 도는데 프리뷰는 **1챕터 고정**이라, 그냥 비교하면 초록↔갈색을 견주는 꼴이라
+    //       늘 어긋난다(첫 판이 `ΔL 0.0206` 으로 헛FAIL 을 냈다). **같은 테마를 본편 경로에 태워** 읽고
+    //       원래 테마로 되돌린다 — 이래야 '두 경로가 같은 색을 내는가'라는 원래 질문이 된다.
+    const leafChk = await page.evaluate(() => {
+        const L = c => c.getHSL({ h: 0, s: 0, l: 0 }).l;
+        const T0 = CHAPTER_THEMES[0];
+        const g = Scene3D.previewGrade(T0);
+        const ch = (typeof S !== 'undefined' && S.chapter) || 1;   // 되돌릴 챕터
+        Scene3D.setTheme(T0);                           // 본편 경로로 같은 테마를 태운다
+        const live = Scene3D.foliageMats.map(m => ({ hex: '#' + m.color.getHexString(), l: L(m.color) }));
+        const bushLive = { hex: '#' + Scene3D.bushMat.color.getHexString(), l: L(Scene3D.bushMat.color) };
+        Scene3D.setChapterTheme(ch);                    // 원상복구 — 뒤에 다른 검사가 붙어도 안 흔들리게
+        return {
+            floor: Scene3D.VALUE.leafFloor * 0.55,
+            pv: g.foliage.map(c => ({ hex: '#' + c.getHexString(), l: L(c) })),
+            live,
+            bush: { pv: '#' + g.bush.getHexString(), live: bushLive.hex, d: Math.abs(L(g.bush) - bushLive.l) },
+        };
+    });
+    const dark = leafChk.pv.filter(c => c.l < leafChk.floor - 1e-6);
+    say(dark.length === 0, `⑽ 프리뷰 잎 3색이 전부 바닥값(${leafChk.floor.toFixed(4)}) 위 — ${leafChk.pv.map(c => c.hex + ' L' + c.l.toFixed(4)).join(' ')}`);
+    const dl = leafChk.pv.map((c, i) => Math.abs(c.l - leafChk.live[i].l));
+    say(Math.max.apply(null, dl) <= 0.02, `⑽ 프리뷰↔본편 잎 ΔL ${dl.map(d => d.toFixed(4)).join(' ')} (≤0.02) · 본편 ${leafChk.live.map(c => c.hex).join(' ')}`);
+    say(leafChk.bush.d <= 0.02, `⑽ 덤불도 같은 바닥값 — 프리뷰 ${leafChk.bush.pv} ↔ 본편 ${leafChk.bush.live} ΔL ${leafChk.bush.d.toFixed(4)}`);
+
     say(errors.length === 0, `⑼ 콘솔 에러 ${errors.length}건${errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''}`);
     await browser.close();
     console.log(fails ? `\n실패 ${fails}건` : '\n전부 통과');

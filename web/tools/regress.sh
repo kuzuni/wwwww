@@ -58,6 +58,7 @@ for p in \
     probe-prop-voxel.js \
     probe-crystal-sculpt.js \
     probe-biome-mat-path.js \
+    probe-pinfo-scene.js \
     probe-orb-face-flat.js \
 ; do
     echo "── $p"

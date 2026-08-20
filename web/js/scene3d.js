@@ -21318,25 +21318,16 @@ const Scene3D = {
         //    사실 자체가 사라진다.** 첫 판이 그렇게 만들어서, 바닥값을 올릴 때 h=0(주황)로 복원돼
         //    `foliageMatDark` 가 **#271f1b 갈색**이 됐다 — 화면에 갈색 침엽수가 섞여 나왔다(실측).
         //    그래서 오프셋을 숫자로 먼저 더하고, **클램프되기 전에** 바닥값을 적용한다.
-        const leaf = (dh, ds, dl) => {
-            const b = gC.getHSL({ h: 0, s: 0, l: 0 });
-            let h = b.h + dh, sat = U.clamp(b.s + ds, 0, 1), l = b.l + dl;
-            if (l < V.leafFloor) {
-                const k = U.clamp((V.leafFloor - l) / V.leafFloor, 0, 1);
-                h += V.leafCool * k;                       // 눌린 만큼 청록 쪽으로
-                sat = U.clamp(sat + 0.18 * k, 0, 1);
-                // ⚠️ 바닥을 **하드 클램프하면 안 된다** — 세 변주(기본/어두운/밝은)가 전부 같은 값이 돼
-                //    "나무마다 잎 명도가 다르다"는 원래 설계가 사라진다(실측: 셋 다 #1a350c 근방).
-                //    바닥 근처로 **압축**하되 순서는 보존한다: l=floor 이면 floor, 더 어두울수록
-                //    floor*0.55 로 점근한다(0 이하로는 절대 안 내려간다).
-                l = V.leafFloor * (0.55 + 0.45 / (1 + (V.leafFloor - l) / V.leafFloor));
-            }
-            return new THREE.Color().setHSL((h % 1 + 1) % 1, sat, l);
-        };
-        this.foliageMat.color.copy(leaf(-0.02, 0.08, -0.16 + dF));
-        this.foliageMatDark.color.copy(leaf(-0.025, 0.09, -0.23 + dF)); // 뒤 나무용 어두운 변주
-        this.foliageMatLight.color.copy(leaf(-0.015, 0.07, -0.09 + dF)); // 앞 나무용 밝은 변주
-        this.bushMat.color.copy(leaf(-0.01, 0.05, -0.1 + dF));   // 덤불도 같은 바닥값 — 늪지에서 #040503(사실상 순흑)이었다
+        // 🚨 **오프셋 표도 바닥값도 여기서 손으로 쓰지 않는다 — `leafSet()` 한 곳이 소유한다.**
+        //    종전엔 이 자리에 지역 헬퍼 `leaf()` 와 오프셋 4줄이 있었고, `previewGrade()` 가 **같은
+        //    오프셋 표를 복사해 두고 바닥값 없이** 생짜로 적용했다. 그래서 플레이어 정보 팝업의 미니
+        //    씬만 잎이 순흑(`#000000`)으로 찍혔다(slug: pinfo-preview-leaf-black).
+        //    표가 두 곳에 있는 게 뿌리라 **표째로 한 함수에 넣었다** — 한쪽만 고치면 다음에 또 갈린다.
+        const lf = this.leafSet(gC, dF);
+        this.foliageMat.color.copy(lf.foliage[0]);
+        this.foliageMatDark.color.copy(lf.foliage[1]);   // 뒤 나무용 어두운 변주
+        this.foliageMatLight.color.copy(lf.foliage[2]);  // 앞 나무용 밝은 변주
+        this.bushMat.color.copy(lf.bush);                // 덤불도 같은 바닥값 — 늪지에서 #040503(사실상 순흑)이었다
         // 바위 이끼 뚜껑 — 고정 청록(0x4f8578)이 숲에선 나무 사이 '수면 조각/구멍', 바위산에선
         // '의도를 알 수 없는 민트 패치'로 읽혔다(map-quality-up 비평가 A #3 · B #6, 독립 지적).
         // 바이옴 지면 색상에서 초록 쪽으로 1/3만 끌린 저채도·저명도 이끼색으로 파생 — 어느 바이옴에서든
@@ -21582,6 +21573,56 @@ const Scene3D = {
     // 초원 낮 테마의 값 그레이드 — `setTheme` 의 계산을 그대로 옮긴 것이다.
     // (setTheme 을 건드리면 전 챕터가 회귀 위험에 들어가므로 **읽기 전용 복제**로 둔다.
     //  두 곳이 갈라지면 프리뷰만 색이 어긋나므로, setTheme 의 그레이드를 고치면 여기도 같이 볼 것.)
+    // 잎·덤불 색 한 벌 — 지면색 `gC` 에서 HSL 오프셋으로 파생하되 **순흑 바닥값**을 먹인다.
+    //   반환 `foliage` 순서는 `this.foliageMats`(= [기본, 어두운, 밝은]) 와 **같아야 한다** —
+    //   `previewMat` 이 `foliageMats.indexOf()` 로 골라 쓰기 때문이다.
+    //
+    // 🚨 **이 함수가 존재하는 이유 = 같은 표를 두 곳에서 쓰기 때문이다.** 본편 `setTheme` 과 프리뷰
+    //    `previewGrade` 가 각자 오프셋 표를 들고 있었고, 프리뷰 쪽에만 바닥값이 없어서 미니 씬의
+    //    잎이 순흑으로 찍혔다(slug: pinfo-preview-leaf-black). **표를 다시 복사해 가지 말 것.**
+    //
+    // 🚨 **다만 순흑까지 가면 안 된다 (map-quality-up).** 실측: 초원에서 `foliageMat` 이 #060803,
+    //    `foliageMatDark` 는 명도가 음수로 내려가 **클램프 결과 #000000** 이었다. 비평가 2인이
+    //    독립적으로 "나무 서너 그루가 한 검은 덩어리로 뭉개져 실루엣이 사라진다"를 지적했고,
+    //    그 원인이 정확히 이것이다. **순흑은 다크 엔드가 아니라 정보의 소실**이다.
+    //    → 바닥값(`leafFloor`)을 두되, 바닥에 눌린 만큼 **청록 쪽으로 색상을 밀고 채도를 올린다.**
+    //      검정 대신 '보색 계열의 어두운 색'으로 그림자를 만드는 스타일라이즈드 처방이라,
+    //      명도는 그대로 낮게 유지하면서 잎끼리의 분리는 되살아난다.
+    // ⚠️ 🚨 **HSL 계산을 `Color` 밖에서 한다 — 안에서 하면 색상이 증발한다.**
+    //    `offsetHSL` 은 내부적으로 `setHSL` 을 부르고 거기서 명도가 0 으로 **클램프**된다.
+    //    그 뒤 `getHSL()` 로 다시 읽으면 순검정은 채도·색상이 전부 0 이라(max==min) **초록이었다는
+    //    사실 자체가 사라진다.** 첫 판이 그렇게 만들어서, 바닥값을 올릴 때 h=0(주황)로 복원돼
+    //    `foliageMatDark` 가 **#271f1b 갈색**이 됐다 — 화면에 갈색 침엽수가 섞여 나왔다(실측).
+    //    그래서 오프셋을 숫자로 먼저 더하고, **클램프되기 전에** 바닥값을 적용한다.
+    //    ⇒ 그래서 `previewGrade` 처럼 `gC.clone().offsetHSL(...)` 로 부르면 안 된다. 이 함수를 쓸 것.
+    LEAF_OFF: {
+        foliage: [[-0.02, 0.08, -0.16], [-0.025, 0.09, -0.23], [-0.015, 0.07, -0.09]],
+        bush: [-0.01, 0.05, -0.1],
+    },
+    leafColor(gC, dh, ds, dl) {
+        const V = Scene3D.VALUE;
+        const b = gC.getHSL({ h: 0, s: 0, l: 0 });
+        let h = b.h + dh, sat = U.clamp(b.s + ds, 0, 1), l = b.l + dl;
+        if (l < V.leafFloor) {
+            const k = U.clamp((V.leafFloor - l) / V.leafFloor, 0, 1);
+            h += V.leafCool * k;                       // 눌린 만큼 청록 쪽으로
+            sat = U.clamp(sat + 0.18 * k, 0, 1);
+            // ⚠️ 바닥을 **하드 클램프하면 안 된다** — 세 변주(기본/어두운/밝은)가 전부 같은 값이 돼
+            //    "나무마다 잎 명도가 다르다"는 원래 설계가 사라진다(실측: 셋 다 #1a350c 근방).
+            //    바닥 근처로 **압축**하되 순서는 보존한다: l=floor 이면 floor, 더 어두울수록
+            //    floor*0.55 로 점근한다(0 이하로는 절대 안 내려간다).
+            l = V.leafFloor * (0.55 + 0.45 / (1 + (V.leafFloor - l) / V.leafFloor));
+        }
+        return new THREE.Color().setHSL((h % 1 + 1) % 1, sat, l);
+    },
+    leafSet(gC, dF) {
+        const O = Scene3D.LEAF_OFF;
+        return {
+            foliage: O.foliage.map(o => Scene3D.leafColor(gC, o[0], o[1], o[2] + dF)),
+            bush: Scene3D.leafColor(gC, O.bush[0], O.bush[1], O.bush[2] + dF),
+        };
+    },
+
     previewGrade(t) {
         const V = Scene3D.VALUE;
         const fogC = new THREE.Color(t.fog).lerp(new THREE.Color(t.sky), 0.3).offsetHSL(0, 0.09, 0.01);
@@ -21589,12 +21630,13 @@ const Scene3D = {
         const dL = -Math.min(V.groundMax, V.groundK * gHSL.l);
         const dF = -Math.min(V.foliageMax, V.foliageK * gHSL.l);
         const gC = new THREE.Color(t.ground).offsetHSL(0, V.satK * dL, dL);
+        // 🚨 여기서 `gC.clone().offsetHSL(...)` 로 잎 색을 만들지 말 것 — 바닥값이 안 먹어 순흑이 된다
+        //    (그 상태가 `pinfo-preview-leaf-black` 이었다). 본편과 **같은 함수**를 탄다.
+        const lf = Scene3D.leafSet(gC, dF);
         return {
             fog: fogC, ground: gC,
-            foliage: [gC.clone().offsetHSL(-0.02, 0.08, -0.16 + dF),
-                gC.clone().offsetHSL(-0.025, 0.09, -0.23 + dF),
-                gC.clone().offsetHSL(-0.015, 0.07, -0.09 + dF)],
-            bush: gC.clone().offsetHSL(-0.01, 0.05, -0.1 + dF),
+            foliage: lf.foliage,
+            bush: lf.bush,
             mountain: gC.clone().offsetHSL(0, 0.03 - V.farDesat * 0.35, -0.16).lerp(fogC, 0.22),
             hill: gC.clone().offsetHSL(0, -V.farDesat * 0.7, 0).lerp(fogC, 0.75),
             farHill: gC.clone().offsetHSL(0, -V.farDesat, 0).lerp(fogC, 0.9),
