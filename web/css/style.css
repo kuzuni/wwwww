@@ -3099,6 +3099,8 @@ body {
     /* line-height 1.9→1.2: 원본 스탯 줄 피치 1.8%H(≈16px), 종전 2.6%H 로 목록이 9%p 비대 (채점 2차) */
     font-size: .8rem; font-weight: 700; color: var(--pp-ink); line-height: 1.2; margin-top: 1.2rem;
     scrollbar-width: thin; scrollbar-color: rgba(0,0,0,.35) transparent;
+    /* ⚠️ 아랫끝(`margin-bottom`)은 **아래 같은 특이도 규칙**에 있다 — 이 블록에 또 쓰면 거기에 덮인다.
+       두 블록이 한 셀렉터를 나눠 갖는 구조라 고칠 땐 같이 볼 것(그 규칙 머리말에 실측 근거가 있다). */
 }
 .pinfo-subs-list::-webkit-scrollbar { width: 4px; }
 .pinfo-subs-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,.35); border-radius: 2px; }
@@ -5306,7 +5308,22 @@ h3.sellwarn-title, .rates-head h3,
        바깥으로 나와 있어 정렬 기준 자체가 달랐다.
    좌 인셋은 rem 이 아니라 앱 폭 기준으로 준다 — 카드가 앱 폭의 고정 %라 뷰포트가 바뀌어도 같이 간다
    (56px 중 카드 패딩 1.1rem + 테 몫을 빼고 남는 35.8px = 앱 폭의 7.18%). */
-.pinfo-subs-list { text-align: left; font-weight: 900; color: var(--pp-ink); font-size: .88rem; line-height: 1.14; padding-left: calc(var(--app-w) * .0718); }
+/* ── 목록 **아랫끝**: 원본은 카드 하단까지 흰 여백을 크게 남긴다 (2026-08-20 UI 스트림 실측) ──
+   앞 세션이 "DOM 과 캡처가 서로 다른 말을 한다"며 판정 보류한 자리다. 갈라 보니 **틀린 쪽은 캡처 자**였다:
+   클론 카드의 종이 스킨 때문에 흰 화소 술어가 카드 하단을 y703 에서 끊어(DOM 은 753.2) 그 아래를
+   아예 안 봤다 — 이 저장소가 probe-pinfo-px·probe-lc-dom 에서 두 번 밟은 그 고장이다.
+   그래서 **원본만 픽셀, 클론은 DOM** 으로 재니 값이 깨끗이 갈렸다(자 = 앱 높이):
+     · 원본(shot-043313 496×880): 마지막(7번째·세로로 잘린) 스탯 줄 하단 y649 = **73.75%H**,
+       흰 카드 하단 y751 = 85.34%H → 그 사이 **102px = 11.59%H 가 빈 흰 여백**이다.
+     · 클론(499×892): 목록 상자 하단(= overflow 클립 모서리) 82.21%H, 카드 하단 84.63%H →
+       여백 21.5px = **2.42%H**. 목록 아랫끝이 원본보다 **+8.46%p 아래**로 내려와 있었다.
+   🚨 **줄 개수 차이(원본 7 ↔ 클론 12)로 기각되는 건이 아니다** — forge-list 타일 23↔30 건과 다르다.
+      이 목록은 `flex:1` 이라 상자 높이가 **내용이 아니라 플렉스 배분**으로 정해진다. 실측 증거:
+      시드를 안 먹여 자식이 1개(13.2px)뿐일 때도 상자는 그대로 148px 로 카드 하단까지 늘어났다.
+      즉 아랫끝은 내용 개수와 무관한 레이아웃 값이고, 그래서 비율 판정 대상이 맞다.
+   ⚠️ 원본도 마지막 줄이 세로로 **잘려** 있다(확대 크롭에서 글리프가 가로로 끊긴다) — 즉 원본 역시
+      스크롤 상자다. '잘리니까 결함'이 아니라 **잘리는 자리의 높이**가 결함이었다. */
+.pinfo-subs-list { text-align: left; font-weight: 900; color: var(--pp-ink); font-size: .88rem; line-height: 1.14; padding-left: calc(var(--app-w) * .0718); margin-bottom: calc(var(--app-h) * .0846); }
 /* `.idet-wrap` 은 카드 + 그 아래 ✕ 를 통째로 세로 중앙 정렬한다 — 카드를 원본 높이로 키우면
    **위아래로 똑같이** 자라서 상단이 원본보다 2.01%p 위로 뜬다(실측). 9px 내려 상단·하단을 함께
    맞춘다: 상단 Δ−1.00 · 하단 Δ+0.01 · 높이 Δ+0.08%p. `#detail-modal` 은 여러 팝업이 공유하므로
