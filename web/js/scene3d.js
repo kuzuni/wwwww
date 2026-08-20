@@ -9587,19 +9587,45 @@ const Scene3D = {
                 quad(0.08, 0.09, -0.1, 0.22, 0.12, 0.019, mat, { amp: 0.56, lo: 0.09 });
                 break;
             }
-            case 'Electry': { // 전기 구체 — 코일이 등속으로 돈다
-                sp(0.13, 0, 0.2, 0, M(c, { emissive: c, emissiveIntensity: 0.8 }));
-                const ring = pv(0, 0.2, 0);
+            case 'Electry': { // 전기 정령 — 어두운 골드 코어 + ⚡ 지그재그 번개 갈래
+                // 🚨 판독을 두 번 고쳤다(되돌리지 말 것). ⑴판(곧은 막대)은 **안테나 박힌 흰 구**,
+                //    ⑵판(휜 실린더 갈래)은 **흰 문어**로 읽혔다 — 둘 다 캡처 실측이다. 번개의
+                //    표식은 '갈래가 있다'가 아니라 **⚡ 특유의 각진 지그재그 실루엣**이다. 휜 원기둥은
+                //    부드러워서 다리·촉수로 읽힌다 → 각진 **평면 번개꼴**(Shape+Extrude)로 바꿨다.
+                // ⚠️ **코어를 흰-핫으로 두지 말 것(⑵판의 실패).** 갈래도 밝고 코어도 희면 온통 흰
+                //    덩어리가 돼 갈래가 안 갈린다. 번개는 밝고 코어는 **어두운 골드**여야 지그재그가
+                //    실루엣으로 튄다(전깃빛의 대비 = 밝은 방전 vs 어두운 하늘).
+                const CORE = M(0xb8860b, { emissive: 0x6b5000, emissiveIntensity: 0.5 });
+                const BOLT = M(0xfff27a, { emissive: 0xfff27a, emissiveIntensity: 1.15 });
+                sp(0.115, 0, 0.2, 0, CORE, 1, 1, 0.9);              // 어두운 골드 코어(갈래가 튀는 배경)
+                sp(0.05, 0, 0.2, 0.02, BOLT);                       // 작은 백열 심 — 코어 한복판만
+                // ⚡ 번개꼴 평면 — 위→아래로 좌우 두 번 꺾이는 폐곡선. 로컬 원점이 안쪽(코어 쪽)이고
+                //    +y 가 바깥 방향이라, 갈래를 코어 둘레에 각도만 돌려 심으면 된다.
+                const boltShape = (() => {
+                    const w = 0.052, L = 0.30, sh = new THREE.Shape();
+                    sh.moveTo(-w, 0); sh.lineTo(w, 0);
+                    sh.lineTo(w * 0.35, L * 0.45); sh.lineTo(w * 1.5, L * 0.5);   // 오른쪽으로 꺾인 어깨
+                    sh.lineTo(-w * 0.2, L); sh.lineTo(w * 0.2, L * 0.62);         // 뾰족한 끝 → 되꺾임
+                    sh.lineTo(-w * 1.4, L * 0.55); sh.lineTo(-w * 0.35, L * 0.42);
+                    sh.closePath();
+                    return new THREE.ExtrudeGeometry(sh, { depth: 0.03, bevelEnabled: false });
+                })();
+                // 🚨 **갈래를 등속 회전시키지 말 것 — probe-pet-joints 가 '발끝이 바닥 아래'로 문다.**
+                //    길이 0.30 짜리 갈래가 회전하면 아래로 내려오는 순간 코어(y0.2) 밑 바닥을 뚫는다
+                //    (실측 −0.169). 그래서 ⓐ 다섯 갈래를 **윗반구**(a∈[0.3,2.84])에만 심고 ⓑ 회전 대신
+                //    **제자리 떨림**(방전 깜빡임)을 준다 — 번개는 도는 것보다 파닥이는 게 더 번개답다.
+                const ring = pv(0, 0.22, 0);
                 into(ring, () => {
-                    for (let i = 0; i < 4; i++) {
-                        const bolt = bx(0.02, 0.12, 0.02, Math.cos(i * 1.57) * 0.17, Math.sin(i * 1.57) * 0.17, 0, M(0xffff00, { emissive: 0xffff00, emissiveIntensity: 1 }));
-                        bolt.rotation.z = i * 0.8;
-                        jt(bolt, 'x', 0.7, i * 1.6, { f: 2.4, gain: 1.7 });   // 개별 방전 떨림(이동 중 격해진다)
+                    for (const a of [0.34, 1.05, 1.57, 2.09, 2.80]) {   // 5 갈래, 전부 수평 위(바닥 안 뚫음)
+                        const node = pv(Math.cos(a) * 0.1, Math.sin(a) * 0.1, 0);
+                        node.rotation.z = a - Math.PI / 2;            // 번개 로컬 +y = 바깥 방향
+                        const blt = new THREE.Mesh(boltShape, BOLT);
+                        blt.position.z = -0.015;                      // 두께 중앙을 판 위로
+                        node.add(blt);
+                        jt(node, 'z', 0.16, a * 2.3, { f: 2.9, gain: 1.5 });   // 방전 떨림(제자리)
                     }
                 });
-                jt(ring, 'z', 0, 0, { spin: true, f: 0.25 });              // 코일 전체가 등속 회전
-                jt(ring, 'y', 0, 0, { spin: true, f: 0.13 });
-                eyes(0.22, 0.12);
+                eyes(0.24, 0.12);
                 break;
             }
             case 'Genie': { // 연기 하체 + 터번 + 관절 팔
