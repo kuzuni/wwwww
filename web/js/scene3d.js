@@ -842,7 +842,26 @@ const Scene3D = {
     },
 
     // 지형 고도: 전투 라인은 평지, 뒤로 갈수록 능선 (x 주기 30 — 지형 타일 순환용)
+    // 🧊 지형 복셀 격자 (map-quality-up 지형 voxel, 사용자 지시 2026-08-20) — cell: 블록 한 변(월드),
+    //    step: 높이 계단. ⚠️ **cell 은 30 의 약수여야 한다** — 지면 타일이 x±30 으로 순환하므로
+    //    (heightSmooth 의 x 주기 30) 격자가 어긋나면 순환 순간 블록 경계가 튄다. 0.75 = 주기당 40칸.
+    //    step 은 높이 대역(0~3.0)을 8단으로 가른다 — 잘게 가르면 도로 곡면으로 읽힌다(감사 ⑤ '너무 촘촘').
+    VOXG: { cell: 0.75, step: 0.375 },
+    // 지형 높이 — **계단식 복셀 값**을 돌려준다. 같은 셀 안에서는 어디서 물어도 같은 값이라
+    // 프롭·스캐터·랜드마크가 전부 블록 윗면에 정확히 선다. 양자화가 x 주기 30 을 보존하는 이유:
+    // floor((x+30)/cell) = floor(x/cell)+40 이고 heightSmooth 가 주기 30 이라 셀 내용이 같다.
     heightAt(x, z) {
+        const BS = this.VOXG.cell, SH = this.VOXG.step;
+        // ⚠️ round 가 아니라 **floor** 다 — round 로 올려 깎으면 중경 물체 절반이 지평선 위로 밀려
+        //    `probe-midground-depth` 의 지평선 컷에 걸린다(실측: ch1 6.19→5.88 · ch2 6.36→5.56 로
+        //    게이트 6.0 아래 전락). floor 는 원곡선 아래로만 깎아 그 컷과 간섭하지 않는다.
+        return Math.floor(this.heightSmooth(
+            (Math.floor(x / BS) + 0.5) * BS,
+            (Math.floor(z / BS) + 0.5) * BS) / SH) * SH;
+    },
+    // 양자화 전의 연속 높이 — 복셀 지형의 '원곡선'. 물건을 놓을 때는 반드시 heightAt 을 쓸 것
+    // (여기 값으로 놓으면 블록 윗면과 어긋나 반쯤 파묻히거나 뜬다).
+    heightSmooth(x, z) {
         const P = Math.PI * 2 / 30;
         const n = Math.sin(x * P * 2 + z * 0.3) * 0.5 + Math.sin(x * P + 7.3) * 0.3 + Math.cos(z * 0.6 + x * P * 3) * 0.2;
         const back = U.clamp((-z - 2.0) / 5.5, 0, 1);   // 뒤쪽 능선
@@ -1422,7 +1441,10 @@ const Scene3D = {
         const B = 32, cdf = new Float32Array(B + 1);
         for (let i = 0; i < B; i++) {
             const z = zMin + (i + 0.5) / B * (zMax - zMin);
-            const dz = cz - z, dy = cy - this.heightAt(cx, z);
+            // ⚠️ 여기는 **heightSmooth** 다 — 이 CDF 는 배치 가중 휴리스틱이라 원곡선이 맞고,
+            //    양자화 heightAt 을 넣으면 시드 고정 추첨의 z 분포가 통째로 밀려
+            //    `probe-midground-depth` 의 중경 개수가 챕터마다 ±10% 출렁인다(2026-08-20 실측).
+            const dz = cz - z, dy = cy - this.heightSmooth(cx, z);
             cdf[i + 1] = cdf[i] + Math.pow(Math.max(0.5, Math.sqrt(dz * dz + dy * dy)), -P);
         }
         for (let i = 1; i <= B; i++) cdf[i] /= cdf[B];
@@ -2044,9 +2066,11 @@ const Scene3D = {
     // 불규칙 능선 실루엣 지오메트리 — 수직 평면의 정점을 다층 사인 노이즈 프로필로 변위해
     // 콘 지오메트리의 단조로운 삼각 실루엣 대신 자연스러운 봉우리 능선을 만듦
     // shape: 'ridge'(기본 능선) | 'mesa'(사막 — 침식된 평평한 탁상지) | 'jagged'(용암/바위산 — 날카로운 첨봉)
+    // 🧊 계단식 복셀 실루엣 (map-quality-up 지형 voxel, 2026-08-20) — 곡선 프로파일을 컬럼(가로 블록)으로
+    //    샘플하고 높이를 스텝으로 양자화해, 원경 능선도 '블록 적층 스카이라인'으로 읽히게 한다(지형과 한 벌).
+    //    컬럼 64·스텝 h/12 는 실루엣용 저해상 격자다 — 더 잘게 가르면 도로 곡선으로 읽힌다(감사 ⑤).
+    //    무조명 실루엣(MeshBasic 순색)이라 앞면(+z) 쿼드만 세운다 — 종전 플레인과 같은 구성.
     makeRidgeGeo(w, h, peaks, shape) {
-        const geo = new THREE.PlaneGeometry(w, 1, 96, 4);
-        const pos = geo.attributes.position;
         const p1 = U.rand(0, 9), p2 = U.rand(0, 9), p3 = U.rand(0, 9);
         const profile = x => {
             const t = x / w; // -0.5 ~ 0.5
@@ -2057,14 +2081,81 @@ const Scene3D = {
             if (shape === 'mesa') v = Math.min(v, 0.58); // 봉우리를 잘라 탁상지 실루엣
             return Math.max(0.12, v);
         };
-        for (let i = 0; i < pos.count; i++) {
-            const k = pos.getY(i) + 0.5; // 0(하단) ~ 1(상단)
-            pos.setY(i, k * h * profile(pos.getX(i)));
+        const cols = 64, stepH = h / 12, cw = w / cols;
+        const pos = [], nor = [];
+        for (let i = 0; i < cols; i++) {
+            const x1 = -w / 2 + i * cw, x2 = x1 + cw;
+            const qh = Math.max(stepH, Math.round(profile(x1 + cw / 2) * h / stepH) * stepH);
+            pos.push(x1, 0, 0, x2, 0, 0, x2, qh, 0, x1, 0, 0, x2, qh, 0, x1, qh, 0);
+            for (let k = 0; k < 6; k++) nor.push(0, 0, 1);
         }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+        geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nor), 3));
+        geo.computeBoundingSphere();
         return geo;
     },
 
-    // ---- 숲 지형: 정점 변위 로우폴리 지형 + 원경 능선 + 바이옴 소품 + 안개 ----
+    // 🧊 복셀 지면 지오메트리 — heightAt(양자화)과 **같은 격자 함수**에서 직접 뽑는다.
+    //    배열이 아니라 함수라 경계 밖 이웃(범위 끝 셀의 벽 판단)도 같은 값으로 계산돼 이음이 무결하고,
+    //    x 주기 30 이 보존돼 타일 순환(ground.position.x += 30)이 종전처럼 무결하다.
+    //    uv 는 종전 플레인과 같은 월드→0..1 매핑이라 지면 텍스처 12×6 반복·매크로 셰이더(uv 6 주기 =
+    //    월드 30)가 그대로 맞는다. 벽은 윗면 색을 0.8 로 눌러 단 경계가 음영 크리스로 읽히게 한다.
+    voxelGroundGeo() {
+        const BS = this.VOXG.cell, X0 = -30, Z0 = -45;
+        const NX = Math.round(60 / BS), NZ = Math.round(60 / BS);
+        const PERX = Math.round(30 / BS);   // 블록 지터의 x 주기(셀 수) — 타일 순환 30 과 일치
+        const H = (ix, iz) => this.heightAt(X0 + (ix + 0.5) * BS, Z0 + (iz + 0.5) * BS);
+        const P = Math.PI * 2 / 30;
+        const smooth = t => t * t * (3 - 2 * t); // smoothstep(0,1)
+        // 매크로 패치 색 — 종전 정점 단위 로직(마른 풀 밴드/흙 패치, 상수 동일)을 셀 중심 단위로.
+        const cellRGB = (ix, iz) => {
+            const x = X0 + (ix + 0.5) * BS, z = Z0 + (iz + 0.5) * BS;
+            const n = Math.sin(x * P + z * 0.34 + 1.3) * 0.62
+                + Math.sin(x * P * 2 + 4.1 - z * 0.21) * 0.38;
+            let r = 1, g = 1, b = 1;
+            if (n > 0.12) {         // 밝은 마른 풀/모래 밴드 (살짝 따뜻)
+                const k = smooth(U.clamp((n - 0.12) / 0.5, 0, 1)) * 0.32;
+                r = 1 + k * 1.15; g = 1 + k; b = 1 + k * 0.55;
+            } else if (n < -0.16) { // 어두운 흙/이끼 패치 (살짝 차게)
+                const k = smooth(U.clamp((-n - 0.16) / 0.5, 0, 1)) * 0.38;
+                r = 1 - k * 1.15; g = 1 - k; b = 1 - k * 0.75;
+            }
+            const j = Voxel.jitter(((ix % PERX) + PERX) % PERX, 0, iz, 0.05);
+            return [r * j, g * j, b * j];
+        };
+        const pos = [], nor = [], uvs = [], col = [];
+        const emit = (p, n, rgb) => {
+            pos.push(p[0], p[1], p[2]);
+            nor.push(n[0], n[1], n[2]);
+            uvs.push((p[0] + 30) / 60, (p[2] + 45) / 60);
+            col.push(rgb[0], rgb[1], rgb[2]);
+        };
+        const quad = (a, b, c, d, n, rgb) => {
+            emit(a, n, rgb); emit(b, n, rgb); emit(c, n, rgb);
+            emit(a, n, rgb); emit(c, n, rgb); emit(d, n, rgb);
+        };
+        for (let ix = 0; ix < NX; ix++) for (let iz = 0; iz < NZ; iz++) {
+            const h = H(ix, iz), rgb = cellRGB(ix, iz);
+            const x1 = X0 + ix * BS, x2 = x1 + BS, z1 = Z0 + iz * BS, z2 = z1 + BS;
+            quad([x1, h, z2], [x2, h, z2], [x2, h, z1], [x1, h, z1], [0, 1, 0], rgb);
+            const wrgb = [rgb[0] * 0.8, rgb[1] * 0.8, rgb[2] * 0.8];
+            const e = H(ix + 1, iz), w = H(ix - 1, iz), s = H(ix, iz + 1), nn = H(ix, iz - 1);
+            if (e < h) quad([x2, e, z2], [x2, e, z1], [x2, h, z1], [x2, h, z2], [1, 0, 0], wrgb);
+            if (w < h) quad([x1, w, z1], [x1, w, z2], [x1, h, z2], [x1, h, z1], [-1, 0, 0], wrgb);
+            if (s < h) quad([x1, s, z2], [x2, s, z2], [x2, h, z2], [x1, h, z2], [0, 0, 1], wrgb);
+            if (nn < h) quad([x2, nn, z1], [x1, nn, z1], [x1, h, z1], [x2, h, z1], [0, 0, -1], wrgb);
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+        g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nor), 3));
+        g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+        g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
+        g.computeBoundingSphere();
+        return g;
+    },
+
+    // ---- 숲 지형: 계단식 복셀 블록 지형 + 원경 능선 + 바이옴 소품 + 안개 ----
     buildTerrain() {
         // 각진 플랫셰이딩 지형 메시 + 얼룩 텍스처 + 노멀맵(조명 반응 요철) + 버텍스 컬러 매크로 패치
         const gt = this.groundTexFor('forest');
@@ -2082,40 +2173,15 @@ const Scene3D = {
         //    **어떤 토글에서도 값이 안 변했다** — 그림자도 데칼도 아니고 지형 자체라는 뜻이다.
         //    이제 far 모서리가 z=−45(카메라에서 53 유닛)라 fog.far 밖이므로 **안개에 완전히 녹아 사라진다.**
         //    ⚠️ 원경 능선은 z −12/−19/−25 에 있다 — 지면이 그보다 뒤까지 깔려야 능선 아래가 안 비친다.
-        const geo = new THREE.PlaneGeometry(60, 60, 64, 56);
-        geo.rotateX(-Math.PI / 2);
-        geo.translate(0, 0, -15);
-        const pos = geo.attributes.position;
-        for (let i = 0; i < pos.count; i++) {
-            const x = pos.getX(i), z = pos.getZ(i);
-            const jitter = Math.abs(z) > 1.8 ? U.rand(-0.07, 0.07) : 0; // 평지 밖만 요철
-            pos.setY(i, this.heightAt(x, z) + jitter);
-        }
-        geo.computeVertexNormals();
-        // 매크로 버텍스 컬러 — 텍스처 얼룩(고주파)보다 훨씬 큰 규모의 2~3톤 대형 패치(흙길/마른 풀 밴드)를
-        // 지형 정점에 직접 칠해 "단색 평면에 노이즈만 얹은" 인상을 없앰. 재질 color·map 위에 곱해지므로
-        // 챕터 색이 바뀌어도 명도·온도 변주 구조는 유지된다. x 주기 30(타일 순환 경계)과 정확히 맞춤.
-        {
-            const vcol = new Float32Array(pos.count * 3);
-            const P = Math.PI * 2 / 30;
-            const smooth = t => t * t * (3 - 2 * t); // smoothstep(0,1)
-            for (let i = 0; i < pos.count; i++) {
-                const x = pos.getX(i), z = pos.getZ(i);
-                // 저주파 2옥타브 노이즈 (-1~1 근방)
-                const n = Math.sin(x * P + z * 0.34 + 1.3) * 0.62
-                    + Math.sin(x * P * 2 + 4.1 - z * 0.21) * 0.38;
-                let r = 1, g = 1, b = 1;
-                if (n > 0.12) {         // 밝은 마른 풀/모래 밴드 (살짝 따뜻)
-                    const k = smooth(U.clamp((n - 0.12) / 0.5, 0, 1)) * 0.32;
-                    r = 1 + k * 1.15; g = 1 + k; b = 1 + k * 0.55;
-                } else if (n < -0.16) { // 어두운 흙/이끼 패치 (살짝 차게)
-                    const k = smooth(U.clamp((-n - 0.16) / 0.5, 0, 1)) * 0.38;
-                    r = 1 - k * 1.15; g = 1 - k; b = 1 - k * 0.75;
-                }
-                vcol[i * 3] = r; vcol[i * 3 + 1] = g; vcol[i * 3 + 2] = b;
-            }
-            geo.setAttribute('color', new THREE.BufferAttribute(vcol, 3));
-        }
+        // 🧊 **지형 높낮이 = 계단식 복셀 블록 (map-quality-up, 사용자 지시 2026-08-20 "얼른 voxel로").**
+        //    종전 곡면 그라디언트 플레인(64×56 정점 변위 + 정점 요철 지터)은 프롭(이미 큐브)과
+        //    다른 세계로 읽혔다. heightAt 이 VOXG 격자로 양자화되므로 지오메트리도 같은 격자에서
+        //    셀마다 평평한 윗면 + 낮은 이웃 쪽에만 수직 벽을 세운다(안 보이는 면은 안 만든다 —
+        //    voxel.js 설계 ⓑ). 매크로 버텍스 컬러(마른 풀/흙 패치)는 셀 중심에서 한 번 떠서 셀
+        //    전체에 칠한다 — 패치 경계가 블록 단위로 각지고, 블록별 지터(Voxel.jitter, 좌표 해시라
+        //    리빌드 불변)가 화풍 ⓒ '큐브별 미세 색변화'를 지면에도 준다. 정점 요철 지터는 폐기 —
+        //    격자를 흔들면 그 순간 voxel 로 안 읽힌다(equip 전환이 화풍 정합 2/10 로 밟은 함정).
+        const geo = this.voxelGroundGeo();
         this.ground = new THREE.Mesh(geo, this.terrainMat);
         this.ground.receiveShadow = true;
         this.scene.add(this.ground);

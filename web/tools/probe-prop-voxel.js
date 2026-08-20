@@ -70,9 +70,15 @@ const PROPS = [
     //    2.17 ↔ **2.42**(상한 2.40) 로 오르내려 같은 코드가 PASS/FAIL 을 번갈아 냈다. 이 상태로
     //    `regress.sh` 에 올리면 남의 커밋을 무작위로 빨갛게 만든다. LCG 로 고정해 표본을 재현 가능하게 둔다
     //    (개체차 검사는 그대로 산다 — 한 실행 안의 8개는 여전히 서로 다르다).
+    //    🚨 그리고 **프롭마다 다시 시드한다(2026-08-20)** — 한 번만 시드하면 부팅(씬 빌드)이 소비하는
+    //    난수 개수에 표본이 묶여서, 지형·스캐터 같은 **무관한 코드의 변경이 이 자를 뒤집는다**(실측:
+    //    지형 복셀 전환이 정점 지터 U.rand 수천 회를 없애자 makeMushroom 폭 표본이 0.96~1.44 →
+    //    0.83~1.26 으로 밀려 대역을 벗어났다 — 버섯 코드는 한 줄도 안 바뀌었는데). 프롭 직전 재시드로
+    //    표본을 부팅과 분리하면 이 자는 **프롭 조형 코드에만** 반응한다.
     await page.addInitScript(() => {
         let sd = 20260820 >>> 0;
         Math.random = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
+        window.__seedRand = (s) => { sd = s >>> 0; };
     });
     await page.goto(INDEX, { waitUntil: 'load' });
     for (let i = 0; i < 600; i++) {
@@ -82,7 +88,10 @@ const PROPS = [
 
     const rows = await page.evaluate((PROPS) => {
         const out = [];
+        let pi = 0;
         for (const [fn, args, hBand, wBand, matKey] of PROPS) {
+            // 프롭마다 재시드 — 표본이 부팅 난수 소비량과 분리된다(위 addInitScript 주석 참조)
+            window.__seedRand(20260820 + (pi++) * 7919);
             // 같은 빌더를 여러 번 부른다 — 조형에 `Math.random` 분기가 있어(팔 유무·마디 수) 한 개체만
             // 재면 분기 하나를 통째로 못 본다. 최악값을 모아 판정한다.
             const agg = { name: fn + (args[1] ? '+snow' : ''), n: 0, meshes: 0, offAxis: 0, noColor: 0, dupFaces: 0, hMin: 1e9, hMax: -1e9, wMin: 1e9, wMax: -1e9 };
