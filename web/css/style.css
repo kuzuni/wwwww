@@ -3925,6 +3925,17 @@ h3.sellwarn-title, .rates-head h3,
 /* ---- 스킬 화면 (UI-SPEC 8·11·14번): 5열 원형 아이콘 그리드 ---- */
 .sheet-head { display: flex; align-items: center; gap: .5rem; position: relative; }
 .sheet-head .sheet-title { flex: 1; }
+/* 🚨 제목은 **앱 가로 중앙**에 앉아야 한다 — 원본 실측 49.60%W(= 중앙에서 −0.40%p) (slug: sheet-title-off-center).
+   재화 pill 을 흐름에 두면 `flex:1` 제목이 'pill + gap 을 뺀 나머지'의 중앙으로 밀려 원본 대비
+   **+8.52%p** 어긋난다(클론 58.12%W). 픽셀·DOM 두 자로 같은 값이 나왔다.
+   → 상점(`.shop-sheet`, 바로 아래 블록)이 이미 쓰는 언어 그대로 **pill 만 흐름에서 빼** 제목을
+   헤더 전폭으로 돌려준다. `.sheet-head` 는 좌우가 시트 패딩으로 대칭이라 전폭 중앙 = 앱 중앙이다.
+   ⚠️ **pill 의 좌단·폭·스킨은 건드리지 않는다** — 그 기하(좌단 Δ+2.00%p·폭 Δ−3.32%p)와
+   근흑 바 스킨은 `aaa-skin` 소관이고, 여기서 같이 손대면 항목 경계가 무너진다.
+   (`left:0` 은 흐름에 있을 때의 x 와 같고, `top:50%`+translate 는 `align-items:center` 와 같은 결과라
+   **pill 은 한 픽셀도 움직이지 않는다** — 움직이는 건 제목뿐이다.)
+   판정기: `tools/probe-sheet-title-center.js`(regress-ratio.sh 등재). */
+#panel-skills .sheet-head .cur-pill { position: absolute; left: 0; top: 50%; transform: translateY(-50%); }
 /* 상점(042632) 원본 실측: 재화 pill 이 화면 양끝이 아니라 **고정 열**에 앉고, 형태는 리그 시즌
    바와 같은 **테두리 없는 근흑 고정 바 + 흰 숫자 우측 정렬 + 아이콘이 바 좌단에 걸침**이다
    (채점 1라운드 확정 결함 ⓒ 후반부 — 클론은 금색/빨강 캡슐이었다). 픽셀 실측(이미지 500x878):
