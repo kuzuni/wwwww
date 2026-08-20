@@ -46,6 +46,7 @@ PROBES=(
     probe-tn-dom.js             # tech-node   042605
     probe-pinfo-px.js           # player-info 043313 — 판정문·종료코드를 갖췄는데 목록에 없어 묻혀 있었다
     probe-pinfo-subs-bottom.js  # player-info 스탯 목록 **아랫끝** — pinfo-px 는 목록 위(그리드·오브 줄)만 보고 아랫끝은 아무도 안 봤다
+    probe-pinfo-header.js       # player-info 머리줄 — 우측 3줄 블록(고친 값) + 좌·우 인셋(R6 교집합을 기각한 값) 둘 다 지킨다
     probe-fl-head.js            # forge-list 042905 시대 헤더 막대 — 같은 사유로 묻혀 있었다(3건째)
     probe-fl-body.js            # forge-list 042905 본문(카드·그리드·타일)
     probe-fl-cell-star.js       # forge-list 셀 ★ ↔ 승천 횟수 1:1
