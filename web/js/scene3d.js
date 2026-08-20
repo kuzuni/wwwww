@@ -11723,7 +11723,15 @@ const Scene3D = {
                 //    갈색 밧줄'이 된다(채점이 게를 '엉킨 막대기'로 읽은 그림에 이게 섞여 있었다).
                 //    낮은 머리에는 얕게 — 이건 조형이 아니라 **정지 프레임 판독**의 문제다.
                 const sag = KIND === 'bridle' ? 1.1 : 0.5;
-                this.layoutRein(st, st.anchor.clone().add(new THREE.Vector3(-s * hr * 0.2, -hr * sag, -hz2 * 1.4)));
+                // 🚨 **이 오프셋을 붙들어 둔다 — 앵커가 나중에 움직이면 기본 자세를 다시 깔아야 한다.**
+                //    6단(목 세우기)이 `st.anchor.y` 를 뒤에서 올리는데, 그때 이 기본 자세를 다시 안 깔면
+                //    끈은 옛 자리에 남고 재갈 고리만 올라가 **허공에 뜬 갈색 막대 두 자루**가 된다
+                //    (5차 채점 A 가 10칸에서 그걸 봤다: *"두 브라운 로드가 아무 데도 안 닿은 채 떠 있다"*).
+                //    ⚠️ `probe-ride-rein` 은 이걸 **못 잡는다** — 그쪽은 탑승 중을 재는데, 탑승 중엔
+                //    `alignReins()` 가 매 프레임 앵커에서 다시 깔아 준다. 이 기본 자세가 보이는 건
+                //    **안 탄 채로 그려지는 자리**(썸네일·판독 시트·인벤토리)뿐이라 그 자가 조용히 통과한다.
+                st.rest = new THREE.Vector3(-s * hr * 0.2, -hr * sag, -hz2 * 1.4);
+                this.layoutRein(st, st.anchor.clone().add(st.rest));
             }
             // 재갈(bit) — 좌우 고리를 잇는 짧은 봉. **말상 종에만** 넣는다: 재갈은 입에 물리는
             // 물건이라 주둥이가 없는 종(게·거북·벌·고래)에서는 얼굴을 가로지르는 쇠막대가 된다.
@@ -13462,7 +13470,13 @@ const Scene3D = {
             //    자리인 `rein.straps[].anchor` 는 `g` 좌표로 따로 굳어 있다 — 안 올리면 알파카(+0.20)
             //    에서 고삐가 **고리보다 0.20 아래 허공에서** 시작한다. 이 파일이 여러 번 겪은
             //    '표식으로 안 걷힌 파츠가 제자리에 남는' 사고의 고삐 판이다.
-            if (g.userData.rein) for (const st of g.userData.rein.straps) st.anchor.y += neckUp;
+            if (g.userData.rein) for (const st of g.userData.rein.straps) {
+                st.anchor.y += neckUp;
+                // 🚨 앵커만 올리고 끝내면 **끈은 옛 자리에 남는다** — 안 탄 탈것(썸네일·판독 시트)에서
+                //    재갈 고리와 끈이 갈라져 '허공에 뜬 갈색 막대'가 된다(5차 채점 A 가 10칸에서 지적).
+                //    기본 자세를 새 앵커로 다시 깔아 준다(오프셋은 `bridleRig` 이 `st.rest` 로 남겨 둔다).
+                if (st.rest) this.layoutRein(st, st.anchor.clone().add(st.rest));
+            }
             // 목 튜브 — 밑동(기갑)에서 **올라간** 두상 밑동까지. `g` 에 남긴다(머리 그룹에 넣으면
             // 밑동까지 같이 올라가 몸에서 떨어진다). `HEADPART` 표식은 probe-ride-clear 의 판정
             // 대상이 되라고 붙이는 것이고, 표식과 그룹 소속은 별개다(neckRig 은 이미 지나갔다).
@@ -13478,6 +13492,19 @@ const Scene3D = {
             if (LIFT) {
                 const legSet = new Set(g.userData.legs || []);
                 for (const o of g.children) if (!legSet.has(o)) o.position.y += LIFT;
+                // 🚨 **리프트가 끈은 올리면서 `st.anchor` 는 안 올리고 있었다 (2단부터 잠복, 2026-08-20 8종 실측).**
+                //    `rein.straps[].anchor` 는 메시가 아니라 **숫자로 굳어 있는 좌표**라 위 루프가 못 건드린다.
+                //    그래서 리프트를 받은 종은 재갈 고리(메시)는 올라가고 앵커만 제자리에 남아,
+                //    `alignReins()` 가 매 프레임 **그 낡은 자리에서** 끈을 깐다 = 고삐 뿌리가 고리에서
+                //    딱 LIFT 만큼 떠 있다. 5차 블라인드 채점에서 비평가 2인이 **각자** 이걸 지목했고
+                //    (B: *"시트에서 가장 자주 보이는 결함"*), 실측이 정확히 일치했다 — 낙타 0.075 ·
+                //    갈색말 0.055 · 알파카 0.045 · 돼지 −0.040 … **8종 전부 그 종의 LIFT 값 그대로.**
+                //    ⚠️ `probe-ride-rein` 은 이걸 못 잡는다(탑승 중 상대 배치만 본다). 신설
+                //    `probe-mount-rein-rest.js` 가 안 탄 자세에서 뿌리-앵커 거리를 0 으로 못박는다.
+                if (g.userData.rein) for (const st of g.userData.rein.straps) {
+                    st.anchor.y += LIFT;
+                    if (st.rest) this.layoutRein(st, st.anchor.clone().add(st.rest));
+                }
             }
         }
         return g;
