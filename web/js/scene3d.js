@@ -10344,7 +10344,9 @@ const Scene3D = {
     // 근사하고 등급색(RARITY_HEX)으로 구분한다(사용자 지시: "개별 모델 어려우면 등급별 대표 형태로 근사").
     makeMountMesh(name, rarity) {
         const g = new THREE.Group();
-        const c = RARITY_HEX[rarity] || 0xbdbdbd;
+        const rc = RARITY_HEX[rarity] || 0xbdbdbd;              // 등급색 — 발광/장식 액센트용(applyAscendDecor 는 밖에서 rarity 로 다시 잡는다)
+        const c = (this.MOUNT_BODY_COL && this.MOUNT_BODY_COL[name]) || rc;   // 몸 바탕색 = 종 자연색(리버본드 '생생한 색'), 미등록 종만 등급색 폴백
+        void rc;
         const M = (col, opt) => new THREE.MeshLambertMaterial(Object.assign({ color: col }, opt || {}));
         const mat = M(c);
         const dark = M(new THREE.Color(c).offsetHSL(0, 0, -0.18));
@@ -13618,6 +13620,30 @@ const Scene3D = {
         // 'Elk': 0.44 — 위 이유로 **일부러 비워 둔다**(기본값 0.44 = 무변경).
                            // ⚠️ 큰사슴만은 뿔 랙에 **세계 좌표 보정**(`ay()`)이 걸려 있다 — 그걸 지우면
                            //    이 값에서 `probe-ride-clear` 가 곧바로 깨진다(Elk 분기의 🚨 주석 참조).
+    },
+    // 🎨 종별 몸 바탕색 — 리버본드 '생생한 색' (mount-riverbond-remake, 2026-08-21).
+    // 🚨 **왜 이 표가 필요한가**: 종전엔 `c = RARITY_HEX[rarity]` 하나가 **모든 종의 몸통**을 물들여서,
+    //    게·돼지·코뿔소·고래·덤프트럭까지 전부 같은 '이끼 초록'(epic 틴트)으로 렌더됐다 — 비평가 2인이
+    //    공통으로 "단색 초록이라 종이 구별 안 되고 리버본드의 생생한 색이 통째로 죽었다"고 최악 감점(2·3점).
+    //    **등급색을 몸에 바르는 게 안전했던 근거가 애초에 없다**: 로스터(`mountNames`)가 종↔등급을 1:1 로
+    //    고정하므로(조랑말=common·게=rare·미니드래곤=ultimate…) 한 종은 **늘 한 등급**이라, 몸을 종색으로
+    //    바꿔도 잃는 등급 정보가 없다(등급은 소환·프레임이 지고, 발광 액센트는 fixed hex 라 c 무관).
+    // 미등록 종은 등급색으로 폴백한다. Panther·Brown Horse 는 자체 오버라이드(검정·밤색)라 일부러 뺀다 —
+    // 그 분기가 `offsetHSL(c)` 로 몸색을 짜므로 여기 넣으면 이중 채색이 된다.
+    MOUNT_BODY_COL: {
+        // 자연 동물 — 종 자연색. ⚠️ 초식 사족(조랑말·당나귀·알파카·염소·낙타·큰사슴)은 현실색이 죄다
+        //    흙색이라 몰개성해지기 쉽다 — **색상·명도를 일부러 벌린다**(황금/쿨그레이/크림/근백/오렌지샌드/적갈)
+        //    는 게 리버본드의 '알록달록' 이다(비평가 지적 "탄/브라운 blob 이 죄다 비슷").
+        'Pony': 0xd4a24a, 'Donkey': 0x8c8a86, 'Alpaca': 0xeaddc0, 'Sheep': 0xdccdb0,
+        'Turtle': 0x5a9e3f, 'Crab': 0xd6472e, 'Dino': 0x6d8f3e, 'Boar': 0x6b5642,
+        'Pig': 0xe6a0a4, 'Goat': 0xe3dccb, 'Camel': 0xcf9646, 'Elk': 0x8f4f2c,
+        'Armored Rhino': 0x8f9095, 'Giant Bee': 0xe4bb3c, 'Mini Dragon': 0xc23a2e,
+        'Star Whale': 0x3f7fd0, 'Pterosaur': 0x9e7a4a,
+        // 기계·탈것 — 장치 색(무채 초록 팬케이크 방지, 비평가 지적)
+        'Clockwork Mouse': 0xc08a3e, 'Clockwork Beetle': 0x4f9d6a,
+        'Bike': 0xc0392b, 'One-Wheel Droid': 0xd7dde1, 'Mech Spider': 0x6a7078,
+        'Bipedal Mech': 0x4a6f9a, 'Dump Truck': 0xd8a72c, 'Cleaning Robot': 0xe2e6e8,
+        'Hover Board': 0x2f9fd0, 'Hover Disk': 0x33b07a,
     },
     // 안장 높이가 종마다 다르므로 **계열 상수를 그대로 돌려주면 안 된다** — 탑승 배율(rideScale)·
     // 영웅 y(heroY)·등자·발판이 전부 `form.saddle` 하나를 본다. 종 오버라이드가 있으면 얕은 복사에
