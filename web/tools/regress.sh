@@ -50,6 +50,7 @@ for p in \
     probe-arc-centered.js \
     probe-lgr-px.js \
     probe-mount-neck-height.js \
+    probe-egg-form.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1
