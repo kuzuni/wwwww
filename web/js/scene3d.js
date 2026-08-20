@@ -20270,6 +20270,58 @@ const Scene3D = {
     //       바깥으로 퍼지며 닿는 적을 벤다 → 위로 풀리며 흩어진다.
     // ⚠️ **도는 게 보여야 회오리다.** 층마다 각속도를 다르게 줘야 회전이 눈에 걸린다 — 통짜로 같은
     //    속도면 '돌아가는 원뿔'이 아니라 '가만히 있는 원뿔'로 보인다(모양이 축대칭이라 그렇다).
+    //
+    // 🚨 **각도를 `+=` 로 누적하지 말 것 — 여기가 그 함정을 밟았던 자리다** (skill-fx ㉤, 2026-08-20).
+    //    `addAnim(dur, fn)` 은 콜백에 **진행도 `k` 만** 넘긴다(`a.fn(k)`) — `dt` 가 없다. 그런데
+    //    종전 코드는 `lg.rotation.y += w * 0.14` 로 매 프레임 더했다. 즉 각속도의 단위가 rad/초가
+    //    아니라 **rad/프레임**이라, 30fps 기기에서는 60fps 의 **정확히 절반만** 돈다(실측:
+    //    같은 가상 0.6초에 60fps 5.04/7.31/9.58 rad ↔ 30fps 2.52/3.65/4.79 rad — 편차 50.0%).
+    //    모바일이 대상이고(항목 본문 ③) 채점용 촬영기도 고정 dt 로 몰아 찍으므로, 비평가가 본
+    //    화면은 실제로 **각속도가 반토막 난 회오리**였다 — 2차 지적 "각속도가 0 에 가깝다"가 이것이다.
+    //    → 각도는 **경과 시간의 함수로 절대 대입**한다: `a0 + w * SPIN * (k * dur)`.
+    //    같은 함정이 `addAnim` 안의 모든 `+=` 회전에 있다(`시간정지` 다이얼 등) — 그쪽은 이 항목
+    //    밖이라 손대지 않았고 TODO 에 적어 뒀다.
+    VORTEX_SPIN: 8.4,          // rad/초 — 종전 60fps 기준 0.14 rad/프레임과 같은 속도(그림 유지)
+
+    // 회오리 깃 = **복셀 파편**. 종전엔 `RingGeometry(r*0.62, r, 16, 1, a, 1.05)` 부분 링이었는데,
+    // 강타 초승달이 `RingGeometry(R*0.74, R, 26, 1, -0.62, 1.24)` 라 **같은 지오메트리에 안팎 비율도
+    // 호 길이도 사실상 같았다** — 색만 다른 같은 물건이었다(2차 지적 ㉤ 의 뒷 절, 실측으로 확인).
+    // 화풍 블록대로 큐브 조형으로 갈면서 셰이프도 갈린다: 베는 호(弧)가 아니라 **휩쓸려 도는 파편**.
+    //   ⚠️ 지오메트리만 캐시하고 **재질은 깃마다 새로 만든다.** 이 연출은 깃 불투명도를 프레임마다
+    //      쓰는데, 재질까지 공유하면 회오리 둘이 겹칠 때 한쪽의 정리 곡선이 다른 쪽을 지운다.
+    vortexShardGeo(color) {
+        if (!this._vortexShardCache) this._vortexShardCache = {};
+        const key = color.getHexString();
+        let g = this._vortexShardCache[key];
+        if (!g) {
+            const hsl = new THREE.Color(color).getHSL({ h: 0, s: 0, l: 0 });
+            const vox = [];
+            // 길이 6 × 높이 2 × 두께 1 — 끝 두 칸은 한 겹이라 앞이 뾰족하다(휘둘린 파편).
+            for (let x = 0; x < 6; x++) {
+                const hgt = x < 4 ? 2 : 1;
+                for (let y = 0; y < hgt; y++) {
+                    // ⚠️ **스킬색을 그대로 쓰면 안 된다.** 회오리 색은 `#b0bec5`(창백한 회청)라
+                    //    그 명도로 깎으면 밝은 하늘·언덕 위에서 **하얀 얼룩**이 된다(240ms 확대
+                    //    실측: 파편이 배경에 묻혀 깔때기가 안 읽혔다). 바람은 원래 안 보이는
+                    //    물건이고 **화면에 보이는 건 휩쓸린 잔해**다 — 몸통은 어두운 흙빛으로
+                    //    깔아 배경과 갈라 세우고, 스킬색은 **앞끝 한 칸**에만 밝게 얹어 정체성을
+                    //    남긴다. 명도를 곱으로 주지 않고 **절대값**으로 박는 이유도 같다(스킬색이
+                    //    밝든 어둡든 대비가 보장돼야 한다).
+                    const lead = x >= 4;                 // 앞끝이 밝다 = 진행 방향이 읽힌다
+                    vox.push({
+                        x, y, z: 0,
+                        c: lead
+                            ? new THREE.Color().setHSL(hsl.h, U.clamp(hsl.s * 0.6, 0, 1), 0.88).getHex()
+                            : new THREE.Color().setHSL(hsl.h, U.clamp(hsl.s * 1.6, 0, 0.5), 0.24 + 0.035 * x).getHex(),
+                    });
+                }
+            }
+            const m = Voxel.build(vox, { size: 0.075, jitter: 0.08, ao: 1 });
+            g = m.geometry;
+            this._vortexShardCache[key] = g;
+        }
+        return g;
+    },
     whirlwindVortex(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
@@ -20281,17 +20333,24 @@ const Scene3D = {
         this.scene.add(G);
         // 층 3개 — 위로 갈수록 넓어지는 깔때기. 층마다 깃 수·각속도가 다르다.
         const layers = [];
-        const LAY = [{ y: 0.12, r: 0.55, n: 3, w: 1.0 }, { y: 0.62, r: 0.85, n: 4, w: -1.45 }, { y: 1.15, r: 1.15, n: 3, w: 1.9 }];
+        // 층당 깃 수는 3/4/3 → **5/6/5**. 부분 링 시절엔 호 하나가 둘레의 1/6 을 덮어 셋으로도
+        // 테가 읽혔는데, 파편은 점에 가까워 셋이면 **테가 아니라 흩어진 조각 셋**으로 보인다
+        // (240ms 확대 실측). 둘레를 촘촘히 채워야 깔때기 실루엣이 선다.
+        const LAY = [{ y: 0.12, r: 0.55, n: 5, w: 1.0 }, { y: 0.62, r: 0.85, n: 6, w: -1.45 }, { y: 1.15, r: 1.15, n: 5, w: 1.9 }];
         for (const L of LAY) {
             const lg = new THREE.Group();
             lg.position.y = L.y;
             lg.userData.w = L.w;
             for (let i = 0; i < L.n; i++) {
                 const a = (i / L.n) * Math.PI * 2;
-                // 깃 = 얇은 부분 링(호). 길이를 층마다 달리해 나선처럼 어긋나 보이게 한다.
-                const vane = new THREE.Mesh(new THREE.RingGeometry(L.r * 0.62, L.r, 16, 1, a, 1.05),
-                    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
-                vane.rotation.x = -Math.PI / 2;
+                // 깃 = 복셀 파편. 원 둘레에 놓고 **접선 방향**으로 눕힌다 — 길이축이 도는 방향과
+                // 나란해야 '휩쓸려 돈다'로 읽힌다(반경 방향으로 세우면 바람개비가 된다).
+                const vane = new THREE.Mesh(this.vortexShardGeo(color),
+                    new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+                vane.userData.sharedGeometry = true;     // 캐시 공유 — 처분에서 dispose 금지
+                vane.position.set(Math.cos(a) * L.r, 0, Math.sin(a) * L.r);
+                vane.rotation.y = -a;                    // 접선
+                vane.rotation.z = U.rand(-0.34, 0.34);   // 층마다 조금씩 기울어 '통짜 원'이 안 되게
                 lg.add(vane);
             }
             G.add(lg); layers.push(lg);
@@ -20304,13 +20363,20 @@ const Scene3D = {
             const op = k < 0.68 ? Math.min(1, k / 0.16) : 1 - (k - 0.68) / 0.32;
             G.scale.set(0.45 + e * grow, 0.7 + e * 0.7, 0.45 + e * grow);
             for (const lg of layers) {
-                lg.rotation.y += lg.userData.w * 0.14;   // 층마다 다른 각속도 = 회전이 읽힌다
-                for (const v of lg.children) v.material.opacity = 0.8 * op;
+                // 층마다 다른 각속도 = 회전이 읽힌다. **경과 시간(k*dur)의 함수로 절대 대입** —
+                // `+=` 누적은 프레임률에 묶여 30fps 에서 반만 돈다(위 🚨 주석).
+                lg.rotation.y = lg.userData.w * this.VORTEX_SPIN * (k * dur);
+                for (const v of lg.children) v.material.opacity = 0.85 * op;
             }
-            // 감겨 올라가는 먼지 — 회오리 안쪽에서 위로
-            if (Math.random() < 0.6) {
+            // 감겨 올라가는 먼지 — 회오리 안쪽에서 **접선 방향으로 돌면서** 위로.
+            // ⚠️ 종전엔 `riseParticle`(반지름 0.06 구, 수직 상승)이었다. ⓐ 이 카메라 거리에서
+            //    한두 화소라 사실상 안 보이고 ⓑ **수직으로만 오르면 회전 정보가 0** 이다 —
+            //    깃이 도는데 먼지가 곧게 오르면 둘이 서로를 부정한다. 큐브로 키우고 속도에
+            //    접선 성분을 실어, 먼지 자체가 '돌고 있다'를 말하게 한다.
+            if (Math.random() < 0.75) {
                 const a = U.rand(0, Math.PI * 2), rr = (0.4 + e * grow) * U.rand(0.5, 1);
-                this.riseParticle(new THREE.Vector3(hero.x + Math.cos(a) * rr, 0.06, hero.z + Math.sin(a) * rr), color);
+                this.vortexMote(new THREE.Vector3(hero.x + Math.cos(a) * rr, 0.06, hero.z + Math.sin(a) * rr),
+                    a, color, 0.6 + pw * 0.5);
             }
             // 깔때기가 닿는 적을 벤다 — **한 번씩만**(매 프레임 때리면 불티가 화면을 덮는다)
             const reach = (0.45 + e * grow) * 1.15;
@@ -20328,11 +20394,41 @@ const Scene3D = {
                 }
             }
         }, () => {
-            G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+            // ⚠️ 깃 지오메트리는 **색 버킷 캐시 공유**라 처분하면 안 된다(`sharedGeometry`).
+            //    재질은 깃마다 새로 만드는 것이라 그대로 해제한다.
+            G.traverse(o => {
+                if (!o.isMesh) return;
+                if (!o.userData.sharedGeometry) o.geometry.dispose();
+                o.material.dispose();
+            });
             this.scene.remove(G);
         });
         this.expandRing(new THREE.Vector3(hero.x, 0.02, hero.z), color, 1.6 + pw * 1.4);
         SFX.auraRise(t);
+    },
+
+    // 회오리에 감겨 도는 큐브 먼지. `a` = 발생 지점의 각(중심 기준) — 속도의 접선 성분을
+    // 그 각의 **직교 방향**으로 실어야 궤적이 원을 그린다(반경 방향으로 실으면 그냥 흩어진다).
+    vortexMote(pos, a, color, swirl) {
+        if (this.particles.length > 300) return;
+        const hsl = new THREE.Color(color).getHSL({ h: 0, s: 0, l: 0 });
+        const c = new THREE.Color().setHSL(hsl.h, U.clamp(hsl.s * 1.05, 0, 1),
+            U.clamp(hsl.l * U.rand(0.78, 1.12), 0.1, 0.94));
+        const e = U.rand(0.07, 0.13);
+        const p = new THREE.Mesh(this.fxGeo('box', 1, 1, 1),
+            new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }));
+        p.userData.sharedGeometry = true;
+        p.position.copy(pos);
+        p.userData.baseScale = e;
+        p.scale.setScalar(e);
+        p.rotation.set(U.rand(0, 6.28), U.rand(0, 6.28), U.rand(0, 6.28));
+        p.userData.tumble = new THREE.Vector3(U.rand(-9, 9), U.rand(-9, 9), U.rand(-9, 9));
+        p.userData.vel = new THREE.Vector3(-Math.sin(a) * swirl * 2.4, U.rand(1.1, 2.4), Math.cos(a) * swirl * 2.4);
+        p.userData.noGravity = true;
+        p.userData.life = U.rand(0.4, 0.7);
+        p.userData.age = 0;
+        this.scene.add(p);
+        this.particles.push(p);
     },
 
     // ---- 스킬 전용 미니 연출 ⑧: 화염 폭풍 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----

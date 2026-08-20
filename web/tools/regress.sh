@@ -27,6 +27,7 @@ for p in \
     probe-blade-exit.js \
     probe-nova-beat.js \
     probe-meteor-causality.js \
+    probe-vortex-spin.js \
     probe-halo-spin.js \
     probe-hold-deck.js \
     check-autoforge-purge-held.js \
