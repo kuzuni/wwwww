@@ -16449,7 +16449,11 @@ const Scene3D = {
             const pupRow = ny - lidRows >= 3 ? 1 : 0;            // 동공 줄(바닥 0 기준)
             // 2×2 는 예외 — 한 칸만 검게 칠하면 **밝은 털 종(늑대)에서 눈이 통째로 사라진다**(실측 캡처:
             //   흰자 0xfff6e8 과 회백색 두상이 붙어 한 덩어리로 읽혔고 동공 한 칸은 그 안에서 점이 됐다).
-            //   네 칸짜리 판은 **안쪽 열을 통째로** 검게 칠해 반반으로 가른다(마인크래프트 주민 눈).
+            //   네 칸짜리 판은 안쪽 열을 검게 가르는데(마인크래프트 주민 눈), 🚨 **열 전체를 순흑으로 채우면
+            //   반대편 함정이다** — 1차 채점(A·B 6.5)에서 늑대·임프 눈이 '동공 없는 검은 바이저/안대'로
+            //   합의 지적됐다(enemy-quality 1차 교집합 ⑵). 그래서 안쪽 열을 **위 = 홍채색 · 아래 = 동공 흑**으로
+            //   가른다: 호출부가 이미 주던 `iris`(늑대 호박·임프 유황 — 매끈판의 '흰자+홍채' 설계가 복셀 전환에서
+            //   떨어져 나갔던 것)가 검은 띠를 끊고, 밝은 털 종에서도 유색 칸이라 흰자와 안 붙는다.
             const pupFull = nx <= 2;
             // ===== 볼 블러시 — 양쪽 비평가가 같은 처방으로 꼽은 '귀여움' 신호 =====
             // 🚨 **판이 세 칸 이상이면 볼을 판 안(바깥 아래 칸)에 넣는다.** 매끈판이 두 번 실패한 그 자리다:
@@ -16482,7 +16486,10 @@ const Scene3D = {
                     // ⚠️ 2×2 에서는 깎지 않는다 — 네 칸 중 하나를 떼면 흰자나 동공이 통째로 사라진다.
                     if (nx >= 3 && ny >= 3 && tilt > 0.03 && inner && top) continue;   // 안쪽 위가 내려간다 = 성난 눈
                     if (nx >= 3 && ny >= 3 && tilt < -0.03 && outer && bot) continue;  // 바깥 아래가 올라간다 = 예리한 눈
-                    if (ix === pupCol && (pupFull ? iy < ny - lidRows : iy === pupRow)) { dark.push({ x: gx(ix), y: iy, z: 0, c: 0x141013 }); continue; }
+                    if (ix === pupCol && (pupFull ? iy < ny - lidRows : iy === pupRow)) {
+                        dark.push({ x: gx(ix), y: iy, z: 0, c: (pupFull && iy > 0) ? (o.iris || 0xfff6e8) : 0x141013 });
+                        continue;
+                    }
                     // 글린트 = **바깥 위 한 칸**. 큐브 하나면 충분하고, 그보다 잘게 쪼개면 격자가 깨진다.
                     if (nx >= 3 && ny >= 3 && outer && top) { dark.push({ x: gx(ix), y: iy, z: 0, c: 0xffffff }); continue; }
                     white.push({ x: gx(ix), y: iy, z: 0 });
@@ -16509,7 +16516,11 @@ const Scene3D = {
                     const bv = [];
                     for (let i = 0; i < bn; i++) bv.push({ x: i, y: (i > 0 && i < bn - 1) ? 1 : 0, z: 0 });
                     const bg = new THREE.Group();
-                    bg.position.set(0, ny * VS / 2 + VS * (style === 'fierce' ? 0.5 : 0.62), front - VS / 2);
+                    // 🚨 2칸 눈(늑대·임프)은 눈썹을 **한 칸 더 띄운다** — 반 칸 간격에서는 눈썹 막대와 동공 열이
+                    //    한 덩어리로 붙어 얼굴을 가로지르는 '안대 밴드'가 됐다(1차 채점 A2·B3·B6 합의 지적,
+                    //    처방도 '1복셀 위로'로 일치). 3칸 이상 눈은 글린트·홍채가 이미 띠를 끊어 그대로 둔다.
+                    //    간격은 반 칸이 정답이었다 — 한 칸을 다 띄우니 늑대 눈썹이 정수리 위에 뜬 '베레모'가 됐다(캡처).
+                    bg.position.set(0, ny * VS / 2 + VS * ((style === 'fierce' ? 0.5 : 0.62) + (nx <= 2 ? 0.5 : 0)), front - VS / 2);
                     const bm = eb(bv, new THREE.MeshLambertMaterial({ color: o.browColor || 0x2b2b33, vertexColors: true }), 0xffffff);
                     bm.position.x = -(bn - 1) * VS / 2;
                     bg.add(bm);
@@ -17212,7 +17223,7 @@ const Scene3D = {
                 g.add(tuft, tuft2);
             }
             g.add(headW);
-            eyes(0.645, 0.472, 0.072, 0.03, 'fierce', { iris: 0xe8b13c, glow: 0.25, tilt: -0.15, browColor: 0x3c414d, blushK: 0.62 }); // 흰자+호박 홍채 — 두상 안에 파묻어 배치(흰 뿔 오독 방지)
+            eyes(0.645, 0.472, 0.072, 0.03, 'fierce', { iris: 0xe8b13c, glow: 0.25, tilt: -0.15, browColor: 0x59606d, blushK: 0.62 }); // 흰자+호박 홍채 — 두상 안에 파묻어 배치(흰 뿔 오독 방지). 눈썹은 순흑 대신 중회색 — 1차 채점 '안대 밴드' 처방(짙은 회갈색으로)의 늑대판
             // 등 다크 새들 — 목덜미→엉덩이 한 흐름으로 세그먼트 경계(흉곽/연결통/골반 이음새) 은폐.
             // ⚠️ 2026-08-18 까지 이 새들은 **만들어만 지고 `g.add()` 가 없어 화면에 한 번도 안 나왔다**
             //    (wolf-backstripe-dead). `probe-wolf-saddle` 이 ⓐ씬에 붙었나 ⓑ등마루 위에서 내리쏜
@@ -17339,7 +17350,7 @@ const Scene3D = {
                 ear.scale.z = 0.5;
                 g.add(horn1, horn2, ear);
             }
-            eyes(0.65, 0.105, 0.055, 0.034, 'angry', { iris: 0xffe14a, glow: 0.12, tilt: 0.12, browColor: 0x5c2338 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
+            eyes(0.65, 0.105, 0.055, 0.034, 'angry', { iris: 0xffe14a, glow: 0.12, tilt: 0.12, browColor: 0x8a4f52 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번). 눈썹은 조명 아래 순흑으로 떨어지던 0x5c2338 → 중간 적갈 — 1차 채점 '선글라스 바이저' 처방
             // 목(두상 밑) · 허리(몸통 밑단과 골반 경계) · 날개 소켓
             // 🚨 **복셀 전환 뒤 반경을 다시 잰다** — 복셀 회전체는 축이 가장 뚱뚱하고 대각이 가장 얇아
             //    매끈 시절 반경이 대각에서 샌다. ⚠️ 새면 **튜브를 굵히지 말 것**(TorusGeometry 의 바깥
