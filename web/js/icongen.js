@@ -2249,7 +2249,16 @@ IconGen._genderSym = function (ctx, S, female) {
                 ctx.lineTo(x(sx - len, S), y(sy - len, S));
                 ctx.lineTo(x(sx - len + w, S), y(sy - len + w * 1.6, S)); ctx.closePath();
             };
-            streak(cx - .12, cy - .10, .30, .12);      // 꼬리 폭 .06~.07 은 테에 먹힌다 → .11~.12
+            /* 꼬리 폭 .06~.07 은 테에 먹힌다 → .11~.12.
+               🚨 **여기서 더 살찌우지 말 것 — 실측으로 되레 나빠진다 (2026-08-20 UI 스트림).**
+                  `spear` 를 살찌워 천장을 걷어내자 이 종이 24종의 최소 속살을 물길래
+                  같은 처방으로 꼬리를 .15~.16 으로 넓혀 봤더니 최소 속살이 **36.1% → 34.9%**
+                  로 **떨어졌다.** 속살은 넓이가 아니라 **비율(속살/실루엣)** 이고, 꼬리는
+                  끝으로 갈수록 좁아지는 삼각이라 폭을 넓히면 **늘어난 실루엣의 상당 부분이
+                  여전히 키라인에 먹히는 가는 구간**이다 — 분모만 커진다.
+                  이 종을 풀려면 폭이 아니라 **꼬리를 짧게(테 대비 두껍게) 하거나 개수를 줄여야**
+                  한다. 그건 조형 변경이라 다음 세션이 A/B 로 판단할 것. */
+            streak(cx - .12, cy - .10, .30, .12);
             streak(cx - .16, cy + .04, .24, .11);
             streak(cx - .02, cy - .17, .22, .11);
         },
@@ -2348,13 +2357,20 @@ IconGen._genderSym = function (ctx, S, female) {
         spear(ctx, S) {                                  // 공허의 창 / 신의 창 — 창(세로)
             // 종전 대(.06)·목받이(.08) 가 이 파일에서 가장 가는 부재였다 — 키라인 .045 에서도
             // 속살이 28%(sk_voidLance)까지 떨어져 '흰 촉만 남은 성냥개비'로 읽혔다. 대 .13 · 목받이 .12.
-            ctx.moveTo(x(.5, S), y(.04, S)); ctx.lineTo(x(.645, S), y(.22, S));
-            ctx.lineTo(x(.575, S), y(.36, S)); ctx.lineTo(x(.425, S), y(.36, S));
-            ctx.lineTo(x(.355, S), y(.22, S)); ctx.closePath();   // 곡선 촉은 96px 에서 '총알'로 읽혔다 → 각진 창날
-            ctx.moveTo(x(.37, S), y(.34, S)); ctx.lineTo(x(.63, S), y(.34, S));
-            ctx.lineTo(x(.59, S), y(.48, S)); ctx.lineTo(x(.41, S), y(.48, S)); ctx.closePath();
-            ctx.moveTo(x(.42, S), y(.46, S)); ctx.lineTo(x(.58, S), y(.46, S));
-            ctx.lineTo(x(.58, S), y(.95, S)); ctx.lineTo(x(.42, S), y(.95, S)); ctx.closePath();
+            /* 🚨 **한 번 더 살찌웠다 (대 .16 → .21, 2026-08-20 UI 스트림, 락 `icon-gen`).**
+               이 창은 **엠블럼 24종 전체의 천장**이었다: `sweep-emblem-step.js` 로 평면 3단 채움의
+               밝기를 훑으면 8조합 **전부에서** 최소 속살을 무는 종이 언제나 `sk_voidLance` 였고,
+               그 한 종 때문에 제품값을 `.30/.05/-.24` 보다 한 칸도 더 어둡게(=채도 있게) 못 내렸다
+               (한 칸 어두운 `.24` 에서 34.8% → 32.0% 로 게이트 34 를 깬다).
+               즉 **노브가 아니라 이 경로가 병목**이라, 나머지 23종의 채도를 이 창 하나가 잡고 있었다.
+               ⚠️ 더 살찌우지는 말 것 — 대 폭이 촉 폭(.32)에 가까워지면 창이 아니라 **몽둥이**로 읽힌다. */
+            ctx.moveTo(x(.5, S), y(.04, S)); ctx.lineTo(x(.66, S), y(.22, S));
+            ctx.lineTo(x(.585, S), y(.36, S)); ctx.lineTo(x(.415, S), y(.36, S));
+            ctx.lineTo(x(.34, S), y(.22, S)); ctx.closePath();   // 곡선 촉은 96px 에서 '총알'로 읽혔다 → 각진 창날
+            ctx.moveTo(x(.355, S), y(.34, S)); ctx.lineTo(x(.645, S), y(.34, S));
+            ctx.lineTo(x(.60, S), y(.48, S)); ctx.lineTo(x(.40, S), y(.48, S)); ctx.closePath();
+            ctx.moveTo(x(.395, S), y(.46, S)); ctx.lineTo(x(.605, S), y(.46, S));
+            ctx.lineTo(x(.605, S), y(.95, S)); ctx.lineTo(x(.395, S), y(.95, S)); ctx.closePath();
         },
         /* ---- 연출(fx)에 맞춘 모티프 5종 (`skill-name-icon-match-fx`, 사용자 지시 2026-08-19) ----
            "스킬 이펙트에 어울리는 이름과 스킬 아이콘으로 바꾸고." 아래 5개는 **연출이 이미 전용으로
