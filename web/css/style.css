@@ -2291,7 +2291,15 @@ body {
     color: #fff; font-weight: 900; white-space: nowrap; font-size: .78rem;
 }
 .league-server { position: absolute; right: .55rem; bottom: .2rem; font-size: .6rem; color: #8a8a8a; }
-.league-row.me .league-server { color: #dce6ff; }
+/* 파란 `.me` 행 위에서만 키라인 — 원본 042149 의 그 행은 **밝은 글자를 전부 검정 테로 두른다**
+   (`moonzzanf` 흰 이름 · `⚔20.7b` 주황 전투력 둘 다). 어두운 행의 회색 `서버 21` 은 원본도
+   민무늬라 여기 넣지 않는다(근흑 판 위라 검정 링이 아무것도 안 갈라 준다).
+   ⚠️ 굵기는 `.league-name small` 과 같은 이유로 글자 크기에 비례시킨다 — 이 글자는 `.6rem`(9.6px)
+   이라 부모의 2px 을 물리면 획이 속공간을 메워 뭉갠다. */
+.league-row.me .league-server {
+    color: #dce6ff;
+    -webkit-text-stroke: max(1.2px, .1em) var(--pp-line); paint-order: stroke fill;
+}
 /* 원본(042149): 핀 행+도전 버튼은 밝은 회색 풀블리드 밴드 위 — 스크롤 행 클리핑을 밴드가 가림 (185) */
 .league-foot {
     /* 원본은 회색 밴드가 74.44%H 에서 시작해 **탭바 상단(91.74%H)까지 끊김 없이** 내려온다. 클론은
