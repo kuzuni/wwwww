@@ -7,6 +7,7 @@
 cd "$(dirname "$0")" || exit 1
 fail=0
 for p in \
+    probe-geo-ratchet.js \
     probe-cell-icon-size.js \
     test-voxel.js \
     test-voxel-shapes.js \
