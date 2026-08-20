@@ -18628,6 +18628,10 @@ const Scene3D = {
             || fx === 'wardshield' || fx === 'warcry' || fx === 'timewarp';
         const hero = this.heroG.position;
         const chest = new THREE.Vector3(hero.x, hero.y + 1.05, hero.z);
+        // 🔥 화염계(explode)의 1박이 백청으로 읽히던 것(3차 ㉤): 스킬색 #ff8a65 는 저채도 살몬이라
+        //    가산 모트·링이 배경 위에서 즉시 흰색으로 씻긴다 — 화염계만 진한 불색으로 깊인다.
+        //    (다른 fx 는 손대지 않는다 — 색이 곧 속성 판독이다.)
+        if (fx === 'explode') color = color.clone().lerp(new THREE.Color(0xff5a1a), 0.55);
         const dur = this.castBeatMs(t) / 1000;             // 박자 길이는 fx 와 무관하게 등급만 탄다
         const G = new THREE.Group();
         this.scene.add(G);
@@ -18682,7 +18686,7 @@ const Scene3D = {
         //    덩치를 맞춘다 — 꽉 찬 큐브는 소프트 글로우보다 실효 면적이 커서 그대로 두면 가슴에
         //    흰 덩어리가 앉는다.
         const core = new THREE.Mesh(this.fxGeo('box', 1, 1, 1),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+            new THREE.MeshBasicMaterial({ color: fx === 'explode' ? 0xffc46a : 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
         core.position.copy(chest);
         core.scale.setScalar(0.01);
         core.userData.sharedGeometry = true;   // 공유 지오(위 🚨 참조) — dispose 금지
@@ -21230,15 +21234,24 @@ const Scene3D = {
         // ⓐ 불덩이 — 포물선. 코어 + 글로우 2겹에 불티 꼬리.
         const ball = new THREE.Group();
         ball.userData.fireBall = true;
+        // 🔥 **비행 구간에 불색이 없었다 (3차 채점 2인 일치 ㉤ — '적중까지 빙백색, 얼음으로 읽힌다').**
+        //    범인 둘: 코어가 크림색(0xffe0a8 — 명도만 높고 채도가 죽음) + 글로우가 가산이라 밝은
+        //    하늘 위에서 클리핑. 메테오 균열의 실측 교훈 그대로 — **밝기가 아니라 채도가 불을
+        //    만든다**: 코어는 중간 명도·최대 채도 주황, 글로우는 알파 합성으로 진한 불색을 칠한다.
         const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.17 + pw * 0.09, 0),
-            new THREE.MeshBasicMaterial({ color: 0xffe0a8, toneMapped: false }));
+            new THREE.MeshBasicMaterial({ color: 0xff9526, toneMapped: false }));
         const glow = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3 + pw * 0.14, 0),
-            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+            new THREE.MeshBasicMaterial({ color: color.clone().lerp(new THREE.Color(0xff5722), 0.6), transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false }));
         ball.add(core, glow);
         ball.position.copy(from);
         this.scene.add(ball);
         const arc = 1.1 + pw * 0.4;                       // 포물선 높이
-        const fly = 0.3 + pw * 0.06;
+        // ⏱️ **비행시간을 피해 박자에 동기화 (3차 채점 A 지적을 실측으로 확정, 2026-08-20).**
+        //    Combat.tryCast 는 광역 피해를 시전 후 **250ms 고정**으로 넣는데, 종전 비행이
+        //    0.3+pw*0.06s 라 불덩이가 아직 하늘에 있는 210~270ms 에 적 히트플래시가 먼저 터졌다
+        //    ('착탄 전 선발동'). 피해 시각을 fx 가 바꿀 수는 없으니(게임플레이) **불덩이가 그 시각에
+        //    도착하도록** 비행을 잰다: 250ms − 시전박자. 던지기도 빨라져 스냅이 좋아진다.
+        const fly = Math.max(0.1, (250 - this.castBeatMs(t)) / 1000);
         this.addAnim(fly, k => {
             ball.position.lerpVectors(from, spot, k);
             ball.position.y += Math.sin(k * Math.PI) * arc;   // 위로 솟았다 내려앉는 궤적
