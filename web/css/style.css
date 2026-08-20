@@ -4128,6 +4128,27 @@ h3.sellwarn-title, .rates-head h3,
 /* 원본에서 '장착됨 바~버튼' 묶음은 지금보다 19px 아래에 앉는다. 소환 바 y 는 이미 맞으므로
    버튼~소환 바 사이를 그만큼 줄이면 위쪽 그리드 여백(flex:1)이 알아서 늘어 묶음이 내려온다. */
 #panel-skills .summon-bar { margin-top: 1.03rem; }
+/* 원본(042340)은 버튼행과 소환 바 사이를 **전폭 점선**이 가로지른다 — 클론엔 아예 없었다
+   (slug: skills-dashed-divider · 비평가 2인 교집합을 픽셀로 확정).
+   실측: y630~631 = **정확히 2px**(y629·y632 가 순백 255 라 안티에일리어싱조차 없다) · 색 **순검정
+   `0,0,0`**(= `--pp-line`) · **x0~495 = 100%W 풀블리드**(패널 좌우 여백을 뚫고 화면 끝까지) ·
+   대시 49~50px / 간격 49~50px(주기 98.83px = 19.93%W) · **위상은 x=0 에 대시 '중심'이 온다**
+   (양끝 대시가 26px·25px 로 반쪽만 남은 게 그 증거다 → 타일을 반 주기의 절반만큼 왼쪽으로 민다).
+   ⚠️ **기준을 버튼행이 아니라 소환 바로 잡는다** — 클론 버튼행 하단은 원본보다 0.85%p 낮아
+   '버튼행 + 1.80%H' 로 재현하면 71.64%H 에 떨어진다. 소환 바 상단(클론 73.21%H ↔ 원본 73.37%H,
+   Δ−0.16)에서 **−2.42%H** 를 빼면 원본 70.79%H 에 그대로 겹친다.
+   `.summon-bar` 는 이미 `position:relative` 라 ::before 를 그대로 얹을 수 있고, 스코프가
+   `#panel-skills` 라 펫·탈것 소환 바는 건드리지 않는다. */
+#panel-skills .summon-bar::before {
+    content: ''; position: absolute; pointer-events: none;
+    /* 절대 배치의 기준은 .summon-bar 의 패딩 상자(= 패널 여백 안쪽)라, 그 여백만큼 되밀어 풀블리드로 만든다 */
+    left: calc(var(--app-w) * -.027); width: var(--app-w);
+    top: calc(var(--app-h) * -.0242); height: calc(var(--app-h) * .00225);
+    background-image: linear-gradient(to right, var(--pp-line) 0 50%, transparent 50%);
+    background-size: calc(var(--app-w) * .1993) 100%;
+    background-position: calc(var(--app-w) * -.0499) 0;   /* 반 대시만큼 당겨 x=0 에 대시 중심을 맞춘다 */
+    background-repeat: repeat-x;
+}
 /* 원본(042340)에서 ◀ 를 뺀 나머지 묶음(x5 pill·소환·info)은 **앱 중앙이 아니라 13px 오른쪽**에 앉는다
    — ◀ 자리만큼 밀린 배치다. ◀ 는 절대 배치라 흐름에서 빠지므로 왼쪽 패딩으로 같은 양을 만든다. */
 .summon-bar { display: flex; align-items: center; justify-content: center; gap: .5rem; position: relative; padding-left: calc(var(--app-w) * .055); }
