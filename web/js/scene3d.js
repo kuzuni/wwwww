@@ -7643,9 +7643,20 @@ const Scene3D = {
                 return out;
             };
             // 엄지 — 손 왼쪽에서 **계단으로** 벌어져 올라간다(예전 `rotation.z = 0.9` 대체).
+            // 🚨 **대각 계단은 칸이 꼭짓점으로만 닿아 '떨어진 조각'으로 읽힌다**(비평가 B 가 7곳 중
+            //    최우선으로 짚은 결함). x 와 y 가 동시에 한 칸씩 움직이면 두 큐브는 모서리 하나로만
+            //    만난다. 그래서 계단마다 **꺾이는 모서리 칸을 하나 채워** 면 접촉으로 잇는다 —
+            //    L 자로 채우면 대각선이 끊기지 않는다.
             const thumb = (x0, y0, n, c) => {
                 const out = [];
-                for (let i = 0; i < n; i++) out.push(...V.at(V.box(2, 1, 2, c), x0 - i, y0 + Math.round(i * 0.75), 0));
+                let px = x0, py = y0;
+                for (let i = 0; i < n; i++) {
+                    const nx = x0 - i, ny = y0 + Math.round(i * 0.75);
+                    out.push(...V.at(V.box(2, 1, 2, c), nx, ny, 0));
+                    if (i > 0 && nx !== px && ny !== py)   // 대각 이동 — 꺾이는 칸을 채운다
+                        out.push(...V.at(V.box(2, 1, 2, c), nx, py, 0));
+                    px = nx; py = ny;
+                }
                 return out;
             };
             if (variant === 0) { // 장갑: 손등 곡면 + 손가락 4개 + 벌어진 엄지 + 손목 커프
@@ -7946,16 +7957,22 @@ const Scene3D = {
             // 꺾은선을 따라 내려오는 띠 — `TubeGeometry` 곡선의 voxel 대응.
             //   ⚠️ 곡선을 **매끈하게 근사하려 들면 안 된다**. 층마다 한 칸씩 x·z 를 옮기는
             //      계단이 곧 천의 접힘이고, 그게 이 화풍에서 '휘어져 내려온다'로 읽힌다.
+            // ⚠️ 판 폭 w 는 2 이상이어야 한칸 x 이동에도 면 접촉이 남는다(1칸 폭이면 대각에서
+            //    꼭짓점만 닿아 끊긴다 — 엄지 계단과 같은 함정). 여기 쓰이는 꼬리·술은 전부 w≥2.
             const strip = (pts, w, d, c) => {
                 const out = [];
+                let ppos = null;
                 for (let s = 0; s < pts.length - 1; s++) {
                     const a = pts[s], b = pts[s + 1], n = Math.abs(b[1] - a[1]);
                     for (let i = 0; i < n; i++) {
                         const k = i / n;
-                        out.push(...V.at(V.box(w, 1, d, c),
-                            Math.round(a[0] + (b[0] - a[0]) * k) - (w >> 1),
-                            Math.round(a[1] + (b[1] - a[1]) * k),
-                            Math.round(a[2] + (b[2] - a[2]) * k)));
+                        const cx = Math.round(a[0] + (b[0] - a[0]) * k), cy = Math.round(a[1] + (b[1] - a[1]) * k),
+                              cz = Math.round(a[2] + (b[2] - a[2]) * k);
+                        out.push(...V.at(V.box(w, 1, d, c), cx - (w >> 1), cy, cz));
+                        // z 가 한꺼번에 뛰면(굽은 술) x·z 동시 이동이라 꼭짓점 접촉이 된다 — 꺾임 칸 보강.
+                        if (ppos && ppos[2] !== cz && ppos[1] !== cy)
+                            out.push(...V.at(V.box(w, 1, d, c), cx - (w >> 1), ppos[1], cz));
+                        ppos = [cx, cy, cz];
                     }
                 }
                 return out;
