@@ -20258,6 +20258,105 @@ const Scene3D = {
         });
     },
 
+    // ---- 버프 지속 오라 — '버프가 걸려 있다'를 화면에 계속 붙들어 두는 층 (skill-fx ㉥) ----
+    // 비평가 2차 2인 일치 지적: "전투의 함성: 510ms 이후 **버프가 걸렸다는 시각 증거가 0**".
+    // 실체는 연출 세기가 아니라 **상태와 화면의 어긋남**이었다 — `warCryShout` 은 0.6초짜리
+    // 일회성 포효인데 버프는 `Combat.buffs` 에 **8초** 산다. 즉 7.4초 동안 화면에 아무 흔적도
+    // 없고 플레이어는 공격력이 올랐다는 걸 숫자로만 안다(실측: 0.9/1.8/2.7초 표본 전부 잉크 0화소).
+    //
+    // 그래서 이 층은 **연출이 아니라 상태 표시**다. 설계 원칙 셋:
+    //   ⓐ **수명을 `Combat.buffs` 에서 읽는다.** 시전 시각에 타이머를 복사해 두면 버프가 먼저
+    //      끊기거나(중첩 갱신·사망) 오라가 먼저 꺼져 다시 어긋난다. 매 프레임 상태를 본다.
+    //   ⓑ **8초를 버텨야 하므로 싸야 한다.** 파티클을 매 프레임 뿌리지 않고, 큐브 20개짜리
+    //      고리 둘을 만들어 **돌리기만** 한다(생성은 버프당 한 번).
+    //   ⓒ 🚨 **회전은 `dt` 로 준다.** 같은 파일의 회오리가 `+=` 상수 누적으로 30fps 에서 반만
+    //      도는 함정을 밟았다(㉤) — `addAnim` 과 달리 `update(dt)` 는 dt 가 있으니 그걸 쓴다.
+    BUFF_AURA_SPIN: 1.15,        // rad/초 (바깥 고리)
+    BUFF_AURA_FADE: 0.28,        // 켜짐/꺼짐 전환 시간(초)
+    buildBuffAura(colorHex) {
+        const G = new THREE.Group();
+        G.userData.buffAuraFx = true;
+        const hsl = new THREE.Color(colorHex).getHSL({ h: 0, s: 0, l: 0 });
+        const inner = new THREE.Group();
+        inner.userData.counter = true;
+        const ring = (parent, n, r, y, size, spread) => {
+            for (let i = 0; i < n; i++) {
+                const a = (i / n) * Math.PI * 2;
+                // 화풍 ⓒ — 큐브마다 명도를 흔든다. 같은 색 큐브가 둘러서면 한 덩어리로 뭉쳐
+                // 개수가 안 읽힌다(색상까지 흔들면 스킬 속성색이 무너지므로 명도만).
+                const c = new THREE.Color().setHSL(hsl.h, U.clamp(hsl.s * 1.05, 0, 1),
+                    U.clamp(hsl.l * U.rand(0.82, 1.15), 0.14, 0.94));
+                const m = new THREE.Mesh(this.fxGeo('box', 1, 1, 1),
+                    new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+                m.userData.sharedGeometry = true;
+                m.userData.phase = i * (Math.PI * 2 / n) + U.rand(0, 1.2);
+                m.userData.baseY = y;
+                m.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+                m.rotation.set(U.rand(0, 6.28), a, U.rand(0, 6.28));
+                m.scale.setScalar(size * U.rand(0.82, 1.18));
+                m.userData.size = m.scale.x;
+                m.userData.bob = spread;
+                parent.add(m);
+            }
+        };
+        // ⚠️ 덩치는 **8초를 견디는 표시등**이라는 성격에 맞춘다 — 스킬 발동 연출처럼 크게 깔면
+        //    버프가 걸린 내내 화면이 시끄럽고, 너무 작으면(0.10/0.075 로 재 봤을 때 차분 293화소)
+        //    있는 줄 모른다. 발치를 조금 키워 '땅이 반응한다'가 먼저 읽히게 둔다.
+        ring(G, 12, 0.62, 0.11, 0.125, 0.09);     // 발치 — '땅이 반응한다'
+        ring(inner, 8, 0.36, 0.72, 0.09, 0.07);   // 허리 — 몸에 붙은 증거
+        G.add(inner);
+        this.scene.add(G);
+        this.buffAuraG = G;
+        this._buffAuraInner = inner;
+        this._buffAuraK = 0;
+        this._buffAuraT = 0;
+        this._buffAuraId = null;
+    },
+    disposeBuffAura() {
+        const G = this.buffAuraG;
+        if (!G) return;
+        G.traverse(o => {
+            if (!o.isMesh) return;
+            if (!o.userData.sharedGeometry) o.geometry.dispose();
+            o.material.dispose();
+        });
+        this.scene.remove(G);
+        this.buffAuraG = null; this._buffAuraInner = null;
+    },
+    driveBuffAura(dt) {
+        const list = (typeof Combat !== 'undefined' && Combat.buffs) ? Combat.buffs : null;
+        const act = (list && list.length) ? list[list.length - 1] : null;
+        // 죽어 있는 동안엔 숨긴다 — 시체 둘레를 도는 버프 고리는 '살아 있다'로 잘못 읽힌다.
+        const want = !!act && !this.heroDead;
+        if (want) {
+            // 버프가 **다른 스킬로 바뀌면** 색도 바꿔야 한다 — 색이 곧 어느 버프인지다.
+            if (this.buffAuraG && this._buffAuraId !== act.id) this.disposeBuffAura();
+            if (!this.buffAuraG) {
+                const def = (typeof Skills !== 'undefined' && Skills.def) ? Skills.def(act.id) : null;
+                this.buildBuffAura((def && def.color) || '#ffcc80');
+                this._buffAuraId = act.id;
+            }
+        }
+        const G = this.buffAuraG;
+        if (!G) return;
+        this._buffAuraT += dt;
+        this._buffAuraK = U.clamp(this._buffAuraK + (want ? dt : -dt) / this.BUFF_AURA_FADE, 0, 1);
+        if (!want && this._buffAuraK <= 0) { this.disposeBuffAura(); return; }
+        const k = this._buffAuraK, t = this._buffAuraT;
+        G.position.set(this.heroG.position.x, this.heroG.position.y, this.heroG.position.z);
+        G.rotation.y += this.BUFF_AURA_SPIN * dt;                       // dt 기반 — 프레임률 무관
+        if (this._buffAuraInner) this._buffAuraInner.rotation.y -= this.BUFF_AURA_SPIN * 1.6 * dt;
+        // 숨 쉬듯 맥동한다 — 완전히 정지한 고리는 몇 초만 지나면 배경으로 읽힌다.
+        const pulse = 0.76 + 0.24 * Math.sin(t * 3.1);
+        G.traverse(o => {
+            if (!o.isMesh) return;
+            o.position.y = o.userData.baseY + Math.sin(t * 2.6 + o.userData.phase) * o.userData.bob;
+            o.rotation.x += dt * 0.9;
+            o.material.opacity = 0.9 * k * pulse;
+            o.scale.setScalar(o.userData.size * (0.9 + 0.1 * pulse) * (0.55 + 0.45 * k));
+        });
+    },
+
     // 시간 왜곡 — 시계 고리 3겹이 **서로 다른 속도로, 일부는 거꾸로** 돈다.
     // 다른 지원계가 전부 '켜졌다 꺼지는' 것과 달리 이건 **계속 어긋나게 도는** 게 정체성이라,
     // 각속도 차이가 곧 연출이다. 영웅 잔상까지 얹어 '시간이 어긋났다'를 못 박는다.
@@ -22428,6 +22527,8 @@ const Scene3D = {
             //    바꾼 뒤 이걸 그대로 두면 큐브가 끝까지 같은 덩치로 남아 '사라지는' 게 아니라 '꺼진다'.
             if (p.userData.baseScale) p.scale.setScalar(p.userData.baseScale * (0.4 + 0.6 * lifeK));
         }
+        // 버프 지속 오라 — `Combat.buffs` 상태를 매 프레임 읽어 켜고 끈다 (skill-fx ㉥)
+        this.driveBuffAura(dt);
         // 안개 드리프트 (카메라 주변 순환) + 원경 산맥은 카메라를 따라감
         for (const mist of this.mists) {
             mist.position.x += mist.userData.speed * dt;
