@@ -4475,25 +4475,33 @@ const Scene3D = {
                     }
                 }
                 break;
-            case 'spear':
-                cyl(0.03, 0.035, 1.05, wood, 0, 0.4);
+            case 'spear': {
+                // 🧊 창 — 큐브 적층 (equip-voxelize ⓑ 2차: 장병기). 2칸 자루 + 계단 촉.
+                //    돌창은 잎사귀꼴(배가 부푼 2→6→2 계단)로 '깬 돌', 금속창은 곧은 피라미드
+                //    (4→2 계단)로 갈린다 — 곡면 없이도 두 촉의 서명이 다르다.
+                const wc = HEXOF(wood), dc = HEXOF(dark);
+                const v = [];
+                vbox(v, -1, 0, -4, 29, -1, 0, wc);           // 자루 2×2
                 if (matKind === 'stone') {
-                    // 돌창(원시): **잎사귀꼴 뗀석기 촉** — 배가 부풀고 양끝이 모이는 형태라야 '깨서 만든 돌'로
-                    // 읽힌다. 원뿔은 밑동이 가장 넓어 금속 촉과 구분이 안 됐다(팔면체를 납작하게 눌러 쓴다).
-                    { const s = new THREE.Shape();
-                      s.moveTo(0, 0.2); s.lineTo(0.078, 0.03); s.lineTo(0.058, -0.105);
-                      s.lineTo(0, -0.155); s.lineTo(-0.058, -0.105); s.lineTo(-0.078, 0.03);
-                      s.lineTo(0, 0.2);
-                      const geo = new THREE.ExtrudeGeometry(s, { depth: 0.052, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 1, curveSegments: 1 });
-                      geo.translate(0, 0, -0.026);
-                      const tip = new THREE.Mesh(geo, mat); tip.position.y = 1.05; g.add(tip); }
-                    edge(0.012, 0.2, 0.03, 0.06, 1.08, 0, 0.42);   // 갈아낸 한쪽 날
-                    lashing(0.88, 0.045);
+                    const sc = HEXOF(mat);
+                    // 잎사귀꼴 뗀석기 촉 — 낮은 배(y31~35 폭 6)에서 끝(폭 2)으로 모인다
+                    const LEAF = [[30, 2], [31, 4], [32, 6], [33, 6], [34, 6], [35, 6], [36, 4], [37, 4], [38, 2], [39, 2], [40, 2], [41, 2]];
+                    for (const [y, w] of LEAF) vbox(v, -w / 2, w / 2 - 1, y, y, -1, 0, sc);
+                    vring(v, 2, 27, 27, dc);                 // 결속 가죽끈 2줄
+                    vring(v, 2, 29, 29, dc);
+                    vpart(v, wood);
+                    edge(0.012, 0.2, 0.03, 0.06, 1.08, 0, 0.42);   // 갈아낸 한쪽 날(회전 박스 = 로컬 축정렬)
                 } else {
-                    { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.26, 8), bladeMat); tip.position.y = 1.03; g.add(tip); }
-                    { const tipHl = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.1, 6), edgeMat); tipHl.position.y = 1.14; g.add(tipHl); }
+                    vpart(v, wood);
+                    const t = [];
+                    const bc = HEXOF(bladeMat);
+                    vbox(t, -2, 1, 30, 31, -2, 1, bc);       // 촉 밑동 4×4
+                    vbox(t, -1, 0, 32, 35, -1, 0, bc);       // 촉 끝 2×2
+                    vpart(t, bladeMat);
+                    edge(0.05, 0.08, 0.05, 0, 1.115);        // 끝 하이라이트 큐브
                 }
                 break;
+            }
             case 'hammer':
                 cyl(0.04, 0.05, 0.72, wood, 0, 0.28);
                 box(0.3, 0.2, 0.2, mat, 0, 0.66);
@@ -4634,30 +4642,43 @@ const Scene3D = {
                 box(0.14, 0.1, 0.08, mat, 0, 0.16);
                 break;
             case 'staff': {
-                // 테이퍼 샤프트 + 그립 밴드 + 다면체 크리스탈 헤드 + 감싸는 링 ('막대사탕' 오독 제거, 비평가 지적)
-                cyl(0.026, 0.04, 0.95, wood, 0, 0.35);
-                cyl(0.042, 0.042, 0.05, dark, 0, 0.06);   // 그립 밴드 (손 위치 표시)
-                cyl(0.042, 0.042, 0.05, dark, 0, -0.08);
-                const crys = new THREE.Mesh(new THREE.OctahedronGeometry(0.1),
-                    new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 0.8 }));
-                crys.position.y = 0.92; crys.scale.y = 1.5;
-                g.add(crys); this._staffOrb = crys;
-                const holdRing = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.014, 6, 14), mat);
-                holdRing.position.y = 0.92;
-                const holdRing2 = holdRing.clone(); holdRing2.rotation.y = Math.PI / 2;
-                g.add(holdRing, holdRing2);
-                const collar = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 8), dark); // 헤드 받침 소켓
-                collar.position.y = 0.8;
-                g.add(collar);
+                // 🧊 지팡이 — 큐브 적층 (equip-voxelize ⓑ 2차). 다면체 크리스탈 → 계단 다이아
+                //    (2→6→2), 감싸는 토러스 링 2개 → 십자 정사각 프레임 2벌. '막대사탕' 오독
+                //    방지책(그립 밴드·헤드 소켓)은 큐브 문법으로 그대로 잇는다.
+                const wc = HEXOF(wood), dc = HEXOF(dark);
+                const v = [];
+                vbox(v, -1, 0, -4, 25, -1, 0, wc);           // 자루 2×2
+                vring(v, 2, 2, 2, dc);                       // 그립 밴드(손 위치 표시) 2줄
+                vring(v, 2, -3, -3, dc);
+                vbox(v, -2, 1, 26, 26, -2, 1, dc);           // 헤드 받침 소켓(계단 콘)
+                vbox(v, -1, 0, 27, 27, -1, 0, dc);
+                vpart(v, wood);
+                // 크리스탈 헤드 — 시대색 발광 계단 다이아. update 의 _staffOrb 회전 인터페이스 유지.
+                const cry = [];
+                const DIA = [[28, 2], [29, 4], [30, 6], [31, 6], [32, 4], [33, 4], [34, 2], [35, 2]];
+                for (const [y, w] of DIA) vbox(cry, -w / 2, w / 2 - 1, y, y, -w / 2, w / 2 - 1, c);
+                const crys = vpart(cry, mat, { emissive: c, emissiveIntensity: 0.8, jitter: 0.03 });
+                this._staffOrb = crys;
+                // 감싸는 프레임 — xy·zy 두 평면의 정사각 테 (토러스 십자 링의 큐브 번역)
+                const fr = [];
+                const fc = HEXOF(mat);
+                for (let x = -5; x <= 4; x++) for (let y = 27; y <= 36; y++)
+                    if (x === -5 || x === 4 || y === 27 || y === 36) vbox(fr, x, x, y, y, -1, 0, fc);
+                for (let z = -5; z <= 4; z++) for (let y = 27; y <= 36; y++)
+                    if (z === -5 || z === 4 || y === 27 || y === 36) vbox(fr, -1, 0, y, y, z, z, fc);
+                vpart(fr, mat);
                 break;
             }
-            case 'thrown':
-                cyl(0.03, 0.035, 0.42, wood, 0, 0.14);
+            case 'thrown': {
+                // 🧊 투척 도끼 — 자루를 큐브 기둥으로, 토러스 칼라를 정사각 링으로 (equip-voxelize ⓑ 2차)
+                const v = [];
+                vbox(v, -1, 0, -5, 13, -1, 0, HEXOF(wood));
+                vring(v, 2, 9, 9, HEXOF(dark));
+                vpart(v, wood);
                 box(0.2, 0.15, 0.04, bladeMat, 0.1, 0.36);
                 edge(0.014, 0.17, 0.044, 0.197, 0.36);   // 던지는 날 끝
-                { const collar = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.01, 5, 10), dark);
-                  collar.rotation.x = Math.PI / 2; collar.position.y = 0.29; g.add(collar); }
                 break;
+            }
             case 'club': {
                 // 🧊 원시 몽둥이 — 큐브 적층 (equip-voxelize ⓑ 1차: 둔기). 가는 2칸 그립 →
                 //    4칸 미드 → 6칸 헤드로 굵어지는 계단 실루엣이 '타격부로 갈수록 굵어지는
@@ -4715,40 +4736,44 @@ const Scene3D = {
                 break;
             }
             case 'scythe': {
-                // 낫: 긴 자루 + 직각으로 뻗은 큰 곡선 날 (도끼의 덩어리 헤드와 정반대 실루엣)
-                cyl(0.028, 0.034, 1.0, wood, 0, 0.36);
-                { const blade = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.026, 5, 12, Math.PI * 0.62), bladeMat);
-                  blade.position.set(0.02, 0.84, 0); blade.rotation.z = -0.5; blade.scale.z = 0.32; g.add(blade); }
-                { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.16, 5), bladeMat);
-                  tip.position.set(0.35, 1.04, 0); tip.rotation.z = -1.9; tip.scale.z = 0.4; g.add(tip); }
-                cyl(0.045, 0.045, 0.07, dark, 0, 0.8);      // 날 소켓
-                lashing(0.06, 0.042);
+                // 🧊 낫 — 큐브 적층 (equip-voxelize ⓑ 2차). 곡선 토러스 날 → 계단으로 처지는
+                //    L자 블록 날. 자루 꼭대기에서 +x 로 뻗다가 끝으로 갈수록 아래로 꺾여 낫의
+                //    갈고리 실루엣이 남는다(도끼의 덩어리 헤드와 정반대 — 종전 의도 유지).
+                const wc = HEXOF(wood), dc = HEXOF(dark), bc = HEXOF(bladeMat);
+                const v = [];
+                vbox(v, -1, 0, -5, 28, -1, 0, wc);           // 긴 자루 2×2
+                vbox(v, -2, 1, 26, 27, -2, 1, dc);           // 날 소켓
+                vring(v, 2, 1, 1, dc);                       // 결속 끈 2줄
+                vring(v, 2, 3, 3, dc);
+                vpart(v, wood);
+                const b = [];
+                vbox(b, 1, 4, 27, 28, -1, 0, bc);            // 계단 낙하 날: 뿌리(수평)
+                vbox(b, 5, 8, 26, 27, -1, 0, bc);
+                vbox(b, 9, 10, 24, 25, -1, 0, bc);
+                vbox(b, 11, 12, 21, 23, -1, 0, bc);
+                vbox(b, 12, 13, 18, 20, -1, 0, bc);          // 끝으로 갈수록 급하게 꺾인다
+                vbox(b, 13, 13, 15, 17, -1, 0, bc);          // 갈고리 끝
+                vpart(b, bladeMat);
                 break;
             }
             case 'sling': {
-                // 투석구: 가죽 주머니 + 두 가닥 끈 + 장전된 돌 (총기류로 오독되면 안 되는 원시 원거리 무기)
-                // 주머니를 넓적하게·돌을 크게 잡아야 '두 갈래 포크'로 안 읽힌다(썸네일 실측).
-                { const pouch = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2), dark);
-                  pouch.rotation.x = Math.PI; pouch.scale.set(1.15, 0.62, 0.9); pouch.position.y = -0.3; g.add(pouch); }
-                { const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.085, 0), mat);
-                  stone.rotation.set(0.4, 0.7, 0); stone.position.y = -0.285; g.add(stone); }
-                // ⚠️ 끈 두 가닥은 **끝이 어딘가에 닿아야** 한다 — 끝이 뜨면 '나뭇가지 두 개 + 그릇'이
-                //    된다(실측). 그리고 1차 채점(A '국자'·B 'Y자 새총')의 원인은 **위 세로 손잡이 + 곧은
-                //    V자 끈**이었다 — 곧은 두 가닥이 Y 포크로, 세로 자루가 새총 그립으로 읽힌다.
-                //    → 손잡이를 **가로 토글**로 눕히고, 끈을 바깥으로 살짝 배부른 **곡선 튜브**로 바꿔
-                //    '늘어진 가죽끈'을 만든다(새총 프레임은 곧아야 하므로 곡선이 곧 슬링의 서명이다).
-                { const toggle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.17, 7), wood);
-                  toggle.rotation.z = Math.PI / 2; toggle.position.y = 0.05; g.add(toggle); }
-                for (const s of [-1, 1]) {
-                    const pts = [
-                        new THREE.Vector3(s * 0.07, 0.045, 0),      // 토글 끝
-                        new THREE.Vector3(s * 0.125, -0.12, 0),     // 바깥으로 배부른 중간
-                        new THREE.Vector3(s * 0.10, -0.275, 0),     // 주머니 테
-                    ];
-                    const cord = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.009, 5), dark);
-                    g.add(cord);
+                // 🧊 투석구 — 큐브 적층 (equip-voxelize ⓑ 2차). 반구 주머니 → 큐브 그릇(바닥판
+                //    + 테두리 링), 곡선 튜브 끈 → 바깥으로 배부른 **계단 끈**(1칸 폭). 종전 오독
+                //    대책 유지: 가로 토글 + 배부른 끈 = 슬링의 서명, 끈 양끝은 토글·주머니에 닿는다.
+                const wc = HEXOF(wood), sc = HEXOF(mat), dc = HEXOF(dark);
+                const v = [];
+                vbox(v, -4, 3, -11, -11, -3, 2, dc);         // 주머니 바닥판
+                for (let x = -5; x <= 4; x++) for (let z = -4; z <= 3; z++)
+                    if (x === -5 || x === 4 || z === -4 || z === 3) v.push({ x, y: -10, z, c: dc });  // 주머니 테두리
+                vbox(v, -2, 1, -10, -8, -2, 1, sc);          // 장전된 돌(테 위로 솟는 블록)
+                vbox(v, -3, 2, 1, 2, -1, 0, wc);             // 가로 토글(손잡이)
+                for (const s of [-1, 1]) {                   // 배부른 계단 끈 — 바깥 볼록이 슬링의 서명
+                    const X = n => s > 0 ? n : -n - 1;       // 짝수 격자 대칭(중심 0 = 칸 -1|0 경계)
+                    vbox(v, X(2), X(2), -1, 0, -1, 0, dc);
+                    vbox(v, X(3), X(3), -4, -2, -1, 0, dc);
+                    vbox(v, X(4), X(4), -9, -5, -1, 0, dc);  // 끝은 주머니 테(x=±5칸 열) 위에 닿는다
                 }
-                // ⚠️ 손목 고리(토러스)를 자루 위에 얹었다가 뺐다 — 자루와 떨어져 보여 **갈고리**로 읽혔다.
+                vpart(v, dark);
                 break;
             }
             case 'pistol': {
