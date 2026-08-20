@@ -46,6 +46,7 @@ for p in \
     probe-dim-tabbar.js \
     probe-css-var-undefined.js \
     probe-arc-centered.js \
+    probe-lgr-px.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1
