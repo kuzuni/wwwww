@@ -1055,33 +1055,50 @@ const Scene3D = {
 
     // 뭉게구름 텍스처 — 여러 원을 겹쳐 울퉁불퉁한 뭉치 실루엣을 만들고 아랫면에 살짝 그림자를 얹어 입체감을 줌
     // (단일 원형 그라디언트는 "빛번짐"처럼 보여 구름으로 안 읽히므로 반드시 여러 퍼프를 합성)
+    // 🧊 **voxel 전환(2026-08-20) — 매끈한 뭉게구름 스프라이트 → 네모 픽셀 구름.**
+    //   `cute-art-direction` 1차 채점에서 비평가 2인이 각자 "구름이 가장자리 흐린 솜뭉치 · 매끈한
+    //   타원"으로 지목했다(㉥). 하늘은 배경 중 유일하게 큐브가 하나도 없던 자리다.
+    // 🔑 **스프라이트 구조는 그대로 둔다** — 구름은 원경이라 카메라를 향해도 무방하고,
+    //   `sky-band-composition` 이 크기·고도·개수를 대역에서 유도해 맞춰 놓았다. 갈아야 할 것은 **텍셀**이다.
+    // 🔑 **텍스처 종횡비를 스프라이트에 맞춘다(30×10 = 3:1 = `scale.set(s, s*0.34)`).** 정사각 텍스처를
+    //   3:1 로 늘이면 픽셀이 가로로 늘어난 직사각이 되어 '네모'가 아니라 '줄무늬'로 읽힌다.
+    //   퍼프 좌표는 정규화라 이 비율에서도 옛 실루엣이 그대로 나온다(옛 판도 늘여져 있었다).
+    // 🔑 알파·음영을 **계단으로 양자화**하고 `NearestFilter` 를 건다 — 둘 중 하나만 하면 도로 뭉갠다.
     makeCloudTexture() {
-        const size = 128;
+        const W = 30, H = 10;                      // 스프라이트 3:1 과 같은 비율 = 화면에서 정사각 텍셀
         const c = document.createElement('canvas');
-        c.width = c.height = size;
+        c.width = W; c.height = H;
         const ctx = c.getContext('2d');
         const puffs = [
             [0.5, 0.55, 0.4], [0.28, 0.52, 0.26], [0.72, 0.52, 0.28],
             [0.4, 0.36, 0.24], [0.62, 0.38, 0.22], [0.5, 0.66, 0.3], [0.85, 0.58, 0.18],
         ];
-        for (const [px, py, pr] of puffs) {
-            const cx = px * size, cy = py * size, r = pr * size;
-            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-            grad.addColorStop(0, 'rgba(255,255,255,1)');
-            grad.addColorStop(0.62, 'rgba(255,255,255,0.85)'); // 코어를 꽉 채우고 가장자리만 짧게 떨어뜨려
-            grad.addColorStop(1, 'rgba(255,255,255,0)');       // "빛번짐"이 아닌 "덩어리"로 읽히게
-            ctx.fillStyle = grad;
-            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        const img = ctx.createImageData(W, H);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const u = (x + 0.5) / W, v = (y + 0.5) / H;
+            // 퍼프 알파 — 옛 그라디언트 정지점(0 → 0.62 → 1)을 두 계단으로 옮긴다.
+            let a = 0;
+            for (const [px, py, pr] of puffs) {
+                const d = Math.hypot(u - px, v - py) / pr;
+                if (d <= 0.62) { a = 1; break; }
+                if (d <= 1) a = Math.max(a, 0.85);
+            }
+            if (!a) continue;
+            // 아랫면 음영(광원 위→아래) — 줄 단위 계단이라 구름 밑동에 가로 띠가 생긴다.
+            const t = Math.min(1, Math.max(0, (v - 0.3) / 0.6));
+            const k = Math.round(t * 3) / 3 * 0.7;      // 4단
+            const i = (y * W + x) * 4;
+            img.data[i] = 255 + (118 - 255) * k;
+            img.data[i + 1] = 255 + (136 - 255) * k;
+            img.data[i + 2] = 255 + (172 - 255) * k;
+            img.data[i + 3] = Math.round(a * 255);
         }
-        // 아랫면 음영으로 입체감(광원 위→아래 가정)
-        ctx.globalCompositeOperation = 'source-atop';
-        const shade = ctx.createLinearGradient(0, size * 0.3, 0, size * 0.9);
-        shade.addColorStop(0, 'rgba(190,200,215,0)');
-        shade.addColorStop(1, 'rgba(118,136,172,0.7)'); // 아랫면 음영을 진하게 — 밝은 하늘에서도 입체가 읽히게
-        ctx.fillStyle = shade;
-        ctx.fillRect(0, 0, size, size);
-        ctx.globalCompositeOperation = 'source-over';
-        return new THREE.CanvasTexture(c);
+        ctx.putImageData(img, 0, 0);
+        const tex = new THREE.CanvasTexture(c);
+        tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        return tex;
     },
 
     // 하늘에 떠서 천천히 흐르는 뭉게구름 스프라이트(원경감 + "빈 하늘" 인상 제거)
