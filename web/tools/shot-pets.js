@@ -13,6 +13,7 @@ const fs = require('fs');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const SC = require('./shot-screens-seed.js');
 const OUT = process.argv[2] || path.join(__dirname, 'ref-cmp/clone/pets.png');
+const { stampFresh } = require('./clone-fresh.js');
 
 // 원본과 같은 보유 상태로 맞추는 소스 — probe 쪽에서도 같은 것을 써야 해서 내보낸다.
 const PETS_STATE_SRC = `(() => {
@@ -60,7 +61,8 @@ if (require.main === module) (async () => {
     await page.addStyleTag({ content: '*, *::before, *::after { animation: none !important; transition: none !important; }' });
     const info = await page.evaluate(PETS_STATE_SRC);
     await page.waitForTimeout(700);
-    await page.screenshot({ path: OUT, timeout: 120000 });   // swiftshader 에서 30s 기본값이 종종 터진다
+    await page.screenshot({ path: OUT, timeout: 120000 });
+    stampFresh(OUT);   // 재굽기 스탬프 — 캡처가 바이트 동일해도 '다시 구웠다'가 커밋에 남는다   // swiftshader 에서 30s 기본값이 종종 터진다
     await browser.close();
     console.log(`저장: ${OUT} · 에러 ${errors.length}건${errors.length ? ' — ' + errors.slice(0, 3).join(' | ') : ''}`);
 })();

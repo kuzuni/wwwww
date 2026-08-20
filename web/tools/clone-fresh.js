@@ -25,10 +25,28 @@
 //      ⚠️ 이 완화를 '더러우면 무조건 통과'로 되돌리지 말 것 — 그러면 가드가 **정작 필요할 때만
 //         골라서 꺼진다**(고치는 중이 곧 재는 중이다). 반드시 mtime 비교를 남길 것.
 //
+// 🚨 **다시 구워도 안 풀리는 막다른 골목이 있었다 — 그래서 재굽기 스탬프를 둔다 (2026-08-20 UI 스트림,
+//    slug `clone-fresh-identical-rebake`).**
+//   위 규칙 ⓐ 는 **커밋 시각**으로 신선도를 재는데, 처방문("다시 구워 소스와 같은 커밋에 담아라")은
+//   **다시 구운 PNG 가 달라진다**는 전제 위에 서 있다. 그런데 그 화면을 안 건드리는 소스 변경이면
+//   **다시 구운 PNG 가 바이트 동일**이라 `git status` 가 비고 **커밋이 안 생긴다** → 캡처 커밋 시각이
+//   그대로라 **가드가 영원히 안 풀린다.** 실제로 밟았다: `js/icongen.js` 의 알 조형만 고쳤는데(스킬
+//   화면엔 알이 없다) `shot-skills.js` 가 `wrote …/skills.png` 를 찍고도 `git status` 는 빈 줄이었고,
+//   `probe-orb-face-flat` 은 계속 `icongen.js 07:38:57 > 캡처 07:28:53` 으로 exit 2 였다.
+//   👉 **처방**: 캡처 옆에 `<이름>.png.fresh` 스탬프를 둔다. 굽는 스크립트가 **구울 때마다 굽는 시각을
+//      새로 쓰므로 내용이 항상 바뀌고**, 그래서 **바이트 동일 재굽기도 커밋할 것이 생긴다.** 가드는
+//      캡처와 스탬프 중 **더 새로운 쪽**을 캡처의 시각으로 본다.
+//   ⚠️ **스탬프는 '봤다'가 아니라 '구웠다'의 기록이어야 한다** — 손으로 찍지 말고 반드시 굽는
+//      스크립트가 쓰게 할 것(`stampFresh`). 손으로 갱신하면 가드가 그냥 꺼진다.
+//   ⚠️ 스탬프는 **캡처와 같은 커밋에** 담을 것(캡처가 안 바뀌면 스탬프만 담긴다).
+//
 // 사용:
 //   const { assertFresh } = require('./clone-fresh.js');
 //   assertFresh('tools/ref-cmp/clone/skills.png', ['js/icongen.js', 'js/skills.js', 'js/ui.js', 'css'],
 //               'node tools/shot-skills.js');
+//   // 굽는 스크립트 쪽:
+//   const { stampFresh } = require('./clone-fresh.js');
+//   await page.screenshot({ path: OUT });  stampFresh(OUT);
 // ⚠️ 소스 목록은 **그 화면을 그리는 것만** 좁게 적을 것 — `js/` 를 통째로 넣으면 무관한 3D 작업에도
 //    빨개져서, 다음 사람이 캡처를 다시 굽는 대신 **이 가드를 뜯어낼** 유인이 된다.
 const { execFileSync } = require('child_process');
@@ -75,6 +93,26 @@ function rel(p) {
     return path.isAbsolute(p) ? path.relative(ROOT, p) : (p.startsWith('web/') ? p : path.posix.join('web', p));
 }
 
+/* 캡처 옆 재굽기 스탬프 경로. `…/skills.png` → `…/skills.png.fresh`. */
+function stampOf(pngRel) { return pngRel + '.fresh'; }
+
+/* 캡처를 구운 직후에 부른다 — 굽는 스크립트 전용. **매번 내용이 달라지므로** 캡처가 바이트
+   동일하게 나와도 커밋할 것이 생기고, 그래서 가드가 풀린다(머리말 🚨 참조).
+   인자는 방금 쓴 PNG 의 경로(절대·상대 아무거나). 굽기와 같은 커밋에 담을 것. */
+function stampFresh(png) {
+    /* ⚠️ 여기서는 `rel()` 을 쓰지 않는다 — 굽는 스크립트는 임시 디렉터리로도 굽는다(`shot-screens.js <dir>`).
+       `rel()` 은 저장소 밖 경로를 `web/../../tmp/…` 로 접어 **엉뚱한 자리에 스탬프를 쓴다.**
+       스탬프는 **방금 쓴 PNG 바로 옆**이어야 한다. */
+    const abs = stampOf(path.isAbsolute(String(png)) ? String(png) : path.join(ROOT, rel(png)));
+    try {
+        fs.writeFileSync(abs,
+            `# ${path.basename(String(png))} 재굽기 스탬프 — tools/clone-fresh.js 가 읽는다.\n` +
+            `# 손으로 고치지 말 것: 굽는 스크립트만 쓴다(손으로 쓰면 신선도 가드가 그냥 꺼진다).\n` +
+            `# 캡처가 바이트 동일하게 나와도 이 줄이 바뀌므로 '다시 구웠다'가 커밋에 남는다.\n` +
+            `baked=${new Date().toISOString()}\n`);
+    } catch (e) { console.error(`⚠️ 재굽기 스탬프를 못 썼다(${abs}): ${e.message}`); }
+}
+
 /* 낡았으면 exit 2(= '측정기 고장', probe-emblem-core 와 같은 규약)로 끊는다.
    판정 실패(exit 1)와 갈라 두는 이유: 낡은 캡처는 **아이콘이 나쁘다는 뜻이 아니라 잰 게 없다는 뜻**이다.
 
@@ -88,14 +126,20 @@ function rel(p) {
         (`probe-skill-orb-ink` 는 이미 좁혀서 하드 게이트로 돌고 있다 — 그 모양이 목표다.) */
 function assertFresh(png, sources, howToRebake, opts = {}) {
     const pngRel = rel(png);
-    const pngT = lastCommit(pngRel);
+    /* 캡처 시각 = **캡처와 스탬프 중 더 새로운 쪽.** 스탬프는 '이 소스 상태에서 다시 구웠고
+       결과가 (같든 다르든) 이것이다'의 기록이라, 바이트 동일 재굽기를 여기서 받아 준다. */
+    const stRel = stampOf(pngRel);
+    const stT = lastCommit(stRel);
+    const pngT0 = lastCommit(pngRel);
+    const pngT = pngT0 === null ? null : Math.max(pngT0, stT === null ? 0 : stT);
     if (pngT === null) {
         console.error(`⚠️ ${pngRel} 이 git 에 없다 — 신선도를 확인할 수 없다.`);
         console.error(`   커밋된 클론 캡처가 아니면 이 판정기의 '클론' 쪽 수치는 근거가 없다.`);
         if (opts.warnOnly) return false;
         process.exit(2);
     }
-    const pngM = mtime(path.join(ROOT, pngRel));
+    const pngM0 = mtime(path.join(ROOT, pngRel)), stM = mtime(path.join(ROOT, stRel));
+    const pngM = pngM0 === null ? stM : (stM === null ? pngM0 : Math.max(pngM0, stM));
     const stale = [], uncommitted = [];
     for (const s of sources) {
         const sRel = rel(s);
@@ -107,7 +151,15 @@ function assertFresh(png, sources, howToRebake, opts = {}) {
             continue;
         }
         const sT = lastCommit(sRel);
-        if (sT !== null && sT > pngT) stale.push(`${sRel} (${new Date(sT * 1000).toISOString()} > 캡처 ${new Date(pngT * 1000).toISOString()})`);
+        if (sT !== null && sT > pngT) {
+            /* 커밋 시각으로는 낡았지만 **이 세션에서 방금 다시 구웠을 수 있다** — 스탬프를 아직 커밋
+               안 한 창이 그렇다(재굽기 → 검증 → 커밋 순서라 그 창은 반드시 생긴다).
+               새 컨테이너에서는 모든 파일 mtime 이 체크아웃 시각이라 스탬프 mtime 이 소스보다
+               **새롭다는 것 자체가** '체크아웃 뒤에 구웠다'는 증거다(규칙 ⓑ 와 같은 논리). */
+            const stM2 = mtime(path.join(ROOT, stRel)), sM2 = newestMtime(path.join(ROOT, sRel));
+            if (stM2 !== null && sM2 !== null && stM2 > sM2) { uncommitted.push(`${sRel} (스탬프가 더 새롭다 — 커밋 전 재굽기)`); continue; }
+            stale.push(`${sRel} (${new Date(sT * 1000).toISOString()} > 캡처 ${new Date(pngT * 1000).toISOString()})`);
+        }
     }
     if (!stale.length) {
         if (uncommitted.length) {
@@ -126,6 +178,9 @@ function assertFresh(png, sources, howToRebake, opts = {}) {
     console.error(`\n   다시 구울 것:  ${howToRebake}`);
     console.error(`   📌 다시 구운 PNG 는 **소스 변경과 같은 커밋에 담을 것** — 커밋 시각이 같아지면`);
     console.error(`      이 가드가 통과한다. 갈라 커밋하면 그 사이 상태에서 또 낡은 걸로 잡힌다.`);
+    console.error(`   📌 그 화면을 안 건드리는 변경이면 **PNG 가 바이트 동일**이라 커밋할 게 없어 보인다 —`);
+    console.error(`      그때 커밋할 것은 옆에 같이 굽히는 **${path.basename(stRel)}**(재굽기 스탬프)다.`);
+    console.error(`      스탬프가 안 생겼으면 그 굽는 스크립트가 아직 \`stampFresh(OUT)\` 를 안 부르는 것이다.`);
     console.error(`   📌 아직 작업 중이라 커밋 전이면(위에 '워킹 트리에서 수정됨'이 뜬 경우) 그게 정상이다 —`);
     console.error(`      캡처를 굽고 재는 건 되지만, 그 수치는 커밋 전까지 '지금 트리' 기준임을 알고 쓸 것.`);
     if (opts.warnOnly) {
@@ -135,4 +190,4 @@ function assertFresh(png, sources, howToRebake, opts = {}) {
     process.exit(2);
 }
 
-module.exports = { assertFresh };
+module.exports = { assertFresh, stampFresh };

@@ -8,6 +8,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const { waitReady } = require('./wait-ready.js');
 const { PETS_STATE_SRC } = require('./shot-pets.js');
 const OUT = process.argv[2] || path.join(__dirname, 'ref-cmp/clone');
+const { stampFresh } = require('./clone-fresh.js');
 fs.mkdirSync(OUT, { recursive: true });
 
 // 화면 목록: [출력이름, 원본shot, 페이지 안에서 실행할 오프너 소스]
@@ -237,7 +238,8 @@ const SEED = () => {
             // screenshot 내부의 폰트 대기는 조절할 수 없으므로 document.fonts.ready 를 먼저 상한을 걸어 소화하고
             // (여기서 안 끝나도 렌더는 폴백 폰트로 정상), screenshot 자체 타임아웃도 올린다.
             await page.evaluate(() => Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))])).catch(() => { });
-            await page.screenshot({ path: path.join(OUT, name + '.png'), timeout: 180000 });   // 병렬 세션이 많으면 60s 도 터진다(pass 캡처 실패 사례)
+            await page.screenshot({ path: path.join(OUT, name + '.png'), timeout: 180000 });
+            stampFresh(path.join(OUT, name + '.png'));   // 재굽기 스탬프(clone-fresh.js) — 바이트 동일 재굽기도 커밋에 남긴다   // 병렬 세션이 많으면 60s 도 터진다(pass 캡처 실패 사례)
             done.push(name + (ref ? '←' + ref : ''));
         } catch (e) {
             errors.push('SCREEN ' + name + ': ' + e.message);

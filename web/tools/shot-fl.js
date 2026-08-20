@@ -5,6 +5,7 @@ const path = require('path');
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const { waitReady } = require('./wait-ready.js');
 const OUT = process.argv[2] || path.join(__dirname, 'ref-cmp/clone/forge-list.png');
+const { stampFresh } = require('./clone-fresh.js');
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -24,6 +25,7 @@ const OUT = process.argv[2] || path.join(__dirname, 'ref-cmp/clone/forge-list.pn
     });
     await page.waitForTimeout(2500);   // 목록은 셀 썸네일을 3D 로 굽는다 — 소프트웨어 GL 컨테이너에서 유독 느리다
     await page.screenshot({ path: OUT, timeout: 150000 });
+    stampFresh(OUT);   // 재굽기 스탬프 — 캡처가 바이트 동일해도 '다시 구웠다'가 커밋에 남는다
     console.log('wrote ' + OUT);
     console.log(errs.length ? '콘솔 에러: ' + errs.join(' / ') : '콘솔 에러 0건');
     await browser.close();

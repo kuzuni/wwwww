@@ -6,6 +6,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const { waitReady } = require('./wait-ready.js');
 const { SEED_SRC } = require('./shot-screens-seed.js');
 const OUT = process.argv[2] || path.join(__dirname, 'ref-cmp/clone/league-challenge.png');
+const { stampFresh } = require('./clone-fresh.js');
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -33,6 +34,7 @@ const OUT = process.argv[2] || path.join(__dirname, 'ref-cmp/clone/league-challe
     });
     await page.evaluate(() => Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))])).catch(() => { });
     await page.screenshot({ path: OUT, timeout: 60000 });
+    stampFresh(OUT);   // 재굽기 스탬프 — 캡처가 바이트 동일해도 '다시 구웠다'가 커밋에 남는다
     console.log('wrote ' + OUT);
     console.log(errs.length ? '콘솔 에러: ' + errs.join(' / ') : '콘솔 에러 0건');
     await browser.close();
