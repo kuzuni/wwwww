@@ -8683,15 +8683,20 @@ const Scene3D = {
             {
                 // ⚠️ 밑단 반경 0.315·높이 0.245 로 두면 **몸통 전체를 덮는 갓(전등갓)** 이 되어
                 //    스톨·소매·십자가가 전부 그 안에 묻힌다(실측). 모제타는 어깨만 덮는 짧은 케이프다.
-                const moz = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.162, 0.252, 0.175, 22, 1, true), clothM);
+                // 🧊 열린 원뿔통 → 큐브 계단 껍질(`Voxel.taper` 중공). 원통 지오는 중심 정렬이라
+                //    반 높이 내려 맞춘다. 상=0.162·하=0.252 를 taper(밑=하, 위=상) 순서로.
+                const mozH = Math.max(3, Math.round(cw(0.175)));
+                let mozV = V.taper(cw(0.252), cw(0.162), mozH, clothM.color.getHex(), { t: Math.max(1, Math.round(cw(0.024))) });
+                mozV = V.at(mozV, 0, -Math.floor(mozH / 2), 0);
+                const moz = this.voxPart(mozV, AS, clothM, { jitter: 0.05 });
                 moz.position.set(0, 0.178, 0);
                 g.add(moz);
-                const hem = new THREE.Mesh(new THREE.TorusGeometry(0.249, 0.019, 6, 26), goldM);
+                // 🧊 전 링 토러스 → 큐브 링 호(2π). rotation·position 원본 그대로.
+                const hem = this.voxPart(V.arc(cw(0.249), cw(0.019), Math.PI * 2, goldM.color.getHex()), AS, goldM, { jitter: 0.03 });
                 hem.position.y = 0.092;
                 hem.rotation.x = Math.PI / 2;
                 g.add(hem);
-                const collar = new THREE.Mesh(new THREE.TorusGeometry(0.156, 0.025, 6, 20), goldM);
+                const collar = this.voxPart(V.arc(cw(0.156), cw(0.025), Math.PI * 2, goldM.color.getHex()), AS, goldM, { jitter: 0.03 });
                 collar.position.y = 0.264;
                 collar.rotation.x = Math.PI / 2;
                 g.add(collar);
@@ -8702,7 +8707,10 @@ const Scene3D = {
                 stole.position.set(s * 0.068, -0.115, 0.126);
                 stole.rotation.z = s * 0.055;
                 g.add(stole);
-                const tip = new THREE.Mesh(new THREE.ConeGeometry(0.034, 0.058, 4), goldM);
+                // 🧊 원뿔 → 큐브 각뿔(중심 정렬 후 원본 rotation 그대로).
+                const tipH = Math.max(2, Math.round(cw(0.058)));
+                let tipV = V.at(V.taper(cw(0.034), 0.5, tipH, goldM.color.getHex()), 0, -Math.floor(tipH / 2), 0);
+                const tip = this.voxPart(tipV, AS, goldM, { jitter: 0.03 });
                 tip.position.set(s * 0.078, -0.312, 0.124);
                 tip.rotation.x = Math.PI;
                 tip.rotation.y = Math.PI / 4;
@@ -8710,11 +8718,15 @@ const Scene3D = {
             }
             // ⓒ 종 소매 — 팔을 감싸 아래로 크게 벌어지는 천. 로브의 자락 슬리브보다 짧고 넓다.
             for (const s of [-1, 1]) {
-                const sleeve = new THREE.Mesh(new THREE.ConeGeometry(0.118, 0.215, 12, 1, true), clothM);
+                // 🧊 열린 종 소매(원뿔통) → 큐브 계단 껍질(중공). 밑(0.118)이 넓고 위로 좁아진다.
+                const slH = Math.max(3, Math.round(cw(0.215)));
+                let slV = V.taper(cw(0.118), 0.5, slH, clothM.color.getHex(), { t: Math.max(1, Math.round(cw(0.024))) });
+                slV = V.at(slV, 0, -Math.floor(slH / 2), 0);
+                const sleeve = this.voxPart(slV, AS, clothM, { jitter: 0.05 });
                 sleeve.position.set(s * 0.258, -0.118, 0);
                 sleeve.rotation.z = -s * 0.20;
                 g.add(sleeve);
-                const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.015, 6, 16), goldM);
+                const cuff = this.voxPart(V.arc(cw(0.115), cw(0.015), Math.PI * 2, goldM.color.getHex()), AS, goldM, { jitter: 0.03 });
                 cuff.position.set(s * 0.279, -0.222, 0);
                 cuff.rotation.x = Math.PI / 2;
                 cuff.rotation.y = -s * 0.20;
@@ -8726,7 +8738,7 @@ const Scene3D = {
             // ⓓ 밑단 금 헴 — 천이 어디서 끝나는지 못 박는다
             {
                 const r = RINGS[0];
-                const hem = new THREE.Mesh(new THREE.TorusGeometry(r.rx * 1.01, 0.019, 6, 26), goldM);
+                const hem = this.voxPart(V.arc(cw(r.rx * 1.01), cw(0.019), Math.PI * 2, goldM.color.getHex()), AS, goldM, { jitter: 0.03 });
                 hem.position.y = r.y;
                 hem.rotation.x = Math.PI / 2;
                 hem.scale.y = r.rz / r.rx;
