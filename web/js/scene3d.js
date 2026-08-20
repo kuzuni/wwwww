@@ -6543,7 +6543,11 @@ const Scene3D = {
         //    put(0, y, 0) 하면 중심이 정확히 ctr 에 온다. 앞이 열린 투구(faceOpen)는 정면 아크
         //    칸을 걸러 종전 부분 토러스와 같은 자리를 비운다.
         const ellipseRing = (tube, seg, m) => {
-            const TS = 0.024;
+            // 🧊 큐브 굵히기 (equip-voxelize — "장비 픽셀 너무 작음"). 트림 밴드 전용 피치를 0.033 으로
+            //    올려 큐브를 굵힌다. rC=rx/TS·th·hC 가 전부 TS 로 역산되므로 **물리 링 반경·두께·높이는
+            //    피치와 무관하게 보존**된다(투구·갑옷 시대 트림 일괄). 얇은 밴드라 최장축 게이트엔 여전히
+            //    지름 칸으로 잡히지만 육안 큐브는 굵어진다.
+            const TS = 0.033;
             const rC = rx / TS, kZ = rz / rx;
             const th = Math.max(1.4, (tube * 2.6) / TS);
             const hC = Math.max(1, Math.round((tube * 2) / TS));
