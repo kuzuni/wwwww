@@ -837,14 +837,14 @@ const ProChar = {
         //      "금속은 albedo 가 아니라 env 반사가 화면값을 지배한다" 가 여기선 독이다 — env 가 세면
         //      정점 색에 구운 AO 가 반사에 씻겨 **이음새가 안 보인다**(= 큐브로 안 읽힌다).
         //   톤 레지스트리에는 그대로 등록하므로 `setTone`·시대 틴트·`gradeHeroGearValue` 는 동일하게 잡는다.
+        // 맨살 몸 (사용자 2026-08-21 "옷을 왜 입히냐 기본인데") — 사슬갑옷 → 살색.
+        //   era 틴트 안 받게 armorMats 에 안 넣는다(맨살은 시대 무관).
         const mailVoxMat = new THREE.MeshStandardMaterial({
-            color: T.mail, metalness: 0.62, roughness: 0.62, envMapIntensity: 0.20,
+            color: 0xf2c9a4, metalness: 0, roughness: 0.62, envMapIntensity: 0.20,
             vertexColors: true, flatShading: true,
         });
-        mailVoxMat.userData.dark = true;
-        mailVoxMat.userData.tone = 'mail';
+        mailVoxMat.userData.tone = 'skin';
         mailVoxMat.userData.baseColor = mailVoxMat.color.getHex();
-        R.armorMats.push(mailVoxMat);
         this._toneMats.push(mailVoxMat);
         // voxel 판금 2톤 — 다리 판금(쿠이스·폴린·그리브·라메)이 공유한다. 인스턴스를 하나로 묶어
         // 드로우콜과 톤 스윕 대상 수를 아낀다(원통판 `steel()`/`steelDark()` 는 호출마다 새로 만든다).
@@ -1240,6 +1240,7 @@ const ProChar = {
             capeG.add(clasp);
         }
         spine.add(capeG);
+        capeG.visible = false;   // 망토 제거 (사용자 2026-08-21 "망토 없애고")
         R.bones.cape = capeG;
 
         // 팔: 견갑(2겹 셸) → 상완 → 팔꿈치 → 하완+건틀릿 → 손
