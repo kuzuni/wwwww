@@ -4884,14 +4884,17 @@ const Scene3D = {
             //    성상화의 '각진 후광'으로 읽힌다.
             const wTop = new THREE.Box3().setFromObject(g).max.y;
             const haloY = Math.min(0.88, Math.max(0.34, wTop * 0.8));
-            for (const [w, h2, px, py] of [[0.34, 0.034, 0, 0.155], [0.34, 0.034, 0, -0.155], [0.034, 0.276, 0.155, 0], [0.034, 0.276, -0.155, 0]]) {
+            // ⚠️ 후광은 무기보다 크면 자동 프레이밍 bbox 를 키워 무기가 '빈 금 프레임' 속 점으로
+            //    축소된다(사용자 2026-08-21 "천상이 프레임만 남는다"). 무기 폭(≈4칸·0.12)에 맞춰
+            //    프레임 0.20·광선 반경 0.12 로 줄여 무기가 주체로 읽히게 한다.
+            for (const [w, h2, px, py] of [[0.20, 0.03, 0, 0.095], [0.20, 0.03, 0, -0.095], [0.03, 0.16, 0.095, 0], [0.03, 0.16, -0.095, 0]]) {
                 const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h2, 0.034), holyLit);
                 bar.position.set(px, haloY + py, -0.07); g.add(bar);
             }
             for (let i = 0; i < 8; i++) {   // 성상화의 방사 광선
                 const a = i * Math.PI / 4;
-                const ray = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.075, 0.011), holyLit);
-                ray.position.set(Math.cos(a) * 0.205, haloY + Math.sin(a) * 0.205, -0.072);
+                const ray = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.055, 0.011), holyLit);
+                ray.position.set(Math.cos(a) * 0.12, haloY + Math.sin(a) * 0.12, -0.072);
                 ray.rotation.z = Math.PI / 2 - a;
                 g.add(ray);
             }
@@ -7684,7 +7687,10 @@ const Scene3D = {
         const m = this.divineLitMat();
         const halo = new THREE.Group();
         const t = r * 0.2;
-        for (const [w, h2, px, py] of [[r * 2.2, t, 0, r], [r * 2.2, t, 0, -r], [t, r * 1.8, r, 0], [t, r * 1.8, -r, 0]]) {
+        // ⚠️ 프레임이 본체보다 크면 자동 프레이밍이 후광에 맞춰 축소돼 투구/무기가 '빈 금 프레임'
+        //    속 점이 된다(사용자 2026-08-21 "천상이 프레임만 남는다"). 폭 2.2r→1.5r·광선 1.32r→0.9r
+        //    로 줄여 본체가 주체로 읽히게(각진 성상화 후광은 유지).
+        for (const [w, h2, px, py] of [[r * 1.5, t, 0, r * 0.72], [r * 1.5, t, 0, -r * 0.72], [t, r * 1.28, r * 0.72, 0], [t, r * 1.28, -r * 0.72, 0]]) {
             const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h2, t), m);
             bar.position.set(px, py, 0);
             halo.add(bar);
@@ -7694,8 +7700,8 @@ const Scene3D = {
         g.add(halo);
         for (let i = 0; i < 8; i++) {   // 방사 광선
             const a = i * Math.PI / 4;
-            const ray = new THREE.Mesh(new THREE.BoxGeometry(r * 0.075, r * 0.44, r * 0.075), m);
-            ray.position.set(Math.cos(a) * r * 1.32, y + Math.sin(a) * r * 1.32, -r * 0.44);
+            const ray = new THREE.Mesh(new THREE.BoxGeometry(r * 0.075, r * 0.34, r * 0.075), m);
+            ray.position.set(Math.cos(a) * r * 0.9, y + Math.sin(a) * r * 0.9, -r * 0.44);
             ray.rotation.z = Math.PI / 2 - a;
             g.add(ray);
         }
