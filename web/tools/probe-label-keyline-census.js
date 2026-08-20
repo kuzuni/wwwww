@@ -20,6 +20,16 @@
 //      (probe-header-ring 1차 판이 뒤 시트 제목을 18화면에 찍은 그 함정).
 //   ⓒ 이모지·기호만 있는 요소는 활자가 아니다 — 한글/영숫자 1자 이상만.
 //
+// 🏁 **2026-08-20 확장 — 계산된 글자색으로 '링 대상'을 기계로 가른다 (㉮ 규칙).**
+//   `probe-ref-ring-rule` 이 원본에서 확정한 규칙은 **"글자 칠이 밝으면 검정 링, 검정이면 민무늬"**
+//   다(강조 층도, 판의 밝기도 아니다). 그래서 작업 목록은 사람이 위계를 판단할 일이 아니라
+//   **계산된 `color` 의 휘도**로 확정된다:
+//     · 밝은 칠(휘도 ≥128)인데 링 없음  → **넣어야 할 것**(진짜 작업 목록)
+//     · 검정 칠(휘도 <128)인데 링 있음  → **빼야 할 것**(원본에 없는 링을 두른 자리)
+//     · 나머지 둘                       → 이미 규칙대로다
+//   ⚠️ `-webkit-text-stroke` 는 상속되므로 조상에 한 번 걸어야 하는데, 그러면 **검정 칠 자손까지
+//      따라간다**. 그래서 '빼야 할 것' 집계가 넣는 것만큼 중요하다.
+//
 // 사용: node tools/probe-label-keyline-census.js         (선택자별 집계)
 //       node tools/probe-label-keyline-census.js screens (화면별로도 인쇄)
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
@@ -63,7 +73,18 @@ const SWEEP = () => {
         const hardRing = sh !== 'none' && (sh.match(/0px 0px|0px -|-?\d+px 0px/g) || []).length >= 2;
         const key = el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' && el.className.trim()
             ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '');
-        out.push({ key, has: sw > 0 || hardRing, fs: +parseFloat(s.fontSize).toFixed(1), txt: own.slice(0, 10) });
+        // 계산된 글자색 휘도 — 링 대상 여부를 가르는 유일한 잣대(㉮ 규칙)
+        const m = (s.color || '').match(/-?[\d.]+/g) || [0, 0, 0];
+        const ink = 0.2126 * +m[0] + 0.7152 * +m[1] + 0.0722 * +m[2];
+        // 이 요소가 어느 면 아래 있나 — 상속으로 링을 걸 조상을 찾을 때 쓴다
+        let host = '';
+        for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+            if (p.id) { host = '#' + p.id; break; }
+            const c = typeof p.className === 'string' ? p.className.trim().split(/\s+/)[0] : '';
+            if (c && /panel|sheet|modal|card|bar|row/.test(c)) { host = '.' + c; break; }
+        }
+        out.push({ key, has: sw > 0 || hardRing, ink: +ink.toFixed(0), host,
+                   fs: +parseFloat(s.fontSize).toFixed(1), txt: own.slice(0, 10) });
     }
     return out;
 };
@@ -107,10 +128,15 @@ const SWEEP = () => {
             const miss = els.filter(e => !e.has).length;
             if (BY_SCREEN) console.log(`${name.padEnd(17)} 글자요소 ${String(els.length).padStart(3)}개 · 키라인 없음 ${String(miss).padStart(3)}개 (${(miss / (els.length || 1) * 100).toFixed(0)}%)`);
             for (const e of els) {
-                if (!tally.has(e.key)) tally.set(e.key, { has: 0, no: 0, fs: e.fs, ex: e.txt, screens: new Set() });
+                if (!tally.has(e.key)) tally.set(e.key, { has: 0, no: 0, fs: e.fs, ex: e.txt, screens: new Set(),
+                                                          need: 0, over: 0, ok: 0, hosts: new Map() });
                 const t = tally.get(e.key);
                 t[e.has ? 'has' : 'no']++;
                 t.screens.add(name);
+                const bright = e.ink >= 128;
+                if (bright && !e.has) { t.need++; t.hosts.set(e.host, (t.hosts.get(e.host) || 0) + 1); }
+                else if (!bright && e.has) t.over++;
+                else t.ok++;
                 if (e.fs > t.fs) { t.fs = e.fs; t.ex = e.txt; }
             }
         } catch (e) { console.log(`${name.padEnd(17)} SKIP ${e.message.slice(0, 50)}`); }
@@ -124,5 +150,36 @@ const SWEEP = () => {
     console.log(`  (전체 글자 요소 ${totalNo + totalHas}개 중 키라인 없음 ${totalNo}개 = ${(totalNo / (totalNo + totalHas) * 100).toFixed(0)}%)`);
     for (const [k, v] of rows.slice(0, 30)) {
         console.log(`  ${String(v.no).padStart(4)}개  ${k.padEnd(40)} 최대 ${String(v.fs + 'px').padEnd(7)} ${String(v.screens.size + '화면').padEnd(6)} "${v.ex}"${v.has ? `  (같은 선택자 중 ${v.has}개는 이미 있음)` : ''}`);
+    }
+
+    // ── ㉮ 규칙으로 가른 작업 목록 ────────────────────────────────────────
+    const all = [...tally.values()];
+    const need = all.reduce((s, v) => s + v.need, 0);
+    const over = all.reduce((s, v) => s + v.over, 0);
+    const okn  = all.reduce((s, v) => s + v.ok, 0);
+    console.log(`\n===== ㉮ 규칙(밝은 칠 → 링 / 검정 칠 → 민무늬)으로 가른 결과 =====`);
+    console.log(`  전체 ${need + over + okn}개 = 이미 규칙대로 ${okn}개 · **넣어야 할 것 ${need}개** · **빼야 할 것 ${over}개**`);
+    console.log(`  ⚠️ 종전 '키라인 없음 ${totalNo}개'가 곧 작업량이 아니다 — 그중 검정 칠은 원본도 민무늬라 손댈 게 없다.`);
+
+    const needRows = [...tally.entries()].filter(([, v]) => v.need > 0).sort((a, b) => b[1].need - a[1].need);
+    console.log(`\n  ── 넣어야 할 것(밝은 칠인데 링 없음) — 선택자별 ──`);
+    for (const [k, v] of needRows.slice(0, 25)) {
+        const hosts = [...v.hosts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([h, n]) => `${h || '(없음)'}×${n}`).join(' ');
+        console.log(`  ${String(v.need).padStart(4)}개  ${k.padEnd(38)} ${String(v.fs + 'px').padEnd(7)} "${v.ex}"  아래: ${hosts}`);
+    }
+
+    const overRows = [...tally.entries()].filter(([, v]) => v.over > 0).sort((a, b) => b[1].over - a[1].over);
+    console.log(`\n  ── 빼야 할 것(검정 칠인데 링 있음) — 상속으로 걸 때 반드시 꺼야 하는 자리 ──`);
+    if (!overRows.length) console.log('  (없음)');
+    for (const [k, v] of overRows.slice(0, 15)) {
+        console.log(`  ${String(v.over).padStart(4)}개  ${k.padEnd(38)} ${String(v.fs + 'px').padEnd(7)} "${v.ex}"`);
+    }
+
+    // 상속 조상 후보 — '넣어야 할 것'이 어느 면 아래 몰려 있나
+    const hostAgg = new Map();
+    for (const v of all) for (const [h, n] of v.hosts) hostAgg.set(h, (hostAgg.get(h) || 0) + n);
+    console.log(`\n  ── 상속으로 걸 조상 후보(넣어야 할 것이 몰린 면, 많은 순) ──`);
+    for (const [h, n] of [...hostAgg.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15)) {
+        console.log(`  ${String(n).padStart(4)}개  ${h || '(면 못 찾음)'}`);
     }
 })();
