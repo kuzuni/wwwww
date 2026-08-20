@@ -53,6 +53,7 @@ for p in \
     probe-egg-form.js \
     probe-prop-voxel.js \
     probe-crystal-sculpt.js \
+    probe-orb-face-flat.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1
