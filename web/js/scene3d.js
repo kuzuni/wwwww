@@ -6706,1053 +6706,189 @@ const Scene3D = {
     },
 
     // 투구: 이름별 스타일 11종
+    // 🧱 마인크래프트 박스-캐릭터 투구 (사용자 2026-08-21 "장비 전량 새로 생성 · 박스 캐릭터 시대테마 복셀").
+    //    옛 곡면 돔/타원 셸을 전부 폐기하고 **큐브 두상에 밀착하는 각진 박스 덮개**로 다시 짓는다.
+    //    핵심 제약: ⓐ 얼굴 디캘 눈을 가리지 않는다(정면 눈썹 아래는 항상 열림) ⓑ 큐브 두상(g-로컬
+    //    중심 (0,0.083,0)·반경 0.20, probe-head-frame 실측)에 한 겹 크게 덮는다 ⓒ 시대 정체성은
+    //    ageGearMats 재질 + 스타일별 토퍼(볏·뿔·왕관·후광·안테나…)로 준다. 채점 없음(사용자 지시).
     makeHelmet(age, rarity, style, name) {
         const g = new THREE.Group();
-        const c = AGE_COLORS[age];
-        const pc = RARITY_HEX[rarity] || 0xef5350; // 장식 = 등급색
-        // 시대색 직치환은 '고무 풍선'으로 읽힘(비평가) — 시대 재질 세트를 거쳐 PBR 분리 (갑옷 tint와 동일 원칙)
+        const pc = RARITY_HEX[rarity] || 0xef5350;      // 장식 = 등급색
         const mats = this.ageGearMats(age, name);
-        const mat = mats.body;
-        const darkMat = mats.dark;
+        const mat = mats.body, darkMat = mats.dark;
         const rareMat = this.rarityDecorMat(pc);
         style = style || 'plume';
-        // 🧊 투구 복셀 공용 (equip-voxelize ⓑ — 투구도 축정렬 큐브 적층으로). 칸은 갑옷·장신구와
-        //    같은 0.024 — 슬롯마다 칸이 다르면 화풍이 안 모인다(갑옷 5차 실측 결론). 색은 정점에
-        //    굽고 시대 셰이딩은 voxMat 의 shade 로 잇는다(맵 없는 셰이더 항만 살린다).
-        //    Voxel 헬퍼(ellipse/dome/ring/taper)는 칸 0 대칭(홀수 폭)이라 중심이 정확히 0 에 온다.
-        const HS = 0.024;
-        const V = Voxel;
-        const HEXOF = m => m.color.getHex();
-        const vhead = (voxels, src, opts) => { const mesh = this.voxPart(voxels, HS, src, opts); g.add(mesh); return mesh; };
-        const vbox2 = (arr, x0, x1, y0, y1, z0, z1, cc) => {   // 포함 범위 박스(무기 쪽 vbox 와 같은 규약)
-            for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) arr.push({ x, y, z, c: cc });
+
+        // ── 큐브 두상 프레임 (g-로컬) ─────────────────────────────────────────────
+        const HCY = 0.083, HR = 0.20;                   // 두상 중심 y · 반폭
+        const yTop = HCY + HR;                           // 0.283 정수리
+        const yBrow = HCY + 0.118;                       // ≈0.201 눈썹 — 정면 벽 하한(이 아래는 눈이라 열림)
+        const yEyeBot = HCY - 0.05;                      // ≈0.033 눈 아래
+        const OX = HR + 0.026;                            // 0.226 외곽 반폭(한 겹 덮개)
+        const W = 0.028;                                  // 벽 두께(≈큐브 반칸)
+        const frontZ = OX - W / 2;                        // 정면 벽 중심 z
+
+        // 박스 슬래브 하나 (박스-캐릭터 = 진짜 각재). ry 로 좌우 대칭 부속 회전.
+        const blk = (w, h, d, m, x, y, z, ry) => {
+            const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+            b.position.set(x || 0, y || 0, z || 0);
+            if (ry) b.rotation.y = ry;
+            g.add(b); return b;
         };
+        // 두상을 덮는 각진 덮개 — 정수리 캡 + 뒤통수 + 양 옆 + (눈썹 위) 정면 이마 띠.
+        //   opt.sideBottom: 옆·뒤 벽이 내려오는 하한(기본 눈 아래) · opt.noFront: 이마 띠 생략.
+        const capShell = (m, opt) => {
+            opt = opt || {};
+            const sideBot = opt.sideBottom !== undefined ? opt.sideBottom : yEyeBot;
+            const sideH = yTop - sideBot;
+            const sideCY = (yTop + sideBot) / 2;
+            blk(2 * OX, W, 2 * OX, m, 0, yTop + W / 2, 0);                                   // 정수리 캡
+            blk(2 * OX, sideH, W, m, 0, sideCY, -(OX - W / 2));                              // 뒤통수
+            for (const s of [-1, 1])                                                          // 양 옆
+                blk(W, sideH, 2 * OX - 2 * W, m, s * (OX - W / 2), sideCY, 0);
+            if (!opt.noFront) {                                                               // 이마 띠(눈썹 위만)
+                const fh = yTop - yBrow;
+                blk(2 * OX, fh, W, m, 0, (yTop + yBrow) / 2, frontZ);
+            }
+        };
+        // 정면 눈썹 라인의 등급색 트림 띠 — 시대·등급을 실루엣으로 싣는다.
+        const browTrim = () => blk(2 * OX + 0.008, 0.022, W + 0.006, rareMat, 0, yBrow - 0.006, frontZ);
 
-        if (style === 'plume') {            // 🧊 계단 돔 + 깃장식 (equip-voxelize ⓑ)
-            const dome = vhead(V.dome(10.4, 10, HEXOF(mat), { t: 2.5 }), mat, { shade: mats.kind });
-            dome.position.y = 0.03;
-            {
-                // 깃털 장식: 곧은 원뿔은 '흰 스파이크/수정 다발'로 읽혔다(1차 채점 A·B 공통 —
-                // 깃털의 휘어짐·결이 0). 납작한 잎꼴 판 + 가운데 깃대 + 뒤로 눕는 휨 = 깃털의 서명.
-                // ⓓ **원시 분기에만 있던 이 처방을 전 시대로 넓혔다** — 비원시는 여전히 매끈한 원뿔
-                //   하나(0.06×0.32)라 3차 채점이 같은 지적('흰 부위 플랫')을 다시 냈다. 문법을 두 벌
-                //   만들지 않고 이미 통과한 쪽을 쓴다. 시대차는 깃대 재질·가닥 수·기울기로만 준다.
-                const primal = age === 'primitive';
-                const ribM = primal ? this.primalCordMat() : darkMat;
-                const FAN = primal
-                    ? [[-0.095, 0.36, 0.30], [0, 0, 0.38], [0.095, -0.36, 0.30]]
-                    : [[-0.082, 0.34, 0.25], [-0.028, 0.11, 0.33], [0.028, -0.11, 0.33], [0.082, -0.34, 0.25]];
-                // 🧊 깃털 = 잎꼴 계단 판(1칸 두께) + 가운데 깃대 열 — 납작한 잎꼴·가운데 깃대·
-                //    뒤로 눕는 휨(그룹 회전 = 로컬 축정렬)의 서명 셋을 칸 문법으로 잇는다.
-                const cBlade = HEXOF(rareMat), cRib = HEXOF(ribM);
-                for (const [dx, tilt, len] of FAN) {
-                    const f = new THREE.Group();
-                    const L = Math.round(len / HS);          // 깃 길이(칸)
-                    const fv = [];
-                    for (let y = 0; y < L; y++) {            // 잎꼴: 배(0.28L 부근)가 넓고 양끝이 모인다
-                        const k = y / L;
-                        const w = Math.max(1, Math.round((len * 0.17 / HS) * 2 * Math.sin(Math.PI * Math.min(1, 0.12 + k * 0.95))));
-                        const half = Math.floor(w / 2);
-                        for (let x = -half; x <= half; x++)
-                            fv.push({ x, y, z: 0, c: x === 0 && y < L * 0.88 ? cRib : cBlade });
-                    }
-                    const blade = this.voxPart(fv, HS, rareMat, { jitter: 0.03 });
-                    blade.userData.decorAccent = true;
-                    f.add(blade);
-                    f.position.set(dx, 0.24, -0.02);
-                    f.rotation.set(-0.24, 0, tilt);   // 뒤로 눕고(휨) 좌우는 부채로 벌어진다
-                    g.add(f);
-                }
-                if (!primal) {
-                    // 밑동 소켓 — 어두운 단(꽂은 깃 장식 판독)은 큐브 2단으로
-                    const socket = vhead(V.at(V.taper(2.6, 2.1, 2, HEXOF(darkMat)), 0, 0, 0), darkMat, { jitter: 0.03 });
-                    socket.position.y = 0.22;
-                    socket.userData.decorAccent = true;
-                }
-            }
-        } else if (style === 'cone') {      // 🧊 고깔 모자 — 계단 원뿔 + 원판 챙 (equip-voxelize ⓑ)
-            // 🧊 큐브 굵히기 (equip-voxelize — "장비 픽셀 너무 작음"). 전용 피치 HSc(0.036 > 공용 HS 0.024)로
-            //    성기게 굽고 셀 반지름/높이를 그만큼 줄여(챙 지름 30→20칸, 원뿔 높이 23→15칸) 물리 챙 반경
-            //    (0.36)·원뿔 base r(0.259)·높이(0.54)는 그대로 둔다. coneBody 자식(원시 안료 링)은 자체
-            //    피치로 따로 지어 물리 위치로 붙으므로 물리 원뿔이 동일하면 정렬 무손상.
-            const HSc = 0.036;
-            const cBody = HEXOF(mat);
-            const brim = this.voxPart(V.disc(10, 1, cBody), HSc, mat, { shade: mats.kind });
-            brim.position.y = 0.082; g.add(brim);   // ⚠️ 0.066 은 챙이 눈썹을 스쳐 face-helmet-clear 84.5%(하한 85) — 종전 높이(0.08)로
-            const cone = this.voxPart(V.taper(7.2, 0.33, 15, cBody), HSc, mat, { shade: mats.kind });
-            cone.position.y = 0.106; g.add(cone);
-            cone.rotation.z = 0.12;          // 종전 기울임 유지(전체 회전 = 로컬 축정렬)
-            cone.userData.coneBody = true;   // 원시 전투 페인트가 자식으로 붙는 자리(아래 시대 가산 참조)
-        } else if (style === 'tophat') {    // 🧊 실크햇/제모 — 원판 챙 + 각단 통 + 등급색 리본 링 (equip-voxelize ⓑ)
-            const cBody = HEXOF(mat);
-            const brim = vhead(V.disc(14, 1, cBody), mat, { shade: mats.kind });
-            brim.position.y = 0.086;
-            const top = vhead(V.taper(8.3, 7.9, 16, cBody), mat, { shade: mats.kind });
-            top.position.y = 0.112;
-            const ribbon = vhead(V.ring(9, 1.4, 3, new THREE.Color(pc).getHex()), rareMat, { emissive: pc, emissiveIntensity: 0.35, jitter: 0.03 });
-            ribbon.position.y = 0.118;
-        } else if (style === 'visor') {     // 풀헬름 — 🧊 계단 셸 + 눈 슬릿 개구 + 발광 눈 (equip-voxelize ⓑ)
-            // 종전 조형의 서명을 칸 문법으로 전부 잇는다:
-            //   · 슬릿 = 돌출 스티커가 아니라 **셸을 실제로 뚫은 개구부**(그 행의 전면 아크 칸을
-            //     제거) + 안쪽 캐비티 링(니어블랙) — '뚫린 구멍' 판독 유지 (비평가 7.1 2번)
-            //   · 상하 금속 림 = 개구부 위·아래 행의 전면 아크를 어두운 톤으로(행 색 = 프레임)
-            //   · 뺨 판·브로우 리지 = 셸 반지름 +1 칸의 돌출 패치(순수 구 실루엣 깨기, A 단독 P1)
-            //   · 볏 = 정수리를 넘는 1칸 폭 계단 아크(끝이 슬릿 위에서 멈춤 — 종전 0.62π 그대로)
-            const R = 12, CY = 2;                    // 셸 반지름(칸)·구심(월드 0.048 ≈ 종전 0.04)
-            const slitArc = Math.PI * 0.62;          // 전면 ±56° — 측면에선 자연스럽게 원근 수축
-            const inArc = (x, z, arc) => Math.abs(Math.atan2(x, z)) < arc / 2;   // +z 가 정면
-            const cBody = HEXOF(mat), cRim = this.tintOf(mat, -0.1).color.getHex();
-            const cCheek = this.tintOf(mat, -0.05).color.getHex(), cBrow = this.tintOf(mat, 0.06).color.getHex();
-            // 🚨 **코 가드(nasal)는 전산업 시대의 것이다 (equip-era-theming ⑧)** — 밀폐 시대(polymer/
-            //    alloy)는 콧대 바 대신 목 씰링 링 + 턱 호흡 포트 (비평가 A·B 공통 지적, 종전 그대로).
-            const sealedHelm = this.ageGearKind(age) === 'polymer' || this.ageGearKind(age) === 'alloy';
-            const v = [];
-            for (let dy = -9; dy <= R; dy++) {       // 0.78π 컷 — 아래 -9칸(뺨 아래)에서 끝난다
-                const rr = Math.sqrt(Math.max(0, R * R - dy * dy));
-                if (rr < 0.6) { v.push({ x: 0, y: CY + dy, z: 0, c: cBody }); continue; }
-                const slitRow = dy === 0 || dy === 1;    // 눈 슬릿 밴드(월드 y 0.048~0.096)
-                const rimRow = dy === -1 || dy === 2;    // 상하 금속 림 행
-                // ⚠️ 중공(rix)은 슬릿 주변 행에만 — 안 보이는 안쪽 벽이 행마다 서면 영웅 tri 예산
-                //    (probe-hero-tris 66k)을 뚫는다(실측 +7.5k, 이 세션이 밟았다). 나머지는 솔리드
-                //    (속칸은 이웃 컬링으로 면이 아예 안 구워져 오히려 싸다).
-                const hollow = dy >= -1 && dy <= 2 ? Math.max(0, rr - 2.4) : 0;
-                for (const c of V.ellipse(rr, rr, 1, { y0: CY + dy, color: cBody, rix: hollow, riz: hollow })) {
-                    if (slitRow && inArc(c.x, c.z, slitArc)) continue;         // 개구부 — 셸을 실제로 뚫는다
-                    if (rimRow && inArc(c.x, c.z, slitArc)) c.c = cRim;
-                    v.push(c);
-                }
-                if (slitRow)                             // 캐비티 — 개구부 안쪽의 함몰 어둠 벽
-                    for (const c of V.ellipse(rr - 2, rr - 2, 1, { y0: CY + dy, color: 0x0c0f12, rix: Math.max(0, rr - 4), riz: Math.max(0, rr - 4) }))
-                        if (inArc(c.x, c.z, slitArc + 0.4)) v.push(c);
-                // 뺨 판 — 슬릿 아래 하관 양옆(정면 32°~86° 섹터)에 +1칸 돌출 패치
-                if (dy >= -5 && dy <= -2)
-                    for (const c of V.ellipse(rr + 1, rr + 1, 1, { y0: CY + dy, color: cCheek, rix: rr, riz: rr })) {
-                        const a = Math.abs(Math.atan2(c.x, c.z));
-                        if (a > 0.55 && a < 1.5 && c.z > 0) v.push(c);
-                    }
-                // 브로우 리지 — 슬릿 바로 위 행의 전면 아크 +1칸 돌출 능선
-                if (dy === 3)
-                    for (const c of V.ellipse(rr + 1, rr + 1, 1, { y0: CY + dy, color: cBrow, rix: rr, riz: rr }))
-                        if (inArc(c.x, c.z, slitArc)) v.push(c);
-            }
-            vhead(v, mat, { shade: mats.kind });
-            for (const dx of [-0.055, 0.055]) {      // 캐비티 속 언릿 발광 눈 — 어둠 대비 최대 (큐브 판)
-                const glowEye = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.03, 0.02),
-                    new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.18, 0.24) }));
-                const ex = dx * 1.2, ez = (R - 1.6) * HS;
-                glowEye.position.set(ex, 0.066, Math.sqrt(Math.max(0, ez * ez - ex * ex)));
-                glowEye.rotation.y = Math.atan2(ex, glowEye.position.z);   // 면 법선 방향(회전 박스 = 로컬 축정렬)
-                g.add(glowEye);
-            }
-            if (!sealedHelm) {
-                const noseBar = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.15, 0.045),
-                    this.tintOf(mat, -0.14)); // 코 가드 — 슬림+다크 (종전 그대로, 원래 축정렬 박스)
-                noseBar.position.set(0, -0.02, 0.262);
-                g.add(noseBar);
-            } else {
-                const sv = [];
-                const cSeal = this.tintOf(mat, -0.22).color.getHex(), cLock = this.tintOf(mat, 0.10).color.getHex();
-                sv.push(...V.ellipse(11.7, 11, 2, { y0: -7, color: cSeal, rix: 9.2, riz: 8.6 }));   // 목 씰링 개스킷
-                sv.push(...V.ellipse(10.6, 10, 1, { y0: -4, color: cLock, rix: 9.5, riz: 8.9 }));   // 걸쇠 링(밝은 단차)
-                sv.push(...V.at(V.box(5, 3, 3, this.tintOf(mat, -0.18).color.getHex()), -2, -5, 8)); // 턱 호흡 포트
-                sv.push(...V.at(V.box(3, 2, 1, 0x14181d), -1, -5, 11));                              // 포트 그릴(언릿 어둠)
-                vhead(sv, mat, { shade: mats.kind });
-                for (const hs of [-1, 1]) {   // 포트를 셸에 잇는 짧은 호스 2줄 — 기울인 각재(로컬 축정렬)
-                    const hose = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.105, 0.032), this.tintOf(mat, -0.22));
-                    hose.position.set(hs * 0.108, -0.098, 0.196);
-                    hose.rotation.z = hs * 1.05;
-                    g.add(hose);
-                }
-            }
-            if (age === 'medieval') {
-                // 기사 투구(중세 분기): T자 세로 개구 + 바이저 힌지 (1차 채점 A 처방 유지)
-                const vslit = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.15, 0.02), new THREE.MeshBasicMaterial({ color: 0x0c0f12 }));
-                vslit.position.set(0, -0.045, 0.266);
-                g.add(vslit);
-                for (const hs of [-1, 1]) {
-                    const hinge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), this.tintOf(mat, 0.08));
-                    hinge.position.set(hs * 0.272, 0.06, 0.02);
-                    g.add(hinge);
-                }
-            }
-            // 정수리 볏 — 1칸 폭 계단 아크. 반지름을 셸 바로 바깥(R+1)으로 두어 전부 셸 위를 타고,
-            // 각도 ±56° 에서 끊어 끝이 눈 슬릿 아래로 내려오지 않는다(종전 0.62π 결론 그대로).
-            const crest = [];
-            const cpc = new THREE.Color(pc).getHex();
-            for (let z = -11; z <= 11; z++) {
-                const yy = Math.sqrt(Math.max(0, (R + 1.3) * (R + 1.3) - z * z));
-                if (yy < (R + 1.3) * Math.cos(slitArc / 2 + 0.35)) continue;
-                const yi = Math.round(yy);
-                crest.push({ x: 0, y: CY + yi, z, c: cpc });
-                if (Math.abs(z) < 6) crest.push({ x: 0, y: CY + yi - 1, z, c: cpc });   // 정수리 쪽만 2단(tri 예산)
-            }
-            vhead(crest, rareMat, { emissive: pc, emissiveIntensity: 0.4, jitter: 0.03 });
-        } else if (style === 'fin') {       // 볏 투구 계열 — 시대마다 다른 조형 (FIN_VARIANT)
-            // 🚨 종전엔 `SphereGeometry(0.26, …, 0, Math.PI*0.6)` 돔 **하나**였다. thetaLength 가
-            //    둘레 전체에 한 값이라, 뒤통수를 덮으려고 0.6π(= 적도 아래 18°)를 준 순간 **앞도
-            //    같이 눈높이 아래까지 내려와** 흰자 잔존률이 1.7%(= 코와 입만 남는다)였다.
-            //    slug: helmet-fin-covers-eyes. → 방위각마다 테두리가 다른 `browedBowl` 로 간다.
-            //    실측 좌표(두상 로컬): 눈 윗변 0.147 · 눈썹 0.163~0.177. 투구 로컬은 headMount
-            //    y=0.08 만큼 아래이므로 각각 **0.067 · 0.083~0.097**. 앞 테두리를 로컬 y≈0.074 에
-            //    두면 흰자 위·눈썹 아래를 지나간다(= 눈썹만 살짝 덮는 갈레아의 브로우 라인).
-            // 🚨 **여기서부터 시대 분기**(equip-era-theming, R1 교집합 ㉢ — 비평가 2인 공통 지적).
-            //    로마 갈레아 하나가 5시대 공용이라, 현대 '철모'·우주 '위성 안테나 헬름'·항성간
-            //    '어드밴스드 메크'·지하 '헬포지드 헬름'이 전부 **색만 다른 같은 볏 투구**로 떴다
-            //    (실측 시트에서 네 칸이 육안 구분 불가). 사발(`browedBowl`)은 '머리를 덮되 눈을
-            //    안 가린다'는 공통 골격이라 남기고, **테두리 각과 그 위에 얹는 부속 일체**를
-            //    변종별로 새로 깎는다. 변종표는 `FIN_VARIANT` 참조.
-            const finV = this.finVariant(age);
-            const BR = 0.238, BRY = finV === 'combat' ? 0.239 : 0.272, BCY = 0.015;   // 정수리 = BCY+BRY
-            // ⚠️ 앞 테두리 y 는 **어느 변종에서도** 눈 윗변 0.067 위여야 한다(위 실측 좌표).
-            //    combat 은 ry 를 0.239 로 낮췄으므로 상한이 acos((0.074−0.015)/0.239)=1.3215rad 이다.
-            const ARC = finV === 'combat'
-                // 현대 철모(M1/PASGT)는 갈레아와 정반대로 **앞뒤 테두리 각차가 작은 수평한 냄비**다.
-                // 앞 1.32 → y 0.074(눈 위) · 옆 1.52 → 0.027 · 뒤 1.70 → −0.016.
-                ? { rx: BR, ry: BRY, rz: BR, cy: BCY, front: 1.32, side: 1.52, back: 1.70 }
-                : { rx: BR, ry: BRY, rz: BR, cy: BCY,
-                    front: 1.353,   // 77.5° → 테두리 y = 0.015 + 0.272·cos77.5° = 0.074 (> 눈 윗변 0.067)
-                    side:  1.676,   // 96°   → y = −0.013 (관자놀이. 볼가드 −0.08 위)
-                    back:  1.990 }; // 114°  → y = −0.096 (목덜미)
-            // 메크만 셸을 각지게 — 분할을 줄이고 flatShading 을 물려 **장갑판**으로 읽히게 한다.
-            // (매끈한 사발은 재질을 아무리 바꿔도 사발이다 — 볏 판때기에서 이미 밟은 벽이다.)
-            const dome = this.browedBowl(
-                finV === 'mech' ? Object.assign({}, ARC, { seg: 9, rows: 3 }) : ARC,
-                this.tintOf(mat, 0, finV === 'mech'
-                    ? { side: THREE.DoubleSide, flatShading: true } : { side: THREE.DoubleSide }));
-            g.add(dome);
+        const kind = mats.kind;
 
-            if (finV === 'galea') {          // 중세 '그리스 투구' — 로마 갈레아 (이 조형은 시대가 맞다)
-                // 테두리 롤 밴드 — 앞을 비우면 셸 단면이 그대로 보인다. 한 바퀴 두른 어두운 띠가
-                // 그 단면을 덮고 아치를 선으로 읽히게 한다(실제 갈레아의 말린 가장자리).
-                const band = this.browedBowl(Object.assign({}, ARC,
-                    { rx: BR * 1.04, ry: BRY * 1.04, rz: BR * 1.04, from: 0.88, rows: 3 }),
-                    this.tintOf(darkMat, 0, { side: THREE.DoubleSide }));
-                band.userData.decorAccent = true;
-                // 목가리개 — 뒤쪽 테두리만 바깥으로 벌어지는 자락. 갈레아의 서명이고, 앞을 비운 만큼
-                // 뒤가 허전해지는 것을 메운다(φ=π 기준 ±54°).
-                const neck = this.browedBowl(Object.assign({}, ARC,
-                    { rx: BR * 1.04, ry: BRY * 1.04, rz: BR * 1.04, from: 0.93, flare: 0.19, rows: 4,
-                      seg: 16, phi0: Math.PI - 0.95, phiLen: 1.9 }),
-                    this.tintOf(mat, -0.05, { side: THREE.DoubleSide }));
-                g.add(band, neck);
-                // 브로우 리벳 — 아치 위에 5개. 96px 로 줄여도 앞 테두리가 '선'으로 남게 하는 이차 디테일.
-                for (let i = -2; i <= 2; i++) {
-                    const phi = i * 0.30, c = Math.cos(phi);
-                    const tm = ARC.side - (ARC.side - ARC.front) * Math.pow(c, 0.65);
-                    const th = tm * 0.925, s = Math.sin(th), k = 1.055;
-                    const rv = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.024, 0.016), rareMat);   // 🧊 리벳 큐브
-                    rv.position.set(BR * k * s * Math.sin(phi), BCY + BRY * k * Math.cos(th), BR * k * s * Math.cos(phi));
-                    rv.rotation.y = phi;   // 면이 표면 법선을 보게(회전 박스 = 로컬 축정렬)
-                    g.add(rv);
-                }
-                // 볏(크레스트) — ⓓ. 재질만 고쳐도 **평판 상자**(0.05×0.2×0.36)는 여전히 판이다.
-                // ⚠️ 상자를 계단처럼 쌓아 아치를 흉내 냈다가 되돌렸다 — 96px 에서 **지구라트**로 읽힌다.
-                //    로마 볏은 앞뒤로 흐르는 **매끈한 아치**라 옆면 실루엣(zy 평면)을 셰이프로 찍어 x 로
-                //    밀어내고, 베벨로 능선 하이라이트를 만든다.
-                const crest = new THREE.Group();
-                {
-                    // 🧊 로마 볏 — 앞에서 솟아 뒤로 흘러내리는 아치를 **열별 계단 기둥**으로
-                    //    (equip-voxelize ⓑ). 큐브 열이 곧 말총 결이라 별도 rib 살이 필요 없다 —
-                    //    '매끈한 판은 안 산다' 처방을 칸 자체가 만족한다.
-                    const cv = [];
-                    for (let zc = -8; zc <= 8; zc++) {
-                        const t = zc / 8;
-                        const h = Math.round((0.215 * (1 - t * t * 0.86)) / HS);
-                        if (h < 1) continue;
-                        vbox2(cv, -1, 0, 1, 1 + h, zc, zc, HEXOF(rareMat));
-                    }
-                    crest.add(this.voxPart(cv, HS, rareMat, { jitter: 0.05 }));
-                    // 밑동 밴드 — 볏이 돔에서 그냥 자라난 것처럼 보이지 않게 어두운 한 단
-                    // ⚠️ 폭·두께가 볏보다 커야 보인다 — 볏 안에 들어가면 차분 기여가 0 이다(실측).
-                    const base = new THREE.Mesh(new THREE.BoxGeometry(0.079, 0.030, 0.31), darkMat);
-                    base.position.y = 0.017;
-                    base.userData.decorAccent = true;   // 판정기 차분용 표식(아래 rarityDecor 주석 참조)
-                    crest.add(base);
-                }
-                // ⚠️ 돔 정수리는 y 0.287 이다(사발 교체로 0.28 → 0.287) — 볏을 0.20 에 두면 밑동이
-                //    통째로 사발 **안**에 묻혀 밴드도 결도 안 보인다(실측: 부위 휘도 폭이 흰 면 폭과 같았다).
-                //    정수리−볏 간격 0.035 를 그대로 유지한다.
-                crest.position.y = 0.252;
-                const cheek1 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.12), mat);
-                cheek1.position.set(-0.24, -0.08, 0.1);
-                const cheek2 = cheek1.clone(); cheek2.position.x = 0.24;
-                g.add(crest, cheek1, cheek2);
-            } else if (finV === 'combat') {  // 현대 '철모' — M1/PASGT 전투 헬멧
-                // 갈레아와 갈리는 것 셋: ⓐ 한 바퀴 바깥으로 말린 **챙**(갈레아는 뒤에만 자락이
-                // 벌어진다) ⓑ **볏·리벳·뺨가드가 하나도 없다** ⓒ 관자놀이에서 내려온 **턱끈 웨빙**
-                // 이 턱컵에서 만난다. 96px 로 줄여도 이 셋이 실루엣을 갈레아와 다르게 만든다.
-                // ⚠️ flare 를 0.34 로 두면 챙이 반경 0.319 까지 벌어져 **밀짚 햇빛가리개**로 읽힌다
-                //    (실측 캡처). M1 은 냄비에 가까워 벌어짐이 완만하다 → 0.24.
-                const brim = this.browedBowl(Object.assign({}, ARC,
-                    { from: 0.87, flare: 0.24, rows: 4, seg: 30 }),
-                    this.tintOf(mat, -0.06, { side: THREE.DoubleSide }));
-                brim.userData.decorAccent = true;
-                g.add(brim);
-                // 이마 NVG 슈라우드 + 마운트 러그 — 현대 전투 헬멧의 서명 부속. 앞에서 '기계'로
-                // 읽히게 하는 유일한 돌출이라 뺄 수 없다(챙만으로는 '냄비'에서 안 벗어난다).
-                const shroud = new THREE.Mesh(new THREE.BoxGeometry(0.074, 0.052, 0.030), darkMat);
-                shroud.position.set(0, 0.112, 0.206);
-                shroud.rotation.x = -0.22;
-                shroud.userData.decorAccent = true;
-                const lug = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.022, 0.022), rareMat);   // 🧊 러그 큐브
-                lug.position.set(0, 0.112, 0.228);
-                g.add(shroud, lug);
-                // 턱끈 — 앞뒤 두 갈래(Y 웨빙)가 턱컵에서 만난다. ⚠️ 폭을 두껍게 하면 갈레아
-                //    뺨가드로 되돌아간다 — 얇고(0.030) 비스듬해야 '천 끈'으로 읽힌다.
-                // 🚨 **회전 부호를 뒤집지 말 것.** `rotation.z = γ` 면 상자의 +y 축이
-                //    (−sin γ, cos γ, 0) 로 가므로 **아래 방향은 (sin γ, −cos γ, 0)** 이다.
-                //    sx=+1 쪽에서 끈이 안쪽(x 감소)으로 모이려면 γ<0 → `-sx * …` 여야 한다.
-                //    처음 `+sx * 0.26` 으로 뒀더니 두 끈이 **바깥으로 벌어져** 턱컵이 저 혼자
-                //    허공에 뜬 'C' 로 떨어졌다(실측 캡처).
-                //    뒤 갈래는 Euler XYZ(R = Rx·Ry·Rz)라 Rx 가 나중에 걸린다 — 아래 방향의 z 성분이
-                //    −cos γ·sin β 라, 앞(+z)으로 오게 하려면 β<0 이다.
-                const CUPY = -0.152, CUPZ = 0.086;
-                for (const sx of [-1, 1]) {
-                    const front = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.200, 0.012), darkMat);
-                    front.position.set(sx * 0.134, -0.065, 0.062);   // 관자놀이(0.200,0.010) → 턱(0.068,−0.140)
-                    front.rotation.set(0.10, 0, -sx * 0.72);
-                    const rear = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.175, 0.012), darkMat);
-                    rear.position.set(sx * 0.139, -0.047, -0.021);   // 뒤통수 → 앞아래로 넘어온다
-                    rear.rotation.set(-0.75, 0, -sx * 0.62);
-                    g.add(front, rear);
-                }
-                // 턱컵 — 열린 반원통(양면). 끈 네 갈래가 여기서 만나야 '헬멧을 쓴 것'으로 읽힌다.
-                // 🧊 턱컵 — 열린 반원통 → ㄷ자 각재 3장(정면 판 + 좌우 판)
-                const cup = new THREE.Group();
-                const cupF = new THREE.Mesh(new THREE.BoxGeometry(0.096, 0.052, 0.016), this.tintOf(darkMat, 0.04));
-                cupF.position.z = 0.062;
-                cup.add(cupF);
-                for (const cs of [-1, 1]) {
-                    const side = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.052, 0.07), this.tintOf(darkMat, 0.04));
-                    side.position.set(cs * 0.058, 0, 0.024);
-                    side.rotation.y = cs * 0.35;
-                    cup.add(side);
-                }
-                cup.position.set(0, CUPY, CUPZ);
-                cup.rotation.x = 0.24;
-                const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.022, 0.014), rareMat);
-                buckle.position.set(0.082, CUPY + 0.020, CUPZ + 0.010);
-                buckle.rotation.z = 0.62;
-                g.add(cup, buckle);
-            } else if (finV === 'antenna') { // 우주 '위성 안테나 헬름' — 접시 1문 + 휩 2본
-                // 이름이 요구하는 부속이 **하나도 없었다**(말총 볏이 달린 갈레아였다).
-                // 매끈한 밀폐 셸 + 목 씰링 링 위에 접시·휩을 올린다. 리벳·볏 0개 = 미래의 정의.
-                // ⚠️ 접시를 등 뒤에 두면 썸네일 기본 3/4 정면에서 통째로 가려진다 — `robe` 추진기에서
-                //    실측으로 밟은 함정이다. **시대 신호는 정면에서 읽혀야 값을 한다** → 옆으로 뺀다.
-                // ⚠️ 씰링 링을 굵게(tube 0.030) 두면 같은 시대 `bubble`(우주 헬멧)의 큰 링과
-                //    실루엣이 겹쳐 '구명튜브 쓴 머리' 두 칸이 된다(실측 캡처) — 얇게 두 줄로 간다.
-                // 🚨 **한 바퀴 닫힌 링으로 두르지 말 것.** 이 높이는 얼굴 높이라 통짜 토러스는
-                //    눈을 가로지른다 — `addAgeTrim` 이 같은 자리에서 이미 밟은 함정이고(링 하나가
-                //    흰자 32%p), 여기서도 닫힌 링 두 줄이 흰자를 93%→55% 로 떨어뜨렸다
-                //    (`probe-face-helmet-clear` 의 `fin@space` 가 잡았다). 정면 ±1.05rad 을 비운다.
-                //    Euler XYZ 는 Rz 가 먼저라, `rotation.set(π/2, 0, φ0)` 이면 토러스 자기 평면에서
-                //    시작각을 φ0 만큼 돌린 뒤 눕는다 → 덮이는 방위각이 [φ0, φ0+arc] 가 된다.
-                //    (밀폐복의 목 씰은 원래 얼굴 창을 비켜 뒤·옆으로 도는 것이라 조형상으로도 맞다.)
-                // 🧊 부분 토러스 → 정면을 비운 부분 큐브 링 (equip-voxelize ⓑ) — 흰자 가림 규칙 유지
-                const FACE_GAP = 1.05;
-                const arcCells = (rr, th, h, col) => V.ellipse(rr, rr, h, { y0: 0, color: col, rix: rr - th, riz: rr - th })
-                    .filter(cc => Math.abs(Math.atan2(cc.x, cc.z)) > FACE_GAP);
-                const seal = vhead(arcCells(10, 1.7, 2, HEXOF(darkMat)), darkMat, { jitter: 0.03 });
-                seal.position.y = -0.054;
-                seal.userData.decorAccent = true;
-                const lock = vhead(arcCells(10.5, 1.1, 1, HEXOF(rareMat)), rareMat, { jitter: 0.02 });
-                lock.position.y = -0.004;
-                g.add(seal, lock);
-                // 링을 끊은 자리에 **잠금 클램프**를 물린다. 없으면 잘린 단면 두 개가 부러진
-                // 그루터기로 읽힌다(실측 캡처) — 클램프가 서면 '앞에서 여닫는 목 씰'이 된다.
-                for (const s of [-1, 1]) {
-                    const a = Math.PI / 2 - s * FACE_GAP;
-                    const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.084, 0.046), darkMat);
-                    clamp.position.set(0.231 * Math.cos(a), -0.020, 0.231 * Math.sin(a));
-                    clamp.rotation.y = Math.PI / 2 - a;
-                    const pin = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.032), rareMat);   // 🧊 핀 큐브
-                    pin.position.set(0.244 * Math.cos(a), -0.020, 0.244 * Math.sin(a));
-                    pin.rotation.y = Math.PI / 2 - a;
-                    g.add(clamp, pin);
-                }
-                {   // 접시 — 짐벌 팔 + 포물면(양면) + 피드혼. 오른쪽으로 뻗어 실루엣을 깬다.
-                    // 🚨 **왼쪽(−x)에 두지 말 것.** 썸네일 카메라는 `ITEM_THUMB_DIR (1.0, 0.55, 2.3)`
-                    //    = 오른쪽 앞 위라, −x 에 단 부속은 돔에 가려 **테두리만 삐죽 나온다**
-                    //    (실측 캡처에서 접시가 좌상단 얇은 조각으로만 보였다). 시대 신호는
-                    //    카메라가 보는 쪽에 달아야 값을 한다.
-                    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.105, 0.034), darkMat);   // 🧊 짐벌 팔 각재
-                    arm.position.set(0.222, 0.152, -0.010);
-                    arm.rotation.z = -0.66;
-                    // 🚨 **개구가 카메라를 향해야 접시다.** 사발의 개구는 기본 −y 이고, Euler XYZ 라
-                    //    Rz 가 먼저·Rx 가 나중이다: (0,−1,0) → Rz(γ) → (sin γ, −cos γ, 0) →
-                    //    Rx(β) → (sin γ, −cos γ·cos β, −cos γ·sin β).
-                    //    ⚠️ 방향을 네 번 틀렸다(전부 실측 캡처): β=−0.26 은 개구가 뒤를 향해
-                    //    **볼록한 뒷면**만 보여 '쥐 귀'로, β=+0.9 는 좌측면을 향해 **초승달**로,
-                    //    법선을 카메라와 거의 일치(0.45,0.55,0.70)시켰더니 이번엔 정면 원판이라
-                    //    **납작한 노**로 읽혔다. 오목한 곡률이 보이려면 카메라와 **45~50° 어긋나야**
-                    //    한다 → 법선 (0.62, 0.72, 0.30)(카메라 축과 dot 0.66). 역산 γ=+0.669·β=−2.748.
-                    //    테두리 토러스도 같이 둔다 — 얕은 캡은 림이 없으면 어느 각도에서도 판이다.
-                    // 🧊 접시 — 오목 계단 사발(넓은 림 링 → 좁은 바닥 판) + 다크 림 (equip-voxelize ⓑ).
-                    //    카메라와 45~50° 어긋난 방향(실측 확정)은 그룹 회전으로 그대로 잇는다.
-                    const dv = [];
-                    dv.push(...V.ellipse(5.3, 5.3, 1, { y0: 2, color: HEXOF(darkMat), rix: 4.4, riz: 4.4 }));   // 테두리 림(다크)
-                    dv.push(...V.ellipse(4.6, 4.6, 1, { y0: 1, color: this.tintOf(mat, 0.07).color.getHex(), rix: 2.4, riz: 2.4 }));
-                    dv.push(...V.ellipse(2.6, 2.6, 1, { y0: 0, color: this.tintOf(mat, 0.07).color.getHex() }));
-                    const dish = this.voxPart(dv, HS, mat, { jitter: 0.03, shade: mats.kind });
-                    dish.position.set(0.258, 0.224, 0.022);
-                    dish.rotation.set(-2.748, 0, 0.669);
-                    g.add(dish);
-                    // 피드혼 — 초점에서 접시를 되보는 2단 계단 촉
-                    const horn = new THREE.Group();
-                    const h1 = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.03, 0.036), rareMat);
-                    const h2 = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.034, 0.018), rareMat);
-                    h2.position.y = 0.03;
-                    horn.add(h1, h2);
-                    horn.position.set(0.258 + 0.62 * 0.048, 0.224 + 0.72 * 0.048, 0.022 + 0.30 * 0.048);
-                    horn.rotation.set(-2.748, 0, 0.669);
-                    g.add(arm, horn);
-                    // 항전 박스 — 접시 반대편 무게추. 없으면 bbox 가 오른쪽으로 쏠려 자동 프레이밍이
-                    // 투구를 왼쪽 구석에 밀어붙인다(`probe-equip-framing` 중심오차).
-                    const avio = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.078, 0.106), darkMat);
-                    avio.position.set(-0.212, 0.062, -0.044);
-                    avio.rotation.z = 0.30;
-                    const fin2 = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.052, 0.086), rareMat);
-                    fin2.position.set(-0.246, 0.076, -0.044);
-                    fin2.rotation.z = 0.30;
-                    g.add(avio, fin2);
-                }
-                // 휩 안테나 2본 — 오른쪽. 접시 질량과 맞물려 x 중심이 치우치지 않게 반대편에 둔다.
-                // ⚠️ 밑동은 **셸 표면 위**여야 한다 — y 0.172 에서 사발 반경은 0.1926 이라
-                //    (x,z) 반지름이 그보다 크면 허공에 꽂힌 막대가 된다(0.178 · 0.175 를 쓴다).
-                const beadMat = mats.glow ? mats.trim : rareMat;
-                const WHIP = [{ x: -0.166, z: 0.048, h: 0.205, rz: 0.20 },
-                              { x: -0.140, z: -0.086, h: 0.150, rz: 0.32 }];
-                for (const w of WHIP) {
-                    const whip = new THREE.Mesh(new THREE.BoxGeometry(0.014, w.h, 0.014), darkMat);   // 🧊 휩 각재
-                    whip.position.set(w.x, 0.172 + w.h / 2, w.z);
-                    whip.rotation.z = w.rz;
-                    // 각재 축(+y)을 z 로 rz 만큼 돌린 끝점 = (−sin rz, cos rz, 0)·h/2
-                    const bead = new THREE.Mesh(new THREE.BoxGeometry(0.027, 0.027, 0.027), beadMat);   // 🧊 구슬 큐브
-                    bead.position.set(w.x - Math.sin(w.rz) * w.h / 2,
-                        whip.position.y + Math.cos(w.rz) * w.h / 2, w.z);
-                    const base = new THREE.Mesh(new THREE.BoxGeometry(0.044, 0.024, 0.044), darkMat);   // 🧊 밑동 큐브
-                    base.position.set(w.x, 0.170, w.z);
-                    g.add(whip, bead, base);
-                }
-                // 상태등 2점 — 밀폐 셸에 '살아 있는 장비' 신호. 정면 살짝 옆(눈을 안 가린다).
-                for (const sx of [-1, 1]) {
-                    const led = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.016), beadMat);   // 🧊 LED 큐브
-                    led.position.set(sx * 0.148, 0.118, 0.168);
-                    g.add(led);
-                }
-            } else if (finV === 'mech') {    // 항성간 '어드밴스드 메크' — 각진 장갑판 + 센서 바
-                // 갈레아의 매끈한 사발·말총 볏 대신 서명 셋: ⓐ 눈썹 위를 가로지르는 **단안 센서 바**
-                // ⓑ 옆머리 **배기 루버 3단** ⓒ 곡선 아치가 아니라 **직선 능선(킬)**.
-                // ⚠️ 센서 바 아랫변은 0.103−0.015 = 0.088 로 눈 윗변(0.067) 위다 — 여기서 내리면
-                //    `probe-face-helmet-clear` 가 곧바로 흰자를 잃는다.
-                const barMat = mats.glow ? mats.trim : rareMat;
-                for (let i = -2; i <= 2; i++) {
-                    const a = Math.PI / 2 + i * 0.22, r = 0.222;   // x=cos a · z=sin a (정면 = π/2)
-                    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.046, 0.030, 0.020), barMat);
-                    seg.position.set(r * Math.cos(a), 0.103, r * Math.sin(a));
-                    seg.rotation.y = Math.PI / 2 - a;
-                    g.add(seg);
-                    // 바 위를 덮는 어두운 브로우 후드 — 발광 띠가 셸에 그냥 박힌 스티커로
-                    // 보이지 않게 한 단 얹는다(투구 트림이 쓰는 명도 단차 언어).
-                    const hood = new THREE.Mesh(new THREE.BoxGeometry(0.050, 0.020, 0.030), darkMat);
-                    hood.position.set(r * 1.01 * Math.cos(a), 0.128, r * 1.01 * Math.sin(a));
-                    hood.rotation.y = seg.rotation.y;
-                    hood.rotation.x = -0.30;
-                    g.add(hood);
-                }
-                {   // 🧊 능선(킬) — 직선 프로파일을 열별 계단 기둥으로 (equip-voxelize ⓑ)
-                    const kc = this.tintOf(mat, -0.10).color.getHex();
-                    const kv = [];
-                    for (let zc = -7; zc <= 7; zc++) {
-                        const zw = zc * HS;
-                        let hw = 0;   // 프로파일 선형 보간: (-0.175,0)→(-0.055,0.086)→(0.085,0.072)→(0.175,0)
-                        if (zw < -0.055) hw = 0.086 * (zw + 0.175) / 0.12;
-                        else if (zw < 0.085) hw = 0.086 + (0.072 - 0.086) * (zw + 0.055) / 0.14;
-                        else hw = 0.072 * (0.175 - zw) / 0.09;
-                        const h = Math.round(hw / HS);
-                        if (h < 1) continue;
-                        vbox2(kv, -1, 0, 0, h, zc, zc, kc);
-                    }
-                    const keel = this.voxPart(kv, HS, mat, { jitter: 0.04, shade: mats.kind });
-                    keel.position.y = 0.256;
-                    keel.userData.decorAccent = true;
-                    g.add(keel);
-                }
-                // 배기 루버 3단 — 얇은 판을 비스듬히 겹친다. 관자놀이 뒤라 얼굴을 안 먹는다.
-                for (const sx of [-1, 1]) {
-                    for (let i = 0; i < 3; i++) {
-                        const lv = new THREE.Mesh(new THREE.BoxGeometry(0.020, 0.016, 0.096), darkMat);
-                        lv.position.set(sx * 0.212, 0.056 - i * 0.036, -0.068);
-                        lv.rotation.set(0.42, 0, sx * 0.12);
-                        g.add(lv);
-                    }
-                    // 턱 액추에이터 — 늘어진 천 뺨가드 대신 **각진 판 + 피스톤**
-                    const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.140, 0.086),
-                        this.tintOf(mat, -0.05, { flatShading: true }));
-                    jaw.position.set(sx * 0.226, -0.072, 0.076);
-                    jaw.rotation.z = sx * 0.10;
-                    const piston = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.096, 0.024), rareMat);   // 🧊 피스톤 각재
-                    piston.position.set(sx * 0.244, -0.056, 0.030);
-                    piston.rotation.z = sx * 0.10;
-                    g.add(jaw, piston);
-                }
-            } else {                          // 지하 세계 '헬포지드 헬름' — 뿔 + 깨진 능선 + 용암 균열
-                // ⚠️ 균열·발광을 시대 팔레트에 맡기면 지하 세계 색이 살구빛이라 비평가가 지적한
-                //    '분홍색 중세'로 되돌아간다. 이름이 **지옥 단조**라 용암 주황을 고정한다.
-                const lava = new THREE.MeshBasicMaterial({ color: 0xff5a12 });
-                const hornMat = this.tintOf(mat, -0.12, { flatShading: true });
-                // 뿔 — 마디 5개를 걸어가며 쌓는다. 위로 갈수록 서고(a↓) 뒤로 휜다(b↑).
-                // ⚠️ **곧추세우지 말 것**(a 를 0.66 에서 0.17 씩 줄여 마지막이 수직이었다).
-                //    가늘고 높은 뿔은 bbox 만 위로 늘리고 화면 질량은 아래에 남아, 자동 프레이밍의
-                //    세로 중심오차가 4.3%(기준 4%)로 걸린다 — `probe-equip-framing` 이 잡았고
-                //    이 항목이 낸 **유일한** 신규 위반이었다. 바깥으로 벌리면 같은 뿔이 폭으로
-                //    가고 질량이 위쪽에 남아 중심이 맞는다(악마 뿔로도 이쪽이 더 읽힌다).
-                for (const sx of [-1, 1]) {
-                    const p = new THREE.Vector3(sx * 0.170, 0.146, -0.020);
-                    let a = 0.72, b = 0.05;
-                    for (let i = 0; i < 5; i++) {
-                        const len = 0.086 - i * 0.011, rad = 0.045 - i * 0.0072;
-                        const dir = new THREE.Vector3(sx * Math.sin(a), Math.cos(a) * Math.cos(b), -Math.cos(a) * Math.sin(b));
-                        const seg = new THREE.Mesh(new THREE.BoxGeometry(rad * 1.7, len, rad * 1.7), hornMat);   // 🧊 마디 각재(마디마다 가늘어져 계단)
-                        seg.position.copy(p).addScaledVector(dir, len * 0.5);
-                        seg.rotation.set(-b, 0, -sx * a);
-                        g.add(seg);
-                        p.addScaledVector(dir, len);
-                        if (i === 4) {
-                            const tip = new THREE.Mesh(new THREE.BoxGeometry(rad * 1.0, 0.062, rad * 1.0), hornMat);   // 🧊 끝 촉 큐브
-                            tip.position.copy(p).addScaledVector(dir, 0.031);
-                            tip.rotation.set(-b, 0, -sx * a);
-                            g.add(tip);
-                        }
-                        a -= 0.14; b += 0.06;
-                    }
-                    // 뿔 밑동 소켓 — 뿔이 셸에서 그냥 자라난 것처럼 보이지 않게 어두운 한 단
-                    const socket = new THREE.Mesh(new THREE.BoxGeometry(0.108, 0.040, 0.108), darkMat);   // 🧊 소켓 각단
-                    socket.position.set(sx * 0.164, 0.140, -0.038);
-                    socket.rotation.z = -sx * 0.66;
-                    socket.userData.decorAccent = true;
-                    g.add(socket);
-                }
-                // 능선 — 매끈한 볏이 아니라 **깨진 쐐기 5장**. 높이·기울기를 흩어 단조 실패한 결로.
-                for (let i = 0; i < 5; i++) {
-                    const t = (i / 4) * 2 - 1;
-                    const h = 0.108 * (1 - t * t * 0.55) * (i % 2 ? 0.72 : 1);
-                    const sh = new THREE.Mesh(new THREE.BoxGeometry((0.030 - Math.abs(t) * 0.008) * 1.5, h, (0.030 - Math.abs(t) * 0.008) * 1.5), hornMat);   // 🧊 깨진 쐐기 각재
-                    sh.position.set(0, 0.268 + h * 0.42, -t * 0.128);
-                    sh.rotation.set(t * 0.34, 0.5 + i * 0.31, i % 2 ? 0.16 : -0.13);
-                    g.add(sh);
-                }
-                // 용암 균열 — 셸 표면을 따라 얇은 마디로 흐른다. 방위각을 눈(정면 ±33°) 밖으로 둔다.
-                for (const seed of [[1.05, 0.150], [2.30, 0.095], [-0.95, 0.120], [3.55, 0.060]]) {
-                    for (let i = 0; i < 3; i++) {
-                        const a = seed[0] + i * 0.15, y = seed[1] - i * 0.042;
-                        const cs = Math.max(0.02, (y - BCY) / BRY);
-                        const r = BR * Math.sqrt(Math.max(0, 1 - cs * cs)) * 1.012;
-                        const cr = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.014, 0.012), lava);
-                        cr.position.set(r * Math.cos(a), y, r * Math.sin(a));
-                        cr.rotation.set(0, Math.PI / 2 - a, 0.5 + i * 0.3);
-                        g.add(cr);
-                    }
-                }
-                // 아래로 뻗은 엄니 뺨가드 — 늘어진 천 조각(갈레아)이 아니라 **깨진 쇳조각**
-                for (const sx of [-1, 1]) {
-                    const fang = new THREE.Group();   // 🧊 엄니 — 2단 계단 촉
-                    const f1 = new THREE.Mesh(new THREE.BoxGeometry(0.078, 0.09, 0.078), hornMat);
-                    const f2 = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.09, 0.038), hornMat);
-                    f2.position.y = 0.085;
-                    fang.add(f1, f2);
-                    fang.position.set(sx * 0.222, -0.086, 0.062);
-                    fang.rotation.set(0.12, 0, Math.PI + sx * 0.20);
-                    const ember = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.032, 0.032), lava);
-                    ember.position.set(sx * 0.226, -0.020, 0.086);
-                    g.add(fang, ember);
-                }
+        if (style === 'hair') {
+            // 머리카락/수염 — 두피를 덮는 얇은 각진 모(毛). 얼굴은 완전 개방.
+            const hairHex = age === 'divine' ? 0xf3ead0 : age === 'primitive' ? 0x3b2a1a : 0x4a3524;
+            const hairM = new THREE.MeshStandardMaterial({ color: hairHex, metalness: 0, roughness: 0.85, flatShading: true });
+            capShell(hairM, { sideBottom: yEyeBot - 0.02, noFront: true });
+            blk(2 * OX, 0.03, W, hairM, 0, yTop - 0.02, frontZ);                              // 앞머리 한 단
+            for (const s of [-1, 1]) blk(W, 0.10, 0.05, hairM, s * (OX - W / 2), HCY - 0.02, frontZ - 0.02);  // 구레나룻
+            if (age === 'primitive') blk(0.16, 0.09, 0.05, hairM, 0, HCY - 0.14, frontZ);     // 수염
+        } else if (style === 'halo') {
+            // 후광 — 셸 없이 머리 뒤 발광 링(천상 공통 문장과 같은 문법).
+            this.addDivineHalo(g, yTop + 0.03, 0.24);
+            blk(2 * OX - 0.02, 0.02, 2 * OX - 0.02, rareMat, 0, yBrow, 0);                    // 이마 서클릿
+        } else if (style === 'bubble') {
+            // 우주 헬멧 — 투명 각진 돔. 눈은 유리 너머로 보인다.
+            const glass = new THREE.MeshStandardMaterial({ color: 0xbfe6ff, metalness: 0.1, roughness: 0.15, transparent: true, opacity: 0.28, flatShading: true });
+            const bO = OX + 0.02, bW = 0.02;
+            blk(2 * bO, bW, 2 * bO, glass, 0, yTop + 0.05, 0);
+            blk(2 * bO, 2 * bO * 0.9, bW, glass, 0, HCY + 0.02, bO);
+            blk(2 * bO, 2 * bO * 0.9, bW, glass, 0, HCY + 0.02, -bO);
+            for (const s of [-1, 1]) blk(bW, 2 * bO * 0.9, 2 * bO, glass, s * bO, HCY + 0.02, 0);
+            blk(2 * bO + 0.02, 0.03, 2 * bO + 0.02, darkMat, 0, HCY - 0.13, 0);               // 목 링(어깨 씰)
+        } else if (style === 'crown') {
+            // 왕관/화관 — 이마 밴드 + 위로 뻗은 뾰족 첨두(등급색). 정수리·얼굴 개방.
+            const bandCY = yBrow + 0.02;
+            blk(2 * OX, 0.05, W, mat, 0, bandCY, frontZ);                                     // 앞 밴드
+            blk(2 * OX, 0.05, W, mat, 0, bandCY, -(OX - W / 2));                              // 뒤 밴드
+            for (const s of [-1, 1]) blk(W, 0.05, 2 * OX - 2 * W, mat, s * (OX - W / 2), bandCY, 0);
+            const spikes = [[0, frontZ], [-0.13, frontZ - 0.02], [0.13, frontZ - 0.02], [-0.20, 0], [0.20, 0]];
+            for (let i = 0; i < spikes.length; i++) {
+                const [sx, sz] = spikes[i];
+                const th = i === 0 ? 0.13 : 0.09;
+                blk(0.05, th, 0.05, rareMat, sx, bandCY + 0.025 + th / 2, sz);
+                blk(0.03, 0.03, 0.03, rareMat, sx, bandCY + 0.025 + th + 0.015, sz);          // 첨두 보석
             }
-        } else if (style === 'mask') {      // 🧊 가면/방독면 — 전면 계단 셸 + 정수리 돔 (equip-voxelize ⓑ)
-            // 종전 서명 유지: 얼굴을 **감싸는** 판(평판 아님 — 전면 ±76° 아크), 눈 소켓 = 함몰
-            // 어둠 + 림 + 발광 동공(민짜 점 2개 오독 방지, 비평가 3번), 호흡 필터 = 다크 벤트 +
-            // 가는 등급색 림(발광 원통은 '새는 광원' 오독 — 비평가 7.1 12번).
-            const cBody = HEXOF(mat), cRim = this.tintOf(mat, -0.14).color.getHex();
-            const v = [];
-            v.push(...V.at(V.dome(10.4, 10, cBody, { t: 2.5 }), 0, 4, 0));   // 정수리 덮개(계단 돔, y 0.1~0.35)
-            for (let dy = -6; dy <= 3; dy++) {       // 전면 아크 판 — 위 0.24 → 아래 0.22 테이퍼
-                const rr = 9.6 - (3 - dy) * 0.09;
-                for (const c of V.ellipse(rr, rr, 1, { y0: dy, color: cBody, rix: rr - 1.6, riz: rr - 1.6 }))
-                    if (Math.abs(Math.atan2(c.x, c.z)) < Math.PI * 0.42) { c.z += 1; v.push(c); }
+        } else if (style === 'cone') {
+            // 고깔/전투 페인트 모자 — 넓은 챙 + 위로 좁아지는 각뿔 스택. 얼굴 개방.
+            blk(2 * OX + 0.07, W, 2 * OX + 0.07, mat, 0, yBrow, 0);                           // 챙
+            const lv = 4; let cw = 2 * OX - 0.03, cy = yTop - 0.01;
+            for (let i = 0; i < lv; i++) {
+                const h = 0.09;
+                blk(cw, h, cw, mat, 0, cy + h / 2, 0);
+                cy += h; cw *= 0.62;
             }
-            for (const dx of [-4, 4]) {              // 눈 소켓: 3×3 함몰 어둠 + 둘레 림 톤
-                for (let x = dx - 2; x <= dx + 2; x++) for (let y = 0; y <= 2; y++) {
-                    const edge2 = (x === dx - 2 || x === dx + 2 || y === 0 || y === 2);
-                    v.push({ x, y, z: 10, c: edge2 ? cRim : 0x14181c });
-                }
+            blk(0.04, 0.05, 0.04, rareMat, 0, cy + 0.025, 0);                                 // 꼭지
+        } else if (style === 'tophat') {
+            // 실크햇/제모 — 납작 넓은 챙 + 각진 통 + 등급색 리본 밴드. 얼굴 개방.
+            blk(2 * OX + 0.10, W, 2 * OX + 0.10, mat, 0, yBrow, 0);                           // 챙
+            const tw = 2 * OX - 0.02, th = 0.26;
+            blk(tw, th, tw, mat, 0, yBrow + W / 2 + th / 2, 0);                               // 통
+            blk(tw + 0.01, 0.04, tw + 0.01, rareMat, 0, yBrow + 0.05, 0);                     // 리본 밴드
+            blk(tw + 0.02, W, tw + 0.02, mat, 0, yBrow + W / 2 + th, 0);                      // 윗판
+        } else if (style === 'visor') {
+            // 기사 풀헬름(오픈페이스) — 덮개 + 양 뺨가드 + 콧대 바 + 눈썹 챙. 눈은 뺨 사이로 열림.
+            capShell(mat);
+            browTrim();
+            blk(2 * OX, 0.03, 0.05, this.tintOf(mat, 0.06), 0, yBrow + 0.02, frontZ + 0.01);  // 눈썹 챙(돌출)
+            for (const s of [-1, 1])                                                          // 뺨 가드(정면 양옆)
+                blk(0.07, yBrow - yEyeBot, W + 0.01, this.tintOf(mat, -0.05), s * (OX - 0.05), (yBrow + yEyeBot) / 2, frontZ + 0.006);
+            blk(0.035, yBrow - yEyeBot + 0.02, 0.05, this.tintOf(mat, -0.12), 0, (yBrow + yEyeBot) / 2, frontZ + 0.012);  // 콧대 바
+        } else if (style === 'fin') {
+            // 볏 투구 — 덮개 + 앞뒤로 뻗는 볏(모히칸 계단 빗). 시대색 등급 볏.
+            capShell(mat);
+            browTrim();
+            const seg = 7;
+            for (let i = 0; i < seg; i++) {
+                const z = (i / (seg - 1) - 0.5) * 2 * OX * 0.95;
+                const h = 0.14 * Math.sin(Math.PI * (0.2 + 0.8 * i / (seg - 1)));
+                blk(0.045, Math.max(0.03, h), 2 * OX / seg + 0.004, rareMat, 0, yTop + W + h / 2, z);
             }
-            vhead(v, mat, { shade: mats.kind });
-            for (const dx of [-0.096, 0.096]) {      // 발광 동공 큐브 — 함몰 속 언릿
-                const pupil = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.032, 0.02),
-                    new THREE.MeshBasicMaterial({ color: new THREE.Color(pc).offsetHSL(0, 0.15, 0.2) }));
-                pupil.position.set(dx, 0.028, 0.268);
-                g.add(pupil);
-            }
-            vhead(V.at(V.box(5, 4, 2, HEXOF(darkMat)), -2, -6, 9), darkMat, { jitter: 0.03 });   // 다크 벤트 블록
-            const mrim = [];                         // 가는 등급색 사각 림 — 벤트와 재질을 갈라 벤트는 안 빛나게
-            for (let x = -3; x <= 3; x++) for (let y = -7; y <= -2; y++)
-                if (x === -3 || x === 3 || y === -7 || y === -2) mrim.push({ x, y, z: 10, c: new THREE.Color(pc).getHex() });
-            vhead(mrim, rareMat, { emissive: pc, emissiveIntensity: 0.3, jitter: 0.02 });
-            const strap = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.045, 0.045), darkMat);
-            strap.position.y = 0.02;
-            g.add(strap);
-        } else if (style === 'halo') {      // 후광 (수호의 후광) — 링 하나는 '크림색 도넛'으로 읽혔다(1차 채점 A·B 공통).
-            // 천상 공통 문법(addDivineHalo: 세워진 링 + 방사 광선 8줄)을 그대로 쓰고, 내광 디스크로 '빛'을 더한다.
-            this.addDivineHalo(g, 0.42, 0.2);
-            // ⚠️ 가산 디스크는 밝기를 아껴 쓸 것 — opacity 0.38 에서 셀의 54% 가 순백 포화로 날아가
-            //    probe-equip-clip 에 걸렸다(실측). 0.14 가 '빛나되 안 타는' 값이다.
-            const glow = new THREE.Mesh(new THREE.CircleGeometry(0.155, 20), new THREE.MeshBasicMaterial({
-                color: 0xffd98a, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending,
-                depthWrite: false, side: THREE.DoubleSide }));
-            glow.position.set(0, 0.42, -0.2 * 0.42 + 0.01);
-            glow.rotation.x = -0.22;
-            g.add(glow);
-        } else if (style === 'hair') {      // 머리카락/수염/비니
-            if (age === 'primitive') {
-                // 수염(원시 분기): 돌 텍스처 캡 + 방울 = '흰 반죽 덩어리, 판독 불가'(1차 채점 A·B).
-                // 털가죽 캡(탄 갈색) + 턱을 감는 수염 술 7가닥 + 콧수염 호 — '수염 난 원시인 머리'로 읽게 한다.
-                // 🧊 털가죽 캡 = 계단 돔 셸, 수염 술 = 2단 계단 가닥, 콧수염 = ㄇ자 큐브 아치 (equip-voxelize ⓑ)
-                const fur = this.tintOf(mats.dark, 0.06);
-                const cFur = fur.color.getHex();
-                const hv = [];
-                hv.push(...V.at(V.dome(10.4, 9, cFur, { t: 2.4 }), 0, 1, 0));
-                for (let i = -3; i <= 3; i++) {          // 턱 아래 U자 호를 따라 아래로 늘어지는 술
-                    const a = i * 0.3;
-                    const len = Math.round((0.2 - Math.abs(i) * 0.022) / HS);
-                    const sx = Math.round(Math.sin(a) * 0.21 / HS), sz = Math.round(Math.cos(a) * 0.19 / HS);
-                    const top = -3 + Math.round(Math.abs(i) * 0.9);
-                    vbox2(hv, sx - 1, sx, top - Math.round(len * 0.55), top, sz - 1, sz, cFur);
-                    vbox2(hv, sx - 1, sx - 1, top - len, top - Math.round(len * 0.55) - 1, sz - 1, sz - 1, cFur);
-                }
-                // 콧수염 — 위로 아치, 양끝이 아래로 처지는 ㄇ자
-                vbox2(hv, -3, 2, -2, -1, 9, 9, cFur);
-                vbox2(hv, -4, -3, -4, -2, 9, 9, cFur);
-                vbox2(hv, 3, 4, -4, -2, 9, 9, cFur);
-                vhead(hv, fur, { shade: 'soft:primal', jitter: 0.06 });
-            } else {
-                // 천상 '성스러운 백발'이 시대 금 재질(mat)을 물면 금 돔이 돼 이름을 배반한다
-                // (3차 채점 C·D 공통 라벨-렌더 불일치) — 백발은 상아 백 무광. 뒤에 서는 금 후광이
-                // (divine 공통 가산) 색 대비까지 만들어 준다. 타 시대는 종전 그대로.
-                const hairM = age === 'divine'
-                    ? this.ageShade(new THREE.MeshStandardMaterial({ color: 0xe9e3d4, metalness: 0.04, roughness: 0.82, envMapIntensity: 0.3 }), 'soft:holy')
-                    : mat;
-                // 🧊 머리 캡 = 계단 돔 셸 + 앞머리 튀어나온 술 = 2층 계단 뭉치 (equip-voxelize ⓑ)
-                const cHair = hairM.color.getHex();
-                const hv = [];
-                hv.push(...V.at(V.dome(10.4, 9, cHair, { t: 2.4 }), 0, 1, 0));
-                hv.push(...V.at(V.box(5, 2, 5, cHair), 2, 9, 0));
-                hv.push(...V.at(V.box(3, 1, 3, cHair), 3, 11, 1));
-                vhead(hv, hairM, { shade: age === 'divine' ? 'soft:holy' : mats.kind, jitter: 0.05 });
-            }
-        } else if (style === 'crown') {     // 왕관/화관 — 🧊 큐브 밴드 (equip-voxelize ⓑ)
-            const band = vhead(V.ellipse(9.7, 9.7, 5, { y0: 4, color: HEXOF(mat), rix: 8, riz: 8 }), mat, { shade: mats.kind });
-            if (age === 'medieval') {
-                // 사무라이 투구: 1차 채점 A·B 공통 "카부토 문법 전무 — 그냥 왕관/울타리".
-                // 스타일은 시대 공용이라 **중세 분기**로만: 정수리 돔(하치) + 쿠와가타(금빛 V 뿔) + 시코로(목가리개 라멜라).
-                // 스파이크 5개 링은 이 분기에서 뺀다 — '생일 왕관' 오독의 원인이 그것이었다.
-                const hachi = vhead(V.dome(9.6, 8, HEXOF(mat), { t: 2.4 }), mat, { shade: mats.kind });   // 🧊 정수리 돔(하치)
-                hachi.position.y = 0.166;
-                for (const s of [-1, 1]) {   // 쿠와가타 — 위로 벌어지는 납작한 뿔 두 장
-                    // ⓓ: 균일 두께 상자(0.034×0.27×0.014)는 흰 종이 조각이다. 실제 쿠와가타는
-                    //     **뿌리가 넓고 바깥으로 배부르다 끝에서 뾰족해지는** 납작한 뿔이다.
-                    // ⚠️ 상자를 테이퍼로 쌓아 봤다가 되돌렸다 — 끝 폭이 0.013 까지 가늘어져
-                    //    '젓가락/안테나'로 읽혔다(96px 실측). 뿌리 폭을 지키고 배를 남길 것.
-                    // 🧊 쿠와가타 — 뿌리 넓고 배부르다 끝으로 모이는 납작 뿔을 **계단 판**으로.
-                    //    끝 폭 하한(젓가락 금지)은 1칸(0.024)이 자연히 지킨다.
-                    const hg = new THREE.Group();
-                    const kv = [];
-                    for (const [y, w] of [[0, 2], [2, 2], [4, 2], [6, 2], [8, 1], [10, 1]])   // [y칸, 폭]
-                        vbox2(kv, w === 2 ? -1 : 0, 0, y, y + 1, 0, 0, HEXOF(rareMat));
-                    const blade = this.voxPart(kv, HS, rareMat, { jitter: 0.03 });
-                    hg.add(blade);
-                    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.009, 0.23, 0.034), darkMat);  // 가운데 능선 심
-                    spine.position.set(0, 0.115, 0);
-                    spine.userData.decorAccent = true;
-                    hg.add(spine);
-                    hg.position.set(s * 0.085, 0.29, 0.205);
-                    hg.rotation.z = -s * 0.42;
-                    g.add(hg);
-                }
-                const crest = new THREE.Mesh(new THREE.BoxGeometry(0.066, 0.066, 0.05), rareMat); // 🧊 전립(마에다테 심) 큐브
-                crest.position.set(0, 0.34, 0.215);
-                g.add(crest);
-                for (let l = 0; l < 3; l++) {  // 🧊 시코로 — 뒤·옆을 감는 부분 큐브 링 3장, 아래로 갈수록 벌어진다
-                    const rr = (0.25 + l * 0.028) / HS;
-                    const cells = V.ellipse(rr, rr, 2, { y0: 0, color: this.tintOf(mat, -0.04 * (l + 1)).color.getHex(), rix: rr - 1.6, riz: rr - 1.6 })
-                        .filter(cc => Math.abs(Math.atan2(cc.x, -cc.z)) < Math.PI * 0.68);   // 뒤(−z) 중심 1.36π
-                    const lam = vhead(cells, mat, { shade: mats.kind, jitter: 0.04 });
-                    lam.position.y = 0.115 - l * 0.048 - 0.024;
-                }
-            } else if (this.crownVariant(age) === 'captain') {
-                // 근세 '선장 모자' — 이각모(bicorne). 스파이크 0. R1 ㉢: 이름이 요구하는 건 챙모자다.
-                // 넓은 타원 챙 + 좌우로 접혀 솟은 판 2장(이각모의 얼굴) + 금 테 + 정면 코케이드.
-                // 🧊 이각모 — 눌린 계단 돔 + 타원 챙 판 + 세워 붙인 계단 판 2장 (equip-voxelize ⓑ)
-                const bic = [];
-                bic.push(...V.at(V.ellipse(13.3, 8.2, 1, { y0: 9, color: HEXOF(mat) }), 0, 0, 0));   // 타원 챙(좌우가 넓다)
-                for (let dy = 0; dy < 4; dy++) {                                                      // 눌린 돔
-                    const rr = 8.5 * Math.sqrt(Math.max(0, 1 - (dy / 3.6) * (dy / 3.6)));
-                    if (rr < 0.6) continue;
-                    bic.push(...V.ellipse(rr, rr, 1, { y0: 10 + dy, color: HEXOF(mat), rix: Math.max(0, rr - 2.2), riz: Math.max(0, rr - 2.2) }));
-                }
-                vhead(bic, mat, { shade: mats.kind });
-                for (const s of [-1, 1]) {                 // 접혀 올라간 좌우 판 — 위 윤곽을 두 귀로 든다
-                    const fl = [];
-                    for (const [y, hz] of [[0, 6], [2, 6], [4, 5], [6, 3]])   // 위로 갈수록 좁아지는 판
-                        vbox2(fl, 0, 0, y, y + 1, -hz, hz - 1, HEXOF(mat));
-                    vbox2(fl, 0, 0, 7, 7, -2, 1, HEXOF(rareMat));             // 윗단 금 테(등급색)
-                    const flap = this.voxPart(fl, HS, mat, { jitter: 0.04, shade: mats.kind });
-                    flap.position.set(s * 0.195, 0.23, 0);
-                    flap.rotation.z = -s * 0.35;           // 세워 붙인 귀
-                    g.add(flap);
-                }
-                const cockade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.018), rareMat);   // 🧊 코케이드 각판
-                cockade.position.set(0, 0.235, 0.208);
-                g.add(cockade);
-            } else if (this.crownVariant(age) === 'officer') {
-                // 현대 '장교 모자' — 제모(peaked cap). 스파이크 0.
-                // 넓게 뻗은 평평한 크라운(앞이 살짝 들림) + 정면 챙(바이저) + 금줄 + 모표.
-                // ⚠️ 챙은 눈 위(밴드 하단 y 0.10)에서 **아래로 꺾어 앞으로만** 낸다 —
-                //    probe-face-helmet-clear 가 흰자 가림을 잰다(9차 fin 씰링 링 사고 참조).
-                // ⚠️ 크라운 판을 y 0.265 에 두면 밴드 윗변(0.22)에서 **떠서** 모자가 두 조각으로
-                //    읽혔다(시트 실측) — 판 밑변이 밴드에 물리게 내리고, 기울임은 그만큼 얕게.
-                // 🧊 제모 — 넓은 계단 크라운 판 + 눌린 캡 + 정면 챙 판 + 금줄 아크 + 모표 (equip-voxelize ⓑ)
-                const ov = [];
-                ov.push(...V.ellipse(12.3, 10.1, 2, { y0: 9, color: HEXOF(mat) }));   // 크라운 판(앞뒤 0.82 눌림)
-                ov.push(...V.ellipse(9.5, 7.8, 1, { y0: 11, color: HEXOF(mat) }));    // 눌린 캡(계단)
-                ov.push(...V.ellipse(6, 5, 1, { y0: 12, color: HEXOF(mat) }));
-                const officer = vhead(ov, mat, { shade: mats.kind });
-                officer.rotation.x = -0.05;                // 앞이 들리는 제모 크라운(기울인 파츠 = 로컬 축정렬)
-                // 챙 — 정면 호 판. 흰자 가림 실측 규칙 유지: 앞끝이 브로우 라인 위(y 0.099 상당).
-                const vis = V.ellipse(9.8, 9.8, 1, { y0: 0, color: HEXOF(darkMat), rix: 5.4, riz: 5.4 })
-                    .filter(cc => Math.abs(Math.atan2(cc.x, cc.z)) < Math.PI * 0.34 && cc.z > 0);
-                const visor = vhead(vis, darkMat, { jitter: 0.03 });
-                visor.position.set(0, 0.148, 0.055);
-                visor.rotation.x = 0.22;                   // 이마에서 앞으로 내려 꺾인 챙
-                // 금줄 — 정면 호를 감는 등급색 큐브 띠
-                const br = V.ellipse(9.5, 9.5, 1, { y0: 0, color: HEXOF(rareMat), rix: 8.4, riz: 8.4 })
-                    .filter(cc => Math.abs(Math.atan2(cc.x, cc.z)) < Math.PI * 0.4 && cc.z > 0);
-                const braid = vhead(br, rareMat, { jitter: 0.02 });
-                braid.position.y = 0.125;
-                const badge = new THREE.Mesh(new THREE.BoxGeometry(0.066, 0.066, 0.016), rareMat);
-                badge.position.set(0, 0.185, 0.232);
-                g.add(badge);
-            } else {
-                for (let i = 0; i < 5; i++) {              // 🧊 왕관 스파이크 — 2단 계단 촉
-                    const spike = new THREE.Group();
-                    const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.075, 0.075), rareMat);
-                    const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.07, 0.036), rareMat);
-                    s2.position.y = 0.07;
-                    spike.add(s1, s2);
-                    const a = (i / 5) * Math.PI * 2;
-                    spike.position.set(Math.cos(a) * 0.21, 0.26, Math.sin(a) * 0.21);
-                    g.add(spike);
-                }
-            }
-        } else if (style === 'tech') {      // 🧊 메카 헬름 — 계단 타원 셸 + 랩어라운드 흑유리 밴드 (equip-voxelize ⓑ)
-            // 종전 서명을 칸 문법으로: 바이저 = 셸 행 recolor + 1칸 돌출(흑유리 밴드 — 밝은 단색
-            // 아크는 '안대' 오독, 비평가 6.4 5번), 그 위 발광 렌즈 눈 2점(고정 시안 — 등급색 파생은
-            // 씻김, 6.9), 턱 가드 = 하부 돌출 다크 밴드, 이어 포드·정수리 능선·안테나는 큐브.
-            const R = 12, CY = 2;
-            const cShell = this.tintOf(mat, 0.02).color.getHex(), cDark = HEXOF(darkMat);
-            const cGlass = 0x090d13;
-            const inArc = (x, z, arc) => Math.abs(Math.atan2(x, z)) < arc / 2;
-            const v = [];
-            for (let dy = -10; dy <= 10; dy++) {     // 통짜 타원구 셸(y 0.92 눌림 · z 1.05 앞뒤로 김)
-                const rr = R * Math.sqrt(Math.max(0, 1 - (dy / 10.5) * (dy / 10.5)));
-                if (rr < 0.6) { v.push({ x: 0, y: CY + dy, z: 0, c: cShell }); continue; }
-                const visorRow = dy === -1 || dy === 0;      // 눈높이 흑유리 밴드
-                const jawRow = dy >= -8 && dy <= -5;         // 턱 가드 대역
-                const hollow2 = 0;                            // 솔리드 — 안쪽 벽 tri 절약(visor 주석 참조)
-                for (const c of V.ellipse(rr * 0.98, rr * 1.07, 1, { y0: CY + dy, color: cShell, rix: hollow2, riz: hollow2 })) {
-                    if (visorRow && inArc(c.x, c.z, Math.PI * 0.86)) c.c = cGlass;
-                    v.push(c);
-                }
-                if (visorRow)                                 // 흑유리 밴드 — +1칸 돌출로 '감싸는 슬릿' 유지
-                    for (const c of V.ellipse(rr * 0.98 + 1, rr * 1.07 + 1, 1, { y0: CY + dy, color: cGlass, rix: rr * 0.98, riz: rr * 1.07 }))
-                        if (inArc(c.x, c.z, Math.PI * 0.86)) v.push(c);
-                if (jawRow)                                   // 턱 가드 — 하부 돌출 다크 밴드
-                    for (const c of V.ellipse(rr * 0.98 + 1, rr * 1.07 + 1, 1, { y0: CY + dy, color: cDark, rix: rr * 0.98, riz: rr * 1.07 }))
-                        v.push(c);
-            }
-            // 정수리 능선 — 전후 방향 1칸 폭 계단 아크(셸 밖 +1칸)
-            for (let z = -10; z <= 10; z++) {
-                const yy = Math.sqrt(Math.max(0, (R + 1.2) * (R + 1.2) - z * z * 0.85));
-                if (yy < 6) continue;
-                const yi = Math.round(yy * 0.92);
-                v.push({ x: 0, y: CY + yi, z, c: cDark }, { x: 0, y: CY + yi - 1, z, c: cDark });
-            }
-            vhead(v, mat, { shade: mats.kind });
-            for (const dx of [-0.095, 0.095]) {      // 유리 밴드 위 발광 렌즈 눈 — 언릿 큐브 판
-                const eye = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.05, 0.02), new THREE.MeshBasicMaterial({ color: 0x35e0ff }));
-                eye.position.set(dx, 0.03, 0.315);
-                eye.rotation.y = Math.atan2(dx, 0.315);
-                g.add(eye);
-            }
-            for (const dx of [-0.29, 0.29]) {        // 이어 포드 + 등급색 도트 큐브
-                const pod = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.1), darkMat);
-                pod.position.set(dx, 0.07, 0);
-                const podDot = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.04), rareMat);
-                podDot.position.set(dx * 1.1, 0.07, 0);
-                g.add(pod, podDot);
-            }
-            const antSock = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.07, 0.075), darkMat);   // 안테나 소켓(클리핑 마감 유지)
-            antSock.position.set(0.195, 0.285, -0.06);
-            const ant = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.2, 0.024), darkMat);
-            ant.position.set(0.213, 0.4, -0.06);
-            ant.rotation.z = -0.18;                  // 기울인 각재 = 로컬 축정렬
-            const antTip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), rareMat);
-            antTip.position.set(0.232, 0.5, -0.06);
-            g.add(antSock, ant, antTip);
-        } else if (style === 'sealed') {
-            // ── 밀폐 여압 투구 (equip-era-theming ⑦, 현대~양자 5시대의 `visor` 대체) ──────
-            // 🚨 **되돌려서 `visor` 로 쓰지 말 것.** 현대·우주·성간·다중 우주·양자 **다섯 시대가
-            //    전부 `visor`**(중세 기사 풀헬름 — 돔+뺨가드+눈 슬릿)를 한 칸씩 쓰고 있었다.
-            //    재질이 합금이라 원시 `plate`/`visor` 만큼 튀지는 않았지만 조형 언어는 **중세 그대로**라,
-            //    사용자 지적 '전부 중세 같은 디자인임 대체로' 의 미래 쪽 실물이다.
-            //    갑옷의 `SUIT_SEALED`(밀폐복이 실제로 그 시대의 언어인 다섯 시대)와 **같은 시대 집합**이라
-            //    투구·갑옷이 한 벌로 '기밀 장비'를 이룬다 — 계열(`ageGearKind`)로 가르면 안 되는 이유도 같다.
-            // 밀폐의 서명 넷. 이 넷이 없으면 남는 건 매끈한 반구 = 다시 기사 투구다:
-            //   ⓐ **목 실링 링**(탈착 경계 — 통짜로 이어진 기사 투구엔 없는 단차)
-            //   ⓑ **걸쇠 3개**(링을 무는 클램프 = '잠근다'는 동작이 보이는 자리)
-            //   ⓒ **넓은 곡면 전면창**(좁은 눈 슬릿의 정반대 — 슬릿은 '못 뚫리게', 창은 '보이게'가 목적이다)
-            //   ⓓ **턱 흡기 레귤레이터 2구**(호흡기 = 바깥 공기를 안 쓴다는 선언)
-            // ⚠️ 안테나·이어 포드·정수리 능선은 **`tech` 의 서명**이라 여기 쓰지 않는다 — 겹치면
-            //    우주·성간·다중 우주·양자에서 `tech` 와 같은 칸이 둘 생긴다(스타일 중복 금지 규칙).
-            // ⚠️ **1차 조형을 통째로 버리고 다시 짰다(되돌리지 말 것) — 실측 캡처 3각도 근거.**
-            //    ⑴ 창을 **원통 섹터**로 두르면 측면에서 **평면 판이 얼굴에 붙은 그림**이 된다(구면을
-            //       안 따라가므로 테두리가 직선으로 잘린다). → 창·창틀 둘 다 **구면 패치**로 바꿨다.
-            //    ⑵ 정수리에 납작한 판(r 0.148/0.181)을 얹으면 **솥뚜껑**으로 읽혀 전체가 '냄비'가 된다.
-            //       → 판을 없애고 작은 **퍼지 밸브 캡**(r 0.058)만 남겼다. 장비로 읽히고 실루엣도 안 먹는다.
-            //    ⑶ 칼라 플랜지를 0.292 로 두면 그 높이의 셸 실반경(0.192)보다 **10cm** 커서 `bubble` 의
-            //       튜브 림과 같은 **도넛 받침**이 된다. → 0.215/0.228 로 좁혀 목에 붙는 링으로.
-            //    ⑷ 레귤레이터를 y −0.072·z 0.223 에 두면 그 높이 셸(z 0.244)에 **묻혀 안 보인다**.
-            //       턱 높이(y −0.10)로 내리면 셸이 z 0.198 로 들어와 같은 포트가 **5.7cm 튀어나온다.**
-            // ⚠️ 화풍(2026-08-20 voxel 확정) 전환은 `equip-voxelize` 항목이 `makeHelmet` 전체를
-            //    한꺼번에 옮긴다. 여기만 큐브로 짜면 12스타일 중 하나만 화풍이 달라져 더 어긋난다.
-            // 🧊 계단 셸 + 전면창 recolor (equip-voxelize ⓑ) — 밀폐의 서명 넷(씰링 링·걸쇠·
-            //    넓은 전면창·턱 레귤레이터)을 칸 문법으로 잇는다. 창은 셸 행의 전면 아크를
-            //    흑유리 색으로 갈고 그 둘레 1칸을 프레임 톤으로 — '개스킷 창'의 명도 단차 유지.
-            const frameMat = this.tintOf(mat, -0.14);
-            const cShell = this.tintOf(mat, 0.015).color.getHex();
-            const cFrame = frameMat.color.getHex(), cGlass = 0x0a0e14, cDark = HEXOF(darkMat);
-            const PHI = 0.78;
-            const CY = 2;                            // 돔 중심(월드 0.05)
-            const v = [];
-            for (let dy = -10; dy <= 10; dy++) {     // 통짜 구 셸 (세로 0.96 눌림 반영: 세로 10.9 · 가로 11.3칸)
-                const frac = dy / 10.9;
-                const rr = 11.3 * Math.sqrt(Math.max(0, 1 - frac * frac));
-                if (rr < 0.6) { v.push({ x: 0, y: CY + dy, z: 0, c: cShell }); continue; }
-                const winRow = dy >= -4 && dy <= 4;      // 전면창 세로 대역(θ 1.20~1.98 의 칸 번역)
-                const frameRow = dy === -5 || dy === 5;  // 창틀 상·하단 행
-                for (const cc of V.ellipse(rr, rr, 1, { y0: CY + dy, color: cShell })) {   // 솔리드(visor 주석 참조)
-                    const az = Math.abs(Math.atan2(cc.x, cc.z));
-                    if (winRow && az < PHI) cc.c = cGlass;
-                    else if ((winRow && az < PHI + 0.16) || (frameRow && az < PHI + 0.1)) cc.c = cFrame;
-                    // 유리 반사 줄기 — 왼쪽 사선 한 줄(비껴 든 빛). 수직 두 줄은 긁힘으로 오독(실측).
-                    if (winRow && cc.c === cGlass && Math.abs(az + 0.30 - dy * 0.05) < 0.06 && cc.x < 0) cc.c = 0x9fb4c8;
-                    v.push(cc);
-                }
-            }
-            // 정수리 퍼지 밸브 — 돔 꼭대기 위 2단 큐브(솥뚜껑 금지 크기 유지)
-            v.push(...V.at(V.box(5, 1, 5, cFrame), -2, CY + 11, -2));
-            v.push(...V.at(V.box(3, 1, 3, cDark), -1, CY + 12, -1));
-            // ⓐ 목 실링 링 + 고무 개스킷 — 단차가 '벗겨지는 투구'의 서명
-            v.push(...V.ellipse(9.5, 9.5, 2, { y0: -7, color: cFrame, rix: 7.9, riz: 7.9 }));
-            v.push(...V.ellipse(8.9, 8.9, 1, { y0: -8, color: cDark, rix: 7.5, riz: 7.5 }));
-            vhead(v, mat, { shade: mats.kind });
-            // ⓑ 걸쇠 3개 — 앞 좌우 + 뒤 하나. 정면 한복판은 레귤레이터 자리라 비운다.
-            // 등급색이라 `rarityDecor` 차분 판정기가 이 부위를 골라 잰다.
-            for (const a of [Math.PI / 2 + 1.02, Math.PI / 2 - 1.02, -Math.PI / 2]) {
-                const latch = new THREE.Mesh(new THREE.BoxGeometry(0.046, 0.052, 0.03), rareMat);
-                latch.position.set(Math.cos(a) * 0.226, -0.138, Math.sin(a) * 0.226);
-                latch.rotation.y = Math.PI / 2 - a;
-                g.add(latch);
-            }
-            // ⓓ 턱 흡기 레귤레이터 2구 — 턱 높이(y −0.10)라야 셸보다 확실히 앞으로 나온다(⑷) — 큐브 블록
-            for (const s of [-1, 1]) {
-                const port = new THREE.Mesh(new THREE.BoxGeometry(0.095, 0.095, 0.1), frameMat);
-                port.position.set(s * 0.082, -0.1, 0.215);
-                const grille = new THREE.Mesh(new THREE.BoxGeometry(0.066, 0.066, 0.02), darkMat);
-                grille.position.set(s * 0.082, -0.1, 0.268);
-                g.add(port, grille);
-            }
-            // 후면 생명유지 커넥터 — 3/4 썸네일 카메라에서 뒤통수가 비므로 여기 질량을 하나 준다.
-            const conn = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.112, 0.05), darkMat);
-            conn.position.set(0, 0.015, -0.246);
-            const hose = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.052, 0.05), frameMat);
-            hose.position.set(0, -0.032, -0.278);
-            g.add(conn, hose);
-        } else if (style === 'bubble') {    // 🧊 우주 헬멧 — 투명 계단 돔 (equip-voxelize ⓑ)
-            // 유리라는 정체성(투명)은 재질이 나르고, 조형은 큐브 계단 셸이 나른다.
-            const bv = [];
-            for (let dy = -11; dy <= 11; dy++) {
-                const rr = 12.9 * Math.sqrt(Math.max(0, 1 - (dy / 12) * (dy / 12)));
-                if (rr < 0.6) { bv.push({ x: 0, y: dy, z: 0, c: 0xffffff }); continue; }
-                bv.push(...V.ellipse(rr, rr, 1, { y0: dy, color: 0xffffff, rix: Math.max(0, rr - 1.6), riz: Math.max(0, rr - 1.6) }));
-            }
-            const bub = Voxel.build(bv, {
-                size: HS, jitter: 0.02, ao: 0.4, center: false,
-                material: new THREE.MeshStandardMaterial({ color: c, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.12, transparent: true, opacity: 0.3, envMapIntensity: 0.25 }),
-            });
-            g.add(bub);
-            const rim = vhead(V.ring(12.2, 2.2, 2, HEXOF(mat)), mat, { shade: mats.kind });
-            rim.position.y = -0.184;
+        } else if (style === 'mask') {
+            // 가면/방독면 — 덮개(눈 위) + 코·입을 덮는 앞 박스 + 호흡 벤트. 눈은 그 사이로 열림.
+            capShell(mat, { sideBottom: yEyeBot });
+            const mh = yEyeBot - (HCY - 0.15);
+            blk(2 * OX - 0.03, mh, W + 0.02, this.tintOf(mat, -0.06), 0, (yEyeBot + (HCY - 0.15)) / 2, frontZ + 0.008);  // 하관 마스크
+            blk(0.05, 0.05, 0.05, darkMat, 0, HCY - 0.08, frontZ + 0.03);                     // 필터 캔
+            blk(0.03, 0.02, 0.02, darkMat, 0, HCY - 0.11, frontZ + 0.05);                     // 벤트
         } else if (style === 'skull') {
-            // ── 짐승 두개골 투구 (equip-era-theming ④, 원시 '해골 투구') ────────────────
-            // 🚨 **되돌려서 `visor` 로 쓰지 말 것.** 원시 4번 칸 '해골 투구'는 style `visor`,
-            //    즉 **중세 기사 풀헬름**(돔+뺨가드+눈 슬릿)이었다 — 재질만 뼈고 조형은 기사 투구라
-            //    사용자 지적 '전부 중세 같은 디자인임'의 투구 쪽 실물이다. 사람이 쓰라고 만든
-            //    **매끈한 반구**가 아니라, **짐승 머리뼈를 뒤집어쓴 것**이라야 원시로 읽힌다:
-            //    앞으로 뻗은 주둥이 · 파인 눈구멍 · 광대활 · 이빨. 이 넷이 두개골의 서명이다.
-            const cavity = new THREE.MeshBasicMaterial({ color: 0x0a0d10 });
-            // 📌 `probe-equip-framing` 잔여 1건 기록(다음 세션이 헛수고하지 말 것): 이 칸은 중심오차
-            //    x 4.7%(기준 4%)로 '치우침'에 뜬다. **주둥이 단축(0.30→0.255·z −0.025)도, 뒤통수
-            //    연장(z 1.04→1.24)도 x 를 한 눈금도 못 움직였다** — 그 지표는 1/64(≈1.56%p) 단위로
-            //    양자화돼 있고 같은 4.7% 가 `사신의 모자`·`슬라브 모자` 등 손대지 않은 칸에도 그대로
-            //    찍힌다(위반 67건은 이 스타일 신설 **전부터** 있던 것이고, 신설로 68건이 됐다).
-            //    조형 쪽 레버로는 못 넘기는 자리라 판단해 남긴다. 뒤통수 연장은 **y 오차가 3.1→2.7 로
-            //    줄고** 짐승 두개골 비례로도 맞아 그대로 둔다.
-            // 🧊 짐승 두개골을 큐브로 (equip-voxelize ⓑ) — 서명 넷(주둥이·눈구멍·광대활·이빨) 유지.
-            const cBone = HEXOF(mat), cCav = 0x0a0d10;
-            const v = [];
-            for (let dy = -9; dy <= 9; dy++) {       // 두개 — 앞뒤로 긴 타원 계단 셸(1.24 배)
-                const rr = 9.8 * Math.sqrt(Math.max(0, 1 - (dy / 9.2) * (dy / 9.2)));
-                if (rr < 0.6) { v.push({ x: 0, y: 2 + dy, z: -4, c: cBone }); continue; }
-                v.push(...V.at(V.ellipse(rr * 0.98, rr * 1.24, 1, { y0: 2 + dy, color: cBone, rix: Math.max(0, rr * 0.98 - 2.2), riz: Math.max(0, rr * 1.24 - 2.2) }), 0, 0, -4));
-            }
-            // 주둥이 — 앞으로 뻗어 가늘어지는 계단 테이퍼(짧게·뒤로 — probe-equip-framing 실측 유지)
-            v.push(...V.at(V.box(8, 5, 4, cBone), -4, -4, 3));
-            v.push(...V.at(V.box(6, 4, 3, cBone), -3, -4, 7));
-            v.push(...V.at(V.box(4, 3, 2, cBone), -2, -4, 10));
-            // 눈구멍 — 파인 검은 공동 3×3 + 위 눈두덩 브로우(+1칸 돌출 능선)
+            // 해골 투구(원시) — 뼈색 덮개 + 눈두덩 능선 + 콧구멍. 눈구멍은 열려 디캘 눈이 비친다.
+            capShell(mat);
+            blk(2 * OX, 0.03, 0.05, this.tintOf(mat, 0.05), 0, yBrow, frontZ + 0.008);        // 눈두덩 능선
+            for (const s of [-1, 1]) blk(0.06, yBrow - yEyeBot, W, this.tintOf(mat, -0.06), s * (OX - 0.045), (yBrow + yEyeBot) / 2, frontZ + 0.004);  // 관자
+            blk(0.03, 0.05, 0.03, this.tintOf(mat, -0.2), 0, HCY - 0.03, frontZ + 0.01);      // 콧구멍 그늘
+        } else if (style === 'tech') {
+            // 메카 헬름 — 덮개 + 눈썹 위 랩어라운드 흑유리 바이저 + 측면 센서/안테나. 눈은 바이저 아래로 열림.
+            capShell(mat);
+            const glassM = new THREE.MeshStandardMaterial({ color: 0x0c1016, metalness: 0.5, roughness: 0.2, emissive: pc, emissiveIntensity: 0.5, flatShading: true });
+            blk(2 * OX + 0.006, 0.045, W + 0.01, glassM, 0, yBrow + 0.01, frontZ + 0.004);    // 바이저 밴드(발광)
             for (const s of [-1, 1]) {
-                const ex = s * 5;
-                vbox2(v, ex - 1, ex + 1, 0, 2, 8, 8, cCav);
-                vbox2(v, ex - 2, ex + 2, 3, 3, 8, 8, cBone);
-                const zyg = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.036, 0.155), mat);   // 광대활(원래 박스)
-                zyg.position.set(s * 0.178, -0.030, 0.058);
-                zyg.rotation.y = -s * 0.34;
-                g.add(zyg);
+                blk(0.03, 0.10, 0.06, darkMat, s * (OX - 0.01), HCY + 0.05, 0);               // 측면 센서 하우징
+                blk(0.02, 0.14, 0.02, this.tintOf(mat, 0.1), s * (OX + 0.01), yTop + 0.06, -0.05);  // 안테나
             }
-            // 비강 — 눈 사이 아래 역삼각 구멍(2단 계단)
-            vbox2(v, -1, 0, -2, -1, 8, 8, cCav);
-            vbox2(v, 0, 0, -3, -3, 8, 8, cCav);
-            vhead(v, mat, { shade: 'soft:primal' });
-            // 위턱 이빨 — 주둥이 밑선. 송곳니 2개가 긴 2단 계단 촉.
-            for (let i = -2; i <= 2; i++) {
-                const big = Math.abs(i) === 1;
-                const tooth = new THREE.Group();
-                const t1 = new THREE.Mesh(new THREE.BoxGeometry(0.038, big ? 0.05 : 0.034, 0.032), mat);
-                const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.018, big ? 0.05 : 0.028, 0.016), mat);
-                t2.position.y = -(big ? 0.048 : 0.03);
-                tooth.add(t1, t2);
-                tooth.position.set(i * 0.048, -0.140 + Math.abs(i) * 0.012, 0.208 - Math.abs(i) * 0.028);
-                tooth.rotation.z = i * 0.10;
-                g.add(tooth);
+            blk(0.05, 0.03, 0.05, rareMat, 0, yTop + W + 0.02, 0);                            // 정수리 유닛
+        } else if (style === 'sealed') {
+            // 기밀 헬멧 — 덮개 + 눈 창 프레임 + 목 씰 링 + 턱 벤트. 눈은 창으로 열림.
+            capShell(mat, { sideBottom: yEyeBot - 0.03 });
+            browTrim();
+            for (const s of [-1, 1]) blk(0.05, yBrow - yEyeBot + 0.04, W + 0.008, this.tintOf(mat, -0.05), s * (OX - 0.035), (yBrow + yEyeBot) / 2, frontZ + 0.005);  // 창 세로 프레임
+            blk(2 * OX, 0.025, W + 0.008, this.tintOf(mat, -0.05), 0, yEyeBot - 0.01, frontZ + 0.005);  // 창 하단 프레임
+            blk(2 * OX + 0.02, 0.035, 2 * OX + 0.02, darkMat, 0, HCY - 0.14, 0);              // 목 씰 링
+            blk(0.09, 0.05, 0.05, this.tintOf(mat, -0.12), 0, HCY - 0.11, frontZ);            // 턱 벤트
+        } else {
+            // plume(깃털 장식) 및 기본 — 덮개 + 뒤로 눕는 깃털 부채.
+            capShell(mat);
+            browTrim();
+            const FAN = age === 'primitive'
+                ? [[-0.06, 0.28], [0, 0], [0.06, -0.28]]
+                : [[-0.06, 0.25], [-0.02, 0.09], [0.02, -0.09], [0.06, -0.25]];
+            const featherM = age === 'primitive' ? this.primalCordMat() : rareMat;
+            for (const [dx, tilt] of FAN) {
+                const f = new THREE.Group();
+                const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.22, 0.02), featherM);
+                leaf.position.y = 0.11;
+                const rib = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.22, 0.024), darkMat);
+                rib.position.y = 0.11;
+                f.add(leaf, rib);
+                f.position.set(dx, yTop + W, -0.06);
+                f.rotation.set(-0.34, 0, tilt);
+                g.add(f);
             }
+            blk(0.10, 0.05, 0.06, darkMat, 0, yTop + W + 0.01, -0.05);                        // 밑동 소켓
         }
-        // 시대 디테일 — halo(빛 링만)·bubble(유리 돔)은 두를 표면이 없어 제외
-        // ⚠️ fin 은 앞이 열린 사발이라 bbox 아랫단(yFrac 0.2 = 로컬 y −0.035)이 **눈높이**다.
-        //    거기 두르면 링이 흰자를 32%p 먹는다(실측 probe-fin-occluder). 높이를 옆 테두리(−0.014)
-        //    바로 위로 올리고 정면 호를 비운다 — 눈 방위각은 정면 ±33°(+튜브 5°)라 ±57°(1.0rad)면 덮는다.
-        if (style !== 'halo' && style !== 'bubble') {
-            // ⚠️ `combat`(현대 철모)은 테두리가 챙으로 0.319 까지 벌어져 있어, 갈레아용 링
-            //    (y 0.02 · r 0.245)을 그대로 두르면 **챙 밑에 통째로 묻혀 시대 디테일이 0 이 된다**.
-            //    사발 허리(y 0.105 에서 실반경 0.222)를 둘러 M1 의 헬멧 밴드로 읽히게 올린다.
-            // ⚠️ `sealed`(밀폐 투구)는 **bbox 가 가장 굵은 곳이 턱 레귤레이터**(정면 z 0.271)라
-            //    기본 yFrac 0.2 를 쓰면 링 높이가 그 레귤레이터 한복판에 떨어지고, 반경도 거기서
-            //    역산돼 그 높이의 실제 셸 반경보다 크게 잡힌다 — 함수 주석이 경고하는 '허공에 뜬
-            //    고리' 그대로다. 눈높이 밴드(y 0.02)에서 셸 실반경(0.270)을 직접 넘긴다.
-            //    `faceOpen` 도 켠다 — 이 투구는 **정면 전체가 전면창**이라, 정면 부착물(alloy 계열의
-            //    세로 발광 스트립·보석·벤트)이 유리 한복판에 박힌다. faceOpen 이면 링의 정면 ±1.0rad
-            //    이 비고 부착물이 뒤로 돌아간다(창의 각폭이 ±0.87rad 이라 정확히 덮인다).
-            // 🚨 **링 높이를 0.16 으로 올리지 말 것 — probe-equip-framing 이 즉시 4칸을 문다(A/B 실측).**
-            //    alloy 계열 트림은 세로 발광 스트립을 `y + size.y*0.2` 에 `size.y*0.3` 높이로 세운다.
-            //    링을 0.16 에 두면 그 막대가 y 0.35 까지 올라가 **잉크는 거의 없이 bbox 만 키운다** →
-            //    thumbFrameToFit 이 그 빈 꼭대기까지 맞추느라 본체가 내려앉아 중심오차 y 가
-            //    2.7%→5.5% 로 튄다(기준 4%). 우주·성간·다중 우주·양자 넷이 정확히 그렇게 걸렸고,
-            //    폴리머 트림인 현대만 멀쩡했다(막대가 없는 계열이라). 0.02 로 내리면 막대가
-            //    y 0.21 에서 끝나 돔 안에 들어오고 넷 다 풀린다. (천상 후광이 bbox 를 키워 본체를
-            //    쪼그라뜨린다는 아래 경고와 **같은 함정**이다.)
-            const finV = style === 'fin' ? this.finVariant(age) : null;
-            this.addAgeTrim(g, mats, finV === 'combat'
-                ? { y: 0.105, rx: 0.222, rz: 0.222, faceOpen: true }
-                : finV
-                ? { y: 0.02, rx: 0.245, rz: 0.245, faceOpen: true }
-                : style === 'sealed'
-                ? { y: 0.02, rx: 0.27, rz: 0.27, faceOpen: true }
-                : { yFrac: 0.2 });
-        }
-        // 천상 투구: 머리 뒤 후광 (사용자 지시 '천상→예: 예수 머리·십자가'). 무기의 후광과 같은 문법.
-        // ⚠️ halo 스타일은 그 자체가 후광이라 겹쳐 두 겹이 되면 안 된다.
-        // ⚠️ 반경을 키우지 말 것 — 후광은 자동 프레이밍의 bbox 를 그대로 키워서, 크게 잡으면
-        //    썸네일에서 **투구 본체가 쪼그라든다**(0.30 판에서 실측). 0.22 가 '보이되 안 먹는' 값이다.
-        if (age === 'divine' && style !== 'halo') this.addDivineHalo(g, 0.3, 0.22);
-        // 원시 투구: 뼈·깃털 기호 (사용자 지시 '원시→진짜 원시 같아야 함' — 갑옷 이빨 목걸이와 한 벌).
-        // 스타일은 시대 공용이라 지오메트리를 고치면 다른 시대까지 움직인다 — 천상 후광처럼 **시대 분기 가산**만 한다.
+
+        // ── 시대 가산 (스타일 공용 위에 시대 분기만 얹는다 — 종전 규약 유지) ──
+        if (age === 'divine' && style !== 'halo') this.addDivineHalo(g, yTop + 0.05, 0.22);
         if (age === 'primitive') {
-            if (style === 'visor' || style === 'mask' || style === 'cone' || style === 'skull') {
-                // 해골 투구·가면·전투 페인트: 좌우 뼈 뿔 — 88px 에서도 시대가 실루엣으로 읽힌다.
-                // ⚠️ 가면은 돔(r 0.25)이 좁아 뿔을 0.26 에 두면 전부 노출돼 화면 질량이 커지고,
-                //    3/4 썸네일 카메라에서 중심오차 4.7%(기준 4%)로 걸렸다(A/B 실측 — 뿔을 끄면 0건).
-                //    비녀·visor 처럼 밑동을 셸에 묻어 질량을 줄인다.
-                // skull 은 두개골 자체가 얼굴이라 뿔을 뒤통수 쪽(z 오프셋)에서 뻗게 해
-                // 주둥이·눈구멍과 경쟁하지 않게 한다.
-                this.addPrimalHorns(g, style === 'cone' ? 0.30 : style === 'mask' ? 0.20 : 0.26,
-                    style === 'cone' ? 0.14 : style === 'mask' ? 0.05 : style === 'skull' ? 0.14 : 0.10,
-                    style === 'mask' ? 0.85 : 0);
-                if (style === 'cone') {
-                    // '전투 페인트'인데 페인트가 없었다(3차 채점 C·D 공통 라벨-렌더 불일치) —
-                    // 황토 안료 링 2줄 + 밑단 세로 칠 자국. 원뿔(r0.26 h0.55, y0.34, z틸트 0.12)의
-                    // **자식으로** 붙여 틸트·좌표를 상수로 다시 적지 않는다(굴레 headY 규약과 같은 이유).
-                    // 🧊 voxel 원뿔은 BufferGeometry 라 타입으로 못 찾는다 — coneBody 태그로 찾고,
-                    //    안료 링도 큐브 띠로(equip-voxelize ⓑ). 원뿔 파츠의 자식이라 틸트를 물려받는다.
-                    let coneM = null; g.traverse(o => { if (o.userData && o.userData.coneBody) coneM = o; });
-                    if (coneM) {
-                        const paint = this.ageShade(new THREE.MeshStandardMaterial({ color: 0xa63c1e, metalness: 0, roughness: 0.92, vertexColors: true, flatShading: true }), 'primal');
-                        // 새 원뿔 로컬은 밑동 y=0(칸 0..23) — 종전 중심 기준 −0.14/−0.01 은 0.135/0.265 상당(칸 6/11)
-                        for (const [lyc, lr] of [[5, 8.6], [11, 6.2]]) {
-                            const ring = Voxel.build(V.ellipse(lr, lr, 2, { y0: lyc, color: 0xa63c1e, rix: lr - 1.5, riz: lr - 1.5 }),
-                                { size: HS, jitter: 0.05, ao: 0.7, center: false, material: paint });
-                            coneM.add(ring);
-                        }
-                        for (let i = -1; i <= 1; i++) {   // 밑단에서 흘러내린 세로 칠 자국 3줄
-                            const a = i * 0.5;
-                            const drip = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.09, 0.012),
-                                this.ageShade(new THREE.MeshStandardMaterial({ color: 0xa63c1e, metalness: 0, roughness: 0.92 }), 'primal'));
-                            drip.position.set(Math.sin(a) * 0.235, 0.115, Math.cos(a) * 0.235);
-                            drip.rotation.y = a;
-                            drip.rotation.x = -0.42;      // 원뿔 표면 기울기를 따라 눕힌다
-                            coneM.add(drip);
-                        }
-                    }
-                }
-            } else if (style === 'hair') {
-                // 수염(털가죽 모자): 뼈 비녀 — 사선으로 꽂힌 뼈 막대 + 양끝 마디.
-                // ⚠️ 캡(r 0.25)이 y 0.16 에서 반폭 0.206 이라, 막대 0.42 로는 양끝이 표면에 묻힌다(실측) —
-                //    0.56 으로 늘려 양끝 0.06 이상을 확실히 내민다.
-                const pin = new THREE.Group();   // 🧊 뼈 막대 → 각재 + 양끝 마디 큐브 (equip-voxelize ⓑ)
-                const rod = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.032, 0.032), this.primalBoneMat());
-                pin.add(rod);
-                for (const s of [-1, 1]) {
-                    const knob = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.055, 0.055), this.primalBoneMat());
-                    knob.position.x = s * 0.28;
-                    pin.add(knob);
-                }
-                pin.position.set(0, 0.15, 0.02);
-                pin.rotation.y = 0.35;
-                pin.rotation.z = 0.1;
-                g.add(pin);
-            }
+            if (style === 'visor' || style === 'mask' || style === 'cone' || style === 'skull')
+                this.addPrimalHorns(g, style === 'cone' ? 0.20 : 0.18, style === 'skull' ? yBrow : yTop - 0.02,
+                    style === 'mask' ? 0.85 : 1);
+            else if (style === 'hair')
+                for (const s of [-1, 1]) blk(0.05, 0.05, 0.05, this.primalBoneMat(), s * 0.14, yTop + 0.02, -0.04);  // 뼈 장식
         }
-        g.scale.setScalar(0.85); // 두상 밀착 피팅 — 헬멧이 머리보다 한 치수 커서 '풍선'으로 읽히던 문제 (비평가 3번 결함)
-        // 등급색 장식 표식 — 판정기가 **차분 규약**(껐다 켜서 기여 화소만 잰다)으로 이 부위만
-        // 골라 재게 한다(probe-white-decor). 재질 동일성으로 잡으므로 좌표를 손으로 베낄 일이 없다.
+
+        // 등급색 장식 표식 — 판정기 차분 규약(probe-white-decor)이 이 부위만 골라 잰다.
         g.traverse(o => { if (o.isMesh && o.material === rareMat) o.userData.rarityDecor = true; });
         return g;
     },
