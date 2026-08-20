@@ -26,6 +26,7 @@ TIMEOUT="${RATIO_TIMEOUT:-420}"
 # (측정 덤프는 exit 0 이 통과를 뜻하지 않으므로 여기 넣으면 거짓 초록이 된다 — 인계 메모 ㉡.)
 PROBES=(
     probe-main-px.js            # main        042120
+    probe-topbar-badge.js       # main 상단 프로필 배지 — 타일↔알약 겹침(오버행·flush). main-px 의 `프로필`은 아바타 판 잉크만 보고 이 관계는 아무도 안 봤다
     probe-techov-px.js          # tech-overview 042407
     probe-techbranch-px.js      # tech-branch 042546
     probe-geardetail-px.js      # gear-detail 043244
