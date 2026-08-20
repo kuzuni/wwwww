@@ -29,17 +29,18 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         Scene3D.clearEnemies(); if (typeof Combat !== 'undefined') Combat.enemies = [];
         const R = Scene3D.heroRig;
 
-        // 견갑 = 어깨 그룹 자식 중 **LatheGeometry 캡을 가진 Group**(pauldronG).
+        // 견갑 = 어깨 그룹 자식 중 `userData.part === 'pauldron'` 인 Group(pauldronG).
         // ⚠️ 'Group 이고 y>-0.02' 로만 거르면 상완 캡슐(this.capsule 이 Group 을 돌려준다)까지 잡혀
         //    견갑이 4개로 세어진다 — 첫 판이 그랬다. 판정 자체는 더 엄격해질 뿐이라 결론은 안 바뀌지만
         //    '최소 여유' 가 견갑이 아니라 팔까지의 거리가 돼 수치의 의미가 흐려진다.
+        // 🚨 **2026-08-20 — 옛 판은 "LatheGeometry 캡을 가진 Group" 으로 찾았다(㉡).** 캡이 voxel
+        //    (BufferGeometry)로 바뀌자 하나도 못 찾아 `ERROR: 견갑 그룹을 못 찾음` 으로 죽었다.
+        //    태그로 쥔다 — 이름표만 태그이고 치수·거리는 여전히 구워진 정점에서 나온다.
         const pauldrons = [];
         for (const a of R.arms) {
             for (const ch of a.shoulder.children) {
                 if (!ch.isGroup || ch === a.elbow) continue;
-                let lathe = false;
-                ch.traverse(o => { if (o.isMesh && o.geometry && o.geometry.type === 'LatheGeometry') lathe = true; });
-                if (lathe) pauldrons.push(ch);
+                if (ch.userData.part === 'pauldron') pauldrons.push(ch);
             }
         }
         if (!pauldrons.length) return { error: '견갑 그룹을 못 찾음' };

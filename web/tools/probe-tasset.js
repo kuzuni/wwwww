@@ -44,9 +44,12 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         let shX = 0;
         for (const arm of (R.arms || [])) {
             const sh = arm.shoulder; if (!sh) continue;
-            let cap = null;
-            sh.traverse(o => { if (!cap && o.isMesh && !o.userData.isOutline && o.geometry.type === 'LatheGeometry') cap = o; });
-            const pg = cap ? cap.parent : null;
+            // 🚨 **2026-08-20 — 여기도 `geometry.type` 으로 파츠를 찾고 있었다(㉡).** 옛 판은 견갑을
+            //    "캡(LatheGeometry)을 가진 유일한 서브트리"로 찾았는데, 견갑이 voxel(BufferGeometry)로
+            //    바뀌자 **못 찾아 `shX = 0` → ① 이 Infinity 로 떨어졌다.** 조형은 오히려 더 넓어졌는데
+            //    자만 눈이 먼 것이라, 다른 프로브와 같은 규약(태그로 쥔다)으로 통일한다.
+            let pg = null;
+            sh.traverse(o => { if (!pg && o.userData.part === 'pauldron') pg = o; });
             if (!pg) continue;
             const b = new THREE.Box3().setFromObject(pg);
             shX = Math.max(shX, Math.abs(b.max.x - bodyX.x), Math.abs(b.min.x - bodyX.x));

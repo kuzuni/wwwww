@@ -198,9 +198,14 @@ if (ONLY.length && !TARGETS.length) { console.log('그런 종이 목록에 없�
                 // 몸통 교차는 AABB로 재면 안 된다 — 영웅도 자전거도 yaw 0.55로 돌아가 있어서, 가로로 긴
                 // 핸들바(0.30×0.026)의 축정렬 상자는 실제 표면보다 뒤로 0.08쯤 부풀고, 그걸로 재면
                 // 앞에 멀쩡히 떠 있는 바도 '몸통 관통'으로 찍힌다(앞선 두 판이 전부 이 오측정이었다).
-                // 흉갑은 LatheGeometry = 척추축 회전체라 **원기둥으로 정확히 모델링**된다. 바 정점을
+                // 흉갑은 척추축 회전체라 **원기둥으로 정확히 모델링**된다. 바 정점을
                 // 촘촘히 훑어 그 원기둥 표면까지의 여유를 재면 근사 없이 답이 나온다.
-                const cuirass = (() => { let m = null; Scene3D.heroG.traverse(o => { if (!m && o.isMesh && o.geometry.type === 'LatheGeometry') m = o; }); return m; })();
+                // 🚨 **2026-08-20 — 옛 판은 흉갑을 "heroG 의 첫 LatheGeometry" 로 찾았다(㉡). 그런데
+                //    흉갑은 그보다 앞선 세션에서 이미 voxel(`Voxel.shell`)로 바뀌어 있었다** — 그래서
+                //    이 자는 흉갑이 아니라 **견갑 캡(그때 남아 있던 유일한 Lathe)을 흉갑이라 믿고**
+                //    재고 있었다. 못 찾아 죽는 것보다 나쁜 경우다(엉뚱한 파츠를 조용히 잰다).
+                //    견갑까지 voxel 이 된 지금은 아예 못 찾는다. → 태그로 쥔다.
+                const cuirass = (() => { let m = null; Scene3D.heroG.traverse(o => { if (!m && o.isMesh && o.userData.part === 'cuirass') m = o; }); return m; })();
                 let torso = null;
                 if (cuirass) {
                     cuirass.updateWorldMatrix(true, false);
