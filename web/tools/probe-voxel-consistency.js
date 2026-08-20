@@ -166,6 +166,16 @@ const MAXCELLS = process.env.VOXCON_MAXCELLS ? parseFloat(process.env.VOXCON_MAX
 
         if (want('영웅')) add('영웅', '영웅 리그(현재 장착 상태)', Scene3D.heroG);
 
+        // 적 7종 — 엔티티 분할 ②(TODO 2444)인데 이 감사에 카테고리가 빠져 있어 숫자가 없었다(2026-08-20 추가).
+        //   kind 는 (id + 챕터×2) % 7 로 정해지므로 id 0..6 을 돌리면 순서만 다를 뿐 7종 전수가 된다.
+        //   ⚠️ monsterMesh 는 HP 바(Plane 2장)까지 g 에 달아 주지만 평면도 축정렬 법선이라 비율을 안 흐린다.
+        if (want('적')) {
+            for (let i = 0; i < 7; i++) {
+                const rec = Scene3D.monsterMesh({ id: i });
+                add('적', rec.kind, rec.g);
+            }
+        }
+
         if (want('탈것')) {
             for (const nm of Object.keys(Scene3D.MOUNT_FORM_OF || {}))
                 add('탈것', nm, Scene3D.makeMountMesh(nm, 'epic'));
