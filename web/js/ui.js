@@ -312,12 +312,15 @@ const UI = {
 
     // ① 빛 모임 구간에 중심으로 빨려드는 빛줄기 — 팝만 있고 '모이는 힘'이 없으면
     // 기대감 구간이 흰 플래시 한 장으로 끝난다. 난수 대신 고정 수열로 흩어 놓는다.
-    summonStreaks() {
+    // 응축 빛줄기 수를 굴림 수에 연동(11차 2인 일치 ⑶ — 'B: tl-x5-hi/t0000 과 tl-x75/t0000 이
+    // 완전히 같은 프레임, 도입이 물량과 무연동'): x1 9줄 ~ x75 24줄. 위상·반경 수열은 그대로.
+    summonStreaks(rolls) {
         let h = '';
-        for (let i = 0; i < 14; i++) {
+        const k = U.clamp(6 + Math.round(Math.sqrt(rolls || 5) * 3), 9, 24);
+        for (let i = 0; i < k; i++) {
             // 딜레이 폭은 짧게 — 셀 등장(SR_CHARGE_MS 240ms)까지 전부 사라져야
             // 아이콘 줄 위에 흰 막대가 남지 않는다 (srstreak .18s + 최대 딜레이 60ms = 240ms)
-            h += `<i style="--a:${(i * 360 / 14 + (i % 3) * 7).toFixed(1)}deg;`
+            h += `<i style="--a:${(i * 360 / k + (i % 3) * 7).toFixed(1)}deg;`
                + `--r:${(7.5 + (i * 17) % 6)}rem;--len:${(2.2 + (i % 4) * .8).toFixed(1)}rem;`
                + `--d:${((i * 53) % 60) / 1000}s"></i>`;
         }
@@ -475,7 +478,7 @@ const UI = {
                 ${this.summonMotes()}
                 ${this.summonDust()}
                 <div class="sr-charge"></div>
-                ${this.summonStreaks()}
+                ${this.summonStreaks(rolls.length)}
                 <div class="sr-shock"></div>
                 <div class="sr-shock echo"></div>
                 <div class="sr-relights"></div>
