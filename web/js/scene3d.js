@@ -20310,6 +20310,43 @@ const Scene3D = {
     //          → 포식(턱이 **덥석** 닫히며 숨결이 뿜어진다) → 퇴장(가라앉으며 먼지)
     // ⚠️ 조형은 전부 코드 생성이다(에셋 금지). 파츠는 10개 안쪽으로 — 이 연출은 적 수만큼 뜬다.
     MAW_TELL_MS: 230,      // 발밑이 부푸는 예고 시간
+    // 🧊 아가리 공용 복셀 지오 캐시 — mawHead 의 매끈 콘(턱·뿔)과 dragonMaw 예고 흙더미 자리.
+    //    'jaw' 는 종전 Cone(r0.42, h1.25) 과 같은 치수·중심 정렬·+y 촉 규약이라 rotation.z=-π/2
+    //    배치·개폐 애니가 무수정으로 산다. 'mound' 는 반폭 1 정규화 — 쓰는 쪽이 scale 에 반경을 곱한다.
+    voxMawGeo(part) {
+        if (!this._voxMawGeo) this._voxMawGeo = {};
+        const C = this._voxMawGeo;
+        if (!C[part]) {
+            const vox = [];
+            let geo;
+            if (part === 'jaw') {                 // 계단 쐐기 턱 — 밑이 넓고 촉으로 갈수록 좁다
+                const size = 0.21;
+                for (let y = 0; y <= 5; y++) {
+                    const half = y < 2 ? 2 : y < 4 ? 1 : 0;
+                    for (let x = -half; x <= half; x++) for (let z = -half; z <= half; z++)
+                        vox.push({ x, y, z });
+                }
+                geo = Voxel.build(vox, { size, color: 0xffffff, jitter: 0.14, ao: 0.7 }).geometry;
+            } else if (part === 'horn') {         // 계단 스파이크 뿔 — 2×2 밑동 + 외기둥 3칸
+                const size = 0.13;
+                for (let x = 0; x <= 1; x++) for (let z = 0; z <= 1; z++) vox.push({ x, y: 0, z });
+                for (let y = 1; y <= 3; y++) vox.push({ x: 0, y, z: 0 });
+                geo = Voxel.build(vox, { size, color: 0xffffff, jitter: 0.12, ao: 0.6 }).geometry;
+            } else {                              // 'mound' — 흙더미 계단 봉분(반폭 1 정규화)
+                for (let y = 0; y <= 2; y++) {
+                    const r = [2.5, 1.7, 0.9][y];
+                    const ri = Math.ceil(r);
+                    for (let x = -ri; x <= ri; x++) for (let z = -ri; z <= ri; z++)
+                        if (Math.hypot(x, z) <= r + 0.1) vox.push({ x, y, z });
+                }
+                geo = Voxel.build(vox, { size: 1, color: 0x6b573f, jitter: 0.16, ao: 0.6 }).geometry;
+                geo.scale(1 / 2.5, 1 / 2.5, 1 / 2.5);
+            }
+            C[part] = geo;
+        }
+        return C[part];
+    },
+
     mawHead(color, scale) {
         // 어두운 비늘 + 스킬 색 목구멍. 색을 몸에 칠하면 '색 덩어리'가 되므로 몸은 어둡게 두고
         // **입 안쪽만** 스킬 색으로 빛낸다 — 벌어진 순간 목구멍이 읽히는 게 이 조형의 요점이다.
@@ -20320,9 +20357,16 @@ const Scene3D = {
         // 밝은 초원 위에 놓이므로 몸은 **확실히 어두워야** 실루엣이 선다(스킬 색은 살짝만 섞는다 —
         // 많이 섞으면 배경의 찬 색조에 묻혀 '보라색 조각'이 된다).
         const hide = new THREE.Color(0x1a1520).lerp(color, 0.13);
-        const mk = (geo, col) => new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col }));
-        // 위턱 / 아래턱 — 앞으로 갈수록 좁아지는 쐐기(원뿔을 눕혀 쓴다)
-        const jawGeo = () => new THREE.ConeGeometry(0.42, 1.25, 5);
+        // 🧊 캐시 복셀 지오 공유 — 정점색(jitter·AO)이 살아야 하니 vertexColors 를 켠다(흰 베이스에
+        //    구웠으므로 재질색이 그대로 지배색이 된다). dispose 금지 표식 필수(dragonMaw 가 전체 traverse).
+        const mk = (geo, col) => {
+            const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col, vertexColors: true }));
+            m.userData.sharedGeometry = true;
+            return m;
+        };
+        // 위턱 / 아래턱 — 앞으로 갈수록 좁아지는 계단 쐐기(복셀 턱을 눕혀 쓴다. 치수·+y 촉·중심
+        // 정렬이 종전 Cone(0.42, 1.25) 그대로라 rotation.z=-π/2 배치·개폐 애니 무수정)
+        const jawGeo = () => this.voxMawGeo('jaw');
         // 위턱은 밝게 · 아래턱은 어둡게 — 조명이 없으니 이 색차가 곧 입체감이다
         const upper = mk(jawGeo(), hide.clone().lerp(new THREE.Color(0xffffff), 0.12));
         upper.rotation.z = -Math.PI / 2; upper.position.set(0.45, 0.28, 0);
@@ -20330,28 +20374,33 @@ const Scene3D = {
         lower.rotation.z = -Math.PI / 2; lower.position.set(0.45, -0.06, 0);
         // 목구멍 — 입 **안쪽**에 갇혀 있어야 한다. 크고 밝게 주면 가산 합성이 머리를 통째로
         // 흰 덩어리로 밀어 조형이 사라진다(첫 캡처에서 실제로 그랬다 — 먹구름 배쪽 글로우와 같은 함정).
-        const throat = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6),
+        // 🧊 매끈 구 → 큐브(fxGeo 캐시 — scale 애니가 지오 치수 위에 얹힌다).
+        const throat = new THREE.Mesh(this.fxGeo('box', 0.3, 0.3, 0.3),
             new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        throat.userData.sharedGeometry = true;
         throat.position.set(0.16, 0.1, 0);
-        // 이빨 — 위아래 3쌍. 없으면 '입'이 아니라 '벌어진 원뿔 두 개'다.
+        // 이빨 — 위아래 3쌍. 없으면 '입'이 아니라 '벌어진 쐐기 두 개'다. 🧊 콘 → 큐브 이빨.
         const teeth = new THREE.Group();
         for (let i = 0; i < 3; i++) {
             for (const s of [1, -1]) {
-                const tth = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.26, 4),
+                const tth = new THREE.Mesh(this.fxGeo('box', 0.13, 0.24, 0.13),
                     new THREE.MeshBasicMaterial({ color: 0xf4ece0 }));
+                tth.userData.sharedGeometry = true;
                 tth.position.set(0.38 + i * 0.26, s > 0 ? 0.17 : 0.03, (i % 2 ? 0.14 : -0.14) * (i ? 1 : 0));
                 tth.rotation.z = s > 0 ? Math.PI : 0;
                 teeth.add(tth);
             }
         }
         // 뿔 2개 + 눈 2개 — 실루엣과 시선. 이 둘이 있어야 '짐승 머리'로 읽힌다.
+        // 🧊 뿔은 계단 스파이크(voxMawGeo), 눈은 큐브.
         for (const s of [1, -1]) {
-            const horn = mk(new THREE.ConeGeometry(0.09, 0.52, 4), 0xbfae96);
+            const horn = mk(this.voxMawGeo('horn'), 0xbfae96);
             horn.position.set(-0.12, 0.5, s * 0.2);
             horn.rotation.set(s * 0.3, 0, 0.5);
             G.add(horn);
-            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.075, 6, 5),
+            const eye = new THREE.Mesh(this.fxGeo('box', 0.13, 0.13, 0.13),
                 new THREE.MeshBasicMaterial({ color: 0xffe57a, toneMapped: false }));
+            eye.userData.sharedGeometry = true;
             eye.position.set(0.2, 0.34, s * 0.26);
             G.add(eye);
         }
@@ -20370,18 +20419,22 @@ const Scene3D = {
             const at = si * 140;
             // ⓐ 예고 — 발밑이 부풀고 흙먼지 링. "뭔가 올라온다"
             setTimeout(() => {
-                const mound = new THREE.Mesh(new THREE.SphereGeometry(0.5 + pw * 0.2, 10, 6),
-                    new THREE.MeshLambertMaterial({ color: 0x6b573f }));
+                // 🧊 매끈 구 → 계단 봉분(voxMawGeo 'mound' 캐시 — 반폭 1 정규화라 반경 mR 을 스케일에 곱한다)
+                const mR = 0.5 + pw * 0.2;
+                const mound = new THREE.Mesh(this.voxMawGeo('mound'),
+                    new THREE.MeshLambertMaterial({ vertexColors: true }));
                 mound.userData.mawTell = true;
+                mound.userData.sharedGeometry = true;            // 캐시 지오 — dispose 금지
                 mound.position.set(spot.x, -0.45, spot.z);
-                mound.scale.y = 0.5;
+                mound.scale.setScalar(mR);
+                mound.scale.y = 0.5 * mR;
                 this.scene.add(mound);
                 this.expandRing(new THREE.Vector3(spot.x, 0.02, spot.z), new THREE.Color(0x9c8466), 0.9);
                 this.addAnim(this.MAW_TELL_MS / 1000, k => {
                     mound.position.y = -0.45 + k * 0.4;          // 흙이 솟아오른다
-                    mound.scale.setScalar(0.7 + k * 0.5);
+                    mound.scale.setScalar(mR * (0.7 + k * 0.5));
                     mound.scale.y *= 0.55;
-                }, () => { mound.geometry.dispose(); mound.material.dispose(); this.scene.remove(mound); });
+                }, () => { mound.material.dispose(); this.scene.remove(mound); });
                 for (let i = 0; i < 5; i++) this.riseParticle(new THREE.Vector3(spot.x + U.rand(-0.4, 0.4), 0.05, spot.z + U.rand(-0.3, 0.3)), new THREE.Color(0x8a7358));
                 SFX.stormRumble(0.28);
             }, at);
@@ -20435,7 +20488,7 @@ const Scene3D = {
                             if (k > 0.5) G.rotation.x = (k - 0.5) * 0.5;
                         }, () => {
                             G.traverse(o => {
-                                if (o.isMesh && o.geometry) o.geometry.dispose();
+                                if (o.isMesh && o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
                                 if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
                             });
                             this.scene.remove(G); light.release();
