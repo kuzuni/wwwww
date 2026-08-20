@@ -18298,21 +18298,29 @@ const Scene3D = {
         }, () => { this.disposeTree(ring); this.scene.remove(ring); });
     },
 
-    // 스윙 축으로 날아가는 길쭉한 파편 쿼드 — 점 스프라이트와 달리 개체로 읽혀 버스트의 뼈대가 된다
+    // 스윙 축으로 날아가는 길쭉한 파편 블록 — 점 스프라이트와 달리 개체로 읽혀 버스트의 뼈대가 된다.
+    // 🧊 텍스처 쿼드(shardTex 종잇조각) → **각진 블록 파편** ('큐브 파편' 문법 — spawnSparks 와 같은
+    //    fxGeo 박스, 텍스처 없음). 쿼드의 '어두운 패싯'이 하던 명암 단차는 파편별 명도 지터가 잇고,
+    //    z 스핀 하나던 회전은 3축 텀블로 — 굵기(두께) 변화가 실제 측면으로 읽힌다.
     spawnShards(pos, count, colorHex, opt) {
         const o = opt || {};
         if (this.particles.length > 300) return;
+        const base = new THREE.Color(colorHex), hsl = base.getHSL({ h: 0, s: 0, l: 0 });
         for (let i = 0; i < count; i++) {
-            // 비율을 4:1 → 2:1대로 낮춘다 — 너무 가늘면 하드 에지를 줘도 '조각'이 아니라 '선'으로 읽히고,
-            // 텀블링해도 굵기 변화가 안 보인다(비평가 4차 ⓕ).
-            const sh = new THREE.Mesh(new THREE.PlaneGeometry(U.rand(0.13, 0.21) * (o.scale || 1), U.rand(0.055, 0.1) * (o.scale || 1)),
-                new THREE.MeshBasicMaterial({ map: this.shardTex(), color: colorHex, transparent: true, depthWrite: false, toneMapped: false, alphaTest: 0.35 }));
+            // 비율 2:1대 유지 — 너무 가늘면 '조각'이 아니라 '선'으로 읽힌다(비평가 4차 ⓕ). 두께는
+            // 높이의 0.7배 — 종잇장(쿼드)으로 되돌아가지 않는 최소 두께다.
+            const w = U.rand(0.13, 0.21) * (o.scale || 1), h = U.rand(0.055, 0.1) * (o.scale || 1);
+            const c = new THREE.Color().setHSL(hsl.h, hsl.s, U.clamp(hsl.l * U.rand(0.72, 1.18), 0.05, 0.95));
+            const sh = new THREE.Mesh(this.fxGeo('box', 1, 1, 1),
+                new THREE.MeshBasicMaterial({ color: c, transparent: true, depthWrite: false, toneMapped: false }));
+            sh.userData.sharedGeometry = true;   // 공유 지오 — 파티클 청소가 dispose 를 건너뛴다
+            sh.scale.set(w, h, h * 0.7);
             const ang = (o.dir || 0) + U.rand(-o.spread || -0.45, o.spread || 0.45);
             const spd = U.rand(1.8, 3.6) * (o.speed || 1); // 적 몸통이 1유닛 남짓 — 이보다 빠르면 파편이 화면 밖까지 날아가 타격점과 분리된다
             sh.position.copy(pos).addScaledVector(new THREE.Vector3(Math.cos(ang), Math.sin(ang), 0), 0.22); // 임팩트 프레임에 이미 몸 밖
-            sh.rotation.z = ang;
+            sh.rotation.set(U.rand(-0.5, 0.5), U.rand(-0.5, 0.5), ang);  // 진행각 유지 + 초기 각 흔들기
             sh.userData.vel = new THREE.Vector3(Math.cos(ang) * spd, Math.sin(ang) * spd + U.rand(0.5, 2.2), U.rand(-1, 1));
-            sh.userData.spin = U.rand(-14, 14);
+            sh.userData.tumble = new THREE.Vector3(U.rand(-9, 9), U.rand(-9, 9), U.rand(-14, 14));
             sh.userData.life = U.rand(0.28, 0.5);
             sh.userData.age = 0;
             this.scene.add(sh);
@@ -22430,27 +22438,8 @@ const Scene3D = {
     // "빛이 흩어진다"로 읽혔다(비평가 4차 ⓕ). 조각은 **경계가 또렷해야** 고체로 읽힌다.
     // 한쪽에 어두운 패싯을 넣어 텀블링(z 스핀)할 때 면이 바뀌는 게 보이게 한다 — 균일한 흰 쿼드는
     // 아무리 돌려도 정지한 막대로 보인다.
-    shardTex() {
-        if (this._shardTex) return this._shardTex;
-        const c = document.createElement('canvas');
-        c.width = c.height = 64;
-        const ctx = c.getContext('2d');
-        ctx.clearRect(0, 0, 64, 64);
-        // 끝으로 갈수록 가늘어지는 비대칭 조각 — 직사각형은 '막대기', 테이퍼가 있어야 '깨진 조각'
-        ctx.beginPath();
-        ctx.moveTo(2, 20); ctx.lineTo(46, 4); ctx.lineTo(62, 30); ctx.lineTo(40, 60); ctx.lineTo(6, 46);
-        ctx.closePath();
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-        // 어두운 패싯(조각의 그늘진 면) — 곱연산될 재질색 위에서 명암 단차가 된다
-        ctx.beginPath();
-        ctx.moveTo(46, 4); ctx.lineTo(62, 30); ctx.lineTo(40, 60);
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(0,0,0,.45)';
-        ctx.fill();
-        this._shardTex = new THREE.CanvasTexture(c);
-        return this._shardTex;
-    },
+    // (shardTex 는 spawnShards 의 블록 파편 전환으로 호출부가 사라져 삭제했다 — 되돌리면
+    //  '텍스처 종잇조각' 화풍 위반이 부활한다. 파편은 fxGeo 박스 + 명도 지터가 정답.)
     // 청키 큐브 파티클 (화풍 확정 2026-08-20 = voxel + 치비 — "스킬 이펙트 = **청키 큐브 파티클** +
     // 블록 투사체 + 볼드 플랫 섬광, **부드러운 사실 VFX 아님**"). 예전엔 가산 블렌딩 **빌보드 스프라이트**
     // (소프트 글로우 원반)였는데 그건 확정 화풍이 명시적으로 배제한 그것이라, 큐브 조형과 따로 놀았다.

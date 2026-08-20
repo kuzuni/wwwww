@@ -32,6 +32,12 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         if (typeof Combat !== 'undefined') Combat.tick = () => { };
         for (const p of Scene3D.particles.slice()) Scene3D.scene.remove(p);
         Scene3D.particles.length = 0;
+        // ⚠️ base0 을 찍기 전에 **부팅 전투가 남긴 진행 중 연출(addAnim 메시 — 파티클 배열 밖)** 을
+        //    전부 흘려보낸다. 안 그러면 그 잔여가 측정 창 안에서 스스로 정리되며 childDelta 가
+        //    -1 로 새는 간헐 FAIL 이 난다(연속 런 실측 2/3 PASS · 1/3 FAIL 로 확정한 경합).
+        for (let i = 0; i < 150; i++) Scene3D.update(1 / 60);
+        for (const p of Scene3D.particles.slice()) Scene3D.scene.remove(p);
+        Scene3D.particles.length = 0;
         const base0 = Scene3D.scene.children.length;
 
         const pos = new THREE.Vector3(0, 1, 0);
