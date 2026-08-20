@@ -2583,18 +2583,18 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.moveTo(x(.045, S), y(.20, S));
             ctx.quadraticCurveTo(x(.50, S), y(-.06, S), x(.955, S), y(.20, S));
             ctx.lineTo(x(.885, S), y(.335, S));
-            ctx.lineTo(x(.775, S), y(.245, S)); ctx.lineTo(x(.680, S), y(.455, S));
-            ctx.lineTo(x(.560, S), y(.235, S)); ctx.lineTo(x(.440, S), y(.455, S));
-            ctx.lineTo(x(.320, S), y(.235, S)); ctx.lineTo(x(.225, S), y(.445, S));
+            ctx.lineTo(x(.775, S), y(.245, S)); ctx.lineTo(x(.680, S), y(.430, S));
+            ctx.lineTo(x(.560, S), y(.235, S)); ctx.lineTo(x(.440, S), y(.430, S));
+            ctx.lineTo(x(.320, S), y(.235, S)); ctx.lineTo(x(.225, S), y(.420, S));
             ctx.lineTo(x(.115, S), y(.335, S));
             ctx.closePath();
             // 아랫턱 — 위아래 뒤집은 같은 꼴. 이빨은 윗니 사이(반 칸 어긋나게) 물린다.
             ctx.moveTo(x(.045, S), y(.80, S));
             ctx.quadraticCurveTo(x(.50, S), y(1.06, S), x(.955, S), y(.80, S));
             ctx.lineTo(x(.885, S), y(.665, S));
-            ctx.lineTo(x(.775, S), y(.755, S)); ctx.lineTo(x(.680, S), y(.545, S));
-            ctx.lineTo(x(.560, S), y(.765, S)); ctx.lineTo(x(.440, S), y(.545, S));
-            ctx.lineTo(x(.320, S), y(.765, S)); ctx.lineTo(x(.225, S), y(.555, S));
+            ctx.lineTo(x(.775, S), y(.755, S)); ctx.lineTo(x(.680, S), y(.570, S));
+            ctx.lineTo(x(.560, S), y(.765, S)); ctx.lineTo(x(.440, S), y(.570, S));
+            ctx.lineTo(x(.320, S), y(.765, S)); ctx.lineTo(x(.225, S), y(.580, S));
             ctx.lineTo(x(.115, S), y(.665, S));
             ctx.closePath();
         },
