@@ -122,7 +122,10 @@ const SKIP = { bubble: '투명 돔이 키 컬러를 물들여 색으로는 못 �
     //    시대마다 부속이 달라 눈 가림도 달라진다. age 없는 항목은 종전대로 숫자 0(=galea 등 기본).
     const STYLES = ['hair', 'cone', 'plume', 'fin', 'crown', 'tophat', 'bubble', 'halo',
         { style: 'fin', age: 'modern' }, { style: 'fin', age: 'space' },
-        { style: 'fin', age: 'interstellar' }, { style: 'fin', age: 'underworld' }];
+        { style: 'fin', age: 'interstellar' }, { style: 'fin', age: 'underworld' },
+        // `crown` 도 시대 분기가 생겼다(CROWN_VARIANT, equip-era-theming 19차) — 챙이 있는 두 변종만
+        // 따로 잰다(captain 이각모 · officer 제모). 나머지 시대는 기본 spike = 종전 'crown' 행 그대로.
+        { style: 'crown', age: 'earlyModern' }, { style: 'crown', age: 'modern' }];
     let fail = 0, pass = 0;
     console.log(`기준(투구 없음) 흰자 키 픽셀 = ${base}`);
     if (base < 200) { console.log('FAIL  기준 흰자가 너무 적다 — 카메라/키컬러 설정이 깨졌다'); fail++; }

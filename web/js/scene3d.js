@@ -5236,6 +5236,15 @@ const Scene3D = {
         divine: 'paladin',        // 팔라딘 아머 — 위로 치솟은 첨두 견갑 + 가슴 중앙 타바드 자락
     },
     plateVariant(age) { return this.PLATE_VARIANT[age] || 'knight'; },
+
+    // 그 시대의 `crown` 이 **어떤 관/모자인가** (equip-era-theming, R1 교집합 ㉢ 후반).
+    // R1 비평가 2인 공통: 스파이크 왕관이 근세 '선장 모자'·현대 '장교 모자' 자리에 그대로 —
+    // 이름이 요구하는 물건은 왕관이 아니라 **챙모자 계열**(이각모/제모)이다.
+    // ⚠️ interstellar '스텔라리움 헬름'·multiverse '픽셀 크라운'·underworld '원한의 왕관'·
+    //    divine '대천사의 관'은 이름이 실제로 관 계열이라 **일부러 spike 기본값에 남긴다**
+    //    (다만 넷이 색만 다른 같은 스파이크인 건 사실이라, 투구 크로스-시대 축을 열 때 후보다).
+    CROWN_VARIANT: { medieval: 'kabuto', earlyModern: 'captain', modern: 'officer' },
+    crownVariant(age) { return this.CROWN_VARIANT[age] || 'spike'; },
     // 어깨 위·등 뒤로 나가는 표식만 둔다 — 몸통 안쪽 장식은 96px 에서 사라진다(`vest` 에서 실측).
     addSuitEraDetail(g, sv, mat, mats, rareHex, ageHex) {
         const dark = mats ? mats.dark : mat;
@@ -7197,6 +7206,68 @@ const Scene3D = {
                     lam.position.y = 0.115 - l * 0.048;
                     g.add(lam);
                 }
+            } else if (this.crownVariant(age) === 'captain') {
+                // 근세 '선장 모자' — 이각모(bicorne). 스파이크 0. R1 ㉢: 이름이 요구하는 건 챙모자다.
+                // 넓은 타원 챙 + 좌우로 접혀 솟은 판 2장(이각모의 얼굴) + 금 테 + 정면 코케이드.
+                const dome = new THREE.Mesh(new THREE.SphereGeometry(0.205, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat);
+                dome.scale.y = 0.62;
+                dome.position.y = 0.225;
+                g.add(dome);
+                const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.315, 0.325, 0.020, 16), mat);
+                brim.scale.z = 0.62;                       // 앞뒤로 눌린 타원 챙 — 좌우가 넓다
+                brim.position.y = 0.215;
+                g.add(brim);
+                for (const s of [-1, 1]) {                 // 접혀 올라간 좌우 판 — 위 윤곽을 두 귀로 든다
+                    const flap = new THREE.Mesh(new THREE.SphereGeometry(0.155, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.42), mat);
+                    flap.scale.set(1, 0.85, 0.42);
+                    flap.position.set(s * 0.195, 0.268, 0);
+                    flap.rotation.z = -s * 1.02;           // 거의 세워 붙인다
+                    g.add(flap);
+                    const trim = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.011, 5, 12, Math.PI), rareMat);
+                    trim.position.set(s * 0.235, 0.278, 0);
+                    trim.rotation.y = Math.PI / 2;
+                    trim.rotation.z = -s * 0.10;
+                    g.add(trim);
+                }
+                const cockade = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.016, 10), rareMat);
+                cockade.rotation.x = Math.PI / 2;
+                cockade.position.set(0, 0.235, 0.208);
+                g.add(cockade);
+            } else if (this.crownVariant(age) === 'officer') {
+                // 현대 '장교 모자' — 제모(peaked cap). 스파이크 0.
+                // 넓게 뻗은 평평한 크라운(앞이 살짝 들림) + 정면 챙(바이저) + 금줄 + 모표.
+                // ⚠️ 챙은 눈 위(밴드 하단 y 0.10)에서 **아래로 꺾어 앞으로만** 낸다 —
+                //    probe-face-helmet-clear 가 흰자 가림을 잰다(9차 fin 씰링 링 사고 참조).
+                // ⚠️ 크라운 판을 y 0.265 에 두면 밴드 윗변(0.22)에서 **떠서** 모자가 두 조각으로
+                //    읽혔다(시트 실측) — 판 밑변이 밴드에 물리게 내리고, 기울임은 그만큼 얕게.
+                const top = new THREE.Mesh(new THREE.CylinderGeometry(0.295, 0.245, 0.062, 14), mat);
+                top.scale.z = 0.82;
+                top.position.y = 0.240;
+                top.rotation.x = -0.07;                    // 앞이 들리는 제모 크라운
+                g.add(top);
+                // ⚠️ 구면 캡(φ 0→0.35π)은 **림이 기하 중심보다 0.109 위**라, 중심을 판 높이에 두면
+                //    돔만 공중에 뜬다(시트 실측 2회) — 림(0.109×0.55)이 판 윗면에 닿는 높이까지 내린다.
+                const cap = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.35), mat);
+                cap.scale.y = 0.55;
+                cap.position.y = 0.207;
+                cap.rotation.x = -0.07;
+                g.add(cap);
+                // ⚠️ y 0.118 · 기울기 0.30 은 챙 앞끝이 y 0.05 까지 내려와 **흰자를 19% 가렸다**
+                //    (probe-face-helmet-clear 실측 81.2%, 하한 95). 앞끝이 브로우 라인(로컬 y 0.074)
+                //    위에 남게 올리고 눕힌다 — 0.148 − sin(0.22)×0.225 ≈ 0.099.
+                const visor = new THREE.Mesh(new THREE.CylinderGeometry(0.215, 0.235, 0.016, 12, 1, false, -Math.PI * 0.34, Math.PI * 0.68), darkMat);
+                visor.position.set(0, 0.148, 0.055);
+                visor.rotation.x = 0.22;                   // 이마에서 앞으로 내려 꺾인 챙
+                g.add(visor);
+                const braid = new THREE.Mesh(new THREE.TorusGeometry(0.228, 0.012, 5, 14, Math.PI * 0.8), rareMat);
+                braid.rotation.x = Math.PI / 2;
+                braid.rotation.z = -Math.PI * 0.40;        // 호의 중심을 정면으로
+                braid.position.y = 0.125;
+                g.add(braid);
+                const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.014, 8), rareMat);
+                badge.rotation.x = Math.PI / 2;
+                badge.position.set(0, 0.185, 0.232);
+                g.add(badge);
             } else {
                 for (let i = 0; i < 5; i++) {
                     const spike = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.14, 6), rareMat);
