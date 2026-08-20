@@ -4397,84 +4397,77 @@ const Scene3D = {
         const WS = 0.03;
         const HEXOF = m => m.color.getHex();
         const vpart = (voxels, src, opts) => { const mesh = this.voxPart(voxels, WS, src, opts); g.add(mesh); return mesh; };
+        // ⚠️ 같은 칸을 두 번 넣으면 면이 겹으로 구워져 z-파이팅이 난다 — 배열마다 점유 Set 을
+        //    물려 **먼저 쓴 쪽이 이긴다**(디테일을 먼저, 바탕 기둥을 나중에 쓰는 순서 규약).
+        const vput = (arr, x, y, z, c) => {
+            const k = x + ',' + y + ',' + z;
+            if (!arr._occ) arr._occ = new Set();
+            if (arr._occ.has(k)) return;
+            arr._occ.add(k); arr.push({ x, y, z, c });
+        };
         const vbox = (arr, x0, x1, y0, y1, z0, z1, c) => {
-            for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) arr.push({ x, y, z, c });
+            for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) vput(arr, x, y, z, c);
         };
         // 정사각 링(둘레만) — 결속 끈·소켓 밴드용
         const vring = (arr, r, y0, y1, c) => {
             for (let x = -r; x <= r - 1; x++) for (let y = y0; y <= y1; y++) for (let z = -r; z <= r - 1; z++)
-                if (x === -r || x === r - 1 || z === -r || z === r - 1) arr.push({ x, y, z, c });
+                if (x === -r || x === r - 1 || z === -r || z === r - 1) vput(arr, x, y, z, c);
         };
         switch (shape) {
             case 'sword': {
-                // 테이퍼 날(끝으로 얇고 좁게) + 풀러 홈 + 포인트 + 크로스가드 + 그립 + 폼멜
-                const blade = box(0.1, 0.62, 0.036, bladeMat, 0, 0.38);
-                { const p = blade.geometry.attributes.position;
-                  for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) { p.setX(i, p.getX(i) * 0.55); p.setZ(i, p.getZ(i) * 0.6); } // 위쪽 정점 수렴 = 테이퍼
-                  blade.geometry.computeVertexNormals(); }
-                { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.043, 0.14, 4), bladeMat); tip.position.y = 0.75; tip.rotation.y = Math.PI / 4; tip.scale.z = 0.42; g.add(tip); }
-                box(0.018, 0.56, 0.04, dark, 0, 0.36);     // 풀러(혈조) 다크 라인
-                edge(0.014, 0.58, 0.04, 0.047, 0.36);      // 앞날 하이라이트
-                cyl(0.045, 0.032, 0.05, mat, 0, 0.085);    // 가드 위 리카소 링
-                box(0.26, 0.045, 0.06, dark, 0, 0.08);     // 크로스가드
-                { const q1 = new THREE.Mesh(new THREE.SphereGeometry(0.028, 7, 6), dark); q1.position.set(0.13, 0.08, 0); g.add(q1);
-                  const q2 = q1.clone(); q2.position.x = -0.13; g.add(q2); }
-                cyl(0.03, 0.034, 0.16, wood, 0, -0.03);    // 그립
-                { const pom = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 7), dark); pom.position.y = -0.13; g.add(pom); }
+                // 🧊 검 — 큐브 적층 (equip-voxelize ⓑ 3차). 테이퍼 날 → 4→2칸 계단 날.
+                //    풀러·앞날 하이라이트는 별도 메시 대신 **열(column) 색**으로 굽는다 —
+                //    가운데 두 열 어둡게(혈조) + 한쪽 바깥 열 밝게(벼린 앞날). 큐브별 색이
+                //    voxel 문법의 디테일 수단이라는 화풍 블록 처방 그대로.
+                const bc = HEXOF(bladeMat), dc = HEXOF(dark), wc = HEXOF(wood);
+                const fullerC = new THREE.Color(bc).offsetHSL(0, 0, -0.09).getHex();
+                const edgeC = edgeHex;
+                const v = [];
+                for (let y = 3; y <= 16; y++) for (let x = -2; x <= 1; x++)      // 몸판(넓은 단)
+                    vbox(v, x, x, y, y, -1, 0, x === 1 ? edgeC : (x === -2 ? bc : fullerC));
+                for (let y = 17; y <= 26; y++) for (let x = -1; x <= 0; x++)     // 끝단(좁은 단)
+                    vbox(v, x, x, y, y, -1, 0, x === 0 ? edgeC : bc);
+                vpart(v, bladeMat);
+                box(0.26, 0.045, 0.06, dark, 0, 0.08);     // 크로스가드(원래부터 축정렬 박스)
+                box(0.058, 0.058, 0.062, dark, 0.13, 0.08);   // 퀼런 마감 큐브
+                box(0.058, 0.058, 0.062, dark, -0.13, 0.08);
+                const grip = [];
+                vbox(grip, -1, 0, -4, 2, -1, 0, wc);       // 그립 2×2
+                vbox(grip, -1, 0, -6, -5, -1, 0, dc);      // 폼멜 큐브
+                vpart(grip, wood);
                 break;
             }
-            case 'axe':
-                cyl(0.035, 0.045, 0.85, wood, 0, 0.3);
+            case 'axe': {
+                // 🧊 도끼 — 큐브 적층 (equip-voxelize ⓑ 3차). 돌도끼는 깬 돌 쐐기를 **계단
+                //    블록 덩어리**로(두께 2칸 — 얇으면 깃발로 읽히는 종전 결론 유지), 전투도끼는
+                //    수염 날(bearded)의 '아래로 늘어지는' 윤곽을 행별 x 범위 계단으로 옮긴다.
+                //    벼린 날은 바깥 열 edgeHex 색, 인셋 패널은 안쪽 열 dark 색 — 열 색이 디테일.
+                const wc = HEXOF(wood), dc = HEXOF(dark);
+                const v = [];   // ⚠️ 순서 규약: 헤드·디테일 먼저, 자루는 맨 뒤(겹친 칸은 먼저 쓴 색이 이긴다)
                 if (matKind === 'stone') {
-                    // 돌도끼(원시): 자루 홈에 얹어 끈으로 동여맨 **뗀석기 쐐기** — 사용자 지시 '원시→뗀석기'.
-                    // 종전 십이면체는 둥근 자갈이라 '막대에 얹은 돌멩이'였다. 프리미티브로는 안 된다 —
-                    // 깨낸 돌은 **직선 파세트가 한 점으로 모이는** 윤곽이라 셰이프를 직접 찍어 밀어낸다.
-                    // 두께(0.075)를 남기는 게 중요하다: 얇게 누르면 종잇장 삼각형(=깃발)으로 읽힌다.
-                    { const s = new THREE.Shape();
-                      s.moveTo(-0.025, 0.135); s.lineTo(0.10, 0.15); s.lineTo(0.215, 0.07);
-                      s.lineTo(0.265, -0.015); s.lineTo(0.185, -0.105); s.lineTo(0.055, -0.155);
-                      s.lineTo(-0.04, -0.085); s.lineTo(-0.025, 0.135);
-                      const geo = new THREE.ExtrudeGeometry(s, { depth: 0.075, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 1, curveSegments: 1 });
-                      geo.translate(0, 0, -0.0375);
-                      const head = new THREE.Mesh(geo, mat);
-                      head.position.set(0.055, 0.63, 0); head.rotation.z = -0.12; g.add(head); }
-                    edge(0.02, 0.16, 0.05, 0.3, 0.612, 0, -0.12);   // 갈아낸 날 끝
-                    lashing(0.59, 0.062);
+                    const sc = HEXOF(mat);
+                    // 뗀석기 쐐기 — +x 로 뻗는 비대칭 계단 덩어리, 바깥 끝 열은 갈아낸 날빛
+                    const ROWS = [[24, -1, 3], [22, -1, 6], [20, 0, 8], [18, 1, 7], [16, 2, 5]];
+                    for (const [y, x0, x1] of ROWS) for (let x = x0; x <= x1; x++)
+                        vbox(v, x, x, y, y + 1, -1, 0, x === x1 ? edgeHex : sc);
+                    vring(v, 2, 14, 14, dc);                 // 동여맨 끈 2줄(헤드 아래)
+                    vring(v, 2, 12, 12, dc);
                 } else {
-                    // 중세 전투도끼: 아래로 늘어진 **수염 날(bearded)** + 자루를 무는 소켓 + 상단 스파이크
-                    // + 랑겟(자루 보강 쇠띠). 상자 하나짜리 헤드는 '막대에 꽂은 판때기'로 읽혔다
-                    // (사용자 지시 '중세→중세기사 무기').
-                    // ⚠️ 첫 판에서 초승달을 **토러스 호**로 만들었다가 실패했다 — 관(tube)은 굵기가 일정해
-                    //    도끼날이 아니라 **갈고리(물음표)** 로 읽힌다. 도끼는 '넓은 판이 바깥으로 갈수록
-                    //    얇아지고 아래로 늘어지는' 면이라, 셰이프를 밀어내고 안쪽에 인셋 패널을 얹는다.
-                    const bladeShape = () => {
-                        const s = new THREE.Shape();
-                        s.moveTo(0.045, 0.125);
-                        s.lineTo(0.19, 0.115);
-                        s.quadraticCurveTo(0.325, 0.03, 0.275, -0.085);    // 바깥 날(초승달)
-                        s.quadraticCurveTo(0.20, -0.195, 0.05, -0.215);    // 아래로 늘어진 수염
-                        s.quadraticCurveTo(0.135, -0.10, 0.045, -0.03);    // 수염 안쪽 오목선
-                        s.lineTo(0.045, 0.125);
-                        return s;
-                    };
-                    { const geo = new THREE.ExtrudeGeometry(bladeShape(), { depth: 0.026, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 10 });
-                      geo.translate(0, 0, -0.013);
-                      const blade = new THREE.Mesh(geo, mat); blade.position.y = 0.62; g.add(blade); }
-                    for (const zz of [0.016, -0.024]) {   // 양 날 면의 인셋 패널 — 벼려낸 면이 읽히게
-                        const pg = new THREE.ExtrudeGeometry(bladeShape(), { depth: 0.008, bevelEnabled: false, curveSegments: 8 });
-                        pg.scale(0.72, 0.72, 1); pg.translate(0.022, 0, zz);
-                        const panel = new THREE.Mesh(pg, dark); panel.position.y = 0.62; g.add(panel);
-                    }
-                    { const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.21, 8), mat);
-                      socket.position.y = 0.62; g.add(socket); }
-                    { const spike = new THREE.Mesh(new THREE.ConeGeometry(0.033, 0.15, 4), mat);
-                      spike.position.y = 0.8; g.add(spike); }
-                    for (const ly of [0.52, 0.43]) {           // 랑겟
-                        const band = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.011, 5, 10), dark);
-                        band.rotation.x = Math.PI / 2; band.position.y = ly; g.add(band);
-                    }
+                    const sc = HEXOF(mat);
+                    vbox(v, -2, 1, 17, 23, -2, 1, sc);       // 자루를 무는 소켓 4×4
+                    vbox(v, -1, 0, 24, 27, -1, 0, sc);       // 상단 스파이크(계단)
+                    // 수염 날 — 위는 평평, 바깥으로 넓어지다 아래로 늘어진다. 바깥 끝 열 = 벼린 날,
+                    // 안쪽 두 열 = 인셋 패널(dark) — '판때기' 오독을 색 단차로 마저 깬다.
+                    const ROWS = [[22, 2, 9], [20, 2, 10], [18, 3, 10], [16, 4, 9], [14, 5, 8]];
+                    for (const [y, x0, x1] of ROWS) for (let x = x0; x <= x1; x++)
+                        vbox(v, x, x, y, y + 1, -1, 0, x === x1 ? edgeHex : (x <= x0 + 1 ? dc : sc));
+                    vring(v, 2, 15, 15, dc);                 // 랑겟(자루 보강 쇠띠)
+                    vring(v, 2, 13, 13, dc);
                 }
+                vbox(v, -1, 0, -4, 23, -1, 0, wc);           // 자루 2×2 (헤드가 문 칸은 헤드 색 유지)
+                vpart(v, matKind === 'stone' ? wood : mat);
                 break;
+            }
             case 'spear': {
                 // 🧊 창 — 큐브 적층 (equip-voxelize ⓑ 2차: 장병기). 2칸 자루 + 계단 촉.
                 //    돌창은 잎사귀꼴(배가 부푼 2→6→2 계단)로 '깬 돌', 금속창은 곧은 피라미드
@@ -4502,52 +4495,51 @@ const Scene3D = {
                 }
                 break;
             }
-            case 'hammer':
-                cyl(0.04, 0.05, 0.72, wood, 0, 0.28);
-                box(0.3, 0.2, 0.2, mat, 0, 0.66);
+            case 'hammer': {
+                // 🧊 해머 — 자루·부리·스파이크·랑겟을 큐브로 (equip-voxelize ⓑ 3차). 헤드 상자와
+                //    타격면 테는 원래 축정렬이라 그대로 둔다.
+                // ⚠️ steel 게이트를 빼지 말 것 — hammer 형상은 중력/항성/붕괴/파멸/심판 해머와 공용이라
+                //    무조건 붙이면 후기 시대 해머가 전부 중세 실루엣이 된다.
+                const wc = HEXOF(wood), dc = HEXOF(dark);
+                const v = [];
                 if (matKind === 'steel') {
-                    // 중세 워해머: 한쪽은 두들기는 타격면, 반대쪽은 판금을 뚫는 **까마귀 부리 첨두**,
-                    // 자루엔 랑겟. 상자 하나로는 '막대에 얹은 벽돌'이라 기사 무기로 안 읽힌다.
-                    // ⚠️ steel 게이트를 빼지 말 것 — hammer 형상은 중력/항성/붕괴/파멸/심판 해머와 공용이라
-                    //    무조건 붙이면 후기 시대 해머가 전부 중세 실루엣이 된다.
-                    { const beak = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.25, 4), mat);
-                      beak.position.set(-0.27, 0.68, 0); beak.rotation.z = Math.PI / 2 + 0.16;
-                      beak.scale.z = 0.72; g.add(beak); }
-                    edge(0.014, 0.19, 0.19, 0.153, 0.66);       // 타격면 테
-                    { const spike = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.13, 4), mat);
-                      spike.position.y = 0.82; g.add(spike); }
-                    for (const ly of [0.52, 0.43]) {
-                        const band = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.011, 5, 10), dark);
-                        band.rotation.x = Math.PI / 2; band.position.y = ly; g.add(band);
-                    }
+                    const sc = HEXOF(mat);
+                    // 까마귀 부리 첨두 — -x 계단 테이퍼 (판금 뚫는 첨두가 끝으로 모인다)
+                    vbox(v, -8, -6, 21, 23, -1, 0, sc);
+                    vbox(v, -11, -9, 21, 22, -1, 0, sc);
+                    vbox(v, -13, -12, 22, 22, -1, 0, sc);
+                    vbox(v, -1, 0, 26, 28, -1, 0, sc);       // 상단 스파이크(계단)
+                    vring(v, 2, 17, 17, dc);                 // 랑겟 2줄
+                    vring(v, 2, 14, 14, dc);
+                    vpart(v.splice(0), mat);                 // 금속 부속은 금속 재질로 따로 굽는다
                 }
+                vbox(v, -1, 0, -3, 20, -1, 0, wc);           // 자루 2×2 (헤드 상자 속까지)
+                vpart(v, wood);
+                box(0.3, 0.2, 0.2, mat, 0, 0.66);
+                if (matKind === 'steel') edge(0.014, 0.19, 0.19, 0.153, 0.66);   // 타격면 테
                 break;
+            }
             case 'dagger':
                 if (matKind === 'bone') {
-                    // 뼈 단검(원시): 쪼개 간 **뼈 파편**. 십자 가드도 균일한 판금 날도 있으면 안 된다 —
-                    // 종전엔 색만 아이보리인 '중세 단검'이라 원시 줄에서 유일하게 시대가 안 읽혔다
-                    // (사용자 지시 '원시→진짜 원시(뗀석기)'). 각뿔을 눌러 납작한 파편으로 만들고
-                    // 높이에 따라 폭을 흔들어 깨낸 단면을 준 뒤, 가죽만 감아 손잡이로 쓴다.
-                    { const shard = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.46, 5), mat);
-                      const p = shard.geometry.attributes.position;
-                      for (let i = 0; i < p.count; i++) {
-                          p.setZ(i, p.getZ(i) * 0.34);
-                          const j = 1 + Math.sin(p.getY(i) * 41 + p.getX(i) * 17) * 0.18;
-                          p.setX(i, p.getX(i) * j);
-                      }
-                      shard.geometry.computeVertexNormals();
-                      shard.rotation.y = 0.35; shard.position.y = 0.31; g.add(shard); }
-                    edge(0.012, 0.3, 0.028, 0.05, 0.27, 0, -0.05);  // 갈아낸 한쪽 날만 번들거림
-                    cyl(0.032, 0.026, 0.17, dark, 0, 0.0);          // 가죽 감은 자루 (가드 없음)
-                    lashing(0.06, 0.04);
-                    lashing(-0.05, 0.038);
+                    // 🧊 뼈 단검(원시) — 쪼갠 뼈 파편을 **지그재그 계단 파편**으로 (equip-voxelize
+                    //    ⓑ 3차). 십자 가드도 균일 판금 날도 없다는 원시 문법 유지 — 행마다 x 범위를
+                    //    흔들어 '깨낸 단면'을 계단으로 낸다. 가죽 감은 자루(가드 없음)도 큐브로.
+                    const bc = HEXOF(mat), dc = HEXOF(dark);
+                    const v = [];
+                    const SHARD = [[2, -2, 1], [4, -2, 2], [6, -1, 2], [8, -2, 1], [10, -1, 1], [12, -1, 2], [14, 0, 1], [16, -1, 0]];
+                    for (const [y, x0, x1] of SHARD) for (let x = x0; x <= x1; x++)
+                        vbox(v, x, x, y, y + 1, -1, 0, x === x1 ? edgeHex : bc);
+                    vring(v, 2, 1, 1, dc);                   // 감은 가죽끈(자루 위)
+                    vring(v, 2, -2, -2, dc);
+                    vbox(v, -1, 0, -4, 1, -1, 0, dc);        // 가죽 자루 2×2
+                    vpart(v, mat);
                 } else {
                     // ⚠️ 날에는 bladeMat 을 쓸 것 — mat 은 시대색 액센트라, 여기 물리면 근대 초기 단검이
                     //    '초록 판때기'가 된다(실측). 계열 규약: mat=헤드/부속, bladeMat=베는 날.
                     box(0.07, 0.4, 0.03, bladeMat, 0, 0.24);
                     edge(0.014, 0.36, 0.034, 0.037, 0.235);  // 단검 날 하이라이트
                     box(0.16, 0.04, 0.05, dark, 0, 0.03);
-                    cyl(0.03, 0.03, 0.12, wood, 0, -0.05);
+                    box(0.06, 0.12, 0.06, wood, 0, -0.05);   // 🧊 그립 — 원통 → 각기둥
                 }
                 break;
             case 'bow': {
@@ -4659,13 +4651,14 @@ const Scene3D = {
                 for (const [y, w] of DIA) vbox(cry, -w / 2, w / 2 - 1, y, y, -w / 2, w / 2 - 1, c);
                 const crys = vpart(cry, mat, { emissive: c, emissiveIntensity: 0.8, jitter: 0.03 });
                 this._staffOrb = crys;
-                // 감싸는 프레임 — xy·zy 두 평면의 정사각 테 (토러스 십자 링의 큐브 번역)
+                // 감싸는 프레임 — xy·zy 두 평면의 ㄷ자 테(바닥 행은 소켓·크리스탈과 칸이 겹쳐
+                // z-파이팅이 나므로 열고, 기둥이 소켓 옆까지 내려와 얹힌 걸로 읽는다)
                 const fr = [];
                 const fc = HEXOF(mat);
                 for (let x = -5; x <= 4; x++) for (let y = 27; y <= 36; y++)
-                    if (x === -5 || x === 4 || y === 27 || y === 36) vbox(fr, x, x, y, y, -1, 0, fc);
+                    if (x === -5 || x === 4 || y === 36) vbox(fr, x, x, y, y, -1, 0, fc);
                 for (let z = -5; z <= 4; z++) for (let y = 27; y <= 36; y++)
-                    if (z === -5 || z === 4 || y === 27 || y === 36) vbox(fr, -1, 0, y, y, z, z, fc);
+                    if (z === -5 || z === 4 || y === 36) vbox(fr, -1, 0, y, y, z, z, fc);
                 vpart(fr, mat);
                 break;
             }
@@ -4723,16 +4716,22 @@ const Scene3D = {
                 break;
             }
             case 'rapier': {
-                // 레이피어: 아주 가늘고 긴 찌르기 날 + 컵 힐트 (검과 실루엣이 확실히 갈리게)
+                // 🧊 레이피어 — 가늘고 긴 찌르기 날(원래 축정렬 박스)은 그대로, 컵 힐트·너클
+                //    보우·그립·폼멜을 큐브로 (equip-voxelize ⓑ 3차). 컵은 계단 그릇, 보우는
+                //    ㄴ자 큐브 띠 — 검과 실루엣 분리(가는 날 + 큰 힐트)를 유지한다.
                 box(0.032, 0.86, 0.032, bladeMat, 0, 0.5);
                 edge(0.012, 0.82, 0.012, 0.016, 0.5);
-                { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.1, 4), bladeMat); tip.position.y = 0.97; g.add(tip); }
-                { const cup = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat);
-                  cup.rotation.x = Math.PI; cup.position.y = 0.075; g.add(cup); }   // 컵 가드
-                { const knuck = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.008, 5, 10, Math.PI), mat);
-                  knuck.rotation.y = Math.PI / 2; knuck.position.y = 0.01; g.add(knuck); }  // 너클 보우
-                cyl(0.024, 0.026, 0.14, wood, 0, -0.04);
-                { const pom = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 6), mat); pom.position.y = -0.12; g.add(pom); }
+                box(0.032, 0.08, 0.032, bladeMat, 0, 0.96);  // 찌르기 촉(가는 각기둥 연장)
+                const hc = HEXOF(mat), wc = HEXOF(wood);
+                const v = [];
+                vbox(v, -2, 1, 2, 2, -2, 1, hc);             // 컵 가드: 위 4×4
+                vring(v, 3, 1, 1, hc);                       //          아래로 벌어지는 테 6×6(둘레)
+                for (const [x, y0, y1] of [[2, -1, 1], [2, -3, -2]])  // 너클 보우 ㄴ자
+                    vbox(v, x, x, y0, y1, -1, 0, hc);
+                vbox(v, 1, 1, -4, -4, -1, 0, hc);            // 보우가 폼멜 쪽으로 닿는 발
+                vbox(v, -1, 0, -6, -5, -1, 0, hc);           // 폼멜 큐브
+                vbox(v, -1, 0, -4, 1, -1, 0, wc);            // 그립 2×2 (맨 뒤 — 겹친 칸은 힐트 색)
+                vpart(v, mat);
                 break;
             }
             case 'scythe': {
@@ -4741,10 +4740,10 @@ const Scene3D = {
                 //    갈고리 실루엣이 남는다(도끼의 덩어리 헤드와 정반대 — 종전 의도 유지).
                 const wc = HEXOF(wood), dc = HEXOF(dark), bc = HEXOF(bladeMat);
                 const v = [];
-                vbox(v, -1, 0, -5, 28, -1, 0, wc);           // 긴 자루 2×2
-                vbox(v, -2, 1, 26, 27, -2, 1, dc);           // 날 소켓
+                vbox(v, -2, 1, 26, 26, -2, 1, dc);           // 날 소켓(자루보다 먼저 — 겹친 칸은 소켓 색)
                 vring(v, 2, 1, 1, dc);                       // 결속 끈 2줄
                 vring(v, 2, 3, 3, dc);
+                vbox(v, -1, 0, -5, 28, -1, 0, wc);           // 긴 자루 2×2
                 vpart(v, wood);
                 const b = [];
                 vbox(b, 1, 4, 27, 28, -1, 0, bc);            // 계단 낙하 날: 뿌리(수평)
