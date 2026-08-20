@@ -1883,6 +1883,7 @@ const ProChar = {
         // 🧊 진짜 단순 큐브 캐릭터 (사용자 2026-08-21 "머리1·몸통1·팔다리 각1 큐브, 맨살") —
         //    기사 리그의 모든 몸 메시를 숨기고, 관절에 살색 박스 하나씩만 얹는다. 머리(두상+눈)만 유지.
         {
+            R._simple = true;   // 통짜 박스 리그 — update 에서 팔 각도 클램프(머리 관통 방지)에 씀
             // 갑옷·스커트·눈 등 기존 몸 메시 전부 **제거**(숨김은 refreshHeroEquip 이 되살린다).
             const kill = [];
             const scan = g => g && g.traverse(o => { if (o.isMesh && !(o.userData && o.userData.simpleBox)) kill.push(o); });
@@ -2334,6 +2335,15 @@ const ProChar = {
             else if (ch === 'sx') bone.scale.x *= v;
             else if (ch === 'sy') bone.scale.y *= v;
             else if (ch === 'sz') bone.scale.z *= v;
+        }
+        // 통짜 박스 팔(팔꿈치 없음)은 어깨만 크게 돌면 머리를 관통한다 — 공격 와인드업 각을 안전 범위로 클램프.
+        //   (죽음=groundPose 는 팔이 바닥에 늘어지는 게 자연스러우니 제외. 걷기 스윙은 작아서 영향 없음.)
+        if (R._simple && !(R._clip && R._clip.groundPose)) {
+            for (const bn of ['shoulderL', 'shoulderR']) {
+                const b = R.bones[bn]; if (!b) continue;
+                b.rotation.x = Math.max(-0.85, Math.min(2.2, b.rotation.x));
+                b.rotation.z = Math.max(-0.5, Math.min(0.6, b.rotation.z));
+            }
         }
         // ── 피격 플린치 (hp-juicy 7차 잔여 ㉳ '영웅 피격 포즈 반동 부재') ──────────────────────
         // 적 쪽에서 먼저 확인된 것과 **같은 결함**이다: `Scene3D.heroHit` 은 몸통 넉백(x)과 롤(rz),
