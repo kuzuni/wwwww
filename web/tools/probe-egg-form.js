@@ -34,10 +34,20 @@ const { assertFresh } = require('./clone-fresh.js');
 assertFresh('tools/ref-cmp/clone/pets.png', ['web/js', 'web/css'], 'node tools/shot-pets.js  # 또는 shot-screens.js', { warnOnly: true });
 
 
-// [파일, 라벨, 알 하나를 감싸는 상자(x,y,w,h) — '알' 글자는 뺀다]
+/* [파일, 라벨, 알 하나를 **찾아 볼 창**(x,y,w,h) — 위아래는 손으로 자른다('알' 글자와 패널
+   구분선을 빼야 한다), **좌우는 창 안에서 자동으로 맞춘다**]
+   🚨 **좌우를 손으로 박아 두면 안 된다 — 2026-08-20 에 실제로 조용히 틀린 값을 냈다.**
+   종전엔 클론 상자가 `[306, 60, 46, 48]` 로 폭 46px 이었는데, 알에 **좌우 뿔이 생기면서 실루엣이
+   50~54px 로 넓어져** 상자 좌우로 삐져나갔다. 그러면 이 자는 **잘린 실루엣**을 재면서 아무 말도
+   안 한다(잘린 최대폭과 잘린 허리폭의 비라 그럴싸한 숫자가 나온다).
+   🚨 **게다가 캡처를 굽는 스크립트마다 화면 크기가 다르다**: `shot-pets.js` 는 **490×892**,
+   `shot-screens.js` 는 **499×892** 로 굽는다(앱 배율이 달라 알의 위치·크기가 통째로 달라진다 —
+   실측: 알 가로 범위가 298~347 ↔ 301~354). 즉 **어느 절대좌표를 박아도 다른 baker 가 구우면
+   어긋난다.** 그래서 좌우는 창 안에서 잉크의 min/max 로 잡고, **창 벽에 닿으면 exit 2(측정기 고장)**
+   로 끊는다 — 잘린 채로 숫자를 내느니 못 쟀다고 말하는 편이 낫다. */
 const CASES = [
-    { file: path.resolve(__dirname, '../ref/screens/shot-042356.png'), label: '원본 shot-042356', box: [299, 62, 46, 48] },
-    { file: path.resolve(__dirname, 'ref-cmp/clone/pets.png'), label: '클론 pets.png', box: [306, 60, 46, 48] },
+    { file: path.resolve(__dirname, '../ref/screens/shot-042356.png'), label: '원본 shot-042356', box: [292, 62, 62, 48] },
+    { file: path.resolve(__dirname, 'ref-cmp/clone/pets.png'), label: '클론 pets.png', box: [290, 58, 82, 56] },
 ];
 
 (async () => {
@@ -62,16 +72,29 @@ const CASES = [
             // 실루엣 = 흰 배경이 아닌 화소(휘도 < 232). 행마다 좌우 끝을 찾아 폭을 잰다.
             const rows = [];
             const ink = [];
+            let touchL = 0, touchR = 0;
             for (let y = by; y < by + bh; y++) {
                 let x0 = -1, x1 = -1;
                 for (let x = bx; x < bx + bw; x++) if (L(x, y) < 232) { if (x0 < 0) x0 = x; x1 = x; }
                 rows.push(x0 < 0 ? 0 : x1 - x0 + 1);
+                if (x0 === bx) touchL++;                       // 창 왼벽에 닿았다 = 잘렸거나 옆 타일이 들어왔다
+                if (x1 === bx + bw - 1) touchR++;
                 if (x0 >= 0) for (let x = x0; x <= x1; x++) ink.push(L(x, y));
             }
-            return { rows, ink, h: bh };
+            return { rows, ink, h: bh, touchL, touchR };
         }, { dataUrl, box: c.box });
 
         const rows = r.rows;
+        /* 🚨 창 벽에 닿으면 **수치를 인쇄하지 않고 끊는다.** 닿는 경우는 둘 중 하나인데 둘 다
+           측정이 무효다: ⓐ 알이 창보다 넓어 **잘렸다**(그러면 최대폭·허리폭이 둘 다 잘린 값이라
+           비율이 그럴싸하게 나온다 — 2026-08-20 에 실제로 당했다) ⓑ **옆 타일이나 패널 구분선이
+           창 안에 들어왔다**(그러면 폭이 창 전체로 튄다). 어느 쪽이든 창을 다시 잡아야 한다. */
+        if (r.touchL || r.touchR) {
+            console.log(`\n■ ${c.label}\n  🚨 자기검증 실패 — 실루엣이 창 좌우 벽에 닿는다(왼 ${r.touchL}행 · 오른 ${r.touchR}행).`);
+            console.log(`     알이 창보다 넓어 잘렸거나, 옆 타일·구분선이 창에 들어왔다. CASES 의 창(x,y,w,h)을 다시 잡을 것.`);
+            console.log(`     ⚠️ 캡처를 굽는 스크립트마다 화면 크기가 다르다(shot-pets 490×892 · shot-screens 499×892) — 어느 쪽으로 구운 PNG 인지부터 볼 것.`);
+            bad++; continue;
+        }
         const filled = rows.filter(v => v > 0).length;
         if (filled < r.h * 0.55 || Math.max(...rows) < 12) {
             console.log(`\n■ ${c.label}\n  🚨 자기검증 실패 — 실루엣이 상자를 못 채웠다(채운 행 ${filled}/${r.h}, 최대폭 ${Math.max(...rows)}). 상자 좌표를 다시 잡을 것.`);
