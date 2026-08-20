@@ -8794,7 +8794,12 @@ const Scene3D = {
             // ⓓ 커머번드 — 허리를 감는 넓은 벨크로 띠(파울드처럼 늘어지지 않는다)
             {
                 const wr = RINGS[2];
-                const cum = new THREE.Mesh(new THREE.CylinderGeometry(wr.rx * 1.04, wr.rx * 1.06, 0.115, 20, 1, true), webM);
+                // 🧊 열린 원통(커머번드 띠) → 큐브 계단 껍질(`Voxel.taper` 중공). 중심 정렬 보정 후
+                //    scale.z(타원 단면)만 원본 그대로 — 큐브가 눌리지 않게 반경은 칸으로 넣는다.
+                const cumH = Math.max(3, Math.round(cw(0.115)));
+                let cumV = V.taper(cw(wr.rx * 1.06), cw(wr.rx * 1.04), cumH, webM.color.getHex(), { t: Math.max(1, Math.round(cw(0.022))) });
+                cumV = V.at(cumV, 0, -Math.floor(cumH / 2), 0);
+                const cum = this.voxPart(cumV, AS, webM, { jitter: 0.05 });
                 cum.position.y = wr.y - 0.012;
                 cum.scale.z = wr.rz / wr.rx;
                 g.add(cum);
@@ -8804,7 +8809,13 @@ const Scene3D = {
                 const radio = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.105, 0.045), webM);
                 radio.position.set(0.135, 0.268, -0.055);
                 g.add(radio);
-                const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.006, 0.185, 6), webM);
+                // 🧊 가는 안테나 원기둥 → 큐브 막대. ⚠️ 반지름 0.006(=0.25칸)은 `Voxel.ellipse`
+                //    의 0.5칸 하한 밑이라 taper 가 **빈 배열**을 내 안테나가 통째로 사라졌다(실측:
+                //    실루엣 게이트가 carrier↔vest 를 IoU 0.90 로 반려 — 안테나 소실이 원인). 1칸
+                //    폭 큐브 기둥으로 세운다(0.024 굵기 = 원본보다 굵되 voxel 로 또렷하다).
+                const antH = Math.max(3, Math.round(cw(0.185)));
+                let antV = V.at(V.box(1, antH, 1, webM.color.getHex()), 0, -Math.floor(antH / 2), 0);
+                const ant = this.voxPart(antV, AS, webM, { jitter: 0.05 });
                 ant.position.set(0.135, 0.382, -0.055);
                 ant.rotation.z = -0.13;
                 g.add(ant);
