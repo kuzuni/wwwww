@@ -6714,11 +6714,16 @@ const Scene3D = {
                 }
             }
         } else if (style === 'cone') {      // 🧊 고깔 모자 — 계단 원뿔 + 원판 챙 (equip-voxelize ⓑ)
+            // 🧊 큐브 굵히기 (equip-voxelize — "장비 픽셀 너무 작음"). 전용 피치 HSc(0.036 > 공용 HS 0.024)로
+            //    성기게 굽고 셀 반지름/높이를 그만큼 줄여(챙 지름 30→20칸, 원뿔 높이 23→15칸) 물리 챙 반경
+            //    (0.36)·원뿔 base r(0.259)·높이(0.54)는 그대로 둔다. coneBody 자식(원시 안료 링)은 자체
+            //    피치로 따로 지어 물리 위치로 붙으므로 물리 원뿔이 동일하면 정렬 무손상.
+            const HSc = 0.036;
             const cBody = HEXOF(mat);
-            const brim = vhead(V.disc(15, 1, cBody), mat, { shade: mats.kind });
-            brim.position.y = 0.082;   // ⚠️ 0.066 은 챙이 눈썹을 스쳐 face-helmet-clear 84.5%(하한 85) — 종전 높이(0.08)로
-            const cone = vhead(V.taper(10.8, 0.5, 23, cBody), mat, { shade: mats.kind });
-            cone.position.y = 0.106;
+            const brim = this.voxPart(V.disc(10, 1, cBody), HSc, mat, { shade: mats.kind });
+            brim.position.y = 0.082; g.add(brim);   // ⚠️ 0.066 은 챙이 눈썹을 스쳐 face-helmet-clear 84.5%(하한 85) — 종전 높이(0.08)로
+            const cone = this.voxPart(V.taper(7.2, 0.33, 15, cBody), HSc, mat, { shade: mats.kind });
+            cone.position.y = 0.106; g.add(cone);
             cone.rotation.z = 0.12;          // 종전 기울임 유지(전체 회전 = 로컬 축정렬)
             cone.userData.coneBody = true;   // 원시 전투 페인트가 자식으로 붙는 자리(아래 시대 가산 참조)
         } else if (style === 'tophat') {    // 🧊 실크햇/제모 — 원판 챙 + 각단 통 + 등급색 리본 링 (equip-voxelize ⓑ)
