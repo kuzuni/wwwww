@@ -13559,113 +13559,117 @@ const Scene3D = {
             eyes(1.05, 0.21, 0.08, 0.045, 'slit', { iris: 0xff7d33, narrow: true });
             topY = 1.35;
         } else if (kind === 'goblin') {
-            // 굽은 등 이족보행: 서양배 몸통 전경 + 분절 사지 + 대형 귀 + 가시 몽둥이
-            const skinM = lam(base, ProChar.hideTex());
-            const skinD = lam(base.clone().offsetHSL(0, 0, -0.12), ProChar.hideTex());
-            const clothM = lam(new THREE.Color(0x99442e), ProChar.leatherTex()); // 러스트 레드 — 초원 배경 보호색 탈피 악센트 (비평가 지적)
-            // 몸·머리·턱·배·관절·손발이 전부 완전구였다(ⓒ). 살이라 골렘의 각진 자가 아니라 유기 변형을 건다.
-            // ⚠️ seed 를 `base + s * k`(s = -1/1) 로 짓지 말 것 — 서로 다른 파츠가 같은 값에 떨어진다.
-            //    실측: 어깨(78-5)·팔꿈치(82-9)·손(86-13)이 셋 다 73 이 돼 개체차 0.0061 로 반려됐다.
-            //    ⚠️ 좌우를 base/base+1 로 붙여 두는 것도 부족했다(0.0113) — s0 = seed*2.3391 이라
-            //       인접 seed 는 위상이 비슷하다. 파츠마다 **7 이상 벌린** 값을 쓴다.
-            const oSp = (r, w, h, seed, amp) => this.sculptOrganic(new THREE.SphereGeometry(r, w, h), seed, { amp });
+            // 🧊 **voxel 전환 6종째** (화풍 확정 2026-08-20). 굽은 등 이족보행: 서양배 몸통 전경 +
+            //    분절 사지 + 대형 귀 + 가시 몽둥이. 부위·비례·애니 훅(`anim.bleg`/`barm`/`armRJ`)·
+            //    AO 링 자리는 그대로 옮긴다. 재질은 빌더 공용 `vmat()`/`vBase` 로 새로 만든다.
+            // 🚨 `sculptOrganic`(유기 변형)은 뺀다 — 복셀은 애초에 완전구를 안 만들고(ⓒ 가 겨눈 결함이
+            //    구조적으로 사라진다), 변형을 걸면 칸이 격자에서 밀려나 **면이 축정렬을 잃는다**.
+            const skinM = vmat(vBase.clone());
+            const skinD = vmat(vBase.clone().offsetHSL(0, 0, -0.12));
+            const skinL = vmat(vBase.clone().offsetHSL(0, 0, 0.1));
+            const clothM = vmat(new THREE.Color(0x99442e), { roughness: 0.9 }); // 러스트 레드 — 초원 배경 보호색 탈피 악센트 (비평가 지적)
+            const boneM = vmat(new THREE.Color(0xf3ead6), { roughness: 0.6 });
             // 분절 다리: 대퇴 → 무릎 → 정강이 → 발
             for (const s of [-1, 1]) {
                 const hip = new THREE.Group();
                 hip.position.set(s * 0.12, 0.42, 0);
-                const hJ = mk(oSp(0.065, 8, 6, s > 0 ? 60 : 67, 0.09), skinM); // 고관절 구 — 걷기 스윙 시 몸통-다리 이음새 은폐
+                const hJ = vx(Voxel.ellipsoid(gv(0.065), gv(0.065), gv(0.065)), { material: skinM, color: 0xffffff, center: true }); // 고관절 — 걷기 스윙 시 몸통-다리 이음새 은폐
                 hip.add(hJ);
-                const thigh = limb(0.062, 0.05, 0.18, skinM);
+                const thigh = vlimb(0.062, 0.05, 0.18, skinM);
                 thigh.rotation.x = -0.3; // 웅크린 자세
                 const knee = new THREE.Group();
                 knee.position.set(0, -0.16, 0.06);
-                const shin = limb(0.045, 0.04, 0.17, skinD);
+                const shin = vlimb(0.045, 0.04, 0.17, skinD);
                 shin.rotation.x = 0.35;
-                const foot = mk(oSp(0.055, 8, 6, s > 0 ? 74 : 81, 0.10), skinM);
-                foot.position.set(0, -0.17, 0.07); foot.scale.set(0.8, 0.5, 1.7);
+                const foot = vx(Voxel.ellipsoid(1, 0.5, 2), { material: skinM, color: 0xffffff, center: true });
+                foot.position.set(0, -0.17, 0.07);
                 knee.add(shin, foot);
                 hip.add(thigh, knee);
-                // 🚨 종전엔 고관절 구(r 0.065) 둘레에 링을 뒀는데 **화면 기여가 0px 이었다** — 그 자리는
-                //    로인클로스(r 0.2~0.26, y 0.35~0.49) **안**이라 어느 각도에서도 안 보인다. 반경을 키워
-                //    꺼내면(실측 1.45배) 이번엔 천 밖으로 튀어 유출이 난다. 자리 자체가 틀린 것이다.
-                //    → 실제로 보이는 이음새인 **무릎**(허벅지 r 0.05 ↔ 정강이 r 0.045)으로 옮긴다.
+                // 🚨 종전엔 고관절 둘레에 링을 뒀는데 **화면 기여가 0px 이었다** — 그 자리는 로인클로스
+                //    안이라 어느 각도에서도 안 보인다. 실제로 보이는 이음새인 **무릎**으로 옮겨 둔 것을 유지.
                 aoRing(0.049, 0.012, 0, 0, 0, { flat: 0.55, op: 0.5, parent: knee });
-            (anim.bleg = anim.bleg || []).push({ hip, knee }); // 걷기 관절 굽힘용 피벗 노출
+                (anim.bleg = anim.bleg || []).push({ hip, knee }); // 걷기 관절 굽힘용 피벗 노출
                 g.add(hip);
             }
             // 서양배 몸통 (앞으로 굽음) + 로인클로스 + 로프 벨트
-            body = mk(oSp(0.24, 12, 10, 88, 0.10), skinM);
-            body.position.set(0, 0.62, 0.02); body.scale.set(1, 1.12, 0.92); body.rotation.x = 0.22;
-            const belly = mk(oSp(0.17, 10, 8, 95, 0.09), light);
-            belly.position.set(0, 0.55, 0.14); belly.scale.set(1, 1.1, 0.55);
-            const cloth = mk(new THREE.CylinderGeometry(0.2, 0.26, 0.14, 10, 1, true), clothM);
-            cloth.material.side = THREE.DoubleSide;
+            const bodyVox = Voxel.ellipsoid(gv(0.24), gv(0.24 * 1.12), gv(0.24 * 0.92));
+            body = vx(bodyVox, { material: skinM, color: 0xffffff, center: true });
+            body.position.set(0, 0.62, 0.02); body.rotation.x = 0.22;
+            const belly = vx(Voxel.ellipsoid(gv(0.17), gv(0.17 * 1.1), gv(0.17 * 0.55)), { material: skinL, color: 0xffffff, center: true });
+            belly.position.set(0, 0.55, 0.14);
+            const cloth = vx(Voxel.taper(gv(0.26), gv(0.2), 3, undefined, { t: 1 }), { material: clothM, color: 0xffffff, center: true });
             cloth.position.y = 0.42;
-            const rope = mk(new THREE.TorusGeometry(0.205, 0.022, 6, 12), clothM);
-            rope.rotation.x = Math.PI / 2; rope.position.y = 0.5;
+            const rope = vx(Voxel.ring(gv(0.227), 1, 1), { material: clothM, color: 0xffffff, center: true });
+            rope.position.y = 0.5;
             // 사선 가죽 밴돌리어 + 뼈 이빨 목걸이 — 초록 단색 몸통 분리 (비평가: 초록-초록 가독성 부족)
-            const strap = mk(new THREE.TorusGeometry(0.245, 0.026, 6, 18), clothM);
+            const strap = vx(Voxel.ring(gv(0.271), 1, 1), { material: clothM, color: 0xffffff, center: true });
             strap.position.set(0, 0.63, 0.02); strap.rotation.set(0.22, 0, 0.72);
-            const boneM = new THREE.MeshLambertMaterial({ color: 0xf3ead6 });
-            // 뼈 이빨 목걸이 — 몸통 타원면(회전 0.22 포함)에 밀착 앵커 + 사이 구슬로 끈 암시 (비평가: 이빨이 몸통에 떠 보임)
+            // 뼈 이빨 목걸이 — 🚨 **몸통 표면 앵커를 타원식으로 풀지 말 것(복셀에서 무너진다).**
+            //    종전 `chestPt()` 는 몸통을 매끈한 타원체로 가정해 표면 z 를 해석으로 냈다. 복셀 몸통은
+            //    계단이라 그 z 가 열마다 최대 반 칸씩 어긋나 이빨이 파묻히거나 뜬다(버섯 반점에서 겪은
+            //    자리와 같다). → **복셀 목록에서 (x,y) 열의 최전방 칸을 뽑아 그 앞에 얹는다.**
+            const frontZ = {};
+            for (const v of bodyVox) {
+                const k = v.x + ',' + v.y;
+                if (frontZ[k] === undefined || v.z > frontZ[k]) frontZ[k] = v.z;
+            }
             const neckG = new THREE.Group();
-            neckG.position.copy(body.position); neckG.rotation.x = 0.22; // 몸통과 같은 기울기 → 로컬에서 타원식이 축정렬
-            const chestPt = (nx, ny) => { // 몸통 로컬 (nx,ny) → 표면 z (살짝 파묻음)
-                const q = 1 - (nx / 0.24) ** 2 - (ny / 0.2688) ** 2;
-                return new THREE.Vector3(nx, ny, 0.2208 * Math.sqrt(Math.max(0.02, q)) * 0.97);
-            };
+            neckG.position.copy(body.position); neckG.rotation.x = 0.22; // 몸통과 같은 기울기
             for (let bi = -2; bi <= 2; bi++) {
-                const p = chestPt(bi * 0.055, 0.15 - Math.abs(bi) * 0.022);
-                const tooth2 = mk(new THREE.ConeGeometry(0.018, 0.055, 5), boneM);
-                tooth2.position.copy(p);
+                const cxi = Math.round(bi * 1.1), cyi = Math.round(3 - Math.abs(bi) * 0.45);
+                const fz = frontZ[cxi + ',' + cyi];
+                if (fz === undefined) continue;
+                const tooth2 = vx(Voxel.taper(0.9, 0.5, 2), { material: boneM, color: 0xffffff, center: true });
+                tooth2.position.set(cxi * VS, cyi * VS, (fz + 1) * VS);
                 tooth2.rotation.x = Math.PI - 0.35; // 끝 아래로 + 가슴 경사 따라 눕힘
                 neckG.add(tooth2);
                 if (bi < 2) { // 이빨 사이 구슬 — 끈 라인
-                    const bead = mk(new THREE.SphereGeometry(0.013, 6, 5), boneM);
-                    bead.position.copy(chestPt((bi + 0.5) * 0.055, 0.185 - Math.abs(bi + 0.5) * 0.022));
+                    const bxi = Math.round((bi + 0.5) * 1.1), byi = Math.round(3.7 - Math.abs(bi + 0.5) * 0.45);
+                    const bz = frontZ[bxi + ',' + byi];
+                    if (bz === undefined) continue;
+                    const bead = vx(Voxel.box(1, 1, 1), { material: boneM, color: 0xffffff, center: true, ao: 0, jitter: 0 });
+                    bead.position.set(bxi * VS, byi * VS, (bz + 1) * VS);
+                    bead.scale.setScalar(0.55);
                     neckG.add(bead);
                 }
             }
             g.add(body, belly, cloth, rope, strap, neckG);
             // 머리: 큰 두상 + 대형 뾰족귀(안쪽 어두운 이중판) + 매부리코 + 언더바이트 송곳니
-            const head = mk(oSp(0.21, 12, 10, 102, 0.07), skinM);   // 눈·귀가 상대 배치라 진폭을 낮게
-            head.position.set(0, 0.95, 0.08); head.scale.set(1, 0.95, 0.95);
-            // 턱 그룹 — 언더바이트를 앞으로 빼(두상 구에 파묻히던 문제) 송곳니를 턱에 직접 앵커 (비평가: 이빨 부유)
+            const head = vx(Voxel.ellipsoid(gv(0.21), gv(0.21 * 0.95), gv(0.21 * 0.95)), { material: skinM, color: 0xffffff, center: true });
+            head.position.set(0, 0.95, 0.08);
+            // 턱 그룹 — 언더바이트를 앞으로 빼(두상에 파묻히던 문제) 송곳니를 턱에 직접 앵커 (비평가: 이빨 부유)
             const jawG = new THREE.Group();
             jawG.position.set(0, 0.845, 0.19);
-            const jaw = mk(oSp(0.13, 10, 8, 109, 0.09), skinD);
-            jaw.scale.set(1.15, 0.55, 0.9);
+            const jaw = vx(Voxel.ellipsoid(gv(0.13 * 1.15), gv(0.13 * 0.55), gv(0.13 * 0.9)), { material: skinD, color: 0xffffff, center: true });
             jawG.add(jaw);
-            const mouthLine = mk(new THREE.SphereGeometry(0.055, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2e1c14 })); // 벌린 입 다크 심 — 입 위치 실종 지적 (비평가)
-            mouthLine.position.set(0, 0.065, 0.09); mouthLine.scale.set(1.6, 0.4, 0.5); // 턱 앞전에 걸치게 — 두상 구에 가려지지 않는 깊이
+            const mouthLine = vx(Voxel.box(4, 1, 1), { material: new THREE.MeshBasicMaterial({ color: 0x2e1c14, vertexColors: true }), color: 0xffffff, center: true, ao: 0, jitter: 0 }); // 벌린 입 다크 심 — 입 위치 실종 지적 (비평가)
+            mouthLine.position.set(0, 0.065, 0.1); mouthLine.scale.z = 0.5; // 턱 앞전에 걸치게 — 두상에 가려지지 않는 깊이
             jawG.add(mouthLine);
             for (const s of [-1, 1]) {
-                const tusk = mk(new THREE.ConeGeometry(0.02, 0.085, 6), new THREE.MeshLambertMaterial({ color: 0xf5efdd }));
-                tusk.position.set(s * 0.055, 0.05, 0.095); // 밑동은 턱 살 안, 끝은 윗입술 앞 — 턱에서 솟는 송곳니
+                const tusk = vx(Voxel.taper(0.9, 0.5, 2), { material: vmat(new THREE.Color(0xf5efdd), { roughness: 0.6 }), color: 0xffffff, center: true });
+                tusk.position.set(s * 0.055, 0.06, 0.1); // 밑동은 턱 살 안, 끝은 윗입술 앞 — 턱에서 솟는 송곳니
                 tusk.rotation.x = -0.35; // 앞으로 벌어진 언더바이트 각
                 jawG.add(tusk);
             }
-            // 목: 두상(r 0.21) 밑 · 허리: 로프 벨트(r 0.205) 바로 아래 로인클로스 경계
-            // 목 이음새 — 0.142/0.026 은 기여가 **1px**(하한 60)이라 없는 것과 같았다. 실측 배율 훑기에서
-            // 1.12 배가 **단독으로는** 유출 0 을 지키는 상한이다(1.18 배부터 2px). 다만 링 4개를 한꺼번에
-            // 켜면 겹치는 화소가 임계(휘도 −6)를 넘겨 합계에서 1px 이 샜다 — **유출은 가산적이지 않다**.
-            // 그래서 단독 상한에서 한 눈금 물러난 1.07 배(0.152/0.028)를 쓴다. 무릎 링도 같은 이유로 0.94 배.
+            // 목: 두상 밑 · 허리: 로프 벨트 바로 아래 로인클로스 경계
+            // 🚨 유출이 나면 **튜브를 굵히지 말 것** — `TorusGeometry` 의 바깥 반경 = r + tube 라 더 나간다.
+            //    반경을 줄이고 `op` 로 진하기를 되찾는 것이 정답이다(박쥐에서 실측).
             aoRing(0.152, 0.028, 0, 0.85, 0.06, { flat: 0.5 });
-            aoRing(0.203, 0.026, 0, 0.462, 0, { flat: 0.45, op: 0.44 });   // 0.216/0.028 은 유출 5px(실측 0.94배에서 0, 기여 204px)
+            aoRing(0.203, 0.026, 0, 0.462, 0, { flat: 0.45, op: 0.44 });
             g.add(head, jawG);
             for (const s of [-1, 1]) {
                 const ear = new THREE.Group();
                 ear.position.set(s * 0.19, 1.0, 0.02);
-                const earOut = mk(new THREE.ConeGeometry(0.075, 0.32, 6), skinM);
+                const earOut = vx(Voxel.taper(gv(0.075), 0.5, 6), { material: skinM, color: 0xffffff, center: true });
                 earOut.rotation.z = s * -1.85; earOut.position.x = s * 0.14;
                 earOut.scale.z = 0.45;
-                const earIn = mk(new THREE.ConeGeometry(0.045, 0.2, 6), skinD);
+                const earIn = vx(Voxel.taper(gv(0.045), 0.5, 4), { material: skinD, color: 0xffffff, center: true });
                 earIn.rotation.z = s * -1.85; earIn.position.set(s * 0.12, 0.012, 0);
                 earIn.scale.z = 0.3;
                 ear.add(earOut, earIn);
                 g.add(ear);
             }
-            const nose = mk(new THREE.ConeGeometry(0.045, 0.14, 6), skinD);
+            const nose = vx(Voxel.taper(gv(0.045), 0.5, 3), { material: skinD, color: 0xffffff, center: true });
             nose.position.set(0, 0.93, 0.3); nose.rotation.x = Math.PI / 2 - 0.35;
             g.add(nose);
             eyes(0.99, 0.28, 0.1, 0.045, 'fierce', { iris: 0xd9c422, tilt: 0.07, browColor: 0x3a4a2e, blushK: 0.66 }); // tilt 0.12→0.07 — 눈 기울기도 '화난 눈매'의 절반을 진다(cute-art-direction)
@@ -13673,31 +13677,32 @@ const Scene3D = {
             for (const s of [-1, 1]) {
                 const sh = new THREE.Group();
                 sh.position.set(s * 0.25, 0.78, 0.02);
-                const sJ = mk(oSp(0.055, 8, 6, s > 0 ? 116 : 123, 0.09), skinM); // 어깨 관절 구 — 팔 스윙 시 이음새 은폐
+                const sJ = vx(Voxel.ellipsoid(gv(0.055), gv(0.055), gv(0.055)), { material: skinM, color: 0xffffff, center: true }); // 어깨 관절 — 팔 스윙 시 이음새 은폐
                 sh.add(sJ);
-                const upper = limb(0.05, 0.042, 0.17, skinM);
+                const upper = vlimb(0.05, 0.042, 0.17, skinM);
                 upper.rotation.z = s * 0.25;
                 const elbow = new THREE.Group();
                 elbow.position.set(s * 0.05, -0.17, 0);
-                const eJ = mk(oSp(0.042, 7, 5, s > 0 ? 130 : 137, 0.09), skinM); // 팔꿈치 관절 구 — 굽힘 이음새 은폐
+                const eJ = vx(Voxel.ellipsoid(gv(0.042), gv(0.042), gv(0.042)), { material: skinM, color: 0xffffff, center: true }); // 팔꿈치 관절 — 굽힘 이음새 은폐
                 elbow.add(eJ);
-                const fore = limb(0.04, 0.036, 0.15, skinD);
-                const wristBand = mk(new THREE.CylinderGeometry(0.041, 0.041, 0.05, 8), clothM); // 손목 랩 악센트
+                const fore = vlimb(0.04, 0.036, 0.15, skinD);
+                const wristBand = vx(Voxel.ellipse(gv(0.041), gv(0.041), 1, {}), { material: clothM, color: 0xffffff, center: true }); // 손목 랩 악센트
                 wristBand.position.y = -0.12;
-                const hand = mk(oSp(0.062, 8, 6, s > 0 ? 144 : 151, 0.11), skinM); // 큼직한 주먹 — 국수 가락 팔 끝 오독 방지
-                hand.position.y = -0.16; hand.scale.set(1, 0.85, 1.1);
+                const hand = vx(Voxel.ellipsoid(gv(0.062), gv(0.062 * 0.85), gv(0.062 * 1.1)), { material: skinM, color: 0xffffff, center: true }); // 큼직한 주먹 — 국수 가락 팔 끝 오독 방지
+                hand.position.y = -0.16;
                 elbow.add(fore, wristBand, hand);
                 if (s > 0) { // 가시 몽둥이 — 주먹 중심을 자루가 관통하도록 (손목 옆 부유 금지)
                     const club = new THREE.Group();
                     club.position.y = -0.16;
-                    const shaft = mk(new THREE.CylinderGeometry(0.032, 0.06, 0.4, 7), new THREE.MeshLambertMaterial({ color: 0x6d4c41, map: ProChar.leatherTex() }));
-                    shaft.position.y = -0.1;
+                    const shaft = vx(Voxel.taper(gv(0.06), gv(0.032), 8), { material: vmat(new THREE.Color(0x6d4c41), { roughness: 0.95 }), color: 0xffffff });
+                    shaft.position.y = -0.3;
                     club.add(shaft);
                     for (let k2 = 0; k2 < 5; k2++) {
-                        const spike = mk(new THREE.ConeGeometry(0.018, 0.06, 5), new THREE.MeshLambertMaterial({ color: 0xcfd2d6 }));
+                        // 가시는 **한 칸 큐브**다 — 원뿔을 칸으로 나누면 0.36칸이라 `taper` 가 통째로 버린다.
+                        const spike = vx(Voxel.box(1, 1, 1), { material: vmat(new THREE.Color(0xcfd2d6), { roughness: 0.5 }), color: 0xffffff, center: true, ao: 0, jitter: 0 });
                         const a2 = k2 * 2.4;
-                        spike.position.set(Math.cos(a2) * 0.06, -0.2 - (k2 % 3) * 0.05, Math.sin(a2) * 0.06);
-                        spike.rotation.z = -Math.cos(a2) * 1.2; spike.rotation.x = Math.sin(a2) * 1.2;
+                        spike.position.set(Math.cos(a2) * 0.065, -0.2 - (k2 % 3) * 0.05, Math.sin(a2) * 0.065);
+                        spike.scale.setScalar(0.75);
                         club.add(spike);
                     }
                     club.rotation.z = 0.3; // 주먹에서 살짝만 기울여 — 자루가 주먹을 관통해 쥔 실루엣
@@ -13727,7 +13732,7 @@ const Scene3D = {
                 g.add(mesh);
                 return mesh;
             };
-            body = vput(Voxel.ellipsoid(gv(0.2), gv(0.22), gv(0.18)), batM, 0, 0.6, 0);
+            body = vput(Voxel.ellipsoid(gv(0.225), gv(0.245), gv(0.205)), batM, 0, 0.6, 0);
             // 몸통·다리 — '날개 달린 머리' 금지(비평가 지적): 털복숭이 몸통 + 밝은 가슴털 + 매달림 발톱 발
             vput(Voxel.ellipsoid(gv(0.125), gv(0.163), gv(0.1)), batD, 0, 0.38, -0.02);
             vput(Voxel.ellipsoid(gv(0.08), gv(0.092), gv(0.04)), batL, 0, 0.42, 0.07); // 가슴털 패치
