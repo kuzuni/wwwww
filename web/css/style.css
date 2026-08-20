@@ -4443,9 +4443,15 @@ h3.sellwarn-title, .rates-head h3,
     border-radius: .4rem; overflow: hidden; margin: 0 .35rem; /* 원본 진행 바는 등급 바보다 좌우로 8px 더 들어간다 */
 }
 .rates-prog div { position: absolute; inset: 0; background: var(--pp-blue); }
+/* 흰 수치 + 검정 키라인 — 원본 042521 의 `20/23` 을 스캔라인으로 재서 확정했다(y=604 가로 단면:
+   `K.WWWWW.KKKWWWWW.KKKKWWKKWWWWWWKKWWWWWWKK` — 흰 획 양옆 검정이 **바깥 2px**, 획 사이 4px).
+   같은 언어의 `.petup-xpbar span`(㉢ 에서 원본으로 확정, 2.5px)과 한 줄로 맞춘다 — 둘 다
+   '진행 바 위 가운데 흰 수치'다. ⚠️ `.summon-prog span` 은 여기 넣지 말 것: 그쪽은 칠이
+   `--pp-ink`(검정)라 원본에서도 민무늬다(규칙 ㉮ = 밝은 칠에만 링). */
 .rates-prog span {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     font-size: .8rem; font-weight: 900; color: #fff;
+    -webkit-text-stroke: 2.5px var(--pp-line); paint-order: stroke fill;
 }
 
 /* ===== 자동 제련 팝업 (shot-042950/043117 원본 대조 재작업) ===== */

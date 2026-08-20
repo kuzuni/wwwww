@@ -52,13 +52,30 @@ function loadScreens(){const src=fs.readFileSync(path.join(__dirname,'shot-scree
       const hardRing=sh!=='none'&&(sh.match(/0px 0px|0px -|-?\d+px 0px/g)||[]).length>=2;
       const m=(s.color||'').match(/-?[\d.]+/g)||[0,0,0];
       const ink=0.2126*+m[0]+0.7152*+m[1]+0.0722*+m[2];
-      out.push({p:pathOf(el),has:sw>0||hardRing,sw,sh:sh.slice(0,60),ink:+ink.toFixed(0),fs:+parseFloat(s.fontSize).toFixed(1),t:own.slice(0,14),color:s.color});
+      // 글자가 실제로 깔린 판의 휘도 — 자기 자신부터 위로 올라가 처음 만나는 불투명 배경.
+      let bg=null;
+      for(let e=el;e&&e!==document.documentElement;e=e.parentElement){
+        const q=(getComputedStyle(e).backgroundColor||'').match(/-?[\d.]+/g);
+        if(!q)continue;
+        if((q.length>3?+q[3]:1)<0.5)continue;
+        bg=0.2126*+q[0]+0.7152*+q[1]+0.0722*+q[2]; break;
+      }
+      out.push({p:pathOf(el),has:sw>0||hardRing,sw,sh:sh.slice(0,60),ink:+ink.toFixed(0),bg:bg===null?null:+bg.toFixed(0),fs:+parseFloat(s.fontSize).toFixed(1),t:own.slice(0,14),color:s.color});
     }
     return out;
   });
-  const need=res.filter(r=>r.ink>=128&&!r.has), over=res.filter(r=>r.ink<128&&r.has);
-  console.log(`화면 ${WANT}: 글자요소 ${res.length} · 넣을 것 ${need.length} · 뺄 것 ${over.length}`);
-  console.log('\n-- 넣을 것 --'); for(const r of need) console.log(`  ${String(r.fs+'px').padEnd(7)} ink${String(r.ink).padStart(4)} ${r.color.padEnd(18)} "${r.t}"  ${r.p}`);
+  // 검정 판 위의 밝은 글자는 **링을 넣어도 안 보인다** — 링 색이 판 색이라 아무것도 안 갈라 주고,
+  // 굵게 잡으면 글리프만 갉는다. 원본이 실제로 그렇게 돼 있다: 042521 의 ⓘ 버튼(검정 원반 위 흰 `i`)을
+  // 14배로 확대하면 **민무늬**다(획이 통짜 흰 막대 + 점). 그래서 '넣을 것'에서 빼고 따로 센다.
+  const DEAD_BG=40;   // --pp-line 이 #000 이라 이보다 어두운 판에서는 검정 링이 무의미하다
+  const dead=r=>r.bg!==null&&r.bg<=DEAD_BG;
+  const need=res.filter(r=>r.ink>=128&&!r.has&&!dead(r)), over=res.filter(r=>r.ink<128&&r.has);
+  const moot=res.filter(r=>r.ink>=128&&!r.has&&dead(r));
+  console.log(`화면 ${WANT}: 글자요소 ${res.length} · 넣을 것 ${need.length} · 뺄 것 ${over.length}`
+    + (moot.length?` · 링 무의미(검정 판 위) ${moot.length}`:''));
+  console.log('\n-- 넣을 것 --'); for(const r of need) console.log(`  ${String(r.fs+'px').padEnd(7)} ink${String(r.ink).padStart(4)} bg${String(r.bg).padStart(4)} ${r.color.padEnd(18)} "${r.t}"  ${r.p}`);
+  if(moot.length){console.log('\n-- 링 무의미(검정 판 위 · 원본도 민무늬) --');
+    for(const r of moot) console.log(`  ${String(r.fs+'px').padEnd(7)} ink${String(r.ink).padStart(4)} bg${String(r.bg).padStart(4)} "${r.t}"  ${r.p}`);}
   console.log('\n-- 뺄 것 --'); for(const r of over) console.log(`  ${String(r.fs+'px').padEnd(7)} ink${String(r.ink).padStart(4)} "${r.t}"  ${r.p}`);
   console.log('\n-- 검정 칠(상속 스트로크를 꺼야 하는 자리) --'); for(const r of res.filter(x=>x.ink<128)) console.log(`  ${String(r.fs+'px').padEnd(7)} ink${String(r.ink).padStart(4)} sw=${r.sw} sh=${r.sh} "${r.t}"  ${r.p}`);
   await b.close();
