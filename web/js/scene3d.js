@@ -9845,12 +9845,26 @@ const Scene3D = {
                 quad(0.082, 0.086, -0.098, 0.142, 0.082, 0.023, mat, { amp: 0.52, lo: 0.06 });
                 break;
             }
-            case 'Hedgehog': { // 등 가시 + 총총거리는 짧은 네 다리
-                sp(0.14, 0, 0.16, 0.02, light, 1.1, 0.85, 1.25);
-                for (let i = 0; i < 7; i++) {
-                    const a = (i / 7) * Math.PI - Math.PI / 2;
-                    const s2 = cn(0.03, 0.11, Math.sin(a) * 0.1, 0.24 + Math.cos(a) * 0.06, -0.05 - Math.abs(Math.sin(a)) * 0.04, dark);
-                    s2.rotation.z = -a * 0.8;
+            case 'Hedgehog': { // 등 전면 가시밭 + 총총거리는 짧은 네 다리
+                const bcy = 0.16, bR = [0.154, 0.119, 0.175];
+                sp(0.14, 0, bcy, 0.02, light, 1.1, 0.85, 1.25);
+                // 🚨 경미 지적 ㉩: *"가시가 목덜미에만 = 펑크 헤어."* 종전은 가시 7개를 **한 줄
+                //    부채**로만 세워, 목덜미에 볏처럼 난 모히칸이었다. 고슴도치는 **등 전면**이
+                //    가시밭이다 → 등 반구를 격자로 훑어 **짧고 촘촘한 가시 40~50개**를 표면 법선
+                //    방향으로 심는다(얼굴 앞아래는 비운다 — 코·눈 자리).
+                const up = new THREE.Vector3(0, 1, 0), q = new THREE.Vector3();
+                for (let ring = 0; ring < 5; ring++) {
+                    const el = 0.12 + ring * 0.33;             // 지평~정수리(0.12~1.44 rad)
+                    const cnt = ring === 0 ? 7 : ring === 4 ? 6 : 11;
+                    for (let k = 0; k < cnt; k++) {
+                        const az = (k / cnt) * Math.PI * 2 + ring * 0.3;
+                        const nx = Math.cos(el) * Math.sin(az), ny = Math.sin(el), nz = Math.cos(el) * Math.cos(az);
+                        if (nz > 0.45 && ny < 0.5) continue;   // 얼굴 앞아래는 민짜(코·눈 자리)
+                        const px = bR[0] * nx, py = bcy + bR[1] * ny, pz = 0.02 + bR[2] * nz;
+                        const sk = cn(0.014, 0.075, px, py, pz, dark);
+                        q.set(nx, ny * 1.15, nz).normalize();
+                        sk.quaternion.setFromUnitVectors(up, q);
+                    }
                 }
                 const snout = pv(0, 0.14, 0.14);
                 into(snout, () => { sp(0.03, 0, 0, 0.06, blk); eyes(0.05, 0.03, 0.05); });
