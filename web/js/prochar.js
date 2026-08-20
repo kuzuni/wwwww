@@ -1413,65 +1413,49 @@ const ProChar = {
             // 가죽 PBR — 범프로 근접 그레인 (비평가 7.1 5번). 헥스는 두 번의 역보정을 거쳤지만(0x6b4e3a→0x241408)
             // 조명 후 명도가 여전히 0.3대여서 값 구조에는 못 낀다 — 부츠와 같은 이유로 니어블랙으로 통일한다.
             // 손등 너클 가드(밝은 스틸)와 골드 리벳이 그대로 남으므로 '검은 뭉치'로 뭉개지지 않는다.
-            const gloveMat = deepHide;
-            const palmMat = this.deepMat({ roughness: 0.88, metalness: 0.1 });
+            // 🧊 **voxel 건틀릿 주먹** — 구·원통 11개(손바닥 구·손가락 실린더·관절/손끝/너클 구·엄지
+            //   실린더·가드 구·리벳 구·손목 토러스)를 축정렬 큐브 덩어리로 전환(화풍 확정 2026-08-20).
+            //   ⚠️ 손가락 화면 크기가 ~15px 라 매끈 손가락은 캡처에서 이미 검은 뭉치로 뭉갠다 —
+            //     voxel 에선 **청키 미튼(가죽 블록) + 앞면 세로 그루브 3줄 + 밝은 스틸 너클 큐브 4개**
+            //     로 옮겨야 손가락 수 단서가 오히려 또렷하다(크로시로드 블록 손 원리). handMount(무기
+            //     그립)은 별도 그룹이라 그립 외형은 안 바뀐다. `probe-arm-taper` 태그·반경비 유지.
+            const leatherVox = new THREE.MeshStandardMaterial({ color: 0x2b2620, metalness: 0.14, roughness: 0.86, envMapIntensity: 0.14, vertexColors: true, flatShading: true });
+            const steelHandVox = voxSteel('steel');   // 너클·가드 — R.armorMats 에 실려 등급 틴트를 받는다
+            // ⚠️ **칸을 굵게(FVOX 0.020) — 화풍 '큐브가 굵게' + `probe-hero-tris` 예산 둘 다 만족.**
+            //   0.017·그루브 판이었을 때 리그 합계가 66818 > 66000(게이트)이었다 — 잔 칸은 노출 면이
+            //   많아 삼각형을 잡아먹는다. 손가락 수 단서는 그루브가 아니라 **밝은 너클 큐브 4개**가
+            //   지므로(원판 너클 구가 하던 역할) 가죽 덩어리는 민 미튼으로 둬도 손이 읽힌다.
+            const FVOX = 0.020;
             const fist = new THREE.Group();
             fist.userData.part = 'fist';
             fist.position.y = -0.16;
-            const palm = new THREE.Mesh(new THREE.SphereGeometry(0.052, 9, 8), palmMat);
-            palm.scale.set(1.0, 1.05, 0.72); // 앞뒤로 눌린 손등 블록
-            fist.add(palm);
-            const creaseMat = new THREE.MeshBasicMaterial({ color: 0x2e2115 }); // 손가락 사이 다크 크리즈 — 같은 살구색 융합 방지 (비평가 6.8 1번)
-            for (let fi = 0; fi < 4; fi++) { // 4지 — 손등 앞면에 나란히, 아래·안쪽으로 말아쥔 2분절
-                const fx = (fi - 1.5) * 0.0235;
-                const fw = fi === 3 ? 0.017 : 0.02; // 새끼손가락만 가늘게
-                // ⚠️ 2026-08-18 6차 비평가 재지적 ㉥: "폭이 동일한 막대 5개(테이퍼 없음)".
-                //    실제로는 테이퍼가 **있었다**(밑 0.56fw → 끝 0.44fw = 21%). 다만 손가락이 화면에서
-                //    15px 남짓이라 21% = 3px 이고, 그건 눈으로 '같은 폭'과 구별되지 않는다.
-                //    → 지적을 '없다'가 아니라 '안 보인다'로 읽고 **35%(0.62 → 0.40)** 로 벌린다.
-                const prox = new THREE.Mesh(new THREE.CylinderGeometry(fw * 0.56, fw * 0.62, 0.042, 6), gloveMat);
-                prox.position.set(fx, -0.008, 0.045);
-                prox.rotation.x = -0.85; // 기절골 — 앞으로 뻗다 아래로 꺾임
-                const dist = new THREE.Mesh(new THREE.CylinderGeometry(fw * 0.40, fw * 0.48, 0.036, 6), gloveMat);
-                dist.position.set(fx, -0.045, 0.052);
-                dist.rotation.x = -2.1; // 말절골 — 손바닥 쪽으로 말림
-                const joint = new THREE.Mesh(new THREE.SphereGeometry(fw * 0.56, 6, 5), gloveMat);
-                joint.position.set(fx, -0.028, 0.058); // 두 분절 사이 관절 볼록
-                // 손끝 — 실린더 단면이 그대로 잘려 '막대를 자른 끝'으로 읽히던 것을 둥근 캡으로 마감
-                const tip = new THREE.Mesh(new THREE.SphereGeometry(fw * 0.40, 6, 5), gloveMat);
-                tip.position.set(fx, -0.061, 0.041);
-                // 너클 — 손등 가드 앞날을 따라 손가락마다 하나씩. 비평가가 '너클 없음'이라 한 자리다
-                // (가드 구체 하나로는 손가락 개수 단서가 안 생긴다). 밝은 스틸이라 니어블랙 장갑 위에서 읽힌다.
-                const knuck = new THREE.Mesh(new THREE.SphereGeometry(fw * 0.44, 6, 5), steel());
-                knuck.scale.set(1, 0.72, 0.9);
-                knuck.position.set(fx, 0.004, 0.040);
-                fist.add(prox, dist, joint, tip, knuck);
-                if (fi < 3) { // 손가락 사이 홈 — 얇은 다크 판이 분절 경계를 실루엣 안에서도 판독시킴
-                    const crease = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.05, 0.045), creaseMat);
-                    crease.position.set(fx + 0.0118, -0.026, 0.05);
-                    crease.rotation.x = -1.4;
-                    fist.add(crease);
-                }
+            // 손 덩어리 = 베벨 미튼(가죽). slab x-3..3 · y0..5 · z-1..1, 모서리 계단 1.
+            const handMesh = Voxel.build(Voxel.slab(7, 6, 3, 0xffffff, 1), { size: FVOX, material: leatherVox, color: 0xffffff, center: false, jitter: 0.06 });
+            handMesh.position.y = -2.5 * FVOX;   // y 0..5 → 중심 정렬(x·z 는 slab 이 이미 중심)
+            fist.add(handMesh);
+            // 엄지 — 안쪽(side*-x)에서 앞으로 올라오는 2칸 덩어리
+            const thumbVox = Voxel.merge(
+                Voxel.box(1, 2, 2, 0xffffff),
+                Voxel.at(Voxel.box(1, 1, 2, 0xffffff), 0, 2, 1));
+            const thumbMesh = Voxel.build(thumbVox, { size: FVOX, material: leatherVox, color: 0xffffff, center: false, jitter: 0.05 });
+            thumbMesh.position.set(side * -3 * FVOX, -1.5 * FVOX, 1.2 * FVOX);
+            fist.add(thumbMesh);
+            // 강철 너클 가드 — 손등 위 밝은 스틸 판(가죽과 명도 대비)
+            const guardMesh = Voxel.build(Voxel.slab(7, 2, 2, 0xffffff, 1), { size: FVOX, material: steelHandVox, color: 0xffffff, center: false, jitter: 0.05 });
+            guardMesh.position.set(0, 3.0 * FVOX, 0.6 * FVOX);
+            fist.add(guardMesh);
+            // 너클 큐브 4개 — 손가락마다 하나, 앞날에 나란히(손가락 개수 단서)
+            for (const kx of [-3, -1, 1, 3]) {
+                const knuck = Voxel.build(Voxel.box(1, 1, 1, 0xffffff), { size: FVOX, material: steelHandVox, color: 0xffffff, center: false, jitter: 0 });
+                knuck.position.set(kx * FVOX, 2.4 * FVOX, 1.9 * FVOX);
+                fist.add(knuck);
             }
-            // 엄지 — 손 안쪽에서 손가락들 앞을 가로지르는 2분절
-            const thumbA = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.015, 0.045, 6), gloveMat);
-            thumbA.position.set(side * -0.045, -0.022, 0.03);
-            thumbA.rotation.set(-0.5, 0, side * -0.85);
-            const thumbB = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.013, 0.036, 6), gloveMat);
-            thumbB.position.set(side * -0.022, -0.05, 0.052);
-            thumbB.rotation.set(-1.4, 0, side * -0.35);
-            fist.add(thumbA, thumbB);
-            // 강철 너클 가드 — 손등 위 장갑판 (건틀릿다움 + 프리미티브 접합 은폐)
-            // 다크 스틸은 가죽과 명도가 붙어 안 읽힘(비평가 6.8 1번) — 밝은 스틸 + 골드 리벳으로 재질 대비 확보
-            const guard = new THREE.Mesh(new THREE.SphereGeometry(0.048, 9, 7), steel());
-            guard.position.set(0, 0.012, 0.012);
-            guard.scale.set(1.15, 0.75, 0.85);
-            const gRivet = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 5), gold);
-            gRivet.position.set(0, 0.03, 0.038);
-            fist.add(guard, gRivet);
-            // 손목 가죽 스트랩 — 클로즈업 중간 디테일 (커프-주먹 경계 정의)
-            const strap = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.012, 6, 12), gloveMat);
-            strap.rotation.x = Math.PI / 2;
+            // 골드 리벳 — 가드 위 한 칸
+            const gRivet = Voxel.build(Voxel.box(1, 1, 1, 0xffffff), { size: FVOX, material: goldVox, color: 0xd9a441, center: false, jitter: 0 });
+            gRivet.position.set(0, 3.7 * FVOX, 1.8 * FVOX);
+            fist.add(gRivet);
+            // 손목 가죽 스트랩(커프-주먹 경계) — 토러스 → 큐브 링(XZ 평면이라 회전 불필요)
+            const strap = Voxel.build(Voxel.ring(2.6, 1, 1, 0xffffff), { size: FVOX, material: leatherVox, color: 0xffffff, center: true, jitter: 0.06 });
             strap.position.y = -0.135;
             const handMount = new THREE.Group();
             handMount.position.y = -0.17;
