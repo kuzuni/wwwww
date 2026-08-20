@@ -1883,9 +1883,12 @@ const ProChar = {
         // 🧊 진짜 단순 큐브 캐릭터 (사용자 2026-08-21 "머리1·몸통1·팔다리 각1 큐브, 맨살") —
         //    기사 리그의 모든 몸 메시를 숨기고, 관절에 살색 박스 하나씩만 얹는다. 머리(두상+눈)만 유지.
         {
-            // 전부 숨기고(눈 포함), 골반 한 기준에 박스를 쌓아 머리-몸통-다리가 딱 이어지게 짓는다.
-            const hideTree = g => g && g.traverse(o => { if (o.isMesh && !(o.userData && o.userData.simpleBox)) o.visible = false; });
-            hideTree(outer); hideTree(root);
+            // 전부 **제거**하고(눈·갑옷·스커트 포함 — 단순 숨김은 refreshHeroEquip 이 되살린다),
+            //   골반 한 기준에 박스를 쌓아 머리-몸통-다리가 딱 이어지게 짓는다.
+            const kill = [];
+            const scan = g => g && g.traverse(o => { if (o.isMesh && !(o.userData && o.userData.simpleBox)) kill.push(o); });
+            scan(outer); scan(root);
+            kill.forEach(o => { if (o.parent) o.parent.remove(o); });
             const skinM = new THREE.MeshStandardMaterial({ color: 0xf2c9a4, metalness: 0, roughness: 0.62, flatShading: true });
             const inkM = new THREE.MeshBasicMaterial({ color: 0x1c1c22 });
             const P = R.bones.pelvis;   // 골반 로컬 y=0 기준: 다리는 아래, 몸통·머리는 위로 쌓는다
@@ -1915,8 +1918,8 @@ const ProChar = {
             const pupilM = new THREE.MeshBasicMaterial({ color: 0x4a7a3a }); pupilM.toneMapped = false; // 초록 동공(Alex)
             const fz = headS / 2, eyeY = headCy + headS * 0.06;
             for (const sx of [-1, 1]) {
-                box(whiteM, 0.12, 0.13, 0.02, sx * 0.105, eyeY, fz + 0.001);        // 흰자
-                box(pupilM, 0.058, 0.13, 0.02, sx * 0.105 + sx * 0.030, eyeY, fz + 0.004); // 동공(바깥 절반)
+                box(whiteM, 0.12, 0.13, 0.02, sx * 0.115, eyeY, fz + 0.001);        // 흰자
+                box(pupilM, 0.06, 0.13, 0.02, sx * 0.115, eyeY, fz + 0.004);         // 동공 중앙(정면 응시 — 사시 교정)
                 box(inkM, 0.13, 0.028, 0.02, sx * 0.105, eyeY + 0.093, fz + 0.003);  // 눈썹
             }
             box(inkM, 0.14, 0.03, 0.02, 0, headCy - headS * 0.22, fz + 0.003);      // 입

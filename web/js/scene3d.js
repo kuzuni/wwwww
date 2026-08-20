@@ -393,6 +393,18 @@ const Scene3D = {
         this.heroRig = rig;
         this.setShadow(rig.group, true);
         this.applyRimLight(rig.group);
+        // 🧊 맨살 단순 캐릭터 (사용자 2026-08-21) — heroG 에서 리그 박스·얼굴만 남기고 레거시 판금/바지/부츠
+        //    (rig.group 밖 heroG 자식들)까지 전부 숨긴다. 무기/투구는 아래에서 마운트 후 각자 켠다.
+        {
+            const face = rig.faceMesh;
+            const under = (o, g) => { let p = o; while (p) { if (p === g) return true; p = p.parent; } return false; };
+            this.heroG.traverse(o => {
+                if (!o.isMesh) return;
+                if (o.userData && o.userData.simpleBox) return;
+                if (face && under(o, face)) return;
+                o.visible = false;
+            });
+        }
         // 무기: 오른손 마운트 (legacy 좌표계와 동일 — 칼날 +y)
         rig.handR.add(this.weaponG);
         this.weaponG.visible = true;
