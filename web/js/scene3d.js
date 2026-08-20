@@ -10721,7 +10721,10 @@ const Scene3D = {
             const o = { vertexColors: true, color: 0xffffff };
             if (m.transparent) { o.transparent = true; o.opacity = m.opacity; o.depthWrite = m.depthWrite; }
             if (m.side !== undefined) o.side = m.side;
-            if (!isBasic && m.emissive) o.emissive = m.emissive.clone();
+            // 🚨 emissiveIntensity 도 같이 옮긴다 — 안 옮기면 기본 1 로 굳어서, 0.4 로 설계된
+            //    유령(Spectral Tiger) 몸이 **과발광 시안으로 씻겨** 줄무늬 대비가 통째로 죽는다
+            //    (R2 C7 '집고양이' 오판의 숨은 절반이 이 캐리 누락이었다).
+            if (!isBasic && m.emissive) { o.emissive = m.emissive.clone(); o.emissiveIntensity = m.emissiveIntensity; }
             v = isBasic ? new THREE.MeshBasicMaterial(o) : new THREE.MeshLambertMaterial(o);
             VMAT.set(m, v);
             return v;
@@ -11131,7 +11134,11 @@ const Scene3D = {
                 const GM = col => (ghost ? M(col, { transparent: true, opacity: 0.6, emissive: col, emissiveIntensity: 0.4 }) : M(col));
                 const bmat = ghost ? GM(c) : mat;
                 if (ghost) g.userData.ghostMat = bmat;
-                const INK = GM(ghost ? 0x0d3b4a : 0x2b2118);   // 줄무늬/반점 — 유령은 짙은 청록으로
+                // 🚨 R2 교집합(C7): 유령 호랑이를 2인이 다 '집고양이'로 봤다 — *"줄무늬가 가늘고
+                //    저채도 청록이라 바탕에 녹는다"*. 유령 잉크는 ⓐ 거의 검정 남색으로 내리고
+                //    ⓑ 발광을 몸(0.4)보다 훨씬 약하게(0.12) ⓒ 몸(0.6)보다 진한 불투명도 0.85 로
+                //    올린다 — 반투명 규약은 지키되(스티커 금지 주석) 줄무늬가 먼저 읽히게.
+                const INK = ghost ? M(0x08222e, { transparent: true, opacity: 0.85, emissive: 0x08222e, emissiveIntensity: 0.12 }) : GM(0x2b2118);
                 const CREAM = GM(ghost ? 0xd6f7ff : 0xf7efdf); // 주둥이·턱·배 — 고양잇과 공통 밝은 부위
                 // 체형표: r=몸통 반지름 · s=몸통 배율 · up/lo=다리 2분절 · dx=다리 간격 · hr=두상
                 // 고양이는 작고 가늘게, 호랑이는 길고 크게, 검치호는 짧고 두껍게(스밀로돈 = 어깨가
@@ -11148,7 +11155,11 @@ const Scene3D = {
                 //    송곳니·어깨 혹·몽당꼬리이지 무늬가 아니다. 무늬 없는 단색이 더 정확하다.
                 // 띠가 굵고 성기면 호랑이가 아니라 **꿀벌**로 읽힌다(4띠·두께 0.032 판 실측).
                 // 가늘고 촘촘하게 — 실제 호랑이 줄무늬의 인상은 개수에서 온다.
-                if (isTiger) stripeBands([0.15, 0.10, 0.05, 0.0, -0.05, -0.10, -0.16], INK, 0.021);
+                // ⚠️ 유령만 6띠·0.027 로 한 단계 굵게 — 반투명 몸에서는 0.021 띠가 배경과 섞여
+                //    사라진다(R2 C7). 불투명 호랑이의 7띠·0.021 은 그대로(꿀벌 상한과 판독 사이).
+                if (isTiger) stripeBands(
+                    ghost ? [0.14, 0.085, 0.03, -0.025, -0.08, -0.14] : [0.15, 0.10, 0.05, 0.0, -0.05, -0.10, -0.16],
+                    INK, ghost ? 0.027 : 0.021);
                 sp(P.r * 0.52, 0, hipY + 0.012, 0.02, CREAM, 1.0, 0.5, 1.5);                     // 밝은 배
                 const neck = pv(0, bodyY + P.r * P.s[1] * 0.52, P.r * P.s[2] * 0.62);
                 into(neck, () => {
@@ -11158,9 +11169,28 @@ const Scene3D = {
                     // 고양이 귀를 0.095 로 세웠더니 여우·토끼로 읽혔다(탈것 당나귀 귀와 같은 함정) — 0.072 로.
                     const er = saber ? 0.030 : isTiger ? 0.036 : 0.040, eh = saber ? 0.055 : isTiger ? 0.062 : 0.072;
                     for (const s of [-1, 1]) {
-                        cn(er, eh, s * P.hr * 0.62, P.hr * 1.9, 0.0, bmat);
-                        if (isTiger) sp(0.016, s * P.hr * 0.62, P.hr * 1.95, -0.018, CREAM, 1, 1, 0.4);   // 귀 뒤 흰 점
-                        if (!isTiger && !saber) cn(er * 0.55, eh * 0.6, s * P.hr * 0.62, P.hr * 1.86, 0.012, M(0xf3b8c2)); // 고양이 분홍 귓속
+                        if (!isTiger && !saber) {
+                            // 🚨 R2 교집합(A5): 고양이 귀 원뿔(cn)이 voxel 격자에서 5칸 계단 관으로 밀려
+                            //    **둥근 통 귀**가 됐고, 2인이 그걸 근거로 생쥐/당나귀라 답했다. 고양이의
+                            //    서명은 '선 삼각귀'다 — 원뿔 적층 대신 **삼각 판**(행 폭 5→5→3→3→1,
+                            //    두께 2칸)으로 세운다. 블록 눈과 같은 문법(작은 파츠는 구/원뿔이 아니라 판).
+                            //    귓속 분홍도 원뿔 대신 앞면에 붙는 **작은 삼각 판**(폭 3→1, 1칸 두께)으로.
+                            // ⚠️ 1판(폭 5·5행·y 1.9hr)은 아랫줄 둘이 두상에 통째로 잠겨 **끝 3줄짜리 혹**
+                            //    으로 찍혔다(캡처 실측) — 판은 두상 위로 세워야 삼각이 산다: 폭 7·6행,
+                            //    중심 y 2.05hr(밑줄 한 칸만 두상에 물린다).
+                            let tri = [], inner = [];
+                            for (const [w, j] of [[7, 0], [7, 1], [5, 2], [5, 3], [3, 4], [1, 5]])
+                                tri = Voxel.merge(tri, Voxel.at(Voxel.box(w, 1, 2), -(w >> 1), j, 0));
+                            for (const [w, j] of [[3, 0], [3, 1], [1, 2]])
+                                inner = Voxel.merge(inner, Voxel.at(Voxel.box(w, 1, 1), -(w >> 1), j, 0));
+                            const ear = vox(tri, bmat, s * P.hr * 0.62, P.hr * 2.05, 0.0);
+                            ear.rotation.z = -s * 0.14;            // 살짝 바깥으로 — 쫑긋 선 인상
+                            const pink = vox(inner, M(0xf3b8c2), s * P.hr * 0.62, P.hr * 2.0, 0.016);
+                            pink.rotation.z = -s * 0.14;
+                        } else {
+                            cn(er, eh, s * P.hr * 0.62, P.hr * 1.9, 0.0, bmat);
+                            if (isTiger) sp(0.016, s * P.hr * 0.62, P.hr * 1.95, -0.018, CREAM, 1, 1, 0.4);   // 귀 뒤 흰 점
+                        }
                     }
                     sp(P.hr * 0.56, 0, P.hr * 0.62, P.hr * 0.92, CREAM, 1.25, 0.85, 0.8);        // 주둥이
                     sp(P.hr * 0.2, 0, P.hr * 0.74, P.hr * 1.26, GM(saber ? 0x4e3b30 : 0xe08e94)); // 코
@@ -11194,10 +11224,12 @@ const Scene3D = {
                     //    얼굴 줄무늬는 **고양이/호랑이를 가르는 가장 싼 신호**다(지적문 원문). 처방:
                     //    **이마 세로 3줄 + 뺨 각 2줄.** 검치호(무늬 없음)·고양이는 대상 아님.
                     if (isTiger) {
+                        // 유령은 얼굴 줄도 한 단계 굵게(1칸→2칸) — 반투명 몸에서 1칸 줄은 안 남는다(R2 C7)
+                        const fw = ghost ? 0.024 : 0.012, cw = ghost ? 0.022 : 0.011;
                         for (const dx of [-1, 0, 1])                      // 이마 세로 3줄
-                            bx(0.012, 0.052, 0.012, dx * P.hr * 0.34, P.hr * 1.30, 0.03 + P.hr * 0.58, INK);
+                            bx(fw, 0.052, 0.012, dx * P.hr * 0.34, P.hr * 1.30, 0.03 + P.hr * 0.58, INK);
                         for (const s of [-1, 1]) for (let i = 0; i < 2; i++) {   // 뺨 각 2줄
-                            const ch = bx(0.011, 0.040, 0.012, s * P.hr * 0.72, P.hr * (0.80 - i * 0.22), 0.03 + P.hr * 0.42, INK);
+                            const ch = bx(cw, 0.040, 0.012, s * P.hr * 0.72, P.hr * (0.80 - i * 0.22), 0.03 + P.hr * 0.42, INK);
                             ch.rotation.z = s * 0.55;                     // 뺨을 타고 앞아래로 흐른다
                         }
                     }
