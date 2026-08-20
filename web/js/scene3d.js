@@ -4386,6 +4386,25 @@ const Scene3D = {
             if (rz) mesh.rotation.z = rz;
             g.add(mesh); return mesh;
         };
+        // 🧊 무기 복셀 공용 (equip-voxelize ⓑ) — 곡면 프리미티브(원통·구·원뿔·토러스·다면체)를
+        //    축정렬 큐브 적층으로 옮길 때 쓴다. 칸은 장신구(0.024)보다 굵은 0.03 — 무기는 손에
+        //    들려 화면에서 작게 보이므로 칸이 잘면 계단이 1px 로 뭉개져 다시 곡선으로 읽힌다
+        //    (갑옷 몸통 5차분이 0.016→0.024 로 굵혀서야 플랫 고원이 선 것과 같은 원리).
+        //    색은 정점에 굽고(vertexColors) 재질은 voxMat 캐시 — 시대 팔레트는 mat/bladeMat/
+        //    wood/dark 의 color 를 그대로 뽑아 쓰므로 시대 정체성이 유지된다.
+        //    ⚠️ 짝수 폭만 쓸 것 — 축 대칭 파츠는 x,z ∈ {-n..n-1} 로 놓아야 중심이 0 에 온다.
+        //    홀수 폭을 섞으면 파츠끼리 반 칸 어긋난다(center:false 라 격자 좌표가 곧 월드다).
+        const WS = 0.03;
+        const HEXOF = m => m.color.getHex();
+        const vpart = (voxels, src, opts) => { const mesh = this.voxPart(voxels, WS, src, opts); g.add(mesh); return mesh; };
+        const vbox = (arr, x0, x1, y0, y1, z0, z1, c) => {
+            for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) arr.push({ x, y, z, c });
+        };
+        // 정사각 링(둘레만) — 결속 끈·소켓 밴드용
+        const vring = (arr, r, y0, y1, c) => {
+            for (let x = -r; x <= r - 1; x++) for (let y = y0; y <= y1; y++) for (let z = -r; z <= r - 1; z++)
+                if (x === -r || x === r - 1 || z === -r || z === r - 1) arr.push({ x, y, z, c });
+        };
         switch (shape) {
             case 'sword': {
                 // 테이퍼 날(끝으로 얇고 좁게) + 풀러 홈 + 포인트 + 크로스가드 + 그립 + 폼멜
@@ -4640,32 +4659,46 @@ const Scene3D = {
                   collar.rotation.x = Math.PI / 2; collar.position.y = 0.29; g.add(collar); }
                 break;
             case 'club': {
-                // 원시 몽둥이: 손잡이는 가늘고 타격부로 갈수록 굵어지는 비대칭 곤봉 + 박아넣은 돌조각
-                cyl(0.036, 0.075, 0.66, wood, 0, 0.26);
-                { const knob = new THREE.Mesh(new THREE.DodecahedronGeometry(0.1, 0), wood);
-                  knob.scale.set(1, 1.15, 0.95); knob.position.y = 0.58; g.add(knob); }
-                for (let i = 0; i < 4; i++) {   // 박힌 돌조각 = 원시 무기 정체성
-                    const chip = new THREE.Mesh(new THREE.TetrahedronGeometry(0.045), mat);
-                    chip.position.set(Math.cos(i * 1.6) * 0.075, 0.44 + i * 0.055, Math.sin(i * 1.6) * 0.07);
-                    chip.rotation.set(i, i * 1.3, 0);
-                    g.add(chip);
-                }
-                lashing(0.18, 0.05);
+                // 🧊 원시 몽둥이 — 큐브 적층 (equip-voxelize ⓑ 1차: 둔기). 가는 2칸 그립 →
+                //    4칸 미드 → 6칸 헤드로 굵어지는 계단 실루엣이 '타격부로 갈수록 굵어지는
+                //    곤봉'을 잇는다. 박힌 돌조각은 헤드 면에 붙는 돌색 돌출 큐브 — 사면체보다
+                //    각지고, 96px 썸네일에서도 칸 하나라 산다.
+                const wc = HEXOF(wood), sc = HEXOF(mat), dc = HEXOF(dark);
+                const v = [];
+                vbox(v, -1, 0, -2, 10, -1, 0, wc);          // 그립 2×2
+                vbox(v, -2, 1, 11, 14, -2, 1, wc);          // 미드 4×4
+                vbox(v, -2, 1, 15, 15, -2, 1, wc);          // 헤드 어깨
+                vbox(v, -3, 2, 16, 20, -3, 2, wc);          // 헤드 몸통 6×6
+                vbox(v, -2, 1, 21, 21, -2, 1, wc);          // 헤드 정수리(계단 돔)
+                // 박힌 돌조각 4점 — 헤드 6×6 면(±x=−3/2 · ±z)에 1칸 돌출
+                v.push({ x: 3, y: 18, z: 0, c: sc }, { x: -4, y: 19, z: -1, c: sc },
+                       { x: 0, y: 17, z: 3, c: sc }, { x: -1, y: 20, z: -4, c: sc });
+                vring(v, 2, 5, 5, dc);                       // 결속 가죽끈 2줄(그립 위)
+                vring(v, 2, 7, 7, dc);
+                vpart(v, wood);
                 break;
             }
             case 'mace': {
-                // 철퇴: 자루 + 플랜지 달린 구형 헤드 (해머의 각진 헤드와 구분)
-                cyl(0.032, 0.038, 0.6, wood, 0, 0.22);
-                cyl(0.05, 0.05, 0.04, dark, 0, 0.5);
-                { const ball = new THREE.Mesh(new THREE.SphereGeometry(0.115, 10, 8), mat); ball.position.y = 0.62; g.add(ball); }
-                for (let i = 0; i < 6; i++) {   // 방사형 플랜지(가시)
-                    const sp = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.09, 4), mat);
-                    const a = i * Math.PI / 3;
-                    sp.position.set(Math.cos(a) * 0.15, 0.62, Math.sin(a) * 0.15);
-                    sp.rotation.set(Math.PI / 2, 0, -a - Math.PI / 2);  // 원뿔 축을 방사 방향으로
-                    g.add(sp);
-                }
-                { const pom = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), dark); pom.position.y = -0.09; g.add(pom); }
+                // 🧊 철퇴 — 큐브 적층 (equip-voxelize ⓑ 1차: 둔기). 구형 헤드는 4→6→8 계단
+                //    돔으로, 방사 플랜지 6개는 ±x/±z 4방 2칸 돌출 블록으로 — 각진 십자 가시가
+                //    해머의 통짜 각헤드와 실루엣이 갈린다. 재질이 둘(가죽 자루=매트 / 강철
+                //    헤드=금속)이라 vpart 도 둘 — voxMat 키가 달라 어차피 드로우콜 2다.
+                const wc = HEXOF(wood), sc = HEXOF(mat), dc = HEXOF(dark);
+                const grip = [];
+                vbox(grip, -2, 1, -4, -4, -2, 1, dc);        // 폼멜 판
+                vbox(grip, -1, 0, -3, -3, -1, 0, dc);        // 폼멜 목
+                vbox(grip, -1, 0, -2, 15, -1, 0, wc);        // 자루 2×2
+                vbox(grip, -2, 1, 16, 16, -2, 1, dc);        // 헤드 소켓 칼라
+                vpart(grip, wood);
+                const head = [];
+                vbox(head, -2, 1, 17, 17, -2, 1, sc);        // 계단 돔: 4
+                vbox(head, -3, 2, 18, 18, -3, 2, sc);        //          6
+                vbox(head, -4, 3, 19, 21, -4, 3, sc);        //          8×3층
+                vbox(head, -3, 2, 22, 22, -3, 2, sc);        //          6
+                vbox(head, -2, 1, 23, 23, -2, 1, sc);        //          4
+                for (const [x0, x1, z0, z1] of [[4, 5, -1, 0], [-6, -5, -1, 0], [-1, 0, 4, 5], [-1, 0, -6, -5]])
+                    vbox(head, x0, x1, 19, 20, z0, z1, sc);  // 방사 플랜지(가시) 4방
+                vpart(head, mat);
                 break;
             }
             case 'rapier': {
@@ -4847,24 +4880,25 @@ const Scene3D = {
         }
         // 등급 연출: 높을수록 화려하게
         const rIdx = RARITIES.indexOf(rarity);
-        if (rIdx >= 1) { // 희귀+: 등급색 젬 — 파지점(y≈0) 위 리카소에 거치, 주먹과 겹쳐 '손에 붙은 발광구'로 읽히던 위치 상향 (비평가: 근접샷 주먹 가림)
-            const gem = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6),
-                new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 0.9 }));
+        // 🧊 등급 장식도 큐브다 (equip-voxelize ⓑ) — 구 젬·원통 트림·구 오브가 전 무기 공통
+        //    곡면이라, 여기만 각지면 53종 전부의 화풍이 같이 오른다. 발광 Lambert 재질은 유지
+        //    (등급색 정체성) — 바뀌는 건 지오메트리뿐.
+        const rarityLam = ei => new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: ei });
+        if (rIdx >= 1) { // 희귀+: 등급색 젬 큐브 — 파지점(y≈0) 위 리카소에 거치 (비평가: 근접샷 주먹 가림 → 상향 유지)
+            const gem = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.07), rarityLam(0.9));
             gem.position.set(0, 0.105, 0.045);
             g.add(gem);
         }
-        if (rIdx >= 2) { // 영웅+: 등급색 트림 링 — 젬 상향에 맞춰 간격 유지
-            const trim = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10),
-                new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 0.7 }));
+        if (rIdx >= 2) { // 영웅+: 등급색 트림 — 원통 링 → 정사각 칼라 판 (젬 상향에 맞춘 간격 유지)
+            const trim = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.1), rarityLam(0.7));
             trim.position.y = 0.19;
             g.add(trim);
         }
-        if (rIdx >= 3) { // 전설+: 떠다니는 오브 — 무기 길이에 비례한 높이 (단검·투척에서 머리 옆 부유 금지)
+        if (rIdx >= 3) { // 전설+: 떠다니는 오브 큐브 — 무기 길이에 비례한 높이 (단검·투척에서 머리 옆 부유 금지)
             const orbCount = rIdx - 2; // 전설1, 궁극2, 신화3
             const orbBase = Math.min(0.45, new THREE.Box3().setFromObject(g).max.y * 0.5);
             for (let i = 0; i < orbCount; i++) {
-                const orb = new THREE.Mesh(new THREE.SphereGeometry(0.035, 7, 6),
-                    new THREE.MeshLambertMaterial({ color: RARITY_HEX[rarity], emissive: RARITY_HEX[rarity], emissiveIntensity: 1 }));
+                const orb = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.058, 0.058), rarityLam(1));
                 orb.position.set(Math.cos(i * 2.1) * 0.16, orbBase + i * 0.14, Math.sin(i * 2.1) * 0.12);
                 g.add(orb);
             }
