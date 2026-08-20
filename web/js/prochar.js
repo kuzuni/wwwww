@@ -674,10 +674,14 @@ const ProChar = {
             if (k === N_TASSET - 1) { g1T += NOTCH_T / 2; g1B += NOTCH_B / 2; }    // b1 = θ360 = 같은 자리
             const aT0 = b0 + g0T, aT1 = b1 - g1T, aB0 = b0 + g0B, aB1 = b1 - g1B;
             const t = tassetPlate(SK_TOP, SK_BOT, SK_H, SK_Y + SK_H / 2, aT0, aT1, aB0, aB1, tassetMat);
+            // 🏷 `probe-tasset` 이 판을 **정점 수 21개(7×3 격자)로** 찾고 있었다 — 조형을 바꾸는 순간
+            //    눈이 먼다(견갑 전환에서 프로브 셋이 같은 이유로 무너졌다). 태그로 쥐게 한다.
+            t.userData.part = 'tasset';
             tassets.push(t);
             // 밑단 금 테 — 통짜 토러스를 쓰면 갈라 놓은 태싯을 다시 한 줄로 이어 붙여 절개가 무의미해진다.
             // 태싯마다 **자기 밑단 호**만 두른다(같은 theta 경계라 정렬이 어긋날 수 없다).
             const rim = tassetPlate(SK_BOT + 0.004, SK_BOT + 0.004, 0.018, SK_Y - SK_H / 2 + 0.018, aB0, aB1, aB0, aB1, gold);
+            rim.userData.part = 'tassetRim';   // 본체 판과 구분 — ②는 본체만 센다
             hemRims.push(rim);
         }
         // 스커트 안감 — 판금 셸 바로 안쪽에 니어블랙 원통을 겹쳐 밑단 플레어 아래가 '빈 껍데기'가 아니라

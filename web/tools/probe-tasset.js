@@ -56,19 +56,22 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         }
 
         // ── 태싯 판 찾기 ───────────────────────────────────────────────
-        // 태싯은 인덱스 있는 커스텀 BufferGeometry(21정점 = 7×3 격자)로 만들어진다.
+        // 🚨 **2026-08-20 — 옛 판은 태싯을 `p.count === 21`(7×3 격자 정점 수)로 찾았다.** 그건 판을
+        //    조형이 아니라 **현재 구현의 세그먼트 수**로 식별하는 것이라, 세그를 하나만 올려도(또는
+        //    voxel 로 바꾸면) 판이 0장이 되고 ②③이 조용히 무의미해진다 — 견갑 전환에서 프로브 셋이
+        //    같은 이유로 무너진 직후라 여기도 미리 끊는다. 태그로 쥐고, 각도·반경은 그대로 **구워진
+        //    정점**에서 잰다(태그는 이름표일 뿐이다). 헴 테는 `part='tassetRim'` 이라 자연히 빠진다.
         const pelvis = R.bones.pelvis;
         const plates = [];
         for (const o of pelvis.children) {
             if (!o.isMesh || o.userData.isOutline) continue;
+            if (o.userData.part !== 'tasset') continue;
             const g = o.geometry;
-            if (!g || g.type !== 'BufferGeometry' || !g.index) continue;
-            const p = g.attributes.position;
-            if (!p || p.count !== 21) continue;
+            const p = g && g.attributes && g.attributes.position;
+            if (!p) continue;
             const ys = [];
             for (let i = 0; i < p.count; i++) ys.push(p.getY(i));
             const yMax = Math.max(...ys), yMin = Math.min(...ys);
-            if (yMax - yMin < 0.05) continue;          // 헴 테(높이 0.018)는 제외 — 본체 판만
             const rowTh = (yTarget) => {
                 const th = [];
                 for (let i = 0; i < p.count; i++) {
