@@ -111,6 +111,24 @@ const ProChar = {
     //    (이 세션 시작 시 잔여 4930) 이 규약을 어기면 바로 예산을 넘긴다.
     // ⚠️ 법선은 전부 +z 라 `computeVertexNormals` 로 충분하다. uv 는 안 만든다 — 이 패치들은
     //    텍스처를 안 쓰고 면당 플랫 색만 쓴다(화풍 ⓕ "표면은 플랫/매트").
+    // ---- 블룸 금지 태그 (eye-bloom-wash) ------------------------------------------------
+    // 순백 플랫 아트는 정의상 브라이트패스 임계를 항상 넘긴다. 그 자체는 의도된 것이지만
+    // (흰자가 피부보다 밝아야 눈이 형태로 읽힌다 — 아래 흰자 재질 주석), **번진 빛이 자기 안의
+    // 동공을 덮어 회색으로 씻는다**(실측: 동공 L 66.5 → 105.6). 밝기를 낮춰 막을 수는 없다 —
+    // 피부가 214 까지 올라와 임계(229.5) 아래로 내리면 `probe-eye-contrast` ΔL 이 무너진다.
+    // → **밝기가 아니라 소속으로 가른다.** 이 재질은 알파 0 을 써서 자기를 표시하고,
+    //   `Scene3D.initPost` 의 브라이트패스가 `step(0.15, a)` 로 그 화소만 뺀다(사유는 그쪽 주석).
+    // ⚠️ `customProgramCacheKey` 를 반드시 같이 준다 — 안 주면 three 가 **똑같이 생긴 다른
+    //    MeshBasicMaterial 의 컴파일된 프로그램을 그대로 재사용**해 패치가 조용히 사라진다.
+    noBloom(mat) {
+        mat.onBeforeCompile = (s) => {
+            s.fragmentShader = s.fragmentShader.replace(
+                '#include <dithering_fragment>',
+                '#include <dithering_fragment>\n\tgl_FragColor.a = 0.0;   // 블룸 금지 태그');
+        };
+        mat.customProgramCacheKey = () => 'prochar-noBloom';
+        return mat;
+    },
     flatPatch(rects, mat) {
         const pos = [], idx = [];
         for (let i = 0; i < rects.length; i++) {
@@ -1717,7 +1735,7 @@ const ProChar = {
             const sclera = this.flatPatch([
                 [0, cy((EH - NOTCH - 1) / 2), EW * CELL, (EH - NOTCH) * CELL],                 // 아래 5행 전폭
                 [-sgn * (NOTCH / 2) * CELL, cy(EH - (NOTCH + 1) / 2), (EW - NOTCH) * CELL, NOTCH * CELL], // 위 3행에서 바깥 3칸을 뺀 폭
-            ], new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }));
+            ], this.noBloom(new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false })));
             sclera.userData.pieEye = true;   // 투구 가림 판정기(`probe-face-helmet-clear.js`)가 이 태그로 흰자만 집는다
             eye.add(sclera);
             // 동공 — 검은 '점'(사용자 지시 원문). **3×3칸**으로 굽는다.

@@ -500,10 +500,21 @@ const Scene3D = {
             uniforms: { tSrc: { value: null } },
             vertexShader: V,
             // 임계 0.9 소프트 니 — 0.82는 스틸 검날·히트 플래시가 통째로 순백 기둥으로 폭주(비평가 7.1 1·3번 화이트아웃), 최상위 하이라이트만 추출
+            // 🚨 **알파는 '블룸 금지' 태그다 (eye-bloom-wash, 2026-08-20).** 순백 플랫 아트(영웅 흰자)는
+            //   정의상 임계를 항상 넘겨 **자기 안에 있는 동공을 블룸으로 씻어 버린다**(실측: 동공 L
+            //   66.5 → 105.6, +39.1). 흰자를 어둡게 눌러 막을 수는 없다 — 피부가 ACES 압축 뒤에도
+            //   214 까지 올라와서, 흰자를 임계(229.5) 아래로 내리면 `probe-eye-contrast` ΔL 이 통째로
+            //   무너진다. 그래서 **밝기가 아니라 소속으로** 가른다: `ProChar.noBloom(mat)` 이 알파 0 을
+            //   쓰고, 여기서 그 화소만 브라이트패스에서 뺀다.
+            //   문턱 0.15 인 이유: 불투명 배경(알파 1) 위 일반 블렌딩의 결과 알파는 `srcA² + (1−srcA)`
+            //   라 **최소 0.75**(srcA=0.5)이고 가산 블렌딩은 1 로 포화한다 — 즉 정상 화소가 0.15 밑으로
+            //   내려올 길이 없다. 태그는 정확히 0.0 을 쓰므로 여유가 5배다.
+            //   ⚠️ 메인 렌더러는 `alpha:false`(캔버스 불투명)라 이 0 이 화면 투명으로 새지 않는다.
+            //      영웅은 `alpha:true` 인 썸네일 렌더러(`_thumbR`·`_creatureR`)에 **안 들어간다**(확인함).
             fragmentShader: 'varying vec2 vUv; uniform sampler2D tSrc;\n' +
-                'void main(){ vec3 c = texture2D(tSrc, vUv).rgb;\n' +
+                'void main(){ vec4 s = texture2D(tSrc, vUv); vec3 c = s.rgb;\n' +
                 '  float l = dot(c, vec3(0.299, 0.587, 0.114));\n' +
-                '  gl_FragColor = vec4(c * smoothstep(0.9, 1.0, l), 1.0); }',
+                '  gl_FragColor = vec4(c * smoothstep(0.9, 1.0, l) * step(0.15, s.a), 1.0); }',
             depthTest: false, depthWrite: false,
         });
         this._blurMat = new THREE.ShaderMaterial({

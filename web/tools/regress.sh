@@ -63,6 +63,7 @@ for p in \
     probe-biome-mat-path.js \
     probe-pinfo-scene.js \
     probe-orb-face-flat.js \
+    probe-eye-bloom-wash.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1
