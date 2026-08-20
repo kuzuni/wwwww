@@ -588,6 +588,12 @@ const ProChar = {
         const gold = new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: 0.95, roughness: 0.3, envMapIntensity: 0.8 });
         const skin = new THREE.MeshStandardMaterial({ color: 0xf2c9a4, metalness: 0, roughness: 0.6 });
         R.trimMat = gold;
+        // 🔑 **살색 albedo 를 밖으로 연다** — 판정기가 '맨살로 읽히는가'를 재려면 기준이 필요한데,
+        //    지금까지는 `probe-ride-seat` 이 **머리로 레이를 쏴서 맞은 표면의 화면색**을 살색 기준으로
+        //    삼았다. 그게 실측에서 흔들린다(2026-08-20 3D 스트림): 같은 코드가 탈것에 따라 살(`f2c9a4`)을
+        //    맞기도 하고 **투구 흰색(`ffffff`)** 을 맞기도 한다 — 후자면 '살색 = 흰색'이 돼 **밝은 무채색
+        //    표면이 전부 맨살로 판정**된다. 재질을 직접 읽으면 조명·포즈와 무관한 고정 기준이 된다.
+        R.skinMat = skin;
         // AO 링 — 파츠 경계(목/허리/어깨 소켓/고관절/손목)에 얹는 어두운 접촉 그림자 (비평가: AO 부재)
         // 0.4는 하이키 배경에서 거의 읽히지 않았다(경계 대비 실측) — 값 구조 패스에 맞춰 0.62로 올린다.
         const aoMat = new THREE.MeshBasicMaterial({ color: 0x070a0f, transparent: true, opacity: 0.62, depthWrite: false });
