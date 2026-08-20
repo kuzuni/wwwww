@@ -125,7 +125,7 @@ async function waitBooted(page, timeout = 25000) {
         const face = map(inner, 0, 0.9);          // 타격면 중심
         // 타격면 **양 끝**과 상판 윗면 능선(23,4)-(90,3) — 면이 상판과 나란한지 재려면 중심만으로는
         // 부족하다(중심이 붙어 있어도 기울면 한쪽 모서리로 찍는다).
-        const faceLp = map(inner, -11.8, 0.9), faceRp = map(inner, 11.8, 0.9);
+        const faceLp = map(inner, -11.5, 0.9), faceRp = map(inner, 11.5, 0.9);
         const topA = (() => { const p = anv.createSVGPoint(); p.x = 23; p.y = 4; return p.matrixTransform(anv.getScreenCTM()); })();
         const topB = (() => { const p = anv.createSVGPoint(); p.x = 90; p.y = 3; return p.matrixTransform(anv.getScreenCTM()); })();
         const butt = map(inner, 53, -12.8);       // 손잡이 끝(그립 노브)
@@ -586,28 +586,36 @@ async function waitBooted(page, timeout = 25000) {
     });
     if (!neck) { say(false, '⑱ 망치 머리 path(hmr-steel)를 찾지 못함'); }
     else {
-        const face = Math.max(...neck.filter(p => p.y >= -3).map(p => p.w));       // 타격면
-        const body = neck.filter(p => p.y >= -21 && p.y <= -8);                     // 몸통·아이
-        const neckSeg = neck.filter(p => p.y >= -25 && p.y <= -21.5);               // 목
-        const peen = neck.filter(p => p.y >= -34.5 && p.y <= -25.5);                // 크로스핀
-        const bodyMin = Math.min(...body.map(p => p.w));
-        const neckMin = Math.min(...neckSeg.map(p => p.w));
-        const peenMax = Math.max(...peen.map(p => p.w));
-        say(neckMin < bodyMin * 0.8,
-            `⑱ 목이 몸통보다 잘록함 — 목 ${neckMin.toFixed(1)} < 몸통 최소 ${bodyMin.toFixed(1)} ×0.8 (단조 감소 테이퍼면 총알로 읽힌다)`);
-        say(peenMax > neckMin * 1.4,
-            `⑱ 목 위에서 핀이 다시 벌어짐 — 핀 ${peenMax.toFixed(1)} > 목 ${neckMin.toFixed(1)} ×1.4 (두 덩어리로 분절되는 유일한 단서)`);
-        say(face > peenMax,
-            `⑱ 타격면이 핀보다 넓음(뒤집힘 아님) — 타격면 ${face.toFixed(1)} > 핀 ${peenMax.toFixed(1)}`);
-        // 🚨 **핀이 짧으면 체스 폰이다.** 폭만 봐서는 "목은 있는데 그 위가 뭉툭한 혹"인 조형을
-        //    못 거른다 — 두 비평가가 독립적으로 실루엣을 '체스 폰 / 종'으로 읽은 상태가 정확히
-        //    그랬다(핀 9유닛 vs 몸통 23.5 = 2.6:1). 목 위/아래 **길이 비**를 따로 못 박는다.
-        const inked = neck.filter(p => p.w > 0.3).map(p => p.y);
-        const tipY = Math.min(...inked), faceY = Math.max(...inked);
-        const neckY = -23.5;
-        const peenLen = neckY - tipY, bodyLen = faceY - neckY;
-        say(bodyLen / peenLen <= 2.0,
-            `⑱ 핀이 몸통 대비 충분히 길다 — 몸통 ${bodyLen.toFixed(1)} : 핀 ${peenLen.toFixed(1)} = ${(bodyLen / peenLen).toFixed(2)}:1 (기준 ≤2.0)`);
+        // 🚨 **밑이 무거운 쐐기인가** (2026-08-20 재설계). 옛 ⑱ 은 '핀이 목보다 다시 벌어질 것'
+        //    (=크로스핀 캡)을 강제했는데, 그 캡이 접촉 프레임(핀이 위로)에서 정확히 **체스 폰의 머리 혹**
+        //    으로 읽혔다 — 블라인드 비평가가 5·6차 모두 독립적으로 폰/톰스톤으로 지목. 그 판정을 통과하는
+        //    조형이 곧 폰이라 5라운드가 갇혔다. 그래서 판정을 뒤집는다: **밑(타격면)이 최대폭이고 위로
+        //    단조 감소**하는가. 폰/톰스톤 = 밑 좁고 위 불룩 → FAIL. 망치 = 밑 무겁고 위로 좁아짐 → PASS.
+        const inked = neck.filter(p => p.w > 0.3);
+        let shoulder = { y: 0, w: 0 };
+        for (const p of inked) if (p.w > shoulder.w) shoulder = p;                    // 최대폭(어깨)과 그 y
+        // 꼭대기(캡) = 머리 실측 최상단(inked 최소 y)에서 3유닛 안 — 머리 높이가 바뀌어도 캡을 짚는다
+        const topY = Math.min(...inked.map(p => p.y));
+        const topSeg = inked.filter(p => p.y <= topY + 3);
+        const topW = topSeg.length ? Math.max(...topSeg.map(p => p.w)) : 0;
+        const faceW = Math.max(...inked.filter(p => p.y >= -1).map(p => p.w));         // 타격면(밑)
+        // ① 최대폭이 아래쪽 — 위쪽이 최대면 밑이 가벼운 폰/톰스톤이다
+        say(shoulder.y >= -12,
+            `⑱ 최대폭(어깨)이 아래쪽 — y ${shoulder.y.toFixed(1)} ≥ -12 (위쪽이 최대면 폰/톰스톤)`);
+        // ② 꼭대기가 어깨보다 확실히 좁다 — 위가 어깨만큼(또는 더) 넓으면 폰 혹/캡이다.
+        //    (뾰족한 폴은 도끼/쐐기로 읽혀 오히려 나빠서, 납작한 캡을 허용하되 어깨의 0.8 미만으로 묶는다.)
+        say(topW < shoulder.w * 0.8,
+            `⑱ 꼭대기가 어깨보다 확실히 좁음 — 캡 ${topW.toFixed(1)} < 어깨 ${shoulder.w.toFixed(1)} ×0.8 (위가 어깨만큼 넓으면 폰 혹)`);
+        // ③ 어깨 위로 재widening 없이 단조 감소 — 중간에 다시 벌어지면 그게 폰의 캡이다.
+        //    (어깨 아래 타격면 쪽은 접촉 글로우에 덮여 판독에서 빠지므로 검사 대상 아님. AA 지터 0.7 허용.)
+        const upper = inked.filter(p => p.y < shoulder.y).sort((a, b) => b.y - a.y);  // 어깨→꼭대기 순
+        let mono = true, bump = null;
+        for (let i = 1; i < upper.length; i++) if (upper[i].w > upper[i - 1].w + 0.7) { mono = false; bump = upper[i]; break; }
+        say(mono,
+            `⑱ 어깨 위로 재widening 없음(단조 감소) — ${mono ? 'OK' : `y ${bump.y.toFixed(1)} 에서 ${bump.w.toFixed(1)} 로 다시 벌어짐(폰 캡)`}`);
+        // ④ 타격면이 스파이크가 아니다 — 밑동에 실체가 있어야 '치는 머리'로 읽힌다
+        say(faceW >= 9,
+            `⑱ 타격면이 굵다(스파이크 아님) — 타격면 ${faceW.toFixed(1)} ≥ 9`);
     }
 
     // ⑲ 🚨 **연출이 끝난 자리에 처음과 다른 물건이 남는가.** 비평가 B 의 총평이 이것이었다 —

@@ -1465,7 +1465,7 @@ body {
 }
 /* f0(1타) 는 5차 채점 ㉠ 로 머리 볼을 넓히면서 순백 코어 일부가 머리에 가려졌다 —
    머리 밖으로 나가는 섬광 면적을 키워 probe ⑪ 근백색 마진을 회복한다(여전히 f1 1.28 미만). */
-.anvil-fx .af-flash.f0 { animation-delay: calc(var(--h0) - 6ms); --affs: 1.10; }
+.anvil-fx .af-flash.f0 { animation-delay: calc(var(--h0) - 6ms); --affs: 1.16; }
 .anvil-fx .af-flash.f1 { animation-delay: calc(var(--h1) - 6ms); --affs: 1.38; }
 .anvil-fx .af-flash.f2 { animation-delay: calc(var(--h2) - 6ms); --affs: 1.82; }
 @keyframes afflash {  /* 같은 이유로 .55 → .86 출발 */
@@ -1551,7 +1551,7 @@ body {
     transform-box: fill-box; transform-origin: center;
     opacity: 0; animation: afcore .07s linear forwards;
 }
-.anvil-fx .af-core.c0 { animation-delay: calc(var(--h0) - 7ms); --afcs: 1.06; }
+.anvil-fx .af-core.c0 { animation-delay: calc(var(--h0) - 7ms); --afcs: 1.12; }
 .anvil-fx .af-core.c1 { animation-delay: calc(var(--h1) - 7ms); --afcs: 1.35; }
 .anvil-fx .af-core.c2 { animation-delay: calc(var(--h2) - 7ms);  --afcs: 1.72; }
 @keyframes afcore {   /* 위 afstar 주석과 같은 이유로 .6 → .88 출발 */
