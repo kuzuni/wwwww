@@ -1,6 +1,6 @@
 {
  "note": "곡면 생성자 래칫 기준선 — probe-geo-ratchet.js 가 관리. 손으로 올리지 말 것(늘리면 그 프로브가 FAIL 낸다).",
- "total": 102,
+ "total": 101,
  "whitelisted": 4,
  "files": {
   "prochar.js": {
@@ -15,7 +15,6 @@
    "Cone": 10,
    "Tube": 1,
    "Icosahedron": 4,
-   "Circle": 1,
    "Ring": 1,
    "Dodecahedron": 1
   }
