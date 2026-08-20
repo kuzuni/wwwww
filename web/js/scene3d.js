@@ -17072,7 +17072,7 @@ const Scene3D = {
             const skinD = vmat(vBase.clone().offsetHSL(0, 0, -0.12));
             const skinL = vmat(vBase.clone().offsetHSL(0, 0, 0.1));
             const clothM = vmat(new THREE.Color(0x99442e), { roughness: 0.9 }); // 러스트 레드 — 초원 배경 보호색 탈피 악센트 (비평가 지적)
-            const boneM = vmat(new THREE.Color(0xf3ead6), { roughness: 0.6 });
+            const boneM = vmat(new THREE.Color(0xdcc79c), { roughness: 0.6 }); // 1차 ⑴ — 가슴 뼈 목걸이를 눈 흰자와 명도 분리(흰 요소 융합 지적)
             // 분절 다리: 대퇴 → 무릎 → 정강이 → 발
             for (const s of [-1, 1]) {
                 const hip = new THREE.Group();
@@ -17150,7 +17150,7 @@ const Scene3D = {
             mouthLine.position.set(0, 0.065, 0.1); mouthLine.scale.z = 0.5; // 턱 앞전에 걸치게 — 두상에 가려지지 않는 깊이
             jawG.add(mouthLine);
             for (const s of [-1, 1]) {
-                const tusk = vx(Voxel.taper(0.9, 0.5, 2), { material: vmat(new THREE.Color(0xf5efdd), { roughness: 0.6 }), color: 0xffffff, center: true });
+                const tusk = vx(Voxel.taper(0.9, 0.5, 2), { material: vmat(new THREE.Color(0xe6d2a4), { roughness: 0.6 }), color: 0xffffff, center: true }); // 1차 ⑴ '흰 요소 융합' — 송곳니를 아이보리로 내려 눈 흰자(0xfff6e8)와 명도 분리
                 tusk.position.set(s * 0.055, 0.06, 0.1); // 밑동은 턱 살 안, 끝은 윗입술 앞 — 턱에서 솟는 송곳니
                 tusk.rotation.x = -0.35; // 앞으로 벌어진 언더바이트 각
                 jawG.add(tusk);
@@ -17164,10 +17164,14 @@ const Scene3D = {
             for (const s of [-1, 1]) {
                 const ear = new THREE.Group();
                 ear.position.set(s * 0.19, 1.0, 0.02);
-                const earOut = vx(Voxel.taper(gv(0.075), 0.5, 6), { material: skinM, color: 0xffffff, center: true });
+                // 🎯 1차 채점 교집합 ⑴ — 비평가 2인이 '흩어진 잎 복셀'로 읽은 것의 실체가 이 귀다
+                //    (몸과 같은 초록 + 납작 taper = 배경 수풀과 같은 색·크기). 처방 '몸보다 밝은
+                //    초록으로 분리'를 그대로 적용: 바깥판 skinM → skinL(+0.1), 두께 0.45 → 0.6
+                //    (얇은 잎 → 뭉툭한 귀 덩어리), 안쪽판은 살굿빛(실제 귓속 — 수풀 톤 완전 이탈).
+                const earOut = vx(Voxel.taper(gv(0.075), 0.5, 6), { material: skinL, color: 0xffffff, center: true });
                 earOut.rotation.z = s * -1.85; earOut.position.x = s * 0.14;
-                earOut.scale.z = 0.45;
-                const earIn = vx(Voxel.taper(gv(0.045), 0.5, 4), { material: skinD, color: 0xffffff, center: true });
+                earOut.scale.z = 0.6;
+                const earIn = vx(Voxel.taper(gv(0.045), 0.5, 4), { material: vmat(new THREE.Color(0x9c5a48), { roughness: 0.85 }), color: 0xffffff, center: true });
                 earIn.rotation.z = s * -1.85; earIn.position.set(s * 0.12, 0.012, 0);
                 earIn.scale.z = 0.3;
                 ear.add(earOut, earIn);
@@ -17176,7 +17180,7 @@ const Scene3D = {
             const nose = vx(Voxel.taper(gv(0.045), 0.5, 3), { material: skinD, color: 0xffffff, center: true });
             nose.position.set(0, 0.93, 0.3); nose.rotation.x = Math.PI / 2 - 0.35;
             g.add(nose);
-            eyes(0.99, 0.28, 0.1, 0.045, 'fierce', { iris: 0xd9c422, tilt: 0.07, browColor: 0x3a4a2e, blushK: 0.66 }); // tilt 0.12→0.07 — 눈 기울기도 '화난 눈매'의 절반을 진다(cute-art-direction)
+            eyes(0.99, 0.28, 0.1, 0.045, 'fierce', { iris: 0xd9c422, tilt: 0.07, browColor: 0x46311f, blushK: 0.66 }); // browColor 0x3a4a2e(세이지) → 웜 브라운 — 1차 ⑴ '잎 노이즈'의 공범(수풀과 같은 톤) // tilt 0.12→0.07 — 눈 기울기도 '화난 눈매'의 절반을 진다(cute-art-direction)
             // 분절 팔 + 가시 몽둥이
             for (const s of [-1, 1]) {
                 const sh = new THREE.Group();
