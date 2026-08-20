@@ -5211,6 +5211,22 @@ const Scene3D = {
         quantum: 'delta',        // 델타 아머 — 바깥으로 기운 Δ 핀 + 골반 옆 부유 삼각판 + Δ 코어
     },
     exoVariant(age) { return this.EXO_VARIANT[age] || 'rig'; },
+
+    // 그 시대의 `plate`(판금) 가 **어떤 판금인가** (equip-era-theming, 크로스-시대 게이트 잔여).
+    // `plate` 5시대(중세 '철판 갑옷'·근세 '아머 스커트'·다중 '스펙트럴 플레이트'·지하 '둠 플레이트'·
+    // 천상 '팔라딘 아머')가 라멜라 파울드론+파울드 하나였다 — 실측 10쌍 미분화 · 최악 IoU 0.997.
+    // 가르는 축 = **어깨의 결**(겹친 라멜라 / 뚫린 프레임 / 가시 / 첨두)과 **밑단의 결**(판 3장 /
+    // 넓은 플레어 스커트 / 이빨 / 중앙 타바드). 부속이 아니라 바깥 윤곽이다(11차 교훈).
+    // ⚠️ 지하 세계는 suit 'lava'(큰 암석 뿔 2개)와 같은 시대다 — doom 의 가시는 **작게 여러 개,
+    //    굽은 금속**으로 결을 갈라 시대 안 게이트(probe-equip-silhouette)와 충돌하지 않게 한다.
+    PLATE_VARIANT: {
+        medieval: 'knight',       // 철판 갑옷 — 라멜라 3장 파울드론 + 파울드 3판 (종전 조형 유지)
+        earlyModern: 'skirted',   // 아머 스커트 — 작은 어깨 + **넓게 벌어진 스커트 판 부채**(밑단이 얼굴)
+        multiverse: 'spectral',   // 스펙트럴 플레이트 — 뚫린 다이아 프레임 어깨 + 어긋난 유령 파편 판
+        underworld: 'doom',       // 둠 플레이트 — 굽은 가시 클러스터 어깨 + 밑단 금속 이빨
+        divine: 'paladin',        // 팔라딘 아머 — 위로 치솟은 첨두 견갑 + 가슴 중앙 타바드 자락
+    },
+    plateVariant(age) { return this.PLATE_VARIANT[age] || 'knight'; },
     // 어깨 위·등 뒤로 나가는 표식만 둔다 — 몸통 안쪽 장식은 96px 에서 사라진다(`vest` 에서 실측).
     addSuitEraDetail(g, sv, mat, mats, rareHex, ageHex) {
         const dark = mats ? mats.dark : mat;
@@ -8210,29 +8226,110 @@ const Scene3D = {
             g.add(this.voxPart(cord, AS, mat, { color: cCord }));
         }
         if (style === 'plate') {
-            // 파울드론 — 구 하나가 아니라 **라멜라 3장이 겹쳐 바깥으로 벌어진다**.
-            // 구를 적도보다 조금 더(0.62π) 내려 자르면 테두리가 안쪽으로 말려 뚫린 면이 안 보인다.
-            for (const s of [-1, 1]) {
-                const pg = new THREE.Group();
-                for (let l = 0; l < 3; l++) {
-                    const lame = new THREE.Mesh(
-                        new THREE.SphereGeometry(0.112 - l * 0.021, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.62),
-                        l ? this.tintOf(mat, -0.045) : mat);
-                    lame.scale.set(1, 0.62, 0.94);
-                    lame.position.y = -l * 0.038;
-                    pg.add(lame);
+            // ── 시대 분기 (`PLATE_VARIANT`) — 어깨의 결·밑단의 결로 5시대를 가른다 ─────────────
+            // 크로스-시대 게이트 실측: 5시대가 이 블록 하나를 그대로 써서 10쌍 미분화(최악 IoU 0.997).
+            const pv = this.plateVariant(age);
+            if (pv === 'knight' || pv === 'skirted' || pv === 'paladin') {
+                // 파울드론 — 구 하나가 아니라 **라멜라 3장이 겹쳐 바깥으로 벌어진다**.
+                // 구를 적도보다 조금 더(0.62π) 내려 자르면 테두리가 안쪽으로 말려 뚫린 면이 안 보인다.
+                // skirted 는 어깨를 한 치수 줄인다(스커트가 얼굴이 되게) · paladin 은 첨두가 따로 선다.
+                const pk = pv === 'skirted' ? 0.80 : 1;
+                for (const s of [-1, 1]) {
+                    const pg = new THREE.Group();
+                    for (let l = 0; l < 3; l++) {
+                        const lame = new THREE.Mesh(
+                            new THREE.SphereGeometry((0.112 - l * 0.021) * pk, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.62),
+                            l ? this.tintOf(mat, -0.045) : mat);
+                        lame.scale.set(1, 0.62, 0.94);
+                        lame.position.y = -l * 0.038 * pk;
+                        pg.add(lame);
+                    }
+                    pg.position.set(s * 0.185, 0.216, 0);
+                    pg.rotation.z = -s * 0.34;     // 어깨 밖으로 흘러내린다
+                    g.add(pg);
                 }
-                pg.position.set(s * 0.185, 0.216, 0);
-                pg.rotation.z = -s * 0.34;     // 어깨 밖으로 흘러내린다
-                g.add(pg);
             }
-            // 파울드 — 허리 아래로 늘어진 판 3장(앞·좌·우)
-            for (const a of [-0.85, 0, 0.85]) {
-                const f = this.beveledSlab(0.115, 0.12, 0.035, 0.03, this.tintOf(mat, -0.03));
-                f.position.set(Math.sin(a) * 0.175, -0.24, Math.cos(a) * 0.125);
-                f.rotation.y = a;
-                f.rotation.x = 0.22;
-                g.add(f);
+            if (pv === 'knight') {
+                // 파울드 — 허리 아래로 늘어진 판 3장(앞·좌·우)
+                for (const a of [-0.85, 0, 0.85]) {
+                    const f = this.beveledSlab(0.115, 0.12, 0.035, 0.03, this.tintOf(mat, -0.03));
+                    f.position.set(Math.sin(a) * 0.175, -0.24, Math.cos(a) * 0.125);
+                    f.rotation.y = a;
+                    f.rotation.x = 0.22;
+                    g.add(f);
+                }
+            } else if (pv === 'skirted') {
+                // 근세 '아머 스커트' — 이름이 요구하는 물건은 밑단이다: **넓게 벌어진 스커트 판 부채 7장**.
+                // knight 파울드(3장·좁음)와 달리 몸통 반보다 넓게 퍼져 아래 윤곽이 종형이 된다.
+                for (let i = 0; i < 7; i++) {
+                    const a = -1.35 + i * 0.45;
+                    const f = this.beveledSlab(0.105, 0.165, 0.030, 0.028, this.tintOf(mat, -0.03 - (i % 2) * 0.03));
+                    f.position.set(Math.sin(a) * 0.215, -0.265, Math.cos(a) * 0.150);
+                    f.rotation.y = a;
+                    f.rotation.x = 0.38;           // knight(0.22)보다 크게 벌어져 플레어가 선다
+                    g.add(f);
+                }
+            } else if (pv === 'spectral') {
+                // 다중 우주 '스펙트럴 플레이트' — 판이 반쯤 이 세계에 없다: **뚫린 다이아 프레임 어깨**
+                // (radialSegments 4 토러스 = 마름모 링, 알파에 구멍이 나 유령 판으로 읽힌다) +
+                // 몸통 옆에 위아래로 어긋난 파편 판 2장(비대칭 — suit 'holo' 의 정렬된 3겹과 결이 다르다).
+                for (const s of [-1, 1]) {
+                    const frame = new THREE.Mesh(new THREE.TorusGeometry(0.088, 0.020, 4, 4), mat);
+                    frame.position.set(s * 0.242, 0.205, 0.005);
+                    frame.rotation.z = -s * 0.30;
+                    frame.rotation.y = s * 0.28;
+                    g.add(frame);
+                }
+                const shardM = this.tintOf(mat, 0.06);
+                const sh1 = this.beveledSlab(0.075, 0.115, 0.022, 0.024, shardM);
+                sh1.position.set(0.262, 0.020, 0.030); sh1.rotation.z = -0.18; g.add(sh1);
+                const sh2 = this.beveledSlab(0.068, 0.100, 0.022, 0.024, shardM);
+                sh2.position.set(-0.255, -0.135, 0.030); sh2.rotation.z = 0.22; g.add(sh2);
+            } else if (pv === 'doom') {
+                // 지하 세계 '둠 플레이트' — 어깨 판 위 **굽은 금속 가시 3개 클러스터** + 밑단 이빨.
+                // ⚠️ 같은 시대 suit 'lava' 가 큰 암석 뿔 2개다 — 가시는 작게 여러 개·굽은 금속으로
+                //    결을 가른다(크기·개수·재질 셋 다 다르게). 뿔 마디는 걸어 쌓는다(9차 교훈 ⑶).
+                for (const s of [-1, 1]) {
+                    const base = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.105, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), mat);
+                    base.scale.set(1.1, 0.6, 0.95);
+                    base.position.set(s * 0.195, 0.212, 0);
+                    base.rotation.z = -s * 0.30;
+                    g.add(base);
+                    for (let i = 0; i < 3; i++) {
+                        const h = 0.115 - i * 0.028;
+                        const spike = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0255, h, 6), this.tintOf(mat, -0.08));
+                        const bx = s * (0.170 + i * 0.052), by = 0.252 - i * 0.014;
+                        spike.position.set(bx, by + h * 0.42, 0.005);
+                        spike.rotation.z = -s * (0.30 + i * 0.24);   // 바깥으로 갈수록 더 눕는다 = 굽은 부채
+                        g.add(spike);
+                    }
+                }
+                // 밑단 금속 이빨 — 아래로 뾰족한 삼각 5개가 헴을 문다
+                for (let i = 0; i < 5; i++) {
+                    const a = -0.95 + i * 0.475;
+                    const tooth = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.0045, 0.085, 4), this.tintOf(mat, -0.06));
+                    tooth.position.set(Math.sin(a) * 0.190, -0.275, Math.cos(a) * 0.132);
+                    tooth.rotation.y = a;
+                    g.add(tooth);
+                }
+            } else if (pv === 'paladin') {
+                // 천상 '팔라딘 아머' — **위로 치솟은 첨두 견갑**(고딕) + 가슴 중앙 타바드 자락(금 트림).
+                // 같은 시대 cape 'wings'(가로로 펼친 깃털 판)와 축이 다르다 — 이쪽은 세로 첨두다.
+                const gold = this.tintOf(mats.body, 0.20);
+                for (const s of [-1, 1]) {
+                    const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.052, 0.150, 5), gold);
+                    spire.position.set(s * 0.225, 0.300, 0);
+                    spire.rotation.z = -s * 0.22;   // 살짝 바깥으로 — 첨두 한 쌍이 위 윤곽을 든다
+                    g.add(spire);
+                }
+                // 타바드 — 가슴에서 밑단 아래까지 곧게 떨어지는 중앙 자락. 아래 끝이 몸통보다 내려간다.
+                const tab = this.beveledSlab(0.130, 0.430, 0.026, 0.03, this.tintOf(mat, 0.04));
+                tab.position.set(0, -0.115, 0.152);
+                g.add(tab);
+                const hemT = new THREE.Mesh(new THREE.BoxGeometry(0.130, 0.026, 0.028), gold);
+                hemT.position.set(0, -0.318, 0.152);
+                g.add(hemT);
             }
         }
         if (style === 'bone') {
@@ -8642,11 +8739,17 @@ const Scene3D = {
         // 만 반영되므로 여기 로컬 그룹에 붙이면 프리뷰에만 걸린다). 판정: probe-equip-sculpt 3행(96px 다운샘플).
         if (style === 'plate') {
             // 판금은 어깨가 몸통 밖으로 튀어나온다(팔에 얹은 어깨판) — 상단 폭을 vest/robe 와 확실히 가른다
-            for (const s of [-1, 1]) {
-                const pauld = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat);
-                pauld.scale.set(1.15, 0.55, 1);
-                pauld.position.set(s * 0.28, 0.15, 0);
-                g.add(pauld);
+            // `PLATE_VARIANT` 분기: spectral 은 캡을 비운다(뚫린 어깨가 실루엣의 서명) ·
+            // skirted 는 한 치수 줄인다(어깨 대신 스커트가 얼굴) · 나머지는 종전 캡.
+            const pvo = this.plateVariant(age);
+            if (pvo !== 'spectral') {
+                const pks = pvo === 'skirted' ? 0.82 : 1;
+                for (const s of [-1, 1]) {
+                    const pauld = new THREE.Mesh(new THREE.SphereGeometry(0.075 * pks, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat);
+                    pauld.scale.set(1.15, 0.55, 1);
+                    pauld.position.set(s * (pvo === 'skirted' ? 0.265 : 0.28), 0.15, 0);
+                    g.add(pauld);
+                }
             }
         } else if (style === 'vest') {
             // 크롭 톱: 밑단이 허리 위에서 잘려야 '조끼'로 읽힌다 — 어두운 헴 라인이 잘림선을 못 박는다
