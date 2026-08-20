@@ -2067,7 +2067,7 @@ const Scene3D = {
             this.terrainMat]);
         // 잎 재질은 복셀 프롭이 **원본을 그대로** 쓴다(vertexColors 가 이미 켜져 있어 클론이 필요 없고,
         // 클론하면 `previewMat` 의 동일성 비교가 깨진다) — 그래서 여기서 직접 리프트를 올려 준다.
-        for (const m of this.foliageMats) this.applyVoxAmbient(m);
+        for (const m of this.foliageMats) this.applyVoxAmbient(m, this.VOX_AMBIENT.leaf);
         // vertexColors — 이 재질을 쓰는 메시는 `crystalGeo()` 가 굽는 클러스터 하나뿐이다(파일 전체 확인함).
         // ⚠️ 새 메시를 이 재질로 만들 땐 반드시 color 속성을 붙일 것(없으면 그 메시만 검게 찍힌다).
         this.crystalMat = new THREE.MeshPhongMaterial({
@@ -2349,11 +2349,12 @@ const Scene3D = {
         const hasVeg = sp.veg !== undefined ? sp.veg : !['lava', 'desert', 'rock'].includes(kin);
         if (hasVeg) {
             for (let i = 0; i < 7; i++) {
+                // 🧊 voxel 전환(2026-08-20) — 덤불도 큐브 청크로(잔돌과 같은 이유로 복셀 크기는 반경에서 역산).
                 const rad = U.rand(0.14, 0.28);
-                const b = new THREE.Mesh(new THREE.DodecahedronGeometry(rad, 0), this.bushMat);
-                b.position.y = rad * 0.65;
-                b.scale.y = 0.7;
-                b.castShadow = true;
+                const bv = 2.8;                                              // 칸 단위 반경
+                const b = this.vxProp(Voxel.rock(bv, i * 37 + 5, { ry: bv * 0.7, bite: 0.24, flatBottom: -bv * 0.6 }),
+                    rad / bv, this.bushMat);
+                b.position.y += rad * 0.45;
                 const g = grounded(b, rad * 2.6);
                 const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.4, 1.8); } while (Math.abs(zz) < 0.85); return zz; })(); // 전투 라인 배제
                 g.position.set(x, this.heightAt(x, z) + 0.02, z);
@@ -2364,15 +2365,16 @@ const Scene3D = {
         // 잔돌 — 둥근 자갈/납작 판석 2형태 믹스 (단일 다면체 복붙 티 제거)
         const stoneCount = ['lava', 'desert', 'rock'].includes(kin) ? 11 : 7;
         for (let i = 0; i < stoneCount; i++) {
+            // 🧊 voxel 전환(2026-08-20) — 잔돌도 큐브 청크로. 칸 수가 워낙 적어(반경 2~3칸)
+            //    복셀 한 변을 소품과 같은 절대 크기로 두면 자갈이 통째로 한 칸이 된다 → 반경에서 역산한다.
             const rad = U.rand(0.1, 0.3);
-            const r = new THREE.Mesh(
-                this.rockGeo(rad),
-                kin === 'lava' ? this.charRockMat : this.stoneMat
-            );
-            if (Math.random() < 0.4) { r.scale.set(1.2, 0.35, 0.8); r.position.y = rad * 0.28; } // 판석형
-            else r.position.y = rad * 0.6;
-            r.rotation.set(U.rand(0, 3), U.rand(0, 3), 0);
-            r.castShadow = true;
+            const flat = Math.random() < 0.4;                                // 판석형
+            const rv = flat ? 3.0 : 2.4;                                     // 칸 단위 반경
+            const r = this.vxProp(
+                Voxel.rock(rv, i * 31 + 13, flat ? { ry: rv * 0.35, rz: rv * 0.8, bite: 0.24, flatBottom: -rv * 0.3 }
+                    : { ry: rv * 0.85, bite: 0.26, flatBottom: -rv * 0.5 }),
+                rad / rv, kin === 'lava' ? this.charRockMat : this.stoneMat);
+            r.position.y += rad * (flat ? 0.2 : 0.42);
             const g = grounded(r, rad * 2.4);
             const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.8, 1.6); } while (Math.abs(zz) < 0.85); return zz; })(); // 전투 라인 배제
             g.position.set(x, this.heightAt(x, z) + 0.02, z);
@@ -2851,7 +2853,11 @@ const Scene3D = {
             this._vxMats.set(base, m);
             this._vxBaseOf.set(m, base);   // previewMat 이 원본을 되찾는 길 (userData 에 넣으면 clone 의 JSON 복사에 걸린다)
         }
+        // 🚨 **map 을 떼면 그만큼 밝아진다 — 곱해지던 값을 색으로 되돌려 준다.**
+        //    `stoneMat` 의 `ProChar.rockTex()` 는 평균 **0.666/0.675/0.683**(512² 실측)이라 알베도를
+        //    3분의 1 깎고 있었다. 그냥 떼면 바위가 전 바이옴에서 허옇게 뜬다(첫 판이 그랬다).
         m.color.copy(base.color);
+        if (base.map) m.color.multiply(this._vxMapComp || (this._vxMapComp = new THREE.Color(0.666, 0.675, 0.683)));
         return m;
     },
 
@@ -2876,11 +2882,14 @@ const Scene3D = {
     //   · 이미 밝은 면은 상대적으로 거의 안 변하고 **0 이던 면만 바닥에서 들린다**(다크 엔드 유지).
     // ⚠️ `emissive` 로 대신하지 말 것 — 이미 칠해져 있던 재질의 emissive 를 런타임에 켜 봤더니
     //    화면이 통째로 검게 나갔다(크러시 100%). 이 재질들은 `setTheme` 이 emissive 를 소유한다.
-    VOX_AMBIENT: 0.62,
-    applyVoxAmbient(m) {
+    // 두 값인 이유: 바닥값이 **알베도에 비례**하므로, 알베도가 거의 검정인 잎(#0e1722)에 맞춘 값을
+    // 밝은 돌·눈에 그대로 쓰면 자갈이 허연 마시멜로가 된다(첫 판이 그랬다 — 검수 시트로 확인).
+    // leaf 0.62 는 밤 숲 크러시 실측으로 잡은 값이고, prop 은 그 절반 남짓이면 순흑만 면한다.
+    VOX_AMBIENT: { leaf: 0.62, prop: 0.34 },
+    applyVoxAmbient(m, amt) {
         if (!m || m.userData.__voxAmb) return m;
         m.userData.__voxAmb = true;
-        const u = { uVoxAmb: { value: this.VOX_AMBIENT } };
+        const u = { uVoxAmb: { value: amt === undefined ? this.VOX_AMBIENT.prop : amt } };
         const prev = m.onBeforeCompile;
         m.onBeforeCompile = (shader, renderer) => {
             if (prev) prev(shader, renderer);
@@ -2911,7 +2920,10 @@ const Scene3D = {
         const seen = new Map();
         for (const v of voxels) seen.set(v.x + ',' + v.y + ',' + v.z, v);
         voxels = [...seen.values()];
-        const mat = baseMat.vertexColors ? baseMat : this.vxMat(baseMat);
+        // 원본을 그대로 쓰는 건 **이미 vertexColors 가 켜져 있고 map 도 없을 때뿐**이다.
+        // map 이 있으면(예: `stoneMat` 의 자갈 노이즈) 큐브 면에 텍스처가 얹혀 화풍 ⓒ '면당 플랫 색'을
+        // 정면으로 깬다 — 장비 쪽 비평가가 화풍 정합 2/10 을 주며 지목한 바로 그 결함이다.
+        const mat = (baseMat.vertexColors && !baseMat.map) ? baseMat : this.vxMat(baseMat);
         const mesh = Voxel.build(voxels, Object.assign(
             { size, color: 0xffffff, jitter: 0.055, ao: 0.95, center: false, material: mat }, opt || {}));
         mesh.position.y = size * 0.5;
@@ -2936,6 +2948,16 @@ const Scene3D = {
     vxSub(voxels, others) {
         const occ = new Set(others.map(v => v.x + ',' + v.y + ',' + v.z));
         return voxels.filter(v => !occ.has(v.x + ',' + v.y + ',' + v.z));
+    },
+
+    // 지층 교번 색 — 옛 `bandTint(geo, r, g, b)` 의 복셀 대응. 재질 색에 **곱해지는 계수**를
+    // 정점 색으로 굽는 것이라 값은 1 을 못 넘는다(옛 판은 1.07 까지 올렸다) → 기준을 0.86 으로
+    // 내리고 **비율만** 옛 판과 같게 맞춘다(웜 사암 ↔ 쿨 이암). 밝기 총합은 `VOX_AMBIENT` 와
+    // 재질 색이 정하므로 이 층에서 다시 올릴 필요가 없다.
+    vxBandTint(voxels, warm) {
+        const c = warm ? [0.92, 0.86, 0.79] : [0.83, 0.85, 0.89];
+        const hex = (Math.round(c[0] * 255) << 16) | (Math.round(c[1] * 255) << 8) | Math.round(c[2] * 255);
+        return Voxel.recolor(voxels, () => hex);
     },
 
     vxTwig(x0, y0, z0, dx, dy, dz, n, color) {
@@ -3013,11 +3035,19 @@ const Scene3D = {
         const g = new THREE.Group();
         g.userData.windSway = 0.030;   // 바람에 밑동부터 휘는 식물 (rocks·crystal 은 태그 없음 = 정지)
         const fm = this.foliageMats[Math.random() * 3 | 0]; // 나무별 잎 명도 변주
-        const u = s / 12;              // 복셀 한 변 — 전고 21칸 = 1.75s
+        const u = s / 12;              // 복셀 한 변 — 전고 21칸 ≈ 1.75s
         const H = 5;                   // 한 단의 층 수
+        // 🚨 **개체차를 반드시 줄 것.** 첫 판은 상수만 써서 침엽수 8그루가 **바운딩 박스까지 완전히
+        //    동일**했다(`probe-foliage-sculpt` 의 '개체 간 최소차 0.0000 — 복붙이다'가 그걸 잡았다.
+        //    옛 판은 `sculptFoliage` 의 정점 노이즈가 개체차를 대신 내 주고 있었다). 복셀은 정점을
+        //    못 흔드니 **치수·단 수·밑동 높이로** 개체차를 낸다.
+        const tiers = 3 + (Math.random() < 0.35 ? 1 : 0);
+        const r0 = U.rand(5.9, 7.0), dr = U.rand(1.25, 1.75);
+        const gap = tiers === 4 ? 4 : 5;   // 4단짜리는 간격을 좁혀 전고가 대역을 안 넘게 한다
+        const base = 5 + (Math.random() * 3 | 0);      // 잎이 시작하는 높이(밑동 길이)
         const leaf = [], snowV = [];
-        for (let i = 0; i < 3; i++) {
-            const y0 = 6 + i * 5, rs = this.vxConeRadii(6.6 - i * 1.5, H);
+        for (let i = 0; i < tiers; i++) {
+            const y0 = base + i * gap, rs = this.vxConeRadii(Math.max(2.2, r0 - i * dr), H);
             for (let j = 0; j < H; j++) {
                 leaf.push(...Voxel.ellipse(rs[j], rs[j], 1, { y0: y0 + j }));
                 // 위 층이 덮지 않고 남은 고리 = 이 층의 노출된 윗면. 눈은 여기만 앉는다.
@@ -3025,7 +3055,7 @@ const Scene3D = {
                     snowV.push(...Voxel.ellipse(rs[j], rs[j], 1, { y0: y0 + j + 1, rix: rs[j + 1], riz: rs[j + 1] }));
             }
         }
-        g.add(this.vxProp(Voxel.at(Voxel.box(3, 8, 3), -1, 0, -1), u, this.trunkMat));
+        g.add(this.vxProp(Voxel.at(Voxel.box(3, base + 3, 3), -1, 0, -1), u, this.trunkMat));
         g.add(this.vxProp(leaf, u, fm));
         if (snowV.length) g.add(this.vxProp(snowV, u, this.snowMat));
         return g;
@@ -3093,42 +3123,43 @@ const Scene3D = {
     // 바위 첨탑(바위산 주 소품 · 사막 부 소품) — 세로로 긴 암석을 위로 갈수록 가늘게 쌓아 뾰족한 첨탑으로.
     // 단마다 좌우로 누적해 쏠려(자연 기울기) 곧은 토템 인상을 없애고, 층별 웜/쿨 지층 톤 + 꼭대기 단은
     // 더 높고 가늘게 세워 종단 실루엣을 뾰족하게 만든다. (기존: 세로로 늘린 rockGeo 2~3개를 곧게 쌓은 '둥근 덩어리 토템')
+    // 🧊 voxel 전환(2026-08-20) — 깎은 십이면체 적층 → `Voxel.rock` 청크 적층.
+    //    ⚠️ 옛 판은 단마다 `rotation` 을 무작위로 줘서 덩어리가 안 겹쳐 보이게 했는데, 복셀은
+    //       임의 각도 회전이 금지다(격자가 깨지면 voxel 로 안 읽힌다). 대신 **seed 를 달리해**
+    //       청크마다 다른 자리가 떨어져 나가게 하면 같은 '복붙 아님' 효과가 난다.
     makeRockSpire(s) {
         const g = new THREE.Group();
+        const u = s / 12;
         const n = 3 + (Math.random() * 2 | 0);                             // 3~4단
-        const lean = U.rand(-0.05, 0.05), leanD = U.rand(-0.04, 0.04);      // 자연 기울기(단마다 누적)
-        let leanX = 0, leanZ = 0;
+        const lean = U.rand(-0.6, 0.6), leanD = U.rand(-0.5, 0.5);          // 자연 기울기(단마다 누적, 칸 단위)
+        let leanX = 0, leanZ = 0, y = 1, v = [];
         for (let i = 0; i < n; i++) {
             const t = i / (n - 1);                                          // 0(밑동)~1(꼭대기)
-            const geo = this.rockGeo(U.rand(0.24, 0.38) * s);
-            const warm = (i % 2 === 0);
-            this.bandTint(geo, warm ? 1.06 : 0.96, warm ? 1.0 : 0.99, warm ? 0.92 : 1.03);
-            const r = new THREE.Mesh(geo, this.stoneMat);
-            leanX += lean; leanZ += leanD;
-            r.position.set(leanX * s + U.rand(-0.06, 0.06) * s, (0.28 + i * 0.40) * s, leanZ * s + U.rand(-0.05, 0.05) * s);
             const taper = 1 - t * 0.5;                                      // 위로 갈수록 가늘게
-            r.scale.set(taper, U.rand(1.4, 1.9) * (i === n - 1 ? 1.25 : 1), taper); // 꼭대기 단은 더 높게 세워 뾰족한 종단
-            r.rotation.set(U.rand(0, 3), U.rand(0, 3), U.rand(-0.2, 0.2));
-            g.add(r);
+            const r = U.rand(3.4, 5.0) * taper;
+            const h = r * U.rand(1.15, 1.5) * (i === n - 1 ? 1.25 : 1);     // 꼭대기 단은 더 높게 세워 뾰족한 종단
+            leanX += lean; leanZ += leanD;
+            v = v.concat(Voxel.at(this.vxBandTint(Voxel.rock(r, i * 7 + 3, { ry: h, bite: 0.3 }), i % 2 === 0),
+                Math.round(leanX), Math.round(y + h), Math.round(leanZ)));
+            y += h * 1.3;
         }
+        g.add(this.vxProp(v, u, this.stoneMat));
         return g;
     },
 
     // 둥근 바위(바위산/설원 부 소품) — snow=true면 위에 눈 뚜껑, moss=true면 청록 이끼 뚜껑(바위산 보색 악센트)
+    // 🧊 voxel 전환(2026-08-20). 뚜껑은 본체와 **다른 재질**이라 메시를 나눠야 하므로 겹친 칸을 뺀다.
     makeBoulder(s, snow, moss) {
         const g = new THREE.Group();
-        const b = new THREE.Mesh(this.rockGeo(0.45 * s), this.stoneMat);
-        b.position.y = 0.27 * s;
-        b.scale.y = 0.75;
-        b.rotation.set(U.rand(0, 3), U.rand(0, 3), 0);
-        g.add(b);
+        const u = s / 12;
+        const seed = 1 + (Math.random() * 900 | 0);
+        // 밑을 평평하게 잘라 땅에 앉힌다 — 옛 판은 구를 반쯤 묻어 접지를 냈다(같은 실루엣, 뜨지 않는다).
+        const body = Voxel.at(Voxel.rock(5.4, seed, { ry: 4.0, flatBottom: -2.6 }), 0, 3, 0);
         if (snow || moss) {
-            const cap = new THREE.Mesh(new THREE.DodecahedronGeometry(0.36 * s, 0), snow ? this.snowMat : this.mossMat);
-            cap.position.y = 0.5 * s;
-            cap.scale.y = 0.4;
-            cap.rotation.y = U.rand(0, 3);
-            g.add(cap);
-        }
+            const cap = Voxel.at(Voxel.rock(4.3, seed + 11, { ry: 1.4, flatBottom: -0.4 }), 0, 6, 0);
+            g.add(this.vxProp(cap, u, snow ? this.snowMat : this.mossMat));
+            g.add(this.vxProp(this.vxSub(body, cap), u, this.stoneMat));
+        } else g.add(this.vxProp(body, u, this.stoneMat));
         return g;
     },
 
@@ -3136,52 +3167,48 @@ const Scene3D = {
     // 침식된 퇴적 노두 — 밑에서 위로 좁아지는 3~4층 판을 한쪽으로 쏠리게(언더컷) 쌓고,
     // 층마다 웜/쿨 톤을 교번해 지층(사암↔이암)으로 읽히게 한다. 꼭대기엔 풍화 잔돌로 실루엣을 깬다.
     // (기존: 세로로만 눌린 rockGeo 2~4개를 무작위 위치에 얹은 '회색 팬케이크 더미' — 지층·침식·개체차 부재)
+    // 🧊 voxel 전환(2026-08-20) — 납작한 판을 쌓는 구조·지층 교번·언더컷은 그대로 두고 조형만 큐브로.
     makeSlab(s) {
         const g = new THREE.Group();
+        const u = s / 12;
         const n = 3 + (Math.random() * 2 | 0);                              // 3~4층
-        const lean = U.rand(-0.06, 0.06), leanD = U.rand(-0.05, 0.05);      // 침식 언더컷 방향(층마다 누적)
-        let y = 0.06 * s, leanX = 0, leanZ = 0;
+        const lean = U.rand(-0.7, 0.7), leanD = U.rand(-0.6, 0.6);          // 침식 언더컷 방향(층마다 누적, 칸)
+        let y = 0.7, leanX = 0, leanZ = 0, v = [];
         for (let i = 0; i < n; i++) {
             const t = i / (n - 1);                                          // 0(밑동)~1(꼭대기)
-            const geo = this.rockGeo(U.rand(0.32, 0.42) * s);
-            const warm = (i % 2 === 0);                                     // 지층 교번 — 아래로 갈수록 철분 밴 웜/암
-            this.bandTint(geo, (warm ? 1.07 : 0.96) - t * 0.05, (warm ? 1.01 : 0.99), (warm ? 0.90 : 1.03) + t * 0.03);
-            const w = (1.18 - t * 0.5) * U.rand(0.92, 1.08);               // 위로 좁아지는 테이퍼(메사/후두 축소판)
-            const p = new THREE.Mesh(geo, this.stoneMat);
-            p.scale.set(w, U.rand(0.24, 0.32), w * U.rand(0.6, 0.82));      // 납작한 판
+            const r = U.rand(3.8, 5.0) * (1.18 - t * 0.5);                  // 위로 좁아지는 테이퍼(메사/후두 축소판)
+            const h = U.rand(1.2, 1.8);                                     // 납작한 판
             leanX += lean; leanZ += leanD;
-            p.position.set(leanX * s + U.rand(-0.05, 0.05) * s, y, leanZ * s + U.rand(-0.05, 0.05) * s);
-            p.rotation.set(U.rand(-0.12, 0.12), U.rand(0, 3), U.rand(-0.1, 0.1));
-            g.add(p);
-            y += (0.11 + 0.03 * (1 - t)) * s;                              // 아래층이 더 두껍게 쌓임
+            // 지층 교번 — 아래로 갈수록 철분 밴 웜/암
+            v = v.concat(Voxel.at(this.vxBandTint(Voxel.rock(r, i * 13 + 5, { ry: h, rz: r * U.rand(0.6, 0.82), bite: 0.22 }), i % 2 === 0),
+                Math.round(leanX), Math.round(y + h), Math.round(leanZ)));
+            y += h * 2 + 0.4 * (1 - t);                                     // 아래층이 더 두껍게 쌓임
         }
         for (let i = 0; i < 2; i++) {                                       // 꼭대기 풍화 잔돌
-            const peb = new THREE.Mesh(this.rockGeo(U.rand(0.06, 0.11) * s), this.stoneMat);
-            peb.position.set(leanX * s + U.rand(-0.16, 0.16) * s, y - 0.02 * s, leanZ * s + U.rand(-0.14, 0.14) * s);
-            peb.rotation.set(U.rand(0, 3), U.rand(0, 3), U.rand(0, 3));
-            g.add(peb);
+            v = v.concat(Voxel.at(Voxel.rock(U.rand(0.9, 1.5), i * 29 + 7, { bite: 0.2 }),
+                Math.round(leanX + U.rand(-1.9, 1.9)), Math.round(y), Math.round(leanZ + U.rand(-1.7, 1.7))));
         }
+        g.add(this.vxProp(v, u, this.stoneMat));
         return g;
     },
 
     // 사막 중경용 수평 퇴적 암석층 — 넓은 판을 낮게 쌓아 침식된 사암층(메사 축소판)을 만듦
+    // 🧊 voxel 전환(2026-08-20).
     makeStrata(s) {
         const g = new THREE.Group();
+        const u = s / 12;
         const n = 3 + (Math.random() * 2 | 0);
-        let y = 0.07 * s;
+        let y = 0.8, v = [];
         for (let i = 0; i < n; i++) {
             const t = i / Math.max(1, n - 1);
-            const w = (1 - i * 0.16) * s;
-            const geo = this.rockGeo(0.5);
-            const warm = (i % 2 === 0);                                     // 사암/이암 지층 교번
-            this.bandTint(geo, warm ? 1.06 : 0.97, warm ? 1.0 : 0.99, warm ? 0.91 : 1.02);
-            const p = new THREE.Mesh(geo, this.stoneMat);
-            p.scale.set(w * U.rand(0.95, 1.2), 0.16 * s, w * U.rand(0.55, 0.75));
-            p.position.set(U.rand(-0.06, 0.06) * s + t * 0.08 * s, y, U.rand(-0.05, 0.05) * s); // 위층이 살짝 밀린 침식
-            p.rotation.y = U.rand(-0.25, 0.25);
-            g.add(p);
-            y += 0.15 * s;
+            const w = (1 - i * 0.16) * 6;
+            const h = 1.15;
+            v = v.concat(Voxel.at(this.vxBandTint(                          // 사암/이암 지층 교번
+                Voxel.rock(w * U.rand(0.95, 1.2), i * 17 + 11, { ry: h, rz: w * U.rand(0.55, 0.75), bite: 0.2 }), i % 2 === 0),
+                Math.round(U.rand(-0.7, 0.7) + t * 1.0), Math.round(y + h), Math.round(U.rand(-0.6, 0.6))));  // 위층이 살짝 밀린 침식
+            y += 2.3;
         }
+        g.add(this.vxProp(v, u, this.stoneMat));
         return g;
     },
 
@@ -3206,17 +3233,21 @@ const Scene3D = {
     makeBones(s) {
         if (!this.boneMat) this.boneMat = new THREE.MeshLambertMaterial({ color: 0xe6ddc8 });
         const g = new THREE.Group();
+        // 🧊 voxel 전환(2026-08-20) — 반토러스 갈비 → **큐브 링의 윗 절반**(`ring` 을 세워 아래를 잘라낸다).
+        //    토러스를 큐브로 옮기는 표준 수단이 `Voxel.ring` 이고, 아치는 그 링에서 y<0 을 버리면 된다.
+        const u = s / 16;
         const ribs = 3 + (Math.random() * 2 | 0);
+        const v = [];
         for (let i = 0; i < ribs; i++) {
-            const r = new THREE.Mesh(new THREE.TorusGeometry(U.rand(0.16, 0.22) * s * (1 - i * 0.1), 0.018 * s, 5, 10, Math.PI), this.boneMat);
-            r.position.set(0, 0.02, (i - ribs / 2) * 0.14 * s);
-            r.rotation.z = U.rand(-0.12, 0.12);
-            g.add(r);
+            const rr = U.rand(2.6, 3.5) * (1 - i * 0.1);
+            // ring 은 xz 평면에 눕는 고리다 — rotX 로 세워 xy 평면(정면 아치)으로 돌린 뒤 아래를 자른다.
+            const arc = Voxel.rotX(Voxel.ring(rr, 1.1, 1), 1).filter(p => p.y >= 0);
+            v.push(...Voxel.at(arc, 0, 0, Math.round((i - ribs / 2) * 2.2)));
         }
-        const skull = new THREE.Mesh(new THREE.DodecahedronGeometry(0.09 * s, 0), this.boneMat);
-        skull.position.set(U.rand(0.25, 0.35) * s, 0.06 * s, (ribs / 2) * 0.14 * s + 0.1 * s);
-        skull.scale.set(1, 0.8, 1.25);
-        g.add(skull);
+        // 두개골 — 십이면체 → 밑이 평평한 작은 청크(길쭉하게 눌러 주둥이 방향을 남긴다)
+        v.push(...Voxel.at(Voxel.rock(1.5, 41, { ry: 1.2, rz: 1.9, bite: 0.18, flatBottom: -0.9 }),
+            Math.round(U.rand(4.0, 5.6)), 1, Math.round((ribs / 2) * 2.2 + 1.6)));
+        g.add(this.vxProp(v, u, this.boneMat));
         return g;
     },
 
@@ -3229,29 +3260,31 @@ const Scene3D = {
         slab.position.set(U.rand(0.32, 0.45) * s, 0, U.rand(-0.2, 0.2) * s);
         slab.rotation.y = U.rand(0, Math.PI * 2);
         g.add(slab);
+        const u = s / 12;
+        const peb = [];
         for (let i = 0; i < 2; i++) {
-            const peb = new THREE.Mesh(this.rockGeo(U.rand(0.08, 0.14) * s), this.stoneMat);
             const a = U.rand(0, Math.PI * 2);
-            peb.position.set(Math.cos(a) * 0.5 * s, 0.06 * s, Math.sin(a) * 0.4 * s);
-            peb.rotation.set(U.rand(0, 3), U.rand(0, 3), 0);
-            g.add(peb);
+            peb.push(...Voxel.at(Voxel.rock(U.rand(1.0, 1.7), i * 23 + 9, { bite: 0.22 }),
+                Math.round(Math.cos(a) * 6), 1, Math.round(Math.sin(a) * 4.8)));
         }
+        g.add(this.vxProp(peb, u, this.stoneMat));
         return g;
     },
 
     // 화산암(용암) — 검게 탄 바위 밑동에 발광 용암 코어가 비침
+    // 🧊 voxel 전환(2026-08-20). 코어는 발광 재질이라 메시가 갈리므로, 덮는 조각에서 코어 칸을 뺀다.
     makeVolcanicRock(s) {
         const g = new THREE.Group();
-        const core = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34 * s, 0), this.lavaCoreMat);
-        core.position.y = 0.16 * s;
-        g.add(core);
+        const u = s / 12;
+        const core = Voxel.at(Voxel.rock(4.0, 3, { bite: 0.15 }), 0, 2, 0);
+        const shell = [];
         for (let i = 0; i < 3; i++) { // 코어를 덮는 균열 난 암석 조각들
             const a = (i / 3) * Math.PI * 2 + U.rand(0, 0.8);
-            const r = new THREE.Mesh(this.rockGeo(U.rand(0.24, 0.34) * s), this.charRockMat);
-            r.position.set(Math.cos(a) * 0.16 * s, 0.24 * s + U.rand(0, 0.1) * s, Math.sin(a) * 0.16 * s);
-            r.rotation.set(U.rand(0, 3), U.rand(0, 3), U.rand(0, 3));
-            g.add(r);
+            shell.push(...Voxel.at(Voxel.rock(U.rand(2.9, 4.1), i * 19 + 2, { bite: 0.32 }),
+                Math.round(Math.cos(a) * 1.9), Math.round(2.9 + U.rand(0, 1.2)), Math.round(Math.sin(a) * 1.9)));
         }
+        g.add(this.vxProp(core, u, this.lavaCoreMat));
+        g.add(this.vxProp(this.vxSub(shell, core), u, this.charRockMat));
         return g;
     },
 
@@ -3595,14 +3628,20 @@ const Scene3D = {
         g.userData.windSway = 0.034;   // 활엽수는 침엽수보다 크게 휜다
         const fm = this.foliageMats[Math.random() * 3 | 0]; // 나무별 잎 명도 변주
         const u = s / 12;
-        const trunk = Voxel.at(Voxel.box(3, 8, 3), -1, 0, -1);
+        // 개체차 — 침엽수와 같은 이유(위 `makePine` 의 🚨 주석). 활엽수는 수관이 덩어리라
+        // **`Voxel.rock` 의 seed 로 겉 칸을 다르게 떼어 내는 것**이 가장 자연스러운 변주다
+        // (같은 반경이라도 울퉁불퉁한 자리가 달라진다 — 잎 뭉치가 우연히 뭉친 모양 그 자체).
+        const seed = 1 + (Math.random() * 900 | 0);
+        const th = 7 + (Math.random() * 3 | 0);
+        const cr = U.rand(4.9, 5.9);
+        const trunk = Voxel.at(Voxel.box(3, th + 1, 3), -1, 0, -1);
         g.add(this.vxProp(trunk, u, this.trunkMat));
         // ⚠️ 반지름을 옛 정십이면체의 **외접반경 그대로** 옮기면 실루엣이 넓어진다 — 정십이면체의
         //    투영 면적은 외접구의 ~0.83 배인데 복셀 타원체는 구를 꽉 채우기 때문이다. √0.83 ≈ 0.91
         //    을 곱해 화면 점유를 옛 판에 맞춘다(다른 게이트가 이 점유 대역 위에 서 있다).
         const crown = Voxel.merge(
-            Voxel.at(Voxel.ellipsoid(5.5, 4.9, 5.5), 0, 11, 0),    // 옛 판 반경 0.5s · 중심 0.95s
-            Voxel.at(Voxel.ellipsoid(3.5, 3.2, 3.5), 3, 9, 1));    // 곁가지 수관 (옛 판 0.32s @ 0.28s,0.75s,0.1s)
+            Voxel.at(Voxel.rock(cr, seed, { ry: cr * 0.89, bite: 0.22 }), 0, th + 4, 0),          // 옛 판 반경 0.5s · 중심 0.95s
+            Voxel.at(Voxel.rock(cr * 0.64, seed + 7, { ry: cr * 0.58, bite: 0.24 }), 3, th + 2, 1));  // 곁가지 수관 (옛 판 0.32s @ 0.28s,0.75s,0.1s)
         // 줄기가 지나는 칸은 수관에서 뺀다 — 두 메시가 같은 칸을 채우면 z-파이팅이다(`vxSub` 주석).
         g.add(this.vxProp(this.vxSub(Voxel.hollow(crown), trunk), u, fm));
         return g;
