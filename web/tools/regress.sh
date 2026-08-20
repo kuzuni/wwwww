@@ -35,6 +35,7 @@ for p in \
     check-autobatch-nan-coins.js \
     probe-icon-light-frame.js \
     probe-alloy-trim-contact.js \
+    probe-armor-era-silhouette.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1

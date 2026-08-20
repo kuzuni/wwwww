@@ -4718,7 +4718,21 @@ const Scene3D = {
     //    **이름이 실제로 그것인 시대만** 적는다. 새 시대에 vest 를 배정하면 여기 한 줄도 같이
     //    적을 것 — 안 적으면 조용히 전술 조끼로 떨어진다.
     // 현대('케블라')는 `tactical` 이 정답이라 표에 없다(기본값이 곧 맞는 조형인 유일한 시대).
-    VEST_VARIANT: { primitive: 'hunter', medieval: 'mail', earlyModern: 'waistcoat', space: 'sealed', divine: 'radiant' },
+    // 🚨 **한때 이 표가 5시대를 비워 뒀고, 그 5칸이 전부 `tactical` 로 떨어져 실루엣이 문자 그대로
+    //    같았다 (R2 교집합 ㉠ — 비평가 A·B 둘 다 1~2순위).** 신설한 크로스-시대 게이트
+    //    (`probe-armor-era-silhouette.js`)로 재 보니 비평가가 눈으로 본 것보다 나빴다:
+    //    성간 코트 ↔ 입자 조끼 ↔ 재의 조끼가 **IoU 1.000 · 윤곽차 0.0000**(96px 실루엣이 픽셀 단위로
+    //    동일), 케블라와도 0.0002 차였다. 그래서 넷을 각각 갈랐다 — 이름이 요구하는 물건이 넷 다
+    //    다르기 때문이다(코트 / 와이어프레임 / 링 / 암석판).
+    // ⚠️ `ageGearKind` 로 가르지 말 것 — alloy 한 계열에 우주·항성간·다중우주·양자·지하가 통째로
+    //    묶여 '성간 코트'와 '재의 조끼'가 도로 같은 물건이 된다(`fin`·`suit` 과 같은 이유).
+    VEST_VARIANT: {
+        primitive: 'hunter', medieval: 'mail', earlyModern: 'waistcoat', space: 'sealed', divine: 'radiant',
+        interstellar: 'starcoat',   // 성간 코트 — 무릎까지 내려오는 자락 2폭 + 세운 하이 칼라
+        multiverse: 'wire',         // 가상 슈트 — 격자 와이어프레임(면이 부분 소실돼 윤곽이 끊긴다)
+        quantum: 'orbit',           // 입자 조끼 — 몸통을 벗어나 뜬 동심 링 3겹(계단형 외곽)
+        underworld: 'ashen',        // 재의 조끼 — 불규칙 암석 판 6장 비대칭 + 부서진 밑단
+    },
     vestVariant(age) { return this.VEST_VARIANT[age] || 'tactical'; },
 
     // 시대별 재질 세트 — body(주 표면) / dark(부속·스트랩) / trim(시대 디테일) / glow 여부.
@@ -6848,6 +6862,50 @@ const Scene3D = {
                     this.tintOf(mats ? mats.body : lit, 0.26));
                 halo.position.set(0, 0.845, pz - 0.020);   // 십자 **뒤·위** — 광배는 머리 쪽에서 뜬다
                 g.add(halo);
+            } else if (vv === 'starcoat') {
+                // 성간 코트 — 파우치가 아니라 **더블 브레스티드 여밈**. 코트의 가슴은 단추 두 줄이다.
+                for (const dx of [-0.052, 0.052]) {
+                    for (let i = 0; i < 3; i++) {
+                        const btn = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.024, 0.014), trim);
+                        btn.position.set(dx, 0.726 + i * 0.052, pz + 0.004);
+                        g.add(btn);
+                    }
+                }
+                const placket = new THREE.Mesh(new THREE.BoxGeometry(0.135, 0.205, 0.020), pm);
+                placket.position.set(0, 0.792, pz - 0.006);
+                g.add(placket);
+            } else if (vv === 'wire') {
+                // 가상 슈트 — 가슴도 **격자**다. 판 하나를 얹으면 케이지와 따로 노는 흉갑이 된다.
+                const node = new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.9 });
+                for (let r = 0; r < 3; r++) for (let k = -1; k <= 1; k++) {
+                    // ⚠️ `(r + k) % 2` 로 쓰면 k = −1 에서 −1 이 나와(자바스크립트 나머지는 부호를 물려받는다)
+                    //    왼쪽 열만 체크무늬가 뒤집힌다 — +2 를 더해 양수로 만든 뒤 나눈다.
+                    const cell = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.030, 0.014), (r + k + 2) % 2 ? node : trim);
+                    cell.position.set(k * 0.050, 0.734 + r * 0.050, pz + 0.003);
+                    g.add(cell);
+                }
+            } else if (vv === 'orbit') {
+                // 입자 조끼 — 가슴에 **입자 코어** 하나. 링(실루엣 오버레이)이 그 둘레를 돈다는 인상.
+                const core = new THREE.Mesh(new THREE.BoxGeometry(0.072, 0.072, 0.030),
+                    new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 1.0 }));
+                core.position.set(0, 0.790, pz + 0.008);
+                core.rotation.z = Math.PI * 0.25;   // 마름모로 세워 사각 패널과 갈린다
+                g.add(core);
+                const cage = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.010, 5, 4), trim);
+                cage.position.set(0, 0.790, pz + 0.004);
+                cage.rotation.z = Math.PI * 0.25;
+                g.add(cage);
+            } else if (vv === 'ashen') {
+                // 재의 조끼 — 가슴 정중앙에 **금 간 화산암 덩이**. 바느질한 파우치는 이 시대의 물건이 아니다.
+                const lump = new THREE.Mesh(new THREE.BoxGeometry(0.150, 0.128, 0.052), pm);
+                lump.position.set(0.012, 0.788, pz - 0.002);
+                lump.rotation.z = -0.14;
+                g.add(lump);
+                const seam = new THREE.Mesh(new THREE.BoxGeometry(0.020, 0.132, 0.016),
+                    new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.8 }));
+                seam.position.set(0.030, 0.790, pz + 0.022);
+                seam.rotation.z = 0.36;
+                g.add(seam);
             } else {   // tactical — 현대 '케블라' 등. 전술 파우치가 정답인 시대만 여기로 온다.
                 for (const dx of [-0.11, 0.11]) {
                     const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.06), pm);
@@ -7541,6 +7599,7 @@ const Scene3D = {
             // 파우치만 갈라 봐야 소용이 없다 — 어깨끈(웨빙)과 V 앞섶은 **전술 조끼의 서명**이라
             // 사슬 조끼·성광 조끼에 그대로 얹히면 도로 군용으로 읽힌다. 변종표는 `VEST_VARIANT`.
             const vv = this.vestVariant(age);
+            const rareHex = RARITY_HEX[rarity] || 0xffffff;   // 발광 부속(입자 링·용암 균열)의 등급색
             // 🚨 **이 스타일의 좌표를 잡을 때 반드시 알아야 하는 두 가지 (2026-08-19 실측으로 값을 물림)**
             //   ⑴ `vest` 는 `P.top = 0.80` 짜리 **크롭**이라 몸통 맨 윗링이 y = 0.29·0.80 = **0.232**
             //      에서 끝난다(다른 스타일의 0.29 가 아니다). 어깨 부속을 0.24 위에 두면 몸통에서
@@ -7666,6 +7725,172 @@ const Scene3D = {
                     cuff.rotation.y = Math.PI / 2;
                     cuff.rotation.z = s * 0.34;
                     g.add(cuff);
+                }
+            } else if (vv === 'starcoat') {
+                // 성간 코트 — **진짜 코트로**(비평가 2인 합의 지시). 조끼 골격에 얹는 게 아니라
+                //   ⓐ 밑단을 크롭 아래로 길게 빼고 ⓑ 앞자락을 좌우로 갈라 A라인을 만들고
+                //   ⓒ 목에 세운 하이 칼라를 세운다 — 이 셋이 96px 에서 '코트'의 서명이다.
+                // 🚨 **자락을 한 장으로 두르지 말 것 — 도로 로브(종형 드레이프)가 된다.**
+                //    가르는 틈이 실루엣 밑변에 V 노치를 내는 게 이 조형의 핵심이고, 그 노치가
+                //    `robe`·`suit` 의 매끈한 밑변과 갈리는 유일한 축이다.
+                // ⚠️ 몸통 크롭 밑변은 y = −0.27 이다(RINGS 첫 링). 자락은 거기서 시작해 아래로
+                //    간다 — 위에서 시작하면 허리에 붙은 앞치마로 읽힌다.
+                // 🚨 **자락을 좁은 기둥 2개로 내리지 말 것 — 바지(두 다리)로 읽힌다** (1차 실측 캡처에서
+                //    그렇게 나왔다. `radiant` 의 팔리움 띠가 밟은 것과 같은 함정이다). 폭을 자락 사이
+                //    틈보다 **훨씬 크게** 잡고, 위는 붙이고 **아래만 벌려** A라인으로 떨어뜨린다.
+                for (const s of [-1, 1]) {
+                    const tail = this.beveledSlab(0.255, 0.335, 0.055, 0.02, mat);
+                    tail.position.set(s * 0.104, -0.400, 0.048);
+                    tail.rotation.z = s * 0.235;     // 아래로 벌어져 A라인
+                    tail.rotation.y = -s * 0.34;     // 몸통 곡면을 감싸게 안으로 접는다
+                    g.add(tail);
+                    const back = this.beveledSlab(0.235, 0.320, 0.050, 0.02, mat);
+                    back.position.set(s * 0.100, -0.405, -0.058);
+                    back.rotation.z = s * 0.225;
+                    back.rotation.y = s * 0.34;
+                    g.add(back);
+                }
+                // 앞 갈라진 선 — 자락 두 폭 사이의 좁은 틈에만 짙은 파이핑을 세운다(틈이 곧 코트의 서명).
+                const slit = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.330, 0.072), mats.dark);
+                slit.position.set(0, -0.405, 0.070);
+                g.add(slit);
+                // 허리 벨트 — 크롭 밑변과 자락의 이음매를 덮는다. 없으면 자락이 '따로 입은 치마'다.
+                const belt = new THREE.Mesh(new THREE.TorusGeometry(0.216, 0.030, 6, 20), mats.dark);
+                belt.position.set(0, -0.252, 0);
+                belt.rotation.x = Math.PI / 2;
+                belt.scale.y = 0.68;
+                g.add(belt);
+                // 하이 칼라 — 목을 감싸 **뒤에서 높고 앞에서 낮게** 세운 깃. 🧊 큐브를 세워 두른다.
+                // 🚨 **열린 원뿔 + 토러스 마개로 만들지 말 것 — 세 판 연속 '가방 손잡이'로 찍혔다.**
+                //    원인을 씬그래프 덤프로 잡았고, 색이 아니라 **좌표 합성 버그**였다:
+                //    `rotation.x = π/2` 로 눕힌 토러스에 `rotation.z` 를 더 주면 **`scale.y = 0.68` 이
+                //    더 이상 앞뒤 축을 누르지 않는다**(M = T·R·S 라 S 가 먼저 먹고, 그 뒤 두 회전의
+                //    합성이 눌린 축을 다른 데로 돌려놓는다). 실측: 반경 0.212 짜리 마개의 z 범위가
+                //    ±0.144 여야 하는데 **±0.27** 로 나왔다 — 몸통(z ±0.168) 밖으로 튀어나온 채
+                //    비스듬히 뜬 큰 링, 그게 손잡이의 가로대였다.
+                //    ⚠️ **같은 합성이 `radiant` 의 금 테(rim)와 `sealed` 의 여압 리브(rib)에도 그대로
+                //       있다** — 두 곳은 이번 항목 밖이라 손대지 않았다. 고칠 때는 `rotation.z` 를 빼고
+                //       **지오메트리에 `rotateZ` 를 걸 것**(지오메트리 회전은 scale 앞에 굽혀지므로 안전).
+                //    큐브 깃은 이 함정 자체가 없다(각 큐브가 자기 자리에 놓일 뿐 눌린 축이 없다).
+                const NC = 14;
+                for (let i = 0; i < NC; i++) {
+                    const a = -Math.PI * 0.72 + (i / (NC - 1)) * Math.PI * 1.44;   // 앞이 열린 깃
+                    const back = Math.abs(Math.cos(a));            // 뒤로 갈수록 1 — 깃이 높아진다
+                    const h = 0.048 + back * 0.082;
+                    const cube = new THREE.Mesh(new THREE.BoxGeometry(0.052, h, 0.036), mat);
+                    cube.position.set(Math.sin(a) * 0.176, 0.206 + h * 0.5, Math.cos(a) * 0.120);
+                    cube.rotation.y = a;
+                    cube.rotation.x = -Math.cos(a) * 0.20;         // 밖으로 젖힌 깃
+                    g.add(cube);
+                }
+            } else if (vv === 'wire') {
+                // 가상 슈트 — **격자 와이어프레임 리브로 면이 부분 소실돼 외곽선이 끊긴 점선**
+                //   (비평가 2인 합의 지시 그대로). 몸통보다 **바깥에** 케이지를 세우는 게 요점이다:
+                //   케이지가 바깥 윤곽을 지면, 그 윤곽이 토막나 있으니 실루엣이 점선이 된다.
+                // 🚨 **온전한 세로 리브를 두르지 말 것 — 새장(bird cage)이 되고 윤곽은 도로 이어진다.**
+                //    각 리브를 3토막으로 끊고 토막 시작 높이를 리브마다 어긋나게(위상차) 둔다.
+                // 🚨 **토막을 굵고 짧게, 몸에서 멀리 두지 말 것 — 흩뿌린 색종이가 된다**(1차 실측
+                //    캡처가 그랬다). 와이어프레임으로 읽히려면 ⓐ 살이 **가늘고**(굵으면 블록 덩이)
+                //    ⓑ 토막이 **길어 이웃과 거의 닿고**(멀면 점) ⓒ 케이지가 몸통 표면에 **바짝**
+                //    붙어야 한다(멀면 몸과 따로 노는 새장).
+                const wireMat = mats.trim || mats.dark;
+                const CX = 0.262, CZ = 0.178;        // 케이지 반경 — 몸통 최대(0.25/0.168) 바로 바깥
+                const RIB = 12;
+                for (let i = 0; i < RIB; i++) {
+                    const a = (i / RIB) * Math.PI * 2;
+                    const ph = (i % 3) * 0.055;      // 위상차 — 같은 높이에서 끊기면 '가로 띠 3줄'이다
+                    for (let k = 0; k < 3; k++) {
+                        const y = -0.235 + ph + k * 0.165;
+                        if (y > 0.230) continue;
+                        const seg = new THREE.Mesh(new THREE.BoxGeometry(0.019, 0.135, 0.019), wireMat);
+                        seg.position.set(Math.sin(a) * CX, y, Math.cos(a) * CZ);
+                        seg.rotation.y = a;
+                        g.add(seg);
+                    }
+                }
+                // 가로 격자 — 앞쪽 호 3줄. 이것도 토막이라 점선이다(온전한 링이면 술통 후프).
+                for (let r = 0; r < 3; r++) {
+                    const y = -0.145 + r * 0.155;
+                    for (let i = 0; i < 15; i++) {
+                        if (i % 3 === 2) continue;   // 세 칸에 한 칸을 비운다 = 끊긴 가로선
+                        const a = -Math.PI * 0.66 + (i / 14) * Math.PI * 1.32;
+                        const seg = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.017, 0.017), wireMat);
+                        seg.position.set(Math.sin(a) * CX, y, Math.cos(a) * CZ);
+                        seg.rotation.y = a;
+                        g.add(seg);
+                    }
+                }
+            } else if (vv === 'orbit') {
+                // 입자 조끼 — **몸통에서 띄운 동심 링 3겹으로 계단형 외곽**(비평가 2인 합의 지시).
+                //   링을 몸에 붙이면 `sealed` 의 여압 리브·`radiant` 의 금 테와 같은 물건이 된다.
+                //   **띄우는 것**이 이 조형의 정의고, 띄운 링이 층마다 반경을 달리해야 계단이 진다.
+                // 🧊 링은 작은 큐브를 돌려 세운 **복셀 링**이다 — 토러스로 두르면 매끈한 후프라
+                //    계단이 안 지고, 화풍(voxel)과도 어긋난다.
+                // 🚨 **큐브를 띄엄띄엄 놓지 말 것 — 링이 아니라 '허공에 뜬 주사위'가 된다**(1차 실측).
+                //    칸 수는 손으로 세지 말고 **둘레 ÷ 큐브 크기**로 뽑아 이웃이 거의 맞닿게 한다
+                //    (타원이라 둘레는 라마누잔 근사). 그래야 96px 에서 한 줄의 링으로 뭉친다.
+                const ringMat = mats.trim || mats.dark;
+                const glow = new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.75 });
+                const LAYERS = [   // 반경이 층마다 달라야 바깥 윤곽에 계단이 진다(가운데가 가장 넓다)
+                    { y: 0.190, rx: 0.288, s: 0.038 },
+                    { y: 0.010, rx: 0.372, s: 0.046 },
+                    { y: -0.180, rx: 0.300, s: 0.040 },
+                ];
+                for (let L = 0; L < LAYERS.length; L++) {
+                    const cfg = LAYERS[L];
+                    const a1 = cfg.rx, b1 = cfg.rx * 0.68;
+                    const peri = Math.PI * (3 * (a1 + b1) - Math.sqrt((3 * a1 + b1) * (a1 + 3 * b1)));
+                    const n = Math.max(12, Math.round(peri / (cfg.s * 0.94)));
+                    for (let i = 0; i < n; i++) {
+                        const a = (i / n) * Math.PI * 2;
+                        const cube = new THREE.Mesh(new THREE.BoxGeometry(cfg.s, cfg.s, cfg.s), (i % 5 === L) ? glow : ringMat);
+                        cube.position.set(Math.sin(a) * a1, cfg.y, Math.cos(a) * b1);
+                        cube.rotation.y = a;
+                        g.add(cube);
+                    }
+                }
+            } else if (vv === 'ashen') {
+                // 재의 조끼 — **불규칙 암석 판 6장을 비대칭으로 박고 밑단은 부서져 결손**
+                //   (비평가 2인 합의 지시). 좌우 대칭으로 박으면 도로 '판금 라멜라'라 중세가 된다 —
+                //   🚨 **이 조형에서 `for (const s of [-1,1])` 를 쓰지 말 것.** 비대칭이 정의다.
+                // ⚠️ 좌표는 표로 박아 둔다(`Math.random` 금지 — 리빌드마다 무늬가 바뀌면 A/B 와
+                //    회귀 캡처가 흔들린다. `voxel.js` 머리말의 좌표해시 규칙과 같은 이유다).
+                const rock = mats.dark;
+                const hot = new THREE.MeshLambertMaterial({ color: rareHex, emissive: rareHex, emissiveIntensity: 0.55 });
+                // ⚠️ 판을 몸에서 띄우거나 크게 기울이지 말 것 — 몸을 뚫고 나온 **떠 있는 상자**가 된다
+                //    (1차 실측). 판은 표면에 **박혀 있어야** 암석 갑주로 읽힌다: 반경을 몸통 표면
+                //    (rx 0.25 / rz 0.168)에 물리고 기울기는 ±0.2 안쪽, 두께의 절반은 몸통에 묻는다.
+                const SLABS = [   // [각도, y, 폭, 높이, 두께, 기울기]
+                    [-0.80, 0.148, 0.170, 0.200, 0.062, 0.17],
+                    [-0.16, 0.052, 0.215, 0.145, 0.070, -0.10],
+                    [0.60, 0.168, 0.135, 0.175, 0.058, -0.20],
+                    [1.30, -0.028, 0.150, 0.230, 0.064, 0.13],
+                    [-1.52, -0.072, 0.185, 0.160, 0.060, -0.15],
+                    [0.22, -0.180, 0.195, 0.180, 0.068, 0.07],
+                ];
+                for (const [a, y, w, h, d, rz] of SLABS) {
+                    const slab = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), rock);
+                    slab.position.set(Math.sin(a) * 0.212, y, Math.cos(a) * 0.146);
+                    slab.rotation.y = a;
+                    slab.rotation.z = rz;
+                    g.add(slab);
+                }
+                // 부서진 밑단 — 크롭 밑변(y −0.27) 아래로 크기가 제각각인 파편이 삐죽 남는다.
+                //   길이를 고르게 주면 '톱니 장식'이라 되레 규칙적으로 읽힌다 — 4:2:5:1 로 벌린다.
+                const SHARD = [[-1.20, 0.115, 0.100], [-0.35, 0.062, 0.070], [0.48, 0.140, 0.125], [1.42, 0.040, 0.058], [2.35, 0.098, 0.088], [-2.55, 0.070, 0.105]];
+                for (const [a, len, w] of SHARD) {
+                    const sh = new THREE.Mesh(new THREE.BoxGeometry(w, len, 0.070), rock);
+                    sh.position.set(Math.sin(a) * 0.196, -0.268 - len * 0.42, Math.cos(a) * 0.132);
+                    sh.rotation.y = a;
+                    sh.rotation.z = (a > 0 ? 1 : -1) * 0.16;
+                    g.add(sh);
+                }
+                // 판 사이로 새는 용암 균열 2줄 — 암석이 '회색 돌덩이'로 죽지 않게 하는 유일한 광원.
+                for (const [x, y, rz] of [[0.062, 0.088, 0.42], [-0.086, -0.062, -0.28]]) {
+                    const crack = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.185, 0.020), hot);
+                    crack.position.set(x, y, 0.152);
+                    crack.rotation.z = rz;
+                    g.add(crack);
                 }
             } else {
                 // hunter · tactical — 어깨끈 2줄이 어깨를 넘어가고 앞섶이 V로 벌어진다.
