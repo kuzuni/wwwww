@@ -16532,7 +16532,7 @@ const Scene3D = {
             const o = opt || {};
             const m2 = o.op === undefined ? aoMat
                 : new THREE.MeshBasicMaterial({ color: 0x0a0d12, transparent: true, opacity: o.op * 1.5, depthWrite: false, alphaMap: aoFade });
-            const ring = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 10, 16), m2);
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 10, 16), m2); /* voxel-ok: 접촉 음영(그림자) — 조형이 아니라 투명 오버레이(depthWrite off·noOutline·플래시 제외). 유출 0 은 probe-enemy-ao 가 지키고, 감사(probe-voxel-consistency)도 userData.aoRing 으로 제외한다 */
             // axis:'z' = 부모의 z축을 감는다(꼬리·팔처럼 **누운** 파츠용). 기본은 눕혀서 수평 링.
             if (o.axis !== 'z') ring.rotation.x = Math.PI / 2;
             ring.position.set(x, y, z);
@@ -16569,7 +16569,7 @@ const Scene3D = {
         const aoSkirt = (prof, opt) => {
             const o = opt || {};
             const grow = o.grow === undefined ? 1.03 : o.grow;
-            const geo = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0] * grow, p[1])), o.seg || 10);
+            const geo = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0] * grow, p[1])), o.seg || 10); /* voxel-ok: 접촉 음영 셸(버섯 갓 밑) — aoRing 과 같은 사유. 몸 프로파일 추종이 유출 0 의 구조적 근거라 매끈 유지가 의도다 */
             const sk = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
                 color: 0x0a0d12, transparent: true, opacity: o.op === undefined ? 0.6 : o.op,
                 depthWrite: false, alphaMap: aoSkirtFade }));

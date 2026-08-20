@@ -1,7 +1,7 @@
 {
  "note": "곡면 생성자 래칫 기준선 — probe-geo-ratchet.js 가 관리. 손으로 올리지 말 것(늘리면 그 프로브가 FAIL 낸다).",
- "total": 400,
- "whitelisted": 0,
+ "total": 340,
+ "whitelisted": 2,
  "files": {
   "prochar.js": {
    "Cylinder": 30,
@@ -9,17 +9,16 @@
    "Torus": 5
   },
   "scene3d.js": {
-   "Sphere": 89,
+   "Sphere": 71,
    "Octahedron": 5,
-   "Cone": 42,
+   "Cone": 40,
    "Dodecahedron": 11,
-   "Cylinder": 99,
+   "Cylinder": 84,
    "Icosahedron": 5,
-   "Torus": 74,
+   "Torus": 63,
    "Tube": 2,
-   "Circle": 3,
-   "Ring": 14,
-   "Lathe": 1
+   "Circle": 1,
+   "Ring": 3
   }
  }
 }

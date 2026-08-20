@@ -64,10 +64,16 @@ const MAXCELLS = process.env.VOXCON_MAXCELLS ? parseFloat(process.env.VOXCON_MAX
 
     const rows = await page.evaluate((only) => {
         // 한 오브젝트의 축정렬 법선 비율 — **로컬 기준**(위 ⚠️). 면적 가중이라 큰 곡면이 제대로 무겁다.
+        //   ⚠️ **접촉 음영(userData.aoRing)은 조형이 아니라 그림자라 측정에서 뺀다(2026-08-20).**
+        //      AO 링/스커트는 투명 오버레이(depthWrite off · noOutline · 플래시 제외)로, 실루엣이
+        //      아니라 표면 명암에만 기여한다 — lensGeo(균열 렌즈)와 같은 '의도적 매끈' 계열이고
+        //      소스에도 voxel-ok 화이트리스트로 등재돼 있다. 이걸 곡면으로 세면 적 카테고리가
+        //      영원히 94~96% 에 묶여 게이트(VOXCON_MIN=99)를 걸 수 없다.
         const ratio = (root) => {
             let axis = 0, total = 0, meshes = 0;
             root.traverse(o => {
                 if (!o.isMesh || !o.geometry) return;
+                if (o.userData && o.userData.aoRing) return;
                 for (let p = o; p; p = p.parent) if (p.visible === false) return;
                 const g = o.geometry, pos = g.attributes && g.attributes.position;
                 if (!pos) return;
@@ -112,6 +118,7 @@ const MAXCELLS = process.env.VOXCON_MAXCELLS ? parseFloat(process.env.VOXCON_MAX
             let best = null;
             root.traverse(o => {
                 if (!o.isMesh || !o.geometry) return;
+                if (o.userData && o.userData.aoRing) return;   // 접촉 음영 제외 — ratio 와 같은 사유
                 for (let p = o; p; p = p.parent) if (p.visible === false) return;
                 const pos = o.geometry.attributes && o.geometry.attributes.position;
                 if (!pos) return;
