@@ -40,6 +40,7 @@ const GATED = {
     suit: ['*'],                                                     // 8시대 전부 어깨 위 표식으로 갈랐다
     exo: ['*'],                                                      // 3시대 전부 어깨·옆구리 윤곽으로 갈랐다 (rig/adamant/delta)
     plate: ['*'],                                                    // 5시대 전부 어깨·밑단의 결로 갈랐다 (knight/skirted/spectral/doom/paladin)
+    hide: ['*'],                                                     // 2시대 — 원시(술·모피·끈) / 현대(재단선·포켓·벨트·파우치)
 };
 const LIST = !!process.env.LIST;
 const isGated = (style, age) => {

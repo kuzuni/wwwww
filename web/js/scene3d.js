@@ -9358,32 +9358,73 @@ const Scene3D = {
                 g.add(brim);
             }
         } else if (style === 'hide') {
-            // 가죽: 민짜 덩어리로 읽히던 것을 **앞섶 교차 끈 + 어깨 모피 + 너덜한 밑단**으로 갈랐다.
-            // 밑단 술이 아래 윤곽을 톱니로 만들어 plate 의 매끈한 항아리와 96px 에서도 갈린다.
-            // 술은 촘촘해야 '너덜한 밑단'이지, 성기면 다리 여러 개로 보인다 — 18가닥을 붙여 두른다
-            for (let i = 0; i < 18; i++) {
-                const a = (i / 18) * Math.PI * 2;
-                const len = 0.052 + (i % 3) * 0.028;
-                const strip = this.beveledSlab(0.062, len, 0.03, 0.012, this.tintOf(mat, -0.04));
-                strip.position.set(Math.cos(a) * 0.236, -0.262 - len * 0.44, Math.sin(a) * 0.149);
-                strip.rotation.y = -a;
-                g.add(strip);
-            }
-            for (let i = 0; i < 4; i++) {
-                const y = 0.19 - i * 0.075;
-                for (const s of [-1, 1]) {
-                    const lace = this.capsuleMesh(0.011, 0.085, mats.dark, 6);
-                    lace.position.set(0, y, 0.152 - i * 0.006);
-                    lace.rotation.z = s * 0.72;
-                    g.add(lace);
+            // ── 시대 분기 — `hide` 는 두 시대뿐이라 표 없이 가른다(원시 '가죽옷' / 현대 '위장복').
+            // 크로스-시대 게이트 실측 IoU 0.971: 위장복이 모피 술 갑옷 그대로였다. 원시의 서명
+            // (너덜 술·모피·교차 끈)은 원시에만 남기고, 현대는 **재단된 군복**의 결로 간다 —
+            // 곧은 밑단 밴드 + 세운 옷깃 + 가슴 포켓 플랩 + 허리 벨트·엉덩이 파우치(비대칭 돌출).
+            if (age !== 'modern') {
+                // 가죽: 민짜 덩어리로 읽히던 것을 **앞섶 교차 끈 + 어깨 모피 + 너덜한 밑단**으로 갈랐다.
+                // 밑단 술이 아래 윤곽을 톱니로 만들어 plate 의 매끈한 항아리와 96px 에서도 갈린다.
+                // 술은 촘촘해야 '너덜한 밑단'이지, 성기면 다리 여러 개로 보인다 — 18가닥을 붙여 두른다
+                for (let i = 0; i < 18; i++) {
+                    const a = (i / 18) * Math.PI * 2;
+                    const len = 0.052 + (i % 3) * 0.028;
+                    const strip = this.beveledSlab(0.062, len, 0.03, 0.012, this.tintOf(mat, -0.04));
+                    strip.position.set(Math.cos(a) * 0.236, -0.262 - len * 0.44, Math.sin(a) * 0.149);
+                    strip.rotation.y = -a;
+                    g.add(strip);
                 }
-            }
-            for (let i = 0; i < 9; i++) {
-                const a = (i / 9) * Math.PI * 2;
-                const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6), this.tintOf(mat, 0.05, { roughness: 1 }));
-                tuft.scale.set(1, 0.7, 1);
-                tuft.position.set(Math.cos(a) * 0.163, 0.276, Math.sin(a) * 0.104);
-                g.add(tuft);
+                for (let i = 0; i < 4; i++) {
+                    const y = 0.19 - i * 0.075;
+                    for (const s of [-1, 1]) {
+                        const lace = this.capsuleMesh(0.011, 0.085, mats.dark, 6);
+                        lace.position.set(0, y, 0.152 - i * 0.006);
+                        lace.rotation.z = s * 0.72;
+                        g.add(lace);
+                    }
+                }
+                for (let i = 0; i < 9; i++) {
+                    const a = (i / 9) * Math.PI * 2;
+                    const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6), this.tintOf(mat, 0.05, { roughness: 1 }));
+                    tuft.scale.set(1, 0.7, 1);
+                    tuft.position.set(Math.cos(a) * 0.163, 0.276, Math.sin(a) * 0.104);
+                    g.add(tuft);
+                }
+            } else {
+                // 현대 '위장복' — 재단선이 언어다. 술 0 · 모피 0 · 끈 0.
+                const dk = this.tintOf(mat, -0.07);
+                // 곧은 밑단 밴드 — 잘라 낸 재봉선. 원시의 톱니 밑단과 정반대의 결이다.
+                const hem = new THREE.Mesh(new THREE.TorusGeometry(0.232, 0.020, 6, 22), dk);
+                hem.position.y = -0.252;
+                hem.rotation.x = Math.PI / 2;
+                hem.scale.y = 0.64;
+                g.add(hem);
+                // 세운 옷깃 — 목둘레 앞 180° 호(뒤는 파티에 가려 안 보인다)
+                const collar = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.023, 6, 14, Math.PI), dk);
+                collar.rotation.x = Math.PI / 2;
+                collar.rotation.z = -Math.PI / 2;  // 호의 중심을 +z(정면)로 — 앞을 감싸는 반깃
+                collar.position.y = 0.300;
+                collar.scale.y = 0.66;
+                g.add(collar);
+                // 가슴 포켓 플랩 2장 + 지퍼 중앙선
+                for (const s of [-1, 1]) {
+                    const pk = this.beveledSlab(0.088, 0.072, 0.024, 0.02, dk);
+                    pk.position.set(s * 0.108, 0.115, 0.150);
+                    g.add(pk);
+                }
+                const zip = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.40, 0.016), mats.dark);
+                zip.position.set(0, 0.045, 0.155);
+                g.add(zip);
+                // 허리 벨트 + 오른쪽 엉덩이 파우치(비대칭 돌출 — 96px 윤곽에 한 점을 박는다)
+                const belt = new THREE.Mesh(new THREE.TorusGeometry(0.218, 0.017, 6, 20), mats.dark);
+                belt.position.y = -0.155;
+                belt.rotation.x = Math.PI / 2;
+                belt.scale.y = 0.64;
+                g.add(belt);
+                const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.085, 0.060), dk);
+                pouch.position.set(0.235, -0.195, 0.055);
+                pouch.rotation.y = 0.35;
+                g.add(pouch);
             }
         }
         return g;
