@@ -45,6 +45,48 @@ const ProChar = {
         return g;
     },
 
+    // 🧊 **voxel 사지 — `capsule` 의 큐브 대응** (화풍 확정 2026-08-20: 3D로 그리는 모든 것을 큐브 조형으로).
+    //   `capsule` 과 **원점·방향·길이 규약이 같다**: 원점 = 위쪽 끝(피벗), 아래로 len 만큼 늘어지고
+    //   끝에 rBot 짜리 캡이 달린다. 그래서 호출부에서 `capsule` → `voxLimb` 로 이름만 바꿔도
+    //   팔꿈치/무릎 피벗·부속(라메·개스킷·부츠) 좌표를 한 자도 안 건드려도 된다.
+    //
+    //   ⚠️ **칸 크기를 `len / h` 로 되잡는 이유** — 목표 칸 크기(vs)를 그대로 쓰면 층 수 반올림
+    //      오차가 그대로 사지 길이 오차가 된다(하완은 최대 4%). 이 리그는 두신비·다리비를
+    //      `probe-hero-proportion` 이 수치로 지키고 있어서 **길이는 정확히 len 이어야 한다.**
+    //      대신 칸이 부위마다 미세하게 달라지는데(0.0160 ↔ 0.0165 수준) 큐브는 여전히 정육면체라
+    //      화면에서 안 갈린다. 반대로 y 만 늘려 맞추면 직육면체가 되어 voxel 로 안 읽힌다.
+    //
+    //   ⚠️ **`center: false` 로 굽고 위치를 직접 잡는다** — center 를 쓰면 캡 유무에 따라 중심이
+    //      움직여 피벗이 흔들린다. 여기서는 기둥 맨 윗면이 정확히 로컬 y=0 에 오게 고정한다.
+    voxLimb(rTop, rBot, len, mat, opts) {
+        opts = opts || {};
+        const g = new THREE.Group();
+        const h = Math.max(2, Math.round(len / (opts.vs || 0.016)));   // 층 수
+        const size = len / h;                                          // 실제 칸 크기(길이 보존)
+        const rT = rTop / size, rB = rBot / size;
+        // 기둥 — `taper` 는 y=0 이 밑이라 (밑=rBot, 위=rTop) 순서로 준다.
+        let vox = Voxel.taper(rB, rT, h);
+        // 끝 캡 — 반구 캡의 대응. `dome` 을 180° 뒤집어(=rotX 2회) 아래로 향하게 하고 기둥 밑에 붙인다.
+        //   높이를 round(rB) 로 둬야 캡 밑동이 캡슐과 같은 −(len + rBot) 에 온다(부츠·개스킷 좌표 보존).
+        const capH = Math.max(1, Math.round(rB));
+        vox = Voxel.merge(vox, Voxel.at(Voxel.rotX(Voxel.dome(rB, capH), 2), 0, -1, 0));
+        // ⚠️ **x·z 를 '캡슐에 내접'하도록 줄이지 말 것 — 한 번 해 보고 되돌렸다.** 칸 채움은
+        //    폭이 항상 **홀수 칸**(2·floor(r)+1)이라 양자화 단위가 반 칸이 아니라 **한 칸**이다.
+        //    그래서 전 층 최솟값으로 내접시키면 배율이 0.89~0.92 까지 떨어진다 — 상완을
+        //    0.073 → 0.0635 로 깎는 셈이고, 이건 비평가 두 명이 "가는 막대에 씌운 갓등"이라
+        //    지적해 일부러 0.062 → 0.073 으로 굵혀 둔 것을 되돌리는 것이다(㉣ 처방 역행).
+        //    → 대신 **바깥 면이 최대 반 칸 넘치는 것을 허용**하고, 그 반 칸에 실제로 걸리는
+        //      소매 두 개(대퇴 패드·상완 패딩)의 반지름만 넓혔다. `probe-vox-limb` ⑥ 이 지킨다.
+        const mesh = Voxel.build(vox, {
+            size: size, material: mat, color: 0xffffff, center: false,
+            // 사슬은 고리 직조라 칸마다 색이 튀는 게 오히려 맞다 — 기본 0.06 보다 올린다.
+            jitter: opts.jitter === undefined ? 0.09 : opts.jitter,
+        });
+        mesh.position.y = -(h - 0.5) * size;   // 기둥 맨 윗면(= y (h-1)+0.5 칸)을 로컬 0 으로
+        g.add(mesh);
+        return g;
+    },
+
     // ---- 캔버스 생성 텍스처 (외부 에셋 금지 — 코드로 재질감 생성) ----
     // 밝기 중심 그레이스케일로 만들어 material.color 틴트(장비 시대색)와 곱해지게 한다.
     _texCache: {},
@@ -645,15 +687,38 @@ const ProChar = {
         // 다리: 고관절 → 대퇴 → 무릎 → 정강이 → 부츠 (분절 피벗)
         R.legs = [];
         const mailMat = mail(); // 사지 공용 — 인스턴스를 하나로 묶어 틴트·드로우콜을 아낀다
+        // 🧊 **voxel 사지 전용 사슬 재질** — 카울(원통)과 같은 인스턴스를 쓸 수 없어서 따로 만든다.
+        //   ⑴ `Voxel.build` 는 색·이음새 AO 를 **정점 색**에 굽는다 → `vertexColors: true` 가 없으면
+        //      AO 가 통째로 사라진다. 그런데 정점 색이 없는 지오메트리(카울)에 같은 재질을 물리면
+        //      그쪽은 attribute 기본값(0,0,0) 이라 **검게 죽는다** — 그래서 인스턴스를 가른다.
+        //   ⑵ **map/bumpMap 을 뺐다.** `Voxel.build` 는 uv 를 만들지 않아서 텍스처를 물리면 한 텍셀만
+        //      샘플링돼 무늬가 아니라 단색 곱셈이 된다. 사슬 직조감은 이제 텍스처가 아니라
+        //      **칸 크기 + 칸별 색변화(jitter 0.09) + 이음새 AO** 가 낸다(화풍 ⓒⓓ).
+        //   ⑶ metalness 를 0.78 → 0.62, env 를 0.25 → 0.20 으로 내렸다. 이 저장소가 이미 실측한
+        //      "금속은 albedo 가 아니라 env 반사가 화면값을 지배한다" 가 여기선 독이다 — env 가 세면
+        //      정점 색에 구운 AO 가 반사에 씻겨 **이음새가 안 보인다**(= 큐브로 안 읽힌다).
+        //   톤 레지스트리에는 그대로 등록하므로 `setTone`·시대 틴트·`gradeHeroGearValue` 는 동일하게 잡는다.
+        const mailVoxMat = new THREE.MeshStandardMaterial({
+            color: T.mail, metalness: 0.62, roughness: 0.62, envMapIntensity: 0.20,
+            vertexColors: true, flatShading: true,
+        });
+        mailVoxMat.userData.dark = true;
+        mailVoxMat.userData.tone = 'mail';
+        mailVoxMat.userData.baseColor = mailVoxMat.color.getHex();
+        R.armorMats.push(mailVoxMat);
+        this._toneMats.push(mailVoxMat);
         for (const side of [-1, 1]) {
             const hip = new THREE.Group();
             hip.position.set(side * 0.13, -0.06, 0);
-            const thigh = this.capsule(0.085, 0.07, THIGH_L, mailMat); // ㉢ 연장 — 반지름은 그대로라 길수록 가늘어 보인다(성인 비례)
+            const thigh = this.voxLimb(0.085, 0.07, THIGH_L, mailVoxMat); // ㉢ 연장 — 반지름은 그대로라 길수록 가늘어 보인다(성인 비례)
             const cuisse = new THREE.Mesh(new THREE.SphereGeometry(0.095, 10, 8), steelDark()); // 대퇴 장갑판
             cuisse.position.y = -0.115 * TS;
             cuisse.scale.set(1, 1.45 * TS, 1);   // 커버 비율 유지 — 안 늘이면 대퇴 아래쪽이 맨사슬로 뜬다
             // 대퇴 상단 패딩 링 — 스커트(판금)와 사슬이 맞물리는 경계에 누빔천을 끼워 재질이 3층으로 읽히게
-            const thighPad = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.088, 0.055, 12), padding);
+            // 🧊 0.092/0.088 → 0.095/0.0925 (voxel 대퇴 전환). 칸 폭이 홀수라 대퇴 바깥 면이
+            //    이 구간에서 0.088 에 서는데, 12각 원통은 각 사이 평평한 면이 반지름×cos15°
+            //    = 0.085 까지 들어와 **사슬이 누빔천을 뚫었다**. 평면 기준으로 0.088 을 넘게 잡는다.
+            const thighPad = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.0925, 0.055, 12), padding);
             thighPad.position.y = -0.022 * TS;
             // 대퇴 가터 스트랩 — 사슬 위를 감는 니어블랙 띠 (금속 명도 덩어리를 가로로 끊는다)
             const garter = new THREE.Mesh(new THREE.CylinderGeometry(0.089, 0.086, 0.03, 12), deepHide);
@@ -678,7 +743,7 @@ const ProChar = {
             const kneeGasket = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.056, 0.088, 12), deepGasket);
             kneeGasket.position.y = -0.002;
             knee.add(kneeGasket, poleynWing, kneeLameUp, kneeLameDn, kneeRivet);
-            const shin = this.capsule(0.06, 0.052, SHIN_L, mailMat);
+            const shin = this.voxLimb(0.06, 0.052, SHIN_L, mailVoxMat);
             // 정강이 장갑판 (그리브)
             const greave = new THREE.Mesh(new THREE.SphereGeometry(0.068, 9, 7), steelDark());
             greave.position.set(0, -0.128 * SS, 0.012);
@@ -1062,7 +1127,7 @@ const ProChar = {
             // 0.062 → 0.073 (지름 0.146 = 견갑 지름의 0.646배). 이게 A 의 "오버행 21px > 상완 두께 18px",
             // B 의 "가는 막대에 씌운 갓등" 을 동시에 푼다 — 오버행을 줄이는 쪽이 아니라 팔을 굵히는 쪽을 택한 건
             // 견갑 폭을 줄이면 역삼각 실루엣(양쪽이 '되돌리지 말 것'으로 꼽은 것)이 같이 죽기 때문이다.
-            const upperArm = this.capsule(0.073, 0.060, 0.19, mailMat);
+            const upperArm = this.voxLimb(0.073, 0.060, 0.19, mailVoxMat);
             upperArm.userData.part = 'upperArm';
             // 상완 패딩 소매 — 견갑 아래로 삐져나오는 누빔천 (판금 → 천 → 사슬 3층 경계).
             // 상완을 0.062→0.073 으로 굵히면서 같이 키운다 — 안 키우면 사슬에 파묻혀 3층 경계가 사라진다.
@@ -1075,7 +1140,11 @@ const ProChar = {
             //    반경은 0.079 → 0.077 — 견갑 밑면 링(pFloor)의 안쪽 반경이 정확히 0.079 라
             //    같은 값이면 두 면이 겹쳐 z-파이팅이 난다. 상완(이 높이에서 반경 0.069)보다는
             //    여전히 0.008 굵어 누빔천이 판금 밑에서 부풀어 나온 것으로 읽힌다.
-            const armPad = new THREE.Mesh(new THREE.CylinderGeometry(0.077, 0.073, 0.055, 12), padding);
+            // 🧊 0.077/0.073 → 0.0785/0.0765 (voxel 상완 전환). 위 대퇴 패드와 같은 이유 —
+            //    voxel 상완 바깥 면이 이 구간에서 0.0712 에 서는데 12각 평면이 0.0705 까지
+            //    들어왔다. **상한은 0.079**(견갑 밑면 링 pFloor 안쪽 반경 = z-파이팅 선)이라
+            //    그 아래로 붙여 잡는다.
+            const armPad = new THREE.Mesh(new THREE.CylinderGeometry(0.0785, 0.0765, 0.055, 12), padding);
             armPad.userData.part = 'armPad';
             armPad.position.y = -0.055;
             const elbow = new THREE.Group();
@@ -1091,7 +1160,7 @@ const ProChar = {
             couterRivet.position.set(side * 0.042, 0.004, 0.01);
             // 팔꿈치 개스킷 — 무릎과 같은 언어(니어블랙 관절 슬리브)
             const elbowGasket = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.044, 0.072, 12), deepGasket);
-            const forearm = this.capsule(0.046, 0.042, 0.13, mailMat);
+            const forearm = this.voxLimb(0.046, 0.042, 0.13, mailVoxMat);
             forearm.userData.part = 'forearm';
             // 뱀브레이스 라메 2겹 — 하완이 민짜 튜브로 남지 않게 판금 밴드를 감는다
             const vambraceA = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.05, 0.028, 12), steel());

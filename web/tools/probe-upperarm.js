@@ -92,17 +92,28 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
         // ── 상완 축·지름 ────────────────────────────────────────────────
         // 상완은 어깨 원점에서 아래로 늘어진 캡슐이라 축 = 어깨 로컬 y축, 축 위치 = (x,z)=(0,0) 근처.
+        // 🚨 **지름은 `hypot` 최댓값(= 단면의 대각선)이 아니라 축정렬 폭으로 잰다 — 2026-08-20 수정.**
+        //    상완이 voxel 기둥으로 바뀌자 이 자가 **팔을 안 건드렸는데 0.1499 → 0.1630 으로**
+        //    굵어졌다고 보고했고, ① 이 0.559 → 0.514 로 뒤집혔다(노출 길이 0.0838 은 **불변**).
+        //    원인: 단면이 원이 아니게 되면 `hypot` 최댓값은 **모서리 대각선**을 잡는다(정사각 단면이면
+        //    ×√2 까지). 그건 어느 방향에서도 안 보이는 길이다 — ① 의 취지("굵을수록 같은 노출도
+        //    뭉툭해 보인다")는 **화면에 보이는 폭**이라 x·z 폭으로 재는 게 맞다.
+        //    ⚠️ 둘 중 **큰 쪽**을 쓴다. 한 축만 재면 한쪽으로 납작하게 만들어 게이트를 속일 수 있다.
+        //    원통에서는 이 값이 곧 지름이라 옛 판정과 호환된다(실측 0.1499 → 0.1460, 차이는 위
+        //    `hypot` 이 12각 원통 정점의 대각을 조금 물고 있던 몫이다).
         const uaPts = verts(byTag.upperArm);
-        let uaR = 0, uaBot = Infinity, uaTop = -Infinity, cx = 0, cz = 0;
+        let uaBot = Infinity, uaTop = -Infinity, cx = 0, cz = 0;
+        let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
         for (const p of uaPts) { cx += p.x; cz += p.z; }
         cx /= uaPts.length; cz /= uaPts.length;
         for (const p of uaPts) {
-            const r = Math.hypot(p.x - cx, p.z - cz);
-            if (r > uaR) uaR = r;
+            if (p.x < xMin) xMin = p.x; if (p.x > xMax) xMax = p.x;
+            if (p.z < zMin) zMin = p.z; if (p.z > zMax) zMax = p.z;
             if (p.y < uaBot) uaBot = p.y;
             if (p.y > uaTop) uaTop = p.y;
         }
-        const uaDia = uaR * 2;
+        const uaDia = Math.max(xMax - xMin, zMax - zMin);
+        const uaR = uaDia / 2;
         const NEAR = uaR + 0.02;   // 상완을 실제로 가리는 반경대
 
         // ── 견갑: 상완 축 근처에서의 최저점(= 팔을 덮는 밑단) + 전체 최대 반경 ──

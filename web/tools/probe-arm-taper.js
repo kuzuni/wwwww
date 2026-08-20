@@ -77,7 +77,15 @@ const FIST_MIN = 1.30;
                 const m = new THREE.Matrix4().multiplyMatrices(toSelf, o.matrixWorld);
                 for (let i = 0; i < pos.count; i++) {
                     v.fromBufferAttribute(pos, i).applyMatrix4(m);
-                    const r = Math.hypot(v.x, v.z);
+                    // 🚨 **`hypot` 이 아니라 축별 최댓값이다 — 2026-08-20 수정.**
+                    //    이 파일 머리말이 선언한 재는 대상은 "그 마디의 **실루엣 반폭**"인데,
+                    //    `hypot` 최댓값은 단면이 원일 때만 그것과 같다. 사지가 voxel 기둥으로
+                    //    바뀌자 `hypot` 이 **단면의 모서리 대각선**을 잡아 하완이 0.046 →
+                    //    0.0575 로 굵어졌다고 보고했고, 판정 ③(밴드가 하완보다 굵어야 한다)이
+                    //    **조형을 안 건드렸는데** 뒤집혔다. 대각선은 어느 방향에서도 안 보이는
+                    //    길이라 실루엣이 아니다. 축별 최댓값은 원통에서는 그대로 반지름이라
+                    //    옛 판정과 호환된다(실측: 상완 0.0815 → 0.0730 = 정확히 설계값).
+                    const r = Math.max(Math.abs(v.x), Math.abs(v.z));
                     if (r > mx) mx = r;
                     if (v.y > top) top = v.y;
                     if (v.y < bot) bot = v.y;

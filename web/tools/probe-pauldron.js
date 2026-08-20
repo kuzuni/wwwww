@@ -55,13 +55,30 @@ const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
         const body = lames.filter(a => !lames.some(b => b !== a && Math.abs(b.rt * 0.95 - a.rt) < 1e-3));
         body.sort((a, b) => b.rt - a.rt);
 
-        // 상완 — 캡슐(this.capsule)이 만든 CylinderGeometry(openEnded 아님) 중 가장 굵은 것
-        shoulder.traverse(o => {
-            if (!o.isMesh || o.userData.isOutline) return;
-            const p = o.geometry && o.geometry.parameters;
-            if (!p || o.geometry.type !== 'CylinderGeometry' || p.openEnded) return;
-            if (p.height > 0.15 && p.radiusTop > armR) armR = p.radiusTop; // 길이 0.15+ = 상완 몸통
-        });
+        // 상완 — 🚨 **`userData.part` 태그로 찾고 구워진 정점에서 잰다 (2026-08-20 수정).**
+        //    옛 판은 `geometry.parameters.radiusTop`(= CylinderGeometry 설계 인자)을 읽었다.
+        //    상완이 voxel 기둥(BufferGeometry, parameters 없음)으로 바뀌자 조용히 **armR = 0**
+        //    이 돼 ① 이 '지름비 0' 으로 떨어졌다 — 조형은 오히려 그대로인데 자가 눈이 먼 것이다.
+        //    이 저장소가 반복해 밟은 '설계 상수를 읽는 자 / 타입으로 찾는 자' 함정(㉡·④⑵)이라,
+        //    다른 두 팔 프로브(`probe-arm-taper`·`probe-upperarm`)와 같은 규약으로 통일한다:
+        //    **태그로 파츠를 쥐고, 자기 로컬 프레임에서 축별 최댓값(= 실루엣 반폭)으로 잰다.**
+        const ua = (() => { let g = null; shoulder.traverse(o => { if (!g && o.userData.part === 'upperArm') g = o; }); return g; })();
+        if (ua) {
+            ua.updateWorldMatrix(true, true);
+            const toSelf = new THREE.Matrix4().copy(ua.matrixWorld).invert();
+            const v = new THREE.Vector3();
+            ua.traverse(o => {
+                if (!o.isMesh || o.userData.isOutline || !o.geometry || !o.geometry.attributes || !o.geometry.attributes.position) return;
+                const m = new THREE.Matrix4().multiplyMatrices(toSelf, o.matrixWorld);
+                const pos = o.geometry.attributes.position;
+                for (let i = 0; i < pos.count; i++) {
+                    v.fromBufferAttribute(pos, i).applyMatrix4(m);
+                    if (v.y < -0.15) continue;                    // 끝 캡(팔꿈치 쪽)은 몸통 굵기가 아니다
+                    const r = Math.max(Math.abs(v.x), Math.abs(v.z));
+                    if (r > armR) armR = r;
+                }
+            });
+        }
 
         // ── ③ 밑면 막힘 레이캐스트 ─────────────────────────────────────
         // ⚠️ **월드 수직으로 쏘면 안 된다.** 라메는 바깥-아래로 14°씩 누적 회전해 있어, 수직 레이는
