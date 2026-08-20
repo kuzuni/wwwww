@@ -14755,48 +14755,65 @@ const Scene3D = {
         deco.userData.ascendDecorRoot = tier;
         const mark = (m, layer) => { m.userData.ascendDecor = layer; deco.add(m); };
         const bandY = box.min.y + size.y * 0.55;
-        // L1 갑주 밴드(금속 칼라) — '갑옷–'
-        { const t = new THREE.Mesh(new THREE.TorusGeometry(r * 0.95, Math.max(0.02, r * 0.1), 6, 20),
-            new THREE.MeshLambertMaterial({ color: 0x8b95a3 }));
-          t.rotation.x = Math.PI / 2; t.position.set(center.x, bandY, center.z); mark(t, 1); }
-        // L2 가시 — '가시갑옷–' (밴드 바깥으로 눕혀 뻗는다)
+        // 🧊 승천 데코 = voxel (화풍 확정 2026-08-20). 밴드·가시·스터드·왕관을 큐브로 — 아래 조형이
+        //    이미 큐브인 몸에 매끈 토러스/원뿔/구를 얹으면 고승천에서만 화풍이 깨진다. `ascendDecor`
+        //    마커·레이어 수는 그대로 유지(probe-ascend-tiers 의 누적 단조 계약). L3 룬 링은 평면
+        //    RingGeometry 발밑 데칼이라(솔리드 아님·투명 글로우) 큐브 대상이 아니다 — 그대로 둔다.
+        const decoMat = (hex, emiHex, emiI) => {
+            const m = new THREE.MeshStandardMaterial({ color: hex, metalness: 0.5, roughness: 0.5, vertexColors: true, flatShading: true });
+            if (emiHex !== undefined) { m.emissive = new THREE.Color(emiHex); m.emissiveIntensity = emiI; }
+            return m;
+        };
+        // L1 갑주 밴드(금속 칼라) — 토러스 → 큐브 링(XZ 수평이라 회전 불필요)
+        { const bs = Math.max(0.02, r * 0.11);
+          const t = Voxel.build(Voxel.ring((r * 1.05) / bs, Math.max(1.4, (r * 0.2) / bs), 2, 0xffffff),
+              { size: bs, material: decoMat(0x8b95a3), color: 0x8b95a3, center: true, jitter: 0.05 });
+          t.position.set(center.x, bandY, center.z); mark(t, 1); }
+        // L2 가시 — '가시갑옷–' (밴드 바깥으로 눕혀 뻗는다). 원뿔 → 큐브 테이퍼(+y 축, 원뿔과 같은 회전)
         if (tier >= 2) {
-            const mat = new THREE.MeshLambertMaterial({ color: 0xcfd6df });
+            const mat = decoMat(0xcfd6df);
+            const ss = Math.max(0.015, r * 0.055);
             for (let i = 0; i < 6; i++) {
                 const a = i / 6 * Math.PI * 2;
-                const s = new THREE.Mesh(new THREE.ConeGeometry(Math.max(0.015, r * 0.09), Math.max(0.05, r * 0.3), 5), mat);
+                const s = Voxel.build(Voxel.taper(Math.max(1, (r * 0.09) / ss), 0.5, Math.max(2, Math.round((r * 0.3) / ss)), 0xffffff),
+                    { size: ss, material: mat, color: 0xcfd6df, center: true, jitter: 0.05 });
                 s.position.set(center.x + Math.cos(a) * r * 1.0, bandY, center.z + Math.sin(a) * r * 1.0);
-                s.rotation.z = -Math.PI / 2; s.rotation.y = -a; // 원뿔 축(+y)을 바깥 방사 방향으로
+                s.rotation.z = -Math.PI / 2; s.rotation.y = -a; // 테이퍼 축(+y)을 바깥 방사 방향으로
                 mark(s, 2);
             }
         }
-        // L3 룬 링 — 발밑 모티프색 문양 고리
+        // L3 룬 링 — 발밑 모티프색 문양 고리 (평면 데칼 — 큐브 아님)
         if (tier >= 3) {
             const ring = new THREE.Mesh(new THREE.RingGeometry(r * 1.08, r * 1.34, 24),
                 new THREE.MeshBasicMaterial({ color: motif.color, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
             ring.rotation.x = -Math.PI / 2; ring.position.set(center.x, box.min.y + 0.02, center.z);
             mark(ring, 3);
         }
-        // L4 금장 스터드 — 어깨선 발광 장식
+        // L4 금장 스터드 — 구 → 큐브 젬(발광)
         if (tier >= 4) {
-            const mat = new THREE.MeshLambertMaterial({ color: 0xffd54f, emissive: new THREE.Color(0xffb300), emissiveIntensity: 0.5 });
+            const mat = decoMat(0xffd54f, 0xffb300, 0.5);
+            const us = Math.max(0.02, r * 0.05);
             for (let i = 0; i < 4; i++) {
                 const a = i / 4 * Math.PI * 2 + 0.4;
-                const s = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.02, r * 0.09), 6, 5), mat);
+                const s = Voxel.build(Voxel.gem(Math.max(1, (r * 0.09) / us), 0xffffff),
+                    { size: us, material: mat, color: 0xffd54f, center: true, jitter: 0.04 });
                 s.position.set(center.x + Math.cos(a) * r * 0.82, box.min.y + size.y * 0.8, center.z + Math.sin(a) * r * 0.82);
                 mark(s, 4);
             }
         }
-        // L5 왕관 — 정수리 금관 (5승천 정점)
+        // L5 왕관 — 정수리 금관 (5승천 정점). 개방 실린더 → 큐브 링 + 큐브 테이퍼 뿔 5개
         if (tier >= 5) {
-            const mat = new THREE.MeshLambertMaterial({ color: 0xffd54f, emissive: new THREE.Color(0xffca28), emissiveIntensity: 0.35 });
+            const mat = decoMat(0xffd54f, 0xffca28, 0.35);
             const cr = Math.max(0.05, r * 0.34);
+            const cs = Math.max(0.03, cr * 0.16);          // 왕관 전용 칸
             const crown = new THREE.Group();
-            crown.add(new THREE.Mesh(new THREE.CylinderGeometry(cr, cr * 1.05, cr * 0.5, 10, 1, true), mat));
+            crown.add(Voxel.build(Voxel.ring(cr / cs, Math.max(1.2, cr * 0.16 / cs), Math.max(1, Math.round(cr * 0.5 / cs)), 0xffffff),
+                { size: cs, material: mat, color: 0xffd54f, center: true, jitter: 0.05 }));
             for (let i = 0; i < 5; i++) {
                 const a = i / 5 * Math.PI * 2;
-                const p = new THREE.Mesh(new THREE.ConeGeometry(cr * 0.2, cr * 0.6, 4), mat);
-                p.position.set(Math.cos(a) * cr, cr * 0.5, Math.sin(a) * cr);
+                const p = Voxel.build(Voxel.taper(Math.max(1, cr * 0.2 / cs), 0.5, Math.max(2, Math.round(cr * 0.6 / cs)), 0xffffff),
+                    { size: cs, material: mat, color: 0xffd54f, center: false, jitter: 0.05 });
+                p.position.set(Math.cos(a) * cr, cr * 0.25, Math.sin(a) * cr);
                 crown.add(p);
             }
             crown.position.set(center.x, box.max.y + cr * 0.35, center.z);
