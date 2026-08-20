@@ -19383,33 +19383,33 @@ const Scene3D = {
         });
     },
 
-    // 광주용 세로 알파 그라디언트 — 밑동만 진하고 위로 갈수록 사라진다.
-    // 균일 알파로 두면 가산 합성이 원뿔 전체를 채워 '허연 사다리꼴 판'으로 읽힌다(실측 프레임).
-    bossWarnTex() {
-        if (this._bossWarnTex) return this._bossWarnTex;
-        const c = document.createElement('canvas');
-        c.width = 4; c.height = 128;
-        const ctx = c.getContext('2d');
-        const g = ctx.createLinearGradient(0, 0, 0, 128); // 캔버스 위=원기둥 위(three는 flipY)
-        g.addColorStop(0, 'rgba(255,255,255,0)');
-        g.addColorStop(0.55, 'rgba(255,255,255,.30)');
-        g.addColorStop(1, 'rgba(255,255,255,1)');
-        ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 128);
-        this._bossWarnTex = new THREE.CanvasTexture(c);
-        return this._bossWarnTex;
-    },
-
-    // 착지 지점에서 솟는 붉은 경고 광주(가산 합성 원뿔) — 등장 위치를 미리 알리는 표식
+    // 착지 지점에서 솟는 붉은 경고 광주 — 등장 위치를 미리 알리는 표식.
+    // 🧊 매끈 원뿔(가산 원기둥 + 세로 알파 텍스처) → 복셀 지구라트 통(캐시): 아래 4층 넓고 위 4층
+    //    좁은 2단 계단 사각 둘레, 세로 감쇠는 텍스처 대신 **층별 정점색 밝기**로 굽는다(가산이라
+    //    어두운 색 = 사라지는 알파와 같다 — 종전 bossWarnTex 는 호출부 0 이 되어 삭제).
+    //    rotation.y 로 도는 연출이라 사각 모서리가 회전을 증언한다. FrontSide — 복셀 통을
+    //    DoubleSide 로 두면 안팎 면이 겹쳐 가산이 포화한다(결계 돔의 함정).
     bossWarnPillar(px) {
-        const pillar = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.62, 1.05, 3.4, 20, 1, true),
+        if (!this._bossWarnGeo) {
+            const vox = [];
+            for (let y = 0; y <= 7; y++) {
+                const r = y < 4 ? 2 : 1;                      // 2단 계단 테이퍼 — 밑 반폭 1.05, 위 0.63
+                const b = Math.pow(1 - y / 7, 1.8);           // 밑동 1.0 → 꼭대기 소멸 (종전 그라디언트 계승)
+                const c = new THREE.Color(b, b, b).getHex();
+                for (let x = -r; x <= r; x++) for (let z = -r; z <= r; z++)
+                    if (Math.max(Math.abs(x), Math.abs(z)) === r) vox.push({ x, y, z, c });
+            }
+            this._bossWarnGeo = Voxel.build(vox, { size: 0.42, jitter: 0.08, ao: 0 }).geometry;
+            this._bossWarnGeo.translate(0, 1.68, 0);          // 원점을 밑동으로 — scale.y를 키워도 바닥에서 자란다
+        }
+        const pillar = new THREE.Mesh(this._bossWarnGeo,
             new THREE.MeshBasicMaterial({
-                color: 0xff1a10, map: this.bossWarnTex(), transparent: true, opacity: 0, side: THREE.DoubleSide,
+                color: 0xff1a10, vertexColors: true, transparent: true, opacity: 0, side: THREE.FrontSide,
                 blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
             }));
-        pillar.geometry.translate(0, 1.7, 0); // 원점을 밑동으로 — scale.y를 키워도 바닥에서 자란다
         pillar.position.set(px, 0, 0);
         pillar.scale.y = 0.55;
+        pillar.userData.sharedGeometry = true;                // 캐시 지오 — disposeTree 가 지우면 다음 보스 때 깨진다
         this.scene.add(pillar);
         return pillar;
     },
