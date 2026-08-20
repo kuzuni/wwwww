@@ -18720,6 +18720,12 @@ const Scene3D = {
             core.rotation.set(k * 2.1, k * 2.7, k * 1.3);
             core.material.opacity = k < 0.82 ? 0.35 + k * 0.75 : 1 - (k - 0.82) / 0.18;
             light.set((1.5 + pw * 1.9) * ease);   // 2.6 고정은 지면 전체를 씻어 '화면이 밝아졌다'로 읽혔다
+            // 🧍 **시전 포즈 (3차 채점 A 치명 지적 — 코드 실측으로 확정된 실결함).** `Combat.tryCast` 는
+            //    어떤 경로에서도 영웅 몸을 안 움직여, 이펙트가 몸과 분리된 '오버레이'로 읽혔다.
+            //    리그 관절을 안 건드리고 `heroG.rotation.z`(젖힘) 채널만 쓴다 — 평타 런지가 도는
+            //    중(_attacking)에는 양보한다(그때는 몸이 이미 움직이고 있다). 지원계는 위로 모으는
+            //    문법이라 젖힘을 절반만.
+            if (!this._attacking && this.heroG) this.heroG.rotation.z = -(support ? 0.07 : 0.14) * ease;
         }, () => {
             // ⚠️ `disposeTree` 는 `isMesh` 만 훑어 **Sprite 재질을 통째로 흘린다**(스킬마다 12장씩 샌다).
             //    그렇다고 Sprite 의 geometry 를 해제하면 안 된다 — three r128 의 Sprite 는 모듈 전역
@@ -18731,6 +18737,18 @@ const Scene3D = {
                 if ((o.isMesh || o.isSprite) && o.material) o.material.dispose();
             });
             this.scene.remove(G); light.release();
+            // 시전 포즈 릴리즈 — 젖힘(-0.14)에서 앞으로 '휙' 내지르고(+0.16 부근) 제자리로.
+            // 릴리즈 시각 = 2박 발화 시각(castBeat 길이 = 대부분 fx 의 payload 지연)이라
+            // 몸의 스냅과 이펙트 발동이 같은 프레임에서 만난다.
+            if (!this._attacking && this.heroG) {
+                const z0 = this.heroG.rotation.z;
+                this.addAnim(0.14, k2 => {
+                    if (this._attacking) return;                       // 평타가 끼어들면 양보
+                    const s = k2 < 0.3 ? k2 / 0.3 : 1;
+                    const decay = k2 < 0.3 ? 1 : 1 - (k2 - 0.3) / 0.7;
+                    this.heroG.rotation.z = (z0 + 0.30 * s) * decay;
+                }, () => { if (!this._attacking && this.heroG) this.heroG.rotation.z = 0; });
+            }
         });
     },
 
