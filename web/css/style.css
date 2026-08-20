@@ -3977,9 +3977,15 @@ h3.sellwarn-title, .rates-head h3,
 }
 .passive-banner {
     background: #c9c9c9; border: none; border-radius: 1rem;
-    /* 원본 x87 w319(64.31%W) · y53 h19(2.13%H) — 클론은 min-width:78% 라 73.79%W 로 넓고 28px 로 높았다 */
+    /* 원본 y53 h19(2.13%H). 폭은 **알약 세로 중앙 행에서** x80~412 = 333px(67.14%W) — 끝이 둥근
+       알약이라 상/하단 행에서 재면 좁게 나온다(옛 값 319px/64.31%W 가 그렇게 들어온 코너 실측이었고,
+       그 값이 CSS·판정기 양쪽에 같이 박혀 있어서 게이트는 초록인데 비평가 2인이 폭 −2.88%p 를
+       교집합으로 지적하는 상태였다. bonus-band-width). 원본 경계는 AA 없이 255→118 로 순간 전환이라
+       중앙 행 실측이 곧 상자 폭이다.
+       ⚠️ 띠 '색'은 여기서 판정하지 않는다 — 원본은 진회색(118,118,118) 판 + 흰 굵은 글자, 클론은
+       연회색+검정 글자로 화법이 다른데 이건 스킨 축이라 aaa-skin 소관(TODO 등재만). */
     padding: 0 1.2rem; font-size: .8rem; font-weight: 900; color: #17181a;
-    width: calc(var(--app-w) * .6431); height: calc(var(--app-h) * .0213); box-sizing: border-box;
+    width: calc(var(--app-w) * .6714); height: calc(var(--app-h) * .0213); box-sizing: border-box;
     display: flex; align-items: center; justify-content: center; white-space: nowrap;
     text-align: center; align-self: center; min-width: 0;
 }
