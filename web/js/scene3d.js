@@ -8445,6 +8445,31 @@ const Scene3D = {
         return out;
     },
 
+    // 장신구 재질 세트 — 박스-캐릭터 시대 팔레트(MC_CLOTH)에서 색을 가져와, 장신구가 시대 테마
+    //   갑옷과 **한 세계로 읽히게** 한다(사용자 스펙 2026-08-21 "박스 캐릭터 시대 테마 복셀").
+    //   옛 ageGearMats(자갈/브러시 텍스처 + 시대색 32% 혼합)를 폐기하고 이걸로 대체 — 조형은 이미
+    //   복셀(equip-voxelize)이라 그대로 두고, 팔레트만 갑옷과 통일한다.
+    // 반환 { body, dark, bead, trim } — 전부 mcClothMat(캐시·flatShading) 표준재질이라 voxPart 의
+    //   src(metalness/roughness)로도, `.color.getHex()` 정점색 소스로도 쓴다.
+    // 슬롯별 배색: 장신구가 몸의 어느 옷을 잇는지로 정한다(신발=바지색·장갑=소매(base)색·벨트=벨트(dark)색·
+    //   목걸이/반지=시대 금속 트림). 그래야 착용 상상 시 옷과 안 튄다.
+    mcAccMats(age, slot) {
+        const T = this.MC_CLOTH[age] || this.MC_CLOTH.medieval;
+        const jewel = slot === 'necklace' || slot === 'ring';
+        let bodyHex, darkHex, beadHex, trimHex;
+        if (slot === 'belt')       { bodyHex = T.pantsC; darkHex = T.dark;   beadHex = T.trim; trimHex = T.trim; }
+        else if (slot === 'shoes') { bodyHex = T.pantsC; darkHex = T.dark;   beadHex = T.trim; trimHex = T.trim; }
+        else if (slot === 'gloves'){ bodyHex = T.base;   darkHex = T.dark;   beadHex = T.trim; trimHex = T.trim; }
+        else                       { bodyHex = T.trim;   darkHex = T.dark;   beadHex = T.alt;  trimHex = T.base; } // 금속 장신구
+        const metal = jewel ? Math.max(0.45, T.metal) : T.metal * 0.4;
+        return {
+            body: this.mcClothMat(bodyHex, { metal }),
+            dark: this.mcClothMat(darkHex, { metal: 0.05 }),
+            bead: this.mcClothMat(beadHex, { metal }),
+            trim: this.mcClothMat(trimHex, { metal }),
+        };
+    },
+
     // 갑옷 썸네일 — 마네킹 없이 옷 세트(몸통+소매+바지)를 착용 배치 그대로 세운다.
     // 시그니처는 옛 것과 동일(itemThumb 호출부 무수정) — style 은 이름으로 nameIdx 를 못 찾을 때의 폴백.
     makeArmorPreview(age, rarity, style, name) {
@@ -8532,8 +8557,9 @@ const Scene3D = {
     makeAccessoryPreview(slot, variant, age, rarity, name) {
         const g = new THREE.Group();
         const rc = RARITY_HEX[rarity] || 0xffd54f;
-        // 장신구도 시대 재질을 따른다 — 원시 '가죽끈 목걸이'가 매끈한 금속 링으로 나오던 문제
-        const mats = this.ageGearMats(age, name);
+        // 박스-캐릭터 시대 팔레트(MC_CLOTH)를 따른다 — 장신구가 시대 테마 갑옷과 한 세계로 읽히게
+        //   (사용자 스펙 2026-08-21). 옛 ageGearMats(텍스처+시대색 혼합) 폐기, 조형은 유지·팔레트만 통일.
+        const mats = this.mcAccMats(age, slot);
         const mat = mats.body;
         const gemMat = new THREE.MeshLambertMaterial({ color: rc, emissive: rc, emissiveIntensity: 0.7 });
         const dark = mats.dark;
