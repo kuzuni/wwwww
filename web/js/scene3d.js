@@ -18422,6 +18422,25 @@ const Scene3D = {
     },
     PXRING_F: 1.54,
 
+    // 픽셀 원반/링 지오메트리(XY 평면·정점색 흰색·바깥 반지름 ≈1) — 지면 원반들(doom/disc/rim)이
+    // 공유하는 캐시. innerFrac 0 = 꽉 찬 원반, 0.9 = 얇은 테. 바깥 반지름을 1로 정규화했으니
+    // 쓰는 쪽이 mesh.scale 에 목표 반지름(R)을 곱한다 — 스케일 애니메이션이 있으면 그 줄에도 R 을 곱할 것.
+    // (pixelRingGeo 는 임팩트 링 전용 고정 비율이라 따로 산다. dispose 금지 — sharedGeometry 표식.)
+    pixelAnnulusGeo(innerFrac) {
+        const f = Math.max(0, Math.min(0.96, innerFrac || 0));
+        const key = Math.round(f * 100);
+        if (!this._pixelAnnulusGeo) this._pixelAnnulusGeo = {};
+        if (!this._pixelAnnulusGeo[key]) {
+            const R = 10, vox = [];
+            for (let gx = -R; gx <= R; gx++) for (let gy = -R; gy <= R; gy++) {
+                const d = Math.hypot(gx, gy);
+                if (d <= R + 0.45 && (f === 0 || d >= f * R - 0.45)) vox.push({ x: gx, y: gy, z: 0 });
+            }
+            this._pixelAnnulusGeo[key] = Voxel.build(vox, { size: 1 / R, color: 0xffffff, jitter: 0.08, ao: 0 }).geometry;
+        }
+        return this._pixelAnnulusGeo[key];
+    },
+
     // 접점에서 퍼지는 **카메라를 향한** 얇은 테 — `expandRing` 은 지면에 눕는 충격파라 역할이 다르다
     // (그건 발밑, 이건 맞은 자리). 둘을 같이 쓰면 '바닥이 울리고 몸이 튄다'가 한 프레임에 읽힌다.
     // 🧊 매끈 토러스 → 픽셀 계단 링(voxel 화풍 통일 ①: expandRing 이 먼저 간 그 문법). 역할·타이밍·
@@ -20034,17 +20053,20 @@ const Scene3D = {
             // ⓐ 조준 링 — 지면에 먼저 깔린다
             setTimeout(() => {
                 const r0 = (0.5 + pw * 0.25) * big;
-                const ring = new THREE.Mesh(new THREE.RingGeometry(r0 * 0.72, r0, 22),
-                    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+                // 🧊 매끈 RingGeometry → 픽셀 계단 링(pixelAnnulusGeo, 바깥 반지름 1 정규화 — 스케일에 r0 를 곱한다)
+                const ring = new THREE.Mesh(this.pixelAnnulusGeo(0.72),
+                    new THREE.MeshBasicMaterial({ color, vertexColors: true, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
                 ring.userData.meteorTell = true;
+                ring.userData.sharedGeometry = true;
                 ring.rotation.x = -Math.PI / 2;
                 ring.position.set(spot.x, 0.03, spot.z);
+                ring.scale.setScalar(r0 * 1.9);            // 첫 프레임(스케일 1 = 정규화 반지름)이 그대로 보이지 않게
                 this.scene.add(ring);
                 // 링은 **조여들며** 진해진다 — 커졌다 사라지면 착탄이 아니라 폭발 잔상으로 읽힌다
                 this.addAnim(this.METEOR_TELL_MS / 1000, k => {
-                    ring.scale.setScalar(1.9 - 0.9 * k);
+                    ring.scale.setScalar(r0 * (1.9 - 0.9 * k));
                     ring.material.opacity = 0.25 + 0.6 * k;
-                }, () => { ring.geometry.dispose(); ring.material.dispose(); this.scene.remove(ring); });
+                }, () => { ring.material.dispose(); this.scene.remove(ring); });   // 지오는 캐시 공유 — dispose 금지
             }, at);
             // ⓑ 낙하 → ⓒ 착탄
             setTimeout(() => {
@@ -20099,14 +20121,17 @@ const Scene3D = {
     // 여운 — 착탄 자리에 남는 그을음. 폭발만 있고 흔적이 없으면 '지나간 일'이 안 남는다.
     meteorScorch(spot, big) {
         const r = (0.42 + 0.2 * (big - 1)) * 1.3;
-        const m = new THREE.Mesh(new THREE.CircleGeometry(r, 18),
-            new THREE.MeshBasicMaterial({ color: 0x241a14, transparent: true, opacity: 0.62, depthWrite: false }));
+        // 🧊 매끈 CircleGeometry → 픽셀 원반. 정점색 지터가 그을음 얼룩까지 겸한다.
+        const m = new THREE.Mesh(this.pixelAnnulusGeo(0),
+            new THREE.MeshBasicMaterial({ color: 0x241a14, vertexColors: true, transparent: true, opacity: 0.62, depthWrite: false }));
         m.userData.meteorScorch = true;
+        m.userData.sharedGeometry = true;
         m.rotation.x = -Math.PI / 2;
         m.position.set(spot.x, 0.025, spot.z);
+        m.scale.setScalar(r);
         this.scene.add(m);
         this.addAnim(1.5, k => { m.material.opacity = 0.62 * (1 - k * k); },
-            () => { m.geometry.dispose(); m.material.dispose(); this.scene.remove(m); });
+            () => { m.material.dispose(); this.scene.remove(m); });   // 지오는 캐시 공유 — dispose 금지
     },
 
     // ---- 스킬 전용 미니 연출 ③: 참격 세례 (skill-fx-exaggerated, 사용자 지시 2026-08-19) ----
@@ -20529,14 +20554,19 @@ const Scene3D = {
         G.userData.guillotineFx = true;
         this.scene.add(G);
         // 선고 원 — 적 발밑의 어두운 원 + 붉은 테. 밝은 초원이라 '어두운 값'이 대비를 만든다(scorch 문법).
-        const doom = new THREE.Mesh(new THREE.CircleGeometry(0.62 + pw * 0.2, 22),
-            new THREE.MeshBasicMaterial({ color: 0x1a0d10, transparent: true, opacity: 0, depthWrite: false }));
+        // 🧊 매끈 Circle/RingGeometry → 픽셀 원반·계단 링(pixelAnnulusGeo — 반지름은 스케일로).
+        const rimR = 0.72 + pw * 0.22;
+        const doom = new THREE.Mesh(this.pixelAnnulusGeo(0),
+            new THREE.MeshBasicMaterial({ color: 0x1a0d10, vertexColors: true, transparent: true, opacity: 0, depthWrite: false }));
         doom.rotation.x = -Math.PI / 2;
         doom.position.set(spot.x, 0.03, spot.z);
-        const rim = new THREE.Mesh(new THREE.RingGeometry(0.6 + pw * 0.2, 0.72 + pw * 0.22, 24),
-            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        doom.scale.setScalar(0.62 + pw * 0.2);
+        const rim = new THREE.Mesh(this.pixelAnnulusGeo(0.83),
+            new THREE.MeshBasicMaterial({ color, vertexColors: true, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
         rim.rotation.x = -Math.PI / 2;
         rim.position.set(spot.x, 0.035, spot.z);
+        rim.scale.setScalar(rimR * 1.25);
+        doom.userData.sharedGeometry = rim.userData.sharedGeometry = true;   // 캐시 지오 — dispose 금지
         G.add(doom, rim);
         // 칼날 — 거대한 처형도(폭 1.7): 근흑 몸 + 아랫날 흰 스트립 + 윗등 붉은 스트립.
         // sRGB 인코딩이 어두운 헥스를 들어 올리므로 몸은 근흑(0x0a0608)까지 내린다(dragonfire 함정).
@@ -20615,7 +20645,7 @@ const Scene3D = {
             const e = 1 - Math.pow(1 - k, 2);
             doom.material.opacity = e * 0.55;
             rim.material.opacity = e * 0.85;
-            rim.scale.setScalar(1.25 - e * 0.25);           // 살짝 조이며 자리를 못박는다
+            rim.scale.setScalar(rimR * (1.25 - e * 0.25));  // 살짝 조이며 자리를 못박는다 (지오가 반지름 1 정규화라 rimR 을 곱한다)
             body.material.opacity = e;   // 🚨 0.92 로 두지 말 것 — 처형도 너머로 나무가 비쳐 '고체'가 안 된다(캡처 실측)
             edge.material.opacity = e;
             back.material.opacity = e * 0.9;
@@ -21362,12 +21392,17 @@ const Scene3D = {
         this.scene.add(G);
         const R = 0.62 + pw * 0.3;
         // ⓐ 강림 원반 — 머리 위에서 내려앉는다. 얇은 링 2겹(안쪽은 흰 코어)
-        const disc = new THREE.Mesh(new THREE.RingGeometry(R * 0.55, R, 26),
-            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        // 🧊 매끈 RingGeometry → 픽셀 계단 링(pixelAnnulusGeo). 원반이 rotation.z 로 도는 연출이라
+        //    계단 문양이 살아 있음을 그대로 증언한다. 반지름은 스케일로(지오는 1 정규화).
+        const disc = new THREE.Mesh(this.pixelAnnulusGeo(0.55),
+            new THREE.MeshBasicMaterial({ color, vertexColors: true, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
         disc.rotation.x = -Math.PI / 2;
-        const disc2 = new THREE.Mesh(new THREE.RingGeometry(R * 0.22, R * 0.42, 20),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        disc.scale.setScalar(R);
+        const disc2 = new THREE.Mesh(this.pixelAnnulusGeo(0.52),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
         disc2.rotation.x = -Math.PI / 2;
+        disc2.scale.setScalar(R * 0.42);
+        disc.userData.sharedGeometry = disc2.userData.sharedGeometry = true;   // 캐시 지오 — dispose 금지
         // ⓑ 빛기둥 — 원반에서 아래로 꽂힌다(위가 열린 원통, 옆면만)
         // 🚨 **여기서 가산 합성을 쓰면 안 된다.** 배경이 한낮 하늘·초원이라 이미 밝아서, 가산은
         //    밝은 데 밝은 걸 더해 **거의 아무 차이도 못 만든다**(첫 캡처에서 기둥이 통째로 안 보였다.
@@ -21408,7 +21443,7 @@ const Scene3D = {
                 this.riseParticle(new THREE.Vector3(hero.x + U.rand(-R, R), footY + U.rand(0, 0.4), hero.z + U.rand(-R, R) * 0.6), color);
             }
         }, () => {
-            G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+            G.traverse(o => { if (o.isMesh) { if (!o.userData.sharedGeometry) o.geometry.dispose(); o.material.dispose(); } });
             this.scene.remove(G); light.release();
         });
         this.expandRing(new THREE.Vector3(hero.x, 0.02, hero.z), color, 1.1 + pw * 0.6);
@@ -21425,19 +21460,23 @@ const Scene3D = {
         this.scene.add(G);
         const R = 1.0 + pw * 0.45;
         // ⓐ 룬 서클 — 바깥 테 + 안쪽 테 + 사이를 잇는 짧은 살(문양처럼 읽히게)
-        const rim = new THREE.Mesh(new THREE.RingGeometry(R * 0.93, R, 40),
-            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        // 🧊 매끈 RingGeometry → 픽셀 계단 링(pixelAnnulusGeo — 반지름은 스케일로), 살(spoke)은
+        //    호(弧) 조각 대신 **방사형 블록 판**(Box) — 룬 서클이 각진 회로 문양으로 읽힌다.
+        const rim = new THREE.Mesh(this.pixelAnnulusGeo(0.93),
+            new THREE.MeshBasicMaterial({ color, vertexColors: true, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
         rim.rotation.x = -Math.PI / 2;
-        const inner = new THREE.Mesh(new THREE.RingGeometry(R * 0.5, R * 0.56, 30),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        const inner = new THREE.Mesh(this.pixelAnnulusGeo(0.89),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
         inner.rotation.x = -Math.PI / 2;
+        rim.userData.sharedGeometry = inner.userData.sharedGeometry = true;   // 캐시 지오 — dispose 금지
         const spokes = new THREE.Group();
         const spokeN = 6 + Math.round(pw * 4);
         for (let i = 0; i < spokeN; i++) {
             const a = (i / spokeN) * Math.PI * 2;
-            const sp = new THREE.Mesh(new THREE.RingGeometry(R * 0.6, R * 0.9, 4, 1, a - 0.06, 0.12),
+            const sp = new THREE.Mesh(new THREE.BoxGeometry(R * 0.3, 0.045, R * 0.085),
                 new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
-            sp.rotation.x = -Math.PI / 2;
+            sp.position.set(Math.cos(a) * R * 0.75, 0, Math.sin(a) * R * 0.75);
+            sp.rotation.y = -a;
             spokes.add(sp);
         }
         // ⓑ 가장자리 빛기둥 — 서클에서 **위로** 솟는다(회복의 하강과 반대 축)
@@ -21460,8 +21499,8 @@ const Scene3D = {
             const op = k < 0.72 ? 1 : 1 - (k - 0.72) / 0.28;
             rim.material.opacity = 0.85 * draw * op;
             inner.material.opacity = 0.7 * draw * op;
-            rim.scale.setScalar(0.55 + draw * 0.45);
-            inner.scale.setScalar(0.55 + draw * 0.45);
+            rim.scale.setScalar(R * (0.55 + draw * 0.45));            // 지오가 반지름 1 정규화 — R 을 곱한다
+            inner.scale.setScalar(R * 0.56 * (0.55 + draw * 0.45));
             spokes.children.forEach((sp, i) => {
                 const d = Math.max(0, Math.min(1, (draw - i / spokes.children.length * 0.5) * 2));
                 sp.material.opacity = 0.8 * d * op;
@@ -21481,7 +21520,7 @@ const Scene3D = {
                 this.riseParticle(new THREE.Vector3(hero.x + Math.cos(a) * R * 0.8, 0.05, hero.z + Math.sin(a) * R * 0.8), color);
             }
         }, () => {
-            G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+            G.traverse(o => { if (o.isMesh) { if (!o.userData.sharedGeometry) o.geometry.dispose(); o.material.dispose(); } });
             this.scene.remove(G); light.release();
         });
         SFX.auraRise(t);
@@ -21607,8 +21646,11 @@ const Scene3D = {
             grid.add(rib);
         }
         // ⓒ 바닥 테 — 돔이 지면에 앉았다는 접지선. 없으면 공중에 뜬 비눗방울로 읽힌다.
-        const base = new THREE.Mesh(new THREE.RingGeometry(R * 0.94, R * 1.04, 36), mat(color, 0, true));
+        // 🧊 매끈 RingGeometry → 픽셀 계단 링(반지름은 스케일로 — 아래 애니 줄이 R*1.04 를 곱한다).
+        const base = new THREE.Mesh(this.pixelAnnulusGeo(0.9), mat(color, 0, true));
+        base.material.vertexColors = true;
         base.rotation.x = -Math.PI / 2;
+        base.userData.sharedGeometry = true;
         G.add(dome, grid, base);
         const light = this.fxLight(color.getHex(), 7, 'wardLight');
         light.pos(hero.x, hero.y + 1.0, hero.z);
@@ -21623,7 +21665,7 @@ const Scene3D = {
             dome.scale.set(e, e, e);
             grid.scale.set(e, e, e);
             dome.material.opacity = (0.3 + snap * 0.35) * op;
-            base.scale.setScalar(e);
+            base.scale.setScalar(R * 1.04 * e);
             base.material.opacity = (0.7 + snap * 0.3) * op;
             grid.children.forEach(m => { m.material.opacity = (0.55 + snap * 0.45) * op; });
             grid.rotation.y += 0.008;                                 // 아주 천천히 — '유지되는 결계'
@@ -21658,18 +21700,26 @@ const Scene3D = {
             side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
         // 고리 3~5겹이 시차를 두고 터진다. 카메라를 향해 세워야 '퍼지는 파문'으로 읽힌다
         // (눕히면 카메라가 내려다봐서 납작한 선이 된다 — godspear 광륜이 밟은 자리).
+        // 🧊 매끈 RingGeometry → 픽셀 계단 링(pixelAnnulusGeo — 지오가 반지름 1 정규화라 아래
+        //    확산 스케일 줄이 종전 바깥 반지름 0.66/0.62 를 곱한다). 겹마다 z 를 굴려 같은
+        //    계단 문양이 반복돼 보이지 않게 한다(impactRing 문법).
         const rings = [];
         const rn = 3 + Math.round(pw * 2);
         for (let i = 0; i < rn; i++) {
-            const r = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.66, 26), mat(i % 2 ? 0xffffff : color, 0));
+            const m2 = mat(i % 2 ? 0xffffff : color, 0); m2.vertexColors = true;
+            const r = new THREE.Mesh(this.pixelAnnulusGeo(0.76), m2);
             if (this.camera) r.lookAt(this.camera.position);   // 월드 타깃 — 부모 위치를 빼지 말 것
+            r.rotateZ(U.rand(0, Math.PI / 2));
             r.userData.delay = i * 0.075;
+            r.userData.sharedGeometry = true;
             rings.push(r); G.add(r);
         }
         // 발밑 먼지 테 — 소리가 땅을 때렸다는 증거. 이게 없으면 고리가 허공에 뜬다.
-        const dust = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.62, 30), mat(color, 0));
+        const dustM = mat(color, 0); dustM.vertexColors = true;
+        const dust = new THREE.Mesh(this.pixelAnnulusGeo(0.65), dustM);
         dust.rotation.x = -Math.PI / 2;
         dust.position.y = -(hero.y + 1.21);
+        dust.userData.sharedGeometry = true;
         G.add(dust);
         const light = this.fxLight(color.getHex(), 6, 'warcryLight');
         light.pos(hero.x, hero.y + 1.25, hero.z);
@@ -21679,15 +21729,15 @@ const Scene3D = {
             for (const r of rings) {
                 const d = Math.max(0, Math.min(1, (k - r.userData.delay) / 0.42));
                 const e = 1 - Math.pow(1 - d, 2);                 // 처음 빠르게 → 느려지는 확산
-                r.scale.setScalar(0.3 + e * (2.6 + pw * 1.5));
+                r.scale.setScalar(0.66 * (0.3 + e * (2.6 + pw * 1.5)));
                 r.material.opacity = d > 0 ? 0.8 * (1 - d) : 0;
             }
             const dd = Math.max(0, Math.min(1, k / 0.5));
-            dust.scale.setScalar(0.5 + dd * (2.2 + pw * 1.0));
+            dust.scale.setScalar(0.62 * (0.5 + dd * (2.2 + pw * 1.0)));
             dust.material.opacity = 0.55 * (1 - dd);
             light.set((1.0 + pw * 0.9) * Math.max(0, 1 - k / 0.5));
         }, () => {
-            G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+            G.traverse(o => { if (o.isMesh) { if (!o.userData.sharedGeometry) o.geometry.dispose(); o.material.dispose(); } });
             this.scene.remove(G); light.release();
         });
     },
@@ -21815,7 +21865,11 @@ const Scene3D = {
         const spec = [[1.25, 12, 0.9], [0.92, 8, -1.45], [0.62, 16, 2.1]];
         for (const [rad, ticks, spin] of spec) {
             const d = new THREE.Group();
-            const rim = new THREE.Mesh(new THREE.RingGeometry(rad * 0.96, rad, 40), mat(color, 0));
+            // 🧊 매끈 RingGeometry → 픽셀 계단 링 — 다이얼이 도는 연출이라 계단 문양이 회전을 증언한다.
+            const rimM = mat(color, 0); rimM.vertexColors = true;
+            const rim = new THREE.Mesh(this.pixelAnnulusGeo(0.94), rimM);
+            rim.scale.setScalar(rad);
+            rim.userData.sharedGeometry = true;
             d.add(rim);
             for (let i = 0; i < ticks; i++) {                    // 눈금 — 이게 있어야 회전이 보인다
                 const a = (i / ticks) * Math.PI * 2;
@@ -21856,7 +21910,7 @@ const Scene3D = {
             }
             light.set((0.9 + pw * 0.9) * draw * op);
         }, () => {
-            G.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+            G.traverse(o => { if (o.isMesh) { if (!o.userData.sharedGeometry) o.geometry.dispose(); o.material.dispose(); } });
             this.scene.remove(G); light.release();
         });
         // 영웅 잔상 — '시간이 어긋났다'의 본체. 등급이 높을수록 여러 겹.
