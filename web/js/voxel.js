@@ -389,6 +389,30 @@
             return this.ellipse(rOut, rOut, h === undefined ? 1 : h,
                 { rix: rOut - t, riz: rOut - t, color: color });
         },
+        // 🧊 **토러스 호(arc)** — 부분/전체 토러스 대체(늑골 아치·어깨 멜빵·후드 테 등).
+        //   ⚠️ **`TorusGeometry(R, tube, ., ., arcAng)` 의 로컬 프레임을 그대로 복제한다**: 링은
+        //      XY 평면에 θ=0(+X)부터 arcAng 까지 CCW 로 깔리고, 튜브는 반경방향+Z 로 둥글다.
+        //      원점 대칭이라 원본 토러스처럼 중심이 원점이다 — 그래서 **메시의 rotation·scale·
+        //      position 을 원본 토러스와 똑같이 걸면 호가 정확히 그 자리·그 방향으로 온다**(회전
+        //      해석을 다시 할 필요가 없다). arcAng≥2π 면 전 링이라 `ring` 과 같되 튜브가 Z 로 둥글다.
+        //   R·tube 는 **칸 단위**. 튜브가 1칸 미만이어도 최소 반 칸 두께로 끊는다.
+        arc: function (R, tube, arcAng, color) {
+            var out = [], tt = Math.max(0.5, tube), m = Math.ceil(R + tt), tz = Math.ceil(tt);
+            var full = arcAng >= Math.PI * 2 - 1e-6;
+            for (var x = -m; x <= m; x++) for (var y = -m; y <= m; y++) {
+                var rad = Math.sqrt(x * x + y * y);
+                if (rad < 0.5) continue;
+                var dr = rad - R;
+                if (dr * dr > tt * tt + 0.25) continue;
+                if (!full) {
+                    var ang = Math.atan2(y, x); if (ang < 0) ang += Math.PI * 2;
+                    if (ang > arcAng + 1e-9) continue;
+                }
+                for (var z = -tz; z <= tz; z++)
+                    if (dr * dr + z * z <= tt * tt + 0.25) out.push({ x: x, y: y, z: z, c: color });
+            }
+            return out;
+        },
         // 🧊 **계단형 돔** — 반구 대체. 층마다 반지름이 줄어드는 원판을 쌓아 계단을 만든다.
         //   ⚠️ 층 반지름을 **칸 중심 높이**(y+0.5)로 계산한다. y 로 계산하면 맨 아래 층이
         //      정확히 r 이 되어 밑동이 원기둥처럼 한 층 곧게 서고, 맨 위가 반 층 뾰족해진다.

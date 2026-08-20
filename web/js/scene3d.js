@@ -8561,8 +8561,11 @@ const Scene3D = {
             for (let i = 0; i < RIB.length; i++) {
                 const r = RINGS[RIB[i][0]], k = RIB[i][1];
                 const arc = Math.PI * (0.92 - i * 0.05);          // 아래로 갈수록 짧아진다 = 갈비뼈 수렴
-                const rib = new THREE.Mesh(
-                    new THREE.TorusGeometry(r.rx * k, 0.0225 - i * 0.0015, 5, 16, arc), boneM);
+                // 🧊 토러스 호 → 큐브 호(`Voxel.arc`). R·튜브를 칸으로 나누기만 하고, **원본
+                //    토러스와 똑같은 rotation.x/z·scale.y·position 을 건다**(arc 헬퍼가 토러스
+                //    로컬 프레임을 복제하므로 회전 해석을 다시 하지 않는다 — `arc-rotz-tilt` 주석).
+                const rib = this.voxPart(
+                    V.arc(cw(r.rx * k), cw(0.0225 - i * 0.0015), arc, boneM.color.getHex()), AS, boneM, { jitter: 0.06 });
                 rib.rotation.x = Math.PI / 2;
                 rib.rotation.z = Math.PI / 2 - arc / 2;            // 호의 중심을 +z(정면)로
                 rib.position.y = r.y;
@@ -8623,7 +8626,9 @@ const Scene3D = {
             //    몸통을 실제로 감는 토러스 호라야 '감긴 끈'으로 읽힌다(로브 허리끈이 쓰는 문법 그대로).
             for (const [ri, k] of [[3, 0.965], [2, 0.985]]) {
                 const r = RINGS[ri];
-                const band = new THREE.Mesh(new THREE.TorusGeometry(r.rx * k, 0.0135, 5, 22), cordM);
+                // 🧊 전(全) 링 토러스 → 큐브 링 호(arc 2π). 늑골 호와 같은 규약.
+                const band = this.voxPart(
+                    V.arc(cw(r.rx * k), cw(0.0135), Math.PI * 2, cordM.color.getHex()), AS, cordM, { jitter: 0.05 });
                 band.rotation.x = Math.PI / 2;
                 band.position.y = r.y + 0.038;
                 band.scale.y = (r.rz / r.rx) * k;
@@ -8631,7 +8636,9 @@ const Scene3D = {
             }
             // 어깨 위를 넘어가는 멜빵 2줄 — 견갑골 판이 무엇에 매달렸는지 보여 준다(부유 인상 제거)
             for (const s of [-1, 1]) {
-                const yoke = new THREE.Mesh(new THREE.TorusGeometry(0.108, 0.0145, 5, 14, Math.PI * 0.95), cordM);
+                // 🧊 토러스 호 → 큐브 호. 회전·스케일 원본 그대로.
+                const yoke = this.voxPart(
+                    V.arc(cw(0.108), cw(0.0145), Math.PI * 0.95, cordM.color.getHex()), AS, cordM, { jitter: 0.05 });
                 yoke.position.set(s * 0.152, 0.185, 0.015);
                 yoke.rotation.set(Math.PI / 2, 0, -s * 0.42);
                 yoke.scale.z = 0.62;
@@ -8649,7 +8656,12 @@ const Scene3D = {
             }
             // ⓕ 밑단에 매달린 엄니 3개 — 짧은 기장(P.top 0.86)의 잘림선을 못 박고 아래 윤곽을 톱니로 만든다
             for (const dx of [-0.088, 0, 0.088]) {
-                const tusk = new THREE.Mesh(new THREE.ConeGeometry(0.021, 0.098 + (dx ? 0 : 0.03), 6), boneM);
+                // 🧊 원뿔 → 큐브 계단 각뿔(`Voxel.taper`). 콘 지오는 중심 정렬이라 taper(밑=0)를
+                //    반 높이만큼 내려 중심을 맞춘 뒤 원본과 같은 rotation.x=π(아래로 뾰족)를 건다.
+                const hCells = Math.max(2, Math.round(cw(0.098 + (dx ? 0 : 0.03))));
+                let tv = V.taper(cw(0.021), 0.5, hCells, boneM.color.getHex());
+                tv = V.at(tv, 0, -Math.floor(hCells / 2), 0);
+                const tusk = this.voxPart(tv, AS, boneM, { jitter: 0.05 });
                 tusk.position.set(dx, -0.30, 0.088);
                 tusk.rotation.x = Math.PI;      // 아래로 뾰족하게
                 tusk.rotation.z = dx * 1.4;
