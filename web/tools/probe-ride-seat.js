@@ -57,6 +57,32 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const NAME = process.argv[2] || 'Brown Horse';
 const FORCE_DECK = process.env.SEAT_FORCE_DECK || '';   // 자가검증용 — 위 🔬 주석
 const FRAMES = 6;
+// ── ①-화면 축의 두 상수 — **반드시 짝으로만 움직인다** ────────────────────────────────────
+// 판정식은 `round(원거리 × NORM_REF / 얼굴휘도) < NEAR_T` 인데, 이건 대수적으로
+//   **원거리 / 얼굴휘도 < NEAR_T / NORM_REF**  와 같다.
+// 즉 판정에 들어가는 건 두 상수의 **비율(현재 60/155 = 0.387)** 뿐이고, 각각의 절대값은
+// 인쇄되는 숫자의 단위만 정한다. 🚨 **그래서 `NORM_REF` 만 바꾸면 게이트가 통째로 움직인다** —
+// 예컨대 "요즘 얼굴 휘도는 230 이더라"며 155→230 으로만 고치면 비율이 0.387→0.261 로 떨어져
+// **모든 탈것의 살색 가드가 3분의 1 느슨해진다.** 단위만 바로잡고 싶다면 둘을 **같은 배율로**
+// 올릴 것(155·60 → 230·89 는 판정이 동일하다).
+// 🚨 **실측(2026-08-20, `ride-seat-face-norm`) — 이 정규화는 지금 사실상 죽어 있다.** 챕터 7종을
+//    가장 밝은 맵부터 가장 어두운 맵까지 훑어 얼굴 표본 휘도를 쟀더니(Brown Horse, 챕터당 2프레임):
+//      ch1 초원 224~231 · ch4 폭풍 230~241 · ch5 밤숲 208~247 · ch8 심해 225~240 ·
+//      ch9 용암 237~239 · ch14 소금사막 226~236 · ch23 심연 224~246   → **전체 208~247**
+//    **밤 챕터가 낮 챕터보다 낮지도 않다.** 이유: 머리로 쏜 레이가 맞는 건 **투구 흰색(`ffffff`)** 인데
+//    흰색은 어느 조명에서도 톤매핑 어깨에서 **클리핑**돼 거의 같은 값으로 렌더된다. 즉 이 기준은
+//    '프레임 밝기'가 아니라 **거의 상수**를 재고 있다. 따라서 ⑴ `norm` 은 프레임별 보정이 아니라
+//    **고정 배율 ≈0.66** 이고 ⑵ `fl < 60` 무효 프레임 가드도 사실상 절대 안 걸린다.
+//    👉 결과적으로 화면 축의 게이트는 '장면 밝기 대비'가 아니라 **원거리 91 안팎의 고정 임계**다.
+//    ⚠️ 그래도 **상수를 건드리지 않았다** — 위에서 보듯 한쪽만 움직이면 게이트가 통째로 이동하고,
+//    양쪽을 같이 움직이면 판정이 완전히 동일하다(순수 표기 변경). 게다가 화면 축은 파일 머리
+//    대조표대로 **7건 전부에서 한 번도 발화하지 않는 보조 그물**이라, 이 축의 보정을 정교하게
+//    만드는 일의 실익이 낮다. **지금 필요한 건 숫자가 거짓말을 안 하는 것**이라 아래 판정 출력에
+//    **정규화 전 원거리를 함께 인쇄**하는 것으로 갈음했다.
+//    📌 이 정규화를 진짜로 살리려면 기준을 **클리핑되지 않는 표면**(예: 중간 회색 프롭)으로 바꿔야
+//    한다 — 그건 이 자 하나가 아니라 화면색을 쓰는 프로브 전반의 문제라 별도 항목감이다.
+const NORM_REF = 155;   // 정규화 기준 휘도 — NEAR_T 와 짝
+const NEAR_T = 60;      // '살색에 가깝다' 임계 — NORM_REF 와 짝
 const DXS = [-0.18, -0.09, 0, 0.09, 0.18];
 const DYS = [-0.02, -0.07, -0.12];
 
@@ -227,6 +253,7 @@ const DYS = [-0.02, -0.07, -0.12];
     // 프레임별 최악값 — 안장 칸이 살색에 가장 가까웠던 순간과, 가장 어두웠던 순간.
     let worstD = 999, worstAt = '', worstLum = 999, skipped = 0;
     let warmD = 999, warmAt = '';            // ①-화면: 색거리가 가깝고 웜하기까지 한 최악 칸
+    let rawD = 999, rawAt = '';              // 정규화 **전** 실제 화면 색거리(진단 정직성용 — 아래 🚨)
     const skinMatHits = new Set();           // ①-재질: albedo 가 살 계열인 칸
     for (const fr of frames) {
         const seatIdx = fr.rows.map((r, i) => r.who === 'mount' ? i : -1).filter(i => i >= 0);
@@ -238,16 +265,18 @@ const DYS = [-0.02, -0.07, -0.12];
         //    그대로 재면 '어두워서 FAIL' 이 되므로 **기준(얼굴) 휘도로 정규화**해 밝은 프레임과 같은
         //    잣대로 만든다(155 = 정상 조명에서 실측된 얼굴 휘도).
         const fl = lum(fr.face);
-        const norm = 155 / Math.max(60, fl);
+        const norm = NORM_REF / Math.max(60, fl);
         if (fl < 60) { skipped++; }
         else for (const i of seatIdx) {
-            const d = Math.round(dist(fr.cells[i], fr.face) * norm);
+            const raw = dist(fr.cells[i], fr.face);
+            const d = Math.round(raw * norm);
+            if (raw < rawD) { rawD = raw; rawAt = `얼굴휘도 ${Math.round(fl)}`; }
             // ①-재질: albedo 가 살 계열이면 프레임과 무관하게 결함으로 적재한다.
             if (isSkinAlbedo(fr.rows[i].col)) skinMatHits.add(`Δy${fr.rows[i].dy} x${fr.rows[i].dx} albedo #${fr.rows[i].col}`);
             // ①-화면: 색거리가 가깝고 **동시에** 살처럼 웜할 때만 '맨살로 읽힌다'로 센다.
             //    웜하지 않은 칸도 최소 색거리는 참고용으로 계속 인쇄한다(자를 못 보게 하지 않는다).
             if (d < worstD) { worstD = d; worstAt = `Δy${fr.rows[i].dy} x${fr.rows[i].dx} 화면 rgb(${(fr.cells[i] || []).join(',')}) vs 얼굴 rgb(${(fr.face || []).join(',')})`; }
-            if (d < 60 && readsWarm(fr.cells[i])) {
+            if (d < NEAR_T && readsWarm(fr.cells[i])) {
                 if (d < warmD) { warmD = d; warmAt = `Δy${fr.rows[i].dy} x${fr.rows[i].dx} 화면 rgb(${(fr.cells[i] || []).join(',')}) R−B=${warm(fr.cells[i])} vs 얼굴 rgb(${(fr.face || []).join(',')})`; }
             }
         }
@@ -265,6 +294,9 @@ const DYS = [-0.02, -0.07, -0.12];
     console.log(`①-재질 안장 칸 albedo 가 살 계열인 칸: ${skinMatHits.size ? [...skinMatHits].join(' · ') : '없음'}`);
     console.log(`①-화면 색거리<60 **이면서** 살처럼 웜한 칸: ${warmD < 999 ? `있다(색거리 ${warmD}) — ${warmAt}` : '없음'}`);
     console.log(`   (참고) 웜 조건 무시한 최소 색거리 ${worstD} — 유효 프레임 ${valid}/${FRAMES}${skipped ? ` (얼굴 기준이 암부로 잡힌 ${skipped}프레임 제외)` : ''} · 최악 지점 ${worstAt}`);
+    // 🚨 위 '색거리'는 NORM_REF(=${NORM_REF}) 로 정규화된 값이라 **화면에서 실제로 잰 거리가 아니다.**
+    //    그 숫자만 보고 임계값을 옮기지 않도록 정규화 전 원거리를 나란히 인쇄한다(파일 머리 🔬 참조).
+    console.log(`   (참고) **정규화 전** 실제 화면 최소 색거리 ${rawD}${rawAt ? ` (그때 ${rawAt})` : ''} — 판정은 '원거리/얼굴휘도 < ${(NEAR_T / NORM_REF).toFixed(3)}' 로 하며, 위 정규화 값은 그 비율을 ${NORM_REF} 단위로 옮겨 적은 것이다`);
     console.log(`② 안장 칸 **최고 평균 휘도 ${worstLum}** (하한 40 — 이보다 어두우면 그림자 구멍으로 읽힌다)`);
     const bad = (valid === 0 ? 1 : 0) + (noSkinRef ? 1 : 0) + (skinMatHits.size ? 1 : 0) + (warmD < 999 ? 1 : 0) + (worstLum < 40 ? 1 : 0);
     console.log(`\n판정: ${bad ? 'FAIL' : 'PASS'}`
