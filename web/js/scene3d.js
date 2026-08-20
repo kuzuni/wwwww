@@ -20051,24 +20051,59 @@ const Scene3D = {
         const add = (mesh) => { G.add(mesh); return mesh; };
         const mat = (col, op) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op,
             side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
-        // ⓐ 개천 — 적 상공의 회전 광륜 2겹 + 사선 광선 6가닥.
+        // ⓐ 개천 — 적 상공의 회전 광륜(픽셀 복셀 링 + 블록 광선 8가닥, 단일 병합 메시) + 안쪽 백색 픽셀 링.
         // ⚠️ 광륜을 수평으로 눕히면 카메라(y3.7)가 아래에서 올려봐 **모서리선**이 된다(캡처 실측) —
         //    카메라를 향해 세워야 '하늘이 열린 원'으로 읽힌다. 높이도 5.6은 화면 밖 태양과 겹친다.
+        // 🧊 **매끈 RingGeometry → 복셀 픽셀 링 (3차 채점 2인 일치 ㉠㉡, 2026-08-20).** 종전 광륜은
+        //    가산 매끈 링 2겹 + 판 광선 6가닥이라 ⑴ 밝은 하늘 위에서 세 채널이 클리핑돼 '무특징
+        //    백색 광구'가 화면 상단 35~40%를 덮었고(⓭ 여운의 opacity 감쇠가 가산 클리핑에 먹혀
+        //    **화면에서는 안 읽혔다** — 코드는 감쇠하는데 비평가 2인이 '1170ms까지 상주'로 본 이유)
+        //    ⑵ 매끈 원반이라 화풍(청키 큐브·볼드 플랫)과 정면 충돌했다.
+        //    → 링·광선을 **한 복셀 격자에 굽고 Voxel.build 로 병합한 단일 메시**로 갈았다:
+        //    ⓐ 가산 아님(NormalBlending 알파) — 채도 있는 금을 **칠해서** 하늘을 덮으니 감쇠가
+        //       화면에 실제로 보인다(firePillar·NOVA 껍질과 같은 처방) ⓑ 픽셀 계단 링 + 블록
+        //       광선이라 돌면 문양이 살아 있고 ⓒ probe-halo-spin 이 `children[0].material/rotation`
+        //       을 읽으므로 **첫 자식은 여전히 재질 하나짜리 단일 메시**여야 한다(그룹 금지).
         const skyY = 4.15;
-        const halo = add(new THREE.Mesh(new THREE.RingGeometry(0.9, 1.5 + pw * 0.5, 28), mat(gold, 0)));
+        const haloR = 1.5 + pw * 0.5;
+        const haloVox = [];
+        {
+            const R1 = 9, R0 = 6.4;                       // 격자 반경(칸) — 바깥/안. 칸이 굵어야 픽셀 링으로 읽힌다
+            for (let gx = -R1; gx <= R1; gx++) for (let gy = -R1; gy <= R1; gy++) {
+                const d = Math.hypot(gx, gy);
+                if (d <= R1 + 0.45 && d >= R0) haloVox.push({ x: gx, y: gy, z: 0 });
+            }
+            // 블록 광선 8가닥 — 45°마다, 길이는 축방향(길게)/대각(짧게) 교대. 같은 격자에 구우면
+            // 한 메시가 되어 링과 함께 돈다(회전이 곧 '살아 있음'의 증거 — probe-halo-spin).
+            for (let i = 0; i < 8; i++) {
+                const a = (i / 8) * Math.PI * 2, longRay = (i % 2 === 0);
+                const rEnd = R1 + (longRay ? 6 : 3);
+                for (let r = R1 + 2; r <= rEnd; r++) {
+                    const bx = Math.round(Math.cos(a) * r), by = Math.round(Math.sin(a) * r);
+                    haloVox.push({ x: bx, y: by, z: 0 });
+                    if (Math.abs(Math.cos(a)) > 0.9) haloVox.push({ x: bx, y: by + 1, z: 0 });
+                    else if (Math.abs(Math.sin(a)) > 0.9) haloVox.push({ x: bx + 1, y: by, z: 0 });
+                }
+            }
+        }
+        const haloMatV = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0,
+            side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
+        const halo = add(Voxel.build(haloVox, { size: haloR / 9, color: gold.getHex(), jitter: 0.1, ao: 0.55, material: haloMatV }));
+        halo.castShadow = halo.receiveShadow = false;
         halo.position.set(spot.x, skyY, spot.z);
         if (this.camera) halo.lookAt(this.camera.position);
-        const halo2 = add(new THREE.Mesh(new THREE.RingGeometry(0.45, 0.7, 22), mat(0xffffff, 0)));
+        const halo2MatV = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0,
+            side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
+        const halo2Vox = [];
+        for (let gx = -5; gx <= 5; gx++) for (let gy = -5; gy <= 5; gy++) {
+            const d = Math.hypot(gx, gy);
+            if (d <= 5.45 && d >= 3.4) halo2Vox.push({ x: gx, y: gy, z: 0 });
+        }
+        const halo2 = add(Voxel.build(halo2Vox, { size: 0.7 / 5, color: 0xfff6d8, jitter: 0.05, ao: 0.5, material: halo2MatV }));
+        halo2.castShadow = halo2.receiveShadow = false;
         halo2.position.set(spot.x, skyY, spot.z + 0.05);
         if (this.camera) halo2.lookAt(this.camera.position);
-        const rays = [];
-        for (let i = 0; i < 6; i++) {
-            const ray = add(new THREE.Mesh(new THREE.PlaneGeometry(0.16, 2.6), mat(gold, 0)));
-            const a = (i / 6) * Math.PI * 2;
-            ray.position.set(spot.x + Math.cos(a) * 1.0, skyY - 0.9, spot.z + Math.sin(a) * 0.3);
-            ray.rotation.set(0, 0, Math.cos(a) * 0.5);
-            rays.push(ray);
-        }
+        const rays = [];                                   // 판 광선은 폐기 — 광선은 halo 메시에 병합됐다
         // 창 — 자루(긴 원기둥) + 창촉(2단 콘) + 십자 코등이 + 자루 끝 보주. 길이 ~3.4.
         const spear = new THREE.Group();
         // ⚠️ 가는 흰 창은 밝은 하늘에 통째로 소실된다(캡처 실측) — 굵기를 키우고 채도 있는 금으로.
