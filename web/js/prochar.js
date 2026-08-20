@@ -748,6 +748,12 @@ const ProChar = {
         // voxel 판금 2톤 — 다리 판금(쿠이스·폴린·그리브·라메)이 공유한다. 인스턴스를 하나로 묶어
         // 드로우콜과 톤 스윕 대상 수를 아낀다(원통판 `steel()`/`steelDark()` 는 호출마다 새로 만든다).
         const steelVox = voxSteel('steel'), steelDarkVox = voxSteel('steelDark');
+        // 금 트림의 voxel 판 — 양쪽 비평가가 '되돌리지 말 것'으로 꼽은 골드 트림이라 색·금속감은
+        // 원본(0xd9a441 / metal 0.95 / rough 0.3)을 유지하고, env 만 이음새가 보이게 내린다.
+        const goldVox = new THREE.MeshStandardMaterial({
+            color: 0xd9a441, metalness: 0.9, roughness: 0.34, envMapIntensity: 0.55,
+            vertexColors: true, flatShading: true,
+        });
         for (const side of [-1, 1]) {
             const hip = new THREE.Group();
             hip.position.set(side * 0.13, -0.06, 0);
@@ -1007,24 +1013,41 @@ const ProChar = {
         });
         // `shell` 은 마지막 링의 층을 안 만든다(구간 [y_i, y_{i+1}) 를 채운다) — 한 칸짜리 닫는 링을 더한다.
         cuRings.push(Object.assign({}, cuRings[cuRings.length - 1], { y: cuRings[cuRings.length - 1].y + 1 }));
-        // 속을 파는 건 `t` 가 아니라 `hollow` 로 한다 — `t` 는 위아래가 뚫린 관이라 **목 구멍으로
-        // 안쪽 면이 보인다**. `hollow` 는 겉면 칸만 남기므로 면 수는 같고 칸 수만 준다(슬라임과 같은 방식).
-        const cuirass = this.voxPart(Voxel.hollow(Voxel.shell(cuRings)), steelVox, { center: false });
+        // 🚨 **`hollow` 를 쓰지 않는다 — 한 번 썼다가 되돌렸다. voxel.js 가 정확히 이 함정을 적어 뒀다.**
+        //    "겉면 칸만 남기니 면 수는 같고 칸만 준다"고 생각했는데 **반대다**: 면 제거 규칙이 이미
+        //    속 칸의 면을 전부 버리고 있어서 **속 칸의 렌더 비용은 0** 이고, 파내는 순간 **공동의
+        //    안쪽 벽이 새 면으로 생긴다**(voxel.js 의 `hollow` 위 주석 — 6³ 예시에서 216면 → 312면).
+        //    실측도 같았다: 흉갑 `hollow` 16,968 tri → 솔리드 **8,700 tri**(-49%). 속이 비어야 하는
+        //    조형은 파내는 게 아니라 `ring`/`taper({t})` 로 처음부터 비워서 만드는 것이 이 저장소 규약이다.
+        //    (`t` 로 관을 만드는 쪽도 답이 아니다 — 위아래가 뚫려 목 구멍으로 안쪽 면이 보인다.)
+        const cuirass = this.voxPart(Voxel.shell(cuRings), steelVox, { center: false });
         cuirass.userData.part = 'cuirass';
         // 목 링 — 고젯 라메 스택(아래 collar*)의 **맨 밑 테**. 스택이 흉갑에 얹히는 지점을 매듭짓는다.
         // ⚠️ 위치·굵기는 스택 최하단(y 0.434, r 0.133)에서 역산한 값이다. 스택 치수를 바꾸면 같이 옮길 것 —
         //    예전 값(y 0.45 · major 0.1 · tube 0.032)은 스택 한가운데를 뚫고 나온다.
         //    스택 최하단은 y 0.432 · r 0.099 이므로 그 바로 밑에 같은 반경으로 앉힌다.
-        const gorget = new THREE.Mesh(new THREE.TorusGeometry(0.101, 0.021, 8, 16), steelDark());
-        gorget.rotation.x = Math.PI / 2;
+        // 🧊 목 링 — 토러스 → 큐브 링(`Voxel.ring`). 바깥 반경 = major 0.101 + tube 0.021 = 0.122,
+        //    두께·높이 = tube 지름 0.042. 토러스가 XZ 평면에 눕는 회전(rotation.x)은 `ring` 이
+        //    처음부터 그 평면이라 **필요 없어졌다**(회전을 남겨 두면 링이 세로로 선다).
+        const gorget = this.voxPart(
+            Voxel.ring(this.vr(0.122), this.vr(0.042), Math.max(1, Math.round(this.vr(0.042)))), steelDarkVox);
+        gorget.userData.part = 'gorget';
         gorget.position.y = 0.428;
         // 가슴 문장 (등급 발광용)
         R.emblemMat = new THREE.MeshStandardMaterial({ color: 0x78909c, metalness: 0.6, roughness: 0.32 });
-        const emblem = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), R.emblemMat);
+        R.emblemMat.vertexColors = true;   // voxel 조형은 색·AO 를 정점 색에 싣는다(이 재질은 영웅 문장 전용)
+        R.emblemMat.flatShading = true;
+        // 🧊 문장 — 구 + `scale.z 0.4` → 납작한 큐브 타원체(z 배율을 칸 반지름에 흡수).
+        const emblem = this.voxPart(
+            Voxel.ellipsoid(this.vr(0.055), this.vr(0.055), this.vr(0.055 * 0.4)), R.emblemMat);
+        emblem.userData.part = 'emblem';
         // z 상수(0.2)를 곡면 계산으로 교체 — 가슴이 앞으로 나온 만큼 문장도 따라 나와야 매몰되지 않는다
         emblem.position.set(0, 0.3, torsoSurfZ(0.3) + 0.002);
-        emblem.scale.z = 0.4;
-        const emblemRim = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 14), gold);
+        // 🧊 문장 테 — 토러스 → 큐브 링. 이건 **가슴을 향해 서 있는** 링이라(원본에 회전이 없다)
+        //    XZ 평면으로 나오는 `ring` 을 `rotX` 로 한 번 세운다.
+        const emblemRim = this.voxPart(
+            Voxel.rotX(Voxel.ring(this.vr(0.072), this.vr(0.024), Math.max(1, Math.round(this.vr(0.024)))), 1), goldVox);
+        emblemRim.userData.part = 'emblemRim';
         emblemRim.position.copy(emblem.position);
         // 고젯 안쪽 — 목 링 안에 니어블랙 원통을 세워 목-흉갑 사이가 뚫린 밝은 틈이 아니라
         // 깊은 그늘로 읽히게. 캐릭터 상단부의 유일한 다크 앵커라 실루엣 판독에 크게 기여한다.
@@ -1040,15 +1063,29 @@ const ProChar = {
         // '눈사람'으로 읽히던 문제의 나머지 절반. 허리를 조이는 것만으로는 상단이 여전히 뾰족하다.
         // 가슴에서 견갑 안쪽(x ±0.2)까지 **수평으로** 잇는 납작한 판을 얹어 몸통이 어깨선으로 끝나게 한다.
         // x 확장 0.251 > 견갑 내측 0.2 이므로 둘 사이의 빈 틈(달걀 어깨의 실체)이 실제로 메워진다.
-        const yoke = new THREE.Mesh(new THREE.SphereGeometry(0.155, 20, 10, 0, Math.PI * 2, 0, Math.PI * 0.58), steel());
+        // 🧊 어깨 요크 — 잘린 구(theta 0~0.58π) + `scale(1.62, 0.5, 0.92)` → 큐브 타원체를 같은
+        //    자리에서 자른 것. 세 배율은 칸 반지름에 흡수하고, 자르는 높이는 원본과 같은 식으로 낸다:
+        //    theta 0.58π 까지 = y/ry ≥ cos(0.58π) = −0.2487.
+        const YK_R = 0.155, YK = [1.62, 0.5, 0.92];
+        const yRy = this.vr(YK_R * YK[1]);
+        let yokeVox = Voxel.ellipsoid(this.vr(YK_R * YK[0]), yRy, this.vr(YK_R * YK[2]))
+            .filter(v => v.y >= Math.cos(Math.PI * 0.58) * yRy);
+        // 🚨 **옛 `yokeLine`(니어블랙 반구 껍데기)을 지웠다 — 되살리지 말 것.** 그건 요크가 두께 없는
+        //    **면**이라 "종잇장으로 읽힌다"는 지적을 메우려고 안쪽에 덧댄 가짜 두께였다. voxel 요크는
+        //    속이 찬 덩어리라 밑면이 실제로 존재하고 이음새 AO 까지 붙으므로 그 역할이 사라진다.
+        //    게다가 매끈한 구(r 0.15)를 계단진 voxel(r 0.155) 안에 두면 여유가 0.005 뿐이라
+        //    **칸 반올림(최대 0.008)에 그대로 뚫고 나온다** — 남겨 두는 쪽이 오히려 회귀였다.
+        //    대신 두께 판독은 **맨 아랫층을 어둡게 굽는 것**으로 낸다(같은 메시 = 드로우콜 추가 0).
+        //    ⚠️ 색은 절대값이 아니라 **곱셈 계수**여야 한다 — 재질 색을 시대 틴트가 바꾸므로,
+        //       여기에 검정을 박으면 틴트가 바뀌어도 테만 안 따라와 붕 뜬다.
+        {
+            const yb = Voxel.bounds(yokeVox).y0;
+            yokeVox = Voxel.recolor(yokeVox, v => (v.y === yb ? 0x4a4a4a : 0xffffff));
+        }
+        const yoke = this.voxPart(yokeVox, steelVox);
+        yoke.userData.part = 'yoke';
         yoke.position.y = 0.375;
-        yoke.scale.set(1.62, 0.5, 0.92); // 좌우로 넓고 위아래로 눌린 판 — '어깨 폭'을 담당
-        // 요크 밑면 니어블랙 — 견갑 안감(pauldronLine)과 같은 언어로 판금 두께를 만든다.
-        // 이게 없으면 요크가 종잇장으로 읽혀 어깨선이 그려지기만 하고 입체가 안 생긴다.
-        const yokeLine = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 10, 0, Math.PI * 2, Math.PI * 0.36, Math.PI * 0.3), deepLine);
-        yokeLine.position.copy(yoke.position);
-        yokeLine.scale.copy(yoke.scale);
-        spine.add(cuirass, gorget, gorgetIn, chestStrap, emblem, emblemRim, yoke, yokeLine);
+        spine.add(cuirass, gorget, gorgetIn, chestStrap, emblem, emblemRim, yoke);
         aoRing(0.1, 0.022, spine, 0.435, 0.5);   // 목 링 아래 접촉 그림자
         aoRing(0.172, 0.02, spine, 0.005, 0.5);  // 흉갑 밑단-허리 경계 (밑단 0.185→0.163 조임에 맞춰 축소)
         aoRing(0.235, 0.018, spine, 0.352, 0.45); // 요크 밑면-가슴 경계 — 어깨선 아래 접촉 그림자
