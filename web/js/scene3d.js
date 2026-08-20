@@ -1346,10 +1346,16 @@ const Scene3D = {
             stone: 0x7d6f55,
         },
         ash: { // 17 화산재 평원 — 색이 거의 없는 회색 재. 고사목 실루엣만으로 버틴다
+            // 🎨 잔불 오렌지 강조색 (map-palette-unify 5차 — B ⑷ '계열 중복' 중 ch16↔17 동일 팔레트).
+            //    ash 는 채도가 거의 없어(color% 11) 바로 위 badland(따뜻한 머스터드-탄)와 실루엣만 갈릴 뿐
+            //    한 세계로 뭉쳤다. B 가 짚은 처방("한쪽에 잔불 오렌지, 다른 쪽에 청회 재 보조 강조색")대로
+            //    화산재에 **식지 않은 잔불**을 흩어 정체성을 준다 — badland=마른 관목 온기 / ash=식은 잿빛+불씨.
+            //    지면·하늘·안개·명도 구조(probe-chapters)는 무접촉, 강조 스캐터 색·밀도만 교체(회귀 위험 최소).
+            //    잔불은 흔들리지 않으니 wind 없음, 회색 대비로 점점이 읽히게 작고(0.03) 성기게(n40).
             kin: 'rock', tint: [0, -0.55, -0.04], ridge: 'jagged',
             props: { p: [['makeDeadTree', 1.0]], r: [['makeBoulder', 0.7], ['makeSlab', 0.7]] },
             scatter: { geo: 'dodeca', r: 0.05, color: 0x6a6764, n: 190, flat: true, tint: 0.1 },
-            accent: { geo: 'dodeca', r: 0.038, color: 0x9e9a96, n: 44 },
+            accent: { geo: 'dodeca', r: 0.03, color: 0xc0350c, n: 40 },
             stone: 0x5f5c59, fog: [12, 30],
         },
         // --- snow 계열 ---
