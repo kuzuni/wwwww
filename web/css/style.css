@@ -4140,6 +4140,11 @@ h3.sellwarn-title, .rates-head h3,
 #panel-skills .equipped-row .equipped-icons { gap: calc(var(--app-w) * .0280); }
 /* 원본 버튼 높이 43px(4.83%H) — min-height 만 주면 패딩·글자가 50px 로 밀어 올린다 */
 #panel-skills .sk-action-btn { min-height: 0; height: calc(var(--app-h) * .0483); }
+/* 버튼 사이 간격 — 원본(042340) 파란 채움 기준 x237~255 = 19px(3.83%W)인데 기본 .row gap(.45rem≈1.5%W)
+   그대로라 두 버튼이 거의 붙어 보였다(R2 비평가 2인 교집합, DOM 재실측 Δ−2.32%p 로 게이트 밖 확인.
+   sk-action-btn-gap). 두 버튼이 gap 기준 좌우 대칭이라 gap 하나로 x 두 축이 같이 들어온다
+   (equipped-icons-pitch 와 같은 이치). 펫·탈것 화면은 각자 원본 실측 전이라 스킬로만 스코프. */
+#panel-skills .row.center { gap: calc(var(--app-w) * .0383); }
 /* 원본에서 '장착됨 바~버튼' 묶음은 지금보다 19px 아래에 앉는다. 소환 바 y 는 이미 맞으므로
    버튼~소환 바 사이를 그만큼 줄이면 위쪽 그리드 여백(flex:1)이 알아서 늘어 묶음이 내려온다. */
 #panel-skills .summon-bar { margin-top: 1.03rem; }

@@ -118,6 +118,17 @@ const T = [
         if (bad) fail++;
         console.log(`${label.padEnd(18)} ${cells.join('| ')} ${bad ? '  ✗' : ''}`);
     }
+    // 파생 축: 버튼 사이 간격 — 두 버튼의 x 가 각자 게이트 안이어도 간격은 2.3%p 넘게 어긋날 수 있다
+    // (실제로 그랬다: btn1 Δ+1.46 · btn2 Δ−0.86 로 둘 다 초록인데 간격은 3.83%W ↔ 1.51%W 였다.
+    //  R2 비평가 2인 교집합이 이걸 지적했고 표는 끝까지 초록이었다 — sk-action-btn-gap).
+    if (m.btn1 && m.btn2) {
+        const refGap = (256 - 237) / REF_W * 100;                       // 원본 파란 채움 x237~255 = 19px
+        const cloGap = (m.btn2.x - (m.btn1.x + m.btn1.w)) / m.app.w * 100;
+        const dd = cloGap - refGap;
+        const bad = Math.abs(dd) > 2;
+        if (bad) fail++;
+        console.log(`${'버튼 사이 간격'.padEnd(15)} 원본 ${refGap.toFixed(2)}%W ↔ 클론 ${cloGap.toFixed(2)}%W Δ${(dd >= 0 ? '+' : '') + dd.toFixed(2)}${bad ? '  ✗' : ''}`);
+    }
     console.log('');
     console.log(fail ? `판정: FAIL — ±2%p 초과 요소 ${fail}건` : '판정: PASS — 전 요소 ±2%p 이내');
     console.log(errs.length ? '콘솔 에러: ' + errs.join(' / ') : '콘솔 에러 0건');
