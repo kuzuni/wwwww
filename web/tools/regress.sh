@@ -42,6 +42,8 @@ for p in \
     probe-summon-full-btn.js \
     probe-upgrade-empty-guard.js \
     probe-tabx-clickable.js \
+    probe-popup-close.js \
+    probe-dim-tabbar.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1
