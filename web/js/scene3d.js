@@ -2715,11 +2715,22 @@ const Scene3D = {
                 const mat = this._flowerMats[Math.floor(Math.random() * this._flowerMats.length)];
                 for (let j = 0; j < n; j++) {
                     const fx = U.rand(-0.09, 0.09), fz = U.rand(-0.09, 0.09), fh = U.rand(0.09, 0.16);
-                    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.011, fh, 5), this._stemMat);
-                    stem.position.set(fx, fh / 2, fz);
-                    stem.rotation.z = U.rand(-0.2, 0.2);
-                    const head = new THREE.Mesh(new THREE.IcosahedronGeometry(U.rand(0.028, 0.042), 0), mat);
-                    head.position.set(fx + stem.rotation.z * -fh * 0.5, fh + 0.02, fz);
+                    // 🧊 줄기 = 1복셀 기둥(칸 수는 키에서 환산), 꽃송이 = 십자 5칸 + 정수리 1칸 —
+                    //    곡면(원기둥·이십면체) 금지(map-quality-up voxel 전환). 종전의 임의 기울임
+                    //    (rotation.z ±0.2)은 격자를 깨므로 폐기하고, 그 U.rand 는 꽃송이를 반 칸
+                    //    옆에 얹는 방향으로 돌려 씀(시드 고정 캡처의 난수 소비량 보존 — crystalGeo 규약).
+                    const SZ = 0.032, hCells = Math.max(2, Math.round(fh / SZ));
+                    const lean = U.rand(-0.2, 0.2);
+                    const headSc = U.rand(0.028, 0.042) / 0.035;
+                    const stemVox = []; for (let k = 0; k < hCells; k++) stemVox.push({ x: 0, y: k, z: 0 });
+                    const stem = new THREE.Mesh(this.voxMiniGeo(stemVox, SZ), this._stemMat);
+                    stem.position.set(fx, 0, fz);
+                    const head = new THREE.Mesh(this.voxMiniGeo([
+                        { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: -1, y: 0, z: 0 },
+                        { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: -1 }, { x: 0, y: 1, z: 0 },
+                    ], SZ * 0.62), mat);
+                    head.scale.setScalar(headSc);
+                    head.position.set(fx + Math.sign(lean || 1) * SZ * 0.5, hCells * SZ, fz);
                     cl.add(stem, head);
                 }
                 const g = grounded(cl, 0.5);
@@ -2729,18 +2740,24 @@ const Scene3D = {
                 this.scene.add(g);
                 this.rocks.push(g);
             }
-            for (let i = 0; i < 4; i++) { // 양치류: 중심에서 방사형으로 젖힌 잎날 5~6개
-                const fern = new THREE.Group();
+            for (let i = 0; i < 4; i++) { // 양치류: 중심에서 4방위 계단 잎날 5~6개 (위층 교대)
+                // 🧊 잎날 = 계단 큐브 띠(나가다 끝에서 한 칸 처짐 — '바깥으로 젖힘'의 복셀 어휘,
+                //    vxTwig 계단 가지와 같은 근거). 종전 임의 각 회전(rotation.set(sinα…))은 격자
+                //    위반이라 방위를 90° 스냅 4방으로, 5~6번째 잎은 한 층 위에 교대로 얹는다.
+                //    U.rand 호출 수는 종전과 동일(각 지터 → 길이 지터로 전용) — 소비량 보존.
+                const vox = [], seen = new Set();
+                const put = (x, y, z) => { const k = x + ',' + y + ',' + z; if (!seen.has(k)) { seen.add(k); vox.push({ x, y, z }); } };
+                put(0, 0, 0); put(0, 1, 0);   // 중심 관
                 const blades = 5 + Math.floor(Math.random() * 2);
+                const DIR = [[1, 0], [-1, 0], [0, 1], [0, -1]];
                 for (let j = 0; j < blades; j++) {
-                    const a = (j / blades) * Math.PI * 2 + U.rand(-0.2, 0.2);
+                    const aj = U.rand(-0.2, 0.2);
                     const len = U.rand(0.16, 0.26);
-                    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.035, len, 4), this._fernMat);
-                    blade.scale.z = 0.3; // 납작한 잎
-                    blade.position.set(Math.cos(a) * 0.07, len * 0.42, Math.sin(a) * 0.07);
-                    blade.rotation.set(Math.sin(a) * 0.85, -a, Math.cos(a) * 0.85); // 바깥으로 젖힘
-                    fern.add(blade);
+                    const cells = Math.max(2, Math.round((len + aj * 0.06) / 0.045));
+                    const dxz = DIR[j % 4], up = j >= 4 ? 1 : 0;
+                    for (let k = 1; k <= cells; k++) put(dxz[0] * k, up + (k < cells * 0.6 ? 1 : 0), dxz[1] * k);
                 }
+                const fern = new THREE.Mesh(this.voxMiniGeo(vox, 0.045), this._fernMat);
                 const g = grounded(fern, 0.6);
                 g.userData.windSway = 0.055;
                 const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.6, 1.7); } while (Math.abs(zz) < 0.9); return zz; })();
