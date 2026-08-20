@@ -3970,18 +3970,30 @@ const UI = {
     onMerge(r) { Pets.merge(r); this.renderPets(); },
     // ---- 펫 업그레이드 팝업 (경험치 흡수형, UI-SPEC 9·12·13번) ----
     _petUpgradeTarget: null, _petUpgradeMats: null,
+    // 🚨 **`render*` 의 가드가 닫은 팝업을 다음 줄에서 도로 열면 안 된다** (upgrade-modal-empty-guard,
+    //    2026-08-20 QA 실측). `renderPetUpgrade` 는 대상이 없으면 이미 `closePetUpgrade()` 로 닫는데,
+    //    종전 `open*` 이 그 뒤에서 **무조건** `showModal` 을 불러 `innerHTML` 이 빈 모달이 다시 떴다.
+    //    빈 모달은 `rgba(0,0,0,.5)` 딤으로 화면을 덮고 **닫기 버튼이 없다**(내용이 비었으니) — 펫 쪽은
+    //    `z-index:40` 이라 탭바(z 30)까지 덮어 딤·중앙·구석·ESC·탭바 클릭이 전부 막히고 **새로고침
+    //    말고는 빠져나갈 수 없었다.** 그래서 `render*` 가 성공 여부를 돌려주고, **성공했을 때만** 연다.
     openPetUpgrade(idx) {
         this._petUpgradeTarget = idx;
         this._petUpgradeMats = { pets: [], eggs: [] };
-        this.renderPetUpgrade();
+        if (!this.renderPetUpgrade()) { this.toast('업그레이드할 펫이 없습니다'); return; }
         this.showModal(this.els.petUpgradeModal);
     },
     closePetUpgrade() { this.els.petUpgradeModal.classList.add('hidden'); },
     // UI-SPEC 55번(원본 shot-042503) 레이아웃: 대상 카드(장착됨+Lv+⭐+피해/체력) → 경험치 바 →
     // "합칠 펫 선택"+[업그레이드] → 등급별 일괄 선택 버튼 행 → 구분선 → 보유 펫·알 타일 그리드(.pet-tile 재사용, ✓ 체크 선택·무제한)
+    // 대상을 못 잡으면 팝업을 닫고 **false** 를 돌려준다 — 호출부가 이걸 보고 열지 말지 정한다
+    // (upgrade-modal-empty-guard). 조용히 넘기지 않고 콘솔에도 남긴다.
     renderPetUpgrade() {
         const target = S.pets[this._petUpgradeTarget];
-        if (!target) { this.closePetUpgrade(); return; }
+        if (!target) {
+            console.warn('renderPetUpgrade: 대상 펫이 없다 — 팝업을 열지 않는다 (idx:', this._petUpgradeTarget, '보유:', S.pets.length, ')');
+            this.closePetUpgrade();
+            return false;
+        }
         const sel = this._petUpgradeMats;
         const need = Pets.xpNeeded(target.level);
         const maxed = target.level >= Pets.MAX_LEVEL;
@@ -4057,6 +4069,7 @@ const UI = {
                 <button class="x-btn" onclick="UI.closePetUpgrade()">${IconGen.img('xmark')}</button>
             </div>`;
         this.hydrateMountThumbs();   // 펫 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
+        return true;
     },
     // 등급 r에서 재료로 쓸 수 있는 인덱스 풀 — 펫은 대상·장착 중 제외
     _matPool(type, r) {
@@ -5581,17 +5594,23 @@ const UI = {
 
     // 마운트 업그레이드 팝업 (펫 업그레이드와 동일 방식): 다른 탈것을 재료로 흡수해 경험치로 레벨업
     _mountUpgradeTarget: null, _mountUpgradeMats: null,
+    // 펫 쪽과 **같은 뿌리·같은 처방** (upgrade-modal-empty-guard) — 위 `openPetUpgrade` 주석 참조.
+    // 탈것은 `z-index` 가 낮아 탭바로 빠져나갈 수는 있었지만, 빈 딤이 뜨는 것 자체는 똑같았다.
     openMountUpgrade(idx) {
         this._mountUpgradeTarget = idx;
         this._mountUpgradeMats = [];
-        this.renderMountUpgrade();
+        if (!this.renderMountUpgrade()) { this.toast('업그레이드할 탈것이 없습니다'); return; }
         this.showModal(this.els.mountUpgradeModal);
     },
     closeMountUpgrade() { this.els.mountUpgradeModal.classList.add('hidden'); },
     renderMountUpgrade() {
         const idx = this._mountUpgradeTarget;
         const target = Mounts.inst(idx);
-        if (!target) { this.closeMountUpgrade(); return; }
+        if (!target) {
+            console.warn('renderMountUpgrade: 대상 탈것이 없다 — 팝업을 열지 않는다 (idx:', idx, '보유:', Mounts.count(), ')');
+            this.closeMountUpgrade();
+            return false;
+        }
         const name = target.name;
         const sel = this._mountUpgradeMats;
         const need = Mounts.xpNeeded(target.level);
@@ -5622,6 +5641,7 @@ const UI = {
                 <button class="btn" onclick="UI.closeMountUpgrade()">닫기</button>
             </div>`;
         this.hydrateMountThumbs();   // 탈것 아이콘을 실제 3D 썸네일로 교체 (다음 프레임)
+        return true;
     },
     onToggleMountUpgradeMat(idx) {
         const sel = this._mountUpgradeMats;
