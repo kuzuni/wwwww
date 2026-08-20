@@ -130,16 +130,32 @@ body {
 #wave-pips {
     /* 제목을 올린 만큼 같이 올려 원본의 제목-점줄 간격(잉크 11px)을 유지한다 */
     position: absolute; top: 1.8rem; left: 50%; transform: translateX(-50%);
-    display: flex; align-items: center; gap: .3rem; padding: 0 .15rem;
+    display: flex; align-items: center; gap: calc(var(--app-w) * .0363); padding: 0 .15rem;
 }
+/* 원본 shot-043244 확대 실측(497×897) — 이건 '점 몇 개'가 아니라 **검정 키라인을 두른 노드를
+   굵은 흰 트랙으로 이은 위젯**이다:
+     · 전체 x182.6~313 = **26.2%W**
+     · 현재 노드 지름 17px(**3.42%W**) · 나머지 노드 10.4px(**2.09%W**) — 현재 노드가 더 크다
+     · 트랙 두께 8px(**1.61%W**, 흰 심 ~5px + 위아래 검정 테)
+   종전 값(.55rem 점 + 2px rgba(255,255,255,.3) 선)은 전체 폭이 **13.6%W(−13%p)** 였고 트랙은
+   배경에 묻혀 아예 안 보였다 — 2026-08-19 R5 에서 비평가 2인이 독립적으로 '폭이 절반' ·
+   '연결선 없는 점'으로 짚은 자리다(A −13.0%p · B −16.1%p, 노드 지름도 −1.8~−2.0%p).
+   ⚠️ **노드 개수는 맞출 수 없다** — 원본은 3개, 클론은 그 판의 총 웨이브 수(메인 5)를 따른다
+      (사용자 지시 2026-08-18). 그래서 개수 대신 **노드 지름과 전체 폭**을 원본에 맞추고 간격을
+      역산했다(5노드 기준 gap 3.63%W → 전체 ≈26.2%W). 개수 차이로 피치는 원본과 다르다. */
 #wave-pips::before {
     content: ''; position: absolute; left: .35rem; right: .35rem; top: 50%;
-    height: 2px; margin-top: -1px; background: rgba(255,255,255,.3); border-radius: 1px;
+    height: calc(var(--app-w) * .0161); transform: translateY(-50%);
+    background: #fff; border-top: var(--ol2) solid var(--pp-line); border-bottom: var(--ol2) solid var(--pp-line);
+    box-sizing: border-box;
 }
 #wave-pips .pip { position: relative; z-index: 1; }
-.pip { width: .55rem; height: .55rem; border-radius: 50%; background: rgba(255,255,255,.25); }
+.pip {
+    width: calc(var(--app-w) * .0209); height: calc(var(--app-w) * .0209);
+    border-radius: 50%; background: #fff; border: var(--ol2) solid var(--pp-line); flex: none;
+}
 .pip.done { background: #69f0ae; }
-.pip.now { background: #fff; box-shadow: 0 0 6px #fff; }
+.pip.now { width: calc(var(--app-w) * .0342); height: calc(var(--app-w) * .0342); background: #fff; box-shadow: 0 0 6px #fff; }
 .pip.boss { border-radius: 2px; transform: rotate(45deg); }
 .pip.boss.now { background: #ff5252; box-shadow: 0 0 8px #ff5252; }
 
