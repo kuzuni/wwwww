@@ -7772,12 +7772,39 @@ const Scene3D = {
             { y: 0.23 * P.top, rx: 0.222 * P.shoulder, rz: 0.138 * P.shoulder, fw: 0.12 },
             { y: 0.29 * P.top, rx: 0.168, rz: 0.106, fw: 0 },           // 목
         ];
-        const torso = this.shellFromRings(RINGS, FOLD ? 30 : (soft ? 22 : 20), mat,
-            // foldN 11 = 로브 둘레의 주름 수. **홀수를 쓴다** — k = 1 + fold·cos(foldN·a) 에서
-            // 정면(a = π/2)의 값이 홀수면 cos(홀수·π/2) = 0 이라 골이 오지 않고, 짝수면 −1 이라
-            // 세로 홈이 정중선을 한가운데서 가른다('지퍼'로 읽힌다).
-            { flat: this.ageGearKind(age) === 'primal' && !soft, fold: FOLD, foldN: 11 });
-        g.add(torso);
+        // 🧊 **voxel 전환 5차분 (equip-voxelize ⓑ) — 갑옷 몸통·흉근·고젯.** `makeAccessoryPreview`
+        //    15칸을 다 옮긴 뒤 남은 것이 여기다. `makeArmorPreview` 도 **썸네일 전용**이라
+        //    영웅과 코드를 안 나눈다(영웅 공용인 `makeHelmet`·`makeWeapon` 은 `prochar-aaa` 락을
+        //    같이 잡아야 하므로 맨 뒤로 둔다 — 인계 메모 ⓑ).
+        // ⚠️ **위 P/RINGS 표는 한 자도 안 바꾼다.** 그 숫자가 96px 판독성·실루엣 미분화 게이트를
+        //    통과시킨 실체라, 바뀌는 건 조형뿐이다 — 월드 단위를 칸으로 나누기만 한다
+        //    (인계 메모: 부위 목록과 비례는 그대로 옮겨 쓸 것).
+        // 🚨 **칸 크기는 장신구와 같은 0.024 로 맞춘다 — 슬롯마다 다르면 화풍이 안 모인다.**
+        //    처음엔 '몸통은 크니까 촘촘하게'라며 0.016(몸통 높이 35층·가슴 반경 15칸)을 썼는데,
+        //    실측이 그걸 기각했다: 플랫 고원 0.171 · 계단 0.649 로 **매끈 대조군에서 거의 안
+        //    떨어졌다**(0.161/0.627). 칸이 잘면 이음새 AO 와 색변화가 픽셀 단위 잡티가 되고
+        //    실루엣의 계단도 1칸씩이라 다시 곡선으로 읽힌다 — 화풍 블록의 '큐브를 둥글리지 말 것'이
+        //    밀도 축에서도 그대로 성립한다. 0.024(23층·가슴 10칸)로 굵게 끊으니 0.230/0.677.
+        //    ⚠️ '디테일은 복셀 밀도'라는 문장을 **한 파츠를 잘게 썰라**로 읽지 말 것 — 디테일은
+        //       파츠 수로 내고, 한 파츠의 칸은 굵게 둔다(신발 밑창·벨트 버클에서 얻은 결론과 같다).
+        const AS = 0.024;                     // 격자 한 칸 = 월드 0.024 → 몸통 높이 0.56 이 23층
+        const V = Voxel;
+        const cw = (v) => v / AS;             // 월드 → 칸(실수). 반지름은 실수 그대로 넘긴다
+        const ci = (v) => Math.round(v / AS); // 월드 → 칸(정수). 배치 좌표는 격자에 스냅한다
+        const cBody = mat.color.getHex();
+        const vox = [];
+        // ⚠️ `Voxel.shell` 은 **구간 반복**이라 마지막 링 아래까지만 쌓는다 — 목 링을 한 칸
+        //    복제해 얹지 않으면 몸통 맨 윗층이 잘리고 고젯이 허공에 뜬다.
+        const vRings = RINGS.map(r => ({ y: cw(r.y), rx: cw(r.rx), rz: cw(r.rz), fw: r.fw }));
+        vRings.push(Object.assign({}, vRings[vRings.length - 1], { y: cw(0.29 * P.top) + 1 }));
+        // foldN 11 = 로브 둘레의 주름 수. **홀수를 쓴다** — k = 1 + fold·cos(foldN·a) 에서
+        // 정면(a = π/2)의 값이 홀수면 cos(홀수·π/2) = 0 이라 골이 오지 않고, 짝수면 −1 이라
+        // 세로 홈이 정중선을 한가운데서 가른다('지퍼'로 읽힌다).
+        // 🚨 **진폭만은 칸 단위로 다시 정한다**(장갑 손가락 굵기와 같은 자리). 매끈한 회전체는
+        //    0.055 로도 윤곽이 휘지만, 격자에서는 밑단 반경 21칸 × 0.055 = ±1.2칸이라 반올림이
+        //    먹어 골이 겨우 한 칸 — 96px 로 줄이면 사라진다. 0.085(±1.8칸)로 올려 골이 확실히
+        //    두 칸을 먹게 했다. **그 계단이 곧 천의 접힘이다**(벨트 `strip` 과 같은 원리).
+        vox.push(...V.shell(vRings, cBody, { fold: FOLD ? 0.085 : 0, foldN: 11 }));
         const neckY = 0.29 * P.top;
         // ⚠️ `exo`(외골격)는 제외한다 — 흉근 두 덩이 + 정중선 능선은 **단조 흉갑의 언어**라,
         //    외골격에 얹으면 가슴 한가운데 세로 렌즈가 서서 동력 코어를 가리고 다시 '근육 갑주'로
@@ -7788,23 +7815,109 @@ const Scene3D = {
             // 가슴 곡률 — 판금은 흉근 두 덩이 + 가운데 능선(키일)이 서야 '흉갑'으로 읽힌다.
             // ⚠️ 구를 그대로 쓰면 두 개의 유방으로 읽힌다 — z를 0.26까지 눌러 **표면에서 살짝
             //    부푼 면**으로 만들고 몸통 앞면(rz 0.16)에 반쯤 묻는다.
-            for (const s of [-1, 1]) {
-                const pec = new THREE.Mesh(new THREE.SphereGeometry(0.098, 14, 10), mat);
-                pec.scale.set(1.02, 0.66, 0.26);
-                pec.position.set(s * 0.082, 0.163, 0.137);
-                g.add(pec);
-            }
-            const keel = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 12), mat);
-            keel.scale.set(0.38, 2.5, 0.34);   // 세로로 길게 눌린 렌즈 = 가슴 한가운데 능선
-            keel.position.set(0, 0.105, 0.147);
-            g.add(keel);
+            // 눌린 구 → `Voxel.ellipsoid`. **세 반지름을 그대로 옮긴다**(구 반지름 × scale).
+            for (const s of [-1, 1])
+                vox.push(...V.at(V.ellipsoid(cw(0.098 * 1.02), cw(0.098 * 0.66), cw(0.098 * 0.26), cBody),
+                    ci(s * 0.082), ci(0.163), ci(0.137)));
+            // 세로로 길게 눌린 렌즈 = 가슴 한가운데 능선(키일)
+            vox.push(...V.at(V.ellipsoid(cw(0.06 * 0.38), cw(0.06 * 2.5), cw(0.06 * 0.34), cBody),
+                0, ci(0.105), ci(0.147)));
         }
-        // 목깃(고젯) — 몸통 윗변을 링으로 마감해 '잘린 관' 인상을 없앤다
-        const gorget = new THREE.Mesh(new THREE.TorusGeometry(0.125, soft ? 0.026 : 0.032, 8, 20), soft ? mat : mats.dark);
-        gorget.position.y = neckY;
-        gorget.rotation.x = Math.PI / 2;
-        gorget.scale.y = 0.68;   // 몸통 단면이 타원이라 링도 눕혀야 앞뒤로 뜨지 않는다
-        g.add(gorget);
+        // 목깃(고젯) — 몸통 윗변을 링으로 마감해 '잘린 관' 인상을 없앤다.
+        // 토러스(주반경 0.125 · 튜브 t) → **큐브 링**. 눕힌 토러스의 z 압축(scale.y 0.68)은
+        //   타원 링의 rz 로 그대로 옮긴다 — 몸통 단면이 타원이라 링도 눌러야 앞뒤로 안 뜬다.
+        {
+            const tube = soft ? 0.026 : 0.032;
+            const rOut = cw(0.125 + tube), rIn = cw(0.125 - tube), Z = 0.68;
+            const h = Math.max(2, Math.round(cw(tube * 2 * Z)));
+            vox.push(...V.ellipse(rOut, rOut * Z, h, {
+                y0: ci(neckY) - Math.floor(h / 2), rix: rIn, riz: rIn * Z,
+                // 고젯은 몸통보다 어두운 테여야 '목깃'으로 읽힌다(soft 는 같은 천이라 몸통색).
+                color: (soft ? mat : mats.dark).color.getHex(),
+            }));
+        }
+        // 🧊 **몸통 덩어리를 여기서 굽는다 — 드로우콜 1.** 색이 정점에 실리므로 몸통과 고젯이
+        //    색을 둘 써도 메시는 하나다(재질에서 색만 가져오고 맵·광택은 버린다 — `ageGearMats`
+        //    의 `rockTex`/`leatherTex` 를 그대로 물리면 **큐브 위에 자갈 노이즈**가 얹혀 항목 ⓒ 가
+        //    지적한 '표면의 쿼드 격자선'이 그대로 돌아온다).
+        // 🚨 **바로 아래 `addAgeTrim` 보다 먼저 넣어야 한다 — 안 그러면 시대 트림이 통째로
+        //    사라진다.** `addAgeTrim` 은 `Box3().setFromObject(g)` 로 몸통 높이를 재는데, 굽는
+        //    자리를 뒤로 미뤘더니 그 시점의 `g` 가 비어 `bb.isEmpty()` 조기 반환에 걸렸다
+        //    (실측: alloy 5시대 25칸 전부 `userData.ageTrim` 메시 7개 → **0개**. 화면에서는
+        //    리벳·발광 스트립이 조용히 없어지고 콘솔은 깨끗해 `probe-alloy-trim-contact` 의
+        //    '스트립을 가진 칸' 수가 49 → 24 로 떨어진 것으로만 드러났다).
+        //    **조형을 메시 하나로 합칠 때는 그 메시가 g 에 들어가는 시점도 같이 옮겨진다** —
+        //    바운딩 박스를 읽는 후속 호출이 있는지 반드시 확인할 것.
+        // 🚨 **시대 셰이딩도 같이 옮겨야 한다 — 조형만 옮기면 시대가 '색 스와프'로 주저앉는다.**
+        //    `ageShade`/`ageDetailGLSL` 의 깊이(두드린 모서리는 밝고 틈은 어둡다 · 가죽 결 ·
+        //    바늘땀)는 전부 **맵·UV 위에서** 칠하던 것이라 `voxMat` 이 맵을 버리는 순간 사라진다.
+        //    실측: 이 전환만 넣었을 때 `probe-age-shading` 의 대비(cv)가 10칸 **전부** 기준선
+        //    아래로 떨어지고 `forged↔brass(hide)` 재질분리가 0.24 로 무너졌다(기준 1.00 = 딱
+        //    비평가가 쳤던 '색만 다르다' 상태로의 회귀).
+        //    → 같은 것을 **큐브 단위로** 다시 낸다: 시대마다 ⑴ 큐브별 색변화 폭(`jitter`)과
+        //      ⑵ 모서리 마모 폭(`Voxel.wear`)을 따로 준다. 둘 다 UV 없이 격자에서 나온다.
+        //    ⚠️ 세 번째 축인 AO 강도는 **못 쓴다** — 화풍 블록이 가장 어두운 계수 0.62 를
+        //      하한으로 못 박았고 `1 − 0.38·s` 라 s = 1.0 이 이미 그 값이다(올리면 위반).
+        //    ⑶ 표면 무늬(`seam` 이음선 · `stud` 돌기)도 같은 표에 둔다 — 시대 정체성은 색이
+        //       아니라 **이 세 축의 조합**이라, 한 자리에 모아 놔야 시대끼리 안 붙는다.
+        //       `d` = 무늬 색을 몸통색에서 얼마나 띄울지(밝은 돌기 +d · 어두운 이음선 −d).
+        const VOX_ERA = {
+            // 생가죽·뼈: 거친 얼룩 + 꿰맨 자국(어두운 점) + 듬성듬성 박은 뼛조각
+            primal: { jit: 0.10, wear: 0.30, d: 0.26, seam: [3, 4, 1], stud: [5, 4, 2], patch: [2, 0.40] },
+            // 단조 판금: 판을 붙잡은 리벳 줄 + 그 줄을 따라가는 이음선. 두드린 자국이 많아
+            //   시대 중 대비가 가장 크다(원본 셰이더에서도 forged/plate 가 최고 cv 였다).
+            forged: { jit: 0.07, wear: 0.52, d: 0.30, seam: [1, 5, 0], stud: [3, 5, 1], patch: [2, 0.46] },
+            // 주조 황동: 리벳이 아니라 **넓은 판을 이은 띠** — 조용하고 넓다
+            brass: { jit: 0.05, wear: 0.16, d: 0.17, seam: [1, 8, 0], stud: [7, 8, 3], patch: [2, 0.18] },
+            // 무광 기술섬유: 세로 누빔선(가로 리벳과 축이 반대여야 시대가 갈린다)
+            polymer: { jit: 0.08, wear: 0.07, d: 0.17, seam: [3, 1, 0], stud: [3, 5, 1], patch: [2, 0.11] },
+            // 합금 패널: 각진 판 경계 + 볼트
+            alloy: { jit: 0.06, wear: 0.30, d: 0.17, seam: [1, 7, 0], stud: [5, 7, 2], patch: [2, 0.09] },
+            // 성물: 고운 바탕에 닳아 빛나는 금테 줄(어둡게 파지 않는다)
+            holy: { jit: 0.05, wear: 0.24, d: 0.17, seam: null, stud: [1, 9, 0], patch: [2, 0.08] },
+        }[mats.kind] || { jit: 0.10, wear: 0.18, d: 0.17, seam: null, stud: null, patch: null };
+        // ⑵ **표면 무늬는 칠하지 말고 얹는다.** `jitter`+`wear` 만으로는 셰이더가 내던 대비를
+        //    못 따라간다(실측: forged/plate cv 0.368 → 0.236, 둘만으로는 0.240 까지밖에 안 올랐다).
+        //    남은 차이의 정체는 **리벳·이음선·누빔선의 밝고 어두운 국소 대비**인데, 그건 무늬가
+        //    아니라 **조형**이라 큐브로 옮기는 게 맞다 — 셰이더 `rivet` 모드가 uv 위에 그리던
+        //    도넛 그늘 + 볼록한 머리를, 여기서는 **실제로 튀어나온 칸 한 겹**으로 낸다.
+        //    (덤으로 96px 에서 살아남는다 — 칠한 무늬는 축소하면 뭉개진다.)
+        const cLite = this.tintOf(mat, VOX_ERA.d).color.getHex();
+        const cDim = this.tintOf(mat, -VOX_ERA.d).color.getHex();
+        let skin = vox;
+        // ⑷ **블록 패치 — 시대마다 '재질의 얼룩' 크기와 폭이 다르다.** 생가죽은 여러 장을 이어
+        //    붙인 것이라 얼룩이 크고 거칠고, 주조 황동은 한 통에서 부어 만든 것이라 거의 고르다.
+        //    ⚠️ 이걸 `jitter` 로 대신하려 들지 말 것 — jitter 는 **칸마다** 흔들어서, 폭을 키우면
+        //       재질 얼룩이 아니라 **모래알 잡티**가 된다(잘게 썬 몸통이 플랫 고원 0.171 로
+        //       주저앉은 그 함정의 색 버전이다). 얼룩은 칸보다 커야 얼룩으로 읽힌다.
+        //    🚨 **폭만 키우고 끝내면 지표는 통과하는데 그림이 나빠진다(실측으로 밟았다).**
+        //       처음엔 `[±d, 0]` 세 색을 블록 3~6칸으로 뿌렸는데, `probe-age-shading` 은 전부
+        //       통과한 반면 컨택트 시트에서 원시·중세·근세 칸이 **얼룩덜룩한 위장무늬**가 됐다
+        //       (블록이 몸통 폭의 1/4 이라 몸통을 가로질러 서너 덩이가 서고, 어두운 덩이가
+        //       '때·구멍'으로 읽힌다). 분산은 그대로 두고 두 가지를 고쳤다:
+        //       ⑴ **블록을 잘게**(2칸) — 얼룩이 몸통보다 확실히 작아야 '위장'이 아니라 '결'이다.
+        //       ⑵ **5단 계조**(±d, ±d/2, 0) — 극단 두 색만 튀던 것을 중간값이 이어 준다.
+        //       지표(휘도SD)는 계조를 늘려도 거의 안 떨어진다 — 분산은 폭이 정하지 단계 수가
+        //       정하는 게 아니기 때문이다. 즉 **공짜로 그림만 좋아지는 자리**였다.
+        if (VOX_ERA.patch) {
+            const pd = VOX_ERA.patch[1];
+            skin = V.patch(skin, {
+                size: VOX_ERA.patch[0],
+                palette: [cBody,
+                    this.tintOf(mat, pd).color.getHex(), this.tintOf(mat, -pd).color.getHex(),
+                    this.tintOf(mat, pd * 0.5).color.getHex(), this.tintOf(mat, -pd * 0.5).color.getHex()],
+            });
+        }
+        // 이음선(파인 홈)을 먼저 칠하고 그 위에 돌기를 얹는다 — 순서가 바뀌면 돌기가 홈 색으로
+        //   덮여 '리벳이 이음선에 잡아먹힌' 그림이 된다.
+        if (VOX_ERA.seam) skin = V.studs(skin, { sx: VOX_ERA.seam[0], sy: VOX_ERA.seam[1], phase: VOX_ERA.seam[2], raise: false, color: cDim });
+        if (VOX_ERA.stud) skin = V.studs(skin, { sx: VOX_ERA.stud[0], sy: VOX_ERA.stud[1], phase: VOX_ERA.stud[2], color: cLite });
+        // `soft:` 접두는 원본 `mat` 이 쓰던 프로파일 그대로다(천·가죽은 강철 에지 웨어를 타면
+        //   로브에 모서리 반짝임이 얹힌다 — 위 `soft` 분기가 같은 이유로 갈라 둔 자리).
+        const vShade = (style === 'bone') ? 'soft:primal' : (soft ? 'soft:' + mats.kind : mats.kind);
+        g.add(this.voxPart(V.wear(skin, VOX_ERA.wear, cBody), AS, mat, {
+            color: cBody, jitter: VOX_ERA.jit, shade: vShade,
+        }));
         // 시대 디테일은 **몸통 기준으로** 두른다 — 견갑·망토까지 포함한 바운딩 박스로 재면
         // 반경이 0.44까지 커져 리벳이 가슴 앞 6cm 허공에 뜬다
         // 허리(y=-0.07, rx 0.178)에 두른다 — 곡면 몸통이라 반경을 직접 넘긴다(위 ⚠️ 참고)
@@ -7820,16 +7933,34 @@ const Scene3D = {
             // 허리끈 + 매듭(비평가 ⓒ⑶ 의 '매듭') — 천은 어딘가에서 여며져야 '입는 옷'이다.
             // 잘록한 허리(y=-0.07)를 한 바퀴 두르고 앞에 매듭을 얹는다. 링 반경은 상수로 베끼지
             // 않고 RINGS 에서 그대로 읽는다 — 스타일 배율(P)이 바뀌면 끈이 몸통에서 떠 버린다.
+            // ⚠️ 몸통과 **따로 굽는다**(로브만 드로우콜 2). 한 덩어리로 합치려면 굽는 자리를
+            //    여기까지 미뤄야 하는데, 그러면 위 `addAgeTrim` 이 빈 바운딩 박스를 보고 시대
+            //    트림을 통째로 빼먹는다(위 🚨 참고). 순서가 먼저고 드로우콜은 그다음이다.
+            const cord = [];
             const wr = RINGS[2];
-            const cordM = this.tintOf(mats.dark, -0.075);
-            const cord = new THREE.Mesh(new THREE.TorusGeometry(wr.rx * 1.02, 0.014, 6, 24), cordM);
-            cord.rotation.x = Math.PI / 2;
-            cord.position.y = wr.y;
-            cord.scale.y = (wr.rz / wr.rx) * 1.02;   // 몸통 단면이 타원이라 링도 눌러야 앞뒤로 안 뜬다
-            g.add(cord);
-            const wknot = this.tieKnot(cordM, 0.016);
-            wknot.position.set(0, wr.y - 0.002, wr.rz * 1.04);
-            g.add(wknot);
+            const cCord = this.tintOf(mats.dark, -0.075).color.getHex();
+            // 눕힌 토러스 → 큐브 링. 앞뒤 압축(scale.y)은 rz 로 옮긴다(고젯과 같은 자리).
+            const rOut = cw(wr.rx * 1.02 + 0.014), Z = (wr.rz / wr.rx) * 1.02;
+            const hCord = Math.max(2, Math.round(cw(0.028 * Z)));
+            cord.push(...V.ellipse(rOut, rOut * Z, hCord, {
+                y0: ci(wr.y) - Math.floor(hCord / 2), color: cCord,
+                rix: cw(wr.rx * 1.02 - 0.014), riz: cw(wr.rx * 1.02 - 0.014) * Z,
+            }));
+            // 매듭 — `tieKnot`(매끈 토러스 2개 + 늘어진 끈)의 voxel 판. 정면 허리에 얹는다.
+            // 🚨 끈 끝을 대각으로 내릴 때는 **꺾이는 칸을 채워** 면 접촉으로 잇는다 — 안 그러면
+            //    칸이 꼭짓점으로만 닿아 '떨어진 조각'으로 읽힌다(장갑 엄지에서 밟은 그 결함).
+            const kx = 0, ky = ci(wr.y - 0.002), kz = ci(wr.rz * 1.04);
+            cord.push(...V.at(V.box(4, 3, 3, cCord), kx - 2, ky - 1, kz - 1));   // 매듭 코
+            for (const s of [-1, 1]) {
+                let py = ky;
+                for (let i = 0; i < 5; i++) {
+                    const nx = kx + s * (2 + i), ny = ky - Math.round(i * 0.9);
+                    cord.push(...V.at(V.box(2, 2, 2, cCord), nx, ny, kz - 1));
+                    if (ny !== py) cord.push(...V.at(V.box(2, 2, 2, cCord), nx, py, kz - 1));
+                    py = ny;
+                }
+            }
+            g.add(this.voxPart(cord, AS, mat, { color: cCord }));
         }
         if (style === 'plate') {
             // 파울드론 — 구 하나가 아니라 **라멜라 3장이 겹쳐 바깥으로 벌어진다**.
@@ -8832,7 +8963,21 @@ const Scene3D = {
             : Math.max(0.55, (src && src.roughness) || 0.85);
         const emi = opts.emissive === undefined ? 0 : opts.emissive;
         const ei = opts.emissiveIntensity === undefined ? 0.55 : opts.emissiveIntensity;
-        const key = `${metal.toFixed(2)}|${rough.toFixed(2)}|${emi.toString(16)}|${ei.toFixed(2)}`;
+        // 🚨 **시대 셰이딩은 맵이 아니라 셰이더다 — 큐브에 그대로 얹을 수 있다(2026-08-20 실측).**
+        //    `voxMat` 이 처음부터 맵을 버린 건 옳다(자갈 노이즈·쿼드 격자선이 큐브에 얹힌다).
+        //    그런데 그때 **시대 깊이까지 같이 버렸고**, 그 대가가 `probe-age-shading` 10칸 전부
+        //    기준선 미달 + `forged↔brass` 재질분리 0.24('색만 다르다' 상태로의 회귀)였다.
+        //    `ageShade` 를 다시 읽어 보니 그 항들은 **텍스처도 uv 속성도 안 쓴다**:
+        //      · 크레비스 다크닝 = 법선의 y 성분 → 축정렬 면에서는 **면당 상수**라 voxel 과 정합
+        //        (윗면 밝고 아랫면 어둡다 = 이음새가 아니라 형태의 깊이).
+        //      · 에지 웨어 = 프레넬(시선 스침) → 실루엣 모서리가 닳아 밝다.
+        //      · uv2 조차 `vAgePos` 에서 뽑는 싸구려 트라이플래너다(정점 uv 가 없어도 돈다).
+        //    → **`dkey:'none'` 으로 이차 디테일(리벳·메일·기공 무늬)만 끄고 나머지는 켠다.**
+        //      그 무늬는 큐브 경계를 무시하고 면 안을 가로질러 칠해서, 비평가 2인이 각자 짚은
+        //      "면 안에서 밝기가 흐른다 · 인접 큐브 경계가 안 보인다"를 되살린다. 무늬는
+        //      셰이더가 아니라 `Voxel.studs` 로 **실제 칸을 얹어** 낸다(그래야 96px 에서도 산다).
+        const shade = opts.shade || '';
+        const key = `${metal.toFixed(2)}|${rough.toFixed(2)}|${emi.toString(16)}|${ei.toFixed(2)}|${shade}`;
         let m = this._voxMatCache[key];
         if (!m) {
             m = this._voxMatCache[key] = new THREE.MeshStandardMaterial({
@@ -8846,6 +8991,7 @@ const Scene3D = {
                 //    두지 않는 이유는 금속 시대(단조·황동)가 통째로 종이처럼 죽기 때문이다.
                 envMapIntensity: 0.06,
             });
+            if (shade) this.ageShade(m, shade, opts.shadeDetail === 'ON' ? undefined : 'none');
         }
         return m;
     },

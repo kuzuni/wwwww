@@ -109,6 +109,14 @@
     // 큐브별 미세 색변화(화풍 ⓒ) — 좌표 해시라 같은 복셀은 항상 같은 값이다.
     //   랜덤을 쓰면 리빌드마다 무늬가 바뀌어 A/B 비교와 회귀 캡처가 흔들린다(이 저장소가
     //   `probe-nearfield-mass` 에서 같은 이유로 시드를 고정했다).
+    // 색을 채널별로 배율. 흰색으로 날아가지 않게 255 에서 자른다(정점 색이라 되돌릴 수 없다).
+    function scaleHex(hex, k) {
+        var r = Math.round(Math.min(255, ((hex >> 16) & 255) * k));
+        var g = Math.round(Math.min(255, ((hex >> 8) & 255) * k));
+        var b = Math.round(Math.min(255, (hex & 255) * k));
+        return (r << 16) | (g << 8) | b;
+    }
+
     function jitter(x, y, z, amt) {
         var h = (x * 73856093) ^ (y * 19349663) ^ (z * 83492791);
         h = (h ^ (h >>> 13)) >>> 0;
@@ -198,6 +206,109 @@
             }
             return out;
         },
+        // 🧊 **블록 패치 — '큐브별 미세 색변화'(화풍 ⓒ)를 읽히는 크기로 낸다.**
+        //   `build` 의 `jitter` 는 **칸 하나마다** 밝기를 흔든다 — 칸이 굵으면 좋지만, 값을 키우면
+        //   금세 모래알 잡티가 된다(실측: 갑옷 몸통을 0.016칸으로 잘게 썰었을 때 플랫 고원 비율이
+        //   0.171 까지 떨어진 그 상태). 반면 **여러 칸을 묶은 블록 단위로 색을 갈면** 마인크래프트
+        //   텍스처처럼 '재질의 얼룩'으로 읽히면서 면당 플랫 색도 안 깨진다.
+        //   ⚠️ 무작위가 아니라 **좌표 해시**다 — 랜덤이면 리빌드마다 무늬가 바뀌어 A/B 와 회귀
+        //      캡처가 흔들린다(이 파일 머리말의 설계 결정 ⓒ 와 같은 이유).
+        //   opts: { size 블록 한 변(칸) · palette 색 배열 · only(v) 참인 칸만 칠한다 }
+        patch: function (voxels, opts) {
+            opts = opts || {};
+            var pal = opts.palette || [];
+            if (!pal.length) return voxels;
+            var sz = Math.max(1, Math.round(opts.size === undefined ? 3 : opts.size));
+            var only = opts.only, out = [];
+            for (var i = 0; i < voxels.length; i++) {
+                var v = voxels[i];
+                if (only && !only(v)) { out.push(v); continue; }
+                var bx = Math.floor(v.x / sz), by = Math.floor(v.y / sz), bz = Math.floor(v.z / sz);
+                var h = (bx * 73856093) ^ (by * 19349663) ^ (bz * 83492791);
+                h = (h ^ (h >>> 13)) >>> 0;
+                out.push({ x: v.x, y: v.y, z: v.z, c: pal[h % pal.length] });
+            }
+            return out;
+        },
+        // 🧊 **표면 무늬 — 셰이더 `rivet`/`mail`/`grain` 모드의 voxel 판.**
+        //   ⚠️ **칠하는 게 아니라 실제로 튀어나온다(raise 기본 true).** 셰이더 무늬는 실루엣이
+        //      없어서 96px 로 줄이면 통째로 뭉개진다(이 저장소가 천 주름에서 이미 밟은 함정 —
+        //      "칠한 주름은 바깥 윤곽을 못 바꾼다"). 칸을 한 겹 얹으면 둘레에 이음새 AO 가 같이
+        //      생겨 축소해도 리벳이 리벳으로 남는다.
+        //   자리 고르기: **바깥으로 열린 면**(이웃이 없는 면)만 후보고, 그 면 위의 두 축 좌표가
+        //   격자에 맞을 때 얹는다. 곡면 셸이라 어느 면이 바깥인지는 칸마다 다르므로, 면마다
+        //   따로 재는 것이 맞다(한 축으로 재면 옆구리에서 무늬가 사라진다).
+        //   opts: { dirs 'side'(±x,±z 기본)|'all' · sx/sy 격자 간격 · phase 격자 위상 ·
+        //           color 돌기 색 · raise false 면 얹지 않고 그 칸을 recolor 만 한다(홈·이음선) }
+        studs: function (voxels, opts) {
+            opts = opts || {};
+            var sx = Math.max(1, Math.round(opts.sx === undefined ? 4 : opts.sx));
+            var sy = Math.max(1, Math.round(opts.sy === undefined ? 4 : opts.sy));
+            var ph = opts.phase || 0, raise = opts.raise !== false;
+            var all = opts.dirs === 'all';
+            var occ = occupancy(voxels);
+            var add = [], seen = Object.create(null), hit = Object.create(null);
+            for (var i = 0; i < voxels.length; i++) {
+                var v = voxels[i];
+                for (var f = 0; f < FACES.length; f++) {
+                    var n = FACES[f].n;
+                    if (!all && n[1] !== 0) continue;                    // 위·아래 면은 무늬를 안 얹는다
+                    if (occ[key(v.x + n[0], v.y + n[1], v.z + n[2])]) continue;
+                    // 면 위의 두 축 = 법선축이 아닌 나머지 둘. 세로는 항상 y 를 쓴다(리벳 줄이
+                    // 수평으로 서야 '판을 붙잡은 줄'로 읽힌다 — 셰이더 rivetRow 와 같은 뜻).
+                    var a = n[0] !== 0 ? v.z : v.x;
+                    if (((v.y % sy) + sy) % sy !== 0) continue;
+                    if (((a + ph) % sx + sx) % sx !== 0) continue;
+                    var k2 = key(v.x + n[0], v.y + n[1], v.z + n[2]);
+                    if (raise) {
+                        if (seen[k2] || occ[k2]) continue;
+                        seen[k2] = true;
+                        add.push({ x: v.x + n[0], y: v.y + n[1], z: v.z + n[2], c: opts.color });
+                    } else {
+                        hit[key(v.x, v.y, v.z)] = true;
+                    }
+                }
+            }
+            if (raise) return voxels.concat(add);
+            var out = [];
+            for (var j = 0; j < voxels.length; j++) {
+                var w = voxels[j];
+                out.push(hit[key(w.x, w.y, w.z)]
+                    ? { x: w.x, y: w.y, z: w.z, c: opts.color === undefined ? w.c : opts.color }
+                    : w);
+            }
+            return out;
+        },
+        // 🧊 **에지 웨어 / 크레비스 다크닝의 voxel 판 — `ageShade` 셰이더가 하던 일을 큐브로.**
+        //   왜 필요한가: 시대 재질의 깊이(두드린 모서리는 닳아 밝고 틈은 어둡다)는 지금까지
+        //   `ageDetailGLSL` 이 **UV·맵 위에서** 칠했다. 조형을 큐브로 옮기면 그 재질을 통째로
+        //   버리게 되고(맵을 물리면 큐브 위에 자갈 노이즈가 얹힌다), 그러면 시대끼리 **색만
+        //   다른 상태**로 주저앉는다 — `probe-age-shading` 이 정확히 그걸 '색 스와프'로 문다.
+        //   여기서는 UV 없이 같은 것을 낸다: **칸이 바깥에 내놓은 면의 수가 곧 '얼마나
+        //   모서리인가'** 다(3면 이상 = 모서리·꼭짓점, 1~2면 = 평평한 면 한복판, 0면 = 파묻힘).
+        //   ⚠️ **AO 를 올려서 대신하려 들지 말 것.** 이음새를 더 파고 싶어도 `aoShade` 강도는
+        //      1.0 이 상한이다 — 화풍 블록이 "가장 어두운 계수 0.62 아래로 내리지 말 것"을
+        //      못 박았고, `1 − 0.38·s` 라 s = 1.0 이 곧 0.62 다. 대비를 키우는 축은 AO 가
+        //      아니라 **이것**이다(비평가 ⓐ '이음새가 안 보인다'의 답도 여기다).
+        //   amt = 모서리/틈의 밝기 폭. base = 칸에 색이 없을 때 쓸 바탕색.
+        wear: function (voxels, amt, base) {
+            if (!amt) return voxels;
+            var occ = occupancy(voxels);
+            var out = [];
+            for (var i = 0; i < voxels.length; i++) {
+                var v = voxels[i], open = 0;
+                for (var f = 0; f < FACES.length; f++) {
+                    var n = FACES[f].n;
+                    if (!occ[key(v.x + n[0], v.y + n[1], v.z + n[2])]) open++;
+                }
+                // 파묻힌 칸은 면이 하나도 안 나가니 색을 바꿔 봐야 화면에 없다 — 그대로 둔다.
+                if (!open) { out.push(v); continue; }
+                var c = (v.c === undefined ? base : v.c);
+                if (c === undefined) { out.push(v); continue; }
+                out.push({ x: v.x, y: v.y, z: v.z, c: scaleHex(c, 1 + (open - 2) / 3 * amt) });
+            }
+            return out;
+        },
         // 🚨 **`hollow`(속 파내기)를 '최적화'로 쓰지 말 것 — 그쪽으론 함정이다.** 착수 때
         //    "속 칸을 버리면 메모리가 준다"고 넣었다가 시험(`test-voxel-shapes.js` ⑧)에서
         //    뒤집혔다: 6³ 덩어리의 속을 파면 칸은 216 → 152 로 줄지만 **면이 216 → 312 로
@@ -230,18 +341,38 @@
         // 타원 기둥의 한 층(또는 여러 층). rix/riz > 0 이면 그만큼 속을 판다(= 큐브 링).
         //   반지름은 **칸 개수 단위의 실수**다(r = 3.5 면 −3..3 = 7칸 폭).
         //   포함 판정을 칸 중심(정수 좌표)으로 하므로 r 이 0.5 미만이면 중앙 한 칸만 남는다.
+        //   ⓕ **`fold`/`foldN` = 둘레를 따라 반경이 오르내린다(천 주름).** `shellFromRings` 의
+        //     같은 이름 옵션의 voxel 대응 — 로브 밑단처럼 '접힌 천'을 만든다. 안쪽 구멍(rix/riz)도
+        //     같이 오르내리므로 띠 두께는 보존된다.
+        //     ⚠️ **진폭이 한 칸을 못 넘으면 헛수고다.** 매끈한 회전체는 0.5% 만 흔들려도 윤곽이
+        //        따라 휘지만, 격자는 반올림이 먹어 **아무 일도 안 일어난다**. 호출부는 진폭을
+        //        비율이 아니라 `fold × rx ≥ 1칸` 으로 확인하고 정할 것(장갑 손가락 굵기를 칸
+        //        단위로 다시 정한 것과 같은 이유 — 칸이 부품보다 굵으면 칸이 이긴다).
         ellipse: function (rx, rz, h, opts) {
             opts = opts || {};
             var rix = opts.rix || 0, riz = opts.riz || 0, color = opts.color;
             var y0 = opts.y0 || 0, hh = (h === undefined ? 1 : h);
+            var fold = opts.fold || 0, foldN = Math.max(3, opts.foldN || 9);
             var out = [];
             if (rx <= 0 || rz <= 0 || hh <= 0) return out;
-            var mx = Math.floor(rx), mz = Math.floor(rz);
+            var af = Math.abs(fold);
+            var mx = Math.floor(rx * (1 + af)), mz = Math.floor(rz * (1 + af));
             for (var x = -mx; x <= mx; x++) for (var z = -mz; z <= mz; z++) {
                 var ox = x / rx, oz = z / rz;
+                if (fold) {
+                    // 주름 계수는 **정규화 좌표의 각도**로 잰다 — 타원을 원으로 편 뒤의 각이라
+                    // 앞뒤가 납작한 몸통에서도 골이 둘레에 고르게 퍼진다.
+                    var k = 1 + fold * Math.cos(Math.atan2(oz, ox) * foldN);
+                    if (k <= 0) continue;
+                    ox /= k; oz /= k;
+                }
                 if (ox * ox + oz * oz > 1.0000001) continue;
                 if (rix > 0 && riz > 0) {
                     var ix = x / rix, iz = z / riz;
+                    if (fold) {
+                        var ki = 1 + fold * Math.cos(Math.atan2(iz, ix) * foldN);
+                        if (ki > 0) { ix /= ki; iz /= ki; }
+                    }
                     if (ix * ix + iz * iz <= 1.0000001) continue;   // 속을 판 자리
                 }
                 for (var y = 0; y < hh; y++) out.push({ x: x, y: y0 + y, z: z, c: color });
@@ -320,8 +451,12 @@
                     var cx = Math.round(lerp(f(a, 'x', 0), f(b, 'x', 0), k));
                     var cz = Math.round(lerp(f(a, 'z', 0), f(b, 'z', 0), k));
                     var t = (a.t === undefined ? opts.t : a.t);
+                    // ⓕ 주름 가중치 `fw` 도 층 사이 보간 대상이다 — 천은 목에서 걸려 밑단으로
+                    //    갈수록 깊어지므로 모든 층에 같은 진폭을 주면 목까지 자바라가 된다
+                    //    (`shellFromRings` 가 같은 이유로 링마다 fw 를 들고 있다).
+                    var fw = opts.fold ? opts.fold * lerp(f(a, 'fw', 1), f(b, 'fw', 1), k) : 0;
                     var lay = this.ellipse(rx, rz, 1, {
-                        y0: y, color: color,
+                        y0: y, color: color, fold: fw, foldN: opts.foldN,
                         rix: t > 0 ? rx - t : 0, riz: t > 0 ? rz - t : 0,
                     });
                     out = out.concat((cx || cz) ? this.at(lay, cx, 0, cz) : lay);

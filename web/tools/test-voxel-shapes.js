@@ -259,5 +259,70 @@ const rowR = (vox, y) => {
     ok('x 중심 이동도 된다', Math.min(...offx.map(p => p.x)) === 3 && Math.max(...offx.map(p => p.x)) === 7);
 }
 
+// ── ⑬ fold — 둘레 주름(로브 밑단). `shellFromRings` 의 fold 옵션을 격자로 옮긴 자리 ──
+// 🚨 **이 판정의 본체는 '진폭이 한 칸을 넘는가'다.** 매끈한 회전체는 0.5% 만 흔들려도 윤곽이
+//    따라 휘지만, 격자는 반올림이 먹어 **아무 일도 안 일어난다** — 그런데 코드는 멀쩡히 돌고
+//    옵션도 켜져 있어서 '주름을 줬는데 안 보인다'가 조용히 통과한다. 실측으로 밟은 자리다
+//    (몸통 fold 0.055 → 밑단 반경 21칸에서 골이 한 칸 → 96px 에서 소멸).
+{
+    const rxs = (v, y) => { const r = v.filter(p => p.y === (y || 0)); return r.length ? r : null; };
+    const plain = V.ellipse(12, 12, 1, {});
+    eq('음성 대조 — fold 0 은 fold 옵션 없음과 같다', V.ellipse(12, 12, 1, { fold: 0, foldN: 11 }).length, plain.length);
+    const f = V.ellipse(12, 12, 1, { fold: 0.12, foldN: 11 });
+    // 방위각별 최대 반경을 훑어 골과 마루의 차를 잰다
+    const radial = (v) => {
+        const out = [];
+        for (let d = 0; d < 360; d += 6) {
+            const t = d * Math.PI / 180; let best = 0;
+            for (const p of v) {
+                const a = Math.atan2(p.z, p.x);
+                if (Math.abs(((a - t + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.06)
+                    best = Math.max(best, Math.hypot(p.x, p.z));
+            }
+            if (best) out.push(best);
+        }
+        return out;
+    };
+    const rf = radial(f), rp = radial(plain);
+    ok('fold 는 둘레 반경을 실제로 오르내리게 한다(진폭 ≥ 1칸)',
+        Math.max(...rf) - Math.min(...rf) >= 1, `진폭 ${(Math.max(...rf) - Math.min(...rf)).toFixed(2)}칸`);
+    ok('음성 대조 — fold 없는 타원은 둘레가 고르다',
+        Math.max(...rp) - Math.min(...rp) < 1, `진폭 ${(Math.max(...rp) - Math.min(...rp)).toFixed(2)}칸`);
+    ok('fold 를 줘도 면은 축정렬뿐이다(voxel 로 읽힌다)',
+        V.faces(f).every(F => F.n.filter(c => c !== 0).length === 1));
+    // fw 보간 — 목(fw 0)은 고르고 밑단(fw 1)만 주름진다. 안 그러면 목까지 자바라가 된다.
+    const sh = V.shell([{ y: 0, rx: 12, rz: 12, fw: 1 }, { y: 8, rx: 12, rz: 12, fw: 0 }], 0, { fold: 0.12, foldN: 11 });
+    const amp = (y) => { const r = radial(sh.filter(p => p.y === y)); return Math.max(...r) - Math.min(...r); };
+    ok('shell 은 fw 로 주름 깊이를 층마다 보간한다', amp(0) > amp(7), `밑단 ${amp(0).toFixed(2)} > 윗층 ${amp(7).toFixed(2)}`);
+    eq('음성 대조 — fold 0 인 shell 은 평범한 적층', V.shell([{ y: 0, rx: 8 }, { y: 3, rx: 8 }], 0, { fold: 0 }).length,
+        V.shell([{ y: 0, rx: 8 }, { y: 3, rx: 8 }], 0).length);
+}
+
+// ── ⑭ wear — 에지 웨어/크레비스 다크닝을 큐브 단위로 (`ageShade` 셰이더의 격자판) ────
+// 🚨 이 자가 잠그는 것: **노출 면 수로 밝기가 갈리는가**. 시대 재질의 깊이를 여기로 옮겼기
+//    때문에(맵을 버리면 셰이더 디테일이 통째로 사라진다), 이게 죽으면 시대는 '색 스와프'로
+//    주저앉는다 — `probe-age-shading` 이 그걸 문다.
+{
+    const base = 0x808080;
+    const cube = V.box(6, 6, 6, base);
+    ok('음성 대조 — amt 0 은 원본 그대로', V.wear(cube, 0, base) === cube);
+    const w = V.wear(cube, 0.3, base);
+    eq('칸 수는 안 변한다', w.length, cube.length);
+    const shades = [...new Set(w.map(v => v.c))].sort((a, b) => a - b);
+    ok('노출 면 수만큼 밝기가 갈린다(면 한복판 / 모서리 / 꼭짓점)', shades.length >= 3, `${shades.length}단`);
+    // 6³ 덩어리: 꼭짓점 칸(3면 노출)이 가장 밝고, 면 한복판(1면)이 가장 어둡다
+    const at = (x, y, z) => w.find(v => v.x === x && v.y === y && v.z === z).c;
+    ok('꼭짓점이 면 한복판보다 밝다', at(0, 0, 0) > at(0, 0, 3), `${at(0, 0, 0).toString(16)} vs ${at(0, 0, 3).toString(16)}`);
+    ok('면 한복판은 바탕보다 어둡다(크레비스 쪽)', at(3, 0, 3) < base, at(3, 0, 3).toString(16));
+    // 파묻힌 칸은 화면에 면이 없으니 건드리지 않는다(색을 바꿔도 헛일)
+    const inner = w.find(v => v.x === 3 && v.y === 3 && v.z === 3);
+    ok('속 칸은 안 건드린다', inner.c === base, String(inner.c));
+    ok('흰색으로 날아가지 않는다(255 에서 자른다)',
+        V.wear(V.box(3, 3, 3, 0xf0f0f0), 3, 0xf0f0f0).every(v => ((v.c >> 16) & 255) <= 255));
+    // 시대 축으로 쓰려면 amt 가 커질수록 대비도 커져야 한다(단조성)
+    const spread = (a) => { const c = V.wear(cube, a, base).map(v => v.c & 255); return Math.max(...c) - Math.min(...c); };
+    ok('amt 가 크면 대비도 크다(시대 축으로 쓸 수 있다)', spread(0.4) > spread(0.15), `${spread(0.4)} > ${spread(0.15)}`);
+}
+
 console.log(fail ? `\n❌ ${fail}건 실패` : '\n✅ 전부 통과');
 process.exit(fail ? 1 : 0);
