@@ -5174,6 +5174,37 @@ const Scene3D = {
             g.add(mesh);
             return mesh;
         };
+        // 이 높이에서 **조형의 실제 앞면**이 어디 있는지 잰다 — 없으면 null.
+        // 🚨 반경 상수(rx/rz)는 **링 높이 하나에서만** 맞는 값이다. 구형 투구는 위로 갈수록
+        //    실반경이 급히 줄어드니, 세로로 긴 부착물을 그 상수 하나에 세우면 위쪽이 표면을
+        //    떠난다(slug: alloy-trim-bar-float 의 근본 원인). 높이마다 다시 재는 수밖에 없다.
+        // ⚠️ 방금 얹은 트림(userData.ageTrim)은 레이 대상에서 **건너뛴다** — 링이 스트립 앞을
+        //    스치면 '표면이 여기 있다'고 거짓말해 부착물이 도로 링 반경으로 끌려간다.
+        const _ray = new THREE.Raycaster(); _ray.far = 100;
+        const surfaceAt = (yy) => {
+            g.updateMatrixWorld(true);
+            _ray.set(new THREE.Vector3(ctr.x, yy, ctr.z + zf * 50), new THREE.Vector3(0, 0, -zf));
+            for (const h of _ray.intersectObject(g, true)) {
+                if (h.object.userData.ageTrim) continue;
+                const d = (h.point.z - ctr.z) * zf;
+                return d > 0 ? d : null;               // 중심선 너머 = 이 높이엔 앞면이 없다
+            }
+            return null;
+        };
+        // 높이 대역 [y0, y1] 을 통째로 덮는 **축정렬 슬래브**의 깊이 — 대역 안에서 표면이 가장
+        // 안쪽인 값을 쓴다. 그래야 대역의 어느 높이에서도 슬래브가 표면 밖으로 나가지 않는다
+        // (기울여 얹으면 표면에 단차가 있는 자리에서 모서리가 도로 뜬다 — 실측으로 확인했다:
+        //  tech 계열은 셸 위에 링이 3.6cm 튀어나와 있어 그 경계에서 2.7cm 가 떴다).
+        // 대역 안에 표면이 한 군데라도 없으면 null → 호출자가 거기서 적층을 끊는다.
+        const slabDepthIn = (y0, y1) => {
+            let d = Infinity;
+            for (let k = 0; k <= 4; k++) {
+                const s = surfaceAt(y0 + (y1 - y0) * (k / 4));
+                if (s === null) return null;
+                if (s < d) d = s;
+            }
+            return d;
+        };
         // 타원 링: 토러스는 로컬 XY면 → rotation.x=π/2로 눕히면 로컬 y가 월드 z가 된다(scale.y로 z반경 조절)
         const ellipseRing = (tube, seg, m) => {
             const geo = new THREE.TorusGeometry(rx, tube, 5, seg, open ? TAU - 2 * FA : TAU);
@@ -5196,8 +5227,32 @@ const Scene3D = {
             }
         } else if (mats.kind === 'alloy') {                 // 발광 라인 — 아랫단 링 + 정면 세로 스트립
             put(ellipseRing(Math.min(0.014, r * 0.06), 24, mats.trim), 0, y, 0);
-            const bar = new THREE.Mesh(new THREE.BoxGeometry(Math.min(0.05, rx * 0.4), size.y * 0.3, 0.012), mats.trim);
-            put(bar, 0, y + size.y * 0.2, rz * 0.99 * zf);
+            // 🚨 **스트립을 긴 박스 한 덩어리로 세우지 말 것 (slug: alloy-trim-bar-float).**
+            //    종전 코드는 `size.y*0.3` 높이의 박스를 `rz*0.99` **한 값**에 세웠다. 투구는 구형이라
+            //    높이가 오를수록 실반경이 급히 줄어드는데 막대는 안 줄어드니, 위쪽 절반이 셸을 떠나
+            //    **정수리 앞 허공에 뜬 분홍 막대**가 됐다(`probe-alloy-trim-contact` 실측: 투구 24칸
+            //    부유 · 최대 틈 0.1813). 원통형인 몸통 갑옷 25칸은 멀쩡해서 오래 안 잡혔다.
+            //    → 높이 대역을 칸으로 잘라 **각 칸이 덮는 대역의 실제 표면을 재서**(slabDepthIn)
+            //      그 깊이에 축정렬 슬래브를 얹고, 표면이 없어진 칸(셸보다 위)에서 **끊는다**
+            //      = 조형이 있는 만큼만 자란다. 계단식 큐브 적층이라 voxel 화풍(🧊 블록)에도
+            //      종전 통짜 막대보다 맞다 — 곡면을 따라 **기울이지 말 것**(위 slabDepthIn 주석).
+            //    ⚠️ 칸 수를 줄여 다시 길쭉하게 만들지 말 것 — 칸이 길수록 그 칸 안에서 표면이
+            //       달아나 슬래브가 표면 깊이 잠기고(가장 안쪽 값을 쓰므로) 발광선이 끊긴다.
+            const bw = Math.min(0.05, rx * 0.4);
+            const SEG = 6, sh = size.y * 0.3 / SEG;
+            const yBot = y + size.y * 0.05;                 // 종전 막대의 아랫단(중심 y+0.2·높이 0.3)
+            for (let i = 0; i < SEG; i++) {
+                const y0 = yBot + sh * i, y1 = y0 + sh;
+                const d = slabDepthIn(y0, y1);
+                if (d === null || d < rz * 0.3) break;      // 표면이 없거나 정수리로 좁아졌다 — 여기서 끝
+                const seg = new THREE.Mesh(new THREE.BoxGeometry(bw, sh * 0.92, 0.012), mats.trim);
+                // ⚠️ **종전 반경(rz*0.99)보다 바깥으로는 절대 내보내지 않는다.** 이 버그는 스트립이
+                //    너무 **바깥**에 있던 것이라 고치는 방향은 언제나 안쪽 하나다. 실측 표면을 그대로
+                //    쓰면 원통형 몸통 갑옷에서는 가슴이 허리 반경보다 두꺼워 스트립이 되레 바깥으로
+                //    나가 bbox 를 키운다 — `probe-equip-framing` 이 즉시 `underworld/armor#1 용암 갑주`
+                //    를 크롭으로 물었다(A/B 실측). 안쪽으로만 당기면 부유는 그대로 0 이다.
+                put(seg, 0, (y0 + y1) * 0.5, Math.min(d, rz * 0.99) * zf);
+            }
         } else if (mats.kind === 'primal') {                // 가죽 결속끈 + 매달린 뼈 구슬
             put(ellipseRing(Math.min(0.02, r * 0.085), 18, mats.trim), 0, y, 0);
             for (const [dx, dy] of [[-0.055, -0.05], [0, -0.075], [0.055, -0.05]]) {

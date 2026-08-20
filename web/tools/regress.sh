@@ -30,6 +30,7 @@ for p in \
     check-sr-ok-gold.js \
     check-autobatch-nan-coins.js \
     probe-icon-light-frame.js \
+    probe-alloy-trim-contact.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1
