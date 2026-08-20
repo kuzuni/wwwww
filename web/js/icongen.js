@@ -2191,6 +2191,36 @@ IconGen._genderSym = function (ctx, S, female) {
             ctx.moveTo(x(.30, S), y(.76, S)); ctx.lineTo(x(.5, S), y(.66, S)); ctx.lineTo(x(.42, S), y(.90, S)); ctx.closePath();
             ctx.moveTo(x(.70, S), y(.76, S)); ctx.lineTo(x(.5, S), y(.66, S)); ctx.lineTo(x(.58, S), y(.90, S)); ctx.closePath();
         },
+        sanctum(ctx, S) {                                // 성역 — 바닥 룬 서클 + 솟는 빛기둥 (fx aura)
+            /* 왜 새로 그렸나: `probe-skill-icon-distinct.js`(실루엣 IoU 153쌍 전수)로 재니
+               **성역 ↔ 신성한 가호 0.782 로 18종 중 최악 쌍**이었다. 성역이 `shield`(둥근 방패),
+               가호가 `halo`(둥근 고리)라 **둘 다 프레임을 채우는 중앙 정렬 둥근 덩어리**였고,
+               고리의 원반이 방패 실루엣 안에 통째로 들어앉아 겹쳤다. 게다가 비평가 A#8 이
+               "이름과 조형이 뒤바뀌었다"고 짚은 것도 정확히 이 쌍이다 — 방패는 이름이 방패인
+               `divineShield`(가호) 쪽 것이다.
+               📌 그래서 가호는 `shield` 로 되돌리고, 성역에는 **덩어리 계열 자체가 다른** 이 도안을
+                  준다. IoU 는 내부 무늬가 아니라 **덩어리의 크기·위치·가로세로비**로 갈리므로,
+                  '가운데 둥근 덩어리' 무리에서 빠져나오는 게 요점이다 — 이건 **아래로 눌린 납작한
+                  타원 + 위로 솟은 세로 막대들**이라 그 무리와 겹칠 수가 없다.
+               ⚠️ 빛기둥은 서클에 **닿지 않게** 띄운다. 서브패스가 겹치면 `emblem()` 이 경로 전체에
+                  획을 그어 이음매가 안쪽에 검은 줄로 남는다(처형 아이콘에서 두 번 밟은 함정).
+               🚨 **부재 두께는 눈으로 정하지 말 것 — `probe-emblem-core`(속살 검사기)로 정한다.**
+                  첫 판은 고리 세로 두께 .085 · 막대 폭 .13 이었는데 속살이 **23.6%**(문턱 34%)로
+                  떨어져 게이트가 빨개졌다. 키라인(lw .067)이 **모든 모서리에서 안쪽으로 .0335 씩**
+                  먹으므로, 세로 두께 .085 짜리 고리는 속살이 .018 — 사실상 검은 테만 남는다.
+                  지금 값(고리 세로 .148 · 막대 폭 .17)은 그 계산에서 역산한 것이다. 줄이지 말 것. */
+            const cx = .5 * S, cy = .78 * S;
+            // 바닥 룬 서클 — 원근으로 눌린 납작한 고리(안쪽은 역방향으로 뚫는다)
+            ctx.moveTo(cx + .46 * S, cy); ctx.ellipse(cx, cy, .46 * S, .200 * S, 0, 0, Math.PI * 2, false);
+            ctx.moveTo(cx + .20 * S, cy); ctx.ellipse(cx, cy, .20 * S, .052 * S, 0, 0, Math.PI * 2, true);
+            // 솟는 빛기둥 3 — 가운데가 가장 높다. 아래끝(.52)은 고리 윗변(.58)에 **안 닿게** 띄웠다.
+            const beam = (bx, top) => {
+                ctx.moveTo(x(bx - .085, S), y(top, S)); ctx.lineTo(x(bx + .085, S), y(top, S));
+                ctx.lineTo(x(bx + .085, S), y(.52, S)); ctx.lineTo(x(bx - .085, S), y(.52, S));
+                ctx.closePath();
+            };
+            beam(.20, .28); beam(.50, .04); beam(.80, .28);
+        },
         burst(ctx, S) {                                  // 초신성 — 8각 폭발
             const cx = .5 * S, cy = .5 * S, R = .47 * S, r = .235 * S, N = 8;   // r .17 → .235: 갈래가 테에 먹히던 것
             for (let i = 0; i < N * 2; i++) {
@@ -2343,9 +2373,13 @@ IconGen._genderSym = function (ctx, S, female) {
         powerStrike: ['slashx'], whirlwind: ['whirl'], firstAid: ['cross'],
         fireball: ['flame'], pierceShot: ['arrows'], warCry: ['horn'],
         meteor: ['meteor'], lightning: ['bolt', 0, 0.15], blessing: ['sparkle', 0, 0.16],
-        dragonBreath: ['maw'], execution: ['cleaver'], sanctuary: ['shield'],
+        // sanctuary/divineShield: 2026-08-20 UI 스트림. 종전 `sanctuary:shield` · `divineShield:halo` 는
+        // 실루엣 IoU 0.782 로 18종 중 최악 쌍이었고(둘 다 중앙 정렬 둥근 덩어리) 이름과도 어긋나 있었다
+        // (방패는 divine**Shield** 것이다 — 비평가 A#8). 가호를 `shield` 로 되돌리고 성역엔 계열이 다른
+        // `sanctum`(납작한 바닥 서클 + 세로 빛기둥)을 준다. `probe-skill-icon-distinct.js` 로 전후 대조할 것.
+        dragonBreath: ['maw'], execution: ['cleaver'], sanctuary: ['sanctum'],
         supernova: ['burst', 0, 0.15], voidLance: ['spear', Math.PI * 0.25], timeWarp: ['hourglass'],
-        apocalypse: ['dragon', 0, 0.16], godspear: ['spear', 0, 0.16], divineShield: ['halo', 0, 0.15],
+        apocalypse: ['dragon', 0, 0.16], godspear: ['spear', 0, 0.16], divineShield: ['shield', 0, 0.15],
     };
     // 색은 그리는 시점에 SKILL_DEFS 에서 조회한다(스크립트 로드 순서 무관하게 지연 조회).
     const FALLBACK = { powerStrike: '#cfd8dc', whirlwind: '#b0bec5', firstAid: '#a5d6a7', fireball: '#ff8a65', pierceShot: '#81d4fa', warCry: '#ffcc80', meteor: '#ff7043', lightning: '#fff176', blessing: '#80cbc4', dragonBreath: '#ba68c8', execution: '#e57373', sanctuary: '#ce93d8', supernova: '#ffb74d', voidLance: '#9575cd', timeWarp: '#4dd0e1', apocalypse: '#ef5350', godspear: '#ffd54f', divineShield: '#fff59d' };

@@ -30,7 +30,7 @@ const ALLOW = {
     explode: ['flame'],           // 투척 불덩이 + 폭발 (fireStorm)
     beam: ['arrows', 'spear'],    // 화살 세례 (arrowVolley) — 마지막 한 발만 굵다
     warcry: ['horn'],             // 전투의 함성 — 메가폰 + 음파
-    aura: ['horn', 'shield', 'hourglass'],// 룬 서클 — 버프/성역 계열
+    aura: ['horn', 'sanctum', 'hourglass'],// 룬 서클 — 버프/성역 계열
     meteor: ['meteor'],           // 운석 세례 (meteorStorm)
     bolt: ['bolt'],               // 먹구름 낙뢰 (stormCloudStrike)
     breath: ['maw'],              // 지중 습격 거대 아가리 (dragonMaw)
