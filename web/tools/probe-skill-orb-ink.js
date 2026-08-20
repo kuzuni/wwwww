@@ -25,6 +25,16 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
 const fs = require('fs');
+const { assertFresh } = require('./clone-fresh.js');
+
+/* 🚨 **이 자는 브라우저를 안 띄운다 — 커밋된 PNG 두 장을 맞대기만 한다.**
+   그래서 게임 코드를 고치고 `shot-skills.js` 를 다시 안 돌리면 **옛 화면을 재면서 아무 말도
+   안 한다.** 세 세션이 그걸 모르고 헛수치를 읽었다(2026-08-20 UI 스트림이 음성 대조로 발견 —
+   `.30 → .24` 가 '무변'으로 보였는데 캡처를 다시 굽고 재니 ⓑ 45.6% → 50.0% 였다).
+   사고 전말과 이 가드의 판정 방식은 `clone-fresh.js` 머리말에 있다. */
+assertFresh('tools/ref-cmp/clone/skills.png',
+    ['web/js/icongen.js', 'web/js/skills.js', 'web/js/ui.js', 'web/css'],
+    'node tools/shot-skills.js   # → tools/ref-cmp/clone/skills.png 를 다시 굽는다');
 
 // 오브 격자 기하 — crop-zoom 확대 크롭에서 집고, 아래 자기검증(표본 화소 수·바탕 휘도)으로 확인한다.
 const CASES = [
@@ -140,6 +150,11 @@ const CASES = [
     console.log(`     **'키라인이 얼마나 두꺼운가'** 를 같이 재고 있다. 채움만 보려면 ⓑ 를 볼 것.`);
     console.log(`     ⚠️ ⓐ 를 줄이려고 키라인을 얇게 만들지 말 것 — 두께 .067 은 원본 실측 비이고`);
     console.log(`        '순검정 키라인 + 평면 채움'은 이 게임 아이콘 화법의 핵심이다(probe-icon-keyline).`);
+    console.log(`   🚨 **위 '32.9 → 33.0 으로 꿈쩍하지 않았다'의 근거는 의심할 것 (2026-08-20 정정).**`);
+    console.log(`      그 A/B 를 뜰 때 이 자에는 신선도 가드가 없었고 클론 캡처를 다시 구운 기록도 없다.`);
+    console.log(`      캡처가 낡으면 **화면이 뭐가 바뀌든 수치가 안 움직인다** — 바로 그 서명이다`);
+    console.log(`      (같은 자로 '.30 → .24 는 ⓑ 무변' 이라는 틀린 결론이 실제로 한 번 나갔다).`);
+    console.log(`      ⓐ 가 평균을 붙든다는 설명 자체는 맞지만, **팔레트 교체가 정말 안 들었는지는 다시 재야 한다.**`);
     if (bad) { console.log('\n측정기 고장 — 수치를 쓰지 말 것.'); process.exit(2); }
     const ok = clone.unInk >= ref.unInk - 8 && clone.weak <= ref.weak;
     console.log(ok ? '\nPASS' : '\nFAIL — 클론 오브의 모티프가 원본만큼 오브 면과 갈리지 않는다.');
