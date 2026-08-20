@@ -27,7 +27,51 @@ const Scene3D = {
     //        그 다크 엔드는 앞 세션이 광량을 1.85→1.00 으로 내려 가며 얻어낸 것(비평가 2인 공통 1위
     //        '캐릭터에 진짜 어두운 값이 없다')이라 61° 는 그 수정을 도로 무른다. 48° 가 이탈을 거의 다
     //        걷어내면서 다크 엔드 손실은 절반에 그치는 자리다.
-    SUN_DAY: [7, 8.55, 3.2],
+    // 🚨 **방위를 +z(카메라 뒤)로 되돌리지 말 것 (2026-08-20 `sky-band-composition`).**
+    //    종전 [7, 8.55, 3.2] 는 수평 성분이 **카메라 쪽**이라, 화면에 보이는 하늘(−z)이 언제나
+    //    **반태양 쪽**이었다 — 카메라 forward 와의 내적이 **−0.42**(=114.6°). 2026-08-19(16) 이
+    //    산란 로브를 넣고도 사막·용암 변화 화소가 0.00% 였던 두 원인 중 하나가 이것이다
+    //    (다른 하나는 가시 대역 6.15°, `CAM_LOOK_Y` 주석 참조). 거기는 물리적으로 차고 어두운 게
+    //    맞아서 **로브를 아무리 잘 짜도 걸릴 자리가 없었다.**
+    //    → 방위만 화면 쪽으로 돌렸다. **고도 48°와 크기(수평 7.70)는 그대로다** — 위 고도 주석의
+    //      '그림자 이탈 vs 영웅 다크 엔드' 절충은 고도가 정하는 것이라 손대면 그 결론이 무너진다.
+    //    방위각은 **밤이 이미 쓰고 있던 값을 그대로 따랐다**(`setTheme` 의 밤 분기 `(5, 6.5, -7)`,
+    //    내적 0.81 = forward 에서 35.5°, 주석 "그림자가 카메라 쪽으로"). 낮만 반대편을 보고 있었다.
+    //    ⚠️ 방위각을 밤(35.5°)보다 좁은 **20°** 로 잡은 이유: 산란 로브는 **태양 방위 둘레**에 그려지므로
+    //    태양의 방위가 **가로 프레임 안**에 있어야 걸린다. 20° 면 가로 half-FOV(35.3° = 세로 31°×종횡비
+    //    1.177) 의 절반쯤이라 원반이 화면 폭의 51% 지점에 온다 — 가장자리에 걸리지 않는다.
+    //    (FOV 50 시절엔 가로 half-FOV 가 28.8° 라 35.5° 는 아예 프레임 밖이었다.)
+    SUN_DAY: [2.63, 8.55, -7.24],
+    // 밤 달빛 방향 — 종전엔 `setTheme` 안에 `(5, 6.5, -7)` 리터럴이었다. 달 **원반**과 달**빛**이
+    // 같은 방위를 쓰도록 상수로 뺐다(고도 37.1°·크기 8.60 유지, 방위만 낮과 같은 20° 로).
+    // 방위 35.5° 를 그대로 두면 달 원반이 가로 프레임(half-FOV 28.8°) 밖으로 나간다.
+    SUN_NIGHT: [2.94, 6.5, -8.08],
+    // ---- 카메라 구도의 유일한 결정 (2026-08-20 `sky-band-composition`) ----
+    // `init`(방향 확정) · `update`(위치 추종) · 크리처 썸네일 리그가 **전부 여기만 읽는다.**
+    // 종전에는 (0.15, 3.7, 8.2)/주시점 0.9 가 세 곳에 리터럴로 흩어져 있었고, 그중 하나
+    // (`creatureThumb` 의 `Vector3(0, 3.7 - 0.9, 8.2)`)는 "인게임 메인 카메라와 같은 각"이
+    // 요구사항인데도 손으로 베낀 값이라 여기를 고치면 조용히 갈라졌다(TODO 함정 ④).
+    //
+    // 🚨 **`CAM_FOV` 를 50 으로 되돌리지 말 것 — 그게 '하늘을 걸 자리가 없다'의 원인이었다.**
+    //    FOV 50 의 절반이 25° 인데 피치가 −18.9° 라 지평선 위 가시 하늘이 **6.15° 뿐**이었다.
+    //    그 좁은 띠에서는 ⓐ 해/달 원반이 화면 맨 위(캔버스 y **0.013**)에 박혀 **위쪽이 잘려 나가고**
+    //    ⓑ 별 평면이 사실상 프레임 밖(가시 0.089%)이며 ⓒ 하늘 램프(휘도 p95−p05)가 **11.5~12.4** 로
+    //    눌려 무슨 색을 칠해도 화면에서 단색으로 읽혔다. 2026-08-19(16) 이 하늘 돔을 72×36 으로 올리고
+    //    산란 로브(pow6/pow40)까지 넣고도 **사막·용암 변화 화소가 0.00%** 였던 건 셰이딩이 틀려서가
+    //    아니라 **걸 자리가 없어서**다.
+    // ⚠️ **대역은 피치가 아니라 FOV 로 열었다 — 피치로 바꾸지 말 것(A/B 실측으로 갈린 문제다).**
+    //    처음엔 반대로 갔다: "FOV 를 키우면 요소가 작아져 `probe-midground-depth` 의 '큰 요소
+    //    (≥400px²) 6개' 게이트를 깎을 것"이라 보고 주시점을 0.9→2.0 으로 올렸다. **틀렸다.**
+    //    ⑴ 피치를 올리면 지면이 지평선 쪽으로 **원근 압축**돼 깊이 대역의 화면 점유가 통째로 준다 —
+    //       ch1 중경 점유 **7.45% → 5.74%(주시점 1.4) · 5.75%(1.9)**, 큰 요소 7.9 → 5.4 로
+    //       그 게이트를 **내가 깼다**(주시점 0.9 로 되돌리면 초록 복귀까지 확인했다).
+    //    ⑵ 반면 FOV 를 62 로 열면 프레임에 **요소가 더 들어와서** 같은 지표가 **좋아진다**:
+    //       ch1 중경 점유 7.45 → **7.69%**, 큰 요소 7.9 → **11.3개**(전 챕터 통과).
+    //    즉 하늘과 지면은 피치에서는 서로를 잡아먹고, FOV 에서는 같이 는다. 비용은 영웅이 화면에서
+    //    작아지는 것뿐이다(높이 29.4% → 22.8%). **화면 중심 y 0.49 는 그대로**라 구도 앵커는 안 흔들린다.
+    CAM_POS: [0.15, 3.7, 8.2],
+    CAM_LOOK_Y: 0.9,
+    CAM_FOV: 62,       // 세로 half-FOV 31° − 피치 18.9° → 가시 하늘 12.15°(종전 6.15°)
     // 원경 능선 3겹의 유일한 제원표 — `buildTerrain`(생성)과 `setTheme`(바이옴별 실루엣 재생성)이
     // 둘 다 여기만 읽는다. 높이가 **멀수록 커지는 것**이 이 표의 핵심이다(근거는 buildTerrain 주석).
     // 능선 3겹이 안개색 쪽으로 섞이는 비율(근/중/원). `setTheme` 이 유일한 소비자다.
@@ -104,9 +148,9 @@ const Scene3D = {
             this.bakeEnvironment();
         }
 
-        this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-        this.camera.position.set(0.15, 3.7, 8.2);
-        this.camera.lookAt(0.15, 0.9, 0);
+        this.camera = new THREE.PerspectiveCamera(this.CAM_FOV, 1, 0.1, 100);
+        this.camera.position.set(this.CAM_POS[0], this.CAM_POS[1], this.CAM_POS[2]);
+        this.camera.lookAt(this.CAM_POS[0], this.CAM_LOOK_Y, 0);
 
         // 라이팅: 반구광(하늘/땅 색 반사)은 낮추고 태양광 비중을 높여 방향성 음영을 강조
         // (균일하게 밝은 "판대기" 인상 제거 — 나무/바위 한쪽 면에 그늘이 지게)
@@ -126,7 +170,10 @@ const Scene3D = {
         this.sun.shadow.camera.near = 1; this.sun.shadow.camera.far = 30;
         // 태양 반대편 서늘한 역광(그림자 없음) — 그늘진 면 실루엣이 배경에서 분리되게
         this.rim = new THREE.DirectionalLight(0xcfe4ff, 0.5); // 쿨톤 역광 강화 — 그늘 면 실루엣 분리(림 라이트) (비평가 14번)
-        this.rim.position.set(-5, 6, -6);
+        // 역광은 정의상 **태양 반대편**이라 방위를 `SUN_DAY` 에서 유도한다. 종전 리터럴 (-5, 6, -6) 은
+        // 태양이 +z 에 있던 시절의 반대편이었는데, `sky-band-composition` 이 태양을 −z 로 돌리면서
+        // 그대로 두면 **둘 다 화면 쪽**이 되어 역광이 역광이 아니게 된다(그늘 면 분리가 사라진다).
+        this.rim.position.set(-this.SUN_DAY[0] * 1.014, 6, -this.SUN_DAY[2] * 1.014);
         // 발광체 라이트 블리드용 악센트 포인트라이트 풀(3기) — 마법=크리스탈 시안, 용암=크랙 주황이
         // 주변 지면·소품을 실제로 물들여 "unlit 스티커" 인상을 없앰. 발광 소품(크리스탈/용암 데칼)의
         // 자식으로 붙어 무한맵 스크롤을 함께 따라간다 (기본은 꺼짐, buildProps에서 바이옴별 부착·설정)
@@ -817,6 +864,26 @@ const Scene3D = {
         this.paintSky(0x87ceeb, 0xa8d8ea);
     },
 
+    // 지평선 위 **가시 하늘 대역(도)** — `CAM_*` 에서 유도한다. 하늘에 무언가를 걸 때는 반드시
+    // 이 값을 거칠 것: 리터럴 y/z 로 걸면 카메라가 바뀌는 순간 조용히 프레임 밖으로 나간다
+    // (`sky-band-composition` 이전 실측: 해 원반 캔버스 y **0.013**(위가 잘림) · 별 평면 가시 **0.089%**).
+    skyBandDeg() {
+        const pitch = Math.atan2(this.CAM_POS[1] - this.CAM_LOOK_Y, this.CAM_POS[2]) * 180 / Math.PI;
+        return this.CAM_FOV / 2 - pitch;
+    },
+
+    // 가시 대역의 `bandFrac` 높이(0=지평선, 1=프레임 위끝)에, 수평거리 `dist` 로 놓을 월드 좌표.
+    // 방위는 기본이 `SUN_DAY` — 그래야 **그려진 해**와 **빛이 오는 방향**이 갈리지 않는다.
+    // 🚨 고도는 **카메라 눈높이에서** 잰다 — 원점 기준으로 재면 카메라가 3.7 유닛 위에 있는 만큼
+    //    통째로 낮게 걸린다(실측: 그 실수로 원반이 지평선 바로 위 캔버스 y 0.259 에 붙었다.
+    //    대역 중앙이면 0.144 여야 한다). 종전 리터럴 y 8.2 가 '맞아 보였던' 것도 이 오프셋 때문이다.
+    skyAnchor(bandFrac, dist, az) {
+        const a = az || [this.SUN_DAY[0], this.SUN_DAY[2]];
+        const m = Math.hypot(a[0], a[1]) || 1;
+        const elev = this.skyBandDeg() * bandFrac * Math.PI / 180;
+        return new THREE.Vector3(a[0] / m * dist, this.CAM_POS[1] + Math.tan(elev) * dist, a[1] / m * dist);
+    },
+
     // 해/달 디스크 + 밤하늘 별 — skyDome 자식이라 카메라를 따라가며 지평선 위에 고정됨.
     // 챕터 테마의 celestial 필드('sun'|'moon'|'none', 기본 sun)로 토글.
     buildCelestial() {
@@ -837,15 +904,16 @@ const Scene3D = {
             map: disc('rgba(255,247,222,1)', 'rgba(255,213,128,0.4)'),
             transparent: true, depthWrite: false, fog: false, opacity: 0.95,
         }));
-        // 카메라가 아래를 내려다봐 하늘 시야가 좁다 — 능선(각도 ~5°) 바로 위 가시 띠(y 7~9)에 배치
+        // 대역의 절반 높이에 건다 — 종전 리터럴 (6.5, 8.2, −38) 은 대역이 6.15° 뿐이던 시절 값이라
+        // 원반 중심이 캔버스 y 0.013 에 박혀 **위쪽이 프레임에 잘려** 있었다(실측).
         this.sunDisc.scale.setScalar(6);
-        this.sunDisc.position.set(6.5, 8.2, -38);
+        this.sunDisc.position.copy(this.skyAnchor(0.5, 38));
         this.moonDisc = new THREE.Sprite(new THREE.SpriteMaterial({
             map: disc('rgba(238,245,255,1)', 'rgba(187,208,255,0.35)'),
             transparent: true, depthWrite: false, fog: false, opacity: 0.92,
         }));
         this.moonDisc.scale.setScalar(4);
-        this.moonDisc.position.set(6.5, 8, -38);
+        this.moonDisc.position.copy(this.skyAnchor(0.5, 38, [this.SUN_NIGHT[0], this.SUN_NIGHT[2]]));
         // 별: 스펙클 캔버스 1장을 상공 평면에 (밤 챕터에서만 표시)
         const sc = document.createElement('canvas');
         sc.width = 512; sc.height = 256;
@@ -860,7 +928,9 @@ const Scene3D = {
             new THREE.PlaneGeometry(85, 30),
             new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false, fog: false, opacity: 0.85 })
         );
-        this.stars.position.set(0, 9.5, -41); // 가시 하늘 띠 중심에 걸치게
+        // 가시 대역 중심에 — 종전 리터럴 y 9.5 는 고도 13.0° 로 대역(6.15°) 위끝을 한참 넘어서
+        // 별 평면이 사실상 프레임 밖이었다(가시 **0.089%**). 정면(방위 0)에 건다.
+        this.stars.position.copy(this.skyAnchor(0.5, 41, [0, -1]));
         // 오로라 커튼 2장(설원 밤 전용) — 세로 그라디언트 + 수직 스트릭의 가산 리본
         const ac = document.createElement('canvas');
         ac.width = 256; ac.height = 128;
@@ -885,10 +955,11 @@ const Scene3D = {
             depthTest: false,  // 원경 능선 메시가 하늘 가시 띠 대부분을 depth로 가림 — 능선 위에 겹쳐 그림
         });
         this.aurora = new THREE.Group();
-        // 카메라가 아래를 내려다봐 하늘 가시 띠가 좁다(y5~9, 능선 위 살짝) — 그 안에 피크가 오게 배치
-        for (const [x, y, z, w, h, rz] of [[-9, 7, -39, 30, 6, 0.1], [11, 7.8, -40, 26, 5.5, -0.14]]) {
+        // 커튼 중심을 가시 대역 안에 — y 는 리터럴이 아니라 `skyBandDeg` 에서 유도한다(종전 y 7·7.8 은
+        // 대역 6.15° 시절 값이라 대역이 바뀌면 그대로 프레임 위로 빠진다). x·폭·기울기는 구도라 유지.
+        for (const [x, bandFrac, z, w, h, rz] of [[-9, 0.5, -39, 30, 6, 0.1], [11, 0.62, -40, 26, 5.5, -0.14]]) {
             const rb = new THREE.Mesh(new THREE.PlaneGeometry(w, h), auroraMat);
-            rb.position.set(x, y, z);
+            rb.position.set(x, this.skyAnchor(bandFrac, Math.abs(z), [0, -1]).y, z);
             rb.rotation.z = rz;
             rb.renderOrder = 2; // 투명 패스에서 능선·하늘 뒤가 아니라 위에 확실히 얹히게
             this.aurora.add(rb);
@@ -913,10 +984,24 @@ const Scene3D = {
         // 밤 챕터는 글로우를 거의 죽여 "흐린 낮"처럼 보이는 문제를 방지 (달빛 박명 수준만 남김)
         // 낮 글로우는 색조를 거의 유지(분홍끼 제거)하고 채도만 올려 "증발한 백색" 대신 색이 있는 지평선 띠로
         const glow = horizon.clone().offsetHSL(night ? 0.02 : 0.004, night ? 0.02 : 0.16, night ? 0.025 : 0.04);
+        // 🚨 **램프를 돔 전체가 아니라 '보이는 대역'에 쓴다 (2026-08-20 `sky-band-composition`).**
+        //    종전 매핑은 k(돔 높이 0~1)를 그대로 썼는데, 이 카메라가 실제로 보는 하늘은 k **0.31~0.48**
+        //    구간뿐이다. 그래서 지평선→천정 램프의 **앞쪽 14~45% 만** 화면에 나왔고, 화면 램프(휘도
+        //    p95−p05)가 숲 9.3 · 사막 10.7 까지 눌려 **무슨 색을 칠해도 단색**으로 읽혔다.
+        //    (게다가 종전 '지평선 글로우' 구간 k<0.24 는 통째로 **지평선 아래**라 한 번도 안 보였다.)
+        //    → 대역의 위/아래 끝을 카메라 기하에서 구해 그 사이에 램프를 전부 쓴다.
+        //    대역 밖(위)은 천정색으로 평평해지지만 어차피 프레임 밖이다.
+        const R = Math.max(1, maxY);                                   // 돔 반지름 = 위쪽 극점 y
+        const yHorizon = this.CAM_POS[1];                              // 눈높이 = 지평선이 돔에 닿는 높이
+        const yTop = this.CAM_POS[1] + R * Math.sin(this.skyBandDeg() * Math.PI / 180);
+        const kH = (yHorizon - minY) / span, kT = (yTop - minY) / span;
+        const GLOW = 0.22;                                             // 대역 아래 22% = 지평선 글로우 띠
         for (let i = 0; i < pos.count; i++) {
             const k = U.clamp((pos.getY(i) - minY) / span, 0, 1);
-            if (k < 0.24) tmp.copy(glow).lerp(horizon, k / 0.24);
-            else tmp.copy(horizon).lerp(zenith, Math.pow((k - 0.24) / 0.76, 0.6));
+            const u = (k - kH) / Math.max(0.001, kT - kH);             // 0=지평선, 1=프레임 위끝
+            if (u < 0) tmp.copy(glow);                                 // 지평선 아래 — 지형·안개에 가림
+            else if (u < GLOW) tmp.copy(glow).lerp(horizon, u / GLOW);
+            else tmp.copy(horizon).lerp(zenith, Math.pow(U.clamp((u - GLOW) / (1 - GLOW), 0, 1), 0.6));
             col.setXYZ(i, tmp.r, tmp.g, tmp.b);
         }
         col.needsUpdate = true;
@@ -977,14 +1062,18 @@ const Scene3D = {
         for (let i = 0; i < 12; i++) {
             const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, opacity: 0.9 });
             const s = new THREE.Sprite(mat);
-            const scale = U.rand(10, 19); // "구름 0개"로 인식되던 문제 — 화면에서 확실히 읽히는 크기로 상향
-            s.scale.set(scale, scale * 0.48, 1);
-            // 카메라가 아래를 내려다보는 각도라 하늘 시야가 좁다 — 실제 프러스텀 안에 들어오는
-            // 낮은 고도(y 4.5~7.5)에 배치해야 화면에 실제 구름 크기로 보인다.
+            // ⚠️ **크기는 대역이 정한다 — 리터럴 10~19 로 되돌리지 말 것 (2026-08-20 `sky-band-composition`).**
+            //    그 값은 가시 대역이 6.15° 뿐이라 구름이 **아랫자락만 삐죽 보이던** 시절에 "구름 0개로
+            //    인식된다"고 키운 것이다. 대역이 13.29° 로 열리자 같은 크기가 통째로 드러나면서
+            //    거리 35 에서 폭 **24.5°**(가로 FOV 57.6° 의 43%)를 먹는 **흰 덩어리**가 됐다(캡처 실측).
+            const scale = U.rand(6, 12);
+            s.scale.set(scale, scale * 0.34, 1);
             // 절반은 화면 시야(x±14) 안에 확정 배치 — 랜덤이 전부 화면 밖으로 몰리면 "빈 하늘"이 됨
             const cx = i < 6 ? U.rand(-14, 14) : U.rand(-25, 25);
-            // y 5~8.5는 능선에 몸통이 다 가려져 꼭대기 슬리버만 '정체불명 수평선 2줄'로 노출 (비평가 7.1 7번 아티팩트의 실체)
-            s.position.set(cx, U.rand(10.5, 15), U.rand(-42, -28)); // 능선 위 온전한 덩어리로
+            // 고도도 대역에서 유도한다. 종전 y 10.5~15 는 고도 14.5° 로 **대역 위끝(13.29°)을 넘어서**
+            // 중심이 프레임 밖이었다. 대역의 위쪽 62~98% 에 걸어 능선 위에 뜨되 잘리지는 않게.
+            const cz = U.rand(-42, -28);
+            s.position.set(cx, this.skyAnchor(U.rand(0.62, 0.98), Math.abs(cz), [0, -1]).y, cz);
             s.userData.baseX = s.position.x;
             s.userData.speed = U.rand(0.05, 0.14);
             this.scene.add(s);
@@ -1280,9 +1369,9 @@ const Scene3D = {
         const xMin = o.xMin === undefined ? -28 : o.xMin;
         const xMax = o.xMax === undefined ? 28 : o.xMax;
         const cam = this.camera;
-        const cx = cam ? cam.position.x : 0.15;
-        const cy = cam ? cam.position.y : 3.7;
-        const cz = cam ? cam.position.z : 8.2;
+        const cx = cam ? cam.position.x : this.CAM_POS[0];   // 폴백도 리그 상수에서 — 리터럴을 베끼면 갈린다
+        const cy = cam ? cam.position.y : this.CAM_POS[1];
+        const cz = cam ? cam.position.z : this.CAM_POS[2];
         // 깊이 역-CDF (32분할). 균등 난수 u 를 w(z) 분포의 z 로 바꾼다.
         const B = 32, cdf = new Float32Array(B + 1);
         for (let i = 0; i < B; i++) {
@@ -9477,10 +9566,12 @@ const Scene3D = {
             //    같은 헬퍼를 쓴다.
             // 시선은 **인게임 메인 카메라와 같은 각**으로 — 요구가 "같은 앵글로 렌더한 썸네일"이라
             // 보기 좋은 각을 따로 고르면 그 자체가 '슬롯과 실물이 다르다'가 된다.
-            // 메인 리그: 카메라 y3.7·z8.2 → 주시점 y0.9 (init의 camera.position/lookAt) = 고도 ≈18.9°.
+            // 메인 리그 각을 **상수에서 유도한다** — 종전엔 `Vector3(0, 3.7 - 0.9, 8.2)` 로 손수 베껴서,
+            // `sky-band-composition` 이 주시점을 0.9→2.0 으로 올렸을 때 여기만 옛 각(18.9°)에 남아
+            // "같은 앵글로 렌더한 썸네일"이라는 이 코드의 요구를 조용히 어길 뻔했다(TODO 함정 ④).
             // 방위각은 0이고(카메라 x는 worldX를 따라간다), 모델 요각 0.55는 위에서 이미 줬다.
             const cam = this._creatureCam;
-            const dir = new THREE.Vector3(0, 3.7 - 0.9, 8.2).normalize();
+            const dir = new THREE.Vector3(0, this.CAM_POS[1] - this.CAM_LOOK_Y, this.CAM_POS[2]).normalize();
             this.thumbFrameToFit(cam, g, dir, 1.04);         // 테두리 여백 4%
             this._creatureR.render(sc, cam);
             const url = this._creatureR.domElement.toDataURL();
@@ -20591,8 +20682,9 @@ const Scene3D = {
             this.hemi.intensity = 0.36;
             this.rim.intensity = 0.45;
             this.sun.color.copy(new THREE.Color(0xc6d4ff).lerp(new THREE.Color(t.sky), 0.25)); // 달빛
-            this.sun.position.set(5, 6.5, -7); // 달 디스크(우측 후방)와 같은 방향에서 내려오는 역광 — 그림자가 카메라 쪽으로
-            this.sun.userData.baseX = 5;
+            // 달 디스크와 같은 방향에서 내려오는 역광 — 그림자가 카메라 쪽으로. 방위의 유일한 결정은 `SUN_NIGHT`.
+            this.sun.position.set(this.SUN_NIGHT[0], this.SUN_NIGHT[1], this.SUN_NIGHT[2]);
+            this.sun.userData.baseX = this.SUN_NIGHT[0];
         } else {
             // 낮 태양 방향은 `SUN_DAY` 한 곳에서만 정한다 — 고도 근거는 그 상수의 주석 참고.
             // (종전엔 여기 `(7, 5.2, 3.2)` 리터럴이 "측면 45도 저고도 — 요철 스컬핑 최대로" 주석과 함께
@@ -21584,19 +21676,19 @@ const Scene3D = {
         }
         // 카메라: 플레이어 전진을 따라감 + 셰이크 (camLock = 검증 스크립트용 고정 훅)
         // 돌리 인(보스 워닝 전용): 카메라 rotation은 init의 lookAt으로 고정이라 z만 당기면 그대로 줌 인이 된다
-        const camZ = 8.2 - (this.camPush || 0);
+        const camZ = this.CAM_POS[2] - (this.camPush || 0);
         if (this.camLock) {
             this.camera.position.copy(this.camLock.pos);
             this.camera.lookAt(this.camLock.look);
         } else if (this.shakeMag > 0.001) {
             this.camera.position.set(
-                0.15 + this.worldX + U.rand(-1, 1) * this.shakeMag,
-                3.7 + U.rand(-1, 1) * this.shakeMag * 0.6,
+                this.CAM_POS[0] + this.worldX + U.rand(-1, 1) * this.shakeMag,
+                this.CAM_POS[1] + U.rand(-1, 1) * this.shakeMag * 0.6,
                 camZ
             );
             this.shakeMag *= Math.pow(0.001, dt); // 감쇠
         } else {
-            this.camera.position.set(0.15 + this.worldX, 3.7, camZ);
+            this.camera.position.set(this.CAM_POS[0] + this.worldX, this.CAM_POS[1], camZ);
         }
         this.renderFrame(); // 블룸+비네트 포스트 스택 경유 (모바일은 직접 렌더 폴백)
     },

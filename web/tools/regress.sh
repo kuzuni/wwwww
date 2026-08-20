@@ -38,6 +38,7 @@ for p in \
     probe-armor-era-silhouette.js \
     probe-midground-depth.js \
     probe-emissive-bleed.js \
+    probe-sky-band.js \
     probe-boot-pending-craft.js \
     probe-summon-full-btn.js \
     probe-upgrade-empty-guard.js \
