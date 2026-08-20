@@ -529,11 +529,18 @@ const PET_KR = {
     'Genie': '지니', 'Baby Dragon': '아기 드래곤', 'Spectral Tiger': '유령 호랑이'
 };
 
+// 🎨 종별 몸색 — 리버본드 '생생한 색' (pet-riverbond-remake 채도 상향, 2026-08-21).
+// 🚨 **왜 상향인가**: 파스텔 라이트값(호랑이 0xffb74d·구미호 0xff8a65·그리핀 0xffe082 등)이 복셀 AO +
+//    어두운 조명 아래에서 **중간 회탁색으로 씻겨** 나가, 비평가 2인이 공통 최상위 감점으로 "죄다 회색/탄
+//    mud, 종 구별 안 됨"(3·4점)을 짚었다. 호랑이=선명 주황·구미호(여우)=주황 처럼 **종 자연색을 채도
+//    올려** 되살린다. 생쥐·판다·타조·거미처럼 원래 무채색인 종은 그대로 둔다(probe-pet-thumbs ④ 는
+//    무채색 종을 저채도로 통과시키므로 건드리면 안 된다). 색상각은 ±40° 안(재질색↔썸네일 동반 이동)이라
+//    프로브 불변, 지오메트리 무변경.
 const PET_COLORS = {
-    'Snail': 0xffcc80, 'Turtle': 0x81c784, 'Mouse': 0xbdbdbd, 'Chicken': 0xfff176, 'Cat': 0xffab91, 'Dog': 0xbcaaa4,
-    'Hedgehog': 0x8d6e63, 'Bear': 0x795548, 'Ostrich': 0xe0e0e0, 'Scorpion': 0xef9a9a, 'Spider': 0x616161,
-    'Panda': 0xeeeeee, 'Griffin': 0xffe082, 'Unicorn': 0xf8bbd0, 'Saber Tooth': 0xffcc80, 'Tiger': 0xffb74d,
-    'Cerberus': 0x8e24aa, 'Kitsune': 0xff8a65, 'Serpent': 0x4db6ac,
+    'Snail': 0xf0a83c, 'Turtle': 0x81c784, 'Mouse': 0xbdbdbd, 'Chicken': 0xf2ce3a, 'Cat': 0xe38b3e, 'Dog': 0xc98f4e,
+    'Hedgehog': 0x8d6e63, 'Bear': 0x8a5a2e, 'Ostrich': 0xe0e0e0, 'Scorpion': 0xef9a9a, 'Spider': 0x616161,
+    'Panda': 0xeeeeee, 'Griffin': 0xe0a828, 'Unicorn': 0xf6a8cc, 'Saber Tooth': 0xd98a34, 'Tiger': 0xf5801c,
+    'Cerberus': 0x8e24aa, 'Kitsune': 0xe85e26, 'Serpent': 0x4db6ac,
     'Treant': 0x66bb6a, 'Enchanted Elk': 0x90caf9, 'Electry': 0xfff59d,
     'Genie': 0x7e57c2, 'Baby Dragon': 0xef5350, 'Spectral Tiger': 0x80deea
 };
