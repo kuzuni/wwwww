@@ -38,6 +38,10 @@ for p in \
     probe-armor-era-silhouette.js \
     probe-midground-depth.js \
     probe-emissive-bleed.js \
+    probe-boot-pending-craft.js \
+    probe-summon-full-btn.js \
+    probe-upgrade-empty-guard.js \
+    probe-tabx-clickable.js \
 ; do
     echo "── $p"
     node "$p" >/tmp/regress-out.txt 2>&1
