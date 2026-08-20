@@ -288,6 +288,14 @@ const dataUrl = p => 'data:image/png;base64,' + fs.readFileSync(p).toString('bas
         ['프로필 좌', 'W', m => m.profile && m.profile.x1],
         ['프로필 상단', 'H', m => m.profile && m.profile.y1],
         ['프로필 하단', 'H', m => m.profile && m.profile.y2],
+        // 🚨 **`profile` 은 배지 '바' 전체가 아니라 좌상단 밝은 잉크 union(아바타 판)이다**
+        //    — 창이 `W*0.25 × H*0.09` 로 잘려 있어 그보다 넓은 바는 애초에 다 못 담는다.
+        //    실측: 여기서 나오는 폭은 8.02%W(≈40px)인데 **원본 배지 바는 32.26%W(x14~174, 161px)** 다.
+        //    2026-08-20 R6 에서 비평가 A 가 '바가 Δ−7.07%p 좁다'고 지적했을 때, 이 줄들이 통과한다고
+        //    '바는 이미 재고 있다'로 읽으면 안 된다 — **바의 폭·우단은 아직 아무도 안 잰다**(TODO 메모 참조).
+        //    아래 두 줄은 그 아바타 판의 우단·폭이고, 그것대로 값어치가 있어 남긴다(Δ+0.20/−0.20%p).
+        ['프로필 우', 'W', m => m.profile && m.profile.x2],
+        ['프로필 폭', 'W', m => m.profile && bw(m.profile)],
         ['제목 중심 x', 'W', m => m.title && cx(m.title)],
         ['제목 상단 y', 'H', m => m.title && m.title.y1],
         ['스킬 바 상단', 'H', m => m.skillbar && m.skillbar.y1],
