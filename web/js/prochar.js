@@ -1905,6 +1905,10 @@ const ProChar = {
             const limbW = 4 * PX, limbH = 12 * PX, limbD = 4 * PX, armW = 4 * PX;
             const FEET = -0.44, hipY = FEET + limbH, torTop = hipY + torH;   // 골반 로컬
             const spineY = R.bones.spine.position.y;
+            // 🧥 장비 의상(equip-full-set-build)이 같은 치수로 옷 박스를 지어야 해서 리그에 공개한다.
+            //    Scene3D.dressMcHero(착용)·makeArmorPreview(썸네일)가 이 값을 읽는다 — 여기 치수를
+            //    바꾸면 옷이 몸을 못 감싼다(치수는 한 곳, 여기서만 정의할 것).
+            R.mc = { PX, headS, torW, torH, torD, limbW, limbH, limbD, armW, FEET, hipY, torTop, spineY };
             // 다리
             [['hipL', -1], ['hipR', 1]].forEach(([k, s]) => {
                 const j = R.bones[k]; j.position.set(s * (limbW / 2), hipY, 0); j.rotation.set(0, 0, 0);

@@ -27,8 +27,11 @@
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const INDEX = 'file://' + require('path').resolve(__dirname, '../index.html');
 
-const DONE = ['necklace', 'ring', 'gloves', 'shoes', 'belt', 'armor'];   // voxel 전환 완료 슬롯
-const TODO_SLOTS = ['helmet', 'weapon'];                        // 아직 매끈한 대조군
+const DONE = ['necklace', 'ring', 'gloves', 'shoes', 'belt', 'armor', 'helmet', 'weapon'];   // voxel 전환 완료 슬롯
+// 대조군 소멸 — equip-voxelize 가 62/62종 축정렬 100% 완주(246bec6)했는데 이 목록이 갱신 안 돼
+// '아직 매끈한 대조군'이 실제로는 복셀이었고, 음성 대조 분리가 0.010 으로 무너져 있었다(선재 FAIL).
+// 머리말 ⓘ 대로 대조군이 비면 음성 대조는 자동 생략되고 절대 기준만 남는다.
+const TODO_SLOTS = [];
 // 🚨 **일차 게이트는 SEPARATION(음성 대조)이고, 절대 하한은 '진짜 매끈 덩어리'만 걸러내는
 //    바닥이다 — 이유를 남긴다.** 플랫 고원 비율은 파츠가 작고 많을수록(신발 = 부츠 두 짝)
 //    경계 픽셀이 늘어 **매끈함이 아니라 표면 복잡도 때문에** 떨어진다. 실측: 전환한 신발이

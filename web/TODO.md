@@ -118,6 +118,13 @@
   - 조형: 마인크래프트 박스 캐릭터에 맞는 시대 테마 복셀. 팔·다리까지 옷/갑옷으로 덮되(원시만 맨팔), 얼굴 디캘 눈 가리지 말 것.
   - **바지: 기본 긴바지. 컨셉상 반바지가 맞는 경우(원시 등)만 반바지.** 지금 반바지뿐이니 대부분 긴바지로 바꾸고 긴바지·반바지 섞이게.
   - 연동: `makeWeapon`/`makeHelmet`/`makeArmorPreview`/`makeAccessoryPreview` + 영웅 장착(`refreshHeroEquip`)에 실제 반영. **채점 없음** — 도장 대신 제작·연동만.
+  - ⏩ **갑옷 슬롯 완료 (2026-08-21 3D 스트림, 락 `equip-build-armor` — 10시대 × 5종 = 50종 전량 + 착용 연동)**:
+    · **옛 곡면 흉갑 시스템(단면 링 로프트 + 스타일 오버레이 ≈1540줄) 폐기**, `mcArmorParts(age, nameIdx, rarity)` 신설 — 시대 팔레트표(`MC_CLOTH`) × 스타일 꼴(ARMOR_STYLES 재사용: plate/suit/vest/robe/cape/hide/bone/exo/carrier/vestment) × 시대 실루엣 부속표(`MC_ERA_SHAPE`: 어깨판·롱코트 자락·등팩·가시·높은 깃…)의 파라메트릭 의상. **긴바지 기본, 원시만 반바지+맨팔**(스펙 그대로), 소매는 어깨 본에 붙어 애니를 탄다.
+    · **착용 연동**: `dressMcRig(rig, armor, prev)` 공용 — 본편(`refreshHeroEquip`)과 pinfo 미리보기(`previewSyncHero`) 둘 다 관절 본(spine/shoulderL·R/hipL·R)에 옷 박스를 입힌다. 치수는 ProChar 가 새로 공개하는 `rig.mc`(1px=0.05)가 정본(썸네일 폴백 `MC_D` 와 한 쌍 — 리그 치수를 바꾸면 같이 맞출 것).
+    · **검증**: 신설 `tools/shot-mc-armor.js` → `mc-armor-thumbs.png`(10×5 썸네일)·`mc-armor-worn.png`(10시대 착용 컷) 육안 — 시대 판독·소매/바지 부착·얼굴 디캘 무가림 확인, 콘솔 에러 0. `probe-equip-framing` 253칸 위반 0 · `probe-hero-tris` 9604 · `probe-pinfo-scene` 전부 통과 · `probe-geo-ratchet` **147→102**(-45 곡면, 래칫 갱신 동커밋).
+    · ⚠️ **자 2개를 현실에 맞췄다**: ⓐ `probe-equip-voxel` 음성 대조가 0.010 으로 무너져 있었는데 **선재 결함**이다 — equip-voxelize 가 62/62 완주(246bec6)했는데 대조군 목록(helmet/weapon='아직 매끈')이 갱신 안 된 것. 전 슬롯 DONE 편입(절대 기준만 남음, PASS). ⓑ `probe-armor-era-silhouette` 게이트 표 리셋 — 모항목 `equip-era-theming` 이 취소됐고 새 스펙은 채점 불필요, 시대 판독은 팔레트·시대 부속이 진다(hide 칸은 새 체계에서도 갈려 게이트 유지). 측정 전용으로 남김.
+    · ⚠️ `probe-vox-plate` 미통과 14건(emblemRim 등 리그 파츠 부재)은 **hero-chibi 가 리그 몸 메시를 전부 제거**해서 난 선재 결함(2026-08-20 18:11 3D 인계 메모에 등재됨) — 이 커밋과 무관.
+    · **남은 슬롯(다음 세션)**: 무기(`makeWeapon` 10시대 × 타입 — 스펙상 옛 디자인 폐기 대상이나 62/62 복셀화는 이미 됨, '박스 캐릭터에 맞는 시대 테마'로 재검토) · 투구(`makeHelmet` — 얼굴 디캘 가리지 말 것) · 장신구 5슬롯(`makeAccessoryPreview`). 슬러그는 `equip-build-<slot>` 로 나눠 claim.
 - [ ] **펫 리버본드 재제작 (slug: pet-riverbond-remake) — 기존 폐기, 7/10 채점.**
   - 스타일 = **리버본드**(청키 복셀 피규어·생생한 색·귀여움). ⚠️ **크로시로드(길건너친구들)처럼 너무 미니멀/납작 금지**(사용자 지적).
   - 눈 = 얼굴에 **납작 디캘**. **팔·다리·몸통 반드시 붙어있게**(떨어진 파츠 금지 — 사용자 지적).
