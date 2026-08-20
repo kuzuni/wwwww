@@ -23132,7 +23132,10 @@ const Scene3D = {
             //    앰버 화면의 보색 이물이 됐다(2차 채점 A #1 '순색 초록 새싹'). 상한을 걸면 단풍 이끼는
             //    h 0.12(43° 앰버 올리브)로 팔레트 안에 남고, 초원은 견인량이 0.042 라 클램프에 안 걸려
             //    **종전과 완전히 같은 초록**이다(h 0.24→0.28) — 초원 쪽 회귀 없음.
-            this.mossMat.color.setHSL(((mg.h + U.clamp((0.36 - mg.h) * 0.35, -0.05, 0.05)) % 1 + 1) % 1, 0.30, 0.30);
+            // 채도도 지면을 따른다 (4차) — 0.30 고정은 저채도 챕터(바위산·소금)에서 이끼 뚜껑만
+            //    유채 카키로 남겨 '온도 충돌'의 한 축이 됐다(3차 채점 A ⑴ '바위 캡은 카키').
+            this.mossMat.color.setHSL(((mg.h + U.clamp((0.36 - mg.h) * 0.35, -0.05, 0.05)) % 1 + 1) % 1,
+                Math.min(0.30, Math.max(0.08, mg.s * 0.8)), 0.30);
         }
         // 접지 블롭 그림자 색 — 순흑(0x000000)은 밝은 지면(설원·마법 라벤더)에서 '경계 선명한 검은
         // 스티커'로 읽힌다(map-quality-up 재채점 A2·B2 공통 지적). 지면 팔레트로 틴트한 다크 톤으로 —
@@ -23160,14 +23163,19 @@ const Scene3D = {
             //    '오버레이 밴드'로 읽혔다(팔레트 실측: ch22 유채색 무게의 33% 가 챕터 색상 밖 35° 웜).
             //    지면보다 +0.22 밝은 자리(하한 0.30)에 앉혀 '같은 땅의 다져진 길'로 — 밝은 챕터
             //    (사막 등)는 상한 0.7 이 종전 값 그대로라 기존 그림을 해치지 않는다.
-            const bTint = new THREE.Color().setHSL(g.h, U.clamp(g.s, 0, 0.7), U.clamp(g.l + 0.22, 0.30, 0.7));
-            // 🎨 색상 견인량을 지면-오커 색상 거리에 비례시킨다 (map-palette-unify 2차) — 62% 고정으로는
-            //    오커 캔버스가 색상환 반대편 챕터(마법 보라·심연 청록)에서 갈색 원색으로 남아, 야간 씬
-            //    한복판의 '조명 안 받은 낮 색 띠'로 읽혔다(2차 채점 B #2). 오커(h≈0.09)와 가까운
-            //    챕터(초원·사막·단풍)는 종전 0.62 그대로 — 기존 그림 무변경.
-            let hd = Math.abs(g.h - 0.09); if (hd > 0.5) hd = 1 - hd;
-            const pull = 0.62 + U.clamp((hd - 0.10) * 1.2, 0, 0.18);
-            this.pathMesh.material.color.copy(new THREE.Color(0xffffff).lerp(bTint, pull));
+            const bTint = new THREE.Color().setHSL(g.h, U.clamp(g.s * 0.7, 0, 0.5), U.clamp(g.l + 0.22, 0.30, 0.7));
+            // 🎨 곱셈 틴트 → **나눗셈 틴트** (map-palette-unify 4차). 3차 채점 A 가 뿌리를 픽셀로 박았다:
+            //    "곱셈으로는 색상이 캔버스(오커 hue 37°) 너머로 못 넘어간다" — 견인을 0.80 까지 올려도
+            //    한색 챕터(ch3 바위산·ch4 폭풍·ch14 소금)의 길만 웜 원색으로 남았다(ch6/7/8/18/20 은
+            //    지면 자체가 유채라 통과). 캔버스 평균 방향 (1.0, 0.74, 0.49)로 **나눠서** 화면 평균이
+            //    정확히 bTint 색상에 앉게 한다. 몫이 1을 넘으면 전체를 최대값으로 내려 클리핑 없이
+            //    비율을 보존한다(그만큼 어두워지지만 '다져진 흙'은 어두워도 성립 — 결은 텍스처가 쥔다).
+            this.pathMesh.material.color.setRGB(bTint.r / 1.0, bTint.g / 0.74, bTint.b / 0.49);
+            {
+                const pm = this.pathMesh.material.color;
+                const mx = Math.max(pm.r, pm.g, pm.b, 1);
+                pm.multiplyScalar(1 / mx);
+            }
         }
         // 바이옴 소품 교체 (같은 바이옴이면 그대로 유지)
         const biome = t.biome || 'forest';
@@ -23245,6 +23253,13 @@ const Scene3D = {
         this.stoneMat.color.copy(sp.stone !== undefined ? new THREE.Color(sp.stone) :
             kin === 'snow' ? new THREE.Color(0xc9d8e6) : kin === 'desert' ? new THREE.Color(0xb97f5e) :
             kin === 'rock' ? new THREE.Color(0x51483e) : this.stoneFrom(gC));
+        // 🎨 2차 식생(꽃 줄기·양치)의 고정 초록 → 잎 파생색 (map-palette-unify 4차) — 0x4a7332/0x3d6b2a
+        //    고정색은 단풍(앰버) 화면에 '봄 잔디 다발'로 남는 마지막 순초록이었다(3차 채점 A ⑵,
+        //    hue 85–96°·채도 0.47–0.78 픽셀 실측과 두 재질 값이 일치). 덤불과 같은 잎 파생(lf.bush)을
+        //    물려받아 어느 챕터에서든 '그 땅의 풀'이 된다. 꽃잎 5색은 5% 악센트 규칙이라 그대로 둔다.
+        //    (재질은 makeFlowers 가 지연 생성 — buildProps 이후인 여기서 물들여야 첫 챕터도 맞는다.)
+        if (this._stemMat) this._stemMat.color.copy(lf.bush).offsetHSL(0, 0, -0.03);
+        if (this._fernMat) this._fernMat.color.copy(lf.bush);
         // 바위산: 지면 탠과 색온도를 맞춘 웜 그레이 — "배치한 에셋" 티 제거 (쿨 그레이는 지면과 따로 놀았음)
         // 천체: 낮=해, 밤=달+별 (테마 celestial 필드로 명시, 기본 sun)
         const cel = t.celestial || 'sun';
