@@ -1428,13 +1428,22 @@ const Scene3D = {
     },
 
     // 스캐터/악센트 지오메트리 팩토리 — 테이블이 문자열로 고르게. 'blade' 는 풀 포기(tuftGeo).
+    // 🧊 광물·파편도 전부 복셀(2026-08-20, map-quality-up voxel 전환) — 종전 octa/cone/dodeca
+    //    다면체는 사선 면이라 큐브 지면 위에서 '작은 보석 주사위'로 읽혔다. 손으로 짠 5~7칸 큐브
+    //    덩어리로 교체(발자국은 종전 반경 r 과 동급, 밑면 y=0 접지). 종별 실루엣 구분은 칸 배치가
+    //    내고(알갱이/첨탑/판), 개체 변주는 mk 의 스케일·y스쿼시·틴트가 종전대로 준다.
     scatterGeo(kind, r) {
+        const B = (x, y, z) => ({ x, y, z });
         switch (kind) {
-            case 'octa': return new THREE.OctahedronGeometry(r, 0);
-            case 'cone': return new THREE.ConeGeometry(r * 0.55, r * 1.9, 4);
+            case 'octa':   // 모난 알갱이 — 2×2 판 + 어깨 1칸
+                return this.voxMiniGeo([B(0, 0, 0), B(1, 0, 0), B(0, 0, 1), B(1, 0, 1), B(0, 1, 0)], r * 0.9);
+            case 'cone':   // 얼음/결정 조각 — 2×2 밑동 위로 좁아지는 3단 첨탑
+                return this.voxMiniGeo([B(0, 0, 0), B(1, 0, 0), B(0, 0, 1), B(1, 0, 1), B(0, 1, 0), B(0, 2, 0)], r * 0.55);
             case 'blade': return this.tuftGeo();
-            case 'slabchip': { const g = new THREE.DodecahedronGeometry(r, 0); g.scale(1.5, 0.3, 1.2); return g; } // 갈라진 염판 조각
-            default: return new THREE.DodecahedronGeometry(r, 0);
+            case 'slabchip':   // 갈라진 염판 조각 — 3×2 판 + 단차 1칸
+                return this.voxMiniGeo([B(0, 0, 0), B(1, 0, 0), B(2, 0, 0), B(0, 0, 1), B(1, 0, 1), B(2, 0, 1), B(1, 1, 1)], r * 0.85);
+            default:   // dodeca 대응(둥근 자갈) — 2×2 판 + 맞은편 어깨 1칸(octa 와 어깨 위치로 구분)
+                return this.voxMiniGeo([B(0, 0, 0), B(1, 0, 0), B(0, 0, 1), B(1, 0, 1), B(1, 1, 1)], r * 0.9);
         }
     },
 
@@ -2956,15 +2965,11 @@ const Scene3D = {
     //    `Voxel.faces` 로 가려진 면을 버리고 위치·법선만 굽는다 — 색은 재질 color + 인스턴스 색
     //    (setColorAt)이 종전처럼 입히므로 정점색은 안 쓴다. 지오메트리 하나를 수백 인스턴스가
     //    공유(InstancedMesh)하는 규약은 그대로다(voxel.js 설계 ⓐ의 예외 항목이 바로 이 잔디다).
-    tuftGeo() {
-        const SZ = 0.05;   // 복셀 한 변(월드) — 4포기 클러스터 폭 ~0.2 = 종전 원뿔 다발 발자국과 동급
-        const B = (x, y, z) => ({ x, y, z });
-        const vox = [
-            B(0, 0, 0), B(0, 1, 0), B(0, 2, 0), B(1, 2, 0),      // A 중앙 3단 + L머리(+x)
-            B(2, 0, 1), B(2, 1, 1), B(1, 1, 1),                  // B 우전방 2단 + L머리(-x)
-            B(-1, 0, -2), B(-1, 1, -2), B(-1, 1, -1),            // C 후방 2단 + L머리(+z)
-            B(1, 0, -1), B(1, 1, -1),                            // D 소형 2단
-        ];
+    // 소형 스캐터용 복셀 베이크 — 손으로 짠 큐브 목록을 위치+법선만 있는 BufferGeometry 로 굽는다.
+    // 색은 안 굽는다: 실제 색은 재질 color × 인스턴스 색(setColorAt)이 곱한다(mk 의 틴트 규약).
+    // +0.5: 큐브 밑면이 정확히 y=0 — 스캐터는 전부 지면에 앉는 물건이고, 바람 셰이더도 max(0, y)
+    // 비례라 밑동이 땅에 박힌다. voxSnap: 큐브 조형은 배치 요를 90° 스냅(사선 큐브 면 금지).
+    voxMiniGeo(vox, SZ) {
         const fl = Voxel.faces(vox, {});
         const pos = new Float32Array(fl.length * 18), norm = new Float32Array(fl.length * 18);
         let p = 0;
@@ -2972,7 +2977,6 @@ const Scene3D = {
         for (const F of fl) {
             for (const ci of order) {
                 const c = F.corners[ci];
-                // +0.5: 큐브 밑면이 정확히 y=0 — 바람 셰이더가 max(0, y) 비례라 밑동이 땅에 박힌다
                 pos[p] = c[0] * SZ; pos[p + 1] = (c[1] + 0.5) * SZ; pos[p + 2] = c[2] * SZ;
                 norm[p] = F.n[0]; norm[p + 1] = F.n[1]; norm[p + 2] = F.n[2];
                 p += 3;
@@ -2981,8 +2985,18 @@ const Scene3D = {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         geo.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
-        geo.userData.voxSnap = true;   // 배치 요(rotation.y)를 90° 스냅 — 3D 조형이라 엣지온 소실이 없다
+        geo.userData.voxSnap = true;
         return geo;
+    },
+    tuftGeo() {
+        const SZ = 0.05;   // 복셀 한 변(월드) — 4포기 클러스터 폭 ~0.2 = 종전 원뿔 다발 발자국과 동급
+        const B = (x, y, z) => ({ x, y, z });
+        return this.voxMiniGeo([
+            B(0, 0, 0), B(0, 1, 0), B(0, 2, 0), B(1, 2, 0),      // A 중앙 3단 + L머리(+x)
+            B(2, 0, 1), B(2, 1, 1), B(1, 1, 1),                  // B 우전방 2단 + L머리(-x)
+            B(-1, 0, -2), B(-1, 1, -2), B(-1, 1, -1),            // C 후방 2단 + L머리(+z)
+            B(1, 0, -1), B(1, 1, -1),                            // D 소형 2단
+        ], SZ);
     },
 
     // ---- 바람 (TODO '맵 프롭 퀄리티 업': "바람에 흔들리는 풀·나뭇잎 … 살아있는 맵으로") ----
@@ -3127,27 +3141,27 @@ const Scene3D = {
         } else
         switch (biome) {
             case 'desert':
-                geo = new THREE.DodecahedronGeometry(0.05, 0);
+                geo = this.scatterGeo('dodeca', 0.05);
                 mat = new THREE.MeshLambertMaterial({ color: 0xb08a63 });
                 tint = 0.14;
                 break;
             case 'rock': // 웜 그레이 잔자갈 — 지면과 같은 소재군 (초록/황토 콘은 "정체불명 마커"로 읽혔음)
-                geo = new THREE.DodecahedronGeometry(0.055, 0);
+                geo = this.scatterGeo('dodeca', 0.055);
                 mat = new THREE.MeshLambertMaterial({ color: 0x857868 });
                 tint = 0.15;
                 break;
             case 'snow':
-                geo = new THREE.DodecahedronGeometry(0.06, 0);
+                geo = this.scatterGeo('dodeca', 0.06);
                 mat = new THREE.MeshLambertMaterial({ color: 0xe8f2fb });
                 tint = 0.06;
                 break;
             case 'lava': // 잔불 머금은 스코리아 자갈 — 어두워진 현무암 지면 위에서 은은한 잉걸불 악센트
-                geo = new THREE.DodecahedronGeometry(0.05, 0);
+                geo = this.scatterGeo('dodeca', 0.05);
                 mat = new THREE.MeshLambertMaterial({ color: 0x3b2d27, emissive: 0x4a1505 });
                 n = 150;
                 break;
             case 'magic': // 발광 이끼 조각 — 시안 악센트
-                geo = new THREE.OctahedronGeometry(0.045, 0);
+                geo = this.scatterGeo('octa', 0.045);
                 mat = new THREE.MeshBasicMaterial({ color: 0x4dd0e1 });
                 n = 120;
                 tint = 0.2;
@@ -3183,10 +3197,10 @@ const Scene3D = {
                 let x = spots[i][0], z = spots[i][1];
                 if (Math.abs(z) < 0.55) z = 0.55 * Math.sign(z || 1) + z; // 스캐터도 전투 라인 살짝 비켜감
                 dummy.position.set(x, this.heightAt(x, z) + 0.02, z);
-                // 🧊 복셀 조형(voxSnap — 잔디 큐브 블레이드)은 요를 90° 스냅한다(화풍 ⓓ: 큐브 면이
-                //    사선이 되면 그 순간 voxel 로 안 읽힌다). 3D 큐브 다발이라 종전 평면 블레이드의
-                //    '엣지온 소실'(스냅을 미뤄 온 이유)이 없다. 광물(다면체 자갈 등)은 평면 전제가
-                //    없어도 임의 각을 유지 — 그쪽 복셀 전환은 `voxel-consistency-audit` 소관.
+                // 🧊 복셀 조형(voxSnap)은 요를 90° 스냅한다(화풍 ⓓ: 큐브 면이 사선이 되면 그 순간
+                //    voxel 로 안 읽힌다). 잔디에 이어 광물·파편도 복셀로 넘어와(scatterGeo 전환,
+                //    2026-08-20 map-quality-up) 이제 스캐터 전 종이 스냅 분기를 탄다 — 임의 각 분기는
+                //    비복셀 지오메트리가 남아 있을 때의 폴백으로 유지한다.
                 //    ⚠️ 두 분기 모두 U.rand 1회 — 시드 고정 프로브의 난수 소비량이 분기와 무관해야 한다.
                 dummy.rotation.y = (geo2.userData && geo2.userData.voxSnap)
                     ? Math.floor(U.rand(0, 4)) * Math.PI / 2
@@ -3227,18 +3241,21 @@ const Scene3D = {
             { depthPow: 2.0, clumpR: 1.5, seedFrac: 0.42, scaleLo: 1.1, scaleHi: 2.4 }); // 근경은 원근상 더 커야 자연스럽다
         // 보조 악센트 스캐터 — 5% 악센트 색 규칙(단색 팔레트 지적 반영): 초원=들꽃, 설원=얼음 결정,
         // 바위산=골드 야생화, 마법=보라 자갈, 사막=적갈 자갈, 용암=재 조각
+        // 🧊 테이블은 [종류, r] 문자열만 들고 scatterGeo(복셀 팩토리)가 굽는다 — 종전엔 6종 다면체를
+        //    매번 전부 생성해 5개를 버렸다. snow 결정은 종전 ConeGeometry(0.03, 0.1)의 키(0.1)를
+        //    복셀 첨탑 높이(3×0.55r)로 환산해 r 0.05 로 옮겼다(밑동 폭도 0.06 ↔ 0.055 동급).
         const acc = {
-            forest: [new THREE.OctahedronGeometry(0.035, 0), 0xfff3b0, 46],
-            snow: [new THREE.ConeGeometry(0.03, 0.1, 4), 0xbfe6ff, 34],
-            rock: [new THREE.OctahedronGeometry(0.035, 0), 0xd9b44a, 36],
-            magic: [new THREE.DodecahedronGeometry(0.045, 0), 0x3d2b6e, 60],
-            desert: [new THREE.DodecahedronGeometry(0.04, 0), 0x8a5a3c, 50],
-            lava: [new THREE.DodecahedronGeometry(0.04, 0), 0x6e625c, 50],
-        }[biome] || [new THREE.OctahedronGeometry(0.035, 0), 0xfff3b0, 46];
+            forest: ['octa', 0.035, 0xfff3b0, 46],
+            snow: ['cone', 0.05, 0xbfe6ff, 34],
+            rock: ['octa', 0.035, 0xd9b44a, 36],
+            magic: ['dodeca', 0.045, 0x3d2b6e, 60],
+            desert: ['dodeca', 0.04, 0x8a5a3c, 50],
+            lava: ['dodeca', 0.04, 0x6e625c, 50],
+        }[biome] || ['octa', 0.035, 0xfff3b0, 46];
         const ac = sp.accent;
-        const accGeo = ac ? this.scatterGeo(ac.geo, ac.r) : acc[0];
-        const accHex = ac ? ac.color : acc[1];
-        const accN = ac ? ac.n : acc[2];
+        const accGeo = ac ? this.scatterGeo(ac.geo, ac.r) : this.scatterGeo(acc[0], acc[1]);
+        const accHex = ac ? ac.color : acc[2];
+        const accN = ac ? ac.n : acc[3];
         const accBasic = ac ? !!ac.basic : (biome === 'forest' || biome === 'rock' || biome === 'snow');
         const accMat = accBasic
             ? new THREE.MeshBasicMaterial({ color: accHex }) // 들꽃/결정은 자체 발색으로 또렷하게
