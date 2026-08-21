@@ -11583,8 +11583,14 @@ const Scene3D = {
                 //    ⑵ 날개 밑동(x 0.06~0.08 부터 · y 0.44~) 과도 **겹쳐야** 하며
                 //    ⑶ **라이더 허벅지 시선(안장 옆·앞)을 피해** 안장보다 **뒤**(z ≤ −0.14)에 있어야 한다.
                 //    → 몸색으로 두는 게 맞다(날개색이면 '날개가 등까지 자란' 그림이 된다).
-                if (dragon) sp(0.09, s * 0.10, 0.400, -0.22, mat, 0.58, 0.72, 0.92);
-                else if (!whale) sp(0.09, s * 0.105, 0.395, ptero ? -0.185 : -0.235, mat, 0.55, 0.62, 0.85);   // 벌 융기는 z −0.24 로 물린 막을 따라 −0.235(익룡 막은 손가락뼈가 팔이라 −0.185 유지)
+                // 🚨 융기 확대 (mount-riverbond-remake, 비평가 4인 공통 '날개가 얇은 몸에서 떨어져
+                //    떠 있다'). 옛 융기는 반경 0.09·x반폭 0.05 짜리 작은 구라 몸→날개 틈을 겨우 스쳤다 —
+                //    비평가 눈엔 여전히 '틈'이었다. 몸통 어깨에서 날개 밑동까지 **굵은 근육 쐐기**로 키워
+                //    (x 0.05→0.09·y 0.065→0.10) 날개가 '두툼한 어깨에서 자란' 것으로 읽히게 한다.
+                //    z 는 여전히 안장 뒤(dragon −0.22·벌 −0.235·익룡 −0.185)라 라이더 시선 밖 — 아래
+                //    probe-ride-clear 3비행종 재검으로 근/원 다리 무가림 확인함.
+                if (dragon) sp(0.11, s * 0.12, 0.405, -0.22, mat, 0.82, 0.92, 1.02);
+                else if (!whale) sp(0.11, s * 0.125, 0.400, ptero ? -0.185 : -0.235, mat, 0.78, 0.82, 0.92);   // 벌 융기는 z −0.24 로 물린 막을 따라 −0.235(익룡 막은 손가락뼈가 팔이라 −0.185 유지)
                 // ── 앞전 팔뼈(leading-edge spar) — 날개를 '몸에 붙은 것'으로 (mount-riverbond-remake) ──
                 // 🚨 사용자 스펙 "팔·다리·몸통 반드시 붙어있게(떨어진 파츠 금지)". 드래곤·벌 날개는 y0.46
                 //    (안장 위)에 뜬 얇은 널빤지라 어깨 융기 하나로는 '떨어진 조각'으로 읽혔다(채점 잔여
@@ -13764,8 +13770,12 @@ const Scene3D = {
         'Pony': 0xd4a24a, 'Donkey': 0x8c8a86, 'Alpaca': 0xeaddc0, 'Sheep': 0xdccdb0,
         'Turtle': 0x5a9e3f, 'Crab': 0xd6472e, 'Dino': 0x6d8f3e, 'Boar': 0x6b5642,
         'Pig': 0xe6a0a4, 'Goat': 0xe3dccb, 'Camel': 0xcf9646, 'Elk': 0x8f4f2c,
-        'Armored Rhino': 0x8f9095, 'Giant Bee': 0xe4bb3c, 'Mini Dragon': 0xc23a2e,
-        'Star Whale': 0x3f7fd0, 'Pterosaur': 0x9e7a4a,
+        // 🚨 비행 3종 채도·명도 상향 (mount-riverbond-remake, 비평가 4인 공통 'washed-out/muddy,
+        //    vivid 목표 미달' — 지상동물은 이미 통과, 비행종만 칙칙했다). 벌은 노랑을 쨍하게 올려야
+        //    어두운 배마디(BEE_D)가 '줄무늬'로 대비되고(비평가 'no bee striping'), 드래곤은 진홍으로,
+        //    익룡은 물빠진 탄→쨍한 골드로. 몸색만 — 지오메트리 불변(vivid() 가 s>0.12 에 +채도 더 얹는다).
+        'Armored Rhino': 0x8f9095, 'Giant Bee': 0xf6c81c, 'Mini Dragon': 0xda3826,
+        'Star Whale': 0x3f7fd0, 'Pterosaur': 0xba8636,
         // 기계·탈것 — 장치 색(무채 초록 팬케이크 방지, 비평가 지적)
         'Clockwork Mouse': 0xc08a3e, 'Clockwork Beetle': 0x4f9d6a,
         'Bike': 0xc0392b, 'One-Wheel Droid': 0xd7dde1, 'Mech Spider': 0x6a7078,
