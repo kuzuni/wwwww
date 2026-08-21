@@ -10406,6 +10406,15 @@ const Scene3D = {
         //    웜종 몸색을 바꿔도 액센트가 자동으로 따라온다. 밝기를 크게 올려(+dl) 몸통 위 '더 밝은
         //    복슬 덩어리'로 톤 대비를 유지하고, 채도만 살짝 낮춰(-0.04) 부드러운 털 느낌.
         const furTint = (dl) => M(new THREE.Color(c).offsetHSL(0, -0.04, dl));
+        // 🔩 기계 금속 틴트 — 몸 candy 색에서 파생한 '칠한 금속'(mount-machine-metal-tint).
+        //    두발로봇 관절(JOINT 0x474c52)·기계거미 다리/터릿(IRON·MECH_DARK)이 무채 battleship-gray
+        //    라 프레시 비평가 2인이 #22 거미·#27 두발로봇을 "dead gray, candy 아님"으로 최악권 감점.
+        //    (기계 파츠라 등급색은 벗기되 회색은 '미완성 clay'로 읽혀 감점 — 비평가는 사실감보다
+        //    candy 를 명시). 몸색 hue 를 유지하고 채도를 살짝 얹어(+0.06) 명도만 내리면 '무채 회색'이
+        //    아니라 '몸색으로 칠한 어두운 금속'이라 로봇·거미가 한 candy 덩어리로 뭉친다. furTint 와
+        //    같은 파생 방식이라 몸색이 바뀌면 금속도 자동 정합. IRON 상수(안장 등자·재갈 공용 하드웨어)는
+        //    안 건드린다 — 유기 동물 마구까지 물들면 안 되므로 **기계 종 로컬**로만 교체한다.
+        const metalTint = (dl) => M(new THREE.Color(c).offsetHSL(0, 0.06, dl));
         const blk = new THREE.MeshBasicMaterial({ color: 0x263238 });
         // 🧊 voxel 전환 (2026-08-20, mount-species-recognizable / voxel-consistency-audit)
         //    곡면 프리미티브 헬퍼(sp/cn/cy/to/tube)를 큐브 적층으로 바꾼다. 15종이 이 헬퍼들을
@@ -11785,7 +11794,7 @@ const Scene3D = {
             // ⑶ 어깨·팔 ⑷ 발광 바이저 ⑸ 등 스러스터. 색은 등급 틴트가 전신을 덮으니 **실루엣으로만** 푼다.
             // ⚠️ 기계 정체성이 뚜렷한 파츠는 등급색을 벗긴다(위 RUBBER/IRON/HOOF 규약) — 관절·발바닥·
             //    유압대를 등급색으로 두면 '초록 인형'이 되고 금속으로 안 읽힌다.
-            const JOINT = M(0x474c52), PANEL = M(0x1c2733);
+            const JOINT = metalTint(-0.22), PANEL = M(0x1c2733);   // 관절·발·손·축 = 몸 candy 색 어두운 금속(종전 무채 0x474c52 = battleship-gray 감점)
             const HIP_Y = 0.40;
             // ── ⑵ 다리 2개 ─────────────────────────────────────────────────────────
             // 🚨 다리 메시를 그대로 돌리면 원통이 제 중심으로 돌아 **윗동강이 섀시를 뚫는다** —
@@ -11910,7 +11919,8 @@ const Scene3D = {
             // 실루엣이 '말인데 다리가 여덟'이라 거미로도 기계로도 안 읽힌다. 몸통을 각진 섀시로,
             // 머리를 센서 터릿으로, 말 다리 4개도 같은 관절 다리로 바꿔 **여덟 다리를 한 종류**로 만든다.
             const MECH = name === 'Mech Spider';
-            const MECH_DARK = M(0x474c52);      // 기계 파츠는 등급색을 벗긴다(위 RUBBER/HOOF 규약)
+            const MECH_DARK = metalTint(-0.22);  // 기계 다리 아랫마디 = 몸 candy 색 어두운 금속(종전 무채 0x474c52 = battleship-gray 감점)
+            const MECH_METAL = metalTint(-0.06); // 기계 다리 윗마디·터릿 = 몸 candy 색 밝은 금속(종전 무채 IRON — 위>아래 명도 대비 유지하며 candy 화)
             // 🚨 **흑표범은 이름이 곧 색이다.** 예전엔 검은 몸통 구(0x1c1c22)를 **배럴 안쪽**(반폭 0.168 <
             //    배럴 0.180)에 넣어 둬서 화면에 단 한 픽셀도 안 나왔다 — 판독 시트에서 갈색말과 완전히
             //    같은 초록 배럴이다. 덧파츠가 아니라 **몸 재질 자체**를 내려야 한다.
@@ -12630,7 +12640,7 @@ const Scene3D = {
                 //    ⚠️ 다리가 x±0.34~0.40 밖으로 뻗어 라이더 straddle(x±0.18)에서 멀다 —
                 //    `probe-ride-clear` 근쪽 다리 노출이 굵히기 전에도 0% 여유였다(A/B 로 확인).
                 for (const s of [-1, 1]) for (const z of [0.16, -0.16]) {
-                    const up = tube([s * 0.14, 0.26, z], [s * 0.34, 0.40, z], 0.046, IRON);
+                    const up = tube([s * 0.14, 0.26, z], [s * 0.34, 0.40, z], 0.046, MECH_METAL);
                     tube([s * 0.34, 0.40, z], [s * 0.40, 0.02, z], 0.038, MECH_DARK);
                     up.userData.mechLeg = true;
                 }
@@ -12648,7 +12658,7 @@ const Scene3D = {
             if (!CRAB) {
                 if (MECH) {
                     // 센서 터릿 — 주둥이 달린 구를 그대로 두면 '말 머리 단 로봇'이다.
-                    HEADPART(bx(0.19, 0.13, 0.20, 0, headY + 0.02, headZ - 0.02, IRON));
+                    HEADPART(bx(0.19, 0.13, 0.20, 0, headY + 0.02, headZ - 0.02, MECH_METAL));   // 센서 터릿 = 몸 candy 금속(종전 무채 IRON)
                     HEADPART(bx(0.15, 0.05, 0.03, 0, headY + 0.035, headZ + 0.085, M(0xff5252, { emissive: 0xd50000, emissiveIntensity: 0.8 }))); // 바이저
                     for (const s of [-1, 1]) HEADPART(tube([s * 0.06, headY + 0.085, headZ - 0.02], [s * 0.10, headY + 0.175, headZ - 0.06], 0.010, IRON)); // 안테나
                 } else HEADPART(sp(0.13, 0, headY, headZ, headMat, hs[0], hs[1], hs[2])); // 머리
@@ -12782,11 +12792,11 @@ const Scene3D = {
                 //    거북은 굵은 기둥 + 넓은 발톱판이라 같은 길이에서도 '뭉툭한 다리'로 읽힌다.
                 if (MECH) {
                     // 관절 다리 — 몸통 옆으로 뻗었다가 무릎에서 꺾여 내려간다(기존 기계 다리 4개와 같은 문법).
-                    const up = tube([0, 0, 0], [sx * 0.20, 0.14, 0], 0.046, IRON);   // 굵히기(mount-spider-leg-thicken) — 위 4다리와 같은 값
+                    const up = tube([0, 0, 0], [sx * 0.20, 0.14, 0], 0.046, MECH_METAL);   // 굵히기(mount-spider-leg-thicken) — 위 4다리와 같은 값 · candy 금속(mount-machine-metal-tint)
                     // ⚠️ 아랫다리에 `dark`(등급색 −0.18)를 쓰면 **초록 파이프**다 — 기계 다리는 금속색으로.
                     //    (기존 기계 다리 4개도 같은 실수를 하고 있어 아래에서 같이 고쳤다.)
                     const dn = tube([sx * 0.20, 0.14, 0], [sx * 0.26, -HIP_Y, 0], 0.038, MECH_DARK);
-                    const ft = new THREE.Mesh(vgCone(0.026, 0.06), IRON);
+                    const ft = new THREE.Mesh(vgCone(0.026, 0.06), MECH_METAL);
                     ft.position.set(sx * 0.26, 0.03 - HIP_Y, 0); ft.rotation.x = Math.PI;
                     pivot.add(up, dn, ft);
                     pivot.userData.gait = sx * sz;
