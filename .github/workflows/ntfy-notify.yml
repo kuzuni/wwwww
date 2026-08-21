@@ -1,0 +1,86 @@
+# ============================================================================
+# ntfy 알림 — 작업이 실제로 사이트에 반영된 순간을 폰으로 알린다.
+# ----------------------------------------------------------------------------
+# 왜 GitHub Actions 인가 (2026-08-21):
+#   클라우드 세션(claude.ai/code)에서 도는 Claude 컨테이너는 **egress 프록시가
+#   `ntfy.sh:443` 을 403 으로 막는다**(실측: gateway answered 403 to CONNECT).
+#   그래서 세션 안에서 훅으로 ntfy 를 쏘는 방법은 성립하지 않는다. 반면 여기서
+#   나가는 요청은 GitHub 러너에서 출발하므로 그 제약을 안 받는다.
+#   덤으로 판정 시점이 더 정확하다 — '푸시했다'가 아니라 **'Pages 빌드가 끝나
+#   사이트에 실제로 떴다'** 를 알린다(사용자가 매번 확인하던 바로 그 시점).
+#
+# 설정 (한 번만):
+#   저장소 → Settings → Secrets and variables → Actions → New repository secret
+#     · NTFY_TOPIC   (필수) 구독 중인 토픽 이름.  예: my-claude-alerts
+#     · NTFY_SERVER  (선택) 자체 호스팅 주소. 없으면 https://ntfy.sh
+#     · NTFY_TOKEN   (선택) 인증 토큰(보호된 토픽일 때만)
+#   ⚠️ 토픽 이름은 곧 발행·구독 권한이다. 공개 저장소면 반드시 Secret 으로 둘 것
+#      (이 파일에 직접 적지 말 것 — 그래서 여기엔 이름이 없다).
+#
+# 수동 시험: Actions 탭 → 이 워크플로 → Run workflow (secret 만 넣으면 바로 확인 가능)
+# ============================================================================
+name: ntfy notify
+
+on:
+  page_build:            # Pages 빌드가 끝날 때(성공·실패 모두) 발화
+  workflow_dispatch:     # 손으로 시험 발사
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 알림 내용 만들기
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          STATUS: ${{ github.event.build.status }}
+          SHA: ${{ github.event.build.commit }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "title=ntfy 시험 발사" >> "$GITHUB_OUTPUT"
+            echo "body=수동 실행 — 이 알림이 보이면 배선 완료다." >> "$GITHUB_OUTPUT"
+            echo "tags=white_check_mark" >> "$GITHUB_OUTPUT"
+            echo "prio=default" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # 커밋 제목(첫 줄)만 가져온다 — 본문까지 넣으면 알림이 잘려서 못 읽는다.
+          SUBJECT=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}" --jq '.commit.message' 2>/dev/null | head -1 || echo "$SHA")
+          SHORT=$(echo "$SHA" | cut -c1-7)
+          if [ "$STATUS" = "built" ]; then
+            echo "title=배포 완료 · $SHORT" >> "$GITHUB_OUTPUT"
+            echo "tags=rocket" >> "$GITHUB_OUTPUT"
+            echo "prio=default" >> "$GITHUB_OUTPUT"
+          else
+            echo "title=배포 실패 · $SHORT ($STATUS)" >> "$GITHUB_OUTPUT"
+            echo "tags=rotating_light" >> "$GITHUB_OUTPUT"
+            echo "prio=high" >> "$GITHUB_OUTPUT"
+          fi
+          echo "body=$SUBJECT" >> "$GITHUB_OUTPUT"
+
+      - name: ntfy 로 보내기
+        env:
+          TOPIC: ${{ secrets.NTFY_TOPIC }}
+          SERVER: ${{ secrets.NTFY_SERVER }}
+          TOKEN: ${{ secrets.NTFY_TOKEN }}
+        run: |
+          set -euo pipefail
+          # ⚠️ Secret 이 없으면 **조용히 넘어간다** — 없다고 워크플로를 빨갛게 만들면
+          #    저장소를 포크한 사람이나 설정 전 상태에서 매번 실패 알림이 쌓인다.
+          if [ -z "${TOPIC:-}" ]; then
+            echo "NTFY_TOPIC secret 이 없다 — 알림을 건너뛴다(설정은 파일 머리말 참조)."
+            exit 0
+          fi
+          BASE="${SERVER:-https://ntfy.sh}"
+          AUTH=()
+          [ -n "${TOKEN:-}" ] && AUTH=(-H "Authorization: Bearer ${TOKEN}")
+          curl -sS --fail-with-body --max-time 20 \
+            "${AUTH[@]}" \
+            -H "Title: ${{ steps.build.outputs.title }}" \
+            -H "Tags: ${{ steps.build.outputs.tags }}" \
+            -H "Priority: ${{ steps.build.outputs.prio }}" \
+            -H "Click: https://kuzuni.github.io/wwwww/web/" \
+            -d "${{ steps.build.outputs.body }}" \
+            "${BASE}/${TOPIC}"
+          echo "보냄: ${{ steps.build.outputs.title }}"
