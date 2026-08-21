@@ -17146,13 +17146,33 @@ const Scene3D = {
         //    끌어내려 암부가 도로 뭉개진다(실측: ch22 crush 0.18% → 3.71%, ch9 0.98% → 2.33%).
         //    색상·채도만 혼합에서 취하면 리프트 세기는 종전과 같고 캐스트만 팔레트 안으로 든다.
         // 밤에는 더 눌러 '흐린 낮'처럼 뜨는 것을 막는다.
+        // 🛣️ **지면(terrainMat) 암부만 위 혼합에서 떼어 낸다** (road-shadow-teal, 사용자 지적 2026-08-21
+        //    *"밝아진 무채 노면 위 그림자가 청록 웅덩이로 뜬다"*). 도로를 무채 회석재로 올린 뒤
+        //    (road-readability) 노면 albedo 에 색이 거의 없어서, 암부에 **더해지는** 유채 리프트가
+        //    그대로 색으로 읽힌다 — ch1 실측 노면 그림자 rgb(105.8,131.4,127.5) · B−R **+21.7**
+        //    (같은 노면의 수광부는 B−R −15.1 난색이다). 잎 위에서는 알베도 자체가 초록이라 같은
+        //    틴트가 안 보이던 것이 노면에서만 드러난 것.
+        // 🚨 **후보였던 `.lerp(soilC, 0.40)` 한 줄은 오히려 더 파래진다 — 계산으로 기각했다.**
+        //    혼합의 60% 는 여전히 하늘이라 갈색 흙(89,69,42)을 섞으면 (117,151,158) 즉 **B 가 최대인
+        //    슬레이트 블루**가 된다(초록 gC 를 섞을 때보다 B−R 이 커진다). 노면도 안 고쳐지고 위
+        //    주석이 경고한 '캐노피 슬레이트'까지 같이 터진다.
+        // → 그래서 **혼합을 고치지 않고 지면만 분리**한다. 잎·줄기·돌·덤불은 위 혼합 그대로 —
+        //   40% 혼합의 존재 이유(캐노피 청록 방지)를 한 화소도 건드리지 않는다(실측으로 동일 확인).
+        //   지면 틴트는 하늘을 버리고 **흙색(soilC) 색상만** 쓴다: 챕터 팔레트 안에 머물되(규약)
+        //   채도를 반으로 눌러 상한 0.12 → '중성 회색~약한 난색 암부'. 설원·빙하처럼 지면이 한색인
+        //   챕터는 자연히 옅은 한색 암부로 남는다(눈 그늘이 난색이면 그게 오히려 오독이다).
+        //   🚨 명도는 **위와 같은 식**(하늘 L − 0.38/0.46)을 그대로 쓴다 — 리프트 세기를 건드리면
+        //      위 🚨 의 crush 게이트가 그대로 움직인다.
         {
             const skyHSL = new THREE.Color(t.sky).getHSL({ h: 0, s: 0, l: 0 });
             const mixHSL = new THREE.Color(t.sky).lerp(gC, 0.40).getHSL({ h: 0, s: 0, l: 0 });
-            const st = new THREE.Color().setHSL(mixHSL.h, U.clamp(mixHSL.s + 0.10, 0, 1),
-                Math.max(0, skyHSL.l + (night ? -0.46 : -0.38)));
+            const lift = Math.max(0, skyHSL.l + (night ? -0.46 : -0.38));
+            const st = new THREE.Color().setHSL(mixHSL.h, U.clamp(mixHSL.s + 0.10, 0, 1), lift);
+            const soHSL = soilC.getHSL({ h: 0, s: 0, l: 0 });
+            const stG = new THREE.Color().setHSL(soHSL.h, Math.min(soHSL.s * 0.5, 0.12), lift);
+            const gu = this.terrainMat.userData.__shadeU;   // applyShadeLift 가 재질에 물려 둔 유니폼
             for (const u of this._shadeUniforms) {
-                u.uShadeTint.value.copy(st);
+                u.uShadeTint.value.copy(u === gu ? stG : st);
                 u.uShadeStr.value = this.SHADE.strength * (night ? 0.7 : 1);
             }
         }
