@@ -9851,6 +9851,21 @@ const Scene3D = {
     //    "설정한 상수대로 적용됨"만 확인해 통과로 읽혔지만, 화면에서는 정강이가 거의 수직으로 떨어져
     //    **'탄 게 아니라 뒤에 서 있는' 실루엣**이었다(비평가 1순위 지적 ⓐ). 다리가 몸통을 감싸려면
     //    고관절 굴곡 40~50°(0.70~0.87)·외전 28~35°(0.49~0.61)에 **무릎을 그 2배로 접어야** 한다.
+    // 🧍 **탑승 자세 = 서 있기** (사용자 지시 2026-08-21: *"플레이어가 탈것 탈 때 모션이 개같음.
+    //    걍 서 있는 느낌으로 해줬으면 함, 탈것 위에"*).
+    // 종전엔 계열마다 다리를 벌려 몸통을 감싸는 승마 포즈를 썼는데, 영웅이 치비 비례(머리 큰
+    // 2.2 유닛)라 다리를 접어 감싸면 무릎이 배럴 밖으로 튀고 발이 허공에서 흔들려 '올라탄'
+    // 게 아니라 '매달린' 것으로 읽혔다. 호버보드(평판형)만 원래 두 발로 서 있었고 그게
+    // 유일하게 멀쩡했다 — 그 자세를 **전 계열 공통**으로 올린다.
+    // ⚠️ 몸집 계산(rideScale)은 **건드리지 않는다** — 그건 안장 높이로 탈것 크기를 정하는
+    //    별개 계약이고, 여기서 바꾸면 종별 크기가 통째로 흔들린다. 바뀌는 건 **영웅의 y(발이
+    //    안장 윗면에 선다)와 하체 포즈**뿐이다.
+    // 스탠스: 어깨너비로 벌리고 무릎만 살짝 굽혀 흔들림을 받는다(차렷은 판때기 위 마네킹이 된다).
+    RIDE_STAND_BULK: 1.45,   // 서 있는 탑승에서 탈것을 키우는 배수(위 사유 참조)
+    RIDE_STAND_POSE: {
+        hipL: { rx: 0.04, rz: -0.10 }, hipR: { rx: 0.04, rz: 0.10 },
+        kneeL: { rx: -0.16 }, kneeR: { rx: -0.16 }, spine: { rx: 0.04 },
+    },
     MOUNT_FORMS: {
         // 평판형: 발판 위에 '두 발로 선다' — 앉는 게 아니라 서는 유일한 계열
         // saddle = 발판 윗면의 로컬 높이(= 지오메트리에서 뽑은 값 0.05 + 0.34*0.42). 판 두께를 바꾸면 여기도 같이 본다.
@@ -10217,9 +10232,13 @@ const Scene3D = {
             if (this.petGroups.length) this.refreshPets();   // 펫 자리는 탈것 유무에 따라 달라진다
             return;
         }
+        // 🧍 서 있는 탑승(위 `RIDE_STAND_POSE` 참조) — 평판형은 원래 서 있으므로 그대로 둔다.
+        const standing = !this.mountFormOf(name).stand;
         // ⚠️ 안장 정합(heroSeatDropY)을 계산하기 **전에** 갈라야 한다 — 낙차를 스커트 지오메트리에서
         //    실측하기 때문에 순서가 뒤바뀌면 통짜 기준 낙차로 안장을 맞추게 된다.
-        this.rideSkirt(true);
+        //    ⚠️ **서 있을 땐 가르지 않는다** — 스커트를 옆으로 여는 건 다리로 배럴을 감쌀 때 쓰는
+        //       것이고, 두 발로 선 실루엣에서는 옆구리가 열린 채 펄럭이는 결함으로 보인다.
+        this.rideSkirt(!standing);
         const g = new THREE.Group();
         const mesh = this.makeMountMesh(name, m.rarity);
         this.applyAscendDecor(mesh, m.stars, 'mount'); // 승천 데코 — 스케일 전 (ascend-design-tiers)
@@ -10273,6 +10292,16 @@ const Scene3D = {
         // 드래곤이 종잇장이 된다.
         // ⚠️ 좁히는 것은 **가로(x)뿐**이다. z 까지 같이 줄이면 몸통이 짧아져 말이 뭉툭해지고, 자전거는
         //    휠베이스가 줄어 세발자전거 비례가 된다. 다리를 막는 것은 폭이지 길이가 아니다.
+        // 🧍 서 있기: 골반이 아니라 **발**이 안장 윗면에 온다. 몸집(rideScale)은 위에서 정한 그대로
+        //    두고 영웅만 그 위에 세운다 — 크기 계약을 안 흔들면서 자세만 바꾸는 유일한 자리다.
+        if (standing) {
+            // 🐎 서면 **몸집 제약이 풀린다** — 안장에 골반을 맞출 필요가 없으니(발만 얹으면 된다)
+            //    탈것을 종전보다 키워도 정합이 안 깨진다. 종전 배율은 '골반 높이 = 안장'을 풀어
+            //    나온 값이라 탈것이 영웅 무릎 높이에 머물렀다(사용자가 본 '작은 탈것'의 정체).
+            rideScale *= this.RIDE_STAND_BULK;
+            heroY = (form.hover + form.saddle) * sc * rideScale;
+            rideWide = 0;   // 배럴 좁히기는 다리로 감쌀 때만 필요하다 — 서면 종 실루엣을 지키는 게 낫다
+        }
         const wide = rideWide || rideScale;
         mesh.scale.set(sc * wide, sc * rideScale, sc * rideScale);
         g.userData.stirrups = mesh.userData.stirrups || null;   // 등자는 메시 안에 달렸다 — 그룹에서도 찾게 올려 둔다
@@ -10319,9 +10348,18 @@ const Scene3D = {
         this.scene.add(g);
         this.mountGroup = g;
         // 탑승 상태: 영웅을 안장 높이로 올리고 하체를 탑승 포즈로 고정
-        this.riding = { name, form, scale: sc * rideScale };
+        this.riding = { name, form, scale: sc * rideScale, standing };
         this.rideY = heroY;
-        this.ridePose = form.pose;
+        this.ridePose = standing ? this.RIDE_STAND_POSE : form.pose;
+        // 🧍 서 있으면 **발이 등자에 없고 손이 고삐를 안 잡는다** — 매 프레임 정렬기가 등자를 발로,
+        //    고삐를 손으로 끌고 가면 안장 위에 선 영웅의 발목에 쇠고리가 매달리고 끈이 허리를 가로지른다.
+        //    파츠는 마구로서 그대로 두되(안장에 달린 장식이다) **정렬 대상에서만 뺀다**.
+        if (standing) {
+            if (g.userData.stirrups) { for (const st of g.userData.stirrups) st.visible = false; }
+            g.userData.stirrups = null;
+            g.userData.rein = null;
+            g.userData.bar = null;
+        }
         // 공격 중에는 update의 영웅 y 갱신이 통째로 막혀 있어(공격 클립이 y를 소유) 이전 탈것 높이가
         // 공격이 끝날 때까지 남는다 — 비행형에서 지상형으로 갈아타면 한동안 공중에 뜬 채다. 즉시 스냅.
         if (this.heroG) this.heroG.position.y = heroY;
