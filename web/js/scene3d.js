@@ -8847,10 +8847,74 @@ const Scene3D = {
             this._creatureR.render(sc, cam);
             for (const o of hidden) o.visible = true;
             for (const o of shown) o.visible = false;
-            const url = this._creatureR.domElement.toDataURL();
+            // 🍬 탈것 전용 candy 채도 회복 (mount-thumb-sat-post) — 렌더 **뒤** 픽셀에 직접 건다.
+            //    세션6~ 이 측정(measure-mount-sat)으로 확정한 벽 = ACES 톤맵이 밝은 웜 넓은 면의 채도를
+            //    렌더 시점에 뭉갠다(조명·톤맵·AO 변형 전부 실측 반증). 그 세션들이 안 본 자(尺) =
+            //    **출력 픽셀 후처리**. 렌더러를 못 바꿔도 이미 desaturate 된 결과 픽셀의 S 를 되올리면
+            //    벌·덤프처럼 정체성상 노랑이라 냉색 재배정도 못 하던 웜종까지 한 번에 candy 로 선다.
+            //    S 만 올리고 L 은 안 건드려 세션3 '흰끼(→cream) 천장'을 원천 회피, `(1-S)` 가중이라
+            //    이미 candy 인 냉색은 거의 안 움직이고(과포화/네온 방지) 흙빛 저채도만 크게 오른다.
+            //    펫은 게이트 통과(7·7)라 안 건드림 — 탈것만. 인게임 모델 경로(update→mountGroup)는
+            //    이 후처리를 안 타므로 실물 색·ride-clear 무영향(썸네일 전용, hideInThumb 과 동형).
+            const url = kind === 'mount' && !this._candyLiftOff
+                ? this.candyLiftURL(this._creatureR.domElement) : this._creatureR.domElement.toDataURL();
             this._thumbCache[key] = url;
             return url;
         } catch (e) { return null; }
+    },
+
+    // 🍬 렌더된 생물 캔버스의 불투명 픽셀 채도를 되올려 data URL 로 굽는다 (mount-thumb-sat-post).
+    //    creatureThumb(탈것) 과 shot-mount-species(채점 시트) 가 **같은 로직**을 쓰도록 공용화 —
+    //    채점 시트가 게임 슬롯 썸네일의 충실한 대리여야 점수가 실제 제품과 맞는다(hideInThumb 규약).
+    //    ⚠️ **S 만 올린다(H·L 불변)** — L 을 건드리면 세션3 이 못박은 '밝은 웜은 cream 으로 씻김' 천장에
+    //       다시 걸린다. `LIFT*(1-S)` 는 저채도(흙빛)를 크게·고채도(냉색 candy)를 거의 안 올려 과포화를 막는다.
+    //    투명 배경(alpha≈0)·무채 픽셀(S≤GRAY: 검은 눈·흰 이·건메탈 등자)은 건너뛴다(회색이 색으로 물드는 사고 방지).
+    candyLiftURL(srcCanvas) {
+        const w = srcCanvas.width, h = srcCanvas.height;
+        let cv = this._candyCanvas;
+        if (!cv || cv.width !== w || cv.height !== h) {
+            cv = this._candyCanvas = document.createElement('canvas'); cv.width = w; cv.height = h;
+            this._candyCtx = cv.getContext('2d');
+        }
+        const ctx = this._candyCtx;
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(srcCanvas, 0, 0);
+        const img = ctx.getImageData(0, 0, w, h), d = img.data;
+        // LIFT = 저채도 최대 증폭, ROLL = 고채도 감쇠 지수(클수록 이미 candy 인 픽셀을 덜 건드림 →
+        //   과포화/네온·posterize 방지). CAP = 절대 상한. 실측 튜닝(measure-candy-lift.js A/B):
+        //   흙빛 웜(Bee/Dump/Donkey/Rhino 0.30~0.42)은 +0.13~0.16 으로 candy 대(0.45~0.57)에 올리되,
+        //   이미 채도 높은 종(Camel/Turtle)은 clip>0.9 를 30%/21% → 한 자리수로 눌러 neon 을 막는다.
+        const LIFT = 0.34, GRAY = 0.06, CAP = 0.90, ROLL = 1.9;
+        for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] < 24) continue;                        // 투명 배경 건너뜀
+            let r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
+            const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, dl = mx - mn;
+            if (dl < 1e-4) continue;                             // 순회색 = 무채
+            let s = l > 0.5 ? dl / (2 - mx - mn) : dl / (mx + mn);
+            if (s <= GRAY) continue;                            // 눈·이·금속 등 무채 계열 보존
+            const ns = Math.min(CAP, s + LIFT * Math.pow(1 - s, ROLL));
+            if (ns <= s) continue;
+            // HSL 재구성(H·L 불변, S 만 ns) — hue 는 원본 RGB 에서 유도.
+            let hh;
+            if (mx === mn) hh = 0;
+            else if (mx === r) hh = ((g - b) / dl) % 6;
+            else if (mx === g) hh = (b - r) / dl + 2;
+            else hh = (r - g) / dl + 4;
+            hh /= 6; if (hh < 0) hh += 1;
+            const q = l < 0.5 ? l * (1 + ns) : l + ns - l * ns, p = 2 * l - q;
+            const hue2rgb = (t) => {
+                if (t < 0) t += 1; if (t > 1) t -= 1;
+                if (t < 1 / 6) return p + (q - p) * 6 * t;
+                if (t < 1 / 2) return q;
+                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                return p;
+            };
+            d[i] = Math.round(hue2rgb(hh + 1 / 3) * 255);
+            d[i + 1] = Math.round(hue2rgb(hh) * 255);
+            d[i + 2] = Math.round(hue2rgb(hh - 1 / 3) * 255);
+        }
+        ctx.putImageData(img, 0, 0);
+        return cv.toDataURL();
     },
 
     // 펫 몸체 — 종별 **관절 리그**로 짓는다 (2026-08-19 `pet-articulated-joints`, 사용자 지시 "펫들도 관절 다 움직이게").

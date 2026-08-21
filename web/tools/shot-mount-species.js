@@ -55,7 +55,9 @@ const ARG = RAW.filter(a => a !== '--blind');
             g.traverse(o => { if (o.userData && o.userData.showInThumb) o.visible = true; });
             Scene3D.thumbFrameToFit(Scene3D._creatureCam, g, new THREE.Vector3(0, 3.7 - 0.9, 8.2).normalize(), 1.04);
             Scene3D._creatureR.render(sc, Scene3D._creatureCam);
-            return Scene3D._creatureR.domElement.toDataURL();
+            // 게임 슬롯 썸네일(creatureThumb, 탈것)과 동일한 candy 채도 후처리(mount-thumb-sat-post)를 태운다 —
+            //    이 시트가 실제 제품 썸네일의 충실한 대리여야 채점이 유효하다(hideInThumb/showInThumb 규약과 동형).
+            return Scene3D.candyLiftURL(Scene3D._creatureR.domElement);
         };
         const cells = names.map((nm, idx) => {
             const a = shot(nm, 0.55), b = shot(nm, Math.PI / 2);
