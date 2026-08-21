@@ -2642,6 +2642,32 @@ IconGen._genderSym = function (ctx, S, female) {
             shaft(.155, .22, .64, .12, .135, .21);
             shaft(.845, .22, .64, .12, .135, .21);
         },
+        shuriken(ctx, S) {                               // 표창 난무 — 사수리켄 4날 별 (fx shurikenrun)
+            // 왼쪽에서 날아오는 표창. 아이콘은 정면 4날 별로 못 박는다(회전은 늘 돌므로 정지 프레임 상징).
+            const cx = .5, cy = .5;
+            const blade = [[.5, .04], [.61, .40], [.5, .32], [.39, .40]];   // 위를 향한 한 날(팁·우·안·좌)
+            for (let r = 0; r < 4; r++) {
+                const ang = r * Math.PI / 2, cA = Math.cos(ang), sA = Math.sin(ang);
+                blade.forEach((p, i) => {
+                    const dx = p[0] - cx, dy = p[1] - cy;
+                    const px = cx + dx * cA - dy * sA, py = cy + dx * sA + dy * cA;
+                    if (i === 0) ctx.moveTo(x(px, S), y(py, S)); else ctx.lineTo(x(px, S), y(py, S));
+                });
+                ctx.closePath();
+            }
+        },
+        worm(ctx, S) {                                   // 땅벌레 — 마디 4단 애벌레 (fx burrowworm)
+            // 적 발밑에서 솟는 지렁이 괴물. 아이콘은 아래(꼬리)→위(머리)로 굵어지는 마디 4단으로.
+            const seg = (cf, rf) => {
+                const r = rf * S;
+                ctx.moveTo(x(cf[0], S) + r, y(cf[1], S));
+                ctx.arc(x(cf[0], S), y(cf[1], S), r, 0, Math.PI * 2);
+            };
+            seg([.30, .80], .13);   // 꼬리
+            seg([.42, .62], .16);
+            seg([.56, .44], .19);
+            seg([.70, .26], .22);   // 머리(가장 큼)
+        },
         maw(ctx, S) {                                    // 용의 아가리 — 벌어진 턱 (fx dragonMaw)
             /* 연출은 발밑에서 **거대 아가리가 솟아 덥석 문다**.
                🚨 종전 판은 위·아래 턱의 **바깥 변이 곧은 가로선**이라 전체 실루엣이 사각 블록이 됐고,
@@ -2773,7 +2799,9 @@ IconGen._genderSym = function (ctx, S, female) {
     //    5자리를 fx 기준으로 교체: powerStrike sword→slashx(참격 세례) · pierceShot arrow→arrows(화살 세례)
     //    · dragonBreath flame3→maw(지중 아가리) · execution axe→cleaver(처형 칼날) · apocalypse meteor→dragon(화염룡).
     const SK = {
-        powerStrike: ['slashx'], whirlwind: ['whirl'], firstAid: ['cross'],
+        // 🆕 커먼 3종 재설계 (skill-object-protagonist, 2026-08-22): 표창·화살·지렁이로 fx 교체 →
+        //    아이콘도 연출과 맞춘다(옛 slashx·whirl·cross 는 검사로봇·회오리·붕대 시절 그림).
+        powerStrike: ['shuriken'], whirlwind: ['arrows'], firstAid: ['worm'],
         fireball: ['flame'], pierceShot: ['arrows'], warCry: ['horn'],
         meteor: ['meteor'], lightning: ['bolt', 0, 0.15], blessing: ['sparkle', 0, 0.16],
         // sanctuary/divineShield: 2026-08-20 UI 스트림. 종전 `sanctuary:shield` · `divineShield:halo` 는
@@ -2797,7 +2825,7 @@ IconGen._genderSym = function (ctx, S, female) {
         apocalypse: ['dragon', 0, 0.16], godspear: ['spear', -Math.PI * 0.17, 0.16], divineShield: ['shield', 0, 0.15],
     };
     // 색은 그리는 시점에 SKILL_DEFS 에서 조회한다(스크립트 로드 순서 무관하게 지연 조회).
-    const FALLBACK = { powerStrike: '#cfd8dc', whirlwind: '#b0bec5', firstAid: '#a5d6a7', fireball: '#ff8a65', pierceShot: '#81d4fa', warCry: '#ffcc80', meteor: '#ff7043', lightning: '#fff176', blessing: '#80cbc4', dragonBreath: '#ba68c8', execution: '#e57373', sanctuary: '#ce93d8', supernova: '#ffb74d', voidLance: '#9575cd', timeWarp: '#4dd0e1', apocalypse: '#ef5350', godspear: '#ffd54f', divineShield: '#fff59d' };
+    const FALLBACK = { powerStrike: '#cfd8dc', whirlwind: '#b0bec5', firstAid: '#8d6e63', fireball: '#ff8a65', pierceShot: '#81d4fa', warCry: '#ffcc80', meteor: '#ff7043', lightning: '#fff176', blessing: '#80cbc4', dragonBreath: '#ba68c8', execution: '#e57373', sanctuary: '#ce93d8', supernova: '#ffb74d', voidLance: '#9575cd', timeWarp: '#4dd0e1', apocalypse: '#ef5350', godspear: '#ffd54f', divineShield: '#fff59d' };
 
     Object.keys(SK).forEach((id) => {
         const [motif, rot, glow] = SK[id];

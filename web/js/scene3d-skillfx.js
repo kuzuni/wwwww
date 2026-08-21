@@ -279,6 +279,101 @@
         }
     },
 
+    // ══════════════════════════════════════════════════════════════════════════════
+    // 🆕 커먼 3종 — "오브젝트가 주인공" (skill-object-protagonist, 사용자 지시 2026-08-22)
+    // ------------------------------------------------------------------------------
+    // 사용자 원문: *"오브젝트가 주인공이어야 함. 표창이 왼쪽 화면에서 여러 개 날아가서 적 쪽으로
+    //   맞춘다든지 … 화살이 왼쪽 화면에서 여러 개 날아가서 … 그리고 적 발밑에서 지렁이 괴물 나와서
+    //   적 공격하는 느낌."*
+    //
+    // 핵심 = **오브젝트 자체가 화면을 가로지른다.** 소환체(로봇·궁수)가 걸어나와 대신 때리는 게
+    // 아니라, 표창·화살이 **화면 왼쪽 밖에서** 진입해 오른쪽 적까지 날아가 꽂힌다. 카메라는 yaw
+    // 회전이 없어(월드 +x = 화면 오른쪽) **적보다 크게 −x 쪽**에서 출발시키면 왼쪽 프레임 밖에서
+    // 들어오는 궤적이 된다. 지렁이는 **적 좌표 그 자리**에서 지면을 뚫고 솟는다(발밑 습격).
+    // ⚠️ 타이밍 계약: 단일 피해 0.20s · 광역 0.25s. 첫 오브젝트의 착탄이 그 시각에 오도록 맞춘다.
+
+    // ── 표창 난무(shurikenrun) — 표창이 왼쪽 밖에서 다다다닥 날아와 꽂힌다 (단일) ───────
+    mcShurikenBarrage(targetIds, color, tier) {
+        const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
+        const spot0 = this.mcSpots(targetIds)[0];
+        const n = 7 + (t >= 3 ? 2 : t >= 1 ? 1 : 0);
+        SFX.slashArc(0, t);
+        for (let i = 0; i < n; i++) {
+            setTimeout(() => {
+                const tgt = this.mcSpots(targetIds)[0] || spot0;
+                // 화면 왼쪽 밖 — 적보다 5.5~7칸 왼쪽, 높이·z 를 흩어 부채꼴 진입.
+                const from = new THREE.Vector3(tgt.x - U.rand(5.5, 7), U.rand(1.3, 2.9), tgt.z + U.rand(-1.3, 1.3));
+                const a = this.fxActor('shuriken', { scale: 0.95 + t * 0.06, pos: from, yaw: 0 });
+                if (!a) return;
+                a.g.rotation.x = -0.42;                       // 살짝 눕혀야 십자 날이 보인다
+                const dest = new THREE.Vector3(tgt.x - 0.1, 0.62 + U.rand(-0.15, 0.4), tgt.z + U.rand(-0.25, 0.25));
+                this.addAnim(0.18, k => {
+                    a.g.position.lerpVectors(from, dest, k);
+                    a.g.position.y += Math.sin(k * Math.PI) * 0.22;   // 살짝 아치
+                    a.g.rotation.y += 1.7;                             // 팽팽 회전
+                }, () => { this.mcHit(dest, color, t, i === n - 1); this.fxActorFree(a); });
+            }, i * 45);
+        }
+    },
+
+    // ── 화살비(arrowrain) — 화살이 왼쪽 밖에서 여러 발 날아와 적들에게 쏟아진다 (광역) ──
+    mcArrowRain(targetIds, color, tier) {
+        const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
+        const volley = 8 + t * 2;
+        SFX.slashArc(0, t);
+        for (let i = 0; i < volley; i++) {
+            setTimeout(() => {
+                const spots = this.mcSpots(targetIds);
+                const cur = spots[i % spots.length];
+                const from = new THREE.Vector3(cur.x - U.rand(5.5, 7.5), U.rand(2.4, 3.6), cur.z + U.rand(-1.2, 1.2));
+                const to = new THREE.Vector3(cur.x + U.rand(-0.25, 0.25), 0.6 + U.rand(0, 0.5), cur.z + U.rand(-0.3, 0.3));
+                this.projectileBolt(from, to, color, t);   // 복셀 화살 조형 재사용(머리+꼬리)
+            }, 40 + i * 30);
+        }
+        setTimeout(() => this.shake(0.2 + t * 0.05), 40 + Math.min(6, volley) * 30);
+    },
+
+    // ── 땅벌레(burrowworm) — 적 발밑에서 지렁이 괴물이 솟아 덥석 문다 (단일) ────────────
+    mcBurrowWorm(targetIds, color, tier) {
+        const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
+        const spot = this.mcSpots(targetIds)[0];
+        const at = new THREE.Vector3(spot.x, 0.1, spot.z);        // 적 발밑 바로 그 자리
+        const a = this.fxActor('worm', { scale: 0.95 + t * 0.06, pos: new THREE.Vector3(at.x, -2.4, at.z) });
+        if (!a) return;
+        const head = a.P.head, jaw = a.P.jaw;
+        SFX.mawRoar(Math.max(0, t - 1));
+        // ⓐ 융기 — 지면을 뚫고 솟는다(땅속 −2.4 → 0.1). 머리를 뒤로 젖혀 덮칠 준비, 아가리 벌림.
+        this.mcDust(at, 12);
+        this.addAnim(0.12, k => {
+            const e = 1 - Math.pow(1 - k, 3);
+            a.g.position.y = -2.4 + e * 2.5;
+            if (head) head.rotation.x = -0.95 * e;
+            if (jaw) jaw.rotation.x = 0.55 * e;
+            a.g.rotation.z = Math.sin(k * Math.PI) * 0.12;         // 꿈틀
+        }, () => {
+            this.mcDust(at, 8);
+            // ⓑ 덮침 — 머리를 적에게 내리꽂고 아가리를 앙 다문다.
+            this.addAnim(0.09, k => {
+                const e = k * k;
+                if (head) head.rotation.x = -0.95 + 1.75 * e;
+                if (jaw) jaw.rotation.x = 0.55 - 1.05 * e;
+                a.g.position.y = 0.1 + 0.35 * Math.sin(k * Math.PI);
+            }, () => {
+                this.mcHit(new THREE.Vector3(at.x, 0.9, at.z), color, t, true);
+                SFX.slashArc(0, t);
+                // ⓒ 침강 — 땅속으로 다시 사라진다.
+                setTimeout(() => {
+                    const y0 = a.g.position.y;
+                    this.addAnim(0.26, k => {
+                        a.g.position.y = y0 - k * 3.0;
+                        a.g.rotation.z = Math.sin(k * Math.PI * 2) * 0.15;
+                        if (jaw) jaw.rotation.x = 0.55 * k;
+                    }, () => this.fxActorFree(a));
+                }, 110);
+            });
+        });
+    },
+
     // ── ③ 응급 처치(firstaid) — 의무 정령이 날아와 구급 상자를 붙인다 ─────────────────
     mcMedicSprite(color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));

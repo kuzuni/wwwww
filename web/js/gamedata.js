@@ -451,9 +451,14 @@ const SUBSTATS = [
 //    fx 를 갈아 놓고 이름을 안 고치면 **연출은 세례인데 이름은 한 발**(옛 '강타'·'관통 사격')이 된다.
 //    새 스킬을 넣거나 fx 를 바꿀 땐 `IconGen` 의 `SK` 모티프까지 **한 벌로** 갱신할 것.
 const SKILL_DEFS = [
-    { id: 'powerStrike', name: '연속 참격',       rarity: 'common',    type: 'single', mult: 3.0,  cd: 11, fx: 'slash',    color: '#cfd8dc' },
-    { id: 'whirlwind',   name: '회오리 베기',     rarity: 'common',    type: 'aoe',    mult: 1.6,  cd: 12, fx: 'ring',     color: '#b0bec5' },
-    { id: 'firstAid',    name: '응급 처치',       rarity: 'common',    type: 'heal',   mult: 1.8,  dur: 4,  cd: 13, fx: 'firstaid', color: '#a5d6a7' },
+    // 🆕 커먼 3종 재설계 (skill-object-protagonist, 사용자 지시 2026-08-22): 소환체가 걸어나오는 게
+    //    아니라 **오브젝트 자체가 주인공**이다 — 표창·화살이 화면 왼쪽에서 날아 들어와 적을 맞히고,
+    //    지렁이 괴물이 적 발밑에서 솟는다. 옛 연출(slash/ring/firstaid → 검사로봇·표창회오리·의무정령)은
+    //    defs 에서 떼어 놓기만 했다(코드는 _legacy 처럼 살아 있음). fx 이름이 새 안무로 라우팅된다.
+    //    ⚠️ firstAid 는 heal→single 로 바뀌었다(지렁이는 적을 문다) — 커먼 회복 슬롯이 잠시 빈다.
+    { id: 'powerStrike', name: '표창 난무',       rarity: 'common',    type: 'single', mult: 3.0,  cd: 11, fx: 'shurikenrun', color: '#cfd8dc' },
+    { id: 'whirlwind',   name: '화살비',          rarity: 'common',    type: 'aoe',    mult: 1.6,  cd: 12, fx: 'arrowrain',   color: '#b0bec5' },
+    { id: 'firstAid',    name: '땅벌레',          rarity: 'common',    type: 'single', mult: 2.6,  cd: 13, fx: 'burrowworm',  color: '#8d6e63' },
     { id: 'fireball',    name: '화염구',          rarity: 'rare',      type: 'aoe',    mult: 2.4,  cd: 12, fx: 'explode',  color: '#ff8a65' },
     { id: 'pierceShot',  name: '화살 세례',       rarity: 'rare',      type: 'single', mult: 4.5,  cd: 11, fx: 'beam',     color: '#81d4fa' },
     { id: 'warCry',      name: '전투의 함성',     rarity: 'rare',      type: 'buff',   mult: 1.5,  dur: 8,  cd: 14, fx: 'warcry', color: '#ffcc80' },
@@ -502,7 +507,7 @@ const SKILL_BASE_PASSIVE = {
 
 // 스킬/펫 아이콘 (이모지 프리뷰)
 const SKILL_ICONS = {
-    powerStrike: '⚔️', whirlwind: '🌀', firstAid: '💊',
+    powerStrike: '✴️', whirlwind: '🏹', firstAid: '🐛',
     fireball: '🔥', pierceShot: '🏹', warCry: '📣',
     meteor: '☄️', lightning: '⚡', blessing: '✨',
     dragonBreath: '🐉', execution: '🪓', sanctuary: '🛡️',

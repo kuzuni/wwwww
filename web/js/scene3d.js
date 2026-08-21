@@ -13422,7 +13422,9 @@ const Scene3D = {
         if (tier !== undefined && fx !== 'meteor') setTimeout(() => this.skillImpactWeight(fx, color, targetIds, tier),
             fx === 'dragonfire' ? this.DRAGONFIRE_IMPACT_MS : fx === 'spear' ? this.GODSPEAR_IMPACT_MS
                 : fx === 'nova' ? this.NOVA_IMPACT_MS : fx === 'guillotine' ? this.GUILLOTINE_IMPACT_MS
-                    : fx === 'voidrift' ? this.VOIDRIFT_IMPACT_MS : 30);
+                    : fx === 'voidrift' ? this.VOIDRIFT_IMPACT_MS
+                        // 🆕 커먼 3종(skill-object-protagonist) — 무게를 오브젝트 착탄 시각에 맞춘다.
+                        : fx === 'shurikenrun' ? 190 : fx === 'arrowrain' ? 250 : fx === 'burrowworm' ? 200 : 30);
         if (fx === 'dragonfire') {
             // 아포칼립스 — 거대 화염룡 강림 (skill-unique-signature). 메테오와 fx 를 공유하던
             // 사용자 지목 쌍을 완전 분리: 하늘 낙하(운석)가 아니라 **주인공 뒤에서 솟은 용이
@@ -13474,6 +13476,15 @@ const Scene3D = {
             // 처형 — 거대한 처형 칼날이 내리찍힌다 (skill-unique-signature).
             // 강타(교차 참격)와 fx 를 공유하던 것을 분리.
             this.guillotineDrop(targetIds, color, tier || 0);
+        } else if (fx === 'shurikenrun') {
+            // 🆕 표창 난무 — 표창이 화면 왼쪽 밖에서 다다다닥 날아와 꽂힌다 (skill-object-protagonist).
+            this.mcShurikenBarrage(targetIds, color, tier || 0);
+        } else if (fx === 'arrowrain') {
+            // 🆕 화살비 — 화살이 화면 왼쪽 밖에서 여러 발 쏟아진다 (skill-object-protagonist).
+            this.mcArrowRain(targetIds, color, tier || 0);
+        } else if (fx === 'burrowworm') {
+            // 🆕 땅벌레 — 적 발밑에서 지렁이 괴물이 솟아 문다 (skill-object-protagonist).
+            this.mcBurrowWorm(targetIds, color, tier || 0);
         } else if (fx === 'slash') {
             // 참격 세례 (skill-fx-exaggerated). 예전엔 **불티 22개 + 조명 한 번**이 전부라
             // 화면에 그려지는 물건이 하나도 없었다 — 18종 중 가장 빈약한 자리였다.
