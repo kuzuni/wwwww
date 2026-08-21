@@ -57,7 +57,7 @@ const ARG = RAW.filter(a => a !== '--blind');
             Scene3D._creatureR.render(sc, Scene3D._creatureCam);
             // 게임 슬롯 썸네일(creatureThumb, 탈것)과 동일한 candy 채도 후처리(mount-thumb-sat-post)를 태운다 —
             //    이 시트가 실제 제품 썸네일의 충실한 대리여야 채점이 유효하다(hideInThumb/showInThumb 규약과 동형).
-            return Scene3D.candyLiftURL(Scene3D._creatureR.domElement);
+            return Scene3D._creatureR.domElement.toDataURL();   // candy 리프트 폐기(pet-mount-minecraft-remake)
         };
         const cells = names.map((nm, idx) => {
             const a = shot(nm, 0.55), b = shot(nm, Math.PI / 2);

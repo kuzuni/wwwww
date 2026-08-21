@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8"><title>mobsheet</title>
+<style>body{margin:0;background:#1b1f24}</style></head><body>
+<script src="../lib/three.min.js"></script>
+<script src="../js/voxel.js"></script>
+<script src="../js/mobs.js"></script>
+<script src="../js/mobdata.js"></script>
+<script src="../js/mobs-pets.js"></script>
+<script src="../js/mobs-mounts.js" onerror="window.__noMounts=1"></script>
+<script>
+// 종별 미리보기 렌더러 — 게임 조명과 같은 값(키 라이트 + 반구광)으로 한 종을 2각도로 찍는다.
+window.renderMob = function (model, size, yaw) {
+    const r = window.__r || (window.__r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }));
+    r.setPixelRatio(1); r.setSize(size, size);
+    const sc = new THREE.Scene();
+    const key = new THREE.DirectionalLight(0xffffff, 1.15); key.position.set(2.4, 4, 3); sc.add(key);
+    sc.add(new THREE.HemisphereLight(0xdfe8f5, 0x3c3a35, 0.75));
+    // 탈것은 `seat`(안장 칸 높이)로 칸 크기가 정해진다 — 게임 어댑터와 같은 식.
+    const built = Mobs.build(model, model.seat ? { cell: 0.44 / model.seat } : {});
+    const g = built.group; sc.add(g);
+    g.rotation.y = yaw;
+    const box = new THREE.Box3().setFromObject(g), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+    const cam = new THREE.PerspectiveCamera(28, 1, 0.01, 40);
+    const d = Math.max(sz.x, sz.y, sz.z) * 2.5 + 0.2;
+    cam.position.set(c.x + d * 0.32, c.y + d * 0.34, c.z + d);
+    cam.lookAt(c);
+    r.render(sc, cam);
+    const url = r.domElement.toDataURL();
+    sc.remove(g);
+    return url;
+};
+</script></body></html>
