@@ -749,7 +749,8 @@ const Scene3D = {
     //  - 제외: 이미 셸 보유 · 아웃라인 셸 자신 · AO 링 · **투명/ depthWrite off**(블롭 그림자·데칼·FX·HP바).
     applyOutlineTree(root, k) {
         if (!root) return;
-        k = k || 1.2;   // 실측 스윕: 1.09=검정3%·1.2≈11%·1.4=27%. 1.2가 윤곽 뚜렷 + 실루엣 과대확대 없음
+        k = k || 1.6;   // 두께(상사확대). 실측 스냅 스윕: 1.2=게임줌서 1px(거의 안 보임)·1.6=굵고 뚜렷·
+                        // 1.9=파츠 뭉개짐. 1.6 채택(사용자 "더 세게"). 균일스케일이라 큰 파츠일수록 굵다.
         root.traverse(o => {
             if (!o.isMesh || o.userData.isOutline || o.userData.aoRing || o.userData.hasOutlineShell) return;
             if (!o.geometry) return;
