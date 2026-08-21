@@ -10398,6 +10398,14 @@ const Scene3D = {
         const mat = M(c);
         const dark = M(new THREE.Color(c).offsetHSL(0, 0, -0.18));
         const light = M(new THREE.Color(c).offsetHSL(0, 0, 0.18));
+        // 🍬 유기 액센트(양털·알파카 플리스·낙타 혹)용 밝은 털 틴트 — 몸 candy 색에서 파생
+        //    (mount-accent-material-tint). 종전엔 고정 크림/탄(WOOL 0xefe6d4·FLEECE 0xd9c7a4·
+        //    SAND 0xc9a870)이라, 몸이 candy(양=민트·알파카=틸·낙타=오렌지)로 바뀐 뒤에도 액센트만
+        //    흙빛 clay 로 남아 프레시 비평가 2인이 #6 양·#14 낙타를 "미완성 점토, 몸색과 무관한
+        //    clay" 로 감점했다. 몸색에서 파생하면 ⓐ candy 로 통일되고 ⓑ warm-renderer 세션이
+        //    웜종 몸색을 바꿔도 액센트가 자동으로 따라온다. 밝기를 크게 올려(+dl) 몸통 위 '더 밝은
+        //    복슬 덩어리'로 톤 대비를 유지하고, 채도만 살짝 낮춰(-0.04) 부드러운 털 느낌.
+        const furTint = (dl) => M(new THREE.Color(c).offsetHSL(0, -0.04, dl));
         const blk = new THREE.MeshBasicMaterial({ color: 0x263238 });
         // 🧊 voxel 전환 (2026-08-20, mount-species-recognizable / voxel-consistency-audit)
         //    곡면 프리미티브 헬퍼(sp/cn/cy/to/tube)를 큐브 적층으로 바꾼다. 15종이 이 헬퍼들을
@@ -12306,7 +12314,7 @@ const Scene3D = {
                 //    **목이 길고 그 목이 통째로 털**이고, 양은 몸이 털뭉치이고 얼굴이 검다.
                 //    → 몸통 털을 엉덩이 두 뭉치로 줄이고, 남은 예산을 **목 기둥**에 몰아준다.
                 //    털색도 `light`(등급색 +0.18)에서 **고정 크림**으로 내린다 — 양의 흰 털과도 갈린다.
-                const FLEECE = M(0xd9c7a4);
+                const FLEECE = furTint(0.18);   // 몸 candy(틸)에서 파생한 밝은 플리스 — 종전 고정 탄 0xd9c7a4
                 for (const [ax, ay, az, r] of [
                         [0, 0.375, -0.36, 0.115], [0.14, 0.315, -0.33, 0.088], [-0.14, 0.315, -0.33, 0.088]])
                     sp(r, ax, ay, az, FLEECE, 1.0, 0.9, 1.0);
@@ -12356,7 +12364,7 @@ const Scene3D = {
                 // ⑵ 몸을 **감싸는 개수**(4→14)로 간다 — 양의 부피감은 몸통이 아니라 털이 낸다.
                 // ⚠️ 폭은 y 0.30 위에서만 벌린다(허벅지 시선 위). 그리고 **꼭대기가 0.44(안장)를
                 //    넘으면 안장이 털에 묻힌다** — 거북 ② 가 그걸로 한 판 날렸다. 최고점 0.425 로 잡았다.
-                const WOOL = M(0xefe6d4), WOOL_D = M(0xd9cdb6);
+                const WOOL = furTint(0.18), WOOL_D = furTint(0.10);   // 몸 candy(민트)에서 파생 — 종전 고정 크림 0xefe6d4/0xd9cdb6
                 for (const [sx, sy2, sz, r] of [
                         [0, 0.365, -0.30, 0.105], [0.15, 0.345, -0.22, 0.095], [-0.15, 0.345, -0.22, 0.095],
                         [0.19, 0.335, -0.05, 0.092], [-0.19, 0.335, -0.05, 0.092],
@@ -12480,7 +12488,7 @@ const Scene3D = {
                 // ⚠️ 혹을 `mat`(등급색)으로 두면 **몸통과 같은 색 덩어리**라 혹이 아니라 그냥 굴곡이다 —
                 //    이 항목의 축 ⑵(표식은 등급색을 벗긴 고정 자연색) 를 혹에도 적용한다. 낙타의
                 //    모래색은 종 정보 그 자체이기도 하다.
-                const SAND = M(0xc9a870), SANDT = M(0xdcc79a);
+                const SAND = furTint(0.12), SANDT = furTint(0.20);   // 몸 candy(오렌지)에서 파생한 혹 — 종전 고정 탄 0xc9a870/0xdcc79a
                 sp(0.165, 0, 0.385, -0.36, SAND, 1.0, 1.16, 0.95);   // 뒤 혹
                 sp(0.155, 0, 0.385, 0.355, SAND, 0.98, 1.10, 0.92);  // 앞 혹
                 sp(0.150, 0, 0.410, -0.36, SANDT, 0.72, 0.72, 0.68); // 혹 꼭대기 털뭉치(윤곽 강조)
