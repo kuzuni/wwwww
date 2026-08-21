@@ -2601,6 +2601,10 @@ const Scene3D = {
                 m.geometry = this.makeRidgeGeo(R[i].w, R[i].h, R[i].peaks, shape);
             });
         }
+        // 🧪 배경 제거 모드: 소품(나무·바위·랜드마크)·지면 스캐터(풀·자갈)·발광 데칼을 통째로 스킵.
+        //    위에서 기존 소품·lavaGlow 는 이미 정리했고, update() 가 순회하는 두 배열만 비워 두면 안전.
+        //    (지면 this.ground 는 남겨 캐릭터가 설 바닥은 유지 — 없애려면 buildTerrain 에서 별도 처리)
+        if (this.SIMPLE_BG) { this.scrollables = []; this.windProps = []; return; }
         // 큰 소품: 'p'=주 소품(나무 계열), 'r'=부 소품(둥근 계열) — 바이옴별로 실제 형태가 결정됨
         const spots = [
             [-7, -3.2, 1.1, 'p'], [-5.2, -2.6, 0.8, 'r'], [-3.4, -3.8, 1.3, 'p'], [-1.2, -3, 0.9, 'r'],
