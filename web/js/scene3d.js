@@ -12876,10 +12876,20 @@ const Scene3D = {
                     // 🚨 **구슬 간격(0.052)이 지름(0.046)보다 넓어 꼬리가 점선으로 끊겼다**(비평가 2인이
                     //    '점선으로 끊긴 꼬리'로 지목). 간격을 지름 아래(0.036)로 좁혀 구슬이 겹치게 하고,
                     //    길이를 지키려 14마디로 늘린다 — 이제 이어진 곡선 한 줄로 읽힌다.
-                    tail = new THREE.Group(); tail.position.set(0, 0.27, -0.36); g.add(tail);
+                    // 🚨 **창백한 탄색 얇은 아치가 '몸에서 떨어진 회색 막대'로 읽혔다** (블라인드 비평가 2인
+                    //    이 공통으로 태엽 생쥐를 '가운데 떠 있는 판/막대로 두 몸통이 나뉜' 것으로 지목,
+                    //    mount-clockwork-mouse-tail). 원인 셋을 함께 닫는다: ⑴ 색 `0xd9b7a8`(창백 탄) → 몸
+                    //    마젠타 계열의 **캔디 로즈 `0xe87bad`**(같은 hue 족 = 몸에 묶여 읽힘 + 생쥐 분홍
+                    //    꼬리 종 단서, 썸네일 candyLift 가 채도 더 실음) ⑵ 밑동을 굵혀(0.024→0.040) 엉덩이
+                    //    에서 **청키하게 자라난** 꼬리로(끝은 0.015 로 가늘게 taper 유지) ⑶ 뿌리를 배럴 안쪽
+                    //    (z −0.36→−0.30, 배럴 뒷면 −0.385 안)으로 물려 몸과 겹침을 키우고, 아치를 **뒤로
+                    //    낮게 뻗다가 끝만 드는** 곡선(주석 의도대로)으로 바꿔 '가운데 뜬 아치'를 없앤다.
+                    //    전부 z 음수(안장·라이더 뒤)·y0.22(안장 밑)이라 ride-clear·프레이밍 무영향, 구슬 수
+                    //    14 불변이라 detached/지문/geo-ratchet 계약 불변.
+                    tail = new THREE.Group(); tail.position.set(0, 0.27, -0.30); g.add(tail);
                     for (let i = 0; i < 14; i++) {
-                        const seg = new THREE.Mesh(vgSphere(0.024 - i * 0.0012), M(0xd9b7a8));
-                        seg.position.set(0, -0.055 + Math.sin(i * 0.22) * 0.075, -0.036 * i);
+                        const seg = new THREE.Mesh(vgSphere(0.040 - i * 0.0019), M(0xe87bad));
+                        seg.position.set(0, -0.050 + Math.max(0, i - 7) * 0.024, -0.038 * i);
                         tail.add(seg);
                     }
                 } else if (PANTHER) {
