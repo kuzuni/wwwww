@@ -10418,6 +10418,10 @@ const Scene3D = {
         //    ⚠️ 탈것 전용(pet/equip/enemy 는 각자 build 호출이라 무영향) — 회색 종은 s>0.12 가드로 안 물들인다.
         const vivid = (hex) => {
             const col = new THREE.Color(hex); const hsl = {}; col.getHSL(hsl);
+            // 🚨 세션6 실측: **웜 hue(적~노랑)는 이 렌더러(ACES 톤맵+깊은 복셀 암부)가 채도 자체를 뭉갠다** —
+            //    베이스 오렌지든 vivid 로 채도·명도를 더 얹든 tan(어둡게) ↔ cream(밝게) 사이만 오갈 뿐
+            //    **saturated 오렌지로는 안 선다**(냉색은 멀쩡). 그래서 웜 보정은 포기 — 웜 종은 아예 냉색
+            //    candy 로 재배정하는 게 답(alpaca 틸·donkey 보라가 통과 인정받은 그 방향). vivid 은 종전대로.
             if (hsl.s > 0.12) col.offsetHSL(0, Math.min(0.18, (1 - hsl.s) * 0.55), 0.025);
             else col.offsetHSL(0, 0, 0.02);   // 무채색 종은 색조 안 넣고 살짝만 밝게
             return col.getHex();
@@ -10736,7 +10740,7 @@ const Scene3D = {
         // 🍬 세션6: 안장 마구가 **모든 탈것에 얹히는 회갈색 흙 덩어리**라 팔레트 전체를 흙으로 끈다는
         //    비평가 D 최우선 지적("gray/brown saddle cubes contaminate everything, 한 번의 팔레트 패스가
         //    가장 많은 종을 올린다"). 마구를 캐러멜·밝은 스틸로 올려 candy 쪽으로(가죽다움은 유지).
-        const LEATHER = M(0xa0561e, { emissive: 0x1a0c04 }), TAN = M(0xc9852e, { emissive: 0x1c1206 }), IRON = M(0xbcc0c4);
+        const LEATHER = M(0xa0561e, { emissive: 0x1a0c04 }), TAN = M(0xc9852e, { emissive: 0x1c1206 }), IRON = M(0x6a6e72);   // IRON 밝은회색→건메탈(밝게 하니 등자가 '허공의 흰 상자'로 떠 감점 — 어둡게 눌러 눈에서 뺌)
         // 같은 이유로 **재질 정체성이 뚜렷한 파츠**도 등급색을 벗긴다. 타이어는 고무(검정), 림·허브는 금속,
         // 발굽은 각질 — 이걸 등급색으로 두면 에픽 자전거가 타이어까지 전신 초록이라 '자전거'가 아니라
         // 초록 링 두 개로 읽힌다(실측 캡처에서 그대로 확인). 등급 틴트는 프레임·몸통 쪽에 남겨 둔다.
@@ -12167,9 +12171,13 @@ const Scene3D = {
             // 두상 재질도 종별로. ⚠️ 공용값 `light` 는 에픽 초록에서 거의 흰색으로 타므로, 얼굴에
             // **밝은 무늬**(당나귀 밀리)를 얹을 종은 바탕을 몸색으로 내려야 무늬가 정보 노릇을 한다.
             // 양은 반대로 **얼굴이 어두운 게 종 정보**다(크림 털뭉치 + 검은 얼굴 = 양).
+            // 🍬 세션6: 기본 두상을 `light`→`mat`(몸색). `light`(몸+0.18L)는 위 주석대로 큰 두상에서
+            //    **흰 달걀로 탄다** — 웜 몸통 위 크림색 머리가 '흙/베이지 얼룩'으로 읽혀(비평가 반복 감점
+            //    '#1·#9·#14 muddy') 오렌지/레드 몸을 통짜 candy 로 못 읽게 했다. 비행종 머리(head-proximity)가
+            //    이미 light→mat 로 '한 생물'을 얻은 것과 같은 논리를 사족에도. 예외는 그대로(당나귀·염소 밀리·양 검은얼굴).
             const headMat = (name === 'Donkey' || name === 'Goat') ? mat
                           : name === 'Sheep' ? M(0x3b3630) : (PANTHER || BROWN) ? bodyMat
-                          : name === 'Dino' ? mat : light;   // 공룡: `light` 는 큰 두상에서 흰 달걀로 탄다
+                          : mat;
             // 뿔·코는 머리에 붙어 있어야 한다 — 머리를 앞으로 뺀 만큼(z +0.06) 같이 따라간다
             // ⚠️ 염소 뿔·돼지 코는 예전에 여기(체인 밖)에 있었고 **`HEADPART` 도 아니었다** — 머리가
             //    끄덕여도 뿔·코만 허공에 붙박여 남는 상태였다. 아래 종별 체인으로 옮겼다.
