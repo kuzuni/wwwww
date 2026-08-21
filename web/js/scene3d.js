@@ -2218,19 +2218,33 @@ const Scene3D = {
             const az = Math.abs(z);
             if (az < 2.25) {
                 const jr = Voxel.jitter(px, 0, iz, 0.035);   // 색 지터는 아주 약하게 — 단조로움만 피한다
-                // 연석 — **밝은 돌/어두운 돌을 한 칸씩 번갈아 놓은 석재 테두리**.
-                //    ⚠️ 단색으로 두 번 시도해서 둘 다 실패했다(실측 캡처):
-                //      · 밝은 단색(1.26) → 밝은 노면과 붙어 경계가 안 선다.
-                //      · 어두운 단색(0.82) → 도랑/그림자 띠로 읽힌다(연석이 아니라 '어두운 줄').
-                //    번갈아 놓으면 그 자체가 **사람이 깐 물건**이라는 신호라, 두 오독을 다 피한다.
-                //    한색 캐스트(g×1.02·b×1.07)로 웜 노면과 재료가 갈린다.
+                // 🛣️ **이 회랑의 색은 여기서 안 정한다.** 셰이더의 `uRoad` 가 |z|<2.25 를 통째로
+                //    무채 석재로 옮기므로(위 terrainShade 주석), 여기 값들은 **그 석재색 위의
+                //    상대 변주**다 — 평균이 1.0 근처여야 목표 석재색이 그대로 나온다.
+                //
+                // 연석 — **어두운 화강암 한 줄** (반려 사유 ⓓ *"연석이 안 보인다 … 회색 얼룩 띠"*).
+                //    1차는 1.14/0.86 (28% 폭) 교대라 화면에서 '얼룩'으로 흩어졌다. 노면이 밝은
+                //    회석재가 된 지금, 연석까지 밝게 두면 노면과 붙는다 — 반대로 **눌러서** 밝은
+                //    노면과 난색 흙 사이에 어두운 선을 하나 긋는다. 교대 폭은 ±5% 로 좁혀 '얼룩'이
+                //    아니라 **한 줄**로 읽히게 한다(1차의 실패는 방향이 아니라 폭이었다).
+                //    ⚠️ 옛 주석의 "어두운 단색 = 도랑으로 읽힌다"는 **난색 노면·난색 흙** 시절 판정이다.
+                //       무채 석재 사이의 어두운 무채 줄은 도랑이 아니라 경계석으로 읽힌다(캡처 확인).
                 if (az >= 1.5) {
-                    const kb = ((px + iz) & 1) ? 1.14 : 0.86;
-                    return [kb * jr, kb * 1.02 * jr, kb * 1.07 * jr];
+                    const kb = ((px + iz) & 1) ? 0.46 : 0.41;
+                    return [kb * jr, kb * jr, kb * 1.02 * jr];
                 }
-                // 포석 — 축정렬 셀 패리티로 두 톤을 번갈아 놓는다(마크 블록 도로 = 칸 색 변화가 곧 무늬).
-                const pv = ((px + iz) & 1) ? 1.50 : 1.32;
-                return [pv * jr, pv * 0.80 * jr, pv * 0.49 * jr];
+                // 포석 — **가로로 긴 벽돌쌓기(러닝 본드)** (반려 사유 ⓒ *"격자 칸이 너무 크고
+                //    체스판처럼 대칭"*). 1차의 `(px+iz)&1` 정사각 패리티는 0.75 유닛 체스판이라
+                //    '타일 깔린 실내 바닥'으로 읽혔다. 도로의 결은 **진행 방향(x)** 으로 흘러야 한다:
+                //      · 포석 한 장 = x 2칸(1.5) × z 1칸(0.75) — 2:1 가로 장방형
+                //      · 행(iz)마다 반 장(=1칸)씩 어긋난다 → 세로 이음선이 통으로 안 이어진다
+                //    🚨 x 주기 정합: PERX(40)/2 = 20 장이라 **장 수가 짝수** → 순환 경계에서 톤
+                //       교대가 그대로 이어진다. 홀수 길이 포석(3칸 등)을 쓰면 40 이 안 나눠져
+                //       ground.position.x += 30 하는 순간 이음매가 드러난다.
+                const brick = (px + (iz & 1)) >> 1;             // 행 오프셋 1칸 = 반 장
+                const bv = (brick & 1) ? 1.07 : 0.93;
+                const row = (iz & 1) ? 1.02 : 0.98;             // 결이 x 로 흐르게 하는 행 단위 미세차
+                return [bv * row * jr, bv * row * jr, bv * row * 1.01 * jr];
             }
             const n = Math.sin(x * P + z * 0.34 + 1.3) * 0.62
                 + Math.sin(x * P * 2 + 4.1 - z * 0.21) * 0.38;
@@ -2246,7 +2260,13 @@ const Scene3D = {
                 const k = smooth(U.clamp((-n - 0.16) / 0.5, 0, 1)) * 0.38;
                 r = 1 - k * 0.85; g = 1 - k; b = 1 - k * 1.2;
             }
-            const j = Voxel.jitter(px, 0, iz, 0.05);
+            // 🛣️ 셀 지터 0.05 → **0.022** (road-readability) — 반려 사유 ⓑ *"포석 격자가 도로
+            //    밖까지 퍼져 보인다"* 의 실체가 이것이었다. 데칼(z ±2.35)은 전경(z 3~15)까지
+            //    못 가고, 지면 텍스처 반복은 5유닛이라 셀 격자가 아니다. 남는 범인은 **셀마다
+            //    ±5% 씩 튀는 이 지터**뿐이다 — 흙 위에 0.75 유닛 체크무늬를 그려 도로 무늬가 밖으로
+            //    새 보이게 만들었다(확대 크롭으로 확인). 절반 이하로 줄이면 '흙의 얼룩'으로만 남고
+            //    규칙적 격자는 노면 안에서만 보인다.
+            const j = Voxel.jitter(px, 0, iz, 0.022);
             return [r * j, g * j, b * j];
         };
         const pos = [], nor = [], uvs = [], col = [];
@@ -2330,18 +2350,33 @@ const Scene3D = {
             // 🛣️ **유기적 다짐길 얼룩 → 포석 이음새** (background-grass-road-cleanup, 사용자 지시
             //    2026-08-21 *"도로 깔끔하게 도로처럼"*). 종전엔 랜덤 블롭 300 + 긁힘 52 + 잔자갈 60 을
             //    뿌려 일부러 흐트러뜨렸다("직선 밴드 = 아스팔트 고속도로"라는 옛 판단). 이제 노면은
-            //    `cellRGB` 의 포석 패리티가 직접 칠하므로, 데칼은 **블록 사이 이음새**만 얹는다.
-            // 🚨 **이음새 간격 25.6px 는 임의값이 아니다.** 데칼은 x −30..30 에 `repeat.set(2,1)` 이므로
+            //    `cellRGB`(+`uRoad`)가 직접 칠하므로, 데칼은 **포석 사이 줄눈**만 얹는다.
+            // 🚨 **줄눈 간격은 임의값이 아니다.** 데칼은 x −30..30 에 `repeat.set(2,1)` 이므로
             //    1반복 = 월드 30 = 1024px → 34.1333px/유닛. 지면 셀 한 칸 0.75유닛 = **정확히 25.6px**
-            //    이고 캔버스 x=0 이 월드 x=−30(=셀 경계)에 떨어진다. 40줄이 1024px 를 정확히 나누므로
-            //    반복 이음매도 없다. 이 수를 바꾸면 이음새가 3D 셀 경계에서 어긋나 '이중 격자'가 된다.
-            for (let k = 0; k < 40; k++) {
-                const x = k * 25.6;
-                ctx.strokeStyle = `rgba(72,54,36,${(0.15 + Math.random() * 0.1).toFixed(3)})`;
-                ctx.lineWidth = 1.8 + Math.random() * 1.0;
+            //    이고 캔버스 x=0 이 월드 x=−30(=셀 경계)에 떨어진다. 이 수에서 벗어나면 줄눈이 3D 셀
+            //    경계에서 어긋나 '이중 격자'가 된다.
+            // 🛣️ **러닝 본드 줄눈** (road-readability, 반려 사유 ⓒ) — 1차는 세로선 40줄뿐이라
+            //    가로 줄눈이 없어 '세로로 그은 금'이었다. 포석은 네 변이 다 닫혀야 장(張)으로 읽힌다.
+            //    🚨 캔버스 y ↔ 월드 z 환산: 코어 밴드 y 46~210(164px)이 노면 폭 3.0 유닛이므로
+            //       **54.667px/유닛**, 지면 셀 0.75유닛 = **41.0px**. 행 경계는 y 46/87/128/169/210
+            //       이고 이 넷이 `cellRGB` 의 iz 행(중심 z −1.125/−0.375/0.375/1.125)과 정확히 맞는다.
+            //    🚨 세로 줄눈 간격 51.2px = 포석 한 장(x 2칸 = 1.5유닛). 1024/51.2 = 20 (정수)라
+            //       repeat(2,1) 이음매가 없다. 행 오프셋 25.6px = 반 장 — `cellRGB` 의 `(iz & 1)`
+            //       오프셋과 **같은 방향·같은 양**이어야 색 경계와 줄눈이 겹친다(어긋나면 이중 격자).
+            const ROW = [46, 87, 128, 169, 210];
+            const line = (x0, y0, x1, y1, a) => {
+                ctx.strokeStyle = `rgba(38,32,26,${a.toFixed(3)})`;
+                ctx.lineWidth = 1.6 + Math.random() * 0.9;
                 for (const ox of [0, -1024, 1024]) {   // 경계에 걸친 줄은 반대편에도 (이음매 없는 반복)
-                    ctx.beginPath(); ctx.moveTo(x + ox, 30); ctx.lineTo(x + ox, 226); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(x0 + ox, y0); ctx.lineTo(x1 + ox, y1); ctx.stroke();
                 }
+            };
+            for (let r = 0; r < 4; r++) {
+                // iz 행 인덱스의 홀짝 = 캔버스 행 r 의 홀짝 (z 중심 −1.125 인 행이 iz=58, 짝수)
+                const off = (r & 1) ? 25.6 : 0;
+                const yA = ROW[r], yB = ROW[r + 1];
+                for (let k = 0; k < 20; k++) line(off + k * 51.2, yA, off + k * 51.2, yB, 0.30 + Math.random() * 0.12);
+                if (r > 0) line(0, yA, 1024, yA, 0.22 + Math.random() * 0.08);   // 가로 줄눈(행 사이)
             }
             // 위아래 페더링 — 잘려 나간 칠을 지워 **캔버스 상·하단 알파를 정확히 0으로** 만든다.
             // 이것이 없으면 평면 모서리가 그대로 직선으로 보인다(위 주석 참조).
@@ -2786,6 +2821,13 @@ const Scene3D = {
                 lava: (s) => this.makeVolcanicRock(s * 1.05),
                 magic: (s) => this.makeCrystal(s * 1.05),   // 크리스탈은 뾰족·가늘어 같은 s 로도 발자국이 작다 — 키워서 캡으로 눕힌다
                 snow: (s) => this.makeBoulder(s * 0.95, true),
+                // 🪨 forest kin 근경 앵커의 **이끼 뚜껑 제거** (road-readability, 반려 사유 ⓕ
+                //    *"전경 좌측·중앙에 납작한 초록 슬래브가 흙 위에 떠 보인다"*). 레이캐스트·재질
+                //    마킹으로 정체를 확정했다: `stoneMat` 바위 + `mossMat` 캡이다. `capLayer` 는
+                //    **윗면 한 층을 통째로** 덮는데, 이 앵커만 HCAP 0.62 로 눌러 눕히므로 그 한 층이
+                //    화면에서 넓은 판이 된다 — 다른 바위(중경·원경)는 안 눌려서 같은 캡이 '테두리'로만
+                //    보인다. 그래서 조형을 바꾸지 않고 **눌리는 개체에서만** 캡을 뗀다.
+                forest: (s) => this.makeBoulder(s * 0.85, false, false),
             }[kin] || ((s) => this.makeBoulder(s * 0.85, false, true));
             // 🚨 **배치 요를 90° 로 스냅한 만큼 치수를 되돌려 준다 (2026-08-20).** 임의 각으로 놓인
             //   상자는 대각을 보여 화면 폭이 최대 √2 배였다 — 4방위로 스냅하면 그 여유가 사라져
@@ -3047,9 +3089,25 @@ const Scene3D = {
             sh.uniforms.uLodNear = { value: cfg.lodNear };
             sh.uniforms.uLodFar = { value: cfg.lodFar };
             sh.uniforms.uSnow = { value: cfg.snow };
+            // 🛣️ 노면 회랑 **절대색 보정** (road-readability 2026-08-21) — 반려 사유 ⓐ 의 뿌리는
+            //    "버텍스 컬러는 **곱셈**이라 지면색을 못 벗어난다"였다. 난색 흙 위에 아무리 배수를
+            //    걸어도 결국 더 밝거나 더 어두운 **같은 난색**이라 '재질이 다른 물건'이 못 된다.
+            //    `uRoad` = (목표 석재색 / 흙색) 을 setTheme 이 챕터마다 계산해 넣는다 — 회랑 안에서만
+            //    곱해지므로 화면에서는 **무채 석재**가 되고, 값 자체는 지면색 파생이라 규약도 지킨다.
+            //    🚨 마스크 기준은 **정점 로컬 z**(varying `vRoadZ`)다. 지면은 x 로만 순환하므로
+            //       (ground.position.z 는 항상 0) 회랑이 절대 흔들리지 않는다. 경계 ±2.25 는 셀
+            //       경계에 정확히 떨어지는 수라 톱니도 없다.
+            sh.uniforms.uRoad = { value: cfg.road || (cfg.road = new THREE.Vector3(1, 1, 1)) };
             this._terrainU = sh.uniforms;   // 재컴파일마다 새로 생기므로 참조를 갱신해 둔다
+            // 🚨 **월드 z 는 `vUv` 로 못 뽑는다 — 여기서 한 번 헛발을 디뎠다(실측).** three r128 의
+            //    `vUv` 는 `uvTransform` 을 이미 먹은 값이라 지면 텍스처 repeat(12×6) 만큼 **6배로
+            //    늘어나 있다** — `vUv.y*60-45` 는 −45 에서 315 까지 훑어 회랑 판정이 통째로 빗나갔다
+            //    (uRoad 를 순청색으로 넣어도 화면이 안 변하는 것으로 확인). 정점에서 **로컬 z** 를
+            //    그대로 실어 보낸다: `ground` 는 회전·스케일이 없고 z 로 안 움직이므로 로컬 z = 월드 z 다.
+            sh.vertexShader = 'varying float vRoadZ;\n' + sh.vertexShader
+                .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvRoadZ = position.z;');
             sh.fragmentShader = 'uniform float uMacro;\nuniform float uMacroScale;\nuniform float uLod;\n'
-                + 'uniform float uLodNear;\nuniform float uLodFar;\nuniform float uSnow;\n'
+                + 'uniform float uLodNear;\nuniform float uLodFar;\nuniform float uSnow;\nuniform vec3 uRoad;\nvarying float vRoadZ;\n'
                 + sh.fragmentShader
                     .replace('#include <map_fragment>', [
                         '#ifdef USE_MAP',
@@ -3062,6 +3120,9 @@ const Scene3D = {
                         '\ttexelColor.rgb = mix( texelColor.rgb, tMac.rgb,',
                         '\t\tsmoothstep( uLodNear, uLodFar, length( vViewPosition ) ) * uLod );',
                         '\tdiffuseColor *= texelColor;',
+                        // ⓓ 노면 회랑(|z| < 2.25)만 석재색으로 — 위 uRoad 주석 참조
+                        '\tfloat rdz = abs( vRoadZ );',
+                        '\tdiffuseColor.rgb *= mix( uRoad, vec3( 1.0 ), step( 2.25, rdz ) );',
                         '#endif',
                     ].join('\n'))
                     .replace('#include <envmap_fragment>', [
@@ -3077,7 +3138,7 @@ const Scene3D = {
                         '\t}',
                     ].join('\n'));
         };
-        mat.customProgramCacheKey = () => 'terrain-v1';
+        mat.customProgramCacheKey = () => 'terrain-v2';
         return mat;
     },
 
@@ -16774,7 +16835,14 @@ const Scene3D = {
         //    바닥색이 전부 gC 에서 파생한다. 갈색으로 밀면 `leafColor` 가 **초원의 나무를 통째로
         //    갈색**으로 만든다(그건 단풍 챕터다). 그래서 `soilOf` 는 `terrainMat` 한 곳에만 먹인다 —
         //    원경 능선은 초록으로 남아 '멀리 숲, 발밑은 흙'으로 읽혀 오히려 맞다.
-        this.terrainMat.color.copy(this.soilOf(gC, t.biome || 'forest'));
+        const soilC = this.soilOf(gC, t.biome || 'forest');
+        this.terrainMat.color.copy(soilC);
+        // 🛣️ 노면 회랑의 석재색 → 셰이더 유니폼 (road-readability, 반려 사유 ⓐ).
+        //    버텍스 컬러는 곱셈이라 지면색 밖으로 못 나간다 → **목표색 ÷ 흙색**을 넘겨 회랑 안에서만
+        //    곱하게 한다(terrainShade 주석). 0 나눗셈 방지 하한 0.02 는 검은 지면 챕터용이다.
+        const roadC = this.roadOf(soilC);
+        this.setTerrainUniform('road', (this.TERRAIN.road || new THREE.Vector3(1, 1, 1)).set(
+            roadC.r / Math.max(soilC.r, 0.02), roadC.g / Math.max(soilC.g, 0.02), roadC.b / Math.max(soilC.b, 0.02)));
         // 눈 수광면 탈색은 **눈 kin 에서만** 켠다(㉱). 18 빙하는 kin 이 snow 지만 '청빙'이 정체성이라
         // 테마 지면 채도가 0.49 + tint +0.16 로 의도적으로 높다 — 여기서 탈색하면 그 바이옴이 사라진다.
         // ⚠️ **테마 지면의 채도로는 못 가른다** — 6 설원 0xaac2e2 와 18 빙하 0x9fc9de 는 채도가
@@ -16860,7 +16928,7 @@ const Scene3D = {
             //    흙 지면색을 씨앗으로 쓰면 초원 이끼가 h .28 순초록 → h .145(52° 올리브 브라운)로
             //    내려가 '바위에 낀 이끼'로만 남는다. 잔디를 안 지운 바이옴은 `soilOf` 가 gC 를 그대로
             //    돌려주므로 **한 픽셀도 안 바뀐다**(설원·사막·용암·마법·바위).
-            const mg = this.soilOf(gC, t.biome || 'forest').getHSL({ h: 0, s: 0, l: 0 });
+            const mg = soilC.getHSL({ h: 0, s: 0, l: 0 });   // = soilOf(gC) — 위에서 이미 뜬 값
             // 🎨 초록 견인에 상한 ±0.05 (map-palette-unify 2차) — 종전 '0.36 쪽으로 35%' 비례 견인은
             //    난색 지면 챕터에서 과도했다: 단풍(지면 h≈0.07)의 이끼가 h 0.17(61° 올리브초록)로
             //    앰버 화면의 보색 이물이 됐다(2차 채점 A #1 '순색 초록 새싹'). 상한을 걸면 단풍 이끼는
@@ -16877,7 +16945,11 @@ const Scene3D = {
         // 실그림자 이중 노출·'부유 스티커'·초원 하이키 사이에서 실측으로 잡은 값들이다(ensureBlobRes 주석).
         this.ensureBlobRes();
         {
-            const bs = gC.getHSL({ h: 0, s: 0, l: 0 });
+            // 🌾 씨앗을 gC → **soilOf(gC)** 로 (road-readability). gC(초록) 파생이라 블롭이 짙은
+            //    초록이었는데, 노면이 밝은 무채 석재가 된 뒤로는 그 초록 마름모가 도로 위에 **초록
+            //    스티커**로 떠 보였다(확대 크롭 확인 — mossMat·stoneMat 과 같은 뿌리의 마지막 한 곳).
+            //    흙색을 씨앗으로 쓰면 난색 다크로 내려가 흙·석재 어디에서도 '그림자'로 읽힌다.
+            const bs = soilC.getHSL({ h: 0, s: 0, l: 0 });
             const shade = new THREE.Color().setHSL(bs.h, Math.min(0.5, bs.s * 0.6 + 0.1), 0.10);
             this.blobShadowMat.color.copy(shade);
             this.blobShadowFlyMat.color.copy(shade);
@@ -16885,31 +16957,19 @@ const Scene3D = {
         }
         this.hemi.color.setHex(t.sky);
         this.hemi.groundColor.copy(gC.clone().offsetHSL(0, 0, -0.1));
-        // 흙길 데칼을 바이옴 흙색으로 (map-quality-up, 비평가 2인 공통 1위 지적) — 데칼 캔버스는
-        // 고정 황토 톤이라, 마법(보라)·설원(청야)·용암(암갈) 같은 유색 바이옴에서 "씬 색과 무관한
-        // 회베이지 가로 띠 = 오버레이 버그"로 읽혔다. 재질 곱셈 틴트로 색상만 바이옴 지면 팔레트
-        // (gC 색상·채도)로 끌어오고 명도 결(다짐 자국·자갈)은 텍스처가 그대로 쥔다. 초원·사막처럼
-        // 원래 흙색과 가까운 바이옴은 틴트가 거의 백색이라 종전 그림을 해치지 않는다.
+        // 도로 줄눈 데칼의 재질색 (map-quality-up 비평가 2인 공통 1위 지적의 자리다 — 고정 황토
+        // 캔버스가 마법·설원·용암에서 "씬 색과 무관한 회베이지 가로 띠"로 읽혔다. 그래서 재질색을
+        // 챕터 팔레트에서 파생시킨다는 원칙만은 그대로 지킨다).
         if (this.pathMesh) {
-            const g = gC.getHSL({ h: 0, s: 0, l: 0 });
-            // 🎨 틴트 명도를 지면 등급색에 따라간다 (map-palette-unify) — 종전 L 0.7 고정은 어두운
-            //    챕터(흑요석 gC L≈0.06·심연·종말)에서 흙길만 밝은 베이지 띠로 떠, 챕터 무관한
-            //    '오버레이 밴드'로 읽혔다(팔레트 실측: ch22 유채색 무게의 33% 가 챕터 색상 밖 35° 웜).
-            //    지면보다 +0.22 밝은 자리(하한 0.30)에 앉혀 '같은 땅의 다져진 길'로 — 밝은 챕터
-            //    (사막 등)는 상한 0.7 이 종전 값 그대로라 기존 그림을 해치지 않는다.
-            const bTint = new THREE.Color().setHSL(g.h, U.clamp(g.s * 0.7, 0, 0.5), U.clamp(g.l + 0.22, 0.30, 0.7));
-            // 🎨 곱셈 틴트 → **나눗셈 틴트** (map-palette-unify 4차). 3차 채점 A 가 뿌리를 픽셀로 박았다:
-            //    "곱셈으로는 색상이 캔버스(오커 hue 37°) 너머로 못 넘어간다" — 견인을 0.80 까지 올려도
-            //    한색 챕터(ch3 바위산·ch4 폭풍·ch14 소금)의 길만 웜 원색으로 남았다(ch6/7/8/18/20 은
-            //    지면 자체가 유채라 통과). 캔버스 평균 방향 (1.0, 0.74, 0.49)로 **나눠서** 화면 평균이
-            //    정확히 bTint 색상에 앉게 한다. 몫이 1을 넘으면 전체를 최대값으로 내려 클리핑 없이
-            //    비율을 보존한다(그만큼 어두워지지만 '다져진 흙'은 어두워도 성립 — 결은 텍스처가 쥔다).
-            this.pathMesh.material.color.setRGB(bTint.r / 1.0, bTint.g / 0.74, bTint.b / 0.49);
-            {
-                const pm = this.pathMesh.material.color;
-                const mx = Math.max(pm.r, pm.g, pm.b, 1);
-                pm.multiplyScalar(1 / mx);
-            }
+            // 🛣️ 틴트 씨앗을 gC → **노면 석재색(roadC)** 으로 (road-readability 2026-08-21).
+            //    ⚠️ 종전 나눗셈 틴트는 초원에서 재질색을 **#82ddc1(민트)** 로 만들었다(실측) —
+            //       gC(초록) 을 캔버스 평균 오커 (1.0,0.74,0.49) 로 나눈 몫이라 b 가 2배로 뛴 것이다.
+            //       줄눈 알파가 낮아 화면에서는 안 보였지만, 캔버스가 진해지면 그대로 초록 띠가 된다.
+            //    이제 캔버스 줄눈은 **무채 먹색 rgba(38,32,26)** 이라 나눠서 색상을 끌 이유가 없다.
+            //    석재색을 최대 성분 1 로 정규화해 물리면 줄눈이 '그 도로의 어두운 이음새'가 된다 —
+            //    색상은 챕터 지면 파생이라 map-palette-unify 가 잡은 '챕터 무관 베이지 띠'도 안 돌아온다.
+            const pm = this.pathMesh.material.color.copy(roadC);
+            pm.multiplyScalar(1 / Math.max(pm.r, pm.g, pm.b, 0.001));
         }
         // 바이옴 소품 교체 (같은 바이옴이면 그대로 유지)
         const biome = t.biome || 'forest';
@@ -16986,7 +17046,11 @@ const Scene3D = {
         //    얼음빛 바위'와 같은 뿌리인데, fallback 을 쓰는 kin 셋은 leak 수리 때도 그대로 남았었다).
         this.stoneMat.color.copy(sp.stone !== undefined ? new THREE.Color(sp.stone) :
             kin === 'snow' ? new THREE.Color(0xc9d8e6) : kin === 'desert' ? new THREE.Color(0xb97f5e) :
-            kin === 'rock' ? new THREE.Color(0x51483e) : this.stoneFrom(gC));
+            // 🪨 씨앗을 gC → **soilOf(gC)** 로 (road-readability, 반려 사유 ⓕ). 잔디를 걷어낸 뒤에도
+            //    forest kin 의 돌은 gC(라임 초록) 파생이라 **#4c5a40 초록 바위**였다(실측) — 흙바닥
+            //    위에 초록 덩어리가 서 있으니 근경이 통째로 '풀밭 바위'로 읽혔다. 흙색을 물려주면
+            //    '그 땅에서 솟은 돌'이 된다. 잔디가 없던 바이옴은 soilOf 가 gC 를 그대로 돌려준다.
+            kin === 'rock' ? new THREE.Color(0x51483e) : this.stoneFrom(soilC));
         // 🎨 2차 식생(꽃 줄기·양치)의 고정 초록 → 잎 파생색 (map-palette-unify 4차) — 0x4a7332/0x3d6b2a
         //    고정색은 단풍(앰버) 화면에 '봄 잔디 다발'로 남는 마지막 순초록이었다(3차 채점 A ⑵,
         //    hue 85–96°·채도 0.47–0.78 픽셀 실측과 두 재질 값이 일치). 덤불과 같은 잎 파생(lf.bush)을
@@ -17217,13 +17281,22 @@ const Scene3D = {
     //    `probe-hero-value` 의 '영웅 ↔ 배경 명도 델타'가 48.7 → 27.1 로 무너져 **영웅이 배경에
     //    녹았다**(비평가 처방 ≥45). 색상만 옮기고 밝기는 그대로 두는 게 맞다 — `l` 을 1.10~1.22 배
     //    올려 휘도를 맞춘다(이분 탐색 24회, `setTheme` 당 1회라 비용은 무시할 수준).
+    // 🟤 **휘도 계수 0.82 · 채도 0.80 (road-readability 2026-08-21)** — 반려 사유 ⓔ
+    //    *"흙바닥이 너무 밝고 하얗다. 초원 챕터가 해변처럼 보인다."* 1차는 휘도를 **그대로** 보존해
+    //    (계수 1.0) 초록의 높은 휘도를 갈색이 그대로 물려받았고, 그 결과 h 34° 인데도 화면에서는
+    //    표백된 모래로 읽혔다(캡처 실측: 전경 흙 평균 (206,199,176)). 젖은 흙/황토는 **주변 식생보다
+    //    어둡고 채도가 있다** — 휘도를 18% 내리고 채도 상한을 0.30 → 0.38 로 연다.
+    //    🚨 계수를 여기서만 만지는 이유: `l` 을 직접 내리면 아래 🚨 의 −16% 함정을 다시 밟는다.
+    //       이분 탐색의 **목표 휘도**를 낮추는 것이 유일하게 예측 가능한 손잡이다(A/B 실측 보고).
+    SOIL: { yK: 0.78, satK: 0.90, satMax: 0.42 },
     soilOf(gC, biome) {
         if (this.bkin(biome) !== 'forest') return gC;
         const b = gC.getHSL({ h: 0, s: 0, l: 0 });
         if (b.h < 0.17 || b.h > 0.45) return gC;
-        const sat = Math.min(b.s * 0.62, 0.30);
+        const S = this.SOIL;
+        const sat = Math.min(b.s * S.satK, S.satMax);
         const Y = (c) => c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
-        const target = Y(gC), out = new THREE.Color();
+        const target = Y(gC) * S.yK, out = new THREE.Color();
         let lo = 0, hi = 1;
         for (let i = 0; i < 24; i++) {
             const m = (lo + hi) / 2;
@@ -17231,6 +17304,29 @@ const Scene3D = {
             if (Y(out) < target) lo = m; else hi = m;
         }
         return out.setHSL(0.095, sat, (lo + hi) / 2);
+    },
+    // 🛣️ 노면 **절대색** — 흙색(soilOf 결과)에서 파생한다(규약: 챕터마다 지면색이 다르므로 절대색
+    //    대비는 다른 챕터에서 사라진다). 두 방향 중 **어두운 다짐 석재** 쪽을 골랐다(반려 사유 ⓐ):
+    //      · 채도를 0.30 배(상한 0.075)로 눌러 **무채 석재**로 — 난색 흙과 재질이 갈린다.
+    //      · 명도는 흙보다 한 단계 아래. 밟혀 다져진 길은 주변보다 어둡고 채도가 낮다.
+    //    🚨 **어두운 챕터에서는 방향을 뒤집는다.** 용암(gC L≈0.07)·심연·종말에서 더 어둡게 내리면
+    //       도로가 통째로 검은 구멍이 된다 — 대비를 만들 여지가 있는 쪽(밝은 석재)으로 간다.
+    roadOf(soil) {
+        const s = soil.getHSL({ h: 0, s: 0, l: 0 });
+        // 🚨 **밝기 방향은 흙보다 어두운 쪽이 아니라 밝은 쪽이다 — 실측으로 뒤집은 결정이다.**
+        //    처음엔 사용자가 준 두 선택지 중 '어두운 다짐 흙' 쪽으로 갔다(노면 albedo −38%). 대비는
+        //    잘 나왔는데(노면/흙 휘도비 0.744) **`probe-hero-value` 의 영웅↔배경 델타가 32.2 → 4.0
+        //    으로 무너졌다**(A/B 실측). 이유가 구조적이다: 영웅은 z=0, 즉 **노면 위에** 서고 그 ROI
+        //    배경의 대부분이 노면이다. 영웅 평균 L 이 113~122 라, 노면을 그쪽으로 내리면 영웅이
+        //    배경에 그대로 잠긴다. 그래서 다른 선택지 — **무채 회석재 포석** — 로 간다: 색상 대비
+        //    (난색 흙 ↔ 무채 석재)와 명도 대비(밝은 쪽)를 같이 벌리면 영웅 델타도 살아난다.
+        //    밝은 지면 챕터(설원 L≈0.78 · 사막 L≈0.61)만 방향을 뒤집는다 — 거기서 더 밝히면
+        //    노면이 흰 띠로 날아가고 하이라이트가 클리핑된다.
+        const l = s.l > 0.55 ? Math.max(0.30, s.l - Math.max(0.12, s.l * 0.28))
+            : Math.min(0.62, s.l + Math.max(0.235, s.l * 0.86));
+        // 채도 상한 0.06 — '무채~한색 회석재'. 색상은 지면에서 물려받되(챕터 파생 규약) 채도를
+        // 거의 0 으로 눌러야 난색 흙과 **재료가 다른 물건**으로 갈린다.
+        return new THREE.Color().setHSL(s.h, Math.min(s.s * 0.24, 0.06), l);
     },
     leafSet(gC, dF) {
         const O = Scene3D.LEAF_OFF;
@@ -17274,7 +17370,7 @@ const Scene3D = {
             c.color.copy(g.foliage[fi]);
             c.emissive.setHex(0x000000); c.emissiveIntensity = 1;   // 마법 챕터의 보라 발광이 묻어오지 않게
         } else if (src === this.bushMat) c.color.copy(g.bush);
-        else if (src === this.stoneMat) c.color.copy(this.stoneFrom(g.ground));  // 초원 돌색 — setTheme 기본 분기와 같은 파생(stoneFrom)
+        else if (src === this.stoneMat) c.color.copy(this.stoneFrom(this.soilOf(g.ground, 'forest')));  // 초원 돌색 — setTheme 기본 분기와 **같은 파생**(soilOf → stoneFrom). 한쪽만 고치면 미니 씬 돌만 초록으로 남는다
         this._pvMats.set(orig, c);
         return c;
     },
