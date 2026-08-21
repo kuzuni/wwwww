@@ -11157,12 +11157,19 @@ const Scene3D = {
                 //    한참 아래라, 바를 손에 맞추면 스템이 기둥처럼 늘어나 자전거가 아니라 '초록 장대'가 됐다.
                 //    안장 역산으로 자전거가 2.1배까지 커지는 만큼 앞부분도 같이 커져야 비율이 맞는다.
                 const HEAD = [0, 0.52, 0.26], SEAT = [0, 0.34, -0.07];
-                tube(BB, HEAD, 0.022);                    // 다운튜브
-                tube(BB, SEAT, 0.022);                    // 시트튜브
-                tube(SEAT, HEAD, 0.02);                   // 탑튜브
-                tube(BB, [0, 0.17, -0.30], 0.017, dark);  // 체인스테이
-                tube(SEAT, [0, 0.17, -0.30], 0.017, dark);// 시트스테이
-                tube(HEAD, [0, 0.17, 0.30], 0.019, dark); // 앞포크
+                // 🧊 프레임 튜브 굵히기 (mount-bike-frame-bulk). 종전 r0.016~0.022 는 VP0.055 격자에서
+                //    전부 vR 하한(0.6)에 걸려 **1복셀 철사**로 나왔다 — 프레시 비평가 2인이 블라인드
+                //    재채점에서 #17(자전거)을 독립적으로 최악 타일로 지목("skeletal red wireframe /
+                //    reads as scaffolding not a creature / floating box parts"). 게·거미 다리 굵히기와
+                //    같은 처방으로 청키 대역(~0.04~0.05)까지 올려 용접 프레임으로 읽히게. 튜브=복셀
+                //    큐브라 곡면 0 증가(geo-ratchet 불변), 프레임은 x=0 중앙이라 라이더 straddle(x±0.18)
+                //    밖 = ride-clear 무영향. 끝점·피벗 불변이라 detached·정렬(alignHandlebar) 불변.
+                tube(BB, HEAD, 0.052);                    // 다운튜브
+                tube(BB, SEAT, 0.052);                    // 시트튜브
+                tube(SEAT, HEAD, 0.046);                  // 탑튜브
+                tube(BB, [0, 0.17, -0.30], 0.040, dark);  // 체인스테이
+                tube(SEAT, [0, 0.17, -0.30], 0.040, dark);// 시트스테이
+                tube(HEAD, [0, 0.17, 0.30], 0.044, dark); // 앞포크
                 // 핸들바는 **그룹으로 묶어** 둔다 — 자전거 핏이 그렇듯 스템 길이로 바를 라이더 손에
                 // 맞추는 게 정답이고(alignStirrups가 등자를 발에 맞추는 것과 같은 원칙), 손을 상수로
                 // 바에 맞히려 들면 포즈·배율이 곱해진 자리를 손으로 맞히는 셈이라 반드시 어긋난다.
@@ -11185,7 +11192,7 @@ const Scene3D = {
                 //    **라이더가 없는 썸네일·판독 시트에는 그 정렬이 아예 안 돌아** 저자 좌표가 그대로
                 //    화면에 나온다 — 종 판독은 전부 그 그림으로 한다. 정렬 수식은 이 값을 나눗수로만
                 //    쓰므로(`geometry.parameters.height`) 여기를 고쳐도 주행 중 정렬은 그대로다.
-                const stem = tube(HEAD, [0, 0.60, 0.215], 0.016, dark);   // 헤드튜브 → 바 (길이는 매 배치마다 다시 잡는다)
+                const stem = tube(HEAD, [0, 0.60, 0.215], 0.038, dark);   // 헤드튜브 → 바 (길이는 매 배치마다 다시 잡는다·굵기만 청키화)
                 g.userData.bar = { group: barG, grips: gripsL, barMesh: bar, stem, head: HEAD, rest: barG.position.clone() };
                 // 안장 — LEATHER 통짜(0x2b1a0c)는 감청 부츠·다크 프레임 사이에서 게임 거리(~30px)에
                 // 통째로 사라져 비평가 2인이 독립적으로 "안장이 없다"고 읽었다(4차 ㉱⑶ 판독 잔여 —
@@ -11215,7 +11222,7 @@ const Scene3D = {
                 for (const s of [-1, 1]) {
                     const ck = new THREE.Group();
                     ck.position.set(s * 0.045, BB[1], BB[2]);   // 축 좌우로 살짝 벌려 체인링 자리를 남긴다
-                    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.022, CRANK_R, 0.026), IRON);
+                    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.040, CRANK_R, 0.040), IRON);  // 청키화(0.022→0.040): 얇은 암이 페달 상자를 '허공에 뜬 조각'으로 보이게 해 감점
                     arm.position.y = -CRANK_R / 2;             // 축에서 아래로 뻗은 암(회전 원점 = 축)
                     // ⚠️ **실측으로 발이 페달을 밟고 있어도 화면에서 안 읽히면 없는 것과 같다.**
                     //    페달을 검은 고무(0x212121)로 두니 감청색 부츠에 완전히 묻혀, 비평가 2인이
