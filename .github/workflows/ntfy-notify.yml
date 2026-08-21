@@ -22,7 +22,12 @@
 name: ntfy notify
 
 on:
-  page_build:            # Pages 빌드가 끝날 때(성공·실패 모두) 발화
+  # 🚨 처음엔 `page_build` 하나만 걸었다가 **실행 기록 0건**으로 실패했다(실측).
+  #    이 저장소의 Pages 는 Actions 기반 배포('pages build and deployment' 워크플로)라
+  #    레거시 `page_build` 웹훅이 안 뜬다. 그 워크플로의 완료를 직접 듣는 게 확실하다.
+  workflow_run:
+    workflows: ["pages build and deployment"]
+    types: [completed]
   workflow_dispatch:     # 손으로 시험 발사
 
 jobs:
@@ -34,8 +39,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
-          STATUS: ${{ github.event.build.status }}
-          SHA: ${{ github.event.build.commit }}
+          STATUS: ${{ github.event.workflow_run.conclusion }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          SUBJECT_RAW: ${{ github.event.workflow_run.head_commit.message }}
         run: |
           set -euo pipefail
           if [ "$EVENT" = "workflow_dispatch" ]; then
@@ -45,10 +51,11 @@ jobs:
             echo "prio=default" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # 커밋 제목(첫 줄)만 가져온다 — 본문까지 넣으면 알림이 잘려서 못 읽는다.
-          SUBJECT=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}" --jq '.commit.message' 2>/dev/null | head -1 || echo "$SHA")
+          # 커밋 제목(첫 줄)만 쓴다 — 본문까지 넣으면 알림이 잘려 못 읽는다.
+          SUBJECT=$(printf '%s' "$SUBJECT_RAW" | head -1)
+          [ -n "$SUBJECT" ] || SUBJECT=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}" --jq '.commit.message' 2>/dev/null | head -1 || echo "$SHA")
           SHORT=$(echo "$SHA" | cut -c1-7)
-          if [ "$STATUS" = "built" ]; then
+          if [ "$STATUS" = "success" ]; then
             echo "title=배포 완료 · $SHORT" >> "$GITHUB_OUTPUT"
             echo "tags=rocket" >> "$GITHUB_OUTPUT"
             echo "prio=default" >> "$GITHUB_OUTPUT"
