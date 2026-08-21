@@ -11412,12 +11412,21 @@ const Scene3D = {
             } else {
                 // 외바퀴도 자전거와 같은 처방 — 타이어·림만으로는 회전이 안 읽혀서(회전 대칭)
                 // 대비색 스포크 3개를 넣고 **그룹째** 돌린다.
+                // 🍬 외바퀴는 바퀴(RUBBER 검정)가 몸통의 2배라 타일 전체가 near-black(측정 avgL 0.19)로
+                //    읽혀 프레시 비평가 2인이 #21 을 'muddy gray, non-candy'로 지목했다 — 자전거는 바퀴
+                //    두 짝이 작고 프레임(빨강)이 정체성이라 검정 타이어가 맞지만, 외바퀴는 **큰 바퀴 하나가
+                //    지배 매스**라 dead void 로 뜬다(vertex-color 실측: 타이어 vol 0.027·L0.14·S0 = 몸통
+                //    teal vol 0.0125 의 2배). candyLiftURL 은 S 만 올리고 L 은 안 올려 검정을 못 살린다.
+                //    → 타이어를 몸 candy 색 어두운 톤으로, 림·스포크를 `metalTint`(기계거미·두발로봇과 동형 —
+                //    mount-machine-metal-tint 가 외바퀴만 빠뜨렸다)로 candy 화. 지오메트리 무변경(색만).
+                const tireMat = M(new THREE.Color(c).offsetHSL(0, 0.12, -0.40));   // 어두운 candy 타이어 — 채도는 올리고(deep teal 은 muddy 가 아니다) 명도만 크게 내려 몸통보다 확연히 어둡게 = 바퀴가 몸에서 갈려 읽힘(단색 blob 방지). 검정 dead void 도 아니고 몸색 blob 도 아닌 중간.
+                const rimMet = metalTint(-0.02);                                   // 림·스포크 = 밝은 몸 candy 금속(어두운 타이어와 명도 대비 → 바퀴 판독 강화)
                 const wg = new THREE.Group(); wg.position.set(0, 0.18, 0); g.add(wg);
-                const w = to(0.18, 0.05, 0, 0.18, 0, RUBBER); w.rotation.y = Math.PI / 2; // 굴러가는 면이 진행 방향을 보게 (타이어=고무)
-                const rim = to(0.142, 0.016, 0, 0.18, 0, IRON); rim.rotation.y = Math.PI / 2;   // 림
+                const w = to(0.18, 0.05, 0, 0.18, 0, tireMat); w.rotation.y = Math.PI / 2; // 굴러가는 면이 진행 방향을 보게 (어두운 candy 타이어)
+                const rim = to(0.142, 0.016, 0, 0.18, 0, rimMet); rim.rotation.y = Math.PI / 2;   // 림
                 const wparts = [w, rim];
                 for (let k = 0; k < 3; k++) {
-                    const sk = bx(0.014, 0.28, 0.014, 0, 0.18, 0, IRON);
+                    const sk = bx(0.014, 0.28, 0.014, 0, 0.18, 0, rimMet);
                     sk.rotation.z = k * Math.PI / 3;
                     wparts.push(sk);
                 }
