@@ -8269,6 +8269,10 @@ const Scene3D = {
         const us = [], vs = [], ws = [];
         g.updateMatrixWorld(true);
         g.traverse(o => {
+            // 숨긴 파츠(썸네일 전용 `hideInThumb`, 예: 비행 탈것 등자)는 프레이밍에서도 빼 — 안 그러면
+            //    안 보이는 등자 자리에 여백이 남아 실물이 작게 잡힌다. 조상 사슬까지 보이는지 확인한다.
+            let vis = o.visible; for (let p = o.parent; p && vis; p = p.parent) vis = p.visible;
+            if (!vis) return;
             const pos = o.geometry && o.geometry.attributes && o.geometry.attributes.position;
             if (!pos) return;
             const v = new THREE.Vector3();
@@ -8830,8 +8834,14 @@ const Scene3D = {
             // 방위각은 0이고(카메라 x는 worldX를 따라간다), 모델 요각 0.55는 위에서 이미 줬다.
             const cam = this._creatureCam;
             const dir = new THREE.Vector3(0, this.CAM_POS[1] - this.CAM_LOOK_Y, this.CAM_POS[2]).normalize();
-            this.thumbFrameToFit(cam, g, dir, 1.04);         // 테두리 여백 4%
+            // 🚨 썸네일 전용 숨김 — `userData.hideInThumb`(예: 비행 탈것 등자, 라이더 없는 썸네일에서
+            //    허공에 뜬 흰 큐브로 읽힘)를 렌더 직전에 끄고 프레이밍·렌더 뒤 되돌린다. 인게임 모델은
+            //    이 경로를 안 타므로(update→mountGroup 직접 렌더) 실물 포즈는 무영향.
+            const hidden = [];
+            mesh.traverse(o => { if (o.userData && o.userData.hideInThumb && o.visible) { o.visible = false; hidden.push(o); } });
+            this.thumbFrameToFit(cam, g, dir, 1.04);         // 테두리 여백 4%(숨긴 파츠는 bbox 에서도 빠져 프레이밍이 몸에 꽉 찬다)
             this._creatureR.render(sc, cam);
+            for (const o of hidden) o.visible = true;
             const url = this._creatureR.domElement.toDataURL();
             this._thumbCache[key] = url;
             return url;
@@ -11516,6 +11526,24 @@ const Scene3D = {
             //    더 진한 가죽**(−0.13 명도·+0.14 채도)으로 내려 밝은 뼈가 그 위에 '리브'로 또렷이 얹히게
             //    한다 = 박쥐·익룡 막날개의 실제 명암(어두운 막 + 밝은 지골). 색만 — 지오메트리·ride-clear 불변.
             const PWINGC = M(new THREE.Color(c).offsetHSL(0, 0.14, -0.13));
+            // 🚨 날개를 어깨 뿌리에서 위로 세운 이각(dihedral) — 비평가 4인 공통 잔여 '비행 3종 얇은 막날개가
+            //    떠 있다(floating flat plank)'의 정면 처치. 옛 판은 날개가 y0.46 안장 위에서 **수평으로** 옆으로
+            //    뻗은 얇은 타원이라 3/4 썸네일에서 '떠 있는 널빤지'였다. 인계 메모가 지목한 진짜 해법 — "수평으로
+            //    펴 두지 말고 접어/뒤로 쓸어 라이더 위로 붙이는 재조형" — 을 실행한다. 색·두께 미세조정(메모가
+            //    '안 된다'고 못박은 그 길)이 아니라 **자세**를 바꾼다.
+            // 🔑 왜 ride-clear 를 안 깨나(baseline 실측 근거): thighL(근쪽) 가림은 y0.46 수평 띠의 날개 질량이
+            //    범인이다(드래곤 baseline thighL 33% 의 걸린 지점이 날개 중심 −0.3,0.46,−0.24). 뿌리(안쪽 모서리,
+            //    y0.46 고정)를 축으로 **바깥 끝만 위로** 올리면 안쪽은 안 내려가고 중·바깥 질량이 그 띠 위로
+            //    빠져나간다 → 근쪽 다리 가림은 오히려 **준다**. 위로만 올리므로 아래 안장·라이더와도 안 겹친다.
+            // ⚙️ 지오메트리에 구워 넣는다 — mesh.rotation.z 는 매 프레임 펄럭임(update ud.wings)이 덮으므로
+            //    정지 썸네일(채점 대상)에서 세워 보이려면 정점을 돌려야 한다. 펄럭임은 세운 날개를 중심으로
+            //    그대로 돈다. 안쪽 모서리 = 중심에서 센터 쪽으로 halfX(=반폭) 떨어진 곳.
+            const bendUp = (mesh, s, halfX, ang) => {
+                mesh.geometry.translate(s * halfX, 0, 0);   // 안쪽 모서리(−s·halfX) → 원점
+                mesh.geometry.rotateZ(s * ang);             // 바깥 끝을 +y 로 (부호: 좌우 대칭으로 둘 다 위로)
+                mesh.geometry.translate(-s * halfX, 0, 0);
+                mesh.geometry.computeBoundingBox();
+            };
             for (const s of [-1, 1]) {
                 // 날개를 크게 — 비행형이 '날고 있다'로 읽히려면 실루엣에서 몸통보다 넓어야 한다
                 // 고래는 날개가 아니라 **가슴지느러미**라 몸통 앞쪽·아래에 눕혀 단다
@@ -11569,7 +11597,15 @@ const Scene3D = {
                                             : ptero ? sp(0.15, s * 0.28, 0.46, -0.24, PWINGC, 1.35, 0.10, 0.62)
                                                     : sp(0.15, s * 0.28, 0.46, -0.24, light, 1.35, 0.10, 0.62);
                 wing.userData.s = s;
-                if (whale) wing.rotation.y = s * 0.42;   // 가슴지느러미 뒤로 쓸기 — rotation.z(펄럭임)와 공존(update 는 z 만 덮는다). y0.19 저위라 ride-clear 무관
+                if (whale) {
+                    wing.rotation.y = s * 0.42;   // 가슴지느러미 뒤로 쓸기 — rotation.z(펄럭임)와 공존(update 는 z 만 덮는다). y0.19 저위라 ride-clear 무관
+                    // 🚨 가슴지느러미를 **아래로 처진 플리퍼**로 (mount-riverbond-remake, 비평가 4인 잔여 '별고래
+                    //    지느러미가 몸에서 떠 흩어진 슬랩'). 뒤로만 쓸린 **수평** 판때기라 3/4 각에서 몸 옆에 붙은
+                    //    널빤지로 읽혔다. 실제 고래 가슴지느러미는 몸에서 흘러나와 **아래로 늘어진다** — 뿌리(안쪽
+                    //    모서리)를 축으로 바깥 끝을 내려(−ang) 몸에서 자연스레 처지는 실루엣을 만든다. y0.19 는
+                    //    라이더보다 낮아 ride-clear 무관(주석 확인)이라 자유 재조형. halfX=0.15·1.7=0.255.
+                    bendUp(wing, s, 0.255, -0.34);
+                }
                 g.userData.wings.push(wing);
                 // ── 날개 밑동 융기 (`mount-species-recognizable` 2차 채점 반영) ──────────────
                 // 🚨 **'빈틈 0.016~0.021 은 작으니 괜찮다'는 내 판단이 틀렸다.** 2차 채점에서 비평가가
@@ -11604,6 +11640,10 @@ const Scene3D = {
                     const spar = bx(dragon ? 0.46 : 0.42, 0.035, 0.06,
                                     s * (dragon ? 0.29 : 0.27), dragon ? 0.46 : 0.45, dragon ? -0.18 : -0.20, mat);   // 벌 팔뼈도 z −0.24 로 물린 막을 따라 −0.14→−0.20
                     spar.userData.s = s; g.userData.wings.push(spar);
+                    // 🚨 드래곤 날개·팔뼈를 위로 세운다(dihedral) — 위 bendUp 주석의 그 처치. 벌은 제외
+                    //    (비평가 잔여 목록에 없다 = 이미 '얇은 잎'으로 인정받음 — 세우면 되레 낯설다).
+                    //    막 halfX=0.16·1.5=0.24 · 팔뼈 halfX=0.46/2=0.23. 안쪽 모서리(y0.46) 축, 바깥 끝만 위로.
+                    if (dragon) { bendUp(wing, s, 0.24, 0.62); bendUp(spar, s, 0.23, 0.62); }
                 }
             }
             if (ptero) {
@@ -11665,6 +11705,12 @@ const Scene3D = {
             // 비행형 안장: form.saddle 0.38 / 몸통 반폭·반높이·중심 y / 발은 몸통 옆 허공(등자만)
             saddleRig(0.38, dragon || whale ? 0.152 : ptero ? 0.141 : 0.144,
                       dragon ? 0.16 : whale ? 0.168 : ptero ? 0.147 : 0.152, 0.22, [0.20, 0.06, 0.09]);
+            // 🚨 비행 계열 **썸네일에서만** 등자를 숨긴다 (mount-riverbond-remake, 인계 메모 세션3 ⓑ —
+            //    비평가 4인 독립 지적 '비행 탈것 등자가 허공에 뜬 흰 큐브'). 라이더 없는 썸네일에선 등자가
+            //    안장 밑 허공에 대롱대롱 매달려 '떨어진 흰 조각'으로 읽힌다(지상 탈것은 발판이 몸·다리 옆이라
+            //    안 걸린다 — 그래서 비행형만). 인게임은 발이 등자를 채우니 **실물 포즈·정렬(alignStirrups)은
+            //    불변** — `creatureThumb` 렌더 직전에만 `.visible=false` 로 끄고 되돌린다(태그만 여기서 단다).
+            for (const st of (g.userData.stirrups || [])) st.userData.hideInThumb = true;
             // 굴레·고삐 — 머리 자리는 종마다 다르므로 **위에서 실제로 쓴 값**을 그대로 넘긴다
             // (상수를 다시 적으면 머리를 옮길 때 굴레만 허공에 남는다 — 목 위치 스윕에서 이미 겪은 함정).
             // 🚨 **여기 넘기는 값은 위에서 머리를 실제로 세운 좌표와 같아야 한다 — 두 번 어긋나 있었다**

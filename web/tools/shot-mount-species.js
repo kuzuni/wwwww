@@ -46,6 +46,10 @@ const ARG = RAW.filter(a => a !== '--blind');
             g.rotation.y = ry;
             g.add(Scene3D.makeMountMesh(name, 'epic'));
             sc.add(g);
+            // 게임 썸네일(creatureThumb)과 동일하게 `hideInThumb`(비행 탈것 등자 등)를 끈다 — 이 시트가
+            //    플레이어가 실제로 보는 썸네일의 충실한 대리여야 채점이 유효하다(라이더 없는 썸네일에서
+            //    등자가 허공에 뜬 흰 큐브로 읽히던 것을 게임과 같은 경로로 숨긴다).
+            g.traverse(o => { if (o.userData && o.userData.hideInThumb) o.visible = false; });
             Scene3D.thumbFrameToFit(Scene3D._creatureCam, g, new THREE.Vector3(0, 3.7 - 0.9, 8.2).normalize(), 1.04);
             Scene3D._creatureR.render(sc, Scene3D._creatureCam);
             return Scene3D._creatureR.domElement.toDataURL();
