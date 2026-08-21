@@ -12610,9 +12610,16 @@ const Scene3D = {
                 //    0.097 보다 밖이라 또 떠 있었다(2판). 0.085 로 들여 몸에 얹는다.
                 for (const sx of [-1, 1]) bx(0.04, 0.08, 0.15, sx * 0.085, 0.315, -0.30, PLATE);   // 엉덩이 옆 판
             } else if (name === 'Mech Spider') {           // 기계 거미: 다리 4쌍(추가 2쌍) + 단안 센서
+                // 🦵 다리 굵히기 (mount-spider-leg-thicken, 비평가 #22 'spindly' 재지적 — 구조 벽 ③).
+                //    상·하단 빔이 r0.022/0.018 = VP0.055 격자에서 ~1칸 철사라 8개 다리가 죽마로 읽혔다
+                //    (게 다리를 굵힌 `mount-crab-leg-attach` 와 같은 처방·같은 값대). 위 굵고 아래 가는
+                //    테이퍼는 그대로라 '파이프'가 아니라 '기계 다리'로 읽힌다. 지오메트리 굵기만 —
+                //    끝점·피벗·userData 불변이라 접지·모션·프레이밍 계약은 그대로다.
+                //    ⚠️ 다리가 x±0.34~0.40 밖으로 뻗어 라이더 straddle(x±0.18)에서 멀다 —
+                //    `probe-ride-clear` 근쪽 다리 노출이 굵히기 전에도 0% 여유였다(A/B 로 확인).
                 for (const s of [-1, 1]) for (const z of [0.16, -0.16]) {
-                    const up = tube([s * 0.14, 0.26, z], [s * 0.34, 0.40, z], 0.022, IRON);
-                    tube([s * 0.34, 0.40, z], [s * 0.40, 0.02, z], 0.018, MECH_DARK);
+                    const up = tube([s * 0.14, 0.26, z], [s * 0.34, 0.40, z], 0.046, IRON);
+                    tube([s * 0.34, 0.40, z], [s * 0.40, 0.02, z], 0.038, MECH_DARK);
                     up.userData.mechLeg = true;
                 }
                 sp(0.05, 0, 0.30, 0.52, M(0xff5252, { emissive: 0xd50000, emissiveIntensity: 0.8 })).userData.part = 'head';
@@ -12763,10 +12770,10 @@ const Scene3D = {
                 //    거북은 굵은 기둥 + 넓은 발톱판이라 같은 길이에서도 '뭉툭한 다리'로 읽힌다.
                 if (MECH) {
                     // 관절 다리 — 몸통 옆으로 뻗었다가 무릎에서 꺾여 내려간다(기존 기계 다리 4개와 같은 문법).
-                    const up = tube([0, 0, 0], [sx * 0.20, 0.14, 0], 0.022, IRON);
+                    const up = tube([0, 0, 0], [sx * 0.20, 0.14, 0], 0.046, IRON);   // 굵히기(mount-spider-leg-thicken) — 위 4다리와 같은 값
                     // ⚠️ 아랫다리에 `dark`(등급색 −0.18)를 쓰면 **초록 파이프**다 — 기계 다리는 금속색으로.
                     //    (기존 기계 다리 4개도 같은 실수를 하고 있어 아래에서 같이 고쳤다.)
-                    const dn = tube([sx * 0.20, 0.14, 0], [sx * 0.26, -HIP_Y, 0], 0.018, MECH_DARK);
+                    const dn = tube([sx * 0.20, 0.14, 0], [sx * 0.26, -HIP_Y, 0], 0.038, MECH_DARK);
                     const ft = new THREE.Mesh(vgCone(0.026, 0.06), IRON);
                     ft.position.set(sx * 0.26, 0.03 - HIP_Y, 0); ft.rotation.x = Math.PI;
                     pivot.add(up, dn, ft);
