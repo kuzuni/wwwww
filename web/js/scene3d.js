@@ -13939,7 +13939,16 @@ const Scene3D = {
         //    익룡은 물빠진 탄→쨍한 골드로. 몸색만 — 지오메트리 불변(vivid() 가 s>0.12 에 +채도 더 얹는다).
         //    코뿔소도 무채 슬레이트→쨍한 스틸블루(비평가 'muddy monochrome'), 익룡 물빠진 탄→쨍 골드.
         'Armored Rhino': 0x5f8fc8, 'Giant Bee': 0xf6c81c, 'Mini Dragon': 0xda3826,
-        'Star Whale': 0x3a86e0, 'Pterosaur': 0xf0741a,   // 익룡 골드도 올리브로 죽어 오렌지로(벌·덤프는 종 정체성상 노랑 유지)
+        // 🍬 익룡 냉색 candy 재배정 (mount-riverbond-remake — warm-die 마지막 동물 홀드아웃 처치).
+        //    골드→오렌지(0xf0741a)로 두 번 바꿔도 ACES+깊은 복셀 암부가 웜 넓은 면을 desaturate 해
+        //    썸네일에서 여전히 흙올리브로 죽었다(측정 확정: measure-mount-sat·warm-cube-ao A/B 반증,
+        //    렌더러 벽이라 웜 베이스·vivid·AO 로는 못 뚫음). 비평가 8인 블라인드 재채점 공통 최악권 =
+        //    #26 익룡 'scattered muddy skeleton'. 프레시 비평가 공통 처방 "candy>사실, 냉색 재배정".
+        //    익룡은 이름·정체성이 색에 안 묶여(벌=노랑·갈색말=이름색 과 달리) 냉색 전환이 자유롭다.
+        //    → 쨍한 블루바이올렛(냉색은 ACES 후에도 candy 로 산다 — 냉색군 전례). 막(PWINGC=몸색
+        //    파생)·융기·팔뼈가 전부 c 에서 파생돼 자동 정합, BONE 볏만 각질색으로 남아 종 판독 유지.
+        //    hue 를 Elk 아메시스트(0xa64de0)·드래곤 레드(0xda3826)·별고래 파랑(0x3a86e0)과 벌려 구별.
+        'Star Whale': 0x3a86e0, 'Pterosaur': 0x7a4fe0,
         // 기계·탈것 — 프레시 비평가가 '회색 금속 = zero candy' 로 감점(#21 드로이드·#22 거미·#29 로봇).
         //    기계도 리버본드에선 candy 토이색이라, 무채 금속을 쨍한 색으로(시안·스틸블루·건설노랑).
         'Clockwork Mouse': 0xd94a9a, 'Clockwork Beetle': 0x3fb87a,   // 태엽쥐 노랑-브라스도 올리브로 죽어 candy 마젠타로
