@@ -13907,9 +13907,18 @@ const Scene3D = {
         //    웜 quad 를 **노랑-골드에서 빼내** 오렌지/레드/코랄/틸/마젠타(=곱셈·톤맵 후에도 그 색으로
         //    읽히는 hue)로 재배정한다. 초식 herd 는 이미 보라(당나귀)·핑크(돼지)·로즈(염소)로 갈렸으니
         //    나머지도 색상환으로 흩어 herd 구별까지 챙긴다. (비평가 C·D 재채점 3·4 '흙 팔레트가 여전 1순위'.)
-        'Pony': 0xff7d1a, 'Donkey': 0x8b7fcc, 'Alpaca': 0x2fb8a0, 'Sheep': 0x84cf9a,
-        'Turtle': 0x3fb082, 'Crab': 0xf05230, 'Dino': 0x7cc23a, 'Boar': 0xb0402a,
-        'Pig': 0xf593ac, 'Goat': 0xcf6f8c, 'Camel': 0xe86418, 'Elk': 0xdd3a1e,
+        // 🍬 웜-사(死) 사족 3종 냉색 candy 재배정 (mount-warm-quad-cool). 라운드2~4 인계 메모가
+        //    "조랑말·멧돼지·큰사슴은 종 정체성상 웜이라 아직 tan 으로 죽는 잔여(냉색 전환 or 렌더러 수정 필요)"로
+        //    남긴 3종을 처치. 오렌지(Pony 0xff7d1a)·브릭(Boar 0xb0402a)·다크레드(Elk 0xdd3a1e)는 전부
+        //    ACES+깊은 복셀 암부가 채도를 뭉개 썸네일에서 흙올리브/탄으로 죽었다(세션2~6 이 렌더러 벽으로
+        //    확정, 웜 베이스·vivid 로는 못 뚫음). 프레시 비평가 공통 처방 "candy>사실, 냉색으로 재배정하면
+        //    게이트를 넘는다"에 따라 냉색 candy 로 — 조랑말=쨍 파랑·멧돼지=candy 마젠타·큰사슴=아메시스트 보라.
+        //    herd 이웃(당나귀 페리윙클 0x8b7fcc·돼지 핑크·염소 로즈)과 hue 를 벌려 구별도 챙겼다.
+        //    ⚠️ 오가닉 액센트(양털·플리스·낙타 혹) 없는 3종이라 accent-bodytint 와 무충돌 · 낙타(혹 accent)·
+        //    갈색말(하드코드)·벌/덤프(정체성 노랑)는 제외 · 색만 변경(지오·vivid·AO·안장 불변).
+        'Pony': 0x3f8fe0, 'Donkey': 0x8b7fcc, 'Alpaca': 0x2fb8a0, 'Sheep': 0x84cf9a,
+        'Turtle': 0x3fb082, 'Crab': 0xf05230, 'Dino': 0x7cc23a, 'Boar': 0xd046b0,
+        'Pig': 0xf593ac, 'Goat': 0xcf6f8c, 'Camel': 0xe86418, 'Elk': 0xa64de0,
         // 🚨 비행 3종 채도·명도 상향 (mount-riverbond-remake, 비평가 4인 공통 'washed-out/muddy,
         //    vivid 목표 미달' — 지상동물은 이미 통과, 비행종만 칙칙했다). 벌은 노랑을 쨍하게 올려야
         //    어두운 배마디(BEE_D)가 '줄무늬'로 대비되고(비평가 'no bee striping'), 드래곤은 진홍으로,
