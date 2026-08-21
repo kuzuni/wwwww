@@ -565,7 +565,10 @@ const Scene3D = {
             uniforms: { tScene: { value: null }, tBloom: { value: null }, strength: { value: 0.34 } }, // 0.5는 밝은 면이 형태를 잃음 (비평가 7.1 화이트아웃)
             vertexShader: V,
             fragmentShader: 'varying vec2 vUv; uniform sampler2D tScene; uniform sampler2D tBloom; uniform float strength;\n' +
-                'void main(){ vec3 c = texture2D(tScene, vUv).rgb + texture2D(tBloom, vUv).rgb * strength;\n' +
+                // 🚨 알파 0 = **블룸 금지 태그**(아웃라인 셸·영웅 흰자 등 ProChar.noBloom). 그 화소엔 블룸을
+                //    **더하지 않는다** — 이웃의 밝은 히트 플래시가 블러돼 검정 아웃라인 위로 번져도 물들지 않게.
+                'void main(){ vec4 sc = texture2D(tScene, vUv);\n' +
+                '  vec3 c = sc.rgb + texture2D(tBloom, vUv).rgb * strength * step(0.15, sc.a);\n' +
                 '  float d = distance(vUv, vec2(0.5, 0.5));\n' +
                 '  c *= 1.0 - smoothstep(0.58, 0.88, d) * 0.24;\n' + // 미세 비네트 — 시선을 중앙으로
                 '  gl_FragColor = vec4(c, 1.0); }',
@@ -584,6 +587,15 @@ const Scene3D = {
 
     renderFrame() {
         if (!this.renderer || this.ctxLost) return;   // 죽은 컨텍스트에 그리면 GL 에러만 쌓인다
+        // 🚨 아웃라인 전용 공유 재질을 **렌더 직전에 검정·불투명으로 강제 고정**한다. 전투 효과
+        //    (피격 플래시·디졸브·rimFlash·미래에 추가될 무엇이든)가 이 재질을 건드려도 프레임마다
+        //    여기서 되돌려지므로 검정 아웃라인이 절대 색이 바뀌지 않는다(사용자 지시 2026-08-22:
+        //    "피격효과로 아웃라인 색 바뀌지 마 — 검정으로 고정"). 재질 하나뿐이라 비용은 무시할 수준.
+        if (this._outlineMat) {
+            if (this._outlineMat.color.getHex() !== 0x000000) this._outlineMat.color.setHex(0x000000);
+            if (this._outlineMat.opacity !== 1) this._outlineMat.opacity = 1;
+            if (this._outlineMat.transparent) this._outlineMat.transparent = false;
+        }
         this.updateShadeSun();
         if (!this.postOn || !this._rtScene) { this.renderer.render(this.scene, this.camera); return; }
         const r = this.renderer;
@@ -739,7 +751,13 @@ const Scene3D = {
     heroOutlineMat() {
         if (this._outlineMat) return this._outlineMat;
         // fog:false — 안개가 검정 테두리를 배경색으로 씻어 윤곽이 흐려지는 것 방지
-        this._outlineMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide, fog: false });
+        const m = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide, fog: false });
+        // 🚨 **블룸 금지 태그(알파 0)** — 피격/처치 때 밝은 히트 플래시·플레어의 블룸 헐레이션이 검정
+        //    아웃라인 위로 번져 회색/주황으로 물드는 게 "피격하면 색 바뀜"의 진짜 원인이었다(headless
+        //    실측: 블룸 끄면 검정 유지, 켜면 씻김). ProChar.noBloom 이 gl_FragColor.a=0 을 찍고, 아래
+        //    initPost 컴포짓이 **알파 태그 픽셀엔 블룸을 안 더하도록** 고쳐서 아웃라인은 항상 순검정으로 남는다.
+        if (typeof ProChar !== 'undefined' && ProChar.noBloom) ProChar.noBloom(m);
+        this._outlineMat = m;
         return this._outlineMat;
     },
     // 캐릭터 트리에 빠진 검정 셸을 채운다(멱등·자가치유). 파츠가 뒤늦게(맨살 박스 몸통) 혹은
