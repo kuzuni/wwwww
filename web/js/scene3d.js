@@ -522,6 +522,11 @@ const Scene3D = {
         const pars = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat };
         this._rtScene = new THREE.WebGLRenderTarget(2, 2, pars);
         this._rtScene.texture.encoding = THREE.sRGBEncoding; // 캔버스 직접 렌더와 동일한 색으로 RT에 기록
+        // 🖊️ **깊이 텍스처** — 후처리 엣지 아웃라인(uniform-outline-postfx, 2026-08-22)이 이 깊이를 읽어
+        //    선형 깊이 경계를 검출한다. 파츠별 인버티드 헐(머리처럼 밀집부에서 두께가 누적)과 달리
+        //    화면공간 1px 균일선이라 캐릭터·펫·탈것·무기·적·소환체 **전부 같은 픽셀 두께**가 된다.
+        this._rtScene.depthTexture = new THREE.DepthTexture(2, 2);
+        this._rtScene.depthTexture.type = THREE.UnsignedIntType;   // DEPTH_COMPONENT24 — 경계 판정에 충분한 정밀도
         this._rtA = new THREE.WebGLRenderTarget(2, 2, pars);
         this._rtB = new THREE.WebGLRenderTarget(2, 2, pars);
         this._fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -562,15 +567,38 @@ const Scene3D = {
             depthTest: false, depthWrite: false,
         });
         this._compMat = new THREE.ShaderMaterial({
-            uniforms: { tScene: { value: null }, tBloom: { value: null }, strength: { value: 0.34 } }, // 0.5는 밝은 면이 형태를 잃음 (비평가 7.1 화이트아웃)
+            uniforms: {
+                tScene: { value: null }, tBloom: { value: null }, strength: { value: 0.34 }, // 0.5는 밝은 면이 형태를 잃음 (비평가 7.1 화이트아웃)
+                // 🖊️ 후처리 엣지 아웃라인 (uniform-outline-postfx, 2026-08-22)
+                tDepth: { value: null }, texel: { value: new THREE.Vector2(1 / 512, 1 / 512) },
+                camNear: { value: 0.1 }, camFar: { value: 100 },
+                // 상대 임계 — 이웃 선형깊이차가 (edgeK × 이 화소 깊이) 를 넘으면 검정. 평평한 지면은
+                // 깊이 그라디언트가 완만해(깊이 비례 임계라 원경일수록 관대) 엣지가 안 생기고,
+                // 캐릭터 실루엣·내부 파츠 경계(깊이 점프)에서만 균일선이 나온다.
+                edgeK: { value: 0.028 },
+                // 근거리 컷 — 이 화소 선형깊이가 이 값을 넘으면 아웃라인을 안 그린다. 캐릭터·펫·탈것·적은
+                // 카메라에서 ~8~15 유닛이고 지평선(지면 far 모서리↔하늘)은 ~50+ 라, 22 로 자르면 캐릭터는
+                // 다 살면서 **지평선의 큰 깊이 점프가 화면을 가로지르는 검정선**을 만드는 걸 막는다.
+                edgeMaxZ: { value: 22.0 },
+            },
             vertexShader: V,
-            fragmentShader: 'varying vec2 vUv; uniform sampler2D tScene; uniform sampler2D tBloom; uniform float strength;\n' +
-                // 🚨 알파 0 = **블룸 금지 태그**(아웃라인 셸·영웅 흰자 등 ProChar.noBloom). 그 화소엔 블룸을
+            fragmentShader: '#include <packing>\n' +
+                'varying vec2 vUv; uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tDepth;\n' +
+                'uniform float strength; uniform vec2 texel; uniform float camNear; uniform float camFar; uniform float edgeK; uniform float edgeMaxZ;\n' +
+                'float linz(vec2 uv){ float d = texture2D(tDepth, uv).x; return -perspectiveDepthToViewZ(d, camNear, camFar); }\n' +
+                // 🚨 알파 0 = **블룸 금지 태그**(영웅 흰자 등 ProChar.noBloom). 그 화소엔 블룸을
                 //    **더하지 않는다** — 이웃의 밝은 히트 플래시가 블러돼 검정 아웃라인 위로 번져도 물들지 않게.
                 'void main(){ vec4 sc = texture2D(tScene, vUv);\n' +
                 '  vec3 c = sc.rgb + texture2D(tBloom, vUv).rgb * strength * step(0.15, sc.a);\n' +
                 '  float d = distance(vUv, vec2(0.5, 0.5));\n' +
                 '  c *= 1.0 - smoothstep(0.58, 0.88, d) * 0.24;\n' + // 미세 비네트 — 시선을 중앙으로
+                // 🖊️ 깊이 경계 = **1px 균일 검정선**. 상하좌우 이웃(±1 텍셀)의 선형깊이와 비교해
+                //    최대 차이가 상대 임계를 넘으면 검정. 4-이웃이라 두께가 지오메트리와 무관하게 일정하다.
+                '  float z0 = linz(vUv);\n' +
+                '  float dz = max(max(abs(z0 - linz(vUv - vec2(texel.x, 0.0))), abs(z0 - linz(vUv + vec2(texel.x, 0.0)))),\n' +
+                '                  max(abs(z0 - linz(vUv - vec2(0.0, texel.y))), abs(z0 - linz(vUv + vec2(0.0, texel.y)))));\n' +
+                '  float edge = step(edgeK * z0, dz) * step(z0, edgeMaxZ);\n' +
+                '  c = mix(c, vec3(0.0), edge);\n' +
                 '  gl_FragColor = vec4(c, 1.0); }',
             depthTest: false, depthWrite: false,
         });
@@ -614,6 +642,12 @@ const Scene3D = {
         this._fsQuad.material = this._compMat;
         this._compMat.uniforms.tScene.value = this._rtScene.texture;
         this._compMat.uniforms.tBloom.value = this._rtA.texture;
+        // 🖊️ 엣지 아웃라인 입력 — 깊이 텍스처 + 카메라 근/원 평면(선형화용) + 화소 크기.
+        this._compMat.uniforms.tDepth.value = this._rtScene.depthTexture;
+        this._compMat.uniforms.camNear.value = this.camera.near;
+        this._compMat.uniforms.camFar.value = this.camera.far;
+        const dbz = r.getDrawingBufferSize(this._dbTmp || (this._dbTmp = new THREE.Vector2()));
+        this._compMat.uniforms.texel.value.set(1 / Math.max(1, dbz.x), 1 / Math.max(1, dbz.y));
         r.setRenderTarget(null); r.render(this._fsScene, this._fsCam);
     },
 
@@ -801,6 +835,13 @@ const Scene3D = {
     // 멱등이라(hasOutlineShell 플래그) 비용은 파츠당 불리언 검사 한 번. 사라진 개체의 셸은
     // 그 개체가 씬에서 빠질 때 자식으로 함께 사라진다.
     ensureOutlines() {
+        // 🖊️ 데스크톱(postOn)은 **후처리 깊이-엣지 아웃라인**(renderFrame 컴포짓)이 균일 1px 검정선을
+        //    그린다. 파츠별 인버티드 헐을 함께 붙이면 **중복**이고, 헐은 머리처럼 파츠 밀집·중첩부에서
+        //    두께가 누적돼 불균일했다(사용자 지적) — 그래서 postOn 에선 헐을 아예 만들지 않는다.
+        //    모바일(postOn=false)은 후처리 스택을 안 태우므로 헐 폴백을 그대로 유지한다.
+        //    ⚠️ 아웃라인 안정화(renderFrame 의 _outlineMat 검정·불투명 강제, 디졸브·플래시 스킵)는
+        //       그대로 둔다 — _outlineMat 이 생성돼 있으면(모바일·과거 셸) 계속 지켜진다.
+        if (this.postOn) return;
         this.applyOutlineTree(this.heroG);
         if (this.petGroups) for (const pg of this.petGroups) this.applyOutlineTree(pg);
         this.applyOutlineTree(this.mountGroup);
