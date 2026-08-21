@@ -302,31 +302,32 @@
     mcShurikenBarrage(targetIds, color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
         const spot0 = this.mcSpots(targetIds)[0];
-        const n = 7 + (t >= 3 ? 2 : t >= 1 ? 1 : 0);
+        const n = 5 + (t >= 3 ? 2 : t >= 1 ? 1 : 0);          // 느려진 만큼 개수 줄여 화면 안 붐비게
         SFX.slashArc(0, t);
         for (let i = 0; i < n; i++) {
             setTimeout(() => {
                 const tgt = this.mcSpots(targetIds)[0] || spot0;
                 const from = new THREE.Vector3(this.SKILL_OFFSCREEN_X + U.rand(-1, 1), U.rand(1.4, 2.6), tgt.z + U.rand(-1.3, 1.3));
-                const a = this.fxActor('shuriken', { scale: 1.0 + t * 0.06, pos: from, yaw: 0 });
+                // yaw 0 = 별면(XY 평면)이 카메라(+z)를 정면으로 본다 — 눕히지 않는다.
+                const a = this.fxActor('shuriken', { scale: 1.25 + t * 0.06, pos: from, yaw: 0 });
                 if (!a) return;
-                a.g.rotation.x = -0.42;                       // 살짝 눕혀야 십자 날이 보인다
                 const dest = new THREE.Vector3(tgt.x - 0.1, 0.62 + U.rand(-0.15, 0.4), tgt.z + U.rand(-0.25, 0.25));
                 const arcH = 1.6 + U.rand(-0.2, 0.5);         // 포물선 정점 높이
-                // 느리게(0.42s) + 포물선 — 직선 lerp 에 sin 을 얹어 위로 볼록하게 날린다.
-                this.addAnim(0.42, k => {
+                const spin = 0.55 + U.rand(0, 0.15);          // 제 축(z) 회전 속도 — 팽팽 도는 표창
+                // 느리게(0.6s) + 포물선 + 제 축 회전(정면에서 도는 게 보인다).
+                this.addAnim(0.6, k => {
                     a.g.position.lerpVectors(from, dest, k);
                     a.g.position.y += Math.sin(k * Math.PI) * arcH;   // 포물선 아치
-                    a.g.rotation.y += 0.85;                            // 회전(느려진 만큼 각속도 낮춤)
+                    a.g.rotation.z += spin;                            // 카메라 정면으로 팽팽 회전
                 }, () => { this.mcHit(dest, color, t, i === n - 1); this.fxActorFree(a); });
-            }, i * 85);                                        // 스태거 넓혀 '왼쪽에서 줄줄이' 로 읽히게
+            }, i * 100);                                       // 스태거 넓혀 '왼쪽에서 줄줄이' 로 읽히게
         }
     },
 
     // ── 화살비(arrowrain) — 화살이 왼쪽 밖에서 포물선으로 쏟아진다 (광역) ────────────────
     mcArrowRain(targetIds, color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
-        const volley = 8 + t * 2;
+        const volley = 7 + t * 2;
         SFX.slashArc(0, t);
         for (let i = 0; i < volley; i++) {
             setTimeout(() => {
@@ -334,11 +335,11 @@
                 const cur = spots[i % spots.length];
                 const from = new THREE.Vector3(this.SKILL_OFFSCREEN_X + U.rand(-1, 1), U.rand(1.6, 2.8), cur.z + U.rand(-1.2, 1.2));
                 const to = new THREE.Vector3(cur.x + U.rand(-0.25, 0.25), 0.6 + U.rand(0, 0.5), cur.z + U.rand(-0.3, 0.3));
-                // 느린 비행(0.42s) + 포물선(arcH 2.0) — 촉이 궤적 접선을 따라 내려꽂힌다.
-                this.projectileBolt(from, to, color, t, 0.42, 2.0 + U.rand(-0.3, 0.5));
-            }, i * 60);                                        // 스태거 넓혀 줄줄이 쏟아지게
+                // 느린 비행(0.58s) + 포물선(arcH 2.2) — 촉이 궤적 접선을 따라 내려꽂힌다.
+                this.projectileBolt(from, to, color, t, 0.58, 2.2 + U.rand(-0.3, 0.5));
+            }, i * 80);                                        // 스태거 넓혀 줄줄이 쏟아지게
         }
-        setTimeout(() => this.shake(0.2 + t * 0.05), Math.min(6, volley) * 60 + 380);
+        setTimeout(() => this.shake(0.2 + t * 0.05), Math.min(6, volley) * 80 + 520);
     },
 
     // ── 땅벌레(burrowworm) — 적 발밑에서 긴 지렁이가 꿈틀대며 솟아 문다 (단일) ────────────
@@ -348,56 +349,57 @@
         const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
         const spot = this.mcSpots(targetIds)[0];
         const at = new THREE.Vector3(spot.x, 0.1, spot.z);        // 적 발밑 바로 그 자리
-        const a = this.fxActor('worm', { scale: 1.0 + t * 0.06, pos: new THREE.Vector3(at.x, -3.4, at.z) });
+        // 길어진 몸(≈4.7칸)은 땅속에 완전히 잠기게 깊은 −5.2 에서 시작해 0.1 로 솟는다.
+        const a = this.fxActor('worm', { scale: 1.0 + t * 0.06, pos: new THREE.Vector3(at.x, -5.2, at.z) });
         if (!a) return;
         const head = a.P.head, jaw = a.P.jaw;
-        const SEGS = ['seg0', 'seg1', 'seg2', 'seg3', 'seg4', 'seg5', 'seg6'];
+        const SEGS = ['seg0', 'seg1', 'seg2', 'seg3', 'seg4', 'seg5', 'seg6', 'seg7', 'seg8', 'seg9', 'seg10', 'seg11', 'seg12', 'seg13'];
         let ph = 0;
-        // 마디마다 위상차를 준 사인파 → 사슬을 타고 누적돼 굽이치는 꿈틀. amp 로 세기 조절.
+        // 마디마다 위상차(0.45)를 준 사인파 → 사슬을 타고 누적돼 몸통 전체가 굽이치는 꿈틀. amp 로 세기.
         const wriggle = (amp) => {
-            ph += 0.33;
+            ph += 0.3;
             for (let i = 0; i < SEGS.length; i++) {
                 const s = a.P[SEGS[i]];
-                if (s) s.rotation.z = amp * Math.sin(ph - i * 0.6);
+                if (s) s.rotation.z = amp * Math.sin(ph - i * 0.45);
             }
-            if (head) head.rotation.z = amp * 0.6 * Math.sin(ph - SEGS.length * 0.6);
+            if (head) head.rotation.z = amp * 0.6 * Math.sin(ph - SEGS.length * 0.45);
         };
         SFX.mawRoar(Math.max(0, t - 1));
-        this.mcDust(at, 14);
-        // ⓐ 융기 — 땅속 깊이(−3.4)서 천천히 솟는다(0.44s). 머리를 젖히고 아가리 벌림. 꿈틀 시작.
-        this.addAnim(0.44, k => {
+        this.mcDust(at, 16);
+        // ⓐ 융기 — 땅속 깊이(−5.2)서 천천히 솟는다(0.6s). 머리를 젖히고 아가리 벌림. 꿈틀 시작.
+        this.addAnim(0.6, k => {
             const e = 1 - Math.pow(1 - k, 3);
-            a.g.position.y = -3.4 + e * 3.5;
-            wriggle(0.10 + 0.20 * e);
+            a.g.position.y = -5.2 + e * 5.3;
+            wriggle(0.10 + 0.18 * e);
             if (head) head.rotation.x = -1.0 * e;
             if (jaw) jaw.rotation.x = 0.55 * e;
         }, () => {
             this.mcDust(at, 8);
-            // ⓑ 위협 — 크게 꿈틀대며 머리를 좌우로 흔든다(지렁이 본체, 0.34s).
-            this.addAnim(0.34, k => {
-                wriggle(0.42);
-                if (head) { head.rotation.x = -1.0 + 0.22 * Math.sin(k * Math.PI * 2); head.rotation.y = 0.35 * Math.sin(k * Math.PI * 2); }
+            // ⓑ 위협 — 크게 꿈틀대며 머리를 좌우로 흔든다(지렁이 본체, 0.5s).
+            this.addAnim(0.5, k => {
+                wriggle(0.34);
+                if (head) { head.rotation.x = -1.0 + 0.22 * Math.sin(k * Math.PI * 2); head.rotation.y = 0.4 * Math.sin(k * Math.PI * 2); }
                 if (jaw) jaw.rotation.x = 0.55 + 0.15 * Math.sin(k * Math.PI * 3);
             }, () => {
-                // ⓒ 덮침 — 머리를 적에게 내리꽂고 아가리를 앙 다문다(0.18s).
-                this.addAnim(0.18, k => {
+                // ⓒ 덮침 — 머리를 적에게 내리꽂고 아가리를 앙 다문다(0.22s).
+                this.addAnim(0.22, k => {
                     const e = k * k;
-                    wriggle(0.32 * (1 - e));
+                    wriggle(0.30 * (1 - e));
                     if (head) head.rotation.x = -1.0 + 1.85 * e;
                     if (jaw) jaw.rotation.x = 0.55 - 1.05 * e;
-                    a.g.position.y = 0.1 + 0.45 * Math.sin(k * Math.PI);
+                    a.g.position.y = 0.1 + 0.5 * Math.sin(k * Math.PI);
                 }, () => {
                     this.mcHit(new THREE.Vector3(at.x, 1.0, at.z), color, t, true);
                     SFX.slashArc(0, t);
-                    // ⓓ 후퇴 — 크게 꿈틀대며 땅속으로 사라진다(0.55s).
+                    // ⓓ 후퇴 — 크게 꿈틀대며 땅속으로 사라진다(0.7s).
                     setTimeout(() => {
                         const y0 = a.g.position.y;
-                        this.addAnim(0.55, k => {
-                            wriggle(0.34 * (1 - k * 0.4));
-                            a.g.position.y = y0 - k * 4.4;
+                        this.addAnim(0.7, k => {
+                            wriggle(0.36 * (1 - k * 0.4));
+                            a.g.position.y = y0 - k * 6.0;
                             if (head) head.rotation.x = 0.85 - k * 0.9;
                         }, () => this.fxActorFree(a));
-                    }, 140);
+                    }, 150);
                 });
             });
         });

@@ -88,12 +88,17 @@
     // ── ③ 표창 — `ring` 회오리 베기 (10개가 적을 감아 돈다) ─────────────────────────
     // 사용자 원문의 "표창 10개". 10체를 동시에 띄우므로 **파츠 2개**로 못 박는다(드로우콜 20).
     // 십자로 겹친 두 판 = 마크 텍스처 문법의 사수리검. 가운데는 어둡게 칠해 구멍처럼 보이게.
+    // 🌟 사수리켄 = **8각 별**(2026-08-22 사용자 "표창처럼 안 생겼다"). 종전은 납작한 "+" 두 판이라
+    //    십자가로 읽혔다. 가로·세로 날에 **대각 날 2개**(part.rot 로 ±45° 회전)를 더해 8방향 별로.
+    //    XY 평면(정면 +z)에 두고 얇게(z=2) — 연출 코드가 제 축(z)으로 돌리면 카메라 정면에서 팽팽
+    //    돌아가는 표창으로 보인다. 가운데 어두운 허브 = 구멍 느낌.
     M['shuriken'] = {
-        cell: 0.06, parts: [
-            { id: 'body', box: [9, 1, 3], at: [0, 0, 0], c: 0xd7dce3, paint: [
-                { c: 0x8f959d, x: [3, 5] }, { c: 0x2f3338, x: [4, 4] } ] },
-            { box: [3, 1, 9], at: [0, 0, 0], c: 0xd7dce3, paint: [
-                { c: 0x8f959d, z: [3, 5] }, { c: 0x2f3338, z: [4, 4] } ] },
+        cell: 0.05, parts: [
+            { id: 'body', box: [14, 2, 2], at: [0, 0, 0], c: 0xd7dce3, paint: [{ c: 0x8f959d, x: [5, 8] }] },   // 가로 날
+            { box: [2, 14, 2], at: [0, 0, 0], c: 0xd7dce3, paint: [{ c: 0x8f959d, y: [5, 8] }] },               // 세로 날
+            { box: [14, 2, 2], at: [0, 0, 0], rot: [0, 0, 0.7854], c: 0xc2c8d0 },                               // 대각 날 "/"
+            { box: [14, 2, 2], at: [0, 0, 0], rot: [0, 0, -0.7854], c: 0xc2c8d0 },                              // 대각 날 "\"
+            { box: [5, 5, 3], at: [0, 0, 0], c: 0x3a3f45, paint: [{ c: 0x21252a, z: -1 }] },                    // 중앙 허브(어두움)
         ],
     };
 
@@ -384,23 +389,30 @@
     //    parent 로 아래→위 사슬로 엮고 각 마디에 pivot 을 준다. 그러면 연출 코드가 마디마다 살짝
     //    다른 위상(traveling sine)으로 rotation.z 를 주기만 해도 **회전이 사슬을 타고 누적돼** 몸통
     //    전체가 S 자로 굽이치는 꿈틀이 된다(마디를 따로 돌리면 제자리 기울기라 꿈틀이 안 산다).
-    //    마디 7단 + 머리 → 34칸(≈2.6칸) 길이. 1체만 띄우므로 드로우콜 여유.
+    //    마디 **14단** + 머리 → 62칸(≈4.7칸) 길이(2026-08-22 "2배 더 길게"). 1체만 띄우므로 드로우콜 여유.
     M['worm'] = {
         cell: 0.075, parts: [
-            { id: 'seg0', box: [5, 4, 5], at: [0, 2, 0],  pivot: [0, 0, 0],  c: 0x7d5b4e, paint: [{ c: 0x4e342e, y: [0, 0] }] },
-            { id: 'seg1', box: [5, 4, 5], at: [0, 6, 0],  pivot: [0, 4, 0],  parent: 'seg0', c: 0x9c7b6a, paint: [{ c: 0x5d4037, y: [3, 3] }] },
-            { id: 'seg2', box: [5, 4, 5], at: [0, 10, 0], pivot: [0, 8, 0],  parent: 'seg1', c: 0x7d5b4e, paint: [{ c: 0x5d4037, y: [3, 3] }] },
-            { id: 'seg3', box: [5, 4, 5], at: [0, 14, 0], pivot: [0, 12, 0], parent: 'seg2', c: 0x9c7b6a, paint: [{ c: 0x5d4037, y: [3, 3] }] },
-            { id: 'seg4', box: [5, 4, 5], at: [0, 18, 0], pivot: [0, 16, 0], parent: 'seg3', c: 0x7d5b4e, paint: [{ c: 0x5d4037, y: [3, 3] }] },
-            { id: 'seg5', box: [5, 4, 5], at: [0, 22, 0], pivot: [0, 20, 0], parent: 'seg4', c: 0x9c7b6a, paint: [{ c: 0x5d4037, y: [3, 3] }] },
-            { id: 'seg6', box: [6, 4, 6], at: [0, 26, 0], pivot: [0, 24, 0], parent: 'seg5', c: 0x7d5b4e, paint: [{ c: 0x5d4037, y: [3, 3] }] },   // 목 밑동(살짝 굵게)
-            { id: 'head', box: [7, 6, 7], at: [0, 31, 0], pivot: [0, 28, 0], parent: 'seg6', c: 0x9c7b6a, paint: [
+            { id: 'seg0',  box: [5, 4, 5], at: [0, 2, 0],   pivot: [0, 0, 0],   c: 0x7d5b4e, paint: [{ c: 0x4e342e, y: [0, 0] }] },
+            { id: 'seg1',  box: [5, 4, 5], at: [0, 6, 0],   pivot: [0, 4, 0],   parent: 'seg0',  c: 0x9c7b6a, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg2',  box: [5, 4, 5], at: [0, 10, 0],  pivot: [0, 8, 0],   parent: 'seg1',  c: 0x7d5b4e, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg3',  box: [5, 4, 5], at: [0, 14, 0],  pivot: [0, 12, 0],  parent: 'seg2',  c: 0x9c7b6a, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg4',  box: [5, 4, 5], at: [0, 18, 0],  pivot: [0, 16, 0],  parent: 'seg3',  c: 0x7d5b4e, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg5',  box: [5, 4, 5], at: [0, 22, 0],  pivot: [0, 20, 0],  parent: 'seg4',  c: 0x9c7b6a, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg6',  box: [5, 4, 5], at: [0, 26, 0],  pivot: [0, 24, 0],  parent: 'seg5',  c: 0x7d5b4e, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg7',  box: [5, 4, 5], at: [0, 30, 0],  pivot: [0, 28, 0],  parent: 'seg6',  c: 0x9c7b6a, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg8',  box: [5, 4, 5], at: [0, 34, 0],  pivot: [0, 32, 0],  parent: 'seg7',  c: 0x7d5b4e, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg9',  box: [5, 4, 5], at: [0, 38, 0],  pivot: [0, 36, 0],  parent: 'seg8',  c: 0x9c7b6a, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg10', box: [5, 4, 5], at: [0, 42, 0],  pivot: [0, 40, 0],  parent: 'seg9',  c: 0x7d5b4e, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg11', box: [5, 4, 5], at: [0, 46, 0],  pivot: [0, 44, 0],  parent: 'seg10', c: 0x9c7b6a, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg12', box: [6, 4, 6], at: [0, 50, 0],  pivot: [0, 48, 0],  parent: 'seg11', c: 0x7d5b4e, paint: [{ c: 0x5d4037, y: [3, 3] }] },
+            { id: 'seg13', box: [6, 4, 6], at: [0, 54, 0],  pivot: [0, 52, 0],  parent: 'seg12', c: 0x9c7b6a, paint: [{ c: 0x5d4037, y: [3, 3] }] },   // 목 밑동(살짝 굵게)
+            { id: 'head',  box: [7, 6, 7], at: [0, 59, 0],  pivot: [0, 56, 0],  parent: 'seg13', c: 0x9c7b6a, paint: [
                 { c: 0xffd94a, x: [1, 1], y: [3, 3], z: -1, mx: true },   // 노란 눈 두 점(정면)
                 { c: 0x4e342e, y: -1 } ] },                               // 아래 그늘
-            { box: [1, 3, 2], at: [-2, 28, 3], parent: 'head', c: 0xf4f0e6 },   // 위 엄니 2
-            { box: [1, 3, 2], at: [2, 28, 3], parent: 'head', c: 0xf4f0e6 },
+            { box: [1, 3, 2], at: [-2, 56, 3], parent: 'head', c: 0xf4f0e6 },   // 위 엄니 2
+            { box: [1, 3, 2], at: [2, 56, 3], parent: 'head', c: 0xf4f0e6 },
             // 아래턱 — 경첩 머리 위쪽. 벌어지는 각이 '아가리'다. 앞니는 칠로.
-            { id: 'jaw', box: [6, 2, 6], at: [0, 27.5, 2], pivot: [0, 28.5, 0], parent: 'head', c: 0x7d5b4e, paint: [
+            { id: 'jaw', box: [6, 2, 6], at: [0, 55.5, 2], pivot: [0, 56.5, 0], parent: 'head', c: 0x7d5b4e, paint: [
                 { c: 0xf4f0e6, z: -1, y: -1 } ] },
         ],
     };

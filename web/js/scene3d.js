@@ -13424,8 +13424,8 @@ const Scene3D = {
                 : fx === 'nova' ? this.NOVA_IMPACT_MS : fx === 'guillotine' ? this.GUILLOTINE_IMPACT_MS
                     : fx === 'voidrift' ? this.VOIDRIFT_IMPACT_MS
                         // 🆕 커먼 3종(skill-object-protagonist) — 무게를 **느려진** 오브젝트 착탄 시각에 맞춘다.
-                        //    표창/화살 비행 0.42s · 지렁이 융기0.44+위협0.34+덮침0.18≈0.96s.
-                        : fx === 'shurikenrun' ? 420 : fx === 'arrowrain' ? 440 : fx === 'burrowworm' ? 950 : 30);
+                        //    표창 비행 0.6s · 화살 0.58s · 지렁이 융기0.6+위협0.5+덮침0.22≈1.32s.
+                        : fx === 'shurikenrun' ? 600 : fx === 'arrowrain' ? 600 : fx === 'burrowworm' ? 1320 : 30);
         if (fx === 'dragonfire') {
             // 아포칼립스 — 거대 화염룡 강림 (skill-unique-signature). 메테오와 fx 를 공유하던
             // 사용자 지목 쌍을 완전 분리: 하늘 낙하(운석)가 아니라 **주인공 뒤에서 솟은 용이
