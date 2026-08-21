@@ -1,5 +1,13 @@
 // 팔 굵기 프로파일 실측 — "팔이 동일 지름 실린더 3개"(비평가 A 단독 P3 잔여, prochar-aaa 인계) 판정기.
 //
+// 🚫 **2026-08-21 은퇴 처리 — 이 판정기가 재던 팔 판금은 맨살 치비로 사라졌다 (slug: armtaper-legacy-retire).**
+//   사용자 2026-08-21 "옷을 왜 입히냐 기본인데" → `scene3d.js setupHeroProc`(396~)이 레거시 판금 팔
+//   메시를 전부 숨기고 `simpleBox` 치비 박스 + 얼굴만 남긴다. 실측: vambrace 는 통째로 부재,
+//   upperArm·forearm·fist 는 빈 피벗 본(자식 0)만 남았다 → 옛 판은 여기서 태그를 못 찾아 FAIL 했다.
+//   `probe-vox-plate` 와 같은 뿌리(판금 갑옷 영웅 → mc 천 갑옷 + 맨살 치비). → **의도적으로 제거된
+//   파츠(메시 없음/부재)는 FAIL 이 아니라 '은퇴(n/a)' 로 넘기고 EXIT 0.** 네 파츠가 모두 메시를 갖고
+//   다시 나타나면(누가 팔 판금을 되살리면) 그때 원래 ①②③ 굵기 판정을 그대로 잰다.
+//
 // 🚨 **이 프로브는 지적을 검증하러 만든 것이지 전제하고 만든 게 아니다.** 이 항목의 인계는
 //    같은 계열의 지적에서 **두 번 연속** '지적이 이미 해소됐거나 원인이 다른 쪽'이었다:
 //    ⓐ '팔이 키의 20.4%' → `hero-chibi` 전환으로 무효(치비는 정의상 팔다리가 짧다)
@@ -58,8 +66,9 @@ const FIST_MIN = 1.30;
 
         const byTag = {};
         shoulder.traverse(o => { if (o.userData && o.userData.part) byTag[o.userData.part] = byTag[o.userData.part] || o; });
-        for (const t of ['upperArm', 'forearm', 'fist', 'vambrace'])
-            if (!byTag[t]) return { error: 'userData.part=' + t + ' 태그를 못 찾음 (prochar.js 태그가 지워졌나?)' };
+        // 🚫 은퇴 감지 — 팔 판금이 맨살 치비로 사라지면 태그가 아예 없다(부재). 빈 본만 남은 경우는
+        //    아래 measure 의 정점 수 0 으로 갈린다. 태그 부재는 여기서, 메시 부재는 verdict 에서 은퇴 처리.
+        const missing = ['upperArm', 'forearm', 'fist', 'vambrace'].filter(t => !byTag[t]);
 
         const isShell = o => !!(o.userData && (o.userData.outlineShell || o.userData.isOutline)) ||
             (o.material && o.material.side === THREE.BackSide && o.userData && o.userData.outline);
@@ -95,10 +104,14 @@ const FIST_MIN = 1.30;
             return { r: mx, top, bot, n };
         };
 
-        const ua = measure(byTag.upperArm), fa = measure(byTag.forearm),
-              fi = measure(byTag.fist), vb = measure(byTag.vambrace);
+        const z = { r: 0, top: 0, bot: 0, n: 0 };   // 태그 부재 파츠용 빈 측정
+        const ua = byTag.upperArm ? measure(byTag.upperArm) : z,
+              fa = byTag.forearm ? measure(byTag.forearm) : z,
+              fi = byTag.fist ? measure(byTag.fist) : z,
+              vb = byTag.vambrace ? measure(byTag.vambrace) : z;
 
         return {
+            missing,
             upperR: ua.r, foreR: fa.r, fistR: fi.r, bandR: vb.r,
             upperLen: ua.top - ua.bot, foreLen: fa.top - fa.bot, fistLen: fi.top - fi.bot,
             counts: [ua.n, fa.n, fi.n, vb.n],
@@ -106,6 +119,21 @@ const FIST_MIN = 1.30;
     });
 
     if (out.error) { console.log('FAIL  ' + out.error); await browser.close(); process.exit(1); }
+
+    // 🚫 은퇴 상태 — 팔 판금이 맨살 치비로 사라졌으면(태그 부재 또는 메시 정점 0) 굵기 판정은 무의미하다.
+    //    FAIL 이 아니라 n/a 로 넘기고 EXIT 0. 네 파츠가 모두 메시를 갖고 돌아오면 아래 ①②③ 을 잰다.
+    const empty = out.counts.filter(n => n === 0).length;
+    if ((out.missing && out.missing.length) || empty) {
+        const names = ['상완', '하완', '주먹', '밴드'];
+        const gone = out.counts.map((n, i) => n === 0 ? names[i] : null).filter(Boolean);
+        console.log('n/a  팔 판금 은퇴(맨살 치비, scene3d setupHeroProc)');
+        if (out.missing && out.missing.length) console.log('  태그 부재: ' + out.missing.join(', '));
+        if (gone.length) console.log('  빈 본(정점 0): ' + gone.join(', '));
+        console.log('콘솔 에러', errs.length, errs.slice(0, 3));
+        console.log('→ 팔 판금이 되살아나면 ①②③ 굵기 판정을 다시 잰다.');
+        await browser.close();
+        process.exit(errs.length ? 1 : 0);
+    }
 
     const f = (n) => n.toFixed(4);
     console.log('상완 반경 %s · 길이 %s', f(out.upperR), f(out.upperLen));
