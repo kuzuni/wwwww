@@ -43,6 +43,9 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
+      - name: 체크아웃 (토픽 폴백 파일을 읽으려면 필요)
+        uses: actions/checkout@v4
+
       - name: 알림 내용 만들기
         id: build
         env:
@@ -86,8 +89,13 @@ jobs:
           set -euo pipefail
           # ⚠️ Secret 이 없으면 **조용히 넘어간다** — 없다고 워크플로를 빨갛게 만들면
           #    저장소를 포크한 사람이나 설정 전 상태에서 매번 실패 알림이 쌓인다.
+          # secret 이 없으면 저장소의 토픽 파일로 폴백한다 — 사용자 지시(2026-08-21 "되게 하라고")로,
+          # 어느 세션에서 푸시하든 알림이 가게 하려는 것이다. 노출 주의는 .github/NTFY-README.md 참조.
+          if [ -z "${TOPIC:-}" ] && [ -f .github/ntfy-topic.txt ]; then
+            TOPIC="$(head -1 .github/ntfy-topic.txt | tr -d '\r\n ')"
+          fi
           if [ -z "${TOPIC:-}" ]; then
-            echo "NTFY_TOPIC secret 이 없다 — 알림을 건너뛴다(설정은 파일 머리말 참조)."
+            echo "토픽이 없다(secret 도 파일도) — 알림을 건너뛴다."
             exit 0
           fi
           echo "::add-mask::${TOPIC}"      # 로그에 토픽이 찍히지 않게 마스킹
