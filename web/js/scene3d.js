@@ -13423,8 +13423,9 @@ const Scene3D = {
             fx === 'dragonfire' ? this.DRAGONFIRE_IMPACT_MS : fx === 'spear' ? this.GODSPEAR_IMPACT_MS
                 : fx === 'nova' ? this.NOVA_IMPACT_MS : fx === 'guillotine' ? this.GUILLOTINE_IMPACT_MS
                     : fx === 'voidrift' ? this.VOIDRIFT_IMPACT_MS
-                        // 🆕 커먼 3종(skill-object-protagonist) — 무게를 오브젝트 착탄 시각에 맞춘다.
-                        : fx === 'shurikenrun' ? 190 : fx === 'arrowrain' ? 250 : fx === 'burrowworm' ? 200 : 30);
+                        // 🆕 커먼 3종(skill-object-protagonist) — 무게를 **느려진** 오브젝트 착탄 시각에 맞춘다.
+                        //    표창/화살 비행 0.42s · 지렁이 융기0.44+위협0.34+덮침0.18≈0.96s.
+                        : fx === 'shurikenrun' ? 420 : fx === 'arrowrain' ? 440 : fx === 'burrowworm' ? 950 : 30);
         if (fx === 'dragonfire') {
             // 아포칼립스 — 거대 화염룡 강림 (skill-unique-signature). 메테오와 fx 를 공유하던
             // 사용자 지목 쌍을 완전 분리: 하늘 낙하(운석)가 아니라 **주인공 뒤에서 솟은 용이
@@ -16561,11 +16562,16 @@ const Scene3D = {
         }
         return this[key];
     },
-    projectileBolt(from, to, color, tier) {
+    // dur0(선택): 비행 지속시간 강제. 안 주면 종전대로 티어 기반(빠름). 화살비(arrowrain)가
+    //   "화면 밖에서 천천히 날아 들어오는" 긴 비행을 위해 길게 넘긴다 — 다른 호출부는 영향 없음.
+    // arcH(선택): 포물선 정점 높이(칸). 주면 화살이 **직선이 아니라 위로 볼록한 포물선**을 그리며
+    //   날고(정점 k=0.5), 화살촉이 매 프레임 **궤적 접선**을 따라 기운다(내려갈 땐 촉이 아래로).
+    //   안 주면 종전 직선 그대로 — 관통 사격 등 다른 호출부는 영향 없음. (화살비 arrowrain 전용)
+    projectileBolt(from, to, color, tier, dur0, arcH) {
         const delta = to.clone().sub(from), dist = delta.length();
-        const dir = delta.clone().normalize();
-        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); // 복셀 스파이크 축(+y)을 진행방향으로
-        const dur = 0.09 + tier * 0.004;               // 화살답게 빠르게
+        const dir0 = delta.clone().normalize();
+        const arc = arcH || 0;
+        const dur = dur0 || (0.09 + tier * 0.004);               // 화살답게 빠르게(기본) · dur0 로 강제 가능
         const tailLen = Math.min(dist * 0.55, 1.7 + tier * 0.15);
         const headR = 0.08 + tier * 0.012;
         // 머리(계단 촉) — 흰 코어. 꼬리(블록 기둥) — 스킬 색 가산(가는 코어라 가산 허용 범위).
@@ -16579,22 +16585,32 @@ const Scene3D = {
         head.userData.sharedGeometry = tail.userData.sharedGeometry = glow.userData.sharedGeometry = true; // 캐시 지오 — dispose 금지
         const wf = headR / 0.13;                       // 티어별 굵기 — 촉 밑동 반폭(0.17)이 종전 콘 감각에 맞는 배율
         head.scale.set(wf, 1, wf);
-        head.quaternion.copy(q); tail.quaternion.copy(q); glow.quaternion.copy(q);
         this.scene.add(head, tail, glow);
-        const placeTail = (m, headPos, len, w) => {
+        const UP = new THREE.Vector3(0, 1, 0), _q = new THREE.Quaternion();
+        // 포물선 위치 — arc 이면 위로 볼록(4·k·(1−k) 는 k=0.5 에서 1). 직선이면 arc=0 이라 정확히 종전 lerp.
+        const posAt = (k) => { const p = from.clone().lerp(to, k); if (arc) p.y += arc * 4 * k * (1 - k); return p; };
+        const placeTail = (m, headPos, dir, len, w) => {
             m.position.copy(headPos).addScaledVector(dir, -len / 2 - 0.17); // 머리 뒤로 len 만큼
             m.scale.set(w, Math.max(0.001, len), w);       // 굵기도 티어를 탄다(종전 실린더의 headR 인자 몫)
         };
+        // 착탄 파편 방향 — 직선이면 dir0, 포물선이면 끝 지점의 내려꽂는 접선.
+        const impactDir = arc ? posAt(1).sub(posAt(0.97)).normalize() : dir0;
+        if (!arc) { _q.setFromUnitVectors(UP, dir0); head.quaternion.copy(_q); tail.quaternion.copy(_q); glow.quaternion.copy(_q); }
         this.addAnim(dur, k => {
-            const headPos = from.clone().addScaledVector(dir, dist * k + 0.17);
+            let dir = dir0;
+            if (arc) {                                     // 접선을 앞뒤 샘플로 근사해 촉을 진행방향으로 계속 돌린다
+                dir = posAt(Math.min(1, k + 0.03)).sub(posAt(Math.max(0, k - 0.03))).normalize();
+                _q.setFromUnitVectors(UP, dir); head.quaternion.copy(_q); tail.quaternion.copy(_q); glow.quaternion.copy(_q);
+            }
+            const headPos = posAt(k).addScaledVector(dir, 0.17);
             head.position.copy(headPos);
             const len = tailLen * Math.min(1, k / 0.35);   // 처음엔 짧게 시작해 곧 최대 길이
-            placeTail(tail, headPos, len, wf * 0.85); placeTail(glow, headPos, len * 1.05, wf * 1.7);
+            placeTail(tail, headPos, dir, len, wf * 0.85); placeTail(glow, headPos, dir, len * 1.05, wf * 1.7);
         }, () => {
             this.disposeTree(head); this.disposeTree(tail); this.disposeTree(glow);
             this.scene.remove(head); this.scene.remove(tail); this.scene.remove(glow);
             // 적중 파편 + 플래시 — 진행 방향으로 튀는 파편(관통의 관성)
-            this.spawnShards(to, tier >= 2 ? 12 : 8, color.getHex(), { dir: Math.atan2(dir.y, dir.x), spread: 0.7, speed: 1.3 + tier * 0.15 });
+            this.spawnShards(to, tier >= 2 ? 12 : 8, color.getHex(), { dir: Math.atan2(impactDir.y, impactDir.x), spread: 0.7, speed: 1.3 + tier * 0.15 });
             this.spawnSparks(to, 10 + tier * 3, color.getHex(), { speed: 1.6 });
             this.flashLight(to, color.getHex(), 0.26);
         });
