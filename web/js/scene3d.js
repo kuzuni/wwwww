@@ -765,6 +765,7 @@ const Scene3D = {
     applyOutlineTree(root) {
         if (!root) return;
         const E = this.OUTLINE_E, tmp = new THREE.Vector3();
+        const _owsPos = new THREE.Vector3(), _owsQ = new THREE.Quaternion(), _ows = new THREE.Vector3();
         root.traverse(o => {
             if (!o.isMesh || o.userData.isOutline || o.userData.aoRing || o.userData.hasOutlineShell) return;
             if (!o.geometry) return;
@@ -773,15 +774,22 @@ const Scene3D = {
             if (Array.isArray(mat) ? mat.some(skip) : skip(mat)) return;   // 그림자 블롭·데칼·FX·HP바 제외
             if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
             const bb = o.geometry.boundingBox, c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(tmp);
+            // 🚨 **파츠 월드 스케일 보정** — 셸은 o 의 자식이라 o 의 월드 스케일이 곱해진다. 로컬 폭 E 를
+            //    그대로 쓰면 월드 두께가 파츠 스케일만큼 달라진다(리그 파츠마다 스케일이 달라 두께가 들쭉).
+            //    로컬 확장 = E/월드스케일 로 나눠 **월드 두께를 일정**하게 맞춘다.
+            o.updateWorldMatrix(true, false);
+            o.matrixWorld.decompose(_owsPos, _owsQ, _ows);
+            const wsx = Math.max(1e-4, Math.abs(_ows.x)), wsy = Math.max(1e-4, Math.abs(_ows.y)), wsz = Math.max(1e-4, Math.abs(_ows.z));
             const shell = new THREE.Mesh(o.geometry, this.heroOutlineMat());   // 지오메트리·재질 공유
             shell.userData.isOutline = true;
             shell.userData.sharedGeometry = true;   // 원본 공유 — dispose 루프가 원본 지오를 지우지 않게
             shell.userData.sharedMaterial = true;
             shell.castShadow = false; shell.receiveShadow = false;
-            // 축별 스케일: 각 축을 양쪽으로 E 씩 키운다((size+2E)/size). 납작한 축(size≈0: 얼굴 판)은 1로 둔다.
-            const sx = sz.x > 1e-4 ? (sz.x + 2 * E) / sz.x : 1;
-            const sy = sz.y > 1e-4 ? (sz.y + 2 * E) / sz.y : 1;
-            const sz2 = sz.z > 1e-4 ? (sz.z + 2 * E) / sz.z : 1;
+            // 축별 스케일: 각 축의 **월드 두께**가 양쪽 E 로 일정하도록 로컬 스케일 = 1 + 2E/(size·월드스케일).
+            //    납작한 축(size≈0: 얼굴 판)은 1로 둔다.
+            const sx = sz.x > 1e-4 ? 1 + 2 * E / (sz.x * wsx) : 1;
+            const sy = sz.y > 1e-4 ? 1 + 2 * E / (sz.y * wsy) : 1;
+            const sz2 = sz.z > 1e-4 ? 1 + 2 * E / (sz.z * wsz) : 1;
             shell.scale.set(sx, sy, sz2);
             shell.position.set(c.x * (1 - sx), c.y * (1 - sy), c.z * (1 - sz2));  // 중심 c 기준 축별 스케일
             shell.renderOrder = (o.renderOrder || 0) - 1;  // 셸 먼저 → 앞면 메시가 내부를 덮어씀
