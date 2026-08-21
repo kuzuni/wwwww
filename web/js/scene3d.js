@@ -12488,7 +12488,7 @@ const Scene3D = {
                 // ⚠️ 혹을 `mat`(등급색)으로 두면 **몸통과 같은 색 덩어리**라 혹이 아니라 그냥 굴곡이다 —
                 //    이 항목의 축 ⑵(표식은 등급색을 벗긴 고정 자연색) 를 혹에도 적용한다. 낙타의
                 //    모래색은 종 정보 그 자체이기도 하다.
-                const SAND = furTint(0.12), SANDT = furTint(0.20);   // 몸 candy(오렌지)에서 파생한 혹 — 종전 고정 탄 0xc9a870/0xdcc79a
+                const SAND = furTint(0.12), SANDT = furTint(0.20);   // 몸 candy(시안)에서 파생한 혹 — 종전 고정 탄 0xc9a870/0xdcc79a
                 sp(0.165, 0, 0.385, -0.36, SAND, 1.0, 1.16, 0.95);   // 뒤 혹
                 sp(0.155, 0, 0.385, 0.355, SAND, 0.98, 1.10, 0.92);  // 앞 혹
                 sp(0.150, 0, 0.410, -0.36, SANDT, 0.72, 0.72, 0.68); // 혹 꼭대기 털뭉치(윤곽 강조)
@@ -13918,7 +13918,11 @@ const Scene3D = {
         //    갈색말(하드코드)·벌/덤프(정체성 노랑)는 제외 · 색만 변경(지오·vivid·AO·안장 불변).
         'Pony': 0x3f8fe0, 'Donkey': 0x8b7fcc, 'Alpaca': 0x2fb8a0, 'Sheep': 0x84cf9a,
         'Turtle': 0x3fb082, 'Crab': 0xf05230, 'Dino': 0x7cc23a, 'Boar': 0xd046b0,
-        'Pig': 0xf593ac, 'Goat': 0xcf6f8c, 'Camel': 0xe86418, 'Elk': 0xa64de0,
+        // 낙타(0xe86418 오렌지→시안)도 위 웜-사 3종과 같은 사유로 냉색 candy 재배정
+        //    (mount-camel-cool). 오렌지가 흙올리브로 죽던 것을 alpaca 틸(0.47)·pony 파랑(0.60)
+        //    사이의 쨍 시안으로 — 셋이 틸→시안→파랑 그라디언트로 갈려 herd 구별. 혹 accent 는
+        //    furTint(몸색 파생)라 자동 정합 · 이름색-잠금(갈색말)·정체성 노랑(벌·덤프)은 제외.
+        'Pig': 0xf593ac, 'Goat': 0xcf6f8c, 'Camel': 0x22b0c8, 'Elk': 0xa64de0,
         // 🚨 비행 3종 채도·명도 상향 (mount-riverbond-remake, 비평가 4인 공통 'washed-out/muddy,
         //    vivid 목표 미달' — 지상동물은 이미 통과, 비행종만 칙칙했다). 벌은 노랑을 쨍하게 올려야
         //    어두운 배마디(BEE_D)가 '줄무늬'로 대비되고(비평가 'no bee striping'), 드래곤은 진홍으로,
