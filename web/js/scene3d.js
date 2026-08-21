@@ -11775,11 +11775,12 @@ const Scene3D = {
                 //    raycast 에서 빠지며(같은 씬의 `setHead` 토글이 invisible 스킵의 증거) ⓒ 두께를
                 //    아래로도 키워(center y0.44·반높이 0.06~0.07) 몸통 윗면(0.38)까지 내려 몸→막 틈을
                 //    닫는다 = paper-thin·floating 을 **동시에** 처치. 인게임 실물 포즈·ride-clear·모션 불변.
-                if (dragon || ptero) {
-                    const fill = dragon ? sp(0.16, s * 0.30, 0.44, -0.24, WINGC, 1.5, 0.42, 1.05)
-                                        : sp(0.15, s * 0.28, 0.44, -0.24, PWINGC, 1.35, 0.40, 0.62);
+                // 드래곤만 여기서 썸네일 막 겹을 얹는다. 익룡 겹은 아래 `if (ptero)` 블록에서
+                // 실물 막의 최종 스윕(rotation.y)·자리에 맞춰 만들고 세운다(mount-ptero-wing-dihedral).
+                if (dragon) {
+                    const fill = sp(0.16, s * 0.30, 0.44, -0.24, WINGC, 1.5, 0.42, 1.05);
                     fill.visible = false; fill.userData.showInThumb = true;
-                    if (dragon) bendUp(fill, s, 0.24, 0.62);   // 실물 막과 같은 이각(dihedral)으로 정렬
+                    bendUp(fill, s, 0.24, 0.62);   // 실물 막과 같은 이각(dihedral)으로 정렬
                 }
                 // ── 날개 밑동 융기 (`mount-species-recognizable` 2차 채점 반영) ──────────────
                 // 🚨 **'빈틈 0.016~0.021 은 작으니 괜찮다'는 내 판단이 틀렸다.** 2차 채점에서 비평가가
@@ -11846,6 +11847,19 @@ const Scene3D = {
                     //    막날개'로 읽힌다. 바닥은 y 0.4345 로 안장(0.38)·라이더 위라 ride-clear 안전대 안.
                     w.scale.set(2.0, 0.17, 0.95);
                     w.rotation.y = s * 0.58;                              // 뒤로 쓸린 델타 — 로터 오독 제거
+                    // 🧊 익룡 썸네일 전용 막 두께 겹 — 드래곤처럼 이각(dihedral)으로 **세운다**
+                    //    (slug: mount-ptero-wing-dihedral). 세션4 블라인드 재채점에서 익룡(#26)이
+                    //    만장일치 최악 = 막이 showInThumb(mount-fly-wing-thumb-fill)로 두꺼워졌으나
+                    //    드래곤과 달리 **수평**이라 '서 있지' 않고 납작한 널빤지로 읽혔다. 실물 막(w)은
+                    //    반깊이 0.00255 짜리 종잇장이라 세우면 얇은 막대만 남아 악화(세션4 실측 되돌림) —
+                    //    그래서 실물 막은 수평 유지하고 **썸네일 겹만** 세운다. `visible=false`+showInThumb
+                    //    이라 ⓐ 인게임 렌더 제외 ⓑ `probe-ride-clear` raycast 제외(라이더 없는 뷰라
+                    //    ride-clear 제약 자체가 없다 — 드래곤 겹과 같은 기전). 실물 막의 최종 자리
+                    //    (s·0.33,0.46,-0.24)·스윕(rotation.y=s·0.58)에 맞추고 두껍힌 뒤 bendUp 로 세운다.
+                    const fill = sp(0.15, s * 0.33, 0.46, -0.24, PWINGC, 2.7, 0.42, 0.586);   // x/z 는 실물 막(2.0·0.95 스케일 후)과 같은 폭, y 만 두껍게(0.063)
+                    fill.rotation.y = s * 0.58;                          // 실물 막과 같은 뒤로 쓸린 델타 스윕
+                    fill.visible = false; fill.userData.showInThumb = true;
+                    bendUp(fill, s, 0.405, 0.55);                        // 바깥 끝을 위로 세워 이각 — 드래곤(0.62)보다 약간 완만(스윕과 겹쳐 과하지 않게)
                     // 🚨 뼈 길이 [0.52,0.56,0.48]→[0.40,0.44,0.46] (mount-riverbond-remake, 비평가 4인
                     //    '익룡 뼈대가 흩어져 보인다'의 실측 처치). 위 주석은 '뼈를 타원 안에 역산했다'고
                     //    적었지만 **실제로는 뼈끝이 막 밖으로 나가 있었다**(520px 캡처 — 밝은 뼈가 어두운
