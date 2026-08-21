@@ -424,9 +424,8 @@ const Scene3D = {
                 o.visible = false;
             });
         }
-        // 검정 아웃라인은 **무기·투구 마운트 전에** 몸 리그에만 건다 (무기/투구는 장비 교체 때
-        // refreshHeroEquip 이 통째로 다시 만들어 셸이 유실되므로 대상에서 제외 — 몸 리그는 상주).
-        this.addHeroOutline(rig.group);
+        // 검정 아웃라인은 매 프레임 `ensureOutlines()`(update) 가 히어로·펫·탈것·적 전체에 자가치유식으로
+        // 건다 — 몸통 박스·장비가 이 함수 이후/동적으로 생겨도 다음 프레임에 윤곽이 붙는다.
         // 무기: 오른손 마운트 (legacy 좌표계와 동일 — 칼날 +y)
         rig.handR.add(this.weaponG);
         this.weaponG.visible = true;
@@ -743,17 +742,20 @@ const Scene3D = {
         this._outlineMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide, fog: false });
         return this._outlineMat;
     },
-    addHeroOutline(root, k) {
-        k = k || 1.2;    // 파츠 크기 비례 두께(상사확대) — 큰 파츠일수록 굵게, 판독성에 유리
-                         // (실측 스윕: 1.09=검정3%·1.2≈11%·1.4=27%. 1.2가 윤곽 뚜렷 + 실루엣 과대 확대 없음)
-        const targets = [];
+    // 캐릭터 트리에 빠진 검정 셸을 채운다(멱등·자가치유). 파츠가 뒤늦게(맨살 박스 몸통) 혹은
+    // 동적으로(장비 교체·펫 소환·적 스폰) 생겨도 다음 `ensureOutlines()` 에서 자동으로 윤곽이 붙는다.
+    //  - 두께: 파츠 **바운딩박스 중심 기준 균일 스케일**(k). 법선확장은 복셀 큐브에서 실루엣 면이
+    //    BackSide 컬링돼 검정 0 이 나오는 게 실측됐다 → 상사확대 헐로 수밀 유지.
+    //  - 제외: 이미 셸 보유 · 아웃라인 셸 자신 · AO 링 · **투명/ depthWrite off**(블롭 그림자·데칼·FX·HP바).
+    applyOutlineTree(root, k) {
+        if (!root) return;
+        k = k || 1.2;   // 실측 스윕: 1.09=검정3%·1.2≈11%·1.4=27%. 1.2가 윤곽 뚜렷 + 실루엣 과대확대 없음
         root.traverse(o => {
-            if (!o.isMesh || o.userData.isOutline || o.userData.aoRing) return;
-            if (!o.visible) return;                                  // 숨긴 레거시 파츠는 제외
+            if (!o.isMesh || o.userData.isOutline || o.userData.aoRing || o.userData.hasOutlineShell) return;
             if (!o.geometry) return;
-            targets.push(o);
-        });
-        for (const o of targets) {
+            const mat = o.material;
+            const skip = m => !m || m.transparent || m.depthWrite === false;
+            if (Array.isArray(mat) ? mat.some(skip) : skip(mat)) return;   // 그림자 블롭·데칼·FX·HP바 제외
             if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
             const c = o.geometry.boundingBox.getCenter(new THREE.Vector3());   // 지오메트리 중심
             const shell = new THREE.Mesh(o.geometry, this.heroOutlineMat());   // 지오메트리·재질 공유
@@ -762,10 +764,20 @@ const Scene3D = {
             shell.userData.sharedMaterial = true;
             shell.castShadow = false; shell.receiveShadow = false;
             shell.scale.setScalar(k);
-            shell.position.copy(c).multiplyScalar(1 - k);  // 중심 c 기준으로 스케일(오프셋 지오메트리 정렬)
+            shell.position.copy(c).multiplyScalar(1 - k);  // 중심 c 기준 스케일(오프셋 지오메트리 정렬)
             shell.renderOrder = (o.renderOrder || 0) - 1;  // 셸 먼저 → 앞면 메시가 내부를 덮어씀
             o.add(shell);                                  // 자식 = 부모 파츠 변형을 그대로 상속
-        }
+            o.userData.hasOutlineShell = true;
+        });
+    },
+    // 매 프레임(update) 호출 — 히어로·펫·탈것·적 전부에 윤곽을 보장한다.
+    // 멱등이라(hasOutlineShell 플래그) 비용은 파츠당 불리언 검사 한 번. 사라진 개체의 셸은
+    // 그 개체가 씬에서 빠질 때 자식으로 함께 사라진다.
+    ensureOutlines() {
+        this.applyOutlineTree(this.heroG);
+        if (this.petGroups) for (const pg of this.petGroups) this.applyOutlineTree(pg);
+        this.applyOutlineTree(this.mountGroup);
+        if (this.enemyMap) for (const m of this.enemyMap.values()) this.applyOutlineTree(m && m.g);
     },
 
     // ---- 캐릭터 프레넬 림 라이트 (스타일라이즈드 3D의 최우선 시그니처) ----
@@ -17789,6 +17801,7 @@ const Scene3D = {
         // 🚨 히트스톱(dt=0 정지)은 여기 있었고 **제거됐다 — 되살리지 말 것** (사용자 지시 2026-08-19,
         // skill-cast-lag-optimize: 씬만 얼고 CSS 는 도니 '렉'으로 읽혔다). dt 는 어떤 연출도 얼리지 않는다.
         this._clock += dt;
+        this.ensureOutlines();   // 검정 아웃라인 자가치유 — 히어로·펫·탈것·적의 새 파츠에 셸 부착(멱등)
         // 적 위치 동기화 + 걷기 모션 + HP바 (논리 좌표 + 월드 오프셋)
         for (const e of Combat.enemies) {
             const m = this.enemyMap.get(e.id);
