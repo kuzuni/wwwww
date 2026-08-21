@@ -2412,7 +2412,11 @@ const Scene3D = {
             //    난수 고정 후 재현 가능한 값). **원인은 정점 색 램프가 아니다** — A/B 로 확인했다:
             //    스페큘러만 0으로 두면 흰 화소가 **0**, 발광만 0으로 두면 거의 그대로였다.
             //    ⚠️ shininess 를 대신 올리지 말 것 — 하이라이트가 좁아지는 대신 더 세져 면 하나가 더 하얘진다.
-            flatShading: true, shininess: 58, specular: 0x3f6270, vertexColors: true,
+                        // 🚨 **한 번 더 낮췄다(0x3f6270 → 0x2a4450, map-props-minecraft 2026-08-21).** 마크 문법으로
+            //    단면을 **직사각형**으로 바꾸니 옆면 하나가 더 넓어져 Phong 하이라이트가 면을 통째로
+            //    덮는 정도가 커졌다 — 같은 스페큘러로 순백 클립이 0.23% → 4.9% 로 뛰었다(⑦).
+            //    (재확인: 스페큘러만 0 으로 두면 흰 화소가 0. 램프·발광은 범인이 아니다.)
+            flatShading: true, shininess: 58, specular: 0x16242c, vertexColors: true,
         });
         // 결정 재질의 **출고 상태**를 떠 둔다 — `setTheme` 이 결정 없는 바이옴으로 갈 때 되돌릴 자리다
         // (아래 `setTheme` 의 결정 색 분기 주석 참고. 안 되돌리면 앞 챕터 색이 그대로 남는다).
@@ -2668,12 +2672,11 @@ const Scene3D = {
         const hasVeg = sp.veg !== undefined ? sp.veg : !['lava', 'desert', 'rock'].includes(kin);
         if (hasVeg) {
             for (let i = 0; i < 7; i++) {
-                // 🧊 voxel 전환(2026-08-20) — 덤불도 큐브 청크로(잔돌과 같은 이유로 복셀 크기는 반경에서 역산).
+                // 🌿 덤불 = **작은 상자 2~3개**(`Props.bush`). 옛 `Voxel.rock` 청크는 구를 깎은
+                //    덩어리라 근경에서 '자갈에 초록칠'로 읽혔다 — 마크 수풀은 잎 블록 한두 개다.
                 const rad = U.rand(0.14, 0.28);
-                const bv = 2.8;                                              // 칸 단위 반경
-                const b = this.vxProp(Voxel.rock(bv, i * 37 + 5, { ry: bv * 0.7, bite: 0.24, flatBottom: -bv * 0.6 }),
-                    rad / bv, this.bushMat);
-                b.position.y += rad * 0.45;
+                const b = this.vxModel(Props.bush(rad));
+                b.position.y += rad * 0.25;
                 const g = grounded(b, rad * 2.6);
                 const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.4, 1.8); } while (Math.abs(zz) < 0.85); return zz; })(); // 전투 라인 배제
                 g.position.set(x, this.heightAt(x, z) + 0.02, z);
@@ -2684,15 +2687,11 @@ const Scene3D = {
         // 잔돌 — 둥근 자갈/납작 판석 2형태 믹스 (단일 다면체 복붙 티 제거)
         const stoneCount = ['lava', 'desert', 'rock'].includes(kin) ? 11 : 7;
         for (let i = 0; i < stoneCount; i++) {
-            // 🧊 voxel 전환(2026-08-20) — 잔돌도 큐브 청크로. 칸 수가 워낙 적어(반경 2~3칸)
-            //    복셀 한 변을 소품과 같은 절대 크기로 두면 자갈이 통째로 한 칸이 된다 → 반경에서 역산한다.
+            // 🪨 잔돌 = **상자 1~2개**(`Props.pebble`). 반경 2~3칸짜리 구 근사는 칸이 너무 적어
+            //    어차피 덩어리로 보였다 — 어긋난 상자 둘이 같은 크기에서 훨씬 '돌'로 읽힌다.
             const rad = U.rand(0.1, 0.3);
             const flat = Math.random() < 0.4;                                // 판석형
-            const rv = flat ? 3.0 : 2.4;                                     // 칸 단위 반경
-            const r = this.vxProp(
-                Voxel.rock(rv, i * 31 + 13, flat ? { ry: rv * 0.35, rz: rv * 0.8, bite: 0.24, flatBottom: -rv * 0.3 }
-                    : { ry: rv * 0.85, bite: 0.26, flatBottom: -rv * 0.5 }),
-                rad / rv, kin === 'lava' ? this.charRockMat : this.stoneMat);
+            const r = this.vxModel(Props.pebble(rad, flat, kin === 'lava' ? 'charRock' : 'stone'));
             r.position.y += rad * (flat ? 0.2 : 0.42);
             const g = grounded(r, rad * 2.4);
             const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.8, 1.6); } while (Math.abs(zz) < 0.85); return zz; })(); // 전투 라인 배제
@@ -2702,34 +2701,11 @@ const Scene3D = {
         }
         // 꽃 무리 + 양치류 — 2차 식생 (나무·바위·풀 3종 반복의 단조로움 해소, 비평가 '환경 밀도' 지적)
         if (hasVeg && !['snow'].includes(kin)) {
-            const petalCols = [0xef6292, 0xfff176, 0xba68c8, 0xff8a65, 0xf5f5f5];
-            this._flowerMats = this._flowerMats || petalCols.map(c => new THREE.MeshLambertMaterial({ color: c }));
-            this._stemMat = this._stemMat || new THREE.MeshLambertMaterial({ color: 0x4a7332 });
-            this._fernMat = this._fernMat || new THREE.MeshLambertMaterial({ color: 0x3d6b2a, side: THREE.DoubleSide });
-            for (let i = 0; i < 6; i++) { // 꽃 무리: 줄기+꽃송이 2~4개 클러스터
-                const cl = new THREE.Group();
-                const n = 2 + Math.floor(Math.random() * 3);
-                const mat = this._flowerMats[Math.floor(Math.random() * this._flowerMats.length)];
-                for (let j = 0; j < n; j++) {
-                    const fx = U.rand(-0.09, 0.09), fz = U.rand(-0.09, 0.09), fh = U.rand(0.09, 0.16);
-                    // 🧊 줄기 = 1복셀 기둥(칸 수는 키에서 환산), 꽃송이 = 십자 5칸 + 정수리 1칸 —
-                    //    곡면(원기둥·이십면체) 금지(map-quality-up voxel 전환). 종전의 임의 기울임
-                    //    (rotation.z ±0.2)은 격자를 깨므로 폐기하고, 그 U.rand 는 꽃송이를 반 칸
-                    //    옆에 얹는 방향으로 돌려 씀(시드 고정 캡처의 난수 소비량 보존 — crystalGeo 규약).
-                    const SZ = 0.032, hCells = Math.max(2, Math.round(fh / SZ));
-                    const lean = U.rand(-0.2, 0.2);
-                    const headSc = U.rand(0.028, 0.042) / 0.035;
-                    const stemVox = []; for (let k = 0; k < hCells; k++) stemVox.push({ x: 0, y: k, z: 0 });
-                    const stem = new THREE.Mesh(this.voxMiniGeo(stemVox, SZ), this._stemMat);
-                    stem.position.set(fx, 0, fz);
-                    const head = new THREE.Mesh(this.voxMiniGeo([
-                        { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: -1, y: 0, z: 0 },
-                        { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: -1 }, { x: 0, y: 1, z: 0 },
-                    ], SZ * 0.62), mat);
-                    head.scale.setScalar(headSc);
-                    head.position.set(fx + Math.sign(lean || 1) * SZ * 0.5, hCells * SZ, fz);
-                    cl.add(stem, head);
-                }
+            for (let i = 0; i < 6; i++) {
+                // 🌼 꽃 무리 — 조형은 `Props.flowers`: 얇은 줄기 + **십자 꽃잎 판 한 층**(마크 꽃의
+                //    십자 스프라이트를 청키하게 옮긴 것). 🚨 무리 전체를 **줄기 1메시 + 꽃잎 1메시**로
+                //    굽는다 — 옛 판은 꽃송이마다 메시 2개라 무리 6개가 메시를 40개 넘게 먹었다.
+                const cl = this.vxModel(Props.flowers());
                 const g = grounded(cl, 0.5);
                 g.userData.windSway = 0.075;   // 줄기가 가늘어 나무보다 크게 흔들린다
                 const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.6, 1.7); } while (Math.abs(zz) < 0.9); return zz; })();
@@ -2737,24 +2713,10 @@ const Scene3D = {
                 this.scene.add(g);
                 this.rocks.push(g);
             }
-            for (let i = 0; i < 4; i++) { // 양치류: 중심에서 4방위 계단 잎날 5~6개 (위층 교대)
-                // 🧊 잎날 = 계단 큐브 띠(나가다 끝에서 한 칸 처짐 — '바깥으로 젖힘'의 복셀 어휘,
-                //    vxTwig 계단 가지와 같은 근거). 종전 임의 각 회전(rotation.set(sinα…))은 격자
-                //    위반이라 방위를 90° 스냅 4방으로, 5~6번째 잎은 한 층 위에 교대로 얹는다.
-                //    U.rand 호출 수는 종전과 동일(각 지터 → 길이 지터로 전용) — 소비량 보존.
-                const vox = [], seen = new Set();
-                const put = (x, y, z) => { const k = x + ',' + y + ',' + z; if (!seen.has(k)) { seen.add(k); vox.push({ x, y, z }); } };
-                put(0, 0, 0); put(0, 1, 0);   // 중심 관
-                const blades = 5 + Math.floor(Math.random() * 2);
-                const DIR = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-                for (let j = 0; j < blades; j++) {
-                    const aj = U.rand(-0.2, 0.2);
-                    const len = U.rand(0.16, 0.26);
-                    const cells = Math.max(2, Math.round((len + aj * 0.06) / 0.045));
-                    const dxz = DIR[j % 4], up = j >= 4 ? 1 : 0;
-                    for (let k = 1; k <= cells; k++) put(dxz[0] * k, up + (k < cells * 0.6 ? 1 : 0), dxz[1] * k);
-                }
-                const fern = new THREE.Mesh(this.voxMiniGeo(vox, 0.045), this._fernMat);
+            for (let i = 0; i < 4; i++) {
+                // 🌿 양치류 — 조형은 `Props.fern`: 중심 관에서 **4방위로 뻗은 얇은 판 잎날**(끝이 한
+                //    칸 처진다). 방위를 90° 스냅으로 두는 이유는 그대로다(사선 큐브 면 금지, 화풍 ⓓ).
+                const fern = this.vxModel(Props.fern());
                 const g = grounded(fern, 0.6);
                 g.userData.windSway = 0.055;
                 const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.6, 1.7); } while (Math.abs(zz) < 0.9); return zz; })();
@@ -3436,44 +3398,76 @@ const Scene3D = {
         return mesh;
     },
 
-    // 계단형 원뿔 한 단의 층별 반지름 — 침엽수 잎단과 그 위에 앉는 눈 테두리가 **같은 표를 봐야**
-    // 눈이 잎의 어깨에 정확히 얹힌다(따로 계산하면 반 칸씩 어긋나 눈이 공중에 뜬다).
-    vxConeRadii(r0, h) {
-        const rs = [];
-        for (let j = 0; j < h; j++) rs.push(r0 + (1 - r0) * (j / (h - 1)));
-        return rs;
-    },
-
-    // 가지·잔가지 — 임의 각도 회전이 금지(격자가 깨지면 그 순간 voxel 로 안 읽힌다)라
-    // **계단으로 깎는다**: 밑동에서 한 칸씩 바깥·위로 걸어 나가며 큐브를 놓는다.
-    //   dx/dz 는 걸음당 수평 이동(부호 포함 실수), dy 는 걸음당 상승. 누적 좌표를 반올림하므로
-    //   기울기가 완만하면 계단참이 길어지고 가파르면 짧아진다 — 그게 곧 가지의 각도다.
-    // 겹친 칸 빼기 — 색이 달라 **메시를 나눠야 하는** 두 덩어리(줄기 ↔ 잎, 갓 ↔ 반점)가 같은 칸을
-    // 채우면 z-파이팅으로 지글거린다. `vxProp` 의 중복 제거는 한 메시 안에서만 도는지라, 메시를
-    // 나눈 뒤에는 이걸로 한쪽을 깎아야 한다(`probe-prop-voxel` ④ 가 이 실패를 잡는 자다).
-    vxSub(voxels, others) {
-        const occ = new Set(others.map(v => v.x + ',' + v.y + ',' + v.z));
-        return voxels.filter(v => !occ.has(v.x + ',' + v.y + ',' + v.z));
-    },
-
-    // 지층 교번 색 — 옛 `bandTint(geo, r, g, b)` 의 복셀 대응. 재질 색에 **곱해지는 계수**를
-    // 정점 색으로 굽는 것이라 값은 1 을 못 넘는다(옛 판은 1.07 까지 올렸다) → 기준을 0.86 으로
-    // 내리고 **비율만** 옛 판과 같게 맞춘다(웜 사암 ↔ 쿨 이암). 밝기 총합은 `VOX_AMBIENT` 와
-    // 재질 색이 정하므로 이 층에서 다시 올릴 필요가 없다.
-    vxBandTint(voxels, warm) {
-        const c = warm ? [0.92, 0.86, 0.79] : [0.83, 0.85, 0.89];
-        const hex = (Math.round(c[0] * 255) << 16) | (Math.round(c[1] * 255) << 8) | Math.round(c[2] * 255);
-        return Voxel.recolor(voxels, () => hex);
-    },
-
-    vxTwig(x0, y0, z0, dx, dy, dz, n, color) {
-        const out = [];
-        let x = x0, y = y0, z = z0;
-        for (let i = 0; i < n; i++) {
-            out.push({ x: Math.round(x), y: Math.round(y), z: Math.round(z), c: color });
-            x += dx; y += dy; z += dz;
+    // ---- 🧊 마인크래프트 프롭 표 어댑터 (map-props-minecraft, 사용자 지시 2026-08-21) ----
+    // 사용자 원문: *"맵들 다 바꾸고 싶음. 맵 소품들 싹다 마인크래프트 식으로 만들어서 스샷 찍어서 보내셈."*
+    //
+    // 조형 표는 **`web/js/mobs-props.js`(`Props`)가 단독으로 쥔다** — 펫·탈것·적이 `mobs-*.js` 표를
+    // 쥐고 `scene3d.js` 가 얇은 어댑터만 남긴 것과 같은 배치다. 여기가 하는 일은 셋뿐이다:
+    //   ⓐ 표가 뱉은 **재질 역할**(문자열)을 씬의 **공유 재질**로 배선하고,
+    //   ⓑ 역할별 칸 목록을 `vxProp` 으로 구워 그룹에 담고,
+    //   ⓒ 바람 태그(`windSway`)를 옮긴다.
+    // 🚨 **표가 제 재질을 만들면 안 된다.** 프롭 재질은 전역 공유이고 `setTheme` 이 챕터마다 잎·덤불·
+    //    이끼 색을 덮어쓴다 — 표가 재질을 들고 있으면 그 프롭만 바이옴 색을 안 따라간다.
+    // 🚨 **역할 하나 = 메시 하나 = 드로우콜 하나.** 프롭은 바이옴당 55~68그룹이 흩어지므로 파츠를
+    //    한 칸 더 쪼개면 그대로 수십 콜이 는다. 표에서 곁 개체(버섯·대나무·꽃)를 **칸 좌표로 합쳐**
+    //    두는 이유가 이것이다(옛 판은 개체마다 메시를 새로 달았다). 계측은 `tools/probe-props-perf.js`.
+    propMat(role) {
+        switch (role) {
+            case 'trunk': return this.trunkMat;
+            // 🪵 자작나무 흰 기둥은 **재질을 따로 둘 수밖에 없다** — 칸 색(`c`)은 재질 색에 곱해지는
+            //    계수라 갈색 원목보다 밝게는 못 만든다(표 머리말의 🚨 와 같은 뿌리).
+            case 'birch': return this.birchMat || (this.birchMat = new THREE.MeshPhongMaterial({ color: 0xd7d0be, shininess: 0, flatShading: true }));
+            case 'leaf0': return this.foliageMat;
+            case 'leaf1': return this.foliageMatDark;
+            case 'leaf2': return this.foliageMatLight;
+            case 'char': return this.charTrunkMat;
+            case 'charRock': return this.charRockMat;
+            case 'stone': return this.stoneMat;
+            case 'snow': return this.snowMat;
+            case 'moss': return this.mossMat;
+            case 'cactus': return this.cactusMat;
+            case 'flower': return this.cactusFlowerMat || (this.cactusFlowerMat = new THREE.MeshLambertMaterial({ color: 0xef6292 }));
+            case 'lava': return this.lavaCoreMat;
+            case 'bone': return this.boneMat || (this.boneMat = new THREE.MeshLambertMaterial({ color: 0xe6ddc8 }));
+            case 'bush': return this.bushMat;
+            case 'bamboo': return this.bambooMat || (this.bambooMat = new THREE.MeshPhongMaterial({ color: 0x9ccc65, shininess: 12, flatShading: true }));
+            case 'bambooLeaf': return this.bambooLeafMat || (this.bambooLeafMat = new THREE.MeshLambertMaterial({ color: 0x8bc34a }));
+            case 'gill': return this.gillMat || (this.gillMat = new THREE.MeshLambertMaterial({ color: 0xe8dfc8 }));
+            case 'spore': return this.sporeMat || (this.sporeMat = new THREE.MeshLambertMaterial({ color: 0xf5f0e0 }));
+            case 'stem': return this._stemMat || (this._stemMat = new THREE.MeshLambertMaterial({ color: 0x4a7332 }));
+            case 'petal': {
+                // 꽃잎 색은 무리마다 다르다 — 재질을 5종 캐시해 두고 하나를 뽑는다(새로 만들면 배칭이 깨진다).
+                const cols = [0xef6292, 0xfff176, 0xba68c8, 0xff8a65, 0xf5f5f5];
+                this._flowerMats = this._flowerMats || cols.map(c => new THREE.MeshLambertMaterial({ color: c }));
+                return this._flowerMats[Math.random() * this._flowerMats.length | 0];
+            }
+            case 'fern': return this._fernMat || (this._fernMat = new THREE.MeshLambertMaterial({ color: 0x3d6b2a }));
+            default: return this.stoneMat;
         }
-        return out;
+    },
+
+    // 표 모델 → 씬 그룹. 파츠 하나가 메시 하나다(위 🚨).
+    vxModel(model) {
+        const g = new THREE.Group();
+        if (model.sway) g.userData.windSway = model.sway;
+        for (const p of model.parts) {
+            if (!p || !p.v || !p.v.length) continue;
+            g.add(this.vxProp(p.v, model.u, this.propMat(p.m)));
+        }
+        return g;
+    },
+
+    // 바이옴별 활엽수 종 — **잎 색은 `setTheme` 이 쥐므로 종을 가르는 건 실루엣과 기둥 색이다.**
+    // (마크가 참나무·자작나무·정글을 가르는 방식 그대로: 잎단 폭 표 + 원목 색.)
+    TREE_SPECIES: {
+        forest: ['oak', 'oak', 'birch'], autumn: ['oak', 'oak', 'birch'], marsh: ['oak', 'jungle'],
+        bamboo: ['jungle'], sanctum: ['oak'], magic: ['birch', 'oak'], abyss: ['jungle'],
+        snow: ['birch'], tundra: ['birch'], desert: ['oak'], rock: ['oak'], lava: ['oak'],
+    },
+    treeSpecies() {
+        const b = this._biome || 'forest';
+        const list = this.TREE_SPECIES[b] || this.TREE_SPECIES[this.bkin(b)] || ['oak'];
+        return list[Math.random() * list.length | 0];
     },
 
     // ---- 프롭 조형: '단순 도형 티' 제거 (TODO '맵 프롭 퀄리티 업' — 비대칭 변형 + 버텍스 컬러 음영) ----
@@ -3532,229 +3526,72 @@ const Scene3D = {
         return g;
     },
 
-    // 🧊 침엽수 — 원뿔 3개 → **계단형 큐브 원뿔 3단**. 치수(밑단 반경 0.55s · 전고 ≈1.73s)는
-    //    옛 판을 그대로 물려받아 `probe-prop-blob`·`probe-nearfield-mass` 의 점유 대역을 안 흔든다.
-    // 🚨 **눈은 잎단의 '어깨'에만 놓는다.** 눈 원뿔을 따로 얹어 잎과 같은 칸을 채우면 두 메시가
-    //    겹쳐 z-파이팅이 난다. 층 j 의 반지름과 층 j+1 의 반지름 사이 고리는 **정의상 비어 있는
-    //    자리**(위 층이 더 좁다)이므로, 거기에만 채우면 겹치지 않으면서 '단마다 쌓인 눈'이 된다.
+    // 🌲 침엽수(가문비) — **2×2 원목 + 계단식 잎단 상자**. 조형은 `Props.pine` 이 쥔다.
+    //    옛 판은 잎단이 `Voxel.ellipse`(계단 원기둥)라 위에서 보면 팔각 접시였다 — 마크 잎단은
+    //    **정사각 상자에서 모서리만 뗀 것**이고, 그래야 실루엣이 계단으로 딱 떨어진다.
+    //    전고 1.75s 는 그대로 물려받는다(`probe-prop-blob`·`probe-nearfield-mass` 점유 대역 보존).
     makePine(s, snow) {
-        const g = new THREE.Group();
-        g.userData.windSway = 0.030;   // 바람에 밑동부터 휘는 식물 (rocks·crystal 은 태그 없음 = 정지)
-        const fm = this.foliageMats[Math.random() * 3 | 0]; // 나무별 잎 명도 변주
-        const u = s / 12;              // 복셀 한 변 — 전고 21칸 ≈ 1.75s
-        const H = 5;                   // 한 단의 층 수
-        // 🚨 **개체차를 반드시 줄 것.** 첫 판은 상수만 써서 침엽수 8그루가 **바운딩 박스까지 완전히
-        //    동일**했다(`probe-foliage-sculpt` 의 '개체 간 최소차 0.0000 — 복붙이다'가 그걸 잡았다.
-        //    옛 판은 `sculptFoliage` 의 정점 노이즈가 개체차를 대신 내 주고 있었다). 복셀은 정점을
-        //    못 흔드니 **치수·단 수·밑동 높이로** 개체차를 낸다.
-        const tiers = 3 + (Math.random() < 0.35 ? 1 : 0);
-        const r0 = U.rand(5.9, 7.0), dr = U.rand(1.25, 1.75);
-        const gap = tiers === 4 ? 4 : 5;   // 4단짜리는 간격을 좁혀 전고가 대역을 안 넘게 한다
-        const base = 5 + (Math.random() * 3 | 0);      // 잎이 시작하는 높이(밑동 길이)
-        const leaf = [], snowV = [];
-        for (let i = 0; i < tiers; i++) {
-            const y0 = base + i * gap, rs = this.vxConeRadii(Math.max(2.2, r0 - i * dr), H);
-            for (let j = 0; j < H; j++) {
-                leaf.push(...Voxel.ellipse(rs[j], rs[j], 1, { y0: y0 + j }));
-                // 위 층이 덮지 않고 남은 고리 = 이 층의 노출된 윗면. 눈은 여기만 앉는다.
-                if (snow && j < H - 1 && rs[j] - rs[j + 1] >= 1)
-                    snowV.push(...Voxel.ellipse(rs[j], rs[j], 1, { y0: y0 + j + 1, rix: rs[j + 1], riz: rs[j + 1] }));
-            }
-        }
-        g.add(this.vxProp(Voxel.at(Voxel.box(3, base + 3, 3), -1, 0, -1), u, this.trunkMat));
-        g.add(this.vxProp(leaf, u, fm));
-        if (snowV.length) g.add(this.vxProp(snowV, u, this.snowMat));
-        return g;
+        return this.vxModel(Props.pine(s, { snow: snow }));
     },
 
-    // 죽은 나무(용암) — 잎 없이 갈라진 검게 탄 가지. 2단 분기 + 부러진 우듬지로 "Y자 막대기" 인상 제거
-    // 🧊 고사목 — 원기둥 줄기 + 비스듬한 원기둥 가지 → **큐브 줄기 + 계단 가지**.
-    //    가지를 회전으로 눕히면 면이 비스듬해져 그 순간 voxel 로 안 읽힌다(voxel.js `rot*` 주석).
-    //    `vxTwig` 로 한 칸씩 바깥·위로 걸어 계단을 만드는 게 격자를 지키는 유일한 길이다.
+    // 🪵 고사목 — 조형은 `Props.deadTree`. 가지를 **ㄱ자 상자**(수평 팔 → 수직 토막)로 바꿨다:
+    //    옛 계단 잔가지(`vxTwig`)는 격자는 지켰지만 한 칸짜리 대각 계단이라 원경에서 지글거렸고,
+    //    마크 나무의 가지는 언제나 블록 단위의 직각 꺾임이다.
     makeDeadTree(s) {
-        const g = new THREE.Group();
-        g.userData.windSway = 0.020;   // 바람에 밑동부터 휘는 식물 (rocks·crystal 은 태그 없음 = 정지)
-        const u = s / 14;              // 전고 ≈15칸 = 1.07s (옛 판 줄기 0.9s + 우듬지)
-        const v = [];
-        // 줄기 — 밑동이 굵고 위로 가늘어진다. 층마다 반경을 줄여 계단으로 좁힌다.
-        for (let y = 0; y < 13; y++) {
-            const r = y < 3 ? 1.6 : (y < 8 ? 1.2 : 0.6);
-            v.push(...Voxel.ellipse(r, r, 1, { y0: y }));
-        }
-        v.push(...Voxel.at(Voxel.box(1, 2, 1), 0, 13, 0));   // 부러진 우듬지 스파이크
-        for (let i = 0; i < 4; i++) {
-            const a = (i / 4) * Math.PI * 2 + U.rand(0, 0.9);
-            const y0 = 5 + i * 2;
-            const cx = Math.cos(a), cz = Math.sin(a);
-            const n = 4 + (Math.random() * 3 | 0);
-            v.push(...this.vxTwig(cx * 1.4, y0, cz * 1.4, cx * 0.9, U.rand(0.35, 0.75), cz * 0.9, n));
-            // 2차 잔가지 — 가지 끝에서 다른 방향으로 꺾여 나감 (실루엣 디자인)
-            const b = a + U.rand(0.9, 1.9);
-            v.push(...this.vxTwig(cx * (1.4 + n * 0.9), y0 + n * 0.5, cz * (1.4 + n * 0.9),
-                Math.cos(b) * 0.8, U.rand(0.5, 0.95), Math.sin(b) * 0.8, 2 + (Math.random() * 2 | 0)));
-        }
-        g.add(this.vxProp(v, u, this.charTrunkMat));
-        return g;
+        return this.vxModel(Props.deadTree(s));
     },
 
-    // 선인장(사막) — 몸통 + ㄴ자 팔
-    // 선인장(사막) — 배흘림 몸통(라테) + 둥근 팔꿈치 관절 + 반구 꼭지. "직육면체 압출" 인상 제거
-    // 🧊 voxel 전환(2026-08-20) — 라테 몸통 + 구 관절 + 반구 꼭지를 **회전체 큐브 적층 + ㄴ자 큐브 팔**로.
-    //    배흘림 프로파일은 `Voxel.revolve` 가 **같은 숫자 그대로** 받아 주므로 실루엣을 다시 디자인하지 않는다.
+    // ⚠️ 선인장은 **흔들지 않는다**(표에 sway 없음) — 다육 기둥은 굵고 뻣뻣해서 휘면 고무로 읽힌다.
+    //    (첫 판에서 0.010 을 줬다가 `probe-wind` 에서 사막이 광물 정지 기준을 넘겨 잡혔다.)
+    // 🌵 조형은 `Props.cactus` — **배흘림(회전체) 폐기**. 마크 선인장은 굵기 변화가 없는 곧은 기둥에
+    //    옆으로 한 칸 나갔다 위로 꺾이는 팔이 붙는다. 전고 1.06s 유지.
     makeCactus(s) {
-        const g = new THREE.Group();
-        // ⚠️ 선인장은 **흔들지 않는다**(windSway 태그 없음) — 다육 기둥은 굵고 뻣뻣해서 휘면 고무로 읽힌다.
-        //    (첫 판에서 0.010 을 줬다가 `probe-wind` 에서 사막이 광물 정지 기준을 넘겨 잡혔다.
-        //     지표가 옳았고 내 판단이 틀렸다 — 사막에서 움직여야 할 건 선인장이 아니라 없다.)
-        const u = s / 16;                    // 전고 17칸 ≈ 1.06s (옛 판 1.02s)
-        const v = [];
-        // 배흘림 몸통 — 아래가 불룩한 프로파일(옛 라테 프로파일을 칸 단위로 옮긴 것)
-        v.push(...Voxel.revolve([[1.6, 0], [2.5, 2], [2.7, 6], [2.3, 11], [1.7, 15], [1.2, 16]]));
-        for (const side of [-1, 1]) {
-            if (Math.random() < 0.3) continue;
-            const y = 6 + (Math.random() * 3 | 0);
-            // 팔 = 수평 큐브 팔뚝 → 위로 꺾인 큐브 기둥 (구 관절 없이 격자만으로 ㄴ자를 만든다)
-            v.push(...Voxel.at(Voxel.box(3, 2, 2), side > 0 ? 2 : -4, y, -1));
-            v.push(...Voxel.at(Voxel.box(2, 6, 2), side > 0 ? 4 : -5, y, -1));
-        }
-        g.add(this.vxProp(v, u, this.cactusMat));
-        // 사막 악센트: 가끔 꼭대기에 분홍 선인장 꽃 — 팔면체 → 큐브 보석
-        if (Math.random() < 0.4) {
-            if (!this.cactusFlowerMat) this.cactusFlowerMat = new THREE.MeshLambertMaterial({ color: 0xef6292 });
-            g.add(this.vxProp(Voxel.at(Voxel.gem(1.6), 0, 18, 0), u, this.cactusFlowerMat));
-        }
-        return g;
+        return this.vxModel(Props.cactus(s));
     },
 
     // 바위 첨탑(바위산 주 소품 · 사막 부 소품) — 세로로 긴 암석을 위로 갈수록 가늘게 쌓아 뾰족한 첨탑으로.
     // 단마다 좌우로 누적해 쏠려(자연 기울기) 곧은 토템 인상을 없애고, 층별 웜/쿨 지층 톤 + 꼭대기 단은
     // 더 높고 가늘게 세워 종단 실루엣을 뾰족하게 만든다. (기존: 세로로 늘린 rockGeo 2~3개를 곧게 쌓은 '둥근 덩어리 토템')
-    // 🧊 voxel 전환(2026-08-20) — 깎은 십이면체 적층 → `Voxel.rock` 청크 적층.
-    //    ⚠️ 옛 판은 단마다 `rotation` 을 무작위로 줘서 덩어리가 안 겹쳐 보이게 했는데, 복셀은
-    //       임의 각도 회전이 금지다(격자가 깨지면 voxel 로 안 읽힌다). 대신 **seed 를 달리해**
-    //       청크마다 다른 자리가 떨어져 나가게 하면 같은 '복붙 아님' 효과가 난다.
+    // 🪨 조형은 `Props.spire` — `Voxel.rock`(구를 깎은 덩어리) 적층을 **축정렬 상자 3~4단**으로.
+    //    자연 기울기(단마다 한두 칸 쏠림)와 지층 교번색은 그대로 물려받았다.
     makeRockSpire(s) {
-        const g = new THREE.Group();
-        const u = s / 12;
-        const n = 3 + (Math.random() * 2 | 0);                             // 3~4단
-        const lean = U.rand(-0.6, 0.6), leanD = U.rand(-0.5, 0.5);          // 자연 기울기(단마다 누적, 칸 단위)
-        let leanX = 0, leanZ = 0, y = 1, v = [];
-        for (let i = 0; i < n; i++) {
-            const t = i / (n - 1);                                          // 0(밑동)~1(꼭대기)
-            const taper = 1 - t * 0.5;                                      // 위로 갈수록 가늘게
-            const r = U.rand(3.4, 5.0) * taper;
-            const h = r * U.rand(1.15, 1.5) * (i === n - 1 ? 1.25 : 1);     // 꼭대기 단은 더 높게 세워 뾰족한 종단
-            leanX += lean; leanZ += leanD;
-            v = v.concat(Voxel.at(this.vxBandTint(Voxel.rock(r, i * 7 + 3, { ry: h, bite: 0.3 }), i % 2 === 0),
-                Math.round(leanX), Math.round(y + h), Math.round(leanZ)));
-            y += h * 1.3;
-        }
-        g.add(this.vxProp(v, u, this.stoneMat));
-        return g;
+        return this.vxModel(Props.spire(s));
     },
 
     // 둥근 바위(바위산/설원 부 소품) — snow=true면 위에 눈 뚜껑, moss=true면 청록 이끼 뚜껑(바위산 보색 악센트)
-    // 🧊 voxel 전환(2026-08-20). 뚜껑은 본체와 **다른 재질**이라 메시를 나눠야 하므로 겹친 칸을 뺀다.
+    // 🪨 조형은 `Props.boulder` — 구 근사를 **상자 3~4개를 어긋나게 쌓은 덩어리**로.
+    // 🚨 눈·이끼는 **형태가 아니라 레이어**다(`Props.capLayer`): 칸기둥의 맨 윗칸 위에 한 칸만
+    //    얹는다. 마크의 눈 규칙 그대로라 오버행 밑에는 안 쌓이고, 본체와 칸이 안 겹쳐 z-파이팅도 없다.
     makeBoulder(s, snow, moss) {
-        const g = new THREE.Group();
-        const u = s / 12;
-        const seed = 1 + (Math.random() * 900 | 0);
-        // 밑을 평평하게 잘라 땅에 앉힌다 — 옛 판은 구를 반쯤 묻어 접지를 냈다(같은 실루엣, 뜨지 않는다).
-        const body = Voxel.at(Voxel.rock(5.4, seed, { ry: 4.0, flatBottom: -2.6 }), 0, 3, 0);
-        if (snow || moss) {
-            const cap = Voxel.at(Voxel.rock(4.3, seed + 11, { ry: 1.4, flatBottom: -0.4 }), 0, 6, 0);
-            g.add(this.vxProp(cap, u, snow ? this.snowMat : this.mossMat));
-            g.add(this.vxProp(this.vxSub(body, cap), u, this.stoneMat));
-        } else g.add(this.vxProp(body, u, this.stoneMat));
-        return g;
+        return this.vxModel(Props.boulder(s, snow, moss));
     },
 
     // 판형 슬라브 바위 — 납작하고 각진 판석을 비스듬히 겹쳐 세움 (다면체 1종 복붙 티 제거용 제2 바위 형태)
     // 침식된 퇴적 노두 — 밑에서 위로 좁아지는 3~4층 판을 한쪽으로 쏠리게(언더컷) 쌓고,
     // 층마다 웜/쿨 톤을 교번해 지층(사암↔이암)으로 읽히게 한다. 꼭대기엔 풍화 잔돌로 실루엣을 깬다.
     // (기존: 세로로만 눌린 rockGeo 2~4개를 무작위 위치에 얹은 '회색 팬케이크 더미' — 지층·침식·개체차 부재)
-    // 🧊 voxel 전환(2026-08-20) — 납작한 판을 쌓는 구조·지층 교번·언더컷은 그대로 두고 조형만 큐브로.
+    // 🪨 조형은 `Props.slab` — 판을 쌓는 구조·지층 교번·언더컷은 그대로, 판 하나하나를 **상자**로.
     makeSlab(s) {
-        const g = new THREE.Group();
-        const u = s / 12;
-        const n = 3 + (Math.random() * 2 | 0);                              // 3~4층
-        const lean = U.rand(-0.7, 0.7), leanD = U.rand(-0.6, 0.6);          // 침식 언더컷 방향(층마다 누적, 칸)
-        let y = 0.7, leanX = 0, leanZ = 0, v = [];
-        for (let i = 0; i < n; i++) {
-            const t = i / (n - 1);                                          // 0(밑동)~1(꼭대기)
-            const r = U.rand(3.8, 5.0) * (1.18 - t * 0.5);                  // 위로 좁아지는 테이퍼(메사/후두 축소판)
-            const h = U.rand(1.2, 1.8);                                     // 납작한 판
-            leanX += lean; leanZ += leanD;
-            // 지층 교번 — 아래로 갈수록 철분 밴 웜/암
-            v = v.concat(Voxel.at(this.vxBandTint(Voxel.rock(r, i * 13 + 5, { ry: h, rz: r * U.rand(0.6, 0.82), bite: 0.22 }), i % 2 === 0),
-                Math.round(leanX), Math.round(y + h), Math.round(leanZ)));
-            y += h * 2 + 0.4 * (1 - t);                                     // 아래층이 더 두껍게 쌓임
-        }
-        for (let i = 0; i < 2; i++) {                                       // 꼭대기 풍화 잔돌
-            v = v.concat(Voxel.at(Voxel.rock(U.rand(0.9, 1.5), i * 29 + 7, { bite: 0.2 }),
-                Math.round(leanX + U.rand(-1.9, 1.9)), Math.round(y), Math.round(leanZ + U.rand(-1.7, 1.7))));
-        }
-        g.add(this.vxProp(v, u, this.stoneMat));
-        return g;
+        return this.vxModel(Props.slab(s));
     },
 
     // 사막 중경용 수평 퇴적 암석층 — 넓은 판을 낮게 쌓아 침식된 사암층(메사 축소판)을 만듦
-    // 🧊 voxel 전환(2026-08-20).
+    // 🪨 조형은 `Props.strata` — 넓은 판을 낮게 쌓는 메사 축소판. 위층이 한 칸씩 밀린 침식도 유지.
     makeStrata(s) {
-        const g = new THREE.Group();
-        const u = s / 12;
-        const n = 3 + (Math.random() * 2 | 0);
-        let y = 0.8, v = [];
-        for (let i = 0; i < n; i++) {
-            const t = i / Math.max(1, n - 1);
-            const w = (1 - i * 0.16) * 6;
-            const h = 1.15;
-            v = v.concat(Voxel.at(this.vxBandTint(                          // 사암/이암 지층 교번
-                Voxel.rock(w * U.rand(0.95, 1.2), i * 17 + 11, { ry: h, rz: w * U.rand(0.55, 0.75), bite: 0.2 }), i % 2 === 0),
-                Math.round(U.rand(-0.7, 0.7) + t * 1.0), Math.round(y + h), Math.round(U.rand(-0.6, 0.6))));  // 위층이 살짝 밀린 침식
-            y += 2.3;
-        }
-        g.add(this.vxProp(v, u, this.stoneMat));
-        return g;
+        return this.vxModel(Props.strata(s));
     },
 
     // 사막 마른 관목 — 밑동에서 사방으로 뻗는 가는 가지 다발 (죽은 덤불)
-    // 🧊 voxel 전환(2026-08-20) — 눕힌 가는 원기둥 다발 → 밑동에서 사방으로 뻗는 **계단 잔가지**.
+    // 🪾 조형은 `Props.dryShrub` — 마크 데드부시의 청키판(얇은 세로 막대 + 한 칸 꺾인 잔가지).
     makeDryShrub(s) {
-        const g = new THREE.Group();
-        const u = s / 18;
-        const n = 5 + (Math.random() * 3 | 0);
-        const v = [{ x: 0, y: 0, z: 0 }];
-        for (let i = 0; i < n; i++) {
-            const a = (i / n) * Math.PI * 2 + U.rand(-0.3, 0.3);
-            const tilt = U.rand(0.5, 1.0);            // 바깥으로 눕는 정도 — 클수록 수평에 가깝다
-            const out = Math.sin(tilt), up = Math.cos(tilt);
-            v.push(...this.vxTwig(0, 0, 0, Math.cos(a) * out, up, Math.sin(a) * out, 5 + (Math.random() * 3 | 0)));
-        }
-        g.add(this.vxProp(v, u, this.charTrunkMat));
-        return g;
+        return this.vxModel(Props.dryShrub(s));
     },
 
     // 사막 뼈 소품 — 모래에 반쯤 묻힌 갈비뼈 아치 + 두개골 (사막 서사 디테일)
+    // 🦴 조형은 `Props.bones` — 반토러스 갈비(`Voxel.ring` 을 세워 아래를 자른 것)를 **ㄷ자 상자**
+    //    (기둥 둘 + 위 들보)로. 링은 결국 곡면 근사라 원경에서 계단 아치로 뭉갰다.
     makeBones(s) {
-        if (!this.boneMat) this.boneMat = new THREE.MeshLambertMaterial({ color: 0xe6ddc8 });
-        const g = new THREE.Group();
-        // 🧊 voxel 전환(2026-08-20) — 반토러스 갈비 → **큐브 링의 윗 절반**(`ring` 을 세워 아래를 잘라낸다).
-        //    토러스를 큐브로 옮기는 표준 수단이 `Voxel.ring` 이고, 아치는 그 링에서 y<0 을 버리면 된다.
-        const u = s / 16;
-        const ribs = 3 + (Math.random() * 2 | 0);
-        const v = [];
-        for (let i = 0; i < ribs; i++) {
-            const rr = U.rand(2.6, 3.5) * (1 - i * 0.1);
-            // ring 은 xz 평면에 눕는 고리다 — rotX 로 세워 xy 평면(정면 아치)으로 돌린 뒤 아래를 자른다.
-            const arc = Voxel.rotX(Voxel.ring(rr, 1.1, 1), 1).filter(p => p.y >= 0);
-            v.push(...Voxel.at(arc, 0, 0, Math.round((i - ribs / 2) * 2.2)));
-        }
-        // 두개골 — 십이면체 → 밑이 평평한 작은 청크(길쭉하게 눌러 주둥이 방향을 남긴다)
-        v.push(...Voxel.at(Voxel.rock(1.5, 41, { ry: 1.2, rz: 1.9, bite: 0.18, flatBottom: -0.9 }),
-            Math.round(U.rand(4.0, 5.6)), 1, Math.round((ribs / 2) * 2.2 + 1.6)));
-        g.add(this.vxProp(v, u, this.boneMat));
-        return g;
+        return this.vxModel(Props.bones(s));
     },
 
     // 바위 클러스터 — 큰 볼더 곁에 슬라브·잔돌이 모여 나는 자연 배치 (단일 오브젝트 나열 인상 제거)
@@ -3766,11 +3603,12 @@ const Scene3D = {
         slab.position.set(U.rand(0.32, 0.45) * s, 0, U.rand(-0.2, 0.2) * s);
         slab.rotation.y = (Math.random() * 4 | 0) * Math.PI / 2;   // 90° 스냅 — 위 버섯과 같은 사유(화풍 ⓓ)
         g.add(slab);
+        // 곁 잔돌 — 상자 몇 개(구 근사 폐기). 한 메시로 굽는다(드로우콜은 클러스터당 그대로).
         const u = s / 12;
-        const peb = [];
+        let peb = [];
         for (let i = 0; i < 2; i++) {
             const a = U.rand(0, Math.PI * 2);
-            peb.push(...Voxel.at(Voxel.rock(U.rand(1.0, 1.7), i * 23 + 9, { bite: 0.22 }),
+            peb = peb.concat(Props.bx(1 + (Math.random() * 2 | 0), 1 + (Math.random() * 2 | 0), 1 + (Math.random() * 2 | 0),
                 Math.round(Math.cos(a) * 6), 1, Math.round(Math.sin(a) * 4.8)));
         }
         g.add(this.vxProp(peb, u, this.stoneMat));
@@ -3778,20 +3616,10 @@ const Scene3D = {
     },
 
     // 화산암(용암) — 검게 탄 바위 밑동에 발광 용암 코어가 비침
-    // 🧊 voxel 전환(2026-08-20). 코어는 발광 재질이라 메시가 갈리므로, 덮는 조각에서 코어 칸을 뺀다.
+    // 🌋 조형은 `Props.volcanic` — 마크 **마그마 블록** 문법: 검은 상자 껍질 **틈으로** 발광 코어
+    //    칸이 드러난다. 코어 칸은 껍질에서 빼므로(표의 `sub`) 두 메시가 같은 칸을 안 채운다.
     makeVolcanicRock(s) {
-        const g = new THREE.Group();
-        const u = s / 12;
-        const core = Voxel.at(Voxel.rock(4.0, 3, { bite: 0.15 }), 0, 2, 0);
-        const shell = [];
-        for (let i = 0; i < 3; i++) { // 코어를 덮는 균열 난 암석 조각들
-            const a = (i / 3) * Math.PI * 2 + U.rand(0, 0.8);
-            shell.push(...Voxel.at(Voxel.rock(U.rand(2.9, 4.1), i * 19 + 2, { bite: 0.32 }),
-                Math.round(Math.cos(a) * 1.9), Math.round(2.9 + U.rand(0, 1.2)), Math.round(Math.sin(a) * 1.9)));
-        }
-        g.add(this.vxProp(core, u, this.lavaCoreMat));
-        g.add(this.vxProp(this.vxSub(shell, core), u, this.charRockMat));
-        return g;
+        return this.vxModel(Props.volcanic(s));
     },
 
     // ---- 크리스탈 조형: 육방정 결정 클러스터 → 🧊 **축정렬 큐브 적층**(2026-08-20 voxel 전환) ----
@@ -3927,6 +3755,19 @@ const Scene3D = {
                 // 원래 '부러진 결정'이라 그 편이 조형적으로도 맞다(뾰족한 1칸 침보다 낫다).
                 const shC = Math.max(2, Math.min(hC - 1, Math.round(hC * R(0.76, 0.85))));
                 const taper = R(0.80, 0.97);                                      // 기둥은 살짝만 좁아진다
+                // 🚨 **정수 반올림이 개체차를 죽인다 — 옆에 붙은 '새끼 결정'으로 되살린다(⑥ 게이트).**
+                //    타원 단면은 섹터 반경이 실수라 두 결정이 같아질 일이 없었는데, 사각 단면은 반폭이
+                //    정수라 프로파일이 그대로 겹친다(실측 ⑥ 0.1583 → **0.0000 = 복붙**).
+                //    ⚠️ **기둥을 중간에서 좁히는 방식(단차)으로 풀면 안 된다 — 한 번 해 보고 되돌렸다.**
+                //       반폭이 1~3칸뿐이라 한 칸만 좁혀도 반경이 밑동의 67% 로 떨어져 `⑧ 어깨 높이`가
+                //       0.810 → **0.410** 으로 무너진다(그 자는 '반경이 밑동의 75% 아래로 내려가는 높이'를
+                //       어깨로 읽는다). 그래서 **반경을 늘리는 쪽**으로만 개체차를 낸다 —
+                //       마크 자수정도 큰 결정 옆구리에 작은 결정이 붙어 자란다.
+                //    ⚠️ 붙는 **구간 하나**로는 부족했다: 밑동 파편은 높이가 4~6칸뿐이라 구간의 경우의 수가
+                //       두어 개로 줄어 4클러스터 중 두 기가 그대로 겹쳤다(⑥ 0.0000 재현). 그래서 **층마다**
+                //       붙을지 말지를 뽑는다 — 4칸짜리도 16가지가 되어 겹칠 확률이 사실상 사라진다.
+                const buds = [];
+                for (let by = 0; by < hC; by++) buds.push(by > 0 && by <= shC && rnd() < 0.45 ? 1 + (rnd() * 3 | 0) : 0);
                 const az = R(0.74, 1.00), flat = rnd() < 0.5;                     // 단면을 한 축으로 눌러 원을 깬다
                 // 파편일수록 크게 눕는다(밑동에서 사방으로 뻗어 나온 인상).
                 const tilt = ci < 3 ? R(0.06, 0.30) : R(0.22, 0.50);
@@ -3949,15 +3790,40 @@ const Scene3D = {
                         : rC * taper * Math.max(0, 1 - (y - shC) / (hC - shC));           // 종단 뿔
                     // 계단 기울임 — 층 **중심 높이**(y+0.5)로 밀어야 전단(shear)과 반 칸 어긋나지 않는다.
                     const ox = bx + Math.round(lx * (y + 0.5)), oz = bz + Math.round(lz * (y + 0.5));
-                    const m = Math.floor(rr * 1.2) + 1;
+                    // 🧊 **단면은 축정렬 직사각형이다 — 원 판정(dx²+dz²≤1)은 폐기했다**
+                    //    (map-props-minecraft, 2026-08-21). 옛 판은 섹터별 반경을 변조한 **타원 단면**을
+                    //    칸으로 근사한 것이라, 아무리 변조해도 위에서 보면 계단으로 깎인 팔각 파이프다 —
+                    //    펫·탈것이 폐기한 곡면 근사(ⓐ)와 같은 문법이었다. 마크의 자수정 결정은
+                    //    **정사각 프리즘 + 한 단 좁아지는 종단**이라 단면이 애초에 사각형이다.
+                    //    ⑵ '단면 비대칭'의 의도는 **직사각형의 두 변 비(az)** 로 살린다(원을 깨는 목적은
+                    //    같고, 격자는 안 깨진다). 섹터 색 변주는 **네 옆면**에 배분한다(밑동 링 색 sd 게이트).
+                    // 🚨 **정수 반올림은 개체차를 죽인다 — `kink` 로 되살린다(⑥ 게이트).** 타원 단면은
+                    //    섹터 반경이 실수라 두 결정이 같아질 일이 없었는데, 사각 단면은 칸 수가 정수라
+                    //    두 결정의 (높이, 반폭)이 그대로 겹친다(실측 ⑥ 0.1583 → **0.0000 = 복붙**).
+                    //    결정마다 다른 높이에서 한 칸 좁아지는 **단차**를 주면 정수 격자에서도 실루엣이
+                    //    갈린다 — 실제 자수정도 기둥 중간에서 폭이 한 번 꺾인다.
+                    const rxC = Math.max(0, Math.round(rr * (flat ? 1 : az) - 0.5));
+                    const rzC = Math.max(0, Math.round(rr * (flat ? az : 1) - 0.5));
                     const lay = [];
-                    for (let x = -m; x <= m; x++) for (let z = -m; z <= m; z++) {
-                        const si = ((Math.floor((Math.atan2(z, x) + Math.PI) / (Math.PI * 2) * SEC) % SEC) + SEC) % SEC;
-                        const rx = rr * rmul[si] * (flat ? 1 : az), rz = rr * rmul[si] * (flat ? az : 1);
-                        if (rx < 0.5 || rz < 0.5) continue;
-                        const dx = x / rx, dz = z / rz;
-                        if (dx * dx + dz * dz > 1.0000001) continue;
-                        lay.push({ x: ox + x, y, z: oz + z, c: colOf(k, fs[si]) });
+                    // 🚨 **섹터 변주는 양수로만 준다.** 밑동 램프가 0.22 인데 하한이 0.16 이라, 부호가
+                    //    섞이면 음수 쪽이 통째로 잘려 밑동 링 색 sd 가 게이트 아래로 눌린다(실측
+                    //    0.0133 → 0.0036 → 잘림 제거 후 회복). 사각 단면은 한 면이 한 색이라 그 잘림이
+                    //    치명적이다 — 육각 단면 시절엔 면이 6개라 남은 변주로 버텼다.
+                    const fpos = (q) => -0.04 + Math.abs(fs[q]) * 0.55;  // 하한(-0.06)만 안 넘게 낮춰 둔다 — 평균이 곧 밝기다
+                    for (let x = -rxC; x <= rxC; x++) for (let z = -rzC; z <= rzC; z++) {
+                        const si = (x === -rxC ? 0 : x === rxC ? 1 : (z === -rzC ? 2 : 3)) % SEC;
+                        // 칸별 얼룩 — 마크 자수정 텍스처가 픽셀마다 색이 갈리는 것과 같다. 사각 면
+                        // 하나가 통째로 한 색이 되는 것을 막아 '깎인 면'의 단서를 남긴다.
+                        const hh = Math.sin((ox + x) * 12.9898 + (oz + z) * 78.233 + y * 4.1414) * 43758.5453;
+                        lay.push({ x: ox + x, y, z: oz + z, c: colOf(k, fpos(si) + (hh - Math.floor(hh)) * 0.16) });
+                    }
+                    // 옆구리에 붙어 자란 새끼 결정 — 반경을 **늘리는** 개체차(위 🚨)
+                    if (buds[y] && rxC > 0) {
+                        const hb = Math.sin((ox + rxC + 1) * 7.13 + y * 3.77) * 43758.5453;
+                        const cb = colOf(k, fpos(1) + (hb - Math.floor(hb)) * 0.12);
+                        lay.push({ x: ox + rxC + 1, y, z: oz, c: cb });
+                        if (buds[y] === 2) lay.push({ x: ox + rxC + 1, y, z: oz + 1, c: cb });
+                        if (buds[y] === 3) lay.push({ x: ox + rxC + 2, y, z: oz, c: cb });
                     }
                     if (!lay.length) lay.push({ x: ox, y, z: oz, c: colOf(k, fs[0]) });   // 종단은 한 칸으로 닫는다
                     for (const v of lay) vox.push(v);
@@ -4083,140 +3949,33 @@ const Scene3D = {
     // 대나무 다발(12 대나무 숲) — 이 맵의 유일한 시그니처는 **가늘고 높은 수직선**이다.
     // 원뿔·구 조합인 다른 나무들과 실루엣이 겹치지 않게, 굵기 변화 없는 긴 기둥 + 마디 링으로만 만든다.
     // 마디(node)를 빼면 매끈한 원기둥이라 '파이프'로 읽힌다 — 링이 대나무를 대나무로 만드는 유일한 단서다.
+    // 🎋 조형은 `Props.bamboo`. 바뀐 것 둘:
+    //   ⑴ **마디를 형태가 아니라 색으로 낸다.** 옛 판은 마디 층만 3칸으로 부풀렸는데(굵기 변화),
+    //      마크 대나무는 굵기가 일정하고 마디는 텍스처의 어두운 띠다 — 칸 `c` 로 그대로 옮겼다.
+    //   ⑵ **다발 전체를 기둥 1메시 + 잎 1메시로 굽는다.** 옛 판은 대(culm)마다 그룹+메시 2개라
+    //      대나무 맵이 혼자 드로우콜을 수십 개 더 먹었다(실측 propMeshes 297, 초원 211).
     makeBamboo(s) {
-        const g = new THREE.Group();
-        g.userData.windSway = 0.055;   // 가늘고 높아 가장 크게 흔들린다 (침엽수 0.030 대비)
-        if (!this.bambooMat) {
-            this.bambooMat = new THREE.MeshPhongMaterial({ color: 0x9ccc65, shininess: 12, flatShading: true });
-            // ⚠️ 잎은 **전용 재질**을 쓴다 — 공용 foliageMats 에 side 를 쓰면 게임 안 모든 나무의
-            //    양면 렌더가 같이 켜진다(공유 재질에 인스턴스 단위 속성을 쓰는 전형적 사고).
-            this.bambooLeafMat = new THREE.MeshLambertMaterial({ color: 0x8bc34a, side: THREE.DoubleSide });
-        }
-        // 🧊 voxel 전환(2026-08-20) — 라테 기둥 + 판때기 잎 → **큐브 기둥 + 마디 링 + 큐브 잎**.
-        //    마디는 여전히 **실루엣 안에** 둔다: 기둥 한 칸 굵기에서 마디 층만 3칸으로 부풀리면
-        //    링 메시를 따로 얹지 않고도 윤곽선에 마디가 드러난다(드로우콜도 안 는다).
-        const u = s / 22;                                 // 기둥 1칸 ≈ 0.045s (옛 판 반경 0.028~0.042s)
-        const culms = 3 + (Math.random() * 3 | 0);
-        for (let i = 0; i < culms; i++) {
-            const h = Math.round(U.rand(1.5, 2.5) * s / u);   // 칸 단위 높이
-            const a = (i / culms) * Math.PI * 2 + U.rand(-0.4, 0.4);
-            const rad = U.rand(0.05, 0.22) * s;
-            const culm = new THREE.Group();
-            // 🚨 **기울임을 `rotation.x/z` 로 주면 안 된다 — 격자가 그 순간 깨진다(화풍 ⓓ).**
-            //    옛 판은 줄기마다 `±0.07rad` 을 걸었는데, 50칸짜리 기둥에서는 꼭대기가 4칸 가까이
-            //    밀려 큐브 면이 통째로 비스듬해진다. 비평가 2인이 **독립적으로 이걸 지목**했고
-            //    (`cute-art-direction` 1차 채점 ⓓ), 그런데도 `probe-prop-voxel` 은 8회 전건
-            //    '비축정렬법선 0' 을 찍고 있었다 — **로컬 법선만 읽고 있었기 때문**이다(자를 같이 고쳤다).
-            //    복셀에서 기울임의 올바른 어휘는 `makeRockSpire`·`makeSlab` 이 쓰는 **계단**이다:
-            //    몇 층마다 한 칸씩 옆으로 민다. 방향은 4방위 중 하나라 격자를 벗어나지 않는다.
-            const [ldx, ldz] = [[1, 0], [-1, 0], [0, 1], [0, -1]][Math.random() * 4 | 0];
-            const per = Math.max(6, Math.round(h / U.rand(2, 4)));   // 총 2~4칸 밀린다(옛 0.07rad 대역)
-            const off = y => Math.floor(y / per);
-            const pole = [];
-            for (let y = 0; y < h; y++) pole.push({ x: ldx * off(y), y, z: ldz * off(y) });
-            const nodes = 3 + (Math.random() * 3 | 0);
-            for (let k = 1; k <= nodes; k++) {
-                const t = Math.pow(k / (nodes + 1), 0.82);    // 위로 갈수록 절간이 좁아지는 실제 분포
-                const ny = Math.round(t * h);
-                // 마디 = 한 층만 굵게. 계단만큼 같이 밀어야 마디가 기둥에서 떨어지지 않는다.
-                pole.push(...Voxel.at(Voxel.ellipse(1.2, 1.2, 1), ldx * off(ny), ny, ldz * off(ny)));
-            }
-            culm.add(this.vxProp(pole, u, this.bambooMat));
-            // 잎 — 상단 1/3 에만. 얇은 큐브 판을 계단으로 뻗어 한 메시로 굽는다(드로우콜 1개).
-            const leaf = [];
-            for (let k = 0; k < 4; k++) {
-                const la = U.rand(0, Math.PI * 2), ly = Math.round(h * U.rand(0.66, 0.95));
-                leaf.push(...this.vxTwig(Math.cos(la) + ldx * off(ly), ly, Math.sin(la) + ldz * off(ly),
-                    Math.cos(la) * 1.1, U.rand(-0.5, 0.35), Math.sin(la) * 1.1, 3 + (Math.random() * 3 | 0)));
-            }
-            culm.add(this.vxProp(this.vxSub(leaf, pole), u, this.bambooLeafMat));   // 기둥에 파묻힌 잎 칸은 뺀다
-            culm.position.set(Math.cos(a) * rad, 0, Math.sin(a) * rad);
-            g.add(culm);
-        }
-        return g;
+        return this.vxModel(Props.bamboo(s));
     },
+
 
     // 거대 버섯(11 늪지 · 23 심연) — 갓 + 대 + 주름(gill) + 반점, 그리고 곁에 작은 개체 1~2.
     // ⚠️ 갓을 **매끈한 반구**로 두면 어떤 라이팅에서도 '공을 반으로 자른 것'으로 읽힌다(장비 쪽에서
     //    겪은 '박스는 어떤 라이팅에도 박스' 와 같은 벽). `sculptFoliage` 로 실루엣 자체를 울퉁불퉁하게 만든다.
+    // 🍄 조형은 `Props.mushroom` — 마크 **거대버섯** 문법: 흰 2×2 대 + 넓고 납작한 갓 + 한 칸
+    //    내려온 갓 테두리 + 갓 윗면 반점. 계단형 돔(반구 근사)은 폐기했다.
+    // 🚨 곁 개체까지 **한 모델 안에서 칸으로 합친다** — 옛 판은 개체마다 그룹 + 메시 4개라 버섯
+    //    바이옴(늪지·심연)이 프롭 메시 260개를 넘겼다. 지금은 개체가 몇이든 메시는 4개다.
     makeMushroom(s) {
-        if (!this.gillMat) {
-            this.gillMat = new THREE.MeshLambertMaterial({ color: 0xe8dfc8, side: THREE.DoubleSide });
-            this.sporeMat = new THREE.MeshLambertMaterial({ color: 0xf5f0e0 });
-        }
-        const g = new THREE.Group();
-        g.userData.windSway = 0.016;   // 다육질이라 거의 안 흔들린다 — 나무만큼 흔들면 고무로 읽힌다
-        // 🧊 voxel 전환(2026-08-20) — 반구 갓 + 원뿔 주름 + 구 반점 → **계단형 돔 + 큐브 원판 + 큐브 반점**.
-        // 🚨 **반점은 갓에서 그 칸을 빼고 따로 굽는다.** 갓 위에 흰 덩어리를 겹쳐 놓으면 같은 칸을
-        //    두 메시가 채워 z-파이팅이 난다. 갓 목록에서 반점 좌표를 제거하고 그 자리에 반점 메시를
-        //    놓으면 겹치는 칸이 하나도 없다(색이 다른 두 재질을 한 덩어리에 섞는 유일한 방법이다 —
-        //    한 메시로 구우면 재질 색이 반점까지 곱해 바이옴 잎색으로 물든다).
-        const one = (sc, fm) => {
-            const m = new THREE.Group();
-            const u = sc / 14;
-            const stemH = Math.round(U.rand(0.45, 0.7) * sc / u);
-            const capR = U.rand(0.34, 0.46) * sc / u;              // 칸 단위 갓 반지름
-            const capH = Math.max(2, Math.round(capR * 0.72));
-            m.add(this.vxProp(Voxel.revolve([[1.4, 0], [1.1, stemH]]), u, this.trunkMat));
-            // 갓 — 계단형 돔(반구 대체). 밑변 한 층은 갓 테두리라 반지름을 그대로 둔다.
-            let cap = Voxel.at(Voxel.dome(capR, capH), 0, stemH, 0);
-            // 갓 아래 주름 — 밝은 원판. 갓 그늘에 밝은 면이 하나 있어야 부피가 읽힌다
-            m.add(this.vxProp(Voxel.at(Voxel.disc(capR * 0.9, 1), 0, stemH - 1, 0), u, this.gillMat));
-            // 반점 — 갓 윗면에서 뽑은 칸. 개수만큼 메시를 늘리지 않게 한 덩어리로 굽는다
-            const top = new Map();                                  // 각 (x,z) 기둥의 최상단 칸
-            for (const v of cap) {
-                const k = v.x + ',' + v.z;
-                if (!top.has(k) || top.get(k).y < v.y) top.set(k, v);
-            }
-            const cols = [...top.values()], dots = [];
-            for (let i = 0; i < 3 + (Math.random() * 3 | 0); i++) {
-                const c = cols[Math.random() * cols.length | 0];
-                if (c) dots.push(c);
-            }
-            const taken = new Set(dots.map(v => v.x + ',' + v.y + ',' + v.z));
-            cap = cap.filter(v => !taken.has(v.x + ',' + v.y + ',' + v.z));
-            m.add(this.vxProp(cap, u, fm));
-            if (dots.length) m.add(this.vxProp(dots, u, this.sporeMat));
-            return m;
-        };
-        const fm = this.foliageMats[Math.random() * 3 | 0];
-        g.add(one(s, fm));
-        for (let i = 0; i < 1 + (Math.random() * 2 | 0); i++) { // 곁 개체 — 단일 오브젝트 나열 인상 제거
-            const sub = one(s * U.rand(0.3, 0.55), fm);
-            const a = U.rand(0, Math.PI * 2), rr = U.rand(0.36, 0.62) * s;
-            sub.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
-            // 🚨 y 회전도 **90° 배수로 스냅**한다 — 임의 각이면 갓·반점의 큐브 면이 통째로 비스듬해져
-            //    화풍 ⓓ 를 깬다(비평가 2인 공통 지적). 4방위면 방향 변주는 그대로 남고 격자는 안 깨진다.
-            sub.rotation.y = (Math.random() * 4 | 0) * Math.PI / 2;
-            g.add(sub);
-        }
-        return g;
+        return this.vxModel(Props.mushroom(s));
     },
 
-    // 🧊 활엽수 — 정십이면체 2개 → **큐브 수관 2덩이**. 반지름·중심은 옛 판 그대로라 점유가 안 흔들린다.
-    //    `hollow` 로 속 칸을 버린다: 겉면만 남아도 그림은 같고(가려진 면은 어차피 안 만든다) 칸 수가 준다.
+    // 🌳 활엽수 — 조형은 `Props.broadleaf`. 종(참나무·자작나무·정글)은 바이옴이 고른다
+    //    (`treeSpecies`). 잎 색은 `setTheme` 이 쥐므로 **종을 가르는 건 잎단 폭 표와 기둥 색**이다:
+    //    참나무=가운데가 부푼 렌즈형 수관/갈색 원목, 자작나무=좁고 높은 수관/흰 기둥에 검은 결,
+    //    정글=높은 기둥 끝의 넓고 납작한 지붕. 옛 판의 `Voxel.rock` 수관(구 근사)은 폐기.
     makeRoundTree(s) {
-        const g = new THREE.Group();
-        g.userData.windSway = 0.034;   // 활엽수는 침엽수보다 크게 휜다
-        const fm = this.foliageMats[Math.random() * 3 | 0]; // 나무별 잎 명도 변주
-        const u = s / 12;
-        // 개체차 — 침엽수와 같은 이유(위 `makePine` 의 🚨 주석). 활엽수는 수관이 덩어리라
-        // **`Voxel.rock` 의 seed 로 겉 칸을 다르게 떼어 내는 것**이 가장 자연스러운 변주다
-        // (같은 반경이라도 울퉁불퉁한 자리가 달라진다 — 잎 뭉치가 우연히 뭉친 모양 그 자체).
-        const seed = 1 + (Math.random() * 900 | 0);
-        const th = 7 + (Math.random() * 3 | 0);
-        const cr = U.rand(4.9, 5.9);
-        const trunk = Voxel.at(Voxel.box(3, th + 1, 3), -1, 0, -1);
-        g.add(this.vxProp(trunk, u, this.trunkMat));
-        // ⚠️ 반지름을 옛 정십이면체의 **외접반경 그대로** 옮기면 실루엣이 넓어진다 — 정십이면체의
-        //    투영 면적은 외접구의 ~0.83 배인데 복셀 타원체는 구를 꽉 채우기 때문이다. √0.83 ≈ 0.91
-        //    을 곱해 화면 점유를 옛 판에 맞춘다(다른 게이트가 이 점유 대역 위에 서 있다).
-        const crown = Voxel.merge(
-            Voxel.at(Voxel.rock(cr, seed, { ry: cr * 0.89, bite: 0.22 }), 0, th + 4, 0),          // 옛 판 반경 0.5s · 중심 0.95s
-            Voxel.at(Voxel.rock(cr * 0.64, seed + 7, { ry: cr * 0.58, bite: 0.24 }), 3, th + 2, 1));  // 곁가지 수관 (옛 판 0.32s @ 0.28s,0.75s,0.1s)
-        // 줄기가 지나는 칸은 수관에서 뺀다 — 두 메시가 같은 칸을 채우면 z-파이팅이다(`vxSub` 주석).
-        g.add(this.vxProp(this.vxSub(Voxel.hollow(crown), trunk), u, fm));
-        return g;
+        return this.vxModel(Props.broadleaf(s, { species: this.treeSpecies() }));
     },
 
     // ---- 영웅: 기사 형태 인간형 (페이퍼돌 — 무기/투구/갑옷이 실제 외형 변경) ----
@@ -5140,8 +4899,21 @@ const Scene3D = {
 
     applyWeaponGrip() {
         const grip = this.gripOf(this.wtypeId);
+        this._gripElbowFix = 0;   // 리그가 없으면 프레임 보정도 없다(옛 값이 남아 각을 흔들지 않게)
         if (this.heroRig) {
-            const target = grip.hand === 'L' ? this.heroRig.handL : this.heroRig.handR;
+            // 🖐️ **부착점 = 팔 박스를 실제로 돌리는 뼈(어깨)** (사용자 지시 2026-08-21 "손 위치에 무기
+            //    있게 해라. 지금은 전완근에 무기 있음"). 마크식 통짜 박스 리그로 갈아타면서
+            //    `handR`(=handMount)가 가리키는 자리가 더는 '손'이 아니게 됐다 — 실측(probe-hand):
+            //      · 팔 = 어깨 피벗에서 로컬 y 0 → −0.60(12px) **한 덩어리 박스**. 팔꿈치가 없다.
+            //      · handMount 는 어깨 로컬 y −0.36 = 팔 길이의 **60% 지점 = 팔뚝 한가운데**.
+            //      · 게다가 handMount 는 팬텀 팔꿈치(elbowR: Idle −0.48 / 걷기 −1.0) 밑에 달려 있어
+            //        박스 팔은 안 굽는데 부착점만 앞으로 0.08~0.14 튀어나가 축에서 이탈한다.
+            //    → 무기는 어깨 뼈에 직접 달고 **위치로 주먹 자리를 찍는다**(아래 anchorY).
+            //      팬텀 팔꿈치가 빠지므로 무기가 팔과 따로 흔들리던 것(걷기 중 최대 31°)도 사라진다.
+            //    ⚠️ 박스 리그가 아닌 옛 리그(mc 없음)에서는 종전대로 손 소켓에 단다.
+            const side = grip.hand === 'L' ? 'L' : 'R';
+            const target = (this.heroRig.mc && this.heroRig.bones['shoulder' + side])
+                || (side === 'L' ? this.heroRig.handL : this.heroRig.handR);
             if (this.weaponG.parent !== target) target.add(this.weaponG); // 활계 왼손 이관 (bow 클립도 왼팔을 드는 구성)
             // 무기 거치 자세(상체) + 탑승 포즈(하체)를 합성 — 탈것에 타면 다리는 안장을 감싸고 팔은 무기를 든다
             // 🗡️ 서서 타는 동안은 **무기를 앞으로 든다** (사용자 지시 2026-08-21 "무기를 앞으로 들고
@@ -5174,15 +4946,35 @@ const Scene3D = {
             this.heroRig.ridePose = this.ridePose || null;
             if (grip.hand === 'L') this.heroRig.restX = 0; // 조준 자세는 restPose가 양팔을 정의 — 오른어깨 이중 가산 방지
             if (this.heroRig.shield) this.heroRig.shield.visible = grip.hand !== 'L'; // 활·석궁은 왼손 파지 — 같은 팔의 방패와 겹침 방지
+            // 🧭 **부모 프레임 보정** — 무기를 팬텀 팔꿈치 밑에서 어깨로 옮긴 만큼, 그 사이에 끼어 있던
+            //    팔꿈치 거치각을 무기 로컬 x 로 되돌려 준다. **승인된 파지각을 지키기 위한 보정이지
+            //    각을 바꾸는 게 아니다** — 오일러 XYZ 에서 x 가 가장 바깥 항이라
+            //    Rx(e)·Rx(MC_CARRY_X) = Rx(e + MC_CARRY_X) 로 부모 회전을 정확히 대신한다
+            //    (rot[2]·쿼터니언 롤은 오른쪽에 남으므로 영향 없음). 안 넣으면 실측상 자루가 30° 틀어져
+            //    (shaftDir 내적 0.866) 탑승 실루엣이 '앞으로 든 검'에서 '아래로 늘어뜨린 검'이 된다.
+            //    ⚠️ 클립 위상이 아니라 **거치각(base + restPose)** 으로 잡는다 — 호출 순간의 걷기/공격
+            //      프레임 각을 구워 넣으면 같은 무기가 장착할 때마다 다른 각으로 굳는다.
+            if (target !== this.heroRig.handL && target !== this.heroRig.handR) {
+                const bE = this.heroRig.base && this.heroRig.base['elbow' + side];
+                const rE = this.heroRig.restPose && this.heroRig.restPose['elbow' + side];
+                this._gripElbowFix = (bE ? bE.rx : 0) + (typeof rE === 'number' ? rE : (rE && rE.rx) || 0);
+            } else this._gripElbowFix = 0;
         }
         const gp = grip.pos || [0, 0, 0];
-        // 🖐️ 자루를 **주먹 쪽으로 끌어내린다** (사용자 지시 2026-08-21 "손쪽으로 무기 좀 더 내려,
-        //    각도는 괜찮은 편"). 파지점이 주먹보다 앞에 떠 있으면 '쥔' 게 아니라 '띄워 놓은' 것으로
-        //    읽힌다. 각(`MC_CARRY_X`)은 건드리지 않고 **자루 축 방향으로만** 민다 —
-        //    손 로컬에서 y 로 내리면 각에 따라 자루가 옆으로 새므로, 회전을 먹인 −y 벡터를 쓴다.
-        if (!this._gripPull) this._gripPull = new THREE.Vector3();
-        this._gripPull.set(0, -this.MC_GRIP_PULL, 0).applyEuler(this.weaponG.rotation);
-        this.weaponG.position.set(gp[0] + this._gripPull.x, gp[1] + this._gripPull.y, gp[2] + this._gripPull.z);
+        // 🖐️ 자루를 **주먹 한복판에 찍는다** (사용자 지시 2026-08-21 "손 위치에 무기 있게 해라. 지금은
+        //    전완근에 무기 있음" / 그 전 "손쪽으로 무기 좀 더 내려, 각도는 괜찮은 편").
+        //    파지점(weaponG 원점 = C자 랩 주먹이 그려지는 자리)을 박스 팔의 손 자리에 직접 놓는다:
+        //      팔 박스는 어깨에서 limbH(0.60 = 12px) 내려가고, 마크 스킨에서 **손은 그 아래 4px** 이다
+        //      → 주먹 중심 = 어깨 로컬 y −(limbH − 0.10) = **−0.50**.
+        //    ⚠️ 종전의 `MC_GRIP_PULL` 자루 축 밀기는 **여기에 흡수된다**. 실측(probe-hand)으로
+        //      정체가 드러났다 — 승인 당시 그 0.10 은 '자루를 주먹으로'가 아니라 **팔뚝(60%)에
+        //      박혀 있던 부착점을 손 쪽으로 끌어내리던 보정**이었고, 그마저 70%까지밖에 못 갔다
+        //      (게다가 방향이 그때그때의 weaponG.rotation 을 먹은 값이라 호출 순서에 따라 달라졌다 —
+        //      회전은 이 줄 **뒤에서** 정해지므로 늘 한 박자 전 각을 썼다). 값 0.10 은 그대로 두되
+        //      '팔 끝에서 주먹 중심까지'라는 제 뜻으로 쓴다. 각(MC_CARRY_X)·롤은 손대지 않는다.
+        const mc = this.heroRig && this.heroRig.mc;
+        const anchorY = mc ? -(mc.limbH - this.MC_GRIP_PULL) : 0;   // 박스 팔의 주먹 중심(어깨 로컬)
+        this.weaponG.position.set(gp[0], anchorY + gp[1], gp[2]);
         // 🗡️ **마인크래프트 파지** (사용자 지시 2026-08-21 "마인크래프트에서 무기 어떤 식으로 쥐는지
         //    참고하고 그대로 반영해"). 마크는 아이템을 종류와 무관하게 **한 가지 트랜스폼**으로 쥔다
         //    (`item/handheld` 의 `thirdperson_righthand`: rotation [0, 90, −35]) — 팔은 그냥 내린 채
@@ -5191,7 +4983,9 @@ const Scene3D = {
         //      걸침 0.95 · 창 세워 들기 0.65)을 남기면 '마크처럼'이 무기마다 달라진다.
         //    ⚠️ 원거리(활·석궁·총·투척)는 제외 — 그쪽은 겨눔/시위 대기 자세가 파지 자체를 정의한다.
         const melee = !this.RANGED_SHAPES[weaponShape(this.wtypeId)];
-        this.weaponG.rotation.set(melee ? this.MC_CARRY_X : grip.rot[0], melee ? 0 : grip.rot[1], grip.rot[2]);
+        //    (+ `_gripElbowFix` = 부모를 팔꿈치→어깨로 옮긴 만큼의 프레임 보정. 값이 아니라 **기준
+        //     프레임**을 되돌리는 항이라 화면에 보이는 각은 승인된 그대로다. 위 부착점 주석 참조.)
+        this.weaponG.rotation.set((melee ? this.MC_CARRY_X : grip.rot[0]) + (this._gripElbowFix || 0), melee ? 0 : grip.rot[1], grip.rot[2]);
         // 🔪 **날 세우기(자루 축 롤)** — 사용자 지시 2026-08-21 "무기가 칼인데 넙적한 면으로 때리는
         //    느낌임. 날카로운 부분으로 때리는 게 아니라." 자루 기울기(MC_CARRY_X)는 승인됐으므로
         //    **건드리지 않고**, 자루 축(로컬 y)으로 도는 롤만 `WEAPON_GRIP[shape].rot[1]` 로 준다.
@@ -5217,7 +5011,10 @@ const Scene3D = {
         //    ⚠️ 롤을 얹은 **합성 결과**를 그대로 읽어서 저장한다 — 표의 rot 을 그대로 쓰면 공격이 끝나는
         //      순간 날이 다시 눕는다(쿼터니언 우측곱은 오일러 y 항과 값이 다르다).
         this._gripRot = [this.weaponG.rotation.x, this.weaponG.rotation.y, this.weaponG.rotation.z];
-        this._gripPos = gp;
+        // ⚠️ 위치도 **실제로 먹인 값**을 저장한다(표의 `grip.pos` 가 아니다). 종전엔 gp 를 그대로 넣어서
+        //    공격이 한 번 끝나면 무기가 앵커(주먹) 없는 자리 — 부착 뼈의 원점 — 로 튀었다. 실측에서
+        //    공격 프레임의 파지점이 어깨 로컬 −0.36(=옛 handMount)으로 돌아가 있던 게 그 흔적이다.
+        this._gripPos = [this.weaponG.position.x, this.weaponG.position.y, this.weaponG.position.z];
     },
 
     refreshHeroEquip(withFlash) {
@@ -11617,9 +11414,54 @@ const Scene3D = {
                 cast: ['Spellcast_Shoot', 'Spellcast_Raise', 'Spellcasting', '2H_Ranged_Shoot'],
                 throw: ['Throw', 'Spellcast_Shoot', '1H_Melee_Attack_Chop'],
             };
-            this.heroPlay(CLIP_MAP[motion] || CLIP_MAP.slash, true, 1.8);
+            // ── ⏱ 스윙 시계 하나로 통일 (swing-snap 2026-08-21) ────────────────────────────────
+            // 종전엔 클립이 1.8배속(dur 0.5 → 0.278초)에 끝나는데 돌진 addAnim 은 0.36초, 스우시는
+            // 고정 160ms, 슬램 링은 210ms 로 **넷이 서로 다른 시계**를 봤다. 실측(diag3, 60fps):
+            // 클립은 267ms 에 끝났는데 돌진은 350ms 까지 이어져 **마지막 5프레임 동안 얼어붙은
+            // 포즈가 미끄러져 돌아왔다**(shR −0.200 고정, hx 만 −0.67/프레임 이동) — 사용자가 말한
+            // '뚝 끊김'의 정체다. 게다가 1.8배속은 회복 구간까지 통째로 밀어 여운을 지웠다.
+            // → 배속을 1.25 로 낮춰 회복에 시간을 주고, **클립 실재생 길이를 모든 연출의 기준 시계**로 쓴다.
+            //   (기본 공속 1.1회/초 = 0.91초 간격이라 0.36~0.48초 모션은 겹치지 않는다.)
+            const SWING_SPD = 1.25;
+            const clipName = (typeof ProChar !== 'undefined' && ProChar.resolveClip)
+                ? ProChar.resolveClip(CLIP_MAP[motion] || CLIP_MAP.slash) : null;
+            const clipDef = clipName && ProChar.CLIPS ? ProChar.CLIPS[clipName] : null;
+            const atkT = (clipDef ? clipDef.dur : 0.5) / SWING_SPD;      // 이 공격의 총 길이(초)
+            // 클립에서 무기가 표적을 지나는 정규화 시각 — 스우시·링·돌진 최전방이 전부 여기에 맞는다
+            const CONTACT = { slash: 0.45, chop: 0.47, thrust: 0.46, slam: 0.50, double: 0.28 }[motion] || 0.45;
+            this.heroPlay(CLIP_MAP[motion] || CLIP_MAP.slash, true, SWING_SPD);
+            // 🔪 무기 파지각을 **한 프레임에 갈아 끼우지 않는다.** 스윙 중 각을 클립이 소유한다는 규약
+            //    (중립 = (0, _bladeRoll, 0))은 그대로지만, 진입/이탈에서 파지각과의 차이가 그대로
+            //    스냅으로 보였다 — 실측 Δ 1.682rad(검), 종료 한 프레임에 무기가 96° 튐. 아래 4구간
+            //    가중치로 쿼터니언 슬러프해 녹인다(임팩트 구간은 종전대로 정확히 중립).
+            const gr0 = this._gripRot || [0, 0, 0];
+            if (!this._gripQ) { this._gripQ = new THREE.Quaternion(); this._neutQ = new THREE.Quaternion(); }
+            this._gripQ.setFromEuler(new THREE.Euler(gr0[0], gr0[1], gr0[2]));
+            this._neutQ.setFromEuler(new THREE.Euler(0, this._bladeRoll || 0, 0));
+            // 4구간: ⓐ~G0 파지 유지 → ⓑ~G1 중립으로 전환 → ⓒ~G2 중립(클립 소유, 접촉 포함) → ⓓ 파지 복귀.
+            // ⚠️ G0 를 앞당겨 와인드업부터 중립으로 두면 **무기가 지면을 뚫는다** — 중립일 때 무기는
+            //    손의 +y 를 따르는데, 팔을 머리 위로 젖히면 그 +y 가 아래·앞을 가리켜 칼끝이 발밑
+            //    아래로 0.44(도끼 0.57) 내려간다(실측). 파지각(MC_CARRY_X)은 반대로 팔을 들수록
+            //    무기를 **위로 세워** 주므로, 코킹 구간에서는 파지각을 그대로 들고 있다가 타격 직전에
+            //    중립으로 넘긴다 — 접촉 궤적은 종전대로 중립이 소유한다.
+            // 전환 시각은 **접촉 시각에서 역산**한다 — 고정값으로 두면 2연타(double, 접촉 0.34)처럼
+            // 일찍 때리는 모션에서 첫 타가 파지각인 채로 나간다.
+            // ⚠️ 전환 폭은 **장병기에서 좁힌다**. 중립일 때 무기는 손의 +y 를 따르는데, 창처럼 긴
+            //    자루는 팔이 아래를 지나는 프레임에서 그대로 지면을 뚫는다(실측 창 −0.33). 찌르기는
+            //    호가 없어 중립을 미리 잡아 둘 이유도 없으니 마지막에 짧게 넘긴다.
+            const GW = motion === 'thrust' ? 0.09 : 0.18;
+            const G1 = Math.max(0.10, CONTACT - 0.04), G0 = Math.max(0, G1 - GW);
+            const G2 = motion === 'double' ? 0.86 : 0.74;   // 2연타는 둘째 타까지 중립을 유지
+            const sm = u => u * u * (3 - 2 * u);          // 경계에서 각속도 0 — 이음매가 안 보인다
+            const blendGrip = k => {
+                const w = k <= G0 ? 1 : (k < G1 ? 1 - sm((k - G0) / (G1 - G0))
+                    : (k < G2 ? 0 : sm((k - G2) / (1 - G2))));
+                this.weaponG.quaternion.copy(this._neutQ).slerp(this._gripQ, w);
+            };
             const endAtk = () => {
                 this._attacking = false; this._trailOn = false; this.heroG.position.x = fromX;
+                this.heroG.position.y = this.rideY || 0;
+                this.heroG.rotation.z = 0;                      // 런지 기울임 원복 (피격 반동·스킬 젖힘과 같은 채널)
                 const gr = this._gripRot || [0, 0, 0];
                 this.weaponG.rotation.set(gr[0], gr[1], gr[2]); // 무기별 파지 각 복원
                 const gp = this._gripPos || [0, 0, 0];
@@ -11627,9 +11469,41 @@ const Scene3D = {
             };
             if (!wt || wt.kind === 'melee') {
                 this.trailStart(wcolor); // 스윙 궤적 트레일 (모션 판독성)
-                this.addAnim(0.36, k => {
-                    const lunge = k < 0.5 ? k * 2 : (1 - k) * 2;
-                    this.heroG.position.x = U.lerp(fromX, tx, lunge * 0.85);
+                // ── 돌진: 예비(뒤로) → 급가속 런지(오버슈트) → 임팩트 유지 → 느린 복귀 ──────────
+                // 종전은 `k<0.5? k*2 : (1-k)*2` 짜리 **완전 대칭 선형 삼각파**였다 — 실측 Δx 가 22프레임
+                // 내내 ±0.067 로 **한 번도 안 변했다**(가속도 0). 나가는 속도와 돌아오는 속도가 같고
+                // 예비도 여운도 없는 컨베이어 벨트다. 같은 결함을 적 쪽(enemyAttack)에서는 이미
+                // 카툰 타이밍으로 고쳐 놨는데 영웅 리그 경로만 남아 있었다.
+                // 발이 무기보다 **먼저** 나간다(관절 연쇄) — 예비는 짧게 끊고 런지 구간을 길게 준다.
+                // 종전 배분(예비 62%)으로는 런지가 6프레임뿐이라 한 프레임에 0.47 유닛을 순간이동했다(실측).
+                const P0 = CONTACT * 0.32;                       // 예비동작 끝(뒤로 최대)
+                const P1 = Math.min(0.92, CONTACT + 0.06);       // 최전방 도달 — 접촉 직후
+                const P2 = Math.min(0.97, P1 + 0.12);            // 최전방 유지(임팩트 여운)
+                const FWD = U.lerp(fromX, tx, 0.85), BACK = fromX - 0.10;
+                this.addAnim(atkT, k => {
+                    let x;
+                    if (k < P0) {                                 // ⓐ 예비 — 반 박자 뒤로 당긴다
+                        const u = k / P0;
+                        x = U.lerp(fromX, BACK, u * u * (3 - 2 * u));
+                    } else if (k < P1) {                          // ⓑ 급가속 — 튀어나갔다 3% 지나치고 안착
+                        const u = (k - P0) / (P1 - P0);
+                        // 시작 기울기 ≈3배(폭발적 출발) · u≈0.7 부근에서 1.03 까지 지나쳤다 1.0 으로 안착.
+                        // easeBack 은 시작 기울기가 4.1배라 첫 프레임이 순간이동으로 보였다.
+                        x = U.lerp(BACK, FWD, (1 - Math.pow(1 - u, 3)) * (1 + 0.07 * Math.sin(Math.PI * u)));
+                    } else if (k < P2) x = FWD;                   // ⓒ 임팩트 유지
+                    else {                                        // ⓓ 회복 — 친 시간(ⓑ)보다 길게
+                        const u = (k - P2) / (1 - P2);
+                        x = U.lerp(FWD, fromX, u * u * (3 - 2 * u));
+                    }
+                    this.heroG.position.x = x;
+                    // 상체를 타격 쪽으로 싣고(무게감) 임팩트에 살짝 뜬다 — 리그 경로엔 이게 아예 없어
+                    // 몸통이 수평 이동만 하는 '미끄러지는 마네킹'이었다(비리그 경로에는 원래 있던 연출).
+                    const lean = Math.sin(Math.min(1, k / P2) * Math.PI);
+                    this.heroG.rotation.z = -0.13 * lean;
+                    // 탑승 중엔 뜨지 않는다 — 안장 높이(rideY)는 고정이라 여기서 들면 엉덩이가 안장에서 뜬다
+                    this.heroG.position.y = (this.rideY || 0) + (this.riding ? 0
+                        : 0.035 * Math.max(0, Math.sin(Math.min(1, Math.max(0, (k - P0) / (1 - P0))) * Math.PI)));
+                    blendGrip(k);
                 }, endAtk);
                 if (motion === 'slam') setTimeout(() => {
                     // 앵커는 **표적 발밑**(x·z 모두). 예전엔 `tx+0.5` 라는 영웅 돌진 좌표에 z=0 고정이라, 깊이 레인에
@@ -11637,11 +11511,13 @@ const Scene3D = {
                     this.expandRing(m ? new THREE.Vector3(m.g.position.x, 0, m.g.position.z)
                         : new THREE.Vector3(Math.min(tx + 0.5, this.worldX + 1.2), 0, 0), new THREE.Color(0xffcc80), 0.52);
                     this.shake(0.15);
-                }, 210);
-                swooshAt(motion === 'double' ? 90 : 160);
-                if (motion === 'double') swooshAt(200);
+                }, atkT * CONTACT * 1000);
+                swooshAt(atkT * CONTACT * 1000);                  // 스우시도 같은 시계 — 고정 160ms 는 접촉과 어긋났다
+                if (motion === 'double') swooshAt(atkT * 0.58 * 1000);   // 2타 (리타임 후 둘째 스윙 접촉 시각)
             } else {
-                setTimeout(endAtk, 430);
+                // 원거리도 같은 시계 — 종전 고정 430ms 는 클립(bow 0.34초)보다 90ms 길어 발사 뒤
+                // 조준 자세가 얼어 있었고, 종료 프레임에 무기 파지각이 그대로 튀었다.
+                this.addAnim(atkT, blendGrip, endAtk);
                 if (motion === 'gun') { this.muzzleFlash(); this.fireProjectile('bullet', targetPos, 0xffee58, wt.impact); }
                 else if (motion === 'cast') { this.flashLight(this.heroG.position, wcolor, 0.3); this.fireProjectile('magic', targetPos, wcolor, wt.impact); }
                 else if (motion === 'throw') { this.fireProjectile('spin', targetPos, wcolor, wt.impact); }
@@ -13040,8 +12916,12 @@ const Scene3D = {
         const rings = [];
         // 반경 2.0/1.45 는 첫 캡처에서 영웅 키의 두 배를 덮어 '문양'이 아니라 '바닥에 깔린 흰 원'으로
         // 읽혔다(연속 프레임 30~90ms 컷). 영웅 어깨폭의 3배쯤으로 조인다.
-        const ringSpec = [[1.4, 0.042, color, 1], [1.0, 0.026, new THREE.Color(0xffffff), -1.6]];
-        if (t >= 3) ringSpec.push([1.85, 0.03, color, -0.7]);   // 레전더리 이상만 바깥 겹 하나 더
+        // 🗑️ 폐기(2026-08-21 `skill-fx-minecraft-actors`) — 수렴 룬 링(토러스 2~3겹)은 **18종
+        //    전 스킬의 1박에 매번** 깔리던 추상 링이라, 사용자가 지목한 "빛나는 뭔가"의 절반이
+        //    이 자리였다. 1박은 큐브 모트가 가슴으로 빨려드는 것 + 시전 포즈만으로 성립한다
+        //    (2박부터는 실제 액터가 등장하므로 예비 동작을 링으로 대신할 이유가 없다).
+        //    ⚠️ 아래 `rings` 루프는 살려 둔다 — 배열이 비면 아무 일도 안 하고, 되살릴 자리를 남긴다.
+        const ringSpec = [];
         for (const [r0, tube, colr, spin] of ringSpec) {
             const ring = new THREE.Mesh(this.fxGeo('torus', r0, tube, 6, 30),
                 new THREE.MeshBasicMaterial({ color: colr, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -13193,14 +13073,15 @@ const Scene3D = {
         const anchors = (at && at.length) ? at
             : live.length ? live.map(m => m.g.position.clone())
                 : [this.heroG.position.clone()];
-        for (const p of anchors.slice(0, 4)) {             // 다수 적일 때 상한 — 링이 화면을 덮지 않게
-            this.expandRing(p, color, 1.9 + pw * 2.3);
-            // 흰 코어 링을 **전 등급**에 얹는다(예전엔 궁극 이상만) — 색 링 하나만으로는 '터졌다'가
-            // 안 읽힌다. 상위 등급은 한 겹 더 늦게 얹어 3겹으로 간다.
-            setTimeout(() => this.expandRing(p, new THREE.Color(0xffffff), 1.15 + pw * 1.5), 55);
-            if (t >= 3) setTimeout(() => this.expandRing(p, color, 2.6 + pw * 2.0), 120);
+        for (const p of anchors.slice(0, 4)) {             // 다수 적일 때 상한 — 파편이 화면을 덮지 않게
+            // 🗑️ 폐기(2026-08-21) — 확산 링 3겹(`expandRing`)은 뺐다. 이제 무게가 실리는 시각에
+            //    화면에는 **실제로 때린 물건**(로봇·골렘·용·기사)이 있고, 그 위에 추상 링을 얹으면
+            //    정확히 사용자가 지목한 '빛나는 뭔가'가 다시 덮인다.
+            //    무게는 ⓐ 청키 큐브 파편(화풍 확정 문법) ⓑ 지면 파쇄 블록 ⓒ 셰이크·FOV 로 낸다.
             this.spawnSparks(p.clone().add(new THREE.Vector3(0, 0.55, 0)),
-                Math.round(14 + pw * 34), color.getHex(), { speed: 1.3 + pw * 1.0 });
+                Math.round(13 + pw * 26), color.getHex(), { speed: 1.5 + pw * 1.1, scale: 1.05 + pw * 0.25 });
+            this.spawnSparks(new THREE.Vector3(p.x, 0.14, p.z),
+                Math.round(6 + pw * 10), 0x9c8466, { speed: 0.9 + pw * 0.5, scale: 1.1 });
         }
         this.shake(0.26 + pw * 0.42);
         this.fovPunch(0.018 + pw * 0.030, 0.16 + pw * 0.10);   // 카메라도 같이 물린다 — 전 등급
@@ -13220,8 +13101,11 @@ const Scene3D = {
         const el = document.createElement('div');
         const c = `${Math.round(color.r * 255)},${Math.round(color.g * 255)},${Math.round(color.b * 255)}`;
         el.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:13;mix-blend-mode:screen;opacity:0;'
-            + `background:radial-gradient(ellipse at 50% 52%, rgba(${c},${(0.42 + pw * 0.36).toFixed(2)}) 0%,`
-            + ` rgba(${c},${(0.16 + pw * 0.20).toFixed(2)}) 46%, rgba(${c},0) 78%)`;
+            // 🔽 진폭 대폭 축소(2026-08-21 `skill-fx-minecraft-actors`) — 0.42~0.78 짜리 전면 색판은
+            //    액터를 덮어 버린다. 이제 무엇이 나왔는지가 연출의 본체이므로, 화면 물듦은
+            //    '한 번 물었다 빠지는' 힌트 정도만 남긴다(그레이드 펄스는 아래에서 그대로 문다).
+            + `background:radial-gradient(ellipse at 50% 52%, rgba(${c},${(0.13 + pw * 0.12).toFixed(2)}) 0%,`
+            + ` rgba(${c},${(0.05 + pw * 0.07).toFixed(2)}) 46%, rgba(${c},0) 78%)`;
         this.fxLayer.appendChild(el);
         const ms = 150 + pw * 110;
         if (!el.animate) { el.remove(); return; }   // WAAPI 미지원이면 연출만 잃는다
@@ -13279,11 +13163,10 @@ const Scene3D = {
             // 화염 폭풍 (skill-fx-exaggerated). 스킬 이름이 **화염구**인데 정작 날아가는 불덩이가
             // 없어서 적 발밑에서 갑자기 터졌다 — 던지고, 터지고, 불의 고리가 바깥으로 퍼지게 바꿨다.
             this.fireStorm(targetIds, color, tier || 0);
-            // 적이 여럿이면 나머지에도 폭발만 얹는다(불덩이는 하나 — 여러 개면 운석과 그림이 겹친다)
-            targets.slice(1).forEach((m, i) => setTimeout(() => {
-                this.explosion(m.g.position.clone(), color);
-                this.firePillar(m.g.position.clone(), color, tier || 0);
-            }, 90 + i * 60));
+            // 🗑️ 폐기(2026-08-21) — 나머지 적에게 얹던 '폭발+불기둥'(추상 화염 스프라이트)은 뺐다.
+            //    이제 임프가 **불덩이 블록을 타깃 수만큼 던지므로**(mcImpFireball 이 최대 3체 처리)
+            //    여기서 또 터뜨리면 던진 물건과 무관한 폭발이 겹쳐 인과가 끊긴다.
+            void targets;
         } else if (fx === 'ring') {
             // 회오리 (skill-fx-exaggerated). 이름이 회오리인데 예전엔 **퍼지는 링 2개**뿐이라
             // 도는 물건이 하나도 없었다 — '회오리'가 아니라 '충격파'로 읽혔다.
@@ -13367,7 +13250,10 @@ const Scene3D = {
     //    (실측: 커먼 2발이면 첫~끝 95ms — 한 박자 안에 다 끝난다). 그리고 커먼·레어야말로 초반
     //    플레이어가 가장 많이 보는 대역이라, 여기서 장면이 성립하지 않으면 항목 전체가 실패한다.
     stormBolts(tier) { return 3 + Math.min(4, Math.max(0, tier | 0)); },   // 커먼 3발 … 궁극 이상 7발
-    stormCloudGather(targetIds, color, tier) {
+    // 🗑️ 폐기 → 먹구름 대신 **번개새**가 적 머리 위를 선회한다(예고). 1박에 세우는 계약은 동일:
+    //    `skillEffect` 가 시전과 같은 시각에 이걸 부르고 핸들을 `skillPayload` 로 넘긴다.
+    stormCloudGather(targetIds, color, tier) { return this.mcThunderTell(targetIds, color, tier); },
+    _legacyStormCloudGather(targetIds, color, tier) {
         if (!this.scene) return null;
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const pw = t / 5;
@@ -13451,7 +13337,9 @@ const Scene3D = {
     },
 
     // 낙뢰 연발 — 구름에서 **바바박**. 발마다 자리를 흔들어 같은 선이 반복되지 않게 한다.
-    stormCloudStrike(handle, targetIds, color, tier) {
+    // 🗑️ 폐기 → 선회하던 번개새가 급강하해 내리꽂는다(블록 번개 기둥). 옛 연출은 지그재그 볼트.
+    stormCloudStrike(handle, targetIds, color, tier) { return this.mcThunderStrike(handle, targetIds, color, tier); },
+    _legacyStormCloudStrike(handle, targetIds, color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const pw = t / 5;
         const h = handle && !handle.done ? handle : this.stormCloudGather(targetIds, color, tier);
@@ -13669,7 +13557,11 @@ const Scene3D = {
         this.scene.add(p);
         this.particles.push(p);
     },
-    meteorStorm(targetIds, color, tier) {
+    // 🗑️ 폐기 → 하늘에서 **바위 골렘**이 떨어져 주먹으로 내려찍는다(옛 연출은 돌멩이 세례).
+    //    🚨 무게(`skillImpactWeight`)를 마지막 착탄 콜백이 직접 태우는 계약은 새 안무가 그대로
+    //       지킨다 — `skillPayload` 가 메테오만 고정 지연에서 뺀 이유(인과)가 거기 걸려 있다.
+    meteorStorm(targetIds, color, tier) { return this.mcRockGolemFall(targetIds, color, tier); },
+    _legacyMeteorStorm(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 2 : tier));
         const pw = t / 5;
@@ -13806,7 +13698,12 @@ const Scene3D = {
         }
         return this[key];
     },
-    slashArcs(targetIds, color, tier) {
+    // 🗑️ 폐기(2026-08-21 `skill-fx-minecraft-actors`) — 사용자 지시 *"지금 꺼들 폐기하고 …
+    //    로봇이 나와서 적 때리던지 … 마인크래프트식으로"*. 아래 `_legacy*` 는 옛 추상 연출
+    //    (참격 세례 = 흰 초승달 호)이고, 공개 이름은 `scene3d-skillfx.js` 의 **액터 안무**로 넘긴다.
+    //    ⚠️ 시전 시간·피해 시점·쿨다운·무게 동기 시각은 한 값도 안 바뀐다 — 연출만 갈렸다.
+    slashArcs(targetIds, color, tier) { return this.mcSwordBots(targetIds, color, tier); },
+    _legacySlashArcs(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
         const pw = t / 5;
@@ -14000,7 +13897,9 @@ const Scene3D = {
         G.userData.jaw = { upper, lower, throat };
         return G;
     },
-    dragonMaw(targetIds, color, tier) {
+    // 🗑️ 폐기 → **와이번**이 땅을 뚫고 솟아 문다(옛 연출은 몸 없는 '아가리 조각'이었다).
+    dragonMaw(targetIds, color, tier) { return this.mcWyvernBite(targetIds, color, tier); },
+    _legacyDragonMaw(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 3 : tier));
         const pw = t / 5;
@@ -14103,7 +14002,10 @@ const Scene3D = {
     // ⚠️ 머리는 mawHead 재사용(뿔·이빨·벌어지는 턱이 이미 검증됨 — 재질 함정 포함).
     // ⚠️ 라이트는 fxLight 풀만 — new PointLight 직접 생성은 재컴파일 스톨 부활(skill-cast-lag-optimize).
     DRAGONFIRE_IMPACT_MS: 820,     // 첫 브레스 착탄 시각 — skillPayload 의 무게(skillImpactWeight) 지연과 동기
-    dragonfireBreath(targetIds, color, tier) {
+    // 🗑️ 폐기 → **거대 화룡**이 날아와 브레스를 뿜는다(사용자 예시 그대로). 옛 연출은 불줄기 원뿔.
+    //    🚨 첫 착탄은 `DRAGONFIRE_IMPACT_MS`(820ms) 그대로 — 무게 층 동기 시각이다.
+    dragonfireBreath(targetIds, color, tier) { return this.mcFireDragon(targetIds, color, tier); },
+    _legacyDragonfireBreath(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
         const pw = t / 5;
@@ -14306,7 +14208,10 @@ const Scene3D = {
     GUILLOTINE_HOLD_S: 0.09,     // 박힌 채 여운(짧게 한 박자)
     GUILLOTINE_EXIT_S: 0.16,     // 퇴장
     GUILLOTINE_SINK: 0.55,       // 퇴장 중 가라앉는 거리(음수면 떠오른다 = 주차로 읽힌다)
-    guillotineDrop(targetIds, color, tier) {
+    // 🗑️ 폐기 → **처형인**(후드 거인)이 강림해 도끼를 내려찍는다. 옛 연출은 주인 없는 칼날이었다.
+    //    🚨 절단 시각은 `GUILLOTINE_IMPACT_MS`(430ms) 그대로 — 새 안무가 그 시각에 맞춰져 있다.
+    guillotineDrop(targetIds, color, tier) { return this.mcExecutioner(targetIds, color, tier); },
+    _legacyGuillotineDrop(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 3 : tier));
         const pw = t / 5;
@@ -14482,7 +14387,10 @@ const Scene3D = {
     NOVA_SHELL_ALPHA: 0.5,     // 알파 합성 껍질의 불투명도
     NOVA_CORONA_ALPHA: 0.8,    // 붕괴 중 자라는 충전 코로나의 최대 불투명도 (0 이면 옛 '빈 컷'으로 되돌아간다)
     NOVA_BLAST_FROM_HOLD: true,// 폭발 팽창을 '붙잡고 있던 크기'에서 시작할지 — false 면 옛 0.2 스냅다운으로 되돌아간다
-    supernovaBlast(targetIds, color, tier) {
+    // 🗑️ 폐기 → **성좌 로봇**이 강림해 웅크렸다가 자폭한다(옛 연출은 흡입-붕괴-섬광, 물건 0개).
+    //    🚨 폭발 시각은 `NOVA_IMPACT_MS`(560ms) 그대로.
+    supernovaBlast(targetIds, color, tier) { return this.mcStarBotNova(targetIds, color, tier); },
+    _legacySupernovaBlast(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 4 : tier));
         const pw = t / 5;
@@ -14741,7 +14649,10 @@ const Scene3D = {
     GODSPEAR_IMPACT_MS: 500,     // 관통 착탄 시각 — skillImpactWeight 지연과 동기 (개천 350 + 낙하 150)
     // 개천 이후에도 광륜을 돌릴지 — 판정기(`probe-halo-spin.js`)가 음성 대조에서 false 로 되돌린다.
     GODSPEAR_SPIN_AFTER: true,
-    godSpearDrop(targetIds, color, tier) {
+    // 🗑️ 폐기 → **천상 기사**가 강하해 황금 창을 꽂는다(옛 연출은 하늘이 열리고 창만 내려왔다).
+    //    🚨 착탄 시각은 `GODSPEAR_IMPACT_MS`(500ms) 그대로.
+    godSpearDrop(targetIds, color, tier) { return this.mcSpearKnight(targetIds, color, tier); },
+    _legacyGodSpearDrop(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
         const pw = t / 5;
@@ -14931,7 +14842,10 @@ const Scene3D = {
     //  ⑶ **균열을 적에게서 1.75 보다 멀리 두지 말 것** — 적 뒤는 화면 오른쪽 끝이라 그 너머는
     //     프레임 밖이다. 창의 비행 거리도 같이 짧아지므로 속도감은 이징으로 벌 것.
     VOIDRIFT_IMPACT_MS: 540,     // 관통 시각(개열 300 + 돌출 140 + 관통 100) — skillImpactWeight 지연과 동기
-    voidLanceRift(targetIds, color, tier) {
+    // 🗑️ 폐기 → **공허 기사**가 균열에서 솟아 창으로 관통한다(옛 연출은 창만 튀어나왔다).
+    //    🚨 관통 시각은 `VOIDRIFT_IMPACT_MS`(540ms) 그대로.
+    voidLanceRift(targetIds, color, tier) { return this.mcVoidKnight(targetIds, color, tier); },
+    _legacyVoidLanceRift(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 4 : tier));
         const pw = t / 5;
@@ -15166,7 +15080,10 @@ const Scene3D = {
         }
         return this[key];
     },
-    healPillar(color, tier) {
+    // 🗑️ 폐기 → 치유 천사 2체가 내려와 회복 블록을 부어 준다. 옛 연출은 '빛기둥'이었다.
+    //    (회복계 축 규약은 유지: 축복은 **위에서 내려오고** 성역은 아래에서 올라온다.)
+    healPillar(color, tier) { return this.mcAngelBless(color, tier); },
+    _legacyHealPillar(color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const pw = t / 5;
@@ -15238,7 +15155,9 @@ const Scene3D = {
         this.expandRing(new THREE.Vector3(hero.x, 0.02, hero.z), color, 1.1 + pw * 0.6);
         SFX.healDescend(t);
     },
-    auraCircle(color, tier) {
+    // 🗑️ 폐기 → **수호 석상 4기**가 땅에서 솟아 영웅을 둘러싼다. 옛 연출은 '룬 서클'(추상 링)이었다.
+    auraCircle(color, tier) { return this.mcGuardianStatues(color, tier); },
+    _legacyAuraCircle(color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const pw = t / 5;
@@ -15339,7 +15258,9 @@ const Scene3D = {
 
     // 응급 처치 — 붕대가 몸을 감고 십자 표식이 박힌다. 지원계 중 유일하게 **작고 빠르다**(커먼).
     // 빛기둥·결계처럼 화면을 먹지 않는 게 이 스킬의 정체성이다 — 크게 만들면 축복과 다시 겹친다.
-    firstAidWrap(color, tier) {
+    // 🗑️ 폐기 → 의무 정령이 날아와 구급 상자를 붙인다. 옛 연출은 '붕대 띠 + 십자 표식'이었다.
+    firstAidWrap(color, tier) { return this.mcMedicSprite(color, tier); },
+    _legacyFirstAidWrap(color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
         const pw = t / 5;
@@ -15426,7 +15347,10 @@ const Scene3D = {
         }
         return this[key];
     },
-    wardShieldDome(color, tier) {
+    // 🗑️ 폐기 → **방패 골렘**이 영웅 앞에 방패를 세운다(사용자 예시 "대장장이 골렘이 방패를
+    //    세워 준다"). 옛 연출은 육각 결계 돔이었다.
+    wardShieldDome(color, tier) { return this.mcShieldGolem(color, tier); },
+    _legacyWardShieldDome(color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
         const pw = t / 5;
@@ -15515,7 +15439,9 @@ const Scene3D = {
     // 전투의 함성 — 영웅의 **머리에서** 포효 고리가 수평으로 터져 나간다.
     // 룬 서클(발밑에서 위로)과 축을 반대로 둔다: 이건 **가슴 높이에서 바깥으로**. 유일하게
     // 영웅 몸이 아니라 **주변 공간**이 밀리는 버프라, 카메라 셰이크를 지원계 중 유일하게 쓴다.
-    warCryShout(color, tier) {
+    // 🗑️ 폐기 → 오크 대장이 옆에 서서 뿔피리를 분다. 옛 연출은 '포효 고리'(추상 링)였다.
+    warCryShout(color, tier) { return this.mcOrcHorn(color, tier); },
+    _legacyWarCryShout(color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const pw = t / 5;
@@ -15674,7 +15600,9 @@ const Scene3D = {
     // 각속도 차이가 곧 연출이다. 영웅 잔상까지 얹어 '시간이 어긋났다'를 못 박는다.
     // ⚠️ 축대칭 고리는 같은 속도로 돌리면 **멈춰 보인다**(whirlwindVortex 가 기록한 함정) —
     //    그래서 고리마다 눈금 수를 다르게 두고 속도도 정수배를 피한다.
-    timeWarpDial(color, tier) {
+    // 🗑️ 폐기 → **태엽 로봇**이 나타나 열쇠를 감고 기어 블록이 역행한다. 옛 연출은 시계 고리 3겹.
+    timeWarpDial(color, tier) { return this.mcClockBot(color, tier); },
+    _legacyTimeWarpDial(color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 4 : tier));
         const pw = t / 5;
@@ -15804,7 +15732,9 @@ const Scene3D = {
         }
         return g;
     },
-    whirlwindVortex(targetIds, color, tier) {
+    // 🗑️ 폐기 → 표창 10개(사용자 원문 그대로). 옛 연출은 '깃 세 겹이 도는 소용돌이'였다.
+    whirlwindVortex(targetIds, color, tier) { return this.mcShurikenStorm(targetIds, color, tier); },
+    _legacyWhirlwindVortex(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
         const pw = t / 5;
@@ -15921,7 +15851,9 @@ const Scene3D = {
     //          퍼지며 그 위로 불기둥이 **차례로** 솟고 → 잉걸이 남아 스러진다.
     // ⚠️ 운석(하늘에서 여러 개)·아가리(땅에서 솟음)와 **겹치지 않는 축**을 골랐다: 이건 **수평으로
     //    퍼지는** 불이다. 세 연출이 각각 위/아래/바깥을 맡아 같은 광역기라도 그림이 안 겹친다.
-    fireStorm(targetIds, color, tier) {
+    // 🗑️ 폐기 → 임프가 소환돼 불덩이 블록을 던진다. 옛 연출은 '불덩이 스프라이트 + 확산 고리'였다.
+    fireStorm(targetIds, color, tier) { return this.mcImpFireball(targetIds, color, tier); },
+    _legacyFireStorm(targetIds, color, tier) {
         if (!this.scene) return;
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const pw = t / 5;
@@ -16293,7 +16225,10 @@ const Scene3D = {
     // 발 간격(ms) — 등급이 높을수록 촘촘하게. **판정기가 이 값을 읽어 판정선을 만든다**(손으로
     // 베끼면 여기를 고친 뒤에도 옛 값으로 재는 함정에 걸린다 — TODO 계측 함정 ④).
     arrowGapMs(tier) { return 62 - Math.max(0, Math.min(5, tier | 0)) * 4; },
-    arrowVolley(targetIds, color, tier) {
+    // 🗑️ 폐기 → 궁수 자동인형 3기가 땅에서 솟아 연사한다(화살이 '허공에서 생기던' 자리).
+    //    ⚠️ 발수·간격(`arrowGapMs`)·SFX 는 새 안무가 그대로 물려받는다 — 그게 이 스킬의 박자다.
+    arrowVolley(targetIds, color, tier) { return this.mcArcherLine(targetIds, color, tier); },
+    _legacyArrowVolley(targetIds, color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const n = 3 + Math.min(4, t);                  // 레어 4발 … 궁극 이상 7발
         const gap = this.arrowGapMs(t);

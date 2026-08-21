@@ -11,7 +11,8 @@
 //  ④ 면 변주  — 같은 높이대의 정점끼리도 색이 갈려야 '깎인 면'으로 읽힌다. 밑동 링 색의 sd.
 //  ⑤ 법선 방향 — 감기 방향을 뒤집으면 옆면이 통째로 컬링돼 결정이 **뚫려** 보인다.
 //              기둥 구간 삼각형의 면 법선이 축에서 바깥을 보는지(dot > 0) 전수 검사.
-//  ⑥ 개체차  — 클러스터마다 달라야 한다. 같은 순번 결정끼리 반경 프로파일 RMS 차 / 평균반경.
+//  ⑥ 개체차  — 클러스터마다 달라야 한다. 같은 순번 결정끼리 **높이 16단 실루엣 반경** RMS 차 / 평균반경.
+//              (밑동 링 반경으로 재던 옛 식은 사각 단면에서 정수 두 개로 고정돼 무효다 — 본문 🚨 참고.)
 //              (⚠️ 상관계수로 재지 말 것 — 기반 형상이 공통이면 노이즈가 달라도 1에 가깝게 나온다.
 //               `probe-foliage-sculpt.js` 에서 값 주고 배운 함정이다.)
 // + 드로우콜: 클러스터당 crystalMat 메시 개수(교체 전 3 → 후 1 이어야 한다. 결정은 6개로 늘었다).
@@ -39,6 +40,14 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    // 🚨 **난수를 고정한다(2026-08-21).** ⑦(순백 클리핑)은 결정 배치·프레이밍에 통째로 흔들려서,
+    //    같은 코드로 연달아 돌려도 0.95 / 1.28 / 2.73 / 4.94 / 7.21% 가 나온다(실측 5회). 그 상태로는
+    //    '고쳤는가'를 물을 수 없다 — 이 파일 안의 옛 메모("난수 미고정이라 0.00~6.43% 로 널뛰었다")가
+    //    같은 함정을 이미 적어 뒀는데 자에는 반영돼 있지 않았다. 시드를 박아 A/B 가 성립하게 한다.
+    await page.addInitScript(() => {
+        let sd0 = 0x51f3a7d;
+        Math.random = () => { sd0 = (sd0 * 1664525 + 1013904223) >>> 0; return sd0 / 4294967296; };
+    });
     await page.goto(INDEX + '?debug=gear&w=sword', { waitUntil: 'load' });
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG, null, { timeout: 60000 });
     await page.waitForTimeout(1200);
@@ -172,11 +181,23 @@ const SLENDER_MIN = 0.13;  // ⑧ 밑동 반경 / 높이 — 이보다 가늘면
                         faceW = Math.max(faceW, Math.hypot(wld[A] - wld[B], wld[A + 2] - wld[B + 2]));
                     }
                 }
+                // ⑥ 개체차용 실루엣 프로파일 — **높이 16단의 실루엣 반경**.
+                // 🚨 **밑동 링 정점 반경 목록으로 재던 옛 식을 버렸다(2026-08-21, map-props-minecraft).**
+                //    마크 문법으로 옮기면서 결정 단면이 **축정렬 직사각형**이 됐는데, 그 밑동 링의 반경
+                //    목록은 (반폭x, 반폭z) **정수 두 개**로 완전히 결정된다 — 즉 서로 다른 두 결정이라도
+                //    반폭이 같으면 목록이 **정확히 같다**(실측 min 0.0000). 조형을 아무리 흔들어도(옆구리
+                //    새끼 결정·단차·높이) 밑동 링은 안 움직이므로 **그 식으로는 개체차를 물을 수 없다.**
+                //    ⚠️ 그렇다고 조형을 억지로 맞추면 안 된다 — 밑동을 넓히거나 기둥을 중간에서 좁히면
+                //       ⑧(어깨 높이)이 0.81 → 0.41 로 무너진다. 두 자가 서로 반대를 요구하는 셈이었다.
+                //    새 식은 **전 높이의 실루엣**을 보므로 조형의 개체차(높이·기울임·옆구리 결정)를 그대로
+                //    읽고, 옛 육방 기둥에서도 같은 의미다(호환). 판단 기준값(0.04)은 그대로 둔다.
+                const profH = [];
+                for (let q = 0; q < 16; q++) profH.push(radiusAt((q + 0.5) / 16 * p.h));
                 parts.push({
                     shoulderK, slender, faceW,
                     col: lo ? mid / lo : 0, cv: mean(baseR) ? sd(baseR) / mean(baseR) : 0,
                     shade, facet: sd(baseC), inward, sideTris,
-                    prof: baseIdx.map(i => rs[i]), verts: p.count,
+                    prof: profH, verts: p.count,
                 });
             }
             out.clusters.push({ parts, verts: pos.count, tris: pos.count / 3 });
