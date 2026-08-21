@@ -8943,7 +8943,7 @@ const Scene3D = {
             g0.add(Voxel.build(Voxel.box(6, 6, 8, 0x9e9e9e), { size: 0.03, center: true }));
             return g0;
         }
-        const built = Mobs.build(model, { vivid: 0.13 });
+        const built = Mobs.build(model, { vivid: 0.2 });
         const g = built.group;
         // ⚠️ 파츠 애니는 **관절 하나로 통일**한다 — 옛 `ud.wings`/`ud.tail`/`ud.claws` 갈래를 같이
         //    올리면 같은 파츠를 두 드라이버가 매 프레임 덮어써 떨린다(둘 다 rotation 에 절대 대입).
@@ -8967,7 +8967,7 @@ const Scene3D = {
         }
         const form = this.mountFormOf(name);
         const cell = form.saddle / model.seat;
-        const built = Mobs.build(model, { cell, vivid: 0.13 });
+        const built = Mobs.build(model, { cell, vivid: 0.2 });
         const g = built.group;
         const ud = g.userData;
         ud.legs = built.legs.length ? built.legs : null;
@@ -10009,70 +10009,10 @@ const Scene3D = {
     //    바꿔도 잃는 등급 정보가 없다(등급은 소환·프레임이 지고, 발광 액센트는 fixed hex 라 c 무관).
     // 미등록 종은 등급색으로 폴백한다. Panther·Brown Horse 는 자체 오버라이드(검정·밤색)라 일부러 뺀다 —
     // 그 분기가 `offsetHSL(c)` 로 몸색을 짜므로 여기 넣으면 이중 채색이 된다.
-    MOUNT_BODY_COL: {
-        // 자연 동물 — 종 자연색. ⚠️ 초식 사족(조랑말·당나귀·알파카·염소·낙타·큰사슴)은 현실색이 죄다
-        //    흙색이라 몰개성해지기 쉽다 — **색상·명도를 일부러 벌린다**(황금/쿨그레이/크림/근백/오렌지샌드/적갈)
-        //    는 게 리버본드의 '알록달록' 이다(비평가 지적 "탄/브라운 blob 이 죄다 비슷").
-        // 🎨 초식 사족·회색 종 채도/명도 재조정 (mount-riverbond-remake 세션5, 비평가 2인 블라인드
-        //    재채점 4·4 의 **1순위 게이트 블로커** "tan/beige/gray = 미완성 점토 팔레트, 리버본드
-        //    candy 색이 아니다"). 원인 = 파스텔 종이 **명도가 너무 높아**(cream L0.77~0.83) vivid() 가
-        //    채도만 +0.18 얹어도 '창백한 파스텔'로 남았다(vivid 은 명도를 +0.025 밖에 안 올려 흰끼를
-        //    못 뺀다). → **베이스 색 자체를 깊히고**(L 내림) 채도를 실어 candy 톤으로. vivid() 가 위에
-        //    +채도를 더 얹어 팝을 낸다. 안장깔개·AO·지터·vivid() 계수는 안 건드려 세션3 이 못박은
-        //    '흰끼 씻김·안장 마젠타 과포화' 천장을 안 넘는다(그건 vivid 계수 문제였고 여긴 베이스만).
-        //    ⓐ 파스텔 3종(알파카·양·염소)은 서로 명도·색상을 벌려 herd 구별도 함께 처치(비평가 ③).
-        // 🍬 세션6 candy 재도색 (mount-color-candy-allspecies, 프레시 비평가 2인 블라인드 재채점 색 4·4
-        //    = **양대 게이트 블로커의 1순위**, 둘 다 "tan/beige/cream/olive/gray = 미완성 점토, 리버본드
-        //    candy 아님"). 세션5 가 명도만 깊혔으나 **여전히 흙색 계열에 머물러** 4점. 이번엔 세션들이
-        //    지켜 온 '자연색' 관성을 버리고 **색상환을 벌려 진짜 candy 로** 재배정한다 — 초식 herd 를
-        //    노랑/보라/코랄/민트/로즈/오렌지로 흩어 채도·구별을 동시에 얻는다(비평가 공통 처방
-        //    "clay 팔레트를 죽이고 채도 높은 candy 로 재배정하면 리모델보다 많은 종이 게이트를 넘는다").
-        //    ⚠️ vivid()·AO·지터·안장(마젠타 천장)은 안 건드림 — 베이스 색만(세션3 이 못박은 천장 회피).
-        // ⚠️ 세션6 라운드3: **노랑-골드는 이 렌더러(ACES 톤맵+Lambert)에서 반드시 올리브로 죽는다** —
-        //    라운드2 에서 조랑말·낙타·태엽쥐를 0xffc4~ 순노랑까지 올려도 썸네일이 여전히 흙올리브였다
-        //    (반면 냉색 보라·파랑·핑크·틸은 vivid 로 쨍하게 산다 = ACES 가 밝은 웜을 desaturate). 그래서
-        //    웜 quad 를 **노랑-골드에서 빼내** 오렌지/레드/코랄/틸/마젠타(=곱셈·톤맵 후에도 그 색으로
-        //    읽히는 hue)로 재배정한다. 초식 herd 는 이미 보라(당나귀)·핑크(돼지)·로즈(염소)로 갈렸으니
-        //    나머지도 색상환으로 흩어 herd 구별까지 챙긴다. (비평가 C·D 재채점 3·4 '흙 팔레트가 여전 1순위'.)
-        // 🍬 웜-사(死) 사족 3종 냉색 candy 재배정 (mount-warm-quad-cool). 라운드2~4 인계 메모가
-        //    "조랑말·멧돼지·큰사슴은 종 정체성상 웜이라 아직 tan 으로 죽는 잔여(냉색 전환 or 렌더러 수정 필요)"로
-        //    남긴 3종을 처치. 오렌지(Pony 0xff7d1a)·브릭(Boar 0xb0402a)·다크레드(Elk 0xdd3a1e)는 전부
-        //    ACES+깊은 복셀 암부가 채도를 뭉개 썸네일에서 흙올리브/탄으로 죽었다(세션2~6 이 렌더러 벽으로
-        //    확정, 웜 베이스·vivid 로는 못 뚫음). 프레시 비평가 공통 처방 "candy>사실, 냉색으로 재배정하면
-        //    게이트를 넘는다"에 따라 냉색 candy 로 — 조랑말=쨍 파랑·멧돼지=candy 마젠타·큰사슴=아메시스트 보라.
-        //    herd 이웃(당나귀 페리윙클 0x8b7fcc·돼지 핑크·염소 로즈)과 hue 를 벌려 구별도 챙겼다.
-        //    ⚠️ 오가닉 액센트(양털·플리스·낙타 혹) 없는 3종이라 accent-bodytint 와 무충돌 · 낙타(혹 accent)·
-        //    갈색말(하드코드)·벌/덤프(정체성 노랑)는 제외 · 색만 변경(지오·vivid·AO·안장 불변).
-        'Pony': 0x3f8fe0, 'Donkey': 0x8b7fcc, 'Alpaca': 0x2fb8a0, 'Sheep': 0x84cf9a,
-        'Turtle': 0x3fb082, 'Crab': 0xf05230, 'Dino': 0x7cc23a, 'Boar': 0xd046b0,
-        // 낙타(0xe86418 오렌지→시안)도 위 웜-사 3종과 같은 사유로 냉색 candy 재배정
-        //    (mount-camel-cool). 오렌지가 흙올리브로 죽던 것을 alpaca 틸(0.47)·pony 파랑(0.60)
-        //    사이의 쨍 시안으로 — 셋이 틸→시안→파랑 그라디언트로 갈려 herd 구별. 혹 accent 는
-        //    furTint(몸색 파생)라 자동 정합 · 이름색-잠금(갈색말)·정체성 노랑(벌·덤프)은 제외.
-        'Pig': 0xf593ac, 'Goat': 0xcf6f8c, 'Camel': 0x22b0c8, 'Elk': 0xa64de0,
-        // 🚨 비행 3종 채도·명도 상향 (mount-riverbond-remake, 비평가 4인 공통 'washed-out/muddy,
-        //    vivid 목표 미달' — 지상동물은 이미 통과, 비행종만 칙칙했다). 벌은 노랑을 쨍하게 올려야
-        //    어두운 배마디(BEE_D)가 '줄무늬'로 대비되고(비평가 'no bee striping'), 드래곤은 진홍으로,
-        //    익룡은 물빠진 탄→쨍한 골드로. 몸색만 — 지오메트리 불변(vivid() 가 s>0.12 에 +채도 더 얹는다).
-        //    코뿔소도 무채 슬레이트→쨍한 스틸블루(비평가 'muddy monochrome'), 익룡 물빠진 탄→쨍 골드.
-        'Armored Rhino': 0x5f8fc8, 'Giant Bee': 0xf6c81c, 'Mini Dragon': 0xda3826,
-        // 🍬 익룡 냉색 candy 재배정 (mount-riverbond-remake — warm-die 마지막 동물 홀드아웃 처치).
-        //    골드→오렌지(0xf0741a)로 두 번 바꿔도 ACES+깊은 복셀 암부가 웜 넓은 면을 desaturate 해
-        //    썸네일에서 여전히 흙올리브로 죽었다(측정 확정: measure-mount-sat·warm-cube-ao A/B 반증,
-        //    렌더러 벽이라 웜 베이스·vivid·AO 로는 못 뚫음). 비평가 8인 블라인드 재채점 공통 최악권 =
-        //    #26 익룡 'scattered muddy skeleton'. 프레시 비평가 공통 처방 "candy>사실, 냉색 재배정".
-        //    익룡은 이름·정체성이 색에 안 묶여(벌=노랑·갈색말=이름색 과 달리) 냉색 전환이 자유롭다.
-        //    → 쨍한 블루바이올렛(냉색은 ACES 후에도 candy 로 산다 — 냉색군 전례). 막(PWINGC=몸색
-        //    파생)·융기·팔뼈가 전부 c 에서 파생돼 자동 정합, BONE 볏만 각질색으로 남아 종 판독 유지.
-        //    hue 를 Elk 아메시스트(0xa64de0)·드래곤 레드(0xda3826)·별고래 파랑(0x3a86e0)과 벌려 구별.
-        'Star Whale': 0x3a86e0, 'Pterosaur': 0x7a4fe0,
-        // 기계·탈것 — 프레시 비평가가 '회색 금속 = zero candy' 로 감점(#21 드로이드·#22 거미·#29 로봇).
-        //    기계도 리버본드에선 candy 토이색이라, 무채 금속을 쨍한 색으로(시안·스틸블루·건설노랑).
-        'Clockwork Mouse': 0xd94a9a, 'Clockwork Beetle': 0x3fb87a,   // 태엽쥐 노랑-브라스도 올리브로 죽어 candy 마젠타로
-        'Bike': 0xe23a2a, 'One-Wheel Droid': 0x3fb8d4, 'Mech Spider': 0x4a86b8,
-        'Bipedal Mech': 0x3f78c0, 'Dump Truck': 0xf0a81a, 'Cleaning Robot': 0x8fd0e0,
-        'Hover Board': 0x2aa8e0, 'Hover Disk': 0x2fbf84,
-    },
+    // 🚫 `MOUNT_BODY_COL`(캔디 재배정 팔레트)은 폐기했다 (pet-mount-minecraft-remake, 2026-08-21).
+    //    종 자연색은 이제 `js/mobs-mounts.js` 의 종별 표가 직접 들고 있다 — 색과 조형이 한 자리에
+    //    있어야 '파란 조랑말'처럼 표만 따로 흔들리는 사고가 안 난다.
+
     // 안장 높이가 종마다 다르므로 **계열 상수를 그대로 돌려주면 안 된다** — 탑승 배율(rideScale)·
     // 영웅 y(heroY)·등자·발판이 전부 `form.saddle` 하나를 본다. 종 오버라이드가 있으면 얕은 복사에
     // 덮어 돌려준다(호출부는 전부 읽기 전용이라 매번 새 객체를 만들어도 안전하다).

@@ -54,7 +54,7 @@
     function horse(o) {
         var C = o.c, MANE = o.mane, HOOF = o.hoof || 0x3c3228;
         var q = rideQuad({
-            c: C, body: [9, 9, o.len], legH: o.legH, legW: 3, legC: C, hoof: HOOF,
+            c: C, body: [11, 10, o.len], legH: o.legH, legW: 4, legC: C, hoof: HOOF,
             head: [5, 6, 9], headY: o.headY, headDrop: 4, legAmp: 0.44, headRot: [0.42, 0, 0],
             face: E({ y: 3, inset: 1, ew: 1, eh: 2 }).concat([{ c: 0x2b241d, x: [1, 3], y: 0, z: -1 }]),
             bodyPaint: o.bodyPaint, seat: o.seat, tackW: 8,
@@ -75,11 +75,11 @@
     }
 
     // 조랑말 — 짧은 다리·짧은 몸(마크 새끼 말 비례)
-    M['Pony'] = horse({ c: 0x9c7248, mane: 0x4c3823, len: 16, legH: 7, headY: 18, headZ: 11, neckY: 15, neckH: 8, seat: 15.5, tailY: 12 });
+    M['Pony'] = horse({ c: 0x9c7248, mane: 0x4c3823, len: 21, legH: 7, headY: 18, headZ: 11, neckY: 15, neckH: 8, seat: 15.5, tailY: 12 });
     // 갈색 말 — 마크 말 기본 비례(긴 다리·긴 목)
-    M['Brown Horse'] = horse({ c: 0x6b4a2a, mane: 0x2f2117, len: 18, legH: 10, headY: 23, headZ: 12, neckY: 19, neckH: 9, seat: 19, tailY: 15 });
+    M['Brown Horse'] = horse({ c: 0x6b4a2a, mane: 0x2f2117, len: 24, legH: 10, headY: 23, headZ: 12, neckY: 19, neckH: 9, seat: 19, tailY: 15 });
     // 당나귀 — 회갈색 + **긴 귀 두 장**(말과 갈리는 유일한 축이 귀다, 마크도 같다)
-    M['Donkey'] = horse({ c: 0x7c7c7c, mane: 0x3a3a3a, len: 16, legH: 8, headY: 19, headZ: 11, neckY: 16, neckH: 8, seat: 16.5, tailY: 13,
+    M['Donkey'] = horse({ c: 0x7c7c7c, mane: 0x3a3a3a, len: 21, legH: 8, headY: 19, headZ: 11, neckY: 16, neckH: 8, seat: 16.5, tailY: 13,
         ears: [
             { box: [2, 7, 2], at: [-2, 24, 8], parent: 'head', c: 0x7c7c7c, paint: [{ c: 0x3a3a3a, y: -1 }] },
             { box: [2, 7, 2], at: [2, 24, 8], parent: 'head', c: 0x7c7c7c, paint: [{ c: 0x3a3a3a, y: -1 }] },
@@ -88,7 +88,7 @@
     // 알파카 — 마크 라마(작은 몸 + 아주 긴 목 + 네모난 머리 + 짧은 귀)
     (function () {
         var C = 0xf0e4cc, D = 0xcbb894;
-        var q = rideQuad({ c: C, body: [8, 8, 13], legH: 9, legW: 3, legC: D, seat: 17,
+        var q = rideQuad({ c: C, body: [10, 9, 17], legH: 9, legW: 3, legC: D, seat: 17,
             head: [5, 6, 6], headY: 24, headDrop: 2, legAmp: 0.4,
             face: E({ y: 3, inset: 1, ew: 1, eh: 1 }).concat([{ c: 0x3c332a, x: [1, 3], y: [0, 1], z: -1 }]),
             extra: [
@@ -104,7 +104,7 @@
     // 양 — 마크 양(털뭉치 몸통 = 큰 상자 + 작은 머리, 다리는 짧고 검다)
     (function () {
         var W = 0xeae6de, HEAD = 0xd9cbb2, LEG = 0x4a4238;
-        M['Sheep'] = rideQuad({ c: W, body: [11, 10, 15], legH: 5, legW: 3, legC: LEG, seat: 16,
+        M['Sheep'] = rideQuad({ c: W, body: [13, 11, 19], legH: 5, legW: 3, legC: LEG, seat: 16,
             head: [6, 6, 7], headY: 13, headDrop: 1, headC: HEAD, legAmp: 0.34,
             face: E({ y: 2, inset: 1, ew: 1, eh: 1 }).concat([{ c: 0x2b241d, x: [2, 3], y: [0, 0], z: -1 }]),
             bodyPaint: [{ c: 0xd8d2c6, y: 0 }],
@@ -117,8 +117,8 @@
 
     // 돼지 — 마크 돼지 그대로(분홍 통짜 + 코 + 짧은 다리 + 꼬리)
     (function () {
-        var PK = 0xf0a5a2, SN = 0xd98a86;
-        M['Pig'] = rideQuad({ c: PK, body: [11, 10, 16], legH: 4, legW: 4, legC: 0xd98a86, seat: 15,
+        var PK = 0xf58f9c, SN = 0xdb7180;
+        M['Pig'] = rideQuad({ c: PK, body: [13, 11, 20], legH: 4, legW: 4, legC: 0xdb7180, seat: 15,
             head: [8, 8, 8], headY: 11, headDrop: 1, legAmp: 0.34,
             face: E({ y: 4, inset: 1 }),
             extra: [
@@ -132,7 +132,7 @@
     // 멧돼지 — 돼지 섀시 + 어두운 갈기·엄니(종 판독은 엄니가 진다)
     (function () {
         var BR = 0x5b4636, DK = 0x392c22, TUSK = 0xf0ead8;
-        M['Boar'] = rideQuad({ c: BR, body: [11, 10, 16], legH: 5, legW: 4, legC: DK, seat: 16,
+        M['Boar'] = rideQuad({ c: BR, body: [13, 11, 20], legH: 5, legW: 4, legC: DK, seat: 16,
             head: [8, 8, 9], headY: 12, headDrop: 1, legAmp: 0.36,
             face: E({ y: 4, inset: 1, white: 0xd8c8a8 }),
             bodyPaint: [{ c: DK, y: -1 }],
@@ -148,7 +148,7 @@
     // 염소 — 마크 염소(흰회색 + 뒤로 굽은 뿔 + 턱수염)
     (function () {
         var C = 0xe2e2e0, D = 0x969696, HORN = 0xb8ac96;
-        var q = rideQuad({ c: C, body: [8, 9, 14], legH: 8, legW: 3, legC: D, seat: 16.5,
+        var q = rideQuad({ c: C, body: [10, 10, 18], legH: 8, legW: 3, legC: D, seat: 16.5,
             head: [6, 6, 7], headY: 18, headDrop: 2, legAmp: 0.42,
             face: E({ y: 3, inset: 1, ew: 1, eh: 1 }).concat([{ c: 0x3c332a, x: [2, 3], y: 0, z: -1 }]),
             extra: [
@@ -167,7 +167,7 @@
     // 낙타 — 마크 낙타(모래색 · 아주 긴 다리 · 혹 + 긴 목)
     (function () {
         var C = 0xe8b562, D = 0xc08c3c;
-        var q = rideQuad({ c: C, body: [9, 9, 17], legH: 12, legW: 3, legC: C, seat: 21,
+        var q = rideQuad({ c: C, body: [11, 10, 21], legH: 12, legW: 3, legC: C, seat: 21,
             head: [5, 6, 8], headY: 27, headDrop: 3, legAmp: 0.4,
             face: E({ y: 3, inset: 1, ew: 1, eh: 1 }).concat([{ c: 0x4a3a24, x: [1, 3], y: 0, z: -1 }]),
             tackZ: -1,
@@ -192,7 +192,7 @@
             antler.push({ box: [5, 2, 2], at: [s2 * 5, 34, 2], parent: 'head', c: ANT });
             antler.push({ box: [2, 5, 2], at: [s2 * 7, 36, 2], parent: 'head', c: ANT });
         }
-        var q = rideQuad({ c: C, body: [9, 10, 17], legH: 11, legW: 3, legC: D, seat: 21,
+        var q = rideQuad({ c: C, body: [11, 11, 21], legH: 11, legW: 3, legC: D, seat: 21,
             head: [5, 7, 9], headY: 26, headDrop: 3, legAmp: 0.42,
             face: E({ y: 3, inset: 1, ew: 1, eh: 2 }).concat([{ c: 0x2b1f14, x: [1, 3], y: 0, z: -1 }]),
             bodyPaint: [{ c: D, y: 0 }],
@@ -209,7 +209,7 @@
     // 흑표범 — 낮게 깔린 고양잇과(마크 고양이를 크게 키운 비례) + 긴 꼬리
     (function () {
         var BK = 0x2b2b2b, D = 0x1c1c1c;
-        M['Panther'] = rideQuad({ c: BK, body: [9, 8, 18], legH: 7, legW: 3, legC: BK, seat: 15,
+        M['Panther'] = rideQuad({ c: BK, body: [11, 9, 22], legH: 7, legW: 3, legC: BK, seat: 15,
             head: [8, 7, 8], headY: 13, headDrop: 1, legAmp: 0.46,
             face: E({ y: 3, inset: 1, white: 0xf3d24a, pupil: 0x161318 }).concat([{ c: D, x: [3, 4], y: [0, 1], z: -1 }]),
             bodyPaint: [{ c: D, y: 0 }],
@@ -223,7 +223,7 @@
     // 공룡 — 두 발 수각류 실루엣(굵은 꼬리 + 앞으로 나온 머리). 마크엔 없어 실루엣만 빌린다.
     (function () {
         var G = 0x5a9e3c, D = 0x3d7028, BELLY = 0xcbd98c;
-        M['Dino'] = rideQuad({ c: G, body: [10, 11, 16], legH: 8, legW: 4, legC: G, seat: 18,
+        M['Dino'] = rideQuad({ c: G, body: [12, 12, 20], legH: 8, legW: 4, legC: G, seat: 18,
             head: [8, 7, 12], headY: 22, headDrop: 4, legAmp: 0.44,
             face: E({ y: 4, inset: 1, white: 0xf3d24a, pupil: 0x161318 })
                 .concat([{ c: 0x2b2118, x: [2, 5], y: 0, z: -1 }, { c: BELLY, y: 0 }]),
@@ -279,7 +279,7 @@
     // 장갑 코뿔소 — 회색 몸 + 철판 + 코뿔 하나(마크 철골렘의 판 문법을 빌린다)
     (function () {
         var GY = 0x8c8c8c, D = 0x5e5e5e, HORN = 0xe8e2d4;
-        M['Armored Rhino'] = rideQuad({ c: GY, body: [12, 11, 18], legH: 6, legW: 5, legC: D, seat: 18,
+        M['Armored Rhino'] = rideQuad({ c: GY, body: [14, 12, 22], legH: 6, legW: 5, legC: D, seat: 18,
             head: [8, 8, 9], headY: 13, headDrop: 1, legAmp: 0.34,
             face: E({ y: 4, inset: 1, ew: 1, eh: 1 }),
             bodyPaint: [{ c: D, y: 0 }],
@@ -326,7 +326,7 @@
     // 태엽 생쥐 — 놋쇠 생쥐 + 등의 감개
     (function () {
         var BR = 0xd8a53a, D = 0x9c7420, PK = 0xe0a0a0;
-        M['Clockwork Mouse'] = rideQuad({ c: BR, body: [10, 9, 15], legH: 4, legW: 3, legC: D, seat: 15,
+        M['Clockwork Mouse'] = rideQuad({ c: BR, body: [12, 10, 19], legH: 4, legW: 3, legC: D, seat: 15,
             head: [8, 7, 8], headY: 11, headDrop: 1, legAmp: 0.4,
             face: E({ y: 3, inset: 1, white: 0x2b2b30, pupil: 0xf3c14a }),
             bodyPaint: [{ c: D, y: 0 }, { c: D, z: [5, 6] }],
@@ -341,7 +341,7 @@
     // 태엽 딱정벌레 — 구리 몸통 + 딱지날개 두 장 + 감개
     (function () {
         var CU = 0xb87333, D = 0x7a4a20, SH = 0x2f7a52;
-        M['Clockwork Beetle'] = rideQuad({ c: CU, body: [13, 8, 16], legH: 4, legW: 3, legC: D, seat: 14,
+        M['Clockwork Beetle'] = rideQuad({ c: CU, body: [15, 9, 20], legH: 4, legW: 3, legC: D, seat: 14,
             head: [7, 5, 6], headY: 9, headDrop: 1, legAmp: 0.42, tackW: 8,
             face: E({ y: 2, inset: 1, white: 0xf3c14a, pupil: 0x241c17 }),
             extra: [
