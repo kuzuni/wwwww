@@ -12212,12 +12212,17 @@ const Scene3D = {
         const lit = [], out = [], litLum = [];
         root.traverse(o => {
             if (!o.isMesh || !o.material) return;
+            // 🚨 아웃라인 셸은 **전역 공유 재질(`_outlineMat`) 싱글턴**이라 플래시가 색을 lerp 하면
+            //    모든 캐릭터의 아웃라인이 함께 물들고, 연타·개체 교차로 복원(`_ol0`)이 꼬여 **회색으로
+            //    고착**된다("전투하면 회색선"의 정체). 아래 out 분류는 옛 per-캐릭터 아웃라인용 죽은
+            //    코드였는데(2026-08-18 삭제 주석) 아웃라인 복원으로 재활성됐다 — 공유 재질을 지키려
+            //    플래시 대상에서 통째로 뺀다(테두리 점등을 포기하는 대신 안정 유지).
+            if (o.userData.isOutline) return;
             const mats = Array.isArray(o.material) ? o.material : [o.material];
             for (const mat of mats) {
-                if (o.userData.isOutline) { if (out.indexOf(mat) < 0) out.push(mat); }
                 // 접촉 AO 링·림 셸은 emissive 가 없는 Basic 이라 여기서 자동으로 걸러진다
                 // (AO 링을 태우면 이음새가 사라져 '프리미티브 더미'가 도로 드러난다 — 빌더 주석 ⑵).
-                else if (mat.emissive && lit.indexOf(mat) < 0) {
+                if (mat.emissive && lit.indexOf(mat) < 0) {
                     lit.push(mat);
                     // albedo 명도(0~1) — flashMesh 가 emissive 세기를 이 값에 비례시켜, 플래시 중에도
                     // 어두운 파츠(부츠·크레비스)는 상대적으로 어둡게 남아 **형태가 보존**된다.
