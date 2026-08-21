@@ -72,7 +72,9 @@
     },
 
     // 액터 한 체를 씬에 세운다. 반환 { g, P } — P 는 파츠 이름 맵.
-    // yaw 기본값 = π/2 = **적 쪽(+x)을 본다**(표의 정면이 +z 라는 계약과 짝).
+    // yaw 기본값 = CREATURE_YAW = **펫·탈것과 같은 3/4 방향**(creature-yaw-unify, 2026-08-22).
+    //   종전엔 π/2(정면 +x, 옆모습)라 소환체만 펫/탈것과 방향이 어긋났다. 표 정면이 +z 라 펫·탈것과
+    //   같은 규약이므로, 같은 yaw 상수를 쓰면 화면상 같은 쪽을 본다. 좌우 반사는 부호로 ±CREATURE_YAW.
     fxActor(id, opt) {
         const proto = this.fxActorProto(id);
         if (!proto || !this.scene) return null;
@@ -82,7 +84,7 @@
         g.traverse(n => { if (n.name && n.name.lastIndexOf('fx:', 0) === 0) P[n.name.slice(3)] = n; });
         if (o.scale) g.scale.setScalar(o.scale);
         if (o.pos) g.position.copy(o.pos);
-        g.rotation.y = o.yaw === undefined ? Math.PI / 2 : o.yaw;
+        g.rotation.y = o.yaw === undefined ? this.CREATURE_YAW : o.yaw;
         this.scene.add(g);
         return { g, P, id };
     },
@@ -211,7 +213,7 @@
                 const target = (this.mcSpots(targetIds))[0] || spot;
                 this.mcMeleeStrike({
                     model: 'swordbot', scale: 0.95 + t * 0.06, color, tier: t, big: i === n - 1,
-                    faceBack: back, yaw: back ? -Math.PI / 2 : Math.PI / 2,
+                    faceBack: back, yaw: back ? -this.CREATURE_YAW : this.CREATURE_YAW,
                     from: new THREE.Vector3(target.x + (back ? 1.9 : -1.9), 1.3, target.z + dz),
                     to: new THREE.Vector3(target.x + (back ? 0.88 : -0.88), 0, target.z + dz),
                     inMs: 150, swingMs: 130, outMs: 240, hold: 70,
@@ -261,7 +263,7 @@
         const hero = this.heroG.position.clone();
         const from = new THREE.Vector3(hero.x - 1.9, 1.9, hero.z - 1.2);
         const at = new THREE.Vector3(hero.x - 0.62, 1.02, hero.z - 0.42);
-        const a = this.fxActor('medic', { scale: 1.0 + t * 0.05, pos: from, yaw: Math.PI / 2 });
+        const a = this.fxActor('medic', { scale: 1.0 + t * 0.05, pos: from, yaw: this.CREATURE_YAW });
         if (!a) return;
         SFX.healDescend(t);
         let ph = 0;
@@ -293,7 +295,7 @@
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const hero = this.heroG.position.clone();
         const at = new THREE.Vector3(hero.x + 0.55, 1.15, hero.z - 0.95);
-        const a = this.fxActor('imp', { scale: 1.0 + t * 0.07, pos: new THREE.Vector3(at.x, at.y + 1.6, at.z - 0.6), yaw: Math.PI / 2 });
+        const a = this.fxActor('imp', { scale: 1.0 + t * 0.07, pos: new THREE.Vector3(at.x, at.y + 1.6, at.z - 0.6), yaw: this.CREATURE_YAW });
         if (!a) return;
         let ph = 0;
         SFX.mawRoar(Math.max(0, t - 2));
@@ -356,7 +358,7 @@
         const bots = [];
         for (let i = 0; i < 3; i++) {
             const at = new THREE.Vector3(hero.x - 0.75, 0, hero.z + (i - 1) * 0.85 - 0.25);
-            const a = this.fxActor('archer', { scale: 0.95, pos: new THREE.Vector3(at.x, -1.8, at.z), yaw: Math.PI / 2 });
+            const a = this.fxActor('archer', { scale: 0.95, pos: new THREE.Vector3(at.x, -1.8, at.z), yaw: this.CREATURE_YAW });
             if (!a) break;
             bots.push(a);
             this.addAnim(0.16, k => {                        // 땅에서 솟아 정렬한다
@@ -395,7 +397,7 @@
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const hero = this.heroG.position.clone();
         const at = new THREE.Vector3(hero.x - 0.95, 0, hero.z - 0.75);
-        const a = this.fxActor('orcchief', { scale: 1.0 + t * 0.05, pos: new THREE.Vector3(at.x, 2.2, at.z), yaw: Math.PI / 2 });
+        const a = this.fxActor('orcchief', { scale: 1.0 + t * 0.05, pos: new THREE.Vector3(at.x, 2.2, at.z), yaw: this.CREATURE_YAW });
         if (!a) return;
         this.addAnim(0.17, k => {
             a.g.position.y = 2.2 * (1 - k * k);
@@ -461,7 +463,7 @@
     mcThunderTell(targetIds, color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 2 : tier));
         const spot = this.mcSpots(targetIds)[0];
-        const a = this.fxActor('thunderbird', { scale: 1.0 + t * 0.1, pos: new THREE.Vector3(spot.x, 3.4, spot.z), yaw: Math.PI / 2 });
+        const a = this.fxActor('thunderbird', { scale: 1.0 + t * 0.1, pos: new THREE.Vector3(spot.x, 3.4, spot.z), yaw: this.CREATURE_YAW });
         if (!a) return null;
         const h = { a, spot, ph: 0, ang: 0, stop: false };
         SFX.stormRumble(0.3);
@@ -532,7 +534,7 @@
         for (let i = 0; i < 2; i++) {
             const s = i ? 1 : -1;
             const at = new THREE.Vector3(hero.x + s * 0.15, 1.55, hero.z + s * 0.95);
-            const a = this.fxActor('angel', { scale: 1.0 + t * 0.05, pos: new THREE.Vector3(at.x, at.y + 2.6, at.z), yaw: -s * Math.PI / 2 });
+            const a = this.fxActor('angel', { scale: 1.0 + t * 0.05, pos: new THREE.Vector3(at.x, at.y + 2.6, at.z), yaw: -s * this.CREATURE_YAW });
             if (!a) return;
             let ph = i * 2;
             this.addAnim(0.26, k => {
@@ -564,7 +566,7 @@
         spots.forEach((spot, si) => setTimeout(() => {
             this.mcDust(spot, 9);
             SFX.stormRumble(0.26);
-            const a = this.fxActor('wyvern', { scale: 1.5 + t * 0.12, pos: new THREE.Vector3(spot.x - 0.5, -2.4, spot.z - 0.15), yaw: Math.PI / 2 - 0.5 });
+            const a = this.fxActor('wyvern', { scale: 1.5 + t * 0.12, pos: new THREE.Vector3(spot.x - 0.5, -2.4, spot.z - 0.15), yaw: this.CREATURE_YAW });
             if (!a) return;
             const jaw = a.P.jaw;
             SFX.mawRoar(t);
@@ -603,7 +605,7 @@
         this.mcMeleeStrike({
             model: 'executioner', scale: 1.15 + t * 0.07, color, tier: t, big: true,
             from: new THREE.Vector3(spot.x + 1.25, 2.9, spot.z + 0.35), to: new THREE.Vector3(spot.x + 0.92, 0, spot.z + 0.35),
-            faceBack: true, yaw: -Math.PI / 2, drop: true,
+            faceBack: true, yaw: -this.CREATURE_YAW, drop: true,
             inMs: 300, swingMs: 130, outMs: 320, hold: 140, wind: -2.6, swing: 1.25, lunge: 0.34,
             onImpact: (hp) => {
                 this.mcHit(hp, color, t, true);
@@ -648,7 +650,7 @@
         const t = Math.max(0, Math.min(5, tier === undefined ? 4 : tier));
         const spot = this.mcSpots(targetIds)[0];
         const at = new THREE.Vector3(spot.x - 0.2, 0, spot.z);
-        const a = this.fxActor('starbot', { scale: 1.2 + t * 0.08, pos: new THREE.Vector3(at.x, 3.3, at.z), yaw: Math.PI / 2 });
+        const a = this.fxActor('starbot', { scale: 1.2 + t * 0.08, pos: new THREE.Vector3(at.x, 3.3, at.z), yaw: this.CREATURE_YAW });
         if (!a) return;
         const s0 = 1.2 + t * 0.08;
         SFX.stormRumble(0.4);
@@ -702,7 +704,7 @@
         SFX.voidTear(t);
         // 균열 — 검은 블록이 땅에서 솟아 갈라진다(추상 찢김 대신 블록으로).
         this.spawnSparks(new THREE.Vector3(at.x, 0.2, at.z), 12 + t * 2, 0x2a1f44, { speed: 1.0, scale: 1.2 });
-        const a = this.fxActor('voidknight', { scale: 1.05 + t * 0.06, pos: new THREE.Vector3(at.x, -2.2, at.z), yaw: -Math.PI / 2 });
+        const a = this.fxActor('voidknight', { scale: 1.05 + t * 0.06, pos: new THREE.Vector3(at.x, -2.2, at.z), yaw: -this.CREATURE_YAW });
         if (!a) return;
         this.addAnim(0.3, k => {                             // 융기 — 창끝이 먼저 올라온다
             const e = 1 - Math.pow(1 - k, 3);
@@ -737,7 +739,7 @@
         const t = Math.max(0, Math.min(5, tier === undefined ? 4 : tier));
         const hero = this.heroG.position.clone();
         const at = new THREE.Vector3(hero.x - 0.85, 0, hero.z + 0.9);
-        const a = this.fxActor('clockbot', { scale: 1.0 + t * 0.05, pos: new THREE.Vector3(at.x, 2.4, at.z), yaw: Math.PI / 2 - 0.6 });
+        const a = this.fxActor('clockbot', { scale: 1.0 + t * 0.05, pos: new THREE.Vector3(at.x, 2.4, at.z), yaw: this.CREATURE_YAW });
         if (!a) return;
         SFX.auraRise(t);
         this.addAnim(0.18, k => { a.g.position.y = 2.4 * (1 - k * k); }, () => {
@@ -775,7 +777,7 @@
         const spots = this.mcSpots(targetIds);
         const hero = this.heroG.position.clone();
         const at = new THREE.Vector3(hero.x - 1.1, 2.5, hero.z - 1.5);
-        const a = this.fxActor('firedragon', { scale: 1.25 + t * 0.05, pos: new THREE.Vector3(at.x - 4.2, 3.4, at.z - 2.2), yaw: Math.PI / 2 - 0.35 });
+        const a = this.fxActor('firedragon', { scale: 1.25 + t * 0.05, pos: new THREE.Vector3(at.x - 4.2, 3.4, at.z - 2.2), yaw: this.CREATURE_YAW });
         if (!a) return;
         let ph = 0;
         SFX.mawRoar(t);
@@ -832,7 +834,7 @@
         const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
         const spot = this.mcSpots(targetIds)[0];
         const at = new THREE.Vector3(spot.x + 1.15, 0, spot.z + 0.2);
-        const a = this.fxActor('spearknight', { scale: 1.1 + t * 0.06, pos: new THREE.Vector3(at.x + 0.5, 3.6, at.z - 0.4), yaw: -Math.PI / 2 });
+        const a = this.fxActor('spearknight', { scale: 1.1 + t * 0.06, pos: new THREE.Vector3(at.x + 0.5, 3.6, at.z - 0.4), yaw: -this.CREATURE_YAW });
         if (!a) return;
         let ph = 0;
         SFX.healDescend(t);
@@ -869,7 +871,7 @@
         const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
         const hero = this.heroG.position.clone();
         const at = new THREE.Vector3(hero.x + 0.95, 0, hero.z + 0.15);
-        const a = this.fxActor('shieldgolem', { scale: 1.05 + t * 0.05, pos: new THREE.Vector3(at.x, -2.4, at.z), yaw: Math.PI / 2 });
+        const a = this.fxActor('shieldgolem', { scale: 1.05 + t * 0.05, pos: new THREE.Vector3(at.x, -2.4, at.z), yaw: this.CREATURE_YAW });
         if (!a) return;
         SFX.auraRise(t);
         this.addAnim(0.24, k => {                            // 융기

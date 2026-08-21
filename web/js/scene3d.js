@@ -9125,6 +9125,12 @@ const Scene3D = {
     //      · 그래서 새 자리는 **x 를 0.3~0.9 당기고 z 를 0.6~0.65 낮춘다**(깊게 = 카메라에서 멀리).
     //    반대쪽 한계도 있다: 영웅 실루엣은 NDC x −0.41~−0.03 이라 펫 오른쪽 끝이 −0.43 을 넘어서면
     //    영웅을 가린다. 그래서 1번 자리는 x −1.35 보다 더 당기지 않는다(실측 우단 −0.418).
+    // 🧭 **모든 크리처의 공통 3/4 facing 각도** (creature-yaw-unify, 사용자 지시 2026-08-22).
+    //   펫·탈것·탈것무리·매프레임 흔들림 기준값·스킬 소환체가 **한 값**을 공유한다. 모델 정면축이
+    //   전부 +z 계약(mobs-*.js·mobs-skillfx.js 머리말)이라, 같은 yaw = 같은 화면 방향이다.
+    //   소환체는 종전 π/2(정면 +x, 옆모습)로 서서 펫/탈것과 방향이 어긋났다 — 이 값으로 통일한다.
+    //   좌우 반사가 필요한 소환체(적 뒤에서 오는 기·좌우 대칭 천사)는 부호만 바꿔 ±CREATURE_YAW 를 쓴다.
+    CREATURE_YAW: 0.55,
     PET_ROW0: {
         mounted:  [[-1.65, 1.08], [-2.35, 0.50], [-2.25, 1.25]],
         unmounted: [[-1.35, 1.00], [-2.10, 0.42], [-2.15, 1.30]],
@@ -9313,7 +9319,7 @@ const Scene3D = {
             //    코드에만 있고 화면에서는 **한 프레임도 돈 적이 없었다**(사용자가 본 '통짜 펫'의 정체).
             //    탈것은 mountG 에서 같은 값을 올려 준다 — 펫만 빠져 있었다.
             Object.assign(g.userData, mesh.userData);
-            g.rotation.y = 0.55; // 적 방향 3/4
+            g.rotation.y = this.CREATURE_YAW; // 적 방향 3/4 (공통 상수 — 소환체와 통일)
             // 펫은 전부 **영웅 x축 후방(−x)** 에 세운다(사용자 지시 `pet-size-place` — "플레이어 뒤에,
             // x축으로 뒤"). 깊이(z)는 여전히 양수 대역만 쓴다 — z<=0 은 영웅 몸통에 깊이로
             // 가리는 자리고(과거 2번 자리 z=-0.65 실측), 후방 배치는 x 로만 밀면 된다. 교전선은 +x
@@ -10347,7 +10353,7 @@ const Scene3D = {
         mesh.scale.setScalar(sc);
         g.add(mesh);
         const form = this.mountFormOf(name);
-        g.rotation.y = 0.55;                       // 영웅과 같은 3/4 방향 — 타고 있으므로 같은 곳을 본다
+        g.rotation.y = this.CREATURE_YAW;          // 영웅과 같은 3/4 방향 — 타고 있으므로 같은 곳을 본다
         // ── 탑승 정합: 안장이 영웅 골반에 오도록 탈것 크기를 역산한다 ──
         // 원래 크기(펫 옆자리 연출용)로는 안장이 골반보다 한참 아래라, 영웅이 위에 '떠 있는' 것으로 읽혔다.
         // 손으로 맞춘 상수 대신 영웅 골반 높이에서 필요한 안장 높이를 풀어 탈것 배율을 정한다 —
@@ -10506,7 +10512,7 @@ const Scene3D = {
             this.applyAscendDecor(mesh, m.stars, 'mount'); // 승천 데코 — 스케일 전 (ascend-design-tiers)
             mesh.scale.setScalar(sc);
             g.add(mesh);
-            g.rotation.y = 0.55;                     // 영웅과 같은 3/4 방향
+            g.rotation.y = this.CREATURE_YAW;        // 영웅과 같은 3/4 방향
             const spot = this.formationSpot(i, this.MOUNT_ARC, null);
             const baseY = this.mountFormOf(name).hover * sc;   // 비행형은 원래 뜨는 높이 유지
             g.position.set(Combat.HERO_X + spot[0] + this.worldX, baseY, spot[1]);
@@ -18104,7 +18110,7 @@ const Scene3D = {
                 ? Math.abs(Math.sin(t * mo.freq)) * mo.amp * walkBoost
                 : Math.sin(t * mo.freq) * mo.amp * walkBoost);
             if (mo.sway) pg.rotation.z = Math.sin(t * mo.freq * 0.8) * mo.sway;
-            if (mo.yaw) pg.rotation.y = 0.55 + Math.sin(t * mo.freq) * mo.yaw;
+            if (mo.yaw) pg.rotation.y = this.CREATURE_YAW + Math.sin(t * mo.freq) * mo.yaw;
             if (mo.pitch) pg.rotation.x = Math.sin(t * mo.freq) * mo.pitch;
             // 파츠 애니메이션 (종의 정체성): 집게 딱딱 / 꼬리침 아치 / 날개 퍼덕 / 머리들 끄덕 / 꼬리 아홉 물결
             if (ud.wings) for (const w of ud.wings) w.rotation.z = w.userData.s * (0.45 + Math.sin(t * 13) * 0.6);
