@@ -11906,8 +11906,11 @@ const Scene3D = {
             //    빛을 받아 청키한 고양이 등·몸으로 읽히게, 다리는 0x1e1e22(L0.12)로 **진하게 남겨 대비**를
             //    키운다(밝은 몸 + 어두운 다리 = 형태 분해). 등급 신호는 프레임·소환·발광이 진다(흑표범은
             //    로스터상 늘 에픽이라 몸에서 등급을 못 읽어도 잃는 정보 0 — MOUNT_BODY_COL 주석의 그 논리).
-            const bodyMat = PANTHER ? M(0x3d3d42) : BROWN ? M(0x9a6636) : mat;
-            const legMat = PANTHER ? M(0x1e1e22) : BROWN ? M(0x70472a) : dark;
+            // 🍬 세션6 candy: 흑표범 중성 목탄→**깊은 사탕 보라**(비평가 '#16 gray dishwater, zero candy').
+            //    L 은 고양이로 읽히게 낮게 유지하되(몸 L0.30·다리 L0.16) 색조를 실어 '색 있는 어두운 고양이'로.
+            //    갈색말도 흙탄→**쨍한 밤색**(비평가 '#9 washed beige clay').
+            const bodyMat = PANTHER ? M(0x4a3d70) : BROWN ? M(0xc25e22) : mat;
+            const legMat = PANTHER ? M(0x281f42) : BROWN ? M(0x8a3d16) : dark;
             // ⚠️ 게는 **길이(z)를 줄여야** 폭이 이긴다 — 배럴 길이를 말과 같이 두면 등딱지를 아무리
             //    넓혀도 '넓적하고 긴 것'이라 게가 아니라 지네·악어 쪽으로 읽힌다.
             // 🚨 **가로(bs[0])는 0.82 를 넘기지 말 것** — 반폭 0.18 초과부터 영웅 다리가 몸통에 묻힌다.
@@ -13840,20 +13843,29 @@ const Scene3D = {
         //    +채도를 더 얹어 팝을 낸다. 안장깔개·AO·지터·vivid() 계수는 안 건드려 세션3 이 못박은
         //    '흰끼 씻김·안장 마젠타 과포화' 천장을 안 넘는다(그건 vivid 계수 문제였고 여긴 베이스만).
         //    ⓐ 파스텔 3종(알파카·양·염소)은 서로 명도·색상을 벌려 herd 구별도 함께 처치(비평가 ③).
-        'Pony': 0xdd9a2c, 'Donkey': 0x9a8b70, 'Alpaca': 0xcf9a54, 'Sheep': 0xd8c48c,
-        'Turtle': 0x5a9e3f, 'Crab': 0xd6472e, 'Dino': 0x6d8f3e, 'Boar': 0x74562f,
-        'Pig': 0xe6a0a4, 'Goat': 0xb8a675, 'Camel': 0xd28f28, 'Elk': 0xa0522a,
+        // 🍬 세션6 candy 재도색 (mount-color-candy-allspecies, 프레시 비평가 2인 블라인드 재채점 색 4·4
+        //    = **양대 게이트 블로커의 1순위**, 둘 다 "tan/beige/cream/olive/gray = 미완성 점토, 리버본드
+        //    candy 아님"). 세션5 가 명도만 깊혔으나 **여전히 흙색 계열에 머물러** 4점. 이번엔 세션들이
+        //    지켜 온 '자연색' 관성을 버리고 **색상환을 벌려 진짜 candy 로** 재배정한다 — 초식 herd 를
+        //    노랑/보라/코랄/민트/로즈/오렌지로 흩어 채도·구별을 동시에 얻는다(비평가 공통 처방
+        //    "clay 팔레트를 죽이고 채도 높은 candy 로 재배정하면 리모델보다 많은 종이 게이트를 넘는다").
+        //    ⚠️ vivid()·AO·지터·안장(마젠타 천장)은 안 건드림 — 베이스 색만(세션3 이 못박은 천장 회피).
+        'Pony': 0xf2b21a, 'Donkey': 0x8b7fcc, 'Alpaca': 0xf07a4e, 'Sheep': 0x84cf9a,
+        'Turtle': 0x3fb082, 'Crab': 0xe8452a, 'Dino': 0x7cc23a, 'Boar': 0xb35424,
+        'Pig': 0xf593ac, 'Goat': 0xcf6f8c, 'Camel': 0xef8a1c, 'Elk': 0xd14a1a,
         // 🚨 비행 3종 채도·명도 상향 (mount-riverbond-remake, 비평가 4인 공통 'washed-out/muddy,
         //    vivid 목표 미달' — 지상동물은 이미 통과, 비행종만 칙칙했다). 벌은 노랑을 쨍하게 올려야
         //    어두운 배마디(BEE_D)가 '줄무늬'로 대비되고(비평가 'no bee striping'), 드래곤은 진홍으로,
         //    익룡은 물빠진 탄→쨍한 골드로. 몸색만 — 지오메트리 불변(vivid() 가 s>0.12 에 +채도 더 얹는다).
-        'Armored Rhino': 0x808ea0, 'Giant Bee': 0xf6c81c, 'Mini Dragon': 0xda3826,   // 코뿔소 무채그레이→슬레이트블루(비평가 'muddy monochrome' — 색조 실어 candy 쪽으로, 회갑 종이라 채도는 절제)
-        'Star Whale': 0x3f7fd0, 'Pterosaur': 0xba8636,
-        // 기계·탈것 — 장치 색(무채 초록 팬케이크 방지, 비평가 지적)
-        'Clockwork Mouse': 0xcf9330, 'Clockwork Beetle': 0x4f9d6a,   // 태엽생쥐 탁한탄→밝은브라스골드(비평가 muddy 지적)
-        'Bike': 0xc0392b, 'One-Wheel Droid': 0xd7dde1, 'Mech Spider': 0x6a7078,
-        'Bipedal Mech': 0x4a6f9a, 'Dump Truck': 0xd8a72c, 'Cleaning Robot': 0xe2e6e8,
-        'Hover Board': 0x2f9fd0, 'Hover Disk': 0x33b07a,
+        //    코뿔소도 무채 슬레이트→쨍한 스틸블루(비평가 'muddy monochrome'), 익룡 물빠진 탄→쨍 골드.
+        'Armored Rhino': 0x5f8fc8, 'Giant Bee': 0xf6c81c, 'Mini Dragon': 0xda3826,
+        'Star Whale': 0x3a86e0, 'Pterosaur': 0xe0a020,
+        // 기계·탈것 — 프레시 비평가가 '회색 금속 = zero candy' 로 감점(#21 드로이드·#22 거미·#29 로봇).
+        //    기계도 리버본드에선 candy 토이색이라, 무채 금속을 쨍한 색으로(시안·스틸블루·건설노랑).
+        'Clockwork Mouse': 0xf0a81e, 'Clockwork Beetle': 0x3fb87a,
+        'Bike': 0xe23a2a, 'One-Wheel Droid': 0x3fb8d4, 'Mech Spider': 0x4a86b8,
+        'Bipedal Mech': 0x3f78c0, 'Dump Truck': 0xf0a81a, 'Cleaning Robot': 0x8fd0e0,
+        'Hover Board': 0x2aa8e0, 'Hover Disk': 0x2fbf84,
     },
     // 안장 높이가 종마다 다르므로 **계열 상수를 그대로 돌려주면 안 된다** — 탑승 배율(rideScale)·
     // 영웅 y(heroY)·등자·발판이 전부 `form.saddle` 하나를 본다. 종 오버라이드가 있으면 얕은 복사에
