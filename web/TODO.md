@@ -17,8 +17,21 @@
   폐기했다 — 등급은 목록 UI가 말하고 3D 는 종만 말한다. 썸네일 candy 채도 후처리(`candyLiftURL`)도
   껐다: 자연색 조형에서는 무채 종이 반구광의 푸른 끼를 얻어 **파란 당나귀·시안 염소**로 뒤집힌다(실측).
 - 마구는 마크 말안장 문법(진갈색 가죽 패드 + 앞턱 + 뱃대끈)만. 금테·진홍 깔개 금지(종 실루엣을 덮는다).
-- 시트: `node web/tools/shot-mobs.js pets|mounts`(표 단독 미리보기) · 기존 `shot-pet-species.js`/
-  `shot-mount-species.js`(게임 경로 썸네일).
+- 🆕 **적(몬스터) 7종도 같은 문법으로 이행 완료** (사용자 지시 2026-08-21 *"적들 디자인도 마인크래프트
+  느낌 디자인으로 다시 해줘야함."*, slug: `enemy-minecraft-remake`). 표는 **`web/js/mobs-enemies.js`**
+  (`ENEMY_MODELS`), `scene3d.js` 의 `monsterMesh` 는 표를 태워 **애니 계약에 배선하는 얇은 어댑터**다
+  (종전 1,250줄 → 110줄). 참고 원형: 슬라임(반투명 초록 상자+코어)·아이언골렘·좀비(고블린)·박쥐·
+  빨간버섯/무시룸·늑대·피글린+블레이즈(임프).
+  - 🚨 **관절 id 규약이 곧 계약이다** — `hipL/kneeL`(다리) · `shL/elbowL`(팔) · `glegL`(기둥 다리) ·
+    `legFL/kneeFL`(사족) · `tag:'wing'`+`s` · `tag:'tail'` · `cap`/`capDome`/`capTop` · `body`+`jelly`.
+    표에서 이름을 바꾸면 그 종의 보행·공격·플린치가 **조용히** 죽는다(두 파일을 항상 같이 볼 것).
+  - 🚨 **`KIND_COLOR` 은 이제 몸 색이 아니다** — 보스 보석(보색)·그을린 톤·파편색의 씨앗일 뿐이고
+    몸 색은 표가 쥔다. 그래서 종을 고치면 그 대표색으로 `KIND_COLOR` 도 같이 맞춰 둘 것.
+  - 🚨 **적은 팔레트를 정점 색에 굽는다**(`Mobs.build` 는 성질이 같은 파츠끼리 재질 하나를 공유하고
+    그 색은 항상 흰색이다). '재질 albedo 평균'으로 무엇을 계산하던 코드는 전부 흰색을 받는다 —
+    `killEnemy` 의 파편색이 그 함정을 밟아 `g.userData.shardC`(표의 부피 가중 평균색)로 우회한다.
+- 시트: `node web/tools/shot-mobs.js pets|mounts|enemies`(표 단독 미리보기) · 기존 `shot-pet-species.js`/
+  `shot-mount-species.js`(게임 경로 썸네일) · `shot-enemies.js`(게임 경로 적 정지샷).
 
 ## 🧍 탑승 자세 = 서 있기 (사용자 지시 2026-08-21, 확정)
 
