@@ -11989,6 +11989,7 @@ const Scene3D = {
     installDissolve(root) {
         root.traverse(o => {
             if (!o.isMesh || !o.material) return;
+            if (o.userData.isOutline) return;   // 🚨 아웃라인 셸은 **전역 공유 재질**이라 절대 건드리지 않는다(아래 setDissolve 참고)
             (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => {
                 if (mt.userData.dissolveU) return;
                 mt.userData.dissolveU = { value: 0 };
@@ -12018,6 +12019,11 @@ const Scene3D = {
                 : this.DSV_HI + ((c - this.DSV_TAIL) / (1 - this.DSV_TAIL)) * (0.95 - this.DSV_HI);
         root.traverse(o => {
             if (!o.isMesh || !o.material) return;
+            // 🚨 아웃라인 셸은 **전역 공유 재질(`_outlineMat`) 싱글턴**이다. 여기서 opacity 를 깎으면
+            //    그 재질을 쓰는 **모든 캐릭터의 아웃라인**이 통째로 사라진다(적 하나 죽을 때마다 전멸,
+            //    재적용도 opacity 를 안 되돌려 영구 소멸 — "전투하면 검정선 사라짐"의 정체). 재질은
+            //    절대 안 건드리고, 이 개체의 셸만 디졸브 진행 중 숨겨 몸과 함께 사라지게 한다.
+            if (o.userData.isOutline) { o.visible = f <= 0; return; }
             (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => {
                 if (mt.userData.dissolveU) { mt.userData.dissolveU.value = v; return; }
                 // 훅이 안 걸린 재질(스폰 경로를 안 탄 것)은 종전대로 불투명도로 접는다 — 안 그러면 그 파츠만 남는다.
