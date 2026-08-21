@@ -935,6 +935,14 @@ const Scene3D = {
         this.buildHaze();
         this.buildCelestial();
         this.paintSky(0x87ceeb, 0xa8d8ea);
+        // 🧪 배경 제거: 하늘 그라디언트 돔·헤이즈 띠·해/달을 숨기고 씬 배경을 **단색**으로.
+        //    지면 far 모서리는 fog(색=배경색, setTheme 에서 매 챕터 동기화)로 같은 단색에 녹아 사라진다.
+        if (this.SIMPLE_BG) {
+            this.skyDome.visible = false;   // 해/달·별·오로라는 skyDome 의 자식이라 함께 숨는다
+            if (this.haze) this.haze.visible = false;
+            this.scene.background = new THREE.Color(0xa8d8ea);
+            this.scene.fog.color.copy(this.scene.background);
+        }
     },
 
     // 지평선 위 **가시 하늘 대역(도)** — `CAM_*` 에서 유도한다. 하늘에 무언가를 걸 때는 반드시
@@ -16839,6 +16847,8 @@ const Scene3D = {
         const fogC = new THREE.Color(t.fog).lerp(new THREE.Color(t.sky), 0.3);
         if (!isNightPre) fogC.offsetHSL(0, 0.09, 0.01);
         this.scene.fog.color.copy(fogC);
+        // 🧪 배경 제거 모드: 단색 배경도 챕터 안개색을 따라가 지면과 이음매 없이 이어진다(하늘 돔은 숨김).
+        if (this.SIMPLE_BG && this.scene.background) this.scene.background.copy(fogC);
         // ---- 전역 값 그레이드 (비평가 2인 공통 1위 '글로벌 값 붕괴') ----
         // 광량 하향(1.85→1.15)만으로는 화면 중간값이 내려가지 않았다 — **실측으로 뒤집힌 건이라 근거를 남긴다**:
         // 광량을 내린 뒤 다시 재도 medianLum 0.7392 → 0.7706으로 오히려 **올랐다**. 화면 면적의 대부분을
