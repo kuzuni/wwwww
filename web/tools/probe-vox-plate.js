@@ -1,5 +1,21 @@
 // 영웅 리그의 **voxel 판금 파츠**가 진짜 큐브로 서 있는지 재는 판정기 (화풍 확정 2026-08-20).
 //
+// 🚫 **2026-08-21 은퇴 — 이 판정기가 재던 판금 갑옷 영웅은 사용자 지시로 사라졌다 (slug: voxlimb-vox-030-mismatch).**
+//   사용자 2026-08-21 "옷을 왜 입히냐 기본인데" → `scene3d.js setupHeroProc`(라인 396~)이 리그의
+//   레거시 판금/바지/부츠 메시를 전부 숨기고 `simpleBox` 치비 박스 + 얼굴만 남긴다(맨살 치비).
+//   그래서 이 판정기의 14개 파츠는 조립된 영웅 리그에 **더 이상 없다**: cuisse·greave·kneeCap·
+//   poleynWing·kneeLame·cuirass·yoke·gorget·emblem·emblemRim 은 통째로 부재, thigh·shin·
+//   upperArm·forearm 은 빈 피벗 본(자식 0)만 남았다(실측 2026-08-21 — 세 세션 인계 메모에 '선재
+//   FAIL' 로 떠돌던 것의 뿌리). '옛 장비 디자인 전부 폐기'(equip-full-set-build)로 판금은 mc 천
+//   갑옷(`mcArmorParts`/`dressMcRig`)으로 대체됐고 인게임 영웅은 맨살 치비다.
+//   → **의도적으로 제거된 파츠는 FAIL 이 아니라 '은퇴(n/a)' 로 넘긴다.** 그래도 어떤 판금 파츠가
+//     리그에 다시 나타나면(누가 판금을 되살리면) 그 파츠는 계속 ①~④로 잰다 — 게이트를 통째로
+//     떼는 대신 '있는 것만 지킨다'. 원래 표적이던 `voxLimb` 칸 치수(VOX 0.03↔0.016)는 사지 메시가
+//     리그에 없으니 지금은 휴면이다(되살릴 때 그쪽이 칸을 맞출 것).
+//   현재 맨살 치비 영웅의 큐브 정합은 다른 판정기가 진다: `probe-vox-limb`(voxLimb 치수 보존·node
+//   단위테스트) · `probe-voxel-build`(Voxel.build 면제거/AO/중심) · `probe-hero-tris`(삼각형 예산) ·
+//   장비 voxel 은 `probe-equip-voxel`.
+//
 // 왜 이게 따로 필요한가 — 이 저장소에서 voxel 전환이 **조용히 무효가 되는 길이 두 개** 있다.
 //   ⓐ **누가 프리미티브로 되돌린다.** 구/토러스/캡슐로 만든 파츠는 비스듬한 면이 나오고,
 //      그 순간 voxel 로 안 읽힌다(화풍 블록의 기계적 정의). 캡처만 봐서는 "좀 매끈하네" 로
@@ -89,13 +105,16 @@ const PARTS = ['thigh', 'shin', 'upperArm', 'forearm', 'cuisse', 'kneeCap', 'pol
         return { rows, VOX: ProChar.VOX };
     }, PARTS);
 
-    let fail = 0;
+    let fail = 0, retired = 0, live = 0;
     const chk = (ok, label, got) => { if (!ok) fail++; console.log(`  ${ok ? 'PASS' : 'FAIL'} ${label} — ${got}`); };
     console.log(`--- voxel 판금 파츠 실측 (리그 공용 칸 ${out.VOX}) ---`);
     for (const t of PARTS) {
         const r = out.rows.find(x => x.tag === t);
-        if (!r) { chk(false, `[${t}]`, '리그에서 못 찾았다 (태그가 빠졌거나 파츠가 사라졌다)'); continue; }
-        if (r.err) { chk(false, `[${t}]`, r.err); continue; }
+        // 🚫 은퇴 파츠(맨살 치비로 숨김/제거)는 FAIL 이 아니라 n/a 로 넘긴다 (헤더 참조).
+        //    태그가 아예 없거나(부재) 빈 본만 남은(메시 없음) 경우 = 의도적 제거.
+        if (!r) { retired++; console.log(`  n/a  [${t}] — 은퇴(맨살 치비로 제거, scene3d setupHeroProc)`); continue; }
+        if (r.err) { retired++; console.log(`  n/a  [${t}] — 은퇴(빈 피벗 본만 남음: ${r.err})`); continue; }
+        live++;
         // ③ 허용 오차는 상수가 아니라 **층수에서 나온다.** `voxLimb` 은 길이를 정확히 보존하려고
         //    칸을 `len / 층수` 로 되잡으므로, 층이 적은 짧은 파츠일수록 칸이 VOX 에서 더 벌어진다
         //    (구조적 상한 = 0.5/층수 — 정강이 10층이면 5%). 그래서 ±2% 로 못 박으면 정강이가
@@ -113,7 +132,8 @@ const PARTS = ['thigh', 'shin', 'upperArm', 'forearm', 'cuisse', 'kneeCap', 'pol
     }
     console.log('콘솔 에러 ' + errs.length + (errs.length ? ' ' + JSON.stringify(errs.slice(0, 3)) : ''));
     if (errs.length) fail++;
-    console.log(fail ? `\n미통과 ${fail}건` : '\n전건 통과');
+    console.log(`\n판금 파츠 ${live}개 라이브 · ${retired}개 은퇴(맨살 치비)` + (fail ? ` · 미통과 ${fail}건` : ' · 라이브 전건 통과'));
+    if (retired === PARTS.length) console.log('→ 판금 갑옷 영웅 전면 은퇴 상태(맨살 치비). 이 판정기는 판금이 되살아나면 다시 잰다.');
     await browser.close();
     process.exit(fail ? 1 : 0);
 })();
