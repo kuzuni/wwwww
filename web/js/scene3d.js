@@ -13832,17 +13832,25 @@ const Scene3D = {
         // 자연 동물 — 종 자연색. ⚠️ 초식 사족(조랑말·당나귀·알파카·염소·낙타·큰사슴)은 현실색이 죄다
         //    흙색이라 몰개성해지기 쉽다 — **색상·명도를 일부러 벌린다**(황금/쿨그레이/크림/근백/오렌지샌드/적갈)
         //    는 게 리버본드의 '알록달록' 이다(비평가 지적 "탄/브라운 blob 이 죄다 비슷").
-        'Pony': 0xd4a24a, 'Donkey': 0x8c8a86, 'Alpaca': 0xeaddc0, 'Sheep': 0xdccdb0,
-        'Turtle': 0x5a9e3f, 'Crab': 0xd6472e, 'Dino': 0x6d8f3e, 'Boar': 0x6b5642,
-        'Pig': 0xe6a0a4, 'Goat': 0xe3dccb, 'Camel': 0xcf9646, 'Elk': 0x8f4f2c,
+        // 🎨 초식 사족·회색 종 채도/명도 재조정 (mount-riverbond-remake 세션5, 비평가 2인 블라인드
+        //    재채점 4·4 의 **1순위 게이트 블로커** "tan/beige/gray = 미완성 점토 팔레트, 리버본드
+        //    candy 색이 아니다"). 원인 = 파스텔 종이 **명도가 너무 높아**(cream L0.77~0.83) vivid() 가
+        //    채도만 +0.18 얹어도 '창백한 파스텔'로 남았다(vivid 은 명도를 +0.025 밖에 안 올려 흰끼를
+        //    못 뺀다). → **베이스 색 자체를 깊히고**(L 내림) 채도를 실어 candy 톤으로. vivid() 가 위에
+        //    +채도를 더 얹어 팝을 낸다. 안장깔개·AO·지터·vivid() 계수는 안 건드려 세션3 이 못박은
+        //    '흰끼 씻김·안장 마젠타 과포화' 천장을 안 넘는다(그건 vivid 계수 문제였고 여긴 베이스만).
+        //    ⓐ 파스텔 3종(알파카·양·염소)은 서로 명도·색상을 벌려 herd 구별도 함께 처치(비평가 ③).
+        'Pony': 0xdd9a2c, 'Donkey': 0x9a8b70, 'Alpaca': 0xcf9a54, 'Sheep': 0xd8c48c,
+        'Turtle': 0x5a9e3f, 'Crab': 0xd6472e, 'Dino': 0x6d8f3e, 'Boar': 0x74562f,
+        'Pig': 0xe6a0a4, 'Goat': 0xb8a675, 'Camel': 0xd28f28, 'Elk': 0xa0522a,
         // 🚨 비행 3종 채도·명도 상향 (mount-riverbond-remake, 비평가 4인 공통 'washed-out/muddy,
         //    vivid 목표 미달' — 지상동물은 이미 통과, 비행종만 칙칙했다). 벌은 노랑을 쨍하게 올려야
         //    어두운 배마디(BEE_D)가 '줄무늬'로 대비되고(비평가 'no bee striping'), 드래곤은 진홍으로,
         //    익룡은 물빠진 탄→쨍한 골드로. 몸색만 — 지오메트리 불변(vivid() 가 s>0.12 에 +채도 더 얹는다).
-        'Armored Rhino': 0x8f9095, 'Giant Bee': 0xf6c81c, 'Mini Dragon': 0xda3826,
+        'Armored Rhino': 0x808ea0, 'Giant Bee': 0xf6c81c, 'Mini Dragon': 0xda3826,   // 코뿔소 무채그레이→슬레이트블루(비평가 'muddy monochrome' — 색조 실어 candy 쪽으로, 회갑 종이라 채도는 절제)
         'Star Whale': 0x3f7fd0, 'Pterosaur': 0xba8636,
         // 기계·탈것 — 장치 색(무채 초록 팬케이크 방지, 비평가 지적)
-        'Clockwork Mouse': 0xc08a3e, 'Clockwork Beetle': 0x4f9d6a,
+        'Clockwork Mouse': 0xcf9330, 'Clockwork Beetle': 0x4f9d6a,   // 태엽생쥐 탁한탄→밝은브라스골드(비평가 muddy 지적)
         'Bike': 0xc0392b, 'One-Wheel Droid': 0xd7dde1, 'Mech Spider': 0x6a7078,
         'Bipedal Mech': 0x4a6f9a, 'Dump Truck': 0xd8a72c, 'Cleaning Robot': 0xe2e6e8,
         'Hover Board': 0x2f9fd0, 'Hover Disk': 0x33b07a,
