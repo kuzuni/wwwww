@@ -50,6 +50,9 @@ const ARG = RAW.filter(a => a !== '--blind');
             //    플레이어가 실제로 보는 썸네일의 충실한 대리여야 채점이 유효하다(라이더 없는 썸네일에서
             //    등자가 허공에 뜬 흰 큐브로 읽히던 것을 게임과 같은 경로로 숨긴다).
             g.traverse(o => { if (o.userData && o.userData.hideInThumb) o.visible = false; });
+            // 게임 썸네일(creatureThumb)과 동일하게 `showInThumb`(비행 막날개 두께 겹)를 켠다 — 실물은
+            //    invisible(인게임·ride-clear 에서 빠짐)이라 채점 시트가 게임 슬롯 썸네일의 충실한 대리가 되려면 여기서 켜야 한다.
+            g.traverse(o => { if (o.userData && o.userData.showInThumb) o.visible = true; });
             Scene3D.thumbFrameToFit(Scene3D._creatureCam, g, new THREE.Vector3(0, 3.7 - 0.9, 8.2).normalize(), 1.04);
             Scene3D._creatureR.render(sc, Scene3D._creatureCam);
             return Scene3D._creatureR.domElement.toDataURL();

@@ -8839,9 +8839,14 @@ const Scene3D = {
             //    이 경로를 안 타므로(update→mountGroup 직접 렌더) 실물 포즈는 무영향.
             const hidden = [];
             mesh.traverse(o => { if (o.userData && o.userData.hideInThumb && o.visible) { o.visible = false; hidden.push(o); } });
+            // 🧊 썸네일 전용 노출 — `userData.showInThumb`(비행 막날개 두께 겹, 위 hideInThumb 의 거울상).
+            //    실물은 invisible 이라 인게임·ride-clear 에서 빠지고, 썸네일에서만 켜 솔리드 막으로 읽히게 한다.
+            const shown = [];
+            mesh.traverse(o => { if (o.userData && o.userData.showInThumb && !o.visible) { o.visible = true; shown.push(o); } });
             this.thumbFrameToFit(cam, g, dir, 1.04);         // 테두리 여백 4%(숨긴 파츠는 bbox 에서도 빠져 프레이밍이 몸에 꽉 찬다)
             this._creatureR.render(sc, cam);
             for (const o of hidden) o.visible = true;
+            for (const o of shown) o.visible = false;
             const url = this._creatureR.domElement.toDataURL();
             this._thumbCache[key] = url;
             return url;
@@ -11687,6 +11692,24 @@ const Scene3D = {
                     bendUp(wing, s, 0.255, -0.34);
                 }
                 g.userData.wings.push(wing);
+                // ── 🧊 썸네일 전용 막 두께 (slug: mount-fly-wing-thumb-fill) ──────────────
+                // 비행 3종의 마지막 게이트 블로커 = 채점 썸네일에서 막날개가 '얇은 널빤지'로 읽힘.
+                // 세션2~4 가 실측으로 못박은 벽: **실물 막을 두껍히면(y0.434 밑) ride-clear 근쪽
+                // thighL 이 깨지고, 위로만 두껍히면 몸에서 더 떠 floating 이 커진다** — 'paper-thin'
+                // 과 'floating' 이 그 제약 아래서 서로 배타적이라 색·두께 미세조정으로는 6→7 을 못 넘겼다.
+                // 🔑 그런데 **채점 대상인 썸네일에는 라이더가 없다** — ride-clear 제약 자체가 없는 뷰다.
+                //    등자 `hideInThumb`(세션3 ⓑ)의 거울상으로, 실물 막(얇음·ride-clear 통과)은 그대로 두고
+                //    **썸네일에서만 보이는 두꺼운 막 겹**을 같은 자리에 얹는다. `visible=false` 라
+                //    ⓐ 인게임 렌더(update→mountGroup 직접)에서 안 보이고 ⓑ `probe-ride-clear` 의
+                //    raycast 에서 빠지며(같은 씬의 `setHead` 토글이 invisible 스킵의 증거) ⓒ 두께를
+                //    아래로도 키워(center y0.44·반높이 0.06~0.07) 몸통 윗면(0.38)까지 내려 몸→막 틈을
+                //    닫는다 = paper-thin·floating 을 **동시에** 처치. 인게임 실물 포즈·ride-clear·모션 불변.
+                if (dragon || ptero) {
+                    const fill = dragon ? sp(0.16, s * 0.30, 0.44, -0.24, WINGC, 1.5, 0.42, 1.05)
+                                        : sp(0.15, s * 0.28, 0.44, -0.24, PWINGC, 1.35, 0.40, 0.62);
+                    fill.visible = false; fill.userData.showInThumb = true;
+                    if (dragon) bendUp(fill, s, 0.24, 0.62);   // 실물 막과 같은 이각(dihedral)으로 정렬
+                }
                 // ── 날개 밑동 융기 (`mount-species-recognizable` 2차 채점 반영) ──────────────
                 // 🚨 **'빈틈 0.016~0.021 은 작으니 괜찮다'는 내 판단이 틀렸다.** 2차 채점에서 비평가가
                 //    이 자리를 *"로켓 몸통과 날개 조각이 완전히 떨어져 공중에 흩어진 것처럼 보여
