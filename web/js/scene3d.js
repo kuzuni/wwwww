@@ -902,6 +902,9 @@ const Scene3D = {
     // 프롭·스캐터·랜드마크가 전부 블록 윗면에 정확히 선다. 양자화가 x 주기 30 을 보존하는 이유:
     // floor((x+30)/cell) = floor(x/cell)+40 이고 heightSmooth 가 주기 30 이라 셀 내용이 같다.
     heightAt(x, z) {
+        // 🧪 배경 제거 모드: 지형을 완전 민짜 평면으로 (단층·복셀 계단 없음, 사용자 지시 2026-08-22).
+        //    지면 메시(voxelGroundGeo 의 H)·캐릭터/오브젝트 y 배치가 모두 이 함수를 거치므로 0 하나로 전부 평평해진다.
+        if (this.SIMPLE_BG) return 0;
         const BS = this.VOXG.cell, SH = this.VOXG.step;
         // ⚠️ round 가 아니라 **floor** 다 — round 로 올려 깎으면 중경 물체 절반이 지평선 위로 밀려
         //    `probe-midground-depth` 의 지평선 컷에 걸린다(실측: ch1 6.19→5.88 · ch2 6.36→5.56 로
