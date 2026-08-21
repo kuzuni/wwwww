@@ -112,6 +112,10 @@ InitTestScene*.unity*
 /node_modules/
 /package.json
 /package-lock.json
+# web/ 하위 로컬 설치도 커밋 금지 (스킬 연출 스모크 테스트가 web/ 에서 playwright 를 깐다)
+web/node_modules/
+web/package.json
+web/package-lock.json
 
 # claim.sh 세션 로컬 id (체크아웃마다 고유, 공유 금지)
 .claim-id
