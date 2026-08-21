@@ -10725,7 +10725,10 @@ const Scene3D = {
         // ⚠️ 그리고 albedo 만으로는 부족했다 — 영웅 몸이 그늘을 드리우는 칸은 0.1배까지 내려가 검정으로
         //    붕괴한다(실측 rgb(9,8,4)). 스타일라이즈드 3D 의 표준 처방대로 **가죽에만 얕은 emissive 바닥**을
         //    깔아 암부가 형태를 잃지 않게 한다(전역 hemi 를 올리면 밝은 면까지 끌려 올라가 금지 — 위 SHADE 주석).
-        const LEATHER = M(0x6b4523, { emissive: 0x140c05 }), TAN = M(0x7a5029, { emissive: 0x160e06 }), IRON = M(0x9e9e9e);
+        // 🍬 세션6: 안장 마구가 **모든 탈것에 얹히는 회갈색 흙 덩어리**라 팔레트 전체를 흙으로 끈다는
+        //    비평가 D 최우선 지적("gray/brown saddle cubes contaminate everything, 한 번의 팔레트 패스가
+        //    가장 많은 종을 올린다"). 마구를 캐러멜·밝은 스틸로 올려 candy 쪽으로(가죽다움은 유지).
+        const LEATHER = M(0xa0561e, { emissive: 0x1a0c04 }), TAN = M(0xc9852e, { emissive: 0x1c1206 }), IRON = M(0xbcc0c4);
         // 같은 이유로 **재질 정체성이 뚜렷한 파츠**도 등급색을 벗긴다. 타이어는 고무(검정), 림·허브는 금속,
         // 발굽은 각질 — 이걸 등급색으로 두면 에픽 자전거가 타이어까지 전신 초록이라 '자전거'가 아니라
         // 초록 링 두 개로 읽힌다(실측 캡처에서 그대로 확인). 등급 틴트는 프레임·몸통 쪽에 남겨 둔다.
@@ -10734,7 +10737,7 @@ const Scene3D = {
         const DONKEY_DARK = M(0x2f2620);
         // 안장깔개 — 등급색 파생 금지(초록 위 초록이면 대비가 0이라 넣으나 마나다). 기사 마구다운
         // 진홍 + 금색 가장자리로, 몸통 색과 무관하게 항상 대비가 서게 고정색으로 둔다.
-        const BLANKET = M(0x6d1f2c), BLANKET_TRIM = M(0xc9a227);
+        const BLANKET = M(0xb02a3a), BLANKET_TRIM = M(0xf0c838);   // 진홍→쨍한 candy 크림슨 + 밝은 금(H<355 유지 = vivid 후에도 마젠타 안 됨, 세션3 천장 회피)
         // sy: 안장 '윗면' = 영웅 골반이 얹히는 높이(= MOUNT_FORMS.saddle과 같은 값을 넣을 것)
         // halfW/halfH: 몸통 반폭·반높이(뱃대끈 크기), bodyY: 몸통 중심 높이
         // foot: [x, y, z] 등자 위치 — 탑승 포즈에서 발이 실제로 오는 자리(계산 근거는 아래 주석)
@@ -11909,8 +11912,8 @@ const Scene3D = {
             // 🍬 세션6 candy: 흑표범 중성 목탄→**깊은 사탕 보라**(비평가 '#16 gray dishwater, zero candy').
             //    L 은 고양이로 읽히게 낮게 유지하되(몸 L0.30·다리 L0.16) 색조를 실어 '색 있는 어두운 고양이'로.
             //    갈색말도 흙탄→**쨍한 밤색**(비평가 '#9 washed beige clay').
-            const bodyMat = PANTHER ? M(0x4a3d70) : BROWN ? M(0xc25e22) : mat;
-            const legMat = PANTHER ? M(0x281f42) : BROWN ? M(0x8a3d16) : dark;
+            const bodyMat = PANTHER ? M(0x4a3d70) : BROWN ? M(0xd0521c) : mat;   // 갈색말: 밤색도 올리브로 죽어 쨍한 레드-체스트넛으로
+            const legMat = PANTHER ? M(0x281f42) : BROWN ? M(0x9a3a12) : dark;
             // ⚠️ 게는 **길이(z)를 줄여야** 폭이 이긴다 — 배럴 길이를 말과 같이 두면 등딱지를 아무리
             //    넓혀도 '넓적하고 긴 것'이라 게가 아니라 지네·악어 쪽으로 읽힌다.
             // 🚨 **가로(bs[0])는 0.82 를 넘기지 말 것** — 반폭 0.18 초과부터 영웅 다리가 몸통에 묻힌다.
@@ -13857,19 +13860,25 @@ const Scene3D = {
         //    노랑/보라/코랄/민트/로즈/오렌지로 흩어 채도·구별을 동시에 얻는다(비평가 공통 처방
         //    "clay 팔레트를 죽이고 채도 높은 candy 로 재배정하면 리모델보다 많은 종이 게이트를 넘는다").
         //    ⚠️ vivid()·AO·지터·안장(마젠타 천장)은 안 건드림 — 베이스 색만(세션3 이 못박은 천장 회피).
-        'Pony': 0xf2b21a, 'Donkey': 0x8b7fcc, 'Alpaca': 0xf07a4e, 'Sheep': 0x84cf9a,
-        'Turtle': 0x3fb082, 'Crab': 0xe8452a, 'Dino': 0x7cc23a, 'Boar': 0xb35424,
-        'Pig': 0xf593ac, 'Goat': 0xcf6f8c, 'Camel': 0xef8a1c, 'Elk': 0xd14a1a,
+        // ⚠️ 세션6 라운드3: **노랑-골드는 이 렌더러(ACES 톤맵+Lambert)에서 반드시 올리브로 죽는다** —
+        //    라운드2 에서 조랑말·낙타·태엽쥐를 0xffc4~ 순노랑까지 올려도 썸네일이 여전히 흙올리브였다
+        //    (반면 냉색 보라·파랑·핑크·틸은 vivid 로 쨍하게 산다 = ACES 가 밝은 웜을 desaturate). 그래서
+        //    웜 quad 를 **노랑-골드에서 빼내** 오렌지/레드/코랄/틸/마젠타(=곱셈·톤맵 후에도 그 색으로
+        //    읽히는 hue)로 재배정한다. 초식 herd 는 이미 보라(당나귀)·핑크(돼지)·로즈(염소)로 갈렸으니
+        //    나머지도 색상환으로 흩어 herd 구별까지 챙긴다. (비평가 C·D 재채점 3·4 '흙 팔레트가 여전 1순위'.)
+        'Pony': 0xff7d1a, 'Donkey': 0x8b7fcc, 'Alpaca': 0x2fb8a0, 'Sheep': 0x84cf9a,
+        'Turtle': 0x3fb082, 'Crab': 0xf05230, 'Dino': 0x7cc23a, 'Boar': 0xb0402a,
+        'Pig': 0xf593ac, 'Goat': 0xcf6f8c, 'Camel': 0xe86418, 'Elk': 0xdd3a1e,
         // 🚨 비행 3종 채도·명도 상향 (mount-riverbond-remake, 비평가 4인 공통 'washed-out/muddy,
         //    vivid 목표 미달' — 지상동물은 이미 통과, 비행종만 칙칙했다). 벌은 노랑을 쨍하게 올려야
         //    어두운 배마디(BEE_D)가 '줄무늬'로 대비되고(비평가 'no bee striping'), 드래곤은 진홍으로,
         //    익룡은 물빠진 탄→쨍한 골드로. 몸색만 — 지오메트리 불변(vivid() 가 s>0.12 에 +채도 더 얹는다).
         //    코뿔소도 무채 슬레이트→쨍한 스틸블루(비평가 'muddy monochrome'), 익룡 물빠진 탄→쨍 골드.
         'Armored Rhino': 0x5f8fc8, 'Giant Bee': 0xf6c81c, 'Mini Dragon': 0xda3826,
-        'Star Whale': 0x3a86e0, 'Pterosaur': 0xe0a020,
+        'Star Whale': 0x3a86e0, 'Pterosaur': 0xf0741a,   // 익룡 골드도 올리브로 죽어 오렌지로(벌·덤프는 종 정체성상 노랑 유지)
         // 기계·탈것 — 프레시 비평가가 '회색 금속 = zero candy' 로 감점(#21 드로이드·#22 거미·#29 로봇).
         //    기계도 리버본드에선 candy 토이색이라, 무채 금속을 쨍한 색으로(시안·스틸블루·건설노랑).
-        'Clockwork Mouse': 0xf0a81e, 'Clockwork Beetle': 0x3fb87a,
+        'Clockwork Mouse': 0xd94a9a, 'Clockwork Beetle': 0x3fb87a,   // 태엽쥐 노랑-브라스도 올리브로 죽어 candy 마젠타로
         'Bike': 0xe23a2a, 'One-Wheel Droid': 0x3fb8d4, 'Mech Spider': 0x4a86b8,
         'Bipedal Mech': 0x3f78c0, 'Dump Truck': 0xf0a81a, 'Cleaning Robot': 0x8fd0e0,
         'Hover Board': 0x2aa8e0, 'Hover Disk': 0x2fbf84,
