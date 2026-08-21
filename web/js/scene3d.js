@@ -11409,7 +11409,10 @@ const Scene3D = {
                 //    (`probe-mount-detached` 가 [Cone] 으로 짚었다). 0.062 로 좁히면 다섯째가 z −0.548 —
                 //    꼬리 끝에 얹힌다. 톱니는 좁을수록 능선으로 읽히므로 조형상으로도 이쪽이 맞다.
                 for (let i = 0; i < 5; i++) cn(0.030 - i * 0.004, 0.11 - i * 0.014, 0, 0.33 - i * 0.022, -0.30 - i * 0.062, dark).rotation.x = -0.5;
-                const tail = cy(0.05, 0.012, 0.38, 0, 0.20, -0.36, mat); tail.rotation.x = -1.45; g.userData.tail = tail;
+                // 꼬리 — 드래곤은 '굵고 늘어진' 꼬리라야 한다(mount-fly-tail-thicken ⓒ, 비평가 8인 '1복셀 가는 꼬리=wire').
+                //    옛 r 0.05→0.012 는 vR floor 0.6 에 걸려 밑동조차 ~1칸이었다. 밑동 0.09(~3칸)·끝 0.042(~1.5칸,
+                //    화살촉이 마무리)로 굵혀 청키하게 늘어뜨린다. 길이(h0.38)·z 위치 불변이라 등지느러미 톱니 착지·detached 불변.
+                const tail = cy(0.09, 0.042, 0.38, 0, 0.20, -0.36, mat); tail.rotation.x = -1.45; g.userData.tail = tail;
                 // 꼬리 끝 **화살촉** — 용 꼬리의 상투이자, 가늘어지다 끊긴 원통을 마무리해 준다.
                 const spade = new THREE.Mesh(vgCone(0.062, 0.13), light);
                 spade.position.set(0, -0.20, 0); spade.rotation.x = Math.PI; spade.scale.set(1, 1, 0.35);
@@ -11476,7 +11479,9 @@ const Scene3D = {
                 // ⑴ 볏 — 뒤·위로 눕힌 **납작한 날(blade)**. x 로 눌러야 볏이고, 안 누르면 고깔모자다.
                 //    각도 근거: Rx(θ) 는 +y 를 (0, cosθ, sinθ) 로 보낸다 → θ=−0.95 면 위 0.58 · 뒤 0.81.
                 const crest = cn(0.105, 0.30, 0, 0.585, 0.855, BONE);
-                crest.scale.set(0.20, 1, 1); crest.rotation.x = -0.95; HEADPART(crest);
+                // x 두께 0.20 은 x반지름 ~0.38칸 = **1칸 미만 종잇장**이라 썸네일서 사라졌다(mount-fly-tail-thicken ⓒ).
+                //    0.42 로 올려 x반지름 ~0.80칸(지름 ~1.6칸) = **솔리드 판**으로 세운다 — y·z(1.0)보단 여전히 얇아 '날(blade)' 유지, 고깔 아님.
+                crest.scale.set(0.42, 1, 1); crest.rotation.x = -0.95; HEADPART(crest);
                 sp(0.15, 0, 0.150, 0.02, light, 0.86, 0.46, 1.40);                    // 밝은 배 — 반높이 0.045→0.069·길이 1.28→1.40 로 두껍혀 'wire' 감점 처치(안장 밑 저위라 ride-clear 무관)
                 // 접어 올린 뒷발 — 나는 새·익룡은 발을 몸에 붙인다. 없으면 '통에 붙은 날개'다.
                 for (const s of [-1, 1]) {
@@ -11487,7 +11492,9 @@ const Scene3D = {
                     }
                 }
                 // 짧고 뻣뻣한 꼬리 — 드래곤의 굵고 늘어진 꼬리와 반대다(길이·굵기 둘 다 절반 이하).
-                const ptail = cy(0.026, 0.008, 0.26, 0, 0.215, -0.34, mat); ptail.rotation.x = -1.52;
+                //    단 옛 r 0.026→0.008 은 vR floor 0.6 에 걸려 전 길이가 1칸 철사였다(mount-fly-tail-thicken ⓒ).
+                //    밑동 0.05(~2칸)·끝 0.026 으로 굵혀 '뭉툭한 청키 꼬리'로 읽히게 — 굵기는 드래곤(0.09)의 절반대라 종 대비 유지, 길이(h0.26)·z 불변.
+                const ptail = cy(0.05, 0.026, 0.26, 0, 0.215, -0.34, mat); ptail.rotation.x = -1.52;
                 g.userData.tail = ptail;
             } else {
                 // 거대 벌 — 벌로 읽히는 조건은 ⑴ **몸을 감는 줄무늬** ⑵ 복슬한 가슴털 ⑶ 큰 겹눈 + 더듬이
