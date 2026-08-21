@@ -424,6 +424,9 @@ const Scene3D = {
                 o.visible = false;
             });
         }
+        // 검정 아웃라인은 **무기·투구 마운트 전에** 몸 리그에만 건다 (무기/투구는 장비 교체 때
+        // refreshHeroEquip 이 통째로 다시 만들어 셸이 유실되므로 대상에서 제외 — 몸 리그는 상주).
+        this.addHeroOutline(rig.group);
         // 무기: 오른손 마운트 (legacy 좌표계와 동일 — 칼날 +y)
         rig.handR.add(this.weaponG);
         this.weaponG.visible = true;
@@ -724,6 +727,45 @@ const Scene3D = {
             o.castShadow = true; if (receive) o.receiveShadow = true;
         });
         return g;
+    },
+
+    // ---- 플레이어 전용 검정 아웃라인 (인버티드 헐) ----
+    // 과거 전역 인버티드 헐은 사용자 지시로 삭제됐고(`setShadow`·`isOutline` 잔존 코드), 여기선
+    // **영웅 리그에만** 되살린다. 각 파츠 메시의 **자식**으로 뒷면(BackSide) 검정 셸을 붙여
+    // 본/애니메이션 변형을 그대로 따라가게 한다(스키닝이 아니라 그룹 계층이라 성립).
+    // 🚨 확장 방식: **바운딩박스 중심 기준 균일 스케일**. 법선 방향 확장은 복셀 큐브에선 실패한다 —
+    //    큐브는 면 법선이 납작해 실루엣(시선에 수직인) 면이 BackSide 컬링으로 사라지고, 면끼리
+    //    벌어져 셸이 새는 게 실측으로 확인됐다(검정 화소 0). 균일 스케일은 큐브를 통째로 상사확대해
+    //    수밀 유지 → 뒤로 커진 뒷면이 실루엣 밖으로 삐져나와 검은 테두리가 된다.
+    heroOutlineMat() {
+        if (this._outlineMat) return this._outlineMat;
+        // fog:false — 안개가 검정 테두리를 배경색으로 씻어 윤곽이 흐려지는 것 방지
+        this._outlineMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide, fog: false });
+        return this._outlineMat;
+    },
+    addHeroOutline(root, k) {
+        k = k || 1.2;    // 파츠 크기 비례 두께(상사확대) — 큰 파츠일수록 굵게, 판독성에 유리
+                         // (실측 스윕: 1.09=검정3%·1.2≈11%·1.4=27%. 1.2가 윤곽 뚜렷 + 실루엣 과대 확대 없음)
+        const targets = [];
+        root.traverse(o => {
+            if (!o.isMesh || o.userData.isOutline || o.userData.aoRing) return;
+            if (!o.visible) return;                                  // 숨긴 레거시 파츠는 제외
+            if (!o.geometry) return;
+            targets.push(o);
+        });
+        for (const o of targets) {
+            if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+            const c = o.geometry.boundingBox.getCenter(new THREE.Vector3());   // 지오메트리 중심
+            const shell = new THREE.Mesh(o.geometry, this.heroOutlineMat());   // 지오메트리·재질 공유
+            shell.userData.isOutline = true;
+            shell.userData.sharedGeometry = true;   // 파츠 dispose 루프가 원본 지오메트리를 건드리지 않게
+            shell.userData.sharedMaterial = true;
+            shell.castShadow = false; shell.receiveShadow = false;
+            shell.scale.setScalar(k);
+            shell.position.copy(c).multiplyScalar(1 - k);  // 중심 c 기준으로 스케일(오프셋 지오메트리 정렬)
+            shell.renderOrder = (o.renderOrder || 0) - 1;  // 셸 먼저 → 앞면 메시가 내부를 덮어씀
+            o.add(shell);                                  // 자식 = 부모 파츠 변형을 그대로 상속
+        }
     },
 
     // ---- 캐릭터 프레넬 림 라이트 (스타일라이즈드 3D의 최우선 시그니처) ----
