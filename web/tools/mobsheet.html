@@ -10,7 +10,9 @@
 <script src="../js/mobs-skillfx.js" onerror="window.__noSkillfx=1"></script>
 <script>
 // 종별 미리보기 렌더러 — 게임 조명과 같은 값(키 라이트 + 반구광)으로 한 종을 2각도로 찍는다.
-window.renderMob = function (model, size, yaw) {
+// `pad` 는 프레이밍 여백 배수(생략 시 1 = 종전 동작). 창·날개처럼 옆으로 길게 뻗는 파츠는
+// 카메라가 비스듬해서 화면 밖으로 밀려 잘리는 일이 있어, 스킬 액터 시트는 살짝 물려서 찍는다.
+window.renderMob = function (model, size, yaw, pad) {
     const r = window.__r || (window.__r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }));
     r.setPixelRatio(1); r.setSize(size, size);
     const sc = new THREE.Scene();
@@ -22,7 +24,7 @@ window.renderMob = function (model, size, yaw) {
     g.rotation.y = yaw;
     const box = new THREE.Box3().setFromObject(g), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
     const cam = new THREE.PerspectiveCamera(28, 1, 0.01, 40);
-    const d = Math.max(sz.x, sz.y, sz.z) * 2.5 + 0.2;
+    const d = (Math.max(sz.x, sz.y, sz.z) * 2.5 + 0.2) * (pad || 1);
     cam.position.set(c.x + d * 0.32, c.y + d * 0.34, c.z + d);
     cam.lookAt(c);
     r.render(sc, cam);

@@ -12,7 +12,7 @@ const SHEET = {
     pets: { table: 'PET_MODELS', width: 1200, size: 260, cols: 4, img: 48 },
     mounts: { table: 'MOUNT_MODELS', width: 1200, size: 260, cols: 4, img: 48 },
     enemies: { table: 'ENEMY_MODELS', width: 1200, size: 260, cols: 4, img: 48 },
-    skillfx: { table: 'SKILLFX_MODELS', width: 1680, size: 340, cols: 4, img: 49 },
+    skillfx: { table: 'SKILLFX_MODELS', width: 1680, size: 340, cols: 4, img: 50, pad: 1.14 },
 };
 const CFG = SHEET[KIND];
 if (!CFG) { console.error('알 수 없는 종류: ' + KIND + ' (pets|mounts|enemies|skillfx)'); process.exit(1); }
@@ -51,10 +51,10 @@ const SKILLFX_KR = {
     if (!names.length) { console.error(CFG.table + ' 이 비었다 — mobsheet.html 의 스크립트 로드를 확인해라.'); process.exit(1); }
     const shots = [];
     for (const n of names) {
-        const two = await page.evaluate(({ n, t, size }) => {
+        const two = await page.evaluate(({ n, t, size, pad }) => {
             const m = window[t][n];
-            return [renderMob(m, size, 0.62), renderMob(m, size, Math.PI / 2)];
-        }, { n, t: CFG.table, size: CFG.size });
+            return [renderMob(m, size, 0.62, pad), renderMob(m, size, Math.PI / 2, pad)];
+        }, { n, t: CFG.table, size: CFG.size, pad: CFG.pad });
         shots.push({ n, two });
     }
     const html = `<html><head><meta charset="utf-8"><style>
