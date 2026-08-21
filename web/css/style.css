@@ -3176,7 +3176,10 @@ body {
 .pinfo-preview {
     display: flex; align-items: center; gap: .4rem; overflow-x: auto;
     min-height: 7.6rem; /* 원본 프리뷰 ≈13% H (185) */
-    background: linear-gradient(180deg, #6cbf5a 55%, #b5793f 55%); border: var(--ol2) solid var(--pp-line); border-radius: .5rem;
+    /* 🌾 WebGL 실패 폴백 배경: 잔디 초록(#6cbf5a) → **마른 흙** (background-grass-road-cleanup,
+       사용자 지시 2026-08-21 "배경에 잔디 다없애기."). 살아 있는 미니 씬이 흙 지면이 됐으므로
+       폴백만 초록이면 그리기에 실패한 기기에서만 잔디밭이 보인다. */
+    background: linear-gradient(180deg, #9d8256 55%, #6f5334 55%); border: var(--ol2) solid var(--pp-line); border-radius: .5rem;
     padding: .4rem .5rem; margin: .5rem 0; font-size: .78rem; white-space: nowrap; color: #fff;
     text-shadow: 0 1px 2px rgba(0,0,0,.5);
 }

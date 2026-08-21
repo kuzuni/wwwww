@@ -1313,7 +1313,10 @@ const Scene3D = {
         marsh: { // 11 늪지 — 물먹은 이끼 바닥에 고사목과 거대 버섯. 초원의 밝은 초록을 탁하게 눌렀다
             kin: 'forest', tint: [-0.04, -0.18, -0.06], ridge: 'ridge',
             props: { p: [['makeDeadTree', 0.85], ['makeMushroom', 1.15]], r: [['makeMushroom', 0.8], ['makeBoulder', 0.7, false, true]] },
-            scatter: { geo: 'blade', r: 0.075, color: 0x5c6b3a, n: 210, flat: false, tint: 0.16, wind: true },
+            // 🌾 풀 포기 → **젖은 흙덩이** (background-grass-road-cleanup, 사용자 지시 2026-08-21
+            //    *"배경에 잔디 다없애기."*). 늪지는 '이끼 바닥'이었지만 조형이 blade(잎날 클러스터)라
+            //    화면에서는 그냥 풀밭이었다. 색은 탁한 흙으로 내리고 흔들림(wind)도 뗀다 — 흙은 안 흔들린다.
+            scatter: { geo: 'octa', r: 0.06, color: 0x5a5140, n: 210, flat: true, tint: 0.16 },
             accent: { geo: 'octa', r: 0.032, color: 0x9ccc65, n: 40, basic: true, wind: true },
             stone: 0x6f7560, fog: [10, 27],
         },
@@ -1325,14 +1328,18 @@ const Scene3D = {
             //    (지면·하늘·안개는 무접촉 — 값 구조 보존).
             kin: 'forest', tint: [0.02, 0.06, 0.02], ridge: 'ridge',
             props: { p: [['makeBamboo', 1.1]], r: [['makeBamboo', 0.75], ['makeRoundTree', 0.8]] },
-            scatter: { geo: 'blade', r: 0.07, color: 0x9ec93f, n: 240, flat: false, tint: 0.2, wind: true },
+            // 🌾 라임 잔디 필드 → **대나무 낙엽 조각** (background-grass-road-cleanup, 2026-08-21).
+            //    위 팔레트 주석의 '주 색상 85° 분리'는 **잔디가 있을 때의 처방**이라 전제가 사라졌다.
+            //    색상(황록 계열)만 물려받아 마른 낙엽 탠으로 옮긴다 — 초원과의 분리는 그대로 산다.
+            scatter: { geo: 'slabchip', r: 0.055, color: 0xa8955f, n: 240, flat: true, tint: 0.18 },
             accent: { geo: 'cone', r: 0.034, color: 0xe8f4a8, n: 44, basic: true, wind: true },
             stone: 0x8d9482,
         },
         autumn: { // 13 단풍 숲 — 활엽수 일색 + 낙엽 스캐터. 잎 재질이 아니라 프롭 구성으로 계절을 만든다
             kin: 'forest', tint: [0.03, 0.1, 0.0], ridge: 'ridge',
             props: { p: [['makeRoundTree', 1.05]], r: [['makeRoundTree', 0.8], ['makeBoulder', 0.7, false, true]] },
-            scatter: { geo: 'blade', r: 0.07, color: 0xa8632c, n: 220, flat: false, tint: 0.22, wind: true },
+            // 🌾 낙엽 색을 쥔 채 조형만 blade(풀 잎날) → **납작한 낙엽 조각**으로 (2026-08-21).
+            scatter: { geo: 'slabchip', r: 0.06, color: 0xa8632c, n: 220, flat: true, tint: 0.22 },
             accent: { geo: 'octa', r: 0.036, color: 0xffb74d, n: 56, basic: true, wind: true },
             stone: 0x8d8071,
         },
@@ -1392,7 +1399,8 @@ const Scene3D = {
         tundra: { // 19 툰드라 — 눈이 걷힌 갈색 이끼 지대. 침엽수는 남았지만 눈 고깔이 얇다
             kin: 'snow', tint: [0.06, 0.1, -0.12], ridge: 'ridge',
             props: { p: [['makePine', 1.0, true], ['makeDryShrub', 1.4]], r: [['makeBoulder', 0.66, true], ['makeDryShrub', 1.0]] },
-            scatter: { geo: 'blade', r: 0.06, color: 0x8a7c56, n: 200, flat: false, tint: 0.18, wind: true },
+            // 🌾 마른 이끼 풀 → **언 흙 알갱이** (2026-08-21). 탠 색은 그대로 둔다.
+            scatter: { geo: 'octa', r: 0.055, color: 0x8a7c56, n: 200, flat: true, tint: 0.18 },
             accent: { geo: 'cone', r: 0.03, color: 0xdfe8f0, n: 38, basic: true },
             stone: 0x9aa2a8, veg: true,
         },
@@ -1417,7 +1425,8 @@ const Scene3D = {
         sanctum: { // 24 성역 — 금빛 신전 지대. 잎까지 은은히 발광시켜 "빛 그 자체"로 읽히게
             kin: 'magic', tint: [0.03, -0.25, 0.2], ridge: 'ridge',
             props: { p: [['makeCrystal', 1.05], ['makeRoundTree', 0.95]], r: [['makeSlab', 0.75], ['makeRoundTree', 0.8]] },
-            scatter: { geo: 'blade', r: 0.065, color: 0xd9c88a, n: 200, flat: false, tint: 0.16, wind: true },
+            // 🌾 마른 풀 → **금빛 석재 파편** (2026-08-21). 성역은 신전 지대라 파편이 더 맞는다.
+            scatter: { geo: 'slabchip', r: 0.058, color: 0xd9c88a, n: 200, flat: true, tint: 0.16 },
             accent: { geo: 'octa', r: 0.036, color: 0xfff3b0, n: 56, basic: true, wind: true },
             stone: 0xcfc09a, crystal: { color: 0x8a6a1e, emissive: 0xffd54f, intensity: 0.3 },
             foliage: { color: 0x8a6a1e, intensity: 0.26 }, emissive: { light: 0xffd54f }, veg: true,
@@ -1460,7 +1469,11 @@ const Scene3D = {
         return (sp && sp.kin) || biome;
     },
 
-    // 스캐터/악센트 지오메트리 팩토리 — 테이블이 문자열로 고르게. 'blade' 는 풀 포기(tuftGeo).
+    // 스캐터/악센트 지오메트리 팩토리 — 테이블이 문자열로 고르게.
+    // 🌾 **'blade'(풀 포기 = 옛 `tuftGeo`) 는 폐기됐다** (background-grass-road-cleanup, 사용자 지시
+    //    2026-08-21 *"배경에 잔디 다없애기."*). 여기가 풀 포기의 **두 번째 진입점**이라, forest
+    //    `buildScatter` 분기만 지우면 BIOMES 표(늪지·대나무·단풍·툰드라·성역)가 계속 풀을 뽑았다.
+    //    표에서도 전부 걷어냈고, 혹시 남은 'blade' 문자열이 있어도 `default`(둥근 자갈)로 떨어진다.
     // 🧊 광물·파편도 전부 복셀(2026-08-20, map-quality-up voxel 전환) — 종전 octa/cone/dodeca
     //    다면체는 사선 면이라 큐브 지면 위에서 '작은 보석 주사위'로 읽혔다. 손으로 짠 5~7칸 큐브
     //    덩어리로 교체(발자국은 종전 반경 r 과 동급, 밑면 y=0 접지). 종별 실루엣 구분은 칸 배치가
@@ -1472,7 +1485,6 @@ const Scene3D = {
                 return this.voxMiniGeo([B(0, 0, 0), B(1, 0, 0), B(0, 0, 1), B(1, 0, 1), B(0, 1, 0)], r * 0.9);
             case 'cone':   // 얼음/결정 조각 — 2×2 밑동 위로 좁아지는 3단 첨탑
                 return this.voxMiniGeo([B(0, 0, 0), B(1, 0, 0), B(0, 0, 1), B(1, 0, 1), B(0, 1, 0), B(0, 2, 0)], r * 0.55);
-            case 'blade': return this.tuftGeo();
             case 'slabchip':   // 갈라진 염판 조각 — 3×2 판 + 단차 1칸
                 return this.voxMiniGeo([B(0, 0, 0), B(1, 0, 0), B(2, 0, 0), B(0, 0, 1), B(1, 0, 1), B(2, 0, 1), B(1, 1, 1)], r * 0.85);
             default:   // dodeca 대응(둥근 자갈) — 2×2 판 + 맞은편 어깨 1칸(octa 와 어깨 위치로 구분)
@@ -1789,23 +1801,33 @@ const Scene3D = {
                 tile9(() => { for (const m of motes) { ctx.fillStyle = m.col; ctx.fillRect(m.x, m.y, 1.6, 1.6); } });
                 break;
             }
-            default: { // forest: 얼룩 + 풀결 스트로크(짧고 촘촘한 결이 "잔디 재질"을 말해줌)
+            default: { // forest kin: 마른 흙 — 얼룩 + 잔자갈·흙덩이 결
+                // 🌾 **풀결 스트로크·풀포기 얼룩을 통째로 걷어냈다** (background-grass-road-cleanup,
+                //    사용자 지시 2026-08-21 *"배경에 잔디 다없애기."*). 종전 이 분기는 세로 스트로크
+                //    300개(`-π/2` = 곧추선 잎날)와 타원 풀포기 160개로 **"잔디 재질"을 지면 텍스처에
+                //    직접 그려 넣었다** — 스캐터 풀을 아무리 지워도 지면 자체가 잔디 결을 유지하므로
+                //    화면은 그대로 잔디밭으로 읽힌다(잔디 제거가 반쪽으로 끝나는 자리가 여기다).
+                // ⚠️ 이 분기는 **forest kin 4종(초원·늪지·대나무·단풍)이 공유**한다
+                //    (`makeGroundTexture` 는 `kin` 스위치, `groundTexFor` 는 바이옴 이름 캐시).
+                //    한 곳만 고치면 나머지 3챕터가 안 따라오는 구조라, 여기가 유일한 수정점이다.
+                // 대체물은 **무기물 결**: 축정렬 잔자갈·흙덩이 사각 얼룩(사선 금지 = 복셀 화풍 ⓓ).
+                //    타원·사선 획을 다시 넣으면 그 순간 '풀결'이 돌아온다.
                 patches(30, 0.18);
-                strokes(300, 11, 1.7, -Math.PI / 2, 0.9, 196, 122); // 700개/고대비는 '카펫 노이즈'로 읽힘 — 성기고 옅게
-                const tufts = [];
-                for (let i = 0; i < 160; i++) { // 풀포기 뭉침 얼룩
-                    const x = Math.random() * size, y = Math.random() * size, r = 6 + Math.random() * 22;
-                    const shade = 115 + Math.random() * 115;
-                    tufts.push({ x, y, r, ry: r * (0.5 + Math.random() * 0.5), rot: Math.random() * Math.PI,
-                        col: `rgba(${shade},${shade},${shade},${0.12 + Math.random() * 0.16})` });
+                const grit = [];
+                for (let i = 0; i < 300; i++) { // 잔자갈 — 축정렬 작은 사각(1~4px)
+                    const v = 108 + Math.random() * 96 | 0;
+                    grit.push({ x: Math.random() * size, y: Math.random() * size,
+                        w: 1 + Math.random() * 3, h: 1 + Math.random() * 3,
+                        col: `rgba(${v},${v - 8},${v - 20},${0.16 + Math.random() * 0.22})` });
+                }
+                for (let i = 0; i < 110; i++) { // 흙덩이 — 조금 큰 어두운 사각(다져진 자국)
+                    const v = 74 + Math.random() * 46 | 0;
+                    grit.push({ x: Math.random() * size, y: Math.random() * size,
+                        w: 4 + Math.random() * 11, h: 3 + Math.random() * 8,
+                        col: `rgba(${v},${v - 6},${v - 16},${0.1 + Math.random() * 0.14})` });
                 }
                 tile9(() => {
-                    for (const t of tufts) {
-                        ctx.fillStyle = t.col;
-                        ctx.beginPath();
-                        ctx.ellipse(t.x, t.y, t.r, t.ry, t.rot, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
+                    for (const t of grit) { ctx.fillStyle = t.col; ctx.fillRect(t.x, t.y, t.w, t.h); }
                 });
             }
         }
@@ -2179,29 +2201,52 @@ const Scene3D = {
         // 매크로 패치 색 — 종전 정점 단위 로직(마른 풀 밴드/흙 패치, 상수 동일)을 셀 중심 단위로.
         const cellRGB = (ix, iz) => {
             const x = X0 + (ix + 0.5) * BS, z = Z0 + (iz + 0.5) * BS;
-            // 🛣️ 걷는 길 (map-walk-road, 사용자 2026-08-21 "맵 전부에 플레이어·적 걷는 길") —
-            //    전투 라인(z≈0) 밴드를 **셀 단위로** 다진 흙 노면으로 틴트한다(포지마스터식 블록 도로).
-            //    판정이 셀 중심이라 가장자리가 계단으로 각지고, 굽이는 sin 3주기 = x 주기 30(타일
-            //    순환)과 정합해 이음매가 없다. 버텍스 컬러는 곱셈이라 바이옴 지면색(gC×맵)을 그대로
-            //    웜·명 방향으로 끌어 어느 챕터든 '그 땅의 다져진 길'로 읽힌다(pathMesh 데칼 틴트와
-            //    같은 원리 — 데칼은 이 노면 위에 자갈·발자국 결만 얹는 역할로 남는다).
-            const roadD = Math.abs(z - (0.1 + Math.sin(x * P * 3 + 1.7) * 0.5));
-            if (roadD < 1.25) {
-                const jr = Voxel.jitter(((ix % PERX) + PERX) % PERX, 0, iz, 0.05);
-                if (roadD > 1.25 - BS * 0.95) return [0.90 * jr, 0.74 * jr, 0.52 * jr]; // 가장자리 단 — 어두운 다짐 테(도로 윤곽선)
-                return [1.42 * jr, 1.14 * jr, 0.70 * jr];                               // 노면 — 밝은 다짐 흙(웜)
+            const px = ((ix % PERX) + PERX) % PERX;   // 타일 주기(30 = 40셀) 안으로 접은 x 인덱스
+            // 🛣️ **곧고 폭이 일정한 도로** (background-grass-road-cleanup, 사용자 지시 2026-08-21
+            //    *"플레이어 적 들 지나다니는 도로 깔끔하게 도로처럼 만들기."*).
+            //    종전(map-walk-road)은 중심선이 `sin(x*P*3)*0.5` 로 굽이치고 폭도 그에 따라 흔들리는
+            //    **유기적 다짐길**이었다 — 그건 "직선 밴드는 아스팔트 고속도로로 읽힌다"는 옛 판단으로
+            //    일부러 흐트러뜨린 것인데, 사용자가 정확히 그 반대를 요구했다. 굽이를 없앤다.
+            //    지금 문법은 **마인크래프트식 블록 도로**다(사선 금지, 셀 단위 각진 경계):
+            //      · 노면(코어) |z| < 1.5   = 셀 2칸씩, 폭 3.0 — 영웅·적(둘 다 z=0)과 펫 앞줄이 여기 선다
+            //      · 연석(테두리) 1.5≤|z|<2.25 = 셀 1칸씩 — 밝은 돌/어두운 돌 교대 석재로 **또렷한 경계**
+            //    🚨 경계값은 **셀 격자에 정확히 떨어지는 수**만 쓴다. 셀 중심이 ±0.375/1.125/1.875/2.625
+            //       라 1.5·2.25 는 정확히 셀 경계다. 어중간한 수(1.7 등)로 바꾸면 판정이 셀 반쪽에서
+            //       갈려 가장자리에 톱니가 생긴다.
+            //    🚨 x 의존은 `px` 기반 패리티·지터뿐이다 — PERX(=40)가 짝수라 타일 순환(±30)에서
+            //       포석 패리티가 보존된다. 홀수 주기 패턴을 넣으면 순환하는 순간 이음매가 드러난다.
+            const az = Math.abs(z);
+            if (az < 2.25) {
+                const jr = Voxel.jitter(px, 0, iz, 0.035);   // 색 지터는 아주 약하게 — 단조로움만 피한다
+                // 연석 — **밝은 돌/어두운 돌을 한 칸씩 번갈아 놓은 석재 테두리**.
+                //    ⚠️ 단색으로 두 번 시도해서 둘 다 실패했다(실측 캡처):
+                //      · 밝은 단색(1.26) → 밝은 노면과 붙어 경계가 안 선다.
+                //      · 어두운 단색(0.82) → 도랑/그림자 띠로 읽힌다(연석이 아니라 '어두운 줄').
+                //    번갈아 놓으면 그 자체가 **사람이 깐 물건**이라는 신호라, 두 오독을 다 피한다.
+                //    한색 캐스트(g×1.02·b×1.07)로 웜 노면과 재료가 갈린다.
+                if (az >= 1.5) {
+                    const kb = ((px + iz) & 1) ? 1.14 : 0.86;
+                    return [kb * jr, kb * 1.02 * jr, kb * 1.07 * jr];
+                }
+                // 포석 — 축정렬 셀 패리티로 두 톤을 번갈아 놓는다(마크 블록 도로 = 칸 색 변화가 곧 무늬).
+                const pv = ((px + iz) & 1) ? 1.50 : 1.32;
+                return [pv * jr, pv * 0.80 * jr, pv * 0.49 * jr];
             }
             const n = Math.sin(x * P + z * 0.34 + 1.3) * 0.62
                 + Math.sin(x * P * 2 + 4.1 - z * 0.21) * 0.38;
             let r = 1, g = 1, b = 1;
-            if (n > 0.12) {         // 밝은 마른 풀/모래 밴드 (살짝 따뜻)
+            // 🌾 매크로 패치 — 종전엔 '마른 풀 밴드'와 '이끼 패치'였다. 잔디를 걷어낸 뒤로는 이게
+            //    지면의 유일한 큰 무늬라 성격이 남으면 그대로 도드라진다 → 둘 다 **흙 결**로 옮겼다:
+            //    밝은 쪽은 마른 모래 밴드, 어두운 쪽은 (차가운 이끼가 아니라) **젖은 흙 패치**라
+            //    난색을 남긴 채 어두워진다(b 를 가장 많이 깎는다 = 이끼의 청록 잔향 제거).
+            if (n > 0.12) {         // 밝은 마른 모래 밴드 (따뜻)
                 const k = smooth(U.clamp((n - 0.12) / 0.5, 0, 1)) * 0.32;
                 r = 1 + k * 1.15; g = 1 + k; b = 1 + k * 0.55;
-            } else if (n < -0.16) { // 어두운 흙/이끼 패치 (살짝 차게)
+            } else if (n < -0.16) { // 어두운 젖은 흙 패치 (난색 유지)
                 const k = smooth(U.clamp((-n - 0.16) / 0.5, 0, 1)) * 0.38;
-                r = 1 - k * 1.15; g = 1 - k; b = 1 - k * 0.75;
+                r = 1 - k * 0.85; g = 1 - k; b = 1 - k * 1.2;
             }
-            const j = Voxel.jitter(((ix % PERX) + PERX) % PERX, 0, iz, 0.05);
+            const j = Voxel.jitter(px, 0, iz, 0.05);
             return [r * j, g * j, b * j];
         };
         const pos = [], nor = [], uvs = [], col = [];
@@ -2240,7 +2285,10 @@ const Scene3D = {
         // 각진 플랫셰이딩 지형 메시 + 얼룩 텍스처 + 노멀맵(조명 반응 요철) + 버텍스 컬러 매크로 패치
         const gt = this.groundTexFor('forest');
         this.terrainMat = new THREE.MeshPhongMaterial({
-            color: 0x7cb342, shininess: 0, vertexColors: true, // flatShading 제거 — 넓은 지면의 삼각 파세팅이 '로우폴리 프로토타입' 인상 (비평가 6.8 5번), 요철은 노멀맵이 담당
+            // 🌾 출고색을 잔디 라임(0x7cb342) → **마른 흙**으로 (background-grass-road-cleanup,
+            //    2026-08-21). setTheme 이 곧바로 덮어쓰므로 부팅 첫 프레임에만 쓰이지만, 그 한 장이
+            //    초록이면 로딩 직후 잔디밭이 한 번 번쩍인다.
+            color: 0x8a7350, shininess: 0, vertexColors: true, // flatShading 제거 — 넓은 지면의 삼각 파세팅이 '로우폴리 프로토타입' 인상 (비평가 6.8 5번), 요철은 노멀맵이 담당
             map: gt.map, normalMap: gt.normal,
             normalScale: new THREE.Vector2(0.7, 0.7), // 1.45는 고주파 스펙클('카펫')로 읽힘 — 저폴리 소품과 톤 맞춤
         });
@@ -2277,45 +2325,27 @@ const Scene3D = {
             // 반경이 최대 76이라 칠이 캔버스 위아래(0·256) 밖으로 잘려 나갔고, 그래서 데칼 평면의
             // 앞·뒤 모서리가 지면 위에 **직선으로 드러났다** — 비평가 4차 지적 ⓔ '지면 사각 이음매'의 실체다
             // (실측: 데칼을 끄면 캔버스 로컬 y241의 단차가 통째로 사라졌다 — probe-ground-seam.js).
-            // 좌우도 마찬가지다. repeat.set(2,1)로 가로 반복하는데 x=0/1024에서 잘린 블롭이 이어지지 않아
-            // 반복 경계마다 세로 이음선이 생겼다 → 아래 wrapArc가 블롭을 x축으로 감아 그려 이어 붙인다.
-            const wrapArc = (x, y, r, fill) => {
-                for (const ox of [0, -1024, 1024]) {           // 경계를 넘는 블롭은 반대쪽에도 그린다 = 이음매 없는 반복
-                    if (x + ox + r < 0 || x + ox - r > 1024) continue;
-                    const gb = ctx.createRadialGradient(x + ox, y, 0, x + ox, y, r);
-                    gb.addColorStop(0, fill);
-                    gb.addColorStop(1, 'rgba(80,60,40,0)');
-                    ctx.fillStyle = gb;
-                    ctx.beginPath(); ctx.arc(x + ox, y, r, 0, Math.PI * 2); ctx.fill();
+            // 좌우도 마찬가지다. repeat.set(2,1)로 가로 반복하는데 x=0/1024에서 잘린 칠이 이어지지 않아
+            // 반복 경계마다 세로 이음선이 생긴다 → 경계에 걸치는 것은 `[0, -1024, 1024]` 세 번 그린다.
+            // 🛣️ **유기적 다짐길 얼룩 → 포석 이음새** (background-grass-road-cleanup, 사용자 지시
+            //    2026-08-21 *"도로 깔끔하게 도로처럼"*). 종전엔 랜덤 블롭 300 + 긁힘 52 + 잔자갈 60 을
+            //    뿌려 일부러 흐트러뜨렸다("직선 밴드 = 아스팔트 고속도로"라는 옛 판단). 이제 노면은
+            //    `cellRGB` 의 포석 패리티가 직접 칠하므로, 데칼은 **블록 사이 이음새**만 얹는다.
+            // 🚨 **이음새 간격 25.6px 는 임의값이 아니다.** 데칼은 x −30..30 에 `repeat.set(2,1)` 이므로
+            //    1반복 = 월드 30 = 1024px → 34.1333px/유닛. 지면 셀 한 칸 0.75유닛 = **정확히 25.6px**
+            //    이고 캔버스 x=0 이 월드 x=−30(=셀 경계)에 떨어진다. 40줄이 1024px 를 정확히 나누므로
+            //    반복 이음매도 없다. 이 수를 바꾸면 이음새가 3D 셀 경계에서 어긋나 '이중 격자'가 된다.
+            for (let k = 0; k < 40; k++) {
+                const x = k * 25.6;
+                ctx.strokeStyle = `rgba(72,54,36,${(0.15 + Math.random() * 0.1).toFixed(3)})`;
+                ctx.lineWidth = 1.8 + Math.random() * 1.0;
+                for (const ox of [0, -1024, 1024]) {   // 경계에 걸친 줄은 반대편에도 (이음매 없는 반복)
+                    ctx.beginPath(); ctx.moveTo(x + ox, 30); ctx.lineTo(x + ox, 226); ctx.stroke();
                 }
-            };
-            // 직선 그라디언트 밴드는 '아스팔트 고속도로'로 읽힘 — 소프트 블롭을 중심선 따라 지터로 겹쳐 유기적인 다짐길로
-            for (let i = 0; i < 300; i++) {
-                const x = Math.random() * 1024;
-                const y = 128 + Math.sin(x * 0.01 + 1.7) * 28 + U.rand(-40, 40); // 중심선 자체가 완만히 굽이침
-                const r = 24 + Math.random() * 52;
-                const warm = Math.random() < 0.6;
-                // 저알파 밝은 톤은 '안개 자국'으로 읽힘(비평가 6.9 7번) — 주변 잔디보다 확실히 어두운 황토
-                wrapArc(x, y, r, warm ? 'rgba(104,78,50,0.3)' : 'rgba(72,54,36,0.28)');
-            }
-            for (let i = 0; i < 52; i++) { // 짧은 발자국/긁힘 결 — 긴 스트릭은 차선으로 오독
-                ctx.strokeStyle = Math.random() < 0.5 ? 'rgba(66,48,32,0.2)' : 'rgba(140,112,80,0.16)';
-                ctx.lineWidth = 2.4 + Math.random() * 3.2;
-                const x = Math.random() * 1024, y = 80 + Math.random() * 96;
-                for (const ox of [0, -1024, 1024]) {
-                    ctx.beginPath(); ctx.moveTo(x + ox, y); ctx.lineTo(x + ox + 12 + Math.random() * 28, y + U.rand(-6, 6)); ctx.stroke();
-                }
-            }
-            for (let i = 0; i < 60; i++) { // 잔자갈
-                const v = 110 + Math.floor(Math.random() * 55);
-                ctx.fillStyle = `rgba(${v},${v - 12},${v - 28},0.4)`;
-                const x = Math.random() * 1024, y = 76 + Math.random() * 104, r = 1.6 + Math.random() * 3.6;
-                for (const ox of [0, -1024, 1024]) { ctx.beginPath(); ctx.arc(x + ox, y, r, 0, Math.PI * 2); ctx.fill(); }
             }
             // 위아래 페더링 — 잘려 나간 칠을 지워 **캔버스 상·하단 알파를 정확히 0으로** 만든다.
             // 이것이 없으면 평면 모서리가 그대로 직선으로 보인다(위 주석 참조).
-            // 남는 코어 밴드는 y 46~210(=64%)이라, 평면 깊이를 1.7 → 2.66으로 키워 **길의 실제 폭(1.7유닛)은 유지**하고
-            // 늘어난 만큼을 전부 페이드에 쓴다.
+            // 남는 코어 밴드는 y 46~210(=64%)이다 — 평면 깊이는 그 비율로 역산한다(아래 pathGeo).
             ctx.globalCompositeOperation = 'destination-out';
             const fade = (y0, y1) => {                      // y0(완전 제거) → y1(보존)
                 const g2 = ctx.createLinearGradient(0, y0, 0, y1);
@@ -2332,12 +2362,17 @@ const Scene3D = {
             ptex.repeat.set(2, 1);
             // GL 을 못 얻은 기기에서도 씬 그래프는 끝까지 지어야 하므로 렌더러 유무를 확인한다 (mobile-combat-scene-blank)
             if (this.renderer) ptex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); // 저각 시점 밉 뭉개짐 방지 — 근경 가장자리 선명도
-            const pathGeo = new THREE.PlaneGeometry(60, 2.66, 1, 1); // 1.7 → 2.66: 늘린 폭은 전부 위아래 페더링 몫이라 길 코어 폭은 그대로다
+            // 🛣️ 깊이 2.66 → **4.70** (2026-08-21) — 코어 비율은 그대로(y 46~210 = 64%)라
+            //    코어가 4.70×0.64 = **3.0 = 새 노면 폭(|z|<1.5)** 에 정확히 맞는다. 늘어난 몫은
+            //    전부 페더링이라 평면 모서리는 여전히 알파 0 이다(위 🚨 '캔버스 네 변 알파 0').
+            const pathGeo = new THREE.PlaneGeometry(60, 4.70, 1, 1);
             pathGeo.rotateX(-Math.PI / 2);
             this.pathMesh = new THREE.Mesh(pathGeo, new THREE.MeshLambertMaterial({
                 map: ptex, transparent: true, depthWrite: false,
             }));
-            this.pathMesh.position.set(0, 0.02, 0.1); // 전투 라인 위 살짝 띄움 (z-파이팅 방지)
+            // z 0.1 → 0 : 노면 중심선이 z=0 직선이 됐으므로 데칼도 같은 중심에 앉아야 이음새가
+            //             셀 경계와 맞는다(y 0.02 는 그대로 — z-파이팅 방지용 띄움).
+            this.pathMesh.position.set(0, 0.02, 0);
             this.pathMesh.renderOrder = -1; // 투명끼리 심도 정렬 경합 시 데칼이 블롭 섀도우를 덮어 길 위 그림자가 소멸 (비행체 '부유 스티커'의 실체) — 데칼을 항상 먼저
             this.pathMesh.receiveShadow = true;
             this.ground.add(this.pathMesh);
@@ -2678,7 +2713,10 @@ const Scene3D = {
                 const b = this.vxModel(Props.bush(rad));
                 b.position.y += rad * 0.25;
                 const g = grounded(b, rad * 2.6);
-                const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.4, 1.8); } while (Math.abs(zz) < 0.85); return zz; })(); // 전투 라인 배제
+                // 🛣️ 배제 반경 0.85 → **2.35** (background-grass-road-cleanup, 2026-08-21):
+                //    도로가 연석 포함 |z| < 2.25 를 덮으므로 옛 값이면 소품이 **노면 위에 선다**
+                //    ('깔끔한 도로'가 곧바로 깨진다). 배제한 만큼 z 대역을 뒤로 넓혀 개수는 지킨다.
+                const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-5.0, 3.0); } while (Math.abs(zz) < 2.35); return zz; })(); // 도로 밴드 배제
                 g.position.set(x, this.heightAt(x, z) + 0.02, z);
                 this.scene.add(g);
                 this.rocks.push(g);
@@ -2694,32 +2732,30 @@ const Scene3D = {
             const r = this.vxModel(Props.pebble(rad, flat, kin === 'lava' ? 'charRock' : 'stone'));
             r.position.y += rad * (flat ? 0.2 : 0.42);
             const g = grounded(r, rad * 2.4);
-            const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.8, 1.6); } while (Math.abs(zz) < 0.85); return zz; })(); // 전투 라인 배제
+            // 🛣️ 배제 반경 0.85 → 2.35 (도로 밴드 밖으로 — 위 덤불 주석 참조)
+            const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-5.2, 2.9); } while (Math.abs(zz) < 2.35); return zz; })(); // 도로 밴드 배제
             g.position.set(x, this.heightAt(x, z) + 0.02, z);
             this.scene.add(g);
             this.rocks.push(g);
         }
-        // 꽃 무리 + 양치류 — 2차 식생 (나무·바위·풀 3종 반복의 단조로움 해소, 비평가 '환경 밀도' 지적)
+        // 꽃 무리 — 2차 식생 (나무·바위 반복의 단조로움 해소, 비평가 '환경 밀도' 지적)
+        // 🌾 **양치류(`Props.fern`)는 삭제, 꽃 무리는 6 → 2 무리로 줄였다**
+        //    (background-grass-road-cleanup, 사용자 지시 2026-08-21 *"배경에 잔디 다없애기."*).
+        //    잔디를 걷어내면 근경 초록이 전부 이 2차 식생으로 옮겨 붙는데, 양치는 조형이
+        //    **4방위 잎날**이라 화면에서 그냥 풀 포기로 읽힌다 — 풀로 읽히는 것은 남기지 않는다.
+        //    덤불(`Props.bush` = 잎 블록 한두 개)은 '잔디'가 아니라 그대로 둔다.
+        //    ⚠️ `_fernMat` 은 이제 아무도 만들지 않으므로 `setTheme` 의 틴트 줄은 `if` 에 걸려
+        //       조용히 건너뛴다(사문화된 줄이지만 지우면 Props.fern 을 되살릴 때 또 갈린다).
         if (hasVeg && !['snow'].includes(kin)) {
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < 2; i++) {
                 // 🌼 꽃 무리 — 조형은 `Props.flowers`: 얇은 줄기 + **십자 꽃잎 판 한 층**(마크 꽃의
                 //    십자 스프라이트를 청키하게 옮긴 것). 🚨 무리 전체를 **줄기 1메시 + 꽃잎 1메시**로
                 //    굽는다 — 옛 판은 꽃송이마다 메시 2개라 무리 6개가 메시를 40개 넘게 먹었다.
                 const cl = this.vxModel(Props.flowers());
                 const g = grounded(cl, 0.5);
                 g.userData.windSway = 0.075;   // 줄기가 가늘어 나무보다 크게 흔들린다
-                const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.6, 1.7); } while (Math.abs(zz) < 0.9); return zz; })();
-                g.position.set(x, this.heightAt(x, z) + 0.02, z);
-                this.scene.add(g);
-                this.rocks.push(g);
-            }
-            for (let i = 0; i < 4; i++) {
-                // 🌿 양치류 — 조형은 `Props.fern`: 중심 관에서 **4방위로 뻗은 얇은 판 잎날**(끝이 한
-                //    칸 처진다). 방위를 90° 스냅으로 두는 이유는 그대로다(사선 큐브 면 금지, 화풍 ⓓ).
-                const fern = this.vxModel(Props.fern());
-                const g = grounded(fern, 0.6);
-                g.userData.windSway = 0.055;
-                const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-2.6, 1.7); } while (Math.abs(zz) < 0.9); return zz; })();
+                // 🛣️ 배제 반경 0.9 → 2.35 (도로 밴드 밖으로 — 위 덤불 주석 참조)
+                const x = U.rand(-9, 9), z = (() => { let zz; do { zz = U.rand(-5.0, 3.0); } while (Math.abs(zz) < 2.35); return zz; })();
                 g.position.set(x, this.heightAt(x, z) + 0.02, z);
                 this.scene.add(g);
                 this.rocks.push(g);
@@ -2931,7 +2967,8 @@ const Scene3D = {
         this.buildScatter(biome);
     },
 
-    // 바이옴별 지면 스캐터(풀 포기/자갈/발광 이끼 등) — InstancedMesh 1드로우콜.
+    // 바이옴별 지면 스캐터(자갈·흙덩이·낙엽 조각·발광 이끼 등) — InstancedMesh 1드로우콜.
+    // 🌾 **풀 포기는 여기서 완전히 빠졌다** (background-grass-road-cleanup, 2026-08-21).
     // 지면 타일(this.ground)의 자식이라 타일 순환(x±30 점프)과 함께 자동으로 흘러가고,
     // heightAt이 x 주기 30이라 로컬 좌표 높이가 어느 타일 위치에서도 유효함.
     // 풀 포기: 🧊 큐브 블레이드 클러스터 (map-quality-up 잔디 voxel, 사용자 지시 2026-08-20 "잔디들도 voxel로").
@@ -2964,16 +3001,8 @@ const Scene3D = {
         geo.userData.voxSnap = true;
         return geo;
     },
-    tuftGeo() {
-        const SZ = 0.05;   // 복셀 한 변(월드) — 4포기 클러스터 폭 ~0.2 = 종전 원뿔 다발 발자국과 동급
-        const B = (x, y, z) => ({ x, y, z });
-        return this.voxMiniGeo([
-            B(0, 0, 0), B(0, 1, 0), B(0, 2, 0), B(1, 2, 0),      // A 중앙 3단 + L머리(+x)
-            B(2, 0, 1), B(2, 1, 1), B(1, 1, 1),                  // B 우전방 2단 + L머리(-x)
-            B(-1, 0, -2), B(-1, 1, -2), B(-1, 1, -1),            // C 후방 2단 + L머리(+z)
-            B(1, 0, -1), B(1, 1, -1),                            // D 소형 2단
-        ], SZ);
-    },
+    // 🌾 `tuftGeo()`(풀 포기 잎날 클러스터)는 삭제됐다 — background-grass-road-cleanup, 사용자 지시
+    //    2026-08-21 *"배경에 잔디 다없애기."* 되살릴 일이 있으면 git 이력에서 꺼낼 것.
 
     // ---- 바람 (TODO '맵 프롭 퀄리티 업': "바람에 흔들리는 풀·나뭇잎 … 살아있는 맵으로") ----
     // 지금까지 맵은 **완전히 정지**해 있었다(구름·불씨만 움직였다). 풀 한 포기도 안 흔들리는 게
@@ -3142,23 +3171,25 @@ const Scene3D = {
                 n = 120;
                 tint = 0.2;
                 break;
-            default: { // forest: 풀 포기 (잎날 클러스터)
-                geo = this.tuftGeo();
-                // 🎨 지면 등급색 파생 (map-palette-unify) — 종전 고정 초록(0x558b2f→0x9cbf6e 58%)은
-                //    forest kin 인데 지면이 초록이 아닌 챕터(10 천상=골드, 4 폭풍=회청록)에서 팔레트 밖
-                //    이물이었고, ch1 에서도 등급 지면(카키 올리브)보다 쨍해 '네온 스프라이트' 인상이
-                //    남았다(비평가 7.1 9번의 잔재). 색상은 지면에서 잎 초록(0.26) 쪽으로 30%만 끌고
-                //    채도·명도를 지면 반 단계 위에 앉힌다 — 어느 지면색에서든 '그 땅의 풀'로 읽히게.
-                //    ⚠️ terrainMat.color 는 setTheme 이 buildProps 호출 **전에** gC 로 칠해 둔다
-                //    (biome-stone-color-leak 수리로 못 박힌 순서) — 여기서 읽어도 이번 챕터 색이다.
+            default: { // forest kin: 흙 위 잔자갈·흙덩이 (종전 '풀 포기' → 폐기)
+                // 🌾 **풀 포기 스캐터 폐기** (background-grass-road-cleanup, 사용자 지시 2026-08-21
+                //    *"배경에 잔디 다없애기."*). 이 분기가 초원·폭풍·밤숲·천상(챕터 1·4·5·10)과
+                //    좀비 러시 던전(`dungeons.js` biome:'forest')의 잔디를 통째로 만들던 자리다.
+                //    자리를 비우면 근경이 휑해지므로(`probe-nearfield-mass` 하한 10%) **같은 수의
+                //    무기물 스캐터로 점유를 메운다** — 둥근 자갈 복셀(dodeca) + 납작 눕힘(flat).
+                //    ⚠️ terrainMat.color 는 setTheme 이 buildProps 호출 **전에** 칠해 둔다
+                //    (biome-stone-color-leak 수리로 못 박힌 순서) — 여기서 읽으면 이번 챕터의
+                //    **흙 지면색**(`soilOf` 통과 후)이라, 자갈이 어느 챕터에서든 '그 땅의 돌'이 된다.
+                //    색상은 지면 그대로 두고(초록 견인 폐기) 채도만 낮추고 반 단계 밝힌다.
+                geo = this.scatterGeo('dodeca', 0.055);
                 const gh = this.terrainMat.color.getHSL({ h: 0, s: 0, l: 0 });
                 mat = new THREE.MeshLambertMaterial({ color: new THREE.Color().setHSL(
-                    gh.h + (0.26 - gh.h) * 0.3,
-                    U.clamp(gh.s + 0.06, 0.15, 0.55),
-                    U.clamp(gh.l + 0.12, 0.18, 0.60)) });
+                    gh.h,
+                    U.clamp(gh.s * 0.7, 0.04, 0.42),
+                    U.clamp(gh.l + 0.11, 0.16, 0.58)) });
                 n = 240;
-                flat = false;
-                tint = 0.2;
+                flat = true;
+                tint = 0.16;
             }
         }
         // 화면 하단(카메라 앞 둔덕 z 2.2~3.4)까지 스캐터를 확장 — "하단 40% 빈 지면" 구도 결함 완화
@@ -3171,7 +3202,10 @@ const Scene3D = {
             const sHi = so && so.scaleHi !== undefined ? so.scaleHi : 1.6;
             for (let i = 0; i < cnt; i++) {
                 let x = spots[i][0], z = spots[i][1];
-                if (Math.abs(z) < 0.55) z = 0.55 * Math.sign(z || 1) + z; // 스캐터도 전투 라인 살짝 비켜감
+                // 🛣️ 스캐터도 **도로 밖으로** 민다 (background-grass-road-cleanup, 2026-08-21).
+                //    종전 0.55 는 '전투 라인만 살짝 비켜감'이라, 폭 4.5 짜리 도로가 생긴 지금은
+                //    자갈이 노면 한가운데 흩어져 포석 패턴을 지운다. 2.3 = 연석 바깥이다.
+                if (Math.abs(z) < 2.3) z = 2.3 * Math.sign(z || 1) + z * 0.4;
                 dummy.position.set(x, this.heightAt(x, z) + 0.02, z);
                 // 🧊 복셀 조형(voxSnap)은 요를 90° 스냅한다(화풍 ⓓ: 큐브 면이 사선이 되면 그 순간
                 //    voxel 로 안 읽힌다). 잔디에 이어 광물·파편도 복셀로 넘어와(scatterGeo 전환,
@@ -3192,38 +3226,20 @@ const Scene3D = {
             // 부모 지형을 포함한 씬 전체의 그림자 수신이 조용히 깨진다(실측: 이 한 줄이 true면 지형 그림자 전멸).
             im.receiveShadow = false;
             this.ground.add(im);
-            // 🌱 접지 블롭 그림자 (grass-contact-shadow — 사용자 2026-08-21 "잔디 왜 그림자 없냐/붕 뜬 느낌").
-            //    잔디는 windShade 정점 변위 때문에 castShadow 를 못 켠다(깊이 패스가 바람 변위를 몰라
-            //    그림자만 안 흔들리고 어긋난다 — TODO 처방 ① 기각 사유). 소품·적이 쓰는 blobShadowMat
-            //    소프트 블롭을 포기 밑동에 인스턴스로 하나 더 깐다(처방 ② — aoRing 계열 투명 오버레이라
-            //    voxel 화풍 ⓓ '부드러운 그림자' 허용 안). ⚠️ U.rand 추가 호출 없음 — 위 루프가 구운
-            //    인스턴스 행렬을 그대로 분해해 쓰므로 시드 고정 프로브의 난수 소비가 안 변한다.
-            if (so && so.blob) {
-                this.ensureBlobRes();
-                const bim = new THREE.InstancedMesh(this.blobGeo, this.blobShadowMat, cnt);
-                const bd = new THREE.Object3D();
-                for (let i = 0; i < cnt; i++) {
-                    im.getMatrixAt(i, bd.matrix);
-                    bd.matrix.decompose(bd.position, bd.quaternion, bd.scale);
-                    const r = bd.scale.x * 0.30;               // 포기 폭에 비례한 블롭 반경
-                    bd.position.y = this.heightAt(bd.position.x, bd.position.z) + 0.015;
-                    bd.rotation.set(-Math.PI / 2, 0, 0);
-                    bd.scale.set(r, r, r);
-                    bd.updateMatrix();
-                    bim.setMatrixAt(i, bd.matrix);
-                }
-                bim.userData.sharedGeometry = true;            // blobGeo 싱글턴
-                bim.userData.sharedMaterial = true;            // blobShadowMat 싱글턴(setTheme 이 챕터색으로 물들인다)
-                bim.userData.aoRing = true;                    // setShadow 스윕 제외(704 규약 — 그림자 링은 몸이 아니다)
-                bim.receiveShadow = false;
-                this.ground.add(bim);
-            }
+            // 🌾 **풀 접지 블롭 그림자(grass-contact-shadow, `so.blob`)는 삭제됐다**
+            //    (background-grass-road-cleanup, 2026-08-21). 그건 "잔디가 붕 떠 보인다"는 지적의
+            //    처방이었는데 잔디 자체가 없어졌다 — 남겨 두면 **지면에 그림자 얼룩만 뜬다.**
+            //    ⚠️ `blobShadowMat`·`blobGeo` 싱글턴 자체는 지우지 않는다(소품·적·영웅이 공유한다).
+            //    ⚠️ 덤으로 누수도 사라졌다: 이 블롭 인스턴스는 `this.ground` 에 붙는데
+            //       `buildScatter` 의 정리 루틴이 scatter/2/3 만 떼어내서, 바이옴을 바꿀 때마다
+            //       옛 블롭 층이 지면에 그대로 쌓이고 있었다.
             return im;
         };
         // 바람은 **식물에만** 건다 — 자갈·얼음 조각이 흔들리면 '떠 있는 돌'이 된다.
-        // (forest 풀 포기가 유일한 주 스캐터 식물이다. 나머지 바이옴 주 스캐터는 전부 광물이다.)
-        const windy = sp.scatter ? !!sp.scatter.wind
-            : (kin !== 'desert' && kin !== 'rock' && kin !== 'snow' && kin !== 'lava' && kin !== 'magic');
+        // 🌾 잔디 제거 이후 **주 스캐터에 식물이 하나도 없다**(원본 6종 전부 광물, BIOMES 표도
+        //    blade 를 다 걷어냈다). 그래서 폴백은 무조건 false 다 — 종전 폴백은 'forest kin 이면
+        //    흔든다'였는데, 그대로 두면 자갈이 바람에 흔들린다.
+        const windy = sp.scatter ? !!sp.scatter.wind : false;
         if (windy) this.windShade(mat, 0.55);
         // 🚨 **뒤끝을 z −3.4 → −9 로 늘렸다.** 종전 주 스캐터는 z −3.4 에서 뚝 끊겼는데 지면 플레인은
         //    z −45 까지 깔려 있고 `fog.near` 가 12(= z −3.8 부근)라, **안개가 먹기도 전에 스캐터가
@@ -3233,21 +3249,24 @@ const Scene3D = {
         // ⚠️ 지수 배분: **근경 위계는 `scatter3` 의 개수로 벌고, 주 스캐터는 지수를 낮게(1.75) 둔다.**
         //    주 스캐터 지수를 2.5까지 올려 위계를 만들면 원경띠가 같이 굶어(실측 원경 156~180개, 게이트 미달)
         //    "카펫" 결함이 뒤쪽에서 되살아난다. 근/중은 근경 레이어로, 중/원은 이 지수로 따로 잡는 게 맞다.
-        this.scatter = mk(geo, mat, n, flat, tint, -9, 3.2, { depthPow: 1.75, clumpR: 2.0, seedFrac: 0.42, blob: windy });
+        this.scatter = mk(geo, mat, n, flat, tint, -9, 3.2, { depthPow: 1.75, clumpR: 2.0, seedFrac: 0.42 });
         // 근경 전용 디테일 레이어 — 카메라 앞 둔덕에 같은 소재를 더 크고 촘촘하게.
         // 세로 화면 첫인상을 결정하는 근경이 "무텍스처 단색 평면"이던 결함 해소.
         // 🚨 **뒤끝을 z 5.6 → 5.0 으로 당겼다.** 지면이 화면 바닥(ndc.y −1)과 만나는 곳이 실측 z 4.97 이라
         //    z 5.0 너머에 뿌린 몫(종전 배치의 약 1/4)은 **한 번도 화면에 안 들어왔다** — 근경을 채우라고
         //    만든 레이어가 정작 프레임 밖에 예산을 버리고 있었다.
         this.scatter3 = mk(geo, mat, Math.round(n * 1.9), flat, tint, 3.2, 5.0,
-            { depthPow: 2.0, clumpR: 1.5, seedFrac: 0.42, scaleLo: 1.1, scaleHi: 2.4, blob: windy }); // 근경은 원근상 더 커야 자연스럽다
+            { depthPow: 2.0, clumpR: 1.5, seedFrac: 0.42, scaleLo: 1.1, scaleHi: 2.4 }); // 근경은 원근상 더 커야 자연스럽다
         // 보조 악센트 스캐터 — 5% 악센트 색 규칙(단색 팔레트 지적 반영): 초원=들꽃, 설원=얼음 결정,
         // 바위산=골드 야생화, 마법=보라 자갈, 사막=적갈 자갈, 용암=재 조각
         // 🧊 테이블은 [종류, r] 문자열만 들고 scatterGeo(복셀 팩토리)가 굽는다 — 종전엔 6종 다면체를
         //    매번 전부 생성해 5개를 버렸다. snow 결정은 종전 ConeGeometry(0.03, 0.1)의 키(0.1)를
         //    복셀 첨탑 높이(3×0.55r)로 환산해 r 0.05 로 옮겼다(밑동 폭도 0.06 ↔ 0.055 동급).
+        // 🌾 초원 악센트 `0xfff3b0`(들꽃)은 **마른 흙덩이**로 바꿨다 (background-grass-road-cleanup,
+        //    2026-08-21). 잔디를 걷어낸 흙바닥에 노란 들꽃만 떠 있으면 '꽃이 흙에서 자란' 꼴이라
+        //    어색하다. 개수도 46 → 34 로 줄이고 자체 발색(basic)·바람도 뗀다(아래 두 분기).
         const acc = {
-            forest: ['octa', 0.035, 0xfff3b0, 46],
+            forest: ['dodeca', 0.038, 0xb99b6a, 34],
             snow: ['cone', 0.05, 0xbfe6ff, 34],
             rock: ['octa', 0.035, 0xd9b44a, 36],
             magic: ['dodeca', 0.045, 0x3d2b6e, 60],
@@ -3258,12 +3277,12 @@ const Scene3D = {
         const accGeo = ac ? this.scatterGeo(ac.geo, ac.r) : this.scatterGeo(acc[0], acc[1]);
         const accHex = ac ? ac.color : acc[2];
         const accN = ac ? ac.n : acc[3];
-        const accBasic = ac ? !!ac.basic : (biome === 'forest' || biome === 'rock' || biome === 'snow');
+        const accBasic = ac ? !!ac.basic : (biome === 'rock' || biome === 'snow');   // forest 제외 — 흙덩이는 발색체가 아니다
         const accMat = accBasic
             ? new THREE.MeshBasicMaterial({ color: accHex }) // 들꽃/결정은 자체 발색으로 또렷하게
             : new THREE.MeshLambertMaterial({ color: accHex });
-        // 악센트도 식물이면 같이 흔든다(초원 들꽃·바위산 골드 야생화). 얼음 결정·자갈·재는 제외.
-        if (ac ? !!ac.wind : (biome === 'forest' || biome === 'rock')) this.windShade(accMat, 0.42);
+        // 악센트도 식물이면 같이 흔든다(바위산 골드 야생화). 얼음 결정·자갈·재·흙덩이는 제외.
+        if (ac ? !!ac.wind : (biome === 'rock')) this.windShade(accMat, 0.42);
         // 악센트도 같은 깊이 가중·군집을 탄다. 뒤끝 −3 → −7(주 스캐터를 따라 원경까지),
         // 앞끝 5.2 → 5.0(프레임 밖 낭비 제거). 악센트는 '드문드문 핀 꽃'이라 군집을 더 세게 준다.
         this.scatter2 = mk(accGeo, accMat, accN, true, 0.1, -7, 5.0,
@@ -16748,7 +16767,14 @@ const Scene3D = {
         const dL = -Math.min(V.groundMax, V.groundK * gHSL.l) * nightK;   // 비례 하향 + 절대 낙폭 상한
         const dF = -Math.min(V.foliageMax, V.foliageK * gHSL.l) * nightK; // 식생 추가 하향
         const gC = new THREE.Color(t.ground).offsetHSL(0, V.satK * dL, dL); // 명도를 내리면 채도도 함께 (탁한 파스텔 방지)
-        this.terrainMat.color.copy(gC);
+        // 🌾 **지면 albedo 만 흙으로 민다** (background-grass-road-cleanup, 사용자 지시 2026-08-21
+        //    *"배경에 잔디 다없애기."*). 스캐터 풀과 풀결 텍스처를 걷어내도 지면 색이 라임 초록이면
+        //    (ch1 0x7cb342 · ch5 0x33691e · 좀비 러시 던전 0x1b3a1e) 화면은 그대로 잔디밭이다.
+        //    🚨 **`gC` 자체는 못 바꾼다** — 아래에서 잎 3변주·덤불·능선 3겹·이끼·블롭 그림자·반구광
+        //    바닥색이 전부 gC 에서 파생한다. 갈색으로 밀면 `leafColor` 가 **초원의 나무를 통째로
+        //    갈색**으로 만든다(그건 단풍 챕터다). 그래서 `soilOf` 는 `terrainMat` 한 곳에만 먹인다 —
+        //    원경 능선은 초록으로 남아 '멀리 숲, 발밑은 흙'으로 읽혀 오히려 맞다.
+        this.terrainMat.color.copy(this.soilOf(gC, t.biome || 'forest'));
         // 눈 수광면 탈색은 **눈 kin 에서만** 켠다(㉱). 18 빙하는 kin 이 snow 지만 '청빙'이 정체성이라
         // 테마 지면 채도가 0.49 + tint +0.16 로 의도적으로 높다 — 여기서 탈색하면 그 바이옴이 사라진다.
         // ⚠️ **테마 지면의 채도로는 못 가른다** — 6 설원 0xaac2e2 와 18 빙하 0x9fc9de 는 채도가
@@ -16828,7 +16854,13 @@ const Scene3D = {
         // 바이옴 지면 색상에서 초록 쪽으로 1/3만 끌린 저채도·저명도 이끼색으로 파생 — 어느 바이옴에서든
         // '바위에 낀 이끼'로 읽히고, 청록 보색 악센트는 잔향으로만 남는다.
         if (this.mossMat) {
-            const mg = gC.getHSL({ h: 0, s: 0, l: 0 });
+            // 🌾 씨앗을 gC → **`soilOf(gC)`** 로 (background-grass-road-cleanup, 2026-08-21). 잔디를
+            //    걷어낸 뒤 근경에서 제일 '잔디'로 읽히는 것이 **납작하게 눌린 이끼 뚜껑 바위**였다
+            //    (근경 앵커는 HCAP 0.62 로 눕히므로 초록 윗면이 넓은 판으로 보인다 — 캡처로 확인).
+            //    흙 지면색을 씨앗으로 쓰면 초원 이끼가 h .28 순초록 → h .145(52° 올리브 브라운)로
+            //    내려가 '바위에 낀 이끼'로만 남는다. 잔디를 안 지운 바이옴은 `soilOf` 가 gC 를 그대로
+            //    돌려주므로 **한 픽셀도 안 바뀐다**(설원·사막·용암·마법·바위).
+            const mg = this.soilOf(gC, t.biome || 'forest').getHSL({ h: 0, s: 0, l: 0 });
             // 🎨 초록 견인에 상한 ±0.05 (map-palette-unify 2차) — 종전 '0.36 쪽으로 35%' 비례 견인은
             //    난색 지면 챕터에서 과도했다: 단풍(지면 h≈0.07)의 이끼가 h 0.17(61° 올리브초록)로
             //    앰버 화면의 보색 이물이 됐다(2차 채점 A #1 '순색 초록 새싹'). 상한을 걸면 단풍 이끼는
@@ -17168,6 +17200,38 @@ const Scene3D = {
         }
         return new THREE.Color().setHSL((h % 1 + 1) % 1, sat, l);
     },
+    // 🌾 지면 albedo 를 흙으로 미는 보정 (background-grass-road-cleanup, 사용자 지시 2026-08-21
+    //    *"배경에 잔디 다없애기."*). 대상은 **forest kin + 지면 색상이 초록(h 0.17~0.45)** 인 테마다:
+    //      · 걸리는 것 = ch1 초원(0x7cb342) · ch5 밤 숲(0x33691e) · ch11 늪지(0x53603c) ·
+    //        ch12 대나무(0x8aa63f) · 좀비 러시 던전(`dungeons.js` 0x1b3a1e)
+    //      · 안 걸리는 것 = ch4 폭풍(회청 h .57) · ch10 천상(금 h .15) · ch13 단풍(적갈 h .07)
+    //        — 색상이 초록이 아니면 원래 잔디밭으로 안 읽히므로 팔레트를 그대로 살린다.
+    //      · forest kin 이 아닌 바이옴(사막·설원·용암·마법·바위와 그 파생)은 애초에 잔디가 없다.
+    //    ⚠️ `BIOMES` 표의 `tint` 와 안 싸운다 — tint 는 **구운 알베도 텍스처**를 물들이고 여기는
+    //       **재질 color** 를 옮긴다(곱해지는 두 층이라 늪지의 탁한 결은 그대로 산다).
+    // 🚨 **호출부는 `terrainMat.color` 하나뿐이어야 한다.** gC 를 통째로 이 값으로 바꾸면 잎·능선이
+    //    같이 갈색이 된다(setTheme 의 해당 주석 참조).
+    // 🚨 **명도는 HSL 의 `l` 이 아니라 상대 휘도(0.2126/0.7152/0.0722)를 보존한다.** 처음엔 `l` 을
+    //    그대로 물려줬는데, 같은 `l` 이라도 **초록은 휘도 계수가 0.7152 라 갈색보다 훨씬 밝다** —
+    //    실측으로 초원 지면 휘도가 0.362 → 0.305 (−16%) 로 떨어졌고, 그 한 방에
+    //    `probe-hero-value` 의 '영웅 ↔ 배경 명도 델타'가 48.7 → 27.1 로 무너져 **영웅이 배경에
+    //    녹았다**(비평가 처방 ≥45). 색상만 옮기고 밝기는 그대로 두는 게 맞다 — `l` 을 1.10~1.22 배
+    //    올려 휘도를 맞춘다(이분 탐색 24회, `setTheme` 당 1회라 비용은 무시할 수준).
+    soilOf(gC, biome) {
+        if (this.bkin(biome) !== 'forest') return gC;
+        const b = gC.getHSL({ h: 0, s: 0, l: 0 });
+        if (b.h < 0.17 || b.h > 0.45) return gC;
+        const sat = Math.min(b.s * 0.62, 0.30);
+        const Y = (c) => c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
+        const target = Y(gC), out = new THREE.Color();
+        let lo = 0, hi = 1;
+        for (let i = 0; i < 24; i++) {
+            const m = (lo + hi) / 2;
+            out.setHSL(0.095, sat, m);                // 0.095 ≈ 34° 마른 흙
+            if (Y(out) < target) lo = m; else hi = m;
+        }
+        return out.setHSL(0.095, sat, (lo + hi) / 2);
+    },
     leafSet(gC, dF) {
         const O = Scene3D.LEAF_OFF;
         return {
@@ -17223,7 +17287,7 @@ const Scene3D = {
     },
 
     previewBuild() {
-        const t = CHAPTER_THEMES[0];        // 항상 1챕터 잔디 — 현재 챕터와 무관 (사용자 지시 ①)
+        const t = CHAPTER_THEMES[0];        // 항상 1챕터(초원) — 현재 챕터와 무관 (사용자 지시 ①)
         const g = this.previewGrade(t);
         this._pvGrade = g;
         const sc = new THREE.Scene();
@@ -17244,7 +17308,9 @@ const Scene3D = {
         const nrm = gt.normal.clone(); nrm.needsUpdate = true;
         map.repeat.set(12, 6); nrm.repeat.set(12, 6);
         const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 40), new THREE.MeshPhongMaterial({
-            color: g.ground, shininess: 0, map, normalMap: nrm, normalScale: new THREE.Vector2(0.7, 0.7),
+            // 🌾 본편과 **같은 보정**을 탄다(`soilOf`) — 여기만 gC 를 그대로 쓰면 팝업 미니 씬만
+            //    초록 잔디밭으로 남는다(`pinfo-preview-leaf-black` 과 같은 '표가 두 곳' 함정).
+            color: this.soilOf(g.ground, 'forest'), shininess: 0, map, normalMap: nrm, normalScale: new THREE.Vector2(0.7, 0.7),
         }));
         ground.rotation.x = -Math.PI / 2;
         sc.add(ground);

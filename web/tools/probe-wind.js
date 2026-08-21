@@ -30,7 +30,12 @@ const THEMES = {
 //   rock   = 바위뿐 + 골드 야생화 악센트(셰이더 바람만) → 소품 회전 0, 풀 재질 1.
 //   snow   = 눈 덮인 침엽수 → 흔들린다. lava = 죽은 나무 → 흔들린다.
 const EXPECT = {
-    forest: { sway: true, grass: true, crystal: false },
+    // 🌾 forest 의 `grass` 를 true → **false** 로 (background-grass-road-cleanup, 사용자 지시
+    //    2026-08-21 "배경에 잔디 다없애기."). 이 칸이 재던 '풀 바람 재질'은 forest 주 스캐터가
+    //    풀 포기일 때만 존재했다 — 지시로 그 풀을 걷어냈으므로 재질이 0 인 게 **정상**이다.
+    //    (나무·꽃 흔들림은 `sway` 칸이 따로 지키므로 바람 자체가 죽은 건 아니다. rock 은 골드
+    //     야생화 악센트가 여전히 흔들려 grass:true 를 유지한다.)
+    forest: { sway: true, grass: false, crystal: false },
     desert: { sway: false, grass: false, crystal: false },
     rock: { sway: false, grass: true, crystal: false },
     snow: { sway: true, grass: false, crystal: false },

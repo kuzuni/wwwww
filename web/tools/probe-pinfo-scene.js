@@ -85,7 +85,11 @@ const say = (ok, msg) => { if (!ok) fails++; console.log(`${ok ? 'OK  ' : 'FAIL'
     say(move.a.knee !== move.b.knee || move.b.knee !== move.c.knee,
         `⑸ 다리 관절이 실제로 움직인다 — kneeL.rx ${move.a.knee} → ${move.b.knee} → ${move.c.knee}`);
 
-    // ── ⑹ 잔디 맵인가: 캔버스 화소로 확인(초록 지면 + 하늘색 하늘) ──
+    // ── ⑹ 초원 맵인가: 캔버스 화소로 확인(흙 지면 + 하늘색 하늘) ──
+    // 🌾 **기준을 '초록 우세 ≥12%' → '난색(흙) 우세 ≥12%' 로 바꿨다** (background-grass-road-cleanup,
+    //    사용자 지시 2026-08-21 "배경에 잔디 다없애기."). 이 자가 재던 초록은 **잔디 지면**이었고
+    //    그 잔디를 지시로 걷어냈으므로 옛 기준은 지시와 정면으로 어긋난다(느슨하게 푼 게 아니라
+    //    같은 강도로 대상을 옮긴 것이다). 잎·능선은 여전히 초록이라 초록이 0 이 되지는 않는다.
     await page.evaluate(() => { for (let i = 0; i < 12; i++) Scene3D.previewTick(1 / 60); });
     const shot = await page.locator('#pinfo-scene').screenshot();
     fs.writeFileSync(path.join(OUT, 'pinfo-scene.png'), shot);
@@ -94,16 +98,17 @@ const say = (ok, msg) => { if (!ok) fails++; console.log(`${ok ? 'OK  ' : 'FAIL'
         const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
         const x = c.getContext('2d'); x.drawImage(im, 0, 0);
         const d = x.getImageData(0, 0, c.width, c.height).data;
-        let green = 0, red = 0, n = 0;
+        let green = 0, soil = 0, red = 0, n = 0;
         for (let i = 0; i < d.length; i += 4) {
             const r = d[i], g = d[i + 1], b = d[i + 2];
-            if (g > r + 12 && g > b + 12) green++;      // 초록 우세(잔디·잎)
+            if (g > r + 12 && g > b + 12) green++;      // 초록 우세(잎·원경 능선)
+            if (r >= g + 4 && g > b + 14 && r > b + 24) soil++;  // 난색 흙 우세(지면·도로) — 붉은 우세와 겹치지 않게 r-g 는 작게
             if (r > g + 30 && r > b + 30) red++;        // 붉은 우세(용암)
             n++;
         }
-        return { greenPct: +(green / n * 100).toFixed(2), redPct: +(red / n * 100).toFixed(2), n };
+        return { greenPct: +(green / n * 100).toFixed(2), soilPct: +(soil / n * 100).toFixed(2), redPct: +(red / n * 100).toFixed(2), n };
     }, 'data:image/png;base64,' + shot.toString('base64'));
-    say(hue.greenPct >= 12, `⑹ 잔디 맵이다 — 초록 우세 화소 ${hue.greenPct}% (기준 ≥12%)`);
+    say(hue.soilPct >= 12, `⑹ 초원(흙 지면) 맵이다 — 난색 흙 우세 화소 ${hue.soilPct}% (기준 ≥12%, 잔디 제거 후 기준)`);
     say(hue.redPct <= 3, `⑹ 용암 맵이 아니다 — 붉은 우세 화소 ${hue.redPct}% (기준 ≤3%, 현재 챕터는 9 용암)`);
 
     // ── ⑺ 팝업을 닫으면 루프가 끊기는가(안 끊으면 안 보이는 씬이 계속 GPU 를 먹는다) ──
