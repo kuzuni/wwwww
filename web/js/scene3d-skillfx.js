@@ -91,6 +91,28 @@
     // 퇴장 — 씬에서 떼기만 한다(지오·재질은 프로토타입 공유물이라 해제하면 다음 시전이 깨진다).
     fxActorFree(a) { if (a && a.g && a.g.parent) a.g.parent.remove(a.g); },
 
+    // 🚨 지원형 소환체(힐·버프)의 **안전 정박대** (skill-actor-clear-zone, 사용자 지시 2026-08-22:
+    //    "모든 스킬 사용할 때 소환체가 플레이어·탈것·펫에 겹치거나 가리거나 가려지지 않게").
+    //    셋의 점유 대역은 전부 음수~0 x 다: 영웅 실루엣 x[-1.91,0] · 탈것 풋프린트 x[-1.89,-0.77] ·
+    //    펫 대열(PET_ROW0/PET_ARC 전부 음수 x). 따라서 **양수 x(전방-우측)** 만이 셋 모두를
+    //    비켜 가는 공통 안전지대다. 방패 골렘(hero.x+0.95)이 이미 이 대역에 서서 깨끗하게 읽혀
+    //    기준으로 삼는다. 버프 전달 스트림(`mcBlockStream`)은 여기서 **영웅으로 되돌려 쏘면**
+    //    되므로 '영웅에게 걸렸다'는 인과는 그대로 산다. 종전엔 지원 소환체가 hero.x−0.6~−1.1
+    //    (탈것·펫 위)에 서서 사용자 지목대로 서로 가렸다.
+    // ⚠️ 여기서 뒤로(−x, 음수) 되돌리지 말 것 — 그 순간 다시 탈것/펫과 겹친다(같은 실수 반복 금지).
+    // 📏 값 근거(2026-08-22 인게임 실측, mythic Dino 탑승 + mythic 펫 3): heroG.position.x=0.35 이고
+    //    **영웅 bbox 우단이 world x=1.12**(무기가 앞으로 뻗음)까지 간다. 탈것 우단은 −0.57, 펫은 전부
+    //    x<−1.77 이라 좌측이다. 따라서 소환체(폭 반경 ~0.7)가 영웅 우단을 비키려면 중심이
+    //    world ≳ 1.12+0.7+여유 ≈ 2.0 이어야 한다 → `hero.x(0.35)+1.8 = 2.15`. 투영 실측상 world x=3.65
+    //    까지도 3D 캔버스 안(NDC 0.6)이라 화면 밖 잘림 걱정은 없다. 1.2(첫 시도)는 영웅 무기에 먹혔다.
+    SUPPORT_STAGE_X: 1.8,     // 영웅 앞 안전 정박 x(양수 = 전방-우측). 영웅 bbox 우단 1.12 + 소환체 폭까지 넘어섬.
+    SUPPORT_STAGE_DZ: 0.6,    // 여러 체가 설 때 z 대열 간격(서로 안 겹치게)
+    // n 체의 지원 소환체 중 i번째가 설 자리(영웅 기준). z 로 부채꼴 벌려 대열이 겹치지 않게.
+    supportSpot(hero, i, n) {
+        const mid = (n - 1) / 2;
+        return new THREE.Vector3(hero.x + this.SUPPORT_STAGE_X + i * 0.35, 0, hero.z + (i - mid) * this.SUPPORT_STAGE_DZ);
+    },
+
     // 타깃 자리들 — 다 죽었으면 영웅 앞쪽을 쓴다(허공에 연출하지 않기 위해).
     mcSpots(targetIds) {
         const live = (targetIds || []).map(id => this.enemyMap.get(id)).filter(Boolean);
@@ -261,8 +283,9 @@
     mcMedicSprite(color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
         const hero = this.heroG.position.clone();
-        const from = new THREE.Vector3(hero.x - 1.9, 1.9, hero.z - 1.2);
-        const at = new THREE.Vector3(hero.x - 0.62, 1.02, hero.z - 0.42);
+        // 전방-우측 안전 정박대(SUPPORT_STAGE) — 종전 hero.x−0.62 는 영웅 몸통·탈것 위였다.
+        const at = new THREE.Vector3(hero.x + this.SUPPORT_STAGE_X, 1.02, hero.z - 0.3);
+        const from = new THREE.Vector3(at.x + 0.7, 1.9, at.z - 0.6);
         const a = this.fxActor('medic', { scale: 1.0 + t * 0.05, pos: from, yaw: this.CREATURE_YAW });
         if (!a) return;
         SFX.healDescend(t);
@@ -283,7 +306,7 @@
             }, () => {
                 this.addAnim(0.36, k => {
                     this.mcFlap(a, (ph += 1.1), 0.9);
-                    a.g.position.set(at.x - k * 1.2, at.y + k * 1.7, at.z - k * 0.8);
+                    a.g.position.set(at.x + k * 1.2, at.y + k * 1.7, at.z - k * 0.8);   // 전방-우측으로 이탈(영웅 반대편)
                     a.g.scale.setScalar((1 + t * 0.05) * (1 - 0.8 * k * k));
                 }, () => this.fxActorFree(a));
             });
@@ -294,7 +317,8 @@
     mcImpFireball(targetIds, color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const hero = this.heroG.position.clone();
-        const at = new THREE.Vector3(hero.x + 0.55, 1.15, hero.z - 0.95);
+        // 전방-우측 안전 정박대 — 종전 hero.x+0.55(world 0.90)는 영웅 bbox(우단 1.12) 머리 위였다.
+        const at = new THREE.Vector3(hero.x + this.SUPPORT_STAGE_X - 0.35, 1.15, hero.z - 0.6);
         const a = this.fxActor('imp', { scale: 1.0 + t * 0.07, pos: new THREE.Vector3(at.x, at.y + 1.6, at.z - 0.6), yaw: this.CREATURE_YAW });
         if (!a) return;
         let ph = 0;
@@ -357,7 +381,8 @@
         const hero = this.heroG.position.clone();
         const bots = [];
         for (let i = 0; i < 3; i++) {
-            const at = new THREE.Vector3(hero.x - 0.75, 0, hero.z + (i - 1) * 0.85 - 0.25);
+            // 사격선 = 영웅 앞 안전 정박대(+x). 종전 hero.x−0.75 는 탈것 좌단 위였다. 앞에서 적(+x)을 쏜다.
+            const at = new THREE.Vector3(hero.x + this.SUPPORT_STAGE_X - 0.2, 0, hero.z + (i - 1) * 0.85 - 0.1);
             const a = this.fxActor('archer', { scale: 0.95, pos: new THREE.Vector3(at.x, -1.8, at.z), yaw: this.CREATURE_YAW });
             if (!a) break;
             bots.push(a);
@@ -396,7 +421,9 @@
     mcOrcHorn(color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 1 : tier));
         const hero = this.heroG.position.clone();
-        const at = new THREE.Vector3(hero.x - 0.95, 0, hero.z - 0.75);
+        // 전방-우측 안전 정박대 — 종전 hero.x−0.95 는 탈것 풋프린트(x[-1.89,-0.77]) 한복판이라
+        // 대장이 700ms 넘게 탈것/영웅 위에 서서 통째로 가렸다(사용자 지목 주범).
+        const at = new THREE.Vector3(hero.x + this.SUPPORT_STAGE_X, 0, hero.z - 0.35);
         const a = this.fxActor('orcchief', { scale: 1.0 + t * 0.05, pos: new THREE.Vector3(at.x, 2.2, at.z), yaw: this.CREATURE_YAW });
         if (!a) return;
         this.addAnim(0.17, k => {
@@ -533,7 +560,8 @@
         SFX.healDescend(t);
         for (let i = 0; i < 2; i++) {
             const s = i ? 1 : -1;
-            const at = new THREE.Vector3(hero.x + s * 0.15, 1.55, hero.z + s * 0.95);
+            // 전방-우측 안전 정박대에 두 천사를 z 로 벌려 세운다 — 종전 hero.x±0.15 는 영웅 몸통 위였다.
+            const at = new THREE.Vector3(hero.x + this.SUPPORT_STAGE_X + i * 0.5, 1.55, hero.z + s * 0.55);
             const a = this.fxActor('angel', { scale: 1.0 + t * 0.05, pos: new THREE.Vector3(at.x, at.y + 2.6, at.z), yaw: -s * this.CREATURE_YAW });
             if (!a) return;
             let ph = i * 2;
@@ -622,9 +650,13 @@
         const t = Math.max(0, Math.min(5, tier === undefined ? 3 : tier));
         const hero = this.heroG.position.clone();
         SFX.auraRise(t);
+        // 성역 원진을 **영웅 앞(+x)** 으로 통째로 밀어 세운다 — 종전엔 영웅을 감싸는 원이라
+        // 석상 4기 중 2기가 영웅/탈것 위에 섰다. 원 중심을 SUPPORT_STAGE 너머로 옮기고 반경(rx 0.85)을
+        // 줄여, 가장 가까운 석상(cx−rx)도 영웅 우단(1.12)을 비킨다: 2.65−0.85=1.80.
+        const cx = hero.x + this.SUPPORT_STAGE_X + 0.5;
         for (let i = 0; i < 4; i++) {
             const ang = Math.PI / 4 + i * Math.PI / 2;
-            const at = new THREE.Vector3(hero.x + Math.cos(ang) * 1.25, 0, hero.z + Math.sin(ang) * 0.95);
+            const at = new THREE.Vector3(cx + Math.cos(ang) * 0.85, 0, hero.z + Math.sin(ang) * 0.8);
             setTimeout(() => {
                 const a = this.fxActor('statue', { scale: 0.95 + t * 0.05, pos: new THREE.Vector3(at.x, -1.9, at.z), yaw: Math.atan2(hero.x - at.x, hero.z - at.z) });
                 if (!a) return;
@@ -738,7 +770,9 @@
     mcClockBot(color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 4 : tier));
         const hero = this.heroG.position.clone();
-        const at = new THREE.Vector3(hero.x - 0.85, 0, hero.z + 0.9);
+        // 전방-우측 안전 정박대 — 종전 hero.x−0.85·z+0.9 는 앞줄 펫 자리([-1.05,1.15]) 위였다.
+        // 기어가 봇 둘레 r0.8 로 도므로 봇을 +0.3 더 밀어 가장 안쪽 기어(at.x−0.8)도 영웅 우단을 비킨다.
+        const at = new THREE.Vector3(hero.x + this.SUPPORT_STAGE_X + 0.3, 0, hero.z + 0.2);
         const a = this.fxActor('clockbot', { scale: 1.0 + t * 0.05, pos: new THREE.Vector3(at.x, 2.4, at.z), yaw: this.CREATURE_YAW });
         if (!a) return;
         SFX.auraRise(t);
@@ -748,7 +782,7 @@
             // 영웅 둘레를 역행한다. 시간이 '거꾸로 간다'를 실체로 보여 주는 자리.
             const gears = [];
             for (let i = 0; i < 5; i++) {
-                const g = this.fxActor('shuriken', { scale: 0.85, pos: new THREE.Vector3(hero.x, 1.1, hero.z), yaw: 0 });
+                const g = this.fxActor('shuriken', { scale: 0.85, pos: new THREE.Vector3(at.x, 1.1, at.z), yaw: 0 });
                 if (!g) break;
                 gears.push({ g, a0: (i / 5) * Math.PI * 2 });
             }
@@ -758,7 +792,8 @@
                 if (a.P.head) a.P.head.rotation.y = Math.sin(k * Math.PI * 2) * 0.3;
                 for (const gr of gears) {
                     const ang = gr.a0 - k * 6.0;                    // 역행(-) — 시간 왜곡의 부호
-                    gr.g.g.position.set(hero.x + Math.cos(ang) * 0.95, 0.6 + ((gr.a0 / 6.28) * 1.2), hero.z + Math.sin(ang) * 0.7);
+                    // 기어는 **시계봇 둘레**를 돈다(종전엔 영웅 둘레라 영웅/탈것/펫을 관통했다).
+                    gr.g.g.position.set(at.x + Math.cos(ang) * 0.8, 0.6 + ((gr.a0 / 6.28) * 1.2), at.z + Math.sin(ang) * 0.65);
                     gr.g.g.rotation.set(1.35, -k * 9, 0);
                     gr.g.g.scale.setScalar(0.85 * (1 - 0.35 * k));
                 }
@@ -776,14 +811,17 @@
         const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
         const spots = this.mcSpots(targetIds);
         const hero = this.heroG.position.clone();
-        const at = new THREE.Vector3(hero.x - 1.1, 2.5, hero.z - 1.5);
-        const a = this.fxActor('firedragon', { scale: 1.25 + t * 0.05, pos: new THREE.Vector3(at.x - 4.2, 3.4, at.z - 2.2), yaw: this.CREATURE_YAW });
+        // 전방-우측 상공에 정박 — 종전 hero.x−1.1 은 영웅/펫 위 상공이라 위에서 덮어 가렸다.
+        // 화룡은 적(+x)을 향해 브레스를 뿜으므로 앞쪽 정박이 안무상으로도 자연스럽다.
+        // ⚠️ 화룡은 몸이 길어(scale ~1.5) 꼬리가 −x 로 뻗는다 — 정박점을 +1.2 더 밀어 꼬리 끝도 영웅을 비킨다.
+        const at = new THREE.Vector3(hero.x + this.SUPPORT_STAGE_X + 1.2, 2.5, hero.z - 0.4);
+        const a = this.fxActor('firedragon', { scale: 1.25 + t * 0.05, pos: new THREE.Vector3(at.x + 4.0, 3.4, at.z - 2.0), yaw: this.CREATURE_YAW });
         if (!a) return;
         let ph = 0;
         SFX.mawRoar(t);
-        this.addAnim(0.34, k => {                            // 강림 — 화면 밖에서 날아 들어온다
+        this.addAnim(0.34, k => {                            // 강림 — 화면 밖(우측 상공)에서 날아 들어온다
             const e = 1 - Math.pow(1 - k, 3);
-            a.g.position.set(at.x - 4.2 * (1 - e), 3.4 - 1.0 * e, at.z - 2.2 * (1 - e));
+            a.g.position.set(at.x + 4.0 * (1 - e), 3.4 - 1.0 * e, at.z - 2.0 * (1 - e));
             this.mcFlap(a, (ph += 0.9), 0.62);
             if (a.P.tail) a.P.tail.rotation.y = Math.sin(ph * 0.6) * 0.3;
         }, () => {
@@ -870,7 +908,9 @@
     mcShieldGolem(color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 5 : tier));
         const hero = this.heroG.position.clone();
-        const at = new THREE.Vector3(hero.x + 0.95, 0, hero.z + 0.15);
+        // 전방-우측 안전 정박대(다른 지원 소환체와 통일) — 종전 hero.x+0.95(world 1.30)는 영웅 우단
+        // (1.12)에 골렘 폭이 걸쳤다. −0.35 만 당겨 '영웅 앞'을 유지하면서 우단을 넉넉히 비킨다.
+        const at = new THREE.Vector3(hero.x + this.SUPPORT_STAGE_X - 0.35, 0, hero.z + 0.15);
         const a = this.fxActor('shieldgolem', { scale: 1.05 + t * 0.05, pos: new THREE.Vector3(at.x, -2.4, at.z), yaw: this.CREATURE_YAW });
         if (!a) return;
         SFX.auraRise(t);
