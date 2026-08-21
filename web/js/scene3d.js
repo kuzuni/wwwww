@@ -740,36 +740,31 @@ const Scene3D = {
         return g;
     },
 
-    // ---- 플레이어 전용 검정 아웃라인 (인버티드 헐) ----
-    // 과거 전역 인버티드 헐은 사용자 지시로 삭제됐고(`setShadow`·`isOutline` 잔존 코드), 여기선
-    // **영웅 리그에만** 되살린다. 각 파츠 메시의 **자식**으로 뒷면(BackSide) 검정 셸을 붙여
-    // 본/애니메이션 변형을 그대로 따라가게 한다(스키닝이 아니라 그룹 계층이라 성립).
-    // 🚨 확장 방식: **바운딩박스 중심 기준 균일 스케일**. 법선 방향 확장은 복셀 큐브에선 실패한다 —
-    //    큐브는 면 법선이 납작해 실루엣(시선에 수직인) 면이 BackSide 컬링으로 사라지고, 면끼리
-    //    벌어져 셸이 새는 게 실측으로 확인됐다(검정 화소 0). 균일 스케일은 큐브를 통째로 상사확대해
-    //    수밀 유지 → 뒤로 커진 뒷면이 실루엣 밖으로 삐져나와 검은 테두리가 된다.
+    // ---- 플레이어/적/펫/탈것 검정 아웃라인 (인버티드 헐) ----
+    // 각 파츠 메시의 **자식**으로 뒷면(BackSide) 검정 셸을 붙여 본/애니메이션 변형을 그대로 따라가게
+    // 한다(스키닝이 아니라 그룹 계층이라 성립).
+    // 🚨 확장 방식: **축별(비균일) 스케일로 각 축을 동일한 world 폭 `OUTLINE_E` 만큼 부풀린다.**
+    //    → 두께가 파츠 크기·형태에 무관하게 **일정**하다(종전 '균일 스케일 k배'는 축·크기에 비례해
+    //    큰/긴 파츠가 두꺼웠다 — 사용자 지적). 3D 스케일이라 뒷면이 실제로 뒤·밖으로 커져 BackSide
+    //    실루엣이 확실히 삐져나온다(클립공간 XY 확장은 복셀에서 뒷면이 안 찍혀 실패 — 실측 deltaBlack 0).
+    OUTLINE_E: 0.02,   // 각 축 **한쪽** 확장 폭(world 유닛). 카메라 고정이라 화면 두께도 일정. 굵게: 0.03~0.05
     heroOutlineMat() {
         if (this._outlineMat) return this._outlineMat;
-        // fog:false — 안개가 검정 테두리를 배경색으로 씻어 윤곽이 흐려지는 것 방지
+        // fog:false — 안개가 검정 테두리를 배경색으로 씻는 것 방지
         const m = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide, fog: false });
-        // 🚨 **블룸 금지 태그(알파 0)** — 피격/처치 때 밝은 히트 플래시·플레어의 블룸 헐레이션이 검정
-        //    아웃라인 위로 번져 회색/주황으로 물드는 게 "피격하면 색 바뀜"의 진짜 원인이었다(headless
-        //    실측: 블룸 끄면 검정 유지, 켜면 씻김). ProChar.noBloom 이 gl_FragColor.a=0 을 찍고, 아래
-        //    initPost 컴포짓이 **알파 태그 픽셀엔 블룸을 안 더하도록** 고쳐서 아웃라인은 항상 순검정으로 남는다.
+        // 🚨 **블룸 금지 태그(알파 0)** — 밝은 히트 플래시·플레어의 블룸 헐레이션이 검정 아웃라인 위로
+        //    번져 회색/주황으로 물드는 걸 막는다(initPost 컴포짓이 알파 태그 픽셀엔 블룸을 안 더한다).
         if (typeof ProChar !== 'undefined' && ProChar.noBloom) ProChar.noBloom(m);
         this._outlineMat = m;
         return this._outlineMat;
     },
     // 캐릭터 트리에 빠진 검정 셸을 채운다(멱등·자가치유). 파츠가 뒤늦게(맨살 박스 몸통) 혹은
     // 동적으로(장비 교체·펫 소환·적 스폰) 생겨도 다음 `ensureOutlines()` 에서 자동으로 윤곽이 붙는다.
-    //  - 두께: 파츠 **바운딩박스 중심 기준 균일 스케일**(k). 법선확장은 복셀 큐브에서 실루엣 면이
-    //    BackSide 컬링돼 검정 0 이 나오는 게 실측됐다 → 상사확대 헐로 수밀 유지.
+    //  - 두께: **축별 스케일로 각 축을 OUTLINE_E 만큼**(world 고정) 부풀린다 → 크기·형태 무관 일정.
     //  - 제외: 이미 셸 보유 · 아웃라인 셸 자신 · AO 링 · **투명/ depthWrite off**(블롭 그림자·데칼·FX·HP바).
-    applyOutlineTree(root, k) {
+    applyOutlineTree(root) {
         if (!root) return;
-        k = k || 1.15;  // 두께(상사확대). ⚠️ k>1 이어야 몸 밖으로 삐져나온다(1.0=투명, <1=아예 사라짐).
-                        // 스윕: 1.15=아주 얇음·1.4=중간·1.6=굵음·1.9=뭉개짐. 1.15 채택(사용자 "얇게 / 0.8").
-                        // 균일스케일이라 큰 파츠일수록 굵다.
+        const E = this.OUTLINE_E, tmp = new THREE.Vector3();
         root.traverse(o => {
             if (!o.isMesh || o.userData.isOutline || o.userData.aoRing || o.userData.hasOutlineShell) return;
             if (!o.geometry) return;
@@ -777,14 +772,18 @@ const Scene3D = {
             const skip = m => !m || m.transparent || m.depthWrite === false;
             if (Array.isArray(mat) ? mat.some(skip) : skip(mat)) return;   // 그림자 블롭·데칼·FX·HP바 제외
             if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
-            const c = o.geometry.boundingBox.getCenter(new THREE.Vector3());   // 지오메트리 중심
+            const bb = o.geometry.boundingBox, c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(tmp);
             const shell = new THREE.Mesh(o.geometry, this.heroOutlineMat());   // 지오메트리·재질 공유
             shell.userData.isOutline = true;
-            shell.userData.sharedGeometry = true;   // 파츠 dispose 루프가 원본 지오메트리를 건드리지 않게
+            shell.userData.sharedGeometry = true;   // 원본 공유 — dispose 루프가 원본 지오를 지우지 않게
             shell.userData.sharedMaterial = true;
             shell.castShadow = false; shell.receiveShadow = false;
-            shell.scale.setScalar(k);
-            shell.position.copy(c).multiplyScalar(1 - k);  // 중심 c 기준 스케일(오프셋 지오메트리 정렬)
+            // 축별 스케일: 각 축을 양쪽으로 E 씩 키운다((size+2E)/size). 납작한 축(size≈0: 얼굴 판)은 1로 둔다.
+            const sx = sz.x > 1e-4 ? (sz.x + 2 * E) / sz.x : 1;
+            const sy = sz.y > 1e-4 ? (sz.y + 2 * E) / sz.y : 1;
+            const sz2 = sz.z > 1e-4 ? (sz.z + 2 * E) / sz.z : 1;
+            shell.scale.set(sx, sy, sz2);
+            shell.position.set(c.x * (1 - sx), c.y * (1 - sy), c.z * (1 - sz2));  // 중심 c 기준 축별 스케일
             shell.renderOrder = (o.renderOrder || 0) - 1;  // 셸 먼저 → 앞면 메시가 내부를 덮어씀
             o.add(shell);                                  // 자식 = 부모 파츠 변형을 그대로 상속
             o.userData.hasOutlineShell = true;
