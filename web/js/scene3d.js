@@ -5034,10 +5034,22 @@ const Scene3D = {
     },
 
     // 무기별 파지: weaponG 로컬 회전(손이 자루를 감싸는 각) + 다관절 거치 자세(본별 rx 가산) + 활계는 왼손 파지 (사용자 지시: 무기 쥔 모양 차별화)
+    // 🔪 **rot[1] = 날 롤(자루 축 회전)** — 근접 무기에서는 이 자리가 x·z 와 성격이 다르다.
+    //    무기 메시는 전부 **자루/검신이 로컬 +y**, **날 폭이 로컬 x(벼린 앞날이 +x)**, **날 두께가
+    //    로컬 z** 로 서 있다(makeWeapon 의 검신 복셀: x −2..1 = 4칸 폭 / z −1..0 = 2칸 두께,
+    //    `x === 1 ? edgeC` 가 벼린 앞날). 그래서 **넓적한 면의 법선은 로컬 ±z** 다.
+    //    → 자루 축(로컬 y)으로 도는 rot[1] 만이 "날이 어디를 향하나"를 정한다. x(=MC_CARRY_X, 앞으로
+    //      드는 각)·z 는 자루가 어디를 가리키나를 정할 뿐 날 방향과 무관하다.
+    //    ⚠️ 그래서 applyWeaponGrip 은 rot[1] 을 오일러 중간항이 아니라 **쿼터니언 우측곱(로컬 y 축)**
+    //      으로 먹인다 — 오일러 XYZ 순서에선 Ry 가 Rz 뒤에 와서 자루 방향까지 흔든다(승인된 각 훼손).
     WEAPON_GRIP: {
-        sword:    { rot: [0.22, 0, -0.3], pose: { elbowR: -0.3 } },                       // 날을 어깨 바깥·전방으로 기울여 견갑 관통 해소 (비평가 7.1 11번 '꽂힘도 쥠도 아님')
-        dagger:   { rot: [0.22, 0, -0.1], pos: [0, -0.04, 0], pose: { elbowR: -0.5 } },    // 팔꿈치 굽혀 세워 들기, 자루를 주먹 속으로
-        axe:      { rot: [0.95, 0, -0.15], pose: { elbowR: -0.85 } },                      // 어깨 걸침 레디 캐리 — 자루 뒤로 기울여 헤드가 어깨 뒤·위 (수평 돌출 금지)
+        // 날 계열 롤 = −π/2. 근거: 종전 0 에서는 검신의 넓적한 면 법선(로컬 +z)이 월드 −y(바로 아래)를
+        // 가리켜 **칼이 도마처럼 눕는다**(사용자 지적 "넙적한 면으로 때리는 느낌"). −π/2 를 주면 앞날(+x)이
+        // 그 자리(아래·진행 방향)로 오고 넓적한 면은 좌우를 본다. 스윙 실측(probe: 검끝 속도 벡터에서
+        // 자루 성분을 뺀 방향 ↔ 앞날 사이 각)과도 일치한다 — chop −93°, slam −90°, double −98°.
+        sword:    { rot: [0.22, -Math.PI / 2, -0.3], pose: { elbowR: -0.3 } },             // 날을 어깨 바깥·전방으로 기울여 견갑 관통 해소 (비평가 7.1 11번 '꽂힘도 쥠도 아님') + 앞날 세우기
+        dagger:   { rot: [0.22, -Math.PI / 2, -0.1], pos: [0, -0.04, 0], pose: { elbowR: -0.5 } }, // 팔꿈치 굽혀 세워 들기, 자루를 주먹 속으로 + 앞날 세우기
+        axe:      { rot: [0.95, -Math.PI / 2, -0.15], pose: { elbowR: -0.85 } },           // 어깨 걸침 레디 캐리 — 자루 뒤로 기울여 헤드가 어깨 뒤·위 (수평 돌출 금지) + 도끼날 세우기
         hammer:   { rot: [0.95, 0, -0.15], pose: { elbowR: -0.85 } },                      // 어깨 걸침 레디 캐리 — 자루 뒤로 기울여 헤드가 어깨 뒤·위 (수평 돌출 금지)
         club:     { rot: [0.14, 0, -0.08], pose: { elbowR: -0.3 } },
         spear:    { rot: [0.65, 0, 0], pose: { elbowR: -0.3 } },                           // 수직으로 세워 들기 (기수 자세) — restX·팔꿈치 전방 기울기 상쇄
@@ -5048,8 +5060,8 @@ const Scene3D = {
         thrown:   { rot: [1.95, 0, 0], pose: { shoulderR: -1.45, elbowR: -0.5 } },         // 귀 옆 코킹 — 팔 상승분을 상쇄해 헤드가 위·뒤, 던질 준비
         // 시대별 무기 분리로 늘어난 계열 (키는 shape — gripOf가 id → shape 순으로 찾는다)
         mace:     { rot: [0.95, 0, -0.15], pose: { elbowR: -0.85 } },                      // 해머와 같은 어깨 걸침 레디 캐리
-        rapier:   { rot: [0.18, 0, -0.22], pose: { elbowR: -0.4 } },                       // 가늘고 길어 검보다 세워 들기
-        scythe:   { rot: [0.62, 0, 0], pose: { elbowR: -0.3 } },                           // 장병기 — 창처럼 세워 들기
+        rapier:   { rot: [0.18, 0, -0.22], pose: { elbowR: -0.4 } },                       // 가늘고 길어 검보다 세워 들기. 롤 0 유지 — 날이 0.032×0.032 **정사각 단면**(찌르기 전용)이라 넓적한 면이 아예 없다. 컵 힐트·너클 보우 방향만 바뀌므로 승인된 실루엣을 건드리지 않는다
+        scythe:   { rot: [0.62, -Math.PI / 2, 0], pose: { elbowR: -0.3 } },                // 장병기 — 창처럼 세워 들기 + 낫날 세우기(갈고리 날판이 xy 평면이라 검과 같은 롤)
         sling:    { rot: [0.2, 0, 0], pose: { shoulderR: -0.5, elbowR: -0.7 } },           // 주머니를 아래로 늘어뜨린 대기 자세
         pistol:   { rot: [0, 0, 0], pose: { shoulderR: -0.45, elbowR: 0.25 } },            // 한 손 겨눔 — 총열이 짧아 팔을 더 편다
         rifle:    { rot: [0, 0, 0], pose: { shoulderR: -0.35, elbowR: 0.2 } },             // 기존 gun과 동일한 견착 겨눔
@@ -5179,7 +5191,21 @@ const Scene3D = {
         //      걸침 0.95 · 창 세워 들기 0.65)을 남기면 '마크처럼'이 무기마다 달라진다.
         //    ⚠️ 원거리(활·석궁·총·투척)는 제외 — 그쪽은 겨눔/시위 대기 자세가 파지 자체를 정의한다.
         const melee = !this.RANGED_SHAPES[weaponShape(this.wtypeId)];
-        this.weaponG.rotation.set(melee ? this.MC_CARRY_X : grip.rot[0], grip.rot[1], grip.rot[2]);
+        this.weaponG.rotation.set(melee ? this.MC_CARRY_X : grip.rot[0], melee ? 0 : grip.rot[1], grip.rot[2]);
+        // 🔪 **날 세우기(자루 축 롤)** — 사용자 지시 2026-08-21 "무기가 칼인데 넙적한 면으로 때리는
+        //    느낌임. 날카로운 부분으로 때리는 게 아니라." 자루 기울기(MC_CARRY_X)는 승인됐으므로
+        //    **건드리지 않고**, 자루 축(로컬 y)으로 도는 롤만 `WEAPON_GRIP[shape].rot[1]` 로 준다.
+        //    ⚠️ 오일러 XYZ 는 R = Rx·Ry·Rz 라 Ry 가 Rz **뒤에** 적용된다 — rot[2](자루 좌우 기울기)가
+        //      0 이 아닌 계열(검 −0.3, 도끼 −0.15, 단검 −0.1)에서는 오일러 중간항으로 롤을 주면 자루가
+        //      그 각만큼 옆으로 새 버린다(승인된 파지 훼손). 그래서 위에서 y 를 0 으로 세팅한 뒤
+        //      **쿼터니언 우측곱**으로 얹는다 — 우측곱은 정의상 '현재 로컬 축' 회전이라 자루 방향은
+        //      1도도 안 변하고 칼날만 자루를 축으로 돈다.
+        this._bladeRoll = melee ? (grip.rot[1] || 0) : 0;
+        if (this._bladeRoll) {
+            if (!this._rollAxis) { this._rollAxis = new THREE.Vector3(0, 1, 0); this._rollQ = new THREE.Quaternion(); }
+            this._rollQ.setFromAxisAngle(this._rollAxis, this._bladeRoll);
+            this.weaponG.quaternion.multiply(this._rollQ);   // 로컬 y(자루) 축 롤 — rotation 도 자동 동기화된다
+        }
         const sc = 2.44 * (grip.scale || 1); // 기본 2.44 = weapon-size-2x(사용자 지시 2026-08-19, 종전 1.22 의 ×2)
         this.weaponG.scale.setScalar(sc); // 기본 존재감 스케일 × 무기별 보정 (활계 과대 축소)
         // ⚠️ 파지 랩에는 **월드 자루 반경**(shaftR × sc)을 넘긴다 — 랩은 1/sc 역스케일로 손 크기를
@@ -5188,7 +5214,9 @@ const Scene3D = {
         if (this.heroRig) this.weaponG.add(this.makeGripWrap((grip.shaftR || 0.033) * sc, 1 / sc)); // 파지점 C자 랩 주먹 (refreshHeroEquip의 clearGroup이 수명 관리)
         // 🚨 공격이 끝나면 `resetArm`/`endAtk` 가 **이 값으로** 무기 각을 되돌린다 — 마크식 각을 여기
         //    안 넣으면 첫 공격 뒤부터 자루가 옛 수직 거치각으로 돌아가 파지가 무기마다 제각각이 된다.
-        this._gripRot = [melee ? this.MC_CARRY_X : grip.rot[0], grip.rot[1], grip.rot[2]];
+        //    ⚠️ 롤을 얹은 **합성 결과**를 그대로 읽어서 저장한다 — 표의 rot 을 그대로 쓰면 공격이 끝나는
+        //      순간 날이 다시 눕는다(쿼터니언 우측곱은 오일러 y 항과 값이 다르다).
+        this._gripRot = [this.weaponG.rotation.x, this.weaponG.rotation.y, this.weaponG.rotation.z];
         this._gripPos = gp;
     },
 
@@ -9083,17 +9111,39 @@ const Scene3D = {
     // "1.5배 키우고 플레이어 뒤에 놔라. x축으로 뒤로." 종전 '카메라 쪽(z+) 앞줄 부채꼴'을 후방
     // 종대로 갈았다. 깊이(z)는 여전히 **양수만** 쓴다 — z<=0 은 영웅 몸통에 깊이로 가리는 자리라는
     // 과거 실측(probe-pet-occlusion)이 그대로 유효하고, x 후방 배치는 z 를 건드릴 이유가 없다.
-    // z 대역은 0.35~2.6 안에서만 편다 — 전경 소품 사고 대역(z 2.6~2.8 관통, scene3d.js 근경 앵커
-    // 🚨 주석)과 z≥3.95 높이캡 전제를 침범하지 않는 상한이다.
+    // z 대역은 **화면에 들어와야 하는 앞 5자리를 0.35~1.30 안에서만** 편다 — 위로는 전경 소품 사고
+    // 대역(z 2.6~2.8 관통, scene3d.js 근경 앵커 🚨 주석)·z≥3.95 높이캡 전제가 막고, 실제로 더 빡빡한
+    // 상한은 **화면 밖 잘림**이다(아래 PET_ROW0 주석의 투영 규칙 — z 가 클수록 화면 왼쪽으로 크게
+    // 벌어진다). 6번째 이후 격자 칸은 z 2.2 까지 가지만 어차피 화면 보장 대상이 아니다.
+    // 🚨 **화면 밖으로 나가지 않는 상한이 있다** (사용자 지시 2026-08-21 "펫들은 너무 뒤에 있음.
+    //    화면에서 나갈 정도임"). 펫 조형이 새 박스 모델로 바뀌고 크기가 ×1.5 로 커지면서 예전 좌표
+    //    그대로도 3번째 펫이 NDC x −1.10(화면 왼쪽 밖)까지 밀려 잘려 나갔다 — 그래서 **거리만** 당긴다.
+    //    투영 실측(480×854, 3D 캔버스 480×424, 전 펫 mythic=최대 크기 가정)으로 얻은 규칙:
+    //      · 화면 왼쪽 한계 NDC x ≥ −1 ⇔ (펫 bbox 좌단 − camX) / (camZ − 펫 bbox 전단 z) ≳ −0.855.
+    //      · 즉 **z 가 클수록(카메라에 가까울수록) 같은 x 라도 화면 밖으로 더 크게 벌어진다.**
+    //        예전 3번 자리 (−2.45, 1.95) 가 잘린 주범이 이것 — x 보다 z 가 더 나쁘게 작용했다.
+    //      · 그래서 새 자리는 **x 를 0.3~0.9 당기고 z 를 0.6~0.65 낮춘다**(깊게 = 카메라에서 멀리).
+    //    반대쪽 한계도 있다: 영웅 실루엣은 NDC x −0.41~−0.03 이라 펫 오른쪽 끝이 −0.43 을 넘어서면
+    //    영웅을 가린다. 그래서 1번 자리는 x −1.35 보다 더 당기지 않는다(실측 우단 −0.418).
     PET_ROW0: {
-        mounted:  [[-1.85, 1.45], [-2.85, 0.80], [-2.75, 2.00]],
-        unmounted: [[-1.35, 1.30], [-2.35, 0.70], [-2.45, 1.95]],
+        mounted:  [[-1.65, 1.08], [-2.35, 0.50], [-2.25, 1.25]],
+        unmounted: [[-1.35, 1.00], [-2.10, 0.42], [-2.15, 1.30]],
     },
     // 4번째부터는 후방(−x) 격자 종대 — cols 개 z 슬롯(rz0 + k·rzStep)을 채우고 다음 행은 x 로
     // rxStep 더 물러난다. 홀수 행은 z 를 반 칸 밀어(지그재그) 같은 열끼리 일렬로 안 겹치게 한다.
-    // 화면 실측(2026-08-20 투영 스윕): sx −2.8 · z≤2.0 까지 NDC 안 — 4번째 이후는 어차피
-    // 화면 밖으로 밀려나는 수가 있고(종전 앞줄 호도 3행부터 그랬다), 겹침·결정성만 지킨다.
-    PET_ARC: { rear: true, rx0: 3.45, rxStep: 1.15, rz0: 0.35, rzStep: 0.64, cols: 4, mountedRx: 0.5, mountedRz: 0.1 },
+    // 화면 실측(2026-08-21 투영 스윕, 전 펫 mythic): rx0 3.45 는 4·5번째가 NDC −1.03/−1.10 으로
+    // 잘려 나갔다 → **rx0 2.72 · rxStep 0.9 · rzStep 0.62** 로 당긴다. 이러면 5번째까지(1행 앞 두 칸)
+    // 최악값 −0.94 로 화면 안이다. rzStep 을 0.64→0.62 로 줄인 것도 같은 사유 — z 가 커질수록
+    // 화면 왼쪽으로 더 벌어지므로 격자의 z 폭 자체를 좁혀야 뒷줄이 산다.
+    // ⚠️ **rzStep 은 0.62 가 바닥이다** — `tools/test-slot-unlimited.js` 가 모든 자리 쌍의 간격
+    //    ≥0.60 을 요구하고(같은 행 이웃 칸 간격이 곧 rzStep), 0.6 을 그대로 쓰면 0.35+0.6−0.35 이
+    //    부동소수 오차로 0.5999…가 되어 게이트에 걸린다. rx0 2.72 도 같은 게이트의 하한이다:
+    //    2번 자리 (−2.10, 0.42) 와의 간격이 0.62 로 겨우 통과한다 — 더 당기면 겹친다.
+    // 6번째(1행 뒤 칸)부터는 여전히 밀려날 수 있다 — 기본 출전 3, 요구 상한 5 까지만 보장한다.
+    // mountedRx/Rz(0.5/0.1 → 0.25/0.06): 탈것 풋프린트 실측이 wx[−1.89,−0.77]·wz[−0.67,0.85] 로
+    // **영웅 bbox(wx −1.91) 보다 뒤로 더 나가지 않는다.** 예전 0.5 는 근거 없이 과했고, 커진 탈것
+    // 덩치에 필요한 여유는 0.25 면 충분하다(가장 가까운 1번 펫과 세계좌표 간격 0.69 확보).
+    PET_ARC: { rear: true, rx0: 2.72, rxStep: 0.9, rz0: 0.35, rzStep: 0.62, cols: 4, mountedRx: 0.25, mountedRz: 0.06 },
     // 타지 않은 탈것(따라다니는 무리)은 영웅 **뒤쪽** 호에 세운다 — 덩치가 커서 앞에 두면
     // 전투선과 펫을 통째로 가린다. hmin > 0 으로 **정면 뒤(각 0)를 비워** 영웅 몸통에 가리는 자리를 없앤다.
     MOUNT_ARC: { rx0: 2.5, rxStep: 1.5, rz0: 1.7, rzStep: 0.85, zBase: -0.35, hmin: 0.32, hmax: 1.2, gap: 1.4 },
@@ -9265,10 +9315,13 @@ const Scene3D = {
             Object.assign(g.userData, mesh.userData);
             g.rotation.y = 0.55; // 적 방향 3/4
             // 펫은 전부 **영웅 x축 후방(−x)** 에 세운다(사용자 지시 `pet-size-place` — "플레이어 뒤에,
-            // x축으로 뒤"). 깊이(z)는 여전히 양수 대역(0.35~2.6)만 쓴다 — z<=0 은 영웅 몸통에 깊이로
+            // x축으로 뒤"). 깊이(z)는 여전히 양수 대역만 쓴다 — z<=0 은 영웅 몸통에 깊이로
             // 가리는 자리고(과거 2번 자리 z=-0.65 실측), 후방 배치는 x 로만 밀면 된다. 교전선은 +x
             // 쪽이라 후방 펫이 전투·적을 가릴 일도 없다. 탈것을 타면 탈것 풋프린트(영웅 발밑)가
-            // 넓어지므로 mounted row0/mountedRx 로 x 를 더 물리고 z 를 조금 넓힌다.
+            // 넓어지므로 mounted row0/mountedRx 로 x 를 조금 더 물린다.
+            // ⚠️ 다만 **뒤로 밀 수 있는 거리에는 화면 한계가 있다** — 2026-08-21 자 상한(PET_ROW0
+            //    주석의 투영 규칙)을 넘기면 펫이 캔버스 왼쪽으로 잘려 나간다. 이제 z 대역은
+            //    0.35~1.30 만 쓴다(예전 상한 2.6 은 화면 밖이라 못 쓴다).
             // 4번째부터는 formationSpot이 후방 격자에 자리를 만들어 준다(출전 제한 해제, 최대 25마리).
             const spot = this.formationSpot(i, arc, row0);
             g.position.set(Combat.HERO_X + spot[0] + this.worldX, 0.4, spot[1]);
@@ -9928,13 +9981,25 @@ const Scene3D = {
         // reinReach: 빈 손이 **고삐를 모아 쥐는** 팔 각. 핸들바(barReach)와 같은 자리를 쓰지만 값이 다르다 —
         // 바는 앞으로 뻗어 누르는 자세(어깨 -1.2)이고 고삐는 **몸 앞에 세워 당기는** 자세라 팔이 덜 뻗고
         // 팔꿈치가 더 접힌다. 끈은 손을 따라오므로(alignReins) 각을 바꿔도 고삐가 알아서 맞춰진다.
-        // 🪶 hover 0.56 → 0.09 (사용자 지시 2026-08-21 "탈것 공중에 뜬 것들 너무 떠 있음. 좀 바닥에서
+        // 🪶 hover 0.56 → 0.04 (사용자 지시 2026-08-21 "탈것 공중에 뜬 것들 너무 떠 있음. 좀 바닥에서
         //    조금만 뜨게"). 0.56 은 **다리로 몸통을 감싸 앉던 시절**의 값이다 — 늘어뜨린 다리가 지면에
         //    닿지 않게 배 밑을 영웅 키의 0.6배까지 올려야 했다(옛 주석 참조). 서서 타는 지금은 다리가
         //    안장 위에 있어 그 사유가 통째로 사라졌고, 게다가 `RIDE_STAND_BULK`(1.45)가 배율에 곱해져
-        //    배 밑이 1.5(영웅 어깨 높이)까지 떠올랐다 — 실측 bottom 1.48~1.65.
-        // ⚠️ 값을 '떠 있음'의 절대 높이로 읽지 말 것 — `baseY = hover × sc × rideScale` 이라 배율이
-        //    바뀌면 같이 뛴다. 손보려면 화면에서 **bbox 하단**을 재서 맞출 것(0.09 ≈ 바닥에서 0.2).
+        //    배 밑이 1.5(영웅 어깨 높이)까지 떠올랐다 — 실측 bbox 하단 1.45~1.65(epic).
+        // ⚠️ 값을 '떠 있음'의 절대 높이로 읽지 말 것 — `baseY = hover × sc × rideScale` 이고 비행형은
+        //    rideScale = bulk(1.28) × RIDE_STAND_BULK(1.45) = 1.856 이라 **hover 1 당 bbox 하단이
+        //    2.4(epic sc 1.3 기준)씩 뛴다.** 손보려면 반드시 화면에서 bbox 하단을 재서 맞출 것.
+        // 📏 hover 0.04 실측(epic, 정지 bbox 하단 / 영웅 키는 월드 1.50):
+        //    Star Whale 0.195 · Giant Bee 0.227 · Mini Dragon 0.310 · Pterosaur 0.391.
+        //    **종마다 다른 건 정상이다** — hover 0 에서도 조형 자체의 최저점이 0.099(고래)~0.296(익룡)로
+        //    이미 떠 있다(다리·지느러미를 접어 만든 모델이다). hover 는 거기에 더하는 양일 뿐이라,
+        //    한 값으로 4종을 같은 높이에 맞출 수는 없다. 맞출 대상은 **가장 낮은 종(Star Whale)** 이다.
+        // 🚧 **0.04 는 하한선이다 — 더 낮추면 지면을 뚫는다.** 비행형은 update 에서 부유 리듬
+        //    `sin(t·1.9) × 0.13`(걸을 땐 ×1.35 = 0.176)으로 baseY 아래까지 내려간다. 정지 하단이
+        //    0.195 인 고래가 그 진폭을 겨우 넘긴다(여유 +0.02). 실제로 0.03 으로 내려 재면 고래의
+        //    프레임 최저 y 가 **-0.002(지면 관통)** 로 찍힌다.
+        // ⚠️ 평판형(flat, 호버보드·디스크)의 hover 0.10 은 건드리지 말 것 — 그쪽은 rideScale 이 1 이라
+        //    같은 0.10 이 bbox 하단 0.13~0.16 으로 나온다. 여기 값과 직접 비교하면 안 된다.
         fly:     { saddle: 0.38, hover: 0.04, bulk: 1.28,
                    reinReach: { shoulder: -0.92, shoulderZ: 0.14, elbow: -0.62 },
                    // 배럴이 사족형보다 좁아(0.152) 외전 33°(0.58)에 무릎 폴벡터만 열어도 발·무릎이
@@ -10707,7 +10772,14 @@ const Scene3D = {
     // ---- 적: 몬스터 7종 (슬라임/골렘/고블린/박쥐/버섯/늑대/임프) — 종별 애니메이션 ----
     // 종별 고유 팔레트 — 지형색 파생 금지 (전 종이 배경 보호색 연두 덩어리로 보이던 문제, 비평가 지적)
     // 종별 키 컬러 — 배경 대비 채도 2단계 상향 원칙 (연두 필드 보호색 금지, 비평가 지적)
-    KIND_COLOR: { slime: 0x53b8e0, golem: 0x8a8175, goblin: 0x0a3a14, bat: 0x6f5c94, mushroom: 0xd9604a, wolf: 0x556279, imp: 0xc23a52 }, // 고블린 0x1f8038도 라이팅+ACES에 세이지로 씻겨 초원에 잠식 (비평가 7.1 10번) → 0x156326 → 아웃라인 삭제 후에도 초원과 명도가 붙어(비평가 5.5 2번 '명도가 안 갈라짐') 0x0a3a14 로 한 단계 더 — probe-enemy-sep-sweep 실측 sepR +11%, 라이팅이 들어와 화면에선 여전히 녹색으로 읽힌다
+    // 🧊 **이제 이 표는 몸 색이 아니다.** 조형·색은 `js/mobs-enemies.js` 의 박스 모델 표가 들고 있고
+    // (enemy-minecraft-remake, 마크 몹처럼 종 자연색), 여기 남은 값은 **보스 전용 파생색의 씨앗**이다:
+    // `bossRegalia` 의 보석 = 이 색의 보색 · `bossMaterialTell` 의 '그을린 고참' 톤 · 처치 파편색 폴백.
+    // 그래서 값을 각 종 표의 대표색으로 맞춰 둔다 — 안 맞추면 보스 보석이 그 종과 무관한 색으로 뜬다.
+    // ⚠️ 옛 값(슬라임 0x53b8e0 · 고블린 0x0a3a14 …)은 '배경 초원과 명도가 안 갈라진다'는 실측으로
+    //    세 번 조정된 **몸 색**이었다. 그 분리 책임은 이제 표로 넘어갔다 — 고블린이 살(초록)만 남기고
+    //    몸통·다리를 어두운 누더기 색으로 덮는 것이 그 처방이다(마크 좀비 문법).
+    KIND_COLOR: { slime: 0x74d848, golem: 0xa9a495, goblin: 0x4f9440, bat: 0x6f5a49, mushroom: 0xc4392b, wolf: 0x9a938a, imp: 0xb0433a },
     // ── 종별 보행 프로파일 (ⓓ 종별 고유 모션) ────────────────────────────────────────
     // 예전엔 골렘·고블린·임프가 **완전히 같은 이족 사이클**을 돌았다(clk*8, 같은 진폭). 질량이
     // 20배 차이 나는데 박자가 같으면 셋 다 '같은 인형이 크기만 다른 것'으로 읽힌다.
@@ -11051,1252 +11123,128 @@ const Scene3D = {
         }
         return Math.max(topY, crownTop) + 0.03;
     },
+    // 🧊 적 조형은 전부 `js/mobs-enemies.js` 의 **박스 모델 표**가 진다(enemy-minecraft-remake,
+    //    사용자 지시 2026-08-21 "적들 디자인도 마인크래프트 느낌 디자인으로 다시 해줘야함").
+    //    종전엔 이 자리에서 7종을 **1,250줄**에 걸쳐 깎았는데, 문법이 타원체·원뿔·회전체를 복셀로
+    //    적층하는 것이라 큐브를 써 놓고도 계단 실루엣이 남아 마크로 안 읽혔다 — 펫 25종·탈것 29종을
+    //    폐기한 사유와 똑같다(`mobs.js` 머리말). 지금은 마크 몹처럼 **축정렬 직육면체 몇 개 + 칠한
+    //    얼굴**이고, 여기는 그 표를 태워 **애니 계약(`anim.*`)에 배선하는 얇은 어댑터**만 남는다.
+    //
+    // 🚨 이 함수가 지켜야 하는 계약(전부 `update`/`driveFlinch`/`enemyAttack` 이 읽는다):
+    //    rec  = { g, body, hpBg, hpGhost, hpFg, hpPip, hpG, armR, armL, kind, anim, baseScale, topY, barY, flashMats }
+    //    anim = { kind, wings[], legs[], bleg[{hip,knee}], barm[{sh,elbow}], armRJ, gleg[], knees[],
+    //             tail, wings(userData.s), fly, hop, cap, capFlap, jelly, body }
+    //    파츠는 표의 **id 규약**으로 찾는다(`mobs-enemies.js` 머리말에 목록이 있다) — 표에서 id 를
+    //    바꾸면 그 종의 보행·공격·플린치가 조용히 죽으므로 두 파일을 항상 같이 볼 것.
     monsterMesh(e) {
         const kinds = ['slime', 'golem', 'goblin', 'bat', 'mushroom', 'wolf', 'imp'];
         // 디버그: ?enemy=imp 로 특정 몬스터 강제
         const forced = new URLSearchParams(location.search).get('enemy');
         const kind = (forced && kinds.includes(forced)) ? forced : kinds[(e.id + S.chapter * 2) % kinds.length];
-        // 종 고유색 + 개체 지터 (챕터 무드 혼합은 채도를 죽여 배경 보호색화 — 폐지, 비평가 지적)
+        // 종 고유색 + 개체 지터. ⚠️ 이제 **몸 색은 표가 들고 있고**, 이 값은 보스 전용 파생색의
+        // 씨앗으로만 쓰인다(`bossRegalia` 의 보석 = base 의 보색 · `bossMaterialTell` 의 그을린 톤).
         const base = new THREE.Color(this.KIND_COLOR[kind]).offsetHSL(U.rand(-0.02, 0.02), U.rand(-0.03, 0.03), U.rand(-0.02, 0.02));
-        const g = new THREE.Group();
-        // ⚠️ 예전엔 여기서 `lam()` 을 거친 재질을 `flashMats` 배열에 모아 뒀지만 **삭제했다.**
-        //    ⓐ 피격 플래시는 이미 `Scene3D.flashTargets()` 가 서브트리를 직접 훑어 정한다
-        //    ⓑ 그 스냅샷에는 **어떤 메시도 안 쓰는 고아 재질**이 섞여 도구들을 오독시켰다
-        //       (자세한 실측은 이 빌더 return 문의 `flashMats` 게터 주석 참고 — slug: hitflash-overwrite).
-        //    지금 `m.flashMats` 는 그 게터이고, 항상 실제 플래시 대상과 같다.
-        const lam = (c2, map) => {
-            const m = new THREE.MeshStandardMaterial({ color: c2, map: map || null, metalness: 0, roughness: 0.72 });
-            // 맵이 있으면 굴곡까지 함께 준다 — 알베도만 바꾸면 표면이 아니라 '무늬 스티커'로 읽힌다
-            if (map) { m.bumpMap = map; m.bumpScale = 0.013; }
-            return m;
-        }; // 유기물 PBR — 부드러운 스펙큘러 롤오프 (무광 점토 인상 완화)
-        // 종별 표면 질감 — 예전엔 **골렘(rockTex)만** 맵을 물고 나머지 6종은 전부 민짜였다.
-        // 그래서 늑대는 회색 캡슐 조립, 버섯 몸통은 흰 덩어리로 읽혔다(영웅은 캔버스 텍스처 +
-        // AO를 쓰는데 적만 안 쓰던 것). 털 계열은 furTex, 살갗 계열은 skinTex를 물린다.
-        // ⚠️ 맵은 albedo에 **곱해진다** — 텍스처 평균이 ≈0.88이라 그만큼 색이 죽는다.
-        //    종 키 컬러를 유지하려고 맵을 물리는 종만 명도를 되올려 준다(원시 장비에서 이미 밟은 함정).
-        const bodyTex = (kind === 'wolf' || kind === 'bat') ? ProChar.furTex()
-            : (kind === 'goblin' || kind === 'imp' || kind === 'mushroom') ? ProChar.skinTex() : null;
-        if (bodyTex) base.offsetHSL(0, 0.02, 0.055);
-        const mat = lam(base, bodyTex);
-        const dark = lam(base.clone().offsetHSL(0, 0, -0.13), bodyTex);
-        const light = lam(base.clone().offsetHSL(0, 0, 0.1), bodyTex);
-        const mk = (geo, m) => new THREE.Mesh(geo, m); // 그룹 조립용 (g에 자동 추가 안 함)
-        // 🧊 voxel 파츠 — 화풍 확정(2026-08-20: Voxel + 치비)에 따라 적 조형을 큐브로 옮기는 통로.
-        //   ⚠️ **재질은 반드시 `vertexColors: true`** 여야 한다. `Voxel.build` 는 큐브별 색변화와
-        //      이음새 AO 를 **정점 색에 구워** 넣으므로, 그 플래그가 없으면 AO 도 색변화도
-        //      통째로 사라지고 단색 덩어리가 나온다(그러면 큐브를 쌓은 의미가 없다).
-        //      재질 색은 정점 색에 **곱해지므로** 종 키 컬러(base)를 그대로 물려도 된다.
-        //   ⚠️ `center: false` 로 두면 복셀 좌표가 곧 로컬 좌표(× size)다 — 바닥 기준(y=0)으로
-        //      깎은 프로파일이 접지선을 그대로 유지한다. 파츠를 피벗에 달 때만 center 를 쓸 것.
-        const VS = this.ENEMY_VS;   // 적 공용 복셀 한 변(월드). 슬라임 전신이 13칸 = 0.65
-        const vx = (voxels, o) => Voxel.build(voxels, Object.assign({ size: VS, jitter: 0.05, ao: 0.9, center: false }, o || {}));
-        // 월드 반지름 → 칸. 🚨 **0.5 로 클램프한다** — `Voxel.taper`/`ellipse` 는 반지름이 0.5 미만이면
-        //   층을 통째로 버려서(칸 중심 판정) **빈 메시**가 나온다. 임프 하완(r 0.024 = 0.48칸)처럼
-        //   한 칸짜리 파츠가 조용히 사라지는 사고가 정확히 여기서 난다.
-        const gv = (r) => Math.max(0.5, r / VS);
-        // 피벗이 위쪽 끝인 분절 사지 — `limb`(캡슐)의 voxel 대응.
-        //   `taper` 는 y0 부터 위로 쌓이므로, 위(rTop)가 꼭대기에 오도록 뒤집어 넣고 통째로 내린다.
-        const vlimb = (rTop, rBot, len, m) => {
-            const grp = new THREE.Group();
-            const h = Math.max(1, Math.round(len / VS));
-            const mesh = vx(Voxel.taper(gv(rBot), gv(rTop), h), { material: m, color: 0xffffff });
-            mesh.position.y = -(h - 1) * VS;
-            grp.add(mesh);
-            return grp;
-        };
-        // voxel 전용 재질 — 🚨 공용 `mat`/`dark`/`light` 를 쓰면 ⑴ `vertexColors` 가 없어 색변화·AO 가
-        //   조용히 무시되고 ⑵ `bodyTex` 노이즈가 표면에 깔려 화풍 ⓒ 를 깬다. 종 안에서 이걸로 새로 만든다.
-        //   ⚠️ 색은 `vBase`(맵 보정 되돌린 값)를 기준으로 쓸 것 — 아래 참조.
-        const vmat = (c, o) => new THREE.MeshStandardMaterial(Object.assign({
-            color: c, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.8,
-        }, o || {}));
-        // 빌더 머리에서 `if (bodyTex) base.offsetHSL(0, 0.02, 0.055)` 로 **맵이 albedo 를 ≈0.88 배
-        //   죽이는 만큼 미리 올려 둔** 보정이 걸려 있다. voxel 파츠는 맵을 안 쓰므로 그 보정만 남아
-        //   종이 통째로 밝아진다 — 되돌린 값을 기준색으로 쓴다.
-        const vBase = bodyTex ? base.clone().offsetHSL(0, -0.02, -0.055) : base.clone();
-        const limb = (rTop, rBot, len, m) => ProChar.capsule(rTop, rBot, len, m, 9); // 분절 사지 — 피벗=위쪽 끝
-        const sp = (r, x, y, z, m, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 11, 9), m || mat); o.position.set(x, y, z); if (sx) o.scale.set(sx, sy, sz); g.add(o); return o; };
-        const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat); o.position.set(x, y, z); g.add(o); return o; };
-        const cn = (r, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
-        const cy = (r1, r2, h, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, 8), m || mat); o.position.set(x, y, z); g.add(o); return o; };
-        // ── AO 링: 파츠 경계에 얹는 접촉 그림자 (진행 메모 ⓐ '영웅엔 있고 적엔 없다') ──
-        // 적은 구·원기둥을 **겹쳐 놓기만** 해서 목·허리·어깨 소켓·갓 밑에 이음새가 그대로 드러났다.
-        // 영웅 리그(`ProChar` 의 aoRing)가 쓰는 것과 같은 기법을 종별 이음새로 옮긴다.
-        // ⚠️ ⑴ 재질이 **transparent Basic** 이라 `applyRimLight` 가 자동으로
-        //    건너뛴다(둘 다 transparent / Standard·Phong 조건에서 제외) — 얇은 링에 검은 외곽선이
-        //    둘리거나 림라이트가 먹는 사고가 원천 차단된다. 재질 종류를 바꾸면 그 보호가 사라진다.
-        //    ⑵ **flashMats 에 넣지 않는다** — 피격 플래시에 그림자까지 하얘지면 때린 순간에만
-        //    이음새가 통째로 사라져 '프리미티브 더미'가 도로 드러난다.
-        //    ⑶ 링 반지름은 그 높이의 **실제 몸 반지름과 같거나 살짝 커야** 한다. 작으면 몸 안에
-        //    파묻혀 아무것도 안 보이고(무비용 무효과), 너무 크면 실루엣 밖으로 튀어 '후프'가 된다.
-        // 감쇠 알파맵 — 균일 알파면 가까이서 '관절에 검은 테이프를 감은' 인상이 남는다.
-        // 튜브를 감는 방향(uv.y)을 따라 이음새선에서 최대 → 1/4바퀴에서 0 으로 죽여 크레비스처럼 풀리게 한다.
-        // ⚠️ 함정 2개(앞 세션이 실측으로 밟아 인계한 것, 여기서 그대로 지킨다):
-        //   ㉠ three 의 `alphaMap` 은 텍스처의 **색(회색조)** 을 읽고 알파 채널은 무시한다 —
-        //      `rgba(...,a)` 로 그리면 전 구간 불투명으로 읽혀 감쇠가 통째로 무시된다. 흑백으로 그릴 것.
-        //   ㉡ `TorusGeometry` 는 **uv.y=0 이 바깥 적도**(몸 밖으로 나오는, 실제로 보이는 쪽)다 —
-        //      감쇠를 가운데 진하게 그리면 정확히 반대로 걸린다. 0(과 1) 쪽이 진해야 한다.
-        //   → 알파맵을 물리면 유효 농도가 떨어지므로 기준 불투명도를 올리고(×1.5) radialSegments 를
-        //     6→10 으로 키운다(6이면 그라디언트가 계단 진다).
-        const aoFade = this._aoFadeTex || (this._aoFadeTex = (() => {
-            const cv = document.createElement('canvas');
-            cv.width = 4; cv.height = 64;
-            const cx = cv.getContext('2d');
-            const gd = cx.createLinearGradient(0, 0, 0, 64);
-            // v=0(바깥 적도)이 가장 진하고, v=0.25/0.75(옆구리)에서 0, v=0.5(안쪽 적도)에서 다시 진하다.
-            gd.addColorStop(0.0, '#ffffff');
-            gd.addColorStop(0.22, '#101010');
-            gd.addColorStop(0.5, '#8a8a8a');
-            gd.addColorStop(0.78, '#101010');
-            gd.addColorStop(1.0, '#ffffff');
-            cx.fillStyle = gd; cx.fillRect(0, 0, 4, 64);
-            const t = new THREE.CanvasTexture(cv);
-            t.wrapS = t.wrapT = THREE.RepeatWrapping;
-            return t;
-        })());
-        const aoMat = new THREE.MeshBasicMaterial({ color: 0x0a0d12, transparent: true, opacity: 0.75, depthWrite: false, alphaMap: aoFade });
-        // opt: { flat=상하 납작(기본 .5) · ez=z반경/x반경(타원 몸통용) · op=불투명도 · parent }
-        // 토러스는 로컬 XY면 → rotation.x=π/2 로 눕히면 **로컬 y가 월드 z, 로컬 z가 월드 y** 다.
-        const aoRing = (r, tube, x, y, z, opt) => {
-            const o = opt || {};
-            const m2 = o.op === undefined ? aoMat
-                : new THREE.MeshBasicMaterial({ color: 0x0a0d12, transparent: true, opacity: o.op * 1.5, depthWrite: false, alphaMap: aoFade });
-            const ring = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 10, 16), m2); /* voxel-ok: 접촉 음영(그림자) — 조형이 아니라 투명 오버레이(depthWrite off·noOutline·플래시 제외). 유출 0 은 probe-enemy-ao 가 지키고, 감사(probe-voxel-consistency)도 userData.aoRing 으로 제외한다 */
-            // axis:'z' = 부모의 z축을 감는다(꼬리·팔처럼 **누운** 파츠용). 기본은 눕혀서 수평 링.
-            if (o.axis !== 'z') ring.rotation.x = Math.PI / 2;
-            ring.position.set(x, y, z);
-            ring.scale.set(1, o.ez === undefined ? 1 : o.ez, o.flat === undefined ? 0.5 : o.flat);
-            ring.userData.noOutline = true;      // 보호막 이중화 — 재질을 바꿔도 외곽선은 안 둘리게
-            ring.userData.aoRing = true;         // probe-enemy-ao 가 껐다 켜서 실제 기여분을 잰다
-            (o.parent || g).add(ring);
-            return ring;
-        };
-        // ── AO 스커트: 몸 표면을 **그대로 따라가는** 얇은 셸 ──
-        // 🚨 **링(토러스)이 원리적으로 못 푸는 자리가 있다.** 링은 몸보다 굵어야 보이는데, 굵은 만큼이
-        //    실루엣 밖으로 안 나가려면 **위아래가 더 굵어야**(= 허리여야) 한다. 골렘 허리·고블린 허리가
-        //    그래서 되는 것이다(구 두 개가 겹친 크레비스라 실루엣은 구가 잡는다).
-        //    라테(회전체)는 **프로파일이 곧 실루엣**이라 그 조건이 성립하지 않는다 — 어떤 반경을 줘도
-        //    굵으면 배경에 뜨고(후프) 가늘면 파묻힌다. 실측: 버섯 갓 밑 링은 반경을 0.70 배까지 줄여도
-        //    유출이 64px 로 남았다(1.00 배 153px). 반경 튜닝으로 좁혀질 문제가 아니었다.
-        // → 몸 프로파일을 grow 배(기본 3%)로 부풀린 라테 셸이면 어느 방위에서도 표면 **바로 위**라
-        //   유출이 구조적으로 0 이고, 세로 알파 그라디언트로 이음새에서 멀어질수록 풀린다.
-        // ⚠️ prof 는 몸 라테와 **같은 세그먼트 수**로 줄 것 — 다르면 다각형 위상이 어긋나 셸이
-        //    몸 면을 파고들었다 나왔다 한다(균일 오프셋이 깨진다).
-        // ⚠️ prof 는 [[r, y], …] **아래→위**, 이음새(진한 쪽)가 마지막 점이다. LatheGeometry 의 v 는
-        //    프로파일 순서를 따르고, CanvasTexture 는 flipY 기본값이라 **캔버스 위쪽이 v=1**(= 마지막 점)이다.
-        const aoSkirtFade = this._aoSkirtTex || (this._aoSkirtTex = (() => {
-            const cv = document.createElement('canvas');
-            cv.width = 4; cv.height = 64;
-            const cx = cv.getContext('2d');
-            const gd = cx.createLinearGradient(0, 0, 0, 64);
-            gd.addColorStop(0.0, '#ffffff');   // v=1 = 이음새 — 가장 진하다
-            gd.addColorStop(0.42, '#6e6e6e');
-            gd.addColorStop(1.0, '#000000');   // v=0 = 그늘이 완전히 풀리는 쪽
-            cx.fillStyle = gd; cx.fillRect(0, 0, 4, 64);
-            return new THREE.CanvasTexture(cv);   // ⚠️ alphaMap 은 **색(회색조)** 을 읽는다 — rgba 알파 금지
-        })());
-        const aoSkirt = (prof, opt) => {
-            const o = opt || {};
-            const grow = o.grow === undefined ? 1.03 : o.grow;
-            const geo = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0] * grow, p[1])), o.seg || 10); /* voxel-ok: 접촉 음영 셸(버섯 갓 밑) — aoRing 과 같은 사유. 몸 프로파일 추종이 유출 0 의 구조적 근거라 매끈 유지가 의도다 */
-            const sk = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-                color: 0x0a0d12, transparent: true, opacity: o.op === undefined ? 0.6 : o.op,
-                depthWrite: false, alphaMap: aoSkirtFade }));
-            if (o.x || o.y || o.z) sk.position.set(o.x || 0, o.y || 0, o.z || 0);
-            sk.userData.noOutline = true;
-            sk.userData.aoRing = true;           // 링과 같은 표식 — 판정기가 함께 껐다 켠다
-            (o.parent || g).add(sk);
-            return sk;
-        };
-        // 몬스터 눈 — 🧊 **voxel 전환** (화풍 확정 2026-08-20 · 직전 3D 세션 인계 ⓑ).
-        //   몸통·사지·보스 레갈리아를 전부 큐브로 옮긴 뒤 **적에게 남은 마지막 매끈 프리미티브**가
-        //   얼굴이었다(파이컷 구 흰자 + 구 동공/하이라이트 + 토러스 눈썹 + 납작 구 블러시).
-        //   7종 공용이라 이 함수 하나를 갈면 얼굴 전체가 한 번에 화풍에 붙는다 — **호출부 7곳 무수정**.
-        //
-        // 🔑 **격자는 종별로 바꾸지 않는다 — 전부 `ENEMY_VS`(0.05) 한 벌**(인계 ㉤). 눈이 작다고 반 칸짜리
-        //    하위 격자를 파면 얼굴만 다른 벽돌로 찍혀 '모든 종이 같은 벽돌'이라는 화풍 자체가 깨진다.
-        //    그래서 눈은 **2~4칸**이고, 그보다 잔 디테일(홍채 링·글린트 점)은 한 칸으로 올라붙는다.
-        // 🔑 **깊이로 쌓지 않고 한 층에서 색으로 가른다.** 매끈판은 동공을 흰자 **앞**에 띄워야 했지만
-        //    (구에 묻히면 잿빛 얼룩이 됐다) 복셀은 같은 층의 **다른 칸**을 검게 칠하면 그만이다.
-        //    두 층으로 쌓으면 한 칸이 0.05 라 동공이 얼굴에서 5cm 튀어나와 '눈알 부착물'이 된다.
-        //    ⚠️ 흰자(emissive Lambert)와 동공(Basic)은 재질이 달라 **메시는 둘**이지만 칸은 안 겹친다 —
-        //       겹치면 같은 평면 두 장이라 z-파이팅이다(`probe-prop-voxel` ④ 가 프롭 쪽에서 잡던 결함).
-        // 🔑 **판 앞면을 옛 흰자 앞면(er·0.55)에 맞춘다.** 칸이 종 눈보다 커서 z 를 대충 두면 두상에
-        //    파묻히거나(뒤) 얼굴에서 떠오른다(앞) — 펫 전환이 실물로 밟은 함정이다.
-        // 🔑 **`tilt` 는 회전이 아니라 모서리 깎기로 옮겼다.** 격자를 4~9° 돌리면 큐브 면이 축을 벗어나
-        //    '복셀로 안 읽히는' 바로 그 결함이 된다(장비 화풍 정합 2/10 의 1순위 사유). 대신 안쪽 위(성난)·
-        //    바깥 아래(예리) 모서리를 **한 칸 깎아** 같은 눈매를 낸다 — 그래서 호출부의 부호가 그대로 산다.
-        // style: round(순둥 왕눈)/angry(성난 흰자눈)/fierce(가늘게 뜬 맹수 흰자눈)/sleepy(반쯤 감김)/slit(발광 슬릿, 흰자 없음)
-        // opts: { iris: 홍채색, tilt: 눈꼬리(+=안쪽 내려감 분노, -=바깥 올라감 예리), narrow: 슬릿 더 납작, browColor,
-        //         blush/blushK/blushColor, lid }
-        //   ⚠️ `iris` 는 slit 계열이 계속 쓴다 — 인자를 지우지 말 것. `irisScale`·`glow` 는 한 칸보다 작은
-        //      조절이라 복셀에서 표현할 자리가 없어 **무시된다**(호출부는 그대로 둔다 — 지우면 매끈판으로
-        //      되돌릴 때 근거가 사라지고, 남겨 두면 값이 무해하다).
-        const eyes = (y, z, gap, r, style, opts) => {
-            const o = opts || {};
-            const er = (r || 0.045) * 1.5;
-            const eb = (v, m, col) => Voxel.build(v, { size: VS, jitter: 0.04, ao: 0.55, center: false, material: m, color: col });
-            // 흰자는 **음영을 받되 바닥값을 emissive 로 깐다** — 버섯처럼 갓 그늘에 머리가 통째로
-            // 들어가는 종은 순수 Lambert 로 눈이 검게 뭉갰다(매끈판 실측 캡처, 그대로 유효).
-            const EYE_W = new THREE.MeshLambertMaterial({ color: 0xfff6e8, emissive: 0x9a958c, vertexColors: true });
-            // 동공·글린트 공용 — 색은 정점 색이 지므로 재질 하나로 검정/흰색을 다 찍는다.
-            const EYE_P = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true });
-            const front = er * 0.55;                       // 판 앞면 = 옛 파이컷 흰자 앞면
-            if (style === 'slit') {
-                // 어둠 속 이글거리는 발광 슬릿 (골렘 마그마/늑대 냉광/임프 유황) — 흰자 없음.
-                // 🚨 **테를 위아래로 두르면 눈이 세 배로 두꺼워진다.** 매끈판 테는 슬릿보다 **19%만** 넓고
-                //    (0.162 vs 0.136) 높이도 1.1칸뿐이라, 복셀에서 위아래 한 줄씩 두르면 3칸(0.15) —
-                //    골렘 얼굴을 가로지르는 **띠 한 장**이 된다(실측 캡처). 복셀의 올바른 번역은
-                //    **위 한 줄만 어둡게** 두는 것이다: 눈두덩 그늘이 곧 골렘의 눈썹 선반이 된다.
-                const sw = Math.max(2, Math.min(4, Math.round(er * 2.02 / VS)));
-                const sh = o.narrow ? 1 : Math.max(1, Math.min(2, Math.round(er * 0.79 / VS)));
-                // 흰자 눈과 같은 사유 — 판 두 장 사이에 얼굴이 최소 한 칸은 남아야 한다.
-                const eyeGap = Math.max(gap, (sw + 1) * VS / 2);
-                const IRIS = new THREE.MeshLambertMaterial({ color: o.iris, emissive: o.iris, emissiveIntensity: 1, vertexColors: true });
-                const RIM = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true });
-                for (const s of [-1, 1]) {
-                    const eg = new THREE.Group();
-                    eg.position.set(s * eyeGap, y, z);
-                    const pl = new THREE.Group();
-                    pl.position.set(-(sw - 1) * VS / 2, -sh * VS / 2, front - VS / 2);
-                    const rimV = [];
-                    for (let i = 0; i < sw; i++) rimV.push({ x: i, y: sh, z: 0 });
-                    const slitV = [];
-                    for (let i = 0; i < sw; i++) for (let j = 0; j < sh; j++) slitV.push({ x: i, y: j, z: 0 });
-                    pl.add(eb(rimV, RIM, 0x14100e));
-                    const sl = eb(slitV, IRIS, 0xffffff);
-                    sl.userData.pieEye = true;   // 캡처·판정 도구가 이 태그로 '눈 판'을 집는다(영웅·펫과 같은 규약)
-                    pl.add(sl);
-                    eg.add(pl);
-                    g.add(eg);
-                }
-                return;
-            }
-            // ── 흰자 눈 ─────────────────────────────────────────────────────────────
-            // 큰 눈 = 치비 요구라 **칸 수를 옛 실루엣보다 줄이지 않는다**(er·2.2 ≈ 옛 지름 + 여유 한 칸).
-            const tall = style === 'round' ? 1.3 : style === 'sleepy' ? 0.62 : 0.92;
-            const nx = Math.max(2, Math.min(4, Math.round(er * 2.2 / VS)));
-            const ny = Math.max(2, Math.min(4, Math.round(nx * tall)));
-            // 🚨 **판 두 장 사이에 얼굴이 최소 한 칸은 남아야 한다.** 매끈 구는 서로 스쳐도 음영이 경계를
-            //    그려 주지만, 축정렬 판은 사이가 비면 **가로로 이어진 흰 띠 한 장**으로 렌더된다
-            //    (늑대 주둥이·임프 실측 캡처 — 눈 두 개가 통째로 붙어 하나가 됐다).
-            //    ⚠️ 처음엔 반대로 **판을 좁혀서** 맞추려 했는데 그러면 좁은 얼굴의 눈이 한 칸까지 줄어
-            //       흰자·동공이 통째로 사라졌다(자동 프레이밍이 그 빈 bbox 를 물고 카메라가 땅속으로
-            //       들어갔다). 복셀에서 올바른 해법은 **크기를 줄이는 게 아니라 자리를 벌리는 것**이다 —
-            //       눈이 넓게 벌어지는 건 치비 비례에서 오히려 맞는 방향이다.
-            const eyeGap = Math.max(gap, (nx + 1) * VS / 2);
-            const tilt = o.tilt || 0;
-            const lidRows = style === 'sleepy' ? 1 : 0;          // 위 눈꺼풀이 먹는 줄 수
-            // 🚨 **동공은 '안쪽 끝'이 아니라 한 열 안쪽(가운데)에 둔다 — 첫 판이 판다 얼굴이 된 원인이다.**
-            //    매끈판 동공은 흰자 면적의 **16%**(0.72er × 0.83er ÷ 2er × 1.84er)뿐이라 한 칸(3×3의 11~22%)이
-            //    맞는 크기인데, 그 한 칸을 **안쪽 모서리**에 붙였더니 두 눈의 검은 칸이 코를 사이에 두고
-            //    마주 보며 **가로로 이어진 마스크**로 읽혔다. 흰자가 동공을 **양옆에서 감싸야** 눈이 된다.
-            const pupCol = nx >= 3 ? nx - 2 : nx - 1;            // 동공 열(바깥 0 → 안쪽 nx−1 기준)
-            // 세로도 같은 이유로 **가운데 한 칸**이다. 바닥 2칸을 채우면 세로 막대가 되어 '눈'이 아니라
-            // '슬롯'으로 읽혔다(중간 판 캡처). 매끈판 동공도 y −0.05er = 사실상 정중이었다.
-            const pupRow = ny - lidRows >= 3 ? 1 : 0;            // 동공 줄(바닥 0 기준)
-            // 2×2 는 예외 — 한 칸만 검게 칠하면 **밝은 털 종(늑대)에서 눈이 통째로 사라진다**(실측 캡처:
-            //   흰자 0xfff6e8 과 회백색 두상이 붙어 한 덩어리로 읽혔고 동공 한 칸은 그 안에서 점이 됐다).
-            //   네 칸짜리 판은 안쪽 열을 검게 가르는데(마인크래프트 주민 눈), 🚨 **열 전체를 순흑으로 채우면
-            //   반대편 함정이다** — 1차 채점(A·B 6.5)에서 늑대·임프 눈이 '동공 없는 검은 바이저/안대'로
-            //   합의 지적됐다(enemy-quality 1차 교집합 ⑵). 그래서 안쪽 열을 **위 = 홍채색 · 아래 = 동공 흑**으로
-            //   가른다: 호출부가 이미 주던 `iris`(늑대 호박·임프 유황 — 매끈판의 '흰자+홍채' 설계가 복셀 전환에서
-            //   떨어져 나갔던 것)가 검은 띠를 끊고, 밝은 털 종에서도 유색 칸이라 흰자와 안 붙는다.
-            const pupFull = nx <= 2;
-            // ===== 볼 블러시 — 양쪽 비평가가 같은 처방으로 꼽은 '귀여움' 신호 =====
-            // 🚨 **판이 세 칸 이상이면 볼을 판 안(바깥 아래 칸)에 넣는다.** 매끈판이 두 번 실패한 그 자리다:
-            //    ⑴ 얼굴에 파묻혀 21~29px → ⑵ 반대로 실루엣 밖으로 샘. 복셀에서 **별개 큐브를 판 아래에
-            //    두는 3안도 같은 병으로 실패했다**(버섯 89→30px, 최대 거리 99→7px — 칸이 0.05 라 볼이
-            //    매끈판보다 두 배 아래로 내려가 줄기 밑을 벗어났다). 판 **안**에 넣으면 볼이 눈 판의
-            //    실루엣을 물려받아 **유출이 구조적으로 불가능**하고 같은 층이라 z-파이팅도 없다.
-            // ⚠️ 두 칸짜리 눈(늑대·임프)은 네 칸 중 하나도 못 뺀다 — 그쪽만 판 아래 한 칸 큐브를 쓰고,
-            //    실제로 그 두 종은 얼굴이 넓어 이 배치로 게이트를 통과한다(늑대 3px·임프 0px).
-            // ⚠️ 반투명으로 안 갔다 — 이 씬은 투명 오브젝트가 깊이를 안 써서 정렬이 뒤집히면 얼굴
-            //    앞으로 튀어나온다(killEnemy 의 디졸브 주석과 같은 함정).
-            const blushOn = o.blush !== false;
-            const blushIn = blushOn && nx >= 3 && ny >= 3;
-            for (const s of [-1, 1]) {
-                const eg = new THREE.Group();
-                eg.position.set(s * eyeGap, y, z);
-                const scG = new THREE.Group();
-                scG.position.set(-(nx - 1) * VS / 2, -(ny - 1) * VS / 2, front - VS / 2);
-                // 칸 좌표: ix 는 **바깥(0) → 안쪽(nx−1)** 이라 좌우 눈을 같은 식으로 깎는다.
-                //   s>0(오른눈)은 −x 가 안쪽이므로 격자 x 를 뒤집는다.
-                const gx = ix => (s > 0 ? nx - 1 - ix : ix);
-                const white = [], dark = [], lid = [], blush = [];
-                for (let ix = 0; ix < nx; ix++) for (let iy = 0; iy < ny; iy++) {
-                    const inner = ix === nx - 1, outer = ix === 0, top = iy === ny - 1, bot = iy === 0;
-                    if (lidRows && iy >= ny - lidRows) { lid.push({ x: gx(ix), y: iy, z: 0 }); continue; }
-                    // 볼이 눈꼬리 깎기보다 우선이다 — 둘 다 '바깥 아래' 한 칸을 노리는데, 볼은 게이트
-                    //   항목(`probe-enemy-cute` ②)이고 눈꼬리는 인상 조절이라 볼을 먼저 앉힌다.
-                    if (blushIn && outer && bot) { blush.push({ x: gx(ix), y: iy, z: 0 }); continue; }
-                    // 눈꼬리 — 회전 대신 모서리 한 칸을 깎는다(위 🔑).
-                    // ⚠️ 2×2 에서는 깎지 않는다 — 네 칸 중 하나를 떼면 흰자나 동공이 통째로 사라진다.
-                    if (nx >= 3 && ny >= 3 && tilt > 0.03 && inner && top) continue;   // 안쪽 위가 내려간다 = 성난 눈
-                    if (nx >= 3 && ny >= 3 && tilt < -0.03 && outer && bot) continue;  // 바깥 아래가 올라간다 = 예리한 눈
-                    if (ix === pupCol && (pupFull ? iy < ny - lidRows : iy === pupRow)) {
-                        dark.push({ x: gx(ix), y: iy, z: 0, c: (pupFull && iy > 0) ? (o.iris || 0xfff6e8) : 0x141013 });
-                        continue;
-                    }
-                    // 글린트 = **바깥 위 한 칸**. 큐브 하나면 충분하고, 그보다 잘게 쪼개면 격자가 깨진다.
-                    if (nx >= 3 && ny >= 3 && outer && top) { dark.push({ x: gx(ix), y: iy, z: 0, c: 0xffffff }); continue; }
-                    white.push({ x: gx(ix), y: iy, z: 0 });
-                }
-                const sc = eb(white, EYE_W, 0xfff6e8);
-                sc.userData.pieEye = true;   // 캡처·판정 도구가 이 태그로 흰자를 집는다(영웅·펫과 같은 규약)
-                scG.add(sc);
-                if (dark.length) scG.add(eb(dark, EYE_P, 0xffffff));
-                if (lid.length) scG.add(eb(lid, EYE_W, o.lid || 0x8d6a56));
-                eg.add(scG);
-                if (style === 'angry' || style === 'fierce') {
-                    // ===== 눈썹 — '화난 막대'에서 **계단 아치**로 =====
-                    // 🚨 1930s 판이 남긴 결론은 그대로다: 사용자 원문 1순위가 "적이 좀 더 귀여웠으면"인데
-                    //    비평가 2인이 "7종 예외 없이 두꺼운 검은 사선 눈썹이 눈 안쪽으로 내리꽂힌다"로 합의했다.
-                    //    복셀에서 그 처방은 **기울기 0 + 가운데만 한 칸 올린 대칭 아치**다 — 격자를 돌리지
-                    //    않고도 '내리꽂히지 않음'이 구조적으로 보장된다.
-                    // ⚠️ **두께는 한 칸으로 못 박는다.** 매끈판 두께가 er·0.30(≈0.4칸)이라 한 칸도 이미
-                    //    2.5배다 — 여기서 가운데를 2칸으로 채우면 그게 바로 지적받은 '두꺼운 검은 막대'다.
-                    //    그래서 열마다 한 칸씩만 두고 가운데 열만 y 를 올린다(모서리로 이어진 계단 아치).
-                    // 폭은 **눈 판과 같다** — 더 넓히면 좁은 얼굴에서 두 눈썹이 미간에서 겹쳐 이마를
-                    //   가로지르는 검은 슬래브가 된다(늑대 첫 판 실측). 두 칸이면 아치를 못 그리니 평평한
-                    //   막대로 두는데, 평평한 것 자체는 '안쪽으로 내리꽂히지 않음'이라 결함이 아니다.
-                    const bn = nx;
-                    const bv = [];
-                    for (let i = 0; i < bn; i++) bv.push({ x: i, y: (i > 0 && i < bn - 1) ? 1 : 0, z: 0 });
-                    const bg = new THREE.Group();
-                    // 🚨 2칸 눈(늑대·임프)은 눈썹을 **한 칸 더 띄운다** — 반 칸 간격에서는 눈썹 막대와 동공 열이
-                    //    한 덩어리로 붙어 얼굴을 가로지르는 '안대 밴드'가 됐다(1차 채점 A2·B3·B6 합의 지적,
-                    //    처방도 '1복셀 위로'로 일치). 3칸 이상 눈은 글린트·홍채가 이미 띠를 끊어 그대로 둔다.
-                    //    간격은 반 칸이 정답이었다 — 한 칸을 다 띄우니 늑대 눈썹이 정수리 위에 뜬 '베레모'가 됐다(캡처).
-                    bg.position.set(0, ny * VS / 2 + VS * ((style === 'fierce' ? 0.5 : 0.62) + (nx <= 2 ? 0.5 : 0)), front - VS / 2);
-                    const bm = eb(bv, new THREE.MeshLambertMaterial({ color: o.browColor || 0x2b2b33, vertexColors: true }), 0xffffff);
-                    bm.position.x = -(bn - 1) * VS / 2;
-                    bg.add(bm);
-                    bg.userData.cuteBrow = true;    // 판정 도구가 이 태그로 눈썹을 집는다
-                    bg.userData.tiltZ = 0;          // 격자 정렬 = 기울기 0 (`probe-enemy-cute` ① 은 이제 기하로 잰다)
-                    eg.add(bg);
-                }
-                if (blushOn) {
-                    const bk = o.blushK || 1;
-                    const BLUSH = new THREE.MeshLambertMaterial({ color: o.blushColor || 0xd98177, emissive: 0x3a1210, vertexColors: true });
-                    let bl;
-                    if (blushIn) {
-                        bl = eb(blush, BLUSH, 0xffffff);
-                        scG.add(bl);
-                    } else {
-                        // 🚨 별개 큐브일 때 **x 는 눈 판이 아니라 `gap`(종이 authoring 한 얼굴 위치)에 매단다.**
-                        //    판이 안 붙게 눈을 `eyeGap` 으로 벌렸는데 볼까지 끌려 나가면 좁은 머리에서
-                        //    실루엣 밖으로 뜬 스티커가 된다(늑대 27px 실측 FAIL). 이 식은 매끈판의 볼
-                        //    월드 x(= gap + er·0.38·bk)를 ±0.008 안에서 재현한다.
-                        bl = eb([{ x: 0, y: 0, z: 0 }], BLUSH, 0xffffff);
-                        bl.position.set(s * ((gap - eyeGap) + VS * 0.3 * bk), -(ny + 1) * VS / 2, front - VS / 2);
-                        eg.add(bl);
-                    }
-                    bl.userData.cuteBlush = true;
-                }
-                g.add(eg);
-            }
-        };
-
-        // 박쥐/임프 공용 막날개 — 앞전 아치 + 손가락 골 스캘럽 뒷전 (평판 '비행기 주익' 오독 제거, 비평가 지적)
-        const wingGeo = (len, chord) => {
-            const sh = new THREE.Shape();
-            sh.moveTo(0, 0.02);
-            sh.quadraticCurveTo(len * 0.5, chord * 0.5, len, chord * 0.06);
-            sh.quadraticCurveTo(len * 0.86, -chord * 0.34, len * 0.66, -chord * 0.16);
-            sh.quadraticCurveTo(len * 0.5, -chord * 0.52, len * 0.32, -chord * 0.24);
-            sh.quadraticCurveTo(len * 0.16, -chord * 0.46, 0, -chord * 0.3);
-            sh.closePath();
-            return new THREE.ShapeGeometry(sh);
-        };
-
+        const model = (typeof ENEMY_MODELS !== 'undefined') && ENEMY_MODELS[kind];
         const anim = { kind, wings: [], legs: [] };
-        let body = null, armR = null, armL = null, topY = 1.1;
-
-        if (kind === 'slime') {
-            // 🧊 **voxel 전환 1종째** (화풍 확정 2026-08-20). 종전은 26분할 라테 물방울 + 구 핵/기포 —
-            //    매끈한 회전체라 확정 화풍(축정렬 큐브 적층)과 정반대였다.
-            //    ⚠️ **실루엣은 다시 디자인하지 않았다.** 비평가 지적("몸통 구 + 스커트 토러스 2피스는
-            //    '접시 위 슬라임'으로 읽힌다")을 풀어 낸 것이 저 물방울 프로파일이라, **같은 프로파일
-            //    숫자를 복셀 단위로 나눠 `Voxel.revolve` 에 그대로 넘긴다**. 화풍만 바뀌고 형태는 남는다.
-            const jelly = new THREE.MeshStandardMaterial({ color: base, transparent: true, opacity: 0.82, metalness: 0, roughness: 0.12, envMapIntensity: 1.2, vertexColors: true, flatShading: true }); // 젖은 젤리 — 환경 반사로 광택
-            // 원본 라테 프로파일(월드) → 복셀 칸. 높이 0.65 = 13칸 · 최대 반지름 0.5 = 10칸.
-            // 🚨 **맨 아래 꼭지점(r 0.001)은 버린다.** 원본은 y 0 → 0.012 사이에서 r 이 0 → 0.42 로
-            //    튀는 '거의 평평한 바닥판'인데, 복셀은 한 칸(0.05)보다 얇은 테이퍼를 표현할 수 없어
-            //    그대로 옮기면 **바닥이 한 칸짜리 뾰족점**이 되어 슬라임이 점 위에 선다.
-            //    복셀에서 그 구간의 올바른 번역은 '폭 17칸짜리 납작한 바닥판'이다.
-            const slProf = [[0.42, 0.012], [0.5, 0.07], [0.485, 0.18], [0.44, 0.3], [0.38, 0.42], [0.27, 0.54], [0.13, 0.62], [0.06, 0.65]];
-            const slV = slProf.map(([r, y]) => [r / VS, y / VS]);
-            slV[0][1] = 0;   // 바닥판을 y=0 에 앉힌다(접지선 유지)
-            // 🚨 **`shell` 이 반투명 파츠에서는 필수다.** 속을 꽉 채우면 안쪽 면이 전부 제거돼
-            //    겉 한 겹만 남고, 반투명 재질에서 그건 '젤리'가 아니라 **두께 없는 유리막**으로 읽힌다.
-            //    껍질로 만들면 안쪽 면이 살아나 두께가 생기고 핵·기포가 그 안에 잠긴 것으로 보인다.
-            body = vx(Voxel.hollow(Voxel.revolve(slV)), { material: jelly, color: 0xffffff });
-            g.add(body);
-            // 몸속 핵 — 반지름 0.15 = 3칸. 파츠라 center:true(피벗 = 덩어리 한복판).
-            const core = vx(Voxel.ellipsoid(3, 3, 3), { material: lam(base.clone().offsetHSL(0.02, 0.18, -0.2)), color: 0xffffff, center: true });
-            core.material.vertexColors = true; core.material.flatShading = true;
-            core.position.set(0, 0.3, -0.04);
-            g.add(core);
-            const bubMat = lam(base.clone().offsetHSL(0, -0.05, 0.16));
-            bubMat.vertexColors = true; bubMat.flatShading = true;
-            for (const [bx2, by2, br] of [[0.22, 0.24, 1], [-0.18, 0.38, 1]]) { // 내부 기포 — 1칸 반지름(3칸 큐브)
-                const bub = vx(Voxel.ellipsoid(br, br, br), { material: bubMat, color: 0xffffff, center: true, ao: 0 });
-                bub.position.set(bx2, by2, 0.1);
-                g.add(bub);
+        let g, body = null, armR = null, armL = null, topY = 1.1;
+        if (!model) {
+            // 표에 없는 종 — 회색 상자로 눈에 띄게 남긴다(조용히 사라지면 아무도 못 찾는다).
+            g = new THREE.Group();
+            g.add(Voxel.build(Voxel.box(10, 10, 10, 0x9e9e9e), { size: this.ENEMY_VS, center: true }));
+        } else {
+            const cell = model.cell || this.ENEMY_VS;
+            // vivid — 게임 씬은 ACES 톤맵 + 낮은 광량이라 표의 색이 한 단계 씻긴다. 표를 흔들지 말고
+            // **게임 경로에서만** 채도를 올려 되돌린다(펫·탈것 어댑터와 같은 규약).
+            const built = Mobs.build(model, { cell, vivid: 0.16 });
+            g = built.group;
+            const Pt = built.parts;
+            body = Pt.body || null;
+            anim.wings = built.wings;                    // tag:'wing' — 노드에 userData.s(좌우)가 이미 박혀 있다
+            // ── 관절 배선: 표의 id 규약 → 드라이버가 읽는 anim 키 ─────────────────────
+            for (const s of ['L', 'R']) if (Pt['hip' + s] && Pt['knee' + s])
+                (anim.bleg = anim.bleg || []).push({ hip: Pt['hip' + s], knee: Pt['knee' + s] });
+            for (const s of ['L', 'R']) if (Pt['sh' + s] && Pt['elbow' + s])
+                (anim.barm = anim.barm || []).push({ sh: Pt['sh' + s], elbow: Pt['elbow' + s] });
+            // ⚠️ `armR`/`armL` 은 관절 없는 리그의 폴백 경로(`enemyAttack`·대기)가 쓰고,
+            //    `armRJ` 는 2관절 공격 스윙이 쓴다. `barm` 유무가 곧 보스 견갑뿔 humanoid 판정이다.
+            if (anim.barm) {
+                armR = Pt.shR || null; armL = Pt.shL || null;
+                if (Pt.shR && Pt.elbowR) anim.armRJ = { sh: Pt.shR, elbow: Pt.elbowR };
             }
-            // 정수리 광택 — 종전은 반투명 구를 눌러 만든 소프트 하이라이트였다. voxel 월드에서
-            // 소프트 그라디언트는 그 자체로 이물이라, **밝은 큐브 계단 3칸**으로 바꾼다
-            // (마인크래프트/크로시로드의 하이라이트가 언제나 '밝은 블록'이지 번짐이 아닌 것과 같다).
-            const gloss = vx(Voxel.merge(Voxel.box(2, 1, 2, 0xf2fcff), Voxel.at(Voxel.box(1, 1, 1, 0xffffff), 2, 0, 1)),
-                { material: new THREE.MeshBasicMaterial({ color: 0xf2fcff, transparent: true, opacity: 0.72, vertexColors: true }), center: true, ao: 0, jitter: 0 });
-            gloss.position.set(-0.15, 0.56, 0.15);
-            g.add(gloss);
-            // 정수리 물방울 봉우리 — 종전 `sp()` 구 하나. 복셀에서는 2칸 반지름 덩어리.
-            const knob = vx(Voxel.ellipsoid(2, 2, 2), { material: jelly, color: 0xffffff, center: true });
-            knob.position.set(0.14, 0.63, 0);
-            g.add(knob);
-            if (e.isBoss) {
-                // ── 킹 슬라임 — 보스 슬라임만 몸을 **2단**으로 얹는다 ──────────────────
-                // 🚨 **왜 슬라임만 따로 손대야 했나** (`probe-boss-variant` 실측): 배율을 지운
-                //   실루엣 IoU 가 **0.935**(게이트 0.90 미만 통과, 자가 대조 1.000)로 7종 중
-                //   유일하게 '크기만 키운 장난감' 판정이었다. 다른 종은 레갈리아의 등가시·
-                //   견갑뿔이 윤곽을 갈라 준다(골렘 0.829). 그런데 **슬라임은 붙일 어깨도 등도
-                //   없어 레갈리아가 관 하나뿐**이라, 관 화소(236)를 얹어도 몸 윤곽은 그대로였다.
-                //   → 장식을 더 붙이는 길은 이 종에서 막혀 있다. **몸 자체를 바꾼다.**
-                // ⚠️ 뿔·가시를 심지 않는다 — 젤리는 뾰족한 것으로 자라는 물건이 아니다.
-                //   젤리가 커지는 방식은 **더 뭉치는 것**이라, 위로 한 단 얹고 밑동에 곁방울을
-                //   붙인다. 2단 윤곽과 울퉁불퉁한 밑동은 **배율을 지워도 남는 차이**라 자가 잡는다.
-                // ⚠️ 얼굴(눈·입 y 0.29~0.42)은 아래 단에 그대로 둔다 — 위 단으로 올리면 얼굴이
-                //   관에 밀려 '머리 위의 머리'가 된다. 아래 단이 머리, 위 단은 **얹힌 덩어리**다.
-                const domeProf = [[0.30, 0], [0.34, 0.06], [0.30, 0.16], [0.20, 0.25], [0.08, 0.30]];
-                const dome = vx(Voxel.hollow(Voxel.revolve(domeProf.map(p => [gv(p[0]), gv(p[1])]))),
-                    { material: jelly, color: 0xffffff });
-                dome.position.set(0, 0.52, -0.06);   // 아래 단 정수리(0.65)에 파묻히게 겹친다
-                g.add(dome);
-                // 밑동 곁방울 둘 — 관은 위만 바꾼다. 아래 윤곽도 같이 안 바꾸면 실루엣의 절반이
-                // 그대로라 IoU 가 충분히 안 내려간다.
-                for (const sx of [-1, 1]) {
-                    const lobe = vx(Voxel.ellipsoid(4, 3, 3), { material: jelly, color: 0xffffff, center: true });
-                    lobe.position.set(sx * 0.46, 0.13, -0.02);
-                    g.add(lobe);
+            for (const s of ['L', 'R']) if (Pt['gleg' + s]) (anim.gleg = anim.gleg || []).push(Pt['gleg' + s]);
+            // 사족 — `legs` 와 `knees` 는 **같은 순서**여야 한다(드라이버가 `knees[j]` 로 짝을 찾는다).
+            for (const k of ['FL', 'FR', 'BL', 'BR']) {
+                const lg = Pt['leg' + k];
+                if (!lg) continue;
+                anim.legs.push(lg);
+                const kn = Pt['knee' + k];
+                if (!kn) continue;
+                kn.userData.rx0 = kn.rotation.x;         // 질주 무릎 굽힘의 기준 포즈(표의 rot 를 그대로 쓴다)
+                kn.userData.front = k[0] === 'F' ? 1 : 0; // 앞다리는 뒤로, 뒷다리는 앞으로 접힌다
+                (anim.knees = anim.knees || []).push(kn);
+            }
+            if (built.tail) anim.tail = built.tail;
+            if (model.fly) anim.fly = true;
+            if (model.hop) anim.hop = true;
+            if (Pt.cap) anim.cap = Pt.cap;               // 버섯 갓 피벗 — 홉 박자에 맞춰 기운다
+            // 갓 테두리 플랩(우산 살 2차 모션) — 중심에서 멀수록 늦게 처진다.
+            // ⚠️ **y 만 민다.** x/z 를 건드리면 칸이 격자를 벗어나 면이 축정렬을 잃는다(화풍 위반).
+            if (Pt.capDome && Pt.capDome.geometry) {
+                const dp = Pt.capDome.geometry.attributes.position;
+                let rMax = 0;
+                for (let i = 0; i < dp.array.length; i += 3) {
+                    const r = Math.hypot(dp.array[i], dp.array[i + 2]);
+                    if (r > rMax) rMax = r;
                 }
-                // 광택·물방울 봉우리는 **위 단으로 옮긴다** — 그대로 두면 새 단 속에 파묻혀
-                // 사라진다(정수리 하이라이트가 없으면 젤리가 젖은 물건으로 안 읽힌다).
-                gloss.position.set(-0.13, 0.74, 0.13);
-                knob.position.set(0.12, 0.81, -0.04);
+                const fparts = [];
+                // 갓이 여러 단이면 위 단도 같은 플랩량을 따라가야 갓이 두 조각으로 갈라지지 않는다.
+                if (Pt.capTop) fparts.push({ o: Pt.capTop, y: Pt.capTop.position.y, t: 0.62 });
+                anim.capFlap = { mesh: Pt.capDome, base: Float32Array.from(dp.array), rMax: rMax || 1, lag: 1.6, parts: fparts };
             }
-            // 아래로 벌린 입 — 종전 토러스 아크. 복셀에서 곡선은 **계단 3칸**이 정답이다
-            // (얇은 튜브를 큐브로 옮기면 지름 1칸짜리 점선이 되어 입으로 안 읽힌다).
-            // ⚠️ 폭은 **눈 간격(0.26)보다 좁게** 잡는다 — 큐브로 옮기면서 시원하게 키우고 싶어지는데,
-            //    눈보다 넓은 입은 슬라임이 아니라 '입만 큰 인형'이 된다. 4칸 = 0.20.
-            const smMouth = vx(Voxel.merge(
-                Voxel.at(Voxel.box(2, 1, 1, 0x274048), 1, 0, 0),   // 아랫변(가운데 2칸)
-                Voxel.at(Voxel.box(1, 1, 1, 0x274048), 0, 1, 0),   // 왼쪽 끝이 한 칸 위로
-                Voxel.at(Voxel.box(1, 1, 1, 0x274048), 3, 1, 0)),  // 오른쪽 끝이 한 칸 위로
-                { material: new THREE.MeshBasicMaterial({ color: 0x274048, vertexColors: true }), center: true, ao: 0, jitter: 0 });
-            smMouth.position.set(0, 0.29, 0.43);
-            g.add(smMouth);
-            eyes(0.42, 0.4, 0.13, 0.045, 'angry', { iris: 0x1d4e63, browColor: 0x1e4552 }); // 점 눈 2개는 NPC로 읽힘 (비평가 7.1 13번) — 성난 눈썹으로 적대 표정
-            // 🚫 슬라임에는 AO 링을 두지 않는다 — **이음새가 없는 종**이다(라테 한 장 + 몸속 핵).
-            //    붙일 경계가 없어서 어디에 둬도 몸 안에 파묻힌다: 바닥 퍼짐부(r≈0.44)에 둘러 봤더니
-            //    바로 위 최대 둘레(y 0.07 에서 r 0.5)가 처마처럼 덮어 **화면 기여 0픽셀**이었다
-            //    (probe-enemy-ao 실측). 접지 단서는 블롭 섀도가 이미 맡고 있다.
-            //    슬라임에 필요한 건 AO 가 아니라 진행 메모 ⓑ의 **관절 분절**이다.
-            // 보스는 위 단(꼭대기 ≈0.82)이 얹히므로 HP 바 논리 높이도 같이 올린다 —
-            // 안 올리면 `bossRegalia` 가 재는 출발점이 몸 속에서 시작한다.
-            anim.body = body; topY = e.isBoss ? 1.05 : 0.85;
-            // ── 젤리 웨이브 준비 (진행 메모 ⓑ '슬라임은 아직 통짜') ──
-            // 예전엔 `body.scale.y/x` 를 통째로 흔들었다 — 그건 젤리가 아니라 **크기가 변하는 풍선**이다.
-            // 실제 젤리는 바닥이 먼저 눌리고 그 눌림이 **위로 늦게 전파**된다. 그래서 정점마다
-            // 자기 높이에 비례하는 **위상 지연**을 줘서 스쿼시가 파도처럼 타고 오르게 한다(driveJelly).
-            // base = 원본 정점(매 프레임 여기서 다시 계산해야 오차가 누적되지 않는다).
-            {
+            if (model.jelly && body && built.boxes.body) {
+                // 🚨 `driveJelly` 는 정점 y 를 **바닥에서의 높이**로 읽는다(스쿼시 위상이 아래→위로
+                //   전파되는 게 젤리의 정체다). `Voxel.build` 는 파츠 중심 정렬이라 그대로 태우면
+                //   아래 절반이 음수 높이가 되어 파도가 반대로 돌고, 바닥면까지 위아래로 떠 접지가
+                //   깨진다 — 지오메트리를 바닥(y=0)으로 내리고 파츠 위치로 상쇄한다.
+                const hw = built.boxes.body.box[1] * cell / 2;
+                body.geometry.translate(0, hw, 0);
+                body.position.y -= hw;
                 const jp = body.geometry.attributes.position;
                 let hMax = 0;
                 for (let i = 1; i < jp.array.length; i += 3) if (jp.array[i] > hMax) hMax = jp.array[i];
-                // 몸통에 얹힌 나머지(핵·기포·광택·눈·입)도 같은 변형을 따라가야 한다 —
-                // 안 따라가면 몸이 눌릴 때 눈만 제자리에 남아 얼굴이 몸 밖으로 빠져나온다.
+                // 몸에 얹힌 나머지(코어·얼굴판)도 같은 변형을 따라가야 한다 — 안 따라가면 몸이 눌릴 때
+                // 얼굴만 제자리에 남아 몸 밖으로 빠져나온다.
                 const follow = [];
                 for (const ch of g.children) {
                     if (ch === body) continue;
                     follow.push({ o: ch, x: ch.position.x, y: ch.position.y, z: ch.position.z });
                 }
                 anim.jelly = { mesh: body, base: Float32Array.from(jp.array), h: hMax || 1, lag: 1.15, follow };
+                anim.body = body;
             }
-        } else if (kind === 'golem') {
-            // 🧊 **voxel 전환 2종째** (화풍 확정 2026-08-20). 바위는 큐브 조형이 가장 잘 맞는 종이라
-            //    슬라임 다음 순서로 잡았다 — 종전은 이십면체를 노이즈로 깎은 청크(`boulderGeo`)와
-            //    라테 몸통이라, '각져 보이지만 면이 축정렬이 아니어서' 화풍 정합에서 떨어지는 조형이었다.
-            // ⚠️ **비례·부위 목록·애니 훅·AO 링 자리는 그대로 옮긴다** — 인계 규칙(형태 판정은 유지).
-            // 🚨 **표면 텍스처(rockTex)를 뺐다 — 되돌리지 말 것.** 화풍 ⓒ 가 '텍스처 파일 없음 ·
-            //    면당 플랫 색'을 못 박았고, `equip-voxelize` 도 "표면의 자갈 노이즈가 그 규칙을 깬다"를
-            //    비평가 지적으로 등재해 뒀다. 바위의 얼룩덜룩함은 이제 **큐브별 색변화(jitter)**가 낸다.
-            const rockM = lam(base.clone().offsetHSL(0, -0.12, -0.02));
-            const rockD = lam(base.clone().offsetHSL(0, -0.12, -0.16));
-            for (const m2 of [rockM, rockD]) { m2.vertexColors = true; m2.flatShading = true; }
-            const magma = new THREE.MeshBasicMaterial({ color: 0xff5a22, vertexColors: true }); // 깊은 마그마 오렌지 — 베이지 데칼 오독 방지
-            // 🚨 **한 칸(VS=0.05)보다 작은 디테일은 한 칸으로 '올라붙는다'.** 종전 균열은 폭 0.013,
-            //    코어 림 튜브는 0.022 였다 — 복셀 격자에서 그건 표현할 수 없다. 종마다 격자를 잘게
-            //    바꾸면 같은 세계의 벽돌 크기가 달라져(슬라임 13칸 vs 골렘 27칸이 같은 벽돌이라는
-            //    사실이 화풍의 일관성 그 자체다) 오히려 화풍이 깨진다. → **격자는 공용으로 두고
-            //    작은 디테일은 한 칸으로 키운다**(마인크래프트의 용암 광맥이 그렇게 생겼다).
-            const vrock = (r, seed, o) => vx(Voxel.rock(gv(r), seed, o || {}), { material: (o && o.mat) || rockM, color: 0xffffff, center: true });
-            // 역삼각 몸통 — 종전 라테 프로파일을 칸 단위로 그대로 넘긴다(실루엣 불변).
-            const prof = [[0.17, 0], [0.3, 0.1], [0.36, 0.3], [0.33, 0.46], [0.2, 0.56]];
-            body = vx(Voxel.revolve(prof.map(p => [gv(p[0]), gv(p[1])])), { material: rockM, color: 0xffffff });
-            body.position.y = 0.42; body.scale.z = 0.85;
-            g.add(body);
-            // 마그마 코어 — 종전 팔면체. `gem` 이 |x|+|y|+|z| ≤ r 이라 계단이 45° 로 떨어져 같은 언어다.
-            // ⚠️ 크기는 실측으로 한 단 내렸다 — `gem(2)`(5칸 = 0.25)는 종전 팔면체(0.144)의 1.7배라
-            //    림·균열과 합쳐져 **가슴 전체가 주황 덩어리 하나**로 뭉쳤다(첫 캡처에서 육안 확인).
-            const core = vx(Voxel.gem(1.6), { material: magma, color: 0xffffff, center: true, ao: 0 });
-            core.position.set(0, 0.73, 0.325); core.scale.z = 0.45; core.rotation.z = 0.35;
-            // 코어 둘레 함몰 바위 림 — 토러스 → 큐브 링(표면 스티커가 아니라 깨진 틈 속 마그마)
-            const coreRim = vx(Voxel.ring(2, 1, 1), { material: rockD, color: 0xffffff, center: true });
-            coreRim.position.set(0, 0.73, 0.318); coreRim.scale.set(0.8, 0.8, 0.5);
-            g.add(core, coreRim);
-            // 코어에서 방사하는 균열 — 종전은 회전시킨 얇은 Box(축정렬이 아니라 화풍 위반).
-            // 복셀에서 비스듬한 선은 **계단 3칸**이다. 한 칸 = 0.05 라 종전 폭 0.013 보다 굵어진다.
-            for (const [cx2, cy2, dx] of [[0.1, 0.79, 1], [-0.1, 0.78, -1], [0.09, 0.66, -1], [-0.08, 0.65, 1]]) {
-                // ⚠️ 계단 3칸(0.15)은 코어와 붙어 덩어리가 됐다 — 2칸으로 줄이고 두께도 0.6배.
-                const crack = vx(Voxel.merge(Voxel.box(1, 1, 1), Voxel.at(Voxel.box(1, 1, 1), dx, 1, 0)),
-                    { material: magma, color: 0xffffff, center: true, ao: 0, jitter: 0 });
-                crack.position.set(cx2, cy2, 0.305); crack.scale.set(0.6, 0.9, 0.3);
-                g.add(crack);
+            // HP 바 논리 높이 — 표의 실제 꼭대기에서 뽑는다. 종별 상수를 손으로 박아 두면
+            // 표를 한 칸 고칠 때마다 바가 몸을 뚫거나 허공에 뜬다(종전 판이 그 상태였다).
+            let maxY = 0;
+            for (const p of model.parts) {
+                if (!p || p.off) continue;
+                const t = p.at[1] + p.box[1] / 2;
+                if (t > maxY) maxY = t;
             }
-            // 옆구리 마그마 틈 — 같은 이유로 계단 2칸
-            for (const s of [-1, 1]) {
-                const flank = vx(Voxel.merge(Voxel.box(1, 2, 1), Voxel.at(Voxel.box(1, 1, 1), s, 2, 0)),
-                    { material: magma, color: 0xffffff, center: true, ao: 0, jitter: 0 });
-                flank.position.set(s * 0.3, 0.62, 0.12); flank.scale.z = 0.3;
-                g.add(flank);
-            }
-            // 이끼 패치 — 납작한 큐브 판(구를 눌러 만들던 것). 바위 위에 얹힌 이끼는 원래 판이다.
-            // 🚨 **`MeshLambertMaterial` 에 `vertexColors` 를 걸면 이 씬에서 새까맣게 렌더된다(실측).**
-            //    버섯 반점(흰 큐브)이 검은 슬래브로 나오던 것이 이것이었다 — Lambert → Standard 로
-            //    바꾸자 그 자리에서 흰색이 됐다(다른 변경 없음). 종전 코드가 Lambert 를 쓴 건
-            //    `vertexColors` 가 없던 시절이라 문제가 없었던 것이고, voxel 전환은 정점 색이 필수다.
-            //    → **voxel 파츠의 재질은 `MeshStandardMaterial`(또는 무조명 `MeshBasicMaterial`)로 통일한다.**
-            const mossM = new THREE.MeshStandardMaterial({ color: 0x5e7d3a, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.9 });
-            for (const [mx, my, mz, mr] of [[-0.14, 0.95, 0.1, 2], [0.2, 0.52, 0.2, 1.6], [0.05, 1.13, -0.05, 1.7]]) {
-                const moss = vx(Voxel.ellipse(mr, mr, 1, {}), { material: mossM, color: 0xffffff, center: true, ao: 0.5 });
-                moss.position.set(mx, my, mz);
-                g.add(moss);
-            }
-            // 어깨 볼더 + 분절 팔(상완 → 팔꿈치 → 하완 → 거대 주먹, 지면까지 늘어짐)
-            for (const s of [-1, 1]) {
-                const sh = new THREE.Group();
-                sh.position.set(s * 0.38, 0.9, 0); // 몸통에 파묻히게 안쪽으로 — 어깨 볼더 공중부양 금지
-                // 좌우 시드를 갈라 비대칭까지 준다(바위는 대칭이 아니다)
-                const boulder = vrock(0.165, s > 0 ? 3 : 11, { bite: 0.3 });
-                boulder.scale.set(1.05, 0.9, 0.9); boulder.position.x = -s * 0.02;
-                const upper = vlimb(0.085, 0.075, 0.3, rockM);
-                upper.rotation.z = s * 0.12;
-                const elbow = new THREE.Group();
-                elbow.position.y = -0.32;
-                const eJoint = vrock(0.082, s > 0 ? 5 : 13, { bite: 0.2 }); // 팔꿈치 관절 바위 — 굽힘 시 이음새 은폐
-                elbow.add(eJoint);
-                const fore = vlimb(0.088, 0.108, 0.26, rockD); // 하완이 상완보다 두꺼운 파괴자 실루엣
-                const fist = vrock(0.17, s > 0 ? 7 : 17, { bite: 0.28 });
-                fist.position.y = -0.32; fist.scale.set(1, 1.1, 1);
-                for (let k2 = 0; k2 < 3; k2++) { // 주먹 관절 돌기
-                    const knuckle = vrock(0.05, s * 100 + k2 * 3 + 2, { bite: 0.24, mat: rockD });
-                    knuckle.position.set((k2 - 1) * 0.08, -0.42, s * 0.065);
-                    elbow.add(knuckle);
-                }
-                elbow.add(fore, fist);
-                sh.add(boulder, upper, elbow);
-                g.add(sh);
-                (anim.barm = anim.barm || []).push({ sh, elbow });
-                if (s > 0) { armR = sh; anim.armRJ = { sh, elbow }; } else armL = sh;
-            }
-            // 골반 바위 — 몸통 하단과 다리 사이 공중 부양 갭 메움
-            const pelvisG = vrock(0.21, 23, { bite: 0.22, mat: rockD });
-            pelvisG.position.set(0, 0.37, 0); pelvisG.scale.set(1.15, 0.62, 0.9);
-            g.add(pelvisG);
-            // 짧은 기둥 다리 + 발 바위 — 상체 질량 대비 두껍게 (왜소 다리 금지)
-            for (const s of [-1, 1]) {
-                const leg = vlimb(0.115, 0.1, 0.2, rockD);
-                leg.position.set(s * 0.17, 0.26, 0);
-                // 발은 접지면이라 밑을 잘라 평평한 단면을 남긴다 — 둥근 밑면은 땅에 안 얹힌 것처럼 뜬다.
-                // 종전 `flatBottom: 0.34`(구 반지름 비율)의 복셀 대응 = 밑에서 한 칸을 자른다.
-                const foot = vrock(0.13, s > 0 ? 29 : 31, { bite: 0.2, flatBottom: -1 });
-                foot.position.set(s * 0.01, -0.205, 0.04); foot.scale.set(1, 0.5, 1.35);
-                leg.add(foot);
-                (anim.gleg = anim.gleg || []).push(leg);
-                g.add(leg);
-            }
-            // 머리: 어깨 사이에 파묻힌 낮은 바위 돔 + 목 바위 + 무거운 눈두덩 슬랩
-            // 목: 매끈한 원기둥이면 '돌 몸에 끼운 파이프'다 — 단면을 타원으로 눌러 앞뒤를 좁힌다.
-            //     `shellFromRings` 의 voxel 대응이 `Voxel.shell`(같은 링 목록을 칸으로 받는다).
-            const neckG = vx(Voxel.shell([
-                { y: gv(-0.06), rx: gv(0.145), rz: gv(0.128) }, { y: gv(-0.018), rx: gv(0.132), rz: gv(0.117) },
-                { y: gv(0.022), rx: gv(0.119), rz: gv(0.106) }, { y: gv(0.06), rx: gv(0.107), rz: gv(0.097) },
-            ]), { material: rockD, color: 0xffffff, center: true });
-            neckG.position.set(0, 0.98, 0.04);
-            g.add(neckG);
-            const head = vrock(0.17, 41, { bite: 0.24 });
-            head.position.set(0, 1.06, 0.05); head.scale.set(1.1, 0.82, 0.95);
-            // 눈두덩은 판 — 종전 베벨 슬랩의 voxel 대응이 `slab`(모서리를 계단으로 깎는다).
-            const browSlab = vx(Voxel.slab(Math.round(0.3 / VS), 2, Math.round(0.14 / VS), undefined, 1),
-                { material: rockD, color: 0xffffff, center: true });
-            browSlab.position.set(0, 1.14, 0.1); browSlab.rotation.x = 0.15;
-            g.add(head, browSlab);
-            // 목 바위(r 0.11~0.14) 밑 · 몸통 밑단(r 0.17)과 골반 바위 경계 · 기둥 다리 소켓
-            // 목 이음새 — 0.142/0.024 는 **파묻혀 26px** 밖에 기여를 못 했다(하한 60). 실측 배율 훑기에서
-            // 1.20/1.45/1.75 배가 전부 유출 0 이라, 위아래로 여유가 있는 가운데 값(1.45배)을 쓴다 → 371px.
-            aoRing(0.206, 0.035, 0, 0.955, 0.04, { ez: 0.92 });
-            aoRing(0.19, 0.03, 0, 0.435, 0, { ez: 0.85, flat: 0.45 });
-            // 어깨 소켓 — 0.118/0.02 는 +x 쪽만 3px 샜다(바위 청크가 좌우 비대칭이라 한쪽만 걸린다).
-            // 좌우가 같은 호출이라 한쪽만 줄일 수 없어, 실측으로 양쪽 다 유출 0 이 되는 0.70 배를 쓴다.
-            for (const s of [-1, 1]) aoRing(0.083, 0.014, s * 0.17, 0.345, 0, { flat: 0.5 });
-            eyes(1.05, 0.21, 0.08, 0.045, 'slit', { iris: 0xff7d33, narrow: true });
-            topY = 1.35;
-        } else if (kind === 'goblin') {
-            // 🧊 **voxel 전환 6종째** (화풍 확정 2026-08-20). 굽은 등 이족보행: 서양배 몸통 전경 +
-            //    분절 사지 + 대형 귀 + 가시 몽둥이. 부위·비례·애니 훅(`anim.bleg`/`barm`/`armRJ`)·
-            //    AO 링 자리는 그대로 옮긴다. 재질은 빌더 공용 `vmat()`/`vBase` 로 새로 만든다.
-            // 🚨 `sculptOrganic`(유기 변형)은 뺀다 — 복셀은 애초에 완전구를 안 만들고(ⓒ 가 겨눈 결함이
-            //    구조적으로 사라진다), 변형을 걸면 칸이 격자에서 밀려나 **면이 축정렬을 잃는다**.
-            const skinM = vmat(vBase.clone());
-            const skinD = vmat(vBase.clone().offsetHSL(0, 0, -0.12));
-            const skinL = vmat(vBase.clone().offsetHSL(0, 0, 0.1));
-            const clothM = vmat(new THREE.Color(0x99442e), { roughness: 0.9 }); // 러스트 레드 — 초원 배경 보호색 탈피 악센트 (비평가 지적)
-            const boneM = vmat(new THREE.Color(0xdcc79c), { roughness: 0.6 }); // 1차 ⑴ — 가슴 뼈 목걸이를 눈 흰자와 명도 분리(흰 요소 융합 지적)
-            // 분절 다리: 대퇴 → 무릎 → 정강이 → 발
-            for (const s of [-1, 1]) {
-                const hip = new THREE.Group();
-                hip.position.set(s * 0.12, 0.42, 0);
-                const hJ = vx(Voxel.ellipsoid(gv(0.065), gv(0.065), gv(0.065)), { material: skinM, color: 0xffffff, center: true }); // 고관절 — 걷기 스윙 시 몸통-다리 이음새 은폐
-                hip.add(hJ);
-                const thigh = vlimb(0.062, 0.05, 0.18, skinM);
-                thigh.rotation.x = -0.3; // 웅크린 자세
-                const knee = new THREE.Group();
-                knee.position.set(0, -0.16, 0.06);
-                const shin = vlimb(0.045, 0.04, 0.17, skinD);
-                shin.rotation.x = 0.35;
-                const foot = vx(Voxel.ellipsoid(1, 0.5, 2), { material: skinM, color: 0xffffff, center: true });
-                foot.position.set(0, -0.17, 0.07);
-                knee.add(shin, foot);
-                hip.add(thigh, knee);
-                // 🚨 종전엔 고관절 둘레에 링을 뒀는데 **화면 기여가 0px 이었다** — 그 자리는 로인클로스
-                //    안이라 어느 각도에서도 안 보인다. 실제로 보이는 이음새인 **무릎**으로 옮겨 둔 것을 유지.
-                aoRing(0.049, 0.012, 0, 0, 0, { flat: 0.55, op: 0.5, parent: knee });
-                (anim.bleg = anim.bleg || []).push({ hip, knee }); // 걷기 관절 굽힘용 피벗 노출
-                g.add(hip);
-            }
-            // 서양배 몸통 (앞으로 굽음) + 로인클로스 + 로프 벨트
-            const bodyVox = Voxel.ellipsoid(gv(0.24), gv(0.24 * 1.12), gv(0.24 * 0.92));
-            body = vx(bodyVox, { material: skinM, color: 0xffffff, center: true });
-            body.position.set(0, 0.62, 0.02); body.rotation.x = 0.22;
-            const belly = vx(Voxel.ellipsoid(gv(0.17), gv(0.17 * 1.1), gv(0.17 * 0.55)), { material: skinL, color: 0xffffff, center: true });
-            belly.position.set(0, 0.55, 0.14);
-            const cloth = vx(Voxel.taper(gv(0.26), gv(0.2), 3, undefined, { t: 1 }), { material: clothM, color: 0xffffff, center: true });
-            cloth.position.y = 0.42;
-            const rope = vx(Voxel.ring(gv(0.227), 1, 1), { material: clothM, color: 0xffffff, center: true });
-            rope.position.y = 0.5;
-            // 사선 가죽 밴돌리어 + 뼈 이빨 목걸이 — 초록 단색 몸통 분리 (비평가: 초록-초록 가독성 부족)
-            const strap = vx(Voxel.ring(gv(0.271), 1, 1), { material: clothM, color: 0xffffff, center: true });
-            strap.position.set(0, 0.63, 0.02); strap.rotation.set(0.22, 0, 0.72);
-            // 뼈 이빨 목걸이 — 🚨 **몸통 표면 앵커를 타원식으로 풀지 말 것(복셀에서 무너진다).**
-            //    종전 `chestPt()` 는 몸통을 매끈한 타원체로 가정해 표면 z 를 해석으로 냈다. 복셀 몸통은
-            //    계단이라 그 z 가 열마다 최대 반 칸씩 어긋나 이빨이 파묻히거나 뜬다(버섯 반점에서 겪은
-            //    자리와 같다). → **복셀 목록에서 (x,y) 열의 최전방 칸을 뽑아 그 앞에 얹는다.**
-            const frontZ = {};
-            for (const v of bodyVox) {
-                const k = v.x + ',' + v.y;
-                if (frontZ[k] === undefined || v.z > frontZ[k]) frontZ[k] = v.z;
-            }
-            const neckG = new THREE.Group();
-            neckG.position.copy(body.position); neckG.rotation.x = 0.22; // 몸통과 같은 기울기
-            for (let bi = -2; bi <= 2; bi++) {
-                const cxi = Math.round(bi * 1.1), cyi = Math.round(3 - Math.abs(bi) * 0.45);
-                const fz = frontZ[cxi + ',' + cyi];
-                if (fz === undefined) continue;
-                const tooth2 = vx(Voxel.taper(0.9, 0.5, 2), { material: boneM, color: 0xffffff, center: true });
-                tooth2.position.set(cxi * VS, cyi * VS, (fz + 1) * VS);
-                tooth2.rotation.x = Math.PI - 0.35; // 끝 아래로 + 가슴 경사 따라 눕힘
-                neckG.add(tooth2);
-                if (bi < 2) { // 이빨 사이 구슬 — 끈 라인
-                    const bxi = Math.round((bi + 0.5) * 1.1), byi = Math.round(3.7 - Math.abs(bi + 0.5) * 0.45);
-                    const bz = frontZ[bxi + ',' + byi];
-                    if (bz === undefined) continue;
-                    const bead = vx(Voxel.box(1, 1, 1), { material: boneM, color: 0xffffff, center: true, ao: 0, jitter: 0 });
-                    bead.position.set(bxi * VS, byi * VS, (bz + 1) * VS);
-                    bead.scale.setScalar(0.55);
-                    neckG.add(bead);
-                }
-            }
-            g.add(body, belly, cloth, rope, strap, neckG);
-            // 머리: 큰 두상 + 대형 뾰족귀(안쪽 어두운 이중판) + 매부리코 + 언더바이트 송곳니
-            const head = vx(Voxel.ellipsoid(gv(0.21), gv(0.21 * 0.95), gv(0.21 * 0.95)), { material: skinM, color: 0xffffff, center: true });
-            head.position.set(0, 0.95, 0.08);
-            // 턱 그룹 — 언더바이트를 앞으로 빼(두상에 파묻히던 문제) 송곳니를 턱에 직접 앵커 (비평가: 이빨 부유)
-            const jawG = new THREE.Group();
-            jawG.position.set(0, 0.845, 0.19);
-            const jaw = vx(Voxel.ellipsoid(gv(0.13 * 1.15), gv(0.13 * 0.55), gv(0.13 * 0.9)), { material: skinD, color: 0xffffff, center: true });
-            jawG.add(jaw);
-            const mouthLine = vx(Voxel.box(4, 1, 1), { material: new THREE.MeshBasicMaterial({ color: 0x2e1c14, vertexColors: true }), color: 0xffffff, center: true, ao: 0, jitter: 0 }); // 벌린 입 다크 심 — 입 위치 실종 지적 (비평가)
-            mouthLine.position.set(0, 0.065, 0.1); mouthLine.scale.z = 0.5; // 턱 앞전에 걸치게 — 두상에 가려지지 않는 깊이
-            jawG.add(mouthLine);
-            for (const s of [-1, 1]) {
-                const tusk = vx(Voxel.taper(0.9, 0.5, 2), { material: vmat(new THREE.Color(0xe6d2a4), { roughness: 0.6 }), color: 0xffffff, center: true }); // 1차 ⑴ '흰 요소 융합' — 송곳니를 아이보리로 내려 눈 흰자(0xfff6e8)와 명도 분리
-                tusk.position.set(s * 0.055, 0.06, 0.1); // 밑동은 턱 살 안, 끝은 윗입술 앞 — 턱에서 솟는 송곳니
-                tusk.rotation.x = -0.35; // 앞으로 벌어진 언더바이트 각
-                jawG.add(tusk);
-            }
-            // 목: 두상 밑 · 허리: 로프 벨트 바로 아래 로인클로스 경계
-            // 🚨 유출이 나면 **튜브를 굵히지 말 것** — `TorusGeometry` 의 바깥 반경 = r + tube 라 더 나간다.
-            //    반경을 줄이고 `op` 로 진하기를 되찾는 것이 정답이다(박쥐에서 실측).
-            aoRing(0.152, 0.028, 0, 0.85, 0.06, { flat: 0.5 });
-            aoRing(0.203, 0.026, 0, 0.462, 0, { flat: 0.45, op: 0.44 });
-            g.add(head, jawG);
-            for (const s of [-1, 1]) {
-                const ear = new THREE.Group();
-                ear.position.set(s * 0.19, 1.0, 0.02);
-                // 🎯 1차 채점 교집합 ⑴ — 비평가 2인이 '흩어진 잎 복셀'로 읽은 것의 실체가 이 귀다
-                //    (몸과 같은 초록 + 납작 taper = 배경 수풀과 같은 색·크기). 처방 '몸보다 밝은
-                //    초록으로 분리'를 그대로 적용: 바깥판 skinM → skinL(+0.1), 두께 0.45 → 0.6
-                //    (얇은 잎 → 뭉툭한 귀 덩어리), 안쪽판은 살굿빛(실제 귓속 — 수풀 톤 완전 이탈).
-                const earOut = vx(Voxel.taper(gv(0.075), 0.5, 6), { material: skinL, color: 0xffffff, center: true });
-                earOut.rotation.z = s * -1.85; earOut.position.x = s * 0.14;
-                earOut.scale.z = 0.6;
-                const earIn = vx(Voxel.taper(gv(0.045), 0.5, 4), { material: vmat(new THREE.Color(0x9c5a48), { roughness: 0.85 }), color: 0xffffff, center: true });
-                earIn.rotation.z = s * -1.85; earIn.position.set(s * 0.12, 0.012, 0);
-                earIn.scale.z = 0.3;
-                ear.add(earOut, earIn);
-                g.add(ear);
-            }
-            const nose = vx(Voxel.taper(gv(0.045), 0.5, 3), { material: skinD, color: 0xffffff, center: true });
-            nose.position.set(0, 0.93, 0.3); nose.rotation.x = Math.PI / 2 - 0.35;
-            g.add(nose);
-            eyes(0.99, 0.28, 0.1, 0.045, 'fierce', { iris: 0xd9c422, tilt: 0.07, browColor: 0x46311f, blushK: 0.66 }); // browColor 0x3a4a2e(세이지) → 웜 브라운 — 1차 ⑴ '잎 노이즈'의 공범(수풀과 같은 톤) // tilt 0.12→0.07 — 눈 기울기도 '화난 눈매'의 절반을 진다(cute-art-direction)
-            // 분절 팔 + 가시 몽둥이
-            for (const s of [-1, 1]) {
-                const sh = new THREE.Group();
-                sh.position.set(s * 0.25, 0.78, 0.02);
-                const sJ = vx(Voxel.ellipsoid(gv(0.055), gv(0.055), gv(0.055)), { material: skinM, color: 0xffffff, center: true }); // 어깨 관절 — 팔 스윙 시 이음새 은폐
-                sh.add(sJ);
-                const upper = vlimb(0.05, 0.042, 0.17, skinM);
-                upper.rotation.z = s * 0.25;
-                const elbow = new THREE.Group();
-                elbow.position.set(s * 0.05, -0.17, 0);
-                const eJ = vx(Voxel.ellipsoid(gv(0.042), gv(0.042), gv(0.042)), { material: skinM, color: 0xffffff, center: true }); // 팔꿈치 관절 — 굽힘 이음새 은폐
-                elbow.add(eJ);
-                const fore = vlimb(0.04, 0.036, 0.15, skinD);
-                const wristBand = vx(Voxel.ellipse(gv(0.041), gv(0.041), 1, {}), { material: clothM, color: 0xffffff, center: true }); // 손목 랩 악센트
-                wristBand.position.y = -0.12;
-                const hand = vx(Voxel.ellipsoid(gv(0.062), gv(0.062 * 0.85), gv(0.062 * 1.1)), { material: skinM, color: 0xffffff, center: true }); // 큼직한 주먹 — 국수 가락 팔 끝 오독 방지
-                hand.position.y = -0.16;
-                elbow.add(fore, wristBand, hand);
-                if (s > 0) { // 가시 몽둥이 — 주먹 중심을 자루가 관통하도록 (손목 옆 부유 금지)
-                    const club = new THREE.Group();
-                    club.position.y = -0.16;
-                    const shaft = vx(Voxel.taper(gv(0.06), gv(0.032), 8), { material: vmat(new THREE.Color(0x6d4c41), { roughness: 0.95 }), color: 0xffffff });
-                    shaft.position.y = -0.3;
-                    club.add(shaft);
-                    for (let k2 = 0; k2 < 5; k2++) {
-                        // 가시는 **한 칸 큐브**다 — 원뿔을 칸으로 나누면 0.36칸이라 `taper` 가 통째로 버린다.
-                        const spike = vx(Voxel.box(1, 1, 1), { material: vmat(new THREE.Color(0xcfd2d6), { roughness: 0.5 }), color: 0xffffff, center: true, ao: 0, jitter: 0 });
-                        const a2 = k2 * 2.4;
-                        spike.position.set(Math.cos(a2) * 0.065, -0.2 - (k2 % 3) * 0.05, Math.sin(a2) * 0.065);
-                        spike.scale.setScalar(0.75);
-                        club.add(spike);
-                    }
-                    club.rotation.z = 0.3; // 주먹에서 살짝만 기울여 — 자루가 주먹을 관통해 쥔 실루엣
-                    elbow.add(club);
-                }
-                sh.add(upper, elbow);
-                g.add(sh);
-                (anim.barm = anim.barm || []).push({ sh, elbow });
-                if (s > 0) { armR = sh; anim.armRJ = { sh, elbow }; } else armL = sh;
-            }
-            topY = 1.25;
-        } else if (kind === 'bat') {
-            // 🧊 **voxel 전환 4종째** (화풍 확정 2026-08-20). 두상 + 털몸통 + 막날개 + 매달림 발.
-            //    ⚠️ 부위 목록·비례·애니 훅(`anim.wings`·`anim.fly`)·AO 링 자리는 그대로 옮긴다.
-            //    ⚠️ 재질은 전부 **Standard/Basic** 이다 — `MeshLambertMaterial` + `vertexColors` 는
-            //       이 씬에서 새까맣게 렌더된다(버섯 반점에서 실측으로 확인한 지뢰).
-            // 🚨 **공용 `mat`/`dark`/`light` 를 그대로 쓰면 안 된다 — 두 가지가 동시에 어긋난다.**
-            //    ⑴ `vertexColors` 가 없어서 큐브별 색변화와 이음새 AO 가 **통째로 무시**된다
-            //       (플래그가 없으면 조용히 무시된다 — 첫 판이 민짜 단색 판으로 나온 원인이다).
-            //    ⑵ 종별 `bodyTex`(furTex)를 물고 있어 **표면에 털 노이즈**가 깔린다 —
-            //       화풍 ⓒ 의 '텍스처 파일 없음 · 면당 플랫 색' 위반이다.
-            //    → 빌더 공용 `vmat()`/`vBase` 로 새로 만든다(둘 다 이 파일 위쪽 voxel 헬퍼 묶음에 있다).
-            const batM = vmat(vBase.clone()), batD = vmat(vBase.clone().offsetHSL(0, 0, -0.13)), batL = vmat(vBase.clone().offsetHSL(0, 0, 0.1));
-            const vput = (voxels, m, x, y, z, o) => {
-                const mesh = vx(voxels, Object.assign({ material: m, color: 0xffffff, center: true }, o || {}));
-                mesh.position.set(x, y, z);
-                g.add(mesh);
-                return mesh;
-            };
-            body = vput(Voxel.ellipsoid(gv(0.225), gv(0.245), gv(0.205)), batM, 0, 0.6, 0);
-            // 몸통·다리 — '날개 달린 머리' 금지(비평가 지적): 털복숭이 몸통 + 밝은 가슴털 + 매달림 발톱 발
-            vput(Voxel.ellipsoid(gv(0.125), gv(0.163), gv(0.1)), batD, 0, 0.38, -0.02);
-            vput(Voxel.ellipsoid(gv(0.08), gv(0.092), gv(0.04)), batL, 0, 0.42, 0.07); // 가슴털 패치
-            const clawM = new THREE.MeshStandardMaterial({ color: 0x2c2733, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.8 });
-            for (const s of [-1, 1]) {
-                const legB = vput(Voxel.taper(gv(0.012), gv(0.016), 2), batD, s * 0.05, 0.25, 0);
-                legB.rotation.z = s * 0.22;
-                const claw = vput(Voxel.taper(gv(0.018), 0.5, 1), clawM, s * 0.068, 0.19, 0.012);
-                claw.rotation.x = Math.PI;
-            }
-            const earInM = new THREE.MeshStandardMaterial({ color: 0x35283e, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.85 });
-            const fangM = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.6 });
-            for (const s of [-1, 1]) {
-                // ⚠️ **첫 판은 귀가 '작은 블록 두 개'로 뭉갰다.** `taper(1, 0.5, 3)` 은 밑변이 3칸(0.15)
-                //    뿐이라 화면에서 6px 이다 — 매끈 원뿔은 옆면이 매끄러워 같은 치수로도 뾰족함이
-                //    읽혔지만 큐브는 **계단 수가 곧 형태**라 층이 3개면 삼각형으로 안 읽힌다.
-                //    밑변 2칸·높이 5층으로 키워 계단이 실제로 좁아지는 것이 보이게 한다.
-                const ear = vput(Voxel.taper(2, 0.5, 5), batM, s * 0.11, 0.84, 0);
-                ear.rotation.z = s * -0.3;
-                const earIn = vput(Voxel.taper(1.4, 0.5, 4), earInM, s * 0.105, 0.82, 0.02); // 귀 안쪽 어두운 면
-                earIn.rotation.z = s * -0.3; earIn.scale.z = 0.5;
-                // 송곳니 — z 0.14 는 **두상 안**이라 한 번도 안 보였다(두상 앞면이 z 0.175). 밖으로 뺀다.
-                vput(Voxel.box(1, 2, 1), fangM, s * 0.05, 0.485, 0.175, { ao: 0, jitter: 0 }).scale.set(0.6, 1, 0.6); // 송곳니
-                const wing = new THREE.Group();
-                wing.position.set(s * 0.17, 0.65, 0);
-                // 🧊 **막날개 = 한 칸 두께 판.** 종전은 `ShapeGeometry`(2차 베지에 앞전 + 스캘럽 뒷전)라
-                //    비스듬한 삼각형 덩어리였다 — 축정렬이 아니니 화풍 위반이다.
-                //    복셀에서 곡선 뒷전은 **계단 스캘럽**으로 옮긴다: 열마다 위/아래 끝을 직접 준다.
-                //    ⚠️ 뒷전을 −2/−3 로 번갈아 주는 것이 '손가락 골 사이 막이 처진' 스캘럽이다 —
-                //       일정하게 주면 그냥 사각 판자('종이 평판' 오독)로 돌아간다.
-                const memb = [];
-                const COLS = [[1, -1], [2, -2], [2, -3], [2, -2], [2, -3], [1, -2], [1, -3], [0, -2], [0, -1]];
-                for (let cx2 = 0; cx2 < COLS.length; cx2++)
-                    for (let cy2 = COLS[cx2][1]; cy2 <= COLS[cx2][0]; cy2++)
-                        memb.push({ x: s * cx2, y: cy2, z: 0 });
-                const wm = vx(memb, {
-                    material: new THREE.MeshStandardMaterial({
-                        color: vBase.clone().offsetHSL(0.015, 0.06, -0.20), vertexColors: true, flatShading: true,
-                        side: THREE.DoubleSide, transparent: true, opacity: 0.76, metalness: 0, roughness: 0.9,
-                        // ⚠️ **`envMapIntensity: 0`** — 종전 막은 `MeshLambertMaterial`(환경맵 없음)이었다.
-                        //    Standard 로 갈아타면 씬 환경맵 반사가 얹혀 얇은 막이 몸통보다 밝게 뜬다
-                        //    (voxel 전환에서 Lambert → Standard 를 강제하는 이상 이 항이 따라온다).
-                        envMapIntensity: 0,
-                    }), color: 0xffffff, center: false,
-                }); // 반투명 막 — 0.88은 사실상 불투명 판자로 읽힘 (비평가 6.8 8번)
-                // ⚠️ 명도를 −0.06 → −0.20 으로 더 내렸다: 한 칸 두께 판은 윗면이 광원을 정면으로 받아
-                //    매끈 평면보다 훨씬 밝게 뜬다(첫 판에서 막이 몸통보다 밝은 연보라로 나왔다).
-                const wBone = vx(Voxel.box(9, 1, 1), { material: batD, color: 0xffffff, center: false }); // 앞전 뼈대
-                wBone.position.set(s < 0 ? -8 * VS : 0, 2 * VS, 0.006);
-                wing.add(wm, wBone);
-                for (const [fy, fl] of [[-1, 7], [-2, 6]]) { // 막 위 손가락 골 뼈대 — 종이 평판 아닌 막 구조
-                    const fb = vx(Voxel.box(fl, 1, 1), { material: batD, color: 0xffffff, center: false });
-                    fb.position.set(s < 0 ? -(fl - 1) * VS : 0, fy * VS, 0.006);
-                    wing.add(fb);
-                }
-                wing.rotation.set(0.16, s * -0.3, s * -0.1); // 살짝 뒤로 스윕 + 끝 처짐 — 수평 판자 오독 방지
-                wing.userData.s = s;
-                anim.wings.push(wing);
-                g.add(wing);
-            }
-            eyes(0.66, 0.165, 0.08, 0.042, 'angry', { iris: 0xffb547, glow: 0.12, tilt: 0.08, browColor: 0x3a3142 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번)
-            // 두상(r 0.2)과 털몸통(r 0.125) 사이 목 · 날개가 몸에 박히는 소켓
-            // 🚨 **복셀 전환 뒤 반경을 다시 쟀다** — 복셀 회전체는 축이 가장 뚱뚱하고 대각이 가장
-            //    얇아, 매끈 시절 반경을 그대로 두면 대각에서 후프가 샌다(버섯 스커트에서 실측).
-            //    실측(`AO_SCALES=0.7,0.8,0.9,1.0 probe-enemy-ao-split.js bat`): 목 링은 1.00 배에서
-            //    유출 3px, 0.90 배에서 유출 0 이지만 기여가 36px(하한 60) 로 떨어진다 — **반경만으로는
-            //    두 조건을 동시에 못 맞춘다.** 반경은 0.90 배로 내리고 **튜브를 굵혀** 기여를 되찾는다
-            //    ⚠️ **튜브를 굵히는 건 답이 아니다(실측으로 뒤집혔다)** — `TorusGeometry(r, tube)` 의
-            //    바깥 반경은 **r + tube** 라, 튜브를 키우면 링이 그만큼 더 밖으로 나간다(0.117+0.042
-            //    = 0.159 > 종전 0.155 → 유출이 3px 에서 12px 로 **늘었다**). 크기 대신 **진하기(op)**
-            //    를 올려 기여를 되찾는다 — 그건 실루엣을 한 픽셀도 안 넓힌다.
-            aoRing(0.116, 0.023, 0, 0.442, -0.01, { ez: 0.85, flat: 0.5, op: 0.80 });
-            for (const s of [-1, 1]) aoRing(0.099, 0.026, s * 0.155, 0.63, 0, { flat: 0.6, op: 0.42 });
-            anim.fly = true; topY = 1.0;
-        } else if (kind === 'mushroom') {
-            // 🧊 **voxel 전환 3종째** (화풍 확정 2026-08-20). 통통한 줄기 + 갓 그룹 + 밑동 발.
-            //    ⚠️ 부위 목록·비례·애니 훅(`capFlap`)·AO 자리는 그대로 옮긴다.
-            // 🚨 **`sculptOrganic`(저진폭 유기 변형)을 통째로 뺐다 — 되돌리지 말 것.** 그건
-            //    '완전구 실루엣을 깨라'(ⓒ)는 지적의 **매끈 조형 시절 해법**이다. 복셀 계단은
-            //    구를 애초에 안 만들므로 같은 문제를 구조적으로 없앤다. 유기 변형을 다시 걸면
-            //    칸이 격자에서 밀려나 **면이 축정렬을 잃는다** = 화풍 위반이다.
-            const stemM = lam(base.clone().offsetHSL(0.015, -0.16, 0.24)); // 웜 크림 줄기 — 무채색 회백 미완성 오독 제거
-            stemM.vertexColors = true; stemM.flatShading = true;
-            const stemProf = [[0.15, 0], [0.12, 0.1], [0.1, 0.22], [0.13, 0.32], [0.16, 0.38]];
-            const stem = vx(Voxel.revolve(stemProf.map(p => [gv(p[0]), gv(p[1])])), { material: stemM, color: 0xffffff });
-            g.add(stem);
-            for (const s of [-1, 1]) { // 밑동 스터비 발 — 눌린 구 → 납작한 큐브 패드
-                const foot = vx(Voxel.ellipsoid(1.2, 0.6, 1.8), { material: stemM, color: 0xffffff, center: true });
-                foot.position.set(s * 0.09, 0.03, 0.1);
-                g.add(foot);
-            }
-            const capG = new THREE.Group(); // 갓 전체가 한 그룹으로 출렁임
-            capG.position.y = 0.44;
-            capG.rotation.x = -0.16; // 갓을 뒤로 젖혀 게임 카메라(전방 상단)에서 얼굴 가시성 확보 (비평가 지적)
-            const capM = lam(new THREE.Color(0xc9402e)); // 절대 지정 시그니처 레드 갓 — 파생색은 태양광에 살구색으로 씻김 (비평가 지적)
-            capM.vertexColors = true; capM.flatShading = true;
-            // 계단형 돔 — 반구 대체. 꼭대기가 납작하게 남는데 **버섯 갓은 원래 그렇다**(반구가 아니다).
-            const domeVox = Voxel.dome(gv(0.32), 5);
-            const dome = vx(domeVox, { material: capM, color: 0xffffff });
-            const lipM = lam(base.clone().offsetHSL(0, 0.15, -0.16));
-            lipM.vertexColors = true; lipM.flatShading = true;
-            const lip = vx(Voxel.ring(gv(0.34), 2, 2), { material: lipM, color: 0xffffff, center: true });
-            lip.position.y = 0.015;
-            const frillM = light.clone(); frillM.vertexColors = true; frillM.flatShading = true;
-            const frill = vx(Voxel.taper(gv(0.2), gv(0.28), 1, undefined, { t: 1 }), { material: frillM, color: 0xffffff, center: true }); // 갓 아래 주름살
-            frill.position.y = -0.02;
-            capG.add(dome, lip, frill);
-            const spotM = new THREE.MeshStandardMaterial({ color: 0xfff8ec, vertexColors: true, flatShading: true, metalness: 0, roughness: 0.8 });
-            // 흰 반점 — 갓 '상단'에 얹는다(정면 하단 배치는 몸통 반점으로 오독됨, 비평가 지적).
-            // 🚨 **복셀에서 '표면에 얹는다'의 정의는 "그 열(column)의 맨 위 칸 바로 위"다 — 방향
-            //    벡터로 반지름을 재던 종전 방식은 여기서 무너진다.** 매끈 갓은 구라 원점에서 표면까지의
-            //    거리가 어느 방향이나 비슷했지만, 계단 돔은 **테두리 0.32 vs 정수리 0.22** 로 크게 갈린다.
-            //    그 거리를 반지름으로 쓰면 위쪽 방향의 반점들이 전부 안쪽으로 당겨져 **정수리에 한
-            //    덩이로 뭉친다**(실측: 캡처에서 갓 위에 슬래브 하나가 얹힌 그림이 나왔다 — 수치
-            //    게이트는 전부 통과였다). 상수 반경 함정(호랑이 줄무늬)의 복셀판이고, 답은 더 간단하다:
-            //    **복셀 목록에서 열별 최고 칸을 뽑아 그 위에 큐브를 얹는다.** 뜰 수도 파묻힐 수도 없다.
-            // ⚠️ 반점은 **한 칸짜리 흰 큐브**다(마인크래프트 버섯이 그렇다). 매끈한 구를 얹으면
-            //    갓만 큐브고 반점은 아닌 조형이 된다.
-            const colTop = {};
-            for (const v of domeVox) {
-                const k = v.x + ',' + v.z;
-                if (colTop[k] === undefined || v.y > colTop[k]) colTop[k] = v.y;
-            }
-            for (const [cxi, czi] of [[-4, 2], [3, 3], [1, -4], [-3, -3], [5, 0], [0, 5]]) {
-                const t = colTop[cxi + ',' + czi];
-                if (t === undefined) continue;   // 갓 밖 열 — 얹을 자리가 없다
-                const spot = vx(Voxel.box(1, 1, 1), { material: spotM, color: 0xffffff, center: true, ao: 0, jitter: 0 });
-                spot.position.set(cxi * VS, (t + 1) * VS, czi * VS);
-                // 🚨 판정기(`probe-enemy-cap-silhouette` ⑵)가 반점을 **`geometry.type === 'SphereGeometry'`**
-                //    로 찾고 있었다 — 복셀은 BufferGeometry 라 그대로 두면 **0개를 찾아 `every` 가
-                //    빈 배열에 참을 주고 게이트가 조용히 통과**한다. 표식을 심어 그 구멍을 막는다.
-                spot.userData.capSpot = true;
-                capG.add(spot);
-            }
-            g.add(capG);
-            for (const s of [-1, 1]) { // 스터비 팔 — 공격 모션 상상 가능한 실루엣 (비평가: 소품 버섯 오독)
-                const armS = vx(Voxel.ellipsoid(2, 1, 1), { material: stemM, color: 0xffffff, center: true });
-                armS.position.set(s * 0.17, 0.26, 0.05);
-                armS.rotation.z = s * -0.5;
-                g.add(armS);
-                if (s > 0) armR = armS; else armL = armS;
-            }
-            // 성난 왕눈 + 벌린 입 — 갓 그늘 아래 파묻힌 '얼굴 없는 소품' 탈피 (비평가 1위 결함)
-            eyes(0.3, 0.135, 0.08, 0.048, 'angry', { iris: 0xb0301f, irisScale: 0.85, glow: 0.3, tilt: 0.09, browColor: 0x33201a, blushK: 0.68 });
-            const mMouth = vx(Voxel.box(2, 1, 1), { material: new THREE.MeshBasicMaterial({ color: 0x3a2420, vertexColors: true }), color: 0xffffff, center: true, ao: 0, jitter: 0 });
-            mMouth.position.set(0, 0.165, 0.118); mMouth.scale.z = 0.4; // 벌린 아우성 입
-            const tooth = vx(Voxel.box(1, 1, 1), { material: new THREE.MeshBasicMaterial({ color: 0xfff6e8, vertexColors: true }), color: 0xffffff, center: true, ao: 0, jitter: 0 });
-            tooth.position.set(0, 0.185, 0.145); tooth.scale.set(0.6, 0.45, 0.3);
-            g.add(mMouth, tooth);
-            // 🍄 갓 밑 그늘 — 이 종에서 가장 큰 이음새다(주름살이 줄기 위에 얹힌다).
-            //    스커트는 줄기 프로파일(같은 세그먼트 10) 위를 3% 띄워 따라가므로 유출이 구조적으로 0 이다.
-            // 🚨 **복셀 줄기 위에 매끈한 원형 스커트를 두면 대각 방향으로 샌다(실측 2px).**
-            //    복셀 회전체는 축 방향이 가장 뚱뚱하고(칸 바깥면 = (n+0.5)칸) **대각이 가장 얇다**
-            //    — 원은 그 사이를 지나므로 대각에서 실루엣 밖으로 튀어나온다. 반경을 대각의
-            //    최소 외곽까지 내린다(×0.9). `probe-enemy-ao` 의 '후프 유출 0' 이 이 선을 지킨다.
-            aoSkirt([[0.099, 0.16], [0.09, 0.22], [0.117, 0.32], [0.144, 0.38]], { op: 0.62, seg: 10 });
-            // 밑동 접지 — 🚨 **범인은 스커트가 아니라 이 링이었다(`probe-enemy-ao-split` 로 분리 확인).**
-            //    스커트를 두 번 줄여도 유출이 안 사라져 자를 바꿔 봤더니, 스커트는 전 배율에서 유출 0 이고
-            //    이 링만 1.00 배에서 1px 을 냈다. **합계만 보고 큰 쪽을 의심하면 엉뚱한 걸 줄인다** —
-            //    유출이 나면 먼저 `probe-enemy-ao-split` 으로 링을 갈라 볼 것.
-            //    ⚠️ 0.90 배(바깥 반경 0.1375)도 **경계값이라 런마다 0~1px 을 오갔다.** 구조적으로 잡으려면
-            //    **바깥 반경(r+tube)을 복셀 줄기의 '대각' 외곽 안**에 넣어야 한다 — 이 높이의 줄기는 3칸
-            //    반경이라 축 외곽 0.175 vs **대각 외곽 ≈0.106** 이다. r+tube = 0.105 로 맞추고 기여는
-            //    크기가 아니라 `op` 로 되찾는다(박쥐에서 세운 규칙과 같다).
-            aoRing(0.086, 0.019, 0, 0.02, 0, { flat: 0.35, op: 0.9 });
-            anim.cap = capG; anim.hop = true;
-            // ── 갓 테두리 플랩 — 돔 정점을 중심에서 먼 순서로 늦게 처지게 한다(우산 살 2차 모션).
-            // ⚠️ 돔만 흔들면 테두리 립·주름살이 제자리에 남아 갓이 두 조각으로 갈라진다 —
-            //    같은 반지름의 플랩량을 그 부속들의 y 에도 그대로 먹인다.
-            // ✅ 복셀 메시도 비인덱스 `position` 속성이라 이 변형이 그대로 먹는다(슬라임 젤리와 같다).
+            const G0 = this.ENEMY_GAIT[kind] || {};
+            topY = maxY * cell + 0.14 + (model.fly ? (G0.hover || 0) : 0);
+            // 처치 파편색 — 표의 **부피 가중 평균색**. `Mobs.build` 가 재질을 공유하고 색을 정점에
+            // 굽기 때문에 `killEnemy` 의 '재질 albedo 평균'은 흰색만 돌려준다(그쪽 주석 참고).
             {
-                const dp = dome.geometry.attributes.position;
-                let rMax = 0;
-                for (let i = 0; i < dp.array.length; i += 3) {
-                    const r = Math.hypot(dp.array[i], dp.array[i + 2]);
-                    if (r > rMax) rMax = r;
+                const acc = new THREE.Color(0, 0, 0), tmp = new THREE.Color();
+                let vol = 0;
+                for (const p of model.parts) {
+                    if (!p || p.off) continue;
+                    const v = p.box[0] * p.box[1] * p.box[2];
+                    acc.add(tmp.setHex(p.c).multiplyScalar(v));
+                    vol += v;
                 }
-                anim.capFlap = {
-                    mesh: dome, base: Float32Array.from(dp.array), rMax: rMax || 1, lag: 1.6,
-                    parts: [{ o: lip, y: lip.position.y, t: 0.29 / (rMax || 1) },
-                            { o: frill, y: frill.position.y, t: 0.24 / (rMax || 1) }],
-                };
+                if (vol > 0) g.userData.shardC = acc.multiplyScalar(1 / vol).getHex();
             }
-            body = capG; topY = 0.9;
-        } else if (kind === 'wolf') {
-            // 🧊 **voxel 전환 7종째(마지막): 늑대.** 사족 맹수 리그 — 흉곽→골반 테이퍼 몸통 + 목/쐐기
-            //    두상 + 가슴 러프 + 2관절 다리 4개 + 3분절 꼬리. 부위·비례·애니 훅(`anim.legs`/`knees`/
-            //    `tail`)·AO 링 5개 자리는 그대로 옮긴다. 빌더 공용 `vmat`/`vBase`/`gv`/`vlimb` 만 쓴다.
-            // 🚨 `sculptOrganic` 은 뺀다 — ⓒ('완전구를 쓰지 마라')가 겨눈 결함이 복셀에서는 구조적으로
-            //    사라지고, 변형을 걸면 칸이 격자에서 밀려나 **면이 축정렬을 잃는다**(화풍 위반).
-            const furM = vmat(vBase.clone());
-            const furD = vmat(vBase.clone().offsetHSL(0, 0.02, -0.22)); // 대비 강화 — 단색 클레이 오독 방지
-            const furL = vmat(vBase.clone().offsetHSL(0.01, -0.06, 0.27)); // 배·러프·꼬리끝 명확한 라이트 톤
-            const vsp = (rx, ry, rz, m) => vx(Voxel.ellipsoid(gv(rx), gv(ry), gv(rz)), { material: m, color: 0xffffff, center: true });
-            body = vsp(0.19 * 0.9, 0.19 * 0.92, 0.19 * 1.25, furM);   // 흉곽 (앞이 크고)
-            body.position.set(0, 0.42, 0.12);
-            const hind = vsp(0.16 * 0.82, 0.16 * 0.85, 0.16 * 1.1, furM); // 골반 (뒤가 작게)
-            hind.position.set(0, 0.4, -0.22);
-            const belly = vsp(0.155 * 0.9, 0.145, 0.17, furM);        // 연결 몸통
-            belly.position.set(0, 0.41, -0.05);
-            const ruff = vsp(0.15 * 0.85, 0.15 * 0.8, 0.15 * 0.7, furL); // 앞가슴 밝은 러프 털
-            ruff.position.set(0, 0.38, 0.26);
-            const neckW = vx(Voxel.taper(gv(0.105), gv(0.085), 4), { material: furM, color: 0xffffff, center: true });
-            neckW.position.set(0, 0.52, 0.3); neckW.rotation.x = -0.7;
-            g.add(body, hind, belly, ruff, neckW);
-            const headW = new THREE.Group();                                   // 쐐기 두상 + 테이퍼 주둥이
-            headW.position.set(0, 0.6, 0.38);
-            const skullW = vsp(0.105 * 1.24, 0.105 * 0.92, 0.105 * 1.05, furM);
-            const muzzleM = vmat(vBase.clone().offsetHSL(0.005, -0.04, 0.14)); // 주둥이 전용 중간 톤 — 순백 러프색은 '붙임 데칼'로 읽힘 (비평가)
-            const snout = vx(Voxel.taper(gv(0.075), gv(0.048), 3), { material: muzzleM, color: 0xffffff, center: true });
-            snout.rotation.x = Math.PI / 2; snout.position.set(0, -0.02, 0.14);
-            const bridge = vsp(0.045 * 0.8, 0.045 * 0.5, 0.045 * 2.1, furD); // 콧등 다크 스트라이프 — 밝은 주둥이와 톤 분리
-            bridge.position.set(0, 0.03, 0.12);
-            headW.add(bridge);
-            const noseW = vx(Voxel.box(1, 1, 1), { material: new THREE.MeshBasicMaterial({ color: 0x1d2126, vertexColors: true }), color: 0xffffff, center: true, ao: 0, jitter: 0 });
-            noseW.position.set(0, -0.005, 0.22);
-            const jawW = vx(Voxel.box(1, 1, 2), { material: furD, color: 0xffffff, center: true });
-            jawW.position.set(0, -0.07, 0.1);
-            headW.add(skullW, snout, noseW, jawW);
-            const fangM = vmat(new THREE.Color(0xf5efdd), { roughness: 0.55 });
-            for (const s of [-1, 1]) { // 드러난 송곳니 — 맹수 인상. 한 칸 큐브(원뿔은 0.24칸이라 사라진다)
-                const fang = vx(Voxel.box(1, 1, 1), { material: fangM, color: 0xffffff, center: true, ao: 0, jitter: 0 });
-                fang.position.set(s * 0.032, -0.055, 0.185); fang.scale.set(0.45, 0.7, 0.45);
-                headW.add(fang);
-            }
-            const earInM = vmat(new THREE.Color(0x272c36));
-            for (const s of [-1, 1]) {                                         // 쫑긋 삼각 귀 (안쪽 어두운 면)
-                // ⚠️ 밑변 3칸 이상 · 3층 이상이라야 계단이 좁아지는 게 보여 삼각형으로 읽힌다(박쥐·임프 실측).
-                const ear = vx(Voxel.taper(1.0, 0.5, 3), { material: furD, color: 0xffffff, center: true }); // 다크 톤 — 밝은 귀가 역광에서 '흰 뿔'로 오독 (비평가 6.4 9번)
-                ear.position.set(s * 0.065, 0.12, -0.02); ear.rotation.set(-0.25, 0, s * -0.3);
-                const earIn = vx(Voxel.taper(0.6, 0.5, 2), { material: earInM, color: 0xffffff, center: true }); // 귀 안쪽 — 외이보다 한층 더 어둡게
-                earIn.position.set(s * 0.065, 0.11, -0.005); earIn.rotation.set(-0.25, 0, s * -0.3);
-                earIn.scale.z = 0.5;
-                headW.add(ear, earIn);
-            }
-            for (const s of [-1, 1]) { // 목덜미 갈기 술 — 늑대 실루엣 개성 (양·개 오독 방지)
-                const tuft = vx(Voxel.taper(1.0, 0.5, 3), { material: furD, color: 0xffffff, center: true });
-                tuft.position.set(s * 0.1, 0.52, 0.24); tuft.rotation.set(0.8, 0, s * 0.9);
-                const tuft2 = vx(Voxel.taper(0.8, 0.5, 2), { material: furD, color: 0xffffff, center: true });
-                tuft2.position.set(s * 0.13, 0.44, 0.28); tuft2.rotation.set(1.1, 0, s * 1.3);
-                g.add(tuft, tuft2);
-            }
-            g.add(headW);
-            eyes(0.645, 0.472, 0.072, 0.03, 'fierce', { iris: 0xe8b13c, glow: 0.25, tilt: -0.15, browColor: 0x59606d, blushK: 0.62 }); // 흰자+호박 홍채 — 두상 안에 파묻어 배치(흰 뿔 오독 방지). 눈썹은 순흑 대신 중회색 — 1차 채점 '안대 밴드' 처방(짙은 회갈색으로)의 늑대판
-            // 등 다크 새들 — 목덜미→엉덩이 한 흐름으로 세그먼트 경계(흉곽/연결통/골반 이음새) 은폐.
-            // ⚠️ 2026-08-18 까지 이 새들은 **만들어만 지고 `g.add()` 가 없어 화면에 한 번도 안 나왔다**
-            //    (wolf-backstripe-dead). `probe-wolf-saddle` 이 ⓐ씬에 붙었나 ⓑ등마루 위에서 내리쏜
-            //    레이의 첫 히트가 새들인가 ⓒ화소가 실제로 어두워지나 ⓓ실루엣을 안 넓히나 를 본다.
-            // 🚨 **복셀 전환으로 y 를 다시 잡아야 한다** — 매끈 몸통은 정점이 이상적인 타원면 위에
-            //    있었지만 복셀 몸통의 등마루는 **칸 윗면(계단)**이라 최대 반 칸(0.025) 위로 올라온다.
-            //    종전 y 를 그대로 쓰면 새들이 등 속으로 들어가 ⓑ 가 떨어진다. 실측으로 +0.025 올렸다.
-            for (const [sy, sz, sr, kx, ky, kz] of [
-                [0.552, 0.123, 0.140, 0.82, 0.71, 1.27],    // 기갑~흉곽 마루
-                [0.543, 0.056, 0.120, 0.78, 0.73, 1.30],    // 흉곽→연결통 이음새 (여기가 비면 이음새가 그대로 드러난다)
-                [0.520, -0.184, 0.115, 0.70, 0.66, 1.39],   // 연결통→골반 이음새~엉덩이
-            ]) {
-                const seg = vsp(sr * kx, sr * ky, sr * kz, furD);
-                seg.position.set(0, sy, sz);
-                seg.name = 'wolfSaddle';
-                g.add(seg);
-            }
-            const bellyW = vsp(0.13 * 0.8, 0.13 * 0.6, 0.13 * 1.6, furL); // 밝은 아랫배 — 투톤 코트
-            bellyW.position.set(0, 0.33, -0.02);
-            g.add(bellyW);
-            // 2관절 다리 4개: 어깨/고관절 피벗 → 상퇴 → 하퇴 → 발 (달리기 사이클은 기존 anim.legs 인터페이스)
-            for (const [lx, lz, front] of [[-0.11, 0.22, 1], [0.11, 0.22, 1], [-0.1, -0.24, 0], [0.1, -0.24, 0]]) {
-                const hr = front ? 0.072 : 0.088;
-                const haunch = vsp(hr * 0.75, hr * 1.15, hr * 1.2, furM); // 어깨/뒷다리 근육 덩어리 — 몸통-다리 이음새 은폐
-                haunch.position.set(lx * 0.95, front ? 0.41 : 0.4, lz + (front ? 0.015 : -0.02));
-                g.add(haunch);
-                const leg = new THREE.Group();
-                leg.position.set(lx, 0.36, lz);
-                const upper = vlimb(0.05, 0.038, 0.18, furM);
-                upper.rotation.x = front ? 0.12 : -0.2;
-                const lower = vlimb(0.034, 0.026, 0.17, furD);
-                lower.position.y = -0.18; lower.rotation.x = front ? -0.1 : 0.32;
-                const paw = vsp(0.045, 0.045 * 0.55, 0.045 * 1.35, furD); // 다크 삭스 발 — 색 분리
-                paw.position.set(0, -0.165, 0.025);
-                lower.add(paw);
-                upper.add(lower);
-                leg.add(upper);
-                lower.userData.rx0 = lower.rotation.x; lower.userData.front = front; // 질주 무릎 굽힘 기준 포즈
-                // 다리가 몸통 실루엣 **밖으로 나오는 높이**에 두르고, leg 그룹에 매달아 질주할 때 같이 움직이게.
-                // ⚠️ 링 4개가 각자로는 어느 배율에서도 유출 0 인데(`probe-enemy-ao-split` 실측)
-                //    **합계에서는 런에 따라 1px 이 샜다** — 유출은 가산적이지 않아 겹치는 화소가
-                //    임계(휘도 −6)를 넘긴다. 단독 최적값에서 한 눈금 물러난 0.90 배를 쓴다.
-                aoRing(0.0324, 0.009, 0, -0.09, 0, { flat: 0.55, op: 0.52, parent: leg });
-                (anim.knees = anim.knees || []).push(lower);
-                anim.legs.push(leg);
-                g.add(leg);
-            }
-            // 꼬리: 위로 휘어 오르는 3분절 커브 (끝만 밝은 털)
-            const tailG = new THREE.Group();
-            tailG.position.set(0, 0.46, -0.33);
-            tailG.rotation.x = 0.55;
-            // 꼬리 밑동 — 엉덩이 안에 파묻히지 않도록 **꼬리 축을 감는** 링으로(axis:'z') tailG 에 매단다.
-            //   반경 ×1.5 는 sweep 실측(`probe-enemy-ao-split` 상향 훑기: 1.5→57px · 1.7→98px, 둘 다 유출 0)
-            //   에서 한 눈금 물러난 값 — 매끈 시절 0.072 는 복셀 엉덩이에 파묻혀 10px 로 죽어 있었다.
-            //   다리 링 4개는 ×1.08 부터 유출이 나 못 키운다(가려진 카메라 각까지 겹쳐 6/25/0/6px).
-            aoRing(0.108, 0.024, 0, 0, -0.03, { flat: 1, op: 0.46, axis: 'z', parent: tailG });
-            let tPrev = tailG;
-            for (let ti = 0; ti < 3; ti++) {
-                const holder = new THREE.Group();
-                holder.position.set(0, 0, -0.068); // 분절 간격 축소+세그 연장 — '구슬 체인' 오독 방지 (비평가 13번)
-                holder.rotation.x = -0.26;
-                const tr = 0.085 - ti * 0.011;
-                const seg = vsp(tr * 0.82, tr * 0.82, tr * 1.85, ti === 2 ? furL : furD); // 두툼한 브러시 꼬리
-                seg.position.z = -0.045;
-                holder.add(seg);
-                tPrev.add(holder);
-                tPrev = holder;
-            }
-            g.add(tailG);
-            anim.tail = tailG;
-            topY = 0.95;
-        } else { // imp: 작은 악마 — 분절 사지 + 박쥐 막날개 + 화살촉 꼬리 + 곡선 뿔
-            // 🧊 **voxel 전환 5종째** (화풍 확정 2026-08-20). 부위·비례·애니 훅(`anim.bleg`/`barm`/
-            //    `wings`/`armRJ`)·AO 링 자리는 그대로 옮긴다.
-            // 🚨 **임프는 이 저장소에서 가장 작은 종이다(전신 0.98 = 20칸).** 하완 반지름 0.024 는
-            //    **0.48칸** — `Voxel.taper` 는 반지름 0.5 미만 층을 통째로 버리므로 그대로 넘기면
-            //    **빈 메시**가 나온다(콘솔 에러도 안 난다). 빌더 공용 `gv()` 가 0.5 로 클램프해 준다.
-            //    ⚠️ 여기서 격자를 잘게 바꾸고 싶어지는데, 그러면 '모든 종이 같은 벽돌'이라는 화풍
-            //       일관성이 깨진다. 작은 종은 **칸 수가 적은 게 정답**이다(크로시로드 닭이 그렇다).
-            const skinM = vmat(vBase.clone());
-            const skinD = vmat(vBase.clone().offsetHSL(0, 0, -0.12));
-            const skinL = vmat(vBase.clone().offsetHSL(0, 0, 0.1));
-            const boneM = vmat(new THREE.Color(0xf3ead6), { roughness: 0.6 });
-            // 디지타이그레이드 다리: 대퇴 → 역관절 정강이 → 발굽
-            for (const s of [-1, 1]) {
-                const hip = new THREE.Group();
-                hip.position.set(s * 0.075, 0.3, 0);
-                const thigh = vlimb(0.042, 0.035, 0.12, skinM);
-                thigh.rotation.x = -0.35;
-                const knee = new THREE.Group();
-                knee.position.set(0, -0.11, 0.04);
-                const shin = vlimb(0.03, 0.026, 0.13, skinD);
-                shin.rotation.x = 0.5;
-                const hoof = vx(Voxel.taper(gv(0.035), 0.5, 2), { material: skinD, color: 0xffffff, center: true });
-                hoof.position.set(0, -0.13, 0.05); hoof.rotation.x = Math.PI;
-                knee.add(shin, hoof);
-                hip.add(thigh, knee);
-                (anim.bleg = anim.bleg || []).push({ hip, knee }); // 걷기 관절 굽힘용 피벗 노출
-                g.add(hip);
-            }
-            // 몸통 + 밝은 배 패치
-            body = vx(Voxel.ellipsoid(gv(0.15), gv(0.1875), gv(0.135)), { material: skinM, color: 0xffffff, center: true });
-            body.position.y = 0.4;
-            const belly = vx(Voxel.ellipsoid(gv(0.1), gv(0.125), gv(0.05)), { material: skinL, color: 0xffffff, center: true });
-            belly.position.set(0, 0.36, 0.09);
-            g.add(body, belly);
-            // 머리 + 곡선 2단 뿔 + 뾰족귀
-            const head = vx(Voxel.ellipsoid(gv(0.125), gv(0.125), gv(0.125)), { material: skinM, color: 0xffffff, center: true });
-            head.position.y = 0.63;
-            g.add(head);
-            for (const s of [-1, 1]) {
-                // ⚠️ 뿔·귀는 **층 수가 곧 형태**다(박쥐 귀에서 실측) — 밑변 2칸 이상 · 3층 이상이라야
-                //    계단이 좁아지는 게 보여 '뾰족하다'로 읽힌다. 종전 원뿔 치수를 그대로 칸으로
-                //    나누면 3칸 남짓이라 '작은 블록'으로 뭉갠다.
-                // ⚠️ **첫 판은 뿔이 너무 굵었다** — `taper(1.6, …)` 는 밑변 5칸(0.25)이라 종전 원뿔
-                //    지름 0.06 의 4배다. 캡처에서 흰 사슴뿔 두 쌍이 머리를 덮었다. 밑변 3칸(0.15)이
-                //    '계단이 좁아지는 게 보이는' 최소치이자 이 두상에 맞는 상한이다.
-                const horn1 = vx(Voxel.taper(1.0, 0.5, 3), { material: boneM, color: 0xffffff, center: true });
-                horn1.position.set(s * 0.07, 0.77, 0); horn1.rotation.z = s * -0.4;
-                const horn2 = vx(Voxel.taper(1.0, 0.5, 2), { material: boneM, color: 0xffffff, center: true });
-                horn2.position.set(s * 0.115, 0.84, 0); horn2.rotation.z = s * -0.85;
-                const ear = vx(Voxel.taper(1.0, 0.5, 3), { material: skinD, color: 0xffffff, center: true });
-                ear.position.set(s * 0.125, 0.66, -0.01); ear.rotation.z = s * -1.75;
-                ear.scale.z = 0.5;
-                g.add(horn1, horn2, ear);
-            }
-            eyes(0.65, 0.105, 0.055, 0.034, 'angry', { iris: 0xffe14a, glow: 0.12, tilt: 0.12, browColor: 0x8a4f52 }); // 발광 축소 — 소형 두상에서 흰 원반으로 클리핑 (비평가 8번). 눈썹은 조명 아래 순흑으로 떨어지던 0x5c2338 → 중간 적갈 — 1차 채점 '선글라스 바이저' 처방
-            // 목(두상 밑) · 허리(몸통 밑단과 골반 경계) · 날개 소켓
-            // 🚨 **복셀 전환 뒤 반경을 다시 잰다** — 복셀 회전체는 축이 가장 뚱뚱하고 대각이 가장 얇아
-            //    매끈 시절 반경이 대각에서 샌다. ⚠️ 새면 **튜브를 굵히지 말 것**(TorusGeometry 의 바깥
-            //    반경 = r + tube 라 더 나간다) — 반경을 줄이고 `op` 로 진하기를 되찾는다(박쥐 실측).
-            // 반경은 sweep 실측(`probe-enemy-ao-split`, 상향 훑기)으로 잡은 값 — 목 ×1.25(단독 62px,
-            //   1.7배까지 유출 0) · 허리 ×1.08(단독 117px, 유출은 ×1.25부터). 매끈 시절 값(0.088/0.118)은
-            //   복셀 몸통에 파묻혀 4px/37px 로 죽어 있었다. r 과 tube 를 같은 배율로 — 바깥 반경(r+tube)이
-            //   sweep 이 잰 스케일과 같아진다.
-            aoRing(0.11, 0.0225, 0, 0.545, 0, { flat: 0.5 });
-            aoRing(0.1274, 0.0216, 0, 0.312, 0, { ez: 0.9, flat: 0.45, op: 0.44 });
-            for (const s of [-1, 1]) aoRing(0.048, 0.014, s * 0.125, 0.43, -0.1, { flat: 0.6, op: 0.42 });
-            // 씩 웃는 입 — 토러스 아크 → 계단 U(슬라임 입과 같은 언어)
-            const grin = vx(Voxel.merge(
-                Voxel.at(Voxel.box(2, 1, 1), 1, 0, 0),
-                Voxel.at(Voxel.box(1, 1, 1), 0, 1, 0),
-                Voxel.at(Voxel.box(1, 1, 1), 3, 1, 0)),
-                { material: new THREE.MeshBasicMaterial({ color: 0x33141f, vertexColors: true }), color: 0xffffff, center: true, ao: 0, jitter: 0 });
-            grin.position.set(0, 0.578, 0.115); grin.scale.set(0.75, 0.75, 0.3);
-            g.add(grin);
-            for (const s of [-1, 1]) { // 언더바이트 송곳니 — 한 칸 큐브(두상 앞면 밖으로)
-                const impFang = vx(Voxel.box(1, 1, 1), { material: boneM, color: 0xffffff, center: true, ao: 0, jitter: 0 });
-                impFang.position.set(s * 0.035, 0.6, 0.128); impFang.scale.set(0.45, 0.8, 0.45);
-                g.add(impFang);
-            }
-            // 박쥐 막날개: 본 2개 + 계단 스캘럽 멤브레인 (박쥐와 같은 언어)
-            for (const s of [-1, 1]) {
-                const wing = new THREE.Group();
-                const memb = [];
-                const COLS = [[1, -1], [2, -2], [2, -3], [2, -2], [2, -3], [1, -2], [1, -3], [0, -1]];
-                for (let cx2 = 0; cx2 < COLS.length; cx2++)
-                    for (let cy2 = COLS[cx2][1]; cy2 <= COLS[cx2][0]; cy2++)
-                        memb.push({ x: s * cx2, y: cy2, z: 0 });
-                const mem = vx(memb, {
-                    material: vmat(vBase.clone().offsetHSL(0.02, 0.08, -0.2), {
-                        // ⚠️ `envMapIntensity: 0` — 종전 막은 Lambert(환경맵 없음)였다. Standard 로 갈면
-                        //    반사가 얹혀 얇은 막이 몸통보다 밝게 뜬다(박쥐에서 실측).
-                        side: THREE.DoubleSide, transparent: true, opacity: 0.85, roughness: 0.9, envMapIntensity: 0,
-                    }), color: 0xffffff, center: false,
-                }); // 반투명 막 — 판자 오독 제거, 몸 대비 과소(비행 설득력) 확대 (비평가 6.8 8번)
-                mem.position.y = 0.08;
-                const bone1 = vx(Voxel.box(5, 1, 1), { material: skinD, color: 0xffffff, center: false });
-                bone1.position.set(s < 0 ? -4 * VS : 0, 0.08 + 2 * VS, 0.006);
-                const bone2 = vx(Voxel.box(4, 1, 1), { material: skinD, color: 0xffffff, center: false });
-                bone2.position.set(s < 0 ? -3 * VS : 0, 0.08 - 1 * VS, 0.006);
-                wing.add(mem, bone1, bone2);
-                wing.position.set(s * 0.135, 0.42, -0.13); // 소켓을 등 뒤·바깥으로 — 날개 평면이 몸통을 관통·교차하던 문제
-                wing.rotation.set(0.32, s * -0.25, s * 0.55); // 펼침각 완화 + 뒤로 젖힘
-                wing.userData.s = s;
-                anim.wings.push(wing);
-                g.add(wing);
-            }
-            // 분절 팔
-            for (const s of [-1, 1]) {
-                const sh = new THREE.Group();
-                sh.position.set(s * 0.14, 0.5, 0.01);
-                const upper = vlimb(0.03, 0.026, 0.1, skinM);
-                upper.rotation.z = s * 0.4;
-                const elbow = new THREE.Group();
-                elbow.position.set(s * 0.04, -0.1, 0);
-                const eJ = vx(Voxel.ellipsoid(gv(0.026), gv(0.026), gv(0.026)), { material: skinM, color: 0xffffff, center: true }); // 팔꿈치 관절 — 굽힘 이음새 은폐
-                elbow.add(eJ);
-                const fore = vlimb(0.024, 0.02, 0.09, skinD);
-                const hand = vx(Voxel.ellipsoid(gv(0.036), gv(0.036), gv(0.036)), { material: skinM, color: 0xffffff, center: true });
-                hand.position.y = -0.1;
-                elbow.add(fore, hand);
-                for (let ci = 0; ci < 3; ci++) { // 갈퀴 발톱 — '손 없는 캡슐' 오독 제거
-                    const claw = vx(Voxel.box(1, 1, 1), { material: boneM, color: 0xffffff, center: true, ao: 0, jitter: 0 });
-                    claw.position.set((ci - 1) * 0.025, -0.14, 0.012);
-                    claw.scale.set(0.4, 0.8, 0.4);
-                    elbow.add(claw);
-                }
-                sh.add(upper, elbow);
-                g.add(sh);
-                (anim.barm = anim.barm || []).push({ sh, elbow });
-                if (s > 0) { armR = sh; anim.armRJ = { sh, elbow }; } else armL = sh;
-            }
-            // 화살촉 꼬리: 커브 세그먼트 3개 + 화살촉
-            const tailG = new THREE.Group();
-            tailG.position.set(0, 0.3, -0.12);
-            let px2 = 0, py2 = 0, pz2 = 0, ang2 = -0.6;
-            for (let k2 = 0; k2 < 3; k2++) {
-                const seg = vx(Voxel.taper(gv(0.013 - k2 * 0.003), gv(0.016 - k2 * 0.003), 2), { material: skinD, color: 0xffffff, center: true });
-                seg.position.set(px2, py2 - Math.cos(ang2) * 0.05, pz2 - Math.sin(-ang2) * 0.05);
-                seg.rotation.x = ang2;
-                tailG.add(seg);
-                py2 -= Math.cos(ang2) * 0.1; pz2 -= Math.sin(-ang2) * 0.1; ang2 -= 0.55;
-            }
-            const tip2 = vx(Voxel.taper(1.6, 0.5, 2), { material: skinD, color: 0xffffff, center: true });
-            tip2.position.set(px2, py2 + 0.02, pz2 - 0.06);
-            tip2.rotation.x = ang2 + 0.4; tip2.scale.z = 0.4;
-            tailG.add(tip2);
-            g.add(tailG);
-            topY = 0.98;
         }
         if (e.isBoss) {
             // ⚠️ 레갈리아를 **배율보다 먼저** 세운다 — bossRegalia 는 g 의 월드 정점을 재서 앉는데,
@@ -12620,7 +11568,12 @@ const Scene3D = {
         const motion = wt ? wt.motion : 'slash';
         const wcolor = S.equipment.weapon ? AGE_COLORS[S.equipment.weapon.age] : 0xcfd8dc;
         this._attacking = true;
-        this.weaponG.rotation.set(0, 0, 0); // 공격 중엔 중립 파지(스윙 궤적 기준) — 종료 시 resetArm이 파지 각 복원
+        // 공격 중엔 중립 파지(스윙 궤적 기준) — 종료 시 resetArm이 파지 각 복원.
+        // 🔪 단, **날 롤만은 남긴다**(applyWeaponGrip 의 `_bladeRoll`). 여기서 0 으로 밀어 버리면
+        //    거치 중엔 날이 서 있다가 **휘두르는 순간에만 다시 눕는다** — 정작 때리는 프레임에서
+        //    넓적한 면이 앞장서는 게 사용자가 지적한 그 그림이다. x·z 가 0 이라 오일러 y 항이
+        //    그 자체로 자루 축 롤이므로 여기서는 쿼터니언 합성이 필요 없다.
+        this.weaponG.rotation.set(0, this._bladeRoll || 0, 0);
         const rest = this.armRest !== undefined ? this.armRest : -0.25;
         const resetArm = () => {
             this._attacking = false;
@@ -13590,6 +12543,14 @@ const Scene3D = {
         // lit 재질 평균 albedo 를 55%, 잔광 주황을 45% 섞어 '그 몸이 부서졌다'로 읽히게 하되
         // 어두운 배경에서의 판독성(난색 성분)은 남긴다.
         const shardC = (() => {
+            // 🚨 **적은 재질 색이 아니라 정점 색에 팔레트를 굽는다**(박스 모델 표 전환, enemy-minecraft-remake) —
+            //    `Mobs.build` 는 성질이 같은 파츠끼리 재질 하나를 공유하고 그 색은 **항상 흰색**이다.
+            //    그래서 아래 '재질 albedo 평균'을 그대로 쓰면 7종이 전부 **흰 파편**으로 터진다
+            //    (골렘에서 잡힌 '정체불명의 주황 조각'보다 나쁘다 — 종 단서가 아예 0 이 된다).
+            //    빌더가 표의 부피 가중 평균색을 `g.userData.shardC` 에 남겨 두므로 그걸 먼저 본다.
+            if (m.g.userData.shardC !== undefined) {
+                return new THREE.Color(m.g.userData.shardC).lerp(new THREE.Color(0xff7043), 0.45).getHex();
+            }
             const t = this.flashTargets(m);
             if (!t.lit.length) return 0xff7043;
             const acc = new THREE.Color(0, 0, 0);

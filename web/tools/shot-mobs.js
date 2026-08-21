@@ -1,5 +1,5 @@
 // 새 박스 모델(마인크래프트 문법) 종 시트 — pet-mount-minecraft-remake.
-// 사용: node shot-mobs.js pets|mounts [출력이름]
+// 사용: node shot-mobs.js pets|mounts|enemies [출력이름]
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path'), fs = require('fs');
 const KIND = process.argv[2] || 'pets';
@@ -11,11 +11,11 @@ const OUT = process.argv[3] || (KIND + '-new');
     page.on('pageerror', e => errs.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
     await page.goto('file://' + path.resolve(__dirname, 'mobsheet.html'), { waitUntil: 'load' });
-    const names = await page.evaluate(k => Object.keys(k === 'pets' ? PET_MODELS : MOUNT_MODELS), KIND);
+    const names = await page.evaluate(k => Object.keys(k === 'pets' ? PET_MODELS : k === 'enemies' ? ENEMY_MODELS : MOUNT_MODELS), KIND);
     const shots = [];
     for (const n of names) {
         const two = await page.evaluate(({ n, k }) => {
-            const m = (k === 'pets' ? PET_MODELS : MOUNT_MODELS)[n];
+            const m = (k === 'pets' ? PET_MODELS : k === 'enemies' ? ENEMY_MODELS : MOUNT_MODELS)[n];
             return [renderMob(m, 260, 0.62), renderMob(m, 260, Math.PI / 2)];
         }, { n, k: KIND });
         shots.push({ n, two });
@@ -33,7 +33,9 @@ const OUT = process.argv[3] || (KIND + '-new');
     const tmp = path.resolve(__dirname, '_mobsheet-out.html');
     fs.writeFileSync(tmp, html);
     await page.goto('file://' + tmp, { waitUntil: 'load' });
-    const h = await page.evaluate(() => document.body.scrollHeight);
+    // ⚠️ `body.scrollHeight` 는 내용이 뷰포트보다 짧으면 **뷰포트 높이**를 돌려준다 —
+    //    7종처럼 두 줄이면 시트 아래 절반이 빈 배경으로 남는다. 그리드 실제 바닥을 잰다.
+    const h = await page.evaluate(() => Math.ceil(document.querySelector('.grid').getBoundingClientRect().bottom) + 12);
     await page.setViewportSize({ width: 1200, height: Math.min(9000, h + 20) });
     await page.screenshot({ path: path.resolve(__dirname, OUT + '.png'), fullPage: true });
     fs.unlinkSync(tmp);
