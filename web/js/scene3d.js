@@ -5165,19 +5165,24 @@ const Scene3D = {
         }
         const gp = grip.pos || [0, 0, 0];
         this.weaponG.position.set(gp[0], gp[1], gp[2]);
-        // 🗡️ 서서 탈 때는 **손 피벗에서 자루만 90° 눕힌다** (사용자 지시 2026-08-21: "겨누지는 말고
-        //    걍 앞으로 들고 있으라 · 손을 앞으로 뻗을 필요도 없음, 걍 손에서 90도면 되잖아").
-        //    팔은 평소 거치 자세 그대로 두고 무기 각만 바꾸는 게 제일 자연스럽다 — 팔을 들면
-        //    '겨누는' 자세가 되고, 안 건드리면 자루가 뒤로 누워 있다.
-        const rideTip = (this.riding && this.riding.standing) ? this.RIDE_WEAPON_TIP : 0;
-        this.weaponG.rotation.set(grip.rot[0] + rideTip, grip.rot[1], grip.rot[2]);
+        // 🗡️ **마인크래프트 파지** (사용자 지시 2026-08-21 "마인크래프트에서 무기 어떤 식으로 쥐는지
+        //    참고하고 그대로 반영해"). 마크는 아이템을 종류와 무관하게 **한 가지 트랜스폼**으로 쥔다
+        //    (`item/handheld` 의 `thirdperson_righthand`: rotation [0, 90, −35]) — 팔은 그냥 내린 채
+        //    자루만 주먹에서 **앞·위로 비스듬히** 뻗는다. 검이든 도끼든 곡괭이든 각이 같다.
+        //    → 근접 무기는 여기서 **각을 덮어쓴다**(가산이 아니다). 무기마다 다른 옛 거치각(도끼 어깨
+        //      걸침 0.95 · 창 세워 들기 0.65)을 남기면 '마크처럼'이 무기마다 달라진다.
+        //    ⚠️ 원거리(활·석궁·총·투척)는 제외 — 그쪽은 겨눔/시위 대기 자세가 파지 자체를 정의한다.
+        const melee = !this.RANGED_SHAPES[weaponShape(this.wtypeId)];
+        this.weaponG.rotation.set(melee ? this.MC_CARRY_X : grip.rot[0], grip.rot[1], grip.rot[2]);
         const sc = 2.44 * (grip.scale || 1); // 기본 2.44 = weapon-size-2x(사용자 지시 2026-08-19, 종전 1.22 의 ×2)
         this.weaponG.scale.setScalar(sc); // 기본 존재감 스케일 × 무기별 보정 (활계 과대 축소)
         // ⚠️ 파지 랩에는 **월드 자루 반경**(shaftR × sc)을 넘긴다 — 랩은 1/sc 역스케일로 손 크기를
         //    지키므로, 로컬 반경을 그대로 주면 무기 배율이 오를 때 자루가 주먹 링보다 굵어져 뚫고 나온다
         //    (2배 상향에서 실제로 0.080 > 0.051 로 뚫렸다). 링 = 월드 자루 + 0.018 여유.
         if (this.heroRig) this.weaponG.add(this.makeGripWrap((grip.shaftR || 0.033) * sc, 1 / sc)); // 파지점 C자 랩 주먹 (refreshHeroEquip의 clearGroup이 수명 관리)
-        this._gripRot = grip.rot;
+        // 🚨 공격이 끝나면 `resetArm`/`endAtk` 가 **이 값으로** 무기 각을 되돌린다 — 마크식 각을 여기
+        //    안 넣으면 첫 공격 뒤부터 자루가 옛 수직 거치각으로 돌아가 파지가 무기마다 제각각이 된다.
+        this._gripRot = [melee ? this.MC_CARRY_X : grip.rot[0], grip.rot[1], grip.rot[2]];
         this._gripPos = gp;
     },
 
@@ -9870,7 +9875,10 @@ const Scene3D = {
     //    별개 계약이고, 여기서 바꾸면 종별 크기가 통째로 흔들린다. 바뀌는 건 **영웅의 y(발이
     //    안장 윗면에 선다)와 하체 포즈**뿐이다.
     // 스탠스: 어깨너비로 벌리고 무릎만 살짝 굽혀 흔들림을 받는다(차렷은 판때기 위 마네킹이 된다).
-    RIDE_WEAPON_TIP: -Math.PI / 2,   // 서서 탈 때 자루를 손 피벗에서 앞으로 눕히는 각
+    // 🗡️ 마크식 파지각 — 자루가 주먹에서 앞·위 45° 로 뻗는다(마크 `handheld` 트랜스폼의 −35° 틸트에
+    //    해당). 0 이면 수직(옛 '세워 들기'), −π/2 면 수평(창 겨눔처럼 보여 기각됨) 사이의 값.
+    MC_CARRY_X: -0.7,
+    RANGED_SHAPES: { bow: 1, crossbow: 1, gun: 1, pistol: 1, rifle: 1, smg: 1, cannon: 1, sling: 1, thrown: 1 },
     RIDE_STAND_BULK: 1.45,   // 서 있는 탑승에서 탈것을 키우는 배수(위 사유 참조)
     RIDE_STAND_POSE: {
         hipL: { rx: 0.04, rz: -0.10 }, hipR: { rx: 0.04, rz: 0.10 },
