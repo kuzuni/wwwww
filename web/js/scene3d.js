@@ -767,8 +767,9 @@ const Scene3D = {
     //  - 제외: 이미 셸 보유 · 아웃라인 셸 자신 · AO 링 · **투명/ depthWrite off**(블롭 그림자·데칼·FX·HP바).
     applyOutlineTree(root, k) {
         if (!root) return;
-        k = k || 1.4;   // 두께(상사확대). 실측 스냅 스윕: 1.2=게임줌서 1px(거의 안 보임)·1.4=얇지만 뚜렷·
-                        // 1.6=굵음·1.9=파츠 뭉개짐. 1.4 채택(사용자 "얇게"). 균일스케일이라 큰 파츠일수록 굵다.
+        k = k || 1.15;  // 두께(상사확대). ⚠️ k>1 이어야 몸 밖으로 삐져나온다(1.0=투명, <1=아예 사라짐).
+                        // 스윕: 1.15=아주 얇음·1.4=중간·1.6=굵음·1.9=뭉개짐. 1.15 채택(사용자 "얇게 / 0.8").
+                        // 균일스케일이라 큰 파츠일수록 굵다.
         root.traverse(o => {
             if (!o.isMesh || o.userData.isOutline || o.userData.aoRing || o.userData.hasOutlineShell) return;
             if (!o.geometry) return;
