@@ -5164,7 +5164,13 @@ const Scene3D = {
             if (this.heroRig.shield) this.heroRig.shield.visible = grip.hand !== 'L'; // 활·석궁은 왼손 파지 — 같은 팔의 방패와 겹침 방지
         }
         const gp = grip.pos || [0, 0, 0];
-        this.weaponG.position.set(gp[0], gp[1], gp[2]);
+        // 🖐️ 자루를 **주먹 쪽으로 끌어내린다** (사용자 지시 2026-08-21 "손쪽으로 무기 좀 더 내려,
+        //    각도는 괜찮은 편"). 파지점이 주먹보다 앞에 떠 있으면 '쥔' 게 아니라 '띄워 놓은' 것으로
+        //    읽힌다. 각(`MC_CARRY_X`)은 건드리지 않고 **자루 축 방향으로만** 민다 —
+        //    손 로컬에서 y 로 내리면 각에 따라 자루가 옆으로 새므로, 회전을 먹인 −y 벡터를 쓴다.
+        if (!this._gripPull) this._gripPull = new THREE.Vector3();
+        this._gripPull.set(0, -this.MC_GRIP_PULL, 0).applyEuler(this.weaponG.rotation);
+        this.weaponG.position.set(gp[0] + this._gripPull.x, gp[1] + this._gripPull.y, gp[2] + this._gripPull.z);
         // 🗡️ **마인크래프트 파지** (사용자 지시 2026-08-21 "마인크래프트에서 무기 어떤 식으로 쥐는지
         //    참고하고 그대로 반영해"). 마크는 아이템을 종류와 무관하게 **한 가지 트랜스폼**으로 쥔다
         //    (`item/handheld` 의 `thirdperson_righthand`: rotation [0, 90, −35]) — 팔은 그냥 내린 채
@@ -9882,6 +9888,7 @@ const Scene3D = {
     //    π 를 더하면 같은 기울기로 **앞쪽(진행 방향)** 을 향한다. 실측 A/B(3/4·측면 각각 촬영)로 확인.
     // ⚠️ 여기를 '−0.7 쯤이 마크 각'이라고 되돌리지 말 것 — 부호가 반대라 그 순간 다시 뒤로 든다.
     MC_CARRY_X: -1.05 + Math.PI,
+    MC_GRIP_PULL: 0.10,   // 자루를 주먹 쪽으로 끌어내리는 양(월드 단위, 자루 축 방향)
     RANGED_SHAPES: { bow: 1, crossbow: 1, gun: 1, pistol: 1, rifle: 1, smg: 1, cannon: 1, sling: 1, thrown: 1 },
     RIDE_STAND_BULK: 1.45,   // 서 있는 탑승에서 탈것을 키우는 배수(위 사유 참조)
     RIDE_STAND_POSE: {
