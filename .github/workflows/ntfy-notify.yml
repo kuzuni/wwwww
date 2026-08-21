@@ -29,6 +29,15 @@ on:
     workflows: ["pages build and deployment"]
     types: [completed]
   workflow_dispatch:     # 손으로 시험 발사
+    inputs:
+      topic:
+        description: "이번 발사에만 쓸 토픽(비우면 NTFY_TOPIC secret 사용)"
+        required: false
+        default: ""
+      text:
+        description: "보낼 문구"
+        required: false
+        default: "수동 발사 — 이 알림이 보이면 배선 완료다."
 
 jobs:
   notify:
@@ -46,7 +55,7 @@ jobs:
           set -euo pipefail
           if [ "$EVENT" = "workflow_dispatch" ]; then
             echo "title=ntfy 시험 발사" >> "$GITHUB_OUTPUT"
-            echo "body=수동 실행 — 이 알림이 보이면 배선 완료다." >> "$GITHUB_OUTPUT"
+            echo "body=${{ inputs.text }}" >> "$GITHUB_OUTPUT"
             echo "tags=white_check_mark" >> "$GITHUB_OUTPUT"
             echo "prio=default" >> "$GITHUB_OUTPUT"
             exit 0
@@ -68,7 +77,9 @@ jobs:
 
       - name: ntfy 로 보내기
         env:
-          TOPIC: ${{ secrets.NTFY_TOPIC }}
+          # 수동 발사 때는 입력으로 토픽을 넘길 수 있다(secret 을 아직 안 넣은 상태에서 바로 쏘려고).
+          # ⚠️ 공개 저장소이므로 입력값은 실행 기록에 남는다 — 상시 운용은 반드시 secret 을 쓸 것.
+          TOPIC: ${{ inputs.topic != '' && inputs.topic || secrets.NTFY_TOPIC }}
           SERVER: ${{ secrets.NTFY_SERVER }}
           TOKEN: ${{ secrets.NTFY_TOKEN }}
         run: |
@@ -79,6 +90,7 @@ jobs:
             echo "NTFY_TOPIC secret 이 없다 — 알림을 건너뛴다(설정은 파일 머리말 참조)."
             exit 0
           fi
+          echo "::add-mask::${TOPIC}"      # 로그에 토픽이 찍히지 않게 마스킹
           BASE="${SERVER:-https://ntfy.sh}"
           AUTH=()
           [ -n "${TOKEN:-}" ] && AUTH=(-H "Authorization: Bearer ${TOKEN}")
