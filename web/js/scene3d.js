@@ -5126,23 +5126,6 @@ const Scene3D = {
         }
     },
 
-    // 🗡️ 서서 타는 자세의 팔 각 — 무기 손은 앞으로 들고, 빈 손은 균형 잡듯 살짝 벌린다.
-    //    ⚠️ 파지 손은 무기마다 다르다(활계는 왼손) — 상수로 못 박으면 활을 든 팔은 내려온 채
-    //       오른팔만 허공을 겨눈다. `grip.hand` 로 매번 갈라 준다.
-    //    ⚠️ 지면에 서 있을 때는 **적용하지 않는다** — 거치 자세는 이미 그쪽 기준으로 맞춰져 있다.
-    rideArmPose(grip) {
-        if (!this.riding || !this.riding.standing) return null;
-        const hand = grip && grip.hand === 'L' ? 'L' : 'R';
-        const free = hand === 'L' ? 'R' : 'L';
-        const s = hand === 'L' ? 1 : -1;
-        const p = {};
-        p['shoulder' + hand] = { rx: -0.62, rz: s * 0.14 };   // 어깨를 앞으로 — 더 들면 무기가 얼굴을 가린다
-        p['elbow' + hand] = { rx: -0.22 };                    // 곧게 펴면 막대기가 된다 — 살짝만 굽힌다
-        p['shoulder' + free] = { rx: -0.30, rz: -s * 0.20 };  // 빈 팔은 앞·바깥으로 균형
-        p['elbow' + free] = { rx: -0.35 };
-        return p;
-    },
-
     applyWeaponGrip() {
         const grip = this.gripOf(this.wtypeId);
         if (this.heroRig) {
@@ -5153,9 +5136,8 @@ const Scene3D = {
             //    있어야지"). `WEAPON_GRIP.pose` 는 지면에 선 기준이라 팔이 옆구리에 내려와 있는데,
             //    탈것 위에서 그 실루엣은 '무기를 안 든 채 실려 가는' 것으로 읽힌다. 무기별 파지 회전
             //    (`grip.rot`)은 그대로 두고 **팔 각만** 덮어써서, 어느 무기든 진행 방향으로 겨눈다.
-            const armPose = this.rideArmPose(grip);
-            this.heroRig.restPose = (this.ridePose || grip.pose || armPose)
-                ? Object.assign({}, grip.pose || null, this.ridePose || null, armPose || null)
+            this.heroRig.restPose = (this.ridePose || grip.pose)
+                ? Object.assign({}, grip.pose || null, this.ridePose || null)
                 : null;
             // 자전거류는 **빈 손이 바를 잡아야** 한다("자전거인데 양손이 옆에 늘어져 있다" — 비평가 지적 ⓒ).
             // 무기 든 손은 그대로 두고 반대쪽 팔만 앞·아래로 뻗는다. 어느 쪽이 빈 손인지는 무기마다
@@ -5183,7 +5165,12 @@ const Scene3D = {
         }
         const gp = grip.pos || [0, 0, 0];
         this.weaponG.position.set(gp[0], gp[1], gp[2]);
-        this.weaponG.rotation.set(grip.rot[0], grip.rot[1], grip.rot[2]);
+        // 🗡️ 서서 탈 때는 **손 피벗에서 자루만 90° 눕힌다** (사용자 지시 2026-08-21: "겨누지는 말고
+        //    걍 앞으로 들고 있으라 · 손을 앞으로 뻗을 필요도 없음, 걍 손에서 90도면 되잖아").
+        //    팔은 평소 거치 자세 그대로 두고 무기 각만 바꾸는 게 제일 자연스럽다 — 팔을 들면
+        //    '겨누는' 자세가 되고, 안 건드리면 자루가 뒤로 누워 있다.
+        const rideTip = (this.riding && this.riding.standing) ? this.RIDE_WEAPON_TIP : 0;
+        this.weaponG.rotation.set(grip.rot[0] + rideTip, grip.rot[1], grip.rot[2]);
         const sc = 2.44 * (grip.scale || 1); // 기본 2.44 = weapon-size-2x(사용자 지시 2026-08-19, 종전 1.22 의 ×2)
         this.weaponG.scale.setScalar(sc); // 기본 존재감 스케일 × 무기별 보정 (활계 과대 축소)
         // ⚠️ 파지 랩에는 **월드 자루 반경**(shaftR × sc)을 넘긴다 — 랩은 1/sc 역스케일로 손 크기를
@@ -9883,6 +9870,7 @@ const Scene3D = {
     //    별개 계약이고, 여기서 바꾸면 종별 크기가 통째로 흔들린다. 바뀌는 건 **영웅의 y(발이
     //    안장 윗면에 선다)와 하체 포즈**뿐이다.
     // 스탠스: 어깨너비로 벌리고 무릎만 살짝 굽혀 흔들림을 받는다(차렷은 판때기 위 마네킹이 된다).
+    RIDE_WEAPON_TIP: -Math.PI / 2,   // 서서 탈 때 자루를 손 피벗에서 앞으로 눕히는 각
     RIDE_STAND_BULK: 1.45,   // 서 있는 탑승에서 탈것을 키우는 배수(위 사유 참조)
     RIDE_STAND_POSE: {
         hipL: { rx: 0.04, rz: -0.10 }, hipR: { rx: 0.04, rz: 0.10 },
@@ -10569,29 +10557,6 @@ const Scene3D = {
             if (hip && hp && hp.rx) hip.rotation.x += hp.rx * 0.10 * b;  // 고관절을 살짝 더 감아쥔다
             if (knee && kp && kp.rx) knee.rotation.x += kp.rx * 0.15 * b; // 무릎을 더 깊게 — flat은 크라우치가 된다
         }
-    },
-
-    // 🗡️ 서서 타는 동안 무기를 **진행 방향으로 겨눈다** (사용자 지시 2026-08-21 "무기를 앞으로
-    //    들고 있어야지"). 거치 회전(`WEAPON_GRIP.rot`)은 '지면에 서서 세워 든' 각이라, 팔만 앞으로
-    //    들면 자루가 머리 옆으로 솟아 **어깨에 메고 가는** 실루엣이 된다.
-    // 🚨 각도를 손으로 더하지 말 것 — 무기 20종이 파지 회전·파지 손·자루 길이가 전부 다르고,
-    //    손 뼈의 월드 회전은 클립·탑승 포즈·기울기가 매 프레임 바꾼다. 실측 스윕(tip −1.6~+1.4)에서
-    //    **어느 상수도 전 무기를 앞으로 겨누지 못했다**(같은 값이 곤봉은 위, 활은 뒤로 간다).
-    //    그래서 상수 대신 **월드에서 자루 축(local +y)을 진행 방향에 맞추고** 손 뼈의 회전을 역산해
-    //    상쇄한다 — 무기가 뭐든, 팔이 어디 있든 결과가 같다.
-    // ⚠️ 공격 중에는 손대지 않는다 — 스윙 클립이 무기 각을 소유한다(여기서 덮으면 궤적이 죽는다).
-    get RIDE_AIM_UP() { return this._aimUp || (this._aimUp = new THREE.Vector3(0, 1, 0)); },
-    get RIDE_AIM_DIR() { return this._aimDir || (this._aimDir = new THREE.Vector3(1, 0.3, 0).normalize()); },
-    _aimQ: null, _aimP: null,
-    aimRideWeapon() {
-        const wg = this.weaponG;
-        if (!wg || !wg.parent || this._attacking || !this.riding || !this.riding.standing) return;
-        if (!this._aimQ) { this._aimQ = new THREE.Quaternion(); this._aimP = new THREE.Quaternion(); }
-        wg.parent.updateWorldMatrix(true, false);
-        // 진행 방향(+x)에서 살짝 위 — 완전히 수평이면 지면과 평행한 막대라 원근에서 길이가 죽는다.
-        this._aimQ.setFromUnitVectors(this.RIDE_AIM_UP, this.RIDE_AIM_DIR);
-        wg.parent.getWorldQuaternion(this._aimP);
-        wg.quaternion.copy(this._aimP.invert().multiply(this._aimQ));
     },
 
     alignStirrups() {
@@ -18982,7 +18947,6 @@ const Scene3D = {
                 mg.rotation.x += (lean - mg.rotation.x) * Math.min(1, dt * 8);
                 if (!this._attacking) this.heroG.position.y += bob;   // 영웅도 같은 바운스를 그대로 받는다
                 this.heroG.rotation.x = mg.rotation.x * 0.6;
-                this.aimRideWeapon();                                 // 무기를 진행 방향으로 겨눈다(서서 타기)
                 this.alignStirrups();                                 // 등자를 실제 발 위치에 붙인다
                 this.alignHandlebar();                                // 핸들바를 빈 손 아래로 (공격 중엔 그 자리에 둔다)
                 this.alignReins();                                    // 고삐를 빈 손까지 (끈이라 공격 중에도 따라간다)
