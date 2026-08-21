@@ -60,6 +60,11 @@ const Scene3D = {
     // 같은 방위를 쓰도록 상수로 뺐다(방위만 낮과 같은 20° 로). y는 낮과 같은 취지로 2.4 로
     // 낮춰 고도 ~16° — 밤 그림자도 방위 유지한 채 더 길게.
     SUN_NIGHT: [2.94, 2.4, 8.08],
+    // 🧪 **배경 극단 단순화 실험 (사용자 지시 2026-08-21: "배경 아예 단순하면 어떤 느낌인지").**
+    //    true 면 원경 능선(산·언덕 3겹)·구름·떠다니는 안개·불티를 통째로 끈다. 하늘 그라디언트+지면+
+    //    소품/캐릭터만 남아 미니멀 백드롭이 된다. 되돌리려면 false — 배열은 항상 빈 채로라도 존재하므로
+    //    (setTheme·update 의 순회부는 `if(this.mountains)`·`if(!m)return`·빈 배열로 안전) 껐다 켜도 안 깨진다.
+    SIMPLE_BG: true,
     // ---- 카메라 구도의 유일한 결정 (2026-08-20 `sky-band-composition`) ----
     // `init`(방향 확정) · `update`(위치 추종) · 크리처 썸네일 리그가 **전부 여기만 읽는다.**
     // 종전에는 (0.15, 3.7, 8.2)/주시점 0.9 가 세 곳에 리터럴로 흩어져 있었고, 그중 하나
@@ -1174,8 +1179,9 @@ const Scene3D = {
 
     // 하늘에 떠서 천천히 흐르는 뭉게구름 스프라이트(원경감 + "빈 하늘" 인상 제거)
     buildClouds() {
-        const tex = this.makeCloudTexture();
         this.clouds = [];
+        if (this.SIMPLE_BG) return;   // 🧪 단순 배경: 구름 생략(빈 배열은 유지 — setTheme/update 순회부 안전)
+        const tex = this.makeCloudTexture();
         for (let i = 0; i < 12; i++) {
             const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, opacity: 0.9 });
             const s = new THREE.Sprite(mat);
@@ -1275,12 +1281,13 @@ const Scene3D = {
     // 전투 라인 위로 떠다니는 발광 먼지/불씨 입자 — 챕터 톤에 맞춰 색이 바뀌어(따뜻한 챕터=불씨, 서늘한 챕터=반딧불/마법가루)
     // 밋밋한 조명에 반짝임을 더해 대기감·챕터 개성을 동시에 살림
     buildEmbers() {
+        this.embers = [];
+        if (this.SIMPLE_BG) return;   // 🧪 단순 배경: 공중 불티 생략(빈 배열 유지 — 순회부 안전)
         const tex = this.makeGlowTexture();
         this.emberMat = new THREE.SpriteMaterial({
             map: tex, transparent: true, depthWrite: false, fog: false,
             blending: THREE.AdditiveBlending, opacity: 0.85, color: 0xffe0a0,
         });
-        this.embers = [];
         for (let i = 0; i < 16; i++) {
             const s = new THREE.Sprite(this.emberMat.clone());
             const x = U.rand(-9, 9), z = U.rand(-6.5, 1.5);
@@ -2452,8 +2459,14 @@ const Scene3D = {
         //    스윕(`scratchpad` 6조합 × 3바이옴)에서 세 겹이 동시에 2% 이상 나오는 대역을 골랐다.
         this.farHillMat = new THREE.MeshBasicMaterial({ color: 0x9db98d, fog: false }); // 최원경 3번째 레이어
         const R = this.RIDGE_LAYERS;
-        this.mountains = [mkRidge(this.mountainMat, R[0].w, R[0].h, R[0].peaks, R[0].z)];
-        this.hills = [mkRidge(this.hillMat, R[1].w, R[1].h, R[1].peaks, R[1].z), mkRidge(this.farHillMat, R[2].w, R[2].h, R[2].peaks, R[2].z)];
+        // 🧪 단순 배경: 원경 능선 3겹 생략. 빈 배열로 남겨 setTheme(`[this.mountains[0]…].forEach`,
+        //    내부 `if(!m)return`)·update(빈 배열 순회 무해)가 그대로 안전하다.
+        if (this.SIMPLE_BG) {
+            this.mountains = []; this.hills = [];
+        } else {
+            this.mountains = [mkRidge(this.mountainMat, R[0].w, R[0].h, R[0].peaks, R[0].z)];
+            this.hills = [mkRidge(this.hillMat, R[1].w, R[1].h, R[1].peaks, R[1].z), mkRidge(this.farHillMat, R[2].w, R[2].h, R[2].peaks, R[2].z)];
+        }
 
         // 소품 공유 매테리얼 (바이옴 재구성 시 지오메트리만 버리고 매테리얼은 재사용)
         // vertexColors — 잎 지오메트리는 전부 sculptFoliage 를 거쳐 color 속성을 갖는다(makePine·makeRoundTree
@@ -2511,7 +2524,7 @@ const Scene3D = {
 
         // 떠다니는 안개 (부드러운 타원 블롭이 천천히 흘러감)
         this.mists = [];
-        for (let i = 0; i < 7; i++) {
+        for (let i = 0; !this.SIMPLE_BG && i < 7; i++) {   // 🧪 단순 배경: 공중 안개 블롭 생략
             const mist = new THREE.Mesh(
                 new THREE.SphereGeometry(1, 12, 8),   // voxel-ok: 떠다니는 안개 — aoRing 과 같은 투명 오버레이(depthWrite off·op 0.05~0.1), 실루엣이 아니라 공기감에만 기여
                 new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: U.rand(0.05, 0.1), depthWrite: false })
