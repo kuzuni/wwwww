@@ -13424,8 +13424,8 @@ const Scene3D = {
                 : fx === 'nova' ? this.NOVA_IMPACT_MS : fx === 'guillotine' ? this.GUILLOTINE_IMPACT_MS
                     : fx === 'voidrift' ? this.VOIDRIFT_IMPACT_MS
                         // 🆕 커먼 3종(skill-object-protagonist) — 무게를 **느려진** 오브젝트 착탄 시각에 맞춘다.
-                        //    표창 비행 0.6s · 화살 0.58s · 지렁이 융기0.6+위협0.5+덮침0.22≈1.32s.
-                        : fx === 'shurikenrun' ? 600 : fx === 'arrowrain' ? 600 : fx === 'burrowworm' ? 1320 : 30);
+                        //    표창 비행 1.5s · 화살 1.3s · 지렁이 융기0.6+위협0.45+덮침0.22≈1.27s. def.impactAt 과 동기.
+                        : fx === 'shurikenrun' ? 1550 : fx === 'arrowrain' ? 1350 : fx === 'burrowworm' ? 1350 : 30);
         if (fx === 'dragonfire') {
             // 아포칼립스 — 거대 화염룡 강림 (skill-unique-signature). 메테오와 fx 를 공유하던
             // 사용자 지목 쌍을 완전 분리: 하늘 낙하(운석)가 아니라 **주인공 뒤에서 솟은 용이
@@ -16567,7 +16567,8 @@ const Scene3D = {
     // arcH(선택): 포물선 정점 높이(칸). 주면 화살이 **직선이 아니라 위로 볼록한 포물선**을 그리며
     //   날고(정점 k=0.5), 화살촉이 매 프레임 **궤적 접선**을 따라 기운다(내려갈 땐 촉이 아래로).
     //   안 주면 종전 직선 그대로 — 관통 사격 등 다른 호출부는 영향 없음. (화살비 arrowrain 전용)
-    projectileBolt(from, to, color, tier, dur0, arcH) {
+    // trail(선택): 참이면 지나간 자리에 청키 큐브 잔상(fxTrailCube)을 흘려 꼬리를 남긴다.
+    projectileBolt(from, to, color, tier, dur0, arcH, trail) {
         const delta = to.clone().sub(from), dist = delta.length();
         const dir0 = delta.clone().normalize();
         const arc = arcH || 0;
@@ -16595,6 +16596,7 @@ const Scene3D = {
         };
         // 착탄 파편 방향 — 직선이면 dir0, 포물선이면 끝 지점의 내려꽂는 접선.
         const impactDir = arc ? posAt(1).sub(posAt(0.97)).normalize() : dir0;
+        let tframe = 0;                                       // 트레일 큐브 방출 주기 카운터
         if (!arc) { _q.setFromUnitVectors(UP, dir0); head.quaternion.copy(_q); tail.quaternion.copy(_q); glow.quaternion.copy(_q); }
         this.addAnim(dur, k => {
             let dir = dir0;
@@ -16606,6 +16608,7 @@ const Scene3D = {
             head.position.copy(headPos);
             const len = tailLen * Math.min(1, k / 0.35);   // 처음엔 짧게 시작해 곧 최대 길이
             placeTail(tail, headPos, dir, len, wf * 0.85); placeTail(glow, headPos, dir, len * 1.05, wf * 1.7);
+            if (trail && (tframe++ % 2) === 0 && this.fxTrailCube) this.fxTrailCube(headPos.clone(), color.getHex(), 0.11 + tier * 0.015, 0.26);
         }, () => {
             this.disposeTree(head); this.disposeTree(tail); this.disposeTree(glow);
             this.scene.remove(head); this.scene.remove(tail); this.scene.remove(glow);

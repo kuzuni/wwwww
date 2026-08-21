@@ -298,6 +298,24 @@
     //    적 x 에 상대(−5칸)로 잡으면 적이 왼쪽에 붙었을 때 프레임 안에서 튀어나와 '밖에서 온' 게 깨진다.
     SKILL_OFFSCREEN_X: -8.5,
 
+    // 투사체 트레일 — 지나간 자리에 **청키 큐브 잔상**을 흘린다(확정 화풍 ⓔ, 소프트 글로우 금지).
+    //   비행 콜백에서 몇 프레임마다 한 번 부르면 표창·화살 뒤로 꼬리가 남는다. 큐브는 캐시 지오라
+    //   dispose 하지 않고 씬에서만 뗀다. 짧은 수명(0.28s) 동안 줄며 사라진다.
+    fxTrailCube(pos, hex, size, life) {
+        if (!this.scene) return;
+        const m = new THREE.Mesh(this.fxGeo('box', 1, 1, 1),
+            new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
+        m.userData.sharedGeometry = true;                 // 캐시 지오 — dispose 금지
+        m.position.copy(pos);
+        m.scale.setScalar(size);
+        m.rotation.set(U.rand(0, 3), U.rand(0, 3), U.rand(0, 3));
+        this.scene.add(m);
+        this.addAnim(life || 0.28, k => {
+            m.material.opacity = 0.8 * (1 - k);
+            m.scale.setScalar(size * (1 - 0.55 * k));
+        }, () => { m.material.dispose(); this.scene.remove(m); });
+    },
+
     // ── 표창 난무(shurikenrun) — 표창이 왼쪽 밖에서 포물선으로 날아와 꽂힌다 (단일) ──────
     mcShurikenBarrage(targetIds, color, tier) {
         const t = Math.max(0, Math.min(5, tier === undefined ? 0 : tier));
@@ -314,13 +332,15 @@
                 const dest = new THREE.Vector3(tgt.x - 0.1, 0.62 + U.rand(-0.15, 0.4), tgt.z + U.rand(-0.25, 0.25));
                 const arcH = 1.6 + U.rand(-0.2, 0.5);         // 포물선 정점 높이
                 const spin = 0.55 + U.rand(0, 0.15);          // 제 축(z) 회전 속도 — 팽팽 도는 표창
-                // 느리게(0.6s) + 포물선 + 제 축 회전(정면에서 도는 게 보인다).
-                this.addAnim(0.6, k => {
+                let fc = 0;
+                // 느리게(1.5s) + 포물선 + 제 축 회전 + 트레일(잔상 꼬리).
+                this.addAnim(1.5, k => {
                     a.g.position.lerpVectors(from, dest, k);
                     a.g.position.y += Math.sin(k * Math.PI) * arcH;   // 포물선 아치
                     a.g.rotation.z += spin;                            // 카메라 정면으로 팽팽 회전
+                    if ((fc++ % 2) === 0) this.fxTrailCube(a.g.position.clone(), color.getHex(), 0.15 + t * 0.02, 0.3);
                 }, () => { this.mcHit(dest, color, t, i === n - 1); this.fxActorFree(a); });
-            }, i * 100);                                       // 스태거 넓혀 '왼쪽에서 줄줄이' 로 읽히게
+            }, i * 130);                                       // 스태거 넓혀 '왼쪽에서 줄줄이' 로 읽히게
         }
     },
 
@@ -335,11 +355,11 @@
                 const cur = spots[i % spots.length];
                 const from = new THREE.Vector3(this.SKILL_OFFSCREEN_X + U.rand(-1, 1), U.rand(1.6, 2.8), cur.z + U.rand(-1.2, 1.2));
                 const to = new THREE.Vector3(cur.x + U.rand(-0.25, 0.25), 0.6 + U.rand(0, 0.5), cur.z + U.rand(-0.3, 0.3));
-                // 느린 비행(0.58s) + 포물선(arcH 2.2) — 촉이 궤적 접선을 따라 내려꽂힌다.
-                this.projectileBolt(from, to, color, t, 0.58, 2.2 + U.rand(-0.3, 0.5));
-            }, i * 80);                                        // 스태거 넓혀 줄줄이 쏟아지게
+                // 느린 비행(1.3s) + 포물선(arcH 2.2) + 트레일(true) — 촉이 접선 따라 내려꽂히고 꼬리를 남긴다.
+                this.projectileBolt(from, to, color, t, 1.3, 2.2 + U.rand(-0.3, 0.5), true);
+            }, i * 110);                                       // 스태거 넓혀 줄줄이 쏟아지게
         }
-        setTimeout(() => this.shake(0.2 + t * 0.05), Math.min(6, volley) * 80 + 520);
+        setTimeout(() => this.shake(0.2 + t * 0.05), Math.min(6, volley) * 110 + 1200);
     },
 
     // ── 땅벌레(burrowworm) — 적 발밑에서 긴 지렁이가 꿈틀대며 솟아 문다 (단일) ────────────
@@ -375,8 +395,8 @@
             if (jaw) jaw.rotation.x = 0.55 * e;
         }, () => {
             this.mcDust(at, 8);
-            // ⓑ 위협 — 크게 꿈틀대며 머리를 좌우로 흔든다(지렁이 본체, 0.5s).
-            this.addAnim(0.5, k => {
+            // ⓑ 위협 — 크게 꿈틀대며 머리를 좌우로 흔든다(지렁이 본체, 0.45s).
+            this.addAnim(0.45, k => {
                 wriggle(0.34);
                 if (head) { head.rotation.x = -1.0 + 0.22 * Math.sin(k * Math.PI * 2); head.rotation.y = 0.4 * Math.sin(k * Math.PI * 2); }
                 if (jaw) jaw.rotation.x = 0.55 + 0.15 * Math.sin(k * Math.PI * 3);
@@ -391,10 +411,10 @@
                 }, () => {
                     this.mcHit(new THREE.Vector3(at.x, 1.0, at.z), color, t, true);
                     SFX.slashArc(0, t);
-                    // ⓓ 후퇴 — 크게 꿈틀대며 땅속으로 사라진다(0.7s).
+                    // ⓓ 후퇴 — 크게 꿈틀대며 땅속으로 사라진다(0.55s).
                     setTimeout(() => {
                         const y0 = a.g.position.y;
-                        this.addAnim(0.7, k => {
+                        this.addAnim(0.55, k => {
                             wriggle(0.36 * (1 - k * 0.4));
                             a.g.position.y = y0 - k * 6.0;
                             if (head) head.rotation.x = 0.85 - k * 0.9;

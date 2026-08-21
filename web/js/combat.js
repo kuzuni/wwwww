@@ -375,21 +375,25 @@ const Combat = {
             const dmg = Skills.dmg(id).mul((1 + st.skillDmg / 100) * TechTree.skillDmgMult());
             UI.skillCutin(d);
             UI.skillFlash(d.color);
+            // 🚩 착탄 시점 = 스킬별 `impactAt`(초). 오브젝트가 화면 밖에서 오래 날아오는 연출
+            //    (표창·화살 비행 1.3~1.5s, 지렁이 물기 1.3s)은 피해가 **오브젝트가 실제로 닿는 순간**
+            //    들어와야 한다 — 안 그러면 적이 맞기 1초 전에 피가 깎여 인과가 깨진다. 안 주면 종전값.
             if (d.type === 'aoe') {
                 Scene3D.skillEffect(d.fx, d.color, alive.map(e => e.id), d); // d 를 넘겨 등급 위계를 연출에 태운다
+                const impT = d.impactAt || 0.25;
                 // 셰이크는 **시전이 아니라 타격 순간**에 울린다(2박). 예전엔 cast 시각에 shake(0.35)를
-                // 즉시 울려, 피해가 들어오는 +0.25초(3박)보다 한참 앞서 카메라가 흔들렸다 — '버튼을
-                // 누르니 화면이 흔들린다'로 읽혀 타격과 분리됐다(비평가 항목 ㉯). 피해 pending 과 같은
-                // 시각에 한 번만 울린다(적별 pending 마다 울리면 셰이크가 겹쳐 '지진'이 된다).
-                this.pending.push({ t: 0.25, fn: () => Scene3D.shake(0.35) });
-                for (const e of alive) this.pending.push({ t: 0.25, fn: () => { if (e.alive) this.damageEnemy(e, dmg.mul(U.rand(0.9, 1.1)), false, 'skill'); } });
+                // 즉시 울려, 피해가 들어오는 3박보다 한참 앞서 카메라가 흔들렸다 — '버튼을 누르니 화면이
+                // 흔들린다'로 읽혀 타격과 분리됐다(비평가 항목 ㉯). 피해 pending 과 같은 시각에 한 번만 운다.
+                this.pending.push({ t: impT, fn: () => Scene3D.shake(0.35) });
+                for (const e of alive) this.pending.push({ t: impT, fn: () => { if (e.alive) this.damageEnemy(e, dmg.mul(U.rand(0.9, 1.1)), false, 'skill'); } });
             } else {
                 const t = this.priorityTarget();
                 if (!t) return false;
                 Scene3D.skillEffect(d.fx, d.color, [t.id], d); // d 를 넘겨 등급 위계를 연출에 태운다
+                const impT = d.impactAt || 0.2;
                 // 셰이크를 타격 pending 안으로 — 대상이 그 사이 죽어도(t.alive=false) 스킬은 그 자리를
                 // 때린 것이므로 셰이크는 울린다(피해만 산 적에 조건부로 넣는다).
-                this.pending.push({ t: 0.2, fn: () => { Scene3D.shake(0.22); if (t.alive) this.damageEnemy(t, dmg, true, 'skill'); } });
+                this.pending.push({ t: impT, fn: () => { Scene3D.shake(0.22); if (t.alive) this.damageEnemy(t, dmg, true, 'skill'); } });
             }
         }
         this.cooldowns[id] = d.cd * (1 - st.skillCd / 100); // 서브스탯 '스킬 재사용 대기시간' 감소 반영

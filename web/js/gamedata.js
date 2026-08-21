@@ -456,9 +456,9 @@ const SKILL_DEFS = [
     //    지렁이 괴물이 적 발밑에서 솟는다. 옛 연출(slash/ring/firstaid → 검사로봇·표창회오리·의무정령)은
     //    defs 에서 떼어 놓기만 했다(코드는 _legacy 처럼 살아 있음). fx 이름이 새 안무로 라우팅된다.
     //    ⚠️ firstAid 는 heal→single 로 바뀌었다(지렁이는 적을 문다) — 커먼 회복 슬롯이 잠시 빈다.
-    { id: 'powerStrike', name: '표창 난무',       rarity: 'common',    type: 'single', mult: 3.0,  cd: 11, fx: 'shurikenrun', color: '#cfd8dc' },
-    { id: 'whirlwind',   name: '화살비',          rarity: 'common',    type: 'aoe',    mult: 1.6,  cd: 12, fx: 'arrowrain',   color: '#b0bec5' },
-    { id: 'firstAid',    name: '땅벌레',          rarity: 'common',    type: 'single', mult: 2.6,  cd: 13, fx: 'burrowworm',  color: '#8d6e63' },
+    { id: 'powerStrike', name: '표창 난무',       rarity: 'common',    type: 'single', mult: 3.0,  cd: 11, fx: 'shurikenrun', color: '#cfd8dc', impactAt: 1.55 },
+    { id: 'whirlwind',   name: '화살비',          rarity: 'common',    type: 'aoe',    mult: 1.6,  cd: 12, fx: 'arrowrain',   color: '#b0bec5', impactAt: 1.35 },
+    { id: 'firstAid',    name: '땅벌레',          rarity: 'common',    type: 'single', mult: 2.6,  cd: 13, fx: 'burrowworm',  color: '#8d6e63', impactAt: 1.35 },
     { id: 'fireball',    name: '화염구',          rarity: 'rare',      type: 'aoe',    mult: 2.4,  cd: 12, fx: 'explode',  color: '#ff8a65' },
     { id: 'pierceShot',  name: '화살 세례',       rarity: 'rare',      type: 'single', mult: 4.5,  cd: 11, fx: 'beam',     color: '#81d4fa' },
     { id: 'warCry',      name: '전투의 함성',     rarity: 'rare',      type: 'buff',   mult: 1.5,  dur: 8,  cd: 14, fx: 'warcry', color: '#ffcc80' },
