@@ -29,14 +29,24 @@ const AVATARS = path.resolve(__dirname, '../js/avatars.js');
 
     const n = await page.evaluate(() => {
         const names = Object.keys(IconGen.draw).sort();
+        /* 🚨 **칸을 종횡비대로 넓힌다 — 정사각 48px 에 다 밀어 넣으면 시트가 거짓말을 한다.**
+         * 라운드1·2 비평가 4인이 전부 `dg_*`(배너, 3.45:1)를 최악으로 집었는데, 라운드2 지적 사유가
+         * "레터박스로 낀 가로 스트립이라 주제가 안 읽힌다"였다 — 그건 **제품이 아니라 이 시트**가
+         * 3.45:1 그림을 48px 정사각에 넣어 48×14 로 눌러 버린 탓이다(인게임 배너 슬롯은 302px 폭).
+         * `background-size:contain` 이라 칸이 좁으면 그림이 통째로 축소돼 칸 격자까지 안 보인다.
+         * → 칸 폭을 `48 × ASPECT`(상한 176px)로 준다. 정사각 종은 종전과 완전히 같다(ASPECT 1). */
+        const H = 48, MAXW = 176;
         document.getElementById('sheet').innerHTML = `
       <div style="padding:10px 14px">
-        <div style="font-size:12px;opacity:.6;margin-bottom:8px">IconGen 전수 ${names.length}종 · 표시 48px (블록 화법 눈검사)</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${names.map((nm) => `<div style="text-align:center;width:76px">
-              <div style="width:48px;height:48px;margin:0 auto;background:#2b323b;display:flex;align-items:center;justify-content:center">${IconGen.img(nm)}</div>
+        <div style="font-size:12px;opacity:.6;margin-bottom:8px">IconGen 전수 ${names.length}종 · 높이 ${H}px 고정, 폭은 종횡비대로 (블록 화법 눈검사)</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start">
+          ${names.map((nm) => {
+            const w = Math.min(MAXW, Math.round(H * (IconGen.ASPECT[nm] || 1)));
+            return `<div style="text-align:center;width:${Math.max(76, w + 8)}px">
+              <div style="width:${w}px;height:${H}px;margin:0 auto;background:#2b323b;display:flex;align-items:center;justify-content:center">${IconGen.img(nm)}</div>
               <div style="font-size:8px;opacity:.55;margin-top:2px;word-break:break-all">${nm}</div>
-            </div>`).join('')}
+            </div>`;
+        }).join('')}
         </div>
       </div>`;
         return names.length;
