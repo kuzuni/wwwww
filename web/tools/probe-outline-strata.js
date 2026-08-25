@@ -412,15 +412,24 @@ const runOne = async (browser, label, ua) => {
     const thin = gated.filter(([, , v]) => v.n < MIN_N).map(([g, c]) => g + '/' + c);
     const meds = [...new Set(gated.filter(([, , v]) => v.n >= MIN_N).map(([, , v]) => v.median))];
     const spread = gated.filter(([, , v]) => v.n >= MIN_N && v.p99 > v.median + 1).map(([g, c, v]) => g + '/' + c + '(p99=' + v.p99 + ')');
+    // 🚨 **p90 도 칸 간에 같아야 한다 — 중앙값만 보면 '1px 선과 2px 선'을 통과시킨다.**
+    //    2026-08-25 실측으로 확인된 이 자의 사각지대다: 배포 상태가 `sky/step p90=2` 인데
+    //    `crease p90=1` 이었고, 중앙값은 셋 다 1 이라 게이트가 **초록불을 냈다**. 그런데 비평가는
+    //    같은 화면을 3/10 으로 깎으며 "실루엣 옆 1px 파란 선"을 정확히 그 자리에서 짚었다.
+    //    뿌리는 셰이더 쪽이다 — 실루엣 항만 '반경1 검출 + 1px 팽창'이라 2px 이 보장되고,
+    //    크리스 항(`crs`)은 **중심 화소에서만 계산되고 팽창이 없어 태생이 1px** 이다.
+    //    즉 '두께가 경계 종류를 따라 갈린다'는 원래 결함이 형태만 바꿔 살아 있다.
+    const p90s = [...new Set(gated.filter(([, , v]) => v.n >= MIN_N).map(([, , v]) => v.p90))];
     const orphans = gatedSeries.filter(([, v]) => v.orphan > v.total * 0.02).map(([g, v]) => g + '(' + v.orphan + ')');
     const uncov = gated.filter(([, , v]) => v.cover !== null && v.coverN >= MIN_N && v.cover < COVER_MIN).map(([g, c, v]) => g + '/' + c + '=' + (v.cover * 100).toFixed(0) + '%');
     const eroded = gatedSeries.filter(([, v]) => v.erosion.rate > EROSION_MAX).map(([g, v]) => g + '=' + (v.erosion.rate * 100).toFixed(0) + '%');
 
-    const pass = thin.length === 0 && meds.length === 1 && spread.length === 0 && orphans.length === 0
+    const pass = thin.length === 0 && meds.length === 1 && p90s.length === 1 && spread.length === 0 && orphans.length === 0
         && uncov.length === 0 && eroded.length === 0 && errors.length === 0;
     console.log('--- 판정 ---');
     console.log(`  칸별 표본 확보 : ${thin.length === 0 ? 'PASS (전 계열이 세 종류 경계를 다 그린다)' : 'FAIL 비어있음(그 경계에 선이 없다): ' + thin.join(',')}  (기준 n≥${MIN_N})`);
     console.log(`  Ⓐ 칸 간 중앙값 : ${meds.length === 1 ? 'PASS (전부 ' + meds[0] + 'px)' : 'FAIL ' + JSON.stringify(gated.filter(([, , v]) => v.n >= MIN_N).map(([g, c, v]) => g + '/' + c + '=' + v.median))}`);
+    console.log(`  Ⓐ 칸 간 p90    : ${p90s.length === 1 ? 'PASS (전부 ' + p90s[0] + 'px)' : 'FAIL ' + JSON.stringify(gated.filter(([, , v]) => v.n >= MIN_N).map(([g, c, v]) => g + '/' + c + '=' + v.p90))}`);
     console.log(`  Ⓐ 칸 내 퍼짐   : ${spread.length === 0 ? 'PASS (p99 ≤ 중앙+1)' : 'FAIL ' + spread.join(',')}`);
     console.log(`  Ⓐ 미연결 검정  : ${orphans.length === 0 ? 'PASS (검정이 전부 경계에서 이어진다)' : 'FAIL ' + orphans.join(',')}  (기준 총 검정의 2% 미만)`);
     console.log(`  Ⓑ 경계 덮임    : ${uncov.length === 0 ? 'PASS (실루엣 seed ≥' + (COVER_MIN * 100) + '% 칠해짐)' : 'FAIL ' + uncov.join(',')}`);
