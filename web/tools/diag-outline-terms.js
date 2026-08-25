@@ -29,6 +29,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     const HYST = !!process.env.HYST;
     const out = await page.evaluate(({ HYST }) => {
         const R = {};
+        window.__reseed && window.__reseed();   // 난수 스트림 되감기 — lib-seed.js 참조
         Combat.tick = () => { };
         const real = Scene3D.update.bind(Scene3D);
         Scene3D.update = () => { };

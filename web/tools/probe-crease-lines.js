@@ -38,6 +38,7 @@ const MIN_JAW = 0.60, MIN_HOOF = 0.45;
     const KS = (process.env.CREASE_K ? [+process.env.CREASE_K] : [0.010, 0.015, 0.020, 0.030]);
     const out = await page.evaluate(({ KS }) => {
         let R_DBG = null;
+        window.__reseed && window.__reseed();   // 난수 스트림 되감기 — lib-seed.js 참조
         Combat.tick = () => { };
         const real = Scene3D.update.bind(Scene3D);
         Scene3D.update = () => { };

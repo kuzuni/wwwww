@@ -44,6 +44,7 @@ const capture = async (browser, { dsf, ua, title }) => {
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 20000 });
     await page.waitForTimeout(1500);
     const r = await page.evaluate(({ CROP_CSS, CSS_W }) => {
+        window.__reseed && window.__reseed();   // 난수 스트림 되감기 — lib-seed.js 참조
         Combat.tick = () => { };
         const real = Scene3D.update.bind(Scene3D);
         Scene3D.update = () => { };
@@ -113,9 +114,25 @@ const capture = async (browser, { dsf, ua, title }) => {
             const v = [d0[i], d1[i], d2[i], d3[i]].sort((a, b) => a - b);
             hist[v[1]] = (hist[v[1]] || 0) + 1;
         }
+        // 🚨 **중앙값만 찍으면 결함이 전부 숨는다** (비평가 2026-08-25: "중앙값은 네 행 모두 2 버퍼px
+        //    이라 위의 모든 결함을 통과시킨다"). 결함은 상위 25% 에 있다 → **p90·최대**를 같이 찍고,
+        //    **크롭별로도** 낸다(한 크롭 안에서 1px 과 9px 이 공존하는 것이 이 항목의 실제 결함이다).
+        const thick = new Uint16Array(W * H);
+        for (let i = 0; i < W * H; i++) if (mask[i]) {
+            const v = [d0[i], d1[i], d2[i], d3[i]].sort((a, b) => a - b);
+            thick[i] = v[1];
+        }
+        const statOf = (pick) => {
+            const h = {}; let m = 0;
+            for (let i = 0; i < W * H; i++) if (mask[i] && pick(i)) { h[thick[i]] = (h[thick[i]] || 0) + 1; m++; }
+            if (!m) return null;
+            const kk = Object.keys(h).map(Number).sort((a, b) => a - b);
+            const q = (f) => { let c = 0; for (const k of kk) { c += h[k]; if (c >= m * f) return k; } return kk[kk.length - 1]; };
+            return { n: m, med: q(0.5), p90: q(0.9), max: kk[kk.length - 1] };
+        };
+        const all = statOf(() => true) || { med: 0, p90: 0, max: 0, n: 0 };
         const ks = Object.keys(hist).map(Number).sort((a, b) => a - b);
-        let acc = 0, med = 0;
-        for (const k of ks) { acc += hist[k]; if (acc >= n * 0.5) { med = k; break; } }
+        const med = all.med;
         // 🚨 **'2px 비중'이 아니라 '중앙값 비중'이어야 한다.** 목표 두께는 버퍼 px 로 고정된 값이 아니라
         //    **1 CSS px** 이고, 그건 DPR 1 에서 1 버퍼px · DPR 2 에서 2 버퍼px 이다. 2 를 하드코딩하면
         //    DPR 1 행이 정상인데도 '29.7%' 같은 낮은 수를 찍어 **거짓 결함처럼 읽힌다**.
@@ -139,10 +156,16 @@ const capture = async (browser, { dsf, ua, title }) => {
             ['적', proj(em.g.getWorldPosition(new THREE.Vector3()).setY(0.6))],
             ['스킬 소환체', summon ? proj(summon.g.getWorldPosition(new THREE.Vector3()).setY(0.75)) : null],
         ].filter(s => s[1]);
+        const CS = Math.round(CROP_CSS * bs);
+        for (const sp of spots) {
+            const sx = Math.max(0, Math.min(W - CS, Math.round(sp[1].x - CS / 2)));
+            const sy = Math.max(0, Math.min(H - CS, Math.round(sp[1].y - CS / 2)));
+            sp[2] = statOf(i => { const x = i % W, y = (i / W) | 0; return x >= sx && x < sx + CS && y >= sy && y < sy + CS; });
+        }
         return {
             full: cv.toDataURL('image/png'), spots, w: W, h: H, bs,
-            crop: Math.round(CROP_CSS * bs),                 // 버퍼 px 로 환산한 크롭 한 변
-            med, shareMed, nEdge: n,
+            crop: CS,                 // 버퍼 px 로 환산한 크롭 한 변
+            med, p90: all.p90, max: all.max, shareMed, nEdge: n,
             postOn: !!Scene3D.postOn, postEdge: !!Scene3D.postEdge,
         };
     }, { CROP_CSS, CSS_W });
@@ -152,18 +175,39 @@ const capture = async (browser, { dsf, ua, title }) => {
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
+    // 🚨 **DPR 3 행은 뺐다 — DPR 2 행과 바이트 단위로 동일하다**(비평가 2026-08-25 실측: 7개 크롭
+    //    전체에서 차이 나는 채널 0개). `setPixelRatio(Math.min(2, dpr))` 클램프 때문인데, 그러면
+    //    그 행은 **증거가 아니라 장식**이고 시트가 이 축의 표본을 4개처럼 보이게 부풀린다.
+    //    대신 **DPR 1.5** 를 넣는다 — 클램프에 안 걸리는 진짜 세 번째 버퍼배율이고, `dilate` 스위치가
+    //    '버퍼 ≥1.5× CSS' 에서 켜지므로 **이 대역이 1.33 CSS px 로 남는지**를 보는 자리이기도 하다.
     const PLAN = [
         { dsf: 1, ua: null, title: 'DPR 1 · 데스크톱 UA' },
-        { dsf: 2, ua: null, title: 'DPR 2 · 데스크톱 UA' },
-        { dsf: 3, ua: null, title: 'DPR 3 · 데스크톱 UA (렌더러가 2 로 클램프)' },
+        { dsf: 1.5, ua: null, title: 'DPR 1.5 · 데스크톱 UA' },
+        { dsf: 2, ua: null, title: 'DPR 2 · 데스크톱 UA (DPR 3 도 클램프돼 이 행과 바이트 동일)' },
         { dsf: 2, ua: MOBILE_UA, title: 'DPR 2 · 모바일 UA (블룸 off · 비네트 0)' },
     ];
     const caps = [];
     for (const p of PLAN) caps.push(await capture(browser, p));
 
+    const cssOf = (v, bs) => (v / bs).toFixed(2);
     const rows = caps.map(c => ({
-        title: `${c.title} — 버퍼 ${c.r.w}×${c.r.h}(CSS 대비 ${c.r.bs}×) · 선 두께 중앙 ${c.r.med} 버퍼px = ${(c.r.med / c.r.bs).toFixed(2)} CSS px · 중앙값 비중 ${c.r.shareMed}%`,
-        full: c.r.full, spots: c.r.spots, crop: c.r.crop,
+        title: `${c.title} — 버퍼 ${c.r.w}×${c.r.h}(CSS 대비 ${c.r.bs}×) · 두께 CSS px: 중앙 ${cssOf(c.r.med, c.r.bs)} · p90 ${cssOf(c.r.p90, c.r.bs)} · 최대 ${cssOf(c.r.max, c.r.bs)} · 중앙값 비중 ${c.r.shareMed}%`,
+        full: c.r.full, spots: c.r.spots, crop: c.r.crop, bs: c.r.bs, medBuf: c.r.med,
+    }));
+
+    // ── 게이트 ─────────────────────────────────────────────────────────────────────
+    // ⓐ **기기 간**: 행마다 CSS 두께 중앙값이 같아야 한다. 종전엔 `2.00 vs 1.00` 을 제 헤더에
+    //    인쇄해 놓고도 초록불이었다(비평가 지적) — 이제 종료코드로 낸다.
+    // ⓑ **침식**: 기준은 **절대 CSS px 이 아니라 그 행의 중앙값 대비 배수**로 잡는다. 목표 폭 자체가
+    //    대역마다 버퍼 px 로는 다른 값(DPR1 1버퍼px · DPR2 2버퍼px)이라, 절대값으로 걸면 대역이
+    //    바뀔 때마다 문턱이 같이 흔들린다. 비평가의 지적도 '최대/중앙 = 6배'라는 **비율**이었다.
+    //    3배 = 파츠가 선에 먹혀 덩어리가 됐다고 볼 수 있는 선.
+    const CSS_MED_TOL = 0.01, MAX_RATIO = 3.0;
+    const meds = caps.map(c => +cssOf(c.r.med, c.r.bs));
+    const medOk = Math.max(...meds) - Math.min(...meds) <= CSS_MED_TOL;
+    const fat = [];
+    caps.forEach((c, i) => c.r.spots.forEach(sp => {
+        if (sp[2] && sp[2].max > c.r.med * MAX_RATIO + 1e-6) fat.push(`${PLAN[i].title.split(' (')[0]}/${sp[0]}=${cssOf(sp[2].max, c.r.bs)}(중앙의 ${(sp[2].max / c.r.med).toFixed(1)}배)`);
     }));
     const page = await browser.newPage({ viewport: { width: 400, height: 400 } });
     const url = await page.evaluate(async ({ rows, CELL }) => {
@@ -188,8 +232,10 @@ const capture = async (browser, { dsf, ua, title }) => {
                 const dx = GAP + k * (CELL + GAP), dy = oy + HEAD + 20;
                 x.drawImage(imgs[i], sx, sy, CS, CS, dx, dy, CELL, CELL);
                 x.strokeStyle = '#ffe08a'; x.lineWidth = 2; x.strokeRect(dx, dy, CELL, CELL);
-                x.font = 'bold 19px sans-serif'; x.fillStyle = '#7fff9f';
-                x.fillText(s[0], dx + 4, dy - 5);
+                const st = s[2], mx = st ? (st.max / row.bs) : 0;
+                x.font = 'bold 16px sans-serif';
+                x.fillStyle = (st && st.max > row.medBuf * 3.0) ? '#ff6b6b' : '#7fff9f';   // 중앙값의 3배 초과 = 침식 의심
+                x.fillText(st ? `${s[0]}  중앙 ${(st.med / row.bs).toFixed(2)} · 최대 ${mx.toFixed(2)} CSS px` : s[0], dx + 4, dy - 5);
             });
             oy += CELL + HEAD + GAP + 22;
         });
@@ -198,7 +244,12 @@ const capture = async (browser, { dsf, ua, title }) => {
     fs.writeFileSync(OUT, Buffer.from(url.split(',')[1], 'base64'));
     console.log('시트 저장: ' + OUT);
     for (const r of rows) console.log('  ' + r.title);
+    console.log('\n--- 판정 ---');
+    console.log('  기기 간 CSS 두께 :', medOk ? `PASS (전 행 ${meds[0].toFixed(2)} CSS px)` : `FAIL (행별 중앙 ${meds.map(m => m.toFixed(2)).join(' / ')} CSS px)`);
+    console.log('  크롭 최대 두께   :', fat.length ? `FAIL (중앙값의 ${MAX_RATIO}배 초과) ` + fat.join(' · ') : `PASS (전 크롭 ≤ 중앙값의 ${MAX_RATIO}배)`);
     const errs = caps.flatMap(c => c.errors);
     console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : '콘솔 에러 0건');
+    console.log('  최종 :', medOk && !fat.length && !errs.length ? 'PASS' : 'FAIL');
     await browser.close();
+    process.exit(medOk && !fat.length && !errs.length ? 0 : 1);
 })();

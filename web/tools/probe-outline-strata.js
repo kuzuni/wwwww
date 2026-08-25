@@ -95,6 +95,7 @@ const runOne = async (browser, label, ua, dsf = 2) => {
         const R = { postOn: !!Scene3D.postOn, postEdge: !!Scene3D.postEdge };
         for (const k of ['creaseK', 'edgeK', 'normalK']) if (OV[k] !== null && Scene3D._compMat.uniforms[k]) Scene3D._compMat.uniforms[k].value = OV[k];
         R.ov = OV;
+        window.__reseed && window.__reseed();   // 난수 스트림 되감기 — lib-seed.js 참조
         Combat.tick = () => { };
         const real = Scene3D.update.bind(Scene3D);
         Scene3D.update = () => { };

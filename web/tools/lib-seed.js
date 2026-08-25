@@ -19,17 +19,27 @@
 // 사용:
 //   const { SEED_INIT } = require('./lib-seed');
 //   await page.addInitScript(SEED_INIT);      // ← page.goto 보다 **먼저** 부를 것
+//   ... page.evaluate(() => { window.__reseed && window.__reseed();   // ← 씬 구성 **직전**에
+//                             S.mounts = ...; Scene3D.refreshMount(); ... })
 //
 // ⚠️ `addInitScript` 는 페이지 스크립트보다 먼저 돈다 — 그래서 `util.js` 의 `U.rand` 가
 //    정의되기 전에 `Math.random` 이 이미 갈려 있다. goto 뒤에 부르면 아무 효과가 없다.
+const SEED = 0x2f6e2b1;
 const SEED_INIT = `(() => {
-  let s = 0x2f6e2b1 >>> 0;                       // xorshift32 — 상태 1워드, 브라우저 의존 0
+  let s = ${SEED} >>> 0;                         // xorshift32 — 상태 1워드, 브라우저 의존 0
   Math.random = () => {
     s ^= s << 13; s >>>= 0;
     s ^= s >>> 17;
     s ^= s << 5;  s >>>= 0;
     return s / 4294967296;
   };
+  // 🚨 **스트림 되감기** — 시드만으로는 부족하다. 로드 뒤 대기(1500ms) 동안 진짜 update 가 rAF 로
+  //    도는데, 프레임 수가 매번 달라 **그때까지 소비한 난수 개수**가 달라진다. 그러면 그 뒤에
+  //    만들어지는 탈것·펫·소환체가 **스트림의 다른 지점**을 받아 조형·위상이 조금씩 달라진다.
+  //    실측(2026-08-25, shot-outline-uniform 모바일 행): 2px 비중 83.8% ↔ 83.1%, 펫 크롭 최대
+  //    두께 3.00 ↔ 4.00 CSS px 로 튀었다(데스크톱 행은 우연히 안정적이었다).
+  //    → 판정기는 **씬을 짜기 직전에 __reseed() 를** 불러 스트림을 원점으로 되감을 것.
+  window.__reseed = (v) => { s = (v === undefined ? ${SEED} : v) >>> 0; };
 })()`;
 
-module.exports = { SEED_INIT };
+module.exports = { SEED_INIT, SEED };
