@@ -4969,7 +4969,7 @@ const UI = {
                     <div class="shop-deal-rewards">${rewardRows}</div>
                     <div class="shop-deal-right">
                         <span class="shop-deal-art">${IconGen.img('shop_' + d.key) || `<i class="art-emblem">${d.icon}</i>`}</span>
-                        <button class="btn primary shop-price-btn ${claimed ? 'disabled' : ''}" onclick="UI.onClaimDeal('${d.key}')"
+                        <button class="btn primary shop-price-btn ${claimed ? 'disabled' : ''}" onclick="UI.onClaimDeal('${d.key}', this)"
                             title="${claimed ? '오늘은 이미 수령했습니다' : '데모판은 결제 대신 하루 1회 무료 수령입니다'}">
                             ${claimed ? '수령 완료' : d.priceKR}</button>
                     </div>
