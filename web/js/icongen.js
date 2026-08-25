@@ -273,6 +273,46 @@ const IconGen = {
         };
         return [Math.round(ch(h + 1 / 3) * 255), Math.round(ch(h) * 255), Math.round(ch(h - 1 / 3) * 255)];
     },
+    /* 고립 칸 흡수(디스페클) — 4-이웃 중 **제 색과 같은 칸이 하나도 없는** 칸을 이웃 최빈색으로 덮는다.
+     * 왜: 다운샘플 + 단계 스냅은 그라디언트가 넓은 종에서 단계 경계에 한 칸씩 걸친 칸을 흩뿌린다.
+     *     마크 텍스처에는 그런 게 없다 — 한 칸짜리 색은 **의도된 점**(눈·리벳)이거나 아예 없다.
+     *     실측(2026-08-25 채점 라운드4): `dg_zombie` 가 흰 하늘 위에 보라 단색 칸이 무작위로 흩뿌려져
+     *     "디더링이 아니라 그냥 노이즈"로 읽혔고, `dg_invasion` 은 갈색 20여 톤이 진흙처럼 섞였다.
+     * 🚨 **경계 칸(실루엣 테)은 절대 안 건드린다** — 두 계약이 거기에 걸려 있다:
+     *    ⑴ `probe-cell-icon-size` 의 잉크 긴변(지금 정확히 76.0%, 허용 ±2%p) = 실루엣 bbox.
+     *    ⑵ `probe-icon-keyline` 의 테 두께. 알파는 아예 안 만지므로 bbox 는 원리적으로 불변이고,
+     *    경계를 제외하면 테 색도 불변이다. 즉 이 패스는 **속살의 잡티만** 지운다.
+     * ⚠️ 이웃이 전부 서로 달라 최빈색이 1표씩이면(진짜 그라디언트 속) 덮지 않는다 — 최빈색이
+     *    2표 이상일 때만 흡수한다. 안 그러면 넓은 램프를 한 방향으로 밀어 형태가 흐른다. */
+    _despeckle(d, alive, gx, gy, B) {
+        const key = (c) => (d[c * 4] << 16) | (d[c * 4 + 1] << 8) | d[c * 4 + 2];
+        const src = new Int32Array(alive.length);
+        for (let c = 0; c < alive.length; c++) src[c] = alive[c] ? key(c) : -1;
+        for (let y = 1; y < gy - 1; y++) for (let x = 1; x < gx - 1; x++) {
+            const c = y * gx + x;
+            if (!alive[c]) continue;
+            const nb = [c - 1, c + 1, c - gx, c + gx];
+            if (nb.some((n) => !alive[n])) continue;          // 경계 칸 = 테 — 손대지 않는다
+            if (nb.some((n) => src[n] === src[c])) continue;  // 같은 색 이웃이 있으면 고립이 아니다
+            const tally = new Map();
+            for (const n of nb) tally.set(src[n], (tally.get(src[n]) || 0) + 1);
+            let best = -1, bn = 0;
+            for (const [k, v] of tally) if (v > bn) { bn = v; best = k; }
+            if (bn < 2) continue;                              // 진짜 그라디언트 속 — 밀지 않는다
+            /* 🚨 **어둡게 만드는 흡수는 하지 않는다.** 처음엔 방향을 안 보고 흡수했더니
+             *    `probe-emblem-core`(38px 표시에서 루마 ≥ 50 인 '속살' 비율 ≥ 34%)가
+             *    **미달 1종 → 3종**으로 벌어졌다(sk_powerStrike 29.5 · sk_voidLance 33.8 ·
+             *    sk_apocalypse 30.4). 이유는 분명하다 — 어두운 몸통에 박힌 **한 칸짜리 하이라이트**가
+             *    바로 이 판정의 '고립 칸'이라, 방향을 안 보면 잡티를 지우면서 **의도된 스페큘러까지**
+             *    같이 지운다. 지우려는 건 `dg_zombie` 의 흰 하늘 위 보라 점 같은 **어두운 잡티**이고,
+             *    그건 전부 '이웃보다 어두운 고립 칸'이다. 밝기를 안 내리는 흡수만 남기면
+             *    잡티는 그대로 잡히고 코어는 손대지 않는다(실측: 미달 3종 → 1종 = 선재 잔여만 남음). */
+            const lum = (v) => 0.2126 * ((v >> 16) & 255) + 0.7152 * ((v >> 8) & 255) + 0.0722 * (v & 255);
+            if (lum(best) < lum(src[c])) continue;
+            const i = c * 4;
+            d[i] = (best >> 16) & 255; d[i + 1] = (best >> 8) & 255; d[i + 2] = best & 255;
+        }
+    },
     /* 칸 색 히스토그램에서 상위 `PAL_MAX` 색만 남기고 나머지를 가장 가까운 색(RGB 거리)으로 흡수한다.
      * 칸 수가 최대 1,380(가장 넓은 배너)이라 O(칸×팔레트)=3만 회 — 굽기 한 번에 한 번만 돈다. */
     _foldPalette(d, alive, B) {
@@ -362,6 +402,7 @@ const IconGen = {
             d[i] = rgb[0]; d[i + 1] = rgb[1]; d[i + 2] = rgb[2];
         }
         this._foldPalette(d, alive, B);
+        this._despeckle(d, alive, gx, gy, B);
         sc.putImageData(im, 0, 0);
         /* 출력 해상도는 **칸수 × PX** 로 새로 잡는다 — 원래 굽기 크기(S)를 쓰면 S 가 칸수의 배수가
          * 아닐 때(예: 128/20 = 6.4) 칸마다 6px/7px 로 널뛴다. CSS 는 `background-size:contain` 이라

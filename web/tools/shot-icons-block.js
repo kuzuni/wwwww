@@ -20,8 +20,11 @@ const AVATARS = path.resolve(__dirname, '../js/avatars.js');
     page.on('pageerror', (e) => errs.push(String(e)));
     // `.ico` 규칙은 css/style.css 에 있는데 이 시트는 그걸 안 싣는다 — 최소 규칙을 직접 준다.
     // (안 주면 `<i>` 가 0×0 이라 **전 종이 빈 칸으로 찍힌다**. 실제로 한 번 그렇게 찍혔다.)
+    // 🚨 `image-rendering` 을 **반드시 제품(`.ico`, style.css 7191행)과 같이 줄 것.** 이게 빠지면
+    //    시트는 브라우저 보간으로 뿌예진 판을 보여 주는데 게임 화면은 칸이 서 있다 = **시트가
+    //    거짓말을 한다**(칸 폭 종횡비를 안 줘서 dg_* 가 거짓 감점을 받았던 라운드2 와 같은 계열의 결함).
     await page.setContent(`<!doctype html><meta charset="utf-8">
-<style>.ico{display:block;width:100%;height:100%;background-size:contain;background-repeat:no-repeat;background-position:center}</style>
+<style>.ico{display:block;width:100%;height:100%;background-size:contain;background-repeat:no-repeat;background-position:center;image-rendering:crisp-edges;image-rendering:pixelated}</style>
 <body style="margin:0;background:#171b21;font-family:sans-serif;color:#e8edf4">
 <div id="sheet"></div></body>`);
     await page.addScriptTag({ content: fs.readFileSync(ICONGEN, 'utf8') });

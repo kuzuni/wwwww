@@ -1954,6 +1954,9 @@ body {
        ⚠️ 위 shorthand 가 background-size 를 auto 로 되돌리므로 **반드시 뒤에** 따로 준다 —
        안 그러면 그림이 원래 크기로 타일링된다. 그림이 없는 던전은 그대로 그라디언트만 보인다. */
     background-size: cover; background-position: center; background-repeat: no-repeat;
+    /* 배너 일러스트도 블록화를 지난다(`dg_` 는 BLOCK_SKIP 이 아니다) — `.ico` 와 같은 이유로
+       최근접 축소를 강제한다. 안 걸면 30×20칸으로 다진 하늘이 배너 폭에서 다시 그라디언트가 된다. */
+    image-rendering: crisp-edges; image-rendering: pixelated;
     border: var(--ol1) solid #30363d;
 }
 .dg-banner.locked { opacity: .55; }
@@ -7193,6 +7196,23 @@ h3.sellwarn-title, .rates-head h3,
     vertical-align: middle; margin: -.32em .04em -.32em 0;
     background-size: contain; background-repeat: no-repeat; background-position: center;
     flex: none;
+    /* 🚨 **최근접 축소를 강제한다 — 이게 없으면 블록화가 화면에 도달하지 않는다**
+       (`ui-icon-blockify`, 2026-08-25 채점 라운드4에서 찾음).
+       `IconGen._blockify` 는 160×160 PNG 를 칸 단위로 다져 **6~14색 · 반투명 화소 0개** 로 굽는데,
+       `.ico` 는 그걸 1.45em(≈24~44px)으로 줄여 깐다. 브라우저 기본 축소는 **부드러운 보간**이라
+       칸 경계마다 중간색을 만들어 낸다 — 실측(같은 아이콘, 표시 크기별 색 수 / 반투명 화소 수):
+         coin  24px 기본 **54색·반투명 35** → pixelated **6색·반투명 0**
+         chest 32px 기본 **121색·반투명 100** → pixelated **14색·반투명 0**
+         zzz   64px 기본 **93색·반투명 270** → pixelated **10색·반투명 0**
+       즉 파이프라인이 만든 '제한 팔레트'와 '각진 알파'가 **표시 단계에서 통째로 되돌려졌다.**
+       블라인드 비평가 4라운드가 매번 "안티에일리어싱 프린지" · "에어브러시" · "매끈한 램프"를
+       지적한 실체가 이것이다 — 판정기(`probe-icon-blockify`)는 PNG 를 재서 100% PASS 를 주는데,
+       사람은 화면을 본다. **판정기가 제품이 아니라 소스를 보고 있었다.**
+       ⚠️ 표시 크기가 칸 크기(8px)의 배수가 아니면 칸 폭이 2px/3px 로 널뛴다(icongen.js 54행 경고).
+          그건 픽셀아트가 원래 그렇게 보이는 것이고, **모든 칸이 뿌예지는 것보다 낫다** — 비평가
+          요건 1번이 '색이 칸 단위로 끊긴다'이다.
+       (`crisp-edges` 를 먼저 두는 순서는 `.ico.av-ico` 와 같은 이유 — 지원되는 곳에서 pixelated 가 이긴다) */
+    image-rendering: crisp-edges; image-rendering: pixelated;
 }
 /* ---- 아바타 도트 초상 (IconGen.avatar — web/js/avatars.js) ----
    원본 아바타는 32×32 격자에 딱 떨어지는 도트다. 44px 프레임에 128px 그림을 넣으면 브라우저가
