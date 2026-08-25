@@ -152,12 +152,12 @@
             head: [6, 6, 7], headY: 18, headDrop: 2, legAmp: 0.42,
             face: E({ y: 3, inset: 1, ew: 1, eh: 1 }).concat([{ c: 0x3c332a, x: [2, 3], y: 0, z: -1 }]),
             extra: [
-                { box: [4, 5, 4], at: [0, 15.5, 6], c: C },
-                { box: [1, 4, 1], at: [-1.6, 22, 4], parent: 'head', c: HORN },
-                { box: [1, 4, 1], at: [1.6, 22, 4], parent: 'head', c: HORN },
-                { box: [1, 1, 4], at: [-1.6, 24, 1.5], parent: 'head', c: HORN },
-                { box: [1, 1, 4], at: [1.6, 24, 1.5], parent: 'head', c: HORN },
-                { box: [2, 3, 1], at: [0, 15, 8], parent: 'head', c: WOOL },
+                { id: 'neck', box: [4, 5, 4], at: [0, 15.5, 6], c: C },
+                { id: 'hornL', box: [1, 4, 1], at: [-1.6, 22, 4], parent: 'head', c: HORN },
+                { id: 'hornR', box: [1, 4, 1], at: [1.6, 22, 4], parent: 'head', c: HORN },
+                { id: 'hornTipL', box: [1, 1, 4], at: [-1.6, 24, 1.5], parent: 'head', c: HORN },
+                { id: 'hornTipR', box: [1, 1, 4], at: [1.6, 24, 1.5], parent: 'head', c: HORN },
+                { id: 'beard', box: [2, 3, 1], at: [0, 15, 8], parent: 'head', c: WOOL },
                 T({ box: [2, 3, 2], at: [0, 13.5, -8], c: C, axis: 'x', amp: 0.2 }),
             ] });
         q.harness = 'bridle'; q.head = { hw: 6, y: 18, z: 9, d: 7 };
@@ -192,20 +192,21 @@
     (function () {
         var C = 0x7a5230, D = 0x5c3b20, ANT = 0xc9b48c, antler = [];
         for (var s2 = -1; s2 <= 1; s2 += 2) {
-            antler.push({ box: [2, 10, 2], at: [s2 * 2.5, 32, 4], parent: 'head', c: ANT });
-            antler.push({ box: [2, 2, 7], at: [s2 * 2.5, 35, 8], parent: 'head', c: ANT });
-            antler.push({ box: [2, 5, 2], at: [s2 * 2.5, 38, 11], parent: 'head', c: ANT });
-            antler.push({ box: [5, 2, 2], at: [s2 * 5, 34, 2], parent: 'head', c: ANT });
-            antler.push({ box: [2, 5, 2], at: [s2 * 7, 36, 2], parent: 'head', c: ANT });
+            var sd = s2 < 0 ? 'L' : 'R';   // 이름표 — 가림 판정기가 "어느 뿔 가지인지"를 말할 수 있어야 한다
+            antler.push({ id: 'antlerBeam' + sd, box: [2, 10, 2], at: [s2 * 2.5, 32, 4], parent: 'head', c: ANT });
+            antler.push({ id: 'antlerFwd' + sd, box: [2, 2, 7], at: [s2 * 2.5, 35, 8], parent: 'head', c: ANT });
+            antler.push({ id: 'antlerTip' + sd, box: [2, 5, 2], at: [s2 * 2.5, 38, 11], parent: 'head', c: ANT });
+            antler.push({ id: 'antlerSide' + sd, box: [5, 2, 2], at: [s2 * 5, 34, 2], parent: 'head', c: ANT });
+            antler.push({ id: 'antlerOuter' + sd, box: [2, 5, 2], at: [s2 * 7, 36, 2], parent: 'head', c: ANT });
         }
         var q = rideQuad({ c: C, body: [11, 11, 21], legH: 11, legW: 3, legC: D, seat: 21,
             head: [5, 7, 9], headY: 26, headDrop: 3, legAmp: 0.42,
             face: E({ y: 3, inset: 1, ew: 1, eh: 2 }).concat([{ c: 0x2b1f14, x: [1, 3], y: 0, z: -1 }]),
             bodyPaint: [{ c: D, y: 0 }],
             extra: [
-                { box: [5, 9, 6], at: [0, 22, 6], c: C },
-                { box: [2, 2, 1], at: [-2.6, 28, 5], parent: 'head', c: C },
-                { box: [2, 2, 1], at: [2.6, 28, 5], parent: 'head', c: C },
+                { id: 'neck', box: [5, 9, 6], at: [0, 22, 6], c: C },
+                { id: 'earL', box: [2, 2, 1], at: [-2.6, 28, 5], parent: 'head', c: C },
+                { id: 'earR', box: [2, 2, 1], at: [2.6, 28, 5], parent: 'head', c: C },
                 T({ box: [3, 3, 2], at: [0, 17, -9.5], c: 0xe8e2d4, axis: 'x', amp: 0.2 }),
             ].concat(antler) });
         q.harness = 'bridle'; q.head = { hw: 5, y: 26, z: 12, d: 9 };
@@ -277,11 +278,14 @@
             { id: 'body', box: [18, 6, 14], at: [0, 9, 0], c: RD, paint: [{ c: DK, y: 0 }, { c: DK, z: -1, y: [1, 2] }] },
             { id: 'head', box: [8, 3, 3], at: [0, 10.5, 8], pivot: [0, 10.5, 6], c: RD, tag: 'head',
               joint: { axis: 'y', amp: 0.08, f: 0.7 } },
-            { box: [2, 4, 2], at: [-2.5, 14, 8], parent: 'head', c: RD, paint: [{ c: 0xf4f0e6, y: -1 }, { c: 0x241c17, y: -1, z: -1 }] },
-            { box: [2, 4, 2], at: [2.5, 14, 8], parent: 'head', c: RD, paint: [{ c: 0xf4f0e6, y: -1 }, { c: 0x241c17, y: -1, z: -1 }] },
-            { box: [5, 5, 7], at: [-8, 6, 11], pivot: [-8, 7, 7], c: RD, tag: 'claw', s: 1,
+            { id: 'eyeStalkL', box: [2, 4, 2], at: [-2.5, 14, 8], parent: 'head', c: RD, paint: [{ c: 0xf4f0e6, y: -1 }, { c: 0x241c17, y: -1, z: -1 }] },
+            { id: 'eyeStalkR', box: [2, 4, 2], at: [2.5, 14, 8], parent: 'head', c: RD, paint: [{ c: 0xf4f0e6, y: -1 }, { c: 0x241c17, y: -1, z: -1 }] },
+            // 집게 — `at` z 11 → 10. 종전엔 집게 뒷면(칸 z 7.5)이 등딱지 앞면(7)보다 **반 칸 앞**이라
+            // 몸에서 떨어진 조각으로 찍혔다(`probe-mount-detached` 실측 빈틈 0.5칸). 피벗(7)은 그대로
+            // 둬 여닫이 회전축을 안 흔든다.
+            { id: 'clawL', box: [5, 5, 7], at: [-8, 6, 10], pivot: [-8, 7, 7], c: RD, tag: 'claw', s: 1,
               paint: [{ c: DK, y: [2, 2], z: [-3, -1] }] },
-            { box: [5, 5, 7], at: [8, 6, 11], pivot: [8, 7, 7], c: RD, tag: 'claw', s: -1,
+            { id: 'clawR', box: [5, 5, 7], at: [8, 6, 10], pivot: [8, 7, 7], c: RD, tag: 'claw', s: -1,
               paint: [{ c: DK, y: [2, 2], z: [-3, -1] }] },
         ].concat(legs, saddle({ w: 9, seat: 13, z: -1, bodyH: 7, bodyY: 9 })) };
     })();

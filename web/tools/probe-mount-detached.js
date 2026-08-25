@@ -44,6 +44,17 @@ const ARG = process.argv.slice(2);
             //    판정기가 거짓 실패만 뱉는다(1판에서 15건 중 8건이 이것이었다). 끈은 라이더 발까지
             //    `alignStirrups` 가 매 프레임 늘이므로, 정지 메시에서 떠 있는 건 정상이다.
             const skip = new Set(mesh.userData.stirrups || []);
+            // 칸 크기 — 판정 여유(ε)를 **칸에 비례**해 잡는다. 종마다 cell 이 2배 넘게 차이 나서
+            // (`cell = form.saddle / seat`) 절대값 ε 를 쓰면 큰 종은 헐거워지고 작은 종은 뻑뻑해진다.
+            const cell = mesh.userData.cell || 0.03;
+            // 🚨 **접해 있는 것을 '떠 있다'고 세면 안 된다.** 이 판정기 머리말은 *"'틈 > 0' 을 결함으로
+            //    본다"* 라고 적어 놓고, 구현은 bbox 가 **겹치지 않으면** 실패로 셌다. 사족 다리는
+            //    어깨에서 아래로 달려 몸통 밑면에 **정확히 맞닿아** 겹침이 0 이고, 거기에 `Voxel.build`
+            //    의 큐브 지터가 1e-3 남짓 틈을 만든다 → 전 사족의 다리·꼬리가 무더기로 빨간불이었다
+            //    (실측 24건, 보고된 빈틈은 전부 0). 한 칸의 1/4 이내면 붙은 것으로 본다 —
+            //    복셀 조형에서 **진짜** 뜬 조각의 틈은 최소 한 칸이라 이 여유로 놓치지 않는다
+            //    (아래 `--selftest` 가 1.5칸 띄운 파츠를 실제로 잡는지 매 실행 확인한다).
+            const EPS = cell * 0.25;
             const parts = [];
             mesh.children.forEach((ch, i) => {
                 if (skip.has(ch)) return;
@@ -62,37 +73,62 @@ const ARG = process.argv.slice(2);
                 let touches = 0, best = Infinity, bestI = -1;
                 for (const q of parts) {
                     if (q === p) continue;
-                    if (p.b.intersectsBox(q.b)) { touches++; continue; }
-                    // 축별 빈틈의 유클리드 합 — 두 박스가 안 겹칠 때의 최단거리
+                    // 축별 빈틈의 유클리드 합 — 두 박스가 안 겹칠 때의 최단거리(겹치면 0)
                     const dx = Math.max(0, Math.max(p.b.min.x - q.b.max.x, q.b.min.x - p.b.max.x));
                     const dy = Math.max(0, Math.max(p.b.min.y - q.b.max.y, q.b.min.y - p.b.max.y));
                     const dz = Math.max(0, Math.max(p.b.min.z - q.b.max.z, q.b.min.z - p.b.max.z));
                     const d = Math.hypot(dx, dy, dz);
+                    if (d <= EPS) { touches++; continue; }     // 붙었다(겹침 0 인 '맞닿음'도 여기서 통과)
                     if (d < best) { best = d; bestI = q.i; }
                 }
                 if (!touches) loose.push({
-                    i: p.i, kind: p.kind, gap: +best.toFixed(4), near: bestI, size: +p.size.toFixed(3),
+                    i: p.i, kind: p.kind, gap: +best.toFixed(4), gapCell: +(best / cell).toFixed(2), near: bestI, size: +p.size.toFixed(3),
                     at: [p.b.min.x, p.b.min.y, p.b.min.z].map(v => +v.toFixed(3)),
                     to: [p.b.max.x, p.b.max.y, p.b.max.z].map(v => +v.toFixed(3)),
                 });
             }
-            rows.push({ name, n: parts.length, loose });
+            // 🧪 역검증 — ε 를 넣어 놓고 "이제 아무것도 안 걸린다"를 통과로 읽으면 자가 죽은 것이다.
+            //    ⚠️ 첫 판은 '가장 작은 파츠를 1.5칸 들어올려' 확인하려 했는데 **11종에서 빈틈 0** 이
+            //    나왔다 — 제일 작은 파츠는 대개 안장끈처럼 **몸통 속에 박혀** 있어 1.5칸 들어도 여전히
+            //    몸통과 겹친다. 그래서 모델을 흔드는 대신 **판정 규칙 자체를 합성 상자로** 검사한다:
+            //    같은 자·같은 ε 로, 1.5칸 띄운 쌍은 반드시 잡히고 0.1칸 띈 쌍은 반드시 안 잡혀야 한다.
+            //    (이 자를 느슨하게 만드는 변경은 반드시 이 반대 방향 증거를 같이 들고 와야 한다.)
+            const gapOf = (a, b) => {
+                const dx = Math.max(0, Math.max(a.min.x - b.max.x, b.min.x - a.max.x));
+                const dy = Math.max(0, Math.max(a.min.y - b.max.y, b.min.y - a.max.y));
+                const dz = Math.max(0, Math.max(a.min.z - b.max.z, b.min.z - a.max.z));
+                return Math.hypot(dx, dy, dz);
+            };
+            const synth = (g) => {
+                const A = new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(cell * 4, cell * 4, cell * 4));
+                const B = new THREE.Box3(new THREE.Vector3(0, cell * 4 + g, 0), new THREE.Vector3(cell * 4, cell * 8 + g, cell * 4));
+                return gapOf(A, B) > EPS;      // true = '떠 있다'고 센다
+            };
+            const selftest = { far: synth(cell * 1.5), near0: synth(cell * 0.1) };
+            selftest.ok = selftest.far === true && selftest.near0 === false;
+            rows.push({ name, n: parts.length, loose, selftest });
             Scene3D.disposeTree(mesh);
         }
         return rows;
     }, ARG);
 
     await browser.close();
-    let bad = 0;
+    let bad = 0, blind = [];
     for (const r of out) {
+        // 역검증이 깨진 종은 **수치가 뭐가 나오든 못 믿는다** — 결함 건수와 따로 센다.
+        if (r.selftest && !r.selftest.ok) blind.push(r.name + '(1.5칸 띈 합성 쌍을 잡았나=' + r.selftest.far
+            + ' · 0.1칸 쌍을 안 잡았나=' + (r.selftest.near0 === false) + ')');
         if (!r.loose.length) { console.log('  ' + r.name.padEnd(18) + ' 파츠 ' + String(r.n).padStart(3) + ' → ✓ 따로 노는 조각 0'); continue; }
         bad += r.loose.length;
         console.log('  ' + r.name.padEnd(18) + ' 파츠 ' + String(r.n).padStart(3) + ' → ✗ 따로 노는 조각 ' + r.loose.length);
         for (const l of r.loose)
             console.log('       자식 #' + l.i + ' [' + l.kind + '] 크기 ' + l.size + ' · 가장 가까운 파츠(#' + l.near + ')까지 빈틈 '
-                + l.gap + ' · bbox ' + JSON.stringify(l.at) + '~' + JSON.stringify(l.to));
+                + l.gap + ' (' + l.gapCell + '칸) · bbox ' + JSON.stringify(l.at) + '~' + JSON.stringify(l.to));
     }
+    if (blind.length) console.log('\n🚨 역검증 실패 ' + blind.length + '건 — 자가 눈이 먼 상태다:\n  ' + blind.join('\n  '));
+    else console.log('\n🧪 역검증: 전 종의 칸 크기에서 1.5칸 띈 쌍은 잡고 0.1칸 띈 쌍은 안 잡는다(ε 가 결함을 삼키지 않는다).');
     if (errors.length) console.log('\n콘솔 에러 ' + errors.length + '건:\n  ' + errors.slice(0, 5).join('\n  '));
-    console.log('\n' + (bad === 0 && !errors.length ? 'PASS' : 'FAIL') + ' — 따로 노는 조각 ' + bad + '건 · 콘솔 에러 ' + errors.length + '건');
-    process.exit(bad === 0 && !errors.length ? 0 : 1);
+    const ok = bad === 0 && !errors.length && !blind.length;
+    console.log('\n' + (ok ? 'PASS' : 'FAIL') + ' — 따로 노는 조각 ' + bad + '건 · 역검증 실패 ' + blind.length + '건 · 콘솔 에러 ' + errors.length + '건');
+    process.exit(ok ? 0 : 1);
 })();
