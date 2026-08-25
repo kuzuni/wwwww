@@ -720,6 +720,15 @@ const Scene3D = {
                 '  float dmin = min(min(dot(n0, nL), dot(n0, nR)), min(dot(n0, nD), dot(n0, nU)));\n' +
                 // 🖊️ ③ 곡률 — 법선이 나란한 **작은 계단**(턱이 가슴 앞으로 살짝 나온 자리) 전용 보강항.
                 '  float cx = abs(qL + qR - 2.0 * qc), cy = abs(qD + qU - 2.0 * qc);\n' +
+                '  float crv0 = step(creaseK * qc, max(cx, cy));\n' +
+                // 🖊️ **곡률선을 기준선으로 삼는다 — 이웃 4곳의 곡률 판정을 그대로 다시 만든다.**
+                //    역깊이 2차 차분은 탭 3개면 되고, 그 3개가 이미 위 12탭 안에 전부 있다 →
+                //    **추가 텍스처 페치 0개**로 이웃의 곡률선 유무를 알 수 있다.
+                '  float crvL = step(creaseK * qL, max(abs(q2L + qc - 2.0 * qL), abs(qDL + qUL - 2.0 * qL)));\n' +
+                '  float crvR = step(creaseK * qR, max(abs(qc + q2R - 2.0 * qR), abs(qDR + qUR - 2.0 * qR)));\n' +
+                '  float crvU = step(creaseK * qU, max(abs(qUL + qUR - 2.0 * qU), abs(qc + q2U - 2.0 * qU)));\n' +
+                '  float crvD = step(creaseK * qD, max(abs(qDL + qDR - 2.0 * qD), abs(q2D + qc - 2.0 * qD)));\n' +
+                '  float crvNear = max(crv0, max(max(crvL, crvR), max(crvU, crvD)));\n' +
                 // 🚨 **큰 계단 반경 2 안에서는 ②③을 끈다**(`1.0 - step(edgeK*z0, amax)`). 이유 둘:
                 //    ⑴ 큰 계단은 법선 복원도 곡률도 통째로 튀게 해서, 안 끄면 계단의 **먼 쪽까지** 칠해
                 //       ①이 만든 '근측만' 비대칭이 무너진다(실측: step 층 중앙 2px → 3px).
@@ -729,7 +738,15 @@ const Scene3D = {
                 //    ⚠️ 예전에 이 규칙을 '먼 쪽만'(`nearv`)으로 좁힌 적이 있는데, 근거였던 '1px 세로선'은
                 //       나중에 `TERM_MODE=sil` 로 갈라 보니 **실루엣 항 소행**이었다(오귀인). 실루엣을
                 //       '반경 1 검출 + 1px 팽창'으로 고친 뒤엔 이 양방향 억제가 부작용이 없다.
-                '  float crs = max(step(normalK, 1.0 - dmin), step(creaseK * qc, max(cx, cy)))\n' +
+                // 🖊️ **법선항 비접촉 게이트** — 두 하위 항이 **1px 어긋난 자리**에 서서 합집합이 3px 이
+                //    되던 것을 막는다(고정 프레임 실측 2026-08-25: 법선만 3px 2.9% · 곡률만 3.1% 인데
+                //    **합치면 24.8%**). 곡률은 역깊이 능선(= 접힘 그 자리)에 붙고, 법선은 복원 법선이
+                //    흐트러지는 **그 바깥 한 줄**에 뜨기 때문이다. 그래서 곡률선을 **기준선**으로 두고,
+                //    법선항은 **반경 1 안에 곡률선이 없는 자리에서만** 그린다 — 곡률이 이미 그린 접힘에
+                //    덧대지던 한 줄만 사라지고, 곡률이 못 잡는 접힘(법선항의 존재 이유)은 그대로 산다.
+                //    🚨 반대로 하면 안 된다: 곡률항을 법선으로 게이트하면 **턱↔가슴 선이 죽는다**
+                //       (그 선은 두 면이 나란해 법선 차가 0 이라, 곡률이 단독으로 그리는 선이다).
+                '  float crs = max(crv0, step(normalK, 1.0 - dmin) * (1.0 - crvNear))\n' +
                 '            * (1.0 - step(edgeK * z0, amax));\n' +
                 // 두 항 모두 **중심 화소의 깊이**로만 지평선 컷을 건다(두께와 무관한 순수 컷).
                 '  float edge = max(sil, crs) * step(z0, edgeMaxZ);\n' +

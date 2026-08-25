@@ -77,7 +77,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
         //    갈아 끼워야 배포되는 항을 잰다.
         const ORIG = Scene3D._compMat.fragmentShader;
         const A_EDGE = '  float edge = max(sil, crs) * step(z0, edgeMaxZ);';
-        const A_CRS = 'max(step(normalK, 1.0 - dmin), step(creaseK * qc, max(cx, cy)))';
+        const A_CRS = 'max(crv0, step(normalK, 1.0 - dmin) * (1.0 - crvNear))';
         if (ORIG.indexOf(A_EDGE) < 0 || ORIG.indexOf(A_CRS) < 0) return { fatal: 'anchor not found' };
         const variant = (edgeExpr, crsExpr) => {
             let s = ORIG.replace(A_EDGE, '  float edge = ' + edgeExpr + ';');
@@ -135,7 +135,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
         };
 
         // ── 항별로 하나씩만 켠다 (임계는 전부 배포값 그대로. `edge` 식과 `crs` 식만 치환) ──
-        const NRM = 'step(normalK, 1.0 - dmin)', CRV = 'step(creaseK * qc, max(cx, cy))';
+        const NRM = 'step(normalK, 1.0 - dmin) * (1.0 - crvNear)', CRV = 'crv0';
         const TERMS = {
             sil: ['sil * step(z0, edgeMaxZ)', null],   // 실루엣만
             crs: ['crs * step(z0, edgeMaxZ)', null],   // 법선+곡률(억제 포함) — 배포되는 그 항
