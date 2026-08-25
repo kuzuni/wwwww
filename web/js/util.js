@@ -2,6 +2,27 @@
 const U = {
     now: () => Date.now(),
 
+    /* 앞말의 **받침 유무**로 한국어 조사를 고른다. `U.josa('스킬', '이/가')` → `'이'`.
+     *
+     * 왜 헬퍼인가: 조사를 문자열에 하드코딩하면 앞말이 변수일 때 **넷 중 하나만 우연히 맞는다** —
+     * 승천 팝업이 그랬다(`${LINE_KR[line]}가` 로 박아 `장비가`만 맞고 `스킬가`·`펫가`·`탈것가`가 됐다,
+     * slug `ascend-modal-particle`). 앞말이 표에서 오는 자리라면 반드시 이걸 통과시킬 것.
+     *
+     * ⚠️ **넘길 것은 조사가 실제로 붙는 '머리 명사'다**(괄호 주석이 끼어 있어도). 승천 팝업은
+     *    `기존 스킬(장착 포함)이` 꼴이라 렌더된 문자열의 끝 글자는 `)` 인데, 조사는 괄호 앞의
+     *    `스킬` 을 따른다 — 끝 글자로 고르면 `펫(…유지)` 이 `가` 로 뒤집힌다.
+     *
+     * 받침 판정: 한글 음절은 유니코드에서 `0xAC00 + (초성×21 + 중성)×28 + 종성` 이라
+     * `(코드−0xAC00) % 28 !== 0` 이면 종성(받침)이 있다. 한글이 아닌 글자로 끝나면(숫자·영문·기호)
+     * 판정이 불가능하므로 **받침 없음 쪽**을 돌려준다(기존 문구가 그렇게 읽히고 있었다). */
+    josa(word, pair) {
+        const [withJong, withoutJong] = String(pair).split('/');
+        const s = String(word == null ? '' : word);
+        const c = s.charCodeAt(s.length - 1);
+        if (!(c >= 0xac00 && c <= 0xd7a3)) return withoutJong;
+        return (c - 0xac00) % 28 !== 0 ? withJong : withoutJong;
+    },
+
     // 플레이어 자유 입력(닉네임·채팅)을 innerHTML에 꽂기 전 이스케이프
     escapeHtml(str) {
         return String(str == null ? '' : str)

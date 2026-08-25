@@ -5846,8 +5846,8 @@ const UI = {
                     <div class="asc-focus-cnt">현재 승천 ${Ascension.count(line)}회 → <b>${next}회</b></div>
                     <div class="asc-focus-eff">
                         · ${resetKr}됩니다<br>
-                        <span class="asc-wipe-warn">· ⚠️ 보유 중인 기존 ${Ascension.LINE_KR[line]}${line === 'forge' ? '(착용 장비 전부)' : line === 'pet' ? '(출전 포함, 알은 유지)' : '(장착 포함)'}가 <b>전부 사라집니다</b></span><br>
-                        · 이후 새로 ${line === 'forge' ? '제작되는 장비' : '소환되는 ' + Ascension.LINE_KR[line]}가 <b>${IconGen.img('star')}${next}</b>로 나옵니다
+                        <span class="asc-wipe-warn">· ⚠️ 보유 중인 기존 ${Ascension.LINE_KR[line]}${line === 'forge' ? '(착용 장비 전부)' : line === 'pet' ? '(출전 포함, 알은 유지)' : '(장착 포함)'}${U.josa(Ascension.LINE_KR[line], '이/가')} <b>전부 사라집니다</b></span><br>
+                        · 이후 새로 ${line === 'forge' ? '제작되는 장비' : '소환되는 ' + Ascension.LINE_KR[line]}${U.josa(line === 'forge' ? '장비' : Ascension.LINE_KR[line], '이/가')} <b>${IconGen.img('star')}${next}</b>로 나옵니다
                     </div>
                 </div>
                 <div class="asc-btns">

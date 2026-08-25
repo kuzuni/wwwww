@@ -29,6 +29,7 @@ for p in \
     probe-scene-null-guard.js \
     probe-dungeon-clear-softlock.js \
     probe-reward-burst-anchor.js \
+    probe-korean-josa.js \
     probe-fire-color.js \
     probe-blade-exit.js \
     probe-nova-beat.js \
