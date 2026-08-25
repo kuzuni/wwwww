@@ -662,17 +662,34 @@ const Scene3D = {
                 '  float z2d = linz(vUv - 2.0 * ty), z2u = linz(vUv + 2.0 * ty);\n' +
                 '  float zdl = linz(vUv - tx - ty), zdr = linz(vUv + tx - ty);\n' +
                 '  float zul = linz(vUv - tx + ty), zur = linz(vUv + tx + ty);\n' +
-                // 같은 탭거리끼리 묶어 한 번만 나눈다(축1=1, 대각1=√2, 축2=2).
-                '  float f1 = max(max(zl, zr), max(zd, zu)) - z0;\n' +
-                '  float fd = (max(max(zdl, zdr), max(zul, zur)) - z0) * 0.70711;\n' +
-                '  float f2 = (max(max(z2l, z2r), max(z2d, z2u)) - z0) * 0.5;\n' +
-                '  float far = max(f1, max(fd, f2));\n' +
+                // 🚨 **두께를 '검출 반경'이 아니라 '1px 검출 + 1px 팽창'으로 만든다.**
+                //    반경 2 탭을 곧장 임계와 재면 두께가 **계단 크기를 따라간다**: 탭거리로 나누므로
+                //    임계를 겨우 넘는 계단은 반경 2 탭에서 절반이 돼 못 넘고 **1px 만 남는다**(실측
+                //    2026-08-25: 탈것 다리·몸통에 초록 2px 선과 나란히 파란 1px 세로선이 섰다 —
+                //    TERM_MODE=sil 로 갈라 실루엣 항 소행임을 확인). 정규화를 빼면 이번엔 기울어진
+                //    지면에서 깊이차가 2배로 쌓여 지면이 검게 얼룩진다. 둘 다 피하려면 **판정은 반경 1
+                //    로만** 하고(기울기 누적 없음) 그 결과를 **상하좌우로 한 칸 넓히면** 된다 —
+                //    두께가 계단 크기와 완전히 무관하게 항상 2px 이 된다.
+                //    이웃의 반경 1 판정에 필요한 탭은 위 12개 안에 전부 들어 있다(추가 페치 0개).
+                '  float e0 = step(edgeK * z0, max(max(zl, zr), max(zd, zu)) - z0);\n' +
+                '  float eR = step(edgeK * zr, max(max(z0, z2r), max(zur, zdr)) - zr);\n' +
+                '  float eL = step(edgeK * zl, max(max(z0, z2l), max(zul, zdl)) - zl);\n' +
+                '  float eU = step(edgeK * zu, max(max(z0, z2u), max(zul, zur)) - zu);\n' +
+                '  float eD = step(edgeK * zd, max(max(z0, z2d), max(zdl, zdr)) - zd);\n' +
+                // 🚨 팽창은 **깊이가 이어진 이웃에서만** 받는다. 그냥 사방으로 넓히면 계단을 **건너뛰어**
+                //    먼 쪽 화소까지 칠해져 3px 이 된다(실측: step 층 중앙 3px, 하늘 경계만 지평선 컷 덕에
+                //    2px 로 남아 종전과 똑같은 '종류별 두께 차'가 되살아났다). `cN` = 이웃이 나와 같은
+                //    면인가(계단이 아닌가) — 이걸 곱해야 검정이 **근측 2px** 에서 멈춘다.
+                '  float cL = 1.0 - step(edgeK * z0, abs(zl - z0));\n' +
+                '  float cR = 1.0 - step(edgeK * z0, abs(zr - z0));\n' +
+                '  float cU = 1.0 - step(edgeK * z0, abs(zu - z0));\n' +
+                '  float cD = 1.0 - step(edgeK * z0, abs(zd - z0));\n' +
+                '  float sil = max(max(e0, max(eL * cL, eR * cR)), max(eU * cU, eD * cD));\n' +
                 // 반대 방향(나보다 **가까운** 이웃의 최대 초과분) — ②③ 을 계단의 먼 쪽에서만 끄는 데 쓴다.
                 '  float n1 = z0 - min(min(zl, zr), min(zd, zu));\n' +
                 '  float nd = (z0 - min(min(zdl, zdr), min(zul, zur))) * 0.70711;\n' +
                 '  float n2 = (z0 - min(min(z2l, z2r), min(z2d, z2u))) * 0.5;\n' +
                 '  float nearv = max(n1, max(nd, n2));\n' +
-                '  float sil = step(edgeK * z0, far);\n' +
                 // 🖊️ ② 법선 불연속 — 위 12탭을 **그대로 재활용**해 중심과 상하좌우 이웃의 법선을 복원한다.
                 //    이웃 (1,0) 의 ∂q/∂u 는 탭 (2,0)·(0,0) 으로, ∂q/∂v 는 탭 (1,1)·(1,-1) 로 잡힌다 —
                 //    추가 텍스처 페치가 **0개**다. 축정렬 직육면체 파츠의 접힘은 전부 90° 라 확실히 걸린다.
