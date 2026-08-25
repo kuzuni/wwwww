@@ -917,6 +917,31 @@
 
 ### 🐛 QA 발견 버그
 
+- [ ] **`Dungeons.def(id)` 를 존재 검사 없이 읽는 자리 둘이 게임을 통째로 얼린다 — 화면은 멀쩡한데 킬이 0에서 안 오른다 (slug: dungeon-def-unguarded-freeze)** (2026-08-25 QA 자율 플레이 루틴 등재, **고치지 않고 등재만**. **비채점** — 되고 안 되고가 실측으로 명확)
+  - **뿌리 한 줄**: `Dungeons.def(id)` 는 `DEFS.find(...)` 라 **모르는 id면 `undefined`** 를 돌려주는데, 두 곳이 그 결과를 곧바로 점 찍어 읽는다.
+    · `js/combat.js:127` `if (Dungeons.run) Scene3D.setTheme(Dungeons.def(Dungeons.run.id).theme);`
+    · `js/dungeons.js:73` `const [c, s] = this.def(id).unlock.split('-').map(Number);` (`unlocked()` — `enter()` 가 `dungeons.js:131` 에서 부른다)
+  - ── **증상 ⓐ: URL 디버그 훅 한 줄로 재현되는 완전 정지 (세이브 손 안 대도 성립)** ──
+    - **재현**(2/2, 430×932 헤드리스): `web/index.html?debug=dungeon&d=hammerThief` 로 연다 (`d=` 에 DEFS 에 없는 아무 문자열이나 넣으면 된다). 대조군: `d=hammer`·`d=`(빈값)·`d` 없음은 **전부 정상**.
+      ⚠️ `?debug=dungeon&d=` 는 이 파일 최상단 '디버그 훅' 줄에 적힌 **공식 훅**이고 판정기들이 쓰는 입구다 — 던전 id 를 한 번이라도 갈면 그 순간 모든 호출부가 이 함정에 빠진다.
+    - **기대**: 바로 다음 줄(`dungeons.js:131`)이 이미 갖고 있는 안내대로 `🔒 스테이지 … 도달 시 해금` 토스트, 또는 조용한 무시.
+    - **실제**: `main.js:163` 의 `Dungeons.enter(d)` 가 **try/catch 밖**이라 `boot()` 가 통째로 죽는다 —
+      `boot() 실패 TypeError: Cannot read properties of undefined (reading 'unlock') at Object.unlocked (dungeons.js:73:36) at Object.enter (dungeons.js:131:19) at boot (main.js:163:29)`
+      `main.js:74` 주석이 경고한 그대로 **논리 틱·rAF 루프·자동저장이 하나도 등록되지 않는다.** 화면에는 상단바·영웅·적 2마리·장비 시트·탭바가 **전부 정상으로 그려져 있고**(스샷 육안 확인) 애니메이션만 얼어 있다. 22초 관찰: `S.kills` **0 → 0** · `Combat.phase 'fight'` 고정. 사용자에게 보이는 단서는 **아무것도 없다**.
+  - ── **증상 ⓑ: 세이브의 `dungeonRun.id` 가 DEFS 에 없으면 그 세션 전투가 안 돈다** ──
+    - **재현**(변종 5/5 전건): 세이브(`localStorage['forgeclone_save_v1']`)의 `dungeonRun` 을 `{"id":"hammerThief","stage":1,"waves":2}`(구버전/오탈자 id) 로 바꾸고 새로고침. **`{}`(id 없음)·문자열 `"hammer"`·숫자 `7`·배열 `["hammer",1]` 도 전부 같다** — `Dungeons.run` 게터(`dungeons.js:11`)가 형태를 안 보고 그대로 돌려주기 때문(`restoreRun` 은 그 넷을 이미 걸러내지만, 앞서 말한 순서 때문에 못 미친다).
+    - **기대**: `Dungeons.restoreRun()`(dungeons.js:146~)이 **이미 그 방어를 갖고 있다** — 손상 진행분을 버리고 `🚪 진행 중이던 던전에서 나와 본대로 복귀했습니다` 안내 뒤 본대 전투 정상 진행.
+    - **실제**: `main.js:94` 가 **`Combat.start()` 를 먼저** 부르고 `restoreRun()` 은 97행이라, 방어가 돌기 전에 `setupStage()` 가 터진다:
+      `Combat.start() 실패 — 나머지 부팅은 계속한다 TypeError: Cannot read properties of undefined (reading 'theme') at Object.setupStage (combat.js:127:73)`
+      35초 관찰: `S.kills 0→0` · `Combat.enemies.length 0` · `Combat.phase 'idle'` · `Combat.wave 0` — **적이 한 마리도 안 나온다.**
+    - ⚠️ **순서를 뒤집는 건 답이 아니다** — `main.js:95` 주석이 "`Combat.start()` 뒤여야 한다"고 못박아 뒀다(`restoreRun` 이 안에서 `setupStage()` 를 던전 모드로 다시 태운다).
+    - 🔎 **`main.js:94` 의 try/catch 는 잘못이 아니라 `save-item-no-subs-kills-boot` 처방이다** — 그 덕에 화면은 살았다. 다만 그 주석이 경고한 **"화면만 멀쩡하고 게임이 멈춘 그림"** 이 한 층 아래에서 그대로 재현된 것이다.
+    - **자가치유**: 새로고침 **한 번**이면 낫는다(`restoreRun()` 이 그 사이 `S.dungeonRun = null` + `saveGame()` 을 이미 했다 — 실측: 다음 부팅에서 킬 6·적 7). 그래도 사용자에겐 **죽은 세션 한 판**만 남고 안내는 없다.
+  - **실측 범위(왜 이 한 건만 남았나)**: 손상 세이브 **26종**을 부팅시켜 봤는데 **`dungeonRun` 계열만 실패**했다 — `equipment=null` · 장착칸이 문자열 · `skills=null` · `pets=문자열` · `quests=객체` · `chapter=999` · 재화 `null`/음수/문자열 · `dungeons=null` · `league` 반쪽 · `techResearch` 손상 · `autoBatch` 반쪽 · `pendingCraft` 반쪽 · `chat=배열` · `hatching=null` · `mounts` 구버전 이름맵 · `forgeLevel=999` · `subs=null` 은 **전부 정상 부팅 + 정상 진행**(콘솔에 보정 로그만 남는다). 방어 규약은 이미 촘촘하고 **`def()` 칸 하나만 비었다.**
+  - **고칠 축(제안)**: 자리마다 `if` 를 흩뿌리지 말고 **`Dungeons.run` 게터(dungeons.js:11)에 형태 검사**를 넣어 "객체이고 `def(id)` 가 실재하는" 진행분만 통과시키는 쪽이 ⓐⓑ 와 아래 자매 지점을 한 번에 닫는다(`ensure()`·`isForgeShaped()` 가 이미 쓰는 화법 그대로). 최소 수정만 한다면 `combat.js:127` 을 `const d = Dungeons.run && Dungeons.def(Dungeons.run.id); if (d) Scene3D.setTheme(d.theme); else Scene3D.setChapterTheme(S.chapter);` 로, `dungeons.js:73` 을 `const def = this.def(id); if (!def) return false;` 로.
+  - **자매 지점(같은 뿌리 — 고칠 때 같이 볼 것)**: `dungeons.js:81` `monsterHp` · `131`·`135` `enter` · `181` `sweep` · `ui.js:1316`·`4632`·`4659` 도 전부 `def()` 를 존재 검사 없이 읽는다.
+  - 🚨 **판정기를 세울 다음 세션에게 — 자를 두 번 헛짚었다**: 같은 `page` 를 `reload()` 해서 재는 방법은 **둘 다 거짓 통과를 낸다.** ⓐ Playwright `addInitScript` 는 **새로고침마다 다시 심어** 회복 판정이 영원히 '정지'로 나오고, ⓑ `main.js:261` 의 `beforeunload → saveGame` 이 **주입한 세이브를 살아 있는 `S` 로 덮어써** 결함이 아예 재현되지 않는다(실측으로 '정상'이 한 번 나왔다). 손상분은 `addInitScript` 로 **첫 로드에만** 심고, 회복은 그 컨텍스트의 `storageState()` 를 넘겨받은 **새 컨텍스트**(주입 없음)에서 잴 것.
+
 - [x] **상점 '오늘의 특가' 수령 연출이 누른 버튼이 아니라 화면 한가운데에서 터진다 — 인자 하나가 안 넘어간다 (slug: shop-deal-burst-anchor)** (2026-08-25 QA 플레이 세션 ③차 등재, 고치지 않고 등재만. **비채점**)
   - **재현**(3/3 재현, 새 세이브·디버그 없이 성립): ① 새 세이브 부팅 ② 하단 탭 🏪**상점** ③ '오늘의 특가' **첫 카드(기술 거래)** 의 파란 `₩2,800` 버튼을 누른다.
   - **기대**: 이 저장소의 다른 모든 수령 경로처럼 **누른 버튼에서** 보상 아이콘이 튀어나와 상단 재화 바로 빨려 들어간다(`reward-claim-fx` 규약).
