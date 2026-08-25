@@ -64,6 +64,7 @@ PROBES=(
     #    pinfo-px·fl-head·fl-body 와 같은 사유). 이 셋이 빠져 있어서 dungeons·pass·craft-compare
     #    세 화면이 '전수 검증'이라는 이름 아래 **한 번도 판정되지 않고** 있었다.
     probe-dungeons-px.js        # dungeons     042251
+    probe-dungeons-pitch-dom.js # dungeons 카드 피치를 **DOM 으로** — 위 px 자는 배너 그림 값에 끌려다닌다(dungeons-card-pitch-2p)
     probe-pass-px.js            # pass         042705 (단위가 %TW=탭줄 폭 기준이다)
     probe-ccmp-px.js            # craft-compare 043224
     # 🚩 7~10건째 — 판정 낱말이 없어(ⓖ 방언) 덤프로 오해받던 판정기들. 원본 목표치와 ±2%p 로
