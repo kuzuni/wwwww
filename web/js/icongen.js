@@ -2113,24 +2113,39 @@ const IconGen = {
             ctx.lineWidth = S * 0.045; ctx.strokeStyle = '#3c454e';
             for (const x of [0.52, 0.64, 0.76]) { ctx.beginPath(); ctx.moveTo(x * S, S * 0.40); ctx.lineTo(x * S, S * 0.60); ctx.stroke(); }
         },
-        age_quantum(ctx, S) {                            // 원자 — 핵 + 궤도 3
-            const cx = S * 0.5, cy = S * 0.5;
-            ctx.lineWidth = S * 0.06; ctx.strokeStyle = '#17181a';
-            for (const a of [0, Math.PI / 3, -Math.PI / 3]) {
-                ctx.save(); ctx.translate(cx, cy); ctx.rotate(a);
-                ctx.beginPath(); ctx.ellipse(0, 0, S * 0.40, S * 0.17, 0, 0, Math.PI * 2); ctx.stroke();
-                ctx.restore();
-            }
-            ctx.beginPath(); ctx.arc(cx, cy, S * 0.115, 0, Math.PI * 2);
-            ctx.fillStyle = '#17181a'; ctx.fill();
+        /* ⚛ 양자 시대 — **고리 + 핵**. (2026-08-25 종별 재작화)
+           종전은 `#17181a`(순검정에 가까운 색) 타원 궤도 3개 + 같은 색 핵이었다. 기술트리 셀
+           배경이 `#2a3140` 이라 **아이콘이 배경보다 어두워 실루엣이 통째로 잠겼다**(비평가 지목).
+           게다가 궤도가 선 두께 0.06(=1.2칸)짜리 납작 타원 3개라, 20칸 격자에서 세 타원의 위아래
+           획이 서로 한 칸 안에 겹쳐 **검은 덩어리**가 됐다.
+           → 궤도를 **밝은 시안 고리 하나**(두께 3.2칸)로, 핵을 **주황**으로 바꿔 배경과 명도·색조
+             양쪽에서 갈리게 했다. 원자는 고리 하나 + 핵만으로도 읽힌다 — 궤도 3개는 이 격자에서
+             정보가 아니라 잡음이다. 명도는 변환 뒤 버킷 한가운데(고리 0.75 · 핵 0.5)를 겨냥해
+             역산한 값이다(이 항목이 확정한 규칙표 참조). */
+        age_quantum(ctx, S) {
+            const cx = S * 0.5, cy = S * 0.5, K = '#17181a', LW = S * 0.055;
+            const ring = (r) => { ctx.beginPath(); ctx.arc(cx, cy, S * r, 0, Math.PI * 2); };
+            ctx.beginPath();
+            ctx.arc(cx, cy, S * 0.450, 0, Math.PI * 2);
+            ctx.arc(cx, cy, S * 0.290, 0, Math.PI * 2, true);
+            ctx.fillStyle = '#5fd5ee'; ctx.fill('evenodd');
+            ctx.lineWidth = LW; ctx.strokeStyle = K;
+            ring(0.450); ctx.stroke();
+            ring(0.290); ctx.stroke();
+            ring(0.155); ctx.fillStyle = '#e8830f'; ctx.fill(); ctx.stroke();   // 핵
         },
-        age_underworld(ctx, S) {                         // 삼지창
+        /* 🔱 지하 시대 — 삼지창. 창날을 **2톤**으로 끊고 갈래 사이를 벌렸다.
+           종전은 4스톱 그라디언트 은색 하나뿐이라 블록화 뒤 **테 없는 흰 판때기**로 뭉쳤고,
+           갈래도 짧고 뭉툭해 'Ψ' 가 아니라 성벽 총안처럼 읽혔다. 갈래를 위로 늘리고(0.16 → 0.10)
+           가로대를 얇게(0.085 → 0.070) 해 갈래 사이 빈칸이 4칸 넘게 남는다. */
+        age_underworld(ctx, S) {
             const G = IconGen;
-            G._ageStroke(ctx, S, [[0.50, 0.92], [0.50, 0.34]], 0.10, [[0, '#e2e7ec'], [1, '#8d97a1']]);
-            G._ageStroke(ctx, S, [[0.20, 0.42], [0.80, 0.42]], 0.085, [[0, '#e2e7ec'], [1, '#8d97a1']]);
-            G._ageStroke(ctx, S, [[0.20, 0.42], [0.20, 0.16]], 0.085, [[0, '#eef2f6'], [1, '#95a0aa']]);
-            G._ageStroke(ctx, S, [[0.80, 0.42], [0.80, 0.16]], 0.085, [[0, '#eef2f6'], [1, '#95a0aa']]);
-            G._ageStroke(ctx, S, [[0.50, 0.34], [0.50, 0.08]], 0.085, [[0, '#eef2f6'], [1, '#95a0aa']]);
+            const LIT = [[0, '#eef2f6'], [1, '#cfd8e0']], MID = [[0, '#b9c3cc'], [1, '#8d97a1']];
+            G._ageStroke(ctx, S, [[0.50, 0.92], [0.50, 0.34]], 0.10, MID);    // 자루
+            G._ageStroke(ctx, S, [[0.18, 0.44], [0.82, 0.44]], 0.070, MID);   // 가로대
+            G._ageStroke(ctx, S, [[0.18, 0.46], [0.18, 0.10]], 0.085, LIT);   // 왼 갈래
+            G._ageStroke(ctx, S, [[0.82, 0.46], [0.82, 0.10]], 0.085, LIT);   // 오른 갈래
+            G._ageStroke(ctx, S, [[0.50, 0.40], [0.50, 0.06]], 0.085, LIT);   // 가운데 갈래
         },
         age_divine(ctx, S) {                             // 황금 날개 한 쌍
             const G = IconGen;
