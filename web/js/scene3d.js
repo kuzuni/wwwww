@@ -728,7 +728,23 @@ const Scene3D = {
                 '  float crvR = step(creaseK * qR, max(abs(qc + q2R - 2.0 * qR), abs(qDR + qUR - 2.0 * qR)));\n' +
                 '  float crvU = step(creaseK * qU, max(abs(qUL + qUR - 2.0 * qU), abs(qc + q2U - 2.0 * qU)));\n' +
                 '  float crvD = step(creaseK * qD, max(abs(qDL + qDR - 2.0 * qD), abs(q2D + qc - 2.0 * qD)));\n' +
-                '  float crvNear = max(crv0, max(max(crvL, crvR), max(crvU, crvD)));\n' +
+                '  float crvNbr = max(max(crvL, crvR), max(crvU, crvD));\n' +
+                '  float crvNear = max(crv0, crvNbr);\n' +
+                // 🖊️ **이력(hysteresis) — 접힘의 '약한 날개'를 살려 1px 을 2px 로 만든다.**
+                //    접힘의 두 날개는 이론상 2차 차분 크기가 **같다**(역깊이가 구간 1차식이면 정확히 같다).
+                //    그런데 임계가 `creaseK * q` 로 **화소마다 제 깊이에 비례**하다 보니, 임계를 겨우
+                //    넘는 접힘에서 **한 날개만 통과**해 선이 1px 로 남는다(실측: 곡률항 단독 1px 20.1%).
+                //    → 이웃에 **강한** 곡률선이 있으면 나는 **절반 임계**만 넘어도 통과시킨다.
+                //    ⚠️ 방향이 중요하다: 예전에 실패한 '이력 **억제**'(약한 화소를 지우는 쪽)와 반대다.
+                //       그쪽은 "꼬리 화소끼리 다 약해 강한 이웃이 없다"로 무효였는데, 여기서는 강한
+                //       이웃이 **정의상 존재한다**(반대편 날개가 그 강한 이웃이다).
+                //    바깥으로 번지지 않는 이유: 구간 1차식에서 날개 **밖** 화소의 2차 차분은 0 이라
+                //    절반 임계도 못 넘는다 — 넓히는 건 오직 '있어야 할 반대편 날개'뿐이다.
+                //    비율 0.70 = 스윕 결과(`HYST=1 node tools/diag-outline-terms.js`, 고정 프레임.
+                //    크리스 항의 2px 비중): 1.00 74.3% · 0.85 76.6% · **0.70 77.7%** · 0.50 76.3%.
+                //    더 내리면 1px 은 계속 줄지만(22.6 → 15.7%) 3px 이 그보다 빨리 늘어(3.0 → 7.7%)
+                //    분산이 되레 커진다 — 0.70 이 그 골이다.
+                '  float crvHy = max(crv0, step(creaseK * qc * 0.70, max(cx, cy)) * crvNbr);\n' +
                 // 🚨 **큰 계단 반경 2 안에서는 ②③을 끈다**(`1.0 - step(edgeK*z0, amax)`). 이유 둘:
                 //    ⑴ 큰 계단은 법선 복원도 곡률도 통째로 튀게 해서, 안 끄면 계단의 **먼 쪽까지** 칠해
                 //       ①이 만든 '근측만' 비대칭이 무너진다(실측: step 층 중앙 2px → 3px).
@@ -746,7 +762,7 @@ const Scene3D = {
                 //    덧대지던 한 줄만 사라지고, 곡률이 못 잡는 접힘(법선항의 존재 이유)은 그대로 산다.
                 //    🚨 반대로 하면 안 된다: 곡률항을 법선으로 게이트하면 **턱↔가슴 선이 죽는다**
                 //       (그 선은 두 면이 나란해 법선 차가 0 이라, 곡률이 단독으로 그리는 선이다).
-                '  float crs = max(crv0, step(normalK, 1.0 - dmin) * (1.0 - crvNear))\n' +
+                '  float crs = max(crvHy, step(normalK, 1.0 - dmin) * (1.0 - crvNear))\n' +
                 '            * (1.0 - step(edgeK * z0, amax));\n' +
                 // 두 항 모두 **중심 화소의 깊이**로만 지평선 컷을 건다(두께와 무관한 순수 컷).
                 '  float edge = max(sil, crs) * step(z0, edgeMaxZ);\n' +
