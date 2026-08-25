@@ -67,6 +67,11 @@ const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (
 //    (실측 2026-08-25: DPR 1 에서 sky 층이 전 계열 n=80 → 4칸 FAIL. 셰이더는 멀쩡했다).
 const MIN_N_AT_DSF2 = 120;
 const minN = dsf => Math.max(20, Math.round(MIN_N_AT_DSF2 * (dsf / 2) * (dsf / 2)));
+// 두께 **비교**에 넣는 최소 표본. `MIN_N`(표본 존재 게이트)보다 낮게 잡는다 — 낮출수록 비교 칸이
+// 늘어 게이트가 **엄해진다**(느슨해지는 게 아니다). 파츠 ID 칸이 생기면서 `crease` 가 그쪽으로
+// 빠져 표본이 50 대로 내려갔는데, 그 칸을 비교에서 빼 버리면 두께 차를 놓친다.
+const MIN_CMP_AT_DSF2 = 30;
+const minCmp = dsf => Math.max(10, Math.round(MIN_CMP_AT_DSF2 * (dsf / 2) * (dsf / 2)));
 const COVER_MIN = 0.90;     // Ⓑ seed 중 이 비율 이상은 검게 칠해져 있어야 한다
 const EROSION_MAX = 0.20;   // Ⓒ '통째로 먹힌 파츠'에 속한 오브젝트 화소가 이 비율을 넘으면 FAIL
 const LINE_R = 2;           // 셰이더의 선 반경(반경 1 검출 + 1px 팽창) — 침식 판정의 기준자
@@ -78,7 +83,7 @@ const LINE_R = 2;           // 셰이더의 선 반경(반경 1 검출 + 1px 팽
 //    '2px 비중 71.0%'(DPR 2 는 83.3%)를 찍고 있었는데도 게이트는 그걸 못 봤다.
 //    → 이제 **DPR 1 · DPR 2 두 대역**을 다 돌린다. 대역이 늘어도 판정 기준은 같다(칸 간 두께 일치).
 const runOne = async (browser, label, ua, dsf = 2) => {
-    const MIN_N = minN(dsf);
+    const MIN_N = minN(dsf), MIN_CMP = minCmp(dsf);
     const page = await browser.newPage(Object.assign({ viewport: { width: 480, height: 854 }, deviceScaleFactor: dsf }, ua ? { userAgent: ua } : {}));
     const errors = [];
     page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
@@ -169,7 +174,7 @@ const runOne = async (browser, label, ua, dsf = 2) => {
         //    normalK 를 빼먹었더니 엣지 화소 5353 → 1065, 하늘 경계는 0 개로 사라졌다).
         //    normalK 는 `1 - dot(n,n')` 을 재므로 이론 최대가 2 다 — 9 를 넣으면 확실히 안 걸린다.
         const edgeOff = (u, off, restore) => {
-            const keys = { edgeK: 1e9, creaseK: 1e9, normalK: 9.0 };
+            const keys = { edgeK: 1e9, creaseK: 1e9, normalK: 9.0, idOn: 0.0 };
             const saved = {};
             for (const k in keys) {
                 if (!u[k]) continue;
@@ -201,6 +206,35 @@ const runOne = async (browser, label, ua, dsf = 2) => {
             const z = new Float32Array(W * H);
             for (let i = 0, p = 0; i < W * H; i++, p += 4) z[i] = (px[p] + px[p + 1] / 255) / 255 * far;
             return z;
+        };
+
+        // ── 파츠 ID 버퍼 리드백 (outline-part-id-buffer, 2026-08-25 3D 스트림) ──
+        //    🚨 **이 자에 ID 항을 안 가르치면 거짓 FAIL 이 난다 — 실제로 그렇게 나왔다.**
+        //    seed 를 깊이맵에서만 뽑던 판은 ID 항이 그린 선(= 깊이 계단도 법선 차도 0 인 자리)을
+        //    '경계 없는 검정'으로 읽어 `crease p90` 이 1 → **6~7px** 로 튀고 미연결 검정이
+        //    계열당 100~380개 나왔다. 셰이더는 멀쩡했다. (`normalK` 를 seed 에서 빼먹었을 때와
+        //    **완전히 같은 사고**다 — 항을 더하면 자도 같이 고쳐야 한다는 이 항목의 단골 규율.)
+        //    ⚠️ 캔버스 경유로 뽑지 말 것 — `readRenderTargetPixels` 만이 **알파(=깊이 태그)까지**
+        //       바이트 그대로 준다. 캔버스는 `alpha:false` 라 알파가 255 로 뭉개진다.
+        //    ⚠️ GL 은 아래에서 위로 읽는다 — 깊이맵(캔버스 좌표)과 맞추려면 행을 뒤집어야 한다.
+        const grabId = (z) => {
+            Scene3D.renderFrame();
+            const rt = Scene3D._rtId, uu = Scene3D._compMat.uniforms;
+            const key = new Int32Array(W * H);
+            if (!rt || !uu.idHas || !uu.idHas.value) return key;   // ID 항이 없는 빌드 = 전부 배경 키
+            const buf = new Uint8Array(W * H * 4);
+            Scene3D.renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+            const zf = uu.idZFar.value;
+            for (let y = 0; y < H; y++) {
+                const src = (H - 1 - y) * W * 4;
+                for (let x = 0; x < W; x++) {
+                    const p = src + x * 4, i = y * W + x;
+                    const raw = buf[p] + buf[p + 1] * 256;
+                    // 가시성 검증 — 컴포짓의 `idkey()` 와 **같은 규칙·같은 허용오차**여야 한다.
+                    key[i] = (raw && Math.abs(buf[p + 3] / 255 * zf - z[i]) <= 0.35) ? raw : 0;
+                }
+            }
+            return key;
         };
 
         const FAR = Scene3D.camera.far * 0.9;   // 이 위면 배경(하늘)
@@ -257,6 +291,7 @@ const runOne = async (browser, label, ua, dsf = 2) => {
             const off = grab();
             edgeOff(u, false, saved);              // 복구
             const z = grabDepth();
+            const idk = grabId(z);
             all.forEach((g, i) => { g.visible = prev[i]; });
 
             const mask = new Uint8Array(W * H);    // 아웃라인 화소(on/off 차분)
@@ -299,6 +334,22 @@ const runOne = async (browser, label, ua, dsf = 2) => {
                         const cy = Math.abs(1 / z[i - W] + 1 / z[i + W] - 2 * q0);
                         if (Math.max(cx, cy) >= CK * q0) fold = true;
                     }
+                    // 🖊️ **파츠 ID 불연속도 seed 다** — 셰이더의 ④ 항과 같은 규칙:
+                    //    깊이가 이어진 4-이웃 중 ID 가 다른 게 있으면 그 자리는 경계다.
+                    //    (깊이·법선이 둘 다 0 인 '같은 평면 파츠 경계' — 위 두 규칙은 원리상 못 본다.)
+                    // 🚨 **seed 는 한쪽에만 찍는다 — 실루엣 seed 와 같은 규약이어야 칸끼리 비교가 된다.**
+                    //    이 자의 두께는 '경계에서 얼마나 번졌나(D+1)'라, seed 를 **양쪽**에 찍으면
+                    //    물리적으로 2px 인 띠가 `두께 1` 로 읽힌다(둘 다 D=0). 실제로 첫 판이 그랬다:
+                    //    런 길이 자로는 ID 항이 **중앙 2px·2px 77.0%** 로 실루엣(2px·91.2%)과 같은데
+                    //    이 자만 `part p90=1` 을 찍어 **거짓 FAIL** 을 냈다. 실루엣 seed 가 '계단의 근측'
+                    //    한 줄인 것처럼, ID 경계도 **키가 큰 쪽** 한 줄을 경계로 삼는다(셰이더가 DPR 1
+                    //    대역에서 고르는 바로 그 쪽이다 — 자와 셰이더의 규약이 같아진다).
+                    if (!fold) {
+                        for (const d of NB) {
+                            const j = i + d;
+                            if (Math.abs(z[j] - z0) < EK * z0 && idk[i] > idk[j]) { fold = true; break; }
+                        }
+                    }
                     if (sil || fold) { seed[i] = 1; nSeed++; if (sil) seedSil[i] = 1; }
                 }
             }
@@ -322,9 +373,9 @@ const runOne = async (browser, label, ua, dsf = 2) => {
             }
 
             // ── 층화 + 축별 집계 ──
-            const strata = { sky: {}, step: {}, crease: {} };
-            const cnt = { sky: 0, step: 0, crease: 0 };
-            const cover = { sky: [0, 0], step: [0, 0], crease: [0, 0] };  // [칠해짐, 전체]
+            const strata = { sky: {}, step: {}, crease: {}, part: {} };
+            const cnt = { sky: 0, step: 0, crease: 0, part: 0 };
+            const cover = { sky: [0, 0], step: [0, 0], crease: [0, 0], part: [0, 0] };  // [칠해짐, 전체]
             let orphan = 0;                                        // seed 와 이어지지 않은 검정 화소
             const clsOf = (i) => {
                 const z0 = z[i];
@@ -337,7 +388,16 @@ const runOne = async (browser, label, ua, dsf = 2) => {
                         const d = Math.abs(zn - z0); if (d > mx) mx = d;
                     }
                 }
-                return sky ? 'sky' : (mx >= STEP_Z ? 'step' : 'crease');
+                if (sky) return 'sky';
+                if (mx >= STEP_Z) return 'step';
+                // 🖊️ **개체 내부 파츠 경계를 별도 칸으로 뽑는다** — 앞 세션이 "이 층을 안 보면 결함이
+                //    계속 초록불로 통과한다"고 못박은 자리다. 깊이 계단이 작아 `crease` 에 섞여 들어가면
+                //    실루엣 표본에 희석돼 두께 차가 안 보인다.
+                for (const d of [-1, 1, -W, W]) {
+                    const j = i + d;
+                    if (Math.abs(z[j] - z0) < EK * z0 && idk[j] !== idk[i]) return 'part';
+                }
+                return 'crease';
             };
             for (let y = 2; y < H - 2; y++) {
                 for (let x = 2; x < W - 2; x++) {
@@ -389,7 +449,7 @@ const runOne = async (browser, label, ua, dsf = 2) => {
             }
 
             const o = { total: n, seed: nSeed, orphan, obj: nObj, blackObj: nBlackObj };
-            for (const c of ['sky', 'step', 'crease']) {
+            for (const c of ['sky', 'step', 'crease', 'part']) {
                 o[c] = stat(strata[c], cnt[c]);
                 o[c].cover = cover[c][1] ? cover[c][0] / cover[c][1] : null;
                 o[c].coverN = cover[c][1];
@@ -418,13 +478,13 @@ const runOne = async (browser, label, ua, dsf = 2) => {
     console.log('--- Ⓐ 부풂: 계열 × 경계종류 두께(=경계로부터의 거리+1, px) ---');
     const rows = [];   // [계열, 종류, stat]
     for (const [g, v] of Object.entries(out.per)) {
-        const parts = ['sky', 'step', 'crease'].map(c => `${c}:n=${String(v[c].n).padStart(5)} 중앙=${v[c].median} p90=${v[c].p90} p99=${v[c].p99}`);
+        const parts = ['sky', 'step', 'crease', 'part'].map(c => `${c}:n=${String(v[c].n).padStart(5)} 중앙=${v[c].median} p90=${v[c].p90} p99=${v[c].p99}`);
         console.log(`  ${g.padEnd(6)} 총${String(v.total).padStart(6)} 미연결${String(v.orphan).padStart(4)} | ${parts.join(' | ')}`);
-        for (const c of ['sky', 'step', 'crease']) rows.push([g, c, v[c]]);
+        for (const c of ['sky', 'step', 'crease', 'part']) rows.push([g, c, v[c]]);
     }
     console.log('--- Ⓑ 덮임: 실루엣 seed 중 검게 칠해진 비율 ---');
     for (const [g, v] of Object.entries(out.per)) {
-        console.log(`  ${g.padEnd(6)} ` + ['sky', 'step', 'crease'].map(c => `${c}:${v[c].cover === null ? '  --  ' : (v[c].cover * 100).toFixed(1) + '%'}(n=${v[c].coverN})`).join(' | '));
+        console.log(`  ${g.padEnd(6)} ` + ['sky', 'step', 'crease', 'part'].map(c => `${c}:${v[c].cover === null ? '  --  ' : (v[c].cover * 100).toFixed(1) + '%'}(n=${v[c].coverN})`).join(' | '));
     }
     console.log('--- Ⓒ 침식: 경계에서 잰 파츠 화면폭 w (w ≤ 2R=' + (2 * 2) + 'px 면 양쪽 선이 만나 통째로 먹힌다) ---');
     for (const [g, v] of Object.entries(out.per)) {
@@ -435,9 +495,18 @@ const runOne = async (browser, label, ua, dsf = 2) => {
     // 'all' 은 계열끼리 서로 가려 층 분류가 흐려지므로 참고용으로만 찍고 게이트에서는 뺀다.
     const gated = rows.filter(([g]) => g !== 'all');
     const gatedSeries = Object.entries(out.per).filter(([g]) => g !== 'all');
-    const thin = gated.filter(([, , v]) => v.n < MIN_N).map(([g, c]) => g + '/' + c);
-    const meds = [...new Set(gated.filter(([, , v]) => v.n >= MIN_N).map(([, , v]) => v.median))];
-    const spread = gated.filter(([, , v]) => v.n >= MIN_N && v.p99 > v.median + 1).map(([g, c, v]) => g + '/' + c + '(p99=' + v.p99 + ')');
+    // 🖊️ **`crease` 와 `part` 는 '접힘' 하나가 둘로 갈린 것이다** — 마크 문법 조형에서 접힘은 거의 다
+    //    파츠와 파츠 사이라, ID 칸이 생기자 `crease` 표본이 그쪽으로 빠져 50 대로 내려갔다(파츠 **안쪽**
+    //    접힘만 남는다). 그래서 '그 경계에 선이 있나' 게이트는 **둘의 합**으로 본다. 두께 비교는
+    //    여전히 칸별로 따로 한다(합치면 이 항목이 여섯 세션을 쓴 '종류별 두께 차'를 다시 못 본다).
+    const thin = [];
+    for (const [g, v] of gatedSeries) {
+        for (const c of ['sky', 'step']) if (v[c].n < MIN_N) thin.push(g + '/' + c);
+        if (v.crease.n + v.part.n < MIN_N) thin.push(g + '/접힘(crease+part)');
+    }
+    const cmp = gated.filter(([, , v]) => v.n >= MIN_CMP);
+    const meds = [...new Set(cmp.map(([, , v]) => v.median))];
+    const spread = cmp.filter(([, , v]) => v.p99 > v.median + 1).map(([g, c, v]) => g + '/' + c + '(p99=' + v.p99 + ')');
     // 🚨 **p90 도 칸 간에 같아야 한다 — 중앙값만 보면 '1px 선과 2px 선'을 통과시킨다.**
     //    2026-08-25 실측으로 확인된 이 자의 사각지대다: 배포 상태가 `sky/step p90=2` 인데
     //    `crease p90=1` 이었고, 중앙값은 셋 다 1 이라 게이트가 **초록불을 냈다**. 그런데 비평가는
@@ -445,7 +514,7 @@ const runOne = async (browser, label, ua, dsf = 2) => {
     //    뿌리는 셰이더 쪽이다 — 실루엣 항만 '반경1 검출 + 1px 팽창'이라 2px 이 보장되고,
     //    크리스 항(`crs`)은 **중심 화소에서만 계산되고 팽창이 없어 태생이 1px** 이다.
     //    즉 '두께가 경계 종류를 따라 갈린다'는 원래 결함이 형태만 바꿔 살아 있다.
-    const p90s = [...new Set(gated.filter(([, , v]) => v.n >= MIN_N).map(([, , v]) => v.p90))];
+    const p90s = [...new Set(cmp.map(([, , v]) => v.p90))];
     const orphans = gatedSeries.filter(([, v]) => v.orphan > v.total * 0.02).map(([g, v]) => g + '(' + v.orphan + ')');
     const uncov = gated.filter(([, , v]) => v.cover !== null && v.coverN >= MIN_N && v.cover < COVER_MIN).map(([g, c, v]) => g + '/' + c + '=' + (v.cover * 100).toFixed(0) + '%');
     const eroded = gatedSeries.filter(([, v]) => v.erosion.rate > EROSION_MAX).map(([g, v]) => g + '=' + (v.erosion.rate * 100).toFixed(0) + '%');
@@ -453,9 +522,9 @@ const runOne = async (browser, label, ua, dsf = 2) => {
     const pass = thin.length === 0 && meds.length === 1 && p90s.length === 1 && spread.length === 0 && orphans.length === 0
         && uncov.length === 0 && eroded.length === 0 && errors.length === 0;
     console.log('--- 판정 ---');
-    console.log(`  칸별 표본 확보 : ${thin.length === 0 ? 'PASS (전 계열이 세 종류 경계를 다 그린다)' : 'FAIL 비어있음(그 경계에 선이 없다): ' + thin.join(',')}  (기준 n≥${MIN_N})`);
-    console.log(`  Ⓐ 칸 간 중앙값 : ${meds.length === 1 ? 'PASS (전부 ' + meds[0] + 'px)' : 'FAIL ' + JSON.stringify(gated.filter(([, , v]) => v.n >= MIN_N).map(([g, c, v]) => g + '/' + c + '=' + v.median))}`);
-    console.log(`  Ⓐ 칸 간 p90    : ${p90s.length === 1 ? 'PASS (전부 ' + p90s[0] + 'px)' : 'FAIL ' + JSON.stringify(gated.filter(([, , v]) => v.n >= MIN_N).map(([g, c, v]) => g + '/' + c + '=' + v.p90))}`);
+    console.log(`  칸별 표본 확보 : ${thin.length === 0 ? 'PASS (전 계열이 네 종류 경계를 다 그린다)' : 'FAIL 비어있음(그 경계에 선이 없다): ' + thin.join(',')}  (기준 n≥${MIN_N} · 두께 비교는 n≥${MIN_CMP})`);
+    console.log(`  Ⓐ 칸 간 중앙값 : ${meds.length === 1 ? 'PASS (전부 ' + meds[0] + 'px)' : 'FAIL ' + JSON.stringify(cmp.map(([g, c, v]) => g + '/' + c + '=' + v.median))}`);
+    console.log(`  Ⓐ 칸 간 p90    : ${p90s.length === 1 ? 'PASS (전부 ' + p90s[0] + 'px)' : 'FAIL ' + JSON.stringify(cmp.map(([g, c, v]) => g + '/' + c + '=' + v.p90))}`);
     console.log(`  Ⓐ 칸 내 퍼짐   : ${spread.length === 0 ? 'PASS (p99 ≤ 중앙+1)' : 'FAIL ' + spread.join(',')}`);
     console.log(`  Ⓐ 미연결 검정  : ${orphans.length === 0 ? 'PASS (검정이 전부 경계에서 이어진다)' : 'FAIL ' + orphans.join(',')}  (기준 총 검정의 2% 미만)`);
     console.log(`  Ⓑ 경계 덮임    : ${uncov.length === 0 ? 'PASS (실루엣 seed ≥' + (COVER_MIN * 100) + '% 칠해짐)' : 'FAIL ' + uncov.join(',')}`);

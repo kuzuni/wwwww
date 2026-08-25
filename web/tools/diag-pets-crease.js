@@ -48,7 +48,7 @@ const OUT = process.argv[2] || path.resolve(__dirname, 'pets-crease-anat.png');
         const ctx = cv.getContext('2d');
         const u = Scene3D._compMat.uniforms;
         const grab = () => { Scene3D.renderFrame(); ctx.clearRect(0, 0, W, H); ctx.drawImage(gl, 0, 0); return ctx.getImageData(0, 0, W, H).data; };
-        const OFFV = { edgeK: 1e9, creaseK: 1e9, normalK: 9.0 };
+        const OFFV = { edgeK: 1e9, creaseK: 1e9, normalK: 9.0, idOn: 0.0 };
         const saved = {}; for (const k in OFFV) if (u[k]) saved[k] = u[k].value;
         const setK = (o) => { for (const k in OFFV) if (u[k]) u[k].value = (k in o) ? o[k] : saved[k]; };
 

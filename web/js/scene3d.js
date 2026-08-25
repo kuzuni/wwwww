@@ -569,6 +569,17 @@ const Scene3D = {
         //    화면공간 1px 균일선이라 캐릭터·펫·탈것·무기·적·소환체 **전부 같은 픽셀 두께**가 된다.
         this._rtScene.depthTexture = new THREE.DepthTexture(2, 2);
         this._rtScene.depthTexture.type = THREE.UnsignedIntType;   // DEPTH_COMPONENT24 — 경계 판정에 충분한 정밀도
+        // 🖊️ **파츠 ID 버퍼** (outline-part-id-buffer, 2026-08-25 3D 스트림).
+        //    깊이·법선 항이 **원리상 못 잡는** 경계가 하나 남아 있었다: 두 파츠가 **같은 평면**이라
+        //    깊이 계단도 법선 차도 **둘 다 0** 인 자리(영웅 팔↔몸통·허리↔다리, 탈것 발굽↔지면).
+        //    화면공간 깊이/법선만으로는 영영 안 잡히므로 **파츠마다 ID 를 심어 ID 불연속**을 본다.
+        //    ⚠️ `LinearEncoding`(기본) 그대로 둘 것 — sRGB 로 두면 바이트 값이 감마로 뒤틀려
+        //       ID 비교가 통째로 무너진다(`_rtScene` 만 sRGB 다. 그건 색을 나르기 때문이다).
+        //    ⚠️ 필터는 반드시 **Nearest** — 선형보간은 이웃 두 ID 를 섞어 없는 ID 를 만들어 낸다.
+        this._rtId = new THREE.WebGLRenderTarget(2, 2, {
+            minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
+            format: THREE.RGBAFormat, depthBuffer: true, stencilBuffer: false,
+        });
         // 블러용 1/4 해상도 RT 2장은 **블룸을 실제로 태우는 기기에서만** 만든다(모바일 VRAM 절약).
         if (this.postOn) {
             this._rtA = new THREE.WebGLRenderTarget(2, 2, pars);
@@ -672,13 +683,33 @@ const Scene3D = {
                 //    ⚠️ 팽창은 실루엣과 크리스 **양쪽**에 걸려 있다(크리스는 이력항이 반대편 날개를 켜는
                 //       방식으로 2px 을 만든다). 한쪽만 끄면 그 대역에서 종류별 두께 차가 되살아난다.
                 dilate: { value: 1.0 },
+                // 🖊️ **파츠 ID 항** (outline-part-id-buffer, 2026-08-25 3D 스트림).
+                //    `tId` = `_rtId` (rgb = 16bit 파츠 ID, a = 그 화소의 선형깊이 / idZFar).
+                //    `idOn` 0 이면 항이 통째로 꺼진다 — **판정기의 'off 프레임'은 이제 네 항을 다 꺼야 한다**
+                //    (`edgeK`·`normalK`·`creaseK` + **`idOn`**). 하나라도 남기면 그 선이 on/off 양쪽에
+                //    똑같이 찍혀 차분 마스크에서 통째로 지워진다(이 저장소가 이미 두 번 밟은 함정이다).
+                //    (`idHas` 는 그 프레임에 ID 버퍼가 실제로 채워졌는지 — 액터가 하나도 없으면 0 이다.
+                //     `renderFrame` 이 **매 프레임 덮어쓰므로** 판정기는 여기 말고 `idOn` 을 만져야 한다.)
+                tId: { value: null }, idOn: { value: 1.0 }, idHas: { value: 0.0 },
+                // 깊이 검증용 스케일 — ID 패스는 자기 깊이버퍼로 그리므로 **지형에 가린 액터도 ID 를 쓴다.**
+                // 그대로 두면 언덕 뒤 펫의 파츠 경계가 **유령선**으로 지면 위에 뜬다. 그래서 ID 화소가
+                // 들고 있는 깊이(a 채널)를 씬 깊이와 대조해 **보이는 표면일 때만** 유효로 친다.
+                // 32 인 이유: 아웃라인 대상은 `edgeMaxZ`(22) 안이라 그 위로 여유만 있으면 되고, 8bit 를
+                // 32 유닛에 펴면 양자화 간격이 0.125 라 허용오차 0.35 안에 넉넉히 들어간다.
+                idZFar: { value: 32.0 },
             },
             vertexShader: V,
             fragmentShader: '#include <packing>\n' +
                 'varying vec2 vUv; uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tDepth;\n' +
                 'uniform float strength; uniform float vig; uniform vec2 texel; uniform float camNear; uniform float camFar;\n' +
                 'uniform float edgeK; uniform float creaseK; uniform float normalK; uniform float edgeMaxZ; uniform float dilate; uniform vec2 proj;\n' +
+                'uniform sampler2D tId; uniform float idOn; uniform float idHas; uniform float idZFar;\n' +
                 'float linz(vec2 uv){ float d = texture2D(tDepth, uv).x; return -perspectiveDepthToViewZ(d, camNear, camFar); }\n' +
+                // 🖊️ ID 화소 → **정수 키**. `r`=하위바이트·`g`=상위바이트라 `lo + hi*256` 이 곧 파츠 번호다.
+                //    (스칼라를 0~1 로 두지 않는 이유: 두 ID 의 최소 간격이 1.0 이라 부동소수 오차에
+                //     안 흔들린다. 0~1 로 정규화하면 간격이 1/65535 로 줄어 mediump 에서 위험해진다.)
+                //    앞의 `step` 이 **가시성 검증**이다 — 가려진 액터 화소는 키 0(= 배경)으로 떨어진다.
+                'float idkey(vec4 j, float z){ return step(abs(j.a * idZFar - z), 0.35) * (j.r * 255.0 + j.g * 65280.0); }\n' +
                 // 🖊️ **깊이만으로 뷰공간 법선 복원** (MRT·G버퍼 없이). 뷰공간 평면 위에서 역깊이 q=1/z 는
                 //    시야평면 좌표 (u,v) 의 **1차식**이다: 평면 aX+bY+cZ=d 에 X=u·z, Y=v·z, Z=−z 를 넣으면
                 //    q = (a·u + b·v − c)/d. 따라서 (∂q/∂u, ∂q/∂v) 와 q 하나면 법선 방향이 그대로 나온다 —
@@ -793,12 +824,163 @@ const Scene3D = {
                 '  float crs = max(crvHy, step(normalK, 1.0 - dmin) * (1.0 - crvNear))\n' +
                 '            * (1.0 - step(edgeK * z0, amax));\n' +
                 // 두 항 모두 **중심 화소의 깊이**로만 지평선 컷을 건다(두께와 무관한 순수 컷).
-                '  float edge = max(sil, crs) * step(z0, edgeMaxZ);\n' +
+                // 🖊️ ④ **파츠 ID 불연속** — 깊이도 법선도 0 인 '같은 평면 파츠 경계' 전용 항
+                //    (outline-part-id-buffer). 영웅 팔↔몸통·허리↔다리, 탈것 발굽↔지면이 그 자리다.
+                //    🚨 **깊이가 이어진 이웃(`cN`)에만 건다.** 큰 계단 너머는 ①이 이미 근측만 칠하는데,
+                //       거기까지 ID 를 보면 **먼 쪽 개체**에 두 번째 선이 붙어 실루엣이 3~4px 로 부푼다
+                //       (크리스 항이 `amax` 억제로 피하는 것과 같은 함정). `cN` 은 방향별 가드라
+                //       `amax`(사방 최댓값)보다 좁게 끊어, 접지선처럼 **계단이 작은 자리는 살린다.**
+                '  vec4 j0 = texture2D(tId, vUv);\n' +
+                '  float k0 = idkey(j0, z0);\n' +
+                '  float kl = idkey(texture2D(tId, vUv - tx), zl), kr = idkey(texture2D(tId, vUv + tx), zr);\n' +
+                '  float kd = idkey(texture2D(tId, vUv - ty), zd), ku = idkey(texture2D(tId, vUv + ty), zu);\n' +
+                // 두께 규율은 실루엣과 같다 — **팽창 off(DPR 1) 대역에서는 한쪽만** 칠해 1 버퍼px 로 두고,
+                // 팽창 on(DPR 2+) 대역에서는 **양쪽** 칠해 2 버퍼px 로 만든다. 두 대역 다 **1.00 CSS px**.
+                // (한쪽을 고르는 기준 = ID 키가 큰 쪽. ID 는 파츠 생성 시 굳는 값이라 프레임마다 안 바뀐다
+                //  — 매 프레임 새로 뽑는 해시로 정하면 선이 1px 씩 좌우로 떠는 게 눈에 보인다.)
+                '  float idBig = max(max(cL * step(0.5, k0 - kl), cR * step(0.5, k0 - kr)), max(cU * step(0.5, k0 - ku), cD * step(0.5, k0 - kd)));\n' +
+                '  float idAny = max(max(cL * step(0.5, abs(k0 - kl)), cR * step(0.5, abs(k0 - kr))), max(cU * step(0.5, abs(k0 - ku)), cD * step(0.5, abs(k0 - kd))));\n' +
+                // 🧪 **실패한 수리 1건 — 크리스처럼 `amax` 억제를 걸어 보는 것. 다시 파지 말 것.**
+                //    `* (1.0 - step(edgeK*z0, amax))` 를 붙여 실측: 배포(합) 3px 비중 13.4 → **12.9%**
+                //    (거의 안 움직인다)인데 ID 화소는 3289 → **3047 로 7% 가 사라진다.** 크리스와 달리
+                //    ID 항이 그리는 선은 계단 옆에 **덧대진 중복선이 아니라 유일한 선**이라, 억제는
+                //    두께를 안 줄이고 선만 지운다(축 ③이 이 항목의 최약 축인데 거기를 깎는다).
+                '  float idl = idOn * idHas * mix(idBig, idAny, dilate);\n' +
+                '  float edge = max(max(sil, crs), idl) * step(z0, edgeMaxZ);\n' +
                 '  c = mix(c, vec3(0.0), edge);\n' +
                 '  gl_FragColor = vec4(c, 1.0); }',
             depthTest: false, depthWrite: false,
         });
         this._bloomStrength = this._compMat.uniforms.strength.value;
+    },
+
+    // ---- 파츠 ID 패스 (outline-part-id-buffer, 2026-08-25 3D 스트림) ----------------------------
+    // 깊이·법선 항이 **원리상 못 잡는** 경계(두 파츠가 같은 평면 → 깊이 계단 0 · 법선 차 0)를 위해
+    // 액터(영웅·탈것·펫·적·스킬 소환체)의 **파츠마다 고유 번호**를 별도 RT 에 그린다.
+    //
+    // 🚨 **왜 파츠별 재질 인스턴스인가 — `scene.overrideMaterial` 로는 못 한다.**
+    //    오버라이드 재질은 **하나**라 파츠를 구분할 유니폼을 실을 자리가 없다. 셰이더가 파츠별로
+    //    읽을 수 있는 건 `modelMatrix` 뿐인데, 그건 걷기 애니메이션을 따라 **매 프레임 바뀐다** →
+    //    거기서 해시를 뽑으면 ID 가 프레임마다 달라져 ⑴ 드물게 이웃과 값이 겹쳐 선이 한 프레임 사라지고
+    //    ⑵ '키가 큰 쪽을 칠한다'는 한쪽 규칙이 좌우로 뒤집혀 **선이 1px 씩 떨린다.**
+    //    → 파츠마다 ShaderMaterial 인스턴스를 하나씩 만들어 **생성 시각에 번호를 굳힌다.**
+    //    셰이더 소스가 전부 같으니 three 의 프로그램 캐시가 **프로그램 하나**로 묶는다(컴파일 폭증 없음).
+    // 🚨 **`layers` 로 액터만 그린다** — 지형·프롭까지 그리면 드로우콜이 통째로 두 배가 되고,
+    //    ID 항은 어차피 액터 내부 경계용이다. ID 패스에 없는 것(지면·하늘)은 **키 0** 이라
+    //    발굽↔지면처럼 '액터 vs 비액터' 경계도 그대로 잡힌다(그게 이 항목의 목표 중 하나다).
+    //    라이트도 레이어에서 빠지므로 **섀도맵이 다시 안 그려진다**(three: lights 비면 즉시 return).
+    ID_LAYER: 7,
+    // 화면 지름이 이 CSS px 미만인 파츠는 ID 를 안 쓴다 (근거는 `renderIdPass` 안 주석).
+    ID_MIN_CSS_PX: 6,
+    idMatFor(mesh, mat) {
+        let m = mesh.userData._idMat;
+        if (m) { if (m.side !== mat.side) m.side = mat.side; return m; }
+        // 0 은 배경 키라 쓰지 않는다. 16bit 순환 — 동시에 살아 있는 파츠가 65535 개일 리 없다.
+        const n = (this._idSeq = ((this._idSeq || 0) % 65535) + 1);
+        m = new THREE.ShaderMaterial({
+            uniforms: {
+                uId: { value: new THREE.Vector2((n & 255) / 255, ((n >> 8) & 255) / 255) },
+                uZFar: { value: this._compMat ? this._compMat.uniforms.idZFar.value : 32.0 },
+            },
+            vertexShader: 'varying float vZ; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vZ = -mv.z; gl_Position = projectionMatrix * mv; }',
+            // ⚠️ 알파에 **선형 깊이**를 실어야 한다 — 컴포짓이 이 값으로 '이 ID 화소가 실제로 보이는
+            //    표면인가'를 검증한다(ID 패스는 지형을 안 그려서 가려진 액터도 ID 를 남기기 때문).
+            fragmentShader: 'varying float vZ; uniform vec2 uId; uniform float uZFar;\n' +
+                'void main(){ gl_FragColor = vec4(uId, 0.0, clamp(vZ / uZFar, 0.0, 1.0)); }',
+            side: mat.side, fog: false,
+        });
+        mesh.userData._idMat = m;
+        return m;
+    },
+    renderIdPass() {
+        const r = this.renderer;
+        if (!r || !this._rtId || !this._compMat) return false;
+        const roots = this._idRootsBuf || (this._idRootsBuf = []);
+        roots.length = 0;
+        if (this.heroG) roots.push(this.heroG);
+        if (this.mountGroup) roots.push(this.mountGroup);
+        if (this.petGroups) for (const g of this.petGroups) if (g) roots.push(g);
+        if (this.enemyMap) for (const m of this.enemyMap.values()) if (m && m.g) roots.push(m.g);
+        // 스킬 소환체는 목록이 없다 — `fxActor` 가 씬에 바로 붙이므로 최상위 자식에서 표식으로 줍는다.
+        for (const ch of this.scene.children) if (ch.userData && ch.userData.idActor) roots.push(ch);
+        const sw = this._idSwapBuf || (this._idSwapBuf = []);
+        sw.length = 0;
+        const self = this, cam = this.camera;
+        // 화면 크기 환산에 쓸 상수 — CSS 높이와 tan(fov/2). 카메라가 연출로 흔들리므로 매 프레임 읽는다.
+        const cssH = r.domElement.clientHeight || 1;
+        const tanH = Math.tan(cam.fov * Math.PI / 360), aspect = cam.aspect || 1;
+        const tag = (o) => {
+            if (!o.isMesh || !o.visible) return;
+            const mat = o.material;
+            if (!mat || Array.isArray(mat)) return;
+            // 🚨 **불투명 + 깊이 쓰는 파츠만** ID 를 쓴다. 액터 트리에는 조형 파츠만 있는 게 아니라
+            //    무기 궤적·오라·히트 플래시 같은 **연출 메시**도 붙는다. 그것들은 뒤가 비쳐 보이는데
+            //    ID 를 쓰면 **그 뒤에 있는 개체 위로** 파츠 경계선이 얹혀 유령선이 된다.
+            //    (`opacity < 0.9` 로만 걸렀더니 가산 블렌딩 글로우가 통과했다 — 알파가 1 이다.)
+            if (mat.transparent || mat.depthWrite === false) return;
+            // 🚨🚨 **화면에서 작은 파츠는 ID 패스에 넣지 않는다 — 안 그러면 영웅 얼굴이 죽는다.**
+            //    (2026-08-25 비평가 실측, 첫 판의 치명상): `Mobs.build`/`ProChar` 는 **눈 흰자·눈동자·
+            //    눈썹·입도 각각 파츠 메시**로 만든다. 그것들은 화면에서 **1~2 CSS px** 인데 사방에
+            //    1 CSS px 테두리를 두르면 **파츠가 통째로 잉크**가 된다 — 실측: 얼굴 흰자 면적
+            //    16.0 → **0.8 CSS px²(95% 소실)**, 검정 면적 ×3.63. 치비 얼굴이 '검은 안와'가 됐다.
+            //    (컴포짓이 흰자를 지키려고 알파 0 `noBloom` 태그까지 따로 두고 있는 그 흰자다.)
+            //    → **빼는 것으로 족하다. 0(배경 키)을 심으면 안 된다** — 그건 되레 선을 만든다.
+            //      ID 패스에서 빠지면 그 화소엔 **뒤에 있는 큰 파츠(얼굴판)의 ID 가 그대로 그려지고**,
+            //      깊이 검증(±0.35)도 통과하므로 눈은 얼굴과 **같은 ID** 가 된다 = 테두리가 안 생긴다.
+            //      튀어나온 정도가 0.35 를 넘으면 키가 0 이 되는데, 그땐 깊이 계단도 커서 `cN` 가
+            //      ID 항을 끄고 실루엣 항이 맡는다 — 어느 쪽으로 굴러도 유령선이 안 생긴다.
+            //    ⚠️ 이건 예전에 실패로 기록된 '최소 폭 게이트'(셰이더에서 얇은 파츠의 **선을 끄는** 것)와
+            //       **다른 수리**다. 그건 실루엣을 지워 축 ③(선 존재)을 깎았지만, 이건 선을 안 지우고
+            //       **작은 파츠를 이웃과 같은 ID 로 묶을** 뿐이라 실루엣·크리스 항은 손대지 않는다.
+            //
+            // 🚨🚨 **자는 `boundingSphere` 가 아니라 '투영 AABB 의 짧은 변'이어야 한다.**
+            //    구는 **납작한 판의 화면 크기를 √2~√3 배로 부풀린다.** 실제로 첫 수리가 그것 때문에
+            //    반만 들었다(2026-08-25 비평가 2라운드 실측): 영웅 흰자는 화면에서 **4.2 × 4.8 CSS px**
+            //    인데 구 지름으로는 **6.4** 라 문턱 6 을 7% 차이로 **통과해 버렸다** → 눈썹·입만 살아나고
+            //    흰자는 DPR 1 에서 여전히 **면적 0**(먹힌 채)이었다. 탈것 옆구리의 '검정 낙서'(bbox
+            //    **4.0 × 9.0 CSS px**)도 같은 이유로 안 걸렀다 — 대각선이 9.8 이라 구는 크다고 본다.
+            //    → 8 꼭짓점을 투영해 **화면 폭·높이를 각각** 구하고 **짧은 변**으로 판정한다.
+            //      그러면 4.2 짜리 흰자와 4.0 짜리 옆구리 조각은 빠지고, 영웅 팔(≈11)은 남는다.
+            //    문턱 6 CSS px 근거: 흰자 짧은변 **4.2** · 탈것 옆구리 조각 **4.0** · 영웅 팔 **≈11**.
+            //    팔↔몸통·허리↔다리·발굽↔지면(이 항목의 목표 셋)은 전부 그 위다.
+            const geo = o.geometry;
+            if (!geo) return;
+            if (!geo.boundingBox) { try { geo.computeBoundingBox(); } catch (e) { return; } }
+            const bb = geo.boundingBox;
+            if (!bb) return;
+            const c = self._idTmpV || (self._idTmpV = new THREE.Vector3());
+            const kx = cssH / (2.0 * tanH * aspect), ky = cssH / (2.0 * tanH);   // 뷰공간 → CSS px 배율
+            let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, near = false;
+            for (let b = 0; b < 8; b++) {
+                c.set(b & 1 ? bb.max.x : bb.min.x, b & 2 ? bb.max.y : bb.min.y, b & 4 ? bb.max.z : bb.min.z);
+                c.applyMatrix4(o.matrixWorld).applyMatrix4(cam.matrixWorldInverse);
+                const zv = -c.z;
+                if (zv <= 0.05) { near = true; break; }   // 카메라 코앞 = 크다고 본다(나눗셈이 터진다)
+                const sx = c.x / zv * kx, sy = c.y / zv * ky;
+                if (sx < x0) x0 = sx; if (sx > x1) x1 = sx;
+                if (sy < y0) y0 = sy; if (sy > y1) y1 = sy;
+            }
+            if (!near && Math.min(x1 - x0, y1 - y0) < self.ID_MIN_CSS_PX) return;
+            sw.push(o, mat);
+            o.material = self.idMatFor(o, mat);
+            o.layers.enable(self.ID_LAYER);
+        };
+        for (const root of roots) root.traverse(tag);
+        if (!sw.length) return false;
+        const sc = this.scene;
+        const bg = sc.background, camMask = cam.layers.mask;
+        const cc = r.getClearColor(this._ccTmp || (this._ccTmp = new THREE.Color())).getHex(), ca = r.getClearAlpha();
+        sc.background = null;                 // 하늘색으로 지우면 그 값이 ID 로 읽힌다
+        cam.layers.set(this.ID_LAYER);
+        r.setClearColor(0x000000, 0.0);       // 키 0 = 배경
+        r.setRenderTarget(this._rtId);
+        r.render(sc, cam);
+        r.setClearColor(cc, ca);
+        cam.layers.mask = camMask;
+        sc.background = bg;
+        for (let i = 0; i < sw.length; i += 2) sw[i].material = sw[i + 1];
+        sw.length = 0;
+        return true;
     },
     // 뷰 공간 태양 방향을 셰이더로 내려보낸다 — 카메라가 움직이므로 **매 프레임** 갱신해야 한다.
     // (월드 방향을 그대로 넣으면 카메라가 흔들릴 때 그늘면이 같이 돌아 '조명이 따라다니는' 그림이 된다.)
@@ -827,6 +1009,11 @@ const Scene3D = {
         const r = this.renderer;
         r.setRenderTarget(this._rtScene);
         r.render(this.scene, this.camera);
+        // 🖊️ 파츠 ID 패스 — 액터만(레이어 제한). 씬 패스 **뒤**에 둔다: 이 패스가 클리어색·레이어를
+        //    잠깐 갈아 끼우므로, 본 렌더 앞에 두면 그 상태가 새는 경로가 하나 더 생긴다.
+        const idOk = this.renderIdPass();
+        this._compMat.uniforms.tId.value = idOk ? this._rtId.texture : this._rtScene.texture;
+        this._compMat.uniforms.idHas.value = idOk ? 1.0 : 0.0;
         const bloom = this.postOn && this._rtA;   // 모바일·블룸 토글 오프에선 브라이트·블러 4패스를 건너뛴다
         if (bloom) {
             this._fsQuad.material = this._brightMat;
@@ -925,6 +1112,7 @@ const Scene3D = {
             const db = new THREE.Vector2();
             this.renderer.getDrawingBufferSize(db);
             this._rtScene.setSize(db.x, db.y);
+            if (this._rtId) this._rtId.setSize(db.x, db.y);   // ID 버퍼는 씬과 **화소 대 화소**로 맞아야 한다
             if (this._rtA && this._rtB) {
                 const bw = Math.max(2, Math.floor(db.x / 4)), bh = Math.max(2, Math.floor(db.y / 4));
                 this._rtA.setSize(bw, bh);
@@ -11826,6 +12014,9 @@ const Scene3D = {
         root.traverse(o => {
             if (!o.isMesh) return;
             if (o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
+            // 파츠 ID 재질은 메시 전용 인스턴스라(outline-part-id-buffer) 여기서 같이 해제한다 —
+            // 안 하면 적 웨이브가 돌 때마다 ShaderMaterial 이 쌓인다(프로그램은 하나지만 유니폼은 각각이다).
+            if (o.userData._idMat) { o.userData._idMat.dispose(); o.userData._idMat = null; }
             if (o.material && !o.userData.sharedMaterial) {
                 if (Array.isArray(o.material)) o.material.forEach(mm => mm && mm.dispose());
                 else o.material.dispose();

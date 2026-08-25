@@ -50,7 +50,7 @@ const OUT = process.argv[2] || path.resolve(__dirname, 'outline-thickmap.png');
         const grab = () => { Scene3D.renderFrame(); ctx.clearRect(0, 0, W, H); ctx.drawImage(gl, 0, 0); return ctx.getImageData(0, 0, W, H); };
         // 🚨 아웃라인 = 실루엣(edgeK) + 법선 불연속(normalK) + 곡률(creaseK) **세 항의 합**.
         //    'off' 프레임은 셋을 다 꺼야 한다(하나라도 남으면 차분에서 그 선이 지워진다).
-        const KEYS = { edgeK: 1e9, creaseK: 1e9, normalK: 9.0 };
+        const KEYS = { edgeK: 1e9, creaseK: 1e9, normalK: 9.0, idOn: 0.0 };
         const saved = {};
         for (const kk in KEYS) if (u[kk]) saved[kk] = u[kk].value;
         // TERM=sil → 실루엣만 / TERM=crs → 법선+곡률만 / 기본 both. 항별로 갈라 봐야 점 노이즈가

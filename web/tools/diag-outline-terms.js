@@ -17,7 +17,10 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
-    const page = await browser.newPage({ viewport: { width: 480, height: 854 }, deviceScaleFactor: 2 });
+    // 🖊️ DPR 대역 노브 — ID 항은 팽창 스위치(`dilate`)에서 **한쪽/양쪽**이 갈리므로
+    //    두 대역을 다 재야 '기기 간 체감 굵기'를 말할 수 있다(`DSF=1 node diag-outline-terms.js`).
+    const DSF = +(process.env.DSF || 2);
+    const page = await browser.newPage({ viewport: { width: 480, height: 854 }, deviceScaleFactor: DSF });
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
@@ -78,7 +81,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
         //    인데 크리스 하나가 6123px 인 모순이 그 증거다). 임계는 배포값 그대로 두고 `edge` 식만
         //    갈아 끼워야 배포되는 항을 잰다.
         const ORIG = Scene3D._compMat.fragmentShader;
-        const A_EDGE = '  float edge = max(sil, crs) * step(z0, edgeMaxZ);';
+        const A_EDGE = '  float edge = max(max(sil, crs), idl) * step(z0, edgeMaxZ);';
         const A_CRS = 'max(crvHy, step(normalK, 1.0 - dmin) * (1.0 - crvNear))';
         if (ORIG.indexOf(A_EDGE) < 0 || ORIG.indexOf(A_CRS) < 0) return { fatal: 'anchor not found' };
         const variant = (edgeExpr, crsExpr) => {
@@ -147,7 +150,10 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
             // '1px 날개'가 억제 탓인지 임계 탓인지 가르는 자다.
             crvNS: ['crvHy * step(z0, edgeMaxZ)', null],                        // 곡률만·억제 없음
             nrmNS: ['step(normalK, 1.0 - dmin) * step(z0, edgeMaxZ)', null],   // 법선만·억제 없음·게이트 없음
-            both: ['max(sil, crs) * step(z0, edgeMaxZ)', null],
+            // 🖊️ **파츠 ID 항**(outline-part-id-buffer). 다른 세 항과 달리 `amax` 억제를 안 받으므로
+            //    유니폼으로 갈라도 되지만, 같은 자리에서 재려고 여기서도 식 치환으로 통일한다.
+            idl: ['idl * step(z0, edgeMaxZ)', null],
+            both: ['max(max(sil, crs), idl) * step(z0, edgeMaxZ)', null],
         };
         // 🔬 이력 비율 스윕 — `HYST` 환경변수로 켠다. 한 브라우저 판에서 비율만 갈아 끼워
         //    **같은 프레임**으로 비교한다(판을 나눠 재면 어느 프레임 수치인지 흐려진다).
@@ -171,7 +177,7 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
     console.log('버퍼:', out.buf, ' 임계:', JSON.stringify(out.k));
     console.log('\n항별 검정 띠 두께 (런 길이 — 네 방향 중 두 번째로 작은 값)');
     console.log('  항       화소수   중앙  p90 |  1px비중   2px비중   3px비중');
-    const label = { sil: '실루엣', crs: '크리스', nrm: '법선', crv: '곡률', crvNS: '곡률-억제off', nrmNS: '법선-억제off', both: '배포(합)' };
+    const label = { sil: '실루엣', crs: '크리스', nrm: '법선', crv: '곡률', crvNS: '곡률-억제off', nrmNS: '법선-억제off', idl: '파츠ID', both: '배포(합)' };
     for (const r of [1.0, 0.85, 0.7, 0.5]) { label['h' + r] = '크리스 hy' + r; label['H' + r] = '합 hy' + r; }
     for (const [k, v] of Object.entries(out.terms)) {
         if (!v.n) { console.log(`  ${label[k].padEnd(8)} (없음)`); continue; }

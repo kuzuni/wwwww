@@ -129,7 +129,7 @@ const SCENE = () => {
             for (let i = 0, p = 0; i < W * H; i++, p += 4) z[i] = (px[p] + px[p + 1] / 255) / 255 * far;
             return z;
         };
-        const OFFV = { edgeK: 1e9, creaseK: 1e9, normalK: 9.0 };
+        const OFFV = { edgeK: 1e9, creaseK: 1e9, normalK: 9.0, idOn: 0.0 };
         const saved = {}; for (const k in OFFV) if (u[k]) saved[k] = u[k].value;
         const setK = (o) => { for (const k in OFFV) if (u[k]) u[k].value = (k in o) ? o[k] : saved[k]; };
         const runs = (mask, horiz) => {

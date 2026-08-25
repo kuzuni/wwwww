@@ -87,11 +87,11 @@ const capture = async (browser, { dsf, ua, title }) => {
 
         // ── 선 두께 실측(버퍼 px) — 세 항을 **전부** 꺼야 차분이 성립한다(판정기 3종 공유 함정) ──
         const u = Scene3D._compMat.uniforms;
-        const saved = { edgeK: u.edgeK.value, normalK: u.normalK.value, creaseK: u.creaseK.value };
+        const saved = { edgeK: u.edgeK.value, normalK: u.normalK.value, creaseK: u.creaseK.value, idOn: u.idOn ? u.idOn.value : 0 };
         const on = grab();
-        u.edgeK.value = 1e9; u.normalK.value = 9.0; u.creaseK.value = 1e9;
+        u.edgeK.value = 1e9; u.normalK.value = 9.0; u.creaseK.value = 1e9; if (u.idOn) u.idOn.value = 0.0;
         const off = grab();
-        u.edgeK.value = saved.edgeK; u.normalK.value = saved.normalK; u.creaseK.value = saved.creaseK;
+        u.edgeK.value = saved.edgeK; u.normalK.value = saved.normalK; u.creaseK.value = saved.creaseK; if (u.idOn) u.idOn.value = saved.idOn;
         const mask = new Uint8Array(W * H); let n = 0;
         for (let i = 0, p = 0; i < W * H; i++, p += 4) {
             if (on[p] <= 8 && on[p + 1] <= 8 && on[p + 2] <= 8 && (off[p] > 16 || off[p + 1] > 16 || off[p + 2] > 16)) { mask[i] = 1; n++; }

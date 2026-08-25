@@ -85,6 +85,10 @@
         if (o.scale) g.scale.setScalar(o.scale);
         if (o.pos) g.position.copy(o.pos);
         g.rotation.y = o.yaw === undefined ? this.CREATURE_YAW : o.yaw;
+        // 🖊️ 파츠 ID 패스 표식 — 소환체는 목록이 없어 `renderIdPass` 가 씬 최상위 자식에서 이 표식으로
+        //    줍는다(outline-part-id-buffer). 없으면 소환체만 파츠 경계선이 빠져 "전부 같은 두께" 요구가
+        //    소환체에서 깨진다 — 헐 시절에 `ensureOutlines` 가 소환체를 훑지 않아 생겼던 그 구멍이다.
+        g.userData.idActor = true;
         this.scene.add(g);
         return { g, P, id };
     },

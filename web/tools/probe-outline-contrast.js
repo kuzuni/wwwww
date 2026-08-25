@@ -96,11 +96,11 @@ const runOne = async (browser, label, ua, dsf) => {
         const grab = () => { Scene3D.renderFrame(); ctx.clearRect(0, 0, W, H); ctx.drawImage(gl, 0, 0); return ctx.getImageData(0, 0, W, H).data; };
 
         // ── 아웃라인 마스크: 세 항을 **전부** 꺼서 차분한다 ──
-        const saved = { edgeK: u.edgeK.value, normalK: u.normalK.value, creaseK: u.creaseK.value };
+        const saved = { edgeK: u.edgeK.value, normalK: u.normalK.value, creaseK: u.creaseK.value, idOn: u.idOn ? u.idOn.value : 0 };
         const on = grab();
-        u.edgeK.value = 1e9; u.normalK.value = 9.0; u.creaseK.value = 1e9;
+        u.edgeK.value = 1e9; u.normalK.value = 9.0; u.creaseK.value = 1e9; if (u.idOn) u.idOn.value = 0.0;
         const off = grab();
-        u.edgeK.value = saved.edgeK; u.normalK.value = saved.normalK; u.creaseK.value = saved.creaseK;
+        u.edgeK.value = saved.edgeK; u.normalK.value = saved.normalK; u.creaseK.value = saved.creaseK; if (u.idOn) u.idOn.value = saved.idOn;
 
         const lum = (a, p) => 0.2126 * a[p] + 0.7152 * a[p + 1] + 0.0722 * a[p + 2];
         const mask = new Uint8Array(W * H);
