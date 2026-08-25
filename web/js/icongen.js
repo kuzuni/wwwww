@@ -1303,95 +1303,100 @@ const IconGen = {
         },
 
         // ---- 티켓: 소환권 (노치 + 절취선 + 별) ----
+        /* 🎟 티켓 — **각진 블록 티켓**(2026-08-25 종별 재작화).
+           종전은 `-0.14rad 기울인 몸통 + 위아래 노치 + 4스톱 그라디언트 + blur 그림자` 였는데
+           20칸 격자를 지나면 **파란 얼룩 한 덩어리**가 됐다(라운드5·7 비평가 공통 지목).
+           확대해 확인한 원인 셋 — 전부 '칸보다 잘다'로 수렴한다:
+             ⑴ **기울기.** 몸통이 8° 돌아 있어 위아래 변이 칸 경계를 사선으로 지나 계단이
+                반 칸씩 어긋난다. 마크 아이템 텍스처는 예외 없이 축 정렬이다 → **기울기를 뺐다.**
+             ⑵ **노치가 안 보였다.** 노치 자리(nx = 몸통의 36%)에 절취 점선(0.026 = 0.5칸)까지
+                겹쳐, 다운샘플에서 둘이 한 칸에 뭉쳐 서로를 지웠다 → 노치를 **양옆 가운데**로
+                옮기고(프레임 배경이 뒤로 비쳐 실루엣이 확실히 패인다) 반지름을 0.115(2.3칸)로.
+             ⑶ **4스톱 그라디언트.** #cfd6ff→#2c18b8 램프가 명도 5단계로 접히며 디더 얼룩이
+                됐다 → **3톤 실색**(윗면/본색/스텁)으로 끊는다. 문자 라인·별 테두리 같은
+                반투명 잔디테일은 전부 뺐다(0.5칸짜리라 어차피 못 산다). */
         ticket(ctx, S) {
-            const G = IconGen;
-            ctx.save();
-            ctx.translate(S / 2, S / 2);
-            ctx.rotate(-0.14);
-            ctx.translate(-S / 2, -S / 2);
-            /* 노치는 **크게**. `dungeon-row-quality` 잔여 결함 ⓔ: 26px 프레임(던전 배너 보상 슬롯)에서
-               종전 nr = S*0.075 는 라운드 모서리에 묻혀 실루엣이 그냥 둥근 사각형이었고, 아이콘이
-               '카드/봉투'로 읽혔다. 티켓을 티켓으로 만드는 건 **허리가 잘록한 실루엣** 하나뿐이라
-               위아래 반원을 키워 몸통 높이의 절반씩 베어 낸다(잔여 허리 ≈ 0.25h). */
-            const x = S * 0.08, y = S * 0.25, w = S * 0.84, h = S * 0.50, r = S * 0.06;
-            const nr = S * 0.125, nx = x + w * 0.36;
+            const K = '#0a0636';
+            const x = S * 0.055, y = S * 0.245, w = S * 0.89, h = S * 0.51;
+            const nr = S * 0.130, ny = y + h * 0.5;          // 양옆 반원 노치
+            const px = x + w * 0.27;                          // 절취선
 
-            // 티켓 본체 = 라운드 사각형 − 위아래 노치
+            /* 🚨 노치는 **한 경로 안에서 안쪽으로 도는 호**로 판다. `rect` + `arc(...,0,2π)` 를
+               evenodd 로 겹치는 안을 먼저 썼는데, 변 위에 중심을 둔 원은 **바깥 반쪽이 홀수
+               권선이 돼 되레 채워진다** — 노치가 아니라 좌우로 튀어나온 혹이 됐다(실측).
+               anticlockwise=true 로 돌려야 호가 몸통 안쪽으로 파인다. */
             const path = () => {
-                G._rr(ctx, x, y, w, h, r);
-                ctx.moveTo(nx + nr, y);
-                ctx.arc(nx, y, nr, 0, Math.PI, false);
-                ctx.moveTo(nx + nr, y + h);
-                ctx.arc(nx, y + h, nr, Math.PI, 0, false);
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + w, y);
+                ctx.lineTo(x + w, ny - nr);
+                ctx.arc(x + w, ny, nr, -Math.PI / 2, Math.PI / 2, true);
+                ctx.lineTo(x + w, y + h);
+                ctx.lineTo(x, y + h);
+                ctx.lineTo(x, ny + nr);
+                ctx.arc(x, ny, nr, Math.PI / 2, -Math.PI / 2, true);
+                ctx.closePath();
             };
-            // 그림자도 노치가 뚫린 같은 경로로 그린다.
-            // (사각형으로 깔면 노치 구멍 사이로 그림자가 비쳐 '검은 반원 얼룩'이 된다)
             ctx.save();
-            ctx.globalAlpha = 0.20;                                       /* .35 는 노치 구멍이 검은 반달로 읽혔다 */
-            ctx.fillStyle = '#000';
-            ctx.filter = `blur(${S * 0.016}px)`;
-            ctx.translate(0, S * 0.03);
-            path();
-            ctx.fill('evenodd');
-            ctx.restore();
-
-            path();
-            // 원본(shot-042228) 티켓은 금색이 아니라 **파랑**이다 — 도전 버튼 안 실측 #4018ff·#2e16ad.
-            // 금색 팔레트를 파랑 계열로 바꿨다(구조·별·노치는 그대로).
-            /* 소형(18~26px) 판독 보정: 종전 그라디언트는 아래 절반(#4018ff→#200c96)이 키라인과
-               섞여 검은 덩어리가 됐다(비평가 '티켓 판독 모호') — 중간톤을 끌어올려 파랑이 남게 한다. */
-            ctx.fillStyle = G._lin(ctx, 0, y, 0, y + h,
-                [[0, '#cfd6ff'], [0.30, '#7583ff'], [0.66, '#4b32f2'], [1, '#2c18b8']]);
-            ctx.fill('evenodd');
-
-            ctx.save();
-            path();
-            ctx.clip('evenodd');
-            // 상단 하이라이트 / 하단 턱
-            ctx.fillStyle = 'rgba(255,255,255,.55)';
-            ctx.fillRect(x, y, w, h * 0.10);
-            ctx.fillStyle = 'rgba(10,6,80,.4)';
-            ctx.fillRect(x, y + h * 0.88, w, h * 0.12);
-            // 스텁(왼쪽 조각)을 한 단 어둡게 — 절취선 하나로는 두 조각이 안 갈린다
-            ctx.fillStyle = 'rgba(12,6,80,.34)';
-            ctx.fillRect(x, y, nx - x, h);
-            // 절취선 — 파랑 위 어두운 점선은 26px 에서 사라진다. 밝은 점선으로 뒤집고 굵힌다.
-            ctx.setLineDash([S * 0.040, S * 0.032]);
-            ctx.lineWidth = S * 0.026;
-            ctx.strokeStyle = 'rgba(232,236,255,.88)';
-            ctx.beginPath();
-            ctx.moveTo(nx, y + nr * 1.2);
-            ctx.lineTo(nx, y + h - nr * 1.2);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            // 오른쪽 본권의 문자 라인 (정보 표기 느낌)
-            ctx.fillStyle = 'rgba(18,10,110,.32)';
-            ctx.fillRect(x + w * 0.46, y + h * 0.30, w * 0.42, h * 0.09);
-            ctx.fillRect(x + w * 0.46, y + h * 0.50, w * 0.30, h * 0.09);
-            ctx.restore();
-
-            // 왼쪽 스텁의 별
-            // 별은 작게 — 종전 크기는 노치보다 눈에 먼저 들어와 '별 붙은 카드'로 읽히게 했다
-            const sx = x + w * 0.18, sy = y + h * 0.5, sr = S * 0.082;
-            ctx.beginPath();
-            for (let i = 0; i < 10; i++) {
-                const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
-                const rr = i % 2 ? sr * 0.46 : sr;
-                const px = sx + Math.cos(a) * rr, py = sy + Math.sin(a) * rr;
-                i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-            }
-            ctx.closePath();
-            ctx.fillStyle = G._lin(ctx, 0, sy - sr, 0, sy + sr, [[0, '#ffffff'], [1, '#cdd4ff']]);
+            ctx.beginPath(); path();
+            /* 🚨 **본색의 명도는 임의로 못 고른다 — 칸 명도 버킷의 한가운데여야 한다.**
+               종전 #4b32f2 는 HSL 명도 0.573 인데, 블록화의 대비 확장(`piv + (l−piv)×LCON`)을
+               지나면 0.60 부근 = **버킷 경계 0.625 바로 아래**에 앉는다. 거기에 칸별 흔들기
+               (`JITTER 0.03`)가 더해지니 **평평한 한 색이 칸마다 0.5/0.75 로 갈려** 파랑 7톤짜리
+               얼룩이 됐다(히스토그램 실측: 본색이 #5020df 45칸 · #4000ff 12칸 · #2020df 16칸 ·
+               연보라 #9f80ff 22칸으로 쪼개짐). 0.49 로 내려 잡으면 변환 뒤 정확히 0.5 버킷
+               한가운데라 흔들기가 경계를 못 넘는다.
+               👉 **일반화: 넓은 평면은 변환 후 명도가 0.5 또는 0.75 의 한가운데 오게 원색을
+                  고를 것**(LSTEP 5 · 경계 0.375·0.625·0.875). 눈으로 고른 색은 반이 경계에 선다. */
+            ctx.fillStyle = '#3a19e1';                        // 본색 (HSL L 0.49)
             ctx.fill();
-            ctx.lineWidth = S * 0.014;
-            ctx.strokeStyle = 'rgba(18,10,110,.55)';
-            ctx.stroke();
 
-            path();
-            // 바깥 키라인 — 노치 곡선이 배경과 갈리려면 선이 필요하지만, 0.032 는 소형에서
-            // 채움까지 삼켜 검은 캡슐이 됐다(실측 18~26px 렌더) — 0.022 로 줄인다.
-            ctx.lineWidth = S * 0.022;
-            ctx.strokeStyle = 'rgba(10,6,54,.90)';
+            ctx.save();
+            ctx.beginPath(); path(); ctx.clip();
+            /* 🚨 **요소를 셋 빼고 둘만 남겼다.** 몸통이 20칸 격자에서 세로 10칸뿐이라 종전의
+               `밝은 윗띠 + 스텁 음영 + 절취선 + 별 + 아랫 그늘` 다섯이 서로를 지운다 — 1차 렌더가
+               '파란 TV 화면', 2차가 '세로 막대 낀 파란 상자'였다. 살린 둘은 **양옆 노치**(티켓을
+               티켓으로 만드는 유일한 실루엣 단서)와 **큰 흰 별**이고, 나머지는 뺐다.
+               ⑴ 스텁 음영: #3a25d4 vs #4b32f2 는 명도 스냅에서 같은 단계로 접혀 아예 안 보였다.
+               ⑵ 밝은 윗띠: 있으면 액정 화면으로 읽힌다.
+               남은 그늘은 아랫단 한 줄(0.15h ≈ 1.5칸)뿐이다. */
+            /* 스텁(왼쪽 조각)을 어둡게 — 명도 0.258 로 잡아 변환 뒤 `KEYL 0.26` 아래로 떨어뜨린다.
+               그러면 속 칸이 전부 `LFLOOR`(가장 어두운 톤) 한 색으로 못박혀 **얼룩이 원리적으로
+               안 생긴다**. 아랫단 그늘 띠는 뺐다 — 바닥 변에 닿아 있어 경계 칸 규칙에 걸려
+               통째로 순검정이 되고, 그건 키라인이 두꺼워진 것과 구분이 안 된다(실측 59칸 검정). */
+            ctx.fillStyle = '#1f0d76'; ctx.fillRect(x, y, px - x, h);
+            ctx.restore();
+
+            /* 🔑 **속 디테일은 20칸 격자에 직접 찍는다(칸 정렬 비트맵).** 경로로 그린 잔모티프는
+               이 크기에서 살아남지 못한다 — 별을 반지름 0.115(4.6칸) → 0.165(6.6칸) → 0.200(8칸)
+               으로 키우며 세 번 실측했고 셋 다 **흰 얼룩**이었다. 원인 둘:
+                 ⑴ 별의 오목한 골이 1.5칸인데 키라인이 1.1칸이라 골을 통째로 메운다. 테를 빼면
+                    이번엔 흰↔파랑 경계 칸이 연보라로 번져 후광이 된다.
+                 ⑵ 🚨 **`_despeckle` 의 `MODE_MAJ` 가 한 칸짜리 틈을 메운다.** 3×3 이웃의 최빈색이
+                    4칸 이상이고 **더 밝으면** 그 색으로 덮는 규칙이라, 흰 모티프 안의 1칸 틈은
+                    거의 항상 흰색에 먹힌다(별 다리 사이 틈이 정확히 그 경우다). 즉 이 격자에서
+                    **1칸 틈을 가진 모티프는 원리적으로 못 그린다** — 틈은 최소 2칸이어야 하고,
+                    그마저 틈 칸의 3×3 흰 이웃이 4칸 미만이어야 산다.
+               👉 그래서 별을 버리고 **비평가가 실제로 처방한 것**(직사각 + 양옆 노치 + 점선 1줄)만
+                  남겼다. 남은 디테일은 전부 칸 경계에 딱 맞춘 사각형이라 박스 다운샘플이 원본
+                  그대로 되돌려 준다 — 얼룩도 후광도 원리적으로 없다. */
+            const N = IconGen.BLOCK.CELLS, CW = S / N;
+            const cell = (cx, cy, cw, ch, fill) => {
+                ctx.fillStyle = fill;
+                const x0 = Math.round(cx * CW), y0 = Math.round(cy * CW);
+                ctx.fillRect(x0, y0, Math.round((cx + cw) * CW) - x0, Math.round((cy + ch) * CW) - y0);
+            };
+            /* 절취 점선 — 스텁 경계 한 칸 오른쪽. **틈을 2칸 둔다**: 1칸 띄우면 위에 적은
+               `MODE_MAJ` 규칙에 걸려 틈이 메워지고 **속이 꽉 찬 흰 막대**가 된다(실측: 아래
+               절반이 실제로 그렇게 이어졌다). 이 격자의 점선은 '1칸 찍고 2칸 띄기'가 하한이다. */
+            for (let r = 5; r <= 14; r += 3) cell(6, r, 1, 1, '#cfd6ff');
+            // 본권의 인쇄 줄 2개 — 1칸 높이, 사이 2칸(붙으면 한 덩어리로 읽힌다)
+            cell(9, 7, 6, 1, '#8a75f0');
+            cell(9, 10, 4, 1, '#8a75f0');
+
+            // 바깥 키라인 — 노치 안쪽에도 둘려야 '패인 것'으로 읽힌다
+            ctx.beginPath(); path();
+            ctx.lineWidth = S * 0.050;
+            ctx.strokeStyle = K;
             ctx.stroke();
             ctx.restore();
         },
@@ -1483,82 +1488,44 @@ const IconGen = {
         },
 
         // ---- 태엽: 금속 기어 ----
+        /* ⚙️ 태엽(기어) — **각진 8톱니 + 3톤 + 진짜 뚫린 축구멍** (2026-08-25 종별 재작화).
+           종전은 `방사 그라디언트 4스톱 + _innerShadow + 얕은 홈 4개 + 반투명 스트로크` 였는데
+           블록화를 지나면 **희끄무레한 울퉁불퉁 덩어리**가 됐다(라운드2·5·7 비평가 "형태 판독
+           불가"·"흙 묻은 회색 덩어리"). 원인 셋:
+             ⑴ 톱니 옆면을 **원호**로 그려(`ctx.arc`) 이끝이 칸마다 반 칸씩 달라 계단이 안 섰다.
+                → 전부 직선으로 바꿨다. 이끝·골이 꼭짓점이라 칸에 앉는다.
+             ⑵ 방사 그라디언트 4스톱이 명도 5단계로 접히며 디더가 됐다. → **가로 3톤 실색**.
+             ⑶ **축구멍이 없었다.** 살(웹) 자리에 '얕은 홈 4개'만 뒀는데 그건 20칸에서 1칸짜리
+                점 4개라 `_despeckle` 이 먹거나 잡티로 남는다. 기어를 기어로 만드는 건
+                **가운데 구멍** 하나다 → `destination-out` 으로 진짜로 뚫는다.
+           ⚠️ 구멍 반지름은 0.18 아래로 내리지 말 것: `_outlineOf('winder')=0.062` 의 자동 외곽선이
+              구멍을 사방에서 그만큼 메워, 0.135 로 뚫으면 남는 구멍이 1.5칸이라 안 보인다. */
         winder(ctx, S) {
-            const G = IconGen, cx = S / 2, cy = S / 2, R = S * 0.465, root = R * 0.72;
-            const T = 8, step = (Math.PI * 2) / T;   // 이 수를 줄여 14px에서도 톱니가 뭉치지 않게
-            // 이 하나 = [뿌리→이끝 사선] + [이끝 원호] + [이끝→뿌리 사선] + [골 원호]
+            const cx = S / 2, cy = S / 2, R = S * 0.470, root = S * 0.335;
+            const T = 8, step = (Math.PI * 2) / T;
             const gear = () => {
                 for (let i = 0; i < T; i++) {
                     const a = i * step - Math.PI / 2;
-                    const tip = step * 0.17, rt = step * 0.30;
+                    const tip = step * 0.20, rt = step * 0.34;
                     ctx.lineTo(cx + Math.cos(a - rt) * root, cy + Math.sin(a - rt) * root);
                     ctx.lineTo(cx + Math.cos(a - tip) * R, cy + Math.sin(a - tip) * R);
-                    ctx.arc(cx, cy, R, a - tip, a + tip);
+                    ctx.lineTo(cx + Math.cos(a + tip) * R, cy + Math.sin(a + tip) * R);
                     ctx.lineTo(cx + Math.cos(a + rt) * root, cy + Math.sin(a + rt) * root);
-                    ctx.arc(cx, cy, root, a + rt, a + step - rt);
+                    ctx.lineTo(cx + Math.cos(a + step - rt) * root, cy + Math.sin(a + step - rt) * root);
                 }
                 ctx.closePath();
             };
-            ctx.beginPath();
-            gear();
-            // 밝은 회색 pill 위에서도 실루엣이 죽지 않도록 중간톤을 눌러 잡은 강철
-            ctx.fillStyle = G._rad(ctx, cx - R * 0.35, cy - R * 0.4, R * 0.06, cx, cy, R * 1.2,
-                [[0, '#e4ecf3'], [0.3, '#a9b6c2'], [0.62, '#6d7b88'], [1, '#333d47']]);
-            ctx.fill();
-            // 이 끝단 베벨 — 위쪽 이는 밝게, 아래쪽 이는 어둡게
-            G._innerShadow(ctx, gear, 'rgba(12,18,24,.75)', S * 0.05, 0, -S * 0.02);
-            ctx.beginPath();
-            gear();
-            ctx.lineWidth = S * 0.024;
-            ctx.strokeStyle = 'rgba(24,30,36,.78)';
-            ctx.stroke();
-
-            // 살(웹) 면 — 평면 검은 원 4개는 14px에서 '벌레 눈'으로 읽혀 폐기했다.
-            // 대신 금속 톤으로 살짝 파인 얕은 홈만 남겨 기계 느낌을 유지한다.
-            for (let i = 0; i < 4; i++) {
-                const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-                const hx = cx + Math.cos(a) * R * 0.45, hy = cy + Math.sin(a) * R * 0.45;
-                const dip = () => ctx.arc(hx, hy, R * 0.13, 0, Math.PI * 2);
-                ctx.beginPath();
-                dip();
-                ctx.fillStyle = G._lin(ctx, hx, hy - R * 0.13, hx, hy + R * 0.13,
-                    [[0, '#5d6a76'], [1, '#93a1ad']]);   // 파인 홈: 위가 어둡고 아래가 밝다
-                ctx.fill();
-                ctx.beginPath();
-                dip();
-                ctx.lineWidth = S * 0.012;
-                ctx.strokeStyle = 'rgba(28,36,44,.55)';
-                ctx.stroke();
-            }
-
-            // 허브 — 볼록한 금속 보스(중앙이 뚫린 구멍처럼 보이지 않게)
-            ctx.beginPath();
-            ctx.arc(cx, cy, R * 0.33, 0, Math.PI * 2);
-            ctx.fillStyle = G._rad(ctx, cx - R * 0.12, cy - R * 0.14, R * 0.02, cx, cy, R * 0.42,
-                [[0, '#f4f8fb'], [0.45, '#b9c5d0'], [1, '#5c6772']]);
-            ctx.fill();
-            ctx.lineWidth = S * 0.02;
-            ctx.strokeStyle = 'rgba(24,30,36,.75)';
-            ctx.stroke();
-            // 축 — 작은 볼록 핀
-            ctx.beginPath();
-            ctx.arc(cx, cy, R * 0.125, 0, Math.PI * 2);
-            ctx.fillStyle = G._lin(ctx, cx, cy - R * 0.125, cx, cy + R * 0.125,
-                [[0, '#98a5b1'], [1, '#4a545e']]);
-            ctx.fill();
-            ctx.lineWidth = S * 0.013;
-            ctx.strokeStyle = 'rgba(24,30,36,.6)';
-            ctx.stroke();
-
-            // 상단 라이팅 — 호(arc)로 그으면 그 호가 지나가는 톱니 3개에만 흰 캡이 붙어
-            // '톱니마다 다른 모자'처럼 보인다. 전체에 고르게 걸리는 세로 그라디언트로 대체.
+            ctx.beginPath(); gear();
+            /* 3톤 강철. 명도는 변환 뒤 버킷 한가운데(0.75 / 0.5 / 0.25)에 앉게 역산한 값이다
+               — 눈으로 고르면 경계에 서서 칸마다 톤이 갈린다(ticket 에서 실측한 그 함정). */
+            ctx.fillStyle = '#668099'; ctx.fill();
+            ctx.save(); ctx.beginPath(); gear(); ctx.clip();
+            ctx.fillStyle = '#a6b5c3'; ctx.fillRect(0, 0, S, S * 0.32);          // 윗면
+            ctx.fillStyle = '#3c4a59'; ctx.fillRect(0, S * 0.70, S, S * 0.30);   // 아랫면
+            ctx.restore();
             ctx.save();
-            ctx.beginPath();
-            gear();
-            ctx.clip();
-            ctx.fillStyle = G._lin(ctx, 0, cy - R, 0, cy + R * 0.15,
-                [[0, 'rgba(255,255,255,.42)'], [1, 'rgba(255,255,255,0)']]);
-            ctx.fillRect(cx - R, cy - R, R * 2, R * 1.2);
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.beginPath(); ctx.arc(cx, cy, S * 0.185, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
         },
 
@@ -1919,23 +1886,15 @@ const IconGen = {
                 base: [[0, '#d6d0b6'], [1, '#b9b298']], ball: '#8f8971',
             });
         },
-        // 3위 — 벽돌색 마름모(정사각형 45° 회전). 굵은 검정 테 + 위쪽 하이라이트.
+        /* 3위 — **동관(銅冠)**. 종전은 벽돌색 마름모였는데 1·2위가 왕관이라 **혼자 계열이 깨졌고**
+           (블록 화법 라운드4·5·7 비평가 지목), 게다가 마름모는 상단바 재화 젬(`draw.gem`)과
+           같은 도형이라 20칸 격자를 지나면 '작은 갈색 젬'으로 읽혔다. 금·은과 같은 `_crownRank`
+           를 쓰면 도형이 통일되고 **색만으로 등급이 갈린다**(원본 시상대 문법). */
         rank3(ctx, S) {
-            const G = IconGen, cx = S * 0.5, cy = S * 0.5, r = S * 0.40;
-            const dia = () => {
-                ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy);
-                ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy); ctx.closePath();
-            };
-            ctx.beginPath(); dia();
-            ctx.fillStyle = G._lin(ctx, 0, cy - r, 0, cy + r, [[0, '#c4644a'], [0.5, '#a64a34'], [1, '#7d3524']]);
-            ctx.fill();
-            G._innerShadow(ctx, dia, 'rgba(60,20,10,.5)', S * 0.05, 0, -S * 0.02);
-            ctx.save(); ctx.beginPath(); dia(); ctx.clip();
-            ctx.fillStyle = 'rgba(255,255,255,.22)';
-            ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx - r, cy); ctx.closePath(); ctx.fill();
-            ctx.restore();
-            ctx.beginPath(); dia();
-            ctx.lineWidth = S * 0.075; ctx.strokeStyle = '#17181a'; ctx.stroke();
+            IconGen._crownRank(ctx, S, {
+                body: [[0, '#d98a55'], [0.45, '#b06334'], [1, '#8a4a22']],
+                base: [[0, '#e2a274'], [1, '#b8703f']], ball: '#c27541',
+            });
         },
 
         // ---- 기술 트리 노드 모티프 8종 ----
