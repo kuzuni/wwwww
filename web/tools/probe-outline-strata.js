@@ -57,6 +57,7 @@
 // 사용: node probe-outline-strata.js   (종료코드 0=통과)
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
+const { SEED_INIT } = require('./lib-seed');   // 씬 전체 재현성 — page.goto 보다 먼저 주입해야 한다
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
@@ -70,6 +71,7 @@ const runOne = async (browser, label, ua) => {
     const errors = [];
     page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
+    await page.addInitScript(SEED_INIT);
     await page.goto(INDEX, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 20000 });
     await page.waitForTimeout(1500);
@@ -101,6 +103,17 @@ const runOne = async (browser, label, ua) => {
         //    `waitForTimeout` 동안 rAF 가 몇 프레임 돌았는지가 매번 달라서, 그대로 재면 같은 셰이더로도
         //    커버리지가 75.9% ↔ 83.3% 로 널뛴다(실측). 마스터 시계 `_clock` 과 리그 시계 `_t` 를 0 으로
         //    놓고 항상 같은 시간만큼 돌려야 **게이트가 재현 가능**해진다.
+        // 위상 고정 ②: **측정 대상 그룹의 개체 위상**을 0 으로 눌러 시드 스트림 위치에 안 흔들리게 한다.
+        //    (`lib-seed.js` 의 시드만으로는 부족하다 — 대기 중 공격 한 번이 더 돌면 `Math.random`
+        //     호출 수가 달라져 **그 뒤에 만들어진** 탈것·펫의 `userData.phase` 가 통째로 밀린다.
+        //     실측: 4회 중 1회에서 mountY 0.0301 → 0.0499 로 튀었다. 여기 phase 는 '개체별 위상차'
+        //     용도뿐이라 0 으로 눌러도 조형이 안 바뀐다 — 이펙트 링의 의도적 위상차와는 다른 자리다.)
+        {
+            const pin = (g) => { if (g && g.userData) g.userData.phase = 0; };
+            pin(Scene3D.mountGroup);
+            (Scene3D.petGroups || []).forEach(pin);
+            if (Scene3D.enemyMap) Scene3D.enemyMap.forEach(v => pin(v && v.g));
+        }
         Scene3D._clock = 0;
         if (Scene3D.heroRig) Scene3D.heroRig._t = 0;
         step(0.9);

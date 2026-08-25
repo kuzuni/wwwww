@@ -12,6 +12,7 @@
 //       CREASE_K=0.010 node probe-crease-lines.js   ← 임계를 갈아 끼워 비교
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
 const path = require('path');
+const { SEED_INIT } = require('./lib-seed');   // 씬 전체 재현성 — page.goto 보다 먼저 주입해야 한다
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 // 통과선. 두 선의 기준이 다른 이유: **턱선은 곡률 항이 단독으로 그리는** 선이라 임계에 직결되고
 // (K=0.010 87% → K=0.015 26%), **접지선은 실루엣·법선 항이 대부분 그린다** — 임계를 4종으로 쓸어도
@@ -24,12 +25,14 @@ const MIN_JAW = 0.60, MIN_HOOF = 0.45;
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
+    await page.addInitScript(SEED_INIT);
     await page.goto(INDEX, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 20000 });
     await page.waitForTimeout(1500);
 
     const KS = (process.env.CREASE_K ? [+process.env.CREASE_K] : [0.010, 0.015, 0.020, 0.030]);
     const out = await page.evaluate(({ KS }) => {
+        let R_DBG = null;
         Combat.tick = () => { };
         const real = Scene3D.update.bind(Scene3D);
         Scene3D.update = () => { };
@@ -38,7 +41,27 @@ const MIN_JAW = 0.60, MIN_HOOF = 0.45;
         S.activeMount = 'Brown Horse'; Scene3D.refreshMount();
         S.pets = []; S.activePets = []; Scene3D.refreshPets();
         Scene3D.clearEnemies();
+        // 🚨 **위상 고정은 `_clock` 만으로는 안 된다 — `worldX` 까지 못박아야 한다** (2026-08-25 3D 스트림).
+        //    로드 뒤 대기 1500ms 동안 진짜 `update` 가 rAF 로 돌면서 `worldX += 1.7*dt` 를 쌓는데,
+        //    프레임 수가 매번 달라 **탈것이 서는 x 가 런마다 다르다**. 지형 높이는 x 의 함수라
+        //    (`heightAt`) 발굽↔지면 접점이 통째로 옮겨 가고, 표본 열 수까지 달라진다.
+        //    실측: **같은 셰이더·같은 커밋에서 접지선 열커버가 22% ↔ 72%** 로 튀었다(연속 2회).
+        //    이 자는 특정 경계 한 줄을 재므로 분포 자와 달리 이 흔들림을 평균으로 못 덮는다.
+        //    ⚠️ 이 자로 잰 과거 수치(67~72%)와 오늘의 22% 는 **셰이더 차이가 아니라 위상 차이**다.
+        // 위상 고정 ②: **측정 대상 그룹의 개체 위상**을 0 으로 눌러 시드 스트림 위치에 안 흔들리게 한다.
+        //    (`lib-seed.js` 의 시드만으로는 부족하다 — 대기 중 공격 한 번이 더 돌면 `Math.random`
+        //     호출 수가 달라져 **그 뒤에 만들어진** 탈것·펫의 `userData.phase` 가 통째로 밀린다.
+        //     실측: 4회 중 1회에서 mountY 0.0301 → 0.0499 로 튀었다. 여기 phase 는 '개체별 위상차'
+        //     용도뿐이라 0 으로 눌러도 조형이 안 바뀐다 — 이펙트 링의 의도적 위상차와는 다른 자리다.)
+        {
+            const pin = (g) => { if (g && g.userData) g.userData.phase = 0; };
+            pin(Scene3D.mountGroup);
+            (Scene3D.petGroups || []).forEach(pin);
+            if (Scene3D.enemyMap) Scene3D.enemyMap.forEach(v => pin(v && v.g));
+        }
         Scene3D._clock = 0;      // 위상 고정 (판정기와 같은 프레임)
+        Scene3D.worldX = 0;
+        if (Scene3D.heroRig) Scene3D.heroRig._t = 0;
         step(0.9);
 
         const gl = Scene3D.renderer.domElement;
@@ -108,6 +131,12 @@ const MIN_JAW = 0.60, MIN_HOOF = 0.45;
             return { hit, seen, cov: seen ? hit / seen : 0 };
         };
 
+        // 🔬 **재현성 지문** — 이 줄이 런마다 같아야 아래 커버리지 숫자를 믿을 수 있다.
+        //    다르면 셰이더를 의심하기 전에 **위상부터** 의심할 것(lib-seed.js 의 경위 참조).
+        R_DBG = { worldX: Scene3D.worldX, clock: +Scene3D._clock.toFixed(6),
+                  mountY: mg ? +mg.position.y.toFixed(4) : null,
+                  heroY: +Scene3D.heroG.position.y.toFixed(4), nCols: hoofCols.length,
+                  hoofYmid: hoof.length ? hoof[hoof.length >> 1].y : -1 };
         const rows = [];
         for (const K of KS) {
             // 영웅만 → 턱선 / 탈것만 → 접지선 (서로 가리지 않게 격리)
@@ -127,9 +156,10 @@ const MIN_JAW = 0.60, MIN_HOOF = 0.45;
             Scene3D.heroG.visible = true; if (mg) mg.visible = true;
             rows.push({ K, jaw: cover(mH, jaw, 6), hoof: cover(mM, hoof, 6) });
         }
-        return { rows, jawN: jaw.length, hoofN: hoof.length, hasHead: !!hb, shipK: saved.creaseK };
+        return { dbg: R_DBG, rows, jawN: jaw.length, hoofN: hoof.length, hasHead: !!hb, shipK: saved.creaseK };
     }, { KS });
 
+    console.log('재현성 지문:', JSON.stringify(out.dbg));
     console.log('턱선 표본열', out.jawN, '· 접지선 표본열', out.hoofN, '· head 본 찾음:', out.hasHead);
     console.log('creaseK | 영웅 턱↔가슴 열커버 | 탈것 발굽↔지면 열커버');
     // 🚨 판정은 **지금 셰이더에 박혀 있는 creaseK**(= 사용자가 실제로 보는 값)로만 한다.
