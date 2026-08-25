@@ -22,7 +22,8 @@ const OUT = process.argv[2] || path.resolve(__dirname, 'outline-thickmap.png');
     await page.waitForFunction(() => typeof Scene3D !== 'undefined' && Scene3D.heroG && typeof Combat !== 'undefined', null, { timeout: 20000 });
     await page.waitForTimeout(1500);
 
-    await page.evaluate((t) => { window.__TERM = t; }, process.env.TERM_MODE || 'both');
+    await page.evaluate((e) => { window.__TERM = e.t; window.__CROPS = e.c; window.__ZOOM = e.z; window.__CROPW = e.w; window.__CROPH = e.h; },
+        { t: process.env.TERM_MODE || 'both', c: process.env.CROPS || '', z: process.env.ZOOM || '', w: process.env.CROPW || '', h: process.env.CROPH || '' });
     const b64 = await page.evaluate(() => {
         Combat.tick = () => { };
         const real = Scene3D.update.bind(Scene3D);
@@ -94,10 +95,12 @@ const OUT = process.argv[2] || path.resolve(__dirname, 'outline-thickmap.png');
         ctx.putImageData(outI, 0, 0);
 
         // 6× 최근접 확대 크롭 — 영웅 머리·탈것 접지·펫 무리
-        const crops = [
-            ['hero-head', 0.37, 0.49], ['mount-body', 0.40, 0.66], ['pets', 0.20, 0.69], ['mount-foot', 0.42, 0.72],
-        ];
-        const CW = 90, CH = 80, Z = 6, PAD = 6;
+        // CROPS 환경변수로 관심 부위를 갈아 끼운다: '이름:fx:fy,이름:fx:fy' (fx,fy = 화면 비율).
+        // ZOOM 으로 배율, CROPW/CROPH 로 크롭 크기.
+        const crops = (window.__CROPS || '').trim()
+            ? window.__CROPS.split(',').map(t => { const a = t.split(':'); return [a[0], +a[1], +a[2]]; })
+            : [['hero-head', 0.37, 0.49], ['mount-body', 0.40, 0.66], ['pets', 0.20, 0.69], ['mount-foot', 0.42, 0.72]];
+        const CW = +(window.__CROPW || 90), CH = +(window.__CROPH || 80), Z = +(window.__ZOOM || 6), PAD = 6;
         const sheet = document.createElement('canvas');
         sheet.width = W + PAD * 3 + CW * Z; sheet.height = Math.max(H, (CH * Z + PAD) * crops.length);
         const sx = sheet.getContext('2d');

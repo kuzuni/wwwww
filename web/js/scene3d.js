@@ -686,10 +686,10 @@ const Scene3D = {
                 '  float cD = 1.0 - step(edgeK * z0, abs(zd - z0));\n' +
                 '  float sil = max(max(e0, max(eL * cL, eR * cR)), max(eU * cU, eD * cD));\n' +
                 // 반대 방향(나보다 **가까운** 이웃의 최대 초과분) — ②③ 을 계단의 먼 쪽에서만 끄는 데 쓴다.
-                '  float n1 = z0 - min(min(zl, zr), min(zd, zu));\n' +
-                '  float nd = (z0 - min(min(zdl, zdr), min(zul, zur))) * 0.70711;\n' +
-                '  float n2 = (z0 - min(min(z2l, z2r), min(z2d, z2u))) * 0.5;\n' +
-                '  float nearv = max(n1, max(nd, n2));\n' +
+                '  float a1 = max(max(abs(zl - z0), abs(zr - z0)), max(abs(zd - z0), abs(zu - z0)));\n' +
+                '  float ad = max(max(abs(zdl - z0), abs(zdr - z0)), max(abs(zul - z0), abs(zur - z0))) * 0.70711;\n' +
+                '  float a2 = max(max(abs(z2l - z0), abs(z2r - z0)), max(abs(z2d - z0), abs(z2u - z0))) * 0.5;\n' +
+                '  float amax = max(a1, max(ad, a2));\n' +
                 // 🖊️ ② 법선 불연속 — 위 12탭을 **그대로 재활용**해 중심과 상하좌우 이웃의 법선을 복원한다.
                 //    이웃 (1,0) 의 ∂q/∂u 는 탭 (2,0)·(0,0) 으로, ∂q/∂v 는 탭 (1,1)·(1,-1) 로 잡힌다 —
                 //    추가 텍스처 페치가 **0개**다. 축정렬 직육면체 파츠의 접힘은 전부 90° 라 확실히 걸린다.
@@ -706,14 +706,17 @@ const Scene3D = {
                 '  float dmin = min(min(dot(n0, nL), dot(n0, nR)), min(dot(n0, nD), dot(n0, nU)));\n' +
                 // 🖊️ ③ 곡률 — 법선이 나란한 **작은 계단**(턱이 가슴 앞으로 살짝 나온 자리) 전용 보강항.
                 '  float cx = abs(qL + qR - 2.0 * qc), cy = abs(qD + qU - 2.0 * qc);\n' +
-                // 🚨 **큰 계단의 '먼 쪽'에서만 ②③을 끈다**(`1.0 - step(edgeK*z0, nearv)`). 큰 계단은 법선
-                //    복원도 곡률도 통째로 튀게 해서, 안 끄면 계단의 먼 쪽까지 칠한다 — ①이 애써 만든
-                //    '근측만' 비대칭이 무너져 두께가 2px→3px 로 부푼다(실측 2026-08-25: step 층 중앙 3px).
-                //    ⚠️ 억제를 `amax`(양방향)로 걸면 **계단 근처의 정상 접힘선까지 통째로 잘려** 2px 이어야
-                //    할 선이 1px 로 남는다(실측: 탈것 다리·몸통에 1px 세로선이 초록선 옆에 나란히 섰다).
-                //    그래서 '나보다 **가까운** 이웃이 있는가'(= 내가 계단의 먼 쪽인가)만 본다.
+                // 🚨 **큰 계단 반경 2 안에서는 ②③을 끈다**(`1.0 - step(edgeK*z0, amax)`). 이유 둘:
+                //    ⑴ 큰 계단은 법선 복원도 곡률도 통째로 튀게 해서, 안 끄면 계단의 **먼 쪽까지** 칠해
+                //       ①이 만든 '근측만' 비대칭이 무너진다(실측: step 층 중앙 2px → 3px).
+                //    ⑵ 계단 모서리의 접힘선은 **실루엣이 이미 그린 그 모서리와 같은 선**이다 — 안 끄면
+                //       2px 실루엣 옆에 2px 접힘선이 나란히 붙어 한 덩어리(3~5px)가 된다. 화면상 파츠가
+                //       선보다 좁은 펫에서 이게 제일 심했다.
+                //    ⚠️ 예전에 이 규칙을 '먼 쪽만'(`nearv`)으로 좁힌 적이 있는데, 근거였던 '1px 세로선'은
+                //       나중에 `TERM_MODE=sil` 로 갈라 보니 **실루엣 항 소행**이었다(오귀인). 실루엣을
+                //       '반경 1 검출 + 1px 팽창'으로 고친 뒤엔 이 양방향 억제가 부작용이 없다.
                 '  float crs = max(step(normalK, 1.0 - dmin), step(creaseK * qc, max(cx, cy)))\n' +
-                '            * (1.0 - step(edgeK * z0, nearv));\n' +
+                '            * (1.0 - step(edgeK * z0, amax));\n' +
                 // 두 항 모두 **중심 화소의 깊이**로만 지평선 컷을 건다(두께와 무관한 순수 컷).
                 '  float edge = max(sil, crs) * step(z0, edgeMaxZ);\n' +
                 '  c = mix(c, vec3(0.0), edge);\n' +
