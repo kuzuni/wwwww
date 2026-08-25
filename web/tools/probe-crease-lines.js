@@ -18,6 +18,11 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 // (K=0.010 87% → K=0.015 26%), **접지선은 실루엣·법선 항이 대부분 그린다** — 임계를 4종으로 쓸어도
 // 69~71% 로 꿈쩍 않는다(실측). 그래서 접지선 기준은 낮게 두되, 수리 전 실측(13%)보다 한참 위로 잡는다.
 const MIN_JAW = 0.60, MIN_HOOF = 0.45;
+// ③ 머리 앞면↔옆면 90° 접힘. 이 자리는 **깊이 계단이 없는 순수 접힘**이라 `normalK`(84°)가
+//    잡아야만 선이 생긴다 — 즉 크리스 항의 존재 증명으로 앞의 둘보다 직접적이다. 표본 위치를
+//    그림에서 찾으므로(음영 계단) 표본이 있는 행은 **정의상 접힘이 있는 행**이고, 따라서 기준을
+//    높게 둔다. 실측 배포값에서 **엄격±2 로 12/12(100%)** 다.
+const MIN_FACE = 0.80;
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
@@ -122,6 +127,40 @@ const MIN_JAW = 0.60, MIN_HOOF = 0.45;
         const hoof = [];
         { const stride = Math.max(1, Math.floor(hoofCols.length / 70)); for (let i = 0; i < hoofCols.length; i += stride) hoof.push(hoofCols[i]); }
 
+        // ③ 영웅 **머리 앞면↔옆면 90° 세로 모서리** — 비평가(2026-08-25)가 "선이 한 화소도 없다"고
+        //    짚은 자리다. 여기는 깊이 계단이 아니라 **순수 90° 접힘**이라 `normalK`(0.9 ≈ 84°)가 반드시
+        //    잡아야 하는 곳이고, 안 잡히면 두께 문제가 아니라 **크리스 항의 구멍**이다.
+        //    🚨 **좌표를 투영해서 찾지 않는다** — 접지선에서 이미 밟은 함정이다(bbox 모서리를 쏘면
+        //       머리에 붙은 다른 파츠가 bbox 를 키워 수 px 어긋난다. 실측: 투영점 기준 ±6 창에서 86%
+        //       인데 ±2 로 조이면 6% 로 떨어졌다 = 선은 근처에 있지만 **그 점 위에는 없다**).
+        //    → 접지선과 같은 방식으로 **그림에서 직접 찾는다**: 아웃라인을 끈 프레임에서 머리 행마다
+        //      가로로 훑어 **밝기 계단이 가장 큰 x**(= 앞면↔옆면 경계)를 잡는다. 두 면은 같은 색인데
+        //      법선이 90° 달라 음영만 갈리므로, 그 계단이 곧 접힘의 화면 위치다.
+        const faceEdge = (() => {
+            if (!hb) return [];
+            const prevM = mg ? mg.visible : false; if (mg) mg.visible = false;
+            for (const k in OFFV) if (u[k]) u[k].value = OFFV[k];     // 아웃라인 끈 프레임
+            const off2 = grab();
+            for (const k in OFFV) if (u[k]) u[k].value = saved[k];
+            if (mg) mg.visible = prevM;
+            const top = proj(new THREE.Vector3(hb.min.x, hb.max.y, hb.max.z));
+            const bot = proj(new THREE.Vector3(hb.min.x, hb.min.y, hb.max.z));
+            const y0 = Math.round(Math.min(top.y, bot.y)), y1 = Math.round(Math.max(top.y, bot.y));
+            const cx = Math.round((top.x + bot.x) / 2);
+            const pts = [];
+            for (let y = y0 + Math.round((y1 - y0) * 0.15); y <= y0 + Math.round((y1 - y0) * 0.85); y += 2) {
+                if (y < 1 || y >= H - 1) continue;
+                let bx = -1, bd = 0;
+                for (let x = Math.max(1, cx - 14); x <= Math.min(W - 2, cx + 14); x++) {
+                    const a = (y * W + x - 1) * 4, b = (y * W + x + 1) * 4;
+                    // 아웃라인이 꺼진 프레임이라 순검정은 없다 — 순수 음영 계단만 남는다
+                    const d = Math.abs(off2[a] - off2[b]) + Math.abs(off2[a + 1] - off2[b + 1]) + Math.abs(off2[a + 2] - off2[b + 2]);
+                    if (d > bd) { bd = d; bx = x; }
+                }
+                if (bx > 0 && bd >= 12) pts.push({ x: bx, y });     // 계단이 너무 약하면 접힘이 아니다
+            }
+            return pts;
+        })();
         const cover = (mask, pts, win) => {
             let hit = 0, seen = 0;
             for (const p of pts) {
@@ -131,6 +170,22 @@ const MIN_JAW = 0.60, MIN_HOOF = 0.45;
                 for (let dy = -win; dy <= win && !ok; dy++) {
                     const y = Math.round(p.y) + dy; if (y < 0 || y >= H) continue;
                     for (let dx = -1; dx <= 1 && !ok; dx++) if (mask[y * W + cx + dx]) ok = true;
+                }
+                if (ok) hit++;
+            }
+            return { hit, seen, cov: seen ? hit / seen : 0 };
+        };
+
+        // 세로선은 **가로로** 훑어야 한다 — `cover` 는 가로선용(세로 ±win)이라 그대로 쓰면 거짓 통과한다.
+        const coverV = (mask, pts, win) => {
+            let hit = 0, seen = 0;
+            for (const p of pts) {
+                const cy = Math.round(p.y); if (cy < 1 || cy >= H - 1) continue;
+                seen++;
+                let ok = false;
+                for (let dx = -win; dx <= win && !ok; dx++) {
+                    const x = Math.round(p.x) + dx; if (x < 0 || x >= W) continue;
+                    for (let dy = -1; dy <= 1 && !ok; dy++) if (mask[(cy + dy) * W + x]) ok = true;
                 }
                 if (ok) hit++;
             }
@@ -160,15 +215,15 @@ const MIN_JAW = 0.60, MIN_HOOF = 0.45;
             };
             const mH = meas(true), mM = meas(false);
             Scene3D.heroG.visible = true; if (mg) mg.visible = true;
-            rows.push({ K, jaw: cover(mH, jaw, 6), hoof: cover(mM, hoof, 6) });
+            rows.push({ K, jaw: cover(mH, jaw, 6), hoof: cover(mM, hoof, 6), face: coverV(mH, faceEdge, 6), face2: coverV(mH, faceEdge, 2) });
         }
-        return { dbg: R_DBG, rows, jawN: jaw.length, hoofN: hoof.length, hasHead: !!hb, shipK: saved.creaseK };
+        return { dbg: R_DBG, rows, jawN: jaw.length, hoofN: hoof.length, faceN: faceEdge.length, hasHead: !!hb, shipK: saved.creaseK };
     }, { KS });
 
     console.log('대역: DPR', DSF, DSF >= 2 ? '(팽창 on · 선 2 버퍼px)' : '(팽창 off · 선 1 버퍼px)');
     console.log('재현성 지문:', JSON.stringify(out.dbg));
-    console.log('턱선 표본열', out.jawN, '· 접지선 표본열', out.hoofN, '· head 본 찾음:', out.hasHead);
-    console.log('creaseK | 영웅 턱↔가슴 열커버 | 탈것 발굽↔지면 열커버');
+    console.log('턱선 표본열', out.jawN, '· 접지선 표본열', out.hoofN, '· 머리 모서리 표본행', out.faceN, '· head 본 찾음:', out.hasHead);
+    console.log('creaseK | 영웅 턱↔가슴 열커버 | 탈것 발굽↔지면 열커버 | 영웅 머리 앞면↔옆면 행커버');
     // 🚨 판정은 **지금 셰이더에 박혀 있는 creaseK**(= 사용자가 실제로 보는 값)로만 한다.
     //    나머지 행은 '임계를 올리면 무엇이 죽는가'를 보여 주는 **참고 스윕**이다 — 그걸 같이
     //    판정하면 스윕을 넓힐 때마다 게이트가 빨개진다.
@@ -177,15 +232,16 @@ const MIN_JAW = 0.60, MIN_HOOF = 0.45;
     for (const r of out.rows) {
         const f = (c) => `${c.hit}/${c.seen} (${(c.cov * 100).toFixed(0)}%)`;
         const isShip = Math.abs(r.K - ship) < 1e-9;
-        console.log(String(r.K).padEnd(7), '|', f(r.jaw).padEnd(19), '|', f(r.hoof), isShip ? '  ← 배포값(판정 대상)' : '');
+        console.log(String(r.K).padEnd(7), '|', f(r.jaw).padEnd(19), '|', f(r.hoof).padEnd(19), '|', (f(r.face) + ' / 엄격±2 ' + f(r.face2)), isShip ? '  ← 배포값(판정 대상)' : '');
         if (!isShip) continue;
         if (r.jaw.cov < MIN_JAW) bad.push(`턱선 ${(r.jaw.cov * 100).toFixed(0)}% < ${MIN_JAW * 100}%`);
+        if (r.face.seen >= 6 && r.face2.cov < MIN_FACE) bad.push(`머리 앞면↔옆면 ${(r.face2.cov * 100).toFixed(0)}% < ${MIN_FACE * 100}% (엄격±2)`);
         if (r.hoof.cov < MIN_HOOF) bad.push(`접지선 ${(r.hoof.cov * 100).toFixed(0)}% < ${MIN_HOOF * 100}%`);
     }
     if (!out.rows.some(r => Math.abs(r.K - ship) < 1e-9)) bad.push('스윕에 배포값(' + ship + ')이 없다 — KS 에 넣을 것');
     console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : '(no console errors)');
     const pass = bad.length === 0 && errors.length === 0;
-    console.log('판정 :', pass ? `PASS (배포값 creaseK=${ship} 에서 턱선·접지선 모두 살아 있다)` : 'FAIL ' + bad.join(' · '));
+    console.log('판정 :', pass ? `PASS (배포값 creaseK=${ship} 에서 턱선·접지선·머리 모서리 전부 살아 있다)` : 'FAIL ' + bad.join(' · '));
     await browser.close();
     process.exit(pass ? 0 : 1);
 })();
