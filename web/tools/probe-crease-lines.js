@@ -21,7 +21,12 @@ const MIN_JAW = 0.60, MIN_HOOF = 0.45;
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
-    const page = await browser.newPage({ viewport: { width: 480, height: 854 }, deviceScaleFactor: 2 });
+    // 🚨 **DPR 대역을 갈아 끼울 수 있어야 한다** (2026-08-25 3D 스트림에서 신설).
+    //    선 두께는 드로잉버퍼 화소 기준이고, `_compMat` 의 `dilate` 는 **DPR 1 에서 팽창을 끈다**.
+    //    즉 DPR 1 은 선이 1 버퍼px 로 얇아지는 **다른 코드 경로**다 — 여기서 선이 죽는지는
+    //    dsf 2 만 재서는 알 수 없다. `DSF=1 node probe-crease-lines.js` 로 그 대역을 직접 잰다.
+    const DSF = +(process.env.DSF || 2);
+    const page = await browser.newPage({ viewport: { width: 480, height: 854 }, deviceScaleFactor: DSF });
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
@@ -159,6 +164,7 @@ const MIN_JAW = 0.60, MIN_HOOF = 0.45;
         return { dbg: R_DBG, rows, jawN: jaw.length, hoofN: hoof.length, hasHead: !!hb, shipK: saved.creaseK };
     }, { KS });
 
+    console.log('대역: DPR', DSF, DSF >= 2 ? '(팽창 on · 선 2 버퍼px)' : '(팽창 off · 선 1 버퍼px)');
     console.log('재현성 지문:', JSON.stringify(out.dbg));
     console.log('턱선 표본열', out.jawN, '· 접지선 표본열', out.hoofN, '· head 본 찾음:', out.hasHead);
     console.log('creaseK | 영웅 턱↔가슴 열커버 | 탈것 발굽↔지면 열커버');
