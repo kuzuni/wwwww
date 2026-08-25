@@ -18,16 +18,42 @@ const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 // 스코프에 살아 있는 것: n0/nL/nR/nU/nD(복원 법선), dmin, qc·qL..q2U, z0·zl..z2u, nearv, sil,
 //                       e0/eL/eR/eU/eD(반경1 실루엣 검출), cx·cy(곡률), edgeK/creaseK/normalK.
 const CANDS = [
-    ['base(현행=띠폭억제)', ''],
-    // 남은 꼬리는 이제 **크리스가 실루엣선에 맞닿는 자리**다(해부: 두께≥3 화소 44개 중 39개가 mixed).
-    // 실루엣은 이미 2px 인데 그 옆에 크리스가 붙으면 합이 3~4px 이 된다 → 붙지 못하게 막는다.
-    ['+실루엣 비접촉(반경1)', 'crs *= 1.0 - max(max(e0, eL), max(max(eR, eU), eD));'],
-    ['+실루엣 비접촉(이웃만)', 'crs *= 1.0 - max(max(eL, eR), max(eU, eD));'],
-    ['+실루엣 비접촉(sil 자체)', 'crs *= 1.0 - sil;'],
-    // 실루엣 검출을 대각까지 넓혀 본 판
-    ['+실루엣 비접촉(반경1)+법선도',
-        'float sn2 = max(max(e0, eL), max(max(eR, eU), eD));\n' +
-        'crs = max(w0 * (1.0 - sn2), step(normalK, 1.0 - dmin) * (1.0 - wN) * (1.0 - sn2)) * (1.0 - step(edgeK * z0, nearv));'],
+    ['base(현행 amax 판)', ''],
+    // 🎯 현안(2026-08-25 `probe-outline-strata` Ⓐ 칸 간 p90): **실루엣은 2px 인데 크리스만 1px** 이다.
+    //    실루엣만 '반경1 검출 + 1px 팽창' 구조라 2px 이 보장되고, `crs` 는 중심 화소에서만 계산돼
+    //    **태생이 1px** 이기 때문이다. → 크리스에도 같은 팽창 구조를 주는 후보들.
+    //    이웃의 곡률·법선에 필요한 탭은 기존 13개 안에 전부 있다(**추가 텍스처 페치 0개**).
+    ['곡률 팽창(깊이 연결 조건)',
+        "float mR = max(abs(2.0 * qR - qc - q2R), abs(2.0 * qR - qDR - qUR));\n" +
+        "float mL = max(abs(2.0 * qL - q2L - qc), abs(2.0 * qL - qDL - qUL));\n" +
+        "float mU = max(abs(2.0 * qU - qUL - qUR), abs(2.0 * qU - qc - q2U));\n" +
+        "float mD = max(abs(2.0 * qD - qDL - qDR), abs(2.0 * qD - q2D - qc));\n" +
+        "float g0 = step(creaseK * qc, max(cx, cy));\n" +
+        "float gN = max(max(step(creaseK * qL, mL) * cL, step(creaseK * qR, mR) * cR),\n" +
+        "              max(step(creaseK * qU, mU) * cU, step(creaseK * qD, mD) * cD));\n" +
+        "crs = max(max(g0, gN), step(normalK, 1.0 - dmin)) * (1.0 - step(edgeK * z0, amax));"],
+    // 법선항까지 같이 팽창(이웃 법선은 n0 와만 견줄 수 있어 근사다 — 이웃의 '바깥쪽' 법선이 없다).
+    ['곡률+법선 팽창',
+        "float nR2 = max(abs(2.0 * qR - qc - q2R), abs(2.0 * qR - qDR - qUR));\n" +
+        "float nL2 = max(abs(2.0 * qL - q2L - qc), abs(2.0 * qL - qDL - qUL));\n" +
+        "float nU2 = max(abs(2.0 * qU - qUL - qUR), abs(2.0 * qU - qc - q2U));\n" +
+        "float nD2 = max(abs(2.0 * qD - qDL - qDR), abs(2.0 * qD - q2D - qc));\n" +
+        "float h0 = max(step(creaseK * qc, max(cx, cy)), step(normalK, 1.0 - dmin));\n" +
+        "float hN = max(max(max(step(creaseK * qL, nL2), step(normalK, 1.0 - dot(nL, n0))) * cL,\n" +
+        "                   max(step(creaseK * qR, nR2), step(normalK, 1.0 - dot(nR, n0))) * cR),\n" +
+        "              max(max(step(creaseK * qU, nU2), step(normalK, 1.0 - dot(nU, n0))) * cU,\n" +
+        "                   max(step(creaseK * qD, nD2), step(normalK, 1.0 - dot(nD, n0))) * cD));\n" +
+        "crs = max(h0, hN) * (1.0 - step(edgeK * z0, amax));"],
+    // 팽창을 깊이 연결 조건 없이(대조군 — 계단을 건너뛰어 먼 쪽까지 칠해지는지 확인용)
+    ['곡률 팽창(연결조건 없음)',
+        "float pR = max(abs(2.0 * qR - qc - q2R), abs(2.0 * qR - qDR - qUR));\n" +
+        "float pL = max(abs(2.0 * qL - q2L - qc), abs(2.0 * qL - qDL - qUL));\n" +
+        "float pU = max(abs(2.0 * qU - qUL - qUR), abs(2.0 * qU - qc - q2U));\n" +
+        "float pD = max(abs(2.0 * qD - qDL - qDR), abs(2.0 * qD - q2D - qc));\n" +
+        "float k0 = step(creaseK * qc, max(cx, cy));\n" +
+        "float kN = max(max(step(creaseK * qL, pL), step(creaseK * qR, pR)),\n" +
+        "              max(step(creaseK * qU, pU), step(creaseK * qD, pD)));\n" +
+        "crs = max(max(k0, kN), step(normalK, 1.0 - dmin)) * (1.0 - step(edgeK * z0, amax));"],
 ];
 
 const SCENE = () => {
