@@ -34,6 +34,11 @@ GitHub MCP → actions_run_trigger
 - ⚠️ 위 '자동으로 간다'는 **아직 한 번도 검증된 적이 없다**: 지금까지의 실행이 **전부
   `workflow_dispatch`** 고 `workflow_run` 이벤트 실행은 **0건**이다. secret 을 넣어도 자동 트리거가
   실제로 뜨는지는 별도로 확인해야 한다.
+  - 📌 **재확인 (2026-08-25 08:06, 3D 스케줄 루틴 — run #20)**: 여전히 그대로다. 총 **20회 실행이
+    전부 `workflow_dispatch`**(`workflow_run` **0건**)고, run #20 잡 로그도 `TOPIC:` 빈 값 →
+    `토픽이 없다(secret 도 파일도) — 알림을 건너뛴다` 였다. **run #20 은 conclusion `success` 지만
+    아무것도 안 보냈다** — 이 항목이 경고하는 '초록불 = 발송됨이 아니다'의 20번째 실측이다.
+    (`NTFY_TOPIC` secret 은 사용자만 넣을 수 있다: Settings → Secrets and variables → Actions.)
   - 📌 **재확인 (2026-08-25 04:10, UI 스케줄 루틴 — run #18)**: 그 뒤로도 안 고쳐졌다. 총 18회 실행이
     여전히 **전부 `workflow_dispatch`**(`workflow_run` 0건)고, 토픽을 비우고 발사한 run #18 잡 로그도
     똑같이 `TOPIC:` 빈 값 → `토픽이 없다(secret 도 파일도) — 알림을 건너뛴다` 였다.
