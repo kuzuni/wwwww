@@ -55,6 +55,12 @@ const runOne = async (browser, label, ua) => {
         Scene3D.anims = [];
         const em = Scene3D.enemyMap.get(951);
         em.g.position.set(e.x + Scene3D.worldX, 0, 0); em.g.userData.landed = true;
+        // 🚨 **애니메이션 위상을 고정한다 — 안 하면 판정이 실행마다 흔들린다.** 로드 뒤
+        //    `waitForTimeout` 동안 rAF 가 몇 프레임 돌았는지가 매번 달라서, 그대로 재면 같은 셰이더로도
+        //    커버리지가 75.9% ↔ 83.3% 로 널뛴다(실측). 마스터 시계 `_clock` 과 리그 시계 `_t` 를 0 으로
+        //    놓고 항상 같은 시간만큼 돌려야 **게이트가 재현 가능**해진다.
+        Scene3D._clock = 0;
+        if (Scene3D.heroRig) Scene3D.heroRig._t = 0;
         step(0.9);
 
         const gl = Scene3D.renderer.domElement;
@@ -63,6 +69,15 @@ const runOne = async (browser, label, ua) => {
         const W = cv.width, H = cv.height;
         R.buf = { w: W, h: H };
         const u = Scene3D._compMat.uniforms;
+        // 🚨 **블룸·비네트를 끄고 잰다.** 엣지 항은 깊이만 보므로 이 둘은 어느 화소가 검게 칠해지는지에
+        //    전혀 관여하지 않는다 — 그런데 마스크 조건이 '켠 프레임이 검정 + 끈 프레임은 아님' 이라,
+        //    비네트가 화면 가장자리를 16 밑으로 눌러 놓으면 **그 자리 선이 마스크에서 통째로 빠지고**
+        //    런이 쪼개져 두께가 낮게 찍힌다(실측: 데스크톱만 한 칸이 1px 로 찍혔고 모바일은 vig=0 이라
+        //    멀쩡했다 — 셰이더가 아니라 판정기의 착시였다).
+        //    ⚠️ strength 는 renderFrame 이 매 프레임 `_bloomStrength` 에서 다시 넣으므로 원본을 0 으로 둔다.
+        if (u.vig) u.vig.value = 0.0;
+        Scene3D._bloomStrength = 0.0;
+        if (u.strength) u.strength.value = 0.0;
 
         // ── 깊이 리드백 재질: 선형 뷰깊이를 R:G 16bit 로 패킹 ──
         //    (컴포짓과 **같은 depthTexture·같은 near/far** 를 쓰므로 셰이더가 본 값과 일치한다.)
@@ -119,17 +134,31 @@ const runOne = async (browser, label, ua) => {
             for (let i = 0, p = 0; i < W * H; i++, p += 4) z[i] = (px[p] + px[p + 1] / 255) / 255 * far;
             return z;
         };
-        const runs = (mask, horiz) => {
-            const r = new Uint16Array(W * H);
-            const A = horiz ? H : W, B = horiz ? W : H;
-            const idx = (a, b) => horiz ? a * W + b : b * W + a;
-            for (let a = 0; a < A; a++) {
+        // 화소를 지나는 런 길이 — 방향 (dx,dy) 로 훑는다.
+        // 🚨 **가로·세로 둘만 보면 자가 거짓말을 한다** (2026-08-25 3D 스트림 실측, 두께 지도로 확정):
+        //    ⓐ 두 선이 각을 이루는 **볼록 코너**는 가로 런도 세로 런도 길어져 `min(h,v)` 이 3~4px 로
+        //       찍히는데 선 자체는 2px 다. ⓑ 반대로 4방향 **최솟값**을 쓰면 비스듬한 선의 **계단 화소**
+        //       에서 한 대각 방향만 런이 1 이라 1px 로 깎인다. 둘 다 지도(`diag-outline-thick.js`)에서
+        //       색이 **코너와 계단에만** 앉는 걸로 확인했다 — 직선 구간은 전부 2px 이었다.
+        //    → 그래서 **네 방향 런 중 '두 번째로 작은 값'** 을 쓴다. 가장 극단인 한 방향만 버리면
+        //      코너 부풀림과 계단 깎임이 **동시에** 잡힌다.
+        const runs = (mask, dx, dy) => {
+            const r = new Uint16Array(W * H), line = [];
+            const walk = (sx, sy) => {
+                line.length = 0;
+                let x = sx, y = sy;
+                while (x >= 0 && x < W && y >= 0 && y < H) { line.push(y * W + x); x += dx; y += dy; }
                 let b = 0;
-                while (b < B) {
-                    if (!mask[idx(a, b)]) { b++; continue; }
-                    const s = b; while (b < B && mask[idx(a, b)]) b++;
-                    for (let i = s; i < b; i++) r[idx(a, i)] = b - s;
+                while (b < line.length) {
+                    if (!mask[line[b]]) { b++; continue; }
+                    const s = b; while (b < line.length && mask[line[b]]) b++;
+                    for (let i = s; i < b; i++) r[line[i]] = b - s;
                 }
+            };
+            for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+                const px = x - dx, py = y - dy;
+                if (px >= 0 && px < W && py >= 0 && py < H) continue;
+                walk(x, y);
             }
             return r;
         };
@@ -163,7 +192,7 @@ const runOne = async (browser, label, ua) => {
             for (let i = 0, p = 0; i < W * H; i++, p += 4) {
                 if (on[p] <= 8 && on[p + 1] <= 8 && on[p + 2] <= 8 && (off[p] > 16 || off[p + 1] > 16 || off[p + 2] > 16)) { mask[i] = 1; n++; }
             }
-            const hr = runs(mask, true), vr = runs(mask, false);
+            const rH = runs(mask, 1, 0), rV = runs(mask, 0, 1), rA = runs(mask, 1, 1), rB = runs(mask, 1, -1);
             // ── 층화: 반경 2 이웃 깊이로 분류 ──
             const strata = { sky: {}, step: {}, crease: {} };
             const cnt = { sky: 0, step: 0, crease: 0 };
@@ -182,7 +211,7 @@ const runOne = async (browser, label, ua) => {
                         }
                     }
                     const cls = sky ? 'sky' : (mx >= STEP_Z ? 'step' : 'crease');
-                    const t = Math.min(hr[i], vr[i]);
+                    const t = [rH[i], rV[i], rA[i], rB[i]].sort((a, b) => a - b)[1];
                     strata[cls][t] = (strata[cls][t] || 0) + 1; cnt[cls]++;
                 }
             }
