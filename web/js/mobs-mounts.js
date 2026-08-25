@@ -381,10 +381,12 @@
               paint: E({ y: 4, inset: 1, white: 0x1b1814, pupil: 0xf4f0e6 }), joint: { axis: 'x', amp: 0.1, f: 0.8 } },
             { box: [1, 5, 1], at: [-2.5, 15, 11], parent: 'head', c: BK },
             { box: [1, 5, 1], at: [2.5, 15, 11], parent: 'head', c: BK },
-            { box: [12, 1, 9], at: [-8, 15, 1], pivot: [-3, 15, 1], c: 0xdfe8f0, mat: WING,
-              tag: 'wing', s: 1, joint: { axis: 'z', amp: 0.5, f: 3 } },
-            { box: [12, 1, 9], at: [8, 15, 1], pivot: [3, 15, 1], c: 0xdfe8f0, mat: WING,
-              tag: 'wing', s: -1, joint: { axis: 'z', amp: 0.5, f: 3, ph: Math.PI } },
+            // 🧊 세운 반투명 날개 — 눕힌 1칸 판은 부감에서 회색 슬래브였다(막날개 공통 처방).
+            //    벌은 날개가 몸보다 작아야 벌로 읽히므로 익룡·드래곤보다 한 단계 작게 잡는다.
+            { box: [2, 9, 9], at: [-6, 16, -1], pivot: [-5, 14, -1], rot: [0, 0, 0.22], c: 0xdfe8f0, mat: WING,
+              tag: 'wing', s: 1, joint: { axis: 'z', amp: 0.42, f: 3 } },
+            { box: [2, 9, 9], at: [6, 16, -1], pivot: [5, 14, -1], rot: [0, 0, -0.22], c: 0xdfe8f0, mat: WING,
+              tag: 'wing', s: -1, joint: { axis: 'z', amp: 0.42, f: 3, ph: Math.PI } },
             { box: [3, 3, 4], at: [0, 6, -10], c: BK },
             { box: [1, 1, 4], at: [0, 5, -13], c: 0xd8d2c6 },
         ].concat(saddle({ w: 9, seat: 14, z: 0, bodyH: 9, bodyY: 8 })) };
@@ -402,10 +404,11 @@
               joint: { axis: 'x', amp: 0.1, f: 0.7 } },
             { box: [1, 4, 1], at: [-2, 20, 14], parent: 'head', c: HORN },
             { box: [1, 4, 1], at: [2, 20, 14], parent: 'head', c: HORN },
-            { box: [12, 2, 11], at: [-8, 16, -2], pivot: [-3, 15, -2], rot: [0, 0, 0.4], c: MEM,
-              paint: [{ c: RED, x: [0, 2] }], tag: 'wing', s: 1, joint: { axis: 'z', amp: 0.4, f: 2 } },
-            { box: [12, 2, 11], at: [8, 16, -2], pivot: [3, 15, -2], rot: [0, 0, -0.4], c: MEM,
-              paint: [{ c: RED, x: [-3, -1] }], tag: 'wing', s: -1, joint: { axis: 'z', amp: 0.4, f: 2, ph: Math.PI } },
+            // 🧊 세운 막날개 — 익룡과 같은 문법(펫 그리핀 [2,8,11] 계보). 눕힌 판은 부감에서 널빤지다.
+            { box: [3, 11, 11], at: [-6, 17, -3], pivot: [-4.5, 14, -3], rot: [0, 0, 0.3], c: MEM,
+              paint: [{ c: RED, y: [0, 2] }], tag: 'wing', s: 1, joint: { axis: 'z', amp: 0.34, f: 2 } },
+            { box: [3, 11, 11], at: [6, 17, -3], pivot: [4.5, 14, -3], rot: [0, 0, -0.3], c: MEM,
+              paint: [{ c: RED, y: [0, 2] }], tag: 'wing', s: -1, joint: { axis: 'z', amp: 0.34, f: 2, ph: Math.PI } },
             { box: [5, 5, 7], at: [0, 8, -11], c: RED, paint: [{ c: BELLY, y: 0 }] },
             T({ box: [3, 3, 8], at: [0, 7.5, -17], c: RED, amp: 0.24, f: 1.4, paint: [{ c: MEM, z: [0, 2] }] }),
         ].concat(saddle({ w: 9, seat: 15, z: -1, bodyH: 11, bodyY: 9 })) };
@@ -433,20 +436,42 @@
     })();
 
     // 익룡 — 얇은 몸 + 큰 막날개 + 뒤로 뻗은 볏(볏이 종 판독을 진다)
+    // 🚨 **수평 널빤지 금지** (mount-riverbond-remake, 2026-08-25). 종전 판은 몸 9×8×20(가는 막대)에
+    //    14×2×9 막을 **거의 수평(z 0.5)** 으로 양쪽에 달아, 3/4 부감 썸네일에서 몸이 막 밑으로 숨고
+    //    타일 전체가 '갈색 널빤지 더미'로 읽혔다(비평가 만장일치 최악 타일). 처방 셋을 같이 건다:
+    //      ⑴ **이면각을 세운다**(z 0.5 → 0.95) — 실루엣에 V 가 생겨 막과 몸이 분리돼 읽힌다.
+    //      ⑵ **뒤로 쓸어(y sweep) 폭을 줄인다**(반폭 14 → 11) — 종전 총폭 37칸이 몸 길이(20)의 두 배라
+    //         '날개가 곧 생물' 이었다. 지금은 총폭 33 → 몸 15 대비 비율이 실제 익룡에 가깝다.
+    //      ⑶ **막을 3칸으로 두껍히고 앞전 손가락뼈를 얹는다** — 2칸 막은 부감에서 종잇장이다.
+    //    ⚠️ 세우는 방향은 **위**다(아래로 내리면 `probe-ride-clear` 가 라이더 허벅지 가림으로 깨진다 —
+    //       이 저장소가 여러 세션 실측으로 확인한 금지 구역).
     (function () {
-        var TN = 0x9a8064, D = 0x6d573f, MEM = 0xc0a184, CREST = 0xd8503a;
+        // 🎨 막을 **몸보다 어둡게** 잡는다(종전 MEM 0xc0a184 는 몸 TN 보다 밝아, vivid+ACES 를 지나면
+        //    둘 다 크림색이 돼 타일 전체가 무채 덩어리로 읽혔다 — 비평가 'beige/muddy' 지적의 실체).
+        var TN = 0x8b7358, D = 0x53412c, MEM = 0x6f5a42, CREST = 0xd8503a, BONE = 0xd9c9a8;
         M['Pterosaur'] = { seat: 14, form: 'fly', harness: 'harness', parts: [
-            { id: 'body', box: [9, 8, 20], at: [0, 9, 0], c: TN, paint: [{ c: D, y: 0 }] },
-            { box: [6, 6, 6], at: [0, 12, 10], c: TN },
-            { id: 'head', box: [5, 5, 12], at: [0, 15, 17], pivot: [0, 13, 12], c: TN, tag: 'head',
-              paint: E({ y: 2, inset: 1, ew: 1, eh: 1, white: 0xf3c14a, pupil: 0x241c17 }).concat([{ c: D, z: [8, 11] }]),
+            // 몸통 — 9×8×20(철사) → 11×10×15(덩어리). 길이를 줄이고 폭·높이를 키운다.
+            // 등에 어두운 줄 + 밝은 배 — 단색 덩어리를 위/아래로 갈라 부피를 읽힌다(거북·공룡과 같은 화법).
+            { id: 'body', box: [11, 10, 15], at: [0, 9, 0], c: TN,
+              paint: [{ c: 0xb9a184, y: [0, 1] }, { c: D, y: 9 }] },
+            { box: [7, 7, 6], at: [0, 12, 9], c: TN, paint: [{ c: D, y: 6 }] },
+            { id: 'head', box: [6, 6, 7], at: [0, 15, 14], pivot: [0, 13, 11], c: TN, tag: 'head',
+              paint: E({ y: 2, inset: 1, ew: 1, eh: 1, white: 0xf3c14a, pupil: 0x241c17 }),
               joint: { axis: 'x', amp: 0.1, f: 0.7 } },
-            { box: [2, 6, 7], at: [0, 19, 12], parent: 'head', c: CREST },
-            { box: [14, 2, 9], at: [-10, 15, 1], pivot: [-3, 14, 1], rot: [0, 0, 0.5], c: MEM,
-              paint: [{ c: D, x: [0, 2] }, { c: D, z: -1 }], tag: 'wing', s: 1, joint: { axis: 'z', amp: 0.42, f: 1.8 } },
-            { box: [14, 2, 9], at: [10, 15, 1], pivot: [3, 14, 1], rot: [0, 0, -0.5], c: MEM,
-              paint: [{ c: D, x: [-3, -1] }, { c: D, z: -1 }], tag: 'wing', s: -1, joint: { axis: 'z', amp: 0.42, f: 1.8, ph: Math.PI } },
-            { box: [3, 3, 8], at: [0, 8, -13], c: TN },
+            { box: [4, 3, 6], at: [0, 14, 19], parent: 'head', c: TN,
+              paint: [{ c: BONE, y: 2 }, { c: D, y: 0 }] },                 // 부리 — 몸색 몸통·각질 윗면·어두운 아래턱
+            { box: [2, 5, 6], at: [0, 19, 10], parent: 'head', c: CREST },  // 볏 — 종 판독의 주역(머리보다 작게)
+            // 🧊 **날개는 세운 판**이다 — 펫 그리핀(`mobs-pets.js` [2,8,11])과 같은 문법.
+            //    가로로 눕힌 판(종전 [14,2,9])은 3/4 부감에서 넓은 면이 카메라를 마주 봐 몸을 덮고
+            //    '널빤지'가 된다. x 로 얇고 y 로 높은 판은 같은 각도에서 **모서리**를 보여 실루엣에
+            //    날개로 읽힌다. z 를 뒤로 물려(−3) 라이더 다리 대역(안장 z −6.5~4.5)의 바깥에 둔다.
+            { id: 'wingL', box: [3, 10, 10], at: [-6, 17, -3], pivot: [-4.5, 14, -3], rot: [0, 0, 0.26], c: MEM,
+              paint: [{ c: D, y: [0, 2] }], tag: 'wing', s: 1, joint: { axis: 'z', amp: 0.3, f: 1.8 } },
+            { parent: 'wingL', box: [3, 2, 10], at: [-6, 22, -3], c: D },    // 앞전 손가락뼈 — 막 위쪽에 뼈대
+            { id: 'wingR', box: [3, 10, 10], at: [6, 17, -3], pivot: [4.5, 14, -3], rot: [0, 0, -0.26], c: MEM,
+              paint: [{ c: D, y: [0, 2] }], tag: 'wing', s: -1, joint: { axis: 'z', amp: 0.3, f: 1.8, ph: Math.PI } },
+            { parent: 'wingR', box: [3, 2, 10], at: [6, 22, -3], c: D },
+            { box: [4, 4, 8], at: [0, 8, -11], c: TN },
         ].concat(saddle({ w: 8, seat: 14, z: -1, bodyH: 9, bodyY: 9 })) };
     })();
 
