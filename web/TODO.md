@@ -406,7 +406,7 @@
 
 ### 🐛 QA 발견 버그
 
-- [ ] **탈것을 소환하는 시드 경로가 `Scene3D` 초기화 전에 들어오면 터진다 (slug: `mount-summon-scene-null`) — 3D 소관. 등재만 (2026-08-25 UI 스트림).**
+- [x] **탈것을 소환하는 시드 경로가 `Scene3D` 초기화 전에 들어오면 터진다 (slug: `mount-summon-scene-null`) — 3D 소관.** (2026-08-25 UI 스트림 등재 → **같은 날 3D 스트림 고침**)
   - **증상**: `TypeError: Cannot read properties of null (reading 'add')` at `scene3d.js:10641`
     (`refreshMount` → `this.scene.add(g)`) ← `mounts.js:250 equip` ← `mounts.js:228 summon`.
   - **재현**: `node tools/probe-main-px.js` 를 반복 실행. **간헐적**이다 — 실측 약 10회 중 3회
@@ -417,6 +417,22 @@
   - **왜 중요한가**: `SC.SEED_SRC` 로 탈것을 태우는 **모든 화면 프로브가 같은 확률로 유령 FAIL** 을 낸다.
     이 저장소가 이미 아는 함정("무거운 프로브를 병렬로 돌리지 말 것")과 **증상이 똑같아 오진하기 쉽다** —
     그쪽은 타임아웃이고 이쪽은 **`refreshMount` 스택이 찍힌다**. 스택으로 갈라볼 것.
+  - ✅ **고침(2026-08-25 3D 스트림)**: `Scene3D.sceneReady()` 를 두고 `refreshMount`·`refreshPets`·
+    `refreshMountFollowers` **셋 다** 첫 줄에서 끊는다. 왜 셋이냐 — 같은 결함이 세 군데에 다 있었다
+    (`refreshPets` 는 `scene.add(g)` 가 9530, `refreshMountFollowers` 는 `scene.remove(fg)` 가 첫 줄).
+    등재된 건 탈것 하나였지만 펫·추종 탈것도 같은 시드 경로로 들어오므로 같이 막았다.
+  - **왜 호출부가 아니라 여기냐**: 호출부(`mounts.js` 195·250·262 · `pets.js` 144·222·259·313 ·
+    `ascension.js` 82·87 · `main.js` 144)는 전부 `typeof Scene3D !== 'undefined'` 로 막고 있는데,
+    `Scene3D` 는 **객체 리터럴이라 스크립트 로드 순간 이미 존재한다** — 그 가드는 애초에 이 틈을
+    못 막는다. 10곳을 고치는 대신 갱신기 쪽에서 한 번 끊는 게 맞는 자리다.
+  - **예외를 던지지 않고 조용히 건너뛴다**: 3D 없이도 게임 로직(소환·장착·승천)이 도는 게 정상이고,
+    빠뜨린 조형은 `init()` 이 끝에서 `refreshPets()`·`refreshMount()` 를 다시 부르므로 그때 통째로
+    복구된다(상태가 어긋난 채 남지 않는다).
+  - **판정기**: `tools/probe-scene-null-guard.js` 신설, `regress.sh` 등재. **양방향으로 잰다** —
+    ① scene=null 중 세 갱신기가 안 던지고 조형도 안 만든다 ② scene 을 되돌리면 탈것 1 + 펫 3 이
+    **실제로 다시 씬에 붙는다**(가드가 정상 경로를 막지 않았다는 음성 대조).
+    🚨 **음성 대조를 반드시 남길 것** — `sceneReady(){return true}` 로 가드를 무력화해 ①이 FAIL 로
+    뒤집히는 것까지 실측했다. 이게 없으면 '항상 건너뛰는' 가드도 통과해 버린다.
 - [x] **좁은 화면(≤360px 폭)에서 펫 이름 줄이 검은 덩어리가 돼 읽히지 않는다 — 키라인이 고정 2px 인데 폰트만 rem 축소된다 (slug: petname-keyline-blob-small)** (2026-08-25 QA 플레이 세션 등재, 고치지 않고 등재만. **비채점**) — **2026-08-25 UI 세션 고침**, 결과는 이 항목 맨 아래 '고침 메모' 참조
   - **재현**: 새 세이브 → 디버그 탭으로 재화 지급 → 소환▸펫에서 알 소환·부화(또는 `S.pets` 에 일반 등급 펫 1마리) → **뷰포트 360×640** 에서 펫 카드를 눌러 **펫 상세 팝업**을 연다. 같은 화법을 쓰는 **펫 업그레이드 팝업**(`UI.openPetUpgrade`)도 같다.
   - **기대**: `[일반] 달팽이` 가 읽힌다(등급 라벨 + 이름 둘 다).

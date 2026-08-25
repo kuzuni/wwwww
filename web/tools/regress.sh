@@ -26,6 +26,7 @@ for p in \
     probe-icon-blockify.js \
     probe-skillfx-timeline.js \
     probe-tools-wait-guard.js \
+    probe-scene-null-guard.js \
     probe-fire-color.js \
     probe-blade-exit.js \
     probe-nova-beat.js \

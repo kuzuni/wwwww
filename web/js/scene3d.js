@@ -115,6 +115,20 @@ const Scene3D = {
         { w: 120, h: 6.0, peaks: 14, z: -25 }, // 원구릉 — 안개에 거의 잠긴 최원경
     ],
     renderer: null, scene: null, camera: null,
+
+    // 🚨 **3D 가 아직 안 섰는데 게임 로직이 조형 갱신을 부르는 판이 있다 — 여기서 끊는다**
+    //    (slug: `mount-summon-scene-null`, 2026-08-25 3D 스트림).
+    //    호출부(`mounts.js`·`pets.js`·`ascension.js`·`main.js`)는 전부 `typeof Scene3D !== 'undefined'`
+    //    로만 막는데, `Scene3D` 는 **객체 리터럴이라 스크립트 로드 순간 이미 존재한다** — 정작
+    //    `scene` 은 `init()` 이 돌기 전까지 null 이다. 그 틈에 소환·장착이 들어오면
+    //    `refreshMount → this.scene.add(g)` 에서 `Cannot read properties of null (reading 'add')` 로
+    //    터진다. 헤드리스에서 WebGL 컨텍스트가 늦게 서는 판에서 실측 10회 중 3회 재현됐고,
+    //    `SC.SEED_SRC` 로 탈것을 태우는 **모든 화면 프로브가 같은 확률로 유령 FAIL** 을 냈다.
+    //    ⚠️ 3D 없이도 게임 로직(소환·장착·승천)은 도는 게 정상이므로 **예외를 던지지 않고 조용히
+    //       건너뛴다.** 빠뜨린 조형은 `init()` 이 끝에서 `refreshPets()`·`refreshMount()` 를 다시
+    //       부르므로 그때 통째로 복구된다 — 상태가 어긋난 채 남지 않는다.
+    sceneReady() { return !!this.scene; },
+
     worldX: 0,               // 플레이어가 오른쪽으로 전진한 누적 거리 (무한 월드)
     lavaGlows: [],           // 용암 발광 데칼 — `ground` 의 자식이라 소품 정리 루프가 못 걷는다(따로 비운다)
     crackGlowSpots: null,    // 균열 위 발광 자리(지면 로컬 x,z) — 악센트 라이트가 매 프레임 여기서 고른다
@@ -9482,6 +9496,7 @@ const Scene3D = {
     },
 
     refreshPets() {
+        if (!this.sceneReady()) return;
         for (const pg of this.petGroups) { this.disposeTree(pg); this.scene.remove(pg); }
         this.petGroups = [];
         // 탈것을 타고 있으면 탈것 풋프린트를 피해 앞 3자리를 넓게 쓰고, 생성 호도 그만큼 밀어낸다
@@ -10515,6 +10530,7 @@ const Scene3D = {
     },
 
     refreshMount() {
+        if (!this.sceneReady()) return;
         if (this.mountGroup) { this.disposeTree(this.mountGroup); this.scene.remove(this.mountGroup); this.mountGroup = null; }
         this.rideY = 0; this.ridePose = null; this.riding = null;
         this.refreshMountFollowers();
@@ -10686,6 +10702,7 @@ const Scene3D = {
     // 타지 않은 나머지 장착 탈것 = 뒤를 따라오는 무리. 탑승 정합(안장 역산)은 필요 없으므로
     // 원래 크기 그대로 두고, 영웅 **뒤쪽** 호에 세워 전투선과 앞줄 펫을 가리지 않게 한다.
     refreshMountFollowers() {
+        if (!this.sceneReady()) return;
         for (const fg of this.mountFollowers) { this.disposeTree(fg); this.scene.remove(fg); }
         this.mountFollowers = [];
         // `S.activeMounts` 는 개체 **인덱스** 배열이다(2026-08-19 인벤 개편). 장착이 1마리로 못박혀
