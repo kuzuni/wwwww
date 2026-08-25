@@ -75,9 +75,12 @@
             { box: [1, 5, 6], at: [-3.5, 8.5, 0], c: W, tag: 'wing', s: 1, joint: { axis: 'z', amp: 0.3, f: 2 } },
             { box: [1, 5, 6], at: [3.5, 8.5, 0], c: W, tag: 'wing', s: -1, joint: { axis: 'z', amp: 0.3, f: 2, ph: Math.PI } },
             T({ box: [5, 5, 2], at: [0, 12, -5], c: W, axis: 'x', amp: 0.1 }),
-            { box: [2, 4, 2], at: [-1.6, 2, 0.5], pivot: [-1.6, 4, 0.5], c: ORG, tag: 'leg', gait: 1,
+            // 다리 4칸 → 5칸. 종전엔 다리 윗면(칸 4)이 몸통 밑면(4.5)에 **반 칸 못 미쳐** 몸에서
+            // 떨어져 있었다(`probe-mob-detached` 실측 0.5칸). 발끝(0)은 그대로 두고 위로만 늘려
+            // 몸통 안으로 물린다 — 피벗(4)은 안 옮겨 걸음 회전축이 그대로다.
+            { box: [2, 5, 2], at: [-1.6, 2.5, 0.5], pivot: [-1.6, 4, 0.5], c: ORG, tag: 'leg', gait: 1,
               joint: { axis: 'x', amp: 0.5, gain: 1.8 } },
-            { box: [2, 4, 2], at: [1.6, 2, 0.5], pivot: [1.6, 4, 0.5], c: ORG, tag: 'leg', gait: -1,
+            { box: [2, 5, 2], at: [1.6, 2.5, 0.5], pivot: [1.6, 4, 0.5], c: ORG, tag: 'leg', gait: -1,
               joint: { axis: 'x', amp: 0.5, ph: Math.PI, gain: 1.8 } },
         ] };
     })();
@@ -194,7 +197,10 @@
         for (var s2 = -1; s2 <= 1; s2 += 2) for (var i = 0; i < 4; i++) {
             var z = 4 - i * 2.6;
             legs.push({ box: [6, 1, 1], at: [s2 * 6.5, 10, z], c: BK });                  // 몸에서 밖으로
-            legs.push({ box: [1, 7, 1], at: [s2 * 9, 5.5, z], pivot: [s2 * 9, 10, z], c: BK,
+            // 무릎 아래 7칸 → 8칸. 종전엔 세로 다리 윗면(칸 9)이 가로 마디 밑면(9.5)에 **반 칸 못
+            // 미쳐** 여덟 다리가 전부 무릎에서 끊겨 있었다(`probe-mob-detached` 실측 0.5칸 × 8).
+            // 발끝(2)은 그대로, 위로만 늘린다(피벗 10 무변경).
+            legs.push({ box: [1, 8, 1], at: [s2 * 9, 6, z], pivot: [s2 * 9, 10, z], c: BK,
                 tag: 'leg', gait: s2 * (i % 2 ? 1 : -1),
                 joint: { axis: 'x', amp: 0.16, ph: i * 1.3, gain: 1.8 } });
         }
