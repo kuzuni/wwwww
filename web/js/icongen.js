@@ -227,6 +227,30 @@ const IconGen = {
         MODE_MAJ: 4,
         EDGE_ONLY: true,
         INK: 8,           // 그 순검정 값 (probe-icon-keyline 의 '거의 검정' 문턱 46 보다 한참 아래)
+        /* 칸 **색**을 정할 때 칸 안을 몇 × 몇으로 재나눠 볼지(최빈색 표본수 = MODE_K²).
+         * 🚨 이 값은 칸 **생존**(=bbox)에는 절대 안 쓴다 — `_cellModes` 주석의 '소스가 둘' 참고.
+         * 6 이면 칸당 36표본이라 최빈색이 안정적이다(4는 18표본에서 동률이 잦아 결이 흔들렸다). */
+        MODE_K: 6,
+        MODE_A: 128,      // 최빈색 집계에 넣을 표본의 최소 알파(이하 = 배경, 색 오염원이라 뺀다)
+        MODE_GRAY: 0.12,  // 이 채도 미만 표본은 색조가 요동치므로 한 통(무채)으로 묶어 명도로만 센다
+        /* 🚨 **키라인 우선권(경계 칸 전용)** — 경계 칸의 이 비율 이상이 잉크(명도 ≤ KEYL)면 최빈
+         * 표결을 제치고 그 칸을 테로 본다. 최빈만 쓰면 **테가 칸보다 얇은 종에서 테가 사라진다**:
+         * 가로로 넓은 종(ASPECT 1.52 → 가로 30칸)은 경계 칸 안 검정 획이 40% 남짓이라 표결로 진다.
+         * 실측: 우선권 없이 최빈만 쓰면 `probe-icon-keyline` 미달이 4 → 8종으로 늘었다.
+         * 1/3 인 이유: 1/2 면 표결과 같아 효과가 없고, 1/4 이면 밝은 획 안쪽까지 검정이 먹어 가는
+         * 글리프(체크·열쇠)가 뭉갠다(둘 다 실측).
+         * ⚠️ **속 칸에는 절대 주지 말 것** — 칸보다 얇은 안쪽 획이 물체째 먹힌다(잉크비 wpn_crossbow
+         * 64→88%). `EDGE_ONLY`/`LFLOOR` 가 속살을 지키는 것과 같은 이유이며 같은 `edge()` 를 공유한다. */
+        INK_WIN: 1 / 3,
+        /* 최빈색을 **안 쓰는** 이름(접두사). 블록화는 그대로 하고 칸 색만 종전 평균으로 둔다.
+         *  · `dg_` — 던전 배너는 아이콘이 아니라 **연속톤 풍경화**다. 최빈은 '한 칸에 두 재질이 걸쳐
+         *    섞이는 것'을 고치는 장치인데 풍경엔 그 재질 경계가 없어 **얻는 게 없고** 하늘 그라디언트만
+         *    얼룩진다. 🚨 게다가 `probe-dungeons-px` 는 카드를 **스크린샷에서 '비흰색 화소가 행의 50%
+         *    초과'인 밴드**로 찾아서, 최빈이 배너 하늘을 밝은 쪽으로 몰면 밴드가 쪼개져 카드 높이·피치가
+         *    4%p 어긋난 것처럼 **오측된다**(실측: 불통과 1건). **레이아웃은 안 변한다** — DOM 실측
+         *    (.dg-info top/height)이 적용 전후 `130.16/37.31 · 252.31/37.31 · 374.47/37.31 ·
+         *    496.63/37.31` 로 같다. ⚠️ 이걸 레이아웃 회귀로 오해해 카드 CSS 를 건드리지 말 것. */
+        MODE_SKIP: ['dg_'],
     },
     /* 블록화에서 빼는 이름(접두사로도 걸린다).
      *  · `avatar_` — 이미 40칸 도트 초상이다. 20칸으로 다시 다지면 얼굴이 뭉갠다.
@@ -284,6 +308,11 @@ const IconGen = {
     _blockCells(name) {
         for (const k in this.BLOCK_CELLS) if (name.indexOf(k) === 0) return this.BLOCK_CELLS[k];
         return 0;
+    },
+    // 블록화는 하되 칸 색만 종전 평균으로 두는 이름인가(위 BLOCK.MODE_SKIP 주석 참고)
+    _modeSkip(name) {
+        for (const p of this.BLOCK.MODE_SKIP) if (String(name).indexOf(p) === 0) return true;
+        return false;
     },
     _blockSkip(name) {
         for (const p of this.BLOCK_SKIP) if (name.indexOf(p) === 0) return true;
@@ -409,8 +438,76 @@ const IconGen = {
     /* 큰 캔버스 → 블록화된 출력 캔버스(W×H). 색조(H)는 절대 안 건드린다 —
      * 코인 주황·젬 진홍처럼 **종을 알아보는 단서가 색조**라, 색조까지 양자화하면 종이 뒤집힌다
      * (탈것 candy 재배정이 폐기된 것과 같은 사유). 제한 팔레트는 S·L 단계로만 낸다. */
-    _blockify(src, W, H, cells) {
+    /* 칸마다 최빈색 하나씩([r,g,b] 또는 null)을 gx*gy 길이 배열로 돌려준다.
+     *
+     * 🚨 **왜 평균이 아니라 최빈인가 — 비평가 2인이 독립으로 같은 자리를 짚었다(2026-08-25 채점).**
+     * 평균은 **한 칸 안에 두 재질이 걸치면 둘을 섞어 버린다.** 연필 흰 획이 검정 키라인과 만나는 칸은
+     * 평균이 중간 회색이 되고, 그 회색이 LSTEP 어딘가에 내려앉아 **획 가장자리를 따라 회색 띠**로
+     * 남는다. 칸 단위로는 평평한 색인데도 눈에는 **안티에일리어싱으로 읽힌다** — 마크 텍스처엔
+     * 없는 화법이다(거긴 칸이 '재질색이거나 아니거나' 둘 중 하나다).
+     * 지적된 종: pencil · key 4종 · check · wpn_scythe · wpn_rapier · research · slot_armor.
+     * 최빈으로 바꾸면 같은 칸이 **흰색이거나 검정이거나**로 떨어져 획과 테가 각각 칸에 딱 맞는다.
+     * (재채점에서 이 지적은 사라졌고 wpn_scythe·wpn_rapier·key 가 '판독된다'로 뒤집혔다.)
+     *
+     * 🚨 **소스가 둘인 이유(되돌리기 전에 읽을 것) — 생존은 평균, 색만 최빈이다.**
+     *   · **칸 생존(=실루엣 bbox)** 은 종전 그대로 `gx×gy` 직접 다운샘플의 **평균 알파 ≥ COVER**.
+     *     여기를 최빈으로 바꾸면 경계 칸이 갈려 **±2%p 비율 계약 51종**이 흔들린다(`xmark` 가 반올림
+     *     하나로 깨졌던 그 계열). 그래서 **손대지 않는다** — 이 변경의 bbox 는 구조적으로 불변이다.
+     *   · **칸 색**만 `MODE_K` 배 해상도에서 최빈으로 뽑는다. 최빈 통이 비면(칸이 COVER 를 겨우 넘겨
+     *     불투명 표본이 하나도 없는 경우) **평균색으로 폴백**한다 — 색이 비는 칸을 만들지 않는다.
+     *
+     * 통(bucket)은 **출력 팔레트와 같은 해상도**로 잡는다(H→HSTEP·S→SSTEP·L→LSTEP). 더 잘게 나누면
+     * 표본이 저마다 다른 통에 들어가 최빈이 무작위 1표가 되고(=평균보다 나쁜 잡음), 더 굵게 나누면
+     * 재질이 합쳐진다. 🚨 무채 표본(s < MODE_GRAY)은 **색조 통을 하나로 묶는다** — 회색은 h 가
+     * 수치적으로 요동쳐(r·g·b 가 1씩만 달라도 h 가 튄다) 같은 회색이 24통으로 흩어지고, 그러면
+     * 검정 키라인이 최빈을 못 이겨 획 가장자리가 다시 회색으로 돌아온다.
+     * 이긴 통 안에서 **알파 가중 평균**을 내 돌려준다(통 중심값을 쓰면 계단 밴딩이 생긴다).
+     *
+     * ⚠️ 최빈은 **한 칸보다 얇은 무늬를 지운다**(평균은 옅은 얼룩으로라도 남긴다). 코인 왕관이 그
+     *    후보였는데 평균 시절에도 48px 에서 사라진다고 채점에서 지적됐다 — 잃을 게 없었고, 대신
+     *    왕관 **속살**은 최빈이라 또렷해졌다. 한 칸보다 얇은 걸 살리려면 `CELLS` 를 올려야 하는데
+     *    그건 나머지 종의 '블록으로 읽히는' 성질을 먼저 죽인다. */
+    _cellModes(src, gx, gy, isEdge) {
+        const B = this.BLOCK, K = B.MODE_K;
+        const mw = gx * K, mh = gy * K;
+        const mc = document.createElement('canvas');
+        mc.width = mw; mc.height = mh;
+        const mx = mc.getContext('2d');
+        mx.imageSmoothingEnabled = true;
+        mx.imageSmoothingQuality = 'high';
+        mx.drawImage(src, 0, 0, mw, mh);
+        const md = mx.getImageData(0, 0, mw, mh).data;
+        const out = new Array(gx * gy).fill(null);
+        const bin = new Map();
+        for (let cy = 0; cy < gy; cy++) for (let cx = 0; cx < gx; cx++) {
+            bin.clear();
+            let tot = 0;
+            const ink = [0, 0, 0, 0];              // 잉크(테) 표본만 따로 — 아래 키라인 우선권에 쓴다
+            for (let sy = 0; sy < K; sy++) for (let sx = 0; sx < K; sx++) {
+                const j = ((cy * K + sy) * mw + (cx * K + sx)) * 4;
+                const a = md[j + 3];
+                if (a < B.MODE_A) continue;        // 배경 표본 — 색을 오염시키므로 뺀다
+                tot++;
+                const [h, s, l] = this._rgb2hsl(md[j], md[j + 1], md[j + 2]);
+                if (l <= B.KEYL) { ink[0] += md[j] * a; ink[1] += md[j + 1] * a; ink[2] += md[j + 2] * a; ink[3] += a; ink.n = (ink.n || 0) + 1; }
+                const hk = s < B.MODE_GRAY ? -1 : Math.round(h * B.HSTEP) % B.HSTEP;
+                const key = hk + ':' + Math.round(s * B.SSTEP) + ':' + Math.round(l * (B.LSTEP - 1));
+                let e = bin.get(key);
+                if (!e) bin.set(key, (e = [0, 0, 0, 0]));
+                e[0] += md[j] * a; e[1] += md[j + 1] * a; e[2] += md[j + 2] * a; e[3] += a;
+                e.n = (e.n || 0) + 1;
+            }
+            // 키라인 우선권 — **경계 칸에만**(`EDGE_ONLY`/`LFLOOR` 와 같은 edge() 를 공유한다).
+            // 속 칸에 주면 칸보다 얇은 안쪽 획을 물체째 검정으로 삼킨다(위 INK_WIN 주석의 실측).
+            let best = (isEdge(cx, cy) && ink.n && tot && ink.n / tot >= B.INK_WIN) ? ink : null;
+            if (!best) for (const e of bin.values()) if (!best || e.n > best.n) best = e;
+            if (best) out[cy * gx + cx] = [Math.round(best[0] / best[3]), Math.round(best[1] / best[3]), Math.round(best[2] / best[3])];
+        }
+        return out;
+    },
+    _blockify(src, W, H, cells, name) {
         const B = this.BLOCK;
+        const useMode = !this._modeSkip(name);
         const gy = cells || B.CELLS, gx = Math.max(1, Math.round(gy * (W / H)));
         const sm = document.createElement('canvas');
         sm.width = gx; sm.height = gy;
@@ -436,6 +533,15 @@ const IconGen = {
             !alive[y * gx + x - 1] || !alive[y * gx + x + 1] ||
             !alive[(y - 1) * gx + x] || !alive[(y + 1) * gx + x]
         );
+        /* 칸 색을 **최빈색으로 교체**한다(알파는 위에서 확정 — 여기서 안 건드린다).
+         * 평균색을 그대로 쓰면 한 칸에 걸친 두 재질이 섞여 획 가장자리에 회색 띠가 남는다
+         * (`_cellModes` 주석의 '가짜 AA'). 피벗·잉크 판정이 이 색을 보므로 **피벗 계산 앞**이어야 한다. */
+        const mode = useMode ? this._cellModes(src, gx, gy, edge) : null;
+        if (mode) for (let c = 0; c < alive.length; c++) {
+            if (!alive[c]) continue;
+            const md = mode[c];
+            if (md) { d[c * 4] = md[0]; d[c * 4 + 1] = md[1]; d[c * 4 + 2] = md[2]; }
+        }
         // 대비 확장의 피벗 = 살아 있는 칸의 평균 명도(위 BLOCK.LCON 주석 참조)
         let lsum = 0, ln = 0;
         for (let c = 0; c < alive.length; c++) {
@@ -496,7 +602,7 @@ const IconGen = {
         const src = ow ? this._outlined(big, ow * S * SS) : big;
         const W = Math.round(S * AR);
         // 블록화(`ui-icon-blockify`)가 축소까지 함께 한다 — 칸 평균이 곧 슈퍼샘플이라 별도 축소 불필요.
-        if (!this._blockSkip(name)) return (this.cache[key] = this._blockify(src, W, S, this._blockCells(name)).toDataURL('image/png'));
+        if (!this._blockSkip(name)) return (this.cache[key] = this._blockify(src, W, S, this._blockCells(name), name).toDataURL('image/png'));
         const cv = document.createElement('canvas');
         cv.height = S;
         cv.width = W;

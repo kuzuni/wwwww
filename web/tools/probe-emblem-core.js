@@ -112,9 +112,18 @@ const FAT = 0.16;       // 음성 대조용 키라인 두께(제품 0.067)
         const fat = await measure(a.LEGACY ? { legacy: true, keyline: a.FAT } : { keyline: a.FAT });
         let eaten = [];
         if (typeof IconGen.BLOCK !== 'undefined') {
+            /* 🚨 대조는 **옛 화법 전부**를 재현해야 한다 — 코어 보존을 만드는 장치가 이제 둘이다.
+             * ⑴ `EDGE_ONLY`(키라인을 경계 칸에만) ⑵ 칸 색 **최빈**(`_cellModes`, 2026-08-25).
+             * ⑴만 끄면 ⑵가 여전히 속살을 지켜 대조가 **10/24 밖에 안 걸리고**(문턱 12), 그러면 이 자는
+             * 스스로를 '고장'으로 판정해 멈춘다(실제로 그렇게 멈췄다). 옛 화법은 평균색이었으므로
+             * `MODE_SKIP` 에 빈 접두사를 넣어 최빈을 통째로 끈다(`indexOf('') === 0` 이라 전 종이 걸린다).
+             * ⚠️ 이건 대조를 무르게 한 게 아니라 **원래 재현하려던 판으로 되돌린 것**이다. */
+            const keepSkip = IconGen.BLOCK.MODE_SKIP;
             IconGen.BLOCK.EDGE_ONLY = false;
+            IconGen.BLOCK.MODE_SKIP = [''];
             eaten = await measure(a.LEGACY ? { legacy: true } : {});
             IconGen.BLOCK.EDGE_ONLY = true;
+            IconGen.BLOCK.MODE_SKIP = keepSkip;
         }
         IconGen._EMBLEM_STEP = BASE; IconGen.cache = {};
         return { prod, fat, eaten };
