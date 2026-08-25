@@ -274,7 +274,20 @@ const Scene3D = {
         // 부팅·첫 연출 구간의 스톨을 그대로 키운다(CPU 프로파일 실측: 제거 후 창의 27%가 getProgramInfoLog).
         // 셰이더가 깨지면 어차피 그리기가 실패해 화면·probe-screens-errors 로 드러난다.
         r.debug.checkShaderErrors = false;
-        r.setPixelRatio(Math.min(2, window.devicePixelRatio));
+        // 🚨 **버퍼 배율은 반드시 정수여야 한다 — 아웃라인 두께가 여기에 걸려 있다** (2026-08-25 3D 스트림).
+        //    선 두께는 '반경1 검출 + (버퍼가 촘촘하면) 1칸 팽창' 이라 **1 또는 2 버퍼px** 의 두 값뿐이고,
+        //    체감 두께는 `버퍼px / 버퍼배율` 이다. 배율이 정수면 두 경우가 정확히 1.00 CSS px 로 만난다:
+        //      배율 1 → 팽창 off → 1 버퍼px = 1.00 CSS px
+        //      배율 2 → 팽창 on  → 2 버퍼px = 1.00 CSS px
+        //    그런데 `min(2, DPR)` 은 **분수 배율을 그대로 통과시킨다**. 윈도 125%/150% 노트북이 그 대역인데,
+        //    배율 1.5 면 팽창이 켜져 2 버퍼px = **1.33 CSS px** 로 33% 두꺼워진다(실측 2026-08-25,
+        //    `shot-outline-uniform.js` 의 DPR 1.5 행). 스위치가 이진인 한 그 사이 배율은 원리상 못 맞춘다 —
+        //    **분수 배율 자체를 없애는 게 유일한 해법이다.**
+        //    `round` 를 쓰는 이유(floor 가 아니라): DPR 1.5 를 1 로 내리면 1.5배 화면에서 업스케일 번짐이
+        //    생긴다. 2 로 올리면 살짝 다운스케일돼 오히려 또렷하다. 1.25 는 1 로 내려간다(필레이트 절약).
+        //    ⚠️ 여기를 `min(2, DPR)` 로 되돌리면 분수 DPR 기기에서 아웃라인 두께 축이 즉시 깨진다.
+        const bufScale = Math.min(2, Math.max(1, Math.round(window.devicePixelRatio || 1)));
+        r.setPixelRatio(bufScale);
         r.shadowMap.enabled = true;               // 그림자 (사실감)
         r.shadowMap.type = THREE.PCFSoftShadowMap;
         r.outputEncoding = THREE.sRGBEncoding;    // 재질 텍스처 색 보정
@@ -17956,7 +17969,8 @@ const Scene3D = {
             r.outputEncoding = THREE.sRGBEncoding;              // 본편(init)과 동일한 색 파이프라인
             r.toneMapping = THREE.ACESFilmicToneMapping;
             r.toneMappingExposure = 1.02;                       // 초원 낮 노출
-            r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+            // 정수 배율만 쓴다 — 이유는 initRenderer 의 `bufScale` 주석 참조(분수 배율은 아웃라인 두께를 깬다).
+            r.setPixelRatio(Math.min(2, Math.max(1, Math.round(window.devicePixelRatio || 1))));
             r.domElement.className = 'pinfo-scene-canvas';
             this._pvR = r;
             if (!this._pvScene) this.previewBuild();
