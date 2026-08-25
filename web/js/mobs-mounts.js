@@ -64,10 +64,14 @@
                 { id: 'muzzle', box: [4, 4, 3], at: [0, o.headY - 2, o.headZ + 5], parent: 'head', c: C,
                   paint: [{ c: 0x2b241d, z: -1, y: [0, 1] }] },                       // 주둥이
                 { id: 'forelock', box: [2, 3, 5], at: [0, o.headY + 4, o.headZ - 1], parent: 'head', c: MANE },
-                { id: 'earL', box: [2, 2, 1], at: [-1.6, o.headY + 4, o.headZ - 2], parent: 'head', c: C },
-                { id: 'earR', box: [2, 2, 1], at: [1.6, o.headY + 4, o.headZ - 2], parent: 'head', c: C },
                 T({ box: [3, 10, 3], at: [0, o.tailY, -(o.len / 2 + 1.5)], c: MANE, axis: 'x', amp: 0.14, f: 1.2 }),
-            ].concat(o.ears || []),
+                // 🚨 `o.ears` 는 기본 귀를 **대체한다**(예전엔 `concat` 이라 **덧붙였다**).
+                //    당나귀가 그 유일한 사용처인데, 긴 귀(`longEar*`, 칸 y 20.5~27.5 · z 7~9) 안에
+                //    기본 짧은 귀(칸 y 22~24 · z 8.5~9.5)가 **통째로 파묻혀** 있었다 — 화면에는 안
+                //    보이면서 파츠 수만 늘리고, `probe-ride-clear` 에서는 **가림 판정에 잡히는**
+                //    죽은 지오메트리였다(`diag-ride-sightline Donkey`: `earL` 이 shinR 레이를 가림).
+            ].concat(o.ears || [{ id: 'earL', box: [2, 2, 1], at: [-1.6, o.headY + 4, o.headZ - 2], parent: 'head', c: C },
+                                 { id: 'earR', box: [2, 2, 1], at: [1.6, o.headY + 4, o.headZ - 2], parent: 'head', c: C }]),
         });
         q.harness = 'bridle';
         q.head = { hw: 5, y: o.headY, z: o.headZ, d: 9 };
@@ -81,8 +85,18 @@
     // 당나귀 — 회갈색 + **긴 귀 두 장**(말과 갈리는 유일한 축이 귀다, 마크도 같다)
     M['Donkey'] = horse({ c: 0x7c7c7c, mane: 0x3a3a3a, len: 21, legH: 8, headY: 19, headZ: 11, neckY: 16, neckH: 8, seat: 16.5, tailY: 13,
         ears: [
-            { id: 'longEarL', box: [2, 7, 2], at: [-2, 24, 8], parent: 'head', c: 0x7c7c7c, paint: [{ c: 0x3a3a3a, y: -1 }] },
-            { id: 'longEarR', box: [2, 7, 2], at: [2, 24, 8], parent: 'head', c: 0x7c7c7c, paint: [{ c: 0x3a3a3a, y: -1 }] },
+            // 🚨 긴 귀는 **밑동을 두개골 안에 두고 끝만 바깥으로 벌린다**(`rot` z ±0.45 ≈ 26°).
+            //    이유는 `probe-ride-clear` — 세로로 긴 귀(칸 y 20.5~27.5)가 카메라→라이더 **먼쪽**
+            //    다리 시선 띠를 세로로 가로질러 thighR 을 100% 가렸다(`diag-ride-sightline Donkey`).
+            //    ⚠️ **y 로는 못 푼다** — 귀 자체가 레이 높이 대역(0.55~0.72)보다 길어서, 올리든
+            //       내리든 어느 레이엔가 걸린다(실측: 7개 레이 전부 걸림). **x 로 빼는 것만 남는다.**
+            //    ⚠️ 평행 이동으로 벌리면(`at` x ±3.5) 밑동 안쪽 면이 두개골 옆면(±2.5)에 **칼날처럼
+            //       스치기만** 해 '떠 있는 조각'이 된다. 그래서 밑동은 ±2.5(두개골 안)에 두고
+            //       `pivot` 을 밑동에 놓아 **끝만** 벌린다 — 당나귀 귀 조형으로도 정답이다.
+            { id: 'longEarL', box: [2, 7, 2], at: [-2.5, 24, 8], pivot: [-2.5, 20.5, 8], rot: [0, 0, 0.20],
+              parent: 'head', c: 0x7c7c7c, paint: [{ c: 0x3a3a3a, y: -1 }] },
+            { id: 'longEarR', box: [2, 7, 2], at: [2.5, 24, 8], pivot: [2.5, 20.5, 8], rot: [0, 0, -0.20],
+              parent: 'head', c: 0x7c7c7c, paint: [{ c: 0x3a3a3a, y: -1 }] },
         ] });
 
     // 알파카 — 마크 라마(작은 몸 + 아주 긴 목 + 네모난 머리 + 짧은 귀)
@@ -164,10 +178,19 @@
                 //   (염소 뿔의 뒤쪽 곡선은 그대로 살린다).
                 // ⚠️ `probe-mount-detached` 는 **최상위 자식만** 훑어서 머리에 딸린 이런 조각을
                 //    구조적으로 못 본다 — 낙타 귀도 같은 방식으로 떠 있었다.
-                { id: 'hornL', box: [1, 4, 1], at: [-1.6, 22, 9], parent: 'head', c: HORN },
-                { id: 'hornR', box: [1, 4, 1], at: [1.6, 22, 9], parent: 'head', c: HORN },
-                { id: 'hornTipL', box: [1, 1, 4], at: [-1.6, 24, 6.5], parent: 'head', c: HORN },
-                { id: 'hornTipR', box: [1, 1, 4], at: [1.6, 24, 6.5], parent: 'head', c: HORN },
+                // 🚨 뿔을 **바깥으로 벌린다**(x ±1.6 → ±2.5). 이유는 `probe-ride-clear` 다 —
+                //    카메라→라이더 **먼쪽** 정강이 시선 띠에 왼쪽 뿔이 앉아 shinR 을 50% 가렸다
+                //    (`diag-ride-sightline Goat`: hornL 레이 y 0.646/0.606 · hornTipL 0.649).
+                //    ⚠️ **y 로는 못 푼다** — 실측상 위로 3.6칸 올리거나 아래로 1.9칸 내려야 빠지는데,
+                //       올리면 뿔 밑동이 두개골(칸 15~21) 위 허공에 뜨고(바로 위 주석이 고친 그 결함),
+                //       내리면 두개골에 파묻혀 종 판독이 죽는다. z 로도 못 푼다 — 뒤로 빼면 레이는
+                //       빠지지만 다시 머리 뒤 허공이다. **남은 축은 x 하나뿐**이고, 벌린 뿔은 염소
+                //       조형으로도 정답이다(마크 염소 뿔은 좌우로 벌어져 뒤로 굽는다).
+                //    두개골 반폭이 3칸이라 ±2.5 는 여전히 머리 위다(뜨지 않는다).
+                { id: 'hornL', box: [1, 4, 1], at: [-2.5, 22, 9], parent: 'head', c: HORN },
+                { id: 'hornR', box: [1, 4, 1], at: [2.5, 22, 9], parent: 'head', c: HORN },
+                { id: 'hornTipL', box: [1, 1, 4], at: [-2.5, 24, 6.5], parent: 'head', c: HORN },
+                { id: 'hornTipR', box: [1, 1, 4], at: [2.5, 24, 6.5], parent: 'head', c: HORN },
                 { id: 'beard', box: [2, 3, 1], at: [0, 15, 8], parent: 'head', c: WOOL },
                 T({ box: [2, 3, 2], at: [0, 13.5, -8], c: C, axis: 'x', amp: 0.2 }),
             ] });
