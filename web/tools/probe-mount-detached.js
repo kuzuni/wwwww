@@ -55,18 +55,31 @@ const ARG = process.argv.slice(2);
             //    복셀 조형에서 **진짜** 뜬 조각의 틈은 최소 한 칸이라 이 여유로 놓치지 않는다
             //    (아래 `--selftest` 가 1.5칸 띄운 파츠를 실제로 잡는지 매 실행 확인한다).
             const EPS = cell * 0.25;
+            // 🚨 **최상위 자식만 보면 안 된다.** 머리·날개처럼 피벗 밑에 달린 파츠(뿔·귀·볏·부리)는
+            //    피벗 서브트리 하나로 뭉뚱그려져 **그 안에서 떠 있어도 안 보인다**. 실제로 그렇게
+            //    숨어 있던 결함 둘을 2026-08-25 에 눈으로 찾았다 — **염소 뿔이 머리 뒤 허공에 2칸 떠
+            //    날아다녔고**(시트에서 명백했다), **낙타 귀도 머리 뒤에 떠 있었다.** 둘 다 이 자가
+            //    전종 초록불을 주는 동안 그대로 있었다.
+            //    → `Mobs.build` 가 찍는 `userData.pid` 를 손잡이로, **표의 파츠 단위**로 훑는다.
+            //    ⚠️ 피벗 Group 과 그 안의 메시가 같은 pid 를 갖는다 — 메시 쪽만 센다(중복 방지).
+            const inSkip = (o) => { for (let p = o; p; p = p.parent) if (skip.has(p)) return true; return false; };
             const parts = [];
-            mesh.children.forEach((ch, i) => {
+            mesh.traverse(o => {
+                if (!o.isMesh || !o.userData.pid || inSkip(o)) return;
+                const b = new THREE.Box3().setFromObject(o);
+                if (!isFinite(b.min.x) || b.isEmpty()) return;
+                parts.push({ i: parts.length, b, size: b.getSize(new THREE.Vector3()).length(),
+                             kind: o.userData.pid + (o.userData.pparent ? '<' + o.userData.pparent : '') });
+            });
+            // pid 가 없는 종(빌더를 안 타는 특수 메시)은 옛 방식으로 되돌아간다 — 못 재는 것보다 낫다.
+            if (!parts.length) mesh.children.forEach((ch, i) => {
                 if (skip.has(ch)) return;
                 const b = new THREE.Box3().setFromObject(ch);
                 if (!isFinite(b.min.x) || b.isEmpty()) return;
-                // 어떤 파츠인지 이름표를 같이 남긴다 — bbox 좌표만 주면 다음 세션이 코드에서 그걸
-                // 되찾는 데만 한나절이 든다(1판에서 실제로 그랬다). 지오메트리 종류 + 정점 수면
-                // `sp/bx/cy/cn/tube` 중 무엇으로 그린 것인지 대체로 특정된다.
                 const kinds = [];
                 ch.traverse(o => { if (o.geometry) kinds.push(o.geometry.type.replace('Geometry', '')); });
                 parts.push({ i, b, size: b.getSize(new THREE.Vector3()).length(),
-                             kind: kinds.slice(0, 3).join('+') + (kinds.length > 3 ? '…' + kinds.length : '') });
+                             kind: '#' + i + ' ' + kinds.slice(0, 3).join('+') + (kinds.length > 3 ? '…' + kinds.length : '') });
             });
             const loose = [];
             for (const p of parts) {

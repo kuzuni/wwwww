@@ -93,8 +93,12 @@
             face: E({ y: 3, inset: 1, ew: 1, eh: 1 }).concat([{ c: 0x3c332a, x: [1, 3], y: [0, 1], z: -1 }]),
             extra: [
                 { id: 'neck', box: [5, 10, 5], at: [0, 19, 5], c: C },
-                { id: 'earL', box: [2, 3, 1], at: [-1.6, 27, 3], parent: 'head', c: C },
-                { id: 'earR', box: [2, 3, 1], at: [1.6, 27, 3], parent: 'head', c: C },
+                // 귀 — z 3 → 9. 종전엔 머리(칸 z 6.5~12.5) **뒤로 3칸** 나가 있었고 밑의 목(y 14~24)
+                // 과도 1.5칸 떠서 **아무 데도 안 붙은 조각**이었다(깊이 훑기로 바꾼 `probe-mount-detached`
+                // 가 빈틈 1.2칸으로 잡았다 — 최상위 자식만 보던 옛 판은 이걸 구조적으로 못 봤다).
+                // 낙타 귀·염소 뿔과 완전히 같은 결함이다.
+                { id: 'earL', box: [2, 3, 1], at: [-1.6, 27, 9], parent: 'head', c: C },
+                { id: 'earR', box: [2, 3, 1], at: [1.6, 27, 9], parent: 'head', c: C },
                 T({ box: [3, 4, 2], at: [0, 15, -7.5], c: C, axis: 'x', amp: 0.2 }),
             ] });
         q.harness = 'bridle'; q.head = { hw: 5, y: 24, z: 8.5, d: 6 };
@@ -153,10 +157,17 @@
             face: E({ y: 3, inset: 1, ew: 1, eh: 1 }).concat([{ c: 0x3c332a, x: [2, 3], y: 0, z: -1 }]),
             extra: [
                 { id: 'neck', box: [4, 5, 4], at: [0, 15.5, 6], c: C },
-                { id: 'hornL', box: [1, 4, 1], at: [-1.6, 22, 4], parent: 'head', c: HORN },
-                { id: 'hornR', box: [1, 4, 1], at: [1.6, 22, 4], parent: 'head', c: HORN },
-                { id: 'hornTipL', box: [1, 1, 4], at: [-1.6, 24, 1.5], parent: 'head', c: HORN },
-                { id: 'hornTipR', box: [1, 1, 4], at: [1.6, 24, 1.5], parent: 'head', c: HORN },
+                // 🚨 뿔이 **머리에서 떨어져 공중에 떠 있었다**(2026-08-25 육안+실측). 머리는 칸 z 7~14
+                // 인데 뿔대가 z 3.5~4.5, 뿔끝이 z −0.5~3.5 라 **머리 뒤 허공**에 있었고, 밑의 목
+                // (y 13~18)과도 2칸 떠 있었다. 시트에서 뿔 두 개가 몸 위에 따로 날아다니는 게 보인다.
+                // → 뿔대를 두개골 위(z 9)로 옮기고, 뒤로 쓸린 뿔끝은 그 뿔대에 맞물리게 z 6.5 로 당긴다
+                //   (염소 뿔의 뒤쪽 곡선은 그대로 살린다).
+                // ⚠️ `probe-mount-detached` 는 **최상위 자식만** 훑어서 머리에 딸린 이런 조각을
+                //    구조적으로 못 본다 — 낙타 귀도 같은 방식으로 떠 있었다.
+                { id: 'hornL', box: [1, 4, 1], at: [-1.6, 22, 9], parent: 'head', c: HORN },
+                { id: 'hornR', box: [1, 4, 1], at: [1.6, 22, 9], parent: 'head', c: HORN },
+                { id: 'hornTipL', box: [1, 1, 4], at: [-1.6, 24, 6.5], parent: 'head', c: HORN },
+                { id: 'hornTipR', box: [1, 1, 4], at: [1.6, 24, 6.5], parent: 'head', c: HORN },
                 { id: 'beard', box: [2, 3, 1], at: [0, 15, 8], parent: 'head', c: WOOL },
                 T({ box: [2, 3, 2], at: [0, 13.5, -8], c: C, axis: 'x', amp: 0.2 }),
             ] });
