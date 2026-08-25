@@ -221,10 +221,10 @@ const IconGen = {
      *    높이 비 −2.62%p 로 게이트를 깬다. **알파 문턱(COVER)이나 키라인 문턱(KEYL)으로는 못 고친다**
      *    (0.28~0.46 · 0.16~0.26 전 구간에서 34×34 로 같았다 — 반올림이지 문턱이 아니다).
      *    ⚠️ 그렇다고 원본 좌표(WX·WY)를 키워 보정하지 말 것 — 조형이 격자 칸수에 종속돼 `CELLS` 를
-     *    건드리는 순간 조용히 깨진다. 애초에 이 글리프는 **곧은 대각 두 획 + 검정 테**라 블록 언어와
-     *    이미 같은 말을 한다(17px 로 표시되면 블록화 전후가 눈으로 구분되지 않는다) — 잃는 게 없다.
-     *    다시 넣으려면 격자를 이 계약이 표현되는 칸수(세로 초과 11% 를 담으려면 최소 40칸급)로
-     *    올려야 하는데, 그러면 나머지 131종의 '블록으로 읽히는' 성질이 먼저 죽는다.
+     *    건드리는 순간 조용히 깨진다.
+     *    ✅ **해결됨(2026-08-25 라운드4) — `BLOCK_CELLS.xmark = 40` 으로 돌아왔다.** 위 문단이
+     *    "40칸급으로 올리면 나머지 131종이 먼저 죽는다"고 적은 건 `CELLS` 를 **전역으로** 올리는
+     *    경우고, 종별 override 는 그 131종을 안 건드린다. 아래 `BLOCK_CELLS` 주석 참조.
      * 🚨 `dg_`(던전 배너)는 여기서 **뺐다**(2026-08-25 라운드2). '아이콘이 아니라 302px 일러스트'라
      *    제외했는데, 블라인드 비평가 2인이 라운드1에서 **둘 다 1순위 감점**으로 지목했다 — 같은 UI 에
      *    섞여 나오는데 혼자 그라디언트 하늘을 깔고 있어 "스크린샷처럼 튄다". 칸수는 `gx = CELLS·(W/H)`
@@ -244,8 +244,31 @@ const IconGen = {
      *    150종의 '블록으로 읽히는' 성질이 죽는다. 지금은 **이미 판정기가 있는 쪽(egg-shade)을
      *    살리고** 블록화를 뺐다 — 블라인드 비평가들이 3라운드 내내 알을 "에어브러시"로 지목했으므로
      *    **사용자가 '알도 네모로'라고 정하면** 그때 `probe-egg-shade` 를 폐기하고 알을 면 분할로
-     *    다시 그려야 한다(TODO 의 `ui-icon-blockify` 블록에 이 갈림길을 적어 뒀다). */
-    BLOCK_SKIP: ['avatar_', 'xmark', 'egg'],
+     *    다시 그려야 한다(TODO 의 `ui-icon-blockify` 블록에 이 갈림길을 적어 뒀다).
+     *    🔬 **음성 결과 — `xmark` 처럼 '칸만 잘게'로는 안 풀린다(2026-08-25 라운드4에서 실제로 해 봄).**
+     *    알을 `BLOCK_CELLS 40` + LSTEP 9 + 키라인 끔 + 명도 바닥 0.17 로 블록화하니 `probe-egg-shade`
+     *    는 **6등급 중 5등급까지 통과**했다(터미네이터 89~101, 게이트 60 — 크러시도 0.0%.
+     *    남은 건 신화 #aa1cff 2.5% 뿐이고 이건 채도 높은 보라라 HSL 바닥이 루마 바닥이 아니어서다).
+     *    **그런데 그림은 지적을 하나도 안 닫는다** — 확대해 보면 여전히 매끈한 구 램프 + 드롭섀도이고,
+     *    바뀐 건 안티에일리어싱이 사라진 것뿐이다. 즉 상수로는 못 푼다: 비평가가 요구하는 건
+     *    '칸 경계'가 아니라 **면 분할**이고, 그건 `draw.egg` 를 다시 그려야 나온다.
+     *    👉 다음 세션은 이 실험을 되풀이하지 말 것. 갈림길은 그대로 사용자 결정 대기다. */
+    BLOCK_SKIP: ['avatar_', 'egg'],
+    /* 🚨 **격자만 더 잘게 주면 되는 종** — 제외(BLOCK_SKIP)와 다르다. 제외는 화법을 통째로 빼서
+     *    그 종만 시트에서 '에어브러시 이탈자'로 튀는데(블라인드 비평가 라운드4 A 가 `xmark` 를
+     *    최악 5종에 올렸다: "모서리가 둥글게 말린 벡터 X … 계단이 단 한 칸도 안 나온다"),
+     *    **계약이 요구하는 건 화법을 빼는 게 아니라 칸을 잘게 하는 것**이었다.
+     *  · `xmark` 20칸 → **40칸**: 흰 속살이 캔버스의 0.505 × 0.573 이고 그 세로 초과 11% 를
+     *    `probe-xmark-dom` 이 ±2%p 로 문다. 20칸에서는 10.1 과 11.5 가 **둘 다 10칸으로** 반올림돼
+     *    그 11% 가 통째로 지워졌다(34×38 → 34×34). 40칸이면 20.2 → 20칸 · 22.9 → 23칸이라
+     *    비가 1:1.15 로 남는다(계약 1:1.135 대비 폭 −0.5%p · 높이 +0.2%p = 여유 충분).
+     *    ⚠️ 앞 세션 주석이 "격자를 40칸급으로 올리면 나머지 131종의 블록감이 죽는다"고 적은 건
+     *       `CELLS` 를 **전역으로** 올리는 경우다 — 종별 override 는 그 131종을 안 건드린다. */
+    BLOCK_CELLS: { xmark: 40 },
+    _blockCells(name) {
+        for (const k in this.BLOCK_CELLS) if (name.indexOf(k) === 0) return this.BLOCK_CELLS[k];
+        return 0;
+    },
     _blockSkip(name) {
         for (const p of this.BLOCK_SKIP) if (name.indexOf(p) === 0) return true;
         return false;
@@ -350,9 +373,9 @@ const IconGen = {
     /* 큰 캔버스 → 블록화된 출력 캔버스(W×H). 색조(H)는 절대 안 건드린다 —
      * 코인 주황·젬 진홍처럼 **종을 알아보는 단서가 색조**라, 색조까지 양자화하면 종이 뒤집힌다
      * (탈것 candy 재배정이 폐기된 것과 같은 사유). 제한 팔레트는 S·L 단계로만 낸다. */
-    _blockify(src, W, H) {
+    _blockify(src, W, H, cells) {
         const B = this.BLOCK;
-        const gy = B.CELLS, gx = Math.max(1, Math.round(B.CELLS * (W / H)));
+        const gy = cells || B.CELLS, gx = Math.max(1, Math.round(gy * (W / H)));
         const sm = document.createElement('canvas');
         sm.width = gx; sm.height = gy;
         const sc = sm.getContext('2d');
@@ -437,7 +460,7 @@ const IconGen = {
         const src = ow ? this._outlined(big, ow * S * SS) : big;
         const W = Math.round(S * AR);
         // 블록화(`ui-icon-blockify`)가 축소까지 함께 한다 — 칸 평균이 곧 슈퍼샘플이라 별도 축소 불필요.
-        if (!this._blockSkip(name)) return (this.cache[key] = this._blockify(src, W, S).toDataURL('image/png'));
+        if (!this._blockSkip(name)) return (this.cache[key] = this._blockify(src, W, S, this._blockCells(name)).toDataURL('image/png'));
         const cv = document.createElement('canvas');
         cv.height = S;
         cv.width = W;
