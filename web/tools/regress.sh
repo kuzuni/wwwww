@@ -23,6 +23,7 @@ for p in \
     probe-vox-plate.js \
     probe-hero-tris.js \
     probe-icon-cross-screen.js \
+    probe-icon-blockify.js \
     probe-skillfx-timeline.js \
     probe-tools-wait-guard.js \
     probe-fire-color.js \

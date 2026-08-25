@@ -116,6 +116,136 @@ const IconGen = {
         oc.drawImage(big, 0, 0);
         return out;
     },
+
+    /* ── 마인크래프트 블록 화법 (slug `ui-icon-blockify`, 사용자 지시) ────────────────────
+     *
+     * 사용자 원문 요구: 게임 전반 UI 아이콘을 **네모네모(마크/픽셀 블록) 느낌**으로 —
+     * 굵은 각진 외곽 · 제한 팔레트 · 픽셀 블록.
+     *
+     * 🚨 **왜 150종을 한 종씩 다시 그리지 않고 출력 직전 한 곳에서 바꾸는가.**
+     *   ⓐ `draw.*` 는 150종이 넘고, 종마다 실루엣 좌표가 원본 스크린샷 비율에 맞춰져 있다
+     *      (`probe-cell-icon-size`·`probe-icon-cross-screen`·`probe-league-emblem` 이 그 비율을
+     *      ±2%p 로 물고 있다). 한 종씩 다시 그리면 **그 비율을 150번 다시 맞춰야 하고**, 이 저장소가
+     *      반복해 밟은 함정("벌렸더니 다른 게 어긋난다")을 150번 다시 밟는다.
+     *   ⓑ 반대로 **박스 다운샘플 → 칸 스냅**은 실루엣의 무게중심·bbox 를 보존한다(칸 살아남는 기준을
+     *      평균 알파 0.5 근처로 잡으면 경계가 반 칸 안쪽/바깥쪽으로만 흔들린다). 즉 **비율 계약을
+     *      깨지 않고** 화법만 갈아탄다.
+     *   ⓒ 새 아이콘이 나중에 추가돼도 이 한 곳을 지나므로 **화법이 저절로 통일**된다. 종별로 다시
+     *      그리는 방식은 새 아이콘이 들어올 때마다 화법이 갈린다(그게 재화 8종이 혼자 다른 게임처럼
+     *      보였던 `OUTLINE` 표의 사연이다).
+     *
+     * 파이프라인: 큰 캔버스(슈퍼샘플)로 평소대로 그린다 → **CELLS 칸 격자로 박스 다운샘플**
+     * (칸마다 평균색+평균알파) → 칸 단위로 ⑴알파 문턱 ⑵제한 팔레트 스냅 ⑶칸별 명도 흔들기
+     * → **최근접 확대**로 출력 해상도에 되박는다. 확대가 최근접이라 칸 경계가 각지게 남는다.
+     *
+     * 🚨 **굵은 각진 외곽은 새로 두르지 않는다 — 아이콘이 이미 가진 검정 키라인을 한 칸으로 굵힌다.**
+     *    바깥으로 한 칸 부풀리면 실루엣이 칸 하나(=1/16 ≈ 6%)씩 커져 위 ±2%p 계약을 그 자리에서 깬다.
+     *    대신 다운샘플에서 어둡게 내려앉은 경계 칸을 `KEYL` 이하에서 **순검정으로 못박아** 두께가
+     *    칸에 딱 맞는 각진 테를 만든다. 테가 원래 없던 종(알 — 사용자 지시 `outline-halve-egg-none`
+     *    으로 일부러 뺐다)은 여기서도 안 생긴다: **기존 종별 결정을 뒤집지 않는다.**
+     *
+     * ⚠️ CELLS 는 SIZE(128)의 약수여야 한다 — 128/16 = 8px/칸이라 칸이 전부 같은 굵기로 떨어진다.
+     *    약수가 아니면 칸마다 7px/8px 로 널뛰어(아바타 도트가 겪은 그 문제) 격자가 흔들려 보인다. */
+    BLOCK: {
+        /* 세로 한 변의 블록 칸 수. 마크 아이템 텍스처는 16 이지만 **16 은 이 저장소에서 못 쓴다** —
+         * 실측(2026-08-25): 코인 안의 왕관이 칸 3개짜리 검정 덩어리 셋으로 뭉쳐 **호박 얼굴**로 읽히고
+         * 티켓의 별·점선이 통째로 사라져 파란 물고기가 됐다. 마크 텍스처는 애초에 16칸에 맞춰 그린
+         * 그림이지만 이 150종은 매끈한 화법으로 그려 둔 그림이라, 16칸으로 다지면 **종 판독 단서가
+         * 먼저 죽는다**. 20 이 '블록으로 읽히는 최소 칸'과 '왕관·별이 살아남는 최소 칸'이 만나는 점이다. */
+        CELLS: 20,
+        PX: 8,            // 출력 PNG 의 칸당 픽셀. 정수라야 칸이 전부 같은 굵기로 떨어진다(아바타 도트의 교훈)
+        COVER: 0.46,      // 칸이 살아남는 최소 평균 알파. 0.5 근처라 bbox 가 반 칸 넘게 안 움직인다
+        /* 색조 단계 수. 15°(=360/24) 각인데, **종 판독을 지키면서 팔레트를 접는 최대치**다:
+         * 코인 주황 32° → 30° · 젬 진홍 345° → 345° 처럼 눈에 안 보이는 이동만 준다.
+         * ⚠️ 더 거칠게(12단계=30°) 접지 말 것 — 주황이 노랑으로 넘어가 종이 뒤집힌다.
+         * 이게 없으면 색이 많은 종(티켓)이 400칸에서 85색까지 벌어져 '제한 팔레트'가 말뿐이 된다. */
+        HSTEP: 24,
+        SSTEP: 4,         // 채도 단계 수 (제한 팔레트)
+        SLIFT: 1.14,      // 채도 리프트 — 칸 평균이 채도를 깎으므로 되올린다(마크 텍스처는 쨍하다)
+        LSTEP: 7,         // 명도 단계 수 — 이게 '제한 팔레트'의 몸통이다(한 재질당 3~4톤)
+        /* 칸별 명도 흔들기. 단계 폭(1/6)보다 작아 **단계 경계에 걸친 칸만** ±1단계로 튄다 = 마크 결.
+         * ⚠️ 0.05 는 과했다 — 태엽·티켓처럼 명도 그라디언트가 넓은 종에서 소금후추 잡티가 됐다. */
+        JITTER: 0.03,
+        /* 흔들기를 **채도에 비례**해 준다. 무채 칸(해머 머리·태엽 쇠)은 흔들면 곧장 소금후추 잡티로
+         * 읽혀 '흙 묻은 덩어리'가 된다(실측: 태엽이 회색 뭉치로 떴다) — 반면 채색 칸은 흔들어야
+         * 마크 텍스처의 결이 난다. 무채는 JITTER 의 35% 만 받아 **깨끗한 명도 띠**로 남는다. */
+        JITTER_GRAY: 0.35,
+        /* 명도 대비 확장(0.5 중심). 칸 평균은 대비를 깎는데 마크 텍스처는 톤이 확 갈린다 —
+         * 제한 팔레트가 '뿌연 중간톤 뭉치'가 아니라 '몇 개의 또렷한 톤'으로 읽히게 하는 노브다. */
+        LCON: 1.12,
+        KEYL: 0.26,       // 이 명도 이하 칸 = 키라인으로 보고 순검정으로 못박는다
+        INK: 8,           // 그 순검정 값 (probe-icon-keyline 의 '거의 검정' 문턱 46 보다 한참 아래)
+    },
+    /* 블록화에서 빼는 이름 접두사.
+     *  · `avatar_` — 이미 40칸 도트 초상이다. 16칸으로 다시 다지면 얼굴이 뭉갠다.
+     *  · `dg_`     — 던전 배너는 아이콘이 아니라 302px 폭 일러스트다(굽는 해상도도 200). */
+    BLOCK_SKIP: ['avatar_', 'dg_'],
+    _blockSkip(name) {
+        for (const p of this.BLOCK_SKIP) if (name.indexOf(p) === 0) return true;
+        return false;
+    },
+    _rgb2hsl(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+        if (!d) return [0, 0, l];
+        const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+        let h;
+        if (mx === r) h = ((g - b) / d + (g < b ? 6 : 0));
+        else if (mx === g) h = (b - r) / d + 2;
+        else h = (r - g) / d + 4;
+        return [h / 6, s, l];
+    },
+    _hsl2rgb(h, s, l) {
+        if (!s) { const v = Math.round(l * 255); return [v, v, v]; }
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+        const ch = (t) => {
+            if (t < 0) t += 1; if (t > 1) t -= 1;
+            if (t < 1 / 6) return p + (q - p) * 6 * t;
+            if (t < 1 / 2) return q;
+            if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+            return p;
+        };
+        return [Math.round(ch(h + 1 / 3) * 255), Math.round(ch(h) * 255), Math.round(ch(h - 1 / 3) * 255)];
+    },
+    /* 큰 캔버스 → 블록화된 출력 캔버스(W×H). 색조(H)는 절대 안 건드린다 —
+     * 코인 주황·젬 진홍처럼 **종을 알아보는 단서가 색조**라, 색조까지 양자화하면 종이 뒤집힌다
+     * (탈것 candy 재배정이 폐기된 것과 같은 사유). 제한 팔레트는 S·L 단계로만 낸다. */
+    _blockify(src, W, H) {
+        const B = this.BLOCK;
+        const gy = B.CELLS, gx = Math.max(1, Math.round(B.CELLS * (W / H)));
+        const sm = document.createElement('canvas');
+        sm.width = gx; sm.height = gy;
+        const sc = sm.getContext('2d');
+        sc.imageSmoothingEnabled = true;
+        sc.imageSmoothingQuality = 'high';
+        sc.drawImage(src, 0, 0, gx, gy);           // 박스 다운샘플 = 칸마다 평균색·평균알파
+        const im = sc.getImageData(0, 0, gx, gy), d = im.data;
+        for (let y = 0; y < gy; y++) for (let x = 0; x < gx; x++) {
+            const i = (y * gx + x) * 4;
+            if (d[i + 3] / 255 < B.COVER) { d[i + 3] = 0; continue; }
+            d[i + 3] = 255;                        // 반투명 없음 = 각진 칸 경계
+            let [h, s, l] = this._rgb2hsl(d[i], d[i + 1], d[i + 2]);
+            // 칸별 결정적 흔들기(같은 아이콘은 항상 같은 결) — 단계 경계 근처 칸만 ±1단계로 튄다
+            const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+            const amp = B.JITTER * (B.JITTER_GRAY + (1 - B.JITTER_GRAY) * Math.min(1, s));
+            l = 0.5 + (l - 0.5) * B.LCON + ((n - Math.floor(n)) - 0.5) * 2 * amp;
+            s = Math.min(1, Math.round(Math.min(1, s * B.SLIFT) * B.SSTEP) / B.SSTEP);
+            l = Math.min(1, Math.max(0, Math.round(l * (B.LSTEP - 1)) / (B.LSTEP - 1)));
+            if (l <= B.KEYL) { d[i] = d[i + 1] = d[i + 2] = B.INK; continue; }
+            const rgb = this._hsl2rgb(Math.round(h * B.HSTEP) / B.HSTEP, s, l);
+            d[i] = rgb[0]; d[i + 1] = rgb[1]; d[i + 2] = rgb[2];
+        }
+        sc.putImageData(im, 0, 0);
+        /* 출력 해상도는 **칸수 × PX** 로 새로 잡는다 — 원래 굽기 크기(S)를 쓰면 S 가 칸수의 배수가
+         * 아닐 때(예: 128/20 = 6.4) 칸마다 6px/7px 로 널뛴다. CSS 는 `background-size:contain` 이라
+         * PNG 픽셀 크기가 바뀌어도 표시 크기는 그대로고, 종횡비만 지키면 된다. */
+        const cv = document.createElement('canvas');
+        cv.width = gx * B.PX; cv.height = gy * B.PX;
+        const ctx = cv.getContext('2d');
+        ctx.imageSmoothingEnabled = false;         // 최근접 확대라야 칸이 각지게 선다
+        ctx.drawImage(sm, 0, 0, cv.width, cv.height);
+        return cv;
+    },
     cache: {},
     _classes: {},
     _styleEl: null,
@@ -137,9 +267,12 @@ const IconGen = {
         try { fn.call(this, bctx, S * SS, opt || {}); } catch (e) { console.warn('[IconGen] draw fail', name, e); }
         const ow = this._outlineOf(name);
         const src = ow ? this._outlined(big, ow * S * SS) : big;
+        const W = Math.round(S * AR);
+        // 블록화(`ui-icon-blockify`)가 축소까지 함께 한다 — 칸 평균이 곧 슈퍼샘플이라 별도 축소 불필요.
+        if (!this._blockSkip(name)) return (this.cache[key] = this._blockify(src, W, S).toDataURL('image/png'));
         const cv = document.createElement('canvas');
         cv.height = S;
-        cv.width = Math.round(S * AR);
+        cv.width = W;
         const ctx = cv.getContext('2d');
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
