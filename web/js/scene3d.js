@@ -521,9 +521,19 @@ const Scene3D = {
     // CDN 금지 제약으로 EffectComposer 없이 r128 코어만으로 구현 (비평가 6.9 권고 1순위 — 전 샷 공통 +α).
     // 모바일은 풀스크린 3패스 비용이 커서 비활성(그림자 해상도와 동일한 UA 분기).
     initPost() {
-        if (!this.renderer) { this.postOn = false; return; }              // GL 생성 실패 기기
-        if (/Mobi|Android/i.test(navigator.userAgent)) { this.postOn = false; return; }
-        this.postOn = true;
+        if (!this.renderer) { this.postOn = false; this.postEdge = false; return; }   // GL 생성 실패 기기
+        // 🖊️ **두 스위치로 갈린다**(uniform-outline-everywhere, 2026-08-25):
+        //   `postOn`   = 블룸(브라이트패스 + 왕복 블러 4패스) + 비네트 — 비용이 커서 데스크톱 한정.
+        //   `postEdge` = 깊이-엣지 **균일 아웃라인** 컴포짓 1패스 — **전 기기**.
+        // 모바일도 엣지를 켜는 이유: 폴백이던 파츠별 인버티드 헐은 머리처럼 파츠가 밀집·중첩된 곳에서
+        // 두께가 누적돼 불균일하다(사용자 지시 "검은 아웃라인이 어떤거는 두껍고 어떤거는 얇다. 다
+        // 일정해야함" — 기기를 가리지 않는 요구다). 비용도 헐 쪽이 더 크다: 헐은 파츠마다 드로우콜을
+        // 하나씩 더 얹어 실측 97개였고, 엣지는 풀스크린 **1패스**로 끝난다.
+        // ⚠️ 대가: 모바일도 캔버스 직접 렌더가 아니라 RT 경유가 되므로 **MSAA 가 빠진다**(데스크톱은
+        //    fac03de 이후 이미 그렇다). 1px 검정선이 계단을 덮어 육안 차이는 작다.
+        const mobile = /Mobi|Android/i.test(navigator.userAgent);
+        this.postOn = !mobile;
+        this.postEdge = true;
         const pars = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat };
         this._rtScene = new THREE.WebGLRenderTarget(2, 2, pars);
         this._rtScene.texture.encoding = THREE.sRGBEncoding; // 캔버스 직접 렌더와 동일한 색으로 RT에 기록
@@ -532,8 +542,11 @@ const Scene3D = {
         //    화면공간 1px 균일선이라 캐릭터·펫·탈것·무기·적·소환체 **전부 같은 픽셀 두께**가 된다.
         this._rtScene.depthTexture = new THREE.DepthTexture(2, 2);
         this._rtScene.depthTexture.type = THREE.UnsignedIntType;   // DEPTH_COMPONENT24 — 경계 판정에 충분한 정밀도
-        this._rtA = new THREE.WebGLRenderTarget(2, 2, pars);
-        this._rtB = new THREE.WebGLRenderTarget(2, 2, pars);
+        // 블러용 1/4 해상도 RT 2장은 **블룸을 실제로 태우는 기기에서만** 만든다(모바일 VRAM 절약).
+        if (this.postOn) {
+            this._rtA = new THREE.WebGLRenderTarget(2, 2, pars);
+            this._rtB = new THREE.WebGLRenderTarget(2, 2, pars);
+        }
         this._fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         this._fsScene = new THREE.Scene();
         this._fsQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), null);
@@ -574,6 +587,10 @@ const Scene3D = {
         this._compMat = new THREE.ShaderMaterial({
             uniforms: {
                 tScene: { value: null }, tBloom: { value: null }, strength: { value: 0.34 }, // 0.5는 밝은 면이 형태를 잃음 (비평가 7.1 화이트아웃)
+                // 🖊️ 비네트 세기 — 모바일(블룸 없이 엣지만 태우는 경로)은 0 이다. 엣지 아웃라인을
+                //    켜자고 모바일 화면의 **색·밝기까지 바꾸지는 않는다**(요구는 아웃라인 균일뿐).
+                vig: { value: mobile ? 0.0 : 0.24 },
+                // (블룸 세기 원본은 `_bloomStrength` 에 둔다 — renderFrame 이 매 프레임 0/원본으로 스위치한다.)
                 // 🖊️ 후처리 엣지 아웃라인 (uniform-outline-postfx, 2026-08-22)
                 tDepth: { value: null }, texel: { value: new THREE.Vector2(1 / 512, 1 / 512) },
                 camNear: { value: 0.1 }, camFar: { value: 100 },
@@ -589,14 +606,14 @@ const Scene3D = {
             vertexShader: V,
             fragmentShader: '#include <packing>\n' +
                 'varying vec2 vUv; uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tDepth;\n' +
-                'uniform float strength; uniform vec2 texel; uniform float camNear; uniform float camFar; uniform float edgeK; uniform float edgeMaxZ;\n' +
+                'uniform float strength; uniform float vig; uniform vec2 texel; uniform float camNear; uniform float camFar; uniform float edgeK; uniform float edgeMaxZ;\n' +
                 'float linz(vec2 uv){ float d = texture2D(tDepth, uv).x; return -perspectiveDepthToViewZ(d, camNear, camFar); }\n' +
                 // 🚨 알파 0 = **블룸 금지 태그**(영웅 흰자 등 ProChar.noBloom). 그 화소엔 블룸을
                 //    **더하지 않는다** — 이웃의 밝은 히트 플래시가 블러돼 검정 아웃라인 위로 번져도 물들지 않게.
                 'void main(){ vec4 sc = texture2D(tScene, vUv);\n' +
                 '  vec3 c = sc.rgb + texture2D(tBloom, vUv).rgb * strength * step(0.15, sc.a);\n' +
                 '  float d = distance(vUv, vec2(0.5, 0.5));\n' +
-                '  c *= 1.0 - smoothstep(0.58, 0.88, d) * 0.24;\n' + // 미세 비네트 — 시선을 중앙으로
+                '  c *= 1.0 - smoothstep(0.58, 0.88, d) * vig;\n' + // 미세 비네트 — 시선을 중앙으로
                 // 🖊️ 깊이 경계 = **1px 균일 검정선**. 상하좌우 이웃(±1 텍셀)의 선형깊이와 비교해
                 //    최대 차이가 상대 임계를 넘으면 검정. 4-이웃이라 두께가 지오메트리와 무관하게 일정하다.
                 '  float z0 = linz(vUv);\n' +
@@ -607,6 +624,7 @@ const Scene3D = {
                 '  gl_FragColor = vec4(c, 1.0); }',
             depthTest: false, depthWrite: false,
         });
+        this._bloomStrength = this._compMat.uniforms.strength.value;
     },
     // 뷰 공간 태양 방향을 셰이더로 내려보낸다 — 카메라가 움직이므로 **매 프레임** 갱신해야 한다.
     // (월드 방향을 그대로 넣으면 카메라가 흔들릴 때 그늘면이 같이 돌아 '조명이 따라다니는' 그림이 된다.)
@@ -630,23 +648,30 @@ const Scene3D = {
             if (this._outlineMat.transparent) this._outlineMat.transparent = false;
         }
         this.updateShadeSun();
-        if (!this.postOn || !this._rtScene) { this.renderer.render(this.scene, this.camera); return; }
+        // 포스트 경로는 블룸(postOn)이 꺼져 있어도 **엣지 아웃라인(postEdge)** 때문에 탄다.
+        if ((!this.postOn && !this.postEdge) || !this._rtScene) { this.renderer.render(this.scene, this.camera); return; }
         const r = this.renderer;
         r.setRenderTarget(this._rtScene);
         r.render(this.scene, this.camera);
-        this._fsQuad.material = this._brightMat;
-        this._brightMat.uniforms.tSrc.value = this._rtScene.texture;
-        r.setRenderTarget(this._rtA); r.render(this._fsScene, this._fsCam);
-        for (let i = 0; i < 2; i++) { // 2회 왕복 분리 블러 — 1/4 해상도라 저비용
-            this._fsQuad.material = this._blurMat;
-            this._blurMat.uniforms.tSrc.value = this._rtA.texture; this._blurMat.uniforms.dir.value.set(1, 0);
-            r.setRenderTarget(this._rtB); r.render(this._fsScene, this._fsCam);
-            this._blurMat.uniforms.tSrc.value = this._rtB.texture; this._blurMat.uniforms.dir.value.set(0, 1);
+        const bloom = this.postOn && this._rtA;   // 모바일·블룸 토글 오프에선 브라이트·블러 4패스를 건너뛴다
+        if (bloom) {
+            this._fsQuad.material = this._brightMat;
+            this._brightMat.uniforms.tSrc.value = this._rtScene.texture;
             r.setRenderTarget(this._rtA); r.render(this._fsScene, this._fsCam);
+            for (let i = 0; i < 2; i++) { // 2회 왕복 분리 블러 — 1/4 해상도라 저비용
+                this._fsQuad.material = this._blurMat;
+                this._blurMat.uniforms.tSrc.value = this._rtA.texture; this._blurMat.uniforms.dir.value.set(1, 0);
+                r.setRenderTarget(this._rtB); r.render(this._fsScene, this._fsCam);
+                this._blurMat.uniforms.tSrc.value = this._rtB.texture; this._blurMat.uniforms.dir.value.set(0, 1);
+                r.setRenderTarget(this._rtA); r.render(this._fsScene, this._fsCam);
+            }
         }
         this._fsQuad.material = this._compMat;
         this._compMat.uniforms.tScene.value = this._rtScene.texture;
-        this._compMat.uniforms.tBloom.value = this._rtA.texture;
+        // ⚠️ 블룸을 안 태울 땐 tBloom 에 **null 을 넣지 않는다** — three 가 기본 텍스처를 물려 색이 새는
+        //    경로를 만들 수 있다. 씬 텍스처를 물리고 세기를 0 으로 곱해 확실히 지운다.
+        this._compMat.uniforms.tBloom.value = bloom ? this._rtA.texture : this._rtScene.texture;
+        this._compMat.uniforms.strength.value = bloom ? this._bloomStrength : 0.0;
         // 🖊️ 엣지 아웃라인 입력 — 깊이 텍스처 + 카메라 근/원 평면(선형화용) + 화소 크기.
         this._compMat.uniforms.tDepth.value = this._rtScene.depthTexture;
         this._compMat.uniforms.camNear.value = this.camera.near;
@@ -704,14 +729,18 @@ const Scene3D = {
         this.renderer.setSize(w, h, false);
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
-        if (this.postOn && this._rtScene) { // 포스트 RT 해상도 동기화 (씬=풀, 블러=1/4)
+        // 포스트 RT 해상도 동기화 (씬=풀, 블러=1/4). 씬 RT 는 **엣지 아웃라인만 태우는 기기(모바일)**
+        // 에서도 필요하므로 postEdge 까지 본다. 블러 RT 는 존재할 때만 맞춘다.
+        if ((this.postOn || this.postEdge) && this._rtScene) {
             const db = new THREE.Vector2();
             this.renderer.getDrawingBufferSize(db);
             this._rtScene.setSize(db.x, db.y);
-            const bw = Math.max(2, Math.floor(db.x / 4)), bh = Math.max(2, Math.floor(db.y / 4));
-            this._rtA.setSize(bw, bh);
-            this._rtB.setSize(bw, bh);
-            this._blurMat.uniforms.texel.value.set(1 / bw, 1 / bh);
+            if (this._rtA && this._rtB) {
+                const bw = Math.max(2, Math.floor(db.x / 4)), bh = Math.max(2, Math.floor(db.y / 4));
+                this._rtA.setSize(bw, bh);
+                this._rtB.setSize(bw, bh);
+                this._blurMat.uniforms.texel.value.set(1 / bw, 1 / bh);
+            }
         }
     },
 
@@ -840,13 +869,15 @@ const Scene3D = {
     // 멱등이라(hasOutlineShell 플래그) 비용은 파츠당 불리언 검사 한 번. 사라진 개체의 셸은
     // 그 개체가 씬에서 빠질 때 자식으로 함께 사라진다.
     ensureOutlines() {
-        // 🖊️ 데스크톱(postOn)은 **후처리 깊이-엣지 아웃라인**(renderFrame 컴포짓)이 균일 1px 검정선을
-        //    그린다. 파츠별 인버티드 헐을 함께 붙이면 **중복**이고, 헐은 머리처럼 파츠 밀집·중첩부에서
-        //    두께가 누적돼 불균일했다(사용자 지적) — 그래서 postOn 에선 헐을 아예 만들지 않는다.
-        //    모바일(postOn=false)은 후처리 스택을 안 태우므로 헐 폴백을 그대로 유지한다.
+        // 🖊️ **후처리 깊이-엣지 아웃라인**(renderFrame 컴포짓)이 균일 1px 검정선을 그린다. 파츠별
+        //    인버티드 헐을 함께 붙이면 **중복**이고, 헐은 머리처럼 파츠 밀집·중첩부에서 두께가 누적돼
+        //    불균일했다(사용자 지적) — 그래서 엣지 경로에선 헐을 아예 만들지 않는다.
+        //    2026-08-25 부터 엣지는 **모바일에서도 켜지므로**(initPost 의 postEdge) 헐은 사실상
+        //    'GL 없이 뜬 기기' 전용 잔재다. 헐 코드를 지우지는 않는다 — 컨텍스트 로스트 복구 등에서
+        //    포스트 스택 없이 뜨는 경로가 남아 있다.
         //    ⚠️ 아웃라인 안정화(renderFrame 의 _outlineMat 검정·불투명 강제, 디졸브·플래시 스킵)는
-        //       그대로 둔다 — _outlineMat 이 생성돼 있으면(모바일·과거 셸) 계속 지켜진다.
-        if (this.postOn) return;
+        //       그대로 둔다 — _outlineMat 이 생성돼 있으면(과거 셸) 계속 지켜진다.
+        if (this.postOn || this.postEdge) return;
         this.applyOutlineTree(this.heroG);
         if (this.petGroups) for (const pg of this.petGroups) this.applyOutlineTree(pg);
         this.applyOutlineTree(this.mountGroup);
