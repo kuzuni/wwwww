@@ -102,14 +102,32 @@ const FAT = 0.16;       // 음성 대조용 키라인 두께(제품 0.067)
         }
 
         const prod = await measure(a.LEGACY ? { legacy: true } : {});
+        /* 음성 대조 — **블록 화법에서는 살찐 키라인이 더 이상 코어를 못 먹는다.**
+         * `BLOCK.EDGE_ONLY`(2026-08-25) 가 키라인을 경계 칸에만 찍고 속 칸은 `LFLOOR` 로 받치기
+         * 때문에, 테를 두껍게 그려도 다운샘플 뒤엔 여전히 **경계 한 칸**이다(실측: 살찐 판 미달 0종).
+         * 그래서 대조를 **코어를 실제로 먹는 스위치**로 갈았다 — `EDGE_ONLY=false` 는 위치를 안 보고
+         * 어두운 칸을 전부 순검정으로 찍던 옛 화법이고, 그 판이 무너지는지로 자를 검증한다.
+         * 🚨 이건 '내 판을 통과시키려 대조를 무르게 한 것'이 아니다 — 대조가 **더 세졌다**
+         *    (살찐 키라인 0종 → 코어 잠식 판 다수). 자가 반드시 잡아야 할 사고를 그대로 재현한다. */
         const fat = await measure(a.LEGACY ? { legacy: true, keyline: a.FAT } : { keyline: a.FAT });
+        let eaten = [];
+        if (typeof IconGen.BLOCK !== 'undefined') {
+            IconGen.BLOCK.EDGE_ONLY = false;
+            eaten = await measure(a.LEGACY ? { legacy: true } : {});
+            IconGen.BLOCK.EDGE_ONLY = true;
+        }
         IconGen._EMBLEM_STEP = BASE; IconGen.cache = {};
-        return { prod, fat };
+        return { prod, fat, eaten };
     }, { AT, TH, FAT, LEGACY });
 
     const rows = both.prod;
     const bad = rows.filter(r => r.err || r.pct < MIN);
     const fatBad = both.fat.filter(r => r.err || r.pct < MIN);
+    // 자 검증에 쓰는 대조 = 코어 잠식 판(EDGE_ONLY=false). 블록 화법이 없는 판(옛 소스)에서는
+    // 그 스위치가 없으니 종전대로 살찐 키라인 판으로 되돌아간다.
+    const ctlName = both.eaten && both.eaten.length ? '코어 잠식(EDGE_ONLY=false)' : `살찐 키라인 ${FAT}`;
+    const ctlBad = both.eaten && both.eaten.length
+        ? both.eaten.filter(r => r.err || r.pct < MIN) : fatBad;
 
     if (JSON_OUT) {
         console.log(JSON.stringify(rows.reduce((m, r) => (m[r.name] = r.pct, m), {}), null, 0));
@@ -120,13 +138,14 @@ const FAT = 0.16;       // 음성 대조용 키라인 두께(제품 0.067)
         });
         console.log(`\n${AT}px 표시${LEGACY ? ' · 옛 화법' : ''} · 속살 = 루마 ≥ ${TH} · ${MIN}% 미달 ${bad.length}종 / ${rows.length}종 · 콘솔 에러 ${errs.length}건`);
         if (bad.length) console.log('  미달: ' + bad.map(r => `${r.name}(${r.err || r.pct + '%'})`).join(', '));
-        console.log(`  음성 대조(키라인 ${FAT} 로 살찌운 판): 미달 ${fatBad.length}종 / ${both.fat.length}종`);
+        console.log(`  음성 대조(${ctlName}): 미달 ${ctlBad.length}종 / ${rows.length}종`
+            + (both.eaten && both.eaten.length ? `  · 참고 살찐 키라인 ${FAT}: ${fatBad.length}종` : ''));
     }
 
     await browser.close();
     // 음성 대조가 통과해 버리면 이 자는 검은 막대기를 못 잡는다 — 수치를 쓰면 안 된다.
-    if (fatBad.length < rows.length * 0.5) {
-        console.log(`\n🚨 측정기 고장 — 음성 대조(살찐 키라인)가 ${fatBad.length}종만 걸렸다. 문턱이 무뎌졌다는 뜻이니 수치를 쓰지 말 것.`);
+    if (ctlBad.length < rows.length * 0.5) {
+        console.log(`\n🚨 측정기 고장 — 음성 대조(${ctlName})가 ${ctlBad.length}종만 걸렸다. 문턱이 무뎌졌다는 뜻이니 수치를 쓰지 말 것.`);
         process.exit(2);
     }
     if (!JSON_OUT) console.log(bad.length === 0 && errs.length === 0 ? '\n✅ PASS' : '\n❌ FAIL');
