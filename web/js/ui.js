@@ -1117,9 +1117,37 @@ const UI = {
             else if (b.dataset.label) { b.innerHTML = b.dataset.label; delete b.dataset.label; }
         });
     },
+    /* 던전 클리어 보상 팝업을 **정상 종결**시킨다(수령 연출 없이 페이즈만 푼다).
+     *
+     * 🚨 **없으면 소프트락이다**(slug `dungeon-clear-popup-softlock`, 2/2 재현). 이 팝업은 사양상
+     * *"배경 탭으로 닫히지 않는다"*(index.html 모달 블록 주석) — [보상 수령]만이 출구고, 그 버튼이
+     * `Combat.finishDungeonClear()` 로 본대 복귀를 마저 돈다. 그런데 아래 `closeOpened()` 의
+     * **무차별 `.modal` 숨김**이 이 팝업까지 걷어 가면 **팝업만 사라지고 `Combat.phase` 는
+     * `'dungeonClear'` 로 남는다.** 그 페이즈는 **타이머가 없어**(combat.js `stageClear`) 스스로 안 풀리고,
+     * 푸는 곳이 `onDungeonClearConfirm()` 하나뿐이라 **전투 루프가 영구히 선다** — 방치형인데
+     * 방치 수익이 0이 된다(실측: 20초 방치 코인 +0, 정상 대조군 +200). 새로고침 말고는 회복 경로가 없다.
+     *
+     * 제작 대기품이 같은 함수에서 `resolvePendingCraft()` 로 정리되는 것과 **같은 짝**이다 —
+     * 던전 클리어에만 그 짝이 없었다.
+     * ⚠️ `closeAllTabSurfaces()` 에는 넣지 않는다: 그쪽은 id 목록으로만 닫아 이 팝업을 안 건드리므로
+     *    탭을 **여는** 동작에서는 터지지 않는다(팝업이 상점 위에 그대로 남는 게 맞는 동작이다). */
+    resolveDungeonClear() {
+        if (this._dgclearBusy) return;  // 수령 연출이 이미 돈다 — 그 타이머가 finishDungeonClear 를 부른다
+        const modal = this.els.dungeonClearModal;
+        if (!modal || modal.classList.contains('hidden')) return;
+        // 보상 자체는 `Dungeons.onClear()` 가 팝업을 띄우기 전에 이미 지급·저장했다 — 여기서 닫아도
+        // 손실이 없다. 수령 연출(rewardBurst)은 **일부러 안 태운다**: 사용자가 팝업을 떠나기로 한
+        // 것이라, 이미 넘어간 화면 위에서 재화 흡수 연출이 튀는 게 더 이상하다.
+        modal.classList.add('hidden');
+        modal.classList.remove('dgclear-out');
+        const card = modal.querySelector('.dgclear-card');
+        if (card) card.classList.remove('leaving');   // 다음 클리어에서 카드가 가라앉은 채로 뜨지 않게
+        Combat.finishDungeonClear();                 // 자체 페이즈 가드가 있어 중복 호출에 안전하다
+    },
     // X 상태의 탭을 누르면 열린 것을 닫는다
     closeOpened() {
         this.resolvePendingCraft(); // 여기도 전 모달 일괄 숨김이라 제작 대기품 유실 경로가 같다
+        this.resolveDungeonClear(); // 같은 이유 — 아래 일괄 숨김이 던전 클리어 팝업을 먹으면 소프트락
         document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
         this.switchTab(null);
     },
