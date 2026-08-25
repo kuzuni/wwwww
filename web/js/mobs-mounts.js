@@ -59,13 +59,13 @@
             face: E({ y: 3, inset: 1, ew: 1, eh: 2 }).concat([{ c: 0x2b241d, x: [1, 3], y: 0, z: -1 }]),
             bodyPaint: o.bodyPaint, seat: o.seat, tackW: 8,
             extra: [
-                { box: [5, o.neckH, 6], at: [0, o.neckY, o.len / 2 - 1], c: C },      // 목
-                { box: [2, o.neckH + 2, 4], at: [0, o.neckY + 1.5, o.len / 2 - 3], c: MANE },
-                { box: [4, 4, 3], at: [0, o.headY - 2, o.headZ + 5], parent: 'head', c: C,
+                { id: 'neck', box: [5, o.neckH, 6], at: [0, o.neckY, o.len / 2 - 1], c: C },      // 목
+                { id: 'mane', box: [2, o.neckH + 2, 4], at: [0, o.neckY + 1.5, o.len / 2 - 3], c: MANE },
+                { id: 'muzzle', box: [4, 4, 3], at: [0, o.headY - 2, o.headZ + 5], parent: 'head', c: C,
                   paint: [{ c: 0x2b241d, z: -1, y: [0, 1] }] },                       // 주둥이
-                { box: [2, 3, 5], at: [0, o.headY + 4, o.headZ - 1], parent: 'head', c: MANE },
-                { box: [2, 2, 1], at: [-1.6, o.headY + 4, o.headZ - 2], parent: 'head', c: C },
-                { box: [2, 2, 1], at: [1.6, o.headY + 4, o.headZ - 2], parent: 'head', c: C },
+                { id: 'forelock', box: [2, 3, 5], at: [0, o.headY + 4, o.headZ - 1], parent: 'head', c: MANE },
+                { id: 'earL', box: [2, 2, 1], at: [-1.6, o.headY + 4, o.headZ - 2], parent: 'head', c: C },
+                { id: 'earR', box: [2, 2, 1], at: [1.6, o.headY + 4, o.headZ - 2], parent: 'head', c: C },
                 T({ box: [3, 10, 3], at: [0, o.tailY, -(o.len / 2 + 1.5)], c: MANE, axis: 'x', amp: 0.14, f: 1.2 }),
             ].concat(o.ears || []),
         });
@@ -81,8 +81,8 @@
     // 당나귀 — 회갈색 + **긴 귀 두 장**(말과 갈리는 유일한 축이 귀다, 마크도 같다)
     M['Donkey'] = horse({ c: 0x7c7c7c, mane: 0x3a3a3a, len: 21, legH: 8, headY: 19, headZ: 11, neckY: 16, neckH: 8, seat: 16.5, tailY: 13,
         ears: [
-            { box: [2, 7, 2], at: [-2, 24, 8], parent: 'head', c: 0x7c7c7c, paint: [{ c: 0x3a3a3a, y: -1 }] },
-            { box: [2, 7, 2], at: [2, 24, 8], parent: 'head', c: 0x7c7c7c, paint: [{ c: 0x3a3a3a, y: -1 }] },
+            { id: 'longEarL', box: [2, 7, 2], at: [-2, 24, 8], parent: 'head', c: 0x7c7c7c, paint: [{ c: 0x3a3a3a, y: -1 }] },
+            { id: 'longEarR', box: [2, 7, 2], at: [2, 24, 8], parent: 'head', c: 0x7c7c7c, paint: [{ c: 0x3a3a3a, y: -1 }] },
         ] });
 
     // 알파카 — 마크 라마(작은 몸 + 아주 긴 목 + 네모난 머리 + 짧은 귀)
@@ -92,9 +92,9 @@
             head: [5, 6, 6], headY: 24, headDrop: 2, legAmp: 0.4,
             face: E({ y: 3, inset: 1, ew: 1, eh: 1 }).concat([{ c: 0x3c332a, x: [1, 3], y: [0, 1], z: -1 }]),
             extra: [
-                { box: [5, 10, 5], at: [0, 19, 5], c: C },
-                { box: [2, 3, 1], at: [-1.6, 27, 3], parent: 'head', c: C },
-                { box: [2, 3, 1], at: [1.6, 27, 3], parent: 'head', c: C },
+                { id: 'neck', box: [5, 10, 5], at: [0, 19, 5], c: C },
+                { id: 'earL', box: [2, 3, 1], at: [-1.6, 27, 3], parent: 'head', c: C },
+                { id: 'earR', box: [2, 3, 1], at: [1.6, 27, 3], parent: 'head', c: C },
                 T({ box: [3, 4, 2], at: [0, 15, -7.5], c: C, axis: 'x', amp: 0.2 }),
             ] });
         q.harness = 'bridle'; q.head = { hw: 5, y: 24, z: 8.5, d: 6 };
@@ -454,13 +454,13 @@
             // 등에 어두운 줄 + 밝은 배 — 단색 덩어리를 위/아래로 갈라 부피를 읽힌다(거북·공룡과 같은 화법).
             { id: 'body', box: [11, 10, 15], at: [0, 9, 0], c: TN,
               paint: [{ c: 0xb9a184, y: [0, 1] }, { c: D, y: 9 }] },
-            { box: [7, 7, 6], at: [0, 12, 9], c: TN, paint: [{ c: D, y: 6 }] },
+            { id: 'neck', box: [7, 7, 6], at: [0, 12, 9], c: TN, paint: [{ c: D, y: 6 }] },
             { id: 'head', box: [6, 6, 7], at: [0, 15, 14], pivot: [0, 13, 11], c: TN, tag: 'head',
               paint: E({ y: 2, inset: 1, ew: 1, eh: 1, white: 0xf3c14a, pupil: 0x241c17 }),
               joint: { axis: 'x', amp: 0.1, f: 0.7 } },
-            { box: [4, 3, 6], at: [0, 14, 19], parent: 'head', c: TN,
+            { id: 'beak', box: [4, 3, 6], at: [0, 14, 19], parent: 'head', c: TN,
               paint: [{ c: BONE, y: 2 }, { c: D, y: 0 }] },                 // 부리 — 몸색 몸통·각질 윗면·어두운 아래턱
-            { box: [2, 5, 6], at: [0, 19, 10], parent: 'head', c: CREST },  // 볏 — 종 판독의 주역(머리보다 작게)
+            { id: 'crest', box: [2, 5, 6], at: [0, 19, 10], parent: 'head', c: CREST },  // 볏 — 종 판독의 주역(머리보다 작게)
             // 🧊 **날개는 세운 판**이다 — 펫 그리핀(`mobs-pets.js` [2,8,11])과 같은 문법.
             //    가로로 눕힌 판(종전 [14,2,9])은 3/4 부감에서 넓은 면이 카메라를 마주 봐 몸을 덮고
             //    '널빤지'가 된다. x 로 얇고 y 로 높은 판은 같은 각도에서 **모서리**를 보여 실루엣에

@@ -9221,6 +9221,9 @@ const Scene3D = {
         ud.spinners = built.spinners.length ? built.spinners : null;
         ud.glow = built.glow.length ? built.glow : null;
         ud.flat = !!model.flat;
+        // 칸 크기를 남긴다 — 판정기가 "몇 월드유닛 옮겨라"가 아니라 **"표에서 몇 칸 옮겨라"** 로
+        // 말할 수 있어야 처방이 바로 코드가 된다(`diag-ride-sightline.js`).
+        ud.cell = cell;
         const LEATHER = 0x6b4423, LEATHER2 = 0x4e2f16, IRON = 0x9aa0a6;
         const box = (w, h, d, col, opt) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
             new THREE.MeshLambertMaterial(Object.assign({ color: col }, opt || {})));

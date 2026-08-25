@@ -157,6 +157,15 @@
             if (p.id) { out.parts[p.id] = node; out.boxes[p.id] = { box: p.box, at: p.at }; }
             // 머리 소속 표식 — 탑승 가림 판정(probe-ride-clear)이 머리 파츠만 골라 본다.
             if (p.head || p.tag === 'head' || (p.parent === 'head')) node.userData.part = 'head';
+            // 🔎 파츠 이름표 — 레이캐스트가 맞은 게 **어느 파츠인지** 말할 수 있어야 한다.
+            //    (2026-08-25: `probe-ride-clear` 가 가림 지점을 좌표로만 찍어, 익룡 근쪽 다리를 가리는
+            //     범인을 세 세션이 '목인가 부리인가 몸통인가' 로 추측만 하다 끝났다. 표에 이미 있는
+            //     `id`/`tag` 를 메시까지 내려 두면 그 추측이 한 번에 끝난다.)
+            //    ⚠️ 히트하는 건 **메시**고 `p.pivot` 이 있으면 node 는 그 위의 Group 이라 **둘 다** 찍는다.
+            var pid = p.id || p.tag || ('part' + i);
+            mesh.userData.pid = pid; node.userData.pid = pid;
+            if (!mesh.name) mesh.name = pid;
+            if (p.parent) { mesh.userData.pparent = p.parent; node.userData.pparent = p.parent; }
             switch (p.tag) {
                 case 'head': out.head = node; break;
                 case 'tail': if (!out.tail) out.tail = node; break;

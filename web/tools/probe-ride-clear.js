@@ -68,6 +68,16 @@ if (ONLY.length && !TARGETS.length) { console.log('그런 종이 목록에 없�
 
         // 탈것 파츠인지 — 조상 사슬에 mountGroup 이 있으면 탈것
         const isMountPart = (o) => { for (let p = o; p; p = p.parent) if (p === Scene3D.mountGroup) return true; return false; };
+        // 🔎 맞은 파츠의 **이름**을 찾는다. `Mobs.build` 가 메시엔 pid 를, 피벗이 있으면 그 위 Group 에도
+        //    같은 pid 를 찍어 둔다. 'head' 표식은 **피벗 Group 쪽에만** 붙는 경우가 있어 조상까지 훑는다.
+        //    (좌표만 찍던 옛 판은 "머리인가 부리인가 몸통인가" 를 못 갈라, 조형 수정이 추측이 됐다.)
+        const upFind = (o, k) => { for (let p = o; p; p = p.parent) { if (p.userData && p.userData[k] != null) return p.userData[k]; } return null; };
+        const partName = (o) => {
+            const pid = upFind(o, 'pid');
+            const par = upFind(o, 'pparent');
+            const isHead = upFind(o, 'part') === 'head';
+            return (isHead ? '머리/목:' : '') + (pid || '?') + (par ? '<' + par : '');
+        };
         const heroPart = (o) => { for (let p = o; p; p = p.parent) if (p === Scene3D.heroG) return true; return false; };
 
         for (const [form, name] of list) {
@@ -132,7 +142,7 @@ if (ONLY.length && !TARGETS.length) { console.log('그런 종이 목록에 없�
                     // 가린 파츠의 탈것 로컬 위치 — 머리인지 몸통인지 구분용
                     const inner = Scene3D.mountGroup.children[0];
                     const lp = inner.worldToLocal(blk.object.getWorldPosition(V(0, 0, 0)));
-                    const key = (blk.object.userData.part === 'head' ? '머리/목 ' : '') + [+lp.x.toFixed(2), +lp.y.toFixed(2), +lp.z.toFixed(2)].join(',');
+                    const key = partName(blk.object) + '@' + [+lp.x.toFixed(2), +lp.y.toFixed(2), +lp.z.toFixed(2)].join(',');
                     seen[part].by[key] = (seen[part].by[key] || 0) + 1;
                     if (!blkNoHead) {
                         seen[part].adds++;   // 머리를 끄면 보이는데 켜면 가려진다 = 머리가 범인
@@ -145,7 +155,9 @@ if (ONLY.length && !TARGETS.length) { console.log('그런 종이 목록에 없�
 
             for (const part in seen) {
                 const s = seen[part];
-                r.occ.push({ part, frac: +(s.blocked / s.n).toFixed(2), headFrac: +(s.adds / s.n).toFixed(2), addAt: s.addAt || [], by: Object.entries(s.by).sort((a, b) => b[1] - a[1]).slice(0, 1).map(e => e[0])[0] || null });
+                // 상위 **2개**를 남긴다 — 1개만 남기면 '몸통이 최다'라는 이유로 진짜 범인(머리·부리)이
+                // 통째로 안 보인다(익룡에서 실제로 그렇게 세 세션을 헤맸다).
+                r.occ.push({ part, frac: +(s.blocked / s.n).toFixed(2), headFrac: +(s.adds / s.n).toFixed(2), addAt: s.addAt || [], by: Object.entries(s.by).sort((a, b) => b[1] - a[1]).slice(0, 2).map(e => e[0] + '×' + e[1]).join(' + ') || null });
             }
 
             // ── ③ 공격 중 탑승 포즈 유지 ────────────────────────────────────────
@@ -177,7 +189,14 @@ if (ONLY.length && !TARGETS.length) { console.log('그런 종이 목록에 없�
                 // ⚠️ 예전엔 '로컬 y가 0.42보다 높은 박스'로 바를 찾았는데, 바가 **그룹 안으로 들어가면서**
                 //    로컬 y가 0이 돼 하나도 안 잡혔다(worst=null → 이 probe가 통째로 터졌다).
                 //    이제 씬이 표시해 둔 구조(userData.bar)를 먼저 쓰고, 없을 때만 옛 스캔으로 되돌아간다.
-                const barData = Scene3D.mountGroup.userData.bar;
+                // 🚨 `mountGroup.userData.bar` 는 **서서 타는 자세에서 일부러 null 로 지워진다**
+                //    (`refreshMount`: standing 이면 고삐·핸들바 정렬 대상에서 뺀다 — 선 라이더는 바를
+                //    안 잡는다). 그런데 바 자체는 씬에 그대로 서 있고, 그게 다리를 관통하는지는 여전히
+                //    재야 한다. 지우지 않은 **빌더 그룹 쪽 값**으로 되돌아간다.
+                //    (2026-08-25 실측: 이것 때문에 자전거 ④ 가 '바를 못 찾음'으로 계속 빨간불이었다 —
+                //     모델 결함이 아니라 자가 낡은 것이었다.)
+                const inner0 = Scene3D.mountGroup.children[0];
+                const barData = Scene3D.mountGroup.userData.bar || (inner0 && inner0.userData && inner0.userData.bar) || null;
                 const bars = barData ? [barData.barMesh].concat(barData.grips).filter(Boolean) : [];
                 if (!bars.length) Scene3D.mountGroup.traverse(o => {
                     if (o.isMesh && o.geometry.type === 'BoxGeometry' && o.position.y > 0.42) bars.push(o);
