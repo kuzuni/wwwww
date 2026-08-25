@@ -4699,14 +4699,49 @@ IconGen._genderSym = function (ctx, S, female) {
             [[0, '#ffd9d9'], [0.30, '#ef4d52'], [0.68, '#c31d2a'], [1, '#71080f']], { y0: 0.13, y1: 0.50, sx: 0.36, sy: 0.25 });
     };
 
-    /* 📍 지도 핀 — 물방울 실루엣 + 흰 구멍. */
+    /* 📍 지도 핀 — 물방울 실루엣 + **진짜 뚫린** 구멍.
+     * 🚨 **`plate` 를 안 쓴다(2026-08-25 UI 스트림 재작화). 종전 결함 셋이 전부 `plate` 에서 왔다.**
+     *  ⑴ 4스톱 그라디언트라 블록화 뒤 "에어브러시 램프"로 남았다 — 비평가가 라운드 내내 집던 그 화법.
+     *     → **면 셋(밝은 면 / 본색 / 그늘 면)을 불투명 평면**으로 깐다. `plate` 자체는 무기 40여 종이
+     *     공유하므로 **건드리지 않고 이 종만 떼어냈다**(인계 메모의 처방 그대로).
+     *  ⑵ 구멍이 구멍이 아니라 **칠**이었다: 어두운 고리 `r 0.135`, 흰 속 `r 0.098` → 고리 두께가
+     *     0.037 = **0.74칸**이라 규칙표의 '디테일 최소 1칸'에 미달해 칸 스냅에서 고리가 깨졌다.
+     *     그래서 48px 에서 흰 얼룩이 삐뚤게 남았다(확대 실측). → `destination-out` 으로 **실제로 뚫고**
+     *     구멍 둘레에 **1칸 두께** 키라인을 두른다(`key` 재작화와 같은 수법).
+     *  ⑶ 면 경계는 칸 격자(0.05)에 스냅한다 — 안 맞추면 경계 줄만 두 톤의 평균으로 스냅돼 얼룩이 된다.
+     * ⚠️ 구멍 지름 0.24(=4.8칸)가 하한이다. 더 줄이면 키라인 두 겹이 속을 먹어 다시 '흰 점'이 된다. */
     G.draw.marker = function (ctx, S) {
-        plate(ctx, S, closed(ctx, S, [[0.50, 0.975], [0.145, 0.475], [0.145, 0.345], [0.855, 0.345], [0.855, 0.475]]),
-            [[0, '#ffd0d4'], [0.30, '#f04452'], [0.68, '#bb1626'], [1, '#650710']], { spec: false, lw: 0.046 });
-        plate(ctx, S, sub.cir(ctx, S, 0.50, 0.365, 0.345),
-            [[0, '#ffd0d4'], [0.30, '#f04452'], [0.68, '#bb1626'], [1, '#650710']], { y0: 0.02, y1: 0.70, sx: 0.36, sy: 0.22 });
-        mark(ctx, sub.cir(ctx, S, 0.50, 0.365, 0.135), 'rgba(74,6,14,.92)');
-        mark(ctx, sub.cir(ctx, S, 0.50, 0.365, 0.098), '#ffe9ea');
+        const K = '#120406';
+        const LT = '#ff8f97', MID = '#e03340', DK = '#8c1622';   // 세 명도 버킷에 하나씩(실측)
+        const Q = (v) => Math.round(v * 20) / 20;
+        // 물방울 실루엣 — 머리 원 + 아래로 뻗는 꼭짓점(한 경로라 이음매가 안 생긴다)
+        // ⚠️ 호는 **시계방향**(counterclockwise 인자를 주지 말 것)으로 위쪽을 돌아야 한다 —
+        //    반시계로 주면 아래 반쪽을 그려 실루엣이 통째로 뒤집힌다(1차 렌더에서 실제로 그랬다).
+        const CX = 0.5, CY = 0.40, R = 0.33, A0 = Math.PI * 0.80, A1 = Math.PI * 0.20;
+        const drop = () => {
+            ctx.moveTo(CX * S, 0.965 * S);
+            ctx.lineTo((CX + R * Math.cos(A0)) * S, (CY + R * Math.sin(A0)) * S);
+            ctx.arc(CX * S, CY * S, R * S, A0, A1 + Math.PI * 2);
+            ctx.closePath();
+        };
+        ctx.save();
+        ctx.beginPath(); drop(); ctx.fillStyle = MID; ctx.fill();
+        // 면 분할 — 왼쪽 밝은 면 / 오른쪽 그늘 면(경계는 칸에 스냅)
+        ctx.clip();
+        ctx.fillStyle = LT; ctx.fillRect(0, 0, Q(0.35) * S, S);
+        ctx.fillStyle = DK; ctx.fillRect(Q(0.65) * S, 0, S, S);
+        ctx.restore();
+        // 구멍을 실제로 뚫는다
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath(); sub.cir(ctx, S, 0.50, 0.400, 0.120)(); ctx.fill();
+        ctx.restore();
+        // 키라인 — 실루엣과 구멍 둘 다. 두께 0.05 = 딱 한 칸(획 중심 기준이라 절반만 바깥에 남는다)
+        ctx.save();
+        ctx.strokeStyle = K; ctx.lineWidth = 0.052 * S; ctx.lineJoin = 'round';
+        ctx.beginPath(); drop(); ctx.stroke();
+        ctx.beginPath(); sub.cir(ctx, S, 0.50, 0.400, 0.120)(); ctx.stroke();
+        ctx.restore();
     };
 
     /* ✨ 반짝임 — 큰 4각별 하나 + 작은 것 둘. 4각별은 꼭짓점 사이를 깊게 오목하게 판다. */
