@@ -1525,39 +1525,47 @@ const IconGen = {
             const silver = () => G._lin(ctx, 0, S * 0.2, 0, S * 0.85, stops);
             ctx.save();
             ctx.translate(S / 2, S / 2); ctx.rotate(-0.62); ctx.translate(-S / 2, -S / 2);
-            const bx = S * 0.30, by = S * 0.26, bR = S * 0.19;    // 손잡이 고리 — R7 2인 공통 '가는 사실 열쇠': 만화 비례로 확대
-            const path = () => {
+            /* 🚨 **20칸 격자에서 읽히도록 다시 잡은 비례 (2026-08-25 라운드5)**. 블라인드 비평가 2인이
+             *    "열쇠 머리에 **구멍이 뚫려 있지 않고** 몸통은 형태 없는 덩어리라 48px 에서 막대사탕·
+             *    망치로 읽힌다"고 공통 지목했다(4종 전부 = key·key_green·key_orange·key_red).
+             *    옛 판의 병 셋:
+             *    ⑴ 고리 구멍이 **진짜 구멍이 아니라 `rgba(20,20,20,.85)` 어두운 칠**이었다 →
+             *       블록화 뒤 검정 테와 붙어 **머리가 통짜 덩어리**가 된다.
+             *    ⑵ 대 폭 0.124S = **2.5칸**인데 외곽선이 양쪽에서 0.84칸씩 먹어 속살이 1칸 밑으로 내려갔다.
+             *    ⑶ 이 2개가 0.10·0.09S = **2칸·1.8칸**이라 칸 스냅에서 서로 뭉개져 한 덩어리가 됐다.
+             *    처방(비평가 C 의 규칙 그대로): 구멍을 `destination-out` 으로 **실제로 뚫고**,
+             *    구멍 지름을 4칸으로 잡아 고리 벽이 2칸 남게 하고, 대를 3칸으로, 이를 아래로 꺾인
+             *    2칸 돌기 둘로 명시한다. ⚠️ 색(은회 + 던전별 스톱)은 원본 실측이라 그대로 둔다. */
+            const bx = S * 0.30, by = S * 0.27;
+            const bR = S * 0.20, hR = S * 0.10;                   // 고리 바깥 4칸 반지름 · 구멍 2칸 반지름 → 벽 2칸
+            const stemW = S * 0.15, stemX = bx - stemW / 2;       // 대 3칸
+            const stemTop = by + bR * 0.55, stemBot = by + S * 0.57;
+            const solid = () => {
                 ctx.moveTo(bx + bR, by);
                 ctx.arc(bx, by, bR, 0, Math.PI * 2);
-                G._rrSub(ctx, bx - S * 0.062, by + bR * 0.6, S * 0.124, S * 0.46, S * 0.04);   // 대(두툼)
-                G._rrSub(ctx, bx + S * 0.05, by + bR * 0.6 + S * 0.26, S * 0.15, S * 0.10, S * 0.025); // 이 1(두툼)
-                G._rrSub(ctx, bx + S * 0.05, by + bR * 0.6 + S * 0.40, S * 0.12, S * 0.09, S * 0.025);  // 이 2(두툼)
+                G._rrSub(ctx, stemX, stemTop, stemW, stemBot - stemTop, S * 0.03);
+                G._rrSub(ctx, bx + stemW * 0.35, by + S * 0.27, S * 0.145, S * 0.10, S * 0.02);  // 이 1 (2.9×2칸)
+                G._rrSub(ctx, bx + stemW * 0.35, by + S * 0.45, S * 0.145, S * 0.10, S * 0.02);  // 이 2 (2.9×2칸)
             };
-            ctx.save();
-            ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
-            ctx.filter = `blur(${S * 0.016}px)`;
-            ctx.translate(S * 0.02, S * 0.03);
-            ctx.beginPath(); path(); ctx.fill('evenodd');
-            ctx.restore();
-
-            ctx.beginPath(); path();
+            ctx.beginPath(); solid();
             ctx.fillStyle = silver();
-            ctx.fill('evenodd');
-            // 고리 구멍
-            ctx.beginPath();
-            ctx.arc(bx, by, bR * 0.44, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(20,20,20,.85)';
-            ctx.fill();
-            ctx.beginPath(); path();
-            ctx.lineWidth = S * 0.042;
+            ctx.fill();                                            // nonzero — 겹친 대/고리가 서로 지우지 않게
+            // 고리 구멍을 **진짜로 뚫는다**(어둡게 칠하지 않는다 — 그게 옛 판이 덩어리로 읽힌 이유다)
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.beginPath(); ctx.arc(bx, by, hR, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+            // 외곽선 — 몸통과 구멍 둘 다 두른다(구멍에도 테가 있어야 고리로 읽힌다)
+            ctx.lineWidth = S * 0.040;
             ctx.strokeStyle = 'rgba(0,0,0,.92)';
-            ctx.stroke();
-            // 대 위쪽 하이라이트
+            ctx.beginPath(); solid(); ctx.stroke();
+            ctx.beginPath(); ctx.arc(bx, by, hR, 0, Math.PI * 2); ctx.stroke();
+            // 대 왼쪽 면 하이라이트 — 한 칸 폭으로 세워 '면 분할'이 칸에 떨어지게
             ctx.beginPath();
-            ctx.moveTo(bx - S * 0.018, by + bR * 0.8);
-            ctx.lineTo(bx - S * 0.018, by + bR * 0.6 + S * 0.44);
-            ctx.lineWidth = S * 0.018;
-            ctx.strokeStyle = 'rgba(255,255,255,.45)';
+            ctx.moveTo(stemX + S * 0.035, stemTop + S * 0.05);
+            ctx.lineTo(stemX + S * 0.035, stemBot - S * 0.04);
+            ctx.lineWidth = S * 0.05;
+            ctx.strokeStyle = 'rgba(255,255,255,.42)';
             ctx.stroke();
             ctx.restore();
         },
