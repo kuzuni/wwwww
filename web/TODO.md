@@ -2316,6 +2316,43 @@
       토스트 선두 글리프 치환 + 주입 방지, 일부러 돌렸다) · `probe-icon-light-frame` 44자리 미달 0 ·
       `probe-icon-cross-screen` · `probe-cell-icon-size` 4뷰포트 · `probe-orb-face-flat`(skills 재굽기 후) ·
       `probe-screens-errors` **31/31 콘솔 0** · `regress-ratio.sh` 전수 스윕.
+  - ⏩ **진행 (2026-08-25 UI 스트림 — 교훈 ⓐ('판정기가 있는데 목록에 없어 결함이 묻힌다')를
+    **한 번에 훑어 닫았다**. `regress-ratio.sh` **52종 → 64종**, 전건 통과.)**
+    이 항목의 인계 메모가 열 번 넘게 같은 사고를 적어 두었다 — `probe-cell-icon-size` 는 4뷰포트
+    전건 FAIL 인 채 며칠 썩었고, `probe-shop-art-dom`·`probe-shop-gems`·`probe-dungeons-px`·
+    `probe-pass-px`·`probe-ccmp-px`·`probe-skills-dom` 도 전부 '멀쩡한 판정기인데 목록에 없어서'
+    한 번도 안 돌아갔다. **매번 우연히 하나씩 발견하는 대신 한 번에 훑었다.**
+    · 🔬 **찾은 법(다음 세션은 이 세 줄을 그대로 다시 돌리면 된다)**: `tools/probe-*.js` **486개** 중
+      ⓐ 소스에 `ref/screens/shot-` 이 있고(원본과 대조한다) ⓑ `process.exit()` 인자가 리터럴
+      `0`/`2` 가 아니며(=실제로 판정한다) ⓒ `regress-ratio.sh` 목록에 없는 것 → **15개**.
+      🚨 ⓑ 의 '리터럴 2 제외'가 핵심이다 — `exit 2` 는 이 저장소에서 **측정기 고장** 관용구라
+      그것만 있는 자는 덤프다. ⓐ 없이 exit 만 보면 **323개**가 나오는데 대부분 3D·전투 판정기라
+      이 스크립트(화면 비율) 소관이 아니다.
+    · ✅ **15개를 전부 돌렸다 → 12개 통과라 등재**: `probe-currency-icons`·`probe-dg-sky`·
+      `probe-dungeon-value`·`probe-info-glyph`·`probe-lgr-px`·`probe-lgr-rank`·`probe-sheet-cur-pill`·
+      `probe-skill-equip-dim`·`probe-slot-outline`·`probe-tabbar`·`probe-techoverview-dom`·
+      `probe-orb-face-flat`.
+      📌 **`probe-box.js` 는 판정기가 아니다** — 인자를 받는 CLI 유틸이라 인자 없이 돌리면 사용법을
+      찍고 exit 1 이다. 검색에 걸리지만 등재하면 상시 빨강이 된다.
+    · ⛔ **빨간 2개는 일부러 안 넣었고, 이유를 스크립트 안에 적어 뒀다**(다음 세션이 '왜 없지' 하고
+      다시 찾지 않도록). 넣으면 '불통과 0'이 상시 빨강이 돼 **회귀 신호로서의 값이 죽는다** —
+      이 자의 쓰임은 '어제까진 초록이었는데'를 잡는 것이다.
+      · `probe-league-emblem` 문장 폭 −2.12%p → **항목 `league-emblem` 소관**(그쪽에 등재돼 있다).
+        그 항목이 닫히는 커밋에서 여기로 옮길 것.
+      · `probe-skill-orb-ink` → 소관 항목이 **🚫취소(오케스트레이션 세션 담당)** 라 이 스트림이
+        못 고친다. 취소가 풀리면 같이 살릴 것.
+    · 🔧 **판정문 방언 ⓗ 추가 — `… → PASS`.** `probe-info-glyph` 를 넣자마자 '판정문 없음 — 측정
+      덤프일 수 있다' 경고가 났다. 기존 술어 ⓐ~ⓖ 는 판정 낱말이 **줄머리이거나 `결과:` 꼴 접두사
+      뒤**인 것만 읽어서, **줄 끝 화살표 뒤**에 오는 꼴을 못 봤다. 🚨 이 경고는 한 줄로 끝나는 게
+      아니라 **'판정문은 FAIL 인데 exit 0' 안전망이 그 도구에서 통째로 꺼진다** — 그래서 그냥 두면
+      안 된다. 이 파일의 규약대로 **도구가 아니라 읽는 쪽 한 줄**을 넓혔다.
+    · 🚨 **`probe-techoverview-dom` 은 부작용이 있어 스크립트에 경고를 달았다** — 끝에
+      `ref-cmp/clone/tech-overview.png` 를 덮어쓴다(보조 산출물). 그래서 ⓐ 스윕을 돌리면 그 PNG 가
+      작업 트리에 변경으로 남고 ⓑ 같은 런의 `probe-techov-px` 는 **이 자보다 앞이라 직전 런의
+      캡처**를 읽는다. 갓 덮인 캡처로 `probe-techov-px` 를 따로 돌려 **PASS(최대 +1.23%p)** 임을
+      확인했다 — 2026-08-20 메모의 '다시 구우면 빨개지는 자'는 그때 고쳐진 그대로 초록이다.
+    · **검증**: `bash -n` · **`regress-ratio.sh` 전수 = 통과 64 · 불통과 0 · 미완 0**(등재 전 52종
+      전부 포함) · 새 방언으로 `probe-info-glyph` 경고 소멸 확인 · `probe-techov-px` 갓 구운 캡처 PASS.
 - [x] **맵 전부에 플레이어·적 걷는 길(도로) 깔기 — 포지마스터처럼 (slug: map-walk-road) (사용자 2026-08-21)**
   - 모든 전투 맵 지면에 **플레이어와 적이 걷는 길/도로**를 깔아 이동 동선이 보이게(포지마스터 레퍼런스 — 가운데로 뻗은 길).
   - voxel 지면과 통일된 블록 도로(플랫 색+큐브). scene3d.js 맵/지면. (우선순위: 아이콘 다음)

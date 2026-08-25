@@ -89,6 +89,40 @@ PROBES=(
     #    등재 사유: `probe-label-keyline-census` 와 `probe-screen-ring-todo` 가 같은 규칙을 따로
     #    베껴 두고 있다가 술어 4개만큼 갈라졌고, 하필 **작업 순위(ⓛ)를 뽑는 쪽**이 낡은 자였다.
     ring-rule.js                # 키라인 규칙 단일 원본 — 술어 ①~④ 회귀
+    # 🚩 11~22건째(2026-08-25) — **원본 스크린샷을 읽고 판정까지 내는데 목록에 없던 자들.**
+    #    찾은 법(다음 세션이 그대로 다시 돌릴 것): `tools/probe-*.js` 486개 중
+    #      ⓐ 소스에 `ref/screens/shot-` 가 있고(원본과 대조한다) ⓑ `process.exit()` 인자가
+    #      리터럴 0/2 가 아닌 것(=실제로 판정한다) ⓒ 이 목록에 없는 것
+    #    → 15개가 나왔고, 전부 돌려 **12개가 통과라 여기 넣었다**(빨간 2개는 아래 ⛔ 참조,
+    #    `probe-box.js` 는 인자를 받는 CLI 유틸이라 제외 — 인자 없이 돌리면 사용법을 찍고 exit 1).
+    #    🚨 이게 이 저장소가 **열 번 넘게 되풀이한 사고**(교훈 ⓐ)의 최신 사례다: 멀쩡한 판정기가
+    #    목록에 없어 결함이 며칠씩 묻힌다. 새 판정기를 만들면 **같은 커밋에서 여기 등재할 것.**
+    probe-currency-icons.js     # 상단바 재화 아이콘 기하
+    probe-dg-sky.js             # dungeons 배너 하늘 대역(원본 042251 창 스캔)
+    probe-dungeon-value.js      # dungeons 배너 4행 명도 구조 12밴드 × 4 (dungeon-row-quality)
+    probe-info-glyph.js         # ⓘ 글리프 6곳 정합
+    probe-lgr-px.js             # league-rewards 요소 ±2%p
+    probe-lgr-rank.js           # league-rewards 등수 라벨 꼴·고정폭
+    probe-sheet-cur-pill.js     # 시트 헤더 재화 pill
+    probe-skill-equip-dim.js    # skills 장착 오브 딤율(원본 ±8%p)
+    probe-slot-outline.js       # 슬롯 아이콘 아웃라인 절반 규약
+    probe-tabbar.js             # 탭바 기하
+    probe-techoverview-dom.js   # tech-overview DOM ±2%p (자기검증 exit 2 내장)
+                                #   🚨 **부작용 있음**: 이 자는 끝에 `ref-cmp/clone/tech-overview.png` 를
+                                #   덮어쓴다(보조 산출물). 그래서 ⓐ 스윕을 돌리면 작업 트리에 그 PNG 가
+                                #   변경으로 남고 ⓑ 같은 런의 `probe-techov-px` 는 **이 자보다 앞에 있어
+                                #   직전 런의 캡처**를 읽는다. 둘 다 '먼저 `node tools/shot-screens.js` 로
+                                #   굽고 스윕을 돌린다'는 이 파일 머리말의 절차를 지키면 무해하다.
+    probe-orb-face-flat.js      # skills 오브 면 평탄 — 🚨 `tools/ref-cmp/clone/skills.png` 가 낡으면
+                                #   exit 2 로 끊는다(정상). 그 '미완'은 결함이 아니라 **재굽기 하라는 신호**다:
+                                #   `ONLY=skills node tools/shot-screens.js`
+    # ⛔ **일부러 안 넣은 자 2개 — 다음 세션이 '왜 없지' 하고 다시 찾지 않도록 여기 적어 둔다.**
+    #    둘 다 위 검색에 걸렸고 **지금 빨갛다**. 넣으면 이 스크립트의 '불통과 0'이 상시 빨강이 돼
+    #    회귀 신호로서의 값이 죽는다(이 자의 쓰임은 '어제까진 초록이었는데'를 잡는 것이다).
+    #      · `probe-league-emblem.js`  — 문장 폭 −2.12%p. **항목 `league-emblem` 소관**이고 그쪽에
+    #        등재돼 있다. 그 항목이 닫히는 커밋에서 여기로 옮길 것.
+    #      · `probe-skill-orb-ink.js`  — 오브 모티프 대비. 소관 항목이 **🚫취소(오케스트레이션 세션
+    #        담당)** 라 이 스트림이 고칠 수 없다. 취소가 풀리면 같이 살릴 것.
 )
 
 if [ "$#" -gt 0 ]; then
@@ -123,7 +157,11 @@ for p in "${PROBES[@]}"; do
     #    넓히자마자 `probe-geardetail-px` 가 그 상태로 걸렸다(판정문 불통과인데 exit 0).
     #    ⓖ `최대 편차 X%p · 초과 N건`(probe-offline-dom·skilldetail-dom·rates-dom) — **판정 낱말이 아예
     #       없고 초과 건수가 곧 판정이다**(0 건이면 통과). 종료 코드는 멀쩡히 내므로 판정기가 맞다.
-    vline="$(printf '%s\n' "$out" | grep -E '(^|=> |✅ |❌ |결과: |판정: |총평: )(PASS|FAIL|통과|불통과)|불통과 [0-9]+건|초과 [0-9]+건|측정기 고장' | tail -1)"
+    #    ⓗ `… → PASS` / `… → FAIL`(probe-info-glyph) — 판정 낱말이 **줄 끝 화살표 뒤**에 온다.
+    #       ⓐ~ⓕ 는 전부 낱말이 줄머리이거나 `결과:`꼴 접두사 뒤라 이 꼴을 못 읽었다(2026-08-25,
+    #       위 자를 목록에 넣자마자 '판정문 없음' 경고가 났다). 방언은 앞으로도 또 생기니
+    #       **도구를 고치지 말고 여기 한 줄을 넓히는 것**이 이 파일의 규약이다.
+    vline="$(printf '%s\n' "$out" | grep -E '(^|=> |✅ |❌ |결과: |판정: |총평: |→ )(PASS|FAIL|통과|불통과)|불통과 [0-9]+건|초과 [0-9]+건|측정기 고장' | tail -1)"
     # 잡은 줄을 PASS/FAIL 로 환산한다(불통과 0건·초과 0건은 통과다).
     # ⚠️ `불통과` 가 `통과` 를 포함하므로 **반드시 불통과를 먼저** 볼 것.
     # ⚠️ 행 표시자 `← ±2%p 초과` 에는 건수가 없어 `초과 [0-9]+건` 에 안 걸린다(의도한 것).
