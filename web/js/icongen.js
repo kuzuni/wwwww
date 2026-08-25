@@ -4153,19 +4153,45 @@ IconGen._genderSym = function (ctx, S, female) {
 (function (G) {
     const { K, ink, on, poly, rrect, circle } = G._sticker;
 
-    // 링 조각 + 끝 화살촉을 한 경로로 — 안팎 호를 잇고 화살촉 삼각형을 끼워 넣는다.
+    /* 링 조각 + 끝 화살촉을 한 경로로 — 안팎 호를 잇고 화살촉 삼각형을 끼워 넣는다.
+     *
+     * 🚨 **호는 `ctx.arc` 로 그리지 않는다 — 팔각 폴리라인으로 꺾는다(2026-08-25 채점 라운드8).**
+     *    블라인드 비평가 2인이 **각각 독립적으로 이 아이콘을 최악 1순위**로 집었다:
+     *    "거의 완벽한 매끈한 고리 … 곡선 어디에도 칸이 한 개도 없다" · "벡터 refresh 글리프가
+     *    시트에 잘못 섞여 들어왔다". 원인은 화법이 아니라 **경로**다 — 참된 원호는 20칸 다운샘플에서
+     *    칸마다 조금씩 다른 각도로 스쳐 지나가 **모든 경계 칸이 서로 다른 회색**이 되고, 그게 눈에는
+     *    안티에일리어싱된 곡선으로 되돌아온다(`probe-icon-blockify` 는 알파만 보므로 이걸 못 잡는다).
+     *    → 꼭짓점을 **8방위(π/4 배수)에 못박은 팔각형**으로 근사한다. 변이 수평·수직·45° 뿐이라
+     *    다운샘플이 칸을 같은 값으로 채워 **계단이 선다**. 반지름·두께·각도 계약은 그대로다.
+     * ⚠️ 8방위보다 잘게(16각) 나누지 말 것 — 다시 원호로 돌아가 계단이 사라진다. */
+    /* 🚨 꼭짓점은 **π/4 의 배수가 아니라 그 한가운데**(=(k+½)·π/4)에 둔다. 배수에 두면 변이
+     *    22.5°·67.5° 로 기울어 **위·아래 변이 수평이 아니게** 되고, 그 기운 변이 다운샘플에서
+     *    다시 중간 회색 계단을 만든다(실측: 첫 판이 그래서 고리가 아니라 두 덩어리로 읽혔다).
+     *    반 칸 돌려 두면 변이 **수평·수직·45° 세 가지**뿐 — 픽셀아트 원의 정석이다. */
+    const OCT = Math.PI / 4;
+    const arcPts = (cx, cy, r, a0, a1, S) => {
+        const pts = [], dir = a1 > a0 ? 1 : -1;
+        const at = (k) => (k + 0.5) * OCT;
+        let k = dir > 0 ? Math.ceil(a0 / OCT - 0.5) : Math.floor(a0 / OCT - 0.5);
+        const push = (a) => pts.push([cx * S + Math.cos(a) * r * S, cy * S + Math.sin(a) * r * S]);
+        push(a0);
+        for (; dir > 0 ? at(k) < a1 : at(k) > a1; k += dir) push(at(k));
+        push(a1);
+        return pts;
+    };
     const arcArrow = (ctx, S, cx, cy, R, tw, a0, a1, fill, lw) => {
         const X = (r, a) => [cx * S + Math.cos(a) * r * S, cy * S + Math.sin(a) * r * S];
-        const dir = a1 > a0 ? 1 : -1, head = 0.30 * dir;
+        /* 🚨 화살촉은 **크고 뭉툭하게**. 얇은 삼각형은 20칸 격자에서 속살이 2칸도 안 남아
+         *    키라인이 통째로 먹고 **검은 막대 하나**로 떨어진다(실측: 반경폭 tw·1.25 · 촉각 0.30 판). */
+        const dir = a1 > a0 ? 1 : -1, head = 0.44 * dir, hw = tw * 1.60;
         ctx.save();
-        ctx.lineJoin = ctx.lineCap = 'round';
+        ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';   // round 캡은 끝을 다시 매끈하게 만든다
         ctx.beginPath();
-        ctx.moveTo(...X(R + tw / 2, a0));
-        ctx.arc(cx * S, cy * S, (R + tw / 2) * S, a0, a1, dir < 0);
-        ctx.lineTo(...X(R + tw * 1.25, a1));
+        arcPts(cx, cy, R + tw / 2, a0, a1, S).forEach((p, i) => i ? ctx.lineTo(...p) : ctx.moveTo(...p));
+        ctx.lineTo(...X(R + hw, a1));
         ctx.lineTo(...X(R, a1 + head));                  // 화살촉 끝
-        ctx.lineTo(...X(R - tw * 1.25, a1));
-        ctx.arc(cx * S, cy * S, (R - tw / 2) * S, a1, a0, dir > 0);
+        ctx.lineTo(...X(R - hw, a1));
+        arcPts(cx, cy, R - tw / 2, a1, a0, S).forEach((p) => ctx.lineTo(...p));
         ctx.closePath();
         ctx.strokeStyle = K; ctx.lineWidth = lw * S; ctx.stroke();
         ctx.fillStyle = fill; ctx.fill();
@@ -4173,11 +4199,22 @@ IconGen._genderSym = function (ctx, S, female) {
     };
 
     G.draw.autoloop = function (ctx, S) {
-        const P = Math.PI, W = '#f4f4f6';
+        const P = Math.PI, W = '#f4f4f6', WSH = '#b9bcc4';
+        /* 흰 속살을 **두 톤**으로 나눈다 — 비평가 2인 공통 지적의 후반부("재질 톤이 0 이다").
+         * 순백 한 톤은 칸 스냅에서 통째로 명도 1.0 한 칸값이라 아무리 계단이 서도 '평면 도형'으로
+         * 읽힌다. 위 절반 흰 면(칸 1.0) · 아래 절반 그늘 면(칸 .75)으로 갈라 두 칸값에 하나씩
+         * 떨어뜨린다(보석 그릇과 같은 규칙 — `piv` 는 흰 종이라 상한 .75 로 클램프된다). */
         // ⚠️ 호 끝각 + 화살촉 각(0.30rad ≈ 0.095π)이 다음 호의 시작각을 넘으면 두 화살촉이
         //    겹쳐 고리가 아니라 소용돌이 덩어리로 읽힌다(0.84π + head 0.40 에서 실제로 그랬다).
-        arcArrow(ctx, S, 0.5, 0.5, 0.305, 0.165, P * 0.14, P * 0.82, W, 0.078);
-        arcArrow(ctx, S, 0.5, 0.5, 0.305, 0.165, P * 1.14, P * 1.82, W, 0.078);
+        /* 🚨 **고리는 얇고 크게.** 종전 R .305 · 두께 .165 는 20칸 격자에서 구멍이 8.9칸인데
+         *    키라인이 양쪽을 먹어 **구멍이 거의 닫혀** 두 개의 흰 덩어리로 읽혔다(실측).
+         *    R .33 · 두께 .14 로 구멍을 10.4칸까지 벌리고 키라인을 .078 → .060 으로 줄인다. */
+        arcArrow(ctx, S, 0.5, 0.5, 0.330, 0.140, P * 0.14, P * 0.82, W, 0.060);
+        arcArrow(ctx, S, 0.5, 0.5, 0.330, 0.140, P * 1.14, P * 1.82, W, 0.060);
+        /* 그늘은 **고리의 안쪽 띠**에 준다(위/아래로 자르면 두 화살이 서로 다른 물건으로 갈린다 —
+         * 실측에서 흰 덩어리 하나 + 회색 덩어리 하나로 읽혔다). 바깥 밝고 안쪽 어두운 = 마크 테두리 결. */
+        arcArrow(ctx, S, 0.5, 0.5, 0.330 - 0.140 * 0.32, 0.140 * 0.36, P * 0.17, P * 0.79, WSH, 0);
+        arcArrow(ctx, S, 0.5, 0.5, 0.330 - 0.140 * 0.32, 0.140 * 0.36, P * 1.17, P * 1.79, WSH, 0);
     };
 
     G.draw.chatbubble = function (ctx, S) {
@@ -4322,17 +4359,34 @@ IconGen._genderSym = function (ctx, S, female) {
 (function (G) {
     const { K, ink, on, poly, rrect } = G._sticker;
     const BLUE = '#005dff', BEVEL = '#001c4e';
+    // 위 밝은 띠 — 명도 .66 을 노려 칸 .75 에 떨어뜨린다(BLUE .50 → 칸 .50 · BEVEL .15 → 칸 .25)
+    const LIT = 'hsl(218,100%,66%)';
     const LW = 0.105;    // 배지 키라인 — 보이는 두께 = LW/2 = 5.3%(19px 기준 1px)
     const GLW = 0.092;   // 글리프 키라인 — 쐐기가 얇아 배지보다 가늘게, 그러나 축소 후
                          // 순검정으로 앉을 만큼은 두껍게(0.072 는 회색으로만 떴다)
 
     G.draw.chatcam = function (ctx, S) {
-        // ① 파랑 라운드 사각 — ink 는 경로 중심에 스트로크하므로 LW/2 만큼 안쪽으로 넣어야
-        //    키라인 바깥선이 상자 변에 딱 맞는다.
-        const i = LW / 2, box = rrect(ctx, S, i, i, 1 - LW, 1 - LW, 0.158 - i);
+        /* 🚨 **모서리를 둥근 곡선에서 45° 모따기로 바꿨다(2026-08-25 채점 라운드8).**
+         *    블라인드 비평가 2인이 각각 독립적으로 이 아이콘을 최악 2순위로 집었다:
+         *    "시트에서 유일하게 _물건_ 이 아니라 UI _타일_ 이고, 모서리 라운드가 계단이 아니라
+         *    매끈하다 · 재질 톤이 0 이다". **타일 형태 자체는 원본(상단바 배지)이 그렇게 생겼으니
+         *    안 바꾼다** — 대신 지적의 실체인 두 가지를 고친다: ⑴ 곡선 모서리 → 칸에 떨어지는
+         *    45° 모따기(마크 액자·틀은 전부 이 화법이다) ⑵ 단색 파랑 → 세 톤.
+         * ⚠️ 라운드 반경을 그냥 0 으로 두지 말 것 — 직각 사각이면 배경 타일과 구분이 안 돼
+         *    아이콘이 아니라 '잘린 화면'으로 읽힌다. 모따기는 실루엣을 남긴다. */
+        const i = LW / 2, CH = 0.14;            // 모따기 = 칸 격자에 떨어지는 2.8칸
+        const box = () => {
+            const a = i, b = 1 - i;
+            poly(ctx, S, [
+                [a + CH, a], [b - CH, a], [b, a + CH], [b, b - CH],
+                [b - CH, b], [a + CH, b], [a, b - CH], [a, a + CH],
+            ])();
+        };
         ink(ctx, S, box, BLUE, LW);
-        // ② 아래 베벨 띠 — 실루엣 안으로 clip 해서 라운드 모서리를 안 넘게 한다.
+        /* ② 세 톤 — 위 밝은 띠(칸 .75) · 몸통 파랑(칸 .50) · 아래 베벨(칸 .25).
+         *    명도를 격자 칸 세 개에 하나씩 떨어뜨린다(보석 그릇과 같은 규칙). */
         ctx.save(); ctx.beginPath(); box(); ctx.clip();
+        on(ctx, poly(ctx, S, [[0, 0], [1, 0], [1, 0.155], [0, 0.155]]), LIT);
         on(ctx, poly(ctx, S, [[0, 0.789], [1, 0.789], [1, 1], [0, 1]]), BEVEL);
         ctx.restore();
         // ③ 흰 비디오캠 — 몸통과 렌즈를 **겹친 서브패스 2개로 두면 안 된다**: 맞닿는 꼭짓점 부근에서
