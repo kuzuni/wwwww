@@ -14,9 +14,12 @@
 //    **눈이 보는 굵기 그대로** 비교된다.
 //
 // 🔍 **실측으로 확인해 둔 것**: `scene3d.js` 가 `setPixelRatio(Math.min(2, devicePixelRatio))` 로
-//    **DPR 을 2 에서 자른다**. 그래서 이 축은 연속이 아니라 **이분법**이다 —
+//    **DPR 을 2 에서 자른다**. 그래서 이 축은 연속이 아니라 **이분법**이었다 —
 //    DPR 1 → 버퍼=CSS → 선 2 CSS px / **DPR 2 이상 → 버퍼=2×CSS → 선 1 CSS px**.
 //    (TODO 에 적혀 있던 "DPR 3 에선 0.67px" 은 이 클램프를 안 본 계산이라 틀렸다. dsf 3 행이 그 증거다.)
+// ✅ **그 2배 격차는 닫혔다**(2026-08-25 3D 스트림, `_compMat` 의 `dilate` 유니폼). 팽창을 버퍼가
+//    CSS 대비 1.5× 이상 촘촘할 때만 걸어, DPR 1 은 1 버퍼px · DPR 2 이상은 2 버퍼px →
+//    **전 대역 1.00 CSS px**. 이 시트의 네 행 캡션이 그 증거다(넷 다 `= 1.00 CSS px`).
 //
 // 사용: node shot-outline-uniform.js [출력경로]   기본 tools/outline-uniform.png
 const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_modules/playwright');
@@ -113,7 +116,10 @@ const capture = async (browser, { dsf, ua, title }) => {
         const ks = Object.keys(hist).map(Number).sort((a, b) => a - b);
         let acc = 0, med = 0;
         for (const k of ks) { acc += hist[k]; if (acc >= n * 0.5) { med = k; break; } }
-        const share2 = ((hist[2] || 0) / Math.max(1, n) * 100).toFixed(1);
+        // 🚨 **'2px 비중'이 아니라 '중앙값 비중'이어야 한다.** 목표 두께는 버퍼 px 로 고정된 값이 아니라
+        //    **1 CSS px** 이고, 그건 DPR 1 에서 1 버퍼px · DPR 2 에서 2 버퍼px 이다. 2 를 하드코딩하면
+        //    DPR 1 행이 정상인데도 '29.7%' 같은 낮은 수를 찍어 **거짓 결함처럼 읽힌다**.
+        const shareMed = ((hist[med] || 0) / Math.max(1, n) * 100).toFixed(1);
 
         // 🚨 **반드시 다시 렌더한 뒤에 캡처한다.** 위 `off` 측정이 남긴 마지막 프레임은 **항이 꺼진**
         //    그림이라, 그대로 `drawImage` 하면 **아웃라인이 하나도 없는 시트**가 나온다(첫 판에서
@@ -136,7 +142,7 @@ const capture = async (browser, { dsf, ua, title }) => {
         return {
             full: cv.toDataURL('image/png'), spots, w: W, h: H, bs,
             crop: Math.round(CROP_CSS * bs),                 // 버퍼 px 로 환산한 크롭 한 변
-            med, share2, nEdge: n,
+            med, shareMed, nEdge: n,
             postOn: !!Scene3D.postOn, postEdge: !!Scene3D.postEdge,
         };
     }, { CROP_CSS, CSS_W });
@@ -156,7 +162,7 @@ const capture = async (browser, { dsf, ua, title }) => {
     for (const p of PLAN) caps.push(await capture(browser, p));
 
     const rows = caps.map(c => ({
-        title: `${c.title} — 버퍼 ${c.r.w}×${c.r.h}(CSS 대비 ${c.r.bs}×) · 선 두께 중앙 ${c.r.med} 버퍼px = ${(c.r.med / c.r.bs).toFixed(2)} CSS px · 2px 비중 ${c.r.share2}%`,
+        title: `${c.title} — 버퍼 ${c.r.w}×${c.r.h}(CSS 대비 ${c.r.bs}×) · 선 두께 중앙 ${c.r.med} 버퍼px = ${(c.r.med / c.r.bs).toFixed(2)} CSS px · 중앙값 비중 ${c.r.shareMed}%`,
         full: c.r.full, spots: c.r.spots, crop: c.r.crop,
     }));
     const page = await browser.newPage({ viewport: { width: 400, height: 400 } });

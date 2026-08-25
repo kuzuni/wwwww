@@ -61,13 +61,25 @@ const { SEED_INIT } = require('./lib-seed');   // 씬 전체 재현성 — page.
 const INDEX = 'file://' + path.resolve(__dirname, '../index.html');
 const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
-const MIN_N = 120;          // 층마다 이 정도는 있어야 '그 종류 경계에 선이 있다'고 말할 수 있다
+// 층마다 이 정도는 있어야 '그 종류 경계에 선이 있다'고 말할 수 있다.
+// 🚨 **해상도에 비례해야 한다** — 표본 수는 화면 화소 수를 따라가므로 DPR 1 대역(버퍼 면적 1/4)에서
+//    고정 120 을 그대로 쓰면 `sky:n=80` 같은 **정상 대역이 '선이 없다'로 거짓 FAIL** 한다
+//    (실측 2026-08-25: DPR 1 에서 sky 층이 전 계열 n=80 → 4칸 FAIL. 셰이더는 멀쩡했다).
+const MIN_N_AT_DSF2 = 120;
+const minN = dsf => Math.max(20, Math.round(MIN_N_AT_DSF2 * (dsf / 2) * (dsf / 2)));
 const COVER_MIN = 0.90;     // Ⓑ seed 중 이 비율 이상은 검게 칠해져 있어야 한다
 const EROSION_MAX = 0.20;   // Ⓒ '통째로 먹힌 파츠'에 속한 오브젝트 화소가 이 비율을 넘으면 FAIL
 const LINE_R = 2;           // 셰이더의 선 반경(반경 1 검출 + 1px 팽창) — 침식 판정의 기준자
 
-const runOne = async (browser, label, ua) => {
-    const page = await browser.newPage(Object.assign({ viewport: { width: 480, height: 854 }, deviceScaleFactor: 2 }, ua ? { userAgent: ua } : {}));
+// 🚨 **DPR 1 대역을 반드시 같이 재야 한다** (2026-08-25 3D 스트림에서 신설).
+//    종전 이 자는 `deviceScaleFactor: 2` 한 대역만 쟀다 — 데스크톱 행과 모바일 행이 UA 만 다르고
+//    **버퍼 해상도는 같았다.** 두께를 정하는 건 UA 가 아니라 드로잉버퍼 화소이므로, 그 두 행은
+//    **두께에 관한 한 같은 측정 두 번**이었다. 검수 시트(`shot-outline-uniform.js`)가 DPR 1 에서
+//    '2px 비중 71.0%'(DPR 2 는 83.3%)를 찍고 있었는데도 게이트는 그걸 못 봤다.
+//    → 이제 **DPR 1 · DPR 2 두 대역**을 다 돌린다. 대역이 늘어도 판정 기준은 같다(칸 간 두께 일치).
+const runOne = async (browser, label, ua, dsf = 2) => {
+    const MIN_N = minN(dsf);
+    const page = await browser.newPage(Object.assign({ viewport: { width: 480, height: 854 }, deviceScaleFactor: dsf }, ua ? { userAgent: ua } : {}));
     const errors = [];
     page.on('pageerror', e => errors.push('PAGEERROR ' + String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
@@ -449,17 +461,28 @@ const runOne = async (browser, label, ua) => {
     console.log(`  Ⓒ 파츠 침식    : ${eroded.length === 0 ? 'PASS (통째로 먹힌 파츠 화소 ≤' + (EROSION_MAX * 100) + '%)' : 'FAIL ' + eroded.join(',')}`);
     console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : '(no console errors)');
     await page.close();
-    return { pass, median: meds.length === 1 ? meds[0] : null };
+    // 🚨 **기기 간 비교는 버퍼 화소가 아니라 CSS 화소로 해야 한다.** 대역마다 버퍼 화소의 크기가 다르므로
+    //    "양쪽 다 2 버퍼px" 는 기기 간 일치의 증거가 **아니다**(그게 종전에 DPR1 만 두 배 굵은 걸 놓친 이유다).
+    //    두께 대표값은 p90 을 쓴다 — 중앙값은 이 자에서 대부분 seed(=1) 라 대역 차에 안 움직인다.
+    const p90 = p90s.length === 1 ? p90s[0] : null;
+    return { pass, label, dsf, median: meds.length === 1 ? meds[0] : null, cssPx: p90 === null ? null : p90 / dsf };
 };
 
 (async () => {
     const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--enable-unsafe-swiftshader'] });
-    const d = await runOne(browser, '데스크톱 UA', null);
-    const m = await runOne(browser, '모바일 UA', MOBILE_UA);
+    const bands = [
+        await runOne(browser, '데스크톱 UA · DPR 2', null, 2),
+        await runOne(browser, '모바일 UA · DPR 2', MOBILE_UA, 2),
+        await runOne(browser, '데스크톱 UA · DPR 1', null, 1),
+    ];
     await browser.close();
-    const cross = d.median !== null && d.median === m.median;
+    const css = [...new Set(bands.map(b => b.cssPx))];
+    const cross = css.length === 1 && css[0] !== null;
+    const ok = bands.every(b => b.pass) && cross;
     console.log('\n═══ 종합 ═══');
-    console.log('  기기 간 두께 일치 :', cross ? 'PASS (양쪽 ' + d.median + 'px)' : 'FAIL (데스크톱=' + d.median + ', 모바일=' + m.median + ')');
-    console.log('  최종 :', d.pass && m.pass && cross ? 'PASS' : 'FAIL');
-    process.exit(d.pass && m.pass && cross ? 0 : 1);
+    console.log('  대역별 선 두께 :', bands.map(b => `${b.label} → p90 ${b.cssPx === null ? '?' : b.cssPx * b.dsf} 버퍼px = ${b.cssPx === null ? '?' : b.cssPx.toFixed(2)} CSS px`).join('\n                   '));
+    console.log('  기기 간 두께 일치 :', cross ? 'PASS (전 대역 ' + css[0].toFixed(2) + ' CSS px)'
+        : 'FAIL ' + JSON.stringify(bands.map(b => b.label + '=' + b.cssPx)));
+    console.log('  최종 :', ok ? 'PASS' : 'FAIL');
+    process.exit(ok ? 0 : 1);
 })();

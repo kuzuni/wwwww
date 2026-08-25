@@ -644,12 +644,25 @@ const Scene3D = {
                 //    1px). 즉 두께가 상수가 아니라 '깊이 계단의 종류'를 따라갔다. 지금 규칙은 애초에
                 //    근측만 칠하므로 이 컷이 두께에 개입할 여지가 없다.
                 edgeMaxZ: { value: 22.0 },
+                // 🖊️ **선 두께를 드로잉버퍼 화소가 아니라 CSS 화소로 못박는 스위치** (2026-08-25 3D 스트림).
+                //    두께는 '반경1 검출 + 1칸 팽창' = **항상 2 버퍼px** 이었다. 그런데 버퍼 화소의 크기가
+                //    기기마다 다르다 — `setPixelRatio(min(2, DPR))` 이므로 **DPR 1 이면 2 CSS px,
+                //    DPR 2 이상이면 1 CSS px**. 같은 게임이 데스크톱에서만 선이 두 배 굵었다.
+                //    (실측 2026-08-25 `shot-outline-uniform.js`: DPR1 = 2.00 CSS px / DPR2·3 = 1.00 CSS px.
+                //     DPR 3 이 DPR 2 와 같은 건 위 클램프 때문이다 — 격차는 연속이 아니라 **딱 2배 이분법**이다.)
+                //    → 팽창을 **DPR 2 이상에서만** 건다. DPR 1 은 검출 1px 그대로 두면 1 CSS px 이 되어
+                //      전 대역이 **1 CSS px 로 통일**된다. 굵은 쪽(2 CSS px)에 맞추지 않는 이유는 침식이다:
+                //      DPR 1 에서 펫 몸통 검정비율 **52.0%** · 먹힌 경계 **19.0%** 로 (DPR 2 는 28.9%·5.9%)
+                //      선이 얇은 파츠를 통째로 먹고 있었다. 얇은 쪽으로 맞춰야 조형이 산다.
+                //    ⚠️ 팽창은 실루엣과 크리스 **양쪽**에 걸려 있다(크리스는 이력항이 반대편 날개를 켜는
+                //       방식으로 2px 을 만든다). 한쪽만 끄면 그 대역에서 종류별 두께 차가 되살아난다.
+                dilate: { value: 1.0 },
             },
             vertexShader: V,
             fragmentShader: '#include <packing>\n' +
                 'varying vec2 vUv; uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tDepth;\n' +
                 'uniform float strength; uniform float vig; uniform vec2 texel; uniform float camNear; uniform float camFar;\n' +
-                'uniform float edgeK; uniform float creaseK; uniform float normalK; uniform float edgeMaxZ; uniform vec2 proj;\n' +
+                'uniform float edgeK; uniform float creaseK; uniform float normalK; uniform float edgeMaxZ; uniform float dilate; uniform vec2 proj;\n' +
                 'float linz(vec2 uv){ float d = texture2D(tDepth, uv).x; return -perspectiveDepthToViewZ(d, camNear, camFar); }\n' +
                 // 🖊️ **깊이만으로 뷰공간 법선 복원** (MRT·G버퍼 없이). 뷰공간 평면 위에서 역깊이 q=1/z 는
                 //    시야평면 좌표 (u,v) 의 **1차식**이다: 평면 aX+bY+cZ=d 에 X=u·z, Y=v·z, Z=−z 를 넣으면
@@ -698,7 +711,7 @@ const Scene3D = {
                 '  float cR = 1.0 - step(edgeK * z0, abs(zr - z0));\n' +
                 '  float cU = 1.0 - step(edgeK * z0, abs(zu - z0));\n' +
                 '  float cD = 1.0 - step(edgeK * z0, abs(zd - z0));\n' +
-                '  float sil = max(max(e0, max(eL * cL, eR * cR)), max(eU * cU, eD * cD));\n' +
+                '  float sil = max(e0, dilate * max(max(eL * cL, eR * cR), max(eU * cU, eD * cD)));\n' +
                 // 반대 방향(나보다 **가까운** 이웃의 최대 초과분) — ②③ 을 계단의 먼 쪽에서만 끄는 데 쓴다.
                 '  float a1 = max(max(abs(zl - z0), abs(zr - z0)), max(abs(zd - z0), abs(zu - z0)));\n' +
                 '  float ad = max(max(abs(zdl - z0), abs(zdr - z0)), max(abs(zul - z0), abs(zur - z0))) * 0.70711;\n' +
@@ -744,7 +757,7 @@ const Scene3D = {
                 //    크리스 항의 2px 비중): 1.00 74.3% · 0.85 76.6% · **0.70 77.7%** · 0.50 76.3%.
                 //    더 내리면 1px 은 계속 줄지만(22.6 → 15.7%) 3px 이 그보다 빨리 늘어(3.0 → 7.7%)
                 //    분산이 되레 커진다 — 0.70 이 그 골이다.
-                '  float crvHy = max(crv0, step(creaseK * qc * 0.70, max(cx, cy)) * crvNbr);\n' +
+                '  float crvHy = max(crv0, dilate * step(creaseK * qc * 0.70, max(cx, cy)) * crvNbr);\n' +
                 // 🚨 **큰 계단 반경 2 안에서는 ②③을 끈다**(`1.0 - step(edgeK*z0, amax)`). 이유 둘:
                 //    ⑴ 큰 계단은 법선 복원도 곡률도 통째로 튀게 해서, 안 끄면 계단의 **먼 쪽까지** 칠해
                 //       ①이 만든 '근측만' 비대칭이 무너진다(실측: step 층 중앙 2px → 3px).
@@ -828,6 +841,14 @@ const Scene3D = {
         this._compMat.uniforms.proj.value.set(th * this.camera.aspect, th);
         const dbz = r.getDrawingBufferSize(this._dbTmp || (this._dbTmp = new THREE.Vector2()));
         this._compMat.uniforms.texel.value.set(1 / Math.max(1, dbz.x), 1 / Math.max(1, dbz.y));
+        // 🖊️ 선 두께를 **CSS 화소**로 고정한다 — 버퍼가 CSS 대비 1.5× 이상 촘촘할 때만 팽창을 건다.
+        //    `getPixelRatio()` 가 아니라 실제 버퍼/CSS 비를 쓰는 이유: 리사이즈·저사양 폴백으로 렌더러가
+        //    비율을 낮추면 `setPixelRatio` 인자와 실제 버퍼가 갈릴 수 있다. 화면에 나가는 건 버퍼다.
+        //    문턱이 2 가 아니라 **1.5** 인 이유: DPR 1.5 기기에서 팽창을 끄면 선이 **0.67 CSS px** 이 돼
+        //    서브픽셀로 흐려진다. 켜면 1.33 CSS px — 1.00 에서 덜 벗어난다. 1.5 가 두 오차의 교차점이다.
+        //    ⚠️ 레이아웃 전이라 `clientWidth` 가 0 이면 `|| 1` 로 문턱이 무너져 **팽창 on**(= 종전 동작)이
+        //       된다 — 기본값을 켜진 쪽으로 두는 게 안전하다(선이 사라지는 것보다 굵은 게 낫다).
+        this._compMat.uniforms.dilate.value = dbz.x >= (r.domElement.clientWidth || 1) * 1.5 ? 1.0 : 0.0;
         r.setRenderTarget(null); r.render(this._fsScene, this._fsCam);
     },
 
