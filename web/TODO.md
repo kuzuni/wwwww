@@ -1270,6 +1270,10 @@
       `probe-icon-light-frame` 44자리 미달 0 · **`probe-techov-px`**(+1.69%p) · **`probe-techbranch-px`**
       (+1.44%p) · **`probe-fl-head`** — 뒤 셋은 시대 아이콘이 실제로 뜨는 화면이라 일부러 돌렸다 ·
       `probe-orb-face-flat`(skills 재굽기 후) · `probe-screens-errors` 31/31 콘솔 0.
+    · 🚨 **이 세션은 블라인드 채점(라운드8)을 못 돌렸다 — 못 한 게 아니라 금지돼 있었다.**
+      이 루틴의 지시에 **`Agent` 툴 사용 금지**가 걸려 있어 '새 컨텍스트 비평가 2인'을 띄울 수가
+      없다. 시트(`tools/shot-icons-block.js`)는 언제든 구울 수 있으니, **Agent 를 쓸 수 있는
+      세션이 시트만 받아 채점하면 된다.** 이 항목의 게이트가 채점 하나뿐이라 그게 유일한 병목이다.
     · 🎯 **다음 재작화 남은 목록**(위 규칙표를 먼저 읽을 것): `age_divine`(위 🐛) · `age_interstellar` · `dg_invasion`/`dg_zombie`
       (하늘/원경/근경 3단 명도 띠 + 주제 오브젝트 하나) · `marker`(가장 덜 망가졌다 — 빨간 핀에 흰 점으로
       읽히긴 한다. `_plate` 4스톱 그라디언트가 뿌리인데 그 헬퍼는 무기 40여 종이 공유해서 손대면 전이
