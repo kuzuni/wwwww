@@ -1180,9 +1180,22 @@
        제대로 다시 그리면 커밋 사이가 30분을 넘는다 — 그동안 클레임이 만료된 것처럼 보인다.
        **긴 작업 중에는 10분마다 `git commit --allow-empty -m "[UI작업중] 클레임"` 으로 클레임을
        갱신할 것.** (실제로 다른 UI 세션들은 그렇게 하고 있었다 — 클레임 커밋이 여러 번 찍혀 있다.)
-    👉 **더 위험한 것 = force-push.** 이 저장소의 세션들이 `main` 을 강제로 밀고 있다(첫 pull 에서
-       `+ f276eb8...a3a7fad main -> origin/main (forced update)` 관측). 이번에 **정상적으로 push 된
-       커밋 2개가 통째로 사라졌다** — reflog 로 살려 다시 올렸다. **`main` 에 force-push 하지 말 것.**
+    👉 🚨 **덤으로 잡은 진짜 함정 = `git push` 성공 판정을 grep 으로 하면 안 된다 (자기 오진 정정).**
+       이 세션은 push 루프를 `git push origin main | grep -q "main -> main"` 로 짰는데, **거절 메시지도
+       그 문자열을 담는다**(`! [rejected]        main -> main (fetch first)`). 그래서 **거절을 성공으로
+       읽고** 커밋이 안 올라간 채 다음 일로 넘어갔다 — 실제로 이 세션에서 두 번 그랬다.
+       ⚠️ **나는 이걸 처음에 '다른 세션의 force-push 가 내 커밋을 지웠다'로 오진해 TODO 에 적었다.
+          그 진단은 틀렸다** — 커밋은 지워진 게 아니라 **애초에 올라간 적이 없었다.** 다른 세션을
+          탓하는 기록이라 여기 명시적으로 정정한다.
+       ✅ **올바른 확인법**(문자열 말고 조상 관계로 잰다):
+       ```
+       git push origin main
+       git fetch origin main -q
+       git merge-base --is-ancestor HEAD origin/main && echo 올라감 || echo 안올라감
+       ```
+       📌 별개로 **force-push 자체는 이 저장소에서 실제로 일어난다** — 이 세션 첫 pull 에서
+          `+ f276eb8...a3a7fad main -> origin/main (forced update)` 를 관측했다. `main` 에
+          force-push 하지 말 것. 다만 위 커밋 2개의 원인은 그게 아니었다.
 
   - ⏩ **진행 (2026-08-25 UI 스트림 — 종별 재작화 ②: `ticket` · `winder` · `rank3`)**
     · 🔑🔑 **이번 판의 가장 큰 소득 = 20칸 격자의 '그릴 수 있는 것/없는 것' 경계를 수치로 확정했다.**
