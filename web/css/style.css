@@ -5438,8 +5438,14 @@ h3.sellwarn-title, .rates-head h3,
 .petd-wrap .petd-btn { color: #fff; -webkit-text-stroke: 3px var(--pp-line); paint-order: stroke fill; }
 /* ㉣ 이름 줄: 원본은 `[궁극의] 트렌트` **전체**가 등급 원색(#ff1c1c = RARITY_CSS.ultimate) + 검정
    키라인이다(y=400 스캔에서 채움 #ff1c1c, 획 경계 #000000). 클론은 inkRarity() 로 흰 바탕 대비를
-   맞추느라 어둡게 깐 플랫 글자였다 — 키라인이 대비를 대신하므로 원색을 그대로 쓴다(ui.js 동반 수정). */
-.petd-wrap .petd-name { -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill; }
+   맞추느라 어둡게 깐 플랫 글자였다 — 키라인이 대비를 대신하므로 원색을 그대로 쓴다(ui.js 동반 수정).
+   ⚠️ 굵기는 **고정 px 이 아니라 글자 크기 비율**이다 (petname-keyline-blob-small, 2026-08-25).
+      고정 2px 이던 시절엔 좁은 화면에서 획/글자 비만 커져 `[일반]` 이 검은 덩어리가 됐다 —
+      실측 499×892 fs 15.98px(비 0.125) · 360×640 fs 11.53px(비 **0.174**) · 320×568 fs 10.23px(비 **0.196**).
+      기준값 `.125em` 은 원본 shot-042449(490×886, fs≈15.9px·키라인 2px)의 비 **0.1258** 을 그대로 옮긴 것이라
+      기준 밴드의 그림은 바뀌지 않고 좁은 밴드만 따라 얇아진다. 하한 1.2px 은 키라인이 사라지지 않게 하는 바닥.
+      (같은 화법: `.league-row .league-name small` 8376행 · `.league-row.me .league-server` 2354행) */
+.petd-wrap .petd-name { -webkit-text-stroke: max(1.2px, .125em) var(--pp-line); paint-order: stroke fill; }
 /* ㉤ 본문 잉크: 원본 스탯 2줄은 **순검정**(y=420 단면 #000000), 옵션 줄은 **#3a3a3a 회색**이다.
    클론은 둘 다 --pp-ink(#17181a) 한 색이라 위계가 없었다. */
 .petd-wrap .petd-stats { color: #000; }
@@ -5507,7 +5513,13 @@ h3.sellwarn-title, .rates-head h3,
    #ff1c1c 이고 획 경계가 #050000·#090101). 클론은 --pp-ink 한 색이었다. ⑫ 와 같은 처방.
    ㉦ 스탯 2줄은 **순검정**(x180 y145·y160·y168 이 전부 #000000) — --pp-ink(#17181a)보다 진하다.
       '합칠 펫 선택' 라벨도 같다(x100 y266 #0b0b0b). */
-.petup-panel .idet-name { color: var(--rc, var(--pp-ink)); -webkit-text-stroke: 2px var(--pp-line); paint-order: stroke fill; }
+/* ⚠️ 굵기는 ⑫ ㉣ 와 같은 이유로 비율이다 — 같은 화법을 쓰는 자리라 같은 병을 앓았다
+   (petname-keyline-blob-small, 2026-08-25). 근거는 ⑫ ㉣ 주석 참조.
+   🚨 비율이 ⑫ ㉣(.125em)와 다른 건 **글자 크기가 달라서**다 — 원본의 키라인은 양쪽 다 2px 인데
+      이 줄은 `.idet-name{font-size:1.05rem}`(기준 밴드 17.66px)이고 ⑫ 는 `.petd-name{.95rem}`(15.98px)이다.
+      같은 2px 을 각자 제 글자 크기로 나누면 2/17.66 = **.113** · 2/15.98 = **.125** 가 된다.
+      한쪽 값을 양쪽에 쓰면 기준 밴드에서 원본과 어긋난다(.125em 을 여기 쓰면 2.21px = 10% 두꺼움). */
+.petup-panel .idet-name { color: var(--rc, var(--pp-ink)); -webkit-text-stroke: max(1.2px, .113em) var(--pp-line); paint-order: stroke fill; }
 .petup-panel .idet-main { color: #000; }
 .petup-sellabel { color: #000; }
 
