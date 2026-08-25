@@ -591,35 +591,114 @@ const Scene3D = {
                 //    켜자고 모바일 화면의 **색·밝기까지 바꾸지는 않는다**(요구는 아웃라인 균일뿐).
                 vig: { value: mobile ? 0.0 : 0.24 },
                 // (블룸 세기 원본은 `_bloomStrength` 에 둔다 — renderFrame 이 매 프레임 0/원본으로 스위치한다.)
-                // 🖊️ 후처리 엣지 아웃라인 (uniform-outline-postfx, 2026-08-22)
+                // 🖊️ 후처리 엣지 아웃라인 (uniform-outline-postfx, 2026-08-22 / **근측 고정폭 재설계 2026-08-25**)
                 tDepth: { value: null }, texel: { value: new THREE.Vector2(1 / 512, 1 / 512) },
                 camNear: { value: 0.1 }, camFar: { value: 100 },
-                // 상대 임계 — 이웃 선형깊이차가 (edgeK × 이 화소 깊이) 를 넘으면 검정. 평평한 지면은
-                // 깊이 그라디언트가 완만해(깊이 비례 임계라 원경일수록 관대) 엣지가 안 생기고,
-                // 캐릭터 실루엣·내부 파츠 경계(깊이 점프)에서만 균일선이 나온다.
+                // 상대 임계 — 이웃이 **나보다** (edgeK × 이 화소 깊이 × 탭거리) 이상 멀면 나를 칠한다.
+                // 탭거리로 나누는 이유: 반경 2 탭은 기울어진 지면에서 깊이차가 2배로 쌓여, 나누지 않으면
+                // 평평한 지면이 검게 얼룩진다(반경 1 시절 임계를 그대로 쓰려면 화소당 기울기로 재야 한다).
                 edgeK: { value: 0.028 },
+                // 🖊️ **법선 불연속 임계** — 깊이에서 복원한 뷰공간 법선의 `1 - dot(n0, n이웃)`.
+                //    깊이 계단이 작은 경계(턱↔가슴·발굽↔지면)는 실루엣 항이 통째로 놓쳐 얼굴이 몸통에
+                //    흘러 붙고 발이 바닥에 녹았다. 각도로 재는 이유: 임계가 **깊이 스케일과 무관**해
+                //    평면(1-dot≈1e-5)과 직각 접힘(1-dot=1)의 분리 폭이 5자리라 **점 노이즈가 안 생긴다**
+                //    — 곡률(2차 차분)만 쓰던 판에서는 임계를 스치는 화소가 1px 점으로 흩뿌려졌다(실측).
+                //    값은 스윕으로 골랐다(`NORMAL_K=… node tools/probe-outline-strata.js`, 데스크톱 실측):
+                //    0.18(≈35°) → 크리스 6952px·중앙 3~5px(면 안쪽이 뭉텅이로 칠해짐) / 0.5(60°) → 3232px,
+                //    중앙 2~3px / 0.8(≈78°) → 중앙 2px·펫 p90 5px / **0.9(≈84°) → 1486px, 중앙 2px·
+                //    전 계열 p90 3px**. 복원 법선은 정면을 향한 면에서
+                //    q 기울기가 0 에 붙어 각도 노이즈 바닥이 30° 대까지 올라오므로 임계를 그 위로 둬야 한다.
+                //    마크 문법 조형은 파츠가 축정렬 직육면체라 **진짜 접힘은 전부 90°(=1.0)** — 0.8 이어도
+                //    실제 접힘은 하나도 안 놓친다(노이즈만 걸러진다).
+                normalK: { value: 0.9 },
+                // 🖊️ **곡률 임계** — 역깊이(1/z)의 2차 차분. 법선 항이 못 잡는 케이스가 하나 남는다:
+                //    **양쪽 면이 나란한 작은 계단**(턱이 가슴 앞으로 0.2 유닛 튀어나온 자리). 법선이
+                //    같으니 dot=1 이고, 계단이 작아 실루엣 임계에도 못 미친다. 1/z 는 평면 위에서
+                //    화면공간 선형이라 평면에선 정확히 0 이고 이런 계단에서만 튄다.
+                //    0.010 = 스윕 결과(`CREASE_K=… node tools/probe-outline-strata.js`): 0.004 는 0.02 유닛
+                //    짜리 미세 단차까지 물어 1px 점을 뿌렸고, 0.010 은 **≥0.1 유닛 계단만** 잡는다.
+                //    (진짜 접힘은 이제 법선 항이 맡으므로 곡률 임계를 올려도 선이 성글어지지 않는다.)
+                creaseK: { value: 0.010 },
+                // 화면공간 → 뷰공간 복원용 (tan(fov/2)·aspect, tan(fov/2)). renderFrame 이 매 프레임 갱신한다.
+                proj: { value: new THREE.Vector2(1, 1) },
                 // 근거리 컷 — 이 화소 선형깊이가 이 값을 넘으면 아웃라인을 안 그린다. 캐릭터·펫·탈것·적은
                 // 카메라에서 ~8~15 유닛이고 지평선(지면 far 모서리↔하늘)은 ~50+ 라, 22 로 자르면 캐릭터는
                 // 다 살면서 **지평선의 큰 깊이 점프가 화면을 가로지르는 검정선**을 만드는 걸 막는다.
+                // 🚨 **이 값은 지평선 컷 전용이다 — 두께 결정에 절대 끼워 넣지 말 것.** 종전 셰이더는
+                //    `step(z0, edgeMaxZ)` 를 대칭 판정에 곱해, 하늘 쪽 화소(z=far)가 컷에 걸려 지워지는
+                //    바람에 **하늘 경계만 1px, 나머지는 2px** 가 됐다(실측 2026-08-25: 하늘 n=90 중 88개가
+                //    1px). 즉 두께가 상수가 아니라 '깊이 계단의 종류'를 따라갔다. 지금 규칙은 애초에
+                //    근측만 칠하므로 이 컷이 두께에 개입할 여지가 없다.
                 edgeMaxZ: { value: 22.0 },
             },
             vertexShader: V,
             fragmentShader: '#include <packing>\n' +
                 'varying vec2 vUv; uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tDepth;\n' +
-                'uniform float strength; uniform float vig; uniform vec2 texel; uniform float camNear; uniform float camFar; uniform float edgeK; uniform float edgeMaxZ;\n' +
+                'uniform float strength; uniform float vig; uniform vec2 texel; uniform float camNear; uniform float camFar;\n' +
+                'uniform float edgeK; uniform float creaseK; uniform float normalK; uniform float edgeMaxZ; uniform vec2 proj;\n' +
                 'float linz(vec2 uv){ float d = texture2D(tDepth, uv).x; return -perspectiveDepthToViewZ(d, camNear, camFar); }\n' +
+                // 🖊️ **깊이만으로 뷰공간 법선 복원** (MRT·G버퍼 없이). 뷰공간 평면 위에서 역깊이 q=1/z 는
+                //    시야평면 좌표 (u,v) 의 **1차식**이다: 평면 aX+bY+cZ=d 에 X=u·z, Y=v·z, Z=−z 를 넣으면
+                //    q = (a·u + b·v − c)/d. 따라서 (∂q/∂u, ∂q/∂v) 와 q 하나면 법선 방향이 그대로 나온다 —
+                //    n ∝ (q_u, q_v, −(q − u·q_u − v·q_v)). 기울어진 면도 정확히 상수 법선이 나오므로
+                //    지면·벽은 이웃과 dot=1 이 되어 **선이 안 생긴다**.
+                'vec3 pnrm(float q, float gu, float gv, vec2 uv){ return normalize(vec3(gu, gv, -(q - uv.x * gu - uv.y * gv))); }\n' +
                 // 🚨 알파 0 = **블룸 금지 태그**(영웅 흰자 등 ProChar.noBloom). 그 화소엔 블룸을
                 //    **더하지 않는다** — 이웃의 밝은 히트 플래시가 블러돼 검정 아웃라인 위로 번져도 물들지 않게.
                 'void main(){ vec4 sc = texture2D(tScene, vUv);\n' +
                 '  vec3 c = sc.rgb + texture2D(tBloom, vUv).rgb * strength * step(0.15, sc.a);\n' +
                 '  float d = distance(vUv, vec2(0.5, 0.5));\n' +
                 '  c *= 1.0 - smoothstep(0.58, 0.88, d) * vig;\n' + // 미세 비네트 — 시선을 중앙으로
-                // 🖊️ 깊이 경계 = **1px 균일 검정선**. 상하좌우 이웃(±1 텍셀)의 선형깊이와 비교해
-                //    최대 차이가 상대 임계를 넘으면 검정. 4-이웃이라 두께가 지오메트리와 무관하게 일정하다.
+                // 🖊️ ① 실루엣 — **비대칭 규칙**: "반경 R 이웃 중 나보다 유의하게 **먼** 화소가 있으면 나를 칠한다".
+                //    "이웃과 다르면 나를 칠한다"(대칭)가 아니므로 검정은 **항상 가까운 쪽 R 화소**에만 깔린다.
+                //    → 하늘 경계든 물체끼리 겹침이든 **같은 두께**. 두께는 오직 edgeR 이 정한다.
+                // 탭 = **반경 2 원반**(축 ±1·±2, 대각 ±1) 12개. 선 두께는 오직 이 반경이 정한다 → 2px.
+                // 탭거리로 나눠 '화소당 깊이 기울기'로 환산한다 — 안 나누면 기울어진 지면에서 반경 2 탭의
+                // 깊이차가 2배로 쌓여 지면이 검게 얼룩진다.
+                '  vec2 tx = vec2(texel.x, 0.0), ty = vec2(0.0, texel.y);\n' +
                 '  float z0 = linz(vUv);\n' +
-                '  float dz = max(max(abs(z0 - linz(vUv - vec2(texel.x, 0.0))), abs(z0 - linz(vUv + vec2(texel.x, 0.0)))),\n' +
-                '                  max(abs(z0 - linz(vUv - vec2(0.0, texel.y))), abs(z0 - linz(vUv + vec2(0.0, texel.y)))));\n' +
-                '  float edge = step(edgeK * z0, dz) * step(z0, edgeMaxZ);\n' +
+                '  float zl = linz(vUv - tx), zr = linz(vUv + tx), zd = linz(vUv - ty), zu = linz(vUv + ty);\n' +
+                '  float z2l = linz(vUv - 2.0 * tx), z2r = linz(vUv + 2.0 * tx);\n' +
+                '  float z2d = linz(vUv - 2.0 * ty), z2u = linz(vUv + 2.0 * ty);\n' +
+                '  float zdl = linz(vUv - tx - ty), zdr = linz(vUv + tx - ty);\n' +
+                '  float zul = linz(vUv - tx + ty), zur = linz(vUv + tx + ty);\n' +
+                // 같은 탭거리끼리 묶어 한 번만 나눈다(축1=1, 대각1=√2, 축2=2).
+                '  float f1 = max(max(zl, zr), max(zd, zu)) - z0;\n' +
+                '  float fd = (max(max(zdl, zdr), max(zul, zur)) - z0) * 0.70711;\n' +
+                '  float f2 = (max(max(z2l, z2r), max(z2d, z2u)) - z0) * 0.5;\n' +
+                '  float far = max(f1, max(fd, f2));\n' +
+                // 반대 방향(나보다 **가까운** 이웃의 최대 초과분) — ②③ 을 계단의 먼 쪽에서만 끄는 데 쓴다.
+                '  float n1 = z0 - min(min(zl, zr), min(zd, zu));\n' +
+                '  float nd = (z0 - min(min(zdl, zdr), min(zul, zur))) * 0.70711;\n' +
+                '  float n2 = (z0 - min(min(z2l, z2r), min(z2d, z2u))) * 0.5;\n' +
+                '  float nearv = max(n1, max(nd, n2));\n' +
+                '  float sil = step(edgeK * z0, far);\n' +
+                // 🖊️ ② 법선 불연속 — 위 12탭을 **그대로 재활용**해 중심과 상하좌우 이웃의 법선을 복원한다.
+                //    이웃 (1,0) 의 ∂q/∂u 는 탭 (2,0)·(0,0) 으로, ∂q/∂v 는 탭 (1,1)·(1,-1) 로 잡힌다 —
+                //    추가 텍스처 페치가 **0개**다. 축정렬 직육면체 파츠의 접힘은 전부 90° 라 확실히 걸린다.
+                '  float qc = 1.0 / z0, qL = 1.0 / zl, qR = 1.0 / zr, qD = 1.0 / zd, qU = 1.0 / zu;\n' +
+                '  float q2L = 1.0 / z2l, q2R = 1.0 / z2r, q2D = 1.0 / z2d, q2U = 1.0 / z2u;\n' +
+                '  float qDL = 1.0 / zdl, qDR = 1.0 / zdr, qUL = 1.0 / zul, qUR = 1.0 / zur;\n' +
+                '  vec2 uv0 = (vUv * 2.0 - 1.0) * proj;\n' +
+                '  vec2 duv = 2.0 * texel * proj;\n' +        // 화소 하나가 차지하는 (u,v) 폭
+                '  vec3 n0 = pnrm(qc, (qR - qL) / (2.0 * duv.x), (qU - qD) / (2.0 * duv.y), uv0);\n' +
+                '  vec3 nR = pnrm(qR, (q2R - qc) / (2.0 * duv.x), (qUR - qDR) / (2.0 * duv.y), uv0 + vec2(duv.x, 0.0));\n' +
+                '  vec3 nL = pnrm(qL, (qc - q2L) / (2.0 * duv.x), (qUL - qDL) / (2.0 * duv.y), uv0 - vec2(duv.x, 0.0));\n' +
+                '  vec3 nU = pnrm(qU, (qUR - qUL) / (2.0 * duv.x), (q2U - qc) / (2.0 * duv.y), uv0 + vec2(0.0, duv.y));\n' +
+                '  vec3 nD = pnrm(qD, (qDR - qDL) / (2.0 * duv.x), (qc - q2D) / (2.0 * duv.y), uv0 - vec2(0.0, duv.y));\n' +
+                '  float dmin = min(min(dot(n0, nL), dot(n0, nR)), min(dot(n0, nD), dot(n0, nU)));\n' +
+                // 🖊️ ③ 곡률 — 법선이 나란한 **작은 계단**(턱이 가슴 앞으로 살짝 나온 자리) 전용 보강항.
+                '  float cx = abs(qL + qR - 2.0 * qc), cy = abs(qD + qU - 2.0 * qc);\n' +
+                // 🚨 **큰 계단의 '먼 쪽'에서만 ②③을 끈다**(`1.0 - step(edgeK*z0, nearv)`). 큰 계단은 법선
+                //    복원도 곡률도 통째로 튀게 해서, 안 끄면 계단의 먼 쪽까지 칠한다 — ①이 애써 만든
+                //    '근측만' 비대칭이 무너져 두께가 2px→3px 로 부푼다(실측 2026-08-25: step 층 중앙 3px).
+                //    ⚠️ 억제를 `amax`(양방향)로 걸면 **계단 근처의 정상 접힘선까지 통째로 잘려** 2px 이어야
+                //    할 선이 1px 로 남는다(실측: 탈것 다리·몸통에 1px 세로선이 초록선 옆에 나란히 섰다).
+                //    그래서 '나보다 **가까운** 이웃이 있는가'(= 내가 계단의 먼 쪽인가)만 본다.
+                '  float crs = max(step(normalK, 1.0 - dmin), step(creaseK * qc, max(cx, cy)))\n' +
+                '            * (1.0 - step(edgeK * z0, nearv));\n' +
+                // 두 항 모두 **중심 화소의 깊이**로만 지평선 컷을 건다(두께와 무관한 순수 컷).
+                '  float edge = max(sil, crs) * step(z0, edgeMaxZ);\n' +
                 '  c = mix(c, vec3(0.0), edge);\n' +
                 '  gl_FragColor = vec4(c, 1.0); }',
             depthTest: false, depthWrite: false,
@@ -676,6 +755,10 @@ const Scene3D = {
         this._compMat.uniforms.tDepth.value = this._rtScene.depthTexture;
         this._compMat.uniforms.camNear.value = this.camera.near;
         this._compMat.uniforms.camFar.value = this.camera.far;
+        // 법선 복원용 시야평면 스케일 — 카메라 fov/aspect 가 리사이즈·연출로 바뀌므로 매 프레임 따라간다.
+        // (고정값으로 두면 세로 화면에서 법선이 기울어 접힘선이 한쪽 축에서만 나온다.)
+        const th = Math.tan(this.camera.fov * Math.PI / 360);
+        this._compMat.uniforms.proj.value.set(th * this.camera.aspect, th);
         const dbz = r.getDrawingBufferSize(this._dbTmp || (this._dbTmp = new THREE.Vector2()));
         this._compMat.uniforms.texel.value.set(1 / Math.max(1, dbz.x), 1 / Math.max(1, dbz.y));
         r.setRenderTarget(null); r.render(this._fsScene, this._fsCam);

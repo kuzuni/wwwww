@@ -81,11 +81,17 @@ const runOne = async (browser, label, ua) => {
             const prev = all.map(g => g.visible);
             all.forEach(g => { g.visible = false; });
             showFn();
-            const k = u.edgeK.value;
+            // 🚨 아웃라인은 **세 항**(실루엣 edgeK + 법선 불연속 normalK + 곡률 creaseK)의 합이다 —
+            //    셋 다 꺼야 'off' 프레임이 진짜 선 없는 그림이 된다. 하나라도 살려 두면 그 선이 on/off
+            //    양쪽에 똑같이 찍혀 **차분에서 지워지고** 마스크가 반쪽이 된다(실측 2026-08-25: normalK
+            //    를 빼먹었더니 엣지 화소 5353 → 1065, 하늘 경계 0 개). normalK 는 `1-dot` 이라 최대 2 다.
+            const KEYS = { edgeK: 1e9, creaseK: 1e9, normalK: 9.0 };
+            const saved = {};
+            for (const kk in KEYS) if (u[kk]) saved[kk] = u[kk].value;
             const on = grab();                       // 엣지 켠 프레임
-            u.edgeK.value = 1e9;                     // 임계 무한 = 엣지 0
+            for (const kk in KEYS) if (u[kk]) u[kk].value = KEYS[kk];
             const off = grab();
-            u.edgeK.value = k;
+            for (const kk in saved) u[kk].value = saved[kk];
             all.forEach((g, i) => { g.visible = prev[i]; });
             // 아웃라인 마스크 = 켠 쪽이 검정인데 끈 쪽은 아니었던 화소
             const mask = new Uint8Array(W * H);
